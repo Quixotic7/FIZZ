@@ -818,3 +818,22 @@ event timelines and the same screens.
     `qd_gfx.h`, after a one-day trial of both drawing screen 2 and screen 12.
 34. **Where the code lives**: in this repo (`FMToneSeq/`, beside the plan and the mock-ups) as FM1VST's submodule.
     *Recommend yes*; rename the repo when the name is chosen (question 1).
+
+### Phase 1 log
+
+**2026-10-18, P1.0 done** (FMToneSeq ea6f8bd; FM1VST branch `core-quadrille` b1a444b in the worktree
+`FM1VST/.claude/worktrees/quadrille`, from `ui-device-only`, core ABI 6):
+- The core: `core/glue` (the only code that knows the ABI), `core/app`, `core/ui` (`ui_idle.c`, the idle screen ported
+  from line.html's s1; `ui_kit.c`, line.html's helpers), `core/gfx` (`qd_gfx.h` on plutovg 1.3.3, vendored in
+  `third_party/`), Inter Tight at 200..700 made by `tools/make_fonts.py`. PLAY starts and stops the dance, SELECT and
+  KNOB 1 set the tempo, held keys and buttons light, PLAY's green LED blinks on the beat. A sine per held key stands in
+  for FM TONE until P1.1, because FM1VST's conformance test needs a key to sound.
+- FM1VST: one new file, `core-glue/quadrille/core.cmake`, building from the live FMToneSeq tree (`QUADRILLE_DIR`), and
+  the option `FM1_ONLY_CORES` (empty by default: every core) so the worktree builds only QUADRILLE.
+- Tests: `ctest -R 'quadrille|common'` 5 passed, 1 skipped (no parameter map); the conformance test passes with the
+  flash and reboot checks declared skipped. `make -C tools frames` renders headless frames; the idle frame matches
+  `mockups/png/line-01-idle.png` (mean difference 1.2 / 255, only anti-aliased edges).
+- **On the unit** (5BD75BE3 running RemoteFM1, the worktree's Standalone with Remote FM-1 on), the owner: "QUADRILLE
+  shows on the unit; PLAY and the knobs work."
+- Found on the way: `fm1remote` (RemoteFM1 `m1`) still speaks ABI 4 and does not build against ABI 6; until it is
+  ported, the Standalone is the way onto the unit.
