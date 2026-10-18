@@ -11,11 +11,25 @@
  * shift it -2..+2 octaves, the keys' velocity); MIDI notes on channels 1..8 play tracks 1..8. TRACKS (printed FX) held
  * + white key 1..8 selects a track; PRESETS steps the track's sound through INIT and the 16 factory sounds (the picker
  * takes the screen while it turns, and for a second after); KEYS (printed ARP) toggles the KEYS screen, HOME goes back
- * to the idle screen; MASTER is the volume; OCT- and OCT+ together: every voice faded out (a panic). */
+ * to the idle screen; MASTER is the volume; OCT- and OCT+ together: every voice faded out (a panic).
+ * P1.2: the sequencer (seq/: the project of 64 patterns, the demos A01..A03 built in; seq/player puts its events into
+ * the pool). It runs from the sample clock: each 32-frame audio block runs a block of the sequencer first. PLAY plays
+ * the current pattern (A02 at power-on) from its top and stops it (the notes released, their tails ring); the dancers
+ * follow the transport. PATTERN (printed SEL) held + white key 1..16: A01..A16, queued to the end of the master length,
+ * at the next 16th with FUNC (printed GLO) held, at once when stopped; the idle screen's pattern blinks while one is
+ * queued. TRACKS (printed FX) tapped: the tracks screen (line.html s3, the eight clocks); TRACKS again or HOME leaves.
+ * On it white keys 1..8 select a track and 9..16 mute / unmute tracks 1..8 (no notes); TRACKS held + white key 1..8
+ * selects anywhere. REC held: FILL (the FILL / NOT FILL conditions). MIDI clock in (24 PPQN, START / STOP / CONTINUE) drives the transport; MIDI notes keep playing
+ * tracks 1..8. LEDs: PLAY's green on the beat while playing; on the tracks screen white keys 1..8 flash as their tracks
+ * trigger (the selected one dim between), 9..16 lit for the tracks heard; PATTERN held: patterns with content dim, the
+ * playing one lit, the queued one blinking. */
 #pragma once
 #include <stdint.h>
 
 #include "../seq/model.h"
+#include "../seq/pattern.h"
+#include "../seq/player.h"
+#include "../seq/seq.h"
 #include "../voice/mix.h"
 #include "../voice/pool.h"
 
@@ -45,7 +59,9 @@ enum { QD_B_TRACKS, QD_B_PATTERN, QD_B_PAGE, QD_B_MUTE, QD_B_SOUND, QD_B_FUNC, Q
        QD_B_MIX, QD_B_PLAY, QD_B_REC, QD_B_OCTDN, QD_B_OCTUP, QD_NBTN };
 /* the knobs (detents), in the panel's role order */
 enum { QD_K_SELECT, QD_K_ALGO, QD_K_PRESETS, QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_NKNOB };
-enum { QD_SCR_IDLE, QD_SCR_KEYS };     /* the screen under the picker */
+enum { QD_SCR_IDLE, QD_SCR_KEYS, QD_SCR_TRACKS };   /* the screen under the picker */
+#define QD_PAT_START 1                 /* the pattern at power-on: A02 */
+#define QD_TRIG_LED_MS 80              /* the tracks screen: a track's white key lit this long from its trig */
 
 /* the LEDs as the app sees them: a level 0..255 per key, per button, and PLAY's green LED */
 #define QD_LED_OFF 0
@@ -63,9 +79,9 @@ typedef struct {
     uint32_t ms;                       /* the last tick's ms */
     int started;                       /* a tick has been seen */
     /* the transport */
-    int playing;
-    int bpm;
-    double beats;                      /* beats since PLAY (the tempo integrated: a change never jumps) */
+    int playing;                       /* (the sequencer's, as the dance last saw it) */
+    int bpm;                           /* the tempo now (the pattern's, or MIDI clock's) */
+    double beats;                      /* beats since PLAY: the sequencer's position */
     /* the idle screen's dance */
     float turn_base;                   /* whole quarter turns done before this play */
     float turn;                        /* the turn shown */
@@ -82,6 +98,11 @@ typedef struct {
     qd_model_t model;
     qd_pool_t pool;
     qd_mix_t mix;
+    /* the sequencer (P1.2) */
+    qd_project_t proj;
+    qd_seq_t seq;
+    qd_player_t player;
+    int tracks_tap;                    /* TRACKS went down alone: its release toggles the tracks screen */
     int sel;                           /* the selected track, 0..7 */
     int oct;                           /* the keybed's octave shift */
     int screen;                        /* QD_SCR_* */
@@ -100,7 +121,7 @@ void qd_app_key(qd_app_t *a, int key, int down, int vel);
 void qd_app_button(qd_app_t *a, int button, int down);
 void qd_app_knob(qd_app_t *a, int knob, int detents);
 void qd_app_master(qd_app_t *a, int pot);
-void qd_app_midi(qd_app_t *a, int status, int d1, int d2);
+void qd_app_midi(qd_app_t *a, int status, int d1, int d2);   /* status 0xF8 / FA / FB / FC: MIDI clock */
 /* the clock: ms counts up from 0, one call per device millisecond (a gap is run through ms by ms) */
 void qd_app_tick(qd_app_t *a, uint32_t ms);
 /* the screen: one frame drawn (qd_gfx), written as RGB565 big-endian (240 x 240) */

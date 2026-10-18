@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The model, its start (PLAN.md §2, §4): eight tracks, each with a name, its sound (an FM TONE patch, the factory
  * sound it came from, whether it has been edited since), its mix, its voice limit and reserve, and FM TONE's owner (its
- * FREE LFOs' phases, the tempo they run at). The sequencer (steps, patterns) is P1.2.
+ * FREE LFOs' phases, the tempo they run at). The sequencer's patterns are pattern.h (P1.2); a pattern's track settings
+ * carry their own limit and reserve, which the player gives the pool at each of its notes (the limit here is the
+ * keybed's until a pattern has played).
  *
  * Plain C structs with no allocation, so a track can be stored as it is (P1.5); the owner's two pointers are run-time
  * state and are set again by qd_model_bind after a load. Nothing here calls the OS. */

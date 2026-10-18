@@ -8,6 +8,12 @@
  *   tracks.wav        the 8 default tracks, each playing a short phrase (two bars at 122 BPM) alone, then all 8 together
  *                     (two bars), then the tails
  *   pool-stress.wav   32 notes at once across the 8 tracks (4 each) on the 16-voice pool, held 2 s, released
+ *   demo-A01.wav ..   the built-in demo patterns (seq/demo.c), each played from PLAY for 16 bars at its tempo, with
+ *   demo-A03.wav      the effects, then 2.5 s of tails; and demo.txt: the drums of A01 measured one by one (each step's
+ *                     sound lock and p-locks rendered alone on one voice: the attack, the decay to -20 and -40 dB, the
+ *                     spectral centroid over 0..30 and 30..100 ms, the pitch from zero crossings), the patterns'
+ *                     counters, and the host's CPU of the sequencer per block (its own work, then with the player
+ *                     starting the voices)
  *
  * and audio.txt: the pool's counters for each, the peaks, and the host's CPU for a 128-frame block (2902 us of
  * audio): 16 voices with the effects on (8 tracks x 2 notes, every send at 40), the same with WOBBLE (ChoralRoot's
@@ -170,6 +176,173 @@ static void cpu(FILE *log, const char *what, uint32_t blocks)
            100.0 * sum / blocks / 2902.0);
 }
 
+/* ---------------------------------------------------------------- the demos --- */
+static void press_key(int key)
+{
+    qd_app_key(&app, key, 1, 100);
+    qd_app_key(&app, key, 0, 0);
+}
+static const uint8_t WHITE_KEY[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
+
+/* demo k: PATTERN held + white key k + 1 (stopped: selected at once), PLAY, 16 bars, PLAY, the tails */
+static uint32_t play_demo(int k)
+{
+    uint32_t ms;
+    fresh();
+    run(50);
+    qd_app_button(&app, QD_B_PATTERN, 1);
+    press_key(WHITE_KEY[k]);
+    qd_app_button(&app, QD_B_PATTERN, 0);
+    run(50);
+    ms = (uint32_t)(16.0 * 4.0 * 60000.0 / app.bpm + 0.5);
+    qd_app_button(&app, QD_B_PLAY, 1);
+    qd_app_button(&app, QD_B_PLAY, 0);
+    run(ms);
+    qd_app_button(&app, QD_B_PLAY, 1);
+    qd_app_button(&app, QD_B_PLAY, 0);
+    run(2500);
+    return ms;
+}
+
+/* one drum: step s of A01's track 1, its sound lock and p-locks, alone on one voice (velocity of the step, a gate of
+ * the step's length at A01's tempo); measured as the drum lab did */
+static void drum_metrics(FILE *log, const qd_pattern_t *P, int s, const char *what)
+{
+    static qd_quad_voice_t V;
+    static qd_quad_owner_t O;
+    static int32_t x[44100 * 2];
+    const qd_step_t *st = qd_step(P, 0, s);
+    int16_t p[QD_QUAD_NP];
+    const qd_lock_t *lk;
+    int nl, k, b, n = 0, i, gate;
+    uint8_t notes[4];
+    qd_quad_preset_patch(st->sound ? st->sound - 1 : 13, p);
+    lk = qd_locks(P, 0, s, &nl);
+    for (k = 0; k < nl; k++)
+        if (lk[k].id < QD_QUAD_NP)
+            p[lk[k].id] = lk[k].value;
+    qd_step_notes(st, notes);
+    gate = (int)(qd_len_eighths(st->len) * 15.0 / P->bpm / 8.0 * 44100.0);
+    qd_quad_owner_init(&O);
+    O.quad_patch = p;
+    O.bpm = (int16_t)P->bpm;
+    qd_quad_voice_init(&V, 0);
+    qd_quad_voice_start(&V, p, &O, notes[0], st->vel);
+    memset(x, 0, sizeof x);
+    for (b = 0; b < 44100 * 2 / 32; b++) {
+        if (b * 32 >= gate)
+            qd_quad_voice_release(&V);
+        qd_quad_owner_block(&O);
+        if (!qd_quad_voice_render(&V, x + n) && b > 4)
+            break;
+        n += 32;
+    }
+    {
+        double peak = 0, env[2000], cen[2], zc[3];
+        int nw = n / 44, tp = 0, t20 = -1, t40 = -1, w;
+        static const int za[3] = {88, 1323, 3528}, zl[3] = {441, 882, 1764};
+        for (i = 0; i < nw && i < 2000; i++) {
+            double m = 0;
+            for (k = 0; k < 44; k++)
+                m = fabs((double)x[i * 44 + k]) > m ? fabs((double)x[i * 44 + k]) : m;
+            env[i] = m;
+            if (m > peak)
+                peak = m, tp = i;
+        }
+        for (i = tp; i < nw && i < 2000; i++) {
+            if (t20 < 0 && env[i] < peak * 0.1)
+                t20 = i;
+            if (t40 < 0 && env[i] < peak * 0.01)
+                t40 = i;
+        }
+        for (w = 0; w < 2; w++) {                       /* centroid: a DFT on a log-ish grid of bins */
+            const int a = w ? 1323 : 0, len = w ? 3087 : 1323;
+            double num = 0, den = 0;
+            int f;
+            for (f = 20; f < 16000; f += f < 400 ? 20 : f < 2000 ? 100 : 400) {
+                double re = 0, im = 0;
+                for (k = 0; k < len && a + k < n; k++) {
+                    const double win = 0.5 - 0.5 * cos(2 * 3.141592653589793 * k / len);
+                    re += x[a + k] * win * cos(2 * 3.141592653589793 * f * k / 44100.0);
+                    im += x[a + k] * win * sin(2 * 3.141592653589793 * f * k / 44100.0);
+                }
+                {
+                    const double mag = sqrt(re * re + im * im) * (f < 400 ? 20 : f < 2000 ? 100 : 400);
+                    num += f * mag, den += mag;
+                }
+            }
+            cen[w] = den > 0 ? num / den : 0;
+        }
+        for (w = 0; w < 3; w++) {                       /* the pitch from zero crossings at 2..12, 30..50, 80..120 ms */
+            int z = 0;
+            for (k = za[w] + 1; k < za[w] + zl[w] && k < n; k++)
+                z += (x[k - 1] < 0) != (x[k] < 0);
+            zc[w] = z * 0.5 * 44100.0 / zl[w];
+        }
+        fprintf(log, "  step %2d %-7s %-9s n%-3d v%-3d %2d locks: peak %5.0f at %2d ms, -20 dB %4d ms, -40 dB %4d ms; "
+                     "centroid %5.0f Hz (0-30 ms) %5.0f (30-100); pitch %5.0f %5.0f %5.0f Hz (2-12, 30-50, 80-120 ms)\n",
+                s + 1, what, qd_quad_preset_name(st->sound ? st->sound - 1 : 13), notes[0], st->vel, nl, peak, tp,
+                t20 - tp, t40 - tp, cen[0], cen[1], zc[0], zc[1], zc[2]);
+    }
+}
+
+static void null_out(void *ctx, const qd_seq_ev_t *e)
+{
+    (void)ctx;
+    (void)e;
+}
+
+/* the sequencer's own CPU over n blocks of pattern k: alone (a sink that does nothing), and with the player starting
+ * the voices in a pool (no rendering). The mean is the whole run's time over its blocks (the host clock's microsecond
+ * steps are too coarse for one block); the largest is one block's, timed alone */
+static void seq_cpu(FILE *log, int k, uint32_t blocks)
+{
+    static qd_seq_t S;
+    static qd_pool_t P;
+    static qd_player_t PL;
+    int pass, timed;
+    for (pass = 0; pass < 2; pass++) {
+        double mean = 0, worst = 0;
+        for (timed = 0; timed < 2; timed++) {
+            uint32_t b;
+            double t0 = now_us();
+            fresh();
+            qd_seq_init(&S, &app.proj, &app.model);
+            qd_seq_select(&S, k, 0);
+            qd_seq_play(&S);
+            qd_pool_init(&P, 16);
+            qd_player_init(&PL, &S, &P, &app.model);
+            t0 = now_us();
+            for (b = 0; b < blocks; b++) {
+                const double b0 = timed ? now_us() : 0;
+                if (pass)
+                    qd_player_block(&PL);
+                else
+                    qd_seq_block(&S, null_out, 0);
+                if (timed) {
+                    const double d = now_us() - b0;
+                    worst = d > worst ? d : worst;
+                }
+                if (pass) {                             /* (the voices end as if their release had run) */
+                    int i;
+                    for (i = 0; i < P.nvoice; i++)
+                        if (P.v[i].q.active && !P.v[i].q.gate)
+                            P.v[i].q.active = 0, P.v[i].pend = 0;
+                    qd_pool_block_begin(&P);
+                }
+            }
+            if (!timed)
+                mean = (now_us() - t0) / blocks;
+        }
+        fprintf(log, "  the sequencer, %s, %s: %.3f us a 32-sample block on average (the largest block %.0f us), %u "
+                     "steps resolved, %u notes\n", k == 0 ? "A01" : k == 1 ? "A02" : "A03",
+                pass ? "with the player starting the voices" : "alone", mean, worst, S.resolved, S.played);
+        printf("  sequencer %s %-38s %.3f us a 32-sample block on average (largest %.0f)\n",
+               k == 0 ? "A01" : k == 1 ? "A02" : "A03", pass ? "with the player starting the voices" : "alone", mean,
+               worst);
+    }
+}
+
 static void counters(FILE *log, const char *what)
 {
     const qd_pool_t *p = &app.pool;
@@ -249,6 +422,41 @@ int main(int argc, char **argv)
     if (!wav(argv[1], "pool-stress.wav"))
         return 1;
     counters(log, "pool-stress.wav (32 notes at once, 4 a track)");
+
+    /* the demos */
+    {
+        FILE *dl;
+        snprintf(path, sizeof path, "%s/demo.txt", argv[1]);
+        dl = fopen(path, "w");
+        if (!dl)
+            return 1;
+        fprintf(dl, "QUADRILLE P1.2, the demo patterns (seq/demo.c)\n\nA01's drums, each alone on one voice:\n");
+        {
+            static const char *const WHAT[16] = {"kick", "c-hat", "c-hat", "ghost", "snare", "c-hat", "kick", "o-hat",
+                                                 "c-hat", "ghost", "kick", "c-hat", "clap", "c-hat", "ghost", "o-hat"};
+            fresh();
+            for (k = 0; k < 16; k++)
+                if (qd_step_type(qd_step(&app.proj.pat[0], 0, k)))
+                    drum_metrics(dl, &app.proj.pat[0], k, WHAT[k]);
+        }
+        fprintf(dl, "\nthe renders (16 bars from PLAY, the effects on, then 2.5 s of tails):\n");
+        for (k = 0; k < 3; k++) {
+            char name[32];
+            const uint32_t ms = play_demo(k);
+            snprintf(name, sizeof name, "demo-A0%d.wav", k + 1);
+            if (!wav(argv[1], name))
+                return 1;
+            fprintf(dl, "  %s: %d BPM, %.1f s; %u steps resolved, %u notes played, the lock pool %d of 1024; pool: %u "
+                        "starts, %u struck again in place, steals %u own / %u across, %u dropped, %u legato; peak %d\n",
+                    name, app.bpm, ms / 1000.0, app.seq.resolved, app.seq.played, app.proj.pat[k].nlock,
+                    app.pool.starts, app.pool.restrikes, app.pool.steals_own, app.pool.steals_cross, app.pool.drops,
+                    app.pool.legatos, (int)peak);
+        }
+        fprintf(dl, "\nthe host's CPU of the sequencer (this Mac), 30 s of each pattern:\n");
+        for (k = 0; k < 3; k++)
+            seq_cpu(dl, k, 44100 * 30 / 32);
+        fclose(dl);
+    }
 
     /* the CPU */
     fprintf(log, "the host's CPU for a 128-frame block (2902 us of audio at 44.1 kHz):\n");

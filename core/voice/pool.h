@@ -18,7 +18,14 @@
  * rendered since its start) is restarted in place at once.
  *
  * The time is the control block: the caller runs qd_pool_block_begin, the owners' blocks, then qd_pool_render for every
- * voice, once each 32 samples; notes go in between blocks. Plain C, no OS, deterministic. */
+ * voice, once each 32 samples; notes go in between blocks. Plain C, no OS, deterministic.
+ *
+ * P1.2 (PLAN §5): a voice carries its own attributes from the trig (qd_vattr_t): the "own" mask (the patch values a
+ * sound lock or a p-lock made its own: a live edit of the track's sound passes them by) and its mix locks (pan, the
+ * sends, the level). qd_pool_write changes one value of a sounding voice (a LOCK step, a live edit); a change of the
+ * routing (ALGO, the filter TYPE, PHRT, an LFO's WAVE or TRIG) on a voice that sounds is THE DIP: the voice ramps to 0
+ * over its next block with the old value, the value lands, and the block after ramps back from 0 (1.5 ms; PLAN §5
+ * "Click risk", question 26). qd_pool_legato moves a voice to a new note (TIE on a MONO track). */
 #pragma once
 #include <stdint.h>
 
@@ -33,8 +40,22 @@ extern "C" {
 #define QD_POOL_NTRACK 8                /* tracks the limits and reserves are kept for */
 #define QD_POOL_LIMIT_MAX 16
 
+/* a voice's mix values that a lock can set (the lock ids QD_LK_PAN.. in seq/pattern.h, in this order) */
+enum { QD_VMIX_PAN, QD_VMIX_DELAY, QD_VMIX_REVERB, QD_VMIX_CHORUS, QD_VMIX_DRIVE, QD_VMIX_LEVEL, QD_VMIX_N };
+typedef struct {
+    uint32_t own[3];                    /* bit i of own[i >> 5]: patch value i is the voice's own */
+    uint8_t mixm;                       /* bit k: mix value k is locked (QD_VMIX_*) */
+    int16_t mixv[QD_VMIX_N];            /* pan -64..63, the sends, DRIVE (stored; no DRIVE yet), level 0..127 */
+} qd_vattr_t;
+#define QD_DIP_MAX 16                   /* routing changes that can wait for one dip */
+
 typedef struct {
     qd_quad_voice_t q;                  /* the FM TONE voice: its patch, its note, its state */
+    qd_vattr_t at;                      /* its own values and mix locks (PLAN §5) */
+    qd_vattr_t pend_at;                 /* .. those of the note waiting for this voice's fade */
+    uint8_t dip_n;                      /* routing changes waiting for this voice's dip (rendered next block) */
+    uint8_t dip_id[QD_DIP_MAX];
+    int16_t dip_v[QD_DIP_MAX];
     uint8_t track;                      /* the track of the note sounding (or fading out) */
     uint8_t pend;                       /* a note waits for this voice's fade; it starts at the next block */
     uint8_t pend_track;                 /* .. its track */
@@ -52,6 +73,8 @@ typedef struct {
     uint32_t clock;
     /* counters (tests, the budget meter) */
     uint32_t starts, restrikes, frees, steals_own, steals_cross, drops;   /* frees: notes that took a free voice */
+    uint32_t dips, writes, legatos;
+    int dip_on;                         /* 1 (the default): routing changes dip; 0: they land at once (tests) */
     qd_pool_voice_t v[QD_POOL_MAX];
 } qd_pool_t;
 
@@ -60,6 +83,18 @@ void qd_pool_set_track(qd_pool_t *p, int track, int limit, int reserve);
 /* a note on track (0..QD_POOL_NTRACK-1) with the sound patch (copied); returns the slot it took or will take, -1:
  * dropped */
 int qd_pool_note_on(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, int vel, const int16_t *patch);
+/* .. with the voice's own attributes (at 0: none) */
+int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, int vel, const int16_t *patch,
+                       const qd_vattr_t *at);
+/* patch value id (0..QD_QUAD_NP - 1) of voice i set to value (own: the bit is set as the voice's own). Returns 0
+ * nothing changed, 1 written, 2 a routing value of a sounding voice: it lands after the dip (next block). A voice
+ * waiting for its fade: its waiting note's patch */
+int qd_pool_write(qd_pool_t *p, int i, int id, int value, int own);
+int qd_pool_is_dip_id(int id);          /* ALGO, the filter TYPE, PHRT, an LFO's WAVE or TRIG */
+int qd_pool_owns(const qd_pool_t *p, int i, int id);   /* patch value id is voice i's own */
+void qd_pool_set_mix(qd_pool_t *p, int i, int k, int value);   /* mix value k (QD_VMIX_*) of voice i locked */
+/* voice i (sounding, its key down) moves to note legato (quad_voice.h qd_quad_voice_legato): 1 done, 0 not sounding */
+int qd_pool_legato(qd_pool_t *p, int i, int note, int vel);
 void qd_pool_note_off(qd_pool_t *p, int track, int note);   /* every voice of track holding note: released */
 void qd_pool_release_all(qd_pool_t *p, int track);         /* track < 0: every track */
 void qd_pool_kill_all(qd_pool_t *p);                        /* every voice faded out (a panic), no note waits */

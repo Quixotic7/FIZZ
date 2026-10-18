@@ -1,0 +1,26 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* The built-in demo patterns (P1.2), made through the editing API so they are what P1.3's UI would make:
+ *
+ *   A01  a beat on track 1 (DRUMS) alone: every drum is a sound lock with p-locks on its step (PLAN §5: a whole kit
+ *        on one track): a kick (INIT's sine, a pitch drop from an LFO, a click from operator A), a snare and a clap
+ *        (NOISE-ISH through a low-pass), closed and open hats (NOISE-ISH through its high-pass, short and long), ghost
+ *        snares (the snare quieter and darker). 16 steps at 100 BPM, swing 56 %
+ *   A02  A01's beat with BASS (mono, two TIEs), CHORDS on the KEYS track (EP, strummed, a micro-timed stab, a 1:2
+ *        and a NOT 1ST stab) and a LEAD (ratchets, chance), at mixed rates and lengths (16, 32, 16 at 1/2x, 24)
+ *   A03  polymeter on all eight tracks: 16, 12, 7 at 1/2x, 10 at 3/2x, 9 at 2x, 5 at 1/4x, 11 at 4/3x, 6 at 2/3x
+ *
+ * The drum sounds were designed by rendering and measuring (no ears yet; the owner tunes them): see demo.c. */
+#pragma once
+#include "pattern.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define QD_DEMO_N 3                     /* A01..A03 */
+void qd_demo_load(qd_project_t *pr);   /* patterns 0..2 written (the rest untouched) */
+void qd_demo_pattern(qd_pattern_t *p, int k);   /* demo k (0..2) into p */
+
+#ifdef __cplusplus
+}
+#endif

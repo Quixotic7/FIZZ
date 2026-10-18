@@ -83,6 +83,29 @@ typedef struct {
 } ui_picker_t;
 void ui_picker_draw(const ui_picker_t *v);
 
+/* ---- screen 3, TRACKS (line.html s3): eight clocks, each at its own length and rate */
+typedef struct {
+    const char *name;                   /* the track's role */
+    int len;                            /* its loop, 1..128 steps */
+    const char *rate;                   /* "1x", "1/2x", .. */
+    uint8_t trig[128];                  /* the trigs round the ring: 1 NOTE / TIE, 2 LOCK */
+    float pos;                          /* the hand: the play head as a step position, 0..len */
+    int flash_step;                     /* the step that played last (-1 none) .. */
+    float flash_age;                    /* .. how long ago, in the track's own steps (it glows under 1.2) */
+    int voices;                         /* the voices it sounds */
+    int mute;
+    int swing;                          /* swing on: the selected track's orange arc */
+} ui_track_clock_t;
+typedef struct {
+    ui_track_clock_t tr[8];
+    int sel;                            /* the selected track, 0..7 */
+    int playing;                        /* the hands are drawn while the transport runs */
+    int swing_amt;                      /* the pattern's swing, 50..80 */
+    int pool_used, pool_n;              /* the voice pool */
+    const char *pattern;                /* "A03" */
+} ui_tracks_t;
+void ui_tracks_draw(const ui_tracks_t *v);
+
 #ifdef __cplusplus
 }
 #endif

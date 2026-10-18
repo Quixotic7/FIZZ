@@ -15,6 +15,18 @@
  *               voices free, the effects off)
  *   panic       OCT- and OCT+ together: every voice gone within two blocks
  *   determinism the same session twice: the same samples
+ * P1.2, the sequencer on the unit's controls:
+ *   play        A02 at power-on (100 BPM); PLAY plays it (its voices start, the dancers turn, PLAY's green LED on the
+ *               beat), PLAY again stops: the sequencer's notes released, a held key's note not
+ *   patterns    PATTERN + white key 1 while playing: queued (the idle screen's name blinks: two frames differ), taken
+ *               at the end of A02's master length (32 sixteenths), not before; PATTERN + FUNC + white key 3: at the
+ *               next 16th; stopped: at once; PATTERN held: the LEDs (playing lit, queued blinking, content dim)
+ *   tracks      TRACKS tapped: the tracks screen (its LED lit), white key 9 mutes track 1 (its notes stop, key 9's LED
+ *               goes dark), white key 2 selects track 2 (no note), the trigs flash white keys 1..8; TRACKS again or
+ *               HOME leaves; TRACKS held + white key still selects
+ *   along       KEYS mode while playing: the keys play the selected track along
+ *   clock       MIDI START and 24 clocks a beat at 140 BPM: the transport runs at 140 (the dancers too), STOP stops
+ *   determinism a session with the sequencer (PLAY, a queued change, keys, MIDI clock) twice: the same samples
  *
  *     test_app      exit 1 on a failed check */
 #include <stdio.h>
@@ -289,6 +301,227 @@ static void t_panic(void)
     printf("  panic: OCT- and OCT+ together: every voice gone at once (faded over a block)\n");
 }
 
+/* ---------------------------------------------------------------- P1.2 --- */
+static const uint8_t WK[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};   /* white keys */
+static void tap_key(int key)
+{
+    qd_app_key(&A, key, 1, 100);
+    run(10, 0);
+    qd_app_key(&A, key, 0, 0);
+    run(10, 0);
+}
+static int seq_voices(void)              /* voices held (gate) on any track */
+{
+    int i, n = 0;
+    for (i = 0; i < A.pool.nvoice; i++)
+        n += qd_pool_sounding(&A.pool, i) && A.pool.v[i].q.gate;
+    return n;
+}
+static uint64_t frame_hash(void)
+{
+    static uint16_t lcd[QD_W * QD_H];
+    uint64_t h = 14695981039346656037ull;
+    int i;
+    qd_app_frame(&A, lcd);
+    for (i = 0; i < QD_W * QD_H; i++)
+        h = (h ^ lcd[i]) * 1099511628211ull;
+    return h;
+}
+
+static void t_play(void)
+{
+    qd_leds_t l;
+    uint32_t starts;
+    int green = 0, k;
+    fresh();
+    CHECK(A.seq.cur == 1 && A.bpm == 100 && !A.seq.playing, "power-on: A02 at 100 BPM, stopped");
+    tap_button(QD_B_PLAY);
+    starts = A.pool.starts;
+    for (k = 0; k < 1200; k++) {
+        run(1, 0);
+        qd_app_leds(&A, &l);
+        green += l.play_green != 0;
+    }
+    CHECK(A.seq.playing && A.playing && A.pool.starts > starts + 8 && peak_l > 1000, "PLAY: A02 plays (%u starts)",
+          A.pool.starts - starts);
+    CHECK(green > 100 && green < 300, "PLAY's green LED on the beat (%d of 1200 ms)", green);
+    CHECK(A.beats > 1.8 && A.beats < 2.2, "the transport moved 2 beats in 1.2 s at 100 BPM (%f)", A.beats);
+    qd_app_key(&A, 9, 1, 100);                          /* a key held across the stop */
+    run(5, 0);
+    tap_button(QD_B_PLAY);
+    run(5, 0);
+    CHECK(!A.seq.playing && seq_voices() == 1 && sounding(A.sel, 62), "PLAY again: the sequence's notes released, the "
+          "key's held (%d held)", seq_voices());
+    qd_app_key(&A, 9, 0, 0);
+    printf("  play: A02 at power-on, PLAY plays and stops, the beat LED, a held key outlives the stop\n");
+}
+
+static void t_patterns(void)
+{
+    qd_leds_t l;
+    uint64_t h0, h1;
+    uint32_t t0;
+    fresh();
+    tap_button(QD_B_PLAY);
+    run(500, 0);
+    qd_app_button(&A, QD_B_PATTERN, 1);
+    qd_app_key(&A, WK[0], 1, 100);                      /* A01 */
+    run(10, 0);
+    qd_app_leds(&A, &l);
+    CHECK(qd_seq_queued(&A.seq) == 0 && A.seq.cur == 1, "PATTERN + white key 1: A01 queued, A02 plays on");
+    CHECK(l.key[WK[1]] == QD_LED_LIT && l.key[WK[2]] == QD_LED_DIM && l.key[WK[4]] == QD_LED_OFF,
+          "PATTERN held: A02 lit, A03 dim (content), A05 off");
+    qd_app_key(&A, WK[0], 0, 0);
+    qd_app_button(&A, QD_B_PATTERN, 0);
+    h0 = frame_hash();
+    run(250, 0);
+    h1 = frame_hash();
+    CHECK(h0 != h1, "the idle screen's pattern blinks while one is queued");
+    t0 = now;                                           /* the change: 32 sixteenths at 100 BPM = 4800 ms from PLAY
+                                                         * (pressed at 0 ms: the transport starts at the next block) */
+    while (A.seq.cur == 1 && now < 10000)
+        run(1, 0);
+    CHECK(A.seq.cur == 0 && qd_seq_queued(&A.seq) < 0 && now >= 4800 && now <= 4810,
+          "A01 takes over at the end of A02's master length (at %u ms; PLAY at 0)", now);
+    (void)t0;
+    qd_app_button(&A, QD_B_PATTERN, 1);                 /* FUNC held: at the next 16th */
+    qd_app_button(&A, QD_B_FUNC, 1);
+    t0 = now;
+    qd_app_key(&A, WK[2], 1, 100);
+    qd_app_key(&A, WK[2], 0, 0);
+    qd_app_button(&A, QD_B_FUNC, 0);
+    qd_app_button(&A, QD_B_PATTERN, 0);
+    while (A.seq.cur != 2 && now < t0 + 1000)
+        run(1, 0);
+    CHECK(A.seq.cur == 2 && now - t0 <= 151, "PATTERN + FUNC + white key 3: A03 within a 16th (%u ms)", now - t0);
+    run(200, 0);
+    CHECK(A.bpm == 118, "A03's tempo (%d)", A.bpm);
+    tap_button(QD_B_PLAY);
+    qd_app_button(&A, QD_B_PATTERN, 1);                 /* stopped: at once */
+    tap_key(WK[1]);
+    qd_app_button(&A, QD_B_PATTERN, 0);
+    CHECK(A.seq.cur == 1 && qd_seq_queued(&A.seq) < 0 && A.bpm == 100, "stopped: A02 at once, its tempo");
+    qd_app_button(&A, QD_B_REC, 1);
+    CHECK(A.seq.fill, "REC held: FILL");
+    qd_app_button(&A, QD_B_REC, 0);
+    CHECK(!A.seq.fill, "REC released: no FILL");
+    printf("  patterns: queued to the end of the master length (the name blinks), FUNC: the next 16th, stopped: at "
+           "once; the LEDs\n");
+}
+
+static void t_tracks(void)
+{
+    qd_leds_t l;
+    int k, flashes = 0, n1 = 0;
+    uint32_t starts1 = 0;
+    fresh();
+    tap_button(QD_B_TRACKS);
+    CHECK(A.screen == QD_SCR_TRACKS, "TRACKS tapped: the tracks screen");
+    qd_app_leds(&A, &l);
+    CHECK(l.button[QD_B_TRACKS] == QD_LED_LIT && l.key[WK[8]] == QD_LED_LIT && l.key[WK[15]] == QD_LED_LIT,
+          "its LED lit, white keys 9..16 lit (every track heard)");
+    tap_button(QD_B_PLAY);
+    for (k = 0; k < 2000; k++) {                        /* the trigs flash white keys 1..8 */
+        run(1, 0);
+        qd_app_leds(&A, &l);
+        flashes += l.key[WK[1]] == QD_LED_LIT;          /* (track 2, the bass) */
+    }
+    CHECK(flashes > 100 && flashes < 1500, "track 2's white key flashes with its trigs (%d ms of 2000)", flashes);
+    tap_key(WK[8]);                                     /* white key 9: track 1 muted */
+    qd_app_leds(&A, &l);
+    CHECK((A.seq.mute & 1u) && l.key[WK[8]] == QD_LED_OFF && l.key[WK[9]] == QD_LED_LIT,
+          "white key 9: track 1 muted, its key dark");
+    for (k = 0; k < A.pool.nvoice; k++)
+        starts1 += A.pool.v[k].track == 0 && A.pool.v[k].q.active;
+    run(1000, 0);
+    for (k = 0; k < A.pool.nvoice; k++)
+        n1 += A.pool.v[k].track == 0 && qd_pool_sounding(&A.pool, k) && A.pool.v[k].q.gate;
+    CHECK(n1 == 0, "the muted track plays nothing (%d held)", n1);
+    tap_key(WK[8]);
+    CHECK(!(A.seq.mute & 1u), "white key 9 again: heard");
+    tap_key(WK[1]);
+    CHECK(A.sel == 1 && A.keys_struck == 0, "white key 2 on the tracks screen: track 2 selected, no note");
+    {
+        uint64_t h0 = frame_hash();
+        run(100, 0);
+        CHECK(h0 != frame_hash(), "the clocks turn");
+    }
+    tap_button(QD_B_TRACKS);
+    CHECK(A.screen == QD_SCR_IDLE, "TRACKS again: back");
+    tap_button(QD_B_TRACKS);
+    tap_button(QD_B_HOME);
+    CHECK(A.screen == QD_SCR_IDLE, "HOME leaves the tracks screen");
+    qd_app_button(&A, QD_B_TRACKS, 1);
+    tap_key(WK[3]);
+    qd_app_button(&A, QD_B_TRACKS, 0);
+    run(10, 0);
+    CHECK(A.sel == 3 && A.screen == QD_SCR_IDLE, "TRACKS held + white key 4: track 4, no screen change");
+    (void)starts1;
+    printf("  tracks: TRACKS tapped / again / HOME, mute 9..16, select 1..8, the trig LEDs, the clocks turn\n");
+}
+
+static void t_along(void)
+{
+    int k, peak_with = 0;
+    fresh();
+    tap_button(QD_B_KEYS);
+    tap_button(QD_B_PLAY);
+    run(300, 0);
+    qd_app_key(&A, 14, 1, 110);                         /* G4 on track 1 while A02 plays */
+    for (k = 0; k < 200; k++) {
+        run(1, 0);
+        peak_with |= sounding(0, 67 - 0);
+    }
+    CHECK(peak_with, "KEYS while playing: the key plays the selected track along");
+    qd_app_key(&A, 14, 0, 0);
+    printf("  along: in KEYS mode with the transport playing, the keys play along\n");
+}
+
+static void t_clock(void)
+{
+    int k;
+    fresh();
+    qd_app_midi(&A, 0xFA, 0, 0);                        /* START */
+    for (k = 0; k < 24 * 12; k++) {                     /* 12 beats at 140 BPM: a pulse every 17.857 ms */
+        const uint32_t at = 1000u + (uint32_t)(k * 60000.0 / 140.0 / 24.0 + 0.5);
+        if (now < at)
+            run(at - now, 0);
+        qd_app_midi(&A, 0xF8, 0, 0);
+    }
+    run(5, 0);
+    CHECK(A.seq.playing && A.seq.ext && A.playing && A.bpm == 140, "MIDI START + clock at 140: playing at %d BPM",
+          A.bpm);
+    CHECK(A.beats > 11.5 && A.beats < 12.5, "the transport followed: %.2f beats after 12 of the clock", A.beats);
+    qd_app_midi(&A, 0xFC, 0, 0);                        /* STOP */
+    run(5, 0);
+    CHECK(!A.seq.playing && !A.playing && seq_voices() == 0, "MIDI STOP: stopped, released");
+    printf("  clock: MIDI START and 24 PPQN at 140 BPM drive the transport and the dance; STOP stops\n");
+}
+
+static uint64_t session_seq(void)
+{
+    int k;
+    fresh();
+    tap_button(QD_B_PLAY);
+    run(700, 0);
+    qd_app_button(&A, QD_B_PATTERN, 1);
+    tap_key(WK[2]);
+    qd_app_button(&A, QD_B_PATTERN, 0);
+    tap_button(QD_B_KEYS);
+    qd_app_key(&A, 9, 1, 100);
+    run(4500, 0);
+    qd_app_key(&A, 9, 0, 0);
+    tap_button(QD_B_PLAY);
+    qd_app_midi(&A, 0xFA, 0, 0);
+    for (k = 0; k < 48; k++) {
+        qd_app_midi(&A, 0xF8, 0, 0);
+        run(21, 0);
+    }
+    qd_app_midi(&A, 0xFC, 0, 0);
+    run(1500, 0);
+    return hash;
+}
+
 static uint64_t session(void)
 {
     fresh();
@@ -322,6 +555,15 @@ int main(void)
     h2 = session();
     CHECK(h1 == h2, "two runs of one session differ");
     printf("  determinism: one session twice, the same samples (%016llx)\n", (unsigned long long)h1);
+    t_play();
+    t_patterns();
+    t_tracks();
+    t_along();
+    t_clock();
+    h1 = session_seq();
+    h2 = session_seq();
+    CHECK(h1 == h2, "two runs of the sequencer's session differ");
+    printf("  determinism: the sequencer's session twice, the same samples (%016llx)\n", (unsigned long long)h1);
     qd_shutdown();
     printf("test_app: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

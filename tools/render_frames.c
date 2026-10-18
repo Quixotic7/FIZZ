@@ -13,7 +13,14 @@
  * KEYS screen with the four notes held, also written as keys.png; 7400 the picker, also picker.png). A frame "at T" is
  * drawn at T exactly (the core draws every 15 ms; drawing is a pure function of the app's state, so an extra frame
  * changes nothing). The LEDs are also dumped at 550 ms (PLAY held) and 6350 (TRACKS held).
- * The app is driven directly (app.h), as the glue drives it; the ABI's own path is tested by FM1VST's ctests. */
+ * The app is driven directly (app.h), as the glue drives it; the ABI's own path is tested by FM1VST's ctests.
+ *
+ * Then P1.2's script, from a fresh app (the frames named): PATTERN held + white key 3 at 100 ms (stopped: A03 at once),
+ * TRACKS tapped at 300 (the tracks screen), PLAY at 500; tracks-1.png at 3200 and tracks-2.png at 5650 (A03 playing:
+ * the eight clocks at their own rates; leds-tracks.png with the second); white key 13 at 6000 (track 5 muted:
+ * tracks-3-muted.png at 6500); HOME at 7000; PATTERN held + white key 1 at 7200 (A01 queued to the end of A03's master
+ * length): idle-queued.png at 7600 (the name in its lit half of the blink) and idle-changed.png at 13500, after the
+ * change. Its LEDs go to leds.txt too. */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -259,6 +266,79 @@ int main(int argc, char **argv)
         }
     }
     fprintf(log, "the sound while key 0 was held (track 1, FM TONE): peak %d\n", peak);
+
+    /* ---- P1.2: the tracks screen while A03 plays, a pattern queued */
+    fprintf(log, "\nP1.2: PATTERN + white key 3 at 100 ms (A03), TRACKS tapped at 300, PLAY at 500, white key 13 at "
+                 "6000 (mute track 5), HOME at 7000, PATTERN + white key 1 at 7200 (A01 queued)\n");
+    qd_app_init(&app);
+    frames_done = 0;
+    last_frame = 0;
+    for (ms = 0; ms <= 14000; ms++) {
+        static const struct { uint32_t at; const char *name; } F[] = {
+            {3200, "tracks-1"}, {5650, "tracks-2"}, {6500, "tracks-3-muted"}, {7600, "idle-queued"},
+            {13500, "idle-changed"}};
+        if (ms == 100)
+            qd_app_button(&app, QD_B_PATTERN, 1);
+        if (ms == 120)
+            qd_app_key(&app, 4, 1, 100);                /* white key 3 */
+        if (ms == 140)
+            qd_app_key(&app, 4, 0, 0);
+        if (ms == 160)
+            qd_app_button(&app, QD_B_PATTERN, 0);
+        if (ms == 300)
+            qd_app_button(&app, QD_B_TRACKS, 1);
+        if (ms == 350)
+            qd_app_button(&app, QD_B_TRACKS, 0);
+        if (ms == 500)
+            qd_app_button(&app, QD_B_PLAY, 1);
+        if (ms == 550)
+            qd_app_button(&app, QD_B_PLAY, 0);
+        if (ms == 6000)
+            qd_app_key(&app, 21, 1, 100);               /* white key 13: track 5 muted */
+        if (ms == 6050)
+            qd_app_key(&app, 21, 0, 0);
+        if (ms == 7000)
+            qd_app_button(&app, QD_B_HOME, 1);
+        if (ms == 7050)
+            qd_app_button(&app, QD_B_HOME, 0);
+        if (ms == 7200)
+            qd_app_button(&app, QD_B_PATTERN, 1);
+        if (ms == 7220)
+            qd_app_key(&app, 0, 1, 100);                /* white key 1: A01, queued */
+        if (ms == 7240)
+            qd_app_key(&app, 0, 0, 0);
+        if (ms == 7260)
+            qd_app_button(&app, QD_B_PATTERN, 0);
+        qd_app_tick(&app, ms);
+        if (ms == 0 || ms - last_frame >= 15u) {
+            last_frame = ms;
+            qd_app_frame(&app, lcd);
+        }
+        while (frames_done + 128u <= (uint64_t)ms * QD_FS / 1000u) {
+            int16_t blk[256];
+            qd_app_audio(&app, blk, 128);
+            frames_done += 128u;
+        }
+        qd_app_leds(&app, &leds);
+        if (ms == 7230)
+            dump_leds(log, &leds, ms);                  /* (PATTERN held: A03 lit, A01 blinking, A02 dim) */
+        for (i = 0; i < (int)(sizeof F / sizeof F[0]); i++) {
+            char pn[4];
+            if (F[i].at != ms)
+                continue;
+            qd_app_frame(&app, lcd);
+            snprintf(path, sizeof path, "%s/%s.png", out, F[i].name);
+            failed |= !write_lcd_png(path, lcd);
+            printf("%s (%u ms: %s %s, queued %d)\n", path, (unsigned)ms, qd_pat_name(app.seq.cur, pn),
+                   app.playing ? "playing" : "stopped", qd_seq_queued(&app.seq));
+            dump_leds(log, &leds, ms);
+            if (ms == 5650) {
+                snprintf(path, sizeof path, "%s/leds-tracks.png", out);
+                failed |= !write_led_png(path, &leds, ms);
+                printf("%s\n", path);
+            }
+        }
+    }
     fclose(log);
     printf("%s/leds.txt (the LEDs at each frame time, the beat LED's edges to 2600 ms; key 0's peak %d)\n", out, peak);
     qd_shutdown();

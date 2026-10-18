@@ -1,13 +1,17 @@
 # QUADRILLE's tools. Objects go to tools/build/ (gitignored); outputs to core/tests/out/ (gitignored).
 #   make -C tools              render_frames, render_audio
 #   make -C tools frames       render_frames into core/tests/out/ (PNGs of the screens, the LEDs)
-#   make -C tools audio        render_audio into core/tests/out/ (presets.wav, tracks.wav, pool-stress.wav, the CPU)
-#   make -C tools test         the voice layer's tests (sanitized) and the bit-exact tests against ChoralRoot's tag
+#   make -C tools audio        render_audio into core/tests/out/ (presets.wav, tracks.wav, pool-stress.wav, the CPU, the
+#                              demo patterns: demo-A01..A03.wav and demo.txt)
+#   make -C tools test         the voice layer's and the sequencer's tests (sanitized) and the bit-exact tests against
+#                              ChoralRoot's tag; test_seq writes its timelines to core/tests/out/ and compares them
+#                              with core/tests/seq_goldens/ (build/test_seq ../core/tests/seq_goldens ../core/tests/out
+#                              --bless rewrites the goldens: only when a change of the timelines is meant)
 # render_frames and render_audio compile the core's own sources (app, ui, gfx, voice, seq) as C99 with warnings on,
 # and plutovg (vendored, C11, its warnings off) directly: no FM1VST needed.
 #
 # The tests: test_quad (ChoralRoot's cr_quad_test checks on the copied engine: -fsanitize=signed-integer-overflow, as
-# ChoralRoot builds it, and ASan), test_pool and test_app (ASan + UBSan; ChoralRoot's DSP shifts negative values left,
+# ChoralRoot builds it, and ASan), test_pool, test_seq and test_app (ASan + UBSan; ChoralRoot's DSP shifts negative values left,
 # as its firmware does on purpose: -fno-sanitize=shift-base). test_quad_bitexact and test_fx_bitexact compare the copies
 # with ChoralRoot's own code at CR_TAG, taken from the ChoralRoot checkout CR_REPO with `git archive` (nothing there
 # is checked out or changed) into tools/build/cr-<tag>, its generated headers made by the tag's own tools.
@@ -24,7 +28,9 @@ PY ?= python3
 VOICE_SRC := $(ROOT)/core/voice/quad/quad_voice.c $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/mix.c \
              $(ROOT)/core/voice/fx/qd_fx.c
 CORE_SRC := $(ROOT)/core/app/app.c $(ROOT)/core/ui/ui_kit.c $(ROOT)/core/ui/ui_idle.c $(ROOT)/core/ui/ui_keys.c \
-            $(ROOT)/core/ui/ui_picker.c $(ROOT)/core/gfx/qd_gfx_plutovg.c $(ROOT)/core/seq/model.c $(VOICE_SRC)
+            $(ROOT)/core/ui/ui_picker.c $(ROOT)/core/ui/ui_tracks.c $(ROOT)/core/gfx/qd_gfx_plutovg.c \
+            $(ROOT)/core/seq/model.c $(ROOT)/core/seq/pattern.c $(ROOT)/core/seq/seq.c $(ROOT)/core/seq/player.c \
+            $(ROOT)/core/seq/demo.c $(VOICE_SRC)
 PVG_SRC := $(wildcard $(PVG)/source/*.c)
 INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/seq -I$(ROOT)/core/voice \
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
@@ -79,6 +85,10 @@ $(B)/san/pvg-%.o: $(PVG)/source/%.c $(PVG)/include/plutovg.h
 $(B)/san/%.o: %.c $(HDRS) Makefile
 	@mkdir -p $(B)/san
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -c -o $@ $<
+SEQ_SRC := $(ROOT)/core/seq/pattern.c $(ROOT)/core/seq/seq.c $(ROOT)/core/seq/player.c $(ROOT)/core/seq/model.c \
+           $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/mix.c $(ROOT)/core/voice/quad/quad_voice.c
+$(B)/test_seq: $(T)/test_seq.c $(SEQ_SRC) $(HDRS)
+	$(CC) $(SAN) $(WARN) $(INC) -o $@ $(T)/test_seq.c $(SEQ_SRC) -lm
 $(B)/test_app: $(T)/test_app.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_app.c $(SAN_OBJ) -lm
 
@@ -104,10 +114,12 @@ $(B)/test_quad_bitexact: $(T)/test_quad_bitexact.c $(ROOT)/core/voice/quad/quad_
 $(B)/test_fx_bitexact: $(T)/test_fx_bitexact.c $(B)/cr_fx_ref.o $(HDRS)
 	$(CC) -O2 $(WARN) $(INC) -o $@ $(T)/test_fx_bitexact.c $(B)/cr_fx_ref.o -lm
 
-TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_app $(B)/test_quad_bitexact $(B)/test_fx_bitexact
+TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_quad_bitexact $(B)/test_fx_bitexact
 test: $(TESTS)
 	$(B)/test_quad $(T)/quad_goldens
 	$(B)/test_pool
+	mkdir -p $(OUT)
+	$(B)/test_seq $(T)/seq_goldens $(OUT)
 	$(B)/test_app
 	$(B)/test_quad_bitexact
 	$(B)/test_fx_bitexact

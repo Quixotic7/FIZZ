@@ -1,0 +1,30 @@
+# p13-tie: TIE on a MONO bass: legato (the gate held into it), with a lock; a NOTE after; a TIE with nothing held; out of INF; TIE on a POLY track
+# sample track kind note vel patch-hash own-mask mix-locks voice step hit [id=value]
+        0 T2 on     n36  v100 7d871d06 own=- mix=- vx0 s0 h0
+        0 T4 on     n72  v100 bd14e1f8 own=- mix=- vx1 s0 h0
+     3007 T4 off    n72  v0   - own=- mix=- vx-1 s0 h0
+     6014 T2 legato n43  v100 7d871d06 own=- mix=- vx0 s1 h0
+     6014 T4 on     n74  v100 bd14e1f8 own=- mix=- vx1 s1 h0
+     9021 T4 off    n74  v0   - own=- mix=- vx-1 s1 h0
+    12028 T2 legato n41  v120 eefe0fde own=34 mix=- vx0 s2 h0
+    18041 T2 off    n41  v0   - own=- mix=- vx-1 s2 h0
+    24055 T2 on     n38  v100 7d871d06 own=- mix=- vx0 s4 h0
+    25558 T2 off    n38  v0   - own=- mix=- vx-1 s4 h0
+    48110 T2 on     n40  v100 7d871d06 own=- mix=- vx0 s8 h0
+    51116 T2 off    n40  v0   - own=- mix=- vx-1 s8 h0
+    72164 T2 on     n36  v100 7d871d06 own=- mix=- vx0 s12 h0
+    84191 T2 legato n48  v100 7d871d06 own=- mix=- vx0 s14 h0
+    85695 T2 off    n48  v0   - own=- mix=- vx-1 s14 h0
+    96219 T2 on     n36  v100 7d871d06 own=- mix=- vx0 s0 h0
+    96219 T4 on     n72  v100 bd14e1f8 own=- mix=- vx1 s0 h0
+    99225 T4 off    n72  v0   - own=- mix=- vx-1 s0 h0
+   102232 T2 legato n43  v100 7d871d06 own=- mix=- vx0 s1 h0
+   102232 T4 on     n74  v100 bd14e1f8 own=- mix=- vx1 s1 h0
+   105239 T4 off    n74  v0   - own=- mix=- vx-1 s1 h0
+   108246 T2 legato n41  v120 eefe0fde own=34 mix=- vx0 s2 h0
+   114260 T2 off    n41  v0   - own=- mix=- vx-1 s2 h0
+   120273 T2 on     n38  v100 7d871d06 own=- mix=- vx0 s4 h0
+   121777 T2 off    n38  v0   - own=- mix=- vx-1 s4 h0
+   144328 T2 on     n40  v100 7d871d06 own=- mix=- vx0 s8 h0
+   147335 T2 off    n40  v0   - own=- mix=- vx-1 s8 h0
+   168382 T2 on     n36  v100 7d871d06 own=- mix=- vx0 s12 h0

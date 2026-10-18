@@ -1,0 +1,27 @@
+# p11-plocks: p-locks: FREQ and AMP DEC; a sound lock with HARM and LEVEL over it; the mix (pan, delay, reverb, chorus, level); ALGO and TYPE on a chord; an LFO
+# sample track kind note vel patch-hash own-mask mix-locks voice step hit [id=value]
+        0 T1 on     n48  v100 45a17343 own=34,43 mix=- vx0 s0 h0
+     5513 T1 off    n48  v0   - own=- mix=- vx-1 s0 h0
+    22050 T1 on     n48  v100 9ea92732 own=all mix=- vx0 s4 h0
+    27563 T1 off    n48  v0   - own=- mix=- vx-1 s4 h0
+    44100 T1 on     n55  v100 c3a86941 own=- mix=p-40,d60,r90,c30,l70 vx0 s8 h0
+    49613 T1 off    n55  v0   - own=- mix=- vx-1 s8 h0
+    66150 T1 on     n60  v100 d5b48ede own=0,34,36 mix=- vx0 s12 h0
+    66150 T1 on     n64  v100 d5b48ede own=0,34,36 mix=- vx1 s12 h0
+    71663 T1 off    n60  v0   - own=- mix=- vx-1 s12 h0
+    71663 T1 off    n64  v0   - own=- mix=- vx-1 s12 h0
+    77175 T1 on     n62  v100 c6dc3cc9 own=50,54 mix=- vx2 s14 h0
+    82687 T1 off    n62  v0   - own=- mix=- vx-1 s14 h0
+    88200 T1 on     n48  v100 45a17343 own=34,43 mix=- vx0 s0 h0
+    93713 T1 off    n48  v0   - own=- mix=- vx-1 s0 h0
+   110250 T1 on     n48  v100 9ea92732 own=all mix=- vx0 s4 h0
+   115763 T1 off    n48  v0   - own=- mix=- vx-1 s4 h0
+   132300 T1 on     n55  v100 c3a86941 own=- mix=p-40,d60,r90,c30,l70 vx0 s8 h0
+   137813 T1 off    n55  v0   - own=- mix=- vx-1 s8 h0
+   154350 T1 on     n60  v100 d5b48ede own=0,34,36 mix=- vx0 s12 h0
+   154350 T1 on     n64  v100 d5b48ede own=0,34,36 mix=- vx1 s12 h0
+   159863 T1 off    n60  v0   - own=- mix=- vx-1 s12 h0
+   159863 T1 off    n64  v0   - own=- mix=- vx-1 s12 h0
+   165375 T1 on     n62  v100 c6dc3cc9 own=50,54 mix=- vx2 s14 h0
+   170888 T1 off    n62  v0   - own=- mix=- vx-1 s14 h0
+   176400 T1 on     n48  v100 45a17343 own=34,43 mix=- vx0 s0 h0

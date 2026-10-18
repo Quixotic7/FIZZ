@@ -73,17 +73,24 @@ int qd_mix_block(qd_mix_t *m, qd_pool_t *pool, qd_quad_owner_t *const *owners, c
         nr++;
         tk = &tracks[pv->track];
         o = pv->q.owner;
-        lvl = LEVEL_Q12[tk->level & 127];
-        pan = tk->pan;
-        if (o && o->quad_pan_off)                       /* eng_quad.c quad_pan: the LFOs' PAN */
-            pan = clampi(pan + o->quad_pan_off, -64, 63);
-        gl = 4096 - (pan > 0 ? pan * 64 : 0);
-        gr = 4096 + (pan < 0 ? pan * 64 : 0);
-        c = tk->chorus * 258, d = tk->delay * 258, rv = tk->reverb * 258;
-        if (o && (o->quad_fx_off[1] | o->quad_fx_off[2] | o->quad_fx_off[3])) {   /* eng_quad.c quad_sends */
-            rv = clampi(tk->reverb + o->quad_fx_off[1], 0, 127) * 258;
-            d = clampi(tk->delay + o->quad_fx_off[2], 0, 127) * 258;
-            c = clampi(tk->chorus + o->quad_fx_off[3], 0, 127) * 258;
+        {   /* the track's mix, the voice's mix locks over it (PLAN §5: P1.2) */
+            const uint8_t mm = pv->at.mixm;
+            const int32_t tl = mm & (1u << QD_VMIX_LEVEL) ? pv->at.mixv[QD_VMIX_LEVEL] : tk->level;
+            const int32_t tc = mm & (1u << QD_VMIX_CHORUS) ? pv->at.mixv[QD_VMIX_CHORUS] : tk->chorus;
+            const int32_t td = mm & (1u << QD_VMIX_DELAY) ? pv->at.mixv[QD_VMIX_DELAY] : tk->delay;
+            const int32_t tr = mm & (1u << QD_VMIX_REVERB) ? pv->at.mixv[QD_VMIX_REVERB] : tk->reverb;
+            lvl = LEVEL_Q12[tl & 127];
+            pan = mm & (1u << QD_VMIX_PAN) ? pv->at.mixv[QD_VMIX_PAN] : tk->pan;
+            if (o && o->quad_pan_off)                   /* eng_quad.c quad_pan: the LFOs' PAN */
+                pan = clampi(pan + o->quad_pan_off, -64, 63);
+            gl = 4096 - (pan > 0 ? pan * 64 : 0);
+            gr = 4096 + (pan < 0 ? pan * 64 : 0);
+            c = tc * 258, d = td * 258, rv = tr * 258;
+            if (o && (o->quad_fx_off[1] | o->quad_fx_off[2] | o->quad_fx_off[3])) {   /* eng_quad.c quad_sends */
+                rv = clampi(tr + o->quad_fx_off[1], 0, 127) * 258;
+                d = clampi(td + o->quad_fx_off[2], 0, 127) * 258;
+                c = clampi(tc + o->quad_fx_off[3], 0, 127) * 258;
+            }
         }
         if (m->serial[i] != pv->serial) {               /* a fresh note in this slot: its sends from where they are */
             m->serial[i] = pv->serial;

@@ -1,0 +1,44 @@
+# p12-lockstep: LOCK (trigless) steps into a held chord: FREQ, AMP DEC; ALGO and TYPE (dips); an LFO's WAVE and TRIG (dips), PAN; the same ALGO (no dip); none sounding; PHRT
+# sample track kind note vel patch-hash own-mask mix-locks voice step hit [id=value]
+        0 T3 on     n60  v100 1e56c054 own=- mix=- vx0 s0 h0
+        0 T3 on     n64  v100 1e56c054 own=- mix=- vx1 s0 h0
+        0 T3 on     n67  v100 1e56c054 own=- mix=- vx2 s0 h0
+    11025 T3 lock   n60  v0   c0ddbf79 own=34,36,43 mix=- vx0 s2 h0
+    11025 T3 lock   n64  v0   c0ddbf79 own=34,36,43 mix=- vx1 s2 h0
+    11025 T3 lock   n67  v0   c0ddbf79 own=34,36,43 mix=- vx2 s2 h0
+    22050 T3 dip    n60  v0   6280e854 own=0,34,36,43 mix=- vx0 s4 h0 0=7
+    22050 T3 dip    n60  v0   5dcbb837 own=0,34,36,43 mix=- vx0 s4 h0 36=2
+    22050 T3 lock   n60  v0   5dcbb837 own=0,34,36,43 mix=- vx0 s4 h0
+    22050 T3 dip    n64  v0   6280e854 own=0,34,36,43 mix=- vx1 s4 h0 0=7
+    22050 T3 dip    n64  v0   5dcbb837 own=0,34,36,43 mix=- vx1 s4 h0 36=2
+    22050 T3 lock   n64  v0   5dcbb837 own=0,34,36,43 mix=- vx1 s4 h0
+    22050 T3 dip    n67  v0   6280e854 own=0,34,36,43 mix=- vx2 s4 h0 0=7
+    22050 T3 dip    n67  v0   5dcbb837 own=0,34,36,43 mix=- vx2 s4 h0 36=2
+    22050 T3 lock   n67  v0   5dcbb837 own=0,34,36,43 mix=- vx2 s4 h0
+    27563 T3 dip    n60  v0   55a00654 own=0,34,36,43,59 mix=- vx0 s5 h0 59=3
+    27563 T3 dip    n60  v0   e35cca9d own=0,34,36,43,59,61 mix=- vx0 s5 h0 61=1
+    27563 T3 lock   n60  v0   e35cca9d own=0,34,36,43,59,61 mix=p30 vx0 s5 h0
+    27563 T3 dip    n64  v0   55a00654 own=0,34,36,43,59 mix=- vx1 s5 h0 59=3
+    27563 T3 dip    n64  v0   e35cca9d own=0,34,36,43,59,61 mix=- vx1 s5 h0 61=1
+    27563 T3 lock   n64  v0   e35cca9d own=0,34,36,43,59,61 mix=p30 vx1 s5 h0
+    27563 T3 dip    n67  v0   55a00654 own=0,34,36,43,59 mix=- vx2 s5 h0 59=3
+    27563 T3 dip    n67  v0   e35cca9d own=0,34,36,43,59,61 mix=- vx2 s5 h0 61=1
+    27563 T3 lock   n67  v0   e35cca9d own=0,34,36,43,59,61 mix=p30 vx2 s5 h0
+    33075 T3 lock   n60  v0   e35cca9d own=0,34,36,43,59,61 mix=p30 vx0 s6 h0
+    33075 T3 lock   n64  v0   e35cca9d own=0,34,36,43,59,61 mix=p30 vx1 s6 h0
+    33075 T3 lock   n67  v0   e35cca9d own=0,34,36,43,59,61 mix=p30 vx2 s6 h0
+    44100 T3 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    44100 T3 off    n64  v0   - own=- mix=- vx-1 s0 h0
+    44100 T3 off    n67  v0   - own=- mix=- vx-1 s0 h0
+    77175 T3 lock   n0   v0   - own=- mix=- vx-1 s14 h0
+    88200 T3 on     n62  v100 1e56c054 own=- mix=- vx0 s16 h0
+    88200 T3 on     n65  v100 1e56c054 own=- mix=- vx1 s16 h0
+    99225 T3 dip    n62  v0   185563c9 own=23 mix=- vx0 s18 h0 23=0
+    99225 T3 lock   n62  v0   185563c9 own=23 mix=- vx0 s18 h0
+    99225 T3 dip    n65  v0   185563c9 own=23 mix=- vx1 s18 h0 23=0
+    99225 T3 lock   n65  v0   185563c9 own=23 mix=- vx1 s18 h0
+   121275 T3 off    n62  v0   - own=- mix=- vx-1 s16 h0
+   121275 T3 off    n65  v0   - own=- mix=- vx-1 s16 h0
+   176400 T3 on     n60  v100 1e56c054 own=- mix=- vx0 s0 h0
+   176400 T3 on     n64  v100 1e56c054 own=- mix=- vx1 s0 h0
+   176400 T3 on     n67  v100 1e56c054 own=- mix=- vx2 s0 h0

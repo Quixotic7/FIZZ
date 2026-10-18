@@ -6,11 +6,13 @@
  * In: at the top of tick, frame and idle the panel's keys and buttons become press / release events (a tap: a press
  * now, its release at the next call), the encoders' detents knob events by role (fm1p_take_role), the MASTER pot (0..1023;
  * 0 at init: the app's default until it moves), all into the app; midi_in's USB-MIDI packets (cable 0: CIN | status << 8
- * | d1 << 16 | d2 << 24) as channel messages into the app at once.
+ * | d1 << 16 | d2 << 24) as channel messages into the app at once, and the real-time bytes (CIN 15: the clock,
+ * START, CONTINUE, STOP: the sequencer follows them).
  * Time: tick(ms) is the app's clock (simulated: nothing here reads the host's clock).
  * Out: frame draws the screen (every frame, 15 ms) and copies it to the panel's LCD when it changed; init, frame and
  * idle write the LEDs: the app's levels per key and button placed through the FM-1's keymap, PLAY's green LED at its
- * own position. audio: the app's sound (P1.1: FM TONE through the voice pool and ChoralRoot's effects). The flash: the
+ * own position. audio: the app's sound (P1.1: FM TONE through the voice pool and ChoralRoot's effects; P1.2: the
+ * sequencer runs from this sample clock, a block of 32 frames at a time). The flash: the
  * common NOR image, untouched (nothing is saved before P1.5). */
 #include <stdio.h>
 #include <string.h>
@@ -161,6 +163,8 @@ int fm1core_qd_midi_in(uint32_t pkt)
     const uint32_t cin = pkt & 15u;
     if (fm1core_qd_up && cin >= 8u && cin <= 14u)             /* a channel message (note off .. pitch bend) */
         qd_app_midi(&fm1core_qd_app, (int)((pkt >> 8) & 0xFFu), (int)((pkt >> 16) & 0x7Fu), (int)((pkt >> 24) & 0x7Fu));
+    else if (fm1core_qd_up && cin == 15u && ((pkt >> 8) & 0xFFu) >= 0xF8u)   /* real time: the clock, START .. */
+        qd_app_midi(&fm1core_qd_app, (int)((pkt >> 8) & 0xFFu), 0, 0);
     return 1;
 }
 int fm1core_qd_midi_out_take(uint32_t *pkt)
@@ -178,9 +182,12 @@ void fm1core_qd_stats(uint32_t *shed, uint32_t *cpu_pct)
 }
 void fm1core_qd_ui_info(char *buf, uint32_t n)
 {
+    char pat[4];
     if (buf && n)
-        snprintf(buf, n, "%s: %s, %d BPM, track %d %s (%s), oct %d, voices %d/%d, keys %07x buttons %04x",
-                 fm1core_qd_app.screen ? "keys" : "idle", fm1core_qd_app.playing ? "playing" : "stopped",
+        snprintf(buf, n, "%s: %s %s, %d BPM, track %d %s (%s), oct %d, voices %d/%d, keys %07x buttons %04x",
+                 fm1core_qd_app.screen == QD_SCR_KEYS ? "keys" : fm1core_qd_app.screen == QD_SCR_TRACKS ? "tracks"
+                                                                                                      : "idle",
+                 qd_pat_name(fm1core_qd_app.seq.cur, pat), fm1core_qd_app.playing ? "playing" : "stopped",
                  fm1core_qd_app.bpm, fm1core_qd_app.sel + 1, fm1core_qd_app.model.t[fm1core_qd_app.sel].name,
                  qd_track_sound_name(&fm1core_qd_app.model.t[fm1core_qd_app.sel]), fm1core_qd_app.oct,
                  qd_pool_in_use(&fm1core_qd_app.pool), fm1core_qd_app.pool.nvoice, (unsigned)fm1core_qd_app.keys_held,
