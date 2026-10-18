@@ -1,7 +1,8 @@
 # FMToneSeq: a step sequencer for the FM TONE engine on the M-VAVE FM-1 (plan, 2026-10-17)
 
 **Status: a plan and mock-ups. Nothing is built.** No firmware code, no device access, no remote. The folder name is a
-placeholder (names in §0).
+placeholder (names in §0). **How it gets built (2026-10-18): Phase 1 is a prototype on the computer with the real
+FM-1 as its panel through RemoteFM1; Phase 2 makes it firmware (§13).**
 
 The owner's brief: "I want a firmware based on the new transit one that brings in just the FM-tone engine. The whole
 firmware focus is going to be on step sequencing this engine. We can have 4 to 8 tracks that all use this engine, the
@@ -33,6 +34,7 @@ screens, §9a). Open questions in §10, the build plan in §11.
 | Pattern | 8 tracks x up to 128 steps (8 pages of 16), per-track rate, length, swing on/off; 16.3 KB in RAM, about 2 KB typical in flash | §6, §7 |
 | Saving | never an erase while anything sounds: page programs only (each under one audio half) into sectors erased ahead when the unit is quiet | §7 |
 | "Hold a step and use the top row" | **the black keys** (the keybed's top row): 11 fields while a step is held | §8 |
+| Development | **Phase 1** on the Mac: an `.fm1core` with no firmware limits, the unit as its panel through RemoteFM1 (FM1VST's Standalone or `fm1remote`); **Phase 2** the firmware, once the design has settled | §13 |
 | The look | **LINE**: black, thin round-ended lines, one drawing a screen, **colour = the knob that turns it** (KNOB 1 blue, 2 green, 3 white, 4 orange), red only for the playhead and recording | §9a |
 
 ## 1. The base
@@ -674,9 +676,9 @@ screens in spirit; nothing is copied from them, and the device never names the O
     font tables for 0.1* (the toolchain exists), a stroke font later if flash runs short.
 29. **The black-key strip** at the foot of a held step's screens (LINE rule 5)? *Recommend yes*: it is the only place
     the eleven fields are shown, since the printed black-key labels are not used.
-## 11. The build plan (in order; nothing built)
+## 11. The firmware build plan (Phase 2, in order; nothing built)
 
-Each step ends with its test passing; device steps are the owner's (only the orchestrator flashes).
+This is Phase 2 (§13): the device. Steps 3, 4, 5 and 9 start from Phase 1's code instead of from nothing. Each step ends with its test passing; device steps are the owner's (only the orchestrator flashes).
 
 | # | step | what it proves | its test |
 | --- | --- | --- | --- |
@@ -703,3 +705,116 @@ Each step ends with its test passing; device steps are the owner's (only the orc
 - **ALGO and TYPE switches on a sounding voice** are rare (a LOCK step, a live turn) and the dip is new: to be heard.
 - **Sixteen voices of one engine** make the shed's choice simpler (all weigh the same) but a shed is a voice dropping
   out; the allocator should never need it in normal patterns.
+
+## 13. How it gets built: Phase 1 on the computer, Phase 2 the firmware
+
+The owner (2026-10-18): build a version that runs on the computer and uses RemoteFM1 for the panel's input, LEDs and
+screen. "We can go fast locally with no real firmware constraints and be able to quickly prototype, iterate, do large
+changes and reorgs without ever having to make this work as a real firmware. Then once happy with it, Phase 2 would be
+taking that and making it work as real firmware."
+
+### What already exists (read 2026-10-18)
+
+- **RemoteFM1** (`../RemoteFM1`, branch `m1`): the FM-1 as a USB panel. Keys, buttons, encoders and MASTER go up as
+  MIDI; the host sends the LEDs (five levels) and the screen as tiles (FILL / PAL / RLE / RAW / COPY) into a shadow
+  frame buffer. Measured on 5BD75BE3: bulk 830 KB/s and SysEx 375 KB/s to the unit, 20 fps sent, a UI frame 0.4 to
+  2 KB. **M1 is done on the unit**: the owner played ChoralRoot through it ("Screen is good, input good").
+- **`fm1remote`** (`RemoteFM1/host`): runs any `.fm1core` on the Mac, audio out of the Mac, the unit as its panel.
+- **FM1VST** (`../FM1VST`): the core ABI (`core-api/fm1core.h`, ABI 5: `init`, `tick(ms)`, `frame`, `audio`, `midi_in`,
+  a panel struct with keys, buttons, encoders, velocity, LEDs and the 240 x 240 LCD), cores for ChoralRoot, Felucca and
+  Melodee, a conformance test every core passes, headless script and replay tests, and the plugin and Standalone with
+  an on-screen panel. **Its "Remote FM-1" switch (branch `remote-fm1`) works on the unit** ("Everything works").
+- Not built yet: RemoteFM1's browser back end (its M4: Web MIDI, WebUSB, the core in an AudioWorklet).
+
+### Recommendation: Phase 1 is an `.fm1core`, run on the Mac
+
+QUADRILLE's prototype is a core like ChoralRoot's: the same ABI, but built only for the computer, with none of the
+device's limits. It then runs today, with nothing new to build around it:
+
+| where it runs | what for |
+| --- | --- |
+| FM1VST Standalone, **Remote FM-1 on** | everyday playing and testing on the real unit: its keys, knobs, LEDs and screen, the sound from the Mac |
+| FM1VST Standalone, on-screen panel | working without the unit (an agent, or the owner away from it) |
+| `fm1remote --core quadrille --device` | the shortest loop, with `--stats` for the screen's bytes per frame |
+| FM1VST's headless script runner | the tests: key presses in, LCD frames and audio out, compared against goldens and the mock-ups |
+| FM1VST in Live | the sequencer against a DAW's MIDI clock |
+| the browser, later | after RemoteFM1's M4 (its browser back end) and a WASM build of the core, as ChoralRoot's web emulator is built |
+
+**Why a core and not a browser app written from scratch:** the whole chain from the unit to the core exists and has
+been played on; a browser app would first need RemoteFM1's M4 and its own audio, panel and test harness. And Phase 2
+stays short: the sequencer, the voices and the engine are already C, and the core ABI is the device's own shape
+(a 1 ms tick, 128-frame audio blocks, a panel). What is fast in a browser (live reload, canvas drawing) Phase 1 gets
+another way: a rebuild of the core takes seconds and a restart of `fm1remote` or the Standalone picks it up (a reload
+button in FM1VST is a small addition), and the screens draw with a canvas-like library (below).
+
+### No firmware limits in Phase 1, by design
+
+- **C99 with floats, `malloc` and big tables allowed.** No RAM, POOL, flash or CPU budget is enforced. Fixed sizes that
+  are part of the design (8 tracks, 128 steps a track, 4 notes a step, 16 voices) are constants that can change.
+- **The engine is ChoralRoot's FM TONE** (`eng_quad.c`, copied with its history noted, the per-voice patch of §5 added),
+  its effects (chorus, delay, reverb, the output chain) likewise. So what the prototype plays is what the unit will
+  play. The voice count is a setting (16 to start; more for experiments).
+- **The screen draws through one small drawing interface** (`qd_gfx.h`: line, polyline, circle, arc, ellipse, rounded
+  rectangle, fill, text at a size and weight, a clip, an alpha), built in Phase 1 on an anti-aliased vector library
+  (candidates: plutovg, MIT, C; canvas_ity, ISC, C++ with the HTML canvas's own calls), drawing into the panel's
+  RGB565 LCD. line.html's drawings move across almost call for call. Text: Inter Tight through stb_truetype at any
+  size and weight.
+- **Saving is a file on the Mac** (the project as one versioned binary or JSON file in the core's folder), not the
+  flash store of §7.
+- **A budget meter instead of limits**: a hidden page (and `fm1remote --stats`) shows what the design would cost on
+  the device: voices in use against 16, the estimated core-0 time from §3's per-voice costs, the lock pool against
+  1024, the pattern's bytes as §7 would store it, the screen's bytes per frame over RemoteFM1. Nothing is refused; a
+  design that would not fit is seen early.
+
+### Seams kept clean for Phase 2
+
+The prototype is built in layers, so Phase 2 replaces the bottom of each and keeps the rest:
+
+| layer | Phase 1 | Phase 2 |
+| --- | --- | --- |
+| `seq/` the model and the sequencer: patterns, tracks, steps, locks, conditions, timing, trigs resolved ahead | plain C, deterministic, sample-accurate, tested headless | the same code; `malloc` → static pools |
+| `voice/` the pool, the steal, the per-voice patch; FM TONE; the effects | ChoralRoot's C, floats where it has them | the same code; split across the two cores (§3) |
+| `ui/` screens, gestures, the knob takeover, LEDs | C over `qd_gfx.h` | the same code |
+| `qd_gfx` | the vector library | the device's own AA primitives (§9a "What LINE asks of the firmware") |
+| `store/` | a file | the floating page store (§7) |
+| `glue/` | the core ABI (FM1VST's `core-glue/` pattern) | TransitFM1's platform (the HAL, the boot stub, the update path) |
+
+The one rule that keeps Phase 2 honest: **nothing in `seq/`, `voice/` or `ui/` calls the operating system** (no
+files, threads, clocks or printing); all of that goes through `glue/`, as a firmware's would.
+
+### Phase 1 milestones
+
+| # | milestone | done when |
+| --- | --- | --- |
+| P1.0 | **The empty core**: QUADRILLE loads in FM1VST and `fm1remote`, passes the core conformance test, draws the LINE idle screen through `qd_gfx`, keys light their LEDs | the owner sees the quadrille dance on the unit's screen through Remote FM-1 |
+| P1.1 | **The sound**: FM TONE with a patch per voice, the voice pool, the effects; KEYS mode plays the selected track with velocity | the 16 presets sound as on ChoralRoot (its goldens, one voice per patch) |
+| P1.2 | **The sequencer, headless first**: steps, rates, lengths, swing, micro-timing, strum, ratchets, conditions, chance, sound locks, p-locks, trigless steps; MIDI clock in | golden event timelines for a dozen patterns (§11 step 5's tests, moved here) |
+| P1.3 | **The step view and the held step**: the white keys as steps, the black keys as the fields, every field screen of §9a, the knob takeover, the LEDs of §8 | scripted presses produce the mock-ups' screens; the owner programs a beat on the unit |
+| P1.4 | **Sound and pattern work**: the sound editor with p-locks, tracks, patterns and chains, mute, mix, the effects screens | a whole demo song made on the unit |
+| P1.5 | **Keep it**: save and load the project, copy / paste / clear, undo, the budget meter | the owner uses it for a session without losing work |
+| P1.6 | **Settle**: the owner's changes, as many rounds as it takes; then PLAN.md is rewritten from what the prototype is | the owner says the design is right |
+
+Agents write the code from briefs (the ChoralRoot rule); the core is built through FM1VST's `fm1_add_core`
+(QUADRILLE as a submodule under `cores/`, its glue in `core-glue/quadrille/`), with no change to FM1VST's other
+cores. Phase 1 never flashes anything: the unit runs RemoteFM1 throughout.
+
+### Phase 2
+
+§11's steps, on TransitFM1's chassis as planned (with the XIP re-stage fix RemoteFM1 found: its
+`handoff/TRANSITFM1-FIXES.md`), now
+starting from Phase 1's `seq/`, `voice/` and `ui/` and its tests. What is new work there: the device's `qd_gfx`, the
+two-core voice split, `quad_render` in RAM, the flash store, `malloc` replaced by pools, and whatever the budget meter
+said would not fit. The headless tests of Phase 1 stay the acceptance tests: the device build must produce the same
+event timelines and the same screens.
+
+### Questions for Phase 1
+
+31. **A core run on the Mac or a browser app first?** **Decided 2026-10-18: the core on the Mac** (the owner: "Ok, lets
+    go with mac core then"). Everything around it works today, and it can be tested headless; the browser can follow
+    from RemoteFM1's M4.
+32. **C99 for the prototype (recommended) or C++?** *Recommend C99*: the code moves to the device as it is; C++ would be
+    quicker to write only for the drawing, which the library covers.
+33. **The drawing library**: plutovg (C) or canvas_ity (C++, the canvas's API)? *Recommend plutovg*, behind
+    `qd_gfx.h`, after a one-day trial of both drawing screen 2 and screen 12.
+34. **Where the code lives**: in this repo (`FMToneSeq/`, beside the plan and the mock-ups) as FM1VST's submodule.
+    *Recommend yes*; rename the repo when the name is chosen (question 1).
