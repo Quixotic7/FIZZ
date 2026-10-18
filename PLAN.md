@@ -837,3 +837,19 @@ event timelines and the same screens.
   shows on the unit; PLAY and the knobs work."
 - Found on the way: `fm1remote` (RemoteFM1 `m1`) still speaks ABI 4 and does not build against ABI 6; until it is
   ported, the Standalone is the way onto the unit.
+
+**2026-10-18, P1.1 built** (FMToneSeq 0d0e334; FM1VST `core-quadrille` 4084c06; version 0.0.2-p1.1):
+- FM TONE lifted out of ChoralRoot v0.25.1 into `core/voice/quad/` with a patch per voice and the per-part state
+  (FREE LFO phases, tempo) moved into a per-track owner; every change marked "QUADRILLE" in the copied code.
+  **Bit-exact**: INIT + the 16 presets x 10 scenarios, 8,622,880 samples identical to ChoralRoot's own engine built
+  from the tag. ChoralRoot's FM TONE checks ported: 26,570 pass (ASan, signed-overflow sanitizer).
+- Found in ChoralRoot's code: `quad_bwk(12700)` reads `QUAD_BW_K[128]`, one past the table (multiplied by 0, so no
+  audible effect); guarded here, worth fixing upstream.
+- The voice pool (§2: limit, reserve, choke, steals with ChoralRoot's one-block fade; 73 checks), the per-voice mix,
+  ChoralRoot's chorus, delay, reverb and Output Clean (impulses and the whole chain identical to ChoralRoot's code).
+  DRIVE left out for now.
+- Eight tracks (`core/seq/model`): DRUMS (MARIMBA), BASS (BASS, mono), KEYS (EP), LEAD (SQUARE LEAD), PLUCK, PAD
+  (GLASS PAD), BELL, NOISE (NOISE-ISH); reverb send 20 each.
+- Playing: the keybed plays the selected track (OCT -2..+2, velocity), MIDI channels 1..8 play tracks 1..8, TRACKS +
+  white key 1..8 selects, PRESETS picks the sound with the full-screen picker, KEYS shows the keybed screen.
+- Host CPU for 16 voices + effects: 21.5 us mean, 62 us worst per 128-frame block (0.7 % of the device's 2902 us).
