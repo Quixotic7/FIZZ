@@ -1,7 +1,7 @@
-# QUADRILLE P1.0: FM1VST's tests/core_conformance.cpp (its header lists the directives)
-# the sound: no prelude. A held key plays P1.0's test tone (a sine at the key's pitch, core/app/app.c), the stand-in
-# for FM TONE (P1.1); the default key (D4) held 500 ms is heard at once.
-# the flash: P1.0 saves nothing (the project is saved as a file from P1.5; PLAN.md §13)
-flash none P1.0 saves nothing: no settings, no project yet (P1.5 saves the project)
-# the reboot: nothing in P1.0 reboots or exits (no boot guard, no update mode)
-reboot none P1.0 has no reboot, update mode or exit path
+# QUADRILLE: FM1VST's tests/core_conformance.cpp (its header lists the directives)
+# the sound: no prelude. A held key plays the selected track (track 1, DRUMS: FM TONE's MARIMBA) through the voice pool,
+# ChoralRoot's effects and Output Clean (P1.1); the default key (D4) held 500 ms is heard at once.
+# the flash: nothing is saved yet (the project is saved as a file from P1.5; PLAN.md §13)
+flash none nothing is saved yet: no settings, no project (P1.5 saves the project)
+# the reboot: nothing reboots or exits (no boot guard, no update mode)
+reboot none QUADRILLE has no reboot, update mode or exit path

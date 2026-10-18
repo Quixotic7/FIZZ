@@ -5,11 +5,14 @@
  *
  *     render_frames OUT_DIR [--ms N] [--at T1,T2,..]
  *
- * The script (P1.0's review): PLAY pressed at 500 ms (released at 600), KNOB 1 turned +8 at 3000, key 0 (F3) held
- * from 4000 to 4500. Defaults: 6500 ms, frames at 0, 1000, 2200, 2500, 4200 and 6000 ms (2200 is 1.7 s after PLAY at
- * 122 BPM: the moment mockups/png/line-01-idle.png shows). A frame "at T" is drawn at T exactly (the core draws every
- * 15 ms; drawing is a pure function of the app's state, so an extra frame changes nothing). The LEDs are also dumped
- * at 550 ms (PLAY held).
+ * The script (P1.0's review, then P1.1's): PLAY pressed at 500 ms (released at 600), KNOB 1 turned +8 at 3000, key 0
+ * (F3) held from 4000 to 4500 (track 1, DRUMS: FM TONE); TRACKS held 6200..6400 with white key 3 tapped at 6300 (track
+ * 3, KEYS, selected), KEYS pressed at 6500 (the KEYS screen), C4 E4 G4 B4 held from 6600 to 7700 at velocities 110, 90,
+ * 100, 80, PRESETS turned +1 at 7200 (EP -> BELL: the picker). Defaults: 8000 ms, frames at 0, 1000, 2200, 2500, 4200,
+ * 6000, 7000 and 7400 ms (2200 is 1.7 s after PLAY at 122 BPM: the moment mockups/png/line-01-idle.png shows; 7000 the
+ * KEYS screen with the four notes held, also written as keys.png; 7400 the picker, also picker.png). A frame "at T" is
+ * drawn at T exactly (the core draws every 15 ms; drawing is a pure function of the app's state, so an extra frame
+ * changes nothing). The LEDs are also dumped at 550 ms (PLAY held) and 6350 (TRACKS held).
  * The app is driven directly (app.h), as the glue drives it; the ABI's own path is tested by FM1VST's ctests. */
 #include <math.h>
 #include <stdio.h>
@@ -130,8 +133,9 @@ static void dump_leds(FILE *o, const qd_leds_t *l, uint32_t ms)
 
 int main(int argc, char **argv)
 {
-    uint32_t total = 6500, at[MAX_AT] = {0, 1000, 2200, 2500, 4200, 6000}, frame_ms = 0, ms, last_frame = 0;
-    int nat = 6, i, peak = 0, green = 0, failed = 0;
+    static const uint8_t CHORD[4] = {7, 11, 14, 18}, CVEL[4] = {110, 90, 100, 80};   /* C4 E4 G4 B4 */
+    uint32_t total = 8000, at[MAX_AT] = {0, 1000, 2200, 2500, 4200, 6000, 7000, 7400}, frame_ms = 0, ms, last_frame = 0;
+    int nat = 8, i, peak = 0, green = 0, failed = 0;
     uint64_t frames_done = 0;
     const char *out;
     char path[1024];
@@ -167,7 +171,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "render_frames: cannot write %s (does the folder exist?)\n", path);
         return 1;
     }
-    fprintf(log, "QUADRILLE P1.0, render_frames: PLAY at 500 ms, KNOB 1 +8 at 3000, key 0 (F3) held 4000..4500\n");
+    fprintf(log, "QUADRILLE P1.1, render_frames: PLAY at 500 ms, KNOB 1 +8 at 3000, key 0 (F3) held 4000..4500, TRACKS +"
+                 " white key 3 at 6300, KEYS at 6500, C4 E4 G4 B4 held 6600..7700, PRESETS +1 at 7200\n");
     if (!qd_init()) {
         fprintf(stderr, "render_frames: qd_init failed\n");
         return 1;
@@ -185,6 +190,26 @@ int main(int argc, char **argv)
             qd_app_key(&app, 0, 1, 100);
         if (ms == 4500)
             qd_app_key(&app, 0, 0, 0);
+        if (ms == 6200)
+            qd_app_button(&app, QD_B_TRACKS, 1);
+        if (ms == 6300)
+            qd_app_key(&app, 4, 1, 100);                /* white key 3 (A3): track 3 */
+        if (ms == 6320)
+            qd_app_key(&app, 4, 0, 0);
+        if (ms == 6400)
+            qd_app_button(&app, QD_B_TRACKS, 0);
+        if (ms == 6500)
+            qd_app_button(&app, QD_B_KEYS, 1);
+        if (ms == 6550)
+            qd_app_button(&app, QD_B_KEYS, 0);
+        for (i = 0; i < 4; i++) {
+            if (ms == 6600u + 20u * (uint32_t)i)
+                qd_app_key(&app, CHORD[i], 1, CVEL[i]);
+            if (ms == 7700)
+                qd_app_key(&app, CHORD[i], 0, 0);
+        }
+        if (ms == 7200)
+            qd_app_knob(&app, QD_K_PRESETS, 1);
         qd_app_tick(&app, ms);
         if (ms == 0 || ms - last_frame >= 15u) {
             last_frame = ms;
@@ -196,7 +221,7 @@ int main(int argc, char **argv)
             int k;
             qd_app_audio(&app, blk, 128);
             for (k = 0; k < 256; k++)
-                if (ms >= 4000 && ms < 4700 && abs(blk[k]) > peak)
+                if (ms >= 4000 && ms < 4700 && abs(blk[k]) > peak)   /* (key 0's note, FM TONE) */
                     peak = abs(blk[k]);
             frames_done += 128u;
         }
@@ -206,7 +231,7 @@ int main(int argc, char **argv)
                 fprintf(log, "%6u ms  PLAY-green %s\n", (unsigned)ms, leds.play_green ? "on" : "off");
             green = leds.play_green;
         }
-        if (ms == 550)
+        if (ms == 550 || ms == 6350)
             dump_leds(log, &leds, ms);
         for (i = 0; i < nat; i++) {
             if (at[i] != ms)
@@ -221,16 +246,21 @@ int main(int argc, char **argv)
             printf("%s (%u ms: %s, %d BPM, turn %.3f)\n", path, (unsigned)frame_ms,
                    app.playing ? "playing" : "stopped", app.bpm, (double)app.turn);
             dump_leds(log, &leds, ms);
-            if (ms == 4200) {
-                snprintf(path, sizeof path, "%s/leds-04200.png", out);
+            if (ms == 4200 || ms == 7000) {
+                snprintf(path, sizeof path, "%s/leds-%05u.png", out, (unsigned)ms);
                 failed |= !write_led_png(path, &leds, ms);
+                printf("%s\n", path);
+            }
+            if (ms == 7000 || ms == 7400) {             /* the P1.1 screens by name */
+                snprintf(path, sizeof path, "%s/%s.png", out, ms == 7000 ? "keys" : "picker");
+                failed |= !write_lcd_png(path, lcd);
                 printf("%s\n", path);
             }
         }
     }
-    fprintf(log, "the test tone while key 0 was held: peak %d\n", peak);
+    fprintf(log, "the sound while key 0 was held (track 1, FM TONE): peak %d\n", peak);
     fclose(log);
-    printf("%s/leds.txt (the LEDs at each frame time, the beat LED's edges to 2600 ms; tone peak %d)\n", out, peak);
+    printf("%s/leds.txt (the LEDs at each frame time, the beat LED's edges to 2600 ms; key 0's peak %d)\n", out, peak);
     qd_shutdown();
     return failed;
 }

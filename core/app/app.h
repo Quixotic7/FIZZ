@@ -5,10 +5,19 @@
  * the same, frame for frame and sample for sample.
  *
  * P1.0: the idle screen. PLAY plays / stops; SELECT or KNOB 1 change the tempo (1 BPM a detent, 30..300); a held
- * key or button lights its LED; PLAY's green LED marks each beat while playing. The sound is a test tone for each
- * held key (a sine at the key's pitch): the stand-in until FM TONE arrives in P1.1. */
+ * key or button lights its LED; PLAY's green LED marks each beat while playing.
+ * P1.1: the sound. Eight tracks (seq/model) of FM TONE voices from one pool (voice/pool), mixed per voice into
+ * ChoralRoot's effects and output chain (voice/mix, voice/fx). The keybed plays the selected track (F3..G5, OCT- / OCT+
+ * shift it -2..+2 octaves, the keys' velocity); MIDI notes on channels 1..8 play tracks 1..8. TRACKS (printed FX) held
+ * + white key 1..8 selects a track; PRESETS steps the track's sound through INIT and the 16 factory sounds (the picker
+ * takes the screen while it turns, and for a second after); KEYS (printed ARP) toggles the KEYS screen, HOME goes back
+ * to the idle screen; MASTER is the volume; OCT- and OCT+ together: every voice faded out (a panic). */
 #pragma once
 #include <stdint.h>
+
+#include "../seq/model.h"
+#include "../voice/mix.h"
+#include "../voice/pool.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +30,14 @@ extern "C" {
 #define QD_BPM_MAX 300
 #define QD_BPM_DEFAULT 122             /* line.html's BPM */
 #define QD_BEAT_LED_MS 80              /* PLAY's green LED: lit this long from each beat */
+#define QD_OCT_MIN (-2)
+#define QD_OCT_MAX 2
+#define QD_PICKER_MS 1000              /* the picker stays this long after the last detent .. */
+#define QD_PICKER_FADE_MS 120          /* .. then fades back over this long (PLAN.md §9a rule 5) */
+#ifndef QD_VOICES
+#define QD_VOICES QD_POOL_DEFAULT      /* the pool's voices (a setting: up to QD_POOL_MAX for experiments) */
+#endif
+#define QD_MASTER_POT_DEFAULT 724      /* MASTER before the panel says (master_of_pot: 2047 of 4096, Felucca's) */
 
 /* the buttons, by QUADRILLE's roles (PLAN.md §8), in the panel's order (printed FX, SEL, ENV, LFO, EDIT, GLO, HOME,
  * SAVE, ARP, SEQ, PLAY, REC, OCT-, OCT+) */
@@ -28,9 +45,12 @@ enum { QD_B_TRACKS, QD_B_PATTERN, QD_B_PAGE, QD_B_MUTE, QD_B_SOUND, QD_B_FUNC, Q
        QD_B_MIX, QD_B_PLAY, QD_B_REC, QD_B_OCTDN, QD_B_OCTUP, QD_NBTN };
 /* the knobs (detents), in the panel's role order */
 enum { QD_K_SELECT, QD_K_ALGO, QD_K_PRESETS, QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_NKNOB };
+enum { QD_SCR_IDLE, QD_SCR_KEYS };     /* the screen under the picker */
 
 /* the LEDs as the app sees them: a level 0..255 per key, per button, and PLAY's green LED */
 #define QD_LED_OFF 0
+#define QD_LED_FAINT 12
+#define QD_LED_DIM 40
 #define QD_LED_LIT 255
 typedef struct {
     uint8_t key[QD_NKEY];
@@ -50,27 +70,43 @@ typedef struct {
     float turn_base;                   /* whole quarter turns done before this play */
     float turn;                        /* the turn shown */
     float turn_target;                 /* stopped: where the turn settles (a whole number) */
-    double sway;                       /* stopped: the sway's phase, radians */
+    double sway;                       /* stopped: the sway's phase, radians (a bob a beat, at the tempo) */
     float amp;                         /* the motion's size, eased between playing (1) and stopped */
     /* the panel */
     uint32_t keys_held, buttons_held;  /* bit k: key k; bit b: button QD_B_b */
     uint8_t key_vel[QD_NKEY];
-    /* the test tone: one sine a key */
-    double tone_phase[QD_NKEY];
-    float tone_env[QD_NKEY];
+    uint32_t keys_struck;              /* bit k: key k struck a note (it is released at the key's release) */
+    uint8_t key_note[QD_NKEY], key_track[QD_NKEY];
+    int master_pot;                    /* MASTER, 0..1023 */
+    /* the sound */
+    qd_model_t model;
+    qd_pool_t pool;
+    qd_mix_t mix;
+    int sel;                           /* the selected track, 0..7 */
+    int oct;                           /* the keybed's octave shift */
+    int screen;                        /* QD_SCR_* */
+    int picker;                        /* the picker is up (since picker_ms) */
+    uint32_t picker_ms;
+    int picker_dir;
+    /* the audio: blocks of 32 frames made ahead of a call that asks for fewer */
+    int16_t fifo[2 * QD_MIX_CTL];
+    int nfifo, ififo;
 } qd_app_t;
 
 void qd_app_init(qd_app_t *a);
-/* input, between ticks (as the panel's state changed): a key with its velocity 1..127, a button, knob detents */
+/* input, between ticks (as the panel's state changed): a key with its velocity 1..127, a button, knob detents, the
+ * MASTER pot (0..1023), a MIDI message (status, two data bytes) */
 void qd_app_key(qd_app_t *a, int key, int down, int vel);
 void qd_app_button(qd_app_t *a, int button, int down);
 void qd_app_knob(qd_app_t *a, int knob, int detents);
+void qd_app_master(qd_app_t *a, int pot);
+void qd_app_midi(qd_app_t *a, int status, int d1, int d2);
 /* the clock: ms counts up from 0, one call per device millisecond (a gap is run through ms by ms) */
 void qd_app_tick(qd_app_t *a, uint32_t ms);
 /* the screen: one frame drawn (qd_gfx), written as RGB565 big-endian (240 x 240) */
 void qd_app_frame(qd_app_t *a, uint16_t *lcd_be);
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out);
-/* the sound: frames of 16-bit stereo, interleaved, at QD_FS */
+/* the sound: frames of 16-bit stereo, interleaved, at QD_FS (rendered in control blocks of 32 frames) */
 void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames);
 
 #ifdef __cplusplus

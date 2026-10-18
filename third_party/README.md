@@ -33,3 +33,26 @@ commit here.
   as C arrays in `core/gfx/fonts_gen.h`. Generated files, committed.
 - Licence: **SIL Open Font License 1.1** (`assets/fonts/OFL.txt`), Copyright 2022 The Inter Project Authors. The
   core carries OFL.txt in its descriptor credits.
+
+## ChoralRoot FM-1 v0.25.1 (`core/voice/quad/`, `core/voice/fx/`, `core/tests/quad_goldens/`)
+
+- What: FM TONE (ChoralRoot's QUAD engine), its tables, the DSP helpers it uses, and ChoralRoot's effects and output
+  chain (the stereo chorus, the half-rate delay and reverb, the master filter, Options > Output Clean with its
+  look-ahead limiter), so QUADRILLE plays what the unit will play (PLAN.md §13).
+- Upstream: `../ChoralRootFM1`, tag **v0.25.1**, commit **15ca8d0** (read with `git show` / `git archive`; nothing there
+  is changed).
+- Copied: `firmware/src/eng_quad.c`, `quad_tables.h`, `quad_times.h`, `dsp.c`, the parts of `core.h` they read
+  (`cr_core.h`), the tables of the generated `felucca_tables.h` they read (`cr_tables.h`, made by `tools/cr_tables.py`),
+  `cr_fx.c`, `cr_ram.h`, the needed parts of `fx.c` and `master.c`; `tests/quad_goldens/*.json` (tests/quad_ref.py's
+  renders, for `core/tests/test_quad.c`). Every copied file starts with a note: where it came from and what changed.
+  The DSP is unchanged; `eng_quad.c`'s changes (a patch per voice, per-track LFO state, the ties to ChoralRoot's tracks
+  cut, one out-of-bounds read guarded without changing a result) are listed in its header and marked "QUADRILLE".
+  `quad_store.c` (the user-slot flash store) and `perform.c` (built out of ChoralRoot) are not needed.
+- Checked against the tag: `make -C tools test` builds ChoralRoot's own engine and effects from the tag
+  (`git archive` into `tools/build/cr-v0.25.1`) and compares them with the copies sample for sample.
+- Licence: **GPL-3.0-only**, Copyright (C) 2026 ChoralRoot FM-1 contributors, a fork of Felucca (Copyright (C) 2026
+  Leo Kuroshita (@kurogedelic), Hügelton Instruments). ChoralRoot credits SLOOP 2.6 (isod89/sloop-fm1, GPL-3.0-only)
+  for the designs of the limiter's look-ahead and the stereo chorus's two taps (designs, no code; its LICENSING.md).
+
+To update: `git -C ../ChoralRootFM1 show '<tag>:<path>'` each file, carry the QUADRILLE changes over, run
+`make -C tools test` with `CR_TAG=<tag>`, record the tag and commit here and in the files' notes.

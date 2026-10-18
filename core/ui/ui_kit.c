@@ -65,3 +65,46 @@ void ui_RR(float x, float y, float w, float h, float r, qd_rgb col, float lw, qd
 {
     qd_rrect(x + lw / 2.f, y + lw / 2.f, w - lw, h - lw, r, col, lw, fill);
 }
+
+/* box(c, x, y, n, col): the track's number in a little box, OP-1 style */
+void ui_box(float x, float y, int n, qd_rgb col)
+{
+    char s[12];
+    ui_RR(x, y, 15.f, 15.f, 2.f, col, 1.2f, QD_NONE);
+    ui_T(ui_itoa(s, n), x + 7.5f, y + 11.5f, 10.f, 500, 0.f, col, QD_CENTER);
+}
+
+/* head(c, left, right, { n, lcol, rcol }) */
+void ui_head(const char *left, const char *right, int n, qd_rgb lcol, qd_rgb rcol)
+{
+    float x = 8.f;
+    if (n) {
+        ui_box(8.f, 5.f, n, UI_K3);
+        x = 29.f;
+    }
+    ui_T(left, x, 17.f, 11.f, 500, 1.f, lcol, QD_LEFT);
+    if (right)
+        ui_T(right, 232.f, 17.f, 11.f, 400, 1.f, rcol, QD_RIGHT);
+}
+
+/* keyboard(c, x0, y0, w, h, lo, held): 14 white keys from lo, the black keys over them */
+void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fill)
+{
+    static const int WHITE[7] = {0, 2, 4, 5, 7, 9, 11}, BLACK[7] = {1, 3, -1, 6, 8, 10, -1};
+    const float kw = w / 14.f, bw = kw * 0.62f, bh = h * 0.6f;
+    int i;
+    for (i = 0; i < 14; i++) {
+        const int n = lo + (i / 7) * 12 + WHITE[i % 7];
+        const qd_rgb f = fill && n >= 0 && n < 128 ? fill[n] : QD_NONE;
+        ui_RR(x0 + (float)i * kw, y0, kw + 1.f, h, 2.f, UI_G2, 1.f, f);
+    }
+    for (i = 0; i < 14; i++) {
+        int n;
+        qd_rgb f;
+        if (i % 7 == 2 || i % 7 == 6 || i == 13)
+            continue;
+        n = lo + (i / 7) * 12 + BLACK[i % 7];
+        f = fill && n >= 0 && n < 128 && fill[n] != QD_NONE ? fill[n] : UI_BG;
+        ui_RR(x0 + (float)(i + 1) * kw - bw / 2.f, y0 - 1.f, bw, bh, 2.f, UI_G2, 1.f, f);
+    }
+}

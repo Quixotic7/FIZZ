@@ -48,6 +48,41 @@ typedef struct {
 } ui_idle_t;
 void ui_idle_draw(const ui_idle_t *v);
 
+/* ---- the kit's drawings shared by screens (line.html's box, head, keyboard) */
+void ui_box(float x, float y, int n, qd_rgb col);   /* the track's number in a little box */
+/* the top line: [n] left .......... right (n 0: no box) */
+void ui_head(const char *left, const char *right, int n, qd_rgb lcol, qd_rgb rcol);
+/* a line-drawn keybed of two octaves (14 white keys) from note lo (a C) at x0, y0, w x h; fill[note] (128 entries, or
+ * 0) is the colour a key is filled with, QD_NONE: outlined only */
+void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fill);
+
+/* ---- KEYS (line.html s18 without the recording roll): the keybed plays the selected track */
+#define UI_NVOICE_DOTS 16
+typedef struct {
+    int track;                          /* 1..8 */
+    const char *name;                   /* the track's */
+    int preset;                         /* the sound: 0 INIT, 1..16 */
+    const char *sound;                  /* its name */
+    int edited;
+    uint8_t voice[UI_NVOICE_DOTS];      /* the pool's first 16 voices: 0 free, 1 another track's, 2 this track's */
+    int nvoice;                         /* dots drawn (<= 16) */
+    uint8_t sounding[128];              /* the track's notes sounding (key held) */
+    int octave;                         /* -2 .. +2 */
+} ui_keys_t;
+void ui_keys_draw(const ui_keys_t *v);
+
+/* ---- the sound picker's takeover (PLAN.md §9a rule 5; line.html s10's cassette, simpler): while PRESETS turns */
+typedef struct {
+    int track;                          /* 1..8 */
+    const char *name;                   /* the track's */
+    int k, n;                           /* the sound on the track (0 INIT .. n - 1) */
+    const char *prev, *cur, *next;      /* the names of k - 1, k, k + 1 (0: none) */
+    float roll;                         /* 1 at a detent .. 0: the names roll in (ease) */
+    int dir;                            /* the detent's direction: +1 the list moves up */
+    float reel;                         /* the reels' turn, radians */
+} ui_picker_t;
+void ui_picker_draw(const ui_picker_t *v);
+
 #ifdef __cplusplus
 }
 #endif

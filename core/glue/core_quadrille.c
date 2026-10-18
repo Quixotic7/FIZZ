@@ -4,11 +4,14 @@
  * (fm1_add_core) from this tree.
  *
  * In: at the top of tick, frame and idle the panel's keys and buttons become press / release events (a tap: a press
- * now, its release at the next call), the encoders' detents knob events by role (fm1p_take_role), all into the app.
+ * now, its release at the next call), the encoders' detents knob events by role (fm1p_take_role), the MASTER pot (0..1023;
+ * 0 at init: the app's default until it moves), all into the app; midi_in's USB-MIDI packets (cable 0: CIN | status << 8
+ * | d1 << 16 | d2 << 24) as channel messages into the app at once.
  * Time: tick(ms) is the app's clock (simulated: nothing here reads the host's clock).
  * Out: frame draws the screen (every frame, 15 ms) and copies it to the panel's LCD when it changed; init, frame and
  * idle write the LEDs: the app's levels per key and button placed through the FM-1's keymap, PLAY's green LED at its
- * own position. audio: the app's sound. The flash: the common NOR image, untouched (P1.0 saves nothing). */
+ * own position. audio: the app's sound (P1.1: FM TONE through the voice pool and ChoralRoot's effects). The flash: the
+ * common NOR image, untouched (nothing is saved before P1.5). */
 #include <stdio.h>
 #include <string.h>
 
@@ -26,6 +29,7 @@ static qd_app_t fm1core_qd_app;
 static fm1p_edges_t fm1core_qd_kedges, fm1core_qd_bedges;
 static uint16_t fm1core_qd_lcd[FM1P_LCD_W * FM1P_LCD_H];
 static int fm1core_qd_up;
+static int32_t fm1core_qd_master_seen;
 
 /* ---------------------------------------------------------------- in / out --- */
 static void fm1core_qd_in(void)
@@ -55,6 +59,11 @@ static void fm1core_qd_in(void)
         const int32_t d = fm1p_take_role(p, i);
         if (d)
             qd_app_knob(&fm1core_qd_app, i, (int)d);
+    }
+    /* MASTER: the pot as it moves */
+    if (p->master != fm1core_qd_master_seen) {
+        fm1core_qd_master_seen = p->master;
+        qd_app_master(&fm1core_qd_app, (int)fm1core_qd_master_seen);
     }
 }
 
@@ -104,6 +113,9 @@ void fm1core_qd_init(int demo)
     memset(&fm1core_qd_bedges, 0, sizeof fm1core_qd_bedges);
     qd_init();
     qd_app_init(&fm1core_qd_app);
+    fm1core_qd_master_seen = fm1core_qd_panel.master;   /* (0: the host has not said; the app's default stands) */
+    if (fm1core_qd_master_seen)
+        qd_app_master(&fm1core_qd_app, (int)fm1core_qd_master_seen);
     fm1core_qd_up = 1;
     fm1core_qd_in();
     fm1core_qd_lcd_out();
@@ -146,7 +158,9 @@ void fm1core_qd_audio(int16_t *stereo, uint32_t frames)
 
 int fm1core_qd_midi_in(uint32_t pkt)
 {
-    (void)pkt;                                                /* P1.0: MIDI in is taken and ignored */
+    const uint32_t cin = pkt & 15u;
+    if (fm1core_qd_up && cin >= 8u && cin <= 14u)             /* a channel message (note off .. pitch bend) */
+        qd_app_midi(&fm1core_qd_app, (int)((pkt >> 8) & 0xFFu), (int)((pkt >> 16) & 0x7Fu), (int)((pkt >> 24) & 0x7Fu));
     return 1;
 }
 int fm1core_qd_midi_out_take(uint32_t *pkt)
@@ -165,18 +179,21 @@ void fm1core_qd_stats(uint32_t *shed, uint32_t *cpu_pct)
 void fm1core_qd_ui_info(char *buf, uint32_t n)
 {
     if (buf && n)
-        snprintf(buf, n, "idle: %s, %d BPM, turn %.2f, keys %07x buttons %04x",
-                 fm1core_qd_app.playing ? "playing" : "stopped", fm1core_qd_app.bpm, (double)fm1core_qd_app.turn,
-                 (unsigned)fm1core_qd_app.keys_held, (unsigned)fm1core_qd_app.buttons_held);
+        snprintf(buf, n, "%s: %s, %d BPM, track %d %s (%s), oct %d, voices %d/%d, keys %07x buttons %04x",
+                 fm1core_qd_app.screen ? "keys" : "idle", fm1core_qd_app.playing ? "playing" : "stopped",
+                 fm1core_qd_app.bpm, fm1core_qd_app.sel + 1, fm1core_qd_app.model.t[fm1core_qd_app.sel].name,
+                 qd_track_sound_name(&fm1core_qd_app.model.t[fm1core_qd_app.sel]), fm1core_qd_app.oct,
+                 qd_pool_in_use(&fm1core_qd_app.pool), fm1core_qd_app.pool.nvoice, (unsigned)fm1core_qd_app.keys_held,
+                 (unsigned)fm1core_qd_app.buttons_held);
 }
 void fm1core_qd_shutdown(void)
 {
     fm1nor_close();
     qd_shutdown();                                            /* (a later frame draws again: qd_begin re-inits) */
 }
-int fm1core_qd_halted(void) { return 0; }                     /* nothing in P1.0 reboots or exits */
+int fm1core_qd_halted(void) { return 0; }                     /* nothing reboots or exits */
 int fm1core_qd_flash_stage(const uint8_t *bytes, uint32_t n) { return fm1nor_stage(bytes, n); }
 uint8_t *fm1core_qd_flash(void) { return fm1nor_flash(); }
 uint32_t fm1core_qd_flash_dirty(void) { return fm1nor_dirty(); }
-int fm1core_qd_flash_sync(void) { return 1; }                 /* nothing deferred: P1.0 saves nothing */
+int fm1core_qd_flash_sync(void) { return 1; }                 /* nothing deferred: nothing is saved yet */
 const int8_t *fm1core_qd_keymap_get(void) { return &fm1core_qd_keymap[0][0]; }
