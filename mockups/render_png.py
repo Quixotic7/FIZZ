@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the mock-ups of index.html to PNGs with headless Chromium (never a visible window).
+"""Render the mock-ups of index.html and line.html to PNGs with headless Chromium (never a visible window).
 
     python3 mockups/render_png.py [SHOT ...]      # default: every shot
 
@@ -26,15 +26,22 @@ for d in ('mod', 'riso'):
 for k in range(1, 7):
     SHOTS[f'key-{k}'] = (f'shot=key-{k}', 960, 268, f'keybed-{k}.png')
 SHOTS['panel'] = ('shot=panel', 960, 650, 'panel-map.png')
+LINE = ['idle', 'step-view', 'tracks', 'held-note', 'held-vel', 'held-len', 'held-micro', 'held-ratchet', 'held-cond-chance',
+        'held-sound', 'p-lock', 'engine-syn1', 'pattern', 'mix', 'delay', 'tempo', 'mute', 'keys-rec', 'held-trig', 'held-locks',
+        'turn-freq', 'turn-decay', 'turn-harm', 'turn-feedback', 'turn-rate']
+for i, n in enumerate(LINE, 1):
+    SHOTS[f'line-{i}'] = (f'shot=line-{i}', 240, 240, f'line-{i:02d}-{n}.png', 'line.html')
+SHOTS['sheet-line'] = ('sheet=line', 2030, 3720, 'sheet-line.png', 'line.html')
 SHOTS['legend'] = ('shot=legend', 960, 96, 'led-legend.png')
 
 
 def render(key, scratch):
-    query, w, h, name = SHOTS[key]
+    query, w, h, name = SHOTS[key][:4]
+    page = SHOTS[key][4] if len(SHOTS[key]) > 4 else 'index.html'
     out = os.path.join(OUT, name)
     if os.path.exists(out):
         os.replace(out, out + '.old')
-    url = 'file://' + os.path.join(HERE, 'index.html') + '?' + query
+    url = 'file://' + os.path.join(HERE, page) + '?' + query
     prof = os.path.join(scratch, 'chrome-profile-' + key)
     cmd = [CHROMIUM, '--headless=new', '--use-mock-keychain', '--password-store=basic', '--disable-gpu',
            '--no-sandbox', '--no-first-run', '--user-data-dir=' + prof, '--hide-scrollbars',

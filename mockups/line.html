@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QUADRILLE line screens</title>
+<!-- FMToneSeq (working name QUADRILLE): the LINE direction, after the OP-1's screens (nothing copied).
+     Every screen is a 240 x 240 canvas, drawn pixel for pixel and animated with the transport (122 BPM).
+     ?shot=line-N[&t=s]   one canvas at 1x, top left (for render_png.py); t = the time in seconds, else each screen's own
+     ?sheet=line[&dt=s][&pick=1,2,3]   the screens at 2x (all, or the picked ones), each at its own time + dt
+     ?frames=1            no animation (a still per screen) -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f1eee8; --fg:#1b1b1f; --dim:#66625b; --line:#d6d1c7; } }
+:root[data-theme="dark"] { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 17px; margin: 0 0 4px; }
+p, li { color: var(--dim); max-width: 860px; }
+p strong, li strong { color: var(--fg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 28px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 480px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block;
+  border-radius: 6px; box-shadow: 0 0 0 1px var(--line); }
+.cap { font-size: 12px; color: var(--dim); margin: 6px 0 0; letter-spacing: .04em; text-transform: uppercase; }
+body.shot { padding: 0; background: #000; }
+body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; color: #ddd; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 18px 22px; }
+.sheetgrid .cap { color: #aaa; }
+.sheettitle { font: 700 20px -apple-system, "Helvetica Neue", Arial; margin: 0 0 14px; color: #eee; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>QUADRILLE: the LINE screens</h1>
+<p>A third direction for <strong>PLAN.md</strong>, after the OP-1's screens: black, thin lines with round ends, one little
+drawing per screen, and <strong>colour means a knob</strong>: whatever KNOB 1 turns is blue, KNOB 2 green, KNOB 3 white,
+KNOB 4 orange, on every screen, and every value is a part of the drawing, so there are no rows of numbers: turn a
+knob and its part of the drawing moves. A knob whose value the screen does not draw takes the whole screen while it
+turns and hands it back a second later (screens 21..25). Red is only the playhead and recording. SELECT
+always turns what KNOB 1 turns (the big value). Each canvas is the 240 x 240 panel at 2x and runs live at 122 BPM.
+The example project as in the other directions: pattern A03, eight tracks (1 DRUMS with a sound lock on every step,
+2 BASS, 3 CHORDS, 4 LEAD, 5 PLUCK, 6 PAD, 7 BELL muted, 8 NOISE).</p>
+<p>The strip of eleven little keys at the foot of a held step's screens is the keybed's black keys (3 | 2 | 3 | 2 | 1):
+the lit one is the field on screen, an outlined one holds a value.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+/* ---------------------------------------------------------------- palette and time */
+const C = { bg: '#000', k1: '#3f7dff', k2: '#1fd47e', k3: '#f1f0ea', k4: '#ff6a2c', red: '#ff3448',
+            g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d' };
+const K = [C.k1, C.k2, C.k3, C.k4];
+const BPM = 122, STEP = 60 / BPM / 4, BAR = STEP * 16;
+const F = 'IT';
+const TAU = Math.PI * 2;
+const ease = x => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
+
+/* ---------------------------------------------------------------- drawing helpers */
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = o.bl || 'alphabetic';
+  if (o.a != null) c.globalAlpha = o.a;
+  if (o.sx && o.sx !== 1) { c.translate(x, y); c.scale(o.sx, 1); c.fillText(s, 0, 0); } else c.fillText(s, x, y);
+  c.restore();
+}
+function TW(c, s, o = {}) { c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; const w = c.measureText(s).width; c.restore(); return w; }
+function lab(c, s, x, y, col = C.g1, al = 'left') { T(c, s, x, y, { s: 8, w: 600, ls: 1, col, al }); }
+function P(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = o.a;
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  if (o.close) c.closePath(); if (o.fill) { c.fillStyle = o.fill; c.fill(); } c.stroke(); c.restore();
+}
+function O(c, x, y, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = o.a; if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.arc(x, y, r, o.a0 || 0, o.a1 == null ? TAU : o.a1);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.stroke(); } c.restore();
+}
+function RR(c, x, y, w, h, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = o.a; if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.roundRect(x + lw / 2, y + lw / 2, w - lw, h - lw, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+const OFF = document.createElement('canvas'); OFF.width = OFF.height = 240; const OC = OFF.getContext('2d');
+function layer(c, draw, a, dy = 0) { OC.clearRect(0, 0, 240, 240); draw(OC); c.save(); c.globalAlpha = a; c.drawImage(OFF, 0, dy); c.restore(); }
+function bg(c) { c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); }
+function box(c, x, y, n, col = C.k3) {               /* the track's number in a little box, OP-1 style */
+  RR(c, x, y, 15, 15, 2, col, 1.2); T(c, String(n), x + 7.5, y + 11.5, { s: 10, w: 500, col, al: 'center' });
+}
+function head(c, left, right, o = {}) {              /* the top line: [n] NAME ............ right */
+  let x = 8;
+  if (o.n) { box(c, 8, 5, o.n, o.ncol); x = 29; }
+  T(c, left, x, 17, { s: 11, w: 500, ls: 1, col: o.lcol || C.k3 });
+  if (right) T(c, right, 232, 17, { s: 11, w: 400, ls: 1, col: o.rcol || C.g1, al: 'right' });
+}
+function headTrack(c, left, n, name, lcol) {          /* a held step: STEP 5 · FIELD left, the track right */
+  T(c, left, 8, 17, { s: 11, w: 500, ls: 1, col: lcol || C.k3 });
+  const w = TW(c, name, { s: 11, w: 500, ls: 1 });
+  T(c, name, 232, 17, { s: 11, w: 500, ls: 1, col: C.g1, al: 'right' }); box(c, 232 - w - 21, 5, n, C.g1);
+}
+function knobs(c, cells, y = 212) {                  /* the four knobs' values: label small, value in the knob's colour */
+  cells.forEach((k, i) => { if (!k) return; const x = 10 + i * 57;
+    lab(c, k[0], x, y, k[2] ? C.g2 : C.g1); T(c, k[1], x, y + 20, { s: 19, w: 300, col: k[2] ? C.g2 : K[i] });
+    if (k[3]) lock(c, x + TW(c, k[0], { s: 8, w: 600, ls: 1 }) + 3, y - 7, K[i]); });
+}
+const FIELDS = ['NOTE', 'VEL', 'LEN', 'MICRO', 'RATCH', 'COND', 'CHNC', 'TRIG', 'SOUND', 'LOCKS', 'CLEAR'];
+function keyStrip(c, cur, set = []) {                /* the black keys while a step is held, 3 | 2 | 3 | 2 | 1 */
+  const groups = [3, 2, 3, 2, 1]; let x = 11, k = 0;
+  groups.forEach(g => { for (let j = 0; j < g; j++, k++) {
+      const on = FIELDS[cur] === FIELDS[k] || cur === k, has = set.includes(k);
+      RR(c, x, 228, 14, 8, 2, on ? null : has ? C.g1 : C.g3, 1, on ? C.k3 : null); x += 18; }
+    x += 6; });
+}
+function lock(c, x, y, col, s = 1) {                  /* a padlock, 7 px wide */
+  c.save(); c.translate(x, y); c.scale(s, s);
+  RR(c, 0, 3, 7, 5.5, 1, null, 1, col);
+  c.strokeStyle = col; c.lineWidth = 1.2; c.beginPath(); c.arc(3.5, 3, 2.2, Math.PI, 0); c.stroke(); c.restore();
+}
+function sine(c, cx, cy, r, cycles, phase, col, lw = 1.3, amp = 0.55) {
+  c.save(); c.beginPath(); c.arc(cx, cy, r - 1, 0, TAU); c.clip();
+  c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.beginPath();
+  for (let i = 0; i <= 40; i++) { const u = i / 40, x = cx - r + u * 2 * r, y = cy - Math.sin(u * TAU * cycles + phase) * r * amp;
+    i ? c.lineTo(x, y) : c.moveTo(x, y); }
+  c.stroke(); c.restore();
+}
+function keyboard(c, x0, y0, w, h, lo, held = {}) { /* a line-drawn keybed from note lo (a C), 14 white keys */
+  const kw = w / 14, bw = kw * 0.62, bh = h * 0.6, isB = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
+  const pos = n => { const o = Math.floor((n - lo) / 12), s = (n - lo) % 12, wi = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6][s] + o * 7;
+    return isB[s] ? { x: x0 + wi * kw + kw - bw / 2 + bw / 2, b: 1 } : { x: x0 + wi * kw + kw / 2, b: 0 }; };
+  for (let i = 0; i < 14; i++) {
+    const n = lo + Math.floor(i / 7) * 12 + [0, 2, 4, 5, 7, 9, 11][i % 7];
+    RR(c, x0 + i * kw, y0, kw + 1, h, 2, C.g2, 1, held[n] ? held[n] : null, { a: 1 });
+  }
+  for (let i = 0; i < 14; i++) {
+    if ([2, 6].includes(i % 7) || i === 13) continue;
+    const n = lo + Math.floor(i / 7) * 12 + [1, 3, -1, 6, 8, 10][i % 7];
+    RR(c, x0 + (i + 1) * kw - bw / 2, y0 - 1, bw, bh, 2, C.g2, 1, held[n] ? held[n] : C.bg);
+  }
+  return pos;
+}
+
+/* ---------------------------------------------------------------- the example's data */
+const TRACKS = [
+  { n: 1, name: 'DRUMS', len: 16, rate: 1, trig: [0, 2, 4, 6, 7, 8, 10, 12, 13, 14, 15], v: 5 },
+  { n: 2, name: 'BASS', len: 16, rate: 1, trig: [0, 3, 6, 8, 11, 14], v: 1 },
+  { n: 3, name: 'CHORDS', len: 64, rate: 0.5, trig: [0, 2, 4, 7, 8, 10, 12, 15, 16, 20, 24, 28, 32, 36, 40, 44, 48, 56], v: 4 },
+  { n: 4, name: 'LEAD', len: 24, rate: 1, trig: [0, 3, 5, 9, 12, 14, 18, 21], v: 1 },
+  { n: 5, name: 'PLUCK', len: 12, rate: 1.5, trig: [0, 2, 3, 5, 7, 8, 10], v: 2 },
+  { n: 6, name: 'PAD', len: 16, rate: 0.25, trig: [0, 8], v: 3 },
+  { n: 7, name: 'BELL', len: 48, rate: 2, trig: [0, 6, 12, 18, 24, 30, 36, 42], v: 0, mute: 1 },
+  { n: 8, name: 'NOISE', len: 32, rate: 1, trig: [4, 12, 20, 28], v: 0 },
+];
+const RATE = { 1: '1×', 0.5: '½×', 1.5: '3/2×', 0.25: '¼×', 2: '2×' };
+const rateTxt = r => ({ 1: '1x', 0.5: '1/2x', 1.5: '3/2x', 0.25: '1/4x', 2: '2x' })[r];
+/* track 3's first page: notes, start step, micro (24ths), length in steps, ratchet, markers */
+const PAGE = [
+  { s: 0, n: [48, 51, 55, 58], len: 1.8 },
+  { s: 2, n: [48, 51, 55, 58], len: 0.5, micro: 6, lk: 1 },
+  { s: 4, n: [44, 48, 51, 55], len: 2.6, sel: 1 },
+  { s: 7, n: [44, 48, 51, 55], len: 0.5, micro: -5, ch: 1 },
+  { s: 8, n: [46, 50, 53, 57], len: 1.8, lk: 1 },
+  { s: 10, n: [46, 50, 53], len: 1, cond: 1 },
+  { s: 12, n: [43, 47, 50, 53], len: 2.7, snd: 1 },
+  { s: 15, n: [55], len: 0.9, rat: 3, micro: 8 },
+];
+
+/* ---------------------------------------------------------------- the screens; each draws at time t (seconds) */
+
+function s1(c, t) {                                   /* idle: the four operators dance a quadrille */
+  bg(c);
+  T(c, 'QUADRILLE', 120, 22, { s: 10, w: 500, ls: 4, col: C.g1, al: 'center' });
+  const cx = 120, cy = 112, h = 44, beat = 60 / BPM;
+  const bars = t / (beat * 4), turn = Math.floor(bars) + ease((bars % 1 - 0.75) * 4);   /* a quarter turn each bar, in its last beat */
+  P(c, [cx - h, cy - h, cx + h, cy - h, cx + h, cy + h, cx - h, cy + h], C.g3, 1, { close: 1, dash: [1, 4] });
+  O(c, cx, cy, 3, C.g2, 1);
+  ['C', 'A', 'B1', 'B2'].forEach((nm, i) => {
+    const a = (i + turn) * TAU / 4 - Math.PI * 3 / 4, x = cx + Math.cos(a) * h * 1.41, y = cy + Math.sin(a) * h * 1.41;
+    const ph = t / beat * TAU + i * 1.4, bob = Math.abs(Math.sin(ph / 2)) * 3, col = K[i];
+    const hy = y - 14 - bob;
+    O(c, x, hy, 4.5, col, 1.5);                                          /* head */
+    P(c, [x, hy + 5, x, y + 4 - bob], col);                              /* body */
+    const sw = Math.sin(ph) * 0.9;
+    P(c, [x - 9, y - 9 - bob + sw * 5, x, y - 5 - bob, x + 9, y - 9 - bob - sw * 5], col);   /* arms */
+    P(c, [x - 6, y + 14, x, y + 4 - bob, x + 6 + sw * 2, y + 14 - Math.max(0, sw) * 4], col); /* legs */
+    T(c, nm, x, y + 26, { s: 8, w: 600, ls: 1, col: C.g1, al: 'center' });
+  });
+  T(c, 'A03', 10, 222, { s: 22, w: 300, col: C.k3 });
+  T(c, '122', 232, 222, { s: 22, w: 300, col: C.k1, al: 'right' });
+  lab(c, 'BPM', 232, 196, C.g2, 'right'); lab(c, 'PATTERN', 10, 196, C.g2);
+  P(c, [114, 206, 114, 220, 126, 213], C.g1, 1.3, { close: 1 });       /* play, outlined: stopped */
+}
+
+function colX(i) { return 9 + i * 13.5 + Math.floor(i / 4) * 2; }
+function s2(c, t) {                                   /* the step view: the page as a little piano roll over the 16 keys */
+  bg(c); head(c, 'CHORDS', 'A03', { n: 3 }); T(c, '122', 196, 17, { s: 11, w: 400, col: C.g2, al: 'right' });
+  for (let p = 0; p < 8; p++) {                       /* pages: in the track (4), playing (1), beyond its length */
+    const x = 10 + p * 28; P(c, [x, 27, x + 22, 27], p === 0 ? C.k3 : p < 4 ? C.g2 : C.g3, p === 0 ? 2 : 1.5);
+  }
+  const pos = (t / STEP) % 16, ph = Math.floor(pos);
+  const y = n => 200 - (n - 42) * 9.4;
+  for (let i = 0; i < 16; i++) RR(c, colX(i), 36, 12, 174, 3, i === ph ? C.g2 : C.g3, 1);
+  PAGE.forEach(st => {
+    const x0 = colX(st.s) + 1 + (st.micro || 0) / 24 * 13.5, w = st.len * 13.5 - 2;
+    const on = pos >= st.s + (st.micro || 0) / 24 && pos < st.s + (st.micro || 0) / 24 + st.len;
+    st.n.forEach(n => {
+      if (st.rat) { for (let r = 0; r < st.rat; r++) RR(c, x0 + r * w / st.rat, y(n) - 2, w / st.rat - 1.5, 4, 2, null, 1, on ? C.k3 : C.g1); }
+      else RR(c, x0, y(n) - 2, w, 4, 2, st.sel ? C.k3 : null, 1, on ? C.k3 : st.sel ? null : C.g1);
+    });
+    const mx = colX(st.s) + 6;                       /* markers under the column: lock, condition, chance, sound */
+    if (st.lk) O(c, mx, 219, 1.8, null, 1, C.k3);
+    if (st.cond) O(c, mx, 219, 2.2, C.k1, 1.2);
+    if (st.ch) O(c, mx, 219, 2.2, C.k2, 1.2, null, { a1: Math.PI * 1.1 });
+    if (st.snd) RR(c, mx - 2.5, 216.5, 5, 5, 1, null, 1, C.k4);
+  });
+  const px = colX(ph) + (pos % 1) * 13.5;            /* the playhead */
+  P(c, [px, 33, px, 213], C.red, 1);
+  [0, 4, 8, 12].forEach(i => T(c, String(i + 1), colX(i) + 6, 235, { s: 8, w: 500, col: C.g2, al: 'center' }));
+}
+
+function s3(c, t) {                                   /* tracks: eight little clocks, each at its own length and rate */
+  bg(c); head(c, 'TRACKS', '');
+  const used = 14 + Math.round(Math.sin(t * 3) + 1);
+  for (let v = 0; v < 16; v++) O(c, 186 + (v % 8) * 6, 8 + Math.floor(v / 8) * 6, 1.6, null, 1, v < used ? C.k3 : C.g3);
+  TRACKS.forEach((tr, i) => {
+    const cx = 32 + (i % 4) * 59, cy = 72 + Math.floor(i / 4) * 96, r = 23, sel = i === 2;
+    const pos = (t / STEP * tr.rate) % tr.len, ang = s => -Math.PI / 2 + s / tr.len * TAU;
+    O(c, cx, cy, r, tr.mute ? C.g3 : sel ? C.k3 : C.g2, sel ? 1.5 : 1.2, null, { dash: tr.mute ? [2, 3] : null });
+    if (sel) O(c, cx, cy, r + 5, C.k4, 1.2, null, { a0: -Math.PI / 2, a1: -Math.PI / 2 + TAU * 0.16 });   /* swing, orange */
+    tr.trig.forEach(s => { const a = ang(s), hit = !tr.mute && ((pos - s + tr.len) % tr.len) < 1.2;
+      O(c, cx + Math.cos(a) * r, cy + Math.sin(a) * r, hit ? 2.6 : 1.5, null, 1, tr.mute ? C.g3 : hit ? C.k3 : sel ? C.k1 : C.g2); });
+    const a = ang(pos);
+    if (!tr.mute) { P(c, [cx, cy, cx + Math.cos(a) * (r - 5), cy + Math.sin(a) * (r - 5)], sel ? C.red : C.g1, 1.2); O(c, cx, cy, 1.5, null, 1, sel ? C.red : C.g1); }
+    T(c, String(tr.n), cx, cy + (tr.mute ? 4 : -7), { s: tr.mute ? 12 : 8, w: 500, col: C.g2, al: 'center' });
+    T(c, tr.name, cx, cy + r + 15, { s: 8, w: 600, ls: 1, col: tr.mute ? C.g2 : sel ? C.k3 : C.g1, al: 'center' });
+    T(c, `${tr.len} · ${rateTxt(tr.rate)}`, cx, cy + r + 26, { s: 8, w: 500, col: sel ? C.k2 : C.g2, al: 'center' });
+    for (let v = 0; v < tr.v; v++) O(c, cx - (tr.v - 1) * 2.5 + v * 5, cy + 8, 1.2, null, 1, sel ? C.k3 : C.g1);
+  });
+}
+
+const CHORDS = [['C', 'm7', [48, 51, 55, 58]], ['F', 'm9', [53, 56, 60, 67]], ['G', '7sus', [55, 60, 62, 65]]];
+const NN = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const nn = n => NN[n % 12] + (Math.floor(n / 12) - 1);
+function s4(c, t) {                                   /* a held step: NOTE */
+  bg(c); headTrack(c, 'STEP 5 · NOTE', 3, 'CHORDS');
+  const k = Math.floor(t / 1.6) % 3, ch = CHORDS[k], since = (t % 1.6), sq = 0.55 + 0.45 * ease(since / 0.18);
+  const wr = TW(c, ch[0], { s: 70, w: 200 }), wq = TW(c, ch[1], { s: 30, w: 300 }), w = (wr + wq + 2) * sq, x = 120 - w / 2;
+  T(c, ch[0], x, 98, { s: 70, w: 200, sx: sq }); T(c, ch[1], x + (wr + 2) * sq, 64, { s: 30, w: 300, col: C.k3, sx: sq });
+  const pos = keyboard(c, 14, 120, 212, 70, 48, {});
+  ch[2].forEach((n, i) => { const p = pos(n); O(c, p.x, p.b ? 152 : 180, 3.8, null, 1, K[i]);
+    T(c, nn(n), p.x, i % 2 ? 218 : 207, { s: 9, w: 600, col: K[i], al: 'center' }); });
+  keyStrip(c, 0, [5, 9]);
+}
+
+function s5(c, t) {                                   /* a held step: VEL, a mallet over a drum */
+  bg(c); headTrack(c, 'STEP 5 · VEL', 1, 'DRUMS');
+  T(c, '96', 12, 96, { s: 64, w: 200, col: C.k1 });
+  const cx = 82, top = 158;                           /* the drum */
+  c.save(); c.strokeStyle = C.g1; c.lineWidth = 1.5; c.beginPath(); c.ellipse(cx, top, 52, 11, 0, 0, TAU); c.stroke();
+  c.beginPath(); c.ellipse(cx, top + 34, 52, 11, 0, 0, Math.PI); c.stroke(); c.restore();
+  P(c, [cx - 52, top, cx - 52, top + 34], C.g1); P(c, [cx + 52, top, cx + 52, top + 34], C.g1);
+  for (let i = 0; i < 6; i++) { const x = cx - 45 + i * 18; P(c, [x, top + 10 + (i % 2) * 3, x + 9, top + 32 + (i % 2) * 3], C.g2, 1); }
+  const beat = 60 / BPM, ph = (t % beat) / beat;     /* strike on every beat */
+  const lift = ph < 0.08 ? 1 - ph / 0.08 : ph < 0.5 ? 0 : (ph - 0.5) / 0.5;   /* down fast, rest, rise */
+  const px = 204, py = 146, rest = Math.atan2(154 - py, 104 - px), ang = rest + 0.95 * (96 / 127) * lift;
+  const hx = px + Math.cos(ang) * 96, hy = py + Math.sin(ang) * 96;
+  P(c, [px, py, hx, hy], C.k3, 2); O(c, hx, hy, 6, C.k3, 1.5, C.bg); O(c, px, py, 2, null, 1, C.g1);
+  if (ph < 0.25) { const a = 1 - ph / 0.25; [[-1, -0.6], [0, -1], [1, -0.6]].forEach(([dx, dy]) =>
+      P(c, [104 + dx * 10, 144 + dy * 8, 104 + dx * 18, 144 + dy * 15], C.k1, 1.3, { a })); }
+  keyStrip(c, 1, [0, 5, 9]);
+}
+
+function s6(c, t) {                                   /* a held step: LEN, the note stretched over the next steps */
+  bg(c); headTrack(c, 'STEP 5 · LEN', 3, 'CHORDS');
+  T(c, '2.5', 12, 92, { s: 64, w: 200, col: C.k1 }); lab(c, 'STEPS', 102, 92, C.g1);
+  const x0 = 14, sw = 21, y = 172, tie = Math.floor(t / 2.8) % 2 === 0;
+  for (let i = 0; i <= 10; i++) { const x = x0 + i * sw; P(c, [x, y + 10, x, y + (i % 4 === 0 ? -2 : 4)], i === 2 ? C.k3 : C.g2, 1);
+    if (i < 10) T(c, String(i + 3), x + sw / 2, y + 26, { s: 8, w: 500, col: i === 2 ? C.k3 : C.g2, al: 'center' }); }
+  P(c, [x0, y + 10, x0 + 10 * sw, y + 10], C.g2, 1);
+  const grow = 0.85 + 0.15 * Math.sin(t * 2.2), L = tie ? 4 : 2.5 * grow;
+  RR(c, x0 + 2 * sw + 1, y - 26, L * sw - 2, 12, 6, C.k1, 1.5, 'rgba(63,125,255,0.22)');
+  RR(c, x0 + 6 * sw + 1, y - 26, 1.2 * sw - 2, 12, 6, tie ? C.k2 : C.g2, 1.2);   /* the next note, step 9 */
+  c.save(); c.strokeStyle = tie ? C.k2 : C.g3; c.lineWidth = tie ? 1.5 : 1.2; if (!tie) c.setLineDash([2, 3]); c.beginPath();
+  c.moveTo(x0 + 2 * sw + 8, y - 30); c.quadraticCurveTo(x0 + 4.4 * sw, y - 62, x0 + 6 * sw + 10, y - 30); c.stroke(); c.restore();
+  keyStrip(c, 2, [0, 1]);
+}
+
+function s7(c, t) {                                   /* a held step: MICRO and STRUM, the step magnified as a tape measure */
+  bg(c); headTrack(c, 'STEP 7 · MICRO', 3, 'CHORDS');
+  T(c, '+7', 12, 82, { s: 56, w: 200, col: C.k1 }); T(c, '/24', 84, 82, { s: 18, w: 300, col: C.g1 });
+  const x = k => 22 + (k + 12) * 4.25, base = 172;    /* ticks -12 .. +36 around step 7 */
+  P(c, [10, base, 230, base], C.g2, 1);
+  for (let k = -12; k <= 36; k++) { const big = k % 24 === 0, mid = k % 6 === 0;
+    P(c, [x(k), base, x(k), base - (big ? 76 : mid ? 7 : 3)], big ? (k === 0 ? C.k3 : C.g2) : C.g2, big ? 1.2 : 1); }
+  T(c, '6', x(-12), base + 14, { s: 8, w: 500, col: C.g2, al: 'center' }); T(c, '7', x(0), base + 14, { s: 8, w: 600, col: C.k3, al: 'center' });
+  T(c, '8', x(24), base + 14, { s: 8, w: 500, col: C.g2, al: 'center' });
+  const m = 7, sx = x(m);                             /* the start flag */
+  P(c, [sx, base, sx, 98], C.k1, 1.5); P(c, [sx, 98, sx + 9, 102, sx, 106], C.k1, 1.2, { fill: C.k1, close: 1 });
+  const loop = (t % 2.4) / 2.4 * 52 - 14, ph = x(loop);
+  [0, 1, 2, 3].forEach(j => { const s = m + j * 3, yy = 158 - j * 11, on = loop >= s;
+    O(c, x(s), yy, 2.2, null, 1, on ? C.k2 : C.g2); P(c, [x(s) + 3, yy, 228, yy], on ? C.k2 : C.g2, 2); });
+  if (loop > -12 && loop < 36) P(c, [ph, 96, ph, base], C.red, 1);
+  keyStrip(c, 3, [0, 4]);
+}
+
+function s8(c, t) {                                   /* a held step: RATCHET, a ball bouncing x4, its heights the velocities */
+  bg(c); headTrack(c, 'STEP 15 · RATCH', 1, 'DRUMS');
+  T(c, '×4', 12, 82, { s: 56, w: 200, col: C.k1 });
+  const g = 204, xs = [30, 80, 130, 180], v = [1, 0.75, 0.52, 0.32], H = 92;
+  P(c, [14, g, 226, g], C.g2, 1);
+  const arc = (i, u) => { const xa = xs[i], xb = i < 3 ? xs[i + 1] : 226, hh = (i < 3 ? v[i + 1] : 0.15) * H;
+    return [xa + (xb - xa) * u, g - 4 - Math.sin(u * Math.PI) * hh * (i < 3 ? 1 : 0.6)]; };
+  c.save(); c.setLineDash([1, 4]); c.strokeStyle = C.g2; c.lineWidth = 1.2; c.lineCap = 'round'; c.beginPath();
+  c.strokeStyle = C.g1; c.moveTo(14, g - 4 - H); c.quadraticCurveTo(24, g - 4 - H * 0.6, xs[0], g - 4);
+  for (let i = 0; i < 4; i++) for (let k = 1; k <= 24; k++) { const [px, py] = arc(i, k / 24); c.lineTo(px, py); }
+  c.stroke(); c.restore();
+  xs.forEach((x, i) => { P(c, [x, g + 3, x, g + 3 + v[i] * 12], C.k2, 2); });
+  const u = (t % 1.6) / 1.6 * 4.5 - 0.5;             /* the ball, slowed down */
+  let bx, by;
+  if (u < 0) { const q = u + 0.5; bx = 14 + (xs[0] - 14) * q * 2; by = g - 4 - H * (1 - q * q * 4); }
+  else { const i = Math.min(3, Math.floor(u)); [bx, by] = arc(i, u - i); }
+  O(c, bx, by, 5, C.k3, 1.5, C.bg);
+  keyStrip(c, 4, [5, 8]);
+}
+
+function s9(c, t) {                                   /* a held step: COND and CHANCE */
+  bg(c); headTrack(c, 'STEP 15 · COND', 1, 'DRUMS');
+  T(c, '3:4', 120, 86, { s: 60, w: 200, col: C.k1, al: 'center' });
+  const pass = Math.floor(t / BAR) % 4;
+  for (let i = 0; i < 4; i++) { const x = 84 + i * 24;
+    O(c, x, 108, 6, i === 2 ? null : C.g2, 1.2, i === 2 ? C.k1 : null);
+    if (i === pass) O(c, x, 108, 9.5, C.k3, 1); }
+  T(c, '75%', 120, 188, { s: 34, w: 200, col: C.k2, al: 'center' });
+  let seed = Math.floor(t / BAR) * 7919 + 1;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const lit = Array.from({ length: 30 }, (_, i) => i < 22).sort(() => rnd() - 0.5);
+  lit.forEach((on, i) => { const x = 66 + (i % 10) * 12, y = 128 + Math.floor(i / 10) * 11;
+    O(c, x, y, 2.4, on ? null : C.g2, 1, on ? C.k2 : null); });
+  keyStrip(c, 5, [4, 6, 8]);
+}
+
+function cassette(c, x, y, w, h, name, num, col, t, a = 1) {
+  c.save(); c.globalAlpha = a;
+  RR(c, x, y, w, h, 6, col, 1.5);
+  RR(c, x + 10, y + 8, w - 20, 26, 3, C.g2, 1);
+  T(c, num, x + 15, y + 18, { s: 8, w: 600, ls: 1, col });
+  T(c, name, x + w / 2, y + 29, { s: 13, w: 500, ls: 1, col: C.k3, al: 'center' });
+  [x + w * 0.32, x + w * 0.68].forEach((rx, j) => { const ry = y + h - 17;
+    O(c, rx, ry, 9, C.g1, 1.3);
+    for (let s = 0; s < 3; s++) { const an = t * 2.5 + s * TAU / 3 + j; P(c, [rx + Math.cos(an) * 3, ry + Math.sin(an) * 3, rx + Math.cos(an) * 7, ry + Math.sin(an) * 7], C.g1, 1.2); } });
+  P(c, [x + w * 0.32 + 9, y + h - 8, x + w * 0.68 - 9, y + h - 8], C.g2, 1);
+  c.restore();
+}
+function s10(c, t) {                                  /* a held step: SOUND, a whole preset locked on the step */
+  bg(c); headTrack(c, 'STEP 9 · SOUND', 1, 'DRUMS');
+  const roll = Math.max(0, 1 - ((t % 3) / 0.35)), dy = ease(roll) * 22;
+  c.save(); c.beginPath(); c.rect(0, 26, 240, 158); c.clip();
+  T(c, 'U02  KICK DEEP', 120, 40 + dy, { s: 10, w: 500, ls: 1, col: C.g2, al: 'center' });
+  RR(c, 52, 46 + dy, 136, 14, 5, C.g3, 1.2);
+  cassette(c, 40, 64 + dy, 160, 78, 'SNARE FM', 'U03', C.k1, t);
+  RR(c, 52, 148 + dy, 136, 30, 5, C.g3, 1.2);
+  T(c, 'U04  SNARE 2', 120, 168 + dy, { s: 10, w: 500, ls: 1, col: C.g2, al: 'center' });
+  c.restore();
+  const snd = [0, 3, 1, 4, 0, 3, 1, 4, 2, 3, 1, 4, 0, 3, 1, 3];
+  for (let i = 0; i < 16; i++) { const x = 13 + i * 13.5 + Math.floor(i / 4) * 2;
+    RR(c, x, 196, 10, 10, 2, i === 8 ? null : C.g2, 1, i === 8 ? C.k1 : null);
+    if (i !== 8) O(c, x + 5, 201, 1.2, null, 1, [C.g1, C.g1, C.g2, C.k3, C.g1][snd[i]]); }
+  lab(c, '+2 LOCKS ON TOP', 120, 218, C.g1, 'center');
+  keyStrip(c, 8, [0, 9]);
+}
+
+function env(c, x0, base, top, a, d, s, r, holdTo) {
+  const pk = x0 + a, de = pk + d, sy = base - (base - top) * s / 100, re = holdTo + r;
+  return [x0, base, pk, top, de, sy, holdTo, sy, re, base];
+}
+function s11(c, t) {                                  /* a p-lock: the filter envelope with step 5 held */
+  bg(c); head(c, 'FILTER 2', '', { n: 2 });
+  lock(c, 178, 6, C.k3); T(c, 'STEP 5', 232, 17, { s: 11, w: 500, ls: 1, col: C.k3, al: 'right' });
+  const base = 196, top = 44;
+  const tr = env(c, 16, base, top, 12, 120, 30, 50, 160), lk = env(c, 16, base, top, 12, 55, 0, 50, 160);
+  P(c, [16, base, 226, base], C.g3, 1);
+  P(c, tr, C.g2, 1.3, { dash: [2, 3] });
+  P(c, lk, C.k3, 1.5);
+  O(c, tr[4], tr[5], 2.5, C.g2, 1); O(c, tr[6], tr[7], 2.5, C.g2, 1);
+  [[lk[2], lk[3], 0], [lk[4], lk[5], 1], [(lk[4] + lk[6]) / 2, lk[7], 2], [lk[8], lk[9], 3]].forEach(([x, y, i]) => O(c, x, y, 3.4, null, 1, K[i]));
+  lock(c, lk[4] - 3.5, lk[5] - 19, C.k2); lock(c, (lk[4] + lk[6]) / 2 - 3.5, lk[7] - 19, C.k3);
+  P(c, [tr[4], tr[5] + 4, lk[4] + 3, lk[5] - 4], C.g2, 1, { dash: [1, 2] });
+  const u = (t % (STEP * 8)) / (STEP * 8);           /* a dot runs down the locked curve each time step 5 plays */
+  const pts = [[lk[0], lk[1]], [lk[2], lk[3]], [lk[4], lk[5]], [lk[6], lk[7]], [lk[8], lk[9]]];
+  const segs = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1])), tot = segs.reduce((a, b) => a + b);
+  let dist = u * tot, k = 0; while (k < 3 && dist > segs[k]) { dist -= segs[k]; k++; }
+  const f = Math.min(1, dist / segs[k]), dx = pts[k][0] + (pts[k + 1][0] - pts[k][0]) * f, dyy = pts[k][1] + (pts[k + 1][1] - pts[k][1]) * f;
+  O(c, dx, dyy, 2, null, 1, C.red);
+  keyStrip(c, 6, [5, 6]);
+}
+
+function s12(c, t) {                                  /* the engine: four operators, the algorithm drawn, the ratios as waves */
+  bg(c); head(c, 'SYN 1', 'ALGO 5', { n: 3 });
+  const ops = { B2: [40, 78, 2.0, 2], B1: [104, 78, 2.0, 2], A: [168, 78, 1.0, 1], C: [104, 160, 0.5, 0] };
+  const arrow = (x0, y0, x1, y1, col) => { P(c, [x0, y0, x1, y1], col, 1.2); const a = Math.atan2(y1 - y0, x1 - x0);
+    P(c, [x1 - Math.cos(a - 0.5) * 5, y1 - Math.sin(a - 0.5) * 5, x1, y1, x1 - Math.cos(a + 0.5) * 5, y1 - Math.sin(a + 0.5) * 5], col, 1.2); };
+  const flow = (x0, y0, x1, y1, off) => { const u = ((t * 1.3 + off) % 1); O(c, x0 + (x1 - x0) * u, y0 + (y1 - y0) * u, 1.6, null, 1, C.k3); };
+  arrow(62, 78, 81, 78, C.g1); arrow(126, 78, 145, 78, C.g1); flow(62, 78, 81, 78, 0); flow(126, 78, 145, 78, 0.4);
+  c.save(); c.strokeStyle = C.g1; c.lineWidth = 1.2; c.beginPath(); c.arc(40, 54, 9, Math.PI * 0.9, Math.PI * 2.1); c.stroke(); c.restore(); /* feedback */
+  P(c, [190, 78, 212, 78, 212, 140], C.g1, 1.2); P(c, [126, 160, 180, 160, 180, 153, 196, 153], C.g1, 1.2); flow(126, 160, 180, 160, 0.7);
+  Object.entries(ops).forEach(([nm, [x, y, ratio, k]]) => {
+    O(c, x, y, 21, K[k], 1.5); sine(c, x, y, 21, ratio * 1.5, -t * 6 * ratio, K[k]);
+    T(c, nm, x, y + 34, { s: 8, w: 600, ls: 1, col: C.g1, al: 'center' });
+    T(c, '×' + ratio.toFixed(2), x, y + 45, { s: 9, w: 500, col: K[k], al: 'center' });
+  });
+  /* HARM (KNOB 4) as the harmonics' comb by the speaker; the speaker pulses */
+  for (let h = 0; h < 6; h++) P(c, [184 + h * 7, 222, 184 + h * 7, 222 - 24 / (h + 1) * (h < 5 ? 1 : 0.4)], C.k4, 1.5);
+  lab(c, 'HARM', 184, 234, C.g2);
+  P(c, [198, 146, 206, 146, 206, 160, 198, 160], C.g1, 1.2, { close: 1 }); P(c, [206, 146, 216, 138, 216, 168, 206, 160], C.g1, 1.2);
+  const pulse = (t * 4) % 1; [8, 14].forEach((rr, i) => O(c, 216, 153, rr, C.g1, 1.2, null, { a0: -0.7, a1: 0.7, a: i ? 1 - pulse : 1 }));
+}
+
+function s13(c, t) {                                  /* patterns: the queued one big, bank A as sixteen dots, a chain */
+  bg(c); head(c, 'PATTERN', 'BANK A');
+  T(c, 'A', 12, 108, { s: 40, w: 200, col: C.g1 }); T(c, '07', 40, 108, { s: 64, w: 200, col: C.k4 });
+  const left = 1 - ((t % (BAR * 2)) / (BAR * 2));
+  lab(c, `IN ${left > 0.5 ? 2 : 1} BAR${left > 0.5 ? 'S' : ''}`, 14, 132, C.g1);
+  P(c, [14, 140, 120, 140], C.g3, 2); P(c, [14, 140, 14 + 106 * left, 140], C.k4, 2);
+  const g = i => [148 + (i % 4) * 22, 50 + Math.floor(i / 4) * 22], has = [0, 1, 2, 3, 4, 6, 7, 8, 9, 12];
+  const chain = [2, 6, 7]; P(c, chain.flatMap(i => g(i)), C.k4, 1, { a: 0.7 });
+  for (let i = 0; i < 16; i++) { const [x, y] = g(i);
+    if (i === 2) O(c, x, y, 6.5, null, 1, C.k3);
+    else if (i === 6) O(c, x, y, 6.5, Math.floor(t * 4) % 2 ? C.k4 : C.g2, 1.5, C.bg);
+    else if (has.includes(i)) O(c, x, y, 6.5, chain.includes(i) ? C.k4 : C.g1, 1.2, C.bg);
+    else O(c, x, y, 1.5, null, 1, C.g2); }
+  lab(c, 'CHAIN 03 → 07 → 08', 14, 166, C.g1);
+  ['A', 'B', 'C', 'D'].forEach((b, i) => { const x = 60 + i * 40;
+    T(c, b, x, 206, { s: 18, w: i ? 300 : 400, col: i ? C.g2 : C.k3, al: 'center' }); if (!i) P(c, [x - 6, 214, x + 6, 214], C.k3, 1.5); });
+}
+
+function s14(c, t) {                                  /* the mix: eight faders and pans */
+  bg(c); head(c, 'MIX', 'MASTER −2.0');
+  const lv = [0.8, 0.72, 0.62, 0.55, 0.5, 0.68, 0.4, 0.3], pan = [0, -0.3, 0.4, 0.6, -0.6, 0, 0.2, -0.2];
+  const snd = [[0.2, 0.3], [0, 0.1], [0.3, 0.45], [0.5, 0.2], [0.1, 0.6], [0.2, 0.8], [0.4, 0.4], [0, 0.2]];
+  for (let i = 0; i < 8; i++) {
+    const x = 22 + i * 28, sel = i === 2, mute = i === 6, col = mute ? C.g3 : sel ? C.k3 : C.g1;
+    O(c, x, 44, 7.5, sel ? C.k2 : col, 1.2); const a = -Math.PI / 2 + pan[i] * 2.2; P(c, [x, 44, x + Math.cos(a) * 6.5, 44 + Math.sin(a) * 6.5], sel ? C.k2 : col, 1.2);
+    const top = 64, bot = 188, fy = bot - (bot - top) * lv[i];
+    P(c, [x, top, x, bot], C.g3, 1, { dash: mute ? [2, 3] : null });
+    const tr = TRACKS[i], hit = !mute && ((t / STEP * tr.rate) % tr.len) % 1 < 0.5 && tr.trig.includes(Math.floor((t / STEP * tr.rate) % tr.len));
+    const meter = mute ? 0 : lv[i] * (hit ? 0.95 : 0.55 + 0.2 * Math.sin(t * 7 + i));
+    P(c, [x + 5, bot, x + 5, bot - (bot - top) * meter], C.g2, 1.5);
+    P(c, [x, bot, x, fy], sel ? C.k1 : col, 1.5);
+    RR(c, x - 7, fy - 3, 14, 6, 2, sel ? C.k1 : col, 1.2, C.bg);
+    if (mute) { P(c, [x - 4, 197, x + 4, 205], C.g2, 1); P(c, [x + 4, 197, x - 4, 205], C.g2, 1); }
+    else T(c, String(i + 1), x, 205, { s: 9, w: sel ? 600 : 500, col: sel ? C.k3 : C.g2, al: 'center' });
+    [0, 1].forEach(j => { const yy = 218 + j * 7; P(c, [x - 8, yy, x + 8, yy], C.g3, 1.5);
+      if (snd[i][j]) P(c, [x - 8, yy, x - 8 + 16 * snd[i][j], yy], mute ? C.g3 : sel ? [C.k3, C.k4][j] : C.g2, 1.5); });
+  }
+}
+
+function s15(c, t) {                                  /* the delay: a ball ping-pongs between two walls, the echoes fading */
+  bg(c); head(c, 'DELAY', 'FX 1 / 3');
+  const wl = 30, wr = 210;                            /* WIDTH (white): how far apart the walls stand */
+  P(c, [wl, 44, wl, 214], C.k3, 1.5); P(c, [wr, 44, wr, 214], C.k3, 1.5);
+  P(c, [6, 40, wl - 6, 58], C.k4, 2); P(c, [wl - 12, 52, wl - 6, 58, wl - 14, 59], C.k4, 1.5);   /* the send (orange) coming in */
+  const n = 8, pts = Array.from({ length: n }, (_, i) => [i % 2 ? wr - 10 : wl + 10, 60 + i * 21]);
+  P(c, pts.flat(), C.g3, 1, { dash: [1, 4] });
+  pts.forEach(([x, y], i) => O(c, x, y, Math.max(1.5, 7 - i * 0.8), C.k2, 1.3, null, { a: Math.pow(0.72, i) }));   /* FEEDBACK (green): the echoes */
+  const per = 60 / BPM * 0.75, u = (t / per) % (n - 1), i = Math.floor(u), f = u - i;
+  const bx = pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f, by = pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f;
+  O(c, bx, by, 5, null, 1, C.k1);                     /* TIME (blue): the ball, at the delay time */
+  T(c, '3/16', 120, 234, { s: 12, w: 400, col: C.k1, al: 'center' });
+}
+
+function s16(c, t) {                                  /* tempo and swing: a metronome */
+  bg(c); head(c, 'TEMPO', 'INT');
+  T(c, '122', 10, 110, { s: 66, w: 200, col: C.k1 }); lab(c, 'BPM', 12, 130, C.g1);
+  T(c, '58%', 10, 190, { s: 32, w: 200, col: C.k2 }); lab(c, 'SWING', 12, 206, C.g1);
+  P(c, [158, 220, 222, 220, 204, 50, 176, 50], C.g1, 1.5, { close: 1 });
+  P(c, [166, 190, 214, 190], C.g2, 1);
+  const beat = 60 / BPM, b = t / beat, k = Math.floor(b), f = b - k;
+  const side = k % 2 ? 1 : -1, ang = side * Math.cos(Math.PI * f) * 0.42;
+  const px = 190, py = 180, L = 116, tx = px + Math.sin(ang) * L, ty = py - Math.cos(ang) * L;
+  P(c, [px, py, tx, ty], C.k3, 1.5); const wx = px + Math.sin(ang) * L * 0.62, wy = py - Math.cos(ang) * L * 0.62;
+  RR(c, wx - 6, wy - 4, 12, 8, 2, C.k3, 1.2, C.bg); O(c, px, py, 2.5, null, 1, C.g1);
+  for (let i = 0; i < 4; i++) O(c, 172 + i * 12, 205, 2.5, i === (k % 4) ? null : C.g2, 1, i === (k % 4) ? C.k4 : null);
+}
+
+function speaker(c, x, y, col, on, mute, t, a = 1) {
+  P(c, [x - 10, y - 5, x - 4, y - 5, x - 4, y + 5, x - 10, y + 5], col, 1.3, { close: 1 });
+  P(c, [x - 4, y - 5, x + 3, y - 11, x + 3, y + 11, x - 4, y + 5], col, 1.3);
+  if (mute) { P(c, [x + 8, y - 5, x + 16, y + 5], C.k4, 1.5); P(c, [x + 16, y - 5, x + 8, y + 5], C.k4, 1.5); return; }
+  [7, 12].forEach((r, i) => O(c, x + 3, y, r, col, 1.3, null, { a0: -0.75, a1: 0.75, a: on ? 1 : 0.35 + 0.1 * i }));
+}
+function s17(c, t) {                                  /* mute mode */
+  bg(c); head(c, 'MUTE', 'SOLO —');
+  TRACKS.forEach((tr, i) => {
+    const x = 34 + (i % 4) * 57, y = 70 + Math.floor(i / 4) * 74, mute = tr.mute || i === 7;
+    const pos = (t / STEP * tr.rate) % tr.len, on = tr.trig.some(s => (pos - s + tr.len) % tr.len < 1);
+    speaker(c, x - 2, y, mute ? C.g2 : C.k3, on, mute, t);
+    T(c, String(tr.n), x, y + 30, { s: 9, w: 600, col: mute ? C.g2 : C.k3, al: 'center' });
+    T(c, tr.name, x, y + 41, { s: 8, w: 500, ls: 1, col: mute ? C.g2 : C.g1, al: 'center' });
+  });
+  lab(c, 'WHITE 1–8 MUTE · 9–16 SOLO', 120, 224, C.g2, 'center');
+}
+
+function s18(c, t) {                                  /* KEYS mode recording: the notes scroll in as they are played */
+  bg(c); head(c, 'LEAD', '', { n: 4 });
+  const blink = Math.floor(t * 2.5) % 2;
+  RR(c, 150, 4, 82, 17, 3, null, 1, blink ? C.red : '#a01c2a'); T(c, 'RECORDING', 191, 16, { s: 9, w: 700, ls: 1, col: '#fff', al: 'center' });
+  const now = 186, pxs = 11, notes = [[0, 64, 1], [2, 67, 0.5], [3, 69, 1.5], [6, 71, 0.5], [7, 72, 2], [10, 69, 1], [12, 67, 1], [14, 64, 1.5],
+    [16, 62, 1], [18, 64, 0.5], [19, 67, 2]];
+  const pos = (t / STEP) % 24, y = n => 152 - (n - 58) * 6.5;
+  for (let s = Math.ceil(pos - 16); s <= pos; s++) { const x = now - (pos - s) * pxs; P(c, [x, 40, x, 156], s % 4 === 0 ? C.g3 : '#121216', 1); }
+  P(c, [now, 34, now, 160], C.red, 1);
+  const held = {};
+  notes.forEach(([s, n, len]) => { if (s > pos) return; const end = Math.min(pos, s + len), x0 = now - (pos - s) * pxs, x1 = now - (pos - end) * pxs;
+    if (x1 < 8) return; const live = pos < s + len; if (live) held[n] = C.k3;
+    RR(c, Math.max(8, x0), y(n) - 2.5, Math.max(3, x1 - Math.max(8, x0)), 5, 2.5, null, 1, live ? C.k3 : C.g1); });
+  keyboard(c, 22, 170, 196, 48, 60, held);
+  lab(c, 'OCT 4 · STEP ' + (Math.floor(pos) % 16 + 1), 120, 234, C.g2, 'center');
+}
+
+function s19(c, t) {                                  /* a held step: TRIG, three kinds */
+  bg(c); headTrack(c, 'STEP 11 · TRIG', 2, 'BASS');
+  const cur = Math.floor(t / 1.4) % 3, xs = [44, 120, 196], names = ['NOTE', 'LOCK', 'TIE'];
+  xs.forEach((x, i) => { const col = i === cur ? C.k1 : C.g2, y = 100;
+    if (i === cur) RR(c, x - 34, y - 46, 68, 84, 8, C.k1, 1.2);
+    if (i === 0) { O(c, x, y - 4, 13, col, 1.5, i === cur ? C.k1 : null); }
+    if (i === 1) { lock(c, x - 11, y - 18, col, 3.1); }
+    if (i === 2) { O(c, x - 14, y + 4, 4, null, 1, col); O(c, x + 14, y + 4, 4, null, 1, col);
+      c.save(); c.strokeStyle = col; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x - 14, y - 2); c.quadraticCurveTo(x, y - 26, x + 14, y - 2); c.stroke(); c.restore(); }
+    T(c, names[i], x, y + 30, { s: 10, w: 600, ls: 1, col: i === cur ? C.k3 : C.g2, al: 'center' }); });
+  const txt = ['strikes its notes', 'changes the sound, no new note', 'slides the held note, legato'][cur];
+  T(c, txt, 120, 180, { s: 11, w: 400, col: C.g1, al: 'center' });
+  keyStrip(c, 7, [0, 1]);
+}
+
+function s20(c, t) {                                  /* a held step: LOCKS, the step's p-locks as a picker */
+  bg(c); headTrack(c, 'STEP 5 · LOCKS', 2, 'BASS');
+  T(c, '3 LOCKS', 232, 40, { s: 9, w: 600, ls: 1, col: C.g1, al: 'right' });
+  const L = [['DECAY', '50', 0.40, 0.88], ['FREQ', '38.50', 0.38, 0.82], ['PAN', 'L10', 0.42, 0.5]];
+  const roll = ease(((t % 2.8) - 2.4) / 0.4), cur = 1;
+  c.save(); c.beginPath(); c.rect(0, 26, 240, 170); c.clip(); c.translate(0, -roll * 52);
+  T(c, 'DECAY 50', 120, 62, { s: 14, w: 400, ls: 1, col: C.g2, al: 'center' });
+  T(c, 'FREQ', 120, 98, { s: 12, w: 600, ls: 2, col: C.k3, al: 'center' });
+  T(c, '38.50', 120, 148, { s: 50, w: 200, col: C.k1, al: 'center' });
+  P(c, [30, 170, 210, 170], C.g2, 1); const xl = 30 + 180 * 0.385, xt = 30 + 180 * 0.82;
+  P(c, [xt, 164, xt, 176], C.g1, 1.2); T(c, 'track 82.00', xt, 188, { s: 8, w: 500, col: C.g2, al: 'center' });
+  P(c, [xl, 170, xt, 170], C.k1, 1.5, { dash: [2, 3] }); O(c, xl, 170, 4, null, 1, C.k1);
+  T(c, 'PAN L10', 120, 218, { s: 14, w: 400, ls: 1, col: C.g2, al: 'center' });
+  T(c, 'DECAY', 120, 250, { s: 12, w: 600, ls: 2, col: C.k3, al: 'center' });
+  c.restore();
+  keyStrip(c, 9, [0, 9]);
+}
+
+/* A knob whose value the screen does not draw takes the whole screen while it turns: its name and a knob mark in
+   its colour, a drawing of what it does, the value big; back to the screen 1 s after the last detent. */
+function knobMark(c, x, y, v, col) { O(c, x, y, 6, col, 1.3); const a = Math.PI * 0.75 + v * Math.PI * 1.5; P(c, [x, y, x + Math.cos(a) * 5, y + Math.sin(a) * 5], col, 1.3); }
+function takeover(c, name, ctx, k, v, val, draw) {
+  bg(c); knobMark(c, 14, 12, v, K[k]);
+  T(c, name, 26, 17, { s: 11, w: 600, ls: 1, col: K[k] }); T(c, ctx, 232, 17, { s: 11, w: 400, ls: 1, col: C.g2, al: 'right' });
+  draw(); T(c, val, 120, 222, { s: 58, w: 200, col: K[k], al: 'center' });
+}
+function grid(c) { for (let x = 30; x < 230; x += 26) P(c, [x, 36, x, 158], '#141418', 1); P(c, [14, 158, 226, 158], C.g3, 1); }
+function freqDraw(c, v) {
+  grid(c); const xc = 20 + v / 127 * 200, pts = [];
+  for (let x = 14; x <= 226; x += 2) { const bump = 34 * Math.exp(-Math.pow((x - xc) / 9, 2)), d = Math.max(0, x - xc) * 1.9;
+    pts.push(x, Math.min(158, 78 - bump + d)); }
+  c.save(); c.beginPath(); c.moveTo(14, 158); for (let i = 0; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.lineTo(226, 158); c.closePath();
+  c.fillStyle = 'rgba(63,125,255,0.16)'; c.fill(); c.restore();
+  P(c, pts, C.k1, 1.6); O(c, xc, 78 - 34, 3, null, 1, C.k1);
+}
+function s21(c, t) {                                  /* a knob turned on the step view: FREQ takes the screen, then hands it back */
+  const L = 4.6, p = t % L, inA = 1.3, inB = 1.42, outA = 3.9, outB = 4.05;
+  const turn = Math.min(1, Math.max(0, (p - inA) / (3.0 - inA))), v = 82 - 40 * Math.sin(turn * Math.PI) + 0 * turn;
+  const tk = cc => takeover(cc, 'FREQ', 'CHORDS', 0, v / 127, String(Math.round(v)), () => freqDraw(cc, v));
+  if (p < inA || p > outB) { s2(c, t); return; }
+  if (p >= inB && p <= outA) { tk(c); return; }
+  const a = p < inB ? (p - inA) / (inB - inA) : 1 - (p - outA) / (outB - outA);
+  s2(c, t); layer(c, tk, ease(a), (1 - ease(a)) * 14);
+}
+function s22(c, t) {                                  /* DECAY (KNOB 2 on the step view) */
+  const v = 40 + 18 * Math.sin(t * 1.4);
+  takeover(c, 'DECAY', 'CHORDS', 1, v / 127, String(Math.round(v)), () => { grid(c);
+    const end = 26 + v / 127 * 330, pts = [16, 158, 24, 44];
+    for (let x = 24; x <= 226; x += 2) pts.push(x, 158 - 114 * Math.exp(-(x - 24) / (end - 24) * 3));
+    P(c, pts, C.k2, 1.6); O(c, 24, 44, 3, null, 1, C.k2);
+    const beat = 60 / BPM, ph = (t % beat) / beat, dx = 24 + ph * 200; O(c, dx, 158 - 114 * Math.exp(-(dx - 24) / (end - 24) * 3), 2, null, 1, C.red); });
+}
+function s23(c, t) {                                  /* HARM (KNOB 4 on SYN 1): the wave grows harmonics */
+  const v = 4 + 2.5 * Math.sin(t * 1.1), h = Math.max(0, v);
+  takeover(c, 'HARM', 'SYN 1', 3, (v + 26) / 52, (v >= 0 ? '+' : '') + v.toFixed(1), () => {
+    P(c, [14, 98, 226, 98], C.g3, 1); const pts = [];
+    for (let x = 14; x <= 226; x += 1.5) { const u = (x - 14) / 212 * TAU * 2 - t * 3; let y = 0, n = 0;
+      for (let k = 1; k <= 7; k++) { const a = k === 1 ? 1 : Math.max(0, Math.min(1, h / 2 - (k - 2) * 0.6)) / k; y += a * Math.sin(k * u); n += a; }
+      pts.push(x, 98 - y / Math.max(1, n * 0.7) * 50); }
+    P(c, pts, C.k4, 1.6);
+    for (let k = 1; k <= 7; k++) { const a = k === 1 ? 1 : Math.max(0, Math.min(1, h / 2 - (k - 2) * 0.6)) / k; P(c, [60 + k * 16, 168, 60 + k * 16, 168 - a * 18], a ? C.k4 : C.g3, 2); } });
+}
+function s24(c, t) {                                  /* FDBK (on SYN 2): the signal spirals back into itself */
+  const v = 12 + 8 * Math.sin(t * 0.9), turns = 1 + v / 9;
+  takeover(c, 'FEEDBACK', 'SYN 2', 3, v / 127, String(Math.round(v)), () => {
+    const cx = 120, cy = 100, pts = [];
+    for (let a = 0; a <= turns * TAU; a += 0.08) { const r = 4 + a / (turns * TAU) * 58; pts.push(cx + Math.cos(a - t * 2) * r, cy + Math.sin(a - t * 2) * r); }
+    P(c, pts, C.k4, 1.5); O(c, pts[pts.length - 2], pts[pts.length - 1], 3, null, 1, C.k4); });
+}
+function s25(c, t) {                                  /* RATE (KNOB 2 on TRACKS): a picker, the track's clock against the pattern's */
+  takeover(c, 'RATE', '3 CHORDS', 1, 0.35, '', () => {
+    [[78, 1, C.g2, 'PATTERN'], [162, 0.5, C.k2, 'TRACK 3']].forEach(([cx, r, col, nm]) => {
+      O(c, cx, 92, 34, col, 1.5); for (let s = 0; s < 16; s++) { const a = -Math.PI / 2 + s / 16 * TAU; O(c, cx + Math.cos(a) * 34, 92 + Math.sin(a) * 34, 1.3, null, 1, col); }
+      const a = -Math.PI / 2 + ((t / STEP * r) % 16) / 16 * TAU; P(c, [cx, 92, cx + Math.cos(a) * 26, 92 + Math.sin(a) * 26], col === C.g2 ? C.g1 : C.red, 1.5);
+      T(c, nm, cx, 146, { s: 8, w: 600, ls: 1, col: C.g1, al: 'center' }); });
+    T(c, '1/4x', 30, 214, { s: 16, w: 300, col: C.g2, al: 'center' }); T(c, '1x', 210, 214, { s: 16, w: 300, col: C.g2, al: 'center' });
+    T(c, '1/2x', 120, 222, { s: 52, w: 200, col: C.k2, al: 'center' }); });
+}
+
+/* ---------------------------------------------------------------- the list, the notes on each */
+const SCREENS = [
+  { f: s1, t: 1.7, title: 'Idle: the quadrille', text: 'Stopped, nothing held. The four operators (C, A, B1, B2), in their knob colours, dance in a square: a little bob on every beat, a quarter turn on the last beat of each bar while the transport runs (stopped: they sway slowly). The pattern and the tempo, the play mark outlined. PLAY starts it; any key goes to the step view.' },
+  { f: s2, t: 0.95, title: 'The step view', text: 'Track 3 CHORDS, page 1 of 4 (the eight dashes: the track\'s pages bright, the rest dark). The sixteen tall outlines are the sixteen white keys; inside them the page as a small piano roll, so a chord is a stack, a length is a bar, a micro-timed note sits off its column, a ratchet is a dashed bar (step 16). Under a column: a white dot = p-locks, a blue ring = a condition, a green half ring = a chance, an orange square = a sound lock. The selected step (5) is outlined. No values on screen: KNOB 1..4 are the track\'s FREQ, DECAY, HARM and FDBK, and turning one gives it the whole screen for a moment (screens 21..22). <strong>Motion</strong>: the red playhead sweeps; notes it crosses light up; a page change slides the roll sideways.' },
+  { f: s3, t: 2.3, title: 'Tracks: eight clocks', text: 'TRACKS (printed FX). Each track is a ring: its trigs as dots round it, its own length, its own hand turning at its own rate, so polymeter is plain to see (PLUCK goes round fast, PAD slowly). The dots inside are the voices it is using; the sixteen at the top right are the pool. BELL is muted (dashed). The selected track 3 shows its knobs in their colours: its trigs blue (LEN), its length and rate green (RATE), its voices white (LIMIT), an orange arc outside the ring (SWING). Turning one gives it the screen (screen 25). <strong>Motion</strong>: hands turn, dots flash as they play, voice dots come and go.' },
+  { f: s4, t: 0.12, title: 'Held step: NOTE', text: 'Hold white key 5, press the first black key (NOTE). The chord name big, the four notes on the keybed drawing in their knob colours with their names under them: KNOB 1 the root, KNOB 2..4 the other notes (blue, green, white, orange). Turning a knob slides its dot along the keys. <strong>Motion</strong>: a new chord name squeezes in from narrow (ChoralRoot\'s squeeze).' },
+  { f: s5, t: 0.45, title: 'Held step: VEL', text: 'The velocity big; a mallet over a drum, raised as high as the velocity. <strong>Motion</strong>: the mallet strikes when the step plays, three little blue lines jump off the skin.' },
+  { f: s6, t: 0.4, title: 'Held step: LEN', text: 'The note as a blue bar stretching from step 5 over the next steps on a ruler; the next note (step 9) beside it. KNOB 2 is TIE: off, a faint dashed slur; on, the bar reaches the next note and a green slur joins them (the still alternates). <strong>Motion</strong>: the bar stretches with the knob.' },
+  { f: s7, t: 1.75, title: 'Held step: MICRO and STRUM', text: 'The step as a tape measure, 24 ticks a step, steps 6 and 8 for reference. The blue flag is where the step starts (+7/24, KNOB 1); the green staircase is the strum (KNOB 2: each chord note 3/24 after the one before). <strong>Motion</strong>: a slow red playhead walks the span and lights each strummed note as it starts.' },
+  { f: s8, t: 0.85, title: 'Held step: RATCHET', text: 'x4 (KNOB 1): a ball bounces four times inside the step. The ramp (KNOB 2) is the green ticks under the floor and the heights of the bounces: each hit\'s velocity. <strong>Motion</strong>: the ball bounces along the dotted path in slow motion, again and again.' },
+  { f: s9, t: 2.2, title: 'Held step: COND and CHANCE', text: '3:4 (the third pass of every four): four circles, the third filled, the ring on the pass playing now. Under it the chance: 75 % of thirty dots lit green. <strong>Motion</strong>: the ring moves on each pass; the lit dots reshuffle every pass (it is a dice roll).' },
+  { f: s10, t: 2.0, title: 'Held step: SOUND (a preset locked on a step)', text: 'Step 9 of DRUMS takes U03 SNARE FM, the whole preset; the neighbours in the sound list peek above and below. The sixteen squares are the page: each step\'s sound as a dot, step 9 blue. The step\'s two p-locks still apply on top. <strong>Motion</strong>: a turn rolls the cassettes up or down like a drum; the reels turn while the step sounds.' },
+  { f: s11, t: 0.5, title: 'Setting a p-lock', text: 'Track 2 BASS\'s FILTER 2 page (the filter\'s envelope) with step 5 held (the padlock and STEP 5 at the top). The dashed grey curve is the track\'s envelope, the white one the step\'s; the four dots are the four knobs in their colours (attack, decay, sustain, release). DECAY and SUSTAIN are locked: a padlock over their dots, and the track\'s own points left behind in grey. Turning a knob moves its dot. In the sound editor the black-key strip is its eleven pages (SYN 1 .. LFO 3): the lit one is this page, an outlined one has a lock on the held step. <strong>Motion</strong>: a red dot runs down the locked curve each time step 5 plays.' },
+  { f: s12, t: 0.3, title: 'The engine: SYN 1', text: 'FM TONE\'s first page as a drawing: the four operators as circles, each with its wave inside at its ratio and the ratio under it, wired by the algorithm (ALGORITHM knob: ALGO 5 here, B2 with feedback into B1 into A, C alone), the carriers into the speaker. KNOB 1..3 are the ratios of C, A and B (blue, green, white operators); KNOB 4 is HARM, the orange comb of harmonics by the speaker. <strong>Motion</strong>: the waves scroll at their ratios; little dots run along the wires; the speaker pulses with the notes.' },
+  { f: s13, t: 1.3, title: 'Patterns and chains', text: 'PATTERN held (printed SEL). A07 queued, big; a line that empties to the change. Bank A as sixteen dots: content as rings, A03 playing (white), A07 queued (blinking orange), the chain 03 → 07 → 08 joined by a line. The banks at the foot. <strong>Motion</strong>: the line empties; at the change the new name drops in and the white dot hops along the chain.' },
+  { f: s14, t: 0.5, title: 'The mix', text: 'MIX (printed SEQ). Eight faders with a pan dial on top, a level meter beside each and the two sends under the number (delay, reverb). Track 3 is selected, so its parts take the knob colours: the fader blue (LEVEL), the pan green, the delay send white, the reverb send orange. 7 is muted (dashed, crossed). Again MIX: the effects, one drawing each.' },
+  { f: s15, t: 0.9, title: 'The delay', text: 'The delay as a ping-pong ball between two walls. Every part is a knob: the blue ball moves at the delay TIME (its value is the only number), the green echoes fade by the FEEDBACK, the white walls stand as far apart as the stereo WIDTH, the orange arrow is the selected track\'s SEND coming in. The reverb and chorus get their own drawings in the same way (a room, three wavy lines). <strong>Motion</strong>: the ball bounces at the delay time.' },
+  { f: s16, t: 0.6, title: 'Tempo and swing', text: 'SELECT with nothing held. The tempo big in blue (KNOB 1), the swing in green (KNOB 2); a metronome whose pendulum swings at the tempo, its four dots the beats of the bar. The clock source is the word at the top right.' },
+  { f: s17, t: 0.45, title: 'Mute', text: 'MUTE (printed LFO), latched: white keys 1..8 mute the tracks, 9..16 solo them. A speaker per track; muted ones (7 BELL, and 8 NOISE just now) grey with an orange cross. <strong>Motion</strong>: the waves of each speaker pulse with its track\'s trigs.' },
+  { f: s18, t: 2.4, title: 'KEYS mode, recording', text: 'KEYS (printed ARP) and REC while playing: the keybed plays track 4 LEAD, the notes scroll in from the red line as they are played (micro-timing kept), the keys held light up on the little keybed. <strong>Motion</strong>: the roll scrolls; RECORDING blinks.' },
+  { f: s19, t: 0.3, title: 'Held step: TRIG', text: 'The step\'s kind: NOTE (strikes), LOCK (a trigless step: it changes the sound of the notes sounding, plays nothing) and TIE (slides the held note, legato). One line says what the chosen one does.' },
+  { f: s20, t: 1.0, title: 'Held step: LOCKS', text: 'The held step\'s p-locks as a picker: one lock big (FREQ 38.50 in blue, the knob that changes it), the others peeking above and below. The line under it shows how far the lock sits from the track\'s own value (the grey tick). GLO + KNOB 1 removes the lock. <strong>Motion</strong>: turning rolls to the next lock.' },
+
+  { f: s21, t: 2.2, title: 'A knob turned: the whole screen', text: 'The step view has no values on it. Turn KNOB 1 and FREQ takes the screen: its name and a little knob mark in blue, the filter\'s curve moving as you turn, the value big. One second after the last detent the step view comes back (a 120 ms fade and a small drop). <strong>Motion</strong>: this canvas loops the whole thing: the step view, the turn, the sweep, the return.' },
+  { f: s22, t: 0.6, title: 'A turn: DECAY', text: 'KNOB 2 on the step view: the amp envelope\'s decay drawn as the curve itself, in green; a red dot runs down it on each beat so the length can be heard and seen.' },
+  { f: s23, t: 0.9, title: 'A turn: HARM', text: 'KNOB 4 on SYN 1 (where the orange comb stands for it): the wave grows harmonics as HARM goes up, the comb under it shows which ones.' },
+  { f: s24, t: 0.4, title: 'A turn: FEEDBACK', text: 'On SYN 2: the signal as a spiral that winds back into itself, more turns the more feedback.' },
+  { f: s25, t: 0.9, title: 'A turn: RATE (a picker)', text: 'KNOB 2 on TRACKS. A value with steps becomes a picker: 1/2x big, its neighbours 1/4x and 1x small. Above it the pattern\'s clock and the track\'s clock side by side, the track\'s hand turning at half the speed.' },];
+
+/* ---------------------------------------------------------------- the page */
+async function main() {
+  const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search), shot = q.get('shot'), sheet = q.get('sheet'), qt = q.get('t'), dt = +(q.get('dt') || 0);
+  const pick = q.get('pick') ? q.get('pick').split(',').map(Number) : null;
+  const mk = (cls) => { const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; if (cls) cv.className = cls; return cv; };
+  if (shot) {
+    document.body.className = 'shot'; document.getElementById('page').remove();
+    const s = SCREENS[+shot.split('-')[1] - 1], cv = mk(); s.f(cv.getContext('2d'), qt != null ? +qt : s.t);
+    document.body.appendChild(cv); document.body.dataset.ready = '1'; return;
+  }
+  const live = [];
+  if (sheet) {
+    document.body.className = 'sheet'; document.getElementById('page').remove();
+    const h = document.createElement('div'); h.className = 'sheettitle'; h.textContent = 'QUADRILLE · LINE · 240 x 240 screens at 2x'; document.body.appendChild(h);
+    const g = document.createElement('div'); g.className = 'sheetgrid'; document.body.appendChild(g);
+    if (pick) h.remove();
+    SCREENS.forEach((s, i) => { if (pick && !pick.includes(i + 1)) return; const f = document.createElement('figure'), cv = mk('scr'); f.style.margin = 0;
+      s.f(cv.getContext('2d'), s.t + dt); f.appendChild(cv);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; f.appendChild(cap); g.appendChild(f); });
+    document.body.dataset.ready = '1'; return;
+  }
+  const root = document.getElementById('cells');
+  SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const h = document.createElement('h2'); h.textContent = `${i + 1}. ${s.title}`; d.appendChild(h);
+    const cv = mk('scr'); d.appendChild(cv); live.push([s, cv.getContext('2d')]);
+    const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); root.appendChild(d);
+  });
+  const still = q.get('frames') === '1', t0 = performance.now();
+  const frame = () => { const t = (performance.now() - t0) / 1000; live.forEach(([s, c]) => s.f(c, still ? s.t : t + s.t)); if (!still) requestAnimationFrame(frame); };
+  frame();
+  document.body.dataset.ready = '1';
+}
+main();
+</script>
+</body>
+</html>

@@ -13,8 +13,10 @@ and microtiming. Each track should be able to support 8 pages of 16 steps. Each 
 rate. For now I just want to plan and mock up ideas, no actual building."
 
 Mock-ups: `mockups/index.html` (open it in a browser; every screen is a 240 x 240 canvas, drawn pixel for pixel and
-shown at 2x), PNGs in `mockups/png/` (rendered headless by `mockups/render_png.py`). Two directions: **MOD**
-(ChoralRoot's) and **RISO** (this plan's own). Open questions in §10, the build plan in §11.
+shown at 2x), PNGs in `mockups/png/` (rendered headless by `mockups/render_png.py`). Three directions: **MOD**
+(ChoralRoot's), **RISO** (this plan's own) and **LINE** (after the OP-1's screens, added the same day at the owner's
+request: "fully featured but very clean and simple and fun like these OP-1 UI's"; `mockups/line.html`, twenty animated
+screens, §9a). Open questions in §10, the build plan in §11.
 
 ---
 
@@ -31,6 +33,7 @@ shown at 2x), PNGs in `mockups/png/` (rendered headless by `mockups/render_png.p
 | Pattern | 8 tracks x up to 128 steps (8 pages of 16), per-track rate, length, swing on/off; 16.3 KB in RAM, about 2 KB typical in flash | §6, §7 |
 | Saving | never an erase while anything sounds: page programs only (each under one audio half) into sectors erased ahead when the unit is quiet | §7 |
 | "Hold a step and use the top row" | **the black keys** (the keybed's top row): 11 fields while a step is held | §8 |
+| The look | **LINE**: black, thin round-ended lines, one drawing a screen, **colour = the knob that turns it** (KNOB 1 blue, 2 green, 3 white, 4 orange), red only for the playhead and recording | §9a |
 
 ## 1. The base
 
@@ -542,6 +545,87 @@ orange, black) with a one-pixel misregistration, halftone dots for chance and ve
 labels. Bright in daylight, distinct from ChoralRoot. On an IPS panel at night a light ground glares: a dark-paper
 variant would be its night mode (question 16).
 
+## 9a. LINE: the OP-1 direction
+
+`mockups/line.html` (open it in a browser: every screen runs live at 122 BPM), the stills `mockups/png/line-01..25-*.png`
+(240 x 240, 1:1), `sheet-line.png` (all twenty-five at 2x) and `line-motion.gif` (eight of them moving, the knob-turn
+takeover among them). After the OP-1's
+screens in spirit; nothing is copied from them, and the device never names the OP-1.
+
+### The rules
+
+1. **Colour means a knob, everywhere.** Whatever KNOB 1 turns is blue, KNOB 2 green, KNOB 3 white, KNOB 4 orange:
+   the dot on a curve, the operator's circle, the note on the little keybed, the fader of the selected track. The
+   player turns the knob of the colour of the thing they want to move. **SELECT always turns what KNOB 1 turns** (the
+   big value). PRESETS and ALGORITHM keep their printed jobs (the sound, the algorithm).
+2. **Red is only time and recording**: the playhead, a clock's hand, RECORDING. Greys are structure (outlines, rulers,
+   what is off).
+3. **Thin lines, round ends, outlines first**: 1 .. 1.5 px strokes; a fill means "on" (the playing pattern, the field
+   on screen, a lit trig). Type is Inter Tight at weight 200 .. 300 for the big values, 500 .. 600 small caps for
+   labels.
+4. **No rows of values.** (The owner, 2026-10-17: "move away from the 4 parameter boxes per page ... a full visual,
+   then turning the knob adjusts it, and if needed the whole screen could temporarily update to show the parameter.")
+   A screen is one drawing and each knob moves a part of it. At most one or two big numbers, and only when the number
+   is the subject (a held step's field, the tempo, the queued pattern).
+5. **A knob whose value the drawing does not show takes the whole screen while it turns** (screens 21..25): its name
+   and a little knob mark in its colour at the top, the context grey at the right, a full-screen drawing of what it
+   does (FREQ the filter's curve, DECAY the envelope, HARM the wave growing harmonics, FEEDBACK a spiral), the value
+   big at the foot. A value with steps (RATE, a condition, a sound) is a picker: the value big, its neighbours small.
+   The first detent shows it at once; one second after the last detent the screen fades back (120 ms). On the step
+   view this is every knob (it draws no sound values); on a held step's field it never happens (the field is drawn).
+6. **One drawing a screen, and the drawing is the value**: velocity is how high the mallet rises, a ratchet is a ball
+   bouncing as many times as the count with each bounce as high as its hit's velocity, a chance is a field of dots
+   that reshuffles every pass, a sound lock is a cassette, the delay is a ping-pong ball between two walls.
+7. **A held step's screens share one layout**: `STEP n · FIELD` top left, the track top right; KNOB 1's value big top
+   left; the drawing in the middle, where KNOB 2 has its own green part (the strum's staircase, the ratchet's ramp, the
+   tie's slur); at the foot **the black-key strip** (eleven little keys
+   grouped 3 | 2 | 3 | 2 | 1 like the keybed's black keys): the lit one is the field on screen, an outlined one holds a
+   value (a condition, locks, a sound). In the sound editor the same strip is its eleven pages.
+8. **Everything moves with the music** (motion for each screen in line.html's notes): the four operators dance on the
+   idle screen, the track clocks turn at their own rates, the mallet strikes when the step plays, the reels turn.
+
+### The twenty-five screens
+
+| # | screen | the drawing |
+| --- | --- | --- |
+| 1 | idle | the four operators (C, A, B1, B2) as four dancers in a square, a quarter turn each bar: the quadrille |
+| 2 | the step view | the 16 keys as tall outlines, the page as a little piano roll inside them (chords stacked, lengths as bars, micro-timing off the column, ratchets dashed); markers under a column: lock, condition, chance, sound |
+| 3 | tracks | eight rings, each with its trigs round it and its own hand at its own length and rate (polymeter at a glance), its voices as dots, the 16-voice pool top right; the selected track's parts in its knobs' colours (trigs blue = LEN, length and rate green = RATE, voices white = LIMIT, an orange arc = SWING) |
+| 4 | held: NOTE | the chord name big (it squeezes in), the four notes on a keybed drawing in the four knob colours, their names under them |
+| 5 | held: VEL | a mallet over a drum, raised by the velocity; it strikes when the step plays |
+| 6 | held: LEN | the note as a bar stretching over the next steps on a ruler; TIE as a slur to the next note |
+| 7 | held: MICRO | the step magnified as a tape measure (24 ticks), a flag at the start, the strum as a green staircase |
+| 8 | held: RATCHET | a ball bouncing x1..x8 along a dotted path, the bounce heights the ramp |
+| 9 | held: COND / CHANCE | `3:4` with four circles (the pass ring moves each pass), 75 % as thirty dots that reshuffle each pass |
+| 10 | held: SOUND | the locked preset as a cassette (reels turn), the neighbours peeking above and below; the page's sounds as dots |
+| 11 | a p-lock | the FILTER 2 envelope: the track's curve dashed, the step's solid, padlocks on the locked values, the track's values under them |
+| 12 | the engine, SYN 1 | the algorithm wired up: the operators as circles with their waves scrolling at their ratios, dots flowing to the speaker; the ratios written under the operators in their knobs' colours, HARM an orange comb |
+| 13 | patterns | the queued pattern big, bank A as 16 dots, the chain drawn as a line through them, a line that empties to the change |
+| 14 | mix | eight faders with pan dials, meters and two send lines each; the selected track's fader, pan and sends in the four knob colours |
+| 15 | delay | a ping-pong ball between two walls: the ball blue (TIME), the echoes green (FEEDBACK), the walls white (WIDTH), the send an orange arrow (reverb: a room; chorus: three wavy lines) |
+| 16 | tempo / swing | a metronome swinging at the tempo, unequal swings with swing on |
+| 17 | mute | a speaker a track, crossed when muted, its waves pulsing with its trigs |
+| 18 | KEYS recording | the notes scrolling in from the red line as they are played, the held keys on the little keybed |
+| 19 | held: TRIG | NOTE (a struck dot), LOCK (a padlock: trigless), TIE (a slur), one line saying what the chosen one does |
+| 20 | held: LOCKS | the step's locks as a picker: one big in blue, a line from the track's value to the lock's |
+| 21 | a knob turned | the step view, KNOB 1 turned: FREQ takes the screen (the filter's curve sweeping), then hands it back (the canvas loops it) |
+| 22 | a turn: DECAY | the amp envelope's decay as the curve itself, a red dot running down it each beat |
+| 23 | a turn: HARM | the wave growing harmonics, the comb of harmonics under it |
+| 24 | a turn: FEEDBACK | a spiral winding back into itself, more turns with more feedback |
+| 25 | a turn: RATE | a picker (1/2x big, 1/4x and 1x small) over the pattern's clock and the track's clock side by side |
+
+### What LINE asks of the firmware
+
+- **Anti-aliased thin lines, circles, arcs, ellipses and round rectangles** at 1 .. 1.5 px with round caps, drawn at run
+  time (no bitmaps): the drawings are a few dozen strokes each. To check in ChoralRoot's `cr_gfx.c` / `cr_draw.c` what
+  exists (its look is flat blocks); a Wu-style AA line and a midpoint circle with coverage are about 2 KB of code.
+- **The redraw cost**: the animated screens redraw at the UI's frame rate; a full 240 x 240 redraw of a screen of
+  strokes is well inside a frame on core 0's main loop, but it is to be measured with 16 voices playing (the UI never
+  runs in the audio ISR). Only the changed rectangles need pushing to the LCD.
+- **Thin type at big sizes**: Inter Tight 200 at 50 .. 70 px for the big values means more font tables (digits and a
+  few letters only at the biggest sizes: about 6 .. 10 KB a size with `gen_aa_font.py`). The alternative is a
+  stroke font for the big digits, drawn with the same AA lines (smaller, any size, more OP-1 in spirit): question 28.
+
 ## 10. Open questions (numbered; a recommendation each)
 
 1. **The name.** QUADRILLE, SIDEBAND, CARRIER, FOURSQUARE, or yours? *Recommend QUADRILLE.*
@@ -570,8 +654,8 @@ variant would be its night mode (question 16).
     4/3.*
 15. **Identity**: a Felucca-family identity and version string of its own (installers then treat it as ChoralRoot
     treats Felucca's family), or V15's as TransitFM1? *Recommend its own*, so the web installer and the Hub can tell it.
-16. **The look**: MOD, RISO, or RISO with a night (dark paper) mode? *Recommend MOD for 0.1* (proven on the panel, the
-    font and the draw code exist) and RISO as a second theme once the screens settle.
+16. **The look**: MOD, RISO, or LINE? *Recommend LINE* (the owner asked for the OP-1's clean and fun; §9a), MOD's draw
+    code as the fallback if the AA primitives cost too much, RISO dropped.
 17. **Undo**: "the same gesture again within 4 s" for paste and clear, nothing more? *Recommend yes.*
 18. **FILL on REC held** in the step view. *Recommend yes.*
 19. **Songs**: chains in 0.1, songs in 0.2? *Recommend yes.*
@@ -586,7 +670,10 @@ variant would be its night mode (question 16).
     listen.*
 26. **The dip** (1.5 ms) for ALGO / TYPE / PHRT / WAVE changes on a sounding voice. *Recommend yes.*
 27. **MIDI tracks** (a track that sends notes instead of playing FM TONE)? *Recommend later.*
-
+28. **LINE's big numbers**: Inter Tight 200 as font tables, or a stroke font drawn with the AA lines? *Recommend the
+    font tables for 0.1* (the toolchain exists), a stroke font later if flash runs short.
+29. **The black-key strip** at the foot of a held step's screens (LINE rule 5)? *Recommend yes*: it is the only place
+    the eleven fields are shown, since the printed black-key labels are not used.
 ## 11. The build plan (in order; nothing built)
 
 Each step ends with its test passing; device steps are the owner's (only the orchestrator flashes).
