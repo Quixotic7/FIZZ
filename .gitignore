@@ -1,0 +1,4 @@
+core/tests/out/
+tools/build/
+tools/render_frames
+*.dSYM/
