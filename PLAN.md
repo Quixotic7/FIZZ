@@ -869,3 +869,17 @@ event timelines and the same screens.
   polymeter on all 8 tracks. On the unit: PLAY, PATTERN + white key, TRACKS shows the eight clocks (white 9..16 mute),
   REC held = FILL.
 - Open: MIDI clock resolved to the 32-sample block (not tried with real gear); A03 steals across tracks (82 in 32 s).
+
+**2026-10-18, P1.3 built** (FMToneSeq 9a26749; FM1VST `core-quadrille` 0ccf9eb; version 0.0.4-p1.3):
+- Programmable on the unit: the step view (s2 from the real pattern, page follow), white-key taps and holds (250 ms),
+  several held, the latch, FUNC + tap = LOCK step, the eleven black-key fields with their LINE screens, CLEAR with
+  undo, the knob takeovers (FREQ, DECAY, HARM, FDBK, ALGO, tempo / swing, the tracks screen's LEN, RATE, LIMIT, SWING),
+  p-locks from any unused knob with a step held, KEYS step and live recording, MIDI notes into a held step, §8's LEDs.
+- The controller is table-driven (`core/app/ctl*.c`), the screens draw only from the model and the UI state
+  (`core/ui`, `view.c`). Choices where §8 was open: the field memory, latch = OCT+ (FUNC + OCT+ in NOTE, where the
+  OCT keys move the notes), unused field knobs make quick-page locks, the chord shapes on SELECT, power-on keys only
+  wake. The table of every field's knobs is in the P1.3 commit; `PLAYING.md` is the owner's guide.
+- Tests: test_ctl 146 checks (16 gesture scenarios, 45 field mappings, LEDs, determinism); "program a beat" from
+  presses and turns alone equals the same pattern built through the API, byte for byte and in its timeline. The
+  conformance test turns KEYS on first (`sound btn ARP 60`).
+- Not yet: the sound editor, pattern screen, MUTE, MIX, SAVE, copy / paste, the perform offsets (P1.4, P1.5).
