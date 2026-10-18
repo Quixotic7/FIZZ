@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* mockups/line.html's drawing helpers over qd_gfx (ui.h): the screens port from the mock-ups call for call. */
+#include <math.h>
+
 #include "ui.h"
 
 const qd_rgb UI_K[4] = {UI_K1, UI_K2, UI_K3, UI_K4};
@@ -107,4 +109,65 @@ void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fil
         f = fill && n >= 0 && n < 128 && fill[n] != QD_NONE ? fill[n] : UI_BG;
         ui_RR(x0 + (float)(i + 1) * kw - bw / 2.f, y0 - 1.f, bw, bh, 2.f, UI_G2, 1.f, f);
     }
+}
+
+/* ---- P1.3: line.html's headTrack, keyStrip, lock, knobMark and keyboard's pos */
+const char *const UI_FIELD_NAME[UI_NFIELD] = {"NOTE", "VEL", "LEN", "MICRO", "RATCH", "COND", "CHNC", "TRIG",
+                                              "SOUND", "LOCKS", "CLEAR"};
+
+/* headTrack(c, left, n, name, lcol): a held step: STEP 5 · FIELD left, [n] the track right */
+void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol)
+{
+    const float w = ui_TW(name, 11.f, 500, 1.f);
+    ui_T(left, 8.f, 17.f, 11.f, 500, 1.f, lcol, QD_LEFT);
+    ui_T(name, 232.f, 17.f, 11.f, 500, 1.f, UI_G1, QD_RIGHT);
+    ui_box(232.f - w - 21.f, 5.f, n, UI_G1);
+}
+
+/* keyStrip(c, cur, set): the black keys while a step is held, 3 | 2 | 3 | 2 | 1 */
+void ui_key_strip(int cur, unsigned set)
+{
+    static const int GROUPS[5] = {3, 2, 3, 2, 1};
+    float x = 11.f;
+    int g, j, k = 0;
+    for (g = 0; g < 5; g++) {
+        for (j = 0; j < GROUPS[g]; j++, k++) {
+            const int on = cur == k, has = (set >> k) & 1u;
+            ui_RR(x, 228.f, 14.f, 8.f, 2.f, on ? QD_NONE : has ? UI_G1 : UI_G3, 1.f, on ? UI_K3 : QD_NONE);
+            x += 18.f;
+        }
+        x += 6.f;
+    }
+}
+
+/* lock(c, x, y, col, s): a padlock, 7 px wide at s 1 */
+void ui_lock(float x, float y, qd_rgb col, float s)
+{
+    qd_save();
+    qd_translate(x, y);
+    qd_scale(s, s);
+    ui_RR(0.f, 3.f, 7.f, 5.5f, 1.f, QD_NONE, 1.f, col);
+    qd_arc(3.5f, 3.f, 2.2f, UI_PI, UI_TAU, col, 1.2f);
+    qd_restore();
+}
+
+/* knobMark(c, x, y, v, col): a little knob, its pointer at v over 270 degrees */
+void ui_knob_mark(float x, float y, float v, qd_rgb col)
+{
+    const float a = UI_PI * 0.75f + v * UI_PI * 1.5f;
+    const float p[4] = {x, y, x + cosf(a) * 5.f, y + sinf(a) * 5.f};
+    ui_O(x, y, 6.f, col, 1.3f, QD_NONE);
+    ui_P(p, 2, col, 1.3f, 0, QD_NONE);
+}
+
+/* keyboard's pos(n): a white key's centre, or a black key's (the boundary of the white keys it sits on) */
+float ui_keyboard_x(float x0, float w, int lo, int n, int *black)
+{
+    static const int WI[12] = {0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6};
+    static const int ISB[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
+    const float kw = w / 14.f;
+    const int d = n - lo, o = d >= 0 ? d / 12 : -((11 - d) / 12), s = d - o * 12, wi = WI[s] + o * 7;
+    if (black)
+        *black = ISB[s];
+    return ISB[s] ? x0 + (float)wi * kw + kw : x0 + (float)wi * kw + kw / 2.f;
 }

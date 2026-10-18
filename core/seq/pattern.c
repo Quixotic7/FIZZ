@@ -412,6 +412,28 @@ int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n
     return QD_OK;
 }
 
+int qd_step_set_root(qd_pattern_t *p, int t, int s, int note)
+{
+    if (!ts_ok(t, s) || note < 1 || note > 127)
+        return QD_EARG;
+    trig_of(p, t, s)->note[0] = (uint8_t)note;
+    return QD_OK;
+}
+
+int qd_step_set_offset(qd_pattern_t *p, int t, int s, int k, int off)
+{
+    qd_step_t *st;
+    int j;
+    if (!ts_ok(t, s) || k < 1 || k >= QD_NNOTE || off < 0 || off > 48)
+        return QD_EARG;
+    st = trig_of(p, t, s);
+    for (j = 1; j < QD_NNOTE; j++)
+        if (off && j != k && st->note[j] == off)
+            return QD_ENOTE;
+    st->note[k] = (uint8_t)off;
+    return QD_OK;
+}
+
 int qd_step_set_vel(qd_pattern_t *p, int t, int s, int vel)
 {
     if (!ts_ok(t, s) || vel < 1 || vel > 127)

@@ -5,7 +5,7 @@
  *               a track and plays nothing, the note a key struck is released at its release whatever changed since
  *   presets     PRESETS steps the track's sound (INIT .. NOISE-ISH, clamped), the picker takes the screen and leaves
  *               1.12 s after the last detent; a voice sounding keeps its patch
- *   screens     KEYS toggles the KEYS screen (its LED lit), HOME goes back to idle; TRACKS held dims the selected
+ *   screens     KEYS toggles the KEYS screen (its LED lit), HOME: the step view; TRACKS held dims the selected
  *               track's white key; the C keys faint in KEYS; a note sounding lights its key
  *   midi        notes on channels 1..8 play tracks 1..8; note off and velocity 0 release; channels 9..16 ignored
  *   mix         a voice panned hard left with no sends: nothing on the right; level 0: silence
@@ -90,6 +90,12 @@ static void fresh(void)
     over = 0;
 }
 static void peaks0(void) { peak_l = peak_r = 0; }
+static void tap_button(int b);
+static void fresh_keys(void)             /* P1.3: power-on is the idle screen; KEYS mode plays the keybed */
+{
+    fresh();
+    tap_button(QD_B_KEYS);
+}
 static int voices_of(int track)          /* the track's voices held (gate) */
 {
     int i, n = 0;
@@ -123,7 +129,7 @@ static void tap_button(int b)
 
 static void t_keys(void)
 {
-    fresh();
+    fresh_keys();
     qd_app_key(&A, 9, 1, 100);                          /* D4 on track 1 (DRUMS) */
     run(50, 0);
     CHECK(sounding(0, 62) && peak_l > 64, "D4 should sound on track 1 (peak %d)", (int)peak_l);
@@ -167,7 +173,7 @@ static void t_presets(void)
 {
     int16_t before[QD_QUAD_NP];
     int i, v = -1;
-    fresh();
+    fresh_keys();
     qd_app_key(&A, 7, 1, 100);                          /* a note on track 1 */
     run(20, 0);
     for (i = 0; i < A.pool.nvoice; i++)
@@ -176,17 +182,17 @@ static void t_presets(void)
     memcpy(before, A.model.t[0].patch, sizeof before);
     qd_app_knob(&A, QD_K_PRESETS, 2);                   /* MARIMBA (13) -> FEEDBACK (15) */
     run(10, 0);
-    CHECK(A.model.t[0].preset == 15 && !strcmp(qd_track_sound_name(&A.model.t[0]), "FEEDBACK") && A.picker,
-          "PRESETS +2: track 1's sound %d (%s), picker %d", A.model.t[0].preset, qd_track_sound_name(&A.model.t[0]), A.picker);
+    CHECK(A.model.t[0].preset == 15 && !strcmp(qd_track_sound_name(&A.model.t[0]), "FEEDBACK") && A.ui.tk == QD_TK_PRESET,
+          "PRESETS +2: track 1's sound %d (%s), picker %d", A.model.t[0].preset, qd_track_sound_name(&A.model.t[0]), A.ui.tk);
     CHECK(v >= 0 && !memcmp(A.pool.v[v].q.patch, before, sizeof before), "the sounding voice keeps its patch");
     qd_app_knob(&A, QD_K_PRESETS, 9);
     CHECK(A.model.t[0].preset == 16, "PRESETS clamps at the last sound");
     qd_app_knob(&A, QD_K_PRESETS, -40);
     CHECK(A.model.t[0].preset == 0 && !strcmp(qd_track_sound_name(&A.model.t[0]), "INIT"), "PRESETS clamps at INIT");
     run(1100, 0);
-    CHECK(A.picker, "the picker still up 1.1 s after the last detent (its fade)");
+    CHECK(A.ui.tk == QD_TK_PRESET, "the picker still up 1.1 s after the last detent (its fade)");
     run(30, 0);
-    CHECK(!A.picker, "the picker gone 1.13 s after the last detent");
+    CHECK(A.ui.tk == QD_TK_NONE, "the picker gone 1.13 s after the last detent");
     qd_app_key(&A, 7, 0, 0);
     printf("  presets: PRESETS steps INIT .. NOISE-ISH (clamped); the picker leaves 1.12 s after; voices keep theirs\n");
 }
@@ -197,7 +203,7 @@ static void t_screens(void)
     fresh();
     tap_button(QD_B_KEYS);
     qd_app_leds(&A, &l);
-    CHECK(A.screen == QD_SCR_KEYS && l.button[QD_B_KEYS] == QD_LED_LIT, "KEYS: the KEYS screen, its LED lit");
+    CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_KEYS] == QD_LED_LIT, "KEYS: the KEYS screen, its LED lit");
     CHECK(l.key[7] == QD_LED_FAINT && l.key[19] == QD_LED_FAINT && !l.key[8], "KEYS: the C keys faint");
     qd_app_midi(&A, 0x90, 64, 100);                     /* E4 from MIDI on track 1 (selected): its key lit */
     run(10, 0);
@@ -205,12 +211,12 @@ static void t_screens(void)
     CHECK(l.key[11] == QD_LED_LIT, "a note sounding on the track lights its key (%d)", l.key[11]);
     qd_app_midi(&A, 0x80, 64, 0);
     tap_button(QD_B_KEYS);
-    CHECK(A.screen == QD_SCR_IDLE, "KEYS again: idle");
+    CHECK(A.ui.mode == QD_MODE_STEP, "KEYS again: the step view");
     tap_button(QD_B_KEYS);
     tap_button(QD_B_HOME);
     qd_app_leds(&A, &l);
-    CHECK(A.screen == QD_SCR_IDLE && l.button[QD_B_KEYS] == QD_LED_OFF, "HOME: idle, KEYS's LED off");
-    printf("  screens: KEYS toggles (lit), HOME idles; C keys faint in KEYS; sounding notes light their keys\n");
+    CHECK(A.ui.mode == QD_MODE_STEP && l.button[QD_B_KEYS] == QD_LED_OFF, "HOME: the step view, KEYS's LED off");
+    printf("  screens: KEYS toggles (lit), HOME: the step view; C keys faint in KEYS; sounding notes light their keys\n");
 }
 
 static void t_midi(void)
@@ -290,7 +296,7 @@ static void t_limiter(void)
 static void t_panic(void)
 {
     int k;
-    fresh();
+    fresh_keys();
     for (k = 0; k < 10; k++)
         qd_app_midi(&A, 0x90 | (k % 8), 50 + k, 100);
     run(50, 0);
@@ -333,7 +339,7 @@ static void t_play(void)
     qd_leds_t l;
     uint32_t starts;
     int green = 0, k;
-    fresh();
+    fresh_keys();
     CHECK(A.seq.cur == 1 && A.bpm == 100 && !A.seq.playing, "power-on: A02 at 100 BPM, stopped");
     tap_button(QD_B_PLAY);
     starts = A.pool.starts;
@@ -416,7 +422,7 @@ static void t_tracks(void)
     uint32_t starts1 = 0;
     fresh();
     tap_button(QD_B_TRACKS);
-    CHECK(A.screen == QD_SCR_TRACKS, "TRACKS tapped: the tracks screen");
+    CHECK(A.ui.mode == QD_MODE_TRACKS, "TRACKS tapped: the tracks screen");
     qd_app_leds(&A, &l);
     CHECK(l.button[QD_B_TRACKS] == QD_LED_LIT && l.key[WK[8]] == QD_LED_LIT && l.key[WK[15]] == QD_LED_LIT,
           "its LED lit, white keys 9..16 lit (every track heard)");
@@ -447,15 +453,15 @@ static void t_tracks(void)
         CHECK(h0 != frame_hash(), "the clocks turn");
     }
     tap_button(QD_B_TRACKS);
-    CHECK(A.screen == QD_SCR_IDLE, "TRACKS again: back");
+    CHECK(A.ui.mode == QD_MODE_STEP, "TRACKS again: back to the step view");
     tap_button(QD_B_TRACKS);
     tap_button(QD_B_HOME);
-    CHECK(A.screen == QD_SCR_IDLE, "HOME leaves the tracks screen");
+    CHECK(A.ui.mode == QD_MODE_STEP, "HOME leaves the tracks screen");
     qd_app_button(&A, QD_B_TRACKS, 1);
     tap_key(WK[3]);
     qd_app_button(&A, QD_B_TRACKS, 0);
     run(10, 0);
-    CHECK(A.sel == 3 && A.screen == QD_SCR_IDLE, "TRACKS held + white key 4: track 4, no screen change");
+    CHECK(A.sel == 3 && A.ui.mode == QD_MODE_STEP, "TRACKS held + white key 4: track 4, no screen change");
     (void)starts1;
     printf("  tracks: TRACKS tapped / again / HOME, mute 9..16, select 1..8, the trig LEDs, the clocks turn\n");
 }

@@ -5,8 +5,9 @@
  *
  *     render_frames OUT_DIR [--ms N] [--at T1,T2,..]
  *
- * The script (P1.0's review, then P1.1's): PLAY pressed at 500 ms (released at 600), KNOB 1 turned +8 at 3000, key 0
- * (F3) held from 4000 to 4500 (track 1, DRUMS: FM TONE); TRACKS held 6200..6400 with white key 3 tapped at 6300 (track
+ * The script (P1.0's review, then P1.1's): PLAY pressed at 500 ms (released at 600; P1.3: it also wakes the step
+ * view), KNOB 1 turned +8 at 3000, KEYS on at 3900 and off at 4600 around key 0 (F3) held from 4000 to 4500 (track 1,
+ * DRUMS: FM TONE); TRACKS held 6200..6400 with white key 3 tapped at 6300 (track
  * 3, KEYS, selected), KEYS pressed at 6500 (the KEYS screen), C4 E4 G4 B4 held from 6600 to 7700 at velocities 110, 90,
  * 100, 80, PRESETS turned +1 at 7200 (EP -> BELL: the picker). Defaults: 8000 ms, frames at 0, 1000, 2200, 2500, 4200,
  * 6000, 7000 and 7400 ms (2200 is 1.7 s after PLAY at 122 BPM: the moment mockups/png/line-01-idle.png shows; 7000 the
@@ -20,7 +21,10 @@
  * the eight clocks at their own rates; leds-tracks.png with the second); white key 13 at 6000 (track 5 muted:
  * tracks-3-muted.png at 6500); HOME at 7000; PATTERN held + white key 1 at 7200 (A01 queued to the end of A03's master
  * length): idle-queued.png at 7600 (the name in its lit half of the blink) and idle-changed.png at 13500, after the
- * change. Its LEDs go to leds.txt too. */
+ * change. Its LEDs go to leds.txt too.
+ *
+ * Then P1.3's (render_p13.c): every screen of P1.3 from a real state, p13-*.png, and the contact sheet p13-sheet.png
+ * beside line.html's mocks (--mocks DIR, default ../mockups/png). */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +41,10 @@ static const char *const BTN_ROLE[QD_NBTN] = {"TRACKS", "PATTERN", "PAGE", "MUTE
                                                "SAVE", "KEYS", "MIX", "PLAY", "REC", "OCT-", "OCT+"};
 static const char *const BTN_PRINTED[QD_NBTN] = {"FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HOME",
                                                   "SAVE", "ARP", "SEQ", "PLAY", "REC", "OCT-", "OCT+"};
+
+int render_p13(const char *out, const char *mocks);   /* render_p13.c */
+static int write_lcd_png(const char *path, const uint16_t *lcd_be);
+int p13_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
 
 static int write_lcd_png(const char *path, const uint16_t *lcd_be)
 {
@@ -144,7 +152,7 @@ int main(int argc, char **argv)
     uint32_t total = 8000, at[MAX_AT] = {0, 1000, 2200, 2500, 4200, 6000, 7000, 7400}, frame_ms = 0, ms, last_frame = 0;
     int nat = 8, i, peak = 0, green = 0, failed = 0;
     uint64_t frames_done = 0;
-    const char *out;
+    const char *out, *mocks = "../mockups/png";
     char path[1024];
     static uint16_t lcd[QD_W * QD_H];
     static qd_app_t app;
@@ -152,13 +160,15 @@ int main(int argc, char **argv)
     FILE *log;
 
     if (argc < 2) {
-        fprintf(stderr, "usage: render_frames OUT_DIR [--ms N] [--at T1,T2,..]\n");
+        fprintf(stderr, "usage: render_frames OUT_DIR [--ms N] [--at T1,T2,..] [--mocks DIR]\n");
         return 2;
     }
     out = argv[1];
     for (i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--ms") && i + 1 < argc) {
             total = (uint32_t)strtoul(argv[++i], NULL, 10);
+        } else if (!strcmp(argv[i], "--mocks") && i + 1 < argc) {
+            mocks = argv[++i];
         } else if (!strcmp(argv[i], "--at") && i + 1 < argc) {
             char *p = argv[++i];
             nat = 0;
@@ -193,6 +203,14 @@ int main(int argc, char **argv)
             qd_app_button(&app, QD_B_PLAY, 0);
         if (ms == 3000)
             qd_app_knob(&app, QD_K_1, 8);
+        if (ms == 3900)                                 /* (P1.3: the keybed plays in KEYS mode) */
+            qd_app_button(&app, QD_B_KEYS, 1);
+        if (ms == 3920)
+            qd_app_button(&app, QD_B_KEYS, 0);
+        if (ms == 4600)
+            qd_app_button(&app, QD_B_KEYS, 1);
+        if (ms == 4620)
+            qd_app_button(&app, QD_B_KEYS, 0);
         if (ms == 4000)
             qd_app_key(&app, 0, 1, 100);
         if (ms == 4500)
@@ -341,6 +359,7 @@ int main(int argc, char **argv)
     }
     fclose(log);
     printf("%s/leds.txt (the LEDs at each frame time, the beat LED's edges to 2600 ms; key 0's peak %d)\n", out, peak);
+    failed |= render_p13(out, mocks);                   /* P1.3: every screen from a real state, the contact sheet */
     qd_shutdown();
     return failed;
 }

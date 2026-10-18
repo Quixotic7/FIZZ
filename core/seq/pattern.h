@@ -136,6 +136,11 @@ int qd_step_notes(const qd_step_t *st, uint8_t *notes);   /* the absolute notes 
  * step and its locks */
 int qd_step_set_trig(qd_pattern_t *p, int t, int s, int type);
 int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n);   /* absolute, any order */
+/* P1.3, the NOTE field's knobs: note 1 moved with the chord's shape kept (1..127; the notes above 127 are clamped where
+ * they sound), or note k (1..3) set as its offset 0..48 above note 1 in its own slot (0: none; an offset another slot
+ * has: QD_ENOTE). An empty step becomes a NOTE trig first */
+int qd_step_set_root(qd_pattern_t *p, int t, int s, int note);
+int qd_step_set_offset(qd_pattern_t *p, int t, int s, int k, int off);
 int qd_step_set_vel(qd_pattern_t *p, int t, int s, int vel);
 int qd_step_set_len(qd_pattern_t *p, int t, int s, int len);
 int qd_step_set_micro(qd_pattern_t *p, int t, int s, int micro);

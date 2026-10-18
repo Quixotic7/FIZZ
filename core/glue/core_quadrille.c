@@ -12,7 +12,7 @@
  * Out: frame draws the screen (every frame, 15 ms) and copies it to the panel's LCD when it changed; init, frame and
  * idle write the LEDs: the app's levels per key and button placed through the FM-1's keymap, PLAY's green LED at its
  * own position. audio: the app's sound (P1.1: FM TONE through the voice pool and ChoralRoot's effects; P1.2: the
- * sequencer runs from this sample clock, a block of 32 frames at a time). The flash: the
+ * sequencer runs from this sample clock, a block of 32 frames at a time; P1.3: the controller, core/app/ctl.h). The flash: the
  * common NOR image, untouched (nothing is saved before P1.5). */
 #include <stdio.h>
 #include <string.h>
@@ -185,8 +185,10 @@ void fm1core_qd_ui_info(char *buf, uint32_t n)
     char pat[4];
     if (buf && n)
         snprintf(buf, n, "%s: %s %s, %d BPM, track %d %s (%s), oct %d, voices %d/%d, keys %07x buttons %04x",
-                 fm1core_qd_app.screen == QD_SCR_KEYS ? "keys" : fm1core_qd_app.screen == QD_SCR_TRACKS ? "tracks"
-                                                                                                      : "idle",
+                 fm1core_qd_app.ui.mode == QD_MODE_KEYS     ? "keys"
+                 : fm1core_qd_app.ui.mode == QD_MODE_TRACKS ? "tracks"
+                 : fm1core_qd_app.ui.mode == QD_MODE_STEP   ? (fm1core_qd_app.ui.nheld ? "step held" : "steps")
+                                                            : "idle",
                  qd_pat_name(fm1core_qd_app.seq.cur, pat), fm1core_qd_app.playing ? "playing" : "stopped",
                  fm1core_qd_app.bpm, fm1core_qd_app.sel + 1, fm1core_qd_app.model.t[fm1core_qd_app.sel].name,
                  qd_track_sound_name(&fm1core_qd_app.model.t[fm1core_qd_app.sel]), fm1core_qd_app.oct,

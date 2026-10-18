@@ -22,7 +22,12 @@
  * selects anywhere. REC held: FILL (the FILL / NOT FILL conditions). MIDI clock in (24 PPQN, START / STOP / CONTINUE) drives the transport; MIDI notes keep playing
  * tracks 1..8. LEDs: PLAY's green on the beat while playing; on the tracks screen white keys 1..8 flash as their tracks
  * trigger (the selected one dim between), 9..16 lit for the tracks heard; PATTERN held: patterns with content dim, the
- * playing one lit, the queued one blinking. */
+ * playing one lit, the queued one blinking.
+ * P1.3: the unit is programmable. The panel's input goes to the controller (ctl.h: ctl.c, ctl_step.c, ctl_rec.c,
+ * ctl_leds.c), which turns it into model edits and UI state (qd_ui_t, a->ui); the frame is view.c's (the model and the
+ * UI state into the screens' view records). Power-on shows the idle screen; any key or button goes to the step view
+ * (the home screen); two minutes untouched and stopped: idle again. The app keeps the clock, the transport, the sound
+ * and the keybed's notes; the gestures, the screens and the LEDs are the controller's (PLAN §8, the header of ctl.h). */
 #pragma once
 #include <stdint.h>
 
@@ -32,6 +37,7 @@
 #include "../seq/seq.h"
 #include "../voice/mix.h"
 #include "../voice/pool.h"
+#include "ctl.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,7 +65,6 @@ enum { QD_B_TRACKS, QD_B_PATTERN, QD_B_PAGE, QD_B_MUTE, QD_B_SOUND, QD_B_FUNC, Q
        QD_B_MIX, QD_B_PLAY, QD_B_REC, QD_B_OCTDN, QD_B_OCTUP, QD_NBTN };
 /* the knobs (detents), in the panel's role order */
 enum { QD_K_SELECT, QD_K_ALGO, QD_K_PRESETS, QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_NKNOB };
-enum { QD_SCR_IDLE, QD_SCR_KEYS, QD_SCR_TRACKS };   /* the screen under the picker */
 #define QD_PAT_START 1                 /* the pattern at power-on: A02 */
 #define QD_TRIG_LED_MS 80              /* the tracks screen: a track's white key lit this long from its trig */
 
@@ -67,14 +72,15 @@ enum { QD_SCR_IDLE, QD_SCR_KEYS, QD_SCR_TRACKS };   /* the screen under the pick
 #define QD_LED_OFF 0
 #define QD_LED_FAINT 12
 #define QD_LED_DIM 40
+#define QD_LED_MID 96
 #define QD_LED_LIT 255
-typedef struct {
+typedef struct qd_leds {
     uint8_t key[QD_NKEY];
     uint8_t button[QD_NBTN];
     uint8_t play_green;
 } qd_leds_t;
 
-typedef struct {
+typedef struct qd_app {
     /* the clock */
     uint32_t ms;                       /* the last tick's ms */
     int started;                       /* a tick has been seen */
@@ -102,13 +108,10 @@ typedef struct {
     qd_project_t proj;
     qd_seq_t seq;
     qd_player_t player;
-    int tracks_tap;                    /* TRACKS went down alone: its release toggles the tracks screen */
     int sel;                           /* the selected track, 0..7 */
     int oct;                           /* the keybed's octave shift */
-    int screen;                        /* QD_SCR_* */
-    int picker;                        /* the picker is up (since picker_ms) */
-    uint32_t picker_ms;
-    int picker_dir;
+    /* the UI (P1.3: core/app/ctl.h) */
+    qd_ui_t ui;
     /* the audio: blocks of 32 frames made ahead of a call that asks for fewer */
     int16_t fifo[2 * QD_MIX_CTL];
     int nfifo, ififo;
@@ -129,6 +132,13 @@ void qd_app_frame(qd_app_t *a, uint16_t *lcd_be);
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out);
 /* the sound: frames of 16-bit stereo, interleaved, at QD_FS (rendered in control blocks of 32 frames) */
 void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames);
+
+/* for the controller (ctl*.c): the transport, the sound's tempo, a note key played on the selected track */
+void qd_app_play(qd_app_t *a);
+void qd_app_stop(qd_app_t *a);
+void qd_app_tempo(qd_app_t *a, int bpm);   /* the tempo the sound runs at (FM TONE's synced LFOs, the delay) */
+void qd_app_note_on(qd_app_t *a, int key, int note, int vel);   /* key k strikes note on the selected track */
+void qd_app_note_off(qd_app_t *a, int key);   /* .. the note key k struck, released */
 
 #ifdef __cplusplus
 }
