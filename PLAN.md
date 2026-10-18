@@ -853,3 +853,19 @@ event timelines and the same screens.
 - Playing: the keybed plays the selected track (OCT -2..+2, velocity), MIDI channels 1..8 play tracks 1..8, TRACKS +
   white key 1..8 selects, PRESETS picks the sound with the full-screen picker, KEYS shows the keybed screen.
 - Host CPU for 16 voices + effects: 21.5 us mean, 62 us worst per 128-frame block (0.7 % of the device's 2902 us).
+
+**2026-10-18, P1.2 built** (FMToneSeq 91f111d; FM1VST `core-quadrille` 561d59a; version 0.0.3-p1.2):
+- The sequencer (`core/seq/`): §4's 12-byte step, the sorted lock pool (1024, `QD_EFULL` when full), 64 patterns, an
+  editing API for P1.3. Time in 50400 ticks a 16th (every rate, micro, strum, ratchet and swing is whole) and an exact
+  sample transport; steps resolved two of their track's steps ahead. Rates 1/8..2 plus 2/3 and 4/3, lengths, swing,
+  micro, strum, ratchets with ramps, the length table (filled: 12 16 24 32 48 64 96, INF), every condition, seeded
+  chance, sound locks, p-locks and mix locks (ids 73..78: PAN DELAY REVERB CHORUS DRIVE LEVEL), LOCK steps, TIE legato
+  on mono tracks, live edits, the 1.5 ms dip (filter TYPE change: largest step 15,548 -> 452), pattern change and
+  chains, MIDI clock in. The choices where §4..§6 were open are in the commit and the P1.2 report.
+- Tests: 16 golden timelines, each matched by an independent plain-loop reference; test_seq 1,071 checks; the engine
+  and effects still bit-exact.
+- Demos: A01 a beat on DRUMS alone (kick from INIT with a pitch-drop LFO, snare / clap / ghosts / hats from NOISE-ISH,
+  all sound locks + p-locks, made by measurement: to be tuned by ear), A02 the beat with bass, chords and a lead, A03
+  polymeter on all 8 tracks. On the unit: PLAY, PATTERN + white key, TRACKS shows the eight clocks (white 9..16 mute),
+  REC held = FILL.
+- Open: MIDI clock resolved to the 32-sample block (not tried with real gear); A03 steals across tracks (82 in 32 s).
