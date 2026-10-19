@@ -1028,3 +1028,22 @@ event timelines and the same screens.
 FM-1-alone editor, settings behind a corner button) as 0d307c0, and its `remote/RemoteFM1` moved to RemoteFM1 `main`
 56dccd4 (0.1.1 and the web side; protocol and host library unchanged) as 9758888. Rebuilt; `ctest -R
 'quadrille|common'` passes; the Standalone relaunched with P1.3 on the new editor.
+
+**2026-10-19, P1.3b built: the controls of §8b** (FMToneSeq 1390e98; FM1VST `core-quadrille` f64a372; version
+0.0.5-p1.3b; the Standalone relaunched with it):
+- The model: a 16-byte step with an override bit per parameter (NOTE VEL LEN MICRO RATCH CHANCE COND TRIG SOUND
+  STRUM), track defaults resolved when the step is resolved, 8 pages per track with their own start / end and a loop
+  mask (the track length is gone), the sound pool (INIT, the 16 factory sounds, KICK SNARE CLAP GHOST HAT OPEN HAT),
+  14 scales per track with a global key, solo, a step and a page clipboard, one undo level per track.
+- The controls as §8b: the black keys as hold modes and as ten values, F#5 clear, ALGORITHM the mode's value,
+  SELECT pages, PRESETS the sound lock with a step held, F1 / F2 / F3 / SHIFT layers with their on-screen maps, the
+  mode lanes, REC = keyboard, REC + PLAY, SHIFT + REC, ARP = FILL, PAGE = follow. Temporary until the track settings
+  page: SHIFT + ALGORITHM = scale, SHIFT + PRESETS = root.
+- Tests: test_seq 2,306 (the 16 old goldens unchanged, 6 new: pages, loops, defaults, pool, scales, solo; the
+  reference walks pages and resolves defaults itself), test_ctl 201 (21 scenarios, every §8b gesture), program-a-beat
+  by presses alone equal to the API build. The demos render byte-identical to P1.2.
+- A change the agent made to the look: each mode has its own colour (NOTE blue, VEL green, LEN cyan, MICRO violet,
+  RATCH orange, CHNC yellow, COND magenta, TRIG white, SOUND lime, LOCKS sand) instead of §9a's colour = knob. To be
+  judged by the owner.
+- Removed from P1.3: the latch, FUNC + tap LOCK steps (TRIG B2 makes a LOCK step), the "last entered" defaults, the
+  quantize toggle.
