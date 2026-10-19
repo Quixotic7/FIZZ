@@ -1239,3 +1239,8 @@ checked by a test), the same loop (`core/tests/out/fizz-logo.gif`).
 **2026-10-19, P1.3n** (FMToneSeq 3fc0d21; FM1VST `core-quadrille` 49a10a4; version 0.1.3-p1.3n; relaunched): the logo
 screen without the glass and straw: a thin wavy surface line, fine outlined bubbles popping with tiny splashes, the
 fizz peak with FIZZ rising above the line.
+
+**2026-10-19, P1.3o** (FMToneSeq 257504a; FM1VST `core-quadrille` 36df912; version 0.1.4-p1.3o; relaunched): the logo
+screen from the owner's champagne close-ups (ReferenceImages/FizzyBubbles/Champagne01): submerged, in depth (bokeh,
+specks, crisp middle bubbles, near bubbles with a lit rim and tiny bubbles inside), a bed feeding the rise, a swell
+that brings FIZZ in; greys on black, an 11 s seamless loop.
