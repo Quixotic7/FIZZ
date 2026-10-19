@@ -997,12 +997,17 @@ static void g_f3(void)
     run(10);
     CHECK(ts->pstart[0] == 2 && ts->pend[0] == 9, "F3 + hold W3, press W10: 3..10");
     bpm = A.bpm;
-    turn(QD_K_SELECT, 5);
-    CHECK(A.bpm == bpm + 5 && A.ui.tk == UI_TK_TEMPO, "F3 + SELECT: tempo");
+    turn(QD_K_ALGO, 5);
+    CHECK(A.bpm == bpm + 5 && A.ui.tk == QD_TK_NONE && qd_view_screen(&A) == QD_SCR_LAYER,
+          "P1.3h: F3 + ALGORITHM: the tempo, live on the map (no takeover)");
     bdown(SHIFT);
-    turn(QD_K_SELECT, 6);
+    turn(QD_K_ALGO, 6);
     bup(SHIFT);
-    CHECK(PAT()->swing == 56 && A.ui.tk == UI_TK_SWING, "SHIFT + F3 + SELECT: swing");
+    CHECK(PAT()->swing == 56 && A.ui.tk == QD_TK_NONE, "SHIFT + F3 + ALGORITHM: the swing");
+    turn(QD_K_SELECT, 2);
+    CHECK(A.ui.page[0] == 2 && A.ui.tk == QD_TK_NONE && qd_ctl_layer_shown(&A) == QD_LAYER_F3 && A.bpm == bpm + 5,
+          "F3 + SELECT: the page edited (3), the map stays, the tempo untouched");
+    turn(QD_K_SELECT, -2);
     f3_up();
     bdown(F1);                                          /* the F3 chord: F1 first, F2 after: F3, latched (P1.3d) */
     run(30);
@@ -1869,11 +1874,11 @@ static void g_f3_latch(void)
     turn(QD_K_3, 2);
     CHECK(ts->pstart[0] == 2, "open: KNOB 3 = the start");
     bpm = A.bpm;
-    turn(QD_K_SELECT, 3);
+    turn(QD_K_ALGO, 3);
     bdown(SHIFT);
-    turn(QD_K_SELECT, 4);
+    turn(QD_K_ALGO, 4);
     bup(SHIFT);
-    CHECK(A.bpm == bpm + 3 && PAT()->swing == 54, "open: SELECT the tempo, SHIFT + SELECT the swing");
+    CHECK(A.bpm == bpm + 3 && PAT()->swing == 54, "open: ALGORITHM the tempo, SHIFT + ALGORITHM the swing (P1.3h)");
     btap(F2);
     CHECK(A.ui.latch == QD_LATCH_F3 && !A.ui.f2_loaded, "OCT+ (confirm, reserved): nothing, still open");
     bdown(F1);

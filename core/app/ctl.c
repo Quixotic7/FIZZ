@@ -128,7 +128,7 @@ void qd_ctl_init(qd_app_t *a)
         u->rec_t0[i] = -1;
 }
 
-/* the tempo set (F3 + SELECT): the current pattern's, the sequencer's, the sound's */
+/* the tempo set (F3 + ALGORITHM): the current pattern's, the sequencer's, the sound's */
 void qd_ctl_set_tempo(qd_app_t *a, int bpm)
 {
     bpm = bpm < QD_BPM_MIN ? QD_BPM_MIN : bpm > QD_BPM_MAX ? QD_BPM_MAX : bpm;
@@ -1049,9 +1049,9 @@ static int k_track(qd_app_t *a, int knob, int d)
     }
 }
 
-/* F3 + SELECT: tempo; SHIFT + F3 + SELECT: swing. P1.3c (§8b 2.1, F3's knobs): KNOB 1 the rate's note value (1/2 ..
- * 1/32), KNOB 2 normal / dotted / triplet, KNOB 3 the edited page's start, KNOB 4 its end (start <= end: each stops at
- * the other). The F3 map is the screen: no takeover */
+/* F3 + ALGORITHM: tempo; SHIFT + F3 + ALGORITHM: swing; F3 + SELECT: the page (P1.3h; they were on SELECT). P1.3c
+ * (§8b 2.1, F3's knobs): KNOB 1 the rate's note value (1/2 .. 1/32), KNOB 2 normal / dotted / triplet, KNOB 3 the
+ * edited page's start, KNOB 4 its end (start <= end: each stops at the other). The F3 map is the screen: no takeover */
 static int k_f3(qd_app_t *a, int knob, int d)
 {
     qd_pattern_t *p = qd_ctl_pat(a);
@@ -1073,17 +1073,16 @@ static int k_f3(qd_app_t *a, int knob, int d)
     default:
         break;
     }
-    if (knob != QD_K_SELECT)
-        return 0;
-    if (qd_ctl_shift(a)) {
-        qd_pattern_t *p = qd_ctl_pat(a);
-        p->swing = (uint8_t)clampi(p->swing + d, 50, 80);
-        qd_ctl_takeover(a, UI_TK_SWING, 1, d, 0, -1);
-    } else {
-        if (!a->seq.ext)
-            qd_ctl_set_tempo(a, a->bpm + d);
-        qd_ctl_takeover(a, UI_TK_TEMPO, 0, d, 0, -1);
+    if (knob == QD_K_SELECT) {                          /* P1.3h: SELECT the page edited (the map follows) */
+        qd_ctl_set_page(a, a->ui.page[a->sel] + d);
+        return 1;
     }
+    if (knob != QD_K_ALGO)
+        return 0;
+    if (qd_ctl_shift(a))                                /* P1.3h: ALGORITHM the tempo, SHIFT + ALGORITHM the swing, */
+        p->swing = (uint8_t)clampi(p->swing + d, 50, 80);   /* live on the map (no takeover: the map is the screen) */
+    else if (!a->seq.ext)
+        qd_ctl_set_tempo(a, a->bpm + d);
     return 1;
 }
 
@@ -1160,7 +1159,7 @@ static const struct {
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
     {when_seq, k_seq},                 /* SEQ held: ALGORITHM the launch mode */
-    {when_f3, k_f3},                   /* F3: SELECT tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */
+    {when_f3, k_f3},                   /* F3: SELECT page, ALGO tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */
     {when_steps_held, k_held},         /* a step held: SELECT page, ALGORITHM value, PRESETS sound lock, p-locks */
     {when_mkey, k_mkey_knob},          /* a mode key held (P1.3e): its default */
     {when_live, k_live},               /* live recording: the quick page as locks on the step playing */

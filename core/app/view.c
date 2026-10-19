@@ -482,7 +482,7 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
         v->ctx = "STEP VIEW";
         ROW("+ ALGORITHM", "the track's scale");
         ROW("+ PRESETS", "the track's root");
-        ROW("+ F3 + SELECT", "swing");
+        ROW("+ F3 + ALGORITHM", "swing");
         ROW("+ SEQ + W", "change pattern now");
     }
 #undef ROW
