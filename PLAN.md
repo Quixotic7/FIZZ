@@ -1251,3 +1251,9 @@ relaunched): after five logo mock-ups (`mockups/fizz-*.html`) the owner picked t
 the word from particles: big bubbles turning with tiny bubbles floating inside (no white highlight), FIZZ gathering
 from 248 particles in ~0.5 s, solid while it holds, breaking back into particles that fizz away. Letters sampled
 through a new `qd_text_mask` behind qd_gfx. STEPS: the edited page's row at half height (62 px).
+
+**2026-10-19, P1.3q** (FMToneSeq 48258cf; FM1VST `core-quadrille` f885e13; version 0.1.6-p1.3q; relaunched): STEPS colours
+steps by kind (own notes warm white, track notes cyan, ghost / LOCK a violet outline), fills the open row too with the
+notes drawn dark on it, velocity as the fill height, a length line under held / selected steps, PRESETS as a step
+cursor (the latch, STEPS stays on screen), the NOTE-mode override bars dropped. Also 81f5718: the logo's inner bubbles
+orbit in whole turns (they jumped at the 11 s wrap).
