@@ -1191,3 +1191,9 @@ No model change (the defaults already had every extra). test_ctl 452; old golden
 six notes a step (ALGORITHM = note 6 on a held step, the default chord still transposed by ALGORITHM), the quiet
 KNOB 4, the step latch (tap toggles, hold several, an empty selection gives the mode keys back), HOME cycles PIANO
 ROLL / STEPS. The step stays 18 bytes (the pad byte became note 6). test_seq 2,794 (p28-six new), test_ctl 517.
+
+**2026-10-19, P1.3f built** (FMToneSeq 9ae7dd2; FM1VST `core-quadrille` 8ce3283; version 0.0.9-p1.3f; the Standalone
+relaunched): notes stored as pitches (slot k = note k; the step still 18 bytes), NOTE's knobs each move their own note
+and ALGORITHM all of them (held step, latch selection, NOTE key), the step latch selects by gesture (the pressed set
+replaces the selection; a short tap on the sole selected step empties it), STEPS redrawn as an overview of all 8
+pages, 16 cells a row in fours. test_ctl 528, test_seq 2,795; all 28 goldens unchanged.
