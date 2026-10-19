@@ -2245,11 +2245,17 @@ static void u_edit(void)
         rr = qd_step_set_notes(&P, 2, 5, ch, 4);
     }
     CHECK(rr == QD_OK && qd_step_notes(&P, 2, 5, n) == 3 && n[0] == 60 && n[1] == 64 && n[2] == 67 &&
-              st->note[1] == 4 && qd_step_overrides(st, QD_PM_NOTE) && !qd_step_overrides(st, QD_PM_VEL),
-          "notes: ascending, no repeats, 2..4 as offsets; NOTE overridden, VEL not");
+              st->note[0] == 67 && st->note[1] == 60 && st->note[2] == 64 && !st->note[3] &&
+              qd_step_overrides(st, QD_PM_NOTE) && !qd_step_overrides(st, QD_PM_VEL),
+          "notes: played ascending, no repeats; stored as pitches in the order given (P1.3f); NOTE overridden, VEL not");
     {
         const uint8_t wide[2] = {30, 79};
-        CHECK(qd_step_set_notes(&P, 2, 5, wide, 2) == QD_ENOTE, "an offset over +48: refused");
+        CHECK(qd_step_set_notes(&P, 2, 5, wide, 2) == QD_OK && st->note[1] == 79, "P1.3f: any spread (30, 79)");
+        CHECK(qd_step_set_note(&P, 2, 5, 1, 30) == QD_ENOTE && qd_step_set_note(&P, 2, 5, 3, 45) == QD_OK &&
+                  st->note[3] == 45 && st->note[0] == 30 && qd_step_set_note(&P, 2, 5, 0, 0) == QD_OK &&
+                  qd_step_set_note(&P, 2, 5, 1, 0) == QD_OK && qd_step_set_note(&P, 2, 5, 3, 0) == QD_EARG,
+              "one slot: a repeat refused, a slot set alone, slots emptied, never the last note");
+        qd_step_set_notes(&P, 2, 5, wide, 2);
     }
     qd_step_resolve(&P, 2, 5, &r);
     CHECK(qd_step_set_ratchet(&P, 2, 5, 8, QD_RAMP_ACCENT) == QD_OK && (qd_step_resolve(&P, 2, 5, &r), r.ratch == 8) &&

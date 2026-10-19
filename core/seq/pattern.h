@@ -73,7 +73,7 @@ typedef struct {
     uint16_t ovr;                       /* bit QD_PM_k: the step overrides parameter k (else the track's default) */
     uint8_t flags;                      /* QD_SF_ON, QD_SF_LOCKS */
     uint8_t type;                       /* QD_TRIG_NOTE / LOCK / TIE (with QD_PM_TRIG's bit) */
-    uint8_t note[QD_NNOTE];             /* note 1 absolute (1..127); 2..6 offsets +1..+48 from note 1 (0 none) */
+    uint8_t note[QD_NNOTE];             /* P1.3f: note k's pitch in slot k (1..127, 0 none; no two the same) */
     uint8_t vel;                        /* 1..127 */
     uint8_t len;                        /* an index into the length table (qd_len_eighths), QD_LEN_INF the last */
     int8_t micro;                       /* -23..+23 24ths of a step */
@@ -98,7 +98,7 @@ typedef struct {
     int type;                           /* QD_TRIG_* (NONE when not on) */
     int nn;                             /* notes */
     uint8_t notes[QD_NNOTE];            /* absolute, ascending (above 127 clamped) */
-    uint8_t note[QD_NNOTE];             /* as stored: note 1, offsets */
+    uint8_t note[QD_NNOTE];             /* as stored: the slots' pitches (note k in slot k, 0 none) */
     int vel, len, micro, ratch, ramp, chance, cond, sound, strum;
     uint16_t ovr;
 } qd_rstep_t;
@@ -196,7 +196,7 @@ typedef struct {
 #define QD_OK 0
 #define QD_EARG (-1)                    /* a track, step, id or value out of range */
 #define QD_EFULL (-2)                   /* the lock pool is full: nothing changed */
-#define QD_ENOTE (-3)                   /* notes 2..6 not within +1..+48 of note 1 */
+#define QD_ENOTE (-3)                   /* a pitch another note of the step already has */
 
 /* ---- patterns */
 void qd_pat_init(qd_pattern_t *p);      /* empty: no trigs, no locks, track defaults, 120 BPM, swing 50, master auto */
@@ -228,16 +228,18 @@ int qd_step_overrides(const qd_step_t *st, int pm);
 void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r);
 int qd_step_type(const qd_pattern_t *p, int t, int s);   /* resolved: QD_TRIG_NONE when off */
 int qd_step_notes(const qd_pattern_t *p, int t, int s, uint8_t *notes);   /* resolved: the absolute notes (n) */
-int qd_notes_abs(const uint8_t *note4, uint8_t *notes);   /* note 1 + offsets -> absolute ascending (n) */
+int qd_notes_abs(const uint8_t *note6, uint8_t *notes);   /* the slots' pitches -> ascending (n) */
 /* a trig with no overrides (the tap); NOTE / LOCK / TIE: a trig with that type overridden; NONE: the step and its
  * locks cleared */
 int qd_step_on(qd_pattern_t *p, int t, int s);
 int qd_step_set_trig(qd_pattern_t *p, int t, int s, int type);
-int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n);   /* absolute, any order */
-/* note 1 moved with the chord's shape kept (1..127), or note k (1..4) set as its offset 0..48 above note 1 (0: none;
- * an offset another slot has: QD_ENOTE). Without the NOTE override, the track's default notes are its start */
-int qd_step_set_root(qd_pattern_t *p, int t, int s, int note);
-int qd_step_set_offset(qd_pattern_t *p, int t, int s, int k, int off);
+/* notes[0..n): note 1, note 2 .. in that order (P1.3f: the slots keep it; repeats dropped) */
+int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n);
+/* P1.3f: note k (slot 0..5) set to a pitch (0: none; a pitch another slot has: QD_ENOTE; the last note emptied: QD_EARG),
+ * the others where they are. Without the NOTE override, the track's default notes are its start */
+int qd_step_set_note(qd_pattern_t *p, int t, int s, int k, int pitch);
+/* .. or all six slots as they are (pitches, 0 none; repeats: QD_ENOTE; none at all: QD_EARG) */
+int qd_step_set_slots(qd_pattern_t *p, int t, int s, const uint8_t *slots);
 int qd_step_set_vel(qd_pattern_t *p, int t, int s, int vel);
 int qd_step_set_len(qd_pattern_t *p, int t, int s, int len);
 int qd_step_set_micro(qd_pattern_t *p, int t, int s, int micro);
@@ -256,6 +258,8 @@ int qd_ratch_make(int count, int ramp);
  * override it, at once */
 qd_sdef_t *qd_tdef(qd_pattern_t *p, int t);
 int qd_tdef_set_notes(qd_pattern_t *p, int t, const uint8_t *notes, int n);
+int qd_tdef_set_note(qd_pattern_t *p, int t, int k, int pitch);   /* P1.3f: one slot, as qd_step_set_note */
+int qd_tdef_set_slots(qd_pattern_t *p, int t, const uint8_t *slots);   /* .. all six, as qd_step_set_slots */
 int qd_tdef_set(qd_pattern_t *p, int t, int pm, int value);   /* VEL .. STRUM (RATCH: qd_ratch_make; NOTE: note 1) */
 int qd_tdef_get(const qd_pattern_t *p, int t, int pm);
 

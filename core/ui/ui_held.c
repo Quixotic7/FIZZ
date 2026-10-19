@@ -10,7 +10,9 @@
  * is_default: the track's default for the mode (a default turned with nothing held, or its mode key held, P1.3e):
  * "TRACK DEFAULT · MODE", the drawing in the mode's colour, no strip; with the mode key held a "B11 RESET" mark at
  * the foot (lit while the default differs from the track's initial value). P1.3e: NOTE has six notes, the sixth in
- * ALGORITHM's pink (a held step: SELECT, KNOB 1..4, ALGORITHM; a default: KNOB 1..4 for notes 2..5).
+ * ALGORITHM's pink (a held step: SELECT, KNOB 1..4, ALGORITHM; a default: KNOB 1..4 for notes 2..5). P1.3f: the
+ * legend S 1 2 3 4 (each knob moves its own note) and "A = ALL" (ALGORITHM moves every note); a sixth note (from the
+ * keys) stays pink.
  *   NOTE   the chord name big (squeezing in), the notes on a keybed, their names under them; the entry octave and
  *          the track's scale small top left ("OCT 4 · D DORIAN"). P1.3c: five notes, each dot and name in the colour
  *          of the knob that turns it (note 1 SELECT's yellow, notes 2..5 KNOB 1..4's blue, green, white, orange) and
@@ -160,12 +162,13 @@ static void f_note(const ui_held_t *v, const pal_t *p)
         ui_O(x, b ? 152.f : 180.f, 3.8f, QD_NONE, 1.f, col);
         ui_T(v->note_name[i], x, i % 2 ? 215.f : 204.f, 9.f, 600, 0.f, col, QD_CENTER);
     }
-    if (v->knobs) {                                     /* the knobs: SELECT, KNOB 1..4, ALGORITHM (a default: 1..4) */
-        static const char *const KN[6] = {"S", "1", "2", "3", "4", "A"};
-        const int k0 = v->knobs == 2 ? 1 : 0, k1 = v->knobs == 2 ? 5 : 6;
+    if (v->knobs) {                                     /* the knobs: SELECT, KNOB 1..4 (nothing held: 1..4), A = ALL */
+        static const char *const KN[5] = {"S", "1", "2", "3", "4"};
+        const int k0 = v->knobs == 2 ? 1 : 0, k1 = 5;
         int k;
+        ui_lab("A = ALL", 232.f, 112.5f, UI_G1, QD_RIGHT);
         for (k = k0; k < k1; k++) {
-            const float x = 147.f + (float)k * 15.f;
+            const float x = 117.f + (float)k * 15.f;
             const qd_rgb col = k == 5 ? UI_KALG : k ? UI_K[k - 1] : UI_KSEL;
             const int on = v->slot_note[k] && !p->empty;
             ui_O(x, 110.f, 5.5f, col, 1.2f, on ? col : QD_NONE);

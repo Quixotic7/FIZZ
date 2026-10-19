@@ -124,7 +124,7 @@ void qd_step_release_all(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     u->nheld = 0;
-    u->wk_down = u->wk_pending = u->wk_unsel = 0;
+    u->wk_down = u->wk_pending = 0;
     u->note_keys = 0;
     if (u->tk == QD_TK_HELDKNOB)                        /* (the band of a step no longer held) */
         u->tk = QD_TK_NONE;
@@ -193,16 +193,18 @@ void qd_step_white_down(qd_app_t *a, int w)
     const uint16_t bit = (uint16_t)(1u << w);
     if (qd_ctl_shift(a) && !u->nheld && !u->wk_pending)
         return;                                         /* SHIFT + W: free (question 38) */
-    if (u->slatch) {                                    /* the step latch (P1.3e): a W toggles its step in the
-                                                         * selection; W keys down together are all selected */
+    if (u->slatch) {                                    /* the step latch (P1.3f): a gesture's keys replace the
+                                                         * selection (shown as they go down) */
         const int s = step_of(a, w);
-        const int others = (u->wk_down & (uint16_t)~bit) != 0;
-        if (others)
-            u->wk_unsel = 0;                            /* (a selected one held with others: it stays) */
+        if (!u->wk_down) {                              /* a gesture begins */
+            u->gest_sole = u->nheld == 1 ? u->held[0] : -1;
+            u->gest_n = 0;
+            u->nheld = 0;
+        }
         if (held_find(u, s) < 0)
             held_add(a, s, -1);
-        else if (!others)
-            u->wk_unsel |= bit;                         /* (alone, already selected: unselected at its release) */
+        u->gest_n++;
+        u->wk_t0[w] = a->ms;
         u->wk_down |= bit;
         return;
     }
@@ -239,19 +241,14 @@ void qd_step_white_up(qd_app_t *a, int w)
     if (!(u->wk_down & bit))
         return;
     u->wk_down &= (uint16_t)~bit;
-    if (u->slatch) {                                    /* the step latch: the selection stays, but a tap's toggle */
-        if (u->wk_unsel & bit) {
-            u->wk_unsel &= (uint16_t)~bit;
-            i = held_find(u, step_of(a, w));
-            if (i >= 0)
-                held_remove(u, i);
-            if (u->nheld && u->last_step[a->sel] == step_of(a, w))
-                u->last_step[a->sel] = u->held[u->nheld - 1];   /* (the last still selected) */
-            if (!u->nheld) {
-                u->note_keys = 0;
-                if (u->tk == QD_TK_HELDKNOB)
-                    u->tk = QD_TK_NONE;
-            }
+    if (u->slatch) {                                    /* the step latch: the gesture's set stays selected, but
+                                                         * one tap on the step that was the whole selection empties it */
+        if (!u->wk_down && u->gest_n == 1 && u->nheld == 1 && u->held[0] == u->gest_sole &&
+            a->ms - u->wk_t0[w] < QD_TAP_MS) {
+            u->nheld = 0;
+            u->note_keys = 0;
+            if (u->tk == QD_TK_HELDKNOB)
+                u->tk = QD_TK_NONE;
         }
         return;
     }
@@ -470,6 +467,50 @@ static int scale_steps(int sc, int rt, int note, int d)
     return note;
 }
 
+/* P1.3f: the notes are pitches in slots (note k = slot k). Every note a scale step (d detents) in its own slot; two
+ * that land on one pitch (out-of-scale notes snapping): the later slot emptied */
+static void move_all(const qd_app_t *a, const uint8_t *in, uint8_t *out, int d)
+{
+    int sc, rt, k, j;
+    key_of(a, &sc, &rt);
+    for (k = 0; k < QD_NNOTE; k++) {
+        out[k] = in[k] ? (uint8_t)clampi(scale_steps(sc, rt, in[k], d), 1, 127) : 0;
+        for (j = 0; j < k; j++)
+            if (out[k] && out[j] == out[k])
+                out[k] = 0;
+    }
+}
+
+/* P1.3f: note k alone a scale step (dir), skipping the pitches the other slots have. Note 1 stays within 1..127. Notes
+ * 2..6 live above note 1: turned down past it they are removed (0); from none, turned up, they come in a scale step
+ * above note 1 (the lowest note when note 1 is empty) */
+static int pitch_step(const qd_app_t *a, const uint8_t *note, int k, int dir)
+{
+    int sc, rt, p = note[k], j, floor = note[0];
+    key_of(a, &sc, &rt);
+    if (!floor)
+        for (j = 1, floor = 128; j < QD_NNOTE; j++)
+            floor = j != k && note[j] && note[j] < floor ? note[j] : floor;
+    if (k > 0 && !p) {
+        if (dir < 0 || floor > 127)
+            return 0;
+        p = floor;
+    }
+    for (;;) {
+        int taken = 0;
+        const int x = qd_scale_step(sc, rt, p, dir);
+        if (x == p)
+            return note[k];                             /* the end of the range: it stays */
+        p = x;
+        if (k > 0 && p < floor)
+            return 0;                                   /* below note 1: none */
+        for (j = 0; j < QD_NNOTE; j++)
+            taken |= j != k && note[j] == p;
+        if (!taken)
+            return p;
+    }
+}
+
 static void chord_of(const qd_app_t *a, int s, char *name)   /* its name as shown (for the squeeze) */
 {
     qd_rstep_t r;
@@ -488,17 +529,12 @@ static void fine(qd_app_t *a, int s, int m, int d, int shift)
     qd_pattern_t *p = PAT(a);
     const int t = a->sel;
     qd_rstep_t r;
-    int k;
     qd_step_resolve(p, t, s, &r);
     switch (m) {
-    case UI_F_NOTE: {
+    case UI_F_NOTE: {                                   /* every note a scale step, each in its slot */
         uint8_t n[QD_NNOTE];
-        int sc, rt;
-        key_of(a, &sc, &rt);
-        for (k = 0; k < r.nn; k++)
-            n[k] = (uint8_t)scale_steps(sc, rt, r.notes[k], d);
-        if (r.nn)
-            qd_step_set_notes(p, t, s, n, r.nn);
+        move_all(a, r.note, n, d);
+        qd_step_set_slots(p, t, s, n);
         break;
     }
     case UI_F_VEL: qd_step_set_vel(p, t, s, clampi(r.vel + d, 1, 127)); break;
@@ -565,25 +601,6 @@ void qd_step_clear_locks(qd_app_t *a)
     qd_ctl_confirm(a, "LOCKS CLEARED", "F1 + B11 undoes it");
 }
 
-/* NOTE's five knobs: SELECT note 1 (a degree), KNOB k note k + 1 (the next offset in the scale, skipping the others') */
-static int offset_step(const qd_app_t *a, const uint8_t *note, int k, int dir)
-{
-    int sc, rt, off = note[k], j;
-    key_of(a, &sc, &rt);
-    for (;;) {
-        int taken = 0;
-        off += dir;
-        if (off <= 0)
-            return 0;                                   /* below the first: none */
-        if (off > 48 || note[0] + off > 127)
-            return note[k];                             /* the top: it stays */
-        for (j = 1; j < QD_NNOTE; j++)
-            taken |= j != k && note[j] == off;
-        if (!taken && qd_scale_has(sc, rt, note[0] + off))
-            return off;
-    }
-}
-
 /* the band (P1.3d) or the default's picture (P1.3e): what a knob turned, for a second over the screen. QUIET (P1.3e):
  * none, and a band or picture showing goes, so the change is seen in place */
 static void band(qd_app_t *a, int tk, int job, int knob, int d)
@@ -598,41 +615,32 @@ static void band(qd_app_t *a, int tk, int job, int knob, int d)
     a->ui.tk_src = knob;
 }
 
-/* NOTE's knobs on the held steps: slot 0 note 1 (a degree), slot k note k + 1 (the next offset in the scale, skipping
- * the others'; P1.3e: slot 5, note 6, on ALGORITHM) */
+/* NOTE's knobs on the held steps (P1.3f): SELECT note 1, KNOB 1..4 notes 2..5, each moving its own note alone (a
+ * scale step a detent, pitch_step); the note sounds */
 static void note_knob(qd_app_t *a, int k, int d)
 {
     qd_ui_t *u = &a->ui;
-    int i, n, sc, rt, sound = -1;
+    int i, n, sound = -1;
     char before[16], after[16];
-    key_of(a, &sc, &rt);
     chord_of(a, u->held[0], before);
     for (i = 0; i < u->nheld; i++) {
         const int s = u->held[i];
         qd_rstep_t r;
         resolve(a, s, &r);
-        if (k == 0) {
-            const int x = clampi(scale_steps(sc, rt, r.note[0], d), 1, 127);
-            qd_step_set_root(PAT(a), a->sel, s, x);
-            if (!i)
-                sound = x;
-        } else {
-            int off = r.note[k];
-            for (n = d; n > 0; n--)
-                r.note[k] = (uint8_t)(off = offset_step(a, r.note, k, 1));
-            for (n = d; n < 0; n++)
-                r.note[k] = (uint8_t)(off = offset_step(a, r.note, k, -1));
-            qd_step_set_offset(PAT(a), a->sel, s, k, off);
-            if (!i)
-                sound = off ? r.note[0] + off : -1;
-        }
+        for (n = d; n > 0; n--)
+            r.note[k] = (uint8_t)pitch_step(a, r.note, k, 1);
+        for (n = d; n < 0; n++)
+            r.note[k] = (uint8_t)pitch_step(a, r.note, k, -1);
+        qd_step_set_slots(PAT(a), a->sel, s, r.note);
+        if (!i)
+            sound = r.note[k] ? r.note[k] : -1;
     }
     chord_of(a, u->held[0], after);
     u->chord_ms = strcmp(before, after) != 0 ? a->ms : u->chord_ms;
     if (sound > 0 && !qd_ctl_previewing(a)) {           /* (stopped, the step's preview sounds the new chord) */
         qd_rstep_t r;
         resolve(a, u->held[0], &r);
-        qd_ctl_preview(a, sound > 127 ? 127 : sound, r.vel);
+        qd_ctl_preview(a, sound, r.vel);
     }
 }
 
@@ -652,7 +660,6 @@ void qd_step_job_held(qd_app_t *a, int job, int knob, int d)
     case QD_KJ_NOTE3:
     case QD_KJ_NOTE4:
     case QD_KJ_NOTE5:
-    case QD_KJ_NOTE6:
         note_knob(a, job - QD_KJ_NOTE1, d);
         break;
     case QD_KJ_MAIN:
@@ -700,13 +707,8 @@ void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
         switch (m) {
         case UI_F_NOTE: {                               /* every note a scale step (the owner keeps this, P1.3e) */
             uint8_t nt[QD_NNOTE];
-            int k, nn, sc, rt;
-            key_of(a, &sc, &rt);
-            nn = qd_notes_abs(df->note, nt);
-            for (k = 0; k < nn; k++)
-                nt[k] = (uint8_t)scale_steps(sc, rt, nt[k], d);
-            if (nn)
-                qd_tdef_set_notes(p, t, nt, nn);
+            move_all(a, df->note, nt, d);
+            qd_tdef_set_slots(p, t, nt);
             a->ui.chord_ms = a->ms;
             break;
         }
@@ -730,25 +732,19 @@ void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
             return;
         }
         break;
-    case QD_KJ_NOTE1: {                                 /* (note 1 alone: the others keep their offsets) */
-        int sc, rt;
-        key_of(a, &sc, &rt);
-        df->note[0] = (uint8_t)clampi(scale_steps(sc, rt, df->note[0] ? df->note[0] : 60, d), 1, 127);
-        a->ui.chord_ms = a->ms;
-        break;
-    }
+    case QD_KJ_NOTE1:                                   /* P1.3f: the default chord's notes 1..5, each alone */
     case QD_KJ_NOTE2:
     case QD_KJ_NOTE3:
     case QD_KJ_NOTE4:
-    case QD_KJ_NOTE5:
-    case QD_KJ_NOTE6: {                                 /* the default chord's notes 2..6, as a held step's */
+    case QD_KJ_NOTE5: {
         const int k = job - QD_KJ_NOTE1;
-        if (!df->note[0])
-            df->note[0] = 60;
+        uint8_t nt[QD_NNOTE];
+        memcpy(nt, df->note, sizeof nt);
         for (n = d; n > 0; n--)
-            df->note[k] = (uint8_t)offset_step(a, df->note, k, 1);
+            nt[k] = (uint8_t)pitch_step(a, nt, k, 1);
         for (n = d; n < 0; n++)
-            df->note[k] = (uint8_t)offset_step(a, df->note, k, -1);
+            nt[k] = (uint8_t)pitch_step(a, nt, k, -1);
+        qd_tdef_set_slots(p, t, nt);
         a->ui.chord_ms = a->ms;
         break;
     }
@@ -794,10 +790,6 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
             qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 1, u->held[0]);
         return 1;
     case QD_K_ALGO:
-        if (m == UI_F_NOTE) {                           /* P1.3e: NOTE, a step held: note 6 */
-            qd_step_job_held(a, QD_KJ_NOTE6, knob, d);
-            return 1;
-        }
         if (m == UI_F_SOUND) {                          /* SOUND: as PRESETS */
             qd_step_sound_pick(a, d);
             band(a, QD_TK_HELDKNOB, QD_KJ_MAIN, knob, d);

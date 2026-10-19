@@ -19,7 +19,7 @@ extern "C" {
 #define UI_K3 0xf1f0eau
 #define UI_K4 0xff6a2cu
 #define UI_KSEL 0xffd23fu               /* P1.3c: SELECT's colour where SELECT moves a part of the drawing (NOTE's note 1) */
-#define UI_KALG 0xff8fc8u               /* P1.3e: ALGORITHM's, where it moves a part of the drawing (NOTE's note 6) */
+#define UI_KALG 0xff8fc8u               /* P1.3e: NOTE's note 6 (from the keys; P1.3f: no knob has it) */
 #define UI_RED 0xff3448u
 #define UI_G1 0x8d8d96u
 #define UI_G2 0x4b4b54u
@@ -212,12 +212,15 @@ typedef struct {
     char def_label[24];                 /* the default as words: "DEFAULT 100", "TRACK SOUND" */
     int def_hot;                        /* P1.3d: a default is being turned: its line and label in the mode's colour */
     int latch;                          /* P1.3d: the step latch (LFO) is on: "LATCH" in the top line */
-    /* P1.3e: the STEPS view (HOME): the page as two rows of eight cells (W1..W8, W9..W16) instead of the mode's lane;
-     * the same top line and page dashes */
+    /* P1.3e/f: the STEPS view (HOME): P1.3f, an overview of the track's eight pages as rows of sixteen cells (in
+     * fours), the page edited outlined, the pages out of the loop dim; cell[p][s] UI_C_* bits */
     int steps;
-    int flash_col;                      /* the column whose trig played last (-1 none) .. */
+    uint8_t cell[8][16];
+    int play_step;                      /* the step (0..127) under the playhead (-1 stopped) */
+    int flash_step;                     /* the step whose trig played last (-1 none) .. */
     float flash_age;                    /* .. seconds ago (it flashes white, fading over 0.25 s) */
 } ui_lane_t;
+enum { UI_C_ON = 1, UI_C_LOCK = 2, UI_C_TIE = 4, UI_C_OVR = 8, UI_C_RANGE = 16, UI_C_HELD = 32 };
 void ui_lane_draw(const ui_lane_t *v);
 
 /* ---- a held step (line.html s4..s10, s19, s20; PLAN §9a rule 7, §8b): one layout, "STEP n · MODE" top left, the
@@ -244,13 +247,11 @@ typedef struct {
     int nnote;
     uint8_t note[6];                    /* absolute */
     char note_name[6][6];               /* "C3", "D#4" */
-    /* P1.3c: the notes by their knobs: slot 0 note 1 (SELECT, absolute), slots 1..4 notes 2..5 (KNOB 1..4, offsets
-     * from note 1), P1.3e slot 5 note 6 (ALGORITHM): each slot's absolute note, 0 none; drawn in its knob's colour
-     * (SELECT UI_KSEL, KNOB k UI_K[k - 1], ALGORITHM UI_KALG) */
+    /* the notes by their slots (P1.3f: pitches): slot 0 note 1 (SELECT), slots 1..4 notes 2..5 (KNOB 1..4), slot 5 note
+     * 6 (the keys only), 0 none; drawn in its knob's colour (SELECT UI_KSEL, KNOB k UI_K[k - 1], note 6 UI_KALG) */
     uint8_t slot_note[6];
-    int knobs;                          /* the knobs are the notes: their legend drawn (1: a held step's six, SELECT ..
-                                         * ALGORITHM; 2: P1.3e, a default's, KNOB 1..4 only: its SELECT is the page
-                                         * and its ALGORITHM moves the chord) */
+    int knobs;                          /* the knobs are the notes: their legend drawn (1: SELECT, KNOB 1..4; 2: nothing
+                                         * held, KNOB 1..4 only: SELECT is the page), with "A = ALL" */
     int reset;                          /* P1.3e, a default with its mode key held: 1 B11 resets it (it differs from the
                                          * track's initial value), 2 it is the initial one ("B11 RESET" lit / dim) */
     char root[4];                       /* "C", "F#" (empty: no chord) */

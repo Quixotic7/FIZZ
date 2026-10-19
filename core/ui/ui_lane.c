@@ -454,96 +454,79 @@ static void lane(const ui_lane_t *v)
         ui_T(ui_itoa(num, v->page * 16 + i + 1), col_x(i) + 6.f, 235.f, 8.f, 500, 0.f, UI_G2, QD_CENTER);
 }
 
-/* ---------------------------------------------------------------- P1.3e: the STEPS view */
-/* two rows of eight cells, W1..W8 over W9..W16, grouped in fours: a trig a soft white tile (a bar of the mode's
- * colour at its foot where the step overrides the mode), a LOCK step a ring, a TIE a tile with a slur from its left edge, an
- * empty step an outline, a step outside the page's range dark and dotted; the step's number in the tile's corner; under
- * each cell its marks (p-locks sand, a condition magenta, a chance below 100 % yellow, a sound lock lime); the
- * playhead's cell outlined white, a trig flashing white as it plays; a held (or selected) step outlined white */
-#define SC_W 24.f
-#define SC_H 78.f
-static float sc_x(int i) { return 11.5f + (float)(i % 8) * 27.f + (float)((i % 8) / 4) * 4.f; }
-static float sc_y(int i) { return 44.f + (float)(i / 8) * (SC_H + 12.f); }
+/* ---------------------------------------------------------------- P1.3f: the STEPS view, an overview */
+/* the track's eight pages as eight rows (the page's number at the left), sixteen cells a row in four groups of four: a
+ * trig a soft white cell (a little bar of the mode's colour at its foot where it overrides the mode), a LOCK step a
+ * ring, an empty step an outline, a step outside its page's start..end a dark speck; the page edited outlined white
+ * (its number white), the pages in the loop grey, the others dim; the playhead's cell outlined white as it walks the
+ * pages, a trig flashing white as it plays; a held or selected step outlined white */
+#define OV_X0 22.f
+#define OV_Y0 36.f
+#define OV_CW 11.f
+#define OV_CH 17.f
+static float ov_x(int s) { return OV_X0 + (float)s * 12.5f + (float)(s / 4) * 4.f; }
+static float ov_y(int p) { return OV_Y0 + (float)p * 23.5f; }
 
 static void steps_grid(const ui_lane_t *v)
 {
-    static const float DOTS[2] = {1.f, 3.f};
-    const int ph = v->pos >= 0.f ? (int)v->pos : -1;
-    char num[12];
-    int i;
-    for (i = 0; i < 16; i++) {
-        const ui_lcol_t *c = &v->col[i];
-        const float x = sc_x(i), y = sc_y(i), cx = x + SC_W / 2.f, cy = y + SC_H / 2.f;
-        const int here = i == ph;
-        const qd_rgb mc = UI_MODE_COL[v->mode];
-        const qd_rgb fill = 0xd6d6dcu;
-        float flash = 0.f;
-        if (!c->in_range) {
-            qd_save();
-            qd_dash(DOTS, 2);
-            ui_RR(x, y, SC_W, SC_H, 6.f, UI_G3, 1.f, QD_NONE);
-            qd_restore();
-            continue;
-        }
-        if (i == v->flash_col && v->flash_age >= 0.f && v->flash_age < 0.25f && c->on)
-            flash = 1.f - v->flash_age / 0.25f;
-        if (c->on && c->type != 2) {                    /* a trig: a tile */
-            qd_save();
-            qd_alpha(c->held ? 0.55f : 0.9f);
-            ui_RR(x, y, SC_W, SC_H, 6.f, QD_NONE, 1.f, fill);
-            qd_restore();
-            if (c->ovr)                                 /* the step overrides the mode: its colour at the foot */
-                ui_RR(x + 3.f, y + SC_H - 9.f, SC_W - 6.f, 6.f, 3.f, QD_NONE, 1.f, mc);
-            if (flash > 0.f) {
-                qd_save();
-                qd_alpha(flash);
-                ui_RR(x, y, SC_W, SC_H, 6.f, QD_NONE, 1.f, UI_K3);
-                qd_restore();
+    static const char *const NUM[8] = {"1", "2", "3", "4", "5", "6", "7", "8"};
+    const qd_rgb mc = UI_MODE_COL[v->mode];
+    int p, i;
+    for (p = 0; p < 8; p++) {
+        const float y = ov_y(p);
+        const int in = (v->loop >> p) & 1, ed = p == v->page;
+        qd_save();
+        qd_alpha(in || ed ? 1.f : 0.38f);
+        if (ed)
+            ui_RR(OV_X0 - 20.f, y - 3.f, ov_x(15) + OV_CW + 3.f - (OV_X0 - 20.f), OV_CH + 6.f, 5.f, UI_K3, 1.f,
+                  QD_NONE);
+        ui_T(NUM[p], OV_X0 - 11.f, y + 12.5f, 10.f, ed ? 700 : 500, 0.f, ed ? UI_K3 : in ? UI_G1 : UI_G2, QD_CENTER);
+        for (i = 0; i < 16; i++) {
+            const uint8_t c = v->cell[p][i];
+            const int abs = p * 16 + i;
+            const float x = ov_x(i);
+            if (!(c & UI_C_RANGE)) {
+                ui_O(x + OV_CW / 2.f, y + OV_CH / 2.f, 0.9f, QD_NONE, 1.f, UI_G3);
+                continue;
             }
-            if (c->type == 3) {                         /* TIE: a slur in from the left */
-                qd_path_begin();
-                qd_move_to(x - 3.f, cy + 8.f);
-                qd_quad_to(x + 4.f, cy - 10.f, x + 12.f, cy + 2.f);
-                qd_path_stroke(UI_BG, 2.f);
+            if ((c & UI_C_ON) && !(c & UI_C_LOCK)) {
+                ui_RR(x, y, OV_CW, OV_CH, 2.5f, QD_NONE, 1.f, (c & UI_C_HELD) ? 0x9a9aa2u : 0xd6d6dcu);
+                if (c & UI_C_OVR)
+                    ui_RR(x + 2.f, y + OV_CH - 4.f, OV_CW - 4.f, 2.5f, 1.2f, QD_NONE, 1.f, mc);
+                if (c & UI_C_TIE)                       /* a TIE: a notch on its left edge */
+                    ui_RR(x - 1.f, y + OV_CH / 2.f - 2.f, 3.f, 4.f, 1.f, QD_NONE, 1.f, UI_BG);
+                if (abs == v->flash_step && v->flash_age >= 0.f && v->flash_age < 0.25f) {
+                    qd_save();
+                    qd_alpha(1.f - v->flash_age / 0.25f);
+                    ui_RR(x, y, OV_CW, OV_CH, 2.5f, QD_NONE, 1.f, UI_K3);
+                    qd_restore();
+                }
+            } else {
+                ui_RR(x, y, OV_CW, OV_CH, 2.5f, UI_G3, 1.f, QD_NONE);
+                if (c & UI_C_LOCK)
+                    ui_O(x + OV_CW / 2.f, y + OV_CH / 2.f, 3.f, (c & UI_C_OVR) ? mc : UI_G1, 1.4f, QD_NONE);
             }
-            ui_T(ui_itoa(num, v->page * 16 + i + 1), x + 4.f, y + 11.f, 7.f, 700, 0.f, UI_BG, QD_LEFT);
-        } else {
-            ui_RR(x, y, SC_W, SC_H, 6.f, here ? UI_G2 : UI_G3, 1.f, QD_NONE);
-            if (c->on)                                  /* a LOCK step: a ring */
-                ui_O(cx, cy, 6.5f, c->ovr ? mc : UI_G1, 2.f, QD_NONE);
-            ui_T(ui_itoa(num, v->page * 16 + i + 1), x + 4.f, y + 11.f, 7.f, 600, 0.f, UI_G2, QD_LEFT);
+            if (abs == v->play_step)
+                ui_RR(x - 1.5f, y - 1.5f, OV_CW + 3.f, OV_CH + 3.f, 3.5f, UI_RED, 1.5f, QD_NONE);
+            else if (c & UI_C_HELD)
+                ui_RR(x - 1.5f, y - 1.5f, OV_CW + 3.f, OV_CH + 3.f, 3.5f, UI_K3, 1.2f, QD_NONE);
         }
-        if (here)                                       /* the playhead */
-            ui_RR(x - 2.f, y - 2.f, SC_W + 4.f, SC_H + 4.f, 7.5f, UI_K3, 1.5f, QD_NONE);
-        if (c->held)
-            ui_RR(x - 3.f, y - 3.f, SC_W + 6.f, SC_H + 6.f, 8.f, UI_K3, 1.f, QD_NONE);
-        if (c->on) {                                    /* the marks under the cell */
-            float mx = cx - 9.f;
-            const float my = y + SC_H + 6.f;
-            if (c->nlock)
-                ui_O(mx, my, 1.8f, QD_NONE, 1.f, UI_MODE_COL[UI_F_PLOCK]), mx += 6.f;
-            if (c->cond[0])
-                ui_O(mx, my, 1.8f, QD_NONE, 1.f, UI_MODE_COL[UI_F_COND]), mx += 6.f;
-            if (c->chance < 100)
-                ui_O(mx, my, 1.8f, QD_NONE, 1.f, UI_MODE_COL[UI_F_CHNC]), mx += 6.f;
-            if (c->sound)
-                ui_O(mx, my, 1.8f, QD_NONE, 1.f, UI_MODE_COL[UI_F_SOUND]);
-        }
+        qd_restore();
     }
-    {   /* the foot: the page and its range */
+    {   /* the foot: the page edited and its range */
         char s[32], n[12];
-        const int p = v->page < 0 ? 0 : v->page > 7 ? 7 : v->page;
+        const int pg = v->page < 0 ? 0 : v->page > 7 ? 7 : v->page;
         s[0] = 0;
         strcat(s, "PAGE ");
-        strcat(s, ui_itoa(n, p + 1));
-        if (v->pstart[p] > 0 || v->pend[p] < 15) {
+        strcat(s, ui_itoa(n, pg + 1));
+        if (v->pstart[pg] > 0 || v->pend[pg] < 15) {
             strcat(s, " \xc2\xb7 ");
-            strcat(s, ui_itoa(n, v->pstart[p] + 1));
+            strcat(s, ui_itoa(n, v->pstart[pg] + 1));
             strcat(s, "\xe2\x80\x93");
-            strcat(s, ui_itoa(n, v->pend[p] + 1));
+            strcat(s, ui_itoa(n, v->pend[pg] + 1));
         }
-        ui_lab(s, 12.f, 234.f, UI_G1, QD_LEFT);
-        ui_lab("STEPS", 228.f, 234.f, UI_G2, QD_RIGHT);
+        ui_lab(s, 10.f, 236.f, UI_G1, QD_LEFT);
+        ui_lab("STEPS", 230.f, 236.f, UI_G2, QD_RIGHT);
     }
 }
 
@@ -582,7 +565,7 @@ void ui_lane_draw(const ui_lane_t *v)
     mx += ui_TW(UI_FIELD_NAME[mode], 8.f, 600, 1.f);
     ui_T(ui_itoa(bpm, v->bpm), 196.f, 17.f, 11.f, 400, 0.f, UI_G2, QD_RIGHT);
 
-    for (p = 0; p < 8; p++) {                           /* the pages: each over its start..end */
+    for (p = 0; p < 8 && !v->steps; p++) {              /* the pages: each over its start..end (STEPS: its rows) */
         const float x = 10.f + (float)p * 28.f, W = 22.f;
         const int s = v->pstart[p] > 15 ? 15 : v->pstart[p], e = v->pend[p] < s ? s : v->pend[p] > 15 ? 15 : v->pend[p];
         const float xs = x + (float)s / 16.f * W, xe = x + (float)(e + 1) / 16.f * W;
@@ -601,15 +584,13 @@ void ui_lane_draw(const ui_lane_t *v)
         }
     }
 
-    if (v->slide != 0.f) {                              /* a page change: the lane slides in */
+    if (v->slide != 0.f && !v->steps) {                 /* a page change: the lane slides in (STEPS: the overview
+                                                         * stays, its outline moves) */
         const float a = 1.f - fabsf(v->slide);
         qd_save();
         qd_alpha(a < 0.f ? 0.f : a);
         qd_translate(v->slide * 40.f, 0.f);
-        if (v->steps)
-            steps_grid(v);
-        else
-            lane(v);
+        lane(v);
         qd_restore();
     } else if (v->steps) {
         steps_grid(v);

@@ -78,10 +78,16 @@
  *   Nothing held, a default turned shows the same picture for a second (QD_TK_DEFAULT; the band stays for a held step).
  *   SIX NOTES: a held step's ALGORITHM in NOTE is note 6; the default chord's ALGORITHM still moves every note.
  *   KNOB 4, THE QUIET KNOB: where it has no other job, the main value with no overlay (QD_KJ_QUIET).
- *   THE STEP LATCH: a W tap toggles its step in the selection, W keys held together are all selected; an empty
- *   selection acts as nothing held (the modes, the defaults).
+ *   THE STEP LATCH: P1.3f, a gesture (every W from the first down until all are up) replaces the selection with its
+ *   keys, shown as they go down; one tap on the step that was the whole selection empties it. An empty selection acts
+ *   as nothing held (the modes, the defaults).
  *   HOME: closes a latch (F3, the step latch) first; else in the sequencer switches its view (PIANO ROLL / STEPS);
- *   elsewhere it returns to the sequencer in its last view. */
+ *   elsewhere it returns to the sequencer in its last view.
+ *
+ * P1.3f (§8b 2.2, "superseded the same day"): the notes are pitches in slots (note k = slot k). In NOTE, with a step
+ * held (or selected) and with the NOTE key held for the default, SELECT moves note 1 alone, KNOB 1..4 notes 2..5 alone
+ * (a scale step a detent, skipping the other notes' pitches; notes 2..5 below note 1: removed, from none: a step above
+ * note 1), ALGORITHM every note together; a sixth note only from the keys. The step latch selects by gesture. */
 #pragma once
 #include <stdint.h>
 
@@ -129,9 +135,9 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 
 /* P1.3d (§8b 2.2): the knobs' jobs in the hold modes (qd_ctl_knob_job: one table, [mode][SELECT, KNOB 1..4]); with a
  * step held they edit the held steps, with nothing held KNOB 1..4 the track's defaults (SELECT is then the page) */
-/* P1.3e: NOTE6 (ALGORITHM on a held step in NOTE: note 6); QUIET, the main value with no overlay (KNOB 4 wherever it
- * has no other job: the lane or the held screen changes in place) */
-enum { QD_KJ_NONE, QD_KJ_MAIN, QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4, QD_KJ_NOTE5, QD_KJ_NOTE6,
+/* NOTE1..5: SELECT, KNOB 1..4 in NOTE, each moving its note alone (P1.3f); QUIET (P1.3e), the main value with no
+ * overlay (KNOB 4 wherever it has no other job: the lane or the held screen changes in place) */
+enum { QD_KJ_NONE, QD_KJ_MAIN, QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4, QD_KJ_NOTE5,
        QD_KJ_TIE, QD_KJ_STRUM, QD_KJ_RAMP, QD_KJ_COND, QD_KJ_CHANCE, QD_KJ_QUIET, QD_NKJ };
 
 /* P1.3d (§8b 2.2): latched menus and confirmations (ctl_latch.c). One rule for all: OCT- = back / exit / cancel,
@@ -175,8 +181,8 @@ typedef struct {
     int mkey_used;                     /* .. a knob or B11 used it (its picture at once) */                    /* the first step held was empty when it was held */
     /* P1.3d: the step latch (LFO): the held steps are a selection that stays (held_key -1); a W selects */
     int slatch;
-    uint16_t wk_unsel;                 /* P1.3e: a selected step's W down alone: unselected at its release (unless
-                                        * another W joined meanwhile: then both are selected) */
+    int gest_n, gest_sole;             /* P1.3f: the latch's gesture (every W from the first down to all up): its key
+                                        * presses, and the step that was the whole selection before it (-1) */
     int last_step[8];                  /* the last step held or tapped, per track (-1 none): the latch starts there */
     uint32_t chord_ms;                 /* NOTE: the chord changed (the name squeezes in) */
     uint32_t roll_ms;                  /* SOUND / LOCKS: the last roll .. */

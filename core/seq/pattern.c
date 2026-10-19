@@ -480,18 +480,13 @@ const qd_step_t *qd_step(const qd_pattern_t *p, int t, int s)
 int qd_step_is_on(const qd_step_t *st) { return (st->flags & QD_SF_ON) != 0; }
 int qd_step_overrides(const qd_step_t *st, int pm) { return (st->ovr >> pm) & 1u; }
 
-int qd_notes_abs(const uint8_t *note4, uint8_t *notes)
+int qd_notes_abs(const uint8_t *note6, uint8_t *notes)
 {
     int k, n = 0, i, j;
-    if (!note4[0])
-        return 0;
-    notes[n++] = note4[0];
-    for (k = 1; k < QD_NNOTE; k++)
-        if (note4[k]) {
-            const int x = note4[0] + note4[k];
-            notes[n++] = (uint8_t)(x > 127 ? 127 : x);
-        }
-    for (i = 1; i < n; i++)                             /* (offsets in any slot order: ascending) */
+    for (k = 0; k < QD_NNOTE; k++)                      /* (P1.3f: the slots hold pitches, 0 none) */
+        if (note6[k])
+            notes[n++] = note6[k] > 127 ? 127 : note6[k];
+    for (i = 1; i < n; i++)                             /* ascending (the slots keep their own order) */
         for (j = i; j > 0 && notes[j - 1] > notes[j]; j--) {
             const uint8_t x = notes[j];
             notes[j] = notes[j - 1];
@@ -513,9 +508,11 @@ void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r)
         memcpy(r->note, st->note, sizeof r->note);
     else
         memcpy(r->note, d->note, sizeof r->note);
-    if (!r->note[0])
-        r->note[0] = 60;
     r->nn = qd_notes_abs(r->note, r->notes);
+    if (!r->nn) {                                       /* (no notes at all: C4) */
+        r->note[0] = 60;
+        r->nn = qd_notes_abs(r->note, r->notes);
+    }
     r->vel = PICK(QD_PM_VEL, st->vel, d->vel);
     r->vel = r->vel < 1 ? 1 : r->vel > 127 ? 127 : r->vel;
     r->len = PICK(QD_PM_LEN, st->len, d->len);
@@ -607,8 +604,13 @@ static qd_step_t *own(qd_pattern_t *p, int t, int s, int pm)
         }
         st->ovr |= QD_OV(pm);
     }
-    if (pm == QD_PM_NOTE && !st->note[0])
-        st->note[0] = 60;
+    if (pm == QD_PM_NOTE) {                             /* (no notes at all: C4) */
+        int k, any = 0;
+        for (k = 0; k < QD_NNOTE; k++)
+            any |= st->note[k];
+        if (!any)
+            st->note[0] = 60;
+    }
     return st;
 }
 
@@ -620,33 +622,24 @@ int qd_step_reset(qd_pattern_t *p, int t, int s, int pm)
     return QD_OK;
 }
 
-/* notes[0..n) absolute, any order -> note 1 + offsets in v (ascending, no repeats); QD_ENOTE: wider than 48 */
+/* notes[0..n) -> the slots in that order (P1.3f: pitches, not offsets; note k is slot k), repeats dropped, the rest 0 */
 static int notes_pack(const uint8_t *notes, int n, uint8_t *out)
 {
     uint8_t v[QD_NNOTE];
     int i, j, m = 0;
     if (n < 1 || n > QD_NNOTE || !notes)
         return QD_EARG;
-    for (i = 0; i < n; i++) {                           /* ascending, no repeats */
+    for (i = 0; i < n; i++) {
         const uint8_t x = notes[i];
         if (x < 1 || x > 127)
             return QD_EARG;
         for (j = 0; j < m && v[j] != x; j++)
             ;
-        if (j < m)
-            continue;
-        for (j = m; j > 0 && v[j - 1] > x; j--)
-            v[j] = v[j - 1];
-        v[j] = x;
-        m++;
+        if (j == m)
+            v[m++] = x;
     }
-    for (i = 1; i < m; i++)
-        if (v[i] - v[0] > 48)
-            return QD_ENOTE;
     memset(out, 0, QD_NNOTE);
-    out[0] = v[0];
-    for (i = 1; i < m; i++)
-        out[i] = (uint8_t)(v[i] - v[0]);
+    memcpy(out, v, (size_t)m);
     return QD_OK;
 }
 
@@ -663,30 +656,82 @@ int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n
     return QD_OK;
 }
 
-int qd_step_set_root(qd_pattern_t *p, int t, int s, int note)
+/* one slot of notes (the step's, or the track's default chord): pitch 0 empties it; a pitch another slot has, or the
+ * last note emptied: refused */
+static int slot_ok(const uint8_t *cur, int k, int pitch)
 {
-    if (!ts_ok(t, s) || note < 1 || note > 127)
-        return QD_EARG;
-    own(p, t, s, QD_PM_NOTE)->note[0] = (uint8_t)note;
-    return QD_OK;
+    int j, left = 0;
+    for (j = 0; j < QD_NNOTE; j++) {
+        if (j == k)
+            continue;
+        if (pitch && cur[j] == pitch)
+            return QD_ENOTE;
+        left += cur[j] != 0;
+    }
+    return !pitch && !left ? QD_EARG : QD_OK;
 }
 
-int qd_step_set_offset(qd_pattern_t *p, int t, int s, int k, int off)
+int qd_step_set_note(qd_pattern_t *p, int t, int s, int k, int pitch)
 {
-    qd_step_t *st;
-    int j;
-    if (!ts_ok(t, s) || k < 1 || k >= QD_NNOTE || off < 0 || off > 48)
+    int r;
+    if (!ts_ok(t, s) || k < 0 || k >= QD_NNOTE || pitch < 0 || pitch > 127)
         return QD_EARG;
     {
         const qd_step_t *c = &p->step[t][s];
-        const uint8_t *cur = (c->ovr >> QD_PM_NOTE) & 1u ? c->note : p->trk[t].def.note;
-        for (j = 1; j < QD_NNOTE; j++)
-            if (off && j != k && cur[j] == off)
+        r = slot_ok((c->ovr >> QD_PM_NOTE) & 1u ? c->note : p->trk[t].def.note, k, pitch);
+        if (r != QD_OK)
+            return r;
+    }
+    own(p, t, s, QD_PM_NOTE)->note[k] = (uint8_t)pitch;
+    return QD_OK;
+}
+
+/* all six slots at once (a chord moved together: no slot is ever another's pitch mid-way) */
+static int slots_ok(const uint8_t *v)
+{
+    int i, j, n = 0;
+    for (i = 0; i < QD_NNOTE; i++) {
+        if (v[i] > 127)
+            return QD_EARG;
+        n += v[i] != 0;
+        for (j = 0; j < i; j++)
+            if (v[i] && v[j] == v[i])
                 return QD_ENOTE;
     }
-    st = own(p, t, s, QD_PM_NOTE);
-    st->note[k] = (uint8_t)off;
-    return QD_OK;
+    return n ? QD_OK : QD_EARG;
+}
+
+int qd_step_set_slots(qd_pattern_t *p, int t, int s, const uint8_t *slots)
+{
+    int r;
+    if (!ts_ok(t, s) || !slots)
+        return QD_EARG;
+    r = slots_ok(slots);
+    if (r == QD_OK)
+        memcpy(own(p, t, s, QD_PM_NOTE)->note, slots, QD_NNOTE);
+    return r;
+}
+
+int qd_tdef_set_slots(qd_pattern_t *p, int t, const uint8_t *slots)
+{
+    int r;
+    if (t < 0 || t >= QD_PAT_NTRACK || !slots)
+        return QD_EARG;
+    r = slots_ok(slots);
+    if (r == QD_OK)
+        memcpy(p->trk[t].def.note, slots, QD_NNOTE);
+    return r;
+}
+
+int qd_tdef_set_note(qd_pattern_t *p, int t, int k, int pitch)
+{
+    int r;
+    if (t < 0 || t >= QD_PAT_NTRACK || k < 0 || k >= QD_NNOTE || pitch < 0 || pitch > 127)
+        return QD_EARG;
+    r = slot_ok(p->trk[t].def.note, k, pitch);
+    if (r == QD_OK)
+        p->trk[t].def.note[k] = (uint8_t)pitch;
+    return r;
 }
 
 int qd_step_set_vel(qd_pattern_t *p, int t, int s, int vel)
