@@ -30,7 +30,11 @@
  * (qd_ctl_lock_screen: one table a screen, the step view's KNOB 1..4 FREQ DECAY HARM FDBK and PRESETS the sound lock;
  * the sound editor's pages will add theirs) p-lock the held steps. B11 clears the held steps' p-locks (the sound lock
  * stays: SOUND's B11 clears that), undoable with F1 + B11. B1..B10 do nothing. The other modes' KNOB 1..4 p-lock through
- * the same table. */
+ * the same table (P1.3d: no more: KNOB 1..4 follow the mode's knob layout, below).
+ *
+ * P1.3d (§8b 2.2): the knobs' jobs (qd_step_job_held / qd_step_job_default, the table qd_ctl_knob_job): on the held
+ * steps each from its own value, or on the track's defaults; each turn sets the band (tk, tk_job, tk_src). LOCKS is
+ * gone (P-LOCK covers it). The step latch (LFO): qd_step_latch, qd_step_latch_seed; a W while it is on selects. */
 #include <string.h>
 
 #include "app.h"
@@ -54,7 +58,7 @@ static const uint8_t VK_VEL[10] = {13, 25, 38, 51, 64, 76, 89, 102, 114, 127};
 static const uint8_t VK_LEN[10] = {1, 2, 3, 4, 5, 6, 8, 10, 12, QD_LEN_INF};   /* 1/4 1/2 3/4 1 1.5 2 4 8 16 INF */
 static const int8_t VK_MICRO[10] = {-20, -15, -10, -5, -2, 2, 5, 10, 15, 20};
 static const uint8_t MODE_PM[UI_NFIELD] = {QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
-                                           QD_PM_COND, QD_PM_TRIG, QD_PM_SOUND, QD_NPM, QD_NPM};
+                                           QD_PM_COND, QD_PM_TRIG, QD_PM_SOUND, QD_NPM, QD_NPM};   /* (B10: none) */
 
 /* ---- P-LOCK's hook: the screens' lockable knobs, one table a screen */
 static const qd_lockknob_t STEPVIEW_LOCKS[] = {
@@ -94,7 +98,6 @@ static void held_add(qd_app_t *a, int s, int key)
         qd_rstep_t r;
         resolve(a, s, &r);
         u->held_empty = !r.on;
-        u->lock_cur = 0;
         u->chord_ms = a->ms - 10000u;
         u->held_played = 0;
         u->note_keys = 0;
@@ -104,6 +107,8 @@ static void held_add(qd_app_t *a, int s, int key)
     u->held[u->nheld] = s;
     u->held_key[u->nheld] = (int8_t)key;
     u->nheld++;
+    if (a->sel >= 0 && a->sel < 8)
+        u->last_step[a->sel] = s;                       /* (P1.3d: the step latch starts on the last one) */
 }
 
 static void held_remove(qd_ui_t *u, int i)
@@ -121,6 +126,31 @@ void qd_step_release_all(qd_app_t *a)
     u->nheld = 0;
     u->wk_down = u->wk_pending = 0;
     u->note_keys = 0;
+    if (u->tk == QD_TK_HELDKNOB)                        /* (the band of a step no longer held) */
+        u->tk = QD_TK_NONE;
+}
+
+/* P1.3d (§8b 2.2): the step latch (LFO). On, it is as if a step is always held: the held steps are a selection that
+ * stays (held_key -1), a W tap selects that step (no trig made or removed), W keys down together select them all; it
+ * starts on the last step held or tapped on the track (else the first step of the page edited) and moves the page
+ * there. LFO again, HOME or leaving the step view end it */
+void qd_step_latch_seed(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    int s = a->sel >= 0 && a->sel < 8 ? u->last_step[a->sel] : -1;
+    if (s < 0 || s >= QD_NSTEP)
+        s = u->page[a->sel] * QD_PAGE;
+    u->nheld = 0;
+    held_add(a, s, -1);
+    qd_ctl_set_page(a, s / QD_PAGE);
+}
+
+void qd_step_latch(qd_app_t *a, int on)
+{
+    qd_step_release_all(a);
+    a->ui.slatch = on != 0;
+    if (on)
+        qd_step_latch_seed(a);
 }
 
 void qd_step_promote(qd_app_t *a, int w)
@@ -163,6 +193,17 @@ void qd_step_white_down(qd_app_t *a, int w)
     const uint16_t bit = (uint16_t)(1u << w);
     if (qd_ctl_shift(a) && !u->nheld && !u->wk_pending)
         return;                                         /* SHIFT + W: free (question 38) */
+    if (u->slatch) {                                    /* the step latch: alone it selects, with others it adds */
+        const int s = step_of(a, w);
+        if (!(u->wk_down & (uint16_t)~bit)) {
+            u->nheld = 0;
+            held_add(a, s, -1);
+        } else if (held_find(u, s) < 0) {
+            held_add(a, s, -1);
+        }
+        u->wk_down |= bit;
+        return;
+    }
     u->wk_down |= bit;
     if (u->nheld) {                                     /* steps held: another joins them at once */
         u->wk_pending |= bit;
@@ -185,6 +226,7 @@ static void tap(qd_app_t *a, int w)
         qd_step_clear(p, a->sel, s);
     else
         qd_step_on(p, a->sel, s);
+    a->ui.last_step[a->sel] = s;
 }
 
 void qd_step_white_up(qd_app_t *a, int w)
@@ -195,6 +237,8 @@ void qd_step_white_up(qd_app_t *a, int w)
     if (!(u->wk_down & bit))
         return;
     u->wk_down &= (uint16_t)~bit;
+    if (u->slatch)                                      /* the step latch: the selection stays */
+        return;
     if ((u->wk_pending & bit) && a->ms - u->wk_t0[w] < QD_TAP_MS && !u->nheld) {
         u->wk_pending &= (uint16_t)~bit;
         tap(a, w);
@@ -206,8 +250,11 @@ void qd_step_white_up(qd_app_t *a, int w)
             held_remove(u, i);
             break;
         }
-    if (!u->nheld)
+    if (!u->nheld) {
         u->note_keys = 0;
+        if (u->tk == QD_TK_HELDKNOB)
+            u->tk = QD_TK_NONE;
+    }
 }
 
 /* ---------------------------------------------------------------- the key, the scale --- */
@@ -319,19 +366,7 @@ void qd_step_value_key(qd_app_t *a, int b, int down)
             qd_step_clear_locks(a);
         return;
     }
-    if (b == 10) {                                      /* B11: the mode back to the track's (LOCKS: the lock) */
-        if (m == UI_F_LOCKS) {
-            int n, id;
-            const qd_lock_t *l = qd_locks(CPAT(a), a->sel, u->held[0], &n);
-            if (!n)
-                return;
-            id = l[clampi(u->lock_cur, 0, n - 1)].id;
-            for (i = 0; i < u->nheld; i++)
-                qd_lock_clear(PAT(a), a->sel, u->held[i], id);
-            n = qd_lock_count(CPAT(a), a->sel, u->held[0]);
-            u->lock_cur = clampi(u->lock_cur, 0, n > 0 ? n - 1 : 0);
-            return;
-        }
+    if (b == 10) {                                      /* B11: the mode back to the track's */
         for (i = 0; i < u->nheld; i++) {
             qd_step_reset(PAT(a), a->sel, u->held[i], MODE_PM[m]);
             if (m == UI_F_MICRO)
@@ -347,17 +382,8 @@ void qd_step_value_key(qd_app_t *a, int b, int down)
         u->note_keys |= (uint16_t)(1u << b);
         chord_add(u->entry_chord, &u->entry_n, note);
         entry_notes(a);
-        qd_app_note_on(a, QD_BLACK_KEY[b], note, a->key_vel[QD_BLACK_KEY[b]] ? a->key_vel[QD_BLACK_KEY[b]] : 100);
-        return;
-    }
-    if (m == UI_F_LOCKS) {                              /* B1..B10: the step's locks, in order */
-        if (b < qd_lock_count(CPAT(a), a->sel, u->held[0])) {
-            if (b != u->lock_cur) {
-                u->roll_ms = a->ms;
-                u->roll_dir = b > u->lock_cur ? 1 : -1;
-            }
-            u->lock_cur = b;
-        }
+        if (!qd_ctl_previewing(a))                      /* (stopped, the step's preview sounds the chord) */
+            qd_app_note_on(a, QD_BLACK_KEY[b], note, a->key_vel[QD_BLACK_KEY[b]] ? a->key_vel[QD_BLACK_KEY[b]] : 100);
         return;
     }
     for (i = 0; i < u->nheld; i++)
@@ -542,10 +568,19 @@ static int offset_step(const qd_app_t *a, const uint8_t *note, int k, int dir)
     }
 }
 
-static void note_knob(qd_app_t *a, int knob, int d)
+/* the band (P1.3d): what a knob turned, for a second over the screen */
+static void band(qd_app_t *a, int tk, int job, int knob, int d)
+{
+    qd_ctl_takeover(a, tk, 0, d, 0, a->ui.nheld ? a->ui.held[0] : -1);
+    a->ui.tk_job = job;
+    a->ui.tk_src = knob;
+}
+
+/* NOTE's five knobs on the held steps: slot 0 note 1 (a degree), slot k note k + 1 (the next offset in the scale,
+ * skipping the others') */
+static void note_knob(qd_app_t *a, int k, int d)
 {
     qd_ui_t *u = &a->ui;
-    const int k = knob == QD_K_SELECT ? 0 : knob - QD_K_1 + 1;
     int i, n, sc, rt, sound = -1;
     char before[16], after[16];
     key_of(a, &sc, &rt);
@@ -572,54 +607,170 @@ static void note_knob(qd_app_t *a, int knob, int d)
     }
     chord_of(a, u->held[0], after);
     u->chord_ms = strcmp(before, after) != 0 ? a->ms : u->chord_ms;
-    if (sound > 0) {
+    if (sound > 0 && !qd_ctl_previewing(a)) {           /* (stopped, the step's preview sounds the new chord) */
         qd_rstep_t r;
         resolve(a, u->held[0], &r);
         qd_ctl_preview(a, sound > 127 ? 127 : sound, r.vel);
     }
 }
 
+/* P1.3d (§8b 2.2): a knob's job on the held steps, each from its own value */
+void qd_step_job_held(qd_app_t *a, int job, int knob, int d)
+{
+    qd_ui_t *u = &a->ui;
+    qd_pattern_t *p = PAT(a);
+    const int t = a->sel, m = u->hmode;
+    char before[16], after[16];
+    int i;
+    if (!u->nheld)
+        return;
+    switch (job) {
+    case QD_KJ_NOTE1:
+    case QD_KJ_NOTE2:
+    case QD_KJ_NOTE3:
+    case QD_KJ_NOTE4:
+    case QD_KJ_NOTE5:
+        note_knob(a, job - QD_KJ_NOTE1, d);
+        break;
+    case QD_KJ_MAIN:
+        if (m == UI_F_SOUND) {                          /* the pool sound (as PRESETS) */
+            qd_step_sound_pick(a, d);
+            break;
+        }
+        chord_of(a, u->held[0], before);
+        for (i = 0; i < u->nheld; i++)
+            fine(a, u->held[i], m, d, 0);
+        chord_of(a, u->held[0], after);
+        if (strcmp(before, after) != 0)
+            u->chord_ms = a->ms;
+        break;
+    default:
+        for (i = 0; i < u->nheld; i++) {
+            const int s = u->held[i];
+            qd_rstep_t r;
+            resolve(a, s, &r);
+            switch (job) {
+            case QD_KJ_TIE: qd_step_set_trig(p, t, s, d > 0 ? QD_TRIG_TIE : QD_TRIG_NOTE); break;
+            case QD_KJ_STRUM: qd_step_set_strum(p, t, s, clampi(r.strum + d, 0, 23)); break;
+            case QD_KJ_RAMP: qd_step_set_ratchet(p, t, s, r.ratch, clampi(r.ramp + d, 0, QD_RAMP_ACCENT)); break;
+            case QD_KJ_COND: qd_step_set_cond(p, t, s, clampi(r.cond + d, 0, QD_NCOND - 1)); break;
+            case QD_KJ_CHANCE: qd_step_set_chance(p, t, s, clampi(r.chance + d, 0, 100)); break;
+            default: return;
+            }
+        }
+        break;
+    }
+    band(a, QD_TK_HELDKNOB, job, knob, d);
+}
+
+/* P1.3d: a knob's job on the track's defaults (nothing held): every step that does not override it follows */
+void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
+{
+    qd_pattern_t *p = PAT(a);
+    const int t = a->sel, m = a->ui.hmode;
+    qd_sdef_t *df = qd_tdef(p, t);
+    int n;
+    switch (job) {
+    case QD_KJ_MAIN:
+        switch (m) {
+        case UI_F_NOTE: {                               /* every note a scale step */
+            uint8_t nt[QD_NNOTE];
+            int k, nn, sc, rt;
+            key_of(a, &sc, &rt);
+            nn = qd_notes_abs(df->note, nt);
+            for (k = 0; k < nn; k++)
+                nt[k] = (uint8_t)scale_steps(sc, rt, nt[k], d);
+            if (nn)
+                qd_tdef_set_notes(p, t, nt, nn);
+            a->ui.chord_ms = a->ms;
+            break;
+        }
+        case UI_F_VEL: qd_tdef_set(p, t, QD_PM_VEL, clampi(df->vel + d, 1, 127)); break;
+        case UI_F_LEN: qd_tdef_set(p, t, QD_PM_LEN, clampi(df->len + d, 0, QD_LEN_INF)); break;
+        case UI_F_MICRO: qd_tdef_set(p, t, QD_PM_MICRO, clampi(df->micro + d, -23, 23)); break;
+        case UI_F_RATCH:
+            qd_tdef_set(p, t, QD_PM_RATCH, qd_ratch_make(clampi(qd_ratch_count(df->ratch) + d, 1, 8),
+                                                         qd_ratch_ramp(df->ratch)));
+            break;
+        case UI_F_CHNC: qd_tdef_set(p, t, QD_PM_CHANCE, clampi(df->chance + d, 0, 100)); break;
+        case UI_F_COND: qd_tdef_set(p, t, QD_PM_COND, clampi(df->cond + d, 0, QD_NCOND - 1)); break;
+        case UI_F_TRIG: qd_tdef_set(p, t, QD_PM_TRIG, clampi(df->type + d, QD_TRIG_NOTE, QD_TRIG_TIE)); break;
+        case UI_F_SOUND: {                              /* the track's own sound, from the pool */
+            qd_track_t *tr = &a->model.t[t];
+            const int k = clampi((int)tr->sound + d, 1, a->proj.nsound);
+            qd_track_load_sound(tr, k, qd_sound_name(&a->proj, k), qd_sound_patch(&a->proj, k));
+            break;
+        }
+        default:
+            return;
+        }
+        break;
+    case QD_KJ_NOTE1: {                                 /* (note 1 alone: the others keep their offsets) */
+        int sc, rt;
+        key_of(a, &sc, &rt);
+        df->note[0] = (uint8_t)clampi(scale_steps(sc, rt, df->note[0] ? df->note[0] : 60, d), 1, 127);
+        a->ui.chord_ms = a->ms;
+        break;
+    }
+    case QD_KJ_NOTE2:
+    case QD_KJ_NOTE3:
+    case QD_KJ_NOTE4:
+    case QD_KJ_NOTE5: {                                 /* the default chord's notes 2..5, as a held step's */
+        const int k = job - QD_KJ_NOTE1;
+        if (!df->note[0])
+            df->note[0] = 60;
+        for (n = d; n > 0; n--)
+            df->note[k] = (uint8_t)offset_step(a, df->note, k, 1);
+        for (n = d; n < 0; n++)
+            df->note[k] = (uint8_t)offset_step(a, df->note, k, -1);
+        a->ui.chord_ms = a->ms;
+        break;
+    }
+    case QD_KJ_TIE: qd_tdef_set(p, t, QD_PM_TRIG, d > 0 ? QD_TRIG_TIE : QD_TRIG_NOTE); break;
+    case QD_KJ_STRUM: qd_tdef_set(p, t, QD_PM_STRUM, clampi(df->strum + d, 0, 23)); break;
+    case QD_KJ_RAMP:
+        qd_tdef_set(p, t, QD_PM_RATCH, qd_ratch_make(qd_ratch_count(df->ratch),
+                                                     clampi(qd_ratch_ramp(df->ratch) + d, 0, QD_RAMP_ACCENT)));
+        break;
+    case QD_KJ_COND: qd_tdef_set(p, t, QD_PM_COND, clampi(df->cond + d, 0, QD_NCOND - 1)); break;
+    case QD_KJ_CHANCE: qd_tdef_set(p, t, QD_PM_CHANCE, clampi(df->chance + d, 0, 100)); break;
+    default:
+        return;
+    }
+    band(a, QD_TK_DEFAULT, job, knob, d);
+}
+
+/* a knob with steps held (P1.3d, §8b 2.2): PRESETS the sound lock; ALGORITHM the mode's value finely (SHIFT: MICRO's
+ * strum, RATCH's ramp); SELECT and KNOB 1..4 by the mode's knob layout (qd_ctl_knob_job). P-LOCK: SELECT the page,
+ * ALGORITHM nothing, the others the screen's lockable knobs */
 int qd_step_knob(qd_app_t *a, int knob, int d)
 {
     qd_ui_t *u = &a->ui;
     const int m = u->hmode;
-    int i;
+    int i, job;
     char before[16], after[16];
     qd_step_promote_all(a);
     if (!u->nheld)
         return 0;
-    if (m == UI_F_NOTE && (knob == QD_K_SELECT || knob >= QD_K_1)) {   /* NOTE: the five notes */
-        note_knob(a, knob, d);
+    if (m == UI_F_PLOCK) {
+        if (knob == QD_K_SELECT) {
+            qd_ctl_set_page(a, u->page[a->sel] + d);
+            qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
+        } else if (knob != QD_K_ALGO) {
+            qd_step_lock_knob(a, knob, d);
+        }
         return 1;
     }
     switch (knob) {
-    case QD_K_SELECT:                                   /* the page edited (other W keys: more steps there) */
-        qd_ctl_set_page(a, u->page[a->sel] + d);
-        qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
-        return 1;
     case QD_K_PRESETS:                                  /* the sound lock, any pool sound, in every mode */
         qd_step_sound_pick(a, d);
         if (m != UI_F_SOUND)                            /* (SOUND's own screen is the pool's picker) */
             qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 1, u->held[0]);
         return 1;
     case QD_K_ALGO:
-        if (m == UI_F_PLOCK)                            /* (P-LOCK: the screen's knobs only) */
-            return 1;
         if (m == UI_F_SOUND) {                          /* SOUND: as PRESETS */
             qd_step_sound_pick(a, d);
-            return 1;
-        }
-        if (m == UI_F_LOCKS) {                          /* LOCKS: the chosen lock's value */
-            int n, id;
-            const qd_lock_t *l = qd_locks(CPAT(a), a->sel, u->held[0], &n);
-            if (!n)
-                return 1;
-            id = l[clampi(u->lock_cur, 0, n - 1)].id;
-            for (i = 0; i < u->nheld; i++) {
-                int16_t v;
-                if (qd_lock_get(CPAT(a), a->sel, u->held[i], id, &v))
-                    qd_lock_set(PAT(a), a->sel, u->held[i], id, v + d * qd_step_id_detent(id));
-            }
+            band(a, QD_TK_HELDKNOB, QD_KJ_MAIN, knob, d);
             return 1;
         }
         chord_of(a, u->held[0], before);
@@ -628,9 +779,13 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
         chord_of(a, u->held[0], after);
         if (strcmp(before, after) != 0 || m == UI_F_NOTE)
             u->chord_ms = a->ms;                        /* a new chord name squeezes in */
+        job = !qd_ctl_shift(a) ? QD_KJ_MAIN : m == UI_F_MICRO ? QD_KJ_STRUM : m == UI_F_RATCH ? QD_KJ_RAMP : QD_KJ_MAIN;
+        band(a, QD_TK_HELDKNOB, job, knob, d);
         return 1;
-    default:                                            /* KNOB 1..4: the screen's lockable knobs (p-locks) */
-        qd_step_lock_knob(a, knob, d);
+    default:                                            /* SELECT, KNOB 1..4: the mode's layout */
+        job = qd_ctl_knob_job(m, knob);
+        if (job != QD_KJ_NONE)
+            qd_step_job_held(a, job, knob, d);
         return 1;
     }
 }
@@ -663,45 +818,9 @@ void qd_step_notes_in(qd_app_t *a, const uint8_t *notes, int n)
 }
 
 /* ---------------------------------------------------------------- the track's defaults (nothing held) --- */
-int qd_step_default_knob(qd_app_t *a, int d)
+int qd_step_default_knob(qd_app_t *a, int d)            /* ALGORITHM: the mode's main default */
 {
-    qd_pattern_t *p = PAT(a);
-    const int t = a->sel, m = a->ui.hmode;
-    qd_sdef_t *df = qd_tdef(p, t);
-    switch (m) {
-    case UI_F_NOTE: {
-        uint8_t n[QD_NNOTE];
-        int k, nn, sc, rt;
-        key_of(a, &sc, &rt);
-        nn = qd_notes_abs(df->note, n);
-        for (k = 0; k < nn; k++)
-            n[k] = (uint8_t)scale_steps(sc, rt, n[k], d);
-        if (nn)
-            qd_tdef_set_notes(p, t, n, nn);
-        a->ui.chord_ms = a->ms;
-        break;
-    }
-    case UI_F_VEL: qd_tdef_set(p, t, QD_PM_VEL, clampi(df->vel + d, 1, 127)); break;
-    case UI_F_LEN: qd_tdef_set(p, t, QD_PM_LEN, clampi(df->len + d, 0, QD_LEN_INF)); break;
-    case UI_F_MICRO: qd_tdef_set(p, t, QD_PM_MICRO, clampi(df->micro + d, -23, 23)); break;
-    case UI_F_RATCH:
-        qd_tdef_set(p, t, QD_PM_RATCH, qd_ratch_make(clampi(qd_ratch_count(df->ratch) + d, 1, 8),
-                                                     qd_ratch_ramp(df->ratch)));
-        break;
-    case UI_F_CHNC: qd_tdef_set(p, t, QD_PM_CHANCE, clampi(df->chance + d, 0, 100)); break;
-    case UI_F_COND: qd_tdef_set(p, t, QD_PM_COND, clampi(df->cond + d, 0, QD_NCOND - 1)); break;
-    case UI_F_TRIG: qd_tdef_set(p, t, QD_PM_TRIG, clampi(df->type + d, QD_TRIG_NOTE, QD_TRIG_TIE)); break;
-    case UI_F_SOUND: {                                  /* the track's own sound, from the pool */
-        qd_track_t *tr = &a->model.t[t];
-        const int k = clampi((int)tr->sound + d, 1, a->proj.nsound);
-        qd_track_load_sound(tr, k, qd_sound_name(&a->proj, k), qd_sound_patch(&a->proj, k));
-        qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 0, -1);
-        return 1;
-    }
-    default:
-        return 1;                                       /* LOCKS: no default */
-    }
-    qd_ctl_takeover(a, QD_TK_DEFAULT, 0, d, 0, -1);
+    qd_step_job_default(a, QD_KJ_MAIN, QD_K_ALGO, d);
     return 1;
 }
 
@@ -716,11 +835,11 @@ unsigned qd_step_modes_set(const qd_app_t *a, int t, int page)
         const qd_step_t *st = qd_step(p, t, s);
         if (!qd_step_is_on(st) || !qd_page_in_range(&p->trk[t], s))
             continue;
-        for (k = 0; k < UI_F_LOCKS; k++)
+        for (k = 0; k < UI_F_B10; k++)
             if (qd_step_overrides(st, MODE_PM[k]) || (k == UI_F_MICRO && qd_step_overrides(st, QD_PM_STRUM)))
                 m |= 1u << k;
         if (st->flags & QD_SF_LOCKS)
-            m |= 1u << UI_F_LOCKS | 1u << UI_F_PLOCK;
+            m |= 1u << UI_F_PLOCK;
     }
     return m;
 }
@@ -761,8 +880,7 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
         *clr = n > 0;
         return;
     }
-    *clr = m == UI_F_LOCKS ? qd_lock_count(p, a->sel, u->held[0]) > 0
-         : m == UI_F_MICRO ? (qd_step_overrides(qd_step(p, a->sel, u->held[0]), QD_PM_MICRO) ||
+    *clr = m == UI_F_MICRO ? (qd_step_overrides(qd_step(p, a->sel, u->held[0]), QD_PM_MICRO) ||
                               qd_step_overrides(qd_step(p, a->sel, u->held[0]), QD_PM_STRUM))
                            : qd_step_overrides(qd_step(p, a->sel, u->held[0]), MODE_PM[m]);
     for (b = 0; b < 10; b++) {
@@ -856,22 +974,6 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
             }
             lab_int(lab[b], k, 0);
             *lit |= r.on && r.sound == k ? bit : 0;
-            break;
-        }
-        case UI_F_LOCKS: {
-            int n;
-            const qd_lock_t *l = qd_locks(p, a->sel, u->held[0], &n);
-            if (b >= n) {
-                *none |= bit;
-                break;
-            }
-            if (l[b].id < QD_QUAD_NP)
-                strncpy(lab[b], qd_quad_value_name(l[b].id), 5);
-            else
-                strncpy(lab[b], (const char *[]){"PAN", "DLY", "REV", "CHO", "DRV", "LVL"}[l[b].id - QD_QUAD_NP], 5);
-            lab[b][5] = 0;
-            *lit |= b == u->lock_cur ? bit : 0;
-            *def |= b != u->lock_cur ? bit : 0;
             break;
         }
         default:

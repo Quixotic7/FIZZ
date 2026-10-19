@@ -1,4 +1,4 @@
-# Playing QUADRILLE (P1.3c)
+# Playing QUADRILLE (P1.3d)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -9,10 +9,11 @@ sound comes from the Mac. Printed names are in brackets.
 | --- | --- |
 | OCT− | **F1** |
 | OCT+ | **F2** |
-| OCT− and OCT+ together | **F3** |
+| OCT− and OCT+ together | **F3** (it stays open; OCT− closes it) |
 | GLO | **SHIFT** |
 | SEL (printed) | **SEL**: hold it for the tracks |
 | SEQ (printed) | **SEQ**: hold it for the patterns |
+| LFO (printed) | **LATCH**: the step latch, on / off |
 | the black keys, left to right (F#3 .. D#5) | **B1 .. B10** |
 | the rightmost black key (F#5) | **B11** |
 | the white keys | **W1 .. W16**, the 16 steps of the page you are editing |
@@ -35,14 +36,31 @@ sound comes from the Mac. Printed names are in brackets.
 ## How do I change one step's note, velocity, length …?
 
 1. Pick what to edit with a black key, **nothing held**: **B1 NOTE, B2 VEL, B3 LEN, B4 MICRO, B5 RATCH, B6 CHNC
-   (chance), B7 COND (condition), B8 TRIG, B9 SOUND, B10 LOCKS, B11 P-LOCK**. The screen draws the page for that
-   choice; steps that have their own value are in colour, steps on the track's default are grey, and the default is a
-   dashed line or a grey label.
+   (chance), B7 COND (condition), B8 TRIG, B9 SOUND, B11 P-LOCK** (B10 is empty for now). The screen draws the page
+   for that choice; steps that have their own value are in colour, steps on the track's default are grey, and the
+   default is a dashed line or a grey label.
 2. **Hold** the step's white key. The screen shows that step; the strip at the bottom shows what the ten black keys do.
-3. Press a black key **B1 .. B10** to set one of ten values, or turn **ALGORITHM** for any value.
+3. **Turn the knobs** (table below), or press a black key **B1 .. B10** for one of ten values (shortcuts).
+   ALGORITHM also turns the main value.
 4. **B11** puts the step back on the track's default.
 
-Hold several white keys to edit them all at once.
+Hold several white keys to edit them all at once. Each knob turn shows its name and value in a band at the top.
+
+The knobs with a step held:
+
+| mode | SELECT and KNOB 1 | KNOB 2 |
+| --- | --- | --- |
+| NOTE | SELECT = note 1, KNOB 1..4 = notes 2..5 | |
+| VEL | velocity | |
+| LEN | length | TIE on / off |
+| MICRO | micro-timing | strum |
+| RATCH | ratchet count | ramp |
+| CHNC | chance | condition |
+| COND | condition | chance |
+| TRIG | NOTE / LOCK / TIE | |
+| SOUND | the pool sound (PRESETS too) | |
+
+Knobs with nothing in the table do nothing. **PRESETS** is always the step's sound.
 
 The ten values:
 
@@ -56,7 +74,20 @@ The ten values:
 | COND | B1 FILL, B2 NOT FILL, B3..B6 "A" = 1..4, B7..B10 "B" = 1..4 (plays on pass A of every B) | every condition |
 | TRIG | B1 NOTE, B2 LOCK (changes the sound, no note), B3 TIE (slides a mono note) | the same |
 | SOUND | ten sounds of the pool (see below) | any sound |
-| LOCKS | pick one of the step's locks | that lock's value; B11 removes it |
+
+## How do I hear a step while I edit it?
+
+- With the transport **stopped**, a held step plays: its notes, sound, locks and velocity. Every edit plays it again.
+  Letting go stops it. Hold several and they play together. While playing there is no preview.
+
+## How do I edit steps without holding them? (the step latch)
+
+- Press **LFO**: the latch is on (LFO lit). It is as if a step is always held. It starts on the step you last edited.
+- **Tap a white key** to select that step (it doesn't add or remove a note). **Hold one and press others** to select
+  several. Selected keys blink.
+- Everything you do with a held step works on the selection: black keys, knobs, the screens, OCT for the octave, the
+  preview.
+- To change the mode, turn the latch off first. **LFO** again or **HOME** turns it off.
 
 ## How do I enter notes and chords?
 
@@ -68,7 +99,8 @@ A step has up to **five notes**.
   - **KNOB 1..4 = notes 2..5** (blue, green, white, orange), each counted up from note 1: one click is the next note of
     the scale up or down (notes another knob already has are skipped). Turn one all the way down to remove that note.
   - Each note plays as you turn it.
-  - In NOTE, SELECT doesn't change pages and KNOB 1..4 don't lock the sound: use P-LOCK for that.
+  - In NOTE, SELECT doesn't change pages and KNOB 1..4 don't lock the sound: use P-LOCK for that. (In every mode
+    except P-LOCK, SELECT and the knobs edit the step while it is held.)
 - Or press black keys: they are ten notes of the track's scale from its root (a chromatic track: ten semitones from
   C). The first key replaces the step's notes; keys pressed **while another is still down** add to the chord (up to
   5). Each key plays its note.
@@ -81,17 +113,19 @@ A step has up to **five notes**.
 - Press **B11** with nothing held: the **P-LOCK** mode. The page shows the notes, with a padlock and the number of
   locks under each step.
 - **Hold a step**: the screen stays as it is. Turn a knob of the screen and it is **locked on the held steps**: KNOB
-  1..4 = FREQ, DECAY, HARM, FDBK; PRESETS = the step's sound. The knob's picture shows the lock while you turn.
+  1..4 = FREQ, DECAY, HARM, FDBK; PRESETS = the step's sound; SELECT = the page. The knob's picture shows the lock.
 - **B11 with a step held** clears that step's locks (the sound stays: clear it in SOUND). **F1 + B11** undoes it.
-- The black keys B1..B10 do nothing here.
-- In the other modes (not NOTE) KNOB 1..4 still lock on a held step as before.
+- The black keys B1..B10 do nothing here. Only P-LOCK locks the sound.
+- **Nothing held** in P-LOCK: KNOB 1..4 turn the track's own FREQ, DECAY, HARM, FDBK; PRESETS its sound;
+  **ALGORITHM chooses the track** (1..8, the screen lists them); SELECT the page.
 
 ## How do I change the track's defaults?
 
-- With **nothing held**, pick the mode (B1..B10) and turn **ALGORITHM**: it changes the track's default for that mode
-  (velocity in VEL, the notes in NOTE, …). The screen shows the default big while you turn.
+- With **nothing held**, pick the mode and turn the **same knobs as with a step held** (KNOB 1 the main value, KNOB 2
+  the extra; NOTE: KNOB 1..4 the default chord's notes 2..5). **ALGORITHM** turns the main default too.
+- The screen shows the page with the default lit and a band saying **TRACK DEFAULT** and the value.
 - Only the steps that don't have their own value follow it.
-- In SOUND, ALGORITHM (or PRESETS) chooses the track's own sound.
+- In SOUND, KNOB 1 or ALGORITHM (or PRESETS) chooses the track's own sound.
 
 ## How do I work with pages and loops?
 
@@ -103,7 +137,7 @@ A step has up to **five notes**.
   - **F1 + hold B1..B8**: that page goes into the loop, or out of it (the loop always keeps one page).
   - **F1 + hold one page key, press another**: loop all the pages between them.
   - Lights: the page you edit lit, the loop's pages dim, the playing page flashing.
-- Every page has its own start and end. Hold **F3** (both OCT keys):
+- Every page has its own start and end. Open **F3** (both OCT keys; see the speed section):
   - **F3 + W**: the page ends at that step, and the page joins the loop.
   - **F3 + hold W a, press W b**: the page plays from a to b.
   - **F3 + KNOB 3 / KNOB 4**: the page's start / end (the start never passes the end).
@@ -142,15 +176,22 @@ Pages and tracks (hold **F1**):
 
 ## How do I change patterns?
 
-- Hold **SEQ**: the screen shows A01..A16 (the playing one white, the queued one blinking orange).
-- **SEQ + tap W1..W16**: that pattern comes in at the next change point. **SEQ + hold W**: it comes in now.
+- Hold **SEQ**: the screen shows one bank's 16 patterns (the playing one white, the queued one blinking orange).
+- **SEQ + B1..B4**: bank A..D (64 patterns). The current bank's key is lit, banks with patterns in them dim.
+- **SEQ + tap W1..W16**: that pattern of the bank comes in at the next change point. **SEQ + hold W**: it comes in now.
 - **SEQ + ALGORITHM**: when a tapped pattern comes in: **END** (the end of the playing pattern, the default), **BAR**
   (the next bar), **BEAT** (the next beat) or **NOW**.
 - Stopped, a pattern is chosen at once.
 
 ## How do I change speed, tempo and swing?
 
-Hold **F3** (both OCT keys). A track's speed is a **note value** and a **type**, each kept when you change the other:
+Press **OCT− and OCT+ together**: the **F3** menu opens and **stays open** after you let go ("OCT− EXIT" on the
+screen, OCT− lit). **OCT−** (or HOME) closes it. OCT+ does nothing there yet.
+
+From now on every menu or question that stays open works the same way: **OCT− = back / exit / cancel, OCT+ = yes /
+confirm**.
+
+A track's speed is a **note value** and a **type**, each kept when you change the other:
 
 - **F3 + B1..B7**: the note value of a step: 1/1, 1/2, 1/4, 1/8, **1/16** (normal speed), 1/32, 1/64.
 - **F3 + B8 / B9 / B10**: normal, **dotted** (a step half as long again) or **triplet** (two thirds as long).
@@ -184,8 +225,8 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 
 - The project has a **pool** of sounds: INIT, the 16 factory sounds, and the drums KICK, SNARE, CLAP, GHOST, HAT and
   OPEN HAT (23 so far, up to 128).
-- **Nothing held: PRESETS** picks the track's own sound from the pool. **KNOB 1..4** turn the track's FREQ, DECAY,
-  HARM and FDBK.
+- **Nothing held: PRESETS** picks the track's own sound from the pool. In **P-LOCK**, KNOB 1..4 turn the track's
+  FREQ, DECAY, HARM and FDBK.
 - **A step held: PRESETS** gives the held steps a sound from the pool (a sound lock), in any mode. Turn it all the way
   down to go back to the track's sound.
 - In **SOUND** mode the ten black keys are ten sounds of the pool (the group of ten that holds the step's sound);
@@ -199,12 +240,12 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 
 ## Help on screen
 
-- Holding **F1**, **F2**, **F3**, **SEL** or **SEQ** shows a map of what it does.
+- Holding **F1**, **F2**, **SEL** or **SEQ**, or opening **F3**, shows a map of what it does.
 - Holding **SHIFT** alone shows what SHIFT does on this screen.
 
 ## Not built yet
 
 - The sound editor (SOUND), so the pool only has the sounds it starts with, and P-LOCK locks only the step view's
-  knobs.
+  knobs. B10 is empty.
 - Track settings (scale, root, following the global key, MIDI channel), pattern chains, MIX and the effects screens.
 - Saving: closing the app loses everything.

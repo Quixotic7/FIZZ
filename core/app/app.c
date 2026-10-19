@@ -112,6 +112,7 @@ void qd_app_key(qd_app_t *a, int key, int down, int vel)
     qd_ctl_key(a, key, down, a->key_vel[key]);
     if (!down)
         qd_app_note_off(a, key);                        /* whatever the controller did, a key's note ends with it */
+    qd_ctl_preview_sync(a);                             /* P1.3d: the held steps sound, stopped */
 }
 
 void qd_app_button(qd_app_t *a, int button, int down)
@@ -123,12 +124,15 @@ void qd_app_button(qd_app_t *a, int button, int down)
     else
         a->buttons_held &= ~(1u << button);
     qd_ctl_button(a, button, down);
+    qd_ctl_preview_sync(a);
 }
 
 void qd_app_knob(qd_app_t *a, int knob, int detents)
 {
-    if (detents && knob >= 0 && knob < QD_NKNOB)
+    if (detents && knob >= 0 && knob < QD_NKNOB) {
         qd_ctl_knob(a, knob, detents);
+        qd_ctl_preview_sync(a);
+    }
 }
 
 void qd_app_master(qd_app_t *a, int pot)
@@ -163,15 +167,23 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
         return;
     d1 &= 127;
     d2 &= 127;
-    if (kind == 0x90 && d2) {
-        qd_player_key_on(&a->player, ch, d1, d2);
-        if (ch == qd_ctl_pat(a)->trk[a->sel].chan)
-            qd_rec_midi_note(a, d1, 1, d2);
-    } else if (kind == 0x80 || kind == 0x90) {
-        qd_player_key_off(&a->player, ch, d1);
-        if (ch == qd_ctl_pat(a)->trk[a->sel].chan)
-            qd_rec_midi_note(a, d1, 0, 0);
-    } else if (kind == 0xB0 && (d1 == 120 || d1 == 123)) {
+    {   /* P1.3d: the notes going into a previewed held step sound through its preview, not as keys */
+        const int mine = ch == qd_ctl_pat(a)->trk[a->sel].chan, pv = mine && qd_ctl_previewing(a);
+        if (kind == 0x90 && d2) {
+            if (!pv)
+                qd_player_key_on(&a->player, ch, d1, d2);
+            if (mine)
+                qd_rec_midi_note(a, d1, 1, d2);
+        } else if (kind == 0x80 || kind == 0x90) {
+            if (!pv)
+                qd_player_key_off(&a->player, ch, d1);
+            if (mine)
+                qd_rec_midi_note(a, d1, 0, 0);
+        }
+        if (mine)
+            qd_ctl_preview_sync(a);
+    }
+    if (kind == 0xB0 && (d1 == 120 || d1 == 123)) {
         qd_pool_release_all(&a->pool, ch);
     }
 }
@@ -205,6 +217,7 @@ static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
     else if (a->amp > amp_to)
         a->amp = fmaxf(amp_to, a->amp - (1.f - QD_SWAY_AMP) / QD_AMP_MS);
     qd_ctl_ms(a);
+    qd_ctl_preview_sync(a);                             /* (a step held at 250 ms, the transport moved) */
 }
 
 void qd_app_tick(qd_app_t *a, uint32_t ms)

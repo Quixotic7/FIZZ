@@ -113,9 +113,9 @@ void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fil
 
 /* ---- P1.3b: the hold modes, line.html's headTrack, lock, knobMark and keyboard's pos, the black keys' strip */
 const char *const UI_FIELD_NAME[UI_NFIELD] = {"NOTE", "VEL", "LEN", "MICRO", "RATCH", "CHNC", "COND", "TRIG",
-                                              "SOUND", "LOCKS", "P-LOCK"};
+                                              "SOUND", "", "P-LOCK"};
 /* a colour a mode, all bright on black and none of them red (red is the playhead); P-LOCK (P1.3c) takes LOCKS' sand:
- * the padlock's colour everywhere */
+ * the padlock's colour everywhere (P1.3d: LOCKS is gone, B10 reserved; its slot keeps the sand) */
 const qd_rgb UI_MODE_COL[UI_NFIELD] = {0x3f7dffu, 0x1fd47eu, 0x36d6e7u, 0xa879ffu, 0xff6a2cu,
                                        0xffd23fu, 0xff52c0u, 0xf1f0eau, 0xb5e853u, 0xd8c39au, 0xd8c39au};
 

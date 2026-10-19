@@ -17,6 +17,9 @@
  *   SCALE  (SHIFT + ALGORITHM) the scale's name big, the scales before and after it small above and below, its notes
  *          on a little one-octave keybed from the root (scale_mask: bit k, k semitones over the root), the root white
  *   ROOT   (SHIFT + PRESETS) the root big, the same: its neighbours, the scale's notes from it on the keybed
+ *   TRACK  (P1.3d: ALGORITHM in P-LOCK, nothing held) the eight tracks as rows, the one chosen boxed in P-LOCK's
+ *          colour, each with its name and its loop's trigs (up to 32), a muted one grey with an M
+ * And (P1.3d) the knob band, ui_band_draw: a turn in a hold mode, over the screen's top (ui.h)
  * Every motion comes from the record (t, beat, beats, the clocks' positions). */
 #include <math.h>
 
@@ -521,10 +524,79 @@ static void d_scale(const ui_turn_t *v, qd_rgb col)
     }
 }
 
+/* ---------------------------------------------------------------- TRACK (P1.3d): the eight tracks as rows */
+static void d_track(const ui_turn_t *v, qd_rgb col)
+{
+    static const char *const NUM[8] = {"1", "2", "3", "4", "5", "6", "7", "8"};
+    int i, k;
+    for (i = 0; i < 8; i++) {
+        const float y = 44.f + (float)i * 21.f;
+        const int sel = i == v->track - 1, mute = (v->tmute >> i) & 1u;
+        const int n = v->tlen[i] > 32 ? 32 : v->tlen[i];
+        const qd_rgb tc = sel ? col : mute ? UI_G2 : UI_G1;
+        if (sel)
+            ui_RR(8.f, y - 11.f, 224.f, 18.f, 5.f, col, 1.2f, QD_NONE);
+        ui_T(NUM[i], 20.f, y + 2.f, 10.f, sel ? 600 : 500, 0.f, tc, QD_CENTER);
+        ui_T(v->tname[i] ? v->tname[i] : "", 32.f, y + 2.f, 10.f, sel ? 600 : 400, 1.f, sel ? UI_K3 : tc, QD_LEFT);
+        if (mute)
+            ui_T("M", 104.f, y + 2.f, 8.f, 700, 0.f, UI_K4, QD_CENTER);
+        for (k = 0; k < n; k++) {                       /* the loop's trigs, up to 32 */
+            const float x = 116.f + (float)k * 3.5f + (float)(k / 4) * 0.5f;
+            if (v->ttrig[i][k])
+                ui_O(x, y - 2.f, 1.3f, QD_NONE, 1.f, sel ? col : tc);
+            else
+                ui_O(x, y - 2.f, 0.6f, QD_NONE, 1.f, UI_G3);
+        }
+    }
+    ui_lab("ALGORITHM: THE TRACK \xc2\xb7 P-LOCK", 120.f, 226.f, UI_G1, QD_CENTER);
+}
+
+/* ---------------------------------------------------------------- the knob band (P1.3d) */
+void ui_band_draw(const ui_band_t *v)
+{
+    static const char *const BADGE[7] = {"S", "A", "P", "1", "2", "3", "4"};
+    const int k = v->knob < 0 ? 0 : v->knob > 6 ? 6 : v->knob;
+    const qd_rgb bc = k == 0 ? UI_KSEL : k >= 3 ? UI_K[k - 3] : UI_K3;
+    char top[48];
+    float nw, room, vw, size = 26.f;
+    qd_fill_rect(0.f, 0.f, (float)QD_W, 41.f, UI_BG);
+    ui_O(17.f, 21.f, 9.f, QD_NONE, 1.f, bc);
+    ui_T(BADGE[k], 17.f, 24.5f, 10.f, 700, 0.f, UI_BG, QD_CENTER);
+    top[0] = 0;
+    if (v->ctx) {
+        char *e = top;
+        const char *src[3];
+        int j;
+        src[0] = v->ctx, src[1] = v->mode ? " \xc2\xb7 " : 0, src[2] = v->mode;
+        for (j = 0; j < 3; j++)
+            for (; src[j] && *src[j] && e < top + sizeof top - 1; )
+                *e++ = *src[j]++;
+        *e = 0;
+    }
+    ui_lab(top, 33.f, 16.f, v->col, QD_LEFT);
+    ui_T(v->name ? v->name : "", 33.f, 33.f, 11.f, 600, 1.f, UI_K3, QD_LEFT);
+    nw = ui_TW(v->name ? v->name : "", 11.f, 600, 1.f);
+    room = 232.f - (33.f + nw + 10.f);
+    vw = ui_TW(v->val, size, 300, 0.f);
+    if (232.f - vw < 33.f + ui_TW(top, 8.f, 600, 1.f) + 6.f) {   /* under the top line's end: low enough to clear it */
+        size = 21.f;
+        vw = ui_TW(v->val, size, 300, 0.f);
+    }
+    if (vw > room && vw > 0.f)
+        size = size * room / vw;
+    if (size < 9.f)
+        size = 9.f;
+    ui_T(v->val, 232.f, 34.f, size, 300, 0.f, v->col, QD_RIGHT);
+    {
+        const float p[4] = {0.f, 40.5f, (float)QD_W, 40.5f};
+        ui_P(p, 2, v->col, 1.f, 0, QD_NONE);
+    }
+}
+
 /* ---------------------------------------------------------------- the frame */
 void ui_turn_draw(const ui_turn_t *v)
 {
-    const qd_rgb col = UI_K[v->knob & 3];
+    const qd_rgb col = v->has_col ? v->col : UI_K[v->knob & 3];
     const char *val = v->val;
     char pg[8] = "PAGE 1";
     ui_knob_mark(14.f, 12.f, v->v < 0.f ? 0.f : v->v > 1.f ? 1.f : v->v, col);
@@ -554,6 +626,7 @@ void ui_turn_draw(const ui_turn_t *v)
         break;
     case UI_TK_SCALE:
     case UI_TK_ROOT: d_scale(v, col); val = 0; break;
+    case UI_TK_TRACK: d_track(v, col); val = 0; break;
     case UI_TK_TSWING:
         metronome(120.f, 128.f, 0.62f, v->beats, v->beat, v->value ? (v->swing > 50 ? v->swing : 62) : 50, 0);
         if (!val[0])

@@ -47,6 +47,7 @@ typedef struct {
     qd_plog_fn log;
     void *log_ctx;
     uint32_t ons, offs, offs_kept, locks, legatos, dips;
+    uint32_t previews;                  /* P1.3d: steps struck by qd_player_preview */
 } qd_player_t;
 
 void qd_player_init(qd_player_t *pl, qd_seq_t *s, qd_pool_t *pool, qd_model_t *m);
@@ -56,6 +57,12 @@ void qd_player_stop(qd_player_t *pl);   /* the transport stops: the sequencer's 
 /* the keybed and MIDI notes on a track (P1.1's path; the sequencer's OFFs leave a key's note alone) */
 void qd_player_key_on(qd_player_t *pl, int t, int note, int vel);
 void qd_player_key_off(qd_player_t *pl, int t, int note);
+/* P1.3d, the stopped preview (PLAN §8b 2.2): step s of pattern pat on track t struck as the sequencer strikes it (its
+ * notes at its velocity, its sound lock or the track's sound, its p-locks and mix locks, the track's limit and
+ * reserve), owned as a key's notes (released with qd_player_key_off; the sequencer's OFFs leave them). The sequencer's
+ * state and the pattern are not changed. An empty step, or a LOCK step (it plays no note): nothing. Returns the notes
+ * struck (notes: room for QD_NNOTE), ascending */
+int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes);
 /* a live edit of track t's sound: patch value id (0..72) or a mix value (QD_LK_PAN .. QD_LK_LEVEL) */
 void qd_player_live_edit(qd_player_t *pl, int t, int id, int value);
 

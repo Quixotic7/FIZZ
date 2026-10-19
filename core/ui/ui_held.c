@@ -23,7 +23,6 @@
  *   SOUND  the sound lock as a cassette (pool numbers of three digits), its neighbours peeking; the page's sound
  *          locks as dots; the bank of ten on the keys ("BANK 11-20")
  *   TRIG   NOTE / LOCK / TIE, the step's boxed, one line saying what it does
- *   LOCKS  the step's p-locks as a picker: one big, the line from the track's value to the lock's; none: NO LOCKS
  * An empty step (type 0; TRIG aside) draws its mode grey with EMPTY STEP in place of the big value. Positions,
  * sizes and widths as line.html's screens. */
 #include <math.h>
@@ -562,59 +561,6 @@ static void f_trig(const ui_held_t *v, const pal_t *p)
     ui_T(TXT[cur + 1], 120.f, 180.f, 11.f, 400, 0.f, UI_G1, QD_CENTER);
 }
 
-/* ---------------------------------------------------------------- LOCKS (s20) */
-static void f_locks(const ui_held_t *v, const pal_t *p)
-{
-    static const float dash[2] = {2.f, 3.f};
-    const float dy = ui_ease(v->roll) * 52.f * (v->dir < 0 ? -1.f : 1.f);
-    char s[40], n[12];
-    float xl, xt, xtl;
-    int i;
-
-    if (v->nlock <= 0) {
-        ui_T("NO LOCKS", 120.f, 112.f, 24.f, 300, 1.f, UI_G1, QD_CENTER);
-        ui_T("turn a knob to lock it", 120.f, 136.f, 11.f, 400, 0.f, UI_G2, QD_CENTER);
-        return;
-    }
-    s[0] = 0;
-    cat(cat(s, ui_itoa(n, v->nlock)), v->nlock == 1 ? " LOCK" : " LOCKS");
-    ui_T(s, 232.f, 40.f, 9.f, 600, 1.f, UI_G1, QD_RIGHT);
-
-    qd_save();
-    qd_clip_rect(0.f, 26.f, 240.f, 170.f);
-    qd_translate(0.f, dy);
-    for (i = 0; i < 3; i += 2)                          /* the neighbours, small and grey above and below */
-        if (v->lk_name[i]) {
-            s[0] = 0;
-            cat(cat(cat(s, v->lk_name[i]), " "), v->lk_val[i]);
-            ui_T(s, 120.f, i ? 214.f : 62.f, 14.f, 400, 1.f, UI_G2, QD_CENTER);
-        }
-    if (v->lk_name[1])
-        ui_T(v->lk_name[1], 120.f, 98.f, 12.f, 600, 2.f, p->wh, QD_CENTER);
-    ui_T(v->lk_val[1], 120.f, 148.f, 50.f, 200, 0.f, p->k[0], QD_CENTER);
-    /* how far the lock sits from the track's own value */
-    line2(30.f, 170.f, 210.f, 170.f, UI_G2, 1.f);
-    xl = 30.f + 180.f * v->lk_x, xt = 30.f + 180.f * v->tr_x;
-    line2(xt, 164.f, xt, 176.f, UI_G1, 1.2f);
-    s[0] = 0;
-    cat(cat(s, "track "), v->tr_val);
-    xtl = xt;
-    {
-        const float hw = ui_TW(s, 8.f, 500, 0.f) / 2.f;
-        if (xtl - hw < 4.f)
-            xtl = 4.f + hw;
-        if (xtl + hw > 236.f)
-            xtl = 236.f - hw;
-    }
-    ui_T(s, xtl, 188.f, 8.f, 500, 0.f, UI_G2, QD_CENTER);
-    qd_save();
-    qd_dash(dash, 2);
-    line2(xl, 170.f, xt, 170.f, p->k[0], 1.5f);
-    qd_restore();
-    ui_O(xl, 170.f, 4.f, QD_NONE, 1.f, p->k[0]);
-    qd_restore();
-}
-
 /* ---------------------------------------------------------------- the frame */
 /* the mode that owns a mode's second part */
 static int other_mode(int field)
@@ -632,7 +578,7 @@ static int other_mode(int field)
 void ui_held_draw(const ui_held_t *v)
 {
     const int field = v->field >= 0 && v->field < UI_NFIELD ? v->field : UI_F_NOTE;
-    const int lit = v->is_default || v->ovr || field == UI_F_LOCKS;
+    const int lit = v->is_default || v->ovr;
     pal_t p;
     char left[48], n[12];
 
@@ -651,6 +597,8 @@ void ui_held_draw(const ui_held_t *v)
     }
     cat(cat(left, " \xc2\xb7 "), UI_FIELD_NAME[field]);
     ui_head_track(left, v->track, v->name, UI_K3);
+    if (v->latch && !v->is_default)                     /* P1.3d: selected by the step latch (LFO), not held */
+        ui_lab("SELECTED", 8.f, 28.f, UI_G1, QD_LEFT);
     if ((!lit && !p.empty) || (p.empty && (field == UI_F_COND || field == UI_F_CHNC))) {
         /* a tag top right: the step plays the track's value (COND / CHNC, which draw no EMPTY STEP: an empty step) */
         const char *tag = p.empty ? "EMPTY STEP" : "DEFAULT";
@@ -669,7 +617,6 @@ void ui_held_draw(const ui_held_t *v)
     case UI_F_CHNC: f_cond(v, &p); break;
     case UI_F_SOUND: f_sound(v, &p); break;
     case UI_F_TRIG: f_trig(v, &p); break;
-    case UI_F_LOCKS: f_locks(v, &p); break;
     default: break;
     }
     if (!v->is_default)

@@ -135,9 +135,11 @@ void ui_tracks_draw(const ui_tracks_t *v);
 
 /* ---- the hold modes (B1..B10): their names and colours. A step that overrides the mode is drawn in the mode's colour,
  * a step on the track's default grey */
-enum { UI_F_NOTE, UI_F_VEL, UI_F_LEN, UI_F_MICRO, UI_F_RATCH, UI_F_CHNC, UI_F_COND, UI_F_TRIG, UI_F_SOUND, UI_F_LOCKS,
-       UI_F_PLOCK, UI_NFIELD };         /* P1.3c: B11 = P-LOCK (holding a step keeps the screen; its knobs p-lock) */
-extern const char *const UI_FIELD_NAME[UI_NFIELD];   /* "NOTE" .. "LOCKS" */
+enum { UI_F_NOTE, UI_F_VEL, UI_F_LEN, UI_F_MICRO, UI_F_RATCH, UI_F_CHNC, UI_F_COND, UI_F_TRIG, UI_F_SOUND, UI_F_B10,
+       UI_F_PLOCK, UI_NFIELD };         /* P1.3c: B11 = P-LOCK (holding a step keeps the screen; its knobs p-lock).
+                                         * P1.3d (§8b 2.2): LOCKS is dropped (P-LOCK covers it): B10 is empty,
+                                         * reserved (UI_F_B10 is never a mode; its colour is the padlock's) */
+extern const char *const UI_FIELD_NAME[UI_NFIELD];   /* "NOTE" .. "SOUND", "", "P-LOCK" */
 extern const qd_rgb UI_MODE_COL[UI_NFIELD];
 
 /* ---- the kit's helpers (line.html's headTrack, lock, knobMark, keyboard's pos) */
@@ -207,6 +209,8 @@ typedef struct {
     int def_micro, def_ratch, def_ramp, def_chance, def_type;
     char def_cond[6];
     char def_label[24];                 /* the default as words: "DEFAULT 100", "TRACK SOUND" */
+    int def_hot;                        /* P1.3d: a default is being turned: its line and label in the mode's colour */
+    int latch;                          /* P1.3d: the step latch (LFO) is on: "LATCH" in the top line */
 } ui_lane_t;
 void ui_lane_draw(const ui_lane_t *v);
 
@@ -225,6 +229,7 @@ typedef struct {
     float play;                         /* seconds since the held step last played (< 0: not since PLAY) */
     float t;                            /* seconds (the loops' clock: the app's, deterministic) */
     int tracklen;                       /* the track's loop (the rulers' step numbers wrap at it) */
+    int latch;                          /* P1.3d: the steps are selected by the step latch (LFO), not held: "SELECTED" */
     /* the value strip (B1..B10, B11 CLR) */
     char vk[10][6];
     uint16_t vk_lit, vk_def, vk_none;
@@ -276,12 +281,6 @@ typedef struct {
     int held_col;                       /* the held step's column on the page, 0..15 */
     int nlocks;                         /* the step's p-locks ("+2 LOCKS ON TOP") */
     int bank;                           /* the bank of ten on the keys (0: 1..10) */
-    /* LOCKS (s20): one lock big (name, value in blue), the line from the track's value to it; prev / next peeking */
-    int nlock, lock_cur;
-    const char *lk_name[3];             /* prev, cur, next (0: none) */
-    char lk_val[3][12];
-    float lk_x, tr_x;                   /* the lock's and the track's values, 0..1 of the range */
-    char tr_val[12];                    /* "82.00" */
 } ui_held_t;
 void ui_held_draw(const ui_held_t *v);
 
@@ -331,15 +330,19 @@ typedef struct {
     const char *rate_names[9];
     int bpm, swing;
     int anchor;                         /* F3: the W held first (-1 none) */
+    int latched;                        /* P1.3d: F3 is a latched menu: "OCT\xe2\x88\x92 EXIT" on the map */
 } ui_layer_t;
 void ui_layer_draw(const ui_layer_t *v);   /* layer 1 F1, 2 F2, 3 F3, 4 SEL's track map */
 
-/* ---- SEQ held (P1.3c, line.html s13 simpler): the patterns A01..A16: the queued one big (else the playing one), the
- * sixteen as dots (content a ring, the playing one filled white, the queued one blinking orange), a line emptying to
- * the change, the launch mode (END BAR BEAT NOW) as four words, the one in use white */
+/* ---- SEQ held (P1.3c, line.html s13 simpler): the patterns of the bank shown: the queued one big (else the playing
+ * one), the sixteen as dots (content a ring, the playing one filled white, the queued one blinking orange), a line
+ * emptying to the change, the launch mode (END BAR BEAT NOW) as four words, the one in use white. P1.3d (§8b 2.2): the
+ * four banks A..D (SEQ + B1..B4) as four letters, the bank shown boxed, a bank with content white */
 typedef struct {
-    int cur, queued;                    /* 0..15 (-1 queued: none) */
-    uint16_t used;                      /* bit k: A(k+1) has content */
+    int cur, queued;                    /* 0..63 (-1 queued: none) */
+    int bank;                           /* the bank shown (0 A .. 3 D): the W keys' */
+    uint8_t bank_used;                  /* bit k: bank k has a pattern with content */
+    uint16_t used;                      /* bit k: pattern k + 1 of the bank shown has content */
     int playing;
     float left;                         /* 0..1 of the master length left to the change (queued and playing) */
     int blink;
@@ -380,7 +383,8 @@ void ui_confirm_draw(const char *big, const char *small, qd_rgb col);
 
 /* ---- a knob turned: the whole screen (line.html s21..s25, s16; PLAN §9a rule 5) */
 enum { UI_TK_FREQ, UI_TK_DECAY, UI_TK_HARM, UI_TK_FDBK, UI_TK_ALGO, UI_TK_TEMPO, UI_TK_SWING, UI_TK_LEN, UI_TK_RATE,
-       UI_TK_LIMIT, UI_TK_TSWING, UI_TK_PAGE, UI_TK_SCALE, UI_TK_ROOT, UI_TK_OCTAVE, UI_NTK };   /* OCTAVE: ui_octave */
+       UI_TK_LIMIT, UI_TK_TSWING, UI_TK_PAGE, UI_TK_SCALE, UI_TK_ROOT, UI_TK_OCTAVE, UI_TK_TRACK, UI_NTK };
+/* (OCTAVE: ui_octave. P1.3d: TRACK, ALGORITHM in P-LOCK with nothing held: the eight tracks, the one chosen boxed) */
 typedef struct {
     int kind;                           /* UI_TK_* */
     int knob;                           /* 0..3: its colour (SELECT turns KNOB 1's: 0) */
@@ -414,8 +418,31 @@ typedef struct {
     /* SCALE / ROOT (SHIFT + ALGORITHM / PRESETS): the scale's notes on a little keyboard (scale_mask over root) */
     uint16_t scale_mask;
     int root;
+    /* P1.3d: the colour when it is not a knob's (has_col: col; the track chooser draws in P-LOCK's) */
+    int has_col;
+    qd_rgb col;
+    /* TRACK (P-LOCK + ALGORITHM): the eight tracks as rows: number, name, the loop's trigs (up to 32), muted grey */
+    const char *tname[8];
+    uint8_t tmute;
+    uint8_t tlen[8];
+    uint8_t ttrig[8][32];
 } ui_turn_t;
 void ui_turn_draw(const ui_turn_t *v);
+
+/* ---- P1.3d (§8b 2.2): the knob band. Every knob turned in a hold mode shows what it turned in a band over the top of
+ * the screen for a second: its knob as a badge (SELECT yellow, KNOB 1..4 their colours, ALGORITHM an A, PRESETS a P),
+ * the context ("TRACK DEFAULT", or "STEP 5" with a step held) and the mode, the value's name and the value big in the
+ * mode's colour. Over a held step's screen (a step held), or over the lane with the default's line lit (nothing held:
+ * a default) */
+typedef struct {
+    int knob;                           /* QD_K_* of app.h: 0 SELECT, 1 ALGORITHM, 2 PRESETS, 3..6 KNOB 1..4 */
+    qd_rgb col;                         /* the mode's colour */
+    const char *ctx;                    /* "TRACK DEFAULT", "STEP 5", "STEP 5+2" */
+    const char *mode;                   /* "VEL" */
+    const char *name;                   /* "VELOCITY", "STRUM", "NOTE 3" */
+    char val[24];                       /* "101", "+3/24", "E4", "014 MARIMBA" */
+} ui_band_t;
+void ui_band_draw(const ui_band_t *v);
 
 #ifdef __cplusplus
 }

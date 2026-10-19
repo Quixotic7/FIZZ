@@ -281,9 +281,9 @@ int render_p13b(const char *out, const char *mocks)
     play(700);
     shot("02-lane-sound", "SOUND lane: A01 DRUMS (a sound lock on every step)", 0);
 
-    at(A01, T1, UI_F_LOCKS);
+    at(A01, T1, UI_F_PLOCK);                            /* (P1.3d: LOCKS is dropped; P-LOCK lists the locks) */
     play(700);
-    shot("02-lane-locks", "LOCKS lane: A01 DRUMS (the kit's mix as p-locks)", 0);
+    shot("02-lane-locks", "P-LOCK lane: A01 DRUMS (the kit's mix as p-locks)", 0);
 
     /* ---- a page with its own range in a loop of two pages: A02 CHORDS, F1 B1 held + B2 (loop 1..2), then F3 + W5
      * held + W12 (page 1 at 5..12), page follow off, playing */
@@ -349,10 +349,9 @@ int render_p13b(const char *out, const char *mocks)
     held(A02, T2, 4, UI_F_TRIG, 0);
     shot("19-held-trig", "19 TRIG: A02 BASS step 5", "line-19-held-trig.png");
 
-    held(A01, T1, 0, UI_F_LOCKS, 0);
-    black(1);                                           /* the second lock */
+    held(A01, T1, 0, UI_F_PLOCK, 0);                    /* (P1.3d: LOCKS is dropped: P-LOCK keeps the lane) */
     run(300);
-    shot("20-held-locks", "20 LOCKS: A01 step 1 (the kick's locks), B2", "line-20-held-locks.png");
+    shot("20-held-locks", "20 P-LOCK: A01 step 1 held (LOCKS is gone)", "line-20-held-locks.png");
 
     held(A02, T3, 1, UI_F_VEL, 0);                      /* an empty step */
     shot("held-empty", "VEL: an empty step held", 0);

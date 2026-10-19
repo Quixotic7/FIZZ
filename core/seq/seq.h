@@ -213,6 +213,11 @@ const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t);   /* the pattern
 /* a live edit of track t's sound reaches the trigs resolved and waiting too (their values not their own) */
 void qd_seq_live_patch(qd_seq_t *s, int t, int id, int value);
 
+/* P1.3d: the record step `step` of pattern `pat` on track t would have if it were resolved now (its sound lock or the
+ * track's sound, its p-locks over it, the own mask, the mix locks): the stopped preview's (player.h). Reads only: the
+ * sequencer's state is not changed */
+void qd_seq_step_rec(const qd_seq_t *s, int pat, int t, int step, qd_trec_t *r);
+
 #ifdef __cplusplus
 }
 #endif

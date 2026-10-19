@@ -317,7 +317,7 @@ static int ramp_vel(int v, int ramp, int h, int n)
 
 /* the trig's record: the patch (the step's sound lock: a pool sound, else the track's sound; its locks over it), the
  * own mask, the mix locks, the locks as they are */
-static void fill_rec(qd_seq_t *s, qd_trec_t *r, int t, int step, const qd_tcur_t *c, const qd_pattern_t *P,
+static void fill_rec(const qd_seq_t *s, qd_trec_t *r, int t, int step, const qd_tcur_t *c, const qd_pattern_t *P,
                      const qd_rstep_t *st)
 {
     int n, k;
@@ -961,4 +961,19 @@ void qd_seq_live_patch(qd_seq_t *s, int t, int id, int value)
         if (r->used && r->track == t && !((r->at.own[id >> 5] >> (id & 31)) & 1u))
             r->patch[id] = (int16_t)value;
     }
+}
+
+void qd_seq_step_rec(const qd_seq_t *s, int pat, int t, int step, qd_trec_t *r)
+{
+    qd_tcur_t c;
+    qd_rstep_t st;
+    const qd_pattern_t *P;
+    memset(r, 0, sizeof *r);
+    if (pat < 0 || pat >= QD_NPAT || t < 0 || t >= QD_PAT_NTRACK || step < 0 || step >= QD_NSTEP)
+        return;
+    P = &s->proj->pat[pat];
+    memset(&c, 0, sizeof c);
+    c.pat = pat;
+    qd_step_resolve(P, t, step, &st);
+    fill_rec(s, r, t, step, &c, P, &st);
 }

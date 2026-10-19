@@ -28,7 +28,8 @@ PY ?= python3
 VOICE_SRC := $(ROOT)/core/voice/quad/quad_voice.c $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/mix.c \
              $(ROOT)/core/voice/fx/qd_fx.c
 APP_SRC := $(ROOT)/core/app/app.c $(ROOT)/core/app/ctl.c $(ROOT)/core/app/ctl_step.c $(ROOT)/core/app/ctl_rec.c \
-           $(ROOT)/core/app/ctl_leds.c $(ROOT)/core/app/view.c
+           $(ROOT)/core/app/ctl_leds.c $(ROOT)/core/app/ctl_latch.c $(ROOT)/core/app/ctl_preview.c \
+           $(ROOT)/core/app/view.c
 UI_SRC := $(ROOT)/core/ui/ui_kit.c $(ROOT)/core/ui/ui_idle.c $(ROOT)/core/ui/ui_keys.c $(ROOT)/core/ui/ui_picker.c \
           $(ROOT)/core/ui/ui_tracks.c $(ROOT)/core/ui/ui_lane.c $(ROOT)/core/ui/ui_held.c $(ROOT)/core/ui/ui_turn.c \
           $(ROOT)/core/ui/ui_layer.c $(ROOT)/core/ui/ui_octave.c
@@ -55,7 +56,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)

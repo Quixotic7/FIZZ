@@ -20,6 +20,11 @@
  *                (base / type keys and knobs, start / end clamps, all 21 rates' step lengths); NOTE's five knobs
  *                (chromatic and in a scale); five notes by the keys; P-LOCK (the screen stays, the knobs lock, B11,
  *                undo); the OCT LEDs' blink levels in NOTE, the keyboard and SOUND's banks, the octave takeover
+ *   P1.3d        (§8b 2.2) every mode's knob layout with a step held and with nothing held (each knob changes exactly
+ *                its value, or the track's default, and shows its band); P-LOCK's ALGORITHM choosing tracks; the banks;
+ *                the stopped preview (struck when held, re-struck by edits, released, several at once, nothing while
+ *                playing, nothing written); F3 latched (open, used, closed by OCT- or HOME, nothing leaking into F1 /
+ *                F2); the step latch on LFO (select, add, no deletes, edits, preview, off)
  *   beat         "program a beat": from the empty A05, panel presses and turns only build a pattern with a page that
  *                has its own start and end, a two-page loop, a pool sound lock, a velocity override, a ratchet, a
  *                condition (moved by F2's cut / drop), a chord, a five-note chord (keys, then KNOB 4), a P-LOCK lock, a
@@ -88,7 +93,7 @@ static void fresh(void)
 #define WK(w) QD_WHITE_KEY[w]
 #define BK(b) QD_BLACK_KEY[b]
 enum { B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11 };
-enum { M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_TRIG, M_SOUND, M_LOCKS };
+enum { M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_TRIG, M_SOUND, M_B10, M_PLOCK };
 #define F1 QD_B_OCTDN
 #define F2 QD_B_OCTUP
 #define SHIFT QD_B_FUNC
@@ -140,11 +145,12 @@ static void f3_down(void)
     bdown(F2);
     run(10);
 }
-static void f3_up(void)
+static void f3_up(void)                                /* P1.3d: F3 is latched: let go, then OCT- exits it */
 {
     bup(F2);
     bup(F1);
     run(10);
+    btap(F1);
 }
 static void wake(void) { btap(QD_B_HOME); }             /* power-on: idle; HOME: the step view */
 static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once) */
@@ -243,8 +249,8 @@ static void g_edge(void)
     CHECK(A.ui.nheld == 1, "a knob turn makes a pending key held");
     kup(WK(4));
     run(5);
-    CHECK(R(0, 4).type == QD_TRIG_LOCK && LK(0, 4, QD_QP_FREQ) != -99999,
-          "an empty step held + KNOB 1 (VEL): a LOCK step with a FREQ lock");
+    CHECK(R(0, 4).on && R(0, 4).vel == 102 && OV(0, 4, QD_PM_VEL) && qd_lock_count(PAT(), 0, 4) == 0,
+          "an empty step held + KNOB 1 (VEL, P1.3d): the velocity 102, the step on (no lock)");
     mode(M_NOTE);
     kdown(WK(6));                                       /* a black key while pending: held, the value set */
     run(50);
@@ -259,11 +265,14 @@ static void g_modes(void)
 {
     int m;
     start();
-    for (m = 0; m < 10; m++) {
+    for (m = 0; m < 9; m++) {
         mode(m);
         CHECK(A.ui.hmode == m && leds().key[BK(m)] == QD_LED_LIT, "nothing held: B%d = the hold mode %s", m + 1,
               UI_FIELD_NAME[m]);
     }
+    black(B10);
+    CHECK(A.ui.hmode == M_SOUND && leds().key[BK(B10)] == QD_LED_OFF, "B10: empty, reserved (P1.3d: LOCKS dropped), "
+          "its LED off");
     black(B11);
     CHECK(A.ui.hmode == UI_F_PLOCK && !R(0, 0).on, "B11 with nothing held: the P-LOCK mode (P1.3c, question 37)");
 }
@@ -362,20 +371,6 @@ static void g_values(void)
     black(B11);
     CHECK(!OV(0, 0, QD_PM_TRIG), "TRIG B11: the track's");
     wrel(0);
-    /* LOCKS: B1..B10 choose, B11 removes, ALGORITHM moves the chosen */
-    qd_lock_set(PAT(), 0, 0, QD_QP_FREQ, 5000);
-    qd_lock_set(PAT(), 0, 0, QD_QP_HARM, 300);
-    mode(M_LOCKS);
-    whold(0);
-    black(QD_QP_HARM < QD_QP_FREQ ? B1 : B2);           /* (a step's locks in id order) */
-    CHECK(A.ui.lock_cur == (QD_QP_HARM < QD_QP_FREQ ? 0 : 1), "LOCKS B1 / B2: HARM's lock chosen");
-    turn(QD_K_ALGO, -1);
-    CHECK(LK(0, 0, QD_QP_HARM) == 200, "LOCKS ALGORITHM: the chosen lock's value (HARM %d)", LK(0, 0, QD_QP_HARM));
-    black(B5);
-    CHECK(A.ui.lock_cur == (QD_QP_HARM < QD_QP_FREQ ? 0 : 1), "LOCKS B5 with two locks: nothing");
-    black(B11);
-    CHECK(LK(0, 0, QD_QP_HARM) == -99999 && LK(0, 0, QD_QP_FREQ) == 5000, "LOCKS B11: the chosen lock removed");
-    wrel(0);
     /* several held: every value to all */
     wtap(2), wtap(4);
     mode(M_VEL);
@@ -391,7 +386,7 @@ static void g_values(void)
     wrel(9);
     CHECK(R(0, 9).on && R(0, 9).len == QD_LEN_1 && ST(0, 9)->ovr == QD_OV(QD_PM_LEN), "an empty step given a "
           "value: a trig with that one override");
-    printf("  values: VEL / LEN / MICRO / CHNC %d of %d key rows, RATCH, COND, TRIG, LOCKS, B11, several held\n", ok,
+    printf("  values: VEL / LEN / MICRO / CHNC %d of %d key rows, RATCH, COND, TRIG, B11, several held\n", ok,
            n);
 }
 
@@ -429,7 +424,8 @@ static void g_algo(void)
     CHECK(PAT()->trk[0].def.type == QD_TRIG_LOCK && R(0, 2).type == QD_TRIG_LOCK, "TRIG: the default LOCK");
     mode(M_SOUND);
     turn(QD_K_ALGO, 1);
-    CHECK(A.model.t[0].sound == 15 && A.ui.tk == QD_TK_PRESET, "SOUND: the track's own sound from the pool (15)");
+    CHECK(A.model.t[0].sound == 15 && A.ui.tk == QD_TK_DEFAULT, "SOUND: the track's own sound from the pool (15), "
+          "the default's band (P1.3d)");
     mode(M_MICRO);
     whold(2);
     bdown(SHIFT);
@@ -459,13 +455,13 @@ static void g_select(void)
     turn(QD_K_SELECT, 9);
     CHECK(A.ui.page[0] == 7, "SELECT clamps at page 8");
     turn(QD_K_SELECT, -7);
-    mode(M_VEL);                                        /* (P1.3c: in NOTE SELECT is note 1) */
+    black(B11);                                         /* (P1.3d: a step held, SELECT pages only in P-LOCK) */
     whold(1);
-    turn(QD_K_SELECT, 1);                               /* a step held: SELECT still pages; another W joins */
+    turn(QD_K_SELECT, 1);                               /* P-LOCK, a step held: SELECT pages; another W joins */
     kdown(WK(5));
     run(20);
-    CHECK(A.ui.page[0] == 1 && A.ui.nheld == 2 && A.ui.held[1] == 21, "a step held: SELECT pages, a W there joins "
-          "(step 22)");
+    CHECK(A.ui.page[0] == 1 && A.ui.nheld == 2 && A.ui.held[1] == 21, "P-LOCK, a step held: SELECT pages, a W there "
+          "joins (step 22)");
     kup(WK(5)), kup(WK(1));
     run(10);
 }
@@ -565,7 +561,13 @@ static void g_plocks(void)
 {
     start();
     wtap(5);
-    mode(M_VEL);
+    mode(M_VEL);                                        /* P1.3d: KNOB 1..4 lock only in P-LOCK */
+    whold(5);
+    turn(QD_K_3, 3);
+    turn(QD_K_4, -1);
+    wrel(5);
+    CHECK(qd_lock_count(PAT(), 0, 5) == 0 && R(0, 5).vel == 100, "VEL, a step held: KNOB 3 / 4 have no job: nothing");
+    black(B11);
     whold(5);
     turn(QD_K_3, 3);
     turn(QD_K_4, -1);
@@ -574,13 +576,13 @@ static void g_plocks(void)
     wrel(5);
     CHECK(LK(0, 5, QD_QP_HARM) == 300 && LK(0, 5, QD_QP_FDBK) == 0 && LK(0, 5, QD_QP_FREQ) == 12700 - 1000 &&
               LK(0, 5, QD_QP_EDEC) == A.model.t[0].patch[QD_QP_EDEC] + 2 && A.model.t[0].patch[QD_QP_HARM] == 0,
-          "a step held: KNOB 1..4 = FREQ, DECAY, HARM, FDBK p-locks; the track untouched");
+          "P-LOCK, a step held: KNOB 1..4 = FREQ, DECAY, HARM, FDBK p-locks; the track untouched");
     CHECK(A.ui.tk == UI_TK_DECAY && A.ui.tk_lock && A.ui.tk_step == 5, "the takeover marked as a lock on step 6");
     turn(QD_K_1, -10);
     turn(QD_K_3, 4);
     CHECK(A.model.t[0].patch[QD_QP_FREQ] == 12700 - 1000 && A.model.t[0].patch[QD_QP_HARM] == 400 &&
               A.ui.tk == UI_TK_HARM && !A.ui.tk_lock,
-          "nothing held: KNOB 1..4 the track's sound, live");
+          "P-LOCK, nothing held: KNOB 1..4 the track's sound, live");
 }
 
 /* ---- P1.3c (§8b 2.1) */
@@ -1002,15 +1004,18 @@ static void g_f3(void)
     bup(SHIFT);
     CHECK(PAT()->swing == 56 && A.ui.tk == UI_TK_SWING, "SHIFT + F3 + SELECT: swing");
     f3_up();
-    bdown(F1);                                          /* the F3 chord: F1 first, F2 after: F3 until both are up */
+    bdown(F1);                                          /* the F3 chord: F1 first, F2 after: F3, latched (P1.3d) */
     run(30);
     bdown(F2);
     run(10);
     bup(F1);
     run(10);
-    CHECK(qd_ctl_layer(&A) == QD_LAYER_F3, "F1 let go first: still F3 until both are up");
+    CHECK(qd_ctl_layer(&A) == QD_LAYER_F3, "F1 let go first: still F3");
     bup(F2);
     run(10);
+    CHECK(qd_ctl_layer(&A) == QD_LAYER_F3 && A.ui.latch == QD_LATCH_F3, "both let go: F3 stays (latched)");
+    btap(F1);
+    CHECK(qd_ctl_layer(&A) == QD_LAYER_NONE && !A.ui.latch, "OCT-: F3 closed");
 }
 
 /* NOTE, a step held: SELECT = note 1 (a scale degree; chromatic a semitone), KNOB 1..4 = notes 2..5 (offsets, 0 none);
@@ -1129,8 +1134,8 @@ static void g_plock(void)
     mode(M_VEL);
     whold(5);
     turn(QD_K_2, 2);
-    CHECK(LK(0, 5, QD_QP_EDEC) == qd_sound_patch(&A.proj, 2)[QD_QP_EDEC] + 2 && qd_view_screen(&A) == QD_SCR_HELD,
-          "in VEL KNOB 2 still p-locks (the same table), on VEL's own screen");
+    CHECK(LK(0, 5, QD_QP_EDEC) == -99999 && qd_lock_count(PAT(), 0, 5) == 2 && R(0, 5).vel == 100 && qd_view_screen(&A) == QD_SCR_HELD,
+          "P1.3d: in VEL KNOB 2 has no job (no lock, nothing changed), on VEL's own screen");
     wrel(5);
 }
 
@@ -1385,6 +1390,7 @@ static void g_maps(void)
     CHECK(qd_ctl_layer_shown(&A) == QD_LAYER_F3, "both within 60 ms: F3's map at once");
     bup(F1), bup(F2);
     run(10);
+    btap(F1);                                           /* (P1.3d: F3 is latched: OCT- exits) */
     bdown(SHIFT);
     run(100);
     CHECK(qd_ctl_shift(&A) && !A.ui.shift_used, "SHIFT held alone: its map");
@@ -1398,6 +1404,539 @@ static void g_maps(void)
     CHECK(qd_ctl_layer(&A) == QD_LAYER_NONE, "a step held: no layer (OCT- / OCT+ are the octave or the bank)");
     bup(F1);
     wrel(0);
+}
+
+/* ================================================================ P1.3d (§8b version 2.2) === */
+#define LFO QD_B_MUTE                                   /* printed LFO: the step latch */
+
+/* what a turn changed on track 1: step s as it plays, its locks, the track's defaults (as a step on them plays), the
+ * track's sound, the page, anything else of the pattern */
+enum { X_NOTE = 1 << 0, X_VEL = 1 << 1, X_LEN = 1 << 2, X_MICRO = 1 << 3, X_RATCH = 1 << 4, X_RAMP = 1 << 5,
+       X_CHANCE = 1 << 6, X_COND = 1 << 7, X_TYPE = 1 << 8, X_SOUND = 1 << 9, X_STRUM = 1 << 10, X_LOCKS = 1 << 11,
+       X_TRK = 1 << 12, X_PAGE = 1 << 13, X_OTHER = 1 << 14 };
+static qd_pattern_t snap_p, base_p, tmp_p;
+static qd_track_t snap_t, base_t;
+static int snap_page;
+static void snap(void)
+{
+    snap_p = *PAT();
+    snap_t = A.model.t[0];
+    snap_page = A.ui.page[0];
+}
+static unsigned rdiff(const qd_rstep_t *x, const qd_rstep_t *y)
+{
+    unsigned m = 0;
+    m |= x->nn != y->nn || memcmp(x->notes, y->notes, sizeof x->notes) ? X_NOTE : 0u;
+    m |= x->vel != y->vel ? X_VEL : 0u;
+    m |= x->len != y->len ? X_LEN : 0u;
+    m |= x->micro != y->micro ? X_MICRO : 0u;
+    m |= x->ratch != y->ratch ? X_RATCH : 0u;
+    m |= x->ramp != y->ramp ? X_RAMP : 0u;
+    m |= x->chance != y->chance ? X_CHANCE : 0u;
+    m |= x->cond != y->cond ? X_COND : 0u;
+    m |= x->type != y->type || x->on != y->on ? X_TYPE : 0u;
+    m |= x->sound != y->sound ? X_SOUND : 0u;
+    m |= x->strum != y->strum ? X_STRUM : 0u;
+    return m;
+}
+static void def_r(const qd_pattern_t *p, qd_rstep_t *r)   /* a step on the track's defaults */
+{
+    tmp_p.trk[0] = p->trk[0];
+    memset(&tmp_p.step[0][0], 0, sizeof tmp_p.step[0][0]);
+    tmp_p.step[0][0].flags = QD_SF_ON;
+    qd_step_resolve(&tmp_p, 0, 0, r);
+}
+/* the step's changes; *defm: the defaults' */
+static unsigned changed(int s, unsigned *defm)
+{
+    const qd_pattern_t *p = PAT();
+    qd_rstep_t x, y;
+    unsigned m;
+    int t, k;
+    qd_step_resolve(&snap_p, 0, s, &x);
+    qd_step_resolve(p, 0, s, &y);
+    m = rdiff(&x, &y);
+    if (snap_p.nlock != p->nlock || memcmp(snap_p.lock, p->lock, sizeof p->lock[0] * p->nlock))
+        m |= X_LOCKS;
+    for (t = 0; t < QD_PAT_NTRACK; t++)
+        for (k = 0; k < QD_NSTEP; k++)
+            if (!(t == 0 && k == s) && memcmp(&snap_p.step[t][k], &p->step[t][k], sizeof p->step[t][k]))
+                m |= X_OTHER;
+    for (t = 1; t < QD_PAT_NTRACK; t++)
+        if (memcmp(&snap_p.trk[t], &p->trk[t], sizeof p->trk[t]))
+            m |= X_OTHER;
+    {
+        qd_tset_t a = snap_p.trk[0], b = p->trk[0];
+        memset(&a.def, 0, sizeof a.def), memset(&b.def, 0, sizeof b.def);
+        if (memcmp(&a, &b, sizeof a))
+            m |= X_OTHER;
+    }
+    def_r(&snap_p, &x);
+    def_r(p, &y);
+    *defm = rdiff(&x, &y);
+    if (memcmp(snap_t.patch, A.model.t[0].patch, sizeof snap_t.patch) || snap_t.sound != A.model.t[0].sound)
+        m |= X_TRK;
+    if (snap_page != A.ui.page[0])
+        m |= X_PAGE;
+    return m;
+}
+static const char *KNAME(int k)
+{
+    static const char *const N[QD_NKNOB] = {"SELECT", "ALGORITHM", "PRESETS", "KNOB 1", "KNOB 2", "KNOB 3", "KNOB 4"};
+    return N[k];
+}
+
+/* the knob layout with a step held: each knob changes exactly its value of the held step (and shows its band) */
+static const struct {
+    int mode, knob, d;
+    unsigned want;
+} HELD_ROWS[] = {
+    {M_NOTE, QD_K_SELECT, 1, X_NOTE}, {M_NOTE, QD_K_1, 1, X_NOTE}, {M_NOTE, QD_K_2, 2, X_NOTE},
+    {M_NOTE, QD_K_3, 3, X_NOTE}, {M_NOTE, QD_K_4, 4, X_NOTE},
+    {M_VEL, QD_K_SELECT, 1, X_VEL}, {M_VEL, QD_K_1, 1, X_VEL}, {M_VEL, QD_K_2, 1, 0}, {M_VEL, QD_K_3, 1, 0},
+    {M_VEL, QD_K_4, 1, 0},
+    {M_LEN, QD_K_SELECT, 1, X_LEN}, {M_LEN, QD_K_1, 1, X_LEN}, {M_LEN, QD_K_2, 1, X_TYPE}, {M_LEN, QD_K_3, 1, 0},
+    {M_LEN, QD_K_4, 1, 0},
+    {M_MICRO, QD_K_SELECT, 1, X_MICRO}, {M_MICRO, QD_K_1, -1, X_MICRO}, {M_MICRO, QD_K_2, 1, X_STRUM},
+    {M_MICRO, QD_K_3, 1, 0}, {M_MICRO, QD_K_4, 1, 0},
+    {M_RATCH, QD_K_SELECT, 1, X_RATCH}, {M_RATCH, QD_K_1, 2, X_RATCH}, {M_RATCH, QD_K_2, 1, X_RAMP},
+    {M_RATCH, QD_K_3, 1, 0}, {M_RATCH, QD_K_4, 1, 0},
+    {M_CHNC, QD_K_SELECT, -1, X_CHANCE}, {M_CHNC, QD_K_1, -5, X_CHANCE}, {M_CHNC, QD_K_2, 1, X_COND},
+    {M_CHNC, QD_K_3, 1, 0}, {M_CHNC, QD_K_4, 1, 0},
+    {M_COND, QD_K_SELECT, 1, X_COND}, {M_COND, QD_K_1, 3, X_COND}, {M_COND, QD_K_2, -1, X_CHANCE},
+    {M_COND, QD_K_3, 1, 0}, {M_COND, QD_K_4, 1, 0},
+    {M_TRIG, QD_K_SELECT, 1, X_TYPE}, {M_TRIG, QD_K_1, 2, X_TYPE}, {M_TRIG, QD_K_2, 1, 0}, {M_TRIG, QD_K_3, 1, 0},
+    {M_TRIG, QD_K_4, 1, 0},
+    {M_SOUND, QD_K_SELECT, 1, X_SOUND}, {M_SOUND, QD_K_1, 2, X_SOUND}, {M_SOUND, QD_K_2, 1, 0},
+    {M_SOUND, QD_K_3, 1, 0}, {M_SOUND, QD_K_4, 1, 0},
+};
+static void g_knobs_held(void)
+{
+    size_t i;
+    int ok = 0;
+    start();
+    wtap(0);
+    base_p = *PAT();
+    base_t = A.model.t[0];
+    for (i = 0; i < sizeof HELD_ROWS / sizeof HELD_ROWS[0]; i++) {
+        unsigned got, defm;
+        int band;
+        mode(HELD_ROWS[i].mode);
+        whold(0);
+        snap();
+        turn(HELD_ROWS[i].knob, HELD_ROWS[i].d);
+        got = changed(0, &defm);
+        band = A.ui.tk == QD_TK_HELDKNOB && A.ui.tk_src == HELD_ROWS[i].knob;
+        CHECK(got == HELD_ROWS[i].want && !defm && (HELD_ROWS[i].want ? band : A.ui.tk == QD_TK_NONE),
+              "%s held, %s %+d: changed %#x (want %#x), defaults %#x, band %d", UI_FIELD_NAME[HELD_ROWS[i].mode],
+              KNAME(HELD_ROWS[i].knob), HELD_ROWS[i].d, got, HELD_ROWS[i].want, defm, band);
+        ok += got == HELD_ROWS[i].want && !defm;
+        wrel(0);
+        *PAT() = base_p;
+        A.model.t[0] = base_t;
+    }
+    /* a few values exactly */
+    mode(M_LEN);
+    whold(0);
+    turn(QD_K_2, 1);
+    CHECK(R(0, 0).type == QD_TRIG_TIE && OV(0, 0, QD_PM_TRIG), "LEN, KNOB 2 up: TIE on");
+    turn(QD_K_2, -1);
+    CHECK(R(0, 0).type == QD_TRIG_NOTE, "KNOB 2 down: TIE off (NOTE)");
+    turn(QD_K_1, 2);
+    CHECK(R(0, 0).len == QD_LEN_1 + 2 && OV(0, 0, QD_PM_LEN), "KNOB 1: the length (2 steps)");
+    turn(QD_K_SELECT, -1);
+    CHECK(R(0, 0).len == QD_LEN_1 + 1 && A.ui.page[0] == 0, "SELECT: the length too, no page change");
+    wrel(0);
+    mode(M_MICRO);
+    whold(0);
+    turn(QD_K_2, 5);
+    CHECK(R(0, 0).strum == 5, "MICRO, KNOB 2: the strum (5/24)");
+    wrel(0);
+    mode(M_RATCH);
+    whold(0);
+    turn(QD_K_1, 3);
+    turn(QD_K_2, 2);
+    CHECK(R(0, 0).ratch == 4 && R(0, 0).ramp == QD_RAMP_DOWN, "RATCH, KNOB 1: x4, KNOB 2: the ramp DOWN");
+    wrel(0);
+    mode(M_CHNC);
+    whold(0);
+    turn(QD_K_1, -30);
+    turn(QD_K_2, 1);
+    CHECK(R(0, 0).chance == 70 && R(0, 0).cond == QD_COND_FILL, "CHNC, KNOB 1: 70 %%, KNOB 2: the condition FILL");
+    wrel(0);
+    mode(M_VEL);
+    whold(0);
+    turn(QD_K_1, -20);
+    CHECK(R(0, 0).vel == 80 && A.ui.tk == QD_TK_HELDKNOB && qd_view_screen(&A) == QD_SCR_HELD,
+          "VEL, KNOB 1: 80, the band over VEL's screen");
+    wrel(0);
+    CHECK(A.ui.tk == QD_TK_NONE, "the step let go: its band goes");
+    printf("  knobs, a step held: %d of %d (mode, knob) rows change exactly their value\n", ok,
+           (int)(sizeof HELD_ROWS / sizeof HELD_ROWS[0]));
+}
+
+/* the knob layout with nothing held: the same knobs on the track's defaults; SELECT the page */
+static const struct {
+    int mode, knob, d;
+    unsigned want, trk;                                 /* the defaults' change; the track's sound */
+} DEF_ROWS[] = {
+    {M_NOTE, QD_K_1, 1, X_NOTE, 0}, {M_NOTE, QD_K_2, 2, X_NOTE, 0}, {M_NOTE, QD_K_3, 3, X_NOTE, 0},
+    {M_NOTE, QD_K_4, 4, X_NOTE, 0},
+    {M_VEL, QD_K_1, 1, X_VEL, 0}, {M_VEL, QD_K_2, 1, 0, 0}, {M_VEL, QD_K_3, 1, 0, 0}, {M_VEL, QD_K_4, 1, 0, 0},
+    {M_LEN, QD_K_1, 1, X_LEN, 0}, {M_LEN, QD_K_2, 1, X_TYPE, 0}, {M_LEN, QD_K_3, 1, 0, 0}, {M_LEN, QD_K_4, 1, 0, 0},
+    {M_MICRO, QD_K_1, 1, X_MICRO, 0}, {M_MICRO, QD_K_2, 1, X_STRUM, 0}, {M_MICRO, QD_K_3, 1, 0, 0},
+    {M_MICRO, QD_K_4, 1, 0, 0},
+    {M_RATCH, QD_K_1, 1, X_RATCH, 0}, {M_RATCH, QD_K_2, 1, X_RAMP, 0}, {M_RATCH, QD_K_3, 1, 0, 0},
+    {M_RATCH, QD_K_4, 1, 0, 0},
+    {M_CHNC, QD_K_1, -1, X_CHANCE, 0}, {M_CHNC, QD_K_2, 1, X_COND, 0}, {M_CHNC, QD_K_3, 1, 0, 0},
+    {M_CHNC, QD_K_4, 1, 0, 0},
+    {M_COND, QD_K_1, 1, X_COND, 0}, {M_COND, QD_K_2, -1, X_CHANCE, 0}, {M_COND, QD_K_3, 1, 0, 0},
+    {M_COND, QD_K_4, 1, 0, 0},
+    {M_TRIG, QD_K_1, 1, X_TYPE, 0}, {M_TRIG, QD_K_2, 1, 0, 0}, {M_TRIG, QD_K_3, 1, 0, 0}, {M_TRIG, QD_K_4, 1, 0, 0},
+    {M_SOUND, QD_K_1, 1, 0, X_TRK}, {M_SOUND, QD_K_2, 1, 0, 0}, {M_SOUND, QD_K_3, 1, 0, 0},
+    {M_SOUND, QD_K_4, 1, 0, 0},
+};
+static void g_knobs_default(void)
+{
+    size_t i;
+    int ok = 0, m;
+    start();
+    wtap(0);                                            /* step 1: no overrides, it follows the defaults */
+    wtap(1);
+    mode(M_VEL);
+    whold(1);
+    black(B10);                                         /* step 2 overrides VEL */
+    wrel(1);
+    base_p = *PAT();
+    base_t = A.model.t[0];
+    for (i = 0; i < sizeof DEF_ROWS / sizeof DEF_ROWS[0]; i++) {
+        unsigned got, defm;
+        mode(DEF_ROWS[i].mode);
+        snap();
+        turn(DEF_ROWS[i].knob, DEF_ROWS[i].d);
+        got = changed(0, &defm);
+        CHECK(defm == DEF_ROWS[i].want && got == (DEF_ROWS[i].want | DEF_ROWS[i].trk) &&
+                  (DEF_ROWS[i].want || DEF_ROWS[i].trk ? A.ui.tk == QD_TK_DEFAULT : A.ui.tk == QD_TK_NONE),
+              "%s, nothing held, %s %+d: the defaults %#x (want %#x), step 1 / the rest %#x, tk %d",
+              UI_FIELD_NAME[DEF_ROWS[i].mode], KNAME(DEF_ROWS[i].knob), DEF_ROWS[i].d, defm, DEF_ROWS[i].want, got,
+              A.ui.tk);
+        ok += defm == DEF_ROWS[i].want && got == (DEF_ROWS[i].want | DEF_ROWS[i].trk);
+        run(QD_TK_MS + QD_TK_FADE_MS + 5);
+        *PAT() = base_p;
+        A.model.t[0] = base_t;
+    }
+    mode(M_VEL);
+    turn(QD_K_1, -30);
+    CHECK(PAT()->trk[0].def.vel == 70 && R(0, 0).vel == 70 && R(0, 1).vel == 127, "VEL, KNOB 1: the default 70; step 2 "
+          "(its own 127) stays");
+    CHECK(qd_view_screen(&A) == QD_SCR_LANE && A.ui.tk == QD_TK_DEFAULT && A.ui.tk_src == QD_K_1,
+          "the default's band over the lane (KNOB 1)");
+    mode(M_NOTE);
+    turn(QD_K_1, 4);
+    turn(QD_K_2, 6);                                    /* (+1 +2 +3 +5 +6 +7: +4 is note 2's, skipped) */
+    CHECK(PAT()->trk[0].def.note[1] == 4 && PAT()->trk[0].def.note[2] == 7 && R(0, 0).nn == 3 &&
+              R(0, 0).notes[2] == 67,
+          "NOTE, KNOB 1 / 2: the default chord's notes 2 and 3 (C E G)");
+    for (m = 0; m < 9; m++) {
+        int pg;
+        mode(m);
+        pg = A.ui.page[0];
+        turn(QD_K_SELECT, 1);
+        CHECK(A.ui.page[0] == pg + 1, "%s, nothing held: SELECT = the page", UI_FIELD_NAME[m]);
+        turn(QD_K_SELECT, -1);
+    }
+    printf("  knobs, nothing held: %d of %d (mode, knob) rows change exactly the track's default\n", ok,
+           (int)(sizeof DEF_ROWS / sizeof DEF_ROWS[0]));
+}
+
+/* P-LOCK, nothing held: KNOB 1..4 the track's sound, PRESETS its sound, ALGORITHM the track (its chooser), SELECT the
+ * page */
+static void g_plock_track(void)
+{
+    qd_pattern_t before;
+    int dec;
+    start();
+    black(B11);
+    before = *PAT();
+    turn(QD_K_ALGO, 2);
+    CHECK(A.sel == 2 && A.ui.tk == UI_TK_TRACK && A.ui.hmode == UI_F_PLOCK, "P-LOCK, ALGORITHM +2: track 3, the track "
+          "chooser, still P-LOCK");
+    turn(QD_K_ALGO, -9);
+    CHECK(A.sel == 0, "ALGORITHM down: track 1 (the first)");
+    turn(QD_K_ALGO, 20);
+    CHECK(A.sel == 7, "ALGORITHM up: track 8 (the last)");
+    turn(QD_K_ALGO, -7);
+    dec = A.model.t[0].patch[QD_QP_EDEC];
+    turn(QD_K_2, 3);
+    CHECK(A.model.t[0].patch[QD_QP_EDEC] == dec + 3 &&
+              A.ui.tk == UI_TK_DECAY && !memcmp(&before, PAT(), sizeof before),
+          "KNOB 2: the track's DECAY, live (the pattern untouched)");
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.tk == QD_TK_PRESET && !A.ui.tk_lock, "PRESETS: the track's sound");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "SELECT: the page");
+}
+
+/* SEQ + B1..B4: the banks; the W keys, the LEDs and the map follow the bank */
+static void g_banks(void)
+{
+    qd_leds_t l;
+    start();
+    bdown(QD_B_MIX);
+    run(30);
+    l = leds();
+    CHECK(A.ui.seq_bank == 0 && l.key[BK(B1)] == QD_LED_LIT && l.key[BK(B3)] == QD_LED_OFF,
+          "SEQ held: bank A lit, the empty banks off");
+    black(B2);
+    l = leds();
+    CHECK(A.ui.seq_bank == 1 && l.key[BK(B2)] == QD_LED_LIT && l.key[BK(B1)] == QD_LED_DIM &&
+              l.key[BK(B4)] == QD_LED_OFF && l.key[WK(0)] == QD_LED_OFF,
+          "SEQ + B2: bank B lit, A (content) dim, D off; B's patterns empty: W1 off");
+    wtap(2);
+    l = leds();
+    CHECK(A.seq.cur == 18 && l.key[WK(2)] == QD_LED_LIT && qd_view_screen(&A) == QD_SCR_SEQ,
+          "SEQ + W3 in bank B, stopped: B03 at once (lit)");
+    black(B5);
+    CHECK(A.ui.seq_bank == 1, "SEQ + B5: nothing");
+    bup(QD_B_MIX);
+    run(10);
+    wtap(0);
+    CHECK(R(0, 0).on && A.seq.cur == 18, "B03 is edited (W1 a trig on it)");
+    btap(QD_B_PLAY);
+    run(300);
+    bdown(QD_B_MIX);
+    black(B4);
+    kdown(WK(15));
+    run(401);
+    kup(WK(15));
+    run(200);
+    CHECK(A.seq.cur == 63, "bank D, W16 held: D16 at once (%d)", A.seq.cur);
+    black(B1);
+    ktap(WK(0), 30);
+    CHECK(qd_seq_queued(&A.seq) == 0, "bank A, W1 tapped: A01 queued");
+    bup(QD_B_MIX);
+    btap(QD_B_PLAY);
+}
+
+/* the stopped preview: a held step sounds (notes, velocity, sound, locks, mix, the track's limit), re-struck by an
+ * edit, released with its key; several together; nothing while playing; nothing written */
+static const qd_pool_voice_t *voice_of(int note)        /* the gated voice of track 1 on note */
+{
+    int k;
+    for (k = 0; k < A.pool.nvoice; k++)
+        if (qd_pool_sounding(&A.pool, k) && A.pool.v[k].q.gate && A.pool.v[k].q.note == note &&
+            A.pool.v[k].track == 0)
+            return &A.pool.v[k];
+    return 0;
+}
+static void g_preview(void)
+{
+    qd_pattern_t before;
+    qd_seq_t seq0;
+    uint32_t pv;
+    const qd_pool_voice_t *v;
+    start();
+    wtap(0);
+    wtap(4);
+    wtap(8);
+    mode(M_VEL);
+    pv = A.player.previews;
+    kdown(WK(0));
+    run(200);
+    CHECK(!sounding(60), "pending (200 ms): no preview yet");
+    run(100);
+    v = voice_of(60);
+    CHECK(v && v->q.vel == 100 && A.player.previews == pv + 1, "held, stopped: step 1 sounds (C4, velocity 100)");
+    black(B10);
+    v = voice_of(60);
+    CHECK(v && v->q.vel == 127 && A.player.previews == pv + 2, "an edit (VEL 127): re-struck at 127");
+    turn(QD_K_1, -27);
+    v = voice_of(60);
+    CHECK(v && v->q.vel == 100 && A.player.previews == pv + 3, "KNOB 1: re-struck at 100");
+    kup(WK(0));
+    run(10);
+    CHECK(!sounding(60) && !A.ui.pvs_n, "released with the key");
+    /* the sound lock, a p-lock, a mix lock, the track's limit */
+    qd_step_set_sound(PAT(), 0, 4, QD_SND_KICK);
+    qd_lock_set(PAT(), 0, 4, QD_QP_HARM, 300);
+    qd_lock_set(PAT(), 0, 4, QD_LK_PAN, -30);
+    qd_step_set_vel(PAT(), 0, 4, 90);
+    PAT()->trk[0].limit = 3;
+    before = *PAT();
+    seq0 = A.seq;
+    whold(4);
+    v = voice_of(60);
+    {
+        int16_t patch[QD_QUAD_NP];
+        int ok = v != 0;
+        if (v) {
+            qd_player_voice_patch(&A.pool, (int)(v - A.pool.v), patch);
+            ok = patch[QD_QP_HARM] == 300 && patch[QD_QP_FREQ] == qd_sound_patch(&A.proj, QD_SND_KICK)[QD_QP_FREQ] &&
+                 patch[QD_QP_ALGO] == qd_sound_patch(&A.proj, QD_SND_KICK)[QD_QP_ALGO] && v->q.vel == 90 &&
+                 (v->at.mixm & 1u) && v->at.mixv[0] == -30;
+        }
+        CHECK(ok && A.pool.limit[0] == 3, "step 5: the KICK, its HARM lock, its pan lock, velocity 90, the track's "
+              "limit 3");
+    }
+    run(500);
+    wrel(4);
+    CHECK(!memcmp(&before, PAT(), sizeof before), "held, previewed and let go: the pattern unchanged");
+    CHECK(seq0.resolved == A.seq.resolved && seq0.played == A.seq.played && seq0.nev == A.seq.nev &&
+              seq0.serial == A.seq.serial && seq0.pos == A.seq.pos && !A.seq.playing &&
+              !memcmp(seq0.cur_t, A.seq.cur_t, sizeof seq0.cur_t),
+          "the sequencer's state unchanged");
+    /* several held: together; one let go, the other sounds on (a shared note too) */
+    qd_step_set_sound(PAT(), 0, 4, 0);
+    {
+        static const uint8_t E4 = 64;
+        qd_step_set_notes(PAT(), 0, 4, &E4, 1);
+    }
+    kdown(WK(0)), kdown(WK(4)), kdown(WK(8));
+    run(300);
+    CHECK(sounding(60) && sounding(64) && A.ui.pvs_n == 3, "three held: C4 (steps 1, 9) and E4 (step 5) together");
+    kup(WK(4));
+    run(10);
+    CHECK(sounding(60) && !sounding(64), "step 5 let go: E4 stops, C4 sounds on");
+    kup(WK(0));
+    run(10);
+    CHECK(sounding(60), "step 1 let go: C4 sounds on (step 9 plays it too)");
+    kup(WK(8));
+    run(10);
+    CHECK(!sounding(60), "the last let go: silence");
+    /* a LOCK step: nothing */
+    mode(M_TRIG);
+    whold(8);
+    black(B2);
+    CHECK(!sounding(60), "a LOCK step: no note");
+    wrel(8);
+    /* playing: no preview; PLAY while previewing ends it */
+    mode(M_VEL);
+    whold(0);
+    CHECK(sounding(60), "held: sounding");
+    btap(QD_B_PLAY);
+    CHECK(!A.ui.pvs_n, "PLAY: the preview released");
+    wrel(0);
+    pv = A.player.previews;
+    whold(4);
+    black(B3);
+    wrel(4);
+    CHECK(A.player.previews == pv, "playing: holding and editing a step previews nothing");
+    btap(QD_B_PLAY);
+}
+
+/* F3 latched: open with both, used, closed with OCT- (nothing leaks into F1) or HOME; OCT+ does nothing */
+static void g_f3_latch(void)
+{
+    qd_tset_t *ts;
+    int bpm;
+    start();
+    ts = &PAT()->trk[0];
+    f3_down();
+    bup(F2), bup(F1);
+    run(100);
+    CHECK(A.ui.latch == QD_LATCH_F3 && qd_ctl_layer(&A) == QD_LAYER_F3 && qd_view_screen(&A) == QD_SCR_LAYER &&
+              qd_ctl_layer_shown(&A) == QD_LAYER_F3 && leds().button[F1] == QD_LED_LIT &&
+              leds().button[F2] == QD_LED_OFF,
+          "both pressed together, let go: F3 stays open (its map; OCT- lit, OCT+ off)");
+    black(B4), black(B9);
+    CHECK(ts->rbase == 3 && ts->rtype == QD_RTYPE_DOTTED, "open: B4, B9 = dotted 1/8");
+    wtap(11);
+    CHECK(ts->pend[0] == 11, "open: W12 = the page's end");
+    turn(QD_K_3, 2);
+    CHECK(ts->pstart[0] == 2, "open: KNOB 3 = the start");
+    bpm = A.bpm;
+    turn(QD_K_SELECT, 3);
+    bdown(SHIFT);
+    turn(QD_K_SELECT, 4);
+    bup(SHIFT);
+    CHECK(A.bpm == bpm + 3 && PAT()->swing == 54, "open: SELECT the tempo, SHIFT + SELECT the swing");
+    btap(F2);
+    CHECK(A.ui.latch == QD_LATCH_F3 && !A.ui.f2_loaded, "OCT+ (confirm, reserved): nothing, still open");
+    bdown(F1);
+    run(100);
+    CHECK(!A.ui.latch && qd_ctl_layer(&A) == QD_LAYER_NONE && qd_ctl_layer_shown(&A) == QD_LAYER_NONE &&
+              qd_view_screen(&A) == QD_SCR_LANE,
+          "OCT-: closed; while it is still down it is no F1 (no map)");
+    wtap(0);
+    CHECK(R(0, 0).on && !A.ui.f1_copied, "W1 then: a plain tap (a trig), no F1 copy");
+    bup(F1);
+    run(10);
+    bdown(F1);
+    run(100);
+    CHECK(qd_ctl_layer_shown(&A) == QD_LAYER_F1, "F1 pressed afresh: F1 again");
+    bup(F1);
+    run(10);
+    f3_down();
+    bup(F2), bup(F1);
+    run(10);
+    btap(QD_B_HOME);
+    CHECK(!A.ui.latch && qd_ctl_layer(&A) == QD_LAYER_NONE, "HOME closes it");
+    f3_down();
+    bup(F2), bup(F1);
+    run(10);
+    btap(F1);
+    bdown(F2);
+    run(100);
+    wtap(3);
+    CHECK(qd_ctl_layer(&A) == QD_LAYER_F2 && A.ui.f2_loaded && A.ui.f2_last_act == 1,
+          "after it: F2 afresh is F2 (W4 cut)");
+    bup(F2);
+    run(10);
+}
+
+/* the step latch (LFO): as if a step is always held; a W tap selects; edits, screens and the preview act on the
+ * selection; LFO again or HOME end it, OCT- does not */
+static void g_step_latch(void)
+{
+    int k, on = 0, off = 0;
+    start();
+    wtap(2);                                            /* step 3: the last edited */
+    mode(M_VEL);
+    btap(LFO);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 2 && leds().button[LFO] == QD_LED_LIT &&
+              qd_view_screen(&A) == QD_SCR_HELD,
+          "LFO: the latch on (lit), step 3 (the last edited) selected, its screen");
+    CHECK(sounding(60), "stopped: the selection previews");
+    wtap(5);
+    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 5 && !R(0, 5).on && R(0, 2).on, "W6 tapped: selected (no trig made); "
+          "step 3 kept its trig");
+    wtap(2);
+    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 2 && R(0, 2).on, "W3 tapped: selected, not removed");
+    kdown(WK(0));
+    run(20);
+    kdown(WK(4));
+    run(20);
+    kup(WK(0)), kup(WK(4));
+    run(20);
+    CHECK(A.ui.nheld == 2 && A.ui.held[0] == 0 && A.ui.held[1] == 4 && !R(0, 0).on && !R(0, 4).on,
+          "W1 held, W5 pressed: both selected, no trigs");
+    black(B10);
+    CHECK(R(0, 0).vel == 127 && R(0, 4).vel == 127 && R(0, 0).on && R(0, 4).on && R(0, 2).vel == 100,
+          "B10: velocity 127 on the selection (each a trig now); step 3 not selected, unchanged");
+    turn(QD_K_1, -7);
+    CHECK(R(0, 0).vel == 120 && R(0, 4).vel == 120 && A.ui.tk == QD_TK_HELDKNOB, "KNOB 1: 120 on both, the band");
+    CHECK(sounding(60) && A.ui.pvs_n == 2, "the selection previews (both)");
+    for (k = 0; k < 400; k++) {
+        run(1);
+        on += leds().key[WK(4)] == QD_LED_LIT;
+        off += leds().key[WK(4)] == QD_LED_OFF;
+    }
+    CHECK(on > 100 && off > 100, "a selected step's key blinks (%d on, %d off)", on, off);
+    btap(F1);
+    CHECK(A.ui.slatch && A.ui.nheld == 2, "OCT-: not an exit (the latch stays)");
+    btap(LFO);
+    CHECK(!A.ui.slatch && !A.ui.nheld && leds().button[LFO] == QD_LED_OFF && !sounding(60) &&
+              qd_view_screen(&A) == QD_SCR_LANE,
+          "LFO again: off, nothing selected, silence, the lane");
+    btap(LFO);
+    CHECK(A.ui.slatch && A.ui.held[0] == 4, "on again: it starts on the last step edited (5)");
+    bdown(QD_B_PATTERN);                                /* another track: its own selection (none edited: step 1) */
+    black(B2);
+    bup(QD_B_PATTERN);
+    run(10);
+    CHECK(A.sel == 1 && A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 0, "track 2: step 1 selected");
+    btap(QD_B_HOME);
+    CHECK(!A.ui.slatch && !A.ui.nheld, "HOME: off");
 }
 
 /* ================================================================ program a beat === */
@@ -1534,6 +2073,24 @@ static void beat_by_panel(void)
     run(10);
     turn(QD_K_4, 1);
     wrel(8);
+    /* P1.3d: knob edits (§8b 2.2) on KEYS: a default by a knob (MICRO, KNOB 2: the strum 2), a step's value by KNOB 1
+     * (VEL: step 1 at 90), an extra by KNOB 2 (RATCH: step 9 x2, ramp DOWN); the step latch for one edit (LFO, W5
+     * selected, B4 in RATCH: x4; LFO off) */
+    mode(M_MICRO);
+    turn(QD_K_2, 2);
+    mode(M_VEL);
+    whold(0);
+    turn(QD_K_1, -10);
+    wrel(0);
+    mode(M_RATCH);
+    whold(8);
+    turn(QD_K_1, 1);
+    turn(QD_K_2, 2);
+    wrel(8);
+    btap(QD_B_MUTE);
+    wtap(4);
+    black(B4);
+    btap(QD_B_MUTE);
     bdown(QD_B_PATTERN);                                /* P1.3c: SEL + W8 tapped: track 8 muted */
     wtap(7);
     bup(QD_B_PATTERN);
@@ -1580,6 +2137,10 @@ static void beat_by_api(void)
         qd_step_set_notes(p, 2, 8, FIVE, 5);
         qd_step_set_offset(p, 2, 8, 4, 10);
     }
+    qd_tdef_set(p, 2, QD_PM_STRUM, 2);                  /* P1.3d: the knob edits and the latch's */
+    qd_step_set_vel(p, 2, 0, 90);
+    qd_step_set_ratchet(p, 2, 8, 2, QD_RAMP_DOWN);
+    qd_step_set_ratchet(p, 2, 4, 4, QD_RAMP_FLAT);
     A.seq.mute = 0x80;
 }
 
@@ -1643,6 +2204,10 @@ static void t_beat(void)
               "heard: the default velocity 80 (%d), the override 127 (%d), the ratchet's hits off the grid (%d), "
               "page 2's steps right after page 1 (%d), the bass on its new default C2 (%d) and its own G2 (%d)", v80,
               v127, rat, page2, bass36, bass43);
+        CHECK(panel.trk[2].def.strum == 2 && panel.step[2][0].vel == 90 && qd_ratch_ramp(panel.step[2][8].ratch) ==
+                  QD_RAMP_DOWN && qd_ratch_count(panel.step[2][4].ratch) == 4 && (panel.step[2][4].flags & QD_SF_ON),
+              "P1.3d: a default by KNOB 2 (strum 2), a value by KNOB 1 (90), an extra by KNOB 2 (ramp DOWN), the "
+              "step latch's x4 on step 5");
         CHECK(panel.step[0][4].sound == QD_SND_SNARE && panel.step[2][0].note[2] == 7 &&
                   panel.step[0][15].cond == qd_cond_ab(1, 2) && !(panel.step[0][14].flags & QD_SF_ON),
               "a pool sound lock, a chord, a condition (moved by F2 from step 15 to 16)");
@@ -1655,7 +2220,8 @@ static void t_beat(void)
         }
         printf("  beat: by panel presses only, a pattern with page 2's own 3..12, a two-page loop, a pool sound "
                "lock, a velocity override, a ratchet, a condition moved by F2, a chord and a five-note chord, a P-LOCK lock, a "
-               "12-step track, two default changes and SEL's mute; "
+               "12-step track, two default changes, P1.3d's knob edits (a default, a value, an extra) and a step-latch "
+               "edit, and SEL's mute; "
                "it equals the API-built one byte for byte, and its timeline (%d events, %d notes): %s\n", nev[0], ons,
                same ? "yes" : "NO");
     }
@@ -1815,6 +2381,13 @@ int main(void)
         {"the tracks screen", g_tracks_screen},
         {"MIDI notes into a held step", g_midi_held},
         {"the layer maps, SHIFT's map", g_maps},
+        {"P1.3d: the knob layout, a step held, every mode", g_knobs_held},
+        {"P1.3d: the knob layout, nothing held (defaults)", g_knobs_default},
+        {"P1.3d: P-LOCK, nothing held: ALGORITHM the track", g_plock_track},
+        {"P1.3d: SEQ + B1..B4 banks", g_banks},
+        {"P1.3d: the stopped preview", g_preview},
+        {"P1.3d: F3 latched: open, use, OCT- / HOME close", g_f3_latch},
+        {"P1.3d: the step latch (LFO)", g_step_latch},
     };
     size_t i;
     uint64_t h1, h2;

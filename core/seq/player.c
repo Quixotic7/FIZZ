@@ -179,6 +179,32 @@ void qd_player_key_off(qd_player_t *pl, int t, int note)
     qd_pool_note_off(pl->pool, t, note);
 }
 
+int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes)
+{
+    static qd_trec_t r;                                 /* (single-threaded, as the whole core) */
+    const qd_pattern_t *P;
+    const qd_tset_t *ts;
+    qd_rstep_t st;
+    int i, n = 0;
+    if (pat < 0 || pat >= QD_NPAT || t < 0 || t >= QD_PAT_NTRACK || s < 0 || s >= QD_NSTEP)
+        return 0;
+    P = &pl->seq->proj->pat[pat];
+    qd_step_resolve(P, t, s, &st);
+    if (!st.on || st.type == QD_TRIG_LOCK)
+        return 0;
+    qd_seq_step_rec(pl->seq, pat, t, s, &r);
+    ts = &P->trk[t];
+    qd_pool_set_track(pl->pool, t, ts->limit, ts->reserve);
+    for (i = 0; i < st.nn && i < QD_NNOTE; i++) {
+        const int note = st.notes[i] & 127;
+        qd_pool_note_on_at(pl->pool, t, &pl->model->t[t].owner, note, st.vel, r.patch, &r.at);
+        pl->last_on[t][note] = 0;
+        notes[n++] = (uint8_t)note;
+    }
+    pl->previews++;
+    return n;
+}
+
 void qd_player_live_edit(qd_player_t *pl, int t, int id, int value)
 {
     qd_track_t *tk;

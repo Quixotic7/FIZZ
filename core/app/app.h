@@ -34,7 +34,10 @@
  * SHIFT, REC switches the keybed between the sequencer and the keyboard, ARP held is FILL (ctl.h's header).
  * P1.3c (§8b version 2.1): five notes a step (NOTE's five knobs), the tracks on SEL held, the patterns on SEQ held (a
  * launch mode: END BAR BEAT NOW), F1's page layer and quick step copy / paste, F2's pick-up / drop (Form's), P-LOCK on
- * B11, F3's rate as a note value and a type (21 rates; QD_TPS 100800), the octave takeover and the OCT LEDs. */
+ * B11, F3's rate as a note value and a type (21 rates; QD_TPS 100800), the octave takeover and the OCT LEDs.
+ * P1.3d (§8b version 2.2): the knobs take over the hold modes (and the track's defaults with nothing held), P-LOCK's
+ * ALGORITHM chooses the track, LOCKS dropped (B10 reserved), banks on SEQ + B1..B4, the stopped preview (the held steps
+ * sound: qd_ctl_preview_sync after every input and millisecond), F3 latched (OCT- exits), the step latch on LFO. */
 #pragma once
 #include <stdint.h>
 

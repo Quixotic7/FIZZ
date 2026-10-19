@@ -20,7 +20,9 @@
  *                     with an orange cross, a soloed one an S in a yellow ring (blinking), the waves lit by a trig
  *                     just now; the strip: 1..8 select, B11 CLR (lit while a mute or solo is set)
  *   SEQ · PATTERNS    (ui_patterns_draw, line.html s13 simpler) the queued pattern big (else the playing one),
- *                     A01..A16 as dots, a line emptying to the change, the launch mode
+ *                     the bank shown's sixteen as dots, a line emptying to the change, the launch mode; P1.3d: the
+ *                     banks A..D (B1..B4) under the dots, the one shown boxed
+ *   (P1.3d: F3 latched shows "OCT- EXIT" top right of its map)
  *   SHIFT             the context at the right, then a row a key: the key white, an arrow, what it does grey */
 #include <math.h>
 
@@ -134,7 +136,7 @@ static void hand_card(const ui_layer_t *v, float x, float y, float w, float h)
     if (v->clip_type == 0) {
         ui_T("EMPTY STEP", x + w / 2.f, y + h / 2.f + 8.f, 11.f, 600, 1.f, UI_K3, QD_CENTER);
     } else if (v->clip_type == 2) {                     /* a LOCK step: a padlock */
-        ui_lock(x + w / 2.f - 7.f, y + h / 2.f - 4.f, UI_MODE_COL[UI_F_LOCKS], 2.f);
+        ui_lock(x + w / 2.f - 7.f, y + h / 2.f - 4.f, UI_MODE_COL[UI_F_PLOCK], 2.f);
         ui_lab("LOCK STEP", x + w / 2.f, y + h - 6.f, UI_G1, QD_CENTER);
     } else {                                            /* its notes on a little keybed */
         qd_rgb fill[128];
@@ -300,7 +302,15 @@ void ui_layer_draw(const ui_layer_t *v)
     static const char *const T[4] = {"F1 \xc2\xb7 PAGES", "F2 \xc2\xb7 CUT & PASTE", "F3 \xc2\xb7 RANGE & RATE",
                                      "SEL \xc2\xb7 TRACKS"};
     const int l = v->layer < 1 ? 1 : v->layer > 4 ? 4 : v->layer;
-    ui_head_track(T[l - 1], v->track, v->name ? v->name : "", UI_K3);
+    if (l == 3 && v->latched) {                         /* P1.3d: a latched menu: the track's box, "OCT- EXIT" */
+        const char *ex = "OCT\xe2\x88\x92 EXIT";
+        const float w = ui_TW(ex, 7.f, 600, 1.f) + 8.f;
+        ui_head_track(T[l - 1], v->track, "", UI_K3);
+        ui_RR(206.f - w, 6.f, w, 13.f, 3.f, UI_K3, 1.f, QD_NONE);
+        ui_T(ex, 206.f - w / 2.f + 0.5f, 15.f, 7.f, 600, 1.f, UI_K3, QD_CENTER);
+    } else {
+        ui_head_track(T[l - 1], v->track, v->name ? v->name : "", UI_K3);
+    }
     if (l == 1)
         f1(v);
     else if (l == 2)
@@ -315,16 +325,20 @@ void ui_layer_draw(const ui_layer_t *v)
 void ui_patterns_draw(const ui_patterns_t *v)
 {
     static const char *const LAUNCH[4] = {"END", "BAR", "BEAT", "NOW"};
+    static const char *const BANK[4] = {"A", "B", "C", "D"};
+    const int bank = v->bank < 0 ? 0 : v->bank > 3 ? 3 : v->bank;
     const int big = v->queued >= 0 ? v->queued : v->cur;
-    char s[8], n[12];
+    char s[8], n[12], hb[8];
     int i;
 
-    ui_head("PATTERNS", "BANK A", 0, UI_K3, UI_G1);
+    hb[0] = 0;
+    cat(cat(hb, "BANK "), BANK[bank]);
+    ui_head("PATTERNS", hb, 0, UI_K3, UI_G1);
     s[0] = 0;                                           /* the queued one big (orange), else the playing one */
-    if (big + 1 < 10)
+    if ((big & 15) + 1 < 10)
         cat(s, "0");
-    cat(s, ui_itoa(n, big + 1));
-    ui_T("A", 12.f, 100.f, 40.f, 200, 0.f, UI_G1, QD_LEFT);
+    cat(s, ui_itoa(n, (big & 15) + 1));
+    ui_T(BANK[(big >> 4) & 3], 12.f, 100.f, 40.f, 200, 0.f, UI_G1, QD_LEFT);
     ui_T(s, 40.f, 100.f, 64.f, 200, 0.f, v->queued >= 0 ? UI_K4 : UI_K3, QD_LEFT);
     if (v->queued >= 0) {
         ui_lab(v->playing ? "QUEUED" : "NEXT AT PLAY", 14.f, 124.f, UI_G1, QD_LEFT);
@@ -334,16 +348,27 @@ void ui_patterns_draw(const ui_patterns_t *v)
     } else {
         ui_lab(v->playing ? "PLAYING" : "STOPPED", 14.f, 124.f, UI_G1, QD_LEFT);
     }
-    for (i = 0; i < 16; i++) {                          /* bank A: sixteen dots */
-        const float x = 148.f + (float)(i % 4) * 22.f, y = 50.f + (float)(i / 4) * 22.f;
-        if (i == v->cur)
+    for (i = 0; i < 16; i++) {                          /* the bank shown: sixteen dots */
+        const int k = bank * 16 + i;
+        const float x = 148.f + (float)(i % 4) * 22.f, y = 42.f + (float)(i / 4) * 20.f;
+        if (k == v->cur)
             ui_O(x, y, 6.5f, QD_NONE, 1.f, UI_K3);
-        else if (i == v->queued)
+        else if (k == v->queued)
             ui_O(x, y, 6.5f, v->blink ? UI_K4 : UI_G2, 1.5f, UI_BG);
         else if ((v->used >> i) & 1u)
             ui_O(x, y, 6.5f, UI_G1, 1.2f, UI_BG);
         else
             ui_O(x, y, 1.5f, QD_NONE, 1.f, UI_G2);
+    }
+    for (i = 0; i < 4; i++) {                           /* the banks (SEQ + B1..B4): the one shown boxed */
+        const float x = 148.f + (float)i * 22.f, y = 132.f;
+        const int on = i == bank, has = (v->bank_used >> i) & 1u;
+        const int playing_here = (v->cur >> 4) == i;
+        if (on)
+            ui_RR(x - 8.f, y - 11.f, 16.f, 16.f, 4.f, UI_K3, 1.2f, QD_NONE);
+        ui_T(BANK[i], x, y + 1.f, 11.f, on ? 600 : 400, 0.f, on || has ? UI_K3 : UI_G2, QD_CENTER);
+        if (playing_here)                               /* the playing pattern's bank: a dot under it */
+            ui_O(x, y + 9.f, 1.3f, QD_NONE, 1.f, UI_K3);
     }
     ui_lab("LAUNCH", 14.f, 162.f, UI_G1, QD_LEFT);      /* the launch mode (ALGORITHM), the one in use white */
     ui_knob_mark(68.f, 159.f, (float)v->launch / 3.f, UI_G1);
@@ -354,8 +379,9 @@ void ui_patterns_draw(const ui_patterns_t *v)
         if (i == v->launch)
             line2(x - 10.f, 191.f, x + 10.f, 191.f, UI_K3, 1.5f);
     }
-    legend("W", "TAP: QUEUE \xc2\xb7 HOLD: AT ONCE", 210.f, 0);
-    legend("ALGORITHM", "THE LAUNCH MODE", 222.f, 1);
+    legend("W", "TAP: QUEUE \xc2\xb7 HOLD: AT ONCE", 207.f, 0);
+    legend("B1\xe2\x80\x93" "B4", "BANK A\xe2\x80\x93" "D", 219.f, 0);
+    legend("ALGORITHM", "THE LAUNCH MODE", 231.f, 1);
 }
 
 /* ---------------------------------------------------------------- SHIFT */

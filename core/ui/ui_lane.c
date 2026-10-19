@@ -27,7 +27,6 @@
  *          its name's letters stacked; ALWAYS a dot
  *   TRIG   NOTE a dot, LOCK a padlock, TIE a slur from the step before
  *   SOUND  a dot a step (the track's sound grey), a sound lock's pool number under its dot
- *   LOCKS  the step's p-locks as a stack of little blocks, the count over it
  *   P-LOCK (P1.3c, B11) the NOTE roll, the steps with p-locks in the padlock's colour, and under each column a padlock
  *          with its lock count (a held step's column outlined white: holding keeps this screen, the knobs lock it)
  * A LOCK step (trigless) in NOTE, VEL, LEN, MICRO and RATCH is a small ring: it plays no note. */
@@ -59,8 +58,11 @@ static void dashed(float x0, float y0, float x1, float y1, qd_rgb col)
     qd_restore();
 }
 
+/* the default's colour: grey, or (P1.3d) the mode's while a knob turns the default */
+static qd_rgb def_col = UI_G1;
+
 /* the default's dashed line across the page */
-static void def_line(float y) { dashed(col_x(0), y, XEND, y, UI_G1); }
+static void def_line(float y) { dashed(col_x(0), y, XEND, y, def_col); }
 
 /* the sequencer's ramp (core/seq/seq.c ramp_vel): hit h of n at velocity v; ramp 0 flat, 1 up, 2 down, 3 accent */
 static int ramp_vel(int v, int ramp, int h, int n)
@@ -170,7 +172,7 @@ static void l_note(const ui_lane_t *v)
         if (c->sound)
             ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_MODE_COL[UI_F_SOUND]), y += 4.5f;
         if (c->nlock)
-            ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_MODE_COL[UI_F_LOCKS]);
+            ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_MODE_COL[UI_F_PLOCK]);
     }
 }
 
@@ -249,7 +251,8 @@ static void l_micro(const ui_lane_t *v)
         if (!v->col[i].in_range)
             continue;
         line2(cx, foot - 3.f, cx, foot + 3.f, UI_G2, 1.f);
-        dashed(cx + (float)v->def_micro * k, top + 6.f, cx + (float)v->def_micro * k, foot, UI_G2);
+        dashed(cx + (float)v->def_micro * k, top + 6.f, cx + (float)v->def_micro * k, foot,
+               v->def_hot ? def_col : UI_G2);
     }
     for (i = 0; i < 16; i++) {
         const ui_lcol_t *c = &v->col[i];
@@ -413,29 +416,6 @@ static void l_sound(const ui_lane_t *v)
     }
 }
 
-/* ---------------------------------------------------------------- LOCKS: the count as a stack */
-static void l_locks(const ui_lane_t *v)
-{
-    const float foot = 198.f;
-    char s[12];
-    int i, k;
-    for (i = 0; i < 16; i++) {
-        const ui_lcol_t *c = &v->col[i];
-        const float cx = col_x(i) + 6.f;
-        const qd_rgb col = c->lit ? UI_K3 : c->nlock ? UI_MODE_COL[UI_F_LOCKS] : UI_G2;
-        const int n = c->nlock > 10 ? 10 : c->nlock;
-        if (!c->in_range || !c->on)
-            continue;
-        if (!n) {
-            ui_O(cx, foot, 1.6f, QD_NONE, 1.f, col);
-            continue;
-        }
-        for (k = 0; k < n; k++)
-            ui_RR(cx - 3.5f, foot - 2.f - (float)k * 8.f, 7.f, 5.f, 1.5f, QD_NONE, 1.f, col);
-        ui_T(ui_itoa(s, c->nlock), cx, foot - 7.f - (float)n * 8.f, 9.f, 600, 0.f, col, QD_CENTER);
-    }
-}
-
 /* ---------------------------------------------------------------- the lane */
 static void lane(const ui_lane_t *v)
 {
@@ -464,7 +444,6 @@ static void lane(const ui_lane_t *v)
     case UI_F_COND: l_cond(v); break;
     case UI_F_TRIG: l_trig(v); break;
     case UI_F_SOUND: l_sound(v); break;
-    case UI_F_LOCKS: l_locks(v); break;
     default: l_note(v); break;
     }
     if (ph >= 0 && ph < 16) {                           /* the playhead */
@@ -485,10 +464,10 @@ static void def_name(const ui_lane_t *v)
     if (v->mode == UI_F_NOTE || v->mode == UI_F_PLOCK || !v->def_label[0])
         return;
     if (sw) {
-        dashed(x, 219.f, x + 10.f, 219.f, UI_G1);
+        dashed(x, 219.f, x + 10.f, 219.f, def_col);
         x += 15.f;
     }
-    ui_lab(v->def_label, x, 222.f, UI_G1, QD_LEFT);
+    ui_lab(v->def_label, x, 222.f, def_col, QD_LEFT);
 }
 
 void ui_lane_draw(const ui_lane_t *v)
@@ -502,6 +481,7 @@ void ui_lane_draw(const ui_lane_t *v)
     m = *v;                                             /* the mode, made safe */
     m.mode = mode;
     v = &m;
+    def_col = v->def_hot ? UI_MODE_COL[mode] : UI_G1;
 
     ui_head(v->name, v->pattern, v->track, UI_K3, UI_G1);
     mx = 29.f + ui_TW(v->name, 11.f, 500, 1.f) + 6.f;    /* the mode, small in its colour after the name */
@@ -539,6 +519,10 @@ void ui_lane_draw(const ui_lane_t *v)
         lane(v);
     }
     def_name(v);
+    if (v->latch) {                                     /* P1.3d: the step latch, after the mode */
+        ui_lab("LATCH", mx + 6.f, 16.5f, UI_K3, QD_LEFT);
+        mx += 6.f + ui_TW("LATCH", 8.f, 600, 1.f);
+    }
     if (!v->follow) {                                   /* in the top line's gap, left of the tempo */
         const float r = 196.f - ui_TW(bpm, 11.f, 400, 0.f) - 8.f;
         if (r - ui_TW("FOLLOW OFF", 8.f, 600, 1.f) > mx + 4.f)

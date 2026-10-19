@@ -15,7 +15,10 @@
  *                   track's base and type lit, the others faint; B11 off
  *   SEL held        (P1.3c) B1..B8 the tracks: the selected lit, the others dim; W1..W8 lit = heard, off = not,
  *                   blinking = soloed; B11 lit while any mute or solo is set
- *   SEQ held        (P1.3c) the patterns with content dim, the playing one lit, the queued one blinking
+ *   SEQ held        (P1.3c) the patterns with content dim, the playing one lit, the queued one blinking; P1.3d: the
+ *                   bank shown's (SEQ + B1..B4), B1..B4 the banks: the one shown lit, one with content dim
+ *   P1.3d           B10 off in the step view (reserved); LFO lit while the step latch is on (its selection blinks as
+ *                   held steps do); a latched menu (F3): OCT- lit (back), OCT+ lit only when it confirms
  *   OCT- / OCT+     (P1.3c) where they are an octave (NOTE with a step held: octave 4 the centre; the keyboard: 0;
  *                   SOUND with a step held: the first bank): none blinks at the centre; below it OCT- blinks, above it
  *                   OCT+, a half period of 500 ms one away, 250 two, 125 three or more
@@ -142,8 +145,9 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     }
     {   /* the hold modes */
         const unsigned set = qd_step_modes_set(a, a->sel, page);
-        for (i = 0; i < UI_NFIELD; i++)                 /* (B11: P-LOCK, P1.3c) */
-            out->key[QD_BLACK_KEY[i]] = i == u->hmode ? QD_LED_LIT : ((set >> i) & 1u) ? QD_LED_DIM : QD_LED_FAINT;
+        for (i = 0; i < UI_NFIELD; i++)                 /* (B11: P-LOCK, P1.3c; B10 reserved, off: P1.3d) */
+            out->key[QD_BLACK_KEY[i]] = i == UI_F_B10 ? QD_LED_OFF : i == u->hmode ? QD_LED_LIT
+                                      : ((set >> i) & 1u) ? QD_LED_DIM : QD_LED_FAINT;
     }
 }
 
@@ -190,18 +194,25 @@ static void leds_sel(const qd_app_t *a, qd_leds_t *out)
     out->key[QD_BLACK_KEY[10]] = a->seq.mute || a->seq.solo ? QD_LED_LIT : QD_LED_OFF;
 }
 
+/* SEQ held: the bank shown's patterns on W1..W16; P1.3d: B1..B4 the banks, the one shown lit, one with content dim */
 static void leds_pattern(const qd_app_t *a, qd_leds_t *out)
 {
-    const int q = qd_seq_queued(&a->seq);
-    int i;
+    const int q = qd_seq_queued(&a->seq), bank = a->ui.seq_bank;
+    int i, b;
     for (i = 0; i < 16; i++) {
-        const int k = QD_WHITE_KEY[i];
-        if (i == a->seq.cur)
+        const int k = QD_WHITE_KEY[i], pat = bank * 16 + i;
+        if (pat == a->seq.cur)
             out->key[k] = QD_LED_LIT;
-        else if (i == q)
+        else if (pat == q)
             out->key[k] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
-        else if (a->proj.pat[i].used)
+        else if (a->proj.pat[pat].used)
             out->key[k] = QD_LED_DIM;
+    }
+    for (b = 0; b < QD_NBANK; b++) {
+        int used = 0;
+        for (i = 0; i < 16; i++)
+            used |= a->proj.pat[b * 16 + i].used;
+        out->key[QD_BLACK_KEY[b]] = b == bank ? QD_LED_LIT : used ? QD_LED_DIM : QD_LED_OFF;
     }
 }
 
@@ -242,6 +253,13 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_PAGE] = QD_LED_LIT;
     if (u->mode == QD_MODE_TRACKS)
         out->button[QD_B_TRACKS] = QD_LED_LIT;
+    if (u->slatch)                                      /* P1.3d: LFO lit while the step latch is on */
+        out->button[QD_B_MUTE] = QD_LED_LIT;
+    if (qd_latch_cur(a)) {                              /* P1.3d: a latched menu: OCT- (back) lit, OCT+ lit when it
+                                                         * confirms something */
+        out->button[QD_B_OCTDN] = QD_LED_LIT;
+        out->button[QD_B_OCTUP] = qd_latch_cur(a)->confirm ? QD_LED_LIT : QD_LED_OFF;
+    }
     if (a->playing) {
         const double into_beat_ms = (a->beats - floor(a->beats)) * 60000.0 / (double)a->bpm;
         out->play_green = into_beat_ms < (double)QD_BEAT_LED_MS ? QD_LED_LIT : QD_LED_OFF;

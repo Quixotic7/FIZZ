@@ -46,52 +46,6 @@ static void fmt_hundredths(char *out, int v, int dec)
     }
 }
 
-/* a lock's or a value's name: FM TONE's label, the envelopes told apart */
-static const char *value_name(int id)
-{
-    static const char *const MIX[6] = {"PAN", "DELAY", "REVERB", "CHORUS", "DRIVE", "LEVEL"};
-    static const char *const LFO[3] = {"LFO1 ", "LFO2 ", "LFO3 "};
-    static char buf[24];
-    if (id >= QD_QUAD_NP)
-        return id - QD_QUAD_NP < 6 ? MIX[id - QD_QUAD_NP] : "?";
-    switch (id) {
-    case QD_QP_FATK: return "FILT ATK";
-    case QD_QP_FDEC: return "FILT DEC";
-    case QD_QP_FSUS: return "FILT SUS";
-    case QD_QP_FREL: return "FILT REL";
-    case QD_QP_FDEPTH: return "FILT DEPTH";
-    case QD_QP_FDLY: return "FILT DELAY";
-    case QD_QP_EATK: return "AMP ATK";
-    case QD_QP_EDEC: return "DECAY";
-    case QD_QP_ESUS: return "AMP SUS";
-    case QD_QP_EREL: return "AMP REL";
-    default: break;
-    }
-    if (id >= QD_QP_LFO0 && id < QD_QP_LFO0 + 24) {
-        buf[0] = 0;
-        cat(cat(buf, LFO[(id - QD_QP_LFO0) / 8]), qd_quad_value_name(id));
-        return buf;
-    }
-    return qd_quad_value_name(id);
-}
-
-static void value_text(char *out, int id, int v)
-{
-    int16_t lo = 0, hi = 0;
-    char n[12];
-    qd_lock_range(id, &lo, &hi);
-    out[0] = 0;
-    if (id == QD_LK_PAN) {
-        cat(out, v < 0 ? "L" : v > 0 ? "R" : "C");
-        if (v)
-            cat(out, ui_itoa(n, v < 0 ? -v : v));
-    } else if (hi - lo > 1000) {
-        fmt_hundredths(out, v, 2);
-    } else {
-        cat(out, ui_itoa(n, v));
-    }
-}
-
 static float range01(int id, int v)
 {
     int16_t lo = 0, hi = 1;
@@ -143,6 +97,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
     memcpy(v->pstart, ts->pstart, sizeof v->pstart);
     memcpy(v->pend, ts->pend, sizeof v->pend);
     v->follow = u->follow;
+    v->latch = u->slatch;
     v->t = secs(a->ms);
     v->play_page = -1;
     v->pos = -1.f;
@@ -269,7 +224,7 @@ static const char *cond_text(int c)
 /* the screen of mode m for step s (is_default: the track's default, s ignored: a step with no overrides) */
 static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
 {
-    static char lk_names[3][24], scale_buf[24];
+    static char scale_buf[24];
     const qd_ui_t *u = &a->ui;
     const int t = a->sel, s = is_default ? -1 : u->held[0], m = u->hmode;
     const qd_pattern_t *P = qd_ctl_cpat(a);
@@ -298,6 +253,7 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
     v->play = !is_default && u->held_played ? secs(a->ms - u->held_play_ms) : -1.f;
     v->t = secs(a->ms);
     v->tracklen = qd_track_len(ts);
+    v->latch = u->slatch;
     if (!is_default) {
         qd_step_value_keys(a, v->vk, &v->vk_lit, &v->vk_def, &v->vk_none, &v->clr);
         v->ovr = v->clr;
@@ -401,28 +357,6 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
         v->held_col = s % QD_PAGE;
         v->nlocks = qd_lock_count(P, t, s);
     }
-    /* LOCKS */
-    if (!is_default) {
-        int n;
-        const qd_lock_t *l = qd_locks(P, t, s, &n);
-        v->nlock = n;
-        v->lock_cur = n ? (u->lock_cur < n ? u->lock_cur : n - 1) : 0;
-        for (k = 0; k < 3 && n; k++) {
-            const int j = v->lock_cur - 1 + k;
-            if (j < 0 || j >= n)
-                continue;
-            strcpy(lk_names[k], value_name(l[j].id));
-            v->lk_name[k] = lk_names[k];
-            value_text(v->lk_val[k], l[j].id, l[j].value);
-        }
-        if (n) {
-            const qd_lock_t *c = &l[v->lock_cur];
-            const int base = qd_step_base(a, t, s, c->id);
-            v->lk_x = range01(c->id, c->value);
-            v->tr_x = range01(c->id, base);
-            value_text(v->tr_val, c->id, base);
-        }
-    }
     (void)st;
 }
 
@@ -490,6 +424,7 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     v->bpm = a->bpm;
     v->swing = P->swing;
     v->anchor = u->f3_anchor;
+    v->latched = layer == 3 && u->latch == QD_LATCH_F3;
 }
 
 static void fill_shift(const qd_app_t *a, ui_shift_t *v)
@@ -519,7 +454,7 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
 {
     static const char *const NAMES[UI_NTK] = {"FREQ", "DECAY", "HARM", "FEEDBACK", "ALGO", "TEMPO", "SWING",
                                               "LENGTH", "RATE", "LIMIT", "SWING", "PAGE", "SCALE", "ROOT",
-                                              "OCTAVE"};
+                                              "OCTAVE", "TRACK"};
     const qd_ui_t *u = &a->ui;
     const int t = a->sel;
     const qd_pattern_t *P = qd_ctl_cpat(a);
@@ -634,6 +569,23 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         for (i = 0; i < QD_NPAGE; i++)
             for (s = 0; s < QD_PAGE; s++)
                 v->trig[i][s] = (uint8_t)qd_step_is_on(qd_step(P, t, i * QD_PAGE + s));
+        break;
+    case UI_TK_TRACK:                                   /* P1.3d: P-LOCK's ALGORITHM, the eight tracks */
+        v->has_col = 1;
+        v->col = UI_MODE_COL[UI_F_PLOCK];
+        v->value = t + 1;
+        v->v = (float)t / 7.f;
+        for (i = 0; i < QD_NTRACK; i++) {
+            const qd_pattern_t *TP = qd_seq_track_pat(&a->seq, i);
+            const qd_tset_t *tt = &TP->trk[i];
+            const int n = qd_track_len(tt);
+            v->tname[i] = a->model.t[i].name;
+            if (!qd_seq_audible(&a->seq, TP, i))
+                v->tmute |= (uint8_t)(1u << i);
+            v->tlen[i] = (uint8_t)(n > 32 ? 32 : n);
+            for (s = 0; s < v->tlen[i]; s++)
+                v->ttrig[i][s] = (uint8_t)(qd_step_type(TP, i, qd_track_loop_step(tt, s)) != QD_TRIG_NONE);
+        }
         break;
     case UI_TK_SCALE:
     case UI_TK_ROOT: {
@@ -838,9 +790,13 @@ static void draw_patterns(const qd_app_t *a)
     memset(&v, 0, sizeof v);
     v.cur = a->seq.cur;
     v.queued = qd_seq_queued(&a->seq);
+    v.bank = a->ui.seq_bank;
     for (k = 0; k < 16; k++)
-        if (a->proj.pat[k].used)
+        if (a->proj.pat[v.bank * 16 + k].used)
             v.used |= (uint16_t)(1u << k);
+    for (k = 0; k < QD_NPAT; k++)
+        if (a->proj.pat[k].used)
+            v.bank_used |= (uint8_t)(1u << (k / 16));
     v.playing = a->seq.playing;
     if (v.queued >= 0 && a->seq.playing) {
         const int64_t m = qd_pat_master_ticks(&a->proj.pat[a->seq.cur]), left = qd_seq_to_change(&a->seq);
@@ -878,6 +834,111 @@ static void overlay_begin(float al)
     qd_fill_rect(0.f, 0.f, (float)QD_W, (float)QD_H, UI_BG);
 }
 
+/* P1.3d: the knob band's words: the knob, the context, the value's name and the value (the held steps' first, or
+ * the track's default) */
+static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
+{
+    static const char *const MAIN[UI_NFIELD] = {"NOTES", "VELOCITY", "LENGTH", "MICRO", "RATCHET", "CHANCE",
+                                                "CONDITION", "TRIG", "SOUND", "", ""};
+    static const char *const TYPE[4] = {"", "NOTE", "LOCK", "TIE"};
+    static const char *const RAMP[4] = {"FLAT", "UP", "DOWN", "ACCENT"};
+    static const char *const NOTEN[5] = {"NOTE 1", "NOTE 2", "NOTE 3", "NOTE 4", "NOTE 5"};
+    static char ctx[24];
+    const qd_ui_t *u = &a->ui;
+    const int t = a->sel, m = u->hmode >= 0 && u->hmode < UI_NFIELD ? u->hmode : 0;
+    const qd_pattern_t *P = qd_ctl_cpat(a);
+    qd_rstep_t r;
+    char n[12];
+    memset(v, 0, sizeof *v);
+    v->knob = u->tk_src;
+    v->col = UI_MODE_COL[m];
+    v->mode = UI_FIELD_NAME[m];
+    if (is_default || !u->nheld) {
+        static qd_pattern_t tmp;                        /* the track's defaults: a step with no overrides */
+        tmp.trk[0] = P->trk[t];
+        memset(&tmp.step[0][0], 0, sizeof tmp.step[0][0]);
+        tmp.step[0][0].flags = QD_SF_ON;
+        qd_step_resolve(&tmp, 0, 0, &r);
+        r.sound = 0;
+        v->ctx = "TRACK DEFAULT";
+    } else {
+        qd_step_resolve(P, t, u->held[0], &r);
+        ctx[0] = 0;
+        cat(cat(ctx, "STEP "), ui_itoa(n, u->held[0] + 1));
+        if (u->nheld > 1)
+            cat(cat(ctx, "+"), ui_itoa(n, u->nheld - 1));
+        v->ctx = ctx;
+    }
+    v->name = MAIN[m];
+    switch (u->tk_job) {
+    case QD_KJ_MAIN:
+        switch (m) {
+        case UI_F_NOTE: {
+            char rt[4], q[8];
+            if (r.nn && qd_chord_name(r.notes, r.nn, rt, q))
+                cat(cat(v->val, rt), q);
+            else
+                qd_note_name(r.notes[0], v->val);
+            break;
+        }
+        case UI_F_VEL: ui_itoa(v->val, r.vel); break;
+        case UI_F_LEN: cat(v->val, qd_len_name(r.len)); break;
+        case UI_F_MICRO: cat(cat(cat(v->val, r.micro > 0 ? "+" : ""), ui_itoa(n, r.micro)), "/24"); break;
+        case UI_F_RATCH: cat(cat(v->val, "\xc3\x97"), ui_itoa(n, r.ratch)); break;
+        case UI_F_CHNC: cat(ui_itoa(v->val, r.chance), "%"); break;
+        case UI_F_COND: qd_cond_name(r.cond, v->val); break;
+        case UI_F_TRIG: cat(v->val, TYPE[r.type & 3][0] ? TYPE[r.type & 3] : "EMPTY"); break;
+        case UI_F_SOUND: {
+            const int k = is_default || !u->nheld ? a->model.t[t].sound : r.sound;
+            if (k > 0) {
+                cat(cat(v->val, ui_itoa(n, k)), " ");
+                cat(v->val, is_default || !u->nheld ? qd_track_sound_name(&a->model.t[t]) : qd_sound_name(&a->proj, k));
+            } else {
+                cat(v->val, "TRACK");
+            }
+            break;
+        }
+        default: break;
+        }
+        break;
+    case QD_KJ_NOTE1:
+    case QD_KJ_NOTE2:
+    case QD_KJ_NOTE3:
+    case QD_KJ_NOTE4:
+    case QD_KJ_NOTE5: {
+        const int k = u->tk_job - QD_KJ_NOTE1;
+        v->name = NOTEN[k];
+        if (!k || r.note[k])
+            qd_note_name(!k ? r.note[0] : r.note[0] + r.note[k] > 127 ? 127 : r.note[0] + r.note[k], v->val);
+        else
+            cat(v->val, "\xe2\x80\x94");                /* none */
+        break;
+    }
+    case QD_KJ_TIE:
+        v->name = "TIE";
+        cat(v->val, r.type == QD_TRIG_TIE ? "ON" : "OFF");
+        break;
+    case QD_KJ_STRUM:
+        v->name = "STRUM";
+        cat(cat(v->val, ui_itoa(n, r.strum)), "/24");
+        break;
+    case QD_KJ_RAMP:
+        v->name = "RAMP";
+        cat(v->val, RAMP[r.ramp & 3]);
+        break;
+    case QD_KJ_COND:
+        v->name = "CONDITION";
+        qd_cond_name(r.cond, v->val);
+        break;
+    case QD_KJ_CHANCE:
+        v->name = "CHANCE";
+        cat(ui_itoa(v->val, r.chance), "%");
+        break;
+    default:
+        break;
+    }
+}
+
 int qd_view_screen(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
@@ -910,6 +971,7 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_turn_t tv;
     static ui_layer_t yv;
     static ui_shift_t sv;
+    static ui_band_t bv;
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
     qd_begin();
@@ -947,7 +1009,17 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         draw_idle(a);
         break;
     }
-    if (u->tk != QD_TK_NONE) {                          /* the takeover, then 120 ms back */
+    if (u->tk == QD_TK_HELDKNOB) {                      /* P1.3d: a held step's knob: the band over its screen */
+        const uint32_t d = a->ms - u->tk_ms;
+        const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
+        if (al > 0.f && u->nheld) {
+            qd_save();
+            qd_alpha(al);
+            fill_band(a, &bv, 0);
+            ui_band_draw(&bv);
+            qd_restore();
+        }
+    } else if (u->tk != QD_TK_NONE) {                   /* the takeover, then 120 ms back */
         const uint32_t d = a->ms - u->tk_ms;
         const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
         if (al > 0.f) {
@@ -956,9 +1028,12 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
                 draw_picker(a);
             } else if (u->tk == UI_TK_OCTAVE) {
                 draw_octave(a);
-            } else if (u->tk == QD_TK_DEFAULT) {        /* the mode's default, drawn as its held screen */
-                fill_held(a, &hv, 1);
-                ui_held_draw(&hv);
+            } else if (u->tk == QD_TK_DEFAULT) {        /* P1.3d: a default: the lane, its default lit, the band */
+                fill_lane(a, &lv, pat);
+                lv.def_hot = 1;
+                ui_lane_draw(&lv);
+                fill_band(a, &bv, 1);
+                ui_band_draw(&bv);
             } else {
                 fill_turn(a, &tv, ctx);
                 ui_turn_draw(&tv);
