@@ -101,7 +101,7 @@ function nearBubble(t, i) {
     const w1 = TAU / LOOP * (1 + (j % 3)), w2 = TAU / LOOP * (2 + (j % 2));
     let rr = r * (0.2 + 0.55 * hash(s + 1)) + Math.sin(t * w1 + s) * r * 0.12;
     rr = Math.min(rr, r - br - 1.5);
-    const ang = hash(s + 2) * TAU + t * spin * 0.8 + Math.sin(t * w2 + s * 2) * 0.6;
+    const ang = hash(s + 2) * TAU + t * spin + Math.sin(t * w2 + s * 2) * 0.6;
     const bx = x + Math.cos(ang) * rr, by = y + Math.sin(ang) * rr;
     c.strokeStyle = rgba(PAL[(j + i) % PAL.length], 0.9 * a); c.lineWidth = 0.9;
     c.beginPath(); c.arc(bx, by, br, 0, TAU); c.stroke();

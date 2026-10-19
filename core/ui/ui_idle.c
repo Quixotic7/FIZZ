@@ -258,7 +258,7 @@ static void near_bubble(float u, int i)
         float ang;
         if (rr > r - br - 1.5f)
             rr = r - br - 1.5f;
-        ang = UI_TAU * hash01(s, 4, 6) + u * spin * 0.8f + 0.6f * sway(u, 2 + j % 2, ph * 2.f);
+        ang = UI_TAU * hash01(s, 4, 6) + u * spin + 0.6f * sway(u, 2 + j % 2, ph * 2.f);
         ui_O(x + cosf(ang) * rr, y + sinf(ang) * rr, br, dim(PAL[(j + i) % NPAL], 0.9f * a), 0.9f, QD_NONE);
     }
 }
