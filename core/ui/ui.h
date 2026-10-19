@@ -179,6 +179,7 @@ typedef struct {
     uint8_t nnote;
     uint8_t note[6];                    /* absolute */
     float len;                          /* the gate in steps (INF: to the page's end) */
+    uint8_t inf;                        /* P1.3q: the gate is INF */
     int8_t micro;                       /* 24ths of a step */
     uint8_t ratch, ramp;                /* x1..x8, the ramp (QD_RAMP_*) */
     uint8_t vel;                        /* 1..127 */
@@ -223,7 +224,14 @@ typedef struct {
     float grow[8];                      /* P1.3j: each page's row unfolded 0..1 (the page edited 1; a page change
                                          * unfolds the new one as the old one folds) */
 } ui_lane_t;
-enum { UI_C_ON = 1, UI_C_LOCK = 2, UI_C_TIE = 4, UI_C_OVR = 8, UI_C_RANGE = 16, UI_C_HELD = 32 };
+enum { UI_C_ON = 1, UI_C_LOCK = 2, UI_C_TIE = 4, UI_C_OVR = 8, UI_C_RANGE = 16, UI_C_HELD = 32,
+       UI_C_OWN = 64 };                 /* P1.3q: UI_C_OWN: the step has its own notes (the NOTE override) */
+/* P1.3q: the STEPS cells' kinds: own notes, the track's notes (filled), a ghost (LOCK: an outline) */
+#define UI_STEP_OWN 0xfff0d2u           /* warm white */
+#define UI_STEP_TRACK 0x63c4d6u         /* soft cyan */
+#define UI_STEP_GHOST 0xa57cffu         /* violet */
+qd_rgb ui_steps_fill(uint8_t cell);     /* a cell's fill: UI_STEP_OWN / UI_STEP_TRACK, QD_NONE (a ghost, off, out of range) */
+qd_rgb ui_steps_ink(uint8_t cell);      /* the notes' colour on that fill (a dark shade of it) */
 void ui_lane_draw(const ui_lane_t *v);
 
 /* ---- a held step (line.html s4..s10, s19, s20; PLAN §9a rule 7, §8b): one layout, "STEP n · MODE" top left, the

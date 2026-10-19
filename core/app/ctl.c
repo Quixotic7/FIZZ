@@ -1169,12 +1169,29 @@ static int k_cursor(qd_app_t *a, int knob, int d)
     return 1;
 }
 
+/* P1.3q: the STEPS view with no finger on a step (nothing held, or the step latch's selection): PRESETS is a step
+ * cursor (SHIFT + PRESETS stays the root, a mode key held its default) */
+static int when_cursor(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    return u->mode == QD_MODE_STEP && u->view == QD_VIEW_STEPS && !u->wk_down && (u->slatch || !u->nheld) &&
+           qd_ctl_mkey(a) < 0 && !qd_ctl_shift(a);
+}
+static int k_steps_cursor(qd_app_t *a, int knob, int d)
+{
+    if (knob != QD_K_PRESETS)
+        return 0;
+    qd_step_cursor(a, d);
+    return 1;
+}
+
 static const struct {
     qd_when_fn when;
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
     {when_seq, k_seq},                 /* SEQ held: ALGORITHM the launch mode */
     {when_f3, k_f3},                   /* F3: SELECT page, ALGO tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */
+    {when_cursor, k_steps_cursor},     /* P1.3q: STEPS, no finger on a step: PRESETS the step cursor */
     {when_steps_held, k_held},         /* a step held: SELECT page, ALGORITHM value, PRESETS sound lock, p-locks */
     {when_mkey, k_mkey_knob},          /* a mode key held (P1.3e): its default */
     {when_live, k_live},               /* live recording: the quick page as locks on the step playing */

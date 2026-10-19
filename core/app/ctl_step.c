@@ -126,6 +126,7 @@ void qd_step_release_all(qd_app_t *a)
     u->nheld = 0;
     u->wk_down = u->wk_pending = 0;
     u->note_keys = 0;
+    u->scursor = 0;
     if (u->tk == QD_TK_HELDKNOB)                        /* (the band of a step no longer held) */
         u->tk = QD_TK_NONE;
 }
@@ -145,10 +146,49 @@ void qd_step_latch_seed(qd_app_t *a)
     qd_ctl_set_page(a, s / QD_PAGE);
 }
 
+/* P1.3q: PRESETS in the STEPS view (no finger on a step): a step cursor. Off, the step latch comes on with its
+ * selection where it starts (qd_step_latch_seed); on, its one selection moves d steps through the track's loop (a
+ * page's end goes on into the next / previous looped page, round the loop; a page outside the loop: round its own
+ * range), and the page edited follows (the row unfolds). Off steps are selected too: values then turn them on */
+void qd_step_cursor(qd_app_t *a, int d)
+{
+    qd_ui_t *u = &a->ui;
+    const qd_tset_t *ts = &PAT(a)->trk[a->sel];
+    int s, pos, k;
+    if (!u->slatch || !u->nheld) {                      /* the latch on / its selection started */
+        if (!u->slatch)
+            qd_step_latch(a, 1);
+        else
+            qd_step_latch_seed(a);
+        u->scursor = 1;
+        return;
+    }
+    s = u->held[0];
+    pos = qd_track_step_pos(ts, s);
+    if (pos >= 0) {
+        s = qd_track_loop_step(ts, pos + d);
+    } else {
+        const int p0 = s / QD_PAGE * QD_PAGE;
+        for (k = 0; k < (d < 0 ? -d : d); k++) {
+            int n = 0;
+            do
+                s = p0 + ((s - p0 + (d < 0 ? -1 : 1)) % QD_PAGE + QD_PAGE) % QD_PAGE;
+            while (!qd_page_in_range(ts, s) && ++n < QD_PAGE);
+        }
+    }
+    u->nheld = 0;
+    if (u->tk == QD_TK_HELDKNOB)
+        u->tk = QD_TK_NONE;
+    held_add(a, s, -1);
+    qd_ctl_set_page(a, s / QD_PAGE);
+    u->scursor = 1;
+}
+
 void qd_step_latch(qd_app_t *a, int on)
 {
     qd_step_release_all(a);
     a->ui.slatch = on != 0;
+    a->ui.scursor = 0;
     if (on)
         qd_step_latch_seed(a);
 }
@@ -196,6 +236,7 @@ void qd_step_white_down(qd_app_t *a, int w)
     if (u->slatch) {                                    /* the step latch (P1.3f): a gesture's keys replace the
                                                          * selection (shown as they go down) */
         const int s = step_of(a, w);
+        u->scursor = 0;                                 /* (P1.3q: a W selection: the held screen as before) */
         if (!u->wk_down) {                              /* a gesture begins */
             u->gest_sole = u->nheld == 1 ? u->held[0] : -1;
             u->gest_n = 0;

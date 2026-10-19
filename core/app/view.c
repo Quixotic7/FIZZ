@@ -127,6 +127,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
                 c |= r.on ? UI_C_ON : 0;
                 c |= r.on && r.type == QD_TRIG_LOCK ? UI_C_LOCK : 0;
                 c |= r.on && r.type == QD_TRIG_TIE ? UI_C_TIE : 0;
+                c |= r.on && qd_step_overrides(st, QD_PM_NOTE) ? UI_C_OWN : 0;   /* P1.3q: its own notes */
                 if (r.on && (u->hmode == UI_F_PLOCK ? (st->flags & QD_SF_LOCKS) != 0
                                                     : u->hmode < UI_F_B10 && (qd_step_overrides(st, mode_pm(u->hmode)) ||
                                                       (u->hmode == UI_F_MICRO && qd_step_overrides(st, QD_PM_STRUM)))))
@@ -185,6 +186,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         }
         e = len_steps_x8(r.len);
         c->len = e < 0 ? (float)(16 - i) : (float)e / 8.f;
+        c->inf = e < 0;
         c->micro = (int8_t)r.micro;
         c->ratch = (uint8_t)r.ratch;
         c->ramp = (uint8_t)r.ramp;
@@ -997,7 +999,8 @@ int qd_view_screen(const qd_app_t *a)
     case QD_MODE_TRACKS:
         return QD_SCR_TRACKS;
     case QD_MODE_STEP:
-        if (u->nheld && u->hmode != UI_F_PLOCK)        /* (P-LOCK: holding keeps the screen) */
+        if (u->nheld && u->hmode != UI_F_PLOCK &&      /* (P-LOCK: holding keeps the screen; P1.3q: so does */
+            !(u->scursor && u->view == QD_VIEW_STEPS))   /* PRESETS' cursor in STEPS) */
             return QD_SCR_HELD;
         if (qd_ctl_mkey_shown(a))                       /* P1.3e: a mode key held: the track's default */
             return QD_SCR_DEFAULT;

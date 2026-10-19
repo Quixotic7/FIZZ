@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' P1.3j part: the STEPS view redrawn (the page edited unfolded, its notes in its cells; the others
- * folded rows), from a real state reached by panel input only. P1.3p: the unfolded row at half height, so the shots are
- * OUT/p13p-steps-*.png and OUT/p13p-steps-sheet.png now. */
+/* render_frames' STEPS part (P1.3j, P1.3p, P1.3q; was render_p13j.c): the STEPS view (the page edited unfolded at half
+ * height, its notes in its cells; the others folded rows), the steps' kinds in colour (P1.3q: own notes, the track's
+ * notes, ghosts), into OUT/p13q-steps-*.png and OUT/p13q-steps-sheet.png. The ghosts and the VEL overrides are set
+ * through the pattern API (qd_ctl_pat); the rest by panel input. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "app.h"
+#include "ctl.h"
 #include "plutovg.h"
 #include "qd_gfx.h"
 #include "fonts_gen.h"
@@ -50,11 +52,11 @@ static void shot(const char *name, const char *caption)
 {
     char path[1024];
     qd_app_frame(&A, lcd);
-    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13p-%s.png", name);
+    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13q-%s.png", name);
     snprintf(shots[nshot].caption, sizeof shots[nshot].caption, "%s", caption);
     snprintf(path, sizeof path, "%s/%s", outdir, shots[nshot].file);
     if (!p13b_write_lcd_png(path, lcd)) {
-        fprintf(stderr, "render_p13j: cannot write %s\n", path);
+        fprintf(stderr, "render_p13q: cannot write %s\n", path);
         failed = 1;
     }
     printf("%s (%s)\n", path, caption);
@@ -147,7 +149,7 @@ static void sheet(void)
     plutovg_canvas_fill(c);
     plutovg_canvas_set_font(c, f, 18.f);
     plutovg_canvas_set_rgb(c, 0.9f, 0.9f, 0.9f);
-    plutovg_canvas_fill_text(c, "FIZZ P1.3p: the STEPS view, the page edited at half height, each from the core (2x)", -1,
+    plutovg_canvas_fill_text(c, "FIZZ P1.3q: STEPS: own notes white, the track's notes cyan, ghosts violet; bars only outside NOTE (2x)", -1,
                              PLUTOVG_TEXT_ENCODING_UTF8, (float)pad, 32.f);
     for (i = 0; i < nshot; i++) {
         const float x = (float)(pad + (i % cols) * (cell_w + pad)), y = (float)(50 + (i / cols) * (cell_h + pad));
@@ -162,7 +164,7 @@ static void sheet(void)
             plutovg_surface_destroy(ours);
         }
     }
-    snprintf(path, sizeof path, "%s/p13p-steps-sheet.png", outdir);
+    snprintf(path, sizeof path, "%s/p13q-steps-sheet.png", outdir);
     if (!plutovg_surface_write_to_png(s, path))
         failed = 1;
     printf("%s (%d screens)\n", path, nshot);
@@ -208,28 +210,63 @@ static void keys_two_pages(void)
     btap(QD_B_HOME);                                    /* STEPS */
 }
 
-int render_p13j(const char *out)
+int render_p13q(const char *out)
 {
     outdir = out;
     nshot = 0;
     failed = 0;
 
     keys_two_pages();
+    qd_step_set_trig(qd_ctl_pat(&A), T3, 16 + 2, QD_TRIG_LOCK);   /* ghosts: two on page 2, one on page 1 */
+    qd_step_set_trig(qd_ctl_pat(&A), T3, 16 + 14, QD_TRIG_LOCK);
+    qd_step_set_trig(qd_ctl_pat(&A), T3, 5, QD_TRIG_LOCK);
+    qd_step_on(qd_ctl_pat(&A), T3, 9);                  /* a trig with the track's notes on page 1 */
+    qd_step_set_vel(qd_ctl_pat(&A), T3, 16 + 0, 127);   /* velocities: the fills' heights */
+    qd_step_set_vel(qd_ctl_pat(&A), T3, 16 + 4, 90);
+    qd_step_set_vel(qd_ctl_pat(&A), T3, 16 + 8, 55);
+    qd_step_set_vel(qd_ctl_pat(&A), T3, 16 + 12, 25);
+    qd_step_set_vel(qd_ctl_pat(&A), T3, 16 + 11, 60);
+    qd_step_set_vel(qd_ctl_pat(&A), T3, 16 + 14, 40);
+    qd_step_set_len(qd_ctl_pat(&A), T3, 16 + 4, 8);    /* step 5: 4 steps long, a little late */
+    qd_step_set_micro(qd_ctl_pat(&A), T3, 16 + 4, 6);
+    qd_step_set_len(qd_ctl_pat(&A), T3, 16 + 12, QD_LEN_INF);   /* step 13: INF */
     run(400);
-    shot("steps-stopped", "STEPS: A02 KEYS, page 2 unfolded with its chords, pages 1 and 2 in the loop (stopped)");
+    shot("steps-stopped", "stopped: own notes white, the track's cyan, ghosts violet; fills = velocity");
+    turn(QD_K_PRESETS, 1);                              /* PRESETS: the cursor (the latch on, at the last step) */
+    turn(QD_K_PRESETS, -7);
+    run(300);
+    shot("steps-cursor-len", "PRESETS, the cursor: step 5, its length (4 steps, late)");
+    turn(QD_K_PRESETS, 8);
+    run(300);
+    shot("steps-cursor-inf", "the cursor on step 13: INF (to the end, an arrow)");
+    turn(QD_K_PRESETS, 5);
+    run(110);
+    shot("steps-cursor-wrap", "on past page 2's end: page 1's step 2, the rows moving");
+    run(300);
+    btap(QD_B_HOME);                                    /* the latch off */
+    turn(QD_K_SELECT, 1);
+    run(400);
     btap(QD_B_PLAY);
     while (qd_seq_track_step(&A.seq, 2) != 20)
         run(1);
     run(20);
-    shot("steps-playing", "STEPS, playing: the marker hops, step 21's chord lights as it sounds");
+    shot("steps-playing", "playing: the marker hops, step 21 pops, its notes red");
     while (qd_seq_track_step(&A.seq, 2) != 3)
         run(1);
     run(30);
-    shot("steps-playing-p1", "STEPS, playing on page 1 (followed): page 1 unfolded, the chord popping");
+    shot("steps-playing-p1", "playing on page 1 (followed): its row unfolded");
     btap(QD_B_PLAY);
+    qd_step_set_vel(qd_ctl_pat(&A), T3, 4, 70);         /* VEL: three steps override it: its bars */
+    qd_step_set_vel(qd_ctl_pat(&A), T3, 8, 120);
+    qd_step_set_vel(qd_ctl_pat(&A), T3, 9, 60);
+    black(UI_F_VEL);
+    run(400);
+    shot("steps-vel", "VEL: green bars under the steps overriding VEL");
+    black(UI_F_NOTE);
+    run(50);
     turn(QD_K_SELECT, 1);
     run(100);
-    shot("steps-unfold", "STEPS: SELECT to page 2, mid-way (the old row folding, the new one unfolding)");
+    shot("steps-unfold", "SELECT to page 2, mid-way (folding / unfolding)");
     run(300);
     black(UI_F_PLOCK);                                  /* the latch in P-LOCK: two steps selected, the view stays */
     btap(QD_B_MUTE);
@@ -240,7 +277,7 @@ int render_p13j(const char *out)
     qd_app_key(&A, WK(4), 0, 0);
     qd_app_key(&A, WK(8), 0, 0);
     run(300);
-    shot("steps-latch", "STEPS, the latch (LFO) in P-LOCK: steps 21 and 25 selected (outlined)");
+    shot("steps-latch", "the latch in P-LOCK: steps 21, 25 selected, their lengths");
 
     if (!failed)
         sheet();

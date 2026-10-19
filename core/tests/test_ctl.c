@@ -2207,6 +2207,87 @@ static void g_home(void)
     CHECK(A.ui.mode == QD_MODE_STEP && A.ui.view == QD_VIEW_STEPS, "woken by HOME: STEPS still (no switch)");
 }
 
+/* P1.3q: STEPS, the steps' kinds by colour, on the screen: own notes warm white, the track's notes cyan (filled), a
+ * ghost (LOCK) and an off step not filled; on the open row (page 1: its fill from the bottom, the velocity) and on a
+ * folded one (page 2) */
+static uint16_t lcd_q[QD_W * QD_H];
+static unsigned c565(qd_rgb c)                          /* as qd_end rounds */
+{
+    return ((c >> 16 & 0xffu) * 31u + 127u) / 255u << 11 | ((c >> 8 & 0xffu) * 63u + 127u) / 255u << 5 |
+           ((c & 0xffu) * 31u + 127u) / 255u;
+}
+static unsigned px(int x, int y) { return (unsigned)(lcd_q[y * QD_W + x] >> 8 | (lcd_q[y * QD_W + x] & 0xffu) << 8); }
+static int cell_x(int i) { return 20 + i * 13 + (i / 4) * 2 + 1; }   /* a pixel inside the cell's left edge (ui_lane.c;
+                                                                        * + 3: clear of an outline) */
+static void g_steps_kinds(void)
+{
+    static const uint8_t own[2] = {60, 64};
+    int pg;
+    start();
+    PAT()->trk[0].loop = 3;                             /* pages 1 and 2 in the loop (else page 2 is dim) */
+    for (pg = 0; pg < 2; pg++) {
+        const int s0 = pg * 16;
+        qd_step_on(PAT(), 0, s0);                       /* own notes */
+        qd_step_set_notes(PAT(), 0, s0, own, 2);
+        qd_step_on(PAT(), 0, s0 + 1);                   /* the track's notes */
+        qd_step_set_trig(PAT(), 0, s0 + 2, QD_TRIG_LOCK);   /* a ghost; s0 + 3 off */
+    }
+    btap(QD_B_HOME);
+    run(400);
+    qd_app_frame(&A, lcd_q);
+    CHECK(A.ui.view == QD_VIEW_STEPS && OV(0, 0, QD_PM_NOTE) && R(0, 1).on && !OV(0, 1, QD_PM_NOTE) &&
+          R(0, 2).type == QD_TRIG_LOCK, "STEPS: own notes, the track's, a ghost on pages 1 and 2");
+    CHECK(px(cell_x(0), 85) == c565(UI_STEP_OWN) && px(cell_x(1), 85) == c565(UI_STEP_TRACK) &&
+          px(cell_x(2) + 3, 85) == 0 && px(cell_x(3) + 3, 85) == 0,
+          "the open row: own notes warm white, the track's cyan, a ghost and an off step not filled (%04x %04x %04x "
+          "%04x)", px(cell_x(0), 85), px(cell_x(1), 85), px(cell_x(2) + 3, 85), px(cell_x(3) + 3, 85));
+    CHECK(px(cell_x(0), 103) == c565(UI_STEP_OWN) && px(cell_x(1), 103) == c565(UI_STEP_TRACK) &&
+          px(cell_x(2) + 1, 98) == 0 && px(cell_x(3) + 3, 103) == 0,
+          "a folded row (page 2): the same kinds (%04x %04x %04x %04x)", px(cell_x(0), 103), px(cell_x(1), 103),
+          px(cell_x(2) + 1, 98), px(cell_x(3) + 3, 103));
+    CHECK(ui_steps_fill(UI_C_RANGE | UI_C_ON | UI_C_LOCK | UI_C_OWN) == QD_NONE && ui_steps_fill(UI_C_RANGE) == QD_NONE &&
+          ui_steps_fill(UI_C_ON | UI_C_OWN) == QD_NONE, "no fill for a ghost, an off step, a step out of range");
+}
+
+/* P1.3q: STEPS, PRESETS (no finger on a step) is a step cursor: the latch on, its one selection moved through the loop
+ * (into the next page and round), the page following; values apply to it (an off step turned on); the PIANO ROLL's
+ * PRESETS is the track's sound as before */
+static void g_cursor(void)
+{
+    int snd;
+    start();
+    PAT()->trk[0].loop = 3;                             /* pages 1 and 2 in the loop */
+    mode(M_VEL);
+    btap(QD_B_HOME);
+    CHECK(A.ui.view == QD_VIEW_STEPS && !A.ui.slatch, "STEPS, the latch off");
+    snd = A.model.t[0].sound;
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 0 && A.model.t[0].sound == snd &&
+          qd_view_screen(&A) == QD_SCR_LANE, "PRESETS: the latch on, step 1 selected (the sound unchanged), STEPS stays");
+    turn(QD_K_PRESETS, 3);
+    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 3, "three detents: step 4 (%d)", A.ui.held[0] + 1);
+    turn(QD_K_PRESETS, 13);
+    CHECK(A.ui.held[0] == 16 && A.ui.page[0] == 1, "on past the page's end: page 2's step 1, the page follows");
+    turn(QD_K_PRESETS, -1);
+    CHECK(A.ui.held[0] == 15 && A.ui.page[0] == 0, "back: page 1's step 16");
+    turn(QD_K_PRESETS, 17);
+    CHECK(A.ui.held[0] == 0 && A.ui.page[0] == 0, "round the loop's end: step 1 again");
+    turn(QD_K_PRESETS, 5);
+    CHECK(!R(0, 5).on, "step 6 selected, off");
+    black(B3);
+    CHECK(R(0, 5).on && OV(0, 5, QD_PM_VEL) && A.ui.held[0] == 5 && qd_view_screen(&A) == QD_SCR_LANE,
+          "a value (VEL B3): it applies to the cursor's step, turned on (STEPS stays)");
+    wtap(7);
+    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 7 && qd_view_screen(&A) == QD_SCR_HELD,
+          "a W in the latch selects as before (its held screen)");
+    btap(QD_B_HOME);
+    CHECK(!A.ui.slatch && A.ui.view == QD_VIEW_STEPS, "HOME ends the latch");
+    btap(QD_B_HOME);
+    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME: the PIANO ROLL");
+    turn(QD_K_PRESETS, 1);
+    CHECK(!A.ui.slatch && A.model.t[0].sound == snd + 1, "the PIANO ROLL: PRESETS is the track's sound as before");
+}
+
 /* P1.3i: the tempo and MIDI clock: a turn after a START and STOP works; a running clock shows EXT CLOCK and a turn says
  * so; the clock gone quiet ends it (the turn works again); the keyboard's SELECT the same */
 static void clock_pulses(int n, uint32_t ms)
@@ -2742,6 +2823,8 @@ int main(void)
         {"P1.3e: KNOB 4, the quiet knob", g_quiet},
         {"P1.3e: HOME cycles PIANO ROLL / STEPS", g_home},
         {"P1.3i: the tempo and MIDI clock (EXT CLOCK)", g_ext_clock},
+        {"P1.3q: STEPS: the steps' kinds by colour", g_steps_kinds},
+        {"P1.3q: STEPS: PRESETS the step cursor", g_cursor},
     };
     size_t i;
     uint64_t h1, h2;

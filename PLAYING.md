@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3p)
+# Playing FIZZ (P1.3q)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -29,8 +29,15 @@ sound comes from the Mac. Printed names are in brackets.
 - **HOME** in the sequencer switches its view: **PIANO ROLL** (the mode's lane) and **STEPS**. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
   drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
-  dim; a LOCK step is a ring, a coloured bar under a step means it has its own value for the current mode. Playing, a
-  red marker hops along the steps and each step pops as it plays. SELECT changes the page (the rows fold and unfold).
+  dim. A step's colour says what it plays: **warm white** its own notes, **cyan** the track's notes (a plain trig),
+  **violet outline** a ghost (a LOCK step, no note). On the open row a step's fill is as tall as its velocity (a
+  ghost's velocity is a tick), and a selected step shows its length as a line under the row (an arrow: to the end).
+  Outside NOTE mode, a thin bar in the mode's colour under a step means it has its own value for that mode. Playing,
+  a red marker hops along the steps and each step pops as it plays. SELECT changes the page (the rows fold and
+  unfold). **PRESETS** is a step cursor here: it turns the step latch on and moves its one selected step through the
+  loop (into the next page and round), the row following; the black keys and knobs then edit it, and STEPS stays on
+  screen. LFO or HOME ends it. With a finger on a step, PRESETS is the sound lock as before; in the PIANO ROLL it is
+  the track's sound.
   From any other screen HOME comes back to the sequencer in the view you used last. If F3 or the step latch is open,
   HOME closes that first.
 - After two minutes untouched with nothing playing, it goes back to the FIZZ screen.

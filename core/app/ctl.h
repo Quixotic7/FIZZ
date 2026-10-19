@@ -25,7 +25,8 @@
  * removed; W held 250 ms (or a knob or a black key while it is down) = held. B1..B11 = the hold mode (NOTE VEL LEN MICRO
  * RATCH CHNC COND TRIG SOUND LOCKS, and P1.3c's P-LOCK on B11). ALGORITHM = the track's default for the mode (a
  * takeover draws it); SELECT = the page edited; KNOB 1..4 = the track's FREQ, DECAY, HARM, FDBK; PRESETS = the track's
- * sound (a pool sound); SHIFT + ALGORITHM = the track's scale, SHIFT + PRESETS = its root (temporary).
+ * sound (a pool sound; P1.3q, in the STEPS view: a step cursor, the step latch's one selection moved through the
+ * loop, with nothing held or latched); SHIFT + ALGORITHM = the track's scale, SHIFT + PRESETS = its root (temporary).
  * A STEP HELD (several: every edit to all): B1..B10 = the mode's ten values (QD_VK_* in ctl_step.c), B11 = the mode
  * back to the track's (LOCKS: the chosen lock removed); ALGORITHM = the mode's value, finely (SHIFT: MICRO's strum,
  * RATCH's ramp); PRESETS = the sound lock, any pool sound, in every mode; KNOB 1..4 = p-locks (through the current
@@ -184,6 +185,7 @@ typedef struct {
     int mkey_used;                     /* .. a knob or B11 used it (its picture at once) */                    /* the first step held was empty when it was held */
     /* P1.3d: the step latch (LFO): the held steps are a selection that stays (held_key -1); a W selects */
     int slatch;
+    int scursor;                       /* P1.3q: the latch's selection is PRESETS' cursor (STEPS): the STEPS view stays */
     int gest_n, gest_sole;             /* P1.3f: the latch's gesture (every W from the first down to all up): its key
                                         * presses, and the step that was the whole selection before it (-1) */
     int last_step[8];                  /* the last step held or tapped, per track (-1 none): the latch starts there */
@@ -356,6 +358,7 @@ void qd_step_default_reset(struct qd_app *a, int m);
 int qd_step_default_initial(const struct qd_app *a, int m);
 void qd_step_latch(struct qd_app *a, int on);   /* P1.3d: the step latch (LFO) on / off */
 void qd_step_latch_seed(struct qd_app *a);      /* .. its selection started (the last step edited, else the page's first) */
+void qd_step_cursor(struct qd_app *a, int d);   /* P1.3q: PRESETS in STEPS: the latch's one selection moved d steps */
 int qd_step_quick_id(int k);           /* the quick page's lock id of KNOB k (FREQ, DECAY, HARM, FDBK) */
 int qd_step_id_detent(int id);         /* a detent's size for a value (hundredths for the hi-res ones) */
 int qd_step_base(struct qd_app *a, int t, int s, int id);   /* the value a lock on step s starts from */
