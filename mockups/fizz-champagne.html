@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ champagne</title>
+<!-- FIZZ's logo screen, a mock-up (2026-10-19): P1.3o's champagne close-up (on the unit) with the owner's three tweaks:
+     A) the app's bright colours in the line work, B) the big bubbles slowly rotating, C) the tiny bubbles inside them
+     floating around inside. Line work only (black under the near bubbles so they hide what is behind them).
+     One 240 x 240 canvas, an 11 s seamless loop.   ?t=SECONDS: one still (for the GIF)   no t: live at 2x -->
+<style>
+html, body { margin: 0; background: #000; }
+body.live { display: grid; place-items: center; min-height: 100vh; }
+canvas { display: block; image-rendering: pixelated; }
+body.live canvas { width: 480px; height: 480px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="240" height="240"></canvas>
+<script src="font_it.js"></script>
+<script>
+const W = 240, H = 240, LOOP = 11.0, TAU = Math.PI * 2;
+/* the app's colours: the knobs (blue, green, white, orange) and the modes' (pink, yellow, violet, cyan) */
+const PAL = [[63, 125, 255], [31, 212, 126], [241, 240, 234], [255, 106, 44], [255, 60, 160], [255, 210, 63],
+             [150, 100, 255], [40, 225, 255]];
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const ease = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const cv = document.getElementById('c'), c = cv.getContext('2d');
+
+/* a rise that loops exactly: k whole trips over the loop, so frame(0) == frame(LOOP) */
+function rise(t, k, phase, r, top = -1) {
+  const span = H + 2 * r - (top < 0 ? 0 : top), u = ((t / LOOP) * k + phase) % 1;
+  return H + r - u * span;
+}
+const darken = y => clamp(0.35 + 0.65 * (y / H), 0, 1);  /* darker toward the top, as the reference */
+
+function farBokeh(t) {                                   /* faint double rings, slow */
+  for (let i = 0; i < 14; i++) {
+    const r = 6 + 9 * hash(i * 3.1), col = PAL[i % PAL.length];
+    const y = rise(t, 1, hash(i * 7.7), r), x = hash(i * 1.9) * W + Math.sin(t * 0.6 + i) * 4;
+    const a = 0.16 * darken(y);
+    c.strokeStyle = rgba(col, a); c.lineWidth = 1;
+    c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
+    c.beginPath(); c.arc(x, y, r * 0.8, 0, TAU); c.stroke();
+  }
+}
+function specks(t) {
+  for (let i = 0; i < 56; i++) {
+    const col = PAL[(i * 3) % PAL.length], y = rise(t, 2 + (i % 3), hash(i * 4.3), 1);
+    const x = hash(i * 2.7) * W + Math.sin(t * 1.3 + i * 0.7) * 2;
+    c.fillStyle = rgba(col, 0.75 * darken(y));
+    c.fillRect(x | 0, y | 0, 1, 1);
+  }
+}
+function middle(t) {                                    /* crisp small bubbles, a lit arc on the bigger ones */
+  for (let i = 0; i < 34; i++) {
+    const r = 1.5 + 3 * hash(i * 5.3), col = PAL[(i * 5) % PAL.length];
+    const y = rise(t, 2 + Math.round(r / 2), hash(i * 8.1), r), x = hash(i * 6.6) * W + Math.sin(t * 1.7 + i) * (1 + r * 0.4);
+    const a = 0.9 * darken(y);
+    c.strokeStyle = rgba(col, a); c.lineWidth = 1;
+    c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
+    if (r > 3) { c.strokeStyle = rgba([255, 255, 255], a * 0.8); c.beginPath(); c.arc(x, y, r * 0.6, 3.6, 4.4); c.stroke(); }
+    if (hash(i * 9.9) > 0.85) {                         /* now and then two touching */
+      c.strokeStyle = rgba(col, a); c.beginPath(); c.arc(x + r * 1.7, y - r * 0.6, r * 0.7, 0, TAU); c.stroke();
+    }
+  }
+}
+function bed(t) {                                       /* small bubbles forming along the bottom, lifting off */
+  for (let i = 0; i < 26; i++) {
+    const col = PAL[(i * 7) % PAL.length], per = LOOP / (3 + (i % 3)), u = ((t / per) + hash(i * 3.3)) % 1;
+    const x = 8 + hash(i * 2.2) * (W - 16), r = 0.8 + 2.4 * ease(u / 0.6);
+    const y = H - 6 - (u > 0.6 ? (u - 0.6) / 0.4 * 40 : 0) - hash(i) * 5;
+    c.strokeStyle = rgba(col, 0.85 * (1 - ease((u - 0.8) / 0.2)));
+    c.lineWidth = 1; c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
+  }
+}
+
+/* a big near bubble: black inside, a rim in its colour, a lit arc and a reflection that turn slowly (B), and tiny
+   bubbles floating around inside it (C) */
+function nearBubble(t, i) {
+  const r = 9 + 13 * hash(i * 11.3), col = PAL[(i * 3 + 1) % PAL.length];
+  const k = r > 16 ? 2 : 1;                             /* bigger rise faster */
+  const y = rise(t, k, hash(i * 2.9), r), x = 20 + hash(i * 4.4) * (W - 40) + Math.sin(t * 0.7 + i * 2) * 5;
+  const a = darken(y), spin = (i % 2 ? 1 : -1) * TAU / LOOP * (1 + (i % 3));   /* whole turns a loop: seamless */
+  const rot = hash(i * 1.1) * TAU + t * spin;
+  c.fillStyle = '#000'; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+  c.strokeStyle = rgba(col, a); c.lineWidth = 1.2; c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
+  c.strokeStyle = rgba([255, 255, 255], 0.95 * a); c.lineWidth = 1.3;            /* the lit arc, turning */
+  c.beginPath(); c.arc(x, y, r * 0.78, rot + 3.5, rot + 4.5); c.stroke();
+  c.strokeStyle = rgba(col, 0.6 * a); c.lineWidth = 1;                           /* the faint reflection opposite */
+  c.beginPath(); c.arc(x, y, r * 0.7, rot + 0.5, rot + 1.0); c.stroke();
+  /* the tiny bubbles inside: each orbits with the turn and wanders on its own, always kept inside the rim */
+  const n = 10 + Math.floor(hash(i * 5.5) * 9);
+  for (let j = 0; j < n; j++) {
+    const s = i * 37 + j * 3.7, br = 0.6 + 1.3 * hash(s);
+    const w1 = TAU / LOOP * (1 + (j % 3)), w2 = TAU / LOOP * (2 + (j % 2));
+    let rr = r * (0.2 + 0.55 * hash(s + 1)) + Math.sin(t * w1 + s) * r * 0.12;
+    rr = Math.min(rr, r - br - 1.5);
+    const ang = hash(s + 2) * TAU + t * spin * 0.8 + Math.sin(t * w2 + s * 2) * 0.6;
+    const bx = x + Math.cos(ang) * rr, by = y + Math.sin(ang) * rr;
+    c.strokeStyle = rgba(PAL[(j + i) % PAL.length], 0.9 * a); c.lineWidth = 0.9;
+    c.beginPath(); c.arc(bx, by, br, 0, TAU); c.stroke();
+  }
+}
+
+/* the word: thin Inter Tight, each letter in a colour, coming in with the swell and leaving before the loop ends */
+function word(t, k) {
+  if (k <= 0) return;
+  c.save();
+  c.font = '200 52px IT'; c.textBaseline = 'middle'; c.textAlign = 'left'; c.letterSpacing = '6px';
+  const letters = ['F', 'I', 'Z', 'Z'], cols = [PAL[0], PAL[1], PAL[3], PAL[4]];
+  let w = 0; letters.forEach(ch => w += c.measureText(ch).width + 6);
+  let x = (W - w + 6) / 2;
+  const y = H / 2 + (1 - k) * 10;
+  letters.forEach((ch, n) => {
+    c.fillStyle = rgba(cols[n], k);
+    c.fillText(ch, x, y);
+    x += c.measureText(ch).width + 6;
+  });
+  c.restore();
+}
+
+function frame(t) {
+  t = ((t % LOOP) + LOOP) % LOOP;
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  farBokeh(t); specks(t); middle(t); bed(t);
+  const wk = ease((t - 4.0) / 1.6) * (1 - ease((t - 9.4) / 1.3));
+  for (let i = 0; i < 3; i++) nearBubble(t, i);         /* three pass behind the word */
+  word(t, wk);
+  for (let i = 3; i < 7; i++) nearBubble(t, i);         /* four in front of it */
+}
+
+(async () => {
+  const ff = new FontFace('IT', `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search);
+  if (q.has('t')) { frame(+q.get('t')); document.body.dataset.ready = '1'; return; }
+  document.body.className = 'live';
+  const t0 = performance.now();
+  const loop = () => { frame((performance.now() - t0) / 1000); requestAnimationFrame(loop); };
+  loop();
+})();
+</script>
+</body>
+</html>
