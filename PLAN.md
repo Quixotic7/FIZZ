@@ -1197,3 +1197,6 @@ relaunched): notes stored as pitches (slot k = note k; the step still 18 bytes),
 and ALGORITHM all of them (held step, latch selection, NOTE key), the step latch selects by gesture (the pressed set
 replaces the selection; a short tap on the sole selected step empties it), STEPS redrawn as an overview of all 8
 pages, 16 cells a row in fours. test_ctl 528, test_seq 2,795; all 28 goldens unchanged.
+
+**2026-10-19, P1.3g** (FMToneSeq 9d05475; FM1VST `core-quadrille` 6c298f4; version 0.0.10-p1.3g; relaunched):
+SELECT in the STEPS view changes the page with no pop-up (the edited row moves); PIANO ROLL keeps its page picker.
