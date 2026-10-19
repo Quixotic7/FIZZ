@@ -507,6 +507,138 @@ blink**.
 | mute mode | 1..8 lit = heard, 9..16 lit = soloed | | MUTE lit; blinks while any track is muted |
 | KEYS mode | the notes sounding lit, C keys faint | | KEYS lit; REC lit while recording |
 
+## 8b. The sequencer controls, version 2 (2026-10-18, after the OMX-27 Form sequencer)
+
+**This replaces §8's step view, its held-step fields, the PAGE and REC rows and the KEYS row.** The owner, after
+playing P1.3: the black keys choose the hold mode, not the track; with a step held the black keys set that mode's
+values, the last one (F#5) clears it back to the track's; a track has default notes, velocity and so on that a step
+uses unless it overrides them; OCT− / OCT+ are function keys F1 / F2 (both = F3), GLO is SHIFT; REC switches between
+the keyboard and the sequencer, as on Elektron boxes; every page has its own start and end, with shortcuts to loop
+one page or several. The model is the owner's Form sequencer for the OMX-27 (v1.15.4), studied in
+`research/FORM-SEQUENCER.md`. Order of work: the core sequencer and its UI first, then the sound editor, then track and
+pattern management.
+
+### Names
+
+| FM-1 key | role here |
+| --- | --- |
+| OCT− | **F1** |
+| OCT+ | **F2** |
+| OCT− and OCT+ together | **F3** |
+| GLO | **SHIFT** (Form's AUX) |
+| black keys F#3 G#3 A#3, C#4 D#4, F#4 G#4 A#4, C#5 D#5 | **B1..B10** |
+| black key F#5 (the rightmost) | **B11, CLEAR** |
+| white keys | **W1..W16**, the steps of the page being edited |
+
+### Track defaults and step overrides (the model change)
+
+- A track has **defaults** for: notes (up to 4, a chord), velocity, length, micro, ratchet and ramp, chance, condition,
+  trig type, and sound (its own sound).
+- A step stores a value **and an override bit** per parameter. A parameter without its bit takes the track's default
+  **when the step plays**, so changing a track's default changes every step that does not override it, at once.
+- A tapped step has no overrides: it plays the track's defaults.
+- Setting a value on a held step overrides that parameter; B11 clears the override (back to the track's).
+- p-locks (§5) are unchanged: they are the sound's overrides, per step.
+
+### The step view, nothing held
+
+| control | does |
+| --- | --- |
+| W tap | an empty step: a trig with no overrides; a trig: removed with its locks |
+| W hold (250 ms) | the step is held (below); several can be held |
+| **B1..B10** | **the hold mode**: NOTE, VEL, LEN, MICRO, RATCH, CHNC, COND, TRIG, SOUND, LOCKS |
+| B11 | nothing held: (question 37) |
+| SELECT | **the track's default for the current mode** (velocity in VEL, length in LEN, ...; the notes in NOTE) |
+| KNOB 1..4, PRESETS, ALGORITHM | the track's sound, as in P1.3 (FREQ, DECAY, HARM, FDBK; the sound; ALGO) |
+
+**The screen shows the page as the current mode's lane**: NOTE the piano roll (as now), VEL bars, LEN bars over the
+steps, MICRO offsets from the grid, RATCH the hits, CHNC dot columns, COND the conditions' names, TRIG the three
+icons, SOUND each step's sound as a dot of its kit colour, LOCKS the count. **Steps that override the mode are drawn
+bright, steps on the track's default grey, and the track's default is a dashed line or a grey label across the
+page**, so what a default change will move is visible.
+
+### A step held
+
+| control | does |
+| --- | --- |
+| **B1..B10** | **the current mode's ten values** (table below); the value is set on every held step and overridden |
+| **B11 (CLEAR)** | the held steps go back to the track's value for this mode (the override bit cleared) |
+| SELECT | the current mode's value, finely (every value, not only the ten) |
+| KNOB 1..4, PRESETS, ALGORITHM | p-locks and a sound lock, as in P1.3 |
+| OCT− / OCT+ | in NOTE: the entry octave down / up. Otherwise F1 / F2 are off while a step is held (as in Form) |
+| other W keys | more held steps |
+
+| mode | B1 .. B10 | SELECT adds |
+| --- | --- | --- |
+| NOTE | ten notes from the track's scale and root at the entry octave (a chromatic track: ten semitones); keys pressed together make a chord (up to 4); a note sounds when pressed | the notes up / down a scale step |
+| VEL | 13 25 38 51 64 76 89 102 114 127 | 1..127 |
+| LEN | 1/4 1/2 3/4 1 1.5 2 4 8 16 INF steps | the whole length table |
+| MICRO | −20 −15 −10 −5 −2 +2 +5 +10 +15 +20 (24ths; 0 is the default, B11) | −23..+23 |
+| RATCH | B1..B8 = x1..x8; B9 = the ramp (flat, up, down, accent, cycling); B10 nothing | the same |
+| CHNC | 10 20 .. 100 % | 0..100 % |
+| COND | B1 FILL, B2 NOT FILL, B3..B6 A = 1..4, B7..B10 B = 1..4 (A:B, as Form) | the whole list (PRE, NEI, 1ST, A:B to 8:8) |
+| TRIG | B1 NOTE, B2 LOCK (trigless), B3 TIE | the same |
+| SOUND | B1..B10 = the track's **kit**: ten sounds (question 35) | every sound |
+| LOCKS | B1..B10 = the step's locks (up to ten, in order) | the chosen lock's value; B11 removes that lock |
+
+Entering notes is Form's "pressed" rule: the first key pressed replaces the step's notes, keys held together add to
+them. With several steps held, every value goes to all of them.
+
+### F1 (OCT−), F2 (OCT+), F3 (both), SHIFT (GLO)
+
+| layer | B1..B8 | B9 | B10 | B11 | W | SELECT |
+| --- | --- | --- | --- | --- | --- | --- |
+| **F1** | **pages 1..8**: tap = edit that page; double-tap = loop that page alone; hold page A + press page B = loop A..B | clear the page | clear the track | undo / redo | **copy the step** | the page being edited |
+| **F2** | **tracks 1..8**: tap = select; hold a track + W1 = mute, + W2 = solo | copy the page | paste the page | | **paste the copied step** (each tap pastes again) | the track |
+| **F3** | the rate: 1/8 1/4 1/2 2/3 3/4 1 4/3 3/2 (B9 = 2) | rate 2 | | | **the page's end** = that step (and the page joins the loop); hold W a, press W b = start a, end b | tempo (SHIFT: swing) |
+| **SHIFT** | | | | | (question 38) | |
+
+- **Cut** = SHIFT + F1 + W (copy, then clear the step).
+- **Undo**: one level per track, covering clears, pastes and cuts (Form's is narrower).
+- While F1, F2 or F3 is held, **the screen shows that layer's map**: F1 the eight pages (being edited, in the loop,
+  playing, each one's start..end), F2 the eight tracks (selected, muted, soloed), F3 the page's range and the rate. So
+  every layer explains itself while it is held.
+
+### Pages: each with its own start and end
+
+- A track has 8 pages of 16 steps. **Each page has a start and an end** (1..16, start <= end; default 1..16) and an
+  "in the loop" flag (default: page 1 only).
+- Playback walks the pages in the loop in ascending order, each from its start to its end. A track's length is the
+  sum of its pages' ranges (this replaces §6's track length).
+- Loop one page: F1 + double-tap its key. Loop several: F1 + hold one page key + press another (A..B, contiguous).
+  Add one page to the loop without removing the others: F3 + W on that page (sets its end).
+- **PAGE (printed ENV)** is free: tap = page follow on / off (the edited page follows the playhead; default on),
+  held + W1..W8 = edit that page (as now).
+
+### Keyboard and recording
+
+- **REC (tap)** switches the keybed between **the sequencer** and **the keyboard** (the selected track, chromatic or in
+  its scale; the KEYS screen). Its LED is lit in the keyboard.
+- **Recording**: REC + PLAY starts playing with recording armed (Elektron's). In the keyboard, SHIFT + REC arms or
+  disarms recording: stopped = step recording (as P1.3), playing = live recording (as P1.3: micro-timing kept, the
+  length from how long the key is held).
+- **FILL** moves from REC: (question 36).
+- ARP (printed) is free for an arpeggiator later.
+
+### What stays
+
+TRACKS (FX) and its screen (white 1..8 select, 9..16 mute: the owner's "track shortcuts on the track page"), PATTERN
+(SEL), HOME, PLAY, the takeovers (§9a rule 5), §5's p-locks, every held-step screen of P1.3 (they become the screens
+of a held step in each mode, with the B1..B10 values drawn as a strip).
+
+### Questions for the redesign
+
+35. **SOUND's ten keys**: a **kit of ten sounds per track** (set in the sound editor, defaults from the presets), so a
+    drum track's steps pick kick / snare / hat with one key? *Recommend yes.*
+36. **FILL**: hold ARP (free now), or SHIFT + PLAY held? *Recommend hold ARP.*
+37. **B11 with nothing held**: nothing; or "clear every override of the current mode on this page" (with undo)?
+    *Recommend nothing for now.*
+38. **SHIFT + W**: free for now (views later: the sound editor, mix, patterns). *Recommend free.*
+39. **Scales**: a track's scale and root (chromatic by default), set on the TRACKS screen; or one global scale?
+    *Recommend per track, chromatic by default, with a global key that tracks can follow (Form's "global").*
+40. **The step held's knobs**: SELECT = the mode's value and KNOB 1..4 = p-locks (so SELECT no longer "turns what
+    KNOB 1 turns", §9a rule 1). *Recommend yes.*
+
 ## 9. The screens and the two directions
 
 `mockups/index.html`. Every screen is a 240 x 240 canvas, so what is drawn is what the panel would show, pixel for
