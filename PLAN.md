@@ -654,6 +654,7 @@ p-locks as §8b.
 | F1 + | does |
 | --- | --- |
 | B1..B8 tap | select that page for editing |
+| B1..B8 double-tap (second release within 200 ms) | **loop that page alone** (only it plays; the owner kept Form's gesture) |
 | B1..B8 held (400 ms) | that page on / off in the loop (the loop is never left empty) |
 | B1..B8: hold page A, press page B | loop A..B |
 | B9 tap | clear the page being edited (undoable) |
@@ -662,7 +663,7 @@ p-locks as §8b.
 | B11 | undo / redo |
 | W | quick copy / paste of steps (above) |
 
-The double-tap "loop one page alone" is gone (holding pages does it), and F2 no longer copies or pastes pages.
+F2 no longer copies or pastes pages.
 
 **F3's knobs, version 2.1** (the owner, 2026-10-19): while F3 is held, **KNOB 1 = the rate's note value** (1/2, 1/4,
 1/8, 1/16, 1/32; 1/16 = rate 1), **KNOB 2 = normal / dotted / triplet** (dotted x 2/3, triplet x 3/2: every rate of
