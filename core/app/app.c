@@ -50,9 +50,6 @@ static void qd_dance_play(qd_app_t *a)
 static void qd_dance_stop(qd_app_t *a)
 {
     a->playing = 0;
-    a->stop_beats = a->beats;          /* (FIZZ: the last beats' bubbles go on rising from here) */
-    a->stop_ms = a->ms;
-    a->stopped_once = 1;
     a->beats = 0.0;
 }
 

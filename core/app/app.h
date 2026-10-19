@@ -38,8 +38,8 @@
  * P1.3d (§8b version 2.2): the knobs take over the hold modes (and the track's defaults with nothing held), P-LOCK's
  * ALGORITHM chooses the track, LOCKS dropped (B10 reserved), banks on SEQ + B1..B4, the stopped preview (the held steps
  * sound: qd_ctl_preview_sync after every input and millisecond), F3 latched (OCT- exits), the step latch on LFO.
- * P1.3k: the product is FIZZ; the idle screen's dancers are bubbles (ui_idle.c: drawn from the clock, the beats and
- * where the transport stopped; the app keeps only stop_beats / stop_ms for it). */
+ * P1.3k: the product is FIZZ; the idle screen's dancers are gone. P1.3l: the idle screen is a glass filling up and
+ * fizzing over (ui_idle.c, drawn from the clock and the beats). */
 #pragma once
 #include <stdint.h>
 
@@ -101,10 +101,6 @@ typedef struct qd_app {
     int playing;                       /* (the sequencer's, as the dance last saw it) */
     int bpm;                           /* the tempo now (the pattern's, or MIDI clock's) */
     double beats;                      /* beats since PLAY: the sequencer's position */
-    /* the idle screen (P1.3k, FIZZ): where the transport stopped, and when (the last beats' bubbles still rise) */
-    double stop_beats;
-    uint32_t stop_ms;
-    int stopped_once;
     /* the panel */
     uint32_t keys_held, buttons_held;  /* bit k: key k; bit b: button QD_B_b */
     uint8_t key_vel[QD_NKEY];

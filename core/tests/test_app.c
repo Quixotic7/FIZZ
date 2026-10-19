@@ -508,8 +508,8 @@ static void t_clock(void)
     printf("  clock: MIDI START and 24 PPQN at 140 BPM drive the transport; STOP stops\n");
 }
 
-/* P1.3k: FIZZ's idle screen: the bubbles move with the clock, the same clock draws the same frame, and a running
- * transport (a DAW's MIDI clock, the screen staying idle) adds the beats' bursts */
+/* P1.3k / P1.3l: FIZZ's idle screen (the glass filling and fizzing over): it moves with the clock, the same clock draws
+ * the same frame, and a running transport (a DAW's MIDI clock, the screen staying idle) adds the beats' spray */
 static void t_fizz(void)
 {
     uint64_t a1, a2, b1, s1, p1;
@@ -539,10 +539,10 @@ static void t_fizz(void)
     if (now < 3000)
         run(3000 - now, 0);
     p1 = frame_hash();
-    CHECK(A.ui.mode == QD_MODE_IDLE && A.playing && p1 != s1, "playing (MIDI clock, still idle): the beats' bursts "
+    CHECK(A.ui.mode == QD_MODE_IDLE && A.playing && p1 != s1, "playing (MIDI clock, still idle): the beats' spray "
           "change the screen");
     qd_app_midi(&A, 0xFC, 0, 0);
-    printf("  fizz: the idle screen's bubbles: deterministic, moving, bursting with a running transport\n");
+    printf("  fizz: the idle screen's glass: deterministic, moving, spraying with a running transport\n");
 }
 
 static uint64_t session_seq(void)

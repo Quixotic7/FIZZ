@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' P1.3k part: FIZZ's idle screen (bubbles), a few moments stopped and playing, into OUT/p13k-fizz-*.png
- * and OUT/p13k-sheet.png; and 4 s of it (a stopped second, then playing) as frames OUT/fizz/fizz-NNN.png at 30 fps,
- * which `make -C tools frames` turns into OUT/fizz-idle.gif with ffmpeg (2x). */
+/* render_frames' P1.3l part: FIZZ's idle screen, a glass filling up and fizzing over, at eight moments of its loop
+ * (OUT/p13l-fizz-*.png, OUT/p13l-sheet.png) and one whole loop as frames OUT/fizz-glass/f-NNN.png at 15 fps, which
+ * `make -C tools frames` turns into OUT/fizz-glass.gif with ffmpeg (2x). */
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,11 +51,11 @@ static void shot(const char *name, const char *caption)
 {
     char path[1024];
     qd_app_frame(&A, lcd);
-    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13k-%s.png", name);
+    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13l-%s.png", name);
     snprintf(shots[nshot].caption, sizeof shots[nshot].caption, "%s", caption);
     snprintf(path, sizeof path, "%s/%s", outdir, shots[nshot].file);
     if (!p13b_write_lcd_png(path, lcd)) {
-        fprintf(stderr, "render_p13k: cannot write %s\n", path);
+        fprintf(stderr, "render_p13l: cannot write %s\n", path);
         failed = 1;
     }
     printf("%s (%s)\n", path, caption);
@@ -64,15 +64,6 @@ static void shot(const char *name, const char *caption)
 }
 
 /* the panel */
-static void bdown(int b) { qd_app_button(&A, b, 1); }
-static void bup(int b) { qd_app_button(&A, b, 0); }
-static void btap(int b)
-{
-    bdown(b);
-    run(20);
-    bup(b);
-    run(20);
-}
 
 /* ---------------------------------------------------------------- the sheet: three a row, at 2x */
 static void draw_surface(plutovg_canvas_t *c, plutovg_surface_t *s, float x, float y, float scale)
@@ -101,7 +92,7 @@ static void sheet(void)
     plutovg_canvas_fill(c);
     plutovg_canvas_set_font(c, f, 18.f);
     plutovg_canvas_set_rgb(c, 0.9f, 0.9f, 0.9f);
-    plutovg_canvas_fill_text(c, "FIZZ P1.3k: the idle screen, bubbles, each from the core (2x)", -1,
+    plutovg_canvas_fill_text(c, "FIZZ P1.3l: the idle screen, a glass fizzing over, each from the core (2x)", -1,
                              PLUTOVG_TEXT_ENCODING_UTF8, (float)pad, 32.f);
     for (i = 0; i < nshot; i++) {
         const float x = (float)(pad + (i % cols) * (cell_w + pad)), y = (float)(50 + (i / cols) * (cell_h + pad));
@@ -116,7 +107,7 @@ static void sheet(void)
             plutovg_surface_destroy(ours);
         }
     }
-    snprintf(path, sizeof path, "%s/p13k-sheet.png", outdir);
+    snprintf(path, sizeof path, "%s/p13l-sheet.png", outdir);
     if (!plutovg_surface_write_to_png(s, path))
         failed = 1;
     printf("%s (%d screens)\n", path, nshot);
@@ -126,53 +117,57 @@ static void sheet(void)
 }
 
 /* ---------------------------------------------------------------- the script */
-int render_p13k(const char *out)
+#define LOOP_MS 9400u
+
+int render_p13l(const char *out)
 {
+    static const struct {
+        uint32_t at;
+        const char *name, *caption;
+    } M[] = {
+        {300, "fizz-1-empty", "0.3 s: the empty glass, the straw"},
+        {1600, "fizz-2-pour", "1.6 s: the pour, the level rising, bubbles inside"},
+        {3300, "fizz-3-full", "3.3 s: nearly full, cold dots on the glass"},
+        {4700, "fizz-4-foam", "4.7 s: the foam head swelling over the rim"},
+        {5700, "fizz-5-peak", "5.7 s: the peak: it fizzes over, drips, spray, FIZZ rising"},
+        {6400, "fizz-6-spill", "6.4 s: the spill running down, the spray falling"},
+        {7800, "fizz-7-settle", "7.8 s: settled, a head of foam"},
+        {8900, "fizz-8-fade", "8.9 s: the drink fading (the loop starts again)"},
+    };
     char path[1024];
+    size_t i;
     int k;
     outdir = out;
     nshot = 0;
     failed = 0;
 
-    fresh();                                            /* power-on: the idle screen */
-    run(2000);
-    shot("fizz-stopped-1", "FIZZ, stopped: a lazy stream (2 s)");
-    run(3500);
-    shot("fizz-stopped-2", "FIZZ, stopped (5.5 s): one caught on a letter?");
-    btap(QD_B_PLAY);                                    /* (as a DAW's START would: playing on the idle screen) */
+    for (i = 0; i < sizeof M / sizeof M[0]; i++) {     /* power-on at loop time 0: run to each moment */
+        fresh();
+        run(M[i].at);
+        shot(M[i].name, M[i].caption);
+    }
+    fresh();                                            /* playing (a DAW's START: the screen stays idle) */
+    run(5200);
+    qd_app_button(&A, QD_B_PLAY, 1);
+    run(10);
+    qd_app_button(&A, QD_B_PLAY, 0);
     A.ui.mode = QD_MODE_IDLE;
-    run(1500);
-    shot("fizz-playing-1", "FIZZ, playing (A02, 100 BPM): the bursts on the beats");
-    while ((long)(A.beats) % 4 != 0)
+    while ((long)A.beats % 4 != 0 || A.beats - (double)(long)A.beats > 0.1)
         run(1);
-    run(120);
-    shot("fizz-downbeat", "FIZZ, playing: the bar's downbeat, a bigger fizz");
-    run(380);
-    shot("fizz-downbeat-2", "FIZZ, playing: the downbeat's bubbles rising, the beat after");
-    btap(QD_B_PLAY);
-    A.ui.mode = QD_MODE_IDLE;
-    run(600);
-    shot("fizz-stopped-after", "FIZZ, just stopped: the last bubbles still rising");
+    shot("fizz-9-playing", "playing: the downbeat's surge of spray");
 
-    /* the GIF's frames: 4 s at 30 fps, a fresh unit, 1 s stopped, PLAY (it plays on the idle screen), 3 s playing */
-    snprintf(path, sizeof path, "%s/fizz", out);
+    /* the GIF's frames: one whole loop at 15 fps */
+    snprintf(path, sizeof path, "%s/fizz-glass", out);
     mkdir(path, 0755);
     fresh();
-    run(4000);
-    for (k = 0; k < 120; k++) {
-        if (k == 30) {                                  /* PLAY, the idle screen kept (it goes back after a press) */
-            qd_app_button(&A, QD_B_PLAY, 1);
-            run(10);
-            qd_app_button(&A, QD_B_PLAY, 0);
-            A.ui.mode = QD_MODE_IDLE;
-        }
+    for (k = 0; k < (int)(LOOP_MS / 1000u * 15u) + 6; k++) {
         qd_app_frame(&A, lcd);
-        snprintf(path, sizeof path, "%s/fizz/fizz-%03d.png", out, k);
+        snprintf(path, sizeof path, "%s/fizz-glass/f-%03d.png", out, k);
         if (!p13b_write_lcd_png(path, lcd))
             failed = 1;
-        run(k == 30 ? 23 : 33);
+        run(66 + (k % 3 == 0));
     }
-    printf("%s/fizz/fizz-000..119.png (4 s at 30 fps)\n", out);
+    printf("%s/fizz-glass/f-*.png (one loop at 15 fps)\n", out);
 
     if (!failed)
         sheet();

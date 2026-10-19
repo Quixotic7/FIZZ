@@ -870,8 +870,7 @@ static void draw_idle(const qd_app_t *a)
     v.bpm = a->bpm;
     v.playing = a->playing;
     v.t = secs(a->ms);
-    v.beats = a->playing ? a->beats : a->stop_beats;
-    v.since_stop = a->playing || !a->stopped_once ? -1.f : secs(a->ms - a->stop_ms);
+    v.beats = a->playing ? a->beats : 0.0;
     ui_idle_draw(&v);
 }
 
