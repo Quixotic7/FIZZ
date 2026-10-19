@@ -720,6 +720,12 @@ Knobs without a job in a mode do nothing there (p-locks are P-LOCK's).
   not coming back: the track's defaults do that job.
 - The owner's answers (2026-10-19): the demo drums wait for the sound editor; no saving yet; SHIFT + ALGORITHM /
   PRESETS for scale and root stay; the dancers stay.
+- **Editing a track's default** (the owner, after P1.3d): with the step latch off, **holding a mode key (B1..B9)**
+  holds "the track" for that mode: the screen is the mode's full picture marked TRACK DEFAULT (as a held step's: NOTE
+  shows the chord name and the keybed), SELECT and KNOB 1..4 edit the default by `KNOB_JOB`, ALGORITHM the main
+  default, and **B11 (F#5) resets that default** to the track's initial value (NOTE: back to its single note, which
+  clears a default chord). With nothing held at all, ALGORITHM and KNOB 1..4 still edit the defaults, now showing that
+  same full picture instead of P1.3d's band (the owner liked the full NOTE screen). The band stays for a held step.
 
 ### Questions for the redesign
 
