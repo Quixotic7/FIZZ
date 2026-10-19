@@ -726,6 +726,9 @@ Knobs without a job in a mode do nothing there (p-locks are P-LOCK's).
   default, and **B11 (F#5) resets that default** to the track's initial value (NOTE: back to its single note, which
   clears a default chord). With nothing held at all, ALGORITHM and KNOB 1..4 still edit the defaults, now showing that
   same full picture instead of P1.3d's band (the owner liked the full NOTE screen). The band stays for a held step.
+- **Six notes** (the owner): in NOTE with a step held, **ALGORITHM = note 6** (SELECT note 1, KNOB 1..4 notes 2..5),
+  so a step has **up to 6 notes** (keys too). For the track's default chord ALGORITHM keeps moving every note
+  together (the owner likes it); a held step's notes no longer have that transpose.
 
 ### Questions for the redesign
 
