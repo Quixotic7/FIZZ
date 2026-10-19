@@ -744,6 +744,9 @@ Knobs without a job in a mode do nothing there (p-locks are P-LOCK's).
   together; **tapping a selected step unselects it**. With **nothing selected** the latch stays on but behaves as
   nothing held: the black keys choose the hold mode, the knobs edit the track's defaults; a W tap selects again (a tap
   still never adds or removes a trig while latched).
+  **Selection by gesture, not toggles** (the owner, after P1.3e): the W keys pressed while at least one is still down
+  form one gesture; when every W key is up, **that set replaces the selection** (a single tap selects just that
+  step). Tapping the step that is already the whole selection empties it (the mode keys come back).
 
 ### Questions for the redesign
 
