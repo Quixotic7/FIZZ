@@ -649,6 +649,21 @@ These override the tables above where they differ.
 In NOTE with a step held, KNOB 1..4 are notes, so p-locks there go through P-LOCK. In the other modes KNOB 1..4 stay
 p-locks as §8b.
 
+**The F1 page layer, version 2.1** (the owner, 2026-10-19; replaces §8b's F1 row and F2's B9 / B10):
+
+| F1 + | does |
+| --- | --- |
+| B1..B8 tap | select that page for editing |
+| B1..B8 held (400 ms) | that page on / off in the loop (the loop is never left empty) |
+| B1..B8: hold page A, press page B | loop A..B |
+| B9 tap | clear the page being edited (undoable) |
+| B9 held (600 ms) | clear the track: every page (undoable) |
+| B10 tap | copy the page being edited; then B1..B8 pastes it onto that page (each press pastes again; undoable) |
+| B11 | undo / redo |
+| W | quick copy / paste of steps (above) |
+
+The double-tap "loop one page alone" is gone (holding pages does it), and F2 no longer copies or pastes pages.
+
 ### Questions for the redesign
 
 35. **SOUND's ten keys**: **decided: the sound pool** (128 sounds, a one-byte lock; ten at a time on the keys, OCT
