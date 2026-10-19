@@ -1205,3 +1205,9 @@ SELECT in the STEPS view changes the page with no pop-up (the edited row moves);
 
 **2026-10-19, P1.3h** (FMToneSeq 8f72460; FM1VST `core-quadrille` 498c992; version 0.0.11-p1.3h; relaunched): in the
 F3 menu SELECT = the page, ALGORITHM = the tempo, SHIFT + ALGORITHM = the swing, none with a pop-up.
+
+**2026-10-19, P1.3i** (FMToneSeq 90647e0; FM1VST `core-quadrille` d00b906; version 0.0.12-p1.3i; relaunched): the
+owner found ALGORITHM not setting the tempo in F3. The cause: a MIDI START + STOP (Ableton Live was running) left the
+sequencer following an external clock until PLAY was pressed, and every tempo turn was ignored silently. Now STOP ends
+it, half a second without a pulse ends it (the transport stops), and a turn while a clock really runs shows EXT CLOCK.
+A new ABI-level test (`make -C tools abi`) loads the built module as the host does.
