@@ -10,10 +10,6 @@
 #include "../seq/demo.h"
 #include "../voice/fx/qd_fx.h"
 
-#define QD_TAU 6.283185307179586
-#define QD_SWAY_AMP 0.55f              /* stopped: the sway (a bob a beat at the tempo) smaller than the dance */
-#define QD_AMP_MS 300.f                /* the motion's size eases between the two over this long */
-#define QD_SETTLE_MS 250.f             /* stopped mid-turn: the quarter turn finishes in this long */
 
 /* the tempo the sound runs at (FM TONE's synced LFOs and DELAYs, the synced delay) */
 void qd_app_tempo(qd_app_t *a, int bpm)
@@ -27,7 +23,6 @@ void qd_app_init(qd_app_t *a)
 {
     int t;
     memset(a, 0, sizeof *a);
-    a->amp = QD_SWAY_AMP;
     a->master_pot = QD_MASTER_POT_DEFAULT;
     qd_model_init(&a->model);
     qd_pool_init(&a->pool, QD_VOICES);
@@ -45,20 +40,19 @@ void qd_app_init(qd_app_t *a)
     qd_ctl_init(a);
 }
 
-/* ---------------------------------------------------------------- the transport and the dance --- */
+/* ---------------------------------------------------------------- the transport and the idle screen --- */
 static void qd_dance_play(qd_app_t *a)
 {
     a->playing = 1;
     a->beats = 0.0;                    /* the transport starts at the top of the bar */
-    a->turn_base = a->turn_target;     /* (a whole number: where the last stop settled) */
-    a->turn = a->turn_base;
 }
 
 static void qd_dance_stop(qd_app_t *a)
 {
     a->playing = 0;
-    a->turn_target = ceilf(a->turn - 1e-4f);   /* mid-turn: the turn finishes, then the dancers rest */
-    a->sway = fmod(a->beats * QD_TAU, QD_TAU); /* the sway goes on from the dance's pose */
+    a->stop_beats = a->beats;          /* (FIZZ: the last beats' bubbles go on rising from here) */
+    a->stop_ms = a->ms;
+    a->stopped_once = 1;
     a->beats = 0.0;
 }
 
@@ -191,31 +185,14 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
 /* ---------------------------------------------------------------- time --- */
 static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
 {
-    const float amp_to = a->playing ? 1.f : QD_SWAY_AMP;
     if (a->seq.playing != a->playing) {                 /* (MIDI START / STOP moved the transport) */
         if (a->seq.playing)
             qd_dance_play(a);
         else
             qd_dance_stop(a);
     }
-    if (a->playing) {
-        double bars, whole;
+    if (a->playing)
         a->beats = (double)qd_seq_tick(&a->seq) / (4.0 * QD_TPS);   /* the transport's own position */
-        bars = a->beats / 4.0;
-        whole = floor(bars);
-        /* line.html s1: a quarter turn each bar, in its last beat */
-        a->turn = a->turn_base + (float)whole + ui_ease((float)((bars - whole) - 0.75) * 4.f);
-    } else {
-        const float d = a->turn_target - a->turn, step = 1.f / QD_SETTLE_MS;
-        a->turn = fabsf(d) <= step ? a->turn_target : a->turn + (d > 0.f ? step : -step);
-        a->sway += QD_TAU * (double)a->bpm / 60000.0;   /* a bob a beat, at the tempo */
-        if (a->sway >= QD_TAU)
-            a->sway -= QD_TAU;
-    }
-    if (a->amp < amp_to)
-        a->amp = fminf(amp_to, a->amp + (1.f - QD_SWAY_AMP) / QD_AMP_MS);
-    else if (a->amp > amp_to)
-        a->amp = fmaxf(amp_to, a->amp - (1.f - QD_SWAY_AMP) / QD_AMP_MS);
     qd_ctl_ms(a);
     qd_ctl_preview_sync(a);                             /* (a step held at 250 ms, the transport moved) */
 }

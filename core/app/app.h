@@ -37,7 +37,9 @@
  * B11, F3's rate as a note value and a type (21 rates; QD_TPS 100800), the octave takeover and the OCT LEDs.
  * P1.3d (§8b version 2.2): the knobs take over the hold modes (and the track's defaults with nothing held), P-LOCK's
  * ALGORITHM chooses the track, LOCKS dropped (B10 reserved), banks on SEQ + B1..B4, the stopped preview (the held steps
- * sound: qd_ctl_preview_sync after every input and millisecond), F3 latched (OCT- exits), the step latch on LFO. */
+ * sound: qd_ctl_preview_sync after every input and millisecond), F3 latched (OCT- exits), the step latch on LFO.
+ * P1.3k: the product is FIZZ; the idle screen's dancers are bubbles (ui_idle.c: drawn from the clock, the beats and
+ * where the transport stopped; the app keeps only stop_beats / stop_ms for it). */
 #pragma once
 #include <stdint.h>
 
@@ -99,12 +101,10 @@ typedef struct qd_app {
     int playing;                       /* (the sequencer's, as the dance last saw it) */
     int bpm;                           /* the tempo now (the pattern's, or MIDI clock's) */
     double beats;                      /* beats since PLAY: the sequencer's position */
-    /* the idle screen's dance */
-    float turn_base;                   /* whole quarter turns done before this play */
-    float turn;                        /* the turn shown */
-    float turn_target;                 /* stopped: where the turn settles (a whole number) */
-    double sway;                       /* stopped: the sway's phase, radians (a bob a beat, at the tempo) */
-    float amp;                         /* the motion's size, eased between playing (1) and stopped */
+    /* the idle screen (P1.3k, FIZZ): where the transport stopped, and when (the last beats' bubbles still rise) */
+    double stop_beats;
+    uint32_t stop_ms;
+    int stopped_once;
     /* the panel */
     uint32_t keys_held, buttons_held;  /* bit k: key k; bit b: button QD_B_b */
     uint8_t key_vel[QD_NKEY];

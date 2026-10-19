@@ -869,9 +869,9 @@ static void draw_idle(const qd_app_t *a)
         v.pattern[0] = 0;                               /* another is queued: the name blinks */
     v.bpm = a->bpm;
     v.playing = a->playing;
-    v.turn = a->turn;
-    v.phase = (float)(a->playing ? fmod(a->beats * 6.283185307179586, 2.0 * 6.283185307179586) : a->sway);
-    v.amp = a->amp;
+    v.t = secs(a->ms);
+    v.beats = a->playing ? a->beats : a->stop_beats;
+    v.since_stop = a->playing || !a->stopped_once ? -1.f : secs(a->ms - a->stop_ms);
     ui_idle_draw(&v);
 }
 

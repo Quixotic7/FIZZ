@@ -51,6 +51,7 @@ int render_p13d(const char *out);                       /* render_p13d.c */
 int render_p13e(const char *out);                       /* render_p13e.c */
 int render_p13f(const char *out);                       /* render_p13f.c */
 int render_p13j(const char *out);                       /* render_p13j.c */
+int render_p13k(const char *out);                       /* render_p13k.c */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
 
@@ -196,7 +197,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "render_frames: cannot write %s (does the folder exist?)\n", path);
         return 1;
     }
-    fprintf(log, "QUADRILLE P1.1, render_frames: PLAY at 500 ms, KNOB 1 +8 at 3000, key 0 (F3) held 4000..4500, TRACKS +"
+    fprintf(log, "FIZZ P1.1, render_frames: PLAY at 500 ms, KNOB 1 +8 at 3000, key 0 (F3) held 4000..4500, TRACKS +"
                  " white key 3 at 6300, KEYS at 6500, C4 E4 G4 B4 held 6600..7700, PRESETS +1 at 7200\n");
     if (!qd_init()) {
         fprintf(stderr, "render_frames: qd_init failed\n");
@@ -276,8 +277,8 @@ int main(int argc, char **argv)
                 fprintf(stderr, "render_frames: cannot write %s\n", path);
                 failed = 1;
             }
-            printf("%s (%u ms: %s, %d BPM, turn %.3f)\n", path, (unsigned)frame_ms,
-                   app.playing ? "playing" : "stopped", app.bpm, (double)app.turn);
+            printf("%s (%u ms: %s, %d BPM, beat %.3f)\n", path, (unsigned)frame_ms,
+                   app.playing ? "playing" : "stopped", app.bpm, app.beats);
             dump_leds(log, &leds, ms);
             if (ms == 4200 || ms == 7000) {
                 snprintf(path, sizeof path, "%s/leds-%05u.png", out, (unsigned)ms);
@@ -373,6 +374,7 @@ int main(int argc, char **argv)
     failed |= render_p13e(out);                         /* P1.3e: 2.2's later bullets */
     failed |= render_p13f(out);                         /* P1.3f: NOTE's knobs, each its own note */
     failed |= render_p13j(out);                         /* P1.3j: the STEPS view redrawn */
+    failed |= render_p13k(out);                         /* P1.3k: FIZZ's idle screen, its GIF's frames */
     qd_shutdown();
     return failed;
 }

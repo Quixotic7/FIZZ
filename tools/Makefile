@@ -1,4 +1,5 @@
-# QUADRILLE's tools. Objects go to tools/build/ (gitignored); outputs to core/tests/out/ (gitignored).
+# FIZZ's tools (P1.3k: QUADRILLE renamed). Objects go to tools/build/ (gitignored); outputs to core/tests/out/
+# (gitignored).
 #   make -C tools              render_frames, render_audio
 #   make -C tools frames       render_frames into core/tests/out/ (PNGs of the screens, the LEDs)
 #   make -C tools audio        render_audio into core/tests/out/ (presets.wav, tracks.wav, pool-stress.wav, the CPU, the
@@ -57,7 +58,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13j.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13j.o $(B)/render_p13k.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
@@ -72,9 +73,14 @@ $(B)/%.o: %.c $(HDRS) Makefile | $(B)
 $(B):
 	mkdir -p $(B)
 
+FFMPEG ?= $(firstword $(wildcard /opt/homebrew/bin/ffmpeg /usr/local/bin/ffmpeg) ffmpeg)
 frames: render_frames
 	mkdir -p $(OUT)
 	./render_frames $(OUT)
+	@# P1.3k: the idle screen's 4 s as a GIF, 2x (skipped without ffmpeg)
+	-$(FFMPEG) -loglevel error -y -framerate 30 -i $(OUT)/fizz/fizz-%03d.png \
+	    -vf "scale=480:480:flags=neighbor,split[a][b];[a]palettegen=max_colors=64[p];[b][p]paletteuse" \
+	    $(OUT)/fizz-idle.gif && echo "$(OUT)/fizz-idle.gif" 
 
 audio: render_audio
 	mkdir -p $(OUT)
@@ -136,16 +142,16 @@ test: $(TESTS)
 	$(B)/test_fx_bitexact
 	@echo "make test: all passed"
 
-# P1.3i: QUADRILLE through the core ABI, as FM1VST's host drives it (dlopen of the built module): FM1VST's core-api and
-# the module from its build (both outside this tree: FM1VST_DIR, FM1CORE)
+# P1.3i: FIZZ (P1.3k: was QUADRILLE) through the core ABI, as FM1VST's host drives it (dlopen of the built module):
+# FM1VST's core-api and the module from its build (both outside this tree: FM1VST_DIR, FM1CORE)
 FM1VST_DIR ?= $(abspath $(ROOT)/../FM1VST/.claude/worktrees/quadrille)
-FM1CORE ?= $(FM1VST_DIR)/build-quadrille/cores/quadrille.fm1core
+FM1CORE ?= $(FM1VST_DIR)/build-quadrille/cores/fizz.fm1core
 $(B)/test_abi: test_abi.c | $(B)
 	$(CC) -std=c99 -O1 -g -Wall -Wextra -I$(FM1VST_DIR)/core-api -o $@ $< $(if $(filter Linux,$(shell uname)),-ldl,)
 abi: $(B)/test_abi
 	$(B)/test_abi $(FM1CORE)
 
-# P1.3j: QUADRILLE through FM1VST's processor and the Remote FM-1 path, with libremotefm1's fake unit
+# P1.3j: FIZZ through FM1VST's processor and the Remote FM-1 path, with libremotefm1's fake unit
 # (tools/test_remote.cpp, built with FM1VST's remote_test flags and libraries from its build tree)
 FM1VST_BUILD ?= $(FM1VST_DIR)/build-quadrille
 remote:

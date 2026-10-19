@@ -505,7 +505,44 @@ static void t_clock(void)
     qd_app_midi(&A, 0xFC, 0, 0);                        /* STOP */
     run(5, 0);
     CHECK(!A.seq.playing && !A.playing && seq_voices() == 0, "MIDI STOP: stopped, released");
-    printf("  clock: MIDI START and 24 PPQN at 140 BPM drive the transport and the dance; STOP stops\n");
+    printf("  clock: MIDI START and 24 PPQN at 140 BPM drive the transport; STOP stops\n");
+}
+
+/* P1.3k: FIZZ's idle screen: the bubbles move with the clock, the same clock draws the same frame, and a running
+ * transport (a DAW's MIDI clock, the screen staying idle) adds the beats' bursts */
+static void t_fizz(void)
+{
+    uint64_t a1, a2, b1, s1, p1;
+    int k;
+    fresh();
+    run(2000, 0);
+    a1 = frame_hash();
+    run(100, 0);
+    b1 = frame_hash();
+    fresh();
+    run(2000, 0);
+    a2 = frame_hash();
+    CHECK(A.ui.mode == QD_MODE_IDLE && a1 == a2 && a1 != b1, "the idle screen: the same at the same time after "
+          "power-on, moving 0.1 s later");
+    fresh();
+    run(3000, 0);
+    s1 = frame_hash();                                  /* stopped at 3 s */
+    fresh();
+    run(990, 0);
+    qd_app_midi(&A, 0xFA, 0, 0);                        /* START, then a clock at 120 BPM from 1 s */
+    for (k = 0; k < 96; k++) {
+        const uint32_t at = 1000u + (uint32_t)(k * 60000.0 / 120.0 / 24.0 + 0.5);
+        if (now < at)
+            run(at - now, 0);
+        qd_app_midi(&A, 0xF8, 0, 0);
+    }
+    if (now < 3000)
+        run(3000 - now, 0);
+    p1 = frame_hash();
+    CHECK(A.ui.mode == QD_MODE_IDLE && A.playing && p1 != s1, "playing (MIDI clock, still idle): the beats' bursts "
+          "change the screen");
+    qd_app_midi(&A, 0xFC, 0, 0);
+    printf("  fizz: the idle screen's bubbles: deterministic, moving, bursting with a running transport\n");
 }
 
 static uint64_t session_seq(void)
@@ -570,6 +607,7 @@ int main(void)
     t_tracks();
     t_along();
     t_clock();
+    t_fizz();
     h1 = session_seq();
     h2 = session_seq();
     CHECK(h1 == h2, "two runs of the sequencer's session differ");
