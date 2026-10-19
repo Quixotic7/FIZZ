@@ -1211,3 +1211,4 @@ owner found ALGORITHM not setting the tempo in F3. The cause: a MIDI START + STO
 sequencer following an external clock until PLAY was pressed, and every tempo turn was ignored silently. Now STOP ends
 it, half a second without a pulse ends it (the transport stops), and a turn while a clock really runs shows EXT CLOCK.
 A new ABI-level test (`make -C tools abi`) loads the built module as the host does.
+- The owner (2026-10-19): when an external clock stops arriving, the unit stops (kept as P1.3i built it).
