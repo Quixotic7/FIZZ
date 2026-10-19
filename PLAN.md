@@ -1202,3 +1202,6 @@ pages, 16 cells a row in fours. test_ctl 528, test_seq 2,795; all 28 goldens unc
 
 **2026-10-19, P1.3g** (FMToneSeq 9d05475; FM1VST `core-quadrille` 6c298f4; version 0.0.10-p1.3g; relaunched):
 SELECT in the STEPS view changes the page with no pop-up (the edited row moves); PIANO ROLL keeps its page picker.
+
+**2026-10-19, P1.3h** (FMToneSeq 8f72460; FM1VST `core-quadrille` 498c992; version 0.0.11-p1.3h; relaunched): in the
+F3 menu SELECT = the page, ALGORITHM = the tempo, SHIFT + ALGORITHM = the swing, none with a pop-up.
