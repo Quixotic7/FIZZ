@@ -1235,3 +1235,7 @@ spray, FIZZ rising from the foam, settle, fade; the spray pulses on the beats wh
 **2026-10-19, P1.3m** (FMToneSeq 71c3500; FM1VST `core-quadrille` 2903c71; version 0.1.2-p1.3m; relaunched): the logo
 screen per the owner: no footer, zoomed on the top of the glass, everything outlined in greys on black (no colour,
 checked by a test), the same loop (`core/tests/out/fizz-logo.gif`).
+
+**2026-10-19, P1.3n** (FMToneSeq 3fc0d21; FM1VST `core-quadrille` 49a10a4; version 0.1.3-p1.3n; relaunched): the logo
+screen without the glass and straw: a thin wavy surface line, fine outlined bubbles popping with tiny splashes, the
+fizz peak with FIZZ rising above the line.

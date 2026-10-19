@@ -3,3 +3,4 @@ tools/build/
 tools/render_frames
 *.dSYM/
 tools/render_audio
+.DS_Store
