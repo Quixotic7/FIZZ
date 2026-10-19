@@ -3,9 +3,9 @@
  * pattern change and chains, MIDI clock in. It turns the project's patterns into timed events; the player (player.h)
  * gives them to the voice pool. Plain C, no OS, deterministic: the same calls give the same events.
  *
- * TIME. Musical time is in ticks, QD_TPS (50400) a 16th (pattern.h). The transport's position is in subticks, QD_SUB
- * (105000) a tick, and moves 8 x the tempo in milli-BPM subticks a sample: at 44.1 kHz that is exact (a 16th at B BPM
- * is 44100 x 15 / B samples = 50400 x 105000 / (8 x 1000 B) subticks a sample), so a run at a fixed tempo has no
+ * TIME. Musical time is in ticks, QD_TPS (100800 since P1.3c) a 16th (pattern.h). The transport's position is in
+ * subticks, QD_SUB (52500) a tick, and moves 8 x the tempo in milli-BPM subticks a sample: at 44.1 kHz that is exact
+ * (a 16th at B BPM is 44100 x 15 / B samples = 100800 x 52500 / (8 x 1000 B) subticks a sample), so a run at a fixed tempo has no
  * drift and the same ticks map to the same samples every time. The sequencer runs a block of 32 samples (one FM TONE
  * control block) a call, qd_seq_block: an event at tick E lands at sample S0 + ceil((E x QD_SUB - P0) / adv) of the
  * block that holds it (P0 the position at the block's first sample S0, adv the subticks a sample), and reaches the
@@ -35,7 +35,10 @@
  * so a run is deterministic and a chain repeated rolls anew.
  *
  * PATTERN CHANGE. qd_seq_queue: at the end of the master length (the next multiple of it from where the playing pattern
- * started) or, immediate, at the next 16th. Tracks that resolved steps of the old pattern beyond that tick are wound
+ * started) or, immediate, at the next 16th. P1.3c (§8b 2.1, the launch mode): qd_seq_select_at also changes at the
+ * next BAR (16 sixteenths) or BEAT (4) counted from where the playing pattern started (a change point the transport is
+ * exactly on: there), or NOW (the next 16th, as immediate); END keeps a change already queued at its point, the others
+ * reckon it again from now. Tracks that resolved steps of the old pattern beyond that tick are wound
  * back to it (their unplayed events dropped). Chains (qd_seq_chain): up to 16 patterns, each played for its master
  * length, looped. A pattern with master INF never moves on.
  *
@@ -54,7 +57,7 @@
 extern "C" {
 #endif
 
-#define QD_SUB 105000                   /* subticks a tick */
+#define QD_SUB 52500                    /* subticks a tick (P1.3c: halved as QD_TPS doubled: a 16th unchanged) */
 #define QD_SEQ_BLOCK 32                 /* samples a block (FM TONE's control block) */
 #define QD_SEQ_FS 44100
 #define QD_SEQ_NEV 4096                 /* events waiting at most */
@@ -184,7 +187,10 @@ void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx);
 
 /* patterns: stopped, the choice is the pattern PLAY starts; playing, it is queued (to the end of the master length,
  * or at the next 16th when immediate). A queue replaces the chain with that pattern alone */
-void qd_seq_select(qd_seq_t *s, int pat, int immediate);
+void qd_seq_select(qd_seq_t *s, int pat, int immediate);   /* immediate: QD_LAUNCH_NOW, else QD_LAUNCH_END */
+enum { QD_LAUNCH_END, QD_LAUNCH_BAR, QD_LAUNCH_BEAT, QD_LAUNCH_NOW, QD_NLAUNCH };
+void qd_seq_select_at(qd_seq_t *s, int pat, int launch);
+const char *qd_launch_name(int launch);   /* "END", "BAR", "BEAT", "NOW" */
 void qd_seq_chain(qd_seq_t *s, const int *pats, int n);
 int qd_seq_queued(const qd_seq_t *s);   /* the queued pattern, -1 none */
 /* the playing pattern's master length and the ticks to the change (0: none queued) */

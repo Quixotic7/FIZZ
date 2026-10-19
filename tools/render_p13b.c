@@ -124,11 +124,11 @@ static void at(int k, int t, int m)
 {
     fresh();
     btap(QD_B_HOME);
-    bdown(QD_B_PATTERN);
+    bdown(QD_B_MIX);                                    /* (P1.3c: printed SEQ held + W: the pattern) */
     qd_app_key(&A, WK(k), 1, 100);
     run(20);
     qd_app_key(&A, WK(k), 0, 0);
-    bup(QD_B_PATTERN);
+    bup(QD_B_MIX);
     run(20);
     track(t);
     black(m);
@@ -400,13 +400,9 @@ int render_p13b(const char *out, const char *mocks)
     run(30);
     bdown(QD_B_OCTUP);
     run(100);
-    qd_app_key(&A, BK(6), 1, 100);                      /* track 7 held + W1: muted; still held */
-    run(30);
-    wtap(0);
+    wtap(1);                                            /* (P1.3c: Form's pick-up: W2 cut into the hand) */
     run(100);
-    shot("f2", "F2 (OCT+ held): the tracks; track 7 held, W1 muted it", 0);
-    qd_app_key(&A, BK(6), 0, 0);
-    run(20);
+    shot("f2", "F2 (OCT+ held): the pick-up / drop, W2 cut into the hand", 0);
     bup(QD_B_OCTUP);
     run(30);
     bdown(QD_B_OCTDN);

@@ -31,7 +31,7 @@ APP_SRC := $(ROOT)/core/app/app.c $(ROOT)/core/app/ctl.c $(ROOT)/core/app/ctl_st
            $(ROOT)/core/app/ctl_leds.c $(ROOT)/core/app/view.c
 UI_SRC := $(ROOT)/core/ui/ui_kit.c $(ROOT)/core/ui/ui_idle.c $(ROOT)/core/ui/ui_keys.c $(ROOT)/core/ui/ui_picker.c \
           $(ROOT)/core/ui/ui_tracks.c $(ROOT)/core/ui/ui_lane.c $(ROOT)/core/ui/ui_held.c $(ROOT)/core/ui/ui_turn.c \
-          $(ROOT)/core/ui/ui_layer.c
+          $(ROOT)/core/ui/ui_layer.c $(ROOT)/core/ui/ui_octave.c
 CORE_SRC := $(APP_SRC) $(UI_SRC) $(ROOT)/core/gfx/qd_gfx_plutovg.c \
             $(ROOT)/core/seq/model.c $(ROOT)/core/seq/pattern.c $(ROOT)/core/seq/seq.c $(ROOT)/core/seq/player.c \
             $(ROOT)/core/seq/demo.c $(ROOT)/core/seq/chord.c $(ROOT)/core/seq/scale.c $(ROOT)/core/seq/sounds.c \
@@ -55,7 +55,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)

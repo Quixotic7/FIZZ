@@ -18,6 +18,7 @@ extern "C" {
 #define UI_K2 0x1fd47eu
 #define UI_K3 0xf1f0eau
 #define UI_K4 0xff6a2cu
+#define UI_KSEL 0xffd23fu               /* P1.3c: SELECT's colour where SELECT moves a part of the drawing (NOTE's note 1) */
 #define UI_RED 0xff3448u
 #define UI_G1 0x8d8d96u
 #define UI_G2 0x4b4b54u
@@ -135,7 +136,7 @@ void ui_tracks_draw(const ui_tracks_t *v);
 /* ---- the hold modes (B1..B10): their names and colours. A step that overrides the mode is drawn in the mode's colour,
  * a step on the track's default grey */
 enum { UI_F_NOTE, UI_F_VEL, UI_F_LEN, UI_F_MICRO, UI_F_RATCH, UI_F_CHNC, UI_F_COND, UI_F_TRIG, UI_F_SOUND, UI_F_LOCKS,
-       UI_NFIELD };
+       UI_F_PLOCK, UI_NFIELD };         /* P1.3c: B11 = P-LOCK (holding a step keeps the screen; its knobs p-lock) */
 extern const char *const UI_FIELD_NAME[UI_NFIELD];   /* "NOTE" .. "LOCKS" */
 extern const qd_rgb UI_MODE_COL[UI_NFIELD];
 
@@ -172,7 +173,7 @@ typedef struct {
     uint8_t held;                       /* held: outlined white */
     uint8_t lit;                        /* the playhead is in its span (NOTE: its bars filled white) */
     uint8_t nnote;
-    uint8_t note[4];                    /* absolute */
+    uint8_t note[5];                    /* absolute */
     float len;                          /* the gate in steps (INF: to the page's end) */
     int8_t micro;                       /* 24ths of a step */
     uint8_t ratch, ramp;                /* x1..x8, the ramp (QD_RAMP_*) */
@@ -200,7 +201,7 @@ typedef struct {
     float t;                            /* seconds (motion) */
     /* the track's default for the mode */
     int def_nnote;
-    uint8_t def_note[4];
+    uint8_t def_note[5];
     int def_vel;
     float def_len;
     int def_micro, def_ratch, def_ramp, def_chance, def_type;
@@ -230,8 +231,12 @@ typedef struct {
     int clr;
     /* NOTE (s4): the chord name big (root + quality; a name not known: the note names), the notes on the keybed */
     int nnote;
-    uint8_t note[4];                    /* absolute */
-    char note_name[4][6];               /* "C3", "D#4" */
+    uint8_t note[5];                    /* absolute */
+    char note_name[5][6];               /* "C3", "D#4" */
+    /* P1.3c: the five notes by their knobs: slot 0 note 1 (SELECT, absolute), slots 1..4 notes 2..5 (KNOB 1..4, offsets
+     * from note 1): each slot's absolute note, 0 none; drawn in its knob's colour (SELECT UI_KSEL, KNOB k UI_K[k - 1]) */
+    uint8_t slot_note[5];
+    int knobs;                          /* the five knobs are the notes (a step held in NOTE): their legend drawn */
     char root[4];                       /* "C", "F#" (empty: no chord) */
     char qual[8];                       /* "m7", "" (major), "sus4" */
     char names[24];                     /* a chord not known: "C D F#" (root empty) */
@@ -287,31 +292,80 @@ typedef struct {
     const char *name;                   /* the track's */
     float t;                            /* seconds (the blinks) */
     int blink;                          /* the blink's lit half (QD_BLINK_MS) */
-    /* F1: the eight pages (B1..B8): the one edited, the loop, the playing one, each one's start..end, its trigs;
-     * the labels B9 CLR PAGE, B10 CLR TRACK, B11 UNDO; W: COPY (SHIFT: CUT) */
+    /* F1 (P1.3c, §8b 2.1's page layer): the eight pages (B1..B8): the one edited, the loop, the playing one, each one's
+     * start..end, its trigs; tap = edit, hold = in / out of the loop, B9 CLEAR (held: the track), B10 COPY, then B1..B8
+     * PASTE; B11 UNDO; W: the quick step copy / paste */
     int page;                           /* edited 0..7 */
     uint8_t loop;
     uint8_t pstart[8], pend[8];
     int play_page;                      /* -1: stopped */
     uint8_t trig[8][16];                /* 1: a trig on that page's step */
     int can_undo, step_clip;            /* undo held; a step copied */
-    int shift;                          /* SHIFT held: W cuts */
-    /* F2: the eight tracks (B1..B8): selected, muted, soloed; held track: W1 MUTE, W2 SOLO; B9 COPY PAGE, B10 PASTE;
-     * W: PASTE STEP */
+    int shift;                          /* (unused since P1.3c) */
+    int page_copied;                    /* F1: the page copied this hold (-1 none): B1..B8 paste it */
+    int f1_copied;                      /* F1: a step copied this hold (the next W pastes it) */
+    int clip_step;                      /* .. the step in the clipboard (1..128; 0 none) */
+    int clip_nnote;                     /* .. its notes (the card's little roll), its trig */
+    uint8_t clip_note[5];
+    int clip_type;
+    /* layer 4, SEL held (P1.3c): the eight tracks (B1..B8 select): selected, muted (W1..W8), soloed (W9..W16).
+     * F2 (P1.3c): Form's pick-up / drop: the page's sixteen steps and the hand (hand: 0 empty, 1 holding the step
+     * clip_step, drawn as a card) */
     int sel;
     uint8_t mute, solo;
     const char *tname[8];
     uint8_t flash[8];                   /* a trig just now */
-    int held_track;                     /* -1: none */
-    int page_clip;                      /* a page copied */
+    int held_track;                     /* (unused since P1.3c) */
+    int page_clip;                      /* a page in the clipboard */
+    int hand;                           /* F2: holding a step (Form's "holding"), else empty-handed */
+    int hand_loaded;                    /* F2: the hand has grabbed this hold (Form's "loaded") */
+    uint8_t page_on[16];                /* F2: the edited page's steps (1 a trig) */
+    int last_w;                         /* F2: the last W pressed (-1), and what it did: 1 CUT, 2 PASTE */
+    int last_act;
     /* F3: the page's range (W: its end; W a + W b: start..end) and the rate (B1..B9); SELECT: tempo, swing */
     int rate;                           /* QD_RATE_* */
-    int rate_idx;                       /* its place on B1..B9 */
+    int rate_idx;                       /* its place on B1..B9 (-1: not a quick pick) */
+    int rate_val, rate_type;            /* P1.3c: the rate as a note value (0 1/2 .. 4 1/32; KNOB 1) and its type (0
+                                         * normal, 1 dotted, 2 triplet; KNOB 2); KNOB 3 / 4 the page's start / end */
+    const char *rate_val_name;          /* "1/16" */
     const char *rate_names[9];
     int bpm, swing;
     int anchor;                         /* F3: the W held first (-1 none) */
 } ui_layer_t;
-void ui_layer_draw(const ui_layer_t *v);
+void ui_layer_draw(const ui_layer_t *v);   /* layer 1 F1, 2 F2, 3 F3, 4 SEL's track map */
+
+/* ---- SEQ held (P1.3c, line.html s13 simpler): the patterns A01..A16: the queued one big (else the playing one), the
+ * sixteen as dots (content a ring, the playing one filled white, the queued one blinking orange), a line emptying to
+ * the change, the launch mode (END BAR BEAT NOW) as four words, the one in use white */
+typedef struct {
+    int cur, queued;                    /* 0..15 (-1 queued: none) */
+    uint16_t used;                      /* bit k: A(k+1) has content */
+    int playing;
+    float left;                         /* 0..1 of the master length left to the change (queued and playing) */
+    int blink;
+    int launch;                         /* the launch mode (seq.h QD_LAUNCH_*: END BAR BEAT NOW), ALGORITHM's */
+    const char *launch_name;
+} ui_patterns_t;
+void ui_patterns_draw(const ui_patterns_t *v);
+
+/* ---- the octave (P1.3c): a change of octave or of SOUND's bank takes the screen for a second: the number big (rolling
+ * in), a keyboard (a strip of the pool's banks) sliding to it */
+enum { UI_OCT_NOTE, UI_OCT_KEYS, UI_OCT_BANK };
+typedef struct {
+    int kind;                           /* UI_OCT_* */
+    int value, from;                    /* NOTE: the entry octave (-1..8); KEYS: the keyboard's shift (-2..+2); BANK: 0.. */
+    float k;                            /* 0..1: the slide from `from` to `value` (eased) */
+    float t;                            /* seconds since the change */
+    int dir;                            /* +1 up */
+    int track;
+    const char *name;
+    const char *scale_name;             /* NOTE: the track's key */
+    int lo_note;                        /* NOTE: B1's note at the octave; KEYS: the keybed's lowest note (F) */
+    char sub[40];                       /* the line under the number ("B1 = C4 Â· D DORIAN", "SOUNDS 11-20") */
+    int nbank;                          /* BANK: the pool's banks; the sound locked (0 none) and the pool's size */
+    int sound, nsound;
+} ui_octave_t;
+void ui_octave_draw(const ui_octave_t *v);
 
 /* ---- SHIFT held: a compact map of what SHIFT does here */
 typedef struct {
@@ -326,7 +380,7 @@ void ui_confirm_draw(const char *big, const char *small, qd_rgb col);
 
 /* ---- a knob turned: the whole screen (line.html s21..s25, s16; PLAN §9a rule 5) */
 enum { UI_TK_FREQ, UI_TK_DECAY, UI_TK_HARM, UI_TK_FDBK, UI_TK_ALGO, UI_TK_TEMPO, UI_TK_SWING, UI_TK_LEN, UI_TK_RATE,
-       UI_TK_LIMIT, UI_TK_TSWING, UI_TK_PAGE, UI_TK_SCALE, UI_TK_ROOT, UI_NTK };
+       UI_TK_LIMIT, UI_TK_TSWING, UI_TK_PAGE, UI_TK_SCALE, UI_TK_ROOT, UI_TK_OCTAVE, UI_NTK };   /* OCTAVE: ui_octave */
 typedef struct {
     int kind;                           /* UI_TK_* */
     int knob;                           /* 0..3: its colour (SELECT turns KNOB 1's: 0) */

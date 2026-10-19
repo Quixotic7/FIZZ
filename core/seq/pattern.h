@@ -4,7 +4,7 @@
  * structs, no allocation, nothing of the OS: a pattern can be stored as it is (P1.5).
  *
  * P1.3b (PLAN §8b, "track defaults and step overrides"): a track has DEFAULTS for every step parameter (the notes, up
- * to four; velocity, length, micro, ratchet and ramp, chance, condition, trig type, strum; the sound default is always
+ * to five since P1.3c (§8b version 2.1; four before); velocity, length, micro, ratchet and ramp, chance, condition, trig type, strum; the sound default is always
  * the track's own sound). A step stores a value AND AN OVERRIDE BIT per parameter (qd_step_t.ovr, bit QD_PM_k); a
  * parameter without its bit takes the track's default WHEN THE STEP IS RESOLVED (qd_step_resolve: the sequencer two
  * steps ahead, the screens at each frame), so a default change moves every step that does not override it, at once.
@@ -42,23 +42,25 @@ extern "C" {
 #define QD_NSTEP 128                    /* steps a track at most (8 pages of 16) */
 #define QD_PAGE 16
 #define QD_NPAGE (QD_NSTEP / QD_PAGE)
-#define QD_NNOTE 4                      /* notes a step */
+#define QD_NNOTE 5                      /* notes a step (P1.3c: five, was four) */
 #define QD_NLOCK 1024                   /* the lock pool a pattern */
 #define QD_NBANK 4                      /* A..D */
 #define QD_NPAT (QD_NBANK * 16)         /* patterns a project */
 #define QD_NSOUND 128                   /* the sound pool a project */
 #define QD_SOUND_NAME 12
-/* the sequencer's musical time: ticks, QD_TPS a 16th (a step at rate 1). 50400 = 2^5 3^2 5^2 7: a step at every rate
- * (8 .. 1/2 sixteenths, 3/2, 3/4, 4/3, 2/3) divides by 24 (micro, strum), 1..8 (ratchets), 8 (the shortest length)
- * and 50 (swing 50..80 %) in whole ticks, so every time the sequencer computes is exact */
-#define QD_TPS 50400
+/* the sequencer's musical time: ticks, QD_TPS a 16th (a step at rate 1). 100800 = 2^6 3^2 5^2 7 (P1.3c: twice
+ * P1.2's 50400, for the 1/64 steps; QD_SUB halved with it, so a 16th is the same 5,292,000,000 subticks and every
+ * event the same sample): a step at every rate (1/1 .. 1/64, dotted, triplet) divides by 24 (micro, strum), 1..8
+ * (ratchets), 8 (the shortest length) and 50 (swing 50..80 %) in whole ticks, so every time the sequencer computes is
+ * exact */
+#define QD_TPS 100800
 
 /* ---- the step parameters (PLAN §8b): each has a track default and an override bit on a step */
 enum { QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE, QD_PM_COND, QD_PM_TRIG, QD_PM_SOUND,
        QD_PM_STRUM, QD_NPM };
 #define QD_OV(pm) ((uint16_t)(1u << (pm)))
 
-/* ---- a step (P1.3b: 16 bytes) */
+/* ---- a step (P1.3c: 18 bytes, 17 of them used: five notes, was four in P1.3b's 16) */
 enum { QD_TRIG_NONE, QD_TRIG_NOTE, QD_TRIG_LOCK, QD_TRIG_TIE };
 enum { QD_RAMP_FLAT, QD_RAMP_UP, QD_RAMP_DOWN, QD_RAMP_ACCENT };
 #define QD_SF_ON 0x01u                  /* flags: the step has a trig */
@@ -70,7 +72,7 @@ typedef struct {
     uint16_t ovr;                       /* bit QD_PM_k: the step overrides parameter k (else the track's default) */
     uint8_t flags;                      /* QD_SF_ON, QD_SF_LOCKS */
     uint8_t type;                       /* QD_TRIG_NOTE / LOCK / TIE (with QD_PM_TRIG's bit) */
-    uint8_t note[QD_NNOTE];             /* note 1 absolute (1..127); 2..4 offsets +1..+48 from note 1 (0 none) */
+    uint8_t note[QD_NNOTE];             /* note 1 absolute (1..127); 2..5 offsets +1..+48 from note 1 (0 none) */
     uint8_t vel;                        /* 1..127 */
     uint8_t len;                        /* an index into the length table (qd_len_eighths), QD_LEN_INF the last */
     int8_t micro;                       /* -23..+23 24ths of a step */
@@ -79,6 +81,7 @@ typedef struct {
     uint8_t cond;                       /* QD_COND_*, then A:B (qd_cond_ab) */
     uint8_t sound;                      /* the sound lock: 0 none (the track's sound), 1..QD_NSOUND a pool number */
     uint8_t strum;                      /* 0..23 24ths between a chord's notes */
+    uint8_t pad;                        /* (zero: the struct's padding made explicit, so steps compare byte for byte) */
 } qd_step_t;
 
 /* a track's step defaults (the sound's default is the track's own sound: no field) */
@@ -122,14 +125,32 @@ enum { QD_LK_PAN = QD_QUAD_NP, QD_LK_DELAY, QD_LK_REVERB, QD_LK_CHORUS, QD_LK_DR
 int qd_lock_range(int id, int16_t *min, int16_t *max);   /* 0: no such id */
 
 /* ---- a track's settings in a pattern (PLAN §4 "track defaults", §6, §8b) */
-enum { QD_RATE_1_8, QD_RATE_1_4, QD_RATE_1_2, QD_RATE_3_4, QD_RATE_1, QD_RATE_3_2, QD_RATE_2, QD_RATE_2_3,
-       QD_RATE_4_3, QD_NRATE };         /* the Digitone's seven and 2/3, 4/3 (PLAN question 14) */
-const char *qd_rate_name(int rate);     /* "1/8x" .. "2x" */
+/* P1.3c (§8b 2.1, F3's knobs and keys): a track's rate is TWO settings, kept apart (qd_tset_t.rbase, .rtype): a BASE
+ * note value, the step's length (0 1/1, 1 1/2, 2 1/4, 3 1/8, 4 1/16 = P1.3b's rate 1, 5 1/32, 6 1/64), and a TYPE
+ * (0 normal; 1 dotted: the step 3/2 as long, the rate x 2/3; 2 triplet: the step 2/3 as long, the rate x 3/2).
+ * Choosing a base keeps the type and the other way round. A RATE CODE (QD_RATE_*) is base x 3 + type: 21 of them, each
+ * step a whole number of ticks divisible by 24 (micro, strum), 1..8 (ratchets), 8 (the shortest length) and 50 (swing)
+ * since QD_TPS is 100800 (the shortest, triplet 1/64, is 16800; dotted 1/64 is 37800). P1.3b's nine rates are codes
+ * with their old names: 1/8x = 1/2, 1/4x = 1/4, 1/2x = 1/8, 1x = 1/16, 2x = 1/32, 2/3x = dotted 1/16, 4/3x = dotted
+ * 1/32, 3/2x = triplet 1/16, 3/4x = triplet 1/8 */
+#define QD_NVAL 7                       /* the bases */
+#define QD_NRTYPE 3
+enum { QD_RTYPE_NORMAL, QD_RTYPE_DOTTED, QD_RTYPE_TRIPLET };
+#define QD_RATE_CODE(base, type) ((base) * 3 + (type))
+#define QD_NRATE (QD_NVAL * QD_NRTYPE)
+enum { QD_RATE_1_8 = QD_RATE_CODE(1, 0), QD_RATE_1_4 = QD_RATE_CODE(2, 0), QD_RATE_1_2 = QD_RATE_CODE(3, 0),
+       QD_RATE_1 = QD_RATE_CODE(4, 0), QD_RATE_2 = QD_RATE_CODE(5, 0), QD_RATE_2_3 = QD_RATE_CODE(4, 1),
+       QD_RATE_4_3 = QD_RATE_CODE(5, 1), QD_RATE_3_2 = QD_RATE_CODE(4, 2), QD_RATE_3_4 = QD_RATE_CODE(3, 2) };
+const char *qd_rate_name(int rate);     /* "1/16", "1/8." (dotted), "1/16T" (triplet) */
+int qd_rate_make(int base, int type);   /* the code of a base and a type (clamped) */
+int qd_rate_val(int rate);              /* a code's base .. */
+int qd_rate_type(int rate);             /* .. and type */
+const char *qd_rate_val_name(int base); /* "1/1" .. "1/64" */
 typedef struct {
     qd_sdef_t def;                      /* the step defaults (§8b) */
     uint8_t chan;                       /* MIDI channel 0..15 */
     uint8_t limit, reserve;             /* the voices (PLAN §2): 1..16 (1 mono), 0..16 */
-    uint8_t rate;                       /* QD_RATE_* */
+    uint8_t rbase;                      /* the rate's base note value (0 1/1 .. 6 1/64; 4 1/16 the default) .. */
     uint8_t swing;                      /* swing on (1) / off */
     int8_t transpose;                   /* -48..+48 */
     uint8_t mute;
@@ -137,8 +158,10 @@ typedef struct {
     uint8_t pstart[QD_NPAGE], pend[QD_NPAGE];   /* each page's first and last step, 0..15, start <= end */
     uint8_t scale, root;                /* the track's key (scale.h: QD_SCALE_*, root 0..11 = C..B) */
     uint8_t key_global;                 /* 1: the track follows the project's global key */
-    uint8_t pad;
+    uint8_t rtype;                      /* .. and its type (QD_RTYPE_*), kept apart (P1.3c; was padding) */
 } qd_tset_t;
+int qd_tset_rate(const qd_tset_t *ts);  /* the track's rate code */
+void qd_tset_set_rate(qd_tset_t *ts, int rate);   /* base and type from a code */
 
 /* ---- a pattern */
 #define QD_MASTER_AUTO 0                /* master length: the longest track at its rate */
@@ -166,13 +189,14 @@ typedef struct {
     qd_sound_t sound[QD_NSOUND];        /* the pool: sound number k is sound[k - 1] */
     uint8_t nsound;                     /* sounds in it (1..QD_NSOUND) */
     uint8_t key_scale, key_root;        /* the global key (the tracks that follow it) */
+    uint8_t launch;                     /* P1.3c: the pattern launch mode (seq.h QD_LAUNCH_*: END at power-on) */
 } qd_project_t;
 
 /* ---- errors */
 #define QD_OK 0
 #define QD_EARG (-1)                    /* a track, step, id or value out of range */
 #define QD_EFULL (-2)                   /* the lock pool is full: nothing changed */
-#define QD_ENOTE (-3)                   /* notes 2..4 not within +1..+48 of note 1 */
+#define QD_ENOTE (-3)                   /* notes 2..5 not within +1..+48 of note 1 */
 
 /* ---- patterns */
 void qd_pat_init(qd_pattern_t *p);      /* empty: no trigs, no locks, track defaults, 120 BPM, swing 50, master auto */
@@ -210,7 +234,7 @@ int qd_notes_abs(const uint8_t *note4, uint8_t *notes);   /* note 1 + offsets ->
 int qd_step_on(qd_pattern_t *p, int t, int s);
 int qd_step_set_trig(qd_pattern_t *p, int t, int s, int type);
 int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n);   /* absolute, any order */
-/* note 1 moved with the chord's shape kept (1..127), or note k (1..3) set as its offset 0..48 above note 1 (0: none;
+/* note 1 moved with the chord's shape kept (1..127), or note k (1..4) set as its offset 0..48 above note 1 (0: none;
  * an offset another slot has: QD_ENOTE). Without the NOTE override, the track's default notes are its start */
 int qd_step_set_root(qd_pattern_t *p, int t, int s, int note);
 int qd_step_set_offset(qd_pattern_t *p, int t, int s, int k, int off);

@@ -54,7 +54,7 @@ static int len_index(double eighths)
 static void live_off(qd_app_t *a, int note, int64_t now)
 {
     qd_ui_t *u = &a->ui;
-    const int64_t L = qd_rate_ticks(PAT(a)->trk[a->sel].rate);
+    const int64_t L = qd_rate_ticks(qd_tset_rate(&PAT(a)->trk[a->sel]));
     const int s = u->rec_s[note];
     const int li = len_index((double)(now - u->rec_t0[note]) * 8.0 / (double)L);
     qd_rstep_t r;
@@ -70,7 +70,7 @@ static void live_off(qd_app_t *a, int note, int64_t now)
 static void chord_add(uint8_t *chord, int *n, int note)
 {
     int i;
-    if (*n >= 4)
+    if (*n >= QD_NNOTE)
         return;
     for (i = 0; i < *n; i++)
         if (chord[i] == note)

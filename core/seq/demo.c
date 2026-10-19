@@ -155,7 +155,7 @@ static void demo_a02(qd_pattern_t *p)
     note(p, 1, 30, 38, 85, L2);
     note(p, 1, 31, 40, 80, L2);
     /* CHORDS (the KEYS track's EP) at 1/2x: 16 steps = two bars; strummed, stabs micro-timed, conditions */
-    k->rate = QD_RATE_1_2;
+    qd_tset_set_rate(k, QD_RATE_1_2);
     chord(p, 2, 0, 57, 60, 64, 71, 90, LS2, 3);         /* Am9 */
     chord(p, 2, 3, 57, 60, 64, 0, 80, L2, 0);           /* a stab, early */
     qd_step_set_micro(p, 2, 3, -6);
@@ -202,7 +202,7 @@ static void demo_a03(qd_pattern_t *p)
     int t;
     p->bpm = 118;
     for (t = 0; t < 8; t++) {
-        p->trk[t].rate = (uint8_t)RATE[t];
+        qd_tset_set_rate(&p->trk[t], RATE[t]);
         qd_track_set_length(p, t, LEN[t]);               /* page 1, 1..LEN */
     }
     {   /* the limits: each track takes its own voices before another's (16 in all, about) */

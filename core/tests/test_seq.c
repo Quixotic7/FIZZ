@@ -9,7 +9,8 @@
  *               again = redo, an undo for another pattern does nothing; a paste onto a full lock pool: QD_EFULL and
  *               nothing changed); the scales (names, sizes, qd_scale_note for every scale, root, octave and degree,
  *               negative ones too, against the test's own interval tables; step, snap, the track's key); the sound
- *               pool (23 sounds, their names, the presets, the drums as sounds.c makes them, add, full)
+ *               pool (23 sounds, their names, the presets, the drums as sounds.c makes them, add, full); P1.3c: the
+ *               21 rates (base x type) whole and divisible, the clipboard's undo groups
  *   timelines   22 patterns, each aimed at a feature, run through the sequencer, the player and the voice pool
  *               (the voices rendered, no effects); every event becomes a line of text (the sample, the track, on / off /
  *               lock / legato / dip, the note, the velocity, the hash of the voice's patch, its own mask and mix locks)
@@ -42,6 +43,13 @@
  *               p21-scales    notes from degrees of seven scales (negative degrees, the edges, a track following the
  *                             global key)
  *               p22-solo      one track soloed, two, a soloed one that is muted, the solo cleared
+ *               P1.3c: QD_TPS doubled to 100800 and QD_SUB halved (a 16th the same subticks): p01..p22 unchanged,
+ *               byte for byte; a step 18 bytes (five notes)
+ *               p23-five      five notes a step: overridden, strummed, ratcheted, offsets to +48; a five-note default
+ *                             changed while playing; five scale degrees; a TIE of five
+ *               p24-launch    the launch modes BAR, BEAT, END, NOW (the reference reckons each change point)
+ *               p25..p27      every rate: the seven bases 1/1 .. 1/64, normal, dotted, triplet, with micro, ratchet x8,
+ *                             strum, 1/8-step lengths and swing at each
  *
  *     test_seq GOLDEN_DIR OUT_DIR [--bless]     exit 1 on a failed check; --bless writes the goldens */
 #include <math.h>
@@ -324,12 +332,12 @@ static int compare_ref(const char *name, int tol)
  * Form's flat rebuild: pages 1..k looped, full but the last); its defaults (def; def2 from R_DEF_AT on when has2); its
  * key (scale, root, or the pattern's global key when keyg). The tests p01..p16 override every parameter of every step
  * (S): their patterns are what they were before the defaults existed */
-typedef struct { int nn, notes[4], vel, len, micro, ratch, ramp, chance, cond, type, strum; } TD;
+typedef struct { int nn, notes[5], vel, len, micro, ratch, ramp, chance, cond, type, strum; } TD;
 typedef struct {
-    int t, s, type, nn, notes[4], vel, len, micro, ratch, ramp, cond, chance, sound, strum, nlk;
+    int t, s, type, nn, notes[5], vel, len, micro, ratch, ramp, cond, chance, sound, strum, nlk;
     int lk_id[8], lk_v[8];
     int ovr;
-    int sc, sc_oct, sc_n, sc_deg[4];
+    int sc, sc_oct, sc_n, sc_deg[5];
 } TS;
 typedef struct {
     int rate, length, swing, limit, transpose, mute;
@@ -448,6 +456,18 @@ static void NOTES(TS *st, int n1, int n2, int n3, int n4)
             st->notes[st->nn++] = nv[k];
     st->ovr |= QD_OV(QD_PM_NOTE);
 }
+/* P1.3c: a fifth note added to a step's notes (S / NOTES give four), or a fifth degree to DEG's four */
+static TS *NOTE5(TS *st, int n5)
+{
+    st->notes[st->nn++] = n5;
+    st->ovr |= QD_OV(QD_PM_NOTE);
+    return st;
+}
+static void DEG5(TS *st, int d4)
+{
+    st->sc_deg[4] = d4;
+    st->sc_n = 5;
+}
 static void RATCH(TS *st, int count, int ramp)
 {
     st->ratch = count;
@@ -472,7 +492,7 @@ static void LK(TS *st, int id, int v)
 /* a track's defaults through the API */
 static int apply_def(qd_pattern_t *P, int t, const TD *d)
 {
-    uint8_t nv[4];
+    uint8_t nv[5];
     int k, r = 0;
     for (k = 0; k < d->nn; k++)
         nv[k] = (uint8_t)d->notes[k];
@@ -502,7 +522,7 @@ static void build(const TP *tp, int k)
     for (t = 0; t < 8; t++) {
         const TT *tt = &tp->trk[t];
         int r = 0, pg;
-        P->trk[t].rate = (uint8_t)tt->rate;
+        qd_tset_set_rate(&P->trk[t], tt->rate);
         if (tt->pages) {
             r |= qd_page_set_loop(P, t, tt->loop);
             for (pg = 0; pg < 8; pg++)
@@ -522,7 +542,7 @@ static void build(const TP *tp, int k)
     }
     for (i = 0; i < tp->n; i++) {
         const TS *s = &tp->st[i];
-        uint8_t nv[4];
+        uint8_t nv[5];
         int k2, r = 0, nn = s->nn;
 #define HAS(pm) ((s->ovr >> (pm)) & 1)
         if (s->sc) {                                    /* scale degrees: the engine's own mapping */
@@ -573,8 +593,17 @@ static void build(const TP *tp, int k)
 
 /* ================================================================ THE REFERENCE === */
 /* An independent model of what PLAN §4 .. §6 ask, written plainly: no look-ahead, no queue, no cursors. */
-/* a step's ticks at each rate, from its 16ths (8, 4, 2, 4/3, 1, 2/3, 1/2, 3/2, 3/4) x 50400 */
-static const int R_STEP_T[QD_NRATE] = {403200, 201600, 100800, 67200, 50400, 33600, 25200, 75600, 37800};
+/* a step's ticks at each rate code (P1.3c: base x 3 + type), from first principles: a whole note is 16 sixteenths of
+ * QD_TPS ticks; the base 1/2^b of it; dotted half as long again, triplet two thirds */
+static int64_t R_STEP_T(int code)
+{
+    const int b = code / 3, ty = code % 3;
+    int64_t l = (int64_t)QD_TPS * 16;
+    int i;
+    for (i = 0; i < b; i++)
+        l /= 2;
+    return ty == 1 ? l + l / 2 : ty == 2 ? l * 2 / 3 : l;
+}
 static const double R_LEN[QD_NLEN] = {0.125, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128,
                                       -1};
 
@@ -732,7 +761,7 @@ static double R_BPM;                                    /* the run's tempo (the 
 static int64_t R_FILL_ON = -1, R_FILL_OFF = -1;         /* FILL held from / to these samples (between blocks) */
 static uint64_t R_SEED;
 
-static double r_sec_of_tick(int64_t tick) { return (double)tick / 50400.0 * 15.0 / R_BPM; }
+static double r_sec_of_tick(int64_t tick) { return (double)tick / (double)QD_TPS * 15.0 / R_BPM; }
 static int64_t r_sample_of_tick(int64_t tick)
 {
     const double x = r_sec_of_tick(tick) * 44100.0;
@@ -812,7 +841,7 @@ static const TS *r_resolve(const TP *tp, const TT *tt, const TS *s, int64_t g, i
             v->notes[k] = r_scale_note(sc, root, s->sc_oct, s->sc_deg[k]);
     } else if (!HAS(QD_PM_NOTE) || !s->nn) {
         v->nn = d->nn;
-        for (k = 0; k < 4; k++)
+        for (k = 0; k < 5; k++)
             v->notes[k] = d->notes[k];
     }
     if (!HAS(QD_PM_VEL))
@@ -873,7 +902,7 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
         memset(hn, 0, sizeof hn);
         for (t = 0; t < 8; t++) {
             const TT *tt = &tp->trk[t];
-            const int64_t L = R_STEP_T[tt->rate];
+            const int64_t L = R_STEP_T(tt->rate);
             int walk[128];
             const int len = r_walk(tt, walk);
             int64_t n;
@@ -931,7 +960,7 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
                     const int64_t start = g + swing + (int64_t)s->micro * L / 24;
                     const double lenf = R_LEN[s->len];
                     const int64_t gate_all = lenf < 0 ? -1 : (int64_t)llround(lenf * (double)L);
-                    int notes[4], k, h;
+                    int notes[5], k, h;
                     for (k = 0; k < s->nn; k++) {
                         const int x = s->notes[k] + tt->transpose;
                         notes[k] = x < 1 ? 1 : x > 127 ? 127 : x;
@@ -1286,14 +1315,14 @@ static void run_pattern(double sec, uint64_t seed)
 static void ref_single(double sec, uint64_t seed)
 {
     rseg_t seg;
-    const int64_t end_tick = (int64_t)(sec / (15.0 / TPAT[0].bpm) * 50400.0) + 1;
+    const int64_t end_tick = (int64_t)(sec / (15.0 / TPAT[0].bpm) * (double)QD_TPS) + 1;
     R_BPM = TPAT[0].bpm;
     R_SEED = seed;
     seg.tp = &TPAT[0];
     seg.k = 0;
     seg.o = 0;
     seg.e = -1;
-    r_generate(&seg, 1, end_tick + 4 * 403200);
+    r_generate(&seg, 1, end_tick + 4 * 24 * (int64_t)QD_TPS);   /* (four of the longest steps, dotted 1/1) */
     r_replay((int64_t)end_of(sec));
     (void)end_tick;
     if (getenv("QD_DUMP_REF")) {
@@ -1320,6 +1349,9 @@ static void pattern_test(const char *name, const char *title, double sec, uint64
 }
 
 /* ================================================================ the timelines === */
+static void p_five(void);
+static void p_launch(void);
+static void p_rates(void);
 static void p_sixteenths(void)
 {
     TP *p = tp_new(0, 120);
@@ -1680,15 +1712,15 @@ static void p_change(void)
                 qd_seq_chain(&SEQ, chain, 3);
             rig_block(0);
         }
-        /* the reference's segments: A from 0; B from 32 sixteenths? no: A's master is 16 steps (16 x 50400) */
+        /* the reference's segments: A's master is 16 steps (16 x QD_TPS) */
         {
-            const int64_t TA = 16 * 50400, TB = 12 * 50400, TC = 8 * 50400;
-            const int64_t t2 = (int64_t)((q2 * 8 * 120000 + 104999) / 105000);   /* the tick at q2 (ceil) */
-            const int64_t t3 = (int64_t)((q3 * 8 * 120000 + 104999) / 105000);
+            const int64_t TA = 16 * QD_TPS, TB = 12 * QD_TPS, TC = 8 * QD_TPS;
+            const int64_t t2 = (int64_t)((q2 * 8 * 120000 + QD_SUB - 1) / QD_SUB);   /* the tick at q2 (ceil) */
+            const int64_t t3 = (int64_t)((q3 * 8 * 120000 + QD_SUB - 1) / QD_SUB);
             int64_t o, cx;
             int k;
             seg[nseg++] = (rseg_t){a, 0, 0, TA};        /* A until its master */
-            x = (t2 + 50399) / 50400 * 50400;           /* C immediately: the next 16th after q2 */
+            x = (t2 + QD_TPS - 1) / QD_TPS * QD_TPS;    /* C immediately: the next 16th after q2 */
             seg[nseg++] = (rseg_t){b, 1, TA, x};
             o = x;
             cx = o + ((t3 - o) / TC + 1) * TC;          /* the chain from C's next boundary */
@@ -1703,7 +1735,7 @@ static void p_change(void)
     }
     R_BPM = 120;
     R_SEED = 1;
-    r_generate(seg, nseg, (int64_t)14 * 8 * 50400);
+    r_generate(seg, nseg, (int64_t)14 * 8 * QD_TPS);
     r_replay(12 * 44100);
     timeline("p14-change", "A (16 steps) plays; B queued in A's first pass takes over at its end; C immediately (the "
              "next 16th); then the chain A, B, C looped (masters 16, 12, 8)");
@@ -2187,14 +2219,14 @@ static void u_edit(void)
     static qd_pattern_t P;
     const qd_step_t *st;
     qd_rstep_t r;
-    uint8_t n[4];
+    uint8_t n[QD_NNOTE];
     int rr, n0 = fails, a, b, c;
     char buf[8];
     qd_pat_init(&P);
     qd_tdef_set(&P, 2, QD_PM_NOTE, 50);
     qd_tdef_set(&P, 2, QD_PM_VEL, 90);
     qd_tdef_set(&P, 2, QD_PM_LEN, 6);
-    CHECK(sizeof(qd_step_t) == 16 && sizeof(qd_lock_t) == 4, "step 16 bytes (%d), lock 4 (%d)",
+    CHECK(sizeof(qd_step_t) == 18 && sizeof(qd_lock_t) == 4, "step 18 bytes (%d), lock 4 (%d)",
           (int)sizeof(qd_step_t), (int)sizeof(qd_lock_t));
     rr = qd_step_on(&P, 2, 5);
     st = qd_step(&P, 2, 5);
@@ -2256,12 +2288,32 @@ static void u_edit(void)
           "A:B: 35 conditions, 1:2 first, 8:8 last (%d)", c);
     CHECK(!strcmp(qd_cond_name(qd_cond_ab(3, 4), buf), "3:4") && !strcmp(qd_cond_name(QD_COND_NNEI, buf), "!NEI"),
           "condition names");
-    CHECK(qd_rate_ticks(QD_RATE_3_4) == 67200 && qd_rate_ticks(QD_RATE_4_3) == 37800 &&
-              qd_rate_ticks(QD_RATE_2_3) == 75600 && qd_rate_ticks(QD_RATE_1_8) == 403200, "rates in ticks");
+    CHECK(qd_rate_ticks(QD_RATE_3_4) == 4 * QD_TPS / 3 && qd_rate_ticks(QD_RATE_4_3) == 3 * QD_TPS / 4 &&
+              qd_rate_ticks(QD_RATE_2_3) == 3 * QD_TPS / 2 && qd_rate_ticks(QD_RATE_1_8) == 8 * QD_TPS,
+          "P1.3b's rates in ticks");
+    {   /* P1.3c: the 21 codes, base x type, each whole and divisible as the engine needs */
+        static const double SIXTEENTHS[7] = {16, 8, 4, 2, 1, 0.5, 0.25};
+        int code, ok = 1, d;
+        for (code = 0; code < QD_NRATE; code++) {
+            const int b = qd_rate_val(code), ty = qd_rate_type(code);
+            const double want = SIXTEENTHS[b] * (ty == 1 ? 1.5 : ty == 2 ? 2.0 / 3.0 : 1.0) * QD_TPS;
+            const int64_t l = qd_rate_ticks(code);
+            ok &= qd_rate_make(b, ty) == code && (double)l == want;
+            for (d = 1; d <= 8; d++)
+                ok &= l % d == 0;
+            ok &= l % 24 == 0 && l % 50 == 0;
+        }
+        CHECK(ok && qd_rate_ticks(QD_RATE_CODE(6, 1)) == 37800 && qd_rate_ticks(QD_RATE_CODE(6, 2)) == 16800 &&
+                  qd_rate_ticks(QD_RATE_CODE(0, 1)) == 24 * QD_TPS,
+              "21 rates (7 bases x normal / dotted / triplet): whole ticks, divisible by 1..8, 24 and 50");
+        CHECK(QD_RATE_1 == QD_RATE_CODE(4, 0) && QD_RATE_2_3 == QD_RATE_CODE(4, 1) && QD_RATE_3_2 == QD_RATE_CODE(4, 2) &&
+                  QD_RATE_3_4 == QD_RATE_CODE(3, 2) && QD_RATE_4_3 == QD_RATE_CODE(5, 1),
+              "P1.3b's nine rates are base x type codes");
+    }
     {
         const int64_t m0 = qd_pat_master_ticks(&P);
         qd_track_set_length(&P, 4, 64);
-        P.trk[4].rate = QD_RATE_1_2;
+        qd_tset_set_rate(&P.trk[4], QD_RATE_1_2);
         CHECK(m0 == 16 * QD_TPS && qd_pat_master_ticks(&P) == 128 * QD_TPS, "master auto: the longest track");
         P.master = 32;
         CHECK(qd_pat_master_ticks(&P) == 32 * QD_TPS, "master 32");
@@ -2637,8 +2689,35 @@ static void u_clip(void)
     qd_clip_copy_step(&C, &P, 0, 9);                    /* (a step without locks still pastes) */
     r = qd_clip_paste_step(&C, &Q, 0, 0, 0);
     CHECK(r == QD_OK && qd_step_is_on(qd_step(&Q, 0, 0)) && qd_pat_check(&Q), "a step with no locks: pasted (%d)", r);
+    {   /* P1.3c: a group (an F1 / F2 hold): a cut, a paste, another paste and a page clear are one undo level */
+        static qd_pattern_t G, G0;
+        qd_pat_init(&G);
+        qd_step_set_vel(&G, 3, 1, 33);
+        qd_step_on(&G, 3, 5);
+        qd_lock_set(&G, 3, 5, QD_QP_HARM, 200);
+        memcpy(&G0, &G, sizeof G0);
+        qd_clip_group(&C, 1);
+        qd_clip_cut_step(&C, &G, 7, 3, 1);
+        qd_clip_paste_step(&C, &G, 7, 3, 9);
+        qd_clip_paste_step(&C, &G, 7, 3, 10);
+        qd_clip_clear_page(&C, &G, 7, 3, 1);
+        qd_clip_group(&C, 0);
+        CHECK(!qd_step_is_on(qd_step(&G, 3, 1)) && qd_step(&G, 3, 10)->vel == 33, "grouped: cut, two pastes, done");
+        CHECK(qd_clip_undo(&C, &G, 7, 3) == 1 && !memcmp(G.step[3], G0.step[3], sizeof G.step[3]) &&
+                  G.nlock == G0.nlock && qd_pat_check(&G),
+              "one undo takes back the whole group (as before the first edit)");
+        qd_clip_group(&C, 1);
+        qd_clip_copy_step(&C, &G, 3, 5);
+        qd_clip_paste_step(&C, &G, 7, 3, 6);
+        CHECK(qd_clip_undo(&C, &G, 7, 3) == 1 && !qd_step_is_on(qd_step(&G, 3, 6)), "an undo inside a group ..");
+        qd_clip_paste_step(&C, &G, 7, 3, 7);
+        CHECK(qd_clip_undo(&C, &G, 7, 3) == 1 && !qd_step_is_on(qd_step(&G, 3, 7)) && !qd_step_is_on(qd_step(&G, 3, 6)),
+              ".. ends its level: the next edit keeps a new one");
+        qd_clip_group(&C, 0);
+    }
     printf("  %-4s clipboard         step copy / paste (each again) between tracks with locks, page copy / paste "
-           "(range, loop), cut, clears, undo / redo per track and pattern, a full pool\n", fails == n0 ? "ok" : "FAIL");
+           "(range, loop), cut, clears, undo / redo per track and pattern, a full pool, groups\n",
+           fails == n0 ? "ok" : "FAIL");
 }
 
 /* scale.h against the test's own tables */
@@ -2777,6 +2856,158 @@ static void u_sounds(void)
            "with its values, add, full\n", fails == n0 ? "ok" : "FAIL");
 }
 
+/* p23 (P1.3c): five notes a step: chords of five (overridden, strummed, with a ratchet, offsets to +48), a track whose
+ * default chord is five notes (tapped steps; changed while playing to another five), five scale degrees in D dorian,
+ * a TIE of five on a POLY track */
+static void p_five(void)
+{
+    TP *p = tp_new(0, 118);
+    TS *st;
+    TD *d;
+    int s;
+    p->trk[0].limit = 12;
+    p->trk[0].length = 32;
+    NOTE5(S(p, 0, 0, QD_TRIG_NOTE, 48, 52, 55, 59), 62)->len = 6;   /* Cmaj9, together */
+    st = NOTE5(S(p, 0, 6, QD_TRIG_NOTE, 50, 53, 57, 60), 64);       /* Dm9, strummed */
+    st->strum = 5;
+    st->len = 6;
+    st = NOTE5(S(p, 0, 12, QD_TRIG_NOTE, 43, 47, 50, 53), 57);      /* G9, a ratchet x2 */
+    st->ratch = 2;
+    st->ramp = QD_RAMP_DOWN;
+    st->len = 4;
+    st = NOTE5(S(p, 0, 18, QD_TRIG_NOTE, 36, 48, 60, 72), 84);      /* offsets to +48 */
+    st->strum = 3;
+    st->micro = 6;
+    NOTE5(S(p, 0, 24, QD_TRIG_NOTE, 60, 62, 64, 65), 67)->len = 2;   /* five steps of a scale */
+    d = &p->trk[1].def;                                 /* track 2: a five-note default, changed at 3.0 s */
+    d->nn = 5;
+    d->notes[0] = 45, d->notes[1] = 48, d->notes[2] = 52, d->notes[3] = 55, d->notes[4] = 59;   /* Am9 */
+    d->len = 3;
+    d->strum = 2;
+    p->trk[1].def2 = *d;
+    p->trk[1].def2.notes[0] = 41, p->trk[1].def2.notes[1] = 45, p->trk[1].def2.notes[2] = 48;
+    p->trk[1].def2.notes[3] = 52, p->trk[1].def2.notes[4] = 55;   /* Fmaj9 */
+    p->trk[1].has2 = 1;
+    p->trk[1].limit = 10;
+    for (s = 0; s < 16; s += 4)
+        D(p, 1, s);
+    NOTES(D(p, 1, 10), 57, 0, 0, 0);                    /* one step its own single note */
+    p->trk[2].scale = QD_SCALE_DORIAN;                  /* track 3: five degrees of D dorian */
+    p->trk[2].root = 2;
+    p->trk[2].limit = 10;
+    st = D(p, 2, 2);
+    DEG(st, 3, 4, 0, 2, 4, 6);
+    DEG5(st, 8);
+    OV(st, QD_PM_LEN, 6);
+    st = D(p, 2, 10);
+    DEG(st, 3, 4, -2, 1, 3, 5);
+    DEG5(st, 7);
+    p->trk[3].limit = 10;                               /* track 4: NOTE then a TIE of five on a POLY track */
+    st = NOTE5(S(p, 3, 0, QD_TRIG_NOTE, 64, 67, 71, 74), 78);
+    st->len = 3;
+    NOTE5(S(p, 3, 2, QD_TRIG_TIE, 64, 67, 71, 74), 78)->len = 4;
+    R_DEF_AT = 32 * 4134;                               /* 3.0 s (block-aligned) */
+    pattern_test("p23-five", "five notes a step: Cmaj9 together, Dm9 strummed, G9 ratcheted, offsets to +48; a five-note "
+                 "default (Am9 -> Fmaj9 at 3.0 s); five degrees of D dorian; a TIE of five", 6.0, 2323);
+    R_DEF_AT = -1;
+}
+
+/* p24 (P1.3c): the launch modes. A (32 steps: master 32) plays; B queued at the next BAR; A again at the next BEAT;
+ * B at the END of the master length; A NOW (the next 16th). The reference's change points are reckoned from the
+ * playing pattern's start by hand */
+static void p_launch(void)
+{
+    TP *a = tp_new(0, 120), *b;
+    rseg_t seg[8];
+    int s, nseg = 0, n0 = fails;
+    for (s = 0; s < 32; s += 2)
+        S(a, 0, s, QD_TRIG_NOTE, 48 + (s % 8), 0, 0, 0)->len = 1;
+    a->trk[0].length = 32;
+    S(a, 1, 31, QD_TRIG_NOTE, 72, 0, 0, 0);
+    b = tp_new(1, 120);
+    for (s = 0; s < 16; s++)
+        S(b, 0, s, QD_TRIG_NOTE, 60 + s % 5, 0, 0, 0)->len = 1;
+    S(b, 1, 0, QD_TRIG_NOTE, 67, 0, 0, 0)->micro = -12;
+    rig_reset();
+    build(a, 0);
+    build(b, 1);
+    qd_model_tempo(&MODEL, 120);
+    qd_seq_seed(&SEQ, 1);
+    qd_seq_select(&SEQ, 0, 0);
+    qd_seq_play(&SEQ);
+    {   /* (block-aligned samples: 0.700 s, 2.611 s, 4.405 s, 7.599 s) */
+        const uint64_t q[4] = {30880, 115168, 194272, 335136};
+        const int pat[4] = {1, 0, 1, 0}, mode[4] = {QD_LAUNCH_BAR, QD_LAUNCH_BEAT, QD_LAUNCH_END, QD_LAUNCH_NOW};
+        int64_t o = 0, x;
+        int k;
+        const TP *tps[2] = {a, b};
+        const int64_t master[2] = {32 * QD_TPS, 16 * QD_TPS};
+        int cur = 0;
+        while (SEQ.now < 9 * 44100) {
+            for (k = 0; k < 4; k++)
+                if (SEQ.now == q[k])
+                    qd_seq_select_at(&SEQ, pat[k], mode[k]);
+            rig_block(0);
+        }
+        for (k = 0; k < 4; k++) {                       /* the reference: each change point by hand */
+            const int64_t t = (int64_t)((q[k] * 8 * 120000 + QD_SUB - 1) / QD_SUB);   /* the tick (ceil) */
+            const int64_t unit = mode[k] == QD_LAUNCH_BAR ? 16 * QD_TPS : mode[k] == QD_LAUNCH_BEAT ? 4 * QD_TPS
+                               : mode[k] == QD_LAUNCH_NOW ? QD_TPS : master[cur];
+            if (mode[k] == QD_LAUNCH_NOW)
+                x = (t + QD_TPS - 1) / QD_TPS * QD_TPS;
+            else if (mode[k] == QD_LAUNCH_END)
+                x = o + ((t - o) / unit + 1) * unit;
+            else
+                x = o + (t - o + unit - 1) / unit * unit;
+            seg[nseg++] = (rseg_t){tps[cur], cur, o, x};
+            o = x;
+            cur = pat[k];
+        }
+        seg[nseg++] = (rseg_t){tps[cur], cur, o, -1};
+    }
+    R_BPM = 120;
+    R_SEED = 1;
+    r_generate(seg, nseg, (int64_t)20 * 8 * QD_TPS);
+    r_replay(9 * 44100);
+    timeline("p24-launch", "the launch modes: A (32 steps); B at the next BAR (2 s); A at the next BEAT (3 s); B at the "
+             "END of A's master length (7 s); A NOW (the next 16th after 7.6 s)");
+    compare_ref("p24-launch", 1);
+    printf("  %-4s %-16s %5d events, reference %d\n", fails == n0 ? "ok" : "FAIL", "p24-launch", NENG, NREF);
+}
+
+/* p25 (P1.3c): every rate, base x type: three timelines (normal, dotted, triplet), each the seven bases 1/1 .. 1/64 on
+ * tracks 1..7, with micro, a ratchet x8, a strum and 1/8-step lengths at each (the step's whole-tick divisions) */
+static void p_rates_type(int type, const char *name, const char *title)
+{
+    TP *p = tp_new(0, 132);
+    TS *st;
+    int t, s;
+    for (t = 0; t < 7; t++) {
+        const int len = t < 2 ? 4 : t < 4 ? 8 : 16;
+        p->trk[t].rate = QD_RATE_CODE(t, type);
+        p->trk[t].length = len;
+        p->trk[t].limit = 8;
+        p->trk[t].swing = t >= 4;
+        for (s = 0; s < len; s += t >= 5 ? 4 : 1) {
+            st = S(p, t, s, QD_TRIG_NOTE, 36 + t * 6 + s % 5, s % 3 ? 0 : 43 + t * 6, 0, 0);
+            st->len = s % 4 == 1 ? 0 : QD_LEN_1;        /* (index 0: 1/8 of a step) */
+            st->micro = s % 4 == 2 ? (t % 2 ? 7 : -5) : 0;
+            st->strum = s % 3 ? 0 : 1;
+            if (s % 8 == 3)
+                st->ratch = 8;
+        }
+    }
+    p->swing = 58;
+    pattern_test(name, title, 5.0, 2500 + (uint64_t)type);
+}
+static void p_rates(void)
+{
+    p_rates_type(QD_RTYPE_NORMAL, "p25-rates-normal", "the seven bases 1/1 .. 1/64, normal: micro, ratchet x8, strum, "
+                 "1/8-step lengths, swing");
+    p_rates_type(QD_RTYPE_DOTTED, "p26-rates-dotted", "the seven bases dotted (1/1. .. 1/64.): the same steps");
+    p_rates_type(QD_RTYPE_TRIPLET, "p27-rates-triplet", "the seven bases triplet (1/1T .. 1/64T): the same steps");
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 3) {
@@ -2818,6 +3049,9 @@ int main(int argc, char **argv)
     p_pool();
     p_scales();
     p_solo();
+    p_five();
+    p_launch();
+    p_rates();
     printf("test_seq: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

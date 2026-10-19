@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* QUADRILLE's descriptor (core-api/fm1core.h, ABI 6): the one exported symbol of quadrille.fm1core. Its own unit
  * (-Wall -Wextra); the entry points are core_quadrille.c's. The button names are QUADRILLE's roles (PLAN.md §8), in
- * the panel's order: FX = TRACKS, SEL = PATTERN, ENV = PAGE, LFO = MUTE, EDIT = SOUND, GLO = SHIFT, HOME, SAVE,
- * ARP = FILL, SEQ = MIX, PLAY, REC, OCT- = F1, OCT+ = F2 (PLAN §8b). No parameter map yet: every knob is relative. */
+ * the panel's order: FX = TRACKS, SEL = MUTE / SOLO (P1.3c: held, the tracks), ENV = PAGE, LFO = MUTE, EDIT = SOUND,
+ * GLO = SHIFT, HOME, SAVE, ARP = FILL, SEQ = PATTERNS (P1.3c: held, the patterns), PLAY, REC, OCT- = F1, OCT+ = F2
+ * (PLAN §8b version 2.1). No parameter map yet: every knob is relative. */
 #include <stddef.h>
 
 #include "fm1core.h"
@@ -39,8 +40,8 @@ static fm1core_t CORE = {
     .gated = FM1CORE_GATED_OR_NULL,
     .credits = FM1CORE_CREDITS_OR_NULL,
     .flash_size = 0x100000u,
-    .button_names = {"TRACKS", "PATTERN", "PAGE", "MUTE", "SOUND", "SHIFT", "HOME", "SAVE", "FILL", "MIX", "PLAY", "REC",
-                     "OCT-", "OCT+"},
+    .button_names = {"TRACKS", "MUTE/SOLO", "PAGE", "MUTE", "SOUND", "SHIFT", "HOME", "SAVE", "FILL", "PATTERNS", "PLAY",
+                     "REC", "OCT-", "OCT+"},
     .params = NULL,
     .nparams = 0,
     .panel = &fm1core_qd_panel,

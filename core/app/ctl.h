@@ -17,27 +17,41 @@
  *
  * NAMES (§8b): OCT- = F1, OCT+ = F2, both = F3 (held together: both down, in either order; once both are down it stays
  * F3 until both are up), GLO = SHIFT, the black keys F#3 .. D#5 = B1..B10, F#5 = B11, the white keys W1..W16 = the
- * steps of the page being edited.
+ * steps of the page being edited. Printed SEL = TRACKS-held map (P1.3c), printed SEQ = the patterns (P1.3c).
  *
  * THE STEP VIEW, NOTHING HELD: W tap (released under 250 ms) = a trig with no overrides / the trig and its locks
- * removed; W held 250 ms (or a knob or a black key while it is down) = held. B1..B10 = the hold mode (NOTE VEL LEN MICRO
- * RATCH CHNC COND TRIG SOUND LOCKS); B11 nothing. ALGORITHM = the track's default for the mode (a takeover draws it);
- * SELECT = the page edited; KNOB 1..4 = the track's FREQ, DECAY, HARM, FDBK; PRESETS = the track's sound (a pool
- * sound); SHIFT + ALGORITHM = the track's scale, SHIFT + PRESETS = its root (temporary, until the track settings).
+ * removed; W held 250 ms (or a knob or a black key while it is down) = held. B1..B11 = the hold mode (NOTE VEL LEN MICRO
+ * RATCH CHNC COND TRIG SOUND LOCKS, and P1.3c's P-LOCK on B11). ALGORITHM = the track's default for the mode (a
+ * takeover draws it); SELECT = the page edited; KNOB 1..4 = the track's FREQ, DECAY, HARM, FDBK; PRESETS = the track's
+ * sound (a pool sound); SHIFT + ALGORITHM = the track's scale, SHIFT + PRESETS = its root (temporary).
  * A STEP HELD (several: every edit to all): B1..B10 = the mode's ten values (QD_VK_* in ctl_step.c), B11 = the mode
  * back to the track's (LOCKS: the chosen lock removed); ALGORITHM = the mode's value, finely (SHIFT: MICRO's strum,
- * RATCH's ramp); PRESETS = the sound lock, any pool sound, in every mode (its picker takes the screen; SOUND's bank
- * follows); KNOB 1..4 = p-locks; SELECT = the page; OCT- / OCT+ = NOTE's entry octave, SOUND's bank of ten; other W keys
- * join the held steps. NOTE entry is Form's "pressed": the first key down replaces the steps' notes, keys down together
- * add to them (up to 4); a key sounds its note.
- * F1 (OCT- held): B1..B8 pages (tap < 200 ms: edit it; double tap, the second release within 200 ms of the first: loop
- * it alone; hold A + press B: loop A..B, edit A); B9 clear the page, B10 clear the track, B11 undo / redo; W copy the
- * step (SHIFT: cut). F2 (OCT+ held): B1..B8 tracks (select; held + W1 mute, + W2 solo), B9 copy the page, B10 paste it;
- * W paste the step. F3 (both): B1..B9 the rate (1/8 1/4 1/2 2/3 3/4 1 4/3 3/2 2); W = the page's end (the page joins
- * the loop), W a held + W b = start a .. end b; SELECT tempo, SHIFT + SELECT swing.
+ * RATCH's ramp); PRESETS = the sound lock, any pool sound, in every mode; KNOB 1..4 = p-locks (through the current
+ * screen's lockable knobs: qd_ctl_lock_screen); SELECT = the page; OCT- / OCT+ = NOTE's entry octave, SOUND's bank of
+ * ten (each change: the octave takeover, the OCT LEDs blink by the distance from the centre); other W keys join.
+ *   NOTE (P1.3c): SELECT = note 1 (absolute; a detent a degree of the track's scale, chromatic a semitone), KNOB 1..4 =
+ *   notes 2..5 (offsets above note 1, a detent the next note of the scale up / down, 0 = none); each note sounds as it
+ *   changes. Entry by B1..B10 is Form's "pressed": the first key down replaces, keys down together add (up to 5).
+ *   P-LOCK (P1.3c, B11 with nothing held): holding a step keeps the screen; the screen's lockable knobs p-lock the held
+ *   steps (the step view: KNOB 1..4 FREQ DECAY HARM FDBK, PRESETS the sound lock); B11 clears the held steps' p-locks
+ *   (undoable); B1..B10 nothing.
+ * F1 (OCT- held; §8b 2.1's page layer): B1..B8 tap = edit that page, double tap (the second release within 200 ms of
+ * the first) = loop it alone, held 400 ms = that page in / out of the loop (never empty), hold A + press B = loop A..B; B9 tap = clear the page, held 600 ms = clear the track; B10 = copy the page,
+ * then B1..B8 paste it there (each press again) until F1 is let go; B11 undo / redo; W: the first W copies its step,
+ * every later W pastes it. F2 (OCT+ held): W = Form's pick-up / drop (the first W cuts, even an empty step; then an
+ * empty step is pasted into, a filled one alternately pasted over and cut; F2 let go: the hand empties; an F1 copy
+ * loads the hand, so the next F2's first W drops it). Every edit of one F1 or F2 hold is one undo level (F1 + B11).
+ * F3 (both; §8b 2.1): B1..B7 the rate's base (1/1 .. 1/64, the type kept), B8 / B9 / B10 normal / dotted / triplet
+ * (the base kept); KNOB 1 the base, KNOB 2 the type, KNOB 3 / 4 the page's start / end; W = the page's end (the page joins the loop), W a held + W b = start a .. end b; SELECT
+ * tempo, SHIFT + SELECT swing.
+ * SEL held (§8b 2.1): B1..B8 select tracks 1..8; W1..W8 tap = mute / unmute them, held 400 ms = solo / unsolo; B11 =
+ * every mute and solo off (the track map on screen).
+ * SEQ held: W1..W16 tap = A01..A16 queued by the launch mode (the project's: END, BAR, BEAT, NOW; ALGORITHM turned
+ * while SEQ is held), held 400 ms = at once; the pattern map on screen.
  * BUTTONS: REC tap = the keyboard <-> the sequencer; REC + PLAY = play with recording armed (in the keyboard); SHIFT + REC
  * in the keyboard = armed / not (stopped: step recording, playing: live); ARP held = FILL; PAGE tap = page follow on /
- * off, PAGE held + W1..W8 = edit that page; TRACKS, PATTERN, HOME, PLAY as P1.3. */
+ * off, PAGE held + W1..W8 = edit that page; TRACKS, HOME, PLAY as P1.3. The keyboard's OCT- / OCT+: its octave (the
+ * octave takeover, the OCT LEDs). */
 #pragma once
 #include <stdint.h>
 
@@ -61,6 +75,16 @@ struct qd_app;
 #define QD_FAST_MS 90u                 /* a fast blink's half period (the held step) */
 #define QD_SLIDE_MS 160u               /* a page change slides the lane in */
 #define QD_ENTRY_OCT 4                 /* NOTE's entry octave at power-on (the root at C4 = MIDI 60) */
+#define QD_PAGE_HOLD_MS 400u           /* F1 + a page key held this long: the page in / out of the loop */
+#define QD_SEL_HOLD_MS 400u            /* SEL + W1..W8 held this long: solo (a tap: mute) */
+#define QD_SEQ_HOLD_MS 400u            /* SEQ + W held this long: the pattern at once (a tap: queued) */
+#define QD_CLEAR_HOLD_MS 600u          /* F1 + B9 held this long: the track cleared (a tap: the page) */
+#define QD_PREVIEW_MS 300u             /* a note turned on a knob sounds this long */
+#define QD_OCT_SLIDE_MS 350u           /* the octave takeover's keyboard slides this long */
+/* the OCT LEDs away from the centre: a blink's half period one, two, three or more octaves (banks) away */
+#define QD_OCT_BLINK1_MS 500u
+#define QD_OCT_BLINK2_MS 250u
+#define QD_OCT_BLINK3_MS 125u
 
 enum { QD_MODE_IDLE, QD_MODE_STEP, QD_MODE_KEYS, QD_MODE_TRACKS };
 enum { QD_REC_OFF, QD_REC_STEP, QD_REC_LIVE };
@@ -103,7 +127,7 @@ typedef struct {
     /* NOTE entry (Form's "pressed") and SOUND's banks */
     int entry_oct;                     /* the octave B1's degree starts at */
     uint16_t note_keys;                /* bit b: B(b+1) is down as a note key */
-    uint8_t entry_chord[4];            /* the notes entered while the note keys are down (Form's "pressed") */
+    uint8_t entry_chord[QD_NNOTE];     /* the notes entered while the note keys are down (Form's "pressed") */
     int entry_n;
     int sound_bank;                    /* SOUND: the bank of ten on B1..B10 (0: sounds 1..10) */
     /* the layers: F1 / F2 / F3 (OCT- / OCT+ / both) */
@@ -111,12 +135,20 @@ typedef struct {
     uint32_t f_ms;                     /* when the layer's first key went down */
     uint16_t lk_down;                  /* bit b: B(b+1) went down in the layer (its release goes there too) */
     uint32_t pg_t0[8];                 /* F1: a page key's press */
-    uint32_t pg_up[8];                 /* .. its last tap's release (a double tap within QD_CLICK_MS) */
-    int pg_taps[8];
+    uint16_t pg_done;                  /* F1: bit p: page key p's press is used (held: toggled; a paste; a range) */
+    uint32_t pg_up[8];                 /* F1: a page key's last tap's release (a double tap within QD_CLICK_MS) .. */
+    int pg_taps[8];                    /* .. it was a tap */
     int pg_range;                      /* F1: a range was made: no taps until the page keys are up */
-    int f2_track;                      /* F2: the track key held (-1 none) */
-    int f2_used;                       /* .. W1 / W2 used with it */
+    int pg_copied;                     /* F1: the page copied this hold (-1 none): B1..B8 paste it */
+    uint32_t b9_t0;                    /* F1: B9's press .. */
+    int b9_down, b9_done;              /* .. down; held long enough: the track cleared */
+    int f1_copied;                     /* F1: a step copied this hold: the next W pastes it */
+    int f2_loaded, f2_holding;         /* F2: Form's seqF2Loaded_ / seqF2Holding_ (the hand) */
+    int f2_last_w, f2_last_act;        /* F2: the last W and what it did (1 CUT, 2 PASTE): the map shows it */
     int f3_anchor;                     /* F3: the white key held first (-1 none) */
+    /* SEL and SEQ held (P1.3c): their white keys' presses (a tap / a hold) */
+    uint16_t sel_down, sel_done, seq_down, seq_done;
+    uint32_t sel_t0[8], seq_t0[16];
     /* the takeover (PLAN §9a rule 5) */
     int tk;                            /* QD_TK_NONE, UI_TK_*, QD_TK_PRESET, QD_TK_DEFAULT */
     uint32_t tk_ms;                    /* the last detent */
@@ -142,7 +174,7 @@ typedef struct {
     int quantize;                      /* live recording quantized (micro 0): off (no gesture in P1.3b) */
     int cursor;                        /* step recording's cursor (a position in the track's loop) */
     int rec_n;                         /* notes of the chord being recorded, still down */
-    uint8_t rec_chord[4];
+    uint8_t rec_chord[QD_NNOTE];
     int rec_nchord;
     int rec_step;                      /* live: the step the chord went into (-1 none) */
     int64_t rec_t0[128];               /* each note's start (live: ticks; step: 0), -1 not down in the recording */
@@ -152,8 +184,14 @@ typedef struct {
     int nroll, iroll;
     /* MIDI notes into a held step */
     int midi_n;                        /* notes down */
-    uint8_t midi_chord[4];
+    uint8_t midi_chord[QD_NNOTE];
     int midi_nchord;
+    /* P1.3c: a note turned on a knob sounds (QD_PREVIEW_MS) */
+    int pv_note, pv_track;             /* -1: none sounding */
+    uint32_t pv_ms;
+    /* P1.3c: the octave takeover (tk UI_TK_OCTAVE): what changed, from what to what */
+    int oct_kind, oct_from, oct_to;    /* UI_OCT_* */
+    uint32_t oct_ms;
 } qd_ui_t;
 
 /* ---- ctl.c */
@@ -174,7 +212,29 @@ void qd_ctl_takeover(struct qd_app *a, int tk, int knob, int dir, int lock, int 
 void qd_ctl_confirm(struct qd_app *a, const char *big, const char *small);
 int qd_ctl_rate_index(int rate);       /* a rate's place in the picker (slowest first) */
 int qd_ctl_rate_at(int i);             /* .. and back */
+
 int qd_ctl_white(int key);             /* the white key 0..15 of a note key, or -1 */
+/* P1.3c: the octave changed (UI_OCT_*): the takeover for a second */
+void qd_ctl_octave(struct qd_app *a, int kind, int from, int to);
+/* the distance from the centre the OCT LEDs show (entry octave - 4 in NOTE with a step held, the keyboard's shift, the
+ * SOUND bank with a step held); 0: none shown (*shown 0: the OCT keys are no octave here) */
+int qd_ctl_oct_offset(const struct qd_app *a, int *shown);
+uint32_t qd_ctl_oct_blink_ms(int offset);   /* the blink's half period for a distance (0: none) */
+/* a note sounded for QD_PREVIEW_MS on the selected track (a knob turned a step's note) */
+void qd_ctl_preview(struct qd_app *a, int note, int vel);
+/* P-LOCK's hook: the screen's lockable knobs, one table a screen (the step view now; the sound editor's pages later) */
+#define QD_LOCK_SOUND (-1)             /* the knob is the sound lock (the pool's picker) */
+typedef struct {
+    uint8_t knob;                      /* QD_K_* */
+    int16_t id;                        /* the lock id (pattern.h), or QD_LOCK_SOUND */
+    int16_t tk;                        /* its takeover (UI_TK_*, QD_TK_PRESET) */
+} qd_lockknob_t;
+typedef struct {
+    const char *name;                  /* "STEP VIEW" */
+    int n;
+    const qd_lockknob_t *k;
+} qd_lockscreen_t;
+const qd_lockscreen_t *qd_ctl_lock_screen(const struct qd_app *a);
 int qd_ctl_black(int key);             /* the black key 0..10 of a note key, or -1 */
 extern const uint8_t QD_WHITE_KEY[16], QD_BLACK_KEY[11];
 
@@ -187,6 +247,8 @@ void qd_step_promote_due(struct qd_app *a);         /* those down 250 ms, in the
 void qd_step_value_key(struct qd_app *a, int b, int down);   /* B1..B11 with steps held */
 int qd_step_knob(struct qd_app *a, int knob, int d);   /* a knob with steps held; 1: taken */
 void qd_step_oct(struct qd_app *a, int d);          /* OCT- / OCT+ with steps held: NOTE's octave, SOUND's bank */
+int qd_step_lock_knob(struct qd_app *a, int knob, int d);   /* a lockable knob of the screen: the held steps; 1 taken */
+void qd_step_clear_locks(struct qd_app *a);         /* P-LOCK's B11: the held steps' p-locks cleared (undoable) */
 void qd_step_release_all(struct qd_app *a);         /* every held step let go (HOME, a track change) */
 void qd_step_notes_in(struct qd_app *a, const uint8_t *notes, int n);   /* the held steps' notes (MIDI) */
 int qd_step_default_knob(struct qd_app *a, int d);  /* ALGORITHM, nothing held: the track's default of the mode */
@@ -219,6 +281,10 @@ int qd_ctl_trig_flash(const struct qd_app *a, int t);          /* track t's trig
 
 /* ---- view.c */
 void qd_view_frame(struct qd_app *a, uint16_t *lcd_be);
+/* the screen under the takeovers (what qd_view_frame draws first): QD_SCR_* */
+enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR_KEYS, QD_SCR_TRACKS, QD_SCR_SEL,
+       QD_SCR_SEQ };
+int qd_view_screen(const struct qd_app *a);
 
 #ifdef __cplusplus
 }

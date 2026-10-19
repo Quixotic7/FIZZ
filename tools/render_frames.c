@@ -19,12 +19,13 @@
  * Then P1.2's script, from a fresh app (the frames named): PATTERN held + white key 3 at 100 ms (stopped: A03 at once),
  * TRACKS tapped at 300 (the tracks screen), PLAY at 500; tracks-1.png at 3200 and tracks-2.png at 5650 (A03 playing:
  * the eight clocks at their own rates; leds-tracks.png with the second); white key 13 at 6000 (track 5 muted:
- * tracks-3-muted.png at 6500); HOME at 7000; PATTERN held + white key 1 at 7200 (A01 queued to the end of A03's master
+ * tracks-3-muted.png at 6500); HOME at 7000; SEQ (printed) held + white key 1 at 7200 (A01 queued to the end of A03's master
  * length): idle-queued.png at 7600 (the name in its lit half of the blink) and idle-changed.png at 13500, after the
  * change. Its LEDs go to leds.txt too.
  *
  * Then P1.3b's (render_p13b.c): every screen of P1.3b from a real state, p13b-*.png, and the contact sheet
- * p13b-sheet.png beside line.html's mocks (--mocks DIR, default ../mockups/png). */
+ * p13b-sheet.png beside line.html's mocks (--mocks DIR, default ../mockups/png). Then P1.3c's (render_p13c.c): the
+ * screens of §8b version 2.1, p13c-*.png and p13c-sheet.png. */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,6 +44,7 @@ static const char *const BTN_PRINTED[QD_NBTN] = {"FX", "SEL", "ENV", "LFO", "EDI
                                                   "SAVE", "ARP", "SEQ", "PLAY", "REC", "OCT-", "OCT+"};
 
 int render_p13b(const char *out, const char *mocks);   /* render_p13b.c */
+int render_p13c(const char *out);                       /* render_p13c.c */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
 
@@ -287,7 +289,7 @@ int main(int argc, char **argv)
 
     /* ---- P1.2: the tracks screen while A03 plays, a pattern queued */
     fprintf(log, "\nP1.2: PATTERN + white key 3 at 100 ms (A03), TRACKS tapped at 300, PLAY at 500, white key 13 at "
-                 "6000 (mute track 5), HOME at 7000, PATTERN + white key 1 at 7200 (A01 queued)\n");
+                 "6000 (mute track 5), HOME at 7000, SEQ + white key 1 at 7200 (A01 queued)\n");
     qd_app_init(&app);
     frames_done = 0;
     last_frame = 0;
@@ -296,13 +298,13 @@ int main(int argc, char **argv)
             {3200, "tracks-1"}, {5650, "tracks-2"}, {6500, "tracks-3-muted"}, {7600, "idle-queued"},
             {13500, "idle-changed"}};
         if (ms == 100)
-            qd_app_button(&app, QD_B_PATTERN, 1);
+            qd_app_button(&app, QD_B_MIX, 1);
         if (ms == 120)
             qd_app_key(&app, 4, 1, 100);                /* white key 3 */
         if (ms == 140)
             qd_app_key(&app, 4, 0, 0);
         if (ms == 160)
-            qd_app_button(&app, QD_B_PATTERN, 0);
+            qd_app_button(&app, QD_B_MIX, 0);
         if (ms == 300)
             qd_app_button(&app, QD_B_TRACKS, 1);
         if (ms == 350)
@@ -320,13 +322,13 @@ int main(int argc, char **argv)
         if (ms == 7050)
             qd_app_button(&app, QD_B_HOME, 0);
         if (ms == 7200)
-            qd_app_button(&app, QD_B_PATTERN, 1);
+            qd_app_button(&app, QD_B_MIX, 1);
         if (ms == 7220)
             qd_app_key(&app, 0, 1, 100);                /* white key 1: A01, queued */
         if (ms == 7240)
             qd_app_key(&app, 0, 0, 0);
         if (ms == 7260)
-            qd_app_button(&app, QD_B_PATTERN, 0);
+            qd_app_button(&app, QD_B_MIX, 0);
         qd_app_tick(&app, ms);
         if (ms == 0 || ms - last_frame >= 15u) {
             last_frame = ms;
@@ -360,6 +362,7 @@ int main(int argc, char **argv)
     fclose(log);
     printf("%s/leds.txt (the LEDs at each frame time, the beat LED's edges to 2600 ms; key 0's peak %d)\n", out, peak);
     failed |= render_p13b(out, mocks);                  /* P1.3b: every screen from a real state, the contact sheet */
+    failed |= render_p13c(out);                         /* P1.3c: §8b 2.1's screens, their sheet */
     qd_shutdown();
     return failed;
 }

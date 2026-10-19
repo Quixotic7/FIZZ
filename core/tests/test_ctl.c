@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* P1.3b's acceptance (PLAN §8b, the sequencer controls version 2): the controller driven as the glue drives it
+/* P1.3b's and P1.3c's acceptance (PLAN §8b, the sequencer controls version 2 and 2.1): the controller driven as the glue
+ * drives it
  * (core/app/app.h: input events between millisecond ticks, the audio in 128-frame blocks, a frame every 15 ms, so every
  * screen is drawn under the sanitizers too).
  *
@@ -12,9 +13,17 @@
  *                swing), REC (the keyboard, REC + PLAY, SHIFT + REC, step and live recording), ARP (FILL), PAGE
  *                (follow; + W), the tracks screen, MIDI into a held step, the layer maps and SHIFT's map, a default
  *                change moving only the steps that do not override it
+ *   P1.3c        F1's page layer (tap, double tap, hold toggle, never-empty loop, A..B; B9 tap / hold; B10 copy then
+ *                paste onto two pages; undo of each, as one per hold); F1 + W copy then paste and F2's pre-load; F2's
+ *                pick-up / drop press by press against the test's reading of Form's code; SEL (select, tap mute, hold
+ *                solo, B11, LEDs); SEQ (tap queues by the launch mode, hold at once, ALGORITHM END BAR BEAT NOW); F3
+ *                (base / type keys and knobs, start / end clamps, all 21 rates' step lengths); NOTE's five knobs
+ *                (chromatic and in a scale); five notes by the keys; P-LOCK (the screen stays, the knobs lock, B11,
+ *                undo); the OCT LEDs' blink levels in NOTE, the keyboard and SOUND's banks, the octave takeover
  *   beat         "program a beat": from the empty A05, panel presses and turns only build a pattern with a page that
  *                has its own start and end, a two-page loop, a pool sound lock, a velocity override, a ratchet, a
- *                condition, a chord, a 12-step track and two default changes; it equals the same pattern built
+ *                condition (moved by F2's cut / drop), a chord, a five-note chord (keys, then KNOB 4), a P-LOCK lock, a
+ *                12-step track, two default changes and SEL's mute of track 8; it equals the same pattern built
  *                through the API byte for byte (steps, locks, track settings) and in its timeline
  *   leds         the levels per situation (§8b's LEDs)
  *   determinism  one gesture session twice: the same model, the same samples
@@ -27,6 +36,7 @@
 
 #include "app.h"
 #include "qd_gfx.h"
+#include "chord.h"
 #include "scale.h"
 #include "sounds.h"
 #include "ui.h"
@@ -137,11 +147,11 @@ static void f3_up(void)
     run(10);
 }
 static void wake(void) { btap(QD_B_HOME); }             /* power-on: idle; HOME: the step view */
-static void empty_pattern(int k)                        /* PATTERN held + white key k + 1 (stopped: at once) */
+static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once) */
 {
-    bdown(QD_B_PATTERN);
+    bdown(QD_B_MIX);
     wtap(k);
-    bup(QD_B_PATTERN);
+    bup(QD_B_MIX);
     run(10);
 }
 static qd_pattern_t *PAT(void) { return qd_ctl_pat(&A); }
@@ -226,6 +236,7 @@ static void g_edge(void)
     kup(WK(3));
     run(5);
     CHECK(!R(0, 3).on && A.ui.nheld == 0, "released after the hold: no toggle, let go");
+    mode(M_VEL);                                        /* (P1.3c: in NOTE KNOB 1 is note 2) */
     kdown(WK(4));                                       /* a knob turned at 100 ms: held at once */
     run(100);
     turn(QD_K_1, 2);
@@ -233,7 +244,8 @@ static void g_edge(void)
     kup(WK(4));
     run(5);
     CHECK(R(0, 4).type == QD_TRIG_LOCK && LK(0, 4, QD_QP_FREQ) != -99999,
-          "an empty step held + KNOB 1: a LOCK step with a FREQ lock");
+          "an empty step held + KNOB 1 (VEL): a LOCK step with a FREQ lock");
+    mode(M_NOTE);
     kdown(WK(6));                                       /* a black key while pending: held, the value set */
     run(50);
     black(B5);                                          /* (NOTE mode: B5 = E4) */
@@ -253,7 +265,7 @@ static void g_modes(void)
               UI_FIELD_NAME[m]);
     }
     black(B11);
-    CHECK(A.ui.hmode == M_LOCKS && !R(0, 0).on, "B11 with nothing held: nothing (question 37)");
+    CHECK(A.ui.hmode == UI_F_PLOCK && !R(0, 0).on, "B11 with nothing held: the P-LOCK mode (P1.3c, question 37)");
 }
 
 /* every mode's ten values on a held step, and B11 */
@@ -447,6 +459,7 @@ static void g_select(void)
     turn(QD_K_SELECT, 9);
     CHECK(A.ui.page[0] == 7, "SELECT clamps at page 8");
     turn(QD_K_SELECT, -7);
+    mode(M_VEL);                                        /* (P1.3c: in NOTE SELECT is note 1) */
     whold(1);
     turn(QD_K_SELECT, 1);                               /* a step held: SELECT still pages; another W joins */
     kdown(WK(5));
@@ -570,44 +583,134 @@ static void g_plocks(void)
           "nothing held: KNOB 1..4 the track's sound, live");
 }
 
-/* F1: pages (tap, double tap, A..B), copy / cut, clear page / track, undo */
+/* ---- P1.3c (§8b 2.1) */
+static void ktap(int k, uint32_t ms)                    /* a key down ms, then up */
+{
+    kdown(k);
+    run(ms);
+    kup(k);
+}
+
+/* F1's page layer: tap edits, a double tap loops a page alone, a hold (400 ms) toggles it in the loop (never empty),
+ * hold A + B loops A..B; B9 tap / hold clears the page / the track; B10 copies a page, B1..B8 paste it; undo each */
 static void g_f1_pages(void)
 {
     start();
+    wtap(0), wtap(5);
+    turn(QD_K_SELECT, 1);
+    wtap(2);
+    turn(QD_K_SELECT, -1);
+    run(QD_TK_MS + 200);
     bdown(F1);
     run(100);
-    CHECK(qd_ctl_layer(&A) == QD_LAYER_F1 && qd_ctl_layer_shown(&A) == QD_LAYER_F1, "F1 held: its layer and map");
-    black(B3);
-    CHECK(A.ui.page[0] == 2 && qd_track_loop(&PAT()->trk[0]) == 1, "F1 + tap B3: edit page 3, the loop unchanged");
-    black(B2);
-    run(50);
-    black(B2);
-    CHECK(A.ui.page[0] == 1 && PAT()->trk[0].loop == 2, "F1 + double tap B2: page 2 looped alone");
+    CHECK(qd_ctl_layer(&A) == QD_LAYER_F1 && qd_view_screen(&A) == QD_SCR_LAYER, "F1 held: its layer, its map");
+    ktap(BK(B3), 399);
+    run(10);
+    CHECK(A.ui.page[0] == 2 && qd_track_loop(&PAT()->trk[0]) == 1, "B3 down 399 ms: a tap, edit page 3, the loop as "
+          "it was");
     run(300);
-    black(B4);
-    CHECK(A.ui.page[0] == 3 && PAT()->trk[0].loop == 2, "a tap after the double tap's time: just edit page 4");
-    kdown(BK(B2));
-    run(400);
-    kdown(BK(B5));
-    run(30);
-    kup(BK(B5));
-    run(30);
-    kup(BK(B2));
+    ktap(BK(B3), 400);
     run(10);
-    CHECK(PAT()->trk[0].loop == 0x1E && A.ui.page[0] == 1, "F1 + hold B2 + press B5: the loop 2..5, edit page 2");
-    kdown(BK(B6));
-    run(400);
-    kup(BK(B6));
+    CHECK(qd_track_loop(&PAT()->trk[0]) == 5 && A.ui.page[0] == 2, "B3 held 400 ms: page 3 joins the loop (1 and 3)");
+    run(300);
+    kdown(BK(B3));
+    run(450);
+    CHECK(qd_track_loop(&PAT()->trk[0]) == 1, "held again: out of the loop, at the 400 ms mark (still down)");
+    kup(BK(B3));
+    run(300);
+    ktap(BK(B1), 450);
     run(10);
-    CHECK(A.ui.page[0] == 1, "a page key held alone and let go: nothing (Form's)");
+    CHECK(qd_track_loop(&PAT()->trk[0]) == 1 && A.ui.cf_on, "B1 held, the loop's only page: it stays (never empty)");
+    run(300);
+    ktap(BK(B2), 30);                                   /* a double tap: the second release 190 ms after the first */
+    run(160);
+    ktap(BK(B2), 30);
+    run(10);
+    CHECK(PAT()->trk[0].loop == 2 && A.ui.page[0] == 1, "B2 twice within 200 ms: page 2 looped alone");
+    run(300);
+    ktap(BK(B4), 30);                                   /* two taps 210 ms apart: two taps */
+    run(180);
+    ktap(BK(B4), 30);
+    run(10);
+    CHECK(PAT()->trk[0].loop == 2 && A.ui.page[0] == 3, "B4 twice 210 ms apart: just edit page 4");
+    run(300);
+    ktap(BK(B5), 30);                                   /* a tap then a hold: the tap edits, the hold toggles */
+    run(100);
+    ktap(BK(B5), 420);
+    run(10);
+    CHECK(PAT()->trk[0].loop == 0x12 && A.ui.page[0] == 4, "B5 tapped then held: edited, then into the loop (no "
+          "double tap)");
+    run(300);
+    kdown(BK(B1));
+    run(500);                                           /* (B1 held alone 400 ms first: it toggled; the range wins) */
+    kdown(BK(B4));
+    run(30);
+    kup(BK(B4));
+    run(30);
+    kup(BK(B1));
+    run(10);
+    CHECK(PAT()->trk[0].loop == 0x0F && A.ui.page[0] == 0, "hold B1 + press B4: the loop 1..4, edit page 1");
     bup(F1);
     run(10);
-    CHECK(qd_ctl_layer(&A) == QD_LAYER_NONE, "F1 up: no layer");
-    btap(F1);
-    CHECK(!R(0, 16).on, "F1 tapped alone: nothing");
+    /* B9: a tap clears the page, a hold the track; each undone */
+    bdown(F1);
+    run(70);
+    ktap(BK(B9), 590);
+    bup(F1);
+    run(10);
+    CHECK(!R(0, 0).on && !R(0, 5).on && R(0, 18).on, "F1 + B9 tapped (590 ms): page 1 cleared, page 2 kept");
+    bdown(F1);
+    black(B11);
+    bup(F1);
+    CHECK(R(0, 0).on && R(0, 5).on, "F1 + B11: the page back");
+    bdown(F1);
+    run(70);
+    kdown(BK(B9));
+    run(610);
+    CHECK(!R(0, 0).on && !R(0, 18).on, "F1 + B9 held 600 ms: the track cleared (at the mark, still down)");
+    kup(BK(B9));
+    bup(F1);
+    run(10);
+    CHECK(!R(0, 0).on && !R(0, 18).on, "its release: nothing more");
+    bdown(F1);
+    black(B11);
+    bup(F1);
+    CHECK(R(0, 0).on && R(0, 18).on && R(0, 5).on, "F1 + B11: the track back");
+    /* B10: copy page 1, paste onto pages 3 and 6 (B3 twice), undo as one */
+    bdown(F1);
+    run(70);
+    black(B10);
+    CHECK(A.ui.pg_copied == 0, "F1 + B10: page 1 copied");
+    {
+        const qd_leds_t l = leds();
+        int on = 0, k;
+        CHECK(l.key[BK(B10)] == QD_LED_LIT, "B10 lit once a page is copied");
+        for (k = 0; k < 400; k++) {
+            run(1);
+            on += leds().key[BK(B1)] == QD_LED_LIT;
+        }
+        CHECK(on > 100 && on < 300, "the copied page's key blinks (%d of 400 ms lit)", on);
+    }
+    black(B3);
+    black(B3);
+    black(B6);
+    CHECK(R(0, 32).on && R(0, 37).on && R(0, 80).on && R(0, 85).on && A.ui.page[0] == 5 && (PAT()->trk[0].loop & 0x24),
+          "B3 (twice) and B6: page 1 pasted onto pages 3 and 6, they join the loop, page 6 edited");
+    bup(F1);
+    run(10);
+    CHECK(A.ui.pg_copied < 0, "F1 let go: B1..B8 select again");
+    bdown(F1);
+    run(70);
+    black(B2);
+    CHECK(A.ui.page[0] == 1 && !R(0, 33).on, "the next F1 hold: B2 edits page 2 (no paste)");
+    black(B11);
+    bup(F1);
+    CHECK(!R(0, 32).on && !R(0, 80).on && PAT()->trk[0].loop == 0x0F, "F1 + B11: the hold's pastes undone as one "
+          "(both pages; the loop 1..4 again)");
 }
 
-static void g_f1_edit(void)
+/* F1 + W: the first W copies, every later W pastes; one undo level a hold; F1 let go loads F2's hand (Form's) */
+static void g_f1_steps(void)
 {
     start();
     wtap(0);
@@ -616,153 +719,281 @@ static void g_f1_edit(void)
     black(B4);                                          /* step 1: vel 51 */
     wrel(0);
     qd_lock_set(PAT(), 0, 0, QD_QP_FREQ, 4000);
+    wtap(9);
     bdown(F1);
+    run(70);
     wtap(0);                                            /* copy step 1 */
-    bup(F1);
-    CHECK(A.ui.clip.st.valid && A.ui.cf_on, "F1 + W1: the step copied");
-    bdown(F2);
-    wtap(5);
+    CHECK(A.ui.clip.st.valid && A.ui.f1_copied && !R(0, 3).on, "F1 + W1: copied, nothing pasted");
+    wtap(3);
     wtap(7);
-    bup(F2);
-    CHECK(R(0, 5).vel == 51 && R(0, 7).vel == 51 && LK(0, 7, QD_QP_FREQ) == 4000, "F2 + W6, W8: pasted twice, with "
-          "its lock");
-    bdown(F2);                                          /* another track: allowed */
-    black(B2);
-    bup(F2);
+    wtap(9);
+    CHECK(R(0, 3).vel == 51 && R(0, 7).vel == 51 && R(0, 9).vel == 51 && LK(0, 7, QD_QP_FREQ) == 4000,
+          "W4, W8, W10: pasted each (with its lock, over a trig too)");
+    bup(F1);
+    run(10);
+    bdown(F1);
+    black(B11);
+    bup(F1);
+    CHECK(!R(0, 3).on && !R(0, 7).on && R(0, 9).on && R(0, 9).vel == 100, "F1 + B11: the hold's three pastes undone "
+          "as one");
     bdown(F2);
     run(70);
-    wtap(3);
-    bup(F2);
-    CHECK(A.sel == 1 && R(1, 3).vel == 51 && LK(1, 3, QD_QP_FREQ) == 4000, "pasted onto track 2");
-    bdown(SHIFT);
-    bdown(F1);
-    wtap(3);                                            /* SHIFT + F1 + W4: cut */
-    bup(F1);
-    bup(SHIFT);
-    CHECK(!R(1, 3).on && A.ui.clip.st.valid, "SHIFT + F1 + W4: cut (cleared, copied)");
-    bdown(F1);
-    black(B11);
-    bup(F1);
-    CHECK(R(1, 3).on && R(1, 3).vel == 51, "F1 + B11: undo the cut");
-    bdown(F1);
-    black(B11);
-    bup(F1);
-    CHECK(!R(1, 3).on, "F1 + B11 again: redo");
-    /* clear page / track, and their undo */
-    bdown(F2);
-    black(B1);
+    wtap(12);
     bup(F2);
     run(10);
-    CHECK(A.sel == 0, "F2 + B1: track 1");
+    CHECK(R(0, 12).vel == 51 && R(0, 0).on, "F1's copy stays: the next F2's first W drops it (Form's pre-load), "
+          "no cut");
     bdown(F1);
-    black(B9);
+    run(70);
+    wtap(9);
+    wtap(14);
     bup(F1);
-    CHECK(!R(0, 0).on && !R(0, 5).on && PAT()->lock_n[0] == 0, "F1 + B9: the page cleared");
-    bdown(F1);
-    black(B11);
-    bup(F1);
-    CHECK(R(0, 0).on && R(0, 7).on && LK(0, 7, QD_QP_FREQ) == 4000, "F1 + B11: undone");
-    wtap(15);
-    turn(QD_K_SELECT, 1);
-    wtap(0);
-    bdown(F1);
-    black(B10);
-    bup(F1);
-    CHECK(!R(0, 15).on && !R(0, 16).on, "F1 + B10: the track cleared");
-    bdown(F1);
-    black(B11);
-    bup(F1);
-    CHECK(R(0, 15).on && R(0, 16).on && R(0, 0).on, "F1 + B11: the track back");
-    bdown(F1);
-    black(B11);
-    black(B11);
-    bup(F1);
-    CHECK(R(0, 16).on, "undo, redo: as it was");
+    CHECK(R(0, 14).vel == 100, "a new F1 hold: its first W copies again (step 10), the next pastes it");
 }
 
-/* F2: tracks, mute, solo; page copy / paste */
+/* F2: Form's pick-up / drop (omx_mode_form.cpp v1.15.4, seqF2Loaded_ / seqF2Holding_), checked press by press against
+ * the test's own reading of Form's code */
+static int form_action(int loaded, int holding, int on)  /* 1 CUT, 2 PASTE */
+{
+    if (!loaded)
+        return 1;                                       /* the first press: grab, even an empty step */
+    if (!on)
+        return 2;                                       /* loaded, an empty step: always paste */
+    return holding ? 2 : 1;                             /* a filled step: holding drops, empty-handed grabs */
+}
 static void g_f2(void)
 {
-    qd_leds_t l;
+    static const struct {
+        int w;                                          /* the W pressed (0-based) */
+        const char *what;
+    } SEQ_[] = {
+        {1, "cut an empty step (the eraser)"}, {0, "holding, a filled step: paste over it"},
+        {2, "empty-handed, a filled step: cut it"}, {4, "loaded, an empty step: paste"},
+        {5, "empty-handed, an empty step: paste again"}, {3, "empty-handed, filled: cut"},
+        {3, "the same step, now empty: paste it back"}, {3, "filled, empty-handed: cut"},
+        {3, "empty, loaded: paste"},
+    };
+    int loaded = 0, holding = 0, i, okall = 1;
+    uint8_t vel_hand = 0;
     start();
+    wtap(0), wtap(2), wtap(3);
+    mode(M_VEL);
+    whold(0), black(B4), wrel(0);                       /* W1 51, W3 89, W4 127 */
+    whold(2), black(B7), wrel(2);
+    whold(3), black(B10), wrel(3);
     bdown(F2);
-    run(100);
-    black(B3);
-    CHECK(A.sel == 2, "F2 + B3: track 3");
-    kdown(BK(B2));
-    run(20);
-    wtap(0);
-    CHECK(A.sel == 1 && (A.seq.mute & 2), "F2 + hold B2 + W1: track 2 muted");
-    wtap(1);
-    CHECK(A.seq.solo == 2, "+ W2: soloed");
-    kup(BK(B2));
-    run(10);
-    l = leds();
-    CHECK(l.key[BK(B2)] == QD_LED_LIT || l.key[BK(B2)] == QD_LED_OFF, "F2: the soloed track blinks");
-    CHECK(l.key[BK(B1)] == QD_LED_OFF, "F2: with a solo, track 1 is not heard: off");
-    kdown(BK(B2));
-    run(20);
-    wtap(0);
-    wtap(1);
-    kup(BK(B2));
+    run(70);
+    CHECK(qd_view_screen(&A) == QD_SCR_LAYER && qd_ctl_layer_shown(&A) == QD_LAYER_F2 && !A.ui.f2_loaded,
+          "F2 held: its map, the hand empty");
+    for (i = 0; i < (int)(sizeof SEQ_ / sizeof SEQ_[0]); i++) {
+        const int w = SEQ_[i].w, on = R(0, w).on, vel = R(0, w).vel;
+        const int want = form_action(loaded, holding, on);
+        int ok;
+        wtap(w);
+        ok = A.ui.f2_last_act == want;
+        if (want == 1) {
+            ok &= !R(0, w).on;
+            vel_hand = on ? (uint8_t)vel : 0;
+            loaded = holding = 1;
+        } else {
+            ok &= vel_hand ? R(0, w).on && R(0, w).vel == vel_hand : !R(0, w).on;
+            holding = 0;
+        }
+        ok &= A.ui.f2_loaded == loaded && A.ui.f2_holding == holding;
+        CHECK(ok, "F2 press %d, W%d: %s (%s)", i + 1, w + 1, SEQ_[i].what, want == 1 ? "CUT" : "PASTE");
+        okall &= ok;
+    }
+    CHECK(!R(0, 0).on && !R(0, 1).on && R(0, 4).vel == 89 && R(0, 5).vel == 89 && !R(0, 2).on,
+          "after the hold: W1 erased by the empty step, W3's 89 moved to W5 and copied to W6");
     bup(F2);
     run(10);
-    CHECK(!A.seq.mute && !A.seq.solo, "W1, W2 again: unmuted, unsoloed");
-    /* page copy / paste */
+    CHECK(!A.ui.f2_loaded && !A.ui.f2_holding, "F2 let go: the hand empties");
     bdown(F2);
-    black(B1);
+    run(70);
+    wtap(4);
+    CHECK(A.ui.f2_last_act == 1 && !R(0, 4).on, "the next F2 hold: the first W cuts again (a full step)");
+    wtap(10);
     bup(F2);
-    wtap(2), wtap(6);
-    bdown(F1);
-    black(B1);
-    bup(F1);
-    f3_down();
-    kdown(WK(1)), kdown(WK(9));                         /* page 1: 2..10 */
-    run(20);
-    kup(WK(1)), kup(WK(9));
-    f3_up();
-    bdown(F2);
-    black(B9);                                          /* copy page 1 */
-    bup(F2);
-    bdown(F1);
-    black(B4);                                          /* edit page 4 */
-    bup(F1);
-    bdown(F2);
-    black(B10);                                         /* paste */
-    bup(F2);
-    CHECK(R(0, 50).on && R(0, 54).on && PAT()->trk[0].pstart[3] == 1 && PAT()->trk[0].pend[3] == 9 &&
-              (PAT()->trk[0].loop & 8),
-          "F2 + B9 on page 1, F2 + B10 on page 4: its steps, its 2..10, and page 4 joins the loop");
+    CHECK(R(0, 10).vel == 89, ".. and drops it on W11");
     bdown(F1);
     black(B11);
     bup(F1);
-    CHECK(!R(0, 50).on && !(PAT()->trk[0].loop & 8), "F1 + B11: the paste undone (the loop too)");
+    CHECK(R(0, 4).vel == 89 && !R(0, 10).on, "F1 + B11: that hold's cut and paste undone as one");
+    bdown(F1);
+    black(B11);
+    bup(F1);
+    CHECK(!R(0, 4).on && R(0, 10).vel == 89, "again: redone");
+    bdown(F2);
+    run(70);
+    black(B9), black(B10), black(B1);
+    bup(F2);
+    CHECK(!A.ui.clip.pg.valid && A.sel == 0, "F2 + B1 / B9 / B10: nothing (no tracks, no page copy on F2 now)");
+    (void)okall;
 }
 
-/* F3: the rate, the page's end, start..end; tempo and swing */
+/* SEL held: B1..B8 select; W1..W8 tap mute, hold (400 ms) solo; B11 all off; the LEDs */
+static void g_sel(void)
+{
+    qd_leds_t l;
+    int k, on = 0;
+    start();
+    bdown(QD_B_PATTERN);
+    run(30);
+    CHECK(qd_view_screen(&A) == QD_SCR_SEL, "SEL held: the track map");
+    black(B3);
+    CHECK(A.sel == 2, "SEL + B3: track 3");
+    ktap(WK(1), 30);
+    run(10);
+    CHECK(A.seq.mute == 2 && !A.seq.solo, "W2 tapped: track 2 muted");
+    ktap(WK(1), 399);
+    run(10);
+    CHECK(A.seq.mute == 0 && !A.seq.solo, "W2 down 399 ms: a tap, unmuted");
+    kdown(WK(4));
+    run(401);
+    CHECK(A.seq.solo == 0x10 && !A.seq.mute, "W5 held 400 ms: track 5 soloed (at the mark)");
+    kup(WK(4));
+    run(10);
+    CHECK(A.seq.solo == 0x10 && !A.seq.mute, ".. its release: no mute");
+    ktap(WK(9), 30);
+    ktap(WK(15), 500);
+    CHECK(A.seq.solo == 0x10 && !A.seq.mute, "W10, W16: nothing");
+    ktap(WK(6), 30);
+    run(10);
+    l = leds();
+    CHECK(l.key[BK(B3)] == QD_LED_LIT && l.key[BK(B1)] == QD_LED_DIM && l.key[WK(6)] == QD_LED_OFF &&
+              l.key[WK(0)] == QD_LED_OFF && l.key[BK(B11)] == QD_LED_LIT,
+          "LEDs: the selected track lit, the others dim; W7 muted off, W1 off (track 5 soloed); B11 lit");
+    for (k = 0; k < 500; k++) {
+        run(1);
+        on += leds().key[WK(4)] == QD_LED_LIT;
+    }
+    CHECK(on > 150 && on < 350, "the soloed track's W blinks (%d of 500 ms)", on);
+    black(B11);
+    l = leds();
+    CHECK(!A.seq.mute && !A.seq.solo && l.key[BK(B11)] == QD_LED_OFF && l.key[WK(6)] == QD_LED_LIT &&
+              l.key[WK(0)] == QD_LED_LIT,
+          "B11: every mute and solo off; all heard, lit; B11 off");
+    bup(QD_B_PATTERN);
+    run(10);
+    CHECK(qd_view_screen(&A) == QD_SCR_LANE, "SEL let go: the step view");
+}
+
+/* SEQ held: W tap queues by the launch mode, held (400 ms) at once; ALGORITHM the launch mode */
+static void g_seq(void)
+{
+    int64_t x;
+    start();
+    empty_pattern(1);                                   /* A02 */
+    btap(QD_B_PLAY);
+    run(700);
+    bdown(QD_B_MIX);
+    run(30);
+    CHECK(qd_view_screen(&A) == QD_SCR_SEQ, "SEQ held: the pattern map");
+    ktap(WK(0), 30);
+    run(10);
+    CHECK(qd_seq_queued(&A.seq) == 0 && A.seq.cur == 1 && A.proj.launch == QD_LAUNCH_END,
+          "W1 tapped: A01 queued (END, the default)");
+    {
+        const qd_leds_t l = leds();
+        CHECK(l.key[WK(1)] == QD_LED_LIT && (l.key[WK(2)] == QD_LED_DIM), "LEDs: the playing one lit, content dim");
+    }
+    turn(QD_K_ALGO, 1);
+    CHECK(A.proj.launch == QD_LAUNCH_BAR, "ALGORITHM: BAR");
+    ktap(WK(2), 30);
+    x = A.seq.sw_x;
+    CHECK(qd_seq_queued(&A.seq) == 2 && (x - A.seq.origin) % (16 * QD_TPS) == 0 && x > qd_seq_tick(&A.seq),
+          "W3 tapped, BAR: A03 queued to the next bar");
+    turn(QD_K_ALGO, 1);
+    ktap(WK(3), 30);
+    x = A.seq.sw_x;
+    CHECK(A.proj.launch == QD_LAUNCH_BEAT && qd_seq_queued(&A.seq) == 3 && (x - A.seq.origin) % (4 * QD_TPS) == 0 &&
+              x - qd_seq_tick(&A.seq) <= 4 * QD_TPS,
+          "BEAT: A04 queued to the next beat");
+    turn(QD_K_ALGO, 5);
+    CHECK(A.proj.launch == QD_LAUNCH_NOW, "ALGORITHM up: NOW (the last)");
+    turn(QD_K_ALGO, -10);
+    CHECK(A.proj.launch == QD_LAUNCH_END, ".. down: END");
+    run(600);
+    CHECK(A.seq.cur == 3 && qd_seq_queued(&A.seq) < 0, "A04 took over at its beat");
+    kdown(WK(2));
+    run(399);
+    CHECK(qd_seq_queued(&A.seq) == 2, "W3 down 399 ms: queued (END) (queued %d, cur %d)", qd_seq_queued(&A.seq),
+          A.seq.cur);
+    run(2);
+    CHECK(A.seq.sw_x - qd_seq_tick(&A.seq) <= QD_TPS, "held 400 ms: at once (the next 16th)");
+    kup(WK(2));
+    run(200);
+    CHECK(A.seq.cur == 2 && qd_seq_queued(&A.seq) < 0, "A03 plays");
+    bup(QD_B_MIX);
+    btap(QD_B_PLAY);
+    bdown(QD_B_MIX);
+    ktap(WK(5), 30);
+    bup(QD_B_MIX);
+    CHECK(A.seq.cur == 5, "stopped: at once");
+}
+
+/* F3: B1..B7 the base (the type kept), B8..B10 the type (the base kept); KNOB 1..4 base, type, start, end; every base
+ * x type resolves to its step's length; the LEDs */
 static void g_f3(void)
 {
-    int bpm;
+    static const int SIXTEENTHS_X4[7] = {64, 32, 16, 8, 4, 2, 1};   /* (quarters of a 16th) */
+    qd_tset_t *ts;
+    qd_leds_t l;
+    int b, t, ok = 1, bpm;
     start();
+    ts = &PAT()->trk[0];
     f3_down();
     CHECK(qd_ctl_layer(&A) == QD_LAYER_F3, "both: F3");
-    black(B1);
-    CHECK(PAT()->trk[0].rate == QD_RATE_1_8, "F3 + B1: 1/8x");
-    black(B4);
-    CHECK(PAT()->trk[0].rate == QD_RATE_2_3, "F3 + B4: 2/3x");
-    black(B9);
-    CHECK(PAT()->trk[0].rate == QD_RATE_2, "F3 + B9: 2x");
-    black(B6);
+    black(B9);                                          /* dotted */
+    black(B4);                                          /* 1/8: dotted kept */
+    CHECK(ts->rbase == 3 && ts->rtype == QD_RTYPE_DOTTED && qd_tset_rate(ts) == QD_RATE_CODE(3, 1),
+          "F3 + B9 then B4: dotted 1/8 (the type kept)");
+    l = leds();
+    CHECK(l.key[BK(B4)] == QD_LED_LIT && l.key[BK(B9)] == QD_LED_LIT && l.key[BK(B1)] == QD_LED_FAINT &&
+              l.key[BK(B8)] == QD_LED_FAINT && l.key[BK(B11)] == QD_LED_OFF,
+          "LEDs: the base key and the type key lit");
+    for (b = 0; b < 7; b++)
+        for (t = 0; t < 3; t++) {
+            int64_t want = (int64_t)QD_TPS * SIXTEENTHS_X4[b] / 4;
+            black(b);
+            black(7 + t);
+            want = t == 1 ? want * 3 / 2 : t == 2 ? want * 2 / 3 : want;
+            ok &= ts->rbase == b && ts->rtype == t && qd_rate_ticks(qd_tset_rate(ts)) == want;
+        }
+    CHECK(ok, "every base (B1..B7) x type (B8..B10): the step's length right (21 rates)");
+    black(B5), black(B8);                               /* 1/16 */
+    turn(QD_K_1, 1);
+    CHECK(qd_tset_rate(ts) == QD_RATE_2, "KNOB 1 up: 1/32");
+    turn(QD_K_2, 1);
+    CHECK(qd_tset_rate(ts) == QD_RATE_4_3, "KNOB 2 up: dotted 1/32 (P1.3b's 4/3x)");
+    turn(QD_K_1, -1);
+    CHECK(qd_tset_rate(ts) == QD_RATE_2_3, "KNOB 1 down: dotted 1/16 (the type kept)");
+    turn(QD_K_2, 1);
+    CHECK(qd_tset_rate(ts) == QD_RATE_3_2, "KNOB 2: triplet 1/16");
+    turn(QD_K_1, 20), turn(QD_K_2, 9);
+    CHECK(ts->rbase == 6 && ts->rtype == 2, "the clamps: 1/64, triplet");
+    turn(QD_K_1, -20), turn(QD_K_2, -9);
+    CHECK(ts->rbase == 0 && ts->rtype == 0, ".. 1/1, normal");
+    turn(QD_K_3, 3);
+    turn(QD_K_4, -4);
+    CHECK(ts->pstart[0] == 3 && ts->pend[0] == 11, "KNOB 3: the start 4, KNOB 4: the end 12");
+    turn(QD_K_3, 20);
+    CHECK(ts->pstart[0] == 11 && ts->pend[0] == 11, "the start stops at the end");
+    turn(QD_K_4, -20);
+    CHECK(ts->pend[0] == 11, "the end stops at the start");
+    turn(QD_K_4, 20);
+    turn(QD_K_3, -20);
+    CHECK(ts->pstart[0] == 0 && ts->pend[0] == 15 && A.ui.tk == QD_TK_NONE, "back to 1..16; no takeover (the map)");
+    black(B6), black(B8);
     wtap(11);
-    CHECK(PAT()->trk[0].pend[0] == 11 && PAT()->trk[0].pstart[0] == 0 && qd_track_len(&PAT()->trk[0]) == 12,
-          "F3 + W12: page 1 ends at 12");
+    CHECK(ts->pend[0] == 11 && qd_track_len(ts) == 12, "F3 + W12: page 1 ends at 12");
     kdown(WK(2));
     run(30);
     kdown(WK(9));
     run(30);
     kup(WK(9)), kup(WK(2));
     run(10);
-    CHECK(PAT()->trk[0].pstart[0] == 2 && PAT()->trk[0].pend[0] == 9, "F3 + hold W3, press W10: 3..10");
+    CHECK(ts->pstart[0] == 2 && ts->pend[0] == 9, "F3 + hold W3, press W10: 3..10");
     bpm = A.bpm;
     turn(QD_K_SELECT, 5);
     CHECK(A.bpm == bpm + 5 && A.ui.tk == UI_TK_TEMPO, "F3 + SELECT: tempo");
@@ -771,13 +1002,7 @@ static void g_f3(void)
     bup(SHIFT);
     CHECK(PAT()->swing == 56 && A.ui.tk == UI_TK_SWING, "SHIFT + F3 + SELECT: swing");
     f3_up();
-    turn(QD_K_SELECT, 2);                               /* page 3 */
-    f3_down();
-    wtap(7);
-    f3_up();
-    CHECK(PAT()->trk[0].loop == 5 && PAT()->trk[0].pend[2] == 7 && qd_track_len(&PAT()->trk[0]) == 16,
-          "F3 + W8 on page 3: its end 8, it joins the loop (pages 1 and 3: 8 + 8 steps)");
-    bdown(F1);                                          /* the F3 chord: F1 first, F2 after: F3 until both up */
+    bdown(F1);                                          /* the F3 chord: F1 first, F2 after: F3 until both are up */
     run(30);
     bdown(F2);
     run(10);
@@ -786,6 +1011,198 @@ static void g_f3(void)
     CHECK(qd_ctl_layer(&A) == QD_LAYER_F3, "F1 let go first: still F3 until both are up");
     bup(F2);
     run(10);
+}
+
+/* NOTE, a step held: SELECT = note 1 (a scale degree; chromatic a semitone), KNOB 1..4 = notes 2..5 (offsets, 0 none);
+ * each sounds; no page, no p-lock */
+static int sounding(int note)
+{
+    int k, s = 0;
+    for (k = 0; k < A.pool.nvoice; k++)
+        s |= qd_pool_sounding(&A.pool, k) && A.pool.v[k].q.note == note && A.pool.v[k].q.gate;
+    return s;
+}
+static void g_note_knobs(void)
+{
+    start();
+    mode(M_NOTE);
+    wtap(0);
+    whold(0);
+    turn(QD_K_SELECT, 2);
+    CHECK(R(0, 0).notes[0] == 62 && R(0, 0).nn == 1 && A.ui.page[0] == 0 && sounding(62),
+          "chromatic: SELECT +2 = note 1 D4 (sounding), no page change");
+    turn(QD_K_1, 4);
+    CHECK(ST(0, 0)->note[1] == 4 && R(0, 0).nn == 2 && R(0, 0).notes[1] == 66 && sounding(66),
+          "KNOB 1 +4: note 2 = +4 (F#4), sounding");
+    turn(QD_K_2, 7);
+    turn(QD_K_3, 7);
+    CHECK(ST(0, 0)->note[2] == 8 && ST(0, 0)->note[3] == 9, "KNOB 2 +7: +8 (note 2's +4 skipped); KNOB 3 +7: +9 "
+          "(+4 and +8 skipped)");
+    turn(QD_K_4, 12);
+    CHECK(R(0, 0).nn == 5 && ST(0, 0)->note[4] == 15 && R(0, 0).notes[4] == 77, "KNOB 4 +12: +15, five notes");
+    turn(QD_K_SELECT, -2);
+    CHECK(R(0, 0).notes[0] == 60 && R(0, 0).notes[1] == 64 && R(0, 0).notes[4] == 75, "SELECT -2: the shape moves "
+          "with note 1 (C E G# A D#)");
+    turn(QD_K_1, -4);
+    CHECK(ST(0, 0)->note[1] == 0 && R(0, 0).nn == 4, "KNOB 1 back below +1: none (four notes)");
+    turn(QD_K_4, 60);
+    CHECK(ST(0, 0)->note[4] == 48, "KNOB 4 stops at +48");
+    CHECK(qd_lock_count(PAT(), 0, 0) == 0 && A.ui.tk != UI_TK_FREQ, "no p-locks in NOTE");
+    run(QD_PREVIEW_MS + 10);
+    CHECK(A.ui.pv_note < 0, "the knob's note: a moment, then off");
+    wrel(0);
+    bdown(SHIFT);                                       /* C major */
+    turn(QD_K_ALGO, QD_SCALE_MAJOR);
+    bup(SHIFT);
+    wtap(4);
+    whold(4);
+    turn(QD_K_SELECT, 1);
+    CHECK(R(0, 4).notes[0] == 62, "C major: SELECT +1 = a degree up (C4 -> D4)");
+    turn(QD_K_SELECT, 2);
+    CHECK(R(0, 4).notes[0] == 65, "+2 more: F4 (E, F)");
+    turn(QD_K_1, 2);
+    CHECK(ST(0, 4)->note[1] == 4, "KNOB 1 +2 in the scale above F: G (+2), A (+4)");
+    turn(QD_K_2, 3);
+    CHECK(ST(0, 4)->note[2] == 7, "KNOB 2 +3: G, B, C (A, note 2's, skipped): +7");
+    wrel(4);
+}
+
+/* five notes by the keys: Form's "pressed" (B1 B3 B5 B7 B9 together); a sixth: ignored */
+static void g_five_keys(void)
+{
+    start();
+    mode(M_NOTE);
+    wtap(0);
+    whold(0);
+    kdown(BK(B1)), run(10), kdown(BK(B3)), run(10), kdown(BK(B5)), run(10), kdown(BK(B7)), run(10), kdown(BK(B9));
+    run(10);
+    CHECK(R(0, 0).nn == 5 && R(0, 0).notes[0] == 60 && R(0, 0).notes[4] == 68, "B1 B3 B5 B7 B9 down together: five "
+          "notes (C D E F# G#)");
+    kdown(BK(B10));
+    run(10);
+    CHECK(R(0, 0).nn == 5 && R(0, 0).notes[4] == 68, "a sixth key: ignored (five at most)");
+    kup(BK(B1)), kup(BK(B3)), kup(BK(B5)), kup(BK(B7)), kup(BK(B9)), kup(BK(B10));
+    run(10);
+    {
+        char root[4], q[8];
+        const uint8_t n9[5] = {60, 64, 67, 70, 74};
+        CHECK(qd_chord_name(n9, 5, root, q) && !strcmp(root, "C") && !strcmp(q, "9"), "five notes named: C9 (%s%s)",
+              root, q);
+    }
+    wrel(0);
+}
+
+/* P-LOCK (B11 with nothing held): holding keeps the screen, the screen's knobs lock, B11 clears (undoable) */
+static void g_plock(void)
+{
+    start();
+    wtap(5);
+    black(B11);
+    CHECK(A.ui.hmode == UI_F_PLOCK && leds().key[BK(B11)] == QD_LED_LIT, "B11, nothing held: the P-LOCK mode (B11 lit)");
+    whold(5);
+    CHECK(A.ui.nheld == 1 && qd_view_screen(&A) == QD_SCR_LANE, "a step held in P-LOCK: the screen stays the step "
+          "view");
+    turn(QD_K_1, -10);
+    turn(QD_K_3, 3);
+    CHECK(LK(0, 5, QD_QP_FREQ) == 12700 - 1000 && LK(0, 5, QD_QP_HARM) == 300 && A.model.t[0].patch[QD_QP_HARM] == 0,
+          "KNOB 1, KNOB 3: FREQ and HARM p-locked on the step, the track untouched");
+    CHECK(A.ui.tk == UI_TK_HARM && A.ui.tk_lock && A.ui.tk_step == 5, "the lock's takeover");
+    turn(QD_K_PRESETS, 2);
+    CHECK(R(0, 5).sound == 2 && A.ui.tk == QD_TK_PRESET, "PRESETS: the sound lock (the table's fifth knob)");
+    turn(QD_K_ALGO, 3);
+    black(B3);
+    CHECK(R(0, 5).vel == 100 && R(0, 5).nn == 1, "ALGORITHM and B1..B10: nothing");
+    CHECK(qd_ctl_lock_screen(&A)->n == 5, "the step view's lockable knobs: one table (KNOB 1..4, PRESETS)");
+    {
+        const qd_leds_t l = leds();
+        CHECK(l.key[BK(B11)] == QD_LED_LIT && l.key[BK(B1)] == QD_LED_OFF, "LEDs: B11 lit (locks to clear), "
+              "B1..B10 off");
+    }
+    black(B11);
+    CHECK(qd_lock_count(PAT(), 0, 5) == 0 && R(0, 5).sound == 2 && R(0, 5).on, "B11: the p-locks cleared (the sound "
+          "lock stays)");
+    wrel(5);
+    bdown(F1);
+    black(B11);
+    bup(F1);
+    CHECK(LK(0, 5, QD_QP_FREQ) == 12700 - 1000 && qd_lock_count(PAT(), 0, 5) == 2, "F1 + B11: the locks back");
+    mode(M_VEL);
+    whold(5);
+    turn(QD_K_2, 2);
+    CHECK(LK(0, 5, QD_QP_EDEC) == qd_sound_patch(&A.proj, 2)[QD_QP_EDEC] + 2 && qd_view_screen(&A) == QD_SCR_HELD,
+          "in VEL KNOB 2 still p-locks (the same table), on VEL's own screen");
+    wrel(5);
+}
+
+/* the OCT LEDs: none blinks at the centre, then slow, faster, fastest; NOTE, the keyboard, SOUND's banks; the octave
+ * takeover */
+static uint32_t half_period(int button)                 /* measured over 2 s: the mean between flips; 0 steady */
+{
+    int k, flips = 0, last = -1, first = -1, lastf = -1;
+    for (k = 0; k < 2000; k++) {
+        const int l = leds().button[button] == QD_LED_LIT;
+        if (last >= 0 && l != last) {
+            flips++;
+            if (first < 0)
+                first = k;
+            lastf = k;
+        }
+        last = l;
+        run(1);
+    }
+    return flips > 1 ? (uint32_t)(lastf - first) / (uint32_t)(flips - 1) : 0u;
+}
+static int near(uint32_t got, uint32_t want) { return got + 30 >= want && got <= want + 30; }
+static void g_octave(void)
+{
+    uint32_t dn, up;
+    start();
+    mode(M_NOTE);
+    wtap(0);
+    whold(0);
+    dn = half_period(F1), up = half_period(F2);
+    CHECK(!dn && !up, "NOTE, octave 4: no blink (%u, %u)", dn, up);
+    btap(F2);
+    CHECK(A.ui.tk == UI_TK_OCTAVE && A.ui.oct_kind == UI_OCT_NOTE && A.ui.oct_from == 4 && A.ui.oct_to == 5,
+          "OCT+: the octave takeover (4 -> 5)");
+    up = half_period(F2);
+    CHECK(near(up, QD_OCT_BLINK1_MS) && !half_period(F1), "octave 5: OCT+ slow (%u ms)", up);
+    btap(F2);
+    up = half_period(F2);
+    CHECK(near(up, QD_OCT_BLINK2_MS), "octave 6: OCT+ faster (%u ms)", up);
+    btap(F2);
+    up = half_period(F2);
+    CHECK(near(up, QD_OCT_BLINK3_MS), "octave 7: OCT+ fastest (%u ms)", up);
+    btap(F1), btap(F1), btap(F1), btap(F1);
+    dn = half_period(F1);
+    CHECK(near(dn, QD_OCT_BLINK1_MS) && !half_period(F2), "octave 3: OCT- slow (%u ms)", dn);
+    btap(F1);
+    dn = half_period(F1);
+    CHECK(near(dn, QD_OCT_BLINK2_MS), "octave 2: OCT- faster (%u ms)", dn);
+    run(QD_TK_MS + QD_TK_FADE_MS);
+    CHECK(A.ui.tk == QD_TK_NONE, "the takeover: about a second");
+    wrel(0);
+    CHECK(!half_period(F1), "nothing held: OCT- / OCT+ are F1 / F2, no octave shown");
+    btap(QD_B_REC);                                     /* the keyboard */
+    CHECK(!half_period(F1) && !half_period(F2), "the keyboard at 0: no blink");
+    btap(F2);
+    CHECK(A.ui.tk == UI_TK_OCTAVE && A.ui.oct_kind == UI_OCT_KEYS && near(half_period(F2), QD_OCT_BLINK1_MS),
+          "the keyboard +1: the takeover, OCT+ slow");
+    btap(F2);
+    CHECK(near(half_period(F2), QD_OCT_BLINK2_MS), "+2: faster");
+    btap(F1), btap(F1), btap(F1);
+    CHECK(near(half_period(F1), QD_OCT_BLINK1_MS), "-1: OCT- slow");
+    btap(F1);
+    CHECK(near(half_period(F1), QD_OCT_BLINK2_MS) && A.oct == -2, "-2: OCT- faster");
+    btap(QD_B_REC);
+    mode(M_SOUND);                                      /* SOUND's banks */
+    whold(0);
+    CHECK(!half_period(F2) && A.ui.sound_bank == 0, "SOUND, the first bank: no blink");
+    btap(F2);
+    CHECK(A.ui.oct_kind == UI_OCT_BANK && near(half_period(F2), QD_OCT_BLINK1_MS), "bank 2: the takeover, OCT+ slow");
+    btap(F2);
+    CHECK(A.ui.sound_bank == 2 && near(half_period(F2), QD_OCT_BLINK2_MS), "bank 3: faster");
+    wrel(0);
 }
 
 /* REC: the keyboard; REC + PLAY; SHIFT + REC; step and live recording */
@@ -921,9 +1338,11 @@ static void g_tracks_screen(void)
     turn(QD_K_2, -3);
     turn(QD_K_3, -3);
     turn(QD_K_4, 1);
-    CHECK(qd_track_len(&PAT()->trk[0]) == 24 && PAT()->trk[0].pend[1] == 7 && PAT()->trk[0].rate == QD_RATE_1_2 &&
+    CHECK(qd_track_len(&PAT()->trk[0]) == 24 && PAT()->trk[0].pend[1] == 7 &&
+              qd_tset_rate(&PAT()->trk[0]) == qd_ctl_rate_at(qd_ctl_rate_index(QD_RATE_1) - 3) &&
               PAT()->trk[0].limit == 3 && PAT()->trk[0].swing == 1,
-          "tracks screen: LEN 24 (page 2 1..8), RATE 1/2x, LIMIT 3, SWING on");
+          "tracks screen: LEN 24 (page 2 1..8), RATE three slower (%s), LIMIT 3, SWING on",
+          qd_rate_name(qd_tset_rate(&PAT()->trk[0])));
     wtap(9);
     CHECK(A.seq.mute == 2, "tracks screen: W10 mutes track 2");
     wtap(2);
@@ -1041,6 +1460,16 @@ static void beat_by_panel(void)
     black(B3);
     black(B8);
     wrel(14);
+    bdown(F2);                                          /* P1.3c: F2 cuts step 15 and drops it on 16 */
+    run(70);
+    wtap(14);
+    wtap(15);
+    bup(F2);
+    run(10);
+    black(B11);                                         /* P1.3c: P-LOCK; step 1 held, KNOB 3: a HARM lock */
+    whold(0);
+    turn(QD_K_3, 2);
+    wrel(0);
     mode(M_VEL);                                        /* the track's velocity: 80 (a default change) */
     turn(QD_K_ALGO, -20);
     /* page 2: the loop 1..2 (F1 + hold B1 + B2), page 2 edited (F1 + tap B2), its range 3..12 (F3 + W3 held + W12) */
@@ -1067,9 +1496,9 @@ static void beat_by_panel(void)
     black(B4);
     wrel(11);
     /* BASS (track 2): a 12-step loop, notes */
-    bdown(F2);
+    bdown(QD_B_PATTERN);                                /* SEL + B2: track 2 */
     black(B2);
-    bup(F2);
+    bup(QD_B_PATTERN);
     run(10);
     f3_down();
     wtap(11);                                           /* page 1 ends at 12 */
@@ -1082,9 +1511,9 @@ static void beat_by_panel(void)
     wrel(3);
     turn(QD_K_ALGO, -24);                               /* the track's note: C2 (two octaves down) */
     /* KEYS (track 3): a C major chord, two steps long */
-    bdown(F2);
+    bdown(QD_B_PATTERN);                                /* SEL + B3: track 3 */
     black(B3);
-    bup(F2);
+    bup(QD_B_PATTERN);
     run(10);
     whold(0);
     btap(F2), btap(F2);                                 /* octave 4 again */
@@ -1097,6 +1526,18 @@ static void beat_by_panel(void)
     whold(0);
     black(B6);
     wrel(0);
+    mode(M_NOTE);                                       /* P1.3c: step 9 a five-note chord by the keys (C D E G A), */
+    whold(8);                                           /* then KNOB 4 moves note 5 up a semitone (A#) */
+    kdown(BK(B1)), kdown(BK(B3)), kdown(BK(B5)), kdown(BK(B8)), kdown(BK(B10));
+    run(30);
+    kup(BK(B1)), kup(BK(B3)), kup(BK(B5)), kup(BK(B8)), kup(BK(B10));
+    run(10);
+    turn(QD_K_4, 1);
+    wrel(8);
+    bdown(QD_B_PATTERN);                                /* P1.3c: SEL + W8 tapped: track 8 muted */
+    wtap(7);
+    bup(QD_B_PATTERN);
+    run(10);
 }
 
 /* the same beat through the API */
@@ -1111,11 +1552,12 @@ static void beat_by_api(void)
     p = PAT();
     for (k = 0; k < 16; k += 4)
         qd_step_on(p, 0, k);
-    qd_step_on(p, 0, 14);
+    qd_step_on(p, 0, 15);                               /* (step 15, cut and dropped on 16 by F2) */
     qd_step_set_sound(p, 0, 4, QD_SND_SNARE);
     qd_step_set_sound(p, 0, 12, QD_SND_SNARE);
     qd_step_set_vel(p, 0, 8, 127);
-    qd_step_set_cond(p, 0, 14, qd_cond_ab(1, 2));
+    qd_step_set_cond(p, 0, 15, qd_cond_ab(1, 2));
+    qd_lock_set(p, 0, 0, QD_QP_HARM, A.model.t[0].patch[QD_QP_HARM] + 200);   /* P-LOCK's KNOB 3 */
     qd_tdef_set(p, 0, QD_PM_VEL, 80);
     qd_page_set_loop(p, 0, 3);
     qd_page_set_range(p, 0, 1, 2, 11);
@@ -1133,14 +1575,21 @@ static void beat_by_api(void)
     qd_step_on(p, 2, 0);
     qd_step_set_notes(p, 2, 0, CMAJ, 3);
     qd_step_set_len(p, 2, 0, 6);
+    {
+        static const uint8_t FIVE[5] = {60, 62, 64, 67, 69};
+        qd_step_set_notes(p, 2, 8, FIVE, 5);
+        qd_step_set_offset(p, 2, 8, 4, 10);
+    }
+    A.seq.mute = 0x80;
 }
 
 static void t_beat(void)
 {
     static qd_pattern_t panel;
-    int i, same = 1, t, s;
+    int i, same = 1, t, s, panel_mute;
     beat_by_panel();
     panel = *PAT();
+    panel_mute = A.seq.mute;
     timeline(0);
     beat_by_api();
     for (t = 0; t < 3; t++)                             /* the steps, the track settings and the locks equal */
@@ -1165,6 +1614,7 @@ static void t_beat(void)
     CHECK(panel.trk[0].loop == 3 && panel.trk[0].pstart[1] == 2 && panel.trk[0].pend[1] == 11 &&
               qd_track_len(&panel.trk[0]) == 26 && qd_track_len(&panel.trk[1]) == 12,
           "drums: pages 1 and 2 looped, page 2 3..12 (26 steps); bass: 12 steps");
+    CHECK(panel_mute == 0x80 && A.seq.mute == panel_mute, "the beat: SEL's mute of track 8 (%#x)", panel_mute);
     timeline(1);
     CHECK(nev[0] > 100 && nev[0] == nev[1], "the beat's timeline: %d events by hand, %d by the API", nev[0], nev[1]);
     for (i = 0; i < nev[0] && i < nev[1]; i++)
@@ -1194,10 +1644,18 @@ static void t_beat(void)
               "page 2's steps right after page 1 (%d), the bass on its new default C2 (%d) and its own G2 (%d)", v80,
               v127, rat, page2, bass36, bass43);
         CHECK(panel.step[0][4].sound == QD_SND_SNARE && panel.step[2][0].note[2] == 7 &&
-                  panel.step[0][14].cond == qd_cond_ab(1, 2),
-              "a pool sound lock, a chord, a condition");
+                  panel.step[0][15].cond == qd_cond_ab(1, 2) && !(panel.step[0][14].flags & QD_SF_ON),
+              "a pool sound lock, a chord, a condition (moved by F2 from step 15 to 16)");
+        {
+            int five = 0;
+            for (i = 0; i < nev[0]; i++)
+                five += evs[0][i].kind == QD_LOG_ON && evs[0][i].track == 2 && evs[0][i].note == 70;
+            CHECK(panel.step[2][8].note[4] == 10 && five >= 1 && LK(0, 0, QD_QP_HARM) != -99999,
+                  "the five-note chord (note 5 on KNOB 4: A#4, heard %d times), the P-LOCK HARM lock", five);
+        }
         printf("  beat: by panel presses only, a pattern with page 2's own 3..12, a two-page loop, a pool sound "
-               "lock, a velocity override, a ratchet, a condition, a chord, a 12-step track and two default changes; "
+               "lock, a velocity override, a ratchet, a condition moved by F2, a chord and a five-note chord, a P-LOCK lock, a "
+               "12-step track, two default changes and SEL's mute; "
                "it equals the API-built one byte for byte, and its timeline (%d events, %d notes): %s\n", nev[0], ons,
                same ? "yes" : "NO");
     }
@@ -1227,8 +1685,8 @@ static void t_leds(void)
           "stopped: a trig lit, a LOCK step dim, an empty one faint, outside the page's range off (%d %d %d %d)",
           l.key[WK(0)], l.key[WK(1)], l.key[WK(2)], l.key[WK(12)]);
     CHECK(l.key[BK(M_VEL)] == QD_LED_LIT && l.key[BK(M_TRIG)] == QD_LED_DIM && l.key[BK(M_NOTE)] == QD_LED_FAINT &&
-              l.key[BK(B11)] == QD_LED_OFF,
-          "black: the mode lit, a mode some step overrides dim, the others faint, B11 off");
+              l.key[BK(B11)] == QD_LED_FAINT,
+          "black: the mode lit, a mode some step overrides dim, the others faint (B11 P-LOCK: no p-locks, faint)");
     whold(0);
     l = leds();
     CHECK(l.key[BK(B10)] == QD_LED_LIT && l.key[BK(B8)] == QD_LED_FAINT && l.key[BK(B11)] == QD_LED_LIT,
@@ -1250,14 +1708,15 @@ static void t_leds(void)
     bdown(F2);
     run(20);
     l = leds();
-    CHECK(l.key[BK(B1)] == QD_LED_LIT && l.key[BK(B2)] == QD_LED_DIM, "F2: the selected track lit, the others heard "
-          "dim");
+    CHECK(l.key[BK(B1)] == QD_LED_OFF && l.key[BK(B10)] == QD_LED_OFF && l.key[WK(0)] == QD_LED_LIT,
+          "F2: the black keys off, the steps as the step view");
     bup(F2);
     f3_down();
     l = leds();
     CHECK(l.key[WK(0)] == QD_LED_LIT && l.key[WK(11)] == QD_LED_LIT && l.key[WK(12)] == QD_LED_OFF &&
-              l.key[BK(5)] == QD_LED_LIT && l.key[BK(0)] == QD_LED_FAINT,
-          "F3: the page's 1..12 lit, the rest off; the rate 1x (B6) lit");
+              l.key[BK(B5)] == QD_LED_LIT && l.key[BK(B8)] == QD_LED_LIT && l.key[BK(B6)] == QD_LED_FAINT &&
+              l.key[BK(B9)] == QD_LED_FAINT,
+          "F3: the page's 1..12 lit, the rest off; 1/16 (B5) and normal (B8) lit");
     f3_up();
     btap(QD_B_PLAY);
     for (k = 0; k < 2000; k++) {                        /* the playhead inverts its key */
@@ -1287,6 +1746,21 @@ static void t_leds(void)
     l = leds();
     CHECK(l.button[QD_B_REC] == QD_LED_LIT && l.key[7] == QD_LED_FAINT && l.key[8] == QD_LED_OFF,
           "the keyboard: REC lit, the C keys faint");
+    btap(QD_B_REC);
+    btap(QD_B_PLAY);                                    /* F1: the playing page flashes */
+    bdown(F1);
+    {
+        int on = 0, dim = 0;
+        for (k = 0; k < 400; k++) {
+            run(1);
+            l = leds();
+            on += l.key[BK(B1)] == QD_LED_LIT;
+            dim += l.key[BK(B1)] == QD_LED_DIM;
+        }
+        CHECK(on > 120 && dim > 120, "F1: the playing (and edited) page flashes fast (%d lit, %d dim)", on, dim);
+    }
+    bup(F1);
+    btap(QD_B_PLAY);
     printf("  leds: the step view (trigs, ranges, the modes), a held step's values and B11, F1 / F2 / F3, the "
            "playhead, PLAY's beat, the keyboard\n");
 }
@@ -1317,17 +1791,23 @@ int main(void)
         {"wake and idle", g_wake},
         {"W tap: a trig with no overrides / removed; SHIFT + W free", g_tap},
         {"hold vs tap at the 250 ms edge", g_edge},
-        {"B1..B10: the hold mode; B11 nothing", g_modes},
+        {"B1..B11: the hold mode (B11 P-LOCK)", g_modes},
         {"every mode's ten values, B11, several held", g_values},
         {"ALGORITHM: defaults (nothing held), finely (held)", g_algo},
         {"SELECT: pages", g_select},
         {"NOTE entry: replace / add / octave / scale", g_notes},
         {"SOUND's banks; PRESETS = the sound lock", g_sound},
         {"KNOB 1..4: p-locks held, the sound not", g_plocks},
-        {"F1: pages tap / double tap / A..B", g_f1_pages},
-        {"F1 copy, F2 paste, cut, clear, undo / redo", g_f1_edit},
-        {"F2: tracks, mute, solo; page copy / paste", g_f2},
-        {"F3: rate, end, start..end, tempo, swing", g_f3},
+        {"F1 pages: tap, twice, hold, A..B; B9 / B10; undo", g_f1_pages},
+        {"F1 + W: copy, then paste; one undo; F2 pre-loaded", g_f1_steps},
+        {"F2: Form's pick-up / drop, press by press", g_f2},
+        {"SEL: select, tap mute, hold solo, B11, LEDs", g_sel},
+        {"SEQ: tap queues by launch mode, hold at once", g_seq},
+        {"F3: base / type keys and knobs, start / end, 21 rates", g_f3},
+        {"NOTE, a step held: the five knobs", g_note_knobs},
+        {"five notes by the keys", g_five_keys},
+        {"P-LOCK: the screen stays, knobs lock, B11, undo", g_plock},
+        {"the OCT LEDs' blink levels; the octave takeover", g_octave},
         {"REC, REC + PLAY, SHIFT + REC, step / live rec", g_rec},
         {"the keyboard in a scale, the global key", g_keyboard_scale},
         {"ARP = FILL; PAGE: follow, + W", g_fill_page},

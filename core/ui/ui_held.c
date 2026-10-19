@@ -10,7 +10,9 @@
  * is_default: the track's default for the mode (ALGORITHM turned with nothing held): "DEFAULT · MODE", the drawing
  * in the mode's colour, no strip.
  *   NOTE   the chord name big (squeezing in), the notes on a keybed, their names under them; the entry octave and
- *          the track's scale small top left ("OCT 4 · D DORIAN")
+ *          the track's scale small top left ("OCT 4 · D DORIAN"). P1.3c: five notes, each dot and name in the colour
+ *          of the knob that turns it (note 1 SELECT's yellow, notes 2..5 KNOB 1..4's blue, green, white, orange) and
+ *          the five knobs over the keybed's right end, filled where they hold a note
  *   VEL    a mallet over a drum, raised by the velocity, striking when the step plays; the ramp as four ticks
  *   LEN    the note as a bar over a ruler of the next steps, the notes before and after it; TIE a slur from the
  *          note before
@@ -134,21 +136,39 @@ static void f_note(const ui_held_t *v, const pal_t *p)
         qd_restore();
     }
 
-    for (i = 0; i < v->nnote && i < 4; i++)             /* the keybed from the C at or below the lowest note */
+    for (i = 0; i < v->nnote && i < 5; i++)             /* the keybed from the C at or below the lowest note */
         if (v->note[i] < mn)
             mn = v->note[i];
     if (v->nnote > 0)
         lo = mn / 12 * 12;
     ui_keyboard(14.f, 120.f, 212.f, 70.f, lo, 0);
-    for (i = 0; i < v->nnote && i < 4; i++) {
-        int b;
+    for (i = 0; i < v->nnote && i < 5; i++) {
+        int b, k;
         const int d = v->note[i] - lo;
+        qd_rgb col = p->k[0];
         float x;
         if (d < 0 || d >= 24)
             continue;
+        if (!p->empty)                                  /* the colour of the knob that turns it */
+            for (k = 0; k < 5; k++)
+                if (v->slot_note[k] == v->note[i]) {
+                    col = k ? UI_K[k - 1] : UI_KSEL;
+                    break;
+                }
         x = ui_keyboard_x(14.f, 212.f, lo, v->note[i], &b);
-        ui_O(x, b ? 152.f : 180.f, 3.8f, QD_NONE, 1.f, p->k[0]);
-        ui_T(v->note_name[i], x, i % 2 ? 215.f : 204.f, 9.f, 600, 0.f, p->k[0], QD_CENTER);
+        ui_O(x, b ? 152.f : 180.f, 3.8f, QD_NONE, 1.f, col);
+        ui_T(v->note_name[i], x, i % 2 ? 215.f : 204.f, 9.f, 600, 0.f, col, QD_CENTER);
+    }
+    if (v->knobs) {                                     /* the five knobs: SELECT, KNOB 1..4 */
+        static const char *const KN[5] = {"S", "1", "2", "3", "4"};
+        int k;
+        for (k = 0; k < 5; k++) {
+            const float x = 162.f + (float)k * 15.f;
+            const qd_rgb col = k ? UI_K[k - 1] : UI_KSEL;
+            const int on = v->slot_note[k] && !p->empty;
+            ui_O(x, 110.f, 5.5f, col, 1.2f, on ? col : QD_NONE);
+            ui_T(KN[k], x, 112.5f, 7.f, 700, 0.f, on ? UI_BG : col, QD_CENTER);
+        }
     }
     {   /* the entry octave (B1's), the track's scale */
         char s[40], n[12];
@@ -309,7 +329,7 @@ static void f_micro(const ui_held_t *v, const pal_t *p)
         ui_P(f, 3, p->k[0], 1.2f, 1, p->k[0]);
     }
     /* the strum's staircase (KNOB 2): note j at micro + j * strum, lit once the walk passes it */
-    for (j = 0; j < v->nnote && j < 4; j++) {
+    for (j = 0; j < v->nnote && j < 5; j++) {
         const int st = v->micro + j * v->strum;
         const float x = MX(st), yy = 158.f - (float)j * 11.f;
         const int on = v->walk >= (float)st;

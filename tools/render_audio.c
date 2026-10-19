@@ -185,15 +185,15 @@ static void press_key(int key)
 }
 static const uint8_t WHITE_KEY[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
 
-/* demo k: PATTERN held + white key k + 1 (stopped: selected at once), PLAY, 16 bars, PLAY, the tails */
+/* demo k: SEQ held + white key k + 1 (stopped: selected at once), PLAY, 16 bars, PLAY, the tails */
 static uint32_t play_demo(int k)
 {
     uint32_t ms;
     fresh();
     run(50);
-    qd_app_button(&app, QD_B_PATTERN, 1);
+    qd_app_button(&app, QD_B_MIX, 1);                  /* (P1.3c: printed SEQ held + W: the pattern) */
     press_key(WHITE_KEY[k]);
-    qd_app_button(&app, QD_B_PATTERN, 0);
+    qd_app_button(&app, QD_B_MIX, 0);
     run(50);
     ms = (uint32_t)(16.0 * 4.0 * 60000.0 / app.bpm + 0.5);
     qd_app_button(&app, QD_B_PLAY, 1);
@@ -217,7 +217,7 @@ static void drum_metrics(FILE *log, const qd_pattern_t *P, int s, const char *wh
     int16_t p[QD_QUAD_NP];
     const qd_lock_t *lk;
     int nl, k, b, n = 0, i, gate;
-    uint8_t notes[4];
+    uint8_t notes[QD_NNOTE];
     qd_step_resolve(P, 0, s, &rs);
     if (st->sound)
         memcpy(p, qd_sound_patch(&app.proj, st->sound), sizeof p);

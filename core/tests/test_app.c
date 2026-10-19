@@ -373,15 +373,15 @@ static void t_patterns(void)
     fresh();
     tap_button(QD_B_PLAY);
     run(500, 0);
-    qd_app_button(&A, QD_B_PATTERN, 1);
+    qd_app_button(&A, QD_B_MIX, 1);
     qd_app_key(&A, WK[0], 1, 100);                      /* A01 */
     run(10, 0);
     qd_app_leds(&A, &l);
-    CHECK(qd_seq_queued(&A.seq) == 0 && A.seq.cur == 1, "PATTERN + white key 1: A01 queued, A02 plays on");
+    CHECK(qd_seq_queued(&A.seq) == 0 && A.seq.cur == 1, "SEQ + white key 1: A01 queued, A02 plays on");
     CHECK(l.key[WK[1]] == QD_LED_LIT && l.key[WK[2]] == QD_LED_DIM && l.key[WK[4]] == QD_LED_OFF,
-          "PATTERN held: A02 lit, A03 dim (content), A05 off");
+          "SEQ held: A02 lit, A03 dim (content), A05 off");
     qd_app_key(&A, WK[0], 0, 0);
-    qd_app_button(&A, QD_B_PATTERN, 0);
+    qd_app_button(&A, QD_B_MIX, 0);
     h0 = frame_hash();
     run(250, 0);
     h1 = frame_hash();
@@ -393,22 +393,21 @@ static void t_patterns(void)
     CHECK(A.seq.cur == 0 && qd_seq_queued(&A.seq) < 0 && now >= 4800 && now <= 4810,
           "A01 takes over at the end of A02's master length (at %u ms; PLAY at 0)", now);
     (void)t0;
-    qd_app_button(&A, QD_B_PATTERN, 1);                 /* FUNC held: at the next 16th */
-    qd_app_button(&A, QD_B_FUNC, 1);
-    t0 = now;
+    qd_app_button(&A, QD_B_MIX, 1);                     /* P1.3c: the key held 400 ms: at the next 16th */
     qd_app_key(&A, WK[2], 1, 100);
-    qd_app_key(&A, WK[2], 0, 0);
-    qd_app_button(&A, QD_B_FUNC, 0);
-    qd_app_button(&A, QD_B_PATTERN, 0);
+    run(400, 0);
+    t0 = now;
     while (A.seq.cur != 2 && now < t0 + 1000)
         run(1, 0);
-    CHECK(A.seq.cur == 2 && now - t0 <= 151, "PATTERN + FUNC + white key 3: A03 within a 16th (%u ms)", now - t0);
+    qd_app_key(&A, WK[2], 0, 0);
+    qd_app_button(&A, QD_B_MIX, 0);
+    CHECK(A.seq.cur == 2 && now - t0 <= 151, "SEQ + white key 3 held 400 ms: A03 within a 16th (%u ms)", now - t0);
     run(200, 0);
     CHECK(A.bpm == 118, "A03's tempo (%d)", A.bpm);
     tap_button(QD_B_PLAY);
-    qd_app_button(&A, QD_B_PATTERN, 1);                 /* stopped: at once */
+    qd_app_button(&A, QD_B_MIX, 1);                 /* stopped: at once */
     tap_key(WK[1]);
-    qd_app_button(&A, QD_B_PATTERN, 0);
+    qd_app_button(&A, QD_B_MIX, 0);
     CHECK(A.seq.cur == 1 && qd_seq_queued(&A.seq) < 0 && A.bpm == 100, "stopped: A02 at once, its tempo");
     qd_app_button(&A, QD_B_KEYS, 1);
     CHECK(A.seq.fill, "ARP held: FILL");
@@ -513,9 +512,9 @@ static uint64_t session_seq(void)
     fresh();
     tap_button(QD_B_PLAY);
     run(700, 0);
-    qd_app_button(&A, QD_B_PATTERN, 1);
+    qd_app_button(&A, QD_B_MIX, 1);
     tap_key(WK[2]);
-    qd_app_button(&A, QD_B_PATTERN, 0);
+    qd_app_button(&A, QD_B_MIX, 0);
     tap_button(QD_B_REC);
     qd_app_key(&A, 9, 1, 100);
     run(4500, 0);

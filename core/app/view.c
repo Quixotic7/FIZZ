@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The frame (ctl.h): the screens' view records (ui.h) filled from the model and the UI state, then drawn. The screen
  * under everything is the mode's: idle; the step view (the page as the hold mode's lane, PLAN §8b), a held step's
- * screen for the mode (with the ten values at its foot), a layer's map while F1 / F2 / F3 is held, SHIFT's map while
- * SHIFT is held alone; the keyboard; the tracks. Over it a knob's takeover (PLAN §9a rule 5: shown at the first
+ * screen for the mode (with the ten values at its foot; P-LOCK keeps the lane), a layer's map while F1 / F2 / F3 is
+ * held, SHIFT's map while SHIFT is held alone; the keyboard; the tracks. P1.3c: SEL held, the track map; SEQ held, the
+ * pattern map (over any mode's screen). A change of octave or SOUND bank: the octave takeover. Over it a knob's takeover (PLAN §9a rule 5: shown at the first
  * detent, 1 s after the last one it fades back over 120 ms) and a confirmation word. Nothing here changes the model or
  * the UI state; the motion is the app's milliseconds and the transport's position. */
 #include <math.h>
@@ -316,6 +317,10 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
             cat(v->names, qd_pc_name(v->note[k]));
         }
     }
+    for (k = 0; k < QD_NNOTE; k++)                      /* the notes by their knobs (P1.3c) */
+        v->slot_note[k] = !k ? r.note[0] : r.note[k] ? (uint8_t)(r.note[0] + r.note[k] > 127 ? 127 : r.note[0] + r.note[k])
+                                                     : 0;
+    v->knobs = !is_default && m == UI_F_NOTE;
     v->squeeze = secs(a->ms - u->chord_ms);
     v->entry_oct = u->entry_oct;
     {
@@ -424,7 +429,7 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
 /* ---------------------------------------------------------------- the layer maps, SHIFT's map --- */
 static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
 {
-    static const char *RN[QD_NRATE];
+    static const char *RN[1];
     const qd_ui_t *u = &a->ui;
     const int t = a->sel;
     const qd_pattern_t *P = qd_ctl_cpat(a);
@@ -447,6 +452,24 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     v->can_undo = qd_clip_can_undo(&u->clip, a->seq.cur, t);
     v->step_clip = u->clip.st.valid;
     v->shift = qd_ctl_shift(a);
+    v->page_copied = u->pg_copied;
+    v->f1_copied = u->f1_copied;
+    if (u->clip.st.valid) {                             /* the step in the clipboard (F1's copy, F2's hand) */
+        qd_rstep_t r;
+        static qd_pattern_t tmp;
+        tmp.trk[0] = *ts;
+        tmp.step[0][0] = u->clip.st.step;
+        qd_step_resolve(&tmp, 0, 0, &r);
+        v->clip_type = r.type;
+        v->clip_nnote = r.type == QD_TRIG_LOCK ? 0 : r.nn;
+        memcpy(v->clip_note, r.notes, sizeof v->clip_note);
+    }
+    v->hand = u->f2_loaded && u->f2_holding;
+    v->hand_loaded = u->f2_loaded;
+    v->last_w = u->f2_last_w;
+    v->last_act = u->f2_last_act;
+    for (s = 0; s < QD_PAGE; s++)
+        v->page_on[s] = (uint8_t)qd_step_is_on(qd_step(P, t, u->page[t] * QD_PAGE + s));
     v->sel = t;
     v->mute = a->seq.mute;
     v->solo = a->seq.solo;
@@ -456,14 +479,14 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
         if (qd_seq_track_pat(&a->seq, i)->trk[i].mute)
             v->mute |= (uint8_t)(1u << i);
     }
-    v->held_track = u->f2_track;
+    v->held_track = -1;
     v->page_clip = u->clip.pg.valid;
-    v->rate = ts->rate;
-    v->rate_idx = qd_ctl_rate_index(ts->rate);
-    for (i = 0; i < QD_NRATE; i++) {
-        RN[i] = qd_rate_name(qd_ctl_rate_at(i));
-        v->rate_names[i] = RN[i];
-    }
+    v->rate = qd_tset_rate(ts);
+    v->rate_idx = -1;
+    (void)RN;
+    v->rate_val = ts->rbase;
+    v->rate_type = ts->rtype;
+    v->rate_val_name = qd_rate_val_name(v->rate_val);
     v->bpm = a->bpm;
     v->swing = P->swing;
     v->anchor = u->f3_anchor;
@@ -481,14 +504,12 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
     } else if (u->mode == QD_MODE_STEP && u->nheld) {
         v->ctx = "A STEP HELD";
         ROW("+ ALGORITHM", u->hmode == UI_F_RATCH ? "the ratchet's ramp" : "the strum (in MICRO)");
-        ROW("+ F1 + W", "cut the step");
     } else {
         v->ctx = "STEP VIEW";
         ROW("+ ALGORITHM", "the track's scale");
         ROW("+ PRESETS", "the track's root");
-        ROW("+ F1 + W", "cut a step");
         ROW("+ F3 + SELECT", "swing");
-        ROW("+ PATTERN + W", "change pattern now");
+        ROW("+ SEQ + W", "change pattern now");
     }
 #undef ROW
 }
@@ -497,7 +518,8 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
 static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
 {
     static const char *const NAMES[UI_NTK] = {"FREQ", "DECAY", "HARM", "FEEDBACK", "ALGO", "TEMPO", "SWING",
-                                              "LENGTH", "RATE", "LIMIT", "SWING", "PAGE", "SCALE", "ROOT"};
+                                              "LENGTH", "RATE", "LIMIT", "SWING", "PAGE", "SCALE", "ROOT",
+                                              "OCTAVE"};
     const qd_ui_t *u = &a->ui;
     const int t = a->sel;
     const qd_pattern_t *P = qd_ctl_cpat(a);
@@ -575,12 +597,12 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         ui_itoa(v->val, v->value);
         break;
     case UI_TK_RATE: {
-        const int k = qd_ctl_rate_index(ts->rate);
-        const double L = (double)qd_rate_ticks(ts->rate);
+        const int k = qd_ctl_rate_index(qd_tset_rate(ts));
+        const double L = (double)qd_rate_ticks(qd_tset_rate(ts));
         const double tick = a->seq.playing ? (double)qd_seq_tick(&a->seq) : beats * 4.0 * QD_TPS;
-        v->value = ts->rate;
+        v->value = qd_tset_rate(ts);
         v->v = (float)k / (float)(QD_NRATE - 1);
-        strcpy(v->val, qd_rate_name(ts->rate));
+        strcpy(v->val, qd_rate_name(qd_tset_rate(ts)));
         v->prev = k > 0 ? qd_rate_name(qd_ctl_rate_at(k - 1)) : 0;
         v->next = k < QD_NRATE - 1 ? qd_rate_name(qd_ctl_rate_at(k + 1)) : 0;
         v->rate = (float)(QD_TPS / L);
@@ -675,7 +697,7 @@ static void draw_keys(qd_app_t *a)
         for (i = 0; i < 16; i++)
             v.page_trig[i] = (uint8_t)qd_step_is_on(qd_step(P, a->sel, (cs / QD_PAGE) * QD_PAGE + i));
     } else if (u->rec) {
-        const double L = (double)qd_rate_ticks(ts->rate);
+        const double L = (double)qd_rate_ticks(qd_tset_rate(ts));
         const int64_t now = qd_seq_tick(&a->seq);
         v.rec = 2;
         v.quantize = u->quantize;
@@ -715,14 +737,14 @@ static void draw_tracks(const qd_app_t *a)
         const qd_tset_t *ts = &P->trk[t];
         c->name = a->model.t[t].name;
         c->len = qd_track_len(ts);
-        c->rate = qd_rate_name(ts->rate);
+        c->rate = qd_rate_name(qd_tset_rate(ts));
         for (s = 0; s < c->len; s++) {                  /* the ring: the loop's positions */
             const int ty = qd_step_type(P, t, qd_track_loop_step(ts, s));
             c->trig[s] = (uint8_t)(ty == QD_TRIG_LOCK ? 2 : ty ? 1 : 0);
         }
         c->pos = (float)qd_seq_track_pos(&a->seq, t);
         c->flash_step = a->seq.playing && a->seq.flash_step[t] >= 0 ? qd_track_step_pos(ts, a->seq.flash_step[t]) : -1;
-        c->flash_age = (float)((double)(tick - a->seq.flash_tick[t]) / (double)qd_rate_ticks(ts->rate));
+        c->flash_age = (float)((double)(tick - a->seq.flash_tick[t]) / (double)qd_rate_ticks(qd_tset_rate(ts)));
         c->mute = !qd_seq_audible(&a->seq, P, t);
         c->swing = ts->swing;
         for (i = 0; i < a->pool.nvoice; i++)
@@ -759,6 +781,80 @@ static void draw_picker(const qd_app_t *a)
     ui_picker_draw(&v);
 }
 
+/* P1.3c: the octave takeover (a change of NOTE's entry octave, the keyboard's octave, SOUND's bank) */
+static void draw_octave(const qd_app_t *a)
+{
+    static char scale_buf[24];
+    const qd_ui_t *u = &a->ui;
+    const uint32_t d = a->ms - u->oct_ms;
+    ui_octave_t v;
+    int sc, rt;
+    memset(&v, 0, sizeof v);
+    v.kind = u->oct_kind;
+    v.value = u->oct_to;
+    v.from = u->oct_from;
+    v.k = d >= QD_OCT_SLIDE_MS ? 1.f : ui_ease((float)d / (float)QD_OCT_SLIDE_MS);
+    v.t = secs(d);
+    v.dir = u->oct_to >= u->oct_from ? 1 : -1;
+    v.track = a->sel + 1;
+    v.name = a->model.t[a->sel].name;
+    qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
+    scale_buf[0] = 0;
+    if (sc != QD_SCALE_CHROMATIC)
+        cat(cat(scale_buf, qd_pc_name(rt)), " ");
+    cat(scale_buf, qd_scale_name(sc));
+    v.scale_name = scale_buf;
+    if (v.kind == UI_OCT_NOTE) {
+        char n[8];
+        v.lo_note = qd_scale_note(sc, rt, u->oct_to, 0);
+        cat(cat(cat(cat(v.sub, "B1 = "), qd_note_name(v.lo_note, n)), " \xc2\xb7 "), scale_buf);
+    } else if (v.kind == UI_OCT_KEYS) {
+        char n[8], n2[8];
+        v.lo_note = QD_NOTE0 + 12 * u->oct_to;
+        qd_note_name(v.lo_note, n);
+        qd_note_name(v.lo_note + 26, n2);
+        cat(cat(cat(v.sub, n), "\xe2\x80\x93"), n2);
+        cat(cat(v.sub, " \xc2\xb7 "), scale_buf);
+    } else {
+        char n[12];
+        cat(cat(cat(v.sub, "SOUNDS "), ui_itoa(n, u->oct_to * 10 + 1)), "\xe2\x80\x93");
+        cat(v.sub, ui_itoa(n, u->oct_to * 10 + 10 < a->proj.nsound ? u->oct_to * 10 + 10 : a->proj.nsound));
+    }
+    v.nsound = a->proj.nsound;
+    v.nbank = (a->proj.nsound + 9) / 10;
+    if (u->nheld) {
+        qd_rstep_t r;
+        qd_step_resolve(qd_ctl_cpat(a), a->sel, u->held[0], &r);
+        v.sound = r.sound;
+    }
+    ui_octave_draw(&v);
+}
+
+/* P1.3c: SEQ held, the patterns */
+static void draw_patterns(const qd_app_t *a)
+{
+    ui_patterns_t v;
+    int k;
+    memset(&v, 0, sizeof v);
+    v.cur = a->seq.cur;
+    v.queued = qd_seq_queued(&a->seq);
+    for (k = 0; k < 16; k++)
+        if (a->proj.pat[k].used)
+            v.used |= (uint16_t)(1u << k);
+    v.playing = a->seq.playing;
+    if (v.queued >= 0 && a->seq.playing) {
+        const int64_t m = qd_pat_master_ticks(&a->proj.pat[a->seq.cur]), left = qd_seq_to_change(&a->seq);
+        v.left = m > 0 ? (float)((double)left / (double)m) : 0.f;
+        v.left = v.left < 0.f ? 0.f : v.left > 1.f ? 1.f : v.left;
+    }
+    v.blink = (a->ms / QD_BLINK_MS) % 2u == 0;
+    v.launch = a->proj.launch;
+    v.launch_name = qd_launch_name(a->proj.launch);
+    ui_patterns_draw(&v);
+}
+
+static int held_btn(const qd_app_t *a, int b) { return (int)((a->buttons_held >> b) & 1u); }
+
 static void draw_idle(const qd_app_t *a)
 {
     ui_idle_t v;
@@ -782,6 +878,31 @@ static void overlay_begin(float al)
     qd_fill_rect(0.f, 0.f, (float)QD_W, (float)QD_H, UI_BG);
 }
 
+int qd_view_screen(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    if (u->mode != QD_MODE_IDLE && held_btn(a, QD_B_MIX))
+        return QD_SCR_SEQ;
+    if (u->mode != QD_MODE_IDLE && held_btn(a, QD_B_PATTERN))
+        return QD_SCR_SEL;
+    switch (u->mode) {
+    case QD_MODE_KEYS:
+        return qd_ctl_shift(a) && !u->shift_used ? QD_SCR_SHIFT : QD_SCR_KEYS;
+    case QD_MODE_TRACKS:
+        return QD_SCR_TRACKS;
+    case QD_MODE_STEP:
+        if (u->nheld && u->hmode != UI_F_PLOCK)        /* (P-LOCK: holding keeps the screen) */
+            return QD_SCR_HELD;
+        if (qd_ctl_layer_shown(a) != QD_LAYER_NONE)
+            return QD_SCR_LAYER;
+        if (qd_ctl_shift(a) && !u->shift_used)
+            return QD_SCR_SHIFT;
+        return QD_SCR_LANE;
+    default:
+        return QD_SCR_IDLE;
+    }
+}
+
 void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
 {
     static ui_lane_t lv;
@@ -792,35 +913,36 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
     qd_begin();
-    switch (u->mode) {
-    case QD_MODE_KEYS:
-        if (qd_ctl_shift(a) && !u->shift_used) {
-            fill_shift(a, &sv);
-            ui_shift_draw(&sv);
-        } else {
-            draw_keys(a);
-        }
+    switch (qd_view_screen(a)) {
+    case QD_SCR_SEQ:                                    /* printed SEQ held: the patterns */
+        draw_patterns(a);
         break;
-    case QD_MODE_TRACKS:
+    case QD_SCR_SEL:                                    /* printed SEL held: the tracks */
+        fill_layer(a, &yv, 4);
+        ui_layer_draw(&yv);
+        break;
+    case QD_SCR_SHIFT:
+        fill_shift(a, &sv);
+        ui_shift_draw(&sv);
+        break;
+    case QD_SCR_KEYS:
+        draw_keys(a);
+        break;
+    case QD_SCR_TRACKS:
         draw_tracks(a);
         break;
-    case QD_MODE_STEP: {
-        const int layer = qd_ctl_layer_shown(a);
-        if (u->nheld) {
-            fill_held(a, &hv, 0);
-            ui_held_draw(&hv);
-        } else if (layer != QD_LAYER_NONE) {
-            fill_layer(a, &yv, layer);
-            ui_layer_draw(&yv);
-        } else if (qd_ctl_shift(a) && !u->shift_used) {
-            fill_shift(a, &sv);
-            ui_shift_draw(&sv);
-        } else {
-            fill_lane(a, &lv, pat);
-            ui_lane_draw(&lv);
-        }
+    case QD_SCR_HELD:
+        fill_held(a, &hv, 0);
+        ui_held_draw(&hv);
         break;
-    }
+    case QD_SCR_LAYER:
+        fill_layer(a, &yv, qd_ctl_layer_shown(a));
+        ui_layer_draw(&yv);
+        break;
+    case QD_SCR_LANE:
+        fill_lane(a, &lv, pat);
+        ui_lane_draw(&lv);
+        break;
     default:
         draw_idle(a);
         break;
@@ -832,6 +954,8 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
             overlay_begin(al);
             if (u->tk == QD_TK_PRESET) {
                 draw_picker(a);
+            } else if (u->tk == UI_TK_OCTAVE) {
+                draw_octave(a);
             } else if (u->tk == QD_TK_DEFAULT) {        /* the mode's default, drawn as its held screen */
                 fill_held(a, &hv, 1);
                 ui_held_draw(&hv);

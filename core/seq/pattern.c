@@ -15,12 +15,42 @@ static const char *const QD_LEN_N[QD_NLEN] = {"1/8", "1/4", "1/2", "3/4", "1", "
 int qd_len_eighths(int len) { return len < 0 || len >= QD_NLEN ? 8 : QD_LEN_E[len]; }
 const char *qd_len_name(int len) { return len < 0 || len >= QD_NLEN ? "?" : QD_LEN_N[len]; }
 
-/* a step's ticks at each rate: 8, 4, 2, 4/3, 1, 2/3, 1/2, 3/2, 3/4 sixteenths */
-static const int32_t QD_RATE_T[QD_NRATE] = {8 * QD_TPS, 4 * QD_TPS, 2 * QD_TPS, 4 * QD_TPS / 3, QD_TPS,
-                                            2 * QD_TPS / 3, QD_TPS / 2, 3 * QD_TPS / 2, 3 * QD_TPS / 4};
-static const char *const QD_RATE_N[QD_NRATE] = {"1/8x", "1/4x", "1/2x", "3/4x", "1x", "3/2x", "2x", "2/3x", "4/3x"};
-int64_t qd_rate_ticks(int rate) { return rate < 0 || rate >= QD_NRATE ? QD_TPS : QD_RATE_T[rate]; }
-const char *qd_rate_name(int rate) { return rate < 0 || rate >= QD_NRATE ? "?" : QD_RATE_N[rate]; }
+/* a rate code's step in ticks: the base's (16 sixteenths for 1/1, halving to 1/4 of one for 1/64), x 3/2 dotted,
+ * x 2/3 triplet (all whole: pattern.h) */
+int64_t qd_rate_ticks(int rate)
+{
+    int64_t l;
+    if (rate < 0 || rate >= QD_NRATE)
+        return QD_TPS;
+    l = (int64_t)QD_TPS * 16 >> (rate / 3);
+    return rate % 3 == QD_RTYPE_DOTTED ? l * 3 / 2 : rate % 3 == QD_RTYPE_TRIPLET ? l * 2 / 3 : l;
+}
+int qd_rate_make(int base, int type)
+{
+    base = base < 0 ? 0 : base >= QD_NVAL ? QD_NVAL - 1 : base;
+    type = type < 0 ? 0 : type >= QD_NRTYPE ? QD_NRTYPE - 1 : type;
+    return QD_RATE_CODE(base, type);
+}
+int qd_rate_val(int rate) { return rate < 0 || rate >= QD_NRATE ? 4 : rate / 3; }
+int qd_rate_type(int rate) { return rate < 0 || rate >= QD_NRATE ? 0 : rate % 3; }
+const char *qd_rate_val_name(int base)
+{
+    static const char *const N[QD_NVAL] = {"1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"};
+    return N[base < 0 ? 0 : base >= QD_NVAL ? QD_NVAL - 1 : base];
+}
+const char *qd_rate_name(int rate)
+{
+    static const char *const N[QD_NRATE] = {"1/1", "1/1.", "1/1T", "1/2", "1/2.", "1/2T", "1/4", "1/4.", "1/4T",
+                                            "1/8", "1/8.", "1/8T", "1/16", "1/16.", "1/16T", "1/32", "1/32.", "1/32T",
+                                            "1/64", "1/64.", "1/64T"};
+    return rate < 0 || rate >= QD_NRATE ? "?" : N[rate];
+}
+int qd_tset_rate(const qd_tset_t *ts) { return qd_rate_make(ts->rbase, ts->rtype); }
+void qd_tset_set_rate(qd_tset_t *ts, int rate)
+{
+    ts->rbase = (uint8_t)qd_rate_val(rate);
+    ts->rtype = (uint8_t)qd_rate_type(rate);
+}
 
 int qd_cond_ab(int a, int b)
 {
@@ -108,7 +138,7 @@ void qd_tset_init(qd_tset_t *s, int track)
     s->chan = (uint8_t)(track & 15);
     s->limit = 6;
     s->reserve = 0;
-    s->rate = QD_RATE_1;
+    qd_tset_set_rate(s, QD_RATE_1);
     s->loop = 1;
     for (p = 0; p < QD_NPAGE; p++) {
         s->pstart[p] = 0;
@@ -137,6 +167,7 @@ void qd_project_init(qd_project_t *pr)
     qd_sounds_init(pr);
     pr->key_scale = QD_SCALE_CHROMATIC;
     pr->key_root = 0;
+    pr->launch = 0;                                     /* (QD_LAUNCH_END) */
 }
 
 const char *qd_pat_name(int k, char *buf)
@@ -256,7 +287,7 @@ int64_t qd_pat_master_ticks(const qd_pattern_t *p)
     if (p->master != QD_MASTER_AUTO)
         return (int64_t)p->master * QD_TPS;
     for (t = 0; t < QD_PAT_NTRACK; t++) {
-        const int64_t l = (int64_t)qd_track_len(&p->trk[t]) * qd_rate_ticks(p->trk[t].rate);
+        const int64_t l = (int64_t)qd_track_len(&p->trk[t]) * qd_rate_ticks(qd_tset_rate(&p->trk[t]));
         m = l > m ? l : m;
     }
     return m;

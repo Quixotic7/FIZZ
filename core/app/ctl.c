@@ -71,8 +71,10 @@ void qd_ctl_init(qd_app_t *a)
     u->tk = QD_TK_NONE;
     u->rec_step = -1;
     u->entry_oct = QD_ENTRY_OCT;
-    u->f2_track = -1;
     u->f3_anchor = -1;
+    u->pg_copied = -1;
+    u->f2_last_w = -1;
+    u->pv_note = -1;
     qd_clip_init(&u->clip);
     for (i = 0; i < 8; i++)
         u->play_page[i] = -1;
@@ -126,11 +128,58 @@ int qd_ctl_playing_page(const qd_app_t *a, int t)
     return s < 0 ? -1 : s / QD_PAGE;
 }
 
+/* P1.3c: the octave (or SOUND's bank) changed: its takeover for a second */
+void qd_ctl_octave(qd_app_t *a, int kind, int from, int to)
+{
+    qd_ui_t *u = &a->ui;
+    u->oct_kind = kind;
+    u->oct_from = from;
+    u->oct_to = to;
+    u->oct_ms = a->ms;
+    qd_ctl_takeover(a, UI_TK_OCTAVE, 0, to >= from ? 1 : -1, 0, -1);
+}
+
+int qd_ctl_oct_offset(const qd_app_t *a, int *shown)
+{
+    const qd_ui_t *u = &a->ui;
+    *shown = 1;
+    if (u->mode == QD_MODE_KEYS)
+        return a->oct;                                  /* the keyboard: 0 is the centre */
+    if (u->mode == QD_MODE_STEP && u->nheld && u->hmode == UI_F_NOTE)
+        return u->entry_oct - QD_ENTRY_OCT;             /* NOTE entry: octave 4 is the centre */
+    if (u->mode == QD_MODE_STEP && u->nheld && u->hmode == UI_F_SOUND)
+        return u->sound_bank;                           /* SOUND: the first bank is the centre */
+    *shown = 0;
+    return 0;
+}
+
+uint32_t qd_ctl_oct_blink_ms(int off)
+{
+    off = off < 0 ? -off : off;
+    return off == 0 ? 0u : off == 1 ? QD_OCT_BLINK1_MS : off == 2 ? QD_OCT_BLINK2_MS : QD_OCT_BLINK3_MS;
+}
+
+/* a note turned on a knob: it sounds a moment (the one before ends) */
+void qd_ctl_preview(qd_app_t *a, int note, int vel)
+{
+    qd_ui_t *u = &a->ui;
+    if (u->pv_note >= 0)
+        qd_player_key_off(&a->player, u->pv_track, u->pv_note);
+    u->pv_note = -1;
+    if (note < 1 || note > 127)
+        return;
+    qd_player_key_on(&a->player, a->sel, note, vel < 1 ? 1 : vel > 127 ? 127 : vel);
+    u->pv_note = note;
+    u->pv_track = a->sel;
+    u->pv_ms = a->ms;
+}
+
 static void select_track(qd_app_t *a, int t)
 {
     if (t == a->sel)
         return;
     qd_step_release_all(a);
+    a->ui.f2_loaded = a->ui.f2_holding = 0;             /* (Form's: the pick-up / drop hand is per track) */
     a->sel = t;
     if (a->ui.follow && a->seq.playing) {               /* following: the new track's playing page at once */
         a->ui.page[t] = qd_ctl_playing_page(a, t);
@@ -166,7 +215,8 @@ static int touch(qd_app_t *a)
 typedef int (*qd_when_fn)(const qd_app_t *a);
 typedef void (*qd_key_fn)(qd_app_t *a, int key, int idx, int down, int vel);   /* idx: white 0..15 / black 0..10 */
 
-static int w_pattern_held(const qd_app_t *a) { return held(a, QD_B_PATTERN); }
+static int w_seq_held(const qd_app_t *a) { return held(a, QD_B_MIX); }        /* printed SEQ: the patterns */
+static int w_sel_held(const qd_app_t *a) { return held(a, QD_B_PATTERN); }    /* printed SEL: the tracks */
 static int w_tracks_held(const qd_app_t *a) { return held(a, QD_B_TRACKS); }
 static int w_keys_mode(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS; }
 static int w_tracks_screen(const qd_app_t *a) { return a->ui.mode == QD_MODE_TRACKS; }
@@ -177,13 +227,23 @@ static int w_f1(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F1; }
 static int w_f2(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F2; }
 static int w_f3(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F3; }
 
-/* PATTERN held + white key n: pattern n of bank A, queued (SHIFT: at the next 16th; stopped: at once) */
+/* SEQ held + white key n: pattern n of bank A, queued by the launch mode at the press (stopped: at once); held
+ * QD_SEQ_HOLD_MS: at once (sel_seq_timers) */
 static void k_pattern(qd_app_t *a, int key, int w, int down, int vel)
 {
+    qd_ui_t *u = &a->ui;
+    const uint16_t bit = (uint16_t)(1u << w);
     (void)key, (void)vel;
-    if (!down || w < 0)
+    if (w < 0)
         return;
-    qd_seq_select(&a->seq, w, held(a, QD_B_FUNC));
+    if (!down) {
+        u->seq_down &= (uint16_t)~bit;
+        return;
+    }
+    u->seq_down |= bit;
+    u->seq_done &= (uint16_t)~bit;
+    u->seq_t0[w] = a->ms;
+    qd_seq_select_at(&a->seq, w, a->proj.launch);
     if (!a->seq.playing)
         qd_app_tempo(a, qd_seq_bpm(&a->seq));
 }
@@ -195,6 +255,58 @@ static void k_track_select(qd_app_t *a, int key, int w, int down, int vel)
     a->ui.tracks_tap = 0;
     if (down && w >= 0 && w < QD_NTRACK)
         select_track(a, w);
+}
+
+/* SEL held + W1..W8: a tap mutes / unmutes track 1..8 (at the release), held QD_SEL_HOLD_MS solos / unsolos it
+ * (sel_seq_timers); W9..W16 nothing */
+static void k_sel_white(qd_app_t *a, int key, int w, int down, int vel)
+{
+    qd_ui_t *u = &a->ui;
+    const uint16_t bit = (uint16_t)(1u << w);
+    (void)key, (void)vel;
+    if (w >= QD_NTRACK)
+        return;
+    if (down) {
+        u->sel_down |= bit;
+        u->sel_done &= (uint16_t)~bit;
+        u->sel_t0[w] = a->ms;
+        return;
+    }
+    if (!(u->sel_down & bit))
+        return;
+    u->sel_down &= (uint16_t)~bit;
+    if (!(u->sel_done & bit))
+        a->seq.mute ^= (uint8_t)bit;
+}
+
+/* SEL held + B1..B8: select tracks 1..8; B11: every mute and solo off */
+static void k_sel_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    (void)key, (void)vel;
+    if (down && b < QD_NTRACK)
+        select_track(a, b);
+    else if (down && b == 10)
+        a->seq.mute = a->seq.solo = 0;
+}
+
+/* SEL's and SEQ's holds */
+static void sel_seq_timers(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    int w;
+    for (w = 0; w < 16; w++) {
+        const uint16_t bit = (uint16_t)(1u << w);
+        if (w < QD_NTRACK && (u->sel_down & bit) && !(u->sel_done & bit) && held(a, QD_B_PATTERN) &&
+            a->ms - u->sel_t0[w] >= QD_SEL_HOLD_MS) {
+            a->seq.solo ^= (uint8_t)bit;
+            u->sel_done |= bit;
+        }
+        if ((u->seq_down & bit) && !(u->seq_done & bit) && held(a, QD_B_MIX) &&
+            a->ms - u->seq_t0[w] >= QD_SEQ_HOLD_MS) {
+            qd_seq_select_at(&a->seq, w, QD_LAUNCH_NOW);
+            u->seq_done |= bit;
+        }
+    }
 }
 
 /* the keyboard: the selected track (and the recording's: ctl_rec.c) */
@@ -244,44 +356,56 @@ static void k_step(qd_app_t *a, int key, int w, int down, int vel)
 
 static int step_of(const qd_app_t *a, int w) { return a->ui.page[a->sel] * QD_PAGE + w; }
 
-/* F1 + W: copy the step; SHIFT + F1 + W: cut it (copied, then cleared; undoable) */
+static void no_room(qd_app_t *a) { qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024"); }
+
+/* F1 + W (§8b 2.1): the first W of an F1 hold copies its step, every later W pastes it (the hold's edits one undo
+ * level). As Form's F1 copy, it loads F2's hand: the next F2 hold's first W drops it */
 static void k_f1_white(qd_app_t *a, int key, int w, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
     (void)key, (void)vel;
     if (!down)
         return;
-    if (qd_ctl_shift(a)) {
-        qd_clip_cut_step(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel, step_of(a, w));
-        qd_ctl_confirm(a, "CUT", "F2 + a step pastes it");
-    } else {
+    if (!u->f1_copied) {
         qd_clip_copy_step(&u->clip, qd_ctl_pat(a), a->sel, step_of(a, w));
-        qd_ctl_confirm(a, "COPIED", "F2 + a step pastes it");
+        u->f1_copied = 1;
+        u->f2_loaded = u->f2_holding = 1;               /* (Form: "a copy loads the buffer .. the next F2 press pastes") */
+    } else if (qd_clip_paste_step(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel, step_of(a, w)) == QD_EFULL) {
+        no_room(a);
     }
 }
 
-/* F2 + W: paste the copied step (each tap again); a track key held: W1 mute, W2 solo that track */
+/* F2 + W: Form's pick-up / drop, exactly (omx_mode_form.cpp, v1.15.4: seqF2Loaded_, seqF2Holding_):
+ *   not loaded            CUT that step, even an empty one (an eraser); loaded, holding
+ *   loaded, empty step    PASTE (never a cut); empty-handed
+ *   loaded, holding, a filled step    PASTE over it; empty-handed
+ *   loaded, empty-handed, a filled step    CUT it; holding
+ * F2 let go: neither loaded nor holding (b_oct). The hold's edits are one undo level (Form's F2 has none; ours) */
 static void k_f2_white(qd_app_t *a, int key, int w, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
+    qd_pattern_t *p = qd_ctl_pat(a);
+    const int s = step_of(a, w);
+    int cut;
     (void)key, (void)vel;
     if (!down)
         return;
-    if (u->f2_track >= 0) {
-        const uint8_t bit = (uint8_t)(1u << u->f2_track);
-        u->f2_used = 1;
-        if (w == 0)
-            a->seq.mute ^= bit;
-        else if (w == 1)
-            a->seq.solo ^= bit;
-        return;
+    if (!u->f2_loaded)
+        cut = 1;
+    else if (!qd_step_is_on(qd_step(p, a->sel, s)))
+        cut = 0;
+    else
+        cut = !u->f2_holding;
+    if (cut) {
+        qd_clip_cut_step(&u->clip, p, a->seq.cur, a->sel, s);
+        u->f2_loaded = u->f2_holding = 1;
+    } else {
+        if (qd_clip_paste_step(&u->clip, p, a->seq.cur, a->sel, s) == QD_EFULL)
+            no_room(a);
+        u->f2_holding = 0;
     }
-    if (!u->clip.st.valid) {
-        qd_ctl_confirm(a, "NOTHING", "F1 + a step copies it first");
-        return;
-    }
-    if (qd_clip_paste_step(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel, step_of(a, w)) == QD_EFULL)
-        qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+    u->f2_last_w = w;
+    u->f2_last_act = cut ? 1 : 2;
 }
 
 /* F3 + W: the page's end (the page joins the loop); W a held + W b: start a .. end b */
@@ -314,8 +438,22 @@ static void k_value(qd_app_t *a, int key, int b, int down, int vel)
     qd_step_value_key(a, b, down);
 }
 
-/* F1 + B1..B8: pages (tap: edit; double tap: loop it alone; hold A + press B: loop A..B); B9 clear the page, B10 the
- * track, B11 undo / redo */
+/* F1 + B1..B8 (§8b 2.1's page layer): tap = edit that page; a double tap (the second release within QD_CLICK_MS of
+ * the first) = loop it alone; held QD_PAGE_HOLD_MS = the page in / out of the loop
+ * (never empty: qd_ctl_ms does it at the time); hold A + press B = the loop A..B (edit A); after B10's copy, a press
+ * pastes the page there (and edits it). B9 tap = clear the page; held QD_CLEAR_HOLD_MS = clear the track (qd_ctl_ms).
+ * B10 = copy the page edited. B11 = undo / redo */
+static void page_toggle(qd_app_t *a, int pg)
+{
+    qd_tset_t *ts = &qd_ctl_pat(a)->trk[a->sel];
+    const int loop = qd_track_loop(ts) ^ (1 << pg);
+    if (!loop) {
+        qd_ctl_confirm(a, "ONE PAGE", "the loop is never empty");
+        return;
+    }
+    qd_page_set_loop(qd_ctl_pat(a), a->sel, loop);
+}
+
 static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
@@ -327,6 +465,14 @@ static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
             uint16_t pages;
             u->lk_down |= bit;
             u->pg_t0[b] = a->ms;
+            u->pg_done &= (uint16_t)~bit;
+            if (u->pg_copied >= 0) {                    /* a page copied: paste it here */
+                if (qd_clip_paste_page(&u->clip, p, a->seq.cur, a->sel, b) == QD_EFULL)
+                    no_room(a);
+                qd_ctl_set_page(a, b);
+                u->pg_done |= bit;
+                return;
+            }
             pages = u->lk_down & 0xFFu;
             if (pages & ~bit) {                         /* another page key is down: the loop A..B, edit A */
                 int lo = 8, hi = -1, k;
@@ -338,39 +484,52 @@ static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
                 qd_page_set_loop(p, a->sel, (int)(((1u << (hi + 1)) - 1u) & ~((1u << lo) - 1u)));
                 qd_ctl_set_page(a, lo);
                 u->pg_range = 1;
-                u->pg_taps[lo] = u->pg_taps[hi] = 0;
+                u->pg_done |= pages;
             }
             return;
         }
         u->lk_down &= (uint16_t)~bit;
-        if (u->pg_range) {                              /* a range: no taps until the page keys are up */
+        if (u->pg_range) {                              /* a range: nothing more until the page keys are up */
             if (!(u->lk_down & 0xFFu))
                 u->pg_range = 0;
             return;
         }
-        if (a->ms - u->pg_t0[b] >= QD_CLICK_MS) {       /* held, then let go alone: nothing (Form's) */
-            u->pg_taps[b] = 0;
+        if (u->pg_done & bit)                           /* held (toggled), pasted */
             return;
-        }
-        if (u->pg_taps[b] && a->ms - u->pg_up[b] < QD_CLICK_MS) {   /* the double tap: loop it alone */
+        if (a->ms - u->pg_t0[b] >= QD_PAGE_HOLD_MS) {   /* (held, and the timer did not see it: toggle now) */
+            page_toggle(a, b);
+            u->pg_taps[b] = 0;
+        } else if (u->pg_taps[b] && a->ms - u->pg_up[b] < QD_CLICK_MS) {   /* the double tap: loop it alone */
             qd_page_set_loop(p, a->sel, 1 << b);
             qd_ctl_set_page(a, b);
             u->pg_taps[b] = 0;
-            return;
+        } else {                                        /* a tap: edit it */
+            qd_ctl_set_page(a, b);
+            u->pg_taps[b] = 1;
+            u->pg_up[b] = a->ms;
         }
-        qd_ctl_set_page(a, b);                          /* a tap: edit it (the loop unchanged) */
-        u->pg_taps[b] = 1;
-        u->pg_up[b] = a->ms;
+        u->pg_done |= bit;
+        return;
+    }
+    if (b == 8) {                                       /* B9: tap the page, held the track */
+        if (down) {
+            u->b9_down = 1;
+            u->b9_done = 0;
+            u->b9_t0 = a->ms;
+        } else if (u->b9_down) {
+            u->b9_down = 0;
+            if (!u->b9_done) {
+                qd_clip_clear_page(&u->clip, p, a->seq.cur, a->sel, u->page[a->sel]);
+                qd_ctl_confirm(a, "PAGE CLEARED", "F1 + B11 undoes it");
+            }
+        }
         return;
     }
     if (!down)
         return;
-    if (b == 8) {
-        qd_clip_clear_page(&u->clip, p, a->seq.cur, a->sel, u->page[a->sel]);
-        qd_ctl_confirm(a, "PAGE CLEARED", "F1 + B11 undoes it");
-    } else if (b == 9) {
-        qd_clip_clear_track(&u->clip, p, a->seq.cur, a->sel);
-        qd_ctl_confirm(a, "TRACK CLEARED", "F1 + B11 undoes it");
+    if (b == 9) {                                       /* B10: copy the page; then B1..B8 paste it */
+        qd_clip_copy_page(&u->clip, p, a->sel, u->page[a->sel]);
+        u->pg_copied = u->page[a->sel];
     } else if (b == 10) {
         const int r = qd_clip_undo(&u->clip, p, a->seq.cur, a->sel);
         qd_ctl_confirm(a, r == 1 ? "UNDONE" : r == QD_EFULL ? "NO ROOM" : "NO UNDO",
@@ -379,59 +538,71 @@ static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
     }
 }
 
-/* F2 + B1..B8: tracks (select; held + W1 mute, + W2 solo); B9 copy the page, B10 paste it */
-static void k_f2_black(qd_app_t *a, int key, int b, int down, int vel)
+/* F1's timers: a page key held QD_PAGE_HOLD_MS toggles its page in the loop; B9 held QD_CLEAR_HOLD_MS clears the
+ * track */
+static void f1_timers(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
-    (void)key, (void)vel;
-    if (b < QD_NTRACK) {
-        if (down) {
-            select_track(a, b);
-            u->f2_track = b;
-            u->f2_used = 0;
-        } else if (u->f2_track == b) {
-            u->f2_track = -1;
+    int b;
+    if (qd_ctl_layer(a) != QD_LAYER_F1)
+        return;
+    for (b = 0; b < QD_NPAGE; b++) {
+        const uint16_t bit = (uint16_t)(1u << b);
+        if ((u->lk_down & bit) && !(u->pg_done & bit) && !u->pg_range && a->ms - u->pg_t0[b] >= QD_PAGE_HOLD_MS) {
+            page_toggle(a, b);
+            u->pg_done |= bit;
+            u->pg_taps[b] = 0;
         }
-        return;
     }
-    if (!down)
-        return;
-    if (b == 8) {
-        qd_clip_copy_page(&u->clip, qd_ctl_pat(a), a->sel, u->page[a->sel]);
-        qd_ctl_confirm(a, "PAGE COPIED", "F2 + B10 pastes it");
-    } else if (b == 9) {
-        const int r = qd_clip_paste_page(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel, u->page[a->sel]);
-        if (r == QD_EARG)
-            qd_ctl_confirm(a, "NOTHING", "F2 + B9 copies a page first");
-        else if (r == QD_EFULL)
-            qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
-        else
-            qd_ctl_confirm(a, "PAGE PASTED", "F1 + B11 undoes it");
+    if (u->b9_down && !u->b9_done && a->ms - u->b9_t0 >= QD_CLEAR_HOLD_MS) {
+        qd_clip_clear_track(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel);
+        qd_ctl_confirm(a, "TRACK CLEARED", "F1 + B11 undoes it");
+        u->b9_done = 1;
     }
 }
 
-/* the rates on F3's B1..B9, slowest first (as the picker) */
-static const uint8_t RATE_ORDER[QD_NRATE] = {QD_RATE_1_8, QD_RATE_1_4, QD_RATE_1_2, QD_RATE_2_3, QD_RATE_3_4,
-                                             QD_RATE_1, QD_RATE_4_3, QD_RATE_3_2, QD_RATE_2};
+/* the rates slowest first (the tracks screen's RATE picker): the 21 codes by their step's length */
+static const uint8_t *rate_order(void)
+{
+    static uint8_t order[QD_NRATE];
+    static int done;
+    int i, j;
+    if (!done) {
+        for (i = 0; i < QD_NRATE; i++) {
+            const int64_t l = qd_rate_ticks(i);
+            for (j = i; j > 0 && qd_rate_ticks(order[j - 1]) < l; j--)
+                order[j] = order[j - 1];
+            order[j] = (uint8_t)i;
+        }
+        done = 1;
+    }
+    return order;
+}
 int qd_ctl_rate_index(int rate)
 {
+    const uint8_t *o = rate_order();
     int i;
     for (i = 0; i < QD_NRATE; i++)
-        if (RATE_ORDER[i] == rate)
+        if (o[i] == rate)
             return i;
-    return 5;
+    return 0;
 }
-int qd_ctl_rate_at(int i) { return RATE_ORDER[i < 0 ? 0 : i >= QD_NRATE ? QD_NRATE - 1 : i]; }
+int qd_ctl_rate_at(int i) { return rate_order()[i < 0 ? 0 : i >= QD_NRATE ? QD_NRATE - 1 : i]; }
 
-/* F3 + B1..B9: the rate */
+/* F3 + B1..B7: the rate's base (1/1 .. 1/64), the type kept; B8 / B9 / B10: normal / dotted / triplet, the base kept */
 static void k_f3_black(qd_app_t *a, int key, int b, int down, int vel)
 {
+    qd_tset_t *ts = &qd_ctl_pat(a)->trk[a->sel];
     (void)key, (void)vel;
-    if (down && b < QD_NRATE)
-        qd_ctl_pat(a)->trk[a->sel].rate = (uint8_t)qd_ctl_rate_at(b);
+    if (!down)
+        return;
+    if (b < QD_NVAL)
+        ts->rbase = (uint8_t)b;
+    else if (b < QD_NVAL + QD_NRTYPE)
+        ts->rtype = (uint8_t)(b - QD_NVAL);
 }
 
-/* the black keys with nothing held: B1..B10 the hold mode (B11 nothing: PLAN question 37) */
+/* the black keys with nothing held: B1..B11 the hold mode (P1.3c: B11 = P-LOCK, PLAN question 37) */
 static void k_mode(qd_app_t *a, int key, int b, int down, int vel)
 {
     (void)key, (void)vel;
@@ -449,23 +620,25 @@ typedef struct {
     qd_key_fn fn;
 } qd_key_row_t;
 static const qd_key_row_t WHITE_ROWS[] = {
-    {w_pattern_held, k_pattern},       /* PATTERN held: A01 .. A16 */
+    {w_seq_held, k_pattern},           /* SEQ held: A01 .. A16 (SHIFT: at once) */
+    {w_sel_held, k_sel_white},         /* SEL held: W1..W8 mute, W9..W16 solo */
     {w_tracks_held, k_track_select},   /* TRACKS held: tracks 1..8 */
     {w_keys_mode, k_note},             /* the keyboard */
     {w_tracks_screen, k_tracks_screen},   /* the tracks screen: select 1..8, mute 9..16 */
     {w_page_held, k_page},             /* PAGE held: edit pages 1..8 */
     {w_steps_held, k_step},            /* steps held: more held steps */
-    {w_f1, k_f1_white},                /* F1: copy (SHIFT: cut) */
-    {w_f2, k_f2_white},                /* F2: paste; a track held: W1 mute, W2 solo */
+    {w_f1, k_f1_white},                /* F1: the first W copies, the later ones paste */
+    {w_f2, k_f2_white},                /* F2: Form's pick-up / drop */
     {w_f3, k_f3_white},                /* F3: the page's end, start..end */
     {w_step_view, k_step},             /* the step view: the steps */
 };
 static const qd_key_row_t BLACK_ROWS[] = {
-    {w_pattern_held, k_none},          /* (PATTERN held + black: the banks, later) */
+    {w_seq_held, k_none},              /* (SEQ held + black: the banks, later) */
+    {w_sel_held, k_sel_black},         /* SEL held: B1..B8 select the track */
     {w_keys_mode, k_note},             /* the keyboard */
     {w_steps_held, k_value},           /* steps held: the mode's values, B11 CLEAR */
-    {w_f1, k_f1_black},                /* F1: pages, clear page / track, undo */
-    {w_f2, k_f2_black},                /* F2: tracks, copy / paste the page */
+    {w_f1, k_f1_black},                /* F1: pages, clear page / track, copy / paste a page, undo */
+    {w_f2, k_none},                    /* F2: (only the step pick-up / drop, on W) */
     {w_f3, k_f3_black},                /* F3: the rate */
     {w_step_view, k_mode},             /* nothing held: the hold mode */
 };
@@ -584,12 +757,21 @@ static void b_oct(qd_app_t *a, int d, int down)
     qd_ui_t *u = &a->ui;
     const int both = held(a, QD_B_OCTDN) && held(a, QD_B_OCTUP);
     if (!down) {
+        if (d < 0) {                                    /* F1 let go: its step copy and page copy end (the clipboard
+                                                         * stays: F2's hand stays loaded, as Form's) */
+            u->f1_copied = 0;
+            u->pg_copied = -1;
+            u->b9_down = 0;
+        } else {                                        /* F2 let go: the hand empties (Form's) */
+            u->f2_loaded = u->f2_holding = 0;
+            u->f2_last_w = -1;
+        }
         if (!held(a, QD_B_OCTDN) && !held(a, QD_B_OCTUP)) {
             u->f3 = 0;
             u->lk_down = 0;
             u->pg_range = 0;
-            u->f2_track = -1;
             u->f3_anchor = -1;
+            qd_clip_group(&u->clip, 0);                 /* the hold's edits were one undo level */
         }
         return;
     }
@@ -606,7 +788,9 @@ static void b_oct(qd_app_t *a, int d, int down)
             else
                 qd_rec_cursor(a, -1);
         } else {
+            const int from = a->oct;
             a->oct = clampi(a->oct + d, QD_OCT_MIN, QD_OCT_MAX);
+            qd_ctl_octave(a, UI_OCT_KEYS, from, a->oct);
         }
         return;
     }
@@ -621,6 +805,8 @@ static void b_oct(qd_app_t *a, int d, int down)
         u->f3 = 1;
     else
         u->f_ms = a->ms;                                /* the layer's first key */
+    if (!u->clip.group)
+        qd_clip_group(&u->clip, 1);                     /* a layer's hold: its edits one undo level */
 }
 static void b_octdn(qd_app_t *a, int down) { b_oct(a, -1, down); }
 static void b_octup(qd_app_t *a, int down) { b_oct(a, 1, down); }
@@ -629,7 +815,7 @@ static void b_none(qd_app_t *a, int down) { (void)a, (void)down; }
 /* the buttons by role (PLAN §8b; what is not built yet: the sound editor, the mix, saving) */
 static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_TRACKS] = b_tracks,          /* tap: the tracks screen; held + white 1..8: select */
-    [QD_B_PATTERN] = b_none,           /* held + white: queue a pattern (the keys' table) */
+    [QD_B_PATTERN] = b_none,           /* printed SEL, held: the tracks (B select, W mute / solo: the keys' table) */
     [QD_B_PAGE] = b_page,              /* tap: page follow on / off; held + white 1..8: edit that page */
     [QD_B_MUTE] = b_none,
     [QD_B_SOUND] = b_none,             /* the sound editor (next milestone) */
@@ -637,7 +823,7 @@ static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_HOME] = b_home,              /* the step view */
     [QD_B_SAVE] = b_none,
     [QD_B_KEYS] = b_fill,              /* ARP held: FILL */
-    [QD_B_MIX] = b_none,
+    [QD_B_MIX] = b_none,               /* printed SEQ, held: the patterns (W: the keys' table) */
     [QD_B_PLAY] = b_play,              /* play / stop; REC + PLAY: play, recording armed */
     [QD_B_REC] = b_rec,                /* tap: the keyboard <-> the sequencer; SHIFT: armed */
     [QD_B_OCTDN] = b_octdn,            /* F1 */
@@ -740,9 +926,30 @@ static int k_track(qd_app_t *a, int knob, int d)
     }
 }
 
-/* F3 + SELECT: tempo; SHIFT + F3 + SELECT: swing */
+/* F3 + SELECT: tempo; SHIFT + F3 + SELECT: swing. P1.3c (§8b 2.1, F3's knobs): KNOB 1 the rate's note value (1/2 ..
+ * 1/32), KNOB 2 normal / dotted / triplet, KNOB 3 the edited page's start, KNOB 4 its end (start <= end: each stops at
+ * the other). The F3 map is the screen: no takeover */
 static int k_f3(qd_app_t *a, int knob, int d)
 {
+    qd_pattern_t *p = qd_ctl_pat(a);
+    qd_tset_t *ts = &p->trk[a->sel];
+    const int pg = a->ui.page[a->sel];
+    switch (knob) {
+    case QD_K_1:
+        ts->rbase = (uint8_t)clampi(ts->rbase + d, 0, QD_NVAL - 1);
+        return 1;
+    case QD_K_2:
+        ts->rtype = (uint8_t)clampi(ts->rtype + d, 0, QD_NRTYPE - 1);
+        return 1;
+    case QD_K_3:
+        qd_page_set_range(p, a->sel, pg, clampi(ts->pstart[pg] + d, 0, ts->pend[pg]), ts->pend[pg]);
+        return 1;
+    case QD_K_4:
+        qd_page_set_range(p, a->sel, pg, ts->pstart[pg], clampi(ts->pend[pg] + d, ts->pstart[pg], QD_PAGE - 1));
+        return 1;
+    default:
+        break;
+    }
     if (knob != QD_K_SELECT)
         return 0;
     if (qd_ctl_shift(a)) {
@@ -769,7 +976,7 @@ static int k_tracks(qd_app_t *a, int knob, int d)
         qd_ctl_takeover(a, UI_TK_LEN, 0, d, 0, -1);
         return 1;
     case QD_K_2:
-        ts->rate = (uint8_t)qd_ctl_rate_at(qd_ctl_rate_index(ts->rate) + d);
+        qd_tset_set_rate(ts, qd_ctl_rate_at(qd_ctl_rate_index(qd_tset_rate(ts)) + d));
         qd_ctl_takeover(a, UI_TK_RATE, 1, d, 0, -1);
         return 1;
     case QD_K_3:
@@ -786,6 +993,15 @@ static int k_tracks(qd_app_t *a, int knob, int d)
 }
 
 static int when_f3(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F3; }
+static int when_seq(const qd_app_t *a) { return a->ui.mode != QD_MODE_IDLE && held(a, QD_B_MIX); }
+/* SEQ held + ALGORITHM: the launch mode (END BAR BEAT NOW), a project setting */
+static int k_seq(qd_app_t *a, int knob, int d)
+{
+    if (knob != QD_K_ALGO)
+        return 0;
+    a->proj.launch = (uint8_t)clampi(a->proj.launch + d, 0, QD_NLAUNCH - 1);
+    return 1;
+}
 static int when_steps_held(const qd_app_t *a) { return w_steps_held(a); }
 static int when_live(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS && a->ui.rec && a->seq.playing; }
 static int when_step_rec(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS && a->ui.rec && !a->seq.playing; }
@@ -806,7 +1022,8 @@ static const struct {
     qd_when_fn when;
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
-    {when_f3, k_f3},                   /* F3 + SELECT: tempo (SHIFT: swing) */
+    {when_seq, k_seq},                 /* SEQ held: ALGORITHM the launch mode */
+    {when_f3, k_f3},                   /* F3: SELECT tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */
     {when_steps_held, k_held},         /* a step held: SELECT page, ALGORITHM value, PRESETS sound lock, p-locks */
     {when_live, k_live},               /* live recording: the quick page as locks on the step playing */
     {when_step_rec, k_cursor},         /* step recording: PRESETS moves the cursor */
@@ -829,6 +1046,10 @@ void qd_ctl_ms(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     qd_step_promote_due(a);                             /* a white key down 250 ms: held */
+    f1_timers(a);                                       /* F1: a page key held 400 ms, B9 held 600 ms */
+    sel_seq_timers(a);                                  /* SEL + W held: solo; SEQ + W held: at once */
+    if (u->pv_note >= 0 && a->ms - u->pv_ms >= QD_PREVIEW_MS)
+        qd_ctl_preview(a, -1, 0);                       /* a knob's note: its moment is over */
     if (u->tk != QD_TK_NONE && a->ms - u->tk_ms >= QD_TK_MS + QD_TK_FADE_MS)
         u->tk = QD_TK_NONE;
     if (u->cf_on && a->ms - u->cf_ms >= QD_CONFIRM_MS)

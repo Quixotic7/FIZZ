@@ -28,6 +28,8 @@
  *   TRIG   NOTE a dot, LOCK a padlock, TIE a slur from the step before
  *   SOUND  a dot a step (the track's sound grey), a sound lock's pool number under its dot
  *   LOCKS  the step's p-locks as a stack of little blocks, the count over it
+ *   P-LOCK (P1.3c, B11) the NOTE roll, the steps with p-locks in the padlock's colour, and under each column a padlock
+ *          with its lock count (a held step's column outlined white: holding keeps this screen, the knobs lock it)
  * A LOCK step (trigless) in NOTE, VEL, LEN, MICRO and RATCH is a small ring: it plays no note. */
 #include <math.h>
 #include <string.h>
@@ -108,7 +110,7 @@ static void l_note(const ui_lane_t *v)
     int i, j, r;
 #define NY(n) (200.f - (float)((int)(n) - v->lo) * k)
 
-    for (j = 0; j < v->def_nnote && j < 4; j++) {       /* the default chord, dashed */
+    for (j = 0; j < v->def_nnote && j < 5; j++) {       /* the default chord, dashed */
         const float y = NY(v->def_note[j]);
         if (y >= TOP + 2.f && y <= BOT - 2.f)
             def_line(y);
@@ -125,13 +127,13 @@ static void l_note(const ui_lane_t *v)
             const float x0 = col_x(i) + 1.f + (float)c->micro / 24.f * 13.5f;
             float w = c->len * 13.5f - 2.f;
             const int nr = c->ratch > 1 ? c->ratch : 1;
-            const qd_rgb fill = c->lit ? UI_K3 : c->held ? QD_NONE : c->ovr ? UI_MODE_COL[UI_F_NOTE] : UI_G1;
+            const qd_rgb fill = c->lit ? UI_K3 : c->held ? QD_NONE : c->ovr ? UI_MODE_COL[v->mode] : UI_G1;
             const qd_rgb line = c->held && !c->lit ? UI_K3 : QD_NONE;
             if (!(w < 238.f - x0))                      /* INF and long notes: to the page's end */
                 w = 238.f - x0;
             if (w < 3.f)
                 w = 3.f;
-            for (j = 0; j < c->nnote && j < 4; j++) {
+            for (j = 0; j < c->nnote && j < 5; j++) {
                 const float y = NY(c->note[j]);
                 if (nr > 1) {
                     for (r = 0; r < nr; r++) {
@@ -153,6 +155,14 @@ static void l_note(const ui_lane_t *v)
         float y = 215.f;
         if (!c->in_range || !c->on)
             continue;
+        if (v->mode == UI_F_PLOCK) {                    /* P-LOCK: a padlock and the count */
+            char n[12];
+            const qd_rgb col = c->nlock ? UI_MODE_COL[UI_F_PLOCK] : UI_G3;
+            ui_lock(mx - 3.5f, 210.5f, col, 1.f);
+            if (c->nlock)
+                ui_T(ui_itoa(n, c->nlock), mx, 226.f, 7.f, 600, 0.f, col, QD_CENTER);
+            continue;
+        }
         if (c->chance != v->def_chance)
             ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_MODE_COL[UI_F_CHNC]), y += 4.5f;
         if (strcmp(c->cond, v->def_cond) != 0)
@@ -472,7 +482,7 @@ static void def_name(const ui_lane_t *v)
     const int sw = v->mode == UI_F_VEL || v->mode == UI_F_LEN || v->mode == UI_F_MICRO || v->mode == UI_F_RATCH ||
                    v->mode == UI_F_CHNC;
     float x = col_x(0);
-    if (v->mode == UI_F_NOTE || !v->def_label[0])
+    if (v->mode == UI_F_NOTE || v->mode == UI_F_PLOCK || !v->def_label[0])
         return;
     if (sw) {
         dashed(x, 219.f, x + 10.f, 219.f, UI_G1);

@@ -31,7 +31,10 @@
  * P1.3b: the sequencer controls version 2 (PLAN §8b, after the OMX-27 Form sequencer): track defaults and step
  * overrides, pages with their own start and end and a loop, the project's sound pool, scales, solo, copy / paste and
  * undo (seq/); the black keys choose the hold mode and set its ten values, OCT- / OCT+ are F1 / F2 (both F3), GLO is
- * SHIFT, REC switches the keybed between the sequencer and the keyboard, ARP held is FILL (ctl.h's header). */
+ * SHIFT, REC switches the keybed between the sequencer and the keyboard, ARP held is FILL (ctl.h's header).
+ * P1.3c (§8b version 2.1): five notes a step (NOTE's five knobs), the tracks on SEL held, the patterns on SEQ held (a
+ * launch mode: END BAR BEAT NOW), F1's page layer and quick step copy / paste, F2's pick-up / drop (Form's), P-LOCK on
+ * B11, F3's rate as a note value and a type (21 rates; QD_TPS 100800), the octave takeover and the OCT LEDs. */
 #pragma once
 #include <stdint.h>
 

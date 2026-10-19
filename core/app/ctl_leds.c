@@ -3,19 +3,24 @@
  *
  *   step view       white: trigs lit, LOCK steps dim, empty steps faint, steps outside the page's start..end off;
  *                   playing, the playhead's key inverts for its step; a key going down shows at once what its tap
- *                   makes. black, nothing held: B1..B10 the hold modes, the current one lit, the modes some step of
- *                   the page overrides dim, the others faint; B11 off
+ *                   makes. black, nothing held: B1..B11 the hold modes (B11 P-LOCK), the current one lit, the modes
+ *                   some step of the page overrides dim (P-LOCK: a step with p-locks), the others faint
  *   a step held     the held steps blink fast; B1..B10 the mode's value keys: the step's value lit, the track's
  *                   default dim, the others faint (keys that do nothing off); B11 lit when the step overrides the mode
- *   F1 held         B1..B8 the pages: the one edited lit, the others in the loop dim, the playing one blinking;
- *                   B9 / B10 faint, B11 dim while there is an undo
- *   F2 held         B1..B8 the tracks: the selected lit, the others heard dim, muted off, soloed blinking; B9 faint,
- *                   B10 dim while a page is copied
- *   F3 held         white: the page's start..end lit (the others off); B1..B9 the rate: the current lit, the others
- *                   faint
+ *   F1 held         (§8b 2.1) B1..B8 the pages: the one edited lit, the others in the loop dim, out of it off, the
+ *                   playing one flashing (fast), a page copied (B10) blinking; B9 faint, B10 faint (lit once a page is
+ *                   copied: B1..B8 paste), B11 dim while there is an undo
+ *   F2 held         the step view's whites (the pick-up / drop works on them); the black keys off
+ *   F3 held         white: the page's start..end lit (the others off); B1..B7 the bases, B8..B10 the types: the
+ *                   track's base and type lit, the others faint; B11 off
+ *   SEL held        (P1.3c) B1..B8 the tracks: the selected lit, the others dim; W1..W8 lit = heard, off = not,
+ *                   blinking = soloed; B11 lit while any mute or solo is set
+ *   SEQ held        (P1.3c) the patterns with content dim, the playing one lit, the queued one blinking
+ *   OCT- / OCT+     (P1.3c) where they are an octave (NOTE with a step held: octave 4 the centre; the keyboard: 0;
+ *                   SOUND with a step held: the first bank): none blinks at the centre; below it OCT- blinks, above it
+ *                   OCT+, a half period of 500 ms one away, 250 two, 125 three or more
  *   keyboard        the notes sounding lit, the C keys faint; step recording: the cursor's white key blinks
  *   tracks screen   white 1..8 flash with the tracks' trigs (the selected dim), 9..16 lit for the tracks heard
- *   PATTERN held    the patterns with content dim, the playing one lit, the queued one blinking
  *   buttons         held: lit; REC lit in the keyboard (blinking while armed); ARP lit while FILL is on; PAGE lit
  *                   while follow is on; TRACKS lit on its screen; PLAY's green LED on each beat while playing */
 #include <math.h>
@@ -110,39 +115,35 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         const int loop = qd_track_loop(ts), pp = qd_ctl_playing_page(a, a->sel);
         for (i = 0; i < QD_NPAGE; i++) {
             uint8_t l = i == page ? QD_LED_LIT : ((loop >> i) & 1) ? QD_LED_DIM : QD_LED_OFF;
-            if (i == pp)
+            if (i == u->pg_copied)                      /* the page copied: blinking (B1..B8 paste it) */
                 l = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
-            out->key[QD_BLACK_KEY[i]] = l;
-        }
-        out->key[QD_BLACK_KEY[8]] = out->key[QD_BLACK_KEY[9]] = QD_LED_FAINT;
-        out->key[QD_BLACK_KEY[10]] = qd_clip_can_undo(&u->clip, a->seq.cur, a->sel) ? QD_LED_DIM : QD_LED_OFF;
-        return;
-    }
-    if (layer == QD_LAYER_F2) {                         /* the tracks */
-        for (i = 0; i < QD_NTRACK; i++) {
-            uint8_t l = i == a->sel ? QD_LED_LIT : qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, i), i)
-                                                       ? QD_LED_DIM : QD_LED_OFF;
-            if ((a->seq.solo >> i) & 1u)
-                l = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
+            else if (i == pp)                           /* the playing page: flashing */
+                l = blink(a, QD_FAST_MS) ? QD_LED_LIT : l == QD_LED_LIT ? QD_LED_DIM : QD_LED_OFF;
             out->key[QD_BLACK_KEY[i]] = l;
         }
         out->key[QD_BLACK_KEY[8]] = QD_LED_FAINT;
-        out->key[QD_BLACK_KEY[9]] = u->clip.pg.valid ? QD_LED_DIM : QD_LED_OFF;
+        out->key[QD_BLACK_KEY[9]] = u->pg_copied >= 0 ? QD_LED_LIT : QD_LED_FAINT;
+        out->key[QD_BLACK_KEY[10]] = qd_clip_can_undo(&u->clip, a->seq.cur, a->sel) ? QD_LED_DIM : QD_LED_OFF;
         return;
     }
-    if (layer == QD_LAYER_F3) {                         /* the page's range, the rate */
-        const int ri = qd_ctl_rate_index(ts->rate);
+    if (layer == QD_LAYER_F2) {                         /* the pick-up / drop: the whites; the blacks off */
+        for (i = 0; i < 11; i++)
+            out->key[QD_BLACK_KEY[i]] = QD_LED_OFF;
+        return;
+    }
+    if (layer == QD_LAYER_F3) {                         /* the page's range, the rate's base and type */
         for (i = 0; i < 16; i++)
             out->key[QD_WHITE_KEY[i]] = i >= ts->pstart[page] && i <= ts->pend[page] ? QD_LED_LIT : QD_LED_OFF;
-        for (i = 0; i < QD_NRATE; i++)
-            out->key[QD_BLACK_KEY[i]] = i == ri ? QD_LED_LIT : QD_LED_FAINT;
+        for (i = 0; i < QD_NVAL + QD_NRTYPE; i++)
+            out->key[QD_BLACK_KEY[i]] = (i < QD_NVAL ? i == ts->rbase : i - QD_NVAL == ts->rtype) ? QD_LED_LIT
+                                                                                                  : QD_LED_FAINT;
+        out->key[QD_BLACK_KEY[10]] = QD_LED_OFF;
         return;
     }
     {   /* the hold modes */
         const unsigned set = qd_step_modes_set(a, a->sel, page);
-        for (i = 0; i < UI_NFIELD; i++)
+        for (i = 0; i < UI_NFIELD; i++)                 /* (B11: P-LOCK, P1.3c) */
             out->key[QD_BLACK_KEY[i]] = i == u->hmode ? QD_LED_LIT : ((set >> i) & 1u) ? QD_LED_DIM : QD_LED_FAINT;
-        out->key[QD_BLACK_KEY[10]] = QD_LED_OFF;
     }
 }
 
@@ -174,6 +175,21 @@ static void leds_tracks(const qd_app_t *a, qd_leds_t *out)
     }
 }
 
+/* SEL held (§8b 2.1): B1..B8 the tracks (selected lit, the others dim); W1..W8 lit = heard, off = not (muted, or
+ * another track soloed), blinking = soloed; W9..W16 off; B11 lit while any mute or solo is set */
+static void leds_sel(const qd_app_t *a, qd_leds_t *out)
+{
+    int i;
+    for (i = 0; i < QD_NTRACK; i++) {
+        uint8_t l = qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, i), i) ? QD_LED_LIT : QD_LED_OFF;
+        if ((a->seq.solo >> i) & 1u)
+            l = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
+        out->key[QD_BLACK_KEY[i]] = i == a->sel ? QD_LED_LIT : QD_LED_DIM;
+        out->key[QD_WHITE_KEY[i]] = l;
+    }
+    out->key[QD_BLACK_KEY[10]] = a->seq.mute || a->seq.solo ? QD_LED_LIT : QD_LED_OFF;
+}
+
 static void leds_pattern(const qd_app_t *a, qd_leds_t *out)
 {
     const int q = qd_seq_queued(&a->seq);
@@ -194,8 +210,10 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     const qd_ui_t *u = &a->ui;
     int i;
     memset(out, 0, sizeof *out);
-    if (held(a, QD_B_PATTERN))
+    if (held(a, QD_B_MIX) && u->mode != QD_MODE_IDLE)  /* printed SEQ: the patterns */
         leds_pattern(a, out);
+    else if (held(a, QD_B_PATTERN) && u->mode != QD_MODE_IDLE)   /* printed SEL: the tracks */
+        leds_sel(a, out);
     else if (u->mode == QD_MODE_STEP)
         leds_step(a, out);
     else if (u->mode == QD_MODE_KEYS)
@@ -209,6 +227,13 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     }
     for (i = 0; i < QD_NBTN; i++)
         out->button[i] = held(a, i) ? QD_LED_LIT : QD_LED_OFF;
+    {   /* the OCT keys where they are an octave: blinking by the distance from the centre */
+        int shown;
+        const int off = qd_ctl_oct_offset(a, &shown);
+        if (shown && off)
+            out->button[off < 0 ? QD_B_OCTDN : QD_B_OCTUP] =
+                blink(a, qd_ctl_oct_blink_ms(off)) ? QD_LED_LIT : QD_LED_OFF;
+    }
     if (u->mode == QD_MODE_KEYS)                        /* REC: lit in the keyboard, blinking while armed */
         out->button[QD_B_REC] = !u->rec || blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
     if (a->seq.fill)
