@@ -2517,6 +2517,40 @@ static void u_determinism(void)
 }
 
 /* the transport: stop releases, the counters reset; mute */
+/* P1.3i: following a MIDI clock: STOP ends it (the pattern's tempo again), a clock gone quiet for half a second stops
+ * the transport and ends it, a START with no clock after it does not stick */
+static void u_ext(void)
+{
+    int n0 = fails, k;
+    TP *p = tp_new(0, 120);
+    S(p, 0, 0, QD_TRIG_NOTE, 48, 0, 0, 0);
+    run_pattern(0.1, 1);
+    qd_player_stop(&PL);
+    qd_seq_midi_start(&SEQ);
+    for (k = 0; k < 48; k++) {                          /* 100 BPM: a pulse every 25 ms */
+        qd_seq_midi_clock(&SEQ);
+        rig_run_to(SEQ.now + 1102);
+    }
+    CHECK(qd_seq_ext_running(&SEQ) && qd_seq_bpm(&SEQ) >= 97 && qd_seq_bpm(&SEQ) <= 101,
+          "a clock at about 100 BPM (pulses on 32-sample blocks): followed (%d)", qd_seq_bpm(&SEQ));
+    qd_seq_midi_stop(&SEQ, qd_player_event, &PL);
+    CHECK(!SEQ.ext && !SEQ.playing && qd_seq_bpm(&SEQ) == 120, "STOP: stopped, not following, the pattern's 120 again");
+    qd_seq_midi_continue(&SEQ);
+    CHECK(SEQ.ext && SEQ.playing && !qd_seq_ext_running(&SEQ), "CONTINUE: following again, waiting for a pulse");
+    for (k = 0; k < 8; k++) {
+        qd_seq_midi_clock(&SEQ);
+        rig_run_to(SEQ.now + 1102);
+    }
+    CHECK(qd_seq_ext_running(&SEQ), ".. the pulses: running");
+    rig_run_to(SEQ.now + QD_CLOCK_TIMEOUT + 64);
+    CHECK(!SEQ.ext && !SEQ.playing, "no pulse for 0.5 s: stopped, not following");
+    qd_seq_midi_start(&SEQ);
+    rig_run_to(SEQ.now + QD_CLOCK_TIMEOUT + 64);
+    CHECK(!SEQ.ext && !SEQ.playing, "a START and no clock: given up after 0.5 s");
+    printf("  %-4s ext clock         STOP ends following, a quiet clock stops after 0.5 s, a lone START does not "
+           "stick\n", fails == n0 ? "ok" : "FAIL");
+}
+
 static void u_transport(void)
 {
     int n0 = fails, i, held = 0;
@@ -3085,6 +3119,7 @@ int main(int argc, char **argv)
     u_patch();
     u_dip();
     u_transport();
+    u_ext();
     u_determinism();
     u_clip();
     u_scale();

@@ -2201,6 +2201,63 @@ static void g_home(void)
     CHECK(A.ui.mode == QD_MODE_STEP && A.ui.view == QD_VIEW_STEPS, "woken by HOME: STEPS still (no switch)");
 }
 
+/* P1.3i: the tempo and MIDI clock: a turn after a START and STOP works; a running clock shows EXT CLOCK and a turn says
+ * so; the clock gone quiet ends it (the turn works again); the keyboard's SELECT the same */
+static void clock_pulses(int n, uint32_t ms)
+{
+    int k;
+    for (k = 0; k < n; k++) {
+        qd_app_midi(&A, 0xF8, 0, 0);
+        run(ms);
+    }
+}
+static void g_ext_clock(void)
+{
+    int b0;
+    start();
+    qd_app_midi(&A, 0xFA, 0, 0);                        /* a DAW's START and STOP, no clock */
+    run(50);
+    qd_app_midi(&A, 0xFC, 0, 0);
+    run(50);
+    f3_down();
+    bup(F2), bup(F1);
+    run(10);
+    b0 = A.bpm;
+    turn(QD_K_ALGO, 4);
+    CHECK(A.bpm == b0 + 4 && !A.seq.ext && !A.seq.playing, "after a START and STOP: F3 + ALGORITHM moves the tempo "
+          "(%d, now %d)", b0, A.bpm);
+    qd_app_midi(&A, 0xFA, 0, 0);                        /* a clock at 100 BPM */
+    clock_pulses(96, 25);
+    b0 = A.bpm;
+    turn(QD_K_ALGO, 4);
+    CHECK(qd_seq_ext_running(&A.seq) && b0 >= 97 && b0 <= 102 && A.bpm == b0 && A.ui.cf_on &&
+              !strcmp(A.ui.cf_big, "EXT CLOCK") && qd_ctl_layer_shown(&A) == QD_LAYER_F3,
+          "a running clock: the tempo is its (%d), a turn shows EXT CLOCK and moves nothing (F3 still open)", b0);
+    run(600);                                           /* the clock gone quiet */
+    CHECK(!A.seq.ext && !A.seq.playing, "no pulse for 0.6 s: not following, stopped");
+    b0 = A.bpm;
+    turn(QD_K_ALGO, -3);
+    CHECK(A.bpm == b0 - 3, "the turn works again (%d, now %d)", b0, A.bpm);
+    btap(F1);
+    qd_app_midi(&A, 0xFA, 0, 0);
+    clock_pulses(48, 25);
+    qd_app_midi(&A, 0xFC, 0, 0);
+    run(20);
+    CHECK(!A.seq.ext && !A.seq.playing, "STOP: not following");
+    btap(QD_B_REC);                                     /* the keyboard: SELECT the tempo */
+    b0 = A.bpm;
+    turn(QD_K_SELECT, 2);
+    CHECK(A.bpm == b0 + 2 && A.ui.tk == UI_TK_TEMPO, "the keyboard, stopped after a clock: SELECT the tempo");
+    qd_app_midi(&A, 0xFA, 0, 0);
+    clock_pulses(48, 25);
+    b0 = A.bpm;
+    turn(QD_K_SELECT, 2);
+    CHECK(A.bpm == b0 && A.ui.cf_on && !strcmp(A.ui.cf_big, "EXT CLOCK"), "the keyboard, a clock running: EXT CLOCK");
+    qd_app_midi(&A, 0xFC, 0, 0);
+    run(20);
+    btap(QD_B_REC);
+}
+
 /* ================================================================ program a beat === */
 typedef struct {
     int64_t tick;
@@ -2678,6 +2735,7 @@ int main(void)
         {"P1.3e: six notes; the default chord moves together", g_six},
         {"P1.3e: KNOB 4, the quiet knob", g_quiet},
         {"P1.3e: HOME cycles PIANO ROLL / STEPS", g_home},
+        {"P1.3i: the tempo and MIDI clock (EXT CLOCK)", g_ext_clock},
     };
     size_t i;
     uint64_t h1, h2;

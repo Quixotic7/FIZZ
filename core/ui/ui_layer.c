@@ -232,7 +232,7 @@ static void f3(const ui_layer_t *v)
         ui_lab(KJOB[i], kx + (float)i * 50.f - 5.f, 183.f, UI_K[i], QD_LEFT);
     }
     s[0] = 0;                                           /* P1.3h: the tempo and swing, live; the big knobs' jobs */
-    cat(cat(cat(s, "TEMPO "), ui_itoa(n, v->bpm)), DOT);
+    cat(cat(cat(s, v->ext ? "EXT CLOCK " : "TEMPO "), ui_itoa(n, v->bpm)), DOT);
     cat(cat(cat(s, "SWING "), ui_itoa(n, v->swing)), "%");
     ui_lab(s, 120.f, 199.f, UI_K3, QD_CENTER);
     ui_lab("SELECT: PAGE \xc2\xb7 ALGO: TEMPO \xc2\xb7 SHIFT: SWING", 120.f, 211.f, UI_G1, QD_CENTER);

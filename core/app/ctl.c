@@ -1023,6 +1023,16 @@ static int k_stepview(qd_app_t *a, int knob, int d)
     }
 }
 
+/* P1.3i: a tempo turn, every path: following a running MIDI clock, the tempo is the clock's: a brief EXT CLOCK says so;
+ * else (stopped, or the unit's own clock) the pattern's tempo, the sequencer's and the sound's */
+static void tempo_turn(qd_app_t *a, int d)
+{
+    if (qd_seq_ext_running(&a->seq))
+        qd_ctl_confirm(a, "EXT CLOCK", "the tempo follows MIDI clock");
+    else
+        qd_ctl_set_tempo(a, a->bpm + d);
+}
+
 /* the keyboard (not recording live): SELECT tempo (SHIFT: swing), PRESETS the sound, KNOB 1..4 the quick page */
 static int k_track(qd_app_t *a, int knob, int d)
 {
@@ -1033,9 +1043,9 @@ static int k_track(qd_app_t *a, int knob, int d)
             p->swing = (uint8_t)clampi(p->swing + d, 50, 80);
             qd_ctl_takeover(a, UI_TK_SWING, 1, d, 0, -1);
         } else {
-            if (!a->seq.ext)
-                qd_ctl_set_tempo(a, a->bpm + d);
-            qd_ctl_takeover(a, UI_TK_TEMPO, 0, d, 0, -1);
+            tempo_turn(a, d);
+            if (!qd_seq_ext_running(&a->seq))
+                qd_ctl_takeover(a, UI_TK_TEMPO, 0, d, 0, -1);
         }
         return 1;
     case QD_K_PRESETS:
@@ -1081,8 +1091,8 @@ static int k_f3(qd_app_t *a, int knob, int d)
         return 0;
     if (qd_ctl_shift(a))                                /* P1.3h: ALGORITHM the tempo, SHIFT + ALGORITHM the swing, */
         p->swing = (uint8_t)clampi(p->swing + d, 50, 80);   /* live on the map (no takeover: the map is the screen) */
-    else if (!a->seq.ext)
-        qd_ctl_set_tempo(a, a->bpm + d);
+    else
+        tempo_turn(a, d);
     return 1;
 }
 

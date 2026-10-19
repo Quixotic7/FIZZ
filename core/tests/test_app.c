@@ -489,6 +489,8 @@ static void t_clock(void)
 {
     int k;
     fresh();
+    run(990, 0);                                        /* (P1.3i: a clock follows its START at once, as a DAW's does;
+                                                         * a START left alone for 0.5 s is given up) */
     qd_app_midi(&A, 0xFA, 0, 0);                        /* START */
     for (k = 0; k < 24 * 12; k++) {                     /* 12 beats at 140 BPM: a pulse every 17.857 ms */
         const uint32_t at = 1000u + (uint32_t)(k * 60000.0 / 140.0 / 24.0 + 0.5);

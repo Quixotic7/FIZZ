@@ -3,6 +3,7 @@
 #   make -C tools frames       render_frames into core/tests/out/ (PNGs of the screens, the LEDs)
 #   make -C tools audio        render_audio into core/tests/out/ (presets.wav, tracks.wav, pool-stress.wav, the CPU, the
 #                              demo patterns: demo-A01..A03.wav and demo.txt)
+#   make -C tools abi          (P1.3i) the built quadrille.fm1core driven through the core ABI (FM1VST_DIR, FM1CORE)
 #   make -C tools test         the voice layer's and the sequencer's tests (sanitized) and the bit-exact tests against
 #                              ChoralRoot's tag; test_seq writes its timelines to core/tests/out/ and compares them
 #                              with core/tests/seq_goldens/ (build/test_seq ../core/tests/seq_goldens ../core/tests/out
@@ -135,4 +136,13 @@ test: $(TESTS)
 	$(B)/test_fx_bitexact
 	@echo "make test: all passed"
 
-.PHONY: all frames audio test
+# P1.3i: QUADRILLE through the core ABI, as FM1VST's host drives it (dlopen of the built module): FM1VST's core-api and
+# the module from its build (both outside this tree: FM1VST_DIR, FM1CORE)
+FM1VST_DIR ?= $(abspath $(ROOT)/../FM1VST/.claude/worktrees/quadrille)
+FM1CORE ?= $(FM1VST_DIR)/build-quadrille/cores/quadrille.fm1core
+$(B)/test_abi: test_abi.c | $(B)
+	$(CC) -std=c99 -O1 -g -Wall -Wextra -I$(FM1VST_DIR)/core-api -o $@ $< $(if $(filter Linux,$(shell uname)),-ldl,)
+abi: $(B)/test_abi
+	$(B)/test_abi $(FM1CORE)
+
+.PHONY: all frames audio test abi

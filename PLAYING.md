@@ -1,4 +1,4 @@
-# Playing QUADRILLE (P1.3h)
+# Playing QUADRILLE (P1.3i)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -219,6 +219,9 @@ A track's speed is a **note value** and a **type**, each kept when you change th
 - **F3 + KNOB 1**: the note value; **KNOB 2**: the type. The screen shows it as "1/8." (dotted) or "1/8T" (triplet).
 - **F3 + ALGORITHM**: the tempo. **SHIFT + F3 + ALGORITHM**: the swing. Both show live on the F3 screen.
 - **F3 + SELECT**: the page you edit (the F3 screen follows it).
+- **EXT CLOCK**: while a MIDI clock (a DAW) is running the unit, the tempo is the clock's: the F3 screen says EXT CLOCK
+  with its BPM, and a tempo turn shows EXT CLOCK instead of changing it. A MIDI STOP, or no clock for half a second,
+  gives the tempo back to the knob.
 
 ## The OCT keys' lights
 

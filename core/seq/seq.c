@@ -476,9 +476,11 @@ void qd_seq_tempo_mbpm(qd_seq_t *s, int32_t mbpm)
     s->mbpm = mbpm < 30000 ? 30000 : mbpm > 300000 ? 300000 : mbpm;
 }
 
+int qd_seq_ext_running(const qd_seq_t *s) { return s->ext && s->playing && !s->ext_wait; }
+
 int qd_seq_bpm(const qd_seq_t *s)
 {
-    if (s->ext && s->clk_adv > 0)                       /* subticks a sample -> BPM: adv / 8 / 1000 x 1000 */
+    if (qd_seq_ext_running(s) && s->clk_adv > 0)        /* subticks a sample -> BPM: adv / 8 / 1000 x 1000 */
         return (int)((s->clk_adv + 4000) / 8000);   /* (8 x milli-BPM subticks a sample) */
     return (s->mbpm + 500) / 1000;
 }
@@ -781,6 +783,8 @@ void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
 {
     int64_t adv, pos0, pos1, tend;
     int t, guard = 0;
+    if (s->ext && s->now - s->clk_last > (uint64_t)QD_CLOCK_TIMEOUT)
+        qd_seq_midi_stop(s, out, ctx);                  /* P1.3i: no pulse for 0.5 s: the clock is gone, stopped */
     if (!s->playing || (s->ext && s->ext_wait)) {
         s->now += QD_SEQ_BLOCK;
         return;
@@ -826,6 +830,7 @@ void qd_seq_midi_start(qd_seq_t *s)
     s->playing = 1;
     s->ext_wait = 1;
     s->clk_niv = s->clk_wiv = 0;
+    s->clk_last = s->now;                               /* (P1.3i: the timeout counts from here) */
 }
 
 void qd_seq_midi_continue(qd_seq_t *s)
@@ -835,6 +840,7 @@ void qd_seq_midi_continue(qd_seq_t *s)
     s->ext = 1;
     s->playing = 1;
     s->ext_wait = 1;
+    s->clk_last = s->now;
 }
 
 /* stopped by the clock: the notes out, the position kept; the cursors wound back to it (CONTINUE resolves again) */
@@ -842,8 +848,12 @@ void qd_seq_midi_stop(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
 {
     const int64_t now = (s->pos + QD_SUB - 1) / QD_SUB;
     int t;
-    if (!s->playing)
+    s->ext = 0;                                         /* P1.3i: stopped, the tempo is the unit's again (CONTINUE
+                                                         * makes it the clock's) */
+    if (!s->playing) {
+        s->ext_wait = 0;
         return;
+    }
     all_off(s, out, ctx);
     for (t = 0; t < QD_PAT_NTRACK; t++) {
         qd_tcur_t *c = &s->cur_t[t];

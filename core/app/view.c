@@ -464,6 +464,7 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     v->swing = P->swing;
     v->anchor = u->f3_anchor;
     v->latched = layer == 3 && u->latch == QD_LATCH_F3;
+    v->ext = qd_seq_ext_running(&a->seq);
 }
 
 static void fill_shift(const qd_app_t *a, ui_shift_t *v)

@@ -45,7 +45,9 @@
  * MIDI CLOCK IN (qd_seq_midi_*): 24 pulses a quarter, 8400 ticks each. START begins at tick 0 on the first pulse;
  * between pulses the transport runs at the tempo of the last 24 intervals (smoothed), never past the next pulse's
  * tick (it waits there), and a pulse that arrives while it is behind brings it to its tick at once: the 16ths land on
- * their pulses. STOP stops (the notes released), CONTINUE goes on from there at the next pulse. */
+ * their pulses. STOP stops (the notes released), CONTINUE goes on from there at the next pulse. P1.3i: STOP also ends
+ * following the clock (the tempo is the pattern's again), and a clock that sends no pulse for half a second (a START
+ * with no clock after it, a DAW gone quiet) stops the transport and ends it the same way. */
 #pragma once
 #include <stdint.h>
 
@@ -65,6 +67,7 @@ extern "C" {
 #define QD_SEQ_NHIST 128                /* the conditional steps kept per track (NEI) */
 #define QD_SEQ_NCHAIN 16
 #define QD_CLOCK_TICKS (QD_TPS / 6)     /* a MIDI clock pulse: 6 a 16th */
+#define QD_CLOCK_TIMEOUT (QD_SEQ_FS / 2)   /* P1.3i: following the clock, no pulse for this long (samples): it is gone */
 
 enum { QD_EV_OFF, QD_EV_LOCK, QD_EV_TIE, QD_EV_ON };   /* (their order at the same tick) */
 
@@ -201,6 +204,9 @@ void qd_seq_midi_clock(qd_seq_t *s);
 void qd_seq_midi_start(qd_seq_t *s);
 void qd_seq_midi_continue(qd_seq_t *s);
 void qd_seq_midi_stop(qd_seq_t *s, qd_seq_out_fn out, void *ctx);
+/* P1.3i: following a clock that runs (START or CONTINUE, then pulses): the tempo is the clock's. STOP ends following
+ * it (CONTINUE follows again), and so does a clock gone quiet: no pulse for QD_CLOCK_TIMEOUT stops the transport */
+int qd_seq_ext_running(const qd_seq_t *s);
 
 /* the view (the screens): the transport in ticks, a track's play head as a step position in its loop (0..length,
  * fractional), whether the track's step s flashed within the last ticks */

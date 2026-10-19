@@ -343,6 +343,7 @@ typedef struct {
     int bpm, swing;
     int anchor;                         /* F3: the W held first (-1 none) */
     int latched;                        /* P1.3d: F3 is a latched menu: "OCT\xe2\x88\x92 EXIT" on the map */
+    int ext;                            /* P1.3i: following a running MIDI clock: "EXT CLOCK" and its BPM */
 } ui_layer_t;
 void ui_layer_draw(const ui_layer_t *v);   /* layer 1 F1, 2 F2, 3 F3, 4 SEL's track map */
 
