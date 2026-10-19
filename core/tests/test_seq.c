@@ -1,21 +1,47 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The sequencer's tests (core/seq: pattern.h, seq.h, player.h; PLAN.md §4 .. §6):
+/* The sequencer's tests (core/seq: pattern.h, seq.h, player.h, clip.h, scale.h, sounds.h; PLAN.md §4 .. §6, §8b):
  *
  *   units       the lock pool (sorted, counted, full, copy, clear), the editing API, the conditions' table, the patch
  *               of a trig (a sound lock and p-locks against a patch built by hand), the dip (the largest sample step
  *               of a routing change on a sounding voice, with and without it), determinism (the same run twice: the
- *               same samples)
- *   timelines   sixteen patterns, each aimed at a feature, run through the sequencer, the player and the voice pool
+ *               same samples); the clipboard (a step copied and pasted between tracks with its locks, each paste
+ *               again; a page with its start and end, joining the loop; cut; clear a page, a track, steps; undo, undo
+ *               again = redo, an undo for another pattern does nothing; a paste onto a full lock pool: QD_EFULL and
+ *               nothing changed); the scales (names, sizes, qd_scale_note for every scale, root, octave and degree,
+ *               negative ones too, against the test's own interval tables; step, snap, the track's key); the sound
+ *               pool (23 sounds, their names, the presets, the drums as sounds.c makes them, add, full)
+ *   timelines   22 patterns, each aimed at a feature, run through the sequencer, the player and the voice pool
  *               (the voices rendered, no effects); every event becomes a line of text (the sample, the track, on / off /
  *               lock / legato / dip, the note, the velocity, the hash of the voice's patch, its own mask and mix locks)
  *               written to OUT/timeline-NAME.txt and compared with the committed golden GOLDEN/NAME.txt; and every
  *               timeline is checked against THE REFERENCE below, an independent implementation from first principles:
  *               it walks each track's steps in plain loops (no look-ahead, no queue, no cursors), computes each
  *               event's time in seconds from the tempo, the rate, swing, micro, ratchet and strum, evaluates the
- *               conditions and chance with its own code, builds each trig's patch by hand (the preset or the track's
- *               sound, the locks written over it) and hashes it, and replays the holds (lengths, INF, a newer strike of
- *               the same note, TIE). Every reference event must be in the timeline (within a sample: the reference's
- *               seconds against the engine's integer ticks) and every timeline event in the reference.
+ *               conditions and chance with its own code, builds each trig's patch by hand (the pool sound, by hand for
+ *               the drums too, or the track's sound, the locks written over it) and hashes it, and replays the holds
+ *               (lengths, INF, a newer strike of the same note, TIE). Every reference event must be in the timeline
+ *               (within a sample: the reference's seconds against the engine's integer ticks) and every timeline event
+ *               in the reference.
+ *               PAGES AND DEFAULTS (PLAN §8b) the reference models itself, not through the engine's functions: a
+ *               track's loop is the list of its looped pages' steps, ascending, each page from its start to its end
+ *               (r_walk); loop position n mod that list's length plays the step at that absolute index, the passes are
+ *               the list's wraps (A:B, 1ST) and swing takes the position's parity. A step's parameter it does not
+ *               override is the track's default as it is at the block that resolves the step (two steps ahead:
+ *               r_resolve_block), so a default changed while playing reaches the steps resolved after it; notes given
+ *               as scale degrees are mapped with the test's own tables; solo and mute are read at the block an event
+ *               leaves in. p01..p16 override every parameter of every step: their goldens are as before P1.3b.
+ *               p01..p16  sixteenths, polymeter, swing, micro, strum, ratchet, lengths, conditions, chance, sound locks,
+ *                         p-locks, LOCK steps, TIE, pattern change and chains, MIDI clock, rates and transpose
+ *               p17-pages     pages with their own start and end (steps outside them silent; swing by loop position)
+ *               p18-loops     one page alone, pages A..B, pages 1 and 3; A:B, 1ST counting the loop's passes
+ *               p19-defaults  tapped steps playing the track's defaults (a chord, velocity, length, micro, ratchet,
+ *                             chance, condition, strum, TIE and LOCK as the trig), a mix with overrides, the chord,
+ *                             velocity and ratchet defaults changed while playing
+ *               p20-pool      sound locks to the pool: the drums 18..23 with p-locks over them, one sound on many
+ *                             steps, factory sounds, INIT, the track's own
+ *               p21-scales    notes from degrees of seven scales (negative degrees, the edges, a track following the
+ *                             global key)
+ *               p22-solo      one track soloed, two, a soloed one that is muted, the solo cleared
  *
  *     test_seq GOLDEN_DIR OUT_DIR [--bless]     exit 1 on a failed check; --bless writes the goldens */
 #include <math.h>
@@ -23,9 +49,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "clip.h"
 #include "mix.h"
 #include "player.h"
+#include "scale.h"
 #include "seq.h"
+#include "sounds.h"
 
 static int fails, checks;
 #define CHECK(c, ...)                                     \
@@ -289,18 +318,48 @@ static int compare_ref(const char *name, int tol)
 }
 
 /* ================================================================ the test's patterns === */
+/* a step (TS): its values and the parameters it overrides (ovr, bit QD_PM_k; a parameter not overridden takes the
+ * track's default); its notes either absolute or, sc set, scale degrees of the track's key at octave sc_oct. A track
+ * (TT): its rate and so on; its pages (pages set: the loop mask and each page's start and end, 0..15; else `length`,
+ * Form's flat rebuild: pages 1..k looped, full but the last); its defaults (def; def2 from R_DEF_AT on when has2); its
+ * key (scale, root, or the pattern's global key when keyg). The tests p01..p16 override every parameter of every step
+ * (S): their patterns are what they were before the defaults existed */
+typedef struct { int nn, notes[4], vel, len, micro, ratch, ramp, chance, cond, type, strum; } TD;
 typedef struct {
     int t, s, type, nn, notes[4], vel, len, micro, ratch, ramp, cond, chance, sound, strum, nlk;
     int lk_id[8], lk_v[8];
+    int ovr;
+    int sc, sc_oct, sc_n, sc_deg[4];
 } TS;
-typedef struct { int rate, length, swing, limit, transpose; } TT;
+typedef struct {
+    int rate, length, swing, limit, transpose, mute;
+    int pages, loop, pstart[8], pend[8];
+    TD def, def2;
+    int has2;
+    int scale, root, keyg;
+} TT;
 typedef struct {
     int bpm, swing, master;
+    int key_scale, key_root;
     TT trk[8];
     TS st[600];
     int n;
 } TP;
 static TP TPAT[8];
+#define OV_ALL ((1 << QD_NPM) - 1)
+
+static void td_init(TD *d)                              /* (pattern.h's: C4, 100, a step, x1, 100 %, ALWAYS, NOTE) */
+{
+    memset(d, 0, sizeof *d);
+    d->nn = 1;
+    d->notes[0] = 60;
+    d->vel = 100;
+    d->len = QD_LEN_1;
+    d->ratch = 1;
+    d->chance = 100;
+    d->cond = QD_COND_ALWAYS;
+    d->type = QD_TRIG_NOTE;
+}
 
 static TP *tp_new(int k, int bpm)
 {
@@ -313,10 +372,30 @@ static TP *tp_new(int k, int bpm)
         p->trk[t].rate = QD_RATE_1;
         p->trk[t].length = 16;
         p->trk[t].limit = 6;
+        td_init(&p->trk[t].def);
+        td_init(&p->trk[t].def2);
     }
     return p;
 }
 
+/* explicit pages: the loop mask, every page 1..16 until RANGE says otherwise */
+static void PAGES(TT *tt, int loop)
+{
+    int p;
+    tt->pages = 1;
+    tt->loop = loop;
+    for (p = 0; p < 8; p++) {
+        tt->pstart[p] = 0;
+        tt->pend[p] = 15;
+    }
+}
+static void RANGE(TT *tt, int page, int start, int end)
+{
+    tt->pstart[page] = start;
+    tt->pend[page] = end;
+}
+
+/* a step with every parameter overridden (p01..p16's) */
 static TS *S(TP *p, int t, int s, int type, int n1, int n2, int n3, int n4)
 {
     TS *st = &p->st[p->n++];
@@ -333,7 +412,56 @@ static TS *S(TP *p, int t, int s, int type, int n1, int n2, int n3, int n4)
     st->len = QD_LEN_1;
     st->ratch = 1;
     st->chance = 100;
+    st->ovr = OV_ALL;
     return st;
+}
+/* a tapped step: no overrides (the track's defaults); OV sets one parameter and its override */
+static TS *D(TP *p, int t, int s)
+{
+    TS *st = S(p, t, s, QD_TRIG_NOTE, 0, 0, 0, 0);
+    st->ovr = 0;
+    return st;
+}
+static TS *OV(TS *st, int pm, int v)
+{
+    switch (pm) {
+    case QD_PM_VEL: st->vel = v; break;
+    case QD_PM_LEN: st->len = v; break;
+    case QD_PM_MICRO: st->micro = v; break;
+    case QD_PM_CHANCE: st->chance = v; break;
+    case QD_PM_COND: st->cond = v; break;
+    case QD_PM_TRIG: st->type = v; break;
+    case QD_PM_SOUND: st->sound = v; break;
+    case QD_PM_STRUM: st->strum = v; break;
+    default: break;                                     /* (NOTE: NOTES / DEG; RATCH: RATCH) */
+    }
+    st->ovr |= QD_OV(pm);
+    return st;
+}
+static void NOTES(TS *st, int n1, int n2, int n3, int n4)
+{
+    const int nv[4] = {n1, n2, n3, n4};
+    int k;
+    st->nn = 0;
+    for (k = 0; k < 4; k++)
+        if (nv[k])
+            st->notes[st->nn++] = nv[k];
+    st->ovr |= QD_OV(QD_PM_NOTE);
+}
+static void RATCH(TS *st, int count, int ramp)
+{
+    st->ratch = count;
+    st->ramp = ramp;
+    st->ovr |= QD_OV(QD_PM_RATCH);
+}
+/* the notes as n degrees of the track's key at octave oct (the engine's side: qd_scale_note at build time) */
+static void DEG(TS *st, int oct, int n, int d0, int d1, int d2, int d3)
+{
+    st->sc = 1;
+    st->sc_oct = oct;
+    st->sc_n = n;
+    st->sc_deg[0] = d0, st->sc_deg[1] = d1, st->sc_deg[2] = d2, st->sc_deg[3] = d3;
+    st->ovr |= QD_OV(QD_PM_NOTE);
 }
 static void LK(TS *st, int id, int v)
 {
@@ -341,7 +469,26 @@ static void LK(TS *st, int id, int v)
     st->lk_v[st->nlk++] = v;
 }
 
-/* the test's pattern into the project through the editing API */
+/* a track's defaults through the API */
+static int apply_def(qd_pattern_t *P, int t, const TD *d)
+{
+    uint8_t nv[4];
+    int k, r = 0;
+    for (k = 0; k < d->nn; k++)
+        nv[k] = (uint8_t)d->notes[k];
+    r |= qd_tdef_set_notes(P, t, nv, d->nn);
+    r |= qd_tdef_set(P, t, QD_PM_VEL, d->vel);
+    r |= qd_tdef_set(P, t, QD_PM_LEN, d->len);
+    r |= qd_tdef_set(P, t, QD_PM_MICRO, d->micro);
+    r |= qd_tdef_set(P, t, QD_PM_RATCH, qd_ratch_make(d->ratch, d->ramp));
+    r |= qd_tdef_set(P, t, QD_PM_CHANCE, d->chance);
+    r |= qd_tdef_set(P, t, QD_PM_COND, d->cond);
+    r |= qd_tdef_set(P, t, QD_PM_TRIG, d->type);
+    r |= qd_tdef_set(P, t, QD_PM_STRUM, d->strum);
+    return r;
+}
+
+/* the test's pattern into the project through the editing API: a step sets only what it overrides */
 static void build(const TP *tp, int k)
 {
     qd_pattern_t *P = &PROJ.pat[k];
@@ -350,35 +497,76 @@ static void build(const TP *tp, int k)
     P->bpm = (uint16_t)tp->bpm;
     P->swing = (uint8_t)tp->swing;
     P->master = (uint16_t)tp->master;
+    PROJ.key_scale = (uint8_t)tp->key_scale;
+    PROJ.key_root = (uint8_t)tp->key_root;
     for (t = 0; t < 8; t++) {
-        P->trk[t].rate = (uint8_t)tp->trk[t].rate;
-        P->trk[t].length = (uint8_t)tp->trk[t].length;
-        P->trk[t].swing = (uint8_t)tp->trk[t].swing;
-        P->trk[t].limit = (uint8_t)tp->trk[t].limit;
-        P->trk[t].transpose = (int8_t)tp->trk[t].transpose;
+        const TT *tt = &tp->trk[t];
+        int r = 0, pg;
+        P->trk[t].rate = (uint8_t)tt->rate;
+        if (tt->pages) {
+            r |= qd_page_set_loop(P, t, tt->loop);
+            for (pg = 0; pg < 8; pg++)
+                r |= qd_page_set_range(P, t, pg, tt->pstart[pg], tt->pend[pg]);
+        } else {
+            r |= qd_track_set_length(P, t, tt->length);
+        }
+        P->trk[t].swing = (uint8_t)tt->swing;
+        P->trk[t].limit = (uint8_t)tt->limit;
+        P->trk[t].transpose = (int8_t)tt->transpose;
+        P->trk[t].mute = (uint8_t)tt->mute;
+        P->trk[t].scale = (uint8_t)tt->scale;
+        P->trk[t].root = (uint8_t)tt->root;
+        P->trk[t].key_global = (uint8_t)tt->keyg;
+        r |= apply_def(P, t, &tt->def);
+        CHECK(r == QD_OK, "build: track %d's pages and defaults: %d", t, r);
     }
     for (i = 0; i < tp->n; i++) {
         const TS *s = &tp->st[i];
         uint8_t nv[4];
-        int k2, r = 0;
-        for (k2 = 0; k2 < s->nn; k2++)
-            nv[k2] = (uint8_t)s->notes[k2];
-        r |= qd_step_set_trig(P, s->t, s->s, s->type);
-        if (s->nn)
-            r |= qd_step_set_notes(P, s->t, s->s, nv, s->nn);
-        r |= qd_step_set_vel(P, s->t, s->s, s->vel);
-        r |= qd_step_set_len(P, s->t, s->s, s->len);
-        r |= qd_step_set_micro(P, s->t, s->s, s->micro);
-        r |= qd_step_set_ratchet(P, s->t, s->s, s->ratch, s->ramp);
-        r |= qd_step_set_cond(P, s->t, s->s, s->cond);
-        r |= qd_step_set_chance(P, s->t, s->s, s->chance);
-        r |= qd_step_set_sound(P, s->t, s->s, s->sound);
-        r |= qd_step_set_strum(P, s->t, s->s, s->strum);
+        int k2, r = 0, nn = s->nn;
+#define HAS(pm) ((s->ovr >> (pm)) & 1)
+        if (s->sc) {                                    /* scale degrees: the engine's own mapping */
+            int sc, root;
+            qd_track_key(&PROJ, P, s->t, &sc, &root);
+            for (k2 = 0, nn = s->sc_n; k2 < nn; k2++)
+                nv[k2] = (uint8_t)qd_scale_note(sc, root, s->sc_oct, s->sc_deg[k2]);
+        } else {
+            for (k2 = 0; k2 < nn; k2++)
+                nv[k2] = (uint8_t)s->notes[k2];
+        }
+        if (HAS(QD_PM_TRIG))
+            r |= qd_step_set_trig(P, s->t, s->s, s->type);
+        else
+            r |= qd_step_on(P, s->t, s->s);
+        if (HAS(QD_PM_NOTE) && nn)
+            r |= qd_step_set_notes(P, s->t, s->s, nv, nn);
+        if (HAS(QD_PM_VEL))
+            r |= qd_step_set_vel(P, s->t, s->s, s->vel);
+        if (HAS(QD_PM_LEN))
+            r |= qd_step_set_len(P, s->t, s->s, s->len);
+        if (HAS(QD_PM_MICRO))
+            r |= qd_step_set_micro(P, s->t, s->s, s->micro);
+        if (HAS(QD_PM_RATCH))
+            r |= qd_step_set_ratchet(P, s->t, s->s, s->ratch, s->ramp);
+        if (HAS(QD_PM_COND))
+            r |= qd_step_set_cond(P, s->t, s->s, s->cond);
+        if (HAS(QD_PM_CHANCE))
+            r |= qd_step_set_chance(P, s->t, s->s, s->chance);
+        if (HAS(QD_PM_SOUND))
+            r |= qd_step_set_sound(P, s->t, s->s, s->sound);
+        if (HAS(QD_PM_STRUM))
+            r |= qd_step_set_strum(P, s->t, s->s, s->strum);
         for (k2 = 0; k2 < s->nlk; k2++)
             r |= qd_lock_set(P, s->t, s->s, s->lk_id[k2], s->lk_v[k2]);
-        if (s->type != QD_TRIG_NOTE)                    /* (the setters made it a NOTE: its type again) */
+        if (HAS(QD_PM_TRIG) && s->type != QD_TRIG_NOTE)   /* (its type again, after the setters) */
             r |= qd_step_set_trig(P, s->t, s->s, s->type);
         CHECK(r == QD_OK, "build: track %d step %d: %d", s->t, s->s, r);
+        {   /* (sound 0 is the track's sound: no override; a step with no notes keeps the track's) */
+            const int want = s->ovr & ~(s->sound ? 0 : QD_OV(QD_PM_SOUND)) & ~(nn ? 0 : QD_OV(QD_PM_NOTE));
+            CHECK(qd_step(P, s->t, s->s)->ovr == want, "build: track %d step %d overrides %03x (the test's %03x)",
+                  s->t, s->s, qd_step(P, s->t, s->s)->ovr, want);
+        }
+#undef HAS
     }
     CHECK(qd_pat_check(P), "build: pattern %d consistent", k);
 }
@@ -413,6 +601,86 @@ static uint32_t r_fnv(const int16_t *p)
     return h;
 }
 
+/* the sound pool by hand (sounds.h's list: 1 INIT, 2..17 the factory sounds, 18..23 the drums; the drums' values as
+ * sounds.c's comment and tables give them, clamped to their ranges): sound k's patch */
+typedef struct { int id, v; } rkv_t;
+static int R_POOL_CLAMPED;                              /* (a drum value outside its range: none should be) */
+#define R_N(a) ((int)(sizeof(a) / sizeof((a)[0])))
+static void r_pool_patch(int k, int16_t *p)
+{
+    static const rkv_t KICK[] = {
+        {QD_QP_EDEC, 32}, {QD_QP_ESUS, 0}, {QD_QP_EREL, 20}, {QD_QP_LFO(0, QD_QL_SPEED), 4000},
+        {QD_QP_LFO(0, QD_QL_MULT), 18}, {QD_QP_LFO(0, QD_QL_DEST), 1}, {QD_QP_LFO(0, QD_QL_WAVE), 5},
+        {QD_QP_LFO(0, QD_QL_TRIG), 4}, {QD_QP_LFO(0, QD_QL_DEPTH), 6399}, {QD_QP_ALEV, 60}, {QD_QP_ADEC, 4},
+        {QD_QP_AEND, 0}, {QD_QP_RA, 8}, {QD_QP_LEVEL, 127}};
+    static const rkv_t SNARE[] = {{QD_QP_FTYPE, QD_QF_LP12}, {QD_QP_FREQ, 9500}, {QD_QP_RESO, 1000}, {QD_QP_FDBK, 110},
+                                  {QD_QP_EDEC, 24}, {QD_QP_ESUS, 0}, {QD_QP_EREL, 18}, {QD_QP_LEVEL, 120}};
+    static const rkv_t CLAP[] = {{QD_QP_FTYPE, QD_QF_LP12}, {QD_QP_FREQ, 10500}, {QD_QP_RESO, 3000}, {QD_QP_FDBK, 120},
+                                 {QD_QP_EDEC, 14}, {QD_QP_ESUS, 0}, {QD_QP_EREL, 12}};
+    static const rkv_t GHOST[] = {{QD_QP_FTYPE, QD_QF_LP12}, {QD_QP_FREQ, 8000}, {QD_QP_RESO, 0}, {QD_QP_FDBK, 110},
+                                  {QD_QP_EDEC, 16}, {QD_QP_ESUS, 0}, {QD_QP_EREL, 12}, {QD_QP_LEVEL, 70}};
+    static const rkv_t HAT[] = {{QD_QP_FREQ, 9500}, {QD_QP_RESO, 1000}, {QD_QP_EDEC, 10}, {QD_QP_ESUS, 0},
+                                {QD_QP_EREL, 8}};
+    static const rkv_t OHAT[] = {{QD_QP_FREQ, 9000}, {QD_QP_RESO, 1000}, {QD_QP_EDEC, 32}, {QD_QP_ESUS, 0},
+                                 {QD_QP_EREL, 26}};
+    const rkv_t *kv = 0;
+    int n = 0, i, preset = k - 1;
+    switch (k) {
+    case 18: preset = 0, kv = KICK, n = R_N(KICK); break;
+    case 19: preset = 16, kv = SNARE, n = R_N(SNARE); break;
+    case 20: preset = 16, kv = CLAP, n = R_N(CLAP); break;
+    case 21: preset = 16, kv = GHOST, n = R_N(GHOST); break;
+    case 22: preset = 16, kv = HAT, n = R_N(HAT); break;
+    case 23: preset = 16, kv = OHAT, n = R_N(OHAT); break;
+    default: break;
+    }
+    qd_quad_preset_patch(preset, p);
+    for (i = 0; i < n; i++) {
+        int16_t lo, hi;
+        qd_lock_range(kv[i].id, &lo, &hi);
+        R_POOL_CLAMPED += kv[i].v < lo || kv[i].v > hi;
+        p[kv[i].id] = (int16_t)(kv[i].v < lo ? lo : kv[i].v > hi ? hi : kv[i].v);
+    }
+}
+
+/* the scales by hand: each one's size and its intervals above the root */
+static const struct { const char *name, *shrt; int n, iv[12]; } R_SC[QD_NSCALE] = {
+    {"CHROMATIC", "CHR", 12, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}},
+    {"MAJOR", "MAJ", 7, {0, 2, 4, 5, 7, 9, 11}},
+    {"MINOR", "MIN", 7, {0, 2, 3, 5, 7, 8, 10}},
+    {"DORIAN", "DOR", 7, {0, 2, 3, 5, 7, 9, 10}},
+    {"PHRYGIAN", "PHR", 7, {0, 1, 3, 5, 7, 8, 10}},
+    {"LYDIAN", "LYD", 7, {0, 2, 4, 6, 7, 9, 11}},
+    {"MIXOLYDIAN", "MIX", 7, {0, 2, 4, 5, 7, 9, 10}},
+    {"LOCRIAN", "LOC", 7, {0, 1, 3, 5, 6, 8, 10}},
+    {"HARM MINOR", "HMI", 7, {0, 2, 3, 5, 7, 8, 11}},
+    {"MEL MINOR", "MMI", 7, {0, 2, 3, 5, 7, 9, 11}},
+    {"MAJ PENTA", "MPN", 5, {0, 2, 4, 7, 9}},
+    {"MIN PENTA", "mPN", 5, {0, 3, 5, 7, 10}},
+    {"BLUES", "BLU", 6, {0, 3, 5, 6, 7, 10}},
+    {"WHOLE TONE", "WHL", 6, {0, 2, 4, 6, 8, 10}},
+};
+/* degree d of the scale from the root's note at octave oct (12 (oct + 1) + root): whole octaves of the scale's size
+ * up or down, then the interval; clamped 0..127 */
+static int r_scale_note(int sc, int root, int oct, int deg)
+{
+    const int n = R_SC[sc].n;
+    int o = 0, x;
+    while (deg < 0)
+        deg += n, o--;
+    o += deg / n;
+    x = 12 * (oct + 1) + root + 12 * o + R_SC[sc].iv[deg % n];
+    return x < 0 ? 0 : x > 127 ? 127 : x;
+}
+static int r_scale_has(int sc, int root, int note)
+{
+    int k;
+    for (k = 0; k < R_SC[sc].n; k++)
+        if (((note - root - R_SC[sc].iv[k]) % 12 + 12) % 12 == 0)
+            return 1;
+    return 0;
+}
+
 /* a trig's sound by hand */
 typedef struct {
     int16_t patch[QD_QUAD_NP];
@@ -423,7 +691,7 @@ static void r_sound(const TS *s, int t, rsnd_t *o)
     int k;
     memset(o, 0, sizeof *o);
     if (s->sound) {
-        qd_quad_preset_patch(s->sound - 1, o->patch);
+        r_pool_patch(s->sound, o->patch);
         for (k = 0; k < QD_QUAD_NP; k++)
             o->at.own[k / 32] |= 1u << (k % 32);
     } else {
@@ -482,13 +750,102 @@ static int r_fill_at(int64_t g, int64_t L)
     return R_FILL_ON >= 0 && b >= R_FILL_ON && (R_FILL_OFF < 0 || b < R_FILL_OFF);
 }
 
-static const TS *r_step_at(const TP *tp, int t, int idx)
+/* the step at absolute index s (0..127) of track t */
+static const TS *r_step_at(const TP *tp, int t, int s)
 {
     int i;
     for (i = 0; i < tp->n; i++)
-        if (tp->st[i].t == t && tp->st[i].s == idx)
+        if (tp->st[i].t == t && tp->st[i].s == s)
             return &tp->st[i];
     return 0;
+}
+
+/* a track's loop by hand: the absolute steps in the order they play, the looped pages ascending, each from its start
+ * to its end (the `length` shorthand: pages 1..k, full but the last). w: room for 128; the count */
+static int r_walk(const TT *tt, int *w)
+{
+    int loop, ps[8], pe[8], p, s, n = 0;
+    if (tt->pages) {
+        loop = tt->loop & 255 ? tt->loop & 255 : 1;
+        for (p = 0; p < 8; p++)
+            ps[p] = tt->pstart[p], pe[p] = tt->pend[p];
+    } else {
+        const int k = (tt->length + 15) / 16;
+        loop = (1 << k) - 1;
+        for (p = 0; p < 8; p++) {
+            ps[p] = 0;
+            pe[p] = p == k - 1 ? tt->length - 16 * (k - 1) - 1 : 15;
+        }
+    }
+    for (p = 0; p < 8; p++)
+        if ((loop >> p) & 1)
+            for (s = ps[p]; s <= pe[p]; s++)
+                w[n++] = 16 * p + s;
+    return n;
+}
+
+/* a default changed at R_DEF_AT (a block's first sample; -1 none): the tracks with has2 take def2 from there */
+static int64_t R_DEF_AT = -1;
+/* the solo mask: R_SOLO0 from PLAY, R_SOLO_M[k] from sample R_SOLO_AT[k] on (block-aligned) */
+static int R_SOLO0, R_NSOLO, R_SOLO_M[8];
+static int64_t R_SOLO_AT[8];
+
+/* the steps as they play, resolved by the reference (the raw events point at them) */
+static TS RSTEP[20000];
+static int NRSTEP;
+
+/* step s of track tt as it plays when resolved for grid g (step length L): its own values where it overrides them,
+ * else the track's defaults as they are at the block that resolves it; notes from degrees by the test's own scales */
+static const TS *r_resolve(const TP *tp, const TT *tt, const TS *s, int64_t g, int64_t L)
+{
+    const TD *d = tt->has2 && R_DEF_AT >= 0 && r_resolve_block(g, L) * 32 >= R_DEF_AT ? &tt->def2 : &tt->def;
+    TS *v = &RSTEP[NRSTEP < 20000 ? NRSTEP++ : 19999];
+    if (NRSTEP >= 20000)
+        CHECK(0, "the reference: too many steps resolved");
+    int k;
+#define HAS(pm) ((s->ovr >> (pm)) & 1)
+    *v = *s;
+    if (HAS(QD_PM_NOTE) && s->sc) {
+        const int sc = tt->keyg ? tp->key_scale : tt->scale, root = tt->keyg ? tp->key_root : tt->root;
+        v->nn = s->sc_n;
+        for (k = 0; k < s->sc_n; k++)
+            v->notes[k] = r_scale_note(sc, root, s->sc_oct, s->sc_deg[k]);
+    } else if (!HAS(QD_PM_NOTE) || !s->nn) {
+        v->nn = d->nn;
+        for (k = 0; k < 4; k++)
+            v->notes[k] = d->notes[k];
+    }
+    if (!HAS(QD_PM_VEL))
+        v->vel = d->vel;
+    if (!HAS(QD_PM_LEN))
+        v->len = d->len;
+    if (!HAS(QD_PM_MICRO))
+        v->micro = d->micro;
+    if (!HAS(QD_PM_RATCH))
+        v->ratch = d->ratch, v->ramp = d->ramp;
+    if (!HAS(QD_PM_CHANCE))
+        v->chance = d->chance;
+    if (!HAS(QD_PM_COND))
+        v->cond = d->cond;
+    if (!HAS(QD_PM_TRIG))
+        v->type = d->type;
+    if (!HAS(QD_PM_SOUND))
+        v->sound = 0;                                   /* the track's own sound */
+    if (!HAS(QD_PM_STRUM))
+        v->strum = d->strum;
+#undef HAS
+    return v;
+}
+
+/* the track sounds at this sample (not muted; soloed when any is) */
+static int r_audible(const TP *tp, int t, int64_t smp)
+{
+    const int64_t b = smp / 32 * 32;                    /* (read when the event leaves: its block) */
+    int k, solo = R_SOLO0;
+    for (k = 0; k < R_NSOLO; k++)
+        if (R_SOLO_AT[k] <= b)
+            solo = R_SOLO_M[k];
+    return !tp->trk[t].mute && (!solo || ((solo >> t) & 1));
 }
 
 static int r_cond_ab(int cond, int *a, int *b)          /* the table: 1:2, 2:2, 1:3, .. 8:8 from QD_COND_AB */
@@ -508,6 +865,7 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
 {
     int si, t;
     NRAW_ = 0;
+    NRSTEP = 0;
     for (si = 0; si < nseg; si++) {
         const TP *tp = seg[si].tp;
         int64_t hg[8][2048];                            /* the conditional steps' grids and results, per track */
@@ -516,19 +874,22 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
         for (t = 0; t < 8; t++) {
             const TT *tt = &tp->trk[t];
             const int64_t L = R_STEP_T[tt->rate];
+            int walk[128];
+            const int len = r_walk(tt, walk);
             int64_t n;
             int pre = 0;
             for (n = 0;; n++) {
                 const int64_t g = seg[si].o + n * L;
-                const int idx = (int)(n % tt->length);
-                const int64_t pass = n / tt->length;
+                const int idx = (int)(n % len);         /* the loop position (swing's parity) */
+                const int64_t pass = n / len;           /* the loop's passes (A:B, 1ST) */
                 const TS *s;
                 int ok = 1, a, b, conditional;
                 if ((seg[si].e >= 0 && g >= seg[si].e) || g >= end)
                     break;
-                s = r_step_at(tp, t, idx);
+                s = r_step_at(tp, t, walk[idx]);
                 if (!s)
                     continue;
+                s = r_resolve(tp, tt, s, g, L);
                 switch (s->cond) {
                 case QD_COND_ALWAYS: ok = 1; break;
                 case QD_COND_FILL: ok = r_fill_at(g, L); break;
@@ -593,7 +954,7 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
                         r->note = s->type == QD_TRIG_TIE ? notes[0] : 0;
                         r->vel = s->type == QD_TRIG_TIE ? s->vel : 0;
                         r->gate = gate_all;
-                        r->step = idx;
+                        r->step = walk[idx];
                         r->g = g;
                         r->L = L;
                         r->ts = s;
@@ -631,7 +992,7 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
                             r->note = notes[k];
                             r->vel = v;
                             r->gate = gate;
-                            r->step = idx;
+                            r->step = walk[idx];
                             r->hit = h;
                             r->g = g;
                             r->L = L;
@@ -813,6 +1174,8 @@ static void r_replay(int64_t end_sample)
                     r_line(smp, t, QD_LOG_LOCK, 0, 0, 0, -1, 0);
                 continue;
             }
+            if (!r_audible(&TPAT[0], t, smp))           /* muted, or another track soloed: nothing (no OFF to come) */
+                continue;
             /* ON: INF notes of another step out first (a TIE takes the INF voice over: no OFF) */
             if (r->kind == QD_EV_TIE)
                 inf_n[t] = 0;
@@ -898,9 +1261,17 @@ static void run_pattern(double sec, uint64_t seed)
     qd_seq_seed(&SEQ, seed);
     qd_seq_select(&SEQ, 0, 0);
     qd_seq_play(&SEQ);
+    SEQ.solo = (uint8_t)R_SOLO0;
     NAUDIO = 0;
     while (SEQ.now < end) {
-        int32_t m[32];
+        int32_t m[32], k;
+        for (k = 0; k < R_NSOLO; k++)                   /* the solo mask changed between blocks */
+            if ((int64_t)SEQ.now == R_SOLO_AT[k])
+                SEQ.solo = (uint8_t)R_SOLO_M[k];
+        if (R_DEF_AT >= 0 && (int64_t)SEQ.now == R_DEF_AT)   /* a default changed while playing */
+            for (k = 0; k < 8; k++)
+                if (TPAT[0].trk[k].has2)
+                    CHECK(apply_def(&PROJ.pat[0], k, &TPAT[0].trk[k].def2) == QD_OK, "track %d's new defaults", k);
         if (R_FILL_ON >= 0)
             qd_seq_fill(&SEQ, (int64_t)SEQ.now >= R_FILL_ON && (R_FILL_OFF < 0 || (int64_t)SEQ.now < R_FILL_OFF));
         rig_block(m);
@@ -1414,6 +1785,315 @@ static void p_mix(void)
                  "5 steps transposed +12 (a note clamped at 127)", 3.0, 1);
 }
 
+/* p17: pages with their own start and end; the steps outside the ranges (and on pages not looped) never play */
+static void p_pages(void)
+{
+    TP *p = tp_new(0, 120);
+    TS *st;
+    int s;
+    p->swing = 60;
+    PAGES(&p->trk[0], 1);                               /* track 1: page 1, steps 3..10, alone */
+    RANGE(&p->trk[0], 0, 2, 9);
+    for (s = 0; s < 20; s++)                            /* (every step of page 1, and some of page 2: not looped) */
+        S(p, 0, s, QD_TRIG_NOTE, 48 + s, 0, 0, 0)->len = 2;
+    PAGES(&p->trk[1], 3);                               /* track 2: page 1 1..15, page 2 5..12; swing on: the loop's */
+    RANGE(&p->trk[1], 0, 0, 14);                        /* position 15 (page 2's first, step 21) is odd: swung */
+    RANGE(&p->trk[1], 1, 4, 11);
+    p->trk[1].swing = 1;
+    for (s = 0; s < 32; s++)
+        if (s % 2 == 0 || s >= 28 || (s >= 16 && s < 20) || s == 15)
+            S(p, 1, s, QD_TRIG_NOTE, 60 + s % 24, 0, 0, 0)->len = 1;
+    PAGES(&p->trk[2], 1);                               /* track 3: a loop of one step (page 1, 6..6) at 2x */
+    RANGE(&p->trk[2], 0, 5, 5);
+    p->trk[2].rate = QD_RATE_2;
+    S(p, 2, 4, QD_TRIG_NOTE, 70, 0, 0, 0);
+    S(p, 2, 5, QD_TRIG_NOTE, 72, 0, 0, 0)->len = 1;
+    S(p, 2, 6, QD_TRIG_NOTE, 74, 0, 0, 0);
+    PAGES(&p->trk[3], (1 << 1) | (1 << 2));             /* track 4 at 1/2x: page 2 1..7 and page 3 9..16 */
+    RANGE(&p->trk[3], 1, 0, 6);
+    RANGE(&p->trk[3], 2, 8, 15);
+    p->trk[3].rate = QD_RATE_1_2;
+    for (s = 0; s < 48; s += 3) {
+        st = S(p, 3, s, QD_TRIG_NOTE, 36 + s % 30, 0, 0, 0);
+        st->len = 3;
+    }
+    pattern_test("p17-pages", "pages with their own start and end: page 1 3..10 alone; pages 1 (1..15) and 2 (5..12) "
+                 "swung by loop position; a one-step loop at 2x; pages 2 (1..7) and 3 (9..16) at 1/2x", 6.0, 1);
+}
+
+/* p18: loops of pages: one page alone (not page 1), a contiguous A..B, a non-contiguous pair; A:B counts the loop's
+ * passes */
+static void p_loops(void)
+{
+    TP *p = tp_new(0, 140);
+    TS *st;
+    int s;
+    PAGES(&p->trk[0], 1 << 2);                          /* track 1: page 3 alone (F1 double-tap), 5..12 */
+    RANGE(&p->trk[0], 2, 4, 11);
+    S(p, 0, 32 + 4, QD_TRIG_NOTE, 60, 0, 0, 0)->cond = qd_cond_ab(1, 2);
+    S(p, 0, 32 + 6, QD_TRIG_NOTE, 62, 0, 0, 0)->cond = qd_cond_ab(2, 2);
+    S(p, 0, 32 + 8, QD_TRIG_NOTE, 64, 0, 0, 0)->cond = qd_cond_ab(1, 3);
+    S(p, 0, 32 + 10, QD_TRIG_NOTE, 65, 0, 0, 0)->cond = qd_cond_ab(3, 4);
+    S(p, 0, 32 + 11, QD_TRIG_NOTE, 67, 0, 0, 0)->len = 2;
+    S(p, 0, 32 + 0, QD_TRIG_NOTE, 40, 0, 0, 0);         /* (outside the range) */
+    S(p, 0, 3, QD_TRIG_NOTE, 41, 0, 0, 0);              /* (page 1: not in the loop) */
+    PAGES(&p->trk[1], 0xE);                             /* track 2 at 2x: pages 2..4 (hold 2, press 4): 16 + 4 + 4 */
+    RANGE(&p->trk[1], 2, 8, 11);
+    RANGE(&p->trk[1], 3, 0, 3);
+    p->trk[1].rate = QD_RATE_2;
+    for (s = 16; s < 64; s += 2) {
+        st = S(p, 1, s, QD_TRIG_NOTE, 50 + s % 32, 0, 0, 0);
+        st->len = 1;
+        if (s == 16)
+            st->cond = qd_cond_ab(1, 3);                /* the loop's first step, one pass in three */
+        if (s == 42)
+            st->cond = qd_cond_ab(2, 2);
+    }
+    S(p, 1, 2, QD_TRIG_NOTE, 90, 0, 0, 0);              /* (page 1: not in the loop) */
+    PAGES(&p->trk[2], (1 << 0) | (1 << 2));             /* track 3 at 3/2x: pages 1 and 3, page 3's end at 8 (F3) */
+    RANGE(&p->trk[2], 2, 0, 7);
+    p->trk[2].rate = QD_RATE_3_2;
+    for (s = 0; s < 48; s += 4) {
+        st = S(p, 2, s, QD_TRIG_NOTE, 70 + s / 4, 0, 0, 0);
+        st->len = 2;
+        if (s == 32)
+            st->cond = qd_cond_ab(2, 2);
+        if (s == 36)
+            st->cond = qd_cond_ab(1, 2);
+        if (s == 0)
+            st->cond = QD_COND_N1ST;
+    }
+    PAGES(&p->trk[3], 0xE0);                            /* track 4 at 3/4x: pages 6 (1..2), 7 (16), 8 (4..6) */
+    RANGE(&p->trk[3], 5, 0, 1);
+    RANGE(&p->trk[3], 6, 15, 15);
+    RANGE(&p->trk[3], 7, 3, 5);
+    p->trk[3].rate = QD_RATE_3_4;
+    S(p, 3, 80, QD_TRIG_NOTE, 36, 0, 0, 0)->cond = QD_COND_1ST;
+    S(p, 3, 81, QD_TRIG_NOTE, 37, 0, 0, 0)->cond = QD_COND_N1ST;
+    S(p, 3, 111, QD_TRIG_NOTE, 38, 0, 0, 0)->cond = qd_cond_ab(4, 4);
+    S(p, 3, 115, QD_TRIG_NOTE, 39, 0, 0, 0)->len = 2;
+    S(p, 3, 116, QD_TRIG_NOTE, 40, 0, 0, 0)->cond = qd_cond_ab(2, 3);
+    S(p, 3, 117, QD_TRIG_NOTE, 41, 0, 0, 0)->len = 1;
+    S(p, 3, 96, QD_TRIG_NOTE, 42, 0, 0, 0);             /* (page 7's step 1: outside its range) */
+    pattern_test("p18-loops", "loops: page 3 alone (5..12) with 1:2 2:2 1:3 3:4; pages 2..4 at 2x; pages 1 and 3 "
+                 "(1..8) at 3/2x; pages 6..8 at 3/4x with 1ST, !1ST, 4:4, 2:3", 10.0, 1);
+}
+
+/* p19: steps with no overrides play the track's defaults; a mix; a default changed while playing moves only the steps
+ * that do not override it, from the first step resolved after the change */
+static void p_defaults(void)
+{
+    TP *p = tp_new(0, 120);
+    TD *d;
+    TS *st;
+    int s;
+    d = &p->trk[0].def;                                 /* track 1: a default chord, strummed, half-step gates */
+    d->nn = 3, d->notes[0] = 48, d->notes[1] = 55, d->notes[2] = 64;
+    d->vel = 90, d->len = 2, d->micro = 3, d->strum = 2;
+    p->trk[0].def2 = *d;                                /* .. at 4.03 s: another chord (four notes) and velocity */
+    d = &p->trk[0].def2;
+    d->nn = 4, d->notes[0] = 50, d->notes[1] = 57, d->notes[2] = 62, d->notes[3] = 69;
+    d->vel = 60;
+    p->trk[0].has2 = 1;
+    for (s = 0; s < 16; s += 4)
+        D(p, 0, s);                                     /* tapped: all the defaults */
+    OV(D(p, 0, 2), QD_PM_VEL, 120);                /* the velocity its own */
+    NOTES(D(p, 0, 6), 72, 0, 0, 0);                     /* the notes its own */
+    st = D(p, 0, 10);                                   /* the length and the strum its own */
+    OV(st, QD_PM_LEN, 6);
+    OV(st, QD_PM_STRUM, 0);
+    S(p, 0, 14, QD_TRIG_NOTE, 59, 0, 0, 0)->len = 1;    /* everything its own */
+    d = &p->trk[1].def;                                 /* track 2 at 1/2x: a ratchet up, micro -4, chance 70 % */
+    d->notes[0] = 40, d->vel = 110, d->len = 1, d->micro = -4, d->ratch = 3, d->ramp = QD_RAMP_UP, d->chance = 70;
+    p->trk[1].def2 = *d;                                /* .. at 4.03 s: x2 down */
+    p->trk[1].def2.ratch = 2, p->trk[1].def2.ramp = QD_RAMP_DOWN;
+    p->trk[1].has2 = 1;
+    p->trk[1].rate = QD_RATE_1_2;
+    p->trk[1].length = 8;
+    D(p, 1, 0);
+    D(p, 1, 2);
+    D(p, 1, 5);
+    OV(D(p, 1, 3), QD_PM_COND, QD_COND_1ST);      /* its own condition, the default chance */
+    st = D(p, 1, 6);                                    /* its own chance and ratchet */
+    OV(st, QD_PM_CHANCE, 100);
+    RATCH(st, 1, QD_RAMP_FLAT);
+    NOTES(st, 43, 0, 0, 0);
+    d = &p->trk[2].def;                                 /* track 3, MONO at 3/2x: the default trig is TIE */
+    d->notes[0] = 45, d->len = 2, d->type = QD_TRIG_TIE;
+    p->trk[2].limit = 1;
+    p->trk[2].rate = QD_RATE_3_2;
+    p->trk[2].length = 8;
+    st = D(p, 2, 0);                                    /* a NOTE (its own type), then legato into the defaults */
+    OV(st, QD_PM_TRIG, QD_TRIG_NOTE);
+    NOTES(st, 36, 0, 0, 0);
+    D(p, 2, 1);
+    st = D(p, 2, 2);
+    NOTES(st, 41, 0, 0, 0);
+    OV(st, QD_PM_VEL, 120);
+    OV(st, QD_PM_LEN, 4);
+    st = D(p, 2, 4);
+    OV(st, QD_PM_TRIG, QD_TRIG_NOTE);
+    OV(st, QD_PM_LEN, 1);
+    NOTES(st, 38, 0, 0, 0);
+    d = &p->trk[3].def;                                 /* track 4: the default trig is LOCK */
+    d->type = QD_TRIG_LOCK;
+    st = D(p, 3, 0);                                    /* a NOTE chord held 8 steps, LOCK steps into it */
+    OV(st, QD_PM_TRIG, QD_TRIG_NOTE);
+    NOTES(st, 60, 64, 67, 0);
+    OV(st, QD_PM_LEN, 10);
+    st = D(p, 3, 2);
+    LK(st, QD_QP_FREQ, 6000);
+    LK(st, QD_QP_EDEC, 60);
+    st = D(p, 3, 4);
+    LK(st, QD_LK_PAN, -30);
+    D(p, 3, 6);                                         /* (a LOCK with no locks) */
+    d = &p->trk[4].def;                                 /* track 5: INF, micro -6, NOT 1ST by default */
+    d->notes[0] = 70, d->len = QD_LEN_INF, d->micro = -6, d->cond = QD_COND_N1ST;
+    D(p, 4, 0);
+    D(p, 4, 8);
+    st = D(p, 4, 12);
+    OV(st, QD_PM_COND, QD_COND_ALWAYS);
+    NOTES(st, 74, 0, 0, 0);
+    R_DEF_AT = 32 * 5560;                               /* 4.0345 s: between the steps' resolutions on every track */
+    pattern_test("p19-defaults", "track defaults: a strummed chord, velocity, length, micro (tapped steps; steps with "
+                 "their own velocity, notes, length); ratchet and chance; TIE and LOCK as the default trig; INF and NOT "
+                 "1ST; the chord, velocity and ratchet changed at 4.03 s", 8.0, 4242);
+    R_DEF_AT = -1;
+}
+
+/* p20: sound locks to the pool: the drums 18..23 with p-locks over them (the p-lock wins), one pool sound on many
+ * steps, factory sounds, the track's own sound */
+static void p_pool(void)
+{
+    TP *p = tp_new(0, 110);
+    TS *st;
+    int s;
+    p->trk[0].def.notes[0] = 33;                        /* track 1: KICK (A1) */
+    for (s = 0; s < 16; s += 4) {
+        st = D(p, 0, s);
+        OV(st, QD_PM_SOUND, QD_SND_KICK);
+        if (s == 8)
+            LK(st, QD_QP_LEVEL, 90);                    /* (KICK's LEVEL is 127: the lock's 90 plays) */
+    }
+    p->trk[1].def.notes[0] = 55;                        /* track 2: SNARE, GHOST, CLAP */
+    p->trk[1].def.len = 2;
+    OV(D(p, 1, 4), QD_PM_SOUND, QD_SND_SNARE);
+    st = D(p, 1, 12);
+    OV(st, QD_PM_SOUND, QD_SND_SNARE);
+    LK(st, QD_QP_FREQ, 7000);
+    LK(st, QD_LK_PAN, -20);
+    OV(D(p, 1, 10), QD_PM_SOUND, QD_SND_GHOST);
+    st = D(p, 1, 14);
+    OV(st, QD_PM_SOUND, QD_SND_CLAP);
+    NOTES(st, 60, 61, 62, 0);                           /* the clap: three bursts, strummed */
+    OV(st, QD_PM_STRUM, 2);
+    p->trk[2].def.notes[0] = 96;                        /* track 3: HAT on every other step, OPEN HAT twice, the */
+    p->trk[2].def.len = 1;                              /* track's own sound between */
+    p->trk[2].limit = 4;
+    for (s = 0; s < 16; s += 2) {
+        st = D(p, 2, s);
+        OV(st, QD_PM_SOUND, s == 6 || s == 14 ? QD_SND_OHAT : QD_SND_HAT);
+        if (s == 14)
+            LK(st, QD_LK_REVERB, 80);
+        if (s == 10)
+            LK(st, QD_QP_EDEC, 4);
+    }
+    D(p, 2, 3);
+    NOTES(D(p, 2, 11), 84, 0, 0, 0);
+    p->trk[3].def.notes[0] = 48;                        /* track 4: factory sounds from the pool, INIT, its own */
+    p->trk[3].def.len = 3;
+    OV(D(p, 3, 0), QD_PM_SOUND, 2);
+    OV(D(p, 3, 2), QD_PM_SOUND, QD_SND_INIT);
+    OV(D(p, 3, 4), QD_PM_SOUND, 9);
+    D(p, 3, 8);
+    st = D(p, 3, 12);
+    OV(st, QD_PM_SOUND, QD_SND_NOISE);
+    LK(st, QD_QP_RESO, 4000);
+    pattern_test("p20-pool", "sound locks to the pool: KICK (one with LEVEL locked), SNARE (one with FREQ and PAN), "
+                 "GHOST, CLAP strummed, HAT on 6 steps, OPEN HAT (reverb), factory sounds 2, 9, 17 (RESO), INIT, the "
+                 "track's own", 4.0, 1);
+}
+
+/* p21: notes from scale degrees (qd_scale_note at build time; the reference maps them with its own tables) */
+static void p_scales(void)
+{
+    TP *p = tp_new(0, 100);
+    TS *st;
+    int s;
+    p->key_scale = QD_SCALE_DORIAN;                     /* the global key: D dorian */
+    p->key_root = 2;
+    p->trk[0].scale = QD_SCALE_MAJOR;                   /* track 1: C major, octave 4, degrees -4..11 */
+    for (s = 0; s < 16; s++)
+        DEG(D(p, 0, s), 4, 1, s - 4, 0, 0, 0);
+    p->trk[0].def.len = 2;
+    p->trk[1].scale = QD_SCALE_MIN_PENTA;               /* track 2: A minor pentatonic, octave 3, and a chord */
+    p->trk[1].root = 9;
+    {
+        static const int DG[7] = {-6, -1, 0, 3, 7, 12, -11};
+        for (s = 0; s < 7; s++)
+            DEG(D(p, 1, s * 2), 3, 1, DG[s], 0, 0, 0);
+        DEG(D(p, 1, 14), 3, 3, 0, 2, 4, 0);
+    }
+    p->trk[2].scale = QD_SCALE_WHOLE_TONE;              /* track 3 follows the global key (its own is ignored) */
+    p->trk[2].root = 5;
+    p->trk[2].keyg = 1;
+    for (s = 0; s < 8; s++)
+        DEG(D(p, 2, s), 4, 1, s - 3, 0, 0, 0);
+    st = D(p, 2, 10);
+    DEG(st, 4, 4, 0, 2, 4, 6);                          /* a dorian seventh chord */
+    OV(st, QD_PM_LEN, 6);
+    p->trk[3].scale = QD_SCALE_HARM_MINOR;              /* track 4 at 2x: E harmonic minor, octave 2, 7 down to -8 */
+    p->trk[3].root = 4;
+    p->trk[3].rate = QD_RATE_2;
+    for (s = 0; s < 16; s++)
+        DEG(D(p, 3, s), 2, 1, 7 - s, 0, 0, 0);
+    p->trk[3].def.len = 2;
+    p->trk[4].scale = QD_SCALE_BLUES;                   /* track 5: G blues, octave 5, -8..7 */
+    p->trk[4].root = 7;
+    for (s = 0; s < 16; s++)
+        DEG(D(p, 4, s), 5, 1, s - 8, 0, 0, 0);
+    p->trk[4].def.len = 1;
+    p->trk[5].scale = QD_SCALE_CHROMATIC;               /* track 6 at 1/2x: chromatic, -12..3 */
+    p->trk[5].rate = QD_RATE_1_2;
+    for (s = 0; s < 16; s++)
+        DEG(D(p, 5, s), 4, 1, s - 12, 0, 0, 0);
+    p->trk[6].scale = QD_SCALE_LOCRIAN;                 /* track 7: B locrian at the edges: octave -1 below its root */
+    p->trk[6].root = 11;                                /* (note 2), octave 8 (125, and 134 clamped to 127), a chord */
+    DEG(D(p, 6, 0), -1, 1, -5, 0, 0, 0);
+    DEG(D(p, 6, 4), 8, 1, 4, 0, 0, 0);
+    DEG(D(p, 6, 8), 1, 2, -3, 3, 0, 0);
+    DEG(D(p, 6, 12), 8, 1, 9, 0, 0, 0);
+    pattern_test("p21-scales", "notes from scale degrees: C major -4..11; A minor pentatonic and a chord; the global "
+                 "key (D dorian) followed, a seventh chord; E harmonic minor at 2x; G blues; chromatic at 1/2x; B "
+                 "locrian low and high", 4.0, 1);
+}
+
+/* p22: solo: one track soloed, two, a soloed track that is also muted, the solo cleared */
+static void p_solo(void)
+{
+    TP *p = tp_new(0, 120);
+    int s;
+    for (s = 0; s < 16; s++) {
+        S(p, 0, s, QD_TRIG_NOTE, 48, 0, 0, 0)->len = 2;
+        if (s % 2 == 0)
+            S(p, 1, s, QD_TRIG_NOTE, 60, 0, 0, 0)->len = 2;
+        S(p, 2, s, QD_TRIG_NOTE, 72, 0, 0, 0)->len = 1;
+        if (s % 4 == 0)
+            S(p, 3, s, QD_TRIG_NOTE, 36, 43, 0, 0)->len = 4;
+        if (s % 3 == 0)
+            S(p, 4, s, QD_TRIG_NOTE, 84, 0, 0, 0)->len = 1;
+    }
+    p->trk[2].mute = 1;                                 /* track 3 muted (the pattern's flag) */
+    R_SOLO0 = 1 << 1;                                   /* track 2 alone */
+    R_NSOLO = 3;
+    R_SOLO_AT[0] = 32 * 1300, R_SOLO_M[0] = (1 << 0) | (1 << 3);   /* 0.94 s: tracks 1 and 4 */
+    R_SOLO_AT[1] = 32 * 2700, R_SOLO_M[1] = (1 << 1) | (1 << 2);   /* 1.96 s: track 2, and 3 (muted: silent) */
+    R_SOLO_AT[2] = 32 * 4100, R_SOLO_M[2] = 0;          /* 2.97 s: no solo: every track but the muted one */
+    pattern_test("p22-solo", "solo: track 2 alone; tracks 1 and 4 (0.94 s); track 2 and the muted track 3 (1.96 s); "
+                 "cleared (2.97 s)", 4.0, 1);
+    R_SOLO0 = R_NSOLO = 0;
+}
+
 /* ================================================================ units === */
 static void u_lockpool(void)
 {
@@ -1487,7 +2167,7 @@ static void u_lockpool(void)
     r = qd_page_copy(&Q, 6, 7, &P, 0, 0);
     CHECK(r == QD_OK && qd_lock_count(&Q, 6, 115) == 2 && qd_lock_count(&Q, 6, 121) == 1 && qd_pat_check(&Q),
           "page copy: steps 3 and 9 of page 1 onto page 8");
-    CHECK(qd_step_type(qd_step(&Q, 6, 121)) == QD_TRIG_LOCK, "page copy keeps the trig type");
+    CHECK(qd_step_type(&Q, 6, 121) == QD_TRIG_LOCK, "page copy keeps the trig type");
     r = qd_track_copy(&Q, 1, &P, 0);
     CHECK(r == QD_OK && Q.lock_n[1] == 3 && qd_pat_check(&Q), "track copy: 3 locks");
     r = qd_page_copy(&P, 0, 0, &P, 0, 0);                /* onto itself */
@@ -1506,44 +2186,55 @@ static void u_edit(void)
 {
     static qd_pattern_t P;
     const qd_step_t *st;
+    qd_rstep_t r;
     uint8_t n[4];
-    int r, n0 = fails, a, b, c;
+    int rr, n0 = fails, a, b, c;
     char buf[8];
     qd_pat_init(&P);
-    P.trk[2].def_note = 50;
-    P.trk[2].def_vel = 90;
-    P.trk[2].def_len = 6;
-    CHECK(sizeof(qd_step_t) == 12 && sizeof(qd_lock_t) == 4, "step 12 bytes (%d), lock 4 (%d)",
+    qd_tdef_set(&P, 2, QD_PM_NOTE, 50);
+    qd_tdef_set(&P, 2, QD_PM_VEL, 90);
+    qd_tdef_set(&P, 2, QD_PM_LEN, 6);
+    CHECK(sizeof(qd_step_t) == 16 && sizeof(qd_lock_t) == 4, "step 16 bytes (%d), lock 4 (%d)",
           (int)sizeof(qd_step_t), (int)sizeof(qd_lock_t));
-    r = qd_step_set_trig(&P, 2, 5, QD_TRIG_NOTE);
+    rr = qd_step_on(&P, 2, 5);
     st = qd_step(&P, 2, 5);
-    CHECK(r == QD_OK && st->note[0] == 50 && st->vel == 90 && st->len == 6 && st->chance == 100,
-          "a new trig takes the track's defaults");
+    qd_step_resolve(&P, 2, 5, &r);
+    CHECK(rr == QD_OK && st->ovr == 0 && r.on && r.type == QD_TRIG_NOTE && r.notes[0] == 50 && r.vel == 90 &&
+              r.len == 6 && r.chance == 100,
+          "a tapped step has no overrides: it plays the track's defaults");
+    qd_tdef_set(&P, 2, QD_PM_VEL, 70);
+    qd_step_resolve(&P, 2, 5, &r);
+    CHECK(r.vel == 70, "a default changed: the step follows (%d)", r.vel);
     {
         const uint8_t ch[4] = {67, 60, 64, 60};
-        r = qd_step_set_notes(&P, 2, 5, ch, 4);
+        rr = qd_step_set_notes(&P, 2, 5, ch, 4);
     }
-    CHECK(r == QD_OK && qd_step_notes(st, n) == 3 && n[0] == 60 && n[1] == 64 && n[2] == 67 && st->note[1] == 4,
-          "notes: ascending, no repeats, 2..4 as offsets");
+    CHECK(rr == QD_OK && qd_step_notes(&P, 2, 5, n) == 3 && n[0] == 60 && n[1] == 64 && n[2] == 67 &&
+              st->note[1] == 4 && qd_step_overrides(st, QD_PM_NOTE) && !qd_step_overrides(st, QD_PM_VEL),
+          "notes: ascending, no repeats, 2..4 as offsets; NOTE overridden, VEL not");
     {
         const uint8_t wide[2] = {30, 79};
         CHECK(qd_step_set_notes(&P, 2, 5, wide, 2) == QD_ENOTE, "an offset over +48: refused");
     }
-    CHECK(qd_step_set_ratchet(&P, 2, 5, 8, QD_RAMP_ACCENT) == QD_OK && qd_step_ratchet(st) == 8 &&
-          qd_step_ramp(st) == QD_RAMP_ACCENT && qd_step_type(st) == QD_TRIG_NOTE, "ratchet x8, accent");
+    qd_step_resolve(&P, 2, 5, &r);
+    CHECK(qd_step_set_ratchet(&P, 2, 5, 8, QD_RAMP_ACCENT) == QD_OK && (qd_step_resolve(&P, 2, 5, &r), r.ratch == 8) &&
+              r.ramp == QD_RAMP_ACCENT && r.type == QD_TRIG_NOTE, "ratchet x8, accent");
     CHECK(qd_step_set_micro(&P, 2, 5, -24) == QD_EARG && qd_step_set_micro(&P, 2, 5, -23) == QD_OK &&
-          st->micro == -23, "micro -23..23");
+              st->micro == -23, "micro -23..23");
     CHECK(qd_step_set_strum(&P, 2, 5, 24) == QD_EARG && qd_step_set_strum(&P, 2, 5, 23) == QD_OK, "strum 0..23");
     CHECK(qd_step_set_chance(&P, 2, 5, 101) == QD_EARG && qd_step_set_chance(&P, 2, 5, 0) == QD_OK, "chance");
-    CHECK(qd_step_set_sound(&P, 2, 5, 18) == QD_EARG && qd_step_set_sound(&P, 2, 5, 17) == QD_OK, "sound 0..17");
+    CHECK(qd_step_set_sound(&P, 2, 5, QD_NSOUND + 1) == QD_EARG && qd_step_set_sound(&P, 2, 5, QD_NSOUND) == QD_OK,
+          "sound 0..128 (a pool number)");
     CHECK(qd_step_set_len(&P, 2, 5, QD_LEN_INF) == QD_OK && qd_len_eighths(QD_LEN_INF) < 0, "INF");
-    CHECK(qd_step_set_trig(&P, 2, 5, QD_TRIG_TIE) == QD_OK && qd_step_type(st) == QD_TRIG_TIE &&
-          qd_step_ratchet(st) == 8, "the type changes, the rest stays");
+    CHECK(qd_step_set_trig(&P, 2, 5, QD_TRIG_TIE) == QD_OK && qd_step_type(&P, 2, 5) == QD_TRIG_TIE &&
+              (qd_step_resolve(&P, 2, 5, &r), r.ratch == 8), "the type changes, the rest stays");
+    CHECK(qd_step_reset(&P, 2, 5, QD_PM_TRIG) == QD_OK && qd_step_type(&P, 2, 5) == QD_TRIG_NOTE,
+          "the type's override cleared: the track's NOTE again");
     CHECK(qd_step_set_vel(&P, 9, 5, 100) == QD_EARG && qd_step_set_vel(&P, 2, 128, 100) == QD_EARG, "out of range");
     qd_lock_set(&P, 2, 5, QD_QP_FREQ, 1);
-    CHECK(qd_step_set_trig(&P, 2, 5, QD_TRIG_NONE) == QD_OK && !qd_lock_count(&P, 2, 5) && !st->flags &&
-          !st->note[0], "NONE: the step and its locks gone");
-    CHECK(qd_lock_set(&P, 2, 6, QD_QP_FREQ, 3000) == QD_OK && qd_step_type(qd_step(&P, 2, 6)) == QD_TRIG_LOCK,
+    CHECK(qd_step_set_trig(&P, 2, 5, QD_TRIG_NONE) == QD_OK && !qd_lock_count(&P, 2, 5) && !st->flags && !st->ovr &&
+              !st->note[0], "NONE: the step and its locks gone");
+    CHECK(qd_lock_set(&P, 2, 6, QD_QP_FREQ, 3000) == QD_OK && qd_step_type(&P, 2, 6) == QD_TRIG_LOCK,
           "a lock on an empty step makes a LOCK step");
     CHECK(qd_lock_set(&P, 2, 6, QD_LK_N, 0) == QD_EARG, "lock id out of range");
     {
@@ -1551,6 +2242,8 @@ static void u_edit(void)
         qd_lock_set(&P, 2, 6, QD_LK_PAN, -100);
         CHECK(qd_lock_get(&P, 2, 6, QD_LK_PAN, &v) && v == -64, "a lock is clamped to its range (%d)", v);
     }
+    CHECK(qd_step_set_vel(&P, 2, 9, 33) == QD_OK && qd_step_is_on(qd_step(&P, 2, 9)) &&
+              qd_step_type(&P, 2, 9) == QD_TRIG_NOTE, "a value set on an empty step turns it on (the track's type)");
     /* the conditions' table */
     c = 0;
     for (b = 2; b <= 8; b++)
@@ -1564,10 +2257,10 @@ static void u_edit(void)
     CHECK(!strcmp(qd_cond_name(qd_cond_ab(3, 4), buf), "3:4") && !strcmp(qd_cond_name(QD_COND_NNEI, buf), "!NEI"),
           "condition names");
     CHECK(qd_rate_ticks(QD_RATE_3_4) == 67200 && qd_rate_ticks(QD_RATE_4_3) == 37800 &&
-          qd_rate_ticks(QD_RATE_2_3) == 75600 && qd_rate_ticks(QD_RATE_1_8) == 403200, "rates in ticks");
+              qd_rate_ticks(QD_RATE_2_3) == 75600 && qd_rate_ticks(QD_RATE_1_8) == 403200, "rates in ticks");
     {
         const int64_t m0 = qd_pat_master_ticks(&P);
-        P.trk[4].length = 64;
+        qd_track_set_length(&P, 4, 64);
         P.trk[4].rate = QD_RATE_1_2;
         CHECK(m0 == 16 * QD_TPS && qd_pat_master_ticks(&P) == 128 * QD_TPS, "master auto: the longest track");
         P.master = 32;
@@ -1575,8 +2268,22 @@ static void u_edit(void)
         P.master = QD_MASTER_INF;
         CHECK(qd_pat_master_ticks(&P) == 0, "master INF");
     }
-    printf("  %-4s editing API       defaults, notes as offsets, every field's range, NONE, LOCK by a lock, 44 "
-           "conditions, rates, master\n", fails == n0 ? "ok" : "FAIL");
+    /* pages */
+    qd_track_set_length(&P, 1, 24);
+    CHECK(P.trk[1].loop == 3 && P.trk[1].pend[0] == 15 && P.trk[1].pend[1] == 7 && qd_track_len(&P.trk[1]) == 24 &&
+              qd_track_loop_step(&P.trk[1], 20) == 20 && qd_track_loop_step(&P.trk[1], 24) == 0,
+          "length 24: page 1 1..16, page 2 1..8");
+    qd_page_set_loop(&P, 1, (1 << 0) | (1 << 2));
+    qd_page_set_range(&P, 1, 2, 4, 9);
+    CHECK(qd_track_len(&P.trk[1]) == 22 && qd_track_loop_step(&P.trk[1], 16) == 36 &&
+              qd_track_loop_step(&P.trk[1], 21) == 41 && qd_track_step_pos(&P.trk[1], 40) == 20 &&
+              qd_track_step_pos(&P.trk[1], 35) == -1 && qd_track_step_pos(&P.trk[1], 20) == -1,
+          "pages 1 and 3 (5..10): 22 steps, page 3's step 5 after page 1");
+    qd_page_set_loop(&P, 1, 0);
+    CHECK(qd_track_loop(&P.trk[1]) == 1 && qd_page_set_range(&P, 1, 0, 9, 3) == QD_EARG, "the loop never empty; "
+          "start <= end");
+    printf("  %-4s editing API       defaults and overrides, notes as offsets, every field's range, NONE, LOCK by a "
+           "lock, 44 conditions, rates, master, pages\n", fails == n0 ? "ok" : "FAIL");
 }
 
 /* the patch of a trig: the sound lock's preset, the p-locks over it; the own mask; the mix locks */
@@ -1790,6 +2497,286 @@ static void u_transport(void)
            "mute; master INF waits\n", fails == n0 ? "ok" : "FAIL");
 }
 
+/* track t of P as it is (its steps, its locks, its settings): for the undo checks */
+typedef struct {
+    qd_step_t step[QD_NSTEP];
+    qd_lock_t lk[QD_NLOCK];
+    int nlk;
+    qd_tset_t ts;
+} snap_t;
+static void snap(const qd_pattern_t *P, int t, snap_t *s)
+{
+    memset(s, 0, sizeof *s);
+    qd_steps_get(P, t, 0, QD_NSTEP, s->step, s->lk, &s->nlk);
+    s->ts = P->trk[t];
+}
+static int snap_eq(const snap_t *a, const snap_t *b)
+{
+    return a->nlk == b->nlk && !memcmp(a->step, b->step, sizeof a->step) &&
+           !memcmp(a->lk, b->lk, (size_t)a->nlk * sizeof a->lk[0]) && !memcmp(&a->ts, &b->ts, sizeof a->ts);
+}
+
+/* clip.h: the step and page clipboards, cut, clears, undo (and redo), a full pool */
+static void u_clip(void)
+{
+    static qd_pattern_t P, Q, Q0;
+    static qd_clip_t C;
+    static snap_t A, B;
+    const uint8_t ch[3] = {60, 64, 67};
+    int r, s, i, n0 = fails;
+    int16_t v = 0;
+    qd_pat_init(&P);
+    qd_clip_init(&C);
+    CHECK(qd_clip_paste_step(&C, &P, 0, 0, 0) == QD_EARG && qd_clip_paste_page(&C, &P, 0, 0, 0) == QD_EARG &&
+              !qd_clip_can_undo(&C, 0, 0), "an empty clipboard pastes nothing; nothing to undo");
+    /* a step with a chord, its own velocity and two locks: copied to another track, pasted twice */
+    qd_step_set_notes(&P, 0, 3, ch, 3);
+    qd_step_set_vel(&P, 0, 3, 77);
+    qd_lock_set(&P, 0, 3, QD_QP_FREQ, 4000);
+    qd_lock_set(&P, 0, 3, QD_LK_PAN, -20);
+    r = qd_clip_copy_step(&C, &P, 0, 3);
+    CHECK(r == QD_OK && C.st.valid && C.st.nlk == 2, "copy a step: its two locks (%d)", C.st.nlk);
+    for (s = 20; s <= 21; s++) {
+        r = qd_clip_paste_step(&C, &P, 0, 5, s);
+        CHECK(r == QD_OK && !memcmp(qd_step(&P, 5, s), qd_step(&P, 0, 3), sizeof(qd_step_t)) &&
+                  qd_lock_count(&P, 5, s) == 2 && qd_lock_get(&P, 5, s, QD_QP_FREQ, &v) && v == 4000 &&
+                  qd_lock_get(&P, 5, s, QD_LK_PAN, &v) && v == -20 && qd_pat_check(&P),
+              "paste onto track 6 step %d: the step, its overrides and its locks", s + 1);
+    }
+    CHECK(qd_step_overrides(qd_step(&P, 5, 21), QD_PM_VEL) && !qd_step_overrides(qd_step(&P, 5, 21), QD_PM_LEN),
+          "a pasted step keeps which parameters it overrides");
+    /* a page: its steps, locks, start and end; pasted onto another track's page 4, which joins the loop */
+    qd_page_set_range(&P, 0, 0, 2, 9);
+    qd_step_on(&P, 0, 9);
+    qd_lock_set(&P, 0, 12, QD_QP_EDEC, 50);             /* (a LOCK step) */
+    r = qd_clip_copy_page(&C, &P, 0, 0);
+    CHECK(r == QD_OK && C.pg.valid && C.pg.start == 2 && C.pg.end == 9 && C.pg.nlk == 3, "copy a page: 3 locks, "
+          "start 3, end 10");
+    snap(&P, 6, &A);
+    r = qd_clip_paste_page(&C, &P, 0, 6, 3);
+    CHECK(r == QD_OK && P.trk[6].pstart[3] == 2 && P.trk[6].pend[3] == 9 && qd_track_loop(&P.trk[6]) == (1 | 8) &&
+              !memcmp(&P.step[6][48], &P.step[0][0], 16 * sizeof(qd_step_t)) && qd_lock_count(&P, 6, 51) == 2 &&
+              qd_lock_count(&P, 6, 60) == 1 && qd_step_type(&P, 6, 60) == QD_TRIG_LOCK && qd_pat_check(&P),
+          "paste a page onto track 7 page 4: steps, locks, start 3 end 10, the page in the loop (pages 1 and 4)");
+    CHECK(qd_track_len(&P.trk[6]) == 16 + 8, "track 7's loop: 16 + 8 steps (%d)", qd_track_len(&P.trk[6]));
+    snap(&P, 6, &B);
+    r = qd_clip_undo(&C, &P, 0, 6);
+    {
+        static snap_t X;
+        snap(&P, 6, &X);
+        CHECK(r == 1 && snap_eq(&X, &A) && qd_track_loop(&P.trk[6]) == 1 && qd_pat_check(&P),
+              "undo the page paste: the page empty, the loop page 1 again");
+        r = qd_clip_undo(&C, &P, 0, 6);
+        snap(&P, 6, &X);
+        CHECK(r == 1 && snap_eq(&X, &B) && qd_pat_check(&P), "undo again: the paste again (redo)");
+    }
+    /* cut: copied, then cleared; undo restores it; undo again cuts it again */
+    snap(&P, 0, &A);
+    r = qd_clip_cut_step(&C, &P, 0, 0, 3);
+    CHECK(r == QD_OK && !qd_step_is_on(qd_step(&P, 0, 3)) && !qd_lock_count(&P, 0, 3) && C.st.nlk == 2 &&
+              C.st.step.vel == 77 && qd_pat_check(&P), "cut: the step cleared, in the clipboard with its locks");
+    snap(&P, 0, &B);
+    r = qd_clip_undo(&C, &P, 0, 0);
+    {
+        static snap_t X;
+        snap(&P, 0, &X);
+        CHECK(r == 1 && snap_eq(&X, &A) && qd_lock_count(&P, 0, 3) == 2, "undo the cut: the step and its locks back");
+        r = qd_clip_undo(&C, &P, 0, 0);
+        snap(&P, 0, &X);
+        CHECK(r == 1 && snap_eq(&X, &B), "undo again: cut again (redo)");
+        qd_clip_undo(&C, &P, 0, 0);
+        snap(&P, 0, &X);
+        CHECK(snap_eq(&X, &A), "and back");
+    }
+    r = qd_clip_paste_step(&C, &P, 0, 0, 4);            /* the cut step pasted elsewhere */
+    CHECK(r == QD_OK && qd_lock_count(&P, 0, 4) == 2 && P.step[0][4].vel == 77, "paste the cut step");
+    /* clear a page: only its steps; undo */
+    qd_step_set_vel(&P, 0, 40, 33);
+    snap(&P, 0, &A);
+    r = qd_clip_clear_page(&C, &P, 0, 0, 0);
+    for (s = 0, i = 0; s < 16; s++)
+        i += qd_step_is_on(qd_step(&P, 0, s)) || qd_lock_count(&P, 0, s);
+    CHECK(r == QD_OK && !i && qd_step_is_on(qd_step(&P, 0, 40)) && P.trk[0].pstart[0] == 2 && qd_pat_check(&P),
+          "clear page 1: its steps and locks gone, page 3's step stays, the range stays");
+    r = qd_clip_undo(&C, &P, 0, 0);
+    snap(&P, 0, &B);
+    CHECK(r == 1 && snap_eq(&A, &B), "undo the page clear");
+    /* clear a track; an undo for another pattern index does nothing; the right one restores */
+    r = qd_clip_clear_track(&C, &P, 0, 0);
+    for (s = 0, i = 0; s < QD_NSTEP; s++)
+        i += qd_step_is_on(qd_step(&P, 0, s));
+    CHECK(r == QD_OK && !i && !P.lock_n[0] && qd_pat_check(&P), "clear the track: no steps, no locks");
+    memcpy(&Q, &P, sizeof Q);
+    r = qd_clip_undo(&C, &P, 1, 0);
+    CHECK(r == 0 && !qd_clip_can_undo(&C, 1, 0) && qd_clip_can_undo(&C, 0, 0) && !memcmp(&P, &Q, sizeof P),
+          "undo for another pattern (B01's level is A01's): nothing");
+    CHECK(qd_clip_undo(&C, &P, 0, 7) == 0, "undo on a track never edited: nothing");
+    r = qd_clip_undo(&C, &P, 0, 0);
+    snap(&P, 0, &B);
+    CHECK(r == 1 && snap_eq(&A, &B) && qd_pat_check(&P), "undo the track clear");
+    {   /* clear steps */
+        const int ss[2] = {4, 40};
+        r = qd_clip_clear_steps(&C, &P, 0, 0, ss, 2);
+        CHECK(r == QD_OK && !qd_step_is_on(qd_step(&P, 0, 4)) && !qd_step_is_on(qd_step(&P, 0, 40)) &&
+                  qd_step_is_on(qd_step(&P, 0, 9)) && qd_pat_check(&P), "clear two steps");
+        qd_clip_undo(&C, &P, 0, 0);
+        snap(&P, 0, &B);
+        CHECK(snap_eq(&A, &B), "undo the steps' clear");
+    }
+    /* a full lock pool: a paste with locks returns QD_EFULL and changes nothing */
+    qd_pat_init(&Q);
+    for (i = 0; Q.nlock < QD_NLOCK; i++)
+        qd_lock_set(&Q, 1 + i % 7, (i / 7) % 128, (i / (7 * 128)) % QD_LK_N, i);
+    memcpy(&Q0, &Q, sizeof Q0);
+    r = qd_clip_paste_step(&C, &Q, 0, 0, 0);
+    CHECK(r == QD_EFULL && !memcmp(&Q, &Q0, sizeof Q), "a step paste onto a full pool: QD_EFULL (%d), nothing changed",
+          r);
+    r = qd_clip_paste_page(&C, &Q, 0, 0, 2);
+    CHECK(r == QD_EFULL && !memcmp(&Q, &Q0, sizeof Q), "a page paste onto a full pool: QD_EFULL (%d), the steps, the "
+          "range and the loop unchanged", r);
+    qd_clip_copy_step(&C, &P, 0, 9);                    /* (a step without locks still pastes) */
+    r = qd_clip_paste_step(&C, &Q, 0, 0, 0);
+    CHECK(r == QD_OK && qd_step_is_on(qd_step(&Q, 0, 0)) && qd_pat_check(&Q), "a step with no locks: pasted (%d)", r);
+    printf("  %-4s clipboard         step copy / paste (each again) between tracks with locks, page copy / paste "
+           "(range, loop), cut, clears, undo / redo per track and pattern, a full pool\n", fails == n0 ? "ok" : "FAIL");
+}
+
+/* scale.h against the test's own tables */
+static void u_scale(void)
+{
+    int sc, root, oct, deg, note, bad = 0, n0 = fails, sz = 0, k;
+    for (sc = 0; sc < QD_NSCALE; sc++) {
+        sz += qd_scale_size(sc) == R_SC[sc].n;
+        CHECK(!strcmp(qd_scale_name(sc), R_SC[sc].name) && !strcmp(qd_scale_short(sc), R_SC[sc].shrt),
+              "scale %d's name %s (%s)", sc, qd_scale_name(sc), qd_scale_short(sc));
+    }
+    CHECK(sz == QD_NSCALE && qd_scale_size(QD_SCALE_CHROMATIC) == 12 && qd_scale_size(QD_SCALE_MAJOR) == 7 &&
+              qd_scale_size(QD_SCALE_MAJ_PENTA) == 5 && qd_scale_size(QD_SCALE_BLUES) == 6, "the sizes: 12, 7, 5, 6");
+    CHECK(!strcmp(qd_scale_name(-1), "CHROMATIC") && !strcmp(qd_scale_name(QD_NSCALE), "CHROMATIC"),
+          "a scale out of range: chromatic");
+    for (sc = 0; sc < QD_NSCALE; sc++)                 /* every scale, root, octave -1..9, degree -40..40 */
+        for (root = 0; root < 12; root++)
+            for (oct = -1; oct <= 9; oct++)
+                for (deg = -40; deg <= 40; deg++)
+                    if (qd_scale_note(sc, root, oct, deg) != r_scale_note(sc, root, oct, deg) && bad++ < 3)
+                        printf("    scale %s root %d oct %d degree %d: %d, the test's %d\n", R_SC[sc].name, root, oct,
+                               deg, qd_scale_note(sc, root, oct, deg), r_scale_note(sc, root, oct, deg));
+    CHECK(!bad, "qd_scale_note: every scale, root, octave, degree (negative too) as the test's tables (%d differ)", bad);
+    CHECK(qd_scale_note(QD_SCALE_MAJOR, 0, 4, 0) == 60 && qd_scale_note(QD_SCALE_MAJOR, 0, 4, 7) == 72 &&
+              qd_scale_note(QD_SCALE_MAJOR, 0, 4, -1) == 59 && qd_scale_note(QD_SCALE_MAJOR, 0, 4, -7) == 48 &&
+              qd_scale_note(QD_SCALE_MAJOR, 0, 4, -8) == 47 && qd_scale_note(QD_SCALE_MINOR, 9, 3, 2) == 60 &&
+              qd_scale_note(QD_SCALE_MIN_PENTA, 9, 3, -1) == 55 && qd_scale_note(QD_SCALE_CHROMATIC, 0, 4, -13) == 47,
+          "C major 0 / 7 / -1 / -7 / -8 = C4 C5 B3 C3 B2; A minor 2 = C4; A minor penta -1 = G3; chromatic -13 = B2");
+    CHECK(qd_scale_note(QD_SCALE_MAJOR, 0, 9, 20) == 127 && qd_scale_note(QD_SCALE_MAJOR, 0, -1, -3) == 0,
+          "clamped 0..127");
+    for (sc = 0, bad = 0; sc < QD_NSCALE; sc++)         /* has / step / snap against the test's own walk */
+        for (root = 0; root < 12; root++)
+            for (note = 0; note < 128; note++) {
+                int up = note, dn = note, sn = note;
+                bad += qd_scale_has(sc, root, note) != r_scale_has(sc, root, note);
+                for (k = 1; k <= 12; k++)
+                    if (note + k <= 127 && r_scale_has(sc, root, note + k)) {
+                        up = note + k;
+                        break;
+                    }
+                for (k = 1; k <= 12; k++)
+                    if (note - k >= 0 && r_scale_has(sc, root, note - k)) {
+                        dn = note - k;
+                        break;
+                    }
+                while (sn > 0 && !r_scale_has(sc, root, sn))
+                    sn--;
+                bad += qd_scale_step(sc, root, note, 1) != up;
+                bad += qd_scale_step(sc, root, note, -1) != dn;
+                bad += qd_scale_snap(sc, root, note) != sn;
+            }
+    CHECK(!bad, "qd_scale_has / qd_scale_step (up, down) / qd_scale_snap: every scale, root, note (%d differ)", bad);
+    CHECK(qd_scale_step(QD_SCALE_MAJOR, 0, 60, 1) == 62 && qd_scale_step(QD_SCALE_MAJOR, 0, 64, 1) == 65 &&
+              qd_scale_step(QD_SCALE_MAJOR, 0, 61, -1) == 60 && qd_scale_step(QD_SCALE_MAJOR, 0, 127, 1) == 127 &&
+              qd_scale_snap(QD_SCALE_MAJOR, 0, 66) == 65 && qd_scale_snap(QD_SCALE_MIN_PENTA, 9, 59) == 57,
+          "C major: up from C4 D4, from E4 F4, down from C#4 C4, none above 127; snap F#4 -> F4; A penta B3 -> A3");
+    {
+        static qd_project_t *pr = &PROJ;
+        qd_pattern_t *P = &pr->pat[3];
+        int s2, r2;
+        qd_pat_init(P);
+        pr->key_scale = QD_SCALE_LYDIAN;
+        pr->key_root = 5;
+        P->trk[2].scale = QD_SCALE_MAJOR;
+        P->trk[2].root = 14;
+        qd_track_key(pr, P, 2, &s2, &r2);
+        CHECK(s2 == QD_SCALE_MAJOR && r2 == 2, "a track's own key (root 14 -> D): %d %d", s2, r2);
+        P->trk[2].key_global = 1;
+        qd_track_key(pr, P, 2, &s2, &r2);
+        CHECK(s2 == QD_SCALE_LYDIAN && r2 == 5, "a track following the global key: %d %d", s2, r2);
+        qd_track_key(0, P, 2, &s2, &r2);
+        CHECK(s2 == QD_SCALE_MAJOR && r2 == 2, "(no project: its own)");
+        P->trk[3].scale = 99;
+        qd_track_key(pr, P, 3, &s2, &r2);
+        CHECK(s2 == QD_SCALE_CHROMATIC && r2 == 0, "a scale out of range: chromatic");
+        qd_project_init(pr);
+    }
+    printf("  %-4s scales            %d scales' names and sizes, qd_scale_note (every degree, octave, root; negative "
+           "degrees), step, snap, the track's key\n", fails == n0 ? "ok" : "FAIL", QD_NSCALE);
+}
+
+/* sounds.h: the pool's first 23 sounds */
+static void u_sounds(void)
+{
+    static const char *const DRUM[6] = {"KICK", "SNARE", "CLAP", "GHOST", "HAT", "OPEN HAT"};
+    int16_t want[QD_QUAD_NP], init[QD_QUAD_NP];
+    int k, i, bad = 0, n0 = fails;
+    rig_reset();
+    CHECK(PROJ.nsound == 23 && QD_SND_FIRST_FREE == 24 && QD_SND_KICK == 18 && QD_SND_OHAT == 23 &&
+              QD_SND_NOISE == 17, "23 sounds; KICK 18 .. OPEN HAT 23 (%d)", PROJ.nsound);
+    CHECK(!strcmp(qd_sound_name(&PROJ, 1), "INIT") && !strcmp(qd_sound_name(&PROJ, 2), "EP") &&
+              !strcmp(qd_sound_name(&PROJ, 17), "NOISE-ISH"), "1 INIT, 2 EP, 17 NOISE-ISH");
+    for (k = 1; k <= 17; k++)
+        bad += strcmp(qd_sound_name(&PROJ, k), qd_quad_preset_name(k - 1)) != 0;
+    for (k = 0; k < 6; k++)
+        bad += strcmp(qd_sound_name(&PROJ, 18 + k), DRUM[k]) != 0;
+    CHECK(!bad, "the names: the presets', then KICK, SNARE, CLAP, GHOST, HAT, OPEN HAT (%d differ)", bad);
+    for (k = 1, bad = 0; k <= 23; k++) {
+        r_pool_patch(k, want);
+        if (memcmp(qd_sound_patch(&PROJ, k), want, sizeof want) && bad++ < 3)
+            printf("    sound %d (%s): its patch is not the test's\n", k, qd_sound_name(&PROJ, k));
+    }
+    CHECK(!bad, "every patch: 1..17 the presets, 18..23 a preset with sounds.c's values (%d differ)", bad);
+    CHECK(!R_POOL_CLAMPED, "the drums' values are within their ranges (%d clamped)", R_POOL_CLAMPED);
+    qd_quad_preset_patch(0, init);
+    memcpy(want, qd_sound_patch(&PROJ, QD_SND_KICK), sizeof want);
+    for (i = 0, bad = 0; i < QD_QUAD_NP; i++) {
+        const int listed = i == QD_QP_EDEC || i == QD_QP_ESUS || i == QD_QP_EREL || i == QD_QP_ALEV ||
+                           i == QD_QP_ADEC || i == QD_QP_AEND || i == QD_QP_RA || i == QD_QP_LEVEL ||
+                           (i >= QD_QP_LFO(0, 0) && i < QD_QP_LFO(1, 0));
+        bad += !listed && want[i] != init[i];
+    }
+    CHECK(!bad && want[QD_QP_EDEC] == 32 && want[QD_QP_ESUS] == 0 && want[QD_QP_LEVEL] == 127 &&
+              want[QD_QP_LFO(0, QD_QL_DEST)] == 1 && want[QD_QP_LFO(0, QD_QL_WAVE)] == 5 && want[QD_QP_RA] == 8,
+          "KICK: INIT with AMP DEC 32 SUS 0, the pitch LFO (EXP, HALF), A LEV 60, RATIO A 2.00, LEVEL 127 (%d others)",
+          bad);
+    {
+        const int16_t *sn = qd_sound_patch(&PROJ, QD_SND_SNARE), *hat = qd_sound_patch(&PROJ, QD_SND_HAT);
+        qd_quad_preset_patch(QD_SND_NOISE - 1, init);
+        CHECK(sn[QD_QP_FTYPE] == QD_QF_LP12 && sn[QD_QP_LEVEL] == 120 && hat[QD_QP_FTYPE] == init[QD_QP_FTYPE] &&
+                  hat[QD_QP_FREQ] == 9500, "SNARE: NOISE-ISH through LP12, LEVEL 120; HAT: NOISE-ISH's own filter type");
+    }
+    CHECK(!strcmp(qd_sound_name(&PROJ, 0), "") && !strcmp(qd_sound_name(&PROJ, 24), "") &&
+              qd_sound_patch(&PROJ, 0) == qd_sound_patch(&PROJ, 1) && qd_sound_patch(&PROJ, 99) == PROJ.sound[0].patch,
+          "out of the pool: no name, INIT's patch");
+    qd_quad_preset_patch(3, want);
+    k = qd_sound_add(&PROJ, "A NAME TOO LONG", want);
+    CHECK(k == 24 && PROJ.nsound == 24 && !strcmp(qd_sound_name(&PROJ, 24), "A NAME TOO ") &&
+              !memcmp(qd_sound_patch(&PROJ, 24), want, sizeof want), "add: number 24, the name cut to 11 (%s)",
+          qd_sound_name(&PROJ, 24));
+    while (qd_sound_add(&PROJ, "X", want))
+        ;
+    CHECK(PROJ.nsound == QD_NSOUND && !qd_sound_add(&PROJ, "Y", want), "the pool full at %d: 0", QD_NSOUND);
+    rig_reset();
+    printf("  %-4s sound pool        23 sounds, their names, the presets, the drums as sounds.c makes them, KICK = INIT "
+           "with its values, add, full\n", fails == n0 ? "ok" : "FAIL");
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 3) {
@@ -1806,6 +2793,9 @@ int main(int argc, char **argv)
     u_dip();
     u_transport();
     u_determinism();
+    u_clip();
+    u_scale();
+    u_sounds();
     p_sixteenths();
     p_polymeter();
     p_swing();
@@ -1822,6 +2812,12 @@ int main(int argc, char **argv)
     p_change();
     p_clock();
     p_mix();
+    p_pages();
+    p_loops();
+    p_defaults();
+    p_pool();
+    p_scales();
+    p_solo();
     printf("test_seq: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

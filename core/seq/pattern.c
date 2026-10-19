@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "pattern.h"
+#include "scale.h"
+#include "sounds.h"
 
 /* ---------------------------------------------------------------- tables --- */
 static const int16_t QD_LEN_E[QD_NLEN] = {1, 2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768,
@@ -77,18 +79,43 @@ int qd_lock_range(int id, int16_t *min, int16_t *max)
     return 1;
 }
 
+int qd_ratch_count(int ratch) { return 1 + (ratch & QD_RT_COUNT); }
+int qd_ratch_ramp(int ratch) { return (ratch & QD_RT_RAMP) >> QD_RT_RAMP_SH; }
+int qd_ratch_make(int count, int ramp)
+{
+    count = count < 1 ? 1 : count > 8 ? 8 : count;
+    ramp = ramp < 0 ? 0 : ramp > QD_RAMP_ACCENT ? QD_RAMP_ACCENT : ramp;
+    return (count - 1) | (ramp << QD_RT_RAMP_SH);
+}
+
 /* ---------------------------------------------------------------- patterns --- */
+void qd_sdef_init(qd_sdef_t *d)
+{
+    memset(d, 0, sizeof *d);
+    d->note[0] = 60;
+    d->vel = 100;
+    d->len = QD_LEN_1;
+    d->chance = 100;
+    d->cond = QD_COND_ALWAYS;
+    d->type = QD_TRIG_NOTE;
+}
+
 void qd_tset_init(qd_tset_t *s, int track)
 {
+    int p;
     memset(s, 0, sizeof *s);
-    s->def_note = 60;
-    s->def_vel = 100;
-    s->def_len = QD_LEN_1;
+    qd_sdef_init(&s->def);
     s->chan = (uint8_t)(track & 15);
     s->limit = 6;
     s->reserve = 0;
     s->rate = QD_RATE_1;
-    s->length = 16;
+    s->loop = 1;
+    for (p = 0; p < QD_NPAGE; p++) {
+        s->pstart[p] = 0;
+        s->pend[p] = QD_PAGE - 1;
+    }
+    s->scale = QD_SCALE_CHROMATIC;
+    s->root = 0;
 }
 
 void qd_pat_init(qd_pattern_t *p)
@@ -107,6 +134,9 @@ void qd_project_init(qd_project_t *pr)
     int k;
     for (k = 0; k < QD_NPAT; k++)
         qd_pat_init(&pr->pat[k]);
+    qd_sounds_init(pr);
+    pr->key_scale = QD_SCALE_CHROMATIC;
+    pr->key_root = 0;
 }
 
 const char *qd_pat_name(int k, char *buf)
@@ -119,6 +149,104 @@ const char *qd_pat_name(int k, char *buf)
     return buf;
 }
 
+/* ---------------------------------------------------------------- pages --- */
+int qd_track_loop(const qd_tset_t *ts) { return ts->loop ? ts->loop : 1; }
+
+static int page_n(const qd_tset_t *ts, int p)
+{
+    const int a = ts->pstart[p] & 15, b = ts->pend[p] & 15;
+    return b >= a ? b - a + 1 : 1;
+}
+
+int qd_track_len(const qd_tset_t *ts)
+{
+    const int m = qd_track_loop(ts);
+    int p, n = 0;
+    for (p = 0; p < QD_NPAGE; p++)
+        if ((m >> p) & 1)
+            n += page_n(ts, p);
+    return n < 1 ? 1 : n;
+}
+
+int qd_track_loop_step(const qd_tset_t *ts, int pos)
+{
+    const int m = qd_track_loop(ts), len = qd_track_len(ts);
+    int p;
+    pos %= len;
+    if (pos < 0)
+        pos += len;
+    for (p = 0; p < QD_NPAGE; p++) {
+        int n;
+        if (!((m >> p) & 1))
+            continue;
+        n = page_n(ts, p);
+        if (pos < n)
+            return p * QD_PAGE + (ts->pstart[p] & 15) + pos;
+        pos -= n;
+    }
+    return 0;
+}
+
+int qd_track_step_pos(const qd_tset_t *ts, int s)
+{
+    const int m = qd_track_loop(ts);
+    int p, pos = 0;
+    if (s < 0 || s >= QD_NSTEP)
+        return -1;
+    for (p = 0; p < QD_NPAGE; p++) {
+        if (!((m >> p) & 1))
+            continue;
+        if (p == s / QD_PAGE) {
+            const int k = s % QD_PAGE, a = ts->pstart[p] & 15, b = ts->pend[p] & 15;
+            return k >= a && k <= (b >= a ? b : a) ? pos + k - a : -1;
+        }
+        pos += page_n(ts, p);
+    }
+    return -1;
+}
+
+int qd_page_in_range(const qd_tset_t *ts, int s)
+{
+    const int p = s / QD_PAGE, k = s % QD_PAGE;
+    if (s < 0 || s >= QD_NSTEP)
+        return 0;
+    {
+        const int a = ts->pstart[p] & 15, b = ts->pend[p] & 15;
+        return k >= a && k <= (b >= a ? b : a);
+    }
+}
+
+int qd_page_set_range(qd_pattern_t *p, int t, int page, int start, int end)
+{
+    if (t < 0 || t >= QD_PAT_NTRACK || page < 0 || page >= QD_NPAGE || start < 0 || end > 15 || start > end)
+        return QD_EARG;
+    p->trk[t].pstart[page] = (uint8_t)start;
+    p->trk[t].pend[page] = (uint8_t)end;
+    return QD_OK;
+}
+
+int qd_page_set_loop(qd_pattern_t *p, int t, int mask)
+{
+    if (t < 0 || t >= QD_PAT_NTRACK)
+        return QD_EARG;
+    p->trk[t].loop = (uint8_t)(mask & 0xFF ? mask & 0xFF : 1);
+    return QD_OK;
+}
+
+int qd_track_set_length(qd_pattern_t *p, int t, int n)
+{
+    int k, pg;
+    if (t < 0 || t >= QD_PAT_NTRACK || n < 1 || n > QD_NSTEP)
+        return QD_EARG;
+    k = (n + QD_PAGE - 1) / QD_PAGE;
+    for (pg = 0; pg < k; pg++) {
+        p->trk[t].pstart[pg] = 0;
+        p->trk[t].pend[pg] = (uint8_t)(pg < k - 1 ? QD_PAGE - 1 : n - (k - 1) * QD_PAGE - 1);
+    }
+    p->trk[t].loop = (uint8_t)((1u << k) - 1u);
+    return QD_OK;
+}
+
 int64_t qd_pat_master_ticks(const qd_pattern_t *p)
 {
     int64_t m = 0;
@@ -128,7 +256,7 @@ int64_t qd_pat_master_ticks(const qd_pattern_t *p)
     if (p->master != QD_MASTER_AUTO)
         return (int64_t)p->master * QD_TPS;
     for (t = 0; t < QD_PAT_NTRACK; t++) {
-        const int64_t l = (int64_t)(p->trk[t].length ? p->trk[t].length : 1) * qd_rate_ticks(p->trk[t].rate);
+        const int64_t l = (int64_t)qd_track_len(&p->trk[t]) * qd_rate_ticks(p->trk[t].rate);
         m = l > m ? l : m;
     }
     return m;
@@ -290,10 +418,10 @@ int qd_lock_set(qd_pattern_t *p, int t, int s, int id, int value)
     l.value = clamp_lock(id, value);
     pool_insert(p, t, i, &l);
     p->step[t][s].flags |= QD_SF_LOCKS;
-    if ((p->step[t][s].flags & QD_SF_TYPE) == QD_TRIG_NONE) {   /* a lock on an empty step: a LOCK step (Elektron's
-                                                                 * habit, PLAN §8) */
-        p->step[t][s].flags |= QD_TRIG_LOCK;
-        p->step[t][s].chance = 100;
+    if (!(p->step[t][s].flags & QD_SF_ON)) {            /* a lock on an empty step: a LOCK step (Elektron's habit) */
+        p->step[t][s].flags |= QD_SF_ON;
+        p->step[t][s].type = QD_TRIG_LOCK;
+        p->step[t][s].ovr |= QD_OV(QD_PM_TRIG);
         p->used = 1;
     }
     return QD_OK;
@@ -318,22 +446,77 @@ const qd_step_t *qd_step(const qd_pattern_t *p, int t, int s)
     static const qd_step_t none;
     return ts_ok(t, s) ? &p->step[t][s] : &none;
 }
-int qd_step_type(const qd_step_t *st) { return st->flags & QD_SF_TYPE; }
-int qd_step_ratchet(const qd_step_t *st) { return 1 + ((st->flags & QD_SF_RATCH) >> QD_SF_RATCH_SH); }
-int qd_step_ramp(const qd_step_t *st) { return (st->flags & QD_SF_RAMP) >> QD_SF_RAMP_SH; }
+int qd_step_is_on(const qd_step_t *st) { return (st->flags & QD_SF_ON) != 0; }
+int qd_step_overrides(const qd_step_t *st, int pm) { return (st->ovr >> pm) & 1u; }
 
-int qd_step_notes(const qd_step_t *st, uint8_t *notes)
+int qd_notes_abs(const uint8_t *note4, uint8_t *notes)
 {
-    int k, n = 0;
-    if (!st->note[0])
+    int k, n = 0, i, j;
+    if (!note4[0])
         return 0;
-    notes[n++] = st->note[0];
+    notes[n++] = note4[0];
     for (k = 1; k < QD_NNOTE; k++)
-        if (st->note[k]) {
-            const int x = st->note[0] + st->note[k];
+        if (note4[k]) {
+            const int x = note4[0] + note4[k];
             notes[n++] = (uint8_t)(x > 127 ? 127 : x);
         }
+    for (i = 1; i < n; i++)                             /* (offsets in any slot order: ascending) */
+        for (j = i; j > 0 && notes[j - 1] > notes[j]; j--) {
+            const uint8_t x = notes[j];
+            notes[j] = notes[j - 1];
+            notes[j - 1] = x;
+        }
     return n;
+}
+
+void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r)
+{
+    const qd_step_t *st = qd_step(p, t, s);
+    const qd_sdef_t *d = &p->trk[t < 0 || t >= QD_PAT_NTRACK ? 0 : t].def;
+    const uint16_t o = st->ovr;
+#define PICK(pm, sv, dv) (((o >> (pm)) & 1u) ? (sv) : (dv))
+    memset(r, 0, sizeof *r);
+    r->ovr = o;
+    r->on = qd_step_is_on(st);
+    if ((o >> QD_PM_NOTE) & 1u)
+        memcpy(r->note, st->note, sizeof r->note);
+    else
+        memcpy(r->note, d->note, sizeof r->note);
+    if (!r->note[0])
+        r->note[0] = 60;
+    r->nn = qd_notes_abs(r->note, r->notes);
+    r->vel = PICK(QD_PM_VEL, st->vel, d->vel);
+    r->vel = r->vel < 1 ? 1 : r->vel > 127 ? 127 : r->vel;
+    r->len = PICK(QD_PM_LEN, st->len, d->len);
+    r->micro = PICK(QD_PM_MICRO, st->micro, d->micro);
+    {
+        const int rt = PICK(QD_PM_RATCH, st->ratch, d->ratch);
+        r->ratch = qd_ratch_count(rt);
+        r->ramp = qd_ratch_ramp(rt);
+    }
+    r->chance = PICK(QD_PM_CHANCE, st->chance, d->chance);
+    r->cond = PICK(QD_PM_COND, st->cond, d->cond);
+    r->type = r->on ? PICK(QD_PM_TRIG, st->type, d->type) : QD_TRIG_NONE;
+    if (r->on && (r->type < QD_TRIG_NOTE || r->type > QD_TRIG_TIE))
+        r->type = QD_TRIG_NOTE;
+    r->sound = PICK(QD_PM_SOUND, st->sound, 0);
+    r->strum = PICK(QD_PM_STRUM, st->strum, d->strum);
+#undef PICK
+}
+
+int qd_step_type(const qd_pattern_t *p, int t, int s)
+{
+    qd_rstep_t r;
+    qd_step_resolve(p, t, s, &r);
+    return r.type;
+}
+
+int qd_step_notes(const qd_pattern_t *p, int t, int s, uint8_t *notes)
+{
+    qd_rstep_t r;
+    qd_step_resolve(p, t, s, &r);
+    memcpy(notes, r.notes, sizeof r.notes);
+    return r.nn;
 }
 
 int qd_step_clear(qd_pattern_t *p, int t, int s)
@@ -345,6 +528,15 @@ int qd_step_clear(qd_pattern_t *p, int t, int s)
     return QD_OK;
 }
 
+int qd_step_on(qd_pattern_t *p, int t, int s)
+{
+    if (!ts_ok(t, s))
+        return QD_EARG;
+    p->step[t][s].flags |= QD_SF_ON;
+    p->used = 1;
+    return QD_OK;
+}
+
 int qd_step_set_trig(qd_pattern_t *p, int t, int s, int type)
 {
     qd_step_t *st;
@@ -353,40 +545,56 @@ int qd_step_set_trig(qd_pattern_t *p, int t, int s, int type)
     if (type == QD_TRIG_NONE)
         return qd_step_clear(p, t, s);
     st = &p->step[t][s];
-    if ((st->flags & QD_SF_TYPE) == QD_TRIG_NONE) {     /* a new trig: the track's defaults */
-        const qd_tset_t *ts = &p->trk[t];
-        const uint8_t keep = st->flags & QD_SF_LOCKS;
-        memset(st, 0, sizeof *st);
-        st->flags = keep;
-        st->note[0] = ts->def_note ? ts->def_note : 60;
-        st->vel = ts->def_vel ? ts->def_vel : 100;
-        st->len = ts->def_len < QD_NLEN ? ts->def_len : QD_LEN_1;
-        st->chance = 100;
-    }
-    if (!st->note[0])
-        st->note[0] = 60;
-    if (!st->vel)
-        st->vel = 100;
-    st->flags = (uint8_t)((st->flags & ~QD_SF_TYPE) | type);
+    st->flags |= QD_SF_ON;
+    st->type = (uint8_t)type;
+    st->ovr |= QD_OV(QD_PM_TRIG);
     p->used = 1;
     return QD_OK;
 }
 
-static qd_step_t *trig_of(qd_pattern_t *p, int t, int s)   /* the step, a NOTE trig made if empty */
+/* the step to set parameter pm on: on (a trig made if empty), its value of pm made its own (the track's default
+ * copied in when it did not override it) */
+static qd_step_t *own(qd_pattern_t *p, int t, int s, int pm)
 {
-    if (!ts_ok(t, s))
-        return 0;
-    if ((p->step[t][s].flags & QD_SF_TYPE) == QD_TRIG_NONE)
-        qd_step_set_trig(p, t, s, QD_TRIG_NOTE);
-    return &p->step[t][s];
+    qd_step_t *st = &p->step[t][s];
+    const qd_sdef_t *d = &p->trk[t].def;
+    if (!(st->flags & QD_SF_ON))
+        qd_step_on(p, t, s);
+    if (!((st->ovr >> pm) & 1u)) {
+        switch (pm) {
+        case QD_PM_NOTE: memcpy(st->note, d->note, sizeof st->note); break;
+        case QD_PM_VEL: st->vel = d->vel; break;
+        case QD_PM_LEN: st->len = d->len; break;
+        case QD_PM_MICRO: st->micro = d->micro; break;
+        case QD_PM_RATCH: st->ratch = d->ratch; break;
+        case QD_PM_CHANCE: st->chance = d->chance; break;
+        case QD_PM_COND: st->cond = d->cond; break;
+        case QD_PM_TRIG: st->type = d->type; break;
+        case QD_PM_SOUND: st->sound = 0; break;
+        case QD_PM_STRUM: st->strum = d->strum; break;
+        default: break;
+        }
+        st->ovr |= QD_OV(pm);
+    }
+    if (pm == QD_PM_NOTE && !st->note[0])
+        st->note[0] = 60;
+    return st;
 }
 
-int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n)
+int qd_step_reset(qd_pattern_t *p, int t, int s, int pm)
+{
+    if (!ts_ok(t, s) || pm < 0 || pm >= QD_NPM)
+        return QD_EARG;
+    p->step[t][s].ovr &= (uint16_t)~QD_OV(pm);
+    return QD_OK;
+}
+
+/* notes[0..n) absolute, any order -> note 1 + offsets in v (ascending, no repeats); QD_ENOTE: wider than 48 */
+static int notes_pack(const uint8_t *notes, int n, uint8_t *out)
 {
     uint8_t v[QD_NNOTE];
     int i, j, m = 0;
-    qd_step_t *st;
-    if (!ts_ok(t, s) || n < 1 || n > QD_NNOTE || !notes)
+    if (n < 1 || n > QD_NNOTE || !notes)
         return QD_EARG;
     for (i = 0; i < n; i++) {                           /* ascending, no repeats */
         const uint8_t x = notes[i];
@@ -404,11 +612,23 @@ int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n
     for (i = 1; i < m; i++)
         if (v[i] - v[0] > 48)
             return QD_ENOTE;
-    st = trig_of(p, t, s);
-    memset(st->note, 0, sizeof st->note);
-    st->note[0] = v[0];
+    memset(out, 0, QD_NNOTE);
+    out[0] = v[0];
     for (i = 1; i < m; i++)
-        st->note[i] = (uint8_t)(v[i] - v[0]);
+        out[i] = (uint8_t)(v[i] - v[0]);
+    return QD_OK;
+}
+
+int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n)
+{
+    uint8_t v[QD_NNOTE];
+    int r;
+    if (!ts_ok(t, s))
+        return QD_EARG;
+    r = notes_pack(notes, n, v);
+    if (r != QD_OK)
+        return r;
+    memcpy(own(p, t, s, QD_PM_NOTE)->note, v, sizeof v);
     return QD_OK;
 }
 
@@ -416,7 +636,7 @@ int qd_step_set_root(qd_pattern_t *p, int t, int s, int note)
 {
     if (!ts_ok(t, s) || note < 1 || note > 127)
         return QD_EARG;
-    trig_of(p, t, s)->note[0] = (uint8_t)note;
+    own(p, t, s, QD_PM_NOTE)->note[0] = (uint8_t)note;
     return QD_OK;
 }
 
@@ -426,10 +646,14 @@ int qd_step_set_offset(qd_pattern_t *p, int t, int s, int k, int off)
     int j;
     if (!ts_ok(t, s) || k < 1 || k >= QD_NNOTE || off < 0 || off > 48)
         return QD_EARG;
-    st = trig_of(p, t, s);
-    for (j = 1; j < QD_NNOTE; j++)
-        if (off && j != k && st->note[j] == off)
-            return QD_ENOTE;
+    {
+        const qd_step_t *c = &p->step[t][s];
+        const uint8_t *cur = (c->ovr >> QD_PM_NOTE) & 1u ? c->note : p->trk[t].def.note;
+        for (j = 1; j < QD_NNOTE; j++)
+            if (off && j != k && cur[j] == off)
+                return QD_ENOTE;
+    }
+    st = own(p, t, s, QD_PM_NOTE);
     st->note[k] = (uint8_t)off;
     return QD_OK;
 }
@@ -438,91 +662,208 @@ int qd_step_set_vel(qd_pattern_t *p, int t, int s, int vel)
 {
     if (!ts_ok(t, s) || vel < 1 || vel > 127)
         return QD_EARG;
-    trig_of(p, t, s)->vel = (uint8_t)vel;
+    own(p, t, s, QD_PM_VEL)->vel = (uint8_t)vel;
     return QD_OK;
 }
 int qd_step_set_len(qd_pattern_t *p, int t, int s, int len)
 {
     if (!ts_ok(t, s) || len < 0 || len >= QD_NLEN)
         return QD_EARG;
-    trig_of(p, t, s)->len = (uint8_t)len;
+    own(p, t, s, QD_PM_LEN)->len = (uint8_t)len;
     return QD_OK;
 }
 int qd_step_set_micro(qd_pattern_t *p, int t, int s, int micro)
 {
     if (!ts_ok(t, s) || micro < -23 || micro > 23)
         return QD_EARG;
-    trig_of(p, t, s)->micro = (int8_t)micro;
+    own(p, t, s, QD_PM_MICRO)->micro = (int8_t)micro;
     return QD_OK;
 }
 int qd_step_set_ratchet(qd_pattern_t *p, int t, int s, int count, int ramp)
 {
-    qd_step_t *st;
     if (!ts_ok(t, s) || count < 1 || count > 8 || ramp < QD_RAMP_FLAT || ramp > QD_RAMP_ACCENT)
         return QD_EARG;
-    st = trig_of(p, t, s);
-    st->flags = (uint8_t)((st->flags & ~(QD_SF_RATCH | QD_SF_RAMP)) | ((count - 1) << QD_SF_RATCH_SH) |
-                          (ramp << QD_SF_RAMP_SH));
+    own(p, t, s, QD_PM_RATCH)->ratch = (uint8_t)qd_ratch_make(count, ramp);
     return QD_OK;
 }
 int qd_step_set_cond(qd_pattern_t *p, int t, int s, int cond)
 {
     if (!ts_ok(t, s) || cond < 0 || cond >= QD_NCOND)
         return QD_EARG;
-    trig_of(p, t, s)->cond = (uint8_t)cond;
+    own(p, t, s, QD_PM_COND)->cond = (uint8_t)cond;
     return QD_OK;
 }
 int qd_step_set_chance(qd_pattern_t *p, int t, int s, int chance)
 {
     if (!ts_ok(t, s) || chance < 0 || chance > 100)
         return QD_EARG;
-    trig_of(p, t, s)->chance = (uint8_t)chance;
+    own(p, t, s, QD_PM_CHANCE)->chance = (uint8_t)chance;
     return QD_OK;
 }
 int qd_step_set_sound(qd_pattern_t *p, int t, int s, int sound)
 {
-    if (!ts_ok(t, s) || sound < 0 || sound > QD_QUAD_NPRESET)
+    if (!ts_ok(t, s) || sound < 0 || sound > QD_NSOUND)
         return QD_EARG;
-    trig_of(p, t, s)->sound = (uint8_t)sound;
+    if (!sound) {                                       /* the track's sound: the default, so no override */
+        if (!(p->step[t][s].flags & QD_SF_ON))
+            qd_step_on(p, t, s);
+        p->step[t][s].sound = 0;
+        p->step[t][s].ovr &= (uint16_t)~QD_OV(QD_PM_SOUND);
+        return QD_OK;
+    }
+    own(p, t, s, QD_PM_SOUND)->sound = (uint8_t)sound;
     return QD_OK;
 }
 int qd_step_set_strum(qd_pattern_t *p, int t, int s, int strum)
 {
     if (!ts_ok(t, s) || strum < 0 || strum > 23)
         return QD_EARG;
-    trig_of(p, t, s)->strum = (uint8_t)strum;
+    own(p, t, s, QD_PM_STRUM)->strum = (uint8_t)strum;
     return QD_OK;
 }
 
-/* ---------------------------------------------------------------- clear and copy --- */
-/* steps [ss, ss + n) of src's track st onto [ds, ds + n) of dst's track dt, with their locks */
-static int copy_steps(qd_pattern_t *dst, int dt, int ds, const qd_pattern_t *src, int st, int ss, int n)
+/* ---------------------------------------------------------------- the track's defaults --- */
+qd_sdef_t *qd_tdef(qd_pattern_t *p, int t) { return &p->trk[t < 0 || t >= QD_PAT_NTRACK ? 0 : t].def; }
+
+int qd_tdef_set_notes(qd_pattern_t *p, int t, const uint8_t *notes, int n)
 {
-    static qd_lock_t tmp[QD_NLOCK];                     /* (single-threaded, as the whole core) */
-    qd_step_t steps[QD_NSTEP];
-    int a, b, i, k = 0, r;
-    if (dt < 0 || dt >= QD_PAT_NTRACK || st < 0 || st >= QD_PAT_NTRACK || n < 1 || ds < 0 || ss < 0 ||
-        ds + n > QD_NSTEP || ss + n > QD_NSTEP)
+    uint8_t v[QD_NNOTE];
+    int r;
+    if (t < 0 || t >= QD_PAT_NTRACK)
         return QD_EARG;
-    a = lock_pos(src, st, ss, 0);
-    b = lock_pos(src, st, ss + n, 0);
+    r = notes_pack(notes, n, v);
+    if (r == QD_OK)
+        memcpy(p->trk[t].def.note, v, sizeof v);
+    return r;
+}
+
+int qd_tdef_set(qd_pattern_t *p, int t, int pm, int v)
+{
+    qd_sdef_t *d;
+    if (t < 0 || t >= QD_PAT_NTRACK)
+        return QD_EARG;
+    d = &p->trk[t].def;
+    switch (pm) {
+    case QD_PM_NOTE:
+        if (v < 1 || v > 127)
+            return QD_EARG;
+        d->note[0] = (uint8_t)v;
+        return QD_OK;
+    case QD_PM_VEL:
+        if (v < 1 || v > 127)
+            return QD_EARG;
+        d->vel = (uint8_t)v;
+        return QD_OK;
+    case QD_PM_LEN:
+        if (v < 0 || v >= QD_NLEN)
+            return QD_EARG;
+        d->len = (uint8_t)v;
+        return QD_OK;
+    case QD_PM_MICRO:
+        if (v < -23 || v > 23)
+            return QD_EARG;
+        d->micro = (int8_t)v;
+        return QD_OK;
+    case QD_PM_RATCH:
+        if (v < 0 || v > (int)(QD_RT_COUNT | QD_RT_RAMP))
+            return QD_EARG;
+        d->ratch = (uint8_t)v;
+        return QD_OK;
+    case QD_PM_CHANCE:
+        if (v < 0 || v > 100)
+            return QD_EARG;
+        d->chance = (uint8_t)v;
+        return QD_OK;
+    case QD_PM_COND:
+        if (v < 0 || v >= QD_NCOND)
+            return QD_EARG;
+        d->cond = (uint8_t)v;
+        return QD_OK;
+    case QD_PM_TRIG:
+        if (v < QD_TRIG_NOTE || v > QD_TRIG_TIE)
+            return QD_EARG;
+        d->type = (uint8_t)v;
+        return QD_OK;
+    case QD_PM_STRUM:
+        if (v < 0 || v > 23)
+            return QD_EARG;
+        d->strum = (uint8_t)v;
+        return QD_OK;
+    default:
+        return QD_EARG;
+    }
+}
+
+int qd_tdef_get(const qd_pattern_t *p, int t, int pm)
+{
+    const qd_sdef_t *d = &p->trk[t < 0 || t >= QD_PAT_NTRACK ? 0 : t].def;
+    switch (pm) {
+    case QD_PM_NOTE: return d->note[0];
+    case QD_PM_VEL: return d->vel;
+    case QD_PM_LEN: return d->len;
+    case QD_PM_MICRO: return d->micro;
+    case QD_PM_RATCH: return d->ratch;
+    case QD_PM_CHANCE: return d->chance;
+    case QD_PM_COND: return d->cond;
+    case QD_PM_TRIG: return d->type;
+    case QD_PM_STRUM: return d->strum;
+    default: return 0;
+    }
+}
+
+/* ---------------------------------------------------------------- clear and copy --- */
+int qd_steps_get(const qd_pattern_t *p, int t, int s, int n, qd_step_t *steps, qd_lock_t *lk, int *nlk)
+{
+    int a, b, i, k = 0;
+    if (t < 0 || t >= QD_PAT_NTRACK || n < 1 || s < 0 || s + n > QD_NSTEP)
+        return QD_EARG;
+    a = lock_pos(p, t, s, 0);
+    b = lock_pos(p, t, s + n, 0);
     for (i = a; i < b; i++) {
-        tmp[k] = src->lock[i];
-        tmp[k].step = (uint8_t)(tmp[k].step - ss + ds);
+        lk[k] = p->lock[i];
+        lk[k].step = (uint8_t)(lk[k].step - s);
         k++;
     }
-    memcpy(steps, &src->step[st][ss], (size_t)n * sizeof steps[0]);
-    r = replace_range(dst, dt, ds, ds + n, tmp, k);
+    *nlk = k;
+    memcpy(steps, &p->step[t][s], (size_t)n * sizeof steps[0]);
+    return QD_OK;
+}
+
+int qd_steps_put(qd_pattern_t *p, int t, int s, int n, const qd_step_t *steps, const qd_lock_t *lk, int nlk)
+{
+    static qd_lock_t tmp[QD_NLOCK];                     /* (single-threaded, as the whole core) */
+    int i, r;
+    if (t < 0 || t >= QD_PAT_NTRACK || n < 1 || s < 0 || s + n > QD_NSTEP || nlk < 0 || nlk > QD_NLOCK)
+        return QD_EARG;
+    for (i = 0; i < nlk; i++) {
+        tmp[i] = lk[i];
+        tmp[i].step = (uint8_t)(lk[i].step + s);
+    }
+    r = replace_range(p, t, s, s + n, tmp, nlk);
     if (r != QD_OK)
         return r;
     for (i = 0; i < n; i++) {
-        const uint8_t has = dst->step[dt][ds + i].flags & QD_SF_LOCKS;
-        dst->step[dt][ds + i] = steps[i];
-        dst->step[dt][ds + i].flags = (uint8_t)((steps[i].flags & ~QD_SF_LOCKS) | has);
-        if (steps[i].flags & QD_SF_TYPE)
-            dst->used = 1;
+        const uint8_t has = p->step[t][s + i].flags & QD_SF_LOCKS;
+        p->step[t][s + i] = steps[i];
+        p->step[t][s + i].flags = (uint8_t)((steps[i].flags & ~QD_SF_LOCKS) | has);
+        if (steps[i].flags & QD_SF_ON)
+            p->used = 1;
     }
     return QD_OK;
+}
+
+/* steps [ss, ss + n) of src's track st onto [ds, ds + n) of dst's track dt, with their locks */
+static int copy_steps(qd_pattern_t *dst, int dt, int ds, const qd_pattern_t *src, int st, int ss, int n)
+{
+    static qd_lock_t lk[QD_NLOCK];
+    static qd_step_t steps[QD_NSTEP];
+    int nl = 0, r;
+    if (dt < 0 || dt >= QD_PAT_NTRACK || ds < 0 || ds + n > QD_NSTEP)
+        return QD_EARG;
+    r = qd_steps_get(src, st, ss, n, steps, lk, &nl);
+    if (r != QD_OK)
+        return r;
+    return qd_steps_put(dst, dt, ds, n, steps, lk, nl);
 }
 
 int qd_step_copy(qd_pattern_t *dst, int dt, int ds, const qd_pattern_t *src, int st, int ss)
@@ -533,7 +874,7 @@ int qd_step_copy(qd_pattern_t *dst, int dt, int ds, const qd_pattern_t *src, int
 int qd_page_clear(qd_pattern_t *p, int t, int page)
 {
     int s;
-    if (t < 0 || t >= QD_PAT_NTRACK || page < 0 || page >= QD_NSTEP / QD_PAGE)
+    if (t < 0 || t >= QD_PAT_NTRACK || page < 0 || page >= QD_NPAGE)
         return QD_EARG;
     replace_range(p, t, page * QD_PAGE, (page + 1) * QD_PAGE, 0, 0);
     for (s = page * QD_PAGE; s < (page + 1) * QD_PAGE; s++)
@@ -543,7 +884,7 @@ int qd_page_clear(qd_pattern_t *p, int t, int page)
 
 int qd_page_copy(qd_pattern_t *dst, int dt, int dpage, const qd_pattern_t *src, int st, int spage)
 {
-    if (dpage < 0 || dpage >= QD_NSTEP / QD_PAGE || spage < 0 || spage >= QD_NSTEP / QD_PAGE)
+    if (dpage < 0 || dpage >= QD_NPAGE || spage < 0 || spage >= QD_NPAGE)
         return QD_EARG;
     return copy_steps(dst, dt, dpage * QD_PAGE, src, st, spage * QD_PAGE, QD_PAGE);
 }

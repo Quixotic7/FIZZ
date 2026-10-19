@@ -1,30 +1,40 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* KEYS mode's recording and MIDI notes into a held step (ctl.h; PLAN §8 "KEYS mode").
+/* The keyboard's recording and MIDI notes into a held step (ctl.h; PLAN §8b "Keyboard and recording").
  *
- * STEP RECORDING (REC on, the transport stopped): a chord played goes into the cursor's step (the notes struck while
+ * THE KEYBOARD (REC tapped: the KEYS screen): the keybed plays the selected track, F3..G5 shifted by OCT- / OCT+; a
+ * track in a scale has every key snapped down onto the scale (its white keys in C major, say, play themselves).
+ * Recording is armed by SHIFT + REC (or REC + PLAY); stopped it is step recording, playing it is live recording.
+ *
+ * STEP RECORDING (armed, the transport stopped): a chord played goes into the cursor's step (the notes struck while
  * any is still down are one chord, the step cleared first, the first note's velocity, the track's default length);
- * when the last of them is let go the cursor moves on (round the track's length). OCT+ is a rest (the cursor's step
- * cleared, the cursor on), OCT- a step back, PRESETS moves the cursor; FUNC + OCT- / OCT+ shift the octave.
+ * when the last of them is let go the cursor moves on, round the track's loop (its pages, each from its start to its
+ * end). OCT+ is a rest (the cursor's step cleared, the cursor on), OCT- a step back, PRESETS moves the cursor.
  *
- * LIVE RECORDING (REC on, playing): a note goes into the step nearest the playhead of the track, with the micro-timing
- * it was played with (-12..+12 24ths; FUNC + REC: quantized, micro 0); notes struck while another recorded note is
- * still down on the same step are its chord; its length is how long it was held (the nearest of the length table).
- * The step is cleared first (the take replaces it). Knob turns (KNOB 1..4: the quick page; ALGORITHM) are written as
- * locks on the step playing.
+ * LIVE RECORDING (armed, playing): a note goes into the step nearest the playhead of the track, with the micro-timing
+ * it was played with (-12..+12 24ths); notes struck while another recorded note is still down on the same step are its
+ * chord; its length is how long it was held (the nearest of the length table). The step is cleared first (the take
+ * replaces it). Knob turns (KNOB 1..4: the quick page) are written as locks on the step playing.
  *
- * MIDI: notes on the selected track's channel do the same in KEYS mode; with steps held in the step view they become
- * the held steps' notes (the notes struck while any is down are one chord). */
+ * MIDI: notes on the selected track's channel do the same in the keyboard; with steps held in the step view they
+ * become the held steps' notes (the notes struck while any is down are one chord). */
 #include <math.h>
 #include <string.h>
 
 #include "app.h"
 #include "ui.h"
+#include "../seq/scale.h"
 
 static qd_pattern_t *PAT(qd_app_t *a) { return qd_ctl_pat(a); }
-static int tlen(qd_app_t *a)
+static int tlen(qd_app_t *a) { return qd_track_len(&PAT(a)->trk[a->sel]); }
+static int loop_step(qd_app_t *a, int pos) { return qd_track_loop_step(&PAT(a)->trk[a->sel], pos); }
+
+int qd_rec_key_note(const qd_app_t *a, int key)
 {
-    const int l = PAT(a)->trk[a->sel].length;
-    return l < 1 ? 1 : l;
+    int sc, rt, n = QD_NOTE0 + key + 12 * a->oct;
+    qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
+    if (sc != QD_SCALE_CHROMATIC)
+        n = qd_scale_snap(sc, rt, n);
+    return n < 0 ? 0 : n > 127 ? 127 : n;
 }
 
 /* the nearest length of the table to n eighths of a step (never INF) */
@@ -46,10 +56,11 @@ static void live_off(qd_app_t *a, int note, int64_t now)
     qd_ui_t *u = &a->ui;
     const int64_t L = qd_rate_ticks(PAT(a)->trk[a->sel].rate);
     const int s = u->rec_s[note];
-    const qd_step_t *st = qd_step(PAT(a), a->sel, s);
     const int li = len_index((double)(now - u->rec_t0[note]) * 8.0 / (double)L);
+    qd_rstep_t r;
     int i;
-    if (qd_step_type(st) != QD_TRIG_NONE && li > st->len)
+    qd_step_resolve(PAT(a), a->sel, s, &r);
+    if (r.on && li > r.len)
         qd_step_set_len(PAT(a), a->sel, s, li);
     for (i = 0; i < u->nroll; i++)
         if (u->roll[i].note == note && u->roll[i].t1 < 0)
@@ -80,9 +91,11 @@ void qd_rec_toggle(qd_app_t *a)
     u->rec = 1;
     u->rec_n = 0;
     u->rec_step = -1;
-    u->cursor = u->page[a->sel] * QD_PAGE;              /* step recording starts on the page shown */
-    if (u->cursor >= tlen(a))
-        u->cursor = 0;
+    {   /* step recording starts on the page edited (its first step in the loop), else the loop's top */
+        const qd_tset_t *ts = &PAT(a)->trk[a->sel];
+        const int pg = u->page[a->sel], pos = qd_track_step_pos(ts, pg * QD_PAGE + ts->pstart[pg]);
+        u->cursor = pos < 0 ? 0 : pos;
+    }
 }
 
 void qd_rec_cursor(qd_app_t *a, int d)
@@ -90,13 +103,12 @@ void qd_rec_cursor(qd_app_t *a, int d)
     qd_ui_t *u = &a->ui;
     const int n = tlen(a);
     u->cursor = ((u->cursor + d) % n + n) % n;
-    u->page[a->sel] = u->cursor / QD_PAGE;
+    u->page[a->sel] = loop_step(a, u->cursor) / QD_PAGE;
 }
 
 void qd_rec_rest(qd_app_t *a)
 {
-    qd_step_edited(a);
-    qd_step_clear(PAT(a), a->sel, a->ui.cursor);
+    qd_step_clear(PAT(a), a->sel, loop_step(a, a->ui.cursor));
     qd_rec_cursor(a, 1);
 }
 
@@ -105,7 +117,6 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
     qd_pattern_t *p = PAT(a);
-    qd_tset_t *ts = &p->trk[a->sel];
     const int t = a->sel;
     if (note < 0) {
         int n;
@@ -136,19 +147,16 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
         }
         return;
     }
-    qd_step_edited(a);
     if (!a->seq.playing) {                              /* step recording */
+        const int cs = loop_step(a, u->cursor);
         if (!u->rec_n) {
             u->rec_nchord = 0;
-            qd_step_clear(p, t, u->cursor);
+            qd_step_clear(p, t, cs);
         }
         chord_add(u->rec_chord, &u->rec_nchord, note);
-        qd_step_set_notes(p, t, u->cursor, u->rec_chord, u->rec_nchord);
-        if (!u->rec_n) {
-            qd_step_set_vel(p, t, u->cursor, vel);
-            ts->def_vel = (uint8_t)vel;
-            ts->def_note = (uint8_t)note;
-        }
+        qd_step_set_notes(p, t, cs, u->rec_chord, u->rec_nchord);
+        if (!u->rec_n)
+            qd_step_set_vel(p, t, cs, vel);
         u->rec_t0[note] = 0;
         u->rec_n++;
         return;
@@ -157,9 +165,10 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
         const double pos = qd_seq_track_pos(&a->seq, t);
         const int n = tlen(a);
         const int64_t now = qd_seq_tick(&a->seq);
-        int s = (int)floor(pos + 0.5), micro = (int)lround((pos - floor(pos + 0.5)) * 24.0);
-        if (s >= n)
-            s -= n;
+        int lp = (int)floor(pos + 0.5), s, micro = (int)lround((pos - floor(pos + 0.5)) * 24.0);
+        if (lp >= n)
+            lp -= n;
+        s = loop_step(a, lp);
         if (u->quantize)
             micro = 0;
         micro = micro < -23 ? -23 : micro > 23 ? 23 : micro;
@@ -175,8 +184,6 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
             qd_step_set_micro(p, t, s, micro);
             qd_step_set_len(p, t, s, 0);                /* (the shortest until the note ends) */
             u->rec_step = s;
-            ts->def_note = (uint8_t)note;
-            ts->def_vel = (uint8_t)vel;
         }
         if (u->rec_t0[note] < 0)
             u->rec_n++;
@@ -192,7 +199,7 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
     }
 }
 
-/* live recording: KNOB 1..4 (the quick page) and ALGORITHM as locks on the step playing */
+/* live recording: KNOB 1..4 (the quick page) as locks on the step playing */
 int qd_rec_knob(qd_app_t *a, int knob, int d)
 {
     const int t = a->sel;
@@ -200,17 +207,13 @@ int qd_rec_knob(qd_app_t *a, int knob, int d)
     int16_t v;
     if (knob >= QD_K_1)
         id = qd_step_quick_id(knob - QD_K_1);
-    else if (knob == QD_K_ALGO)
-        id = QD_QP_ALGO;
     else
         return 0;
-    s = (int)qd_seq_track_pos(&a->seq, t) % tlen(a);
+    s = loop_step(a, (int)qd_seq_track_pos(&a->seq, t) % tlen(a));
     base = qd_lock_get(PAT(a), t, s, id, &v) ? v : qd_step_base(a, t, s, id);
-    qd_step_edited(a);
     if (qd_lock_set(PAT(a), t, s, id, base + d * qd_step_id_detent(id)) == QD_EFULL)
         qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
-    qd_ctl_takeover(a, knob == QD_K_ALGO ? UI_TK_ALGO : UI_TK_FREQ + (knob - QD_K_1),
-                    knob == QD_K_ALGO ? 0 : knob - QD_K_1, d, 1, s);
+    qd_ctl_takeover(a, UI_TK_FREQ + (knob - QD_K_1), knob - QD_K_1, d, 1, s);
     return 1;
 }
 

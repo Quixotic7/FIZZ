@@ -1,29 +1,42 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* A held step's fields (mockups/line.html s4..s10, s19, s20; PLAN.md §9a rule 7): one layout. "STEP n · FIELD" top
- * left, the track top right, KNOB 1's value big top left, the field's drawing (KNOB 2's part of it green), the
- * black-key strip at the foot (the field lit, the fields holding a value outlined).
- *   NOTE   the chord name big (squeezing in), the notes on a keybed in the knobs' colours, their names under them
- *   VEL    a mallet over a drum, raised by the velocity, striking when the step plays; the ramp as four green ticks
- *   LEN    the note as a bar over a ruler of the next steps, the notes before and after it; TIE a green slur from
- *          the note before
+/* A held step's modes (mockups/line.html s4..s10, s19, s20; PLAN.md §9a rule 7, §8b): one layout. "STEP n · MODE"
+ * top left, the track top right, the value big, the mode's drawing, the value strip at the foot (B1..B10 the mode's
+ * ten values written in the keys, the step's filled in the mode's colour, the track's default underlined, B11 CLR
+ * outlined while the step overrides the mode).
+ * The value and the drawing's own part are in the mode's colour when the step overrides the mode; on the track's
+ * default they are grey-white, with a small DEFAULT tag top right (the step plays the track's value). A part that
+ * is another mode's value is drawn in that mode's colour (VEL's ramp ticks RATCH's, LEN's tie TRIG's, MICRO's strum
+ * NOTE's, COND's chance CHNC's and CHNC's condition COND's).
+ * is_default: the track's default for the mode (ALGORITHM turned with nothing held): "DEFAULT · MODE", the drawing
+ * in the mode's colour, no strip.
+ *   NOTE   the chord name big (squeezing in), the notes on a keybed, their names under them; the entry octave and
+ *          the track's scale small top left ("OCT 4 · D DORIAN")
+ *   VEL    a mallet over a drum, raised by the velocity, striking when the step plays; the ramp as four ticks
+ *   LEN    the note as a bar over a ruler of the next steps, the notes before and after it; TIE a slur from the
+ *          note before
  *   MICRO  the step as a tape measure: the start flag, the strum's staircase, a slow red playhead lighting the notes
  *   RATCH  a ball bouncing count times along a dotted path, each bounce as high as its hit's velocity (the ramp)
- *   COND / CHNC  the condition big with its passes as circles; the chance as thirty dots, reshuffled each pass
- *   SOUND  the sound lock as a cassette, its neighbours peeking; the page's sound locks as dots
+ *   CHNC / COND  the condition big with its passes as circles; the chance as thirty dots, reshuffled each pass
+ *          (CHNC: the chance big, the condition small)
+ *   SOUND  the sound lock as a cassette (pool numbers of three digits), its neighbours peeking; the page's sound
+ *          locks as dots; the bank of ten on the keys ("BANK 11-20")
  *   TRIG   NOTE / LOCK / TIE, the step's boxed, one line saying what it does
- *   LOCKS  the step's p-locks as a picker: one big, the line from the track's value to the lock's
- * An empty step (type 0; TRIG aside) draws its field grey with EMPTY STEP in place of the big value. Positions,
- * sizes, colours and widths as line.html's screens. */
+ *   LOCKS  the step's p-locks as a picker: one big, the line from the track's value to the lock's; none: NO LOCKS
+ * An empty step (type 0; TRIG aside) draws its mode grey with EMPTY STEP in place of the big value. Positions,
+ * sizes and widths as line.html's screens. */
 #include <math.h>
 
 #include "ui.h"
 
-/* the colours a field draws with: the knobs', or grey for an empty step */
+/* the colours a mode draws with: k[0] the mode's (grey-white on the track's default), k[1] the other mode's part;
+ * grey for an empty step */
 typedef struct {
-    qd_rgb k[4];
-    qd_rgb wh;                          /* white parts that are not a knob's (the mallet, the ball, the chord name) */
+    qd_rgb k[2];
+    qd_rgb wh;                          /* white parts that are no value (the mallet, the ball, the chord name) */
     int empty;
 } pal_t;
+
+#define DEF_COL 0xb4b4bcu               /* a value on the track's default: grey-white */
 
 static char *cat(char *d, const char *s)
 {
@@ -36,16 +49,17 @@ static char *cat(char *d, const char *s)
     return d;
 }
 
-/* n with two digits ("03"), "--" for 0 */
-static char *two(char *s, int n)
+/* a pool number with three digits ("015"), "---" for 0 */
+static char *three(char *s, int n)
 {
     if (n <= 0) {
-        s[0] = s[1] = '-';
+        s[0] = s[1] = s[2] = '-';
     } else {
-        s[0] = (char)('0' + (n / 10) % 10);
-        s[1] = (char)('0' + n % 10);
+        s[0] = (char)('0' + (n / 100) % 10);
+        s[1] = (char)('0' + (n / 10) % 10);
+        s[2] = (char)('0' + n % 10);
     }
-    s[2] = 0;
+    s[3] = 0;
     return s;
 }
 
@@ -133,8 +147,16 @@ static void f_note(const ui_held_t *v, const pal_t *p)
         if (d < 0 || d >= 24)
             continue;
         x = ui_keyboard_x(14.f, 212.f, lo, v->note[i], &b);
-        ui_O(x, b ? 152.f : 180.f, 3.8f, QD_NONE, 1.f, p->k[i]);
-        ui_T(v->note_name[i], x, i % 2 ? 218.f : 207.f, 9.f, 600, 0.f, p->k[i], QD_CENTER);
+        ui_O(x, b ? 152.f : 180.f, 3.8f, QD_NONE, 1.f, p->k[0]);
+        ui_T(v->note_name[i], x, i % 2 ? 215.f : 204.f, 9.f, 600, 0.f, p->k[0], QD_CENTER);
+    }
+    {   /* the entry octave (B1's), the track's scale */
+        char s[40], n[12];
+        s[0] = 0;
+        cat(cat(s, "OCT "), ui_itoa(n, v->entry_oct));
+        if (v->scale_name && v->scale_name[0])
+            cat(cat(s, " \xc2\xb7 "), v->scale_name);
+        ui_lab(s, 8.f, 37.f, UI_G1, QD_LEFT);
     }
 }
 
@@ -306,7 +328,7 @@ static void f_micro(const ui_held_t *v, const pal_t *p)
 static void f_ratch(const ui_held_t *v, const pal_t *p)
 {
     static const float dots[2] = {1.f, 4.f};
-    const float g = 204.f, H = 92.f;
+    const float g = 200.f, H = 90.f;
     const int n = v->count < 1 ? 1 : v->count > 8 ? 8 : v->count;
     float xs[8], hv[8], u, bx, by;
     char s[16], num[12];
@@ -407,13 +429,11 @@ static void f_cond(const ui_held_t *v, const pal_t *p)
     char s[12];
     ui_itoa(s, v->chance);
     cat(s, "%");
-    if (p->empty)
-        ui_T("EMPTY STEP", 12.f, 40.f, 11.f, 600, 1.f, UI_G1, QD_LEFT);
-    if (!v->chance_first) {                             /* COND: the condition KNOB 1's, the chance KNOB 2's */
+    if (v->field != UI_F_CHNC) {                        /* COND: the condition big, the chance's dots */
         cond_draw(v, p->k[0], 86.f, 60.f, 108.f, 6.f, 24.f, 1);
         chance_dots(v, p->k[1], 128.f);
         ui_T(s, 120.f, 188.f, 34.f, 200, 0.f, p->k[1], QD_CENTER);
-    } else {                                            /* CHNC: the chance KNOB 1's, big; the condition KNOB 2's */
+    } else {                                            /* CHNC: the chance big, its dots; the condition small */
         ui_T(s, 120.f, 84.f, 60.f, 200, 0.f, p->k[0], QD_CENTER);
         chance_dots(v, p->k[0], 102.f);
         cond_draw(v, p->k[1], 176.f, 30.f, 196.f, 5.f, 20.f, 1);
@@ -447,23 +467,23 @@ static void f_sound(const ui_held_t *v, const pal_t *p)
     /* the reels turn while the step sounds (a second after it plays), else they stand */
     const float reel = v->play < 0.f ? 0.f : 2.5f * (v->t - v->play + (v->play < 1.f ? v->play : 1.f));
     const int locked = v->sound > 0 && !p->empty;
-    char s[40], num[4];
+    char s[40], num[8];
     int i;
 
     qd_save();
     qd_clip_rect(0.f, 26.f, 240.f, 158.f);
     if (v->sound_prev) {
         s[0] = 0;
-        cat(cat(cat(s, two(num, v->sound - 1)), "  "), v->sound_prev);
+        cat(cat(cat(s, three(num, v->sound - 1)), "  "), v->sound_prev);
         ui_T(s, 120.f, 40.f + dy, 10.f, 500, 1.f, UI_G2, QD_CENTER);
         ui_RR(52.f, 46.f + dy, 136.f, 14.f, 5.f, UI_G3, 1.2f, QD_NONE);
     }
-    cassette(40.f, 64.f + dy, 160.f, 78.f, v->sound_cur, two(num, v->sound), locked ? p->k[0] : UI_G2,
-             locked ? UI_K3 : UI_G1, reel);
+    cassette(40.f, 64.f + dy, 160.f, 78.f, v->sound_cur, v->sound > 0 ? three(num, v->sound) : "TRACK",
+             p->empty ? UI_G2 : locked || v->is_default ? p->k[0] : DEF_COL, locked ? UI_K3 : UI_G1, reel);
     if (v->sound_next) {
         ui_RR(52.f, 148.f + dy, 136.f, 30.f, 5.f, UI_G3, 1.2f, QD_NONE);
         s[0] = 0;
-        cat(cat(cat(s, two(num, v->sound + 1)), "  "), v->sound_next);
+        cat(cat(cat(s, three(num, v->sound + 1)), "  "), v->sound_next);
         ui_T(s, 120.f, 168.f + dy, 10.f, 500, 1.f, UI_G2, QD_CENTER);
     }
     qd_restore();
@@ -473,7 +493,7 @@ static void f_sound(const ui_held_t *v, const pal_t *p)
     for (i = 0; i < 16; i++) {
         const float x = 13.f + (float)i * 13.5f + (float)(i / 4) * 2.f;
         const int h = i == v->held_col;
-        ui_RR(x, 196.f, 10.f, 10.f, 2.f, h ? QD_NONE : UI_G2, 1.f, h ? p->k[0] : QD_NONE);
+        ui_RR(x, 196.f, 10.f, 10.f, 2.f, h ? QD_NONE : UI_G2, 1.f, h ? (v->is_default ? UI_G2 : p->k[0]) : QD_NONE);
         if (!h && v->page_sound[i])
             ui_O(x + 5.f, 201.f, 1.2f, QD_NONE, 1.f, v->page_sound[i] == v->sound ? UI_K3 : UI_G1);
     }
@@ -481,12 +501,18 @@ static void f_sound(const ui_held_t *v, const pal_t *p)
         char n[12];
         s[0] = 0;
         cat(cat(cat(s, "+"), ui_itoa(n, v->nlocks)), v->nlocks == 1 ? " LOCK ON TOP" : " LOCKS ON TOP");
-        ui_lab(s, 120.f, 218.f, UI_G1, QD_CENTER);
+        ui_lab(s, 227.f, 217.f, UI_G1, QD_RIGHT);
+    }
+    if (!v->is_default) {                               /* the bank of ten on the keys */
+        char n[12];
+        s[0] = 0;
+        cat(cat(cat(cat(s, "BANK "), ui_itoa(n, v->bank * 10 + 1)), "\xe2\x80\x93"), ui_itoa(n, v->bank * 10 + 10));
+        ui_lab(s, 13.f, 217.f, UI_G1, QD_LEFT);
     }
 }
 
 /* ---------------------------------------------------------------- TRIG (s19) */
-static void f_trig(const ui_held_t *v)
+static void f_trig(const ui_held_t *v, const pal_t *p)
 {
     static const char *const NAMES[3] = {"NOTE", "LOCK", "TIE"};
     static const char *const TXT[4] = {"an empty step: plays nothing", "strikes its notes",
@@ -496,11 +522,11 @@ static void f_trig(const ui_held_t *v)
     int i;
     for (i = 0; i < 3; i++) {
         const float x = 44.f + (float)i * 76.f;
-        const qd_rgb col = i == cur ? UI_K1 : UI_G2;
+        const qd_rgb col = i == cur ? p->k[0] : UI_G2;
         if (i == cur)
-            ui_RR(x - 34.f, y - 46.f, 68.f, 84.f, 8.f, UI_K1, 1.2f, QD_NONE);
+            ui_RR(x - 34.f, y - 46.f, 68.f, 84.f, 8.f, p->k[0], 1.2f, QD_NONE);
         if (i == 0)
-            ui_O(x, y - 4.f, 13.f, col, 1.5f, i == cur ? UI_K1 : QD_NONE);
+            ui_O(x, y - 4.f, 13.f, col, 1.5f, i == cur ? p->k[0] : QD_NONE);
         if (i == 1)
             ui_lock(x - 11.f, y - 18.f, col, 3.1f);
         if (i == 2) {
@@ -511,7 +537,7 @@ static void f_trig(const ui_held_t *v)
             qd_quad_to(x, y - 26.f, x + 14.f, y - 2.f);
             qd_path_stroke(col, 1.5f);
         }
-        ui_T(NAMES[i], x, y + 30.f, 10.f, 600, 1.f, i == cur ? UI_K3 : UI_G2, QD_CENTER);
+        ui_T(NAMES[i], x, y + 30.f, 10.f, 600, 1.f, i == cur ? p->k[0] : UI_G2, QD_CENTER);
     }
     ui_T(TXT[cur + 1], 120.f, 180.f, 11.f, 400, 0.f, UI_G1, QD_CENTER);
 }
@@ -541,7 +567,7 @@ static void f_locks(const ui_held_t *v, const pal_t *p)
         if (v->lk_name[i]) {
             s[0] = 0;
             cat(cat(cat(s, v->lk_name[i]), " "), v->lk_val[i]);
-            ui_T(s, 120.f, i ? 218.f : 62.f, 14.f, 400, 1.f, UI_G2, QD_CENTER);
+            ui_T(s, 120.f, i ? 214.f : 62.f, 14.f, 400, 1.f, UI_G2, QD_CENTER);
         }
     if (v->lk_name[1])
         ui_T(v->lk_name[1], 120.f, 98.f, 12.f, 600, 2.f, p->wh, QD_CENTER);
@@ -570,24 +596,48 @@ static void f_locks(const ui_held_t *v, const pal_t *p)
 }
 
 /* ---------------------------------------------------------------- the frame */
+/* the mode that owns a mode's second part */
+static int other_mode(int field)
+{
+    switch (field) {
+    case UI_F_VEL: return UI_F_RATCH;                   /* the ramp */
+    case UI_F_LEN: return UI_F_TRIG;                    /* the tie */
+    case UI_F_MICRO: return UI_F_NOTE;                  /* the strum */
+    case UI_F_COND: return UI_F_CHNC;
+    case UI_F_CHNC: return UI_F_COND;
+    default: return field;
+    }
+}
+
 void ui_held_draw(const ui_held_t *v)
 {
     const int field = v->field >= 0 && v->field < UI_NFIELD ? v->field : UI_F_NOTE;
+    const int lit = v->is_default || v->ovr || field == UI_F_LOCKS;
     pal_t p;
     char left[48], n[12];
-    int i;
 
-    p.empty = v->type == 0 && field != UI_F_TRIG;
-    for (i = 0; i < 4; i++)
-        p.k[i] = p.empty ? UI_G2 : UI_K[i];
+    p.empty = v->type == 0 && field != UI_F_TRIG && !v->is_default;
+    p.k[0] = p.empty ? UI_G2 : lit ? UI_MODE_COL[field] : DEF_COL;
+    p.k[1] = p.empty ? UI_G2 : UI_MODE_COL[other_mode(field)];
     p.wh = p.empty ? UI_G1 : UI_K3;
 
     left[0] = 0;                                        /* "STEP 5 · NOTE", several held: "STEP 5+2 · NOTE" */
-    cat(cat(left, "STEP "), ui_itoa(n, v->step));
-    if (v->nheld > 1)
-        cat(cat(left, "+"), ui_itoa(n, v->nheld - 1));
+    if (v->is_default) {
+        cat(left, "DEFAULT");
+    } else {
+        cat(cat(left, "STEP "), ui_itoa(n, v->step));
+        if (v->nheld > 1)
+            cat(cat(left, "+"), ui_itoa(n, v->nheld - 1));
+    }
     cat(cat(left, " \xc2\xb7 "), UI_FIELD_NAME[field]);
     ui_head_track(left, v->track, v->name, UI_K3);
+    if ((!lit && !p.empty) || (p.empty && (field == UI_F_COND || field == UI_F_CHNC))) {
+        /* a tag top right: the step plays the track's value (COND / CHNC, which draw no EMPTY STEP: an empty step) */
+        const char *tag = p.empty ? "EMPTY STEP" : "DEFAULT";
+        const float w = ui_TW(tag, 7.f, 600, 1.f) + 8.f;
+        ui_RR(232.f - w, 26.f, w, 12.f, 3.f, UI_G2, 1.f, QD_NONE);
+        ui_T(tag, 232.f - w / 2.f + 0.5f, 34.5f, 7.f, 600, 1.f, UI_G1, QD_CENTER);
+    }
 
     switch (field) {
     case UI_F_NOTE: f_note(v, &p); break;
@@ -598,9 +648,10 @@ void ui_held_draw(const ui_held_t *v)
     case UI_F_COND:
     case UI_F_CHNC: f_cond(v, &p); break;
     case UI_F_SOUND: f_sound(v, &p); break;
-    case UI_F_TRIG: f_trig(v); break;
+    case UI_F_TRIG: f_trig(v, &p); break;
     case UI_F_LOCKS: f_locks(v, &p); break;
     default: break;
     }
-    ui_key_strip(field, v->set);
+    if (!v->is_default)
+        ui_value_strip((char (*)[6])v->vk, v->vk_lit, v->vk_def, v->vk_none, v->clr, UI_MODE_COL[field]);
 }

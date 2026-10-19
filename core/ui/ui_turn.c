@@ -8,8 +8,15 @@
  *   ALGO   FM TONE's routing: C, A, B1, B2 wired, modulators above their targets, carriers into the speaker
  *   TEMPO / SWING  s16's metronome, the BPM and the swing; swing over 50 % swings the pendulum unequal
  *   RATE   a picker over the pattern's clock and the track's (s25)
- *   LEN    the track's length over the eight pages     LIMIT  the 16-voice pool, the limit outlined, the voices lit
+ *   LEN    the track's loop (its steps) over the eight pages
+ *   LIMIT  the 16-voice pool, the limit outlined, the voices lit
  *   TSWING the track's swing on / off: a small metronome swinging unequal or even
+ *   PAGE   (SELECT) the eight pages as rows of sixteen steps: the one edited outlined in the knob's colour with its
+ *          trigs in it, the pages in the loop grey and the others dark, each one's start..end as a line under its
+ *          row, the playing page's number red; "PAGE 3" big
+ *   SCALE  (SHIFT + ALGORITHM) the scale's name big, the scales before and after it small above and below, its notes
+ *          on a little one-octave keybed from the root (scale_mask: bit k, k semitones over the root), the root white
+ *   ROOT   (SHIFT + PRESETS) the root big, the same: its neighbours, the scale's notes from it on the keybed
  * Every motion comes from the record (t, beat, beats, the clocks' positions). */
 #include <math.h>
 
@@ -448,11 +455,78 @@ static void d_limit(const ui_turn_t *v, qd_rgb col)
     ui_lab(s, 120.f, 150.f, UI_G1, QD_CENTER);
 }
 
+/* ---------------------------------------------------------------- PAGE: the eight pages as rows */
+static void d_page(const ui_turn_t *v, qd_rgb col)
+{
+    static const char *const NUM[8] = {"1", "2", "3", "4", "5", "6", "7", "8"};
+    int p, k;
+    for (p = 0; p < 8; p++) {
+        const float y = 42.f + (float)p * 17.f, x0 = 44.f, sp = 11.f;
+        const int ed = p == v->page, in = (v->loop >> p) & 1;
+        const int st = v->pstart[p] > 15 ? 15 : v->pstart[p];
+        const int en = v->pend[p] < st ? st : v->pend[p] > 15 ? 15 : v->pend[p];
+        const qd_rgb tc = ed ? col : in ? UI_G1 : UI_G2;
+        if (ed)
+            ui_RR(10.f, y - 8.f, 220.f, 16.f, 5.f, col, 1.2f, QD_NONE);
+        ui_T(NUM[p], 22.f, y + 3.5f, 10.f, ed ? 600 : 500, 0.f, p == v->play_page ? UI_RED : tc, QD_CENTER);
+        for (k = 0; k < 16; k++) {
+            const float x = x0 + (float)k * sp + (float)(k / 4) * 2.f;
+            if (k < st || k > en)
+                ui_O(x, y, 0.9f, QD_NONE, 1.f, UI_G3);
+            else if (v->trig[p][k])
+                ui_O(x, y, 2.2f, QD_NONE, 1.f, tc);
+            else
+                ui_O(x, y, 1.4f, ed || in ? UI_G2 : UI_G3, 1.f, QD_NONE);
+        }
+        if (st > 0 || en < 15) {                        /* its own range, under the row */
+            const float xa = x0 + (float)st * sp + (float)(st / 4) * 2.f;
+            const float xb = x0 + (float)en * sp + (float)(en / 4) * 2.f;
+            line2(xa - 2.f, y + 5.f, xb + 2.f, y + 5.f, tc, 1.f);
+        }
+    }
+}
+
+/* ---------------------------------------------------------------- SCALE / ROOT: a picker over a little keybed */
+static void d_scale(const ui_turn_t *v, qd_rgb col)
+{
+    static const char *const NOTE[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    const int root = ((v->root % 12) + 12) % 12;
+    const float kx = 36.f, kw = 168.f, ky = 150.f, kh = 54.f;   /* one octave: half of a two-octave ui_keyboard */
+    int s;
+    if (v->prev)
+        ui_T(v->prev, 120.f, 48.f, 12.f, 400, 1.f, UI_G2, QD_CENTER);
+    if (v->val[0]) {                                    /* the name, as big as fits */
+        const float w = ui_TW(v->val, 40.f, 200, 0.f);
+        ui_T(v->val, 120.f, 98.f, w > 216.f ? 40.f * 216.f / w : 40.f, 200, 0.f, col, QD_CENTER);
+    }
+    if (v->next)
+        ui_T(v->next, 120.f, 128.f, 12.f, 400, 1.f, UI_G2, QD_CENTER);
+    qd_save();
+    qd_clip_rect(kx - 2.f, ky - 3.f, kw + 3.f, kh + 6.f);
+    ui_keyboard(kx, ky, kw * 2.f, kh, 48, 0);
+    qd_restore();
+    for (s = 0; s < 12; s++) {                          /* the scale's notes from the root, folded into the octave */
+        const int pc = (root + s) % 12;
+        int b;
+        float x;
+        if (!((v->scale_mask >> s) & 1u))
+            continue;
+        x = ui_keyboard_x(kx, kw * 2.f, 48, 48 + pc, &b);
+        ui_O(x, b ? ky + 22.f : ky + kh - 10.f, s ? 3.2f : 4.2f, QD_NONE, 1.f, s ? col : UI_K3);
+    }
+    {
+        int b;
+        const float x = ui_keyboard_x(kx, kw * 2.f, 48, 48 + root, &b);
+        ui_T(NOTE[root], x, ky + kh + 14.f, 9.f, 600, 0.f, UI_K3, QD_CENTER);
+    }
+}
+
 /* ---------------------------------------------------------------- the frame */
 void ui_turn_draw(const ui_turn_t *v)
 {
     const qd_rgb col = UI_K[v->knob & 3];
     const char *val = v->val;
+    char pg[8] = "PAGE 1";
     ui_knob_mark(14.f, 12.f, v->v < 0.f ? 0.f : v->v > 1.f ? 1.f : v->v, col);
     ui_T(v->name, 26.f, 17.f, 11.f, 600, 1.f, col, QD_LEFT);
     if (v->lock)
@@ -471,6 +545,15 @@ void ui_turn_draw(const ui_turn_t *v)
     case UI_TK_RATE: d_rate(v, col); val = 0; break;
     case UI_TK_LEN: d_len(v, col); break;
     case UI_TK_LIMIT: d_limit(v, col); break;
+    case UI_TK_PAGE:
+        d_page(v, col);
+        if (!val[0]) {
+            pg[5] = (char)('1' + (v->page < 0 ? 0 : v->page > 7 ? 7 : v->page));
+            val = pg;
+        }
+        break;
+    case UI_TK_SCALE:
+    case UI_TK_ROOT: d_scale(v, col); val = 0; break;
     case UI_TK_TSWING:
         metronome(120.f, 128.f, 0.62f, v->beats, v->beat, v->value ? (v->swing > 50 ? v->swing : 62) : 50, 0);
         if (!val[0])

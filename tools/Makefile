@@ -30,10 +30,12 @@ VOICE_SRC := $(ROOT)/core/voice/quad/quad_voice.c $(ROOT)/core/voice/pool.c $(RO
 APP_SRC := $(ROOT)/core/app/app.c $(ROOT)/core/app/ctl.c $(ROOT)/core/app/ctl_step.c $(ROOT)/core/app/ctl_rec.c \
            $(ROOT)/core/app/ctl_leds.c $(ROOT)/core/app/view.c
 UI_SRC := $(ROOT)/core/ui/ui_kit.c $(ROOT)/core/ui/ui_idle.c $(ROOT)/core/ui/ui_keys.c $(ROOT)/core/ui/ui_picker.c \
-          $(ROOT)/core/ui/ui_tracks.c $(ROOT)/core/ui/ui_step.c $(ROOT)/core/ui/ui_held.c $(ROOT)/core/ui/ui_turn.c
+          $(ROOT)/core/ui/ui_tracks.c $(ROOT)/core/ui/ui_lane.c $(ROOT)/core/ui/ui_held.c $(ROOT)/core/ui/ui_turn.c \
+          $(ROOT)/core/ui/ui_layer.c
 CORE_SRC := $(APP_SRC) $(UI_SRC) $(ROOT)/core/gfx/qd_gfx_plutovg.c \
             $(ROOT)/core/seq/model.c $(ROOT)/core/seq/pattern.c $(ROOT)/core/seq/seq.c $(ROOT)/core/seq/player.c \
-            $(ROOT)/core/seq/demo.c $(ROOT)/core/seq/chord.c $(VOICE_SRC)
+            $(ROOT)/core/seq/demo.c $(ROOT)/core/seq/chord.c $(ROOT)/core/seq/scale.c $(ROOT)/core/seq/sounds.c \
+            $(ROOT)/core/seq/clip.c $(VOICE_SRC)
 PVG_SRC := $(wildcard $(PVG)/source/*.c)
 INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/seq -I$(ROOT)/core/voice \
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
@@ -53,7 +55,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
@@ -89,6 +91,7 @@ $(B)/san/%.o: %.c $(HDRS) Makefile
 	@mkdir -p $(B)/san
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -c -o $@ $<
 SEQ_SRC := $(ROOT)/core/seq/pattern.c $(ROOT)/core/seq/seq.c $(ROOT)/core/seq/player.c $(ROOT)/core/seq/model.c \
+           $(ROOT)/core/seq/scale.c $(ROOT)/core/seq/sounds.c $(ROOT)/core/seq/clip.c $(ROOT)/core/seq/demo.c \
            $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/mix.c $(ROOT)/core/voice/quad/quad_voice.c
 $(B)/test_seq: $(T)/test_seq.c $(SEQ_SRC) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(INC) -o $@ $(T)/test_seq.c $(SEQ_SRC) -lm

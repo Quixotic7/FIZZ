@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "seq.h"
+#include "sounds.h"
 
 #define QD_TIE_SKIP 8                   /* OFFs held back for a TIE, per track (qd_seq_t.skip_*) */
 
@@ -23,7 +24,7 @@ uint32_t qd_seq_roll(uint64_t seed, int track, int64_t n)
 static uint64_t seg_seed(const qd_seq_t *s, int64_t origin) { return splitmix(s->seed_play ^ (uint64_t)origin); }
 
 static int64_t L_of(const qd_pattern_t *P, int t) { return qd_rate_ticks(P->trk[t].rate); }
-static int len_of(const qd_pattern_t *P, int t) { return P->trk[t].length ? P->trk[t].length : 1; }
+static int len_of(const qd_pattern_t *P, int t) { return qd_track_len(&P->trk[t]); }
 
 /* ---------------------------------------------------------------- the queue --- */
 static int ev_less(const qd_sev_t *a, const qd_sev_t *b)
@@ -314,19 +315,20 @@ static int ramp_vel(int v, int ramp, int h, int n)
     return x < 1 ? 1 : x > 127 ? 127 : x;
 }
 
-/* the trig's record: the patch (the step's sound lock, else the track's sound; its locks over it), the own mask, the
- * mix locks, the locks as they are */
-static void fill_rec(qd_seq_t *s, qd_trec_t *r, int t, const qd_tcur_t *c, const qd_pattern_t *P, const qd_step_t *st)
+/* the trig's record: the patch (the step's sound lock: a pool sound, else the track's sound; its locks over it), the
+ * own mask, the mix locks, the locks as they are */
+static void fill_rec(qd_seq_t *s, qd_trec_t *r, int t, int step, const qd_tcur_t *c, const qd_pattern_t *P,
+                     const qd_rstep_t *st)
 {
     int n, k;
-    const qd_lock_t *lk = qd_locks(P, t, c->idx, &n);
+    const qd_lock_t *lk = qd_locks(P, t, step, &n);
     r->track = (uint8_t)t;
-    r->type = (uint8_t)qd_step_type(st);
-    r->sound = st->sound;
-    r->step = (int16_t)c->idx;
+    r->type = (uint8_t)st->type;
+    r->sound = (uint8_t)st->sound;
+    r->step = (int16_t)step;
     r->pat = (int16_t)c->pat;
     if (st->sound) {
-        qd_quad_preset_patch(st->sound - 1, r->patch);
+        memcpy(r->patch, qd_sound_patch(s->proj, st->sound), sizeof r->patch);
         r->at.own[0] = r->at.own[1] = 0xFFFFFFFFu;
         r->at.own[2] = (1u << (QD_QUAD_NP - 64)) - 1u;
     } else {
@@ -347,7 +349,7 @@ static void fill_rec(qd_seq_t *s, qd_trec_t *r, int t, const qd_tcur_t *c, const
     }
 }
 
-static void ev_base(qd_sev_t *e, int t, const qd_tcur_t *c, int rec, int kind)
+static void ev_base(qd_sev_t *e, int t, const qd_tcur_t *c, int step, int rec, int kind)
 {
     memset(e, 0, sizeof *e);
     e->g = c->g;
@@ -355,41 +357,42 @@ static void ev_base(qd_sev_t *e, int t, const qd_tcur_t *c, int rec, int kind)
     e->rec = (int16_t)rec;
     e->kind = (uint8_t)kind;
     e->track = (uint8_t)t;
-    e->step = (uint8_t)c->idx;
+    e->step = (uint8_t)step;
 }
 
-static void emit_step(qd_seq_t *s, int t, const qd_tcur_t *c, const qd_pattern_t *P, const qd_step_t *st, int64_t L)
+static void emit_step(qd_seq_t *s, int t, int step, const qd_tcur_t *c, const qd_pattern_t *P, const qd_rstep_t *st,
+                      int64_t L)
 {
     const qd_tset_t *ts = &P->trk[t];
-    const int type = qd_step_type(st), le = qd_len_eighths(st->len);
+    const int type = st->type, le = qd_len_eighths(st->len);
     const int64_t sw = ts->swing && (c->idx & 1) ? (int64_t)(P->swing - 50) * L / 50 : 0;
     const int64_t start = c->g + sw + (int64_t)st->micro * L / 24;
     const int64_t gate_all = le < 0 ? -1 : L * le / 8;
     uint8_t notes[QD_NNOTE];
-    int nn = qd_step_notes(st, notes), k, h, ri = rec_alloc(s);
+    int nn = st->nn, k, h, ri = rec_alloc(s);
     qd_sev_t e;
     if (ri < 0)
         return;
-    fill_rec(s, &s->rec[ri], t, c, P, st);
+    fill_rec(s, &s->rec[ri], t, step, c, P, st);
     for (k = 0; k < nn; k++) {
-        const int x = notes[k] + ts->transpose;
+        const int x = st->notes[k] + ts->transpose;
         notes[k] = (uint8_t)(x < 1 ? 1 : x > 127 ? 127 : x);
     }
     if (type == QD_TRIG_LOCK) {
-        ev_base(&e, t, c, ri, QD_EV_LOCK);
+        ev_base(&e, t, c, step, ri, QD_EV_LOCK);
         e.tick = start;
         push(s, &e);
     } else if (type == QD_TRIG_TIE && ts->limit == 1) {   /* MONO: legato into the sounding voice */
         if (nn) {
-            ev_base(&e, t, c, ri, QD_EV_TIE);
+            ev_base(&e, t, c, step, ri, QD_EV_TIE);
             e.tick = start;
             e.note = notes[0];
-            e.vel = st->vel ? st->vel : 100;
+            e.vel = (uint8_t)st->vel;
             e.gate = gate_all;
             push(s, &e);
         }
     } else {                                            /* NOTE (and TIE on a POLY track: a NOTE) */
-        const int nh = qd_step_ratchet(st), ramp = qd_step_ramp(st);
+        const int nh = st->ratch, ramp = st->ramp;
         const int64_t slice = L / nh, strum = (int64_t)st->strum * L / 24;
         for (h = 0; h < nh; h++) {
             int64_t gate;
@@ -402,10 +405,10 @@ static void emit_step(qd_seq_t *s, int t, const qd_tcur_t *c, const qd_pattern_t
             else
                 gate = h < nh - 1 ? slice : gate_all - (nh - 1) * slice;   /* the last hit holds to the length */
             for (k = 0; k < nn; k++) {
-                ev_base(&e, t, c, ri, QD_EV_ON);
+                ev_base(&e, t, c, step, ri, QD_EV_ON);
                 e.tick = start + h * slice + k * strum;
                 e.note = notes[k];
-                e.vel = (uint8_t)ramp_vel(st->vel ? st->vel : 100, ramp, h, nh);
+                e.vel = (uint8_t)ramp_vel(st->vel, ramp, h, nh);
                 e.gate = gate;
                 e.hit = (uint8_t)h;
                 push(s, &e);
@@ -420,30 +423,31 @@ static void resolve_one(qd_seq_t *s, int t)
 {
     qd_tcur_t *c = &s->cur_t[t];
     const qd_pattern_t *P;
-    const qd_step_t *st;
+    qd_rstep_t st;
     int64_t L;
-    int len;
+    int len, step;
     cur_fix(s, c);
     P = &s->proj->pat[c->pat];
     L = L_of(P, t);
     len = len_of(P, t);
-    if (c->idx >= len) {                                /* (the length shortened under the cursor) */
+    if (c->idx >= len) {                                /* (the loop shortened under the cursor) */
         c->idx = 0;
         c->pass++;
     }
-    st = &P->step[t][c->idx];
-    if (qd_step_type(st) != QD_TRIG_NONE) {
-        const int conditional = is_conditional(st->cond, st->chance);
-        int ok = cond_ok(s, t, c, st->cond);
+    step = qd_track_loop_step(&P->trk[t], c->idx);      /* the loop's position -> its page's step (PLAN §8b) */
+    qd_step_resolve(P, t, step, &st);                   /* the track's defaults where the step does not override */
+    if (st.on) {
+        const int conditional = is_conditional(st.cond, st.chance);
+        int ok = cond_ok(s, t, c, st.cond);
         s->resolved++;
-        if (ok && st->chance < 100)
-            ok = qd_seq_roll(seg_seed(s, c->origin), t, c->n) < st->chance;
+        if (ok && st.chance < 100)
+            ok = qd_seq_roll(seg_seed(s, c->origin), t, c->n) < (uint32_t)st.chance;
         if (conditional) {
             c->pre = ok;
             hist_push(c, c->g, ok);
         }
         if (ok)
-            emit_step(s, t, c, P, st, L);
+            emit_step(s, t, step, c, P, &st, L);
     }
     c->g += L;
     c->n++;
@@ -716,7 +720,7 @@ static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq
         break;
     case QD_EV_ON:
     case QD_EV_TIE:
-        if (P->trk[t].mute || ((s->mute >> t) & 1u)) {   /* a muted track plays nothing (it runs on) */
+        if (!qd_seq_audible(s, P, t)) {                 /* a muted (or not soloed) track plays nothing: it runs on */
             if (e->kind == QD_EV_TIE && !s->tie_pending[t])
                 unskip(s, t, e->tick);
             break;
@@ -879,6 +883,22 @@ void qd_seq_midi_clock(qd_seq_t *s)
 }
 
 /* ---------------------------------------------------------------- the view --- */
+int qd_seq_audible(const qd_seq_t *s, const qd_pattern_t *P, int t)
+{
+    if (P->trk[t].mute || ((s->mute >> t) & 1u))
+        return 0;
+    return !s->solo || ((s->solo >> t) & 1u);
+}
+
+int qd_seq_track_step(const qd_seq_t *s, int t)
+{
+    const qd_pattern_t *P;
+    if (t < 0 || t >= QD_PAT_NTRACK || !s->playing)
+        return -1;
+    P = qd_seq_track_pat(s, t);
+    return qd_track_loop_step(&P->trk[t], (int)qd_seq_track_pos(s, t));
+}
+
 const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t)
 {
     if (t < 0 || t >= QD_PAT_NTRACK)

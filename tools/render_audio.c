@@ -32,6 +32,7 @@
 #include "app.h"
 #include "qd_fx.h"
 #include "qd_gfx.h"
+#include "sounds.h"
 
 static qd_app_t app;
 static uint32_t now, frames_done;
@@ -211,17 +212,22 @@ static void drum_metrics(FILE *log, const qd_pattern_t *P, int s, const char *wh
     static qd_quad_voice_t V;
     static qd_quad_owner_t O;
     static int32_t x[44100 * 2];
-    const qd_step_t *st = qd_step(P, 0, s);
+    qd_rstep_t rs;
+    const qd_rstep_t *st = &rs;
     int16_t p[QD_QUAD_NP];
     const qd_lock_t *lk;
     int nl, k, b, n = 0, i, gate;
     uint8_t notes[4];
-    qd_quad_preset_patch(st->sound ? st->sound - 1 : 13, p);
+    qd_step_resolve(P, 0, s, &rs);
+    if (st->sound)
+        memcpy(p, qd_sound_patch(&app.proj, st->sound), sizeof p);
+    else
+        qd_quad_preset_patch(13, p);
     lk = qd_locks(P, 0, s, &nl);
     for (k = 0; k < nl; k++)
         if (lk[k].id < QD_QUAD_NP)
             p[lk[k].id] = lk[k].value;
-    qd_step_notes(st, notes);
+    memcpy(notes, st->notes, sizeof notes);
     gate = (int)(qd_len_eighths(st->len) * 15.0 / P->bpm / 8.0 * 44100.0);
     qd_quad_owner_init(&O);
     O.quad_patch = p;
@@ -281,7 +287,7 @@ static void drum_metrics(FILE *log, const qd_pattern_t *P, int s, const char *wh
         }
         fprintf(log, "  step %2d %-7s %-9s n%-3d v%-3d %2d locks: peak %5.0f at %2d ms, -20 dB %4d ms, -40 dB %4d ms; "
                      "centroid %5.0f Hz (0-30 ms) %5.0f (30-100); pitch %5.0f %5.0f %5.0f Hz (2-12, 30-50, 80-120 ms)\n",
-                s + 1, what, qd_quad_preset_name(st->sound ? st->sound - 1 : 13), notes[0], st->vel, nl, peak, tp,
+                s + 1, what, st->sound ? qd_sound_name(&app.proj, st->sound) : "MARIMBA", notes[0], st->vel, nl, peak, tp,
                 t20 - tp, t40 - tp, cen[0], cen[1], zc[0], zc[1], zc[2]);
     }
 }
@@ -436,7 +442,7 @@ int main(int argc, char **argv)
                                                  "c-hat", "ghost", "kick", "c-hat", "clap", "c-hat", "ghost", "o-hat"};
             fresh();
             for (k = 0; k < 16; k++)
-                if (qd_step_type(qd_step(&app.proj.pat[0], 0, k)))
+                if (qd_step_type(&app.proj.pat[0], 0, k))
                     drum_metrics(dl, &app.proj.pat[0], k, WHAT[k]);
         }
         fprintf(dl, "\nthe renders (16 bars from PLAY, the effects on, then 2.5 s of tails):\n");

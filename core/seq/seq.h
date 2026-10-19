@@ -12,7 +12,10 @@
  * pool at that block (the engine's 32-sample quantisation).
  *
  * A TRACK'S CLOCK. Each track has a cursor: its next step's grid tick g (the step's length L from its rate), its index
- * in the track's loop, the loop's pass, the steps since the pattern started. Steps sit at g = origin + n L; tracks of
+ * in the track's loop, the loop's pass, the steps since the pattern started. The loop is the track's looped pages in
+ * ascending order, each from its start to its end (PLAN §8b; pattern.h qd_track_loop_step): position idx plays that
+ * page's step. A step is resolved with qd_step_resolve: the track's defaults where it does not override them, read
+ * when it is resolved (a default changed reaches every step not yet resolved). A sound lock is a pool sound. Steps sit at g = origin + n L; tracks of
  * other lengths and rates run on their own (polymeter). Swing delays the odd steps of the loop (the 2nd, 4th, ..) by
  * (swing - 50) / 50 of a step on tracks with swing on; micro-timing moves the step by micro / 24 of a step; a ratchet
  * of n hits strikes at L / n apart; a strum spreads the chord's notes strum / 24 of a step apart, at every hit.
@@ -123,6 +126,8 @@ typedef struct {
     int32_t mbpm;                       /* the tempo, milli-BPM (internal clock) */
     int fill;
     uint8_t mute;                       /* bit t: track t muted (the app's; a pattern's own mute flags too) */
+    uint8_t solo;                       /* bit t: track t soloed (any solo: only the soloed tracks sound; a muted one
+                                         * stays silent) */
     uint64_t seed, seed_play;           /* qd_seq_seed's; the run's (seed and the patterns started) */
     uint32_t nstart;                    /* patterns started since PLAY */
     /* patterns */
@@ -195,6 +200,8 @@ void qd_seq_midi_stop(qd_seq_t *s, qd_seq_out_fn out, void *ctx);
  * fractional), whether the track's step s flashed within the last ticks */
 int64_t qd_seq_tick(const qd_seq_t *s);
 double qd_seq_track_pos(const qd_seq_t *s, int t);
+int qd_seq_track_step(const qd_seq_t *s, int t);   /* the step (0..127) under the track's play head; -1 stopped */
+int qd_seq_audible(const qd_seq_t *s, const qd_pattern_t *P, int t);   /* not muted, and soloed if any is */
 const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t);   /* the pattern the track plays now */
 
 /* a live edit of track t's sound reaches the trigs resolved and waiting too (their values not their own) */

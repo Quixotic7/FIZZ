@@ -3,10 +3,10 @@
  * the audio in 128-frame blocks as they fall due):
  *   keys        the keybed plays the selected track (velocity, OCT- / OCT+ -2..+2), TRACKS + white key 1..8 selects
  *               a track and plays nothing, the note a key struck is released at its release whatever changed since
- *   presets     PRESETS steps the track's sound (INIT .. NOISE-ISH, clamped), the picker takes the screen and leaves
- *               1.12 s after the last detent; a voice sounding keeps its patch
- *   screens     KEYS toggles the KEYS screen (its LED lit), HOME: the step view; TRACKS held dims the selected
- *               track's white key; the C keys faint in KEYS; a note sounding lights its key
+ *   presets     PRESETS steps the track's sound through the project's pool (INIT .. OPEN HAT, clamped; P1.3b), the
+ *               picker takes the screen and leaves 1.12 s after the last detent; a voice sounding keeps its patch
+ *   screens     REC toggles the keyboard (REC's LED lit; P1.3b), HOME: the step view; TRACKS held dims the selected
+ *               track's white key; the C keys faint in the keyboard; a note sounding lights its key
  *   midi        notes on channels 1..8 play tracks 1..8; note off and velocity 0 release; channels 9..16 ignored
  *   mix         a voice panned hard left with no sends: nothing on the right; level 0: silence
  *   limiter     16 voices of SQUARE LEAD at velocity 127, every level and send at the top, MASTER full: no sample
@@ -20,11 +20,11 @@
  *               beat), PLAY again stops: the sequencer's notes released, a held key's note not
  *   patterns    PATTERN + white key 1 while playing: queued (the idle screen's name blinks: two frames differ), taken
  *               at the end of A02's master length (32 sixteenths), not before; PATTERN + FUNC + white key 3: at the
- *               next 16th; stopped: at once; PATTERN held: the LEDs (playing lit, queued blinking, content dim)
+ *               next 16th; stopped: at once; PATTERN held: the LEDs (playing lit, queued blinking, content dim); ARP held: FILL
  *   tracks      TRACKS tapped: the tracks screen (its LED lit), white key 9 mutes track 1 (its notes stop, key 9's LED
  *               goes dark), white key 2 selects track 2 (no note), the trigs flash white keys 1..8; TRACKS again or
  *               HOME leaves; TRACKS held + white key still selects
- *   along       KEYS mode while playing: the keys play the selected track along
+ *   along       the keyboard while playing: the keys play the selected track along
  *   clock       MIDI START and 24 clocks a beat at 140 BPM: the transport runs at 140 (the dancers too), STOP stops
  *   determinism a session with the sequencer (PLAY, a queued change, keys, MIDI clock) twice: the same samples
  *
@@ -91,10 +91,10 @@ static void fresh(void)
 }
 static void peaks0(void) { peak_l = peak_r = 0; }
 static void tap_button(int b);
-static void fresh_keys(void)             /* P1.3: power-on is the idle screen; KEYS mode plays the keybed */
+static void fresh_keys(void)             /* power-on is the idle screen; REC (P1.3b): the keyboard plays the keybed */
 {
     fresh();
-    tap_button(QD_B_KEYS);
+    tap_button(QD_B_REC);
 }
 static int voices_of(int track)          /* the track's voices held (gate) */
 {
@@ -180,43 +180,46 @@ static void t_presets(void)
         if (qd_pool_sounding(&A.pool, i))
             v = i;
     memcpy(before, A.model.t[0].patch, sizeof before);
-    qd_app_knob(&A, QD_K_PRESETS, 2);                   /* MARIMBA (13) -> FEEDBACK (15) */
+    qd_app_knob(&A, QD_K_PRESETS, 2);                   /* MARIMBA (pool 14) -> FEEDBACK (16) */
     run(10, 0);
-    CHECK(A.model.t[0].preset == 15 && !strcmp(qd_track_sound_name(&A.model.t[0]), "FEEDBACK") && A.ui.tk == QD_TK_PRESET,
-          "PRESETS +2: track 1's sound %d (%s), picker %d", A.model.t[0].preset, qd_track_sound_name(&A.model.t[0]), A.ui.tk);
+    CHECK(A.model.t[0].sound == 16 && !strcmp(qd_track_sound_name(&A.model.t[0]), "FEEDBACK") && A.ui.tk == QD_TK_PRESET,
+          "PRESETS +2: track 1's sound %d (%s), picker %d", A.model.t[0].sound, qd_track_sound_name(&A.model.t[0]), A.ui.tk);
     CHECK(v >= 0 && !memcmp(A.pool.v[v].q.patch, before, sizeof before), "the sounding voice keeps its patch");
-    qd_app_knob(&A, QD_K_PRESETS, 9);
-    CHECK(A.model.t[0].preset == 16, "PRESETS clamps at the last sound");
-    qd_app_knob(&A, QD_K_PRESETS, -40);
-    CHECK(A.model.t[0].preset == 0 && !strcmp(qd_track_sound_name(&A.model.t[0]), "INIT"), "PRESETS clamps at INIT");
+    qd_app_knob(&A, QD_K_PRESETS, 40);
+    CHECK(A.model.t[0].sound == A.proj.nsound && !strcmp(qd_track_sound_name(&A.model.t[0]), "OPEN HAT"),
+          "PRESETS clamps at the pool's last sound");
+    qd_app_knob(&A, QD_K_PRESETS, -60);
+    CHECK(A.model.t[0].sound == 1 && !strcmp(qd_track_sound_name(&A.model.t[0]), "INIT"), "PRESETS clamps at INIT");
     run(1100, 0);
     CHECK(A.ui.tk == QD_TK_PRESET, "the picker still up 1.1 s after the last detent (its fade)");
     run(30, 0);
     CHECK(A.ui.tk == QD_TK_NONE, "the picker gone 1.13 s after the last detent");
     qd_app_key(&A, 7, 0, 0);
-    printf("  presets: PRESETS steps INIT .. NOISE-ISH (clamped); the picker leaves 1.12 s after; voices keep theirs\n");
+    printf("  presets: PRESETS steps the pool, INIT .. OPEN HAT (clamped); the picker leaves 1.12 s after; voices keep "
+           "theirs\n");
 }
 
 static void t_screens(void)
 {
     qd_leds_t l;
     fresh();
-    tap_button(QD_B_KEYS);
+    tap_button(QD_B_REC);
     qd_app_leds(&A, &l);
-    CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_KEYS] == QD_LED_LIT, "KEYS: the KEYS screen, its LED lit");
-    CHECK(l.key[7] == QD_LED_FAINT && l.key[19] == QD_LED_FAINT && !l.key[8], "KEYS: the C keys faint");
+    CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_REC] == QD_LED_LIT, "REC: the keyboard, REC's LED lit");
+    CHECK(l.key[7] == QD_LED_FAINT && l.key[19] == QD_LED_FAINT && !l.key[8], "the keyboard: the C keys faint");
     qd_app_midi(&A, 0x90, 64, 100);                     /* E4 from MIDI on track 1 (selected): its key lit */
     run(10, 0);
     qd_app_leds(&A, &l);
     CHECK(l.key[11] == QD_LED_LIT, "a note sounding on the track lights its key (%d)", l.key[11]);
     qd_app_midi(&A, 0x80, 64, 0);
-    tap_button(QD_B_KEYS);
-    CHECK(A.ui.mode == QD_MODE_STEP, "KEYS again: the step view");
-    tap_button(QD_B_KEYS);
+    tap_button(QD_B_REC);
+    CHECK(A.ui.mode == QD_MODE_STEP, "REC again: the step view");
+    tap_button(QD_B_REC);
     tap_button(QD_B_HOME);
     qd_app_leds(&A, &l);
-    CHECK(A.ui.mode == QD_MODE_STEP && l.button[QD_B_KEYS] == QD_LED_OFF, "HOME: the step view, KEYS's LED off");
-    printf("  screens: KEYS toggles (lit), HOME: the step view; C keys faint in KEYS; sounding notes light their keys\n");
+    CHECK(A.ui.mode == QD_MODE_STEP && l.button[QD_B_REC] == QD_LED_OFF, "HOME: the step view, REC's LED off");
+    printf("  screens: REC toggles the keyboard (lit), HOME: the step view; C keys faint; sounding notes light their "
+           "keys\n");
 }
 
 static void t_midi(void)
@@ -407,10 +410,10 @@ static void t_patterns(void)
     tap_key(WK[1]);
     qd_app_button(&A, QD_B_PATTERN, 0);
     CHECK(A.seq.cur == 1 && qd_seq_queued(&A.seq) < 0 && A.bpm == 100, "stopped: A02 at once, its tempo");
-    qd_app_button(&A, QD_B_REC, 1);
-    CHECK(A.seq.fill, "REC held: FILL");
-    qd_app_button(&A, QD_B_REC, 0);
-    CHECK(!A.seq.fill, "REC released: no FILL");
+    qd_app_button(&A, QD_B_KEYS, 1);
+    CHECK(A.seq.fill, "ARP held: FILL");
+    qd_app_button(&A, QD_B_KEYS, 0);
+    CHECK(!A.seq.fill, "ARP released: no FILL");
     printf("  patterns: queued to the end of the master length (the name blinks), FUNC: the next 16th, stopped: at "
            "once; the LEDs\n");
 }
@@ -470,7 +473,7 @@ static void t_along(void)
 {
     int k, peak_with = 0;
     fresh();
-    tap_button(QD_B_KEYS);
+    tap_button(QD_B_REC);
     tap_button(QD_B_PLAY);
     run(300, 0);
     qd_app_key(&A, 14, 1, 110);                         /* G4 on track 1 while A02 plays */
@@ -513,7 +516,7 @@ static uint64_t session_seq(void)
     qd_app_button(&A, QD_B_PATTERN, 1);
     tap_key(WK[2]);
     qd_app_button(&A, QD_B_PATTERN, 0);
-    tap_button(QD_B_KEYS);
+    tap_button(QD_B_REC);
     qd_app_key(&A, 9, 1, 100);
     run(4500, 0);
     qd_app_key(&A, 9, 0, 0);

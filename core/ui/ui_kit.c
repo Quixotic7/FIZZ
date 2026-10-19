@@ -111,9 +111,12 @@ void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fil
     }
 }
 
-/* ---- P1.3: line.html's headTrack, keyStrip, lock, knobMark and keyboard's pos */
-const char *const UI_FIELD_NAME[UI_NFIELD] = {"NOTE", "VEL", "LEN", "MICRO", "RATCH", "COND", "CHNC", "TRIG",
-                                              "SOUND", "LOCKS", "CLEAR"};
+/* ---- P1.3b: the hold modes, line.html's headTrack, lock, knobMark and keyboard's pos, the black keys' strip */
+const char *const UI_FIELD_NAME[UI_NFIELD] = {"NOTE", "VEL", "LEN", "MICRO", "RATCH", "CHNC", "COND", "TRIG",
+                                              "SOUND", "LOCKS"};
+/* a colour a mode, all bright on black and none of them red (red is the playhead) */
+const qd_rgb UI_MODE_COL[UI_NFIELD] = {0x3f7dffu, 0x1fd47eu, 0x36d6e7u, 0xa879ffu, 0xff6a2cu,
+                                       0xffd23fu, 0xff52c0u, 0xf1f0eau, 0xb5e853u, 0xd8c39au};
 
 /* headTrack(c, left, n, name, lcol): a held step: STEP 5 · FIELD left, [n] the track right */
 void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol)
@@ -124,20 +127,56 @@ void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol)
     ui_box(232.f - w - 21.f, 5.f, n, UI_G1);
 }
 
-/* keyStrip(c, cur, set): the black keys while a step is held, 3 | 2 | 3 | 2 | 1 */
-void ui_key_strip(int cur, unsigned set)
+/* the strip's keys: 18 px wide, 2 apart in a group, the groups 3 | 2 | 3 | 2 six apart, B11 eight further */
+float ui_strip_x(int k)
 {
-    static const int GROUPS[5] = {3, 2, 3, 2, 1};
-    float x = 11.f;
-    int g, j, k = 0;
-    for (g = 0; g < 5; g++) {
-        for (j = 0; j < GROUPS[g]; j++, k++) {
-            const int on = cur == k, has = (set >> k) & 1u;
-            ui_RR(x, 228.f, 14.f, 8.f, 2.f, on ? QD_NONE : has ? UI_G1 : UI_G3, 1.f, on ? UI_K3 : QD_NONE);
-            x += 18.f;
-        }
-        x += 6.f;
+    static const float X[11] = {3.f, 23.f, 43.f, 67.f, 87.f, 111.f, 131.f, 151.f, 175.f, 195.f, 221.f};
+    return X[k < 0 ? 0 : k > 10 ? 10 : k];
+}
+
+/* a label inside a key, squeezed to fit */
+static void key_label(const char *s, float cx, float y, float w, qd_rgb col, int weight)
+{
+    const float tw = ui_TW(s, 7.f, weight, 0.3f);
+    if (tw <= w) {
+        ui_T(s, cx, y, 7.f, weight, 0.3f, col, QD_CENTER);
+        return;
     }
+    qd_save();
+    qd_translate(cx, y);
+    qd_scale(w / tw, 1.f);
+    ui_T(s, 0.f, 0.f, 7.f, weight, 0.3f, col, QD_CENTER);
+    qd_restore();
+}
+
+/* the eleven black keys at the foot, each with what it does here written in it: lit filled in col (its label black),
+ * hot outlined in col, faint dark, the others grey outlines; mark: a grey line under the key (the track's default) */
+void ui_strip(const char *const lab[11], unsigned lit, unsigned mark, unsigned faint, unsigned hot, qd_rgb col)
+{
+    const float y = 221.f, h = 14.f;
+    int k;
+    for (k = 0; k < 11; k++) {
+        const float x = ui_strip_x(k), w = k == 10 ? 16.f : 18.f, cx = x + w / 2.f;
+        const int l = (lit >> k) & 1u, f = !l && ((faint >> k) & 1u), ho = !l && !f && ((hot >> k) & 1u);
+        const qd_rgb oc = l ? QD_NONE : f ? UI_G3 : ho ? col : UI_G2;
+        ui_RR(x, y, w, h, 3.f, oc, ho ? 1.2f : 1.f, l ? col : QD_NONE);
+        if (lab && lab[k] && lab[k][0])
+            key_label(lab[k], cx, y + 9.5f, w - 3.f, l ? UI_BG : f ? UI_G3 : ho ? col : UI_G1, l ? 700 : 600);
+        if ((mark >> k) & 1u)
+            qd_line(x + 3.f, 238.f, x + w - 3.f, 238.f, UI_G1, 1.5f);
+    }
+}
+
+/* the value strip (§8b): B1..B10 the mode's ten values, B11 CLR (outlined in the mode's colour while the step
+ * overrides it) */
+void ui_value_strip(char lab[10][6], unsigned lit, unsigned def, unsigned none, int clr, qd_rgb col)
+{
+    const char *l[11];
+    int k;
+    for (k = 0; k < 10; k++)
+        l[k] = lab[k];
+    l[10] = "CLR";
+    ui_strip(l, lit & 0x3ffu, def & 0x3ffu, (none & 0x3ffu) | (clr ? 0u : 1u << 10), clr ? 1u << 10 : 0u, col);
 }
 
 /* lock(c, x, y, col, s): a padlock, 7 px wide at s 1 */

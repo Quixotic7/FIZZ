@@ -8,7 +8,8 @@
  * filled grey, the cursor's square outlined red in the blink's lit half), STEP REC in red and the cursor's step at the
  * foot. rec 2, LIVE recording, is line.html s18: the RECORDING badge blinking (a Q by it with quantize on), the notes
  * scrolling in from the red line (11 px a step, the grid's beats darker), the keybed small at the foot with the keys
- * held white, OCT and the step under the playhead. */
+ * held white, OCT and the step under the playhead.
+ * P1.3b: the sound's pool number has three digits; a track in a scale shows the scale's name by the octave. */
 #include <math.h>
 
 #include "ui.h"
@@ -32,7 +33,7 @@ static void live(const ui_keys_t *v)
 {
     static qd_rgb fill[128];
     const float now = 186.f, pxs = 11.f;
-    char s[40], n[12];
+    char s[64], n[12];
     int i, lo = 60 + 12 * v->octave, mn = 128, rl;
     float st;
 
@@ -77,7 +78,10 @@ static void live(const ui_keys_t *v)
     qd_restore();
     ui_keyboard(22.f, 170.f, 196.f, 48.f, lo, fill);
     s[0] = 0;
-    cat(cat(cat(s, oct_name(v->octave)), " \xc2\xb7 STEP "), ui_itoa(n, v->step));
+    cat(s, oct_name(v->octave));
+    if (v->scale && v->scale_name && v->scale_name[0])
+        cat(cat(s, " \xc2\xb7 "), v->scale_name);
+    cat(cat(s, " \xc2\xb7 STEP "), ui_itoa(n, v->step));
     ui_lab(s, 120.f, 234.f, UI_G2, QD_CENTER);
 }
 
@@ -98,11 +102,12 @@ void ui_keys_draw(const ui_keys_t *v)
         ui_O(186.f + (float)(i % 8) * 6.f, 8.f + (float)(i / 8) * 6.f, 1.6f, QD_NONE, 1.f,
              v->voice[i] == 2 ? UI_K3 : v->voice[i] ? UI_G1 : UI_G3);
 
-    /* the sound: its number small, its name medium */
+    /* the sound: its pool number small, its name medium */
     ui_lab("SOUND", 120.f, 52.f, UI_G2, QD_CENTER);
-    num[0] = (char)('0' + v->preset / 10);
-    num[1] = (char)('0' + v->preset % 10);
-    num[2] = 0;
+    num[0] = (char)('0' + (v->preset / 100) % 10);
+    num[1] = (char)('0' + (v->preset / 10) % 10);
+    num[2] = (char)('0' + v->preset % 10);
+    num[3] = 0;
     x = 120.f - ui_TW(v->sound, 26.f, 300, 0.5f) / 2.f;
     ui_T(num, x - 6.f, 80.f, 9.f, 600, 1.f, UI_G1, QD_RIGHT);
     ui_T(v->sound, 120.f, 92.f, 26.f, 300, 0.5f, UI_K3, QD_CENTER);
@@ -119,7 +124,16 @@ void ui_keys_draw(const ui_keys_t *v)
         lo -= 12;
     ui_keyboard(14.f, 118.f, 212.f, 78.f, lo, fill);
 
-    ui_lab(oct_name(v->octave), 120.f, 222.f, UI_G2, QD_CENTER);
+    num[0] = 0;                                         /* the octave; a track in a scale: the scale */
+    cat(num, oct_name(v->octave));
+    if (v->scale && v->scale_name && v->scale_name[0]) {
+        char sc[48];
+        sc[0] = 0;
+        cat(cat(cat(sc, num), " \xc2\xb7 "), v->scale_name);
+        ui_lab(sc, 120.f, 222.f, UI_G2, QD_CENTER);
+    } else {
+        ui_lab(num, 120.f, 222.f, UI_G2, QD_CENTER);
+    }
 
     if (v->rec == 1) {                                  /* STEP recording: the cursor's page, the cursor's step */
         const int c = (v->cursor - 1) % 16;

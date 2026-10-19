@@ -1,11 +1,12 @@
 # QUADRILLE: FM1VST's tests/core_conformance.cpp (its header lists the directives)
-# the sound: P1.3 powers on to the idle screen, and in the step view (where any key or button goes) the keys are the
-# steps and play nothing; KEYS mode (printed ARP) makes the keybed a keyboard for the selected track (track 1, DRUMS:
-# FM TONE's MARIMBA), through the voice pool, ChoralRoot's effects and Output Clean. So the prelude taps ARP: it wakes
-# the unit and turns KEYS mode on; the default key (D4) held 500 ms is then heard at once. The sequencer is stopped at
-# power-on (A02 selected, PLAY starts it), so the key is heard alone.
-sound btn ARP 60
-# the flash: nothing is saved yet (the project is saved as a file from P1.5; PLAN.md §13)
-flash none nothing is saved yet: no settings, no project (P1.5 saves the project)
+# the sound: QUADRILLE powers on to the idle screen, and in the step view (where any key or button goes) the keys are
+# the steps and play nothing; REC (P1.3b, PLAN §8b: REC switches the keybed between the sequencer and the keyboard)
+# makes the keybed a keyboard for the selected track (track 1, DRUMS: FM TONE's MARIMBA), through the voice pool,
+# ChoralRoot's effects and Output Clean. So the prelude taps REC: it wakes the unit and opens the keyboard; the default
+# key (D4) held 500 ms is then heard at once. The sequencer is stopped at power-on (A02 selected, PLAY starts it), so
+# the key is heard alone.
+sound btn REC 60
+# the flash: nothing is saved yet (the project is saved as a file later; PLAN.md §13)
+flash none nothing is saved yet: no settings, no project
 # the reboot: nothing reboots or exits (no boot guard, no update mode)
 reboot none QUADRILLE has no reboot, update mode or exit path

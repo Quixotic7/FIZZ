@@ -1,12 +1,30 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The pattern model (PLAN.md §4, §5, §6): steps, the lock pool, the tracks' settings, a pattern, a project of 64; and
- * the editing API the UI (P1.3) and the tests call. Plain C structs, no allocation, nothing of the OS: a pattern can be
- * stored as it is (P1.5).
+/* The pattern model (PLAN.md §4, §5, §6, §8b): steps, the lock pool, the tracks' settings and defaults, pages, a
+ * pattern, a project of 64 with its sound pool and global key; and the editing API the UI and the tests call. Plain C
+ * structs, no allocation, nothing of the OS: a pattern can be stored as it is (P1.5).
  *
- * A step is PLAN §4's 12-byte layout, kept byte for byte (qd_step_t). A pattern's p-locks are one pool of
- * QD_NLOCK lock_t {step, id, value}, sorted by track, then step, then id (a track's range: lock_start[t],
- * lock_n[t]); a step's "has locks" flag (bit 7) says it has any. The editing API keeps all of that consistent: a
- * full pool returns QD_EFULL and nothing is changed.
+ * P1.3b (PLAN §8b, "track defaults and step overrides"): a track has DEFAULTS for every step parameter (the notes, up
+ * to four; velocity, length, micro, ratchet and ramp, chance, condition, trig type, strum; the sound default is always
+ * the track's own sound). A step stores a value AND AN OVERRIDE BIT per parameter (qd_step_t.ovr, bit QD_PM_k); a
+ * parameter without its bit takes the track's default WHEN THE STEP IS RESOLVED (qd_step_resolve: the sequencer two
+ * steps ahead, the screens at each frame), so a default change moves every step that does not override it, at once.
+ * A tapped step (qd_step_on) has no overrides. Every setter sets its value and its bit; qd_step_reset clears a bit (the
+ * held step's B11). An empty step set a value becomes a trig (Form's rule: setting a value turns the step on).
+ *
+ * PAGES (§8b): a track has 8 pages of 16 steps, each with a start and an end (0..15 here, start <= end; 1..16 on the
+ * screen; default the whole page) and a loop mask (bit p: page p in the loop; default page 1 only; never empty: page 1
+ * then). Playback walks the looped pages in ascending order, each from its start to its end (qd_track_len,
+ * qd_track_loop_step): this replaces §6's track length. qd_track_set_length is Form's flat rebuild (pages 1..k looped,
+ * full but the last).
+ *
+ * THE SOUND POOL (§8b): a project holds up to QD_NSOUND sounds (sounds.h): INIT, the 16 factory sounds, the demo drums.
+ * A step's sound lock is one byte, a pool number (1..QD_NSOUND; 0 = the track's own sound); its p-locks apply on top.
+ *
+ * SCALES (scale.h): a track has a scale and a root (chromatic, C by default) or follows the project's global key.
+ *
+ * A pattern's p-locks are one pool of QD_NLOCK lock_t {step, id, value}, sorted by track, then step, then id (a
+ * track's range: lock_start[t], lock_n[t]); a step's QD_SF_LOCKS says it has any. The editing API keeps all of that
+ * consistent: a full pool returns QD_EFULL and nothing is changed.
  *
  * Lock ids (PLAN §5): 0..72 the FM TONE patch's values (eng_quad.c QP_*: QD_QUAD_NP of them), then the voice's mix:
  * QD_LK_PAN (-64..63), QD_LK_DELAY, QD_LK_REVERB, QD_LK_CHORUS (the sends, 0..127), QD_LK_DRIVE (0..127: stored, the
@@ -23,35 +41,64 @@ extern "C" {
 #define QD_PAT_NTRACK 8
 #define QD_NSTEP 128                    /* steps a track at most (8 pages of 16) */
 #define QD_PAGE 16
+#define QD_NPAGE (QD_NSTEP / QD_PAGE)
 #define QD_NNOTE 4                      /* notes a step */
 #define QD_NLOCK 1024                   /* the lock pool a pattern */
 #define QD_NBANK 4                      /* A..D */
 #define QD_NPAT (QD_NBANK * 16)         /* patterns a project */
+#define QD_NSOUND 128                   /* the sound pool a project */
+#define QD_SOUND_NAME 12
 /* the sequencer's musical time: ticks, QD_TPS a 16th (a step at rate 1). 50400 = 2^5 3^2 5^2 7: a step at every rate
  * (8 .. 1/2 sixteenths, 3/2, 3/4, 4/3, 2/3) divides by 24 (micro, strum), 1..8 (ratchets), 8 (the shortest length)
  * and 50 (swing 50..80 %) in whole ticks, so every time the sequencer computes is exact */
 #define QD_TPS 50400
 
-/* ---- a step (PLAN §4: 12 bytes) */
+/* ---- the step parameters (PLAN §8b): each has a track default and an override bit on a step */
+enum { QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE, QD_PM_COND, QD_PM_TRIG, QD_PM_SOUND,
+       QD_PM_STRUM, QD_NPM };
+#define QD_OV(pm) ((uint16_t)(1u << (pm)))
+
+/* ---- a step (P1.3b: 16 bytes) */
 enum { QD_TRIG_NONE, QD_TRIG_NOTE, QD_TRIG_LOCK, QD_TRIG_TIE };
 enum { QD_RAMP_FLAT, QD_RAMP_UP, QD_RAMP_DOWN, QD_RAMP_ACCENT };
-#define QD_SF_TYPE 0x03u                /* flags: bits 0-1 the trig type */
-#define QD_SF_RATCH_SH 2                /* bits 2-4 ratchet - 1 */
-#define QD_SF_RATCH 0x1Cu
-#define QD_SF_RAMP_SH 5                 /* bits 5-6 the ramp */
-#define QD_SF_RAMP 0x60u
-#define QD_SF_LOCKS 0x80u               /* bit 7 the step has locks in the pool */
+#define QD_SF_ON 0x01u                  /* flags: the step has a trig */
+#define QD_SF_LOCKS 0x80u               /* .. it has locks in the pool */
+#define QD_RT_COUNT 0x07u               /* ratch: bits 0-2 the count - 1 (x1..x8) */
+#define QD_RT_RAMP_SH 4                 /* .. bits 4-5 the ramp */
+#define QD_RT_RAMP 0x30u
 typedef struct {
-    uint8_t flags;
-    uint8_t note[QD_NNOTE];             /* note 1 absolute (1..127, 0 none); 2..4 offsets +1..+48 from note 1 (0 none) */
+    uint16_t ovr;                       /* bit QD_PM_k: the step overrides parameter k (else the track's default) */
+    uint8_t flags;                      /* QD_SF_ON, QD_SF_LOCKS */
+    uint8_t type;                       /* QD_TRIG_NOTE / LOCK / TIE (with QD_PM_TRIG's bit) */
+    uint8_t note[QD_NNOTE];             /* note 1 absolute (1..127); 2..4 offsets +1..+48 from note 1 (0 none) */
     uint8_t vel;                        /* 1..127 */
     uint8_t len;                        /* an index into the length table (qd_len_eighths), QD_LEN_INF the last */
     int8_t micro;                       /* -23..+23 24ths of a step */
-    uint8_t cond;                       /* QD_COND_*, then A:B (qd_cond_ab) */
+    uint8_t ratch;                      /* QD_RT_*: the count and the ramp */
     uint8_t chance;                     /* 0..100 % */
-    uint8_t sound;                      /* the sound lock: 0 none, 1 INIT, 2..17 the factory sounds (preset k = sound - 1) */
+    uint8_t cond;                       /* QD_COND_*, then A:B (qd_cond_ab) */
+    uint8_t sound;                      /* the sound lock: 0 none (the track's sound), 1..QD_NSOUND a pool number */
     uint8_t strum;                      /* 0..23 24ths between a chord's notes */
 } qd_step_t;
+
+/* a track's step defaults (the sound's default is the track's own sound: no field) */
+typedef struct {
+    uint8_t note[QD_NNOTE];             /* as a step's */
+    uint8_t vel, len;
+    int8_t micro;
+    uint8_t ratch, chance, cond, type, strum;
+} qd_sdef_t;
+
+/* a step as it plays: its values, each the step's own or the track's default */
+typedef struct {
+    int on;                             /* a trig */
+    int type;                           /* QD_TRIG_* (NONE when not on) */
+    int nn;                             /* notes */
+    uint8_t notes[QD_NNOTE];            /* absolute, ascending (above 127 clamped) */
+    uint8_t note[QD_NNOTE];             /* as stored: note 1, offsets */
+    int vel, len, micro, ratch, ramp, chance, cond, sound, strum;
+    uint16_t ovr;
+} qd_rstep_t;
 
 /* the lengths (PLAN §4): 1/8, 1/4, 1/2, 3/4 of a step, 1, 1.5, 2, 3, 4, 6, 8 .. 128 steps (the ".." as 12, 16, 24,
  * 32, 48, 64, 96), INF: eighths of a step */
@@ -74,20 +121,23 @@ typedef struct { uint8_t step, id; int16_t value; } qd_lock_t;
 enum { QD_LK_PAN = QD_QUAD_NP, QD_LK_DELAY, QD_LK_REVERB, QD_LK_CHORUS, QD_LK_DRIVE, QD_LK_LEVEL, QD_LK_N };
 int qd_lock_range(int id, int16_t *min, int16_t *max);   /* 0: no such id */
 
-/* ---- a track's settings in a pattern (PLAN §4 "track defaults", §6) */
+/* ---- a track's settings in a pattern (PLAN §4 "track defaults", §6, §8b) */
 enum { QD_RATE_1_8, QD_RATE_1_4, QD_RATE_1_2, QD_RATE_3_4, QD_RATE_1, QD_RATE_3_2, QD_RATE_2, QD_RATE_2_3,
        QD_RATE_4_3, QD_NRATE };         /* the Digitone's seven and 2/3, 4/3 (PLAN question 14) */
 const char *qd_rate_name(int rate);     /* "1/8x" .. "2x" */
 typedef struct {
-    uint8_t def_note, def_vel, def_len; /* what a new trig gets */
+    qd_sdef_t def;                      /* the step defaults (§8b) */
     uint8_t chan;                       /* MIDI channel 0..15 */
     uint8_t limit, reserve;             /* the voices (PLAN §2): 1..16 (1 mono), 0..16 */
     uint8_t rate;                       /* QD_RATE_* */
-    uint8_t length;                     /* 1..128 steps */
     uint8_t swing;                      /* swing on (1) / off */
     int8_t transpose;                   /* -48..+48 */
     uint8_t mute;
-    uint8_t pad[5];
+    uint8_t loop;                       /* bit p: page p in the loop (never 0 when read: page 1 then) */
+    uint8_t pstart[QD_NPAGE], pend[QD_NPAGE];   /* each page's first and last step, 0..15, start <= end */
+    uint8_t scale, root;                /* the track's key (scale.h: QD_SCALE_*, root 0..11 = C..B) */
+    uint8_t key_global;                 /* 1: the track follows the project's global key */
+    uint8_t pad;
 } qd_tset_t;
 
 /* ---- a pattern */
@@ -105,8 +155,17 @@ typedef struct {
     qd_lock_t lock[QD_NLOCK];
 } qd_pattern_t;
 
+/* a sound of the pool: an FM TONE patch and its name */
+typedef struct {
+    char name[QD_SOUND_NAME];
+    int16_t patch[QD_QUAD_NP];
+} qd_sound_t;
+
 typedef struct {
     qd_pattern_t pat[QD_NPAT];
+    qd_sound_t sound[QD_NSOUND];        /* the pool: sound number k is sound[k - 1] */
+    uint8_t nsound;                     /* sounds in it (1..QD_NSOUND) */
+    uint8_t key_scale, key_root;        /* the global key (the tracks that follow it) */
 } qd_project_t;
 
 /* ---- errors */
@@ -118,7 +177,8 @@ typedef struct {
 /* ---- patterns */
 void qd_pat_init(qd_pattern_t *p);      /* empty: no trigs, no locks, track defaults, 120 BPM, swing 50, master auto */
 void qd_tset_init(qd_tset_t *s, int track);
-void qd_project_init(qd_project_t *pr);
+void qd_sdef_init(qd_sdef_t *d);        /* C4, velocity 100, a step, micro 0, x1, 100 %, ALWAYS, NOTE, strum 0 */
+void qd_project_init(qd_project_t *pr); /* empty patterns, the pool's first sounds (sounds.h), the key C chromatic */
 const char *qd_pat_name(int k, char *buf);   /* 0 -> "A01" .. 63 -> "D16" (buf: 4 bytes) */
 /* the step length of a track in ticks of the sequencer (QD_TPS ticks a 16th, seq.h); a track's loop and the master
  * length likewise */
@@ -126,19 +186,32 @@ int64_t qd_rate_ticks(int rate);
 int64_t qd_pat_master_ticks(const qd_pattern_t *p);   /* QD_MASTER_INF: 0 */
 int qd_pat_check(const qd_pattern_t *p);   /* the pool sorted and counted, the flags right: 1; else 0 (tests) */
 
+/* ---- pages and the loop (§8b) */
+int qd_track_loop(const qd_tset_t *ts);  /* the loop mask, never 0 */
+int qd_track_len(const qd_tset_t *ts);   /* the loop's steps: the looped pages' ranges summed (1..128) */
+int qd_track_loop_step(const qd_tset_t *ts, int pos);   /* loop position pos (wrapped) -> its step 0..127 */
+int qd_track_step_pos(const qd_tset_t *ts, int s);      /* step s -> its loop position, -1: not in the loop */
+int qd_page_in_range(const qd_tset_t *ts, int s);       /* step s within its page's start..end */
+int qd_page_set_range(qd_pattern_t *p, int t, int page, int start, int end);   /* 0..15 each, start <= end */
+int qd_page_set_loop(qd_pattern_t *p, int t, int mask);  /* (0: page 1) */
+int qd_track_set_length(qd_pattern_t *p, int t, int n);   /* Form's flat rebuild: pages 1..k, full but the last */
+
 /* ---- steps (t 0..7, s 0..127). Each returns QD_OK or an error */
 const qd_step_t *qd_step(const qd_pattern_t *p, int t, int s);
-int qd_step_type(const qd_step_t *st);
-int qd_step_ratchet(const qd_step_t *st);   /* 1..8 */
-int qd_step_ramp(const qd_step_t *st);
-int qd_step_notes(const qd_step_t *st, uint8_t *notes);   /* the absolute notes (n of them) */
-/* a trig: NOTE / LOCK / TIE set (an empty step takes the track's default note, velocity and length), NONE clears the
- * step and its locks */
+int qd_step_is_on(const qd_step_t *st);
+int qd_step_overrides(const qd_step_t *st, int pm);
+/* the step as it plays (its own values where it overrides, else the track's defaults) */
+void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r);
+int qd_step_type(const qd_pattern_t *p, int t, int s);   /* resolved: QD_TRIG_NONE when off */
+int qd_step_notes(const qd_pattern_t *p, int t, int s, uint8_t *notes);   /* resolved: the absolute notes (n) */
+int qd_notes_abs(const uint8_t *note4, uint8_t *notes);   /* note 1 + offsets -> absolute ascending (n) */
+/* a trig with no overrides (the tap); NOTE / LOCK / TIE: a trig with that type overridden; NONE: the step and its
+ * locks cleared */
+int qd_step_on(qd_pattern_t *p, int t, int s);
 int qd_step_set_trig(qd_pattern_t *p, int t, int s, int type);
 int qd_step_set_notes(qd_pattern_t *p, int t, int s, const uint8_t *notes, int n);   /* absolute, any order */
-/* P1.3, the NOTE field's knobs: note 1 moved with the chord's shape kept (1..127; the notes above 127 are clamped where
- * they sound), or note k (1..3) set as its offset 0..48 above note 1 in its own slot (0: none; an offset another slot
- * has: QD_ENOTE). An empty step becomes a NOTE trig first */
+/* note 1 moved with the chord's shape kept (1..127), or note k (1..3) set as its offset 0..48 above note 1 (0: none;
+ * an offset another slot has: QD_ENOTE). Without the NOTE override, the track's default notes are its start */
 int qd_step_set_root(qd_pattern_t *p, int t, int s, int note);
 int qd_step_set_offset(qd_pattern_t *p, int t, int s, int k, int off);
 int qd_step_set_vel(qd_pattern_t *p, int t, int s, int vel);
@@ -147,8 +220,20 @@ int qd_step_set_micro(qd_pattern_t *p, int t, int s, int micro);
 int qd_step_set_ratchet(qd_pattern_t *p, int t, int s, int count, int ramp);
 int qd_step_set_cond(qd_pattern_t *p, int t, int s, int cond);
 int qd_step_set_chance(qd_pattern_t *p, int t, int s, int chance);
-int qd_step_set_sound(qd_pattern_t *p, int t, int s, int sound);   /* 0 none, 1 INIT, 2..17 */
+int qd_step_set_sound(qd_pattern_t *p, int t, int s, int sound);   /* 0 (the track's: the override cleared) .. 128 */
 int qd_step_set_strum(qd_pattern_t *p, int t, int s, int strum);
+int qd_step_reset(qd_pattern_t *p, int t, int s, int pm);   /* parameter pm back to the track's (the bit cleared) */
+/* the resolved ratchet of a step's stored byte / of a default */
+int qd_ratch_count(int ratch);
+int qd_ratch_ramp(int ratch);
+int qd_ratch_make(int count, int ramp);
+
+/* ---- the track's defaults (§8b: ALGORITHM with nothing held). A default change reaches every step that does not
+ * override it, at once */
+qd_sdef_t *qd_tdef(qd_pattern_t *p, int t);
+int qd_tdef_set_notes(qd_pattern_t *p, int t, const uint8_t *notes, int n);
+int qd_tdef_set(qd_pattern_t *p, int t, int pm, int value);   /* VEL .. STRUM (RATCH: qd_ratch_make; NOTE: note 1) */
+int qd_tdef_get(const qd_pattern_t *p, int t, int pm);
 
 /* ---- locks */
 int qd_lock_set(qd_pattern_t *p, int t, int s, int id, int value);   /* QD_EFULL: the pool is full */
@@ -165,6 +250,10 @@ int qd_page_clear(qd_pattern_t *p, int t, int page);
 int qd_page_copy(qd_pattern_t *dst, int dt, int dpage, const qd_pattern_t *src, int st, int spage);
 int qd_track_clear(qd_pattern_t *p, int t);   /* steps and locks; the settings stay */
 int qd_track_copy(qd_pattern_t *dst, int dt, const qd_pattern_t *src, int st);
+/* raw: steps [s, s + n) of track t out (their locks with steps relative to s: lk[] room for QD_NLOCK), and back in
+ * (QD_EFULL: nothing changed). clip.c's clipboards and undo are built on these */
+int qd_steps_get(const qd_pattern_t *p, int t, int s, int n, qd_step_t *steps, qd_lock_t *lk, int *nlk);
+int qd_steps_put(qd_pattern_t *p, int t, int s, int n, const qd_step_t *steps, const qd_lock_t *lk, int nlk);
 
 #ifdef __cplusplus
 }

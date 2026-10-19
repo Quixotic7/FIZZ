@@ -27,7 +27,11 @@
  * ctl_leds.c), which turns it into model edits and UI state (qd_ui_t, a->ui); the frame is view.c's (the model and the
  * UI state into the screens' view records). Power-on shows the idle screen; any key or button goes to the step view
  * (the home screen); two minutes untouched and stopped: idle again. The app keeps the clock, the transport, the sound
- * and the keybed's notes; the gestures, the screens and the LEDs are the controller's (PLAN §8, the header of ctl.h). */
+ * and the keybed's notes; the gestures, the screens and the LEDs are the controller's (PLAN §8, the header of ctl.h).
+ * P1.3b: the sequencer controls version 2 (PLAN §8b, after the OMX-27 Form sequencer): track defaults and step
+ * overrides, pages with their own start and end and a loop, the project's sound pool, scales, solo, copy / paste and
+ * undo (seq/); the black keys choose the hold mode and set its ten values, OCT- / OCT+ are F1 / F2 (both F3), GLO is
+ * SHIFT, REC switches the keybed between the sequencer and the keyboard, ARP held is FILL (ctl.h's header). */
 #pragma once
 #include <stdint.h>
 
@@ -60,7 +64,8 @@ extern "C" {
 #define QD_MASTER_POT_DEFAULT 724      /* MASTER before the panel says (master_of_pot: 2047 of 4096, Felucca's) */
 
 /* the buttons, by QUADRILLE's roles (PLAN.md §8), in the panel's order (printed FX, SEL, ENV, LFO, EDIT, GLO, HOME,
- * SAVE, ARP, SEQ, PLAY, REC, OCT-, OCT+) */
+ * SAVE, ARP, SEQ, PLAY, REC, OCT-, OCT+). P1.3b (§8b): QD_B_FUNC is SHIFT, QD_B_KEYS (ARP) is FILL while held,
+ * QD_B_OCTDN / QD_B_OCTUP are F1 / F2 */
 enum { QD_B_TRACKS, QD_B_PATTERN, QD_B_PAGE, QD_B_MUTE, QD_B_SOUND, QD_B_FUNC, QD_B_HOME, QD_B_SAVE, QD_B_KEYS,
        QD_B_MIX, QD_B_PLAY, QD_B_REC, QD_B_OCTDN, QD_B_OCTUP, QD_NBTN };
 /* the knobs (detents), in the panel's role order */

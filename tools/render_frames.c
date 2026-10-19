@@ -23,8 +23,8 @@
  * length): idle-queued.png at 7600 (the name in its lit half of the blink) and idle-changed.png at 13500, after the
  * change. Its LEDs go to leds.txt too.
  *
- * Then P1.3's (render_p13.c): every screen of P1.3 from a real state, p13-*.png, and the contact sheet p13-sheet.png
- * beside line.html's mocks (--mocks DIR, default ../mockups/png). */
+ * Then P1.3b's (render_p13b.c): every screen of P1.3b from a real state, p13b-*.png, and the contact sheet
+ * p13b-sheet.png beside line.html's mocks (--mocks DIR, default ../mockups/png). */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,9 +42,9 @@ static const char *const BTN_ROLE[QD_NBTN] = {"TRACKS", "PATTERN", "PAGE", "MUTE
 static const char *const BTN_PRINTED[QD_NBTN] = {"FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HOME",
                                                   "SAVE", "ARP", "SEQ", "PLAY", "REC", "OCT-", "OCT+"};
 
-int render_p13(const char *out, const char *mocks);   /* render_p13.c */
+int render_p13b(const char *out, const char *mocks);   /* render_p13b.c */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
-int p13_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
+int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
 
 static int write_lcd_png(const char *path, const uint16_t *lcd_be)
 {
@@ -359,7 +359,7 @@ int main(int argc, char **argv)
     }
     fclose(log);
     printf("%s/leds.txt (the LEDs at each frame time, the beat LED's edges to 2600 ms; key 0's peak %d)\n", out, peak);
-    failed |= render_p13(out, mocks);                   /* P1.3: every screen from a real state, the contact sheet */
+    failed |= render_p13b(out, mocks);                  /* P1.3b: every screen from a real state, the contact sheet */
     qd_shutdown();
     return failed;
 }
