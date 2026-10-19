@@ -372,7 +372,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "render_audio: cannot write %s (does the folder exist?)\n", path);
         return 1;
     }
-    fprintf(log, "QUADRILLE P1.1, render_audio: %d voices, MASTER at its default (pot %d), 122 BPM\n", QD_VOICES,
+    fprintf(log, "FIZZ P1.1, render_audio: %d voices, MASTER at its default (pot %d), 122 BPM\n", QD_VOICES,
             QD_MASTER_POT_DEFAULT);
 
     /* presets.wav: track 3 (KEYS), every sound */
@@ -436,7 +436,7 @@ int main(int argc, char **argv)
         dl = fopen(path, "w");
         if (!dl)
             return 1;
-        fprintf(dl, "QUADRILLE P1.2, the demo patterns (seq/demo.c)\n\nA01's drums, each alone on one voice:\n");
+        fprintf(dl, "FIZZ P1.2, the demo patterns (seq/demo.c)\n\nA01's drums, each alone on one voice:\n");
         {
             static const char *const WHAT[16] = {"kick", "c-hat", "c-hat", "ghost", "snare", "c-hat", "kick", "o-hat",
                                                  "c-hat", "ghost", "kick", "c-hat", "clap", "c-hat", "ghost", "o-hat"};

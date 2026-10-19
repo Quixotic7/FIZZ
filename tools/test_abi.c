@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* P1.3i: QUADRILLE driven through the core ABI, as FM1VST's host drives it: the built quadrille.fm1core loaded with
- * dlopen, fm1core_get, the panel written between entry points (buttons by their labels' matrix ids, the knobs as
- * detents on enc[enc_id[role]] in enc_dir[role]), tick each millisecond, frame every 15, audio in 128-frame blocks,
- * MIDI real-time bytes through midi_in. The tempo is read from ui_info ("..., 120 BPM, ...").
+/* P1.3i: FIZZ (P1.3k: was QUADRILLE) driven through the core ABI, as FM1VST's host drives it: the built fizz.fm1core
+ * loaded with dlopen, fm1core_get, the panel written between entry points (buttons by their labels' matrix ids, the
+ * knobs as detents on enc[enc_id[role]] in enc_dir[role]), tick each millisecond, frame every 15, audio in 128-frame
+ * blocks, MIDI real-time bytes through midi_in. The tempo is read from ui_info ("..., 120 BPM, ...").
  *
  *   F3 latched (OCT- and OCT+ down together, then up) + the ALGORITHM role: the tempo moves; SHIFT + ALGORITHM: the
  *   swing (the map shows it); after a MIDI START and STOP the tempo turns again; while a MIDI clock runs the turn is
  *   the clock's (EXT CLOCK), and when the clock stops arriving the tempo is the knob's again.
  *
- *     test_abi path/to/quadrille.fm1core      exit 1 on a failed check
+ *     test_abi path/to/fizz.fm1core      exit 1 on a failed check
  * It needs FM1VST's core-api (FM1CORE_API, tools/Makefile) and the built module: make -C tools abi. */
 #include <dlfcn.h>
 #include <stdio.h>
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
     const fm1core_t *(*get)(uint32_t);
     int b0, k;
     if (argc < 2) {
-        fprintf(stderr, "usage: test_abi quadrille.fm1core\n");
+        fprintf(stderr, "usage: test_abi fizz.fm1core\n");
         return 2;
     }
     h = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);

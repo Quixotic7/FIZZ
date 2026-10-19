@@ -68,7 +68,7 @@ int main(void)
     int k, s, bad = 0, nsnd = cr_ref_npresets();
     uint64_t samples = 0, renders = 0;
     if (nsnd != QD_QUAD_NPRESET) {
-        printf("test_quad_bitexact: ChoralRoot has %d sounds, QUADRILLE %d\n", nsnd, QD_QUAD_NPRESET);
+        printf("test_quad_bitexact: ChoralRoot has %d sounds, FIZZ %d\n", nsnd, QD_QUAD_NPRESET);
         return 1;
     }
     for (k = 0; k < nsnd; k++) {

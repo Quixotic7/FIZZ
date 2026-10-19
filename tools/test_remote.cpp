@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// P1.3j: QUADRILLE through FM1VST's own processor and Remote FM-1 path, headless: FM1Processor with Remote on, against
-// libremotefm1's in-process fake unit (FM1EMU_REMOTE_FAKE=1: nothing on USB or CoreMIDI is opened). The unit's buttons
+// P1.3j: FIZZ (P1.3k: was QUADRILLE) through FM1VST's own processor and Remote FM-1 path, headless: FM1Processor
+// with Remote on, against libremotefm1's in-process fake unit (FM1EMU_REMOTE_FAKE=1: nothing on USB or CoreMIDI is
+// opened). The unit's buttons
 // and encoders are injected on the fake as the real unit sends them (matrix ids), so they go through RemoteLink, the
 // processor's applyRemote, Device::enc and the glue, as on the owner's Mac. Checked: F3 opened on the unit (OCT- and
 // OCT+ together, let go; and held while turning), the ALGORITHM encoder moves the tempo, SHIFT (GLO) + ALGORITHM the
@@ -66,7 +67,7 @@ static int bpmOf(const std::string &s)
 
 int main(int argc, char **argv)
 {
-    const char *home = argc > 1 ? argv[1] : "/tmp/fm1-remote-quadrille";
+    const char *home = argc > 1 ? argv[1] : "/tmp/fm1-remote-fizz";
     std::string mk = std::string("mkdir -p '") + home + "'";
     if (std::system(mk.c_str()) != 0)
         return 2;
@@ -81,6 +82,15 @@ int main(int argc, char **argv)
     }
     Host h(p);
     h.runMs(300);
+#ifdef FM1_DEFAULT_CORE                                 /* (the build's own core, whatever the shared code was built with) */
+    if ((!p.deviceForTest() || !p.deviceForTest()->core() ||
+         std::strcmp(p.deviceForTest()->core()->id, FM1_DEFAULT_CORE) != 0) &&
+        !p.switchCore(FM1_DEFAULT_CORE)) {
+        std::printf("FAIL: cannot load the core %s\n", FM1_DEFAULT_CORE);
+        return 1;
+    }
+    h.runMs(300);
+#endif
     p.setRemoteEnabled(true);
     for (int i = 0; i < 500 && rl->status().state != RemoteLink::kConnected; i++)
         h.tick();

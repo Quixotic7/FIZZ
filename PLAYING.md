@@ -1,4 +1,4 @@
-# Playing QUADRILLE (P1.3j)
+# Playing FIZZ (P1.3k)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -22,7 +22,8 @@ sound comes from the Mac. Printed names are in brackets.
 
 ## Getting around
 
-- The unit wakes on the dancing screen. Press anything to get to the **step view**.
+- The unit wakes on the FIZZ screen (bubbles rising through the drink; while a DAW plays it, they burst on the beats).
+  Press anything to get to the **step view**.
 - **HOME** in the sequencer switches its view: **PIANO ROLL** (the mode's lane) and **STEPS**. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into tall cells with each step's notes
   drawn inside at their pitch, the other pages are thin rows above and below. Pages in the loop are bright, the others
@@ -30,7 +31,7 @@ sound comes from the Mac. Printed names are in brackets.
   red marker hops along the steps and each step pops as it plays. SELECT changes the page (the rows fold and unfold).
   From any other screen HOME comes back to the sequencer in the view you used last. If F3 or the step latch is open,
   HOME closes that first.
-- After two minutes untouched with nothing playing, it goes back to the dancers.
+- After two minutes untouched with nothing playing, it goes back to the FIZZ screen.
 - **PLAY** plays and stops.
 
 ## How do I add and remove steps?

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* QUADRILLE as an FM1VST core (core-api/fm1core.h, ABI 6): the glue between the ABI's panel and the app (core/app).
- * The only unit, with core_quadrille_desc.c, that knows the ABI. Built by FM1VST's core-glue/quadrille/core.cmake
- * (fm1_add_core) from this tree.
+/* FIZZ (P1.3k: QUADRILLE renamed; the files keep their names) as an FM1VST core (core-api/fm1core.h, ABI 6): the glue
+ * between the ABI's panel and the app (core/app). The only unit, with core_quadrille_desc.c, that knows the ABI. Built
+ * by FM1VST's core-glue/fizz/core.cmake (fm1_add_core) from this tree.
  *
  * In: at the top of tick, frame and idle the panel's keys and buttons become press / release events (a tap: a press
  * now, its release at the next call), the encoders' detents knob events by role (fm1p_take_role), the MASTER pot (0..1023;

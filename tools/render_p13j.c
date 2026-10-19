@@ -146,7 +146,7 @@ static void sheet(void)
     plutovg_canvas_fill(c);
     plutovg_canvas_set_font(c, f, 18.f);
     plutovg_canvas_set_rgb(c, 0.9f, 0.9f, 0.9f);
-    plutovg_canvas_fill_text(c, "QUADRILLE P1.3j: the screens of PLAN §8b 2.2: the STEPS view redrawn (P1.3j), each from the core (2x)", -1,
+    plutovg_canvas_fill_text(c, "FIZZ P1.3j: the screens of PLAN §8b 2.2: the STEPS view redrawn (P1.3j), each from the core (2x)", -1,
                              PLUTOVG_TEXT_ENCODING_UTF8, (float)pad, 32.f);
     for (i = 0; i < nshot; i++) {
         const float x = (float)(pad + (i % cols) * (cell_w + pad)), y = (float)(50 + (i / cols) * (cell_h + pad));

@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* QUADRILLE's descriptor (core-api/fm1core.h, ABI 6): the one exported symbol of quadrille.fm1core. Its own unit
- * (-Wall -Wextra); the entry points are core_quadrille.c's. The button names are QUADRILLE's roles (PLAN.md §8), in
- * the panel's order: FX = TRACKS, SEL = MUTE / SOLO (P1.3c: held, the tracks), ENV = PAGE, LFO = MUTE, EDIT = SOUND,
- * GLO = SHIFT, HOME, SAVE, ARP = FILL, SEQ = PATTERNS (P1.3c: held, the patterns), PLAY, REC, OCT- = F1, OCT+ = F2
- * (PLAN §8b version 2.1). No parameter map yet: every knob is relative. */
+/* FIZZ's descriptor (core-api/fm1core.h, ABI 6): the one exported symbol of fizz.fm1core (P1.3k: QUADRILLE renamed).
+ * Its own unit (-Wall -Wextra); the entry points are core_quadrille.c's. The button names are its roles (PLAN.md
+ * §8), in the panel's order: FX = TRACKS, SEL = MUTE / SOLO (P1.3c: held, the tracks), ENV = PAGE, LFO = MUTE,
+ * EDIT = SOUND, GLO = SHIFT, HOME, SAVE, ARP = FILL, SEQ = PATTERNS (P1.3c: held, the patterns), PLAY, REC, OCT- = F1,
+ * OCT+ = F2 (PLAN §8b version 2.1). No parameter map yet: every knob is relative. */
 #include <stddef.h>
 
 #include "fm1core.h"
@@ -32,7 +32,7 @@ const int8_t *fm1core_qd_keymap_get(void);
 static fm1core_t CORE = {
     .abi_version = FM1CORE_ABI,
     .id = FM1CORE_ID,
-    .name = "QUADRILLE",
+    .name = "FIZZ",
     .version = FM1CORE_VERSION,
     .source_url = FM1CORE_SOURCE_URL("FMToneSeq (local)"),
     .family = FM1CORE_FAMILY,
