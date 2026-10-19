@@ -1226,3 +1226,8 @@ merge 4894c6b of FM1VST main bf10c77 = 0.5.0; version 0.1.0-p1.3k; the Standalon
 - **The name is FIZZ**: the core id `fizz`, FM1VST `core-glue/fizz`, `FIZZ_DIR`, README.md and LICENSE (GPL-3.0); the
   idle screen is bubbles rising through the drink and bursting on the beats (`core/tests/out/fizz-idle.gif`).
 - FM1VST 0.5.0 merged without conflicts and with no ABI change (two new optional symbols FIZZ doesn't need).
+
+**2026-10-19, P1.3l** (FMToneSeq a713a21; FM1VST `core-quadrille` c6d488c; version 0.1.1-p1.3l; relaunched): the idle
+screen is a glass filling and fizzing over (the owner's cola photo): a 9.4 s loop of pour, foam, overflow with drips and
+spray, FIZZ rising from the foam, settle, fade; the spray pulses on the beats when a MIDI START plays it
+(`core/tests/out/fizz-glass.gif`).
