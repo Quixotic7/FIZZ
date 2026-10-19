@@ -729,6 +729,10 @@ Knobs without a job in a mode do nothing there (p-locks are P-LOCK's).
 - **Six notes** (the owner): in NOTE with a step held, **ALGORITHM = note 6** (SELECT note 1, KNOB 1..4 notes 2..5),
   so a step has **up to 6 notes** (keys too). For the track's default chord ALGORITHM keeps moving every note
   together (the owner likes it); a held step's notes no longer have that transpose.
+  **Superseded the same day (the owner):** in NOTE, with a step held **or the NOTE key held**, **ALGORITHM moves
+  every note together, SELECT moves only note 1, KNOB 1..4 move only notes 2..5**, each on its own (the other notes
+  stay where they are). Notes are therefore stored as pitches, not as offsets from note 1. A knob turned all the way
+  down removes its note; turned up from none it adds one. A sixth note comes only from the black keys.
 - **KNOB 4, the quiet knob** (the owner): in every mode where KNOB 4 has no job (all but NOTE, where it is note 5),
   KNOB 4 sets the mode's main value **without any overlay**: the lane (nothing held) or the held step's screen just
   changes in place. With nothing held it sets the track's default, with a step held the step's value.
