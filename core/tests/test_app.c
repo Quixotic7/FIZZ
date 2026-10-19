@@ -523,8 +523,8 @@ static int frame_grey(void)
     return 1;
 }
 
-/* P1.3k..P1.3m: FIZZ's idle screen (the logo: the top of a glass fizzing over, outlined): it moves with the clock, the
- * same clock draws the same frame, it has no colour (P1.3m), and a running transport (a DAW's MIDI clock, the screen
+/* P1.3k..P1.3n: FIZZ's idle screen (the logo: a wavy surface line and fine bubbles): it moves with the clock, the
+ * same clock draws the same frame, it has no colour (P1.3m/n), and a running transport (a DAW's MIDI clock, the screen
  * staying idle) adds the beats' spray */
 static void t_fizz(void)
 {

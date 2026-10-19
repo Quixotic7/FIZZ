@@ -58,7 +58,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13j.o $(B)/render_p13m.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13j.o $(B)/render_p13n.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
@@ -77,7 +77,7 @@ FFMPEG ?= $(firstword $(wildcard /opt/homebrew/bin/ffmpeg /usr/local/bin/ffmpeg)
 frames: render_frames
 	mkdir -p $(OUT)
 	./render_frames $(OUT)
-	@# P1.3m: the logo screen's whole loop as a GIF, 2x, 15 fps (skipped without ffmpeg)
+	@# P1.3n: the logo screen's whole loop as a GIF, 2x, 15 fps (skipped without ffmpeg)
 	-$(FFMPEG) -loglevel error -y -framerate 15 -i $(OUT)/fizz-logo/f-%03d.png \
 	    -vf "scale=480:480:flags=bilinear,split[a][b];[a]palettegen=max_colors=16[p];[b][p]paletteuse=dither=none" \
 	    $(OUT)/fizz-logo.gif && echo "$(OUT)/fizz-logo.gif" 

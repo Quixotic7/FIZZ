@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3m)
+# Playing FIZZ (P1.3n)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -22,8 +22,8 @@ sound comes from the Mac. Printed names are in brackets.
 
 ## Getting around
 
-- The unit wakes on the FIZZ logo screen (the top of a glass fizzing over, drawn in outline, grey on black; while a DAW
-  plays it, the bubbles and the spray pulse on the beats).
+- The unit wakes on the FIZZ logo screen (a wavy surface line with fine bubbles rising and popping, grey on black; while
+  a DAW plays it, the surface lifts and the bubbles and spray pulse on the beats).
   Press anything to get to the **step view**.
 - **HOME** in the sequencer switches its view: **PIANO ROLL** (the mode's lane) and **STEPS**. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into tall cells with each step's notes

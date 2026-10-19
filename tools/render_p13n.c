@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' P1.3m part: FIZZ's logo screen, the top of a glass fizzing over in outline, at eight moments of its loop
- * (OUT/p13m-fizz-*.png, OUT/p13m-sheet.png) and one whole loop as frames OUT/fizz-logo/f-NNN.png at 15 fps, which
+/* render_frames' P1.3n part: FIZZ's logo screen, a wavy surface line and fine bubbles, at eight moments of its loop
+ * (OUT/p13n-fizz-*.png, OUT/p13n-sheet.png) and one whole loop as frames OUT/fizz-logo/f-NNN.png at 15 fps, which
  * `make -C tools frames` turns into OUT/fizz-logo.gif with ffmpeg (2x). */
 #include <sys/stat.h>
 #include <stdio.h>
@@ -51,11 +51,11 @@ static void shot(const char *name, const char *caption)
 {
     char path[1024];
     qd_app_frame(&A, lcd);
-    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13m-%s.png", name);
+    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13n-%s.png", name);
     snprintf(shots[nshot].caption, sizeof shots[nshot].caption, "%s", caption);
     snprintf(path, sizeof path, "%s/%s", outdir, shots[nshot].file);
     if (!p13b_write_lcd_png(path, lcd)) {
-        fprintf(stderr, "render_p13m: cannot write %s\n", path);
+        fprintf(stderr, "render_p13n: cannot write %s\n", path);
         failed = 1;
     }
     printf("%s (%s)\n", path, caption);
@@ -92,7 +92,7 @@ static void sheet(void)
     plutovg_canvas_fill(c);
     plutovg_canvas_set_font(c, f, 18.f);
     plutovg_canvas_set_rgb(c, 0.9f, 0.9f, 0.9f);
-    plutovg_canvas_fill_text(c, "FIZZ P1.3m: the logo screen, the top of a glass fizzing over, outlined, each from the core (2x)", -1,
+    plutovg_canvas_fill_text(c, "FIZZ P1.3n: the logo screen, a wavy surface and fine bubbles, each from the core (2x)", -1,
                              PLUTOVG_TEXT_ENCODING_UTF8, (float)pad, 32.f);
     for (i = 0; i < nshot; i++) {
         const float x = (float)(pad + (i % cols) * (cell_w + pad)), y = (float)(50 + (i / cols) * (cell_h + pad));
@@ -107,7 +107,7 @@ static void sheet(void)
             plutovg_surface_destroy(ours);
         }
     }
-    snprintf(path, sizeof path, "%s/p13m-sheet.png", outdir);
+    snprintf(path, sizeof path, "%s/p13n-sheet.png", outdir);
     if (!plutovg_surface_write_to_png(s, path))
         failed = 1;
     printf("%s (%d screens)\n", path, nshot);
@@ -119,19 +119,19 @@ static void sheet(void)
 /* ---------------------------------------------------------------- the script */
 #define LOOP_MS 9400u
 
-int render_p13m(const char *out)
+int render_p13n(const char *out)
 {
     static const struct {
         uint32_t at;
         const char *name, *caption;
     } M[] = {
-        {300, "fizz-1-empty", "0.3 s: the empty rim, the straw"},
-        {2000, "fizz-2-rising", "2.0 s: the surface rising into view, bubbles"},
-        {3600, "fizz-3-full", "3.6 s: near the rim, cold dots on the glass"},
-        {4700, "fizz-4-foam", "4.7 s: the foam swelling over the rim"},
-        {5700, "fizz-5-peak", "5.7 s: the peak: it fizzes over, drips, spray, FIZZ rising"},
-        {6500, "fizz-6-spill", "6.5 s: the drips running down, the spray falling"},
-        {7800, "fizz-7-settle", "7.8 s: settled, a head of foam, FIZZ"},
+        {1300, "fizz-1-appear", "1.3 s: the surface appearing from below"},
+        {2200, "fizz-2-rising", "2.2 s: rising, the first bubbles"},
+        {3600, "fizz-3-level", "3.6 s: at rest, fine bubbles rising and popping"},
+        {5000, "fizz-4-fizz", "5.0 s: the fizz: many more bubbles, spray"},
+        {5800, "fizz-5-logo", "5.8 s: FIZZ rising out of the fizz"},
+        {6800, "fizz-6-calm", "6.8 s: calming, FIZZ stays"},
+        {8000, "fizz-7-settle", "8.0 s: settled"},
         {8900, "fizz-8-fade", "8.9 s: fading (the loop starts again)"},
     };
     char path[1024];
@@ -154,7 +154,7 @@ int render_p13m(const char *out)
     A.ui.mode = QD_MODE_IDLE;
     while ((long)A.beats % 4 != 0 || A.beats - (double)(long)A.beats > 0.1)
         run(1);
-    shot("fizz-9-playing", "playing: the downbeat's surge of spray");
+    shot("fizz-9-playing", "playing: the downbeat lifts the surface, a pop of spray");
 
     /* the GIF's frames: one whole loop at 15 fps */
     snprintf(path, sizeof path, "%s/fizz-logo", out);
