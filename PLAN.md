@@ -664,6 +664,13 @@ p-locks as §8b.
 
 The double-tap "loop one page alone" is gone (holding pages does it), and F2 no longer copies or pastes pages.
 
+**F3's knobs, version 2.1** (the owner, 2026-10-19): while F3 is held, **KNOB 1 = the rate's note value** (1/2, 1/4,
+1/8, 1/16, 1/32; 1/16 = rate 1), **KNOB 2 = normal / dotted / triplet** (dotted x 2/3, triplet x 3/2: every rate of
+§6 is one of these, e.g. 2/3 = dotted 1/16, 3/2 = triplet 1/16; the base set may later grow), **KNOB 3 = the edited
+page's start**, **KNOB 4 = its end** (start never passes end, end never below start). F3 + B1..B9 stay as quick rate
+picks, F3 + W as the page's end / range, F3 + SELECT as tempo. The F3 map shows the rate as a note value with its
+dot or triplet mark.
+
 ### Questions for the redesign
 
 35. **SOUND's ten keys**: **decided: the sound pool** (128 sounds, a one-byte lock; ten at a time on the keys, OCT
