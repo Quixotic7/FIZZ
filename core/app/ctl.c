@@ -970,11 +970,13 @@ static void track_sound(qd_app_t *a, int d)
     qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 0, -1);
 }
 
-/* SELECT: the page edited (with or without steps held) */
+/* SELECT: the page edited (with or without steps held); its picker takes the screen, but in the STEPS view (P1.3g),
+ * which shows every page already: there the edited row just moves */
 static void page_knob(qd_app_t *a, int d)
 {
     qd_ctl_set_page(a, a->ui.page[a->sel] + d);
-    qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
+    if (a->ui.view != QD_VIEW_STEPS)
+        qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
 }
 
 /* the step view, nothing held: SELECT the page, ALGORITHM the mode's default (SHIFT: the scale), PRESETS the track's

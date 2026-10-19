@@ -777,7 +777,8 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
     if (m == UI_F_PLOCK) {
         if (knob == QD_K_SELECT) {
             qd_ctl_set_page(a, u->page[a->sel] + d);
-            qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
+            if (u->view != QD_VIEW_STEPS)               /* (P1.3g: STEPS shows the pages: no picker) */
+                qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
         } else if (knob != QD_K_ALGO) {
             qd_step_lock_knob(a, knob, d);
         }

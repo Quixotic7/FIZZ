@@ -2166,8 +2166,15 @@ static void g_home(void)
     turn(QD_K_1, 3);
     CHECK(A.ui.tk == QD_TK_DEFAULT, "STEPS: a default's picture as in the roll");
     run(QD_TK_MS + QD_TK_FADE_MS + 5);
+    turn(QD_K_SELECT, 2);
+    CHECK(A.ui.page[0] == 2 && A.ui.tk == QD_TK_NONE, "P1.3g: STEPS, SELECT: page 3, no picker (the row moves)");
+    turn(QD_K_SELECT, -2);
     btap(QD_B_HOME);
     CHECK(A.ui.view == QD_VIEW_ROLL, "HOME again: the PIANO ROLL");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "the PIANO ROLL, SELECT: page 2 with its picker");
+    turn(QD_K_SELECT, -1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 5);
     btap(QD_B_HOME);
     f3_down();
     bup(F2), bup(F1);
