@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ logo</title>
+<!-- FIZZ's logo screen, a mock-up (2026-10-19): after the owner's reference, Justice's "DVNO" video (ReferenceImages/
+     FizzyBubbles/FIZZ_Logo02): a neon word built of stacked horizontal lines, extruded in perspective, fans of fine
+     coloured lines radiating behind it, white light streaks, sparkles; here the sparkles are rising fizz bubbles.
+     One 240 x 240 canvas (the FM-1's panel), a 6 s loop.
+       ?t=SECONDS   one still at that time (for the GIF renderer)      (no t: it runs live, shown at 2x) -->
+<style>
+html, body { margin: 0; background: #000; }
+body.live { display: grid; place-items: center; min-height: 100vh; }
+canvas { display: block; image-rendering: pixelated; }
+body.live canvas { width: 480px; height: 480px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="240" height="240"></canvas>
+<script src="font_it.js"></script>
+<script>
+const W = 240, H = 240, LOOP = 6.0, TAU = Math.PI * 2;
+const VX = 120, VY = 96;                                  /* the vanishing point */
+const CYAN = [70, 235, 255], PINK = [255, 45, 140], ORANGE = [255, 122, 26], RED = [255, 51, 72], VIOLET = [150, 90, 255];
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const ease = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+const cv = document.getElementById('c'), c = cv.getContext('2d');
+const off = document.createElement('canvas'); off.width = W; off.height = H; const o = off.getContext('2d');
+
+/* ---- the fans: wedges of fine rays from the vanishing point, each in one colour, slowly turning ---- */
+const FANS = [
+  { a: -2.55, w: 0.62, col: PINK, n: 40, spin: 0.10, zig: 1 },
+  { a: -1.55, w: 0.50, col: ORANGE, n: 34, spin: -0.07, zig: 0 },
+  { a: -0.55, w: 0.70, col: RED, n: 44, spin: 0.06, zig: 1 },
+  { a: 0.55, w: 0.55, col: ORANGE, n: 34, spin: -0.09, zig: 1 },
+  { a: 1.70, w: 0.60, col: PINK, n: 38, spin: 0.08, zig: 0 },
+  { a: 2.60, w: 0.45, col: VIOLET, n: 28, spin: -0.05, zig: 1 },
+];
+function fans(t, k) {
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  FANS.forEach((f, i) => {
+    const a0 = f.a + Math.sin(t / LOOP * TAU + i) * 0.12 + t / LOOP * TAU * f.spin * 0;  /* gentle sway, loops */
+    const breathe = 0.7 + 0.3 * Math.sin(t / LOOP * TAU * 2 + i * 1.7);
+    for (let r = 0; r < f.n; r++) {
+      const u = r / (f.n - 1), a = a0 + (u - 0.5) * f.w;
+      const far = 260, near = 6 + 10 * hash(i * 31 + r);
+      const al = (0.22 + 0.55 * Math.pow(1 - Math.abs(u - 0.5) * 2, 0.5)) * breathe * k;
+      c.strokeStyle = rgba(f.col, al);
+      c.lineWidth = 0.6;
+      c.beginPath();
+      c.moveTo(VX + Math.cos(a) * near, VY + Math.sin(a) * near);
+      c.lineTo(VX + Math.cos(a) * far, VY + Math.sin(a) * far);
+      c.stroke();
+    }
+    if (f.zig) {                                         /* the zig-zag "circuit" lines across the wedge */
+      for (let z = 0; z < 5; z++) {
+        const rad = 30 + z * 34 + ((t * 18 + z * 11) % 34);
+        c.strokeStyle = rgba(f.col, 0.45 * breathe * k);
+        c.lineWidth = 0.7;
+        c.beginPath();
+        for (let s = 0; s <= 10; s++) {
+          const a = a0 + (s / 10 - 0.5) * f.w, rr = rad + (s % 2 ? 4 : -4);
+          const x = VX + Math.cos(a) * rr, y = VY + Math.sin(a) * rr;
+          s ? c.lineTo(x, y) : c.moveTo(x, y);
+        }
+        c.stroke();
+      }
+    }
+  });
+  /* a soft glow at the vanishing point */
+  const g = c.createRadialGradient(VX, VY, 0, VX, VY, 70);
+  g.addColorStop(0, rgba([255, 120, 200], 0.45 * k)); g.addColorStop(1, 'rgba(255,60,140,0)');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  c.restore();
+}
+
+/* ---- the word: stacked horizontal lines inside FIZZ, extruded back to the vanishing point ---- */
+function wordMask(scale, cx, cy) {
+  o.clearRect(0, 0, W, H);
+  o.save();
+  o.translate(cx, cy); o.scale(scale, scale);
+  o.font = '800 64px IT'; o.textAlign = 'center'; o.textBaseline = 'middle';
+  o.letterSpacing = '2px';
+  o.fillStyle = '#fff';
+  o.fillText('FIZZ', 0, 0);
+  o.restore();
+}
+function word(t, k) {
+  if (k <= 0) return;
+  const fly = ease((t - 0.8) / 1.6);                     /* flies in from the vanishing point */
+  const scale = 0.08 + 0.92 * fly, cx = VX + (120 - VX) * fly, cy = VY + (104 - VY) * fly;
+  const depth = 18;
+  /* a layer: the word's mask at (s, x, y), filled with horizontal scan lines of one colour, added to the screen */
+  const layer = (s, x, y, col, a, phase, glow) => {
+    o.globalCompositeOperation = 'source-over';
+    wordMask(s, x, y);
+    o.globalCompositeOperation = 'source-in';         /* every scan line in ONE fill: source-in keeps only the last fill */
+    o.beginPath();
+    for (let yy = phase; yy < H; yy += 2) o.rect(0, yy, W, 1);
+    if (typeof col === 'function') {
+      const g = o.createLinearGradient(0, 0, 0, H);
+      for (let k2 = 0; k2 <= 24; k2++) g.addColorStop(k2 / 24, rgba(col(k2 / 24 * H), a));
+      o.fillStyle = g;
+    } else o.fillStyle = rgba(col, a);
+    o.fill();
+    o.globalCompositeOperation = 'source-over';
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    if (glow) { c.shadowColor = rgba(CYAN, 0.9 * k); c.shadowBlur = glow; }
+    c.drawImage(off, 0, 0);
+    c.restore();
+  };
+  /* the extrusion toward the viewer: each layer a little bigger and lower, dimmer the nearer it comes */
+  for (let d = depth; d >= 1; d--)
+    layer(scale * (1 + d * 0.03), cx, cy + d * 3.0 * scale, CYAN, (0.05 + 0.20 * (depth - d) / depth) * k, d & 1, 0);
+  /* the face: bright scan lines, a white-hot band sweeping down */
+  const sweep = ((t - 1.2) / 1.4) % 1;
+  layer(scale, cx, cy, yy => { const hot = Math.max(0, 1 - Math.abs(yy / H - sweep) * 9);
+                               return [CYAN[0] + (255 - CYAN[0]) * hot | 0, CYAN[1] + (255 - CYAN[1]) * hot | 0, 255]; },
+        0.95 * k, 0, 8);
+  /* a thin bright outline over the face */
+  c.save();
+  c.translate(cx, cy); c.scale(scale, scale);
+  c.font = '800 64px IT'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.letterSpacing = '2px';
+  c.strokeStyle = rgba([220, 255, 255], 0.95 * k); c.lineWidth = 0.9 / scale;
+  c.shadowColor = rgba(CYAN, 0.8 * k); c.shadowBlur = 6;
+  c.strokeText('FIZZ', 0, 0);
+  c.restore();
+}
+
+/* ---- white light streaks sweeping through ---- */
+function streaks(t, k) {
+  const S = [{ t0: 2.6, a: -0.18, y: 150 }, { t0: 4.3, a: 0.22, y: 70 }];
+  c.save(); c.globalCompositeOperation = 'lighter';
+  S.forEach(s => {
+    const u = (t - s.t0) / 0.7;
+    if (u < 0 || u > 1) return;
+    const x = -60 + u * 420, len = 150;
+    c.translate(0, 0);
+    const x0 = x - len, y0 = s.y + Math.tan(s.a) * (x0 - 120), y1 = s.y + Math.tan(s.a) * (x - 120);
+    const g = c.createLinearGradient(x0, y0, x, y1);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.8, rgba([255, 255, 255], 0.9 * k)); g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.strokeStyle = g; c.lineWidth = 6; c.lineCap = 'round';
+    c.shadowColor = 'rgba(255,200,240,1)'; c.shadowBlur = 14;
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x, y1); c.stroke();
+  });
+  c.restore();
+}
+
+/* ---- the fizz: tiny bright bubbles rising, twinkling like the reference's sparkles ---- */
+function bubbles(t, k) {
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 46; i++) {
+    const sp = 18 + 30 * hash(i * 7.1), x0 = hash(i * 3.3) * W, ph = hash(i * 9.9);
+    const y = H + 6 - ((t / LOOP + ph) % 1) * (H + 12) * (sp / 30) % (H + 12);
+    const x = x0 + Math.sin(t * 2.2 + i) * 3;
+    const r = 0.6 + 1.6 * hash(i * 5.7);
+    const tw = 0.45 + 0.55 * Math.abs(Math.sin(t * 5 + i * 2.3));
+    const col = [CYAN, PINK, ORANGE, [255, 255, 255]][i % 4];
+    c.strokeStyle = rgba(col, 0.85 * tw * k); c.lineWidth = 0.8;
+    c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
+  }
+  c.restore();
+}
+
+function frame(t) {
+  t = ((t % LOOP) + LOOP) % LOOP;
+  const k = ease(t / 0.6) * (1 - ease((t - 5.3) / 0.7));   /* fade in at the loop's start, out at its end */
+  c.fillStyle = '#04050c'; c.fillRect(0, 0, W, H);
+  fans(t, k);
+  bubbles(t, k);
+  word(t, k * ease((t - 0.6) / 0.4));
+  streaks(t, k);
+  /* the flash as the word lands */
+  const fl = Math.max(0, 1 - Math.abs(t - 2.4) / 0.18);
+  if (fl > 0) { c.fillStyle = `rgba(200,255,255,${0.12 * fl})`; c.fillRect(0, 0, W, H); }
+}
+
+(async () => {
+  const ff = new FontFace('IT', `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search);
+  if (q.has('t')) { frame(+q.get('t')); document.body.dataset.ready = '1'; return; }
+  document.body.className = 'live';
+  const t0 = performance.now();
+  const loop = () => { frame((performance.now() - t0) / 1000); requestAnimationFrame(loop); };
+  loop();
+})();
+</script>
+</body>
+</html>
