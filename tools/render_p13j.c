@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* render_frames' P1.3j part: the STEPS view redrawn (the page edited unfolded, its notes in its cells; the others
- * folded rows), from a real state reached by panel input only, into OUT/p13j-*.png and OUT/p13j-sheet.png. */
+ * folded rows), from a real state reached by panel input only. P1.3p: the unfolded row at half height, so the shots are
+ * OUT/p13p-steps-*.png and OUT/p13p-steps-sheet.png now. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,7 +50,7 @@ static void shot(const char *name, const char *caption)
 {
     char path[1024];
     qd_app_frame(&A, lcd);
-    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13j-%s.png", name);
+    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13p-%s.png", name);
     snprintf(shots[nshot].caption, sizeof shots[nshot].caption, "%s", caption);
     snprintf(path, sizeof path, "%s/%s", outdir, shots[nshot].file);
     if (!p13b_write_lcd_png(path, lcd)) {
@@ -146,7 +147,7 @@ static void sheet(void)
     plutovg_canvas_fill(c);
     plutovg_canvas_set_font(c, f, 18.f);
     plutovg_canvas_set_rgb(c, 0.9f, 0.9f, 0.9f);
-    plutovg_canvas_fill_text(c, "FIZZ P1.3j: the screens of PLAN §8b 2.2: the STEPS view redrawn (P1.3j), each from the core (2x)", -1,
+    plutovg_canvas_fill_text(c, "FIZZ P1.3p: the STEPS view, the page edited at half height, each from the core (2x)", -1,
                              PLUTOVG_TEXT_ENCODING_UTF8, (float)pad, 32.f);
     for (i = 0; i < nshot; i++) {
         const float x = (float)(pad + (i % cols) * (cell_w + pad)), y = (float)(50 + (i / cols) * (cell_h + pad));
@@ -161,7 +162,7 @@ static void sheet(void)
             plutovg_surface_destroy(ours);
         }
     }
-    snprintf(path, sizeof path, "%s/p13j-sheet.png", outdir);
+    snprintf(path, sizeof path, "%s/p13p-steps-sheet.png", outdir);
     if (!plutovg_surface_write_to_png(s, path))
         failed = 1;
     printf("%s (%d screens)\n", path, nshot);

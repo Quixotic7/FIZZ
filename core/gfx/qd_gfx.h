@@ -86,6 +86,10 @@ typedef struct {
 } qd_font;
 float qd_text(const char *utf8, float x, float y, const qd_font *f);   /* the advance drawn */
 float qd_text_width(const char *utf8, const qd_font *f);              /* the width as the canvas measures it */
+/* P1.3p: the text's coverage as qd_text would draw it at (x, y), rasterised into mask (w x h, a byte a pixel, 0..255;
+ * f->col ignored), for shapes made of the letters (the FIZZ logo's particles). Its own surface: the screen and its
+ * state are untouched. 1 drawn, 0 not (no fonts, no memory). */
+int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *mask, int w, int h);
 
 #ifdef __cplusplus
 }

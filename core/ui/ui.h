@@ -39,7 +39,8 @@ void ui_P(const float *pts, int npts, qd_rgb col, float lw, int close, qd_rgb fi
 void ui_O(float x, float y, float r, qd_rgb col, float lw, qd_rgb fill);              /* col QD_NONE: no stroke */
 void ui_RR(float x, float y, float w, float h, float r, qd_rgb col, float lw, qd_rgb fill);   /* inset by lw / 2 */
 
-/* ---- screen 1: idle (P1.3o): FIZZ, the logo: champagne bubbles close up, grey on black (ui_idle.c) */
+/* ---- screen 1: idle (P1.3p): FIZZ, the logo: champagne bubbles in the app's colours, the word gathering from particles,
+ * solid, then fizzing apart (ui_idle.c) */
 typedef struct {
     int bpm;                            /* the tempo (the spray's beat; not shown) */
     int playing;                        /* a DAW plays it: a surge of bubbles on each beat */
@@ -47,6 +48,8 @@ typedef struct {
     double beats;                       /* beats since PLAY (playing) */
 } ui_idle_t;
 void ui_idle_draw(const ui_idle_t *v);
+/* the word at t seconds: the solid word's alpha and the particles' (0..1; either may be NULL) */
+void ui_idle_word(float t, float *solid, float *parts);
 
 /* ---- the kit's drawings shared by screens (line.html's box, head, keyboard) */
 void ui_box(float x, float y, int n, qd_rgb col);   /* the track's number in a little box */

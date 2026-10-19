@@ -300,6 +300,44 @@ float qd_text_width(const char *utf8, const qd_font *f)
     return w;
 }
 
+int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *mask, int w, int h)
+{
+    plutovg_text_iterator_t it;
+    plutovg_surface_t *s;
+    plutovg_canvas_t *c;
+    const unsigned char *d;
+    float pen;
+    int i, j, stride;
+    if (!qd_cv || !utf8 || !f || !mask || w <= 0 || h <= 0)
+        return 0;
+    s = plutovg_surface_create(w, h);
+    c = s ? plutovg_canvas_create(s) : NULL;
+    if (!c) {
+        if (s)
+            plutovg_surface_destroy(s);
+        return 0;
+    }
+    pen = qd_text_width(utf8, f);
+    pen = f->align == QD_CENTER ? x - pen / 2.f : f->align == QD_RIGHT ? x - pen : x;
+    plutovg_canvas_set_font(c, qd_face_for(f->weight), f->size);
+    plutovg_text_iterator_init(&it, utf8, -1, PLUTOVG_TEXT_ENCODING_UTF8);
+    while (plutovg_text_iterator_has_next(&it))
+        pen += plutovg_canvas_add_glyph(c, plutovg_text_iterator_next(&it), pen, y) + f->ls;
+    plutovg_canvas_set_rgba(c, 1.f, 1.f, 1.f, 1.f);
+    plutovg_canvas_fill(c);
+    d = plutovg_surface_get_data(s);
+    stride = plutovg_surface_get_stride(s);
+    for (j = 0; j < h; j++)
+        for (i = 0; i < w; i++) {
+            uint32_t px;
+            memcpy(&px, d + (size_t)j * (size_t)stride + (size_t)i * 4u, 4);
+            mask[j * w + i] = (uint8_t)(px >> 24);      /* premultiplied ARGB: the alpha */
+        }
+    plutovg_canvas_destroy(c);
+    plutovg_surface_destroy(s);
+    return 1;
+}
+
 float qd_text(const char *utf8, float x, float y, const qd_font *f)
 {
     plutovg_text_iterator_t it;

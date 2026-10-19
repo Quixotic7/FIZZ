@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3o)
+# Playing FIZZ (P1.3p)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -22,12 +22,13 @@ sound comes from the Mac. Printed names are in brackets.
 
 ## Getting around
 
-- The unit wakes on the FIZZ logo screen (champagne bubbles in close-up rising, grey on black; while a DAW plays it, a
-  surge of bubbles rises on each beat).
+- The unit wakes on the FIZZ logo screen: champagne bubbles rising in the app's colours, the big ones turning with
+  tiny bubbles floating inside. Once a loop the word FIZZ gathers out of the bubbles as particles, stands as solid
+  coloured letters, then fizzes apart again. While a DAW plays it, a surge of bubbles rises on each beat.
   Press anything to get to the **step view**.
 - **HOME** in the sequencer switches its view: **PIANO ROLL** (the mode's lane) and **STEPS**. STEPS shows all eight
-  pages as rows of 16 steps in groups of four; the page you edit is unfolded into tall cells with each step's notes
-  drawn inside at their pitch, the other pages are thin rows above and below. Pages in the loop are bright, the others
+  pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
+  drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
   dim; a LOCK step is a ring, a coloured bar under a step means it has its own value for the current mode. Playing, a
   red marker hops along the steps and each step pops as it plays. SELECT changes the page (the rows fold and unfold).
   From any other screen HOME comes back to the sequencer in the view you used last. If F3 or the step latch is open,

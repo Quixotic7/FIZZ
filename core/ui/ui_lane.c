@@ -467,8 +467,10 @@ static void lane(const ui_lane_t *v)
  *            light while it sounds; stopped, the unfolded row breathes (its outline, slowly) */
 #define OV_X0 20.f
 #define OV_TOP 33.f
-#define OV_FOLD 12.f                                    /* a folded row's pitch (its cells 9 px) */
-#define OV_OPEN 118.f                                   /* an unfolded row's (its cells OV_OPEN - 16) */
+/* P1.3p: the unfolded row at about half its old height (118), its space given to the folded rows: 7 x 20 + 62 = 202,
+ * as before (7 x 12 + 118) */
+#define OV_FOLD 20.f                                    /* a folded row's pitch (its cells 17 px) */
+#define OV_OPEN 62.f                                    /* an unfolded row's (its cells OV_OPEN - 16) */
 static float ov_x(int s) { return OV_X0 + (float)s * 13.f + (float)(s / 4) * 2.f; }
 #define OV_W 11.5f
 
@@ -486,7 +488,7 @@ static void steps_grid(const ui_lane_t *v)
         const float cy = y + (g > 0.f ? 10.f * g : 0.f);           /* (an unfolded row: room for the marker) */
         qd_save();
         qd_alpha(in || ed ? 1.f : 0.36f);
-        ui_T(NUM[p], OV_X0 - 10.f, cy + (g > 0.5f ? 14.f : 8.f), g > 0.5f ? 12.f : 8.f, ed ? 700 : 500, 0.f,
+        ui_T(NUM[p], OV_X0 - 10.f, cy + (g > 0.5f ? 14.f : ch / 2.f + 3.f), g > 0.5f ? 12.f : 8.f, ed ? 700 : 500, 0.f,
              ed ? UI_K3 : in ? UI_G1 : UI_G2, QD_CENTER);
         for (i = 0; i < 16; i++) {
             const uint8_t c = v->cell[p][i];
@@ -531,12 +533,14 @@ static void steps_grid(const ui_lane_t *v)
                     ui_O(x + OV_W / 2.f, cy + ch / 2.f, 3.5f, (c & UI_C_OVR) ? mc : UI_G1, 1.4f, QD_NONE);
                 } else if (on && lc && lc->nnote) {     /* the notes: a short bar at each pitch */
                     const int span = v->span > 0 ? v->span : 16;
+                    const float semi = (ch - 10.f) / (float)span;   /* P1.3p: the bars as thick as a semitone (1.5 .. 3) */
+                    const float bh = semi < 1.5f ? 1.5f : semi > 3.f ? 3.f : semi;
                     for (j = 0; j < lc->nnote && j < 6; j++) {
-                        const float ny = cy + ch - 5.f - (float)((int)lc->note[j] - v->lo) / (float)span * (ch - 10.f);
+                        const float ny = cy + ch - 5.f - (float)((int)lc->note[j] - v->lo) * semi;
                         const qd_rgb nc = sounding || pop > 0.f ? UI_K3 : (c & UI_C_OVR) ? mc : 0xd6d6dcu;
                         if (ny < cy + 2.f || ny > cy + ch - 2.f)
                             continue;
-                        ui_RR(x + 2.f, ny - 1.5f, OV_W - 4.f, 3.f, 1.5f, QD_NONE, 1.f, nc);
+                        ui_RR(x + 2.f, ny - bh / 2.f, OV_W - 4.f, bh, bh / 2.f, QD_NONE, 1.f, nc);
                     }
                 } else if (on) {
                     ui_O(x + OV_W / 2.f, cy + ch - 8.f, 2.2f, QD_NONE, 1.f, 0xd6d6dcu);

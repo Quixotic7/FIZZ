@@ -5,11 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FIZZ champagne particles</title>
 <!-- fizz-champagne.html with the owner's next idea: FIZZ comes in as a cloud of small particles that gather into the
-     letters, and dissolves out as particles again (no text drawn: the word is only its particles).
+     letters, and dissolves out as particles again.
+     P1.3p (as built in core/ui/ui_idle.c): the big bubbles have no white lit arc and no reflection (their rim, the
+     black inside and the floating tiny bubbles stay); the particles gather in about 0.55 s (stagger included); as they
+     arrive the solid word fades in in the letters' colours and they fade under it; it holds; then it breaks back into
+     particles that fizz apart upward. Every sway makes whole cycles a loop (seamless).
      The champagne note: P1.3o's champagne close-up (on the unit) with the owner's three tweaks:
      A) the app's bright colours in the line work, B) the big bubbles slowly rotating, C) the tiny bubbles inside them
      floating around inside. Line work only (black under the near bubbles so they hide what is behind them).
-     One 240 x 240 canvas, an 11 s seamless loop.   ?t=SECONDS: one still (for the GIF)   no t: live at 2x -->
+     One 240 x 240 canvas, an 11 s seamless loop.   ?t=SECONDS: one still   ?strip: the loop's 132 frames as one
+     tile sheet (for the GIF)   no t: live at 2x -->
 <style>
 html, body { margin: 0; background: #000; }
 body.live { display: grid; place-items: center; min-height: 100vh; }
@@ -37,11 +42,12 @@ function rise(t, k, phase, r, top = -1) {
   return H + r - u * span;
 }
 const darken = y => clamp(0.35 + 0.65 * (y / H), 0, 1);  /* darker toward the top, as the reference */
+const sway = (t, m, ph) => Math.sin(TAU * m * t / LOOP + ph);   /* m whole cycles a loop: seamless */
 
 function farBokeh(t) {                                   /* faint double rings, slow */
   for (let i = 0; i < 14; i++) {
     const r = 6 + 9 * hash(i * 3.1), col = PAL[i % PAL.length];
-    const y = rise(t, 1, hash(i * 7.7), r), x = hash(i * 1.9) * W + Math.sin(t * 0.6 + i) * 4;
+    const y = rise(t, 1, hash(i * 7.7), r), x = hash(i * 1.9) * W + sway(t, 1, i) * 4;
     const a = 0.16 * darken(y);
     c.strokeStyle = rgba(col, a); c.lineWidth = 1;
     c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
@@ -51,7 +57,7 @@ function farBokeh(t) {                                   /* faint double rings, 
 function specks(t) {
   for (let i = 0; i < 56; i++) {
     const col = PAL[(i * 3) % PAL.length], y = rise(t, 2 + (i % 3), hash(i * 4.3), 1);
-    const x = hash(i * 2.7) * W + Math.sin(t * 1.3 + i * 0.7) * 2;
+    const x = hash(i * 2.7) * W + sway(t, 3, i * 0.7) * 2;
     c.fillStyle = rgba(col, 0.75 * darken(y));
     c.fillRect(x | 0, y | 0, 1, 1);
   }
@@ -59,7 +65,7 @@ function specks(t) {
 function middle(t) {                                    /* crisp small bubbles, a lit arc on the bigger ones */
   for (let i = 0; i < 34; i++) {
     const r = 1.5 + 3 * hash(i * 5.3), col = PAL[(i * 5) % PAL.length];
-    const y = rise(t, 2 + Math.round(r / 2), hash(i * 8.1), r), x = hash(i * 6.6) * W + Math.sin(t * 1.7 + i) * (1 + r * 0.4);
+    const y = rise(t, 2 + Math.round(r / 2), hash(i * 8.1), r), x = hash(i * 6.6) * W + sway(t, 2, i) * (1 + r * 0.4);
     const a = 0.9 * darken(y);
     c.strokeStyle = rgba(col, a); c.lineWidth = 1;
     c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
@@ -79,20 +85,15 @@ function bed(t) {                                       /* small bubbles forming
   }
 }
 
-/* a big near bubble: black inside, a rim in its colour, a lit arc and a reflection that turn slowly (B), and tiny
-   bubbles floating around inside it (C) */
+/* a big near bubble: black inside, a rim in its colour, and tiny bubbles floating around inside it, turning with it
+   (B, C). P1.3p: no lit arc, no reflection */
 function nearBubble(t, i) {
   const r = 9 + 13 * hash(i * 11.3), col = PAL[(i * 3 + 1) % PAL.length];
   const k = r > 16 ? 2 : 1;                             /* bigger rise faster */
-  const y = rise(t, k, hash(i * 2.9), r), x = 20 + hash(i * 4.4) * (W - 40) + Math.sin(t * 0.7 + i * 2) * 5;
+  const y = rise(t, k, hash(i * 2.9), r), x = 20 + hash(i * 4.4) * (W - 40) + sway(t, 1, i * 2) * 5;
   const a = darken(y), spin = (i % 2 ? 1 : -1) * TAU / LOOP * (1 + (i % 3));   /* whole turns a loop: seamless */
-  const rot = hash(i * 1.1) * TAU + t * spin;
   c.fillStyle = '#000'; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
   c.strokeStyle = rgba(col, a); c.lineWidth = 1.2; c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke();
-  c.strokeStyle = rgba([255, 255, 255], 0.95 * a); c.lineWidth = 1.3;            /* the lit arc, turning */
-  c.beginPath(); c.arc(x, y, r * 0.78, rot + 3.5, rot + 4.5); c.stroke();
-  c.strokeStyle = rgba(col, 0.6 * a); c.lineWidth = 1;                           /* the faint reflection opposite */
-  c.beginPath(); c.arc(x, y, r * 0.7, rot + 0.5, rot + 1.0); c.stroke();
   /* the tiny bubbles inside: each orbits with the turn and wanders on its own, always kept inside the rim */
   const n = 10 + Math.floor(hash(i * 5.5) * 9);
   for (let j = 0; j < n; j++) {
@@ -107,45 +108,62 @@ function nearBubble(t, i) {
   }
 }
 
-/* the word as particles: points sampled from the letters (each letter its colour); they rise out of the bubbles,
-   swirl into place (4.0 .. 5.8 s), shimmer, then fizz apart upward and fade (8.9 .. 10.4 s) */
-let PARTS = [];
+/* the word as particles: points sampled from the letters (each letter its colour) on a 2 px grid; they rise out of
+   the bubbles and swirl into place quickly (4.0 .. 4.54 s), the solid word fades in as they arrive (4.50 .. 4.62 s)
+   and they fade under it (.. 4.70 s); it holds; at 8.78 s it breaks back into particles (the solid word gone by 8.90 s)
+   that fizz apart upward and fade (from 8.86 s + up to 0.6 s, over 0.9 s) */
+const WD = { size: 56, ls: 6, base: 140, letters: ['F', 'I', 'Z', 'Z'], cols: [PAL[0], PAL[1], PAL[3], PAL[4]] };
+let PARTS = [], LX = [];
 function buildParticles() {
   const m = document.createElement('canvas'); m.width = W; m.height = H;
   const g = m.getContext('2d');
-  g.font = '300 56px IT'; g.textBaseline = 'middle'; g.textAlign = 'left'; g.letterSpacing = '6px';
-  const letters = ['F', 'I', 'Z', 'Z'], cols = [PAL[0], PAL[1], PAL[3], PAL[4]];
-  let w = 0; letters.forEach(ch => w += g.measureText(ch).width + 6);
-  let x = (W - w + 6) / 2;
-  const spans = [];
-  letters.forEach((ch, n) => { const cw = g.measureText(ch).width; g.fillStyle = '#fff'; g.fillText(ch, x, H / 2);
-                               spans.push([x - 1, x + cw + 1, n]); x += cw + 6; });
-  const d = g.getImageData(0, 0, W, H).data;
-  for (let y = 0; y < H; y += 2) for (let xx = 0; xx < W; xx += 2) {
-    if (d[(y * W + xx) * 4 + 3] < 140) continue;
-    const sp = spans.find(s => xx >= s[0] && xx <= s[1]); if (!sp) continue;
-    const k = PARTS.length;
-    PARTS.push({ tx: xx + 0.5, ty: y + 0.5, col: cols[sp[2]], s: k * 1.618 + 0.3,
-                 sx: hash(k * 3.1) * W, sy: H + 10 + hash(k * 5.7) * 60,      /* start below, in the bubbles */
-                 d0: 4.0 + 0.9 * hash(k * 7.3), d1: 8.9 + 0.9 * hash(k * 2.3) });
-  }
+  g.font = `300 ${WD.size}px IT`; g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+  let w = 0; WD.letters.forEach((ch, n) => w += g.measureText(ch).width + (n < 3 ? WD.ls : 0));
+  let x = (W - w) / 2;
+  WD.letters.forEach((ch, n) => {
+    LX.push(x);
+    g.clearRect(0, 0, W, H); g.fillStyle = '#fff'; g.fillText(ch, x, WD.base);
+    const d = g.getImageData(0, 0, W, H).data;
+    for (let y = 0; y < H; y += 2) for (let xx = 0; xx < W; xx += 2) {
+      if (d[(y * W + xx) * 4 + 3] < 140) continue;
+      const k = PARTS.length;
+      PARTS.push({ tx: xx + 0.5, ty: y + 0.5, col: WD.cols[n], s: k * 1.618 + 0.3,
+                   sx: hash(k * 3.1) * W, sy: H + 8 + hash(k * 5.7) * 40,       /* start below, in the bubbles */
+                   d0: 4.0 + 0.12 * hash(k * 7.3), d1: 8.86 + 0.6 * hash(k * 2.3) });
+    }
+    x += g.measureText(ch).width + WD.ls;
+  });
+}
+function wordPhase(t) {                                  /* the solid word's alpha, the particles' */
+  let s = 0, p = 0;
+  if (t >= 4.0 && t < 4.7) { s = ease((t - 4.5) / 0.12); p = 1 - ease((t - 4.56) / 0.14); }
+  else if (t >= 4.7 && t < 8.78) s = 1;
+  else if (t >= 8.78 && t < 10.36) { s = 1 - clamp((t - 8.78) / 0.12, 0, 1); p = clamp((t - 8.78) / 0.08, 0, 1); }
+  return [s, p];
 }
 function word(t) {
+  const [sa, pa] = wordPhase(t);
+  if (sa > 0) {                                          /* the solid word, thin, in the letters' colours */
+    c.font = `300 ${WD.size}px IT`; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+    WD.letters.forEach((ch, n) => { c.fillStyle = rgba(WD.cols[n], sa); c.fillText(ch, LX[n], WD.base); });
+  }
+  if (pa <= 0) return;
   for (const p of PARTS) {
     let x, y, a;
-    if (t < p.d0) continue;
-    const u = ease((t - p.d0) / 1.0);                   /* gathering */
-    if (t < p.d1) {
-      const sw = (1 - u) * 18 * (hash(p.s) - 0.5);         /* a little swirl on the way in */
+    if (t < 8.78) {                                      /* gathering: fast, a little swirl on the way in */
+      if (t < p.d0) continue;
+      const u = ease((t - p.d0) / 0.42), sw = (1 - u) * 12 * (hash(p.s) - 0.5);
       x = p.sx + (p.tx - p.sx) * u + Math.sin((1 - u) * 6 + p.s) * sw;
       y = p.sy + (p.ty - p.sy) * u + Math.cos((1 - u) * 5 + p.s) * Math.abs(sw);
-      x += Math.sin(t * 6 + p.s) * 0.35 * u; y += Math.cos(t * 5 + p.s * 1.3) * 0.35 * u;   /* the hold's shimmer */
-      a = 0.25 + 0.75 * u;
+      a = (0.35 + 0.65 * u) * pa;
     } else {                                             /* dissolving: upward and apart, like fizz */
-      const v = (t - p.d1);
-      x = p.tx + (hash(p.s + 1) - 0.5) * 30 * v + Math.sin(v * 4 + p.s) * 2;
-      y = p.ty - (12 + 30 * hash(p.s + 2)) * v - 10 * v * v;
-      a = 1 - ease(v / 0.9);
+      const v = t - p.d1;
+      if (v <= 0) { x = p.tx; y = p.ty; a = pa; }
+      else {
+        x = p.tx + (hash(p.s + 1) - 0.5) * 30 * v + Math.sin(v * 4 + p.s) * 2;
+        y = p.ty - (12 + 30 * hash(p.s + 2)) * v - 10 * v * v;
+        a = (1 - ease(v / 0.9)) * pa;
+      }
     }
     if (a <= 0.01) continue;
     const r = 0.55 + 0.5 * hash(p.s + 3);
@@ -169,6 +187,12 @@ function frame(t) {
   buildParticles();
   const q = new URLSearchParams(location.search);
   if (q.has('t')) { frame(+q.get('t')); document.body.dataset.ready = '1'; return; }
+  if (q.has('strip')) {                                 /* ?strip: the whole loop at 12 fps as one 12 x 11 tile sheet */
+    const st = document.createElement('canvas'); st.width = 12 * W; st.height = 11 * H;
+    const g = st.getContext('2d');
+    for (let k = 0; k < 132; k++) { frame(k / 12); g.drawImage(cv, (k % 12) * W, Math.floor(k / 12) * H); }
+    cv.replaceWith(st); document.body.dataset.ready = '1'; return;
+  }
   document.body.className = 'live';
   const t0 = performance.now();
   const loop = () => { frame((performance.now() - t0) / 1000); requestAnimationFrame(loop); };

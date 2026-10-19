@@ -35,6 +35,7 @@
 
 #include "app.h"
 #include "qd_gfx.h"
+#include "ui.h"
 
 static int fails, checks;
 #define CHECK(c, ...)                                     \
@@ -508,28 +509,35 @@ static void t_clock(void)
     printf("  clock: MIDI START and 24 PPQN at 140 BPM drive the transport; STOP stops\n");
 }
 
-/* the frame has no colour: every pixel grey (RGB565 big-endian; r, g, b within a step of each other) */
-static int frame_grey(void)
+/* P1.3p: the word's solid pixels: the pixels of the band the word sits in (y 95 .. 145) drawn exactly in F's colour
+ * (the knob blue, RGB565): the solid F fills dozens; its particles (tiny rings, anti-aliased) hardly any */
+static int word_px(void)
 {
     static uint16_t lcd[QD_W * QD_H];
-    int i;
+    const unsigned blue = (0x3fu * 31u + 127u) / 255u << 11 | (0x7du * 63u + 127u) / 255u << 5 |   /* as qd_end */
+                          (0xffu * 31u + 127u) / 255u;
+    int x, y, n = 0;
     qd_app_frame(&A, lcd);
-    for (i = 0; i < QD_W * QD_H; i++) {
-        const unsigned px = (unsigned)(lcd[i] >> 8 | (lcd[i] & 0xffu) << 8), r = px >> 11, g = (px >> 5 & 63u) / 2u,
-                       b = px & 31u;
-        if (r > g + 1u || g > r + 1u || r > b + 1u || b > r + 1u)
-            return 0;
-    }
-    return 1;
+    for (y = 95; y < 145; y++)
+        for (x = 0; x < QD_W; x++) {
+            const unsigned px = (unsigned)(lcd[y * QD_W + x] >> 8 | (lcd[y * QD_W + x] & 0xffu) << 8);
+            n += px == blue;
+        }
+    return n;
 }
 
-/* P1.3k..P1.3o: FIZZ's idle screen (the logo: champagne bubbles close up): it moves with the clock, the
- * same clock draws the same frame, it has no colour (P1.3m..o), and a running transport (a DAW's MIDI clock, the screen
- * staying idle) adds the beats' spray */
+/* P1.3k..P1.3p: FIZZ's idle screen (the logo: champagne bubbles in the app's colours, the word from particles): it
+ * moves with the clock, the same clock draws the same frame, it loops seamlessly, the word is solid only at its hold
+ * (particles while it gathers and dissolves), and a running transport (a DAW's MIDI clock, the screen staying idle)
+ * adds the beats' surge */
 static void t_fizz(void)
 {
+    static const struct {
+        float t;
+        int solid, parts;
+    } WP[] = {{2.0f, 0, 0}, {4.3f, 0, 1}, {6.5f, 1, 0}, {8.5f, 1, 0}, {9.4f, 0, 1}, {10.8f, 0, 0}};
     uint64_t a1, a2, b1, s1, p1;
-    int k, grey = 1;
+    int k, ok = 1, n_gather, n_hold, n_fizz;
     fresh();
     run(2000, 0);
     a1 = frame_hash();
@@ -540,18 +548,30 @@ static void t_fizz(void)
     a2 = frame_hash();
     CHECK(A.ui.mode == QD_MODE_IDLE && a1 == a2 && a1 != b1, "the idle screen: the same at the same time after "
           "power-on, moving 0.1 s later");
-    fresh();
-    for (k = 0; k < 23; k++) {                          /* the whole loop (11 s), every 0.5 s: no colour */
-        run(500, 0);
-        grey &= frame_grey();
-    }
-    CHECK(A.ui.mode == QD_MODE_IDLE && grey, "the idle screen: no colour over its whole loop (outlined, grey on black)");
     fresh();                                            /* P1.3o: seamless, 11 s a loop */
     run(1500, 0);
     a1 = frame_hash();
     run(11000, 0);
     a2 = frame_hash();
     CHECK(A.ui.mode == QD_MODE_IDLE && a1 == a2, "the idle screen loops seamlessly: 1.5 s and 12.5 s the same");
+    for (k = 0; k < (int)(sizeof WP / sizeof WP[0]); k++) {   /* P1.3p: the word's phases */
+        float so, pa;
+        ui_idle_word(WP[k].t, &so, &pa);
+        ok &= (so >= 0.999f) == WP[k].solid && (so <= 0.001f) == !WP[k].solid && (pa > 0.f) == WP[k].parts;
+        ui_idle_word(WP[k].t + 11.f, &so, &pa);
+        ok &= (so >= 0.999f) == WP[k].solid && (pa > 0.f) == WP[k].parts;
+    }
+    CHECK(ok, "the word: nothing at 2 s, particles only gathering (4.3 s) and dissolving (9.4 s), solid only at its "
+          "hold (6.5, 8.5 s), none by 10.8 s; every loop");
+    fresh();
+    run(4300, 0);
+    n_gather = word_px();
+    run(2200, 0);
+    n_hold = word_px();
+    run(2900, 0);
+    n_fizz = word_px();
+    CHECK(n_hold >= 40 && n_gather <= 3 && n_fizz <= 3, "on the screen: the solid F at the hold (%d px in its blue), "
+          "not while gathering (%d) or dissolving (%d)", n_hold, n_gather, n_fizz);
     fresh();
     run(3000, 0);
     s1 = frame_hash();                                  /* stopped at 3 s */
@@ -567,10 +587,11 @@ static void t_fizz(void)
     if (now < 3000)
         run(3000 - now, 0);
     p1 = frame_hash();
-    CHECK(A.ui.mode == QD_MODE_IDLE && A.playing && p1 != s1 && frame_grey(), "playing (MIDI clock, still idle): "
-          "the beats' surge changes the screen, still no colour");
+    CHECK(A.ui.mode == QD_MODE_IDLE && A.playing && p1 != s1, "playing (MIDI clock, still idle): the beats' surge "
+          "changes the screen");
     qd_app_midi(&A, 0xFC, 0, 0);
-    printf("  fizz: the logo screen: deterministic, moving, no colour, seamless, surging with a running transport\n");
+    printf("  fizz: the logo screen: deterministic, moving, seamless, the word solid only at its hold (%d px), surging "
+           "with a running transport\n", n_hold);
 }
 
 static uint64_t session_seq(void)

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' P1.3o part: FIZZ's logo screen, champagne bubbles in close-up, at eight moments of its loop
- * (OUT/p13o-fizz-*.png, OUT/p13o-sheet.png) and one whole loop as frames OUT/fizz-logo/f-NNN.png at 15 fps, which
+/* render_frames' P1.3p part: FIZZ's logo screen, champagne bubbles in the app's colours and the word from particles, at eight moments of its loop
+ * (OUT/p13p-fizz-*.png, OUT/p13p-sheet.png) and one whole loop as frames OUT/fizz-logo/f-NNN.png at 15 fps, which
  * `make -C tools frames` turns into OUT/fizz-logo.gif with ffmpeg (2x). */
 #include <sys/stat.h>
 #include <stdio.h>
@@ -54,11 +54,11 @@ static void shot(const char *name, const char *caption)
 {
     char path[1024];
     qd_app_frame(&A, lcd);
-    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13o-%s.png", name);
+    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13p-%s.png", name);
     snprintf(shots[nshot].caption, sizeof shots[nshot].caption, "%s", caption);
     snprintf(path, sizeof path, "%s/%s", outdir, shots[nshot].file);
     if (!p13b_write_lcd_png(path, lcd)) {
-        fprintf(stderr, "render_p13o: cannot write %s\n", path);
+        fprintf(stderr, "render_p13p: cannot write %s\n", path);
         failed = 1;
     }
     printf("%s (%s)\n", path, caption);
@@ -95,7 +95,7 @@ static void sheet(void)
     plutovg_canvas_fill(c);
     plutovg_canvas_set_font(c, f, 18.f);
     plutovg_canvas_set_rgb(c, 0.9f, 0.9f, 0.9f);
-    plutovg_canvas_fill_text(c, "FIZZ P1.3o: the logo screen, champagne bubbles close up, each from the core (2x); right: the reference", -1,
+    plutovg_canvas_fill_text(c, "FIZZ P1.3p: the logo screen, the word gathering, solid, fizzing apart, each from the core (2x); right: the reference", -1,
                              PLUTOVG_TEXT_ENCODING_UTF8, (float)pad, 32.f);
     for (i = 0; i < nshot; i++) {
         const float x = (float)(pad + (i % cols) * (cell_w + pad)), y = (float)(50 + (i / cols) * (cell_h + pad));
@@ -123,7 +123,7 @@ static void sheet(void)
             plutovg_surface_destroy(r);
         }
     }
-    snprintf(path, sizeof path, "%s/p13o-sheet.png", outdir);
+    snprintf(path, sizeof path, "%s/p13p-sheet.png", outdir);
     if (!plutovg_surface_write_to_png(s, path))
         failed = 1;
     printf("%s (%d screens)\n", path, nshot);
@@ -135,20 +135,20 @@ static void sheet(void)
 /* ---------------------------------------------------------------- the script */
 #define LOOP_MS 11000u
 
-int render_p13o(const char *out)
+int render_p13p(const char *out)
 {
     static const struct {
         uint32_t at;
         const char *name, *caption;
     } M[] = {
-        {1000, "fizz-1-calm", "1.0 s: the calm rise: bokeh, specks, small bubbles, near ones, the bed"},
-        {3400, "fizz-2-swell", "3.4 s: the swell leaving the bed"},
-        {4600, "fizz-3-fizz", "4.6 s: the fizz rising, FIZZ coming in"},
-        {5600, "fizz-4-logo", "5.6 s: FIZZ, near bubbles behind and in front"},
-        {7000, "fizz-5-after", "7.0 s: the swell thinning out"},
-        {8600, "fizz-6-calm", "8.6 s: calm again, FIZZ stays"},
-        {10200, "fizz-7-fade", "10.2 s: FIZZ fading"},
-        {10900, "fizz-8-loop", "10.9 s: the loop's end (the same as its start)"},
+        {1000, "fizz-1-calm", "1.0 s: calm: the bubbles in the app's colours, the big ones turning"},
+        {4200, "fizz-2-gather", "4.2 s: gathering: the particles swirl up into the letters"},
+        {4580, "fizz-3-handover", "4.58 s: the handover: the solid word in, the particles fading under it"},
+        {6200, "fizz-4-solid", "6.2 s: solid: FIZZ in the letters' colours, bubbles behind and in front"},
+        {8950, "fizz-5-break", "8.95 s: the break: the word back to particles, the first leaving"},
+        {9400, "fizz-6-dissolve", "9.4 s: dissolving: the particles fizz apart upward"},
+        {9900, "fizz-7-fade", "9.9 s: the last of them fading"},
+        {10700, "fizz-8-calm", "10.7 s: calm again (the loop's end)"},
     };
     char path[1024];
     size_t i;
