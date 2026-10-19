@@ -1,5 +1,7 @@
-# FMToneSeq: a step sequencer for the FM TONE engine on the M-VAVE FM-1 (plan, 2026-10-17)
+# FIZZ: a step sequencer for the FM TONE engine on the M-VAVE FM-1 (plan, 2026-10-17; named FIZZ 2026-10-19)
 
+**The name is FIZZ** (the owner, 2026-10-19; "QUADRILLE" below is the working name it replaces). **Status
+(2026-10-19): Phase 1 in progress, the prototype plays on the unit (§13's Phase 1 log).** The original status line:
 **Status: a plan and mock-ups. Nothing is built.** No firmware code, no device access, no remote. The folder name is a
 placeholder (names in §0). **How it gets built (2026-10-18): Phase 1 is a prototype on the computer with the real
 FM-1 as its panel through RemoteFM1; Phase 2 makes it firmware (§13).**
@@ -25,7 +27,7 @@ screens, §9a). Open questions in §10, the build plan in §11.
 
 | | recommended | why |
 | --- | --- | --- |
-| Name | **QUADRILLE** (also: SIDEBAND, CARRIER, FOURSQUARE) | a quadrille is a dance of steps for four couples in a square: four operators, steps, the square screen. "FM TONE" stays the engine's name |
+| Name | **FIZZ** (the owner, 2026-10-19; the working name was QUADRILLE) | the repo is github.com/Quixotic7/FIZZ; the local folder stays `FMToneSeq/` for now |
 | Tracks | **8**, all FM TONE | tracks cost almost nothing by themselves (voices are the cost, mixed per voice, §2); 8 fits the 8 black keys that select them and the 8 pages |
 | Voices | **16, shared**: 8 rendered on each core; a per-track limit 1..16 (1 = mono); the single-core package 8 | FM TONE's worst preset measured 176 us a voice on the unit; 8 a core with all three effects is about 76 % of the worst half (§3) |
 | Step | 12 bytes: trig type, up to **4 notes**, velocity, length, micro-timing (±23/24 of a step), ratchet x1..x8 with a velocity ramp, condition, chance 0..100 %, a **sound (preset) lock**, a strum, a has-locks bit | §4 |
@@ -891,7 +893,7 @@ screens in spirit; nothing is copied from them, and the device never names the O
 
 ## 10. Open questions (numbered; a recommendation each)
 
-1. **The name.** QUADRILLE, SIDEBAND, CARRIER, FOURSQUARE, or yours? *Recommend QUADRILLE.*
+1. **The name.** **Decided 2026-10-19: FIZZ** (the owner). The code keeps its `qd_` prefix inside.
 2. **"The top row"** = the black keys (11 fields while a step is held), not the top buttons. *Recommend the black keys*
    (§8 has the comparison).
 3. **Black keys select the tracks** in the step view (one press), instead of TRACKS + a white key. *Recommend yes*;
