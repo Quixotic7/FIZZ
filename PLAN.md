@@ -677,6 +677,41 @@ dot or triplet mark.
 1/8 key gives dotted 1/8. **F3 + B1..B7 = the base: 1/1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64; F3 + B8 / B9 / B10 =
 normal / dotted / triplet.** KNOB 1 and KNOB 2 do the same. (This replaces "F3 + B1..B9 = the nine rates".)
 
+### Version 2.2 (2026-10-19, the owner after playing P1.3c)
+
+These override the tables above where they differ.
+
+**The knobs take over in the hold modes** (every mode but P-LOCK). The black keys stay as shortcuts.
+
+| | nothing held | a step held |
+| --- | --- | --- |
+| **a hold mode** (NOTE .. LOCKS) | **KNOB 1..4 = the track's defaults for the mode** (the same layout as when a step is held); SELECT = the page; ALGORITHM = the mode's main default (as P1.3b) | **SELECT and KNOB 1 = the step's main value** (NOTE: SELECT = note 1, KNOB 1..4 = notes 2..5); KNOB 2..4 = the mode's extras; ALGORITHM = the step's value (as P1.3b, a duplicate the owner keeps) |
+| **P-LOCK** (B11) | KNOB 1..4 = the track's sound (FREQ, DECAY, HARM, FDBK); PRESETS = its sound; **ALGORITHM = the track** (choose 1..8); SELECT = the page | KNOB 1..4 = p-locks (the screen stays); PRESETS = the sound lock |
+
+| mode | SELECT / KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| --- | --- | --- | --- | --- |
+| NOTE | SELECT note 1, KNOB 1..4 notes 2..5 | | | |
+| VEL | velocity | | | |
+| LEN | length | TIE on / off | | |
+| MICRO | micro | strum | | |
+| RATCH | count | ramp | | |
+| CHNC | chance | condition | | |
+| COND | condition | chance | | |
+| TRIG | type | | | |
+| SOUND | the pool sound (PRESETS too) | | | |
+| LOCKS | the chosen lock's value | which lock | | |
+
+Knobs without a job in a mode do nothing there (p-locks are P-LOCK's).
+
+**Other changes:**
+- **Banks**: SEQ held + **B1..B4 = bank A..D** (64 patterns).
+- **Preview**: with the transport stopped, **holding a step plays it** (its notes, sound, locks; re-struck when an edit
+  changes it), released with the key.
+- **F3 locks on**: pressing OCT− and OCT+ together opens the F3 menu and it stays; **OCT− exits**. The general rule for
+  every latched menu or confirmation from now on: **OCT− = back / exit / cancel, OCT+ = yes / confirm / enter**.
+- **Colours**: each mode keeps its own colour (the owner's choice over colour = knob); the knobs' parts within a
+  mode's screen may still use the knob colours where they help.
+
 ### Questions for the redesign
 
 35. **SOUND's ten keys**: **decided: the sound pool** (128 sounds, a one-byte lock; ten at a time on the keys, OCT
