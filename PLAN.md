@@ -740,6 +740,9 @@ Knobs without a job in a mode do nothing there (p-locks are P-LOCK's).
   page's 16 steps: two rows of eight cells like the white keys, on / off, LOCK steps, p-lock and condition marks, the
   playhead, the page's start..end and the loop). HOME first closes an open latch (F3, the step latch); from any other
   screen it returns to the last view used.
+  **STEPS, redrawn** (the owner, after P1.3e): **16 steps a row, in groups of four, one row a page, all 8 pages
+  stacked**: the edited page highlighted, the loop's pages marked, other pages dim, each page's out-of-range steps dark,
+  the playhead moving across the rows, trigs flashing.
 - **The step latch, refined** (the owner): while latched, **holding several W keys selects them all** to edit
   together; **tapping a selected step unselects it**. With **nothing selected** the latch stays on but behaves as
   nothing held: the black keys choose the hold mode, the knobs edit the track's defaults; a W tap selects again (a tap
