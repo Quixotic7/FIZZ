@@ -672,6 +672,11 @@ page's start**, **KNOB 4 = its end** (start never passes end, end never below st
 picks, F3 + W as the page's end / range, F3 + SELECT as tempo. The F3 map shows the rate as a note value with its
 dot or triplet mark.
 
+**The rate's type is remembered** (the owner, 2026-10-19): a track's rate is a **base note value** and a **type**
+(normal / dotted / triplet), stored separately. Choosing a base keeps the type, so with a track on dotted, F3 + the
+1/8 key gives dotted 1/8. **F3 + B1..B7 = the base: 1/1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64; F3 + B8 / B9 / B10 =
+normal / dotted / triplet.** KNOB 1 and KNOB 2 do the same. (This replaces "F3 + B1..B9 = the nine rates".)
+
 ### Questions for the redesign
 
 35. **SOUND's ten keys**: **decided: the sound pool** (128 sounds, a one-byte lock; ten at a time on the keys, OCT
