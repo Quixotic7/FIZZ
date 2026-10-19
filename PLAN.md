@@ -732,6 +732,10 @@ Knobs without a job in a mode do nothing there (p-locks are P-LOCK's).
 - **KNOB 4, the quiet knob** (the owner): in every mode where KNOB 4 has no job (all but NOTE, where it is note 5),
   KNOB 4 sets the mode's main value **without any overlay**: the lane (nothing held) or the held step's screen just
   changes in place. With nothing held it sets the track's default, with a step held the step's value.
+- **HOME cycles the sequencer's views** (the owner): **PIANO ROLL** (the mode lanes, as built) and **STEPS** (just the
+  page's 16 steps: two rows of eight cells like the white keys, on / off, LOCK steps, p-lock and condition marks, the
+  playhead, the page's start..end and the loop). HOME first closes an open latch (F3, the step latch); from any other
+  screen it returns to the last view used.
 
 ### Questions for the redesign
 
