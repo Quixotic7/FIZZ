@@ -638,8 +638,8 @@ These override the tables above where they differ.
 
 | what | now |
 | --- | --- |
-| **tracks** | **hold SEL** (printed; was PATTERN): B1..B8 select tracks 1..8, W1..W8 mute / unmute tracks 1..8, W9..W16 solo / unsolo them. The screen shows the F2-style track map while SEL is held. F2 no longer does tracks |
-| **patterns** | **hold SEQ** (printed; was MIX): W1..W16 choose A01..A16, queued to the change point, at once with SHIFT |
+| **tracks** | **hold SEL** (printed; was PATTERN): B1..B8 select tracks 1..8; **W1..W8 tap = mute / unmute** track 1..8, **W1..W8 held (400 ms) = solo / unsolo** it; **B11 (F#5) = unmute and unsolo every track**. The screen shows the track map while SEL is held. F2 no longer does tracks (the owner, 2026-10-19) |
+| **patterns** | **hold SEQ** (printed; was MIX): **W1..W16 tap = queue A01..A16** by the launch mode, **held (400 ms) = at once**; **ALGORITHM turned while SEQ is held = the launch mode**: END (the end of the master length, default), BAR, BEAT, NOW. The SEQ map shows the mode (the owner: SHIFT + W would be hard to hold) |
 | **F1 held** | quick **copy / paste**: the first W pressed copies that step, every further W while F1 is held pastes it (B1..B11 keep §8b's page jobs) |
 | **F2 held** | quick **cut / paste**, **Form's pick-up / drop exactly** (research/FORM-SEQUENCER.md §4): the first W always cuts, even an empty step; once something is in the hand, an empty step is always pasted into and a filled step alternates paste and cut; releasing F2 empties the hand. F2 + B9 / B10 keep the page copy / paste |
 | **NOTE, a step held** | **the top five knobs are its notes: SELECT = note 1** (absolute), **KNOB 1..4 = notes 2..5** (offsets from note 1, 0 = none). A step has **up to 5 notes** (was 4). B1..B10 pressed entry also takes up to 5 |
