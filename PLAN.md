@@ -711,6 +711,15 @@ Knobs without a job in a mode do nothing there (p-locks are P-LOCK's).
   every latched menu or confirmation from now on: **OCT− = back / exit / cancel, OCT+ = yes / confirm / enter**.
 - **Colours**: each mode keeps its own colour (the owner's choice over colour = knob); the knobs' parts within a
   mode's screen may still use the knob colours where they help.
+- **Step latch on LFO** (printed LFO; the owner): LFO toggles the latch (its LED lit). While it is on, **it is as if a
+  step is always held**: a W tap **selects** that step (it neither adds nor removes trigs), holding more W keys adds
+  them to the selection; the black keys, the knobs, the screens and the preview act on the selection. It starts on the
+  last step edited (else step 1). LFO again, or HOME, turns it off. (OCT− cannot be its exit: OCT− is the octave while
+  a step is held.)
+- **LOCKS is dropped** (P-LOCK on B11 covers it): **B10 is empty**, reserved. The "last entered" note / velocity are
+  not coming back: the track's defaults do that job.
+- The owner's answers (2026-10-19): the demo drums wait for the sound editor; no saving yet; SHIFT + ALGORITHM /
+  PRESETS for scale and root stay; the dancers stay.
 
 ### Questions for the redesign
 
