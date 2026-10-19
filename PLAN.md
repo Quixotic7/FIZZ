@@ -1244,3 +1244,10 @@ fizz peak with FIZZ rising above the line.
 screen from the owner's champagne close-ups (ReferenceImages/FizzyBubbles/Champagne01): submerged, in depth (bokeh,
 specks, crisp middle bubbles, near bubbles with a lit rim and tiny bubbles inside), a bed feeding the rise, a swell
 that brings FIZZ in; greys on black, an 11 s seamless loop.
+
+**2026-10-19, P1.3p: the FIZZ logo** (FMToneSeq c280073; FM1VST `core-quadrille` 97793a2 on the merge 08b4825 of FM1VST's
+local `screen-copy` (copy the screen to the clipboard, x2 / x4, PNG and raw files, Freeze); version 0.1.5-p1.3p;
+relaunched): after five logo mock-ups (`mockups/fizz-*.html`) the owner picked the champagne in the app's colours with
+the word from particles: big bubbles turning with tiny bubbles floating inside (no white highlight), FIZZ gathering
+from 248 particles in ~0.5 s, solid while it holds, breaking back into particles that fizz away. Letters sampled
+through a new `qd_text_mask` behind qd_gfx. STEPS: the edited page's row at half height (62 px).
