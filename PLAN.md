@@ -1231,3 +1231,7 @@ merge 4894c6b of FM1VST main bf10c77 = 0.5.0; version 0.1.0-p1.3k; the Standalon
 screen is a glass filling and fizzing over (the owner's cola photo): a 9.4 s loop of pour, foam, overflow with drips and
 spray, FIZZ rising from the foam, settle, fade; the spray pulses on the beats when a MIDI START plays it
 (`core/tests/out/fizz-glass.gif`).
+
+**2026-10-19, P1.3m** (FMToneSeq 71c3500; FM1VST `core-quadrille` 2903c71; version 0.1.2-p1.3m; relaunched): the logo
+screen per the owner: no footer, zoomed on the top of the glass, everything outlined in greys on black (no colour,
+checked by a test), the same loop (`core/tests/out/fizz-logo.gif`).
