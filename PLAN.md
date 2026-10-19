@@ -632,6 +632,23 @@ TRACKS (FX) and its screen (white 1..8 select, 9..16 mute: the owner's "track sh
 (SEL), HOME, PLAY, the takeovers (§9a rule 5), §5's p-locks, every held-step screen of P1.3 (they become the screens
 of a held step in each mode, with the B1..B10 values drawn as a strip).
 
+### Version 2.1 (2026-10-19, the owner after playing P1.3b)
+
+These override the tables above where they differ.
+
+| what | now |
+| --- | --- |
+| **tracks** | **hold SEL** (printed; was PATTERN): B1..B8 select tracks 1..8, W1..W8 mute / unmute tracks 1..8, W9..W16 solo / unsolo them. The screen shows the F2-style track map while SEL is held. F2 no longer does tracks |
+| **patterns** | **hold SEQ** (printed; was MIX): W1..W16 choose A01..A16, queued to the change point, at once with SHIFT |
+| **F1 held** | quick **copy / paste**: the first W pressed copies that step, every further W while F1 is held pastes it (B1..B11 keep §8b's page jobs) |
+| **F2 held** | quick **cut / paste**, **Form's pick-up / drop exactly** (research/FORM-SEQUENCER.md §4): the first W always cuts, even an empty step; once something is in the hand, an empty step is always pasted into and a filled step alternates paste and cut; releasing F2 empties the hand. F2 + B9 / B10 keep the page copy / paste |
+| **NOTE, a step held** | **the top five knobs are its notes: SELECT = note 1** (absolute), **KNOB 1..4 = notes 2..5** (offsets from note 1, 0 = none). A step has **up to 5 notes** (was 4). B1..B10 pressed entry also takes up to 5 |
+| **B11 (F#5), nothing held** | the **P-LOCK** hold mode: holding a step **does not change the screen**; whatever the screen is (the step view's quick page now, a sound editor page later) its knobs p-lock the held steps' values. B11 with a step held in P-LOCK clears the steps' p-locks (undoable). Answers question 37 |
+| **octave feedback** | a change of octave (NOTE held, the keyboard) shows a **full-screen octave animation** (the octave number big, a keyboard sliding to it) for about a second; **the OCT keys' LEDs show the octave**: no blink at the centre (octave 4 in NOTE, 0 in the keyboard), OCT− blinking slowly one octave down, faster two down, OCT+ the same upwards. The SOUND mode's banks of ten work the same way (the first bank is the centre) |
+
+In NOTE with a step held, KNOB 1..4 are notes, so p-locks there go through P-LOCK. In the other modes KNOB 1..4 stay
+p-locks as §8b.
+
 ### Questions for the redesign
 
 35. **SOUND's ten keys**: **decided: the sound pool** (128 sounds, a one-byte lock; ten at a time on the keys, OCT
