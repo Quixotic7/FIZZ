@@ -1174,3 +1174,10 @@ the step, nothing held = the track's defaults; a band over the top of the screen
 ALGORITHM chooses the track, banks on SEQ + B1..B4, the preview while stopped (`qd_player_preview`), F3 latched with
 a reusable latch table (OCT− back, OCT+ confirm, HOME closes), the step latch on LFO, LOCKS dropped (B10 reserved).
 No model change (the defaults already had every extra). test_ctl 452; old goldens unchanged.
+
+**2026-10-19, P1.3e built: §8b 2.2's later bullets** (FMToneSeq 4523ac3; FM1VST `core-quadrille` 88ef5fb; version
+0.0.8-p1.3e; the Standalone relaunched): a held mode key edits the track's default on a full TRACK DEFAULT picture
+(after 250 ms or a knob; B11 resets to C4 / 100 / 1 step / ...), nothing-held default turns show the same picture,
+six notes a step (ALGORITHM = note 6 on a held step, the default chord still transposed by ALGORITHM), the quiet
+KNOB 4, the step latch (tap toggles, hold several, an empty selection gives the mode keys back), HOME cycles PIANO
+ROLL / STEPS. The step stays 18 bytes (the pad byte became note 6). test_seq 2,794 (p28-six new), test_ctl 517.
