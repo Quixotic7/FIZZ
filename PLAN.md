@@ -883,3 +883,8 @@ event timelines and the same screens.
   presses and turns alone equals the same pattern built through the API, byte for byte and in its timeline. The
   conformance test turns KEYS on first (`sound btn ARP 60`).
 - Not yet: the sound editor, pattern screen, MUTE, MIX, SAVE, copy / paste, the perform offsets (P1.4, P1.5).
+
+**2026-10-18 evening, onto the latest FM1VST and RemoteFM1:** `core-quadrille` merged FM1VST `main` a424a24 (the
+FM-1-alone editor, settings behind a corner button) as 0d307c0, and its `remote/RemoteFM1` moved to RemoteFM1 `main`
+56dccd4 (0.1.1 and the web side; protocol and host library unchanged) as 9758888. Rebuilt; `ctest -R
+'quadrille|common'` passes; the Standalone relaunched with P1.3 on the new editor.
