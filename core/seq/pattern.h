@@ -4,7 +4,7 @@
  * structs, no allocation, nothing of the OS: a pattern can be stored as it is (P1.5).
  *
  * P1.3b (PLAN §8b, "track defaults and step overrides"): a track has DEFAULTS for every step parameter (the notes, up
- * to five since P1.3c (§8b version 2.1; four before); velocity, length, micro, ratchet and ramp, chance, condition, trig type, strum; the sound default is always
+ * to six since P1.3e (§8b version 2.2; five in P1.3c, four before); velocity, length, micro, ratchet and ramp, chance, condition, trig type, strum; the sound default is always
  * the track's own sound). A step stores a value AND AN OVERRIDE BIT per parameter (qd_step_t.ovr, bit QD_PM_k); a
  * parameter without its bit takes the track's default WHEN THE STEP IS RESOLVED (qd_step_resolve: the sequencer two
  * steps ahead, the screens at each frame), so a default change moves every step that does not override it, at once.
@@ -42,7 +42,7 @@ extern "C" {
 #define QD_NSTEP 128                    /* steps a track at most (8 pages of 16) */
 #define QD_PAGE 16
 #define QD_NPAGE (QD_NSTEP / QD_PAGE)
-#define QD_NNOTE 5                      /* notes a step (P1.3c: five, was four) */
+#define QD_NNOTE 6                      /* notes a step (P1.3e: six; P1.3c five, P1.3b four) */
 #define QD_NLOCK 1024                   /* the lock pool a pattern */
 #define QD_NBANK 4                      /* A..D */
 #define QD_NPAT (QD_NBANK * 16)         /* patterns a project */
@@ -60,7 +60,8 @@ enum { QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
        QD_PM_STRUM, QD_NPM };
 #define QD_OV(pm) ((uint16_t)(1u << (pm)))
 
-/* ---- a step (P1.3c: 18 bytes, 17 of them used: five notes, was four in P1.3b's 16) */
+/* ---- a step (18 bytes, every one used since P1.3e: six notes, the pad byte gone; P1.3c's five notes and a pad, P1.3b's
+ * four in 16) */
 enum { QD_TRIG_NONE, QD_TRIG_NOTE, QD_TRIG_LOCK, QD_TRIG_TIE };
 enum { QD_RAMP_FLAT, QD_RAMP_UP, QD_RAMP_DOWN, QD_RAMP_ACCENT };
 #define QD_SF_ON 0x01u                  /* flags: the step has a trig */
@@ -72,7 +73,7 @@ typedef struct {
     uint16_t ovr;                       /* bit QD_PM_k: the step overrides parameter k (else the track's default) */
     uint8_t flags;                      /* QD_SF_ON, QD_SF_LOCKS */
     uint8_t type;                       /* QD_TRIG_NOTE / LOCK / TIE (with QD_PM_TRIG's bit) */
-    uint8_t note[QD_NNOTE];             /* note 1 absolute (1..127); 2..5 offsets +1..+48 from note 1 (0 none) */
+    uint8_t note[QD_NNOTE];             /* note 1 absolute (1..127); 2..6 offsets +1..+48 from note 1 (0 none) */
     uint8_t vel;                        /* 1..127 */
     uint8_t len;                        /* an index into the length table (qd_len_eighths), QD_LEN_INF the last */
     int8_t micro;                       /* -23..+23 24ths of a step */
@@ -81,7 +82,6 @@ typedef struct {
     uint8_t cond;                       /* QD_COND_*, then A:B (qd_cond_ab) */
     uint8_t sound;                      /* the sound lock: 0 none (the track's sound), 1..QD_NSOUND a pool number */
     uint8_t strum;                      /* 0..23 24ths between a chord's notes */
-    uint8_t pad;                        /* (zero: the struct's padding made explicit, so steps compare byte for byte) */
 } qd_step_t;
 
 /* a track's step defaults (the sound's default is the track's own sound: no field) */
@@ -196,7 +196,7 @@ typedef struct {
 #define QD_OK 0
 #define QD_EARG (-1)                    /* a track, step, id or value out of range */
 #define QD_EFULL (-2)                   /* the lock pool is full: nothing changed */
-#define QD_ENOTE (-3)                   /* notes 2..5 not within +1..+48 of note 1 */
+#define QD_ENOTE (-3)                   /* notes 2..6 not within +1..+48 of note 1 */
 
 /* ---- patterns */
 void qd_pat_init(qd_pattern_t *p);      /* empty: no trigs, no locks, track defaults, 120 BPM, swing 50, master auto */

@@ -7,8 +7,10 @@
  * default they are grey-white, with a small DEFAULT tag top right (the step plays the track's value). A part that
  * is another mode's value is drawn in that mode's colour (VEL's ramp ticks RATCH's, LEN's tie TRIG's, MICRO's strum
  * NOTE's, COND's chance CHNC's and CHNC's condition COND's).
- * is_default: the track's default for the mode (ALGORITHM turned with nothing held): "DEFAULT · MODE", the drawing
- * in the mode's colour, no strip.
+ * is_default: the track's default for the mode (a default turned with nothing held, or its mode key held, P1.3e):
+ * "TRACK DEFAULT · MODE", the drawing in the mode's colour, no strip; with the mode key held a "B11 RESET" mark at
+ * the foot (lit while the default differs from the track's initial value). P1.3e: NOTE has six notes, the sixth in
+ * ALGORITHM's pink (a held step: SELECT, KNOB 1..4, ALGORITHM; a default: KNOB 1..4 for notes 2..5).
  *   NOTE   the chord name big (squeezing in), the notes on a keybed, their names under them; the entry octave and
  *          the track's scale small top left ("OCT 4 · D DORIAN"). P1.3c: five notes, each dot and name in the colour
  *          of the knob that turns it (note 1 SELECT's yellow, notes 2..5 KNOB 1..4's blue, green, white, orange) and
@@ -135,13 +137,13 @@ static void f_note(const ui_held_t *v, const pal_t *p)
         qd_restore();
     }
 
-    for (i = 0; i < v->nnote && i < 5; i++)             /* the keybed from the C at or below the lowest note */
+    for (i = 0; i < v->nnote && i < 6; i++)             /* the keybed from the C at or below the lowest note */
         if (v->note[i] < mn)
             mn = v->note[i];
     if (v->nnote > 0)
         lo = mn / 12 * 12;
     ui_keyboard(14.f, 120.f, 212.f, 70.f, lo, 0);
-    for (i = 0; i < v->nnote && i < 5; i++) {
+    for (i = 0; i < v->nnote && i < 6; i++) {
         int b, k;
         const int d = v->note[i] - lo;
         qd_rgb col = p->k[0];
@@ -149,21 +151,22 @@ static void f_note(const ui_held_t *v, const pal_t *p)
         if (d < 0 || d >= 24)
             continue;
         if (!p->empty)                                  /* the colour of the knob that turns it */
-            for (k = 0; k < 5; k++)
+            for (k = 0; k < 6; k++)
                 if (v->slot_note[k] == v->note[i]) {
-                    col = k ? UI_K[k - 1] : UI_KSEL;
+                    col = k == 5 ? UI_KALG : k ? UI_K[k - 1] : UI_KSEL;
                     break;
                 }
         x = ui_keyboard_x(14.f, 212.f, lo, v->note[i], &b);
         ui_O(x, b ? 152.f : 180.f, 3.8f, QD_NONE, 1.f, col);
         ui_T(v->note_name[i], x, i % 2 ? 215.f : 204.f, 9.f, 600, 0.f, col, QD_CENTER);
     }
-    if (v->knobs) {                                     /* the five knobs: SELECT, KNOB 1..4 */
-        static const char *const KN[5] = {"S", "1", "2", "3", "4"};
+    if (v->knobs) {                                     /* the knobs: SELECT, KNOB 1..4, ALGORITHM (a default: 1..4) */
+        static const char *const KN[6] = {"S", "1", "2", "3", "4", "A"};
+        const int k0 = v->knobs == 2 ? 1 : 0, k1 = v->knobs == 2 ? 5 : 6;
         int k;
-        for (k = 0; k < 5; k++) {
-            const float x = 162.f + (float)k * 15.f;
-            const qd_rgb col = k ? UI_K[k - 1] : UI_KSEL;
+        for (k = k0; k < k1; k++) {
+            const float x = 147.f + (float)k * 15.f;
+            const qd_rgb col = k == 5 ? UI_KALG : k ? UI_K[k - 1] : UI_KSEL;
             const int on = v->slot_note[k] && !p->empty;
             ui_O(x, 110.f, 5.5f, col, 1.2f, on ? col : QD_NONE);
             ui_T(KN[k], x, 112.5f, 7.f, 700, 0.f, on ? UI_BG : col, QD_CENTER);
@@ -328,7 +331,7 @@ static void f_micro(const ui_held_t *v, const pal_t *p)
         ui_P(f, 3, p->k[0], 1.2f, 1, p->k[0]);
     }
     /* the strum's staircase (KNOB 2): note j at micro + j * strum, lit once the walk passes it */
-    for (j = 0; j < v->nnote && j < 5; j++) {
+    for (j = 0; j < v->nnote && j < 6; j++) {
         const int st = v->micro + j * v->strum;
         const float x = MX(st), yy = 158.f - (float)j * 11.f;
         const int on = v->walk >= (float)st;
@@ -589,7 +592,7 @@ void ui_held_draw(const ui_held_t *v)
 
     left[0] = 0;                                        /* "STEP 5 · NOTE", several held: "STEP 5+2 · NOTE" */
     if (v->is_default) {
-        cat(left, "DEFAULT");
+        cat(left, "TRACK DEFAULT");
     } else {
         cat(cat(left, "STEP "), ui_itoa(n, v->step));
         if (v->nheld > 1)
@@ -621,4 +624,9 @@ void ui_held_draw(const ui_held_t *v)
     }
     if (!v->is_default)
         ui_value_strip((char (*)[6])v->vk, v->vk_lit, v->vk_def, v->vk_none, v->clr, UI_MODE_COL[field]);
+    else if (v->reset) {                                /* P1.3e: the mode key held: B11 resets the default */
+        const float w = ui_TW("B11 RESET", 7.f, 600, 1.f) + 8.f;
+        ui_RR(232.f - w, 225.f, w, 12.f, 3.f, v->reset == 1 ? UI_K3 : UI_G2, 1.f, QD_NONE);
+        ui_T("B11 RESET", 232.f - w / 2.f + 0.5f, 233.5f, 7.f, 600, 1.f, v->reset == 1 ? UI_K3 : UI_G2, QD_CENTER);
+    }
 }

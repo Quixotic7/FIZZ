@@ -19,6 +19,7 @@ extern "C" {
 #define UI_K3 0xf1f0eau
 #define UI_K4 0xff6a2cu
 #define UI_KSEL 0xffd23fu               /* P1.3c: SELECT's colour where SELECT moves a part of the drawing (NOTE's note 1) */
+#define UI_KALG 0xff8fc8u               /* P1.3e: ALGORITHM's, where it moves a part of the drawing (NOTE's note 6) */
 #define UI_RED 0xff3448u
 #define UI_G1 0x8d8d96u
 #define UI_G2 0x4b4b54u
@@ -175,7 +176,7 @@ typedef struct {
     uint8_t held;                       /* held: outlined white */
     uint8_t lit;                        /* the playhead is in its span (NOTE: its bars filled white) */
     uint8_t nnote;
-    uint8_t note[5];                    /* absolute */
+    uint8_t note[6];                    /* absolute */
     float len;                          /* the gate in steps (INF: to the page's end) */
     int8_t micro;                       /* 24ths of a step */
     uint8_t ratch, ramp;                /* x1..x8, the ramp (QD_RAMP_*) */
@@ -203,7 +204,7 @@ typedef struct {
     float t;                            /* seconds (motion) */
     /* the track's default for the mode */
     int def_nnote;
-    uint8_t def_note[5];
+    uint8_t def_note[6];
     int def_vel;
     float def_len;
     int def_micro, def_ratch, def_ramp, def_chance, def_type;
@@ -211,6 +212,11 @@ typedef struct {
     char def_label[24];                 /* the default as words: "DEFAULT 100", "TRACK SOUND" */
     int def_hot;                        /* P1.3d: a default is being turned: its line and label in the mode's colour */
     int latch;                          /* P1.3d: the step latch (LFO) is on: "LATCH" in the top line */
+    /* P1.3e: the STEPS view (HOME): the page as two rows of eight cells (W1..W8, W9..W16) instead of the mode's lane;
+     * the same top line and page dashes */
+    int steps;
+    int flash_col;                      /* the column whose trig played last (-1 none) .. */
+    float flash_age;                    /* .. seconds ago (it flashes white, fading over 0.25 s) */
 } ui_lane_t;
 void ui_lane_draw(const ui_lane_t *v);
 
@@ -236,12 +242,17 @@ typedef struct {
     int clr;
     /* NOTE (s4): the chord name big (root + quality; a name not known: the note names), the notes on the keybed */
     int nnote;
-    uint8_t note[5];                    /* absolute */
-    char note_name[5][6];               /* "C3", "D#4" */
-    /* P1.3c: the five notes by their knobs: slot 0 note 1 (SELECT, absolute), slots 1..4 notes 2..5 (KNOB 1..4, offsets
-     * from note 1): each slot's absolute note, 0 none; drawn in its knob's colour (SELECT UI_KSEL, KNOB k UI_K[k - 1]) */
-    uint8_t slot_note[5];
-    int knobs;                          /* the five knobs are the notes (a step held in NOTE): their legend drawn */
+    uint8_t note[6];                    /* absolute */
+    char note_name[6][6];               /* "C3", "D#4" */
+    /* P1.3c: the notes by their knobs: slot 0 note 1 (SELECT, absolute), slots 1..4 notes 2..5 (KNOB 1..4, offsets
+     * from note 1), P1.3e slot 5 note 6 (ALGORITHM): each slot's absolute note, 0 none; drawn in its knob's colour
+     * (SELECT UI_KSEL, KNOB k UI_K[k - 1], ALGORITHM UI_KALG) */
+    uint8_t slot_note[6];
+    int knobs;                          /* the knobs are the notes: their legend drawn (1: a held step's six, SELECT ..
+                                         * ALGORITHM; 2: P1.3e, a default's, KNOB 1..4 only: its SELECT is the page
+                                         * and its ALGORITHM moves the chord) */
+    int reset;                          /* P1.3e, a default with its mode key held: 1 B11 resets it (it differs from the
+                                         * track's initial value), 2 it is the initial one ("B11 RESET" lit / dim) */
     char root[4];                       /* "C", "F#" (empty: no chord) */
     char qual[8];                       /* "m7", "" (major), "sus4" */
     char names[24];                     /* a chord not known: "C D F#" (root empty) */
@@ -305,7 +316,7 @@ typedef struct {
     int f1_copied;                      /* F1: a step copied this hold (the next W pastes it) */
     int clip_step;                      /* .. the step in the clipboard (1..128; 0 none) */
     int clip_nnote;                     /* .. its notes (the card's little roll), its trig */
-    uint8_t clip_note[5];
+    uint8_t clip_note[6];
     int clip_type;
     /* layer 4, SEL held (P1.3c): the eight tracks (B1..B8 select): selected, muted (W1..W8), soloed (W9..W16).
      * F2 (P1.3c): Form's pick-up / drop: the page's sixteen steps and the hand (hand: 0 empty, 1 holding the step

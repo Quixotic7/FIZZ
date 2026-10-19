@@ -98,6 +98,13 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
     memcpy(v->pend, ts->pend, sizeof v->pend);
     v->follow = u->follow;
     v->latch = u->slatch;
+    v->steps = u->view == QD_VIEW_STEPS;                /* P1.3e: the STEPS view; the trig that played last */
+    v->flash_col = -1;
+    if (a->seq.playing && a->seq.flash_step[t] >= 0 && a->seq.flash_step[t] / QD_PAGE == page &&
+        a->seq.flash_sample[t] <= a->seq.now) {
+        v->flash_col = a->seq.flash_step[t] % QD_PAGE;
+        v->flash_age = (float)((double)(a->seq.now - a->seq.flash_sample[t]) / (double)QD_FS);
+    }
     v->t = secs(a->ms);
     v->play_page = -1;
     v->pos = -1.f;
@@ -276,7 +283,9 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
     for (k = 0; k < QD_NNOTE; k++)                      /* the notes by their knobs (P1.3c) */
         v->slot_note[k] = !k ? r.note[0] : r.note[k] ? (uint8_t)(r.note[0] + r.note[k] > 127 ? 127 : r.note[0] + r.note[k])
                                                      : 0;
-    v->knobs = !is_default && m == UI_F_NOTE;
+    v->knobs = m != UI_F_NOTE ? 0 : is_default ? 2 : 1;
+    if (is_default && qd_ctl_mkey(a) >= 0)              /* P1.3e: the mode key held: B11 resets it */
+        v->reset = qd_step_default_initial(a, m) ? 2 : 1;
     v->squeeze = secs(a->ms - u->chord_ms);
     v->entry_oct = u->entry_oct;
     {
@@ -842,7 +851,7 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
                                                 "CONDITION", "TRIG", "SOUND", "", ""};
     static const char *const TYPE[4] = {"", "NOTE", "LOCK", "TIE"};
     static const char *const RAMP[4] = {"FLAT", "UP", "DOWN", "ACCENT"};
-    static const char *const NOTEN[5] = {"NOTE 1", "NOTE 2", "NOTE 3", "NOTE 4", "NOTE 5"};
+    static const char *const NOTEN[6] = {"NOTE 1", "NOTE 2", "NOTE 3", "NOTE 4", "NOTE 5", "NOTE 6"};
     static char ctx[24];
     const qd_ui_t *u = &a->ui;
     const int t = a->sel, m = u->hmode >= 0 && u->hmode < UI_NFIELD ? u->hmode : 0;
@@ -905,7 +914,8 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
     case QD_KJ_NOTE2:
     case QD_KJ_NOTE3:
     case QD_KJ_NOTE4:
-    case QD_KJ_NOTE5: {
+    case QD_KJ_NOTE5:
+    case QD_KJ_NOTE6: {
         const int k = u->tk_job - QD_KJ_NOTE1;
         v->name = NOTEN[k];
         if (!k || r.note[k])
@@ -954,6 +964,8 @@ int qd_view_screen(const qd_app_t *a)
     case QD_MODE_STEP:
         if (u->nheld && u->hmode != UI_F_PLOCK)        /* (P-LOCK: holding keeps the screen) */
             return QD_SCR_HELD;
+        if (qd_ctl_mkey_shown(a))                       /* P1.3e: a mode key held: the track's default */
+            return QD_SCR_DEFAULT;
         if (qd_ctl_layer_shown(a) != QD_LAYER_NONE)
             return QD_SCR_LAYER;
         if (qd_ctl_shift(a) && !u->shift_used)
@@ -997,6 +1009,10 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         fill_held(a, &hv, 0);
         ui_held_draw(&hv);
         break;
+    case QD_SCR_DEFAULT:                                /* P1.3e: a mode key held: its default's full picture */
+        fill_held(a, &hv, 1);
+        ui_held_draw(&hv);
+        break;
     case QD_SCR_LAYER:
         fill_layer(a, &yv, qd_ctl_layer_shown(a));
         ui_layer_draw(&yv);
@@ -1028,12 +1044,9 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
                 draw_picker(a);
             } else if (u->tk == UI_TK_OCTAVE) {
                 draw_octave(a);
-            } else if (u->tk == QD_TK_DEFAULT) {        /* P1.3d: a default: the lane, its default lit, the band */
-                fill_lane(a, &lv, pat);
-                lv.def_hot = 1;
-                ui_lane_draw(&lv);
-                fill_band(a, &bv, 1);
-                ui_band_draw(&bv);
+            } else if (u->tk == QD_TK_DEFAULT) {        /* P1.3e: a default: its full TRACK DEFAULT picture */
+                fill_held(a, &hv, 1);
+                ui_held_draw(&hv);
             } else {
                 fill_turn(a, &tv, ctx);
                 ui_turn_draw(&tv);

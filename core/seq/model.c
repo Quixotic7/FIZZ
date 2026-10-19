@@ -41,6 +41,13 @@ void qd_track_load_sound(qd_track_t *t, int k, const char *name, const int16_t *
 
 const char *qd_track_sound_name(const qd_track_t *t) { return t->sound_name; }
 
+int qd_track_start_sound(int i) { return QD_TRACK_DEF[i < 0 ? 0 : i >= QD_NTRACK ? QD_NTRACK - 1 : i].preset + 1; }
+
+void qd_track_reset_sound(qd_track_t *t, int i)
+{
+    qd_track_load_preset(t, QD_TRACK_DEF[i < 0 ? 0 : i >= QD_NTRACK ? QD_NTRACK - 1 : i].preset);
+}
+
 void qd_model_bind(qd_model_t *m)
 {
     int i;

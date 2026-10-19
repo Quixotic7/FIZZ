@@ -69,7 +69,19 @@
  *   (confirm). The keys a latch answered are no layer until let go (oct_eaten).
  *   THE STEP LATCH (printed LFO): as if a step is always held: a W selects (W keys down together: all of them), no trig
  *   is made or removed; everything a held step does works on the selection (the screens, the values, the knobs, the
- *   octave, the preview). It starts on the last step held or tapped (else the page's first); LFO again or HOME end it. */
+ *   octave, the preview). It starts on the last step held or tapped (else the page's first); LFO again or HOME end it.
+ *
+ * P1.3e (§8b 2.2's later bullets):
+ *   A MODE KEY HELD (B1..B9, nothing else held; the step latch's empty selection counts): "the track" for that mode:
+ *   its full TRACK DEFAULT picture (after 250 ms, or at once when used), SELECT / KNOB 1..4 its default by KNOB_JOB,
+ *   ALGORITHM the main default, B11 resets it (qd_step_default_reset), the other black keys nothing; let go, the lane.
+ *   Nothing held, a default turned shows the same picture for a second (QD_TK_DEFAULT; the band stays for a held step).
+ *   SIX NOTES: a held step's ALGORITHM in NOTE is note 6; the default chord's ALGORITHM still moves every note.
+ *   KNOB 4, THE QUIET KNOB: where it has no other job, the main value with no overlay (QD_KJ_QUIET).
+ *   THE STEP LATCH: a W tap toggles its step in the selection, W keys held together are all selected; an empty
+ *   selection acts as nothing held (the modes, the defaults).
+ *   HOME: closes a latch (F3, the step latch) first; else in the sequencer switches its view (PIANO ROLL / STEPS);
+ *   elsewhere it returns to the sequencer in its last view. */
 #pragma once
 #include <stdint.h>
 
@@ -106,18 +118,21 @@ struct qd_app;
 
 enum { QD_MODE_IDLE, QD_MODE_STEP, QD_MODE_KEYS, QD_MODE_TRACKS };
 enum { QD_REC_OFF, QD_REC_STEP, QD_REC_LIVE };
+enum { QD_VIEW_ROLL, QD_VIEW_STEPS, QD_NVIEW };   /* P1.3e: the sequencer's views, HOME cycles them */
 /* the hold modes (B1..B10): UI_F_* (ui.h) */
 enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 /* the takeovers: UI_TK_* (ui.h), and the sound picker */
 #define QD_TK_NONE (-1)
 #define QD_TK_PRESET 100               /* the pool picker: the track's sound, or the held steps' sound lock */
-#define QD_TK_DEFAULT 101              /* a default turned, nothing held (P1.3d: the lane, its default lit, the band) */
+#define QD_TK_DEFAULT 101              /* a default turned, nothing held (P1.3e: the mode's full TRACK DEFAULT picture) */
 #define QD_TK_HELDKNOB 102             /* P1.3d: a knob turned with a step held: the band over the held step's screen */
 
 /* P1.3d (§8b 2.2): the knobs' jobs in the hold modes (qd_ctl_knob_job: one table, [mode][SELECT, KNOB 1..4]); with a
  * step held they edit the held steps, with nothing held KNOB 1..4 the track's defaults (SELECT is then the page) */
-enum { QD_KJ_NONE, QD_KJ_MAIN, QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4, QD_KJ_NOTE5, QD_KJ_TIE,
-       QD_KJ_STRUM, QD_KJ_RAMP, QD_KJ_COND, QD_KJ_CHANCE, QD_NKJ };
+/* P1.3e: NOTE6 (ALGORITHM on a held step in NOTE: note 6); QUIET, the main value with no overlay (KNOB 4 wherever it
+ * has no other job: the lane or the held screen changes in place) */
+enum { QD_KJ_NONE, QD_KJ_MAIN, QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4, QD_KJ_NOTE5, QD_KJ_NOTE6,
+       QD_KJ_TIE, QD_KJ_STRUM, QD_KJ_RAMP, QD_KJ_COND, QD_KJ_CHANCE, QD_KJ_QUIET, QD_NKJ };
 
 /* P1.3d (§8b 2.2): latched menus and confirmations (ctl_latch.c). One rule for all: OCT- = back / exit / cancel,
  * OCT+ = yes / confirm / enter; HOME closes any */
@@ -134,6 +149,8 @@ typedef struct qd_latch {
 
 typedef struct {
     int mode;                          /* QD_MODE_* */
+    int view;                          /* P1.3e: the sequencer's view (QD_VIEW_*): kept for the session */
+    int home_woke;                     /* (the HOME press that woke the unit: it switches nothing) */
     uint32_t touch_ms;                 /* the last input (the idle screen's clock) */
     /* the step view */
     int hmode;                         /* the hold mode, UI_F_* (NOTE at power-on) */
@@ -151,9 +168,15 @@ typedef struct {
     int held[16];
     int8_t held_key[16];               /* the white key holding it */
     int nheld;
-    int held_empty;                    /* the first step held was empty when it was held */
+    int held_empty;
+    /* P1.3e: a mode key (B1..B9) held with nothing else held: "the track" for that mode (its default) */
+    int mkey;                          /* the mode held (-1 none) */
+    uint32_t mkey_t0;                  /* when it went down .. */
+    int mkey_used;                     /* .. a knob or B11 used it (its picture at once) */                    /* the first step held was empty when it was held */
     /* P1.3d: the step latch (LFO): the held steps are a selection that stays (held_key -1); a W selects */
     int slatch;
+    uint16_t wk_unsel;                 /* P1.3e: a selected step's W down alone: unselected at its release (unless
+                                        * another W joined meanwhile: then both are selected) */
     int last_step[8];                  /* the last step held or tapped, per track (-1 none): the latch starts there */
     uint32_t chord_ms;                 /* NOTE: the chord changed (the name squeezes in) */
     uint32_t roll_ms;                  /* SOUND / LOCKS: the last roll .. */
@@ -283,7 +306,11 @@ typedef struct {
 } qd_lockscreen_t;
 const qd_lockscreen_t *qd_ctl_lock_screen(const struct qd_app *a);
 int qd_ctl_black(int key);             /* the black key 0..10 of a note key, or -1 */
-int qd_ctl_knob_job(int mode, int knob);   /* P1.3d: QD_KJ_* of a knob (QD_K_SELECT, QD_K_1..4) in a hold mode */
+int qd_ctl_knob_job(int mode, int knob);
+/* P1.3e: the mode whose default a held mode key edits (-1 none), and whether its full picture shows (held 250 ms, or
+ * used) */
+int qd_ctl_mkey(const struct qd_app *a);
+int qd_ctl_mkey_shown(const struct qd_app *a);   /* P1.3d: QD_KJ_* of a knob (QD_K_SELECT, QD_K_1..4) in a hold mode */
 void qd_ctl_select_track(struct qd_app *a, int t);
 
 /* ---- ctl_latch.c (P1.3d) */
@@ -314,6 +341,10 @@ int qd_step_default_knob(struct qd_app *a, int d);  /* ALGORITHM, nothing held: 
 /* P1.3d: a knob's job (QD_KJ_*) on the held steps / on the track's default; knob: QD_K_* turned (the band's badge) */
 void qd_step_job_held(struct qd_app *a, int job, int knob, int d);
 void qd_step_job_default(struct qd_app *a, int job, int knob, int d);
+/* P1.3e: mode m's default back to the track's initial value (qd_sdef_init's; MICRO with the strum, RATCH with the
+ * ramp; SOUND: the track's starting sound), and whether it is there now */
+void qd_step_default_reset(struct qd_app *a, int m);
+int qd_step_default_initial(const struct qd_app *a, int m);
 void qd_step_latch(struct qd_app *a, int on);   /* P1.3d: the step latch (LFO) on / off */
 void qd_step_latch_seed(struct qd_app *a);      /* .. its selection started (the last step edited, else the page's first) */
 int qd_step_quick_id(int k);           /* the quick page's lock id of KNOB k (FREQ, DECAY, HARM, FDBK) */
@@ -347,7 +378,7 @@ int qd_ctl_trig_flash(const struct qd_app *a, int t);          /* track t's trig
 void qd_view_frame(struct qd_app *a, uint16_t *lcd_be);
 /* the screen under the takeovers (what qd_view_frame draws first): QD_SCR_* */
 enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR_KEYS, QD_SCR_TRACKS, QD_SCR_SEL,
-       QD_SCR_SEQ };
+       QD_SCR_SEQ, QD_SCR_DEFAULT };   /* (P1.3e: a mode key held: the mode's default, its full picture) */
 int qd_view_screen(const struct qd_app *a);
 
 #ifdef __cplusplus

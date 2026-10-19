@@ -1,4 +1,4 @@
-# Playing QUADRILLE (P1.3d)
+# Playing QUADRILLE (P1.3e)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -23,7 +23,10 @@ sound comes from the Mac. Printed names are in brackets.
 ## Getting around
 
 - The unit wakes on the dancing screen. Press anything to get to the **step view**.
-- **HOME** always brings you back to the step view.
+- **HOME** in the sequencer switches its view: **PIANO ROLL** (the mode's lane) and **STEPS** (just the page's 16
+  steps, as two rows of eight tiles: W1..W8 over W9..W16; small dots under a tile for its p-locks, condition, chance
+  and sound lock). From any other screen HOME comes back to the sequencer in the view you used last. If F3 or the
+  step latch is open, HOME closes that first.
 - After two minutes untouched with nothing playing, it goes back to the dancers.
 - **PLAY** plays and stops.
 
@@ -48,19 +51,20 @@ Hold several white keys to edit them all at once. Each knob turn shows its name 
 
 The knobs with a step held:
 
-| mode | SELECT and KNOB 1 | KNOB 2 |
-| --- | --- | --- |
-| NOTE | SELECT = note 1, KNOB 1..4 = notes 2..5 | |
-| VEL | velocity | |
-| LEN | length | TIE on / off |
-| MICRO | micro-timing | strum |
-| RATCH | ratchet count | ramp |
-| CHNC | chance | condition |
-| COND | condition | chance |
-| TRIG | NOTE / LOCK / TIE | |
-| SOUND | the pool sound (PRESETS too) | |
+| mode | SELECT and KNOB 1 | KNOB 2 | KNOB 4 |
+| --- | --- | --- | --- |
+| NOTE | SELECT = note 1, KNOB 1..4 = notes 2..5, ALGORITHM = note 6 | | note 5 |
+| VEL | velocity | | velocity, quietly |
+| LEN | length | TIE on / off | length, quietly |
+| MICRO | micro-timing | strum | micro, quietly |
+| RATCH | ratchet count | ramp | count, quietly |
+| CHNC | chance | condition | chance, quietly |
+| COND | condition | chance | condition, quietly |
+| TRIG | NOTE / LOCK / TIE | | type, quietly |
+| SOUND | the pool sound (PRESETS too) | | sound, quietly |
 
-Knobs with nothing in the table do nothing. **PRESETS** is always the step's sound.
+"Quietly": **KNOB 4** turns the main value **without any overlay**; the screen just changes in place. Knobs with
+nothing in the table do nothing. **PRESETS** is always the step's sound.
 
 The ten values:
 
@@ -83,30 +87,33 @@ The ten values:
 ## How do I edit steps without holding them? (the step latch)
 
 - Press **LFO**: the latch is on (LFO lit). It is as if a step is always held. It starts on the step you last edited.
-- **Tap a white key** to select that step (it doesn't add or remove a note). **Hold one and press others** to select
-  several. Selected keys blink.
+- **Tap a white key** to select or unselect that step (it never adds or removes a note). **Hold one and press others**
+  to select them all. Selected keys blink.
 - Everything you do with a held step works on the selection: black keys, knobs, the screens, OCT for the octave, the
   preview.
-- To change the mode, turn the latch off first. **LFO** again or **HOME** turns it off.
+- **Unselect everything** and the latch stays on but acts as if nothing is held: the black keys choose the mode
+  again, the knobs edit the track's defaults. Tap a step to select again.
+- **LFO** again or **HOME** turns it off.
 
 ## How do I enter notes and chords?
 
-A step has up to **five notes**.
+A step has up to **six notes**.
 
 - In **NOTE**, hold the step. **The top five knobs are its notes**, each drawn in its knob's colour:
   - **SELECT = note 1** (yellow): one click is one note of the track's scale (a chromatic track: a semitone). The
     other notes move with it.
-  - **KNOB 1..4 = notes 2..5** (blue, green, white, orange), each counted up from note 1: one click is the next note of
-    the scale up or down (notes another knob already has are skipped). Turn one all the way down to remove that note.
+  - **KNOB 1..4 = notes 2..5** (blue, green, white, orange) and **ALGORITHM = note 6** (pink), each counted up from
+    note 1: one click is the next note of the scale up or down (notes another knob already has are skipped). Turn one
+    all the way down to remove that note.
   - Each note plays as you turn it.
   - In NOTE, SELECT doesn't change pages and KNOB 1..4 don't lock the sound: use P-LOCK for that. (In every mode
     except P-LOCK, SELECT and the knobs edit the step while it is held.)
 - Or press black keys: they are ten notes of the track's scale from its root (a chromatic track: ten semitones from
   C). The first key replaces the step's notes; keys pressed **while another is still down** add to the chord (up to
-  5). Each key plays its note.
+  6). Each key plays its note.
 - **F1 / F2** (OCT− / OCT+) while holding the step move the ten keys an octave down / up. The screen shows the octave
   big for a second, and the OCT keys' lights tell you where you are (see below).
-- **ALGORITHM** moves every note of the step one scale step.
+- On a held step ALGORITHM is note 6. To move a whole chord, use SELECT (note 1: the others follow).
 
 ## How do I lock a sound setting on a step? (P-LOCK)
 
@@ -121,10 +128,17 @@ A step has up to **five notes**.
 
 ## How do I change the track's defaults?
 
-- With **nothing held**, pick the mode and turn the **same knobs as with a step held** (KNOB 1 the main value, KNOB 2
-  the extra; NOTE: KNOB 1..4 the default chord's notes 2..5). **ALGORITHM** turns the main default too.
-- The screen shows the page with the default lit and a band saying **TRACK DEFAULT** and the value.
-- Only the steps that don't have their own value follow it.
+- **Hold the mode's black key** (B1..B9): the screen shows the mode's picture marked **TRACK DEFAULT** (NOTE: the
+  chord name and the keybed). While you hold it:
+  - SELECT and the knobs edit the default, in the same layout as with a step held (NOTE: SELECT = note 1, KNOB 1..4 =
+    notes 2..5); ALGORITHM turns the main default (in NOTE it moves the whole default chord);
+  - **B11 (F#5) resets** that default to the track's starting value: NOTE back to a single C4 (clears a chord), VEL 100,
+    LEN one step, MICRO 0 (and no strum), RATCH x1 flat, CHNC 100 %, COND always, TRIG NOTE, SOUND the track's
+    starting sound. B11 is lit while there is something to reset;
+  - the other black keys do nothing. Let go to get the page back.
+- With **nothing held at all**, the knobs and ALGORITHM still edit the defaults; the TRACK DEFAULT picture shows for a
+  second. KNOB 4 does it quietly (no picture).
+- Only the steps that don't have their own value follow a default.
 - In SOUND, KNOB 1 or ALGORITHM (or PRESETS) chooses the track's own sound.
 
 ## How do I work with pages and loops?

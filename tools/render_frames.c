@@ -26,7 +26,7 @@
  * Then P1.3b's (render_p13b.c): every screen of P1.3b from a real state, p13b-*.png, and the contact sheet
  * p13b-sheet.png beside line.html's mocks (--mocks DIR, default ../mockups/png). Then P1.3c's (render_p13c.c): the
  * screens of §8b version 2.1, p13c-*.png and p13c-sheet.png. Then P1.3d's (render_p13d.c): §8b version 2.2's, p13d-*.png
- * and p13d-sheet.png. */
+ * and p13d-sheet.png. Then P1.3e's (render_p13e.c): p13e-*.png and p13e-sheet.png. */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,6 +47,7 @@ static const char *const BTN_PRINTED[QD_NBTN] = {"FX", "SEL", "ENV", "LFO", "EDI
 int render_p13b(const char *out, const char *mocks);   /* render_p13b.c */
 int render_p13c(const char *out);                       /* render_p13c.c */
 int render_p13d(const char *out);                       /* render_p13d.c */
+int render_p13e(const char *out);                       /* render_p13e.c */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
 
@@ -366,6 +367,7 @@ int main(int argc, char **argv)
     failed |= render_p13b(out, mocks);                  /* P1.3b: every screen from a real state, the contact sheet */
     failed |= render_p13c(out);                         /* P1.3c: §8b 2.1's screens, their sheet */
     failed |= render_p13d(out);                         /* P1.3d: §8b 2.2's screens, their sheet */
+    failed |= render_p13e(out);                         /* P1.3e: 2.2's later bullets */
     qd_shutdown();
     return failed;
 }

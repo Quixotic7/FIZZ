@@ -143,7 +143,7 @@ static void hand_card(const ui_layer_t *v, float x, float y, float w, float h)
         int i, lo = 127;
         for (i = 0; i < 128; i++)
             fill[i] = QD_NONE;
-        for (i = 0; i < v->clip_nnote && i < 5; i++) {
+        for (i = 0; i < v->clip_nnote && i < 6; i++) {
             fill[v->clip_note[i] & 127] = UI_K3;
             lo = v->clip_note[i] < lo ? v->clip_note[i] : lo;
         }

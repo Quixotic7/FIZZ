@@ -56,7 +56,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
@@ -92,7 +92,7 @@ $(B)/san/%.o: %.c $(HDRS) Makefile
 	@mkdir -p $(B)/san
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -c -o $@ $<
 SEQ_SRC := $(ROOT)/core/seq/pattern.c $(ROOT)/core/seq/seq.c $(ROOT)/core/seq/player.c $(ROOT)/core/seq/model.c \
-           $(ROOT)/core/seq/scale.c $(ROOT)/core/seq/sounds.c $(ROOT)/core/seq/clip.c $(ROOT)/core/seq/demo.c \
+           $(ROOT)/core/seq/chord.c $(ROOT)/core/seq/scale.c $(ROOT)/core/seq/sounds.c $(ROOT)/core/seq/clip.c $(ROOT)/core/seq/demo.c \
            $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/mix.c $(ROOT)/core/voice/quad/quad_voice.c
 $(B)/test_seq: $(T)/test_seq.c $(SEQ_SRC) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(INC) -o $@ $(T)/test_seq.c $(SEQ_SRC) -lm

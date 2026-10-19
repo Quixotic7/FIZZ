@@ -44,10 +44,12 @@
  *                             global key)
  *               p22-solo      one track soloed, two, a soloed one that is muted, the solo cleared
  *               P1.3c: QD_TPS doubled to 100800 and QD_SUB halved (a 16th the same subticks): p01..p22 unchanged,
- *               byte for byte; a step 18 bytes (five notes)
+ *               byte for byte; a step 18 bytes (six notes since P1.3e, five and a pad before)
  *               p23-five      five notes a step: overridden, strummed, ratcheted, offsets to +48; a five-note default
  *                             changed while playing; five scale degrees; a TIE of five
  *               p24-launch    the launch modes BAR, BEAT, END, NOW (the reference reckons each change point)
+ *               p28-six       (P1.3e) six notes a step: together, strummed, ratcheted, offsets to +48; a six-note
+ *                             default changed while playing; a TIE of six; the six-note chord names
  *               p25..p27      every rate: the seven bases 1/1 .. 1/64, normal, dotted, triplet, with micro, ratchet x8,
  *                             strum, 1/8-step lengths and swing at each
  *
@@ -57,6 +59,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "chord.h"
 #include "clip.h"
 #include "mix.h"
 #include "player.h"
@@ -332,12 +335,12 @@ static int compare_ref(const char *name, int tol)
  * Form's flat rebuild: pages 1..k looped, full but the last); its defaults (def; def2 from R_DEF_AT on when has2); its
  * key (scale, root, or the pattern's global key when keyg). The tests p01..p16 override every parameter of every step
  * (S): their patterns are what they were before the defaults existed */
-typedef struct { int nn, notes[5], vel, len, micro, ratch, ramp, chance, cond, type, strum; } TD;
+typedef struct { int nn, notes[QD_NNOTE], vel, len, micro, ratch, ramp, chance, cond, type, strum; } TD;
 typedef struct {
-    int t, s, type, nn, notes[5], vel, len, micro, ratch, ramp, cond, chance, sound, strum, nlk;
+    int t, s, type, nn, notes[QD_NNOTE], vel, len, micro, ratch, ramp, cond, chance, sound, strum, nlk;
     int lk_id[8], lk_v[8];
     int ovr;
-    int sc, sc_oct, sc_n, sc_deg[5];
+    int sc, sc_oct, sc_n, sc_deg[QD_NNOTE];
 } TS;
 typedef struct {
     int rate, length, swing, limit, transpose, mute;
@@ -492,7 +495,7 @@ static void LK(TS *st, int id, int v)
 /* a track's defaults through the API */
 static int apply_def(qd_pattern_t *P, int t, const TD *d)
 {
-    uint8_t nv[5];
+    uint8_t nv[QD_NNOTE];
     int k, r = 0;
     for (k = 0; k < d->nn; k++)
         nv[k] = (uint8_t)d->notes[k];
@@ -542,7 +545,7 @@ static void build(const TP *tp, int k)
     }
     for (i = 0; i < tp->n; i++) {
         const TS *s = &tp->st[i];
-        uint8_t nv[5];
+        uint8_t nv[QD_NNOTE];
         int k2, r = 0, nn = s->nn;
 #define HAS(pm) ((s->ovr >> (pm)) & 1)
         if (s->sc) {                                    /* scale degrees: the engine's own mapping */
@@ -841,7 +844,7 @@ static const TS *r_resolve(const TP *tp, const TT *tt, const TS *s, int64_t g, i
             v->notes[k] = r_scale_note(sc, root, s->sc_oct, s->sc_deg[k]);
     } else if (!HAS(QD_PM_NOTE) || !s->nn) {
         v->nn = d->nn;
-        for (k = 0; k < 5; k++)
+        for (k = 0; k < QD_NNOTE; k++)
             v->notes[k] = d->notes[k];
     }
     if (!HAS(QD_PM_VEL))
@@ -960,7 +963,7 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
                     const int64_t start = g + swing + (int64_t)s->micro * L / 24;
                     const double lenf = R_LEN[s->len];
                     const int64_t gate_all = lenf < 0 ? -1 : (int64_t)llround(lenf * (double)L);
-                    int notes[5], k, h;
+                    int notes[QD_NNOTE], k, h;
                     for (k = 0; k < s->nn; k++) {
                         const int x = s->notes[k] + tt->transpose;
                         notes[k] = x < 1 ? 1 : x > 127 ? 127 : x;
@@ -3000,6 +3003,59 @@ static void p_rates_type(int type, const char *name, const char *title)
     p->swing = 58;
     pattern_test(name, title, 5.0, 2500 + (uint64_t)type);
 }
+/* p28 (P1.3e, §8b 2.2 "six notes"): six notes a step: C13 together, Cmaj13 strummed, C11 ratcheted, a six-note
+ * default (Cm13 -> Fmaj13 at 2.0 s) on tapped steps, and a TIE of six on a POLY track */
+static void p_six(void)
+{
+    TP *p = tp_new(0, 116);
+    TS *st;
+    TD *d;
+    int s;
+    p->trk[0].limit = 14;
+    p->trk[0].length = 32;
+    NOTE5(NOTE5(S(p, 0, 0, QD_TRIG_NOTE, 48, 52, 55, 58), 62), 69)->len = 6;    /* C13 (C E G Bb D A) */
+    st = NOTE5(NOTE5(S(p, 0, 8, QD_TRIG_NOTE, 48, 52, 55, 59), 62), 69);         /* Cmaj13, strummed */
+    st->strum = 4;
+    st->len = 6;
+    st = NOTE5(NOTE5(S(p, 0, 16, QD_TRIG_NOTE, 48, 52, 55, 58), 62), 65);        /* C11, a ratchet x3 */
+    st->ratch = 3;
+    st->ramp = QD_RAMP_UP;
+    st->len = 6;
+    st = NOTE5(NOTE5(S(p, 0, 24, QD_TRIG_NOTE, 36, 48, 55, 60), 67), 84);        /* offsets to +48 */
+    st->micro = -4;
+    d = &p->trk[1].def;                                 /* track 2: a six-note default, changed at 2.0 s */
+    d->nn = 6;
+    d->notes[0] = 48, d->notes[1] = 51, d->notes[2] = 55, d->notes[3] = 58, d->notes[4] = 62, d->notes[5] = 69;
+    d->len = 3;
+    p->trk[1].def2 = *d;
+    p->trk[1].def2.notes[0] = 41, p->trk[1].def2.notes[1] = 45, p->trk[1].def2.notes[2] = 48;
+    p->trk[1].def2.notes[3] = 52, p->trk[1].def2.notes[4] = 55, p->trk[1].def2.notes[5] = 62;
+    p->trk[1].has2 = 1;
+    p->trk[1].limit = 12;
+    for (s = 0; s < 16; s += 4)
+        D(p, 1, s);
+    p->trk[3].limit = 12;                               /* track 4: NOTE then a TIE of six on a POLY track */
+    st = NOTE5(NOTE5(S(p, 3, 0, QD_TRIG_NOTE, 60, 64, 67, 71), 74), 78);
+    st->len = 3;
+    NOTE5(NOTE5(S(p, 3, 2, QD_TRIG_TIE, 60, 64, 67, 71), 74), 78)->len = 4;
+    R_DEF_AT = 32 * 2756;                               /* 2.0 s (block-aligned) */
+    pattern_test("p28-six", "six notes a step: C13 together, Cmaj13 strummed, C11 ratcheted, offsets to +48; a six-note "
+                 "default (Cm13 -> Fmaj13 at 2.0 s); a TIE of six", 5.0, 2828);
+    R_DEF_AT = -1;
+    {   /* the six-note names */
+        static const uint8_t C13[6] = {48, 52, 55, 58, 62, 69}, CM13[6] = {48, 52, 55, 59, 62, 69};
+        static const uint8_t C11[6] = {48, 52, 55, 58, 62, 65}, CMIN13[6] = {48, 51, 55, 58, 62, 69};
+        char rt[4], q[8], rt2[4], q2[8], rt3[4], q3[8], rt4[4], q4[8];
+        const int ok = qd_chord_name(C13, 6, rt, q) && qd_chord_name(CM13, 6, rt2, q2) &&
+                       qd_chord_name(C11, 6, rt3, q3) && qd_chord_name(CMIN13, 6, rt4, q4);
+        checks++;
+        if (!ok || strcmp(q, "13") || strcmp(q2, "maj13") || strcmp(q3, "11") || strcmp(q4, "m13")) {
+            fails++;
+            printf("  FAIL six-note names: %s%s %s%s %s%s %s%s\n", rt, q, rt2, q2, rt3, q3, rt4, q4);
+        }
+    }
+}
+
 static void p_rates(void)
 {
     p_rates_type(QD_RTYPE_NORMAL, "p25-rates-normal", "the seven bases 1/1 .. 1/64, normal: micro, ratchet x8, strum, "
@@ -3052,6 +3108,7 @@ int main(int argc, char **argv)
     p_five();
     p_launch();
     p_rates();
+    p_six();
     printf("test_seq: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

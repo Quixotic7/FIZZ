@@ -17,6 +17,8 @@
  *                   blinking = soloed; B11 lit while any mute or solo is set
  *   SEQ held        (P1.3c) the patterns with content dim, the playing one lit, the queued one blinking; P1.3d: the
  *                   bank shown's (SEQ + B1..B4), B1..B4 the banks: the one shown lit, one with content dim
+ *   P1.3e           a mode key held (the track's default): it lit, B11 lit while the default differs from the initial
+ *                   value, the other black keys off
  *   P1.3d           B10 off in the step view (reserved); LFO lit while the step latch is on (its selection blinks as
  *                   held steps do); a latched menu (F3): OCT- lit (back), OCT+ lit only when it confirms
  *   OCT- / OCT+     (P1.3c) where they are an octave (NOTE with a step held: octave 4 the centre; the keyboard: 0;
@@ -141,6 +143,14 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
             out->key[QD_BLACK_KEY[i]] = (i < QD_NVAL ? i == ts->rbase : i - QD_NVAL == ts->rtype) ? QD_LED_LIT
                                                                                                   : QD_LED_FAINT;
         out->key[QD_BLACK_KEY[10]] = QD_LED_OFF;
+        return;
+    }
+    if (qd_ctl_mkey(a) >= 0) {                          /* P1.3e: a mode key held: it lit, B11 lit while its default
+                                                         * differs from the initial one, the rest off */
+        const int m = qd_ctl_mkey(a);
+        for (i = 0; i < 10; i++)
+            out->key[QD_BLACK_KEY[i]] = i == m ? QD_LED_LIT : QD_LED_OFF;
+        out->key[QD_BLACK_KEY[10]] = qd_step_default_initial(a, m) ? QD_LED_OFF : QD_LED_LIT;
         return;
     }
     {   /* the hold modes */

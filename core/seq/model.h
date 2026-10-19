@@ -46,6 +46,10 @@ void qd_model_bind(qd_model_t *m);      /* the owners' pointers (after a load) *
 void qd_model_tempo(qd_model_t *m, int bpm);
 /* the track's sound: factory sound k (0 INIT, 1..16; pool sound k + 1), edited 0; the voices sounding keep theirs */
 void qd_track_load_preset(qd_track_t *t, int k);
+/* P1.3e: track i's starting sound (the default kit's: its pool number) and the track back on it (a SOUND default's
+ * reset) */
+int qd_track_start_sound(int i);
+void qd_track_reset_sound(qd_track_t *t, int i);
 /* the track's sound: pool sound k (its name, its patch), edited 0 */
 void qd_track_load_sound(qd_track_t *t, int k, const char *name, const int16_t *patch);
 const char *qd_track_sound_name(const qd_track_t *t);   /* the sound's name */
