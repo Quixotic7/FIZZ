@@ -1092,3 +1092,14 @@ FM-1-alone editor, settings behind a corner button) as 0d307c0, and its `remote/
   judged by the owner.
 - Removed from P1.3: the latch, FUNC + tap LOCK steps (TRIG B2 makes a LOCK step), the "last entered" defaults, the
   quantize toggle.
+
+**2026-10-19, P1.3c built: §8b version 2.1** (FMToneSeq dff2194; FM1VST `core-quadrille` 6da47b1; version
+0.0.6-p1.3c; the Standalone relaunched with it): tracks on SEL (tap mute, hold solo, F#5 clears all), patterns on SEQ
+(tap queue, hold now, ALGORITHM = launch END / BAR / BEAT / NOW), F1 quick copy / paste and its page layer (tap
+edit, double-tap alone, hold in / out, A..B, B9 clear page / hold clear track, B10 copy a page to others), F2 Form's
+pick-up / drop (checked against omx_mode_form.cpp v1.15.4), five notes a step (SELECT note 1, KNOB 1..4 notes 2..5),
+P-LOCK on F#5 (the screen stays; a per-screen table of lockable knobs for the sound editor), the octave and bank
+animation with the OCT LEDs blinking 500 / 250 / 125 ms, F3's knobs, rates as a base (1/1..1/64) and a remembered
+type (normal, dotted, triplet). The step is 18 bytes; ticks doubled to 100800 a 16th so every one of the 21 rates
+divides by micro, strum and ratchets. test_seq 2,761 (27 goldens, p01..p22 unchanged), test_ctl 296; the demos
+render identical. One undo level per F1 / F2 hold.
