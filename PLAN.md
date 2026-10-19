@@ -568,7 +568,8 @@ page**, so what a default change will move is visible.
 | **B1..B10** | **the current mode's ten values** (table below); the value is set on every held step and overridden |
 | **B11 (CLEAR)** | the held steps go back to the track's value for this mode (the override bit cleared) |
 | **ALGORITHM** | the current mode's value, finely (every value, not only the ten) |
-| KNOB 1..4, PRESETS | p-locks and a sound lock, as in P1.3 |
+| KNOB 1..4 | p-locks, as in P1.3 |
+| **PRESETS** | **the sound lock**: any of the pool's 128 sounds, in every mode (the owner, 2026-10-18: PRESETS is the sound-lock knob while a step is held, overriding its usual job); in SOUND mode B1..B10's bank follows it |
 | SELECT | the page being edited (as with nothing held) |
 | OCT− / OCT+ | in NOTE: the entry octave down / up; in SOUND: the pool's previous / next ten. Otherwise F1 / F2 are off while a step is held (as in Form) |
 | other W keys | more held steps |
@@ -583,7 +584,7 @@ page**, so what a default change will move is visible.
 | CHNC | 10 20 .. 100 % | 0..100 % |
 | COND | B1 FILL, B2 NOT FILL, B3..B6 A = 1..4, B7..B10 B = 1..4 (A:B, as Form) | the whole list (PRE, NEI, 1ST, A:B to 8:8) |
 | TRIG | B1 NOTE, B2 LOCK (trigless), B3 TIE | the same |
-| SOUND | B1..B10 = ten sounds of the pool: the bank of ten that holds the step's sound (sound 15 chosen: the keys are 11..20); OCT− / OCT+ the bank before / after; B11 clears the lock (the track's sound) | any of the 128 sounds, and the keys' bank follows |
+| SOUND | B1..B10 = ten sounds of the pool: the bank of ten that holds the step's sound (sound 15 chosen: the keys are 11..20); OCT− / OCT+ the bank before / after; B11 clears the lock (the track's sound) | any of the 128 sounds (as PRESETS), and the keys' bank follows |
 | LOCKS | B1..B10 = the step's locks (up to ten, in order) | the chosen lock's value; B11 removes that lock |
 
 Entering notes is Form's "pressed" rule: the first key pressed replaces the step's notes, keys held together add to
@@ -634,8 +635,9 @@ of a held step in each mode, with the B1..B10 values drawn as a strip).
 ### Questions for the redesign
 
 35. **SOUND's ten keys**: **decided: the sound pool** (128 sounds, a one-byte lock; ten at a time on the keys, OCT
-    for the next ten, ALGORITHM for any). Open detail: the owner said KNOB 1 picks any sound; this plan uses
-    ALGORITHM, every mode's value knob, and keeps KNOB 1..4 as p-locks. To confirm.
+    for the next ten). **PRESETS picks any of the 128 with a step held, in every mode** (the owner: "use the Preset
+    knob for sound locking, overriding its default functionality"); ALGORITHM does the same in SOUND mode; KNOB 1..4
+    stay p-locks.
 36. **FILL**: **decided: hold ARP**, for now.
 37. **B11 with nothing held**: nothing; or "clear every override of the current mode on this page" (with undo)?
     *Recommend nothing for now.*
