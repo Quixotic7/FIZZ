@@ -234,7 +234,16 @@ static void f3(const ui_layer_t *v)
     s[0] = 0;                                           /* P1.3h: the tempo and swing, live; the big knobs' jobs */
     cat(cat(cat(s, v->ext ? "EXT CLOCK " : "TEMPO "), ui_itoa(n, v->bpm)), DOT);
     cat(cat(cat(s, "SWING "), ui_itoa(n, v->swing)), "%");
-    ui_lab(s, 120.f, 199.f, UI_K3, QD_CENTER);
+    {   /* P1.3j: 11 px, lit yellow for a second after a turn (it was an 8 px label: a change was easy to miss) */
+        const float w = ui_TW(s, 11.f, 500, 0.5f);
+        if (v->tempo_hot > 0.f) {
+            qd_save();
+            qd_alpha(v->tempo_hot);
+            ui_RR(120.f - w / 2.f - 5.f, 189.f, w + 10.f, 14.f, 4.f, UI_KSEL, 1.f, QD_NONE);
+            qd_restore();
+        }
+        ui_T(s, 120.f, 200.f, 11.f, 500, 0.5f, v->tempo_hot > 0.f ? UI_KSEL : UI_K3, QD_CENTER);
+    }
     ui_lab("SELECT: PAGE \xc2\xb7 ALGO: TEMPO \xc2\xb7 SHIFT: SWING", 120.f, 211.f, UI_G1, QD_CENTER);
     for (i = 0; i < 7; i++)
         lab[i] = BASE[i];

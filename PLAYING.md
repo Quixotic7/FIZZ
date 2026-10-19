@@ -1,4 +1,4 @@
-# Playing QUADRILLE (P1.3i)
+# Playing QUADRILLE (P1.3j)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -23,12 +23,13 @@ sound comes from the Mac. Printed names are in brackets.
 ## Getting around
 
 - The unit wakes on the dancing screen. Press anything to get to the **step view**.
-- **HOME** in the sequencer switches its view: **PIANO ROLL** (the mode's lane) and **STEPS**, an overview of the
-  track's **eight pages as eight rows** of 16 steps in groups of four. The page you edit is outlined, pages in the
-  loop are bright and the others dim, steps outside a page's range are dark specks, a LOCK step is a ring, a coloured
-  bar under a step means it has its own value for the current mode, and the playhead is a red outline that walks the
-  pages. In STEPS, SELECT changes the page without a pop-up: the outlined row just moves. From any other screen HOME
-  comes back to the sequencer in the view you used last. If F3 or the step latch is open, HOME closes that first.
+- **HOME** in the sequencer switches its view: **PIANO ROLL** (the mode's lane) and **STEPS**. STEPS shows all eight
+  pages as rows of 16 steps in groups of four; the page you edit is unfolded into tall cells with each step's notes
+  drawn inside at their pitch, the other pages are thin rows above and below. Pages in the loop are bright, the others
+  dim; a LOCK step is a ring, a coloured bar under a step means it has its own value for the current mode. Playing, a
+  red marker hops along the steps and each step pops as it plays. SELECT changes the page (the rows fold and unfold).
+  From any other screen HOME comes back to the sequencer in the view you used last. If F3 or the step latch is open,
+  HOME closes that first.
 - After two minutes untouched with nothing playing, it goes back to the dancers.
 - **PLAY** plays and stops.
 

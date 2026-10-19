@@ -57,7 +57,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13j.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
@@ -145,4 +145,16 @@ $(B)/test_abi: test_abi.c | $(B)
 abi: $(B)/test_abi
 	$(B)/test_abi $(FM1CORE)
 
-.PHONY: all frames audio test abi
+# P1.3j: QUADRILLE through FM1VST's processor and the Remote FM-1 path, with libremotefm1's fake unit
+# (tools/test_remote.cpp, built with FM1VST's remote_test flags and libraries from its build tree)
+FM1VST_BUILD ?= $(FM1VST_DIR)/build-quadrille
+remote:
+	$(PY) build_remote.py $(FM1VST_BUILD) $(abspath test_remote.cpp) $(abspath $(B))/test_remote
+	$(B)/test_remote $(abspath $(B))/remote_home
+
+# P1.3j: a passive MIDI logger (macOS) for what the unit really sends (tools/midimon.c)
+$(B)/midimon: midimon.c | $(B)
+	$(CC) -O1 -Wall -o $@ $< -framework CoreMIDI -framework CoreFoundation
+midimon: $(B)/midimon
+
+.PHONY: all frames audio test abi midimon remote

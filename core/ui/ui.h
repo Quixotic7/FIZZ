@@ -219,6 +219,8 @@ typedef struct {
     int play_step;                      /* the step (0..127) under the playhead (-1 stopped) */
     int flash_step;                     /* the step whose trig played last (-1 none) .. */
     float flash_age;                    /* .. seconds ago (it flashes white, fading over 0.25 s) */
+    float grow[8];                      /* P1.3j: each page's row unfolded 0..1 (the page edited 1; a page change
+                                         * unfolds the new one as the old one folds) */
 } ui_lane_t;
 enum { UI_C_ON = 1, UI_C_LOCK = 2, UI_C_TIE = 4, UI_C_OVR = 8, UI_C_RANGE = 16, UI_C_HELD = 32 };
 void ui_lane_draw(const ui_lane_t *v);
@@ -344,6 +346,7 @@ typedef struct {
     int anchor;                         /* F3: the W held first (-1 none) */
     int latched;                        /* P1.3d: F3 is a latched menu: "OCT\xe2\x88\x92 EXIT" on the map */
     int ext;                            /* P1.3i: following a running MIDI clock: "EXT CLOCK" and its BPM */
+    float tempo_hot;                    /* P1.3j: 1 just after a tempo / swing turn .. 0 a second later (lit) */
 } ui_layer_t;
 void ui_layer_draw(const ui_layer_t *v);   /* layer 1 F1, 2 F2, 3 F3, 4 SEL's track map */
 

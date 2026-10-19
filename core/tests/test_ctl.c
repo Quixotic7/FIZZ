@@ -1007,6 +1007,12 @@ static void g_f3(void)
     turn(QD_K_SELECT, 2);
     CHECK(A.ui.page[0] == 2 && A.ui.tk == QD_TK_NONE && qd_ctl_layer_shown(&A) == QD_LAYER_F3 && A.bpm == bpm + 5,
           "F3 + SELECT: the page edited (3), the map stays, the tempo untouched");
+    {
+        const int snd = A.model.t[0].sound;
+        turn(QD_K_PRESETS, 2);
+        CHECK(A.model.t[0].sound == snd && A.ui.tk == QD_TK_NONE && qd_ctl_layer_shown(&A) == QD_LAYER_F3,
+              "P1.3j: F3 + PRESETS: nothing (the track's sound untouched, no picker)");
+    }
     turn(QD_K_SELECT, -2);
     f3_up();
     bdown(F1);                                          /* the F3 chord: F1 first, F2 after: F3, latched (P1.3d) */

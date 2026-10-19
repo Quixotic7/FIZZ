@@ -106,6 +106,13 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
     v->follow = u->follow;
     v->latch = u->slatch;
     v->steps = u->view == QD_VIEW_STEPS;                /* P1.3f: the STEPS overview: every page's cells */
+    {   /* P1.3j: the page edited unfolds (QD_UNFOLD_MS), the one before folds */
+        const float k = a->ms - u->slide_ms >= QD_UNFOLD_MS ? 1.f
+                                                            : ui_ease((float)(a->ms - u->slide_ms) / (float)QD_UNFOLD_MS);
+        v->grow[page] = k;
+        if (u->slide_from >= 0 && u->slide_from < 8 && u->slide_from != page)
+            v->grow[u->slide_from] = 1.f - k;
+    }
     v->play_step = v->flash_step = -1;
     if (v->steps) {
         int pg, k;
@@ -465,6 +472,8 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     v->anchor = u->f3_anchor;
     v->latched = layer == 3 && u->latch == QD_LATCH_F3;
     v->ext = qd_seq_ext_running(&a->seq);
+    if (u->tempo_ms && a->ms - u->tempo_ms < 1000u)
+        v->tempo_hot = 1.f - (float)(a->ms - u->tempo_ms) / 1000.f;
 }
 
 static void fill_shift(const qd_app_t *a, ui_shift_t *v)

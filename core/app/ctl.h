@@ -110,6 +110,7 @@ struct qd_app;
 #define QD_BLINK_MS 250u               /* a blink's half period (the playing page, the queued pattern, solo) */
 #define QD_FAST_MS 90u                 /* a fast blink's half period (the held step) */
 #define QD_SLIDE_MS 160u               /* a page change slides the lane in */
+#define QD_UNFOLD_MS 240u              /* P1.3j: STEPS, a page change: the new page's row unfolds, the old one folds */
 #define QD_ENTRY_OCT 4                 /* NOTE's entry octave at power-on (the root at C4 = MIDI 60) */
 #define QD_PAGE_HOLD_MS 400u           /* F1 + a page key held this long: the page in / out of the loop */
 #define QD_SEL_HOLD_MS 400u            /* SEL + W1..W8 held this long: solo (a tap: mute) */
@@ -165,6 +166,8 @@ typedef struct {
     int play_page[8];                  /* the playing page each track was last seen on (follow moves on its edges) */
     uint32_t slide_ms;                 /* the last page change .. */
     int slide_dir;                     /* .. +1: to a later page */
+    int slide_from;
+    uint32_t tempo_ms;                 /* P1.3j: the tempo or the swing last turned (the F3 map lights it a second) */                    /* .. from this page (P1.3j: STEPS folds it as the new one unfolds) */
     /* the white keys in the step view */
     uint16_t wk_down;                  /* bit w: white key w is down as a step key */
     uint16_t wk_pending;               /* .. and not yet held: released now, it is a tap */
