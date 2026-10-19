@@ -1214,3 +1214,15 @@ sequencer following an external clock until PLAY was pressed, and every tempo tu
 it, half a second without a pulse ends it (the transport stops), and a turn while a clock really runs shows EXT CLOCK.
 A new ABI-level test (`make -C tools abi`) loads the built module as the host does.
 - The owner (2026-10-19): when an external clock stops arriving, the unit stops (kept as P1.3i built it).
+
+**2026-10-19, P1.3j and P1.3k: FIZZ** (FMToneSeq ab8bc8b, d606920, ec5f7f2; FM1VST `core-quadrille` ce24407, c6195df,
+merge 4894c6b of FM1VST main bf10c77 = 0.5.0; version 0.1.0-p1.3k; the Standalone relaunched with `fizz.fm1core`):
+- The owner's tempo report ("ALGORITHM in F3 changes nothing", with SELECT and KNOB 1..4 working) is **not
+  reproduced**: through the ABI (`make -C tools abi`) and through FM1VST's own Remote FM-1 path with the fake unit
+  (`make -C tools remote`) ALGORITHM moves the tempo. Open: to watch on the unit with `tools/build/midimon`. Fixed on
+  the way: PRESETS in F3 leaked to the step view; the F3 tempo label is bigger and lights when turned.
+- STEPS: the edited page unfolds into tall cells with its notes inside, the other pages folded, a hopping marker,
+  trigs popping, a breathing open row.
+- **The name is FIZZ**: the core id `fizz`, FM1VST `core-glue/fizz`, `FIZZ_DIR`, README.md and LICENSE (GPL-3.0); the
+  idle screen is bubbles rising through the drink and bursting on the beats (`core/tests/out/fizz-idle.gif`).
+- FM1VST 0.5.0 merged without conflicts and with no ABI change (two new optional symbols FIZZ doesn't need).
