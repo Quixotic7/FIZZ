@@ -1147,3 +1147,10 @@ animation with the OCT LEDs blinking 500 / 250 / 125 ms, F3's knobs, rates as a 
 type (normal, dotted, triplet). The step is 18 bytes; ticks doubled to 100800 a 16th so every one of the 21 rates
 divides by micro, strum and ratchets. test_seq 2,761 (27 goldens, p01..p22 unchanged), test_ctl 296; the demos
 render identical. One undo level per F1 / F2 hold.
+
+**2026-10-19, P1.3d built: §8b version 2.2** (FMToneSeq f06a422; FM1VST `core-quadrille` b8ca2ac; version
+0.0.7-p1.3d; the Standalone relaunched): the knobs take over the hold modes (one table `KNOB_JOB[mode][knob]`; held =
+the step, nothing held = the track's defaults; a band over the top of the screen names each turn), P-LOCK's
+ALGORITHM chooses the track, banks on SEQ + B1..B4, the preview while stopped (`qd_player_preview`), F3 latched with
+a reusable latch table (OCT− back, OCT+ confirm, HOME closes), the step latch on LFO, LOCKS dropped (B10 reserved).
+No model change (the defaults already had every extra). test_ctl 452; old goldens unchanged.
