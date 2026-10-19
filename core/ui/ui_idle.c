@@ -1,34 +1,31 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Screen 1, idle (P1.3n): FIZZ, the logo screen. Open, no vessel: the drink is only its surface, a thin wavy line across
- * the screen, with fine bubbles rising to it, in thin grey lines on black (no colour, no fills).
- *   the surface  a thin line, gently undulating, rising into view from below and settling
- *   bubbles      small thin circles (a few px, a few a little bigger) rising and wobbling; at the surface each pops: a
- *                small ring opening, two short lines, now and then a fine droplet thrown up
- *   the fizz     the loop's peak: many more bubbles at once, faster, the surface lively, fine spray, and "FIZZ" (thin
- *                Inter Tight) rising out of it, staying through the settle
- * The loop (FZ_LOOP s): rise, fizz, settle, and everything fades so it restarts seamlessly.
- * Playing (a DAW's START while idle): the bubbles quicken, the surface lifts, and a little spray pops on each beat, more
- * on the bar's downbeat. Stateless and deterministic (seeded hashes of the clock and the beats). No footer. */
+/* Screen 1, idle (P1.3o): FIZZ, the logo screen. A submerged close-up of champagne bubbles (the owner's reference,
+ * ReferenceImages/FizzyBubbles/Champagne01), drawn grey on black in an outlined, illustrative style. Depth in layers:
+ *   far     bokeh: soft dim grey discs, out of focus, rising slowly
+ *   specks  fine dots everywhere
+ *   middle  many small crisp thin circles; now and then a pair touching
+ *   bed     a loose band of small bubbles at the bottom, forming (growing) and leaving, feeding the rise
+ *   near    a few large bubbles: black inside, a thin rim, a bright arc on the light's side (upper left), a faint
+ *           reflection opposite, and tiny bubbles inside; the bigger the faster
+ * Everything is darker toward the top. "FIZZ" (thin Inter Tight) is centred, with near bubbles passing behind it and in
+ * front of it (black inside, so the overlap reads).
+ * The loop (FZ_LOOP s, seamless: every motion makes a whole number of cycles per loop): a calm, steady rise, and once a
+ * loop a gentle swell of bubbles from the bed, "the fizz", which brings FIZZ in; FIZZ fades before the loop ends.
+ * Playing (a DAW's START while idle): a soft surge of bubbles from the bed on each beat, more on the bar's downbeat.
+ * Stateless and deterministic (seeded hashes of the loop time and the beats); about 150 shapes. No footer. */
 #include <math.h>
 
 #include "ui.h"
 
-#define FZ_LOOP 9.4f
+#define FZ_LOOP 11.f
 #define CX 120.f
-#define LEVEL_Y 168.f                                   /* the surface's resting height */
-#define C_LINE fade(0xe8e8e8u)                          /* pure greys: no tint */
-#define C_SOFT fade(0xa0a0a0u)
-#define C_LOGO 0xf2f2f2u
-#define NBUB 64
-
-/* the loop's fade: the lines dim toward black */
-static float g_fade = 1.f;
-static qd_rgb fade(qd_rgb c)
-{
-    const float f = g_fade;
-    return (qd_rgb)((uint32_t)((float)(c >> 16 & 0xffu) * f) << 16 | (uint32_t)((float)(c >> 8 & 0xffu) * f) << 8 |
-                    (uint32_t)((float)(c & 0xffu) * f));
-}
+#define BED_Y 226.f                                     /* the bed's middle */
+#define N_BOKEH 14
+#define N_SPECK 56
+#define N_MID 34
+#define N_BED 26
+#define N_NEAR 7
+#define N_SWELL 26
 
 static float hash01(uint32_t a, uint32_t b, uint32_t c)
 {
@@ -44,140 +41,138 @@ static float clamp01(float x) { return x < 0.f ? 0.f : x > 1.f ? 1.f : x; }
 static float seg(float t, float a, float b) { return clamp01((t - a) / (b - a)); }
 static float bell(float t, float a, float b) { return sinf(UI_PI * seg(t, a, b)); }   /* 0 -> 1 -> 0 over a..b */
 
-static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
+/* a grey of level v (0..255), darker toward the top of the screen; on the panel's 5-bit red / blue steps, so the dim
+ * greys do not pick up a green or purple tint from the 6-bit green */
+static qd_rgb grey_at(float v, float y)
 {
-    const float p[4] = {x0, y0, x1, y1};
-    ui_P(p, 2, col, lw, 0, QD_NONE);
+    const float f = 0.45f + 0.55f * clamp01(y / 240.f);
+    const uint32_t s5 = (uint32_t)(clamp01(v * f / 255.f) * 31.f + 0.5f), g = s5 * 255u / 31u;
+    return (qd_rgb)(g << 16 | g << 8 | g);
 }
 
-typedef struct {
-    float level;                                        /* the surface's mean y */
-    float fill;                                         /* 0..1: the rise */
-    float fizz;                                         /* 0..1..0: the peak */
-    float alpha;                                        /* the loop's fade */
-} fz_state_t;
-
-static fz_state_t state_at(float u)
+/* a rise: y from the bottom (below the screen by pad) to the top (above it by pad), cycles whole rises per loop */
+static float rise_y(float u, float phase, int cycles, float pad)
 {
-    fz_state_t s;
-    s.fill = ui_ease(seg(u, 0.4f, 3.4f));
-    s.fizz = bell(u, 4.2f, 7.4f);
-    s.level = 252.f - s.fill * (252.f - LEVEL_Y) - 10.f * s.fizz;
-    s.alpha = 1.f - seg(u, 8.4f, 9.2f);
-    return s;
+    const float span = 240.f + 2.f * pad, a = phase + (float)cycles * u / FZ_LOOP;
+    return 240.f + pad - span * (a - floorf(a));
+}
+/* a sideways drift: whole cycles per loop */
+static float drift(float u, uint32_t k, uint32_t layer, float amp)
+{
+    return amp * sinf(UI_TAU * (u / FZ_LOOP * (float)(1 + (int)(hash01(k, layer, 31) * 2.f)) + hash01(k, layer, 32)));
 }
 
-/* the surface's y at x: a gentle swell, livelier in the fizz */
-static float surface_y(const fz_state_t *s, float x, float t, float lift)
+/* a crisp small bubble: a thin circle, a speck of light on the top left when it is big enough */
+static void small_bubble(float x, float y, float r, float v)
 {
-    const float a = 1.f + 2.2f * s->fizz + 1.2f * lift;
-    return s->level - 4.f * lift + a * (2.f * sinf(x * 0.035f + t * 1.6f) + 1.1f * sinf(x * 0.11f - t * 2.7f));
+    ui_O(x, y, r, grey_at(v, y), 0.9f, QD_NONE);
+    if (r > 2.6f)
+        qd_arc(x, y, r - 0.9f, UI_PI * 1.1f, UI_PI * 1.4f, grey_at(v + 40.f, y), 0.9f);
 }
 
-static void draw_surface(const fz_state_t *s, float t, float lift)
+/* a near bubble: black inside, a thin rim, a bright arc where the light comes from, a faint one opposite, and tiny
+ * bubbles inside (more toward its bottom) */
+static void near_bubble(float x, float y, float r, uint32_t k)
 {
-    float pts[2 * 49];
-    int k;
-    if (s->level > 246.f)
-        return;
-    for (k = 0; k <= 48; k++) {
-        const float x = -2.f + 244.f * (float)k / 48.f;
-        pts[2 * k] = x;
-        pts[2 * k + 1] = surface_y(s, x, t, lift);
+    int j;
+    const int n = 5 + (int)(r * 0.6f);
+    ui_O(x, y, r, grey_at(150.f, y), 1.f, 0x000000u);
+    qd_arc(x, y, r - 1.2f, UI_PI * 1.02f, UI_PI * 1.48f, grey_at(250.f, y), 1.8f);
+    qd_arc(x, y, r - 1.f, UI_PI * 0.12f, UI_PI * 0.38f, grey_at(150.f, y), 1.1f);
+    for (j = 0; j < n; j++) {
+        const float a = UI_TAU * hash01(k, (uint32_t)j, 41), d = r * 0.74f * sqrtf(hash01(k, (uint32_t)j, 42));
+        const float bx = x + d * cosf(a), by = y + r * 0.12f + 0.75f * d * sinf(a);   /* lower: centred below the middle */
+        ui_O(bx, by, 0.7f + 1.1f * hash01(k, (uint32_t)j, 43) * (r / 20.f), grey_at(185.f, by), 0.8f, QD_NONE);
     }
-    ui_P(pts, 49, C_LINE, 1.3f, 0, QD_NONE);
 }
 
-/* a fine droplet thrown up from (x0, y0): a tiny outlined circle on a short arc */
-static void droplet(uint32_t seed, uint32_t j, float age, float x0, float y0)
+static void draw_near(float u, int front)
 {
-    const float life = 0.9f, vx = (hash01(seed, j, 1) - 0.5f) * 60.f, vy = 60.f + 90.f * hash01(seed, j, 2);
-    const float x = x0 + vx * age, y = y0 - vy * age + 160.f * age * age;
-    if (age < 0.f || age > life || y > y0 + 2.f)
-        return;
-    qd_save();
-    qd_alpha(1.f - age / life);
-    ui_O(x, y, 0.8f + 0.7f * hash01(seed, j, 3), C_LINE, 0.9f, QD_NONE);
-    qd_restore();
-}
-
-/* the bubbles: each rises from below at its own speed, wobbling, pops at the surface, and starts again elsewhere */
-static void draw_bubbles(const fz_state_t *s, float t, float lift)
-{
-    const int n = (int)(14.f + (float)(NBUB - 14) * s->fizz + 10.f * lift);
     int k;
-    if (s->fill <= 0.02f)
-        return;
-    for (k = 0; k < n && k < NBUB; k++) {
-        const float big = hash01((uint32_t)k, 4, 1) > 0.85f ? 1.f : 0.f;
-        const float r = (1.f + 1.2f * hash01((uint32_t)k, 5, 1)) * (1.f + 0.9f * big);
-        const float sp = (24.f + 30.f * hash01((uint32_t)k, 2, 1) - 8.f * big) * (1.f + 1.4f * s->fizz + 0.8f * lift);
-        const float rise = 250.f - (s->level - 6.f), pop = 0.35f, period = rise / sp + pop;
-        const float ph = t + period * hash01((uint32_t)k, 3, 1);
-        const uint32_t cyc = (uint32_t)(ph / period);
-        const float a = ph - (float)cyc * period, x = 8.f + 224.f * hash01((uint32_t)k, cyc, 7);
-        if (rise < 8.f)
+    for (k = 0; k < N_NEAR; k++) {
+        const uint32_t q = (uint32_t)k;
+        const float r = 9.f + 13.f * hash01(q, 1, 5);
+        const int cyc = r > 16.f ? 3 : 2;               /* the bigger, the faster */
+        const float y = rise_y(u, hash01(q, 2, 5), cyc, r + 4.f);
+        const float x = 24.f + 192.f * ((float)k + hash01(q, 3, 5)) / (float)N_NEAR + drift(u, q, 5, 6.f);
+        if ((k & 1) != front)
             continue;
-        if (a * sp < rise - r) {                        /* rising, wobbling, growing a little */
-            const float y = 250.f - a * sp, g = 0.7f + 0.3f * (a * sp / rise);
-            const float wx = x + 2.f * sinf(t * 5.f + (float)k * 1.7f) * (0.4f + 0.6f * (a * sp / rise));
-            if (y < surface_y(s, wx, t, lift) + r + 1.f)
-                continue;
-            ui_O(wx, y, r * g, k % 3 ? C_SOFT : C_LINE, 0.9f, QD_NONE);
-        } else {                                        /* popping at the surface */
-            const float age = a - (rise - r) / sp, f = clamp01(age / pop);
-            const float sy = surface_y(s, x, t, lift);
-            qd_save();
-            qd_alpha(1.f - f);
-            ui_O(x, sy - 1.f, r + 4.f * f, C_LINE, 0.8f, QD_NONE);   /* the ring opening */
-            line2(x - r - 1.f - 3.f * f, sy - 2.f - 3.f * f, x - r - 2.f - 5.f * f, sy - 4.f - 6.f * f, C_LINE, 0.9f);
-            line2(x + r + 1.f + 3.f * f, sy - 2.f - 3.f * f, x + r + 2.f + 5.f * f, sy - 4.f - 6.f * f, C_LINE, 0.9f);
-            qd_restore();
-            if (hash01((uint32_t)k, cyc, 8) < 0.25f + 0.5f * s->fizz)   /* the odd fine droplet */
-                droplet((uint32_t)k * 131u + cyc, 0u, age, x, sy - 2.f);
-        }
+        near_bubble(x, y, r, q);
     }
 }
 
 void ui_idle_draw(const ui_idle_t *v)
 {
     const float t = v->t, u = fmodf(t, FZ_LOOP), bpm = (float)(v->bpm > 0 ? v->bpm : 120);
-    const fz_state_t s = state_at(u);
-    float lift = 0.f;
+    const float swell = bell(u, 2.6f, 7.0f);
     int k;
 
-    if (v->playing) {                                   /* the beat's pulse: 1 at the beat, fading over a beat */
-        const double fr = v->beats - floor(v->beats);
-        lift = (float)(1.0 - fr) * ((long)floor(v->beats) % 4 == 0 ? 1.f : 0.55f);
+    for (k = 0; k < N_BOKEH; k++) {                     /* far: soft dim discs */
+        const uint32_t q = (uint32_t)k;
+        const float r = 6.f + 12.f * hash01(q, 1, 1), y = rise_y(u, hash01(q, 2, 1), 1, r);
+        const float x = 240.f * hash01(q, 3, 1) + drift(u, q, 1, 4.f);
+        const float g = 26.f + 22.f * hash01(q, 4, 1);
+        ui_O(x, y, r, QD_NONE, 0.f, grey_at(g * 0.7f, y));
+        ui_O(x, y, r * 0.72f, QD_NONE, 0.f, grey_at(g, y));
     }
-    g_fade = s.alpha;
-    draw_surface(&s, t, lift);
-    draw_bubbles(&s, t, lift);
-    for (k = 0; k < 26; k++) {                          /* the fizz's spray: fine droplets off the surface */
-        const float x = 20.f + 200.f * hash01(9u, (uint32_t)k, 4);
-        droplet(9u, (uint32_t)k, u - 4.6f - 2.0f * hash01(9u, (uint32_t)k, 5), x, surface_y(&s, x, t, lift));
+    for (k = 0; k < N_SPECK; k++) {                     /* specks */
+        const uint32_t q = (uint32_t)k;
+        const float y = rise_y(u, hash01(q, 2, 2), 1 + (k % 3 == 0), 4.f);
+        const float x = 240.f * hash01(q, 3, 2) + drift(u, q, 2, 3.f);
+        ui_O(x, y, 0.6f + 0.5f * hash01(q, 4, 2), QD_NONE, 0.f, grey_at(110.f + 90.f * hash01(q, 5, 2), y));
     }
-    if (v->playing && s.level < 246.f) {               /* the beats' spray */
+    for (k = 0; k < N_MID; k++) {                       /* middle: crisp small bubbles, now and then a pair */
+        const uint32_t q = (uint32_t)k;
+        const float r = 1.4f + 2.6f * hash01(q, 1, 3), y = rise_y(u, hash01(q, 2, 3), 1 + (r > 3.f), 8.f);
+        const float x = 240.f * hash01(q, 3, 3) + drift(u, q, 3, 5.f);
+        small_bubble(x, y, r, 200.f);
+        if (k % 9 == 4)
+            small_bubble(x + 0.35f * r, y - r - 0.75f * r, 0.75f * r, 200.f);
+    }
+    for (k = 0; k < N_BED; k++) {                       /* the bed: bubbles forming, then leaving upward */
+        const uint32_t q = (uint32_t)k;
+        const float per = FZ_LOOP / (float)(4 + (int)(hash01(q, 1, 4) * 4.f)), a = fmodf(u + per * hash01(q, 2, 4), per);
+        const float f = a / per, r = (1.2f + 2.2f * hash01(q, 3, 4)) * clamp01(f * 2.5f);
+        const float x = 240.f * ((float)k + hash01(q, 4, 4)) / (float)N_BED;
+        const float y = BED_Y + 12.f * (hash01(q, 5, 4) - 0.5f) - (f > 0.7f ? 60.f * (f - 0.7f) * (f - 0.7f) * 10.f : 0.f);
+        if (r > 0.3f)
+            small_bubble(x, y, r * (1.f + 0.3f * swell),
+                         (170.f + 50.f * swell) * (f > 0.7f ? 1.f - (f - 0.7f) / 0.3f : 1.f) + 10.f);
+    }
+    for (k = 0; k < N_SWELL; k++) {                     /* the fizz: a swell from the bed once a loop */
+        const uint32_t q = (uint32_t)k;
+        const float born = 2.8f + 2.4f * hash01(q, 1, 6), age = u - born;
+        const float r = 1.6f + (k % 6 == 0 ? 6.f : 3.f) * hash01(q, 2, 6), sp = 62.f + 34.f * hash01(q, 3, 6);
+        const float y = BED_Y - sp * age, x = 16.f + 208.f * hash01(q, 4, 6) + 4.f * sinf(age * 2.f + (float)k);
+        if (age < 0.f || y < -10.f)
+            continue;
+        small_bubble(x, y, r * clamp01(age * 3.f), 215.f);
+    }
+    if (v->playing) {                                   /* the beats: a soft surge from the bed on each */
         const long last = (long)floor(v->beats);
         long b;
-        for (b = last - 1; b <= last; b++) {
-            const int m = b % 4 == 0 ? 12 : 5;
+        for (b = last - 9; b <= last; b++) {
+            const uint32_t s = (uint32_t)b * 2654435761u + 17u;
+            const int m = b % 4 == 0 ? 7 : 3;
             const float age = (float)(v->beats - (double)b) * 60.f / bpm;
             for (k = 0; k < m; k++) {
-                const uint32_t seed = (uint32_t)b * 2654435761u + 11u;
-                const float x = 30.f + 180.f * hash01(seed, (uint32_t)k, 6);
-                droplet(seed, (uint32_t)k, age - 0.02f * (float)k, x, surface_y(&s, x, t, lift));
+                const float r = 1.5f + 2.5f * hash01(s, (uint32_t)k, 1), sp = 60.f + 40.f * hash01(s, (uint32_t)k, 2);
+                const float y = BED_Y - sp * age, x = 12.f + 216.f * hash01(s, (uint32_t)k, 3);
+                if (b < 0 || y < -10.f)
+                    continue;
+                small_bubble(x + 3.f * sinf(age * 2.5f + (float)k), y, r * clamp01(age * 4.f), 225.f);
             }
         }
     }
-    {   /* "FIZZ" rises out of the fizz and stays through the settle */
-        const float r = ui_ease(seg(u, 4.9f, 6.3f));
+    draw_near(u, 0);                                    /* the near ones behind the logo */
+    {   /* "FIZZ": in with the swell, out before the loop ends */
+        const float r = ui_ease(seg(u, 4.0f, 5.6f)) * (1.f - ui_ease(seg(u, 9.4f, 10.7f)));
         if (r > 0.f) {
             qd_save();
-            qd_alpha(r * s.alpha);
-            ui_T("FIZZ", CX, 112.f - 18.f * r, 46.f, 200, 7.f, C_LOGO, QD_CENTER);
+            qd_alpha(r);
+            ui_T("FIZZ", CX, 126.f - 8.f * r, 52.f, 200, 8.f, 0xf2f2f2u, QD_CENTER);
             qd_restore();
         }
     }
-    g_fade = 1.f;
+    draw_near(u, 1);                                    /* .. and in front of it */
 }

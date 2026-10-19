@@ -51,7 +51,7 @@ int render_p13d(const char *out);                       /* render_p13d.c */
 int render_p13e(const char *out);                       /* render_p13e.c */
 int render_p13f(const char *out);                       /* render_p13f.c */
 int render_p13j(const char *out);                       /* render_p13j.c */
-int render_p13n(const char *out);                       /* render_p13n.c (P1.3n: replaces render_p13m.c) */
+int render_p13o(const char *out);                       /* render_p13o.c (P1.3o: replaces render_p13n.c) */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
 
@@ -374,7 +374,7 @@ int main(int argc, char **argv)
     failed |= render_p13e(out);                         /* P1.3e: 2.2's later bullets */
     failed |= render_p13f(out);                         /* P1.3f: NOTE's knobs, each its own note */
     failed |= render_p13j(out);                         /* P1.3j: the STEPS view redrawn */
-    failed |= render_p13n(out);                         /* P1.3n: FIZZ's logo screen, its GIF's frames */
+    failed |= render_p13o(out);                         /* P1.3o: FIZZ's logo screen, its GIF's frames */
     qd_shutdown();
     return failed;
 }

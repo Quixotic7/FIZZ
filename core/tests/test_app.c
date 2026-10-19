@@ -523,8 +523,8 @@ static int frame_grey(void)
     return 1;
 }
 
-/* P1.3k..P1.3n: FIZZ's idle screen (the logo: a wavy surface line and fine bubbles): it moves with the clock, the
- * same clock draws the same frame, it has no colour (P1.3m/n), and a running transport (a DAW's MIDI clock, the screen
+/* P1.3k..P1.3o: FIZZ's idle screen (the logo: champagne bubbles close up): it moves with the clock, the
+ * same clock draws the same frame, it has no colour (P1.3m..o), and a running transport (a DAW's MIDI clock, the screen
  * staying idle) adds the beats' spray */
 static void t_fizz(void)
 {
@@ -541,11 +541,17 @@ static void t_fizz(void)
     CHECK(A.ui.mode == QD_MODE_IDLE && a1 == a2 && a1 != b1, "the idle screen: the same at the same time after "
           "power-on, moving 0.1 s later");
     fresh();
-    for (k = 0; k < 19; k++) {                          /* the whole loop, every 0.5 s: no colour */
+    for (k = 0; k < 23; k++) {                          /* the whole loop (11 s), every 0.5 s: no colour */
         run(500, 0);
         grey &= frame_grey();
     }
     CHECK(A.ui.mode == QD_MODE_IDLE && grey, "the idle screen: no colour over its whole loop (outlined, grey on black)");
+    fresh();                                            /* P1.3o: seamless, 11 s a loop */
+    run(1500, 0);
+    a1 = frame_hash();
+    run(11000, 0);
+    a2 = frame_hash();
+    CHECK(A.ui.mode == QD_MODE_IDLE && a1 == a2, "the idle screen loops seamlessly: 1.5 s and 12.5 s the same");
     fresh();
     run(3000, 0);
     s1 = frame_hash();                                  /* stopped at 3 s */
@@ -562,9 +568,9 @@ static void t_fizz(void)
         run(3000 - now, 0);
     p1 = frame_hash();
     CHECK(A.ui.mode == QD_MODE_IDLE && A.playing && p1 != s1 && frame_grey(), "playing (MIDI clock, still idle): "
-          "the beats' spray change the screen, still no colour");
+          "the beats' surge changes the screen, still no colour");
     qd_app_midi(&A, 0xFC, 0, 0);
-    printf("  fizz: the logo screen: deterministic, moving, no colour, spraying with a running transport\n");
+    printf("  fizz: the logo screen: deterministic, moving, no colour, seamless, surging with a running transport\n");
 }
 
 static uint64_t session_seq(void)
