@@ -1,32 +1,32 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Screen 1, idle (P1.3l): FIZZ, a glass filling up and fizzing over: the brand moment, the one screen with warm fills.
- * A tapered tumbler in thin light lines on black, a pink-and-white straw standing in it, and a loop of FZ_LOOP seconds:
- *   0.0  the empty glass
- *   0.6  the pour: an amber stream from above, the level rising with a wobble, tiny bubbles rising inside, cold dots
- *        (condensation) gathering on the glass
- *   3.6  the foam head builds: a bulging cluster of white circles swelling above the rim
- *   5.2  it overflows: foam spills over the rim and runs down the outside in drips, fine spray fizzes up and falls;
- *        "FIZZ" rises out of the foam as it peaks
- *   6.6  it settles: the foam shrinks to a head, the bubbles calm
- *   8.4  the drink fades out (the glass stays), and the loop starts again from the empty glass
- * Playing (a DAW's START while idle): the spray and the bubble streams pulse on each beat, a bigger surge on the bar's
- * downbeat. Stateless and deterministic: every particle is a seeded hash of its index, drawn from the clock and the
- * beats. The pattern and the tempo at the foot, the play mark between them (outlined stopped, filled playing). */
+/* Screen 1, idle (P1.3m): FIZZ, the logo screen. The top of a glass, close up (its sides run off the bottom edge), in an
+ * illustrative outlined style: thin light lines on black, no colour. Black under a shape only where it must hide what
+ * is behind it (the foam's circles, the drips, the straw), so overlaps read as in a drawing.
+ *   the glass   the rim as an ellipse, the sides running down off the frame, a highlight stroke
+ *   the straw   an outlined tube standing diagonally, its stripes as lines across it
+ *   the drink   its surface as a wavy line rising into view; bubbles as small circles rising to it; cold dots on the glass
+ *   the foam    overlapping circles, the back ones hidden by the front ones, bulging above the rim and spilling over
+ *   the spill   drips as outlined teardrops running down the outside; spray as tiny circles fizzing up and falling
+ *   the logo    "FIZZ" in thin Inter Tight rising above the foam as it peaks, staying while it settles
+ * The loop (FZ_LOOP s): the surface rises into view, the foam swells over the rim, it overflows (drips, spray, FIZZ
+ * rising), settles to a head, and everything but the glass and the straw fades, so the loop restarts seamlessly.
+ * Playing (a DAW's START while idle): the bubble streams quicken and the spray pulses on each beat, a bigger surge on
+ * the bar's downbeat. Stateless and deterministic (seeded hashes of the clock and the beats); a few dozen shapes.
+ * No footer: the logo screen is only the glass and FIZZ (the owner, P1.3m). */
 #include <math.h>
 
 #include "ui.h"
 
 #define FZ_LOOP 9.4f
-#define GL_TOP 76.f                                     /* the rim */
-#define GL_BOT 182.f                                    /* the inside of the base */
-#define GL_TW 44.f                                      /* half widths at the rim and at the base */
-#define GL_BW 35.f
 #define CX 120.f
-#define C_GLASS 0xd8d8deu
-#define C_DRINK 0x9a4e14u
-#define C_BAND 0xe0a050u
-#define C_FOAM 0xf6f1e8u
-#define C_STRAW 0xff4f6eu
+#define RIM_Y 122.f                                     /* the rim's centre line */
+#define RIM_RX 98.f                                     /* .. its half width (the ellipse's) */
+#define RIM_RY 9.f
+#define TAPER 0.1f                                      /* the sides come in this many px a px down */
+#define C_LINE fade(0xe8e8e8u)                    /* pure greys: no tint */
+#define C_SOFT fade(0x9c9c9cu)
+#define C_LOGO 0xf2f2f2u
+#define LW 1.3f
 
 static float hash01(uint32_t a, uint32_t b, uint32_t c)
 {
@@ -38,9 +38,18 @@ static float hash01(uint32_t a, uint32_t b, uint32_t c)
     h ^= h >> 15;
     return (float)(h >> 8) / 16777216.f;
 }
+/* the loop's fade: the lines dim toward black (not an alpha, so the black under the shapes keeps hiding what is
+ * behind them while they fade) */
+static float g_fade = 1.f;
+static qd_rgb fade(qd_rgb c)
+{
+    const float f = g_fade;
+    return (qd_rgb)((uint32_t)((float)(c >> 16 & 0xffu) * f) << 16 | (uint32_t)((float)(c >> 8 & 0xffu) * f) << 8 |
+                    (uint32_t)((float)(c & 0xffu) * f));
+}
 static float clamp01(float x) { return x < 0.f ? 0.f : x > 1.f ? 1.f : x; }
-static float seg(float t, float a, float b) { return clamp01((t - a) / (b - a)); }   /* 0 before a, 1 after b */
-static float half_w(float y) { return GL_BW + (GL_TW - GL_BW) * (GL_BOT - y) / (GL_BOT - GL_TOP); }   /* inside */
+static float seg(float t, float a, float b) { return clamp01((t - a) / (b - a)); }
+static float half_w(float y) { return RIM_RX - TAPER * (y - RIM_Y); }   /* the inside half width at y */
 
 static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
 {
@@ -48,152 +57,168 @@ static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
     ui_P(p, 2, col, lw, 0, QD_NONE);
 }
 
-/* the drink's state at loop time u: its level (y of the surface), the foam's height over the surface (px), the spill
- * 0..1 (overflowing), the content's alpha (the end's fade) */
 typedef struct {
-    float level, foam, spill, alpha, fill, settle;
+    float level, foam, spill, settle, alpha, fill;
 } gl_state_t;
 
 static gl_state_t state_at(float u)
 {
     gl_state_t s;
-    const float f = ui_ease(seg(u, 0.6f, 3.8f)), build = ui_ease(seg(u, 3.4f, 5.4f)), settle = ui_ease(seg(u, 6.6f, 8.0f));
+    const float f = ui_ease(seg(u, 0.4f, 3.6f)), build = ui_ease(seg(u, 3.2f, 5.4f));
     s.fill = f;
-    s.level = GL_BOT - f * (GL_BOT - GL_TOP - 6.f) + (f > 0.f && f < 1.f ? 1.6f * sinf(u * 11.f) * (1.f - f) : 0.f);
-    s.foam = (2.f + 26.f * build) * (1.f - 0.62f * settle) * (f > 0.05f ? 1.f : 0.f);
-    s.spill = seg(u, 5.0f, 5.6f) * (1.f - settle);
-    s.settle = settle;
+    s.settle = ui_ease(seg(u, 6.6f, 8.0f));
+    s.level = 252.f - f * (252.f - (RIM_Y + 12.f)) + (f > 0.f && f < 1.f ? 1.5f * sinf(u * 10.f) : 0.f);
+    s.foam = f > 0.9f ? (6.f + 70.f * build) * (1.f - 0.68f * s.settle) : 0.f;
+    s.spill = seg(u, 5.0f, 5.6f) * (1.f - s.settle);
     s.alpha = 1.f - seg(u, 8.4f, 9.2f);
     return s;
 }
 
+/* the straw: an outlined tube from below the frame up past the rim, black inside, its stripes as lines */
 static void draw_straw(void)
 {
-    static const float dash[2] = {4.f, 5.f};
-    const float x0 = 104.f, y0 = 172.f, x1 = 166.f, y1 = 38.f;
-    qd_line(x0, y0, x1, y1, C_STRAW, 6.f);
-    qd_save();
-    qd_dash(dash, 2);
-    qd_line(x0, y0, x1, y1, 0xffffffu, 3.f);
-    qd_restore();
+    const float x0 = 84.f, y0 = 264.f, x1 = 184.f, y1 = 70.f, w = 5.f;
+    const float dx = x1 - x0, dy = y1 - y0, len = sqrtf(dx * dx + dy * dy), nx = -dy / len * w, ny = dx / len * w;
+    const float tube[8] = {x0 + nx, y0 + ny, x1 + nx, y1 + ny, x1 - nx, y1 - ny, x0 - nx, y0 - ny};
+    int k;
+    ui_P(tube, 4, C_LINE, LW, 1, 0x000000u);
+    for (k = 1; k < 17; k++) {                          /* the stripes, slanted across the tube */
+        const float a = (float)k / 17.f, cx = x0 + dx * a, cy = y0 + dy * a;
+        line2(cx + nx * 0.85f - dx / len * 3.f, cy + ny * 0.85f - dy / len * 3.f, cx - nx * 0.85f + dx / len * 3.f,
+              cy - ny * 0.85f + dy / len * 3.f, C_SOFT, 1.f);
+    }
 }
 
-/* the drink inside the glass from the level down */
-static void draw_drink(const gl_state_t *s)
+static void draw_glass(void)
 {
-    const float y = s->level < GL_TOP ? GL_TOP : s->level;
-    if (s->fill <= 0.f)
-        return;
-    qd_save();
-    qd_alpha(0.86f * s->alpha);
-    qd_path_begin();
-    qd_move_to(CX - half_w(y), y);
-    qd_line_to(CX + half_w(y), y);
-    qd_line_to(CX + GL_BW, GL_BOT);
-    qd_line_to(CX - GL_BW, GL_BOT);
-    qd_path_close();
-    qd_path_fill(C_DRINK);
-    qd_alpha(0.55f * s->alpha);                         /* the lighter band under the surface */
-    qd_path_begin();
-    qd_move_to(CX - half_w(y), y);
-    qd_line_to(CX + half_w(y), y);
-    qd_line_to(CX + half_w(y + 9.f), y + 9.f);
-    qd_line_to(CX - half_w(y + 9.f), y + 9.f);
-    qd_path_close();
-    qd_path_fill(C_BAND);
-    qd_restore();
+    qd_ellipse(CX, RIM_Y, RIM_RX, RIM_RY, C_LINE, LW, QD_NONE);
+    line2(CX - RIM_RX, RIM_Y, CX - half_w(240.f), 240.f, C_LINE, LW);
+    line2(CX + RIM_RX, RIM_Y, CX + half_w(240.f), 240.f, C_LINE, LW);
+    line2(CX - RIM_RX + 10.f, RIM_Y + 16.f, CX - half_w(232.f) + 8.f, 232.f, C_SOFT, 1.f);   /* a highlight */
+    line2(CX - RIM_RX + 15.f, RIM_Y + 22.f, CX - RIM_RX + 18.f, RIM_Y + 48.f, C_SOFT, 1.f);
 }
 
-/* the bubbles inside: streams rising from the base to the level, quicker on the beat */
+/* the drink's surface: a wavy line across the glass at its level */
+static void draw_surface(const gl_state_t *s, float t)
+{
+    float pts[2 * 33];
+    const float y = s->level, hw = half_w(y) - 1.f;
+    int k;
+    if (y > 240.f)
+        return;
+    for (k = 0; k <= 32; k++) {
+        const float x = CX - hw + 2.f * hw * (float)k / 32.f;
+        pts[2 * k] = x;
+        pts[2 * k + 1] = y + 1.6f * sinf(x * 0.09f + t * 3.f) + 0.8f * sinf(x * 0.23f - t * 5.f);
+    }
+    ui_P(pts, 33, C_LINE, LW, 0, QD_NONE);
+}
+
+/* bubbles: small outlined circles rising from below the frame to the surface */
 static void draw_bubbles(const gl_state_t *s, float t, float pulse)
 {
     int k;
-    if (s->fill <= 0.05f)
+    const float top = s->level + 4.f, depth = 252.f - top;
+    if (s->fill <= 0.02f || depth < 6.f)
         return;
-    qd_save();
-    qd_alpha(s->alpha * (1.f - 0.5f * s->settle));
-    for (k = 0; k < 18; k++) {
-        const float x0 = CX - 28.f + 56.f * hash01((uint32_t)k, 1, 1);
-        const float sp = 26.f + 30.f * hash01((uint32_t)k, 2, 1) + 40.f * pulse;
-        const float depth = GL_BOT - s->level;
-        float y;
-        if (depth < 8.f)
-            continue;
-        y = GL_BOT - 2.f - fmodf(t * sp + 97.f * hash01((uint32_t)k, 3, 1), depth - 4.f);
-        ui_O(x0 + 1.5f * sinf(t * 5.f + (float)k), y, 0.9f + 0.9f * hash01((uint32_t)k, 4, 1), 0xffd9a8u, 1.f,
-             QD_NONE);
+    for (k = 0; k < 20; k++) {
+        const float sp = (22.f + 30.f * hash01((uint32_t)k, 2, 1)) * (1.f - 0.45f * s->settle) + 50.f * pulse;
+        const float y = 250.f - fmodf(t * sp + 211.f * hash01((uint32_t)k, 3, 1), depth);
+        const float hw = half_w(y) - 6.f, x = CX + (hash01((uint32_t)k, 1, 1) * 2.f - 1.f) * hw;
+        const float r = 1.2f + 1.8f * hash01((uint32_t)k, 4, 1) * (0.6f + 0.4f * (250.f - y) / depth);
+        ui_O(x + 1.5f * sinf(t * 4.f + (float)k), y, r, C_SOFT, 1.f, QD_NONE);
     }
-    qd_restore();
 }
 
 /* cold dots on the glass, more as it fills */
 static void draw_condensation(const gl_state_t *s)
 {
     int k;
-    const int n = (int)(26.f * s->fill);
-    qd_save();
-    qd_alpha(0.55f * s->alpha);
+    const int n = (int)(30.f * s->fill);
     for (k = 0; k < n; k++) {
-        const float y = GL_TOP + 8.f + (GL_BOT - GL_TOP - 14.f) * hash01((uint32_t)k, 5, 2);
+        const float y = RIM_Y + 18.f + 100.f * hash01((uint32_t)k, 5, 2);
         const float side = hash01((uint32_t)k, 6, 2) < 0.5f ? -1.f : 1.f;
-        const float x = CX + side * (half_w(y) + 2.f - 6.f * hash01((uint32_t)k, 7, 2));
-        ui_O(x, y, 0.7f + 0.8f * hash01((uint32_t)k, 8, 2), QD_NONE, 1.f, 0xe8eef6u);
+        const float x = CX + side * (half_w(y) - 3.f - 10.f * hash01((uint32_t)k, 7, 2));
+        ui_O(x, y, 0.8f + 0.9f * hash01((uint32_t)k, 8, 2), C_SOFT, 0.9f, QD_NONE);
     }
-    qd_restore();
 }
 
-/* the foam head: a bulging cluster of white circles over the surface, spilling past the rim when it overflows */
-static void draw_foam(const gl_state_t *s)
+/* the foam: overlapping outlined circles, back to front (the higher ones behind), black inside so the front ones hide
+ * the back ones' lines; bulging in the middle, wider than the rim when it spills */
+#define NFOAM 34
+static void draw_foam(const gl_state_t *s, float t)
 {
-    int k;
+    float fx[NFOAM], fy[NFOAM], fr[NFOAM];
+    int order[NFOAM], k, j;
     if (s->foam <= 0.5f)
         return;
-    qd_save();
-    qd_alpha(s->alpha);
-    for (k = 0; k < 26; k++) {
-        const float a = hash01((uint32_t)k, 9, 3), b = hash01((uint32_t)k, 10, 3);
-        const float wide = half_w(s->level) + 6.f * s->spill;
-        const float x = CX + (a * 2.f - 1.f) * wide;
-        const float hump = 1.f - (a * 2.f - 1.f) * (a * 2.f - 1.f);   /* higher in the middle: it bulges */
-        const float y = s->level - s->foam * (0.25f + 0.75f * hump * b);
-        const float r = (4.f + 5.f * hash01((uint32_t)k, 11, 3)) * (0.5f + 0.5f * clamp01(s->foam / 20.f));
-        ui_O(x, y, r, 0xb8b4aeu, 1.f, C_FOAM);
+    for (k = 0; k < NFOAM; k++) {
+        const float a = hash01((uint32_t)k, 9, 3) * 2.f - 1.f, b = hash01((uint32_t)k, 10, 3);
+        const float wide = half_w(s->level) - 6.f + 6.f * s->spill;
+        const float hump = 1.f - a * a;
+        fx[k] = CX + a * wide;
+        fy[k] = s->level - s->foam * (0.1f + 0.9f * hump * b) + 0.8f * sinf(t * 2.f + (float)k);
+        fr[k] = (7.f + 9.f * hash01((uint32_t)k, 11, 3)) * (0.45f + 0.55f * clamp01(s->foam / 40.f));
+        order[k] = k;
     }
-    qd_restore();
+    for (k = 1; k < NFOAM; k++)                         /* back (higher) first */
+        for (j = k; j > 0 && fy[order[j - 1]] > fy[order[j]]; j--) {
+            const int x = order[j];
+            order[j] = order[j - 1];
+            order[j - 1] = x;
+        }
+    for (k = 0; k < NFOAM; k++) {
+        const int i = order[k];
+        ui_O(fx[i], fy[i], fr[i], C_LINE, LW, 0x000000u);
+    }
 }
 
-/* the overflow's drips down the outside of the glass */
-static void draw_drips(float u, const gl_state_t *s)
+/* a drip: an outlined teardrop with its round end at (x, y), its point up */
+static void teardrop(float x, float y, float r)
+{
+    qd_path_begin();
+    qd_move_to(x, y - r * 3.f);
+    qd_quad_to(x + r * 1.1f, y - r * 1.2f, x + r, y);
+    qd_path_arc(x, y, r, 0.f, UI_PI);
+    qd_quad_to(x - r * 1.1f, y - r * 1.2f, x, y - r * 3.f);
+    qd_path_close();
+    qd_path_fill(0x000000u);
+    qd_path_begin();
+    qd_move_to(x, y - r * 3.f);
+    qd_quad_to(x + r * 1.1f, y - r * 1.2f, x + r, y);
+    qd_path_arc(x, y, r, 0.f, UI_PI);
+    qd_quad_to(x - r * 1.1f, y - r * 1.2f, x, y - r * 3.f);
+    qd_path_stroke(C_LINE, LW);
+}
+
+static void draw_drips(float u)
 {
     int k;
-    for (k = 0; k < 4; k++) {
-        const float t0 = 5.1f + 0.35f * (float)k, a = (u - t0) / 2.2f;
-        const float side = k & 1 ? 1.f : -1.f, len = 30.f + 50.f * hash01((uint32_t)k, 12, 4);
-        float yh, x;
+    for (k = 0; k < 5; k++) {
+        const float t0 = 5.1f + 0.3f * (float)k, a = (u - t0) / 2.4f;
+        const float side = k & 1 ? 1.f : -1.f, len = 30.f + 60.f * hash01((uint32_t)k, 12, 4);
+        float y, x;
         if (a <= 0.f)
             continue;
-        yh = GL_TOP + len * ui_ease(clamp01(a));
-        x = CX + side * (half_w(yh) + 2.5f);           /* down the outside of the wall */
-        qd_save();
-        qd_alpha(s->alpha * (1.f - s->settle * 0.7f));
-        qd_line(CX + side * (GL_TW + 2.5f), GL_TOP, x, yh, C_FOAM, 4.f);
-        ui_O(x, yh + 2.f, 3.4f, QD_NONE, 1.f, C_FOAM);
-        qd_restore();
+        y = RIM_Y + 4.f + len * ui_ease(clamp01(a)) + (a > 1.f ? 12.f * (a - 1.f) : 0.f);   /* (then it creeps on) */
+        x = CX + side * (half_w(y) + 4.f + 3.f * hash01((uint32_t)k, 13, 4));
+        if (y > 250.f)
+            continue;
+        line2(CX + side * (RIM_RX + 3.f), RIM_Y, x, y - 7.f, C_LINE, 1.f);   /* its trail down the glass */
+        teardrop(x, y, 3.2f + 1.2f * hash01((uint32_t)k, 14, 4));
     }
 }
 
-/* spray: fine droplets fizzing up from the foam and falling; launched through the overflow, and on each beat when
- * playing (bigger on the downbeat) */
-static void droplet(uint32_t seed, uint32_t j, float age, float top, float alpha)
+/* spray: tiny outlined circles fizzing up from the foam's top and falling */
+static void droplet(uint32_t seed, uint32_t j, float age, float top)
 {
-    const float vx = (hash01(seed, j, 1) - 0.5f) * 70.f, vy = 60.f + 70.f * hash01(seed, j, 2);
-    const float x = CX + (hash01(seed, j, 3) - 0.5f) * 60.f + vx * age, y = top - vy * age + 120.f * age * age;
-    const qd_rgb col = hash01(seed, j, 4) < 0.7f ? C_FOAM : C_BAND;
-    if (age < 0.f || age > 1.1f || y > GL_BOT)
+    const float vx = (hash01(seed, j, 1) - 0.5f) * 90.f, vy = 70.f + 80.f * hash01(seed, j, 2);
+    const float x = CX + (hash01(seed, j, 3) - 0.5f) * 110.f + vx * age, y = top - vy * age + 130.f * age * age;
+    if (age < 0.f || age > 1.2f || y > 240.f)
         return;
     qd_save();
-    qd_alpha(alpha * (1.f - age / 1.1f));
-    ui_O(x, y, 0.9f + 0.7f * hash01(seed, j, 5), QD_NONE, 1.f, col);
+    qd_alpha(1.f - age / 1.2f);
+    ui_O(x, y, 1.f + 1.1f * hash01(seed, j, 5), C_LINE, 1.f, 0x000000u);
     qd_restore();
 }
 
@@ -203,39 +228,25 @@ void ui_idle_draw(const ui_idle_t *v)
     const gl_state_t s = state_at(u);
     const float top = s.level - s.foam;
     float pulse = 0.f;
-    char bpms[12];
     int k;
 
     if (v->playing) {                                   /* the beat's pulse: 1 at the beat, fading over a beat */
         const double fr = v->beats - floor(v->beats);
         pulse = (float)(1.0 - fr) * ((long)floor(v->beats) % 4 == 0 ? 1.f : 0.55f);
     }
-
-    draw_straw();
-    draw_drink(&s);
+    g_fade = 1.f;
+    draw_straw();                                       /* the glass and the straw stay; the rest fades */
+    g_fade = s.alpha;
+    draw_surface(&s, t);
     draw_bubbles(&s, t, pulse);
-    if (s.fill > 0.f && s.fill < 1.f && u < 3.9f) {     /* the pour: an amber stream from above */
-        const float w = 3.f * (1.f - seg(u, 3.3f, 3.9f)) + 0.5f;
-        qd_save();
-        qd_alpha(0.9f);
-        qd_line(CX - 6.f + 0.8f * sinf(t * 23.f), 0.f, CX - 6.f, s.level, C_DRINK, w);
-        qd_restore();
-    }
-    draw_foam(&s);
-    draw_drips(u, &s);
-    {   /* the glass: thin light lines (in front of the drink) */
-        const float g[8] = {CX - GL_TW - 1.f, GL_TOP, CX - GL_BW - 1.f, GL_BOT + 1.f, CX + GL_BW + 1.f, GL_BOT + 1.f,
-                            CX + GL_TW + 1.f, GL_TOP};
-        ui_P(g, 4, C_GLASS, 1.4f, 0, QD_NONE);
-        line2(CX - GL_BW + 2.f, GL_BOT + 5.f, CX + GL_BW - 2.f, GL_BOT + 5.f, C_GLASS, 1.2f);   /* the thick base */
-        qd_save();
-        qd_alpha(0.35f);
-        line2(CX - GL_TW + 7.f, GL_TOP + 10.f, CX - GL_BW + 6.f, GL_BOT - 14.f, 0xffffffu, 2.f);   /* a highlight */
-        qd_restore();
-    }
     draw_condensation(&s);
-    for (k = 0; k < 26; k++)                            /* the overflow's spray */
-        droplet(7u, (uint32_t)k, u - 5.0f - 1.4f * hash01(7u, (uint32_t)k, 9), top, s.alpha);
+    g_fade = 1.f;
+    draw_glass();
+    g_fade = s.alpha;
+    draw_drips(u);                                      /* (under the foam, which hides where they start) */
+    draw_foam(&s, t);
+    for (k = 0; k < 30; k++)                            /* the overflow's spray */
+        droplet(7u, (uint32_t)k, u - 5.0f - 1.6f * hash01(7u, (uint32_t)k, 9), top);
     if (v->playing) {                                   /* the beats' spray */
         const long last = (long)floor(v->beats);
         long b;
@@ -244,26 +255,17 @@ void ui_idle_draw(const ui_idle_t *v)
             const float age = (float)(v->beats - (double)b) * 60.f / bpm;
             for (k = 0; k < m; k++)
                 droplet((uint32_t)b * 2654435761u + 11u, (uint32_t)k, age - 0.02f * (float)k,
-                        s.fill > 0.1f ? top : GL_BOT - 4.f, 1.f);
+                        s.foam > 1.f ? top : s.level);
         }
     }
-    {   /* "FIZZ" rises out of the foam as it peaks, stays as it settles, fades with the drink */
+    {   /* "FIZZ" rises above the foam as it peaks, stays as it settles */
         const float r = ui_ease(seg(u, 5.0f, 6.2f));
         if (r > 0.f) {
             qd_save();
             qd_alpha(r * s.alpha);
-            ui_T("FIZZ", CX, 46.f - 14.f * r, 36.f, 200, 5.f, UI_K3, QD_CENTER);
+            ui_T("FIZZ", CX, 64.f - 24.f * r, 40.f, 200, 6.f, C_LOGO, QD_CENTER);
             qd_restore();
         }
     }
-
-    ui_T(v->pattern, 10.f, 222.f, 22.f, 300, 0.f, UI_K3, QD_LEFT);
-    ui_itoa(bpms, v->bpm);
-    ui_T(bpms, 232.f, 222.f, 22.f, 300, 0.f, UI_K1, QD_RIGHT);
-    ui_lab("BPM", 232.f, 196.f, UI_G2, QD_RIGHT);
-    ui_lab("PATTERN", 10.f, 196.f, UI_G2, QD_LEFT);
-    {   /* the play mark: outlined when stopped, filled when playing */
-        const float tri[6] = {114.f, 206.f, 114.f, 220.f, 126.f, 213.f};
-        ui_P(tri, 3, UI_G1, 1.3f, 1, v->playing ? UI_G1 : QD_NONE);
-    }
+    g_fade = 1.f;
 }

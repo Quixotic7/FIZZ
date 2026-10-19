@@ -864,9 +864,6 @@ static void draw_idle(const qd_app_t *a)
 {
     ui_idle_t v;
     memset(&v, 0, sizeof v);
-    qd_pat_name(a->seq.cur, v.pattern);
-    if (qd_seq_queued(&a->seq) >= 0 && (a->ms / QD_BLINK_MS) % 2u)
-        v.pattern[0] = 0;                               /* another is queued: the name blinks */
     v.bpm = a->bpm;
     v.playing = a->playing;
     v.t = secs(a->ms);

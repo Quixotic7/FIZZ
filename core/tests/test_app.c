@@ -18,7 +18,7 @@
  * P1.2, the sequencer on the unit's controls:
  *   play        A02 at power-on (100 BPM); PLAY plays it (its voices start, the dancers turn, PLAY's green LED on the
  *               beat), PLAY again stops: the sequencer's notes released, a held key's note not
- *   patterns    PATTERN + white key 1 while playing: queued (the idle screen's name blinks: two frames differ), taken
+ *   patterns    PATTERN + white key 1 while playing: queued (the screen's name blinks: two frames differ), taken
  *               at the end of A02's master length (32 sixteenths), not before; PATTERN + FUNC + white key 3: at the
  *               next 16th; stopped: at once; PATTERN held: the LEDs (playing lit, queued blinking, content dim); ARP held: FILL
  *   tracks      TRACKS tapped: the tracks screen (its LED lit), white key 9 mutes track 1 (its notes stop, key 9's LED
@@ -385,7 +385,7 @@ static void t_patterns(void)
     h0 = frame_hash();
     run(250, 0);
     h1 = frame_hash();
-    CHECK(h0 != h1, "the idle screen's pattern blinks while one is queued");
+    CHECK(h0 != h1, "the screen's pattern blinks while one is queued");
     t0 = now;                                           /* the change: 32 sixteenths at 100 BPM = 4800 ms from PLAY
                                                          * (pressed at 0 ms: the transport starts at the next block) */
     while (A.seq.cur == 1 && now < 10000)
@@ -508,12 +508,28 @@ static void t_clock(void)
     printf("  clock: MIDI START and 24 PPQN at 140 BPM drive the transport; STOP stops\n");
 }
 
-/* P1.3k / P1.3l: FIZZ's idle screen (the glass filling and fizzing over): it moves with the clock, the same clock draws
- * the same frame, and a running transport (a DAW's MIDI clock, the screen staying idle) adds the beats' spray */
+/* the frame has no colour: every pixel grey (RGB565 big-endian; r, g, b within a step of each other) */
+static int frame_grey(void)
+{
+    static uint16_t lcd[QD_W * QD_H];
+    int i;
+    qd_app_frame(&A, lcd);
+    for (i = 0; i < QD_W * QD_H; i++) {
+        const unsigned px = (unsigned)(lcd[i] >> 8 | (lcd[i] & 0xffu) << 8), r = px >> 11, g = (px >> 5 & 63u) / 2u,
+                       b = px & 31u;
+        if (r > g + 1u || g > r + 1u || r > b + 1u || b > r + 1u)
+            return 0;
+    }
+    return 1;
+}
+
+/* P1.3k..P1.3m: FIZZ's idle screen (the logo: the top of a glass fizzing over, outlined): it moves with the clock, the
+ * same clock draws the same frame, it has no colour (P1.3m), and a running transport (a DAW's MIDI clock, the screen
+ * staying idle) adds the beats' spray */
 static void t_fizz(void)
 {
     uint64_t a1, a2, b1, s1, p1;
-    int k;
+    int k, grey = 1;
     fresh();
     run(2000, 0);
     a1 = frame_hash();
@@ -524,6 +540,12 @@ static void t_fizz(void)
     a2 = frame_hash();
     CHECK(A.ui.mode == QD_MODE_IDLE && a1 == a2 && a1 != b1, "the idle screen: the same at the same time after "
           "power-on, moving 0.1 s later");
+    fresh();
+    for (k = 0; k < 19; k++) {                          /* the whole loop, every 0.5 s: no colour */
+        run(500, 0);
+        grey &= frame_grey();
+    }
+    CHECK(A.ui.mode == QD_MODE_IDLE && grey, "the idle screen: no colour over its whole loop (outlined, grey on black)");
     fresh();
     run(3000, 0);
     s1 = frame_hash();                                  /* stopped at 3 s */
@@ -539,10 +561,10 @@ static void t_fizz(void)
     if (now < 3000)
         run(3000 - now, 0);
     p1 = frame_hash();
-    CHECK(A.ui.mode == QD_MODE_IDLE && A.playing && p1 != s1, "playing (MIDI clock, still idle): the beats' spray "
-          "change the screen");
+    CHECK(A.ui.mode == QD_MODE_IDLE && A.playing && p1 != s1 && frame_grey(), "playing (MIDI clock, still idle): "
+          "the beats' spray change the screen, still no colour");
     qd_app_midi(&A, 0xFC, 0, 0);
-    printf("  fizz: the idle screen's glass: deterministic, moving, spraying with a running transport\n");
+    printf("  fizz: the logo screen: deterministic, moving, no colour, spraying with a running transport\n");
 }
 
 static uint64_t session_seq(void)

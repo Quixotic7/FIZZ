@@ -39,11 +39,10 @@ void ui_P(const float *pts, int npts, qd_rgb col, float lw, int close, qd_rgb fi
 void ui_O(float x, float y, float r, qd_rgb col, float lw, qd_rgb fill);              /* col QD_NONE: no stroke */
 void ui_RR(float x, float y, float w, float h, float r, qd_rgb col, float lw, qd_rgb fill);   /* inset by lw / 2 */
 
-/* ---- screen 1: idle (P1.3l): FIZZ, a glass filling up and fizzing over (ui_idle.c) */
+/* ---- screen 1: idle (P1.3m): FIZZ, the logo: the top of a glass fizzing over, outlined (ui_idle.c) */
 typedef struct {
-    char pattern[8];                    /* "A03" */
-    int bpm;                            /* the tempo, shown in blue (and the spray's beat) */
-    int playing;                        /* the play mark: outlined when stopped, filled when playing */
+    int bpm;                            /* the tempo (the spray's beat; not shown) */
+    int playing;                        /* a DAW plays it: the bubbles and the spray pulse on the beats */
     float t;                            /* seconds since power-on: the lazy stream's clock */
     double beats;                       /* beats since PLAY (playing) */
 } ui_idle_t;
