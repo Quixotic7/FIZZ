@@ -967,6 +967,23 @@ reverb, chorus). PAGE's jobs move: page follow to the settings, pages to SELECT 
 - Order: P1.3y gains the light rounding, the global settings page with the knob layouts, and the record settings;
   P1.4b becomes track settings (SEL tap), MIX (ENV) and FX (FX).
 
+### The roadmap after P1.4b (the owner, 2026-10-19)
+
+- **P1.4a gains DRIVE**: drive is part of the sound (loads with the preset, p-lockable), on a sound editor page.
+- **P1.5a, saving and the sound pool:** the project kept in the core's flash image (FM1VST keeps it between launches;
+  the floating page store of §7, the device's own way); **SAVE** tapped saves, held opens the save menu; a **pool
+  manager**: browse and audition the 128, store the track's sound into a slot, name it (an auto-name, editable), copy,
+  move, delete. A mock-up first.
+- **P1.5b:** **8 undo levels**, **snapshots** (store, recall), **randomise a sound** (in the sound editor).
+- **P1.6a, the arpeggiator:** ARP tapped = on / off (the keyboard), ARP held = FILL, SHIFT + ARP = its settings (mode,
+  rate, octaves, gate, latch).
+- **P1.6b, MIDI tracks:** a track can also send its notes out over MIDI (a channel); a track's engine can be switched
+  from FM TONE to **MIDI**, its knobs and p-locks then sending CCs.
+- **P1.6c, a MIDI generation editor** after the OMX-27's MIDI FX (research first: research/OMX-MIDIFX.md).
+- **Held:** pattern chains. **Phase 2** (the firmware) waits until the owner is happy with the design and the UX.
+- **FM1VST:** improvements of general use (the screen copy, FM1_ONLY_CORES) go to FM1VST main; FIZZ's glue stays on
+  `core-quadrille`.
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
