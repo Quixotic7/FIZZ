@@ -40,6 +40,7 @@ typedef struct {
     qd_rgb wh;                          /* white parts that are no value (the mallet, the ball, the chord name) */
     int empty;
     int nobig;                          /* P1.3r: EDIT draws the big value itself (the drawing scaled apart) */
+    float pull;                         /* P1.3s, EDIT: CHNC's condition / COND's chance pulled up this much */
 } pal_t;
 
 #define DEF_COL 0xb4b4bcu               /* a value on the track's default: grey-white */
@@ -183,7 +184,7 @@ static void f_note(const ui_held_t *v, const pal_t *p)
     if (!p->nobig) {   /* the entry octave (B1's), the track's scale */
         char s[40], n[12];
         s[0] = 0;
-        cat(cat(s, "OCT "), ui_itoa(n, v->entry_oct));
+        cat(cat(s, "KEYS OCT "), ui_itoa(n, v->entry_oct));   /* (P1.3s: the black keys' entry octave) */
         if (v->scale_name && v->scale_name[0])
             cat(cat(s, " \xc2\xb7 "), v->scale_name);
         ui_lab(s, 8.f, 37.f, UI_G1, QD_LEFT);
@@ -462,11 +463,11 @@ static void f_cond(const ui_held_t *v, const pal_t *p)
     if (v->field != UI_F_CHNC) {                        /* COND: the condition big, the chance's dots */
         cond_draw(v, p->k[0], 86.f, 60.f, 108.f, 6.f, 24.f, 1);
         chance_dots(v, p->k[1], 128.f);
-        ui_T(s, 120.f, 188.f, 34.f, 200, 0.f, p->k[1], QD_CENTER);
+        ui_T(s, 120.f, 188.f - p->pull, 34.f, 200, 0.f, p->k[1], QD_CENTER);
     } else {                                            /* CHNC: the chance big, its dots; the condition small */
         ui_T(s, 120.f, 84.f, 60.f, 200, 0.f, p->k[0], QD_CENTER);
         chance_dots(v, p->k[0], 102.f);
-        cond_draw(v, p->k[1], 176.f, 30.f, 196.f, 5.f, 20.f, 1);
+        cond_draw(v, p->k[1], 176.f - p->pull, 30.f, 196.f - p->pull, 5.f, 20.f, 1);
     }
 }
 
@@ -588,6 +589,8 @@ static int other_mode(int field)
 
 /* the palette and the head: "STEP 5 · VEL" / "TRACK DEFAULT · VEL" (P1.3r: no track box or name: a pop-up shows only
  * what is edited), SELECTED, the DEFAULT / EMPTY STEP tag */
+static float g_tag_x;                                   /* P1.3s: EDIT puts the tag in the head row: its right end */
+static int g_edit_head;
 static int held_head(const ui_held_t *v, pal_t *p)
 {
     const int field = v->field >= 0 && v->field < UI_NFIELD ? v->field : UI_F_NOTE;
@@ -599,6 +602,7 @@ static int held_head(const ui_held_t *v, pal_t *p)
     p->k[1] = p->empty ? UI_G2 : UI_MODE_COL[other_mode(field)];
     p->wh = p->empty ? UI_G1 : UI_K3;
     p->nobig = 0;
+    p->pull = 0.f;
 
     left[0] = 0;                                        /* "STEP 5 · NOTE", several held: "STEP 5+2 · NOTE" */
     if (v->is_default) {
@@ -616,17 +620,18 @@ static int held_head(const ui_held_t *v, pal_t *p)
         /* a tag top right: the step plays the track's value (COND / CHNC, which draw no EMPTY STEP: an empty step) */
         const char *tag = p->empty ? "EMPTY STEP" : "DEFAULT";
         const float w = ui_TW(tag, 7.f, 600, 1.f) + 8.f;
-        ui_RR(232.f - w, 26.f, w, 12.f, 3.f, UI_G2, 1.f, QD_NONE);
-        ui_T(tag, 232.f - w / 2.f + 0.5f, 34.5f, 7.f, 600, 1.f, UI_G1, QD_CENTER);
+        const float x = g_edit_head ? 8.f + ui_TW(left, 11.f, 500, 1.f) + 6.f : 232.f - w, y = g_edit_head ? 7.f : 26.f;
+        ui_RR(x, y, w, 12.f, 3.f, UI_G2, 1.f, QD_NONE);
+        ui_T(tag, x + w / 2.f + 0.5f, y + 8.5f, 7.f, 600, 1.f, UI_G1, QD_CENTER);
+        g_tag_x = x + w;
     }
     return field;
 }
 
-static void reset_mark(const ui_held_t *v, float y)
+/* P1.3s: a mode key held, B11 resets its default: a small word (lit when it differs from the track's initial value) */
+static void reset_word(const ui_held_t *v, float y)
 {
-    const float w = ui_TW("B11 RESET", 7.f, 600, 1.f) + 8.f;
-    ui_RR(232.f - w, y, w, 12.f, 3.f, v->reset == 1 ? UI_K3 : UI_G2, 1.f, QD_NONE);
-    ui_T("B11 RESET", 232.f - w / 2.f + 0.5f, y + 8.5f, 7.f, 600, 1.f, v->reset == 1 ? UI_K3 : UI_G2, QD_CENTER);
+    ui_lab("B11 RESET", 232.f, y, v->reset == 1 ? UI_K3 : UI_G2, QD_RIGHT);
 }
 
 static void held_body(const ui_held_t *v, const pal_t *p, int field)
@@ -645,152 +650,166 @@ static void held_body(const ui_held_t *v, const pal_t *p, int field)
     }
 }
 
+/* P1.3s (the owner): no value strip (the black keys still work; the drawing says the value); the drawing 8 px lower
+ * into the space it left; a mode key held: "B11 RESET" small in the head */
 void ui_held_draw(const ui_held_t *v)
 {
     pal_t p;
     const int field = held_head(v, &p);
+    qd_save();
+    qd_translate(0.f, 8.f);
     held_body(v, &p, field);
-    if (!v->is_default)
-        ui_value_strip((char (*)[6])v->vk, v->vk_lit, v->vk_def, v->vk_none, v->clr, UI_MODE_COL[field]);
-    else if (v->reset)                                  /* P1.3e: the mode key held: B11 resets the default */
-        reset_mark(v, 225.f);
+    qd_restore();
+    if (v->is_default && v->reset)
+        reset_word(v, 17.f);
 }
 
-/* ================================================================ P1.3r: the EDIT view ===
- * The top (y 26 .. 138): the mode's picture re-laid-out: the value big top left (as big as on the full screen, a
- * little less), the drawing scaled into the space beside / under it (CHNC / COND, SOUND and TRIG, whose value is part of
- * a centred drawing: the whole drawing scaled). Between: the value strip (y 141 .. 158). The foot: the page's row as
- * STEPS' open row (y 162 ..). No takeover pops up over it: the top is the pop-up. */
-#define ED_STRIP_DY (-80.f)                             /* the strip moved up from the foot (221 -> 141) */
-#define ED_ROW_Y 162.f
-#define ED_ROW_OPEN 66.f                                /* its cells 50 px */
+/* ================================================================ P1.3r / P1.3s: the EDIT view ===
+ * P1.3s (the owner: the drawings as big as on the held screens): the head carries the value, right-aligned and large
+ * ("STEP 21 · NOTE ...... D#dim"); under it each mode's drawing at full size (scale 1, full width), moved up into the
+ * top area (y 26 .. 178) with only padding trimmed; a small sub-label under the head where one is needed ("KEYS OCT 4 ·
+ * CHROMATIC", "LENGTH IN STEPS", "/24 OF A STEP"). No value strip (the black keys still work: the row and the drawing
+ * show the value). The foot: the page's row as STEPS' open row (cells 42 px). CHNC / COND keep their big value inside
+ * the drawing (the dots and the passes are drawn round it). No takeover pops up over it: the top is the pop-up. */
+#define ED_TOP 26.f
+#define ED_BOT 178.f                                    /* the top area's foot (the row's marker room below) */
+#define ED_ROW_Y 180.f
+#define ED_ROW_OPEN 58.f                                /* its cells 42 px */
 
-/* the drawing part of a full screen, region (x0, y0) .. scaled by s to (dx, dy) */
-static void scaled(const ui_held_t *v, const pal_t *p, int field, float x0, float y0, float s, float dx, float dy)
+/* a full-size drawing moved up by dy (scale 1) */
+static void moved(const ui_held_t *v, const pal_t *p, int field, float dy)
 {
     qd_save();
-    qd_translate(dx - x0 * s, dy - y0 * s);
-    qd_scale(s, s);
+    qd_translate(0.f, dy);
     held_body(v, p, field);
     qd_restore();
 }
 
-/* the value big at the top left, or EMPTY STEP; a small unit after it */
-static void ed_big(const pal_t *p, const char *s, const char *unit, float size)
+/* the head's value, right-aligned, as big as fits beside the head's left part */
+static void head_value(const ui_held_t *v, const pal_t *p, const char *val)
 {
-    const float y = 78.f;
-    if (p->empty) {
-        ui_T("EMPTY STEP", 10.f, 60.f, 11.f, 600, 1.f, UI_G1, QD_LEFT);
+    char left[48], n[12];
+    float size = 24.f, room;
+    left[0] = 0;
+    if (v->is_default) {
+        cat(left, "TRACK DEFAULT");
+    } else {
+        cat(cat(left, "STEP "), ui_itoa(n, v->step));
+        if (v->nheld > 1)
+            cat(cat(left, "+"), ui_itoa(n, v->nheld - 1));
+    }
+    cat(cat(left, " \xc2\xb7 "), UI_FIELD_NAME[v->field >= 0 && v->field < UI_NFIELD ? v->field : 0]);
+    room = 224.f - (g_tag_x > 0.f ? g_tag_x - 8.f : ui_TW(left, 11.f, 500, 1.f)) - 10.f;
+    if (!val || !val[0])
         return;
-    }
-    ui_T(s, 8.f, y, size, 200, 0.f, p->k[0], QD_LEFT);
-    if (unit)
-        ui_lab(unit, 8.f + ui_TW(s, size, 200, 0.f) + 4.f, y, UI_G1, QD_LEFT);
+    if (ui_TW(val, size, 200, 0.f) > room)
+        size = size * room / ui_TW(val, size, 200, 0.f);
+    if (size < 11.f)                                    /* (no room: the drawing says it, e.g. SOUND's cassette) */
+        return;
+    ui_T(val, 232.f, 21.f, size, 200, 0.f, p->empty ? UI_G1 : p->k[0], QD_RIGHT);
 }
 
-static void ed_note(const ui_held_t *v, const pal_t *p)
-{
-    char s[40], n[12];
-    if (p->empty) {
-        ui_T("EMPTY STEP", 10.f, 66.f, 11.f, 600, 1.f, UI_G1, QD_LEFT);
-    } else if (v->root[0]) {                            /* the chord's root big, its quality small */
-        const float sq = 0.55f + 0.45f * ui_ease(v->squeeze / 0.18f), wr = ui_TW(v->root, 50.f, 200, 0.f);
-        qd_save();
-        qd_translate(8.f, 92.f);
-        qd_scale(sq, 1.f);
-        ui_T(v->root, 0.f, 0.f, 50.f, 200, 0.f, p->wh, QD_LEFT);
-        if (v->qual[0])
-            ui_T(v->qual, wr + 2.f, -26.f, 20.f, 300, 0.f, p->wh, QD_LEFT);
-        qd_restore();
-    } else if (v->names[0]) {
-        ui_T(v->names, 8.f, 80.f, 14.f, 300, 0.5f, p->wh, QD_LEFT);
-    }
-    s[0] = 0;                                           /* the entry octave, the scale */
-    cat(cat(s, "OCT "), ui_itoa(n, v->entry_oct));
-    if (v->scale_name && v->scale_name[0])
-        cat(cat(s, " \xc2\xb7 "), v->scale_name);
-    ui_lab(s, 8.f, 120.f, UI_G1, QD_LEFT);
-}
-
-static void ed_plock(const ui_held_t *v, const ui_lane_t *lane)
+static void ed_plock(const ui_held_t *v, const ui_lane_t *lane, char *val)
 {
     const qd_rgb col = UI_MODE_COL[UI_F_PLOCK];
-    char s[24], n[12];
-    ui_lock(18.f, 52.f, col, 5.f);
+    char n[12];
+    ui_lock(30.f, 62.f, col, 8.f);
+    val[0] = 0;
     if (v->is_default) {
-        ui_T("KNOBS LOCK", 70.f, 76.f, 16.f, 300, 0.5f, UI_G1, QD_LEFT);
-        ui_T("THE STEPS HELD", 70.f, 96.f, 16.f, 300, 0.5f, UI_G1, QD_LEFT);
+        ui_T("THE KNOBS LOCK", 100.f, 92.f, 15.f, 300, 0.5f, UI_G1, QD_LEFT);
+        ui_T("THE STEPS HELD", 100.f, 114.f, 15.f, 300, 0.5f, UI_G1, QD_LEFT);
     } else {
         const int c = (v->step - 1) % 16, nl = lane->col[c < 0 ? 0 : c].nlock;
-        s[0] = 0;
-        cat(cat(s, ui_itoa(n, nl)), nl == 1 ? " LOCK" : " LOCKS");
-        ui_T(s, 70.f, 92.f, 30.f, 200, 0.f, nl ? col : UI_G1, QD_LEFT);
-        ui_lab("B11 CLEARS THEM", 70.f, 112.f, UI_G1, QD_LEFT);
+        cat(cat(val, ui_itoa(n, nl)), nl == 1 ? " LOCK" : " LOCKS");
+        ui_T(nl ? "THE KNOBS LOCK" : "NO P-LOCKS YET", 100.f, 92.f, 15.f, 300, 0.5f, nl ? col : UI_G1, QD_LEFT);
+        ui_T(nl ? "B11 CLEARS THEM" : "TURN A KNOB", 100.f, 114.f, 15.f, 300, 0.5f, UI_G1, QD_LEFT);
     }
 }
 
 void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
 {
     pal_t p;
-    const int field = held_head(v, &p);
-    char s[16], n[12];
+    int field;
+    char val[40], n[12], sub[48];
+
+    g_edit_head = 1;
+    g_tag_x = 0.f;
+    field = held_head(v, &p);
+    g_edit_head = 0;
 
     p.nobig = 1;
+    val[0] = sub[0] = 0;
     qd_save();
-    qd_clip_rect(0.f, 22.f, 240.f, 118.f);              /* (the top area: nothing spills onto the strip) */
+    qd_clip_rect(0.f, ED_TOP - 4.f, 240.f, ED_BOT - ED_TOP + 4.f);   /* (nothing spills onto the row) */
     switch (field) {
-    case UI_F_NOTE:
-        ed_note(v, &p);
-        scaled(v, &p, field, 14.f, 104.f, 0.55f, 108.f, 70.f);
+    case UI_F_NOTE:                                     /* the keybed full width, its legend, the names */
+        if (v->root[0])
+            cat(cat(val, v->root), v->qual);
+        else
+            cat(val, v->names);
+        cat(cat(sub, "KEYS OCT "), ui_itoa(n, v->entry_oct));
+        if (v->scale_name && v->scale_name[0])
+            cat(cat(sub, " \xc2\xb7 "), v->scale_name);
+        moved(v, &p, field, -62.f);                     /* (104 .. 216 -> 42 .. 154) */
         break;
-    case UI_F_VEL:
-        ed_big(&p, ui_itoa(s, v->vel), 0, 54.f);
-        scaled(v, &p, field, 30.f, 50.f, 0.52f, 124.f, 40.f);
+    case UI_F_VEL:                                      /* the mallet and the drum (the ramp's ticks under them) */
+        cat(val, ui_itoa(n, v->vel));
+        moved(v, &p, field, -40.f);                     /* (67 .. 217 -> 27 .. 177) */
         break;
-    case UI_F_LEN:
-        ed_big(&p, v->len_name ? v->len_name : "", v->len_steps < 0.f ? 0 : "STEPS", 44.f);
-        scaled(v, &p, field, 14.f, 105.f, 0.7f, 80.f, 70.f);
+    case UI_F_LEN:                                      /* the ruler and the bar */
+        cat(val, v->len_name ? v->len_name : "");
+        cat(sub, v->len_steps < 0.f ? "TO THE PAGE'S END" : "LENGTH IN STEPS");
+        moved(v, &p, field, -56.f);                     /* (108 .. 198 -> 52 .. 142) */
         break;
-    case UI_F_MICRO:
-        s[0] = 0;
-        cat(s, v->micro > 0 ? "+" : "");
-        cat(s, ui_itoa(n, v->micro));
-        ed_big(&p, s, "/24", 44.f);
-        scaled(v, &p, field, 10.f, 94.f, 0.62f, 96.f, 78.f);
+    case UI_F_MICRO:                                    /* the tape measure */
+        cat(val, v->micro > 0 ? "+" : "");
+        cat(val, ui_itoa(n, v->micro));
+        cat(sub, "/24 OF A STEP");
+        moved(v, &p, field, -52.f);                     /* (94 .. 186 -> 42 .. 134) */
         break;
-    case UI_F_RATCH:
-        s[0] = 0;
-        cat(cat(s, "\xc3\x97"), ui_itoa(n, v->count < 1 ? 1 : v->count > 8 ? 8 : v->count));
-        ed_big(&p, s, 0, 44.f);
-        scaled(v, &p, field, 14.f, 100.f, 0.6f, 105.f, 68.f);
+    case UI_F_RATCH:                                    /* the bouncing ball */
+        cat(cat(val, "\xc3\x97"), ui_itoa(n, v->count < 1 ? 1 : v->count > 8 ? 8 : v->count));
+        moved(v, &p, field, -62.f);                     /* (106 .. 215 -> 44 .. 153) */
         break;
-    case UI_F_COND:
+    case UI_F_COND:                                     /* the passes and the dots (their value inside) */
     case UI_F_CHNC:
-        p.nobig = 0;
-        scaled(v, &p, field, 0.f, 40.f, 0.6f, 48.f, 40.f);
+        p.nobig = 0;                                    /* (their value big in the drawing: none in the head) */
+        if (field == UI_F_CHNC) {
+            p.pull = 14.f;                              /* (42 .. 201: the condition 14 up, then 16 up: 26 .. 171) */
+            moved(v, &p, field, -16.f);
+        } else {
+            p.pull = 4.f;                               /* (44 .. 188: the chance 4 up, then 10 up: 34 .. 174) */
+            moved(v, &p, field, -10.f);
+        }
         break;
-    case UI_F_SOUND:
+    case UI_F_TRIG: {                                   /* the three icons */
+        static const char *const NAMES[4] = {"", "NOTE", "LOCK", "TIE"};
+        cat(val, NAMES[v->type >= 1 && v->type <= 3 ? v->type : 0]);
         p.nobig = 0;
-        scaled(v, &p, field, 0.f, 26.f, 0.56f, 52.8f, 30.f);
+        moved(v, &p, field, -14.f);                     /* (54 .. 184 -> 40 .. 170) */
         break;
-    case UI_F_TRIG:
+    }
+    case UI_F_SOUND:                                    /* the cassette (the page's squares and the bank cut: the row
+                                                         * shows the page) */
+        cat(val, v->sound_cur ? v->sound_cur : "TRACK SOUND");
         p.nobig = 0;
-        scaled(v, &p, field, 0.f, 50.f, 0.78f, 26.4f, 34.f);
+        moved(v, &p, field, -4.f);                      /* (30 .. 182 -> 26 .. 178) */
         break;
     case UI_F_PLOCK:
-        ed_plock(v, lane);
+        ed_plock(v, lane, val);
         break;
     default:
         break;
     }
     qd_restore();
-    if (!v->is_default && field != UI_F_PLOCK) {        /* the value strip, between the halves */
-        qd_save();
-        qd_translate(0.f, ED_STRIP_DY);
-        ui_value_strip((char (*)[6])v->vk, v->vk_lit, v->vk_def, v->vk_none, v->clr, UI_MODE_COL[field]);
-        qd_restore();
-    } else if (v->reset) {
-        reset_mark(v, 143.f);
+    if (p.empty) {
+        val[0] = 0;
+        cat(val, "EMPTY STEP");
     }
+    head_value(v, &p, val);
+    if (sub[0])
+        ui_lab(sub, 8.f, v->latch && !v->is_default ? 38.f : 31.f, UI_G1, QD_LEFT);
+    if (v->is_default && v->reset)                      /* the mode key held: B11 resets the default */
+        reset_word(v, 33.f);
     ui_steps_row(lane, ED_ROW_Y, ED_ROW_OPEN);
 }

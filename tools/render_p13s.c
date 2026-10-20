@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' P1.3r part: the EDIT view (HOME's third view): the hold mode's picture over the page's row, a step
- * selected by the PRESETS cursor in every mode, the track's default with nothing held, a mode key held, playing; into
- * OUT/p13r-edit-*.png and OUT/p13r-edit-sheet.png. The velocities, lengths and ghosts are set through the pattern API
+/* render_frames' P1.3s part (was render_p13r.c): the EDIT view (HOME's third view): the hold mode's drawing at full
+ * size over the page's row, the value in the head; a step selected by the PRESETS cursor in every mode, the track's
+ * default with nothing held, a mode key held, playing; into OUT/p13s-edit-*.png and OUT/p13s-edit-sheet.png, with
+ * P1.3r's NOTE and VEL shots beside them when OUT has them (saved as p13s-before-*.png). The velocities, lengths and ghosts are set through the pattern API
  * (qd_ctl_pat); the rest by panel input. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,11 +53,11 @@ static void shot(const char *name, const char *caption)
 {
     char path[1024];
     qd_app_frame(&A, lcd);
-    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13r-%s.png", name);
+    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13s-%s.png", name);
     snprintf(shots[nshot].caption, sizeof shots[nshot].caption, "%s", caption);
     snprintf(path, sizeof path, "%s/%s", outdir, shots[nshot].file);
     if (!p13b_write_lcd_png(path, lcd)) {
-        fprintf(stderr, "render_p13r: cannot write %s\n", path);
+        fprintf(stderr, "render_p13s: cannot write %s\n", path);
         failed = 1;
     }
     printf("%s (%s)\n", path, caption);
@@ -149,7 +150,7 @@ static void sheet(void)
     plutovg_canvas_fill(c);
     plutovg_canvas_set_font(c, f, 18.f);
     plutovg_canvas_set_rgb(c, 0.9f, 0.9f, 0.9f);
-    plutovg_canvas_fill_text(c, "FIZZ P1.3r: the EDIT view: the hold mode's picture over the page's row, each from the core (2x)", -1,
+    plutovg_canvas_fill_text(c, "FIZZ P1.3s: EDIT: the drawings full size, the value in the head, no strip (2x); last: P1.3r before", -1,
                              PLUTOVG_TEXT_ENCODING_UTF8, (float)pad, 32.f);
     for (i = 0; i < nshot; i++) {
         const float x = (float)(pad + (i % cols) * (cell_w + pad)), y = (float)(50 + (i / cols) * (cell_h + pad));
@@ -164,7 +165,7 @@ static void sheet(void)
             plutovg_surface_destroy(ours);
         }
     }
-    snprintf(path, sizeof path, "%s/p13r-edit-sheet.png", outdir);
+    snprintf(path, sizeof path, "%s/p13s-edit-sheet.png", outdir);
     if (!plutovg_surface_write_to_png(s, path))
         failed = 1;
     printf("%s (%d screens)\n", path, nshot);
@@ -223,14 +224,14 @@ static void edit_mode(int m)
     run(400);
 }
 
-int render_p13r(const char *out)
+int render_p13s(const char *out)
 {
     static const struct {
         int m;
         const char *name, *caption;
     } MODES[] = {
-        {UI_F_NOTE, "edit-note", "NOTE: the chord, its keybed; the row under it"},
-        {UI_F_VEL, "edit-vel", "VEL: the value, the mallet; the cell's fill"},
+        {UI_F_NOTE, "edit-note", "NOTE: the keybed full size, the chord in the head"},
+        {UI_F_VEL, "edit-vel", "VEL: the mallet and drum full size"},
         {UI_F_LEN, "edit-len", "LEN: 4 steps, the ruler; the length line"},
         {UI_F_MICRO, "edit-micro", "MICRO: +6/24, the tape"},
         {UI_F_RATCH, "edit-ratch", "RATCH: the bounces"},
@@ -257,9 +258,12 @@ int render_p13r(const char *out)
     qd_step_set_ratchet(qd_ctl_pat(&A), T3, 16 + 4, 3, 1);
     qd_step_set_chance(qd_ctl_pat(&A), T3, 16 + 4, 60);
     btap(QD_B_HOME);                                    /* EDIT */
+    black(UI_F_NOTE);
+    run(400);
+    shot("edit-default-note", "nothing held: NOTE's track default");
     black(UI_F_VEL);
     run(400);
-    shot("edit-default", "nothing held: VEL's track default over the row");
+    shot("edit-default", "nothing held: VEL's track default");
     for (i = 0; i < sizeof MODES / sizeof MODES[0]; i++) {
         edit_mode(MODES[i].m);
         shot(MODES[i].name, MODES[i].caption);
@@ -282,6 +286,24 @@ int render_p13r(const char *out)
     shot("edit-playing", "playing: step 21 strikes, the marker over the row");
     btap(QD_B_PLAY);
 
+    {   /* P1.3r's shots beside them (copies kept in OUT as p13s-before-*.png) */
+        static const char *const B[3][2] = {{"p13s-before-default.png", "before (P1.3r): VEL's default"},
+                                            {"p13s-before-note.png", "before (P1.3r): NOTE"},
+                                            {"p13s-before-vel.png", "before (P1.3r): VEL"}};
+        char path[1024];
+        int k;
+        for (k = 0; k < 3 && nshot < NSHOT - 1; k++) {
+            FILE *f;
+            snprintf(path, sizeof path, "%s/%s", outdir, B[k][0]);
+            f = fopen(path, "rb");
+            if (!f)
+                continue;
+            fclose(f);
+            snprintf(shots[nshot].file, sizeof shots[nshot].file, "%s", B[k][0]);
+            snprintf(shots[nshot].caption, sizeof shots[nshot].caption, "%s", B[k][1]);
+            nshot++;
+        }
+    }
     if (!failed)
         sheet();
     return failed;

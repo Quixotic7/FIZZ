@@ -2251,6 +2251,32 @@ static void g_steps_kinds(void)
           ui_steps_fill(UI_C_ON | UI_C_OWN) == QD_NONE, "no fill for a ghost, an off step, a step out of range");
 }
 
+/* P1.3s: playing, the playhead outlines no cell (only the selection is outlined): STEPS' open row while step 6
+ * pops, the gap left of its cell dark; selected by the cursor, the outline there */
+static void g_play_outline(void)
+{
+    int k, x0;
+    start();
+    for (k = 0; k < 16; k++)
+        qd_step_on(PAT(), 0, k);
+    btap(QD_B_HOME);
+    run(400);
+    btap(QD_B_PLAY);
+    while (qd_seq_track_step(&A.seq, 0) != 5)
+        run(1);
+    run(20);
+    qd_app_frame(&A, lcd_q);
+    x0 = 20 + 5 * 13 + 2 - 1;                           /* the pixel left of step 6's cell (ui_lane.c's ov_x - 1) */
+    CHECK(A.ui.nheld == 0 && px(x0, 66) == 0 && px(x0, 50) == 0,
+          "playing, nothing selected: no outline round the playing step (%04x %04x)", px(x0, 66), px(x0, 50));
+    btap(QD_B_PLAY);
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, 5);
+    run(50);
+    qd_app_frame(&A, lcd_q);
+    CHECK(A.ui.held[0] == 5 && px(x0, 66) != 0, "selected (the cursor on step 6): its outline (%04x)", px(x0, 66));
+}
+
 /* P1.3q: STEPS, PRESETS (no finger on a step) is a step cursor: the latch on, its one selection moved through the loop
  * (into the next page and round), the page following; values apply to it (an off step turned on); the PIANO ROLL's
  * PRESETS is the track's sound as before */
@@ -2883,6 +2909,7 @@ int main(void)
         {"P1.3i: the tempo and MIDI clock (EXT CLOCK)", g_ext_clock},
         {"P1.3q: STEPS: the steps' kinds by colour", g_steps_kinds},
         {"P1.3q: STEPS: PRESETS the step cursor", g_cursor},
+        {"P1.3s: STEPS playing: no outline but the selection's", g_play_outline},
         {"P1.3r: the EDIT view", g_edit},
     };
     size_t i;

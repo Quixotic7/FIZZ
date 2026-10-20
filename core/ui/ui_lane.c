@@ -6,8 +6,8 @@
  * grey and the pattern; under it the eight pages as dashes, each drawn over its own start..end only (a dark hairline
  * for the rest), in the loop grey, out of it dark, the page edited white and thicker, the playing page's place red (on
  * the page edited: the playhead's own place along its dash). The sixteen outlines (the playhead's column lighter, a
- * held one white, a step outside the page's start..end dotted and empty), the red playhead, the page's step numbers
- * under them; a page change slides the lane in from the side; page follow off: a small FOLLOW OFF left of the tempo.
+ * held one white, a step outside the page's start..end dotted and empty), the red playhead, the beats as small dots
+ * over the columns (P1.3s; were the step numbers under them); a page change slides the lane in from the side; page follow off: a small FOLLOW OFF left of the tempo.
  *
  * In the columns, the mode's lane. A step that overrides the mode is drawn in the mode's colour, a step on the track's
  * default grey, the step the playhead is in white; the track's default itself is drawn across the page (dashed) and
@@ -420,7 +420,7 @@ static void l_sound(const ui_lane_t *v)
 static void lane(const ui_lane_t *v)
 {
     const int ph = v->pos >= 0.f ? (int)v->pos : -1;
-    char num[12];
+
     int i;
 
     for (i = 0; i < 16; i++) {                          /* the keys' outlines */
@@ -433,7 +433,8 @@ static void lane(const ui_lane_t *v)
             qd_restore();
             continue;
         }
-        ui_RR(col_x(i), TOP, COLW, BOT - TOP, 3.f, c->held ? UI_K3 : i == ph ? UI_G2 : UI_G3, 1.f, QD_NONE);
+        ui_RR(col_x(i), TOP, COLW, BOT - TOP, 3.f, c->held ? UI_K3 : UI_G3, 1.f, QD_NONE);   /* (P1.3s: the playhead's
+                                                         * column no lighter: the red line says it) */
     }
     switch (v->mode) {
     case UI_F_VEL: l_vel(v); break;
@@ -450,8 +451,9 @@ static void lane(const ui_lane_t *v)
         const float px = col_x(ph) + (v->pos - (float)ph) * 13.5f;
         line2(px, 33.f, px, 213.f, UI_RED, 1.f);
     }
-    for (i = 0; i < 16; i += 4)                         /* the page's step numbers */
-        ui_T(ui_itoa(num, v->page * 16 + i + 1), col_x(i) + 6.f, 235.f, 8.f, 500, 0.f, UI_G2, QD_CENTER);
+    for (i = 0; i < 16; i += 4)                         /* P1.3s: the beats as small dots over the columns (were
+                                                         * the step numbers under them), the first a little brighter */
+        ui_O(col_x(i) + COLW / 2.f, 32.f, i ? 1.1f : 1.3f, QD_NONE, 1.f, i ? UI_G2 : UI_G1);
 }
 
 /* ---------------------------------------------------------------- P1.3j: the STEPS view */
@@ -468,8 +470,9 @@ static void lane(const ui_lane_t *v)
  *            open row a fill's height is the velocity (from the bottom), a ghost's velocity a tick. The pages out of
  *            the loop dim
  *   motion   the playhead: a red marker over the unfolded row that hops from step to step (a little bounce at each),
- *            a red outline on a folded row; a trig pops as it plays (white, a touch larger, a bright ring round it,
- *            fading) and its notes light red while it sounds; stopped, the unfolded row's outlines breathe (slowly) */
+ *            a red tick under a folded row's cell (P1.3s: no outline: only the selection is outlined); a trig pops
+ *            as it plays (its fill white, fading) and its notes light red while it sounds; stopped, the unfolded row's
+ *            outlines breathe (slowly) */
 #define OV_X0 20.f
 #define OV_TOP 33.f
 /* P1.3p: the unfolded row at about half its old height (118), its space given to the folded rows: 7 x 20 + 62 = 202,
@@ -544,7 +547,8 @@ static float steps_row(const ui_lane_t *v, int p, float y, float g, float open)
                 const qd_rgb fill = ui_steps_fill(c);
                 const ui_lcol_t *lc = open && ed ? &v->col[i] : 0;
                 const int sounding = lc && abs == v->flash_step && v->flash_age >= 0.f && v->flash_age < lc->len * 0.15f;
-                const float e = pop * (open ? 2.f : 1.5f);
+                const float e = 0.f;                    /* (P1.3s: a pop no longer grows the cell or rings it: only
+                                                         * the selection is outlined) */
                 if (fill != QD_NONE) {                  /* own / the track's notes: filled */
                     /* P1.3q: on the open row the fill's height is the velocity (from the bottom; the cell outlined) */
                     const float vf = lc ? (float)lc->vel / 127.f : 1.f;
@@ -554,13 +558,6 @@ static float steps_row(const ui_lane_t *v, int p, float y, float g, float open)
                         ui_RR(x - e, cy - e, OV_W + 2.f * e, ch + 2.f * e, r, UI_G2, 1.f, QD_NONE);
                     ui_RR(x - e, fy, OV_W + 2.f * e, fh, fh < 2.f * r ? fh / 2.f : r, QD_NONE, 1.f,
                           pop > 0.f ? UI_K3 : fill);
-                    if (pop > 0.f) {                    /* the pop: a bright ring round it, fading */
-                        qd_save();
-                        qd_alpha(pop);
-                        ui_RR(x - e - 2.f, cy - e - 2.f, OV_W + 2.f * e + 4.f, ch + 2.f * e + 4.f, r + 2.f, UI_K3, 1.5f,
-                              QD_NONE);
-                        qd_restore();
-                    }
                     if (lc && lc->nnote) {              /* the notes: dark on the fill, light above it (red as they
                                                          * sound) */
                         const int span = v->span > 0 ? v->span : 16;
@@ -609,8 +606,9 @@ static float steps_row(const ui_lane_t *v, int p, float y, float g, float open)
                     }
                 }
             }
-            if (abs == ph && g < 0.5f)                  /* the playhead on a folded row */
-                ui_RR(x - 1.5f, cy - 1.5f, OV_W + 3.f, ch + 3.f, r + 1.f, UI_RED, 1.2f, QD_NONE);
+            if (abs == ph && g < 0.5f)                  /* the playhead on a folded row: a red tick under the cell
+                                                         * (P1.3s: no outline, which only the selection has) */
+                line2(x + 2.f, cy + ch + 1.5f, x + OV_W - 2.f, cy + ch + 1.5f, UI_RED, 1.5f);
             if (c & UI_C_HELD)
                 ui_RR(x - 2.f, cy - 2.f, OV_W + 4.f, ch + 4.f, r + 1.5f, UI_K3, 1.3f, QD_NONE);
         }
