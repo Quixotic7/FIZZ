@@ -922,6 +922,36 @@ moves to B10** (B11 stays P-LOCK).
   - notes land on the nearest step **at the track's rate** (base and type), their offset kept as **micro-timing**, the
     length from how long the key was held.
 
+### Version 2.3 (2026-10-19, the owner after playing 0.2.2 on the unit)
+
+Live recording worked as expected; no hint text is missed; **EDIT is the view the owner uses most**. Their answers:
+P-LOCK stays on B11 for now; the direction stays until PLAY.
+
+**P1.3y, the control fixes:**
+1. **FUNC:** a new **LEAP n** (skip n steps; ±). **KNOB 1 = the function, KNOB 2 = the leap, KNOB 3 = the jump target.**
+   **B8 = LEAP, B9 = JUMP** join B1..B7. The jump target is set **holding B9 + a white key** (or KNOB 3), not by a
+   second white key (which clashed with the step latch). FUNC's value keys light as other modes' do.
+2. **HOME returns to your view and never cycles; SHIFT + HOME cycles** PIANO ROLL / STEPS / EDIT.
+3. **One meaning a knob:** **ALGORITHM = the step cursor** (nothing held, every view; it was PRESETS); **PRESETS =
+   the track's preset**, or with a finger on a step its sound lock (in EDIT the sound picture shows while it turns);
+   **SELECT = the page whenever no finger is on a step** (also with the latch or the cursor); a page change puts the
+   cursor on that page's first step. The mode's main default stays on KNOB 1..4 and a held mode key.
+4. **LFO held + a black key = the hold mode** without toggling the latch (a tap toggles it).
+5. **TRACK vs STEP at a glance:** editing a track's default has its own look, a bold coloured frame around the
+   whole screen and the drawing in that colour; editing steps keeps the mode colours on plain black. No reading
+   needed.
+6. **FX held + ALGORITHM = the track** (a big track picture while turning).
+
+**P1.4a, the sound editor on EDIT** (printed EDIT): the black keys jump to the engine's pages, **Operators, Op
+envelopes, Filters, Envelopes, Modulation**; each page a big LINE drawing of that part of FM TONE with KNOB 1..4 on its
+values (a second half by pressing the page's key again); with a finger on a step every turn is a p-lock (the P-LOCK
+hook of P1.3c). Under the clarity rules.
+
+**P1.4b, track settings and the mixer:** **FX tapped = the track settings page** (scale, root, follow the global key,
+MIDI channel, voice limit, swing on / off, page follow); **ENV (printed) = MIX**: eight faders with pan and sends, the
+black keys the tracks, the knobs level / pan / delay / reverb of the selected one; MIX again = the effects (delay,
+reverb, chorus). PAGE's jobs move: page follow to the settings, pages to SELECT and F1.
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
