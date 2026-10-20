@@ -56,7 +56,8 @@ int render_p13u(const char *out);
 int render_p13w(const char *out);                       /* render_p13w.c: FUNC on B9 */
 int render_p13x(const char *out);                       /* render_p13x.c: PLAY held, live recording */
 int render_p13y(const char *out);                       /* render_p13y.c: the control fixes, the settings menus */
-int render_p14a(const char *out);                       /* render_p14a.c: the sound editor */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
+int render_p14a(const char *out);                       /* render_p14a.c: the sound editor */
+int render_p14b(const char *out);                       /* render_p14b.c: the track settings, the mix, the effects */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
 int render_p13p(const char *out);                       /* render_p13p.c (P1.3p: replaces render_p13o.c) */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
@@ -386,6 +387,7 @@ int main(int argc, char **argv)
     failed |= render_p13x(out);                         /* P1.3x: PLAY held, F3's tempo / swing, live recording */
     failed |= render_p13y(out);                         /* P1.3y: the control fixes, the record / global settings */
     failed |= render_p14a(out);                         /* P1.4a: the sound editor */
+    failed |= render_p14b(out);                         /* P1.4b: the track settings, the mix, the effects */
     {   /* P1.3v: the clarity guard over every frame rendered: no text under 11 px */
         const char *small = "";
         const float mn = qd_text_stats_min(&small);

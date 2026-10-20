@@ -45,6 +45,7 @@
 #include "scale.h"
 #include "sounds.h"
 #include "ui.h"
+#include "qd_fx.h"
 
 static int fails, checks;
 #define CHECK(c, ...)                                     \
@@ -1479,25 +1480,14 @@ static void g_fill_page(void)
     bup(QD_B_KEYS);
     run(10);
     CHECK(!A.seq.fill, "ARP up: FILL off");
-    CHECK(A.ui.follow && leds().button[QD_B_PAGE] == QD_LED_LIT, "follow on at power-on, PAGE lit");
-    btap(QD_B_PAGE);
-    CHECK(!A.ui.follow && leds().button[QD_B_PAGE] == QD_LED_OFF, "PAGE tap: follow off");
-    bdown(QD_B_PAGE);
-    wtap(5);
-    bup(QD_B_PAGE);
-    run(5);
-    CHECK(A.ui.page[0] == 5 && !A.ui.follow && !R(0, 5).on, "PAGE held + W6: page 6 (no step toggled, follow kept)");
-    btap(QD_B_PAGE);
-    CHECK(A.ui.follow, "PAGE tap: follow on");
+    CHECK(A.ui.follow && leds().button[QD_B_PAGE] == QD_LED_OFF, "follow on at power-on (P1.4b: ENV is MIX, unlit)");
 }
 
 static void g_follow(void)
 {
     start();
-    btap(QD_B_TRACKS);
-    turn(QD_K_1, 16);                                   /* 32 steps: pages 1 and 2 */
-    btap(QD_B_TRACKS);
-    CHECK(PAT()->trk[0].loop == 3 && qd_track_len(&PAT()->trk[0]) == 32, "TRACKS, KNOB 1 +16: 32 steps (pages 1, 2)");
+    qd_track_set_length(PAT(), 0, 32);                  /* 32 steps: pages 1 and 2 */
+    CHECK(PAT()->trk[0].loop == 3 && qd_track_len(&PAT()->trk[0]) == 32, "32 steps (pages 1, 2)");
     btap(QD_B_PLAY);                                    /* 120 BPM: a 16th is 125 ms; page 2 from 2 s */
     run(1000);
     CHECK(A.ui.page[0] == 0, "playing page 1: shown");
@@ -1509,31 +1499,93 @@ static void g_follow(void)
     run(2000);
     run(2100);
     CHECK(A.ui.page[0] == 1, "page 2 again: follows");
-    btap(QD_B_PAGE);
+    btap(QD_B_PATTERN);                                 /* P1.4b: the track settings' second page, KNOB 3 */
+    btap(QD_B_PATTERN);
+    turn(QD_K_3, -1);
+    btap(QD_B_HOME);
     run(2500);
     CHECK(A.ui.page[0] == 1, "follow off: the page stays");
     btap(QD_B_PLAY);
 }
 
+/* P1.4b: SEL tapped, the track settings (two pages, B1..B8 the track); ENV, the mix (the faders, again the sends; B1..B8
+ * the track); FX tapped, the effects (B1..B4 the effects, again their second page; SELECT the pages; SEND the track's);
+ * the W keys nothing there; OCT- closes; FX held + ALGORITHM still the track */
 static void g_tracks_screen(void)
 {
+    qd_tset_t *ts;
+    int v0;
     start();
+    ts = &PAT()->trk[0];
+    btap(QD_B_PATTERN);
+    CHECK(A.ui.latch == QD_LATCH_TRK && qd_view_screen(&A) == QD_SCR_MENU && !A.ui.trk_page,
+          "SEL tapped: the track settings");
+    turn(QD_K_1, 2);
+    turn(QD_K_2, 3);
+    turn(QD_K_4, 2);
+    CHECK(ts->scale == 2 && ts->root == 3 && !ts->key_global && ts->chan == 2,
+          "KNOB 1 SCALE +2, KNOB 2 ROOT +3, KNOB 4 MIDI CH 3 (%d %d %d)", ts->scale, ts->root, ts->chan + 1);
+    turn(QD_K_3, 1);
+    CHECK(ts->key_global == 1, "KNOB 3: FOLLOW KEY on");
+    btap(QD_B_PATTERN);
+    v0 = ts->limit;
+    turn(QD_K_1, 2);
+    turn(QD_K_2, 1);
+    CHECK(A.ui.trk_page == 1 && ts->limit == (v0 + 2 > 16 ? 16 : v0 + 2) && ts->swing == 1,
+          "SEL again: VOICES +2 (%d), SWING on", ts->limit);
+    wtap(4);
+    CHECK(!R(0, 4).on, "a W does nothing here");
+    black(B3);
+    CHECK(A.sel == 2 && A.ui.latch == QD_LATCH_TRK, "B3: track 3's settings");
+    btap(QD_B_OCTDN);
+    CHECK(!A.ui.latch, "OCT-: closed");
+    /* the mix */
+    btap(QD_B_PAGE);
+    v0 = A.model.t[2].mix.level;
+    turn(QD_K_1, -10);
+    turn(QD_K_2, 5);
+    turn(QD_K_3, 7);
+    turn(QD_K_4, 3);
+    CHECK(A.ui.latch == QD_LATCH_MIX && A.model.t[2].mix.level == v0 - 10 && A.model.t[2].mix.pan == 5,
+          "ENV: the mix; track 3's LEVEL -10, PAN +5 (%d)", A.model.t[2].mix.pan);
+    black(B2);
+    btap(QD_B_PAGE);
+    v0 = A.model.t[1].mix.chorus;
+    turn(QD_K_1, 9);
+    CHECK(A.sel == 1 && A.ui.mix_page == 1 && A.model.t[1].mix.chorus == v0 + 9,
+          "B2, ENV again: the sends; KNOB 1 track 2's CHORUS +9");
+    btap(QD_B_HOME);
+    /* the effects */
     btap(QD_B_TRACKS);
-    turn(QD_K_1, 8);
-    turn(QD_K_2, -3);
-    turn(QD_K_3, -3);
+    CHECK(A.ui.latch == QD_LATCH_FX && A.ui.fx_page == 0, "FX tapped: the effects, DELAY");
+    v0 = qd_fx_get(QD_FXP_DDIV);
+    turn(QD_K_1, 1);
+    CHECK(qd_fx_get(QD_FXP_DSYNC) && qd_fx_get(QD_FXP_DDIV) == v0 + 1, "DELAY, KNOB 1: TIME (synced: the division) +1");
+    v0 = A.model.t[1].mix.delay;
+    turn(QD_K_4, 4);
+    CHECK(A.model.t[1].mix.delay == v0 + 4, "KNOB 4: SEND, track 2's delay send +4");
+    black(B2), black(B2);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "REVERB 2"), "B2 twice: REVERB 2");
+    v0 = qd_fx_get(QD_FXP_RLOW);
+    turn(QD_K_3, 5);
+    CHECK(qd_fx_get(QD_FXP_RLOW) == v0 + 5, "KNOB 3: LOW CUT +5");
+    black(B3);
+    v0 = qd_fx_get(QD_FXP_CRATE);
+    turn(QD_K_1, -3);
+    CHECK(qd_fx_get(QD_FXP_CRATE) == v0 - 3, "B3 CHORUS, KNOB 1: RATE -3");
+    black(B4);
     turn(QD_K_4, 1);
-    CHECK(qd_track_len(&PAT()->trk[0]) == 24 && PAT()->trk[0].pend[1] == 7 &&
-              qd_tset_rate(&PAT()->trk[0]) == qd_ctl_rate_at(qd_ctl_rate_index(QD_RATE_1) - 3) &&
-              PAT()->trk[0].limit == 3 && PAT()->trk[0].swing == 1,
-          "tracks screen: LEN 24 (page 2 1..8), RATE three slower (%s), LIMIT 3, SWING on",
-          qd_rate_name(qd_tset_rate(&PAT()->trk[0])));
-    wtap(9);
-    CHECK(A.seq.mute == 2, "tracks screen: W10 mutes track 2");
-    wtap(2);
-    CHECK(A.sel == 2, "W3 selects track 3");
+    CHECK(qd_fx_get(QD_FXP_FON) == 1 && !strcmp(QD_FX_PAGES[A.ui.fx_page].name, "MASTER"), "B4 MASTER, KNOB 4: ON");
+    turn(QD_K_4, -1);
     btap(QD_B_TRACKS);
-    CHECK(A.ui.mode == QD_MODE_STEP, "TRACKS again: the step view");
+    CHECK(A.ui.fx_page == 0, "FX again on the last page: round to DELAY");
+    bdown(QD_B_TRACKS);
+    run(10);
+    turn(QD_K_ALGO, 3);
+    bup(QD_B_TRACKS);
+    run(10);
+    CHECK(A.sel == 4 && A.ui.latch == QD_LATCH_FX && A.ui.fx_page == 0, "FX held + ALGORITHM: track 5, the page stays");
+    btap(QD_B_HOME);
 }
 
 static void g_midi_held(void)
@@ -2608,8 +2660,21 @@ static void g_clarity(void)
     run(100);
     bup(SHIFT);
     btap(QD_B_HOME);
-    btap(QD_B_TRACKS);                                  /* the tracks screen */
-    run(200);
+    for (k = 0; k < QD_FX_NPAGE; k++) {                 /* P1.4b: the effects' pages, the mix's, the track settings' */
+        if (!k)
+            btap(QD_B_TRACKS);
+        else
+            turn(QD_K_SELECT, 1);
+        run(120);
+    }
+    btap(QD_B_PAGE);
+    run(120);
+    btap(QD_B_PAGE);
+    run(120);
+    btap(QD_B_PATTERN);
+    run(120);
+    btap(QD_B_PATTERN);
+    run(120);
     btap(QD_B_HOME);
     btap(QD_B_PLAY);                                    /* playing */
     run(600);
@@ -2886,7 +2951,9 @@ static void g_sel_tap(void)
     CHECK(qd_view_screen(&A) == QD_SCR_LANE, "SEL tapped (60 ms): no map");
     bup(QD_B_PATTERN);
     run(10);
-    CHECK(qd_view_screen(&A) == QD_SCR_LANE && A.sel == 0 && !A.seq.mute, "SEL tapped: nothing changed");
+    CHECK(A.ui.latch == QD_LATCH_TRK && A.sel == 0 && !A.seq.mute, "P1.4b: SEL tapped: the track settings, nothing "
+          "else changed");
+    btap(QD_B_HOME);
 }
 
 /* P1.4a: the sound editor on EDIT: every value of the sound on one page; the groups on B1..B5 (again: the next page);
@@ -3509,9 +3576,9 @@ int main(void)
         {"the OCT LEDs' blink levels; the octave takeover", g_octave},
         {"REC, REC + PLAY, SHIFT + REC, step / live rec", g_rec},
         {"the keyboard in a scale, the global key", g_keyboard_scale},
-        {"ARP = FILL; PAGE: follow, + W", g_fill_page},
+        {"ARP = FILL", g_fill_page},
         {"page follow", g_follow},
-        {"the tracks screen", g_tracks_screen},
+        {"P1.4b: the track settings, the mix, the effects", g_tracks_screen},
         {"MIDI notes into a held step", g_midi_held},
         {"the layer maps, SHIFT's map", g_maps},
         {"P1.3d: the knob layout, a step held, every mode", g_knobs_held},

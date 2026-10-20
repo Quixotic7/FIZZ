@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.4a)
+# Playing FIZZ (P1.4b)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -14,10 +14,11 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | OCT+ | **F2** |
 | OCT− and OCT+ together | **F3** (it stays open; OCT− closes it) |
 | GLO | **SHIFT** |
-| SEL (printed) | **SEL**: hold it for the tracks (a tap does nothing yet) |
+| SEL (printed) | **SEL**: hold it for the tracks; tap it for the track settings |
 | SEQ (printed) | **SEQ**: hold it for the patterns |
 | LFO (printed) | **LATCH**: the step latch, on / off |
-| FX (printed) | **FX** (still TRACKS: the clocks screen) |
+| FX (printed) | **FX**: tap it for the effects; hold it to choose the track |
+| ENV (printed) | **MIX**: the mixer |
 | EDIT (printed) | **EDIT**: the sound editor |
 | the black keys, left to right (F#3 .. D#5) | **B1 .. B10** |
 | the rightmost black key (F#5) | **B11** |
@@ -216,9 +217,9 @@ A step has up to **six notes**.
 
 ## How do I work with pages and loops?
 
-- A track has 8 pages of 16 steps. **SELECT** chooses the page you edit. **PAGE (ENV) held + W1..W8** jumps to a page.
-- **PAGE tapped** turns page follow on or off (on: the page you see follows the playhead; PAGE lit). It is also on
-  the global settings page (SHIFT + SEL, KNOB 2).
+- A track has 8 pages of 16 steps. **SELECT** chooses the page you edit (F1 + B1..B8 too).
+- **Page follow** (on: the page you see follows the playhead) is on the track settings' second page (SEL tapped
+  twice, KNOB 3) and the global settings (SHIFT + SEL, KNOB 2). (ENV is MIX now: PAGE + W is gone.)
 - Hold **F1** to see the pages:
   - **F1 + tap B1..B8**: edit that page.
   - **F1 + double-tap B1..B8** (quickly): loop that page alone.
@@ -260,9 +261,49 @@ Pages and tracks (hold **F1**):
   - **SEL + B11**: unmute and unsolo every track.
   - Lights: W1..W8 lit = you hear it, off = muted (or another track is soloed), blinking = soloed; B11 lit while any
     track is muted or soloed.
-- **TRACKS (FX)** still shows the eight clocks: KNOB 1..4 set the selected track's length, speed, voice limit and swing;
-  W1..W8 select a track, W9..W16 mute tracks 1..8.
-- **FX held + ALGORITHM**: choose the track, with the big track picture. FX tapped still opens the clocks screen.
+- **FX held + ALGORITHM** (or FX held + W1..W8): choose the track, with the big track picture.
+- The old tracks screen of eight clocks is gone: a track's length and speed are F3's, its voice limit and swing the
+  track settings', mutes SEL's.
+
+## How do I change a track's settings? (SEL tapped)
+
+- **Tap SEL**: the selected track's settings in this pattern (its number and name in its colour at the top). **SEL
+  again** (or SELECT) for the second page. **OCT− or HOME** closes it. **B1..B8** switch to another track's.
+- Page 1: **KNOB 1 SCALE** (its twelve notes shown as dots, the root ringed), **KNOB 2 ROOT**, **KNOB 3 FOLLOW KEY**
+  (the project's global key instead of its own), **KNOB 4 MIDI CH** (the channel whose notes play into a held step or
+  the recording).
+- Page 2: **KNOB 1 VOICES** (the voice limit, 1 = mono; the voices sounding white), **KNOB 2 SWING** on / off,
+  **KNOB 3 PAGE FOLLOW**.
+- SHIFT + ALGORITHM / PRESETS still set the scale / root from the step view.
+
+## How do I mix? (ENV = MIX)
+
+- **Tap ENV**: the mixer, eight faders, each with its pan dial on top, a level meter beside it, its number (a muted
+  track crossed), its delay and reverb sends as two little bars under it. **B1..B8** (or SELECT, ALGORITHM) choose the
+  track; its parts take the knobs' colours: **KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4 REVERB**.
+- **ENV again**: the **sends**, every track's chorus, delay and reverb as three bars; **KNOB 1 CHORUS, KNOB 2 DELAY,
+  KNOB 3 REVERB**. ENV again goes back to the faders. OCT− or HOME closes it.
+- Mute and solo stay on **SEL held** (it works over the mixer too).
+
+## How do I change the effects? (FX tapped)
+
+- **Tap FX**: the effects, ChoralRoot's (global: no sound or pattern changes them). **FX again** (or SELECT) for the
+  next page; **B1 DELAY, B2 REVERB, B3 CHORUS, B4 MASTER** (again: the effect's second page). OCT− or HOME closes it.
+
+  | page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+  | --- | --- | --- | --- | --- |
+  | DELAY | TIME (ms, or the note value when synced) | SPREAD (R's time against L's; synced: 1:1 3:4 2:3 1:2) | FEEDBACK | SEND |
+  | DELAY 2 | SYNC (FREE / TEMPO) | MODE (STEREO / PING-PONG) | TONE | WOW |
+  | REVERB | SIZE | DAMP | DECAY (s, INF) | SEND |
+  | REVERB 2 | PRE-DELAY | MOD | LOW CUT | WIDTH |
+  | CHORUS | RATE (Hz) | DEPTH | WIDTH | SEND |
+  | MASTER | LOW CUT (OFF ..) | HIGH CUT (.. OFF) | SLOPE (6 / 12 dB) | FILTER ON / OFF |
+
+  **SEND** is the selected track's send into that effect (its number at the top right; the same value as the
+  mixer's).
+- The drawings: the delay a ball bouncing between two walls at the delay time, its echoes fading by the feedback; the
+  reverb a room as big as its size, its tail as long as its decay; the chorus three wavy lines; the master filter its
+  curve.
 
 ## How do I change patterns?
 
@@ -394,7 +435,7 @@ They stay open (OCT− or HOME back). For now:
 
   In B and D, "the mode's value" with nothing selected is the track's default (P-LOCK: the track, as in P1.3d); with
   the latch's selection it edits the selection, as a held step would.
-- **KNOB 2 PAGE FOLLOW**: on / off (the same as PAGE tapped).
+- **KNOB 2 PAGE FOLLOW**: on / off (the same as on the track settings' second page).
 
 ## The maps
 
@@ -410,6 +451,5 @@ They stay open (OCT− or HOME back). For now:
 ## Not built yet
 
 - Saving sounds into the pool (the editor changes the track's sound; P1.5a stores it).
-- Track settings (scale, root, following the global key, MIDI channel; SEL tapped will open them), pattern chains,
-  MIX and the effects screens.
+- Pattern chains.
 - Saving: closing the app loses everything.

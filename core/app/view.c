@@ -15,6 +15,8 @@
 #include "../seq/chord.h"
 #include "../seq/scale.h"
 #include "../seq/sounds.h"
+#include "../voice/fx/qd_fx.h"
+#include <stdio.h>
 
 #define QD_ROLL_MS 150.f               /* a picker's roll at a detent */
 
@@ -759,40 +761,6 @@ static void draw_keys(qd_app_t *a)
     ui_keys_draw(&v);
 }
 
-static void draw_tracks(const qd_app_t *a)
-{
-    static ui_tracks_t v;
-    char pat[4];
-    int t, s, i;
-    const int64_t tick = qd_seq_tick(&a->seq);
-    memset(&v, 0, sizeof v);
-    v.sel = a->sel;
-    v.playing = a->seq.playing;
-    v.pool_n = a->pool.nvoice;
-    v.pool_used = qd_pool_in_use(&a->pool);
-    v.pattern = qd_pat_name(a->seq.cur, pat);
-    v.swing_amt = a->proj.pat[a->seq.cur].swing;
-    for (t = 0; t < QD_NTRACK; t++) {
-        ui_track_clock_t *c = &v.tr[t];
-        const qd_pattern_t *P = qd_seq_track_pat(&a->seq, t);
-        const qd_tset_t *ts = &P->trk[t];
-        c->name = a->model.t[t].name;
-        c->len = qd_track_len(ts);
-        c->rate = qd_rate_name(qd_tset_rate(ts));
-        for (s = 0; s < c->len; s++) {                  /* the ring: the loop's positions */
-            const int ty = qd_step_type(P, t, qd_track_loop_step(ts, s));
-            c->trig[s] = (uint8_t)(ty == QD_TRIG_LOCK ? 2 : ty ? 1 : 0);
-        }
-        c->pos = (float)qd_seq_track_pos(&a->seq, t);
-        c->flash_step = a->seq.playing && a->seq.flash_step[t] >= 0 ? qd_track_step_pos(ts, a->seq.flash_step[t]) : -1;
-        c->flash_age = (float)((double)(tick - a->seq.flash_tick[t]) / (double)qd_rate_ticks(qd_tset_rate(ts)));
-        c->mute = !qd_seq_audible(&a->seq, P, t);
-        c->swing = ts->swing;
-        for (i = 0; i < a->pool.nvoice; i++)
-            c->voices += qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == t;
-    }
-    ui_tracks_draw(&v);
-}
 
 /* the pool's picker: the track's sound, or (a lock) the held steps' sound lock */
 static void draw_picker(const qd_app_t *a)
@@ -1030,17 +998,19 @@ int qd_view_screen(const qd_app_t *a)
     const qd_ui_t *u = &a->ui;
     if (u->mode != QD_MODE_IDLE && held_btn(a, QD_B_MIX))
         return QD_SCR_SEQ;
+    if (u->mode != QD_MODE_IDLE && qd_ctl_sel_map(a))   /* (P1.3y: after a hold, or a key: a tap shows nothing) */
+        return QD_SCR_SEL;
     if (u->mode == QD_MODE_STEP && QD_LATCH_MENU(u->latch))
         return QD_SCR_MENU;                             /* P1.3y: a settings menu */
     if (qd_snd_open(a))
         return QD_SCR_SOUND;                            /* P1.4a: the sound editor */
-    if (u->mode != QD_MODE_IDLE && qd_ctl_sel_map(a))   /* (P1.3y: after a hold, or a key: a tap shows nothing) */
-        return QD_SCR_SEL;
+    if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_MIX)
+        return QD_SCR_MIX;                              /* P1.4b: the mix */
+    if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_FX)
+        return QD_SCR_FX;                               /* P1.4b: the effects */
     switch (u->mode) {
     case QD_MODE_KEYS:
         return qd_ctl_shift(a) && !u->shift_used ? QD_SCR_SHIFT : QD_SCR_KEYS;
-    case QD_MODE_TRACKS:
-        return QD_SCR_TRACKS;
     case QD_MODE_STEP:
         if (u->view == QD_VIEW_EDIT) {                  /* P1.3r: EDIT keeps holding, latching, a mode key in it;
                                                          * the layer maps and SHIFT's take the screen as anywhere */
@@ -1146,7 +1116,7 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
     const qd_ui_t *u = &a->ui;
     int r, k;
     memset(v, 0, sizeof *v);
-    v->kind = u->latch == QD_LATCH_REC ? UI_MENU_REC : UI_MENU_SET;
+    v->kind = u->latch == QD_LATCH_REC ? UI_MENU_REC : u->latch == QD_LATCH_TRK ? UI_MENU_TRK : UI_MENU_SET;
     v->rec_step = a->proj.rec_mode;
     v->quant = a->proj.rec_quant;
     v->dub = a->proj.rec_dub;
@@ -1156,6 +1126,118 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
             v->role[r][k] = qd_ctl_role_name(qd_ctl_layout_role(u->knobs, r, QD_K_SELECT + k));
     v->follow = u->follow;
     v->t = secs(a->ms);
+    if (v->kind == UI_MENU_TRK) {                      /* P1.4b: the track settings of the selected track */
+        const qd_tset_t *ts = &qd_ctl_cpat(a)->trk[a->sel];
+        int sc, rt, i;
+        qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
+        v->track = a->sel + 1;
+        v->page = u->trk_page;
+        v->tname = a->model.t[a->sel].name;
+        v->scale = qd_scale_name(sc);
+        v->root = qd_pc_name(rt);
+        v->root_pc = rt;
+        for (i = 0; i < 12; i++)
+            v->scale_mask |= qd_scale_has(sc, rt, 60 + i) ? 1 << ((60 + i) % 12) : 0;
+        v->follow_key = ts->key_global;
+        v->chan = ts->chan + 1;
+        v->limit = ts->limit;
+        v->swing = ts->swing;
+        for (i = 0; i < a->pool.nvoice; i++)
+            v->voices_now += qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == a->sel;
+        v->last = u->menu_knob;
+    }
+}
+
+/* P1.4b: the mix's model: the eight tracks' mix, heard or not, their voices' level now */
+static void fill_mix(const qd_app_t *a, ui_mix_t *v)
+{
+    int t, i;
+    memset(v, 0, sizeof *v);
+    v->sel = a->sel;
+    v->page = a->ui.mix_page;
+    v->last = a->ui.menu_knob;
+    for (t = 0; t < QD_NTRACK; t++) {
+        const qd_mix_track_t *m = &a->model.t[t].mix;
+        int32_t lv = 0;
+        v->tr[t].name = a->model.t[t].name;
+        v->tr[t].level = m->level;
+        v->tr[t].pan = m->pan;
+        v->tr[t].chorus = m->chorus;
+        v->tr[t].delay = m->delay;
+        v->tr[t].reverb = m->reverb;
+        v->tr[t].mute = !qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, t), t);
+        for (i = 0; i < a->pool.nvoice; i++)
+            if (qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == t) {
+                const int32_t l = qd_quad_voice_level(&a->pool.v[i].q);
+                lv = l > lv ? l : lv;
+            }
+        v->tr[t].meter = sqrtf((float)lv / 32767.f) * (float)m->level / 127.f;
+    }
+}
+
+/* P1.4b: the effects' model: the page's cells (their values as ChoralRoot reads them), what the drawing needs */
+static void fill_fx(const qd_app_t *a, ui_fx_t *v)
+{
+    static const char *const LAB[QD_NFXP] = {"TIME", "TIME", "SPREAD", "SPREAD", "FDBK", "SYNC", "MODE", "TONE", "WOW",
+                                             "SIZE", "DAMP", "DECAY", "PRE", "MOD", "LOW CUT", "WIDTH", "WIDTH",
+                                             "LOW", "HIGH", "SLOPE", "FILTER", "RATE", "DEPTH"};
+    const qd_ui_t *u = &a->ui;
+    const qd_fxpage_t *pg = &QD_FX_PAGES[u->fx_page];
+    const qd_mix_track_t *m = &a->model.t[a->sel].mix;
+    int k, i;
+    memset(v, 0, sizeof *v);
+    v->name = pg->name;
+    v->draw = pg->draw;
+    for (i = 0; i < QD_FX_NPAGE; i++)
+        if (QD_FX_PAGES[i].fx == pg->fx) {
+            if (i == u->fx_page)
+                v->ipg = v->npg;
+            v->npg++;
+        }
+    for (k = 0; k < 4; k++) {
+        const int c = pg->c[k];
+        if (c == QD_FXC_NONE)
+            continue;
+        v->has[k] = 1;
+        if (c == QD_FXC_SEND) {
+            const int s = pg->fx == 0 ? m->delay : pg->fx == 1 ? m->reverb : m->chorus;
+            v->lab[k] = "SEND";
+            snprintf(v->txt[k], sizeof v->txt[k], "%d%%", (s * 100 + 63) / 127);
+            v->x[k] = (float)s / 127.f;
+            v->send = v->x[k];
+            v->track = a->sel + 1;
+        } else {
+            const int id = qd_fx_cell_id(c);
+            int lo, hi;
+            qd_fx_range(id, &lo, &hi, 0);
+            v->lab[k] = LAB[id];
+            qd_fx_text(id, qd_fx_get(id), v->txt[k]);
+            v->x[k] = hi > lo ? (float)(qd_fx_get(id) - lo) / (float)(hi - lo) : 0.f;
+        }
+    }
+    v->t = secs(a->ms);
+    v->delay_s = (float)qd_fx_delay_ms() / 1000.f;
+    v->chorus_hz = (float)qd_fx_chorus_hz100() / 100.f;
+    v->sync = qd_fx_get(QD_FXP_DSYNC);
+    v->ping = qd_fx_get(QD_FXP_DMODE);
+    v->fdbk = (float)qd_fx_get(QD_FXP_DFDBK) / 127.f;
+    v->spread = qd_fx_get(QD_FXP_DSYNC) ? (float)qd_fx_get(QD_FXP_DRATIO) / 3.f : (float)qd_fx_get(QD_FXP_DSPREAD) / 127.f;
+    v->tone = (float)qd_fx_get(QD_FXP_DTONE) / 127.f;
+    v->wow = (float)qd_fx_get(QD_FXP_DWOW) / 127.f;
+    v->size = (float)qd_fx_get(QD_FXP_RSIZE) / 127.f;
+    v->damp = (float)qd_fx_get(QD_FXP_RDAMP) / 127.f;
+    v->decay = (float)qd_fx_get(QD_FXP_RDECAY) / 127.f;
+    v->pre = (float)qd_fx_get(QD_FXP_RPRE) / 127.f;
+    v->mod = (float)qd_fx_get(QD_FXP_RMOD) / 127.f;
+    v->low = (float)qd_fx_get(QD_FXP_RLOW) / 127.f;
+    v->width = (float)qd_fx_get(QD_FXP_RWIDTH) / 127.f;
+    v->depth = (float)qd_fx_get(QD_FXP_CDEPTH) / 127.f;
+    v->cwidth = (float)qd_fx_get(QD_FXP_CWIDTH) / 127.f;
+    v->flow = (float)qd_fx_get(QD_FXP_FLOW) / 127.f;
+    v->fhigh = (float)qd_fx_get(QD_FXP_FHIGH) / 127.f;
+    v->fslope = qd_fx_get(QD_FXP_FSLOPE);
+    v->fon = qd_fx_get(QD_FXP_FON);
+    v->last = u->menu_knob;
 }
 
 int qd_view_overlay(const qd_app_t *a)
@@ -1173,6 +1255,8 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_band_t bv;
     static ui_menu_t mv;
     static ui_snd_t sv5;
+    static ui_mix_t xv;
+    static ui_fx_t fv;
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
     qd_begin();
@@ -1180,6 +1264,14 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     case QD_SCR_MENU:                                   /* P1.3y: a settings menu */
         fill_menu(a, &mv);
         ui_menu_draw(&mv);
+        break;
+    case QD_SCR_MIX:                                    /* P1.4b: the mix */
+        fill_mix(a, &xv);
+        ui_mix_draw(&xv);
+        break;
+    case QD_SCR_FX:                                     /* P1.4b: the effects */
+        fill_fx(a, &fv);
+        ui_fx_draw(&fv);
         break;
     case QD_SCR_SOUND:                                  /* P1.4a: the sound editor */
         qd_view_snd(a, &sv5);
@@ -1198,9 +1290,6 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         break;
     case QD_SCR_KEYS:
         draw_keys(a);
-        break;
-    case QD_SCR_TRACKS:
-        draw_tracks(a);
         break;
     case QD_SCR_HELD:
         fill_held(a, &hv, 0);

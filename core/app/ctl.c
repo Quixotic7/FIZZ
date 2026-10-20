@@ -274,7 +274,7 @@ typedef int (*qd_when_fn)(const qd_app_t *a);
 typedef void (*qd_key_fn)(qd_app_t *a, int key, int idx, int down, int vel);   /* idx: white 0..15 / black 0..10 */
 
 static int w_seq_held(const qd_app_t *a) { return held(a, QD_B_MIX); }        /* printed SEQ: the patterns */
-static int w_sel_held(const qd_app_t *a) { return held(a, QD_B_PATTERN) && !a->ui.latch; }   /* printed SEL: the
+static int w_sel_held(const qd_app_t *a) { return held(a, QD_B_PATTERN) && a->ui.latch != QD_LATCH_SET; }   /* printed SEL: the
                                                          * tracks (P1.3y: not SHIFT + SEL's settings) */
 /* P1.4a: the sound editor open: the black keys are its pages (ctl_snd.c); the W keys stay the steps */
 static int w_snd(const qd_app_t *a) { return qd_snd_open(a) && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN); }
@@ -288,8 +288,14 @@ static void k_snd_black(qd_app_t *a, int key, int b, int down, int vel)
 static int w_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
 static int w_tracks_held(const qd_app_t *a) { return held(a, QD_B_TRACKS); }
 static int w_keys_mode(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS; }
-static int w_tracks_screen(const qd_app_t *a) { return a->ui.mode == QD_MODE_TRACKS; }
-static int w_page_held(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && held(a, QD_B_PAGE); }
+/* P1.4b: the track settings, the mix, the effects: black keys the track (the effect), the W keys nothing */
+static int w_panel(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_PANEL(a->ui.latch); }
+static void k_panel_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    (void)key, (void)vel;
+    if (down)
+        qd_panel_black(a, b);
+}
 static int w_step_view(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP; }
 static int w_steps_held(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && steps_held(a); }
 static int w_f1(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F1; }
@@ -392,27 +398,7 @@ static void k_note(qd_app_t *a, int key, int idx, int down, int vel)
     }
 }
 
-/* the tracks screen: white 1..8 select, 9..16 mute / unmute tracks 1..8 */
-static void k_tracks_screen(qd_app_t *a, int key, int w, int down, int vel)
-{
-    (void)key, (void)vel;
-    if (!down)
-        return;
-    if (w < QD_NTRACK)
-        select_track(a, w);
-    else
-        a->seq.mute ^= (uint8_t)(1u << (w - QD_NTRACK));
-}
 
-/* PAGE held + white key 1..8: edit that page */
-static void k_page(qd_app_t *a, int key, int w, int down, int vel)
-{
-    (void)key, (void)vel;
-    if (down && w < QD_NPAGE) {
-        a->ui.page_used = 1;
-        qd_ctl_set_page(a, w);
-    }
-}
 
 /* the step view's white keys: the steps (ctl_step.c: tap, hold; with steps held: more held steps) */
 static void k_step(qd_app_t *a, int key, int w, int down, int vel)
@@ -731,13 +717,12 @@ typedef struct {
     qd_key_fn fn;
 } qd_key_row_t;
 static const qd_key_row_t WHITE_ROWS[] = {
-    {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
     {w_seq_held, k_pattern},           /* SEQ held: A01 .. A16 (SHIFT: at once) */
     {w_sel_held, k_sel_white},         /* SEL held: W1..W8 mute, W9..W16 solo */
-    {w_tracks_held, k_track_select},   /* TRACKS held: tracks 1..8 */
+    {w_tracks_held, k_track_select},   /* FX (TRACKS) held: tracks 1..8 (over the pages too) */
+    {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
+    {w_panel, k_none},                 /* P1.4b: the mix, the effects: nothing */
     {w_keys_mode, k_note},             /* the keyboard */
-    {w_tracks_screen, k_tracks_screen},   /* the tracks screen: select 1..8, mute 9..16 */
-    {w_page_held, k_page},             /* PAGE held: edit pages 1..8 */
     {w_steps_held, k_step},            /* steps held: more held steps */
     {w_f1, k_f1_white},                /* F1: the first W copies, the later ones paste */
     {w_f2, k_f2_white},                /* F2: Form's pick-up / drop */
@@ -745,10 +730,11 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_step_view, k_step},             /* the step view: the steps */
 };
 static const qd_key_row_t BLACK_ROWS[] = {
-    {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
-    {w_snd, k_snd_black},              /* P1.4a: the sound editor: B1..B5 its groups, B11 the page's locks */
     {w_seq_held, k_bank},              /* SEQ held: B1..B4 the bank (P1.3d) */
     {w_sel_held, k_sel_black},         /* SEL held: B1..B8 select the track */
+    {w_panel, k_panel_black},          /* P1.4b: the track settings, the mix: the track; the effects: B1..B4 */
+    {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
+    {w_snd, k_snd_black},              /* P1.4a: the sound editor: B1..B5 its groups, B11 the page's locks */
     {w_keys_mode, k_note},             /* the keyboard */
     {w_lfo_held, k_lfo_mode},          /* P1.3y: LFO held: the hold mode, the latch untouched */
     {w_mkey, k_mkey},                  /* a mode key held (P1.3e): B11 resets its default, the rest nothing */
@@ -784,28 +770,32 @@ void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
 }
 
 /* ================================================================ the buttons === */
+/* P1.4b: FX (printed; TRACKS): a tap opens the effects (again: the next page); held + W1..W8 or ALGORITHM: the track.
+ * (The tracks screen of the clocks is retired: its LENGTH and RATE are F3's, LIMIT and SWING the track settings',
+ * its mutes SEL's) */
 static void b_tracks(qd_app_t *a, int down)
 {
     if (down) {
         a->ui.tracks_tap = 1;
-    } else if (a->ui.tracks_tap) {                      /* a tap: the tracks screen on / off */
+    } else if (a->ui.tracks_tap) {
         a->ui.tracks_tap = 0;
-        set_mode(a, a->ui.mode == QD_MODE_TRACKS ? QD_MODE_STEP : QD_MODE_TRACKS);
+        if (a->ui.mode == QD_MODE_IDLE)
+            return;
+        if (a->ui.mode != QD_MODE_STEP)
+            set_mode(a, QD_MODE_STEP);
+        qd_fx_button(a);
     }
 }
 
-/* PAGE: a tap = page follow on / off; held + W1..W8 = edit that page */
+/* P1.4b: ENV (printed) = MIX: a tap opens the mix (again: the sends, again the faders). (P1.3b's page follow is on
+ * the track settings and the global settings now; its PAGE + W pages are SELECT's and F1's) */
 static void b_page(qd_app_t *a, int down)
 {
-    qd_ui_t *u = &a->ui;
-    if (down) {
-        u->page_used = 0;
-    } else if (!u->page_used && u->mode == QD_MODE_STEP) {
-        u->follow = !u->follow;
-        u->play_page[a->sel] = -1;
-        qd_ctl_confirm(a, u->follow ? "FOLLOW" : "NO FOLLOW", u->follow ? "the page follows the playhead"
-                                                                        : "the page stays where you put it");
-    }
+    if (!down || a->ui.mode == QD_MODE_IDLE)
+        return;
+    if (a->ui.mode != QD_MODE_STEP)
+        set_mode(a, QD_MODE_STEP);
+    qd_mix_button(a);
 }
 
 static void b_shift(qd_app_t *a, int down)
@@ -928,12 +918,18 @@ static void b_rec(qd_app_t *a, int down)
 }
 
 /* SEL (printed): held, the track map (after QD_TAP_MS, or at once with a key); P1.3y: SHIFT + SEL the global settings
- * (latched); a tap does nothing yet (P1.4b: the track settings) */
+ * (latched); P1.4b: a tap (released before the map shows, no key with it) the track settings (again: their next page) */
 static void b_sel(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
-    if (!down)
+    if (!down) {
+        if (!u->sel_used && a->ms - u->sel_ms < QD_TAP_MS && u->mode != QD_MODE_IDLE) {
+            if (u->mode != QD_MODE_STEP)
+                set_mode(a, QD_MODE_STEP);
+            qd_trk_button(a);
+        }
         return;
+    }
     u->sel_ms = a->ms;
     u->sel_used = 0;
     if (qd_ctl_shift(a) && u->mode != QD_MODE_IDLE) {
@@ -948,7 +944,7 @@ static void b_sel(qd_app_t *a, int down)
 }
 int qd_ctl_sel_map(const qd_app_t *a)
 {
-    return held(a, QD_B_PATTERN) && !a->ui.latch && (a->ui.sel_used || a->ms - a->ui.sel_ms >= QD_TAP_MS);
+    return held(a, QD_B_PATTERN) && a->ui.latch != QD_LATCH_SET && (a->ui.sel_used || a->ms - a->ui.sel_ms >= QD_TAP_MS);
 }
 
 /* OCT- / OCT+ (d -1 / +1): the layers in the step view (F1 / F2 / both F3); with steps held: NOTE's octave, SOUND's
@@ -1034,7 +1030,7 @@ static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_TRACKS] = b_tracks,          /* tap: the tracks screen; held + white 1..8: select */
     [QD_B_PATTERN] = b_sel,            /* printed SEL, held: the tracks (B select, W mute / solo: the keys' table);
                                         * SHIFT: the global settings (P1.3y) */
-    [QD_B_PAGE] = b_page,              /* tap: page follow on / off; held + white 1..8: edit that page */
+    [QD_B_PAGE] = b_page,              /* printed ENV = MIX (P1.4b): the mix, again the sends */
     [QD_B_MUTE] = b_lfo,               /* printed LFO: the step latch on / off (P1.3d) */
     [QD_B_SOUND] = b_snd,              /* printed EDIT: the sound editor (P1.4a) */
     [QD_B_FUNC] = b_shift,             /* SHIFT, held */
@@ -1209,34 +1205,6 @@ static int k_f3(qd_app_t *a, int knob, int d)
     return 1;
 }
 
-/* the tracks screen: KNOB 1 (and SELECT) LEN (the loop, Form's flat rebuild), KNOB 2 RATE, KNOB 3 LIMIT, KNOB 4 SWING */
-static int k_tracks(qd_app_t *a, int knob, int d)
-{
-    qd_pattern_t *p = qd_ctl_pat(a);
-    qd_tset_t *ts = &p->trk[a->sel];
-    switch (knob) {
-    case QD_K_SELECT:
-    case QD_K_1:
-        qd_track_set_length(p, a->sel, clampi(qd_track_len(ts) + d, 1, QD_NSTEP));
-        qd_ctl_takeover(a, UI_TK_LEN, 0, d, 0, -1);
-        return 1;
-    case QD_K_2:
-        qd_tset_set_rate(ts, qd_ctl_rate_at(qd_ctl_rate_index(qd_tset_rate(ts)) + d));
-        qd_ctl_takeover(a, UI_TK_RATE, 1, d, 0, -1);
-        return 1;
-    case QD_K_3:
-        ts->limit = (uint8_t)clampi(ts->limit + d, 1, 16);
-        qd_ctl_takeover(a, UI_TK_LIMIT, 2, d, 0, -1);
-        return 1;
-    case QD_K_4:
-        ts->swing = d > 0;
-        qd_ctl_takeover(a, UI_TK_TSWING, 3, d, 0, -1);
-        return 1;
-    default:
-        return k_track(a, knob, d);
-    }
-}
-
 static int when_f3(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F3; }
 static int when_seq(const qd_app_t *a) { return a->ui.mode != QD_MODE_IDLE && held(a, QD_B_MIX); }
 /* SEQ held + ALGORITHM: the launch mode (END BAR BEAT NOW), a project setting */
@@ -1267,7 +1235,6 @@ static int when_live(const qd_app_t *a)
     return a->ui.mode == QD_MODE_KEYS && a->ui.rec && a->seq.playing && !qd_rec_stepping(a);
 }
 static int when_step_rec(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS && qd_rec_stepping(a); }
-static int when_tracks(const qd_app_t *a) { return a->ui.mode == QD_MODE_TRACKS; }
 static int when_stepview(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP; }
 static int when_always(const qd_app_t *a) { (void)a; return 1; }
 static int k_held(qd_app_t *a, int knob, int d) { return qd_step_knob(a, knob, d); }
@@ -1355,10 +1322,16 @@ static int k_snd(qd_app_t *a, int knob, int d)
 
 /* P1.3y: the settings menus' knobs (KNOB 1..4 their rows; the encoders nothing) */
 static int when_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
+static int when_mix(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_MIX; }
+static int k_mix(qd_app_t *a, int knob, int d) { return qd_mix_knob(a, knob, d); }
+static int when_fx(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_FX; }
+static int k_fx(qd_app_t *a, int knob, int d) { return qd_fx_knob(a, knob, d); }
 static int k_menu(qd_app_t *a, int knob, int d)
 {
     qd_project_t *pr = &a->proj;
     qd_ui_t *u = &a->ui;
+    if (u->latch == QD_LATCH_TRK)
+        return qd_trk_knob(a, knob, d);
     if (u->latch == QD_LATCH_REC) {
         switch (knob) {
         case QD_K_1: pr->rec_mode = d > 0; break;
@@ -1393,17 +1366,18 @@ static const struct {
     qd_when_fn when;
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
-    {when_menu, k_menu},               /* P1.3y: a settings menu: KNOB 1..4 its rows */
+    {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track (over every page) */
+    {when_menu, k_menu},               /* P1.3y: a settings menu: KNOB 1..4 its rows (P1.4b: the track settings) */
+    {when_mix, k_mix},                 /* P1.4b: the mix */
+    {when_fx, k_fx},                   /* P1.4b: the effects */
     {when_snd, k_snd},                 /* P1.4a: the sound editor: its page's values (a finger: p-locks) */
     {when_seq, k_seq},                 /* SEQ held: ALGORITHM the launch mode */
     {when_f3, k_f3},                   /* F3: SELECT page, ALGO tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */
-    {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track */
     {when_cursor, k_steps_cursor},     /* P1.3y: no finger on a step: ALGORITHM cursor, PRESETS preset, SELECT page */
     {when_steps_held, k_held},         /* a step held: SELECT page, ALGORITHM value, PRESETS sound lock, p-locks */
     {when_mkey, k_mkey_knob},          /* a mode key held (P1.3e): its default */
     {when_live, k_live},               /* live recording: the quick page as locks on the step playing */
     {when_step_rec, k_cursor},         /* step recording: PRESETS moves the cursor */
-    {when_tracks, k_tracks},           /* the tracks screen: LEN RATE LIMIT SWING */
     {when_stepview, k_stepview},       /* the step view: page, the mode's default, the sound, the quick page */
     {when_always, k_track},            /* the keyboard: tempo, the sound, the quick page */
 };

@@ -4,6 +4,7 @@
  * stereo chorus; one core: CR_CPU1 0; no profiling), on the tables, core.h parts and dsp.c of core/voice/quad. Then
  * the block in mix_block's order: xc_block, xf_block, xq_block, out_master (Output Clean). */
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "qd_fx.h"
@@ -106,3 +107,123 @@ void qd_fx_block(const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_
     xq_block(l, r, CTL);
     out_master(out, l, r, (const int32_t *)0, CTL);
 }
+
+/* ---------------------------------------------------------------- P1.4b: the parameters */
+typedef char qd_fxp_ok[QD_FXP_DTIME == XP_DTIME && QD_FXP_RSIZE == XP_RSIZE && QD_FXP_CWIDTH == XP_CWIDTH &&
+                       QD_FXP_FON == XP_FON && QD_FXP_CRATE == XP_N ? 1 : -1];
+
+int qd_fx_get(int id)
+{
+    if (id >= 0 && id < XP_N)
+        return xfp[id];
+    return id == QD_FXP_CRATE ? song.g[G_CRATE] : id == QD_FXP_CDEPTH ? song.g[G_CDEPTH] : 0;
+}
+
+void qd_fx_range(int id, int *min, int *max, int *def)
+{
+    int lo = 0, hi = 127, d = 0;
+    if (id >= 0 && id < XP_N)
+        lo = XFP[id].min, hi = XFP[id].max, d = XFP[id].def;
+    else
+        d = id == QD_FXP_CRATE ? 40 : 60;               /* (params.c GP) */
+    if (min)
+        *min = lo;
+    if (max)
+        *max = hi;
+    if (def)
+        *def = d;
+}
+
+void qd_fx_set(int id, int v)
+{
+    int lo, hi;
+    if (id < 0 || id >= QD_NFXP)
+        return;
+    qd_fx_range(id, &lo, &hi, 0);
+    v = v < lo ? lo : v > hi ? hi : v;
+    if (id < XP_N)
+        xfp[id] = (int16_t)v;
+    else
+        song.g[id == QD_FXP_CRATE ? G_CRATE : G_CDEPTH] = (int16_t)v;
+}
+
+static const char *fx_hz(char *buf, uint32_t hz)
+{
+    if (hz < 1000u)
+        snprintf(buf, 16, "%u Hz", (unsigned)hz);
+    else
+        snprintf(buf, 16, "%u.%u kHz", (unsigned)(hz / 1000u), (unsigned)(hz % 1000u / 100u));
+    return buf;
+}
+
+int qd_fx_chorus_hz100(void)
+{
+    return (int)(((uint64_t)LFO_INC[song.g[G_CRATE] & 127] * 275625u) >> 33);   /* (a block's step, 44100 / 32 blocks a
+                                                         * second; x 100: 137812.5) */
+}
+
+const char *qd_fx_text(int id, int v, char *buf)
+{
+    static const char *const DIV[XF_NDIV] = {"1/32", "1/16T", "1/32.", "1/16", "1/8T", "1/16.", "1/8", "1/4T", "1/8.",
+                                             "1/4", "1/2T", "1/4.", "1/2"};   /* (cr_ui.c CU_XDIV) */
+    static const char *const RATIO[4] = {"1:1", "3:4", "2:3", "1:2"};
+    buf[0] = 0;
+    switch (id) {
+    case QD_FXP_DTIME: snprintf(buf, 16, "%u ms", (unsigned)xf_ms((uint32_t)v)); break;
+    case QD_FXP_DDIV: snprintf(buf, 16, "%s", DIV[(unsigned)v % XF_NDIV]); break;
+    case QD_FXP_DSPREAD: {
+        const int x = ((254 - v) * 100 + 127) / 254;
+        snprintf(buf, 16, "x%d.%02d", x / 100, x % 100);
+        break;
+    }
+    case QD_FXP_DRATIO: snprintf(buf, 16, "%s", RATIO[v & 3]); break;
+    case QD_FXP_DSYNC: strcpy(buf, v ? "TEMPO" : "FREE"); break;
+    case QD_FXP_DMODE: strcpy(buf, v ? "PING" : "STEREO"); break;   /* (ChoralRoot's "Ping-pong": a cell's width) */
+    case QD_FXP_RDECAY:
+        if (v >= 127) {
+            strcpy(buf, "INF");
+        } else {
+            const uint32_t ms = xf_rt_ms((uint32_t)v);
+            if (ms < 10000u)
+                snprintf(buf, 16, "%u.%u s", (unsigned)(ms / 1000u), (unsigned)(ms % 1000u / 100u));
+            else
+                snprintf(buf, 16, "%u s", (unsigned)(ms / 1000u));
+        }
+        break;
+    case QD_FXP_RPRE: snprintf(buf, 16, "%u ms", (unsigned)xf_pre_ms((uint32_t)v)); break;
+    case QD_FXP_RLOW: fx_hz(buf, xf_lowcut_hz((uint32_t)v)); break;
+    case QD_FXP_FLOW:
+        if (v <= 0)
+            strcpy(buf, "OFF");
+        else
+            fx_hz(buf, xq_low_hz((uint32_t)v));
+        break;
+    case QD_FXP_FHIGH:
+        if (v >= 127)
+            strcpy(buf, "OFF");
+        else
+            fx_hz(buf, xq_high_hz((uint32_t)v));
+        break;
+    case QD_FXP_FSLOPE: strcpy(buf, v ? "12 dB" : "6 dB"); break;
+    case QD_FXP_FON: strcpy(buf, v ? "ON" : "OFF"); break;
+    case QD_FXP_CRATE: {
+        const uint32_t h = (uint32_t)(((uint64_t)LFO_INC[v & 127] * 275625u) >> 33);
+        snprintf(buf, 16, "%u.%02u Hz", (unsigned)(h / 100u), (unsigned)(h % 100u));
+        break;
+    }
+    case QD_FXP_CDEPTH: snprintf(buf, 16, "%d%%", (v * 100 + 63) / 127); break;
+    default: snprintf(buf, 16, "%d", v); break;
+    }
+    return buf;
+}
+
+int qd_fx_delay_ms(void)
+{
+    if (xfp[XP_DSYNC]) {
+        const uint32_t bpm = xf_bpm ? xf_bpm : 120u;
+        return (int)(60000u * XF_DIV[(uint32_t)xfp[XP_DDIV] % XF_NDIV] / (48u * bpm));
+    }
+    return (int)xf_ms((uint32_t)xfp[XP_DTIME]);
+}
+
+int qd_fx_reverb_ms(void) { return xfp[XP_RDECAY] >= 127 ? -1 : (int)xf_rt_ms((uint32_t)xfp[XP_RDECAY]); }

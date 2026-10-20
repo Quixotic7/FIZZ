@@ -109,28 +109,51 @@ typedef struct {
 } ui_picker_t;
 void ui_picker_draw(const ui_picker_t *v);
 
-/* ---- screen 3, TRACKS (line.html s3): eight clocks, each at its own length and rate */
+/* ---- P1.4b (ui_tracks.c; the clocks screen of P1.3 is retired): THE MIX (line.html s14) and THE EFFECTS (s15)
+ *   MIX     eight faders: a pan dial on top, the fader with its knob, a meter beside it, the number (a muted track:
+ *           dashed, crossed), its delay and reverb sends as two little bars under it; the selected track in the knobs'
+ *           colours (LEVEL blue, PAN green, DELAY white, REVERB orange). SENDS (MIX again): every track's chorus,
+ *           delay and reverb as three bars (the selected in KNOB 1..3's colours)
+ *   EFFECTS a page an effect's part, a drawing of it with KNOB 1..4's values in cells along the foot:
+ *           DELAY    a ball bouncing between two walls at the delay time (TIME blue), the echoes fading by FEEDBACK
+ *                    (green), the walls as far apart as SPREAD (white), the selected track's SEND coming in (orange)
+ *           DELAY 2  two rows of echoes (STEREO straight, PING-PONG alternating; SYNC: on a beat grid), TONE their
+ *                    dimming, WOW a wobble in the line
+ *           REVERB   a room as big as SIZE, its reflections, DECAY the tail's length, DAMP its darkening, SEND in
+ *           REVERB 2 the tail after its PRE-DELAY gap, MOD its wobble, LOW CUT a slope, WIDTH the stereo spread
+ *           CHORUS   three wavy lines at RATE, as deep as DEPTH, WIDTH their spread apart, SEND in
+ *           MASTER   the master filter's response: LOW CUT, HIGH CUT, their SLOPE, ON / OFF */
 typedef struct {
-    const char *name;                   /* the track's role */
-    int len;                            /* its loop, 1..128 steps */
-    const char *rate;                   /* "1x", "1/2x", .. */
-    uint8_t trig[128];                  /* the trigs round the ring: 1 NOTE / TIE, 2 LOCK */
-    float pos;                          /* the hand: the play head as a step position, 0..len */
-    int flash_step;                     /* the step that played last (-1 none) .. */
-    float flash_age;                    /* .. how long ago, in the track's own steps (it glows under 1.2) */
-    int voices;                         /* the voices it sounds */
-    int mute;
-    int swing;                          /* swing on: the selected track's orange arc */
-} ui_track_clock_t;
+    int sel, page;                      /* the selected track; 0 the faders, 1 the sends */
+    struct {
+        const char *name;
+        int level, pan, chorus, delay, reverb;   /* 0..127, -64..63 */
+        int mute;                       /* not heard (muted, or another soloed) */
+        float meter;                    /* its voices' level now, 0..1 */
+    } tr[8];
+    int last;                           /* the knob turned last (0..3, -1) */
+} ui_mix_t;
+void ui_mix_draw(const ui_mix_t *v);
+enum { UI_FXD_DELAY, UI_FXD_DELAY2, UI_FXD_REVERB, UI_FXD_REVERB2, UI_FXD_CHORUS, UI_FXD_MASTER };
 typedef struct {
-    ui_track_clock_t tr[8];
-    int sel;                            /* the selected track, 0..7 */
-    int playing;                        /* the hands are drawn while the transport runs */
-    int swing_amt;                      /* the pattern's swing, 50..80 */
-    int pool_used, pool_n;              /* the voice pool */
-    const char *pattern;                /* "A03" */
-} ui_tracks_t;
-void ui_tracks_draw(const ui_tracks_t *v);
+    const char *name;                   /* the page's */
+    int draw, npg, ipg;                 /* UI_FXD_*, the effect's pages, this one's place */
+    int has[4];
+    char txt[4][16];
+    const char *lab[4];
+    float x[4];                         /* the cells' values 0..1 */
+    int track;                          /* the selected track (its SEND), 1..8 */
+    float t;                            /* seconds */
+    float delay_s, chorus_hz;           /* the delay's time, the chorus's rate */
+    int sync, ping;                     /* DELAY: synced, ping-pong */
+    float fdbk, spread, tone, wow;      /* 0..1 */
+    float size, damp, decay, pre, mod, low, width, depth, cwidth;   /* 0..1 (decay 1: INF) */
+    float send;                         /* the selected track's send into this effect, 0..1 */
+    float flow, fhigh;                  /* MASTER: the cuts 0..1 (0 / 1: off), */
+    int fslope, fon;
+    int last;                           /* the knob turned last (0..3, -1) */
+} ui_fx_t;
+void ui_fx_draw(const ui_fx_t *v);
 
 /* ================================================================ P1.3b: the step view's lanes, the held step, the turns,
  * the layer maps (PLAN §8b) === */
@@ -443,7 +466,7 @@ void ui_shift_draw(const ui_shift_t *v);
  *   SETTINGS (SHIFT + SEL) KNOB 1 KNOBS A..D: the three encoders as SHIFT's badges with each one's role under it (a
  *                          second line when STEPS / EDIT differ from the PIANO ROLL, each line marked by its view's
  *                          little picture); KNOB 2 PAGE FOLLOW ON / OFF: pages with the playhead and an arrow */
-enum { UI_MENU_REC, UI_MENU_SET };
+enum { UI_MENU_REC, UI_MENU_SET, UI_MENU_TRK };   /* (P1.4b: the track settings) */
 typedef struct {
     int kind;                           /* UI_MENU_* */
     int rec_step, quant, dub;           /* REC: MODE STEP (else LIVE), QUANTIZE 0..100, OVERDUB (else REPLACE) */
@@ -451,6 +474,12 @@ typedef struct {
     const char *role[2][3];             /* .. its roles: [PIANO ROLL, STEPS / EDIT][SELECT, ALGORITHM, PRESETS] */
     int follow;                         /* .. PAGE FOLLOW */
     float t;                            /* seconds (the playhead moves) */
+    /* P1.4b, the track settings: the track (its number, name, colour), the page; page 1: the scale's name, its root,
+     * its notes (bit k: pitch class k), FOLLOW KEY, the MIDI channel (1..16); page 2: VOICES, SWING, PAGE FOLLOW */
+    int track, page;
+    const char *tname, *scale, *root;
+    int scale_mask, root_pc, follow_key, chan, limit, swing, voices_now;
+    int last;                           /* the knob turned last (0..3, -1) */
 } ui_menu_t;
 void ui_menu_draw(const ui_menu_t *v);
 

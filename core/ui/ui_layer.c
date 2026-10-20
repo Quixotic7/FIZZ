@@ -556,10 +556,54 @@ static void menu_set(const ui_menu_t *v)
     }
 }
 
+/* P1.4b: the track settings: the track's number and name in its colour; page 1 SCALE (its twelve pitch classes as
+ * dots, the scale's filled, the root ringed), ROOT, FOLLOW KEY, MIDI CH; page 2 VOICES (sixteen dots: the limit lit,
+ * the ones sounding white), SWING, PAGE FOLLOW */
+static void menu_trk(const ui_menu_t *v)
+{
+    const qd_rgb tc = UI_TRACK_PAL[(v->track - 1) & 7];
+    char n[12];
+    int k;
+    ui_box(8.f, 5.f, v->track, tc);
+    ui_T(v->tname ? v->tname : "", 32.f, 18.f, 12.f, 600, 0.8f, tc, QD_LEFT);
+    for (k = 0; k < 2; k++)
+        ui_O(170.f + (float)k * 9.f, 14.f, 2.6f, k == v->page ? UI_K3 : UI_G2, 1.f, k == v->page ? UI_K3 : QD_NONE);
+    ui_RR(208.f, 4.f, 24.f, 17.f, 4.f, UI_K3, 1.2f, QD_NONE);
+    ui_icon(UI_IC_BACK, 220.f, 12.5f, 1.f, UI_K3);
+    line2(8.f, 27.f, 232.f, 27.f, UI_G3, 1.f);
+    if (!v->page) {
+        menu_row(0, 44.f, "SCALE", v->scale);
+        for (k = 0; k < 12; k++) {                      /* C .. B: the scale's notes */
+            const float x = 38.f + (float)k * 9.f, y = 88.f;
+            const int in = (v->scale_mask >> k) & 1;
+            ui_O(x, y, 3.f, in ? UI_K1 : UI_G3, 1.f, in ? UI_K1 : QD_NONE);
+            if (k == v->root_pc)
+                ui_O(x, y, 5.5f, UI_K2, 1.3f, QD_NONE);
+        }
+        menu_row(1, 106.f, "ROOT", v->root);
+        menu_row(2, 152.f, "FOLLOW KEY", v->follow_key ? "ON" : "OFF");
+        menu_row(3, 198.f, "MIDI CH", ui_itoa(n, v->chan));
+    } else {
+        menu_row(0, 44.f, "VOICES", ui_itoa(n, v->limit));
+        for (k = 0; k < 16; k++)                        /* the limit lit, the voices sounding white */
+            ui_O(38.f + (float)k * 7.f, 72.f, 2.4f, QD_NONE, 1.f,
+                 k < v->voices_now ? UI_K3 : k < v->limit ? UI_K1 : UI_G3);
+        menu_row(1, 108.f, "SWING", v->swing ? "ON" : "OFF");
+        ui_icon(UI_IC_SWING, 46.f, 138.f, 1.4f, v->swing ? UI_K2 : UI_G2);
+        menu_row(2, 172.f, "PAGE FOLLOW", v->follow ? "ON" : "OFF");
+    }
+    if (v->last >= 0 && v->last < 4) {                  /* the row turned last: its badge ringed */
+        static const float Y0[2][4] = {{44.f, 106.f, 152.f, 198.f}, {44.f, 108.f, 172.f, -100.f}};
+        ui_O(18.f, Y0[v->page & 1][v->last], 12.f, KCOL[v->last], 1.2f, QD_NONE);
+    }
+}
+
 void ui_menu_draw(const ui_menu_t *v)
 {
     if (v->kind == UI_MENU_REC)
         menu_rec(v);
+    else if (v->kind == UI_MENU_TRK)
+        menu_trk(v);
     else
         menu_set(v);
 }

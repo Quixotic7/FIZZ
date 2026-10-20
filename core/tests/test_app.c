@@ -419,55 +419,57 @@ static void t_patterns(void)
            "once; the LEDs\n");
 }
 
+/* P1.4b: the tracks screen of clocks is retired; FX tapped: the effects (FX lit), again their next page; ENV: the mix
+ * (ENV lit; its meters move while playing), again the sends; SEL tapped: the track settings (SEL lit); SEL held + W1:
+ * track 1 muted, it plays nothing; FX held + W4: track 4 */
 static void t_tracks(void)
 {
     qd_leds_t l;
-    int k, flashes = 0, n1 = 0;
-    uint32_t starts1 = 0;
+    int k, n1 = 0;
     fresh();
     tap_button(QD_B_TRACKS);
-    CHECK(A.ui.mode == QD_MODE_TRACKS, "TRACKS tapped: the tracks screen");
     qd_app_leds(&A, &l);
-    CHECK(l.button[QD_B_TRACKS] == QD_LED_LIT && l.key[WK[8]] == QD_LED_LIT && l.key[WK[15]] == QD_LED_LIT,
-          "its LED lit, white keys 9..16 lit (every track heard)");
+    CHECK(A.ui.mode == QD_MODE_STEP && A.ui.latch == QD_LATCH_FX && qd_view_screen(&A) == QD_SCR_FX &&
+              l.button[QD_B_TRACKS] == QD_LED_LIT && A.ui.fx_page == 0,
+          "FX tapped: the effects, DELAY (FX lit)");
+    tap_button(QD_B_TRACKS);
+    CHECK(A.ui.fx_page == 1, "FX again: the next page (DELAY 2)");
+    tap_button(QD_B_PAGE);
+    qd_app_leds(&A, &l);
+    CHECK(A.ui.latch == QD_LATCH_MIX && qd_view_screen(&A) == QD_SCR_MIX && l.button[QD_B_PAGE] == QD_LED_LIT &&
+              !A.ui.mix_page, "ENV: the mix (ENV lit)");
     tap_button(QD_B_PLAY);
-    for (k = 0; k < 2000; k++) {                        /* the trigs flash white keys 1..8 */
-        run(1, 0);
-        qd_app_leds(&A, &l);
-        flashes += l.key[WK[1]] == QD_LED_LIT;          /* (track 2, the bass) */
+    run(300, 0);
+    {
+        uint64_t h0 = frame_hash();
+        run(100, 0);
+        CHECK(h0 != frame_hash(), "playing: the mix's meters move");
     }
-    CHECK(flashes > 100 && flashes < 1500, "track 2's white key flashes with its trigs (%d ms of 2000)", flashes);
-    tap_key(WK[8]);                                     /* white key 9: track 1 muted */
-    qd_app_leds(&A, &l);
-    CHECK((A.seq.mute & 1u) && l.key[WK[8]] == QD_LED_OFF && l.key[WK[9]] == QD_LED_LIT,
-          "white key 9: track 1 muted, its key dark");
-    for (k = 0; k < A.pool.nvoice; k++)
-        starts1 += A.pool.v[k].track == 0 && A.pool.v[k].q.active;
+    tap_button(QD_B_PAGE);
+    CHECK(A.ui.mix_page == 1 && qd_view_screen(&A) == QD_SCR_MIX, "ENV again: the sends");
+    qd_app_button(&A, QD_B_PATTERN, 1);                 /* SEL held + W1 (a tap): track 1 muted */
+    run(300, 0);
+    tap_key(WK[0]);
+    qd_app_button(&A, QD_B_PATTERN, 0);
+    run(10, 0);
+    CHECK((A.seq.mute & 1u) && A.ui.latch == QD_LATCH_MIX, "SEL held + W1: track 1 muted, the mix still open");
     run(1000, 0);
     for (k = 0; k < A.pool.nvoice; k++)
         n1 += A.pool.v[k].track == 0 && qd_pool_sounding(&A.pool, k) && A.pool.v[k].q.gate;
     CHECK(n1 == 0, "the muted track plays nothing (%d held)", n1);
-    tap_key(WK[8]);
-    CHECK(!(A.seq.mute & 1u), "white key 9 again: heard");
-    tap_key(WK[1]);
-    CHECK(A.sel == 1 && A.keys_struck == 0, "white key 2 on the tracks screen: track 2 selected, no note");
-    {
-        uint64_t h0 = frame_hash();
-        run(100, 0);
-        CHECK(h0 != frame_hash(), "the clocks turn");
-    }
-    tap_button(QD_B_TRACKS);
-    CHECK(A.ui.mode == QD_MODE_STEP, "TRACKS again: back to the step view");
-    tap_button(QD_B_TRACKS);
+    tap_button(QD_B_PATTERN);
+    qd_app_leds(&A, &l);
+    CHECK(A.ui.latch == QD_LATCH_TRK && qd_view_screen(&A) == QD_SCR_MENU && l.button[QD_B_PATTERN] == QD_LED_LIT,
+          "SEL tapped: the track settings (SEL lit)");
     tap_button(QD_B_HOME);
-    CHECK(A.ui.mode == QD_MODE_STEP, "HOME leaves the tracks screen");
+    CHECK(!A.ui.latch && A.ui.mode == QD_MODE_STEP, "HOME: back to the step view");
     qd_app_button(&A, QD_B_TRACKS, 1);
     tap_key(WK[3]);
     qd_app_button(&A, QD_B_TRACKS, 0);
     run(10, 0);
-    CHECK(A.sel == 3 && A.ui.mode == QD_MODE_STEP, "TRACKS held + white key 4: track 4, no screen change");
-    (void)starts1;
-    printf("  tracks: TRACKS tapped / again / HOME, mute 9..16, select 1..8, the trig LEDs, the clocks turn\n");
+    CHECK(A.sel == 3 && !A.ui.latch, "FX held + white key 4: track 4, no page opened");
+    tap_button(QD_B_PLAY);
+    printf("  P1.4b: FX the effects, ENV the mix / sends, SEL the track settings; SEL + W mutes; FX + W selects\n");
 }
 
 static void t_along(void)

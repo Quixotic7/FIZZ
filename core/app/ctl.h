@@ -168,8 +168,14 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
        QD_LATCH_REC,                    /* P1.3y: SHIFT + REC: the record settings (MODE, QUANTIZE, OVERDUB) */
        QD_LATCH_SET,                    /* P1.3y: SHIFT + SEL: the global settings (KNOBS, PAGE FOLLOW) */
        QD_LATCH_SND,                    /* P1.4a: EDIT (printed): the sound editor (ctl_snd.c) */
+       QD_LATCH_TRK,                    /* P1.4b: SEL tapped: the track settings (ctl_mix.c) */
+       QD_LATCH_MIX,                    /* P1.4b: ENV (printed) = MIX: the faders, again the sends */
+       QD_LATCH_FX,                     /* P1.4b: FX (printed) tapped: the effects */
        QD_NLATCH };
-#define QD_LATCH_MENU(l) ((l) == QD_LATCH_REC || (l) == QD_LATCH_SET)   /* a settings menu: its own screen, KNOB 1..4 */
+#define QD_LATCH_MENU(l) ((l) == QD_LATCH_REC || (l) == QD_LATCH_SET || (l) == QD_LATCH_TRK)   /* a settings menu:
+                                                         * its own screen, KNOB 1..4 */
+#define QD_LATCH_PANEL(l) ((l) == QD_LATCH_TRK || (l) == QD_LATCH_MIX || (l) == QD_LATCH_FX)   /* (P1.4b: B1..B8 the
+                                                         * track, B1..B4 the effect; the W keys nothing) */
 
 /* P1.3y (the owner's addition): the encoders' layouts (the global settings' KNOBS), one table of roles: what SELECT,
  * ALGORITHM and PRESETS do with no finger on a step (nothing held, or the step latch's selection), in the PIANO ROLL
@@ -289,9 +295,11 @@ typedef struct {
     int snd_page;                      /* P1.4a: the sound editor's page (QD_SND_PAGES) .. */
     int snd_knob;                      /* .. the knob last turned there (0..3 KNOB 1..4, 4 ALGORITHM; -1 none) .. */
     uint32_t snd_ms;                   /* .. and when */
+    int trk_page, mix_page, fx_page;   /* P1.4b: the track settings' page (0, 1), the mix's (0 faders, 1 sends), the
+                                        * effects' (QD_FX_PAGES) */
+    int menu_knob;                     /* .. the knob turned last there (0..3, -1) */
     uint32_t sel_ms;                   /* P1.3y: SEL went down (its map after QD_TAP_MS, or once a key is used) .. */
     int sel_used;                      /* .. a key used it */
-    int page_used;                     /* PAGE held picked a page: its release is not a tap */
     int rec_down_used;                 /* REC + PLAY: REC's release is not a tap */
     uint32_t rec_down_ms;              /* P1.3x: REC went down (held QD_REC_HOLD_MS: live recording armed) */
     uint32_t play_down_ms;             /* P1.3x: PLAY went down (held QD_PLAY_HOLD_MS: F3); .. */
@@ -392,6 +400,29 @@ void qd_snd_black(struct qd_app *a, int b);     /* B1..B5 the groups (again: the
 int qd_snd_knob(struct qd_app *a, int knob, int d);   /* 1: taken */
 void qd_snd_leds(const struct qd_app *a, uint8_t *black);   /* the eleven black keys' LEDs */
 const qd_lockscreen_t *qd_snd_lock_screen(int page);
+
+/* ---- ctl_mix.c (P1.4b, built through ctl_latch.c): the track settings, the mix, the effects. The effects' pages: a
+ * cell is a qd_fx.h parameter, QD_FXC_SEND (the selected track's send into the page's effect), QD_FXC_TIME /
+ * QD_FXC_SPREAD (the free or the synced one by SYNC), or none */
+enum { QD_FXC_NONE = -1, QD_FXC_SEND = -2, QD_FXC_TIME = -3, QD_FXC_SPREAD = -4 };
+#define QD_FX_NPAGE 6
+typedef struct {
+    const char *name;
+    uint8_t fx, draw;                  /* the effect (0 DELAY 1 REVERB 2 CHORUS 3 MASTER), ui.h UI_FXD_* */
+    int8_t c[4];
+} qd_fxpage_t;
+extern const qd_fxpage_t QD_FX_PAGES[QD_FX_NPAGE];
+extern const char *const QD_FX_NAME[4];
+int qd_fx_cell_id(int c);               /* a cell's parameter now (TIME, SPREAD: by SYNC) */
+int qd_fx_send_id(int fx);              /* the mix lock id of a track's send into effect fx */
+void qd_trk_button(struct qd_app *a);   /* SEL tapped: open / the next page */
+void qd_mix_button(struct qd_app *a);   /* ENV (MIX): open / the sends / the faders */
+void qd_fx_button(struct qd_app *a);    /* FX tapped: open / the next page */
+void qd_panel_black(struct qd_app *a, int b);
+int qd_trk_knob(struct qd_app *a, int knob, int d);
+int qd_mix_knob(struct qd_app *a, int knob, int d);
+int qd_fx_knob(struct qd_app *a, int knob, int d);
+void qd_panel_leds(const struct qd_app *a, uint8_t *black);
 int qd_ctl_black(int key);             /* the black key 0..10 of a note key, or -1 */
 int qd_ctl_knob_job(int mode, int knob);
 /* P1.3e: the mode whose default a held mode key edits (-1 none), and whether its full picture shows (held 250 ms, or
@@ -476,7 +507,8 @@ enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR
        QD_SCR_SEQ, QD_SCR_DEFAULT,     /* (P1.3e: a mode key held: the mode's default, its full picture) */
        QD_SCR_EDIT,                    /* P1.3r: the EDIT view (holding, latching, a mode key: all in it) */
        QD_SCR_MENU,                    /* P1.3y: a settings menu (the record settings, the global settings) */
-       QD_SCR_SOUND };                 /* P1.4a: the sound editor */
+       QD_SCR_SOUND,                   /* P1.4a: the sound editor */
+       QD_SCR_MIX, QD_SCR_FX };        /* P1.4b: the mix, the effects */
 /* P1.3r: a knob's takeover (band, picture, picker) drawn over the screen now: never over EDIT, whose top is the pop-up */
 int qd_view_overlay(const struct qd_app *a);
 struct ui_snd;

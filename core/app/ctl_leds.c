@@ -105,6 +105,15 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     const int page = u->page[a->sel], layer = qd_ctl_layer(a);
     int i;
     leds_whites(a, out);
+    if (QD_LATCH_PANEL(u->latch)) {                     /* P1.4b: the track settings, the mix, the effects */
+        uint8_t bk[11];
+        qd_panel_leds(a, bk);
+        for (i = 0; i < 11; i++)
+            out->key[QD_BLACK_KEY[i]] = bk[i];
+        for (i = 0; i < 16; i++)
+            out->key[QD_WHITE_KEY[i]] = QD_LED_OFF;
+        return;
+    }
     if (qd_snd_open(a)) {                               /* P1.4a: the sound editor: its groups, B11 the page's locks */
         uint8_t bk[11];
         qd_snd_leds(a, bk);
@@ -185,15 +194,6 @@ static void leds_keys(const qd_app_t *a, qd_leds_t *out)
     }
 }
 
-static void leds_tracks(const qd_app_t *a, qd_leds_t *out)
-{
-    int i;
-    for (i = 0; i < QD_NTRACK; i++) {
-        out->key[QD_WHITE_KEY[i]] = qd_ctl_trig_flash(a, i) ? QD_LED_LIT : i == a->sel ? QD_LED_DIM : QD_LED_OFF;
-        if (qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, i), i))
-            out->key[QD_WHITE_KEY[QD_NTRACK + i]] = QD_LED_LIT;
-    }
-}
 
 /* SEL held (§8b 2.1): B1..B8 the tracks (selected lit, the others dim); W1..W8 lit = heard, off = not (muted, or
  * another track soloed), blinking = soloed; W9..W16 off; B11 lit while any mute or solo is set */
@@ -245,8 +245,6 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         leds_step(a, out);
     else if (u->mode == QD_MODE_KEYS)
         leds_keys(a, out);
-    else if (u->mode == QD_MODE_TRACKS)
-        leds_tracks(a, out);
     if (held(a, QD_B_TRACKS)) {                         /* TRACKS held: the selected track's white key dim */
         const int k = QD_WHITE_KEY[a->sel];
         if (out->key[k] < QD_LED_DIM)
@@ -265,10 +263,12 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_REC] = !u->rec || blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
     if (a->seq.fill)
         out->button[QD_B_KEYS] = QD_LED_LIT;            /* ARP: FILL */
-    if (u->follow && u->mode != QD_MODE_IDLE)
+    if (u->latch == QD_LATCH_MIX)                       /* P1.4b: ENV (MIX), FX, SEL lit while their pages are open */
         out->button[QD_B_PAGE] = QD_LED_LIT;
-    if (u->mode == QD_MODE_TRACKS)
+    if (u->latch == QD_LATCH_FX)
         out->button[QD_B_TRACKS] = QD_LED_LIT;
+    if (u->latch == QD_LATCH_TRK)
+        out->button[QD_B_PATTERN] = QD_LED_LIT;
     if (u->slatch)                                      /* P1.3d: LFO lit while the step latch is on */
         out->button[QD_B_MUTE] = QD_LED_LIT;
     if (qd_snd_open(a))                                 /* P1.4a: EDIT lit while the sound editor is open */
