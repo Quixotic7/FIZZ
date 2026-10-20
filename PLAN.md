@@ -1411,3 +1411,23 @@ name when there is one.
   first (`fm1-backups/before-remotefm1-20261019/choralroot-data-backup.json`: settings, 128 user sounds, favourites, loop
   slot 1), then RemoteFM1 0.1.1 installed (`remote-0.1.1.fwsc` sha256 a7408d6c..., matching its SHA256SUMS); the unit
   answers FM-1_015 with its vendor interface; the FIZZ Standalone relaunched.
+
+**2026-10-19/20, P1.3y, P1.4a, P1.4b** (FMToneSeq 3154357, d353c7e, 79256ba; FM1VST `core-quadrille` 6bb6f4b + the
+merge of main ffdbb7e 189e2be, 647073c, ea052de; versions 0.2.3-p1.3y, 0.3.0-p1.4a, 0.3.1-p1.4b; each relaunched):
+- P1.3y: FUNC's LEAP n (QD_FN_LEAP, golden p31-leap) on B8, JUMP on B9 with B9 held + W as the target; HOME returns to
+  the view in one press, SHIFT + HOME cycles; with no step held SELECT = page, ALGORITHM = cursor, PRESETS = preset
+  (defaults only with the mode key held); LFO held + a black key = the hold mode; the TRACK frame (magenta 0xf03cff) on
+  every track-default screen; FX held + ALGORITHM = the track. The owner's additions: SHIFT + REC record settings (MODE
+  LIVE / STEP, QUANTIZE, TAKE REPLACE / OVERDUB, in `qd_project_t`); nearest-value key lights in every mode; SHIFT + SEL
+  global settings with KNOBS layouts A..D (D added: SELECT cursor, ALGORITHM value) and PAGE FOLLOW; a SEL tap shows
+  nothing (the map after 250 ms). SHIFT + REC / SEL open over the step view.
+- P1.4a: the sound editor on EDIT (latched): B1..B5 groups, a group key again = its next page, 18 pages (the 74 values
+  do not fit five groups of two), KNOB 1..4 the page's values, ALGORITHM a fifth where a page has one, SHIFT + a knob =
+  the finest step, PRESETS the preset / sound lock. Nothing held = the track (TRACK frame); a step held = p-locks
+  (padlocks, the track's envelope dashed behind, B11 clears the page's locks). DRIVE = patch value 73 (QD_QUAD_NP 74),
+  ChoralRoot's `track_dist` per voice (bit-exact test), loaded with the preset, p-lockable. Open for the owner: each
+  page's foot row of four values vs the "no knob-value rows" rule.
+- P1.4b: a SEL tap = the track's settings (SCALE, ROOT, FOLLOW KEY, MIDI CH; page 2 VOICES, SWING, PAGE FOLLOW; B1..B8
+  other tracks); ENV = MIX (faders, pan, meters, sends; ENV again = the sends page); FX = ChoralRoot's effects, every
+  parameter (DELAY, DELAY 2, REVERB, REVERB 2, CHORUS, MASTER; B1..B4, again = the second page). The clocks screen is
+  retired (its values now live on F3, the track settings and SEL); PAGE + W is gone.
