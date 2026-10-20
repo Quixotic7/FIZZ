@@ -1258,3 +1258,8 @@ notes drawn dark on it, velocity as the fill height, a length line under held / 
 cursor (the latch, STEPS stays on screen), the NOTE-mode override bars dropped. Also 81f5718: the logo's inner bubbles
 orbit in whole turns (they jumped at the 11 s wrap).
 - The owner (2026-10-19): with the PRESETS cursor, STEPS stays on screen (kept as P1.3q built it).
+
+**2026-10-19, P1.3r** (FMToneSeq 51ffc81; FM1VST `core-quadrille` 273195f; version 0.1.7-p1.3r; relaunched): HOME cycles
+PIANO ROLL, STEPS and **EDIT** (the edited page as one row at the bottom, the hold mode's picture re-laid-out above it,
+the value strip between; both update together; no pop-ups over it); the PRESETS cursor walks all 8 pages in order (8
+wraps to 1); pop-ups and held screens drop the track from their headers.
