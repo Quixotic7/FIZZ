@@ -985,6 +985,48 @@ reverb, chorus). PAGE's jobs move: page follow to the settings, pages to SELECT 
 - **FM1VST:** improvements of general use (the screen copy, FM1_ONLY_CORES) go to FM1VST main; FIZZ's glue stays on
   `core-quadrille`. The owner: push FM1VST main once its tests pass.
 
+### P1.5a, saving and the pool: the mock-up (2026-10-20)
+
+`mockups/fizz-save-pool.html` (sheet `mockups/png/fizz-save-pool-sheet.png`, GIFs `fizz-save-tap.gif`,
+`fizz-pool-store.gif`, `fizz-pool-move.gif`): thirteen screens, each with the FM-1's keys under it. SAVE is champagne
+(0xf3d9a4), the pool SOUND's lime, a track its own colour.
+
+**Saving**
+- **SAVE tapped** saves the project (every changed pattern and the pool), from anywhere, playing or stopped (§7: page
+  programs only while playing). The changed patterns' bubbles rise into a tick; the screen hands back after a second.
+  **The SAVE key is lit while anything is unsaved.**
+- **SAVE held** opens the save page (latched; OCT− / HOME back): the project's number and name, its 64 patterns (a
+  speck empty, a ring used, a champagne ring fizzing changed, filled the one playing), the flash meter and the pool's
+  count. **B11 held 1 s** reverts the playing pattern to its save (its steps blink where they differ, then fall back).
+- **Projects**, the save page's second page (SELECT or SAVE held again): eight on **W1..W8** with a thumbnail of their
+  patterns; W chooses, **F2 (OCT+) loads** (SAVE blinks first if there are unsaved changes; F2 again loads anyway),
+  F1 + W copies a project ("save as"), B11 held + W deletes, B10 names.
+
+**The pool manager** (**SHIFT + EDIT**)
+- 128 sounds as **8 banks of 16**: **B1..B8 the bank, W1..W16 its sounds**; SELECT / PRESETS turn through all 128. A tile
+  is the sound's amp envelope as a silhouette (white factory, orange drums, lime the user's) and its name. On top: the
+  number, the name big, its users (the tracks' boxes; a padlock and the count of steps that lock it).
+- **W tapped** chooses and plays it once; **W held** plays it while held and the sound takes the screen (cassette, wave,
+  users); **F2 (OCT+)** puts it on the selected track (with a step held: locks it on the step).
+- **Store: SAVE in the sound editor** (or in the pool) opens STORE on the **first free slot** with an **auto-name** from
+  the sound (envelope and spectrum: PLUCK, PAD, BASS, KEYS, BELL, LEAD, KICK, HAT, NOISE ... with BRIGHT, DARK, SOFT,
+  WIDE ...); SAVE again stores it; W chooses another slot; a slot that holds a sound needs **SAVE held 1 s** (the
+  steps that lock it blink: they will play the new sound; the name stays).
+- **B10** names (SELECT the letter on a drum over the cursor, ALGORITHM along, B11 deletes a letter, B10 again another
+  auto-name, F2 keeps). **F1 + W** copy then paste (into a free slot "NAME 2"), **F2 + W** pick up / drop (a filled slot
+  swaps; every lock and track that uses it follows: renumbered in all patterns), **B11 held + W held 1 s** deletes (it
+  fizzes away; tracks keep their copy, the steps that locked it go back to the track's sound; INIT cannot go).
+
+**Questions for the owner** (a recommendation each)
+1. **Projects**: eight, each with its own patterns and pool (recommended; on the device they share the pattern store
+   and the meter shows it), or a single project.
+2. **Track sounds**: kept per pattern, as the snapshots of P1.5b take them (recommended), or per project.
+3. **When it is written**: SAVE by hand with the lit SAVE key (recommended, ChoralRoot's way), or the working copy
+   written by itself 1.5 s after an edit with SAVE as a restore point (§7's earlier recommendation).
+4. **The pool on SHIFT + EDIT** (EDIT tapped stays the editor), and **SAVE in the editor = store the sound** (while
+   SAVE elsewhere saves the project).
+5. **Auto-names** from the sound's character (recommended) or from where it came from ("EP 2").
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.

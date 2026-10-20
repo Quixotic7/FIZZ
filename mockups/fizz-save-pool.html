@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ save and pool</title>
+<!-- FIZZ P1.5a mock-up (2026-10-20): saving (SAVE tap / the SAVE page / revert / projects) and the sound pool manager
+     (browse, audition, store, overwrite, name, copy, move, delete, load). Each screen is the 240 x 240 panel, drawn as
+     the firmware draws (black, line work, labels 12 px and up), with the FM-1's keys under it: what is held, what is lit.
+     ?shot=N[&t=s]   one canvas at 1x, top left       ?sheet=1   every screen at 2x with its keys      no query: the page -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f1eee8; --fg:#1b1b1f; --dim:#66625b; --line:#d6d1c7; } }
+:root[data-theme="dark"] { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 6px; }
+p, li { color: var(--dim); max-width: 860px; }
+p strong, li strong { color: var(--fg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 480px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+canvas.keys { width: 480px; max-width: 100%; height: auto; display: block; margin-top: 6px; }
+body.shot { padding: 0; background: #000; }
+body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; color: #ddd; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px 22px; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+.sheettitle { font: 700 20px -apple-system, "Helvetica Neue", Arial; margin: 0 0 14px; color: #eee; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: saving and the sound pool (P1.5a mock-up)</h1>
+<p>Thirteen screens. Each is the 240 x 240 panel at 2x, animated. Under each one are the FM-1's keys as the gesture
+leaves them: <strong>a filled key is held</strong>, an outlined key is lit, a dashed one blinks. SAVE is champagne,
+the POOL is SOUND's lime, a track keeps its own colour. None of the screens carries instructions; the gestures are
+below each screen and in PLAN.md.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+/* ---------------------------------------------------------------- palette */
+const C = { bg: '#000', k1: '#3f7dff', k2: '#1fd47e', k3: '#f1f0ea', k4: '#ff6a2c', sel: '#ffd23f', red: '#ff3448',
+            g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d', save: '#f3d9a4', pool: '#b5e853', trk: '#f03cff' };
+const TP = ['#3f7dff', '#1fd47e', '#f1f0ea', '#ff6a2c', '#ff3ca0', '#ffd23f', '#9664ff', '#28e1ff'];
+const F = 'IT', TAU = Math.PI * 2;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const ease = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const lerp = (a, b, u) => a + (b - a) * u;
+
+/* ---------------------------------------------------------------- drawing helpers (line.html's) */
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = o.bl || 'alphabetic';
+  if (o.a != null) c.globalAlpha = o.a;
+  if (o.clip) { c.beginPath(); c.rect(o.clip[0], o.clip[1], o.clip[2], o.clip[3]); c.clip(); }
+  c.fillText(s, x, y); c.restore();
+}
+function TW(c, s, o = {}) { c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; const w = c.measureText(s).width; c.restore(); return w; }
+function P(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = o.a;
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  if (o.close) c.closePath(); if (o.fill) { c.fillStyle = o.fill; c.fill(); } c.stroke(); c.restore();
+}
+function O(c, x, y, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = o.a; if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.arc(x, y, Math.max(0.1, r), o.a0 || 0, o.a1 == null ? TAU : o.a1);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.stroke(); } c.restore();
+}
+function RR(c, x, y, w, h, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = o.a; if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.roundRect(x + lw / 2, y + lw / 2, w - lw, h - lw, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function bg(c) { c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); }
+function box(c, x, y, n, col) {                      /* a track's number in its box */
+  RR(c, x, y, 16, 16, 2, col, 1.3); T(c, String(n), x + 8, y + 12.5, { s: 12, w: 600, col, al: 'center' });
+}
+function back(c) {                                   /* the latched page's back mark, top right (as the firmware's) */
+  RR(c, 208, 4, 26, 17, 3, C.k3, 1.3); P(c, [227, 12.5, 215, 12.5], C.k3, 1.4); P(c, [219, 8.5, 215, 12.5, 219, 16.5], C.k3, 1.4);
+}
+function head(c, title, col, o = {}) {               /* TITLE (12 px 600) + page dots, the back mark */
+  T(c, title, 8, 17, { s: 12, w: 600, ls: 1, col });
+  let x = 8 + TW(c, title, { s: 12, w: 600, ls: 1 }) + 9;
+  if (o.pages) for (let i = 0; i < o.pages[1]; i++) { O(c, x + i * 9, 13, 2.6, i === o.pages[0] ? null : C.g1, 1, i === o.pages[0] ? C.k3 : null); }
+  if (o.back !== false) back(c);
+  P(c, [8, 25, 232, 25], C.g3, 1);
+}
+function lockIcon(c, x, y, col) { RR(c, x, y + 4, 9, 7, 1.5, null, 1, col); O(c, x + 4.5, y + 4, 3, col, 1.4, null, { a0: Math.PI, a1: 0 }); }
+function bubble(c, x, y, r, col, a = 1) { O(c, x, y, r, col, 1, null, { a }); if (r > 2.5) O(c, x - r * 0.3, y - r * 0.3, r * 0.35, null, 1, col, { a: a * 0.6 }); }
+function ring(c, x, y, r, u, col, lw = 2.5) {        /* a hold's progress ring */
+  O(c, x, y, r, C.g3, lw); if (u > 0) O(c, x, y, r, col, lw, null, { a0: -Math.PI / 2, a1: -Math.PI / 2 + TAU * clamp(u, 0, 1) });
+}
+
+/* ---------------------------------------------------------------- the example project */
+const PROJ = { n: 1, name: 'NIGHT BUS' };
+/* patterns A01..D16: 0 empty, 1 used, 2 used and changed since the save; A02 is the one playing */
+const PATS = (() => { const a = new Array(64).fill(0); [0, 1, 2, 3, 4, 5, 8, 9, 16, 17, 18, 32].forEach(i => a[i] = 1);
+  [1, 4, 17].forEach(i => a[i] = 2); return a; })();
+const CUR = 1;
+/* the pool's bank 2 (sounds 17..32); fam: f factory, d drums, u user; env: attack, decay, sustain, release (0..1) */
+const BANK2 = [
+  { n: 17, name: 'NOISE-ISH', fam: 'f', env: [0.1, 0.5, 0.35, 0.5] },
+  { n: 18, name: 'KICK', fam: 'd', env: [0, 0.28, 0, 0.1] },
+  { n: 19, name: 'SNARE', fam: 'd', env: [0, 0.32, 0, 0.15], locks: 12 },
+  { n: 20, name: 'CLAP', fam: 'd', env: [0.03, 0.22, 0, 0.2] },
+  { n: 21, name: 'GHOST', fam: 'd', env: [0, 0.16, 0, 0.1] },
+  { n: 22, name: 'HAT', fam: 'd', env: [0, 0.08, 0, 0.05], locks: 8 },
+  { n: 23, name: 'OPEN HAT', fam: 'd', env: [0, 0.42, 0, 0.3] },
+  { n: 24, name: 'PLUCK 2', fam: 'u', env: [0, 0.36, 0.12, 0.25], tracks: [4], locks: 6 },
+  { n: 25, name: 'BASS 3', fam: 'u', env: [0, 0.3, 0.62, 0.12], tracks: [2] },
+  { n: 26, name: 'TINE', fam: 'u', env: [0, 0.62, 0.18, 0.45] },
+  { n: 27, name: 'VOX PAD', fam: 'u', env: [0.55, 0.4, 0.8, 0.65], tracks: [6] },
+  null, null, null, null, null,
+];
+const FAMC = { f: C.k3, d: C.k4, u: C.pool };
+const num3 = n => String(n).padStart(3, '0');
+
+function tileXY(i) { return [6 + (i % 4) * 58, 64 + Math.floor(i / 4) * 44]; }
+function glyph(c, x, y, w, h, env, col, a = 1, lw = 1.4) {   /* a sound's amp envelope as its little silhouette */
+  const [at, de, su, re] = env, tot = 0.15 + at + de + 0.35 + re, k = w / tot;
+  const x1 = x + 0.08 * k, x2 = x1 + at * k, x3 = x2 + de * k, x4 = x3 + 0.35 * k, x5 = x4 + re * k;
+  const top = y, base = y + h, sy = base - su * h;
+  P(c, [x, base, x1, base, x2, top, x3, sy, x4, sy, x5, base, x + w, base], col, lw, { a });
+}
+function tile(c, s, i, o = {}) {                     /* one sound of the bank: its outline, silhouette and name */
+  const [x, y] = o.at || tileXY(i), w = 54, h = 40;
+  if (!s) { RR(c, x, y, w, h, 5, C.g2, 1, null, { dash: [2, 3], a: o.a == null ? 1 : o.a }); return; }
+  const col = o.sel ? C.pool : C.g2, fc = FAMC[s.fam];
+  c.save(); if (o.a != null) c.globalAlpha = o.a;
+  RR(c, x, y, w, h, 5, o.col || col, o.sel ? 1.8 : 1.1, C.bg);
+  glyph(c, x + 7, y + 6, w - 14, 13, s.env, o.sel ? C.pool : fc, 1, o.sel ? 1.6 : 1.2);
+  T(c, s.name, x + 5, y + 34, { s: 12, w: 500, col: o.sel ? C.k3 : C.g1, clip: [x + 2, y, w - 4, h] });
+  if (TW(c, s.name, { s: 12, w: 500 }) > w - 8) { const g = c.createLinearGradient(x + w - 16, 0, x + w - 3, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000'); c.fillStyle = g; c.fillRect(x + w - 16, y + 23, 13, 14); }
+  c.restore();
+}
+function usage(c, s, x, y, o = {}) {                 /* who uses it: the tracks' boxes, then the locks' padlock and count */
+  (s.tracks || []).forEach(t => { box(c, x, y, t, TP[t - 1]); x += 21; });
+  if (s.locks) { lockIcon(c, x + 2, y + 1, o.lcol || C.g1); T(c, '×' + s.locks, x + 14, y + 13, { s: 12, w: 600, col: o.lcol || C.g1 }); }
+}
+function bankDots(c, x, b, col) { for (let i = 0; i < 8; i++) RR(c, x + i * 9, 8, 7, 7, 1.5, i === b ? null : C.g2, 1, i === b ? col : null); }
+function poolTop(c, s, o = {}) {                     /* POOL, the bank, the chosen sound: number, name big, its users */
+  head(c, o.title || 'POOL', C.pool); bankDots(c, 8 + TW(c, o.title || 'POOL', { s: 12, w: 600, ls: 1 }) + 10, 1, C.pool);
+  if (!s) return;
+  T(c, num3(s.n), 8, 41, { s: 12, w: 600, ls: 1, col: C.pool });
+  T(c, s.name, 8, 59, { s: 20, w: 300, col: C.k3 });
+  usage(c, s, 232 - ((s.tracks || []).length * 21 + (s.locks ? 36 : 0)), 30);
+}
+function grid16(c, list, sel, o = {}) { list.forEach((s, i) => { if (o.skip && o.skip.includes(i)) return; tile(c, s, i, { sel: i === sel }); }); }
+function cassette(c, x, y, w, h, s, col, t, o = {}) { /* the sound as a cassette (the firmware's sound picture) */
+  RR(c, x, y, w, h, 7, col, 1.6, C.bg);
+  RR(c, x + 10, y + 8, w - 20, h * 0.36, 3, C.g2, 1);
+  T(c, num3(s.n), x + 16, y + 23, { s: 12, w: 600, col });
+  T(c, s.name, x + w / 2, y + 8 + h * 0.36 - 6, { s: o.big || 14, w: 500, col: C.k3, al: 'center' });
+  [0.3, 0.7].forEach((u, j) => { const rx = x + w * u, ry = y + h * 0.72, r = Math.min(13, h * 0.15);
+    O(c, rx, ry, r, C.g1, 1.3);
+    for (let k = 0; k < 3; k++) { const an = t * 3 + k * TAU / 3 + j; P(c, [rx + Math.cos(an) * r * 0.35, ry + Math.sin(an) * r * 0.35, rx + Math.cos(an) * r * 0.8, ry + Math.sin(an) * r * 0.8], C.g1, 1.2); } });
+}
+
+/* ---------------------------------------------------------------- SAVE */
+function patGrid(c, y0, t, o = {}) {                 /* A..D x 16: empty a speck, used a ring, changed fizzing, current filled */
+  ['A', 'B', 'C', 'D'].forEach((b, r) => T(c, b, 10, y0 + r * 15 + 4.5, { s: 12, w: 600, col: C.g1 }));
+  for (let i = 0; i < 64; i++) {
+    const x = 32 + (i % 16) * 12.6 + Math.floor((i % 16) / 4) * 2, y = y0 + Math.floor(i / 16) * 15, v = PATS[i];
+    const changed = v === 2 && !(o.saved && o.saved(i));
+    if (!v) { O(c, x, y, 1.3, null, 1, C.g2); continue; }
+    if (i === CUR) O(c, x, y, 4.2, null, 1, changed ? C.save : C.k3);
+    else O(c, x, y, 4, changed ? C.save : C.g1, 1.3, C.bg);
+    if (changed && o.fizz !== false) for (let k = 0; k < 3; k++) {   /* changed: little bubbles keep rising off it */
+      const u = ((t * 0.9 + k / 3 + hash(i + k) * 0.3) % 1), by = y - 6 - u * 10;
+      bubble(c, x + Math.sin(u * 7 + k) * 2, by, 1 + 0.6 * (1 - u), C.save, 1 - u);
+    }
+  }
+}
+function meter(c, y, frac, own, col, icon, txt) {     /* the store's use: a bar, this project's part in colour */
+  icon(c, 10, y - 7); const x0 = 32, w = 160;
+  P(c, [x0, y, x0 + w, y], C.g3, 4); P(c, [x0, y, x0 + w * frac, y], C.g1, 4); P(c, [x0 + w * (frac - own), y, x0 + w * frac, y], col, 4);
+  T(c, txt, 232, y + 5, { s: 14, w: 400, col: C.k3, al: 'right' });
+}
+const chipIcon = (c, x, y) => { RR(c, x, y, 14, 14, 2, C.g1, 1.2); for (let k = 0; k < 3; k++) { P(c, [x + 3 + k * 4, y - 2, x + 3 + k * 4, y], C.g1, 1); P(c, [x + 3 + k * 4, y + 14, x + 3 + k * 4, y + 16], C.g1, 1); } };
+const tapeIcon = (c, x, y) => { RR(c, x, y + 1, 16, 12, 2, C.g1, 1.2); O(c, x + 5, y + 8, 2, C.g1, 1); O(c, x + 11, y + 8, 2, C.g1, 1); };
+function project(c, y, col) {                        /* the project: its number big, its name */
+  T(c, String(PROJ.n).padStart(2, '0'), 8, y, { s: 38, w: 200, col });
+  T(c, PROJ.name, 62, y - 13, { s: 20, w: 300, col: C.k3 });
+}
+function sSaveTap(c, t) {                             /* SAVE tapped: the changes rise as bubbles and the save lands */
+  bg(c); const L = 2.4, u = (t % L) / L;
+  head(c, 'SAVE', C.save, { back: false });
+  project(c, 66, C.save);
+  const done = i => u > 0.25 + [1, 4, 17].indexOf(i) * 0.08;
+  patGrid(c, 92, t, { saved: done, fizz: u < 0.2 });
+  [1, 4, 17].forEach((i, k) => {                    /* each changed pattern sends its bubbles up into the project */
+    const x0 = 32 + (i % 16) * 12.6 + Math.floor((i % 16) / 4) * 2, y0 = 92 + Math.floor(i / 16) * 15;
+    for (let b = 0; b < 7; b++) { const v = (u - 0.22 - k * 0.08 - b * 0.025) / 0.45; if (v <= 0 || v >= 1) continue;
+      const y = lerp(y0, 52, ease(v)), x = lerp(x0, 194 + b * 2, ease(v)) + Math.sin(v * 9 + b) * 3;
+      bubble(c, x, y, 1.5 + 2.5 * hash(b + k * 7), C.save, 1 - v * 0.7); }
+  });
+  const ck = ease((u - 0.62) / 0.18), fade = 1 - ease((u - 0.9) / 0.1);     /* the tick drawn in a circle */
+  if (ck > 0) { c.save(); c.globalAlpha = fade;
+    O(c, 200, 52, 18, C.save, 2, C.bg, { a0: -Math.PI / 2, a1: -Math.PI / 2 + TAU * ck });
+    if (ck > 0.5) { const v = (ck - 0.5) * 2; const pts = [191, 52, 198, 59, 211, 45], m = v < 0.4 ? v / 0.4 : 1;
+      P(c, [191, 52, lerp(191, 198, m), lerp(52, 59, m)], C.save, 2.4);
+      if (v > 0.4) { const n = (v - 0.4) / 0.6; P(c, [198, 59, lerp(198, 211, n), lerp(59, 45, n)], C.save, 2.4); } }
+    c.restore(); }
+  meter(c, 182, 0.31, 0.09, C.save, chipIcon, '31%');
+  meter(c, 214, 27 / 128, 27 / 128, C.pool, tapeIcon, '27');
+}
+function sSavePage(c, t) {                            /* SAVE held: the save page (latched) */
+  bg(c); head(c, 'SAVE', C.save, { pages: [0, 2] });
+  project(c, 66, C.save);
+  patGrid(c, 92, t);
+  meter(c, 182, 0.31, 0.09, C.save, chipIcon, '31%');
+  meter(c, 214, 27 / 128, 27 / 128, C.pool, tapeIcon, '27');
+}
+function sRevert(c, t) {                              /* the save page, B11 held: the pattern goes back to its save */
+  bg(c); head(c, 'SAVE', C.save, { pages: [0, 2] });
+  const L = 2.2, u = (t % L) / L, hold = clamp(u / 0.55, 0, 1), done = u > 0.55;
+  ring(c, 120, 92, 50, hold, C.k4, 3);
+  T(c, 'A02', 120, 106, { s: 40, w: 200, col: done ? C.save : C.k3, al: 'center' });
+  const an = -Math.PI / 2 - hold * TAU;              /* the rewind arrow riding the ring */
+  if (!done) { const ax = 120 + Math.cos(an) * 50, ay = 92 + Math.sin(an) * 50;
+    O(c, ax, ay, 5, null, 1, C.k4); }
+  for (let tr = 0; tr < 8; tr++) {                    /* the eight tracks' steps: what changed blinks, then falls back */
+    const y = 160 + tr * 9.5;
+    for (let s = 0; s < 16; s++) {
+      const x = 22 + s * 12.4 + Math.floor(s / 4) * 3, h = hash(tr * 16 + s);
+      const savedOn = h > 0.62, nowOn = (tr === 2 || tr === 5) ? hash(tr * 31 + s) > 0.55 : savedOn;
+      const on = done ? savedOn : nowOn, diff = savedOn !== nowOn;
+      if (on) RR(c, x, y, 9, 6, 1.5, null, 1, done && diff ? C.save : TP[tr], { a: !done && diff ? (Math.floor(t * 6) % 2 ? 1 : 0.25) : 0.85 });
+      else if (diff && !done) RR(c, x, y, 9, 6, 1.5, C.save, 1, null, { a: Math.floor(t * 6) % 2 ? 0.9 : 0.2 });
+      else O(c, x + 4.5, y + 3, 0.9, null, 1, C.g2);
+    }
+  }
+}
+function sProjects(c, t) {                            /* the save page's second page: the eight projects on W1..W8 */
+  bg(c); head(c, 'PROJECTS', C.save, { pages: [1, 2] });
+  const P8 = [{ n: 1, name: 'NIGHT BUS', u: [0, 1, 2, 3, 4, 5, 8, 9, 16, 17, 18, 32] }, { n: 2, name: 'TAPE CLUB', u: [0, 1, 2, 3, 4, 5, 6, 7, 16, 17] },
+              { n: 3, name: 'DRUMS', u: [0, 1, 2] }, null, { n: 5, name: 'FM SKETCH', u: [0] }, null, null, null];
+  P8.forEach((p, i) => {
+    const x = 6 + (i % 4) * 58, y = 32 + Math.floor(i / 4) * 104, w = 54, h = 98, cur = i === 0, pick = i === 1;
+    if (!p) { RR(c, x, y, w, h, 6, C.g2, 1, null, { dash: [2, 3] }); P(c, [x + w / 2 - 6, y + h / 2, x + w / 2 + 6, y + h / 2], C.g2, 1.4); P(c, [x + w / 2, y + h / 2 - 6, x + w / 2, y + h / 2 + 6], C.g2, 1.4); return; }
+    const col = cur ? C.save : pick ? C.k3 : C.g2, blink = pick && Math.floor(t * 3) % 2;
+    RR(c, x, y, w, h, 6, col, cur || pick ? 1.8 : 1.1, null, { a: pick && !blink ? 0.45 : 1 });
+    T(c, String(p.n).padStart(2, '0'), x + 7, y + 30, { s: 26, w: 200, col: cur ? C.save : C.k3 });
+    const words = p.name.split(' ');
+    words.forEach((wd, k) => T(c, wd, x + 7, y + 50 + k * 15, { s: 12, w: 500, col: C.g1, clip: [x + 2, y, w - 4, h] }));
+    for (let q = 0; q < 64; q++) { const gx = x + 8 + (q % 16) * 2.4, gy = y + 80 + Math.floor(q / 16) * 3.4;   /* its patterns, tiny */
+      c.fillStyle = p.u.includes(q) ? (cur ? C.save : C.g1) : C.g3; c.fillRect(gx, gy, 1.6, 1.6); }
+  });
+}
+
+/* ---------------------------------------------------------------- the POOL */
+function sPool(c, t) {                                /* SHIFT + EDIT: the pool, bank 2, PLUCK 2 chosen */
+  bg(c); poolTop(c, BANK2[7]); grid16(c, BANK2, 7);
+  const [x, y] = tileXY(7); const pulse = (t * 2) % 1;  /* it sounds once when chosen: the silhouette lights along */
+  c.save(); c.beginPath(); c.rect(x + 6, y + 2, 42 * pulse, 20); c.clip(); glyph(c, x + 7, y + 6, 40, 13, BANK2[7].env, C.k3, 1, 1.8); c.restore();
+}
+function scope(c, x, y, w, h, t, s) {                 /* the sound playing: its wave under its envelope */
+  const [at, de, su] = s.env; c.save(); c.beginPath(); c.rect(x, y - h, w, 2 * h); c.clip();
+  c.strokeStyle = C.pool; c.lineWidth = 1.4; c.beginPath();
+  for (let i = 0; i <= 160; i++) { const u = i / 160, ph = (t * 1.2) % 1.6, age = clamp((u * 1.6 - (1.6 - ph) + 1.6) % 1.6, 0, 1.6);
+    const env = age < at * 0.4 ? age / (at * 0.4 + 1e-3) : Math.max(su, 1 - (age - at * 0.4) / (de * 1.2 + 0.05));
+    const v = Math.sin(u * TAU * 9) * 0.7 + Math.sin(u * TAU * 27 + 1) * 0.3 * env;
+    const yy = y - v * h * env * 0.9; i ? c.lineTo(x + u * w, yy) : c.moveTo(x + u * w, yy); }
+  c.stroke(); c.restore(); P(c, [x, y, x + w, y], C.g3, 1);
+}
+function sAudition(c, t) {                            /* a white key held in the pool: the sound takes the screen and plays */
+  bg(c); head(c, 'POOL', C.pool, { back: false }); bankDots(c, 54, 1, C.pool);
+  const s = BANK2[7];
+  cassette(c, 30, 34, 180, 104, s, C.pool, t, { big: 20 });
+  scope(c, 16, 178, 208, 22, t, s);
+  usage(c, s, 120 - 36, 214, { lcol: C.k3 });
+}
+function sStore(c, t) {                               /* SAVE in EDIT (or in the pool): the track's sound into the first free slot */
+  bg(c); const L = 2.6, u = (t % L) / L;
+  const tgt = 11, s = { n: 28, name: 'BRIGHT PLUCK', fam: 'u', env: [0, 0.4, 0.2, 0.3] };
+  head(c, 'STORE', C.pool); box(c, 64, 4, 4, TP[3]);
+  T(c, num3(s.n), 8, 41, { s: 12, w: 600, ls: 1, col: C.pool });
+  const sp = (Math.sin(t * 5) + 1) / 2;               /* the auto-name, with its sparkle (B10 renames) */
+  T(c, s.name, 8, 59, { s: 20, w: 300, col: C.k3 });
+  const nx = 8 + TW(c, s.name, { s: 20, w: 300 }) + 8; P(c, [nx, 47, nx + 8, 47], C.pool, 1.3, { a: 0.5 + sp * 0.5 }); P(c, [nx + 4, 43, nx + 4, 51], C.pool, 1.3, { a: 0.5 + sp * 0.5 });
+  grid16(c, BANK2, -1, { skip: [tgt] });
+  const [tx, ty] = tileXY(tgt), v = ease((u - 0.15) / 0.45), land = u > 0.6;
+  if (!land) { RR(c, tx, ty, 54, 40, 5, C.pool, 1.4, null, { dash: [3, 3], a: 0.5 + 0.5 * Math.sin(t * 8) ** 2 }); }
+  const fx = lerp(64, tx, v), fy = lerp(4, ty, v), fs = lerp(0.3, 1, v);   /* the track's cassette flies down into it */
+  if (u > 0.15 && !land) { c.save(); c.translate(fx, fy); c.scale(fs, fs); tile(c, s, 0, { at: [0, 0], col: TP[3] }); c.restore(); }
+  if (land) { tile(c, s, tgt, { sel: true }); const b = (u - 0.6) / 0.4;
+    for (let k = 0; k < 8; k++) bubble(c, tx + 8 + hash(k) * 38, ty - b * 30 * (0.5 + hash(k + 3)), 1.2 + 2 * hash(k + 9), C.pool, 1 - b); }
+}
+function sOverwrite(c, t) {                           /* storing onto a sound that is there: SAVE held, a ring fills; its locks will play the new one */
+  bg(c); const L = 2.4, u = (t % L) / L, hold = clamp(u / 0.6, 0, 1), done = u > 0.6;
+  const s = BANK2[7];
+  head(c, 'STORE', C.pool); box(c, 64, 4, 4, TP[3]);
+  T(c, num3(s.n), 8, 41, { s: 12, w: 600, ls: 1, col: C.pool });
+  T(c, s.name, 8, 59, { s: 20, w: 300, col: C.k3 });
+  usage(c, s, 232 - 57, 30, { lcol: Math.floor(t * 4) % 2 && !done ? C.k4 : C.g1 });
+  grid16(c, BANK2, -1, { skip: [7] });
+  const [x, y] = tileXY(7);
+  tile(c, done ? { ...s, env: [0, 0.5, 0.3, 0.35] } : s, 7, { sel: done, a: done ? 1 : 0.55 });
+  if (!done) { c.save(); c.translate(x + 4, y - 4); tile(c, { ...s, env: [0, 0.5, 0.3, 0.35] }, 0, { at: [0, 0], col: TP[3] }); c.restore(); }
+  ring(c, x + 27, y + 20, 26, hold, done ? C.pool : C.k4, 2.5);
+}
+function sName(c, t) {                                /* naming (B10): SELECT turns the letter, ALGORITHM moves along */
+  bg(c); head(c, 'NAME', C.pool);
+  const name = 'BRIGHT PLUCK', cur = 7, cw = 18.5, x0 = 9;
+  const roll = (t * 1.5) % 1, step = ease(clamp((roll - 0.6) / 0.25, 0, 1));
+  const AL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -', li = AL.indexOf('P');
+  for (let k = 0; k < 12; k++) { const x = x0 + k * cw;
+    P(c, [x + 2, 150, x + cw - 3, 150], k === cur ? C.sel : C.g2, k === cur ? 2.2 : 1.2);
+    if (k !== cur && name[k] && name[k] !== ' ') T(c, name[k], x + cw / 2, 144, { s: 24, w: 300, col: C.k3, al: 'center' }); }
+  const cx = x0 + cur * cw + cw / 2;                  /* the letter drum over the cursor, rolling */
+  c.save(); c.beginPath(); c.rect(cx - 14, 40, 28, 112); c.clip();
+  for (let d = -3; d <= 3; d++) { const y = 144 - (d + step) * -34 * -1 + 0, ch = AL[(li + d + AL.length) % AL.length];
+    const yy = 144 + (d - step) * 34, a = d === 0 && step < 0.5 || d === 1 && step >= 0.5 ? 1 : 0.35;
+    T(c, ch, cx, yy, { s: 24, w: d === 0 ? 400 : 300, col: a === 1 ? C.sel : C.g1, al: 'center', a }); }
+  c.restore();
+  RR(c, cx - 14, 116, 28, 36, 4, C.sel, 1.4);
+  const dx = 200, dy = 192;                           /* the dice: B10 again deals another auto-name */
+  RR(c, dx, dy, 24, 24, 4, C.pool, 1.4); [[6, 6], [12, 12], [18, 18], [18, 6], [6, 18]].forEach(([a, b]) => O(c, dx + a, dy + b, 1.6, null, 1, C.pool));
+}
+function sCopy(c, t) {                                /* F1 held: W tapped copies, another W pastes (a free slot gets "GHOST 2") */
+  bg(c); const L = 2.8, u = (t % L) / L, src = 4, dst = 12;
+  poolTop(c, u < 0.55 ? BANK2[src] : { n: 29, name: 'GHOST 2', fam: 'd' });
+  grid16(c, BANK2, u < 0.55 ? src : -1);
+  const [sx, sy] = tileXY(src), [dx, dy] = tileXY(dst);
+  const lift = ease(u / 0.2), fly = ease((u - 0.3) / 0.25), landed = u > 0.55;
+  if (!landed) { c.save(); c.translate(lerp(sx + 4 * lift, dx, fly), lerp(sy - 4 * lift, dy, fly));
+    tile(c, BANK2[src], 0, { at: [0, 0], col: C.pool, a: 0.85 }); c.restore();
+    RR(c, dx, dy, 54, 40, 5, C.pool, 1.2, null, { dash: [3, 3], a: 0.6 }); }
+  else tile(c, { ...BANK2[src], name: 'GHOST 2' }, dst, { sel: true });
+}
+function sMove(c, t) {                                /* F2 held: W picks a sound up, another W drops it (a filled one swaps); its locks follow */
+  bg(c); const L = 3.0, u = (t % L) / L, src = 9, dst = 2;
+  poolTop(c, BANK2[src]);
+  const lift = ease(u / 0.18), fly = ease((u - 0.35) / 0.3), back = ease((u - 0.4) / 0.3), done = u > 0.72;
+  const list = BANK2.slice();
+  if (done) { list[dst] = BANK2[src]; list[src] = BANK2[dst]; }
+  list.forEach((s, i) => { if (!done && (i === src || i === dst)) return; tile(c, s, i, { sel: done && i === dst }); });
+  const [sx, sy] = tileXY(src), [dx, dy] = tileXY(dst);
+  if (!done) {
+    RR(c, sx, sy, 54, 40, 5, C.g2, 1, null, { dash: [2, 3] });                       /* the hole it left */
+    c.save(); c.translate(lerp(dx, sx, back), lerp(dy, sy, back)); tile(c, BANK2[dst], 0, { at: [0, 0], a: 0.8 }); c.restore();
+    const px = lerp(sx, dx, fly), py = lerp(sy, dy, fly) - 6 * lift;
+    RR(c, px + 3, py + 9, 54, 40, 5, null, 1, '#111', { a: lift });                  /* lifted: a shadow under it */
+    c.save(); c.translate(px, py); tile(c, BANK2[src], 0, { at: [0, 0], col: C.pool }); c.restore();
+  }
+}
+function sDelete(c, t) {                              /* B11 held + W: a ring fills, then it fizzes away; its users fall back */
+  bg(c); const L = 2.6, u = (t % L) / L, hold = clamp(u / 0.5, 0, 1), gone = u > 0.5, i = 7, s = BANK2[i];
+  poolTop(c, gone ? null : s);
+  if (gone) { T(c, num3(s.n), 8, 41, { s: 12, w: 600, ls: 1, col: C.g2 }); }
+  if (!gone) usage(c, s, 232 - 57, 30, { lcol: C.k4 });
+  grid16(c, BANK2, -1, { skip: [i] });
+  const [x, y] = tileXY(i);
+  if (!gone) { const j = Math.sin(t * 40) * hold * 1.5; c.save(); c.translate(j, 0); tile(c, s, i, { col: C.k4 }); c.restore();
+    ring(c, x + 27, y + 20, 26, hold, C.k4, 2.5); }
+  else { const b = (u - 0.5) / 0.5; tile(c, null, i, { a: b });
+    for (let k = 0; k < 14; k++) bubble(c, x + 6 + hash(k) * 42, y + 30 - b * (30 + 40 * hash(k + 2)), 1 + 2.4 * hash(k + 5) * (1 - b * 0.5), FAMC[s.fam], 1 - b); }
+}
+function sLoad(c, t) {                                /* F2 tapped in the pool: the chosen sound goes onto the track */
+  bg(c); const L = 2.2, u = (t % L) / L, v = ease((u - 0.1) / 0.4), s = BANK2[9];
+  head(c, 'POOL', C.pool); bankDots(c, 54, 1, C.pool);
+  grid16(c, BANK2, 9);
+  const [sx, sy] = tileXY(9), tx = 120 - 27, ty = 30;
+  if (u > 0.1 && u < 0.5) { c.save(); c.translate(lerp(sx, tx, v), lerp(sy, ty, v)); tile(c, s, 0, { at: [0, 0], col: TP[3] }); c.restore(); }
+  if (u >= 0.5) { const f = 1 - ease((u - 0.5) / 0.5);
+    RR(c, 4, 28, 232, 32, 6, TP[3], 1.5, null, { a: 0.4 + 0.6 * f });
+    box(c, 12, 36, 4, TP[3]); T(c, 'LEAD', 34, 49, { s: 12, w: 600, ls: 1, col: TP[3] });
+    T(c, s.name, 228, 51, { s: 20, w: 300, col: C.k3, al: 'right' }); }
+}
+
+/* ---------------------------------------------------------------- the FM-1's keys under a screen */
+/* k: { W: {i: col}, B: {i: col}, btn: {NAME: col}, held: [names or 'W3' 'B11'], blink: [...] } */
+const BTNS = ['SHIFT', 'F1', 'F2', 'SAVE', 'EDIT', 'HOME'];
+function keysDraw(c, k) {
+  c.fillStyle = '#0c0c0e'; c.fillRect(0, 0, 480, 132);
+  const held = new Set(k.held || []), blink = new Set(k.blink || []);
+  const keyCol = (id, map) => map && map[id];
+  BTNS.forEach((b, i) => { const x = 8 + i * 79, w = 72, col = (k.btn || {})[b], on = held.has(b), bl = blink.has(b);
+    RR(c, x, 6, w, 24, 5, col || '#3a3a42', 1.5, on ? col : null, { dash: bl ? [3, 3] : null });
+    T(c, b === 'F1' ? 'F1 (OCT−)' : b === 'F2' ? 'F2 (OCT+)' : b === 'SHIFT' ? 'SHIFT (GLO)' : b, x + w / 2, 22.5, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center' }); });
+  const kw = 29, y0 = 40, wh = 88, bw = 18, bh = 52;
+  for (let i = 0; i < 16; i++) { const id = 'W' + (i + 1), col = keyCol(i + 1, k.W), on = held.has(id), bl = blink.has(id);
+    RR(c, 8 + i * kw, y0, kw - 2, wh, 3, col || '#3a3a42', 1.4, on ? col : null, { dash: bl ? [3, 3] : null });
+    T(c, String(i + 1), 8 + i * kw + (kw - 2) / 2, y0 + wh - 8, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center' }); }
+  const after = [1, 2, 3, 5, 6, 8, 9, 10, 12, 13, 15];
+  after.forEach((w, j) => { const id = 'B' + (j + 1), col = keyCol(j + 1, k.B), on = held.has(id), bl = blink.has(id), x = 8 + w * kw - bw / 2 - 1;
+    RR(c, x, y0 - 1, bw, bh, 3, col || '#3a3a42', 1.4, on ? col : '#0c0c0e', { dash: bl ? [3, 3] : null });
+    T(c, String(j + 1), x + bw / 2, y0 + bh - 8, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center' }); });
+}
+const range = (a, b, col) => { const o = {}; for (let i = a; i <= b; i++) o[i] = col; return o; };
+const POOLKEYS = (extra = {}) => ({ W: { ...range(1, 11, C.g1), ...(extra.W || {}) }, B: { ...range(1, 8, C.g2), 2: C.pool, 10: C.pool, 11: C.k4, ...(extra.B || {}) },
+  btn: { SHIFT: C.g1, F1: C.g1, F2: C.g1, SAVE: C.save, EDIT: C.pool, HOME: C.k3, ...(extra.btn || {}) }, held: extra.held, blink: extra.blink });
+
+/* ---------------------------------------------------------------- the screens */
+const SCREENS = [
+  { f: sSaveTap, t: 1.95, title: 'SAVE tapped: the project is saved',
+    keys: { btn: { SAVE: C.save }, held: ['SAVE'], W: {}, B: {} },
+    text: '<strong>SAVE tap</strong> saves the project: every changed pattern and the pool, from any screen, playing or stopped (page programs only while playing; PLAN §7). The changed patterns (champagne rings, fizzing) send their bubbles up into the project and turn plain, a tick draws itself, and after a second the screen hands back. <strong>The SAVE key is lit while anything is unsaved</strong> and dark once saved, so the panel always says whether there is work to lose.' },
+  { f: sSavePage, t: 0.8, title: 'SAVE held: the save page',
+    keys: { btn: { SAVE: C.save, F1: C.g1, F2: C.g1, HOME: C.k3 }, W: range(1, 8, C.g2), B: { 11: C.k4 }, blink: [] },
+    text: '<strong>SAVE held</strong> opens the save page (latched; OCT− or HOME back). The project big (number and name), its 64 patterns: a speck is empty, a ring has steps, a <strong>champagne ring fizzing has changes not yet saved</strong>, the filled one is the pattern playing. Two meters: the flash the patterns use (this project\'s part champagne) and the pool\'s sounds (lime). SAVE tapped here saves; <strong>B11 held reverts</strong> the pattern playing; SELECT or SAVE held again turns to the projects page.' },
+  { f: sRevert, t: 0.9, title: 'The save page, B11 held: revert the pattern',
+    keys: { btn: { SAVE: C.save, HOME: C.k3 }, B: { 11: C.k4 }, held: ['B11'] },
+    text: '<strong>B11 held for a second</strong> takes the playing pattern back to its last save (B11 is FIZZ\'s CLEAR, "take it out"). The ring fills in orange; the eight tracks\' steps blink where they differ from the save and fall back when the ring closes. Released early: nothing happens. Undo (P1.5b) can bring the changes back.' },
+  { f: sProjects, t: 0.6, title: 'Projects (the save page\'s second page)',
+    keys: { btn: { SAVE: C.save, F1: C.g1, F2: C.k3, HOME: C.k3 }, W: { 1: C.save, 2: C.k3, 3: C.g1, 5: C.g1, 4: C.g2, 6: C.g2, 7: C.g2, 8: C.g2 }, B: { 11: C.k4 }, blink: ['W2', 'F2'] },
+    text: 'Eight projects on <strong>W1..W8</strong>: number, name, and a thumbnail of their 64 patterns; the current one champagne, empty ones a plus. <strong>W tapped</strong> chooses one (it blinks); <strong>F2 (OCT+) loads it</strong> (F2 blinks to ask; if there are unsaved changes SAVE blinks too, and F2 again loads without saving). <strong>F1 + W</strong> copies a project onto another slot ("save as"), <strong>B11 held + W</strong> deletes one, <strong>B10</strong> names the current one. Each project has its own patterns and its own pool.' },
+  { f: sPool, t: 0.35, title: 'SHIFT + EDIT: the sound pool',
+    keys: POOLKEYS({ W: { 8: C.pool }, held: [] }),
+    text: 'The pool of 128 sounds as <strong>8 banks of 16</strong>: <strong>B1..B8 the bank</strong>, <strong>W1..W16 its sounds</strong> (SELECT or PRESETS turn through all 128). Each sound is a tile: its amp envelope as a silhouette (white factory, orange drums, lime your own) and its name. A tap chooses it and plays it once (the silhouette lights along as it sounds). At the top: its number, its name big, and who uses it: the tracks whose sound it is (their boxes) and the steps that lock it (padlock, count). Lit keys: the bank, the slots with sounds (dim) and the chosen one (lime).' },
+  { f: sAudition, t: 1.0, title: 'A white key held: audition',
+    keys: POOLKEYS({ W: { 8: C.pool }, held: ['W8'] }),
+    text: '<strong>Holding a sound\'s key</strong> plays it for as long as it is held (stopped or playing, through the track\'s own voice limit), and the sound takes the screen: the cassette with its number and name, the wave as it sounds, and its users. Black keys B1..B8 still change bank while held, so you can hold W and flip banks to compare the same slot.' },
+  { f: sStore, t: 1.9, title: 'SAVE in EDIT: store the track\'s sound',
+    keys: POOLKEYS({ W: { 12: C.pool }, btn: { SAVE: C.save, EDIT: C.pool }, blink: ['W12', 'SAVE'] }),
+    text: 'In the sound editor <strong>SAVE tapped stores the track\'s sound</strong>: the pool opens on STORE (the track\'s box top left) with the <strong>first free slot</strong> chosen (dashed, blinking) and an <strong>auto-name</strong> made from the sound (its envelope and spectrum: PLUCK, PAD, BASS, KEYS, BELL, LEAD, KICK, HAT, NOISE ... and a word: BRIGHT, DARK, SOFT, WIDE ...). <strong>SAVE again</strong> stores it there (the cassette drops in and fizzes); a W chooses another slot first; <strong>B10</strong> names it; OCT− cancels. SAVE in the pool does the same for the selected track.' },
+  { f: sOverwrite, t: 0.8, title: 'Storing over a sound: SAVE held',
+    keys: POOLKEYS({ W: { 8: C.pool }, btn: { SAVE: C.save }, held: ['SAVE'] }),
+    text: 'Choosing a slot that holds a sound makes the store an <strong>overwrite</strong>: it needs <strong>SAVE held for a second</strong> (the ring fills orange, then turns lime). The name stays; the padlock count blinks orange because those <strong>steps will play the new sound</strong>. Storing back onto the sound the track came from is the usual way to update a sound used across a pattern.' },
+  { f: sName, t: 0.2, title: 'B10: naming',
+    keys: { btn: { F1: C.g1, F2: C.k3, HOME: C.k3 }, B: { 10: C.pool, 11: C.k4 }, W: {} },
+    text: '<strong>B10</strong> names the chosen sound (or the one being stored, or the project). Twelve big cells; <strong>SELECT turns the letter</strong> (yellow: the drum over the cursor rolls), <strong>ALGORITHM moves along</strong>; B11 deletes the letter; <strong>B10 again deals another auto-name</strong> (the dice). <strong>F2 (OCT+) keeps it</strong>, OCT− leaves the old name.' },
+  { f: sCopy, t: 2.0, title: 'F1 + W: copy and paste',
+    keys: POOLKEYS({ W: { 5: C.pool, 13: C.pool }, btn: { F1: C.pool }, held: ['F1'], blink: ['W13'] }),
+    text: 'FIZZ\'s F1 rule: <strong>F1 held, W tapped copies</strong> the sound (the tile lifts), <strong>another W pastes</strong> it there (into a free slot: the name gets a number, GHOST 2; onto a sound: a ring as for an overwrite). Across banks too: keep F1 held and press B1..B8.' },
+  { f: sMove, t: 1.6, title: 'F2 + W: move (pick up, drop)',
+    keys: POOLKEYS({ W: { 10: C.pool, 3: C.pool }, btn: { F2: C.pool }, held: ['F2', 'W10'] }),
+    text: 'FIZZ\'s F2 rule (Form\'s pick-up / drop): <strong>F2 held, W picks a sound up</strong> (it lifts with a shadow and leaves a dashed hole), <strong>another W drops it</strong>; onto a sound, the two swap. <strong>Every step that locks it and every track that uses it follows</strong>: the pool numbers are renumbered across all patterns, so nothing changes sound.' },
+  { f: sDelete, t: 1.0, title: 'B11 held + W: delete',
+    keys: POOLKEYS({ W: { 8: C.k4 }, held: ['B11', 'W8'] }),
+    text: '<strong>B11 held, then W held</strong> for a second deletes a sound: it shakes, the ring fills, it fizzes away into bubbles. Its users are shown in orange first: <strong>the tracks keep their copy of the sound</strong> (a track\'s sound is its own), <strong>the steps that locked it go back to their track\'s sound</strong>. Undo (P1.5b) brings it back. INIT (001) cannot be deleted.' },
+  { f: sLoad, t: 1.4, title: 'F2 (OCT+) in the pool: onto the track',
+    keys: POOLKEYS({ W: { 10: C.pool }, btn: { F2: C.k3 }, held: ['F2'] }),
+    text: '<strong>F2 (OCT+) tapped</strong> puts the chosen sound on the selected track (the "confirm" key): the tile flies up into a bar in the track\'s colour with its name, then the pool is back. The same as turning PRESETS with nothing held, but after browsing and auditioning. With a step held, F2 locks it on the step instead.' },
+];
+
+/* ---------------------------------------------------------------- the page */
+async function main() {
+  const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search), shot = q.get('shot'), sheet = q.get('sheet'), qt = q.get('t');
+  const mk = (cls, w = 240, h = 240) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; if (cls) cv.className = cls; return cv; };
+  if (shot) {
+    document.body.className = 'shot'; document.getElementById('page').remove();
+    const s = SCREENS[+shot - 1], cv = mk(); s.f(cv.getContext('2d'), qt != null ? +qt : s.t);
+    document.body.appendChild(cv); document.body.dataset.ready = '1'; return;
+  }
+  if (sheet) {
+    document.body.className = 'sheet'; document.getElementById('page').remove();
+    const h = document.createElement('div'); h.className = 'sheettitle'; h.textContent = 'FIZZ P1.5a mock-up: saving and the sound pool (2x, the keys under each)'; document.body.appendChild(h);
+    const g = document.createElement('div'); g.className = 'sheetgrid'; document.body.appendChild(g);
+    SCREENS.forEach((s, i) => { const f = document.createElement('figure'); f.style.margin = 0;
+      const cv = mk('scr'); s.f(cv.getContext('2d'), s.t); f.appendChild(cv);
+      const kc = mk('keys', 480, 132); keysDraw(kc.getContext('2d'), s.keys); f.appendChild(kc);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; f.appendChild(cap); g.appendChild(f); });
+    document.body.dataset.ready = '1'; return;
+  }
+  const root = document.getElementById('cells'), live = [];
+  SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const h = document.createElement('h2'); h.textContent = `${i + 1}. ${s.title}`; d.appendChild(h);
+    const cv = mk('scr'); d.appendChild(cv); live.push([s, cv.getContext('2d')]);
+    const kc = mk('keys', 480, 132); keysDraw(kc.getContext('2d'), s.keys); d.appendChild(kc);
+    const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); root.appendChild(d);
+  });
+  const t0 = performance.now();
+  const frame = () => { const t = (performance.now() - t0) / 1000; live.forEach(([s, c]) => s.f(c, t + s.t)); requestAnimationFrame(frame); };
+  frame(); document.body.dataset.ready = '1';
+}
+main();
+</script>
+</body>
+</html>
