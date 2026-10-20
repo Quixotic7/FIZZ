@@ -903,6 +903,25 @@ moves to B10** (B11 stays P-LOCK).
 - Screens: the FUNC lane shows each step's function as an icon (arrows, a dice, J with its target); the held and EDIT
   screens draw it big. Under the clarity rules.
 
+### PLAY, F3 and live recording (the owner, 2026-10-19)
+
+- **Holding PLAY opens F3** (latched, as both OCT keys do). A tap still plays / stops; to tell the two apart the
+  transport acts on a tap's release (about 0.1 s later than on the press; if that is felt, the fallback is SHIFT +
+  PLAY for F3 and PLAY on the press).
+- **In F3: SELECT = the tempo, ALGORITHM = the swing**, each turn showing the **full-screen metronome picture** (the
+  tempo / swing takeover of P1.3c) for a second over the F3 page. The page is reached in F3 through F3 + W and KNOB 3
+  / 4 (replaces P1.3h's SELECT = page, ALGORITHM = tempo).
+- **Live recording in the keyboard (REC):**
+  - **holding REC arms live recording** (replaces SHIFT + REC);
+  - **stopped, nothing moves until the first key**: that key starts playback and recording at once, the note on the
+    loop's first step;
+  - **an empty track grows**: recording runs on through pages 1..8, each joining the loop as it is reached; at the
+    stop the loop is the pages reached; at page 8's end it loops and records over what is there; a track with steps
+    records into its loop;
+  - **REC or PLAY while recording ends the recording, playback goes on** (PLAY again stops);
+  - notes land on the nearest step **at the track's rate** (base and type), their offset kept as **micro-timing**, the
+    length from how long the key was held.
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
