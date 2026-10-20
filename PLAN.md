@@ -879,6 +879,30 @@ screens in spirit; nothing is copied from them, and the device never names the O
 | 24 | a turn: FEEDBACK | a spiral winding back into itself, more turns with more feedback |
 | 25 | a turn: RATE | a picker (1/2x big, 1/4x and 1x small) over the pattern's clock and the track's clock side by side |
 
+### FUNC on B9, SOUND on B10 (the owner, 2026-10-19)
+
+**B9 becomes FUNC**, the step functions of the owner's OMX-27 Form (research/FORM-SEQUENCER.md: FUNCTION); **SOUND
+moves to B10** (B11 stays P-LOCK).
+
+| B (a step held) | function |
+| --- | --- |
+| B1 | none |
+| B2 | RESTART: the next step is the loop's start; the passes, conditions' counters reset |
+| B3 | REVERSE: the track plays backwards from here |
+| B4 | FORWARD |
+| B5 | FLIP the direction |
+| B6 | RANDOM JUMP: the next step is a random step of the loop |
+| B7 | RANDOM FUNCTION: one of none / restart / reverse / forward / flip, rolled each time |
+
+- The value knob walks the seven, then **JUMP 1 .. 128** (a step of the track, page by page). While a held step's
+  function is a jump, **pressing another white key makes it the target** (Form's gesture; it is not added to the held
+  set).
+- A function runs only when its step fires (after its condition and chance). A jump to a page outside the loop goes to
+  the loop's start. The direction is the track's playing state, back to forward on PLAY (Form keeps it: decided here
+  for now, open to the owner).
+- Screens: the FUNC lane shows each step's function as an icon (arrows, a dice, J with its target); the held and EDIT
+  screens draw it big. Under the clarity rules.
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
