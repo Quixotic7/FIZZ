@@ -879,6 +879,21 @@ screens in spirit; nothing is copied from them, and the device never names the O
 | 24 | a turn: FEEDBACK | a spiral winding back into itself, more turns with more feedback |
 | 25 | a turn: RATE | a picker (1/2x big, 1/4x and 1x small) over the pattern's clock and the track's clock side by side |
 
+### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
+
+These override anything above that conflicts with them.
+
+1. **No tutorial text on the screen.** No hints, instructions or key legends ("W TAP: QUEUE · HOLD: AT ONCE", "OCT−
+   EXIT", "B11 CLEARS THEM", "PLAYS EVERY PASS", "/24 OF A STEP" ...). Gestures are learned from PLAYING.md and from
+   the screens' shapes; the screens show state, not instructions. The layer maps (F1, F2, F3, SEL, SEQ, SHIFT) are
+   **visual**: the keys drawn where they are on the panel, lit or coloured by what they do, with icons, not sentences.
+2. **Nothing to squint at.** Text is either **big** (the value being changed, chord names, the logo) or a **short
+   label at 12 px or more** (never under 11 px), weight 500 or more. What cannot be that size is removed or becomes a
+   shape (a tick, a dot, a bar, an icon).
+3. **Text only for what must be read at a glance:** the value being changed, the mode's name, the track or pattern
+   where it is the subject, the scale name. Everything else is drawing, colour, motion or LEDs.
+4. Every new screen is checked against 1..3 before it is built.
+
 ### What LINE asks of the firmware
 
 - **Anti-aliased thin lines, circles, arcs, ellipses and round rectangles** at 1 .. 1.5 px with round caps, drawn at run
