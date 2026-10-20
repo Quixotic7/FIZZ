@@ -1344,3 +1344,7 @@ name when there is one.
 - P1.3x: PLAY held opens F3 (a tap acts on release); F3 SELECT = tempo, ALGORITHM = swing with the metronome picture;
   REC held arms live recording, the first note starts it, an empty track grows to 8 pages, REC / PLAY end it with
   playback going on; placement at the track's rate with micro-timing. SHIFT + REC stays the step-record toggle.
+- 2026-10-19 evening: the owner asked for RemoteFM1 back on the unit. It ran ChoralRoot 0.25.1 (FM-1_920): data backed up
+  first (`fm1-backups/before-remotefm1-20261019/choralroot-data-backup.json`: settings, 128 user sounds, favourites, loop
+  slot 1), then RemoteFM1 0.1.1 installed (`remote-0.1.1.fwsc` sha256 a7408d6c..., matching its SHA256SUMS); the unit
+  answers FM-1_015 with its vendor interface; the FIZZ Standalone relaunched.
