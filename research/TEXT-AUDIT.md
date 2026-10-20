@@ -198,3 +198,20 @@ test_ctl, test_app and render_frames draw); a short label is 12 px 600 (`ui_lab`
 | (kit) | ui_kit.c:54 | ui_lab | ui_lab: every label (8 px 600) | 8 600 | **enlarge** | 12 px 600 |
 
 (158 calls.)
+
+## Addendum: the screens built after the pass (P1.3w, P1.3x)
+
+P1.3v landed before P1.3w and P1.3x; their screens were built under the rules and run under the same guard
+(test_ctl's clarity gesture visits FUNC in all three views; render_frames checks every render): the smallest text
+drawn is still 12 px.
+
+| screen | string | size / weight | verdict |
+| --- | --- | --- | --- |
+| held / EDIT · FUNC | the function's name (RESTART, REVERSE, FORWARD, FLIP, RANDOM, RND FUNC, JUMP 20, NONE) | 34 px 200 (EDIT: the head's 24 px) | keep (the value) |
+| held / EDIT · FUNC | a jump's target page number beside its strip | 12 px 600 | keep (the subject's page) |
+| PIANO ROLL · FUNC | a JUMP's target number, digits stacked in the column | 12 px 600 | exception (as the SOUND lane's) |
+| held / EDIT · FUNC | the function as an icon (arrow, circular arrow, die, jump arc) | — | shape |
+| STEPS | a step with a function: a blue dot | — | shape |
+| knob band | FUNCTION, the function's name | 12 px 600 / 26 px | keep |
+| confirmation | LIVE REC (REC held) | 40 px | keep |
+| F3 (P1.3x) | the metronome takeover over the map (TEMPO / SWING, the values) | as the takeovers | keep |
