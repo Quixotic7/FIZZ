@@ -1331,3 +1331,16 @@ lanes instead of step numbers; the playhead no longer outlines cells (only held 
 drawing (held and EDIT): the keybed low, the notes as one readable line in their knob colours directly above it, no
 tiny names, no "A = ALL", no "SELECTED" anywhere, no "KEYS OCT"; only the scale name; the header value is the chord
 name when there is one.
+
+**2026-10-19, P1.3u..P1.3x** (FMToneSeq b1da3fe, 149e79f + 2b8bea1, 3c2ac64, 6c30f5b; FM1VST `core-quadrille` 194297c,
+2a4521a, b56cdee, 3251026; version 0.2.2-p1.3x; relaunched):
+- P1.3u: EDIT · NOTE's chord name big and centred; VEL's value big beside the mallet.
+- P1.3v, the clarity pass: `research/TEXT-AUDIT.md` (158 text calls, each kept, enlarged, made a shape or removed);
+  labels at 12 px 600; the layer maps drawn as the panel's keys with icons; no hint sentences; a test guard that fails
+  under 11 px (the smallest text drawn is now 12 px). Exceptions listed in the audit.
+- P1.3w: FUNC on B9 (none, RESTART, REVERSE, FORWARD, FLIP, RANDOM JUMP, RANDOM FUNCTION, JUMP 1..128; Form's target
+  gesture), SOUND on B10; the engine applies functions in resolution order with a per-track direction (forward on PLAY);
+  goldens p29, p30 with the reference's own walker. The step is 20 bytes.
+- P1.3x: PLAY held opens F3 (a tap acts on release); F3 SELECT = tempo, ALGORITHM = swing with the metronome picture;
+  REC held arms live recording, the first note starts it, an empty track grows to 8 pages, REC / PLAY end it with
+  playback going on; placement at the track's rate with micro-timing. SHIFT + REC stays the step-record toggle.
