@@ -51,7 +51,8 @@ float ui_TW(const char *s, float size, int weight, float ls)
 }
 
 /* lab(c, s, x, y, col, al): T(.., { s: 8, w: 600, ls: 1 }) */
-void ui_lab(const char *s, float x, float y, qd_rgb col, int align) { ui_T(s, x, y, 8.f, 600, 1.f, col, align); }
+/* P1.3v (PLAN §9a's clarity rules): a label is 12 px, 600 (was 8 px) */
+void ui_lab(const char *s, float x, float y, qd_rgb col, int align) { ui_T(s, x, y, 12.f, 600, 0.5f, col, align); }
 
 /* P(c, pts, col, lw, { close, fill }): round caps and joins (the state's, set by qd_begin) */
 void ui_P(const float *pts, int npts, qd_rgb col, float lw, int close, qd_rgb fill)
@@ -72,8 +73,8 @@ void ui_RR(float x, float y, float w, float h, float r, qd_rgb col, float lw, qd
 void ui_box(float x, float y, int n, qd_rgb col)
 {
     char s[12];
-    ui_RR(x, y, 15.f, 15.f, 2.f, col, 1.2f, QD_NONE);
-    ui_T(ui_itoa(s, n), x + 7.5f, y + 11.5f, 10.f, 500, 0.f, col, QD_CENTER);
+    ui_RR(x, y, 16.f, 16.f, 2.f, col, 1.2f, QD_NONE);
+    ui_T(ui_itoa(s, n), x + 8.f, y + 12.5f, 12.f, 600, 0.f, col, QD_CENTER);
 }
 
 /* head(c, left, right, { n, lcol, rcol }) */
@@ -84,9 +85,9 @@ void ui_head(const char *left, const char *right, int n, qd_rgb lcol, qd_rgb rco
         ui_box(8.f, 5.f, n, UI_K3);
         x = 29.f;
     }
-    ui_T(left, x, 17.f, 11.f, 500, 1.f, lcol, QD_LEFT);
+    ui_T(left, x, 18.f, 12.f, 600, 0.8f, lcol, QD_LEFT);   /* (P1.3v: 12 px, 600) */
     if (right)
-        ui_T(right, 232.f, 17.f, 11.f, 400, 1.f, rcol, QD_RIGHT);
+        ui_T(right, 232.f, 18.f, 12.f, 500, 0.8f, rcol, QD_RIGHT);
 }
 
 /* keyboard(c, x0, y0, w, h, lo, held): 14 white keys from lo, the black keys over them */
@@ -122,10 +123,10 @@ const qd_rgb UI_MODE_COL[UI_NFIELD] = {0x3f7dffu, 0x1fd47eu, 0x36d6e7u, 0xa879ff
 /* headTrack(c, left, n, name, lcol): a held step: STEP 5 · FIELD left, [n] the track right */
 void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol)
 {
-    const float w = ui_TW(name, 11.f, 500, 1.f);
-    ui_T(left, 8.f, 17.f, 11.f, 500, 1.f, lcol, QD_LEFT);
-    ui_T(name, 232.f, 17.f, 11.f, 500, 1.f, UI_G1, QD_RIGHT);
-    ui_box(232.f - w - 21.f, 5.f, n, UI_G1);
+    const float w = ui_TW(name, 12.f, 500, 0.8f);
+    ui_T(left, 8.f, 18.f, 12.f, 600, 0.8f, lcol, QD_LEFT);
+    ui_T(name, 232.f, 18.f, 12.f, 500, 0.8f, UI_G1, QD_RIGHT);
+    ui_box(232.f - w - 22.f, 5.f, n, UI_G1);
 }
 
 /* the strip's keys: 18 px wide, 2 apart in a group, the groups 3 | 2 | 3 | 2 six apart, B11 eight further */
@@ -135,49 +136,154 @@ float ui_strip_x(int k)
     return X[k < 0 ? 0 : k > 10 ? 10 : k];
 }
 
-/* a label inside a key, squeezed to fit */
-static void key_label(const char *s, float cx, float y, float w, qd_rgb col, int weight)
+/* ---------------------------------------------------------------- P1.3v: icons and the visual key map */
+static void ln(float x0, float y0, float x1, float y1, qd_rgb c, float lw)
 {
-    const float tw = ui_TW(s, 7.f, weight, 0.3f);
-    if (tw <= w) {
-        ui_T(s, cx, y, 7.f, weight, 0.3f, col, QD_CENTER);
-        return;
-    }
-    qd_save();
-    qd_translate(cx, y);
-    qd_scale(w / tw, 1.f);
-    ui_T(s, 0.f, 0.f, 7.f, weight, 0.3f, col, QD_CENTER);
-    qd_restore();
+    const float p[4] = {x0, y0, x1, y1};
+    ui_P(p, 2, c, lw, 0, QD_NONE);
 }
 
-/* the eleven black keys at the foot, each with what it does here written in it: lit filled in col (its label black),
- * hot outlined in col, faint dark, the others grey outlines; mark: a grey line under the key (the track's default) */
-void ui_strip(const char *const lab[11], unsigned lit, unsigned mark, unsigned faint, unsigned hot, qd_rgb col)
+/* a note value's glyph: 0 1/1 (a hollow head), 1 1/2 (hollow, a stem), 2 1/4 (filled, a stem), 3.. 1/8 .. (flags) */
+static void note_glyph(int v, float cx, float cy, float s, qd_rgb c)
 {
-    const float y = 221.f, h = 14.f;
-    int k;
-    for (k = 0; k < 11; k++) {
-        const float x = ui_strip_x(k), w = k == 10 ? 16.f : 18.f, cx = x + w / 2.f;
-        const int l = (lit >> k) & 1u, f = !l && ((faint >> k) & 1u), ho = !l && !f && ((hot >> k) & 1u);
-        const qd_rgb oc = l ? QD_NONE : f ? UI_G3 : ho ? col : UI_G2;
-        ui_RR(x, y, w, h, 3.f, oc, ho ? 1.2f : 1.f, l ? col : QD_NONE);
-        if (lab && lab[k] && lab[k][0])
-            key_label(lab[k], cx, y + 9.5f, w - 3.f, l ? UI_BG : f ? UI_G3 : ho ? col : UI_G1, l ? 700 : 600);
-        if ((mark >> k) & 1u)
-            qd_line(x + 3.f, 238.f, x + w - 3.f, 238.f, UI_G1, 1.5f);
+    const float hx = cx - 1.5f * s, hy = cy + 4.f * s;
+    int f;
+    qd_ellipse(hx, hy, 2.6f * s, 1.9f * s, c, 1.1f, v >= 2 ? c : QD_NONE);
+    if (v >= 1)
+        ln(hx + 2.4f * s, hy - 0.5f * s, hx + 2.4f * s, hy - 9.f * s, c, 1.1f);
+    for (f = 0; f < v - 2 && f < 4; f++)
+        ln(hx + 2.4f * s, hy - 9.f * s + (float)f * 2.4f * s, hx + 5.2f * s, hy - 6.5f * s + (float)f * 2.4f * s, c,
+           1.1f);
+}
+
+void ui_icon(int id, float cx, float cy, float s, qd_rgb c)
+{
+    switch (id) {
+    case UI_IC_CLEAR:                                   /* a cross */
+        ln(cx - 4.f * s, cy - 4.f * s, cx + 4.f * s, cy + 4.f * s, c, 1.4f);
+        ln(cx + 4.f * s, cy - 4.f * s, cx - 4.f * s, cy + 4.f * s, c, 1.4f);
+        break;
+    case UI_IC_COPY:                                    /* two cards */
+        ui_RR(cx - 5.f * s, cy - 5.f * s, 7.f * s, 8.f * s, 1.5f, c, 1.1f, QD_NONE);
+        ui_RR(cx - 2.f * s, cy - 2.f * s, 7.f * s, 8.f * s, 1.5f, c, 1.1f, UI_BG);
+        break;
+    case UI_IC_PASTE: {                                 /* an arrow down into a card */
+        const float a[6] = {cx - 3.f * s, cy - 2.f * s, cx, cy + 1.f * s, cx + 3.f * s, cy - 2.f * s};
+        ui_RR(cx - 5.f * s, cy - 1.f * s, 10.f * s, 6.f * s, 1.5f, c, 1.1f, QD_NONE);
+        ln(cx, cy - 7.f * s, cx, cy + 1.f * s, c, 1.3f);
+        ui_P(a, 3, c, 1.3f, 0, QD_NONE);
+        break;
+    }
+    case UI_IC_UNDO: {                                  /* a hook arrow back */
+        const float a[6] = {cx - 2.f * s, cy - 6.f * s, cx - 5.f * s, cy - 3.f * s, cx - 2.f * s, cy};
+        qd_arc(cx, cy + 0.5f * s, 4.f * s, -UI_PI / 2.f, UI_PI / 2.f, c, 1.3f);
+        ln(cx - 5.f * s, cy - 3.5f * s, cx, cy - 3.5f * s, c, 1.3f);
+        ln(cx - 3.f * s, cy + 4.5f * s, cx, cy + 4.5f * s, c, 1.3f);
+        ui_P(a, 3, c, 1.3f, 0, QD_NONE);
+        break;
+    }
+    case UI_IC_CUT:                                     /* scissors */
+        ui_O(cx - 3.f * s, cy + 4.f * s, 1.8f * s, c, 1.1f, QD_NONE);
+        ui_O(cx + 3.f * s, cy + 4.f * s, 1.8f * s, c, 1.1f, QD_NONE);
+        ln(cx - 2.f * s, cy + 2.5f * s, cx + 3.f * s, cy - 6.f * s, c, 1.2f);
+        ln(cx + 2.f * s, cy + 2.5f * s, cx - 3.f * s, cy - 6.f * s, c, 1.2f);
+        break;
+    case UI_IC_BACK: {                                  /* an arrow left */
+        const float a[6] = {cx - 1.f * s, cy - 4.f * s, cx - 5.f * s, cy, cx - 1.f * s, cy + 4.f * s};
+        ln(cx - 5.f * s, cy, cx + 5.f * s, cy, c, 1.4f);
+        ui_P(a, 3, c, 1.4f, 0, QD_NONE);
+        break;
+    }
+    case UI_IC_PLAY: {
+        const float a[6] = {cx - 3.f * s, cy - 5.f * s, cx + 4.f * s, cy, cx - 3.f * s, cy + 5.f * s};
+        ui_P(a, 3, c, 1.f, 1, c);
+        break;
+    }
+    case UI_IC_STOP:
+        ui_RR(cx - 4.f * s, cy - 4.f * s, 8.f * s, 8.f * s, 1.f, QD_NONE, 1.f, c);
+        break;
+    case UI_IC_DOT:
+        ui_O(cx, cy, 2.2f * s, QD_NONE, 1.f, c);
+        break;
+    case UI_IC_TRI:                                     /* a triplet: three heads under a bracket */
+        ln(cx - 6.f * s, cy - 2.f * s, cx - 6.f * s, cy - 5.f * s, c, 1.f);
+        ln(cx - 6.f * s, cy - 5.f * s, cx + 6.f * s, cy - 5.f * s, c, 1.f);
+        ln(cx + 6.f * s, cy - 5.f * s, cx + 6.f * s, cy - 2.f * s, c, 1.f);
+        ui_O(cx - 4.f * s, cy + 3.f * s, 1.6f * s, QD_NONE, 1.f, c);
+        ui_O(cx, cy + 3.f * s, 1.6f * s, QD_NONE, 1.f, c);
+        ui_O(cx + 4.f * s, cy + 3.f * s, 1.6f * s, QD_NONE, 1.f, c);
+        break;
+    case UI_IC_RESET:                                   /* a circular arrow */
+        qd_arc(cx, cy, 4.5f * s, -UI_PI * 0.2f, UI_PI * 1.5f, c, 1.3f);
+        ln(cx + 4.5f * s, cy - 1.5f * s, cx + 4.5f * s, cy - 5.f * s, c, 1.3f);
+        ln(cx + 4.5f * s, cy - 1.5f * s, cx + 1.5f * s, cy - 1.5f * s, c, 1.3f);
+        break;
+    case UI_IC_SCALE: {                                 /* a staircase */
+        const float a[10] = {cx - 6.f * s, cy + 5.f * s, cx - 2.f * s, cy + 5.f * s, cx - 2.f * s, cy,
+                             cx + 2.f * s, cy, cx + 2.f * s, cy - 5.f * s};
+        ui_P(a, 5, c, 1.3f, 0, QD_NONE);
+        ln(cx + 2.f * s, cy - 5.f * s, cx + 6.f * s, cy - 5.f * s, c, 1.3f);
+        break;
+    }
+    case UI_IC_SWING:                                   /* a long and a short beat */
+        ln(cx - 6.f * s, cy + 5.f * s, cx - 6.f * s, cy - 5.f * s, c, 1.4f);
+        ln(cx + 2.f * s, cy + 5.f * s, cx + 2.f * s, cy - 5.f * s, c, 1.4f);
+        ln(cx + 6.f * s, cy + 5.f * s, cx + 6.f * s, cy - 5.f * s, c, 1.4f);
+        ln(cx - 6.f * s, cy + 5.f * s, cx + 6.f * s, cy + 5.f * s, c, 1.f);
+        break;
+    case UI_IC_REC:
+        ui_O(cx, cy, 4.5f * s, QD_NONE, 1.f, c);
+        break;
+    case UI_IC_NOW: {                                   /* a lightning bolt */
+        const float a[12] = {cx + 2.f * s, cy - 6.f * s, cx - 4.f * s, cy + 1.f * s, cx, cy + 1.f * s,
+                             cx - 2.f * s, cy + 6.f * s, cx + 4.f * s, cy - 1.f * s, cx, cy - 1.f * s};
+        ui_P(a, 6, c, 1.f, 1, c);
+        break;
+    }
+    case UI_IC_RAMP:                                    /* rising ticks */
+        ln(cx - 5.f * s, cy + 5.f * s, cx - 5.f * s, cy + 2.f * s, c, 1.6f);
+        ln(cx - 1.7f * s, cy + 5.f * s, cx - 1.7f * s, cy - 0.5f * s, c, 1.6f);
+        ln(cx + 1.7f * s, cy + 5.f * s, cx + 1.7f * s, cy - 3.f * s, c, 1.6f);
+        ln(cx + 5.f * s, cy + 5.f * s, cx + 5.f * s, cy - 5.5f * s, c, 1.6f);
+        break;
+    case UI_IC_STRUM:                                   /* dots up a diagonal */
+        ui_O(cx - 4.f * s, cy + 4.f * s, 1.5f * s, QD_NONE, 1.f, c);
+        ui_O(cx, cy, 1.5f * s, QD_NONE, 1.f, c);
+        ui_O(cx + 4.f * s, cy - 4.f * s, 1.5f * s, QD_NONE, 1.f, c);
+        break;
+    case UI_IC_KEY:                                     /* a white key: a tall rounded cell */
+        ui_RR(cx - 3.5f * s, cy - 7.f * s, 7.f * s, 14.f * s, 1.5f, c, 1.1f, QD_NONE);
+        break;
+    default:
+        if (id >= UI_IC_NOTE && id < UI_IC_NOTE + 7)
+            note_glyph(id - UI_IC_NOTE, cx, cy, s, c);
+        break;
     }
 }
 
-/* the value strip (§8b): B1..B10 the mode's ten values, B11 CLR (outlined in the mode's colour while the step
- * overrides it) */
-void ui_value_strip(char lab[10][6], unsigned lit, unsigned def, unsigned none, int clr, qd_rgb col)
+/* the eleven black keys where they are on the panel, each with an icon or a number for what it does in this layer:
+ * lit filled in its colour (the icon black), dim dark, the others outlined in their colour; no text but numbers */
+void ui_keymap(const ui_kkey_t k[11], float y, float h)
 {
-    const char *l[11];
-    int k;
-    for (k = 0; k < 10; k++)
-        l[k] = lab[k];
-    l[10] = "CLR";
-    ui_strip(l, lit & 0x3ffu, def & 0x3ffu, (none & 0x3ffu) | (clr ? 0u : 1u << 10), clr ? 1u << 10 : 0u, col);
+    int i;
+    char n[12];
+    for (i = 0; i < 11; i++) {
+        const float x = ui_strip_x(i), w = i == 10 ? 16.f : 18.f, cx = x + w / 2.f, cy = y + h / 2.f;
+        const qd_rgb c = k[i].col ? k[i].col : UI_K3;
+        const qd_rgb oc = k[i].lit ? QD_NONE : k[i].dim ? UI_G3 : k[i].icon == UI_IC_NONE && !k[i].num ? UI_G3 : c;
+        const qd_rgb ic = k[i].lit ? UI_BG : k[i].dim ? UI_G3 : c;
+        if (k[i].icon == UI_IC_NONE && !k[i].num && !k[i].lit) {   /* nothing here: a dark speck */
+            ui_O(cx, cy, 1.f, QD_NONE, 1.f, UI_G3);
+            continue;
+        }
+        ui_RR(x, y, w, h, 3.f, oc, 1.2f, k[i].lit ? c : QD_NONE);
+        if (k[i].num)
+            ui_T(ui_itoa(n, k[i].num), cx, cy + 4.5f, 12.f, 600, 0.f, ic, QD_CENTER);
+        else if (k[i].icon != UI_IC_NONE)
+            ui_icon(k[i].icon, cx, cy, 1.f, ic);
+        if (k[i].mark)                                  /* a line under it (the track's choice) */
+            qd_line(x + 3.f, y + h + 3.f, x + w - 3.f, y + h + 3.f, UI_G1, 1.5f);
+    }
 }
 
 /* lock(c, x, y, col, s): a padlock, 7 px wide at s 1 */

@@ -325,7 +325,7 @@ static void d_algo(const ui_turn_t *v)
     }
     for (o = 0; o < 4; o++) {                           /* the operators */
         ui_O(x[o], y[o], r, COL[o], 1.5f, UI_BG);
-        ui_T(NAME[o], x[o], y[o] + 3.5f, 9.f, 600, 1.f, COL[o], QD_CENTER);
+        ui_T(NAME[o], x[o], y[o] + 4.5f, 12.f, 600, 0.f, COL[o], QD_CENTER);
     }
 }
 
@@ -406,12 +406,12 @@ static void d_rate(const ui_turn_t *v, qd_rgb col)
             ui_O(cx + cosf(b) * 34.f, 92.f + sinf(b) * 34.f, 1.3f, QD_NONE, 1.f, cc);
         }
         line2(cx, 92.f, cx + cosf(a) * 26.f, 92.f + sinf(a) * 26.f, c ? UI_RED : UI_G1, 1.5f);
-        ui_T(c ? name : "PATTERN", cx, 146.f, 8.f, 600, 1.f, UI_G1, QD_CENTER);
+        ui_T(c ? name : "PATTERN", cx, 148.f, 12.f, 600, 0.5f, UI_G1, QD_CENTER);
     }
     if (v->prev)
-        ui_T(v->prev, 30.f, 214.f, 16.f, 300, 0.f, UI_G2, QD_CENTER);
+        ui_T(v->prev, 30.f, 214.f, 16.f, 500, 0.f, UI_G2, QD_CENTER);
     if (v->next)
-        ui_T(v->next, 210.f, 214.f, 16.f, 300, 0.f, UI_G2, QD_CENTER);
+        ui_T(v->next, 210.f, 214.f, 16.f, 500, 0.f, UI_G2, QD_CENTER);
     ui_T(v->val, 120.f, 222.f, 52.f, 200, 0.f, col, QD_CENTER);
 }
 
@@ -431,9 +431,9 @@ static void d_len(const ui_turn_t *v, qd_rgb col)
             ui_RR(x + 3.f, y + 3.f, (w - 6.f) * f, h - 6.f, 1.5f, QD_NONE, 1.f, col);
             qd_restore();
         }
-        ui_T(ui_itoa(n, p * 16 + 1), x + w / 2.f, 156.f, 8.f, 500, 0.f, in ? UI_G1 : UI_G2, QD_CENTER);
+        ui_T(ui_itoa(n, p + 1), x + w / 2.f, 158.f, 12.f, 600, 0.f, in ? UI_G1 : UI_G2, QD_CENTER);   /* (P1.3v: the
+                                                         * page's number, 12 px; no PAGES word) */
     }
-    ui_lab("PAGES", 120.f, 50.f, UI_G2, QD_CENTER);
 }
 
 /* ---------------------------------------------------------------- LIMIT: the 16-voice pool */
@@ -455,7 +455,7 @@ static void d_limit(const ui_turn_t *v, qd_rgb col)
             s[k++] = a[i];
     }
     s[k] = 0;
-    ui_lab(s, 120.f, 150.f, UI_G1, QD_CENTER);
+    (void)s;                                            /* (P1.3v: the dots say how many sound: no "n SOUNDING") */
 }
 
 /* ---------------------------------------------------------------- PAGE: the eight pages as rows */
@@ -471,7 +471,7 @@ static void d_page(const ui_turn_t *v, qd_rgb col)
         const qd_rgb tc = ed ? col : in ? UI_G1 : UI_G2;
         if (ed)
             ui_RR(10.f, y - 8.f, 220.f, 16.f, 5.f, col, 1.2f, QD_NONE);
-        ui_T(NUM[p], 22.f, y + 3.5f, 10.f, ed ? 600 : 500, 0.f, p == v->play_page ? UI_RED : tc, QD_CENTER);
+        ui_T(NUM[p], 22.f, y + 4.5f, 12.f, 600, 0.f, p == v->play_page ? UI_RED : tc, QD_CENTER);
         for (k = 0; k < 16; k++) {
             const float x = x0 + (float)k * sp + (float)(k / 4) * 2.f;
             if (k < st || k > en)
@@ -497,13 +497,13 @@ static void d_scale(const ui_turn_t *v, qd_rgb col)
     const float kx = 36.f, kw = 168.f, ky = 150.f, kh = 54.f;   /* one octave: half of a two-octave ui_keyboard */
     int s;
     if (v->prev)
-        ui_T(v->prev, 120.f, 48.f, 12.f, 400, 1.f, UI_G2, QD_CENTER);
+        ui_T(v->prev, 120.f, 48.f, 12.f, 500, 1.f, UI_G2, QD_CENTER);
     if (v->val[0]) {                                    /* the name, as big as fits */
         const float w = ui_TW(v->val, 40.f, 200, 0.f);
         ui_T(v->val, 120.f, 98.f, w > 216.f ? 40.f * 216.f / w : 40.f, 200, 0.f, col, QD_CENTER);
     }
     if (v->next)
-        ui_T(v->next, 120.f, 128.f, 12.f, 400, 1.f, UI_G2, QD_CENTER);
+        ui_T(v->next, 120.f, 128.f, 12.f, 500, 1.f, UI_G2, QD_CENTER);
     qd_save();
     qd_clip_rect(kx - 2.f, ky - 3.f, kw + 3.f, kh + 6.f);
     ui_keyboard(kx, ky, kw * 2.f, kh, 48, 0);
@@ -520,7 +520,7 @@ static void d_scale(const ui_turn_t *v, qd_rgb col)
     {
         int b;
         const float x = ui_keyboard_x(kx, kw * 2.f, 48, 48 + root, &b);
-        ui_T(NOTE[root], x, ky + kh + 14.f, 9.f, 600, 0.f, UI_K3, QD_CENTER);
+        ui_T(NOTE[root], x, ky + kh + 16.f, 12.f, 600, 0.f, UI_K3, QD_CENTER);
     }
 }
 
@@ -536,10 +536,13 @@ static void d_track(const ui_turn_t *v, qd_rgb col)
         const qd_rgb tc = sel ? col : mute ? UI_G2 : UI_G1;
         if (sel)
             ui_RR(8.f, y - 11.f, 224.f, 18.f, 5.f, col, 1.2f, QD_NONE);
-        ui_T(NUM[i], 20.f, y + 2.f, 10.f, sel ? 600 : 500, 0.f, tc, QD_CENTER);
-        ui_T(v->tname[i] ? v->tname[i] : "", 32.f, y + 2.f, 10.f, sel ? 600 : 400, 1.f, sel ? UI_K3 : tc, QD_LEFT);
-        if (mute)
-            ui_T("M", 104.f, y + 2.f, 8.f, 700, 0.f, UI_K4, QD_CENTER);
+        ui_T(NUM[i], 20.f, y + 3.5f, 12.f, 600, 0.f, tc, QD_CENTER);
+        ui_T(v->tname[i] ? v->tname[i] : "", 32.f, y + 3.5f, 12.f, 600, 0.5f, sel ? UI_K3 : tc, QD_LEFT);
+        if (mute) {                                     /* (P1.3v: muted: an orange cross, was an 8 px M) */
+            const float m[4] = {100.f, y - 6.f, 108.f, y + 2.f}, n[4] = {108.f, y - 6.f, 100.f, y + 2.f};
+            ui_P(m, 2, UI_K4, 1.5f, 0, QD_NONE);
+            ui_P(n, 2, UI_K4, 1.5f, 0, QD_NONE);
+        }
         for (k = 0; k < n; k++) {                       /* the loop's trigs, up to 32 */
             const float x = 116.f + (float)k * 3.5f + (float)(k / 4) * 0.5f;
             if (v->ttrig[i][k])
@@ -548,7 +551,6 @@ static void d_track(const ui_turn_t *v, qd_rgb col)
                 ui_O(x, y - 2.f, 0.6f, QD_NONE, 1.f, UI_G3);
         }
     }
-    ui_lab("ALGORITHM: THE TRACK \xc2\xb7 P-LOCK", 120.f, 226.f, UI_G1, QD_CENTER);
 }
 
 /* ---------------------------------------------------------------- the knob band (P1.3d) */
@@ -560,8 +562,8 @@ void ui_band_draw(const ui_band_t *v)
     char top[48];
     float nw, room, vw, size = 26.f;
     qd_fill_rect(0.f, 0.f, (float)QD_W, 41.f, UI_BG);
-    ui_O(17.f, 21.f, 9.f, QD_NONE, 1.f, bc);
-    ui_T(BADGE[k], 17.f, 24.5f, 10.f, 700, 0.f, UI_BG, QD_CENTER);
+    ui_O(17.f, 21.f, 10.f, QD_NONE, 1.f, bc);
+    ui_T(BADGE[k], 17.f, 25.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
     top[0] = 0;
     if (v->ctx) {
         char *e = top;
@@ -574,18 +576,18 @@ void ui_band_draw(const ui_band_t *v)
         *e = 0;
     }
     ui_lab(top, 33.f, 16.f, v->col, QD_LEFT);
-    ui_T(v->name ? v->name : "", 33.f, 33.f, 11.f, 600, 1.f, UI_K3, QD_LEFT);
-    nw = ui_TW(v->name ? v->name : "", 11.f, 600, 1.f);
+    ui_T(v->name ? v->name : "", 33.f, 35.f, 12.f, 600, 0.5f, UI_K3, QD_LEFT);
+    nw = ui_TW(v->name ? v->name : "", 12.f, 600, 0.5f);
     room = 232.f - (33.f + nw + 10.f);
     vw = ui_TW(v->val, size, 300, 0.f);
-    if (232.f - vw < 33.f + ui_TW(top, 8.f, 600, 1.f) + 6.f) {   /* under the top line's end: low enough to clear it */
+    if (232.f - vw < 33.f + ui_TW(top, 12.f, 600, 0.5f) + 6.f) {   /* under the top line's end: low enough to clear it */
         size = 21.f;
         vw = ui_TW(v->val, size, 300, 0.f);
     }
     if (vw > room && vw > 0.f)
         size = size * room / vw;
-    if (size < 9.f)
-        size = 9.f;
+    if (size < 12.f)                                    /* (P1.3v: never under 12 px) */
+        size = 12.f;
     ui_T(v->val, 232.f, 34.f, size, 300, 0.f, v->col, QD_RIGHT);
     {
         const float p[4] = {0.f, 40.5f, (float)QD_W, 40.5f};
@@ -600,11 +602,11 @@ void ui_turn_draw(const ui_turn_t *v)
     const char *val = v->val;
     char pg[8] = "PAGE 1";
     ui_knob_mark(14.f, 12.f, v->v < 0.f ? 0.f : v->v > 1.f ? 1.f : v->v, col);
-    ui_T(v->name, 26.f, 17.f, 11.f, 600, 1.f, col, QD_LEFT);
+    ui_T(v->name, 26.f, 18.f, 12.f, 600, 0.8f, col, QD_LEFT);
     if (v->lock)
-        ui_lock(26.f + ui_TW(v->name, 11.f, 600, 1.f) + 4.f, 6.f, col, 1.f);
+        ui_lock(26.f + ui_TW(v->name, 12.f, 600, 0.8f) + 4.f, 7.f, col, 1.f);
     if (v->ctx)
-        ui_T(v->ctx, 232.f, 17.f, 11.f, 400, 1.f, UI_G2, QD_RIGHT);
+        ui_T(v->ctx, 232.f, 18.f, 12.f, 500, 0.8f, UI_G1, QD_RIGHT);
 
     switch (v->kind) {
     case UI_TK_FREQ: d_freq(v, col); break;
@@ -637,16 +639,15 @@ void ui_turn_draw(const ui_turn_t *v)
     if (val)
         ui_T(val, 120.f, 222.f, 58.f, 200, 0.f, col, QD_CENTER);
     if (v->lock && v->ghost[0])
-        ui_T(v->ghost, 120.f, 236.f, 8.f, 500, 0.f, UI_G2, QD_CENTER);
+        ui_T(v->ghost, 232.f, 236.f, 12.f, 500, 0.f, UI_G2, QD_RIGHT);
 }
 
 /* ---------------------------------------------------------------- a brief full-screen word */
 void ui_confirm_draw(const char *big, const char *small, qd_rgb col)
 {
-    if (big) {                                          /* as big as fits */
-        const float w = ui_TW(big, 34.f, 200, 0.f);
-        ui_T(big, 120.f, 128.f, w > 224.f ? 34.f * 224.f / w : 34.f, 200, 0.f, col, QD_CENTER);
+    if (big) {                                          /* as big as fits (P1.3v: short and big; no sentence under) */
+        const float w = ui_TW(big, 40.f, 200, 0.f);
+        ui_T(big, 120.f, 134.f, w > 224.f ? 40.f * 224.f / w : 40.f, 200, 0.f, col, QD_CENTER);
     }
-    if (small)
-        ui_T(small, 120.f, 152.f, 11.f, 400, 0.f, UI_G1, QD_CENTER);
+    (void)small;
 }

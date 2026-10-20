@@ -1,7 +1,10 @@
-# Playing FIZZ (P1.3u)
+# Playing FIZZ (P1.3v)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
+
+**The screens show state, not instructions** (P1.3v): the value you are changing, the mode, the track or pattern, the
+scale; everything else is drawing, colour and the LEDs. The gestures are in this guide, not on the screen.
 
 ## Names used here
 
@@ -64,7 +67,7 @@ sound comes from the Mac. Printed names are in brackets.
    for that choice; steps that have their own value are in colour, steps on the track's default are grey, and the
    default is a dashed line or a grey label.
 2. **Hold** the step's white key. The screen shows that step (the black keys' ten values are in the table below; the
-   screen no longer draws them as a strip). On NOTE the step's notes are written in one line right over the keyboard,
+   screen does not draw them). On NOTE the step's notes are written in one line right over the keyboard,
    each in the colour of the knob that turns it (SELECT yellow, KNOB 1..4 blue, green, white, orange, the sixth pink),
    with the track's scale small at the top left; a chord the unit knows is named big over the notes.
 3. **Turn the knobs** (table below), or press a black key **B1 .. B10** for one of ten values (shortcuts).
@@ -146,7 +149,7 @@ A step has up to **six notes**.
 ## How do I lock a sound setting on a step? (P-LOCK)
 
 - Press **B11** with nothing held: the **P-LOCK** mode. The page shows the notes, with a padlock and the number of
-  locks under each step.
+  locks under each step as dots.
 - **Hold a step**: the screen stays as it is. Turn a knob of the screen and it is **locked on the held steps**: KNOB
   1..4 = FREQ, DECAY, HARM, FDBK; PRESETS = the step's sound; SELECT = the page. The knob's picture shows the lock.
 - **B11 with a step held** clears that step's locks (the sound stays: clear it in SOUND). **F1 + B11** undoes it.
@@ -227,8 +230,8 @@ Pages and tracks (hold **F1**):
 
 ## How do I change speed, tempo and swing?
 
-Press **OCT− and OCT+ together**: the **F3** menu opens and **stays open** after you let go ("OCT− EXIT" on the
-screen, OCT− lit). **OCT−** (or HOME) closes it. OCT+ does nothing there yet.
+Press **OCT− and OCT+ together**: the **F3** menu opens and **stays open** after you let go (a back arrow at the top
+right, OCT− lit). **OCT−** (or HOME) closes it. OCT+ does nothing there yet.
 
 From now on every menu or question that stays open works the same way: **OCT− = back / exit / cancel, OCT+ = yes /
 confirm**.
@@ -238,7 +241,8 @@ A track's speed is a **note value** and a **type**, each kept when you change th
 - **F3 + B1..B7**: the note value of a step: 1/1, 1/2, 1/4, 1/8, **1/16** (normal speed), 1/32, 1/64.
 - **F3 + B8 / B9 / B10**: normal, **dotted** (a step half as long again) or **triplet** (two thirds as long).
   So a dotted track stays dotted when you press F3 + the 1/8 key: dotted 1/8.
-- **F3 + KNOB 1**: the note value; **KNOB 2**: the type. The screen shows it as "1/8." (dotted) or "1/8T" (triplet).
+- **F3 + KNOB 1**: the note value; **KNOB 2**: the type. The screen shows it as 1/8 with a dot (dotted) or a T
+  (triplet); the black keys at the foot of the F3 screen are drawn as the note values, a dot and a triplet.
 - **F3 + ALGORITHM**: the tempo. **SHIFT + F3 + ALGORITHM**: the swing. Both show live on the F3 screen.
 - **F3 + SELECT**: the page you edit (the F3 screen follows it).
 - **EXT CLOCK**: while a MIDI clock (a DAW) is running the unit, the tempo is the clock's: the F3 screen says EXT CLOCK
@@ -284,10 +288,15 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   pentatonics, blues, whole tone). **SHIFT + PRESETS** sets its root.
 - This is temporary until the track settings page exists.
 
-## Help on screen
+## The maps
 
-- Holding **F1**, **F2**, **SEL** or **SEQ**, or opening **F3**, shows a map of what it does.
-- Holding **SHIFT** alone shows what SHIFT does on this screen.
+- Holding **F1**, **F2**, **SEL** or **SEQ**, or opening **F3**, shows its map: the black keys drawn where they are
+  on the panel, each with an icon or a number (a page, a track, clear, copy, undo, a note value), lit by its state.
+  No sentences: what each does is in this guide.
+- Holding **SHIFT** alone shows the controls SHIFT changes here (a knob, REC, F3, SEQ and a step), each with its job's
+  icon and its value now (the scale, the root, the swing).
+- A page change in the PIANO ROLL with page follow off: a crossed arrow at the top right (was FOLLOW OFF). The small
+  dots over the columns mark the beats. The PIANO ROLL's top line no longer shows the tempo (turn it, or open F3).
 
 ## Not built yet
 

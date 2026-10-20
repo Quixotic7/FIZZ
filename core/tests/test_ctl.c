@@ -2372,6 +2372,62 @@ static void g_edit(void)
     CHECK(A.ui.view == QD_VIEW_ROLL && qd_view_overlay(&A), "the PIANO ROLL: the takeover as before");
 }
 
+/* P1.3v (PLAN §9a's clarity rules): no text under 11 px on any screen. qd_gfx records the smallest text it draws (its
+ * size times the transform's scale); every gesture above has drawn its frames since main's reset, and this one visits
+ * the rest: every hold mode in the PIANO ROLL, STEPS and EDIT, nothing held and a step held, the layer maps, SHIFT's
+ * map in each context, the keyboard, the tracks screen, a confirmation, playing */
+static void g_clarity(void)
+{
+    static const int MODES[10] = {M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_TRIG, M_SOUND, M_PLOCK};
+    static const uint8_t CH[3] = {60, 64, 67};
+    const char *small = "";
+    float mn;
+    int v, m, k;
+    start();
+    for (k = 0; k < 16; k += 2)
+        qd_step_on(PAT(), 0, k);
+    qd_step_set_notes(PAT(), 0, 0, CH, 3);
+    qd_step_set_trig(PAT(), 0, 5, QD_TRIG_LOCK);
+    qd_step_set_cond(PAT(), 0, 2, 3);
+    qd_step_set_sound(PAT(), 0, 4, 12);
+    for (v = 0; v < 3; v++) {                           /* PIANO ROLL, STEPS, EDIT */
+        for (m = 0; m < 10; m++) {
+            mode(MODES[m]);
+            run(60);
+            whold(0);
+            run(300);
+            turn(QD_K_1, 1);
+            run(60);
+            wrel(0);
+            run(400);
+        }
+        btap(QD_B_HOME);
+    }
+    bdown(SHIFT);                                       /* SHIFT's maps: the step view, a step held, the keyboard */
+    run(100);
+    bup(SHIFT);
+    whold(0);
+    bdown(SHIFT);
+    run(100);
+    bup(SHIFT);
+    wrel(0);
+    btap(QD_B_REC);
+    bdown(SHIFT);
+    run(100);
+    bup(SHIFT);
+    btap(QD_B_HOME);
+    btap(QD_B_TRACKS);                                  /* the tracks screen */
+    run(200);
+    btap(QD_B_HOME);
+    btap(QD_B_PLAY);                                    /* playing */
+    run(600);
+    btap(QD_B_PLAY);
+    run(100);
+    mn = qd_text_stats_min(&small);
+    CHECK(mn >= 11.f, "no text under 11 px on any screen (the smallest: %.1f px, \"%s\")", (double)mn, small);
+    printf("  clarity: the smallest text drawn in every gesture's frames: %.1f px (\"%s\")\n", (double)mn, small);
+}
+
 /* P1.3i: the tempo and MIDI clock: a turn after a START and STOP works; a running clock shows EXT CLOCK and a turn says
  * so; the clock gone quiet ends it (the turn works again); the keyboard's SELECT the same */
 static void clock_pulses(int n, uint32_t ms)
@@ -2911,6 +2967,7 @@ int main(void)
         {"P1.3q: STEPS: PRESETS the step cursor", g_cursor},
         {"P1.3s: STEPS playing: no outline but the selection's", g_play_outline},
         {"P1.3r: the EDIT view", g_edit},
+        {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;
     uint64_t h1, h2;
@@ -2918,6 +2975,7 @@ int main(void)
         printf("test_ctl: qd_init failed\n");
         return 1;
     }
+    qd_text_stats_reset();                              /* P1.3v: the clarity guard over every gesture's frames */
     for (i = 0; i < sizeof G / sizeof G[0]; i++) {
         const int f0 = fails, c0 = checks;
         G[i].fn();

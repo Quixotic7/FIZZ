@@ -640,6 +640,7 @@ int main(void)
         printf("test_app: qd_init failed\n");
         return 1;
     }
+    qd_text_stats_reset();                              /* P1.3v: the clarity guard (checked at the end) */
     t_keys();
     t_presets();
     t_screens();
@@ -661,6 +662,11 @@ int main(void)
     h2 = session_seq();
     CHECK(h1 == h2, "two runs of the sequencer's session differ");
     printf("  determinism: the sequencer's session twice, the same samples (%016llx)\n", (unsigned long long)h1);
+    {
+        const char *small = "";
+        const float mn = qd_text_stats_min(&small);
+        CHECK(mn >= 11.f, "no text under 11 px in the frames drawn (the smallest: %.1f px, \"%s\")", (double)mn, small);
+    }
     qd_shutdown();
     printf("test_app: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

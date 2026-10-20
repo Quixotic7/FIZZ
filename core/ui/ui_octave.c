@@ -75,7 +75,7 @@ static void pool_strip(float pos, int bank, int nsound, int nbank, int sound, fl
             const qd_rgb col = lock ? UI_MODE_COL[UI_F_SOUND] : !have ? UI_G3 : b == bank ? UI_K3 : UI_G2;
             line2(x, lock ? y - 8.f : y, x, y + 16.f, col, lock ? 2.f : 1.3f);
         }
-        ui_T(ui_itoa(n, b * 10 + 1), bx + 1.5f, y + 28.f, 7.f, 600, 0.f, b == bank ? UI_K3 : UI_G2, QD_LEFT);
+        (void)n;                                        /* (P1.3v: no 7 px numbers: the sub line names the bank) */
         if (b == bank) {                                /* the bank's bracket */
             line2(bx - 1.f, y - 12.f, bx + 10.f * tick + 1.f, y - 12.f, UI_K3, 1.5f);
             line2(bx - 1.f, y - 12.f, bx - 1.f, y - 8.f, UI_K3, 1.5f);
@@ -113,7 +113,7 @@ void ui_octave_draw(const ui_octave_t *v)
     char s[16];
     int off, i;
 
-    ui_T(TITLE[kind], 8.f, 17.f, 11.f, 500, 1.f, UI_K3, QD_LEFT);   /* (P1.3r: a pop-up: no track in its head) */
+    ui_T(TITLE[kind], 8.f, 18.f, 12.f, 600, 0.8f, UI_K3, QD_LEFT);   /* (P1.3r: a pop-up: no track in its head) */
 
     /* the number, rolling as a drum: the old one out the way the change went, the new one in, inside a band */
     qd_save();
@@ -147,16 +147,10 @@ void ui_octave_draw(const ui_octave_t *v)
 
     /* OCT- / OCT+ and the distance from the centre: the dots on the side whose LED blinks */
     off = kind == UI_OCT_NOTE ? v->value - 4 : v->value - centre;
-    ui_lab("OCT\xe2\x88\x92", 14.f, 220.f, off < 0 ? UI_K3 : UI_G2, QD_LEFT);
-    ui_lab("OCT+", 226.f, 220.f, off > 0 ? UI_K3 : UI_G2, QD_RIGHT);
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 3; i++) {                           /* (P1.3v: the dots alone, as the LEDs: no OCT- / OCT+ words) */
         const int lit_l = off < 0 && i < -off, lit_r = off > 0 && i < off;
         ui_O(52.f + (float)i * 9.f, 217.f, 2.4f, lit_l ? UI_K3 : UI_G3, 1.f, lit_l ? UI_K3 : QD_NONE);
         ui_O(188.f - (float)i * 9.f, 217.f, 2.4f, lit_r ? UI_K3 : UI_G3, 1.f, lit_r ? UI_K3 : QD_NONE);
     }
-    ui_lab(off ? (off < 0 ? (off == -1 ? "SLOW BLINK" : off == -2 ? "FASTER" : "FASTEST")
-                          : (off == 1 ? "SLOW BLINK" : off == 2 ? "FASTER" : "FASTEST"))
-               : "THE CENTRE: NO BLINK",
-           120.f, 220.f, UI_G2, QD_CENTER);
     (void)v->t;
 }

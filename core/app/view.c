@@ -481,22 +481,30 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
 
 static void fill_shift(const qd_app_t *a, ui_shift_t *v)
 {
+    static char scale[24], root[4], swing[8];
     const qd_ui_t *u = &a->ui;
+    const qd_pattern_t *P = qd_ctl_cpat(a);
+    char n[12];
+    int sc, rt;
     memset(v, 0, sizeof *v);
-#define ROW(k, w) (v->key[v->n] = (k), v->what[v->n++] = (w))
-    if (u->mode == QD_MODE_KEYS) {
-        v->ctx = "KEYBOARD";
-        ROW("+ REC", a->ui.rec ? "recording off" : a->seq.playing ? "live recording" : "step recording");
-        ROW("+ SELECT", "swing");
+    qd_track_key(&a->proj, P, a->sel, &sc, &rt);
+    scale[0] = root[0] = swing[0] = 0;
+    if (sc != QD_SCALE_CHROMATIC)
+        cat(cat(scale, qd_pc_name(rt)), " ");
+    cat(scale, qd_scale_name(sc));
+    cat(root, qd_pc_name(rt));
+    cat(cat(swing, ui_itoa(n, P->swing)), "%");
+#define ROW(c, i, w) (v->ctl[v->n] = (c), v->icon[v->n] = (i), v->val[v->n++] = (w))
+    if (u->mode == QD_MODE_KEYS) {                      /* P1.3v: the controls, their jobs' icons, the values now */
+        ROW(UI_SC_REC, UI_IC_REC, a->ui.rec ? "OFF" : a->seq.playing ? "LIVE" : "STEP");
+        ROW(UI_SC_SELECT, UI_IC_SWING, swing);
     } else if (u->mode == QD_MODE_STEP && u->nheld) {
-        v->ctx = "A STEP HELD";
-        ROW("+ ALGORITHM", u->hmode == UI_F_RATCH ? "the ratchet's ramp" : "the strum (in MICRO)");
+        ROW(UI_SC_ALGO, u->hmode == UI_F_RATCH ? UI_IC_RAMP : UI_IC_STRUM, 0);
     } else {
-        v->ctx = "STEP VIEW";
-        ROW("+ ALGORITHM", "the track's scale");
-        ROW("+ PRESETS", "the track's root");
-        ROW("+ F3 + ALGORITHM", "swing");
-        ROW("+ SEQ + W", "change pattern now");
+        ROW(UI_SC_ALGO, UI_IC_SCALE, scale);
+        ROW(UI_SC_PRESETS, UI_IC_KEY, root);
+        ROW(UI_SC_F3_ALGO, UI_IC_SWING, swing);
+        ROW(UI_SC_SEQ_W, UI_IC_NOW, 0);
     }
 #undef ROW
 }
@@ -809,7 +817,7 @@ static void draw_octave(const qd_app_t *a)
     if (v.kind == UI_OCT_NOTE) {
         char n[8];
         v.lo_note = qd_scale_note(sc, rt, u->oct_to, 0);
-        cat(cat(cat(cat(v.sub, "B1 = "), qd_note_name(v.lo_note, n)), " \xc2\xb7 "), scale_buf);
+        cat(cat(cat(v.sub, qd_note_name(v.lo_note, n)), " \xc2\xb7 "), scale_buf);   /* (P1.3v: no "B1 =") */
     } else if (v.kind == UI_OCT_KEYS) {
         char n[8], n2[8];
         v.lo_note = QD_NOTE0 + 12 * u->oct_to;

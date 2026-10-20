@@ -338,6 +338,36 @@ int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *
     return 1;
 }
 
+static float qd_tmin = 1e9f;
+static char qd_tmin_s[32];
+void qd_text_stats_reset(void)
+{
+    qd_tmin = 1e9f;
+    qd_tmin_s[0] = 0;
+}
+float qd_text_stats_min(const char **text)
+{
+    if (text)
+        *text = qd_tmin_s;
+    return qd_tmin;
+}
+static void qd_text_stat(const char *utf8, float size)
+{
+    plutovg_matrix_t m;
+    float sz;
+    int i;
+    if (!utf8[0])
+        return;
+    plutovg_canvas_get_matrix(qd_cv, &m);
+    sz = size * sqrtf(m.c * m.c + m.d * m.d);
+    if (sz >= qd_tmin)
+        return;
+    qd_tmin = sz;
+    for (i = 0; utf8[i] && i < 31; i++)
+        qd_tmin_s[i] = utf8[i];
+    qd_tmin_s[i] = 0;
+}
+
 float qd_text(const char *utf8, float x, float y, const qd_font *f)
 {
     plutovg_text_iterator_t it;
@@ -346,6 +376,7 @@ float qd_text(const char *utf8, float x, float y, const qd_font *f)
     if (!qd_cv || !utf8 || !f || f->size <= 0.f)
         return 0.f;
     face = qd_face_for(f->weight);
+    qd_text_stat(utf8, f->size);
     w = qd_text_width(utf8, f);
     pen = f->align == QD_CENTER ? x - w / 2.f : f->align == QD_RIGHT ? x - w : x;
     plutovg_canvas_new_path(qd_cv);

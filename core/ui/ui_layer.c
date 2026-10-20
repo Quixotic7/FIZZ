@@ -1,29 +1,30 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The layer maps (PLAN.md §8b, version 2.1): while F1, F2, F3, SEL or SEQ is held the screen is its map, so every
- * layer explains itself while it is held; while SHIFT is held, a list of what SHIFT does here. The LINE look: thin
- * outlines, the black keys' strip at the foot with what each key does in this layer written in it (the same strip as
- * a held step's values), white for what is chosen, red only for the playhead.
- *   F1 · PAGES        the eight pages as eight cells (4 x 2, B1..B8): the page's number, its range ("5–12"), its
- *                     sixteen steps as a 4 x 4 of dots (a trig filled, outside start..end only a speck); the page
- *                     edited outlined white, the pages in the loop grey, the others dark; the playing page a red line
- *                     under its number (blinking). After B10's copy the copied page's cell is dashed (blinking) and
- *                     the legend says B1..B8 paste it. The legend: tap / twice / hold, B9 tap / hold, W's copy / paste;
- *                     the strip: 1..8, CLR (B9), COPY (B10, lit once a page is copied), UNDO (B11, dark with none)
- *   F2 · CUT & PASTE  Form's pick-up / drop: the page's sixteen steps (a trig a dot; the last W pressed marked CUT in
- *                     orange or PASTE in green) and the hand: a card holding the step (its notes on a little keybed,
- *                     a LOCK step a padlock, an empty step EMPTY) or a dashed empty card; what the next W does
+/* The layer maps (PLAN.md §8b, version 2.1; P1.3v: §9a's clarity rules): while F1, F2, F3, SEL or SEQ is held the
+ * screen is its map; while SHIFT is held, the controls SHIFT changes. VISUAL maps: the keys drawn where they are on the
+ * panel, each with an icon or a number for what it does in this layer (ui_keymap), lit or coloured by its state; no
+ * sentences, no legends (the gestures are in PLAYING.md). Text: the layer's name, the page / pattern / track numbers
+ * and names, the values (12 px or more).
+ *   F1 · PAGES        the eight pages as eight cells (4 x 2): the number big, the sixteen steps as a 4 x 4 of dots (a
+ *                     trig filled, outside start..end only a speck); the page edited outlined white, the loop grey,
+ *                     the others dark; the playing page a red line under its number (blinking); a copied page dashed
+ *                     (blinking). The W keys' step copy: a white key with COPY (or PASTE, green, once a step is
+ *                     copied). The keys: B1..B8 the pages (white in the loop; green to paste a copied page), B9 CLEAR,
+ *                     B10 COPY (lit: a page copied), B11 UNDO (dark with none)
+ *   F2 · CUT & PASTE  the page's sixteen steps (a trig a dot; the last W pressed outlined with CUT orange or PASTE
+ *                     green under it) and the hand: a card holding the step (its notes on a little keybed, a LOCK step
+ *                     a padlock, an empty step an empty cell) or a dashed empty card; beside it, big, what the next W
+ *                     does (CUT, or PASTE)
  *   F3 · RANGE & RATE the page edited as sixteen cells with its start..end bracketed over them (the W held first
- *                     outlined, blinking), the range big and the rate big as a note value with its dot or T (triplet)
- *                     mark, the four knobs' jobs in their colours (VALUE, TYPE, START, END), the tempo and swing on
- *                     SELECT / SHIFT; the strip: the seven bases and the three types, the track's lit
- *   SEL · TRACKS      (layer 4) the eight tracks as s17's speakers: the selected one boxed white, a muted one grey
- *                     with an orange cross, a soloed one an S in a yellow ring (blinking), the waves lit by a trig
- *                     just now; the strip: 1..8 select, B11 CLR (lit while a mute or solo is set)
- *   SEQ · PATTERNS    (ui_patterns_draw, line.html s13 simpler) the queued pattern big (else the playing one),
- *                     the bank shown's sixteen as dots, a line emptying to the change, the launch mode; P1.3d: the
- *                     banks A..D (B1..B4) under the dots, the one shown boxed
- *   (P1.3d: F3 latched shows "OCT- EXIT" top right of its map)
- *   SHIFT             the context at the right, then a row a key: the key white, an arrow, what it does grey */
+ *                     outlined, blinking) and its numbers under them, the range big and the rate big as a note value
+ *                     with its dot or T mark, the tempo and swing; the keys: B1..B7 the note values as notes, B8
+ *                     normal, B9 dotted, B10 triplet, the track's lit. Latched: a back arrow top right (OCT-)
+ *   SEL · TRACKS      the eight tracks as speakers: the selected one boxed white, a muted one grey with an orange
+ *                     cross, a soloed one an S in a yellow ring (blinking), the waves lit by a trig; the keys: B1..B8
+ *                     the tracks (lit: selected, dark: muted), B11 CLEAR (bright while a mute or solo is set)
+ *   SEQ · PATTERNS    (ui_patterns_draw) the queued pattern big (else the playing one) with PLAY / STOP, a line
+ *                     emptying to the change, the bank's sixteen as dots, the banks A..D (B1..B4), the launch mode
+ *   SHIFT             a row per control SHIFT changes here: the control (a knob's badge, REC, F3, SEQ + a key), an
+ *                     arrow, the job's icon and its value now (the scale, the root, the swing) */
 #include <math.h>
 
 #include "ui.h"
@@ -50,23 +51,24 @@ static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
     ui_P(p, 2, col, lw, 0, QD_NONE);
 }
 
-/* a key and what it does on one line, centred: the key white, the rest grey */
-static void legend(const char *key, const char *what, float y, int dim)
-{
-    const float wk = ui_TW(key, 8.f, 600, 1.f), ww = ui_TW(what, 8.f, 600, 1.f), x = 120.f - (wk + 6.f + ww) / 2.f;
-    ui_lab(key, x, y, dim ? UI_G2 : UI_K3, QD_LEFT);
-    ui_lab(what, x + wk + 6.f, y, dim ? UI_G2 : UI_G1, QD_LEFT);
-}
-
 static const char *const NUM[8] = {"1", "2", "3", "4", "5", "6", "7", "8"};
+#define KM_Y 202.f                                      /* the key map's top, its height */
+#define KM_H 30.f
+
+static void keys_clear(ui_kkey_t k[11])
+{
+    int i;
+    for (i = 0; i < 11; i++) {
+        k[i].icon = UI_IC_NONE, k[i].num = 0, k[i].col = 0;
+        k[i].lit = k[i].dim = k[i].mark = 0;
+    }
+}
 
 /* ---------------------------------------------------------------- F1: the pages */
 static void f1(const ui_layer_t *v)
 {
-    const char *lab[11];
-    unsigned hot = 0;
-    char s[48], n[12];
-    int p, k;
+    ui_kkey_t k[11];
+    int p, i;
 
     for (p = 0; p < 8; p++) {
         const float x = 8.f + (float)(p % 4) * 57.f, y = 30.f + (float)(p / 4) * 66.f, w = 53.f, h = 60.f;
@@ -83,40 +85,32 @@ static void f1(const ui_layer_t *v)
         } else {
             ui_RR(x, y, w, h, 5.f, ed ? UI_K3 : in ? UI_G1 : UI_G3, ed ? 1.5f : 1.f, QD_NONE);
         }
-        ui_T(NUM[p], x + 8.f, y + 22.f, 18.f, ed ? 400 : 300, 0.f, tc, QD_LEFT);
-        s[0] = 0;                                       /* its range */
-        cat(cat(cat(s, ui_itoa(n, st + 1)), DASH), ui_itoa(n, en + 1));
-        ui_T(s, x + 8.f, y + h - 8.f, 7.f, 600, 0.5f, st > 0 || en < 15 ? tc : UI_G2, QD_LEFT);
-        for (k = 0; k < 16; k++) {                      /* its steps, a beat a row */
-            const float dx = x + 27.f + (float)(k % 4) * 7.5f, dy = y + 14.f + (float)(k / 4) * 10.5f;
-            if (k < st || k > en)
+        ui_T(NUM[p], x + 8.f, y + 24.f, 20.f, ed ? 500 : 400, 0.f, tc, QD_LEFT);
+        for (i = 0; i < 16; i++) {                      /* its steps, a beat a row (outside its range: specks) */
+            const float dx = x + 27.f + (float)(i % 4) * 7.5f, dy = y + 14.f + (float)(i / 4) * 10.5f;
+            if (i < st || i > en)
                 ui_O(dx, dy, 0.9f, QD_NONE, 1.f, UI_G3);
-            else if (v->trig[p][k])
+            else if (v->trig[p][i])
                 ui_O(dx, dy, 2.2f, QD_NONE, 1.f, ed ? UI_K3 : in ? UI_G1 : UI_G2);
             else
                 ui_O(dx, dy, 1.6f, ed || in ? UI_G2 : UI_G3, 1.f, QD_NONE);
         }
         if (p == v->play_page)                          /* playing: a red line under its number, blinking */
-            line2(x + 8.f, y + 28.f, x + 19.f, y + 28.f, v->blink ? UI_RED : 0xa01c2au, 2.f);
-        if (in)
-            hot |= 1u << p;
+            line2(x + 8.f, y + 31.f, x + 21.f, y + 31.f, v->blink ? UI_RED : 0xa01c2au, 2.f);
     }
-    if (v->page_copied >= 0 && v->page_copied < 8) {
-        s[0] = 0;
-        cat(cat(cat(s, "PASTE PAGE "), NUM[v->page_copied]), " ONTO IT");
-        legend("B1\xe2\x80\x93" "B8", s, 172.f, 0);
-        legend("EACH PRESS", "PASTES AGAIN", 184.f, 0);
-    } else {
-        legend("TAP", "EDIT \xc2\xb7 TWICE: LOOP IT ALONE \xc2\xb7 HOLD: IN / OUT", 172.f, 0);
-        legend("HOLD + ANOTHER", "LOOP FROM ONE TO IT", 184.f, 0);
+    /* the W keys' step copy: a white key and COPY, or PASTE (green) once a step is copied */
+    ui_icon(UI_IC_KEY, 104.f, 178.f, 1.4f, UI_G1);
+    ui_icon(v->f1_copied ? UI_IC_PASTE : UI_IC_COPY, 132.f, 178.f, 1.5f, v->f1_copied ? UI_K2 : UI_G1);
+    keys_clear(k);
+    for (p = 0; p < 8; p++) {
+        k[p].num = p + 1;
+        k[p].col = v->page_copied >= 0 ? UI_K2 : (v->loop >> p) & 1 ? UI_K3 : UI_G1;
+        k[p].lit = p == v->page && v->page_copied < 0;
     }
-    legend("B9", "TAP: CLEAR PAGE \xc2\xb7 HOLD: CLEAR TRACK", 196.f, 0);
-    legend("W", v->f1_copied ? "PASTE THE COPIED STEP" : "COPY A STEP, THEN W PASTES IT", 208.f, 0);
-    for (k = 0; k < 8; k++)
-        lab[k] = NUM[k];
-    lab[8] = "CLR", lab[9] = "COPY", lab[10] = "UNDO";
-    ui_strip(lab, (v->page >= 0 && v->page < 8 ? 1u << v->page : 0u) | (v->page_copied >= 0 ? 1u << 9 : 0u), 0u,
-             v->can_undo ? 0u : 1u << 10, hot, UI_K3);
+    k[8].icon = UI_IC_CLEAR, k[8].col = UI_K4;
+    k[9].icon = UI_IC_COPY, k[9].lit = v->page_copied >= 0;
+    k[10].icon = UI_IC_UNDO, k[10].dim = !v->can_undo;
+    ui_keymap(k, KM_Y, KM_H);
 }
 
 /* ---------------------------------------------------------------- F2: Form's pick-up / drop */
@@ -128,16 +122,13 @@ static void hand_card(const ui_layer_t *v, float x, float y, float w, float h)
         qd_dash(DSH, 2);
         ui_RR(x, y, w, h, 6.f, UI_G2, 1.2f, QD_NONE);
         qd_restore();
-        ui_T("HAND EMPTY", x + w / 2.f, y + h / 2.f + 3.f, 9.f, 600, 1.f, UI_G1, QD_CENTER);
         return;
     }
     ui_RR(x, y, w, h, 6.f, UI_K3, 1.5f, QD_NONE);
-    ui_lab("IN THE HAND", x + 8.f, y + 13.f, UI_G1, QD_LEFT);
-    if (v->clip_type == 0) {
-        ui_T("EMPTY STEP", x + w / 2.f, y + h / 2.f + 8.f, 11.f, 600, 1.f, UI_K3, QD_CENTER);
+    if (v->clip_type == 0) {                            /* an empty step: an empty cell */
+        ui_icon(UI_IC_KEY, x + w / 2.f, y + h / 2.f, 2.4f, UI_G1);
     } else if (v->clip_type == 2) {                     /* a LOCK step: a padlock */
-        ui_lock(x + w / 2.f - 7.f, y + h / 2.f - 4.f, UI_MODE_COL[UI_F_PLOCK], 2.f);
-        ui_lab("LOCK STEP", x + w / 2.f, y + h - 6.f, UI_G1, QD_CENTER);
+        ui_lock(x + w / 2.f - 10.5f, y + h / 2.f - 12.f, UI_MODE_COL[UI_F_PLOCK], 3.f);
     } else {                                            /* its notes on a little keybed */
         qd_rgb fill[128];
         int i, lo = 127;
@@ -147,7 +138,7 @@ static void hand_card(const ui_layer_t *v, float x, float y, float w, float h)
             fill[v->clip_note[i] & 127] = UI_K3;
             lo = v->clip_note[i] < lo ? v->clip_note[i] : lo;
         }
-        ui_keyboard(x + 8.f, y + 20.f, w - 16.f, h - 28.f, lo / 12 * 12, fill);
+        ui_keyboard(x + 8.f, y + 10.f, w - 16.f, h - 20.f, lo / 12 * 12, fill);
     }
 }
 
@@ -156,6 +147,7 @@ static float cx16(int i) { return 9.f + (float)i * 13.5f + (float)(i / 4) * 2.f;
 static void f2(const ui_layer_t *v)
 {
     const float top = 34.f, h = 40.f;
+    const int next_paste = v->hand_loaded && v->hand;
     int i;
     for (i = 0; i < 16; i++) {                          /* the page's steps */
         const int last = i == v->last_w;
@@ -164,38 +156,28 @@ static void f2(const ui_layer_t *v)
         if (v->page_on[i])
             ui_O(cx16(i) + 6.f, top + h - 10.f, 2.4f, QD_NONE, 1.f, last ? oc : UI_K3);
     }
-    if (v->last_w >= 0 && v->last_w < 16) {
-        const char *w = v->last_act == 1 ? "CUT" : "PASTE";
-        float x = cx16(v->last_w) + 6.f;
-        x = x < 20.f ? 20.f : x > 220.f ? 220.f : x;
-        ui_T(w, x, top + h + 12.f, 8.f, 700, 1.f, v->last_act == 1 ? UI_K4 : UI_K2, QD_CENTER);
-    }
-    hand_card(v, 60.f, 96.f, 120.f, 66.f);
-    legend("NEXT W", !v->hand_loaded ? "CUTS IT, EVEN AN EMPTY STEP"
-                     : v->hand ? "PASTES" : "CUTS (AN EMPTY STEP: PASTES)", 180.f, 0);
-    legend("FIRST W", "CUTS \xc2\xb7 THEN AN EMPTY STEP: PASTE", 194.f, 1);
-    legend("A FULL STEP", "PASTE, CUT, PASTE ..", 206.f, 1);
-    legend("F2 UP", "EMPTIES THE HAND", 218.f, 1);
+    if (v->last_w >= 0 && v->last_w < 16)               /* what the last W did, under it */
+        ui_icon(v->last_act == 1 ? UI_IC_CUT : UI_IC_PASTE, cx16(v->last_w) + 6.f, top + h + 14.f, 1.1f,
+                v->last_act == 1 ? UI_K4 : UI_K2);
+    hand_card(v, 40.f, 108.f, 120.f, 72.f);
+    ui_icon(next_paste ? UI_IC_PASTE : UI_IC_CUT, 194.f, 144.f, 2.6f, next_paste ? UI_K2 : UI_K4);   /* the next W */
 }
 
 /* ---------------------------------------------------------------- F3: the page's range and the rate */
 static void f3(const ui_layer_t *v)
 {
-    static const char *const KJOB[4] = {"VALUE", "TYPE", "START", "END"};
-    static const char *const BASE[7] = {"1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"};
     const int pg = v->page < 0 ? 0 : v->page > 7 ? 7 : v->page;
     const int st = v->pstart[pg] > 15 ? 15 : v->pstart[pg];
     const int en = v->pend[pg] < st ? st : v->pend[pg] > 15 ? 15 : v->pend[pg];
     const float top = 48.f, h = 44.f;
-    const char *lab[11];
+    ui_kkey_t k[11];
     char s[64], n[12];
-    float x0, x1, kx;
+    float x0, x1;
     int i;
 
     s[0] = 0;
     cat(cat(s, "PAGE "), NUM[pg]);
-    ui_lab(s, 9.f, 36.f, UI_G1, QD_LEFT);
-    ui_lab("W: THE END \xc2\xb7 W + W: START\xe2\x80\x93" "END", 230.f, 36.f, UI_G2, QD_RIGHT);
+    ui_lab(s, 9.f, 38.f, UI_G1, QD_LEFT);
     for (i = 0; i < 16; i++) {                          /* the steps: in the range bright, out dark */
         const int in = i >= st && i <= en, an = i == v->anchor;
         const qd_rgb oc = an ? (v->blink ? UI_K3 : UI_G1) : in ? UI_G1 : 0x1c1c22u;
@@ -208,49 +190,47 @@ static void f3(const ui_layer_t *v)
     line2(x0, top - 5.f, x1, top - 5.f, UI_K3, 1.5f);
     line2(x0, top - 5.f, x0, top - 1.f, UI_K[2 - 1], 1.5f);
     line2(x1, top - 5.f, x1, top - 1.f, UI_K[4 - 1], 1.5f);
-    ui_T(ui_itoa(n, st + 1), cx16(st) + 6.f, top + h + 11.f, 8.f, 600, 0.f, UI_K3, QD_CENTER);
+    ui_T(ui_itoa(n, st + 1), cx16(st) + 6.f, top + h + 15.f, 12.f, 600, 0.f, UI_K[2 - 1], QD_CENTER);
     if (en != st)
-        ui_T(ui_itoa(n, en + 1), cx16(en) + 6.f, top + h + 11.f, 8.f, 600, 0.f, UI_K3, QD_CENTER);
+        ui_T(ui_itoa(n, en + 1), cx16(en) + 6.f, top + h + 15.f, 12.f, 600, 0.f, UI_K[4 - 1], QD_CENTER);
 
     s[0] = 0;                                           /* the range big */
     cat(cat(cat(s, ui_itoa(n, st + 1)), DASH), ui_itoa(n, en + 1));
-    ui_T(s, 12.f, 148.f, 34.f, 200, 0.f, UI_K3, QD_LEFT);
-    ui_lab("STEPS", 14.f, 162.f, UI_G1, QD_LEFT);
+    ui_T(s, 12.f, 152.f, 36.f, 200, 0.f, UI_K3, QD_LEFT);
     {   /* the rate big: the note value in KNOB 1's blue, its dot or T in KNOB 2's green */
         const char *val = v->rate_val_name ? v->rate_val_name : "1/16";
         const float mark = v->rate_type ? 14.f : 0.f, xr = 228.f - mark;
-        ui_T(val, xr, 148.f, 34.f, 200, 0.f, UI_K1, QD_RIGHT);
+        ui_T(val, xr, 152.f, 36.f, 200, 0.f, UI_K1, QD_RIGHT);
         if (v->rate_type == 1)
-            ui_O(xr + 6.f, 144.f, 3.2f, QD_NONE, 1.f, UI_K2);
+            ui_O(xr + 6.f, 148.f, 3.4f, QD_NONE, 1.f, UI_K2);
         else if (v->rate_type == 2)
-            ui_T("T", xr + 7.f, 130.f, 14.f, 500, 0.f, UI_K2, QD_CENTER);
-        ui_lab(v->rate_type == 1 ? "DOTTED" : v->rate_type == 2 ? "TRIPLET" : "RATE", 226.f, 162.f, UI_G1, QD_RIGHT);
+            ui_T("T", xr + 7.f, 134.f, 16.f, 500, 0.f, UI_K2, QD_CENTER);
     }
-    kx = 120.f - 2.f * 50.f + 25.f;                     /* the four knobs' jobs, in their colours */
-    for (i = 0; i < 4; i++) {
-        ui_knob_mark(kx + (float)i * 50.f - 14.f, 180.f, 0.5f, UI_K[i]);
-        ui_lab(KJOB[i], kx + (float)i * 50.f - 5.f, 183.f, UI_K[i], QD_LEFT);
-    }
-    s[0] = 0;                                           /* P1.3h: the tempo and swing, live; the big knobs' jobs */
-    cat(cat(cat(s, v->ext ? "EXT CLOCK " : "TEMPO "), ui_itoa(n, v->bpm)), DOT);
-    cat(cat(cat(s, "SWING "), ui_itoa(n, v->swing)), "%");
-    {   /* P1.3j: 11 px, lit yellow for a second after a turn (it was an 8 px label: a change was easy to miss) */
-        const float w = ui_TW(s, 11.f, 500, 0.5f);
+    s[0] = 0;                                           /* P1.3h: the tempo and swing, live (lit after a turn) */
+    cat(cat(cat(s, v->ext ? "EXT " : ""), ui_itoa(n, v->bpm)), " BPM");
+    cat(cat(cat(s, DOT), ui_itoa(n, v->swing)), "%");
+    {
+        const float w = ui_TW(s, 14.f, 500, 0.5f);
         if (v->tempo_hot > 0.f) {
             qd_save();
             qd_alpha(v->tempo_hot);
-            ui_RR(120.f - w / 2.f - 5.f, 189.f, w + 10.f, 14.f, 4.f, UI_KSEL, 1.f, QD_NONE);
+            ui_RR(120.f - w / 2.f - 6.f, 170.f, w + 12.f, 20.f, 5.f, UI_KSEL, 1.f, QD_NONE);
             qd_restore();
         }
-        ui_T(s, 120.f, 200.f, 11.f, 500, 0.5f, v->tempo_hot > 0.f ? UI_KSEL : UI_K3, QD_CENTER);
+        ui_T(s, 120.f, 185.f, 14.f, 500, 0.5f, v->tempo_hot > 0.f ? UI_KSEL : UI_K3, QD_CENTER);
     }
-    ui_lab("SELECT: PAGE \xc2\xb7 ALGO: TEMPO \xc2\xb7 SHIFT: SWING", 120.f, 211.f, UI_G1, QD_CENTER);
-    for (i = 0; i < 7; i++)
-        lab[i] = BASE[i];
-    lab[7] = "NRM", lab[8] = "DOT", lab[9] = "TRI", lab[10] = 0;
-    ui_strip(lab, (v->rate_val >= 0 && v->rate_val < 7 ? 1u << v->rate_val : 0u) |
-                      (v->rate_type >= 0 && v->rate_type < 3 ? 1u << (7 + v->rate_type) : 0u),
-             0u, 1u << 10, 0u, UI_K3);
+    keys_clear(k);                                      /* B1..B7 the note values, B8 normal, B9 dotted, B10 triplet */
+    for (i = 0; i < 7; i++) {
+        k[i].icon = UI_IC_NOTE + i;
+        k[i].col = UI_K1;
+        k[i].lit = i == v->rate_val;
+    }
+    k[7].icon = UI_IC_NOTE + 2, k[8].icon = UI_IC_DOT, k[9].icon = UI_IC_TRI;
+    for (i = 7; i < 10; i++) {
+        k[i].col = UI_K2;
+        k[i].lit = i - 7 == v->rate_type;
+    }
+    ui_keymap(k, KM_Y, KM_H);
 }
 
 /* ---------------------------------------------------------------- SEL: the tracks (s17's speakers) */
@@ -274,37 +254,47 @@ static void speaker(float x, float y, qd_rgb col, int on, int mute)
     }
 }
 
+/* a name as big as fits in w (12 px, squeezed no narrower than 0.7) */
+static void name_fit(const char *s, float cx, float y, float w, qd_rgb col)
+{
+    const float tw = ui_TW(s, 12.f, 600, 0.5f);
+    if (tw <= w) {
+        ui_T(s, cx, y, 12.f, 600, 0.5f, col, QD_CENTER);
+        return;
+    }
+    qd_save();
+    qd_translate(cx, y);
+    qd_scale(w / tw < 0.7f ? 0.7f : w / tw, 1.f);
+    ui_T(s, 0.f, 0.f, 12.f, 600, 0.5f, col, QD_CENTER);
+    qd_restore();
+}
+
 static void tracks(const ui_layer_t *v)
 {
-    const char *lab[11];
-    unsigned faint = 0;
+    ui_kkey_t k[11];
     int i;
 
     for (i = 0; i < 8; i++) {
-        const float x = 34.f + (float)(i % 4) * 57.f, y = 58.f + (float)(i / 4) * 70.f;
+        const float x = 34.f + (float)(i % 4) * 57.f, y = 56.f + (float)(i / 4) * 72.f;
         const int mute = (v->mute >> i) & 1, solo = (v->solo >> i) & 1, sel = i == v->sel;
-        const char *nm = v->tname[i] ? v->tname[i] : "";
         if (sel)
-            ui_RR(x - 27.f, y - 24.f, 54.f, 68.f, 6.f, UI_K3, 1.5f, QD_NONE);
+            ui_RR(x - 27.f, y - 24.f, 54.f, 70.f, 6.f, UI_K3, 1.5f, QD_NONE);
         speaker(x - 2.f, y, mute ? UI_G2 : UI_K3, v->flash[i] != 0, mute);
-        ui_T(NUM[i], x, y + 26.f, 9.f, 600, 0.f, mute ? UI_G2 : UI_K3, QD_CENTER);
-        ui_T(nm, x, y + 37.f, 8.f, 500, 1.f, mute ? UI_G2 : sel ? UI_K3 : UI_G1, QD_CENTER);
+        ui_T(NUM[i], x, y + 28.f, 12.f, 600, 0.f, mute ? UI_G2 : UI_K3, QD_CENTER);
+        name_fit(v->tname[i] ? v->tname[i] : "", x, y + 42.f, 50.f, mute ? UI_G2 : sel ? UI_K3 : UI_G1);
         if (solo) {                                     /* soloed: an S in a ring, blinking */
-            ui_O(x + 20.f, y - 16.f, 6.f, SOLO_COL, 1.2f, v->blink ? SOLO_COL : QD_NONE);
-            ui_T("S", x + 20.f, y - 13.f, 8.f, 700, 0.f, v->blink ? UI_BG : SOLO_COL, QD_CENTER);
+            ui_O(x + 19.f, y - 14.f, 8.f, SOLO_COL, 1.2f, v->blink ? SOLO_COL : QD_NONE);
+            ui_T("S", x + 19.f, y - 9.5f, 12.f, 700, 0.f, v->blink ? UI_BG : SOLO_COL, QD_CENTER);
         }
-        if (mute)
-            faint |= 1u << i;
     }
-    legend("W1\xe2\x80\x93W8", "TAP: MUTE \xc2\xb7 HOLD: SOLO", 192.f, 0);
-    legend("B11", "EVERY MUTE AND SOLO OFF", 205.f, !(v->mute || v->solo));
-    for (i = 0; i < 8; i++)
-        lab[i] = NUM[i];
-    lab[8] = lab[9] = 0;
-    lab[10] = "CLR";
-    ui_strip(lab, v->sel >= 0 && v->sel < 8 ? 1u << v->sel : 0u, 0u,
-             (faint & ~(1u << v->sel)) | 3u << 8 | (v->mute || v->solo ? 0u : 1u << 10),
-             v->mute || v->solo ? 1u << 10 : 0u, UI_K3);
+    keys_clear(k);
+    for (i = 0; i < 8; i++) {
+        k[i].num = i + 1;
+        k[i].lit = i == v->sel;
+        k[i].col = (v->mute >> i) & 1 ? UI_G2 : UI_K3;
+    }
+    k[10].icon = UI_IC_CLEAR, k[10].col = UI_K4, k[10].dim = !(v->mute || v->solo);
+    ui_keymap(k, KM_Y, KM_H);
 }
 
 void ui_layer_draw(const ui_layer_t *v)
@@ -312,12 +302,10 @@ void ui_layer_draw(const ui_layer_t *v)
     static const char *const T[4] = {"F1 \xc2\xb7 PAGES", "F2 \xc2\xb7 CUT & PASTE", "F3 \xc2\xb7 RANGE & RATE",
                                      "SEL \xc2\xb7 TRACKS"};
     const int l = v->layer < 1 ? 1 : v->layer > 4 ? 4 : v->layer;
-    if (l == 3 && v->latched) {                         /* P1.3d: a latched menu: the track's box, "OCT- EXIT" */
-        const char *ex = "OCT\xe2\x88\x92 EXIT";
-        const float w = ui_TW(ex, 7.f, 600, 1.f) + 8.f;
+    if (l == 3 && v->latched) {                         /* P1.3d: a latched menu: a back arrow top right (OCT-) */
         ui_head_track(T[l - 1], v->track, "", UI_K3);
-        ui_RR(206.f - w, 6.f, w, 13.f, 3.f, UI_K3, 1.f, QD_NONE);
-        ui_T(ex, 206.f - w / 2.f + 0.5f, 15.f, 7.f, 600, 1.f, UI_K3, QD_CENTER);
+        ui_RR(180.f, 4.f, 24.f, 17.f, 4.f, UI_K3, 1.2f, QD_NONE);
+        ui_icon(UI_IC_BACK, 192.f, 12.5f, 1.f, UI_K3);
     } else {
         ui_head_track(T[l - 1], v->track, v->name ? v->name : "", UI_K3);
     }
@@ -350,13 +338,11 @@ void ui_patterns_draw(const ui_patterns_t *v)
     cat(s, ui_itoa(n, (big & 15) + 1));
     ui_T(BANK[(big >> 4) & 3], 12.f, 100.f, 40.f, 200, 0.f, UI_G1, QD_LEFT);
     ui_T(s, 40.f, 100.f, 64.f, 200, 0.f, v->queued >= 0 ? UI_K4 : UI_K3, QD_LEFT);
-    if (v->queued >= 0) {
-        ui_lab(v->playing ? "QUEUED" : "NEXT AT PLAY", 14.f, 124.f, UI_G1, QD_LEFT);
-        line2(14.f, 132.f, 120.f, 132.f, UI_G3, 2.f);
+    ui_icon(v->playing ? UI_IC_PLAY : UI_IC_STOP, 20.f, 124.f, 1.f, v->playing ? UI_K3 : UI_G1);   /* PLAY / STOP */
+    if (v->queued >= 0) {                               /* queued: a line emptying to the change */
+        line2(34.f, 124.f, 120.f, 124.f, UI_G3, 2.f);
         if (v->playing && v->left > 0.f)
-            line2(14.f, 132.f, 14.f + 106.f * v->left, 132.f, UI_K4, 2.f);
-    } else {
-        ui_lab(v->playing ? "PLAYING" : "STOPPED", 14.f, 124.f, UI_G1, QD_LEFT);
+            line2(34.f, 124.f, 34.f + 86.f * v->left, 124.f, UI_K4, 2.f);
     }
     for (i = 0; i < 16; i++) {                          /* the bank shown: sixteen dots */
         const int k = bank * 16 + i;
@@ -371,50 +357,65 @@ void ui_patterns_draw(const ui_patterns_t *v)
             ui_O(x, y, 1.5f, QD_NONE, 1.f, UI_G2);
     }
     for (i = 0; i < 4; i++) {                           /* the banks (SEQ + B1..B4): the one shown boxed */
-        const float x = 148.f + (float)i * 22.f, y = 132.f;
+        const float x = 148.f + (float)i * 22.f, y = 134.f;
         const int on = i == bank, has = (v->bank_used >> i) & 1u;
         const int playing_here = (v->cur >> 4) == i;
         if (on)
-            ui_RR(x - 8.f, y - 11.f, 16.f, 16.f, 4.f, UI_K3, 1.2f, QD_NONE);
-        ui_T(BANK[i], x, y + 1.f, 11.f, on ? 600 : 400, 0.f, on || has ? UI_K3 : UI_G2, QD_CENTER);
+            ui_RR(x - 9.f, y - 13.f, 18.f, 18.f, 4.f, UI_K3, 1.2f, QD_NONE);
+        ui_T(BANK[i], x, y + 1.f, 13.f, on ? 600 : 500, 0.f, on || has ? UI_K3 : UI_G2, QD_CENTER);
         if (playing_here)                               /* the playing pattern's bank: a dot under it */
-            ui_O(x, y + 9.f, 1.3f, QD_NONE, 1.f, UI_K3);
+            ui_O(x, y + 10.f, 1.4f, QD_NONE, 1.f, UI_K3);
     }
-    ui_lab("LAUNCH", 14.f, 162.f, UI_G1, QD_LEFT);      /* the launch mode (ALGORITHM), the one in use white */
-    ui_knob_mark(68.f, 159.f, (float)v->launch / 3.f, UI_G1);
+    ui_knob_mark(22.f, 176.f, (float)v->launch / 3.f, UI_G1);   /* the launch mode (ALGORITHM), the one in use white */
     for (i = 0; i < 4; i++) {
-        const float x = 30.f + (float)i * 56.f;
-        ui_T(LAUNCH[i], x, 184.f, 13.f, i == v->launch ? 500 : 300, 0.5f, i == v->launch ? UI_K3 : UI_G2,
-             QD_CENTER);
+        const float x = 66.f + (float)i * 46.f;
+        ui_T(LAUNCH[i], x, 181.f, 14.f, 500, 0.5f, i == v->launch ? UI_K3 : UI_G2, QD_CENTER);
         if (i == v->launch)
-            line2(x - 10.f, 191.f, x + 10.f, 191.f, UI_K3, 1.5f);
+            line2(x - 12.f, 188.f, x + 12.f, 188.f, UI_K3, 1.5f);
     }
-    legend("W", "TAP: QUEUE \xc2\xb7 HOLD: AT ONCE", 207.f, 0);
-    legend("B1\xe2\x80\x93" "B4", "BANK A\xe2\x80\x93" "D", 219.f, 0);
-    legend("ALGORITHM", "THE LAUNCH MODE", 231.f, 1);
 }
 
 /* ---------------------------------------------------------------- SHIFT */
+/* the control as on the panel: a knob's badge (S A P, as the knob band's), REC's red button, F3 (the two OCT keys), SEQ
+ * with a white key */
+static void control(int c, float cx, float cy)
+{
+    static const char *const BADGE[3] = {"S", "A", "P"};
+    if (c >= UI_SC_SELECT && c <= UI_SC_PRESETS) {
+        const qd_rgb bc = c == UI_SC_SELECT ? UI_KSEL : UI_K3;
+        ui_O(cx, cy, 10.f, QD_NONE, 1.f, bc);
+        ui_T(BADGE[c - UI_SC_SELECT], cx, cy + 4.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+    } else if (c == UI_SC_REC) {
+        ui_O(cx, cy, 10.f, UI_RED, 1.3f, QD_NONE);
+        ui_O(cx, cy, 4.5f, QD_NONE, 1.f, UI_RED);
+    } else if (c == UI_SC_F3_ALGO) {                    /* the two OCT keys, then ALGORITHM's badge */
+        ui_RR(cx - 22.f, cy - 6.f, 9.f, 12.f, 2.f, UI_K3, 1.2f, QD_NONE);
+        ui_RR(cx - 11.f, cy - 6.f, 9.f, 12.f, 2.f, UI_K3, 1.2f, QD_NONE);
+        ui_O(cx + 10.f, cy, 10.f, QD_NONE, 1.f, UI_K3);
+        ui_T("A", cx + 10.f, cy + 4.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+    } else if (c == UI_SC_SEQ_W) {                      /* SEQ's button, then a white key */
+        ui_RR(cx - 20.f, cy - 6.f, 18.f, 12.f, 3.f, UI_K3, 1.2f, QD_NONE);
+        ui_icon(UI_IC_KEY, cx + 8.f, cy, 1.f, UI_K3);
+    }
+}
+
 void ui_shift_draw(const ui_shift_t *v)
 {
-    const int n = v->n < 0 ? 0 : v->n > 8 ? 8 : v->n;
-    const float sp = n > 6 ? 21.f : 26.f, y0 = 58.f;
-    float kw = 0.f;
+    const int n = v->n < 0 ? 0 : v->n > 6 ? 6 : v->n;
+    const float sp = 40.f, y0 = 58.f;
     int i;
-    ui_head("SHIFT", v->ctx, 0, UI_K3, UI_G1);
-    for (i = 0; i < n; i++) {                           /* the keys' column as wide as the widest key */
-        const float w = v->key[i] ? ui_TW(v->key[i], 11.f, 600, 0.5f) : 0.f;
-        if (w > kw)
-            kw = w;
-    }
-    if (kw > 110.f)
-        kw = 110.f;
+    ui_head("SHIFT", 0, 0, UI_K3, UI_G1);
     for (i = 0; i < n; i++) {
-        const float y = y0 + (float)i * sp, ax = 14.f + kw + 8.f;
-        ui_T(v->key[i] ? v->key[i] : "", 14.f, y, 11.f, 600, 0.5f, UI_K3, QD_LEFT);
-        ui_T("\xe2\x86\x92", ax, y, 11.f, 400, 0.f, UI_G2, QD_LEFT);
-        ui_T(v->what[i] ? v->what[i] : "", ax + 16.f, y, 11.f, 400, 0.f, UI_G1, QD_LEFT);
+        const float y = y0 + (float)i * sp;
+        const float a[6] = {78.f, y - 4.f, 84.f, y, 78.f, y + 4.f};
+        control(v->ctl[i], 34.f, y);
+        line2(64.f, y, 84.f, y, UI_G2, 1.2f);
+        ui_P(a, 3, UI_G2, 1.2f, 0, QD_NONE);
+        ui_icon(v->icon[i], 106.f, y, 1.4f, UI_K3);
+        if (v->val[i] && v->val[i][0]) {                /* its value now, as big as fits */
+            const float w = ui_TW(v->val[i], 20.f, 300, 0.f);
+            const float sz = w > 104.f ? 20.f * 104.f / w : 20.f;
+            ui_T(v->val[i], 128.f, y + 7.f, sz < 12.f ? 12.f : sz, sz < 16.f ? 500 : 300, 0.f, UI_K3, QD_LEFT);
+        }
     }
-    if (!n)
-        ui_T("nothing here", 120.f, 120.f, 11.f, 400, 0.f, UI_G2, QD_CENTER);
 }

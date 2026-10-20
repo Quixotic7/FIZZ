@@ -38,10 +38,10 @@ static void live(const ui_keys_t *v)
     float st;
 
     ui_head(v->name, 0, v->track, UI_K3, UI_G1);
-    ui_RR(150.f, 4.f, 82.f, 17.f, 3.f, QD_NONE, 1.f, v->blink ? UI_RED : 0xa01c2au);
-    ui_T("RECORDING", 191.f, 16.f, 9.f, 700, 1.f, 0xffffffu, QD_CENTER);
+    ui_RR(140.f, 3.f, 92.f, 19.f, 3.f, QD_NONE, 1.f, v->blink ? UI_RED : 0xa01c2au);
+    ui_T("REC", 186.f, 17.5f, 12.f, 700, 1.f, 0xffffffu, QD_CENTER);
     if (v->quantize)
-        ui_T("Q", 143.f, 16.f, 9.f, 700, 1.f, UI_G1, QD_RIGHT);
+        ui_T("Q", 134.f, 18.f, 12.f, 700, 0.f, UI_G1, QD_RIGHT);
 
     /* the keybed from the octave's C, one lower when the roll has notes below it; the roll two semitones under it */
     for (i = 0; i < 128; i++)
@@ -81,8 +81,8 @@ static void live(const ui_keys_t *v)
     cat(s, oct_name(v->octave));
     if (v->scale && v->scale_name && v->scale_name[0])
         cat(cat(s, " \xc2\xb7 "), v->scale_name);
-    cat(cat(s, " \xc2\xb7 STEP "), ui_itoa(n, v->step));
-    ui_lab(s, 120.f, 234.f, UI_G2, QD_CENTER);
+    (void)n;                                            /* (P1.3v: the octave and scale, 12 px; no step count) */
+    ui_lab(s, 120.f, 236.f, UI_G1, QD_CENTER);
 }
 
 void ui_keys_draw(const ui_keys_t *v)
@@ -103,13 +103,13 @@ void ui_keys_draw(const ui_keys_t *v)
              v->voice[i] == 2 ? UI_K3 : v->voice[i] ? UI_G1 : UI_G3);
 
     /* the sound: its pool number small, its name medium */
-    ui_lab("SOUND", 120.f, 52.f, UI_G2, QD_CENTER);
+    /* (P1.3v: no SOUND word: the name is the sound) */
     num[0] = (char)('0' + (v->preset / 100) % 10);
     num[1] = (char)('0' + (v->preset / 10) % 10);
     num[2] = (char)('0' + v->preset % 10);
     num[3] = 0;
     x = 120.f - ui_TW(v->sound, 26.f, 300, 0.5f) / 2.f;
-    ui_T(num, x - 6.f, 80.f, 9.f, 600, 1.f, UI_G1, QD_RIGHT);
+    ui_T(num, x - 6.f, 82.f, 12.f, 600, 0.5f, UI_G1, QD_RIGHT);
     ui_T(v->sound, 120.f, 92.f, 26.f, 300, 0.5f, UI_K3, QD_CENTER);
     if (v->edited)
         ui_O(x + ui_TW(v->sound, 26.f, 300, 0.5f) + 6.f, 74.f, 2.f, QD_NONE, 1.f, UI_K4);
@@ -130,9 +130,9 @@ void ui_keys_draw(const ui_keys_t *v)
         char sc[48];
         sc[0] = 0;
         cat(cat(cat(sc, num), " \xc2\xb7 "), v->scale_name);
-        ui_lab(sc, 120.f, 222.f, UI_G2, QD_CENTER);
+        ui_lab(sc, 120.f, 224.f, UI_G1, QD_CENTER);
     } else {
-        ui_lab(num, 120.f, 222.f, UI_G2, QD_CENTER);
+        ui_lab(num, 120.f, 224.f, UI_G1, QD_CENTER);
     }
 
     if (v->rec == 1) {                                  /* STEP recording: the cursor's page, the cursor's step */
@@ -142,8 +142,7 @@ void ui_keys_draw(const ui_keys_t *v)
             const int cur = i == c && v->blink;
             ui_RR(sx, 99.f, 9.f, 9.f, 2.f, cur ? UI_RED : UI_G3, 1.f, v->page_trig[i] ? UI_G2 : QD_NONE);
         }
-        ui_lab("STEP REC", 14.f, 222.f, UI_RED, QD_LEFT);
-        num[0] = 0;
-        ui_lab(cat(cat(num, "STEP "), ui_itoa(step, v->cursor)), 226.f, 222.f, UI_G1, QD_RIGHT);
+        ui_icon(UI_IC_REC, 20.f, 220.f, 1.f, UI_RED);  /* (P1.3v: step recording: the red dot, the step number) */
+        ui_T(ui_itoa(step, v->cursor), 226.f, 224.f, 12.f, 600, 0.f, UI_K3, QD_RIGHT);
     }
 }

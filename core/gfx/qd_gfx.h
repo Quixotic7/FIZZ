@@ -85,6 +85,10 @@ typedef struct {
     float ls;                   /* letter spacing, px (after every character, as the canvas's letterSpacing) */
 } qd_font;
 float qd_text(const char *utf8, float x, float y, const qd_font *f);   /* the advance drawn */
+/* P1.3v (§9a's clarity rules): the smallest text drawn since the reset, its size on the screen (the size times the
+ * transform's vertical scale; 1e9 when none) and its first characters, for the tests' guard */
+void qd_text_stats_reset(void);
+float qd_text_stats_min(const char **text);
 float qd_text_width(const char *utf8, const qd_font *f);              /* the width as the canvas measures it */
 /* P1.3p: the text's coverage as qd_text would draw it at (x, y), rasterised into mask (w x h, a byte a pixel, 0..255;
  * f->col ignored), for shapes made of the letters (the FIZZ logo's particles). Its own surface: the screen and its

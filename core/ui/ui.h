@@ -34,7 +34,7 @@ char *ui_itoa(char *out, int n);        /* n in decimal (out: 12 bytes) */
 /* ---- the kit */
 float ui_T(const char *s, float x, float y, float size, int weight, float ls, qd_rgb col, int align);
 float ui_TW(const char *s, float size, int weight, float ls);
-void ui_lab(const char *s, float x, float y, qd_rgb col, int align);   /* 8 px, 600, spacing 1: a label */
+void ui_lab(const char *s, float x, float y, qd_rgb col, int align);   /* 12 px, 600 (P1.3v): a label */
 void ui_P(const float *pts, int npts, qd_rgb col, float lw, int close, qd_rgb fill);   /* fill QD_NONE: none */
 void ui_O(float x, float y, float r, qd_rgb col, float lw, qd_rgb fill);              /* col QD_NONE: no stroke */
 void ui_RR(float x, float y, float w, float h, float r, qd_rgb col, float lw, qd_rgb fill);   /* inset by lw / 2 */
@@ -153,12 +153,20 @@ float ui_keyboard_x(float x0, float w, int lo, int n, int *black);
 /* the value strip at the foot of a held step (§8b): ten keys B1..B10 grouped 3 | 2 | 3 | 2 with their values' labels,
  * B11 "CLR" apart; bit k of lit: B(k+1) is the step's value (filled in col), of def: the track's default (marked), of
  * none: a key that does nothing here (faint); clr: the step overrides the mode (CLR lit) */
-void ui_value_strip(char lab[10][6], unsigned lit, unsigned def, unsigned none, int clr, qd_rgb col);
-/* the same eleven keys, general (the value strip and the layer maps draw with it): key k's (0..10) left edge, and the
- * strip with lab[k] written in key k (0: none); bit k of lit: filled in col, of mark: a grey line under it (the
- * track's default), of faint: dark, of hot: outlined in col */
+/* P1.3v (§9a's clarity rules): icons, and the black keys drawn where they are on the panel with an icon or a number
+ * each (the layer maps; no text legends) */
+enum { UI_IC_NONE, UI_IC_CLEAR, UI_IC_COPY, UI_IC_PASTE, UI_IC_UNDO, UI_IC_CUT, UI_IC_BACK, UI_IC_PLAY, UI_IC_STOP,
+       UI_IC_DOT, UI_IC_TRI, UI_IC_RESET, UI_IC_SCALE, UI_IC_SWING, UI_IC_REC, UI_IC_NOW, UI_IC_RAMP, UI_IC_STRUM,
+       UI_IC_KEY, UI_IC_NOTE };         /* UI_IC_NOTE + v: a note value's glyph (v 0 1/1 .. 6 1/64) */
+void ui_icon(int id, float cx, float cy, float s, qd_rgb col);   /* about 12 x 12 px at s 1, centred */
+typedef struct {
+    int icon;                           /* UI_IC_* (NONE with num 0: nothing in this layer) */
+    int num;                            /* a number instead (1..8), 0 none */
+    qd_rgb col;                         /* 0: white */
+    int lit, dim, mark;
+} ui_kkey_t;
 float ui_strip_x(int k);
-void ui_strip(const char *const lab[11], unsigned lit, unsigned mark, unsigned faint, unsigned hot, qd_rgb col);
+void ui_keymap(const ui_kkey_t k[11], float y, float h);
 
 /* ---- screen 2, the step view (§8b): the page drawn as the current mode's lane. Every mode keeps the sixteen key
  * outlines and the page's dashes (the loop, each page's start..end); in the columns:
@@ -401,11 +409,13 @@ typedef struct {
 } ui_octave_t;
 void ui_octave_draw(const ui_octave_t *v);
 
-/* ---- SHIFT held: a compact map of what SHIFT does here */
+/* ---- SHIFT held (P1.3v: visual): a row per control SHIFT changes here: the control, the job's icon, its value now */
+enum { UI_SC_SELECT, UI_SC_ALGO, UI_SC_PRESETS, UI_SC_REC, UI_SC_F3_ALGO, UI_SC_SEQ_W };
 typedef struct {
-    const char *ctx;                    /* "STEP VIEW", "A STEP HELD", "KEYBOARD" */
     int n;
-    const char *key[8], *what[8];       /* "+ ALGORITHM", "the track's scale" */
+    int ctl[6];                         /* UI_SC_* */
+    int icon[6];                        /* UI_IC_*: what it does */
+    const char *val[6];                 /* its value now ("D DORIAN", "D", "55%"), or 0 */
 } ui_shift_t;
 void ui_shift_draw(const ui_shift_t *v);
 

@@ -378,6 +378,15 @@ int main(int argc, char **argv)
     failed |= render_p13q(out);                         /* P1.3q: the STEPS view, the steps' kinds */
     failed |= render_p13s(out);                         /* P1.3s: the EDIT view, its drawings full size */
     failed |= render_p13u(out);                         /* P1.3u: NOTE, EDIT's chord name and VEL big */
+    {   /* P1.3v: the clarity guard over every frame rendered: no text under 11 px */
+        const char *small = "";
+        const float mn = qd_text_stats_min(&small);
+        printf("render_frames: the smallest text drawn: %.1f px (\"%s\")\n", (double)mn, small);
+        if (mn < 11.f) {
+            fprintf(stderr, "render_frames: text under 11 px (\"%s\")\n", small);
+            failed = 1;
+        }
+    }
     failed |= render_p13p(out);                         /* P1.3p: FIZZ's logo screen, its GIF's frames */
     qd_shutdown();
     return failed;

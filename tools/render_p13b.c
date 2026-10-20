@@ -411,6 +411,8 @@ int render_p13b(const char *out, const char *mocks)
     bup(QD_B_OCTUP);
     bup(QD_B_OCTDN);
     run(30);
+    btap(QD_B_OCTDN);                                   /* (F3 is latched since P1.3d: OCT- exits it) */
+    run(30);
     bdown(QD_B_FUNC);
     run(200);
     shot("shift", "SHIFT (GLO held): the map", 0);

@@ -17,7 +17,7 @@ void ui_tracks_draw(const ui_tracks_t *v)
     ui_head("TRACKS", 0, 0, UI_K3, UI_G1);
     if (v->pattern)                                     /* the pattern playing, grey after the title (the pool's dots
                                                          * hold the right) */
-        ui_T(v->pattern, 8.f + ui_TW("TRACKS", 11.f, 500, 1.f) + 8.f, 17.f, 11.f, 400, 1.f, UI_G1, QD_LEFT);
+        ui_T(v->pattern, 8.f + ui_TW("TRACKS", 12.f, 600, 0.8f) + 8.f, 18.f, 12.f, 500, 0.8f, UI_G1, QD_LEFT);
     for (k = 0; k < 16; k++)
         ui_O(186.f + (float)(k % 8) * 6.f, 8.f + (float)(k / 8) * 6.f, 1.6f, QD_NONE, 1.f,
              k < v->pool_used ? UI_K3 : UI_G3);
@@ -56,9 +56,16 @@ void ui_tracks_draw(const ui_tracks_t *v)
             ui_P(hand, 2, sel ? UI_RED : UI_G1, 1.2f, 0, QD_NONE);
             ui_O(cx, cy, 1.5f, QD_NONE, 1.f, sel ? UI_RED : UI_G1);
         }
-        ui_T(ui_itoa(num, i + 1), cx, cy + (tr->mute ? 4.f : -7.f), tr->mute ? 12.f : 8.f, 500, 0.f, UI_G2,
-             QD_CENTER);
-        ui_T(tr->name, cx, cy + r + 15.f, 8.f, 600, 1.f, tr->mute ? UI_G2 : sel ? UI_K3 : UI_G1, QD_CENTER);
+        ui_T(ui_itoa(num, i + 1), cx, cy + (tr->mute ? 4.5f : -4.f), 12.f, 600, 0.f, UI_G2, QD_CENTER);
+        {   /* the name, 12 px, squeezed to the clock's width */
+            const float tw = ui_TW(tr->name, 12.f, 600, 0.5f);
+            qd_save();
+            qd_translate(cx, cy + r + 17.f);
+            if (tw > 56.f)
+                qd_scale(56.f / tw < 0.7f ? 0.7f : 56.f / tw, 1.f);
+            ui_T(tr->name, 0.f, 0.f, 12.f, 600, 0.5f, tr->mute ? UI_G2 : sel ? UI_K3 : UI_G1, QD_CENTER);
+            qd_restore();
+        }
         ui_itoa(lr, len);
         {   /* "16 · 1x" */
             int n = 0;
@@ -69,7 +76,15 @@ void ui_tracks_draw(const ui_tracks_t *v)
                 lr[n++] = tr->rate[k];
             lr[n] = 0;
         }
-        ui_T(lr, cx, cy + r + 26.f, 8.f, 500, 0.f, sel ? UI_K2 : UI_G2, QD_CENTER);
+        {   /* its length and rate, 12 px, squeezed to the clock's width */
+            const float tw = ui_TW(lr, 12.f, 500, 0.f);
+            qd_save();
+            qd_translate(cx, cy + r + 31.f);
+            if (tw > 56.f)
+                qd_scale(56.f / tw < 0.7f ? 0.7f : 56.f / tw, 1.f);
+            ui_T(lr, 0.f, 0.f, 12.f, 500, 0.f, sel ? UI_K2 : UI_G2, QD_CENTER);
+            qd_restore();
+        }
         for (k = 0; k < tr->voices && k < 8; k++)
             ui_O(cx - (float)(tr->voices - 1 < 7 ? tr->voices - 1 : 7) * 2.5f + (float)k * 5.f, cy + 8.f, 1.2f,
                  QD_NONE, 1.f, sel ? UI_K3 : UI_G1);

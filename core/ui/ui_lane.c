@@ -5,7 +5,8 @@
  * The frame, every mode: the top line with the track's box and name, the mode's name small in its colour, the tempo
  * grey and the pattern; under it the eight pages as dashes, each drawn over its own start..end only (a dark hairline
  * for the rest), in the loop grey, out of it dark, the page edited white and thicker, the playing page's place red (on
- * the page edited: the playhead's own place along its dash). The sixteen outlines (the playhead's column lighter, a
+ * the page edited: the playhead's own place along its dash). P1.3v: no tempo in the top line; page follow off a
+ * crossed arrow (was FOLLOW OFF in 8 px). The sixteen outlines (the playhead's column lighter, a
  * held one white, a step outside the page's start..end dotted and empty), the red playhead, the beats as small dots
  * over the columns (P1.3s; were the step numbers under them); a page change slides the lane in from the side; page follow off: a small FOLLOW OFF left of the tempo.
  *
@@ -160,9 +161,11 @@ static void l_note(const ui_lane_t *v)
         if (v->mode == UI_F_PLOCK) {                    /* P-LOCK: a padlock and the count */
             char n[12];
             const qd_rgb col = c->nlock ? UI_MODE_COL[UI_F_PLOCK] : UI_G3;
+            int k;
             ui_lock(mx - 3.5f, 210.5f, col, 1.f);
-            if (c->nlock)
-                ui_T(ui_itoa(n, c->nlock), mx, 226.f, 7.f, 600, 0.f, col, QD_CENTER);
+            for (k = 0; k < c->nlock && k < 4; k++)     /* P1.3v: the locks as dots (was a 7 px count) */
+                ui_O(mx, 223.f + (float)k * 4.5f, 1.3f, QD_NONE, 1.f, col);
+            (void)n;
             continue;
         }
         if (c->chance != v->def_chance)
@@ -345,16 +348,15 @@ static void l_cond(const ui_lane_t *v)
         if (!c->cond[0]) {                              /* ALWAYS */
             ui_O(cx, foot, 1.8f, QD_NONE, 1.f, col);
         } else if (parse_ab(c->cond, &a, &b)) {         /* A:B: b circles up the column, the a-th filled */
-            for (k = 0; k < b; k++)
+            for (k = 0; k < b; k++)                     /* (P1.3v: the circles say it: no 8 px "3:4") */
                 ui_O(cx, foot - (float)k * 11.f, 3.2f, k == a - 1 ? QD_NONE : col, 1.f, k == a - 1 ? col : QD_NONE);
-            ui_T(c->cond, cx, foot - (float)b * 11.f - 1.f, 8.f, 600, 0.f, col, QD_CENTER);
         } else {                                        /* the name's letters stacked, ending at the foot */
             const int n = (int)strlen(c->cond);
             char ch[2];
             ch[1] = 0;
             for (k = 0; k < n; k++) {
                 ch[0] = c->cond[k];
-                ui_T(ch, cx, foot + 3.f - (float)(n - 1 - k) * 11.f, 10.f, 600, 0.f, col, QD_CENTER);
+                ui_T(ch, cx, foot + 4.f - (float)(n - 1 - k) * 13.f, 12.f, 600, 0.f, col, QD_CENTER);
             }
         }
     }
@@ -404,14 +406,14 @@ static void l_sound(const ui_lane_t *v)
         }
         ui_O(cx, y, 3.4f, QD_NONE, 1.f, col);
         ui_itoa(s, c->sound);
-        {
-            const float w = ui_TW(s, 8.f, 600, 0.f);
-            qd_save();
-            qd_translate(cx, y + 16.f);
-            if (w > 12.f)
-                qd_scale(12.f / w, 1.f);
-            ui_T(s, 0.f, 0.f, 8.f, 600, 0.f, col, QD_CENTER);
-            qd_restore();
+        {   /* P1.3v: its digits stacked down the column, 12 px (was 8 px squeezed) */
+            char ch[2];
+            int k;
+            ch[1] = 0;
+            for (k = 0; s[k]; k++) {
+                ch[0] = s[k];
+                ui_T(ch, cx, y + 20.f + (float)k * 13.f, 12.f, 600, 0.f, col, QD_CENTER);
+            }
         }
     }
 }
@@ -527,7 +529,7 @@ static float steps_row(const ui_lane_t *v, int p, float y, float g, float open)
         const float cy = y + (g > 0.f ? 10.f * g : 0.f);           /* (an unfolded row: room for the marker) */
         qd_save();
         qd_alpha(in || ed ? 1.f : 0.36f);
-        ui_T(NUM[p], OV_X0 - 10.f, cy + (g > 0.5f ? 14.f : ch / 2.f + 3.f), g > 0.5f ? 12.f : 8.f, ed ? 700 : 500, 0.f,
+        ui_T(NUM[p], OV_X0 - 10.f, cy + (g > 0.5f ? 14.f : ch / 2.f + 4.5f), 12.f, ed ? 700 : 600, 0.f,
              ed ? UI_K3 : in ? UI_G1 : UI_G2, QD_CENTER);
         for (i = 0; i < 16; i++) {
             const uint8_t c = v->cell[p][i];
@@ -673,10 +675,11 @@ void ui_lane_draw(const ui_lane_t *v)
     def_col = v->def_hot ? UI_MODE_COL[mode] : UI_G1;
 
     ui_head(v->name, v->pattern, v->track, UI_K3, UI_G1);
-    mx = 29.f + ui_TW(v->name, 11.f, 500, 1.f) + 6.f;    /* the mode, small in its colour after the name */
-    ui_lab(UI_FIELD_NAME[mode], mx, 16.5f, UI_MODE_COL[mode], QD_LEFT);
-    mx += ui_TW(UI_FIELD_NAME[mode], 8.f, 600, 1.f);
-    ui_T(ui_itoa(bpm, v->bpm), 196.f, 17.f, 11.f, 400, 0.f, UI_G2, QD_RIGHT);
+    mx = 29.f + ui_TW(v->name, 12.f, 600, 0.8f) + 8.f;   /* the mode in its colour after the name (P1.3v: 12 px; the
+                                                         * tempo no longer here: its takeover and F3 show it) */
+    ui_lab(UI_FIELD_NAME[mode], mx, 18.f, UI_MODE_COL[mode], QD_LEFT);
+    mx += ui_TW(UI_FIELD_NAME[mode], 12.f, 600, 0.5f);
+    (void)bpm;
 
     for (p = 0; p < 8 && !v->steps; p++) {              /* the pages: each over its start..end (STEPS: its rows) */
         const float x = 10.f + (float)p * 28.f, W = 22.f;
@@ -713,14 +716,14 @@ void ui_lane_draw(const ui_lane_t *v)
     if (!v->steps)
         def_name(v);
     if (v->latch) {                                     /* P1.3d: the step latch, after the mode */
-        ui_lab("LATCH", mx + 6.f, 16.5f, UI_K3, QD_LEFT);
-        mx += 6.f + ui_TW("LATCH", 8.f, 600, 1.f);
+        ui_lab("LATCH", mx + 8.f, 18.f, UI_K3, QD_LEFT);
+        mx += 8.f + ui_TW("LATCH", 12.f, 600, 0.5f);
     }
-    if (!v->follow) {                                   /* in the top line's gap, left of the tempo */
-        const float r = 196.f - ui_TW(bpm, 11.f, 400, 0.f) - 8.f;
-        if (r - ui_TW("FOLLOW OFF", 8.f, 600, 1.f) > mx + 4.f)
-            ui_lab("FOLLOW OFF", r, 16.f, UI_G2, QD_RIGHT);
-        else
-            ui_lab("NO FOLLOW", r, 16.f, UI_G2, QD_RIGHT);
+    if (!v->follow) {                                   /* P1.3v: page follow off: an arrow into a bar, crossed (was
+                                                         * FOLLOW OFF in 8 px), left of the pattern */
+        const float x = 232.f - ui_TW(v->pattern ? v->pattern : "", 12.f, 500, 0.8f) - 16.f, y = 12.5f;
+        line2(x - 6.f, y, x + 3.f, y, UI_G1, 1.3f);
+        line2(x + 6.f, y - 6.f, x + 6.f, y + 6.f, UI_G1, 1.3f);
+        line2(x - 7.f, y + 6.f, x + 8.f, y - 6.f, UI_K4, 1.3f);
     }
 }

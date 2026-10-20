@@ -33,7 +33,7 @@ static void neighbour(int k, const char *name, float y, float h, int text_above)
         s[i++] = *name++;
     s[i] = 0;
     ui_RR(52.f, y, 136.f, h, 5.f, UI_G3, 1.2f, QD_NONE);
-    ui_T(s, 120.f, text_above ? y - 6.f : y + h - 9.f, 10.f, 500, 1.f, UI_G2, QD_CENTER);
+    ui_T(s, 120.f, text_above ? y - 5.f : y + h - 8.f, 12.f, 500, 0.5f, UI_G2, QD_CENTER);
 }
 
 void ui_picker_draw(const ui_picker_t *v)
@@ -63,9 +63,9 @@ void ui_picker_draw(const ui_picker_t *v)
     } else {
         s[0] = 'S', s[1] = 'O', s[2] = 'U', s[3] = 'N', s[4] = 'D', s[5] = 0;
     }
-    ui_T(s, 8.f, 17.f, 11.f, 500, 1.f, UI_K3, QD_LEFT);
+    ui_T(s, 8.f, 18.f, 12.f, 600, 0.8f, UI_K3, QD_LEFT);
     if (v->lock)
-        ui_lock(8.f + ui_TW(s, 11.f, 500, 1.f) + 4.f, 7.f, off ? UI_G2 : UI_K3, 1.f);
+        ui_lock(8.f + ui_TW(s, 12.f, 600, 0.8f) + 4.f, 7.f, off ? UI_G2 : UI_K3, 1.f);
     (void)nw;                                           /* (P1.3r: a pop-up: no track box or name in its head) */
 
     qd_save();
@@ -78,16 +78,15 @@ void ui_picker_draw(const ui_picker_t *v)
     ui_RR(x, y, w, h, 6.f, cc, 1.5f, QD_NONE);
     ui_RR(x + 10.f, y + 8.f, w - 20.f, 40.f, 3.f, UI_G2, 1.f, QD_NONE);
     if (off) {
-        ui_T("TRACK SOUND", x + 16.f, y + 21.f, 8.f, 600, 1.f, UI_G1, QD_LEFT);
-        if (v->lock)
-            ui_T("NO LOCK", x + w - 16.f, y + 21.f, 8.f, 600, 1.f, UI_G2, QD_RIGHT);
+        ui_T("TRACK", x + 16.f, y + 22.f, 12.f, 600, 0.5f, UI_G1, QD_LEFT);   /* (P1.3v: 12 px; no NO LOCK) */
     } else {
         three(n, v->k);
-        ui_T(n, x + 16.f, y + 21.f, 9.f, 600, 1.f, UI_K3, QD_LEFT);
+        ui_T(n, x + 16.f, y + 22.f, 12.f, 600, 0.5f, UI_K3, QD_LEFT);
     }
     if (v->cur) {                                       /* the name, as big as fits */
-        const float tw = ui_TW(v->cur, 22.f, 300, 0.5f);
-        ui_T(v->cur, x + w / 2.f, y + 42.f, tw > 164.f ? 22.f * 164.f / tw : 22.f, 300, 0.5f, cc, QD_CENTER);
+        const float tw = ui_TW(v->cur, 22.f, 400, 0.5f);
+        const float sz = tw > 164.f ? 22.f * 164.f / tw : 22.f;
+        ui_T(v->cur, x + w / 2.f, y + 42.f, sz < 12.f ? 12.f : sz, 400, 0.5f, cc, QD_CENTER);
     }
     for (j = 0; j < 2; j++) {                           /* the reels */
         const float rx = x + w * (j ? 0.68f : 0.32f), ry = y + h - 22.f;
@@ -119,8 +118,7 @@ void ui_picker_draw(const ui_picker_t *v)
                 ;
             s[j++] = (char)0xe2, s[j++] = (char)0x80, s[j++] = (char)0x93;   /* "–" */
             ui_itoa(s + j, cb * 10 + 10 > v->n && v->n > cb * 10 ? v->n : cb * 10 + 10);
-            ui_lab(s, bx + bw / 2.f, 224.f, UI_G1, QD_CENTER);
+            ui_lab(s, bx + bw / 2.f, 228.f, UI_G1, QD_CENTER);
         }
     }
-    ui_lab("FM TONE", 120.f, 236.f, UI_G2, QD_CENTER);
 }
