@@ -95,6 +95,13 @@ int qd_mix_block(qd_mix_t *m, qd_pool_t *pool, qd_quad_owner_t *const *owners, c
         if (m->serial[i] != pv->serial) {               /* a fresh note in this slot: its sends from where they are */
             m->serial[i] = pv->serial;
             sg[0] = c, sg[1] = d, sg[2] = rv;
+            memset(&m->dist[i], 0, sizeof m->dist[i]);  /* (P1.4a: its DRIVE from rest) */
+        }
+        {   /* P1.4a: DRIVE (fx.c track_dist with eng_quad.c quad_drive's LFO offset), the voice's own */
+            int32_t dr = pv->q.patch[QD_QP_DRIVE];
+            if (o && o->quad_fx_off[0])
+                dr = clampi(dr + o->quad_fx_off[0], 0, 127);
+            qd_quad_dist(&m->dist[i], dr, m->vbuf, QD_MIX_CTL);
         }
         dg[0] = (c - sg[0]) >> 5;                       /* (fx.c: the ramp over the block, CTL_LOG2) */
         dg[1] = (d - sg[1]) >> 5;

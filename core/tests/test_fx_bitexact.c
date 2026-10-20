@@ -9,6 +9,8 @@
  *   - the whole chain (qd_fx_block: chorus, delay, reverb, the master filter, Output Clean) on noise bursts into every
  *     send and the dry mix, then 5 s of silence (the tails, and their end: exact zeros in the last second).
  * Also: the defaults the copy powers on with are ChoralRoot's (params.c's chorus rate and depth, cr_fx.c's XFP).
+ * P1.4a: DRIVE, FIZZ's per-voice copy of ChoralRoot's DIST (quad_voice.c qd_quad_dist) against fx.c's track_dist, on a
+ * loud FM-like signal with the drive changing block by block (0 between: the state kept), and its host cost.
  *
  *     test_fx_bitexact        exit 1 on any difference */
 #include <math.h>
@@ -18,6 +20,8 @@
 
 #include "qd_fx.c"                      /* (the copies and their internals: xc_block, xf_block, out_master, ..) */
 #include "ref/bitexact.h"
+#include "quad/quad_voice.h"
+#include <time.h>
 
 #define NMAX (6u * 44100u)
 
@@ -178,6 +182,49 @@ int main(void)
             break;
     printf("  %s the chain's tails end in exact zeros (the last 1 s)\n", i == n ? "ok  " : "FAIL");
     bad += i != n;
+    {   /* P1.4a: DRIVE against track_dist: 4 s, the drive a step a quarter second (0, 1, 10 (WOBBLE), 40, 64, 100, 127,
+         * 0 again, 77 ..), a chord of six partials with hits up to the clamp */
+        static int dr[NMAX / CTL];
+        static const int D[16] = {0, 1, 10, 40, 64, 100, 127, 0, 77, 5, 0, 120, 33, 127, 0, 90};
+        qd_dist_t st;
+        clock_t c0;
+        double ns;
+        uint32_t nb, reps = 2000u, r;
+        n = 4u * 44100u / CTL * CTL;
+        nb = n / CTL;
+        for (i = 0; i < n; i++) {
+            double t = i / 44100.0, v = 0;
+            int j;
+            for (j = 0; j < 6; j++)
+                v += 9000.0 * sin(6.2831853 * (82.4 * (1 + j * 0.5)) * t + j) * (1.0 + (double)(i % 11025u) / 11025.0);
+            if (i % 22050u < 200u)
+                v += 250000.0;
+            in[i] = (int32_t)v;
+        }
+        for (i = 0; i < nb; i++)
+            dr[i] = D[(i * CTL / 11025u) % 16u];
+        memset(&st, 0, sizeof st);
+        for (i = 0; i < n; i += CTL) {
+            memcpy(a + i, in + i, CTL * sizeof *a);
+            qd_quad_dist(&st, dr[i / CTL], a + i, (int)CTL);
+        }
+        cr_fx_ref_dist(in, b, n, dr);
+        for (i = 0; i < n && a[i] == b[i]; i++)
+            ;
+        printf("  %s DRIVE (per voice) against track_dist: %u samples, the drive changing every 0.25 s (0 .. 127): %s\n",
+               i == n ? "ok  " : "FAIL", (unsigned)n, i == n ? "identical" : "DIFFERENT");
+        bad += i != n;
+        memset(&st, 0, sizeof st);              /* the host cost: a block at drive 64 */
+        c0 = clock();
+        for (r = 0; r < reps; r++)
+            for (i = 0; i < 256u; i++) {
+                memcpy(a, in + i * CTL, CTL * sizeof *a);
+                qd_quad_dist(&st, 64, a, (int)CTL);
+            }
+        ns = (double)(clock() - c0) / CLOCKS_PER_SEC * 1e9 / (double)(reps * 256u);
+        printf("       DRIVE's host cost: %.0f ns a 32-sample block (%.3f %% of one core a driven voice)\n", ns,
+               ns / (32.0 / 44100.0 * 1e9) * 100.0);
+    }
     printf("test_fx_bitexact: %s\n", bad ? "DIFFERENCES" : "all identical");
     return bad ? 1 : 0;
 }

@@ -26,9 +26,9 @@
  * track's range: lock_start[t], lock_n[t]); a step's QD_SF_LOCKS says it has any. The editing API keeps all of that
  * consistent: a full pool returns QD_EFULL and nothing is changed.
  *
- * Lock ids (PLAN §5): 0..72 the FM TONE patch's values (eng_quad.c QP_*: QD_QUAD_NP of them), then the voice's mix:
- * QD_LK_PAN (-64..63), QD_LK_DELAY, QD_LK_REVERB, QD_LK_CHORUS (the sends, 0..127), QD_LK_DRIVE (0..127: stored, the
- * track insert DRIVE is not built yet), QD_LK_LEVEL (the mix level, 0..127, ChoralRoot's LEVEL_Q12 index). */
+ * Lock ids (PLAN §5): 0..72 the FM TONE patch's values (eng_quad.c QP_*), 73 its DRIVE (P1.4a: the sound's, QD_QP_DRIVE;
+ * QD_QUAD_NP of them), then the voice's mix: QD_LK_PAN (-64..63), QD_LK_DELAY, QD_LK_REVERB, QD_LK_CHORUS (the sends,
+ * 0..127), QD_LK_LEVEL (the mix level, 0..127, ChoralRoot's LEVEL_Q12 index). */
 #pragma once
 #include <stdint.h>
 
@@ -141,7 +141,8 @@ const char *qd_cond_name(int cond, char *buf);   /* "ALWAYS" .. "3:4" (buf: 8 by
 
 /* ---- a lock (PLAN §5: 4 bytes) */
 typedef struct { uint8_t step, id; int16_t value; } qd_lock_t;
-enum { QD_LK_PAN = QD_QUAD_NP, QD_LK_DELAY, QD_LK_REVERB, QD_LK_CHORUS, QD_LK_DRIVE, QD_LK_LEVEL, QD_LK_N };
+enum { QD_LK_PAN = QD_QUAD_NP, QD_LK_DELAY, QD_LK_REVERB, QD_LK_CHORUS, QD_LK_LEVEL, QD_LK_N };   /* (P1.4a: DRIVE
+                                                         * moved into the sound, id 73) */
 int qd_lock_range(int id, int16_t *min, int16_t *max);   /* 0: no such id */
 
 /* ---- a track's settings in a pattern (PLAN §4 "track defaults", §6, §8b) */

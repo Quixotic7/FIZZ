@@ -454,6 +454,45 @@ typedef struct {
 } ui_menu_t;
 void ui_menu_draw(const ui_menu_t *v);
 
+/* ---- P1.4a: the sound editor (ui_snd.c, built through ui_layer.c): a page of FM TONE as one big drawing, KNOB 1..4's
+ * values in cells along the foot (their colours; a padlock where the held step has a lock), ALGORITHM's value (where
+ * the page has one) at the top right in its pink badge. The track's sound (nothing held): the TRACK frame and colour in
+ * the head; a step held: "STEP n" and a padlock, and under each locked value the track's left behind (grey, dashed).
+ *   ALGO      the four operators (C A B1 B2 in KNOB 1..4's colours, each with its wave at its ratio) wired by the
+ *             algorithm: the modulators above what they modulate (arrows, dots running along), the feedback
+ *             operator's loop, the carriers down into the bus and the speaker
+ *   TONE      four pictures: HARM the partials' comb, DTUNE two waves beating, FDBK a loop whose wave roughens, MIX a
+ *             balance X .. Y
+ *   OFS       four dials, the operators' offsets (-1.00 .. +1.00)
+ *   OPENV     the operator envelope: its DELAY (ALGORITHM), attack, decay to END, held; LEV a bar
+ *   TRIG      A's and B's TRIG and RESET as switches; PHRT the operators it resets (lit circles)
+ *   KEYS      a keybed with the three key-scaling slopes; VEL a wedge
+ *   FILTER    the response: the type's shape, the cutoff, the resonance's peak, DEPTH an arrow at the cutoff
+ *   ADSR      an ADSR (the filter's: its DELAY on ALGORITHM; the amp's); INF release: held to the edge
+ *   BAND      the base-width band (a high-pass at BASE, a low-pass WIDTH above), KTRK a slant
+ *   DRIVE     LEVEL a fader; DRIVE a sine through the saturation (the input grey, the output shaped)
+ *   LFO       the wave (its shape from the WAVE page) at its speed, its depth (a negative one upside down), the fade
+ *   LFOSHAPE  the wave over three notes, restarting by its TRIG mode, the start PHASE a dot */
+enum { UI_SD_ALGO, UI_SD_TONE, UI_SD_OFS, UI_SD_OPENV, UI_SD_TRIG, UI_SD_KEYS, UI_SD_FILTER, UI_SD_ADSR, UI_SD_BAND,
+       UI_SD_DRIVE, UI_SD_LFO, UI_SD_LFOSHAPE };
+typedef struct ui_snd {
+    const char *name;                   /* the page's ("RATIO", "ENV A") */
+    int npg, ipg;                       /* its group's pages, this one's place (the dots in the head) */
+    int draw, arg;                      /* UI_SD_*, the envelope (0 A / filter, 1 B / amp) or the LFO */
+    int has[5];                         /* KNOB 1..4, ALGORITHM: a value there */
+    int v[5], tv[5];                    /* the values (the held step's, else the track's), the track's */
+    char txt[5][12];                    /* .. as text */
+    const char *lab[5];                 /* their names ("A DEC") */
+    uint8_t locked[5];                  /* the held step has a lock there */
+    int step;                           /* the step held (1..128), 0: the track's sound */
+    int last;                           /* the knob turned last (0..4), -1 */
+    float t;                            /* seconds (the waves move) */
+    uint8_t mod[4], fb, outx, outy;     /* ALGO: the algorithm's routing (C A B1 B2: bit 0 C .. 3 B2) */
+    float ratio[4];                     /* .. the operators' ratios */
+    int pv[2];                          /* LFO: its WAVE, TRIG; LFOSHAPE: its SPEED, DEPTH */
+} ui_snd_t;
+void ui_snd_draw(const ui_snd_t *v);
+
 /* ---- a brief full-screen word (CLEARED; UNDONE; COPIED; NO ROOM FOR LOCKS) */
 void ui_confirm_draw(const char *big, const char *small, qd_rgb col);
 

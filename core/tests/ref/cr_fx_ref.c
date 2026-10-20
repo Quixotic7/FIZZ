@@ -89,3 +89,20 @@ void cr_fx_ref_chain(const int32_t *in, int32_t *out, uint32_t n, int bpm, uint3
         out_master(out + 2u * i, l, r, (const int32_t *)0, CTL);
     }
 }
+
+/* P1.4a: track_dist on one part (zeroed: no engine, so quad_drive gives the drive as it is) */
+void cr_fx_ref_dist(const int32_t *in, int32_t *out, uint32_t n, const int *drive)
+{
+    static track_t t;
+    static int32_t b[CTL];
+    uint32_t i, k;
+    memset(&t, 0, sizeof t);
+    for (i = 0; i + CTL <= n; i += CTL) {
+        for (k = 0; k < CTL; k++)
+            b[k] = in[i + k];
+        t.p[P_DIST] = (int16_t)drive[i / CTL];
+        track_dist(&t, b, CTL);
+        for (k = 0; k < CTL; k++)
+            out[i + k] = b[k];
+    }
+}

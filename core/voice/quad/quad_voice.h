@@ -17,13 +17,15 @@
 extern "C" {
 #endif
 
-#define QD_QUAD_NP 73                   /* the patch's values (eng_quad.c QP_NP) */
+#define QD_QUAD_NP 74                   /* the sound's values: FM TONE's patch (eng_quad.c QP_NP, 73) and DRIVE (P1.4a) */
+#define QD_QUAD_FMNP 73                 /* .. FM TONE's own (the engine reads these) */
 #define QD_QUAD_BLOB 96                 /* a packed patch (QUAD_BLOB: 'Q', version 5, the values) */
 #define QD_QUAD_CTL 32                  /* samples a control block */
 #define QD_QUAD_NPRESET 17              /* 0 INIT, 1..16 ChoralRoot's factory sounds (EP .. NOISE-ISH) */
 #define QD_QUAD_STATE_WORDS 32          /* quad_voice_t's room (eng_quad.c; quad_voice.c checks it fits) */
 
-/* the patch's values by index (eng_quad.c's QP_* enum, checked equal in quad_voice.c): the p-lock ids 0..72 */
+/* the patch's values by index (eng_quad.c's QP_* enum, checked equal in quad_voice.c), then DRIVE: the p-lock ids
+ * 0..73 */
 enum {
     QD_QP_ALGO, QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_HARM, QD_QP_DTUN, QD_QP_FDBK, QD_QP_MIX,
     QD_QP_OFSC, QD_QP_OFSA, QD_QP_OFSB1, QD_QP_OFSB2,
@@ -34,7 +36,9 @@ enum {
     QD_QP_FDLY, QD_QP_FKTRK, QD_QP_BASE, QD_QP_WIDTH,
     QD_QP_EATK, QD_QP_EDEC, QD_QP_ESUS, QD_QP_EREL, QD_QP_LEVEL,
     QD_QP_LFO0,
-    QD_QP_RB2 = QD_QP_LFO0 + 3 * 8, QD_QP_B2KEY
+    QD_QP_RB2 = QD_QP_LFO0 + 3 * 8, QD_QP_B2KEY,
+    QD_QP_DRIVE                         /* P1.4a: ChoralRoot's DIST (fx.c track_dist) as the sound's own value, 0..127, per
+                                         * voice (qd_quad_dist; the mix runs it); a preset's is its FX() drive */
 };
 enum { QD_QL_SPEED, QD_QL_MULT, QD_QL_FADE, QD_QL_DEST, QD_QL_WAVE, QD_QL_PHASE, QD_QL_TRIG, QD_QL_DEPTH };
 #define QD_QP_LFO(k, f) (QD_QP_LFO0 + (k) * 8 + (f))
@@ -89,11 +93,22 @@ int qd_quad_voice_render(qd_quad_voice_t *v, int32_t *out);
 int32_t qd_quad_voice_level(const qd_quad_voice_t *v);   /* its last block's amplitude, Q15 (the quietest is stolen) */
 int qd_quad_voice_endless(const qd_quad_voice_t *v);    /* it would sound on after its release (AMP REL INF) */
 
+/* ---- DRIVE (P1.4a): ChoralRoot's DIST (v0.25.1 fx.c track_dist, line for line), on one voice's block; the state is the
+ * voice's (track_t dist_* there). drive 0: b untouched (the state kept: turning it up does not click) */
+typedef struct { int32_t hp, lp1, lp2; } qd_dist_t;
+void qd_quad_dist(qd_dist_t *st, int drive, int32_t *b, int n);
+
 /* ---- patches */
-void qd_quad_preset_patch(int k, int16_t *p);    /* k 0: INIT, 1..16: the factory sounds */
+void qd_quad_preset_patch(int k, int16_t *p);    /* k 0: INIT, 1..16: the factory sounds (P1.4a: with their DRIVE) */
 const char *qd_quad_preset_name(int k);         /* "INIT", "EP" .. "NOISE-ISH" */
-void qd_quad_pack(const int16_t *p, uint8_t *blob);         /* QD_QUAD_BLOB bytes */
+void qd_quad_pack(const int16_t *p, uint8_t *blob);         /* QD_QUAD_BLOB bytes (P1.4a: DRIVE in byte 87, after
+                                                             * version 5's values; 0 there: ChoralRoot's blob) */
 int qd_quad_unpack(const uint8_t *blob, int16_t *p);        /* 1: taken; 0: not a blob (p = INIT) */
+/* P1.4a: algorithm a's routing (a 1..8, the patch's ALGO; eng_quad.c QUAD_ALGO): each operator's modulators (C A B1 B2;
+ * bit 0 C .. 3 B2), the feedback operator, the X and Y outputs (bit sets) */
+void qd_quad_algo(int a, uint8_t *mod4, int *fb, int *outx, int *outy);
+/* patch value i's text as FM TONE's pages show it ("0.50", "42.01", "LP12", "INF", "ON", "+12"); buf: 12 bytes */
+const char *qd_quad_value_text(int i, int v, char *buf);
 int qd_quad_value_range(int i, int16_t *min, int16_t *max, int16_t *def);   /* patch value i's range; 0: no such */
 const char *qd_quad_value_name(int i);  /* its label on FM TONE's pages ("FREQ", "A DEC", .. the LFOs' "SPEED") */
 

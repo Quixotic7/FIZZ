@@ -41,11 +41,12 @@ extern "C" {
 #define QD_POOL_LIMIT_MAX 16
 
 /* a voice's mix values that a lock can set (the lock ids QD_LK_PAN.. in seq/pattern.h, in this order) */
-enum { QD_VMIX_PAN, QD_VMIX_DELAY, QD_VMIX_REVERB, QD_VMIX_CHORUS, QD_VMIX_DRIVE, QD_VMIX_LEVEL, QD_VMIX_N };
+enum { QD_VMIX_PAN, QD_VMIX_DELAY, QD_VMIX_REVERB, QD_VMIX_CHORUS, QD_VMIX_LEVEL, QD_VMIX_N };   /* (P1.4a: DRIVE is
+                                                         * the sound's: QD_QP_DRIVE) */
 typedef struct {
     uint32_t own[3];                    /* bit i of own[i >> 5]: patch value i is the voice's own */
     uint8_t mixm;                       /* bit k: mix value k is locked (QD_VMIX_*) */
-    int16_t mixv[QD_VMIX_N];            /* pan -64..63, the sends, DRIVE (stored; no DRIVE yet), level 0..127 */
+    int16_t mixv[QD_VMIX_N];            /* pan -64..63, the sends, level 0..127 */
 } qd_vattr_t;
 #define QD_DIP_MAX 16                   /* routing changes that can wait for one dip */
 

@@ -74,7 +74,8 @@ static const qd_lockscreen_t STEPVIEW = {"STEP VIEW", (int)(sizeof STEPVIEW_LOCK
                                          STEPVIEW_LOCKS};
 const qd_lockscreen_t *qd_ctl_lock_screen(const qd_app_t *a)
 {
-    (void)a;                                            /* (the step view is the only screen with steps held, today) */
+    if (qd_snd_open(a))                                 /* P1.4a: the sound editor's page */
+        return qd_snd_lock_screen(a->ui.snd_page);
     return &STEPVIEW;
 }
 
@@ -550,6 +551,21 @@ static int lock_all(qd_app_t *a, int id, int d)
     return ok;
 }
 
+void qd_step_lock_fine(qd_app_t *a, int id, int d)
+{
+    qd_ui_t *u = &a->ui;
+    int i;
+    for (i = 0; i < u->nheld; i++) {
+        int16_t v;
+        const int s = u->held[i];
+        const int base = qd_lock_get(CPAT(a), a->sel, s, id, &v) ? v : qd_step_base(a, a->sel, s, id);
+        if (qd_lock_set(PAT(a), a->sel, s, id, base + d) == QD_EFULL) {
+            qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+            return;
+        }
+    }
+}
+
 /* note moved d steps of the scale (a detent a step) */
 static int scale_steps(int sc, int rt, int note, int d)
 {
@@ -673,7 +689,8 @@ int qd_step_lock_knob(qd_app_t *a, int knob, int d)
                 qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 1, u->held[0]);
         } else {
             lock_all(a, k->id, d);
-            qd_ctl_takeover(a, k->tk, knob >= QD_K_1 ? knob - QD_K_1 : 0, d, 1, u->held[0]);
+            if (k->tk != QD_TK_NONE)                    /* (P1.4a: the sound editor's pages show it themselves) */
+                qd_ctl_takeover(a, k->tk, knob >= QD_K_1 ? knob - QD_K_1 : 0, d, 1, u->held[0]);
         }
         return 1;
     }

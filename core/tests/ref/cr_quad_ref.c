@@ -95,6 +95,7 @@ static void patch_of(int k, int16_t *p)
 int cr_ref_npresets(void) { return 1 + (int)QUAD_NPRESETS; }
 const char *cr_ref_preset_name(int k) { return k <= 0 ? "INIT" : QUAD_PRESETS[k - 1].name; }
 void cr_ref_preset_patch(int k, int16_t *p) { patch_of(k, p); }
+int cr_ref_preset_drive(int k) { return k <= 0 || !QUAD_PRESETS[k - 1].fx[0] ? 0 : QUAD_PRESETS[k - 1].fx[0] - 1; }
 
 uint32_t cr_ref_render(int preset, const be_scen_t *sc, int32_t *out, uint32_t max)
 {

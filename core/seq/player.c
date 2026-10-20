@@ -10,6 +10,8 @@ uint32_t qd_patch_hash(const int16_t *patch)
     int i;
     for (i = 0; i < QD_QUAD_NP; i++) {
         const uint16_t v = (uint16_t)patch[i];
+        if (i == QD_QP_DRIVE && !v)
+            continue;                                   /* (P1.4a: DRIVE 0 hashes as before it existed) */
         h = (h ^ (v & 255u)) * 16777619u;
         h = (h ^ (v >> 8)) * 16777619u;
     }
@@ -221,7 +223,7 @@ void qd_player_live_edit(qd_player_t *pl, int t, int id, int value)
         case QD_LK_REVERB: tk->mix.reverb = (uint8_t)value; break;
         case QD_LK_CHORUS: tk->mix.chorus = (uint8_t)value; break;
         case QD_LK_LEVEL: tk->mix.level = (uint8_t)value; break;
-        default: break;                                 /* (DRIVE: not built yet) */
+        default: break;
         }
         return;
     }

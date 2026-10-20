@@ -44,6 +44,7 @@ INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/se
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
 HDRS := $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
+        $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/ui/ui_snd.c \
         $(PVG)/include/plutovg.h
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
 PVG_OBJ := $(addprefix $(B)/pvg-,$(notdir $(PVG_SRC:.c=.o)))
@@ -58,7 +59,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p14a.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
@@ -127,8 +128,8 @@ $(B)/cr_fx_ref.o: $(T)/ref/cr_fx_ref.c $(T)/ref/bitexact.h $(CRB)/.ready
 	$(CC) -std=gnu11 -O2 -w $(CR_INC) -c -o $@ $<
 $(B)/test_quad_bitexact: $(T)/test_quad_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_quad_ref.o $(HDRS)
 	$(CC) -O2 $(WARN) $(INC) -o $@ $(T)/test_quad_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_quad_ref.o
-$(B)/test_fx_bitexact: $(T)/test_fx_bitexact.c $(B)/cr_fx_ref.o $(HDRS)
-	$(CC) -O2 $(WARN) $(INC) -o $@ $(T)/test_fx_bitexact.c $(B)/cr_fx_ref.o -lm
+$(B)/test_fx_bitexact: $(T)/test_fx_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_fx_ref.o $(HDRS)
+	$(CC) -O2 $(WARN) $(INC) -o $@ $(T)/test_fx_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_fx_ref.o -lm
 
 TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact
 test: $(TESTS)

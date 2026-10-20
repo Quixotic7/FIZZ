@@ -55,7 +55,7 @@ static const char *goldens = "core/tests/quad_goldens";
 #define NV 16
 static qd_quad_owner_t own;
 static qd_quad_voice_t vv[NV];
-static int16_t part_patch[QP_NP];       /* ChoralRoot's quad_patch[0]: every voice takes it */
+static int16_t part_patch[QD_QUAD_NP];       /* ChoralRoot's quad_patch[0]: every voice takes it */
 #define QS(i) (*(quad_voice_t *)(void *)vv[i].qstate)
 
 static void drv_reset(void)
@@ -120,11 +120,12 @@ static void rnd_patch(int16_t *p)
         quad_rng_t r = quad_range(i);
         p[i] = (int16_t)(r.min + (int32_t)(rnd() % (uint32_t)(r.max - r.min + 1)));
     }
+    p[QD_QP_DRIVE] = 0;                          /* (P1.4a: DRIVE 0: ChoralRoot's blob exactly) */
 }
 static void t_blob(void)
 {
     uint8_t b[QUAD_BLOB], b2[QUAD_BLOB];
-    int16_t p[QP_NP], q[QP_NP];
+    int16_t p[QD_QUAD_NP], q[QD_QUAD_NP];
     uint32_t n, i, w;
     for (n = 0; n < 2000u; n++) {
         rnd_patch(p);
@@ -143,12 +144,19 @@ static void t_blob(void)
             quad_rng_t r = quad_range(i);
             p[i] = w == 0u ? r.min : w == 1u ? r.max : r.def;
         }
+        p[QD_QP_DRIVE] = w == 1u ? 127 : 0;
         qd_quad_pack(p, b);
         CHECK(qd_quad_unpack(b, q) == 1 && !memcmp(p, q, sizeof p), "the %s patch: round trip", w == 0u ? "min" : w == 1u ? "max" : "default");
     }
+    rnd_patch(p);                                /* P1.4a: DRIVE in byte 87, back again; ChoralRoot's unpack refuses it */
+    p[QD_QP_DRIVE] = 10;
+    qd_quad_pack(p, b);
+    CHECK(b[QUAD_V5_LEN] == 10 && !quad_blob_ok(b) && qd_quad_unpack(b, q) == 1 && !memcmp(p, q, sizeof p),
+          "DRIVE 10: in byte %u, the round trip", (unsigned)QUAD_V5_LEN);
     memset(b, 0, sizeof b);
     CHECK(qd_quad_unpack(b, q) == 0, "an empty blob taken");
     quad_init_patch(p);
+    p[QD_QP_DRIVE] = 0;
     CHECK(!memcmp(p, q, sizeof p), "a bad blob: not the init patch");
 }
 
@@ -204,7 +212,7 @@ static void t_golden(void)
     uint32_t g, i, k;
     for (g = 0; g < 12u; g++) {
         char fn[512], *s;
-        int16_t p[QP_NP];
+        int16_t p[QD_QUAD_NP];
         uint32_t nf, nr, np, nt = (uint32_t)(0.3 * FS / CTL), rel = (uint32_t)(0.2 * FS / CTL);
         double se = 0, sr = 0, worst = 0, snr;
         snprintf(fn, sizeof fn, "%s/%s.json", goldens, G[g]);
@@ -222,7 +230,7 @@ static void t_golden(void)
         for (i = 0; i < QP_NP; i++)
             p[i] = (int16_t)pv[i];
         if (g >= 8u) {                           /* a preset: the model's copy is the firmware's */
-            int16_t q[QP_NP];
+            int16_t q[QD_QUAD_NP];
             for (k = 0; k < QUAD_NPRESETS && strcmp(QUAD_PRESETS[k].name, GP[g - 8u]); k++)
                 ;
             qd_quad_preset_patch((int)k + 1, q);
@@ -309,7 +317,7 @@ static void t_env(void)
     song.g[G_BPM] = 120;
     /* .. and through the owner: its tempo is the one a voice's DELAY counts in */
     {
-        int16_t p[QP_NP];
+        int16_t p[QD_QUAD_NP];
         int32_t out[CTL];
         quad_init3(p);
         p[QP_BDLY] = 50;
@@ -336,7 +344,7 @@ static void t_env(void)
     /* in a voice: LEV reached after the attack (velocity 127), TRIG and RESET on a retrigger */
     {
         int32_t out[CTL], lvl, e0;
-        int16_t p[QP_NP];
+        int16_t p[QD_QUAD_NP];
         quad_init3(p);
         p[QP_AATK] = 30, p[QP_ADEC] = 100, p[QP_AEND] = 127, p[QP_ALEV] = 100;
         p[QP_BATK] = 30, p[QP_BDEC] = 90, p[QP_BEND] = 30, p[QP_BLEV] = 90;
@@ -407,7 +415,7 @@ static void t_env(void)
 static void t_rel_inf(void)
 {
     int32_t out[CTL];
-    int16_t p[QP_NP];
+    int16_t p[QD_QUAD_NP];
     uint32_t n, r;
     for (r = 126; r <= 127u; r++) {
         int32_t e0, f0, e1, f1;
@@ -506,7 +514,7 @@ static void t_render(void)
     int32_t peak;
     int64_t mx;
     for (k = 0; k < QUAD_NPRESETS; k++) {
-        int16_t p[QP_NP];
+        int16_t p[QD_QUAD_NP];
         quad_preset3(k, p);
         chord(p, QUAD_PRESETS[k].mono, 1.4, 0, &peak, &mx, &left);
         if (getenv("VERBOSE"))
@@ -526,7 +534,7 @@ static void t_render(void)
             for (h = 0; h < 2u; h++)
                 for (mi = 0; mi < 3u; mi++)
                     for (f = 0; f < QF_N; f++) {
-                        int16_t p[QP_NP];
+                        int16_t p[QD_QUAD_NP];
                         quad_init3(p);
                         p[QP_ALGO] = (int16_t)a;
                         p[QP_RC] = 18, p[QP_RA] = (int16_t)(h ? 63 : 0), p[QP_RB1] = 18, p[QP_RB2] = (int16_t)(18 - h * 2);
@@ -580,7 +588,7 @@ static void t_dc(void)
 {
     uint32_t k;
     double m, r, worst = 0;
-    int16_t p[QP_NP];
+    int16_t p[QD_QUAD_NP];
     for (k = 0; k < QUAD_NPRESETS; k++) {
         quad_preset3(k, p);
         held_dc(p, &m, &r);

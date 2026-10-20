@@ -6,6 +6,7 @@
  * steal (voice.c voice_kill / env_tick stage 4: a voice given up renders one more block with its amplitude ramped to
  * 0, m.amp1 = 0, then ends). */
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "quad_voice.h"
@@ -40,7 +41,8 @@ typedef qd_quad_owner_t track_t;
 #endif
 
 /* (C99: an array of negative size fails the build) quad_voice.h's sizes are eng_quad.c's; quad_voice_t fits */
-typedef char qd_quad_sizes_ok[QD_QUAD_NP == QP_NP && QD_QUAD_BLOB == QUAD_BLOB && QD_QUAD_CTL == CTL &&
+typedef char qd_quad_sizes_ok[QD_QUAD_FMNP == QP_NP && QD_QUAD_NP == QP_NP + 1 && QD_QP_DRIVE == QP_NP &&
+                              QUAD_V5_LEN < QUAD_BLOB && QD_QUAD_BLOB == QUAD_BLOB && QD_QUAD_CTL == CTL &&
                               QD_QUAD_NPRESET == 1 + QUAD_NPRESETS ? 1 : -1];
 typedef char qd_quad_qp_ok[QD_QP_ALGO == QP_ALGO && QD_QP_PHRT == QP_PHRT && QD_QP_FREQ == QP_FREQ &&
                            QD_QP_FTYPE == QP_FTYPE && QD_QP_LEVEL == QP_LEVEL && QD_QP_LFO0 == QP_LFO0 &&
@@ -157,13 +159,40 @@ int32_t qd_quad_voice_level(const qd_quad_voice_t *v)
 
 int qd_quad_voice_endless(const qd_quad_voice_t *v) { return v->active && quad_endless(v->owner, v); }
 
+/* ---------------------------------------------------------------- DRIVE (P1.4a) --- */
+/* ChoralRoot v0.25.1 fx.c track_dist, line for line: t->p[P_DIST] is drive (quad_drive's LFO offset added by the
+ * caller), t->dist_* the voice's st */
+void qd_quad_dist(qd_dist_t *st, int drive, int32_t *b, int n)
+{
+    int32_t d = drive, i, g, k, mk, bias = 2400, b0;
+    if (!d)
+        return;                                         /* states kept: switching on does not click */
+    g = 4096 + d * d * 2;                                /* Q12: 1x .. ~9x, gentle at first */
+    k = 32000 - d * 95;                                  /* tone: transparent at low drive .. ~3 kHz, Q15 */
+    mk = 30000 - d * 120;                                /* make-up */
+    b0 = softclip(bias);
+    for (i = 0; i < (int32_t)n; i++) {
+        int32_t x = b[i], y;
+        st->hp += (x - st->hp + 64) >> 7;                /* ~55 Hz low cut: keep the bass out of the clipper */
+        x = clamp(x - st->hp, -230000, 230000);          /* (x >> 2) * g fits 32 bits; the clip is flat out there */
+        y = softclip((((x >> 2) * g) >> 10) + bias) - b0;   /* >> 2 first: no overflow for loud poly */
+        st->lp1 += mulq15(y - st->lp1, k);               /* two poles: tames the fizz */
+        st->lp2 += mulq15(st->lp1 - st->lp2, k);
+        b[i] = mulq15(st->lp2, mk);
+    }
+}
+
 /* ---------------------------------------------------------------- patches --- */
 void qd_quad_preset_patch(int k, int16_t *p)
 {
-    if (k <= 0 || k > (int)QUAD_NPRESETS)
+    if (k <= 0 || k > (int)QUAD_NPRESETS) {
         quad_init_patch(p);
-    else
+        p[QD_QP_DRIVE] = 0;
+    } else {
         quad_preset_patch((uint32_t)k - 1u, p);
+        p[QD_QP_DRIVE] = (int16_t)(QUAD_PRESETS[k - 1].fx[0] ? QUAD_PRESETS[k - 1].fx[0] - 1 : 0);   /* (FX(): + 1, 0
+                                                         * unset) cr_ui.c: FM TONE's DRIVE is its preset's */
+    }
 }
 
 const char *qd_quad_preset_name(int k)
@@ -171,12 +200,95 @@ const char *qd_quad_preset_name(int k)
     return k <= 0 || k > (int)QUAD_NPRESETS ? "INIT" : QUAD_PRESETS[k - 1].name;
 }
 
-void qd_quad_pack(const int16_t *p, uint8_t *blob) { quad_pack(p, blob); }
-int qd_quad_unpack(const uint8_t *blob, int16_t *p) { return quad_unpack(blob, p); }
+void qd_quad_pack(const int16_t *p, uint8_t *blob)
+{
+    quad_pack(p, blob);
+    blob[QUAD_V5_LEN] = (uint8_t)clamp(p[QD_QP_DRIVE], 0, 127);   /* P1.4a: DRIVE after version 5's values */
+}
+int qd_quad_unpack(const uint8_t *blob, int16_t *p)
+{
+    uint8_t b[QUAD_BLOB];
+    int ok;
+    memcpy(b, blob, sizeof b);
+    if (b[0] == QUAD_MAGIC && b[1] == QUAD_VER)
+        b[QUAD_V5_LEN] = 0;                             /* (DRIVE: not FM TONE's; the rest must be zeros) */
+    ok = quad_unpack(b, p);
+    p[QD_QP_DRIVE] = (int16_t)(ok && blob[1] == QUAD_VER && blob[QUAD_V5_LEN] <= 127 ? blob[QUAD_V5_LEN] : 0);
+    return ok;
+}
+
+void qd_quad_algo(int a, uint8_t *mod4, int *fb, int *outx, int *outy)
+{
+    const quad_algo_t *q = &QUAD_ALGO[(a < 1 ? 1 : a > 8 ? 8 : a) - 1];
+    memcpy(mod4, q->mod, 4);
+    *fb = q->fb;
+    *outx = q->x;
+    *outy = q->y;
+}
+
+const char *qd_quad_value_text(int i, int v, char *buf)
+{
+    const param_desc_t *d = 0;
+    uint32_t pg, c;
+    int32_t a;
+    buf[0] = 0;
+    if (i == QD_QP_DRIVE || i == QP_RB1 || i == QP_RB2) {
+        if (i != QD_QP_DRIVE && v >= 0 && v < (int)QUAD_NRCB)
+            return strcpy(buf, N_QUAD_RCB[v]);
+        snprintf(buf, 12, "%d", v);
+        return buf;
+    }
+    for (pg = 0; pg < QUAD_NPAGES && !d; pg++)
+        for (c = 0; c < 4u; c++)
+            if (QUAD_MAP[pg][c] == (uint32_t)i) {
+                d = &QUAD_PAGES[pg].col[c];
+                break;
+            }
+    if (!d) {
+        snprintf(buf, 12, "%d", v);
+        return buf;
+    }
+    switch (d->fmt) {
+    case F_FIX2:
+        a = v < 0 ? -v : v;
+        if (d->min < 0)
+            snprintf(buf, 12, "%c%d.%02d", v < 0 ? '-' : '+', (int)(a / 100), (int)(a % 100));
+        else
+            snprintf(buf, 12, "%d.%02d", (int)(a / 100), (int)(a % 100));
+        break;
+    case F_ENUM:
+        if (d->names && v >= d->min && v <= d->max)
+            snprintf(buf, 12, "%s", d->names[v - d->min]);
+        break;
+    case F_ONOFF:
+        strcpy(buf, v ? "ON" : "OFF");
+        break;
+    case F_INTI:
+        if (v >= d->max)
+            strcpy(buf, "INF");
+        else
+            snprintf(buf, 12, "%d", v);
+        break;
+    case F_OFS:
+        snprintf(buf, 12, v > 0 ? "+%d" : "%d", v);
+        break;
+    default:
+        if (d->names && v >= d->min && v <= d->max)
+            snprintf(buf, 12, "%s", d->names[v - d->min]);
+        else
+            snprintf(buf, 12, "%d", v);
+        break;
+    }
+    return buf;
+}
 
 const char *qd_quad_value_name(int i)
 {
     uint32_t pg, c;
+    if (i == QD_QP_DRIVE)
+        return "DRIVE";
+    if (i == QP_RB1)
+        return "RATIO B1";
     if (i == QP_RB2)
         return "RATIO B2";
     for (pg = 0; pg < QUAD_NPAGES; pg++)
@@ -189,6 +301,15 @@ const char *qd_quad_value_name(int i)
 int qd_quad_value_range(int i, int16_t *min, int16_t *max, int16_t *def)
 {
     quad_rng_t r;
+    if (i == QD_QP_DRIVE) {                             /* P1.4a: 0..127, 0 */
+        if (min)
+            *min = 0;
+        if (max)
+            *max = 127;
+        if (def)
+            *def = 0;
+        return 1;
+    }
     if (i < 0 || i >= QP_NP)
         return 0;
     r = quad_range((uint32_t)i);

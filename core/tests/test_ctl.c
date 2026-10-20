@@ -2584,6 +2584,17 @@ static void g_clarity(void)
         }
         shome();
     }
+    btap(QD_B_SOUND);                                   /* P1.4a: the sound editor's pages, nothing held and a step held */
+    for (k = 0; k < QD_SND_NPAGE; k++) {
+        A.ui.snd_page = k;
+        run(60);
+        whold(0);
+        turn(QD_K_1, 1);
+        run(60);
+        wrel(0);
+        run(30);
+    }
+    btap(QD_B_SOUND);
     bdown(SHIFT);                                       /* SHIFT's maps: the step view, a step held, the keyboard */
     run(100);
     bup(SHIFT);
@@ -2876,6 +2887,96 @@ static void g_sel_tap(void)
     bup(QD_B_PATTERN);
     run(10);
     CHECK(qd_view_screen(&A) == QD_SCR_LANE && A.sel == 0 && !A.seq.mute, "SEL tapped: nothing changed");
+}
+
+/* P1.4a: the sound editor on EDIT: every value of the sound on one page; the groups on B1..B5 (again: the next page);
+ * SELECT the pages; nothing held a turn edits the track's sound, a finger on a step locks it (SHIFT: the finest step);
+ * B11 clears the page's locks; the latch works; EDIT, OCT- and HOME close it; DRIVE is the sound's (a preset's, a
+ * lock's, a voice's) */
+static void g_snd(void)
+{
+    int seen[QD_QUAD_NP], i, k, ok = 1, a0, d0;
+    static ui_snd_t sv;
+    memset(seen, 0, sizeof seen);
+    for (i = 0; i < QD_SND_NPAGE; i++)
+        for (k = 0; k < 5; k++)
+            if (QD_SND_PAGES[i].id[k] >= 0)
+                seen[QD_SND_PAGES[i].id[k]]++;
+    for (i = 0; i < QD_QUAD_NP; i++)
+        ok &= seen[i] == 1;
+    CHECK(ok, "every one of the sound's %d values on exactly one page", QD_QUAD_NP);
+    start();
+    wtap(0);
+    btap(QD_B_SOUND);
+    CHECK(qd_view_screen(&A) == QD_SCR_SOUND && A.ui.latch == QD_LATCH_SND && leds().button[QD_B_SOUND] == QD_LED_LIT &&
+              leds().key[BK(B1)] == QD_LED_LIT && leds().key[BK(B2)] == QD_LED_DIM,
+          "EDIT: the sound editor (latched, EDIT lit), OPERATORS: B1 lit, the other groups dim");
+    black(B2);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "ENV A"), "B2: OP ENVELOPES, ENV A");
+    black(B2);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "ENV B"), "B2 again: its next page, ENV B");
+    black(B2), black(B2), black(B2);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "ENV A"), "B2 x3 more: round to ENV A");
+    turn(QD_K_SELECT, -1);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "OFFSET"), "SELECT -1: the page before (OFFSET)");
+    turn(QD_K_SELECT, 1);
+    d0 = A.model.t[0].patch[QD_QP_ADEC];
+    turn(QD_K_2, 3);
+    CHECK(A.model.t[0].patch[QD_QP_ADEC] == d0 + 3 && A.model.t[0].edited && qd_view_screen(&A) == QD_SCR_SOUND,
+          "nothing held, KNOB 2 on ENV A: the track's A DEC +3 (live), the editor stays");
+    black(B1);
+    a0 = A.model.t[0].patch[QD_QP_ALGO];
+    turn(QD_K_ALGO, 1);
+    CHECK(A.model.t[0].patch[QD_QP_ALGO] == a0 + 1, "OPERATORS (RATIO): ALGORITHM the algorithm (%d)", a0 + 1);
+    black(B4), black(B4);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LEVEL"), "B4 twice: LEVEL (and DRIVE)");
+    turn(QD_K_2, 40);
+    CHECK(A.model.t[0].patch[QD_QP_DRIVE] == 40, "KNOB 2: the track's DRIVE 40");
+    /* a finger on a step: p-locks */
+    whold(0);
+    turn(QD_K_2, 20);
+    qd_view_snd(&A, &sv);
+    CHECK(LK(0, 0, QD_QP_DRIVE) == 60 && A.model.t[0].patch[QD_QP_DRIVE] == 40 && sv.locked[1] && sv.step == 1 &&
+              sv.v[1] == 60 && sv.tv[1] == 40 && qd_view_screen(&A) == QD_SCR_SOUND,
+          "step 1 held, KNOB 2: DRIVE locked at 60 on it (the track's 40 stays), marked locked, the editor stays");
+    black(B3);
+    bdown(SHIFT);
+    turn(QD_K_1, -3);
+    bup(SHIFT);
+    CHECK(LK(0, 0, QD_QP_FREQ) == A.model.t[0].patch[QD_QP_FREQ] - 3, "FILTER, SHIFT + KNOB 1: FREQ locked 0.03 down "
+          "(the finest step)");
+    turn(QD_K_1, -2);
+    CHECK(LK(0, 0, QD_QP_FREQ) == A.model.t[0].patch[QD_QP_FREQ] - 203, ".. KNOB 1 -2: two whole units more");
+    CHECK(leds().key[BK(B11)] == QD_LED_LIT, "B11 lit: the step has locks on this page");
+    black(B11);
+    CHECK(LK(0, 0, QD_QP_FREQ) == -99999 && LK(0, 0, QD_QP_DRIVE) == 60, "B11: FILTER's locks cleared, DRIVE's kept");
+    wrel(0);
+    /* the latch: the selection's turns are locks too, the editor stays */
+    btap(LFO);
+    CHECK(A.ui.slatch && qd_snd_open(&A), "LFO: the step latch, the editor still open");
+    black(B4);
+    turn(QD_K_1, -5);
+    CHECK(LK(0, A.ui.held[0], QD_QP_EATK) == A.model.t[0].patch[QD_QP_EATK] - 5 || A.model.t[0].patch[QD_QP_EATK] < 5,
+          "the latch's step (%d), AMP's KNOB 1: a lock", A.ui.held[0] + 1);
+    btap(LFO);
+    /* closing */
+    btap(QD_B_OCTDN);
+    CHECK(!A.ui.latch && qd_view_screen(&A) != QD_SCR_SOUND, "OCT-: closed");
+    btap(QD_B_SOUND);
+    btap(QD_B_HOME);
+    CHECK(!A.ui.latch, "HOME: closed");
+    btap(QD_B_SOUND);
+    btap(QD_B_SOUND);
+    CHECK(!A.ui.latch, "EDIT again: closed");
+    /* DRIVE is the sound's: WOBBLE's 10 comes with it; a voice plays its patch's drive */
+    for (k = 1; k <= A.proj.nsound && strcmp(qd_sound_name(&A.proj, k), "WOBBLE"); k++)
+        ;
+    CHECK(k <= A.proj.nsound && qd_sound_patch(&A.proj, k)[QD_QP_DRIVE] == 10, "the pool's WOBBLE (%d): DRIVE 10", k);
+    btap(QD_B_SOUND);
+    turn(QD_K_PRESETS, k - A.model.t[0].sound);
+    CHECK(A.model.t[0].sound == k && A.model.t[0].patch[QD_QP_DRIVE] == 10 && qd_snd_open(&A),
+          "the editor, PRESETS: the track's sound WOBBLE, its DRIVE 10 with it");
+    btap(QD_B_SOUND);
 }
 
 /* P1.3i: the tempo and MIDI clock: a turn after a START and STOP works; a running clock shows EXT CLOCK and a turn says
@@ -3425,6 +3526,7 @@ int main(void)
         {"P1.3y: SHIFT + REC: the record settings; quantize, overdub", g_rec_settings},
         {"P1.3y: SHIFT + SEL: the knob layouts A..D, page follow", g_knob_layouts},
         {"P1.3y: SEL tapped: nothing", g_sel_tap},
+        {"P1.4a: the sound editor on EDIT", g_snd},
         {"P1.3e: six notes; the default chord moves together", g_six},
         {"P1.3e: KNOB 4, the quiet knob", g_quiet},
         {"P1.3e: HOME cycles PIANO ROLL / STEPS", g_home},

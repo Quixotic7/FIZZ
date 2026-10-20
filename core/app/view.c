@@ -7,6 +7,7 @@
  * detent, 1 s after the last one it fades back over 120 ms) and a confirmation word. Nothing here changes the model or
  * the UI state; the motion is the app's milliseconds and the transport's position. */
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "app.h"
@@ -1031,6 +1032,8 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_SEQ;
     if (u->mode == QD_MODE_STEP && QD_LATCH_MENU(u->latch))
         return QD_SCR_MENU;                             /* P1.3y: a settings menu */
+    if (qd_snd_open(a))
+        return QD_SCR_SOUND;                            /* P1.4a: the sound editor */
     if (u->mode != QD_MODE_IDLE && qd_ctl_sel_map(a))   /* (P1.3y: after a hold, or a key: a tap shows nothing) */
         return QD_SCR_SEL;
     switch (u->mode) {
@@ -1080,6 +1083,63 @@ void qd_view_edit(qd_app_t *a, ui_held_t *h, ui_lane_t *l)
     }
 }
 
+/* P1.4a: the sound editor's model: the page's values (the held step's: its sound lock's patch with its locks, else the
+ * track's sound), the track's beside them, the locks, what the drawing needs */
+void qd_view_snd(qd_app_t *a, ui_snd_t *v)
+{
+    static qd_trec_t r;
+    const qd_ui_t *u = &a->ui;
+    const qd_sndpage_t *pg = &QD_SND_PAGES[u->snd_page];
+    const int16_t *tp = a->model.t[a->sel].patch, *pp = tp;
+    int k, i;
+    memset(v, 0, sizeof *v);
+    v->name = pg->name;
+    v->draw = pg->draw;
+    v->arg = pg->arg;
+    for (i = 0; i < QD_SND_NPAGE; i++)
+        if (QD_SND_PAGES[i].group == pg->group) {
+            if (i == u->snd_page)
+                v->ipg = v->npg;
+            v->npg++;
+        }
+    if (u->nheld) {
+        qd_seq_step_rec(&a->seq, a->seq.cur, a->sel, u->held[0], &r);
+        pp = r.patch;
+        v->step = u->held[0] + 1;
+    }
+    for (k = 0; k < 5; k++) {
+        const int id = pg->id[k];
+        int16_t x;
+        if (id < 0)
+            continue;
+        v->has[k] = 1;
+        v->v[k] = pp[id];
+        v->tv[k] = tp[id];
+        qd_quad_value_text(id, v->v[k], v->txt[k]);
+        v->lab[k] = qd_quad_value_name(id);
+        v->locked[k] = (uint8_t)(u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], id, &x));
+    }
+    v->last = u->snd_knob;
+    v->t = secs(a->ms);
+    if (pg->draw == UI_SD_ALGO) {
+        static const int RID[4] = {QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_RB2};
+        char t[12];
+        int fb, ox, oy;
+        qd_quad_algo(pp[QD_QP_ALGO], v->mod, &fb, &ox, &oy);
+        v->fb = (uint8_t)fb;
+        v->outx = (uint8_t)ox;
+        v->outy = (uint8_t)oy;
+        for (k = 0; k < 4; k++)
+            v->ratio[k] = (float)atof(qd_quad_value_text(RID[k], pp[RID[k]], t));
+    } else if (pg->draw == UI_SD_LFO) {
+        v->pv[0] = pp[QD_QP_LFO(pg->arg, QD_QL_WAVE)];
+        v->pv[1] = pp[QD_QP_LFO(pg->arg, QD_QL_TRIG)];
+    } else if (pg->draw == UI_SD_LFOSHAPE) {
+        v->pv[0] = pp[QD_QP_LFO(pg->arg, QD_QL_SPEED)];
+        v->pv[1] = pp[QD_QP_LFO(pg->arg, QD_QL_DEPTH)];
+    }
+}
+
 /* P1.3y: the settings menus' model */
 static void fill_menu(const qd_app_t *a, ui_menu_t *v)
 {
@@ -1112,6 +1172,7 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_shift_t sv;
     static ui_band_t bv;
     static ui_menu_t mv;
+    static ui_snd_t sv5;
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
     qd_begin();
@@ -1119,6 +1180,10 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     case QD_SCR_MENU:                                   /* P1.3y: a settings menu */
         fill_menu(a, &mv);
         ui_menu_draw(&mv);
+        break;
+    case QD_SCR_SOUND:                                  /* P1.4a: the sound editor */
+        qd_view_snd(a, &sv5);
+        ui_snd_draw(&sv5);
         break;
     case QD_SCR_SEQ:                                    /* printed SEQ held: the patterns */
         draw_patterns(a);

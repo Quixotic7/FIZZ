@@ -17,6 +17,7 @@
  *          OVERDUB / REPLACE; the project's
  *   SETTINGS (P1.3y: SHIFT + SEL) the global settings: KNOB 1 KNOBS (the encoders' layout A..D), KNOB 2 PAGE FOLLOW */
 #include "app.h"
+#include "ui.h"
 
 static void f3_close(qd_app_t *a) { a->ui.f3_anchor = -1; }
 
@@ -24,6 +25,7 @@ static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_F3] = {"F3", "EXIT", 0, 0, 0, f3_close},
     [QD_LATCH_REC] = {"REC", "BACK", 0, 0, 0, 0},      /* P1.3y: the record settings */
     [QD_LATCH_SET] = {"SETTINGS", "BACK", 0, 0, 0, 0}, /* P1.3y: the global settings */
+    [QD_LATCH_SND] = {"SOUND", "BACK", 0, 0, 0, 0},    /* P1.4a: the sound editor (ctl_snd.c) */
 };
 
 const qd_latch_t *qd_latch_cur(const qd_app_t *a)
@@ -67,3 +69,6 @@ int qd_latch_oct(qd_app_t *a, int d)
     }
     return 1;
 }
+
+/* ---------------------------------------------------------------- P1.4a: the sound editor */
+#include "ctl_snd.c"

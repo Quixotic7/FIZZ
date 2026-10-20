@@ -136,7 +136,7 @@ static void own_str(const qd_vattr_t *at, char *out)
 
 static void mix_str(const qd_vattr_t *at, char *out)
 {
-    static const char K[QD_VMIX_N] = {'p', 'd', 'r', 'c', 'x', 'l'};
+    static const char K[QD_VMIX_N] = {'p', 'd', 'r', 'c', 'l'};
     int k;
     out[0] = 0;
     for (k = 0; k < QD_VMIX_N; k++)
@@ -647,6 +647,8 @@ static uint32_t r_fnv(const int16_t *p)
     uint32_t h = 2166136261u;
     int i;
     for (i = 0; i < QD_QUAD_NP; i++) {
+        if (i == QD_QP_DRIVE && !p[i])
+            continue;                                   /* (P1.4a: DRIVE 0 is not hashed: the goldens of before) */
         h = (h ^ ((uint16_t)p[i] & 0xFFu)) * 16777619u;
         h = (h ^ ((uint16_t)p[i] >> 8)) * 16777619u;
     }

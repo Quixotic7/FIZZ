@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3y)
+# Playing FIZZ (P1.4a)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -18,6 +18,7 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | SEQ (printed) | **SEQ**: hold it for the patterns |
 | LFO (printed) | **LATCH**: the step latch, on / off |
 | FX (printed) | **FX** (still TRACKS: the clocks screen) |
+| EDIT (printed) | **EDIT**: the sound editor |
 | the black keys, left to right (F#3 .. D#5) | **B1 .. B10** |
 | the rightmost black key (F#5) | **B11** |
 | the white keys | **W1 .. W16**, the 16 steps of the page you are editing |
@@ -340,6 +341,36 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 - In **SOUND** mode the ten black keys are ten sounds of the pool (the group of ten that holds the step's sound);
   F1 / F2 show the ten before / after; B11 removes the sound lock.
 
+## How do I edit a sound? (the sound editor, EDIT)
+
+- **EDIT** opens the sound editor for the selected track (EDIT lit). **EDIT again, OCT− or HOME** closes it. It opens
+  over the step view from any screen.
+- The black keys are its five groups; **press a group's key again for its next page** (round), or turn **SELECT**
+  through every page. B1..B5 are lit (the group you are in bright).
+
+  | key | group | pages |
+  | --- | --- | --- |
+  | **B1** | OPERATORS | RATIO (KNOB 1..4 the ratios of C, A, B1, B2; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK, MIX), OFFSET (the four offsets) |
+  | **B2** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay), TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL) |
+  | **B3** | FILTERS | FILTER (FREQ, RESO, TYPE, DEPTH), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK) |
+  | **B4** | ENVELOPES | AMP (attack, decay, sustain, release), LEVEL (LEVEL, **DRIVE**) |
+  | **B5** | MODULATION | LFO 1..3 (SPEED, MULT, DEPTH, FADE; ALGORITHM the destination), LFO 1..3 WAVE (WAVE, PHASE, TRIG) |
+
+  Every value of the sound is on exactly one page.
+- Each page is one big drawing of that part of FM TONE (the operators wired by the algorithm, the envelopes, the
+  filter's curve, the LFO's wave ..). Along the bottom, KNOB 1..4's values in their colours (the one you turned last
+  underlined); ALGORITHM's value is in the pink badge top right.
+- **Nothing held**: a turn changes the track's sound, live (what is sounding follows). The screen has the magenta TRACK
+  frame. **SHIFT + a knob** moves it by the finest step (a hundredth of FREQ, HARM, the LFO speeds ..).
+- **A finger on a step** (held, or the step latch's selection: LFO works in the editor): **every turn is a p-lock** on
+  that step. The top says STEP n with a padlock; locked values get a padlock, and the envelopes show the track's curve
+  dashed behind the step's. **B11** clears the held step's locks on this page (lit while it has some). The white keys
+  stay the steps (tap, hold), as in the step view.
+- **PRESETS**: the track's preset (nothing held) or the step's sound lock (a step held), as everywhere.
+- **DRIVE** (B4, LEVEL page, KNOB 2) is part of the sound now: ChoralRoot's DIST (low cut, the drive, a soft clip, a
+  tone low-pass, make-up gain), in each voice, so a step with its own sound or a DRIVE lock has its own. A preset
+  loads its drive (WOBBLE: 10; the others 0). FM TONE's LFOs can move it (destination DRIVE).
+
 ## The scale (for now)
 
 - **SHIFT + ALGORITHM** sets the track's scale (chromatic, major, minor, the modes, harmonic and melodic minor,
@@ -378,8 +409,7 @@ They stay open (OCT− or HOME back). For now:
 
 ## Not built yet
 
-- The sound editor (SOUND), so the pool only has the sounds it starts with, and P-LOCK locks only the step view's
-  knobs.
+- Saving sounds into the pool (the editor changes the track's sound; P1.5a stores it).
 - Track settings (scale, root, following the global key, MIDI channel; SEL tapped will open them), pattern chains,
   MIX and the effects screens.
 - Saving: closing the app loses everything.

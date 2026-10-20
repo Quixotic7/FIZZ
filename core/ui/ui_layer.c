@@ -563,3 +563,6 @@ void ui_menu_draw(const ui_menu_t *v)
     else
         menu_set(v);
 }
+
+/* ---------------------------------------------------------------- P1.4a: the sound editor */
+#include "ui_snd.c"

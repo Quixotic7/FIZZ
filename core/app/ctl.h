@@ -167,6 +167,7 @@ enum { QD_KJ_NONE, QD_KJ_MAIN, QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE
 enum { QD_LATCH_NONE, QD_LATCH_F3,
        QD_LATCH_REC,                    /* P1.3y: SHIFT + REC: the record settings (MODE, QUANTIZE, OVERDUB) */
        QD_LATCH_SET,                    /* P1.3y: SHIFT + SEL: the global settings (KNOBS, PAGE FOLLOW) */
+       QD_LATCH_SND,                    /* P1.4a: EDIT (printed): the sound editor (ctl_snd.c) */
        QD_NLATCH };
 #define QD_LATCH_MENU(l) ((l) == QD_LATCH_REC || (l) == QD_LATCH_SET)   /* a settings menu: its own screen, KNOB 1..4 */
 
@@ -285,6 +286,9 @@ typedef struct {
     int fn_leap, fn_target;            /* P1.3y, FUNC: the last LEAP's n (2) and JUMP's target (-1: the step's page start) */
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
     int knobs;                         /* P1.3y: the encoders' layout (QD_KNOBS_*; the global settings) */
+    int snd_page;                      /* P1.4a: the sound editor's page (QD_SND_PAGES) .. */
+    int snd_knob;                      /* .. the knob last turned there (0..3 KNOB 1..4, 4 ALGORITHM; -1 none) .. */
+    uint32_t snd_ms;                   /* .. and when */
     uint32_t sel_ms;                   /* P1.3y: SEL went down (its map after QD_TAP_MS, or once a key is used) .. */
     int sel_used;                      /* .. a key used it */
     int page_used;                     /* PAGE held picked a page: its release is not a tap */
@@ -368,6 +372,26 @@ typedef struct {
     const qd_lockknob_t *k;
 } qd_lockscreen_t;
 const qd_lockscreen_t *qd_ctl_lock_screen(const struct qd_app *a);
+
+/* ---- ctl_snd.c (P1.4a, built through ctl_latch.c): the sound editor. Its pages: name, group (a black key B1..B5),
+ * drawing (ui.h UI_SD_*), the patch ids on KNOB 1..4 and ALGORITHM (-1 none), the drawing's argument (the envelope,
+ * the LFO). Every one of the sound's QD_QUAD_NP values is on exactly one page */
+enum { QD_SG_OPS, QD_SG_OPENV, QD_SG_FILTER, QD_SG_AMP, QD_SG_MOD, QD_NSG };
+#define QD_SND_NPAGE 18
+typedef struct {
+    const char *name;
+    uint8_t group, draw;
+    int8_t id[5];
+    uint8_t arg;
+} qd_sndpage_t;
+extern const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE];
+extern const char *const QD_SND_GROUP_NAME[QD_NSG];
+int qd_snd_open(const struct qd_app *a);
+void qd_snd_button(struct qd_app *a);           /* EDIT: open / close */
+void qd_snd_black(struct qd_app *a, int b);     /* B1..B5 the groups (again: the next page), B11 the page's locks */
+int qd_snd_knob(struct qd_app *a, int knob, int d);   /* 1: taken */
+void qd_snd_leds(const struct qd_app *a, uint8_t *black);   /* the eleven black keys' LEDs */
+const qd_lockscreen_t *qd_snd_lock_screen(int page);
 int qd_ctl_black(int key);             /* the black key 0..10 of a note key, or -1 */
 int qd_ctl_knob_job(int mode, int knob);
 /* P1.3e: the mode whose default a held mode key edits (-1 none), and whether its full picture shows (held 250 ms, or
@@ -398,6 +422,7 @@ int qd_step_knob(struct qd_app *a, int knob, int d);   /* a knob with steps held
 void qd_step_oct(struct qd_app *a, int d);          /* OCT- / OCT+ with steps held: NOTE's octave, SOUND's bank */
 int qd_step_lock_knob(struct qd_app *a, int knob, int d);   /* a lockable knob of the screen: the held steps; 1 taken */
 void qd_step_clear_locks(struct qd_app *a);         /* P-LOCK's B11: the held steps' p-locks cleared (undoable) */
+void qd_step_lock_fine(struct qd_app *a, int id, int d);   /* P1.4a: id locked on the held steps, d finest steps */
 void qd_step_release_all(struct qd_app *a);         /* every held step let go (HOME, a track change) */
 void qd_step_notes_in(struct qd_app *a, const uint8_t *notes, int n);   /* the held steps' notes (MIDI) */
 int qd_step_default_knob(struct qd_app *a, int d);  /* ALGORITHM, nothing held: the track's default of the mode */
@@ -450,9 +475,12 @@ void qd_view_frame(struct qd_app *a, uint16_t *lcd_be);
 enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR_KEYS, QD_SCR_TRACKS, QD_SCR_SEL,
        QD_SCR_SEQ, QD_SCR_DEFAULT,     /* (P1.3e: a mode key held: the mode's default, its full picture) */
        QD_SCR_EDIT,                    /* P1.3r: the EDIT view (holding, latching, a mode key: all in it) */
-       QD_SCR_MENU };                  /* P1.3y: a settings menu (the record settings, the global settings) */
+       QD_SCR_MENU,                    /* P1.3y: a settings menu (the record settings, the global settings) */
+       QD_SCR_SOUND };                 /* P1.4a: the sound editor */
 /* P1.3r: a knob's takeover (band, picture, picker) drawn over the screen now: never over EDIT, whose top is the pop-up */
 int qd_view_overlay(const struct qd_app *a);
+struct ui_snd;
+void qd_view_snd(struct qd_app *a, struct ui_snd *v);   /* P1.4a: the sound editor's model (the tests read it) */
 int qd_view_screen(const struct qd_app *a);
 
 #ifdef __cplusplus

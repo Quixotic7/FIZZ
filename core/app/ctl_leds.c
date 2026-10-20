@@ -105,6 +105,13 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     const int page = u->page[a->sel], layer = qd_ctl_layer(a);
     int i;
     leds_whites(a, out);
+    if (qd_snd_open(a)) {                               /* P1.4a: the sound editor: its groups, B11 the page's locks */
+        uint8_t bk[11];
+        qd_snd_leds(a, bk);
+        for (i = 0; i < 11; i++)
+            out->key[QD_BLACK_KEY[i]] = bk[i];
+        return;
+    }
     if (u->nheld) {                                     /* the mode's ten values, B11 */
         char lab[10][6];
         uint16_t lit, def, none;
@@ -264,6 +271,8 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_TRACKS] = QD_LED_LIT;
     if (u->slatch)                                      /* P1.3d: LFO lit while the step latch is on */
         out->button[QD_B_MUTE] = QD_LED_LIT;
+    if (qd_snd_open(a))                                 /* P1.4a: EDIT lit while the sound editor is open */
+        out->button[QD_B_SOUND] = QD_LED_LIT;
     if (qd_latch_cur(a)) {                              /* P1.3d: a latched menu: OCT- (back) lit, OCT+ lit when it
                                                          * confirms something */
         out->button[QD_B_OCTDN] = QD_LED_LIT;

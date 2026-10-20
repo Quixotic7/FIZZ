@@ -3,7 +3,9 @@
  * at its track's level, pan and three sends (chorus, delay, reverb), with ChoralRoot's arithmetic for a part
  * (fx.c mix_part_out / mix_part_loop: LEVEL_Q12, the pan law, the sends ramped over the block from the gains the last
  * block left; eng_quad.c's LFO offsets on the pan and the sends, quad_pan / quad_sends), applied per voice. Then the
- * buses go to qd_fx_block (core/voice/fx). DRIVE (ChoralRoot's DIST, a part insert) is not in P1.1. */
+ * buses go to qd_fx_block (core/voice/fx). P1.4a: DRIVE, ChoralRoot's DIST (a part insert there), runs per voice before
+ * the level: the voice's patch's DRIVE plus its owner's LFO offset (eng_quad.c quad_drive), its own state (a fresh note
+ * starts it from 0). */
 #pragma once
 #include <stdint.h>
 
@@ -24,6 +26,7 @@ typedef struct {                        /* a track's mix (the model's; a voice c
 typedef struct {
     int32_t sg[QD_POOL_MAX][3];         /* each voice's chorus, delay, reverb gains as the last block left them */
     uint32_t serial[QD_POOL_MAX];       /* the start they belong to (a fresh start: no ramp from another note's) */
+    qd_dist_t dist[QD_POOL_MAX];        /* P1.4a: each voice's DRIVE state */
     int32_t vbuf[QD_MIX_CTL];
     int rendered;                       /* the last block's voices */
 } qd_mix_t;

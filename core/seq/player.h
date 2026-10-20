@@ -63,10 +63,10 @@ void qd_player_key_off(qd_player_t *pl, int t, int note);
  * state and the pattern are not changed. An empty step, or a LOCK step (it plays no note): nothing. Returns the notes
  * struck (notes: room for QD_NNOTE), ascending */
 int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes);
-/* a live edit of track t's sound: patch value id (0..72) or a mix value (QD_LK_PAN .. QD_LK_LEVEL) */
+/* a live edit of track t's sound: patch value id (0..73, DRIVE 73) or a mix value (QD_LK_PAN .. QD_LK_LEVEL) */
 void qd_player_live_edit(qd_player_t *pl, int t, int id, int value);
 
-uint32_t qd_patch_hash(const int16_t *patch);   /* FNV-1a over the 73 values, little-endian */
+uint32_t qd_patch_hash(const int16_t *patch);   /* FNV-1a over the 74 values, little-endian (DRIVE 0 skipped) */
 /* voice i's patch as it will be after its dip (the values waiting applied) */
 void qd_player_voice_patch(const qd_pool_t *pool, int i, int16_t *out);
 
