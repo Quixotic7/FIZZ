@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3t)
+# Playing FIZZ (P1.3u)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -66,7 +66,7 @@ sound comes from the Mac. Printed names are in brackets.
 2. **Hold** the step's white key. The screen shows that step (the black keys' ten values are in the table below; the
    screen no longer draws them as a strip). On NOTE the step's notes are written in one line right over the keyboard,
    each in the colour of the knob that turns it (SELECT yellow, KNOB 1..4 blue, green, white, orange, the sixth pink),
-   with the track's scale small at the top left; a chord the unit knows is named big (in EDIT, in the top line).
+   with the track's scale small at the top left; a chord the unit knows is named big over the notes.
 3. **Turn the knobs** (table below), or press a black key **B1 .. B10** for one of ten values (shortcuts).
    ALGORITHM also turns the main value.
 4. **B11** puts the step back on the track's default.

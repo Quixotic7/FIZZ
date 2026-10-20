@@ -155,9 +155,24 @@ static void note_line(const ui_held_t *v, const pal_t *p, float y)
     }
 }
 
+/* the chord's name: the root big and thin, the quality as a superscript, squeezed in from narrow as it changes; centred
+ * at cx, its baseline at y */
+static void chord_name(const ui_held_t *v, const pal_t *p, float cx, float y, float size)
+{
+    const float sq = 0.55f + 0.45f * ui_ease(v->squeeze / 0.18f), qs = size * 0.43f;
+    const float wr = ui_TW(v->root, size, 200, 0.f), wq = v->qual[0] ? ui_TW(v->qual, qs, 300, 0.f) : 0.f;
+    const float w = (wr + wq + 2.f) * sq, x = cx - w / 2.f;
+    qd_save();
+    qd_translate(x, y);
+    qd_scale(sq, 1.f);
+    ui_T(v->root, 0.f, 0.f, size, 200, 0.f, p->wh, QD_LEFT);
+    if (v->qual[0])
+        ui_T(v->qual, wr + 2.f, -size * 0.49f, qs, 300, 0.f, p->wh, QD_LEFT);
+    qd_restore();
+}
+
 static void f_note(const ui_held_t *v, const pal_t *p)
 {
-    const float sq = 0.55f + 0.45f * ui_ease(v->squeeze / 0.18f);
     int i, lo = 48, mn = 127;
 
     if (p->nobig) {
@@ -165,20 +180,7 @@ static void f_note(const ui_held_t *v, const pal_t *p)
     } else if (p->empty) {
         ui_T("EMPTY STEP", 120.f, 86.f, 11.f, 600, 1.f, UI_G1, QD_CENTER);
     } else if (v->root[0]) {                            /* root big, quality small, squeezed in from narrow */
-        const float wr = ui_TW(v->root, 70.f, 200, 0.f), wq = v->qual[0] ? ui_TW(v->qual, 30.f, 300, 0.f) : 0.f;
-        const float w = (wr + wq + 2.f) * sq, x = 120.f - w / 2.f;
-        qd_save();
-        qd_translate(x, 104.f);
-        qd_scale(sq, 1.f);
-        ui_T(v->root, 0.f, 0.f, 70.f, 200, 0.f, p->wh, QD_LEFT);
-        qd_restore();
-        if (v->qual[0]) {
-            qd_save();
-            qd_translate(x + (wr + 2.f) * sq, 70.f);
-            qd_scale(sq, 1.f);
-            ui_T(v->qual, 0.f, 0.f, 30.f, 300, 0.f, p->wh, QD_LEFT);
-            qd_restore();
-        }
+        chord_name(v, p, 120.f, 104.f, 70.f);
     }
     note_line(v, p, KB_Y - 9.f);
 
@@ -758,15 +760,18 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
     qd_save();
     qd_clip_rect(0.f, ED_TOP - 4.f, 240.f, ED_BOT - ED_TOP + 4.f);   /* (nothing spills onto the row) */
     switch (field) {
-    case UI_F_NOTE:                                     /* the keybed full width, its legend, the names */
-        if (v->root[0])                                 /* (P1.3t: a chord's name, else none: the note line) */
-            cat(cat(val, v->root), v->qual);
+    case UI_F_NOTE:                                     /* the keybed full width, the note line over it */
         if (v->scale_name && v->scale_name[0])
             cat(sub, v->scale_name);
         moved(v, &p, field, -34.f);                     /* (the notes 131, the keybed 140 .. 210 -> 97, 106 .. 176) */
+        if (v->root[0] && !p.empty)                     /* P1.3u: the chord's name big, centred in the space over
+                                                         * the notes (none: the space stays empty) */
+            chord_name(v, &p, 120.f, 78.f, 46.f);
         break;
-    case UI_F_VEL:                                      /* the mallet and the drum (the ramp's ticks under them) */
-        cat(val, ui_itoa(n, v->vel));
+    case UI_F_VEL:                                      /* the mallet and the drum (the ramp's ticks under them); P1.3u:
+                                                         * the velocity big in the space left of the mallet */
+        if (!p.empty)
+            ui_T(ui_itoa(n, v->vel), 10.f, 98.f, 60.f, 200, 0.f, p.k[0], QD_LEFT);
         moved(v, &p, field, -40.f);                     /* (67 .. 217 -> 27 .. 177) */
         break;
     case UI_F_LEN:                                      /* the ruler and the bar */

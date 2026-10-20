@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' P1.3t part: the NOTE drawing redone (the keybed low, the notes as one line over it in their knobs'
+/* render_frames' P1.3u part (was render_p13t.c; P1.3u: EDIT's chord name big and centred over the notes, VEL's value
+ * big beside the mallet): the NOTE drawing redone (the keybed low, the notes as one line over it in their knobs'
  * colours, the scale's name only, no SELECTED, no "A = ALL"), in EDIT and on the held screen: one note, a chord the
- * namer knows, the owner's six-note cluster (C E F F# G G#), D DORIAN, the track's default; into OUT/p13t-note-*.png
- * and OUT/p13t-note-sheet.png. The notes and the scale are set through the pattern API (qd_ctl_pat). */
+ * namer knows, the owner's six-note cluster (C E F F# G G#), D DORIAN, the track's default; into OUT/p13u-note-*.png
+ * and OUT/p13u-note-sheet.png. The notes and the scale are set through the pattern API (qd_ctl_pat). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,11 +53,11 @@ static void shot(const char *name, const char *caption)
 {
     char path[1024];
     qd_app_frame(&A, lcd);
-    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13t-%s.png", name);
+    snprintf(shots[nshot].file, sizeof shots[nshot].file, "p13u-%s.png", name);
     snprintf(shots[nshot].caption, sizeof shots[nshot].caption, "%s", caption);
     snprintf(path, sizeof path, "%s/%s", outdir, shots[nshot].file);
     if (!p13b_write_lcd_png(path, lcd)) {
-        fprintf(stderr, "render_p13t: cannot write %s\n", path);
+        fprintf(stderr, "render_p13u: cannot write %s\n", path);
         failed = 1;
     }
     printf("%s (%s)\n", path, caption);
@@ -149,7 +150,7 @@ static void sheet(void)
     plutovg_canvas_fill(c);
     plutovg_canvas_set_font(c, f, 18.f);
     plutovg_canvas_set_rgb(c, 0.9f, 0.9f, 0.9f);
-    plutovg_canvas_fill_text(c, "FIZZ P1.3t: NOTE: the keybed low, the notes over it in their knobs' colours (2x)", -1,
+    plutovg_canvas_fill_text(c, "FIZZ P1.3u: EDIT: the chord's name big over the notes, VEL's value big; and the held NOTE screens (2x)", -1,
                              PLUTOVG_TEXT_ENCODING_UTF8, (float)pad, 32.f);
     for (i = 0; i < nshot; i++) {
         const float x = (float)(pad + (i % cols) * (cell_w + pad)), y = (float)(50 + (i / cols) * (cell_h + pad));
@@ -164,7 +165,7 @@ static void sheet(void)
             plutovg_surface_destroy(ours);
         }
     }
-    snprintf(path, sizeof path, "%s/p13t-note-sheet.png", outdir);
+    snprintf(path, sizeof path, "%s/p13u-edit-sheet.png", outdir);
     if (!plutovg_surface_write_to_png(s, path))
         failed = 1;
     printf("%s (%d screens)\n", path, nshot);
@@ -240,7 +241,7 @@ static void both(int s, const char *name, const char *caption)
     run(100);
 }
 
-int render_p13t(const char *out)
+int render_p13u(const char *out)
 {
     static const uint8_t ONE[1] = {64}, CHORD[3] = {62, 65, 69}, OWNER[6] = {60, 64, 65, 66, 67, 68};
     qd_pattern_t *P;
@@ -264,6 +265,14 @@ int render_p13t(const char *out)
         btap(QD_B_HOME);
     run(300);
     shot("note-default-edit", "EDIT, nothing held: the track's default");
+    if (A.ui.slatch)
+        btap(QD_B_MUTE);
+    black(UI_F_VEL);                                    /* VEL: the value big beside the mallet */
+    turn(QD_K_PRESETS, 1);
+    while (A.ui.nheld && A.ui.held[0] != 20)
+        turn(QD_K_PRESETS, A.ui.held[0] < 20 ? 1 : -1);
+    run(400);
+    shot("edit-vel", "EDIT: VEL, the value big beside the mallet");
 
     if (!failed)
         sheet();

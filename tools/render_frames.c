@@ -52,7 +52,7 @@ int render_p13e(const char *out);                       /* render_p13e.c */
 int render_p13f(const char *out);                       /* render_p13f.c */
 int render_p13q(const char *out);                       /* render_p13q.c (was render_p13j.c): STEPS */
 int render_p13s(const char *out);                       /* render_p13s.c (was render_p13r.c): the EDIT view */
-int render_p13t(const char *out);                       /* render_p13t.c: the NOTE drawing */
+int render_p13u(const char *out);                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
 int render_p13p(const char *out);                       /* render_p13p.c (P1.3p: replaces render_p13o.c) */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
@@ -377,7 +377,7 @@ int main(int argc, char **argv)
     failed |= render_p13f(out);                         /* P1.3f: NOTE's knobs, each its own note */
     failed |= render_p13q(out);                         /* P1.3q: the STEPS view, the steps' kinds */
     failed |= render_p13s(out);                         /* P1.3s: the EDIT view, its drawings full size */
-    failed |= render_p13t(out);                         /* P1.3t: the NOTE drawing */
+    failed |= render_p13u(out);                         /* P1.3u: NOTE, EDIT's chord name and VEL big */
     failed |= render_p13p(out);                         /* P1.3p: FIZZ's logo screen, its GIF's frames */
     qd_shutdown();
     return failed;
