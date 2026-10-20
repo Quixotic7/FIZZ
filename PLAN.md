@@ -1268,3 +1268,8 @@ wraps to 1); pop-ups and held screens drop the track from their headers.
 each mode at full held-screen size with the value in the header and the row below; the black-key value strips are
 gone everywhere (a small B11 RESET word with a mode key held); "KEYS OCT n"; beat dots over steps 1 5 9 13 in the
 lanes instead of step numbers; the playhead no longer outlines cells (only held / latched / selected steps do).
+
+**2026-10-19, P1.3t** (FMToneSeq 1a8f2ca; FM1VST `core-quadrille` 3bf77d9; version 0.1.9-p1.3t; relaunched): the NOTE
+drawing (held and EDIT): the keybed low, the notes as one readable line in their knob colours directly above it, no
+tiny names, no "A = ALL", no "SELECTED" anywhere, no "KEYS OCT"; only the scale name; the header value is the chord
+name when there is one.
