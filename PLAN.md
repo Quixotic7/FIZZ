@@ -1257,3 +1257,4 @@ steps by kind (own notes warm white, track notes cyan, ghost / LOCK a violet out
 notes drawn dark on it, velocity as the fill height, a length line under held / selected steps, PRESETS as a step
 cursor (the latch, STEPS stays on screen), the NOTE-mode override bars dropped. Also 81f5718: the logo's inner bubbles
 orbit in whole turns (they jumped at the 11 s wrap).
+- The owner (2026-10-19): with the PRESETS cursor, STEPS stays on screen (kept as P1.3q built it).
