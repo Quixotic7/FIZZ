@@ -1263,3 +1263,8 @@ orbit in whole turns (they jumped at the 11 s wrap).
 PIANO ROLL, STEPS and **EDIT** (the edited page as one row at the bottom, the hold mode's picture re-laid-out above it,
 the value strip between; both update together; no pop-ups over it); the PRESETS cursor walks all 8 pages in order (8
 wraps to 1); pop-ups and held screens drop the track from their headers.
+
+**2026-10-19, P1.3s** (FMToneSeq 78a5c2a; FM1VST `core-quadrille` bb52f8d; version 0.1.8-p1.3s; relaunched): EDIT draws
+each mode at full held-screen size with the value in the header and the row below; the black-key value strips are
+gone everywhere (a small B11 RESET word with a mode key held); "KEYS OCT n"; beat dots over steps 1 5 9 13 in the
+lanes instead of step numbers; the playhead no longer outlines cells (only held / latched / selected steps do).
