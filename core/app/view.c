@@ -404,7 +404,8 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
         for (i = 0; i < QD_PAGE; i++)
             v->jump_trig[i] = (uint8_t)qd_step_is_on(qd_step(P, t, v->jump_page * QD_PAGE + i));
     }
-    v->sound_cur = is_default ? qd_track_sound_name(&a->model.t[t]) : sound_name(a, r.sound);
+    v->sound_cur = is_default || r.sound <= 0 ? qd_track_sound_name(&a->model.t[t]) : sound_name(a, r.sound);   /* (P1.3y:
+                                                         * no lock: the track's sound by name, under TRACK) */
     v->sound_prev = r.sound > 0 ? sound_name(a, r.sound - 1) : 0;
     v->sound_next = r.sound < a->proj.nsound ? sound_name(a, r.sound + 1) : 0;
     if (a->ms - u->roll_ms < (uint32_t)QD_ROLL_MS)
@@ -510,15 +511,22 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
     cat(cat(swing, ui_itoa(n, P->swing)), "%");
 #define ROW(c, i, w) (v->ctl[v->n] = (c), v->icon[v->n] = (i), v->val[v->n++] = (w))
     if (u->mode == QD_MODE_KEYS) {                      /* P1.3v: the controls, their jobs' icons, the values now */
-        ROW(UI_SC_REC, UI_IC_REC, a->ui.rec ? "OFF" : a->seq.playing ? "LIVE" : "STEP");
+        ROW(UI_SC_REC, UI_IC_GEAR, a->proj.rec_mode ? "STEP" : "LIVE");   /* P1.3y: the record settings */
         ROW(UI_SC_SELECT, UI_IC_SWING, swing);
     } else if (u->mode == QD_MODE_STEP && u->nheld) {
         ROW(UI_SC_ALGO, u->hmode == UI_F_RATCH ? UI_IC_RAMP : UI_IC_STRUM, 0);
     } else {
+        static char knobs[4];
+        static const char *const VIEW[QD_NVIEW] = {"ROLL", "STEPS", "EDIT"};
+        knobs[0] = (char)('A' + u->knobs);
+        knobs[1] = 0;
         ROW(UI_SC_ALGO, UI_IC_SCALE, scale);
         ROW(UI_SC_PRESETS, UI_IC_KEY, root);
         ROW(UI_SC_F3_ALGO, UI_IC_SWING, swing);
         ROW(UI_SC_SEQ_W, UI_IC_NOW, 0);
+        ROW(UI_SC_HOME, UI_IC_VIEWS, VIEW[(u->view + 1) % QD_NVIEW]);   /* P1.3y: the next view */
+        ROW(UI_SC_REC, UI_IC_GEAR, a->proj.rec_mode ? "STEP" : "LIVE");   /* .. the record settings */
+        ROW(UI_SC_SEL, UI_IC_GEAR, knobs);              /* .. the global settings (the knobs' layout) */
     }
 #undef ROW
 }
@@ -528,7 +536,7 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
 {
     static const char *const NAMES[UI_NTK] = {"FREQ", "DECAY", "HARM", "FEEDBACK", "ALGO", "TEMPO", "SWING",
                                               "LENGTH", "RATE", "LIMIT", "SWING", "PAGE", "SCALE", "ROOT",
-                                              "OCTAVE", "TRACK"};
+                                              "OCTAVE", "TRACK", "TRACK"};
     const qd_ui_t *u = &a->ui;
     const int t = a->sel;
     const qd_pattern_t *P = qd_ctl_cpat(a);
@@ -642,6 +650,14 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
             for (s = 0; s < QD_PAGE; s++)
                 v->trig[i][s] = (uint8_t)qd_step_is_on(qd_step(P, t, i * QD_PAGE + s));
         break;
+    case UI_TK_TRACKBIG:                                /* P1.3y: FX held + ALGORITHM: the track big */
+        v->has_col = 1;
+        v->col = UI_TRACK_PAL[t & 7];
+        v->value = t + 1;
+        v->v = (float)t / 7.f;
+        for (i = 0; i < QD_NTRACK; i++)
+            v->tname[i] = a->model.t[i].name;
+        break;
     case UI_TK_TRACK:                                   /* P1.3d: P-LOCK's ALGORITHM, the eight tracks */
         v->has_col = 1;
         v->col = UI_MODE_COL[UI_F_PLOCK];
@@ -714,7 +730,7 @@ static void draw_keys(qd_app_t *a)
     qd_ctl_sounding(a, v.sounding);
     v.octave = a->oct;
     v.blink = (a->ms / QD_BLINK_MS) % 2u == 0;
-    if (u->rec && !a->seq.playing && !u->live_wait) {
+    if (qd_rec_stepping(a)) {
         const int cs = qd_track_loop_step(ts, u->cursor);
         v.rec = 1;
         v.cursor = cs + 1;
@@ -724,7 +740,7 @@ static void draw_keys(qd_app_t *a)
         const double L = (double)qd_rate_ticks(qd_tset_rate(ts));
         const int64_t now = qd_seq_tick(&a->seq);
         v.rec = 2;
-        v.quantize = u->quantize;
+        v.quantize = a->proj.rec_quant > 0;
         v.pos = (float)qd_seq_track_pos(&a->seq, a->sel);
         v.step = qd_seq_track_step(&a->seq, a->sel) + 1;
         for (i = 0; i < u->nroll; i++) {
@@ -1013,7 +1029,9 @@ int qd_view_screen(const qd_app_t *a)
     const qd_ui_t *u = &a->ui;
     if (u->mode != QD_MODE_IDLE && held_btn(a, QD_B_MIX))
         return QD_SCR_SEQ;
-    if (u->mode != QD_MODE_IDLE && held_btn(a, QD_B_PATTERN))
+    if (u->mode == QD_MODE_STEP && QD_LATCH_MENU(u->latch))
+        return QD_SCR_MENU;                             /* P1.3y: a settings menu */
+    if (u->mode != QD_MODE_IDLE && qd_ctl_sel_map(a))   /* (P1.3y: after a hold, or a key: a tap shows nothing) */
         return QD_SCR_SEL;
     switch (u->mode) {
     case QD_MODE_KEYS:
@@ -1029,8 +1047,8 @@ int qd_view_screen(const qd_app_t *a)
                 return QD_SCR_SHIFT;
             return QD_SCR_EDIT;
         }
-        if (u->nheld && u->hmode != UI_F_PLOCK &&      /* (P-LOCK: holding keeps the screen; P1.3q: so does */
-            !(u->scursor && u->view == QD_VIEW_STEPS))   /* PRESETS' cursor in STEPS) */
+        if (u->nheld && u->hmode != UI_F_PLOCK &&      /* (P-LOCK: holding keeps the screen; so does the step */
+            !u->scursor)                                /* cursor, P1.3q, in every view since P1.3y) */
             return QD_SCR_HELD;
         if (qd_ctl_mkey_shown(a))                       /* P1.3e: a mode key held: the track's default */
             return QD_SCR_DEFAULT;
@@ -1049,11 +1067,35 @@ int qd_view_screen(const qd_app_t *a)
 void qd_view_edit(qd_app_t *a, ui_held_t *h, ui_lane_t *l)
 {
     static char pat[4];
+    const qd_ui_t *u = &a->ui;
     const int mk = qd_ctl_mkey_shown(a);
+    const int preset = u->tk == QD_TK_PRESET && a->ms - u->tk_ms < QD_TK_MS + QD_TK_FADE_MS;
     fill_lane(a, l, pat);
-    fill_held(a, h, !a->ui.nheld || mk);
+    fill_held(a, h, !u->nheld || mk || (preset && !u->tk_lock));
     if (!mk)
         h->reset = 0;
+    if (preset) {                                       /* P1.3y: PRESETS turning: the sound picture in the top */
+        h->field = UI_F_SOUND;
+        h->ovr = h->is_default || h->sound > 0;
+    }
+}
+
+/* P1.3y: the settings menus' model */
+static void fill_menu(const qd_app_t *a, ui_menu_t *v)
+{
+    const qd_ui_t *u = &a->ui;
+    int r, k;
+    memset(v, 0, sizeof *v);
+    v->kind = u->latch == QD_LATCH_REC ? UI_MENU_REC : UI_MENU_SET;
+    v->rec_step = a->proj.rec_mode;
+    v->quant = a->proj.rec_quant;
+    v->dub = a->proj.rec_dub;
+    v->layout = u->knobs;
+    for (r = 0; r < 2; r++)
+        for (k = 0; k < 3; k++)
+            v->role[r][k] = qd_ctl_role_name(qd_ctl_layout_role(u->knobs, r, QD_K_SELECT + k));
+    v->follow = u->follow;
+    v->t = secs(a->ms);
 }
 
 int qd_view_overlay(const qd_app_t *a)
@@ -1069,10 +1111,15 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_layer_t yv;
     static ui_shift_t sv;
     static ui_band_t bv;
+    static ui_menu_t mv;
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
     qd_begin();
     switch (qd_view_screen(a)) {
+    case QD_SCR_MENU:                                   /* P1.3y: a settings menu */
+        fill_menu(a, &mv);
+        ui_menu_draw(&mv);
+        break;
     case QD_SCR_SEQ:                                    /* printed SEQ held: the patterns */
         draw_patterns(a);
         break;

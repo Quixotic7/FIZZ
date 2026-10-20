@@ -591,7 +591,7 @@ static void f_func(const ui_held_t *v, const pal_t *p)
         ui_icon(ic, 120.f, 96.f, 5.f, p->k[0]);
     if (!p->nobig && v->func_name[0])
         ui_T(v->func_name, 120.f, 166.f, 34.f, 200, 0.f, p->k[0], QD_CENTER);
-    if (v->func >= UI_FN_JUMP) {
+    if (v->func >= UI_FN_JUMP && v->func < UI_FN_LEAP) {
         char n[12];
         int i;
         ui_T(ui_itoa(n, v->jump_page + 1), 16.f, 206.f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
@@ -630,7 +630,9 @@ static int held_head(const ui_held_t *v, pal_t *p)
     char left[48], n[12];
 
     p->empty = v->type == 0 && field != UI_F_TRIG && !v->is_default;
-    p->k[0] = p->empty ? UI_G2 : lit ? UI_MODE_COL[field] : DEF_COL;
+    p->k[0] = p->empty ? UI_G2 : v->is_default ? UI_TRACK_COL : lit ? UI_MODE_COL[field] : DEF_COL;
+    if (v->is_default)                                  /* P1.3y: a track's default: the TRACK frame round it all */
+        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_TRACK_COL, 3.f, QD_NONE);
     p->k[1] = p->empty ? UI_G2 : UI_MODE_COL[other_mode(field)];
     p->wh = p->empty ? UI_G1 : UI_K3;
     p->nobig = 0;
@@ -645,7 +647,7 @@ static int held_head(const ui_held_t *v, pal_t *p)
             cat(cat(left, "+"), ui_itoa(n, v->nheld - 1));
     }
     cat(cat(left, " \xc2\xb7 "), UI_FIELD_NAME[field]);
-    ui_T(left, 8.f, 18.f, 12.f, 600, 0.8f, UI_K3, QD_LEFT);
+    ui_T(left, 8.f, 18.f, 12.f, 600, 0.8f, v->is_default ? UI_TRACK_COL : UI_K3, QD_LEFT);
     /* (P1.3t: no SELECTED: the row and the LFO light say it) */
     if (field != UI_F_PLOCK && ((!lit && !p->empty) || (p->empty && (field == UI_F_COND || field == UI_F_CHNC)))) {
         /* a tag top right: the step plays the track's value (COND / CHNC, which draw no EMPTY STEP: an empty step) */

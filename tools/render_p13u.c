@@ -77,6 +77,14 @@ static void btap(int b)
     bup(b);
     run(20);
 }
+static void vhome(void)                                 /* (P1.3y: SHIFT + HOME, the next view; HOME alone never cycles) */
+{
+    qd_app_button(&A, QD_B_FUNC, 1);
+    run(10);
+    btap(QD_B_HOME);
+    qd_app_button(&A, QD_B_FUNC, 0);
+    run(10);
+}
 static void black(int b)
 {
     qd_app_key(&A, BK(b), 1, 100);
@@ -208,7 +216,7 @@ static void keys_two_pages(void)
     }
     wtap(7);
     wtap(11);
-    btap(QD_B_HOME);                                    /* STEPS */
+    vhome();                                    /* STEPS */
 }
 
 /* EDIT (the cursor on step s, NOTE) and the held screen (the PIANO ROLL, step s's key held) */
@@ -218,18 +226,18 @@ static void both(int s, const char *name, const char *caption)
     if (A.ui.slatch)
         btap(QD_B_MUTE);
     while (A.ui.view != QD_VIEW_EDIT)
-        btap(QD_B_HOME);
+        vhome();
     black(UI_F_NOTE);
-    turn(QD_K_PRESETS, 1);
+    turn(QD_K_ALGO, 1);
     while (A.ui.nheld && A.ui.held[0] != s)
-        turn(QD_K_PRESETS, A.ui.held[0] < s ? 1 : -1);
+        turn(QD_K_ALGO, A.ui.held[0] < s ? 1 : -1);
     run(400);
     snprintf(nm, sizeof nm, "note-%s-edit", name);
     snprintf(cap, sizeof cap, "EDIT: %s", caption);
     shot(nm, cap);
     btap(QD_B_MUTE);                                    /* the latch off */
     while (A.ui.view != QD_VIEW_ROLL)
-        btap(QD_B_HOME);
+        vhome();
     qd_ctl_set_page(&A, s / 16);
     run(300);
     whold(s % 16);
@@ -262,15 +270,15 @@ int render_p13u(const char *out)
     P->trk[T3].key_global = 0;
     both(16 + 4, "dorian", "the chord in D DORIAN");
     while (A.ui.view != QD_VIEW_EDIT)
-        btap(QD_B_HOME);
+        vhome();
     run(300);
     shot("note-default-edit", "EDIT, nothing held: the track's default");
     if (A.ui.slatch)
         btap(QD_B_MUTE);
     black(UI_F_VEL);                                    /* VEL: the value big beside the mallet */
-    turn(QD_K_PRESETS, 1);
+    turn(QD_K_ALGO, 1);
     while (A.ui.nheld && A.ui.held[0] != 20)
-        turn(QD_K_PRESETS, A.ui.held[0] < 20 ? 1 : -1);
+        turn(QD_K_ALGO, A.ui.held[0] < 20 ? 1 : -1);
     run(400);
     shot("edit-vel", "EDIT: VEL, the value big beside the mallet");
 

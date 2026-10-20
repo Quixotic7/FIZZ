@@ -88,7 +88,21 @@
  * P1.3f (§8b 2.2, "superseded the same day"): the notes are pitches in slots (note k = slot k). In NOTE, with a step
  * held (or selected) and with the NOTE key held for the default, SELECT moves note 1 alone, KNOB 1..4 notes 2..5 alone
  * (a scale step a detent, skipping the other notes' pitches; notes 2..5 below note 1: removed, from none: a step above
- * note 1), ALGORITHM every note together; a sixth note only from the keys. The step latch selects by gesture. */
+ * note 1), ALGORITHM every note together; a sixth note only from the keys. The step latch selects by gesture.
+ *
+ * P1.3y (§8b 2.3, the control fixes and the owner's additions; supersedes the HOME, PRESETS-cursor and nothing-held
+ * ALGORITHM lines above):
+ *   HOME comes back to the view in use from anywhere (a latch closed in the same press), never cycles; SHIFT + HOME
+ *   cycles PIANO ROLL / STEPS / EDIT.
+ *   ONE MEANING A KNOB: no finger on a step (nothing held, or the step latch's selection), every view, the encoders do
+ *   their role in the KNOBS layout (QD_KNOBS_*, the table KNOB_ROLES in ctl.c; A: SELECT the page (the cursor to the
+ *   page's first step), ALGORITHM the step cursor, PRESETS the track's preset); a mode key held: its default; with a
+ *   finger on a step as before (KNOB_JOB, PRESETS the sound lock). FX held + ALGORITHM: the track (UI_TK_TRACKBIG).
+ *   LFO held + a black key: the hold mode (the latch untouched); LFO tapped: the latch.
+ *   FUNC: KNOB 1 the kind, KNOB 2 LEAP's n, KNOB 3 JUMP's target; B8 LEAP, B9 JUMP; B9 held + W: the target.
+ *   SHIFT + REC: the record settings (QD_LATCH_REC: MODE, QUANTIZE, OVERDUB / REPLACE, the project's); REC held arms in
+ *   that MODE. SHIFT + SEL: the global settings (QD_LATCH_SET: KNOBS, PAGE FOLLOW). SEL tapped: nothing (P1.4b).
+ *   The value keys light the nearest value (qd_step_value_keys). */
 #pragma once
 #include <stdint.h>
 
@@ -144,11 +158,32 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 /* NOTE1..5: SELECT, KNOB 1..4 in NOTE, each moving its note alone (P1.3f); QUIET (P1.3e), the main value with no
  * overlay (KNOB 4 wherever it has no other job: the lane or the held screen changes in place) */
 enum { QD_KJ_NONE, QD_KJ_MAIN, QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4, QD_KJ_NOTE5,
-       QD_KJ_TIE, QD_KJ_STRUM, QD_KJ_RAMP, QD_KJ_COND, QD_KJ_CHANCE, QD_KJ_QUIET, QD_NKJ };
+       QD_KJ_TIE, QD_KJ_STRUM, QD_KJ_RAMP, QD_KJ_COND, QD_KJ_CHANCE, QD_KJ_QUIET,
+       QD_KJ_FTYPE, QD_KJ_LEAP, QD_KJ_JTGT,   /* P1.3y, FUNC: the function's kind, LEAP's n, JUMP's target */
+       QD_NKJ };
 
 /* P1.3d (§8b 2.2): latched menus and confirmations (ctl_latch.c). One rule for all: OCT- = back / exit / cancel,
  * OCT+ = yes / confirm / enter; HOME closes any */
-enum { QD_LATCH_NONE, QD_LATCH_F3, QD_NLATCH };
+enum { QD_LATCH_NONE, QD_LATCH_F3,
+       QD_LATCH_REC,                    /* P1.3y: SHIFT + REC: the record settings (MODE, QUANTIZE, OVERDUB) */
+       QD_LATCH_SET,                    /* P1.3y: SHIFT + SEL: the global settings (KNOBS, PAGE FOLLOW) */
+       QD_NLATCH };
+#define QD_LATCH_MENU(l) ((l) == QD_LATCH_REC || (l) == QD_LATCH_SET)   /* a settings menu: its own screen, KNOB 1..4 */
+
+/* P1.3y (the owner's addition): the encoders' layouts (the global settings' KNOBS), one table of roles: what SELECT,
+ * ALGORITHM and PRESETS do with no finger on a step (nothing held, or the step latch's selection), in the PIANO ROLL
+ * and in STEPS / EDIT. With a finger on a step every layout is the same (KNOB_JOB, the sound lock on PRESETS).
+ *   A  SELECT page    ALGORITHM cursor  PRESETS preset                 (P1.3y)
+ *   B  SELECT page    ALGORITHM value   PRESETS preset (ROLL) / cursor (STEPS, EDIT)   (P1.3q)
+ *   C  SELECT cursor  ALGORITHM page    PRESETS preset
+ *   D  SELECT cursor  ALGORITHM value   PRESETS preset                 (the cursor carries the page)
+ * value: the mode's value, the latch's selection's (as a finger) or else the track's default (P-LOCK: the track) */
+enum { QD_KR_NONE, QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET, QD_KR_VALUE, QD_NKR };
+enum { QD_KNOBS_A, QD_KNOBS_B, QD_KNOBS_C, QD_KNOBS_D, QD_NKNOBS };
+int qd_ctl_sel_map(const struct qd_app *a);       /* P1.3y: SEL's track map is up (held a moment, or a key used) */
+int qd_ctl_knob_role(const struct qd_app *a, int knob);           /* the encoder's role now (QD_KR_*; KNOB 1..4: NONE) */
+int qd_ctl_layout_role(int layout, int rows, int knob);          /* .. in a layout (rows: STEPS / EDIT) */
+const char *qd_ctl_role_name(int role);                           /* "PAGE", "CURSOR", "PRESET", "VALUE" */
 typedef struct qd_latch {
     const char *name;                  /* "F3" */
     const char *back, *confirm;        /* what OCT- and OCT+ say on screen ("EXIT"; confirm 0: OCT+ does nothing) */
@@ -246,6 +281,12 @@ typedef struct {
     int8_t key_row[27];
     /* the buttons */
     int tracks_tap;                    /* TRACKS went down alone: its release toggles the tracks screen */
+    int lfo_used;                      /* P1.3y: LFO held picked a hold mode (B1..B11): its release is no tap */
+    int fn_leap, fn_target;            /* P1.3y, FUNC: the last LEAP's n (2) and JUMP's target (-1: the step's page start) */
+    int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
+    int knobs;                         /* P1.3y: the encoders' layout (QD_KNOBS_*; the global settings) */
+    uint32_t sel_ms;                   /* P1.3y: SEL went down (its map after QD_TAP_MS, or once a key is used) .. */
+    int sel_used;                      /* .. a key used it */
     int page_used;                     /* PAGE held picked a page: its release is not a tap */
     int rec_down_used;                 /* REC + PLAY: REC's release is not a tap */
     uint32_t rec_down_ms;              /* P1.3x: REC went down (held QD_REC_HOLD_MS: live recording armed) */
@@ -257,7 +298,7 @@ typedef struct {
     int shift_used;                    /* SHIFT did something while down (its map then stops) */
     /* the keyboard (ctl_rec.c) */
     int rec;                           /* recording armed in the keyboard (step recording stopped, live playing) */
-    int quantize;                      /* live recording quantized (micro 0): off (no gesture in P1.3b) */
+    int rec_kind;                      /* P1.3y: QD_REC_STEP (the cursor, playing or not) / QD_REC_LIVE (playing) */
     int cursor;                        /* step recording's cursor (a position in the track's loop) */
     int rec_n;                         /* notes of the chord being recorded, still down */
     uint8_t rec_chord[QD_NNOTE];
@@ -370,6 +411,7 @@ int qd_step_default_initial(const struct qd_app *a, int m);
 void qd_step_latch(struct qd_app *a, int on);   /* P1.3d: the step latch (LFO) on / off */
 void qd_step_latch_seed(struct qd_app *a);      /* .. its selection started (the last step edited, else the page's first) */
 void qd_step_cursor(struct qd_app *a, int d);   /* P1.3q: PRESETS in STEPS: the latch's one selection moved d steps */
+void qd_step_cursor_page(struct qd_app *a);     /* P1.3y: the selection to the page's first step (a page change) */
 int qd_step_quick_id(int k);           /* the quick page's lock id of KNOB k (FREQ, DECAY, HARM, FDBK) */
 int qd_step_id_detent(int id);         /* a detent's size for a value (hundredths for the hi-res ones) */
 int qd_step_base(struct qd_app *a, int t, int s, int id);   /* the value a lock on step s starts from */
@@ -387,6 +429,8 @@ void qd_rec_key(struct qd_app *a, int note, int down, int vel);   /* a note in t
 void qd_rec_toggle(struct qd_app *a);  /* armed / not */
 void qd_rec_arm_live(struct qd_app *a);         /* P1.3x: REC held: the keyboard, live recording armed */
 void qd_rec_end(struct qd_app *a);              /* P1.3x: the recording ends (REC / PLAY), playback goes on */
+void qd_rec_arm_step(struct qd_app *a);         /* P1.3y: REC held, the settings' STEP: step recording armed */
+int qd_rec_stepping(const struct qd_app *a);    /* P1.3y: step recording (the cursor) is what the keys do now */
 void qd_rec_ms(struct qd_app *a);               /* P1.3x: an empty track's loop growing as it is recorded */
 void qd_rec_rest(struct qd_app *a);
 void qd_rec_cursor(struct qd_app *a, int d);
@@ -405,7 +449,8 @@ void qd_view_frame(struct qd_app *a, uint16_t *lcd_be);
 /* the screen under the takeovers (what qd_view_frame draws first): QD_SCR_* */
 enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR_KEYS, QD_SCR_TRACKS, QD_SCR_SEL,
        QD_SCR_SEQ, QD_SCR_DEFAULT,     /* (P1.3e: a mode key held: the mode's default, its full picture) */
-       QD_SCR_EDIT };                  /* P1.3r: the EDIT view (holding, latching, a mode key: all in it) */
+       QD_SCR_EDIT,                    /* P1.3r: the EDIT view (holding, latching, a mode key: all in it) */
+       QD_SCR_MENU };                  /* P1.3y: a settings menu (the record settings, the global settings) */
 /* P1.3r: a knob's takeover (band, picture, picker) drawn over the screen now: never over EDIT, whose top is the pop-up */
 int qd_view_overlay(const struct qd_app *a);
 int qd_view_screen(const struct qd_app *a);

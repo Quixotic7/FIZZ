@@ -91,10 +91,16 @@ typedef struct {
  * condition and chance): RESTART (the next step is the loop's start, the passes from 0), REVERSE / FORWARD (the
  * track's direction), FLIP it, RANDOM JUMP (a random step of the loop), RANDOM FUNCTION (one of none / restart /
  * reverse / forward / flip, rolled each time), JUMP n (the next step is the track's step n: QD_FN_JUMP + n, n 0..127;
- * a step outside the loop: the loop's start) */
+ * a step outside the loop: the loop's start). P1.3y: LEAP n (n -15..-1, 1..15: the next position is n on from the
+ * step's in the playing direction, round the loop; QD_FN_LEAP + 15 + n) */
 enum { QD_FN_NONE, QD_FN_RESTART, QD_FN_REVERSE, QD_FN_FORWARD, QD_FN_FLIP, QD_FN_RJUMP, QD_FN_RFUNC, QD_FN_JUMP };
-#define QD_NFN (QD_FN_JUMP + QD_NSTEP)
-#define QD_FN_IS_JUMP(f) ((f) == QD_FN_RJUMP || (f) >= QD_FN_JUMP)
+#define QD_FN_LEAP (QD_FN_JUMP + QD_NSTEP)
+#define QD_NFN (QD_FN_LEAP + 31)
+#define QD_FN_IS_JUMP(f) ((f) == QD_FN_RJUMP || ((f) >= QD_FN_JUMP && (f) < QD_FN_LEAP))
+#define QD_FN_IS_LEAP(f) ((f) >= QD_FN_LEAP && (f) < QD_NFN && (f) != QD_FN_LEAP + 15)
+#define QD_FN_LEAP_N(f) ((f) - QD_FN_LEAP - 15)   /* a LEAP's n */
+#define QD_FN_MAKE_LEAP(n) (QD_FN_LEAP + 15 + (n))
+#define QD_FN_MAKE_JUMP(s) (QD_FN_JUMP + (s))
 const char *qd_fn_name(int f, char *out);   /* "NONE", "RESTART", .., "JUMP 17" (out: 12 bytes) */
 
 /* a track's step defaults (the sound's default is the track's own sound: no field) */
@@ -204,6 +210,10 @@ typedef struct {
     uint8_t nsound;                     /* sounds in it (1..QD_NSOUND) */
     uint8_t key_scale, key_root;        /* the global key (the tracks that follow it) */
     uint8_t launch;                     /* P1.3c: the pattern launch mode (seq.h QD_LAUNCH_*: END at power-on) */
+    /* P1.3y: the record settings (SHIFT + REC), the project's */
+    uint8_t rec_mode;                   /* what holding REC arms: 0 LIVE, 1 STEP */
+    uint8_t rec_quant;                  /* live recording's quantize, 0..100 % (100: on the step, the micro-timing gone) */
+    uint8_t rec_dub;                    /* 0 REPLACE (a step recorded into is cleared first), 1 OVERDUB (the notes join) */
 } qd_project_t;
 
 /* ---- errors */

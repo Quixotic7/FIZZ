@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3x)
+# Playing FIZZ (P1.3y)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -14,9 +14,10 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | OCT+ | **F2** |
 | OCT− and OCT+ together | **F3** (it stays open; OCT− closes it) |
 | GLO | **SHIFT** |
-| SEL (printed) | **SEL**: hold it for the tracks |
+| SEL (printed) | **SEL**: hold it for the tracks (a tap does nothing yet) |
 | SEQ (printed) | **SEQ**: hold it for the patterns |
 | LFO (printed) | **LATCH**: the step latch, on / off |
+| FX (printed) | **FX** (still TRACKS: the clocks screen) |
 | the black keys, left to right (F#3 .. D#5) | **B1 .. B10** |
 | the rightmost black key (F#5) | **B11** |
 | the white keys | **W1 .. W16**, the 16 steps of the page you are editing |
@@ -29,7 +30,9 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
   tiny bubbles floating inside. Once a loop the word FIZZ gathers out of the bubbles as particles, stands as solid
   coloured letters, then fizzes apart again. While a DAW plays it, a surge of bubbles rises on each beat.
   Press anything to get to the **step view**.
-- **HOME** in the sequencer cycles its views: **PIANO ROLL** (the mode's lane), **STEPS** and **EDIT**. STEPS shows all eight
+- **HOME** always brings you back to the view you are using (PIANO ROLL, STEPS or EDIT), from anywhere, in one press:
+  it closes F3, a settings menu or the step latch and lands on the view at the same time. It never changes the view.
+- **SHIFT + HOME** cycles the views: **PIANO ROLL** (the mode's lane), **STEPS** and **EDIT**. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
   drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
   dim. A step's colour says what it plays: **warm white** its own notes, **cyan** the track's notes (a plain trig),
@@ -38,19 +41,31 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
   Outside NOTE mode, a thin bar in the mode's colour under a step means it has its own value for that mode. Playing,
   a red marker hops along the steps (on a folded row, a red tick under the step) and each step's fill flashes white
   as it plays; only selected or held steps get a white outline. SELECT changes the page (the rows fold and
-  unfold). **PRESETS** is a step cursor here: it turns the step latch on and moves its one selected step through all
-  eight pages in order (each over its start..end; page 8 runs on to page 1 and back), the row following; the black
-  keys and knobs then edit it, and STEPS stays on screen. LFO or HOME ends it. With a finger on a step, PRESETS is
-  the sound lock as before; in the PIANO ROLL it is the track's sound.
-- **EDIT** (HOME from STEPS) shows the page you edit as one row at the bottom (as STEPS draws it) and the hold mode's
-  drawing above it at full size, its value large in the top line: the step you hold, select or point at with
-  PRESETS, or the track's default when nothing is held (a mode key held: its default, "B11 RESET" small top right). Every edit moves both at once (the cell's fill rises
-  as the mallet swings); no knob pop-up covers it. Holding, the step latch and the PRESETS cursor all stay in EDIT.
+  unfold). The step cursor (ALGORITHM, below) moves through the rows.
+- **EDIT** (SHIFT + HOME from STEPS) shows the page you edit as one row at the bottom (as STEPS draws it) and the hold
+  mode's drawing above it at full size, its value large in the top line: the step you hold, select or point at with
+  the cursor, or the track's default when nothing is held (a mode key held: its default, "B11 RESET" small top
+  right). Every edit moves both at once (the cell's fill rises as the mallet swings); no knob pop-up covers it.
+  Holding, the step latch and the cursor all stay in EDIT. Turning **PRESETS** shows the sound picture in the top
+  while you turn (with a finger on a step: that step's sound lock).
+- **The knobs with no finger on a step** (nothing held, or the step latch's selection), in every view, layout **A**
+  (the global settings can switch layouts, see below):
+  - **ALGORITHM = the step cursor**: it turns the step latch on and moves its one selected step through all eight
+    pages in order (each over its start..end; page 8 runs on to page 1 and back), the page following. The black keys
+    and knobs then edit that step; the view stays (in the PIANO ROLL the cursor's step is outlined). LFO or HOME ends it.
+  - **SELECT = the page**. With the cursor on, a page change puts it on the new page's first step.
+  - **PRESETS = the track's sound** (preset).
+  - With a finger on a step: SELECT = the main value (NOTE: note 1), ALGORITHM = the value finely, PRESETS = the
+    step's sound lock.
+  - What moved: the cursor was PRESETS (in STEPS / EDIT), now ALGORITHM everywhere; ALGORITHM no longer edits a
+    track default unless you hold the mode's key; P-LOCK's track chooser is now FX + ALGORITHM.
+- **Track or step at a glance**: whenever the screen shows the **track's default** (a mode key held, the default's
+  picture after a knob turn, EDIT with nothing held) it has a **magenta frame** round the whole screen and its drawing
+  is magenta (the TRACK colour; no mode uses it). A step's screens keep the mode's colours on black, no frame.
 - Pop-ups (the held-step and default pictures, the knob takeovers, the octave and sound pickers) no longer show the
   track's box and name: only what is being edited.
 - In the PIANO ROLL the small dots over the columns mark the beats (steps 1, 5, 9, 13; the first a little brighter).
-  From any other screen HOME comes back to the sequencer in the view you used last. If F3 or the step latch is open,
-  HOME closes that first.
+- **FX held + ALGORITHM** chooses the track: the track's number big in its colour with its name, the eight below.
 - After two minutes untouched with nothing playing, it goes back to the FIZZ screen.
 - **PLAY** tapped plays and stops (on the release: about a tenth of a second after the press). **Hold PLAY** to open
   the **F3** menu (the same as both OCT keys).
@@ -89,13 +104,14 @@ The knobs with a step held:
 | CHNC | chance | condition | chance, quietly |
 | COND | condition | chance | condition, quietly |
 | TRIG | NOTE / LOCK / TIE | | type, quietly |
-| FUNC | (SELECT: the page, for a jump's target) KNOB 1: the function | | function, quietly |
+| FUNC | (SELECT: the page, for a jump's target) KNOB 1: the kind | LEAP's amount (KNOB 3: JUMP's target) | function, quietly |
 | SOUND | the pool sound (PRESETS too) | | sound, quietly |
 
 "Quietly": **KNOB 4** turns the main value **without any overlay**; the screen just changes in place. Knobs with
 nothing in the table do nothing. **PRESETS** is always the step's sound.
 
-The ten values:
+The ten values (the key with the **nearest** value lights, not only an exact one: VEL 100 lights 102; a tie lights
+the lower key; MICRO 0, on the step, lights none; a sound in another group of ten lights the group's end nearest it):
 
 | mode | B1 .. B10 | ALGORITHM |
 | --- | --- | --- |
@@ -106,7 +122,7 @@ The ten values:
 | CHNC | 10 % .. 100 % | 0..100 % |
 | COND | B1 FILL, B2 NOT FILL, B3..B6 "A" = 1..4, B7..B10 "B" = 1..4 (plays on pass A of every B) | every condition |
 | TRIG | B1 NOTE, B2 LOCK (changes the sound, no note), B3 TIE (slides a mono note) | the same |
-| FUNC | B1 none, B2 RESTART, B3 REVERSE, B4 FORWARD, B5 FLIP, B6 RANDOM (jump), B7 RANDOM FUNCTION | the seven, then JUMP 1..128 |
+| FUNC | B1 none, B2 RESTART, B3 REVERSE, B4 FORWARD, B5 FLIP, B6 RANDOM (jump), B7 RANDOM FUNCTION, B8 LEAP, B9 JUMP | the nine kinds |
 | SOUND | ten sounds of the pool (see below) | any sound |
 
 **FUNC (B9), the step functions** (as the OMX-27's Form): a function runs when its step plays (after its condition
@@ -118,11 +134,17 @@ and chance; a LOCK step's runs too).
   forwards** (a pattern change keeps the direction).
 - **RANDOM**: the next step is one of the loop at random. **RANDOM FUNCTION**: none, restart, reverse, forward or flip
   at random, each time.
-- **JUMP n**: the next step is step n (on a page outside the loop: the loop's start). To make one: hold the step,
-  press **B6** (RANDOM), then **press the target's white key** (it is not held). **SELECT** while holding turns the
-  page to target a step on another page. KNOB 1 / ALGORITHM walk the seven functions and then JUMP 1..128.
+- **LEAP n** (B8; KNOB 2 the amount, −15..+15, 0 skipped): the next step is n steps on from this one in the playing
+  direction, round the loop (LEAP +1 is a normal step, +2 skips one, −1 plays the step before again). B8 uses the
+  last amount (+2 at first).
+- **JUMP n** (B9; KNOB 3 the target): the next step is step n (on a page outside the loop: the loop's start). B9 uses
+  the last target (at first the page's first step). To aim it: **hold B9 and press the target's white key** (it is
+  not held; it works with the step latch too). **SELECT** while holding turns the page to target a step on another
+  page. KNOB 1 (or ALGORITHM, with a finger on the step) walks the nine kinds.
+- The FUNC keys light like the other modes': the step's function's key lit.
 - **B11** removes the step's function. The PIANO ROLL's FUNC lane shows each step's function as an icon (an arrow, a
-  circular arrow, a die, a jump with its target's number); STEPS marks a step with a function with a small blue dot.
+  circular arrow, a die, a jump with its target's number, two hops with LEAP's amount); STEPS marks a step with a
+  function with a small blue dot.
 
 ## How do I hear a step while I edit it?
 
@@ -140,6 +162,7 @@ and chance; a LOCK step's runs too).
 - **With nothing selected** the latch stays on but acts as if nothing is held: the black keys choose the mode
   again, the knobs edit the track's defaults. Tap a step to select again.
 - **LFO** again or **HOME** turns it off.
+- **Hold LFO + a black key**: that mode, without touching the latch or the selection (a plain tap still toggles).
 
 ## How do I enter notes and chords?
 
@@ -172,8 +195,8 @@ A step has up to **six notes**.
   1..4 = FREQ, DECAY, HARM, FDBK; PRESETS = the step's sound; SELECT = the page. The knob's picture shows the lock.
 - **B11 with a step held** clears that step's locks (the sound stays: clear it in SOUND). **F1 + B11** undoes it.
 - The black keys B1..B10 do nothing here. Only P-LOCK locks the sound.
-- **Nothing held** in P-LOCK: KNOB 1..4 turn the track's own FREQ, DECAY, HARM, FDBK; PRESETS its sound;
-  **ALGORITHM chooses the track** (1..8, the screen lists them); SELECT the page.
+- **Nothing held** in P-LOCK: KNOB 1..4 turn the track's own FREQ, DECAY, HARM, FDBK; PRESETS its sound; SELECT the
+  page; ALGORITHM the cursor (choose the track with **FX + ALGORITHM**).
 
 ## How do I change the track's defaults?
 
@@ -185,15 +208,16 @@ A step has up to **six notes**.
     LEN one step, MICRO 0 (and no strum), RATCH x1 flat, CHNC 100 %, COND always, TRIG NOTE, SOUND the track's
     starting sound. B11 is lit while there is something to reset;
   - the other black keys do nothing. Let go to get the page back.
-- With **nothing held at all**, the knobs and ALGORITHM still edit the defaults; the TRACK DEFAULT picture shows for a
-  second. KNOB 4 does it quietly (no picture).
+- With **nothing held at all**, KNOB 1..4 still edit the defaults; the TRACK DEFAULT picture shows for a second.
+  KNOB 4 does it quietly (no picture). ALGORITHM is the cursor now: hold the mode's key to turn the main default.
 - Only the steps that don't have their own value follow a default.
-- In SOUND, KNOB 1 or ALGORITHM (or PRESETS) chooses the track's own sound.
+- In SOUND, KNOB 1 (or ALGORITHM with the SOUND key held, or PRESETS) chooses the track's own sound.
 
 ## How do I work with pages and loops?
 
 - A track has 8 pages of 16 steps. **SELECT** chooses the page you edit. **PAGE (ENV) held + W1..W8** jumps to a page.
-- **PAGE tapped** turns page follow on or off (on: the page you see follows the playhead; PAGE lit).
+- **PAGE tapped** turns page follow on or off (on: the page you see follows the playhead; PAGE lit). It is also on
+  the global settings page (SHIFT + SEL, KNOB 2).
 - Hold **F1** to see the pages:
   - **F1 + tap B1..B8**: edit that page.
   - **F1 + double-tap B1..B8** (quickly): loop that page alone.
@@ -227,7 +251,8 @@ Pages and tracks (hold **F1**):
 
 ## How do I choose, mute and solo tracks?
 
-- Hold **SEL**: the screen shows the eight tracks.
+- Hold **SEL**: the screen shows the eight tracks (after a quarter second, or at once when you press a key with it;
+  a quick tap shows and does nothing).
   - **SEL + B1..B8**: select that track.
   - **SEL + tap W1..W8**: mute / unmute that track. **SEL + hold W1..W8**: solo / unsolo it. When any track is
     soloed, only soloed tracks play.
@@ -236,6 +261,7 @@ Pages and tracks (hold **F1**):
     track is muted or soloed.
 - **TRACKS (FX)** still shows the eight clocks: KNOB 1..4 set the selected track's length, speed, voice limit and swing;
   W1..W8 select a track, W9..W16 mute tracks 1..8.
+- **FX held + ALGORITHM**: choose the track, with the big track picture. FX tapped still opens the clocks screen.
 
 ## How do I change patterns?
 
@@ -281,7 +307,14 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 - **REC tapped**: the keybed becomes a keyboard for the selected track (REC lit). REC again: back to the steps.
 - In a scale, keys outside the scale play the scale note just below.
 - **F1 / F2** move the keyboard an octave (−2..+2).
-- **Hold REC**: **live recording** armed (in the keyboard). Stopped, nothing moves until you play the **first key**:
+- **SHIFT + REC**: the **record settings** (they stay open; OCT− or HOME back), kept with the project:
+  - **KNOB 1 MODE**: LIVE or STEP, what holding REC arms;
+  - **KNOB 2 QUANTIZE**: 0..100 % (5 % a click): how much of the played timing is pulled onto the step (0 % as
+    played, 100 % exactly on the step);
+  - **KNOB 3 TAKE**: **REPLACE** (a step you record into is cleared first) or **OVERDUB** (your notes join the step's;
+    its velocity, timing and length stay).
+- **Hold REC**: recording armed (in the keyboard) in the MODE chosen.
+  **LIVE**: stopped, nothing moves until you play the **first key**:
   playback and recording start together, that note on the loop's first step.
   - Notes go to the nearest step **at the track's speed** (dotted and triplet too), the offset kept as micro-timing,
     the length from how long you held the key. Knob turns become locks on the step playing.
@@ -289,8 +322,9 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
     gets there; when the recording ends the loop is the pages it reached. After page 8 it goes round and records over
     what is there. A track with steps records into its own loop.
   - **REC or PLAY** while recording ends the recording; playback goes on (PLAY again stops).
-- **SHIFT + REC** (in the keyboard) arms recording as before; stopped, it is **step recording**: each note or chord
-  goes into the next step. F2 leaves a rest, F1 steps back, PRESETS moves the cursor.
+  **STEP**: **step recording**, stopped or playing: each note or chord goes into the cursor's step and the cursor moves
+  on. F2 leaves a rest, F1 steps back, PRESETS moves the cursor. REC tapped ends it (still the keyboard).
+- SHIFT + REC no longer arms recording (it opens the settings).
 - **REC + PLAY** starts playing with recording armed, in the keyboard.
 - **Hold ARP** for **FILL** (ARP lit): steps with the FILL / NOT FILL condition follow it.
 - A **MIDI keyboard** on the track's channel plays, records, or sets the notes of a held step (up to five).
@@ -299,8 +333,8 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 
 - The project has a **pool** of sounds: INIT, the 16 factory sounds, and the drums KICK, SNARE, CLAP, GHOST, HAT and
   OPEN HAT (23 so far, up to 128).
-- **Nothing held: PRESETS** picks the track's own sound from the pool. In **P-LOCK**, KNOB 1..4 turn the track's
-  FREQ, DECAY, HARM and FDBK.
+- **Nothing held: PRESETS** picks the track's own sound from the pool, in every view (EDIT shows the sound picture
+  while you turn). In **P-LOCK**, KNOB 1..4 turn the track's FREQ, DECAY, HARM and FDBK.
 - **A step held: PRESETS** gives the held steps a sound from the pool (a sound lock), in any mode. Turn it all the way
   down to go back to the track's sound.
 - In **SOUND** mode the ten black keys are ten sounds of the pool (the group of ten that holds the step's sound);
@@ -312,13 +346,33 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   pentatonics, blues, whole tone). **SHIFT + PRESETS** sets its root.
 - This is temporary until the track settings page exists.
 
+## The global settings (SHIFT + SEL)
+
+They stay open (OCT− or HOME back). For now:
+
+- **KNOB 1 KNOBS**: the encoders' layout, **A**, **B**, **C** or **D**: what SELECT, ALGORITHM and PRESETS do with no
+  finger on a step (nothing held, or the step latch's selection). With a finger on a step they are the same in every
+  layout (the table above; PRESETS the sound lock). The screen draws the three encoders with their jobs under them.
+
+  | layout | SELECT | ALGORITHM | PRESETS |
+  | --- | --- | --- | --- |
+  | **A** (P1.3y, the start) | the page | the step cursor | the track's sound |
+  | **B** (P1.3q's) | the page | the mode's value (the selection's, else the track default) | the track's sound in the PIANO ROLL, the step cursor in STEPS / EDIT |
+  | **C** | the step cursor | the page | the track's sound |
+  | **D** | the step cursor (it carries the page) | the mode's value (as B) | the track's sound |
+
+  In B and D, "the mode's value" with nothing selected is the track's default (P-LOCK: the track, as in P1.3d); with
+  the latch's selection it edits the selection, as a held step would.
+- **KNOB 2 PAGE FOLLOW**: on / off (the same as PAGE tapped).
+
 ## The maps
 
 - Holding **F1**, **F2**, **SEL** or **SEQ**, or opening **F3**, shows its map: the black keys drawn where they are
   on the panel, each with an icon or a number (a page, a track, clear, copy, undo, a note value), lit by its state.
   No sentences: what each does is in this guide.
-- Holding **SHIFT** alone shows the controls SHIFT changes here (a knob, REC, F3, SEQ and a step), each with its job's
-  icon and its value now (the scale, the root, the swing).
+- Holding **SHIFT** alone shows the controls SHIFT changes here (a knob, REC, F3, SEQ and a step, HOME, SEL), each
+  with its job's icon and its value now (the scale, the root, the swing, the next view, the record MODE, the knob
+  layout).
 - A page change in the PIANO ROLL with page follow off: a crossed arrow at the top right (was FOLLOW OFF). The small
   dots over the columns mark the beats. The PIANO ROLL's top line no longer shows the tempo (turn it, or open F3).
 
@@ -326,5 +380,6 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 
 - The sound editor (SOUND), so the pool only has the sounds it starts with, and P-LOCK locks only the step view's
   knobs.
-- Track settings (scale, root, following the global key, MIDI channel), pattern chains, MIX and the effects screens.
+- Track settings (scale, root, following the global key, MIDI channel; SEL tapped will open them), pattern chains,
+  MIX and the effects screens.
 - Saving: closing the app loses everything.

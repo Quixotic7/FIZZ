@@ -76,6 +76,14 @@ static void btap(int b)
     bup(b);
     run(20);
 }
+static void vhome(void)                                 /* (P1.3y: SHIFT + HOME, the next view; HOME alone never cycles) */
+{
+    qd_app_button(&A, QD_B_FUNC, 1);
+    run(10);
+    btap(QD_B_HOME);
+    qd_app_button(&A, QD_B_FUNC, 0);
+    run(10);
+}
 static void black(int b)
 {
     qd_app_key(&A, BK(b), 1, 100);
@@ -207,7 +215,7 @@ static void keys_two_pages(void)
     }
     wtap(7);
     wtap(11);
-    btap(QD_B_HOME);                                    /* STEPS */
+    vhome();                                    /* STEPS */
 }
 
 int render_p13q(const char *out)
@@ -232,14 +240,14 @@ int render_p13q(const char *out)
     qd_step_set_len(qd_ctl_pat(&A), T3, 16 + 12, QD_LEN_INF);   /* step 13: INF */
     run(400);
     shot("steps-stopped", "stopped: own notes white, the track's cyan, ghosts violet; fills = velocity");
-    turn(QD_K_PRESETS, 1);                              /* PRESETS: the cursor (the latch on, at the last step) */
-    turn(QD_K_PRESETS, -7);
+    turn(QD_K_ALGO, 1);                              /* PRESETS: the cursor (the latch on, at the last step) */
+    turn(QD_K_ALGO, -7);
     run(300);
-    shot("steps-cursor-len", "PRESETS, the cursor: step 5, its length (4 steps, late)");
-    turn(QD_K_PRESETS, 8);
+    shot("steps-cursor-len", "ALGORITHM, the cursor: step 5, its length (4 steps, late)");
+    turn(QD_K_ALGO, 8);
     run(300);
     shot("steps-cursor-inf", "the cursor on step 13: INF (to the end, an arrow)");
-    turn(QD_K_PRESETS, 5);
+    turn(QD_K_ALGO, 5);
     run(110);
     shot("steps-cursor-wrap", "on past page 2's end: page 1's step 2, the rows moving");
     run(300);

@@ -478,7 +478,17 @@ static void advance(qd_seq_t *s, int t, qd_tcur_t *c, const qd_pattern_t *P, int
         c->idx = (int)qd_seq_fn_roll(seed, t, n0, 1, (uint32_t)len);
         return;
     default:
-        if (f >= QD_FN_JUMP && f < QD_NFN) {            /* JUMP n: its position (outside the loop: the start) */
+        if (QD_FN_IS_LEAP(f)) {                         /* P1.3y: LEAP n: n positions on in the playing direction, round
+                                                         * the loop (a pass a wrap) */
+            int x = c->idx + (c->dir < 0 ? -1 : 1) * QD_FN_LEAP_N(f);
+            while (x >= len)
+                x -= len, c->pass++;
+            while (x < 0)
+                x += len, c->pass++;
+            c->idx = x;
+            return;
+        }
+        if (f >= QD_FN_JUMP && f < QD_FN_LEAP) {        /* JUMP n: its position (outside the loop: the start) */
             const int pos = qd_track_step_pos(&P->trk[t], f - QD_FN_JUMP);
             c->idx = pos < 0 || pos >= len ? 0 : pos;
             return;

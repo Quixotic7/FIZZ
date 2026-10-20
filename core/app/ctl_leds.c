@@ -172,7 +172,7 @@ static void leds_keys(const qd_app_t *a, qd_leds_t *out)
         else if ((QD_NOTE0 + i) % 12 == 0)
             out->key[i] = QD_LED_FAINT;                 /* the C keys */
     }
-    if (a->ui.rec && !a->seq.playing) {                 /* step recording: the cursor's place blinks */
+    if (qd_rec_stepping(a)) {                           /* step recording: the cursor's place blinks */
         const int s = qd_track_loop_step(&qd_ctl_cpat(a)->trk[a->sel], a->ui.cursor);
         out->key[QD_WHITE_KEY[s % QD_PAGE]] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
     }

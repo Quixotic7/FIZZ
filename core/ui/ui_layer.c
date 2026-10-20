@@ -396,13 +396,19 @@ static void control(int c, float cx, float cy)
     } else if (c == UI_SC_SEQ_W) {                      /* SEQ's button, then a white key */
         ui_RR(cx - 20.f, cy - 6.f, 18.f, 12.f, 3.f, UI_K3, 1.2f, QD_NONE);
         ui_icon(UI_IC_KEY, cx + 8.f, cy, 1.f, UI_K3);
+    } else if (c == UI_SC_SEL || c == UI_SC_HOME) {     /* P1.3y: a button with its printed name */
+        const char *nm = c == UI_SC_SEL ? "SEL" : "HOME";
+        const float w = ui_TW(nm, 12.f, 700, 0.5f) + 10.f;
+        ui_RR(cx - w / 2.f, cy - 9.f, w, 18.f, 4.f, UI_K3, 1.2f, QD_NONE);
+        ui_T(nm, cx, cy + 4.5f, 12.f, 700, 0.5f, UI_K3, QD_CENTER);
     }
 }
 
 void ui_shift_draw(const ui_shift_t *v)
 {
-    const int n = v->n < 0 ? 0 : v->n > 6 ? 6 : v->n;
-    const float sp = 40.f, y0 = 58.f;
+    const int n = v->n < 0 ? 0 : v->n > 8 ? 8 : v->n;
+    const float sp = n > 5 ? 182.f / (float)(n - 1 > 0 ? n - 1 : 1) : 40.f, y0 = n > 5 ? 44.f : 58.f;
+    const float big = n > 5 ? 18.f : 20.f;
     int i;
     ui_head("SHIFT", 0, 0, UI_K3, UI_G1);
     for (i = 0; i < n; i++) {
@@ -413,9 +419,147 @@ void ui_shift_draw(const ui_shift_t *v)
         ui_P(a, 3, UI_G2, 1.2f, 0, QD_NONE);
         ui_icon(v->icon[i], 106.f, y, 1.4f, UI_K3);
         if (v->val[i] && v->val[i][0]) {                /* its value now, as big as fits */
-            const float w = ui_TW(v->val[i], 20.f, 300, 0.f);
-            const float sz = w > 104.f ? 20.f * 104.f / w : 20.f;
+            const float w = ui_TW(v->val[i], big, 300, 0.f);
+            const float sz = w > 104.f ? big * 104.f / w : big;
             ui_T(v->val[i], 128.f, y + 7.f, sz < 12.f ? 12.f : sz, sz < 16.f ? 500 : 300, 0.f, UI_K3, QD_LEFT);
         }
     }
+}
+
+/* ---------------------------------------------------------------- P1.3y: the settings menus */
+static const qd_rgb KCOL[4] = {UI_K1, UI_K2, UI_K3, UI_K4};
+
+/* a row's head: the knob's badge, the row's name; its value big at the right, in the knob's colour */
+static void menu_row(int k, float y, const char *name, const char *val)
+{
+    char n[4] = {(char)('1' + k), 0};
+    ui_O(18.f, y, 9.f, QD_NONE, 1.f, KCOL[k]);
+    ui_T(n, 18.f, y + 4.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+    ui_lab(name, 34.f, y + 4.5f, UI_G1, QD_LEFT);
+    if (val) {
+        const float w = ui_TW(val, 30.f, 300, 0.f);
+        const float sz = w > 110.f ? 30.f * 110.f / w : 30.f;
+        ui_T(val, 232.f, y + 30.f, sz, 300, 0.f, KCOL[k], QD_RIGHT);
+    }
+}
+
+static void menu_head(const char *title)
+{
+    ui_T(title, 8.f, 18.f, 12.f, 600, 0.8f, UI_K3, QD_LEFT);
+    ui_RR(208.f, 4.f, 24.f, 17.f, 4.f, UI_K3, 1.2f, QD_NONE);   /* (latched: OCT- back) */
+    ui_icon(UI_IC_BACK, 220.f, 12.5f, 1.f, UI_K3);
+    line2(8.f, 27.f, 232.f, 27.f, UI_G3, 1.f);
+}
+
+static void menu_rec(const ui_menu_t *v)
+{
+    static const float OFF[4] = {7.f, -6.f, 4.f, -9.f};    /* the notes' places off their grid lines (px) */
+    char q[12];
+    int i;
+    menu_head("REC");
+    /* KNOB 1: MODE */
+    menu_row(0, 44.f, "MODE", v->rec_step ? "STEP" : "LIVE");
+    if (v->rec_step) {                                  /* a row of cells, the cursor's lit */
+        for (i = 0; i < 8; i++)
+            ui_RR(34.f + (float)i * 13.f, 58.f, 11.f, 14.f, 2.f, i == 3 ? UI_K1 : UI_G2, 1.2f, i == 3 ? UI_K1 : QD_NONE);
+    } else {                                            /* a line, notes off the grid, a red dot */
+        line2(34.f, 72.f, 134.f, 72.f, UI_G2, 1.2f);
+        for (i = 0; i < 4; i++) {
+            line2(40.f + (float)i * 26.f, 66.f, 40.f + (float)i * 26.f, 78.f, UI_G3, 1.f);
+            ui_O(40.f + (float)i * 26.f + OFF[i] * 0.6f, 65.f - (float)(i % 2) * 4.f, 3.f, QD_NONE, 1.f, UI_K1);
+        }
+        ui_O(146.f, 66.f, 4.f, QD_NONE, 1.f, UI_RED);
+    }
+    /* KNOB 2: QUANTIZE */
+    cat(ui_itoa(q, v->quant), "%");
+    menu_row(1, 108.f, "QUANTIZE", q);
+    line2(34.f, 140.f, 140.f, 140.f, UI_G2, 1.2f);
+    for (i = 0; i < 4; i++) {                           /* the grid lines, the notes pulled onto them by q % */
+        const float gx = 44.f + (float)i * 28.f;
+        const float nx = gx + OFF[i] * (float)(100 - v->quant) / 100.f;
+        line2(gx, 124.f, gx, 146.f, UI_G1, 1.f);
+        if (v->quant < 100)
+            ui_O(gx + OFF[i], 132.f, 3.5f, UI_G2, 1.f, QD_NONE);
+        ui_O(nx, 132.f, 3.5f, QD_NONE, 1.f, UI_K2);
+    }
+    /* KNOB 3: OVERDUB / REPLACE */
+    menu_row(2, 172.f, "TAKE", v->dub ? "OVERDUB" : "REPLACE");
+    ui_RR(34.f, 186.f, 44.f, 44.f, 4.f, UI_G2, 1.2f, QD_NONE);   /* a step: its notes, the new one */
+    for (i = 0; i < 2; i++) {
+        const float y = 214.f - (float)i * 12.f;
+        ui_RR(40.f, y, 32.f, 7.f, 2.f, QD_NONE, 1.f, v->dub ? UI_G1 : UI_G3);
+        if (!v->dub)
+            line2(38.f, y + 9.f, 74.f, y - 2.f, UI_RED, 1.4f);
+    }
+    ui_RR(40.f, 190.f, 32.f, 7.f, 2.f, QD_NONE, 1.f, UI_K3);
+    ui_RR(86.f, 199.f, 10.f, 7.f, 2.f, QD_NONE, 1.f, UI_K3);   /* the note coming in */
+    {
+        const float a[6] = {104.f, 199.f, 98.f, 202.5f, 104.f, 206.f};
+        line2(98.f, 202.5f, 116.f, 202.5f, UI_K3, 1.2f);
+        ui_P(a, 3, UI_K3, 1.2f, 0, QD_NONE);
+    }
+}
+
+/* the views' little pictures (a line of the KNOBS roles): the PIANO ROLL's bars, STEPS' rows */
+static void view_pic(int rows, float x, float y)
+{
+    if (rows) {
+        int i;
+        for (i = 0; i < 4; i++)
+            ui_RR(x + (float)i * 5.f, y - 6.f, 4.f, 5.f, 1.f, QD_NONE, 1.f, UI_G1);
+        for (i = 0; i < 4; i++)
+            ui_RR(x + (float)i * 5.f, y + 1.f, 4.f, 5.f, 1.f, QD_NONE, 1.f, UI_G2);
+    } else {
+        ui_RR(x, y - 6.f, 8.f, 3.f, 1.f, QD_NONE, 1.f, UI_G1);
+        ui_RR(x + 6.f, y - 1.f, 9.f, 3.f, 1.f, QD_NONE, 1.f, UI_G1);
+        ui_RR(x + 11.f, y + 4.f, 8.f, 3.f, 1.f, QD_NONE, 1.f, UI_G1);
+    }
+}
+
+static void menu_set(const ui_menu_t *v)
+{
+    static const char *const BADGE[3] = {"S", "A", "P"};
+    static const float EX[3] = {70.f, 136.f, 202.f};
+    char lay[2] = {(char)('A' + (v->layout < 0 ? 0 : v->layout > 3 ? 3 : v->layout)), 0};
+    const int two = v->role[0][0] != v->role[1][0] || v->role[0][1] != v->role[1][1] || v->role[0][2] != v->role[1][2];
+    int k, r;
+    menu_head("SETTINGS");
+    /* KNOB 1: KNOBS, the encoders and their roles (no finger on a step) */
+    menu_row(0, 44.f, "KNOBS", lay);
+    for (k = 0; k < 3; k++) {
+        const qd_rgb bc = k == 0 ? UI_KSEL : UI_K3;
+        ui_O(EX[k], 92.f, 12.f, QD_NONE, 1.f, bc);
+        ui_T(BADGE[k], EX[k], 96.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+    }
+    for (r = 0; r < (two ? 2 : 1); r++) {
+        const float y = 124.f + (float)r * 20.f;
+        if (two)
+            view_pic(r, 14.f, y - 4.5f);
+        for (k = 0; k < 3; k++)
+            ui_T(v->role[two ? r : 1][k], EX[k], y, 12.f, 600, 0.5f, UI_K1, QD_CENTER);
+    }
+    /* KNOB 2: PAGE FOLLOW */
+    menu_row(1, 172.f, "PAGE FOLLOW", v->follow ? "ON" : "OFF");
+    {
+        const float px = 34.f + fmodf(v->t * 22.f, 88.f);
+        for (k = 0; k < 4; k++)
+            ui_RR(34.f + (float)k * 22.f, 192.f, 20.f, 22.f, 3.f, v->follow && (int)((px - 34.f) / 22.f) == k
+                  ? UI_K2 : UI_G2, 1.2f, QD_NONE);
+        line2(px, 188.f, px, 218.f, UI_RED, 1.4f);
+        line2(34.f, 226.f, 120.f, 226.f, v->follow ? UI_K2 : UI_G2, 1.2f);
+        {
+            const float a[6] = {114.f, 222.f, 120.f, 226.f, 114.f, 230.f};
+            ui_P(a, 3, v->follow ? UI_K2 : UI_G2, 1.2f, 0, QD_NONE);
+        }
+        if (!v->follow)
+            line2(70.f, 220.f, 84.f, 232.f, UI_RED, 1.4f);
+    }
+}
+
+void ui_menu_draw(const ui_menu_t *v)
+{
+    if (v->kind == UI_MENU_REC)
+        menu_rec(v);
+    else
+        menu_set(v);
 }

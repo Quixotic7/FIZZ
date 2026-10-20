@@ -77,6 +77,14 @@ static void btap(int b)
     bup(b);
     run(20);
 }
+static void vhome(void)                                 /* (P1.3y: SHIFT + HOME, the next view; HOME alone never cycles) */
+{
+    qd_app_button(&A, QD_B_FUNC, 1);
+    run(10);
+    btap(QD_B_HOME);
+    qd_app_button(&A, QD_B_FUNC, 0);
+    run(10);
+}
 static void black(int b)
 {
     qd_app_key(&A, BK(b), 1, 100);
@@ -208,7 +216,7 @@ static void keys_two_pages(void)
     }
     wtap(7);
     wtap(11);
-    btap(QD_B_HOME);                                    /* STEPS */
+    vhome();                                    /* STEPS */
 }
 
 /* the cursor on step 21 (page 2's step 5) in hold mode m (the latch off first, then PRESETS) */
@@ -218,9 +226,9 @@ static void edit_mode(int m)
         btap(QD_B_MUTE);                                /* LFO: the latch off */
     black(m);
     run(20);
-    turn(QD_K_PRESETS, 1);                              /* the latch on at the last step .. */
+    turn(QD_K_ALGO, 1);                              /* the latch on at the last step .. */
     while (A.ui.nheld && A.ui.held[0] != 20)
-        turn(QD_K_PRESETS, A.ui.held[0] < 20 ? 1 : -1);  /* .. moved to step 21 */
+        turn(QD_K_ALGO, A.ui.held[0] < 20 ? 1 : -1);  /* .. moved to step 21 */
     run(400);
 }
 
@@ -257,7 +265,7 @@ int render_p13s(const char *out)
     qd_step_set_micro(qd_ctl_pat(&A), T3, 16 + 4, 6);
     qd_step_set_ratchet(qd_ctl_pat(&A), T3, 16 + 4, 3, 1);
     qd_step_set_chance(qd_ctl_pat(&A), T3, 16 + 4, 60);
-    btap(QD_B_HOME);                                    /* EDIT */
+    vhome();                                    /* EDIT */
     black(UI_F_NOTE);
     run(400);
     shot("edit-default-note", "nothing held: NOTE's track default");

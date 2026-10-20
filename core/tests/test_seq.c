@@ -55,6 +55,8 @@
  *                             outside it (the loop's start), RANDOM JUMP and RANDOM FUNCTION (seed 7), a REVERSE gated
  *                             by 1:2 and a FORWARD by a 50 % chance, FLIP in an 8-step loop; a LOCK step's REVERSE
  *                             (a ghost trig: it runs)
+ *               p31-leap      (P1.3y) LEAP +2, +5, -3, -1 forward and in reverse, past the loop's end (a pass:
+ *                             a 1:2 step), a LEAP gated by 50 %
  *               p30-func-change  (P1.3w) a pattern change while a track plays in reverse: the next pattern starts at
  *                             its loop's last position and goes on backwards; a REVERSE resolved ahead of the
  *                             change and dropped by it does not count
@@ -1066,7 +1068,13 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
                         pass = 0;
                     } else if (f == QD_FN_RJUMP) {
                         idx = r_fn_roll(R_SEED, seg[si].o, t, n, 1, len);
-                    } else if (f >= QD_FN_JUMP) {       /* its place in the walk; not in it: the start */
+                    } else if (f >= QD_FN_LEAP && f < QD_NFN && f != QD_FN_LEAP + 15) {   /* P1.3y: LEAP */
+                        idx += rdir[t] * (f - QD_FN_LEAP - 15);
+                        while (idx >= len)
+                            idx -= len, pass++;
+                        while (idx < 0)
+                            idx += len, pass++;
+                    } else if (f >= QD_FN_JUMP && f < QD_FN_LEAP) {   /* its place in the walk; not in it: the start */
                         int k, at = 0;
                         for (k = 0; k < len; k++)
                             if (walk[k] == f - QD_FN_JUMP) {
@@ -1413,6 +1421,7 @@ static void p_five(void);
 static void p_launch(void);
 static void p_func(void);
 static void p_func_change(void);
+static void p_leap(void);
 static void p_rates(void);
 static void p_sixteenths(void)
 {
@@ -3211,6 +3220,7 @@ int main(int argc, char **argv)
     p_six();
     p_func();
     p_func_change();
+    p_leap();
     printf("test_seq: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }
@@ -3326,4 +3336,42 @@ static void p_func_change(void)
              "its last position backwards (step 16's micro mirrored), forward again at step 10");
     compare_ref("p30-func-change", 1);
     printf("  %-4s %-16s %5d events, reference %d\n", fails == n0 ? "ok" : "FAIL", "p30-func-change", NENG, NREF);
+}
+
+/* p31 (P1.3y): LEAP n */
+static void p_leap(void)
+{
+    TP *p = tp_new(0, 120);
+    int k;
+    TS *st;
+    for (k = 0; k < 16; k++) {                          /* track 1: LEAP +2 at 1 (skips 2), +5 at 9 (past the end: a
+                                                         * pass), a 1:2 step at 3 */
+        st = S(p, 0, k, QD_TRIG_NOTE, 48 + k, 0, 0, 0);
+        if (k == 1)
+            st->func = QD_FN_MAKE_LEAP(2);
+        if (k == 9)
+            st->func = QD_FN_MAKE_LEAP(5);
+        if (k == 3)
+            st->cond = QD_COND_AB;
+    }
+    for (k = 0; k < 16; k++) {                          /* track 2: LEAP +2 at 1 (forward: to 3), REVERSE at 3, then
+                                                         * +2 at 1 again backwards (to 15), -3 at 12 backwards (to 15) */
+        st = S(p, 1, k, QD_TRIG_NOTE, 60 + k, 0, 0, 0);
+        if (k == 3)
+            st->func = QD_FN_REVERSE;
+        if (k == 1)
+            st->func = QD_FN_MAKE_LEAP(2);
+        if (k == 12)
+            st->func = QD_FN_MAKE_LEAP(-3);
+    }
+    p->trk[2].length = 8;                               /* track 3: LEAP -1 at 5 (repeats the step before it) with 50 % */
+    for (k = 0; k < 8; k++) {
+        st = S(p, 2, k, QD_TRIG_NOTE, 72 + k, 0, 0, 0);
+        if (k == 5) {
+            st->func = QD_FN_MAKE_LEAP(-1);
+            st->chance = 50;
+        }
+    }
+    pattern_test("p31-leap", "LEAP n: +2, +5 past the loop's end (a 1:2 step counting the pass), -3 and +2 in reverse, "
+                 "-1 at 50 % (seed 5)", 6.0, 5);
 }

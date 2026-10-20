@@ -133,8 +133,10 @@ void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol)
 int ui_fn_icon(int f)
 {
     static const int IC[7] = {UI_IC_NONE, UI_IC_RESET, UI_IC_LEFT, UI_IC_RIGHT, UI_IC_FLIP, UI_IC_DICE, UI_IC_DICE_FN};
-    return f >= 7 ? UI_IC_JUMP : f > 0 ? IC[f] : UI_IC_NONE;
+    return f >= UI_FN_LEAP ? UI_IC_LEAP : f >= 7 ? UI_IC_JUMP : f > 0 ? IC[f] : UI_IC_NONE;
 }
+
+const qd_rgb UI_TRACK_PAL[8] = {0x3f7dffu, 0x1fd47eu, 0xf1f0eau, 0xff6a2cu, 0xff3ca0u, 0xffd23fu, 0x9664ffu, 0x28e1ffu};
 
 /* the strip's keys: 18 px wide, 2 apart in a group, the groups 3 | 2 | 3 | 2 six apart, B11 eight further */
 float ui_strip_x(int k)
@@ -291,6 +293,28 @@ void ui_icon(int id, float cx, float cy, float s, qd_rgb c)
             ui_O(cx - 2.5f * s, cy + 2.5f * s, 1.1f * s, QD_NONE, 1.f, c);
             ui_O(cx + 2.5f * s, cy + 2.5f * s, 1.1f * s, QD_NONE, 1.f, c);
         }
+        break;
+    case UI_IC_GEAR: {                                  /* P1.3y: a cog: a ring and eight teeth */
+        int i;
+        ui_O(cx, cy, 3.6f * s, c, 1.3f, QD_NONE);
+        for (i = 0; i < 8; i++) {
+            const float an = (float)i * UI_TAU / 8.f;
+            ln(cx + cosf(an) * 4.6f * s, cy + sinf(an) * 4.6f * s, cx + cosf(an) * 6.6f * s, cy + sinf(an) * 6.6f * s,
+               c, 1.6f);
+        }
+        break;
+    }
+    case UI_IC_VIEWS:                                   /* P1.3y: the three views: three panes side by side */
+        ui_RR(cx - 7.f * s, cy - 5.f * s, 4.f * s, 10.f * s, 1.f, c, 1.1f, QD_NONE);
+        ui_RR(cx - 2.f * s, cy - 5.f * s, 4.f * s, 10.f * s, 1.f, c, 1.1f, QD_NONE);
+        ui_RR(cx + 3.f * s, cy - 5.f * s, 4.f * s, 10.f * s, 1.f, c, 1.1f, c);
+        break;
+    case UI_IC_LEAP:                                    /* P1.3y: LEAP n: two small hops over the steps */
+        ui_O(cx - 6.f * s, cy + 4.f * s, 1.2f * s, QD_NONE, 1.f, c);
+        ui_O(cx, cy + 4.f * s, 1.2f * s, QD_NONE, 1.f, c);
+        ui_O(cx + 6.f * s, cy + 4.f * s, 1.2f * s, QD_NONE, 1.f, c);
+        qd_arc(cx - 3.f * s, cy + 3.f * s, 3.f * s, UI_PI, UI_TAU, c, 1.2f);
+        qd_arc(cx + 3.f * s, cy + 3.f * s, 3.f * s, UI_PI, UI_TAU, c, 1.2f);
         break;
     case UI_IC_JUMP: {                                  /* JUMP n: an arc over, landing */
         const float a[6] = {cx + 2.f * s, cy + 1.f * s, cx + 5.f * s, cy + 4.f * s, cx + 7.f * s, cy};

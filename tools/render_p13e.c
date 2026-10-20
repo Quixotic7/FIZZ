@@ -74,6 +74,14 @@ static void btap(int b)
     bup(b);
     run(20);
 }
+static void vhome(void)                                 /* (P1.3y: SHIFT + HOME, the next view; HOME alone never cycles) */
+{
+    qd_app_button(&A, QD_B_FUNC, 1);
+    run(10);
+    btap(QD_B_HOME);
+    qd_app_button(&A, QD_B_FUNC, 0);
+    run(10);
+}
 static void black(int b)
 {
     qd_app_key(&A, BK(b), 1, 100);
@@ -240,7 +248,7 @@ int render_p13e(const char *out)
 
     /* the STEPS view */
     at(A02, T1, UI_F_NOTE);
-    btap(QD_B_HOME);
+    vhome();
     run(200);
     shot("steps-stopped", "HOME: the STEPS view, A02 DRUMS, stopped");
     btap(QD_B_PLAY);
@@ -248,7 +256,7 @@ int render_p13e(const char *out)
     shot("steps-playing", "STEPS, playing: the playhead's cell, the trig flashing");
     btap(QD_B_PLAY);
     at(A01, T1, UI_F_VEL);
-    btap(QD_B_HOME);
+    vhome();
     black(UI_F_TRIG);
     whold(2);
     black(1);                                           /* step 3: a LOCK step */
@@ -265,7 +273,7 @@ int render_p13e(const char *out)
     run(200);
     shot("steps-locks", "STEPS: A01's p-locks and sound locks (marks), a LOCK step (ring), a condition, a chance");
     at(A02, T2, UI_F_LEN);
-    btap(QD_B_HOME);
+    vhome();
     qd_app_button(&A, QD_B_OCTDN, 1);
     qd_app_button(&A, QD_B_OCTUP, 1);
     run(20);

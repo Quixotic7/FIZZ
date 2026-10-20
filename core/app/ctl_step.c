@@ -35,6 +35,7 @@
  * P1.3d (§8b 2.2): the knobs' jobs (qd_step_job_held / qd_step_job_default, the table qd_ctl_knob_job): on the held
  * steps each from its own value, or on the track's defaults; each turn sets the band (tk, tk_job, tk_src). LOCKS is
  * gone (P-LOCK covers it). The step latch (LFO): qd_step_latch, qd_step_latch_seed; a W while it is on selects. */
+#include <stdlib.h>
 #include <string.h>
 
 #include "app.h"
@@ -60,6 +61,9 @@ static const int8_t VK_MICRO[10] = {-20, -15, -10, -5, -2, 2, 5, 10, 15, 20};
 static const uint8_t MODE_PM[UI_NFIELD] = {QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
                                            QD_PM_COND, QD_PM_TRIG, QD_NPM, QD_PM_SOUND, QD_NPM};   /* (FUNC: no
                                                          * override bit, P1.3w) */
+
+/* ---- P1.3y: FUNC's kinds (KNOB 1): none, RESTART, REVERSE, FORWARD, FLIP, RANDOM JUMP, RANDOM FUNCTION, LEAP, JUMP */
+static int fn_kind(int f) { return QD_FN_IS_LEAP(f) ? 7 : f >= QD_FN_JUMP && f < QD_FN_LEAP ? 8 : f < 7 ? f : 0; }
 
 /* ---- P-LOCK's hook: the screens' lockable knobs, one table a screen */
 static const qd_lockknob_t STEPVIEW_LOCKS[] = {
@@ -180,6 +184,19 @@ void qd_step_cursor(qd_app_t *a, int d)
     u->scursor = 1;
 }
 
+void qd_step_cursor_page(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    const qd_tset_t *ts = &PAT(a)->trk[a->sel];
+    const int pg = u->page[a->sel];
+    if (!u->slatch || !u->nheld || u->wk_down)
+        return;
+    u->nheld = 0;
+    if (u->tk == QD_TK_HELDKNOB)
+        u->tk = QD_TK_NONE;
+    held_add(a, pg * QD_PAGE + (ts->pstart[pg] < QD_PAGE ? ts->pstart[pg] : 0), -1);
+}
+
 void qd_step_latch(qd_app_t *a, int on)
 {
     qd_step_release_all(a);
@@ -223,22 +240,18 @@ void qd_step_promote_all(qd_app_t *a) { promote_ordered(a, 0); }
 void qd_step_promote_due(qd_app_t *a) { promote_ordered(a, 1); }
 
 /* ---------------------------------------------------------------- the white keys --- */
-/* P1.3w (Form's gesture): in FUNC, a W pressed while the steps held (or selected) include a jump (RANDOM or JUMP n)
- * makes its step their target (JUMP n); it is not held, not tapped. 1: taken */
+/* P1.3y: in FUNC, a W pressed while B9 (JUMP) is down makes its step the held (or selected) steps' JUMP target; it
+ * is not held, not tapped, not selected (it works with the step latch). 1: taken */
 static int jump_target(qd_app_t *a, int w)
 {
     qd_ui_t *u = &a->ui;
     const int s = step_of(a, w);
-    int i, any = 0;
-    if (u->hmode != UI_F_FUNC || !u->nheld || held_find(u, s) >= 0)
+    int i;
+    if (u->hmode != UI_F_FUNC || !u->nheld || !u->fn_b9)
         return 0;
     for (i = 0; i < u->nheld; i++)
-        any |= QD_FN_IS_JUMP(qd_step(CPAT(a), a->sel, u->held[i])->func);
-    if (!any)
-        return 0;
-    for (i = 0; i < u->nheld; i++)
-        if (QD_FN_IS_JUMP(qd_step(CPAT(a), a->sel, u->held[i])->func))
-            qd_step_set_func(PAT(a), a->sel, u->held[i], QD_FN_JUMP + s);
+        qd_step_set_func(PAT(a), a->sel, u->held[i], QD_FN_MAKE_JUMP(s));
+    u->fn_target = s;
     u->wk_target |= (uint16_t)(1u << w);
     return 1;
 }
@@ -393,9 +406,14 @@ static void value_set(qd_app_t *a, int s, int m, int b)
         if (b < 3)
             qd_step_set_trig(p, t, s, QD_TRIG_NOTE + b);
         break;
-    case UI_F_FUNC:                                     /* P1.3w: B1 none, B2 RESTART .. B7 RANDOM FUNCTION */
+    case UI_F_FUNC:                                     /* P1.3w: B1 none, B2 RESTART .. B7 RANDOM FUNCTION; P1.3y: B8
+                                                         * LEAP (the last n), B9 JUMP (the last target) */
         if (b < QD_FN_JUMP)
             qd_step_set_func(p, t, s, b);
+        else if (b == 7)
+            qd_step_set_func(p, t, s, QD_FN_MAKE_LEAP(a->ui.fn_leap));
+        else if (b == 8)
+            qd_step_set_func(p, t, s, QD_FN_MAKE_JUMP(a->ui.fn_target >= 0 ? a->ui.fn_target : s / QD_PAGE * QD_PAGE));
         break;
     case UI_F_SOUND: {
         const int k = a->ui.sound_bank * 10 + b + 1;
@@ -436,11 +454,15 @@ void qd_step_value_key(qd_app_t *a, int b, int down)
     int i;
     if (!down) {
         u->note_keys &= (uint16_t)~(1u << b);
+        if (b == 8)
+            u->fn_b9 = 0;                               /* (P1.3y: JUMP's key let go) */
         return;
     }
     qd_step_promote_all(a);
     if (!u->nheld)
         return;
+    if (m == UI_F_FUNC && b == 8)
+        u->fn_b9 = 1;                                   /* P1.3y: B9 down: a W pressed now is the jump's target */
     if (m == UI_F_PLOCK) {                              /* P-LOCK: B11 clears the p-locks; B1..B10 nothing */
         if (b == 10)
             qd_step_clear_locks(a);
@@ -625,7 +647,12 @@ static void fine(qd_app_t *a, int s, int m, int d, int shift)
     case UI_F_CHNC: qd_step_set_chance(p, t, s, clampi(r.chance + d, 0, 100)); break;
     case UI_F_COND: qd_step_set_cond(p, t, s, clampi(r.cond + d, 0, QD_NCOND - 1)); break;
     case UI_F_TRIG: qd_step_set_trig(p, t, s, clampi((r.on ? r.type : QD_TRIG_NOTE) + d, QD_TRIG_NOTE, QD_TRIG_TIE)); break;
-    case UI_F_FUNC: qd_step_set_func(p, t, s, clampi(r.func + d, 0, QD_NFN - 1)); break;   /* the seven, JUMP 1..128 */
+    case UI_F_FUNC: {                                   /* P1.3y: the kind (ALGORITHM, a finger on the step) */
+        const int k = clampi(fn_kind(r.func) + d, 0, 8);
+        qd_step_set_func(p, t, s, k < 7 ? k : k == 7 ? QD_FN_MAKE_LEAP(a->ui.fn_leap)
+                                          : QD_FN_MAKE_JUMP(a->ui.fn_target >= 0 ? a->ui.fn_target : s / QD_PAGE * QD_PAGE));
+        break;
+    }
     default: break;
     }
 }
@@ -747,6 +774,39 @@ void qd_step_job_held(qd_app_t *a, int job, int knob, int d)
         if (strcmp(before, after) != 0)
             u->chord_ms = a->ms;
         break;
+    case QD_KJ_FTYPE:                                   /* P1.3y: FUNC's kind */
+        for (i = 0; i < u->nheld; i++)
+            fine(a, u->held[i], UI_F_FUNC, d, 0);
+        break;
+    case QD_KJ_LEAP: {                                  /* LEAP's n (-15..-1, 1..15): the function a LEAP */
+        qd_rstep_t r;
+        int n;
+        resolve(a, u->held[0], &r);
+        n = QD_FN_IS_LEAP(r.func) ? QD_FN_LEAP_N(r.func) : u->fn_leap;
+        if (QD_FN_IS_LEAP(r.func) || d < 0)             /* (the first detent makes it a LEAP of the last n) */
+            for (int k = 0; k < (d < 0 ? -d : d); k++) {   /* a detent a step, 0 skipped */
+                n += d < 0 ? -1 : 1;
+                if (n == 0)
+                    n = d < 0 ? -1 : 1;
+            }
+        n = clampi(n, -15, 15);
+        u->fn_leap = n;
+        for (i = 0; i < u->nheld; i++)
+            qd_step_set_func(p, t, u->held[i], QD_FN_MAKE_LEAP(n));
+        break;
+    }
+    case QD_KJ_JTGT: {                                  /* JUMP's target (1..128): the function a JUMP */
+        qd_rstep_t r;
+        int x;
+        resolve(a, u->held[0], &r);
+        x = r.func >= QD_FN_JUMP && r.func < QD_FN_LEAP ? r.func - QD_FN_JUMP
+          : u->fn_target >= 0 ? u->fn_target : u->held[0] / QD_PAGE * QD_PAGE;
+        x = clampi(x + d, 0, QD_NSTEP - 1);
+        u->fn_target = x;
+        for (i = 0; i < u->nheld; i++)
+            qd_step_set_func(p, t, u->held[i], QD_FN_MAKE_JUMP(x));
+        break;
+    }
     default:
         for (i = 0; i < u->nheld; i++) {
             const int s = u->held[i];
@@ -992,8 +1052,30 @@ static void lab_int(char *o, int v, const char *suffix)
         strcat(o, suffix);
 }
 
+/* P1.3y (the owner's addition): the value keys light the NEAREST value, not only an exact one: the key of the n
+ * values whose value is nearest x (a tie: the lower key) */
+static int near_key(const int *v, int n, int x)
+{
+    int i, best = 0;
+    for (i = 1; i < n; i++)
+        if (abs(v[i] - x) < abs(v[best] - x))
+            best = i;
+    return best;
+}
+static uint16_t near_bit(const int *v, int n, int x) { return (uint16_t)(1u << near_key(v, n, x)); }
+
+/* the nearest rules, mode by mode: VEL, CHNC and RATCH by the value (RATCH x1..x8); LEN by the length table's place
+ * (INF only for INF); MICRO by the 24ths (0, on the step: none lit, the keys are all off the step); COND's A by 1..4
+ * and B by 1..4 (A:B past 4 to the nearest), FILL / NOT FILL exact, 1ST and the rest none; SOUND: the sound's key in
+ * the bank shown, a sound in another bank the bank's end key nearest it; NOTE, TRIG, FUNC exact (they are kinds) */
 void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint16_t *def, uint16_t *none, int *clr)
 {
+    static const int NV_VEL[10] = {13, 25, 38, 51, 64, 76, 89, 102, 114, 127};
+    static const int NV_LEN[9] = {1, 2, 3, 4, 5, 6, 8, 10, 12};
+    static const int NV_MICRO[10] = {-20, -15, -10, -5, -2, 2, 5, 10, 15, 20};
+    static const int NV_CHNC[10] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100};
+    static const int NV_RATCH[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    static const int NV_AB[4] = {1, 2, 3, 4};
     static const char *const LEN_LAB[10] = {"1/4", "1/2", "3/4", "1", "1.5", "2", "4", "8", "16", "INF"};
     static const char *const RAMP[4] = {"FLAT", "UP", "DOWN", "ACC"};
     static const char *const COND_LAB[10] = {"FILL", "!FIL", "1:", "2:", "3:", "4:", ":1", ":2", ":3", ":4"};
@@ -1039,13 +1121,13 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
         }
         case UI_F_VEL:
             lab_int(lab[b], VK_VEL[b], 0);
-            *lit |= r.on && r.vel == VK_VEL[b] ? bit : 0;
-            *def |= df->vel == VK_VEL[b] ? bit : 0;
+            *lit |= r.on ? bit & near_bit(NV_VEL, 10, r.vel) : 0;
+            *def |= bit & near_bit(NV_VEL, 10, df->vel);
             break;
         case UI_F_LEN:
             strcpy(lab[b], LEN_LAB[b]);
-            *lit |= r.on && r.len == VK_LEN[b] ? bit : 0;
-            *def |= df->len == VK_LEN[b] ? bit : 0;
+            *lit |= r.on ? bit & (r.len >= QD_LEN_INF ? 1u << 9 : near_bit(NV_LEN, 9, r.len)) : 0;
+            *def |= bit & (df->len >= QD_LEN_INF ? 1u << 9 : near_bit(NV_LEN, 9, df->len));
             break;
         case UI_F_MICRO:
             lab_int(lab[b], VK_MICRO[b], 0);
@@ -1054,15 +1136,15 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
                 lab[b][0] = '+';
                 lab[b][5] = 0;
             }
-            *lit |= r.on && r.micro == VK_MICRO[b] ? bit : 0;
-            *def |= df->micro == VK_MICRO[b] ? bit : 0;
+            *lit |= r.on && r.micro ? bit & near_bit(NV_MICRO, 10, r.micro) : 0;
+            *def |= df->micro ? bit & near_bit(NV_MICRO, 10, df->micro) : 0;
             break;
         case UI_F_RATCH:
             if (b < 8) {
                 lab[b][0] = 'x';
                 lab[b][1] = (char)('1' + b);
-                *lit |= r.on && r.ratch == b + 1 ? bit : 0;
-                *def |= qd_ratch_count(df->ratch) == b + 1 ? bit : 0;
+                *lit |= r.on ? bit & near_bit(NV_RATCH, 8, r.ratch) : 0;
+                *def |= bit & near_bit(NV_RATCH, 8, qd_ratch_count(df->ratch));
             } else if (b == 8) {
                 strcpy(lab[b], RAMP[r.ramp & 3]);
                 *lit |= r.on && r.ramp != QD_RAMP_FLAT ? bit : 0;
@@ -1072,8 +1154,8 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
             break;
         case UI_F_CHNC:
             lab_int(lab[b], (b + 1) * 10, "%");
-            *lit |= r.on && r.chance == (b + 1) * 10 ? bit : 0;
-            *def |= df->chance == (b + 1) * 10 ? bit : 0;
+            *lit |= r.on ? bit & near_bit(NV_CHNC, 10, r.chance) : 0;
+            *def |= bit & near_bit(NV_CHNC, 10, df->chance);
             break;
         case UI_F_COND: {
             int ca = 1, cb = 1, da = 1, db = 1, ab, dab;
@@ -1087,11 +1169,11 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
                 *lit |= r.on && r.cond == QD_COND_NFILL ? bit : 0;
                 *def |= df->cond == QD_COND_NFILL ? bit : 0;
             } else if (b < 6) {
-                *lit |= r.on && ab && ca == b - 1 ? bit : 0;
-                *def |= dab && da == b - 1 ? bit : 0;
+                *lit |= r.on && ab && near_key(NV_AB, 4, ca) == b - 2 ? bit : 0;
+                *def |= dab && near_key(NV_AB, 4, da) == b - 2 ? bit : 0;
             } else {
-                *lit |= r.on && ab && cb == b - 5 ? bit : 0;
-                *def |= dab && db == b - 5 ? bit : 0;
+                *lit |= r.on && ab && near_key(NV_AB, 4, cb) == b - 6 ? bit : 0;
+                *def |= dab && near_key(NV_AB, 4, db) == b - 6 ? bit : 0;
             }
             break;
         }
@@ -1104,6 +1186,12 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
                 *none |= bit;
             }
             break;
+        case UI_F_FUNC:                                 /* P1.3y: the function's key lit (B8 LEAP, B9 JUMP) */
+            if (b < 9)
+                *lit |= r.on && fn_kind(r.func) == b ? bit : 0;
+            else
+                *none |= bit;
+            break;
         case UI_F_SOUND: {
             const int k = u->sound_bank * 10 + b + 1;
             if (k > a->proj.nsound) {
@@ -1111,7 +1199,11 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
                 break;
             }
             lab_int(lab[b], k, 0);
-            *lit |= r.on && r.sound == k ? bit : 0;
+            if (r.on && r.sound > 0) {                  /* (another bank: its end key nearest the sound) */
+                const int lo = u->sound_bank * 10 + 1, hi = lo + 9 < a->proj.nsound ? lo + 9 : a->proj.nsound;
+                const int sk = r.sound < lo ? lo : r.sound > hi ? hi : r.sound;
+                *lit |= sk == k ? bit : 0;
+            }
             break;
         }
         default:

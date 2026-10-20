@@ -435,11 +435,18 @@ static void l_func(const ui_lane_t *v)
             continue;
         }
         ui_icon(ui_fn_icon(c->func), cx, y, 0.95f, col);
-        if (c->func >= UI_FN_JUMP) {                    /* JUMP n: its target's number, stacked, 12 px */
+        if (c->func >= UI_FN_JUMP) {                    /* JUMP n: its target's number; LEAP: its n, signed; stacked,
+                                                         * 12 px */
             int k;
             char ch[2];
             ch[1] = 0;
-            ui_itoa(s, c->func - UI_FN_JUMP + 1);
+            if (c->func >= UI_FN_LEAP) {
+                const int n = c->func - UI_FN_LEAP - 15;
+                s[0] = n < 0 ? '-' : '+';
+                ui_itoa(s + 1, n < 0 ? -n : n);
+            } else {
+                ui_itoa(s, c->func - UI_FN_JUMP + 1);
+            }
             for (k = 0; s[k]; k++) {
                 ch[0] = s[k];
                 ui_T(ch, cx, y + 22.f + (float)k * 13.f, 12.f, 600, 0.f, col, QD_CENTER);

@@ -75,6 +75,14 @@ static void btap(int b)
     bup(b);
     run(20);
 }
+static void vhome(void)                                 /* (P1.3y: SHIFT + HOME, the next view; HOME alone never cycles) */
+{
+    qd_app_button(&A, QD_B_FUNC, 1);
+    run(10);
+    btap(QD_B_HOME);
+    qd_app_button(&A, QD_B_FUNC, 0);
+    run(10);
+}
 static void black(int b)
 {
     qd_app_key(&A, BK(b), 1, 100);
@@ -210,7 +218,7 @@ int render_p13x(const char *out)
     btap(QD_B_REC);
     run(100);
     btap(QD_B_HOME);
-    btap(QD_B_HOME);
+    vhome();
     run(400);
     shot("live-loop", "REC: the recording ended, playing on: the pages reached are the loop");
     btap(QD_B_PLAY);

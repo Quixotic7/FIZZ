@@ -12,13 +12,18 @@
  * pages and the dialogs to come).
  *
  *   F3     (OCT- and OCT+ pressed together, in the step view with nothing held) the rate, the page's range, the tempo:
- *          everything F3 did while held works while it is open; OCT- exits, OCT+ does nothing yet */
+ *          everything F3 did while held works while it is open; OCT- exits, OCT+ does nothing yet
+ *   REC    (P1.3y: SHIFT + REC) the record settings: KNOB 1 MODE (LIVE / STEP), KNOB 2 QUANTIZE (0..100 %), KNOB 3
+ *          OVERDUB / REPLACE; the project's
+ *   SETTINGS (P1.3y: SHIFT + SEL) the global settings: KNOB 1 KNOBS (the encoders' layout A..D), KNOB 2 PAGE FOLLOW */
 #include "app.h"
 
 static void f3_close(qd_app_t *a) { a->ui.f3_anchor = -1; }
 
 static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_F3] = {"F3", "EXIT", 0, 0, 0, f3_close},
+    [QD_LATCH_REC] = {"REC", "BACK", 0, 0, 0, 0},      /* P1.3y: the record settings */
+    [QD_LATCH_SET] = {"SETTINGS", "BACK", 0, 0, 0, 0}, /* P1.3y: the global settings */
 };
 
 const qd_latch_t *qd_latch_cur(const qd_app_t *a)

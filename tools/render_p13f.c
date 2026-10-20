@@ -74,6 +74,14 @@ static void btap(int b)
     bup(b);
     run(20);
 }
+static void vhome(void)                                 /* (P1.3y: SHIFT + HOME, the next view; HOME alone never cycles) */
+{
+    qd_app_button(&A, QD_B_FUNC, 1);
+    run(10);
+    btap(QD_B_HOME);
+    qd_app_button(&A, QD_B_FUNC, 0);
+    run(10);
+}
 static void black(int b)
 {
     qd_app_key(&A, BK(b), 1, 100);
@@ -242,7 +250,7 @@ int render_p13f(const char *out)
     whold(6);
     black(9);                                           /* (VEL 127: an override) */
     wrelease(6);
-    btap(QD_B_HOME);
+    vhome();
     run(200);
     shot("steps-stopped", "STEPS: the eight pages, page 2 edited, pages 1, 2, 4 in the loop (stopped)");
     btap(QD_B_PLAY);

@@ -76,6 +76,14 @@ static void btap(int b)
     bup(b);
     run(20);
 }
+static void vhome(void)                                 /* (P1.3y: SHIFT + HOME, the next view; HOME alone never cycles) */
+{
+    qd_app_button(&A, QD_B_FUNC, 1);
+    run(10);
+    btap(QD_B_HOME);
+    qd_app_button(&A, QD_B_FUNC, 0);
+    run(10);
+}
 static void black(int b)
 {
     qd_app_key(&A, BK(b), 1, 100);
@@ -207,7 +215,7 @@ static void keys_two_pages(void)
     }
     wtap(7);
     wtap(11);
-    btap(QD_B_HOME);                                    /* STEPS */
+    vhome();                                    /* STEPS */
 }
 
 int render_p13w(const char *out)
@@ -227,8 +235,8 @@ int render_p13w(const char *out)
     qd_step_set_func(P, T3, 16 + 2, QD_FN_RESTART);
     run(300);
     shot("steps", "STEPS: the functions as dots (page 2 open, page 1 folded)");
-    btap(QD_B_HOME);                                    /* EDIT */
-    btap(QD_B_HOME);                                    /* the PIANO ROLL */
+    vhome();                                    /* EDIT */
+    vhome();                                    /* the PIANO ROLL */
     black(UI_F_FUNC);
     run(300);
     shot("lane", "the PIANO ROLL's FUNC lane: reverse, restart, flip, random, random function");
@@ -249,11 +257,11 @@ int render_p13w(const char *out)
     run(300);
     shot("held-random", "held: RANDOM (a jump to a step at random)");
     wrelease(12);
-    btap(QD_B_HOME);                                    /* STEPS, then EDIT with the cursor on step 9 */
-    btap(QD_B_HOME);
-    turn(QD_K_PRESETS, 1);
+    vhome();                                    /* STEPS, then EDIT with the cursor on step 9 */
+    vhome();
+    turn(QD_K_ALGO, 1);
     while (A.ui.nheld && A.ui.held[0] != 16 + 8)
-        turn(QD_K_PRESETS, A.ui.held[0] < 16 + 8 ? 1 : -1);
+        turn(QD_K_ALGO, A.ui.held[0] < 16 + 8 ? 1 : -1);
     run(400);
     shot("edit-jump", "EDIT: JUMP 20 in the head, its target on the strip, the row under it");
     btap(QD_B_MUTE);

@@ -86,6 +86,12 @@ static void chord_add(uint8_t *chord, int *n, int note)
     chord[(*n)++] = (uint8_t)note;
 }
 
+int qd_rec_stepping(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    return u->rec && !u->live_wait && (u->rec_kind == QD_REC_STEP || !a->seq.playing);
+}
+
 void qd_rec_toggle(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
@@ -95,6 +101,7 @@ void qd_rec_toggle(qd_app_t *a)
         return;
     }
     u->rec = 1;
+    u->rec_kind = QD_REC_LIVE;
     u->rec_n = 0;
     u->rec_step = -1;
     {   /* step recording starts on the page edited (its first step in the loop), else the loop's top */
@@ -124,7 +131,19 @@ void qd_rec_arm_live(qd_app_t *a)
         u->rec_grow = 1;
         u->grow_reached = 0;
     }
+    u->rec_kind = QD_REC_LIVE;
     qd_ctl_confirm(a, "LIVE REC", 0);
+}
+
+/* P1.3y: REC held with the record settings' STEP: step recording armed (the cursor; playing or not) */
+void qd_rec_arm_step(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    if (!u->rec)
+        qd_rec_toggle(a);
+    u->rec_kind = QD_REC_STEP;
+    u->live_wait = 0;
+    qd_ctl_confirm(a, "STEP REC", 0);
 }
 
 /* an empty track's loop: the pages reached (from page 1) */
@@ -222,15 +241,25 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
         u->live_wait = 0;
         qd_app_play(a);
     }
-    if (!a->seq.playing) {                              /* step recording */
+    if (qd_rec_stepping(a)) {                           /* step recording */
         const int cs = loop_step(a, u->cursor);
-        if (!u->rec_n) {
+        const int first = !u->rec_n;
+        const int dub = first && a->proj.rec_dub && qd_step_is_on(qd_step(p, t, cs));
+        if (first) {
             u->rec_nchord = 0;
-            qd_step_clear(p, t, cs);
+            if (dub) {                                  /* P1.3y: OVERDUB: the step's notes (and values) stay */
+                qd_rstep_t r;
+                int k;
+                qd_step_resolve(p, t, cs, &r);
+                for (k = 0; k < r.nn; k++)
+                    chord_add(u->rec_chord, &u->rec_nchord, r.notes[k]);
+            } else {
+                qd_step_clear(p, t, cs);
+            }
         }
         chord_add(u->rec_chord, &u->rec_nchord, note);
         qd_step_set_notes(p, t, cs, u->rec_chord, u->rec_nchord);
-        if (!u->rec_n)
+        if (first && !dub)
             qd_step_set_vel(p, t, cs, vel);
         u->rec_t0[note] = 0;
         u->rec_n++;
@@ -244,12 +273,22 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
         if (lp >= n)
             lp -= n;
         s = loop_step(a, lp);
-        if (u->quantize)
-            micro = 0;
+        micro = (int)lround(micro * (100 - a->proj.rec_quant) / 100.0);   /* P1.3y: QUANTIZE (100 %: on the step) */
         micro = micro < -23 ? -23 : micro > 23 ? 23 : micro;
         if (u->rec_n && s == u->rec_step) {             /* struck while the chord's notes are down: the chord */
             chord_add(u->rec_chord, &u->rec_nchord, note);
             qd_step_set_notes(p, t, s, u->rec_chord, u->rec_nchord);
+        } else if (a->proj.rec_dub && qd_step_is_on(qd_step(p, t, s))) {   /* P1.3y: OVERDUB: the note joins the
+                                                         * step's (its velocity, timing and length stay) */
+            qd_rstep_t r;
+            int k;
+            qd_step_resolve(p, t, s, &r);
+            u->rec_nchord = 0;
+            for (k = 0; k < r.nn; k++)
+                chord_add(u->rec_chord, &u->rec_nchord, r.notes[k]);
+            chord_add(u->rec_chord, &u->rec_nchord, note);
+            qd_step_set_notes(p, t, s, u->rec_chord, u->rec_nchord);
+            u->rec_step = s;
         } else {
             u->rec_nchord = 0;
             chord_add(u->rec_chord, &u->rec_nchord, note);

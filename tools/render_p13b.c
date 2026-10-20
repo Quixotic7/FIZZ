@@ -242,7 +242,11 @@ int render_p13b(const char *out, const char *mocks)
     whold(6);
     black(2);                                           /* step 7: 38 */
     wrelease(6);
+    qd_app_key(&A, BK(UI_F_VEL), 1, 100);               /* (P1.3y: the VEL key held: ALGORITHM the default) */
+    run(20);
     turn(QD_K_ALGO, -3);
+    qd_app_key(&A, BK(UI_F_VEL), 0, 0);
+    run(20);
     settle();
     play(900);
     shot("02-lane-vel", "VEL lane: A01 DRUMS, steps 3 and 7 overridden, the default lowered", 0);
@@ -358,9 +362,9 @@ int render_p13b(const char *out, const char *mocks)
 
     /* ---- the takeovers */
     at(A02, T3, UI_F_VEL);
-    turn(QD_K_ALGO, -2);
+    turn(QD_K_1, -2);
     run(100);
-    shot("tk-default", "ALGORITHM, nothing held: the track's default (VEL)", 0);
+    shot("tk-default", "KNOB 1, nothing held: the track's default (VEL)", 0);
 
     at(A02, T3, UI_F_NOTE);
     play(600);

@@ -71,7 +71,8 @@ static const uint8_t KNOB_JOB[UI_NFIELD][5] = {         /* P1.3e: KNOB 4 the qui
     [UI_F_CHNC] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_COND, 0, QD_KJ_QUIET},
     [UI_F_COND] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_CHANCE, 0, QD_KJ_QUIET},
     [UI_F_TRIG] = {QD_KJ_MAIN, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
-    [UI_F_FUNC] = {0, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},   /* P1.3w: SELECT the page (a jump's target elsewhere) */
+    [UI_F_FUNC] = {0, QD_KJ_FTYPE, QD_KJ_LEAP, QD_KJ_JTGT, QD_KJ_QUIET},   /* P1.3y: SELECT the page; KNOB 1 the kind,
+                                                         * 2 LEAP's n, 3 JUMP's target */
     [UI_F_SOUND] = {QD_KJ_MAIN, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
 };
 /* P1.3e: a mode key held with nothing else held edits the track's default of that mode */
@@ -114,6 +115,8 @@ void qd_ctl_init(qd_app_t *a)
     u->tk = QD_TK_NONE;
     u->rec_step = -1;
     u->entry_oct = QD_ENTRY_OCT;
+    u->fn_leap = 2;
+    u->fn_target = -1;
     u->f3_anchor = -1;
     u->pg_copied = -1;
     u->f2_last_w = -1;
@@ -270,7 +273,10 @@ typedef int (*qd_when_fn)(const qd_app_t *a);
 typedef void (*qd_key_fn)(qd_app_t *a, int key, int idx, int down, int vel);   /* idx: white 0..15 / black 0..10 */
 
 static int w_seq_held(const qd_app_t *a) { return held(a, QD_B_MIX); }        /* printed SEQ: the patterns */
-static int w_sel_held(const qd_app_t *a) { return held(a, QD_B_PATTERN); }    /* printed SEL: the tracks */
+static int w_sel_held(const qd_app_t *a) { return held(a, QD_B_PATTERN) && !a->ui.latch; }   /* printed SEL: the
+                                                         * tracks (P1.3y: not SHIFT + SEL's settings) */
+/* P1.3y: a settings menu open: the keys do nothing (KNOB 1..4 its values; OCT- / HOME back) */
+static int w_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
 static int w_tracks_held(const qd_app_t *a) { return held(a, QD_B_TRACKS); }
 static int w_keys_mode(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS; }
 static int w_tracks_screen(const qd_app_t *a) { return a->ui.mode == QD_MODE_TRACKS; }
@@ -682,6 +688,16 @@ static void k_mode(qd_app_t *a, int key, int b, int down, int vel)
 
 /* P1.3e: the other black keys while a mode key is held: B11 resets the mode's default, the rest nothing */
 static int w_mkey(const qd_app_t *a) { return qd_ctl_mkey(a) >= 0; }
+/* P1.3y: LFO held: a black key picks the hold mode, the latch and the selection untouched */
+static int w_lfo_held(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && held(a, QD_B_MUTE); }
+static void k_lfo_mode(qd_app_t *a, int key, int b, int down, int vel)
+{
+    (void)key, (void)vel;
+    if (!down || b < 0 || b >= UI_NFIELD)
+        return;
+    a->ui.hmode = b;
+    a->ui.lfo_used = 1;
+}
 static void k_mkey(qd_app_t *a, int key, int b, int down, int vel)
 {
     (void)key, (void)vel;
@@ -706,6 +722,7 @@ typedef struct {
     qd_key_fn fn;
 } qd_key_row_t;
 static const qd_key_row_t WHITE_ROWS[] = {
+    {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
     {w_seq_held, k_pattern},           /* SEQ held: A01 .. A16 (SHIFT: at once) */
     {w_sel_held, k_sel_white},         /* SEL held: W1..W8 mute, W9..W16 solo */
     {w_tracks_held, k_track_select},   /* TRACKS held: tracks 1..8 */
@@ -719,9 +736,11 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_step_view, k_step},             /* the step view: the steps */
 };
 static const qd_key_row_t BLACK_ROWS[] = {
+    {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
     {w_seq_held, k_bank},              /* SEQ held: B1..B4 the bank (P1.3d) */
     {w_sel_held, k_sel_black},         /* SEL held: B1..B8 select the track */
     {w_keys_mode, k_note},             /* the keyboard */
+    {w_lfo_held, k_lfo_mode},          /* P1.3y: LFO held: the hold mode, the latch untouched */
     {w_mkey, k_mkey},                  /* a mode key held (P1.3e): B11 resets its default, the rest nothing */
     {w_steps_held, k_value},           /* steps held: the mode's values, B11 CLEAR */
     {w_f1, k_f1_black},                /* F1: pages, clear page / track, copy / paste a page, undo */
@@ -739,6 +758,8 @@ void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
         a->ui.key_row[key] = 0;
         if (touch(a))                                   /* the press that woke the unit does nothing else */
             return;
+        if (held(a, QD_B_PATTERN))
+            a->ui.sel_used = 1;                         /* (P1.3y: SEL's map at once) */
         for (i = 0; i < n; i++)
             if (rows[i].when(a)) {
                 a->ui.key_row[key] = (int8_t)(i + 1);   /* the row that took the press takes the release */
@@ -786,26 +807,35 @@ static void b_shift(qd_app_t *a, int down)
 /* HOME (P1.3e, §8b 2.2): first it closes an open latch (F3's menu, the step latch); else, in the sequencer, it
  * switches its view (PIANO ROLL -> STEPS -> EDIT (P1.3r) -> PIANO ROLL); from any other screen it comes back to the
  * sequencer in its last view */
+/* P1.3y: HOME always comes back to the view in use (PIANO ROLL, STEPS or EDIT) and never cycles: from any screen, a
+ * latch closed (and the view in the same press), a pop-up gone; SHIFT + HOME cycles the three views */
 static void b_home(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
-    const int latched = u->latch != QD_LATCH_NONE || u->slatch;
     if (!down)
         return;
     qd_latch_close(a);
     u->slatch = 0;
     qd_step_release_all(a);
     u->tk = QD_TK_NONE;
-    if (!latched && !u->home_woke && u->mode == QD_MODE_STEP)
+    u->cf_on = 0;
+    if (qd_ctl_shift(a) && !u->home_woke) {
         u->view = (u->view + 1) % QD_NVIEW;
+        u->shift_used = 1;
+    }
     u->home_woke = 0;
     set_mode(a, QD_MODE_STEP);
 }
 
 /* P1.3d (§8b 2.2): LFO (printed) toggles the step latch: as if a step is always held, a W tap selects (ctl_step.c) */
+/* P1.3y: LFO held + a black key: that hold mode (the latch untouched); a tap (no black key between) toggles it */
 static void b_lfo(qd_app_t *a, int down)
 {
-    if (!down || a->ui.mode != QD_MODE_STEP)
+    if (down) {
+        a->ui.lfo_used = 0;
+        return;
+    }
+    if (a->ui.lfo_used || a->ui.mode != QD_MODE_STEP)
         return;
     if (!a->ui.slatch)
         qd_latch_close(a);                              /* (F3's menu gives way to the selection) */
@@ -833,6 +863,7 @@ static void b_play(qd_app_t *a, int down)
                 qd_app_play(a);
             if (!u->rec)
                 qd_rec_toggle(a);
+            u->rec_kind = QD_REC_LIVE;
         }
         return;
     }
@@ -844,7 +875,8 @@ static void b_play(qd_app_t *a, int down)
         qd_app_play(a);
         return;
     }
-    if (u->mode == QD_MODE_KEYS && u->rec && a->seq.playing) {   /* recording: it ends, playback goes on */
+    if (u->mode == QD_MODE_KEYS && u->rec && a->seq.playing && !qd_rec_stepping(a)) {   /* recording live: it ends,
+                                                         * playback goes on */
         qd_rec_end(a);
         return;
     }
@@ -855,8 +887,9 @@ static void b_play(qd_app_t *a, int down)
 }
 
 /* REC: a tap switches the keybed between the sequencer and the keyboard; held QD_REC_HOLD_MS (P1.3x, qd_ctl_ms) it
- * arms live recording; a tap while recording live (or armed and waiting) ends the recording, playback goes on; SHIFT +
- * REC in the keyboard: armed / not (stopped: step recording) */
+ * arms recording in the record settings' MODE (P1.3y: LIVE as P1.3x; STEP: step recording, the cursor); a tap while
+ * recording ends it (live: playback goes on). P1.3y: SHIFT + REC opens the record settings (latched; it no longer
+ * arms step recording) */
 static void b_rec(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -865,22 +898,46 @@ static void b_rec(qd_app_t *a, int down)
         u->rec_down_ms = a->ms;
         if (qd_ctl_shift(a)) {
             u->rec_down_used = 1;
-            if (u->mode == QD_MODE_KEYS) {
-                qd_rec_toggle(a);
-                qd_ctl_confirm(a, u->rec ? (a->seq.playing ? "LIVE REC" : "STEP REC") : "REC OFF",
-                               u->rec ? (a->seq.playing ? "notes go in as played" : "a chord a step")
-                                      : "the keyboard plays");
-            }
+            u->shift_used = 1;
+            if (u->mode != QD_MODE_STEP)
+                set_mode(a, QD_MODE_STEP);
+            u->slatch = 0;
+            qd_step_release_all(a);
+            qd_latch_open(a, QD_LATCH_REC);
         }
         return;
     }
     if (u->rec_down_used)
         return;
-    if (u->mode == QD_MODE_KEYS && u->rec && (a->seq.playing || u->live_wait)) {   /* P1.3x: the recording ends */
+    if (u->mode == QD_MODE_KEYS && u->rec) {            /* P1.3x / P1.3y: the recording ends */
         qd_rec_end(a);
         return;
     }
     set_mode(a, u->mode == QD_MODE_KEYS ? QD_MODE_STEP : QD_MODE_KEYS);
+}
+
+/* SEL (printed): held, the track map (after QD_TAP_MS, or at once with a key); P1.3y: SHIFT + SEL the global settings
+ * (latched); a tap does nothing yet (P1.4b: the track settings) */
+static void b_sel(qd_app_t *a, int down)
+{
+    qd_ui_t *u = &a->ui;
+    if (!down)
+        return;
+    u->sel_ms = a->ms;
+    u->sel_used = 0;
+    if (qd_ctl_shift(a) && u->mode != QD_MODE_IDLE) {
+        u->shift_used = 1;
+        u->sel_used = 1;
+        if (u->mode != QD_MODE_STEP)
+            set_mode(a, QD_MODE_STEP);
+        u->slatch = 0;
+        qd_step_release_all(a);
+        qd_latch_open(a, QD_LATCH_SET);
+    }
+}
+int qd_ctl_sel_map(const qd_app_t *a)
+{
+    return held(a, QD_B_PATTERN) && !a->ui.latch && (a->ui.sel_used || a->ms - a->ui.sel_ms >= QD_TAP_MS);
 }
 
 /* OCT- / OCT+ (d -1 / +1): the layers in the step view (F1 / F2 / both F3); with steps held: NOTE's octave, SOUND's
@@ -916,7 +973,7 @@ static void b_oct(qd_app_t *a, int d, int down)
         }
         if (u->mode != QD_MODE_KEYS)
             return;
-        if (u->rec && !a->seq.playing) {                /* step recording: OCT+ a rest, OCT- a step back */
+        if (qd_rec_stepping(a)) {                       /* step recording: OCT+ a rest, OCT- a step back */
             if (d > 0)
                 qd_rec_rest(a);
             else
@@ -953,7 +1010,8 @@ static void b_none(qd_app_t *a, int down) { (void)a, (void)down; }
 /* the buttons by role (PLAN §8b; what is not built yet: the sound editor, the mix, saving) */
 static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_TRACKS] = b_tracks,          /* tap: the tracks screen; held + white 1..8: select */
-    [QD_B_PATTERN] = b_none,           /* printed SEL, held: the tracks (B select, W mute / solo: the keys' table) */
+    [QD_B_PATTERN] = b_sel,            /* printed SEL, held: the tracks (B select, W mute / solo: the keys' table);
+                                        * SHIFT: the global settings (P1.3y) */
     [QD_B_PAGE] = b_page,              /* tap: page follow on / off; held + white 1..8: edit that page */
     [QD_B_MUTE] = b_lfo,               /* printed LFO: the step latch on / off (P1.3d) */
     [QD_B_SOUND] = b_none,             /* the sound editor (next milestone) */
@@ -1182,8 +1240,11 @@ static int k_mkey_knob(qd_app_t *a, int knob, int d)
         qd_step_job_default(a, job, knob, d);
     return 1;
 }
-static int when_live(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS && a->ui.rec && a->seq.playing; }
-static int when_step_rec(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS && a->ui.rec && !a->seq.playing; }
+static int when_live(const qd_app_t *a)
+{
+    return a->ui.mode == QD_MODE_KEYS && a->ui.rec && a->seq.playing && !qd_rec_stepping(a);
+}
+static int when_step_rec(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS && qd_rec_stepping(a); }
 static int when_tracks(const qd_app_t *a) { return a->ui.mode == QD_MODE_TRACKS; }
 static int when_stepview(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP; }
 static int when_always(const qd_app_t *a) { (void)a; return 1; }
@@ -1197,19 +1258,98 @@ static int k_cursor(qd_app_t *a, int knob, int d)
     return 1;
 }
 
-/* P1.3q: the STEPS view with no finger on a step (nothing held, or the step latch's selection): PRESETS is a step
- * cursor (SHIFT + PRESETS stays the root, a mode key held its default) */
+/* P1.3y (one meaning a knob; the owner's addition: the layouts as one table of roles, ctl.h QD_KNOBS_*): no finger
+ * on a step (nothing held, or the step latch's selection), every view: SELECT, ALGORITHM and PRESETS do their role in
+ * the layout chosen (A: SELECT the page, ALGORITHM the step cursor, PRESETS the track's preset). SHIFT + ALGORITHM /
+ * PRESETS stay the scale / root; a mode key held its default. KNOB 1..4 go on to the selection's values or the
+ * track's defaults */
+static const uint8_t KNOB_ROLES[QD_NKNOBS][2][3] = {   /* [layout][PIANO ROLL, STEPS / EDIT][SELECT, ALGO, PRESETS] */
+    [QD_KNOBS_A] = {{QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET}, {QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET}},
+    [QD_KNOBS_B] = {{QD_KR_PAGE, QD_KR_VALUE, QD_KR_PRESET}, {QD_KR_PAGE, QD_KR_VALUE, QD_KR_CURSOR}},
+    [QD_KNOBS_C] = {{QD_KR_CURSOR, QD_KR_PAGE, QD_KR_PRESET}, {QD_KR_CURSOR, QD_KR_PAGE, QD_KR_PRESET}},
+    [QD_KNOBS_D] = {{QD_KR_CURSOR, QD_KR_VALUE, QD_KR_PRESET}, {QD_KR_CURSOR, QD_KR_VALUE, QD_KR_PRESET}},
+};
+int qd_ctl_layout_role(int layout, int rows, int knob)
+{
+    if (layout < 0 || layout >= QD_NKNOBS || knob < QD_K_SELECT || knob > QD_K_PRESETS)
+        return QD_KR_NONE;
+    return KNOB_ROLES[layout][rows ? 1 : 0][knob == QD_K_SELECT ? 0 : knob == QD_K_ALGO ? 1 : 2];
+}
+int qd_ctl_knob_role(const qd_app_t *a, int knob)
+{
+    return qd_ctl_layout_role(a->ui.knobs, QD_VIEW_ROWS(a->ui.view), knob);
+}
+const char *qd_ctl_role_name(int role)
+{
+    static const char *const N[QD_NKR] = {"", "PAGE", "CURSOR", "PRESET", "VALUE"};
+    return role > 0 && role < QD_NKR ? N[role] : "";
+}
 static int when_cursor(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
-    return u->mode == QD_MODE_STEP && QD_VIEW_ROWS(u->view) && !u->wk_down && (u->slatch || !u->nheld) &&
-           qd_ctl_mkey(a) < 0 && !qd_ctl_shift(a);
+    return u->mode == QD_MODE_STEP && !u->wk_down && (u->slatch || !u->nheld) && qd_ctl_mkey(a) < 0 &&
+           !qd_ctl_shift(a);
 }
 static int k_steps_cursor(qd_app_t *a, int knob, int d)
 {
-    if (knob != QD_K_PRESETS)
+    switch (qd_ctl_knob_role(a, knob)) {
+    case QD_KR_CURSOR:
+        qd_step_cursor(a, d);
+        return 1;
+    case QD_KR_PRESET:
+        track_sound(a, d);
+        return 1;
+    case QD_KR_PAGE:
+        page_knob(a, d);
+        qd_step_cursor_page(a);
+        return 1;
+    case QD_KR_VALUE:
+        if (a->ui.nheld)
+            return 0;                                   /* (the latch's selection: its value, as a finger: k_held) */
+        if (a->ui.hmode == UI_F_PLOCK) {                /* P-LOCK: the track (P1.3d) */
+            qd_ctl_select_track(a, clampi(a->sel + d, 0, QD_NTRACK - 1));
+            qd_ctl_takeover(a, UI_TK_TRACK, 0, d, 0, -1);
+            return 1;
+        }
+        return qd_step_default_knob(a, d);
+    default:
         return 0;
-    qd_step_cursor(a, d);
+    }
+}
+
+/* P1.3y: the settings menus' knobs (KNOB 1..4 their rows; the encoders nothing) */
+static int when_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
+static int k_menu(qd_app_t *a, int knob, int d)
+{
+    qd_project_t *pr = &a->proj;
+    qd_ui_t *u = &a->ui;
+    if (u->latch == QD_LATCH_REC) {
+        switch (knob) {
+        case QD_K_1: pr->rec_mode = d > 0; break;
+        case QD_K_2: pr->rec_quant = (uint8_t)clampi(pr->rec_quant + d * 5, 0, 100); break;
+        case QD_K_3: pr->rec_dub = d > 0; break;
+        default: break;
+        }
+    } else {
+        switch (knob) {
+        case QD_K_1: u->knobs = clampi(u->knobs + d, 0, QD_NKNOBS - 1); break;
+        case QD_K_2: u->follow = d > 0; break;
+        default: break;
+        }
+    }
+    return 1;
+}
+
+/* P1.3y: FX (printed; TRACKS) held + ALGORITHM: the track, a big track picture while turning (its tap stays the
+ * tracks screen) */
+static int when_fx_held(const qd_app_t *a) { return a->ui.mode != QD_MODE_IDLE && held(a, QD_B_TRACKS); }
+static int k_fx_track(qd_app_t *a, int knob, int d)
+{
+    if (knob != QD_K_ALGO)
+        return 0;
+    a->ui.tracks_tap = 0;
+    qd_ctl_select_track(a, clampi(a->sel + d, 0, QD_NTRACK - 1));
+    qd_ctl_takeover(a, UI_TK_TRACKBIG, 0, d, 0, -1);
     return 1;
 }
 
@@ -1217,9 +1357,11 @@ static const struct {
     qd_when_fn when;
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
+    {when_menu, k_menu},               /* P1.3y: a settings menu: KNOB 1..4 its rows */
     {when_seq, k_seq},                 /* SEQ held: ALGORITHM the launch mode */
     {when_f3, k_f3},                   /* F3: SELECT page, ALGO tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */
-    {when_cursor, k_steps_cursor},     /* P1.3q: STEPS, no finger on a step: PRESETS the step cursor */
+    {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track */
+    {when_cursor, k_steps_cursor},     /* P1.3y: no finger on a step: ALGORITHM cursor, PRESETS preset, SELECT page */
     {when_steps_held, k_held},         /* a step held: SELECT page, ALGORITHM value, PRESETS sound lock, p-locks */
     {when_mkey, k_mkey_knob},          /* a mode key held (P1.3e): its default */
     {when_live, k_live},               /* live recording: the quick page as locks on the step playing */
@@ -1269,10 +1411,14 @@ void qd_ctl_ms(qd_app_t *a)
         }
     }
     if (held(a, QD_B_REC) && !u->rec_down_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS) {
-        u->rec_down_used = 1;                           /* P1.3x: REC held: live recording armed */
+        u->rec_down_used = 1;                           /* P1.3x: REC held: recording armed (P1.3y: in the record
+                                                         * settings' MODE) */
         if (u->mode != QD_MODE_KEYS)
             set_mode(a, QD_MODE_KEYS);
-        qd_rec_arm_live(a);
+        if (a->proj.rec_mode)
+            qd_rec_arm_step(a);
+        else
+            qd_rec_arm_live(a);
     }
     qd_rec_ms(a);
     {   /* page follow: the page edited moves when the playhead goes to another page (a page chosen by hand stays

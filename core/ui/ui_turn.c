@@ -553,6 +553,25 @@ static void d_track(const ui_turn_t *v, qd_rgb col)
     }
 }
 
+/* ---------------------------------------------------------------- TRACKBIG (P1.3y): the track chosen, big */
+static void d_trackbig(const ui_turn_t *v)
+{
+    char n[12];
+    const int t = v->value - 1 < 0 ? 0 : v->value - 1 > 7 ? 7 : v->value - 1;
+    const qd_rgb col = UI_TRACK_PAL[t];
+    int i;
+    ui_T(ui_itoa(n, t + 1), 120.f, 142.f, 110.f, 200, 0.f, col, QD_CENTER);
+    if (v->tname[t]) {
+        const float w = ui_TW(v->tname[t], 28.f, 300, 1.f);
+        ui_T(v->tname[t], 120.f, 182.f, w > 220.f ? 28.f * 220.f / w : 28.f, 300, 1.f, UI_K3, QD_CENTER);
+    }
+    for (i = 0; i < 8; i++) {                           /* the eight tracks, the one chosen lit in its colour */
+        const float x = 26.f + (float)i * 26.f;
+        ui_RR(x - 10.f, 204.f, 20.f, 20.f, 4.f, i == t ? QD_NONE : UI_TRACK_PAL[i], 1.2f, i == t ? UI_TRACK_PAL[i] : QD_NONE);
+        ui_T(ui_itoa(n, i + 1), x, 218.5f, 12.f, 600, 0.f, i == t ? UI_BG : UI_TRACK_PAL[i], QD_CENTER);
+    }
+}
+
 /* ---------------------------------------------------------------- the knob band (P1.3d) */
 void ui_band_draw(const ui_band_t *v)
 {
@@ -629,6 +648,7 @@ void ui_turn_draw(const ui_turn_t *v)
     case UI_TK_SCALE:
     case UI_TK_ROOT: d_scale(v, col); val = 0; break;
     case UI_TK_TRACK: d_track(v, col); val = 0; break;
+    case UI_TK_TRACKBIG: d_trackbig(v); val = 0; break;
     case UI_TK_TSWING:
         metronome(120.f, 128.f, 0.62f, v->beats, v->beat, v->value ? (v->swing > 50 ? v->swing : 62) : 50, 0);
         if (!val[0])

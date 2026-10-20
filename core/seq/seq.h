@@ -52,7 +52,8 @@
  * FUNCTION: none / restart / reverse / forward / flip at random; both rolled with qd_seq_fn_roll (splitmix64 of the
  * pattern's seed, the track, the step's count since its pattern started and a salt: deterministic). JUMP n: the
  * position of the track's step n (a step outside the loop: the loop's start, position 0). A jump does not count a
- * pass. Micro-timing in reverse is mirrored (as Form's nudges): a step plays at -micro. A pattern change in reverse
+ * pass. P1.3y: LEAP n: n positions on from the step's in the playing direction (back for a negative n), round the
+ * loop, a pass at each wrap. Micro-timing in reverse is mirrored (as Form's nudges): a step plays at -micro. A pattern change in reverse
  * starts the new pattern at its loop's last position. A rewind (a pattern change reckoned again) undoes the direction
  * changes of the steps it drops.
  *

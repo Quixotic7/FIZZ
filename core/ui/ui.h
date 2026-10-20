@@ -157,10 +157,15 @@ float ui_keyboard_x(float x0, float w, int lo, int n, int *black);
  * each (the layer maps; no text legends) */
 enum { UI_IC_NONE, UI_IC_CLEAR, UI_IC_COPY, UI_IC_PASTE, UI_IC_UNDO, UI_IC_CUT, UI_IC_BACK, UI_IC_PLAY, UI_IC_STOP,
        UI_IC_DOT, UI_IC_TRI, UI_IC_RESET, UI_IC_SCALE, UI_IC_SWING, UI_IC_REC, UI_IC_NOW, UI_IC_RAMP, UI_IC_STRUM,
-       UI_IC_KEY, UI_IC_LEFT, UI_IC_RIGHT, UI_IC_FLIP, UI_IC_DICE, UI_IC_DICE_FN, UI_IC_JUMP,
+       UI_IC_KEY, UI_IC_LEFT, UI_IC_RIGHT, UI_IC_FLIP, UI_IC_DICE, UI_IC_DICE_FN, UI_IC_JUMP, UI_IC_LEAP,
+       UI_IC_GEAR, UI_IC_VIEWS,         /* P1.3y: a settings menu (a cog); the views (three panes) */
        UI_IC_NOTE };                    /* UI_IC_NOTE + v: a note value's glyph (v 0 1/1 .. 6 1/64) */
 int ui_fn_icon(int func);               /* P1.3w: a step function's icon (UI_IC_NONE for none) */
 #define UI_FN_JUMP 7                    /* (pattern.h's QD_FN_JUMP: JUMP n is UI_FN_JUMP + n) */
+#define UI_FN_LEAP 135                  /* (.. QD_FN_LEAP: LEAP n is UI_FN_LEAP + 15 + n, n -15..15) */
+#define UI_TRACK_COL 0xf03cffu          /* P1.3y: the TRACK colour: a track's default being edited (a frame round the
+                                         * screen, the drawing in it); no mode uses it */
+extern const qd_rgb UI_TRACK_PAL[8];    /* P1.3y: each track's colour (its big picture) */
 void ui_icon(int id, float cx, float cy, float s, qd_rgb col);   /* about 12 x 12 px at s 1, centred */
 typedef struct {
     int icon;                           /* UI_IC_* (NONE with num 0: nothing in this layer) */
@@ -420,21 +425,43 @@ typedef struct {
 void ui_octave_draw(const ui_octave_t *v);
 
 /* ---- SHIFT held (P1.3v: visual): a row per control SHIFT changes here: the control, the job's icon, its value now */
-enum { UI_SC_SELECT, UI_SC_ALGO, UI_SC_PRESETS, UI_SC_REC, UI_SC_F3_ALGO, UI_SC_SEQ_W };
+enum { UI_SC_SELECT, UI_SC_ALGO, UI_SC_PRESETS, UI_SC_REC, UI_SC_F3_ALGO, UI_SC_SEQ_W,
+       UI_SC_SEL, UI_SC_HOME };        /* (P1.3y: SEL's button, HOME's) */
 typedef struct {
     int n;
-    int ctl[6];                         /* UI_SC_* */
-    int icon[6];                        /* UI_IC_*: what it does */
-    const char *val[6];                 /* its value now ("D DORIAN", "D", "55%"), or 0 */
+    int ctl[8];                         /* UI_SC_* */
+    int icon[8];                        /* UI_IC_*: what it does */
+    const char *val[8];                 /* its value now ("D DORIAN", "D", "55%"), or 0 */
 } ui_shift_t;
 void ui_shift_draw(const ui_shift_t *v);
+
+/* ---- P1.3y: the settings menus (latched, OCT- / HOME back; ui_layer.c): a row a knob (its badge, its name, its value
+ * big in the knob's colour) and a drawing of the value.
+ *   REC (SHIFT + REC)      KNOB 1 MODE: LIVE (notes on a line, off the grid) / STEP (a row of cells, the cursor's
+ *                          lit); KNOB 2 QUANTIZE 0..100 %: four notes pulled onto their grid lines by that much;
+ *                          KNOB 3 OVERDUB (the step's notes stay, the new one joins) / REPLACE (they go, crossed)
+ *   SETTINGS (SHIFT + SEL) KNOB 1 KNOBS A..D: the three encoders as SHIFT's badges with each one's role under it (a
+ *                          second line when STEPS / EDIT differ from the PIANO ROLL, each line marked by its view's
+ *                          little picture); KNOB 2 PAGE FOLLOW ON / OFF: pages with the playhead and an arrow */
+enum { UI_MENU_REC, UI_MENU_SET };
+typedef struct {
+    int kind;                           /* UI_MENU_* */
+    int rec_step, quant, dub;           /* REC: MODE STEP (else LIVE), QUANTIZE 0..100, OVERDUB (else REPLACE) */
+    int layout;                         /* SETTINGS: KNOBS (0 A .. 3 D) */
+    const char *role[2][3];             /* .. its roles: [PIANO ROLL, STEPS / EDIT][SELECT, ALGORITHM, PRESETS] */
+    int follow;                         /* .. PAGE FOLLOW */
+    float t;                            /* seconds (the playhead moves) */
+} ui_menu_t;
+void ui_menu_draw(const ui_menu_t *v);
 
 /* ---- a brief full-screen word (CLEARED; UNDONE; COPIED; NO ROOM FOR LOCKS) */
 void ui_confirm_draw(const char *big, const char *small, qd_rgb col);
 
 /* ---- a knob turned: the whole screen (line.html s21..s25, s16; PLAN §9a rule 5) */
 enum { UI_TK_FREQ, UI_TK_DECAY, UI_TK_HARM, UI_TK_FDBK, UI_TK_ALGO, UI_TK_TEMPO, UI_TK_SWING, UI_TK_LEN, UI_TK_RATE,
-       UI_TK_LIMIT, UI_TK_TSWING, UI_TK_PAGE, UI_TK_SCALE, UI_TK_ROOT, UI_TK_OCTAVE, UI_TK_TRACK, UI_NTK };
+       UI_TK_LIMIT, UI_TK_TSWING, UI_TK_PAGE, UI_TK_SCALE, UI_TK_ROOT, UI_TK_OCTAVE, UI_TK_TRACK,
+       UI_TK_TRACKBIG,                  /* P1.3y: FX held + ALGORITHM: the track big (number, name, its colour) */
+       UI_NTK };
 /* (OCTAVE: ui_octave. P1.3d: TRACK, ALGORITHM in P-LOCK with nothing held: the eight tracks, the one chosen boxed) */
 typedef struct {
     int kind;                           /* UI_TK_* */

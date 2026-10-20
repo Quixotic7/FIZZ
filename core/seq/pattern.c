@@ -168,6 +168,9 @@ void qd_project_init(qd_project_t *pr)
     pr->key_scale = QD_SCALE_CHROMATIC;
     pr->key_root = 0;
     pr->launch = 0;                                     /* (QD_LAUNCH_END) */
+    pr->rec_mode = 0;                                   /* P1.3y: LIVE, as played (0 %), REPLACE */
+    pr->rec_quant = 0;
+    pr->rec_dub = 0;
 }
 
 const char *qd_pat_name(int k, char *buf)
@@ -815,7 +818,20 @@ int qd_step_set_func(qd_pattern_t *p, int t, int s, int func)
 const char *qd_fn_name(int f, char *out)
 {
     static const char *const N[QD_FN_JUMP] = {"NONE", "RESTART", "REVERSE", "FORWARD", "FLIP", "RANDOM", "RND FUNC"};
-    if (f >= QD_FN_JUMP && f < QD_NFN) {
+    if (QD_FN_IS_LEAP(f)) {                             /* "LEAP +2", "LEAP -3" */
+        const int n = QD_FN_LEAP_N(f), m = n < 0 ? -n : n;
+        int i = 0;
+        const char *a = "LEAP ";
+        while (*a)
+            out[i++] = *a++;
+        out[i++] = n < 0 ? '-' : '+';
+        if (m >= 10)
+            out[i++] = (char)('0' + m / 10);
+        out[i++] = (char)('0' + m % 10);
+        out[i] = 0;
+        return out;
+    }
+    if (f >= QD_FN_JUMP && f < QD_FN_LEAP) {
         const int n = f - QD_FN_JUMP + 1;
         int i = 0;
         const char *a = "JUMP ";
