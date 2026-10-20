@@ -42,6 +42,20 @@
  * back to it (their unplayed events dropped). Chains (qd_seq_chain): up to 16 patterns, each played for its master
  * length, looped. A pattern with master INF never moves on.
  *
+ * STEP FUNCTIONS (P1.3w; pattern.h QD_FN_*, Form's FUNCTION). A step's function runs when the step fires (after its
+ * condition and chance), as it is resolved, so in resolution order (the look-ahead's): it sets where the track's
+ * cursor goes next. Each track has a DIRECTION (forward; back to forward at PLAY, kept through a pattern change):
+ * reverse walks the loop's positions backwards (each page from its end to its start, the pages in descending order),
+ * a pass counted at each wrap. RESTART: the next position is the loop's start in the playing direction (the first
+ * position forward, the last in reverse) and the passes start again from 0 (A:B, 1ST). REVERSE / FORWARD set the
+ * direction, FLIP turns it, before the step after is reckoned. RANDOM JUMP: a position of the loop at random; RANDOM
+ * FUNCTION: none / restart / reverse / forward / flip at random; both rolled with qd_seq_fn_roll (splitmix64 of the
+ * pattern's seed, the track, the step's count since its pattern started and a salt: deterministic). JUMP n: the
+ * position of the track's step n (a step outside the loop: the loop's start, position 0). A jump does not count a
+ * pass. Micro-timing in reverse is mirrored (as Form's nudges): a step plays at -micro. A pattern change in reverse
+ * starts the new pattern at its loop's last position. A rewind (a pattern change reckoned again) undoes the direction
+ * changes of the steps it drops.
+ *
  * MIDI CLOCK IN (qd_seq_midi_*): 24 pulses a quarter, 8400 ticks each. START begins at tick 0 on the first pulse;
  * between pulses the transport runs at the tempo of the last 24 intervals (smoothed), never past the next pulse's
  * tick (it waits there), and a pulse that arrives while it is behind brings it to its tick at once: the 16ths land on
@@ -117,6 +131,13 @@ typedef struct {
     int idx;                            /* in the track's loop */
     int64_t pass;
     int pre;                            /* PRE */
+    int dir;                            /* P1.3w: -1 reverse, else forward */
+    int dn;                             /* .. its changes by steps resolved (undone by a rewind): grid tick, old dir */
+    int64_t dg[8];
+    int8_t dold[8];
+    int rn, rw;                         /* the last positions resolved (the playhead): grid tick, loop position */
+    int64_t rg[4];
+    int16_t ridx[4];
     int hn, hw;                         /* the history of conditional steps (NEI): count, next write */
     int64_t hg[QD_SEQ_NHIST];
     uint8_t hr[QD_SEQ_NHIST];
@@ -177,6 +198,9 @@ typedef struct {
 
 void qd_seq_init(qd_seq_t *s, qd_project_t *proj, qd_model_t *model);
 void qd_seq_seed(qd_seq_t *s, uint64_t seed);
+/* P1.3w: a step function's roll: splitmix64 of seed ^ track << 56 ^ n ^ salt << 40, mod m (salt 1: RANDOM JUMP's
+ * position, 2: RANDOM FUNCTION's choice) */
+uint32_t qd_seq_fn_roll(uint64_t seed, int track, int64_t n, int salt, uint32_t m);
 uint32_t qd_seq_roll(uint64_t seed, int track, int64_t n);   /* 0..99 */
 void qd_seq_tempo_mbpm(qd_seq_t *s, int32_t mbpm);  /* 30000..300000 */
 int qd_seq_bpm(const qd_seq_t *s);      /* the tempo now, rounded (the MIDI clock's when following it) */

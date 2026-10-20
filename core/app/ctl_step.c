@@ -58,7 +58,8 @@ static const uint8_t VK_VEL[10] = {13, 25, 38, 51, 64, 76, 89, 102, 114, 127};
 static const uint8_t VK_LEN[10] = {1, 2, 3, 4, 5, 6, 8, 10, 12, QD_LEN_INF};   /* 1/4 1/2 3/4 1 1.5 2 4 8 16 INF */
 static const int8_t VK_MICRO[10] = {-20, -15, -10, -5, -2, 2, 5, 10, 15, 20};
 static const uint8_t MODE_PM[UI_NFIELD] = {QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
-                                           QD_PM_COND, QD_PM_TRIG, QD_PM_SOUND, QD_NPM, QD_NPM};   /* (B10: none) */
+                                           QD_PM_COND, QD_PM_TRIG, QD_NPM, QD_PM_SOUND, QD_NPM};   /* (FUNC: no
+                                                         * override bit, P1.3w) */
 
 /* ---- P-LOCK's hook: the screens' lockable knobs, one table a screen */
 static const qd_lockknob_t STEPVIEW_LOCKS[] = {
@@ -124,7 +125,7 @@ void qd_step_release_all(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     u->nheld = 0;
-    u->wk_down = u->wk_pending = 0;
+    u->wk_down = u->wk_pending = u->wk_target = 0;
     u->note_keys = 0;
     u->scursor = 0;
     if (u->tk == QD_TK_HELDKNOB)                        /* (the band of a step no longer held) */
@@ -222,10 +223,32 @@ void qd_step_promote_all(qd_app_t *a) { promote_ordered(a, 0); }
 void qd_step_promote_due(qd_app_t *a) { promote_ordered(a, 1); }
 
 /* ---------------------------------------------------------------- the white keys --- */
+/* P1.3w (Form's gesture): in FUNC, a W pressed while the steps held (or selected) include a jump (RANDOM or JUMP n)
+ * makes its step their target (JUMP n); it is not held, not tapped. 1: taken */
+static int jump_target(qd_app_t *a, int w)
+{
+    qd_ui_t *u = &a->ui;
+    const int s = step_of(a, w);
+    int i, any = 0;
+    if (u->hmode != UI_F_FUNC || !u->nheld || held_find(u, s) >= 0)
+        return 0;
+    for (i = 0; i < u->nheld; i++)
+        any |= QD_FN_IS_JUMP(qd_step(CPAT(a), a->sel, u->held[i])->func);
+    if (!any)
+        return 0;
+    for (i = 0; i < u->nheld; i++)
+        if (QD_FN_IS_JUMP(qd_step(CPAT(a), a->sel, u->held[i])->func))
+            qd_step_set_func(PAT(a), a->sel, u->held[i], QD_FN_JUMP + s);
+    u->wk_target |= (uint16_t)(1u << w);
+    return 1;
+}
+
 void qd_step_white_down(qd_app_t *a, int w)
 {
     qd_ui_t *u = &a->ui;
     const uint16_t bit = (uint16_t)(1u << w);
+    if (jump_target(a, w))
+        return;
     if (qd_ctl_shift(a) && !u->nheld && !u->wk_pending)
         return;                                         /* SHIFT + W: free (question 38) */
     if (u->slatch) {                                    /* the step latch (P1.3f): a gesture's keys replace the
@@ -274,6 +297,10 @@ void qd_step_white_up(qd_app_t *a, int w)
     qd_ui_t *u = &a->ui;
     const uint16_t bit = (uint16_t)(1u << w);
     int i;
+    if (u->wk_target & bit) {                           /* (P1.3w: a jump's target: nothing more) */
+        u->wk_target &= (uint16_t)~bit;
+        return;
+    }
     if (!(u->wk_down & bit))
         return;
     u->wk_down &= (uint16_t)~bit;
@@ -366,6 +393,10 @@ static void value_set(qd_app_t *a, int s, int m, int b)
         if (b < 3)
             qd_step_set_trig(p, t, s, QD_TRIG_NOTE + b);
         break;
+    case UI_F_FUNC:                                     /* P1.3w: B1 none, B2 RESTART .. B7 RANDOM FUNCTION */
+        if (b < QD_FN_JUMP)
+            qd_step_set_func(p, t, s, b);
+        break;
     case UI_F_SOUND: {
         const int k = a->ui.sound_bank * 10 + b + 1;
         if (k <= a->proj.nsound)
@@ -417,6 +448,10 @@ void qd_step_value_key(qd_app_t *a, int b, int down)
     }
     if (b == 10) {                                      /* B11: the mode back to the track's */
         for (i = 0; i < u->nheld; i++) {
+            if (m == UI_F_FUNC) {                       /* (P1.3w: no default: none) */
+                qd_step_set_func(PAT(a), a->sel, u->held[i], QD_FN_NONE);
+                continue;
+            }
             qd_step_reset(PAT(a), a->sel, u->held[i], MODE_PM[m]);
             if (m == UI_F_MICRO)
                 qd_step_reset(PAT(a), a->sel, u->held[i], QD_PM_STRUM);
@@ -590,6 +625,7 @@ static void fine(qd_app_t *a, int s, int m, int d, int shift)
     case UI_F_CHNC: qd_step_set_chance(p, t, s, clampi(r.chance + d, 0, 100)); break;
     case UI_F_COND: qd_step_set_cond(p, t, s, clampi(r.cond + d, 0, QD_NCOND - 1)); break;
     case UI_F_TRIG: qd_step_set_trig(p, t, s, clampi((r.on ? r.type : QD_TRIG_NOTE) + d, QD_TRIG_NOTE, QD_TRIG_TIE)); break;
+    case UI_F_FUNC: qd_step_set_func(p, t, s, clampi(r.func + d, 0, QD_NFN - 1)); break;   /* the seven, JUMP 1..128 */
     default: break;
     }
 }
@@ -810,7 +846,7 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
     qd_step_promote_all(a);
     if (!u->nheld)
         return 0;
-    if (m == UI_F_PLOCK) {
+    if (m == UI_F_PLOCK || (m == UI_F_FUNC && knob == QD_K_SELECT)) {   /* (P1.3w: FUNC's SELECT the page too) */
         if (knob == QD_K_SELECT) {
             qd_ctl_set_page(a, u->page[a->sel] + d);
             if (!QD_VIEW_ROWS(u->view))                 /* (P1.3g: STEPS / EDIT show the pages: no picker) */
@@ -936,8 +972,9 @@ unsigned qd_step_modes_set(const qd_app_t *a, int t, int page)
         const qd_step_t *st = qd_step(p, t, s);
         if (!qd_step_is_on(st) || !qd_page_in_range(&p->trk[t], s))
             continue;
-        for (k = 0; k < UI_F_B10; k++)
-            if (qd_step_overrides(st, MODE_PM[k]) || (k == UI_F_MICRO && qd_step_overrides(st, QD_PM_STRUM)))
+        for (k = 0; k < UI_F_PLOCK; k++)
+            if (k == UI_F_FUNC ? st->func != 0
+                               : qd_step_overrides(st, MODE_PM[k]) || (k == UI_F_MICRO && qd_step_overrides(st, QD_PM_STRUM)))
                 m |= 1u << k;
         if (st->flags & QD_SF_LOCKS)
             m |= 1u << UI_F_PLOCK;

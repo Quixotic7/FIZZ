@@ -155,9 +155,8 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     }
     {   /* the hold modes */
         const unsigned set = qd_step_modes_set(a, a->sel, page);
-        for (i = 0; i < UI_NFIELD; i++)                 /* (B11: P-LOCK, P1.3c; B10 reserved, off: P1.3d) */
-            out->key[QD_BLACK_KEY[i]] = i == UI_F_B10 ? QD_LED_OFF : i == u->hmode ? QD_LED_LIT
-                                      : ((set >> i) & 1u) ? QD_LED_DIM : QD_LED_FAINT;
+        for (i = 0; i < UI_NFIELD; i++)                 /* (B11: P-LOCK, P1.3c; P1.3w: B9 FUNC, B10 SOUND) */
+            out->key[QD_BLACK_KEY[i]] = i == u->hmode ? QD_LED_LIT : ((set >> i) & 1u) ? QD_LED_DIM : QD_LED_FAINT;
     }
 }
 

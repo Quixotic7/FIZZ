@@ -114,11 +114,12 @@ void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fil
 
 /* ---- P1.3b: the hold modes, line.html's headTrack, lock, knobMark and keyboard's pos, the black keys' strip */
 const char *const UI_FIELD_NAME[UI_NFIELD] = {"NOTE", "VEL", "LEN", "MICRO", "RATCH", "CHNC", "COND", "TRIG",
-                                              "SOUND", "", "P-LOCK"};
+                                              "FUNC", "SOUND", "P-LOCK"};
 /* a colour a mode, all bright on black and none of them red (red is the playhead); P-LOCK (P1.3c) takes LOCKS' sand:
  * the padlock's colour everywhere (P1.3d: LOCKS is gone, B10 reserved; its slot keeps the sand) */
 const qd_rgb UI_MODE_COL[UI_NFIELD] = {0x3f7dffu, 0x1fd47eu, 0x36d6e7u, 0xa879ffu, 0xff6a2cu,
-                                       0xffd23fu, 0xff52c0u, 0xf1f0eau, 0xb5e853u, 0xd8c39au, 0xd8c39au};
+                                       0xffd23fu, 0xff52c0u, 0xf1f0eau, 0x9fe6ffu, 0xb5e853u, 0xd8c39au};   /* (P1.3w:
+                                                         * FUNC ice blue at B9, SOUND's lime at B10) */
 
 /* headTrack(c, left, n, name, lcol): a held step: STEP 5 · FIELD left, [n] the track right */
 void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol)
@@ -127,6 +128,12 @@ void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol)
     ui_T(left, 8.f, 18.f, 12.f, 600, 0.8f, lcol, QD_LEFT);
     ui_T(name, 232.f, 18.f, 12.f, 500, 0.8f, UI_G1, QD_RIGHT);
     ui_box(232.f - w - 22.f, 5.f, n, UI_G1);
+}
+
+int ui_fn_icon(int f)
+{
+    static const int IC[7] = {UI_IC_NONE, UI_IC_RESET, UI_IC_LEFT, UI_IC_RIGHT, UI_IC_FLIP, UI_IC_DICE, UI_IC_DICE_FN};
+    return f >= 7 ? UI_IC_JUMP : f > 0 ? IC[f] : UI_IC_NONE;
 }
 
 /* the strip's keys: 18 px wide, 2 apart in a group, the groups 3 | 2 | 3 | 2 six apart, B11 eight further */
@@ -254,6 +261,46 @@ void ui_icon(int id, float cx, float cy, float s, qd_rgb c)
     case UI_IC_KEY:                                     /* a white key: a tall rounded cell */
         ui_RR(cx - 3.5f * s, cy - 7.f * s, 7.f * s, 14.f * s, 1.5f, c, 1.1f, QD_NONE);
         break;
+    case UI_IC_LEFT:                                    /* P1.3w: REVERSE: an arrow left */
+    case UI_IC_RIGHT: {                                 /* FORWARD: an arrow right */
+        const float k = id == UI_IC_LEFT ? -1.f : 1.f;
+        const float a[6] = {cx + k * 1.f * s, cy - 4.f * s, cx + k * 5.f * s, cy, cx + k * 1.f * s, cy + 4.f * s};
+        ln(cx - 5.f * s, cy, cx + 5.f * s, cy, c, 1.4f);
+        ui_P(a, 3, c, 1.4f, 0, QD_NONE);
+        break;
+    }
+    case UI_IC_FLIP: {                                  /* FLIP: an arrow each way, one over the other */
+        const float a[6] = {cx + 2.f * s, cy - 6.f * s, cx + 5.f * s, cy - 3.f * s, cx + 2.f * s, cy};
+        const float b[6] = {cx - 2.f * s, cy, cx - 5.f * s, cy + 3.f * s, cx - 2.f * s, cy + 6.f * s};
+        ln(cx - 5.f * s, cy - 3.f * s, cx + 5.f * s, cy - 3.f * s, c, 1.3f);
+        ln(cx - 5.f * s, cy + 3.f * s, cx + 5.f * s, cy + 3.f * s, c, 1.3f);
+        ui_P(a, 3, c, 1.3f, 0, QD_NONE);
+        ui_P(b, 3, c, 1.3f, 0, QD_NONE);
+        break;
+    }
+    case UI_IC_DICE:                                    /* RANDOM JUMP: a die (three pips) */
+    case UI_IC_DICE_FN:                                 /* RANDOM FUNCTION: a die (four pips) */
+        ui_RR(cx - 5.5f * s, cy - 5.5f * s, 11.f * s, 11.f * s, 2.5f * s, c, 1.2f, QD_NONE);
+        if (id == UI_IC_DICE) {
+            ui_O(cx - 2.6f * s, cy - 2.6f * s, 1.1f * s, QD_NONE, 1.f, c);
+            ui_O(cx, cy, 1.1f * s, QD_NONE, 1.f, c);
+            ui_O(cx + 2.6f * s, cy + 2.6f * s, 1.1f * s, QD_NONE, 1.f, c);
+        } else {
+            ui_O(cx - 2.5f * s, cy - 2.5f * s, 1.1f * s, QD_NONE, 1.f, c);
+            ui_O(cx + 2.5f * s, cy - 2.5f * s, 1.1f * s, QD_NONE, 1.f, c);
+            ui_O(cx - 2.5f * s, cy + 2.5f * s, 1.1f * s, QD_NONE, 1.f, c);
+            ui_O(cx + 2.5f * s, cy + 2.5f * s, 1.1f * s, QD_NONE, 1.f, c);
+        }
+        break;
+    case UI_IC_JUMP: {                                  /* JUMP n: an arc over, landing */
+        const float a[6] = {cx + 2.f * s, cy + 1.f * s, cx + 5.f * s, cy + 4.f * s, cx + 7.f * s, cy};
+        qd_path_begin();
+        qd_move_to(cx - 6.f * s, cy + 4.f * s);
+        qd_quad_to(cx - 1.f * s, cy - 9.f * s, cx + 5.f * s, cy + 4.f * s);
+        qd_path_stroke(c, 1.3f);
+        ui_P(a, 3, c, 1.3f, 0, QD_NONE);
+        break;
+    }
     default:
         if (id >= UI_IC_NOTE && id < UI_IC_NOTE + 7)
             note_glyph(id - UI_IC_NOTE, cx, cy, s, c);

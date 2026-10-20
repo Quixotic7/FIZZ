@@ -50,6 +50,14 @@
  *               p24-launch    the launch modes BAR, BEAT, END, NOW (the reference reckons each change point)
  *               p28-six       (P1.3e) six notes a step: together, strummed, ratcheted, offsets to +48; a six-note
  *                             default changed while playing; a TIE of six; the six-note chord names
+ *               p29-func      (P1.3w) the step functions: RESTART (with a 1:2 step: the passes from 0), REVERSE /
+ *                             FORWARD (micro mirrored in reverse), FLIP twice, JUMP into the loop and to a page
+ *                             outside it (the loop's start), RANDOM JUMP and RANDOM FUNCTION (seed 7), a REVERSE gated
+ *                             by 1:2 and a FORWARD by a 50 % chance, FLIP in an 8-step loop; a LOCK step's REVERSE
+ *                             (a ghost trig: it runs)
+ *               p30-func-change  (P1.3w) a pattern change while a track plays in reverse: the next pattern starts at
+ *                             its loop's last position and goes on backwards; a REVERSE resolved ahead of the
+ *                             change and dropped by it does not count
  *               p25..p27      every rate: the seven bases 1/1 .. 1/64, normal, dotted, triplet, with micro, ratchet x8,
  *                             strum, 1/8-step lengths and swing at each
  *
@@ -338,6 +346,7 @@ static int compare_ref(const char *name, int tol)
 typedef struct { int nn, notes[QD_NNOTE], vel, len, micro, ratch, ramp, chance, cond, type, strum; } TD;
 typedef struct {
     int t, s, type, nn, notes[QD_NNOTE], vel, len, micro, ratch, ramp, cond, chance, sound, strum, nlk;
+    int func;                           /* P1.3w: the step function (QD_FN_*) */
     int lk_id[8], lk_v[8];
     int ovr;
     int sc, sc_oct, sc_n, sc_deg[QD_NNOTE];
@@ -583,6 +592,8 @@ static void build(const TP *tp, int k)
             r |= qd_lock_set(P, s->t, s->s, s->lk_id[k2], s->lk_v[k2]);
         if (HAS(QD_PM_TRIG) && s->type != QD_TRIG_NOTE)   /* (its type again, after the setters) */
             r |= qd_step_set_trig(P, s->t, s->s, s->type);
+        if (s->func)                                    /* P1.3w */
+            r |= qd_step_set_func(P, s->t, s->s, s->func);
         CHECK(r == QD_OK, "build: track %d step %d: %d", s->t, s->s, r);
         {   /* (sound 0 is the track's sound: no override; a step with no notes keeps the track's) */
             const int want = s->ovr & ~(s->sound ? 0 : QD_OV(QD_PM_SOUND)) & ~(nn ? 0 : QD_OV(QD_PM_NOTE));
@@ -621,6 +632,13 @@ static int r_roll(uint64_t seed, int64_t origin_ticks, int t, int64_t n)
 {
     const uint64_t s = r_mix64(seed ^ (uint64_t)origin_ticks);
     return (int)(r_mix64(s ^ ((uint64_t)t << 56) ^ (uint64_t)n) % 100u);
+}
+/* P1.3w: a step function's roll, by hand: splitmix64 of the pattern's seed (as the chance's) ^ track << 56 ^ n ^
+ * salt << 40, mod m */
+static int r_fn_roll(uint64_t seed, int64_t origin_ticks, int t, int64_t n, int salt, int m)
+{
+    const uint64_t s = r_mix64(seed ^ (uint64_t)origin_ticks);
+    return (int)(r_mix64(s ^ ((uint64_t)t << 56) ^ (uint64_t)n ^ ((uint64_t)salt << 40)) % (uint64_t)m);
 }
 static uint32_t r_fnv(const int16_t *p)
 {
@@ -895,9 +913,11 @@ static int r_cond_ab(int cond, int *a, int *b)          /* the table: 1:2, 2:2, 
 /* every raw event of the segments, up to tick end */
 static void r_generate(const rseg_t *seg, int nseg, int64_t end)
 {
-    int si, t;
+    int si, t, rdir[8];
     NRAW_ = 0;
     NRSTEP = 0;
+    for (t = 0; t < 8; t++)                             /* P1.3w: forward from PLAY, kept through pattern changes */
+        rdir[t] = 1;
     for (si = 0; si < nseg; si++) {
         const TP *tp = seg[si].tp;
         int64_t hg[8][2048];                            /* the conditional steps' grids and results, per track */
@@ -910,17 +930,17 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
             const int len = r_walk(tt, walk);
             int64_t n;
             int pre = 0;
+            int idx = rdir[t] < 0 ? len - 1 : 0;        /* P1.3w: the loop position (swing's parity), as state */
+            int64_t pass = 0;                           /* the loop's passes (A:B, 1ST) */
             for (n = 0;; n++) {
                 const int64_t g = seg[si].o + n * L;
-                const int idx = (int)(n % len);         /* the loop position (swing's parity) */
-                const int64_t pass = n / len;           /* the loop's passes (A:B, 1ST) */
                 const TS *s;
-                int ok = 1, a, b, conditional;
+                int ok = 1, a, b, conditional, fired = 0, fn = 0;
                 if ((seg[si].e >= 0 && g >= seg[si].e) || g >= end)
                     break;
                 s = r_step_at(tp, t, walk[idx]);
                 if (!s)
-                    continue;
+                    goto adv;
                 s = r_resolve(tp, tt, s, g, L);
                 switch (s->cond) {
                 case QD_COND_ALWAYS: ok = 1; break;
@@ -957,10 +977,12 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
                     hr[t][hn[t]++] = ok;
                 }
                 if (!ok)
-                    continue;
+                    goto adv;
+                fired = 1;
+                fn = s->func;
                 {
                     const int64_t swing = tt->swing && (idx & 1) ? (int64_t)(tp->swing - 50) * L / 50 : 0;
-                    const int64_t start = g + swing + (int64_t)s->micro * L / 24;
+                    const int64_t start = g + swing + (int64_t)(rdir[t] < 0 ? -s->micro : s->micro) * L / 24;
                     const double lenf = R_LEN[s->len];
                     const int64_t gate_all = lenf < 0 ? -1 : (int64_t)llround(lenf * (double)L);
                     int notes[QD_NNOTE], k, h;
@@ -992,7 +1014,7 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
                         r->ts = s;
                         r->pat = seg[si].k;
                         r->seq = NRAW_;
-                        continue;
+                        goto adv;
                     }
                     for (h = 0; h < s->ratch; h++) {
                         const int64_t slice = L / s->ratch;
@@ -1032,6 +1054,41 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
                             r->pat = seg[si].k;
                             r->seq = NRAW_;
                         }
+                    }
+                }
+            adv:                                        /* P1.3w: the next position, by the step's function */
+                {
+                    int f = fired ? fn : 0, jumped = 1;
+                    if (f == QD_FN_RFUNC)
+                        f = r_fn_roll(R_SEED, seg[si].o, t, n, 2, 5);
+                    if (f == QD_FN_RESTART) {
+                        idx = rdir[t] < 0 ? len - 1 : 0;
+                        pass = 0;
+                    } else if (f == QD_FN_RJUMP) {
+                        idx = r_fn_roll(R_SEED, seg[si].o, t, n, 1, len);
+                    } else if (f >= QD_FN_JUMP) {       /* its place in the walk; not in it: the start */
+                        int k, at = 0;
+                        for (k = 0; k < len; k++)
+                            if (walk[k] == f - QD_FN_JUMP) {
+                                at = k;
+                                break;
+                            }
+                        idx = at;
+                    } else {
+                        jumped = 0;
+                        if (f == QD_FN_REVERSE)
+                            rdir[t] = -1;
+                        else if (f == QD_FN_FORWARD)
+                            rdir[t] = 1;
+                        else if (f == QD_FN_FLIP)
+                            rdir[t] = -rdir[t];
+                    }
+                    if (!jumped) {
+                        idx += rdir[t];
+                        if (idx >= len)
+                            idx = 0, pass++;
+                        else if (idx < 0)
+                            idx = len - 1, pass++;
                     }
                 }
             }
@@ -1354,6 +1411,8 @@ static void pattern_test(const char *name, const char *title, double sec, uint64
 /* ================================================================ the timelines === */
 static void p_five(void);
 static void p_launch(void);
+static void p_func(void);
+static void p_func_change(void);
 static void p_rates(void);
 static void p_sixteenths(void)
 {
@@ -2229,7 +2288,7 @@ static void u_edit(void)
     qd_tdef_set(&P, 2, QD_PM_NOTE, 50);
     qd_tdef_set(&P, 2, QD_PM_VEL, 90);
     qd_tdef_set(&P, 2, QD_PM_LEN, 6);
-    CHECK(sizeof(qd_step_t) == 18 && sizeof(qd_lock_t) == 4, "step 18 bytes (%d), lock 4 (%d)",
+    CHECK(sizeof(qd_step_t) == 20 && sizeof(qd_lock_t) == 4, "step 20 bytes (P1.3w; %d), lock 4 (%d)",
           (int)sizeof(qd_step_t), (int)sizeof(qd_lock_t));
     rr = qd_step_on(&P, 2, 5);
     st = qd_step(&P, 2, 5);
@@ -3150,6 +3209,121 @@ int main(int argc, char **argv)
     p_launch();
     p_rates();
     p_six();
+    p_func();
+    p_func_change();
     printf("test_seq: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
+}
+
+/* ================================================================ P1.3w: the step functions === */
+static void p_func(void)
+{
+    TP *p = tp_new(0, 120);
+    int k;
+    TS *st;
+    for (k = 0; k < 16; k++)                            /* track 1: RESTART at step 5; a 1:2 step at 3 (always pass 0) */
+        S(p, 0, k, QD_TRIG_NOTE, 48 + k, 0, 0, 0);
+    p->st[4].func = QD_FN_RESTART;
+    p->st[2].cond = QD_COND_AB;                         /* 1:2 */
+    for (k = 0; k < 16; k++) {                          /* track 2: REVERSE at 4, FORWARD at 12 (reached backwards),
+                                                         * micro on some steps (mirrored in reverse) */
+        st = S(p, 1, k, QD_TRIG_NOTE, 60 + k, 0, 0, 0);
+        st->micro = k % 3 == 0 ? 6 : k % 3 == 1 ? -4 : 0;
+        if (k == 4)
+            st->func = QD_FN_REVERSE;
+        if (k == 12)
+            st->func = QD_FN_FORWARD;
+    }
+    for (k = 0; k < 16; k++) {                          /* track 3: FLIP at 6 and at 10 */
+        st = S(p, 2, k, QD_TRIG_NOTE, 72 + k, 0, 0, 0);
+        if (k == 6 || k == 10)
+            st->func = QD_FN_FLIP;
+    }
+    p->trk[3].pages = 1;                                /* track 4: pages 1 and 2 looped; JUMP to step 25 (page 2)
+                                                         * and to step 40 (page 3: outside the loop: the start) */
+    p->trk[3].loop = 3;
+    for (k = 0; k < 8; k++)
+        p->trk[3].pstart[k] = 0, p->trk[3].pend[k] = 15;
+    for (k = 0; k < 32; k += 3)
+        S(p, 3, k, QD_TRIG_NOTE, 36 + k, 0, 0, 0);
+    st = S(p, 3, 4, QD_TRIG_NOTE, 90, 0, 0, 0);
+    st->func = QD_FN_JUMP + 25;
+    st = S(p, 3, 29, QD_TRIG_NOTE, 91, 0, 0, 0);
+    st->func = QD_FN_JUMP + 40;
+    for (k = 0; k < 16; k++) {                          /* track 5: RANDOM JUMP at 7 */
+        st = S(p, 4, k, QD_TRIG_NOTE, 40 + k, 0, 0, 0);
+        if (k == 7)
+            st->func = QD_FN_RJUMP;
+    }
+    for (k = 0; k < 16; k++) {                          /* track 6: RANDOM FUNCTION at 3 and 11 */
+        st = S(p, 5, k, QD_TRIG_NOTE, 84 + (k % 12), 0, 0, 0);
+        if (k == 3 || k == 11)
+            st->func = QD_FN_RFUNC;
+    }
+    for (k = 0; k < 16; k++) {                          /* track 7: REVERSE at 6 gated by 1:2; FORWARD at 1 with 50 % */
+        st = S(p, 6, k, QD_TRIG_NOTE, 50 + k, 0, 0, 0);
+        if (k == 6) {
+            st->func = QD_FN_REVERSE;
+            st->cond = QD_COND_AB;
+        }
+        if (k == 1) {
+            st->func = QD_FN_FORWARD;
+            st->chance = 50;
+        }
+    }
+    p->trk[7].length = 8;                               /* track 8: 8 steps, FLIP at 6 (a short loop's wraps) */
+    for (k = 0; k < 8; k++)
+        S(p, 7, k, QD_TRIG_NOTE, 64 + k, 0, 0, 0);
+    p->st[p->n - 2].func = QD_FN_FLIP;                  /* (step 6) */
+    pattern_test("p29-func", "the step functions: RESTART, REVERSE / FORWARD with micro mirrored, FLIP twice, JUMP in "
+                 "and out of the loop, RANDOM JUMP, RANDOM FUNCTION (seed 7), functions gated by 1:2 and 50 %, FLIP in an "
+                 "8-step loop", 8.0, 7);
+    {   /* a LOCK step's function (Form's ghost trig): it runs (the direction reversed), no note */
+        TP *q = tp_new(0, 120);
+        for (k = 0; k < 16; k++)
+            S(q, 0, k, k == 2 ? QD_TRIG_LOCK : QD_TRIG_NOTE, k == 2 ? 0 : 60, 0, 0, 0);
+        q->st[2].func = QD_FN_REVERSE;
+        run_pattern(1.0, 1);
+        CHECK(SEQ.cur_t[0].dir < 0, "a LOCK step's REVERSE runs (the track plays backwards)");
+    }
+}
+
+/* p30: a pattern change during reverse: A's track 1 reverses at its step 3; B (queued at 0.6 s) takes over at A's
+ * end (2 s) and its track 1 starts at its loop's last position, backwards */
+static void p_func_change(void)
+{
+    TP *a = tp_new(0, 120), *b = tp_new(1, 120);
+    rseg_t seg[2];
+    int k, n0 = fails;
+    for (k = 0; k < 16; k++)
+        S(a, 0, k, QD_TRIG_NOTE, 48 + k, 0, 0, 0);
+    a->st[2].func = QD_FN_REVERSE;
+    for (k = 0; k < 16; k += 2)
+        S(a, 1, k, QD_TRIG_NOTE, 72, 0, 0, 0);
+    for (k = 0; k < 16; k++)
+        S(b, 0, k, QD_TRIG_NOTE, 60 + k, 0, 0, 0);
+    b->st[9].func = QD_FN_FORWARD;                      /* (B's step 10: forward again) */
+    b->st[15].micro = 8;                                /* (B's last step, played first, mirrored) */
+    rig_reset();
+    build(a, 0);
+    build(b, 1);
+    qd_model_tempo(&MODEL, 120);
+    qd_seq_seed(&SEQ, 3);
+    qd_seq_select(&SEQ, 0, 0);
+    qd_seq_play(&SEQ);
+    while (SEQ.now < 5 * 44100) {
+        if (SEQ.now == 26432)                           /* (0.599 s, block-aligned) */
+            qd_seq_select(&SEQ, 1, 0);
+        rig_block(0);
+    }
+    seg[0] = (rseg_t){a, 0, 0, 16 * QD_TPS};
+    seg[1] = (rseg_t){b, 1, 16 * QD_TPS, -1};
+    R_BPM = 120;
+    R_SEED = 3;
+    r_generate(seg, 2, (int64_t)12 * 8 * QD_TPS);
+    r_replay((int64_t)SEQ.now);                         /* (the engine's last block, whole) */
+    timeline("p30-func-change", "A's track 1 reverses at step 3; B queued at 0.6 s takes over at 2 s, its track 1 from "
+             "its last position backwards (step 16's micro mirrored), forward again at step 10");
+    compare_ref("p30-func-change", 1);
+    printf("  %-4s %-16s %5d events, reference %d\n", fails == n0 ? "ok" : "FAIL", "p30-func-change", NENG, NREF);
 }

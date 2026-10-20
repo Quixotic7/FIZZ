@@ -418,6 +418,36 @@ static void l_sound(const ui_lane_t *v)
     }
 }
 
+/* ---------------------------------------------------------------- FUNC (P1.3w): an icon a step */
+static void l_func(const ui_lane_t *v)
+{
+    const float y = 112.f;
+    char s[12];
+    int i;
+    for (i = 0; i < 16; i++) {
+        const ui_lcol_t *c = &v->col[i];
+        const float cx = col_x(i) + 6.f;
+        const qd_rgb col = c->lit ? UI_K3 : c->func ? UI_MODE_COL[UI_F_FUNC] : UI_G2;
+        if (!c->in_range || !c->on)
+            continue;
+        if (!c->func) {
+            ui_O(cx, y, 1.6f, QD_NONE, 1.f, UI_G2);
+            continue;
+        }
+        ui_icon(ui_fn_icon(c->func), cx, y, 0.95f, col);
+        if (c->func >= UI_FN_JUMP) {                    /* JUMP n: its target's number, stacked, 12 px */
+            int k;
+            char ch[2];
+            ch[1] = 0;
+            ui_itoa(s, c->func - UI_FN_JUMP + 1);
+            for (k = 0; s[k]; k++) {
+                ch[0] = s[k];
+                ui_T(ch, cx, y + 22.f + (float)k * 13.f, 12.f, 600, 0.f, col, QD_CENTER);
+            }
+        }
+    }
+}
+
 /* ---------------------------------------------------------------- the lane */
 static void lane(const ui_lane_t *v)
 {
@@ -447,6 +477,7 @@ static void lane(const ui_lane_t *v)
     case UI_F_COND: l_cond(v); break;
     case UI_F_TRIG: l_trig(v); break;
     case UI_F_SOUND: l_sound(v); break;
+    case UI_F_FUNC: l_func(v); break;
     default: l_note(v); break;
     }
     if (ph >= 0 && ph < 16) {                           /* the playhead */
@@ -608,6 +639,8 @@ static float steps_row(const ui_lane_t *v, int p, float y, float g, float open)
                     }
                 }
             }
+            if ((c & UI_C_FUNC) && (c & UI_C_RANGE))   /* P1.3w: a step function: a dot in FUNC's colour */
+                ui_O(x + OV_W - 1.5f, cy + 1.5f, 2.f, UI_BG, 1.f, UI_MODE_COL[UI_F_FUNC]);
             if (abs == ph && g < 0.5f)                  /* the playhead on a folded row: a red tick under the cell
                                                          * (P1.3s: no outline, which only the selection has) */
                 line2(x + 2.f, cy + ch + 1.5f, x + OV_W - 2.f, cy + ch + 1.5f, UI_RED, 1.5f);

@@ -579,6 +579,32 @@ static void f_trig(const ui_held_t *v, const pal_t *p)
     (void)TXT;                                          /* (P1.3v: no sentence under them) */
 }
 
+/* ---------------------------------------------------------------- FUNC (P1.3w) */
+/* the function big as its icon, its one-word name under it (the full screen; EDIT has it in the head); a jump: its
+ * target on a strip of the target's page (its number at the left) */
+static void f_func(const ui_held_t *v, const pal_t *p)
+{
+    const int ic = ui_fn_icon(v->func);
+    if (ic == UI_IC_NONE)
+        ui_O(120.f, 96.f, 6.f, p->k[0], 1.5f, QD_NONE);  /* none: an empty ring */
+    else
+        ui_icon(ic, 120.f, 96.f, 5.f, p->k[0]);
+    if (!p->nobig && v->func_name[0])
+        ui_T(v->func_name, 120.f, 166.f, 34.f, 200, 0.f, p->k[0], QD_CENTER);
+    if (v->func >= UI_FN_JUMP) {
+        char n[12];
+        int i;
+        ui_T(ui_itoa(n, v->jump_page + 1), 16.f, 206.f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
+        for (i = 0; i < 16; i++) {
+            const float x = 28.f + (float)i * 12.5f + (float)(i / 4) * 2.f;
+            const int tgt = i == v->jump_step;
+            ui_RR(x, 194.f, 10.f, 16.f, 2.f, tgt ? QD_NONE : UI_G2, 1.f, tgt ? p->k[0] : QD_NONE);
+            if (!tgt && v->jump_trig[i])
+                ui_O(x + 5.f, 202.f, 1.6f, QD_NONE, 1.f, UI_G1);
+        }
+    }
+}
+
 /* ---------------------------------------------------------------- the frame */
 /* the mode that owns a mode's second part */
 static int other_mode(int field)
@@ -650,6 +676,7 @@ static void held_body(const ui_held_t *v, const pal_t *p, int field)
     case UI_F_CHNC: f_cond(v, p); break;
     case UI_F_SOUND: f_sound(v, p); break;
     case UI_F_TRIG: f_trig(v, p); break;
+    case UI_F_FUNC: f_func(v, p); break;
     default: break;
     }
 }
@@ -793,6 +820,10 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
         cat(val, v->sound_cur ? v->sound_cur : "TRACK SOUND");
         p.nobig = 0;
         moved(v, &p, field, -4.f);                      /* (30 .. 182 -> 26 .. 178) */
+        break;
+    case UI_F_FUNC:                                     /* P1.3w: the icon big, the name in the head */
+        cat(val, v->func_name);
+        moved(v, &p, field, -36.f);                     /* (the icon 96 -> 60, the jump strip 194 .. 210 -> 158 .. 174) */
         break;
     case UI_F_PLOCK:
         ed_plock(v, lane, val);

@@ -71,6 +71,7 @@ static const uint8_t KNOB_JOB[UI_NFIELD][5] = {         /* P1.3e: KNOB 4 the qui
     [UI_F_CHNC] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_COND, 0, QD_KJ_QUIET},
     [UI_F_COND] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_CHANCE, 0, QD_KJ_QUIET},
     [UI_F_TRIG] = {QD_KJ_MAIN, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
+    [UI_F_FUNC] = {0, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},   /* P1.3w: SELECT the page (a jump's target elsewhere) */
     [UI_F_SOUND] = {QD_KJ_MAIN, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
 };
 /* P1.3e: a mode key held with nothing else held edits the track's default of that mode */
@@ -670,9 +671,9 @@ static void k_mode(qd_app_t *a, int key, int b, int down, int vel)
         }
         return;
     }
-    if (b < UI_NFIELD && b != UI_F_B10)
+    if (b < UI_NFIELD)
         u->hmode = b;
-    if (b < UI_F_B10) {                                 /* P1.3e: held, it holds the track's default (B1..B9) */
+    if (b < UI_F_PLOCK) {                               /* P1.3e: held, it holds the track's default (B1..B10) */
         u->mkey = b;
         u->mkey_t0 = a->ms;
         u->mkey_used = 0;

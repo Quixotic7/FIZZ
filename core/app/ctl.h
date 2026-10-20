@@ -63,7 +63,7 @@
  *   track's defaults (SELECT the page, ALGORITHM the main default). Every turn shows the knob band (QD_TK_HELDKNOB over
  *   the held step's screen; QD_TK_DEFAULT over the lane, the default lit, "TRACK DEFAULT"). P-LOCK: nothing held, KNOB
  *   1..4 the track's sound (live), ALGORITHM the track (UI_TK_TRACK), SELECT the page; a step held as P1.3c.
- *   LOCKS IS DROPPED: B10 is empty (reserved; UI_F_B10 is never a mode, its LED off).
+ *   LOCKS IS DROPPED (P1.3d). P1.3w: B9 is FUNC (the step functions), SOUND moved to B10.
  *   BANKS: SEQ + B1..B4 = bank A..D (seq_bank): the W keys, the LEDs and the map are that bank's.
  *   THE PREVIEW: stopped, the held steps sound (ctl_preview.c).
  *   F3 IS LATCHED (ctl_latch.c): OCT- and OCT+ together open it, it stays; OCT- (or HOME) closes it, OCT+ is reserved
@@ -173,6 +173,7 @@ typedef struct {
     uint32_t tempo_ms;                 /* P1.3j: the tempo or the swing last turned (the F3 map lights it a second) */                    /* .. from this page (P1.3j: STEPS folds it as the new one unfolds) */
     /* the white keys in the step view */
     uint16_t wk_down;                  /* bit w: white key w is down as a step key */
+    uint16_t wk_target;                /* P1.3w: .. as a jump's target (FUNC: not held, not a tap) */
     uint16_t wk_pending;               /* .. and not yet held: released now, it is a tap */
     uint32_t wk_t0[16];
     uint32_t wk_seq[16], wk_count;     /* the order the keys went down in (held in that order) */

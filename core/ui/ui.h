@@ -137,11 +137,11 @@ void ui_tracks_draw(const ui_tracks_t *v);
 
 /* ---- the hold modes (B1..B10): their names and colours. A step that overrides the mode is drawn in the mode's colour,
  * a step on the track's default grey */
-enum { UI_F_NOTE, UI_F_VEL, UI_F_LEN, UI_F_MICRO, UI_F_RATCH, UI_F_CHNC, UI_F_COND, UI_F_TRIG, UI_F_SOUND, UI_F_B10,
+enum { UI_F_NOTE, UI_F_VEL, UI_F_LEN, UI_F_MICRO, UI_F_RATCH, UI_F_CHNC, UI_F_COND, UI_F_TRIG, UI_F_FUNC, UI_F_SOUND,
        UI_F_PLOCK, UI_NFIELD };         /* P1.3c: B11 = P-LOCK (holding a step keeps the screen; its knobs p-lock).
-                                         * P1.3d (§8b 2.2): LOCKS is dropped (P-LOCK covers it): B10 is empty,
-                                         * reserved (UI_F_B10 is never a mode; its colour is the padlock's) */
-extern const char *const UI_FIELD_NAME[UI_NFIELD];   /* "NOTE" .. "SOUND", "", "P-LOCK" */
+                                         * P1.3w (§8b "FUNC on B9"): B9 FUNC, the step functions; SOUND moved to
+                                         * B10 (it was B9; B10 was empty since LOCKS was dropped, P1.3d) */
+extern const char *const UI_FIELD_NAME[UI_NFIELD];   /* "NOTE" .. "FUNC", "SOUND", "P-LOCK" */
 extern const qd_rgb UI_MODE_COL[UI_NFIELD];
 
 /* ---- the kit's helpers (line.html's headTrack, lock, knobMark, keyboard's pos) */
@@ -157,7 +157,10 @@ float ui_keyboard_x(float x0, float w, int lo, int n, int *black);
  * each (the layer maps; no text legends) */
 enum { UI_IC_NONE, UI_IC_CLEAR, UI_IC_COPY, UI_IC_PASTE, UI_IC_UNDO, UI_IC_CUT, UI_IC_BACK, UI_IC_PLAY, UI_IC_STOP,
        UI_IC_DOT, UI_IC_TRI, UI_IC_RESET, UI_IC_SCALE, UI_IC_SWING, UI_IC_REC, UI_IC_NOW, UI_IC_RAMP, UI_IC_STRUM,
-       UI_IC_KEY, UI_IC_NOTE };         /* UI_IC_NOTE + v: a note value's glyph (v 0 1/1 .. 6 1/64) */
+       UI_IC_KEY, UI_IC_LEFT, UI_IC_RIGHT, UI_IC_FLIP, UI_IC_DICE, UI_IC_DICE_FN, UI_IC_JUMP,
+       UI_IC_NOTE };                    /* UI_IC_NOTE + v: a note value's glyph (v 0 1/1 .. 6 1/64) */
+int ui_fn_icon(int func);               /* P1.3w: a step function's icon (UI_IC_NONE for none) */
+#define UI_FN_JUMP 7                    /* (pattern.h's QD_FN_JUMP: JUMP n is UI_FN_JUMP + n) */
 void ui_icon(int id, float cx, float cy, float s, qd_rgb col);   /* about 12 x 12 px at s 1, centred */
 typedef struct {
     int icon;                           /* UI_IC_* (NONE with num 0: nothing in this layer) */
@@ -196,6 +199,7 @@ typedef struct {
     uint8_t sound;                      /* the pool number of its sound lock, 0 none */
     uint8_t nlock;                      /* p-locks */
     uint8_t strum;
+    uint8_t func;                       /* P1.3w: the step function (QD_FN_*) */
 } ui_lcol_t;
 typedef struct {
     int mode;                           /* UI_F_* */
@@ -233,7 +237,8 @@ typedef struct {
                                          * unfolds the new one as the old one folds) */
 } ui_lane_t;
 enum { UI_C_ON = 1, UI_C_LOCK = 2, UI_C_TIE = 4, UI_C_OVR = 8, UI_C_RANGE = 16, UI_C_HELD = 32,
-       UI_C_OWN = 64 };                 /* P1.3q: UI_C_OWN: the step has its own notes (the NOTE override) */
+       UI_C_OWN = 64, UI_C_FUNC = 128 };   /* P1.3q: UI_C_OWN: the step has its own notes (the NOTE override);
+                                         * P1.3w: UI_C_FUNC: a step function */
 /* P1.3q: the STEPS cells' kinds: own notes, the track's notes (filled), a ghost (LOCK: an outline) */
 #define UI_STEP_OWN 0xfff0d2u           /* warm white */
 #define UI_STEP_TRACK 0x63c4d6u         /* soft cyan */
@@ -312,6 +317,11 @@ typedef struct {
     uint8_t page_sound[16];             /* each step's sound lock on the page (0 none) */
     int held_col;                       /* the held step's column on the page, 0..15 */
     int nlocks;                         /* the step's p-locks ("+2 LOCKS ON TOP") */
+    /* FUNC (P1.3w): the step function; a jump's target page and step (0..7, 0..15), the target page's trigs */
+    int func;
+    char func_name[12];
+    int jump_page, jump_step;
+    uint8_t jump_trig[16];
     int bank;                           /* the bank of ten on the keys (0: 1..10) */
 } ui_held_t;
 void ui_held_draw(const ui_held_t *v);

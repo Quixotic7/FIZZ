@@ -93,7 +93,7 @@ static void fresh(void)
 #define WK(w) QD_WHITE_KEY[w]
 #define BK(b) QD_BLACK_KEY[b]
 enum { B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11 };
-enum { M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_TRIG, M_SOUND, M_B10, M_PLOCK };
+enum { M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_TRIG, M_FUNC, M_SOUND, M_PLOCK };   /* (P1.3w: B9 FUNC, B10 SOUND) */
 #define F1 QD_B_OCTDN
 #define F2 QD_B_OCTUP
 #define SHIFT QD_B_FUNC
@@ -265,14 +265,12 @@ static void g_modes(void)
 {
     int m;
     start();
-    for (m = 0; m < 9; m++) {
+    for (m = 0; m < 10; m++) {                          /* (P1.3w: B9 FUNC, B10 SOUND) */
         mode(m);
         CHECK(A.ui.hmode == m && leds().key[BK(m)] == QD_LED_LIT, "nothing held: B%d = the hold mode %s", m + 1,
               UI_FIELD_NAME[m]);
     }
-    black(B10);
-    CHECK(A.ui.hmode == M_SOUND && leds().key[BK(B10)] == QD_LED_OFF, "B10: empty, reserved (P1.3d: LOCKS dropped), "
-          "its LED off");
+    CHECK(!strcmp(UI_FIELD_NAME[M_FUNC], "FUNC") && !strcmp(UI_FIELD_NAME[M_SOUND], "SOUND"), "B9 FUNC, B10 SOUND");
     black(B11);
     CHECK(A.ui.hmode == UI_F_PLOCK && !R(0, 0).on, "B11 with nothing held: the P-LOCK mode (P1.3c, question 37)");
 }
@@ -2378,7 +2376,8 @@ static void g_edit(void)
  * map in each context, the keyboard, the tracks screen, a confirmation, playing */
 static void g_clarity(void)
 {
-    static const int MODES[10] = {M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_TRIG, M_SOUND, M_PLOCK};
+    static const int MODES[11] = {M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_TRIG, M_FUNC, M_SOUND,
+                                  M_PLOCK};
     static const uint8_t CH[3] = {60, 64, 67};
     const char *small = "";
     float mn;
@@ -2391,7 +2390,7 @@ static void g_clarity(void)
     qd_step_set_cond(PAT(), 0, 2, 3);
     qd_step_set_sound(PAT(), 0, 4, 12);
     for (v = 0; v < 3; v++) {                           /* PIANO ROLL, STEPS, EDIT */
-        for (m = 0; m < 10; m++) {
+        for (m = 0; m < 11; m++) {
             mode(MODES[m]);
             run(60);
             whold(0);
@@ -2426,6 +2425,44 @@ static void g_clarity(void)
     mn = qd_text_stats_min(&small);
     CHECK(mn >= 11.f, "no text under 11 px on any screen (the smallest: %.1f px, \"%s\")", (double)mn, small);
     printf("  clarity: the smallest text drawn in every gesture's frames: %.1f px (\"%s\")\n", (double)mn, small);
+}
+
+/* P1.3w: FUNC (B9): B1..B7 the functions, KNOB 1 / ALGORITHM walk them and then JUMP 1..128, a W pressed while a
+ * jump is held is its target (not held), on another page too (SELECT while holding), B11 clears it, an empty step
+ * gets a trig; SOUND on B10 */
+static void g_func(void)
+{
+    start();
+    mode(M_FUNC);
+    CHECK(A.ui.hmode == UI_F_FUNC, "B9: FUNC");
+    whold(2);
+    black(B3);
+    CHECK(ST(0, 2)->func == QD_FN_REVERSE && R(0, 2).on, "B3: REVERSE (an empty step: a trig)");
+    turn(QD_K_1, 5);
+    CHECK(ST(0, 2)->func == QD_FN_JUMP + 0, "KNOB 1 +5: past the seven, JUMP 1 (%d)", ST(0, 2)->func);
+    turn(QD_K_ALGO, -2);
+    CHECK(ST(0, 2)->func == QD_FN_RJUMP, "ALGORITHM -2: RANDOM JUMP");
+    kdown(WK(9));
+    run(40);
+    CHECK(ST(0, 2)->func == QD_FN_JUMP + 9 && A.ui.nheld == 1 && A.ui.held[0] == 2,
+          "a W while a jump is held: the target (JUMP 10), not held");
+    kup(WK(9));
+    run(20);
+    CHECK(!R(0, 9).on && A.ui.nheld == 1, "the target's key let go: no tap (step 10 stays empty)");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.page[0] == 1 && A.ui.nheld == 1, "SELECT while holding: page 2, the step still held");
+    kdown(WK(4));
+    run(40);
+    kup(WK(4));
+    run(20);
+    CHECK(ST(0, 2)->func == QD_FN_JUMP + 20, "a W on page 2: the target is step 21 (%d)", ST(0, 2)->func);
+    black(B11);
+    CHECK(ST(0, 2)->func == QD_FN_NONE, "B11: no function");
+    black(B2);
+    CHECK(ST(0, 2)->func == QD_FN_RESTART, "B2: RESTART");
+    wrel(2);
+    mode(M_SOUND);
+    CHECK(A.ui.hmode == UI_F_SOUND, "B10: SOUND");
 }
 
 /* P1.3i: the tempo and MIDI clock: a turn after a START and STOP works; a running clock shows EXT CLOCK and a turn says
@@ -2967,6 +3004,7 @@ int main(void)
         {"P1.3q: STEPS: PRESETS the step cursor", g_cursor},
         {"P1.3s: STEPS playing: no outline but the selection's", g_play_outline},
         {"P1.3r: the EDIT view", g_edit},
+        {"P1.3w: FUNC on B9: the functions, the jump's target, SOUND on B10", g_func},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

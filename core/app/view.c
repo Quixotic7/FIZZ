@@ -80,9 +80,9 @@ static int len_steps_x8(int len) { return qd_len_eighths(len); }
 /* ---------------------------------------------------------------- the step view's lane --- */
 static int mode_pm(int m)                               /* the step parameter a hold mode edits */
 {
-    static const int PM[UI_F_B10] = {QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
-                                     QD_PM_COND, QD_PM_TRIG, QD_PM_SOUND};
-    return m >= 0 && m < UI_F_B10 ? PM[m] : QD_PM_NOTE;
+    static const int PM[UI_F_PLOCK] = {QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
+                                       QD_PM_COND, QD_PM_TRIG, QD_NPM, QD_PM_SOUND};
+    return m >= 0 && m < UI_F_PLOCK ? PM[m] : QD_PM_NOTE;
 }
 
 static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
@@ -129,8 +129,10 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
                 c |= r.on && r.type == QD_TRIG_LOCK ? UI_C_LOCK : 0;
                 c |= r.on && r.type == QD_TRIG_TIE ? UI_C_TIE : 0;
                 c |= r.on && qd_step_overrides(st, QD_PM_NOTE) ? UI_C_OWN : 0;   /* P1.3q: its own notes */
+                c |= r.on && st->func ? UI_C_FUNC : 0;   /* P1.3w: a step function */
                 if (r.on && (u->hmode == UI_F_PLOCK ? (st->flags & QD_SF_LOCKS) != 0
-                                                    : u->hmode < UI_F_B10 && (qd_step_overrides(st, mode_pm(u->hmode)) ||
+                                                    : u->hmode == UI_F_FUNC ? st->func != 0
+                                                    : u->hmode < UI_F_PLOCK && (qd_step_overrides(st, mode_pm(u->hmode)) ||
                                                       (u->hmode == UI_F_MICRO && qd_step_overrides(st, QD_PM_STRUM)))))
                     c |= UI_C_OVR;
                 for (j = 0; j < u->nheld; j++)
@@ -179,6 +181,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         case UI_F_COND: c->ovr = qd_step_overrides(st, QD_PM_COND); break;
         case UI_F_TRIG: c->ovr = qd_step_overrides(st, QD_PM_TRIG); break;
         case UI_F_SOUND: c->ovr = qd_step_overrides(st, QD_PM_SOUND); break;
+        case UI_F_FUNC: c->ovr = st->func != 0; break;
         default: c->ovr = (st->flags & QD_SF_LOCKS) != 0; break;
         }
         if (r.type != QD_TRIG_LOCK) {
@@ -197,6 +200,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         c->sound = (uint8_t)r.sound;
         c->nlock = (uint8_t)qd_lock_count(P, t, s);
         c->strum = (uint8_t)r.strum;
+        c->func = (uint8_t)r.func;
         if (v->pos >= 0.f) {
             const float x0 = (float)i + (float)r.micro / 24.f;
             c->lit = v->pos >= x0 && v->pos < x0 + (c->len > 0.3f ? c->len : 0.3f);
@@ -238,6 +242,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         case UI_F_COND: cat(cat(v->def_label, "DEFAULT "), qd_cond_name(df->cond, cn)); break;
         case UI_F_TRIG: cat(cat(v->def_label, "DEFAULT "), TY[df->type & 3]); break;
         case UI_F_SOUND: cat(cat(v->def_label, "TRACK SOUND "), qd_track_sound_name(&a->model.t[t])); break;
+        case UI_F_FUNC: break;                          /* (P1.3w: no default: none) */
         default: cat(v->def_label, "P-LOCKS"); break;
         }
     }
@@ -304,7 +309,7 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
     v->latch = u->slatch;
     if (!is_default) {
         qd_step_value_keys(a, v->vk, &v->vk_lit, &v->vk_def, &v->vk_none, &v->clr);
-        v->ovr = v->clr;
+        v->ovr = m == UI_F_FUNC ? r.func != 0 : v->clr;   /* (P1.3w: FUNC has no default: a function is its own) */
     } else {
         v->ovr = 1;
     }
@@ -390,6 +395,15 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
     v->chance_first = m == UI_F_CHNC;
     /* SOUND */
     v->sound = r.sound;
+    v->func = is_default ? 0 : r.func;                  /* P1.3w: the step function, a jump's target page */
+    qd_fn_name(v->func, v->func_name);
+    if (v->func >= QD_FN_JUMP) {
+        const int tg = v->func - QD_FN_JUMP;
+        v->jump_page = tg / QD_PAGE;
+        v->jump_step = tg % QD_PAGE;
+        for (i = 0; i < QD_PAGE; i++)
+            v->jump_trig[i] = (uint8_t)qd_step_is_on(qd_step(P, t, v->jump_page * QD_PAGE + i));
+    }
     v->sound_cur = is_default ? qd_track_sound_name(&a->model.t[t]) : sound_name(a, r.sound);
     v->sound_prev = r.sound > 0 ? sound_name(a, r.sound - 1) : 0;
     v->sound_next = r.sound < a->proj.nsound ? sound_name(a, r.sound + 1) : 0;
@@ -893,7 +907,7 @@ static void overlay_begin(float al)
 static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
 {
     static const char *const MAIN[UI_NFIELD] = {"NOTES", "VELOCITY", "LENGTH", "MICRO", "RATCHET", "CHANCE",
-                                                "CONDITION", "TRIG", "SOUND", "", ""};
+                                                "CONDITION", "TRIG", "FUNCTION", "SOUND", ""};
     static const char *const TYPE[4] = {"", "NOTE", "LOCK", "TIE"};
     static const char *const RAMP[4] = {"FLAT", "UP", "DOWN", "ACCENT"};
     static const char *const NOTEN[5] = {"NOTE 1", "NOTE 2", "NOTE 3", "NOTE 4", "NOTE 5"};
@@ -942,6 +956,7 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
         case UI_F_CHNC: cat(ui_itoa(v->val, r.chance), "%"); break;
         case UI_F_COND: qd_cond_name(r.cond, v->val); break;
         case UI_F_TRIG: cat(v->val, TYPE[r.type & 3][0] ? TYPE[r.type & 3] : "EMPTY"); break;
+        case UI_F_FUNC: qd_fn_name(is_default || !u->nheld ? 0 : r.func, v->val); break;
         case UI_F_SOUND: {
             const int k = is_default || !u->nheld ? a->model.t[t].sound : r.sound;
             if (k > 0) {

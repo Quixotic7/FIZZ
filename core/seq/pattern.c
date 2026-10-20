@@ -513,6 +513,7 @@ void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r)
         r->note[0] = 60;
         r->nn = qd_notes_abs(r->note, r->notes);
     }
+    r->func = st->func < QD_NFN ? st->func : 0;          /* P1.3w: the step's own (no default) */
     r->vel = PICK(QD_PM_VEL, st->vel, d->vel);
     r->vel = r->vel < 1 ? 1 : r->vel > 127 ? 127 : r->vel;
     r->len = PICK(QD_PM_LEN, st->len, d->len);
@@ -796,6 +797,45 @@ int qd_step_set_strum(qd_pattern_t *p, int t, int s, int strum)
         return QD_EARG;
     own(p, t, s, QD_PM_STRUM)->strum = (uint8_t)strum;
     return QD_OK;
+}
+
+int qd_step_set_func(qd_pattern_t *p, int t, int s, int func)
+{
+    qd_step_t *st;
+    if (!ts_ok(t, s) || func < 0 || func >= QD_NFN)
+        return QD_EARG;
+    st = &p->step[t][s];
+    if (func && !(st->flags & QD_SF_ON))                /* (a function on an empty step: a trig) */
+        st->flags |= QD_SF_ON;
+    st->func = (uint8_t)func;
+    p->used = 1;
+    return QD_OK;
+}
+
+const char *qd_fn_name(int f, char *out)
+{
+    static const char *const N[QD_FN_JUMP] = {"NONE", "RESTART", "REVERSE", "FORWARD", "FLIP", "RANDOM", "RND FUNC"};
+    if (f >= QD_FN_JUMP && f < QD_NFN) {
+        const int n = f - QD_FN_JUMP + 1;
+        int i = 0;
+        const char *a = "JUMP ";
+        while (*a)
+            out[i++] = *a++;
+        if (n >= 100)
+            out[i++] = (char)('0' + n / 100);
+        if (n >= 10)
+            out[i++] = (char)('0' + n / 10 % 10);
+        out[i++] = (char)('0' + n % 10);
+        out[i] = 0;
+        return out;
+    }
+    {
+        const char *a = N[f > 0 && f < QD_FN_JUMP ? f : 0];
+        int i = 0;
+        while ((out[i] = a[i]) != 0)
+            i++;
+    }
+    return out;
 }
 
 /* ---------------------------------------------------------------- the track's defaults --- */

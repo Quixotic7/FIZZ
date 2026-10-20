@@ -60,8 +60,8 @@ enum { QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
        QD_PM_STRUM, QD_NPM };
 #define QD_OV(pm) ((uint16_t)(1u << (pm)))
 
-/* ---- a step (18 bytes, every one used since P1.3e: six notes, the pad byte gone; P1.3c's five notes and a pad, P1.3b's
- * four in 16) */
+/* ---- a step (20 bytes since P1.3w: the step function and a pad; 18 since P1.3e, six notes; P1.3c's five notes and a
+ * pad, P1.3b's four in 16) */
 enum { QD_TRIG_NONE, QD_TRIG_NOTE, QD_TRIG_LOCK, QD_TRIG_TIE };
 enum { QD_RAMP_FLAT, QD_RAMP_UP, QD_RAMP_DOWN, QD_RAMP_ACCENT };
 #define QD_SF_ON 0x01u                  /* flags: the step has a trig */
@@ -82,7 +82,20 @@ typedef struct {
     uint8_t cond;                       /* QD_COND_*, then A:B (qd_cond_ab) */
     uint8_t sound;                      /* the sound lock: 0 none (the track's sound), 1..QD_NSOUND a pool number */
     uint8_t strum;                      /* 0..23 24ths between a chord's notes */
+    uint8_t func;                       /* P1.3w: the step function (QD_FN_*; no override bit, no track default: 0
+                                         * none) */
+    uint8_t pad;
 } qd_step_t;
+
+/* P1.3w (PLAN §8b "FUNC on B9", Form's FUNCTION): what a step does to its track's playing when it fires (after its
+ * condition and chance): RESTART (the next step is the loop's start, the passes from 0), REVERSE / FORWARD (the
+ * track's direction), FLIP it, RANDOM JUMP (a random step of the loop), RANDOM FUNCTION (one of none / restart /
+ * reverse / forward / flip, rolled each time), JUMP n (the next step is the track's step n: QD_FN_JUMP + n, n 0..127;
+ * a step outside the loop: the loop's start) */
+enum { QD_FN_NONE, QD_FN_RESTART, QD_FN_REVERSE, QD_FN_FORWARD, QD_FN_FLIP, QD_FN_RJUMP, QD_FN_RFUNC, QD_FN_JUMP };
+#define QD_NFN (QD_FN_JUMP + QD_NSTEP)
+#define QD_FN_IS_JUMP(f) ((f) == QD_FN_RJUMP || (f) >= QD_FN_JUMP)
+const char *qd_fn_name(int f, char *out);   /* "NONE", "RESTART", .., "JUMP 17" (out: 12 bytes) */
 
 /* a track's step defaults (the sound's default is the track's own sound: no field) */
 typedef struct {
@@ -100,6 +113,7 @@ typedef struct {
     uint8_t notes[QD_NNOTE];            /* absolute, ascending (above 127 clamped) */
     uint8_t note[QD_NNOTE];             /* as stored: the slots' pitches (note k in slot k, 0 none) */
     int vel, len, micro, ratch, ramp, chance, cond, sound, strum;
+    int func;                           /* P1.3w: the step function (the step's own: no default) */
     uint16_t ovr;
 } qd_rstep_t;
 
@@ -248,6 +262,7 @@ int qd_step_set_cond(qd_pattern_t *p, int t, int s, int cond);
 int qd_step_set_chance(qd_pattern_t *p, int t, int s, int chance);
 int qd_step_set_sound(qd_pattern_t *p, int t, int s, int sound);   /* 0 (the track's: the override cleared) .. 128 */
 int qd_step_set_strum(qd_pattern_t *p, int t, int s, int strum);
+int qd_step_set_func(qd_pattern_t *p, int t, int s, int func);   /* P1.3w: 0..QD_NFN-1 (an empty step: a trig made) */
 int qd_step_reset(qd_pattern_t *p, int t, int s, int pm);   /* parameter pm back to the track's (the bit cleared) */
 /* the resolved ratchet of a step's stored byte / of a default */
 int qd_ratch_count(int ratch);

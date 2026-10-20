@@ -20,6 +20,12 @@ uint32_t qd_seq_roll(uint64_t seed, int track, int64_t n)
     return (uint32_t)(splitmix(seed ^ ((uint64_t)(track & 255) << 56) ^ (uint64_t)n) % 100u);
 }
 
+uint32_t qd_seq_fn_roll(uint64_t seed, int track, int64_t n, int salt, uint32_t m)
+{
+    return m ? (uint32_t)(splitmix(seed ^ ((uint64_t)(track & 255) << 56) ^ (uint64_t)n ^ ((uint64_t)salt << 40)) % m)
+             : 0u;
+}
+
 /* a pattern's seed: the run's, mixed with where the pattern started (a chain repeated rolls anew) */
 static uint64_t seg_seed(const qd_seq_t *s, int64_t origin) { return splitmix(s->seed_play ^ (uint64_t)origin); }
 
@@ -171,14 +177,45 @@ static void drop_from(qd_seq_t *s, int t, int64_t x, int64_t now_tick)
 /* ---------------------------------------------------------------- the cursors --- */
 static void cur_enter(qd_seq_t *s, qd_tcur_t *c, int pat, int64_t x)
 {
-    (void)s;
+    const int t = (int)(c - s->cur_t);
     c->pat = pat;
     c->origin = x;
     c->g = x;
     c->n = 0;
     c->idx = 0;
+    if (c->dir < 0 && t >= 0 && t < QD_PAT_NTRACK)      /* P1.3w: in reverse, from the loop's last position */
+        c->idx = len_of(&s->proj->pat[pat], t) - 1;
     c->pass = 0;
     c->pre = 0;
+}
+
+/* P1.3w: the direction set by a step resolved at grid g (kept to be undone by a rewind) */
+static void dir_set(qd_tcur_t *c, int64_t g, int dir)
+{
+    if ((c->dir < 0 ? -1 : 1) == dir)
+        return;
+    if (c->dn == 8) {                                   /* (the oldest forgotten: a rewind reaches two steps back) */
+        memmove(c->dg, c->dg + 1, 7 * sizeof c->dg[0]);
+        memmove(c->dold, c->dold + 1, 7 * sizeof c->dold[0]);
+        c->dn = 7;
+    }
+    c->dg[c->dn] = g;
+    c->dold[c->dn++] = (int8_t)(c->dir < 0 ? -1 : 1);
+    c->dir = dir;
+}
+
+/* .. undone for the steps at or after x; the playhead's positions there forgotten */
+static void dir_rewind(qd_tcur_t *c, int64_t x)
+{
+    while (c->dn && c->dg[c->dn - 1] >= x)
+        c->dir = c->dold[--c->dn];
+    while (c->rn) {
+        const int i = (c->rw - 1 + 4) % 4;
+        if (c->rg[i] < x)
+            break;
+        c->rw = i;
+        c->rn--;
+    }
 }
 
 static void hist_push(qd_tcur_t *c, int64_t g, int r)
@@ -226,6 +263,7 @@ static void rewind(qd_seq_t *s, int t, int64_t x, int pat)
     qd_tcur_t *c = &s->cur_t[t];
     drop_from(s, t, x, s->pos / QD_SUB);
     hist_drop_from(c, x);
+    dir_rewind(c, x);
     cur_enter(s, c, pat, x);
     s->rewinds++;
 }
@@ -366,7 +404,8 @@ static void emit_step(qd_seq_t *s, int t, int step, const qd_tcur_t *c, const qd
     const qd_tset_t *ts = &P->trk[t];
     const int type = st->type, le = qd_len_eighths(st->len);
     const int64_t sw = ts->swing && (c->idx & 1) ? (int64_t)(P->swing - 50) * L / 50 : 0;
-    const int64_t start = c->g + sw + (int64_t)st->micro * L / 24;
+    const int64_t start = c->g + sw + (int64_t)(c->dir < 0 ? -st->micro : st->micro) * L / 24;   /* (P1.3w: mirrored
+                                                                                              * in reverse) */
     const int64_t gate_all = le < 0 ? -1 : L * le / 8;
     uint8_t notes[QD_NNOTE];
     int nn = st->nn, k, h, ri = rec_alloc(s);
@@ -419,23 +458,66 @@ static void emit_step(qd_seq_t *s, int t, int step, const qd_tcur_t *c, const qd
         s->rec[ri].used = 0;
 }
 
+/* P1.3w: the cursor's next position after the step at position c->idx (resolved at grid g0, its count n0), fn its
+ * function if it fired (else 0) */
+static void advance(qd_seq_t *s, int t, qd_tcur_t *c, const qd_pattern_t *P, int len, int fn, int64_t g0, int64_t n0)
+{
+    const uint64_t seed = seg_seed(s, c->origin);
+    int f = fn, d;
+    if (f == QD_FN_RFUNC)                               /* one of none / restart / reverse / forward / flip */
+        f = (int)qd_seq_fn_roll(seed, t, n0, 2, 5u);
+    switch (f) {
+    case QD_FN_RESTART:
+        c->idx = c->dir < 0 ? len - 1 : 0;
+        c->pass = 0;
+        return;
+    case QD_FN_REVERSE: dir_set(c, g0, -1); break;
+    case QD_FN_FORWARD: dir_set(c, g0, 1); break;
+    case QD_FN_FLIP: dir_set(c, g0, c->dir < 0 ? 1 : -1); break;
+    case QD_FN_RJUMP:
+        c->idx = (int)qd_seq_fn_roll(seed, t, n0, 1, (uint32_t)len);
+        return;
+    default:
+        if (f >= QD_FN_JUMP && f < QD_NFN) {            /* JUMP n: its position (outside the loop: the start) */
+            const int pos = qd_track_step_pos(&P->trk[t], f - QD_FN_JUMP);
+            c->idx = pos < 0 || pos >= len ? 0 : pos;
+            return;
+        }
+        break;
+    }
+    d = c->dir < 0 ? -1 : 1;
+    c->idx += d;
+    if (c->idx >= len) {
+        c->idx = 0;
+        c->pass++;
+    } else if (c->idx < 0) {
+        c->idx = len - 1;
+        c->pass++;
+    }
+}
+
 static void resolve_one(qd_seq_t *s, int t)
 {
     qd_tcur_t *c = &s->cur_t[t];
     const qd_pattern_t *P;
     qd_rstep_t st;
-    int64_t L;
-    int len, step;
+    int64_t L, g0, n0;
+    int len, step, fn = 0;
     cur_fix(s, c);
     P = &s->proj->pat[c->pat];
     L = L_of(P, t);
     len = len_of(P, t);
-    if (c->idx >= len) {                                /* (the loop shortened under the cursor) */
-        c->idx = 0;
+    if (c->idx >= len || c->idx < 0) {                  /* (the loop shortened under the cursor) */
+        c->idx = c->dir < 0 ? len - 1 : 0;
         c->pass++;
     }
     step = qd_track_loop_step(&P->trk[t], c->idx);      /* the loop's position -> its page's step (PLAN §8b) */
     qd_step_resolve(P, t, step, &st);                   /* the track's defaults where the step does not override */
+    c->rg[c->rw] = c->g;                                /* (the playhead: this position from this grid tick) */
+    c->ridx[c->rw] = (int16_t)c->idx;
+    c->rw = (c->rw + 1) % 4;
+    if (c->rn < 4)
+        c->rn++;
     if (st.on) {
         const int conditional = is_conditional(st.cond, st.chance);
         int ok = cond_ok(s, t, c, st.cond);
@@ -446,15 +528,16 @@ static void resolve_one(qd_seq_t *s, int t)
             c->pre = ok;
             hist_push(c, c->g, ok);
         }
-        if (ok)
+        if (ok) {
             emit_step(s, t, step, c, P, &st, L);
+            fn = st.func;                               /* P1.3w: a function runs when its step fires */
+        }
     }
+    g0 = c->g;
+    n0 = c->n;
     c->g += L;
+    advance(s, t, c, P, len, fn, g0, n0);
     c->n++;
-    if (++c->idx >= len) {
-        c->idx = 0;
-        c->pass++;
-    }
 }
 
 /* ---------------------------------------------------------------- the transport --- */
@@ -953,6 +1036,16 @@ double qd_seq_track_pos(const qd_seq_t *s, int t)
             return x < 0 ? 0 : x;
         }
         x = (double)c->idx - ((double)c->g - T) / L;
+        {   /* P1.3w: the position resolved last at or before now (reverse, jumps), and how far into its step */
+            int k;
+            for (k = 0; k < c->rn; k++) {
+                const int i = (c->rw - 1 - k + 8) % 4;
+                if (c->rg[i] <= (int64_t)T) {
+                    x = (double)c->ridx[i] + (T - (double)c->rg[i]) / L;
+                    break;
+                }
+            }
+        }
     }
     while (x < 0)
         x += len;

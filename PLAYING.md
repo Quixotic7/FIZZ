@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3v)
+# Playing FIZZ (P1.3w)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -63,7 +63,7 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 ## How do I change one step's note, velocity, length …?
 
 1. Pick what to edit with a black key, **nothing held**: **B1 NOTE, B2 VEL, B3 LEN, B4 MICRO, B5 RATCH, B6 CHNC
-   (chance), B7 COND (condition), B8 TRIG, B9 SOUND, B11 P-LOCK** (B10 is empty for now). The screen draws the page
+   (chance), B7 COND (condition), B8 TRIG, B9 FUNC (the step functions), B10 SOUND, B11 P-LOCK**. The screen draws the page
    for that choice; steps that have their own value are in colour, steps on the track's default are grey, and the
    default is a dashed line or a grey label.
 2. **Hold** the step's white key. The screen shows that step (the black keys' ten values are in the table below; the
@@ -88,6 +88,7 @@ The knobs with a step held:
 | CHNC | chance | condition | chance, quietly |
 | COND | condition | chance | condition, quietly |
 | TRIG | NOTE / LOCK / TIE | | type, quietly |
+| FUNC | (SELECT: the page, for a jump's target) KNOB 1: the function | | function, quietly |
 | SOUND | the pool sound (PRESETS too) | | sound, quietly |
 
 "Quietly": **KNOB 4** turns the main value **without any overlay**; the screen just changes in place. Knobs with
@@ -104,7 +105,23 @@ The ten values:
 | CHNC | 10 % .. 100 % | 0..100 % |
 | COND | B1 FILL, B2 NOT FILL, B3..B6 "A" = 1..4, B7..B10 "B" = 1..4 (plays on pass A of every B) | every condition |
 | TRIG | B1 NOTE, B2 LOCK (changes the sound, no note), B3 TIE (slides a mono note) | the same |
+| FUNC | B1 none, B2 RESTART, B3 REVERSE, B4 FORWARD, B5 FLIP, B6 RANDOM (jump), B7 RANDOM FUNCTION | the seven, then JUMP 1..128 |
 | SOUND | ten sounds of the pool (see below) | any sound |
+
+**FUNC (B9), the step functions** (as the OMX-27's Form): a function runs when its step plays (after its condition
+and chance; a LOCK step's runs too).
+
+- **RESTART**: the next step is the loop's start, and the passes count from 1 again (A:B, 1ST).
+- **REVERSE / FORWARD**: the track plays backwards / forwards from here (each page from its end to its start, the
+  pages in reverse order); **FLIP** turns it round. Micro-timing is mirrored in reverse. **PLAY always starts
+  forwards** (a pattern change keeps the direction).
+- **RANDOM**: the next step is one of the loop at random. **RANDOM FUNCTION**: none, restart, reverse, forward or flip
+  at random, each time.
+- **JUMP n**: the next step is step n (on a page outside the loop: the loop's start). To make one: hold the step,
+  press **B6** (RANDOM), then **press the target's white key** (it is not held). **SELECT** while holding turns the
+  page to target a step on another page. KNOB 1 / ALGORITHM walk the seven functions and then JUMP 1..128.
+- **B11** removes the step's function. The PIANO ROLL's FUNC lane shows each step's function as an icon (an arrow, a
+  circular arrow, a die, a jump with its target's number); STEPS marks a step with a function with a small blue dot.
 
 ## How do I hear a step while I edit it?
 
@@ -159,7 +176,7 @@ A step has up to **six notes**.
 
 ## How do I change the track's defaults?
 
-- **Hold the mode's black key** (B1..B9): the screen shows the mode's picture marked **TRACK DEFAULT** (NOTE: the
+- **Hold the mode's black key** (B1..B10): the screen shows the mode's picture marked **TRACK DEFAULT** (NOTE: the
   chord name and the keybed). While you hold it:
   - SELECT and the knobs edit the default, in the same layout as with a step held (NOTE: SELECT = note 1, KNOB 1..4 =
     notes 2..5, each alone); ALGORITHM turns the main default (in NOTE it moves the whole default chord);
@@ -301,6 +318,6 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 ## Not built yet
 
 - The sound editor (SOUND), so the pool only has the sounds it starts with, and P-LOCK locks only the step view's
-  knobs. B10 is empty.
+  knobs.
 - Track settings (scale, root, following the global key, MIDI channel), pattern chains, MIX and the effects screens.
 - Saving: closing the app loses everything.
