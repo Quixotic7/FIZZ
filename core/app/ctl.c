@@ -783,7 +783,8 @@ static void b_shift(qd_app_t *a, int down)
 }
 
 /* HOME (P1.3e, §8b 2.2): first it closes an open latch (F3's menu, the step latch); else, in the sequencer, it
- * switches its view (PIANO ROLL <-> STEPS); from any other screen it comes back to the sequencer in its last view */
+ * switches its view (PIANO ROLL -> STEPS -> EDIT (P1.3r) -> PIANO ROLL); from any other screen it comes back to the
+ * sequencer in its last view */
 static void b_home(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -976,7 +977,7 @@ static void track_sound(qd_app_t *a, int d)
 static void page_knob(qd_app_t *a, int d)
 {
     qd_ctl_set_page(a, a->ui.page[a->sel] + d);
-    if (a->ui.view != QD_VIEW_STEPS)
+    if (!QD_VIEW_ROWS(a->ui.view))
         qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
 }
 
@@ -1174,7 +1175,7 @@ static int k_cursor(qd_app_t *a, int knob, int d)
 static int when_cursor(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
-    return u->mode == QD_MODE_STEP && u->view == QD_VIEW_STEPS && !u->wk_down && (u->slatch || !u->nheld) &&
+    return u->mode == QD_MODE_STEP && QD_VIEW_ROWS(u->view) && !u->wk_down && (u->slatch || !u->nheld) &&
            qd_ctl_mkey(a) < 0 && !qd_ctl_shift(a);
 }
 static int k_steps_cursor(qd_app_t *a, int knob, int d)

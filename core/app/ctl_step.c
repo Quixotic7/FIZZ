@@ -146,15 +146,16 @@ void qd_step_latch_seed(qd_app_t *a)
     qd_ctl_set_page(a, s / QD_PAGE);
 }
 
-/* P1.3q: PRESETS in the STEPS view (no finger on a step): a step cursor. Off, the step latch comes on with its
- * selection where it starts (qd_step_latch_seed); on, its one selection moves d steps through the track's loop (a
- * page's end goes on into the next / previous looped page, round the loop; a page outside the loop: round its own
- * range), and the page edited follows (the row unfolds). Off steps are selected too: values then turn them on */
+/* P1.3q: PRESETS in the STEPS view (P1.3r: and EDIT; no finger on a step): a step cursor. Off, the step latch comes on
+ * with its selection where it starts (qd_step_latch_seed); on, its one selection moves d steps through the pages in
+ * order, looped or not (P1.3r), each over its start..end: past a page's end the next page's start, before its start
+ * the previous page's end, page 8 on to page 1 and back; the page edited follows (the row unfolds). Off steps are
+ * selected too: values then turn them on */
 void qd_step_cursor(qd_app_t *a, int d)
 {
     qd_ui_t *u = &a->ui;
     const qd_tset_t *ts = &PAT(a)->trk[a->sel];
-    int s, pos, k;
+    int s, k;
     if (!u->slatch || !u->nheld) {                      /* the latch on / its selection started */
         if (!u->slatch)
             qd_step_latch(a, 1);
@@ -164,17 +165,11 @@ void qd_step_cursor(qd_app_t *a, int d)
         return;
     }
     s = u->held[0];
-    pos = qd_track_step_pos(ts, s);
-    if (pos >= 0) {
-        s = qd_track_loop_step(ts, pos + d);
-    } else {
-        const int p0 = s / QD_PAGE * QD_PAGE;
-        for (k = 0; k < (d < 0 ? -d : d); k++) {
-            int n = 0;
-            do
-                s = p0 + ((s - p0 + (d < 0 ? -1 : 1)) % QD_PAGE + QD_PAGE) % QD_PAGE;
-            while (!qd_page_in_range(ts, s) && ++n < QD_PAGE);
-        }
+    for (k = 0; k < (d < 0 ? -d : d); k++) {           /* P1.3r: through every page in order, looped or not */
+        int n = 0;
+        do
+            s = (s + (d < 0 ? -1 : 1) + QD_NSTEP) % QD_NSTEP;
+        while (!qd_page_in_range(ts, s) && ++n < QD_NSTEP);
     }
     u->nheld = 0;
     if (u->tk == QD_TK_HELDKNOB)
@@ -818,7 +813,7 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
     if (m == UI_F_PLOCK) {
         if (knob == QD_K_SELECT) {
             qd_ctl_set_page(a, u->page[a->sel] + d);
-            if (u->view != QD_VIEW_STEPS)               /* (P1.3g: STEPS shows the pages: no picker) */
+            if (!QD_VIEW_ROWS(u->view))                 /* (P1.3g: STEPS / EDIT show the pages: no picker) */
                 qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
         } else if (knob != QD_K_ALGO) {
             qd_step_lock_knob(a, knob, d);

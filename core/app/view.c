@@ -105,7 +105,8 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
     memcpy(v->pend, ts->pend, sizeof v->pend);
     v->follow = u->follow;
     v->latch = u->slatch;
-    v->steps = u->view == QD_VIEW_STEPS;                /* P1.3f: the STEPS overview: every page's cells */
+    v->steps = QD_VIEW_ROWS(u->view);                   /* P1.3f: the STEPS overview: every page's cells (P1.3r:
+                                                         * EDIT's row too) */
     {   /* P1.3j: the page edited unfolds (QD_UNFOLD_MS), the one before folds */
         const float k = a->ms - u->slide_ms >= QD_UNFOLD_MS ? 1.f
                                                             : ui_ease((float)(a->ms - u->slide_ms) / (float)QD_UNFOLD_MS);
@@ -529,9 +530,7 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
     if (u->tk_lock) {
         cat(cat(ctx, "STEP "), ui_itoa(n, u->tk_step + 1));
         v->lock = 1;
-    } else {
-        cat(ctx, a->model.t[t].name);
-    }
+    }                                                   /* (P1.3r: a pop-up: no track name in its head) */
     v->ctx = ctx;
     switch (u->tk) {
     case UI_TK_FREQ:
@@ -999,6 +998,14 @@ int qd_view_screen(const qd_app_t *a)
     case QD_MODE_TRACKS:
         return QD_SCR_TRACKS;
     case QD_MODE_STEP:
+        if (u->view == QD_VIEW_EDIT) {                  /* P1.3r: EDIT keeps holding, latching, a mode key in it;
+                                                         * the layer maps and SHIFT's take the screen as anywhere */
+            if (qd_ctl_layer_shown(a) != QD_LAYER_NONE)
+                return QD_SCR_LAYER;
+            if (qd_ctl_shift(a) && !u->shift_used)
+                return QD_SCR_SHIFT;
+            return QD_SCR_EDIT;
+        }
         if (u->nheld && u->hmode != UI_F_PLOCK &&      /* (P-LOCK: holding keeps the screen; P1.3q: so does */
             !(u->scursor && u->view == QD_VIEW_STEPS))   /* PRESETS' cursor in STEPS) */
             return QD_SCR_HELD;
@@ -1012,6 +1019,23 @@ int qd_view_screen(const qd_app_t *a)
     default:
         return QD_SCR_IDLE;
     }
+}
+
+/* P1.3r: the EDIT view's models: the page's row (as STEPS'), and the mode's picture: the step held / selected, else
+ * (nothing held, or a mode key held) the track's default */
+void qd_view_edit(qd_app_t *a, ui_held_t *h, ui_lane_t *l)
+{
+    static char pat[4];
+    const int mk = qd_ctl_mkey_shown(a);
+    fill_lane(a, l, pat);
+    fill_held(a, h, !a->ui.nheld || mk);
+    if (!mk)
+        h->reset = 0;
+}
+
+int qd_view_overlay(const qd_app_t *a)
+{
+    return a->ui.tk != QD_TK_NONE && qd_view_screen(a) != QD_SCR_EDIT;
 }
 
 void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
@@ -1059,11 +1083,17 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         fill_lane(a, &lv, pat);
         ui_lane_draw(&lv);
         break;
+    case QD_SCR_EDIT:                                   /* P1.3r: the page's row under the mode's picture */
+        qd_view_edit(a, &hv, &lv);
+        ui_edit_draw(&hv, &lv);
+        break;
     default:
         draw_idle(a);
         break;
     }
-    if (u->tk == QD_TK_HELDKNOB) {                      /* P1.3d: a held step's knob: the band over its screen */
+    if (!qd_view_overlay(a)) {
+        /* (none; P1.3r: EDIT's top is the pop-up: no takeover band, picture or picker over it) */
+    } else if (u->tk == QD_TK_HELDKNOB) {                      /* P1.3d: a held step's knob: the band over its screen */
         const uint32_t d = a->ms - u->tk_ms;
         const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
         if (al > 0.f && u->nheld) {

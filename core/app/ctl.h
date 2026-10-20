@@ -126,7 +126,9 @@ struct qd_app;
 
 enum { QD_MODE_IDLE, QD_MODE_STEP, QD_MODE_KEYS, QD_MODE_TRACKS };
 enum { QD_REC_OFF, QD_REC_STEP, QD_REC_LIVE };
-enum { QD_VIEW_ROLL, QD_VIEW_STEPS, QD_NVIEW };   /* P1.3e: the sequencer's views, HOME cycles them */
+enum { QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT, QD_NVIEW };   /* P1.3e: the sequencer's views, HOME cycles them
+                                                                * (P1.3r: EDIT, the page's row under the mode's picture) */
+#define QD_VIEW_ROWS(v) ((v) == QD_VIEW_STEPS || (v) == QD_VIEW_EDIT)   /* P1.3r: the views drawing the pages' rows */
 /* the hold modes (B1..B10): UI_F_* (ui.h) */
 enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 /* the takeovers: UI_TK_* (ui.h), and the sound picker */
@@ -390,7 +392,10 @@ int qd_ctl_trig_flash(const struct qd_app *a, int t);          /* track t's trig
 void qd_view_frame(struct qd_app *a, uint16_t *lcd_be);
 /* the screen under the takeovers (what qd_view_frame draws first): QD_SCR_* */
 enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR_KEYS, QD_SCR_TRACKS, QD_SCR_SEL,
-       QD_SCR_SEQ, QD_SCR_DEFAULT };   /* (P1.3e: a mode key held: the mode's default, its full picture) */
+       QD_SCR_SEQ, QD_SCR_DEFAULT,     /* (P1.3e: a mode key held: the mode's default, its full picture) */
+       QD_SCR_EDIT };                  /* P1.3r: the EDIT view (holding, latching, a mode key: all in it) */
+/* P1.3r: a knob's takeover (band, picture, picker) drawn over the screen now: never over EDIT, whose top is the pop-up */
+int qd_view_overlay(const struct qd_app *a);
 int qd_view_screen(const struct qd_app *a);
 
 #ifdef __cplusplus

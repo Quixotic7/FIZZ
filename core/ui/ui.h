@@ -233,6 +233,7 @@ enum { UI_C_ON = 1, UI_C_LOCK = 2, UI_C_TIE = 4, UI_C_OVR = 8, UI_C_RANGE = 16, 
 qd_rgb ui_steps_fill(uint8_t cell);     /* a cell's fill: UI_STEP_OWN / UI_STEP_TRACK, QD_NONE (a ghost, off, out of range) */
 qd_rgb ui_steps_ink(uint8_t cell);      /* the notes' colour on that fill (a dark shade of it) */
 void ui_lane_draw(const ui_lane_t *v);
+void ui_steps_row(const ui_lane_t *v, float y, float open);   /* P1.3r: the page edited's row alone (EDIT) */
 
 /* ---- a held step (line.html s4..s10, s19, s20; PLAN §9a rule 7, §8b): one layout, "STEP n · MODE" top left, the
  * track top right, the value big top left, the mode's drawing, the value strip at the foot. is_default: the same
@@ -306,6 +307,11 @@ typedef struct {
     int bank;                           /* the bank of ten on the keys (0: 1..10) */
 } ui_held_t;
 void ui_held_draw(const ui_held_t *v);
+/* P1.3r: the EDIT view: the mode's picture (v: the step held / selected, or the track's default) re-laid-out in the
+ * top area, the value strip between, the page edited's row (lane, as STEPS' open row) at the foot */
+void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane);
+struct qd_app;
+void qd_view_edit(struct qd_app *a, ui_held_t *h, ui_lane_t *l);   /* (view.c) its models, as its frame fills them */
 
 /* ---- the layer maps (§8b: while F1, F2 or F3 is held the screen is that layer's map, so it explains itself) */
 typedef struct {

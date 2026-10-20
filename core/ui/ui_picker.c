@@ -66,9 +66,7 @@ void ui_picker_draw(const ui_picker_t *v)
     ui_T(s, 8.f, 17.f, 11.f, 500, 1.f, UI_K3, QD_LEFT);
     if (v->lock)
         ui_lock(8.f + ui_TW(s, 11.f, 500, 1.f) + 4.f, 7.f, off ? UI_G2 : UI_K3, 1.f);
-    nw = ui_TW(v->name, 11.f, 500, 1.f);
-    ui_T(v->name, 232.f, 17.f, 11.f, 500, 1.f, UI_G1, QD_RIGHT);
-    ui_box(232.f - nw - 21.f, 5.f, v->track, UI_G1);
+    (void)nw;                                           /* (P1.3r: a pop-up: no track box or name in its head) */
 
     qd_save();
     qd_clip_rect(0.f, 26.f, 240.f, 172.f);

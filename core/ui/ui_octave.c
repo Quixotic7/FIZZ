@@ -113,7 +113,7 @@ void ui_octave_draw(const ui_octave_t *v)
     char s[16];
     int off, i;
 
-    ui_head_track(TITLE[kind], v->track, v->name ? v->name : "", UI_K3);
+    ui_T(TITLE[kind], 8.f, 17.f, 11.f, 500, 1.f, UI_K3, QD_LEFT);   /* (P1.3r: a pop-up: no track in its head) */
 
     /* the number, rolling as a drum: the old one out the way the change went, the new one in, inside a band */
     qd_save();

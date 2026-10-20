@@ -510,16 +510,16 @@ qd_rgb ui_steps_ink(uint8_t c)
     return (c & UI_C_OWN) ? 0x3a3326u : 0x10343bu;
 }
 
-static void steps_grid(const ui_lane_t *v)
+/* one page's row at y, unfolded g (0..1) to an open height of open (P1.3r: EDIT draws the page edited alone, taller);
+ * its height */
+static float steps_row(const ui_lane_t *v, int p, float y, float g, float open)
 {
     static const char *const NUM[8] = {"1", "2", "3", "4", "5", "6", "7", "8"};
     const qd_rgb mc = UI_MODE_COL[v->mode];
     const int ph = v->play_step;
-    float y = OV_TOP;
-    int p, i, j;
-    for (p = 0; p < 8; p++) {
-        const float g = v->grow[p] < 0.f ? 0.f : v->grow[p] > 1.f ? 1.f : v->grow[p];
-        const float rowh = OV_FOLD + (OV_OPEN - OV_FOLD) * g, ch = rowh - 3.f - 13.f * g;
+    int i, j;
+    {
+        const float rowh = OV_FOLD + (open - OV_FOLD) * g, ch = rowh - 3.f - 13.f * g;
         const int in = (v->loop >> p) & 1, ed = p == v->page;
         const float cy = y + (g > 0.f ? 10.f * g : 0.f);           /* (an unfolded row: room for the marker) */
         qd_save();
@@ -626,8 +626,23 @@ static void steps_grid(const ui_lane_t *v)
             ui_P(tri, 3, UI_RED, 1.f, 1, UI_RED);
         }
         qd_restore();
-        y += rowh;
+        return rowh;
     }
+}
+
+static void steps_grid(const ui_lane_t *v)
+{
+    float y = OV_TOP;
+    int p;
+    for (p = 0; p < 8; p++)
+        y += steps_row(v, p, y, v->grow[p] < 0.f ? 0.f : v->grow[p] > 1.f ? 1.f : v->grow[p], OV_OPEN);
+}
+
+/* P1.3r: the EDIT view's row: the page edited alone, unfolded, at y (its cells open - 16 px tall) */
+void ui_steps_row(const ui_lane_t *v, float y, float open)
+{
+    const int p = v->page >= 0 && v->page < 8 ? v->page : 0;
+    steps_row(v, p, y, 1.f, open);
 }
 
 /* the default named at the foot (not NOTE: its chord is on the roll), a dashed swatch before it for the modes that

@@ -2158,7 +2158,7 @@ static void g_quiet(void)
     wrel(0);
 }
 
-/* HOME: closes a latch first; else in the sequencer it switches PIANO ROLL <-> STEPS; elsewhere back to the last view;
+/* HOME: closes a latch first; else in the sequencer it cycles PIANO ROLL, STEPS, EDIT; elsewhere back to the last view;
  * the view stays through idle */
 static void g_home(void)
 {
@@ -2181,7 +2181,9 @@ static void g_home(void)
     CHECK(A.ui.page[0] == 2 && A.ui.tk == QD_TK_NONE, "P1.3g: STEPS, SELECT: page 3, no picker (the row moves)");
     turn(QD_K_SELECT, -2);
     btap(QD_B_HOME);
-    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME again: the PIANO ROLL");
+    CHECK(A.ui.view == QD_VIEW_EDIT && qd_view_screen(&A) == QD_SCR_EDIT, "P1.3r: HOME again: EDIT");
+    btap(QD_B_HOME);
+    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME again: the PIANO ROLL (three views round)");
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "the PIANO ROLL, SELECT: page 2 with its picker");
     turn(QD_K_SELECT, -1);
@@ -2271,7 +2273,18 @@ static void g_cursor(void)
     turn(QD_K_PRESETS, -1);
     CHECK(A.ui.held[0] == 15 && A.ui.page[0] == 0, "back: page 1's step 16");
     turn(QD_K_PRESETS, 17);
-    CHECK(A.ui.held[0] == 0 && A.ui.page[0] == 0, "round the loop's end: step 1 again");
+    CHECK(A.ui.held[0] == 32 && A.ui.page[0] == 2, "P1.3r: on into page 3 (not in the loop): its step 1");
+    turn(QD_K_PRESETS, -33);
+    CHECK(A.ui.held[0] == 127 && A.ui.page[0] == 7, "back past page 1's start: page 8's step 16");
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.held[0] == 0 && A.ui.page[0] == 0, "page 8's end on to page 1's step 1");
+    PAT()->trk[0].pstart[1] = 4;                        /* page 2 plays steps 5 .. 12 */
+    PAT()->trk[0].pend[1] = 11;
+    turn(QD_K_PRESETS, 16);
+    CHECK(A.ui.held[0] == 20, "a page's range: page 2 starts at its step 5 (%d)", A.ui.held[0] + 1);
+    turn(QD_K_PRESETS, -1);
+    CHECK(A.ui.held[0] == 15, "before it: page 1's step 16 (%d)", A.ui.held[0] + 1);
+    turn(QD_K_PRESETS, -15);
     turn(QD_K_PRESETS, 5);
     CHECK(!R(0, 5).on, "step 6 selected, off");
     black(B3);
@@ -2283,9 +2296,54 @@ static void g_cursor(void)
     btap(QD_B_HOME);
     CHECK(!A.ui.slatch && A.ui.view == QD_VIEW_STEPS, "HOME ends the latch");
     btap(QD_B_HOME);
-    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME: the PIANO ROLL");
+    btap(QD_B_HOME);
+    CHECK(A.ui.view == QD_VIEW_ROLL, "HOME, HOME: the PIANO ROLL");
     turn(QD_K_PRESETS, 1);
     CHECK(!A.ui.slatch && A.model.t[0].sound == snd + 1, "the PIANO ROLL: PRESETS is the track's sound as before");
+}
+
+/* P1.3r: the EDIT view: the mode's picture over the page's row: the track's default with nothing held, a held step's
+ * values held, the cursor's step; a VEL edit changes the row's cell and the picture alike; no takeover over it */
+static void g_edit(void)
+{
+    static ui_held_t h;
+    static ui_lane_t l;
+    int v0;
+    start();
+    mode(M_VEL);
+    btap(QD_B_HOME);
+    btap(QD_B_HOME);
+    CHECK(A.ui.view == QD_VIEW_EDIT && qd_view_screen(&A) == QD_SCR_EDIT, "HOME twice: EDIT");
+    qd_view_edit(&A, &h, &l);
+    CHECK(h.is_default && h.field == UI_F_VEL && h.vel == PAT()->trk[0].def.vel,
+          "nothing held: the track's default VEL (%d)", h.vel);
+    wtap(3);
+    whold(3);
+    CHECK(qd_view_screen(&A) == QD_SCR_EDIT, "a step held: still EDIT");
+    qd_view_edit(&A, &h, &l);
+    v0 = h.vel;
+    CHECK(!h.is_default && h.step == 4 && l.col[3].on && l.col[3].vel == v0, "the held step's values (step 4, VEL %d)",
+          v0);
+    black(B2);
+    qd_view_edit(&A, &h, &l);
+    CHECK(h.vel != v0 && l.col[3].vel == h.vel && R(0, 3).vel == h.vel,
+          "a VEL value: the picture's value and the row's cell both %d (was %d)", h.vel, v0);
+    turn(QD_K_ALGO, 5);
+    qd_view_edit(&A, &h, &l);
+    CHECK(l.col[3].vel == h.vel && R(0, 3).vel == h.vel && A.ui.tk != QD_TK_NONE && !qd_view_overlay(&A),
+          "ALGORITHM finely: both follow (%d); its takeover is not drawn over EDIT", h.vel);
+    wrel(3);
+    turn(QD_K_1, 2);
+    CHECK(A.ui.tk != QD_TK_NONE && !qd_view_overlay(&A) && qd_view_screen(&A) == QD_SCR_EDIT,
+          "nothing held, a default's knob: no full picture over EDIT");
+    turn(QD_K_PRESETS, 1);
+    qd_view_edit(&A, &h, &l);
+    CHECK(A.ui.slatch && qd_view_screen(&A) == QD_SCR_EDIT && !h.is_default && h.step == A.ui.held[0] + 1,
+          "PRESETS: the cursor's step in EDIT (step %d)", h.step);
+    btap(QD_B_HOME);
+    btap(QD_B_HOME);
+    turn(QD_K_1, 2);
+    CHECK(A.ui.view == QD_VIEW_ROLL && qd_view_overlay(&A), "the PIANO ROLL: the takeover as before");
 }
 
 /* P1.3i: the tempo and MIDI clock: a turn after a START and STOP works; a running clock shows EXT CLOCK and a turn says
@@ -2825,6 +2883,7 @@ int main(void)
         {"P1.3i: the tempo and MIDI clock (EXT CLOCK)", g_ext_clock},
         {"P1.3q: STEPS: the steps' kinds by colour", g_steps_kinds},
         {"P1.3q: STEPS: PRESETS the step cursor", g_cursor},
+        {"P1.3r: the EDIT view", g_edit},
     };
     size_t i;
     uint64_t h1, h2;

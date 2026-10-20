@@ -39,6 +39,7 @@ typedef struct {
     qd_rgb k[2];
     qd_rgb wh;                          /* white parts that are no value (the mallet, the ball, the chord name) */
     int empty;
+    int nobig;                          /* P1.3r: EDIT draws the big value itself (the drawing scaled apart) */
 } pal_t;
 
 #define DEF_COL 0xb4b4bcu               /* a value on the track's default: grey-white */
@@ -96,6 +97,8 @@ static int ramp_vel(int v, int ramp, int h, int n)
 /* KNOB 1's value big at x, y, or EMPTY STEP */
 static void big(const pal_t *p, const char *s, float x, float y, float size)
 {
+    if (p->nobig)
+        return;
     if (p->empty)
         ui_T("EMPTY STEP", x, y - size * 0.32f, 11.f, 600, 1.f, UI_G1, QD_LEFT);
     else
@@ -114,7 +117,9 @@ static void f_note(const ui_held_t *v, const pal_t *p)
     const float sq = 0.55f + 0.45f * ui_ease(v->squeeze / 0.18f);
     int i, lo = 48, mn = 127;
 
-    if (p->empty) {
+    if (p->nobig) {
+        /* (P1.3r: EDIT draws the chord name and the octave itself) */
+    } else if (p->empty) {
         ui_T("EMPTY STEP", 120.f, 76.f, 11.f, 600, 1.f, UI_G1, QD_CENTER);
     } else if (v->root[0]) {                            /* root big, quality small, squeezed in from narrow */
         const float wr = ui_TW(v->root, 70.f, 200, 0.f), wq = v->qual[0] ? ui_TW(v->qual, 30.f, 300, 0.f) : 0.f;
@@ -175,7 +180,7 @@ static void f_note(const ui_held_t *v, const pal_t *p)
             ui_T(KN[k], x, 112.5f, 7.f, 700, 0.f, on ? UI_BG : col, QD_CENTER);
         }
     }
-    {   /* the entry octave (B1's), the track's scale */
+    if (!p->nobig) {   /* the entry octave (B1's), the track's scale */
         char s[40], n[12];
         s[0] = 0;
         cat(cat(s, "OCT "), ui_itoa(n, v->entry_oct));
@@ -248,7 +253,7 @@ static void f_len(const ui_held_t *v, const pal_t *p)
     int i;
 
     big(p, v->len_name, 12.f, 92.f, 64.f);
-    if (!p->empty && !inf && v->len_name)
+    if (!p->empty && !inf && v->len_name && !p->nobig)
         ui_lab("STEPS", 12.f + ui_TW(v->len_name, 64.f, 200, 0.f) + 6.f, 92.f, UI_G1, QD_LEFT);
     /* the ruler: the steps from two before the held one, the beats' ticks taller */
     for (i = 0; i <= 10; i++) {
@@ -314,7 +319,7 @@ static void f_micro(const ui_held_t *v, const pal_t *p)
     cat(s, v->micro > 0 ? "+" : "");
     cat(s, ui_itoa(n, v->micro));
     big(p, s, 12.f, 82.f, 56.f);
-    if (!p->empty)
+    if (!p->empty && !p->nobig)
         ui_T("/24", 12.f + ui_TW(s, 56.f, 200, 0.f) + 6.f, 82.f, 18.f, 300, 0.f, UI_G1, QD_LEFT);
     line2(10.f, base, 230.f, base, UI_G2, 1.f);
     for (k = -12 + (int)off; k <= 36 + (int)off; k++) {
@@ -581,17 +586,19 @@ static int other_mode(int field)
     }
 }
 
-void ui_held_draw(const ui_held_t *v)
+/* the palette and the head: "STEP 5 · VEL" / "TRACK DEFAULT · VEL" (P1.3r: no track box or name: a pop-up shows only
+ * what is edited), SELECTED, the DEFAULT / EMPTY STEP tag */
+static int held_head(const ui_held_t *v, pal_t *p)
 {
     const int field = v->field >= 0 && v->field < UI_NFIELD ? v->field : UI_F_NOTE;
     const int lit = v->is_default || v->ovr;
-    pal_t p;
     char left[48], n[12];
 
-    p.empty = v->type == 0 && field != UI_F_TRIG && !v->is_default;
-    p.k[0] = p.empty ? UI_G2 : lit ? UI_MODE_COL[field] : DEF_COL;
-    p.k[1] = p.empty ? UI_G2 : UI_MODE_COL[other_mode(field)];
-    p.wh = p.empty ? UI_G1 : UI_K3;
+    p->empty = v->type == 0 && field != UI_F_TRIG && !v->is_default;
+    p->k[0] = p->empty ? UI_G2 : lit ? UI_MODE_COL[field] : DEF_COL;
+    p->k[1] = p->empty ? UI_G2 : UI_MODE_COL[other_mode(field)];
+    p->wh = p->empty ? UI_G1 : UI_K3;
+    p->nobig = 0;
 
     left[0] = 0;                                        /* "STEP 5 · NOTE", several held: "STEP 5+2 · NOTE" */
     if (v->is_default) {
@@ -602,34 +609,188 @@ void ui_held_draw(const ui_held_t *v)
             cat(cat(left, "+"), ui_itoa(n, v->nheld - 1));
     }
     cat(cat(left, " \xc2\xb7 "), UI_FIELD_NAME[field]);
-    ui_head_track(left, v->track, v->name, UI_K3);
+    ui_T(left, 8.f, 17.f, 11.f, 500, 1.f, UI_K3, QD_LEFT);
     if (v->latch && !v->is_default)                     /* P1.3d: selected by the step latch (LFO), not held */
         ui_lab("SELECTED", 8.f, 28.f, UI_G1, QD_LEFT);
-    if ((!lit && !p.empty) || (p.empty && (field == UI_F_COND || field == UI_F_CHNC))) {
+    if ((!lit && !p->empty) || (p->empty && (field == UI_F_COND || field == UI_F_CHNC))) {
         /* a tag top right: the step plays the track's value (COND / CHNC, which draw no EMPTY STEP: an empty step) */
-        const char *tag = p.empty ? "EMPTY STEP" : "DEFAULT";
+        const char *tag = p->empty ? "EMPTY STEP" : "DEFAULT";
         const float w = ui_TW(tag, 7.f, 600, 1.f) + 8.f;
         ui_RR(232.f - w, 26.f, w, 12.f, 3.f, UI_G2, 1.f, QD_NONE);
         ui_T(tag, 232.f - w / 2.f + 0.5f, 34.5f, 7.f, 600, 1.f, UI_G1, QD_CENTER);
     }
+    return field;
+}
 
+static void reset_mark(const ui_held_t *v, float y)
+{
+    const float w = ui_TW("B11 RESET", 7.f, 600, 1.f) + 8.f;
+    ui_RR(232.f - w, y, w, 12.f, 3.f, v->reset == 1 ? UI_K3 : UI_G2, 1.f, QD_NONE);
+    ui_T("B11 RESET", 232.f - w / 2.f + 0.5f, y + 8.5f, 7.f, 600, 1.f, v->reset == 1 ? UI_K3 : UI_G2, QD_CENTER);
+}
+
+static void held_body(const ui_held_t *v, const pal_t *p, int field)
+{
     switch (field) {
-    case UI_F_NOTE: f_note(v, &p); break;
-    case UI_F_VEL: f_vel(v, &p); break;
-    case UI_F_LEN: f_len(v, &p); break;
-    case UI_F_MICRO: f_micro(v, &p); break;
-    case UI_F_RATCH: f_ratch(v, &p); break;
+    case UI_F_NOTE: f_note(v, p); break;
+    case UI_F_VEL: f_vel(v, p); break;
+    case UI_F_LEN: f_len(v, p); break;
+    case UI_F_MICRO: f_micro(v, p); break;
+    case UI_F_RATCH: f_ratch(v, p); break;
     case UI_F_COND:
-    case UI_F_CHNC: f_cond(v, &p); break;
-    case UI_F_SOUND: f_sound(v, &p); break;
-    case UI_F_TRIG: f_trig(v, &p); break;
+    case UI_F_CHNC: f_cond(v, p); break;
+    case UI_F_SOUND: f_sound(v, p); break;
+    case UI_F_TRIG: f_trig(v, p); break;
     default: break;
     }
+}
+
+void ui_held_draw(const ui_held_t *v)
+{
+    pal_t p;
+    const int field = held_head(v, &p);
+    held_body(v, &p, field);
     if (!v->is_default)
         ui_value_strip((char (*)[6])v->vk, v->vk_lit, v->vk_def, v->vk_none, v->clr, UI_MODE_COL[field]);
-    else if (v->reset) {                                /* P1.3e: the mode key held: B11 resets the default */
-        const float w = ui_TW("B11 RESET", 7.f, 600, 1.f) + 8.f;
-        ui_RR(232.f - w, 225.f, w, 12.f, 3.f, v->reset == 1 ? UI_K3 : UI_G2, 1.f, QD_NONE);
-        ui_T("B11 RESET", 232.f - w / 2.f + 0.5f, 233.5f, 7.f, 600, 1.f, v->reset == 1 ? UI_K3 : UI_G2, QD_CENTER);
+    else if (v->reset)                                  /* P1.3e: the mode key held: B11 resets the default */
+        reset_mark(v, 225.f);
+}
+
+/* ================================================================ P1.3r: the EDIT view ===
+ * The top (y 26 .. 138): the mode's picture re-laid-out: the value big top left (as big as on the full screen, a
+ * little less), the drawing scaled into the space beside / under it (CHNC / COND, SOUND and TRIG, whose value is part of
+ * a centred drawing: the whole drawing scaled). Between: the value strip (y 141 .. 158). The foot: the page's row as
+ * STEPS' open row (y 162 ..). No takeover pops up over it: the top is the pop-up. */
+#define ED_STRIP_DY (-80.f)                             /* the strip moved up from the foot (221 -> 141) */
+#define ED_ROW_Y 162.f
+#define ED_ROW_OPEN 66.f                                /* its cells 50 px */
+
+/* the drawing part of a full screen, region (x0, y0) .. scaled by s to (dx, dy) */
+static void scaled(const ui_held_t *v, const pal_t *p, int field, float x0, float y0, float s, float dx, float dy)
+{
+    qd_save();
+    qd_translate(dx - x0 * s, dy - y0 * s);
+    qd_scale(s, s);
+    held_body(v, p, field);
+    qd_restore();
+}
+
+/* the value big at the top left, or EMPTY STEP; a small unit after it */
+static void ed_big(const pal_t *p, const char *s, const char *unit, float size)
+{
+    const float y = 78.f;
+    if (p->empty) {
+        ui_T("EMPTY STEP", 10.f, 60.f, 11.f, 600, 1.f, UI_G1, QD_LEFT);
+        return;
     }
+    ui_T(s, 8.f, y, size, 200, 0.f, p->k[0], QD_LEFT);
+    if (unit)
+        ui_lab(unit, 8.f + ui_TW(s, size, 200, 0.f) + 4.f, y, UI_G1, QD_LEFT);
+}
+
+static void ed_note(const ui_held_t *v, const pal_t *p)
+{
+    char s[40], n[12];
+    if (p->empty) {
+        ui_T("EMPTY STEP", 10.f, 66.f, 11.f, 600, 1.f, UI_G1, QD_LEFT);
+    } else if (v->root[0]) {                            /* the chord's root big, its quality small */
+        const float sq = 0.55f + 0.45f * ui_ease(v->squeeze / 0.18f), wr = ui_TW(v->root, 50.f, 200, 0.f);
+        qd_save();
+        qd_translate(8.f, 92.f);
+        qd_scale(sq, 1.f);
+        ui_T(v->root, 0.f, 0.f, 50.f, 200, 0.f, p->wh, QD_LEFT);
+        if (v->qual[0])
+            ui_T(v->qual, wr + 2.f, -26.f, 20.f, 300, 0.f, p->wh, QD_LEFT);
+        qd_restore();
+    } else if (v->names[0]) {
+        ui_T(v->names, 8.f, 80.f, 14.f, 300, 0.5f, p->wh, QD_LEFT);
+    }
+    s[0] = 0;                                           /* the entry octave, the scale */
+    cat(cat(s, "OCT "), ui_itoa(n, v->entry_oct));
+    if (v->scale_name && v->scale_name[0])
+        cat(cat(s, " \xc2\xb7 "), v->scale_name);
+    ui_lab(s, 8.f, 120.f, UI_G1, QD_LEFT);
+}
+
+static void ed_plock(const ui_held_t *v, const ui_lane_t *lane)
+{
+    const qd_rgb col = UI_MODE_COL[UI_F_PLOCK];
+    char s[24], n[12];
+    ui_lock(18.f, 52.f, col, 5.f);
+    if (v->is_default) {
+        ui_T("KNOBS LOCK", 70.f, 76.f, 16.f, 300, 0.5f, UI_G1, QD_LEFT);
+        ui_T("THE STEPS HELD", 70.f, 96.f, 16.f, 300, 0.5f, UI_G1, QD_LEFT);
+    } else {
+        const int c = (v->step - 1) % 16, nl = lane->col[c < 0 ? 0 : c].nlock;
+        s[0] = 0;
+        cat(cat(s, ui_itoa(n, nl)), nl == 1 ? " LOCK" : " LOCKS");
+        ui_T(s, 70.f, 92.f, 30.f, 200, 0.f, nl ? col : UI_G1, QD_LEFT);
+        ui_lab("B11 CLEARS THEM", 70.f, 112.f, UI_G1, QD_LEFT);
+    }
+}
+
+void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
+{
+    pal_t p;
+    const int field = held_head(v, &p);
+    char s[16], n[12];
+
+    p.nobig = 1;
+    qd_save();
+    qd_clip_rect(0.f, 22.f, 240.f, 118.f);              /* (the top area: nothing spills onto the strip) */
+    switch (field) {
+    case UI_F_NOTE:
+        ed_note(v, &p);
+        scaled(v, &p, field, 14.f, 104.f, 0.55f, 108.f, 70.f);
+        break;
+    case UI_F_VEL:
+        ed_big(&p, ui_itoa(s, v->vel), 0, 54.f);
+        scaled(v, &p, field, 30.f, 50.f, 0.52f, 124.f, 40.f);
+        break;
+    case UI_F_LEN:
+        ed_big(&p, v->len_name ? v->len_name : "", v->len_steps < 0.f ? 0 : "STEPS", 44.f);
+        scaled(v, &p, field, 14.f, 105.f, 0.7f, 80.f, 70.f);
+        break;
+    case UI_F_MICRO:
+        s[0] = 0;
+        cat(s, v->micro > 0 ? "+" : "");
+        cat(s, ui_itoa(n, v->micro));
+        ed_big(&p, s, "/24", 44.f);
+        scaled(v, &p, field, 10.f, 94.f, 0.62f, 96.f, 78.f);
+        break;
+    case UI_F_RATCH:
+        s[0] = 0;
+        cat(cat(s, "\xc3\x97"), ui_itoa(n, v->count < 1 ? 1 : v->count > 8 ? 8 : v->count));
+        ed_big(&p, s, 0, 44.f);
+        scaled(v, &p, field, 14.f, 100.f, 0.6f, 105.f, 68.f);
+        break;
+    case UI_F_COND:
+    case UI_F_CHNC:
+        p.nobig = 0;
+        scaled(v, &p, field, 0.f, 40.f, 0.6f, 48.f, 40.f);
+        break;
+    case UI_F_SOUND:
+        p.nobig = 0;
+        scaled(v, &p, field, 0.f, 26.f, 0.56f, 52.8f, 30.f);
+        break;
+    case UI_F_TRIG:
+        p.nobig = 0;
+        scaled(v, &p, field, 0.f, 50.f, 0.78f, 26.4f, 34.f);
+        break;
+    case UI_F_PLOCK:
+        ed_plock(v, lane);
+        break;
+    default:
+        break;
+    }
+    qd_restore();
+    if (!v->is_default && field != UI_F_PLOCK) {        /* the value strip, between the halves */
+        qd_save();
+        qd_translate(0.f, ED_STRIP_DY);
+        ui_value_strip((char (*)[6])v->vk, v->vk_lit, v->vk_def, v->vk_none, v->clr, UI_MODE_COL[field]);
+        qd_restore();
+    } else if (v->reset) {
+        reset_mark(v, 143.f);
+    }
+    ui_steps_row(lane, ED_ROW_Y, ED_ROW_OPEN);
 }

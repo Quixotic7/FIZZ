@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3q)
+# Playing FIZZ (P1.3r)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -26,7 +26,7 @@ sound comes from the Mac. Printed names are in brackets.
   tiny bubbles floating inside. Once a loop the word FIZZ gathers out of the bubbles as particles, stands as solid
   coloured letters, then fizzes apart again. While a DAW plays it, a surge of bubbles rises on each beat.
   Press anything to get to the **step view**.
-- **HOME** in the sequencer switches its view: **PIANO ROLL** (the mode's lane) and **STEPS**. STEPS shows all eight
+- **HOME** in the sequencer cycles its views: **PIANO ROLL** (the mode's lane), **STEPS** and **EDIT**. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
   drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
   dim. A step's colour says what it plays: **warm white** its own notes, **cyan** the track's notes (a plain trig),
@@ -34,10 +34,16 @@ sound comes from the Mac. Printed names are in brackets.
   ghost's velocity is a tick), and a selected step shows its length as a line under the row (an arrow: to the end).
   Outside NOTE mode, a thin bar in the mode's colour under a step means it has its own value for that mode. Playing,
   a red marker hops along the steps and each step pops as it plays. SELECT changes the page (the rows fold and
-  unfold). **PRESETS** is a step cursor here: it turns the step latch on and moves its one selected step through the
-  loop (into the next page and round), the row following; the black keys and knobs then edit it, and STEPS stays on
-  screen. LFO or HOME ends it. With a finger on a step, PRESETS is the sound lock as before; in the PIANO ROLL it is
-  the track's sound.
+  unfold). **PRESETS** is a step cursor here: it turns the step latch on and moves its one selected step through all
+  eight pages in order (each over its start..end; page 8 runs on to page 1 and back), the row following; the black
+  keys and knobs then edit it, and STEPS stays on screen. LFO or HOME ends it. With a finger on a step, PRESETS is
+  the sound lock as before; in the PIANO ROLL it is the track's sound.
+- **EDIT** (HOME from STEPS) shows the page you edit as one row at the bottom (as STEPS draws it) and the hold mode's
+  picture above it, with the ten values between: the step you hold, select or point at with PRESETS, or the track's
+  default when nothing is held (a mode key held: its default). Every edit moves both at once (the cell's fill rises
+  as the mallet swings); no knob pop-up covers it. Holding, the step latch and the PRESETS cursor all stay in EDIT.
+- Pop-ups (the held-step and default pictures, the knob takeovers, the octave and sound pickers) no longer show the
+  track's box and name: only what is being edited.
   From any other screen HOME comes back to the sequencer in the view you used last. If F3 or the step latch is open,
   HOME closes that first.
 - After two minutes untouched with nothing playing, it goes back to the FIZZ screen.
