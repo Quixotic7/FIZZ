@@ -952,6 +952,21 @@ MIDI channel, voice limit, swing on / off, page follow); **ENV (printed) = MIX**
 black keys the tracks, the knobs level / pan / delay / reverb of the selected one; MIX again = the effects (delay,
 reverb, chorus). PAGE's jobs move: page follow to the settings, pages to SELECT and F1.
 
+**Version 2.3, the owner's additions (same day):**
+- **Record settings on SHIFT + REC** (a latched menu, OCT− back): the recording mode **LIVE / STEP**, quantize, overdub /
+  replace. Holding REC arms whichever mode is chosen (SHIFT + REC no longer toggles step recording).
+- **The value keys light the nearest value** in every hold mode (velocity 100 lights the 102 key; a length between two
+  keys the nearer), not only an exact match.
+- **Knob layouts to try:** a **global settings page on SHIFT + SEL** with **KNOBS = A / B / C (/ D)**, complete
+  self-consistent layouts (A: ALGORITHM the step cursor, PRESETS the preset, SELECT the page; B: PRESETS the cursor
+  (P1.3q's); C: SELECT the cursor, ALGORITHM the page; ...), so the owner can compare them on the unit.
+- **Buttons:** **FX (printed) = the effects page**: ChoralRoot's stereo effects as FIZZ already runs them (the stereo
+  delay, the large modulated reverb, the stereo chorus; docs/FX.md in ChoralRoot), every parameter on pages with
+  drawings. **SEL tapped = the track settings page** (SEL held stays the track map). **ENV = MIX** (the owner: fine).
+  FX held + ALGORITHM still chooses the track.
+- Order: P1.3y gains the light rounding, the global settings page with the knob layouts, and the record settings;
+  P1.4b becomes track settings (SEL tap), MIX (ENV) and FX (FX).
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
