@@ -113,44 +113,81 @@ static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
 }
 
 /* ---------------------------------------------------------------- NOTE (s4) */
+/* P1.3t (the owner): the keybed low (just over EDIT's row), the step's notes as one readable line right over it, each in
+ * its knob's colour in slot order (S, 1 .. 4, the sixth pink; the colours are the legend: no S 1 2 3 4 marks, no
+ * "A = ALL"), the dots on the keys; no names under the keys; only the scale's name small top left (no entry octave:
+ * the octave takeover and the OCT LEDs show it). The chord's name big (the full screen) when it is one; else none */
+#define KB_Y 140.f                                      /* the keybed's top (70 tall) */
+static qd_rgb slot_col(int k) { return k == 5 ? UI_KALG : k ? UI_K[k - 1] : UI_KSEL; }
+
+static void note_line(const ui_held_t *v, const pal_t *p, float y)
+{
+    const char *nm[6];
+    qd_rgb col[6];
+    float size = 15.f, w = 0.f, x;
+    const float gap = 10.f;
+    int n = 0, i, k;
+    for (k = 0; k < 6; k++)                             /* slot order, each in its knob's colour */
+        if (v->slot_note[k])
+            for (i = 0; i < v->nnote && i < 6; i++)
+                if (v->note[i] == v->slot_note[k]) {
+                    nm[n] = v->note_name[i];
+                    col[n++] = p->empty ? UI_G2 : slot_col(k);
+                    break;
+                }
+    if (!n)                                             /* (no slots: the notes low to high) */
+        for (i = 0; i < v->nnote && i < 6; i++) {
+            nm[n] = v->note_name[i];
+            col[n++] = p->k[0];
+        }
+    if (!n)
+        return;
+    for (i = 0; i < n; i++)
+        w += ui_TW(nm[i], size, 500, 0.5f) + (i ? gap : 0.f);
+    if (w > 220.f) {                                    /* six long names: a touch smaller, never overlapping */
+        size *= 220.f / w;
+        w = 220.f;
+    }
+    x = 120.f - w / 2.f;
+    for (i = 0; i < n; i++) {
+        ui_T(nm[i], x, y, size, 500, 0.5f, col[i], QD_LEFT);
+        x += ui_TW(nm[i], size, 500, 0.5f) + gap * size / 15.f;
+    }
+}
+
 static void f_note(const ui_held_t *v, const pal_t *p)
 {
     const float sq = 0.55f + 0.45f * ui_ease(v->squeeze / 0.18f);
     int i, lo = 48, mn = 127;
 
     if (p->nobig) {
-        /* (P1.3r: EDIT draws the chord name and the octave itself) */
+        /* (P1.3r: EDIT puts the chord's name in its head, the scale under it) */
     } else if (p->empty) {
-        ui_T("EMPTY STEP", 120.f, 76.f, 11.f, 600, 1.f, UI_G1, QD_CENTER);
+        ui_T("EMPTY STEP", 120.f, 86.f, 11.f, 600, 1.f, UI_G1, QD_CENTER);
     } else if (v->root[0]) {                            /* root big, quality small, squeezed in from narrow */
         const float wr = ui_TW(v->root, 70.f, 200, 0.f), wq = v->qual[0] ? ui_TW(v->qual, 30.f, 300, 0.f) : 0.f;
         const float w = (wr + wq + 2.f) * sq, x = 120.f - w / 2.f;
         qd_save();
-        qd_translate(x, 98.f);
+        qd_translate(x, 104.f);
         qd_scale(sq, 1.f);
         ui_T(v->root, 0.f, 0.f, 70.f, 200, 0.f, p->wh, QD_LEFT);
         qd_restore();
         if (v->qual[0]) {
             qd_save();
-            qd_translate(x + (wr + 2.f) * sq, 64.f);
+            qd_translate(x + (wr + 2.f) * sq, 70.f);
             qd_scale(sq, 1.f);
             ui_T(v->qual, 0.f, 0.f, 30.f, 300, 0.f, p->wh, QD_LEFT);
             qd_restore();
         }
-    } else if (v->names[0]) {                           /* not a chord the namer knows: the notes' names */
-        qd_save();
-        qd_translate(120.f, 88.f);
-        qd_scale(sq, 1.f);
-        ui_T(v->names, 0.f, 0.f, 26.f, 300, 0.5f, p->wh, QD_CENTER);
-        qd_restore();
     }
+    note_line(v, p, KB_Y - 9.f);
 
     for (i = 0; i < v->nnote && i < 6; i++)             /* the keybed from the C at or below the lowest note */
         if (v->note[i] < mn)
             mn = v->note[i];
     if (v->nnote > 0)
         lo = mn / 12 * 12;
-    ui_keyboard(14.f, 120.f, 212.f, 70.f, lo, 0);
+    ui_keyboard(14.f, KB_Y, 212.f, 70.f, lo, 0);
     for (i = 0; i < v->nnote && i < 6; i++) {
         int b, k;
         const int d = v->note[i] - lo;
@@ -161,34 +198,14 @@ static void f_note(const ui_held_t *v, const pal_t *p)
         if (!p->empty)                                  /* the colour of the knob that turns it */
             for (k = 0; k < 6; k++)
                 if (v->slot_note[k] == v->note[i]) {
-                    col = k == 5 ? UI_KALG : k ? UI_K[k - 1] : UI_KSEL;
+                    col = slot_col(k);
                     break;
                 }
         x = ui_keyboard_x(14.f, 212.f, lo, v->note[i], &b);
-        ui_O(x, b ? 152.f : 180.f, 3.8f, QD_NONE, 1.f, col);
-        ui_T(v->note_name[i], x, i % 2 ? 215.f : 204.f, 9.f, 600, 0.f, col, QD_CENTER);
+        ui_O(x, b ? KB_Y + 32.f : KB_Y + 60.f, 3.8f, QD_NONE, 1.f, col);
     }
-    if (v->knobs) {                                     /* the knobs: SELECT, KNOB 1..4 (nothing held: 1..4), A = ALL */
-        static const char *const KN[5] = {"S", "1", "2", "3", "4"};
-        const int k0 = v->knobs == 2 ? 1 : 0, k1 = 5;
-        int k;
-        ui_lab("A = ALL", 232.f, 112.5f, UI_G1, QD_RIGHT);
-        for (k = k0; k < k1; k++) {
-            const float x = 117.f + (float)k * 15.f;
-            const qd_rgb col = k == 5 ? UI_KALG : k ? UI_K[k - 1] : UI_KSEL;
-            const int on = v->slot_note[k] && !p->empty;
-            ui_O(x, 110.f, 5.5f, col, 1.2f, on ? col : QD_NONE);
-            ui_T(KN[k], x, 112.5f, 7.f, 700, 0.f, on ? UI_BG : col, QD_CENTER);
-        }
-    }
-    if (!p->nobig) {   /* the entry octave (B1's), the track's scale */
-        char s[40], n[12];
-        s[0] = 0;
-        cat(cat(s, "KEYS OCT "), ui_itoa(n, v->entry_oct));   /* (P1.3s: the black keys' entry octave) */
-        if (v->scale_name && v->scale_name[0])
-            cat(cat(s, " \xc2\xb7 "), v->scale_name);
-        ui_lab(s, 8.f, 37.f, UI_G1, QD_LEFT);
-    }
+    if (!p->nobig && v->scale_name && v->scale_name[0])   /* the track's scale, small */
+        ui_lab(v->scale_name, 8.f, 37.f, UI_G1, QD_LEFT);
 }
 
 /* ---------------------------------------------------------------- VEL (s5) */
@@ -588,7 +605,7 @@ static int other_mode(int field)
 }
 
 /* the palette and the head: "STEP 5 · VEL" / "TRACK DEFAULT · VEL" (P1.3r: no track box or name: a pop-up shows only
- * what is edited), SELECTED, the DEFAULT / EMPTY STEP tag */
+ * what is edited), the DEFAULT / EMPTY STEP tag (P1.3t: no SELECTED) */
 static float g_tag_x;                                   /* P1.3s: EDIT puts the tag in the head row: its right end */
 static int g_edit_head;
 static int held_head(const ui_held_t *v, pal_t *p)
@@ -614,8 +631,7 @@ static int held_head(const ui_held_t *v, pal_t *p)
     }
     cat(cat(left, " \xc2\xb7 "), UI_FIELD_NAME[field]);
     ui_T(left, 8.f, 17.f, 11.f, 500, 1.f, UI_K3, QD_LEFT);
-    if (v->latch && !v->is_default)                     /* P1.3d: selected by the step latch (LFO), not held */
-        ui_lab("SELECTED", 8.f, 28.f, UI_G1, QD_LEFT);
+    /* (P1.3t: no SELECTED: the row and the LFO light say it) */
     if ((!lit && !p->empty) || (p->empty && (field == UI_F_COND || field == UI_F_CHNC))) {
         /* a tag top right: the step plays the track's value (COND / CHNC, which draw no EMPTY STEP: an empty step) */
         const char *tag = p->empty ? "EMPTY STEP" : "DEFAULT";
@@ -743,14 +759,11 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
     qd_clip_rect(0.f, ED_TOP - 4.f, 240.f, ED_BOT - ED_TOP + 4.f);   /* (nothing spills onto the row) */
     switch (field) {
     case UI_F_NOTE:                                     /* the keybed full width, its legend, the names */
-        if (v->root[0])
+        if (v->root[0])                                 /* (P1.3t: a chord's name, else none: the note line) */
             cat(cat(val, v->root), v->qual);
-        else
-            cat(val, v->names);
-        cat(cat(sub, "KEYS OCT "), ui_itoa(n, v->entry_oct));
         if (v->scale_name && v->scale_name[0])
-            cat(cat(sub, " \xc2\xb7 "), v->scale_name);
-        moved(v, &p, field, -62.f);                     /* (104 .. 216 -> 42 .. 154) */
+            cat(sub, v->scale_name);
+        moved(v, &p, field, -34.f);                     /* (the notes 131, the keybed 140 .. 210 -> 97, 106 .. 176) */
         break;
     case UI_F_VEL:                                      /* the mallet and the drum (the ramp's ticks under them) */
         cat(val, ui_itoa(n, v->vel));
@@ -808,7 +821,7 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
     }
     head_value(v, &p, val);
     if (sub[0])
-        ui_lab(sub, 8.f, v->latch && !v->is_default ? 38.f : 31.f, UI_G1, QD_LEFT);
+        ui_lab(sub, 8.f, 31.f, UI_G1, QD_LEFT);
     if (v->is_default && v->reset)                      /* the mode key held: B11 resets the default */
         reset_word(v, 33.f);
     ui_steps_row(lane, ED_ROW_Y, ED_ROW_OPEN);

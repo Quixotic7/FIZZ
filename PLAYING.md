@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3s)
+# Playing FIZZ (P1.3t)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -64,7 +64,9 @@ sound comes from the Mac. Printed names are in brackets.
    for that choice; steps that have their own value are in colour, steps on the track's default are grey, and the
    default is a dashed line or a grey label.
 2. **Hold** the step's white key. The screen shows that step (the black keys' ten values are in the table below; the
-   screen no longer draws them as a strip). On NOTE, "KEYS OCT n" is the octave the black keys enter notes in.
+   screen no longer draws them as a strip). On NOTE the step's notes are written in one line right over the keyboard,
+   each in the colour of the knob that turns it (SELECT yellow, KNOB 1..4 blue, green, white, orange, the sixth pink),
+   with the track's scale small at the top left; a chord the unit knows is named big (in EDIT, in the top line).
 3. **Turn the knobs** (table below), or press a black key **B1 .. B10** for one of ten values (shortcuts).
    ALGORITHM also turns the main value.
 4. **B11** puts the step back on the track's default.
@@ -128,7 +130,7 @@ A step has up to **six notes**.
     skipped.
   - Notes 2..5 live above note 1: turn one down past note 1 and it is removed; turn it up from nothing and it comes in
     a scale step above note 1.
-  - **ALGORITHM moves all the notes together** ("A = ALL" on the screen).
+  - **ALGORITHM moves all the notes together**.
   - A sixth note (pink) comes only from the black keys.
   - Each note plays as you turn it.
   - In NOTE, SELECT doesn't change pages and KNOB 1..4 don't lock the sound: use P-LOCK for that. (In every mode
