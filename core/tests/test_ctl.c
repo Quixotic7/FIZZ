@@ -995,23 +995,20 @@ static void g_f3(void)
     run(10);
     CHECK(ts->pstart[0] == 2 && ts->pend[0] == 9, "F3 + hold W3, press W10: 3..10");
     bpm = A.bpm;
-    turn(QD_K_ALGO, 5);
-    CHECK(A.bpm == bpm + 5 && A.ui.tk == QD_TK_NONE && qd_view_screen(&A) == QD_SCR_LAYER,
-          "P1.3h: F3 + ALGORITHM: the tempo, live on the map (no takeover)");
-    bdown(SHIFT);
+    turn(QD_K_SELECT, 5);
+    CHECK(A.bpm == bpm + 5 && A.ui.tk == UI_TK_TEMPO && qd_view_screen(&A) == QD_SCR_LAYER && A.ui.page[0] == 0,
+          "P1.3x: F3 + SELECT: the tempo, its metronome over the map (the page untouched)");
     turn(QD_K_ALGO, 6);
-    bup(SHIFT);
-    CHECK(PAT()->swing == 56 && A.ui.tk == QD_TK_NONE, "SHIFT + F3 + ALGORITHM: the swing");
-    turn(QD_K_SELECT, 2);
-    CHECK(A.ui.page[0] == 2 && A.ui.tk == QD_TK_NONE && qd_ctl_layer_shown(&A) == QD_LAYER_F3 && A.bpm == bpm + 5,
-          "F3 + SELECT: the page edited (3), the map stays, the tempo untouched");
+    CHECK(PAT()->swing == 56 && A.ui.tk == UI_TK_SWING && A.bpm == bpm + 5, "P1.3x: F3 + ALGORITHM: the swing, its "
+          "metronome");
+    run(QD_TK_MS + QD_TK_FADE_MS + 5);
+    CHECK(A.ui.tk == QD_TK_NONE && qd_ctl_layer_shown(&A) == QD_LAYER_F3, "a second later: the map again");
     {
         const int snd = A.model.t[0].sound;
         turn(QD_K_PRESETS, 2);
         CHECK(A.model.t[0].sound == snd && A.ui.tk == QD_TK_NONE && qd_ctl_layer_shown(&A) == QD_LAYER_F3,
               "P1.3j: F3 + PRESETS: nothing (the track's sound untouched, no picker)");
     }
-    turn(QD_K_SELECT, -2);
     f3_up();
     bdown(F1);                                          /* the F3 chord: F1 first, F2 after: F3, latched (P1.3d) */
     run(30);
@@ -1299,7 +1296,127 @@ static void g_rec(void)
           "the step playing (step 15)");
     btap(QD_B_PLAY);
     run(10);
-    CHECK(A.ui.rec && !A.seq.playing, "stopped: still armed (step recording now)");
+    CHECK(!A.ui.rec && A.seq.playing, "P1.3x: PLAY while recording: the recording ends, playback goes on");
+    btap(QD_B_PLAY);
+    run(10);
+    CHECK(!A.seq.playing, "PLAY again: stopped");
+}
+
+/* P1.3x: PLAY held opens F3 (a tap plays on its release); REC held arms live recording: stopped, the first key starts
+ * playback and recording (the note on step 1, offset 0); an empty track's loop grows a page as it is reached (3 pages
+ * reached: a 3-page loop when REC ends the recording, playback going on); to 8 pages, then it wraps and records on;
+ * notes placed at a dotted and a triplet rate with micro against this test's own tick math */
+static int64_t step_ticks(int base, int type)           /* (by hand: QD_TPS a 16th; 1/1 is 16 of them) */
+{
+    int64_t l = (int64_t)QD_TPS * 16;
+    int i;
+    for (i = 0; i < base; i++)
+        l /= 2;
+    return type == QD_RTYPE_DOTTED ? l + l / 2 : type == QD_RTYPE_TRIPLET ? l * 2 / 3 : l;
+}
+static void live_arm(void)
+{
+    bdown(QD_B_REC);
+    run(QD_REC_HOLD_MS + 50);
+    bup(QD_B_REC);
+    run(10);
+}
+static void place_at(int base, int type, double at, const char *name)
+{
+    const int64_t L = step_ticks(base, type);
+    int64_t T;
+    double pos;
+    int st, micro;
+    start();
+    PAT()->trk[0].rbase = (uint8_t)base;
+    PAT()->trk[0].rtype = (uint8_t)type;
+    live_arm();
+    kdown(7);                                           /* the first key: playback and recording */
+    run(30);
+    kup(7);
+    while ((double)qd_seq_tick(&A.seq) < at * (double)L)
+        run(1);
+    T = qd_seq_tick(&A.seq);
+    kdown(16);
+    run(20);
+    kup(16);
+    run(5);
+    pos = (double)T / (double)L;                        /* the step nearest, the 24ths off it */
+    st = (int)floor(pos + 0.5);
+    micro = (int)lround((pos - (double)st) * 24.0);
+    CHECK(R(0, st).on && R(0, st).notes[0] == 69 && abs(R(0, st).micro - micro) <= 1,
+          "%s: the note on step %d, micro %d (by hand %d)", name, st + 1, R(0, st).micro, micro);
+    btap(QD_B_PLAY);
+    btap(QD_B_PLAY);
+}
+static void g_live(void)
+{
+    int k;
+    start();
+    bdown(QD_B_PLAY);                                   /* PLAY held: F3 (no transport) */
+    run(QD_PLAY_HOLD_MS + 20);
+    bup(QD_B_PLAY);
+    run(10);
+    CHECK(A.ui.latch == QD_LATCH_F3 && !A.seq.playing, "PLAY held: F3 latched, the transport untouched");
+    btap(F1);
+    btap(QD_B_PLAY);
+    CHECK(A.seq.playing, "PLAY tapped: playing (on the release)");
+    btap(QD_B_PLAY);
+    CHECK(!A.seq.playing, "tapped again: stopped");
+
+    live_arm();                                         /* REC held: the keyboard, live armed, waiting */
+    CHECK(A.ui.mode == QD_MODE_KEYS && A.ui.rec && A.ui.live_wait && !A.seq.playing && A.ui.rec_grow &&
+              qd_track_loop(&PAT()->trk[0]) == 1, "REC held: live recording armed, stopped, the empty track on page 1");
+    run(300);
+    CHECK(!A.seq.playing, "nothing moves until the first key");
+    kdown(7);
+    run(40);
+    kup(7);
+    CHECK(A.seq.playing && R(0, 0).on && R(0, 0).notes[0] == 60 && R(0, 0).micro == 0,
+          "the first key: playing and recording, C4 on step 1 at offset 0");
+    while (qd_ctl_playing_page(&A, 0) < 2)              /* into page 3: pages 2 and 3 joined as they came */
+        run(1);
+    run(200);
+    kdown(11);
+    run(40);
+    kup(11);
+    CHECK(qd_track_loop(&PAT()->trk[0]) & 4, "page 3 reached: in the loop (%02x)", qd_track_loop(&PAT()->trk[0]));
+    btap(QD_B_REC);
+    CHECK(!A.ui.rec && A.seq.playing && A.ui.mode == QD_MODE_KEYS && qd_track_loop(&PAT()->trk[0]) == 7,
+          "REC: the recording ends, playback goes on, the loop the 3 pages reached (%02x)",
+          qd_track_loop(&PAT()->trk[0]));
+    btap(QD_B_PLAY);
+    CHECK(!A.seq.playing, "PLAY: stopped");
+
+    start();                                            /* to 8 pages, then it wraps and records on */
+    live_arm();
+    kdown(7);
+    run(40);
+    kup(7);
+    while (qd_ctl_playing_page(&A, 0) < 7)
+        run(10);
+    CHECK(qd_track_loop(&PAT()->trk[0]) == 0xff && A.ui.rec_grow, "page 8 reached: all eight pages in the loop");
+    for (k = 0; k < 4000 && qd_ctl_playing_page(&A, 0) != 0; k++)
+        run(1);
+    run(300);
+    kdown(14);
+    run(40);
+    kup(14);
+    CHECK(qd_ctl_playing_page(&A, 0) == 0 && A.ui.rec && qd_track_loop(&PAT()->trk[0]) == 0xff,
+          "past page 8: round to page 1, still recording");
+    {
+        int s, got = 0;
+        for (s = 0; s < 16; s++)
+            got |= R(0, s).on && R(0, s).notes[0] == 67;
+        CHECK(got, "a note on page 1 again (recorded over)");
+    }
+    btap(QD_B_PLAY);
+    CHECK(!A.ui.rec && A.seq.playing && qd_track_loop(&PAT()->trk[0]) == 0xff, "PLAY: the recording ends, playing on");
+    btap(QD_B_PLAY);
+
+    place_at(3, QD_RTYPE_DOTTED, 3.0 + 5.0 / 24.0, "dotted 1/8");   /* the placement at the track's rate */
+    place_at(4, QD_RTYPE_TRIPLET, 6.0 - 4.0 / 24.0, "triplet 1/16");
+    place_at(4, QD_RTYPE_NORMAL, 9.0 + 7.0 / 24.0, "1/16");
 }
 
 /* the keyboard in a scale: the keys snap down onto it */
@@ -1878,11 +1995,9 @@ static void g_f3_latch(void)
     turn(QD_K_3, 2);
     CHECK(ts->pstart[0] == 2, "open: KNOB 3 = the start");
     bpm = A.bpm;
-    turn(QD_K_ALGO, 3);
-    bdown(SHIFT);
+    turn(QD_K_SELECT, 3);
     turn(QD_K_ALGO, 4);
-    bup(SHIFT);
-    CHECK(A.bpm == bpm + 3 && PAT()->swing == 54, "open: ALGORITHM the tempo, SHIFT + ALGORITHM the swing (P1.3h)");
+    CHECK(A.bpm == bpm + 3 && PAT()->swing == 54, "open: SELECT the tempo, ALGORITHM the swing (P1.3x)");
     btap(F2);
     CHECK(A.ui.latch == QD_LATCH_F3 && !A.ui.f2_loaded, "OCT+ (confirm, reserved): nothing, still open");
     bdown(F1);
@@ -2487,20 +2602,20 @@ static void g_ext_clock(void)
     bup(F2), bup(F1);
     run(10);
     b0 = A.bpm;
-    turn(QD_K_ALGO, 4);
-    CHECK(A.bpm == b0 + 4 && !A.seq.ext && !A.seq.playing, "after a START and STOP: F3 + ALGORITHM moves the tempo "
+    turn(QD_K_SELECT, 4);
+    CHECK(A.bpm == b0 + 4 && !A.seq.ext && !A.seq.playing, "after a START and STOP: F3 + SELECT moves the tempo "
           "(%d, now %d)", b0, A.bpm);
     qd_app_midi(&A, 0xFA, 0, 0);                        /* a clock at 100 BPM */
     clock_pulses(96, 25);
     b0 = A.bpm;
-    turn(QD_K_ALGO, 4);
+    turn(QD_K_SELECT, 4);
     CHECK(qd_seq_ext_running(&A.seq) && b0 >= 97 && b0 <= 102 && A.bpm == b0 && A.ui.cf_on &&
               !strcmp(A.ui.cf_big, "EXT CLOCK") && qd_ctl_layer_shown(&A) == QD_LAYER_F3,
           "a running clock: the tempo is its (%d), a turn shows EXT CLOCK and moves nothing (F3 still open)", b0);
     run(600);                                           /* the clock gone quiet */
     CHECK(!A.seq.ext && !A.seq.playing, "no pulse for 0.6 s: not following, stopped");
     b0 = A.bpm;
-    turn(QD_K_ALGO, -3);
+    turn(QD_K_SELECT, -3);
     CHECK(A.bpm == b0 - 3, "the turn works again (%d, now %d)", b0, A.bpm);
     btap(F1);
     qd_app_midi(&A, 0xFA, 0, 0);
@@ -3005,6 +3120,7 @@ int main(void)
         {"P1.3s: STEPS playing: no outline but the selection's", g_play_outline},
         {"P1.3r: the EDIT view", g_edit},
         {"P1.3w: FUNC on B9: the functions, the jump's target, SOUND on B10", g_func},
+        {"P1.3x: PLAY held F3; REC held live recording, growing", g_live},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

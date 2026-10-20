@@ -4,6 +4,12 @@
  * THE KEYBOARD (REC tapped: the KEYS screen): the keybed plays the selected track, F3..G5 shifted by OCT- / OCT+; a
  * track in a scale has every key snapped down onto the scale (its white keys in C major, say, play themselves).
  * Recording is armed by SHIFT + REC (or REC + PLAY); stopped it is step recording, playing it is live recording.
+ * P1.3x (§8b "PLAY, F3 and live recording"): REC HELD arms LIVE recording; stopped, nothing moves until the first note,
+ * which starts playback and recording together (the note on the loop's first step, offset 0). An EMPTY track (no trig
+ * on any page) grows as it is recorded: its loop starts as page 1, and the next page joins the loop as the playhead
+ * nears the loop's end; at the recording's end the loop is the pages reached; past page 8 it loops and records over
+ * what is there. REC or PLAY while recording ends it; playback goes on. Notes land on the nearest step at the track's
+ * rate (base and type), their offset as micro-timing (24ths of that step), their length from the hold.
  *
  * STEP RECORDING (armed, the transport stopped): a chord played goes into the cursor's step (the notes struck while
  * any is still down are one chord, the step cleared first, the first note's velocity, the track's default length);
@@ -98,6 +104,71 @@ void qd_rec_toggle(qd_app_t *a)
     }
 }
 
+static int track_empty(qd_app_t *a)
+{
+    int s;
+    for (s = 0; s < QD_NSTEP; s++)
+        if (qd_step_is_on(qd_step(PAT(a), a->sel, s)))
+            return 0;
+    return 1;
+}
+
+void qd_rec_arm_live(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    if (!u->rec)
+        qd_rec_toggle(a);
+    u->live_wait = !a->seq.playing;
+    if (track_empty(a)) {                               /* an empty track: page 1, growing */
+        qd_page_set_loop(PAT(a), a->sel, 1);
+        u->rec_grow = 1;
+        u->grow_reached = 0;
+    }
+    qd_ctl_confirm(a, "LIVE REC", 0);
+}
+
+/* an empty track's loop: the pages reached (from page 1) */
+static void grow_trim(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    if (!u->rec_grow)
+        return;
+    qd_page_set_loop(PAT(a), a->sel, (1 << (u->grow_reached + 1)) - 1);
+    u->rec_grow = 0;
+}
+
+void qd_rec_end(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    if (u->rec)
+        qd_rec_toggle(a);
+    u->live_wait = 0;
+    grow_trim(a);
+}
+
+void qd_rec_ms(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    const qd_tset_t *ts = &PAT(a)->trk[a->sel];
+    int pp, k;
+    if (!u->rec_grow)
+        return;
+    if (!u->rec || u->mode != QD_MODE_KEYS || (!a->seq.playing && !u->live_wait)) {
+        grow_trim(a);                                   /* (the recording or the transport ended another way) */
+        return;
+    }
+    if (!a->seq.playing)
+        return;
+    pp = qd_ctl_playing_page(a, a->sel);
+    if (pp > u->grow_reached)
+        u->grow_reached = pp;
+    for (k = 0; k < 8 && ((qd_track_loop(ts) >> k) & 1); k++)
+        ;
+    if (k < 8 && qd_seq_track_pos(&a->seq, a->sel) >= (double)(qd_track_len(ts) - 4))
+        qd_page_set_loop(PAT(a), a->sel, qd_track_loop(ts) | 1 << k);   /* the next page joins before the wrap (the
+                                                                        * steps are resolved two ahead) */
+}
+
 void qd_rec_cursor(qd_app_t *a, int d)
 {
     qd_ui_t *u = &a->ui;
@@ -146,6 +217,10 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
             u->rec_live = 0;
         }
         return;
+    }
+    if (!a->seq.playing && u->live_wait) {              /* P1.3x: armed live, stopped: this note starts it all */
+        u->live_wait = 0;
+        qd_app_play(a);
     }
     if (!a->seq.playing) {                              /* step recording */
         const int cs = loop_step(a, u->cursor);

@@ -388,11 +388,12 @@ static void t_patterns(void)
     h1 = frame_hash();
     CHECK(h0 != h1, "the screen's pattern blinks while one is queued");
     t0 = now;                                           /* the change: 32 sixteenths at 100 BPM = 4800 ms from PLAY
-                                                         * (pressed at 0 ms: the transport starts at the next block) */
+                                                         * (P1.3x: released at 20 ms: the transport starts at the next
+                                                         * block after the release) */
     while (A.seq.cur == 1 && now < 10000)
         run(1, 0);
-    CHECK(A.seq.cur == 0 && qd_seq_queued(&A.seq) < 0 && now >= 4800 && now <= 4810,
-          "A01 takes over at the end of A02's master length (at %u ms; PLAY at 0)", now);
+    CHECK(A.seq.cur == 0 && qd_seq_queued(&A.seq) < 0 && now >= 4815 && now <= 4830,
+          "A01 takes over at the end of A02's master length (at %u ms; PLAY released at 20)", now);
     (void)t0;
     qd_app_button(&A, QD_B_MIX, 1);                     /* P1.3c: the key held 400 ms: at the next 16th */
     qd_app_key(&A, WK[2], 1, 100);

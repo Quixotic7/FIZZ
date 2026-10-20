@@ -117,6 +117,8 @@ struct qd_app;
 #define QD_SEL_HOLD_MS 400u            /* SEL + W1..W8 held this long: solo (a tap: mute) */
 #define QD_SEQ_HOLD_MS 400u            /* SEQ + W held this long: the pattern at once (a tap: queued) */
 #define QD_CLEAR_HOLD_MS 600u          /* F1 + B9 held this long: the track cleared (a tap: the page) */
+#define QD_PLAY_HOLD_MS 400u           /* P1.3x: PLAY held this long: F3 (a tap plays / stops on its release) */
+#define QD_REC_HOLD_MS 400u            /* P1.3x: REC held this long: live recording armed (a tap: the keyboard) */
 #define QD_PREVIEW_MS 300u             /* a note turned on a knob sounds this long */
 #define QD_OCT_SLIDE_MS 350u           /* the octave takeover's keyboard slides this long */
 /* the OCT LEDs away from the centre: a blink's half period one, two, three or more octaves (banks) away */
@@ -246,6 +248,12 @@ typedef struct {
     int tracks_tap;                    /* TRACKS went down alone: its release toggles the tracks screen */
     int page_used;                     /* PAGE held picked a page: its release is not a tap */
     int rec_down_used;                 /* REC + PLAY: REC's release is not a tap */
+    uint32_t rec_down_ms;              /* P1.3x: REC went down (held QD_REC_HOLD_MS: live recording armed) */
+    uint32_t play_down_ms;             /* P1.3x: PLAY went down (held QD_PLAY_HOLD_MS: F3); .. */
+    int play_used;                     /* .. its release is no tap */
+    int live_wait;                     /* P1.3x: live recording armed, stopped: the first note starts it all */
+    int rec_grow;                      /* P1.3x: an empty track recorded: its loop grows a page as it is reached .. */
+    int grow_reached;                  /* .. the last page reached (the loop at the stop) */
     int shift_used;                    /* SHIFT did something while down (its map then stops) */
     /* the keyboard (ctl_rec.c) */
     int rec;                           /* recording armed in the keyboard (step recording stopped, live playing) */
@@ -377,6 +385,9 @@ void qd_step_sound_pick(struct qd_app *a, int d);   /* PRESETS (or SOUND's ALGOR
 /* ---- ctl_rec.c */
 void qd_rec_key(struct qd_app *a, int note, int down, int vel);   /* a note in the keyboard (keybed or MIDI) */
 void qd_rec_toggle(struct qd_app *a);  /* armed / not */
+void qd_rec_arm_live(struct qd_app *a);         /* P1.3x: REC held: the keyboard, live recording armed */
+void qd_rec_end(struct qd_app *a);              /* P1.3x: the recording ends (REC / PLAY), playback goes on */
+void qd_rec_ms(struct qd_app *a);               /* P1.3x: an empty track's loop growing as it is recorded */
 void qd_rec_rest(struct qd_app *a);
 void qd_rec_cursor(struct qd_app *a, int d);
 int qd_rec_knob(struct qd_app *a, int knob, int d);   /* live recording: a knob turn as a lock; 1: taken */

@@ -4,8 +4,8 @@
 // opened). The unit's buttons
 // and encoders are injected on the fake as the real unit sends them (matrix ids), so they go through RemoteLink, the
 // processor's applyRemote, Device::enc and the glue, as on the owner's Mac. Checked: F3 opened on the unit (OCT- and
-// OCT+ together, let go; and held while turning), the ALGORITHM encoder moves the tempo, SHIFT (GLO) + ALGORITHM the
-// swing, PRESETS in F3 does nothing, and the unit's screen shows it (the fake's shadow equals panel->lcd).
+// OCT+ together, let go; and held while turning), the SELECT encoder moves the tempo (P1.3x; was ALGORITHM),
+// ALGORITHM the swing, PRESETS in F3 does nothing, and the unit's screen shows it (the fake's shadow equals panel->lcd).
 //
 //     make -C tools remote        (builds with FM1VST's flags and libraries from FM1VST_DIR/build-quadrille)
 #include <chrono>
@@ -122,24 +122,22 @@ int main(int argc, char **argv)
     btn(EMU_B_HOME, 1), btn(EMU_B_HOME, 0);
     btn(EMU_B_OCTDN, 1), btn(EMU_B_OCTUP, 1), btn(EMU_B_OCTUP, 0), btn(EMU_B_OCTDN, 0);
     int b0 = bpmOf(info(p));
-    enc(EMU_E_ALGO, 7);
-    check(bpmOf(info(p)) == b0 + 7 && shadowSame(), "F3 opened on the unit, ALGORITHM +7 on the unit: the tempo " +
+    enc(EMU_E_SELECT, 7);
+    check(bpmOf(info(p)) == b0 + 7 && shadowSame(), "F3 opened on the unit, SELECT +7 on the unit: the tempo " +
                                                          std::to_string(b0) + " -> " + std::to_string(bpmOf(info(p))) +
                                                          ", the unit's screen shows it");
     b0 = bpmOf(info(p));
-    btn(EMU_B_GLO, 1);
     enc(EMU_E_ALGO, 3);
-    btn(EMU_B_GLO, 0);
-    check(bpmOf(info(p)) == b0, "GLO + ALGORITHM: the swing, not the tempo (" + std::to_string(bpmOf(info(p))) + ")");
+    check(bpmOf(info(p)) == b0, "ALGORITHM: the swing, not the tempo (" + std::to_string(bpmOf(info(p))) + ")");
     const std::string before = info(p);
     enc(EMU_E_PRESETS, 2);
     check(info(p) == before, "PRESETS in F3: nothing (" + info(p) + ")");
     btn(EMU_B_OCTDN, 1), btn(EMU_B_OCTDN, 0);
     btn(EMU_B_OCTDN, 1), btn(EMU_B_OCTUP, 1);           /* both held while turning (F3 as it was before the latch) */
     b0 = bpmOf(info(p));
-    enc(EMU_E_ALGO, -4);
+    enc(EMU_E_SELECT, -4);
     btn(EMU_B_OCTUP, 0), btn(EMU_B_OCTDN, 0);
-    check(bpmOf(info(p)) == b0 - 4, "OCT- and OCT+ held, ALGORITHM -4: the tempo " + std::to_string(b0) + " -> " +
+    check(bpmOf(info(p)) == b0 - 4, "OCT- and OCT+ held, SELECT -4: the tempo " + std::to_string(b0) + " -> " +
                                         std::to_string(bpmOf(info(p))));
     p.setRemoteEnabled(false);
     h.runMs(300);

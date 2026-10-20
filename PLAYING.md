@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.3w)
+# Playing FIZZ (P1.3x)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -52,7 +52,8 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
   From any other screen HOME comes back to the sequencer in the view you used last. If F3 or the step latch is open,
   HOME closes that first.
 - After two minutes untouched with nothing playing, it goes back to the FIZZ screen.
-- **PLAY** plays and stops.
+- **PLAY** tapped plays and stops (on the release: about a tenth of a second after the press). **Hold PLAY** to open
+  the **F3** menu (the same as both OCT keys).
 
 ## How do I add and remove steps?
 
@@ -247,7 +248,7 @@ Pages and tracks (hold **F1**):
 
 ## How do I change speed, tempo and swing?
 
-Press **OCT− and OCT+ together**: the **F3** menu opens and **stays open** after you let go (a back arrow at the top
+Press **OCT− and OCT+ together** (or **hold PLAY**): the **F3** menu opens and **stays open** after you let go (a back arrow at the top
 right, OCT− lit). **OCT−** (or HOME) closes it. OCT+ does nothing there yet.
 
 From now on every menu or question that stays open works the same way: **OCT− = back / exit / cancel, OCT+ = yes /
@@ -260,8 +261,9 @@ A track's speed is a **note value** and a **type**, each kept when you change th
   So a dotted track stays dotted when you press F3 + the 1/8 key: dotted 1/8.
 - **F3 + KNOB 1**: the note value; **KNOB 2**: the type. The screen shows it as 1/8 with a dot (dotted) or a T
   (triplet); the black keys at the foot of the F3 screen are drawn as the note values, a dot and a triplet.
-- **F3 + ALGORITHM**: the tempo. **SHIFT + F3 + ALGORITHM**: the swing. Both show live on the F3 screen.
-- **F3 + SELECT**: the page you edit (the F3 screen follows it).
+- **F3 + SELECT**: the tempo; **F3 + ALGORITHM**: the swing. Each turn shows the big metronome picture for a second,
+  then the F3 screen again (which also shows both).
+- The page whose range you set is the one you edit (F3 + W sets its end, W + W its start..end; KNOB 3 / 4 too).
 - **EXT CLOCK**: while a MIDI clock (a DAW) is running the unit, the tempo is the clock's: the F3 screen says EXT CLOCK
   with its BPM, and a tempo turn shows EXT CLOCK instead of changing it. A MIDI STOP, or no clock for half a second,
   gives the tempo back to the knob.
@@ -279,11 +281,16 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 - **REC tapped**: the keybed becomes a keyboard for the selected track (REC lit). REC again: back to the steps.
 - In a scale, keys outside the scale play the scale note just below.
 - **F1 / F2** move the keyboard an octave (−2..+2).
-- **SHIFT + REC** (in the keyboard) arms recording; REC blinks.
-  - Stopped, it is **step recording**: each note or chord goes into the next step. F2 leaves a rest, F1 steps back,
-    PRESETS moves the cursor.
-  - Playing, it is **live recording**: notes go in with your timing and length. Knob turns become locks on the step
-    playing.
+- **Hold REC**: **live recording** armed (in the keyboard). Stopped, nothing moves until you play the **first key**:
+  playback and recording start together, that note on the loop's first step.
+  - Notes go to the nearest step **at the track's speed** (dotted and triplet too), the offset kept as micro-timing,
+    the length from how long you held the key. Knob turns become locks on the step playing.
+  - An **empty track grows** as you record: it starts as page 1, and each next page joins the loop as the playhead
+    gets there; when the recording ends the loop is the pages it reached. After page 8 it goes round and records over
+    what is there. A track with steps records into its own loop.
+  - **REC or PLAY** while recording ends the recording; playback goes on (PLAY again stops).
+- **SHIFT + REC** (in the keyboard) arms recording as before; stopped, it is **step recording**: each note or chord
+  goes into the next step. F2 leaves a rest, F1 steps back, PRESETS moves the cursor.
 - **REC + PLAY** starts playing with recording armed, in the keyboard.
 - **Hold ARP** for **FILL** (ARP lit): steps with the FILL / NOT FILL condition follow it.
 - A **MIDI keyboard** on the track's channel plays, records, or sets the notes of a held step (up to five).

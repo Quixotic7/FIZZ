@@ -53,7 +53,8 @@ int render_p13f(const char *out);                       /* render_p13f.c */
 int render_p13q(const char *out);                       /* render_p13q.c (was render_p13j.c): STEPS */
 int render_p13s(const char *out);                       /* render_p13s.c (was render_p13r.c): the EDIT view */
 int render_p13u(const char *out);
-int render_p13w(const char *out);                       /* render_p13w.c: FUNC on B9 */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
+int render_p13w(const char *out);                       /* render_p13w.c: FUNC on B9 */
+int render_p13x(const char *out);                       /* render_p13x.c: PLAY held, live recording */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
 int render_p13p(const char *out);                       /* render_p13p.c (P1.3p: replaces render_p13o.c) */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
@@ -380,6 +381,7 @@ int main(int argc, char **argv)
     failed |= render_p13s(out);                         /* P1.3s: the EDIT view, its drawings full size */
     failed |= render_p13u(out);                         /* P1.3u: NOTE, EDIT's chord name and VEL big */
     failed |= render_p13w(out);                         /* P1.3w: FUNC on B9 */
+    failed |= render_p13x(out);                         /* P1.3x: PLAY held, F3's tempo / swing, live recording */
     {   /* P1.3v: the clarity guard over every frame rendered: no text under 11 px */
         const char *small = "";
         const float mn = qd_text_stats_min(&small);

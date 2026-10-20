@@ -4,8 +4,8 @@
  * knobs as detents on enc[enc_id[role]] in enc_dir[role]), tick each millisecond, frame every 15, audio in 128-frame
  * blocks, MIDI real-time bytes through midi_in. The tempo is read from ui_info ("..., 120 BPM, ...").
  *
- *   F3 latched (OCT- and OCT+ down together, then up) + the ALGORITHM role: the tempo moves; SHIFT + ALGORITHM: the
- *   swing (the map shows it); after a MIDI START and STOP the tempo turns again; while a MIDI clock runs the turn is
+ *   F3 latched (OCT- and OCT+ down together, then up) + the SELECT role (P1.3x; was ALGORITHM): the tempo moves
+ *   (ALGORITHM is the swing now); after a MIDI START and STOP the tempo turns again; while a MIDI clock runs the turn is
  *   the clock's (EXT CLOCK), and when the clock stops arriving the tempo is the knob's again.
  *
  *     test_abi path/to/fizz.fm1core      exit 1 on a failed check
@@ -114,8 +114,8 @@ int main(int argc, char **argv)
 
     f3_open();
     b0 = bpm();
-    turn(FM1P_E_ALGO, 5);
-    CHECK(bpm() == b0 + 5, "F3 latched, the ALGORITHM role +5: the tempo %d -> %d", b0, bpm());
+    turn(FM1P_E_SELECT, 5);
+    CHECK(bpm() == b0 + 5, "F3 latched, the SELECT role +5 (P1.3x): the tempo %d -> %d", b0, bpm());
     btap(FM1P_B_OCTDN);                                 /* (F3 closed) */
 
     midi_rt(0xFA);                                      /* a MIDI START with no clock after it (a DAW's transport) */
@@ -124,15 +124,15 @@ int main(int argc, char **argv)
     run(50);
     f3_open();
     b0 = bpm();
-    turn(FM1P_E_ALGO, 3);
-    CHECK(bpm() == b0 + 3, "after a MIDI START and STOP: ALGORITHM still moves the tempo (%d -> %d)", b0, bpm());
+    turn(FM1P_E_SELECT, 3);
+    CHECK(bpm() == b0 + 3, "after a MIDI START and STOP: SELECT still moves the tempo (%d -> %d)", b0, bpm());
     btap(FM1P_B_OCTDN);
 
     midi_rt(0xFA);                                      /* a START left running, no clock: ext must not stick */
     run(800);
     f3_open();
     b0 = bpm();
-    turn(FM1P_E_ALGO, 2);
+    turn(FM1P_E_SELECT, 2);
     CHECK(bpm() == b0 + 2, "a START with no clock for 800 ms: not external any more, the tempo moves (%d -> %d)", b0,
           bpm());
     btap(FM1P_B_OCTDN);
@@ -144,12 +144,12 @@ int main(int argc, char **argv)
     }
     f3_open();
     b0 = bpm();
-    turn(FM1P_E_ALGO, 4);
+    turn(FM1P_E_SELECT, 4);
     CHECK(b0 >= 98 && b0 <= 102 && bpm() == b0, "a running clock (100 BPM): the clock's tempo (%d), a turn does not "
           "move it (%d)", b0, bpm());
     run(700);                                           /* the clock stops arriving: ext ends by itself */
     b0 = bpm();
-    turn(FM1P_E_ALGO, 4);
+    turn(FM1P_E_SELECT, 4);
     CHECK(bpm() == b0 + 4, "no clock for 700 ms: the knob's tempo again (%d -> %d)", b0, bpm());
     btap(FM1P_B_OCTDN);
 

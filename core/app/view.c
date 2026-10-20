@@ -714,7 +714,7 @@ static void draw_keys(qd_app_t *a)
     qd_ctl_sounding(a, v.sounding);
     v.octave = a->oct;
     v.blink = (a->ms / QD_BLINK_MS) % 2u == 0;
-    if (u->rec && !a->seq.playing) {
+    if (u->rec && !a->seq.playing && !u->live_wait) {
         const int cs = qd_track_loop_step(ts, u->cursor);
         v.rec = 1;
         v.cursor = cs + 1;

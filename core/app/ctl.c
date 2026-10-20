@@ -815,18 +815,37 @@ static void b_lfo(qd_app_t *a, int down)
 /* ARP held: FILL (the FILL / NOT FILL conditions) */
 static void b_fill(qd_app_t *a, int down) { qd_seq_fill(&a->seq, down); }
 
+/* PLAY (P1.3x): a tap plays / stops on its RELEASE (held QD_PLAY_HOLD_MS it opens F3 instead: qd_ctl_ms); while
+ * recording (live, or armed and waiting) the tap ends the recording and playback goes on (waiting: it starts playback
+ * with the recording); REC + PLAY: play with recording armed, in the keyboard (on the press) */
 static void b_play(qd_app_t *a, int down)
 {
-    if (!down)
+    qd_ui_t *u = &a->ui;
+    if (down) {
+        u->play_down_ms = a->ms;
+        u->play_used = 0;
+        if (held(a, QD_B_REC)) {
+            u->rec_down_used = 1;
+            u->play_used = 1;
+            if (u->mode != QD_MODE_KEYS)
+                set_mode(a, QD_MODE_KEYS);
+            if (!a->seq.playing)
+                qd_app_play(a);
+            if (!u->rec)
+                qd_rec_toggle(a);
+        }
         return;
-    if (held(a, QD_B_REC)) {                            /* REC + PLAY: play with recording armed, in the keyboard */
-        a->ui.rec_down_used = 1;
-        if (a->ui.mode != QD_MODE_KEYS)
-            set_mode(a, QD_MODE_KEYS);
-        if (!a->seq.playing)
-            qd_app_play(a);
-        if (!a->ui.rec)
-            qd_rec_toggle(a);
+    }
+    if (u->play_used)
+        return;
+    u->play_used = 1;
+    if (u->mode == QD_MODE_KEYS && u->rec && u->live_wait) {   /* armed, waiting: playback and recording now */
+        u->live_wait = 0;
+        qd_app_play(a);
+        return;
+    }
+    if (u->mode == QD_MODE_KEYS && u->rec && a->seq.playing) {   /* recording: it ends, playback goes on */
+        qd_rec_end(a);
         return;
     }
     if (a->seq.playing)
@@ -835,12 +854,15 @@ static void b_play(qd_app_t *a, int down)
         qd_app_play(a);
 }
 
-/* REC: a tap switches the keybed between the sequencer and the keyboard; SHIFT + REC in the keyboard: armed / not */
+/* REC: a tap switches the keybed between the sequencer and the keyboard; held QD_REC_HOLD_MS (P1.3x, qd_ctl_ms) it
+ * arms live recording; a tap while recording live (or armed and waiting) ends the recording, playback goes on; SHIFT +
+ * REC in the keyboard: armed / not (stopped: step recording) */
 static void b_rec(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
     if (down) {
         u->rec_down_used = 0;
+        u->rec_down_ms = a->ms;
         if (qd_ctl_shift(a)) {
             u->rec_down_used = 1;
             if (u->mode == QD_MODE_KEYS) {
@@ -854,6 +876,10 @@ static void b_rec(qd_app_t *a, int down)
     }
     if (u->rec_down_used)
         return;
+    if (u->mode == QD_MODE_KEYS && u->rec && (a->seq.playing || u->live_wait)) {   /* P1.3x: the recording ends */
+        qd_rec_end(a);
+        return;
+    }
     set_mode(a, u->mode == QD_MODE_KEYS ? QD_MODE_STEP : QD_MODE_KEYS);
 }
 
@@ -1088,18 +1114,18 @@ static int k_f3(qd_app_t *a, int knob, int d)
     default:
         break;
     }
-    if (knob == QD_K_SELECT) {                          /* P1.3h: SELECT the page edited (the map follows) */
-        qd_ctl_set_page(a, a->ui.page[a->sel] + d);
+    if (knob == QD_K_SELECT) {                          /* P1.3x: SELECT the tempo, its metronome over the map */
+        tempo_turn(a, d);
+        if (!qd_seq_ext_running(&a->seq))
+            qd_ctl_takeover(a, UI_TK_TEMPO, 0, d, 0, -1);
         return 1;
     }
     if (knob != QD_K_ALGO)
         return 1;                                       /* P1.3j: PRESETS has no job in F3 (it went through to the
                                                          * step view and changed the track's sound under the map) */
-    if (qd_ctl_shift(a)) {                              /* P1.3h: ALGORITHM the tempo, SHIFT + ALGORITHM the swing, */
-        p->swing = (uint8_t)clampi(p->swing + d, 50, 80);   /* live on the map (no takeover: the map is the screen) */
-        a->ui.tempo_ms = a->ms ? a->ms : 1u;
-    } else
-        tempo_turn(a, d);
+    p->swing = (uint8_t)clampi(p->swing + d, 50, 80);   /* P1.3x: ALGORITHM the swing, its metronome over the map */
+    a->ui.tempo_ms = a->ms ? a->ms : 1u;
+    qd_ctl_takeover(a, UI_TK_SWING, 1, d, 0, -1);
     return 1;
 }
 
@@ -1234,6 +1260,21 @@ void qd_ctl_ms(qd_app_t *a)
     }
     if (u->rec_live && !a->seq.playing)                 /* the transport stopped under live notes: they end */
         qd_rec_key(a, -1, 0, 0);
+    if (held(a, QD_B_PLAY) && !u->play_used && a->ms - u->play_down_ms >= QD_PLAY_HOLD_MS) {
+        u->play_used = 1;                               /* P1.3x: PLAY held: F3, latched (the step view) */
+        if (u->mode == QD_MODE_STEP && qd_ctl_layer(a) == QD_LAYER_NONE) {
+            qd_latch_open(a, QD_LATCH_F3);
+            if (!u->clip.group)
+                qd_clip_group(&u->clip, 1);
+        }
+    }
+    if (held(a, QD_B_REC) && !u->rec_down_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS) {
+        u->rec_down_used = 1;                           /* P1.3x: REC held: live recording armed */
+        if (u->mode != QD_MODE_KEYS)
+            set_mode(a, QD_MODE_KEYS);
+        qd_rec_arm_live(a);
+    }
+    qd_rec_ms(a);
     {   /* page follow: the page edited moves when the playhead goes to another page (a page chosen by hand stays
          * until then); not while steps are held or a layer is */
         const int pp = qd_ctl_playing_page(a, a->sel);
