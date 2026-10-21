@@ -598,6 +598,33 @@ static void move_all(const qd_app_t *a, const uint8_t *in, uint8_t *out, int d)
     }
 }
 
+/* P1.5o: the whole chord d scale steps, its shape kept: every note moves by one step at a time, and it stops (the
+ * steps left undone) when the top or the bottom note reaches the end of the range (1..127): it never squashes */
+static void chord_move(const qd_app_t *a, const uint8_t *in, uint8_t *out, int d)
+{
+    int sc, rt, k, dir = d > 0 ? 1 : -1;
+    key_of(a, &sc, &rt);
+    memcpy(out, in, QD_NNOTE);
+    for (; d; d -= dir) {
+        uint8_t nx[QD_NNOTE];
+        int ok = 1;
+        for (k = 0; k < QD_NNOTE; k++) {
+            int x;
+            if (!out[k]) {
+                nx[k] = 0;
+                continue;
+            }
+            x = qd_scale_step(sc, rt, out[k], dir);
+            if (x == out[k] || x < 1 || x > 127)
+                ok = 0;
+            nx[k] = (uint8_t)(x < 1 ? 1 : x > 127 ? 127 : x);
+        }
+        if (!ok)
+            break;
+        memcpy(out, nx, QD_NNOTE);
+    }
+}
+
 /* P1.3f: note k alone a scale step (dir), skipping the pitches the other slots have. Note 1 stays within 1..127. Notes
  * 2..6 live above note 1: turned down past it they are removed (0); from none, turned up, they come in a scale step
  * above note 1 (the lowest note when note 1 is empty) */
@@ -786,6 +813,25 @@ void qd_step_job_held(qd_app_t *a, int job, int knob, int d)
     case QD_KJ_NOTE5:
         note_knob(a, job - QD_KJ_NOTE1, d);
         break;
+    case QD_KJ_CHORD: {                                 /* P1.5o: SELECT: the held steps' chords, their shapes kept */
+        int k1 = -1;
+        for (i = 0; i < u->nheld; i++) {
+            qd_rstep_t r;
+            uint8_t nt[QD_NNOTE];
+            resolve(a, u->held[i], &r);
+            chord_move(a, r.note, nt, d);
+            qd_step_set_slots(p, t, u->held[i], nt);
+            if (!i)
+                k1 = nt[0];
+        }
+        u->chord_ms = a->ms;
+        if (k1 > 0 && !qd_ctl_previewing(a)) {
+            qd_rstep_t r;
+            resolve(a, u->held[0], &r);
+            qd_ctl_preview(a, k1, r.vel);
+        }
+        break;
+    }
     case QD_KJ_MAIN:
     case QD_KJ_QUIET:
         if (m == UI_F_SOUND) {                          /* the pool sound (as PRESETS) */
@@ -891,6 +937,13 @@ void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
             return;
         }
         break;
+    case QD_KJ_CHORD: {                                 /* P1.5o: the default chord, its shape kept */
+        uint8_t nt[QD_NNOTE];
+        chord_move(a, df->note, nt, d);
+        qd_tdef_set_slots(p, t, nt);
+        a->ui.chord_ms = a->ms;
+        break;
+    }
     case QD_KJ_NOTE1:                                   /* P1.3f: the default chord's notes 1..5, each alone */
     case QD_KJ_NOTE2:
     case QD_KJ_NOTE3:
@@ -950,6 +1003,9 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
             qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 1, u->held[0]);
         return 1;
     case QD_K_ALGO:
+        if (m == UI_F_NOTE)                             /* P1.5o: NOTE: SELECT moves the chord, ALGORITHM no note (the
+                                                         * cursor, its layout's, over the latch's selection) */
+            return 1;
         if (m == UI_F_SOUND) {                          /* SOUND: as PRESETS */
             qd_step_sound_pick(a, d);
             band(a, QD_TK_HELDKNOB, QD_KJ_MAIN, knob, d);

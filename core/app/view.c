@@ -954,6 +954,21 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
         default: break;
         }
         break;
+    case QD_KJ_CHORD:                                   /* P1.5o: the chord: its name (or note 1's) */
+        v->name = "CHORD";
+        {
+            char rootn[8], q[16];
+            uint8_t nn[QD_NNOTE];
+            int c = 0, k;
+            for (k = 0; k < QD_NNOTE; k++)              /* (the slots' notes, the empty ones left out) */
+                if (r.note[k])
+                    nn[c++] = r.note[k];
+            if (r.note[0] && qd_chord_name(nn, c, rootn, q))
+                cat(cat(v->val, rootn), q);
+            else if (r.note[0])
+                qd_note_name(r.note[0], v->val);
+        }
+        break;
     case QD_KJ_NOTE1:
     case QD_KJ_NOTE2:
     case QD_KJ_NOTE3:
@@ -1583,7 +1598,7 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
                                                            : (float)(QD_CONFIRM_MS - d) / (float)QD_TK_FADE_MS;
         if (al > 0.f) {
             overlay_begin(al);
-            ui_confirm_draw(u->cf_big, u->cf_small, UI_K3);
+            ui_confirm_draw(u->cf_big, u->cf_small, u->cf_col ? u->cf_col : UI_K3);
             qd_restore();
         }
     }

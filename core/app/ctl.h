@@ -177,6 +177,7 @@ enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, th
 enum { QD_KJ_NONE, QD_KJ_MAIN, QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4, QD_KJ_NOTE5,
        QD_KJ_TIE, QD_KJ_STRUM, QD_KJ_RAMP, QD_KJ_COND, QD_KJ_CHANCE, QD_KJ_QUIET,
        QD_KJ_FTYPE, QD_KJ_LEAP, QD_KJ_JTGT,   /* P1.3y, FUNC: the function's kind, LEAP's n, JUMP's target */
+       QD_KJ_CHORD,                    /* P1.5o: NOTE's SELECT: the whole chord a scale step, its shape kept */
        QD_NKJ };
 
 /* P1.3d (§8b 2.2): latched menus and confirmations (ctl_latch.c). One rule for all: OCT- = back / exit / cancel,
@@ -347,6 +348,7 @@ typedef struct {
     const char *cf_big, *cf_small;
     uint32_t cf_ms;
     int cf_on;
+    uint32_t cf_col;                   /* P1.5o: its colour (0: the usual) */
     /* copy, paste and undo (seq/clip.h) */
     qd_clip_t clip;
     /* the keys: the row of the keys' table that took each key's press (0: none), so its release goes there too */
@@ -435,6 +437,7 @@ int qd_ctl_playing_page(const struct qd_app *a, int t);   /* the page under the 
 void qd_ctl_set_page(struct qd_app *a, int p);      /* the page edited on the selected track (slides) */
 void qd_ctl_takeover(struct qd_app *a, int tk, int knob, int dir, int lock, int step);
 void qd_ctl_confirm(struct qd_app *a, const char *big, const char *small);
+void qd_ctl_confirm_col(struct qd_app *a, const char *big, const char *small, uint32_t col);   /* P1.5o: in a colour */
 int qd_ctl_rate_index(int rate);       /* a rate's place in the picker (slowest first) */
 int qd_ctl_rate_at(int i);             /* .. and back */
 

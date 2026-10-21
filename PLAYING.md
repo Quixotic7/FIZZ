@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5n)
+# Playing FIZZ (P1.5o)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -62,7 +62,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
     and knobs then edit that step; the view stays (in the PIANO ROLL the cursor's step is outlined). LFO or HOME ends it.
   - **SELECT = the page**. With the cursor on, a page change puts it on the new page's first step.
   - **PRESETS = the track's sound** (preset).
-  - With a finger on a step: SELECT = the main value (NOTE: note 1), ALGORITHM = the value finely, PRESETS = the
+  - With a finger on a step: SELECT = the main value (NOTE: the whole chord, P1.5o), ALGORITHM = the value finely, PRESETS = the
     step's sound lock.
   - What moved: the cursor was PRESETS (in STEPS / EDIT), now ALGORITHM everywhere; ALGORITHM no longer edits a
     track default unless you hold the mode's key; P-LOCK's track chooser is now FX + ALGORITHM.
@@ -70,7 +70,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   round the whole screen (every hold mode, and the step latch's selection, which stands for a held step); its drawing
   keeps the mode's colours. Whenever the screen shows the **track's default** (a mode key held, the default's picture
   after a knob turn, EDIT with nothing held) there is **no frame**, and its drawing and top line are magenta (the
-  TRACK colour; no mode uses it).
+  TRACK colour; no mode uses it; P1.5o: VEL's value stays VEL's green, as a step's).
 - Pop-ups (the held-step and default pictures, the knob takeovers, the octave and sound pickers) no longer show the
   track's box and name: only what is being edited.
 - In the PIANO ROLL the small dots over the columns mark the beats (steps 1, 5, 9, 13; the first a little brighter).
@@ -116,7 +116,7 @@ The knobs with a step held:
 
 | mode | SELECT and KNOB 1 | KNOB 2 | KNOB 4 |
 | --- | --- | --- | --- |
-| NOTE | SELECT = note 1, KNOB 1..4 = notes 2..5 (each alone), ALGORITHM = all the notes | | note 5 |
+| NOTE | SELECT = the whole chord (P1.5o), KNOB 1..4 = notes 2..5 (each alone), ALGORITHM = the cursor (its layout's) | | note 5 |
 | VEL | velocity | | velocity, quietly |
 | LEN | length | TIE on / off | length, quietly |
 | MICRO | micro-timing | strum | micro, quietly |
@@ -186,9 +186,8 @@ and chance; a LOCK step's runs too).
   **F1 / F2 tapped** (nothing with them) are the selection's octave in NOTE and its group of ten in SOUND, as for a
   held step (on the release, so that holding them is still the layer). Its octave (or ten) picture shows its full
   second, in EDIT too (P1.5n), and F1 / F2's map only comes up when they are held longer than a tap.
-- **NOTE, ALGORITHM moves all the selected steps' notes** together, a scale step a click, as with a finger on a step
-  (P1.5n), in every knob layout and view. (Only when the selection was made with the W keys: a selection the cursor
-  made keeps ALGORITHM as the cursor, layout A, or the page, layout C, so you can still walk the steps.)
+- **NOTE: SELECT moves all the selected steps' notes** together (P1.5o), as with a finger on a step, in every knob
+  layout and view; ALGORITHM keeps its layout's job (A: the cursor).
 - **LFO** again or **HOME** turns it off.
 - **Hold LFO + a black key**: that mode, without touching the latch or the selection (a plain tap still toggles).
 - **Two latch modes** (P1.5b; P1.5h). **Hold LFO alone** (400 ms, no other key): while you hold it, a screen shows the
@@ -205,13 +204,13 @@ and chance; a LOCK step's runs too).
 
 A step has up to **six notes**.
 
-- In **NOTE**, hold the step. **Each knob moves its own note, alone**; each note is drawn in its knob's colour:
-  - **SELECT = note 1** (yellow), **KNOB 1..4 = notes 2..5** (blue, green, white, orange). One click is one note of
-    the track's scale (a chromatic track: a semitone). The other notes stay put; a pitch another note already has is
-    skipped.
-  - Notes 2..5 live above note 1: turn one down past note 1 and it is removed; turn it up from nothing and it comes in
-    a scale step above note 1.
-  - **ALGORITHM moves all the notes together**.
+- In **NOTE**, hold the step (or select it in the latch). Each note is drawn in its knob's colour (P1.5o):
+  - **SELECT moves the whole chord** (yellow: note 1 and every other note with it), a note of the track's scale a
+    click (chromatic: a semitone), its shape kept; at the top or the bottom of the range it stops (it never squashes).
+  - **KNOB 1..4 = notes 2..5** (blue, green, white, orange), **each alone**; the other notes stay put, a pitch another
+    note has is skipped. Turned all the way down a note collapses into note 1 and is removed; turned up again it comes
+    back from note 1.
+  - **ALGORITHM moves no note**: it is the step cursor (its layout's job).
   - A sixth note (pink) comes only from the black keys.
   - Each note plays as you turn it.
   - In NOTE, SELECT doesn't change pages and KNOB 1..4 don't lock the sound: use P-LOCK for that. (In every mode
@@ -240,8 +239,8 @@ A step has up to **six notes**.
 
 - **Hold the mode's black key** (B1..B10): the screen shows the mode's picture marked **TRACK DEFAULT** (NOTE: the
   chord name and the keybed). While you hold it:
-  - SELECT and the knobs edit the default, in the same layout as with a step held (NOTE: SELECT = note 1, KNOB 1..4 =
-    notes 2..5, each alone); ALGORITHM turns the main default (in NOTE it moves the whole default chord);
+  - SELECT and the knobs edit the default, in the same layout as with a step held (NOTE: SELECT = the whole chord,
+    KNOB 1..4 = notes 2..5, each alone); ALGORITHM turns the main default (in NOTE it moves the whole default chord);
   - **B11 (F#5) resets** that default to the track's starting value: NOTE back to a single C4 (clears a chord), VEL 100,
     LEN one step, MICRO 0 (and no strum), RATCH x1 flat, CHNC 100 %, COND always, TRIG NOTE, SOUND the track's
     starting sound. B11 is lit while there is something to reset;
@@ -484,6 +483,10 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   and the envelopes show the track's curve dashed behind the step's. **Nothing held, a value that some step of the
   track locks is an outlined chip.** **B11** clears the held step's locks on this page (lit while it has some). The
   white keys stay the steps (tap, hold), as in the step view.
+- **A step with a sound lock** (P1.5o): its values are the locked pool sound's, its p-locks on top (the track's sound
+  < the step's sound lock < its p-locks); a turn p-locks the step, never the pool's sound; a new sound lock keeps the
+  p-locks. **F2 held + a knob unlocks that value**: on the held or selected steps, with nothing held on every step of
+  the track ("FREQ unlocked" a moment, in the knob's colour). The same in P-LOCK (F2 is then no layer there).
 - The top line: the group's page dots first (always in the same place), then the page's name.
 - **Live play in the editor** (P1.5b): **tap REC** with the editor open and its keyboard is on (EDIT opened from the
   keyboard keeps it on too). A strip under the top shows the keys, the roots brighter, the ones playing in the track's

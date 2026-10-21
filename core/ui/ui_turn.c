@@ -22,6 +22,7 @@
  * And (P1.3d) the knob band, ui_band_draw: a turn in a hold mode, over the screen's top (ui.h)
  * Every motion comes from the record (t, beat, beats, the clocks' positions). */
 #include <math.h>
+#include <string.h>
 
 #include "ui.h"
 
@@ -669,5 +670,7 @@ void ui_confirm_draw(const char *big, const char *small, qd_rgb col)
         const float w = ui_TW(big, 40.f, 200, 0.f);
         ui_T(big, 120.f, 134.f, w > 224.f ? 40.f * 224.f / w : 40.f, 200, 0.f, col, QD_CENTER);
     }
-    (void)small;
+    if (small && small[0] && !strchr(small, ' '))      /* (P1.5o: a one-word state under it, "unlocked"; never a
+                                                         * sentence) */
+        ui_T(small, 120.f, 162.f, 16.f, 600, 1.f, col, QD_CENTER);
 }

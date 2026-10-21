@@ -916,7 +916,8 @@ static int held_head(const ui_held_t *v, pal_t *p)
     char left[48], n[12];
 
     p->empty = v->type == 0 && field != UI_F_TRIG && !v->is_default;
-    p->k[0] = p->empty ? UI_G2 : v->is_default ? UI_TRACK_COL : lit ? UI_MODE_COL[field] : DEF_COL;
+    p->k[0] = p->empty ? UI_G2 : v->is_default ? (field == UI_F_VEL ? UI_MODE_COL[UI_F_VEL] : UI_TRACK_COL)
+            : lit ? UI_MODE_COL[field] : DEF_COL;           /* (P1.5o: the default's VEL value green, as a step's) */
     if (!v->is_default)                                 /* P1.5d (the frames the other way round): a held step (or the
                                                          * latch's selection) has the frame, a track's default none */
         ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);

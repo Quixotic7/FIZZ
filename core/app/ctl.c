@@ -60,6 +60,8 @@ int qd_ctl_layer(const qd_app_t *a)
         return QD_LAYER_F3;
     if (finger_held(a) || (!dn && !up))                 /* (P1.5m: was steps_held: the latch's selection blocked them) */
         return QD_LAYER_NONE;
+    if (up && !dn && a->ui.hmode == UI_F_PLOCK)
+        return QD_LAYER_NONE;                           /* (P1.5o: P-LOCK: F2 held is the unlock, no layer) */
     if (dn && up)
         return QD_LAYER_F3;
     return dn ? QD_LAYER_F1 : QD_LAYER_F2;
@@ -70,7 +72,7 @@ int qd_ctl_layer(const qd_app_t *a)
  * the same on the track's defaults (SELECT the page). A knob without a job does nothing. P-LOCK has no row: its knobs
  * are the screen's p-locks (held) and the track's sound (nothing held) */
 static const uint8_t KNOB_JOB[UI_NFIELD][5] = {         /* P1.3e: KNOB 4 the quiet main value where it is free */
-    [UI_F_NOTE] = {QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4, QD_KJ_NOTE5},
+    [UI_F_NOTE] = {QD_KJ_CHORD, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4, QD_KJ_NOTE5},   /* (P1.5o: SELECT the chord) */
     [UI_F_VEL] = {QD_KJ_MAIN, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
     [UI_F_LEN] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_TIE, 0, QD_KJ_QUIET},
     [UI_F_MICRO] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_STRUM, 0, QD_KJ_QUIET},
@@ -166,10 +168,17 @@ void qd_ctl_takeover(qd_app_t *a, int tk, int knob, int dir, int lock, int step)
 
 void qd_ctl_confirm(qd_app_t *a, const char *big, const char *small)
 {
+    a->ui.cf_col = 0;
     a->ui.cf_big = big;
     a->ui.cf_small = small;
     a->ui.cf_ms = a->ms;
     a->ui.cf_on = 1;
+}
+
+void qd_ctl_confirm_col(qd_app_t *a, const char *big, const char *small, uint32_t col)
+{
+    qd_ctl_confirm(a, big, small);
+    a->ui.cf_col = col;
 }
 
 /* the page edited on the selected track (a change slides the lane in) */
@@ -1469,11 +1478,10 @@ static int when_cursor(const qd_app_t *a)
 }
 static int k_steps_cursor(qd_app_t *a, int knob, int d)
 {
-    if (knob == QD_K_ALGO && a->ui.nheld && a->ui.hmode == UI_F_NOTE && !a->ui.scursor)
-        return 0;                                       /* P1.5n: NOTE, a selection made with the W keys: ALGORITHM
-                                                         * moves all its notes (k_held), as with a finger (P1.3f), in every
-                                                         * layout; a selection the cursor made keeps ALGORITHM's role
-                                                         * (A the cursor, C the page) */
+    if (knob == QD_K_SELECT && a->ui.nheld && a->ui.hmode == UI_F_NOTE)
+        return 0;                                       /* P1.5o (the owner): NOTE, the latch's selection: SELECT moves
+                                                         * its chord (k_held, QD_KJ_CHORD) in every layout; ALGORITHM
+                                                         * keeps its layout role (A the cursor) */
     switch (qd_ctl_knob_role(a, knob)) {
     case QD_KR_CURSOR:
         qd_step_cursor(a, d);
@@ -1561,6 +1569,55 @@ static int k_fx_track(qd_app_t *a, int knob, int d)
 }
 
 static int when_keys_shift(const qd_app_t *a) { return qd_keys_on(a) && qd_ctl_shift(a); }
+/* P1.5o (the owner): F2 held + a knob in the sound editor or in P-LOCK: that value's locks cleared, on the held or
+ * selected steps, with nothing held on every step of the track; a word says so in the knob's colour */
+static int when_unlock(const qd_app_t *a)
+{
+    return a->ui.mode == QD_MODE_STEP && held(a, QD_B_OCTUP) && !held(a, QD_B_OCTDN) &&
+           (qd_snd_open(a) || (a->ui.hmode == UI_F_PLOCK && !a->ui.latch));
+}
+static int k_unlock(qd_app_t *a, int knob, int d)
+{
+    static const qd_rgb KC[7] = {0xffd23fu, UI_KALG, 0xf1f0eau, UI_K1, UI_K2, UI_K3, UI_K4};
+    qd_ui_t *u = &a->ui;
+    qd_pattern_t *p = qd_ctl_pat(a);
+    int id = -1, s, i, n = 0;
+    const char *name = "";
+    (void)d;
+    if (qd_snd_open(a)) {
+        static const int SLOT[QD_NKNOB] = {-1, 4, -1, 0, 1, 2, 3};
+        const int k = SLOT[knob];
+        id = k >= 0 ? QD_SND_PAGES[u->snd_page].id[k] : -1;
+    } else if (knob >= QD_K_1) {
+        id = qd_step_quick_id(knob - QD_K_1);
+    } else if (knob == QD_K_PRESETS) {
+        id = QD_LOCK_SOUND;
+    }
+    if (id == -1 && knob != QD_K_PRESETS)
+        return 1;
+    qd_clip_keep(&u->clip, qd_ctl_cpat(a), a->seq.cur, a->sel);
+    for (i = 0; i < (u->nheld ? u->nheld : QD_NSTEP); i++) {
+        int16_t v;
+        s = u->nheld ? u->held[i] : i;
+        if (id == QD_LOCK_SOUND) {
+            if (qd_step_is_on(qd_step(p, a->sel, s)) && qd_step(p, a->sel, s)->sound) {
+                qd_step_set_sound(p, a->sel, s, 0);
+                n++;
+            }
+            continue;
+        }
+        n += qd_lock_get(p, a->sel, s, id, &v);
+        qd_lock_clear(p, a->sel, s, id);
+        if (id == QD_QP_RB1) {                          /* (RATIO B: the pair's other half) */
+            n += qd_lock_get(p, a->sel, s, QD_QP_RB2, &v);
+            qd_lock_clear(p, a->sel, s, QD_QP_RB2);
+        }
+    }
+    name = id == QD_LOCK_SOUND ? "SOUND" : id == QD_QP_RB1 ? "RATIO B" : qd_quad_value_name(id);
+    qd_ctl_confirm_col(a, name, "unlocked", KC[knob]);
+    (void)n;
+    return 1;
+}
 /* P1.5h: the latch mode's screen up (LFO held): SELECT VALUES / MODES (set at once, saved), the other knobs nothing */
 static int when_lmode(const qd_app_t *a) { return a->ui.lmode_open; }
 static int k_lmode(qd_app_t *a, int knob, int d)
@@ -1576,6 +1633,7 @@ static const struct {
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
     {when_lmode, k_lmode},             /* P1.5h: LFO held, its screen up: SELECT the latch mode */
+    {when_unlock, k_unlock},           /* P1.5o: F2 held (the editor, P-LOCK) + a knob: that value unlocked */
     {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track (over every page) */
     {when_keys_shift, scale_root},     /* P1.5b: the keyboard on (the editor's too), SHIFT: ALGORITHM the scale, PRESETS
                                         * the root, recording or not */

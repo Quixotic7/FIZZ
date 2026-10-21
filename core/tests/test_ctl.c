@@ -515,8 +515,8 @@ static void g_notes(void)
     btap(F1), btap(F1);
     black(B10);
     CHECK(R(0, 0).notes[0] == 57, "OCT- twice: octave 3, B10 = A3 (chromatic: ten semitones)");
-    turn(QD_K_ALGO, 1);
-    CHECK(R(0, 0).nn == 1 && R(0, 0).notes[0] == 58, "ALGORITHM, a step held: every note a scale step (P1.3f: "
+    turn(QD_K_SELECT, 1);
+    CHECK(R(0, 0).nn == 1 && R(0, 0).notes[0] == 58, "SELECT, a step held: the chord a scale step (P1.5o: "
           "chromatic: A#3)");
     wrel(0);
     btap(F2);                                           /* (nothing held: F2 is a layer, the octave stays) */
@@ -536,9 +536,9 @@ static void g_notes(void)
     run(10);
     CHECK(R(0, 0).nn == 3 && R(0, 0).notes[0] == 53 && R(0, 0).notes[1] == 57 && R(0, 0).notes[2] == 62,
           "chord F3 A3 D4 from degrees 3, 5, 8 (%d %d %d)", R(0, 0).notes[0], R(0, 0).notes[1], R(0, 0).notes[2]);
-    turn(QD_K_ALGO, 1);
-    CHECK(R(0, 0).notes[0] == 55 && R(0, 0).notes[1] == 59 && R(0, 0).notes[2] == 64, "ALGORITHM: each a scale step "
-          "up (G B E)");
+    turn(QD_K_SELECT, 1);
+    CHECK(R(0, 0).notes[0] == 55 && R(0, 0).notes[1] == 59 && R(0, 0).notes[2] == 64, "SELECT (P1.5o): each a scale "
+          "step up (G B E)");
     black(B11);
     CHECK(!OV(0, 0, QD_PM_NOTE) && R(0, 0).notes[0] == 60, "B11: the track's notes again");
     wrel(0);
@@ -1078,21 +1078,24 @@ static void g_note_knobs(void)
     turn(QD_K_4, 12);
     CHECK(R(0, 0).nn == 5 && ST(0, 0)->note[4] == 77, "KNOB 4 +12: F5, five notes");
     turn(QD_K_SELECT, -2);
-    CHECK(ST(0, 0)->note[0] == 60 && ST(0, 0)->note[1] == 66 && ST(0, 0)->note[2] == 70 && ST(0, 0)->note[4] == 77,
-          "P1.3f: SELECT -2 moves note 1 alone (C4); the others stay");
+    CHECK(ST(0, 0)->note[0] == 60 && ST(0, 0)->note[1] == 64 && ST(0, 0)->note[2] == 68 && ST(0, 0)->note[3] == 69 &&
+              ST(0, 0)->note[4] == 75,
+          "P1.5o: SELECT -2 moves the whole chord, its shape kept (C4 E4 G#4 A4 D#5)");
     turn(QD_K_1, -2);
-    CHECK(ST(0, 0)->note[1] == 64 && ST(0, 0)->note[0] == 60 && ST(0, 0)->note[2] == 70, "KNOB 1 -2: note 2 alone "
-          "(E4)");
+    CHECK(ST(0, 0)->note[1] == 62 && ST(0, 0)->note[0] == 60 && ST(0, 0)->note[2] == 68, "KNOB 1 -2: note 2 alone "
+          "(D4)");
     turn(QD_K_3, 1);
-    CHECK(ST(0, 0)->note[3] == 72 && ST(0, 0)->note[4] == 77, "KNOB 3 +1: note 4 alone (C5)");
+    CHECK(ST(0, 0)->note[3] == 70 && ST(0, 0)->note[4] == 75, "KNOB 3 +1: note 4 alone (A#4)");
     turn(QD_K_1, -5);
-    CHECK(ST(0, 0)->note[1] == 0 && R(0, 0).nn == 4, "KNOB 1 down past note 1: removed (four notes)");
+    CHECK(ST(0, 0)->note[1] == 0 && R(0, 0).nn == 4, "KNOB 1 down into note 1: removed (four notes)");
     turn(QD_K_1, 1);
-    CHECK(ST(0, 0)->note[1] == 61, "KNOB 1 up from none: a step above note 1 (C#4)");
+    CHECK(ST(0, 0)->note[1] == 61, "KNOB 1 up again: back, from note 1 up (C#4)");
     turn(QD_K_ALGO, 2);
-    CHECK(ST(0, 0)->note[0] == 62 && ST(0, 0)->note[1] == 63 && ST(0, 0)->note[2] == 72 && ST(0, 0)->note[3] == 74 &&
-              ST(0, 0)->note[4] == 79,
-          "ALGORITHM +2: every note together, each in its slot");
+    CHECK(ST(0, 0)->note[0] == 60 && ST(0, 0)->note[1] == 61, "P1.5o: ALGORITHM moves no note now");
+    turn(QD_K_SELECT, 2);
+    CHECK(ST(0, 0)->note[0] == 62 && ST(0, 0)->note[1] == 63 && ST(0, 0)->note[2] == 70 && ST(0, 0)->note[3] == 72 &&
+              ST(0, 0)->note[4] == 77,
+          "SELECT +2: every note together, each in its slot");
     turn(QD_K_4, 60);
     CHECK(ST(0, 0)->note[4] == 127, "KNOB 4 stops at G9 (127)");
     CHECK(qd_lock_count(PAT(), 0, 0) == 0 && A.ui.tk != UI_TK_FREQ, "no p-locks in NOTE");
@@ -1112,8 +1115,8 @@ static void g_note_knobs(void)
     CHECK(ST(0, 4)->note[1] == 69, "KNOB 1 +2 from none in the scale above F: G, A");
     turn(QD_K_2, 3);
     CHECK(ST(0, 4)->note[2] == 72, "KNOB 2 +3: G, B, C (A, note 2's, skipped)");
-    turn(QD_K_ALGO, 1);
-    CHECK(ST(0, 4)->note[0] == 67 && ST(0, 4)->note[1] == 71 && ST(0, 4)->note[2] == 74, "ALGORITHM +1 in C major: "
+    turn(QD_K_SELECT, 1);
+    CHECK(ST(0, 4)->note[0] == 67 && ST(0, 4)->note[1] == 71 && ST(0, 4)->note[2] == 74, "SELECT +1 in C major (P1.5o): "
           "all a degree up (G B D)");
     turn(QD_K_2, -1);
     CHECK(ST(0, 4)->note[2] == 72 && ST(0, 4)->note[0] == 67 && ST(0, 4)->note[1] == 71, "KNOB 2 -1: note 3 alone a "
@@ -2270,10 +2273,10 @@ static void g_mkey(void)
     CHECK(R(0, 0).nn == 3 && R(0, 0).notes[0] == 62 && R(0, 0).notes[1] == 66 && R(0, 0).notes[2] == 69,
           "ALGORITHM: the default chord moves together, two steps (D F# A)");
     turn(QD_K_SELECT, -2);
-    CHECK(PAT()->trk[0].def.note[0] == 60 && PAT()->trk[0].def.note[1] == 66 && PAT()->trk[0].def.note[2] == 69,
-          "P1.3f: SELECT (NOTE key held): note 1 alone (C4), the others stay");
+    CHECK(PAT()->trk[0].def.note[0] == 60 && PAT()->trk[0].def.note[1] == 64 && PAT()->trk[0].def.note[2] == 67,
+          "P1.5o: SELECT (NOTE key held): the default chord, its shape kept (C E G)");
     turn(QD_K_2, 1);
-    CHECK(PAT()->trk[0].def.note[2] == 70 && PAT()->trk[0].def.note[1] == 66, "KNOB 2 (NOTE key held): note 3 alone");
+    CHECK(PAT()->trk[0].def.note[2] == 68 && PAT()->trk[0].def.note[1] == 64, "KNOB 2 (NOTE key held): note 3 alone");
     black(B11);
     CHECK(R(0, 0).nn == 1 && R(0, 0).notes[0] == 60 && PAT()->trk[0].def.note[1] == 0,
           "B11: the default back to its single C4 (the chord cleared)");
@@ -2333,10 +2336,10 @@ static void g_six(void)
     run(10);
     CHECK(R(0, 0).nn == 6 && ST(0, 0)->note[0] == 60 && ST(0, 0)->note[1] == 64 && ST(0, 0)->note[5] == 65,
           "six keys: six notes, in the order pressed (C E G A D F)");
-    turn(QD_K_ALGO, 1);
+    turn(QD_K_SELECT, 1);
     CHECK(ST(0, 0)->note[0] == 61 && ST(0, 0)->note[5] == 66 && R(0, 0).nn == 6 && A.ui.tk == QD_TK_HELDKNOB &&
-              A.ui.tk_job == QD_KJ_MAIN,
-          "a step held, ALGORITHM: all six up together (P1.3f)");
+              A.ui.tk_job == QD_KJ_CHORD,
+          "a step held, SELECT: all six up together (P1.5o)");
     {
         static const uint8_t M13[6] = {48, 52, 55, 59, 62, 69};
         char rt[4], q[8];
@@ -3304,9 +3307,9 @@ static void beat_by_panel(void)
     kup(BK(B1)), kup(BK(B3)), kup(BK(B5)), kup(BK(B8)), kup(BK(B10)), kup(BK(B6));
     run(10);
     turn(QD_K_4, 1);
-    turn(QD_K_SELECT, 1);
-    beat_note1_alone = ST(2, 8)->note[0] == 61 && ST(2, 8)->note[1] == 62 && ST(2, 8)->note[4] == 70;
-    turn(QD_K_ALGO, 2);
+    turn(QD_K_SELECT, 1);                               /* (P1.5o: SELECT the whole chord) */
+    beat_note1_alone = ST(2, 8)->note[0] == 61 && ST(2, 8)->note[1] == 63 && ST(2, 8)->note[4] == 71;
+    turn(QD_K_SELECT, 2);
     wrel(8);
     /* P1.3d: knob edits (§8b 2.2) on KEYS: a default by a knob (MICRO, KNOB 2: the strum 2), a step's value by KNOB 1
      * (VEL: step 1 at 90), an extra by KNOB 2 (RATCH: step 9 x2, ramp DOWN); the step latch for one edit (LFO, W5
@@ -3392,7 +3395,7 @@ static void beat_by_api(void)
     qd_step_set_notes(p, 2, 0, CMAJ, 3);
     qd_step_set_len(p, 2, 0, 6);
     {   /* step 9: C D E G A F, A -> A#, C -> C#, then all +2 */
-        static const uint8_t SIX[6] = {63, 64, 66, 69, 72, 67};
+        static const uint8_t SIX[6] = {63, 65, 67, 70, 73, 68};   /* (P1.5o: SELECT +1, +2: all +3) */
         qd_step_set_slots(p, 2, 8, SIX);
     }
     qd_tdef_set(p, 2, QD_PM_STRUM, 2);                  /* P1.3d: the knob edits and the latch's */
@@ -3465,7 +3468,7 @@ static void t_beat(void)
               "heard: the default velocity 80 (%d), the override 127 (%d), the ratchet's hits off the grid (%d), "
               "page 2's steps right after page 1 (%d), the bass on its new default C2 (%d) and its own G2 (%d)", v80,
               v127, rat, page2, bass36, bass43);
-        CHECK(beat_chord_n == 3 && panel.trk[2].def.note[1] == 0 && panel.step[2][8].note[5] == 67 && beat_note1_alone &&
+        CHECK(beat_chord_n == 3 && panel.trk[2].def.note[1] == 0 && panel.step[2][8].note[5] == 68 && beat_note1_alone &&
                   panel.trk[2].def.vel == 95,
               "P1.3e: a default chord by the held NOTE key (%d notes), reset by B11; a six-note step (P1.3f: SELECT "
               "moved note 1 alone, ALGORITHM the chord); the default velocity by the quiet KNOB 4", beat_chord_n);
@@ -3479,8 +3482,8 @@ static void t_beat(void)
         {
             int five = 0;
             for (i = 0; i < nev[0]; i++)
-                five += evs[0][i].kind == QD_LOG_ON && evs[0][i].track == 2 && evs[0][i].note == 72;
-            CHECK(panel.step[2][8].note[4] == 72 && five >= 1 && LK(0, 0, QD_QP_HARM) != -99999,
+                five += evs[0][i].kind == QD_LOG_ON && evs[0][i].track == 2 && evs[0][i].note == 73;
+            CHECK(panel.step[2][8].note[4] == 73 && five >= 1 && LK(0, 0, QD_QP_HARM) != -99999,
                   "the six-note chord (note 5 on KNOB 4, then all +2: C5, heard %d times), the P-LOCK HARM lock", five);
         }
         printf("  beat: by panel presses only, a pattern with page 2's own 3..12, a two-page loop, a pool sound "
@@ -4351,7 +4354,7 @@ static void g_p15m_flatch(void)
 
 
 /* P1.5n: (1) the latch's OCT tap: the octave / bank takeover its whole time, in every view (EDIT too), no F map for a
- * tap; (2) NOTE: ALGORITHM moves all the held or W-selected steps' notes together, in every layout and view; (3) LFO's
+ * tap; (2) NOTE (P1.5o): SELECT moves all the held or selected steps' notes together, in every layout and view; (3) LFO's
  * LED: full in VALUES, breathing 60 .. 100 % in MODES, off without the latch; (4) MIX on TONE and RATIO, one value */
 static void g_p15n(void)
 {
@@ -4406,19 +4409,25 @@ static void g_p15n(void)
                     kdown(WK(1));
                     run(300);
                 }
-                turn(QD_K_ALGO, 1);
+                turn(QD_K_SELECT, 1);
                 ok = R(0, 1).note[0] == 62 && R(0, 1).note[1] == 65 && R(0, 1).note[2] == 69;
-                turn(QD_K_ALGO, -2);
+                turn(QD_K_SELECT, -2);
                 ok &= R(0, 1).note[0] == 59 && R(0, 1).note[1] == 62 && R(0, 1).note[2] == 65;
-                CHECK(ok, "layout %c, view %d, %s: ALGORITHM moves the chord a scale step up, two down (C E G -> D F A -> "
-                      "B D F)", 'A' + lay, v, f ? "the latch's selection" : "a finger");
-                turn(QD_K_ALGO, 60);
-                mx = R(0, 1).note[0] > R(0, 1).note[2] ? R(0, 1).note[0] : R(0, 1).note[2];
-                turn(QD_K_ALGO, -120);
-                mn = R(0, 1).note[0] < R(0, 1).note[2] ? R(0, 1).note[0] : R(0, 1).note[2];
-                CHECK(mx <= 127 && mn >= 0, "layout %c, view %d, %s: clamped at the top and bottom "
-                      "(%d %d / %d %d %d)", 'A' + lay, v, f ? "latch" : "finger", mx, mn, R(0, 1).note[0], R(0, 1).note[1],
-                      R(0, 1).note[2]);
+                CHECK(ok, "layout %c, view %d, %s: SELECT moves the chord a scale step up, two down (C E G -> D F A -> "
+                      "B D F) (P1.5o)", 'A' + lay, v, f ? "the latch's selection" : "a finger");
+                turn(QD_K_SELECT, 80);
+                mx = R(0, 1).note[2];
+                ok = mx <= 127 && mx > 120 && R(0, 1).note[2] - R(0, 1).note[0] >= 6 &&
+                     R(0, 1).note[1] > R(0, 1).note[0] && R(0, 1).note[2] > R(0, 1).note[1];
+                turn(QD_K_SELECT, -160);
+                mn = R(0, 1).note[0];
+                ok &= mn >= 1 && mn < 6 && R(0, 1).note[1] > mn && R(0, 1).note[2] > R(0, 1).note[1];
+                CHECK(ok, "layout %c, view %d, %s: the chord stops at the top (%d) and the bottom (%d), its shape kept",
+                      'A' + lay, v, f ? "latch" : "finger", mx, mn);
+                mn = R(0, 1).note[0];
+                turn(QD_K_ALGO, 1);
+                CHECK(R(0, 1).note[0] == mn, "layout %c, view %d, %s: ALGORITHM moves no note (%s)", 'A' + lay, v,
+                      f ? "latch" : "finger", f && !lay ? "A: the cursor" : "its role");
                 if (!f)
                     kup(WK(1));
                 btap(QD_B_HOME);
@@ -4458,6 +4467,90 @@ static void g_p15n(void)
     CHECK(ok && sv.locked[3] && LK(0, 3, QD_QP_MIX) == -19, "a step held, MIX locked on TONE: the same chip on RATIO");
     wrel(3);
     btap(QD_B_HOME);
+}
+
+
+/* P1.5o: locks over a sound lock (track < the step's sound lock < its p-locks; EDIT shows them so, a knob p-locks, the
+ * pool's sound untouched, a new sound lock keeps the p-locks); F2 + a knob unlocks (a step, the track; the editor and
+ * P-LOCK); the default's VEL value green */
+static int col_in(int x0, int y0, int x1, int y1, uint32_t col)
+{
+    static uint16_t lcd[QD_W * QD_H];
+    const uint8_t *b = (const uint8_t *)lcd;
+    int x, y;
+    qd_app_frame(&A, lcd);
+    for (y = y0; y < y1; y++)
+        for (x = x0; x < x1; x++) {
+            const uint16_t v = (uint16_t)(b[2 * (y * QD_W + x)] << 8 | b[2 * (y * QD_W + x) + 1]);
+            const uint32_t c = (uint32_t)((v >> 11) & 31u) << 19 | (uint32_t)((v >> 5) & 63u) << 10 | (uint32_t)(v & 31u) << 3;
+            if (near_col(c, col))
+                return 1;
+        }
+    return 0;
+}
+static void g_p15o_locks(void)
+{
+    static ui_snd_t sv;
+    int16_t f0;
+    const int16_t *pool;
+    start();
+    wtap(2), wtap(5);
+    qd_step_set_sound(PAT(), 0, 2, 12);                 /* step 3: a sound lock, pool sound 12 */
+    pool = qd_sound_patch(&A.proj, 12);
+    f0 = pool[QD_QP_FREQ];
+    btap(QD_B_SOUND);
+    A.ui.snd_page = qd_snd_page_of("FILTER");
+    whold(2);
+    qd_view_snd(&A, &sv);
+    CHECK(sv.v[0] == pool[QD_QP_FREQ] && sv.tv[0] == A.model.t[0].patch[QD_QP_FREQ], "EDIT, the step held: the locked "
+          "sound's FREQ shown (%d), the track's behind it", sv.v[0]);
+    turn(QD_K_1, -3);
+    qd_view_snd(&A, &sv);
+    CHECK(LK(0, 2, QD_QP_FREQ) == f0 - 300 && sv.v[0] == f0 - 300 && sv.locked[0] && pool[QD_QP_FREQ] == f0,
+          "KNOB 1: a p-lock on the step from the locked sound's FREQ (-3.00), the pool's sound untouched");
+    qd_step_set_sound(PAT(), 0, 2, 13);
+    CHECK(LK(0, 2, QD_QP_FREQ) == f0 - 300, "a new sound lock: the p-lock kept");
+    bdown(F2);
+    run(20);
+    turn(QD_K_1, 1);
+    bup(F2);
+    run(20);
+    CHECK(LK(0, 2, QD_QP_FREQ) == -99999 && A.ui.cf_on && !strcmp(A.ui.cf_big, "FREQ") && !strcmp(A.ui.cf_small, "unlocked")
+              && A.ui.cf_col == UI_K1, "F2 + KNOB 1: the step's FREQ unlocked (\"FREQ unlocked\" in KNOB 1's blue)");
+    turn(QD_K_1, 2);
+    wrel(2);
+    whold(5);
+    turn(QD_K_1, 2);
+    wrel(5);
+    CHECK(LK(0, 2, QD_QP_FREQ) != -99999 && LK(0, 5, QD_QP_FREQ) != -99999, "two steps' FREQ locked");
+    bdown(F2);
+    run(20);
+    turn(QD_K_1, -1);
+    bup(F2);
+    run(20);
+    CHECK(LK(0, 2, QD_QP_FREQ) == -99999 && LK(0, 5, QD_QP_FREQ) == -99999,
+          "nothing held, F2 + KNOB 1: FREQ unlocked on every step of the track");
+    btap(QD_B_HOME);
+    mode(M_PLOCK);                                      /* P-LOCK: the same */
+    whold(5);
+    turn(QD_K_3, 4);
+    CHECK(LK(0, 5, QD_QP_HARM) == A.model.t[0].patch[QD_QP_HARM] + 400, "P-LOCK, step 6 held: HARM locked");
+    bdown(F2);
+    run(20);
+    CHECK(qd_ctl_layer(&A) == QD_LAYER_NONE, "P-LOCK: F2 held is no layer");
+    turn(QD_K_3, 1);
+    bup(F2);
+    run(20);
+    wrel(5);
+    CHECK(LK(0, 5, QD_QP_HARM) == -99999, "P-LOCK, F2 + KNOB 3: HARM unlocked");
+    btap(QD_B_HOME);
+    mode(M_VEL);                                        /* the default's VEL value green */
+    kdown(BK(B2));
+    run(300);
+    CHECK(qd_view_screen(&A) == QD_SCR_DEFAULT && col_in(120, 30, 236, 100, UI_MODE_COL[UI_F_VEL]),
+          "the VEL key held: the default's value in VEL's green");
+    kup(BK(B2));
+    run(20);
 }
 
 int main(void)
@@ -4528,7 +4621,8 @@ int main(void)
         {"P1.5k: the LFOs: keys, DEST, hold-to-map", g_p15k_lfo},
         {"P1.5l: the editor's black keys regrouped", g_p15l_groups},
         {"P1.5m: the F layers with the step latch on", g_p15m_flatch},
-        {"P1.5n: the octave tap's takeover, ALGORITHM moves all, LFO's LED, MIX on TONE", g_p15n},
+        {"P1.5n/o: the octave tap's takeover, SELECT moves all, LFO's LED, MIX on TONE", g_p15n},
+        {"P1.5o: locks over a sound lock, F2 unlocks, the default's VEL green", g_p15o_locks},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

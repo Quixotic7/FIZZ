@@ -223,9 +223,9 @@ int render_p15n(const char *out)
     qd_app_button(&A, QD_B_MUTE, 0);
     run(20);
     A.proj.pat[A.seq.cur].trk[0].scale = 1;             /* (C major) */
-    turn(QD_K_ALGO, 1);
+    turn(QD_K_SELECT, 1);                               /* (P1.5o: SELECT moves the chord, no longer ALGORITHM) */
     run(300);
-    shot("move-all", "NOTE, the latch's selection, ALGORITHM +1: C E G -> D F A (in C major)", 1);
+    shot("move-all", "NOTE, the latch's selection, SELECT +1 (P1.5o): C E G -> D F A (in C major)", 1);
     btap(QD_B_HOME);
     btap(QD_B_SOUND);
     A.ui.snd_page = qd_snd_page_of("TONE");
