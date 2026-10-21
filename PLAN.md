@@ -1565,3 +1565,8 @@ never); latch modes VALUES / MODES (LFO held alone; saved).
 editor framed dark orange `UI_SND_FRAME_TRACK` 0x8a3412 (the track's sound) or bright `UI_SND_FRAME_STEP` 0xff6a2c (a
 step's locks). VEL is the caped stunt rider (the mock-up ported to ui_held.c; a kick of up to 9 degrees and a puff when
 the step plays; in EDIT the value sits in the head row). `qd_path_paint` added to qd_gfx.
+
+**2026-10-21, P1.5e** (FMToneSeq 8918b4e; FM1VST `core-quadrille` e2cdb69; version 0.5.2-p1.5e; relaunched): the VEL
+rider in the owner's neon style (mock-up version 2): blue / red / cream, each line glowing (three strokes, `rn_glow`
+with `qd_get_alpha()`), tubes, ringed wheels, the forked cape. A held VEL frame takes about 0.55 ms on the Mac against
+0.28 ms for NOTE: the screen to measure first on the FM-1 in Phase 2. The default keeps its magenta value and head.
