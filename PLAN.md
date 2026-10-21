@@ -1089,10 +1089,12 @@ P1.5c).
   and legs (tubes: a line with a black core), cream engine fins, exhaust, fork and lamp; every line glows (two wide
   faint strokes under it); dashed speed lines in blue, cream and red behind the rear wheel.
 - **VEL 127, the stunt show** (the owner: "Would be fun if something special happened at maxed value of 127"):
-  `mockups/fizz-vel-rider.html` (`jump()`), `mockups/png/fizz-vel-127-jump.gif`. At 127 the screen changes: a takeoff
-  ramp, **eight buses in the tracks' colours**, a landing ramp; the rider (smaller) comes in from the right, leaps the
-  buses, **neon fireworks** burst over them at the top of the arc, lands and rides off left, round again every 2.6 s
-  while the value stays 127. On the ground both wheels follow the ramps.
+  `mockups/fizz-vel-rider.html` (`show()`), `mockups/png/fizz-vel-127-jump.gif`. Version 2 (the owner: "a bit too
+  different from the full wheelie ... the motorcycle should visually stay in the same spot"): the bike keeps the full
+  wheelie in the same place and size as at 126; **the world scrolls under it** (200 px/s, every 2.6 s): a takeoff ramp
+  (10 high), **eight buses in the tracks' colours**, a landing ramp; the rear wheel rides up, flies a small arc (16)
+  over the buses with the nose a little higher (keeps the helmet clear of the value), lands; **neon fireworks** burst
+  over the buses as their middle passes.
 
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 

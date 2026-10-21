@@ -131,33 +131,39 @@ function fireworks(c, x, y, age, seed) {              /* a burst of neon sparks:
     c.restore();
   }
 }
-function jump(c, t) {
-  const gy = 206, k = 0.72, hub = 16 * k, rampH = 15;
-  const tx0 = 222, tx1 = 180, lx1 = 64, lx0 = 18;     /* the takeoff ramp (foot, lip), the landing ramp (lip, foot) */
-  path(c, [0, gy, 240, gy], C.g2, 1.2);
-  ramp(c, tx0, tx1, gy, rampH, N.cream); ramp(c, lx0, lx1, gy, rampH, N.cream);
-  for (let i = 0; i < 8; i++) bus(c, 70 + i * 13.5, gy, TRK[i]);
-  const s = (t % JUMP_P) / JUMP_P, x = lerp(262, -50, s);        /* the rear hub's x, right to left */
-  /* on the ground both wheels follow it (the ramps' heights under the rear and the front wheel set the pitch); between
-     the lips the bike flies a parabola, nose up at takeoff, nose down for the landing */
-  const H = xx => xx <= tx0 && xx > tx1 ? rampH * (tx0 - xx) / (tx0 - tx1) : xx < lx1 && xx >= lx0 ? rampH * (xx - lx0) / (lx1 - lx0) : 0;
-  const wb = 60 * k;
-  let y, pitch;
-  if (x <= tx1 && x > lx1) { const f = (tx1 - x) / (tx1 - lx1);
-    y = gy - hub - rampH - 58 * 4 * f * (1 - f); pitch = lerp(0.42, -0.34, f); }
-  else { const hr = H(x), hf = x - wb > lx1 && x - wb <= tx1 ? rampH : H(x - wb);
-    y = gy - hub - hr; pitch = Math.atan2(hf - hr, wb); }
-  /* fireworks over the buses at the top of the arc, two bursts */
-  const apex = (262 - (tx1 + lx1) / 2) / 312;
-  fireworks(c, 112, 118, (s - apex) / 0.3, 0.2); fireworks(c, 70, 136, (s - apex - 0.08) / 0.3, 1.1); fireworks(c, 150, 134, (s - apex - 0.14) / 0.3, 2.3);
-  c.save(); c.translate(x, y); c.rotate(pitch); c.scale(-k, k); rider(c, 1, t); c.restore();
-  T(c, '127', 232, 84, { s: 64, w: 200, col: C.vel, al: 'right' });
+/* VEL 127, version 2 (the owner: "the motorcycle should visually stay in the same spot"): the bike keeps the full
+   wheelie in the same place and size as at 126; the world scrolls under it (right, at SHOW_V px/s): a takeoff ramp, the
+   eight buses, a landing ramp, once every JUMP_P s. The rear wheel rides up the ramp, flies a little arc over the buses
+   (the nose a little higher: it keeps the helmet clear of the value), lands on the far ramp; fireworks burst over the buses at the top. Returns the lift
+   (px up) and the pitch change for the bike; draws the ramps, buses and fireworks. */
+const SHOW_V = 200, RAMP_W = 26, RAMP_H = 10, BUS_W = 14, BUS_GAP = 3, ARC = 16;
+function show(c, t, rx, gy) {
+  const s = t % JUMP_P, off = SHOW_V * s;
+  const F = -40 + off, L = F - RAMP_W;                         /* the takeoff ramp: its foot (met first), its lip */
+  const B0 = L - 6, LL = B0 - 8 * (BUS_W + BUS_GAP) - 4, LF = LL - RAMP_W;   /* the buses, the landing ramp's lip, foot */
+  nLine(c, [F, gy, L, gy - RAMP_H, L, gy], N.cream, 1.6);
+  nLine(c, [LF, gy, LL, gy - RAMP_H, LL, gy], N.cream, 1.6);
+  for (let i = 0; i < 8; i++) {
+    const x = B0 - (i + 1) * (BUS_W + BUS_GAP) + BUS_GAP, h = 17, col = TRK[i];
+    glowStroke(c, col, 1.4, () => { c.roundRect(x, gy - h - 3, BUS_W, h, 2.5); });
+    nLine(c, [x + 2.5, gy - h + 1.5, x + BUS_W - 2.5, gy - h + 1.5], col, 1.1);
+    nCirc(c, x + 3.5, gy - 3, 2, col, 1.1); nCirc(c, x + BUS_W - 3.5, gy - 3, 2, col, 1.1);
+  }
+  let lift = 0, dp = 0, f = -1;
+  if (rx <= F && rx > L) lift = RAMP_H * (F - rx) / RAMP_W;
+  else if (rx <= L && rx > LL) { f = (L - rx) / (L - LL); lift = RAMP_H + ARC * 4 * f * (1 - f); dp = 0.18 * Math.sin(Math.PI * f); }
+  else if (rx <= LL && rx > LF) lift = RAMP_H * (rx - LF) / RAMP_W;
+  /* fireworks over the buses, after the top of the arc; left of the number */
+  const L0 = -40 - RAMP_W, LL0 = L0 - 6 - 8 * (BUS_W + BUS_GAP) - 4;
+  const tTop = (rx - (L0 + LL0) / 2) / SHOW_V;                 /* when the middle of the buses passes the bike */
+  const age = x => (s - tTop - x) / 0.75;
+  fireworks(c, 52, 70, age(0), 0.2); fireworks(c, 26, 112, age(0.1), 1.1); fireworks(c, 96, 52, age(0.18), 2.3);
+  return { lift, dp };
 }
 
 function screen(c, vel, t, o = {}) {                 /* the rider faces left: the front wheel lifts on the left */
   c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240);
   T(c, 'STEP 6 · VEL', 8, 18, { s: 12, w: 600, ls: 0.8, col: C.k3 });
-  if (vel >= 127) { jump(c, t); for (let i = 0; i < 4; i++) path(c, [10 + i * 8, 30, 10 + i * 8, 46], C.k4, 2); return; }
   const u = clamp(vel / 127, 0, 1), pitch = Math.pow(clamp((u - 0.12) / 0.88, 0, 1), 1.15) * (55 * Math.PI / 180);
   const gy = 206, rx = 138, k = 1.4;                  /* the road's height, the rear wheel's contact, the scale */
   /* the road: its edge and dashes running past (to the right) at the speed */
@@ -169,8 +175,10 @@ function screen(c, vel, t, o = {}) {                 /* the rider faces left: th
   for (let i = 0; i < 3; i++) { if (i >= n) break;
     const y = gy - 30 + i * 9 - (pitch > 0.4 ? 0 : 0), run = (t * sp * 0.6 + i * 13) % 26;
     for (let d = 0; d < 2; d++) { const x = rx + 30 + run + d * (L + 6); nLine(c, [x, y, x + L, y], cols[i], 1.4); } }
+  /* at 127 the stunt show scrolls under the same bike: it lifts and its nose eases a little, nothing else moves */
+  const sh = vel >= 127 ? show(c, t, rx, gy) : { lift: 0, dp: 0 };
   /* the wheelie: the bike turns about its rear axle (the wheel stays on the road); mirrored so it rides left */
-  c.save(); c.translate(rx, gy - 16 * k); c.rotate(pitch); c.scale(-k, k);
+  c.save(); c.translate(rx, gy - 16 * k - sh.lift); c.rotate(pitch + sh.dp); c.scale(-k, k);
   rider(c, u, t); c.restore();
   T(c, String(vel), 232, 84, { s: 64, w: 200, col: C.vel, al: 'right' });
   for (let i = 0; i < 4; i++) path(c, [10 + i * 8, 30, 10 + i * 8, 46], C.k4, 2);      /* the ramp's ticks */
@@ -183,7 +191,7 @@ function screen(c, vel, t, o = {}) {                 /* the rider faces left: th
   if (q.has('shot')) { document.body.className = 'shot'; const cv = mk(); screen(cv.getContext('2d'), +q.get('shot'), +(q.get('t') || 0.3)); document.body.appendChild(cv); return; }
   const row = document.createElement('div'); row.className = 'row'; document.body.appendChild(row);
   const list = q.has('sheet') ? [10, 40, 70, 100, 127] : [null];
-  const jumpT = q.has('sheet') ? [0.55, 1.05, 1.35, 1.75] : [];
+  const jumpT = q.has('sheet') ? [0.9, 1.15, 1.4, 1.65, 1.95] : [];
   document.body.className = q.has('sheet') ? 'sheet' : 'live';
   const live = [];
   list.forEach(v => { const f = document.createElement('figure'); f.style.margin = 0; const cv = mk(); cv.className = 'big'; f.appendChild(cv);
