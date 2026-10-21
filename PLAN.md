@@ -1596,3 +1596,9 @@ the step plays at 127. A show frame about 1.0 ms on the Mac (the wheelie 0.53 ms
   accelerated; SHIFT steps B1; the readout B2 over B1; a lock takes both halves); the RATIO page is C, A, B, MIX (MIX
   moved from TONE, whose KNOB 4 is now empty); the mix drawn as the two outputs' wires (thick and bright by their share,
   never gone) and a crossfader in KNOB 4's orange by the speaker.
+
+**2026-10-21, P1.5j** (FMToneSeq 5e6791a; FM1VST `core-quadrille` 90c7151; version 0.5.7-p1.5j; relaunched): the
+editor's foot as four fixed 56.5 px columns, one 52.5 x 32 chip each (drawn only when locked, the value centred), 4 px
+clear of the frame on every page (a margin test over all 18 pages); a shorter RATIO picture (the bus at y 150); the
+mix in its own row, 180 px, centred, its ends the outputs' carriers; operators fading (brightness and saturation, 30 %
+floor) by the share of the output they reach (one reaching both stays full).
