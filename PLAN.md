@@ -1088,6 +1088,11 @@ P1.5c).
   red hub) and helmet (a star, a visor), red cape (a forked flag streaming back at shoulder height, two cream sparkles)
   and legs (tubes: a line with a black core), cream engine fins, exhaust, fork and lamp; every line glows (two wide
   faint strokes under it); dashed speed lines in blue, cream and red behind the rear wheel.
+- **VEL 127, the stunt show** (the owner: "Would be fun if something special happened at maxed value of 127"):
+  `mockups/fizz-vel-rider.html` (`jump()`), `mockups/png/fizz-vel-127-jump.gif`. At 127 the screen changes: a takeoff
+  ramp, **eight buses in the tracks' colours**, a landing ramp; the rider (smaller) comes in from the right, leaps the
+  buses, **neon fireworks** burst over them at the top of the arc, lands and rides off left, round again every 2.6 s
+  while the value stays 127. On the ground both wheels follow the ramps.
 
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 

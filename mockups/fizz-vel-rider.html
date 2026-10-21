@@ -108,9 +108,56 @@ function rider(c, u, t) {
   sparkle(c, 22.5, -55, 2.2, N.cream);
 }
 
+/* VEL 127: the stunt show. A takeoff ramp, eight buses in the tracks' colours, a landing ramp; the rider (smaller) comes
+   in from the right, leaps the buses, fireworks burst at the top of the arc, lands and rides off left; round again every
+   JUMP_P seconds while the value stays 127 */
+const TRK = ['#3f7dff', '#1fd47e', '#f1f0ea', '#ff6a2c', '#ff3ca0', '#ffd23f', '#9664ff', '#28e1ff'];
+const JUMP_P = 2.6;
+function bus(c, x, gy, col) {                         /* a little neon bus: body, window line, two wheels */
+  const w = 11, h = 13;
+  glowStroke(c, col, 1.3, () => { c.roundRect(x, gy - h - 3, w, h, 2); });
+  nLine(c, [x + 2, gy - h + 1, x + w - 2, gy - h + 1], col, 1);
+  nCirc(c, x + 3, gy - 2.5, 1.6, col, 1); nCirc(c, x + w - 3, gy - 2.5, 1.6, col, 1);
+}
+function ramp(c, x0, x1, gy, h, col) { nLine(c, [x0, gy, x1, gy - h, x1, gy], col, 1.5); }   /* a wedge: x0 its foot, x1 its lip */
+function fireworks(c, x, y, age, seed) {              /* a burst of neon sparks: out, falling a little, fading */
+  if (age < 0 || age > 1) return;
+  const cols = [N.blue, N.red, N.cream];
+  for (let i = 0; i < 18; i++) {
+    const a = i * TAU / 18 + seed, r = 6 + 34 * Math.sqrt(age), col = cols[i % 3];
+    const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r + 14 * age * age, tail = 5 * (1 - age);
+    c.save(); c.globalAlpha = 1 - age;
+    nLine(c, [px, py, px - Math.cos(a) * tail, py - Math.sin(a) * tail], col, 1.3);
+    c.restore();
+  }
+}
+function jump(c, t) {
+  const gy = 206, k = 0.72, hub = 16 * k, rampH = 15;
+  const tx0 = 222, tx1 = 180, lx1 = 64, lx0 = 18;     /* the takeoff ramp (foot, lip), the landing ramp (lip, foot) */
+  path(c, [0, gy, 240, gy], C.g2, 1.2);
+  ramp(c, tx0, tx1, gy, rampH, N.cream); ramp(c, lx0, lx1, gy, rampH, N.cream);
+  for (let i = 0; i < 8; i++) bus(c, 70 + i * 13.5, gy, TRK[i]);
+  const s = (t % JUMP_P) / JUMP_P, x = lerp(262, -50, s);        /* the rear hub's x, right to left */
+  /* on the ground both wheels follow it (the ramps' heights under the rear and the front wheel set the pitch); between
+     the lips the bike flies a parabola, nose up at takeoff, nose down for the landing */
+  const H = xx => xx <= tx0 && xx > tx1 ? rampH * (tx0 - xx) / (tx0 - tx1) : xx < lx1 && xx >= lx0 ? rampH * (xx - lx0) / (lx1 - lx0) : 0;
+  const wb = 60 * k;
+  let y, pitch;
+  if (x <= tx1 && x > lx1) { const f = (tx1 - x) / (tx1 - lx1);
+    y = gy - hub - rampH - 58 * 4 * f * (1 - f); pitch = lerp(0.42, -0.34, f); }
+  else { const hr = H(x), hf = x - wb > lx1 && x - wb <= tx1 ? rampH : H(x - wb);
+    y = gy - hub - hr; pitch = Math.atan2(hf - hr, wb); }
+  /* fireworks over the buses at the top of the arc, two bursts */
+  const apex = (262 - (tx1 + lx1) / 2) / 312;
+  fireworks(c, 112, 118, (s - apex) / 0.3, 0.2); fireworks(c, 70, 136, (s - apex - 0.08) / 0.3, 1.1); fireworks(c, 150, 134, (s - apex - 0.14) / 0.3, 2.3);
+  c.save(); c.translate(x, y); c.rotate(pitch); c.scale(-k, k); rider(c, 1, t); c.restore();
+  T(c, '127', 232, 84, { s: 64, w: 200, col: C.vel, al: 'right' });
+}
+
 function screen(c, vel, t, o = {}) {                 /* the rider faces left: the front wheel lifts on the left */
   c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240);
   T(c, 'STEP 6 · VEL', 8, 18, { s: 12, w: 600, ls: 0.8, col: C.k3 });
+  if (vel >= 127) { jump(c, t); for (let i = 0; i < 4; i++) path(c, [10 + i * 8, 30, 10 + i * 8, 46], C.k4, 2); return; }
   const u = clamp(vel / 127, 0, 1), pitch = Math.pow(clamp((u - 0.12) / 0.88, 0, 1), 1.15) * (55 * Math.PI / 180);
   const gy = 206, rx = 138, k = 1.4;                  /* the road's height, the rear wheel's contact, the scale */
   /* the road: its edge and dashes running past (to the right) at the speed */
@@ -136,11 +183,16 @@ function screen(c, vel, t, o = {}) {                 /* the rider faces left: th
   if (q.has('shot')) { document.body.className = 'shot'; const cv = mk(); screen(cv.getContext('2d'), +q.get('shot'), +(q.get('t') || 0.3)); document.body.appendChild(cv); return; }
   const row = document.createElement('div'); row.className = 'row'; document.body.appendChild(row);
   const list = q.has('sheet') ? [10, 40, 70, 100, 127] : [null];
+  const jumpT = q.has('sheet') ? [0.55, 1.05, 1.35, 1.75] : [];
   document.body.className = q.has('sheet') ? 'sheet' : 'live';
   const live = [];
   list.forEach(v => { const f = document.createElement('figure'); f.style.margin = 0; const cv = mk(); cv.className = 'big'; f.appendChild(cv);
     const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = v == null ? 'sweeping 1..127' : 'VEL ' + v; f.appendChild(cap); row.appendChild(f);
     if (v != null) screen(cv.getContext('2d'), v, 0.3); else live.push(cv.getContext('2d')); });
+  if (jumpT.length) { const row2 = document.createElement('div'); row2.className = 'row'; row2.style.marginTop = '16px'; document.body.appendChild(row2);
+    jumpT.forEach(tt => { const f = document.createElement('figure'); f.style.margin = 0; const cv = mk(); cv.className = 'big'; f.appendChild(cv);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = 'VEL 127, the jump at ' + tt + ' s'; f.appendChild(cap); row2.appendChild(f);
+      screen(cv.getContext('2d'), 127, tt); }); }
   const t0 = performance.now();
   const loop = () => { const t = (performance.now() - t0) / 1000, v = Math.round(64 + 63 * Math.sin(t * 0.6)); live.forEach(c => screen(c, v, t)); if (live.length) requestAnimationFrame(loop); };
   loop();
