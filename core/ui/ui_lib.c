@@ -131,13 +131,12 @@ static float lb_usage(uint8_t tracks, int steps, float x, float y, qd_rgb lcol, 
         }
     if (steps) {
         char n[16];
-        n[0] = 0;
-        cat(cat(n, "x"), ui_itoa(n + 8, steps));
-        if (draw) {
-            ui_lock(x + w + 2.f, y + 2.f, lcol, 1.2f);
-            ui_T(n, x + w + 14.f, y + 13.f, 12.f, 600, 0.f, lcol, QD_LEFT);
-        }
-        w += 36.f;
+        float cw;
+        ui_itoa(n, steps);                              /* P1.5b: the steps' count as a lock chip (no padlock) */
+        cw = ui_TW(n, 12.f, 600, 0.f) + 10.f;
+        if (draw)
+            ui_chip(n, x + w + 2.f + cw * 0.5f, y + 13.f, 12.f, 40.f, lcol, 1);
+        w += cw + 4.f;
     }
     return w;
 }

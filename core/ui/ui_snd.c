@@ -428,6 +428,36 @@ static void sd_lfoshape(const ui_snd_t *v)
             ui_O(NOTE[i], 108.f - sd_wave(w, ph) * 50.f, 3.4f, QD_NONE, 1.f, SNDK[1]);
 }
 
+/* P1.5b: the keyboard on: a strip under the head, the keys as they play (SCALE: the 16 W keys, the roots brighter;
+ * FULL: the 27 keys as the keybed, the scale's notes lit), a sounding key in the track's colour */
+static void sd_keys_strip(const ui_snd_t *v, qd_rgb tc)
+{
+    static const uint8_t BLK[27] = {0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0};
+    int i, w = 0;
+    if (v->keys == 1) {
+        for (i = 0; i < 16; i++) {
+            const int st = v->kst[i];
+            const float x = 8.f + (float)i * 14.f;
+            const qd_rgb c = st & 4 ? tc : (st & 3) == 2 ? UI_K3 : UI_G1;
+            ui_RR(x, 24.f, 12.f, 7.f, 2.f, st & 4 ? QD_NONE : c, 1.f, st & 4 || (st & 3) == 2 ? c : QD_NONE);
+        }
+        return;
+    }
+    for (i = 0; i < 27; i++) {                          /* FULL: the whites a row, the blacks over their gaps */
+        const int st = v->kst[i];
+        const qd_rgb c = st & 4 ? tc : (st & 3) == 2 ? UI_K3 : (st & 3) == 1 ? UI_G1 : UI_G3;
+        if (!BLK[i]) {
+            const float x = 8.f + (float)w * 14.f;
+            ui_RR(x, 24.f, 12.f, 7.f, 2.f, st & 4 || (st & 3) == 2 ? QD_NONE : c, 1.f,
+                  st & 4 || (st & 3) == 2 ? c : QD_NONE);
+            w++;
+        } else {
+            const float x = 8.f + (float)w * 14.f - 4.5f;
+            ui_RR(x, 21.f, 7.f, 4.f, 1.5f, QD_NONE, 1.f, st & 4 ? tc : (st & 3) ? c : UI_G3);
+        }
+    }
+}
+
 /* ---------------------------------------------------------------- the screen */
 void ui_snd_draw(const ui_snd_t *v)
 {
@@ -441,22 +471,28 @@ void ui_snd_draw(const ui_snd_t *v)
     if (v->step)
         cat(cat(cat(head, "STEP "), ui_itoa(n, v->step)), " \xc2\xb7 ");
     cat(head, v->name ? v->name : "");
-    x = 8.f;
-    if (v->step) {
-        ui_lock(8.f, 7.5f, UI_K3, 1.2f);
-        x = 22.f;
+    x = 10.f;                                           /* P1.5b: the group's pages first (fixed, left), then the name */
+    for (k = 0; k < v->npg && v->npg > 1; k++)
+        ui_O(x + 2.6f + (float)k * 9.f, 14.f, 2.6f, k == v->ipg ? hc : UI_G2, 1.f, k == v->ipg ? hc : QD_NONE);
+    if (v->npg > 1)
+        x += (float)v->npg * 9.f + 6.f;
+    ui_T(head, x, 18.f, 12.f, 600, 0.8f, hc, QD_LEFT);
+    if (v->has[4]) {                                    /* ALGORITHM's value: its badge, top right (a lock: its chip) */
+        float left;
+        if (v->locked[4] || v->lockany[4]) {
+            float bw = ui_TW(v->txt[4], 16.f, 600, 0.f) + 10.f;
+            bw = bw > 70.f ? 70.f : bw;
+            ui_chip(v->txt[4], 231.f - bw * 0.5f, 19.f, 16.f, 70.f, SNDK[4], v->locked[4]);
+            left = 231.f - bw;
+        } else {
+            left = 230.f - ui_TW(v->txt[4], 16.f, 500, 0.f);
+            ui_T(v->txt[4], 230.f, 20.f, 16.f, 500, 0.f, SNDK[4], QD_RIGHT);
+        }
+        ui_O(left - 14.f, 14.f, 8.f, QD_NONE, 1.f, SNDK[4]);
+        ui_T("A", left - 14.f, 18.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
     }
-    x += ui_T(head, x, 18.f, 12.f, 600, 0.8f, hc, QD_LEFT) + 8.f;
-    for (k = 0; k < v->npg && v->npg > 1; k++)          /* the group's pages: this one filled */
-        ui_O(x + (float)k * 9.f, 14.f, 2.6f, k == v->ipg ? hc : UI_G2, 1.f, k == v->ipg ? hc : QD_NONE);
-    if (v->has[4]) {                                    /* ALGORITHM's value: its badge, top right */
-        const float w = ui_TW(v->txt[4], 16.f, 500, 0.f);
-        ui_T(v->txt[4], 230.f, 20.f, 16.f, 500, 0.f, SNDK[4], QD_RIGHT);
-        ui_O(230.f - w - 14.f, 14.f, 8.f, QD_NONE, 1.f, SNDK[4]);
-        ui_T("A", 230.f - w - 14.f, 18.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
-        if (v->locked[4])
-            ui_lock(230.f - w - 34.f, 7.5f, SNDK[4], 1.2f);
-    }
+    if (v->keys)
+        sd_keys_strip(v, UI_TRACK_COL);
     switch (v->draw) {
     case UI_SD_ALGO: sd_algo(v); break;
     case UI_SD_TONE: sd_tone(v); break;
@@ -481,12 +517,14 @@ void ui_snd_draw(const ui_snd_t *v)
         w = ui_TW(v->lab[k] ? v->lab[k] : "", 12.f, 600, 0.3f);
         ui_T(v->lab[k] ? v->lab[k] : "", cx, 204.f, w > 56.f ? 12.f * 56.f / w : 12.f, 600, 0.3f,
              v->locked[k] ? UI_K3 : UI_G1, QD_CENTER);
-        w = ui_TW(v->txt[k], 18.f, 500, 0.f);
-        ui_T(v->txt[k], cx, 228.f, w > 56.f ? 18.f * 56.f / w : 18.f, 500, 0.f, SNDK[k], QD_CENTER);
-        if (v->locked[k])
-            ui_lock(cx - 4.f, 186.f, SNDK[k], 1.1f);
+        if (v->locked[k] || v->lockany[k]) {            /* P1.5b: locked here a filled chip, somewhere an outlined one */
+            ui_chip(v->txt[k], cx, 228.f, 16.f, 58.f, SNDK[k], v->locked[k]);
+        } else {
+            w = ui_TW(v->txt[k], 18.f, 500, 0.f);
+            ui_T(v->txt[k], cx, 228.f, w > 56.f ? 18.f * 56.f / w : 18.f, 500, 0.f, SNDK[k], QD_CENTER);
+        }
         if (v->last == k)                               /* the knob turned last: underlined */
-            line2(cx - 18.f, 235.f, cx + 18.f, 235.f, SNDK[k], 2.f);
+            line2(cx - 18.f, 236.f, cx + 18.f, 236.f, SNDK[k], 2.f);
     }
     (void)ncell;
 }

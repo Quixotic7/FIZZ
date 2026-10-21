@@ -28,7 +28,12 @@ uint32_t qd_fx_master_q12(void);
 enum { QD_FXP_DTIME, QD_FXP_DDIV, QD_FXP_DSPREAD, QD_FXP_DRATIO, QD_FXP_DFDBK, QD_FXP_DSYNC, QD_FXP_DMODE,
        QD_FXP_DTONE, QD_FXP_DWOW, QD_FXP_RSIZE, QD_FXP_RDAMP, QD_FXP_RDECAY, QD_FXP_RPRE, QD_FXP_RMOD, QD_FXP_RLOW,
        QD_FXP_RWIDTH, QD_FXP_CWIDTH, QD_FXP_FLOW, QD_FXP_FHIGH, QD_FXP_FSLOPE, QD_FXP_FON,
-       QD_FXP_CRATE, QD_FXP_CDEPTH, QD_NFXP };
+       QD_FXP_CRATE, QD_FXP_CDEPTH,
+       /* P1.5b: the routing page (ChoralRoot has none: every one 0, its chain exactly): DELAY -> REVERB, CHORUS -> DELAY,
+        * CHORUS -> REVERB (0..127, the return fed into the other's send), the master filter's place (0 after the
+        * effects, ChoralRoot's; 1 before them, on the dry mix) */
+       QD_FXP_XDR, QD_FXP_XCD, QD_FXP_XCR, QD_FXP_XPOS,
+       QD_NFXP };
 int qd_fx_get(int id);
 void qd_fx_set(int id, int v);          /* clamped to its range */
 void qd_fx_range(int id, int *min, int *max, int *def);

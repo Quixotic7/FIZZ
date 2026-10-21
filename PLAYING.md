@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5a)
+# Playing FIZZ (P1.5b)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -26,6 +26,10 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | the white keys | **W1 .. W16**, the 16 steps of the page you are editing |
 
 "Held" means down for 400 ms (a white step key: 250 ms). Anything shorter is a tap.
+
+**The knobs accelerate** (P1.5b): turned slowly a value moves one step a click; spun, the steps grow, up to about a
+sixteenth of the range a click, so one fast turn sweeps it all. Values with few steps (a list of 24 or fewer: a
+type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the finest step.
 
 ## Getting around
 
@@ -166,6 +170,13 @@ and chance; a LOCK step's runs too).
   again, the knobs edit the track's defaults. Tap a step to select again.
 - **LFO** again or **HOME** turns it off.
 - **Hold LFO + a black key**: that mode, without touching the latch or the selection (a plain tap still toggles).
+- **Two latch modes** (P1.5b). **Hold LFO alone** (400 ms, no other key) and let go: the latch mode switches, a
+  picture shows which (two drawings: the keys as values / the keys as modes). It is kept (a global setting) and used
+  every time you turn the latch on.
+  - **VALUES** (as before): with the latch on, the black keys set values for the selected steps. LFO lit full.
+  - **MODES**: with the latch on, the black keys choose the hold mode (as with nothing held) and **the knobs set the
+    selected steps' values for that mode**. While a finger holds a step, the black keys are its values as always.
+    LFO lit at half.
 
 ## How do I enter notes and chords?
 
@@ -192,8 +203,9 @@ A step has up to **six notes**.
 
 ## How do I lock a sound setting on a step? (P-LOCK)
 
-- Press **B11** with nothing held: the **P-LOCK** mode. The page shows the notes, with a padlock and the number of
-  locks under each step as dots.
+- Press **B11** with nothing held: the **P-LOCK** mode. The page shows the notes, with a lock chip and the number of
+  locks under each step as dots. (P1.5b: no padlocks anywhere; a lock is a chip: **filled = locked on this step,
+  outlined = locked on some step of the track**.)
 - **Hold a step**: the screen stays as it is. Turn a knob of the screen and it is **locked on the held steps**: KNOB
   1..4 = FREQ, DECAY, HARM, FDBK; PRESETS = the step's sound; SELECT = the page. The knob's picture shows the lock.
 - **B11 with a step held** clears that step's locks (the sound stays: clear it in SOUND). **F1 + B11** undoes it.
@@ -288,17 +300,29 @@ Pages and tracks (hold **F1**):
 
 ## How do I change the effects? (FX tapped)
 
-- **Tap FX**: the effects, ChoralRoot's (global: no sound or pattern changes them). **FX again** (or SELECT) for the
-  next page; **B1 DELAY, B2 REVERB, B3 CHORUS, B4 MASTER** (again: the effect's second page). OCT− or HOME closes it.
+- **Tap FX**: the effects, ChoralRoot's (global: no sound or pattern changes them). It opens on the **OVERVIEW**.
+  **FX again** (or SELECT) for the next page; **B1 OVERVIEW, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING**
+  (a key again: the effect's second page). OCT− or HOME closes it.
+- **OVERVIEW** (P1.5b): three columns, CHORUS, DELAY, REVERB, each with the eight tracks' send bars in the tracks'
+  colours (the selected track's bright, an unheard track grey). **W1..W8 choose the track** (lit: the selected one
+  bright); **KNOB 1..3 its CHORUS, DELAY, REVERB sends**. FX held + ALGORITHM still chooses the track too.
+- **ROUTING** (P1.5b): the chain drawn: the tracks' bus sending into CHORUS, DELAY and REVERB, their returns into the
+  mix, the dry path along the foot, the master filter, out. ChoralRoot has no routing of its own, so these are new and
+  all start at ChoralRoot's (none): **KNOB 1 DELAY > REVERB**, **KNOB 2 CHORUS > DELAY**, **KNOB 3 CHORUS > REVERB**
+  (how much of one effect's return goes into the other's input, drawn as an arrow as thick as the amount), **KNOB 4
+  FILTER** AFTER (the master filter on everything, ChoralRoot's) or BEFORE (on the dry mix only, the effects' returns
+  past it). Kept with the global settings.
 
   | page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
   | --- | --- | --- | --- | --- |
+  | OVERVIEW | CHORUS send | DELAY send | REVERB send | |
   | DELAY | TIME (ms, or the note value when synced) | SPREAD (R's time against L's; synced: 1:1 3:4 2:3 1:2) | FEEDBACK | SEND |
   | DELAY 2 | SYNC (FREE / TEMPO) | MODE (STEREO / PING-PONG) | TONE | WOW |
   | REVERB | SIZE | DAMP | DECAY (s, INF) | SEND |
   | REVERB 2 | PRE-DELAY | MOD | LOW CUT | WIDTH |
   | CHORUS | RATE (Hz) | DEPTH | WIDTH | SEND |
   | MASTER | LOW CUT (OFF ..) | HIGH CUT (.. OFF) | SLOPE (6 / 12 dB) | FILTER ON / OFF |
+  | ROUTING | DELAY > REVERB | CHORUS > DELAY | CHORUS > REVERB | FILTER AFTER / BEFORE |
 
   **SEND** is the selected track's send into that effect (its number at the top right; the same value as the
   mixer's).
@@ -349,13 +373,17 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 
 - **REC tapped**: the keybed becomes a keyboard for the selected track (REC lit). REC again: back to the steps.
 - In a scale, keys outside the scale play the scale note just below.
+- **The keys light the scale** (P1.5b): the root's keys at 80 %, the scale's other notes at 50 %, the rest dark, a
+  key playing full.
+- **SHIFT + ALGORITHM** the track's scale, **SHIFT + PRESETS** its root, while you play (stopped or playing).
 - **F1 / F2** move the keyboard an octave (−2..+2).
 - **SHIFT + REC**: the **record settings** (they stay open; OCT− or HOME back), kept with the project:
   - **KNOB 1 MODE**: LIVE or STEP, what holding REC arms;
   - **KNOB 2 QUANTIZE**: 0..100 % (5 % a click): how much of the played timing is pulled onto the step (0 % as
     played, 100 % exactly on the step);
   - **KNOB 3 TAKE**: **REPLACE** (a step you record into is cleared first) or **OVERDUB** (your notes join the step's;
-    its velocity, timing and length stay).
+    its velocity, timing and length stay);
+  - **KNOB 4 EDIT KEYS** (P1.5b): **SCALE** or **FULL**, the keyboard in the sound editor (below).
 - **Hold REC**: recording armed (in the keyboard) in the MODE chosen.
   **LIVE**: stopped, nothing moves until you play the **first key**:
   playback and recording start together, that note on the loop's first step.
@@ -405,9 +433,21 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 - **Nothing held**: a turn changes the track's sound, live (what is sounding follows). The screen has the magenta TRACK
   frame. **SHIFT + a knob** moves it by the finest step (a hundredth of FREQ, HARM, the LFO speeds ..).
 - **A finger on a step** (held, or the step latch's selection: LFO works in the editor): **every turn is a p-lock** on
-  that step. The top says STEP n with a padlock; locked values get a padlock, and the envelopes show the track's curve
-  dashed behind the step's. **B11** clears the held step's locks on this page (lit while it has some). The white keys
-  stay the steps (tap, hold), as in the step view.
+  that step. The top says STEP n; **a value locked on that step is a filled chip** in its knob's colour (black text),
+  and the envelopes show the track's curve dashed behind the step's. **Nothing held, a value that some step of the
+  track locks is an outlined chip.** **B11** clears the held step's locks on this page (lit while it has some). The
+  white keys stay the steps (tap, hold), as in the step view.
+- The top line: the group's page dots first (always in the same place), then the page's name.
+- **Live play in the editor** (P1.5b): **tap REC** with the editor open and its keyboard is on (EDIT opened from the
+  keyboard keeps it on too). A strip under the top shows the keys, the roots brighter, the ones playing in the track's
+  colour. REC again: the white keys are the steps again.
+  - **SCALE** (the record settings' EDIT KEYS, the default): **the 16 white keys play the track's scale**, W1 the root
+    at the keyboard's octave, then each note of the scale upwards (chromatic: 16 semitones). **The black keys stay the
+    editor's pages.**
+  - **FULL**: every key plays as the keyboard does; the pages are then on SELECT only.
+  - **F1 / F2** the octave (both: every voice off). **SHIFT + ALGORITHM** the scale, **SHIFT + PRESETS** the root;
+    SHIFT + KNOB 1..4 stay the fine step. The keys light the scale as the keyboard's do.
+  - **EDIT** closes the editor back to the keyboard; HOME to the steps. Playing here is heard, not recorded.
 - **PRESETS**: the track's preset (nothing held) or the step's sound lock (a step held), as everywhere.
 - **DRIVE** (B4, LEVEL page, KNOB 2) is part of the sound now: ChoralRoot's DIST (low cut, the drive, a soft clip, a
   tone low-pass, make-up gain), in each voice, so a step with its own sound or a DRIVE lock has its own. A preset
@@ -502,5 +542,5 @@ They stay open (OCT− or HOME back). For now:
 
 ## Not built yet
 
-- Snapshots (SHIFT + SAVE, P1.5b) and undo for deleting a sound.
+- Snapshots (SHIFT + SAVE), undo for deleting a sound, randomise (P1.5c).
 - Pattern chains.

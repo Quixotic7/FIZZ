@@ -91,6 +91,7 @@ static void wtap(int w)
 }
 static void turn(int k, int d)
 {
+    A.ui.knob_ms[k] = 0;                                /* (one gesture a turn: no acceleration, P1.5b) */
     qd_app_knob(&A, k, d);
     run(5);
 }
@@ -207,15 +208,16 @@ int render_p14b(const char *out)
     shot("sends", "ENV again: the sends, every track's chorus, delay, reverb");
     btap(QD_B_HOME);
     btap(QD_B_TRACKS);
-    for (p = 0; p < 6; p++) {
+    for (p = 0; p < QD_FX_NPAGE; p++) {                 /* (P1.5b: OVERVIEW first, ROUTING last) */
         run(p ? 400 : 300);
         snprintf(nm, sizeof nm, "fx-%d", p);
         snprintf(cap, sizeof cap, "FX: %s", QD_FX_PAGES[p].name);
         shot(nm, cap);
-        if (p < 5)
+        if (p < QD_FX_NPAGE - 1)
             btap(QD_B_TRACKS);
     }
-    turn(QD_K_1, 30);                                   /* MASTER: a low cut and on */
+    black(4);                                           /* B5 MASTER: a low cut and on */
+    turn(QD_K_1, 30);
     turn(QD_K_2, -40);
     turn(QD_K_4, 1);
     run(200);
@@ -223,15 +225,12 @@ int render_p14b(const char *out)
     turn(QD_K_4, -1);
     turn(QD_K_1, -30);
     turn(QD_K_2, 40);
-    black(0);
+    black(1);                                           /* B2 DELAY */
     turn(QD_K_3, 50);
     btap(QD_B_TRACKS);
     turn(QD_K_2, 1);
-    btap(QD_B_TRACKS);
-    btap(QD_B_TRACKS);
-    btap(QD_B_TRACKS);
-    btap(QD_B_TRACKS);
-    btap(QD_B_TRACKS);
+    for (p = 0; p < QD_FX_NPAGE - 1; p++)               /* round to DELAY */
+        btap(QD_B_TRACKS);
     run(400);
     shot("fx-delay-2", "DELAY: FEEDBACK +50 (FX round again)");
     btap(QD_B_HOME);

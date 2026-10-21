@@ -18,14 +18,18 @@
  *        (ChoralRoot's FC_TIME, FC_SPREAD). FX held + ALGORITHM still chooses the track. */
 
 const qd_fxpage_t QD_FX_PAGES[QD_FX_NPAGE] = {
-    {"DELAY", 0, UI_FXD_DELAY, {QD_FXC_TIME, QD_FXC_SPREAD, QD_FXP_DFDBK, QD_FXC_SEND}},
-    {"DELAY 2", 0, UI_FXD_DELAY2, {QD_FXP_DSYNC, QD_FXP_DMODE, QD_FXP_DTONE, QD_FXP_DWOW}},
-    {"REVERB", 1, UI_FXD_REVERB, {QD_FXP_RSIZE, QD_FXP_RDAMP, QD_FXP_RDECAY, QD_FXC_SEND}},
-    {"REVERB 2", 1, UI_FXD_REVERB2, {QD_FXP_RPRE, QD_FXP_RMOD, QD_FXP_RLOW, QD_FXP_RWIDTH}},
-    {"CHORUS", 2, UI_FXD_CHORUS, {QD_FXP_CRATE, QD_FXP_CDEPTH, QD_FXP_CWIDTH, QD_FXC_SEND}},
-    {"MASTER", 3, UI_FXD_MASTER, {QD_FXP_FLOW, QD_FXP_FHIGH, QD_FXP_FSLOPE, QD_FXP_FON}},
+    {"OVERVIEW", QD_FXG_OVER, UI_FXD_OVER, {QD_FXC_SENDX(2), QD_FXC_SENDX(0), QD_FXC_SENDX(1), QD_FXC_NONE}},
+    {"DELAY", QD_FXG_DELAY, UI_FXD_DELAY, {QD_FXC_TIME, QD_FXC_SPREAD, QD_FXP_DFDBK, QD_FXC_SEND}},
+    {"DELAY 2", QD_FXG_DELAY, UI_FXD_DELAY2, {QD_FXP_DSYNC, QD_FXP_DMODE, QD_FXP_DTONE, QD_FXP_DWOW}},
+    {"REVERB", QD_FXG_REVERB, UI_FXD_REVERB, {QD_FXP_RSIZE, QD_FXP_RDAMP, QD_FXP_RDECAY, QD_FXC_SEND}},
+    {"REVERB 2", QD_FXG_REVERB, UI_FXD_REVERB2, {QD_FXP_RPRE, QD_FXP_RMOD, QD_FXP_RLOW, QD_FXP_RWIDTH}},
+    {"CHORUS", QD_FXG_CHORUS, UI_FXD_CHORUS, {QD_FXP_CRATE, QD_FXP_CDEPTH, QD_FXP_CWIDTH, QD_FXC_SEND}},
+    {"MASTER", QD_FXG_MASTER, UI_FXD_MASTER, {QD_FXP_FLOW, QD_FXP_FHIGH, QD_FXP_FSLOPE, QD_FXP_FON}},
+    {"ROUTING", QD_FXG_ROUTE, UI_FXD_ROUTE, {QD_FXP_XDR, QD_FXP_XCD, QD_FXP_XCR, QD_FXP_XPOS}},
 };
-const char *const QD_FX_NAME[4] = {"DELAY", "REVERB", "CHORUS", "MASTER"};
+const char *const QD_FX_NAME[QD_NFXG] = {"DELAY", "REVERB", "CHORUS", "MASTER", "OVERVIEW", "ROUTING"};
+const uint8_t QD_FX_KEY[QD_FX_NKEY] = {QD_FXG_OVER, QD_FXG_DELAY, QD_FXG_REVERB, QD_FXG_CHORUS, QD_FXG_MASTER,
+                                       QD_FXG_ROUTE};
 
 int qd_fx_cell_id(int c)
 {
@@ -36,6 +40,11 @@ int qd_fx_cell_id(int c)
     return c;
 }
 int qd_fx_send_id(int fx) { return fx == 0 ? QD_LK_DELAY : fx == 1 ? QD_LK_REVERB : QD_LK_CHORUS; }
+int qd_fx_send(const qd_app_t *a, int t, int fx)
+{
+    const qd_mix_track_t *m = &a->model.t[t].mix;
+    return fx == 0 ? m->delay : fx == 1 ? m->reverb : m->chorus;
+}
 
 static void panel_open(qd_app_t *a, int kind)
 {
@@ -76,6 +85,7 @@ void qd_fx_button(qd_app_t *a)
         return;
     }
     panel_open(a, QD_LATCH_FX);
+    a->ui.fx_page = 0;                                  /* (P1.5b: FX opens on the overview) */
 }
 
 /* the black keys: B1..B8 the track (settings, mix); B1..B4 the effect (again: its next page) */
@@ -83,23 +93,31 @@ void qd_panel_black(qd_app_t *a, int b)
 {
     qd_ui_t *u = &a->ui;
     if (u->latch == QD_LATCH_FX) {
-        int p, first = -1, next = -1;
-        if (b > 3)
+        int p, first = -1, next = -1, g;
+        if (b >= QD_FX_NKEY)
             return;
+        g = QD_FX_KEY[b];                               /* (P1.5b: B1 OVERVIEW .. B6 ROUTING) */
         for (p = 0; p < QD_FX_NPAGE; p++) {
-            if (QD_FX_PAGES[p].fx != b)
+            if (QD_FX_PAGES[p].fx != g)
                 continue;
             if (first < 0)
                 first = p;
-            if (next < 0 && p > u->fx_page && QD_FX_PAGES[u->fx_page].fx == b)
+            if (next < 0 && p > u->fx_page && QD_FX_PAGES[u->fx_page].fx == g)
                 next = p;
         }
-        u->fx_page = QD_FX_PAGES[u->fx_page].fx == b && next >= 0 ? next : first;
+        u->fx_page = QD_FX_PAGES[u->fx_page].fx == g && next >= 0 ? next : first;
         u->menu_knob = -1;
         return;
     }
     if (b < QD_NTRACK)
         qd_ctl_select_track(a, b);
+}
+
+/* P1.5b: W1..W8 on the effects' overview: the track (the other pages: nothing) */
+void qd_panel_white(qd_app_t *a, int w)
+{
+    if (a->ui.latch == QD_LATCH_FX && QD_FX_PAGES[a->ui.fx_page].fx == QD_FXG_OVER && w < QD_NTRACK)
+        qd_ctl_select_track(a, w);
 }
 
 static int cl(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -153,7 +171,7 @@ int qd_mix_knob(qd_app_t *a, int knob, int d)
     u->menu_knob = knob - QD_K_1;
     v = id == QD_LK_LEVEL ? m->level : id == QD_LK_PAN ? m->pan : id == QD_LK_DELAY ? m->delay
       : id == QD_LK_REVERB ? m->reverb : m->chorus;
-    qd_player_live_edit(&a->player, a->sel, id, v + d);
+    qd_player_live_edit(&a->player, a->sel, id, v + qd_ctl_acc(a, d, 128));
     return 1;
 }
 
@@ -173,15 +191,18 @@ int qd_fx_knob(qd_app_t *a, int knob, int d)
     u->menu_knob = knob - QD_K_1;
     if (c == QD_FXC_NONE)
         return 1;
-    if (c == QD_FXC_SEND) {                             /* the selected track's send into this effect */
-        const qd_mix_track_t *m = &a->model.t[a->sel].mix;
-        const int id = qd_fx_send_id(pg->fx);
-        qd_player_live_edit(&a->player, a->sel, id,
-                            (id == QD_LK_DELAY ? m->delay : id == QD_LK_REVERB ? m->reverb : m->chorus) + d);
+    if (c == QD_FXC_SEND || c <= QD_FXC_SENDX(0)) {    /* the selected track's send into this effect (the overview:
+                                                         * the cell's) */
+        const int fx = c == QD_FXC_SEND ? pg->fx : QD_FXC_SENDX(0) - c;
+        qd_player_live_edit(&a->player, a->sel, qd_fx_send_id(fx), qd_fx_send(a, a->sel, fx) + qd_ctl_acc(a, d, 128));
         return 1;
     }
     c = qd_fx_cell_id(c);
-    qd_fx_set(c, qd_fx_get(c) + d);
+    {
+        int lo, hi;
+        qd_fx_range(c, &lo, &hi, 0);
+        qd_fx_set(c, qd_fx_get(c) + qd_ctl_acc(a, d, hi - lo + 1));
+    }
     return 1;
 }
 
@@ -193,8 +214,8 @@ void qd_panel_leds(const qd_app_t *a, uint8_t *black)
     for (i = 0; i < 11; i++)
         black[i] = QD_LED_OFF;
     if (u->latch == QD_LATCH_FX) {
-        for (i = 0; i < 4; i++)
-            black[i] = i == QD_FX_PAGES[u->fx_page].fx ? QD_LED_LIT : QD_LED_DIM;
+        for (i = 0; i < QD_FX_NKEY; i++)
+            black[i] = QD_FX_KEY[i] == QD_FX_PAGES[u->fx_page].fx ? QD_LED_LIT : QD_LED_DIM;
         return;
     }
     for (i = 0; i < QD_NTRACK; i++)

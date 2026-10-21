@@ -105,6 +105,7 @@ static void wrelease(int w)
 }
 static void turn(int k, int d)
 {
+    A.ui.knob_ms[k] = 0;                                /* (one gesture a turn: no acceleration, P1.5b) */
     qd_app_knob(&A, k, d);
     run(5);
 }

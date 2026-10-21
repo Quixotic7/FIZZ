@@ -135,8 +135,9 @@ static void black(int b)                                /* a black key tapped (B
     run(10);
 }
 static void mode(int m) { black(m); }                   /* nothing held: the hold mode */
-static void turn(int knob, int d)
+static void turn(int knob, int d)                      /* (one gesture: no acceleration from the turn before) */
 {
+    A.ui.knob_ms[knob] = 0;
     qd_app_knob(&A, knob, d);
     run(5);
 }
@@ -1560,28 +1561,33 @@ static void g_tracks_screen(void)
     btap(QD_B_HOME);
     /* the effects */
     btap(QD_B_TRACKS);
-    CHECK(A.ui.latch == QD_LATCH_FX && A.ui.fx_page == 0, "FX tapped: the effects, DELAY");
+    CHECK(A.ui.latch == QD_LATCH_FX && A.ui.fx_page == 0 && !strcmp(QD_FX_PAGES[0].name, "OVERVIEW"),
+          "FX tapped: the effects, the OVERVIEW (P1.5b)");
+    black(B2);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"), "B2: DELAY");
     v0 = qd_fx_get(QD_FXP_DDIV);
     turn(QD_K_1, 1);
     CHECK(qd_fx_get(QD_FXP_DSYNC) && qd_fx_get(QD_FXP_DDIV) == v0 + 1, "DELAY, KNOB 1: TIME (synced: the division) +1");
     v0 = A.model.t[1].mix.delay;
     turn(QD_K_4, 4);
     CHECK(A.model.t[1].mix.delay == v0 + 4, "KNOB 4: SEND, track 2's delay send +4");
-    black(B2), black(B2);
-    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "REVERB 2"), "B2 twice: REVERB 2");
+    black(B3), black(B3);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "REVERB 2"), "B3 twice: REVERB 2");
     v0 = qd_fx_get(QD_FXP_RLOW);
     turn(QD_K_3, 5);
     CHECK(qd_fx_get(QD_FXP_RLOW) == v0 + 5, "KNOB 3: LOW CUT +5");
-    black(B3);
+    black(B4);
     v0 = qd_fx_get(QD_FXP_CRATE);
     turn(QD_K_1, -3);
-    CHECK(qd_fx_get(QD_FXP_CRATE) == v0 - 3, "B3 CHORUS, KNOB 1: RATE -3");
-    black(B4);
+    CHECK(qd_fx_get(QD_FXP_CRATE) == v0 - 3, "B4 CHORUS, KNOB 1: RATE -3");
+    black(B5);
     turn(QD_K_4, 1);
-    CHECK(qd_fx_get(QD_FXP_FON) == 1 && !strcmp(QD_FX_PAGES[A.ui.fx_page].name, "MASTER"), "B4 MASTER, KNOB 4: ON");
+    CHECK(qd_fx_get(QD_FXP_FON) == 1 && !strcmp(QD_FX_PAGES[A.ui.fx_page].name, "MASTER"), "B5 MASTER, KNOB 4: ON");
     turn(QD_K_4, -1);
+    black(B6);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "ROUTING"), "B6: ROUTING");
     btap(QD_B_TRACKS);
-    CHECK(A.ui.fx_page == 0, "FX again on the last page: round to DELAY");
+    CHECK(A.ui.fx_page == 0, "FX again on the last page: round to the OVERVIEW");
     bdown(QD_B_TRACKS);
     run(10);
     turn(QD_K_ALGO, 3);
@@ -2705,12 +2711,37 @@ static void g_clarity(void)
     btap(QD_B_PATTERN);
     run(120);
     btap(QD_B_HOME);
+    btap(QD_B_SOUND);                                   /* P1.5b: the editor's keyboard (SCALE, FULL), its chips */
+    btap(QD_B_REC);
+    for (k = 0; k < QD_SND_NPAGE; k++) {
+        A.ui.snd_page = k;
+        A.proj.rec_ekeys = k & 1;
+        run(60);
+    }
+    A.proj.rec_ekeys = 0;
+    btap(QD_B_HOME);
+    bdown(QD_B_MUTE);                                   /* .. the latch mode's takeover, both ways */
+    run(450);
+    bup(QD_B_MUTE);
+    run(300);
+    bdown(QD_B_MUTE);
+    run(450);
+    bup(QD_B_MUTE);
+    run(300);
+    bdown(SHIFT);                                       /* .. the record settings' four rows */
+    btap(QD_B_REC);
+    bup(SHIFT);
+    run(100);
+    turn(QD_K_4, 1);
+    run(100);
+    turn(QD_K_4, -1);
+    btap(QD_B_HOME);
     btap(QD_B_PLAY);                                    /* playing */
     run(600);
     btap(QD_B_PLAY);
     run(100);
     mn = qd_text_stats_min(&small);
-    CHECK(mn >= 11.f, "no text under 11 px on any screen (the smallest: %.1f px, \"%s\")", (double)mn, small);
+    CHECK(mn >= 12.f, "no text under 12 px on any screen (the smallest: %.1f px, \"%s\")", (double)mn, small);
     printf("  clarity: the smallest text drawn in every gesture's frames: %.1f px (\"%s\")\n", (double)mn, small);
 }
 
@@ -3539,8 +3570,8 @@ static void t_leds(void)
     wrel(0);
     btap(QD_B_REC);
     l = leds();
-    CHECK(l.button[QD_B_REC] == QD_LED_LIT && l.key[7] == QD_LED_FAINT && l.key[8] == QD_LED_OFF,
-          "the keyboard: REC lit, the C keys faint");
+    CHECK(l.button[QD_B_REC] == QD_LED_LIT && l.key[7] == QD_LED_80 && l.key[8] == QD_LED_HALF,
+          "the keyboard: REC lit, the scale lit (P1.5b: chromatic on C, C 80 %%, the rest 50 %%)");
     btap(QD_B_REC);
     btap(QD_B_PLAY);                                    /* F1: the playing page flashes */
     bdown(F1);
@@ -3575,6 +3606,321 @@ static uint64_t session(void)
     kup(9);
     run(2000);
     return hash ^ (uint64_t)PAT()->step[0][4].note[0] ^ ((uint64_t)PAT()->nlock << 32);
+}
+
+
+/* ================================================================ P1.5b (PLAN version 2.4, the owner after 0.4.1) */
+static int key_note_of(int k) { return (A.keys_struck >> k) & 1u ? A.key_note[k] : -1; }
+static int play_key(int k)                              /* a key struck and let go: the note it struck (-1 none) */
+{
+    int n;
+    kdown(k);
+    run(5);
+    n = key_note_of(k);
+    kup(k);
+    run(5);
+    return n;
+}
+static void set_key(int sc, int rt)                     /* the selected track's own scale and root */
+{
+    qd_tset_t *ts = &PAT()->trk[A.sel];
+    ts->scale = (uint8_t)sc;
+    ts->root = (uint8_t)rt;
+    ts->key_global = 0;
+}
+
+/* 1, 2: the sound editor with the keyboard (REC tapped there): SCALE (W the scale from the root at the keyboard's
+ * octave, B the pages) and FULL (every key as the keyboard); F1 / F2 the octave; SHIFT + ALGORITHM / PRESETS the
+ * scale / root (the keyboard too), SHIFT + KNOB the fine step; the keys lit by the scale */
+static void g_p15b_keys(void)
+{
+    static const int MAJ[8] = {48, 50, 52, 53, 55, 57, 59, 60}, MINP[6] = {57, 60, 62, 64, 67, 69};
+    int i, ok, p0, d0;
+    qd_leds_t l;
+    start();
+    btap(QD_B_SOUND);
+    btap(QD_B_REC);
+    CHECK(qd_snd_keys(&A) && qd_view_screen(&A) == QD_SCR_SOUND && A.ui.mode == QD_MODE_STEP,
+          "EDIT, then REC tapped: the editor stays, its keyboard on");
+    set_key(QD_SCALE_MAJOR, 0);
+    for (ok = 1, i = 0; i < 8; i++)
+        ok &= play_key(WK(i)) == MAJ[i];
+    CHECK(ok, "SCALE, C major: W1..W8 play C3 D3 E3 F3 G3 A3 B3 C4");
+    CHECK(play_key(WK(14)) == 72 && !R(0, 0).on && !R(0, 1).on, "W15: C5 (two octaves of degrees); no step made");
+    set_key(QD_SCALE_MIN_PENTA, 9);
+    for (ok = 1, i = 0; i < 6; i++)
+        ok &= play_key(WK(i)) == MINP[i];
+    CHECK(ok, "SCALE, A minor pentatonic: W1..W6 play A3 C4 D4 E4 G4 A4");
+    set_key(QD_SCALE_CHROMATIC, 0);
+    for (ok = 1, i = 0; i < 16; i++)
+        ok &= play_key(WK(i)) == 48 + i;
+    CHECK(ok, "SCALE, chromatic: W1..W16 sixteen semitones from C3");
+    p0 = A.ui.snd_page;
+    kdown(BK(B3));
+    run(5);
+    CHECK(key_note_of(BK(B3)) < 0 && QD_SND_PAGES[A.ui.snd_page].group == QD_SG_FILTER && A.ui.snd_page != p0,
+          "SCALE: B3 is the FILTERS page, no note");
+    kup(BK(B3));
+    run(5);
+    btap(F2);
+    CHECK(A.oct == 1 && play_key(WK(0)) == 60 && A.ui.latch == QD_LATCH_SND, "F2: the octave up (W1 C4), the editor stays");
+    btap(F1);
+    l = leds();
+    set_key(QD_SCALE_MAJOR, 0);
+    l = leds();
+    CHECK(l.key[WK(0)] == QD_LED_80 && l.key[WK(1)] == QD_LED_HALF && l.key[WK(7)] == QD_LED_80 &&
+              l.key[BK(B3)] == QD_LED_LIT,
+          "SCALE's LEDs: the roots 80 %%, the other degrees 50 %%; the black keys the pages (FILTERS lit)");
+    kdown(WK(2));
+    run(5);
+    CHECK(leds().key[WK(2)] == QD_LED_LIT, "a key playing: full");
+    kup(WK(2));
+    run(5);
+    /* FULL */
+    A.proj.rec_ekeys = 1;
+    CHECK(play_key(0) == 53 && play_key(1) == 53 && play_key(7) == 60, "FULL, C major: F3, F#3 snapped to F3, C4 (the keybed)");
+    set_key(QD_SCALE_CHROMATIC, 0);
+    p0 = A.ui.snd_page;
+    CHECK(play_key(BK(B3)) == 53 + BK(B3) && A.ui.snd_page == p0, "FULL, chromatic: B3 plays its note, the page stays");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.snd_page == (p0 + 1) % QD_SND_NPAGE, "FULL: the pages on SELECT");
+    set_key(QD_SCALE_MAJOR, 2);
+    l = leds();
+    CHECK(l.key[9] == QD_LED_80 && l.key[11] == QD_LED_HALF && l.key[10] == QD_LED_OFF && l.key[BK(B1)] == QD_LED_HALF,
+          "FULL's LEDs, D major: D4 80 %%, E4 50 %%, D#4 dark, F#3 (B1) in the scale 50 %%");
+    /* SHIFT + ALGORITHM / PRESETS: the scale / root; SHIFT + KNOB: the fine step */
+    bdown(SHIFT);
+    run(5);
+    turn(QD_K_ALGO, 1);
+    turn(QD_K_PRESETS, 3);
+    CHECK(PAT()->trk[0].scale == QD_SCALE_MAJOR + 1 && PAT()->trk[0].root == 5 && A.ui.tk == UI_TK_ROOT,
+          "the keyboard on, SHIFT + ALGORITHM the scale (+1), SHIFT + PRESETS the root (D + 3 = F)");
+    A.ui.snd_page = 3;                                  /* ENV A: KNOB 2 A DEC */
+    d0 = A.model.t[0].patch[QD_QP_ADEC];
+    turn(QD_K_2, 1);
+    bup(SHIFT);
+    run(5);
+    CHECK(A.model.t[0].patch[QD_QP_ADEC] == d0 + 1, "SHIFT + KNOB 2: the fine step (A DEC +1)");
+    /* EDIT again: back to the keyboard; EDIT from the keyboard: the editor with it */
+    btap(QD_B_SOUND);
+    CHECK(A.ui.mode == QD_MODE_KEYS && !A.ui.latch, "EDIT again (the keyboard on): back to the keyboard");
+    bdown(SHIFT);
+    run(5);
+    turn(QD_K_ALGO, -1);
+    turn(QD_K_PRESETS, -1);
+    bup(SHIFT);
+    run(5);
+    CHECK(PAT()->trk[0].scale == QD_SCALE_MAJOR && PAT()->trk[0].root == 4, "the keyboard: SHIFT + ALGORITHM / PRESETS too");
+    l = leds();
+    CHECK(l.key[11] == QD_LED_80 && l.key[12] == QD_LED_OFF && l.key[13] == QD_LED_HALF,
+          "the keyboard's LEDs, E major: E4 80 %%, F4 dark, F#4 50 %%");
+    btap(QD_B_SOUND);
+    CHECK(qd_snd_keys(&A), "EDIT from the keyboard: the editor, its keyboard on");
+    btap(QD_B_REC);
+    CHECK(qd_snd_open(&A) && !qd_snd_keys(&A), "REC again: the keyboard off, the editor stays (W: the steps)");
+    wtap(3);
+    CHECK(R(0, 3).on, "W4 tapped: a trig again");
+    btap(QD_B_HOME);
+    A.proj.rec_ekeys = 0;
+    bdown(QD_B_REC);                                    /* recording live: SHIFT + ALGORITHM still the scale */
+    run(10);
+    btap(QD_B_PLAY);
+    bup(QD_B_REC);
+    run(50);
+    bdown(SHIFT);
+    run(5);
+    turn(QD_K_ALGO, 2);
+    bup(SHIFT);
+    run(5);
+    CHECK(A.ui.rec && A.seq.playing && PAT()->trk[0].scale == QD_SCALE_MAJOR + 2,
+          "recording live: SHIFT + ALGORITHM the scale (no lock)");
+    btap(QD_B_PLAY);
+    btap(QD_B_PLAY);
+    btap(QD_B_HOME);
+}
+
+/* 3, 4: the lock chips (the editor's model: locked here filled, somewhere outlined) */
+static void g_p15b_chips(void)
+{
+    static ui_snd_t sv;
+    start();
+    wtap(2);
+    btap(QD_B_SOUND);
+    A.ui.snd_page = 7;                                  /* FILTER: KNOB 1 FREQ */
+    whold(2);
+    turn(QD_K_1, -5);
+    qd_view_snd(&A, &sv);
+    CHECK(sv.step == 3 && sv.locked[0] && !sv.locked[1] && !sv.lockany[0], "a step held, FREQ locked: its chip filled");
+    wrel(2);
+    qd_view_snd(&A, &sv);
+    CHECK(!sv.step && sv.lockany[0] && !sv.locked[0] && !sv.lockany[1],
+          "nothing held: FREQ locked on some step (an outlined chip), RESO not");
+    whold(5);
+    qd_view_snd(&A, &sv);
+    CHECK(sv.step == 6 && !sv.locked[0] && !sv.lockany[0], "another step held (no lock): no chip");
+    wrel(5);
+    btap(QD_B_HOME);
+}
+
+/* 5, 6: FX opens on the OVERVIEW (W1..W8 the track, KNOB 1..3 its sends); B6 the ROUTING (ChoralRoot's: all 0) */
+static void g_p15b_fx(void)
+{
+    int c0, d0, r0;
+    qd_leds_t l;
+    start();
+    btap(QD_B_TRACKS);
+    CHECK(QD_FX_PAGES[A.ui.fx_page].fx == QD_FXG_OVER, "FX: the OVERVIEW");
+    wtap(2);
+    l = leds();
+    CHECK(A.sel == 2 && l.key[WK(2)] == QD_LED_LIT && l.key[WK(0)] == QD_LED_DIM && l.key[BK(B1)] == QD_LED_LIT,
+          "W3: track 3 (W1..W8 lit by the tracks, B1 OVERVIEW lit)");
+    c0 = A.model.t[2].mix.chorus, d0 = A.model.t[2].mix.delay, r0 = A.model.t[2].mix.reverb;
+    turn(QD_K_1, 4);
+    turn(QD_K_2, 3);
+    turn(QD_K_3, -2);
+    CHECK(A.model.t[2].mix.chorus == c0 + 4 && A.model.t[2].mix.delay == d0 + 3 && A.model.t[2].mix.reverb == r0 - 2,
+          "KNOB 1..3: track 3's CHORUS +4, DELAY +3, REVERB -2");
+    CHECK(qd_fx_get(QD_FXP_XDR) == 0 && qd_fx_get(QD_FXP_XCD) == 0 && qd_fx_get(QD_FXP_XCR) == 0 &&
+              qd_fx_get(QD_FXP_XPOS) == 0, "the routing at power-on: none (ChoralRoot's chain)");
+    black(B6);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "ROUTING") && leds().key[BK(B6)] == QD_LED_LIT, "B6: ROUTING");
+    turn(QD_K_1, 10);
+    turn(QD_K_2, 20);
+    turn(QD_K_3, 30);
+    turn(QD_K_4, 1);
+    CHECK(qd_fx_get(QD_FXP_XDR) == 10 && qd_fx_get(QD_FXP_XCD) == 20 && qd_fx_get(QD_FXP_XCR) == 30 &&
+              qd_fx_get(QD_FXP_XPOS) == 1, "KNOB 1..4: DELAY > REVERB, CHORUS > DELAY, CHORUS > REVERB, the filter BEFORE");
+    black(B2);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"), "B2: DELAY");
+    btap(QD_B_HOME);
+    btap(QD_B_TRACKS);
+    CHECK(A.ui.fx_page == 0, "FX again later: the OVERVIEW");
+    btap(QD_B_HOME);
+    qd_fx_init();
+    /* the routes heard: a burst into the chorus alone, its return fed into the delay / the reverb or not */
+    {
+        int r, pass;
+        double e[3];
+        for (r = 0; r < 3; r++) {
+            int32_t sc[QD_FX_CTL], z[QD_FX_CTL], l2[QD_FX_CTL], r2[QD_FX_CTL], out[2 * QD_FX_CTL];
+            qd_fx_init();
+            if (r == 1)
+                qd_fx_set(QD_FXP_XCD, 127);
+            if (r == 2)
+                qd_fx_set(QD_FXP_XCR, 127);
+            e[r] = 0.;
+            for (pass = 0; pass < 1400; pass++) {       /* 1 s */
+                int k;
+                for (k = 0; k < QD_FX_CTL; k++) {
+                    sc[k] = pass < 40 ? (int32_t)(sin((double)(pass * QD_FX_CTL + k) * 0.05) * 8000.) : 0;
+                    z[k] = l2[k] = r2[k] = 0;
+                }
+                qd_fx_block(sc, z, z, l2, r2, out);
+                if (pass >= 200)                        /* (after the chorus's own return has gone) */
+                    for (k = 0; k < 2 * QD_FX_CTL; k++)
+                        e[r] += (double)out[k] * out[k];
+            }
+        }
+        CHECK(e[0] * 1000. < e[1] && e[0] * 1000. < e[2],
+              "the chorus alone: next to nothing after it; CHORUS > DELAY: echoes; CHORUS > REVERB: a tail (%g %g %g)", e[0], e[1],
+              e[2]);
+        qd_fx_init();
+    }
+}
+
+/* 7: the acceleration curve; spun, a value moves further a detent; an enumeration never; SHIFT never */
+static void g_p15b_accel(void)
+{
+    int v0, i;
+    CHECK(qd_knob_accel(1, 200u, 128, 0) == 1 && qd_knob_accel(1, QD_ACC_SLOW_MS, 128, 0) == 1, "slow: x1");
+    CHECK(qd_knob_accel(1, 10u, 128, 0) == 8 && qd_knob_accel(-1, 0u, 128, 0) == -8, "spun: a sixteenth of 128 (8)");
+    CHECK(qd_knob_accel(1, 67u, 128, 0) > 1 && qd_knob_accel(1, 67u, 128, 0) < 8 &&
+              qd_knob_accel(1, 40u, 128, 0) > qd_knob_accel(1, 67u, 128, 0),
+          "between: rising with the speed (%d at 67 ms, %d at 40 ms)", qd_knob_accel(1, 67u, 128, 0),
+          qd_knob_accel(1, 40u, 128, 0));
+    CHECK(qd_knob_accel(1, 0u, 24, 0) == 1 && qd_knob_accel(1, 0u, 16, 0) == 1 && qd_knob_accel(1, 0u, 128, 1) == 1,
+          "an enumeration (24 steps or fewer) never; SHIFT never");
+    CHECK(qd_knob_accel(4, 40u, 128, 0) == 4 * qd_knob_accel(1, 10u, 128, 0) && qd_knob_accel(3, 200u, 128, 0) == 3,
+          "four detents in 40 ms: as fast as one in 10; three after a pause: as they come");
+    start();
+    btap(QD_B_PAGE);                                    /* the mix: LEVEL */
+    v0 = A.model.t[0].mix.level;
+    for (i = 0; i < 5; i++) {                           /* five detents 150 ms apart: x1 */
+        qd_app_knob(&A, QD_K_1, -1);
+        run(150);
+    }
+    CHECK(A.model.t[0].mix.level == v0 - 5, "the mix's LEVEL turned slowly: a step a detent");
+    v0 = A.model.t[0].mix.level;
+    for (i = 0; i < 5; i++) {                           /* spun: 8 ms apart */
+        qd_app_knob(&A, QD_K_1, -1);
+        run(8);
+    }
+    CHECK(A.model.t[0].mix.level < v0 - 25, "spun: far further (%d -> %d)", v0, A.model.t[0].mix.level);
+    btap(QD_B_HOME);
+    btap(QD_B_SOUND);                                   /* the editor: FREQ (hundredths, a unit a detent) */
+    A.ui.snd_page = 7;
+    v0 = A.model.t[0].patch[QD_QP_FREQ];
+    for (i = 0; i < 4; i++) {
+        qd_app_knob(&A, QD_K_1, -1);
+        run(8);
+    }
+    CHECK(A.model.t[0].patch[QD_QP_FREQ] < v0 - 1000, "the editor's FREQ spun: whole units, accelerated (%d -> %d)", v0,
+          A.model.t[0].patch[QD_QP_FREQ]);
+    v0 = A.model.t[0].patch[QD_QP_FTYPE];
+    for (i = 0; i < 3; i++) {
+        qd_app_knob(&A, QD_K_3, 1);
+        run(5);
+    }
+    CHECK(A.model.t[0].patch[QD_QP_FTYPE] <= v0 + 3, "the filter's TYPE (an enumeration) spun: a step a detent");
+    btap(QD_B_HOME);
+}
+
+/* 8: the latch modes: LFO held alone switches VALUES / MODES (its takeover; LFO lit full / half); in MODES the black
+ * keys choose the hold mode and the knobs set the selected steps' values; a finger on a step: the values */
+static void g_p15b_latch(void)
+{
+    int v0;
+    start();
+    wtap(0);
+    wtap(1);
+    btap(QD_B_MUTE);                                    /* the latch on (VALUES) */
+    CHECK(A.ui.slatch && A.ui.lmode == QD_LMODE_VALUES && leds().button[QD_B_MUTE] == QD_LED_LIT, "LFO: the latch, VALUES, lit full");
+    mode(M_VEL);
+    CHECK(A.ui.hmode == M_NOTE && R(0, 1).vel != 0, "VALUES: a black key is a value (the mode stays NOTE)");
+    bdown(QD_B_MUTE);
+    run(450);
+    bup(QD_B_MUTE);
+    run(10);
+    CHECK(A.ui.slatch && A.ui.lmode == QD_LMODE_MODES && A.ui.tk == QD_TK_LMODE &&
+              leds().button[QD_B_MUTE] == QD_LED_HALF,
+          "LFO held 450 ms alone: MODES (the takeover; the latch stays; LFO at half)");
+    mode(M_VEL);
+    CHECK(A.ui.hmode == M_VEL, "MODES: B2 chooses VEL");
+    v0 = R(0, A.ui.held[0]).vel;
+    turn(QD_K_1, -5);
+    CHECK(R(0, A.ui.held[0]).vel == v0 - 5, "MODES: KNOB 1 sets the selection's VEL (-5)");
+    CHECK(leds().key[BK(B2)] == QD_LED_LIT, "MODES: the black keys light the modes");
+    kdown(WK(1));                                        /* a finger on a step: the values */
+    run(20);
+    black(B10);
+    kup(WK(1));
+    run(20);
+    CHECK(A.ui.hmode == M_VEL && R(0, 1).vel == 127, "a W down: B10 is VEL's value (127), the mode stays");
+    bdown(QD_B_MUTE);
+    run(100);
+    black(B3);
+    run(400);
+    bup(QD_B_MUTE);
+    run(10);
+    CHECK(A.ui.lmode == QD_LMODE_MODES && A.ui.hmode == M_LEN && A.ui.slatch, "LFO held + B3: LEN, no switch");
+    btap(QD_B_MUTE);
+    CHECK(!A.ui.slatch, "LFO tapped: the latch off");
+    bdown(QD_B_MUTE);
+    run(450);
+    bup(QD_B_MUTE);
+    run(10);
+    CHECK(A.ui.lmode == QD_LMODE_VALUES && !A.ui.slatch, "LFO held alone again: VALUES (the latch stays off)");
+    btap(QD_B_HOME);
 }
 
 int main(void)
@@ -3633,6 +3979,11 @@ int main(void)
         {"P1.3r: the EDIT view", g_edit},
         {"P1.3w: FUNC on B9: the functions, the jump's target, SOUND on B10", g_func},
         {"P1.3x: PLAY held F3; REC held live recording, growing", g_live},
+        {"P1.5b: the editor's keyboard SCALE / FULL, the scale", g_p15b_keys},
+        {"P1.5b: the lock chips", g_p15b_chips},
+        {"P1.5b: FX overview, routing", g_p15b_fx},
+        {"P1.5b: knob acceleration", g_p15b_accel},
+        {"P1.5b: the latch modes VALUES / MODES", g_p15b_latch},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

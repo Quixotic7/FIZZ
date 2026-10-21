@@ -53,6 +53,12 @@ int qd_step_id_detent(int id)
     qd_lock_range(id, &lo, &hi);
     return hi - lo > 1000 ? 100 : 1;   /* the hi-res values (hundredths) move a whole unit a detent */
 }
+int qd_step_id_steps(int id)
+{
+    int16_t lo = 0, hi = 0;
+    qd_lock_range(id, &lo, &hi);
+    return (hi - lo) / qd_step_id_detent(id) + 1;
+}
 
 /* ---- the ten values of each mode (PLAN §8b's table) */
 static const uint8_t VK_VEL[10] = {13, 25, 38, 51, 64, 76, 89, 102, 114, 127};
@@ -544,7 +550,8 @@ static int lock_all(qd_app_t *a, int id, int d)
         int16_t v;
         const int s = u->held[i];
         const int base = qd_lock_get(CPAT(a), a->sel, s, id, &v) ? v : qd_step_base(a, a->sel, s, id);
-        if (qd_lock_set(PAT(a), a->sel, s, id, base + d * qd_step_id_detent(id)) == QD_EFULL)
+        if (qd_lock_set(PAT(a), a->sel, s, id, base + qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)) ==
+            QD_EFULL)
             ok = 0;
     }
     if (!ok)
@@ -786,6 +793,8 @@ void qd_step_job_held(qd_app_t *a, int job, int knob, int d)
             break;
         }
         chord_of(a, u->held[0], before);
+        if (m == UI_F_VEL || m == UI_F_CHNC)            /* (P1.5b: the wide ones accelerate) */
+            d = qd_ctl_acc(a, d, m == UI_F_VEL ? 127 : 101);
         for (i = 0; i < u->nheld; i++)
             fine(a, u->held[i], m, d, 0);
         chord_of(a, u->held[0], after);
@@ -819,7 +828,7 @@ void qd_step_job_held(qd_app_t *a, int job, int knob, int d)
         resolve(a, u->held[0], &r);
         x = r.func >= QD_FN_JUMP && r.func < QD_FN_LEAP ? r.func - QD_FN_JUMP
           : u->fn_target >= 0 ? u->fn_target : u->held[0] / QD_PAGE * QD_PAGE;
-        x = clampi(x + d, 0, QD_NSTEP - 1);
+        x = clampi(x + qd_ctl_acc(a, d, QD_NSTEP), 0, QD_NSTEP - 1);
         u->fn_target = x;
         for (i = 0; i < u->nheld; i++)
             qd_step_set_func(p, t, u->held[i], QD_FN_MAKE_JUMP(x));
@@ -835,7 +844,7 @@ void qd_step_job_held(qd_app_t *a, int job, int knob, int d)
             case QD_KJ_STRUM: qd_step_set_strum(p, t, s, clampi(r.strum + d, 0, 23)); break;
             case QD_KJ_RAMP: qd_step_set_ratchet(p, t, s, r.ratch, clampi(r.ramp + d, 0, QD_RAMP_ACCENT)); break;
             case QD_KJ_COND: qd_step_set_cond(p, t, s, clampi(r.cond + d, 0, QD_NCOND - 1)); break;
-            case QD_KJ_CHANCE: qd_step_set_chance(p, t, s, clampi(r.chance + d, 0, 100)); break;
+            case QD_KJ_CHANCE: qd_step_set_chance(p, t, s, clampi(r.chance + qd_ctl_acc(a, d, 101), 0, 100)); break;
             default: return;
             }
         }
@@ -862,14 +871,14 @@ void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
             a->ui.chord_ms = a->ms;
             break;
         }
-        case UI_F_VEL: qd_tdef_set(p, t, QD_PM_VEL, clampi(df->vel + d, 1, 127)); break;
+        case UI_F_VEL: qd_tdef_set(p, t, QD_PM_VEL, clampi(df->vel + qd_ctl_acc(a, d, 127), 1, 127)); break;
         case UI_F_LEN: qd_tdef_set(p, t, QD_PM_LEN, clampi(df->len + d, 0, QD_LEN_INF)); break;
         case UI_F_MICRO: qd_tdef_set(p, t, QD_PM_MICRO, clampi(df->micro + d, -23, 23)); break;
         case UI_F_RATCH:
             qd_tdef_set(p, t, QD_PM_RATCH, qd_ratch_make(clampi(qd_ratch_count(df->ratch) + d, 1, 8),
                                                          qd_ratch_ramp(df->ratch)));
             break;
-        case UI_F_CHNC: qd_tdef_set(p, t, QD_PM_CHANCE, clampi(df->chance + d, 0, 100)); break;
+        case UI_F_CHNC: qd_tdef_set(p, t, QD_PM_CHANCE, clampi(df->chance + qd_ctl_acc(a, d, 101), 0, 100)); break;
         case UI_F_COND: qd_tdef_set(p, t, QD_PM_COND, clampi(df->cond + d, 0, QD_NCOND - 1)); break;
         case UI_F_TRIG: qd_tdef_set(p, t, QD_PM_TRIG, clampi(df->type + d, QD_TRIG_NOTE, QD_TRIG_TIE)); break;
         case UI_F_SOUND: {                              /* the track's own sound, from the pool */
@@ -905,7 +914,7 @@ void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
                                                      clampi(qd_ratch_ramp(df->ratch) + d, 0, QD_RAMP_ACCENT)));
         break;
     case QD_KJ_COND: qd_tdef_set(p, t, QD_PM_COND, clampi(df->cond + d, 0, QD_NCOND - 1)); break;
-    case QD_KJ_CHANCE: qd_tdef_set(p, t, QD_PM_CHANCE, clampi(df->chance + d, 0, 100)); break;
+    case QD_KJ_CHANCE: qd_tdef_set(p, t, QD_PM_CHANCE, clampi(df->chance + qd_ctl_acc(a, d, 101), 0, 100)); break;
     default:
         return;
     }

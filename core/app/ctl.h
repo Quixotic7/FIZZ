@@ -102,7 +102,20 @@
  *   FUNC: KNOB 1 the kind, KNOB 2 LEAP's n, KNOB 3 JUMP's target; B8 LEAP, B9 JUMP; B9 held + W: the target.
  *   SHIFT + REC: the record settings (QD_LATCH_REC: MODE, QUANTIZE, OVERDUB / REPLACE, the project's); REC held arms in
  *   that MODE. SHIFT + SEL: the global settings (QD_LATCH_SET: KNOBS, PAGE FOLLOW). SEL tapped: nothing (P1.4b).
- *   The value keys light the nearest value (qd_step_value_keys). */
+ *   The value keys light the nearest value (qd_step_value_keys).
+ *
+ * P1.5b (PLAN version 2.4, the owner after 0.4.1):
+ *   THE EDITOR'S KEYBOARD: REC tapped in the sound editor turns its keyboard on (ekeys; EDIT from the keyboard keeps
+ *   it on): SCALE (the record settings' EDIT KEYS, KNOB 4) the W keys the track's scale from the root at the keyboard's
+ *   octave, the black keys its pages; FULL every key as the keyboard, the pages on SELECT. F1 / F2 the octave. EDIT
+ *   closes it back to the keyboard. SHIFT + ALGORITHM / PRESETS the scale / root with the keyboard on (the keyboard's
+ *   too); the keys lit by the scale (qd_keys_leds: roots 80 %, the scale 50 %, playing full).
+ *   LOCK CHIPS (the screens): no padlock; filled = locked on the held step, outlined = locked on some step.
+ *   FX: B1 OVERVIEW (where it opens: the sends; W1..W8 the track, KNOB 1..3 its sends), B2 DELAY, B3 REVERB, B4
+ *   CHORUS, B5 MASTER, B6 ROUTING (qd_fx.h QD_FXP_XDR .. XPOS, all 0: ChoralRoot's chain).
+ *   ACCELERATION: qd_ctl_acc (every wide value; 24 steps or fewer never; SHIFT never).
+ *   LATCH MODES: LFO held alone QD_LFO_HOLD_MS switches VALUES / MODES (QD_TK_LMODE); in MODES, no finger on a
+ *   step, the black keys choose the hold mode (the knobs set the selection's values as ever). */
 #pragma once
 #include <stdint.h>
 
@@ -152,6 +165,9 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TK_PRESET 100               /* the pool picker: the track's sound, or the held steps' sound lock */
 #define QD_TK_DEFAULT 101              /* a default turned, nothing held (P1.3e: the mode's full TRACK DEFAULT picture) */
 #define QD_TK_HELDKNOB 102             /* P1.3d: a knob turned with a step held: the band over the held step's screen */
+#define QD_TK_LMODE 103                /* P1.5b: LFO held alone: the latch mode switched (VALUES / MODES) */
+#define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone (released with no other key): the latch mode */
+enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes */
 
 /* P1.3d (§8b 2.2): the knobs' jobs in the hold modes (qd_ctl_knob_job: one table, [mode][SELECT, KNOB 1..4]); with a
  * step held they edit the held steps, with nothing held KNOB 1..4 the track's defaults (SELECT is then the page) */
@@ -191,7 +207,8 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
 enum { QD_KR_NONE, QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET, QD_KR_VALUE, QD_NKR };
 enum { QD_KNOBS_A, QD_KNOBS_B, QD_KNOBS_C, QD_KNOBS_D, QD_NKNOBS };
 int qd_ctl_sel_map(const struct qd_app *a);
-int qd_ctl_seq_map(const struct qd_app *a);       /* P1.5a: SEQ's pattern map is up (held a moment, or used) */       /* P1.3y: SEL's track map is up (held a moment, or a key used) */
+int qd_ctl_seq_map(const struct qd_app *a);
+int qd_ctl_latch_modes(const struct qd_app *a);   /* P1.5b: the latch's selection in MODES: the black keys the modes */       /* P1.5a: SEQ's pattern map is up (held a moment, or used) */       /* P1.3y: SEL's track map is up (held a moment, or a key used) */
 int qd_ctl_knob_role(const struct qd_app *a, int knob);           /* the encoder's role now (QD_KR_*; KNOB 1..4: NONE) */
 int qd_ctl_layout_role(int layout, int rows, int knob);          /* .. in a layout (rows: STEPS / EDIT) */
 const char *qd_ctl_role_name(int role);                           /* "PAGE", "CURSOR", "PRESET", "VALUE" */
@@ -334,15 +351,21 @@ typedef struct {
     /* the buttons */
     int tracks_tap;                    /* TRACKS went down alone: its release toggles the tracks screen */
     int lfo_used;                      /* P1.3y: LFO held picked a hold mode (B1..B11): its release is no tap */
+    uint32_t lfo_ms;                   /* P1.5b: LFO went down (held QD_LFO_HOLD_MS alone: the latch mode) */
+    int lmode;                         /* P1.5b: the latch mode (QD_LMODE_*; a global setting, saved) */
     int fn_leap, fn_target;            /* P1.3y, FUNC: the last LEAP's n (2) and JUMP's target (-1: the step's page start) */
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
     int knobs;                         /* P1.3y: the encoders' layout (QD_KNOBS_*; the global settings) */
+    int ekeys;                         /* P1.5b: the keyboard on in the sound editor (REC tapped there) */
     int snd_page;                      /* P1.4a: the sound editor's page (QD_SND_PAGES) .. */
     int snd_knob;                      /* .. the knob last turned there (0..3 KNOB 1..4, 4 ALGORITHM; -1 none) .. */
     uint32_t snd_ms;                   /* .. and when */
     int trk_page, mix_page, fx_page;   /* P1.4b: the track settings' page (0, 1), the mix's (0 faders, 1 sends), the
                                         * effects' (QD_FX_PAGES) */
     int menu_knob;                     /* .. the knob turned last there (0..3, -1) */
+    uint32_t knob_ms[8];               /* P1.5b: each knob's last detent (acceleration) .. */
+    int knob_dir[8];                   /* .. its direction */
+    uint32_t knob_dt;                  /* .. the time since it for the turn now (QD_ACC_SLOW_MS and up: none) */
     qd_libui_t lb;                     /* P1.5a: the sounds page */
     qd_nameui_t nm;                    /* .. the name editor */
     qd_prjui_t pj;                     /* .. the project pages */
@@ -445,6 +468,10 @@ typedef struct {
 extern const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE];
 extern const char *const QD_SND_GROUP_NAME[QD_NSG];
 int qd_snd_open(const struct qd_app *a);
+int qd_snd_keys(const struct qd_app *a);        /* P1.5b: the editor open with the keyboard on */
+int qd_snd_scale_note(const struct qd_app *a, int w);   /* .. SCALE: W w's note (the scale's degree w from the root) */
+int qd_keys_on(const struct qd_app *a);         /* P1.5b: the keyboard (the keyboard mode, or the editor's) */
+void qd_keys_leds(const struct qd_app *a, uint8_t *key);   /* P1.5b: the keys lit by the scale (27 levels) */
 void qd_snd_button(struct qd_app *a);           /* EDIT: open / close */
 void qd_snd_black(struct qd_app *a, int b);     /* B1..B5 the groups (again: the next page), B11 the page's locks */
 int qd_snd_knob(struct qd_app *a, int knob, int d);   /* 1: taken */
@@ -455,20 +482,28 @@ const qd_lockscreen_t *qd_snd_lock_screen(int page);
  * cell is a qd_fx.h parameter, QD_FXC_SEND (the selected track's send into the page's effect), QD_FXC_TIME /
  * QD_FXC_SPREAD (the free or the synced one by SYNC), or none */
 enum { QD_FXC_NONE = -1, QD_FXC_SEND = -2, QD_FXC_TIME = -3, QD_FXC_SPREAD = -4 };
-#define QD_FX_NPAGE 6
+#define QD_FXC_SENDX(fx) (-10 - (fx))  /* P1.5b, the overview: the selected track's send into effect fx (0..2) */
+#define QD_FX_NPAGE 8
+/* P1.5b: the effects (the page's group): 0 DELAY 1 REVERB 2 CHORUS 3 MASTER, 4 the OVERVIEW (the sends), 5 ROUTING;
+ * the black keys B1..B6: OVERVIEW, DELAY, REVERB, CHORUS, MASTER, ROUTING (QD_FX_KEY) */
+enum { QD_FXG_DELAY, QD_FXG_REVERB, QD_FXG_CHORUS, QD_FXG_MASTER, QD_FXG_OVER, QD_FXG_ROUTE, QD_NFXG };
+#define QD_FX_NKEY 6
+extern const uint8_t QD_FX_KEY[QD_FX_NKEY];
 typedef struct {
     const char *name;
-    uint8_t fx, draw;                  /* the effect (0 DELAY 1 REVERB 2 CHORUS 3 MASTER), ui.h UI_FXD_* */
+    uint8_t fx, draw;                  /* the group (QD_FXG_*), ui.h UI_FXD_* */
     int8_t c[4];
 } qd_fxpage_t;
 extern const qd_fxpage_t QD_FX_PAGES[QD_FX_NPAGE];
-extern const char *const QD_FX_NAME[4];
+extern const char *const QD_FX_NAME[QD_NFXG];
+int qd_fx_send(const struct qd_app *a, int t, int fx);   /* track t's send into effect fx (0 DELAY 1 REVERB 2 CHORUS) */
 int qd_fx_cell_id(int c);               /* a cell's parameter now (TIME, SPREAD: by SYNC) */
 int qd_fx_send_id(int fx);              /* the mix lock id of a track's send into effect fx */
 void qd_trk_button(struct qd_app *a);   /* SEL tapped: open / the next page */
 void qd_mix_button(struct qd_app *a);   /* ENV (MIX): open / the sends / the faders */
 void qd_fx_button(struct qd_app *a);    /* FX tapped: open / the next page */
 void qd_panel_black(struct qd_app *a, int b);
+void qd_panel_white(struct qd_app *a, int w);     /* P1.5b: the effects' overview: W1..W8 the track */
 int qd_trk_knob(struct qd_app *a, int knob, int d);
 int qd_mix_knob(struct qd_app *a, int knob, int d);
 int qd_fx_knob(struct qd_app *a, int knob, int d);
@@ -488,6 +523,14 @@ const qd_sound_t *qd_lib_sound(const struct qd_app *a, int tab, int slot);
 void qd_ctl_set_mode(struct qd_app *a, int mode);
 int qd_ctl_black(int key);             /* the black key 0..10 of a note key, or -1 */
 int qd_ctl_knob_job(int mode, int knob);
+/* P1.5b: knob acceleration. A detent's step grows with the spin: detents closer than QD_ACC_SLOW_MS move further, up
+ * to about a sixteenth of the range a detent at QD_ACC_FAST_MS or less; a value of QD_ACC_MIN_STEPS steps or fewer
+ * (an enumeration) never accelerates, nor does SHIFT (the finest step). steps: the value's range in detents */
+#define QD_ACC_SLOW_MS 120u
+#define QD_ACC_FAST_MS 15u
+#define QD_ACC_MIN_STEPS 24
+int qd_knob_accel(int d, uint32_t dt_ms, int steps, int fine);   /* the pure curve (dt: since the last detent) */
+int qd_ctl_acc(const struct qd_app *a, int d, int steps);         /* .. for the knob turning now */
 /* P1.3e: the mode whose default a held mode key edits (-1 none), and whether its full picture shows (held 250 ms, or
  * used) */
 int qd_ctl_mkey(const struct qd_app *a);
@@ -533,6 +576,7 @@ void qd_step_cursor(struct qd_app *a, int d);   /* P1.3q: PRESETS in STEPS: the 
 void qd_step_cursor_page(struct qd_app *a);     /* P1.3y: the selection to the page's first step (a page change) */
 int qd_step_quick_id(int k);           /* the quick page's lock id of KNOB k (FREQ, DECAY, HARM, FDBK) */
 int qd_step_id_detent(int id);         /* a detent's size for a value (hundredths for the hi-res ones) */
+int qd_step_id_steps(int id);          /* P1.5b: its range in detents (acceleration) */
 int qd_step_base(struct qd_app *a, int t, int s, int id);   /* the value a lock on step s starts from */
 unsigned qd_step_modes_set(const struct qd_app *a, int t, int page);   /* bit m: a step of the page overrides mode m */
 /* the ten value keys of a mode for the held steps (the first held): their labels, the ones matching the step's value

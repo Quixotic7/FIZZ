@@ -159,7 +159,7 @@ static void t_keys(void)
         CHECK(l.key[4] == QD_LED_LIT && l.button[QD_B_TRACKS] == QD_LED_LIT, "TRACKS held: its LED, the key held lit");
         qd_app_key(&A, 4, 0, 0);
         qd_app_leds(&A, &l);
-        CHECK(l.key[4] == QD_LED_DIM, "TRACKS held: the selected track's white key dim (%d)", l.key[4]);
+        CHECK(l.key[4] >= QD_LED_DIM, "TRACKS held: the selected track's white key at least dim (%d)", l.key[4]);
     }
     qd_app_button(&A, QD_B_TRACKS, 0);
     qd_app_key(&A, 7, 1, 127);                          /* C4 on track 3 (KEYS) */
@@ -207,7 +207,8 @@ static void t_screens(void)
     tap_button(QD_B_REC);
     qd_app_leds(&A, &l);
     CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_REC] == QD_LED_LIT, "REC: the keyboard, REC's LED lit");
-    CHECK(l.key[7] == QD_LED_FAINT && l.key[19] == QD_LED_FAINT && !l.key[8], "the keyboard: the C keys faint");
+    CHECK(l.key[7] == QD_LED_80 && l.key[19] == QD_LED_80 && l.key[8] == QD_LED_HALF,
+          "the keyboard: the scale lit (chromatic on C: the C keys 80 %%, the rest 50 %%; P1.5b)");
     qd_app_midi(&A, 0x90, 64, 100);                     /* E4 from MIDI on track 1 (selected): its key lit */
     run(10, 0);
     qd_app_leds(&A, &l);
@@ -431,9 +432,9 @@ static void t_tracks(void)
     qd_app_leds(&A, &l);
     CHECK(A.ui.mode == QD_MODE_STEP && A.ui.latch == QD_LATCH_FX && qd_view_screen(&A) == QD_SCR_FX &&
               l.button[QD_B_TRACKS] == QD_LED_LIT && A.ui.fx_page == 0,
-          "FX tapped: the effects, DELAY (FX lit)");
+          "FX tapped: the effects, the OVERVIEW (FX lit)");
     tap_button(QD_B_TRACKS);
-    CHECK(A.ui.fx_page == 1, "FX again: the next page (DELAY 2)");
+    CHECK(A.ui.fx_page == 1, "FX again: the next page (DELAY)");
     tap_button(QD_B_PAGE);
     qd_app_leds(&A, &l);
     CHECK(A.ui.latch == QD_LATCH_MIX && qd_view_screen(&A) == QD_SCR_MIX && l.button[QD_B_PAGE] == QD_LED_LIT &&

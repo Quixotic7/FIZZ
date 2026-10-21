@@ -74,13 +74,61 @@ const qd_lockscreen_t *qd_snd_lock_screen(int page)
 }
 
 int qd_snd_open(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_SND; }
+int qd_snd_keys(const qd_app_t *a) { return qd_snd_open(a) && a->ui.ekeys; }
+int qd_keys_on(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS || qd_snd_keys(a); }
 
-/* EDIT (printed): open (in the step view, the screen's latches and the hold given up), or close */
+/* P1.5b: the editor's SCALE keys: W1 the root at the keyboard's octave (octave 3 + the shift: C3 = 48), then each
+ * degree of the track's scale upwards (chromatic: a semitone each) */
+int qd_snd_scale_note(const qd_app_t *a, int w)
+{
+    int sc, rt;
+    qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
+    return qd_scale_note(sc, rt, 3 + a->oct, w);
+}
+
+/* P1.5b: the keys by the scale: the roots 80 %, the other notes of the scale 50 %, the rest dark, a key sounding (or
+ * held) full. The keyboard (and the editor's FULL): each key's own note (before the snap); the editor's SCALE: the
+ * white keys (every one in the scale), the black keys the editor's pages */
+void qd_keys_leds(const qd_app_t *a, uint8_t *key)
+{
+    uint8_t notes[128];
+    int sc, rt, i;
+    const int scale = qd_snd_keys(a) && !a->proj.rec_ekeys;
+    qd_ctl_sounding(a, notes);
+    qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
+    for (i = 0; i < QD_NKEY; i++) {
+        const int w = qd_ctl_white(i);
+        int n, nn;
+        if (scale) {
+            if (w < 0)
+                continue;                               /* (the pages: the editor's own) */
+            n = qd_snd_scale_note(a, w);
+            nn = n;
+        } else {
+            n = QD_NOTE0 + i + 12 * a->oct;
+            nn = qd_rec_key_note(a, i);
+        }
+        if (((a->keys_held >> i) & 1u) || (nn >= 0 && nn < 128 && notes[nn]))
+            key[i] = QD_LED_LIT;
+        else if (n >= 0 && n < 128 && ((n % 12) + 12) % 12 == rt)
+            key[i] = QD_LED_80;
+        else if (n >= 0 && n < 128 && qd_scale_has(sc, rt, n))
+            key[i] = QD_LED_HALF;
+        else
+            key[i] = QD_LED_OFF;
+    }
+}
+
+/* EDIT (printed): open (in the step view, the screen's latches and the hold given up), or close. P1.5b: opened from
+ * the keyboard, the keyboard stays on in it; closed with the keyboard on, back to the keyboard */
 void qd_snd_button(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     if (qd_snd_open(a)) {
+        const int keys = u->ekeys;
         qd_latch_close(a);
+        if (keys)
+            qd_ctl_set_mode(a, QD_MODE_KEYS);
         return;
     }
     qd_latch_open(a, QD_LATCH_SND);
@@ -135,6 +183,8 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     const int fine = qd_ctl_shift(a);
     int k, id = -1;
     if (knob == QD_K_SELECT) {
+        if (fine && u->ekeys)                           /* (P1.5b: the keyboard on, SHIFT + SELECT: nothing) */
+            return 1;
         u->snd_page = (u->snd_page + d % QD_SND_NPAGE + QD_SND_NPAGE) % QD_SND_NPAGE;
         u->snd_knob = -1;
         return 1;
@@ -158,7 +208,8 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     }
     {
         const qd_track_t *t = &a->model.t[a->sel];
-        qd_player_live_edit(&a->player, a->sel, id, t->patch[id] + d * (fine ? 1 : qd_step_id_detent(id)));
+        qd_player_live_edit(&a->player, a->sel, id,
+                            t->patch[id] + (fine ? d : qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)));
     }
     return 1;
 }

@@ -173,6 +173,7 @@ void qd_project_init(qd_project_t *pr)
     pr->rec_mode = 0;                                   /* P1.3y: LIVE, as played (0 %), REPLACE */
     pr->rec_quant = 0;
     pr->rec_dub = 0;
+    pr->rec_ekeys = 0;                                  /* P1.5b: the editor's keyboard: SCALE */
 }
 
 const char *qd_pat_name(int k, char *buf)

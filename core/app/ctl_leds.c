@@ -24,7 +24,8 @@
  *   OCT- / OCT+     (P1.3c) where they are an octave (NOTE with a step held: octave 4 the centre; the keyboard: 0;
  *                   SOUND with a step held: the first bank): none blinks at the centre; below it OCT- blinks, above it
  *                   OCT+, a half period of 500 ms one away, 250 two, 125 three or more
- *   keyboard        the notes sounding lit, the C keys faint; step recording: the cursor's white key blinks
+ *   keyboard        (P1.5b) the scale: its roots 80 %, its other notes 50 %, the notes sounding lit; step recording:
+ *                   the cursor's white key blinks. The sound editor's keyboard the same (SCALE: the W keys)
  *   tracks screen   white 1..8 flash with the tracks' trigs (the selected dim), 9..16 lit for the tracks heard
  *   buttons         held: lit; REC lit in the keyboard (blinking while armed); ARP lit while FILL is on; PAGE lit
  *                   while follow is on; TRACKS lit on its screen; PLAY's green LED on each beat while playing */
@@ -161,8 +162,9 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         qd_panel_leds(a, bk);
         for (i = 0; i < 11; i++)
             out->key[QD_BLACK_KEY[i]] = bk[i];
-        for (i = 0; i < 16; i++)
-            out->key[QD_WHITE_KEY[i]] = QD_LED_OFF;
+        for (i = 0; i < 16; i++)                        /* (P1.5b: the effects' overview: W1..W8 the tracks) */
+            out->key[QD_WHITE_KEY[i]] = u->latch == QD_LATCH_FX && QD_FX_PAGES[u->fx_page].fx == QD_FXG_OVER &&
+                                        i < QD_NTRACK ? (i == a->sel ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
         return;
     }
     if (qd_snd_open(a)) {                               /* P1.4a: the sound editor: its groups, B11 the page's locks */
@@ -170,9 +172,20 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         qd_snd_leds(a, bk);
         for (i = 0; i < 11; i++)
             out->key[QD_BLACK_KEY[i]] = bk[i];
+        if (u->ekeys) {                                 /* P1.5b: its keyboard: the scale (SCALE: the W keys; FULL:
+                                                         * every key) */
+            uint8_t k[QD_NKEY];
+            memset(k, 0, sizeof k);
+            qd_keys_leds(a, k);
+            for (i = 0; i < QD_NKEY; i++)
+                if (qd_ctl_white(i) >= 0 || a->proj.rec_ekeys)
+                    out->key[i] = k[i];
+        }
         return;
     }
-    if (u->nheld) {                                     /* the mode's ten values, B11 */
+
+    if (u->nheld && !qd_ctl_latch_modes(a)) {           /* the mode's ten values, B11 (P1.5b: the latch in MODES:
+                                                         * the modes, below) */
         char lab[10][6];
         uint16_t lit, def, none;
         int clr;
@@ -229,16 +242,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
 
 static void leds_keys(const qd_app_t *a, qd_leds_t *out)
 {
-    uint8_t notes[128];
-    int i;
-    qd_ctl_sounding(a, notes);
-    for (i = 0; i < QD_NKEY; i++) {
-        const int n = qd_rec_key_note(a, i);
-        if (((a->keys_held >> i) & 1u) || (n >= 0 && n < 128 && notes[n]))
-            out->key[i] = QD_LED_LIT;                   /* held, or its note sounding on the track */
-        else if ((QD_NOTE0 + i) % 12 == 0)
-            out->key[i] = QD_LED_FAINT;                 /* the C keys */
-    }
+    qd_keys_leds(a, out->key);                          /* P1.5b: the scale (roots 80 %, its notes 50 %, sounding full) */
     if (qd_rec_stepping(a)) {                           /* step recording: the cursor's place blinks */
         const int s = qd_track_loop_step(&qd_ctl_cpat(a)->trk[a->sel], a->ui.cursor);
         out->key[QD_WHITE_KEY[s % QD_PAGE]] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
@@ -320,8 +324,9 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_TRACKS] = QD_LED_LIT;
     if (u->latch == QD_LATCH_TRK)
         out->button[QD_B_PATTERN] = QD_LED_LIT;
-    if (u->slatch)                                      /* P1.3d: LFO lit while the step latch is on */
-        out->button[QD_B_MUTE] = QD_LED_LIT;
+    if (u->slatch)                                      /* P1.3d: LFO lit while the step latch is on (P1.5b: full in
+                                                         * VALUES, half in MODES) */
+        out->button[QD_B_MUTE] = u->lmode == QD_LMODE_MODES ? QD_LED_HALF : QD_LED_LIT;
     if (qd_snd_open(a))                                 /* P1.4a: EDIT lit while the sound editor is open */
         out->button[QD_B_SOUND] = QD_LED_LIT;
     if (qd_latch_cur(a)) {                              /* P1.3d: a latched menu: OCT- (back) lit, OCT+ lit when it

@@ -269,6 +269,127 @@ static void fx_master(const ui_fx_t *v)
         ui_O(hi, 60.f, 3.4f, QD_NONE, 1.f, UI_K2);
 }
 
+/* P1.5b, OVERVIEW: three columns, CHORUS, DELAY, REVERB (a line on top in KNOB 1..3's colours), each the eight tracks'
+ * sends as bars in the tracks' colours: the selected track's bright (its column's top), the others dim, unheard grey */
+static void fx_over(const ui_fx_t *v)
+{
+    int c, t;
+    for (c = 0; c < 3; c++) {
+        const float x0 = 10.f + (float)c * 76.f, top = 50.f, bot = 176.f;
+        const int fx = c == 0 ? 0 : c == 1 ? 1 : 2;     /* (sends[t]: CHORUS, DELAY, REVERB) */
+        ln(x0 + 2.f, 40.f, x0 + 66.f, 40.f, FK[c], 2.f);
+        for (t = 0; t < 8; t++) {
+            const float x = x0 + 3.f + (float)t * 8.f, h = (bot - top) * (float)v->sends[t][fx] / 127.f;
+            const int sel = t + 1 == v->track, mute = (v->mute >> t) & 1u;
+            const qd_rgb col = mute ? UI_G3 : UI_TRACK_PAL[t];
+            ui_RR(x, top, 6.f, bot - top, 2.f, sel ? UI_G2 : UI_G3, 1.f, QD_NONE);
+            if (h > 0.f) {
+                if (!sel)
+                    qd_save(), qd_alpha(0.4f);
+                ui_RR(x, bot - h, 6.f, h, 2.f, QD_NONE, 1.f, col);
+                if (!sel)
+                    qd_restore();
+            }
+            if (sel)
+                ui_O(x + 3.f, bot + 6.f, 2.f, QD_NONE, 1.f, col);
+        }
+    }
+}
+
+/* P1.5b, ROUTING: the chain. The tracks' bus (left) sends into CHORUS, DELAY and REVERB (stacked), each returning
+ * into the mix; the dry path along the foot; the master filter after the mix (or BEFORE: on the dry path); OUT. The
+ * feeds as arrows in KNOB 1..3's colours, as thick as their amount (none: a faint dashed line) */
+static void fx_node(float x, float y, int kind, qd_rgb col, float t)
+{
+    int i;
+    ui_RR(x - 20.f, y - 12.f, 40.f, 24.f, 6.f, col, 1.4f, UI_BG);
+    if (kind == 0) {                                    /* CHORUS: two waves */
+        for (i = 0; i < 2; i++) {
+            float p[2 * 13];
+            int k;
+            for (k = 0; k <= 12; k++) {
+                p[2 * k] = x - 13.f + (float)k * 26.f / 12.f;
+                p[2 * k + 1] = y - 3.f + (float)i * 6.f + sinf((float)k * 0.9f + t * 3.f + (float)i) * 2.2f;
+            }
+            ui_P(p, 13, col, 1.2f, 0, QD_NONE);
+        }
+    } else if (kind == 1) {                             /* DELAY: echoes fading */
+        for (i = 0; i < 4; i++)
+            ui_O(x - 11.f + (float)i * 7.5f, y, 3.2f - (float)i * 0.6f, QD_NONE, 1.f, col);
+    } else {                                            /* REVERB: a room's arcs */
+        for (i = 0; i < 3; i++)
+            qd_arc(x - 10.f, y + 6.f, 5.f + (float)i * 5.f, -UI_PI * 0.5f, 0.f, col, 1.2f);
+    }
+}
+static void fx_feed(float x0, float y0, float x1, float y1, float amt, qd_rgb col)
+{
+    static const float DASH[2] = {2.f, 3.f};
+    const float an = atan2f(y1 - y0, x1 - x0);
+    if (amt <= 0.f) {
+        qd_dash(DASH, 2);
+        ln(x0, y0, x1, y1, UI_G3, 1.f);
+        qd_dash(0, 0);
+        return;
+    }
+    ln(x0, y0, x1, y1, col, 1.f + amt * 3.f);
+    {
+        const float h[6] = {x1 - cosf(an - 0.5f) * 6.f, y1 - sinf(an - 0.5f) * 6.f, x1, y1,
+                            x1 - cosf(an + 0.5f) * 6.f, y1 - sinf(an + 0.5f) * 6.f};
+        ui_P(h, 3, col, 1.5f, 0, QD_NONE);
+    }
+}
+static void fx_route(const ui_fx_t *v)
+{
+    static const float EY[3] = {60.f, 106.f, 152.f};     /* CHORUS, DELAY, REVERB */
+    const float bx = 20.f, by = 106.f, ex = 102.f, mx = 162.f, dry = 184.f;
+    const int before = v->rt[3] > 0.5f;
+    int i;
+    ui_O(bx, by, 7.f, UI_K3, 1.4f, QD_NONE);            /* the tracks' bus */
+    for (i = 0; i < 3; i++) {
+        ln(bx + 7.f, by, ex - 20.f, EY[i], UI_G2, 1.f);  /* the sends in */
+        ln(ex + 20.f, EY[i], mx - 6.f, by, UI_G2, 1.f); /* the returns out */
+    }
+    ln(bx, by + 7.f, bx, dry, UI_G2, 1.f);              /* the dry path along the foot */
+    ln(bx, dry, mx, dry, UI_G2, 1.f);
+    ln(mx, dry, mx, by + 6.f, UI_G2, 1.f);
+    ui_O(mx, by, 6.f, UI_K3, 1.4f, UI_BG);              /* the mix */
+    fx_feed(ex + 8.f, EY[0] + 12.f, ex + 8.f, EY[1] - 12.f, v->rt[1], FK[1]);   /* CHORUS -> DELAY */
+    fx_feed(ex + 8.f, EY[1] + 12.f, ex + 8.f, EY[2] - 12.f, v->rt[0], FK[0]);   /* DELAY -> REVERB */
+    {   /* CHORUS -> REVERB: around the left of DELAY */
+        const float x = ex - 10.f;
+        if (v->rt[2] > 0.f) {
+            ln(x, EY[0] + 12.f, x - 14.f, EY[1], FK[2], 1.f + v->rt[2] * 3.f);
+            fx_feed(x - 14.f, EY[1], x, EY[2] - 12.f, v->rt[2], FK[2]);
+        } else {
+            fx_feed(x, EY[0] + 12.f, x - 14.f, EY[1], 0.f, FK[2]);
+            fx_feed(x - 14.f, EY[1], x, EY[2] - 12.f, 0.f, FK[2]);
+        }
+    }
+    for (i = 0; i < 3; i++)
+        fx_node(ex, EY[i], i, UI_K3, v->t);
+    {   /* the master filter: after the mix (on the way out) or before (on the dry path); OUT */
+        const float fx = before ? 76.f : 192.f, fy = before ? dry : by;
+        float p[2 * 9];
+        int k;
+        ln(mx + 6.f, by, 222.f, by, UI_G2, 1.f);
+        ui_RR(fx - 12.f, fy - 9.f, 24.f, 18.f, 4.f, FK[3], 1.4f, UI_BG);
+        for (k = 0; k <= 8; k++) {                      /* a low-pass's shape */
+            const float u = (float)k / 8.f;
+            p[2 * k] = fx - 8.f + u * 16.f;
+            p[2 * k + 1] = fy - 3.f + (u > 0.5f ? (u - 0.5f) * 14.f : 0.f);
+        }
+        ui_P(p, 9, FK[3], 1.2f, 0, QD_NONE);
+        {                                               /* OUT: a speaker */
+            const float sp[8] = {224.f, by - 3.f, 228.f, by - 3.f, 234.f, by - 8.f, 234.f, by + 8.f};
+            const float sq[4] = {228.f, by + 3.f, 224.f, by + 3.f};
+            float pp[12];
+            memcpy(pp, sp, sizeof sp);
+            memcpy(pp + 8, sq, sizeof sq);
+            ui_P(pp, 6, UI_K3, 1.3f, 1, QD_NONE);
+        }
+    }
+}
+
 void ui_fx_draw(const ui_fx_t *v)
 {
     int k;
@@ -281,6 +402,8 @@ void ui_fx_draw(const ui_fx_t *v)
     case UI_FXD_REVERB: fx_reverb(v); break;
     case UI_FXD_REVERB2: fx_reverb2(v); break;
     case UI_FXD_CHORUS: fx_chorus(v); break;
+    case UI_FXD_OVER: fx_over(v); break;
+    case UI_FXD_ROUTE: fx_route(v); break;
     default: fx_master(v); break;
     }
     for (k = 0; k < 4; k++) {                           /* KNOB 1..4 along the foot */

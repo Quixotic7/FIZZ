@@ -20,12 +20,13 @@
 #include "ui.h"
 
 static void f3_close(qd_app_t *a) { a->ui.f3_anchor = -1; }
+static void snd_close(qd_app_t *a) { a->ui.ekeys = 0; }   /* (P1.5b: the editor's keyboard ends with it) */
 
 static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_F3] = {"F3", "EXIT", 0, 0, 0, f3_close},
     [QD_LATCH_REC] = {"REC", "BACK", 0, 0, 0, 0},      /* P1.3y: the record settings */
     [QD_LATCH_SET] = {"SETTINGS", "BACK", 0, 0, 0, 0}, /* P1.3y: the global settings */
-    [QD_LATCH_SND] = {"SOUND", "BACK", 0, 0, 0, 0},    /* P1.4a: the sound editor (ctl_snd.c) */
+    [QD_LATCH_SND] = {"SOUND", "BACK", 0, 0, 0, snd_close},   /* P1.4a: the sound editor (ctl_snd.c) */
     [QD_LATCH_TRK] = {"TRACK", "BACK", 0, 0, 0, 0},    /* P1.4b: the track settings (ctl_mix.c) */
     [QD_LATCH_MIX] = {"MIX", "BACK", 0, 0, 0, 0},      /* P1.4b: the mix */
     [QD_LATCH_FX] = {"FX", "BACK", 0, 0, 0, 0},        /* P1.4b: the effects */
@@ -77,9 +78,9 @@ int qd_latch_oct(qd_app_t *a, int d)
 }
 
 /* ---------------------------------------------------------------- P1.4a: the sound editor */
+#include "../seq/scale.h"
 #include "ctl_snd.c"
 #include "../voice/fx/qd_fx.h"
-#include "../seq/scale.h"
 #include "ctl_mix.c"
 #include "../seq/sounds.h"
 #include <stdio.h>

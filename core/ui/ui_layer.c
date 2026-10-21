@@ -457,47 +457,96 @@ static void menu_rec(const ui_menu_t *v)
     char q[12];
     int i;
     menu_head("REC");
-    /* KNOB 1: MODE */
-    menu_row(0, 44.f, "MODE", v->rec_step ? "STEP" : "LIVE");
+    /* KNOB 1: MODE (P1.5b: four rows, 52 px apart) */
+    menu_row(0, 42.f, "MODE", v->rec_step ? "STEP" : "LIVE");
     if (v->rec_step) {                                  /* a row of cells, the cursor's lit */
         for (i = 0; i < 8; i++)
-            ui_RR(34.f + (float)i * 13.f, 58.f, 11.f, 14.f, 2.f, i == 3 ? UI_K1 : UI_G2, 1.2f, i == 3 ? UI_K1 : QD_NONE);
+            ui_RR(34.f + (float)i * 13.f, 54.f, 11.f, 12.f, 2.f, i == 3 ? UI_K1 : UI_G2, 1.2f, i == 3 ? UI_K1 : QD_NONE);
     } else {                                            /* a line, notes off the grid, a red dot */
-        line2(34.f, 72.f, 134.f, 72.f, UI_G2, 1.2f);
+        line2(34.f, 66.f, 134.f, 66.f, UI_G2, 1.2f);
         for (i = 0; i < 4; i++) {
-            line2(40.f + (float)i * 26.f, 66.f, 40.f + (float)i * 26.f, 78.f, UI_G3, 1.f);
-            ui_O(40.f + (float)i * 26.f + OFF[i] * 0.6f, 65.f - (float)(i % 2) * 4.f, 3.f, QD_NONE, 1.f, UI_K1);
+            line2(40.f + (float)i * 26.f, 58.f, 40.f + (float)i * 26.f, 70.f, UI_G3, 1.f);
+            ui_O(40.f + (float)i * 26.f + OFF[i] * 0.6f, 59.f - (float)(i % 2) * 3.f, 3.f, QD_NONE, 1.f, UI_K1);
         }
-        ui_O(146.f, 66.f, 4.f, QD_NONE, 1.f, UI_RED);
+        ui_O(146.f, 60.f, 4.f, QD_NONE, 1.f, UI_RED);
     }
     /* KNOB 2: QUANTIZE */
     cat(ui_itoa(q, v->quant), "%");
-    menu_row(1, 108.f, "QUANTIZE", q);
-    line2(34.f, 140.f, 140.f, 140.f, UI_G2, 1.2f);
+    menu_row(1, 94.f, "QUANTIZE", q);
+    line2(34.f, 120.f, 140.f, 120.f, UI_G2, 1.2f);
     for (i = 0; i < 4; i++) {                           /* the grid lines, the notes pulled onto them by q % */
         const float gx = 44.f + (float)i * 28.f;
         const float nx = gx + OFF[i] * (float)(100 - v->quant) / 100.f;
-        line2(gx, 124.f, gx, 146.f, UI_G1, 1.f);
+        line2(gx, 106.f, gx, 124.f, UI_G1, 1.f);
         if (v->quant < 100)
-            ui_O(gx + OFF[i], 132.f, 3.5f, UI_G2, 1.f, QD_NONE);
-        ui_O(nx, 132.f, 3.5f, QD_NONE, 1.f, UI_K2);
+            ui_O(gx + OFF[i], 113.f, 3.5f, UI_G2, 1.f, QD_NONE);
+        ui_O(nx, 113.f, 3.5f, QD_NONE, 1.f, UI_K2);
     }
     /* KNOB 3: OVERDUB / REPLACE */
-    menu_row(2, 172.f, "TAKE", v->dub ? "OVERDUB" : "REPLACE");
-    ui_RR(34.f, 186.f, 44.f, 44.f, 4.f, UI_G2, 1.2f, QD_NONE);   /* a step: its notes, the new one */
+    menu_row(2, 146.f, "TAKE", v->dub ? "OVERDUB" : "REPLACE");
+    ui_RR(34.f, 158.f, 40.f, 24.f, 4.f, UI_G2, 1.2f, QD_NONE);   /* a step: its notes, the new one */
     for (i = 0; i < 2; i++) {
-        const float y = 214.f - (float)i * 12.f;
-        ui_RR(40.f, y, 32.f, 7.f, 2.f, QD_NONE, 1.f, v->dub ? UI_G1 : UI_G3);
+        const float y = 174.f - (float)i * 7.f;
+        ui_RR(39.f, y, 30.f, 5.f, 2.f, QD_NONE, 1.f, v->dub ? UI_G1 : UI_G3);
         if (!v->dub)
-            line2(38.f, y + 9.f, 74.f, y - 2.f, UI_RED, 1.4f);
+            line2(37.f, y + 6.f, 71.f, y - 1.f, UI_RED, 1.4f);
     }
-    ui_RR(40.f, 190.f, 32.f, 7.f, 2.f, QD_NONE, 1.f, UI_K3);
-    ui_RR(86.f, 199.f, 10.f, 7.f, 2.f, QD_NONE, 1.f, UI_K3);   /* the note coming in */
+    ui_RR(39.f, 160.f, 30.f, 5.f, 2.f, QD_NONE, 1.f, UI_K3);
+    ui_RR(84.f, 167.f, 10.f, 6.f, 2.f, QD_NONE, 1.f, UI_K3);   /* the note coming in */
     {
-        const float a[6] = {104.f, 199.f, 98.f, 202.5f, 104.f, 206.f};
-        line2(98.f, 202.5f, 116.f, 202.5f, UI_K3, 1.2f);
+        const float a[6] = {102.f, 167.f, 96.f, 170.f, 102.f, 173.f};
+        line2(96.f, 170.f, 114.f, 170.f, UI_K3, 1.2f);
         ui_P(a, 3, UI_K3, 1.2f, 0, QD_NONE);
     }
+    /* KNOB 4 (P1.5b): EDIT KEYS: the sound editor's keyboard, SCALE (eight keys, all in the scale, the root brighter;
+     * the black ones its pages) or FULL (the keybed) */
+    menu_row(3, 198.f, "EDIT KEYS", v->ekeys ? "FULL" : "SCALE");
+    for (i = 0; i < 8; i++) {
+        const float x = 34.f + (float)i * 13.f;
+        ui_RR(x, 214.f, 11.f, 18.f, 2.f, v->ekeys ? UI_G1 : (i % 7 == 0 ? UI_K4 : UI_G1), 1.2f,
+              !v->ekeys && i % 7 == 0 ? UI_K4 : QD_NONE);
+    }
+    for (i = 0; i < 7; i++) {
+        static const uint8_t B[7] = {1, 1, 0, 1, 1, 1, 0};
+        if (B[i])
+            ui_RR(34.f + (float)i * 13.f + 8.f, 210.f, 8.f, 10.f, 2.f, QD_NONE, 1.f, v->ekeys ? UI_G1 : UI_G3);
+    }
+}
+
+/* P1.5b: LFO held alone: the latch mode. Two drawings side by side, the chosen one lit in LFO's colour: VALUES (a step
+ * selected, its value on the black keys: a bar of ten, one lit) and MODES (the black keys as the hold modes' colours,
+ * the knobs turning the step's value) */
+void ui_lmode_draw(int mode, float t)
+{
+    int side, i;
+    (void)t;
+    ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 0.f, QD_NONE, 1.f, UI_BG);
+    for (side = 0; side < 2; side++) {
+        const float x0 = 12.f + (float)side * 112.f;
+        const int on = side == mode;
+        const qd_rgb c = on ? UI_K3 : UI_G2;
+        ui_RR(x0, 30.f, 104.f, 156.f, 10.f, c, on ? 2.f : 1.f, QD_NONE);
+        for (i = 0; i < 4; i++)                         /* the step selected: a row of four, one held */
+            ui_RR(x0 + 14.f + (float)i * 20.f, 48.f, 16.f, 16.f, 3.f, i == 1 ? c : UI_G3, 1.2f, i == 1 ? c : QD_NONE);
+        for (i = 0; i < 10; i++) {                      /* the black keys */
+            const float bx = x0 + 9.f + (float)i * 9.2f;
+            qd_rgb kc = UI_G3;
+            if (side == 0)
+                kc = i == 6 ? (on ? UI_K1 : UI_G1) : on ? UI_G2 : UI_G3;   /* VALUES: one value lit */
+            else
+                kc = on ? UI_MODE_COL[i] : UI_G2;       /* MODES: the hold modes' colours */
+            ui_RR(bx, 82.f, 7.f, 30.f, 2.f, QD_NONE, 1.f, kc);
+        }
+        if (side == 0) {                                /* VALUES: the step's value, a bar */
+            ui_RR(x0 + 14.f, 126.f, 76.f, 10.f, 3.f, c, 1.2f, QD_NONE);
+            ui_RR(x0 + 14.f, 126.f, 52.f, 10.f, 3.f, QD_NONE, 1.f, on ? UI_K1 : UI_G2);
+        } else {                                        /* MODES: a knob turning the step's value */
+            ui_O(x0 + 52.f, 136.f, 15.f, c, 1.6f, QD_NONE);
+            line2(x0 + 52.f, 136.f, x0 + 52.f + 10.f, 136.f - 10.f, on ? UI_K1 : UI_G2, 2.f);
+        }
+        ui_T(side ? "MODES" : "VALUES", x0 + 52.f, 172.f, 14.f, 600, 0.8f, c, QD_CENTER);
+    }
+    ui_T("LATCH", 120.f, 218.f, 20.f, 300, 1.f, UI_K3, QD_CENTER);
 }
 
 /* the views' little pictures (a line of the KNOBS roles): the PIANO ROLL's bars, STEPS' rows */

@@ -162,6 +162,7 @@ static uint32_t ser_hdr(const qd_app_t *a, uint8_t *b)
         b[o++] = k->mix.level, b[o++] = (uint8_t)k->mix.pan, b[o++] = k->mix.chorus, b[o++] = k->mix.delay;
         b[o++] = k->mix.reverb, b[o++] = k->limit, b[o++] = k->reserve;
     }
+    b[o++] = pr->rec_ekeys;                             /* P1.5b (a record of 0.4 has none: SCALE) */
     return o;
 }
 
@@ -171,7 +172,8 @@ static int de_hdr(qd_app_t *a, int p, const uint8_t *b, uint32_t len, int apply)
     qd_project_t *pr = &a->proj;
     uint32_t o = 2;
     int t;
-    if (len != 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK || b[0] != 'H' || b[1] != 1)
+    if ((len != 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK && len != 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK + 1) ||
+        b[0] != 'H' || b[1] != 1)
         return 0;
     memcpy(ps->pname[p], b + o, QD_PROJ_NAME), o += QD_PROJ_NAME;
     ps->pname[p][QD_PROJ_NAME - 1] = 0;
@@ -185,6 +187,7 @@ static int de_hdr(qd_app_t *a, int p, const uint8_t *b, uint32_t len, int apply)
         k->mix.level = b[o++], k->mix.pan = (int8_t)b[o++], k->mix.chorus = b[o++], k->mix.delay = b[o++];
         k->mix.reverb = b[o++], k->limit = b[o++], k->reserve = b[o++];
     }
+    pr->rec_ekeys = o < len ? (uint8_t)(b[o] != 0) : 0;
     return 1;
 }
 
@@ -200,23 +203,27 @@ static uint32_t ser_set(const qd_app_t *a, uint8_t *b)
         const int16_t v = (int16_t)qd_fx_get(i);
         memcpy(b + o, &v, 2), o += 2;
     }
+    b[o++] = (uint8_t)a->ui.lmode;                      /* P1.5b: the latch mode */
     return o;
 }
 
 static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel, qd_app_t *a)
 {
     int i;
-    if (len < 9 || b[0] != 'G' || b[1] != 1 || b[8] != QD_NFXP || len != 9u + 2u * QD_NFXP)
+    const uint32_t nf = len >= 9 ? b[8] : 0;            /* (P1.5b: an older record has fewer effects' values, no latch
+                                                         * mode: the rest stay at their defaults) */
+    if (len < 9 || b[0] != 'G' || b[1] != 1 || nf > QD_NFXP || (len != 9u + 2u * nf && len != 10u + 2u * nf))
         return 0;
     *proj = b[2] % QD_NPROJ, *pat = b[3] % QD_NPAT, *sel = b[4] % QD_NTRACK;
     a->ui.knobs = b[5] % QD_NKNOBS;
     a->ui.view = b[6] % QD_NVIEW;
     a->ui.follow = b[7] != 0;
-    for (i = 0; i < QD_NFXP; i++) {
+    for (i = 0; i < (int)nf; i++) {
         int16_t v;
         memcpy(&v, b + 9 + 2 * i, 2);
         qd_fx_set(i, v);
     }
+    a->ui.lmode = len == 10u + 2u * nf ? b[9 + 2 * nf] % 2 : QD_LMODE_VALUES;
     return 1;
 }
 

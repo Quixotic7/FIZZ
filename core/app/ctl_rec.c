@@ -325,7 +325,7 @@ int qd_rec_knob(qd_app_t *a, int knob, int d)
         return 0;
     s = loop_step(a, (int)qd_seq_track_pos(&a->seq, t) % tlen(a));
     base = qd_lock_get(PAT(a), t, s, id, &v) ? v : qd_step_base(a, t, s, id);
-    if (qd_lock_set(PAT(a), t, s, id, base + d * qd_step_id_detent(id)) == QD_EFULL)
+    if (qd_lock_set(PAT(a), t, s, id, base + qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)) == QD_EFULL)
         qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
     qd_ctl_takeover(a, UI_TK_FREQ + (knob - QD_K_1), knob - QD_K_1, d, 1, s);
     return 1;

@@ -357,15 +357,27 @@ void ui_keymap(const ui_kkey_t k[11], float y, float h)
     }
 }
 
-/* lock(c, x, y, col, s): a padlock, 7 px wide at s 1 */
+/* lock(c, x, y, col, s): P1.5b, the owner: no padlock; a lock is a chip, filled (locked here), 7 x 5.5 px at s 1 */
 void ui_lock(float x, float y, qd_rgb col, float s)
 {
-    qd_save();
-    qd_translate(x, y);
-    qd_scale(s, s);
-    ui_RR(0.f, 3.f, 7.f, 5.5f, 1.f, QD_NONE, 1.f, col);
-    qd_arc(3.5f, 3.f, 2.2f, UI_PI, UI_TAU, col, 1.2f);
-    qd_restore();
+    ui_RR(x, y + 1.5f * s, 7.f * s, 5.5f * s, 2.f * s, QD_NONE, 1.f, col);
+}
+
+/* P1.5b: a value as a chip: filled in col with black text (locked here), or outlined in col (locked somewhere) */
+float ui_chip(const char *txt, float cx, float y, float size, float maxw, qd_rgb col, int filled)
+{
+    float w = ui_TW(txt, size, 600, 0.f), sz = size, h, bw;
+    if (w > maxw - 10.f) {
+        sz = size * (maxw - 10.f) / w;
+        sz = sz < 12.f ? 12.f : sz;
+        w = ui_TW(txt, sz, 600, 0.f);
+    }
+    h = sz * 0.74f + 9.f;
+    bw = w + 10.f;
+    ui_RR(cx - bw * 0.5f, y - sz * 0.74f - 4.5f, bw, h, h * 0.35f, filled ? QD_NONE : col, 1.4f,
+          filled ? col : QD_NONE);
+    ui_T(txt, cx, y, sz, 600, 0.f, filled ? UI_BG : col, QD_CENTER);
+    return bw;
 }
 
 /* knobMark(c, x, y, v, col): a little knob, its pointer at v over 270 degrees */

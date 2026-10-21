@@ -1060,6 +1060,16 @@ void qd_view_edit(qd_app_t *a, ui_held_t *h, ui_lane_t *l)
 
 /* P1.4a: the sound editor's model: the page's values (the held step's: its sound lock's patch with its locks, else the
  * track's sound), the track's beside them, the locks, what the drawing needs */
+/* P1.5b: some step of track t locks id */
+static int track_locks(const qd_pattern_t *p, int t, int id)
+{
+    int i;
+    for (i = 0; i < p->lock_n[t]; i++)
+        if (p->lock[p->lock_start[t] + i].id == id)
+            return 1;
+    return 0;
+}
+
 void qd_view_snd(qd_app_t *a, ui_snd_t *v)
 {
     static qd_trec_t r;
@@ -1093,6 +1103,18 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         qd_quad_value_text(id, v->v[k], v->txt[k]);
         v->lab[k] = qd_quad_value_name(id);
         v->locked[k] = (uint8_t)(u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], id, &x));
+        v->lockany[k] = (uint8_t)(!u->nheld && track_locks(qd_ctl_cpat(a), a->sel, id));
+    }
+    if (qd_snd_keys(a)) {                               /* P1.5b: the keyboard on: its keys' states (as the LEDs) */
+        uint8_t lv[QD_NKEY];
+        int i;
+        memset(lv, 0, sizeof lv);
+        qd_keys_leds(a, lv);
+        v->keys = a->proj.rec_ekeys ? 2 : 1;
+        for (i = 0; i < (v->keys == 1 ? 16 : QD_NKEY); i++) {
+            const uint8_t l = lv[v->keys == 1 ? QD_WHITE_KEY[i] : i];
+            v->kst[i] = (uint8_t)(l == QD_LED_LIT ? 4 : l == QD_LED_80 ? 2 : l == QD_LED_HALF ? 1 : 0);
+        }
     }
     v->last = u->snd_knob;
     v->t = secs(a->ms);
@@ -1125,6 +1147,7 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
     v->rec_step = a->proj.rec_mode;
     v->quant = a->proj.rec_quant;
     v->dub = a->proj.rec_dub;
+    v->ekeys = a->proj.rec_ekeys;
     v->layout = u->knobs;
     for (r = 0; r < 2; r++)
         for (k = 0; k < 3; k++)
@@ -1295,10 +1318,10 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
 {
     static const char *const LAB[QD_NFXP] = {"TIME", "TIME", "SPREAD", "SPREAD", "FDBK", "SYNC", "MODE", "TONE", "WOW",
                                              "SIZE", "DAMP", "DECAY", "PRE", "MOD", "LOW CUT", "WIDTH", "WIDTH",
-                                             "LOW", "HIGH", "SLOPE", "FILTER", "RATE", "DEPTH"};
+                                             "LOW", "HIGH", "SLOPE", "FILTER", "RATE", "DEPTH",
+                                             "DLY>REV", "CHO>DLY", "CHO>REV", "FILTER"};   /* (P1.5b: the routing) */
     const qd_ui_t *u = &a->ui;
     const qd_fxpage_t *pg = &QD_FX_PAGES[u->fx_page];
-    const qd_mix_track_t *m = &a->model.t[a->sel].mix;
     int k, i;
     memset(v, 0, sizeof *v);
     v->name = pg->name;
@@ -1314,9 +1337,10 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
         if (c == QD_FXC_NONE)
             continue;
         v->has[k] = 1;
-        if (c == QD_FXC_SEND) {
-            const int s = pg->fx == 0 ? m->delay : pg->fx == 1 ? m->reverb : m->chorus;
-            v->lab[k] = "SEND";
+        if (c == QD_FXC_SEND || c <= QD_FXC_SENDX(0)) {   /* (P1.5b: the overview's cells: their effect's) */
+            const int fx = c == QD_FXC_SEND ? pg->fx : QD_FXC_SENDX(0) - c;
+            const int s = qd_fx_send(a, a->sel, fx);
+            v->lab[k] = c == QD_FXC_SEND ? "SEND" : QD_FX_NAME[fx];
             snprintf(v->txt[k], sizeof v->txt[k], "%d%%", (s * 100 + 63) / 127);
             v->x[k] = (float)s / 127.f;
             v->send = v->x[k];
@@ -1331,6 +1355,19 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
         }
     }
     v->t = secs(a->ms);
+    if (pg->fx == QD_FXG_OVER) {                        /* P1.5b: every track's sends */
+        int t;
+        for (t = 0; t < QD_NTRACK; t++) {
+            v->sends[t][0] = qd_fx_send(a, t, 2);
+            v->sends[t][1] = qd_fx_send(a, t, 0);
+            v->sends[t][2] = qd_fx_send(a, t, 1);
+            if (!qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, t), t))
+                v->mute |= (uint8_t)(1u << t);
+        }
+        v->track = a->sel + 1;
+    }
+    for (i = 0; i < 4; i++)                             /* P1.5b: the routing */
+        v->rt[i] = i == 3 ? (float)qd_fx_get(QD_FXP_XPOS) : (float)qd_fx_get(QD_FXP_XDR + i) / 127.f;
     v->delay_s = (float)qd_fx_delay_ms() / 1000.f;
     v->chorus_hz = (float)qd_fx_chorus_hz100() / 100.f;
     v->sync = qd_fx_get(QD_FXP_DSYNC);
@@ -1445,7 +1482,15 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         draw_idle(a);
         break;
     }
-    if (!qd_view_overlay(a)) {
+    if (u->tk == QD_TK_LMODE) {                         /* P1.5b: the latch mode switched (over every screen) */
+        const uint32_t d = a->ms - u->tk_ms;
+        const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
+        if (al > 0.f) {
+            overlay_begin(al);
+            ui_lmode_draw(u->lmode, secs(a->ms));
+            qd_restore();
+        }
+    } else if (!qd_view_overlay(a)) {
         /* (none; P1.3r: EDIT's top is the pop-up: no takeover band, picture or picker over it) */
     } else if (u->tk == QD_TK_HELDKNOB) {                      /* P1.3d: a held step's knob: the band over its screen */
         const uint32_t d = a->ms - u->tk_ms;

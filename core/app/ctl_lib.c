@@ -498,6 +498,7 @@ int qd_lib_knob(qd_app_t *a, int knob, int d)
     }
     if (knob == QD_K_SELECT || knob == QD_K_PRESETS) {  /* through all 128 */
         cancel_arms(l);
+        d = qd_ctl_acc(a, d, 128);                      /* (P1.5b: spun, a sixteenth a detent) */
         l->chosen = l->chosen + d < 0 ? 0 : l->chosen + d > 127 ? 127 : l->chosen + d;
     }
     return 1;

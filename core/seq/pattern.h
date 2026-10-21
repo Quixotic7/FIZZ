@@ -226,6 +226,8 @@ typedef struct {
     uint8_t rec_mode;                   /* what holding REC arms: 0 LIVE, 1 STEP */
     uint8_t rec_quant;                  /* live recording's quantize, 0..100 % (100: on the step, the micro-timing gone) */
     uint8_t rec_dub;                    /* 0 REPLACE (a step recorded into is cleared first), 1 OVERDUB (the notes join) */
+    uint8_t rec_ekeys;                  /* P1.5b: the keyboard in the sound editor: 0 SCALE (W the scale, B the pages), 1
+                                         * FULL (every key as the keyboard; the pages on SELECT) */
 } qd_project_t;
 
 /* ---- errors */

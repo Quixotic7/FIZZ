@@ -88,6 +88,8 @@ enum { QD_K_SELECT, QD_K_ALGO, QD_K_PRESETS, QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_
 #define QD_LED_DIM 40
 #define QD_LED_MID 96
 #define QD_LED_LIT 255
+#define QD_LED_HALF 128                /* P1.5b: half (the latch in MODES; the scale's keys) */
+#define QD_LED_80 204                  /* P1.5b: 80 % (the scale's roots) */
 typedef struct qd_leds {
     uint8_t key[QD_NKEY];
     uint8_t button[QD_NBTN];

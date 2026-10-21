@@ -52,6 +52,12 @@
 
 typedef char qd_fx_ctl_ok[QD_FX_CTL == CTL ? 1 : -1];
 
+/* P1.5b: the routing (QD_FXP_XDR .. XPOS; all 0: ChoralRoot's chain, the block below untouched) */
+static int16_t qd_rt[4];
+static int32_t qd_dw[CTL];                              /* the delay's return last block (mono, the mix's scale) */
+static int qd_dw_live;
+
+
 void qd_fx_init(void)
 {
     /* everything at rest (a second init, as a test's, starts from where power-on would) */
@@ -79,6 +85,9 @@ void qd_fx_init(void)
     song.g[G_CRATE] = 40;
     song.g[G_CDEPTH] = 60;
     fx_master_now(master_of_pot(QD_FX_POT_DEFAULT));
+    memset(qd_rt, 0, sizeof qd_rt);                      /* (P1.5b: no routing, ChoralRoot's chain) */
+    memset(qd_dw, 0, sizeof qd_dw);
+    qd_dw_live = 0;
     fx_output_set(1u, 1);               /* Options > Output Clean (cr_ui.c: ChoralRoot's default), before the first
                                          * block: no fade */
 }
@@ -98,13 +107,61 @@ void qd_fx_master_pot(int pot)
 
 uint32_t qd_fx_master_q12(void) { return song.master_q12; }
 
+typedef char qd_rt_half_ok[XF_HALF && CR_FX_DELAY_DS == 2 && CR_FX_REVERB_DS == 2 ? 1 : -1];   /* (the delay's
+                                                         * return is the half-rate wet, xf.t[2..3], before the reverb's) */
+
+/* xf_block's stages one by one (the same calls in the same order), the routed sends in, the delay's return out */
+static void qd_xf_routed(const int32_t *dly_in, const int32_t *rev_in, int32_t *ml, int32_t *mr)
+{
+    const uint32_t f = xf_prep(dly_in, rev_in, CTL);
+    uint32_t i;
+    if (!f) {
+        memset(qd_dw, 0, sizeof qd_dw);
+        qd_dw_live = 0;
+        return;
+    }
+    for (i = 0; i < (CTL >> 1); i++)
+        xf.t[2][i] = xf.t[3][i] = 0;
+    if (f & 1u)
+        xf_delay(dly_in, ml, mr, CTL);
+    qd_dw_live = 0;
+    for (i = 0; i < (CTL >> 1); i++) {                  /* (the half rate: each sample twice) */
+        const int32_t w = (xf.t[2][i] + xf.t[3][i]) / 2;
+        qd_dw[2 * i] = qd_dw[2 * i + 1] = w;
+        qd_dw_live |= w;
+    }
+    xf_reverb(rev_in, ml, mr, CTL, (int)(f >> 1 & 1u), 0, 0, xf.t[2], xf.t[3], 1);
+}
+
 /* fx.c mix_block's stages after the parts: the chorus's two taps into the mix, the delay and the reverb into the mix,
- * the master filter, the output chain */
+ * the master filter, the output chain. P1.5b: routed (a feed or the filter first), the chorus's return (the mix's
+ * change across xc_block) into the delay's and the reverb's sends, the delay's last block into the reverb's */
 void qd_fx_block(const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_t *l, int32_t *r, int32_t *out)
 {
+    int32_t l0[CTL], r0[CTL], d2[CTL], r2[CTL];
+    int i;
+    if (!qd_rt[0] && !qd_rt[1] && !qd_rt[2] && !qd_rt[3]) {
+        xc_block(sc, l, r, CTL);
+        xf_block(sd, sr, l, r, CTL);
+        xq_block(l, r, CTL);
+        out_master(out, l, r, (const int32_t *)0, CTL);
+        qd_dw_live = 0;
+        return;
+    }
+    if (qd_rt[3])                                       /* the master filter before the effects: the dry mix alone */
+        xq_block(l, r, CTL);
+    memcpy(l0, l, sizeof l0);
+    memcpy(r0, r, sizeof r0);
     xc_block(sc, l, r, CTL);
-    xf_block(sd, sr, l, r, CTL);
-    xq_block(l, r, CTL);
+    for (i = 0; i < CTL; i++) {
+        const int32_t cw = ((l[i] - l0[i]) + (r[i] - r0[i])) / 2;   /* the chorus's return, mono */
+        d2[i] = sd[i] + (int32_t)(((int64_t)cw * qd_rt[1]) / 127);
+        r2[i] = sr[i] + (int32_t)(((int64_t)cw * qd_rt[2]) / 127) +
+                (qd_dw_live ? (int32_t)(((int64_t)qd_dw[i] * qd_rt[0]) / 127) : 0);
+    }
+    qd_xf_routed(d2, r2, l, r);
+    if (!qd_rt[3])
+        xq_block(l, r, CTL);
     out_master(out, l, r, (const int32_t *)0, CTL);
 }
 
@@ -116,6 +173,8 @@ int qd_fx_get(int id)
 {
     if (id >= 0 && id < XP_N)
         return xfp[id];
+    if (id >= QD_FXP_XDR && id <= QD_FXP_XPOS)
+        return qd_rt[id - QD_FXP_XDR];
     return id == QD_FXP_CRATE ? song.g[G_CRATE] : id == QD_FXP_CDEPTH ? song.g[G_CDEPTH] : 0;
 }
 
@@ -124,6 +183,8 @@ void qd_fx_range(int id, int *min, int *max, int *def)
     int lo = 0, hi = 127, d = 0;
     if (id >= 0 && id < XP_N)
         lo = XFP[id].min, hi = XFP[id].max, d = XFP[id].def;
+    else if (id >= QD_FXP_XDR && id <= QD_FXP_XPOS)
+        hi = id == QD_FXP_XPOS ? 1 : 127;               /* (P1.5b: the routing, 0 ChoralRoot's) */
     else
         d = id == QD_FXP_CRATE ? 40 : 60;               /* (params.c GP) */
     if (min)
@@ -143,6 +204,8 @@ void qd_fx_set(int id, int v)
     v = v < lo ? lo : v > hi ? hi : v;
     if (id < XP_N)
         xfp[id] = (int16_t)v;
+    else if (id >= QD_FXP_XDR)
+        qd_rt[id - QD_FXP_XDR] = (int16_t)v;
     else
         song.g[id == QD_FXP_CRATE ? G_CRATE : G_CDEPTH] = (int16_t)v;
 }
@@ -211,7 +274,11 @@ const char *qd_fx_text(int id, int v, char *buf)
         snprintf(buf, 16, "%u.%02u Hz", (unsigned)(h / 100u), (unsigned)(h % 100u));
         break;
     }
-    case QD_FXP_CDEPTH: snprintf(buf, 16, "%d%%", (v * 100 + 63) / 127); break;
+    case QD_FXP_CDEPTH:
+    case QD_FXP_XDR:
+    case QD_FXP_XCD:
+    case QD_FXP_XCR: snprintf(buf, 16, "%d%%", (v * 100 + 63) / 127); break;
+    case QD_FXP_XPOS: strcpy(buf, v ? "BEFORE" : "AFTER"); break;
     default: snprintf(buf, 16, "%d", v); break;
     }
     return buf;

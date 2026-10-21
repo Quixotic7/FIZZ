@@ -134,7 +134,9 @@ typedef struct {
     int last;                           /* the knob turned last (0..3, -1) */
 } ui_mix_t;
 void ui_mix_draw(const ui_mix_t *v);
-enum { UI_FXD_DELAY, UI_FXD_DELAY2, UI_FXD_REVERB, UI_FXD_REVERB2, UI_FXD_CHORUS, UI_FXD_MASTER };
+enum { UI_FXD_DELAY, UI_FXD_DELAY2, UI_FXD_REVERB, UI_FXD_REVERB2, UI_FXD_CHORUS, UI_FXD_MASTER,
+       UI_FXD_OVER,                     /* P1.5b: the sends: CHORUS, DELAY, REVERB, eight tracks' bars each */
+       UI_FXD_ROUTE };                  /* P1.5b: the chain (the bus, CHORUS, DELAY, REVERB, the filter, out), the feeds */
 typedef struct {
     const char *name;                   /* the page's */
     int draw, npg, ipg;                 /* UI_FXD_*, the effect's pages, this one's place */
@@ -152,6 +154,10 @@ typedef struct {
     float flow, fhigh;                  /* MASTER: the cuts 0..1 (0 / 1: off), */
     int fslope, fon;
     int last;                           /* the knob turned last (0..3, -1) */
+    int sends[8][3];                    /* P1.5b, OVERVIEW: each track's CHORUS, DELAY, REVERB sends 0..127 */
+    uint8_t mute;                       /* .. the tracks not heard */
+    float rt[4];                        /* P1.5b, ROUTING: DELAY > REVERB, CHORUS > DELAY, CHORUS > REVERB 0..1, the
+                                         * filter BEFORE (1) */
 } ui_fx_t;
 void ui_fx_draw(const ui_fx_t *v);
 
@@ -235,7 +241,13 @@ extern const qd_rgb UI_MODE_COL[UI_NFIELD];
 
 /* ---- the kit's helpers (line.html's headTrack, lock, knobMark, keyboard's pos) */
 void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol);   /* left; [n] name at the right */
-void ui_lock(float x, float y, qd_rgb col, float s);   /* a padlock, 7 px wide at s 1, its top left at x, y */
+void ui_lock(float x, float y, qd_rgb col, float s);   /* a lock (P1.5b: a filled chip, no padlock), 7 px wide at s 1,
+                                                        * its top left at x, y */
+/* P1.5b: a value as a chip, centred at cx on its text's baseline y: filled (locked here: black text) or outlined
+ * (locked somewhere); the text shrinks to maxw (never under 12 px); its width */
+float ui_chip(const char *txt, float cx, float y, float size, float maxw, qd_rgb col, int filled);
+/* P1.5b: LFO held: the latch mode switched, two drawings (the keys as values / the keys as modes), the one chosen lit */
+void ui_lmode_draw(int mode, float t);
 void ui_knob_mark(float x, float y, float v, qd_rgb col);   /* a little knob at v 0..1 */
 /* where note n sits on ui_keyboard(x0, .., w, .., lo): its centre x; *black 1 for a black key */
 float ui_keyboard_x(float x0, float w, int lo, int n, int *black);
@@ -536,6 +548,7 @@ enum { UI_MENU_REC, UI_MENU_SET, UI_MENU_TRK };   /* (P1.4b: the track settings)
 typedef struct {
     int kind;                           /* UI_MENU_* */
     int rec_step, quant, dub;           /* REC: MODE STEP (else LIVE), QUANTIZE 0..100, OVERDUB (else REPLACE) */
+    int ekeys;                          /* .. P1.5b: EDIT KEYS FULL (else SCALE) */
     int layout;                         /* SETTINGS: KNOBS (0 A .. 3 D) */
     const char *role[2][3];             /* .. its roles: [PIANO ROLL, STEPS / EDIT][SELECT, ALGORITHM, PRESETS] */
     int follow;                         /* .. PAGE FOLLOW */
@@ -585,6 +598,9 @@ typedef struct ui_snd {
     uint8_t mod[4], fb, outx, outy;     /* ALGO: the algorithm's routing (C A B1 B2: bit 0 C .. 3 B2) */
     float ratio[4];                     /* .. the operators' ratios */
     int pv[2];                          /* LFO: its WAVE, TRIG; LFOSHAPE: its SPEED, DEPTH */
+    uint8_t lockany[5];                 /* P1.5b: no step held: some step of the track locks it (an outlined chip) */
+    int keys;                           /* P1.5b: the keyboard on: 1 SCALE (16 keys: the scale), 2 FULL (27) */
+    uint8_t kst[27];                    /* .. each key: 0 out of the scale, 1 in it, 2 a root; +4 sounding */
 } ui_snd_t;
 void ui_snd_draw(const ui_snd_t *v);
 
