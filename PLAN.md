@@ -1609,3 +1609,5 @@ the sound editor. B6 / B7 / B8 = LFO 1 / 2 / 3 (again: the WAVE page); the LFO p
 hold an LFO key + turn a value's knob = map it (the first detent) and set the signed depth, a takeover while held,
 invalid values refused with a shake, release stays on the page; with a step held these are p-locks; LFO marks (a
 numbered dot, `UI_LFO_COL` cyan / yellow / violet) by the label of every modulated value.
+- 2026-10-21, the owner on P1.5k: hold-to-map (hold an LFO key, turn a value's knob to make it the destination and set
+  the depth) is "quite good": keep it as it is; carry it into Phase 2 unchanged.
