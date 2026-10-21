@@ -1602,3 +1602,10 @@ editor's foot as four fixed 56.5 px columns, one 52.5 x 32 chip each (drawn only
 clear of the frame on every page (a margin test over all 18 pages); a shorter RATIO picture (the bus at y 150); the
 mix in its own row, 180 px, centred, its ends the outputs' carriers; operators fading (brightness and saturation, 30 %
 floor) by the share of the output they reach (one reaching both stays full).
+
+**2026-10-21, P1.5k** (FMToneSeq dbb21ad; FM1VST `core-quadrille` d19f76b; version 0.5.8-p1.5k; relaunched): the LFOs in
+the sound editor. B6 / B7 / B8 = LFO 1 / 2 / 3 (again: the WAVE page); the LFO page SPEED, MULT, DEPTH, DEST
+(ChoralRoot's list and order, the name big with an arrow), the WAVE page WAVE, PHASE, TRIG, FADE (ALGORITHM idle there);
+hold an LFO key + turn a value's knob = map it (the first detent) and set the signed depth, a takeover while held,
+invalid values refused with a shake, release stays on the page; with a step held these are p-locks; LFO marks (a
+numbered dot, `UI_LFO_COL` cyan / yellow / violet) by the label of every modulated value.
