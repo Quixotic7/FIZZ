@@ -1072,6 +1072,16 @@ P1.5c).
    A takeover shows the mode on the switch (two drawings: keys as values / keys as modes); LFO is lit full in VALUES,
    at half in MODES. LFO held + a black key still selects the hold mode.
 
+### Version 2.5 (2026-10-21, the owner after playing 0.5.0): P1.5d
+
+- **The frames the other way round.** The owner: the frame round a track's values (the TRACK frame of P1.3y) "should be
+  the other way around". **The sequencer's held-step screens get the frame** (in 0xf03cff); **the track defaults get
+  none**. **In the sound editor: a dark orange frame for the track's sound, a bright orange frame for a step's locks.**
+- **VEL as a flying squirrel skydiver** (`mockups/fizz-vel-squirrel.html`, `mockups/png/fizz-vel-squirrel.png`) in
+  place of the mallet and drum: seen from above, goggles on, gliding flat with its membrane spread wide at low velocity,
+  tilting down as the velocity rises, straight down and tucked at 127; speed lines streaming past, more and faster with
+  the velocity; the membrane flutters, the tail streams.
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ velocity squirrel</title>
+<!-- FIZZ: the VEL picture as a flying squirrel skydiver (the owner, 2026-10-21): gliding flat at low velocity, diving
+     straight down at full. Line work in VEL's green, goggles in orange, the value big; speed lines behind it.
+     ?shot=V[&t=s]  one 240 x 240 canvas at velocity V      ?sheet=1  five velocities at 2x      no query: live, sweeping -->
+<style>
+html, body { margin: 0; background: #101012; color: #ddd; font: 600 13px -apple-system, "Helvetica Neue", Arial; }
+body.shot { background: #000; }
+body.sheet, body.live { padding: 20px; }
+.row { display: flex; gap: 20px; flex-wrap: wrap; }
+canvas.big { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.cap { margin: 6px 0 0; color: #aaa; }
+</style>
+</head>
+<body>
+<script src="font_it.js"></script>
+<script>
+const C = { bg: '#000', vel: '#1fd47e', k3: '#f1f0ea', k4: '#ff6a2c', g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d' };
+const TAU = Math.PI * 2, clamp = (x, a, b) => x < a ? a : x > b ? b : x, lerp = (a, b, u) => a + (b - a) * u;
+function T(c, s, x, y, o = {}) { c.save(); c.font = `${o.w || 300} ${o.s || 12}px IT`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.fillText(s, x, y); c.restore(); }
+function path(c, pts, col, lw = 1.6, close = false, fill = null) { c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); if (close) c.closePath();
+  if (fill) { c.fillStyle = fill; c.fill(); } c.stroke(); c.restore(); }
+function curve(c, pts, col, lw = 1.6, close = false, fill = null) {   /* a smooth closed or open curve through the points */
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath();
+  const n = pts.length / 2, P = i => [pts[(i % n) * 2], pts[(i % n) * 2 + 1]];
+  c.moveTo(...P(0));
+  for (let i = 0; i < (close ? n : n - 1); i++) { const [x0, y0] = P(i), [x1, y1] = P(i + 1); c.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2); }
+  if (!close) c.lineTo(...P(n - 1)); else c.closePath();
+  if (fill) { c.fillStyle = fill; c.fill(); } c.stroke(); c.restore(); }
+
+/* the squirrel in its own frame: head to +x, seen from above, its membrane spread s (1 wide .. 0.25 tucked) */
+function squirrel(c, s, t, col) {
+  const fl = Math.sin(t * 9) * 1.4 * s;                                /* the membrane flutters in the wind */
+  const wy = 7 + 22 * s + fl, ay = 7 + 21 * s + fl, sag = 5 + 15 * s + fl * 0.5;
+  /* the tail: a big bushy plume, its edge in tufts, streaming behind */
+  const tw = Math.sin(t * 6) * 2;
+  curve(c, [-14, -3, -22, -9, -30, -8, -36, -12, -44, -10, -50, -12, -57, -6, -60, tw, -57, 6, -50, 12, -44, 10, -36, 12, -30, 8, -22, 9, -14, 3], col, 1.6, true, C.bg);
+  for (let k = 0; k < 4; k++) path(c, [-24 - k * 8, -3 + (k % 2) * 3, -30 - k * 8, -1 + (k % 2) * 3 + tw * 0.4], col, 1);
+  /* the membrane (patagium): one cape from wrist to ankle on both sides, the body under it */
+  curve(c, [13, -5, 11, -wy, 0, -sag, -12, -ay, -15, -3, -15, 3, -12, ay, 0, sag, 11, wy, 13, 5], col, 1.7, true, C.bg);
+  c.save(); c.globalAlpha = 0.45; c.beginPath(); c.ellipse(-1, 0, 12, 4.6, 0, 0, TAU); c.strokeStyle = col; c.lineWidth = 1.2; c.stroke(); c.restore();
+  [[11, -wy, -1], [11, wy, 1], [-12, -ay, -1], [-12, ay, 1]].forEach(([x, y, sd]) => {   /* four little paws, toes out */
+    for (let k = -1; k <= 1; k++) path(c, [x, y, x + k * 2.2, y + sd * 3.2], col, 1.3); });
+  /* the head: ears, goggles (orange) with their strap, the nose and whiskers */
+  path(c, [15, -6, 12, -12, 18, -8], col, 1.5); path(c, [15, 6, 12, 12, 18, 8], col, 1.5);
+  c.save(); c.beginPath(); c.arc(20, 0, 8, 0, TAU); c.fillStyle = C.bg; c.fill(); c.strokeStyle = col; c.lineWidth = 1.7; c.stroke(); c.restore();
+  path(c, [16.5, -7.3, 16.5, 7.3], C.k4, 1.5);
+  [-3.4, 3.4].forEach(e => { c.save(); c.beginPath(); c.arc(22.5, e, 3, 0, TAU); c.fillStyle = C.bg; c.fill(); c.strokeStyle = C.k4; c.lineWidth = 1.5; c.stroke();
+    c.beginPath(); c.arc(23.3, e - 0.8, 0.9, 0, TAU); c.fillStyle = C.k3; c.fill(); c.restore(); });
+  c.save(); c.beginPath(); c.arc(28.2, 0, 1.5, 0, TAU); c.fillStyle = col; c.fill(); c.restore();
+  [-1, 1].forEach(sd => path(c, [27, sd * 1.5, 32, sd * 4.5], col, 0.9));
+}
+
+/* the screen: STEP 6 · VEL head, the value big, the squirrel at the velocity's angle, the wind and the ground */
+function screen(c, vel, t, o = {}) {
+  c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240);
+  T(c, 'STEP 6 · VEL', 8, 18, { s: 12, w: 600, ls: 0.8, col: C.k3 });
+  if (o.def) T(c, 'DEFAULT', 232, 18, { s: 12, w: 600, ls: 0.8, col: C.g1, al: 'right' });
+  const u = clamp(vel / 127, 0, 1), ang = lerp(0.05, Math.PI / 2, Math.pow(u, 0.9));     /* 0: gliding flat .. 90 deg: straight down */
+  const cx = 160, cy = 138;
+  /* speed lines streaming past, more and longer the faster it falls */
+  const n = 3 + Math.round(9 * u), L = 10 + 46 * u;
+  for (let i = 0; i < n; i++) {
+    const h = Math.sin(i * 91.7) * 43758.5, r = h - Math.floor(h), off = (r - 0.5) * 120;
+    const run = ((t * (60 + 260 * u) + i * 37) % 220) - 110;            /* along the flight, from the nose backwards */
+    const ax = Math.cos(ang), ay = Math.sin(ang), px = -ay, py = ax;
+    const x0 = cx - ax * run + px * off, y0 = cy - ay * run + py * off;
+    if (Math.hypot(x0 - cx, y0 - cy) < 70) continue;
+    path(c, [x0, y0, x0 - ax * L, y0 - ay * L], C.g2, 1.2);
+  }
+  /* the squirrel: spread wide when slow, tucked into a dive at full */
+  c.save(); c.translate(cx, cy); c.rotate(ang); c.scale(1.45, 1.45);
+  squirrel(c, lerp(1, 0.25, u), t, C.vel); c.restore();
+  T(c, String(vel), 10, 96, { s: 64, w: 200, col: C.vel });
+  /* the ramp's ticks (as now) */
+  for (let k = 0; k < 4; k++) path(c, [200 + k * 8, 196, 200 + k * 8, 214], C.k4, 2);
+}
+
+(async () => {
+  const ff = new FontFace('IT', `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search);
+  const mk = () => { const cv = document.createElement('canvas'); cv.width = cv.height = 240; return cv; };
+  if (q.has('shot')) { document.body.className = 'shot'; const cv = mk(); screen(cv.getContext('2d'), +q.get('shot'), +(q.get('t') || 0.3)); document.body.appendChild(cv); return; }
+  const row = document.createElement('div'); row.className = 'row'; document.body.appendChild(row);
+  const list = q.has('sheet') ? [10, 40, 70, 100, 127] : [null];
+  document.body.className = q.has('sheet') ? 'sheet' : 'live';
+  const live = [];
+  list.forEach(v => { const f = document.createElement('figure'); f.style.margin = 0; const cv = mk(); cv.className = 'big'; f.appendChild(cv);
+    const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = v == null ? 'sweeping 1..127' : 'VEL ' + v; f.appendChild(cap); row.appendChild(f);
+    if (v != null) screen(cv.getContext('2d'), v, 0.3); else live.push(cv.getContext('2d')); });
+  const t0 = performance.now();
+  const loop = () => { const t = (performance.now() - t0) / 1000, v = Math.round(64 + 63 * Math.sin(t * 0.6)); live.forEach(c => screen(c, v, t)); if (live.length) requestAnimationFrame(loop); };
+  loop();
+})();
+</script>
+</body>
+</html>
