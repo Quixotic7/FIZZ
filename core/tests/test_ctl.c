@@ -3031,6 +3031,8 @@ static void g_snd(void)
                 seen[QD_SND_PAGES[i].id[k]]++;
                 if (QD_SND_PAGES[i].id[k] == QD_QP_RB1)   /* (P1.5i: RATIO B, the pair: B1 and B2 in one) */
                     seen[QD_QP_RB2]++;
+                if (QD_SND_PAGES[i].id[k] == QD_QP_MIX && !strcmp(QD_SND_PAGES[i].name, "TONE"))
+                    seen[QD_QP_MIX]--;                  /* (P1.5n: the one exception: MIX on RATIO and on TONE) */
             }
     for (i = 0; i < QD_QUAD_NP; i++)
         ok &= seen[i] == 1;
@@ -3911,8 +3913,8 @@ static void g_p15b_latch(void)
     turn(QD_K_SELECT, 1);
     bup(QD_B_MUTE);
     run(10);
-    CHECK(A.ui.slatch && A.ui.lmode == QD_LMODE_MODES && !A.ui.lmode_open && leds().button[QD_B_MUTE] == QD_LED_HALF,
-          "let go: the screen closes, MODES kept (the latch stays; LFO at half)");
+    CHECK(A.ui.slatch && A.ui.lmode == QD_LMODE_MODES && !A.ui.lmode_open && leds().button[QD_B_MUTE] >= 153,
+          "let go: the screen closes, MODES kept (the latch stays; LFO breathing, P1.5n)");
     mode(M_VEL);
     CHECK(A.ui.hmode == M_VEL, "MODES: B2 chooses VEL");
     v0 = R(0, A.ui.held[0]).vel;
@@ -4075,8 +4077,9 @@ static void g_p15i_ratio(void)
           "KNOB 4: MIX (-64 -> -44), the drawing's balance");
     A.ui.snd_page = qd_snd_page_of("TONE");
     qd_view_snd(&A, &sv);
-    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TONE") && !sv.has[3] && sv.has[0] && sv.has[1] && sv.has[2],
-          "TONE: HARM, DTUNE, FDBK; KNOB 4 empty");
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TONE") && sv.has[3] && sv.has_mix && sv.mix == -44 &&
+              sv.has[0] && sv.has[1] && sv.has[2],
+          "TONE: HARM, DTUNE, FDBK, and (P1.5n) MIX again: the same value as RATIO's (-44)");
     A.ui.snd_page = qd_snd_page_of("RATIO");
     wtap(3);
     whold(3);
@@ -4265,7 +4268,7 @@ static void g_p15m_flatch(void)
         btap(LFO);
         CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 1, "%s: the latch on, step 2 selected", M);
         bdown(F1);                                      /* F1 + W: copy, then paste */
-        run(80);
+        run(300);                                       /* (P1.5n: alone over the latch, its map after a tap's time) */
         CHECK(qd_view_screen(&A) == QD_SCR_LAYER && qd_ctl_layer(&A) == QD_LAYER_F1, "%s: F1 held: its map", M);
         wtap(4);
         wtap(7);
@@ -4346,6 +4349,117 @@ static void g_p15m_flatch(void)
     }
 }
 
+
+/* P1.5n: (1) the latch's OCT tap: the octave / bank takeover its whole time, in every view (EDIT too), no F map for a
+ * tap; (2) NOTE: ALGORITHM moves all the held or W-selected steps' notes together, in every layout and view; (3) LFO's
+ * LED: full in VALUES, breathing 60 .. 100 % in MODES, off without the latch; (4) MIX on TONE and RATIO, one value */
+static void g_p15n(void)
+{
+    static const uint8_t CH[3] = {60, 64, 67};
+    static ui_snd_t sv;
+    int v, f, lay, ok, t, mn, mx;
+    for (v = 0; v < 3; v += 2) {                        /* (1) PIANO ROLL and EDIT */
+        start();
+        A.ui.view = v;
+        wtap(0), wtap(1);
+        btap(LFO);
+        t = A.ui.entry_oct;
+        bdown(F2);
+        run(120);
+        CHECK(qd_view_screen(&A) != QD_SCR_LAYER, "view %d: an OCT tap over the latch: no F2 map", v);
+        bup(F2);
+        run(5);
+        ok = A.ui.entry_oct == t + 1 && A.ui.tk == UI_TK_OCTAVE && qd_view_overlay(&A);
+        run(495);
+        ok &= A.ui.tk == UI_TK_OCTAVE && qd_view_overlay(&A);
+        run(550);
+        ok &= A.ui.tk == UI_TK_OCTAVE && qd_view_overlay(&A);
+        CHECK(ok, "view %d: the octave's takeover 5, 500 and 1050 ms after the tap", v);
+        run(200);
+        CHECK(A.ui.tk == QD_TK_NONE, "view %d: .. gone after its time", v);
+        bdown(LFO);
+        run(20);
+        black(B10);                                     /* SOUND */
+        bup(LFO);
+        run(20);
+        t = A.ui.sound_bank;
+        btap(F2);
+        run(5);
+        ok = A.ui.sound_bank == t + 1 && A.ui.tk == UI_TK_OCTAVE && qd_view_overlay(&A);
+        run(1000);
+        ok &= A.ui.tk == UI_TK_OCTAVE && qd_view_overlay(&A);
+        CHECK(ok, "view %d: SOUND, an OCT tap: the next ten, its takeover its whole time", v);
+        btap(QD_B_HOME);
+    }
+    for (lay = 0; lay < 2; lay++)                       /* (2) layouts A, B; PIANO ROLL, EDIT; a finger, the latch */
+        for (v = 0; v < 3; v += 2)
+            for (f = 0; f < 2; f++) {
+                start();
+                A.ui.view = v;
+                A.ui.knobs = lay;
+                PAT()->trk[0].scale = QD_SCALE_MAJOR, PAT()->trk[0].root = 0, PAT()->trk[0].key_global = 0;
+                wtap(1);
+                qd_step_set_notes(PAT(), 0, 1, CH, 3);
+                if (f)
+                    btap(LFO);
+                else {
+                    kdown(WK(1));
+                    run(300);
+                }
+                turn(QD_K_ALGO, 1);
+                ok = R(0, 1).note[0] == 62 && R(0, 1).note[1] == 65 && R(0, 1).note[2] == 69;
+                turn(QD_K_ALGO, -2);
+                ok &= R(0, 1).note[0] == 59 && R(0, 1).note[1] == 62 && R(0, 1).note[2] == 65;
+                CHECK(ok, "layout %c, view %d, %s: ALGORITHM moves the chord a scale step up, two down (C E G -> D F A -> "
+                      "B D F)", 'A' + lay, v, f ? "the latch's selection" : "a finger");
+                turn(QD_K_ALGO, 60);
+                mx = R(0, 1).note[0] > R(0, 1).note[2] ? R(0, 1).note[0] : R(0, 1).note[2];
+                turn(QD_K_ALGO, -120);
+                mn = R(0, 1).note[0] < R(0, 1).note[2] ? R(0, 1).note[0] : R(0, 1).note[2];
+                CHECK(mx <= 127 && mn >= 0, "layout %c, view %d, %s: clamped at the top and bottom "
+                      "(%d %d / %d %d %d)", 'A' + lay, v, f ? "latch" : "finger", mx, mn, R(0, 1).note[0], R(0, 1).note[1],
+                      R(0, 1).note[2]);
+                if (!f)
+                    kup(WK(1));
+                btap(QD_B_HOME);
+            }
+    start();                                            /* (3) LFO's LED */
+    CHECK(leds().button[LFO] == QD_LED_OFF, "the latch off: LFO dark");
+    wtap(0);
+    btap(LFO);
+    for (ok = 1, t = 0; t < 10; t++, run(150))
+        ok &= leds().button[LFO] == 255;
+    CHECK(ok, "VALUES: LFO full (255, the panel's top), steady");
+    A.ui.lmode = QD_LMODE_MODES;
+    for (mn = 255, mx = 0, t = 0; t < 160; t++, run(10)) {
+        const int l = leds().button[LFO];
+        mn = l < mn ? l : mn, mx = l > mx ? l : mx;
+    }
+    CHECK(mn >= 153 && mn <= 156 && mx == 255, "MODES: LFO breathing between 60 %% and full (%d .. %d)", mn, mx);
+    btap(QD_B_HOME);
+    start();                                            /* (4) MIX on TONE and RATIO */
+    btap(QD_B_SOUND);
+    A.ui.snd_page = qd_snd_page_of("TONE");
+    turn(QD_K_4, 30);
+    A.ui.snd_page = qd_snd_page_of("RATIO");
+    qd_view_snd(&A, &sv);
+    ok = sv.mix == -34 && !strcmp(sv.lab[3], "MIX");
+    turn(QD_K_4, 10);
+    A.ui.snd_page = qd_snd_page_of("TONE");
+    qd_view_snd(&A, &sv);
+    CHECK(ok && sv.has_mix && sv.mix == -24, "MIX on TONE moves RATIO's, and back (-34, -24)");
+    wtap(3);
+    whold(3);
+    turn(QD_K_4, 5);
+    qd_view_snd(&A, &sv);
+    ok = sv.locked[3];
+    A.ui.snd_page = qd_snd_page_of("RATIO");
+    qd_view_snd(&A, &sv);
+    CHECK(ok && sv.locked[3] && LK(0, 3, QD_QP_MIX) == -19, "a step held, MIX locked on TONE: the same chip on RATIO");
+    wrel(3);
+    btap(QD_B_HOME);
+}
+
 int main(void)
 {
     static const struct {
@@ -4414,6 +4528,7 @@ int main(void)
         {"P1.5k: the LFOs: keys, DEST, hold-to-map", g_p15k_lfo},
         {"P1.5l: the editor's black keys regrouped", g_p15l_groups},
         {"P1.5m: the F layers with the step latch on", g_p15m_flatch},
+        {"P1.5n: the octave tap's takeover, ALGORITHM moves all, LFO's LED, MIX on TONE", g_p15n},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

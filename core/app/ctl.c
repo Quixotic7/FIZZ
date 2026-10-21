@@ -106,6 +106,9 @@ int qd_ctl_knob_job(int mode, int knob)
 int qd_ctl_layer_shown(const qd_app_t *a)
 {
     const int l = qd_ctl_layer(a);
+    if ((l == QD_LAYER_F1 || l == QD_LAYER_F2) && a->ui.oct_tap && !a->ui.oct_tap_used)   /* P1.5n: the latch's
+                                                         * selection: maybe a tap (its octave), no map for a tap */
+        return a->ms - a->ui.f_ms >= QD_TAP_MS ? l : QD_LAYER_NONE;
     if (l == QD_LAYER_F1 || l == QD_LAYER_F2)          /* (alone a moment: not the first of a chord) */
         return a->ms - a->ui.f_ms >= QD_CHORD_MS ? l : QD_LAYER_NONE;
     return l;
@@ -1466,6 +1469,11 @@ static int when_cursor(const qd_app_t *a)
 }
 static int k_steps_cursor(qd_app_t *a, int knob, int d)
 {
+    if (knob == QD_K_ALGO && a->ui.nheld && a->ui.hmode == UI_F_NOTE && !a->ui.scursor)
+        return 0;                                       /* P1.5n: NOTE, a selection made with the W keys: ALGORITHM
+                                                         * moves all its notes (k_held), as with a finger (P1.3f), in every
+                                                         * layout; a selection the cursor made keeps ALGORITHM's role
+                                                         * (A the cursor, C the page) */
     switch (qd_ctl_knob_role(a, knob)) {
     case QD_KR_CURSOR:
         qd_step_cursor(a, d);

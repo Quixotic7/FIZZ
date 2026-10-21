@@ -24,7 +24,8 @@ const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     /* P1.5i (the owner, as ChoralRoot and the Digitone): RATIO B is one value, the pair (QD_QP_RB1 here stands for it:
      * B1 x 19 + B2, B2 the fast hand; snd_pair), and MIX moved here from TONE */
     {"RATIO", QD_SG_OPS, UI_SD_ALGO, {QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_MIX, QD_QP_ALGO}, 0},
-    {"TONE", QD_SG_OPS, UI_SD_TONE, {QD_QP_HARM, QD_QP_DTUN, QD_QP_FDBK, -1, -1}, 0},
+    {"TONE", QD_SG_OPS, UI_SD_TONE, {QD_QP_HARM, QD_QP_DTUN, QD_QP_FDBK, QD_QP_MIX, -1}, 0},   /* (P1.5n: MIX here
+                                                         * too, the one value on two pages) */
     {"OFFSET", QD_SG_OPS, UI_SD_OFS, {QD_QP_OFSC, QD_QP_OFSA, QD_QP_OFSB1, QD_QP_OFSB2, -1}, 0},
     {"ENV A", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_AATK, QD_QP_ADEC, QD_QP_AEND, QD_QP_ALEV, QD_QP_ADLY}, 0},
     {"ENV B", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_BATK, QD_QP_BDEC, QD_QP_BEND, QD_QP_BLEV, QD_QP_BDLY}, 1},

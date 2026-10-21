@@ -39,6 +39,12 @@
 
 static int held(const qd_app_t *a, int b) { return (int)((a->buttons_held >> b) & 1u); }
 static int blink(const qd_app_t *a, uint32_t half) { return (int)((a->ms / half) & 1u) == 0; }
+/* P1.5n: a slow breath between 60 % and full (QD_LED_BREATH_MS a cycle; full at its start) */
+uint8_t qd_led_breath(uint32_t ms)
+{
+    const float u = (float)(ms % QD_LED_BREATH_MS) / (float)QD_LED_BREATH_MS;
+    return (uint8_t)(153.f + 102.f * (0.5f + 0.5f * cosf(u * 6.2831853f)) + 0.5f);
+}
 
 /* the notes the selected track sounds (keys held, MIDI notes held, notes waiting for a voice) */
 void qd_ctl_sounding(const qd_app_t *a, uint8_t *notes)
@@ -326,9 +332,10 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_TRACKS] = QD_LED_LIT;
     if (u->latch == QD_LATCH_TRK)
         out->button[QD_B_PATTERN] = QD_LED_LIT;
-    if (u->slatch)                                      /* P1.3d: LFO lit while the step latch is on (P1.5b: full in
-                                                         * VALUES, half in MODES) */
-        out->button[QD_B_MUTE] = u->lmode == QD_LMODE_MODES ? QD_LED_HALF : QD_LED_LIT;
+    if (u->slatch)                                      /* P1.3d: LFO lit while the step latch is on (P1.5n: full in
+                                                         * VALUES; MODES breathing 60 .. 100 %, a 1.5 s period: the
+                                                         * owner found P1.5b's half too dim) */
+        out->button[QD_B_MUTE] = u->lmode == QD_LMODE_MODES ? qd_led_breath(a->ms) : QD_LED_LIT;
     if (qd_snd_open(a))                                 /* P1.4a: EDIT lit while the sound editor is open */
         out->button[QD_B_SOUND] = QD_LED_LIT;
     if (qd_latch_cur(a)) {                              /* P1.3d: a latched menu: OCT- (back) lit, OCT+ lit when it

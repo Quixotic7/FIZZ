@@ -1124,9 +1124,14 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
                     v->lfomark[k] |= (uint8_t)(1u << lf);
             }
         }
-        if (id == QD_QP_MIX && pg->draw == UI_SD_ALGO) {   /* P1.5i: MIX on RATIO: the drawing's balance */
+        if (id == QD_QP_MIX && (pg->draw == UI_SD_ALGO || pg->draw == UI_SD_TONE)) {   /* P1.5i: MIX on RATIO (P1.5n:
+                                                         * and TONE): the drawing's balance */
+            int fb, ox, oy;
             v->has_mix = 1;
             v->mix = pp[QD_QP_MIX];
+            qd_quad_algo(pp[QD_QP_ALGO], v->mod, &fb, &ox, &oy);
+            v->outx = (uint8_t)ox;
+            v->outy = (uint8_t)oy;
         }
     }
     if (qd_snd_keys(a)) {                               /* P1.5b: the keyboard on: its keys' states (as the LEDs) */
@@ -1441,7 +1446,9 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
 
 int qd_view_overlay(const qd_app_t *a)
 {
-    return a->ui.tk != QD_TK_NONE && qd_view_screen(a) != QD_SCR_EDIT;
+    /* (P1.5n: the octave / bank takeover over EDIT too: an OCT tap's octave was not shown there at all, only F2's map
+     * for a moment) */
+    return a->ui.tk != QD_TK_NONE && (qd_view_screen(a) != QD_SCR_EDIT || a->ui.tk == UI_TK_OCTAVE);
 }
 
 void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)

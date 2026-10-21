@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5m)
+# Playing FIZZ (P1.5n)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -184,7 +184,11 @@ and chance; a LOCK step's runs too).
 - **F1, F2 and F3 work over the latch** (P1.5m) exactly as without it: F1 + W copies and pastes, F2 + W picks up and
   drops, F1 + B1..B8 the pages, F1 + B9 / B10 / B11 clear, copy, undo, both for F3; the selection stays as it was.
   **F1 / F2 tapped** (nothing with them) are the selection's octave in NOTE and its group of ten in SOUND, as for a
-  held step (on the release, so that holding them is still the layer).
+  held step (on the release, so that holding them is still the layer). Its octave (or ten) picture shows its full
+  second, in EDIT too (P1.5n), and F1 / F2's map only comes up when they are held longer than a tap.
+- **NOTE, ALGORITHM moves all the selected steps' notes** together, a scale step a click, as with a finger on a step
+  (P1.5n), in every knob layout and view. (Only when the selection was made with the W keys: a selection the cursor
+  made keeps ALGORITHM as the cursor, layout A, or the page, layout C, so you can still walk the steps.)
 - **LFO** again or **HOME** turns it off.
 - **Hold LFO + a black key**: that mode, without touching the latch or the selection (a plain tap still toggles).
 - **Two latch modes** (P1.5b; P1.5h). **Hold LFO alone** (400 ms, no other key): while you hold it, a screen shows the
@@ -195,7 +199,7 @@ and chance; a LOCK step's runs too).
   - **VALUES** (as before): with the latch on, the black keys set values for the selected steps. LFO lit full.
   - **MODES**: with the latch on, the black keys choose the hold mode (as with nothing held) and **the knobs set the
     selected steps' values for that mode**. While a finger holds a step, the black keys are its values as always.
-    LFO lit at half.
+    LFO breathing slowly between 60 % and full (P1.5n; it was at half, too dim on the unit).
 
 ## How do I enter notes and chords?
 
@@ -441,7 +445,7 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   | key | group | pages |
   | --- | --- | --- |
   | **B1** | TRIG / KEYS | TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL) |
-  | **B2** | OPERATORS | RATIO (KNOB 1 RATIO C, KNOB 2 RATIO A, KNOB 3 **RATIO B**, KNOB 4 **MIX**; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK), OFFSET (the four offsets) |
+  | **B2** | OPERATORS | RATIO (KNOB 1 RATIO C, KNOB 2 RATIO A, KNOB 3 **RATIO B**, KNOB 4 **MIX**; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK, **MIX**: the same MIX as RATIO's, P1.5n), OFFSET (the four offsets) |
   | **B3** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay) |
   | **B4** | FILTERS | FILTER (FREQ, RESO, TYPE, DEPTH), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK) |
   | **B5** | ENVELOPES | AMP (attack, decay, sustain, release), LEVEL (LEVEL, **DRIVE**) |

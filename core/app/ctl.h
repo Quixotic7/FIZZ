@@ -618,6 +618,8 @@ struct qd_leds;
 void qd_ctl_leds(const struct qd_app *a, struct qd_leds *out);
 void qd_ctl_sounding(const struct qd_app *a, uint8_t *notes);   /* the selected track's notes sounding (128) */
 int qd_ctl_trig_flash(const struct qd_app *a, int t);          /* track t's trig flash (80 ms) */
+#define QD_LED_BREATH_MS 1500u
+uint8_t qd_led_breath(uint32_t ms);    /* P1.5n: LFO's LED in MODES: 60 % .. full, breathing */
 
 /* ---- view.c */
 void qd_view_frame(struct qd_app *a, uint16_t *lcd_be);

@@ -68,6 +68,29 @@ static qd_rgb sd_fade(qd_rgb c, float share)
                     (uint32_t)(bb > 255.f ? 255.f : bb));
 }
 
+/* P1.5j / P1.5n: the mix's own row (RATIO's and TONE's, the same place): centred, X's end and Y's in their first
+ * carriers' colours (faded by their share), a tick at MIX 0, the handle in KNOB 4's orange */
+static void sd_mixrow(const ui_snd_t *v)
+{
+    const float sx = v->has_mix ? (63.f - (float)v->mix) / 127.f : 1.f, sy = 1.f - sx;
+    int o;
+    if (v->has_mix) {
+        const float x0 = 30.f, x1 = 210.f, yy = 170.f, hx = x0 + (x1 - x0) * ((float)v->mix + 64.f) / 127.f;
+        int cx = -1, cy = -1;
+        for (o = 0; o < 4; o++) {
+            if (cx < 0 && ((v->outx >> o) & 1u))
+                cx = o;
+            if (cy < 0 && ((v->outy >> o) & 1u))
+                cy = o;
+        }
+        line2(x0, yy, x1, yy, UI_G2, 2.f);
+        line2((x0 + x1) * 0.5f, yy - 4.f, (x0 + x1) * 0.5f, yy + 4.f, UI_G1, 1.2f);   /* MIX 0 */
+        ui_O(x0 - 9.f, yy, 4.5f, cx >= 0 ? sd_fade(SNDK[cx], sx) : UI_G1, 1.6f, UI_BG);   /* X */
+        ui_O(x1 + 9.f, yy, 4.5f, cy >= 0 ? sd_fade(SNDK[cy], sy) : UI_G1, 1.6f, UI_BG);   /* Y */
+        ui_RR(hx - 4.f, yy - 7.f, 8.f, 14.f, 2.5f, QD_NONE, 1.f, SNDK[3]);
+    }
+}
+
 /* the operators wired by the algorithm. P1.5j (the owner): shorter, the bus and the speaker higher (SD_BUS_Y), a deep
  * chain zig-zagging; with MIX (the RATIO page): each operator faded by its output's share (an operator only in X's chain
  * X's, only in Y's Y's, in both full), the wires to the bus as thick as their share, and the mix's own row: a slider
@@ -158,21 +181,8 @@ static void sd_algo(const ui_snd_t *v)
         }
         ui_P(p, 25, oc, 1.2f, 0, QD_NONE);
     }
-    if (v->has_mix) {                                   /* the mix's own row: centred, X's end and Y's, the handle */
-        const float x0 = 30.f, x1 = 210.f, yy = 170.f, hx = x0 + (x1 - x0) * ((float)v->mix + 64.f) / 127.f;
-        int cx = -1, cy = -1;
-        for (o = 0; o < 4; o++) {
-            if (cx < 0 && ((v->outx >> o) & 1u))
-                cx = o;
-            if (cy < 0 && ((v->outy >> o) & 1u))
-                cy = o;
-        }
-        line2(x0, yy, x1, yy, UI_G2, 2.f);
-        line2((x0 + x1) * 0.5f, yy - 4.f, (x0 + x1) * 0.5f, yy + 4.f, UI_G1, 1.2f);   /* MIX 0 */
-        ui_O(x0 - 9.f, yy, 4.5f, cx >= 0 ? sd_fade(SNDK[cx], sx) : UI_G1, 1.6f, UI_BG);   /* X */
-        ui_O(x1 + 9.f, yy, 4.5f, cy >= 0 ? sd_fade(SNDK[cy], sy) : UI_G1, 1.6f, UI_BG);   /* Y */
-        ui_RR(hx - 4.f, yy - 7.f, 8.f, 14.f, 2.5f, QD_NONE, 1.f, SNDK[3]);
-    }
+    sd_mixrow(v);
+
 }
 
 static void sd_tone(const ui_snd_t *v)
@@ -206,11 +216,11 @@ static void sd_tone(const ui_snd_t *v)
         if (fb > 90)
             w += ((float)(((unsigned)i * 2654435761u >> 9) & 255u) / 128.f - 1.f) * (float)(fb - 90) / 80.f;
         p[2 * i] = 20.f + u * 96.f;
-        p[2 * i + 1] = 146.f - sd_clampf(w, -1.2f, 1.2f) * 18.f;
+        p[2 * i + 1] = 134.f - sd_clampf(w, -1.2f, 1.2f) * 14.f;   /* (P1.5n: higher, the mix row under it) */
     }
     ui_P(p, 41, SNDK[2], 1.2f, 0, QD_NONE);
-    qd_arc(68.f, 146.f, 34.f, UI_PI * 1.15f, UI_PI * 1.85f, UI_G2, 1.f);
-    /* (P1.5i: MIX moved to RATIO, drawn there as the outputs' balance) */
+    qd_arc(68.f, 134.f, 28.f, UI_PI * 1.15f, UI_PI * 1.85f, UI_G2, 1.f);
+    sd_mixrow(v);                                       /* P1.5n: MIX back on TONE (KNOB 4), the row as RATIO's */
 }
 
 static void sd_ofs(const ui_snd_t *v)
