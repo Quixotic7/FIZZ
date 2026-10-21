@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5h)
+# Playing FIZZ (P1.5i)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -435,13 +435,18 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 
   | key | group | pages |
   | --- | --- | --- |
-  | **B1** | OPERATORS | RATIO (KNOB 1..4 the ratios of C, A, B1, B2; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK, MIX), OFFSET (the four offsets) |
+  | **B1** | OPERATORS | RATIO (KNOB 1 RATIO C, KNOB 2 RATIO A, KNOB 3 **RATIO B**, KNOB 4 **MIX**; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK), OFFSET (the four offsets) |
   | **B2** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay), TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL) |
   | **B3** | FILTERS | FILTER (FREQ, RESO, TYPE, DEPTH), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK) |
   | **B4** | ENVELOPES | AMP (attack, decay, sustain, release), LEVEL (LEVEL, **DRIVE**) |
   | **B5** | MODULATION | LFO 1..3 (SPEED, MULT, DEPTH, FADE; ALGORITHM the destination), LFO 1..3 WAVE (WAVE, PHASE, TRIG) |
 
   Every value of the sound is on exactly one page.
+  **RATIO B** (P1.5i) is one value, as in ChoralRoot and the Digitone: the pair B2 over B1, shown as a fraction. A
+  click steps B2 (the fast hand) and carries into B1 after 16.00; **SHIFT + KNOB 3** steps B1. A step's lock of it
+  locks both. **MIX** is drawn in the RATIO picture as the balance of the algorithm's two outputs: X's wires and Y's
+  as bright and thick as their share (the other faint, never gone), and a little crossfader by the speaker, its
+  handle in KNOB 4's orange.
 - Each page is one big drawing of that part of FM TONE (the operators wired by the algorithm, the envelopes, the
   filter's curve, the LFO's wave ..). Along the bottom, KNOB 1..4's values in their colours (the one you turned last
   underlined); ALGORITHM's value is in the pink badge top right.

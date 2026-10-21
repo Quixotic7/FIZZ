@@ -1104,6 +1104,20 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->lab[k] = qd_quad_value_name(id);
         v->locked[k] = (uint8_t)(u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], id, &x));
         v->lockany[k] = (uint8_t)(!u->nheld && track_locks(qd_ctl_cpat(a), a->sel, id));
+        if (id == QD_QP_RB1) {                          /* P1.5i: RATIO B, the pair: B2 (the fast hand) over B1 */
+            v->pair[k] = 1;
+            v->v[k] = pp[QD_QP_RB1] * 19 + pp[QD_QP_RB2];
+            v->tv[k] = tp[QD_QP_RB1] * 19 + tp[QD_QP_RB2];
+            qd_quad_value_text(QD_QP_RB2, pp[QD_QP_RB2], v->txt[k]);
+            qd_quad_value_text(QD_QP_RB1, pp[QD_QP_RB1], v->den[k]);
+            v->lab[k] = "RATIO B";
+            v->locked[k] |= (uint8_t)(u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], QD_QP_RB2, &x));
+            v->lockany[k] |= (uint8_t)(!u->nheld && track_locks(qd_ctl_cpat(a), a->sel, QD_QP_RB2));
+        }
+        if (id == QD_QP_MIX && pg->draw == UI_SD_ALGO) {   /* P1.5i: MIX on RATIO: the drawing's balance */
+            v->has_mix = 1;
+            v->mix = pp[QD_QP_MIX];
+        }
     }
     if (qd_snd_keys(a)) {                               /* P1.5b: the keyboard on: its keys' states (as the LEDs) */
         uint8_t lv[QD_NKEY];

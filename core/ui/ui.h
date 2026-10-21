@@ -606,6 +606,9 @@ typedef struct ui_snd {
     uint8_t lockany[5];                 /* P1.5b: no step held: some step of the track locks it (an outlined chip) */
     int keys;                           /* P1.5b: the keyboard on: 1 SCALE (16 keys: the scale), 2 FULL (27) */
     uint8_t kst[27];                    /* .. each key: 0 out of the scale, 1 in it, 2 a root; +4 sounding */
+    uint8_t pair[5];                    /* P1.5i: a ratio pair (RATIO B): txt the fast hand (B2) over den (B1) */
+    char den[5][8];
+    int has_mix, mix;                   /* P1.5i: RATIO's MIX (-64 X .. 63 Y): the outputs' balance in the drawing */
 } ui_snd_t;
 void ui_snd_draw(const ui_snd_t *v);
 

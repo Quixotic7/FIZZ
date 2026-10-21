@@ -3027,11 +3027,14 @@ static void g_snd(void)
     memset(seen, 0, sizeof seen);
     for (i = 0; i < QD_SND_NPAGE; i++)
         for (k = 0; k < 5; k++)
-            if (QD_SND_PAGES[i].id[k] >= 0)
+            if (QD_SND_PAGES[i].id[k] >= 0) {
                 seen[QD_SND_PAGES[i].id[k]]++;
+                if (QD_SND_PAGES[i].id[k] == QD_QP_RB1)   /* (P1.5i: RATIO B, the pair: B1 and B2 in one) */
+                    seen[QD_QP_RB2]++;
+            }
     for (i = 0; i < QD_QUAD_NP; i++)
         ok &= seen[i] == 1;
-    CHECK(ok, "every one of the sound's %d values on exactly one page", QD_QUAD_NP);
+    CHECK(ok, "every one of the sound's %d values on exactly one page (RATIO B the pair B1 / B2)", QD_QUAD_NP);
     start();
     wtap(0);
     btap(QD_B_SOUND);
@@ -4040,6 +4043,50 @@ static void g_p15f_jump(void)
     CHECK(!s126 && s127, "VEL 126: the wheelie (no bus); VEL 127: the show, track 1's bus scrolls past");
 }
 
+
+/* P1.5i: the RATIO page: KNOB 3 RATIO B, ChoralRoot's pair (B1 x 19 + B2, a detent B2 carrying into B1, SHIFT B1),
+ * KNOB 4 MIX (moved from TONE: its KNOB 4 empty); a step held locks both halves */
+static void g_p15i_ratio(void)
+{
+    static ui_snd_t sv;
+    int16_t *pt;
+    start();
+    btap(QD_B_SOUND);
+    A.ui.snd_page = 0;
+    pt = A.model.t[0].patch;
+    qd_player_live_edit(&A.player, 0, QD_QP_RB1, 3);
+    qd_player_live_edit(&A.player, 0, QD_QP_RB2, 3);
+    turn(QD_K_3, 1);
+    qd_view_snd(&A, &sv);
+    CHECK(pt[QD_QP_RB1] == 3 && pt[QD_QP_RB2] == 4 && sv.pair[2] && !strcmp(sv.txt[2], "2.00") &&
+              !strcmp(sv.den[2], "1.00") && !strcmp(sv.lab[2], "RATIO B"),
+          "RATIO, KNOB 3: RATIO B 1.00/1.00 -> 2.00 over 1.00 (B2 the fast hand)");
+    qd_player_live_edit(&A.player, 0, QD_QP_RB2, 18);
+    turn(QD_K_3, 1);
+    CHECK(pt[QD_QP_RB1] == 4 && pt[QD_QP_RB2] == 0, "B2 at 16.00, +1: carries into B1 (2.00), B2 0.25");
+    bdown(SHIFT);
+    turn(QD_K_3, -2);
+    bup(SHIFT);
+    CHECK(pt[QD_QP_RB1] == 2 && pt[QD_QP_RB2] == 0, "SHIFT + KNOB 3: B1 two steps (the slow hand), B2 kept");
+    turn(QD_K_4, 20);
+    qd_view_snd(&A, &sv);
+    CHECK(pt[QD_QP_MIX] == -64 + 20 && sv.has_mix && sv.mix == -44 && !strcmp(sv.lab[3], "MIX"),
+          "KNOB 4: MIX (-64 -> -44), the drawing's balance");
+    A.ui.snd_page = 1;
+    qd_view_snd(&A, &sv);
+    CHECK(!strcmp(QD_SND_PAGES[1].name, "TONE") && !sv.has[3] && sv.has[0] && sv.has[1] && sv.has[2],
+          "TONE: HARM, DTUNE, FDBK; KNOB 4 empty");
+    A.ui.snd_page = 0;
+    wtap(3);
+    whold(3);
+    turn(QD_K_3, 1);
+    qd_view_snd(&A, &sv);
+    CHECK(LK(0, 3, QD_QP_RB1) == 2 && LK(0, 3, QD_QP_RB2) == 1 && pt[QD_QP_RB2] == 0 && sv.locked[2],
+          "a step held, KNOB 3: both halves locked (B1 2, B2 1), the track's stay");
+    wrel(3);
+    btap(QD_B_HOME);
+}
+
 int main(void)
 {
     static const struct {
@@ -4103,6 +4150,7 @@ int main(void)
         {"P1.5b: the latch modes VALUES / MODES", g_p15b_latch},
         {"P1.5d: the frames the other way round", g_p15d_frames},
         {"P1.5f: VEL 127, the stunt show", g_p15f_jump},
+        {"P1.5i: RATIO B the pair, MIX on RATIO", g_p15i_ratio},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

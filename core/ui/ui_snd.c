@@ -84,11 +84,27 @@ static void sd_algo(const ui_snd_t *v)
     for (o = 0; o < 4; o++)
         if ((out >> o) & 1u) {                          /* a carrier into the bus (from above: down its right side) */
             const float ox = dep[o] ? x[o] + 21.f : x[o];
+            /* P1.5i: MIX: an output's wires as bright and thick as its share (X: -64, Y: +63; the other faint) */
+            const float sx = v->has_mix ? (63.f - (float)v->mix) / 127.f : 1.f, sy = 1.f - sx;
+            const float sh = v->has_mix ? (((v->outx >> o) & 1u) ? sx : sy) : 1.f;
+            const float lw = v->has_mix ? 1.2f + 2.f * sh : 1.2f;
+            const qd_rgb wc = v->has_mix ? UI_K3 : UI_G1;
+            qd_save();
+            if (v->has_mix)
+                qd_alpha(0.22f + 0.78f * sh);
             if (dep[o])
-                line2(x[o] + 17.f, y[o], ox, y[o], UI_G1, 1.2f);
-            line2(ox, dep[o] ? y[o] : y[o] + 17.f, ox, 178.f, UI_G1, 1.2f);
-            ui_O(ox, 178.f, 2.f, QD_NONE, 1.f, UI_G1);
+                line2(x[o] + 17.f, y[o], ox, y[o], wc, lw);
+            line2(ox, dep[o] ? y[o] : y[o] + 17.f, ox, 178.f, wc, lw);
+            ui_O(ox, 178.f, 2.f + (v->has_mix ? sh : 0.f), QD_NONE, 1.f, wc);
+            qd_restore();
         }
+    if (v->has_mix) {                                   /* .. and a crossfader under the bus, its handle at the mix */
+        const float x0 = 150.f, x1 = 196.f, hx = x0 + (x1 - x0) * ((float)v->mix + 64.f) / 127.f;
+        line2(x0, 189.f, x1, 189.f, UI_G2, 2.f);
+        line2(x0, 185.f, x0, 193.f, UI_G1, 1.2f);
+        line2(x1, 185.f, x1, 193.f, UI_G1, 1.2f);
+        ui_RR(hx - 3.5f, 183.f, 7.f, 12.f, 2.f, QD_NONE, 1.f, SNDK[3]);
+    }
     for (t = 0; t < 4; t++)                             /* the modulations: arrows, a dot running along each */
         for (o = 0; o < 4; o++)
             if (o != t && ((v->mod[t] >> o) & 1u)) {
@@ -120,7 +136,7 @@ static void sd_algo(const ui_snd_t *v)
 static void sd_tone(const ui_snd_t *v)
 {
     const float harm = (float)v->v[0] / 100.f, dt = (float)v->v[1] / 100.f;
-    const int fb = v->v[2], mix = v->v[3];
+    const int fb = v->v[2];
     float p[2 * 41];
     int i;
     /* HARM: the partials (the bright side up the series, the dark down) */
@@ -152,14 +168,7 @@ static void sd_tone(const ui_snd_t *v)
     }
     ui_P(p, 41, SNDK[2], 1.2f, 0, QD_NONE);
     qd_arc(68.f, 146.f, 34.f, UI_PI * 1.15f, UI_PI * 1.85f, UI_G2, 1.f);
-    /* MIX: the balance X .. Y */
-    {
-        const float x = 140.f + (float)(mix + 64) / 127.f * 80.f;
-        line2(140.f, 150.f, 220.f, 150.f, UI_G2, 2.f);
-        ui_T("X", 140.f, 132.f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
-        ui_T("Y", 220.f, 132.f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
-        ui_O(x, 150.f, 6.f, QD_NONE, 1.f, SNDK[3]);
-    }
+    /* (P1.5i: MIX moved to RATIO, drawn there as the outputs' balance) */
 }
 
 static void sd_ofs(const ui_snd_t *v)
@@ -517,14 +526,26 @@ void ui_snd_draw(const ui_snd_t *v)
         w = ui_TW(v->lab[k] ? v->lab[k] : "", 12.f, 600, 0.3f);
         ui_T(v->lab[k] ? v->lab[k] : "", cx, 204.f, w > 56.f ? 12.f * 56.f / w : 12.f, 600, 0.3f,
              v->locked[k] ? UI_K3 : UI_G1, QD_CENTER);
-        if (v->locked[k] || v->lockany[k]) {            /* P1.5b: locked here a filled chip, somewhere an outlined one */
+        if (v->pair[k]) {                               /* P1.5i: a ratio pair: B2 over B1, a fraction (ChoralRoot's) */
+            const float wn = ui_TW(v->txt[k], 13.f, 600, 0.f), wd = ui_TW(v->den[k], 13.f, 600, 0.f);
+            const float wm = (wn > wd ? wn : wd) + 8.f;
+            if (v->locked[k] || v->lockany[k])
+                ui_RR(cx - wm * 0.5f - 2.f, 207.f, wm + 4.f, 31.f, 6.f, v->locked[k] ? QD_NONE : SNDK[k], 1.4f,
+                      v->locked[k] ? SNDK[k] : QD_NONE);
+            {
+                const qd_rgb tc = v->locked[k] ? UI_BG : SNDK[k];
+                ui_T(v->txt[k], cx, 220.f, 13.f, 600, 0.f, tc, QD_CENTER);
+                line2(cx - wm * 0.5f + 3.f, 223.5f, cx + wm * 0.5f - 3.f, 223.5f, tc, 1.4f);
+                ui_T(v->den[k], cx, 236.f, 13.f, 600, 0.f, tc, QD_CENTER);
+            }
+        } else if (v->locked[k] || v->lockany[k]) {     /* P1.5b: locked here a filled chip, somewhere an outlined one */
             ui_chip(v->txt[k], cx, 228.f, 16.f, 58.f, SNDK[k], v->locked[k]);
         } else {
             w = ui_TW(v->txt[k], 18.f, 500, 0.f);
             ui_T(v->txt[k], cx, 228.f, w > 56.f ? 18.f * 56.f / w : 18.f, 500, 0.f, SNDK[k], QD_CENTER);
         }
         if (v->last == k)                               /* the knob turned last: underlined */
-            line2(cx - 18.f, 236.f, cx + 18.f, 236.f, SNDK[k], 2.f);
+            line2(cx - 18.f, v->pair[k] ? 239.f : 236.f, cx + 18.f, v->pair[k] ? 239.f : 236.f, SNDK[k], 2.f);
     }
     (void)ncell;
 }

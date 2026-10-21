@@ -17,8 +17,10 @@
 /* the pages: name, group, drawing (ui.h UI_SD_*), the ids on KNOB 1..4 and ALGORITHM (-1 none), the drawing's arg */
 #define L(k, f) (QD_QP_LFO((k), (f)))
 const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
-    {"RATIO", QD_SG_OPS, UI_SD_ALGO, {QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_RB2, QD_QP_ALGO}, 0},
-    {"TONE", QD_SG_OPS, UI_SD_TONE, {QD_QP_HARM, QD_QP_DTUN, QD_QP_FDBK, QD_QP_MIX, -1}, 0},
+    /* P1.5i (the owner, as ChoralRoot and the Digitone): RATIO B is one value, the pair (QD_QP_RB1 here stands for it:
+     * B1 x 19 + B2, B2 the fast hand; snd_pair), and MIX moved here from TONE */
+    {"RATIO", QD_SG_OPS, UI_SD_ALGO, {QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_MIX, QD_QP_ALGO}, 0},
+    {"TONE", QD_SG_OPS, UI_SD_TONE, {QD_QP_HARM, QD_QP_DTUN, QD_QP_FDBK, -1, -1}, 0},
     {"OFFSET", QD_SG_OPS, UI_SD_OFS, {QD_QP_OFSC, QD_QP_OFSA, QD_QP_OFSB1, QD_QP_OFSB2, -1}, 0},
     {"ENV A", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_AATK, QD_QP_ADEC, QD_QP_AEND, QD_QP_ALEV, QD_QP_ADLY}, 0},
     {"ENV B", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_BATK, QD_QP_BDEC, QD_QP_BEND, QD_QP_BLEV, QD_QP_BDLY}, 1},
@@ -150,14 +152,19 @@ void qd_snd_black(qd_app_t *a, int b)
                 if (pg->id[k] >= 0) {
                     int16_t v;
                     n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], pg->id[k], &v);
+                    if (pg->id[k] == QD_QP_RB1)
+                        n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], QD_QP_RB2, &v);
                 }
         if (!n)
             return;
         qd_clip_keep(&u->clip, qd_ctl_cpat(a), a->seq.cur, a->sel);
         for (i = 0; i < u->nheld; i++)
             for (k = 0; k < 5; k++)
-                if (pg->id[k] >= 0)
+                if (pg->id[k] >= 0) {
                     qd_lock_clear(qd_ctl_pat(a), a->sel, u->held[i], pg->id[k]);
+                    if (pg->id[k] == QD_QP_RB1)         /* (the pair's other half) */
+                        qd_lock_clear(qd_ctl_pat(a), a->sel, u->held[i], QD_QP_RB2);
+                }
         qd_ctl_confirm(a, "LOCKS CLEARED", 0);
         return;
     }
@@ -173,6 +180,48 @@ void qd_snd_black(qd_app_t *a, int b)
     }
     u->snd_page = QD_SND_PAGES[u->snd_page].group == b && next >= 0 ? next : first;
     u->snd_knob = -1;
+}
+
+/* P1.5i: RATIO B, ChoralRoot's pair (eng_quad.c quad_get / quad_set, cr_edit.c's knob): the index B1 x 19 + B2
+ * (0..360, 1.00 / 1.00 = 60), a detent one step of it (B2 the fast hand, carrying into B1, as the Digitone's), SHIFT
+ * B1 a step (the slow hand); both written (live, or locked on the held steps: QD_QP_RB1 and QD_QP_RB2) */
+#define SND_NRCB 19
+static int snd_pair_step(int b1, int b2, int d, int fine)
+{
+    int c = b1 * SND_NRCB + b2;
+    if (fine) {
+        b1 += d;
+        b1 = b1 < 0 ? 0 : b1 > SND_NRCB - 1 ? SND_NRCB - 1 : b1;
+        return b1 * SND_NRCB + b2;
+    }
+    c += d;
+    return c < 0 ? 0 : c > SND_NRCB * SND_NRCB - 1 ? SND_NRCB * SND_NRCB - 1 : c;
+}
+static void snd_pair(qd_app_t *a, int d, int fine)
+{
+    qd_ui_t *u = &a->ui;
+    if (u->nheld) {
+        int i;
+        for (i = 0; i < u->nheld; i++) {
+            const int s = u->held[i];
+            int16_t v1, v2;
+            const int b1 = qd_lock_get(qd_ctl_cpat(a), a->sel, s, QD_QP_RB1, &v1) ? v1 : qd_step_base(a, a->sel, s, QD_QP_RB1);
+            const int b2 = qd_lock_get(qd_ctl_cpat(a), a->sel, s, QD_QP_RB2, &v2) ? v2 : qd_step_base(a, a->sel, s, QD_QP_RB2);
+            const int c = snd_pair_step(b1, b2, d, fine);
+            if (qd_lock_set(qd_ctl_pat(a), a->sel, s, QD_QP_RB1, c / SND_NRCB) == QD_EFULL ||
+                qd_lock_set(qd_ctl_pat(a), a->sel, s, QD_QP_RB2, c % SND_NRCB) == QD_EFULL) {
+                qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+                return;
+            }
+        }
+        return;
+    }
+    {
+        const int16_t *p = a->model.t[a->sel].patch;
+        const int c = snd_pair_step(p[QD_QP_RB1], p[QD_QP_RB2], d, fine);
+        qd_player_live_edit(&a->player, a->sel, QD_QP_RB1, c / SND_NRCB);
+        qd_player_live_edit(&a->player, a->sel, QD_QP_RB2, c % SND_NRCB);
+    }
 }
 
 /* a knob; 1: taken */
@@ -200,6 +249,10 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     u->snd_ms = a->ms;
     if (id < 0)
         return 1;
+    if (id == QD_QP_RB1) {                              /* P1.5i: RATIO B, the pair */
+        snd_pair(a, d, fine);
+        return 1;
+    }
     if (u->nheld) {                                     /* a finger on a step: a p-lock */
         if (!fine)
             return qd_step_lock_knob(a, knob, d);
@@ -227,6 +280,8 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
             if (pg->id[k] >= 0) {
                 int16_t v;
                 n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], pg->id[k], &v);
+                if (pg->id[k] == QD_QP_RB1)
+                    n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], QD_QP_RB2, &v);
             }
     black[10] = n ? QD_LED_LIT : QD_LED_OFF;
 }
