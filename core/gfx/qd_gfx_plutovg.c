@@ -130,6 +130,7 @@ void qd_restore(void)
 void qd_translate(float x, float y) { plutovg_canvas_translate(qd_cv, x, y); }
 void qd_scale(float sx, float sy) { plutovg_canvas_scale(qd_cv, sx, sy); }
 void qd_alpha(float a) { plutovg_canvas_set_opacity(qd_cv, a); }
+float qd_get_alpha(void) { return qd_cv ? plutovg_canvas_get_opacity(qd_cv) : 1.f; }
 void qd_clip_rect(float x, float y, float w, float h) { plutovg_canvas_clip_rect(qd_cv, x, y, w, h); }
 void qd_line_width(float w) { qd_lw = w; }
 void qd_line_cap(int cap)

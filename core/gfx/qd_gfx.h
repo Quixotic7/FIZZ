@@ -48,6 +48,7 @@ void qd_restore(void);
 void qd_translate(float x, float y);
 void qd_scale(float sx, float sy);
 void qd_alpha(float a);         /* global alpha 0..1 (absolute, as the canvas's globalAlpha) */
+float qd_get_alpha(void);       /* P1.5e: the global alpha now (a glow's strokes are a part of it) */
 void qd_clip_rect(float x, float y, float w, float h);   /* intersects the clip */
 void qd_line_width(float w);    /* the default width for qd_path_stroke */
 void qd_line_cap(int cap);      /* QD_CAP_*; default round */

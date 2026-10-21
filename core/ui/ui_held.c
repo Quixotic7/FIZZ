@@ -21,7 +21,7 @@
  *          of the knob that turns it (note 1 SELECT's yellow, notes 2..5 KNOB 1..4's blue, green, white, orange) and
  *          the five knobs over the keybed's right end, filled where they hold a note
  *   VEL    (P1.5d) a caped stunt rider doing a wheelie, riding left: the wheelie as high as the velocity, the cape
- *          streaming, speed lines; an extra kick when the step plays; the ramp as four ticks top left
+ *          streaming, speed lines; an extra kick when the step plays; the ramp as four ticks top left. P1.5e: neon
  *   LEN    the note as a bar over a ruler of the next steps, the notes before and after it; TIE a slur from the
  *          note before
  *   MICRO  the step as a tape measure: the start flag, the strum's staircase, a slow red playhead lighting the notes
@@ -222,7 +222,7 @@ static void f_note(const ui_held_t *v, const pal_t *p)
  * 0.88)^1.15 x 55 degrees (0 below), u = vel / 127; the wheels spin faster with it, the cape droops when slow and
  * streams flat, waving, when fast; the road's dashes and the speed lines run right at the speed. The value big top
  * right, the ramp's ticks top left. When the step plays: an extra kick (the front wheel up a few degrees, settling) and
- * a puff of speed lines. The bike is drawn in its own frame (the rear hub at 0, 0, the front hub at 58, 0, facing +x)
+ * a puff of speed lines. The bike is drawn in its own frame (the rear hub at 0, 0, the front hub at 60, 0, facing +x)
  * and placed by rd_* (mirrored, turned and scaled here: no rotation in the gfx layer); strokes scale, never under 1.2 */
 static float rd_tx, rd_ty, rd_a, rd_b, rd_c, rd_d, rd_k;
 static void rd_pt(float x, float y, float *X, float *Y)
@@ -231,132 +231,189 @@ static void rd_pt(float x, float y, float *X, float *Y)
     *Y = rd_ty + rd_c * x + rd_d * y;
 }
 static float rd_lw(float lw) { lw *= rd_k; return lw < 1.2f ? 1.2f : lw; }
-static void rd_path(const float *p, int n, qd_rgb col, float lw, int close, qd_rgb fill)
+
+/* P1.5e (the owner's reference, mockups/png/fizz-vel-rider-reference.png; fizz-vel-rider.html version 2): NEON. Every
+ * line glows: stroked three times, at 3.4x its width at 0.14 of the alpha, 2x at 0.3, then itself. A shape is built
+ * into the path by rn_build (a polyline, a curve through midpoints, a circle, an arc; in the rider's frame through
+ * rd_pt, or the screen's with rd_screen) and stroked by rn_glow */
+#define RN_BLUE 0x2fb4ffu                               /* the wheels, the frame, the rider's body, arm and helmet */
+#define RN_RED 0xff3b4fu                                /* the cape, the tank, the seat, the legs, the boot */
+#define RN_CREAM 0xffe7b0u                              /* the fins, the exhaust, the fork, the bars, the lamp, sparkles */
+static qd_rgb rn_blue = RN_BLUE, rn_red = RN_RED, rn_cream = RN_CREAM;   /* (an empty step: all grey) */
+enum { RN_POLY, RN_CURVE, RN_CIRC, RN_ARC };
+typedef struct {
+    int kind, n, close;
+    const float *p;
+    float x, y, r, a0, a1;
+} rn_shape_t;
+static void rd_screen(void)                             /* (the screen's own frame: the speed lines) */
 {
-    float X, Y;
-    int i;
-    qd_path_begin();
-    for (i = 0; i < n; i++) {
-        rd_pt(p[2 * i], p[2 * i + 1], &X, &Y);
-        if (i)
-            qd_line_to(X, Y);
-        else
-            qd_move_to(X, Y);
-    }
-    if (close)
-        qd_path_close();
-    qd_path_paint(col, rd_lw(lw), fill);
+    rd_tx = rd_ty = rd_b = rd_c = 0.f;
+    rd_a = rd_d = rd_k = 1.f;
 }
-static void rd_curve(const float *p, int n, qd_rgb col, float lw, int close, qd_rgb fill)   /* through the midpoints */
+static void rn_build(const rn_shape_t *s)
 {
     float X, Y, MX, MY;
     int i;
     qd_path_begin();
-    rd_pt(p[0], p[1], &X, &Y);
+    if (s->kind == RN_CIRC || s->kind == RN_ARC) {
+        float a0 = 0.f, a1 = UI_TAU;
+        rd_pt(s->x, s->y, &X, &Y);
+        if (s->kind == RN_ARC) {                        /* (mirrored and turned: the angles flip, the arc runs back) */
+            const float p = atan2f(-rd_c, -rd_a);
+            a0 = UI_PI - s->a1 + p;
+            a1 = UI_PI - s->a0 + p;
+        }
+        qd_move_to(X + cosf(a0) * s->r * rd_k, Y + sinf(a0) * s->r * rd_k);
+        qd_path_arc(X, Y, s->r * rd_k, a0, a1);
+        return;
+    }
+    rd_pt(s->p[0], s->p[1], &X, &Y);
     qd_move_to(X, Y);
-    for (i = 0; i < (close ? n : n - 1); i++) {
-        const int j = (i + 1) % n;
-        rd_pt(p[2 * i], p[2 * i + 1], &X, &Y);
-        rd_pt((p[2 * i] + p[2 * j]) * 0.5f, (p[2 * i + 1] + p[2 * j + 1]) * 0.5f, &MX, &MY);
-        qd_quad_to(X, Y, MX, MY);
-    }
-    if (!close) {
-        rd_pt(p[2 * (n - 1)], p[2 * (n - 1) + 1], &X, &Y);
-        qd_line_to(X, Y);
+    if (s->kind == RN_POLY) {
+        for (i = 1; i < s->n; i++) {
+            rd_pt(s->p[2 * i], s->p[2 * i + 1], &X, &Y);
+            qd_line_to(X, Y);
+        }
     } else {
-        qd_path_close();
+        for (i = 0; i < (s->close ? s->n : s->n - 1); i++) {
+            const int j = (i + 1) % s->n;
+            rd_pt(s->p[2 * i], s->p[2 * i + 1], &X, &Y);
+            rd_pt((s->p[2 * i] + s->p[2 * j]) * 0.5f, (s->p[2 * i + 1] + s->p[2 * j + 1]) * 0.5f, &MX, &MY);
+            qd_quad_to(X, Y, MX, MY);
+        }
+        if (!s->close) {
+            rd_pt(s->p[2 * (s->n - 1)], s->p[2 * (s->n - 1) + 1], &X, &Y);
+            qd_line_to(X, Y);
+        }
     }
-    qd_path_paint(col, rd_lw(lw), fill);
+    if (s->close)
+        qd_path_close();
 }
-static void rd_line(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
+static void rn_glow(const rn_shape_t *s, qd_rgb col, float lw)
+{
+    static const float W[3] = {3.4f, 2.f, 1.f}, AL[3] = {0.14f, 0.3f, 1.f};
+    const float a = qd_get_alpha();
+    int i;
+    for (i = 0; i < 3; i++) {
+        qd_save();
+        qd_alpha(a * AL[i]);
+        rn_build(s);
+        qd_path_stroke(col, rd_lw(lw) * W[i]);
+        qd_restore();
+    }
+}
+static void n_line(const float *p, int n, qd_rgb col, float lw)
+{
+    const rn_shape_t s = {RN_POLY, n, 0, p, 0, 0, 0, 0, 0};
+    rn_glow(&s, col, lw);
+}
+static void n_curve(const float *p, int n, qd_rgb col, float lw, int close)
+{
+    const rn_shape_t s = {RN_CURVE, n, close, p, 0, 0, 0, 0, 0};
+    rn_glow(&s, col, lw);
+}
+static void n_circ(float x, float y, float r, qd_rgb col, float lw)
+{
+    const rn_shape_t s = {RN_CIRC, 0, 0, 0, x, y, r, 0, 0};
+    rn_glow(&s, col, lw);
+}
+static void n_arc(float x, float y, float r, float a0, float a1, qd_rgb col, float lw)
+{
+    const rn_shape_t s = {RN_ARC, 0, 0, 0, x, y, r, a0, a1};
+    rn_glow(&s, col, lw);
+}
+static void n_seg(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
 {
     const float p[4] = {x0, y0, x1, y1};
-    rd_path(p, 2, col, lw, 0, QD_NONE);
+    n_line(p, 2, col, lw);
 }
-static void rd_circle(float x, float y, float r, qd_rgb col, float lw, qd_rgb fill)
+static void n_tube(const float *p, int n, qd_rgb col, float w)   /* a limb: a wide line, a black core (two lines) */
 {
-    float X, Y;
-    rd_pt(x, y, &X, &Y);
-    ui_O(X, Y, r * rd_k, col, col == QD_NONE ? 1.f : rd_lw(lw), fill);
+    const rn_shape_t s = {RN_POLY, n, 0, p, 0, 0, 0, 0, 0};
+    n_line(p, n, col, w);
+    rn_build(&s);
+    qd_path_stroke(UI_BG, (w - 2.6f) * rd_k);
 }
-
-static void rd_wheel(float x, float y, float spin, qd_rgb col)   /* a spoked wheel, turning */
+static void n_sparkle(float x, float y, float r, qd_rgb col)
 {
-    int k;
-    rd_circle(x, y, 16.f, col, 1.8f, UI_BG);
-    rd_circle(x, y, 12.5f, col, 1.f, QD_NONE);
-    rd_circle(x, y, 2.6f, col, 1.4f, QD_NONE);
-    for (k = 0; k < 6; k++) {
-        const float a = spin + (float)k * UI_TAU / 6.f;
-        rd_line(x + cosf(a) * 3.f, y + sinf(a) * 3.f, x + cosf(a) * 12.f, y + sinf(a) * 12.f, col, 0.9f);
-    }
+    n_seg(x - r, y, x + r, y, col, 1.2f);
+    n_seg(x, y - r, x, y + r, col, 1.2f);
 }
 
-/* the bike and the rider in their own frame; u the velocity 0..1 (the cape's flow), t seconds; col the lines, cape the
- * cape and the helmet's stripe, wh the cape's stripe, its star and the visor */
-static void rider(float u, float t, qd_rgb col, qd_rgb cape, qd_rgb wh)
+static void rd_wheel(float x, float y, float spin)      /* two blue rings, a red hub; a cream tick on the inner ring */
 {
-    const float flow = 0.15f + 0.85f * u, flap = sinf(t * (6.f + 10.f * u)) * (1.f + 3.f * u);
-    const float sx = 19.f, sy = -41.f, L = 34.f + 16.f * u;
-    const float tipX = sx - L * (0.35f + 0.65f * flow), tipY = sy + L * (1.f - flow) * 0.9f + flap;
-    const float midX = (sx + tipX) / 2.f, midY = (sy + tipY) / 2.f - 4.f * flow + flap * 0.6f;
-    const float spin = -t * (4.f + 30.f * u);
+    n_circ(x, y, 16.f, rn_blue, 1.6f);
+    n_circ(x, y, 11.f, rn_blue, 1.4f);
+    n_circ(x, y, 3.6f, rn_red, 1.4f);
+    n_seg(x + cosf(spin) * 7.f, y + sinf(spin) * 7.f, x + cosf(spin) * 9.5f, y + sinf(spin) * 9.5f, rn_cream, 1.3f);
+}
+
+/* the bike and the rider in their own frame, facing +x: the rear hub at 0, 0, the front hub at 60, 0, the road at
+ * y 16; u the velocity 0..1, t seconds */
+static void rider(float u, float t)
+{
+    const float sx = 20.f, sy = -43.f, L = 30.f + 26.f * u, sag = (1.f - u) * 14.f;
+    const float w1 = sinf(t * (5.f + 9.f * u)) * (1.f + 2.5f * u), w2 = sinf(t * (5.f + 9.f * u) + 1.7f) * (1.5f + 3.f * u);
+    const float ex = sx - L, ey = sy + sag, spin = t * (3.f + 26.f * u);
     int k;
-    {   /* the cape, behind everything: from the shoulders, drooping when slow, streaming flat and waving when fast */
-        const float cp[12] = {sx + 1.f, sy - 2.f, midX, midY - 6.f, tipX, tipY - 7.f, tipX - 2.f, tipY + 3.f,
-                              midX + 2.f, midY + 9.f, sx - 1.f, sy + 9.f};
-        const float st[6] = {sx, sy + 3.f, midX + 1.f, midY + 1.f, tipX, tipY - 1.f};
-        float sp[20];
-        rd_curve(cp, 6, cape, 1.6f, 1, UI_BG);
-        rd_path(st, 3, wh, 1.f, 0, QD_NONE);            /* a white stripe down it */
-        for (k = 0; k < 10; k++) {                      /* a small star */
-            const float a = -UI_PI / 2.f + (float)k * UI_PI / 5.f, rr = k % 2 ? 3.2f * 0.45f : 3.2f;
-            sp[2 * k] = midX - 2.f + cosf(a) * rr;
-            sp[2 * k + 1] = midY + 2.f + sinf(a) * rr;
-        }
-        rd_path(sp, 10, wh, 1.1f, 1, QD_NONE);
+    {   /* the cape, behind everything: a flag from the shoulders streaming back at shoulder height, its end forked;
+         * slow it hangs a little and is short, fast it is long, flat and waving; two cream sparkles on it */
+        const float cape[18] = {sx + 1.f, sy - 3.f, sx - L * 0.35f, sy - 5.f + sag * 0.3f + w1,
+                                sx - L * 0.7f, sy - 6.f + sag * 0.7f + w2, ex - 4.f, ey - 9.f + w2,
+                                ex + 4.f, ey - 1.f + w1 * 0.5f, ex - 2.f, ey + 6.f + w1,
+                                sx - L * 0.6f, sy + 5.f + sag * 0.75f + w1, sx - L * 0.25f, sy + 6.f + sag * 0.3f,
+                                sx - 1.f, sy + 5.f};
+        n_curve(cape, 9, rn_red, 1.5f, 1);
+        n_sparkle(sx - L * 0.45f, sy + sag * 0.45f + w1 * 0.5f, 2.6f, rn_cream);
+        n_sparkle(sx - L * 0.7f, sy - 1.f + sag * 0.7f + w2 * 0.5f, 1.8f, rn_cream);
     }
-    /* the bike */
-    rd_wheel(0.f, 0.f, spin, col);
-    rd_wheel(58.f, 0.f, spin, col);
+    /* the bike: wheels, the blue frame, the red tank and seat, the cream fins, exhaust, fork, bars and lamp */
+    rd_wheel(0.f, 0.f, spin);
+    rd_wheel(60.f, 0.f, spin);
     {
-        const float fender[8] = {-12, -4, -10, -15, 2, -19, 10, -17};
-        const float engine[8] = {18, -14, 35, -14, 35, 1, 18, 1};
-        const float exhaust[6] = {28, 0, 6, -2, -6, -6};
-        const float tank[8] = {20, -16, 26, -24, 38, -24, 42, -17};
-        const float bars[8] = {42, -18, 46, -30, 42, -36, 38, -37};
-        rd_curve(fender, 4, col, 1.4f, 0, QD_NONE);     /* the rear fender */
-        rd_line(0.f, 0.f, 20.f, -7.f, col, 1.6f);       /* the swingarm */
-        rd_path(engine, 4, col, 1.5f, 1, UI_BG);        /* the engine block */
-        for (k = 0; k < 3; k++)
-            rd_line(21.f + (float)k * 4.5f, -12.f, 21.f + (float)k * 4.5f, -2.f, col, 0.9f);
-        rd_path(exhaust, 3, col, 1.4f, 0, QD_NONE);     /* the exhaust */
-        rd_curve(tank, 4, col, 1.6f, 0, QD_NONE);       /* the tank */
-        rd_line(4.f, -18.f, 20.f, -18.f, col, 2.f);     /* the seat */
-        rd_line(58.f, 0.f, 46.f, -30.f, col, 1.8f);     /* the fork, raked */
-        rd_path(bars, 4, col, 1.6f, 0, QD_NONE);        /* the bars, high */
+        static const float back[6] = {0, 0, 20, -10, 44, -18}, down[6] = {44, -18, 34, -2, 20, -10};
+        static const float tank[12] = {16, -20, 22, -26, 40, -26, 46, -21, 40, -17, 22, -17};
+        static const float seat[10] = {-4, -18, 0, -22, 16, -22, 18, -19, 4, -17};
+        static const float exh[10] = {30, -3, 26, 1, 16, 2, 4, 1, -4, -3};
+        static const float bars[6] = {49, -30, 45, -35, 41, -35};
+        static const float lamp[8] = {52, -33, 56, -33, 56, -28, 52, -28};
+        n_line(back, 3, rn_blue, 1.5f);                 /* the swingarm and the backbone */
+        n_line(down, 3, rn_blue, 1.5f);                 /* the down tube */
+        n_curve(tank, 6, rn_red, 1.5f, 1);
+        n_curve(seat, 5, rn_red, 1.5f, 1);
+        for (k = 0; k < 3; k++)                         /* the fins */
+            n_seg(22.f + (float)k * 4.f, -13.f, 27.f + (float)k * 4.f, -7.f, rn_cream, 1.2f);
+        n_curve(exh, 5, rn_cream, 1.3f, 0);
+        n_seg(60.f, 0.f, 49.f, -30.f, rn_cream, 1.6f);  /* the fork */
+        n_line(bars, 3, rn_cream, 1.4f);
+        n_curve(lamp, 4, rn_cream, 1.4f, 1);
     }
-    {   /* the rider: a leg to the peg, the back leaning in, the arm to the bars, the helmet (its stripe, its visor) */
-        const float leg[8] = {14, -22, 27, -14, 24, -3, 28, -2};
-        const float arm[6] = {21, -40, 31, -34, 39, -36};
-        rd_path(leg, 4, col, 1.8f, 0, QD_NONE);
-        rd_line(14.f, -22.f, 20.f, -41.f, col, 2.f);
-        rd_path(arm, 3, col, 1.6f, 0, QD_NONE);
-        rd_circle(23.f, -48.f, 6.5f, col, 1.7f, UI_BG);
-        rd_line(18.5f, -52.5f, 27.f, -53.5f, cape, 1.4f);
-        rd_line(26.f, -50.f, 29.5f, -47.f, wh, 1.6f);
+    {   /* the rider: red legs as tubes, a red boot, the blue body and arm, the blue helmet, its sparkle and visor */
+        static const float leg[6] = {12, -26, 29, -21, 25, -6}, boot[8] = {22, -6, 30, -6, 30, -3, 22, -3};
+        static const float body[4] = {13, -26, 21, -44}, arm[6] = {22, -42, 33, -37, 43, -35};
+        n_tube(leg, 3, rn_red, 5.2f);
+        n_line(boot, 4, rn_red, 1.4f);
+        n_tube(body, 2, rn_blue, 6.f);
+        n_tube(arm, 3, rn_blue, 4.6f);
+        n_circ(26.f, -53.f, 8.5f, rn_blue, 1.6f);
+        n_arc(27.f, -53.f, 6.f, -0.9f, 0.9f, rn_blue, 1.3f);
+        n_sparkle(22.5f, -55.f, 2.2f, rn_cream);
     }
 }
 
 static void f_vel(const ui_held_t *v, const pal_t *p)
 {
     const float u = v->vel < 0 ? 0.f : v->vel > 127 ? 1.f : (float)v->vel / 127.f;
-    const float gy = 206.f, rx = 150.f, k = 1.4f, sp = 20.f + 260.f * u;
+    const float gy = 206.f, rx = 138.f, k = 1.4f, sp = 20.f + 260.f * u;
     const float play = v->play >= 0.f && v->play < 0.4f && !p->empty ? v->play / 0.4f : -1.f;
     float pitch = powf(u > 0.12f ? (u - 0.12f) / 0.88f : 0.f, 1.15f) * (55.f * UI_PI / 180.f);
     char s[12];
     int i, n;
 
+    rn_blue = p->empty ? UI_G2 : RN_BLUE;
+    rn_red = p->empty ? UI_G2 : RN_RED;
+    rn_cream = p->empty ? UI_G1 : RN_CREAM;
     qd_save();
     qd_translate(0.f, -8.f);                            /* (the mock-up's own coordinates: the body is drawn 8 lower) */
     if (play >= 0.f)                                    /* the step plays: an extra kick, the front wheel up, settling */
@@ -367,20 +424,26 @@ static void f_vel(const ui_held_t *v, const pal_t *p)
         const float x = fmodf(v->t * sp + (float)i * 48.f, 288.f) - 24.f;
         line2(x, gy + 12.f, x + 18.f, gy + 12.f, UI_G2, 1.6f);
     }
-    /* speed lines streaming behind (right of) the rider, more and longer with the velocity, clear of the bike */
-    n = (int)lroundf(1.f + 6.f * u);
-    for (i = 0; i < n; i++) {
-        const float y = 112.f + (float)i * 12.f, x = fmodf(v->t * sp * 1.4f + (float)i * 67.f, 260.f) - 20.f;
-        if (x > 40.f && x < 210.f && y > 100.f)
-            continue;
-        line2(x, y, x + 8.f + 34.f * u, y, UI_G2, 1.2f);
+    /* speed lines behind (right of) the rear wheel: dashed rows, blue, cream and red, more and longer with the speed */
+    rd_screen();
+    n = 1 + (int)lroundf(2.f * u);
+    for (i = 0; i < n && i < 3; i++) {
+        const qd_rgb cols[3] = {rn_blue, rn_cream, rn_red};
+        const float y = gy - 30.f + (float)i * 9.f, run = fmodf(v->t * sp * 0.6f + (float)i * 13.f, 26.f);
+        const float L = 6.f + 14.f * u;
+        int d;
+        for (d = 0; d < 2; d++) {
+            const float x = rx + 30.f + run + (float)d * (L + 6.f);
+            n_seg(x, y, x + L, y, cols[i], 1.4f);
+        }
     }
-    if (play >= 0.f) {                                  /* .. and a puff of them off the rear wheel */
+    if (play >= 0.f) {                                  /* .. and a puff of them off the rear wheel as it kicks */
         qd_save();
-        qd_alpha(1.f - play);
+        qd_alpha(qd_get_alpha() * (1.f - play));
         for (i = 0; i < 5; i++) {
             const float x = rx + 26.f + play * 40.f + (float)(i % 2) * 10.f, y = gy - 8.f - (float)i * 9.f;
-            line2(x, y, x + 14.f + (float)(i % 3) * 5.f, y, p->k[0], 1.3f);
+            n_seg(x, y, x + 14.f + (float)(i % 3) * 5.f, y, i % 3 == 0 ? rn_blue : i % 3 == 1 ? rn_cream : rn_red,
+                  1.3f);
         }
         qd_restore();
     }
@@ -389,7 +452,7 @@ static void f_vel(const ui_held_t *v, const pal_t *p)
     rd_tx = rx, rd_ty = gy - 16.f * k;
     rd_a = -k * cosf(pitch), rd_b = -k * sinf(pitch);
     rd_c = -k * sinf(pitch), rd_d = k * cosf(pitch);
-    rider(u, v->t, p->k[0], p->empty ? UI_G2 : UI_K4, p->empty ? UI_G1 : UI_K3);
+    rider(u, v->t);
     /* the value big, top right; the ratchet's ramp as four ticks, top left */
     if (!p->nobig) {
         if (p->empty)

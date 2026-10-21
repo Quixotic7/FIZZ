@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5d)
+# Playing FIZZ (P1.5e)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -97,8 +97,11 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
    with the track's scale small at the top left; a chord the unit knows is named big over the notes.
    On **VEL** (P1.5d) a caped stunt rider rides left: the higher the velocity the higher the wheelie (about the rear
    wheel, flat below about 15, 55 degrees at 127), the faster the wheels, the road and the speed lines, and the
-   flatter the cape streams. The value is big at the top right, the ratchet ramp's four ticks at the top left. When
-   the step plays, the bike kicks: the front wheel bounces up a little and settles, with a puff of speed lines.
+   longer and flatter the cape streams. The value is big at the top right, the ratchet ramp's four ticks at the top
+   left. When the step plays, the bike kicks: the front wheel bounces up a little and settles, with a puff of speed
+   lines. It is drawn in neon (P1.5e, the owner's reference): every line glows; the bike, the rider and the helmet
+   blue, the cape (a forked flag with two sparkles), the tank, the seat and the legs red, the engine, the fork and the
+   sparkles cream; the speed lines behind the rear wheel in dashed rows of the three.
 3. **Turn the knobs** (table below), or press a black key **B1 .. B10** for one of ten values (shortcuts).
    ALGORITHM also turns the main value.
 4. **B11** puts the step back on the track's default.
