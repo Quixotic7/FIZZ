@@ -1611,3 +1611,8 @@ invalid values refused with a shake, release stays on the page; with a step held
 numbered dot, `UI_LFO_COL` cyan / yellow / violet) by the label of every modulated value.
 - 2026-10-21, the owner on P1.5k: hold-to-map (hold an LFO key, turn a value's knob to make it the destination and set
   the depth) is "quite good": keep it as it is; carry it into Phase 2 unchanged.
+
+**2026-10-21, P1.5l** (FMToneSeq 81cee6c; FM1VST `core-quadrille` 6fbd2ed; version 0.5.9-p1.5l; relaunched): the
+editor's black keys regrouped (the owner): B1 TRIG / KEYS, B2 OPERATORS, B3 OP ENVELOPES (ENV A, ENV B), B4 FILTERS,
+B5 ENVELOPES, B6..B8 LFO 1..3 (page, WAVE); MODULATION gone; a fresh start opens on RATIO, then the last page used;
+tests and renders find pages by name (`qd_snd_page_of`).
