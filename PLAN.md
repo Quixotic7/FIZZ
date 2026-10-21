@@ -1582,3 +1582,8 @@ with `qd_get_alpha()`), tubes, ringed wheels, the forked cape. A held VEL frame 
 stunt show (`rd_jump`, `rd_bus`, `rd_ramp`, `rd_fireworks` in ui_held.c, the mock-up's constants): the bus jump with
 fireworks wherever the VEL picture shows 127, a burst of its own when the step plays there. A jump frame 0.9 ms on the
 Mac against 0.53 ms for the wheelie.
+
+**2026-10-21, P1.5g** (FMToneSeq 72858f1; FM1VST `core-quadrille` faa6032; version 0.5.4-p1.5g; relaunched): VEL 127's
+show version 2 (`rd_show`): the bike stays as at 126 (rear axle x 138, scale 1.4, the full wheelie), the ramps and the
+eight buses scroll under it, a small arc, three bursts as the buses' middle passes; a burst of its own at (70, 92) when
+the step plays at 127. A show frame about 1.0 ms on the Mac (the wheelie 0.53 ms).
