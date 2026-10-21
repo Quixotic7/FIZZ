@@ -3980,31 +3980,40 @@ static void g_p15d_frames(void)
 
 
 /* P1.5f: VEL 127 is the stunt show (its buses in the tracks' colours on the road), 126 the wheelie */
-static uint32_t px_at(int x, int y)
+static int bus_seen(void)                               /* over one loop (2.6 s): track 1's colour on the road's row */
 {
     static uint16_t lcd[QD_W * QD_H];
     const uint8_t *b = (const uint8_t *)lcd;
-    uint16_t v;
-    qd_app_frame(&A, lcd);
-    v = (uint16_t)(b[2 * (y * QD_W + x)] << 8 | b[2 * (y * QD_W + x) + 1]);
-    return (uint32_t)((v >> 11) & 31u) << 19 | (uint32_t)((v >> 5) & 63u) << 10 | (uint32_t)(v & 31u) << 3;
+    int f, x, y;
+    for (f = 0; f < 130; f++) {
+        run(20);
+        qd_app_frame(&A, lcd);
+        for (y = 186; y < 204; y++)
+            for (x = 0; x < QD_W; x++) {
+                const uint16_t v = (uint16_t)(b[2 * (y * QD_W + x)] << 8 | b[2 * (y * QD_W + x) + 1]);
+                const uint32_t c = (uint32_t)((v >> 11) & 31u) << 19 | (uint32_t)((v >> 5) & 63u) << 10 |
+                                   (uint32_t)(v & 31u) << 3;
+                if (near_col(c, UI_TRACK_PAL[0]))
+                    return 1;
+            }
+    }
+    return 0;
 }
+/* P1.5f / P1.5g: VEL 127 is the stunt show (the buses scroll under the bike: track 1's at some point of the loop),
+ * 126 the wheelie (none) */
 static void g_p15f_jump(void)
 {
-    int y, hit126 = 0, hit127 = 0;
+    int s126, s127;
     start();
     wtap(4);
     mode(M_VEL);
     qd_step_set_vel(PAT(), 0, 4, 126);
     whold(4);
-    for (y = 186; y < 204; y++)                         /* the first bus's left side, x 70 */
-        hit126 |= near_col(px_at(70, y), UI_TRACK_PAL[0]);
+    s126 = bus_seen();
     qd_step_set_vel(PAT(), 0, 4, 127);
-    run(30);
-    for (y = 186; y < 204; y++)
-        hit127 |= near_col(px_at(70, y), UI_TRACK_PAL[0]);
+    s127 = bus_seen();
     wrel(4);
-    CHECK(!hit126 && hit127, "VEL 126: the wheelie (no bus); VEL 127: the stunt show, the first bus in track 1's colour");
+    CHECK(!s126 && s127, "VEL 126: the wheelie (no bus); VEL 127: the show, track 1's bus scrolls past");
 }
 
 int main(void)

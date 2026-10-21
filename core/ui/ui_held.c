@@ -224,7 +224,7 @@ static void f_note(const ui_held_t *v, const pal_t *p)
  * right, the ramp's ticks top left. When the step plays: an extra kick (the front wheel up a few degrees, settling) and
  * a puff of speed lines. The bike is drawn in its own frame (the rear hub at 0, 0, the front hub at 60, 0, facing +x)
  * and placed by rd_* (mirrored, turned and scaled here: no rotation in the gfx layer); strokes scale, never under 1.2 */
-static float rd_tx, rd_ty, rd_a, rd_b, rd_c, rd_d, rd_k;
+static float rd_tx, rd_ty, rd_a, rd_b, rd_c, rd_d, rd_k, rd_ty_lift;
 static void rd_pt(float x, float y, float *X, float *Y)
 {
     *X = rd_tx + rd_a * x + rd_b * y;
@@ -402,29 +402,20 @@ static void rider(float u, float t)
     }
 }
 
-/* P1.5f (the owner: "something special" at the maximum; fizz-vel-rider.html jump(), bus(), ramp(), fireworks()): VEL
- * 127 is the stunt show. A cream takeoff ramp (foot x 222, lip 180), eight neon buses in the tracks' colours, a cream
- * landing ramp (lip 64, foot 18), 15 high; the rider (0.72) comes in from the right and crosses in RD_JUMP_S seconds,
- * round again while the value stays 127: on the ground both wheels follow the ramps (their heights under the rear and
- * the front wheel set the pitch), between the lips a parabola 58 high, nose up at takeoff and down for the landing;
- * three firework bursts over the buses after the top of the arc. When the step plays: a burst of its own */
+/* P1.5f / P1.5g (the owner: "something special" at the maximum, then "the motorcycle should visually stay in the
+ * same spot"; fizz-vel-rider.html version 2, show()): VEL 127 is the stunt show under the same bike as 126 (its place,
+ * its scale, its full wheelie). The world scrolls right under it at RD_SHOW_V px/s, once every RD_JUMP_S s: a cream
+ * takeoff ramp (its foot met first, 26 wide, 10 high), eight neon buses in the tracks' colours (14 wide, 17 tall, 3
+ * apart), a cream landing ramp. The rear wheel rides up the ramp, flies an arc 16 high over the buses (the nose up
+ * by 0.18 sin(pi f)), lands on the far ramp; three firework bursts over the buses as their middle passes the bike.
+ * rd_show draws the world and gives the bike's lift (px up) and pitch change; nothing else about the bike moves */
 #define RD_JUMP_S 2.6f
-static void rd_bus(float x, float gy, qd_rgb col)       /* a little neon bus: its body, a window line, two wheels */
-{
-    const float w = 11.f, h = 13.f, y = gy - h - 3.f;
-    const float b[16] = {x + 2.f, y, x + w - 2.f, y, x + w, y + 2.f, x + w, y + h - 2.f, x + w - 2.f, y + h,
-                         x + 2.f, y + h, x, y + h - 2.f, x, y + 2.f};
-    const rn_shape_t s = {RN_POLY, 8, 1, b, 0, 0, 0, 0, 0};
-    rn_glow(&s, col, 1.3f);
-    n_seg(x + 2.f, gy - h + 1.f, x + w - 2.f, gy - h + 1.f, col, 1.f);
-    n_circ(x + 3.f, gy - 2.5f, 1.6f, col, 1.f);
-    n_circ(x + w - 3.f, gy - 2.5f, 1.6f, col, 1.f);
-}
-static void rd_ramp(float x0, float x1, float gy, float h)   /* a wedge: x0 its foot, x1 its lip */
-{
-    const float r[6] = {x0, gy, x1, gy - h, x1, gy};
-    n_line(r, 3, rn_cream, 1.5f);
-}
+#define RD_SHOW_V 200.f
+#define RD_RAMP_W 26.f
+#define RD_RAMP_H 10.f
+#define RD_BUS_W 14.f
+#define RD_BUS_GAP 3.f
+#define RD_ARC 16.f
 static void rd_fireworks(float x, float y, float age, float seed)   /* a burst: out, falling a little, fading */
 {
     const float a0 = qd_get_alpha();
@@ -441,46 +432,48 @@ static void rd_fireworks(float x, float y, float age, float seed)   /* a burst: 
         qd_restore();
     }
 }
-static float rd_ramp_h(float x)                          /* the ramps' height under x */
+static void rd_show(float t, float rx, float gy, float *lift, float *dp)
 {
-    if (x <= 222.f && x > 180.f)
-        return 15.f * (222.f - x) / 42.f;
-    if (x < 64.f && x >= 18.f)
-        return 15.f * (x - 18.f) / 46.f;
-    return 0.f;
-}
-static void rd_jump(float t, float play)
-{
-    const float gy = 206.f, k = 0.72f, hub = 16.f * k, wb = 60.f * k, tx1 = 180.f, lx1 = 64.f;
-    const float s = fmodf(t, RD_JUMP_S) / RD_JUMP_S, x = 262.f + (-50.f - 262.f) * s;   /* the rear hub, right to left */
-    const float apex = (262.f - (tx1 + lx1) / 2.f) / 312.f;
-    float y, pitch;
+    const float s = fmodf(t, RD_JUMP_S), off = RD_SHOW_V * s;
+    const float F = -40.f + off, L = F - RD_RAMP_W;    /* the takeoff ramp: its foot (met first), its lip */
+    const float B0 = L - 6.f, LL = B0 - 8.f * (RD_BUS_W + RD_BUS_GAP) - 4.f, LF = LL - RD_RAMP_W;   /* the buses, the
+                                                         * landing ramp's lip and foot */
+    const float L0 = -40.f - RD_RAMP_W, LL0 = L0 - 6.f - 8.f * (RD_BUS_W + RD_BUS_GAP) - 4.f;
+    const float tTop = (rx - (L0 + LL0) / 2.f) / RD_SHOW_V;   /* when the middle of the buses passes the bike */
     int i;
     rd_screen();
-    line2(0.f, gy, 240.f, gy, UI_G2, 1.2f);
-    rd_ramp(222.f, tx1, gy, 15.f);
-    rd_ramp(18.f, lx1, gy, 15.f);
-    for (i = 0; i < 8; i++)
-        rd_bus(70.f + (float)i * 13.5f, gy, rn_blue == RN_BLUE ? UI_TRACK_PAL[i] : UI_G2);
-    if (x <= tx1 && x > lx1) {                          /* flying: a parabola, nose up, then down */
-        const float f = (tx1 - x) / (tx1 - lx1);
-        y = gy - hub - 15.f - 58.f * 4.f * f * (1.f - f);
-        pitch = 0.42f + (-0.34f - 0.42f) * f;
-    } else {                                            /* on the ground: both wheels on the road or the ramps */
-        const float hr = rd_ramp_h(x), hf = x - wb > lx1 && x - wb <= tx1 ? 15.f : rd_ramp_h(x - wb);
-        y = gy - hub - hr;
-        pitch = atan2f(hf - hr, wb);
+    {
+        const float r1[6] = {F, gy, L, gy - RD_RAMP_H, L, gy}, r2[6] = {LF, gy, LL, gy - RD_RAMP_H, LL, gy};
+        n_line(r1, 3, rn_cream, 1.6f);
+        n_line(r2, 3, rn_cream, 1.6f);
     }
-    rd_fireworks(112.f, 118.f, (s - apex) / 0.3f, 0.2f);   /* three bursts after the top of the arc */
-    rd_fireworks(70.f, 136.f, (s - apex - 0.08f) / 0.3f, 1.1f);
-    rd_fireworks(150.f, 134.f, (s - apex - 0.14f) / 0.3f, 2.3f);
-    if (play >= 0.f)                                    /* the step plays: a burst of its own */
-        rd_fireworks(120.f, 104.f, play, 0.7f);
-    rd_k = k;
-    rd_tx = x, rd_ty = y;
-    rd_a = -k * cosf(pitch), rd_b = -k * sinf(pitch);
-    rd_c = -k * sinf(pitch), rd_d = k * cosf(pitch);
-    rider(1.f, t);
+    for (i = 0; i < 8; i++) {                           /* the buses: a body, a window line, two wheels */
+        const float x = B0 - (float)(i + 1) * (RD_BUS_W + RD_BUS_GAP) + RD_BUS_GAP, h = 17.f, y = gy - h - 3.f;
+        const float w = RD_BUS_W, r = 2.5f;
+        const float b[16] = {x + r, y, x + w - r, y, x + w, y + r, x + w, y + h - r, x + w - r, y + h,
+                             x + r, y + h, x, y + h - r, x, y + r};
+        const rn_shape_t sh = {RN_POLY, 8, 1, b, 0, 0, 0, 0, 0};
+        const qd_rgb col = rn_blue == RN_BLUE ? UI_TRACK_PAL[i] : UI_G2;
+        if (x > 250.f || x + w < -10.f)
+            continue;
+        rn_glow(&sh, col, 1.4f);
+        n_seg(x + 2.5f, gy - h + 1.5f, x + w - 2.5f, gy - h + 1.5f, col, 1.1f);
+        n_circ(x + 3.5f, gy - 3.f, 2.f, col, 1.1f);
+        n_circ(x + w - 3.5f, gy - 3.f, 2.f, col, 1.1f);
+    }
+    *lift = 0.f, *dp = 0.f;
+    if (rx <= F && rx > L) {                            /* up the takeoff ramp */
+        *lift = RD_RAMP_H * (F - rx) / RD_RAMP_W;
+    } else if (rx <= L && rx > LL) {                    /* the arc over the buses */
+        const float f = (L - rx) / (L - LL);
+        *lift = RD_RAMP_H + RD_ARC * 4.f * f * (1.f - f);
+        *dp = 0.18f * sinf(UI_PI * f);
+    } else if (rx <= LL && rx > LF) {                   /* down the landing ramp */
+        *lift = RD_RAMP_H * (rx - LF) / RD_RAMP_W;
+    }
+    rd_fireworks(52.f, 70.f, (s - tTop) / 0.75f, 0.2f); /* fireworks over the buses, left of the number */
+    rd_fireworks(26.f, 112.f, (s - tTop - 0.1f) / 0.75f, 1.1f);
+    rd_fireworks(96.f, 52.f, (s - tTop - 0.18f) / 0.75f, 2.3f);
 }
 
 static void f_vel(const ui_held_t *v, const pal_t *p)
@@ -497,11 +490,7 @@ static void f_vel(const ui_held_t *v, const pal_t *p)
     rn_cream = p->empty ? UI_G1 : RN_CREAM;
     qd_save();
     qd_translate(0.f, -8.f);                            /* (the mock-up's own coordinates: the body is drawn 8 lower) */
-    if (v->vel >= 127) {                                /* P1.5f: the stunt show (the step playing: a burst, ~0.7 s) */
-        rd_jump(v->t, v->play >= 0.f && v->play < 0.7f && !p->empty ? v->play / 0.7f : -1.f);
-        goto value;
-    }
-    if (play >= 0.f)                                    /* the step plays: an extra kick, the front wheel up, settling */
+    if (play >= 0.f && v->vel < 127)                    /* the step plays: an extra kick, the front wheel up, settling */
         pitch += sinf(play * UI_PI) * (1.f - play) * (9.f * UI_PI / 180.f);
     /* the road: its edge and its dashes running past (to the right) at the speed */
     line2(0.f, gy, 240.f, gy, UI_G2, 1.2f);
@@ -522,7 +511,7 @@ static void f_vel(const ui_held_t *v, const pal_t *p)
             n_seg(x, y, x + L, y, cols[i], 1.4f);
         }
     }
-    if (play >= 0.f) {                                  /* .. and a puff of them off the rear wheel as it kicks */
+    if (play >= 0.f && v->vel < 127) {                  /* .. and a puff of them off the rear wheel as it kicks */
         qd_save();
         qd_alpha(qd_get_alpha() * (1.f - play));
         for (i = 0; i < 5; i++) {
@@ -532,13 +521,22 @@ static void f_vel(const ui_held_t *v, const pal_t *p)
         }
         qd_restore();
     }
+    if (v->vel >= 127) {                                /* P1.5g: the stunt show under the same bike: its lift, its nose */
+        float lift, dp;
+        rd_show(v->t, rx, gy, &lift, &dp);
+        if (v->play >= 0.f && v->play < 0.75f && !p->empty)   /* the step plays: a burst of its own over the buses */
+            rd_fireworks(70.f, 92.f, v->play / 0.75f, 0.7f);
+        pitch += dp;
+        rd_ty_lift = lift;
+    } else {
+        rd_ty_lift = 0.f;
+    }
     /* the wheelie: about the rear axle, mirrored to ride left */
     rd_k = k;
-    rd_tx = rx, rd_ty = gy - 16.f * k;
+    rd_tx = rx, rd_ty = gy - 16.f * k - rd_ty_lift;
     rd_a = -k * cosf(pitch), rd_b = -k * sinf(pitch);
     rd_c = -k * sinf(pitch), rd_d = k * cosf(pitch);
     rider(u, v->t);
-value:
     /* the value big, top right; the ratchet's ramp as four ticks, top left */
     if (!p->nobig) {
         if (p->empty)

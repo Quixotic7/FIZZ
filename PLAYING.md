@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5f)
+# Playing FIZZ (P1.5g)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -102,9 +102,10 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
    lines. It is drawn in neon (P1.5e, the owner's reference): every line glows; the bike, the rider and the helmet
    blue, the cape (a forked flag with two sparkles), the tank, the seat and the legs red, the engine, the fork and the
    sparkles cream; the speed lines behind the rear wheel in dashed rows of the three.
-   **At VEL 127 it is a stunt show** (P1.5f): the rider jumps eight buses in the tracks' colours, ramp to ramp, with
-   fireworks over them, round again while the value stays 127 (126 is the wheelie again); when the step plays, a
-   firework of its own.
+   **At VEL 127 it is a stunt show** (P1.5g): the bike stays exactly where it is at 126, in its full wheelie, and the
+   world scrolls under it every 2.6 s: a ramp, eight buses in the tracks' colours, a landing ramp; the rear wheel rides
+   up, arcs over the buses and lands, with fireworks over them. 126 is the plain wheelie again; when the step plays at
+   127, a firework of its own.
 3. **Turn the knobs** (table below), or press a black key **B1 .. B10** for one of ten values (shortcuts).
    ALGORITHM also turns the main value.
 4. **B11** puts the step back on the track's default.
