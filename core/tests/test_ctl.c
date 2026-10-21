@@ -3978,6 +3978,35 @@ static void g_p15d_frames(void)
     btap(QD_B_HOME);
 }
 
+
+/* P1.5f: VEL 127 is the stunt show (its buses in the tracks' colours on the road), 126 the wheelie */
+static uint32_t px_at(int x, int y)
+{
+    static uint16_t lcd[QD_W * QD_H];
+    const uint8_t *b = (const uint8_t *)lcd;
+    uint16_t v;
+    qd_app_frame(&A, lcd);
+    v = (uint16_t)(b[2 * (y * QD_W + x)] << 8 | b[2 * (y * QD_W + x) + 1]);
+    return (uint32_t)((v >> 11) & 31u) << 19 | (uint32_t)((v >> 5) & 63u) << 10 | (uint32_t)(v & 31u) << 3;
+}
+static void g_p15f_jump(void)
+{
+    int y, hit126 = 0, hit127 = 0;
+    start();
+    wtap(4);
+    mode(M_VEL);
+    qd_step_set_vel(PAT(), 0, 4, 126);
+    whold(4);
+    for (y = 186; y < 204; y++)                         /* the first bus's left side, x 70 */
+        hit126 |= near_col(px_at(70, y), UI_TRACK_PAL[0]);
+    qd_step_set_vel(PAT(), 0, 4, 127);
+    run(30);
+    for (y = 186; y < 204; y++)
+        hit127 |= near_col(px_at(70, y), UI_TRACK_PAL[0]);
+    wrel(4);
+    CHECK(!hit126 && hit127, "VEL 126: the wheelie (no bus); VEL 127: the stunt show, the first bus in track 1's colour");
+}
+
 int main(void)
 {
     static const struct {
@@ -4040,6 +4069,7 @@ int main(void)
         {"P1.5b: knob acceleration", g_p15b_accel},
         {"P1.5b: the latch modes VALUES / MODES", g_p15b_latch},
         {"P1.5d: the frames the other way round", g_p15d_frames},
+        {"P1.5f: VEL 127, the stunt show", g_p15f_jump},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

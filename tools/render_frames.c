@@ -61,7 +61,8 @@ int render_p14b(const char *out);                       /* render_p14b.c: the tr
 int render_p15a(const char *out, const char *mocks);    /* render_p15a.c: the library, the pool, the project */
 int render_p15b(const char *out);                       /* render_p15b.c: live play in the editor, chips, FX, latch */
 int render_p15d(const char *out);                       /* render_p15d.c: the frames the other way round */
-int render_p15e(const char *out);                       /* render_p15e.c: the VEL rider in neon */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
+int render_p15e(const char *out);                       /* render_p15e.c: the VEL rider in neon */
+int render_p15f(const char *out);                       /* render_p15f.c: VEL 127, the stunt show */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
 int render_p13p(const char *out);                       /* render_p13p.c (P1.3p: replaces render_p13o.c) */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
@@ -215,7 +216,7 @@ int main(int argc, char **argv)
         if (!qd_init())
             return 1;
         qd_text_stats_reset();
-        failed = !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
+        failed = !strcmp(only, "p15f") ? render_p15f(out) : !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
                : !strcmp(only, "p14a") ? render_p14a(out) : 2;
         {
             const char *small = "";
@@ -415,6 +416,7 @@ int main(int argc, char **argv)
     failed |= render_p15b(out);                         /* P1.5b: the owner's eight points */
     failed |= render_p15d(out);                         /* P1.5d: the frames */
     failed |= render_p15e(out);                         /* P1.5e: the neon rider */
+    failed |= render_p15f(out);                         /* P1.5f: VEL 127's stunt show */
     {   /* P1.3v: the clarity guard over every frame rendered: no text under 11 px */
         const char *small = "";
         const float mn = qd_text_stats_min(&small);
