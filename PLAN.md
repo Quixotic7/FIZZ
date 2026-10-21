@@ -973,7 +973,8 @@ reverb, chorus). PAGE's jobs move: page follow to the settings, pages to SELECT 
 - **P1.5a, saving, the library and the pool:** the project written by itself into the core's flash image (FM1VST keeps
   it between launches; the floating page store of §7, the device's own way), eight projects; SAVE stores the track's
   sound in the user library, F2 adds it to the project's pool; the sounds page and the project page (below).
-- **P1.5b:** **8 undo levels**, **snapshots of the pattern** (the owner: all 8 tracks' steps, sounds and settings;
+- **P1.5b:** version 2.4 (below: live play in the editor, the scale keys, lock marks, FX overview and routing, knob
+  acceleration, two latch modes). **P1.5c:** **8 undo levels**, **snapshots of the pattern** (the owner: all 8 tracks' steps, sounds and settings;
   store, recall: a performance tool), **randomise a sound** (in the sound editor).
 - **P1.6a, the arpeggiator:** ARP tapped = on / off (the keyboard), ARP held = FILL, SHIFT + ARP = its settings (mode,
   rate, octaves, gate, latch).
@@ -1026,6 +1027,50 @@ the snapshots of P1.5b); names **from the sound**.
 bubbles rise off one when it is written), the flash meter and the pool's count. SELECT or SEQ again: **the projects**,
 eight on W1..W8: W chooses, **F2 loads** (an empty one starts a new project), F1 + W copies one, B11 + W deletes, B10
 names.
+
+### Version 2.4 (2026-10-21, the owner after playing 0.4.1): P1.5b
+
+The owner's eight points, each with how it is to be built (P1.5b; the undo / snapshots / randomise milestone becomes
+P1.5c).
+
+1. **Live play in the sound editor.** The owner: "You can only use the sound editor while programming steps. I would
+   like to be able to live play." REC tapped (the keyboard) must work with the editor open. In the editor with the
+   keyboard on, **the black keys stay the editor's page shortcuts and the 16 white keys play the track's scale**
+   (W1 the root at the keyboard's octave, then each scale degree upwards; chromatic = 16 semitones; F1 / F2 the octave).
+   The owner also wants **the full keyboard** there: a record setting **KNOB 4 EDIT KEYS: SCALE / FULL** (SHIFT + REC;
+   FULL = every key plays as the keyboard does now, the pages then only on SELECT). Outside the editor the keyboard
+   stays as it is (full).
+2. **The scale while playing live.** With the keyboard on (playing or stopped), **SHIFT + PRESETS (scale) and SHIFT +
+   ALGORITHM (root) work**, in the editor too: there SHIFT + ALGORITHM / PRESETS mean the scale and root, and the fine
+   step of P1.4a stays on SHIFT + KNOB 1..4 and SELECT. **The keys light the scale**: the root's keys at 80 %, the
+   other in-scale keys at 50 %, out-of-scale keys dark (in the SCALE layout every white key is in the scale: roots 80,
+   the rest 50); a key playing at 100 %.
+3. **Locks without the padlock.** The owner dislikes the padlock. **A value locked on the held step is highlighted**:
+   its value drawn as a filled chip in its knob's colour with black text, and its part of the drawing at full
+   strength. **With no step held, a value that any step of the track locks gets a quieter mark**: the same chip
+   outlined (not filled) in its knob's colour. One rule: outline = locked somewhere, filled = locked here. The padlock
+   goes everywhere (the editor, P-LOCK, the pool's lock count can keep a small chip instead).
+4. **The editor's header.** The page dots move with the page name's width: **dots first (fixed, left), then the
+   name**.
+5. **FX: an overview page with the sends** (where FX opens): three columns, CHORUS, DELAY, REVERB, each with the eight
+   tracks' send bars in the tracks' colours; the selected track's bars bright. **KNOB 1..3 the selected track's
+   chorus, delay and reverb sends**; **W1..W8 choose the track** on this page (FX held + ALGORITHM still too).
+6. **FX: a routing page**: the chain drawn (the tracks' bus, CHORUS, DELAY, REVERB, the master filter, out) with what
+   can be rerouted on the knobs. First read ChoralRoot's fx (cr_fx.c, fx.c) for any routing it has and use that;
+   otherwise add cross-feeds (KNOB 1 DELAY → REVERB, KNOB 2 CHORUS → DELAY, KNOB 3 CHORUS → REVERB, KNOB 4 the master
+   filter before or after the effects), **every default ChoralRoot's routing so the bit-exact tests stay identical**.
+   FX's black keys: B1 OVERVIEW, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING (a key again = its next page).
+7. **Knob acceleration** on every encoder: detents close together move further (×1 slow, rising to about a
+   sixteenth of the range per detent when spun), so a full sweep is one fast turn and single steps stay easy; values
+   with few steps (enumerations, ≤ 24 steps) never accelerate; SHIFT + a knob stays the finest step.
+8. **Two latch modes.** **Hold LFO (alone, released after 400 ms with no other key) switches the latch mode**, kept as a
+   global setting and reused whenever the latch is turned on again:
+   - **VALUES** (as now): with the latch on, the black keys set values for the selected steps.
+   - **MODES**: with the latch on, the black keys choose the hold mode (as with nothing held), and **the knobs set the
+     selected steps' values for that mode** (as the held-step screen's knobs do). **Holding a step**, the black keys
+     are the value shortcuts as always.
+   A takeover shows the mode on the switch (two drawings: keys as values / keys as modes); LFO is lit full in VALUES,
+   at half in MODES. LFO held + a black key still selects the hold mode.
 
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
