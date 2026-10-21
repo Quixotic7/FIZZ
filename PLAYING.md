@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5g)
+# Playing FIZZ (P1.5h)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -183,9 +183,11 @@ and chance; a LOCK step's runs too).
   again, the knobs edit the track's defaults. Tap a step to select again.
 - **LFO** again or **HOME** turns it off.
 - **Hold LFO + a black key**: that mode, without touching the latch or the selection (a plain tap still toggles).
-- **Two latch modes** (P1.5b). **Hold LFO alone** (400 ms, no other key) and let go: the latch mode switches, a
-  picture shows which (two drawings: the keys as values / the keys as modes). It is kept (a global setting) and used
-  every time you turn the latch on.
+- **Two latch modes** (P1.5b; P1.5h). **Hold LFO alone** (400 ms, no other key): while you hold it, a screen shows the
+  latch mode (two drawings: the keys as values / the keys as modes, the current one lit). **Turn SELECT** to switch it
+  (it changes at once); let go of LFO and the screen closes, the mode as shown. Letting go without a turn changes
+  nothing. A black key instead closes the screen and picks that hold mode. The mode is kept (a global setting) and
+  used every time you turn the latch on.
   - **VALUES** (as before): with the latch on, the black keys set values for the selected steps. LFO lit full.
   - **MODES**: with the latch on, the black keys choose the hold mode (as with nothing held) and **the knobs set the
     selected steps' values for that mode**. While a finger holds a step, the black keys are its values as always.

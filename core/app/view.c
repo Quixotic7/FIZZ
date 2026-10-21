@@ -1482,7 +1482,9 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         draw_idle(a);
         break;
     }
-    if (u->tk == QD_TK_LMODE) {                         /* P1.5b: the latch mode switched (over every screen) */
+    if (u->lmode_open) {                                /* P1.5h: LFO held: the latch mode's screen, while held */
+        ui_lmode_draw(u->lmode, secs(a->ms));
+    } else if (u->tk == QD_TK_LMODE) {                  /* P1.5b: the latch mode switched (over every screen) */
         const uint32_t d = a->ms - u->tk_ms;
         const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
         if (al > 0.f) {

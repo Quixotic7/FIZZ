@@ -3887,13 +3887,28 @@ static void g_p15b_latch(void)
     CHECK(A.ui.slatch && A.ui.lmode == QD_LMODE_VALUES && leds().button[QD_B_MUTE] == QD_LED_LIT, "LFO: the latch, VALUES, lit full");
     mode(M_VEL);
     CHECK(A.ui.hmode == M_NOTE && R(0, 1).vel != 0, "VALUES: a black key is a value (the mode stays NOTE)");
-    bdown(QD_B_MUTE);
-    run(450);
+    bdown(QD_B_MUTE);                                   /* P1.5h: the screen while held, SELECT turns it */
+    run(350);
+    CHECK(!A.ui.lmode_open, "LFO held 350 ms: no screen yet");
+    run(100);
+    CHECK(A.ui.lmode_open && A.ui.lmode == QD_LMODE_VALUES, "LFO held 450 ms alone: the latch mode's screen, while held");
     bup(QD_B_MUTE);
     run(10);
-    CHECK(A.ui.slatch && A.ui.lmode == QD_LMODE_MODES && A.ui.tk == QD_TK_LMODE &&
-              leds().button[QD_B_MUTE] == QD_LED_HALF,
-          "LFO held 450 ms alone: MODES (the takeover; the latch stays; LFO at half)");
+    CHECK(!A.ui.lmode_open && A.ui.lmode == QD_LMODE_VALUES && A.ui.slatch,
+          "let go without a turn: the screen closes, nothing changed (no toggle), the latch stays");
+    bdown(QD_B_MUTE);
+    run(450);
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.lmode_open && A.ui.lmode == QD_LMODE_MODES, "SELECT +1 on the screen: MODES at once, the screen stays");
+    turn(QD_K_1, 3);
+    turn(QD_K_SELECT, -1);
+    CHECK(A.ui.lmode == QD_LMODE_VALUES && R(0, A.ui.held[0]).vel == R(0, A.ui.held[0]).vel,
+          "SELECT -1: VALUES (KNOB 1 nothing meanwhile)");
+    turn(QD_K_SELECT, 1);
+    bup(QD_B_MUTE);
+    run(10);
+    CHECK(A.ui.slatch && A.ui.lmode == QD_LMODE_MODES && !A.ui.lmode_open && leds().button[QD_B_MUTE] == QD_LED_HALF,
+          "let go: the screen closes, MODES kept (the latch stays; LFO at half)");
     mode(M_VEL);
     CHECK(A.ui.hmode == M_VEL, "MODES: B2 chooses VEL");
     v0 = R(0, A.ui.held[0]).vel;
@@ -3910,16 +3925,25 @@ static void g_p15b_latch(void)
     run(100);
     black(B3);
     run(400);
+    CHECK(!A.ui.lmode_open, "LFO held + B3 first: no screen after");
     bup(QD_B_MUTE);
     run(10);
     CHECK(A.ui.lmode == QD_LMODE_MODES && A.ui.hmode == M_LEN && A.ui.slatch, "LFO held + B3: LEN, no switch");
+    bdown(QD_B_MUTE);
+    run(450);
+    black(B4);
+    CHECK(!A.ui.lmode_open && A.ui.hmode == M_MICRO && A.ui.lmode == QD_LMODE_MODES,
+          "the screen up, B4: it closes, MICRO chosen, the latch mode kept");
+    bup(QD_B_MUTE);
+    run(10);
     btap(QD_B_MUTE);
     CHECK(!A.ui.slatch, "LFO tapped: the latch off");
     bdown(QD_B_MUTE);
     run(450);
+    turn(QD_K_SELECT, -2);
     bup(QD_B_MUTE);
     run(10);
-    CHECK(A.ui.lmode == QD_LMODE_VALUES && !A.ui.slatch, "LFO held alone again: VALUES (the latch stays off)");
+    CHECK(A.ui.lmode == QD_LMODE_VALUES && !A.ui.slatch, "LFO held, SELECT down: VALUES (the latch stays off)");
     btap(QD_B_HOME);
 }
 

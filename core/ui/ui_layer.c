@@ -520,7 +520,7 @@ void ui_lmode_draw(int mode, float t)
 {
     int side, i;
     (void)t;
-    ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 0.f, QD_NONE, 1.f, UI_BG);
+    qd_fill_rect(0.f, 0.f, (float)QD_W, (float)QD_H, UI_BG);
     for (side = 0; side < 2; side++) {
         const float x0 = 12.f + (float)side * 112.f;
         const int on = side == mode;

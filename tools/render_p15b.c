@@ -274,19 +274,21 @@ int render_p15b(const char *out)
     /* 10 .. 11: the latch modes */
     wtap(5);
     btap(QD_B_MUTE);
-    bdown(QD_B_MUTE);
+    bdown(QD_B_MUTE);                                   /* (P1.5h: the screen while held, SELECT turns it) */
     run(450);
+    turn(QD_K_SELECT, 1);
+    run(200);
+    shot("lmode", "LFO held alone: the latch mode, SELECT: MODES", 1);
     bup(QD_B_MUTE);
     run(300);
-    shot("lmode", "LFO held alone: the latch mode, MODES (LFO at half)", 1);
-    run(1200);
     black(1);
     run(300);
     shot("lmode-vel", "MODES: B2 chose VEL, the knobs set the selection's", 1);
     bdown(QD_B_MUTE);
     run(450);
+    turn(QD_K_SELECT, -1);
     bup(QD_B_MUTE);
-    run(1300);
+    run(300);
     btap(QD_B_HOME);
 
     /* 12: the record settings */

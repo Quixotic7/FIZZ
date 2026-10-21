@@ -114,7 +114,8 @@
  *   FX: B1 OVERVIEW (where it opens: the sends; W1..W8 the track, KNOB 1..3 its sends), B2 DELAY, B3 REVERB, B4
  *   CHORUS, B5 MASTER, B6 ROUTING (qd_fx.h QD_FXP_XDR .. XPOS, all 0: ChoralRoot's chain).
  *   ACCELERATION: qd_ctl_acc (every wide value; 24 steps or fewer never; SHIFT never).
- *   LATCH MODES: LFO held alone QD_LFO_HOLD_MS switches VALUES / MODES (QD_TK_LMODE); in MODES, no finger on a
+ *   LATCH MODES (P1.5h): LFO held alone QD_LFO_HOLD_MS opens the latch-mode screen while held (lmode_open), SELECT
+ *   turns VALUES / MODES there (set at once), the release closes it (no toggle); in MODES, no finger on a
  *   step, the black keys choose the hold mode (the knobs set the selection's values as ever). */
 #pragma once
 #include <stdint.h>
@@ -165,8 +166,8 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TK_PRESET 100               /* the pool picker: the track's sound, or the held steps' sound lock */
 #define QD_TK_DEFAULT 101              /* a default turned, nothing held (P1.3e: the mode's full TRACK DEFAULT picture) */
 #define QD_TK_HELDKNOB 102             /* P1.3d: a knob turned with a step held: the band over the held step's screen */
-#define QD_TK_LMODE 103                /* P1.5b: LFO held alone: the latch mode switched (VALUES / MODES) */
-#define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone (released with no other key): the latch mode */
+#define QD_TK_LMODE 103                /* P1.5b: the latch mode's screen (P1.5h: only while LFO is held: lmode_open) */
+#define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
 enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes */
 
 /* P1.3d (§8b 2.2): the knobs' jobs in the hold modes (qd_ctl_knob_job: one table, [mode][SELECT, KNOB 1..4]); with a
@@ -353,6 +354,7 @@ typedef struct {
     int lfo_used;                      /* P1.3y: LFO held picked a hold mode (B1..B11): its release is no tap */
     uint32_t lfo_ms;                   /* P1.5b: LFO went down (held QD_LFO_HOLD_MS alone: the latch mode) */
     int lmode;                         /* P1.5b: the latch mode (QD_LMODE_*; a global setting, saved) */
+    int lmode_open;                    /* P1.5h: LFO held alone: the latch mode's screen is up (SELECT turns it) */
     int fn_leap, fn_target;            /* P1.3y, FUNC: the last LEAP's n (2) and JUMP's target (-1: the step's page start) */
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
     int knobs;                         /* P1.3y: the encoders' layout (QD_KNOBS_*; the global settings) */

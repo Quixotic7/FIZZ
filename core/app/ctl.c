@@ -261,8 +261,8 @@ static int touch(qd_app_t *a)
     a->ui.touch_ms = a->ms;
     if (held(a, QD_B_FUNC))
         a->ui.shift_used = 1;
-    if (held(a, QD_B_MUTE))
-        a->ui.lfo_used = 1;                             /* (P1.5b: LFO with a knob or a key: no latch-mode switch) */
+    if (held(a, QD_B_MUTE) && !a->ui.lmode_open)
+        a->ui.lfo_used = 1;                             /* (P1.5b: LFO with a knob or a key: no latch-mode screen) */
     if (a->ui.mode == QD_MODE_IDLE) {
         a->ui.mode = QD_MODE_STEP;
         return 1;
@@ -803,8 +803,11 @@ void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
             a->ui.sel_used = 1;                         /* (P1.3y: SEL's map at once) */
         if (held(a, QD_B_MIX))
             a->ui.seq_used = 1;                         /* (P1.5a: SEQ's map at once, its release no tap) */
-        if (held(a, QD_B_MUTE))
-            a->ui.lfo_used = 1;                         /* (P1.5b: LFO with a key is no latch-mode switch) */
+        if (held(a, QD_B_MUTE)) {
+            a->ui.lfo_used = 1;                         /* (P1.5b: LFO with a key is no latch-mode switch; P1.5h: a key
+                                                         * closes its screen) */
+            a->ui.lmode_open = 0;
+        }
         for (i = 0; i < n; i++)
             if (rows[i].when(a)) {
                 a->ui.key_row[key] = (int8_t)(i + 1);   /* the row that took the press takes the release */
@@ -878,22 +881,27 @@ static void b_home(qd_app_t *a, int down)
 
 /* P1.3d (§8b 2.2): LFO (printed) toggles the step latch: as if a step is always held, a W tap selects (ctl_step.c) */
 /* P1.3y: LFO held + a black key: that hold mode (the latch untouched); a tap (no black key between) toggles it */
-/* P1.5b: LFO held QD_LFO_HOLD_MS alone (no other key, released): the latch mode switched (VALUES <-> MODES), its
- * takeover shows it */
+/* P1.5h (the owner: the switch "only pops up and shows after releasing the hold"): LFO held QD_LFO_HOLD_MS alone opens
+ * the latch mode's screen while it is held (qd_ctl_ms); SELECT turns VALUES / MODES there (set at once); the release
+ * closes it, keeping the mode shown (no toggle); a black key closes it and picks the hold mode */
 static void b_lfo(qd_app_t *a, int down)
 {
     if (down) {
         a->ui.lfo_used = 0;
         a->ui.lfo_ms = a->ms;
+        a->ui.lmode_open = 0;
+        return;
+    }
+    if (a->ui.lmode_open) {                             /* the screen closes; the mode stays as shown */
+        a->ui.lmode_open = 0;
+        if (a->ui.tk == QD_TK_LMODE)
+            a->ui.tk = QD_TK_NONE;
         return;
     }
     if (a->ui.lfo_used || a->ui.mode != QD_MODE_STEP)
         return;
-    if (a->ms - a->ui.lfo_ms >= QD_LFO_HOLD_MS) {
-        a->ui.lmode = a->ui.lmode == QD_LMODE_VALUES ? QD_LMODE_MODES : QD_LMODE_VALUES;
-        qd_ctl_takeover(a, QD_TK_LMODE, 0, 1, 0, -1);
+    if (a->ms - a->ui.lfo_ms >= QD_LFO_HOLD_MS)         /* (held long, the screen never opened: nothing) */
         return;
-    }
     if (!a->ui.slatch && a->ui.latch != QD_LATCH_SND)
         qd_latch_close(a);                              /* (F3's menu gives way to the selection; P1.4a: the sound
                                                          * editor takes it: the selection's turns are its p-locks) */
@@ -1495,10 +1503,21 @@ static int k_fx_track(qd_app_t *a, int knob, int d)
 }
 
 static int when_keys_shift(const qd_app_t *a) { return qd_keys_on(a) && qd_ctl_shift(a); }
+/* P1.5h: the latch mode's screen up (LFO held): SELECT VALUES / MODES (set at once, saved), the other knobs nothing */
+static int when_lmode(const qd_app_t *a) { return a->ui.lmode_open; }
+static int k_lmode(qd_app_t *a, int knob, int d)
+{
+    if (knob == QD_K_SELECT && d) {
+        a->ui.lmode = d > 0 ? QD_LMODE_MODES : QD_LMODE_VALUES;
+        a->ui.lfo_used = 1;
+    }
+    return 1;
+}
 static const struct {
     qd_when_fn when;
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
+    {when_lmode, k_lmode},             /* P1.5h: LFO held, its screen up: SELECT the latch mode */
     {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track (over every page) */
     {when_keys_shift, scale_root},     /* P1.5b: the keyboard on (the editor's too), SHIFT: ALGORITHM the scale, PRESETS
                                         * the root, recording or not */
@@ -1555,6 +1574,9 @@ void qd_ctl_ms(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     qd_lib_ms(a);                                       /* P1.5a: the sounds page's sound heard */
+    if (held(a, QD_B_MUTE) && !u->lfo_used && !u->lmode_open && u->mode == QD_MODE_STEP &&
+        a->ms - u->lfo_ms >= QD_LFO_HOLD_MS)
+        u->lmode_open = 1;                              /* P1.5h: LFO held alone: the latch mode's screen, while held */
     qd_step_promote_due(a);                             /* a white key down 250 ms: held */
     f1_timers(a);                                       /* F1: a page key held 400 ms, B9 held 600 ms */
     sel_seq_timers(a);                                  /* SEL + W held: solo; SEQ + W held: at once */
