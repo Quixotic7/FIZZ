@@ -65,7 +65,8 @@ int render_p15e(const char *out);                       /* render_p15e.c: the VE
 int render_p15f(const char *out);                       /* render_p15f.c: VEL 127, the stunt show */
 int render_p15g(const char *out);                       /* render_p15g.c: VEL 127, the show under the same bike */
 int render_p15h(const char *out);                       /* render_p15h.c: the latch mode while LFO is held */
-int render_p15i(const char *out);                       /* render_p15i.c: RATIO B as one value, MIX on RATIO */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
+int render_p15i(const char *out);                       /* render_p15i.c: RATIO B as one value, MIX on RATIO */
+int render_p15j(const char *out);                       /* render_p15j.c: the editor's foot, RATIO, the mix */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
 int render_p13p(const char *out);                       /* render_p13p.c (P1.3p: replaces render_p13o.c) */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
@@ -219,7 +220,7 @@ int main(int argc, char **argv)
         if (!qd_init())
             return 1;
         qd_text_stats_reset();
-        failed = !strcmp(only, "p15i") ? render_p15i(out) : !strcmp(only, "p15h") ? render_p15h(out) : !strcmp(only, "p15g") ? render_p15g(out) : !strcmp(only, "p15f") ? render_p15f(out) : !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
+        failed = !strcmp(only, "p15j") ? render_p15j(out) : !strcmp(only, "p15i") ? render_p15i(out) : !strcmp(only, "p15h") ? render_p15h(out) : !strcmp(only, "p15g") ? render_p15g(out) : !strcmp(only, "p15f") ? render_p15f(out) : !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
                : !strcmp(only, "p14a") ? render_p14a(out) : 2;
         {
             const char *small = "";
@@ -423,6 +424,7 @@ int main(int argc, char **argv)
     failed |= render_p15g(out);                         /* P1.5g: .. under the same bike */
     failed |= render_p15h(out);                         /* P1.5h: the latch mode while LFO is held */
     failed |= render_p15i(out);                         /* P1.5i: RATIO B, MIX on RATIO */
+    failed |= render_p15j(out);                         /* P1.5j: the editor's foot, RATIO, the mix */
     {   /* P1.3v: the clarity guard over every frame rendered: no text under 11 px */
         const char *small = "";
         const float mn = qd_text_stats_min(&small);

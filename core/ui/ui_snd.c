@@ -6,7 +6,14 @@
 
 static const qd_rgb SNDK[5] = {UI_K1, UI_K2, UI_K3, UI_K4, UI_KALG};   /* KNOB 1..4, ALGORITHM */
 #define SD_TOP 32.f                                     /* the drawing's area */
-#define SD_BOT 182.f
+#define SD_BOT 180.f                                    /* (P1.5j: the foot's labels from 184) */
+/* P1.5j: the foot, four fixed columns inside the frame's 4 px margin (the frame 3 px: its inner edge at 3) */
+#define SD_FOOT_X 7.f
+#define SD_COL_W 56.5f
+#define SD_LAB_Y 193.f                                  /* the labels' baseline (12 px) */
+#define SD_CHIP_Y 200.f                                 /* the chips: every column's the same */
+#define SD_CHIP_W 52.5f
+#define SD_CHIP_H 32.f                                  /* (RATIO B's two lines; its foot at 232: 4 px clear) */
 
 static float sd_clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
 
@@ -49,87 +56,121 @@ static float sd_wave(int w, float u)
 }
 
 /* ---------------------------------------------------------------- the pictures */
+/* P1.5j: a colour faded by a share (0..1): towards its grey and darker, never under SD_FADE_FLOOR */
+#define SD_FADE_FLOOR 0.3f
+static qd_rgb sd_fade(qd_rgb c, float share)
+{
+    const float r = (float)((c >> 16) & 255u), g = (float)((c >> 8) & 255u), b = (float)(c & 255u);
+    const float l = 0.3f * r + 0.59f * g + 0.11f * b, sat = share, br = SD_FADE_FLOOR + (1.f - SD_FADE_FLOOR) * share;
+    const float rr = (l + (r - l) * sat) * br, gg = (l + (g - l) * sat) * br, bb = (l + (b - l) * sat) * br;
+    return (qd_rgb)((uint32_t)(rr > 255.f ? 255.f : rr) << 16 | (uint32_t)(gg > 255.f ? 255.f : gg) << 8 |
+                    (uint32_t)(bb > 255.f ? 255.f : bb));
+}
+
+/* the operators wired by the algorithm. P1.5j (the owner): shorter, the bus and the speaker higher (SD_BUS_Y), a deep
+ * chain zig-zagging; with MIX (the RATIO page): each operator faded by its output's share (an operator only in X's chain
+ * X's, only in Y's Y's, in both full), the wires to the bus as thick as their share, and the mix's own row: a slider
+ * centred under the drawing, X's end and Y's marked by their carriers' colours, the handle in KNOB 4's orange */
+#define SD_BUS_Y 150.f
+#define SD_OPR 14.f
 static void sd_algo(const ui_snd_t *v)
 {
     int dep[4] = {0, 0, 0, 0}, row[4], n[4] = {0, 0, 0, 0}, o, t, it, md = 0;
-    float x[4], y[4], sp;
+    unsigned reach[4];
+    float x[4], y[4], sp, sh[4];
     const unsigned out = (unsigned)(v->outx | v->outy);
+    const float sx = v->has_mix ? (63.f - (float)v->mix) / 127.f : 1.f, sy = 1.f - sx;
     for (it = 0; it < 4; it++)                          /* a modulator sits above what it modulates */
         for (t = 0; t < 4; t++)
             for (o = 0; o < 4; o++)
                 if (o != t && ((v->mod[t] >> o) & 1u) && dep[o] < dep[t] + 1)
                     dep[o] = dep[t] + 1;
+    for (o = 0; o < 4; o++) {                           /* which outputs each operator reaches (bit 0 X, 1 Y) */
+        reach[o] = ((v->outx >> o) & 1u) | (((v->outy >> o) & 1u) << 1);
+    }
+    for (it = 0; it < 4; it++)
+        for (t = 0; t < 4; t++)
+            for (o = 0; o < 4; o++)
+                if (o != t && ((v->mod[t] >> o) & 1u))
+                    reach[o] |= reach[t];
+    for (o = 0; o < 4; o++)
+        sh[o] = !v->has_mix || reach[o] == 3u || !reach[o] ? 1.f : reach[o] == 1u ? sx : sy;
     for (o = 0; o < 4; o++) {
         row[o] = n[dep[o] > 3 ? 3 : dep[o]]++;
         md = dep[o] > md ? dep[o] : md;
     }
-    sp = md >= 3 ? 38.f : 46.f;
+    sp = md >= 3 ? 27.f : md == 2 ? 34.f : 40.f;
     for (o = 0; o < 4; o++) {
         const int d = dep[o] > 3 ? 3 : dep[o], cnt = n[d];
-        x[o] = 112.f + ((float)row[o] - (float)(cnt - 1) * 0.5f) * 64.f;
-        y[o] = 148.f - (float)d * sp;
+        x[o] = 112.f + ((float)row[o] - (float)(cnt - 1) * 0.5f) * 60.f + (md >= 3 && cnt == 1 ? (d % 2 ? 20.f : -20.f) : 0.f);
+        y[o] = SD_BUS_Y - 26.f - (float)d * sp;
     }
-    line2(18.f, 178.f, 196.f, 178.f, UI_G2, 1.2f);      /* the bus, the speaker */
+    line2(18.f, SD_BUS_Y, 196.f, SD_BUS_Y, UI_G2, 1.2f);   /* the bus, the speaker */
     {
-        const float sp[8] = {200.f, 172.f, 206.f, 172.f, 206.f, 184.f, 200.f, 184.f};
-        const float co[8] = {206.f, 172.f, 214.f, 165.f, 214.f, 191.f, 206.f, 184.f};
+        const float by = SD_BUS_Y;
+        const float spk[8] = {200.f, by - 6.f, 206.f, by - 6.f, 206.f, by + 6.f, 200.f, by + 6.f};
+        const float co[8] = {206.f, by - 6.f, 214.f, by - 13.f, 214.f, by + 13.f, 206.f, by + 6.f};
         const float pulse = v->t * 2.f - floorf(v->t * 2.f);
-        ui_P(sp, 4, UI_G1, 1.2f, 1, QD_NONE);
+        ui_P(spk, 4, UI_G1, 1.2f, 1, QD_NONE);
         ui_P(co, 4, UI_G1, 1.2f, 1, QD_NONE);
         qd_save();
         qd_alpha(1.f - pulse);
-        qd_arc(214.f, 178.f, 8.f + pulse * 8.f, -0.7f, 0.7f, UI_G1, 1.2f);
+        qd_arc(214.f, by, 8.f + pulse * 8.f, -0.7f, 0.7f, UI_G1, 1.2f);
         qd_restore();
     }
     for (o = 0; o < 4; o++)
         if ((out >> o) & 1u) {                          /* a carrier into the bus (from above: down its right side) */
-            const float ox = dep[o] ? x[o] + 21.f : x[o];
-            /* P1.5i: MIX: an output's wires as bright and thick as its share (X: -64, Y: +63; the other faint) */
-            const float sx = v->has_mix ? (63.f - (float)v->mix) / 127.f : 1.f, sy = 1.f - sx;
-            const float sh = v->has_mix ? (((v->outx >> o) & 1u) ? sx : sy) : 1.f;
-            const float lw = v->has_mix ? 1.2f + 2.f * sh : 1.2f;
-            const qd_rgb wc = v->has_mix ? UI_K3 : UI_G1;
-            qd_save();
-            if (v->has_mix)
-                qd_alpha(0.22f + 0.78f * sh);
+            const float ox = dep[o] ? x[o] + SD_OPR + 4.f : x[o];
+            /* P1.5i: MIX: an output's wires as thick as its share (X: -64, Y: +63); P1.5j: faded with it */
+            const float s1 = v->has_mix ? (((v->outx >> o) & 1u) ? sx : sy) : 1.f;
+            const float lw = v->has_mix ? 1.2f + 2.f * s1 : 1.2f;
+            const qd_rgb wc = v->has_mix ? sd_fade(UI_K3, s1) : UI_G1;
             if (dep[o])
-                line2(x[o] + 17.f, y[o], ox, y[o], wc, lw);
-            line2(ox, dep[o] ? y[o] : y[o] + 17.f, ox, 178.f, wc, lw);
-            ui_O(ox, 178.f, 2.f + (v->has_mix ? sh : 0.f), QD_NONE, 1.f, wc);
-            qd_restore();
+                line2(x[o] + SD_OPR, y[o], ox, y[o], wc, lw);
+            line2(ox, dep[o] ? y[o] : y[o] + SD_OPR, ox, SD_BUS_Y, wc, lw);
+            ui_O(ox, SD_BUS_Y, 2.f + (v->has_mix ? s1 : 0.f), QD_NONE, 1.f, wc);
         }
-    if (v->has_mix) {                                   /* .. and a crossfader under the bus, its handle at the mix */
-        const float x0 = 150.f, x1 = 196.f, hx = x0 + (x1 - x0) * ((float)v->mix + 64.f) / 127.f;
-        line2(x0, 189.f, x1, 189.f, UI_G2, 2.f);
-        line2(x0, 185.f, x0, 193.f, UI_G1, 1.2f);
-        line2(x1, 185.f, x1, 193.f, UI_G1, 1.2f);
-        ui_RR(hx - 3.5f, 183.f, 7.f, 12.f, 2.f, QD_NONE, 1.f, SNDK[3]);
-    }
     for (t = 0; t < 4; t++)                             /* the modulations: arrows, a dot running along each */
         for (o = 0; o < 4; o++)
             if (o != t && ((v->mod[t] >> o) & 1u)) {
                 const float dx = x[t] - x[o], dy = y[t] - y[o], l = sqrtf(dx * dx + dy * dy);
                 const float ux = dx / l, uy = dy / l, u = v->t * 1.2f + (float)(o + t) * 0.27f;
-                const float f = u - floorf(u);
-                sd_arrow(x[o] + ux * 18.f, y[o] + uy * 18.f, x[t] - ux * 19.f, y[t] - uy * 19.f, UI_G1);
-                ui_O(x[o] + ux * 18.f + (l - 37.f) * f * ux, y[o] + uy * 18.f + (l - 37.f) * f * uy, 1.8f, QD_NONE, 1.f,
-                     UI_K3);
+                const float f = u - floorf(u), r0 = SD_OPR + 1.f, r1 = SD_OPR + 2.f;
+                sd_arrow(x[o] + ux * r0, y[o] + uy * r0, x[t] - ux * r1, y[t] - uy * r1, sd_fade(UI_G1, sh[o]));
+                ui_O(x[o] + ux * r0 + (l - r0 - r1) * f * ux, y[o] + uy * r0 + (l - r0 - r1) * f * uy, 1.8f, QD_NONE, 1.f,
+                     sd_fade(UI_K3, sh[o]));
             }
     if (v->fb < 4) {                                    /* the feedback: a loop over its operator */
         const int f = v->fb;
-        qd_arc(x[f] + 16.f, y[f] - 12.f, 8.f, UI_PI * 0.75f, UI_PI * 2.25f, UI_G1, 1.4f);
+        qd_arc(x[f] + SD_OPR - 1.f, y[f] - SD_OPR + 3.f, 7.f, UI_PI * 0.75f, UI_PI * 2.25f, sd_fade(UI_G1, sh[f]), 1.4f);
     }
     for (o = 0; o < 4; o++) {                           /* the operators: their waves at their ratios */
         const float r = sd_clampf(v->ratio[o], 0.25f, 4.f);
+        const qd_rgb oc = sd_fade(SNDK[o], sh[o]);
         float p[2 * 25];
         int i;
-        ui_O(x[o], y[o], 17.f, SNDK[o], 1.6f, UI_BG);
+        ui_O(x[o], y[o], SD_OPR, oc, 1.6f, UI_BG);
         for (i = 0; i < 25; i++) {
             const float u = (float)i / 24.f;
-            p[2 * i] = x[o] - 11.f + u * 22.f;
-            p[2 * i + 1] = y[o] - sinf((u * r * 1.5f - v->t * r) * UI_TAU) * 7.f;
+            p[2 * i] = x[o] - 9.f + u * 18.f;
+            p[2 * i + 1] = y[o] - sinf((u * r * 1.5f - v->t * r) * UI_TAU) * 6.f;
         }
-        ui_P(p, 25, SNDK[o], 1.2f, 0, QD_NONE);
+        ui_P(p, 25, oc, 1.2f, 0, QD_NONE);
+    }
+    if (v->has_mix) {                                   /* the mix's own row: centred, X's end and Y's, the handle */
+        const float x0 = 30.f, x1 = 210.f, yy = 170.f, hx = x0 + (x1 - x0) * ((float)v->mix + 64.f) / 127.f;
+        int cx = -1, cy = -1;
+        for (o = 0; o < 4; o++) {
+            if (cx < 0 && ((v->outx >> o) & 1u))
+                cx = o;
+            if (cy < 0 && ((v->outy >> o) & 1u))
+                cy = o;
+        }
+        line2(x0, yy, x1, yy, UI_G2, 2.f);
+        line2((x0 + x1) * 0.5f, yy - 4.f, (x0 + x1) * 0.5f, yy + 4.f, UI_G1, 1.2f);   /* MIX 0 */
+        ui_O(x0 - 9.f, yy, 4.5f, cx >= 0 ? sd_fade(SNDK[cx], sx) : UI_G1, 1.6f, UI_BG);   /* X */
+        ui_O(x1 + 9.f, yy, 4.5f, cy >= 0 ? sd_fade(SNDK[cy], sy) : UI_G1, 1.6f, UI_BG);   /* Y */
+        ui_RR(hx - 4.f, yy - 7.f, 8.f, 14.f, 2.5f, QD_NONE, 1.f, SNDK[3]);
     }
 }
 
@@ -342,7 +383,9 @@ static void sd_adsr(const ui_snd_t *v)
 static void sd_band(const ui_snd_t *v)
 {
     const float lo = 16.f + (float)v->v[0] / 12700.f * 180.f, hi = sd_clampf(lo + 8.f + (float)v->v[1] * 0.8f, 0.f, 224.f);
-    const float p[12] = {16.f, 170.f, lo - 18.f, 168.f, lo, 80.f, hi, 80.f, hi + 18.f, 168.f, 224.f, 170.f};
+    const float p[12] = {16.f, 170.f, sd_clampf(lo - 18.f, 12.f, 224.f), 168.f, lo, 80.f, hi, 80.f,   /* (P1.5j: inside
+                                                         * the frame's margin) */
+                         sd_clampf(hi + 18.f, 16.f, 226.f), 168.f, 224.f, 170.f};
     line2(16.f, 170.f, 224.f, 170.f, UI_G3, 1.f);
     sd_poly(p, 6, UI_K3, 1.6f, 0);
     ui_O(lo, 80.f, 3.4f, QD_NONE, 1.f, SNDK[0]);
@@ -448,7 +491,7 @@ static void sd_keys_strip(const ui_snd_t *v, qd_rgb tc)
             const int st = v->kst[i];
             const float x = 8.f + (float)i * 14.f;
             const qd_rgb c = st & 4 ? tc : (st & 3) == 2 ? UI_K3 : UI_G1;
-            ui_RR(x, 24.f, 12.f, 7.f, 2.f, st & 4 ? QD_NONE : c, 1.f, st & 4 || (st & 3) == 2 ? c : QD_NONE);
+            ui_RR(x, 27.f, 12.f, 6.f, 2.f, st & 4 ? QD_NONE : c, 1.f, st & 4 || (st & 3) == 2 ? c : QD_NONE);
         }
         return;
     }
@@ -457,12 +500,12 @@ static void sd_keys_strip(const ui_snd_t *v, qd_rgb tc)
         const qd_rgb c = st & 4 ? tc : (st & 3) == 2 ? UI_K3 : (st & 3) == 1 ? UI_G1 : UI_G3;
         if (!BLK[i]) {
             const float x = 8.f + (float)w * 14.f;
-            ui_RR(x, 24.f, 12.f, 7.f, 2.f, st & 4 || (st & 3) == 2 ? QD_NONE : c, 1.f,
+            ui_RR(x, 27.f, 12.f, 6.f, 2.f, st & 4 || (st & 3) == 2 ? QD_NONE : c, 1.f,
                   st & 4 || (st & 3) == 2 ? c : QD_NONE);
             w++;
         } else {
             const float x = 8.f + (float)w * 14.f - 4.5f;
-            ui_RR(x, 21.f, 7.f, 4.f, 1.5f, QD_NONE, 1.f, st & 4 ? tc : (st & 3) ? c : UI_G3);
+            ui_RR(x, 25.f, 7.f, 3.f, 1.5f, QD_NONE, 1.f, st & 4 ? tc : (st & 3) ? c : UI_G3);
         }
     }
 }
@@ -486,19 +529,20 @@ void ui_snd_draw(const ui_snd_t *v)
     if (v->npg > 1)
         x += (float)v->npg * 9.f + 6.f;
     ui_T(head, x, 18.f, 12.f, 600, 0.8f, hc, QD_LEFT);
-    if (v->has[4]) {                                    /* ALGORITHM's value: its badge, top right (a lock: its chip) */
+    if (v->has[4]) {                                    /* ALGORITHM's value: its badge, top right (a lock: its chip;
+                                                         * P1.5j: 13 px, clear of the frame's 4 px margin) */
         float left;
         if (v->locked[4] || v->lockany[4]) {
-            float bw = ui_TW(v->txt[4], 16.f, 600, 0.f) + 10.f;
-            bw = bw > 70.f ? 70.f : bw;
-            ui_chip(v->txt[4], 231.f - bw * 0.5f, 19.f, 16.f, 70.f, SNDK[4], v->locked[4]);
-            left = 231.f - bw;
+            float bw = ui_TW(v->txt[4], 13.f, 600, 0.f) + 10.f;
+            bw = bw > 60.f ? 60.f : bw;
+            ui_chip(v->txt[4], 232.f - bw * 0.5f, 21.f, 13.f, 60.f, SNDK[4], v->locked[4]);
+            left = 232.f - bw;
         } else {
-            left = 230.f - ui_TW(v->txt[4], 16.f, 500, 0.f);
-            ui_T(v->txt[4], 230.f, 20.f, 16.f, 500, 0.f, SNDK[4], QD_RIGHT);
+            left = 230.f - ui_TW(v->txt[4], 14.f, 500, 0.f);
+            ui_T(v->txt[4], 230.f, 20.f, 14.f, 500, 0.f, SNDK[4], QD_RIGHT);
         }
-        ui_O(left - 14.f, 14.f, 8.f, QD_NONE, 1.f, SNDK[4]);
-        ui_T("A", left - 14.f, 18.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+        ui_O(left - 11.f, 15.f, 7.f, QD_NONE, 1.f, SNDK[4]);
+        ui_T("A", left - 11.f, 19.f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
     }
     if (v->keys)
         sd_keys_strip(v, UI_TRACK_COL);
@@ -516,36 +560,41 @@ void ui_snd_draw(const ui_snd_t *v)
     case UI_SD_LFO: sd_lfo(v); break;
     default: sd_lfoshape(v); break;
     }
+    /* P1.5j (the owner: the lock boxes "change dimensions", "overlap with the orange border"): the foot is four fixed
+     * columns inside the frame's 4 px margin (x 7 .. 233), each a label, the knob-turned underline, and one chip
+     * rectangle the same on every page (SD_CHIP_W x SD_CHIP_H, the fraction's height), the value centred in it; the
+     * chip drawn only when locked (filled: this step, outlined: some step), the geometry the same either way */
     for (k = 0; k < 4; k++)
         ncell += v->has[k];
-    for (k = 0; k < 4; k++) {                           /* KNOB 1..4: a cell each along the foot */
-        const float cx = 30.f + (float)k * 60.f;
+    for (k = 0; k < 4; k++) {
+        const float x0 = SD_FOOT_X + (float)k * SD_COL_W, cx = x0 + SD_COL_W * 0.5f, chx = x0 + 2.f;
+        const float mid = SD_CHIP_Y + SD_CHIP_H * 0.5f;
+        const int lk = v->locked[k] || v->lockany[k];
+        const qd_rgb tc = v->locked[k] ? UI_BG : SNDK[k];
         float w;
         if (!v->has[k])
             continue;
         w = ui_TW(v->lab[k] ? v->lab[k] : "", 12.f, 600, 0.3f);
-        ui_T(v->lab[k] ? v->lab[k] : "", cx, 204.f, w > 56.f ? 12.f * 56.f / w : 12.f, 600, 0.3f,
-             v->locked[k] ? UI_K3 : UI_G1, QD_CENTER);
+        ui_T(v->lab[k] ? v->lab[k] : "", cx, SD_LAB_Y, w > SD_COL_W - 4.f ? 12.f * (SD_COL_W - 4.f) / w : 12.f, 600,
+             0.3f, v->locked[k] ? UI_K3 : UI_G1, QD_CENTER);
+        if (v->last == k)                               /* the knob turned last: underlined, under its label */
+            line2(cx - 16.f, SD_LAB_Y + 3.5f, cx + 16.f, SD_LAB_Y + 3.5f, SNDK[k], 2.f);
+        if (lk)
+            ui_RR(chx, SD_CHIP_Y, SD_CHIP_W, SD_CHIP_H, 7.f, v->locked[k] ? QD_NONE : SNDK[k], 1.4f,
+                  v->locked[k] ? SNDK[k] : QD_NONE);
         if (v->pair[k]) {                               /* P1.5i: a ratio pair: B2 over B1, a fraction (ChoralRoot's) */
             const float wn = ui_TW(v->txt[k], 13.f, 600, 0.f), wd = ui_TW(v->den[k], 13.f, 600, 0.f);
-            const float wm = (wn > wd ? wn : wd) + 8.f;
-            if (v->locked[k] || v->lockany[k])
-                ui_RR(cx - wm * 0.5f - 2.f, 207.f, wm + 4.f, 31.f, 6.f, v->locked[k] ? QD_NONE : SNDK[k], 1.4f,
-                      v->locked[k] ? SNDK[k] : QD_NONE);
-            {
-                const qd_rgb tc = v->locked[k] ? UI_BG : SNDK[k];
-                ui_T(v->txt[k], cx, 220.f, 13.f, 600, 0.f, tc, QD_CENTER);
-                line2(cx - wm * 0.5f + 3.f, 223.5f, cx + wm * 0.5f - 3.f, 223.5f, tc, 1.4f);
-                ui_T(v->den[k], cx, 236.f, 13.f, 600, 0.f, tc, QD_CENTER);
-            }
-        } else if (v->locked[k] || v->lockany[k]) {     /* P1.5b: locked here a filled chip, somewhere an outlined one */
-            ui_chip(v->txt[k], cx, 228.f, 16.f, 58.f, SNDK[k], v->locked[k]);
+            const float wm = (wn > wd ? wn : wd) + 6.f;
+            ui_T(v->txt[k], cx, mid - 3.f, 13.f, 600, 0.f, tc, QD_CENTER);
+            line2(cx - wm * 0.5f, mid + 0.5f, cx + wm * 0.5f, mid + 0.5f, tc, 1.4f);
+            ui_T(v->den[k], cx, mid + 13.5f, 13.f, 600, 0.f, tc, QD_CENTER);
         } else {
-            w = ui_TW(v->txt[k], 18.f, 500, 0.f);
-            ui_T(v->txt[k], cx, 228.f, w > 56.f ? 18.f * 56.f / w : 18.f, 500, 0.f, SNDK[k], QD_CENTER);
+            float sz = 18.f;
+            w = ui_TW(v->txt[k], sz, 500, 0.f);
+            if (w > SD_CHIP_W - 8.f)
+                sz = sz * (SD_CHIP_W - 8.f) / w < 12.f ? 12.f : sz * (SD_CHIP_W - 8.f) / w;
+            ui_T(v->txt[k], cx, mid + sz * 0.35f, sz, lk ? 600 : 500, 0.f, tc, QD_CENTER);
         }
-        if (v->last == k)                               /* the knob turned last: underlined */
-            line2(cx - 18.f, v->pair[k] ? 239.f : 236.f, cx + 18.f, v->pair[k] ? 239.f : 236.f, SNDK[k], 2.f);
     }
     (void)ncell;
 }

@@ -4087,6 +4087,60 @@ static void g_p15i_ratio(void)
     btap(QD_B_HOME);
 }
 
+
+/* P1.5j: the editor's foot inside the frame: nothing lit in the 4 px between the frame's inner edge (3) and the content,
+ * on every page, a step held with every value locked (filled chips) and nothing held (outlined) */
+static int margin_clear(void)
+{
+    static uint16_t lcd[QD_W * QD_H];
+    const uint8_t *b = (const uint8_t *)lcd;
+    int x, y;
+    qd_app_frame(&A, lcd);
+    for (y = 3; y < QD_H - 3; y++)
+        for (x = 3; x < QD_W - 3; x++) {
+            const int in_band = x < 7 || x >= QD_W - 7 || y < 7 || y >= QD_H - 7;
+            uint16_t v;
+            if (!in_band || ((x < 9 || x >= QD_W - 9) && (y < 9 || y >= QD_H - 9)))   /* (the frame's round corners) */
+                continue;
+            v = (uint16_t)(b[2 * (y * QD_W + x)] << 8 | b[2 * (y * QD_W + x) + 1]);
+            if (((v >> 11) & 31u) > 5u || ((v >> 5) & 63u) > 10u || (v & 31u) > 5u)
+                return 0;
+        }
+    return 1;
+}
+static void g_p15j_margins(void)
+{
+    int pg, ok = 1, bad = -1;
+    start();
+    wtap(2);
+    btap(QD_B_SOUND);
+    for (pg = 0; pg < QD_SND_NPAGE; pg++) {
+        int k;
+        A.ui.snd_page = pg;
+        whold(2);
+        for (k = QD_K_1; k <= QD_K_4; k++)
+            turn(k, 1);
+        turn(QD_K_ALGO, 1);
+        run(20);
+        if (!margin_clear()) {
+            printf("    (margin: page %d, held)\n", pg);
+            if (bad < 0)
+                bad = pg;
+            ok = 0;
+        }
+        wrel(2);
+        run(20);
+        if (!margin_clear()) {
+            printf("    (margin: page %d, nothing held)\n", pg);
+            if (bad < 0)
+                bad = pg + 100;
+            ok = 0;
+        }
+    }
+    CHECK(ok, "the editor's 18 pages, locked and not: nothing in the frame's 4 px margin (first bad: %d)", bad);
+    btap(QD_B_HOME);
+}
+
 int main(void)
 {
     static const struct {
@@ -4151,6 +4205,7 @@ int main(void)
         {"P1.5d: the frames the other way round", g_p15d_frames},
         {"P1.5f: VEL 127, the stunt show", g_p15f_jump},
         {"P1.5i: RATIO B the pair, MIX on RATIO", g_p15i_ratio},
+        {"P1.5j: the editor's foot clear of the frame", g_p15j_margins},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

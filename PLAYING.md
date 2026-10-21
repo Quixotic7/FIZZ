@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5i)
+# Playing FIZZ (P1.5j)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -445,8 +445,13 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   **RATIO B** (P1.5i) is one value, as in ChoralRoot and the Digitone: the pair B2 over B1, shown as a fraction. A
   click steps B2 (the fast hand) and carries into B1 after 16.00; **SHIFT + KNOB 3** steps B1. A step's lock of it
   locks both. **MIX** is drawn in the RATIO picture as the balance of the algorithm's two outputs: X's wires and Y's
-  as bright and thick as their share (the other faint, never gone), and a little crossfader by the speaker, its
-  handle in KNOB 4's orange.
+  as bright and thick as their share (the other faint, never gone), and (P1.5j) a slider of its own under the
+  drawing, centred and wide, X's end and Y's marked in their carriers' colours, the handle in KNOB 4's orange, a tick
+  at the centre. The operators fade with the mix too: one only in X's chain (or only in Y's) dims and greys as its
+  side goes down (never under about 30 %); one that feeds both stays full.
+- The foot (P1.5j) is four fixed columns on every page: the name, a line under it for the knob turned last, and the
+  value centred in one chip size, drawn only when locked (filled on this step, outlined on some step), all of it clear
+  of the frame.
 - Each page is one big drawing of that part of FM TONE (the operators wired by the algorithm, the envelopes, the
   filter's curve, the LFO's wave ..). Along the bottom, KNOB 1..4's values in their colours (the one you turned last
   underlined); ALGORITHM's value is in the pink badge top right.
