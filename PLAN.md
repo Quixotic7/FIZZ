@@ -1531,3 +1531,14 @@ merge of main ffdbb7e 189e2be, 647073c, ea052de; versions 0.2.3-p1.3y, 0.3.0-p1.
   W audition, B10 the name editor, F1 / F2 / B11 + W copy, move, delete), a sound classifier for the auto-names; SEQ
   tapped = the project page and the projects. Deviations: delete has no undo yet (P1.5b), project copy works as sound
   copy, "x6" for the lock count (the font has no ×), names 12 characters.
+
+**2026-10-21, P1.5b** (FMToneSeq 59abb7f; FM1VST `core-quadrille` e3189d5; version 0.5.0-p1.5b; relaunched; RemoteFM1
+0.1.1 reinstalled on 5BD75BE3 over ChoralRoot 0.26.1 1-core after a backup to `fm1-backups/before-remotefm1-20261021/`):
+version 2.4's eight points. The editor's keyboard (REC; SCALE: W1 the root at octave 3, black keys the pages; FULL:
+pages on SELECT; EDIT KEYS on SHIFT + REC KNOB 4); SHIFT + ALGORITHM = scale, SHIFT + PRESETS = root with the keyboard
+on (the step view's mapping kept everywhere); the scale's LEDs (roots 80 %, scale 50 %); lock chips (filled = this
+step, outlined = some step) in place of the padlock; the editor head's dots first; FX OVERVIEW (opens there; W1..W8 the
+track, KNOB 1..3 its sends) and ROUTING (ChoralRoot has none: DELAY > REVERB, CHORUS > DELAY, CHORUS > REVERB, the
+filter AFTER / BEFORE; all 0 = ChoralRoot's exact path, bit-exact unchanged; DELAY > REVERB one block late); knob
+acceleration (`qd_knob_accel`: x1 at 120 ms per detent, up to 1/16 of the range at 15 ms; <= 24 steps and SHIFT
+never); latch modes VALUES / MODES (LFO held alone; saved).
