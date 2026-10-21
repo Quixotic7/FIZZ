@@ -1555,3 +1555,9 @@ track, KNOB 1..3 its sends) and ROUTING (ChoralRoot has none: DELAY > REVERB, CH
 filter AFTER / BEFORE; all 0 = ChoralRoot's exact path, bit-exact unchanged; DELAY > REVERB one block late); knob
 acceleration (`qd_knob_accel`: x1 at 120 ms per detent, up to 1/16 of the range at 15 ms; <= 24 steps and SHIFT
 never); latch modes VALUES / MODES (LFO held alone; saved).
+
+**2026-10-21, P1.5d** (FMToneSeq 2c0735e; FM1VST `core-quadrille` ba521e0; version 0.5.1-p1.5d; relaunched): version
+2.5. The frames swapped: held-step screens framed in `UI_STEP_FRAME` 0xf03cff, track defaults unframed; the sound
+editor framed dark orange `UI_SND_FRAME_TRACK` 0x8a3412 (the track's sound) or bright `UI_SND_FRAME_STEP` 0xff6a2c (a
+step's locks). VEL is the caped stunt rider (the mock-up ported to ui_held.c; a kick of up to 9 degrees and a puff when
+the step plays; in EDIT the value sits in the head row). `qd_path_paint` added to qd_gfx.
