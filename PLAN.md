@@ -1575,3 +1575,8 @@ the step plays; in EDIT the value sits in the head row). `qd_path_paint` added t
 rider in the owner's neon style (mock-up version 2): blue / red / cream, each line glowing (three strokes, `rn_glow`
 with `qd_get_alpha()`), tubes, ringed wheels, the forked cape. A held VEL frame takes about 0.55 ms on the Mac against
 0.28 ms for NOTE: the screen to measure first on the FM-1 in Phase 2. The default keeps its magenta value and head.
+
+**2026-10-21, P1.5f** (FMToneSeq 65804b8; FM1VST `core-quadrille` a1798be; version 0.5.3-p1.5f; relaunched): VEL 127's
+stunt show (`rd_jump`, `rd_bus`, `rd_ramp`, `rd_fireworks` in ui_held.c, the mock-up's constants): the bus jump with
+fireworks wherever the VEL picture shows 127, a burst of its own when the step plays there. A jump frame 0.9 ms on the
+Mac against 0.53 ms for the wheelie.
