@@ -1622,3 +1622,11 @@ F3 with the step latch on (the owner: they did nothing). Two causes: the latch's
 blocked the F layers; an OCT press with a selection changed the octave at once. Now only a real finger blocks the
 layers, the layer rows come before the latch's, and with a selection a lone OCT tap acts on release (the selection's
 octave in NOTE, the next / previous ten in SOUND) while OCT held with a key, a knob or the other OCT is the layer.
+
+**2026-10-21, P1.5n** (FMToneSeq cf1b0f3; FM1VST `core-quadrille` 5c142fa; version 0.5.11-p1.5n; relaunched): four owner
+items. (1) The octave / bank takeover now draws over EDIT (it never did: the "brief flash" was F2's map); over the latch
+the F map waits 250 ms so a tap shows only the octave. (2) ALGORITHM moves all the notes again with the latch's
+selection in layouts A and C (P1.3y's roles row took it); a selection made by the cursor keeps the cursor role.
+Chords still clamp note by note at the range ends (they can squash): a later look. (3) LFO's LED: 255 in VALUES, a
+breath 153..255 in MODES (128 read as "glow" on RemoteFM1's three-level scan). (4) MIX on TONE again (KNOB 4, the
+mix row as RATIO's), the one value on two pages.
