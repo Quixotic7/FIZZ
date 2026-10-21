@@ -27,7 +27,7 @@ typedef struct {
     int16_t patch[QD_QUAD_NP];
     uint8_t sound;                      /* the pool sound it was loaded from (1 INIT, 2..17 the factory sounds, ..) */
     uint8_t edited;                     /* the patch differs from that sound's */
-    char sound_name[12];                /* .. its name */
+    char sound_name[QD_SOUND_NAME];     /* .. its name */
     /* the mix */
     qd_mix_track_t mix;
     /* the voices (PLAN.md §2) */

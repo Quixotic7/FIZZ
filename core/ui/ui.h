@@ -155,6 +155,72 @@ typedef struct {
 } ui_fx_t;
 void ui_fx_draw(const ui_fx_t *v);
 
+/* ---- P1.5a (ui_lib.c, built through ui_layer.c; mockups/fizz-save-pool.html): THE SOUNDS PAGE (LIBRARY champagne,
+ * POOL SOUND's lime): the tabs and the bank's dots, the chosen sound on top (its number, its name big, who uses it), a
+ * bank's sixteen tiles (the amp envelope as a silhouette in the colour of its kind, the name); storing (a slot
+ * dashed and blinking, the sound flying in in the track's colour, a sparkle by a name from the sound), armed (orange,
+ * the old and the new silhouettes in turn), stored (it fizzes; the pool's tray blinks), a sound held (the cassette
+ * and its wave), copy and pick-up (the tile lifted), delete (its users orange, it fizzes away), onto the track (a bar
+ * in the track's colour). THE NAME EDITOR: twelve cells, the letter drum, the dice. THE PROJECT: its number and name,
+ * the 64 patterns (bubbles off one when written), the flash and the pool in use; THE PROJECTS: eight tiles */
+#define UI_LIB_COL 0xf3d9a4u
+#define UI_POOL_COL 0xb5e853u
+#define UI_PAD_COL 0x9664ffu
+typedef struct {
+    const char *name;
+    int used, kind;                     /* (sounds.h QD_SK_*) */
+    float env[4];                       /* the amp envelope: attack, decay, sustain, release (0..1) */
+} ui_libtile_t;
+typedef struct {
+    int tab, bank;                      /* 0 the LIBRARY, 1 the POOL; the bank 0..7 */
+    ui_libtile_t tile[16];
+    int chosen;                         /* its tile (0..15) */
+    int cnum;                           /* its number, 1..128 */
+    ui_libtile_t c;                     /* the chosen sound */
+    uint8_t utracks;                    /* the pool: the tracks whose sound it is (bit t) .. */
+    int usteps;                         /* .. the steps that lock it */
+    int track;                          /* the selected track, 1..8 */
+    const char *track_name;
+    int storing, spark, armed, offer;
+    ui_libtile_t s;                     /* the sound being stored (its name from the sound) */
+    int lift, lift_kind;                /* a tile lifted (-1): 1 copied, 2 picked up */
+    int armed_tile;                     /* a paste armed onto this tile (-1) */
+    int fx_kind, fx_tile;               /* an animation: 1 stored, 2 added, 3 deleted, 4 onto the track, 5 moved */
+    float fx_u;                         /* .. its progress 0..1 */
+    ui_libtile_t del;                   /* .. the sound deleted */
+    uint8_t del_tracks;
+    int del_steps;
+    int aud;                            /* a sound held: the cassette and its wave */
+    float t;
+} ui_lib_t;
+void ui_lib_draw(const ui_lib_t *v);
+typedef struct {
+    char buf[16];                       /* twelve cells */
+    int cur;
+    qd_rgb col;                         /* the title's colour (the library's, the pool's, the project's) */
+    float roll;                         /* the drum's roll (0..1 after a turn), its direction */
+    int roll_dir;
+} ui_name_t;
+void ui_name_draw(const ui_name_t *v);
+typedef struct {
+    int page;                           /* 0 the project, 1 the projects */
+    int num;                            /* the one worked on, 1..8 */
+    const char *name;
+    uint8_t used[64];
+    int cur;                            /* its pattern playing / edited */
+    float since[64];                    /* seconds since each pattern was written (its bubbles; < 0 none) */
+    float flash, flash_own;             /* the store's use, this project's part (0..1) */
+    int pool_n;
+    struct {
+        int exists;
+        const char *name;
+        uint8_t used[64];
+    } p[8];
+    int chosen, src, armed;             /* the projects: chosen (blinks), copied from, armed onto (-1) */
+    float t;
+} ui_prj_t;
+void ui_prj_draw(const ui_prj_t *v);
+
 /* ================================================================ P1.3b: the step view's lanes, the held step, the turns,
  * the layer maps (PLAN §8b) === */
 

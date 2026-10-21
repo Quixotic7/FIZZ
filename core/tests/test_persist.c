@@ -78,6 +78,176 @@ static void fill_pattern(qd_pattern_t *P, int nsteps, int nlocks)
     P->used = 1;
 }
 
+
+/* ---------------------------------------------------------------- P1.5a part 2: the pages, by the panel */
+static qd_app_t *G;
+static void p_run(uint32_t n) { run(G, n); }
+static void bt(int b, int down) { qd_app_button(G, b, down); }
+static void btap(int b) { bt(b, 1); p_run(20); bt(b, 0); p_run(20); }
+static void wkey(int w, int down) { qd_app_key(G, QD_WHITE_KEY[w], down, 100); }
+static void wtap(int w) { wkey(w, 1); p_run(30); wkey(w, 0); p_run(20); }
+static void bkey(int b, int down) { qd_app_key(G, QD_BLACK_KEY[b], down, 100); }
+static void black(int b) { bkey(b, 1); p_run(20); bkey(b, 0); p_run(20); }
+static void knob(int k, int d) { qd_app_knob(G, k, d); p_run(5); }
+
+static void pages_test(void)
+{
+    static const struct { const char *name; int kind; } NAMES[] = {
+        {"EP", QD_SK_KEYS}, {"BELL", QD_SK_BELL}, {"BASS", QD_SK_BASS}, {"PLUCK", QD_SK_PLUCK}, {"BRASS", QD_SK_LEAD},
+        {"GLASS PAD", QD_SK_PAD}, {"HOLLOW", QD_SK_LEAD}, {"SQUARE LEAD", QD_SK_LEAD}, {"METAL", QD_SK_BELL},
+        {"WOBBLE", QD_SK_BASS}, {"CLAV", QD_SK_PLUCK}, {"STRINGS", QD_SK_PAD}, {"MARIMBA", QD_SK_PLUCK},
+        {"DRONE", QD_SK_PAD}, {"FEEDBACK", QD_SK_LEAD}, {"NOISE-ISH", QD_SK_NOISE}, {"KICK", QD_SK_KICK},
+        {"SNARE", QD_SK_SNARE}, {"CLAP", QD_SK_CLAP}, {"GHOST", QD_SK_SNARE}, {"HAT", QD_SK_HAT},
+        {"OPEN HAT", QD_SK_HAT}};
+    char nm[QD_SOUND_NAME], nm2[QD_SOUND_NAME];
+    int k, ok = 0, okn = 0, before;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(G);
+    p_run(50);
+    /* the names from the sound: the factory sounds' and the drums' kinds, twelve letters, the same each time */
+    for (k = 0; k < (int)(sizeof NAMES / sizeof NAMES[0]); k++) {
+        int j;
+        for (j = 1; j <= G->proj.nsound && strcmp(G->proj.sound[j - 1].name, NAMES[k].name); j++)
+            ;
+        ok += qd_sound_kind(G->proj.sound[j - 1].patch) == NAMES[k].kind;
+        qd_sound_autoname(G->proj.sound[j - 1].patch, 0, nm);
+        qd_sound_autoname(G->proj.sound[j - 1].patch, 0, nm2);
+        okn += !strcmp(nm, nm2) && strlen(nm) <= 12 && strstr(nm, NAMES[k].kind == QD_SK_HAT ? "HAT" : qd_sound_kind_name(NAMES[k].kind));
+        qd_sound_autoname(G->proj.sound[j - 1].patch, 1, nm2);
+        okn += strcmp(nm, nm2) != 0;
+    }
+    CHECK(ok == (int)(sizeof NAMES / sizeof NAMES[0]) && okn == 2 * (int)(sizeof NAMES / sizeof NAMES[0]),
+          "the classifier: the 16 factory sounds' and the 6 drums' kinds (%d), names of 12 letters at most with the "
+          "kind, the same each time, another with the dice (%d)", ok, okn);
+
+    /* SAVE: storing the track's sound into the library */
+    qd_ctl_select_track(G, 3);
+    btap(QD_B_SAVE);
+    qd_sound_autoname(G->model.t[3].patch, 0, nm);
+    CHECK(qd_view_screen(G) == QD_SCR_LIB && G->ui.lb.storing && G->ui.lb.tab == 0 && G->ui.lb.chosen == 0 &&
+              !strcmp(G->ui.lb.sname, nm), "SAVE: the sounds page on the LIBRARY, the first free slot, a name from the "
+          "sound (%s)", nm);
+    btap(QD_B_SAVE);
+    CHECK(!strcmp(G->per.lib[0].name, nm) && !memcmp(G->per.lib[0].patch, G->model.t[3].patch, sizeof G->per.lib[0].patch) &&
+              G->ui.lb.offer && !G->ui.lb.storing, "SAVE again: stored in slot 1; F2 offered");
+    btap(QD_B_OCTUP);
+    k = G->ui.lb.chosen + 1;
+    CHECK(G->ui.lb.tab == 1 && k == 24 && !strcmp(G->proj.sound[23].name, nm), "F2: into the pool's first free slot "
+          "(%d), the POOL shown", k);
+    /* SAVE onto a sound: armed, anything else cancels, SAVE again replaces (the name stays) */
+    btap(QD_B_SAVE);
+    CHECK(G->ui.lb.storing && G->ui.lb.chosen == 1, "SAVE: storing again, the next free slot (2)");
+    wtap(0);
+    G->model.t[3].patch[QD_QP_HARM] = 900;
+    btap(QD_B_SAVE);
+    CHECK(G->ui.lb.armed && G->per.lib[0].patch[QD_QP_HARM] != 900, "W1 (a sound), SAVE: armed, not stored");
+    black(0);
+    CHECK(!G->ui.lb.armed, "another key: the arm cancelled");
+    btap(QD_B_SAVE);
+    btap(QD_B_SAVE);
+    CHECK(G->per.lib[0].patch[QD_QP_HARM] == 900 && !strcmp(G->per.lib[0].name, nm), "SAVE, SAVE: replaced, the name "
+          "kept");
+    /* browsing: a W plays once; held, while held */
+    black(8);                                           /* B9: the pool */
+    black(1);                                           /* B2: sounds 17..32 */
+    before = qd_pool_in_use(&G->pool);
+    wkey(1, 1);                                         /* KICK (18) */
+    p_run(30);
+    CHECK(G->ui.lb.chosen == 17 && qd_pool_in_use(&G->pool) > before, "the POOL, B2, W2: KICK chosen and heard");
+    wkey(1, 0);
+    p_run(700);
+    CHECK(!G->ui.lb.pv_on, ".. once (it stops)");
+    wkey(1, 1);
+    p_run(400);
+    CHECK(G->ui.lb.aud && qd_view_screen(G) == QD_SCR_LIB, "W held: heard while held, on the screen");
+    wkey(1, 0);
+    p_run(20);
+    CHECK(!G->ui.lb.aud && !G->ui.lb.pv_on, "let go: it stops");
+    /* F2 in the pool: onto the selected track */
+    btap(QD_B_OCTUP);
+    CHECK(G->model.t[3].sound == 18 && !strcmp(G->model.t[3].sound_name, "KICK"), "F2 in the pool: KICK on track 4");
+    /* F1 + W copy, then paste (a free slot: "KICK 2") */
+    bt(QD_B_OCTDN, 1);
+    p_run(20);
+    wtap(1);
+    black(9 - 9 + 2);                                   /* (B3: the bank of 33..48) */
+    wtap(0);
+    bt(QD_B_OCTDN, 0);
+    p_run(20);
+    CHECK(!strcmp(G->proj.sound[32].name, "KICK 2") && qd_view_screen(G) == QD_SCR_LIB, "F1 + W2, B3, W1: KICK copied "
+          "into 33 (KICK 2), F1 let go: still the page");
+    /* F2 + W: pick up, drop on a filled slot: a swap (the locks follow) */
+    qd_step_on(&G->proj.pat[G->seq.cur], 0, 0);
+    qd_step_set_sound(&G->proj.pat[G->seq.cur], 0, 0, 33);
+    bt(QD_B_OCTUP, 1);
+    p_run(20);
+    wtap(0);                                            /* KICK 2 (33) picked up */
+    black(1);
+    wtap(2);                                            /* dropped on SNARE (19) */
+    bt(QD_B_OCTUP, 0);
+    p_run(20);
+    CHECK(!strcmp(G->proj.sound[18].name, "KICK 2") && !strcmp(G->proj.sound[32].name, "SNARE") &&
+              G->proj.pat[G->seq.cur].step[0][0].sound == 19 && G->model.t[3].sound == 18,
+          "F2 + W1, B2, W3: KICK 2 and SNARE swapped, the step's lock follows (19), no F2 tap");
+    /* B11 + W: delete; INIT stays */
+    bkey(10, 1);
+    p_run(20);
+    wtap(2);                                            /* (19: KICK 2) */
+    black(0);
+    wtap(0);                                            /* (1: INIT) */
+    bkey(10, 0);
+    p_run(20);
+    CHECK(!G->proj.sound[18].name[0] && G->proj.pat[G->seq.cur].step[0][0].sound == 0 && G->proj.sound[0].name[0],
+          "B11 + W3: deleted, the lock back to the track's sound; B11 + W1: INIT stays");
+    /* the name editor */
+    black(1);
+    wtap(1);                                            /* KICK (18) */
+    black(9);                                           /* B10 */
+    CHECK(qd_view_screen(G) == QD_SCR_NAME, "B10: the name editor");
+    knob(QD_K_SELECT, 1);                               /* K -> L */
+    knob(QD_K_ALGO, 1);
+    black(10);                                          /* B11: the I deleted */
+    btap(QD_B_OCTUP);
+    CHECK(!strcmp(G->proj.sound[17].name, "LCK") && qd_view_screen(G) == QD_SCR_LIB, "SELECT +1, ALGORITHM, B11, F2: "
+          "LCK kept (%s), back to the page", G->proj.sound[17].name);
+    black(9);
+    black(9);                                           /* the dice */
+    btap(QD_B_OCTDN);
+    CHECK(!strcmp(G->proj.sound[17].name, "LCK"), "B10, the dice, OCT-: the old name stays");
+    btap(QD_B_OCTDN);
+    CHECK(!G->ui.latch && qd_view_screen(G) != QD_SCR_LIB, "OCT- tapped: the page left");
+    /* the project pages */
+    btap(QD_B_MIX);
+    CHECK(qd_view_screen(G) == QD_SCR_PRJ && G->ui.pj.page == 0, "SEQ tapped: the project page");
+    btap(QD_B_MIX);
+    CHECK(G->ui.pj.page == 1, "SEQ again: the projects");
+    wtap(2);
+    btap(QD_B_OCTUP);
+    CHECK(G->per.proj == 2 && G->per.pexists[2] && G->ui.pj.page == 0, "W3, F2: a new project 3, its page");
+    btap(QD_B_MIX);
+    bt(QD_B_OCTDN, 1);
+    p_run(20);
+    wtap(2);
+    wtap(5);
+    bt(QD_B_OCTDN, 0);
+    p_run(20);
+    CHECK(G->per.pexists[5] && qd_view_screen(G) == QD_SCR_PRJ, "F1 + W3, W6: project 3 copied to 6");
+    bkey(10, 1);
+    p_run(20);
+    wtap(5);
+    bkey(10, 0);
+    p_run(20);
+    CHECK(!G->per.pexists[5], "B11 + W6: deleted");
+    black(9);
+    knob(QD_K_SELECT, 2);
+    btap(QD_B_OCTUP);
+    CHECK(G->per.pname[2][0] == 'R', "B10: the project named (%s)", G->per.pname[2]);
+    btap(QD_B_HOME);
+    CHECK(!G->ui.latch, "HOME: back");
+    CHECK(G->per.prj_st.c.erases_noisy == 0, "no erase while sounding");
+}
+
 int main(void)
 {
     static qd_project_t keep;
@@ -218,6 +388,7 @@ int main(void)
     CHECK(B.per.proj == 0 && B.per.pexists[4] && !B.per.pexists[2] && !strcmp(B.per.pname[4], "MY SONG"),
           "a restart: project 1 worked on, 5 kept, 3 gone");
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
+    pages_test();
     printf("test_persist: %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

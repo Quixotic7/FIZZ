@@ -610,3 +610,7 @@ void ui_menu_draw(const ui_menu_t *v)
 
 /* ---------------------------------------------------------------- P1.4a: the sound editor */
 #include "ui_snd.c"
+
+/* ---------------------------------------------------------------- P1.5a: the sounds page, names, the projects */
+#include <string.h>
+#include "ui_lib.c"

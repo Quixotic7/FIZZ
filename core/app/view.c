@@ -866,7 +866,6 @@ static void draw_patterns(const qd_app_t *a)
     ui_patterns_draw(&v);
 }
 
-static int held_btn(const qd_app_t *a, int b) { return (int)((a->buttons_held >> b) & 1u); }
 
 static void draw_idle(const qd_app_t *a)
 {
@@ -996,7 +995,7 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
 int qd_view_screen(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
-    if (u->mode != QD_MODE_IDLE && held_btn(a, QD_B_MIX))
+    if (u->mode != QD_MODE_IDLE && qd_ctl_seq_map(a))   /* (P1.5a: after a hold, or a key: a tap is the project) */
         return QD_SCR_SEQ;
     if (u->mode != QD_MODE_IDLE && qd_ctl_sel_map(a))   /* (P1.3y: after a hold, or a key: a tap shows nothing) */
         return QD_SCR_SEL;
@@ -1004,6 +1003,12 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_MENU;                             /* P1.3y: a settings menu */
     if (qd_snd_open(a))
         return QD_SCR_SOUND;                            /* P1.4a: the sound editor */
+    if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_LIB)
+        return QD_SCR_LIB;                              /* P1.5a: the sounds page */
+    if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_NAME)
+        return QD_SCR_NAME;                             /* P1.5a: the name editor */
+    if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_PRJ)
+        return QD_SCR_PRJ;                              /* P1.5a: the project pages */
     if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_MIX)
         return QD_SCR_MIX;                              /* P1.4b: the mix */
     if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_FX)
@@ -1175,6 +1180,116 @@ static void fill_mix(const qd_app_t *a, ui_mix_t *v)
     }
 }
 
+/* P1.5a: the sounds page's, the name editor's and the project pages' models */
+static void lib_tile(const qd_sound_t *s, ui_libtile_t *t)
+{
+    const int16_t *p = s->patch;
+    t->name = s->name;
+    t->used = s->name[0] != 0;
+    t->kind = qd_sound_kind(p);
+    t->env[0] = (float)p[QD_QP_EATK] / 127.f * 0.6f;
+    t->env[1] = (float)(p[QD_QP_EDEC] > 126 ? 126 : p[QD_QP_EDEC]) / 127.f * 0.7f;
+    t->env[2] = (float)p[QD_QP_ESUS] / 127.f;
+    t->env[3] = (float)p[QD_QP_EREL] / 127.f * 0.7f;
+}
+
+static void fill_lib(const qd_app_t *a, ui_lib_t *v)
+{
+    static qd_sound_t snd;
+    const qd_libui_t *l = &a->ui.lb;
+    const int bank = l->chosen / 16;
+    int i;
+    memset(v, 0, sizeof *v);
+    v->tab = l->tab;
+    v->bank = bank;
+    for (i = 0; i < 16; i++)
+        lib_tile(qd_lib_sound(a, l->tab, bank * 16 + i), &v->tile[i]);
+    v->chosen = l->chosen % 16;
+    v->cnum = l->chosen + 1;
+    v->c = v->tile[v->chosen];
+    if (l->tab)
+        qd_pool_users(a, l->chosen + 1, &v->utracks, &v->usteps);
+    v->track = a->sel + 1;
+    v->track_name = a->model.t[a->sel].name;
+    v->storing = l->storing;
+    v->spark = l->spark;
+    v->armed = l->armed;
+    v->offer = l->offer;
+    memset(&snd, 0, sizeof snd);
+    memcpy(snd.name, l->sname, QD_SOUND_NAME);
+    memcpy(snd.patch, a->model.t[a->sel].patch, sizeof snd.patch);
+    lib_tile(&snd, &v->s);
+    v->lift = -1;
+    v->armed_tile = -1;
+    if (l->f1_down && l->f1_src >= 0 && l->f1_tab == l->tab && l->f1_src / 16 == bank)
+        v->lift = l->f1_src % 16, v->lift_kind = 1;
+    if (l->f2_down && l->f2_pick >= 0 && l->f2_pick / 16 == bank)
+        v->lift = l->f2_pick % 16, v->lift_kind = 2;
+    if (l->f1_down && l->f1_armed >= 0 && l->f1_armed / 16 == bank)   /* (only while F1 is held) */
+        v->armed_tile = l->f1_armed % 16;
+    v->fx_kind = 0;
+    if (l->fx_kind && a->ms - l->fx_ms < 900u && l->fx_slot / 16 == bank) {
+        v->fx_kind = l->fx_kind;
+        v->fx_tile = l->fx_slot % 16;
+        v->fx_u = (float)(a->ms - l->fx_ms) / 900.f;
+    }
+    {
+        static qd_sound_t del;
+        memset(&del, 0, sizeof del);
+        memcpy(del.name, l->del_name, QD_SOUND_NAME);
+        lib_tile(&del, &v->del);
+        v->del.kind = l->del_kind;
+        v->del.used = 1;
+    }
+    v->del_tracks = l->del_tracks;
+    v->del_steps = l->del_steps;
+    v->aud = l->aud;
+    v->t = secs(a->ms);
+}
+
+static void fill_name(const qd_app_t *a, ui_name_t *v)
+{
+    const qd_nameui_t *n = &a->ui.nm;
+    memset(v, 0, sizeof *v);
+    memcpy(v->buf, n->buf, QD_SOUND_NAME);
+    v->cur = n->cur;
+    v->col = n->target == 0 && a->ui.lb.tab ? UI_POOL_COL : UI_LIB_COL;
+    v->roll = n->roll_ms && a->ms - n->roll_ms < 200u ? (float)(a->ms - n->roll_ms) / 200.f : 1.f;
+    v->roll_dir = n->roll_dir;
+}
+
+static void fill_prj(const qd_app_t *a, ui_prj_t *v)
+{
+    const qd_prjui_t *p = &a->ui.pj;
+    const qd_persist_t *ps = &a->per;
+    uint32_t live, total;
+    int i, n = 0;
+    memset(v, 0, sizeof *v);
+    v->page = p->page;
+    v->num = ps->proj + 1;
+    v->name = ps->pname[ps->proj][0] ? ps->pname[ps->proj] : "PROJECT 1";
+    for (i = 0; i < QD_NPAT; i++) {
+        v->used[i] = a->proj.pat[i].used;
+        v->since[i] = ps->written_ms[i] ? (float)(a->ms - ps->written_ms[i]) / 1000.f : -1.f;
+    }
+    v->cur = a->seq.cur;
+    qd_persist_use(a, &live, &total);
+    v->flash = total ? (float)live / (float)total : 0.f;
+    v->flash_own = total ? (float)qd_persist_proj_pages(a, ps->proj) / (float)total : 0.f;
+    for (i = 1; i <= QD_NSOUND; i++)
+        n += qd_sound_used(&a->proj, i);
+    v->pool_n = n;
+    for (i = 0; i < QD_NPROJ; i++) {
+        v->p[i].exists = ps->pexists[i] || (i == ps->proj);
+        v->p[i].name = i == ps->proj ? v->name : ps->pname[i];
+        qd_persist_proj_used(a, i, v->p[i].used);
+    }
+    v->chosen = p->chosen;
+    v->src = p->f1_down ? p->src : -1;
+    v->armed = p->armed;
+    v->t = secs(a->ms);
+}
+
 /* P1.4b: the effects' model: the page's cells (their values as ChoralRoot reads them), what the drawing needs */
 static void fill_fx(const qd_app_t *a, ui_fx_t *v)
 {
@@ -1256,6 +1371,9 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_menu_t mv;
     static ui_snd_t sv5;
     static ui_mix_t xv;
+    static ui_lib_t lbv;
+    static ui_name_t nmv;
+    static ui_prj_t pjv;
     static ui_fx_t fv;
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
@@ -1264,6 +1382,18 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     case QD_SCR_MENU:                                   /* P1.3y: a settings menu */
         fill_menu(a, &mv);
         ui_menu_draw(&mv);
+        break;
+    case QD_SCR_LIB:                                    /* P1.5a: the sounds page */
+        fill_lib(a, &lbv);
+        ui_lib_draw(&lbv);
+        break;
+    case QD_SCR_NAME:
+        fill_name(a, &nmv);
+        ui_name_draw(&nmv);
+        break;
+    case QD_SCR_PRJ:
+        fill_prj(a, &pjv);
+        ui_prj_draw(&pjv);
         break;
     case QD_SCR_MIX:                                    /* P1.4b: the mix */
         fill_mix(a, &xv);

@@ -30,7 +30,7 @@ struct qd_app;
 
 #define QD_NPROJ 8
 #define QD_NLIB 128
-#define QD_PROJ_NAME 12
+#define QD_PROJ_NAME 13
 #define QD_SAVE_DEBOUNCE_MS 1500u      /* §7: written a moment after the last edit */
 #define QD_SAVE_LOOK_MS 50u            /* how often the app looks for changes */
 #define QD_QUIET_MS 10000u             /* §7 rule 1: erases (GC, blank sectors ahead) after this long untouched, stopped,
@@ -71,6 +71,8 @@ void qd_persist_ms(struct qd_app *a);  /* each ms: the looks, the writes (by §7
 int qd_persist_flush(struct qd_app *a);   /* everything changed written now (a shutdown, a load); 1 done */
 int qd_persist_dirty(const struct qd_app *a);   /* something is not written yet */
 void qd_persist_use(const struct qd_app *a, uint32_t *live_pages, uint32_t *total_pages);   /* the flash meter */
+uint32_t qd_persist_proj_pages(const struct qd_app *a, int p);   /* .. project p's part */
+void qd_persist_proj_used(const struct qd_app *a, int p, uint8_t *used);   /* its patterns written (64) */
 
 /* the projects: load (the one worked on written first), new (an empty slot: a blank project), copy, delete (the one
  * worked on: a blank project in its place), name. 1 done */

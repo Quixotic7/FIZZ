@@ -57,7 +57,8 @@ int render_p13w(const char *out);                       /* render_p13w.c: FUNC o
 int render_p13x(const char *out);                       /* render_p13x.c: PLAY held, live recording */
 int render_p13y(const char *out);                       /* render_p13y.c: the control fixes, the settings menus */
 int render_p14a(const char *out);                       /* render_p14a.c: the sound editor */
-int render_p14b(const char *out);                       /* render_p14b.c: the track settings, the mix, the effects */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
+int render_p14b(const char *out);                       /* render_p14b.c: the track settings, the mix, the effects */
+int render_p15a(const char *out, const char *mocks);    /* render_p15a.c: the library, the pool, the project */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
 int render_p13p(const char *out);                       /* render_p13p.c (P1.3p: replaces render_p13o.c) */
 static int write_lcd_png(const char *path, const uint16_t *lcd_be);
 int p13b_write_lcd_png(const char *path, const uint16_t *lcd_be) { return write_lcd_png(path, lcd_be); }
@@ -168,7 +169,7 @@ int main(int argc, char **argv)
     uint32_t total = 8000, at[MAX_AT] = {0, 1000, 2200, 2500, 4200, 6000, 7000, 7400}, frame_ms = 0, ms, last_frame = 0;
     int nat = 8, i, peak = 0, green = 0, failed = 0;
     uint64_t frames_done = 0;
-    const char *out, *mocks = "../mockups/png";
+    const char *out, *mocks = "../mockups/png", *only = 0;
     char path[1024];
     static uint16_t lcd[QD_W * QD_H];
     static qd_app_t app;
@@ -183,6 +184,8 @@ int main(int argc, char **argv)
     for (i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--ms") && i + 1 < argc) {
             total = (uint32_t)strtoul(argv[++i], NULL, 10);
+        } else if (!strcmp(argv[i], "--only") && i + 1 < argc) {   /* (one part: --only p15a) */
+            only = argv[++i];
         } else if (!strcmp(argv[i], "--mocks") && i + 1 < argc) {
             mocks = argv[++i];
         } else if (!strcmp(argv[i], "--at") && i + 1 < argc) {
@@ -203,6 +206,23 @@ int main(int argc, char **argv)
     if (!log) {
         fprintf(stderr, "render_frames: cannot write %s (does the folder exist?)\n", path);
         return 1;
+    }
+    if (only) {                                         /* one part only (its own frames, the clarity check) */
+        fclose(log);
+        if (!qd_init())
+            return 1;
+        qd_text_stats_reset();
+        failed = !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
+               : !strcmp(only, "p14a") ? render_p14a(out) : 2;
+        {
+            const char *small = "";
+            const float mn = qd_text_stats_min(&small);
+            printf("render_frames: the smallest text drawn: %.1f px (\"%s\")\n", (double)mn, small);
+            if (mn < 11.f)
+                failed = 1;
+        }
+        qd_shutdown();
+        return failed;
     }
     fprintf(log, "FIZZ P1.1, render_frames: PLAY at 500 ms, KNOB 1 +8 at 3000, key 0 (F3) held 4000..4500, TRACKS +"
                  " white key 3 at 6300, KEYS at 6500, C4 E4 G4 B4 held 6600..7700, PRESETS +1 at 7200\n");
@@ -388,6 +408,7 @@ int main(int argc, char **argv)
     failed |= render_p13y(out);                         /* P1.3y: the control fixes, the record / global settings */
     failed |= render_p14a(out);                         /* P1.4a: the sound editor */
     failed |= render_p14b(out);                         /* P1.4b: the track settings, the mix, the effects */
+    failed |= render_p15a(out, mocks);                  /* P1.5a: the library, the pool, the project */
     {   /* P1.3v: the clarity guard over every frame rendered: no text under 11 px */
         const char *small = "";
         const float mn = qd_text_stats_min(&small);

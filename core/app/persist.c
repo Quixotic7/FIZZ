@@ -520,6 +520,37 @@ void qd_persist_use(const qd_app_t *a, uint32_t *live_pages, uint32_t *total_pag
     qd_store_use(&a->per.prj_st, live_pages, total_pages);
 }
 
+uint32_t qd_persist_proj_pages(const qd_app_t *a, int p)
+{
+    const qd_store_t *st = &a->per.prj_st;
+    uint32_t n = 0;
+    int i;
+    if (!a->per.on)
+        return 0;
+    for (i = 0; i < st->nkey; i++)
+        if (((st->ent[i].key >> 16) & 0xFFu) == (uint32_t)p && (st->ent[i].key >> 24) != QD_RK_SET)
+            n += st->ent[i].npages;
+    return n;
+}
+
+void qd_persist_proj_used(const qd_app_t *a, int p, uint8_t *used)
+{
+    const qd_store_t *st = &a->per.prj_st;
+    int i;
+    memset(used, 0, QD_NPAT);
+    if (p == a->per.proj) {
+        for (i = 0; i < QD_NPAT; i++)
+            used[i] = a->proj.pat[i].used;
+        return;
+    }
+    if (!a->per.on)
+        return;
+    for (i = 0; i < st->nkey; i++)
+        if ((st->ent[i].key >> 24) == QD_RK_PAT && ((st->ent[i].key >> 16) & 0xFFu) == (uint32_t)p &&
+            st->ent[i].len != QDS_DELETED)
+            used[st->ent[i].key & 0x3Fu] = 1;
+}
+
 /* ---------------------------------------------------------------- the projects */
 static int proj_switch_prep(qd_app_t *a)
 {
@@ -644,13 +675,13 @@ int qd_pool_free_slot(const qd_project_t *pr)
 int qd_pool_add(qd_app_t *a, const char *name, const int16_t *patch)
 {
     const int k = qd_pool_free_slot(&a->proj);
-    qd_sound_t *s;
+    qd_sound_t n;
     if (!k)
         return 0;
-    s = &a->proj.sound[k - 1];
-    memset(s, 0, sizeof *s);
-    strncpy(s->name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
-    memcpy(s->patch, patch, sizeof s->patch);
+    memset(&n, 0, sizeof n);
+    strncpy(n.name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
+    memcpy(n.patch, patch, sizeof n.patch);
+    a->proj.sound[k - 1] = n;
     qd_sound_recount(&a->proj);
     return k;
 }
@@ -761,13 +792,13 @@ int qd_lib_free_slot(const qd_app_t *a)
 
 int qd_lib_store(qd_app_t *a, int slot, const char *name, const int16_t *patch)
 {
-    qd_sound_t *s;
+    qd_sound_t n;                                       /* (name or patch may be the slot's own) */
     if (slot < 0 || slot >= QD_NLIB)
         return 0;
-    s = &a->per.lib[slot];
-    memset(s, 0, sizeof *s);
-    strncpy(s->name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
-    memcpy(s->patch, patch, sizeof s->patch);
+    memset(&n, 0, sizeof n);
+    strncpy(n.name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
+    memcpy(n.patch, patch, sizeof n.patch);
+    a->per.lib[slot] = n;
     return 1;
 }
 

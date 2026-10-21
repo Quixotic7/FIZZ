@@ -911,6 +911,8 @@ static void g_seq(void)
     run(700);
     bdown(QD_B_MIX);
     run(30);
+    CHECK(qd_view_screen(&A) != QD_SCR_SEQ, "P1.5a: SEQ down 30 ms: no map yet (a tap is the project page)");
+    run(250);
     CHECK(qd_view_screen(&A) == QD_SCR_SEQ, "SEQ held: the pattern map");
     ktap(WK(0), 30);
     run(10);
@@ -2668,6 +2670,32 @@ static void g_clarity(void)
             turn(QD_K_SELECT, 1);
         run(120);
     }
+    btap(QD_B_SAVE);                                    /* P1.5a: the sounds page, the name editor, the projects */
+    run(150);
+    btap(QD_B_SAVE);
+    run(300);
+    btap(QD_B_OCTUP);
+    run(300);
+    kdown(WK(1));
+    run(400);
+    kup(WK(1));
+    run(20);
+    black(B10);
+    run(150);
+    turn(QD_K_SELECT, 1);
+    run(60);
+    btap(QD_B_OCTDN);
+    kdown(BK(B11));
+    run(20);
+    wtap(3);
+    kup(BK(B11));
+    run(200);
+    btap(QD_B_OCTDN);
+    btap(QD_B_MIX);
+    run(150);
+    btap(QD_B_MIX);
+    run(150);
+    btap(QD_B_HOME);
     btap(QD_B_PAGE);
     run(120);
     btap(QD_B_PAGE);

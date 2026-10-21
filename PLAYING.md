@@ -15,7 +15,8 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | OCT− and OCT+ together | **F3** (it stays open; OCT− closes it) |
 | GLO | **SHIFT** |
 | SEL (printed) | **SEL**: hold it for the tracks; tap it for the track settings |
-| SEQ (printed) | **SEQ**: hold it for the patterns |
+| SEQ (printed) | **SEQ**: hold it for the patterns; tap it for the project |
+| SAVE (printed) | **SAVE**: the sounds page, storing the selected track's sound |
 | LFO (printed) | **LATCH**: the step latch, on / off |
 | FX (printed) | **FX**: tap it for the effects; hold it to choose the track |
 | ENV (printed) | **MIX**: the mixer |
@@ -374,7 +375,7 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 ## How do I change sounds?
 
 - The project has a **pool** of sounds: INIT, the 16 factory sounds, and the drums KICK, SNARE, CLAP, GHOST, HAT and
-  OPEN HAT (23 so far, up to 128).
+  OPEN HAT, plus what you add (up to 128). **SAVE** opens the sounds page (below) to keep and share sounds.
 - **Nothing held: PRESETS** picks the track's own sound from the pool, in every view (EDIT shows the sound picture
   while you turn). In **P-LOCK**, KNOB 1..4 turn the track's FREQ, DECAY, HARM and FDBK.
 - **A step held: PRESETS** gives the held steps a sound from the pool (a sound lock), in any mode. Turn it all the way
@@ -455,11 +456,51 @@ They stay open (OCT− or HOME back). For now:
   switching patterns switches the sounds.
 - Switching the unit off and on (in FM1VST: quitting and starting the Standalone) brings back the project you worked
   on, its pattern and the selected track, the effects and the knob layout.
-- Eight projects, each with its 64 patterns and its own pool of 128 sounds; the user library of 128 sounds is shared
-  by all of them. (The pages to manage them come next.)
+- Eight projects, each with its 64 patterns and its own pool of 128 sounds; the **library** of 128 sounds is yours,
+  shared by every project.
+
+## How do I keep a sound? (SAVE, the sounds page)
+
+- **SAVE** (from anywhere) opens the sounds page on the **LIBRARY** (champagne), storing the **selected track's
+  sound** (its box top right): the first free slot is chosen (dashed, blinking) and the sound gets a **name from the
+  sound** (PLUCK, PAD, BASS, KEYS, BELL, LEAD, KICK, SNARE, HAT ... with BRIGHT, DARK, SOFT, WIDE ...; a sparkle marks
+  a made-up name). A W chooses another slot. **SAVE again stores it.**
+- **A slot that holds a sound**: SAVE turns it orange, the old and the new silhouettes in turn. **SAVE again replaces
+  it** (its name stays); anything else cancels. Two presses, never a hold.
+- **Stored**: the pool's tray blinks with F2. **F2** adds the sound to this project's **pool** (its first free slot)
+  and the page turns to the POOL. Anything else leaves it in the library only.
+- **The sounds page**: **B1..B8** the bank, **W1..W16** its sounds (8 x 16 = 128); **SELECT** or **PRESETS** turn
+  through all 128. **B9** switches **LIBRARY / POOL** (the pool lime). A tile is the sound's envelope, coloured by
+  its kind (blue bass, white keys, violet pads, green leads, orange drums).
+- **W tapped**: that sound is chosen and plays once. **W held**: it plays while held and takes the screen (the
+  cassette, its wave).
+- **F2** in the LIBRARY: the chosen sound into the pool. **F2** in the POOL: the chosen sound onto the selected
+  track; with the step latch's steps selected, it is locked on those steps instead.
+- In the POOL the chosen sound shows who uses it: the tracks' boxes, and a padlock with the number of steps that lock
+  it.
+- **F1 + W** copies a sound, **another W** pastes it (onto a free slot it becomes "NAME 2"; onto a sound: that W
+  turns orange, the same W again replaces it). B9 between the two copies across the library and the pool.
+- **F2 + W** picks a sound up, **another W** drops it (onto a sound: they swap). In the pool the tracks and steps
+  using them follow.
+- **B11 + W** deletes a sound: its users flash orange, then it fizzes away. Tracks and steps that used a pool sound
+  go back to INIT (slot 1, INIT itself, cannot be deleted).
+- **B10** names the chosen sound (or the one being stored): **SELECT** turns the letter, **ALGORITHM** moves along,
+  **B11** deletes the letter, **B10 again** deals another name from the sound, **F2** keeps it, **F1** cancels.
+- **F1** or **HOME** leaves the sounds page.
+- The LEDs: the W keys lit for filled slots (the chosen one bright), the bank key in the tab's colour, B9 in the
+  other tab's colour, B10 and B11 lit.
+
+## How do I manage projects? (SEQ tapped)
+
+- **SEQ tapped** (SEQ held is still the patterns) shows the **project**: its number and name, its 64 patterns (a
+  bubble for each one written, the playing one bright), the flash in use and the pool's count.
+- **SELECT** or **SEQ again**: the **projects**, W1..W8 (the current one champagne). A W chooses one; **F2** loads it
+  (an empty one starts a new project). **F1 + W** picks a project, **another W** copies it there (onto a project: that
+  W turns orange, the same W again replaces it). **B11 + W** deletes one (the one you work on: a blank project in
+  its place). **B10** names the current project.
+- **F1** or **HOME** leaves.
 
 ## Not built yet
 
-- Saving sounds into the pool (the editor changes the track's sound; P1.5a stores it).
+- Snapshots (SHIFT + SAVE, P1.5b) and undo for deleting a sound.
 - Pattern chains.
-- Saving: closing the app loses everything.

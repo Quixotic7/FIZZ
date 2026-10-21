@@ -29,6 +29,9 @@ static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_TRK] = {"TRACK", "BACK", 0, 0, 0, 0},    /* P1.4b: the track settings (ctl_mix.c) */
     [QD_LATCH_MIX] = {"MIX", "BACK", 0, 0, 0, 0},      /* P1.4b: the mix */
     [QD_LATCH_FX] = {"FX", "BACK", 0, 0, 0, 0},        /* P1.4b: the effects */
+    [QD_LATCH_LIB] = {"SOUNDS", "BACK", 0, 0, 0, 0},   /* P1.5a: the sounds page (ctl_lib.c) */
+    [QD_LATCH_NAME] = {"NAME", "BACK", 0, 0, 0, 0},    /* P1.5a: the name editor */
+    [QD_LATCH_PRJ] = {"PROJECT", "BACK", 0, 0, 0, 0}, /* P1.5a: the project pages */
 };
 
 const qd_latch_t *qd_latch_cur(const qd_app_t *a)
@@ -78,3 +81,7 @@ int qd_latch_oct(qd_app_t *a, int d)
 #include "../voice/fx/qd_fx.h"
 #include "../seq/scale.h"
 #include "ctl_mix.c"
+#include "../seq/sounds.h"
+#include <stdio.h>
+#include <string.h>
+#include "ctl_lib.c"

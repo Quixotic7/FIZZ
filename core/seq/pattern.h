@@ -47,7 +47,7 @@ extern "C" {
 #define QD_NBANK 4                      /* A..D */
 #define QD_NPAT (QD_NBANK * 16)         /* patterns a project */
 #define QD_NSOUND 128                   /* the sound pool a project */
-#define QD_SOUND_NAME 12
+#define QD_SOUND_NAME 13                /* (P1.5a: twelve letters and the end: "BRIGHT PLUCK") */
 /* the sequencer's musical time: ticks, QD_TPS a 16th (a step at rate 1). 100800 = 2^6 3^2 5^2 7 (P1.3c: twice
  * P1.2's 50400, for the 1/64 steps; QD_SUB halved with it, so a 16th is the same 5,292,000,000 subticks and every
  * event the same sample): a step at every rate (1/1 .. 1/64, dotted, triplet) divides by 24 (micro, strum), 1..8

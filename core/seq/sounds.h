@@ -29,6 +29,16 @@ void qd_sound_recount(qd_project_t *pr);
 int qd_sound_step(const qd_project_t *pr, int k, int d, int lo);   /* k moved d used slots (lo 0: 0 the track's sound
                                                                      * counts, 1: from 1), clamped */
 
+/* P1.5a: a sound's kind and a name from the sound (its amp envelope, its filter, its operators: small rules, the same
+ * answer every time). Kinds: BASS KEYS PLUCK BELL PAD LEAD KICK SNARE CLAP HAT NOISE; a name is an adjective (DARK,
+ * BRIGHT, SOFT, WIDE, HARD, SHORT, LONG, HOLLOW, METAL ...) and the kind, twelve letters at most. variant 0: the best
+ * name; 1, 2 ..: others (the name editor's dice) */
+enum { QD_SK_BASS, QD_SK_KEYS, QD_SK_PLUCK, QD_SK_BELL, QD_SK_PAD, QD_SK_LEAD, QD_SK_KICK, QD_SK_SNARE, QD_SK_CLAP,
+       QD_SK_HAT, QD_SK_NOISE, QD_NSK };
+int qd_sound_kind(const int16_t *patch);
+const char *qd_sound_kind_name(int kind);
+void qd_sound_autoname(const int16_t *patch, int variant, char *out);   /* out: QD_SOUND_NAME bytes */
+
 #ifdef __cplusplus
 }
 #endif

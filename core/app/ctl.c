@@ -288,6 +288,18 @@ static void k_snd_black(qd_app_t *a, int key, int b, int down, int vel)
 static int w_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
 static int w_tracks_held(const qd_app_t *a) { return held(a, QD_B_TRACKS); }
 static int w_keys_mode(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS; }
+/* P1.5a: the sounds page, the name editor, the project pages (ctl_lib.c) */
+static int w_lib(const qd_app_t *a) { return qd_lib_open(a); }
+static void k_lib_white(qd_app_t *a, int key, int w, int down, int vel)
+{
+    (void)key, (void)vel;
+    qd_lib_key(a, w, -1, down);
+}
+static void k_lib_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    (void)key, (void)vel;
+    qd_lib_key(a, -1, b, down);
+}
 /* P1.4b: the track settings, the mix, the effects: black keys the track (the effect), the W keys nothing */
 static int w_panel(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_PANEL(a->ui.latch); }
 static void k_panel_black(qd_app_t *a, int key, int b, int down, int vel)
@@ -720,6 +732,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_seq_held, k_pattern},           /* SEQ held: A01 .. A16 (SHIFT: at once) */
     {w_sel_held, k_sel_white},         /* SEL held: W1..W8 mute, W9..W16 solo */
     {w_tracks_held, k_track_select},   /* FX (TRACKS) held: tracks 1..8 (over the pages too) */
+    {w_lib, k_lib_white},              /* P1.5a: the sounds page's slots, the projects */
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
     {w_panel, k_none},                 /* P1.4b: the mix, the effects: nothing */
     {w_keys_mode, k_note},             /* the keyboard */
@@ -732,6 +745,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
 static const qd_key_row_t BLACK_ROWS[] = {
     {w_seq_held, k_bank},              /* SEQ held: B1..B4 the bank (P1.3d) */
     {w_sel_held, k_sel_black},         /* SEL held: B1..B8 select the track */
+    {w_lib, k_lib_black},              /* P1.5a: the banks, LIBRARY / POOL, NAME, delete */
     {w_panel, k_panel_black},          /* P1.4b: the track settings, the mix: the track; the effects: B1..B4 */
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
     {w_snd, k_snd_black},              /* P1.4a: the sound editor: B1..B5 its groups, B11 the page's locks */
@@ -756,6 +770,8 @@ void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
             return;
         if (held(a, QD_B_PATTERN))
             a->ui.sel_used = 1;                         /* (P1.3y: SEL's map at once) */
+        if (held(a, QD_B_MIX))
+            a->ui.seq_used = 1;                         /* (P1.5a: SEQ's map at once, its release no tap) */
         for (i = 0; i < n; i++)
             if (rows[i].when(a)) {
                 a->ui.key_row[key] = (int8_t)(i + 1);   /* the row that took the press takes the release */
@@ -953,6 +969,8 @@ static void b_oct(qd_app_t *a, int d, int down)
 {
     qd_ui_t *u = &a->ui;
     const int both = held(a, QD_B_OCTDN) && held(a, QD_B_OCTUP);
+    if (qd_lib_oct(a, d, down))                         /* P1.5a: the sounds page, the name editor, the projects */
+        return;
     if (!down) {
         u->oct_eaten &= (uint8_t)~(d < 0 ? 1u : 2u);   /* (a key a latch ate: free again) */
         if (d < 0) {                                    /* F1 let go: its step copy and page copy end (the clipboard
@@ -1012,7 +1030,33 @@ static void b_oct(qd_app_t *a, int d, int down)
 }
 static void b_octdn(qd_app_t *a, int down) { b_oct(a, -1, down); }
 static void b_octup(qd_app_t *a, int down) { b_oct(a, 1, down); }
-static void b_none(qd_app_t *a, int down) { (void)a, (void)down; }
+void qd_ctl_set_mode(qd_app_t *a, int mode) { set_mode(a, mode); }
+
+/* P1.5a: SAVE: the sounds page, storing the selected track's sound (SAVE again stores; SHIFT + SAVE is P1.5b's) */
+static void b_save(qd_app_t *a, int down)
+{
+    if (!down || a->ui.mode == QD_MODE_IDLE || qd_ctl_shift(a))
+        return;
+    qd_lib_save(a);
+}
+
+/* P1.5a: SEQ (printed): held, the patterns (their map after QD_TAP_MS, or at once with a key or a knob); tapped, the
+ * project page (again: the projects) */
+static void b_seq(qd_app_t *a, int down)
+{
+    qd_ui_t *u = &a->ui;
+    if (down) {
+        u->seq_ms = a->ms;
+        u->seq_used = 0;
+        return;
+    }
+    if (!u->seq_used && a->ms - u->seq_ms < QD_TAP_MS && u->mode != QD_MODE_IDLE && !qd_ctl_shift(a))
+        qd_prj_button(a);
+}
+int qd_ctl_seq_map(const qd_app_t *a)
+{
+    return held(a, QD_B_MIX) && (a->ui.seq_used || a->ms - a->ui.seq_ms >= QD_TAP_MS);
+}
 
 /* P1.4a: EDIT (printed): the sound editor for the selected track, latched (EDIT again, OCT- or HOME: closed); from
  * another screen (the keyboard, the tracks) it opens over the step view */
@@ -1035,9 +1079,10 @@ static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_SOUND] = b_snd,              /* printed EDIT: the sound editor (P1.4a) */
     [QD_B_FUNC] = b_shift,             /* SHIFT, held */
     [QD_B_HOME] = b_home,              /* the step view */
-    [QD_B_SAVE] = b_none,
+    [QD_B_SAVE] = b_save,              /* P1.5a: the sounds page: the track's sound into the LIBRARY */
     [QD_B_KEYS] = b_fill,              /* ARP held: FILL */
-    [QD_B_MIX] = b_none,               /* printed SEQ, held: the patterns (W: the keys' table) */
+    [QD_B_MIX] = b_seq,                /* printed SEQ, held: the patterns (W: the keys' table); P1.5a: tapped, the
+                                        * project */
     [QD_B_PLAY] = b_play,              /* play / stop; REC + PLAY: play, recording armed */
     [QD_B_REC] = b_rec,                /* tap: the keyboard <-> the sequencer; SHIFT: armed */
     [QD_B_OCTDN] = b_octdn,            /* F1 */
@@ -1211,6 +1256,7 @@ static int when_seq(const qd_app_t *a) { return a->ui.mode != QD_MODE_IDLE && he
 /* SEQ held + ALGORITHM: the launch mode (END BAR BEAT NOW), a project setting */
 static int k_seq(qd_app_t *a, int knob, int d)
 {
+    a->ui.seq_used = 1;
     if (knob != QD_K_ALGO)
         return 0;
     a->proj.launch = (uint8_t)clampi(a->proj.launch + d, 0, QD_NLAUNCH - 1);
@@ -1323,6 +1369,8 @@ static int k_snd(qd_app_t *a, int knob, int d)
 
 /* P1.3y: the settings menus' knobs (KNOB 1..4 their rows; the encoders nothing) */
 static int when_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
+static int when_lib(const qd_app_t *a) { return qd_lib_open(a); }
+static int k_libk(qd_app_t *a, int knob, int d) { return qd_lib_knob(a, knob, d); }
 static int when_mix(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_MIX; }
 static int k_mix(qd_app_t *a, int knob, int d) { return qd_mix_knob(a, knob, d); }
 static int when_fx(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_FX; }
@@ -1368,6 +1416,7 @@ static const struct {
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
     {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track (over every page) */
+    {when_lib, k_libk},                /* P1.5a: the sounds page (SELECT / PRESETS), the name editor, the projects */
     {when_menu, k_menu},               /* P1.3y: a settings menu: KNOB 1..4 its rows (P1.4b: the track settings) */
     {when_mix, k_mix},                 /* P1.4b: the mix */
     {when_fx, k_fx},                   /* P1.4b: the effects */
@@ -1396,6 +1445,7 @@ void qd_ctl_knob(qd_app_t *a, int knob, int d)
 void qd_ctl_ms(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
+    qd_lib_ms(a);                                       /* P1.5a: the sounds page's sound heard */
     qd_step_promote_due(a);                             /* a white key down 250 ms: held */
     f1_timers(a);                                       /* F1: a page key held 400 ms, B9 held 600 ms */
     sel_seq_timers(a);                                  /* SEL + W held: solo; SEQ + W held: at once */

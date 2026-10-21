@@ -2958,8 +2958,8 @@ static void u_sounds(void)
           "out of the pool: no name, INIT's patch");
     qd_quad_preset_patch(3, want);
     k = qd_sound_add(&PROJ, "A NAME TOO LONG", want);
-    CHECK(k == 24 && PROJ.nsound == 24 && !strcmp(qd_sound_name(&PROJ, 24), "A NAME TOO ") &&
-              !memcmp(qd_sound_patch(&PROJ, 24), want, sizeof want), "add: number 24, the name cut to 11 (%s)",
+    CHECK(k == 24 && PROJ.nsound == 24 && !strcmp(qd_sound_name(&PROJ, 24), "A NAME TOO L") &&
+              !memcmp(qd_sound_patch(&PROJ, 24), want, sizeof want), "add: number 24, the name cut to 12 (%s)",
           qd_sound_name(&PROJ, 24));
     while (qd_sound_add(&PROJ, "X", want))
         ;

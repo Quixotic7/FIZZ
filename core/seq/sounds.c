@@ -16,6 +16,7 @@
  *   GHOST     the snare quieter (LEVEL 70) and darker (LP12 at 80.00, RESO 0), AMP DEC 16 REL 12: centroid 1.1 kHz
  *   HAT       NOISE-ISH's own HP12 raised to 95.00, RESO 10, AMP DEC 10 SUS 0 REL 8 (-40 dB at 36 ms; at C7)
  *   OPEN HAT  the same at 90.00, AMP DEC 32 REL 26 (-20 dB at 255 ms) */
+#include <stdio.h>
 #include <string.h>
 
 #include "sounds.h"
@@ -126,4 +127,96 @@ int qd_sound_add(qd_project_t *pr, const char *name, const int16_t *patch)
     memcpy(s->patch, patch, sizeof s->patch);
     qd_sound_recount(pr);
     return k;
+}
+
+/* ---------------------------------------------------------------- P1.5a: a name from the sound */
+int qd_sound_kind(const int16_t *p)
+{
+    const int noise = p[QD_QP_FDBK] >= 100, perc = p[QD_QP_ESUS] <= 10 && p[QD_QP_EDEC] <= 40;
+    const int lp = p[QD_QP_FTYPE] == QD_QF_LP12 || p[QD_QP_FTYPE] == QD_QF_LP24;
+    if (noise && perc) {
+        if (p[QD_QP_FTYPE] == QD_QF_HP12)
+            return QD_SK_HAT;
+        if (p[QD_QP_EDEC] < 20 && p[QD_QP_RESO] >= 2000)
+            return QD_SK_CLAP;
+        return QD_SK_SNARE;
+    }
+    if (noise)
+        return QD_SK_NOISE;
+    if (perc && p[QD_QP_ADEC] <= 6 && p[QD_QP_ALEV] >= 40)
+        return QD_SK_KICK;                              /* (a fast pitch-like drop of the modulator) */
+    if (p[QD_QP_EATK] >= 30)
+        return QD_SK_PAD;
+    if (p[QD_QP_ESUS] <= 40 && p[QD_QP_EDEC] >= 40)
+        return QD_SK_BELL;
+    if (p[QD_QP_ESUS] <= 10)
+        return QD_SK_PLUCK;
+    if (p[QD_QP_ESUS] < 80)
+        return QD_SK_KEYS;
+    if (lp && p[QD_QP_FREQ] < 9500 && p[QD_QP_EATK] < 10)
+        return QD_SK_BASS;
+    return QD_SK_LEAD;
+}
+
+const char *qd_sound_kind_name(int k)
+{
+    static const char *const N[QD_NSK] = {"BASS", "KEYS", "PLUCK", "BELL", "PAD", "LEAD", "KICK", "SNARE", "CLAP",
+                                          "HAT", "NOISE"};
+    return k >= 0 && k < QD_NSK ? N[k] : "SOUND";
+}
+
+void qd_sound_autoname(const int16_t *p, int variant, char *out)
+{
+    static const char *const MORE[] = {"WARM", "DEEP", "CLEAR", "ROUND", "THIN", "BIG", "TINY", "DUST", "GLOW", "VELVET",
+                                       "DRY", "RAW"};
+    const char *cand[24], *kind;
+    const int k = qd_sound_kind(p);
+    int n = 0, i;
+    const int lp = p[QD_QP_FTYPE] == QD_QF_LP12 || p[QD_QP_FTYPE] == QD_QF_LP24;
+    const int drum = k == QD_SK_KICK || k == QD_SK_SNARE || k == QD_SK_CLAP || k == QD_SK_HAT;
+    kind = k == QD_SK_HAT && p[QD_QP_EDEC] >= 24 ? "OPEN HAT" : qd_sound_kind_name(k);
+    /* the adjectives that hold, the strongest first (a drum: of its body only) */
+    if (k == QD_SK_KICK)
+        cand[n++] = "DEEP";
+    if (lp && p[QD_QP_FREQ] < 8000)
+        cand[n++] = "DARK";
+    if (p[QD_QP_LEVEL] < 80 || (p[QD_QP_EATK] >= 20 && k != QD_SK_PAD))
+        cand[n++] = "SOFT";
+    if (p[QD_QP_DTUN] >= 8000 && k != QD_SK_PAD && !drum)
+        cand[n++] = "METAL";
+    if (p[QD_QP_HARM] <= -1000 && !drum)
+        cand[n++] = "HOLLOW";
+    if (p[QD_QP_DTUN] >= 3000 && !drum)
+        cand[n++] = "WIDE";
+    if ((p[QD_QP_FDBK] >= 30 && p[QD_QP_FDBK] < 100) || p[QD_QP_DRIVE] >= 20)
+        cand[n++] = "HARD";
+    if (p[QD_QP_FREQ] >= 12000 && !drum && (p[QD_QP_HARM] > 0 || p[QD_QP_RA] >= 7 || p[QD_QP_RB1] >= 6))
+        cand[n++] = "BRIGHT";
+    if (p[QD_QP_ESUS] <= 10 && p[QD_QP_EDEC] <= 14)
+        cand[n++] = k == QD_SK_KICK || k == QD_SK_HAT ? "TIGHT" : "SHORT";
+    if (p[QD_QP_EREL] >= 50)
+        cand[n++] = "LONG";
+    if (p[QD_QP_RESO] >= 4000 && !drum)
+        cand[n++] = "RUBBER";
+    if (p[QD_QP_HARM] > 0 && !drum)
+        cand[n++] = "GLASS";
+    for (i = 0; i < (int)(sizeof MORE / sizeof MORE[0]); i++)
+        cand[n++] = MORE[i];
+    memset(out, 0, QD_SOUND_NAME);
+    {   /* variant v: the v-th of those that fit with the kind */
+        const char *fit[24];
+        int m = 0;
+        for (i = 0; i < n; i++) {
+            int j, dup = 0;
+            for (j = 0; j < m; j++)
+                dup |= !strcmp(fit[j], cand[i]);
+            if (!dup && strlen(cand[i]) + 1 + strlen(kind) <= QD_SOUND_NAME - 1)
+                fit[m++] = cand[i];
+        }
+        if (m) {
+            snprintf(out, QD_SOUND_NAME, "%s %s", fit[(variant < 0 ? 0 : variant) % m], kind);
+            return;
+        }
+    }
+    snprintf(out, QD_SOUND_NAME, "%s", kind);
 }
