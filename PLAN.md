@@ -1587,3 +1587,12 @@ Mac against 0.53 ms for the wheelie.
 show version 2 (`rd_show`): the bike stays as at 126 (rear axle x 138, scale 1.4, the full wheelie), the ramps and the
 eight buses scroll under it, a small arc, three bursts as the buses' middle passes; a burst of its own at (70, 92) when
 the step plays at 127. A show frame about 1.0 ms on the Mac (the wheelie 0.53 ms).
+
+**2026-10-21, P1.5h, P1.5i** (FMToneSeq 9bf7cb7, 0f04d4a; FM1VST `core-quadrille` 30f7aa8, 551ca5c; versions
+0.5.5-p1.5h, 0.5.6-p1.5i; relaunched):
+- P1.5h: holding LFO alone opens the latch-mode screen at 400 ms while held; SELECT sets VALUES / MODES at once; the
+  release keeps it (no toggle on release); any key closes it, a black key still picks the hold mode.
+- P1.5i: RATIO B as ChoralRoot's one value (the pair index B1 x 19 + B2, 0..360, default 60; one step per detent, never
+  accelerated; SHIFT steps B1; the readout B2 over B1; a lock takes both halves); the RATIO page is C, A, B, MIX (MIX
+  moved from TONE, whose KNOB 4 is now empty); the mix drawn as the two outputs' wires (thick and bright by their share,
+  never gone) and a crossfader in KNOB 4's orange by the speaker.
