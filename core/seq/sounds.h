@@ -21,7 +21,13 @@ enum { QD_SND_INIT = 1, QD_SND_NOISE = 17, QD_SND_KICK = 18, QD_SND_SNARE, QD_SN
 void qd_sounds_init(qd_project_t *pr);  /* the pool's first sounds (above) */
 const char *qd_sound_name(const qd_project_t *pr, int k);   /* k 1..nsound; else "" */
 const int16_t *qd_sound_patch(const qd_project_t *pr, int k);   /* k 1..nsound; else INIT's */
-int qd_sound_add(qd_project_t *pr, const char *name, const int16_t *patch);   /* its number, 0: the pool is full */
+int qd_sound_add(qd_project_t *pr, const char *name, const int16_t *patch);   /* its number (the first free slot), 0:
+                                                                               * the pool is full */
+/* P1.5a: the pool has holes (a sound deleted, moved): a slot is used when it has a name; nsound is the last used */
+int qd_sound_used(const qd_project_t *pr, int k);
+void qd_sound_recount(qd_project_t *pr);
+int qd_sound_step(const qd_project_t *pr, int k, int d, int lo);   /* k moved d used slots (lo 0: 0 the track's sound
+                                                                     * counts, 1: from 1), clamped */
 
 #ifdef __cplusplus
 }

@@ -231,6 +231,13 @@ void qd_player_live_edit(qd_player_t *pl, int t, int id, int value)
         tk->patch[id] = (int16_t)value;
         tk->edited = 1;
     }
+    {   /* P1.5a: the pattern edited keeps its tracks' sounds (its trigs play them) */
+        qd_tsound_t *ps = &pl->seq->proj->pat[pl->seq->cur].snd[t];
+        if (ps->patch[id] != value) {
+            ps->patch[id] = (int16_t)value;
+            ps->edited = 1;
+        }
+    }
     for (i = 0; i < pl->pool->nvoice; i++) {
         const qd_pool_voice_t *v = &pl->pool->v[i];
         const qd_vattr_t *at = v->pend ? &v->pend_at : &v->at;   /* (a voice waiting: its waiting note's) */

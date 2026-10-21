@@ -50,6 +50,7 @@
 #include "../voice/mix.h"
 #include "../voice/pool.h"
 #include "ctl.h"
+#include "persist.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -116,6 +117,9 @@ typedef struct qd_app {
     qd_seq_t seq;
     qd_player_t player;
     int sel;                           /* the selected track, 0..7 */
+    int snd_pat;                       /* P1.5a: the pattern whose track sounds the model's tracks are (seq.cur) */
+    /* P1.5a: saving (persist.h): the stores, the library, the projects */
+    qd_persist_t per;
     int oct;                           /* the keybed's octave shift */
     /* the UI (P1.3: core/app/ctl.h) */
     qd_ui_t ui;

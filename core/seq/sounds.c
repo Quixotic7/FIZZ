@@ -82,19 +82,48 @@ const char *qd_sound_name(const qd_project_t *pr, int k)
     return k >= 1 && k <= pr->nsound ? pr->sound[k - 1].name : "";
 }
 
+int qd_sound_used(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOUND && pr->sound[k - 1].name[0]; }
+
 const int16_t *qd_sound_patch(const qd_project_t *pr, int k)
 {
-    return pr->sound[k >= 1 && k <= pr->nsound ? k - 1 : 0].patch;
+    return pr->sound[qd_sound_used(pr, k) ? k - 1 : 0].patch;
+}
+
+void qd_sound_recount(qd_project_t *pr)
+{
+    int k;
+    for (k = QD_NSOUND; k > 1 && !pr->sound[k - 1].name[0]; k--)
+        ;
+    pr->nsound = (uint8_t)k;
+}
+
+int qd_sound_step(const qd_project_t *pr, int k, int d, int lo)
+{
+    const int dir = d < 0 ? -1 : 1;
+    int n = d < 0 ? -d : d;
+    while (n-- > 0) {
+        int j = k + dir;
+        while (j >= 1 && j <= pr->nsound && !qd_sound_used(pr, j))
+            j += dir;
+        if (j < lo || j > pr->nsound || (j >= 1 && !qd_sound_used(pr, j)))
+            break;
+        k = j;
+    }
+    return k;
 }
 
 int qd_sound_add(qd_project_t *pr, const char *name, const int16_t *patch)
 {
     qd_sound_t *s;
-    if (pr->nsound >= QD_NSOUND)
+    int k;
+    for (k = 1; k <= QD_NSOUND && pr->sound[k - 1].name[0]; k++)
+        ;
+    if (k > QD_NSOUND)
         return 0;
-    s = &pr->sound[pr->nsound++];
+    s = &pr->sound[k - 1];
     memset(s->name, 0, sizeof s->name);
-    strncpy(s->name, name ? name : "", QD_SOUND_NAME - 1);
+    strncpy(s->name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
     memcpy(s->patch, patch, sizeof s->patch);
-    return pr->nsound;
+    qd_sound_recount(pr);
+    return k;
 }

@@ -154,6 +154,37 @@ int main(int argc, char **argv)
     btap(FM1P_B_OCTDN);
 
     C->shutdown();
+
+    {   /* P1.5a, the restart: a flash FILE (as FM1VST's <core-id>/flash.bin); the tempo (the pattern's) and the selected
+         * track changed, written by themselves; shutdown; a new power-on from the file has them */
+        const char *path = "build/test_abi_flash.bin";
+        char info[512];
+        int b1, t1;
+        remove(path);
+        C->options(path, 0, 0, 1);
+        C->init(0);
+        run(10);
+        btap(FM1P_B_HOME);
+        f3_open();
+        turn(FM1P_E_SELECT, 7);
+        b1 = bpm();
+        btap(FM1P_B_OCTDN);
+        bdown(FM1P_B_FX);                           /* FX held + ALGORITHM +3: track 4 */
+        run(20);
+        turn(FM1P_E_ALGO, 3);
+        bup(FM1P_B_FX);
+        run(2500);                                      /* (written by itself: 1.5 s after the last edit) */
+        C->ui_info(info, sizeof info);
+        t1 = strstr(info, "track ") ? atoi(strstr(info, "track ") + 6) : -1;
+        C->shutdown();
+        C->options(path, 0, 0, 1);
+        C->init(0);
+        run(100);
+        C->ui_info(info, sizeof info);
+        CHECK(bpm() == b1 && t1 == 4 && strstr(info, "track 4 "), "a restart from the flash file: the tempo %d (was %d) "
+              "and track 4 (%s)", bpm(), b1, info);
+        C->shutdown();
+    }
     printf("test_abi: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

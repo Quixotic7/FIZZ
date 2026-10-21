@@ -184,6 +184,16 @@ typedef struct {
 int qd_tset_rate(const qd_tset_t *ts);  /* the track's rate code */
 void qd_tset_set_rate(qd_tset_t *ts, int rate);   /* base and type from a code */
 
+/* ---- P1.5a: a track's sound in a pattern (each pattern keeps its eight tracks' sounds as edited: switching patterns
+ * switches them; the player plays a trig with its pattern's track sound) */
+typedef struct {
+    int16_t patch[QD_QUAD_NP];
+    uint8_t sound;                      /* the pool number it came from (0: none, a copy) */
+    uint8_t edited;                     /* changed since */
+    char name[QD_SOUND_NAME];
+} qd_tsound_t;
+void qd_tsound_default(int t, qd_tsound_t *s);   /* track t's sound in a new pattern: the default kit's (model.c) */
+
 /* ---- a pattern */
 #define QD_MASTER_AUTO 0                /* master length: the longest track at its rate */
 #define QD_MASTER_INF 0xFFFFu           /* .. never: a queued pattern waits for ever, a chain stands */
@@ -197,6 +207,7 @@ typedef struct {
     uint8_t used;                       /* the pattern has content */
     uint16_t bpm;                       /* 30..300 */
     qd_lock_t lock[QD_NLOCK];
+    qd_tsound_t snd[QD_PAT_NTRACK];     /* P1.5a: the tracks' sounds */
 } qd_pattern_t;
 
 /* a sound of the pool: an FM TONE patch and its name */

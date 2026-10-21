@@ -12,6 +12,7 @@
 
 #include "../voice/mix.h"
 #include "../voice/quad/quad_voice.h"
+#include "pattern.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,6 +54,9 @@ void qd_track_reset_sound(qd_track_t *t, int i);
 /* the track's sound: pool sound k (its name, its patch), edited 0 */
 void qd_track_load_sound(qd_track_t *t, int k, const char *name, const int16_t *patch);
 const char *qd_track_sound_name(const qd_track_t *t);   /* the sound's name */
+/* P1.5a: the track's sound to and from its pattern's copy (pattern.h qd_tsound_t) */
+void qd_track_to_tsound(const qd_track_t *t, qd_tsound_t *s);
+void qd_track_from_tsound(qd_track_t *t, const qd_tsound_t *s);
 
 #define QD_MIX_LEVEL_DEFAULT 104        /* ChoralRoot's part LEVEL default (params.c TP[P_LEVEL]) */
 #define QD_MIX_REVERB_DEFAULT 20        /* a modest reverb send (ChoralRoot's FX amounts: 35 the chord part, 10 the bass) */

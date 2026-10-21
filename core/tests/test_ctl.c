@@ -35,6 +35,7 @@
  *
  *     test_ctl      exit 1 on a failed check */
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1910,7 +1911,7 @@ static void g_plock_track(void)
     dec = A.model.t[0].patch[QD_QP_EDEC];
     turn(QD_K_2, 3);
     CHECK(A.model.t[0].patch[QD_QP_EDEC] == dec + 3 &&
-              A.ui.tk == UI_TK_DECAY && !memcmp(&before, PAT(), sizeof before),
+              A.ui.tk == UI_TK_DECAY && !memcmp(&before, PAT(), offsetof(qd_pattern_t, snd)),
           "KNOB 2: the track's DECAY, live (the pattern untouched)");
     turn(QD_K_PRESETS, 1);
     CHECK(A.ui.tk == QD_TK_PRESET && !A.ui.tk_lock, "PRESETS: the track's sound");
@@ -2021,7 +2022,7 @@ static void g_preview(void)
     }
     run(500);
     wrel(4);
-    CHECK(!memcmp(&before, PAT(), sizeof before), "held, previewed and let go: the pattern unchanged");
+    CHECK(!memcmp(&before, PAT(), offsetof(qd_pattern_t, snd)), "held, previewed and let go: the pattern unchanged");
     CHECK(seq0.resolved == A.seq.resolved && seq0.played == A.seq.played && seq0.nev == A.seq.nev &&
               seq0.serial == A.seq.serial && seq0.pos == A.seq.pos && !A.seq.playing &&
               !memcmp(seq0.cur_t, A.seq.cur_t, sizeof seq0.cur_t),

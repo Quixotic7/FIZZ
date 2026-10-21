@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.4b)
+# Playing FIZZ (P1.5a)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -447,6 +447,16 @@ They stay open (OCT− or HOME back). For now:
   layout).
 - A page change in the PIANO ROLL with page follow off: a crossed arrow at the top right (was FOLLOW OFF). The small
   dots over the columns mark the beats. The PIANO ROLL's top line no longer shows the tempo (turn it, or open F3).
+
+## Saving (P1.5a)
+
+- **Nothing to save by hand**: the project is written by itself, a moment (1.5 s) after your last change, while you
+  play too (never in a way you could hear). Every pattern keeps its eight tracks' sounds as you edited them:
+  switching patterns switches the sounds.
+- Switching the unit off and on (in FM1VST: quitting and starting the Standalone) brings back the project you worked
+  on, its pattern and the selected track, the effects and the knob layout.
+- Eight projects, each with its 64 patterns and its own pool of 128 sounds; the user library of 128 sounds is shared
+  by all of them. (The pages to manage them come next.)
 
 ## Not built yet
 

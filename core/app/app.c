@@ -3,6 +3,7 @@
  * into the tracks' FM TONE voices, the mix, ChoralRoot's effects), MIDI in. The panel's input, the frame and the LEDs
  * are the controller's (ctl.h). Deterministic: time is the ticks' milliseconds and the audio's samples only. */
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "app.h"
@@ -36,6 +37,7 @@ void qd_app_init(qd_app_t *a)
     qd_seq_init(&a->seq, &a->proj, &a->model);
     qd_player_init(&a->player, &a->seq, &a->pool, &a->model);
     qd_seq_select(&a->seq, QD_PAT_START, 0);
+    a->snd_pat = -1;                                    /* (the first ms: the pattern's sounds into the tracks) */
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
     qd_ctl_init(a);
 }
@@ -180,8 +182,30 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
 }
 
 /* ---------------------------------------------------------------- time --- */
+/* P1.5a: the tracks' sounds are the edited pattern's (pattern.h qd_tsound_t): a pattern change brings its sounds into
+ * the model's tracks (what the controller edits and the keys play); an edit of a track's sound goes back into it */
+static void qd_app_sounds(qd_app_t *a)
+{
+    qd_pattern_t *P = &a->proj.pat[a->seq.cur];
+    int t;
+    if (a->snd_pat != a->seq.cur) {
+        a->snd_pat = a->seq.cur;
+        for (t = 0; t < QD_NTRACK; t++)
+            qd_track_from_tsound(&a->model.t[t], &P->snd[t]);
+        return;
+    }
+    for (t = 0; t < QD_NTRACK; t++) {
+        qd_tsound_t s;
+        qd_track_to_tsound(&a->model.t[t], &s);
+        if (memcmp(&s, &P->snd[t], sizeof s))
+            P->snd[t] = s;
+    }
+}
+
 static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
 {
+    qd_app_sounds(a);
+    qd_persist_ms(a);                                   /* P1.5a: written by itself */
     if (a->seq.playing != a->playing) {                 /* (MIDI START / STOP moved the transport) */
         if (a->seq.playing)
             qd_dance_play(a);
@@ -260,3 +284,8 @@ void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames)
         frames -= n;
     }
 }
+
+/* ---------------------------------------------------------------- P1.5a: saving (persist.h), the store (core/store) */
+#include "../store/store.c"
+#include "../seq/sounds.h"
+#include "persist.c"

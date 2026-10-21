@@ -157,6 +157,8 @@ void qd_pat_init(qd_pattern_t *p)
     p->master = QD_MASTER_AUTO;
     p->swing = 50;
     p->bpm = 120;
+    for (t = 0; t < QD_PAT_NTRACK; t++)
+        qd_tsound_default(t, &p->snd[t]);
 }
 
 void qd_project_init(qd_project_t *pr)

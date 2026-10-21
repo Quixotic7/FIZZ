@@ -1070,7 +1070,8 @@ static void live_edit(qd_app_t *a, int id, int d, int tk, int knob)
 static void track_sound(qd_app_t *a, int d)
 {
     qd_track_t *t = &a->model.t[a->sel];
-    const int k = clampi((int)t->sound + d, 1, a->proj.nsound);
+    const int k = qd_sound_step(&a->proj, t->sound ? (int)t->sound : 1, t->sound ? d : d - (d > 0), 1);   /* (P1.5a:
+                                                         * holes skipped; a track with no source starts at INIT) */
     qd_track_load_sound(t, k, qd_sound_name(&a->proj, k), qd_sound_patch(&a->proj, k));
     qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 0, -1);
 }

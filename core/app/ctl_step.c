@@ -509,7 +509,8 @@ void qd_step_sound_pick(qd_app_t *a, int d)
     int i;
     for (i = 0; i < u->nheld; i++) {
         resolve(a, u->held[i], &r);
-        qd_step_set_sound(PAT(a), a->sel, u->held[i], clampi(r.sound + d, 0, a->proj.nsound));
+        qd_step_set_sound(PAT(a), a->sel, u->held[i], qd_sound_step(&a->proj, r.sound, d, 0));   /* (P1.5a: the pool's
+                                                         * holes skipped) */
     }
     resolve(a, u->held[0], &r);
     if (r.sound > 0)

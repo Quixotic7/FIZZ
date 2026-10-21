@@ -12,8 +12,10 @@
  * Out: frame draws the screen (every frame, 15 ms) and copies it to the panel's LCD when it changed; init, frame and
  * idle write the LEDs: the app's levels per key and button placed through the FM-1's keymap, PLAY's green LED at its
  * own position. audio: the app's sound (P1.1: FM TONE through the voice pool and ChoralRoot's effects; P1.2: the
- * sequencer runs from this sample clock, a block of 32 frames at a time; P1.3: the controller, core/app/ctl.h). The flash: the
- * common NOR image, untouched (nothing is saved before P1.5). */
+ * sequencer runs from this sample clock, a block of 32 frames at a time; P1.3: the controller, core/app/ctl.h). The flash
+ * (P1.5a): the common NOR image (core-glue/common nor.h, the host keeps it: FM1VST's <core-id>/flash.bin) is the app's
+ * flash (core/app/persist.h: the library and the projects, written by themselves); flash_sync and shutdown write what
+ * is still waiting. */
 #include <stdio.h>
 #include <string.h>
 
@@ -99,6 +101,12 @@ static void fm1core_qd_lcd_out(void)
     }
 }
 
+/* ---------------------------------------------------------------- the flash (P1.5a) --- */
+static int fm1core_qd_fread(void *c, uint32_t off, void *dst, uint32_t n) { (void)c; return fm1nor_read(off, dst, n); }
+static int fm1core_qd_ferase(void *c, uint32_t off) { (void)c; return fm1nor_erase(off); }
+static int fm1core_qd_fprog(void *c, uint32_t off, const void *src, uint32_t n) { (void)c; return fm1nor_prog(off, src, n); }
+static const qd_flash_t fm1core_qd_fl = {fm1core_qd_fread, fm1core_qd_ferase, fm1core_qd_fprog, 0};
+
 /* ---------------------------------------------------------------- the entry points --- */
 void fm1core_qd_options(const char *flash_path, int no_flash, int save_on_exit, int headless)
 {
@@ -115,6 +123,8 @@ void fm1core_qd_init(int demo)
     memset(&fm1core_qd_bedges, 0, sizeof fm1core_qd_bedges);
     qd_init();
     qd_app_init(&fm1core_qd_app);
+    qd_app_tick(&fm1core_qd_app, 0);
+    qd_persist_attach(&fm1core_qd_app, &fm1core_qd_fl);   /* P1.5a: the library, the project worked on */
     fm1core_qd_master_seen = fm1core_qd_panel.master;   /* (0: the host has not said; the app's default stands) */
     if (fm1core_qd_master_seen)
         qd_app_master(&fm1core_qd_app, (int)fm1core_qd_master_seen);
@@ -197,6 +207,8 @@ void fm1core_qd_ui_info(char *buf, uint32_t n)
 }
 void fm1core_qd_shutdown(void)
 {
+    if (fm1core_qd_up)
+        qd_persist_flush(&fm1core_qd_app);                    /* P1.5a: what still waits, written */
     fm1nor_close();
     qd_shutdown();                                            /* (a later frame draws again: qd_begin re-inits) */
 }
@@ -204,5 +216,5 @@ int fm1core_qd_halted(void) { return 0; }                     /* nothing reboots
 int fm1core_qd_flash_stage(const uint8_t *bytes, uint32_t n) { return fm1nor_stage(bytes, n); }
 uint8_t *fm1core_qd_flash(void) { return fm1nor_flash(); }
 uint32_t fm1core_qd_flash_dirty(void) { return fm1nor_dirty(); }
-int fm1core_qd_flash_sync(void) { return 1; }                 /* nothing deferred: nothing is saved yet */
+int fm1core_qd_flash_sync(void) { return fm1core_qd_up ? qd_persist_flush(&fm1core_qd_app) : 1; }   /* P1.5a */
 const int8_t *fm1core_qd_keymap_get(void) { return &fm1core_qd_keymap[0][0]; }

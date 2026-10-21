@@ -370,7 +370,7 @@ static void fill_rec(const qd_seq_t *s, qd_trec_t *r, int t, int step, const qd_
         r->at.own[0] = r->at.own[1] = 0xFFFFFFFFu;
         r->at.own[2] = (1u << (QD_QUAD_NP - 64)) - 1u;
     } else {
-        memcpy(r->patch, s->model->t[t].patch, sizeof r->patch);
+        memcpy(r->patch, P->snd[t].patch, sizeof r->patch);   /* (P1.5a: its pattern's track sound) */
     }
     r->nlk = 0;
     for (k = 0; k < n; k++) {

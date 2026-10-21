@@ -44,7 +44,7 @@ INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/se
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
 HDRS := $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
-        $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/ui/ui_snd.c \
+        $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/ui/ui_snd.c \
         $(PVG)/include/plutovg.h
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
 PVG_OBJ := $(addprefix $(B)/pvg-,$(notdir $(PVG_SRC:.c=.o)))
@@ -131,7 +131,13 @@ $(B)/test_quad_bitexact: $(T)/test_quad_bitexact.c $(ROOT)/core/voice/quad/quad_
 $(B)/test_fx_bitexact: $(T)/test_fx_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_fx_ref.o $(HDRS)
 	$(CC) -O2 $(WARN) $(INC) -o $@ $(T)/test_fx_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_fx_ref.o -lm
 
-TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact
+$(B)/test_persist: $(T)/test_persist.c $(SAN_OBJ) $(HDRS)
+	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_persist.c $(SAN_OBJ) -lm
+$(B)/test_store: $(T)/test_store.c $(ROOT)/core/store/store.c $(ROOT)/core/store/store.h | $(B)
+	$(CC) $(SAN) $(WARN) -o $@ $(T)/test_store.c $(ROOT)/core/store/store.c
+
+TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
+         $(B)/test_store $(B)/test_persist
 test: $(TESTS)
 	$(B)/test_quad $(T)/quad_goldens
 	$(B)/test_pool
@@ -139,6 +145,8 @@ test: $(TESTS)
 	$(B)/test_seq $(T)/seq_goldens $(OUT)
 	$(B)/test_app
 	$(B)/test_ctl
+	$(B)/test_store
+	$(B)/test_persist
 	$(B)/test_quad_bitexact
 	$(B)/test_fx_bitexact
 	@echo "make test: all passed"
