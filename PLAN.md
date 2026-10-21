@@ -1084,6 +1084,10 @@ P1.5c).
   VEL 15, 55 degrees at 127); the cape (orange, a white stripe and a star) droops when slow and streams flat and waves
   when fast; the wheels spin, the road dashes and the speed lines run right with the velocity. The value big top
   right, the ramp's ticks top left.
+  **Neon (the owner's second reference, `mockups/png/fizz-vel-rider-reference.png`)**: blue bike, wheels (two rings, a
+  red hub) and helmet (a star, a visor), red cape (a forked flag streaming back at shoulder height, two cream sparkles)
+  and legs (tubes: a line with a black core), cream engine fins, exhaust, fork and lamp; every line glows (two wide
+  faint strokes under it); dashed speed lines in blue, cream and red behind the rear wheel.
 
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 

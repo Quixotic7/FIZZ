@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FIZZ velocity rider</title>
+<!-- version 2 (2026-10-21): the neon style of the owner's reference, png/fizz-vel-rider-reference.png, riding left -->
 <!-- FIZZ: the VEL picture as a caped stunt motorcyclist (the owner, 2026-10-21, in place of the squirrel): both wheels on
      the road at low velocity, the front lifting into a wheelie as the velocity rises, the steepest at 127; the cape
      droops when slow and streams flat when fast; the road dashes and the speed lines run with the velocity.
@@ -38,57 +39,92 @@ function circ(c, x, y, r, col, lw = 1.6, fill = null) { c.save(); c.beginPath();
   if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore(); }
 function star(c, x, y, r, col) { const p = []; for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r; p.push(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } path(c, p, col, 1.1, true); }
 
-function wheel(c, x, y, spin, col) {                  /* a spoked wheel, turning */
-  circ(c, x, y, 16, col, 1.8, C.bg); circ(c, x, y, 12.5, col, 1); circ(c, x, y, 2.6, col, 1.4);
-  for (let k = 0; k < 6; k++) { const a = spin + k * TAU / 6; path(c, [x + Math.cos(a) * 3, y + Math.sin(a) * 3, x + Math.cos(a) * 12, y + Math.sin(a) * 12], col, 0.9); }
+/* the neon look (the owner's reference, mockups/png/fizz-vel-rider-reference.png): blue bike and helmet, red cape and
+   legs, cream engine, fork and stars; every line glows (two wide faint strokes under the line itself) */
+const N = { blue: '#2fb4ff', red: '#ff3b4f', cream: '#ffe7b0' };
+function glowStroke(c, col, lw, draw) {
+  [[lw * 3.4, 0.14], [lw * 2.0, 0.3], [lw, 1]].forEach(([w, a]) => {
+    c.save(); c.globalAlpha *= a; c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); draw(); c.stroke(); c.restore(); });
 }
-/* the bike and rider in their own frame: the rear hub at (0, 0), the front hub at (58, 0), the road at y = 16.
-   u: the velocity 0..1 (the cape's flow), t: time */
-function rider(c, u, t, col) {
+function nLine(c, pts, col, lw = 1.5) { glowStroke(c, col, lw, () => { c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); }); }
+function nCirc(c, x, y, r, col, lw = 1.5) { glowStroke(c, col, lw, () => c.arc(x, y, r, 0, TAU)); }
+function nArc(c, x, y, r, a0, a1, col, lw = 1.5) { glowStroke(c, col, lw, () => c.arc(x, y, r, a0, a1)); }
+function nCurve(c, pts, col, lw = 1.5, close = false) {
+  const n = pts.length / 2, P = i => [pts[(i % n) * 2], pts[(i % n) * 2 + 1]];
+  glowStroke(c, col, lw, () => { c.moveTo(...P(0));
+    for (let i = 0; i < (close ? n : n - 1); i++) { const [x0, y0] = P(i), [x1, y1] = P(i + 1); c.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2); }
+    if (!close) c.lineTo(...P(n - 1)); else c.closePath(); });
+}
+/* a limb as a neon tube: a wide line in its colour with a black core, so it reads as two parallel lines */
+function nTube(c, pts, col, w = 5.2) {
+  nLine(c, pts, col, w);
+  c.save(); c.strokeStyle = C.bg; c.lineWidth = w - 2.6; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.stroke(); c.restore();
+}
+function sparkle(c, x, y, r, col) { nLine(c, [x - r, y, x + r, y], col, 1.2); nLine(c, [x, y - r, x, y + r], col, 1.2); }
+
+function wheel(c, x, y, spin) {                       /* two blue rings, a red hub; a cream tick turning on the inner ring */
+  nCirc(c, x, y, 16, N.blue, 1.6); nCirc(c, x, y, 11, N.blue, 1.4); nCirc(c, x, y, 3.6, N.red, 1.4);
+  nLine(c, [x + Math.cos(spin) * 7, y + Math.sin(spin) * 7, x + Math.cos(spin) * 9.5, y + Math.sin(spin) * 9.5], N.cream, 1.3);
+}
+/* the bike and rider in their own frame, facing right: the rear hub at (0, 0), the front hub at (60, 0), the road at
+   y = 16. u: the velocity 0..1, t: time */
+function rider(c, u, t) {
   const flow = lerp(0.15, 1, u), flap = Math.sin(t * (6 + 10 * u)) * (1 + 3 * u);
-  /* the cape, behind everything: from the shoulders, drooping when slow, streaming flat and waving when fast */
-  const sx = 19, sy = -41, L = 34 + 16 * u;
-  const tipX = sx - L * (0.35 + 0.65 * flow), tipY = sy + L * (1 - flow) * 0.9 + flap;
-  const midX = (sx + tipX) / 2, midY = (sy + tipY) / 2 - 4 * flow + flap * 0.6;
-  curve(c, [sx + 1, sy - 2, midX, midY - 6, tipX, tipY - 7, tipX - 2, tipY + 3, midX + 2, midY + 9, sx - 1, sy + 9], C.k4, 1.6, true, C.bg);
-  path(c, [sx, sy + 3, midX + 1, midY + 1, tipX, tipY - 1], C.k3, 1);              /* a white stripe down it */
-  star(c, midX - 2, midY + 2, 3.2, C.k3);
-  /* the bike */
-  wheel(c, 0, 0, -t * (4 + 30 * u), col); wheel(c, 58, 0, -t * (4 + 30 * u), col);
-  curve(c, [-12, -4, -10, -15, 2, -19, 10, -17], col, 1.4);                         /* the rear fender */
-  path(c, [0, 0, 20, -7], col, 1.6);                                                 /* the swingarm */
-  c.save(); c.beginPath(); c.roundRect(18, -14, 17, 15, 3); c.fillStyle = C.bg; c.fill(); c.strokeStyle = col; c.lineWidth = 1.5; c.stroke(); c.restore();   /* the engine */
-  for (let k = 0; k < 3; k++) path(c, [21 + k * 4.5, -12, 21 + k * 4.5, -2], col, 0.9);
-  path(c, [28, 0, 6, -2, -6, -6], col, 1.4);                                         /* the exhaust */
-  curve(c, [20, -16, 26, -24, 38, -24, 42, -17], col, 1.6, false, null);            /* the tank */
-  path(c, [4, -18, 20, -18], col, 2);                                                /* the seat */
-  path(c, [58, 0, 46, -30], col, 1.8);                                               /* the fork, raked */
-  path(c, [42, -18, 46, -30, 42, -36, 38, -37], col, 1.6);                           /* the bars, high */
-  /* the rider: a leg to the peg, the body leaning in, arms to the bars, the helmet with its stripe and visor */
-  path(c, [14, -22, 27, -14, 24, -3, 28, -2], col, 1.8);                             /* thigh, shin, boot */
-  path(c, [14, -22, 20, -41], col, 2);                                               /* the back */
-  path(c, [21, -40, 31, -34, 39, -36], col, 1.6);                                    /* the arm */
-  circ(c, 23, -48, 6.5, col, 1.7, C.bg);                                             /* the helmet */
-  path(c, [18.5, -52.5, 27, -53.5], C.k4, 1.4);                                      /* its stripe */
-  path(c, [26, -50, 29.5, -47], C.k3, 1.6);                                          /* the visor */
+  /* the cape, behind everything: a flag from the shoulders streaming back at shoulder height, its end forked; slow it
+     hangs a little and is short, fast it is long, flat and waving; two cream sparkles on it */
+  const sx = 20, sy = -43, L = 30 + 26 * u, sag = (1 - u) * 14;
+  const w1 = Math.sin(t * (5 + 9 * u)) * (1 + 2.5 * u), w2 = Math.sin(t * (5 + 9 * u) + 1.7) * (1.5 + 3 * u);
+  const ex = sx - L, ey = sy + sag;                                  /* the far end's middle */
+  nCurve(c, [sx + 1, sy - 3,                                         /* the top edge, back from the neck */
+             sx - L * 0.35, sy - 5 + sag * 0.3 + w1, sx - L * 0.7, sy - 6 + sag * 0.7 + w2,
+             ex - 4, ey - 9 + w2,                                    /* the upper point of the fork */
+             ex + 4, ey - 1 + w1 * 0.5,                              /* the notch */
+             ex - 2, ey + 6 + w1,                                    /* the lower point */
+             sx - L * 0.6, sy + 5 + sag * 0.75 + w1, sx - L * 0.25, sy + 6 + sag * 0.3,
+             sx - 1, sy + 5], N.red, 1.5, true);
+  sparkle(c, sx - L * 0.45, sy + sag * 0.45 + w1 * 0.5, 2.6, N.cream);
+  sparkle(c, sx - L * 0.7, sy - 1 + sag * 0.7 + w2 * 0.5, 1.8, N.cream);
+  /* the bike: wheels, the blue frame, the red tank and seat, the cream engine fins, exhaust, fork and lamp */
+  const spin = t * (3 + 26 * u);
+  wheel(c, 0, 0, spin); wheel(c, 60, 0, spin);
+  nLine(c, [0, 0, 20, -10, 44, -18], N.blue, 1.5);                       /* swingarm and backbone */
+  nLine(c, [44, -18, 34, -2, 20, -10], N.blue, 1.5);                     /* the down tube */
+  nCurve(c, [16, -20, 22, -26, 40, -26, 46, -21, 40, -17, 22, -17], N.red, 1.5, true);   /* the tank */
+  nCurve(c, [-4, -18, 0, -22, 16, -22, 18, -19, 4, -17], N.red, 1.5, true);              /* the seat */
+  for (let k = 0; k < 3; k++) nLine(c, [22 + k * 4, -13, 27 + k * 4, -7], N.cream, 1.2);   /* the fins */
+  nCurve(c, [30, -3, 26, 1, 16, 2, 4, 1, -4, -3], N.cream, 1.3);         /* the exhaust */
+  nLine(c, [60, 0, 49, -30], N.cream, 1.6);                              /* the fork */
+  nLine(c, [49, -30, 45, -35, 41, -35], N.cream, 1.4);                   /* the bars */
+  nCurve(c, [52, -33, 56, -33, 56, -28, 52, -28], N.cream, 1.4, true);   /* the lamp */
+  /* the rider: red legs as tubes, a red boot, the blue body and arm, the blue helmet with a star and its visor */
+  nTube(c, [12, -26, 29, -21, 25, -6], N.red);
+  nLine(c, [22, -6, 30, -6, 30, -3, 22, -3], N.red, 1.4);
+  nTube(c, [13, -26, 21, -44], N.blue, 6);
+  nTube(c, [22, -42, 33, -37, 43, -35], N.blue, 4.6);
+  nCirc(c, 26, -53, 8.5, N.blue, 1.6);
+  nArc(c, 27, -53, 6, -0.9, 0.9, N.blue, 1.3);
+  sparkle(c, 22.5, -55, 2.2, N.cream);
 }
 
 function screen(c, vel, t, o = {}) {                 /* the rider faces left: the front wheel lifts on the left */
   c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240);
   T(c, 'STEP 6 · VEL', 8, 18, { s: 12, w: 600, ls: 0.8, col: C.k3 });
   const u = clamp(vel / 127, 0, 1), pitch = Math.pow(clamp((u - 0.12) / 0.88, 0, 1), 1.15) * (55 * Math.PI / 180);
-  const gy = 206, rx = 150, k = 1.4;                  /* the road's height, the rear wheel's contact, the scale */
+  const gy = 206, rx = 138, k = 1.4;                  /* the road's height, the rear wheel's contact, the scale */
   /* the road: its edge and dashes running past (to the right) at the speed */
   path(c, [0, gy, 240, gy], C.g2, 1.2);
   const sp = 20 + 260 * u;
   for (let i = 0; i < 6; i++) { const x = (((t * sp) + i * 48) % 288) - 24; path(c, [x, gy + 12, x + 18, gy + 12], C.g2, 1.6); }
-  /* speed lines streaming behind (right of) the rider, more and longer with the velocity */
-  const n = Math.round(1 + 6 * u);
-  for (let i = 0; i < n; i++) { const y = 112 + i * 12, x = ((t * sp * 1.4 + i * 67) % 260) - 20, L = 8 + 34 * u;
-    if (x > 40 && x < 210 && y > 100) continue; path(c, [x, y, x + L, y], C.g2, 1); }
+  /* speed lines behind (right of) the rear wheel: dashed, blue, cream and red, more and longer with the velocity */
+  const n = 1 + Math.round(2 * u), L = 6 + 14 * u, cols = [N.blue, N.cream, N.red];
+  for (let i = 0; i < 3; i++) { if (i >= n) break;
+    const y = gy - 30 + i * 9 - (pitch > 0.4 ? 0 : 0), run = (t * sp * 0.6 + i * 13) % 26;
+    for (let d = 0; d < 2; d++) { const x = rx + 30 + run + d * (L + 6); nLine(c, [x, y, x + L, y], cols[i], 1.4); } }
   /* the wheelie: the bike turns about its rear axle (the wheel stays on the road); mirrored so it rides left */
   c.save(); c.translate(rx, gy - 16 * k); c.rotate(pitch); c.scale(-k, k);
-  rider(c, u, t, C.vel); c.restore();
+  rider(c, u, t); c.restore();
   T(c, String(vel), 232, 84, { s: 64, w: 200, col: C.vel, al: 'right' });
   for (let i = 0; i < 4; i++) path(c, [10 + i * 8, 30, 10 + i * 8, 46], C.k4, 2);      /* the ramp's ticks */
 }
