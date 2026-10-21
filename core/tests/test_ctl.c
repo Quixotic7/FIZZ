@@ -3923,6 +3923,61 @@ static void g_p15b_latch(void)
     btap(QD_B_HOME);
 }
 
+
+/* ================================================================ P1.5d (PLAN version 2.5): the frames the other way
+ * round: a held step's screen (and the latch's selection's) framed in 0xf03cff, a track default not; the sound editor
+ * dark orange (the track's sound), bright orange (a step's locks) */
+static uint32_t edge_px(void)                           /* the left edge's middle pixel now, as 0xRRGGBB (565) */
+{
+    static uint16_t lcd[QD_W * QD_H];
+    const uint8_t *b = (const uint8_t *)lcd;
+    uint16_t v;
+    qd_app_frame(&A, lcd);
+    v = (uint16_t)(b[2 * (120 * QD_W + 1)] << 8 | b[2 * (120 * QD_W + 1) + 1]);
+    return (uint32_t)((v >> 11) & 31u) << 19 | (uint32_t)((v >> 5) & 63u) << 10 | (uint32_t)(v & 31u) << 3;
+}
+static int near_col(uint32_t a, uint32_t b)            /* within 24 a channel (565, the frame's soft edge) */
+{
+    int k;
+    for (k = 0; k < 24; k += 8) {
+        const int d = (int)((a >> k) & 255u) - (int)((b >> k) & 255u);
+        if (d > 24 || d < -24)
+            return 0;
+    }
+    return 1;
+}
+static void g_p15d_frames(void)
+{
+    start();
+    wtap(2);
+    mode(M_VEL);
+    CHECK(edge_px() == 0, "the lane: no frame");
+    whold(2);
+    CHECK(qd_view_screen(&A) == QD_SCR_HELD && near_col(edge_px(), UI_STEP_FRAME), "a step held (VEL): the frame (%06x)",
+          (unsigned)edge_px());
+    wrel(2);
+    kdown(BK(B2));                                      /* the VEL key held: the track's default */
+    run(300);
+    CHECK(qd_view_screen(&A) == QD_SCR_DEFAULT && edge_px() == 0, "a mode key held (the track default): no frame");
+    kup(BK(B2));
+    run(20);
+    shome(), shome();                                   /* EDIT */
+    CHECK(A.ui.view == QD_VIEW_EDIT && edge_px() == 0, "EDIT, nothing held (the default): no frame");
+    btap(QD_B_MUTE);
+    run(20);
+    CHECK(A.ui.slatch && A.ui.nheld && near_col(edge_px(), UI_STEP_FRAME), "EDIT, the latch's selection: the frame (%d %d %06x)",
+          A.ui.slatch, A.ui.nheld, (unsigned)edge_px());
+    btap(QD_B_MUTE);
+    btap(QD_B_HOME);
+    shome();
+    btap(QD_B_SOUND);
+    CHECK(near_col(edge_px(), UI_SND_FRAME_TRACK), "the editor, the track's sound: dark orange (%06x)", (unsigned)edge_px());
+    whold(2);
+    CHECK(near_col(edge_px(), UI_SND_FRAME_STEP), "the editor, a step held: bright orange (%06x)", (unsigned)edge_px());
+    wrel(2);
+    btap(QD_B_HOME);
+}
+
 int main(void)
 {
     static const struct {
@@ -3984,6 +4039,7 @@ int main(void)
         {"P1.5b: FX overview, routing", g_p15b_fx},
         {"P1.5b: knob acceleration", g_p15b_accel},
         {"P1.5b: the latch modes VALUES / MODES", g_p15b_latch},
+        {"P1.5d: the frames the other way round", g_p15d_frames},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

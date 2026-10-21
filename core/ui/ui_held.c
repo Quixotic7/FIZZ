@@ -20,7 +20,8 @@
  *          the track's scale small top left ("OCT 4 · D DORIAN"). P1.3c: five notes, each dot and name in the colour
  *          of the knob that turns it (note 1 SELECT's yellow, notes 2..5 KNOB 1..4's blue, green, white, orange) and
  *          the five knobs over the keybed's right end, filled where they hold a note
- *   VEL    a mallet over a drum, raised by the velocity, striking when the step plays; the ramp as four ticks
+ *   VEL    (P1.5d) a caped stunt rider doing a wheelie, riding left: the wheelie as high as the velocity, the cape
+ *          streaming, speed lines; an extra kick when the step plays; the ramp as four ticks top left
  *   LEN    the note as a bar over a ruler of the next steps, the notes before and after it; TIE a slur from the
  *          note before
  *   MICRO  the step as a tape measure: the start flag, the strum's staircase, a slow red playhead lighting the notes
@@ -215,55 +216,193 @@ static void f_note(const ui_held_t *v, const pal_t *p)
         ui_lab(v->scale_name, 8.f, 37.f, UI_G1, QD_LEFT);
 }
 
-/* ---------------------------------------------------------------- VEL (s5) */
+/* ---------------------------------------------------------------- VEL (P1.5d: the caped stunt rider) */
+/* P1.5d (the owner; mockups/fizz-vel-rider.html rider(), wheel(), screen()): VEL is a caped stunt rider doing a wheelie,
+ * riding to the left. The wheelie turns about the rear axle (the rear wheel stays on the road): pitch ((u - 0.12) /
+ * 0.88)^1.15 x 55 degrees (0 below), u = vel / 127; the wheels spin faster with it, the cape droops when slow and
+ * streams flat, waving, when fast; the road's dashes and the speed lines run right at the speed. The value big top
+ * right, the ramp's ticks top left. When the step plays: an extra kick (the front wheel up a few degrees, settling) and
+ * a puff of speed lines. The bike is drawn in its own frame (the rear hub at 0, 0, the front hub at 58, 0, facing +x)
+ * and placed by rd_* (mirrored, turned and scaled here: no rotation in the gfx layer); strokes scale, never under 1.2 */
+static float rd_tx, rd_ty, rd_a, rd_b, rd_c, rd_d, rd_k;
+static void rd_pt(float x, float y, float *X, float *Y)
+{
+    *X = rd_tx + rd_a * x + rd_b * y;
+    *Y = rd_ty + rd_c * x + rd_d * y;
+}
+static float rd_lw(float lw) { lw *= rd_k; return lw < 1.2f ? 1.2f : lw; }
+static void rd_path(const float *p, int n, qd_rgb col, float lw, int close, qd_rgb fill)
+{
+    float X, Y;
+    int i;
+    qd_path_begin();
+    for (i = 0; i < n; i++) {
+        rd_pt(p[2 * i], p[2 * i + 1], &X, &Y);
+        if (i)
+            qd_line_to(X, Y);
+        else
+            qd_move_to(X, Y);
+    }
+    if (close)
+        qd_path_close();
+    qd_path_paint(col, rd_lw(lw), fill);
+}
+static void rd_curve(const float *p, int n, qd_rgb col, float lw, int close, qd_rgb fill)   /* through the midpoints */
+{
+    float X, Y, MX, MY;
+    int i;
+    qd_path_begin();
+    rd_pt(p[0], p[1], &X, &Y);
+    qd_move_to(X, Y);
+    for (i = 0; i < (close ? n : n - 1); i++) {
+        const int j = (i + 1) % n;
+        rd_pt(p[2 * i], p[2 * i + 1], &X, &Y);
+        rd_pt((p[2 * i] + p[2 * j]) * 0.5f, (p[2 * i + 1] + p[2 * j + 1]) * 0.5f, &MX, &MY);
+        qd_quad_to(X, Y, MX, MY);
+    }
+    if (!close) {
+        rd_pt(p[2 * (n - 1)], p[2 * (n - 1) + 1], &X, &Y);
+        qd_line_to(X, Y);
+    } else {
+        qd_path_close();
+    }
+    qd_path_paint(col, rd_lw(lw), fill);
+}
+static void rd_line(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
+{
+    const float p[4] = {x0, y0, x1, y1};
+    rd_path(p, 2, col, lw, 0, QD_NONE);
+}
+static void rd_circle(float x, float y, float r, qd_rgb col, float lw, qd_rgb fill)
+{
+    float X, Y;
+    rd_pt(x, y, &X, &Y);
+    ui_O(X, Y, r * rd_k, col, col == QD_NONE ? 1.f : rd_lw(lw), fill);
+}
+
+static void rd_wheel(float x, float y, float spin, qd_rgb col)   /* a spoked wheel, turning */
+{
+    int k;
+    rd_circle(x, y, 16.f, col, 1.8f, UI_BG);
+    rd_circle(x, y, 12.5f, col, 1.f, QD_NONE);
+    rd_circle(x, y, 2.6f, col, 1.4f, QD_NONE);
+    for (k = 0; k < 6; k++) {
+        const float a = spin + (float)k * UI_TAU / 6.f;
+        rd_line(x + cosf(a) * 3.f, y + sinf(a) * 3.f, x + cosf(a) * 12.f, y + sinf(a) * 12.f, col, 0.9f);
+    }
+}
+
+/* the bike and the rider in their own frame; u the velocity 0..1 (the cape's flow), t seconds; col the lines, cape the
+ * cape and the helmet's stripe, wh the cape's stripe, its star and the visor */
+static void rider(float u, float t, qd_rgb col, qd_rgb cape, qd_rgb wh)
+{
+    const float flow = 0.15f + 0.85f * u, flap = sinf(t * (6.f + 10.f * u)) * (1.f + 3.f * u);
+    const float sx = 19.f, sy = -41.f, L = 34.f + 16.f * u;
+    const float tipX = sx - L * (0.35f + 0.65f * flow), tipY = sy + L * (1.f - flow) * 0.9f + flap;
+    const float midX = (sx + tipX) / 2.f, midY = (sy + tipY) / 2.f - 4.f * flow + flap * 0.6f;
+    const float spin = -t * (4.f + 30.f * u);
+    int k;
+    {   /* the cape, behind everything: from the shoulders, drooping when slow, streaming flat and waving when fast */
+        const float cp[12] = {sx + 1.f, sy - 2.f, midX, midY - 6.f, tipX, tipY - 7.f, tipX - 2.f, tipY + 3.f,
+                              midX + 2.f, midY + 9.f, sx - 1.f, sy + 9.f};
+        const float st[6] = {sx, sy + 3.f, midX + 1.f, midY + 1.f, tipX, tipY - 1.f};
+        float sp[20];
+        rd_curve(cp, 6, cape, 1.6f, 1, UI_BG);
+        rd_path(st, 3, wh, 1.f, 0, QD_NONE);            /* a white stripe down it */
+        for (k = 0; k < 10; k++) {                      /* a small star */
+            const float a = -UI_PI / 2.f + (float)k * UI_PI / 5.f, rr = k % 2 ? 3.2f * 0.45f : 3.2f;
+            sp[2 * k] = midX - 2.f + cosf(a) * rr;
+            sp[2 * k + 1] = midY + 2.f + sinf(a) * rr;
+        }
+        rd_path(sp, 10, wh, 1.1f, 1, QD_NONE);
+    }
+    /* the bike */
+    rd_wheel(0.f, 0.f, spin, col);
+    rd_wheel(58.f, 0.f, spin, col);
+    {
+        const float fender[8] = {-12, -4, -10, -15, 2, -19, 10, -17};
+        const float engine[8] = {18, -14, 35, -14, 35, 1, 18, 1};
+        const float exhaust[6] = {28, 0, 6, -2, -6, -6};
+        const float tank[8] = {20, -16, 26, -24, 38, -24, 42, -17};
+        const float bars[8] = {42, -18, 46, -30, 42, -36, 38, -37};
+        rd_curve(fender, 4, col, 1.4f, 0, QD_NONE);     /* the rear fender */
+        rd_line(0.f, 0.f, 20.f, -7.f, col, 1.6f);       /* the swingarm */
+        rd_path(engine, 4, col, 1.5f, 1, UI_BG);        /* the engine block */
+        for (k = 0; k < 3; k++)
+            rd_line(21.f + (float)k * 4.5f, -12.f, 21.f + (float)k * 4.5f, -2.f, col, 0.9f);
+        rd_path(exhaust, 3, col, 1.4f, 0, QD_NONE);     /* the exhaust */
+        rd_curve(tank, 4, col, 1.6f, 0, QD_NONE);       /* the tank */
+        rd_line(4.f, -18.f, 20.f, -18.f, col, 2.f);     /* the seat */
+        rd_line(58.f, 0.f, 46.f, -30.f, col, 1.8f);     /* the fork, raked */
+        rd_path(bars, 4, col, 1.6f, 0, QD_NONE);        /* the bars, high */
+    }
+    {   /* the rider: a leg to the peg, the back leaning in, the arm to the bars, the helmet (its stripe, its visor) */
+        const float leg[8] = {14, -22, 27, -14, 24, -3, 28, -2};
+        const float arm[6] = {21, -40, 31, -34, 39, -36};
+        rd_path(leg, 4, col, 1.8f, 0, QD_NONE);
+        rd_line(14.f, -22.f, 20.f, -41.f, col, 2.f);
+        rd_path(arm, 3, col, 1.6f, 0, QD_NONE);
+        rd_circle(23.f, -48.f, 6.5f, col, 1.7f, UI_BG);
+        rd_line(18.5f, -52.5f, 27.f, -53.5f, cape, 1.4f);
+        rd_line(26.f, -50.f, 29.5f, -47.f, wh, 1.6f);
+    }
+}
+
 static void f_vel(const ui_held_t *v, const pal_t *p)
 {
-    const float cx = 82.f, top = 158.f, px = 204.f, py = 146.f;
-    const float rest = atan2f(154.f - py, 104.f - px);
-    float lift, ang, hx, hy;
+    const float u = v->vel < 0 ? 0.f : v->vel > 127 ? 1.f : (float)v->vel / 127.f;
+    const float gy = 206.f, rx = 150.f, k = 1.4f, sp = 20.f + 260.f * u;
+    const float play = v->play >= 0.f && v->play < 0.4f && !p->empty ? v->play / 0.4f : -1.f;
+    float pitch = powf(u > 0.12f ? (u - 0.12f) / 0.88f : 0.f, 1.15f) * (55.f * UI_PI / 180.f);
     char s[12];
-    int i;
+    int i, n;
 
-    big(p, ui_itoa(s, v->vel), 12.f, 96.f, 64.f);
-    /* the drum */
-    qd_ellipse(cx, top, 52.f, 11.f, UI_G1, 1.5f, QD_NONE);
-    qd_ellipse_arc(cx, top + 34.f, 52.f, 11.f, 0.f, UI_PI, UI_G1, 1.5f);
-    line2(cx - 52.f, top, cx - 52.f, top + 34.f, UI_G1, 1.5f);
-    line2(cx + 52.f, top, cx + 52.f, top + 34.f, UI_G1, 1.5f);
+    qd_save();
+    qd_translate(0.f, -8.f);                            /* (the mock-up's own coordinates: the body is drawn 8 lower) */
+    if (play >= 0.f)                                    /* the step plays: an extra kick, the front wheel up, settling */
+        pitch += sinf(play * UI_PI) * (1.f - play) * (9.f * UI_PI / 180.f);
+    /* the road: its edge and its dashes running past (to the right) at the speed */
+    line2(0.f, gy, 240.f, gy, UI_G2, 1.2f);
     for (i = 0; i < 6; i++) {
-        const float x = cx - 45.f + (float)i * 18.f;
-        line2(x, top + 10.f + (float)(i % 2) * 3.f, x + 9.f, top + 32.f + (float)(i % 2) * 3.f, UI_G2, 1.f);
+        const float x = fmodf(v->t * sp + (float)i * 48.f, 288.f) - 24.f;
+        line2(x, gy + 12.f, x + 18.f, gy + 12.f, UI_G2, 1.6f);
     }
-    /* the mallet: down fast when the step plays, rests on the skin, rises again; raised while it has not played */
-    if (v->play < 0.f)
-        lift = 1.f;
-    else if (v->play < 0.06f)
-        lift = 1.f - v->play / 0.06f;
-    else if (v->play < 0.25f)
-        lift = 0.f;
-    else if (v->play < 0.5f)
-        lift = (v->play - 0.25f) / 0.25f;
-    else
-        lift = 1.f;
-    ang = rest + 0.95f * ((float)v->vel / 127.f) * lift;
-    hx = px + cosf(ang) * 96.f, hy = py + sinf(ang) * 96.f;
-    line2(px, py, hx, hy, p->wh, 2.f);
-    ui_O(hx, hy, 6.f, p->wh, 1.5f, UI_BG);
-    ui_O(px, py, 2.f, QD_NONE, 1.f, UI_G1);
-    if (v->play >= 0.f && v->play < 0.12f && !p->empty) {   /* three blue lines jump off the skin */
-        static const float D[3][2] = {{-1.f, -0.6f}, {0.f, -1.f}, {1.f, -0.6f}};
+    /* speed lines streaming behind (right of) the rider, more and longer with the velocity, clear of the bike */
+    n = (int)lroundf(1.f + 6.f * u);
+    for (i = 0; i < n; i++) {
+        const float y = 112.f + (float)i * 12.f, x = fmodf(v->t * sp * 1.4f + (float)i * 67.f, 260.f) - 20.f;
+        if (x > 40.f && x < 210.f && y > 100.f)
+            continue;
+        line2(x, y, x + 8.f + 34.f * u, y, UI_G2, 1.2f);
+    }
+    if (play >= 0.f) {                                  /* .. and a puff of them off the rear wheel */
         qd_save();
-        qd_alpha(1.f - v->play / 0.12f);
-        for (i = 0; i < 3; i++)
-            line2(104.f + D[i][0] * 10.f, 144.f + D[i][1] * 8.f, 104.f + D[i][0] * 18.f, 144.f + D[i][1] * 15.f,
-                  p->k[0], 1.3f);
+        qd_alpha(1.f - play);
+        for (i = 0; i < 5; i++) {
+            const float x = rx + 26.f + play * 40.f + (float)(i % 2) * 10.f, y = gy - 8.f - (float)i * 9.f;
+            line2(x, y, x + 14.f + (float)(i % 3) * 5.f, y, p->k[0], 1.3f);
+        }
         qd_restore();
     }
-    /* KNOB 2, the ratchet's ramp: four hits' velocities as green ticks */
-    for (i = 0; i < 4; i++) {
-        const float x = 190.f + (float)i * 9.f, h = (float)ramp_vel(v->vel, v->ramp, i, 4) / 127.f * 22.f;
-        line2(x, 206.f, x, 206.f - (h < 1.f ? 1.f : h), p->k[1], 2.f);
+    /* the wheelie: about the rear axle, mirrored to ride left */
+    rd_k = k;
+    rd_tx = rx, rd_ty = gy - 16.f * k;
+    rd_a = -k * cosf(pitch), rd_b = -k * sinf(pitch);
+    rd_c = -k * sinf(pitch), rd_d = k * cosf(pitch);
+    rider(u, v->t, p->k[0], p->empty ? UI_G2 : UI_K4, p->empty ? UI_G1 : UI_K3);
+    /* the value big, top right; the ratchet's ramp as four ticks, top left */
+    if (!p->nobig) {
+        if (p->empty)
+            big(p, "", 12.f, 84.f, 64.f);
+        else
+            ui_T(ui_itoa(s, v->vel), 232.f, 84.f, 64.f, 200, 0.f, p->k[0], QD_RIGHT);
     }
+    for (i = 0; i < 4; i++) {                           /* (EDIT, nobig: a little lower, under its head) */
+        const float x = 10.f + (float)i * 8.f, h = (float)ramp_vel(v->vel, v->ramp, i, 4) / 127.f * 16.f;
+        const float y = p->nobig ? 80.f : 46.f;
+        line2(x, y, x, y - (h < 1.f ? 1.f : h), p->k[1], 2.f);
+    }
+    qd_restore();
 }
 
 /* ---------------------------------------------------------------- LEN (s6) */
@@ -631,8 +770,9 @@ static int held_head(const ui_held_t *v, pal_t *p)
 
     p->empty = v->type == 0 && field != UI_F_TRIG && !v->is_default;
     p->k[0] = p->empty ? UI_G2 : v->is_default ? UI_TRACK_COL : lit ? UI_MODE_COL[field] : DEF_COL;
-    if (v->is_default)                                  /* P1.3y: a track's default: the TRACK frame round it all */
-        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_TRACK_COL, 3.f, QD_NONE);
+    if (!v->is_default)                                 /* P1.5d (the frames the other way round): a held step (or the
+                                                         * latch's selection) has the frame, a track's default none */
+        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
     p->k[1] = p->empty ? UI_G2 : UI_MODE_COL[other_mode(field)];
     p->wh = p->empty ? UI_G1 : UI_K3;
     p->nobig = 0;
@@ -780,11 +920,10 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
                                                          * the notes (none: the space stays empty) */
             chord_name(v, &p, 120.f, 78.f, 46.f);
         break;
-    case UI_F_VEL:                                      /* the mallet and the drum (the ramp's ticks under them); P1.3u:
-                                                         * the velocity big in the space left of the mallet */
-        if (!p.empty)
-            ui_T(ui_itoa(n, v->vel), 10.f, 98.f, 60.f, 200, 0.f, p.k[0], QD_LEFT);
-        moved(v, &p, field, -40.f);                     /* (67 .. 217 -> 27 .. 177) */
+    case UI_F_VEL:                                      /* P1.5d: the rider, its road at the area's foot; the velocity in
+                                                         * the head */
+        cat(val, ui_itoa(n, v->vel));                   /* (the head's value: the rider has the area) */
+        moved(v, &p, field, -30.f);
         break;
     case UI_F_LEN:                                      /* the ruler and the bar */
         cat(val, v->len_name ? v->len_name : "");

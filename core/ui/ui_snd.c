@@ -465,8 +465,8 @@ void ui_snd_draw(const ui_snd_t *v)
     float x;
     int k, ncell = 0;
     const qd_rgb hc = v->step ? UI_K3 : UI_TRACK_COL;
-    if (!v->step)                                       /* the track's sound: the TRACK frame (P1.3y) */
-        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_TRACK_COL, 3.f, QD_NONE);
+    /* P1.5d: the frame: dark orange for the track's sound, bright orange for a step's locks */
+    ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, v->step ? UI_SND_FRAME_STEP : UI_SND_FRAME_TRACK, 3.f, QD_NONE);
     head[0] = 0;
     if (v->step)
         cat(cat(cat(head, "STEP "), ui_itoa(n, v->step)), " \xc2\xb7 ");

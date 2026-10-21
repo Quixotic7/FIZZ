@@ -74,6 +74,7 @@ void qd_path_arc(float cx, float cy, float r, float a0, float a1);   /* joined t
 void qd_path_close(void);
 void qd_path_fill(qd_rgb col);
 void qd_path_stroke(qd_rgb col, float lw);   /* lw <= 0: the state's width */
+void qd_path_paint(qd_rgb stroke, float lw, qd_rgb fill);   /* P1.5d: fill, then stroke, the one path (QD_NONE: none) */
 void qd_path_clip(void);        /* intersects the clip with the path (and ends it) */
 
 /* ---- text: Inter Tight, at a baseline */

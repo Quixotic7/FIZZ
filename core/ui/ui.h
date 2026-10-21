@@ -264,8 +264,12 @@ enum { UI_IC_NONE, UI_IC_CLEAR, UI_IC_COPY, UI_IC_PASTE, UI_IC_UNDO, UI_IC_CUT, 
 int ui_fn_icon(int func);               /* P1.3w: a step function's icon (UI_IC_NONE for none) */
 #define UI_FN_JUMP 7                    /* (pattern.h's QD_FN_JUMP: JUMP n is UI_FN_JUMP + n) */
 #define UI_FN_LEAP 135                  /* (.. QD_FN_LEAP: LEAP n is UI_FN_LEAP + 15 + n, n -15..15) */
-#define UI_TRACK_COL 0xf03cffu          /* P1.3y: the TRACK colour: a track's default being edited (a frame round the
-                                         * screen, the drawing in it); no mode uses it */
+#define UI_TRACK_COL 0xf03cffu          /* P1.3y: the TRACK colour: a track's default being edited (its drawing and head;
+                                         * P1.5d: no frame round it any more); no mode uses it */
+#define UI_STEP_FRAME 0xf03cffu         /* P1.5d (the frames the other way round): the frame round a held step's screen
+                                         * (or the latch's selection's) in the sequencer */
+#define UI_SND_FRAME_TRACK 0x8a3412u    /* P1.5d: the sound editor's frame, the track's sound (nothing held): dark orange */
+#define UI_SND_FRAME_STEP 0xff6a2cu     /* .. a step held or selected (its locks): bright orange (UI_K4) */
 extern const qd_rgb UI_TRACK_PAL[8];    /* P1.3y: each track's colour (its big picture) */
 void ui_icon(int id, float cx, float cy, float s, qd_rgb col);   /* about 12 x 12 px at s 1, centred */
 typedef struct {
@@ -563,9 +567,10 @@ typedef struct {
 void ui_menu_draw(const ui_menu_t *v);
 
 /* ---- P1.4a: the sound editor (ui_snd.c, built through ui_layer.c): a page of FM TONE as one big drawing, KNOB 1..4's
- * values in cells along the foot (their colours; a padlock where the held step has a lock), ALGORITHM's value (where
- * the page has one) at the top right in its pink badge. The track's sound (nothing held): the TRACK frame and colour in
- * the head; a step held: "STEP n" and a padlock, and under each locked value the track's left behind (grey, dashed).
+ * values in cells along the foot (their colours; P1.5b: a lock a chip), ALGORITHM's value (where the page has one) at
+ * the top right in its pink badge. The track's sound (nothing held): the TRACK colour in the head, P1.5d a dark orange
+ * frame (UI_SND_FRAME_TRACK); a step held: "STEP n", a bright orange frame (UI_SND_FRAME_STEP), and under each locked
+ * value the track's left behind (grey, dashed).
  *   ALGO      the four operators (C A B1 B2 in KNOB 1..4's colours, each with its wave at its ratio) wired by the
  *             algorithm: the modulators above what they modulate (arrows, dots running along), the feedback
  *             operator's loop, the carriers down into the bus and the speaker

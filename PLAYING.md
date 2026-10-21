@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5b)
+# Playing FIZZ (P1.5d)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -52,7 +52,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
 - **EDIT** (SHIFT + HOME from STEPS) shows the page you edit as one row at the bottom (as STEPS draws it) and the hold
   mode's drawing above it at full size, its value large in the top line: the step you hold, select or point at with
   the cursor, or the track's default when nothing is held (a mode key held: its default, "B11 RESET" small top
-  right). Every edit moves both at once (the cell's fill rises as the mallet swings); no knob pop-up covers it.
+  right). Every edit moves both at once (the cell's fill rises as the value changes); no knob pop-up covers it.
   Holding, the step latch and the cursor all stay in EDIT. Turning **PRESETS** shows the sound picture in the top
   while you turn (with a finger on a step: that step's sound lock).
 - **The knobs with no finger on a step** (nothing held, or the step latch's selection), in every view, layout **A**
@@ -66,9 +66,11 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
     step's sound lock.
   - What moved: the cursor was PRESETS (in STEPS / EDIT), now ALGORITHM everywhere; ALGORITHM no longer edits a
     track default unless you hold the mode's key; P-LOCK's track chooser is now FX + ALGORITHM.
-- **Track or step at a glance**: whenever the screen shows the **track's default** (a mode key held, the default's
-  picture after a knob turn, EDIT with nothing held) it has a **magenta frame** round the whole screen and its drawing
-  is magenta (the TRACK colour; no mode uses it). A step's screens keep the mode's colours on black, no frame.
+- **Track or step at a glance** (P1.5d: the frames the other way round): **a held step's screen has a magenta frame**
+  round the whole screen (every hold mode, and the step latch's selection, which stands for a held step); its drawing
+  keeps the mode's colours. Whenever the screen shows the **track's default** (a mode key held, the default's picture
+  after a knob turn, EDIT with nothing held) there is **no frame**, and its drawing and top line are magenta (the
+  TRACK colour; no mode uses it).
 - Pop-ups (the held-step and default pictures, the knob takeovers, the octave and sound pickers) no longer show the
   track's box and name: only what is being edited.
 - In the PIANO ROLL the small dots over the columns mark the beats (steps 1, 5, 9, 13; the first a little brighter).
@@ -93,6 +95,10 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
    screen does not draw them). On NOTE the step's notes are written in one line right over the keyboard,
    each in the colour of the knob that turns it (SELECT yellow, KNOB 1..4 blue, green, white, orange, the sixth pink),
    with the track's scale small at the top left; a chord the unit knows is named big over the notes.
+   On **VEL** (P1.5d) a caped stunt rider rides left: the higher the velocity the higher the wheelie (about the rear
+   wheel, flat below about 15, 55 degrees at 127), the faster the wheels, the road and the speed lines, and the
+   flatter the cape streams. The value is big at the top right, the ratchet ramp's four ticks at the top left. When
+   the step plays, the bike kicks: the front wheel bounces up a little and settles, with a puff of speed lines.
 3. **Turn the knobs** (table below), or press a black key **B1 .. B10** for one of ten values (shortcuts).
    ALGORITHM also turns the main value.
 4. **B11** puts the step back on the track's default.
@@ -430,8 +436,8 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 - Each page is one big drawing of that part of FM TONE (the operators wired by the algorithm, the envelopes, the
   filter's curve, the LFO's wave ..). Along the bottom, KNOB 1..4's values in their colours (the one you turned last
   underlined); ALGORITHM's value is in the pink badge top right.
-- **Nothing held**: a turn changes the track's sound, live (what is sounding follows). The screen has the magenta TRACK
-  frame. **SHIFT + a knob** moves it by the finest step (a hundredth of FREQ, HARM, the LFO speeds ..).
+- **Nothing held**: a turn changes the track's sound, live (what is sounding follows). The screen has a **dark orange
+  frame** (the track's sound); a step held or selected, a **bright orange frame** (its locks). **SHIFT + a knob** moves it by the finest step (a hundredth of FREQ, HARM, the LFO speeds ..).
 - **A finger on a step** (held, or the step latch's selection: LFO works in the editor): **every turn is a p-lock** on
   that step. The top says STEP n; **a value locked on that step is a filled chip** in its knob's colour (black text),
   and the envelopes show the track's curve dashed behind the step's. **Nothing held, a value that some step of the

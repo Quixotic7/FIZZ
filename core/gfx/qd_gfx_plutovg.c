@@ -266,6 +266,7 @@ void qd_path_arc(float cx, float cy, float r, float a0, float a1) { plutovg_canv
 void qd_path_close(void) { plutovg_canvas_close_path(qd_cv); }
 void qd_path_fill(qd_rgb col) { qd_paint(QD_NONE, 0.f, col); }
 void qd_path_stroke(qd_rgb col, float lw) { qd_paint(col, lw > 0.f ? lw : qd_lw, QD_NONE); }
+void qd_path_paint(qd_rgb stroke, float lw, qd_rgb fill) { qd_paint(stroke, lw > 0.f ? lw : qd_lw, fill); }
 void qd_path_clip(void) { plutovg_canvas_clip(qd_cv); }
 
 /* ---------------------------------------------------------------- text --- */
