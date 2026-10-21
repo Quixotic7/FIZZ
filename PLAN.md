@@ -1670,3 +1670,10 @@ selection in layouts A and C (P1.3y's roles row took it); a selection made by th
 Chords still clamp note by note at the range ends (they can squash): a later look. (3) LFO's LED: 255 in VALUES, a
 breath 153..255 in MODES (128 read as "glow" on RemoteFM1's three-level scan). (4) MIX on TONE again (KNOB 4, the
 mix row as RATIO's), the one value on two pages.
+
+**2026-10-21, P1.5o** (FMToneSeq 0dcd7fc; FM1VST `core-quadrille` 6d11eae; version 0.6.0-p1.5o; relaunched): NOTE: SELECT
+moves the whole chord (`QD_KJ_CHORD`, in scale, the shape kept, it stops at 1..127), KNOB 1..4 notes 2..5 (down: into
+note 1), ALGORITHM no note; the default's VEL green; locks over a sound lock (the model already layered them; the
+editor shows the layered values, a turn p-locks the step, never the pool); F2 + a knob unlocks (a step, or the whole
+track with nothing held; P-LOCK too) with an "unlocked" takeover. The default has no sound field, so nothing to mark.
+Open: the knob band covers NOTE's scale name while turning.
