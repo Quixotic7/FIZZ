@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ velocity rider</title>
+<!-- FIZZ: the VEL picture as a caped stunt motorcyclist (the owner, 2026-10-21, in place of the squirrel): both wheels on
+     the road at low velocity, the front lifting into a wheelie as the velocity rises, the steepest at 127; the cape
+     droops when slow and streams flat when fast; the road dashes and the speed lines run with the velocity.
+     ?shot=V[&t=s]  one 240 x 240 canvas at velocity V      ?sheet=1  five velocities at 2x      no query: live, sweeping -->
+<style>
+html, body { margin: 0; background: #101012; color: #ddd; font: 600 13px -apple-system, "Helvetica Neue", Arial; }
+body.shot { background: #000; }
+body.sheet, body.live { padding: 20px; }
+.row { display: flex; gap: 20px; flex-wrap: wrap; }
+canvas.big { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.cap { margin: 6px 0 0; color: #aaa; }
+</style>
+</head>
+<body>
+<script src="font_it.js"></script>
+<script>
+const C = { bg: '#000', vel: '#1fd47e', k3: '#f1f0ea', k4: '#ff6a2c', g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d' };
+const TAU = Math.PI * 2, clamp = (x, a, b) => x < a ? a : x > b ? b : x, lerp = (a, b, u) => a + (b - a) * u;
+function T(c, s, x, y, o = {}) { c.save(); c.font = `${o.w || 300} ${o.s || 12}px IT`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.fillText(s, x, y); c.restore(); }
+function path(c, pts, col, lw = 1.6, close = false, fill = null) { c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); if (close) c.closePath();
+  if (fill) { c.fillStyle = fill; c.fill(); } c.stroke(); c.restore(); }
+function curve(c, pts, col, lw = 1.6, close = false, fill = null) {   /* a smooth curve through the points */
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath();
+  const n = pts.length / 2, P = i => [pts[(i % n) * 2], pts[(i % n) * 2 + 1]];
+  c.moveTo(...P(0));
+  for (let i = 0; i < (close ? n : n - 1); i++) { const [x0, y0] = P(i), [x1, y1] = P(i + 1); c.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2); }
+  if (!close) c.lineTo(...P(n - 1)); else c.closePath();
+  if (fill) { c.fillStyle = fill; c.fill(); } c.stroke(); c.restore(); }
+function circ(c, x, y, r, col, lw = 1.6, fill = null) { c.save(); c.beginPath(); c.arc(x, y, r, 0, TAU); if (fill) { c.fillStyle = fill; c.fill(); }
+  if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore(); }
+function star(c, x, y, r, col) { const p = []; for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r; p.push(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } path(c, p, col, 1.1, true); }
+
+function wheel(c, x, y, spin, col) {                  /* a spoked wheel, turning */
+  circ(c, x, y, 16, col, 1.8, C.bg); circ(c, x, y, 12.5, col, 1); circ(c, x, y, 2.6, col, 1.4);
+  for (let k = 0; k < 6; k++) { const a = spin + k * TAU / 6; path(c, [x + Math.cos(a) * 3, y + Math.sin(a) * 3, x + Math.cos(a) * 12, y + Math.sin(a) * 12], col, 0.9); }
+}
+/* the bike and rider in their own frame: the rear hub at (0, 0), the front hub at (58, 0), the road at y = 16.
+   u: the velocity 0..1 (the cape's flow), t: time */
+function rider(c, u, t, col) {
+  const flow = lerp(0.15, 1, u), flap = Math.sin(t * (6 + 10 * u)) * (1 + 3 * u);
+  /* the cape, behind everything: from the shoulders, drooping when slow, streaming flat and waving when fast */
+  const sx = 19, sy = -41, L = 34 + 16 * u;
+  const tipX = sx - L * (0.35 + 0.65 * flow), tipY = sy + L * (1 - flow) * 0.9 + flap;
+  const midX = (sx + tipX) / 2, midY = (sy + tipY) / 2 - 4 * flow + flap * 0.6;
+  curve(c, [sx + 1, sy - 2, midX, midY - 6, tipX, tipY - 7, tipX - 2, tipY + 3, midX + 2, midY + 9, sx - 1, sy + 9], C.k4, 1.6, true, C.bg);
+  path(c, [sx, sy + 3, midX + 1, midY + 1, tipX, tipY - 1], C.k3, 1);              /* a white stripe down it */
+  star(c, midX - 2, midY + 2, 3.2, C.k3);
+  /* the bike */
+  wheel(c, 0, 0, -t * (4 + 30 * u), col); wheel(c, 58, 0, -t * (4 + 30 * u), col);
+  curve(c, [-12, -4, -10, -15, 2, -19, 10, -17], col, 1.4);                         /* the rear fender */
+  path(c, [0, 0, 20, -7], col, 1.6);                                                 /* the swingarm */
+  c.save(); c.beginPath(); c.roundRect(18, -14, 17, 15, 3); c.fillStyle = C.bg; c.fill(); c.strokeStyle = col; c.lineWidth = 1.5; c.stroke(); c.restore();   /* the engine */
+  for (let k = 0; k < 3; k++) path(c, [21 + k * 4.5, -12, 21 + k * 4.5, -2], col, 0.9);
+  path(c, [28, 0, 6, -2, -6, -6], col, 1.4);                                         /* the exhaust */
+  curve(c, [20, -16, 26, -24, 38, -24, 42, -17], col, 1.6, false, null);            /* the tank */
+  path(c, [4, -18, 20, -18], col, 2);                                                /* the seat */
+  path(c, [58, 0, 46, -30], col, 1.8);                                               /* the fork, raked */
+  path(c, [42, -18, 46, -30, 42, -36, 38, -37], col, 1.6);                           /* the bars, high */
+  /* the rider: a leg to the peg, the body leaning in, arms to the bars, the helmet with its stripe and visor */
+  path(c, [14, -22, 27, -14, 24, -3, 28, -2], col, 1.8);                             /* thigh, shin, boot */
+  path(c, [14, -22, 20, -41], col, 2);                                               /* the back */
+  path(c, [21, -40, 31, -34, 39, -36], col, 1.6);                                    /* the arm */
+  circ(c, 23, -48, 6.5, col, 1.7, C.bg);                                             /* the helmet */
+  path(c, [18.5, -52.5, 27, -53.5], C.k4, 1.4);                                      /* its stripe */
+  path(c, [26, -50, 29.5, -47], C.k3, 1.6);                                          /* the visor */
+}
+
+function screen(c, vel, t, o = {}) {                 /* the rider faces left: the front wheel lifts on the left */
+  c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240);
+  T(c, 'STEP 6 · VEL', 8, 18, { s: 12, w: 600, ls: 0.8, col: C.k3 });
+  const u = clamp(vel / 127, 0, 1), pitch = Math.pow(clamp((u - 0.12) / 0.88, 0, 1), 1.15) * (55 * Math.PI / 180);
+  const gy = 206, rx = 150, k = 1.4;                  /* the road's height, the rear wheel's contact, the scale */
+  /* the road: its edge and dashes running past (to the right) at the speed */
+  path(c, [0, gy, 240, gy], C.g2, 1.2);
+  const sp = 20 + 260 * u;
+  for (let i = 0; i < 6; i++) { const x = (((t * sp) + i * 48) % 288) - 24; path(c, [x, gy + 12, x + 18, gy + 12], C.g2, 1.6); }
+  /* speed lines streaming behind (right of) the rider, more and longer with the velocity */
+  const n = Math.round(1 + 6 * u);
+  for (let i = 0; i < n; i++) { const y = 112 + i * 12, x = ((t * sp * 1.4 + i * 67) % 260) - 20, L = 8 + 34 * u;
+    if (x > 40 && x < 210 && y > 100) continue; path(c, [x, y, x + L, y], C.g2, 1); }
+  /* the wheelie: the bike turns about its rear axle (the wheel stays on the road); mirrored so it rides left */
+  c.save(); c.translate(rx, gy - 16 * k); c.rotate(pitch); c.scale(-k, k);
+  rider(c, u, t, C.vel); c.restore();
+  T(c, String(vel), 232, 84, { s: 64, w: 200, col: C.vel, al: 'right' });
+  for (let i = 0; i < 4; i++) path(c, [10 + i * 8, 30, 10 + i * 8, 46], C.k4, 2);      /* the ramp's ticks */
+}
+
+(async () => {
+  const ff = new FontFace('IT', `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search);
+  const mk = () => { const cv = document.createElement('canvas'); cv.width = cv.height = 240; return cv; };
+  if (q.has('shot')) { document.body.className = 'shot'; const cv = mk(); screen(cv.getContext('2d'), +q.get('shot'), +(q.get('t') || 0.3)); document.body.appendChild(cv); return; }
+  const row = document.createElement('div'); row.className = 'row'; document.body.appendChild(row);
+  const list = q.has('sheet') ? [10, 40, 70, 100, 127] : [null];
+  document.body.className = q.has('sheet') ? 'sheet' : 'live';
+  const live = [];
+  list.forEach(v => { const f = document.createElement('figure'); f.style.margin = 0; const cv = mk(); cv.className = 'big'; f.appendChild(cv);
+    const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = v == null ? 'sweeping 1..127' : 'VEL ' + v; f.appendChild(cap); row.appendChild(f);
+    if (v != null) screen(cv.getContext('2d'), v, 0.3); else live.push(cv.getContext('2d')); });
+  const t0 = performance.now();
+  const loop = () => { const t = (performance.now() - t0) / 1000, v = Math.round(64 + 63 * Math.sin(t * 0.6)); live.forEach(c => screen(c, v, t)); if (live.length) requestAnimationFrame(loop); };
+  loop();
+})();
+</script>
+</body>
+</html>

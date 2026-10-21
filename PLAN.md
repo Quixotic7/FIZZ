@@ -1077,10 +1077,13 @@ P1.5c).
 - **The frames the other way round.** The owner: the frame round a track's values (the TRACK frame of P1.3y) "should be
   the other way around". **The sequencer's held-step screens get the frame** (in 0xf03cff); **the track defaults get
   none**. **In the sound editor: a dark orange frame for the track's sound, a bright orange frame for a step's locks.**
-- **VEL as a flying squirrel skydiver** (`mockups/fizz-vel-squirrel.html`, `mockups/png/fizz-vel-squirrel.png`) in
-  place of the mallet and drum: seen from above, goggles on, gliding flat with its membrane spread wide at low velocity,
-  tilting down as the velocity rises, straight down and tucked at 127; speed lines streaming past, more and faster with
-  the velocity; the membrane flutters, the tail streams.
+- **VEL as a caped stunt motorcyclist** (the owner, from a photo of a caped wheelie rider; it replaced a first idea, a
+  flying squirrel skydiver, `mockups/fizz-vel-squirrel.html`): `mockups/fizz-vel-rider.html`,
+  `mockups/png/fizz-vel-rider.png`, in place of the mallet and drum. Side view, **riding to the left**; both wheels on
+  the road at low velocity, the front lifting into a **wheelie** as the velocity rises (about the rear axle, 0 below
+  VEL 15, 55 degrees at 127); the cape (orange, a white stripe and a star) droops when slow and streams flat and waves
+  when fast; the wheels spin, the road dashes and the speed lines run right with the velocity. The value big top
+  right, the ramp's ticks top left.
 
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
