@@ -1473,3 +1473,16 @@ merge of main ffdbb7e 189e2be, 647073c, ea052de; versions 0.2.3-p1.3y, 0.3.0-p1.
   other tracks); ENV = MIX (faders, pan, meters, sends; ENV again = the sends page); FX = ChoralRoot's effects, every
   parameter (DELAY, DELAY 2, REVERB, REVERB 2, CHORUS, MASTER; B1..B4, again = the second page). The clocks screen is
   retired (its values now live on F3, the track settings and SEL); PAGE + W is gone.
+
+**2026-10-20, P1.5a** (FMToneSeq 277ccf8, 4cabcb5; FM1VST `core-quadrille` 89e4272, 4934b52; versions 0.4.0-p1.5a,
+0.4.1-p1.5a; relaunched; RemoteFM1 0.1.1 back on 5BD75BE3 after a data backup to
+`fm1-backups/before-remotefm1-20261020/`):
+- Part 1: each pattern carries its 8 tracks' sounds (`snd[8]`: patch, pool source, edited, name); `core/store`, §7's
+  floating page store (CRC'd 256 B pages, commit last, tombstones, GC, §7's playing rules with counters; test_store:
+  958 power cuts); `core/app/persist`: the library (32 sectors) and the projects (224 sectors) in the core's 1 MiB NOR
+  image, written by itself 1.5 s after the last change; eight projects; the restart restores project, pattern, track.
+  The Standalone's image: `~/Library/Application Support/fm1emu/fizz/flash.bin`, written on quit.
+- Part 2: SAVE = the sounds page (LIBRARY / POOL on B9, store with arm / replace, F2 into the pool or onto the track,
+  W audition, B10 the name editor, F1 / F2 / B11 + W copy, move, delete), a sound classifier for the auto-names; SEQ
+  tapped = the project page and the projects. Deviations: delete has no undo yet (P1.5b), project copy works as sound
+  copy, "x6" for the lock count (the font has no ×), names 12 characters.
