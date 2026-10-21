@@ -1025,6 +1025,8 @@ int qd_view_screen(const qd_app_t *a)
                 return QD_SCR_SHIFT;
             return QD_SCR_EDIT;
         }
+        if (u->slatch && qd_ctl_layer_shown(a) != QD_LAYER_NONE)   /* P1.5m: the latch's selection, an F layer: its map */
+            return QD_SCR_LAYER;
         if (u->nheld && u->hmode != UI_F_PLOCK &&      /* (P-LOCK: holding keeps the screen; so does the step */
             !u->scursor)                                /* cursor, P1.3q, in every view since P1.3y) */
             return QD_SCR_HELD;

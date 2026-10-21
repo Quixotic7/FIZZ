@@ -4248,6 +4248,104 @@ static void g_p15l_groups(void)
     btap(QD_B_HOME);
 }
 
+
+/* P1.5m (the owner: "the F1 / F2 shortcuts do not work when the step lock is turned on"): every F gesture with the step
+ * latch on and a selection, in VALUES and in MODES, as without the latch; the selection untouched; F1 / F2 tapped the
+ * selection's octave (NOTE) / bank (SOUND), as for a held step */
+static void g_p15m_flatch(void)
+{
+    int lm;
+    for (lm = 0; lm < 2; lm++) {
+        const char *M = lm ? "MODES" : "VALUES";
+        int o0, b0;
+        start();
+        A.ui.lmode = lm;
+        wtap(0), wtap(2), wtap(4);
+        wtap(1);                                        /* (the last tapped: the latch starts on step 2) */
+        btap(LFO);
+        CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 1, "%s: the latch on, step 2 selected", M);
+        bdown(F1);                                      /* F1 + W: copy, then paste */
+        run(80);
+        CHECK(qd_view_screen(&A) == QD_SCR_LAYER && qd_ctl_layer(&A) == QD_LAYER_F1, "%s: F1 held: its map", M);
+        wtap(4);
+        wtap(7);
+        bup(F1);
+        run(20);
+        CHECK(R(0, 7).on && A.ui.nheld == 1 && A.ui.held[0] == 1 && A.ui.slatch,
+              "%s: F1 + W5 + W8: step 5 copied onto 8, the selection untouched", M);
+        bdown(F2);                                      /* F2 + W: pick up, drop */
+        run(80);
+        wtap(7);
+        wtap(9);
+        bup(F2);
+        run(20);
+        CHECK(R(0, 9).on && A.ui.held[0] == 1, "%s: F2 (loaded by F1's copy) + W8 + W10: pasted, the selection kept", M);
+        bdown(F2);                                      /* (the hand empty now: Form's pick-up / drop) */
+        run(80);
+        wtap(9);
+        wtap(11);
+        bup(F2);
+        run(20);
+        CHECK(!R(0, 9).on && R(0, 11).on && A.ui.held[0] == 1, "%s: F2 + W10 + W12: moved to 12, the selection kept", M);
+        bdown(F1);                                      /* F1 + B9: the page cleared, F1 + B11: undone */
+        run(80);
+        black(B9);
+        bup(F1);
+        run(20);
+        CHECK(!R(0, 0).on && !R(0, 11).on, "%s: F1 + B9: the page cleared", M);
+        bdown(F1);
+        run(80);
+        black(B11);
+        bup(F1);
+        run(20);
+        CHECK(R(0, 0).on && R(0, 11).on && A.ui.slatch, "%s: F1 + B11: undone", M);
+        bdown(F1);                                      /* F1 + B2: page 2 edited */
+        run(80);
+        black(B2);
+        bup(F1);
+        run(20);
+        CHECK(A.ui.page[0] == 1 && A.ui.slatch, "%s: F1 + B2: page 2", M);
+        bdown(F1);
+        run(80);
+        black(B1);
+        bup(F1);
+        run(20);
+        bdown(F1);                                      /* F3: both, latched; W the page's end */
+        run(10);
+        bdown(F2);
+        run(10);
+        bup(F1), bup(F2);
+        run(20);
+        CHECK(A.ui.latch == QD_LATCH_F3 && qd_ctl_layer(&A) == QD_LAYER_F3, "%s: F1 + F2: F3 open", M);
+        wtap(11);
+        CHECK(PAT()->trk[0].pend[0] == 11 && A.ui.held[0] == 1, "%s: F3 + W12: the page's end 12, the selection kept", M);
+        btap(F1);
+        CHECK(!A.ui.latch && A.ui.slatch, "%s: OCT-: F3 closed, the latch stays", M);
+        mode(M_NOTE);                                   /* (MODES: B1 is NOTE; VALUES: B1 a note value: the mode by LFO) */
+        if (!lm) {
+            bdown(LFO);
+            run(20);
+            black(B1);
+            bup(LFO);
+            run(20);
+        }
+        o0 = A.ui.entry_oct;
+        btap(F2);
+        CHECK(A.ui.entry_oct == o0 + 1 && A.ui.slatch && A.ui.nheld == 1, "%s: NOTE, F2 tapped: the selection's octave up", M);
+        btap(F1);
+        CHECK(A.ui.entry_oct == o0, "%s: F1 tapped: down again", M);
+        bdown(LFO);
+        run(20);
+        black(B10);                                     /* SOUND */
+        bup(LFO);
+        run(20);
+        b0 = A.ui.sound_bank;
+        btap(F2);
+        CHECK(A.ui.hmode == M_SOUND && A.ui.sound_bank == b0 + 1, "%s: SOUND, F2 tapped: the next ten", M);
+        btap(QD_B_HOME);
+    }
+}
+
 int main(void)
 {
     static const struct {
@@ -4315,6 +4413,7 @@ int main(void)
         {"P1.5j: the editor's foot clear of the frame", g_p15j_margins},
         {"P1.5k: the LFOs: keys, DEST, hold-to-map", g_p15k_lfo},
         {"P1.5l: the editor's black keys regrouped", g_p15l_groups},
+        {"P1.5m: the F layers with the step latch on", g_p15m_flatch},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

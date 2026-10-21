@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5l)
+# Playing FIZZ (P1.5m)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -181,6 +181,10 @@ and chance; a LOCK step's runs too).
   preview.
 - **With nothing selected** the latch stays on but acts as if nothing is held: the black keys choose the mode
   again, the knobs edit the track's defaults. Tap a step to select again.
+- **F1, F2 and F3 work over the latch** (P1.5m) exactly as without it: F1 + W copies and pastes, F2 + W picks up and
+  drops, F1 + B1..B8 the pages, F1 + B9 / B10 / B11 clear, copy, undo, both for F3; the selection stays as it was.
+  **F1 / F2 tapped** (nothing with them) are the selection's octave in NOTE and its group of ten in SOUND, as for a
+  held step (on the release, so that holding them is still the layer).
 - **LFO** again or **HOME** turns it off.
 - **Hold LFO + a black key**: that mode, without touching the latch or the selection (a plain tap still toggles).
 - **Two latch modes** (P1.5b; P1.5h). **Hold LFO alone** (400 ms, no other key): while you hold it, a screen shows the

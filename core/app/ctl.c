@@ -41,6 +41,13 @@ const qd_pattern_t *qd_ctl_cpat(const qd_app_t *a) { return &a->proj.pat[a->seq.
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 static int steps_held(const qd_app_t *a) { return a->ui.nheld > 0 || a->ui.wk_pending; }
+/* P1.5m: a finger on a step (a key down, or a held step not the latch's): the step latch's selection alone is no finger,
+ * so the F layers work over it (the owner: "the F1 / F2 shortcuts do not work when the step lock is turned on") */
+static int finger_held(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    return u->wk_down || u->wk_pending || (u->nheld > 0 && !u->slatch);
+}
 
 /* P1.3d: F3 is a latched menu (ctl_latch.c): open, it is the layer whatever is held; an OCT key a latch ate is no
  * layer until it is let go */
@@ -51,7 +58,7 @@ int qd_ctl_layer(const qd_app_t *a)
         return QD_LAYER_NONE;
     if (a->ui.latch == QD_LATCH_F3)
         return QD_LAYER_F3;
-    if (steps_held(a) || (!dn && !up))
+    if (finger_held(a) || (!dn && !up))                 /* (P1.5m: was steps_held: the latch's selection blocked them) */
         return QD_LAYER_NONE;
     if (dn && up)
         return QD_LAYER_F3;
@@ -264,6 +271,8 @@ static int touch(qd_app_t *a)
         a->ui.shift_used = 1;
     if (held(a, QD_B_MUTE) && !a->ui.lmode_open)
         a->ui.lfo_used = 1;                             /* (P1.5b: LFO with a knob or a key: no latch-mode screen) */
+    if (held(a, QD_B_OCTDN) || held(a, QD_B_OCTUP))
+        a->ui.oct_tap_used = 1;                         /* (P1.5m: an OCT with something else: a layer, no tap) */
     if (a->ui.mode == QD_MODE_IDLE) {
         a->ui.mode = QD_MODE_STEP;
         return 1;
@@ -334,6 +343,13 @@ static void k_panel_white(qd_app_t *a, int key, int w, int down, int vel)
 }
 static int w_steps_held(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && steps_held(a); }
 static int w_f1(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F1; }
+/* P1.5m: the step latch's selection (no finger) with an F layer down: the layer's rows first, the selection untouched */
+static int w_flayer_latch(const qd_app_t *a)
+{
+    return a->ui.mode == QD_MODE_STEP && a->ui.slatch && !finger_held(a) && qd_ctl_layer(a) != QD_LAYER_NONE;
+}
+static void k_flayer_white(qd_app_t *a, int key, int w, int down, int vel);
+static void k_flayer_black(qd_app_t *a, int key, int b, int down, int vel);
 static int w_f2(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F2; }
 static int w_f3(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F3; }
 
@@ -768,6 +784,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
                                         * track) */
     {w_snd_keys, k_snd_note},          /* P1.5b: the sound editor's keyboard */
     {w_keys_mode, k_note},             /* the keyboard */
+    {w_flayer_latch, k_flayer_white},  /* P1.5m: the latch's selection, F1 / F2 / F3 down: the layer's W */
     {w_steps_held, k_step},            /* steps held: more held steps */
     {w_f1, k_f1_white},                /* F1: the first W copies, the later ones paste */
     {w_f2, k_f2_white},                /* F2: Form's pick-up / drop */
@@ -785,6 +802,7 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_keys_mode, k_note},             /* the keyboard */
     {w_lfo_held, k_lfo_mode},          /* P1.3y: LFO held: the hold mode, the latch untouched */
     {w_mkey, k_mkey},                  /* a mode key held (P1.3e): B11 resets its default, the rest nothing */
+    {w_flayer_latch, k_flayer_black},  /* P1.5m: the latch's selection, F1 / F2 / F3 down: the layer's black keys */
     {w_latch_modes, k_mode},           /* P1.5b: the latch in MODES: the hold mode (a finger on a step: the values) */
     {w_steps_held, k_value},           /* steps held: the mode's values, B11 CLEAR */
     {w_f1, k_f1_black},                /* F1: pages, clear page / track, copy / paste a page, undo */
@@ -792,6 +810,24 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_f3, k_f3_black},                /* F3: the rate */
     {w_step_view, k_mode},             /* nothing held: the hold mode */
 };
+static void k_flayer_white(qd_app_t *a, int key, int w, int down, int vel)
+{
+    const int l = qd_ctl_layer(a);
+    if (l == QD_LAYER_F1)
+        k_f1_white(a, key, w, down, vel);
+    else if (l == QD_LAYER_F2)
+        k_f2_white(a, key, w, down, vel);
+    else if (l == QD_LAYER_F3)
+        k_f3_white(a, key, w, down, vel);
+}
+static void k_flayer_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    const int l = qd_ctl_layer(a);
+    if (l == QD_LAYER_F1)
+        k_f1_black(a, key, b, down, vel);
+    else if (l == QD_LAYER_F3)
+        k_f3_black(a, key, b, down, vel);
+}
 void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
 {
     const int w = qd_ctl_white(key), b = qd_ctl_black(key);
@@ -1030,6 +1066,12 @@ static void b_oct(qd_app_t *a, int d, int down)
     if (qd_lib_oct(a, d, down))                         /* P1.5a: the sounds page, the name editor, the projects */
         return;
     if (!down) {
+        if (u->oct_tap == d) {                          /* P1.5m: the latch's selection, an OCT tapped (nothing with it):
+                                                         * NOTE's octave, SOUND's bank, as for a held step */
+            if (!u->oct_tap_used && u->slatch && u->nheld && u->mode == QD_MODE_STEP && !u->latch)
+                qd_step_oct(a, d);
+            u->oct_tap = 0;
+        }
         u->oct_eaten &= (uint8_t)~(d < 0 ? 1u : 2u);   /* (a key a latch ate: free again) */
         if (d < 0) {                                    /* F1 let go: its step copy and page copy end (the clipboard
                                                          * stays: F2's hand stays loaded, as Form's) */
@@ -1080,10 +1122,15 @@ static void b_oct(qd_app_t *a, int d, int down)
         }
         return;
     }
-    if (steps_held(a) && !u->latch) {                   /* NOTE: the entry octave; SOUND: the bank; else nothing */
+    if (finger_held(a) && !u->latch) {                  /* NOTE: the entry octave; SOUND: the bank; else nothing */
         qd_step_promote_all(a);
         qd_step_oct(a, d);
         return;
+    }
+    if (u->slatch && u->nheld && !u->latch) {           /* P1.5m: the latch's selection: a tap is its octave / bank (on
+                                                         * the release, qd_ctl_oct_tap), held it is the layer */
+        u->oct_tap = both ? 0 : d;
+        u->oct_tap_used = both;
     }
     if (qd_latch_oct(a, d))                             /* P1.3d: a latched menu: OCT- back, OCT+ confirm */
         return;

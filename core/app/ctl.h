@@ -314,6 +314,8 @@ typedef struct {
     /* the layers: F1 / F2 / F3 (OCT- / OCT+ / both; P1.3d: F3 is a latched menu) */
     int latch;                         /* the latched menu open (QD_LATCH_*) */
     uint8_t oct_eaten;                 /* bit 0 OCT-, bit 1 OCT+: its press was a latch's (no layer until it is up) */
+    int oct_tap, oct_tap_used;         /* P1.5m: the step latch's selection: an OCT down (-1 / +1) that is a tap if nothing
+                                        * comes with it (the octave / bank on its release) */
     uint32_t f_ms;                     /* when the layer's first key went down */
     uint16_t lk_down;                  /* bit b: B(b+1) went down in the layer (its release goes there too) */
     uint32_t pg_t0[8];                 /* F1: a page key's press */
