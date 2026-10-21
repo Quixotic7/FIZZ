@@ -31,15 +31,17 @@ const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     {"BASE", QD_SG_FILTER, UI_SD_BAND, {QD_QP_BASE, QD_QP_WIDTH, QD_QP_FKTRK, -1, -1}, 0},
     {"AMP", QD_SG_AMP, UI_SD_ADSR, {QD_QP_EATK, QD_QP_EDEC, QD_QP_ESUS, QD_QP_EREL, -1}, 1},
     {"LEVEL", QD_SG_AMP, UI_SD_DRIVE, {QD_QP_LEVEL, QD_QP_DRIVE, -1, -1, -1}, 0},
-    {"LFO 1", QD_SG_MOD, UI_SD_LFO, {L(0, QD_QL_SPEED), L(0, QD_QL_MULT), L(0, QD_QL_DEPTH), L(0, QD_QL_FADE),
-                                      L(0, QD_QL_DEST)}, 0},
-    {"LFO 1 WAVE", QD_SG_MOD, UI_SD_LFOSHAPE, {L(0, QD_QL_WAVE), L(0, QD_QL_PHASE), L(0, QD_QL_TRIG), -1, -1}, 0},
-    {"LFO 2", QD_SG_MOD, UI_SD_LFO, {L(1, QD_QL_SPEED), L(1, QD_QL_MULT), L(1, QD_QL_DEPTH), L(1, QD_QL_FADE),
-                                      L(1, QD_QL_DEST)}, 1},
-    {"LFO 2 WAVE", QD_SG_MOD, UI_SD_LFOSHAPE, {L(1, QD_QL_WAVE), L(1, QD_QL_PHASE), L(1, QD_QL_TRIG), -1, -1}, 1},
-    {"LFO 3", QD_SG_MOD, UI_SD_LFO, {L(2, QD_QL_SPEED), L(2, QD_QL_MULT), L(2, QD_QL_DEPTH), L(2, QD_QL_FADE),
-                                      L(2, QD_QL_DEST)}, 2},
-    {"LFO 3 WAVE", QD_SG_MOD, UI_SD_LFOSHAPE, {L(2, QD_QL_WAVE), L(2, QD_QL_PHASE), L(2, QD_QL_TRIG), -1, -1}, 2},
+    /* P1.5k (the owner): an LFO's page SPEED MULT DEPTH DEST (DEST in the menu now, not ALGORITHM's), its WAVE page
+     * WAVE PHASE TRIG FADE; ALGORITHM nothing on them (ChoralRoot's LFO has these eight values, no fifth) */
+    {"LFO 1", QD_SG_MOD, UI_SD_LFO, {L(0, QD_QL_SPEED), L(0, QD_QL_MULT), L(0, QD_QL_DEPTH), L(0, QD_QL_DEST), -1}, 0},
+    {"LFO 1 WAVE", QD_SG_MOD, UI_SD_LFOSHAPE, {L(0, QD_QL_WAVE), L(0, QD_QL_PHASE), L(0, QD_QL_TRIG), L(0, QD_QL_FADE),
+                                               -1}, 0},
+    {"LFO 2", QD_SG_MOD, UI_SD_LFO, {L(1, QD_QL_SPEED), L(1, QD_QL_MULT), L(1, QD_QL_DEPTH), L(1, QD_QL_DEST), -1}, 1},
+    {"LFO 2 WAVE", QD_SG_MOD, UI_SD_LFOSHAPE, {L(1, QD_QL_WAVE), L(1, QD_QL_PHASE), L(1, QD_QL_TRIG), L(1, QD_QL_FADE),
+                                               -1}, 1},
+    {"LFO 3", QD_SG_MOD, UI_SD_LFO, {L(2, QD_QL_SPEED), L(2, QD_QL_MULT), L(2, QD_QL_DEPTH), L(2, QD_QL_DEST), -1}, 2},
+    {"LFO 3 WAVE", QD_SG_MOD, UI_SD_LFOSHAPE, {L(2, QD_QL_WAVE), L(2, QD_QL_PHASE), L(2, QD_QL_TRIG), L(2, QD_QL_FADE),
+                                               -1}, 2},
 };
 #undef L
 const char *const QD_SND_GROUP_NAME[QD_NSG] = {"OPERATORS", "OP ENVELOPES", "FILTERS", "ENVELOPES", "MODULATION"};
@@ -137,6 +139,35 @@ void qd_snd_button(qd_app_t *a)
     u->snd_knob = -1;
 }
 
+/* P1.5k: LFO n's page (n 0..2): its LFO page, again its WAVE page, again back */
+static int snd_lfo_page(int n)
+{
+    int p;
+    for (p = 0; p < QD_SND_NPAGE; p++)
+        if (QD_SND_PAGES[p].draw == UI_SD_LFO && QD_SND_PAGES[p].arg == n)
+            return p;
+    return 0;
+}
+void qd_snd_lfo_key(qd_app_t *a, int n, int down)
+{
+    qd_ui_t *u = &a->ui;
+    if (down) {
+        u->snd_lk = n + 1;
+        u->snd_lk_used = 0;
+        u->snd_lk_ms = a->ms;
+        u->snd_lk_k = -1;
+        return;
+    }
+    if (u->snd_lk != n + 1)
+        return;
+    u->snd_lk = 0;
+    if (!u->snd_lk_used) {                              /* a tap: the LFO's page, again its WAVE page, again back */
+        const int p0 = snd_lfo_page(n);
+        u->snd_page = u->snd_page == p0 ? p0 + 1 : p0;
+        u->snd_knob = -1;
+    }
+}
+
 /* a black key: B1..B5 the group (again: its next page), B11 a step held: its locks on this page cleared */
 void qd_snd_black(qd_app_t *a, int b)
 {
@@ -224,6 +255,63 @@ static void snd_pair(qd_app_t *a, int d, int fine)
     }
 }
 
+/* P1.5k: value id set on the held steps (locks) or the track's sound (live), absolutely */
+static int snd_cur(qd_app_t *a, int id)                 /* (the held step's value, else the track's) */
+{
+    qd_ui_t *u = &a->ui;
+    if (u->nheld) {
+        int16_t v;
+        return qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], id, &v) ? v : qd_step_base(a, a->sel, u->held[0], id);
+    }
+    return a->model.t[a->sel].patch[id];
+}
+static void snd_put(qd_app_t *a, int id, int v)
+{
+    qd_ui_t *u = &a->ui;
+    int16_t lo, hi;
+    if (qd_quad_value_range(id, &lo, &hi, 0))
+        v = v < lo ? lo : v > hi ? hi : v;
+    if (u->nheld) {
+        int i;
+        for (i = 0; i < u->nheld; i++)
+            if (qd_lock_set(qd_ctl_pat(a), a->sel, u->held[i], id, v) == QD_EFULL) {
+                qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+                return;
+            }
+        return;
+    }
+    qd_player_live_edit(&a->player, a->sel, id, v);
+}
+static void snd_dest(qd_app_t *a, int id, int d)
+{
+    snd_put(a, id, qd_quad_dest_step(snd_cur(a, id), d));
+}
+/* P1.5k: LFO n held + a knob on value id: its first detent makes id LFO n's destination (if ChoralRoot's list has it;
+ * the depth from 0), each detent the depth (signed, accelerated); not a destination: nothing, the takeover says so */
+static void snd_map(qd_app_t *a, int n, int id, int d)
+{
+    qd_ui_t *u = &a->ui;
+    const int dest = qd_quad_dest_of(id, n), did = QD_QP_LFO(n, QD_QL_DEST), pid = QD_QP_LFO(n, QD_QL_DEPTH);
+    int k;
+    u->snd_lk_k = -1;
+    for (k = 0; k < 5; k++)
+        if (QD_SND_PAGES[u->snd_page].id[k] == id)
+            u->snd_lk_k = k;
+    u->snd_lk_id = id;
+    if (dest < 0) {
+        u->snd_lk_bad_ms = a->ms ? a->ms : 1u;
+        return;
+    }
+    u->snd_lk_bad_ms = 0;
+    {
+        const int same = snd_cur(a, did) == dest;
+        const int dep = same ? snd_cur(a, pid) : 0;
+        if (!same)
+            snd_put(a, did, dest);
+        snd_put(a, pid, dep + qd_ctl_acc(a, d, qd_step_id_steps(pid)) * qd_step_id_detent(pid));
+    }
+}
+
 /* a knob; 1: taken */
 int qd_snd_knob(qd_app_t *a, int knob, int d)
 {
@@ -247,8 +335,18 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
         if (SND_KNOB[k] == knob)
             id = pg->id[k], u->snd_knob = k;
     u->snd_ms = a->ms;
+    if (u->snd_lk) {                                    /* P1.5k: an LFO key held: the knob's value its destination */
+        if (id >= 0)
+            snd_map(a, u->snd_lk - 1, id, d);
+        u->snd_lk_used = 1;
+        return 1;
+    }
     if (id < 0)
         return 1;
+    if (id >= QD_QP_LFO0 && id < QD_QP_LFO0 + 3 * 8 && (id - QD_QP_LFO0) % 8 == QD_QL_DEST) {
+        snd_dest(a, id, d);                             /* P1.5k: DEST, through ChoralRoot's list in its order */
+        return 1;
+    }
     if (id == QD_QP_RB1) {                              /* P1.5i: RATIO B, the pair */
         snd_pair(a, d, fine);
         return 1;
@@ -275,6 +373,9 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
     int i, k, n = 0;
     for (i = 0; i < 11; i++)
         black[i] = i < QD_NSG ? (i == pg->group ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
+    for (i = 0; i < 3; i++)                             /* P1.5k: B6..B8 the LFOs (the one on screen, or held, lit) */
+        black[5 + i] = u->snd_lk == i + 1 || ((pg->draw == UI_SD_LFO || pg->draw == UI_SD_LFOSHAPE) && pg->arg == i)
+                           ? QD_LED_LIT : QD_LED_DIM;
     for (i = 0; i < u->nheld; i++)
         for (k = 0; k < 5; k++)
             if (pg->id[k] >= 0) {

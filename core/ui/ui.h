@@ -270,6 +270,7 @@ int ui_fn_icon(int func);               /* P1.3w: a step function's icon (UI_IC_
                                          * (or the latch's selection's) in the sequencer */
 #define UI_SND_FRAME_TRACK 0x8a3412u    /* P1.5d: the sound editor's frame, the track's sound (nothing held): dark orange */
 #define UI_SND_FRAME_STEP 0xff6a2cu     /* .. a step held or selected (its locks): bright orange (UI_K4) */
+extern const qd_rgb UI_LFO_COL[3];      /* P1.5k: LFO 1, 2, 3's colours (their marks, the mapping's takeover) */
 extern const qd_rgb UI_TRACK_PAL[8];    /* P1.3y: each track's colour (its big picture) */
 void ui_icon(int id, float cx, float cy, float s, qd_rgb col);   /* about 12 x 12 px at s 1, centred */
 typedef struct {
@@ -602,13 +603,18 @@ typedef struct ui_snd {
     float t;                            /* seconds (the waves move) */
     uint8_t mod[4], fb, outx, outy;     /* ALGO: the algorithm's routing (C A B1 B2: bit 0 C .. 3 B2) */
     float ratio[4];                     /* .. the operators' ratios */
-    int pv[2];                          /* LFO: its WAVE, TRIG; LFOSHAPE: its SPEED, DEPTH */
+    int pv[3];                          /* LFO: its WAVE, TRIG, FADE (P1.5k); LFOSHAPE: its SPEED, DEPTH */
     uint8_t lockany[5];                 /* P1.5b: no step held: some step of the track locks it (an outlined chip) */
     int keys;                           /* P1.5b: the keyboard on: 1 SCALE (16 keys: the scale), 2 FULL (27) */
     uint8_t kst[27];                    /* .. each key: 0 out of the scale, 1 in it, 2 a root; +4 sounding */
     uint8_t pair[5];                    /* P1.5i: a ratio pair (RATIO B): txt the fast hand (B2) over den (B1) */
     char den[5][8];
     int has_mix, mix;                   /* P1.5i: RATIO's MIX (-64 X .. 63 Y): the outputs' balance in the drawing */
+    uint8_t lfomark[5];                 /* P1.5k: bit n: LFO n + 1 has this value as its destination (a mark by its label) */
+    int lk;                             /* P1.5k: an LFO key held (1..3): the mapping's takeover .. */
+    const char *lk_name;                /* .. the value it maps ("FREQ"; 0: none yet) */
+    int lk_ok, lk_k;                    /* .. a destination (else dim, shaking), the knob's column (-1) */
+    float lk_depth, lk_shake;           /* .. the depth -1..1, the shake 0..1 (1: just refused) */
 } ui_snd_t;
 void ui_snd_draw(const ui_snd_t *v);
 

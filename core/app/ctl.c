@@ -283,7 +283,9 @@ static int w_snd(const qd_app_t *a) { return qd_snd_open(a) && !held(a, QD_B_MIX
 static void k_snd_black(qd_app_t *a, int key, int b, int down, int vel)
 {
     (void)key, (void)vel;
-    if (down)
+    if (b >= 5 && b <= 7)                               /* P1.5k: B6..B8 the LFOs (a tap their page, held: the mapping) */
+        qd_snd_lfo_key(a, b - 5, down);
+    else if (down)
         qd_snd_black(a, b);
 }
 /* P1.3y: a settings menu open: the keys do nothing (KNOB 1..4 its values; OCT- / HOME back) */

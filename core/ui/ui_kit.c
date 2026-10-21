@@ -136,6 +136,7 @@ int ui_fn_icon(int f)
     return f >= UI_FN_LEAP ? UI_IC_LEAP : f >= 7 ? UI_IC_JUMP : f > 0 ? IC[f] : UI_IC_NONE;
 }
 
+const qd_rgb UI_LFO_COL[3] = {0x28e1ffu, 0xffd23fu, 0x9664ffu};   /* P1.5k: cyan, yellow, violet */
 const qd_rgb UI_TRACK_PAL[8] = {0x3f7dffu, 0x1fd47eu, 0xf1f0eau, 0xff6a2cu, 0xff3ca0u, 0xffd23fu, 0x9664ffu, 0x28e1ffu};
 
 /* the strip's keys: 18 px wide, 2 apart in a group, the groups 3 | 2 | 3 | 2 six apart, B11 eight further */

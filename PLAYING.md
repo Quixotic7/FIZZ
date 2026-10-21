@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5j)
+# Playing FIZZ (P1.5k)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -439,9 +439,22 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   | **B2** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay), TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL) |
   | **B3** | FILTERS | FILTER (FREQ, RESO, TYPE, DEPTH), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK) |
   | **B4** | ENVELOPES | AMP (attack, decay, sustain, release), LEVEL (LEVEL, **DRIVE**) |
-  | **B5** | MODULATION | LFO 1..3 (SPEED, MULT, DEPTH, FADE; ALGORITHM the destination), LFO 1..3 WAVE (WAVE, PHASE, TRIG) |
+  | **B5** | MODULATION | LFO 1..3 (SPEED, MULT, DEPTH, **DEST**), LFO 1..3 WAVE (WAVE, PHASE, TRIG, FADE) |
+  | **B6 / B7 / B8** | LFO 1 / 2 / 3 | that LFO's page; again its WAVE page; again back (P1.5k) |
 
   Every value of the sound is on exactly one page.
+- **The LFOs** (P1.5k). **B6, B7, B8** (F#4, G#4, A#4) are LFO 1, 2, 3: a tap shows that LFO's page, again its WAVE
+  page, again back (lit: the LFO on screen bright, the others dim; in the editor's SCALE keyboard too, in FULL they
+  play notes). On the LFO page **KNOB 4 is DEST**, the destination, through ChoralRoot's list (NONE, the LFO 1
+  values, ALGO, the ratios, HARM .. FREQ, RESO .. DRIVE, PAN, the sends ...); its name is big in the picture with an
+  arrow from the wave to it. ALGORITHM does nothing on the LFO pages.
+- **Hold an LFO key and turn a knob** on any page to **map** it: the first click makes that value the LFO's
+  destination, and turning sets the depth (up or down from 0; on from where it was if it already was the
+  destination). While the key is held a picture shows "LFO n" over the value's name and the depth as a bar from the
+  centre, and the value's column has a little wave. A value that cannot be a destination (TYPE, a WAVE ..) is
+  refused: its name dim, a shake, nothing changed. Let go: you stay on the page (a tap without a turn goes to the LFO's
+  page). **With a step held** (or the latch's selection) the destination and the depth are locks of that step.
+- A value an LFO moves has the LFO's number in its colour by its name (1 cyan, 2 yellow, 3 violet), on every page.
   **RATIO B** (P1.5i) is one value, as in ChoralRoot and the Digitone: the pair B2 over B1, shown as a fraction. A
   click steps B2 (the fast hand) and carries into B1 after 16.00; **SHIFT + KNOB 3** steps B1. A step's lock of it
   locks both. **MIX** is drawn in the RATIO picture as the balance of the algorithm's two outputs: X's wires and Y's

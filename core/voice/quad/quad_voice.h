@@ -111,6 +111,15 @@ void qd_quad_algo(int a, uint8_t *mod4, int *fb, int *outx, int *outy);
 const char *qd_quad_value_text(int i, int v, char *buf);
 int qd_quad_value_range(int i, int16_t *min, int16_t *max, int16_t *def);   /* patch value i's range; 0: no such */
 const char *qd_quad_value_name(int i);  /* its label on FM TONE's pages ("FREQ", "A DEC", .. the LFOs' "SPEED") */
+/* P1.5k: the LFOs' destinations (ChoralRoot's list, eng_quad.c QD_*: N_QUAD_DEST names, QUAD_DEST_ORDER the editor's
+ * order): the patch value a destination moves (-1: none of the pages' values: PITCH, PAN, the sends ..), the
+ * destination that moves patch value id for LFO lfo (0..2; -1: none, LFO 1 on its own values neither), the names, a
+ * step through the order */
+int qd_quad_dest_id(int dest);
+int qd_quad_dest_of(int id, int lfo);
+int qd_quad_ndest(void);
+const char *qd_quad_dest_name(int dest);
+int qd_quad_dest_step(int dest, int d);
 
 #ifdef __cplusplus
 }

@@ -321,3 +321,83 @@ int qd_quad_value_range(int i, int16_t *min, int16_t *max, int16_t *def)
         *def = r.def;
     return 1;
 }
+
+/* ---------------------------------------------------------------- P1.5k: the LFOs' destinations (eng_quad.c QD_*) */
+static int quad_dest_id(int d)
+{
+    switch (d) {
+    case QD_ALGO: return QP_ALGO;
+    case QD_RC: return QP_RC;
+    case QD_RA: return QP_RA;
+    case QD_RB: return QP_RB1;                          /* (RATIO B: the pair) */
+    case QD_OFSC: return QP_OFSC;
+    case QD_OFSA: return QP_OFSA;
+    case QD_OFSB1: return QP_OFSB1;
+    case QD_OFSB2: return QP_OFSB2;
+    case QD_HARM: return QP_HARM;
+    case QD_DTUN: return QP_DTUN;
+    case QD_FDBK: return QP_FDBK;
+    case QD_MIX: return QP_MIX;
+    case QD_ALEV: return QP_ALEV;
+    case QD_BLEV: return QP_BLEV;
+    case QD_AATK: return QP_AATK;
+    case QD_ADEC: return QP_ADEC;
+    case QD_AEND: return QP_AEND;
+    case QD_BATK: return QP_BATK;
+    case QD_BDEC: return QP_BDEC;
+    case QD_BEND: return QP_BEND;
+    case QD_ADLY: return QP_ADLY;
+    case QD_BDLY: return QP_BDLY;
+    case QD_FREQ: return QP_FREQ;
+    case QD_RESO: return QP_RESO;
+    case QD_FENV: return QP_FDEPTH;
+    case QD_BASE: return QP_BASE;
+    case QD_WIDTH: return QP_WIDTH;
+    case QD_FATK: return QP_FATK;
+    case QD_FDEC: return QP_FDEC;
+    case QD_FSUS: return QP_FSUS;
+    case QD_FREL: return QP_FREL;
+    case QD_EATK: return QP_EATK;
+    case QD_EDEC: return QP_EDEC;
+    case QD_ESUS: return QP_ESUS;
+    case QD_EREL: return QP_EREL;
+    case QD_LEVEL: return QP_LEVEL;
+    case QD_L1SPD: return QP_LFO(0, QL_SPEED);
+    case QD_L1MUL: return QP_LFO(0, QL_MULT);
+    case QD_L1FAD: return QP_LFO(0, QL_FADE);
+    case QD_L1WAV: return QP_LFO(0, QL_WAVE);
+    case QD_L1SPH: return QP_LFO(0, QL_PHASE);
+    case QD_L1MOD: return QP_LFO(0, QL_TRIG);
+    case QD_L1DEP: return QP_LFO(0, QL_DEPTH);
+    case QD_DRIVE: return QD_QP_DRIVE;
+    case QD_FDLY: return QP_FDLY;
+    default: return -1;                                 /* (PITCH, P AB2, PAN, R ALL, the AB macros, the sends: no one
+                                                         * value of a page) */
+    }
+}
+int qd_quad_dest_id(int dest) { return dest < 0 || dest >= (int)QD_N ? -1 : quad_dest_id(dest); }
+int qd_quad_dest_of(int id, int lfo)
+{
+    int d;
+    if (id == QP_RB2)
+        id = QP_RB1;
+    for (d = 1; d < (int)QD_N; d++)
+        if (quad_dest_id(d) == id) {
+            if (lfo == 0 && d >= QD_L1SPD && d <= QD_L1DEP)
+                return -1;                              /* (LFO 1 on itself: none, ChoralRoot's rule) */
+            return d;
+        }
+    return -1;
+}
+int qd_quad_ndest(void) { return (int)QD_N; }
+const char *qd_quad_dest_name(int dest) { return dest >= 0 && dest < (int)QD_N ? N_QUAD_DEST[dest] : "?"; }
+int qd_quad_dest_step(int dest, int d)                   /* (ChoralRoot's editor order, the Digitone's) */
+{
+    int k, at = 0;
+    for (k = 0; k < (int)QD_N; k++)
+        if (QUAD_DEST_ORDER[k] == dest)
+            at = k;
+    at += d;
+    at = at < 0 ? 0 : at >= (int)QD_N ? (int)QD_N - 1 : at;
+    return QUAD_DEST_ORDER[at];
+}

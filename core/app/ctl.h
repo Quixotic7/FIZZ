@@ -359,6 +359,9 @@ typedef struct {
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
     int knobs;                         /* P1.3y: the encoders' layout (QD_KNOBS_*; the global settings) */
     int ekeys;                         /* P1.5b: the keyboard on in the sound editor (REC tapped there) */
+    int snd_lk, snd_lk_used, snd_lk_k, snd_lk_id;   /* P1.5k: an LFO key held in the editor (1..3), a knob used with it,
+                                        * the knob slot and the value it mapped .. */
+    uint32_t snd_lk_ms, snd_lk_bad_ms; /* .. when it went down; a value that is no destination turned (its shake) */
     int snd_page;                      /* P1.4a: the sound editor's page (QD_SND_PAGES) .. */
     int snd_knob;                      /* .. the knob last turned there (0..3 KNOB 1..4, 4 ALGORITHM; -1 none) .. */
     uint32_t snd_ms;                   /* .. and when */
@@ -476,6 +479,8 @@ int qd_keys_on(const struct qd_app *a);         /* P1.5b: the keyboard (the keyb
 void qd_keys_leds(const struct qd_app *a, uint8_t *key);   /* P1.5b: the keys lit by the scale (27 levels) */
 void qd_snd_button(struct qd_app *a);           /* EDIT: open / close */
 void qd_snd_black(struct qd_app *a, int b);     /* B1..B5 the groups (again: the next page), B11 the page's locks */
+void qd_snd_lfo_key(struct qd_app *a, int n, int down);   /* P1.5k: B6..B8 (n 0..2): tapped its page, held + a knob: the
+                                                         * knob's value its destination, the depth */
 int qd_snd_knob(struct qd_app *a, int knob, int d);   /* 1: taken */
 void qd_snd_leds(const struct qd_app *a, uint8_t *black);   /* the eleven black keys' LEDs */
 const qd_lockscreen_t *qd_snd_lock_screen(int page);

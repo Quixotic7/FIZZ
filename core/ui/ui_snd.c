@@ -3,6 +3,7 @@
  * cat; the core's source lists stay as they are). PLAN §9a's clarity rules: the page's name, the values and their short
  * names are the only text; the rest is drawing, colour and motion. */
 #include <stdlib.h>
+#include <string.h>
 
 static const qd_rgb SNDK[5] = {UI_K1, UI_K2, UI_K3, UI_K4, UI_KALG};   /* KNOB 1..4, ALGORITHM */
 #define SD_TOP 32.f                                     /* the drawing's area */
@@ -419,7 +420,7 @@ static void sd_lfo(const ui_snd_t *v)
 {
     const float spd = (float)(v->v[0] < 0 ? -v->v[0] : v->v[0]) / 100.f, dep = (float)v->v[2] / 6400.f;
     const float cyc = sd_clampf(1.f + spd / 16.f + (float)(v->v[1] % 12) * 0.25f, 1.f, 6.f);
-    const int fade = v->v[3];
+    const int fade = v->pv[2];                          /* (P1.5k: FADE on the WAVE page now) */
     float p[2 * 81], e[2 * 21];
     int i;
     line2(16.f, 108.f, 224.f, 108.f, UI_G3, 1.f);
@@ -445,7 +446,13 @@ static void sd_lfo(const ui_snd_t *v)
             e[2 * i] = 16.f + u * 208.f;
             e[2 * i + 1] = 108.f - 60.f * (dep < 0.f ? -dep : dep) * env;
         }
-        sd_poly(e, 21, SNDK[3], 1.2f, 1);
+        sd_poly(e, 21, UI_G1, 1.2f, 1);
+    }
+    if (v->has[3] && v->txt[3][0]) {                    /* P1.5k: DEST: its name big, an arrow from the wave to it */
+        const int none = !strcmp(v->txt[3], "NONE");
+        ui_T(v->txt[3], 224.f, 64.f, 22.f, 300, 0.f, none ? UI_G2 : SNDK[3], QD_RIGHT);
+        if (!none)
+            sd_arrow(150.f, 108.f - 30.f, 224.f - ui_TW(v->txt[3], 22.f, 300, 0.f) - 6.f, 58.f, SNDK[3]);
     }
 }
 
@@ -574,11 +581,31 @@ void ui_snd_draw(const ui_snd_t *v)
         float w;
         if (!v->has[k])
             continue;
-        w = ui_TW(v->lab[k] ? v->lab[k] : "", 12.f, 600, 0.3f);
-        ui_T(v->lab[k] ? v->lab[k] : "", cx, SD_LAB_Y, w > SD_COL_W - 4.f ? 12.f * (SD_COL_W - 4.f) / w : 12.f, 600,
-             0.3f, v->locked[k] ? UI_K3 : UI_G1, QD_CENTER);
-        if (v->last == k)                               /* the knob turned last: underlined, under its label */
+        if (v->lfomark[k]) {                            /* P1.5k: an LFO's destination: its number in its colour, left */
+            const int lf = v->lfomark[k] & 1u ? 0 : v->lfomark[k] & 2u ? 1 : 2;
+            char d[2] = {(char)('1' + lf), 0};
+            const float room = SD_COL_W - 18.f;
+            ui_O(x0 + 7.f, SD_LAB_Y - 4.5f, 6.5f, QD_NONE, 1.f, UI_LFO_COL[lf]);
+            ui_T(d, x0 + 7.f, SD_LAB_Y, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+            w = ui_TW(v->lab[k] ? v->lab[k] : "", 12.f, 600, 0.3f);
+            ui_T(v->lab[k] ? v->lab[k] : "", x0 + 15.f + room * 0.5f, SD_LAB_Y, w > room ? (12.f * room / w < 12.f ? 12.f
+                 : 12.f * room / w) : 12.f, 600, 0.f, v->locked[k] ? UI_K3 : UI_G1, QD_CENTER);
+        } else {
+            w = ui_TW(v->lab[k] ? v->lab[k] : "", 12.f, 600, 0.3f);
+            ui_T(v->lab[k] ? v->lab[k] : "", cx, SD_LAB_Y, w > SD_COL_W - 4.f ? 12.f * (SD_COL_W - 4.f) / w : 12.f,
+                 600, 0.3f, v->locked[k] ? UI_K3 : UI_G1, QD_CENTER);
+        }
+        if (v->lk && v->lk_k == k && v->lk_ok) {        /* P1.5k: the value being mapped: a little wave, the LFO's */
+            float p[2 * 17];
+            int i;
+            for (i = 0; i <= 16; i++) {
+                p[2 * i] = cx - 16.f + (float)i * 2.f;
+                p[2 * i + 1] = SD_LAB_Y + 3.5f - sinf((float)i / 16.f * UI_TAU * 2.f + v->t * 6.f) * 2.f;
+            }
+            ui_P(p, 17, UI_LFO_COL[v->lk - 1], 1.4f, 0, QD_NONE);
+        } else if (v->last == k) {                      /* the knob turned last: underlined, under its label */
             line2(cx - 16.f, SD_LAB_Y + 3.5f, cx + 16.f, SD_LAB_Y + 3.5f, SNDK[k], 2.f);
+        }
         if (lk)
             ui_RR(chx, SD_CHIP_Y, SD_CHIP_W, SD_CHIP_H, 7.f, v->locked[k] ? QD_NONE : SNDK[k], 1.4f,
                   v->locked[k] ? SNDK[k] : QD_NONE);
@@ -597,4 +624,23 @@ void ui_snd_draw(const ui_snd_t *v)
         }
     }
     (void)ncell;
+    if (v->lk) {                                        /* P1.5k: an LFO key held: "LFO n -> VALUE", the depth */
+        const qd_rgb lc = UI_LFO_COL[v->lk - 1];
+        const float sh = v->lk_ok ? 0.f : sinf(v->lk_shake * 30.f) * 6.f * v->lk_shake;
+        char t[8] = "LFO 1";
+        t[4] = (char)('0' + v->lk);
+        ui_RR(12.f, 36.f, 216.f, 140.f, 10.f, lc, 2.f, UI_BG);
+        ui_T(t, 26.f, 62.f, 16.f, 600, 0.8f, lc, QD_LEFT);
+        sd_arrow(26.f, 80.f, 58.f, 98.f, lc);
+        if (v->lk_name)
+            ui_T(v->lk_name, 120.f + sh, 116.f, 26.f, 300, 0.f, v->lk_ok ? UI_K3 : UI_G2, QD_CENTER);
+        if (v->lk_ok) {                                 /* the depth: a bipolar meter from the centre */
+            const float x0 = 30.f, x1 = 210.f, mid = 120.f, y = 148.f;
+            const float dx = sd_clampf(v->lk_depth, -1.f, 1.f) * (x1 - mid);
+            line2(x0, y, x1, y, UI_G2, 2.f);
+            line2(mid, y - 8.f, mid, y + 8.f, UI_G1, 1.2f);
+            if (dx > 0.5f || dx < -0.5f)
+                ui_RR(dx > 0.f ? mid : mid + dx, y - 5.f, dx > 0.f ? dx : -dx, 10.f, 3.f, QD_NONE, 1.f, lc);
+        }
+    }
 }

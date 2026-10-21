@@ -20,7 +20,7 @@
 #include "ui.h"
 
 static void f3_close(qd_app_t *a) { a->ui.f3_anchor = -1; }
-static void snd_close(qd_app_t *a) { a->ui.ekeys = 0; }   /* (P1.5b: the editor's keyboard ends with it) */
+static void snd_close(qd_app_t *a) { a->ui.ekeys = 0, a->ui.snd_lk = 0; }   /* (P1.5b: the editor's keyboard ends with it) */
 
 static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_F3] = {"F3", "EXIT", 0, 0, 0, f3_close},

@@ -1114,6 +1114,14 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
             v->locked[k] |= (uint8_t)(u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], QD_QP_RB2, &x));
             v->lockany[k] |= (uint8_t)(!u->nheld && track_locks(qd_ctl_cpat(a), a->sel, QD_QP_RB2));
         }
+        {   /* P1.5k: the LFOs whose destination this value is (their marks by its label) */
+            int lf;
+            for (lf = 0; lf < 3; lf++) {
+                const int dst = pp[QD_QP_LFO(lf, QD_QL_DEST)];
+                if (dst > 0 && qd_quad_dest_of(id, lf) == dst)
+                    v->lfomark[k] |= (uint8_t)(1u << lf);
+            }
+        }
         if (id == QD_QP_MIX && pg->draw == UI_SD_ALGO) {   /* P1.5i: MIX on RATIO: the drawing's balance */
             v->has_mix = 1;
             v->mix = pp[QD_QP_MIX];
@@ -1132,6 +1140,28 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     }
     v->last = u->snd_knob;
     v->t = secs(a->ms);
+    if (u->snd_lk && (u->snd_lk_used || a->ms - u->snd_lk_ms >= QD_TAP_MS)) {   /* P1.5k: an LFO key held: the mapping */
+        const int lf = u->snd_lk - 1, dst = pp[QD_QP_LFO(lf, QD_QL_DEST)];
+        const int16_t dep = pp[QD_QP_LFO(lf, QD_QL_DEPTH)];
+        v->lk = u->snd_lk;
+        v->lk_k = u->snd_lk_k;
+        v->lk_ok = 1;
+        if (u->snd_lk_bad_ms && a->ms - u->snd_lk_bad_ms < 450u) {   /* (refused: the value's name dim, shaking) */
+            v->lk_ok = 0;
+            v->lk_shake = 1.f - (float)(a->ms - u->snd_lk_bad_ms) / 450.f;
+            v->lk_name = qd_quad_value_name(u->snd_lk_id);
+            if (u->snd_lk_id == QD_QP_RB1)
+                v->lk_name = "RATIO B";
+        } else if (dst > 0) {
+            const int did = qd_quad_dest_id(dst);
+            v->lk_name = did >= 0 ? (did == QD_QP_RB1 ? "RATIO B" : qd_quad_value_name(did)) : qd_quad_dest_name(dst);
+        }
+        v->lk_depth = (float)dep / 6400.f;
+        if (v->lk_k < 0)                                /* (not turned yet: the column already mapped, if on this page) */
+            for (k = 0; k < 4; k++)
+                if (pg->id[k] >= 0 && dst > 0 && qd_quad_dest_of(pg->id[k], lf) == dst)
+                    v->lk_k = k;
+    }
     if (pg->draw == UI_SD_ALGO) {
         static const int RID[4] = {QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_RB2};
         char t[12];
@@ -1145,6 +1175,7 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     } else if (pg->draw == UI_SD_LFO) {
         v->pv[0] = pp[QD_QP_LFO(pg->arg, QD_QL_WAVE)];
         v->pv[1] = pp[QD_QP_LFO(pg->arg, QD_QL_TRIG)];
+        v->pv[2] = pp[QD_QP_LFO(pg->arg, QD_QL_FADE)];
     } else if (pg->draw == UI_SD_LFOSHAPE) {
         v->pv[0] = pp[QD_QP_LFO(pg->arg, QD_QL_SPEED)];
         v->pv[1] = pp[QD_QP_LFO(pg->arg, QD_QL_DEPTH)];

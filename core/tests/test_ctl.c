@@ -4141,6 +4141,75 @@ static void g_p15j_margins(void)
     btap(QD_B_HOME);
 }
 
+
+/* P1.5k: the LFOs in the editor: B6..B8 their pages (again: WAVE, again back); DEST on the LFO page (KNOB 4, ChoralRoot's
+ * list in its order); an LFO key held + a knob: that value LFO n's destination, the depth from 0 (or on from the depth
+ * it had), not a destination: nothing; the release stays on the page; a step held: the step's locks */
+static void g_p15k_lfo(void)
+{
+    static ui_snd_t sv;
+    const int16_t *pt;
+    int fr, rs, did2, pid2;
+    start();
+    wtap(2);
+    btap(QD_B_SOUND);
+    pt = A.model.t[0].patch;
+    black(B6);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 1") && leds().key[BK(B6)] == QD_LED_LIT &&
+              leds().key[BK(B7)] == QD_LED_DIM, "B6: LFO 1 (B6 lit, B7 dim)");
+    black(B6);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 1 WAVE"), "B6 again: LFO 1 WAVE");
+    black(B6);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 1"), "B6 again: back to LFO 1");
+    black(B8);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 3") && QD_SND_PAGES[A.ui.snd_page].id[3] ==
+              QD_QP_LFO(2, QD_QL_DEST) && QD_SND_PAGES[A.ui.snd_page + 1].id[3] == QD_QP_LFO(2, QD_QL_FADE),
+          "B8: LFO 3: KNOB 4 DEST; its WAVE page's KNOB 4 FADE");
+    {
+        const int d0 = pt[QD_QP_LFO(2, QD_QL_DEST)];
+        turn(QD_K_4, 1);
+        qd_view_snd(&A, &sv);
+        CHECK(pt[QD_QP_LFO(2, QD_QL_DEST)] == qd_quad_dest_step(d0, 1) && !strcmp(sv.txt[3],
+              qd_quad_dest_name(qd_quad_dest_step(d0, 1))), "KNOB 4: DEST the next of ChoralRoot's list (%s)", sv.txt[3]);
+        turn(QD_K_4, -1);
+    }
+    A.ui.snd_page = 7;                                  /* FILTER: FREQ, RESO, TYPE, DEPTH */
+    fr = qd_quad_dest_of(QD_QP_FREQ, 1), rs = qd_quad_dest_of(QD_QP_RESO, 1);
+    did2 = QD_QP_LFO(1, QD_QL_DEST), pid2 = QD_QP_LFO(1, QD_QL_DEPTH);
+    kdown(BK(B7));
+    run(300);
+    turn(QD_K_1, 3);
+    qd_view_snd(&A, &sv);
+    CHECK(fr > 0 && pt[did2] == fr && pt[pid2] == 300 && sv.lk == 2 && sv.lk_ok && sv.lk_k == 0,
+          "B7 held + KNOB 1 (FREQ): LFO 2 -> FREQ, depth +3.00 (the takeover)");
+    turn(QD_K_1, -1);
+    CHECK(pt[pid2] == 200, "the same destination turned on: the depth from where it was (+2.00)");
+    turn(QD_K_2, -2);
+    CHECK(pt[did2] == rs && pt[pid2] == -200, "KNOB 2 (RESO): LFO 2 -> RESO, the depth from 0 (-2.00)");
+    turn(QD_K_3, 1);
+    qd_view_snd(&A, &sv);
+    CHECK(pt[did2] == rs && pt[pid2] == -200 && !sv.lk_ok && qd_quad_dest_of(QD_QP_FTYPE, 1) < 0,
+          "KNOB 3 (TYPE, no destination): nothing changes, the takeover refuses");
+    kup(BK(B7));
+    run(20);
+    qd_view_snd(&A, &sv);
+    CHECK(A.ui.snd_page == 7 && !sv.lk && (sv.lfomark[1] & 2u), "released: the page stays (FILTER), RESO marked LFO 2");
+    black(B7);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 2"), "B7 tapped: LFO 2's page");
+    A.ui.snd_page = 7;
+    whold(2);                                           /* a step held: the step's locks */
+    kdown(BK(B6));
+    run(20);
+    turn(QD_K_1, 2);
+    kup(BK(B6));
+    run(20);
+    CHECK(LK(0, 2, QD_QP_LFO(0, QD_QL_DEST)) == qd_quad_dest_of(QD_QP_FREQ, 0) &&
+              LK(0, 2, QD_QP_LFO(0, QD_QL_DEPTH)) == 200 && pt[QD_QP_LFO(0, QD_QL_DEST)] != qd_quad_dest_of(QD_QP_FREQ, 0),
+          "a step held, B6 + KNOB 1: LFO 1 -> FREQ and its depth locked on the step, the track's sound untouched");
+    wrel(2);
+    btap(QD_B_HOME);
+}
+
 int main(void)
 {
     static const struct {
@@ -4206,6 +4275,7 @@ int main(void)
         {"P1.5f: VEL 127, the stunt show", g_p15f_jump},
         {"P1.5i: RATIO B the pair, MIX on RATIO", g_p15i_ratio},
         {"P1.5j: the editor's foot clear of the frame", g_p15j_margins},
+        {"P1.5k: the LFOs: keys, DEST, hold-to-map", g_p15k_lfo},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;
