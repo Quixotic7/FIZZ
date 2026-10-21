@@ -1096,6 +1096,46 @@ P1.5c).
   over the buses with the nose a little higher (keeps the helmet clear of the value), lands; **neon fireworks** burst
   over the buses as their middle passes.
 
+### Version 2.6 (2026-10-21, the owner's answers to the open questions): P1.5c, P1.5o
+
+**P1.5c: undo, the snapshot, SHIFT's keys, randomise**
+- **Undo / redo: SHIFT + F1 / SHIFT + F2**, 8 levels; one gesture is one step (a whole knob turn, a paste, a clear, a
+  recorded take), not each detent.
+- **One snapshot of the active pattern** (the owner: "we can already have multiple patterns so no need to have multiple
+  snapshots"): **SHIFT + B1 stores**, **SHIFT + B3 recalls**, **immediately** (playing or not); recall is undoable.
+- **SHIFT's keyboard** (the owner: "the spacing between the shortcuts helps brain remember which is which"; while SHIFT
+  is held **only the keys with a shortcut light**):
+  | key | | key | |
+  | --- | --- | --- | --- |
+  | SHIFT + B1 | snapshot store | SHIFT + B6 | tap tempo |
+  | SHIFT + B3 | snapshot recall | SHIFT + B7 | metronome on / off |
+  | SHIFT + B4 | copy the pattern | SHIFT + B9 | double the track (its pages copied after itself) |
+  | SHIFT + B5 | paste the pattern (onto the active one) | SHIFT + B11 | clear the track (press twice) |
+  B2, B8, B10 stay free for later; W keys under SHIFT unchanged. SHIFT's map shows them.
+- **Randomise a sound** (in the sound editor): **B9 = randomise the page** (a pair of dice rolls on screen, then the
+  page's values are new); **hold B10 ~1.5 s = randomise the whole sound** (a champagne bottle fills with bubbles while
+  held, the cork pops and it bursts; the sound is new after the burst; released early: nothing). Undo restores.
+
+**P1.5o: NOTE's knobs, the default VEL colour, locks over sound locks**
+- **NOTE with a step held** (the owner): **SELECT moves the whole chord** (note 1 and every other note with it, in the
+  scale, over the full note range, the chord's shape kept: it stops when its top or bottom note reaches the end);
+  **KNOB 1 = note 2, KNOB 2 = note 3, KNOB 3 = note 4, KNOB 4 = note 5**, each turned fully anticlockwise collapses into
+  note 1 (removes that note); the 6th note only from the black keys. **ALGORITHM stays the step cursor** (consistent
+  with "move the selected step").
+- **The default's VEL value green** like a step's (the frame alone tells them apart).
+- **Locks over a sound lock** (the owner): every value resolves as **track's sound < the step's sound lock < the step's
+  p-lock**. In EDIT with a step held that has a sound lock, the values shown are the locked sound's (with any p-locks
+  on top); turning a knob p-locks the step (it never writes the pool sound). Changing the step's sound lock keeps its
+  p-locks. **F2 held + turning a knob clears that value's lock**: on the held step(s); with nothing held (the track),
+  on every step of the track.
+
+**Settled**
+- SHIFT + ALGORITHM = scale, SHIFT + PRESETS = root (kept everywhere).
+- MIDI effects (P1.6c): **OMX-style shared groups** (5 groups x 8 slots, any track routes through one), not a chain
+  per track.
+- F3 tempo with Live stopped works on the unit (closed).
+- FM1VST `core-quadrille` pushed to GitHub as a branch (a backup; main untouched).
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
