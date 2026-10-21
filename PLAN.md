@@ -970,10 +970,9 @@ reverb, chorus). PAGE's jobs move: page follow to the settings, pages to SELECT 
 ### The roadmap after P1.4b (the owner, 2026-10-19)
 
 - **P1.4a gains DRIVE**: drive is part of the sound (loads with the preset, p-lockable), on a sound editor page.
-- **P1.5a, saving and the sound pool:** the project kept in the core's flash image (FM1VST keeps it between launches;
-  the floating page store of §7, the device's own way); **SAVE** tapped saves, held opens the save menu; a **pool
-  manager**: browse and audition the 128, store the track's sound into a slot, name it (an auto-name, editable), copy,
-  move, delete. A mock-up first.
+- **P1.5a, saving, the library and the pool:** the project written by itself into the core's flash image (FM1VST keeps
+  it between launches; the floating page store of §7, the device's own way), eight projects; SAVE stores the track's
+  sound in the user library, F2 adds it to the project's pool; the sounds page and the project page (below).
 - **P1.5b:** **8 undo levels**, **snapshots of the pattern** (the owner: all 8 tracks' steps, sounds and settings;
   store, recall: a performance tool), **randomise a sound** (in the sound editor).
 - **P1.6a, the arpeggiator:** ARP tapped = on / off (the keyboard), ARP held = FILL, SHIFT + ARP = its settings (mode,
@@ -985,47 +984,48 @@ reverb, chorus). PAGE's jobs move: page follow to the settings, pages to SELECT 
 - **FM1VST:** improvements of general use (the screen copy, FM1_ONLY_CORES) go to FM1VST main; FIZZ's glue stays on
   `core-quadrille`. The owner: push FM1VST main once its tests pass.
 
-### P1.5a, saving and the pool: the mock-up (2026-10-20)
+### P1.5a, saving, the library and the pool (mock-up version 2, 2026-10-20)
 
-`mockups/fizz-save-pool.html` (sheet `mockups/png/fizz-save-pool-sheet.png`, GIFs `fizz-save-tap.gif`,
-`fizz-pool-store.gif`, `fizz-pool-move.gif`): thirteen screens, each with the FM-1's keys under it. SAVE is champagne
-(0xf3d9a4), the pool SOUND's lime, a track its own colour.
+`mockups/fizz-save-pool.html` (sheet `mockups/png/fizz-save-pool-sheet.png`, GIFs `fizz-lib-store.gif`,
+`fizz-pool-add.gif`, `fizz-pool-move.gif`): fourteen screens, each with the FM-1's keys under it. The library is
+champagne (0xf3d9a4), the pool SOUND's lime, a track its own colour.
 
-**Saving**
-- **SAVE tapped** saves the project (every changed pattern and the pool), from anywhere, playing or stopped (§7: page
-  programs only while playing). The changed patterns' bubbles rise into a tick; the screen hands back after a second.
-  **The SAVE key is lit while anything is unsaved.**
-- **SAVE held** opens the save page (latched; OCT− / HOME back): the project's number and name, its 64 patterns (a
-  speck empty, a ring used, a champagne ring fizzing changed, filled the one playing), the flash meter and the pool's
-  count. **B11 held 1 s** reverts the playing pattern to its save (its steps blink where they differ, then fall back).
-- **Projects**, the save page's second page (SELECT or SAVE held again): eight on **W1..W8** with a thumbnail of their
-  patterns; W chooses, **F2 (OCT+) loads** (SAVE blinks first if there are unsaved changes; F2 again loads anyway),
-  F1 + W copies a project ("save as"), B11 held + W deletes, B10 names.
+**The owner's answers to version 1** (which had SAVE saving the project, SHIFT + EDIT for the pool and holds to
+confirm): eight projects; a track's modified sound is saved with its pattern, and can also be saved to a **user
+library**, then optionally added to the project's **pool**; the project is **saved automatically**, the **SAVE key
+saves the sound to the library**; no SHIFT + EDIT, **single clicks rather than holds** (SHIFT + a button is kept for
+the snapshots of P1.5b); names **from the sound**.
 
-**The pool manager** (**SHIFT + EDIT**)
-- 128 sounds as **8 banks of 16**: **B1..B8 the bank, W1..W16 its sounds**; SELECT / PRESETS turn through all 128. A tile
-  is the sound's amp envelope as a silhouette (white factory, orange drums, lime the user's) and its name. On top: the
-  number, the name big, its users (the tracks' boxes; a padlock and the count of steps that lock it).
-- **W tapped** chooses and plays it once; **W held** plays it while held and the sound takes the screen (cassette, wave,
-  users); **F2 (OCT+)** puts it on the selected track (with a step held: locks it on the step).
-- **Store: SAVE in the sound editor** (or in the pool) opens STORE on the **first free slot** with an **auto-name** from
-  the sound (envelope and spectrum: PLUCK, PAD, BASS, KEYS, BELL, LEAD, KICK, HAT, NOISE ... with BRIGHT, DARK, SOFT,
-  WIDE ...); SAVE again stores it; W chooses another slot; a slot that holds a sound needs **SAVE held 1 s** (the
-  steps that lock it blink: they will play the new sound; the name stays).
-- **B10** names (SELECT the letter on a drum over the cursor, ALGORITHM along, B11 deletes a letter, B10 again another
-  auto-name, F2 keeps). **F1 + W** copy then paste (into a free slot "NAME 2"), **F2 + W** pick up / drop (a filled slot
-  swaps; every lock and track that uses it follows: renumbered in all patterns), **B11 held + W held 1 s** deletes (it
-  fizzes away; tracks keep their copy, the steps that locked it go back to the track's sound; INIT cannot go).
+**The model**
+- **The project is written by itself** (every edit, a moment after the last; page programs only while playing, §7).
+  Each pattern keeps its eight tracks' sounds as edited. **Eight projects**, each with its own 64 patterns and pool.
+- **The LIBRARY**: the user's sounds, 128 (8 banks of 16), shared by every project (on the device a store of its own).
+- **The POOL**: the project's 128 sounds, what the steps' sound locks and PRESETS choose from (INIT, the factory sounds,
+  the drums to start).
 
-**Questions for the owner** (a recommendation each)
-1. **Projects**: eight, each with its own patterns and pool (recommended; on the device they share the pattern store
-   and the meter shows it), or a single project.
-2. **Track sounds**: kept per pattern, as the snapshots of P1.5b take them (recommended), or per project.
-3. **When it is written**: SAVE by hand with the lit SAVE key (recommended, ChoralRoot's way), or the working copy
-   written by itself 1.5 s after an edit with SAVE as a restore point (§7's earlier recommendation).
-4. **The pool on SHIFT + EDIT** (EDIT tapped stays the editor), and **SAVE in the editor = store the sound** (while
-   SAVE elsewhere saves the project).
-5. **Auto-names** from the sound's character (recommended) or from where it came from ("EP 2").
+**The sounds page** (opened by SAVE)
+- **SAVE tapped** (anywhere) opens it on the LIBRARY to **store the selected track's sound**: the first free slot
+  chosen (blinking), a **name from the sound** (envelope and spectrum: PLUCK, PAD, BASS, KEYS, BELL, LEAD, KICK, HAT ...
+  with BRIGHT, DARK, SOFT, WIDE ...). **SAVE again stores it.** A W chooses another slot; onto a slot that holds a sound
+  the first SAVE only arms it (orange, the old and new silhouettes in turn), **SAVE again replaces it**; anything else
+  cancels. OCT− / HOME leave.
+- Once stored, the pool tray blinks with **F2: F2 adds the sound to the project's pool** (its first free slot; the page
+  turns to the POOL tab).
+- **B1..B8 the bank, W1..W16 its sounds**, SELECT / PRESETS through all 128, **B9 LIBRARY / POOL**. A tile: the amp
+  envelope as a silhouette coloured by the sound's kind (blue bass, white keys, violet pads, green leads, orange drums)
+  and the name. **W tapped** chooses and plays it once; **W held** plays it while held and it takes the screen.
+- **F2**: in the library, add the chosen sound to the pool; in the pool, put it on the selected track (a step held:
+  lock it on the step). The pool shows a sound's users (the tracks' boxes; a padlock and the count of steps).
+- **B10** names (SELECT the letter on a drum, ALGORITHM along, B11 deletes a letter, B10 again another name from the
+  sound, F2 keeps). **F1 + W** copy then paste (B9 between them copies across library and pool), **F2 + W** pick up /
+  drop (a filled slot swaps; in the pool every lock and track follows, renumbered in all patterns), **B11 + W** deletes
+  (its users flash orange, it fizzes away; tracks keep their copy, locks go back to the track's sound; undo brings it
+  back; INIT cannot go).
+
+**The project page** (**SEQ tapped**; SEQ held stays the patterns): its number and name, its 64 patterns (a few
+bubbles rise off one when it is written), the flash meter and the pool's count. SELECT or SEQ again: **the projects**,
+eight on W1..W8: W chooses, **F2 loads** (an empty one starts a new project), F1 + W copies one, B11 + W deletes, B10
+names.
 
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
