@@ -203,7 +203,7 @@ int render_p15b(const char *out)
     btap(QD_B_SOUND);
     btap(QD_B_REC);
     set_key(QD_SCALE_MAJOR, 0);
-    black(0);                                           /* OPERATORS: RATIO */
+    A.ui.snd_page = qd_snd_page_of("TONE");             /* OPERATORS: TONE (P1.5l: B2) */
     qd_app_key(&A, WK(4), 1, 100);                      /* G3 playing */
     run(300);
     shot("keys-scale", "The editor + REC: SCALE keys (C major, G3 playing)", 1);
@@ -211,7 +211,7 @@ int render_p15b(const char *out)
     run(20);
     A.proj.rec_ekeys = 1;
     set_key(QD_SCALE_DORIAN, 2);
-    black(2);                                           /* FILTERS */
+    black(3);                                           /* FILTERS (P1.5l: B4) */
     qd_app_key(&A, 9, 1, 100);                          /* D4 */
     run(300);
     shot("keys-full", "EDIT KEYS FULL: every key plays (D dorian; D4 playing)", 1);
@@ -226,7 +226,7 @@ int render_p15b(const char *out)
 
     /* 4 .. 6: the lock chips and the head */
     btap(QD_B_SOUND);
-    black(2);                                           /* FILTER: FREQ, RESO */
+    black(3);                                           /* FILTER: FREQ, RESO (B4) */
     qd_app_key(&A, WK(4), 1, 100);
     run(300);
     turn(QD_K_1, -12);
@@ -236,8 +236,7 @@ int render_p15b(const char *out)
     qd_app_key(&A, WK(4), 0, 0);
     run(300);
     shot("chips-track", "Nothing held: values some step locks, outlined chips", 0);
-    black(4), black(4), black(4);                       /* MODULATION: LFO 2 (six pages: the dots first) */
-    A.ui.snd_page = 14;
+    A.ui.snd_page = qd_snd_page_of("LFO 2");            /* LFO 2 (the dots first) */
     qd_app_key(&A, WK(0), 1, 100);
     run(300);
     turn(QD_K_ALGO, 2);

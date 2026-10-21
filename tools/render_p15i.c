@@ -166,7 +166,7 @@ int render_p15i(const char *out)
     btap(QD_B_HOME);
     run(100);
     btap(QD_B_SOUND);
-    A.ui.snd_page = 0;
+    A.ui.snd_page = qd_snd_page_of("RATIO");
     set(QD_QP_ALGO, 1);                                 /* algorithm 1: X C, Y B1 */
     set(QD_QP_RB1, 3), set(QD_QP_RB2, 4);
     set(QD_QP_MIX, -64);
@@ -200,7 +200,7 @@ int render_p15i(const char *out)
     shot("b-lock", "A step held, KNOB 3: RATIO B locked (both halves)", 0);
     qd_app_key(&A, WK(0), 0, 0);
     run(30);
-    A.ui.snd_page = 1;
+    A.ui.snd_page = qd_snd_page_of("TONE");
     A.ui.snd_knob = -1;
     run(300);
     shot("tone", "TONE after the move: HARM, DTUNE, FDBK (KNOB 4 empty)", 0);

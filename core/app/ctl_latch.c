@@ -78,6 +78,7 @@ int qd_latch_oct(qd_app_t *a, int d)
 }
 
 /* ---------------------------------------------------------------- P1.4a: the sound editor */
+#include <string.h>
 #include "../seq/scale.h"
 #include "ctl_snd.c"
 #include "../voice/fx/qd_fx.h"

@@ -187,7 +187,7 @@ int render_p15k(const char *out)
     black(5);
     run(300);
     shot("lfo1-wave", "B6 again: LFO 1 WAVE (WAVE PHASE TRIG FADE)", 1);
-    A.ui.snd_page = 7;                                  /* FILTER */
+    A.ui.snd_page = qd_snd_page_of("FILTER");
     qd_app_key(&A, BK(6), 1, 100);                      /* B7 held + KNOB 2 (RESO): LFO 2 -> RESO, + */
     run(300);
     turn(QD_K_2, 24);

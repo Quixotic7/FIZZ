@@ -462,7 +462,10 @@ const qd_lockscreen_t *qd_ctl_lock_screen(const struct qd_app *a);
 /* ---- ctl_snd.c (P1.4a, built through ctl_latch.c): the sound editor. Its pages: name, group (a black key B1..B5),
  * drawing (ui.h UI_SD_*), the patch ids on KNOB 1..4 and ALGORITHM (-1 none), the drawing's argument (the envelope,
  * the LFO). Every one of the sound's QD_QUAD_NP values is on exactly one page */
-enum { QD_SG_OPS, QD_SG_OPENV, QD_SG_FILTER, QD_SG_AMP, QD_SG_MOD, QD_NSG };
+enum { QD_SG_TRIG, QD_SG_OPS, QD_SG_OPENV, QD_SG_FILTER, QD_SG_AMP, QD_SG_LFO1, QD_SG_LFO2, QD_SG_LFO3,
+       QD_NSG };                       /* P1.5l: a group a black key, B1..B8 */
+int qd_snd_page_of(const char *name);   /* P1.5l: a page's index by its name ("FILTER"; 0 none) */
+#define QD_SND_START_PAGE 2            /* P1.5l: a fresh start: RATIO (B2), the sound's first page */
 #define QD_SND_NPAGE 18
 typedef struct {
     const char *name;

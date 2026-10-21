@@ -3039,14 +3039,15 @@ static void g_snd(void)
     wtap(0);
     btap(QD_B_SOUND);
     CHECK(qd_view_screen(&A) == QD_SCR_SOUND && A.ui.latch == QD_LATCH_SND && leds().button[QD_B_SOUND] == QD_LED_LIT &&
-              leds().key[BK(B1)] == QD_LED_LIT && leds().key[BK(B2)] == QD_LED_DIM,
-          "EDIT: the sound editor (latched, EDIT lit), OPERATORS: B1 lit, the other groups dim");
-    black(B2);
-    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "ENV A"), "B2: OP ENVELOPES, ENV A");
-    black(B2);
-    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "ENV B"), "B2 again: its next page, ENV B");
-    black(B2), black(B2), black(B2);
-    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "ENV A"), "B2 x3 more: round to ENV A");
+              leds().key[BK(B2)] == QD_LED_LIT && leds().key[BK(B1)] == QD_LED_DIM && leds().key[BK(B8)] == QD_LED_DIM &&
+              !strcmp(QD_SND_PAGES[A.ui.snd_page].name, "RATIO"),
+          "EDIT: the sound editor (latched, EDIT lit), on RATIO (P1.5l): B2 OPERATORS lit, the other groups dim");
+    black(B3);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "ENV A"), "B3: OP ENVELOPES, ENV A");
+    black(B3);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "ENV B"), "B3 again: its next page, ENV B");
+    black(B3), black(B3), black(B3);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "ENV A"), "B3 x3 more: round to ENV A");
     turn(QD_K_SELECT, -1);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "OFFSET"), "SELECT -1: the page before (OFFSET)");
     turn(QD_K_SELECT, 1);
@@ -3054,12 +3055,12 @@ static void g_snd(void)
     turn(QD_K_2, 3);
     CHECK(A.model.t[0].patch[QD_QP_ADEC] == d0 + 3 && A.model.t[0].edited && qd_view_screen(&A) == QD_SCR_SOUND,
           "nothing held, KNOB 2 on ENV A: the track's A DEC +3 (live), the editor stays");
-    black(B1);
+    black(B2);
     a0 = A.model.t[0].patch[QD_QP_ALGO];
     turn(QD_K_ALGO, 1);
     CHECK(A.model.t[0].patch[QD_QP_ALGO] == a0 + 1, "OPERATORS (RATIO): ALGORITHM the algorithm (%d)", a0 + 1);
-    black(B4), black(B4);
-    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LEVEL"), "B4 twice: LEVEL (and DRIVE)");
+    black(B5), black(B5);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LEVEL"), "B5 twice: LEVEL (and DRIVE)");
     turn(QD_K_2, 40);
     CHECK(A.model.t[0].patch[QD_QP_DRIVE] == 40, "KNOB 2: the track's DRIVE 40");
     /* a finger on a step: p-locks */
@@ -3069,7 +3070,7 @@ static void g_snd(void)
     CHECK(LK(0, 0, QD_QP_DRIVE) == 60 && A.model.t[0].patch[QD_QP_DRIVE] == 40 && sv.locked[1] && sv.step == 1 &&
               sv.v[1] == 60 && sv.tv[1] == 40 && qd_view_screen(&A) == QD_SCR_SOUND,
           "step 1 held, KNOB 2: DRIVE locked at 60 on it (the track's 40 stays), marked locked, the editor stays");
-    black(B3);
+    black(B4);
     bdown(SHIFT);
     turn(QD_K_1, -3);
     bup(SHIFT);
@@ -3084,7 +3085,7 @@ static void g_snd(void)
     /* the latch: the selection's turns are locks too, the editor stays */
     btap(LFO);
     CHECK(A.ui.slatch && qd_snd_open(&A), "LFO: the step latch, the editor still open");
-    black(B4);
+    black(B5);
     turn(QD_K_1, -5);
     CHECK(LK(0, A.ui.held[0], QD_QP_EATK) == A.model.t[0].patch[QD_QP_EATK] - 5 || A.model.t[0].patch[QD_QP_EATK] < 5,
           "the latch's step (%d), AMP's KNOB 1: a lock", A.ui.held[0] + 1);
@@ -3659,11 +3660,11 @@ static void g_p15b_keys(void)
         ok &= play_key(WK(i)) == 48 + i;
     CHECK(ok, "SCALE, chromatic: W1..W16 sixteen semitones from C3");
     p0 = A.ui.snd_page;
-    kdown(BK(B3));
+    kdown(BK(B4));
     run(5);
-    CHECK(key_note_of(BK(B3)) < 0 && QD_SND_PAGES[A.ui.snd_page].group == QD_SG_FILTER && A.ui.snd_page != p0,
-          "SCALE: B3 is the FILTERS page, no note");
-    kup(BK(B3));
+    CHECK(key_note_of(BK(B4)) < 0 && QD_SND_PAGES[A.ui.snd_page].group == QD_SG_FILTER && A.ui.snd_page != p0,
+          "SCALE: B4 is the FILTERS page, no note");
+    kup(BK(B4));
     run(5);
     btap(F2);
     CHECK(A.oct == 1 && play_key(WK(0)) == 60 && A.ui.latch == QD_LATCH_SND, "F2: the octave up (W1 C4), the editor stays");
@@ -3672,7 +3673,7 @@ static void g_p15b_keys(void)
     set_key(QD_SCALE_MAJOR, 0);
     l = leds();
     CHECK(l.key[WK(0)] == QD_LED_80 && l.key[WK(1)] == QD_LED_HALF && l.key[WK(7)] == QD_LED_80 &&
-              l.key[BK(B3)] == QD_LED_LIT,
+              l.key[BK(B4)] == QD_LED_LIT,
           "SCALE's LEDs: the roots 80 %%, the other degrees 50 %%; the black keys the pages (FILTERS lit)");
     kdown(WK(2));
     run(5);
@@ -3698,7 +3699,7 @@ static void g_p15b_keys(void)
     turn(QD_K_PRESETS, 3);
     CHECK(PAT()->trk[0].scale == QD_SCALE_MAJOR + 1 && PAT()->trk[0].root == 5 && A.ui.tk == UI_TK_ROOT,
           "the keyboard on, SHIFT + ALGORITHM the scale (+1), SHIFT + PRESETS the root (D + 3 = F)");
-    A.ui.snd_page = 3;                                  /* ENV A: KNOB 2 A DEC */
+    A.ui.snd_page = qd_snd_page_of("ENV A");            /* ENV A: KNOB 2 A DEC */
     d0 = A.model.t[0].patch[QD_QP_ADEC];
     turn(QD_K_2, 1);
     bup(SHIFT);
@@ -3749,7 +3750,7 @@ static void g_p15b_chips(void)
     start();
     wtap(2);
     btap(QD_B_SOUND);
-    A.ui.snd_page = 7;                                  /* FILTER: KNOB 1 FREQ */
+    A.ui.snd_page = qd_snd_page_of("FILTER");                                  /* FILTER: KNOB 1 FREQ */
     whold(2);
     turn(QD_K_1, -5);
     qd_view_snd(&A, &sv);
@@ -3861,7 +3862,7 @@ static void g_p15b_accel(void)
     CHECK(A.model.t[0].mix.level < v0 - 25, "spun: far further (%d -> %d)", v0, A.model.t[0].mix.level);
     btap(QD_B_HOME);
     btap(QD_B_SOUND);                                   /* the editor: FREQ (hundredths, a unit a detent) */
-    A.ui.snd_page = 7;
+    A.ui.snd_page = qd_snd_page_of("FILTER");
     v0 = A.model.t[0].patch[QD_QP_FREQ];
     for (i = 0; i < 4; i++) {
         qd_app_knob(&A, QD_K_1, -1);
@@ -4052,7 +4053,7 @@ static void g_p15i_ratio(void)
     int16_t *pt;
     start();
     btap(QD_B_SOUND);
-    A.ui.snd_page = 0;
+    A.ui.snd_page = qd_snd_page_of("RATIO");
     pt = A.model.t[0].patch;
     qd_player_live_edit(&A.player, 0, QD_QP_RB1, 3);
     qd_player_live_edit(&A.player, 0, QD_QP_RB2, 3);
@@ -4072,11 +4073,11 @@ static void g_p15i_ratio(void)
     qd_view_snd(&A, &sv);
     CHECK(pt[QD_QP_MIX] == -64 + 20 && sv.has_mix && sv.mix == -44 && !strcmp(sv.lab[3], "MIX"),
           "KNOB 4: MIX (-64 -> -44), the drawing's balance");
-    A.ui.snd_page = 1;
+    A.ui.snd_page = qd_snd_page_of("TONE");
     qd_view_snd(&A, &sv);
-    CHECK(!strcmp(QD_SND_PAGES[1].name, "TONE") && !sv.has[3] && sv.has[0] && sv.has[1] && sv.has[2],
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TONE") && !sv.has[3] && sv.has[0] && sv.has[1] && sv.has[2],
           "TONE: HARM, DTUNE, FDBK; KNOB 4 empty");
-    A.ui.snd_page = 0;
+    A.ui.snd_page = qd_snd_page_of("RATIO");
     wtap(3);
     whold(3);
     turn(QD_K_3, 1);
@@ -4173,7 +4174,7 @@ static void g_p15k_lfo(void)
               qd_quad_dest_name(qd_quad_dest_step(d0, 1))), "KNOB 4: DEST the next of ChoralRoot's list (%s)", sv.txt[3]);
         turn(QD_K_4, -1);
     }
-    A.ui.snd_page = 7;                                  /* FILTER: FREQ, RESO, TYPE, DEPTH */
+    A.ui.snd_page = qd_snd_page_of("FILTER");                                  /* FILTER: FREQ, RESO, TYPE, DEPTH */
     fr = qd_quad_dest_of(QD_QP_FREQ, 1), rs = qd_quad_dest_of(QD_QP_RESO, 1);
     did2 = QD_QP_LFO(1, QD_QL_DEST), pid2 = QD_QP_LFO(1, QD_QL_DEPTH);
     kdown(BK(B7));
@@ -4193,10 +4194,10 @@ static void g_p15k_lfo(void)
     kup(BK(B7));
     run(20);
     qd_view_snd(&A, &sv);
-    CHECK(A.ui.snd_page == 7 && !sv.lk && (sv.lfomark[1] & 2u), "released: the page stays (FILTER), RESO marked LFO 2");
+    CHECK(A.ui.snd_page == qd_snd_page_of("FILTER") && !sv.lk && (sv.lfomark[1] & 2u), "released: the page stays (FILTER), RESO marked LFO 2");
     black(B7);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 2"), "B7 tapped: LFO 2's page");
-    A.ui.snd_page = 7;
+    A.ui.snd_page = qd_snd_page_of("FILTER");
     whold(2);                                           /* a step held: the step's locks */
     kdown(BK(B6));
     run(20);
@@ -4207,6 +4208,43 @@ static void g_p15k_lfo(void)
               LK(0, 2, QD_QP_LFO(0, QD_QL_DEPTH)) == 200 && pt[QD_QP_LFO(0, QD_QL_DEST)] != qd_quad_dest_of(QD_QP_FREQ, 0),
           "a step held, B6 + KNOB 1: LFO 1 -> FREQ and its depth locked on the step, the track's sound untouched");
     wrel(2);
+    btap(QD_B_HOME);
+}
+
+
+/* P1.5l: the editor's black keys regrouped: B1 TRIG / KEYS, B2 OPERATORS, B3 OP ENVELOPES, B4 FILTERS, B5 ENVELOPES,
+ * B6..B8 the LFOs; SELECT in that order; a fresh start on RATIO; the LEDs */
+static void g_p15l_groups(void)
+{
+    static const char *const FIRST[8] = {"TRIG", "RATIO", "ENV A", "FILTER", "AMP", "LFO 1", "LFO 2", "LFO 3"};
+    static const char *const ORDER[QD_SND_NPAGE] = {"TRIG", "KEYS", "RATIO", "TONE", "OFFSET", "ENV A", "ENV B",
+        "FILTER", "F ENV", "BASE", "AMP", "LEVEL", "LFO 1", "LFO 1 WAVE", "LFO 2", "LFO 2 WAVE", "LFO 3", "LFO 3 WAVE"};
+    static ui_snd_t sv;
+    int b, ok = 1, p;
+    start();
+    btap(QD_B_SOUND);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "RATIO"), "a fresh start: RATIO");
+    for (b = 0; b < 8; b++) {
+        black(b);
+        ok &= !strcmp(QD_SND_PAGES[A.ui.snd_page].name, FIRST[b]) && leds().key[BK(b)] == QD_LED_LIT &&
+              leds().key[BK(b == 0 ? 1 : 0)] == QD_LED_DIM;
+    }
+    CHECK(ok, "B1..B8: TRIG, RATIO, ENV A, FILTER, AMP, LFO 1, LFO 2, LFO 3 (each lit, the others dim)");
+    black(B1);
+    black(B1);
+    qd_view_snd(&A, &sv);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "KEYS") && sv.npg == 2 && sv.ipg == 1, "B1 again: KEYS (two dots)");
+    black(B1);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TRIG"), "B1 again: round to TRIG");
+    for (ok = 1, p = 0; p < QD_SND_NPAGE; p++)
+        ok &= !strcmp(QD_SND_PAGES[p].name, ORDER[p]);
+    CHECK(ok, "SELECT's order: TRIG KEYS RATIO TONE OFFSET ENV A ENV B FILTER F ENV BASE AMP LEVEL LFO 1 .. LFO 3 WAVE");
+    A.ui.snd_page = qd_snd_page_of("LEVEL");
+    turn(QD_K_SELECT, 1);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 1"), "SELECT from LEVEL: LFO 1");
+    btap(QD_B_SOUND);
+    btap(QD_B_SOUND);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 1"), "closed and opened: the last page used");
     btap(QD_B_HOME);
 }
 
@@ -4276,6 +4314,7 @@ int main(void)
         {"P1.5i: RATIO B the pair, MIX on RATIO", g_p15i_ratio},
         {"P1.5j: the editor's foot clear of the frame", g_p15j_margins},
         {"P1.5k: the LFOs: keys, DEST, hold-to-map", g_p15k_lfo},
+        {"P1.5l: the editor's black keys regrouped", g_p15l_groups},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

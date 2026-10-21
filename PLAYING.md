@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5k)
+# Playing FIZZ (P1.5l)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -430,17 +430,18 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 
 - **EDIT** opens the sound editor for the selected track (EDIT lit). **EDIT again, OCT− or HOME** closes it. It opens
   over the step view from any screen.
-- The black keys are its five groups; **press a group's key again for its next page** (round), or turn **SELECT**
-  through every page. B1..B5 are lit (the group you are in bright).
+- The black keys are its eight groups (P1.5l); **press a group's key again for its next page** (round), or turn
+  **SELECT** through every page (in the table's order). B1..B8 are lit (the group you are in bright). It opens on the
+  page you used last (the first time: RATIO).
 
   | key | group | pages |
   | --- | --- | --- |
-  | **B1** | OPERATORS | RATIO (KNOB 1 RATIO C, KNOB 2 RATIO A, KNOB 3 **RATIO B**, KNOB 4 **MIX**; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK), OFFSET (the four offsets) |
-  | **B2** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay), TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL) |
-  | **B3** | FILTERS | FILTER (FREQ, RESO, TYPE, DEPTH), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK) |
-  | **B4** | ENVELOPES | AMP (attack, decay, sustain, release), LEVEL (LEVEL, **DRIVE**) |
-  | **B5** | MODULATION | LFO 1..3 (SPEED, MULT, DEPTH, **DEST**), LFO 1..3 WAVE (WAVE, PHASE, TRIG, FADE) |
-  | **B6 / B7 / B8** | LFO 1 / 2 / 3 | that LFO's page; again its WAVE page; again back (P1.5k) |
+  | **B1** | TRIG / KEYS | TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL) |
+  | **B2** | OPERATORS | RATIO (KNOB 1 RATIO C, KNOB 2 RATIO A, KNOB 3 **RATIO B**, KNOB 4 **MIX**; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK), OFFSET (the four offsets) |
+  | **B3** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay) |
+  | **B4** | FILTERS | FILTER (FREQ, RESO, TYPE, DEPTH), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK) |
+  | **B5** | ENVELOPES | AMP (attack, decay, sustain, release), LEVEL (LEVEL, **DRIVE**) |
+  | **B6 / B7 / B8** | LFO 1 / 2 / 3 | the LFO's page (SPEED, MULT, DEPTH, **DEST**), its WAVE page (WAVE, PHASE, TRIG, FADE) |
 
   Every value of the sound is on exactly one page.
 - **The LFOs** (P1.5k). **B6, B7, B8** (F#4, G#4, A#4) are LFO 1, 2, 3: a tap shows that LFO's page, again its WAVE

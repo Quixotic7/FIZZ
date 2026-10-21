@@ -117,6 +117,7 @@ void qd_ctl_init(qd_app_t *a)
     u->entry_oct = QD_ENTRY_OCT;
     u->fn_leap = 2;
     u->snd_knob = -1;
+    u->snd_page = QD_SND_START_PAGE;                    /* (P1.5l: RATIO; then the last page used) */
     u->fn_target = -1;
     u->f3_anchor = -1;
     u->pg_copied = -1;

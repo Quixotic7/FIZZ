@@ -17,6 +17,10 @@
 /* the pages: name, group, drawing (ui.h UI_SD_*), the ids on KNOB 1..4 and ALGORITHM (-1 none), the drawing's arg */
 #define L(k, f) (QD_QP_LFO((k), (f)))
 const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
+    /* P1.5l (the owner): the groups on B1..B8, in SELECT's order: B1 TRIG / KEYS (out of OP ENVELOPES), B2 OPERATORS,
+     * B3 OP ENVELOPES, B4 FILTERS, B5 ENVELOPES, B6 / B7 / B8 the LFOs (the MODULATION key gone) */
+    {"TRIG", QD_SG_TRIG, UI_SD_TRIG, {QD_QP_ATRIG, QD_QP_ARST, QD_QP_BTRIG, QD_QP_BRST, QD_QP_PHRT}, 0},
+    {"KEYS", QD_SG_TRIG, UI_SD_KEYS, {QD_QP_AKEY, QD_QP_B1KEY, QD_QP_B2KEY, QD_QP_VEL, -1}, 0},
     /* P1.5i (the owner, as ChoralRoot and the Digitone): RATIO B is one value, the pair (QD_QP_RB1 here stands for it:
      * B1 x 19 + B2, B2 the fast hand; snd_pair), and MIX moved here from TONE */
     {"RATIO", QD_SG_OPS, UI_SD_ALGO, {QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_MIX, QD_QP_ALGO}, 0},
@@ -24,8 +28,6 @@ const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     {"OFFSET", QD_SG_OPS, UI_SD_OFS, {QD_QP_OFSC, QD_QP_OFSA, QD_QP_OFSB1, QD_QP_OFSB2, -1}, 0},
     {"ENV A", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_AATK, QD_QP_ADEC, QD_QP_AEND, QD_QP_ALEV, QD_QP_ADLY}, 0},
     {"ENV B", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_BATK, QD_QP_BDEC, QD_QP_BEND, QD_QP_BLEV, QD_QP_BDLY}, 1},
-    {"TRIG", QD_SG_OPENV, UI_SD_TRIG, {QD_QP_ATRIG, QD_QP_ARST, QD_QP_BTRIG, QD_QP_BRST, QD_QP_PHRT}, 0},
-    {"KEYS", QD_SG_OPENV, UI_SD_KEYS, {QD_QP_AKEY, QD_QP_B1KEY, QD_QP_B2KEY, QD_QP_VEL, -1}, 0},
     {"FILTER", QD_SG_FILTER, UI_SD_FILTER, {QD_QP_FREQ, QD_QP_RESO, QD_QP_FTYPE, QD_QP_FDEPTH, -1}, 0},
     {"F ENV", QD_SG_FILTER, UI_SD_ADSR, {QD_QP_FATK, QD_QP_FDEC, QD_QP_FSUS, QD_QP_FREL, QD_QP_FDLY}, 0},
     {"BASE", QD_SG_FILTER, UI_SD_BAND, {QD_QP_BASE, QD_QP_WIDTH, QD_QP_FKTRK, -1, -1}, 0},
@@ -33,18 +35,27 @@ const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     {"LEVEL", QD_SG_AMP, UI_SD_DRIVE, {QD_QP_LEVEL, QD_QP_DRIVE, -1, -1, -1}, 0},
     /* P1.5k (the owner): an LFO's page SPEED MULT DEPTH DEST (DEST in the menu now, not ALGORITHM's), its WAVE page
      * WAVE PHASE TRIG FADE; ALGORITHM nothing on them (ChoralRoot's LFO has these eight values, no fifth) */
-    {"LFO 1", QD_SG_MOD, UI_SD_LFO, {L(0, QD_QL_SPEED), L(0, QD_QL_MULT), L(0, QD_QL_DEPTH), L(0, QD_QL_DEST), -1}, 0},
-    {"LFO 1 WAVE", QD_SG_MOD, UI_SD_LFOSHAPE, {L(0, QD_QL_WAVE), L(0, QD_QL_PHASE), L(0, QD_QL_TRIG), L(0, QD_QL_FADE),
-                                               -1}, 0},
-    {"LFO 2", QD_SG_MOD, UI_SD_LFO, {L(1, QD_QL_SPEED), L(1, QD_QL_MULT), L(1, QD_QL_DEPTH), L(1, QD_QL_DEST), -1}, 1},
-    {"LFO 2 WAVE", QD_SG_MOD, UI_SD_LFOSHAPE, {L(1, QD_QL_WAVE), L(1, QD_QL_PHASE), L(1, QD_QL_TRIG), L(1, QD_QL_FADE),
-                                               -1}, 1},
-    {"LFO 3", QD_SG_MOD, UI_SD_LFO, {L(2, QD_QL_SPEED), L(2, QD_QL_MULT), L(2, QD_QL_DEPTH), L(2, QD_QL_DEST), -1}, 2},
-    {"LFO 3 WAVE", QD_SG_MOD, UI_SD_LFOSHAPE, {L(2, QD_QL_WAVE), L(2, QD_QL_PHASE), L(2, QD_QL_TRIG), L(2, QD_QL_FADE),
-                                               -1}, 2},
+    {"LFO 1", QD_SG_LFO1, UI_SD_LFO, {L(0, QD_QL_SPEED), L(0, QD_QL_MULT), L(0, QD_QL_DEPTH), L(0, QD_QL_DEST), -1}, 0},
+    {"LFO 1 WAVE", QD_SG_LFO1, UI_SD_LFOSHAPE, {L(0, QD_QL_WAVE), L(0, QD_QL_PHASE), L(0, QD_QL_TRIG), L(0, QD_QL_FADE),
+                                                -1}, 0},
+    {"LFO 2", QD_SG_LFO2, UI_SD_LFO, {L(1, QD_QL_SPEED), L(1, QD_QL_MULT), L(1, QD_QL_DEPTH), L(1, QD_QL_DEST), -1}, 1},
+    {"LFO 2 WAVE", QD_SG_LFO2, UI_SD_LFOSHAPE, {L(1, QD_QL_WAVE), L(1, QD_QL_PHASE), L(1, QD_QL_TRIG), L(1, QD_QL_FADE),
+                                                -1}, 1},
+    {"LFO 3", QD_SG_LFO3, UI_SD_LFO, {L(2, QD_QL_SPEED), L(2, QD_QL_MULT), L(2, QD_QL_DEPTH), L(2, QD_QL_DEST), -1}, 2},
+    {"LFO 3 WAVE", QD_SG_LFO3, UI_SD_LFOSHAPE, {L(2, QD_QL_WAVE), L(2, QD_QL_PHASE), L(2, QD_QL_TRIG), L(2, QD_QL_FADE),
+                                                -1}, 2},
 };
 #undef L
-const char *const QD_SND_GROUP_NAME[QD_NSG] = {"OPERATORS", "OP ENVELOPES", "FILTERS", "ENVELOPES", "MODULATION"};
+const char *const QD_SND_GROUP_NAME[QD_NSG] = {"TRIG / KEYS", "OPERATORS", "OP ENVELOPES", "FILTERS", "ENVELOPES",
+                                               "LFO 1", "LFO 2", "LFO 3"};
+int qd_snd_page_of(const char *name)
+{
+    int p;
+    for (p = 0; p < QD_SND_NPAGE; p++)
+        if (!strcmp(QD_SND_PAGES[p].name, name))
+            return p;
+    return 0;
+}
 
 /* the editor's knob slots: KNOB 1..4, ALGORITHM */
 static const uint8_t SND_KNOB[5] = {QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_K_ALGO};
@@ -371,11 +382,10 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
     const qd_ui_t *u = &a->ui;
     const qd_sndpage_t *pg = &QD_SND_PAGES[u->snd_page];
     int i, k, n = 0;
-    for (i = 0; i < 11; i++)
-        black[i] = i < QD_NSG ? (i == pg->group ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
-    for (i = 0; i < 3; i++)                             /* P1.5k: B6..B8 the LFOs (the one on screen, or held, lit) */
-        black[5 + i] = u->snd_lk == i + 1 || ((pg->draw == UI_SD_LFO || pg->draw == UI_SD_LFOSHAPE) && pg->arg == i)
-                           ? QD_LED_LIT : QD_LED_DIM;
+    for (i = 0; i < 11; i++)                            /* (P1.5l: B1..B8 the groups, B6..B8 the LFOs: also lit held) */
+        black[i] = i < QD_NSG ? (i == pg->group || (i >= QD_SG_LFO1 && u->snd_lk == i - QD_SG_LFO1 + 1) ? QD_LED_LIT
+                                                                                                        : QD_LED_DIM)
+                              : QD_LED_OFF;
     for (i = 0; i < u->nheld; i++)
         for (k = 0; k < 5; k++)
             if (pg->id[k] >= 0) {

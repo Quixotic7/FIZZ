@@ -195,13 +195,13 @@ int render_p14a(const char *out)
                  QD_SND_PAGES[p].name);
         shot(nm, cap);
     }
-    A.ui.snd_page = 3;                                  /* ENV A, step 1 held: two locks */
+    A.ui.snd_page = qd_snd_page_of("ENV A");            /* ENV A, step 1 held: two locks */
     whold(0);
     turn(QD_K_2, -12);
     turn(QD_K_3, -40);
     run(100);
     shot("lock-enva", "step 1 held, KNOB 2 / 3: A DEC and A END locked (the track's dashed)");
-    A.ui.snd_page = 11;
+    A.ui.snd_page = qd_snd_page_of("LEVEL");
     turn(QD_K_2, 70);
     run(100);
     shot("lock-drive", "LEVEL page, step 1 held: DRIVE 70 locked on it");

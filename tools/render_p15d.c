@@ -232,7 +232,7 @@ int render_p15d(const char *out)
     shot("edit-default", "EDIT, nothing held: the default, no frame", 0);
     btap(QD_B_HOME);
     btap(QD_B_SOUND);                                   /* the sound editor */
-    black(2);
+    black(3);
     run(300);
     shot("snd-track", "The editor, the track's sound: dark orange", 0);
     qd_app_key(&A, WK(4), 1, 100);

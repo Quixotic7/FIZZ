@@ -181,7 +181,7 @@ int render_p15j(const char *out)
     qd_step_on(&A.proj.pat[A.seq.cur], 0, 0);
     btap(QD_B_SOUND);
     /* the owner's screen: algorithm 5, C 11.00 and B 4.00 over 12.00 locked on the step, MIX -40 */
-    A.ui.snd_page = 0;
+    A.ui.snd_page = qd_snd_page_of("RATIO");
     set(QD_QP_ALGO, 5), set(QD_QP_MIX, -40);
     lock(0, QD_QP_RC, 13);                              /* (11.00) */
     lock(0, QD_QP_RB1, 14), lock(0, QD_QP_RB2, 6);      /* (B1 12.00, B2 4.00) */
@@ -206,15 +206,15 @@ int render_p15j(const char *out)
     lock(0, QD_QP_LFO(0, QD_QL_SPEED), 4000), lock(0, QD_QP_LFO(0, QD_QL_DEST), 3);
     qd_app_key(&A, WK(0), 1, 100);
     run(300);
-    A.ui.snd_page = 7;
+    A.ui.snd_page = qd_snd_page_of("FILTER");
     run(200);
     shot("filter-held", "FILTER, a step held: FREQ and TYPE locked (filled)", 0);
-    A.ui.snd_page = 3;
+    A.ui.snd_page = qd_snd_page_of("ENV A");
     run(200);
     shot("enva-held", "ENV A, a step held: ATK and END locked", 0);
     qd_app_key(&A, WK(0), 0, 0);
     run(300);
-    A.ui.snd_page = 12;
+    A.ui.snd_page = qd_snd_page_of("LFO 1");
     run(200);
     shot("lfo1-track", "LFO 1, nothing held: SPEED and DEST locked somewhere (outlined)", 0);
     if (!failed)
