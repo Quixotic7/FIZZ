@@ -1616,3 +1616,9 @@ numbered dot, `UI_LFO_COL` cyan / yellow / violet) by the label of every modulat
 editor's black keys regrouped (the owner): B1 TRIG / KEYS, B2 OPERATORS, B3 OP ENVELOPES (ENV A, ENV B), B4 FILTERS,
 B5 ENVELOPES, B6..B8 LFO 1..3 (page, WAVE); MODULATION gone; a fresh start opens on RATIO, then the last page used;
 tests and renders find pages by name (`qd_snd_page_of`).
+
+**2026-10-21, P1.5m** (FMToneSeq afd02cf; FM1VST `core-quadrille` 5ecdc6f; version 0.5.10-p1.5m; relaunched): F1 / F2 /
+F3 with the step latch on (the owner: they did nothing). Two causes: the latch's selection counted as held steps, which
+blocked the F layers; an OCT press with a selection changed the octave at once. Now only a real finger blocks the
+layers, the layer rows come before the latch's, and with a selection a lone OCT tap acts on release (the selection's
+octave in NOTE, the next / previous ten in SOUND) while OCT held with a key, a knob or the other OCT is the layer.
