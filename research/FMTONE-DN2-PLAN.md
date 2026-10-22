@@ -592,3 +592,16 @@ played M1–M3.
    - the BR table's steps.
 8. **DRIVE before the filter** (the Digitone II's OD ROUTING): add it in M3 as one more value?
 9. **The B1 / B5 group names:** PLAY / MOD and AMP / FX, or the owner's words?
+
+## 13. Decided (the owner, 2026-10-22)
+
+- The "4th effect" is a **per-track insert**: CRUSH in the sound (§5's recommendation).
+- **8 free modulation slots** (§6's design), and the wheel, bend, aftertouch and breath sources **also from USB MIDI**.
+- **Portamento lives in the sound** (p-lockable); chords **pair notes by rank**; LEGATO = **tied or overlapping** steps.
+- **DRIVE pre / post filter** routing: yes (default post, as now).
+- **FIZZ only** for now (ChoralRoot unchanged).
+- Comb lines of **1024 samples**.
+- Measurements: the owner will ask a Digitone II owner (a list to send: `research/DN2-MEASURE.md`); until then the
+  inferences of §4 stand.
+- Group names as proposed: **B1 PLAY / MOD** (TRIG, KEYS, PORT, MOD), **B5 AMP / FX** (AMP, LEVEL, CRUSH).
+- Presets load their pan and sends (P1.5x, kept). After these milestones: the MIDI FX groups (P1.6c).
