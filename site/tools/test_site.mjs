@@ -249,10 +249,8 @@ try {
   check(r0.w1 === "STEP 1" && r0.b1 === "NOTE" && r1.sel === "TRACK" && r1.b8 === "FOLLOW" && r1.f1 === "UNDO",
     `FIZZ's labels: the step view SELECT "${r0.sel}", W1 "${r0.w1}", B1 "${r0.b1}"; SHIFT held: SELECT "${r1.sel}", B8 "${r1.b8}", F1 "${r1.f1}"`);
   await shot("labels-fizz.png");
-  // P1.6c: SHIFT + ARP, a group (ALGORITHM a click): the MIDI FX screen's labels on the panel
-  await evaluate("FIZZ.controls.holdBtn(5, 4, true)"); await sleep(120);
-  await evaluate("FIZZ.controls.holdBtn(8, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(8, 4, false)"); await sleep(120);
-  await evaluate("FIZZ.controls.holdBtn(5, 4, false)"); await sleep(300);
+  // P1.6d: ARP tapped, a group (ALGORITHM a click): the MIDI FX screen's labels on the panel
+  await evaluate("FIZZ.controls.holdBtn(8, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(8, 4, false)"); await sleep(300);
   await evaluate("FIZZ.controls.turn(1, 1)");
   await waitFor("FIZZ.labels.knobs[2].firstChild.textContent === 'EFFECT'", 3000);
   const mfx = await evaluate("(() => { const L = FIZZ.labels, t = (d) => d.firstChild.textContent; return { algo: t(L.knobs[1]), presets: t(L.knobs[2]), b: [1, 3, 5, 8, 10, 13, 15, 17].map((k) => t(L.keys[k])) }; })()");
@@ -292,6 +290,32 @@ try {
     const st3 = await evaluate("({ any: FIZZ.controls.anyLatched(), keys: window.__panel.keys })");
     check(!st2.glo && st2.b6 && !(st2.buttons & (1 << 7)) && !st3.any && !(st3.keys & (1 << 13)),
       `a plain click lets GLO go (B6 still held); Shift-click on an empty spot lets the rest go (FIZZ's keys ${st3.keys})`);
+    // P1.6d: FILL is SHIFT + ARP held: Shift-click GLO, then ARP: FILL while both are latched (ARP's LED blinks)
+    const arp = await at(626, 249);
+    await click(glo, true);
+    await waitFor("FIZZ.labels.btns[8].firstChild.textContent === 'FILL'", 3000);
+    await click(arp, true);
+    const arpLed = await evaluate("(() => { const km = FIZZ.state.info.keymap; for (let r = 1; r <= 4; r++) for (let c = 0; c < 11; c++) if (km[r][c] === 10) return c * 4 + (r - 1); return -1; })()");
+    const lvs = new Set();
+    for (let i = 0; i < 30; i++) { await sleep(40); lvs.add(await evaluate(`FIZZ.state.levels[${arpLed}]`)); }
+    const both = await evaluate("({ glo: FIZZ.controls.btnLatched(5), arp: FIZZ.controls.btnLatched(8), buttons: window.__panel.buttons })");
+    await shot("latch-fill.png");
+    await click(empty, true);
+    check(both.glo && both.arp && (both.buttons & (1 << 7)) && (both.buttons & (1 << 10)) && lvs.size > 1,
+      `Shift-click GLO then ARP: FILL (SHIFT + ARP held; FIZZ gets both, ARP's LED blinks: ${[...lvs].join(" / ")})`);
+  }
+
+  // 7d. P1.6d's automation recording: REC held from the computer key (=) while a knob turns (the arrows): the panel
+  // message carries REC held and the knob's detents together
+  {
+    await evaluate("window.__msgs = []; { const p = FIZZ.player, f = p.panel.bind(p); p.panel = (m) => { window.__msgs.push({ b: m.buttons, e: Array.from(m.enc || []) }); f(m); }; }");
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "=", code: "Equal", windowsVirtualKeyCode: 187 });
+    await sleep(150);
+    for (let i = 0; i < 3; i++) { await send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38 }); await send("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38 }); await sleep(60); }
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "=", code: "Equal", windowsVirtualKeyCode: 187 });
+    await sleep(150);
+    const am = await evaluate("window.__msgs.filter((m) => (m.b & (1 << 13)) && m.e.some((x) => x)).length");
+    check(am >= 3, `REC held from the computer key (=) with a knob turned (the arrows): ${am} panel messages carry both`);
   }
 
   // 7c. the recorder (RemoteFM1's ad408fa): Shift+R records, FIZZ playing, Shift+R stops; a take with sound in it

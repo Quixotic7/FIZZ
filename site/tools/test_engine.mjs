@@ -448,18 +448,30 @@ e.dispose();
   p.btn("GLO", false);
   ls = pump(e, 300).map(decodeLabels).filter(Boolean);
   check(ls.length >= 1 && ls[ls.length - 1].keys[W[0]] === base.keys[W[0]], "SHIFT let go: the step view's labels again");
-  // P1.6c: SHIFT + ARP opens the MIDI FX screen (ALGORITHM GROUP); a group chosen (ALGORITHM a click): B1..B8 the
-  // slots, PRESETS EFFECT
-  p.btn("GLO", true); run(e, 120); tapBtn(e, p, "ARP"); p.btn("GLO", false);
+  // P1.6d: FILL is SHIFT + ARP held (ARP blinks while it is); ARP's label under SHIFT says so
+  {
+    const km = info.keymap, arpLed = (() => { for (let r = 1; r <= 4; r++) for (let c = 0; c < 11; c++) if (km[r][c] === 10) return c * 4 + (r - 1); return -1; })();
+    p.btn("GLO", true);
+    let lf = pump(e, 200).map(decodeLabels).filter(Boolean);
+    const arpLabel = lf.length ? lf[lf.length - 1].buttons[10] : "";
+    p.btn("ARP", true);
+    const lv = new Set();
+    for (let t = 0; t < 1200; t += 20) { run(e, 20); if (t > 450) lv.add(e.leds().levels[arpLed]); }
+    p.btn("ARP", false); p.btn("GLO", false); pump(e, 300);
+    check(arpLabel === "FILL" && lv.size > 1, `SHIFT held: ARP reads "${arpLabel}"; SHIFT + ARP held: FILL, ARP's LED blinks (${[...lv].join(" / ")})`);
+  }
+  // P1.6c / P1.6d: ARP tapped opens the MIDI FX screen (ALGORITHM GROUP); a group chosen (ALGORITHM a click): B1..B8
+  // the slots, PRESETS EFFECT
+  tapBtn(e, p, "ARP");
   ls = pump(e, 300).map(decodeLabels).filter(Boolean);
   const none = ls[ls.length - 1];
-  check(none && none.enc[1] === "GROUP", `SHIFT + ARP opens the MIDI FX screen: ALGORITHM "${none && none.enc[1]}" (no group yet: PRESETS "${none && none.enc[6]}")`);
+  check(none && none.enc[1] === "GROUP", `ARP tapped opens the MIDI FX screen: ALGORITHM "${none && none.enc[1]}" (no group yet: PRESETS "${none && none.enc[6]}")`);
   { const enc = new Int32Array(7); enc[p.t.encId[1]] = p.t.encDir[1]; e.setPanel({ keys: 0, buttons: 0, enc, keyVel: new Uint8Array(27) }); }
   ls = pump(e, 400).map(decodeLabels).filter(Boolean);
   const mf = ls[ls.length - 1];
   const slots = mf ? BK.slice(0, 8).map((k) => mf.keys[k]) : [];
   check(mf && mf.enc[1] === "GROUP" && mf.enc[6] === "EFFECT" && slots.every((x) => /^(EMPTY|SLOT [1-8]|[A-Z][A-Z0-9 .+-]*)$/.test(x)),
-    `SHIFT + ARP, the MIDI FX screen: ALGORITHM "${mf && mf.enc[1]}", PRESETS "${mf && mf.enc[6]}", B1..B8 ${slots.join(" / ")}`);
+    `the MIDI FX screen, a group: ALGORITHM "${mf && mf.enc[1]}", PRESETS "${mf && mf.enc[6]}", B1..B8 ${slots.join(" / ")}`);
   writePng(path.join(OUT, "midi-fx.png"), e.screen().pixels);
   e.dispose();
   // presets: 3 stored, LIST, DUMP everything, restored into a blank unit, dumped again: the same frames

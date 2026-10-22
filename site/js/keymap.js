@@ -10,7 +10,7 @@ const MODES = [["NOTE", "#3F7DFF"], ["VEL", "#1FD47E"], ["LEN", "#36D6E7"], ["MI
 // [printed, FIZZ's job, computer key, colour]
 const BUTTONS = [
   ["FX", "FX", "C"], ["SEL", "TRACKS", "V"], ["ENV", "MIX", "B"], ["LFO", "LATCH", "N"], ["EDIT", "EDIT", "M"], ["GLO", "SHIFT", ",", "#FFD23F"],
-  ["HOME", "HOME", "7"], ["SAVE", "SOUNDS", "8"], ["ARP", "FILL", "9"], ["SEQ", "PATTERNS", "0"], ["PLAY", "PLAY", "-", "#1FD47E"], ["REC", "REC", "=", "#FF3448"],
+  ["HOME", "HOME", "7"], ["SAVE", "SOUNDS", "8"], ["ARP", "MIDI FX", "9"], ["SEQ", "PATTERNS", "0"], ["PLAY", "PLAY", "-", "#1FD47E"], ["REC", "REC", "=", "#FF3448"],
 ];
 // [cx, cy, name, job, colour]
 const KNOBS = [[84, 82, "MASTER", "volume"], [204, 82, "SELECT", "page", "#FFD23F"], [84, 196, "PRESETS", "sound", "#28E1FF"],
@@ -67,6 +67,7 @@ export function keymapSvg() {
     o.push(cap(x + KW / 2, 538, WHITE_PC[i]));
   }
   o.push(t(500, 610, "W1-W16: the page's 16 steps (tap: on / off, hold: edit) · B1-B11, nothing held: what you edit; a step held: its values", "km-note"));
+  o.push(t(870, 352, "FILL: SHIFT + ARP held ( , + 9 )", "km-job"));
   o.push(`<rect x="420" y="620" width="22" height="15" rx="4" class="km-cap"/>`, `<text x="450" y="632" class="km-job">= the computer key</text>`);
   o.push("</svg>");
   return o.join("");

@@ -67,7 +67,9 @@ ws.onmessage = (ev) => {
 const send = (method, params = {}) => new Promise((r, j) => { const i = ++id; pending.set(i, { r, j }); ws.send(JSON.stringify({ id: i, method, params })); });
 const evaluate = async (expr) => { const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.text + " " + (r.exceptionDetails.exception || {}).description); return r.result.value; };
 const waitFor = async (expr, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { try { if (await evaluate(expr)) return true; } catch (_) {} await sleep(100); } return false; };
-const booted = () => waitFor("window.FIZZ && FIZZ.state.info && FIZZ.state.frameSeq > 0");
+// (the new document's FIZZ, not the old one's: a mark set before each navigation is gone once it has been replaced)
+const booted = () => waitFor("!window.__leaving && window.FIZZ && FIZZ.state.info && FIZZ.state.frameSeq > 0");
+const leave = async () => { try { await evaluate("window.__leaving = 1"); } catch (_) { /* (no page yet) */ } };
 const tap = async (b) => { await evaluate(`FIZZ.controls.holdBtn(${b}, 4, true)`); await sleep(120); await evaluate(`FIZZ.controls.holdBtn(${b}, 4, false)`); await sleep(150); };
 const tapKey = async (k) => { await evaluate(`FIZZ.controls.holdKey(${k}, 4, true)`); await sleep(120); await evaluate(`FIZZ.controls.holdKey(${k}, 4, false)`); await sleep(150); };
 // the LCD's step rows (the bottom 60 lines: the page's 16 steps; FIZZ's pictures above them animate, and the steps last
@@ -109,6 +111,7 @@ try {
   // 2. a navigation back within the cache's 10 minutes: the old HTML, which notices at once
   served.length = 0;
   await send("Page.navigate", { url: "about:blank" }); await sleep(300);
+  await leave();
   await send("Page.navigate", { url: URL0 });
   await booted();
   const stale = await evaluate("FIZZ.BUILD");
@@ -117,7 +120,7 @@ try {
 
   // 3. Reload
   served.length = 0;
-  await send("Page.reload", {});
+  await leave(); await send("Page.reload", {});
   check(await booted(), "after Reload FIZZ boots");
   const now = await evaluate("({ build: FIZZ.BUILD, version: FIZZ.state.meta.version, res: performance.getEntriesByType('resource').map(e => e.name) })");
   // (what the server was asked for since the Reload: the worklet and the engine load outside the page's resource timing)
@@ -145,7 +148,7 @@ try {
   })()`);
   const NEWV2 = NEWV.replace("-update-test", "-update-test2").replace(/^(\d+)\.(\d+)\.(\d+)/, (_, x, y, z) => `${x}.${y}.${+z + 1}`);
   assemble("--salt", "c", "--fizz-version", NEWV2);
-  await send("Page.reload", {});
+  await leave(); await send("Page.reload", {});
   await booted();
   const warned = await waitFor("/could not read your 0\\.0\\.1 projects/.test(document.getElementById('toast').textContent)", 15000);
   check(warned, `an unreadable old flash is reported: "${await evaluate("document.getElementById('toast').textContent")}"`);
