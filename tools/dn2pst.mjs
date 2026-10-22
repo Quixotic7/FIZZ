@@ -17,7 +17,9 @@
 //       bare 359-byte record (a SysEx dump's or a project pool's). Throws on anything else, on a Digitone 1 sound and
 //       (unless anyMachine) on a sound that is not FM TONE: WAVETONE, FM DRUM, SWARMER and MIDI have no FM TONE patch.
 //   dn2pstToQuad(parsed) -> {blob: Uint8Array(96) FM TONE version 5, values, name (FIZZ's 12 letters), drive, pan,
-//                            sends: {chorus, delay, reverb}, notes: [what was lost / approximated]}
+//                            sends: {chorus, delay, reverb}, notes: [what was lost / approximated],
+//                            E1: ext (FIZZ's values 74..109), six (one of them away from its default), blob6:
+//                            Uint8Array(128) version 6 (the values, DRIVE, ext; fizz_sysex.mjs sends it as STORE6)}
 //   dn2RecordFromParams(params, opts) -> a 359-byte record (the self-test's synthetic sound; a writer would start here)
 //   wrapDn2Record(record, {compress}) -> the stored container (payload) around it; dn2pstZip(payload, manifest) -> a .dn2pst
 
@@ -31,6 +33,12 @@ export const QP = { ALGO: 0, RC: 1, RA: 2, RB1: 3, HARM: 4, DTUN: 5, FDBK: 6, MI
 const QL = { SPEED: 0, MULT: 1, FADE: 2, DEST: 3, WAVE: 4, PHASE: 5, TRIG: 6, DEPTH: 7 };
 const qlfo = (k, f) => 47 + k * 8 + QL[f];
 const QUAD_NP = 73, QUAD_BLOB = 96, QUAD_VER = 5;
+// E1: FIZZ's values 74..109 (core/voice/quad/quad_voice.c qe_val): [min, max, default]; the default today's sound
+export const QUAD_EXT_RANGES = [[0,1,0],[0,127,127],[0,2,0],[0,127,32],[0,1,0],[0,1,0],[0,127,0],[-64,63,0],[0,1,0],
+  [0,127,0],[0,127,0],[0,1,1], ...Array.from({ length: 8 }, () => [[0,8,0],[0,57,0],[-127,127,0]]).flat()];   // (MOD DEST: FM TONE's 58)
+export const QX = { AMOD: 74, HOLD: 75, PORT: 76, PTIM: 77, PSLOPE: 78, DRPRE: 79, FSHAPE: 80, FGAIN: 81, BWPOST: 82,
+  BITS: 83, SRR: 84, CRPOST: 85, MOD0: 86 };
+const QUAD_EXT0 = 74, QUAD_BLOB6 = 128;
 const QUAD_HIRES = [4, 5, 34, 35, 37, 40, 47, 54, 55, 62, 63, 70];
 const QF = { OFF: 0, LP12: 1, HP12: 2, LP24: 3 };
 // FM TONE's LFO destinations (eng_quad.c QD_*; fm1dnsnd.js DN_QD)
@@ -361,6 +369,8 @@ function octave(p, oct) {
 export function dn2pstToQuad(parsed) {
   if (!parsed || parsed.machine !== 0 || !parsed.params) throw new Error(`"${parsed && parsed.name}" is a ${parsed && parsed.machineName} sound: FIZZ imports FM TONE sounds only`);
   const P = parsed.params, p = QUAD_RANGES.map((r) => r[2]), notes = [];
+  const ext = QUAD_EXT_RANGES.map((r) => r[2]);                                          // (E1: 74..109)
+  const xset = (i, v) => { const [mn, mx] = QUAD_EXT_RANGES[i - QUAD_EXT0]; ext[i - QUAD_EXT0] = Math.max(mn, Math.min(mx, v)); };
   const out = { pan: 0, drive: 0, note: (s) => notes.push(s),
     set: (i, v) => { const [mn, mx, df] = QUAD_RANGES[i]; p[i] = Math.max(mn, Math.min(mx, Number.isFinite(v) ? v : df)); } };
   for (const [k, , , c, , apply] of DN2_FIELDS) if (apply && c !== "info") apply(P[k], out);
@@ -381,15 +391,12 @@ export function dn2pstToQuad(parsed) {
   // the Digitone's filter DEC 127 is INF: FM TONE's filter DEC has none: SUS 127 (as dnsndToQuad)
   if (P["filter.dec"] === 127) { p[QP.FSUS] = 127; notes.push("filter DEC INF: FM TONE's filter SUS set to 127"); }
   if (P["filter.reset"] === 0) notes.push("FILTER ENV RESET off not imported");
-  // the amp: ADSR as it is; AHD (MODE 0) has a HOLD (127 = while the note is held) and no SUS / REL
+  // the amp: ADSR as it is; AHD (MODE 0): FIZZ's AHD (E1: AMOD, HOLD 1:1, 127 NOTE; DEC 127 INF, as FIZZ's)
   const adec = P["amp.dec"], rel = P["amp.rel"];
   if (P["amp.mode"] === 0) {
-    const held = P["amp.hold"] >= 127;
-    p[QP.EDEC] = held ? 127 : Math.min(126, adec);
-    p[QP.ESUS] = held ? 127 : 0;
-    p[QP.EREL] = adec >= 127 ? 127 : Math.min(126, adec);
-    notes.push(held ? "amp AHD, HOLD while the note is held: read as SUS 127 and REL = DEC" :
-      `amp AHD, HOLD ${P["amp.hold"]}: FM TONE has no hold; read as DEC, SUS 0, REL = DEC`);
+    xset(QX.AMOD, 1);
+    xset(QX.HOLD, P["amp.hold"]);
+    p[QP.EDEC] = Math.min(127, adec);
   } else {
     p[QP.EDEC] = adec >= 127 ? 127 : Math.min(126, adec);
     p[QP.ESUS] = P["amp.sus"];
@@ -398,7 +405,11 @@ export function dn2pstToQuad(parsed) {
   if (P["amp.reset"] === 0) notes.push("AMP ENV RESET off not imported (FM TONE's amp envelope always resets)");
   if (P["fx.bitreduction"]) notes.push(`BIT REDUCTION ${P["fx.bitreduction"]} not imported`);
   if (P["fx.srr"]) notes.push(`SAMPLE RATE REDUCTION ${P["fx.srr"]} not imported`);
-  if (P.portamento === 64) notes.push("PORTAMENTO on: not imported");
+  if (P.portamento === 64) { xset(QX.PORT, 1); xset(QX.PTIM, P["portamento.time"]); }   // (E1: PORT ON, TIME 1:1)
+  if (P["fx.odRouting"] === 0) {                       // E1: OD ROUTING 0 read as before the filter (a guess)
+    xset(QX.DRPRE, 1);
+    if (out.drive) notes.push("OVERDRIVE before the filter (OD ROUTING 0 read as PRE: the encoding is not verified)");
+  }
   // the sound's OCTAVE (inferred: record +251, the DN1's +280)
   const oct = P.octave | 0;
   if (oct) {
@@ -407,8 +418,21 @@ export function dn2pstToQuad(parsed) {
   }
   if (parsed.warnings && parsed.warnings.length) notes.push(...parsed.warnings.map((w) => `file: ${w}`));
   const send = (v) => Math.max(0, Math.min(127, R(v || 0)));
+  const six = ext.some((v, k) => v !== QUAD_EXT_RANGES[k][2]);
   return { blob: quadPack(p), values: p, name: fizzName(parsed.name), drive: out.drive, pan: out.pan,
-    sends: { chorus: send(P["send.chorus"]), delay: send(P["send.delay"]), reverb: send(P["send.reverb"]) }, notes };
+    sends: { chorus: send(P["send.chorus"]), delay: send(P["send.delay"]), reverb: send(P["send.reverb"]) }, notes,
+    ext, six, blob6: quadPack6(p, out.drive, ext) };
+}
+
+// E1: version 6 (FIZZ's quad_voice.c qd_quad_pack): version 5's bytes, 'Q' 6, DRIVE at 87, the values 74..109 a byte
+// each (value - min) at 88.., zeros to 128
+export function quadPack6(p, drive, ext) {
+  const blob = new Uint8Array(QUAD_BLOB6);
+  blob.set(quadPack(p).subarray(0, 87));
+  blob[1] = 6;
+  blob[87] = Math.max(0, Math.min(127, drive | 0));
+  ext.forEach((v, k) => { blob[88 + k] = (v - QUAD_EXT_RANGES[k][0]) & 255; });
+  return blob;
 }
 
 // FM TONE's values (version 5) -> its blob: 'Q' 5, value - min a byte, the hi-res ones u16le, zeros (eng_quad.c quad_pack)

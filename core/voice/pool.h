@@ -44,7 +44,7 @@ extern "C" {
 enum { QD_VMIX_PAN, QD_VMIX_DELAY, QD_VMIX_REVERB, QD_VMIX_CHORUS, QD_VMIX_LEVEL, QD_VMIX_N };   /* (P1.4a: DRIVE is
                                                          * the sound's: QD_QP_DRIVE) */
 typedef struct {
-    uint32_t own[3];                    /* bit i of own[i >> 5]: patch value i is the voice's own */
+    uint32_t own[(QD_QUAD_NP + 31) / 32];   /* bit i of own[i >> 5]: patch value i is the voice's own */
     uint8_t mixm;                       /* bit k: mix value k is locked (QD_VMIX_*) */
     int16_t mixv[QD_VMIX_N];            /* pan -64..63, the sends, level 0..127 */
 } qd_vattr_t;
@@ -63,6 +63,7 @@ typedef struct {
     uint8_t pend_note, pend_vel, pend_off;   /* .. its note and velocity; pend_off: its key went up meanwhile */
     qd_quad_owner_t *pend_owner;
     int16_t pend_patch[QD_QUAD_NP];
+    int16_t pend_gfrom;                 /* E1: .. its glide's start (1/16 semitone; -1 none) */
     uint32_t age;                       /* when its note was struck (the pool's clock: oldest = smallest) */
     uint32_t serial;                    /* bumped at every fresh start in this slot (the mix's ramps start over) */
 } qd_pool_voice_t;
@@ -96,6 +97,13 @@ int qd_pool_owns(const qd_pool_t *p, int i, int id);   /* patch value id is voic
 void qd_pool_set_mix(qd_pool_t *p, int i, int k, int value);   /* mix value k (QD_VMIX_*) of voice i locked */
 /* voice i (sounding, its key down) moves to note legato (quad_voice.h qd_quad_voice_legato): 1 done, 0 not sounding */
 int qd_pool_legato(qd_pool_t *p, int i, int note, int vel);
+/* E1, portamento: the note that slot i took (qd_pool_note_on*) on owner o's track: a glide's start. key: its chord
+ * (the trig's record; 0: a played note, alone) at tick; held: a voice of the track was in gate before the chord. A
+ * chord's notes pair by rank with the last chord's (low with low; one more than it had: the nearest), a lone note
+ * glides from the track's last note; PORT LEGATO only when held. Settled at the next block (or the next chord) */
+void qd_pool_glide_note(qd_pool_t *p, int i, qd_quad_owner_t *o, const void *key, int64_t tick, int held);
+int qd_pool_gated(const qd_pool_t *p, int track);
+void qd_pool_glide_tie(qd_pool_t *p, qd_quad_owner_t *o, int note);   /* E1: a TIE moved owner o's track to note */   /* E1: a voice of track in gate (its key down) */
 void qd_pool_note_off(qd_pool_t *p, int track, int note);   /* every voice of track holding note: released */
 void qd_pool_release_all(qd_pool_t *p, int track);         /* track < 0: every track */
 void qd_pool_kill_all(qd_pool_t *p);                        /* every voice faded out (a panic), no note waits */

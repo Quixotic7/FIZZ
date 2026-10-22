@@ -154,17 +154,17 @@ static void sheet_as(const char *file, const char *title)
 /* ---------------------------------------------------------------- the script */
 static void import(const char *name, int pool, int k)
 {
-    uint8_t f[160], blob[QD_QUAD_BLOB], r[64];
+    uint8_t f[160], blob[QD_QUAD_BLOB5], r[64];
     int16_t p[QD_QUAD_NP];
     uint32_t i, n = 0, sum = QD_SX_STORE;
     qd_quad_preset_patch(k, p);
-    qd_quad_pack(p, blob);
+    qd_quad_pack5(p, blob);
     f[n++] = 0x7D, f[n++] = 0x46, f[n++] = 0x5A, f[n++] = 0x01, f[n++] = QD_SX_STORE;
     f[n++] = pool ? QD_SXF_POOL : 0, f[n++] = 0, f[n++] = 0;
     for (i = 0; i < QD_SX_NAME; i++)
         f[n++] = (uint8_t)(i < strlen(name) ? name[i] : ' ');
     f[n++] = 0, f[n++] = 0, f[n++] = 64, f[n++] = 0, f[n++] = 0, f[n++] = 0, f[n++] = 0;
-    n += qd_sx_pack7(blob, QD_QUAD_BLOB, f + n);
+    n += qd_sx_pack7(blob, QD_QUAD_BLOB5, f + n);
     for (i = 5; i < n; i++)
         sum += f[i];
     f[n++] = (uint8_t)((0x80u - (sum & 0x7Fu)) & 0x7Fu);

@@ -101,7 +101,8 @@ int qd_mix_block(qd_mix_t *m, qd_pool_t *pool, qd_quad_owner_t *const *owners, c
             int32_t dr = pv->q.patch[QD_QP_DRIVE];
             if (o && o->quad_fx_off[0])
                 dr = clampi(dr + o->quad_fx_off[0], 0, 127);
-            qd_quad_dist(&m->dist[i], dr, m->vbuf, QD_MIX_CTL);
+            if (!pv->q.patch[QD_QP_DRPRE])              /* (E1: DRIVE PRE ran in the voice, before its filter) */
+                qd_quad_dist(&m->dist[i], dr, m->vbuf, QD_MIX_CTL);
         }
         dg[0] = (c - sg[0]) >> 5;                       /* (fx.c: the ramp over the block, CTL_LOG2) */
         dg[1] = (d - sg[1]) >> 5;

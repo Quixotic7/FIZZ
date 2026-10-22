@@ -12,6 +12,7 @@
  *   fade        the click of a steal: the largest sample step around it against the clean renders (the old note
  *               alone, the new note alone) and against a hard cut; the fade is the old note's own ramp to 0
  *   free        voices end after their release and their slots are free again; 64 voices as a setting
+ *   glide       E1: portamento's starts: a lone note from the track's last, chords by rank, LEGATO, OFF, limit 1
  *
  *     test_pool          exit 1 on a failed check */
 #include <math.h>
@@ -388,6 +389,85 @@ static void t_free(void)
     printf("  free: 40 notes on a 64-voice pool, released: every slot free again after %.1f s\n", k * CTL / 44100.0);
 }
 
+/* E1: portamento's starts: a lone note from the track's last; a chord by rank against the last chord (one more: the
+ * nearest); LEGATO only held; PORT OFF none; a choked (waiting) note glides as it starts */
+static int16_t PG[QD_QUAD_NP];
+static int gon(int t, int note, const void *key, int64_t tick)
+{
+    const int held = qd_pool_gated(&P, t);
+    const int i = qd_pool_note_on(&P, t, &O[t], note, 100, PG);
+    qd_pool_glide_note(&P, i, &O[t], key, tick, held);
+    return i;
+}
+static void t_glide(void)
+{
+    static const int C1[3] = {55, 48, 52}, C2[4] = {57, 50, 60, 53}, W2[4] = {55, 48, 55, 52};
+    int i, k, ok;
+    char key1 = 1, key2 = 2;
+    memcpy(PG, PA, sizeof PG);
+    PG[QD_QP_PORT] = QD_PORT_ON, PG[QD_QP_PTIM] = 20;
+    reset(16);
+    i = gon(0, 48, 0, 0);
+    block(0);
+    CHECK(P.v[i].q.pitch_cur == 48 * 16, "the track's first note: no glide");
+    i = gon(0, 60, 0, 0);
+    CHECK(P.v[i].q.pitch_cur == 60 * 16, "a note's glide waits for the block (its chord may grow)");
+    block(0);
+    CHECK(P.v[i].q.pitch_cur > 48 * 16 && P.v[i].q.pitch_cur < 60 * 16 && P.v[i].q.pitch16 == 60 * 16,
+          "a lone note glides from the track's last (48 -> 60: at %d / 16)", P.v[i].q.pitch_cur);
+    blocks(200);
+    CHECK(P.v[i].q.pitch_cur == 60 * 16, "the glide ends on the note");
+    reset(16);                                          /* chords: by rank, the fourth from the nearest */
+    for (k = 0; k < 3; k++)
+        gon(1, C1[k], &key1, 100);
+    block(0);
+    for (k = 0; k < 4; k++)
+        gon(1, C2[k], &key2, 200);
+    block(0);
+    for (ok = 1, k = 0; k < 4; k++) {
+        int j, s = -1;
+        for (j = 0; j < P.nvoice; j++)
+            if (qd_pool_sounding(&P, j) && P.v[j].track == 1 && P.v[j].q.pitch16 == C2[k] * 16)
+                s = j;
+        ok &= s >= 0 && P.v[s].q.gstep > 0 &&
+              abs(P.v[s].q.pitch_cur - W2[k] * 16) <= abs(P.v[s].q.pitch16 - W2[k] * 16) &&
+              (P.v[s].q.pitch_cur - W2[k] * 16) * (C2[k] - W2[k]) > 0;
+    }
+    CHECK(ok, "48 52 55 then 50 53 57 60: 48 -> 50, 52 -> 53, 55 -> 57, 60 from the nearest (55)");
+    CHECK(O[1].lc_n == 4 && O[1].lc[0] == 50 * 16 && O[1].lc[3] == 60 * 16 && O[1].last_pitch == 60 * 16,
+          "the last chord (low to high) kept for the next");
+    reset(16);                                          /* LEGATO: only from a note still held */
+    PG[QD_QP_PORT] = QD_PORT_LEGATO;
+    gon(2, 48, 0, 0);
+    block(0);
+    qd_pool_note_off(&P, 2, 48);
+    blocks(2);
+    i = gon(2, 55, 0, 0);
+    block(0);
+    CHECK(P.v[i].q.pitch_cur == 55 * 16, "LEGATO, the last key up: no glide");
+    i = gon(2, 60, 0, 0);
+    block(0);
+    CHECK(P.v[i].q.pitch_cur < 60 * 16 && P.v[i].q.pitch_cur > 55 * 16, "LEGATO, overlapping: glides 55 -> 60");
+    reset(16);                                          /* PORT OFF: as before */
+    PG[QD_QP_PORT] = QD_PORT_OFF;
+    gon(3, 48, 0, 0);
+    block(0);
+    i = gon(3, 60, 0, 0);
+    block(0);
+    CHECK(P.v[i].q.pitch_cur == 60 * 16 && !P.v[i].q.gstep, "PORT OFF: no glide");
+    reset(16);                                          /* mono (limit 1): the new note waits a block, then glides */
+    PG[QD_QP_PORT] = QD_PORT_ON;
+    qd_pool_set_track(&P, 4, 1, 0);
+    gon(4, 48, 0, 0);
+    blocks(3);
+    i = gon(4, 60, 0, 0);
+    CHECK(i >= 0 && P.v[i].pend, "limit 1: the new note waits for the fade");
+    blocks(3);
+    i = sounding_note(4, 60);
+    CHECK(i >= 0 && P.v[i].q.pitch_cur < 60 * 16 && P.v[i].q.pitch_cur > 48 * 16,
+          "limit 1: it glides from 48 as it starts (at %d / 16)", i >= 0 ? P.v[i].q.pitch_cur : -1);
+}
+
 int main(void)
 {
     qd_quad_preset_patch(0, PA);
@@ -401,6 +481,7 @@ int main(void)
     t_tap();
     t_fade();
     t_free();
+    t_glide();
     printf("test_pool: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

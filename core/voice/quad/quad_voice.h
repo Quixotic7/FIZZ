@@ -17,9 +17,13 @@
 extern "C" {
 #endif
 
-#define QD_QUAD_NP 74                   /* the sound's values: FM TONE's patch (eng_quad.c QP_NP, 73) and DRIVE (P1.4a) */
+#define QD_QUAD_NP 110                  /* the sound's values: FM TONE's patch (eng_quad.c QP_NP, 73), DRIVE (P1.4a), and
+                                         * E1 (research/FMTONE-DN2-PLAN.md): the values 74..109 (QD_QP_AMOD ..) */
 #define QD_QUAD_FMNP 73                 /* .. FM TONE's own (the engine reads these) */
-#define QD_QUAD_BLOB 96                 /* a packed patch (QUAD_BLOB: 'Q', version 5, the values) */
+#define QD_QUAD_NP5 74                  /* .. those of a version-5 blob (FM TONE's and DRIVE) */
+#define QD_QUAD_BLOB 128                /* E1: FIZZ's packed patch, blob version 6 ('Q', 6, version 5's values, DRIVE at 87,
+                                         * values 74..109 a byte each (value - min) at 88..123, zeros) */
+#define QD_QUAD_BLOB5 96                /* ChoralRoot's (QUAD_BLOB: 'Q', version 1..5; FIZZ's DRIVE in byte 87) */
 #define QD_QUAD_CTL 32                  /* samples a control block */
 #define QD_QUAD_NPRESET 17              /* 0 INIT, 1..16 ChoralRoot's factory sounds (EP .. NOISE-ISH) */
 #define QD_QUAD_STATE_WORDS 32          /* quad_voice_t's room (eng_quad.c; quad_voice.c checks it fits) */
@@ -37,9 +41,27 @@ enum {
     QD_QP_EATK, QD_QP_EDEC, QD_QP_ESUS, QD_QP_EREL, QD_QP_LEVEL,
     QD_QP_LFO0,
     QD_QP_RB2 = QD_QP_LFO0 + 3 * 8, QD_QP_B2KEY,
-    QD_QP_DRIVE                         /* P1.4a: ChoralRoot's DIST (fx.c track_dist) as the sound's own value, 0..127, per
+    QD_QP_DRIVE,                        /* P1.4a: ChoralRoot's DIST (fx.c track_dist) as the sound's own value, 0..127, per
                                          * voice (qd_quad_dist; the mix runs it); a preset's is its FX() drive */
+    /* E1..E4 (research/FMTONE-DN2-PLAN.md, FIZZ only: quad_ext.c): each one's default is today's sound */
+    QD_QP_AMOD,                         /* E1: the amp envelope's mode: 0 ADSR, 1 AHD */
+    QD_QP_HOLD,                         /* E1: AHD's HOLD 0..126 (a time, the amp attack's table), 127 NOTE (while held) */
+    QD_QP_PORT,                         /* E1: portamento 0 OFF, 1 ON, 2 LEGATO (only into a note still held) */
+    QD_QP_PTIM,                         /* E1: its time 0..127 */
+    QD_QP_PSLOPE,                       /* E1: 0 TIME (the same time any interval), 1 RATE (a fixed speed) */
+    QD_QP_DRPRE,                        /* E1: DRIVE 0 after the voice (POST, as before), 1 before the filter (PRE) */
+    QD_QP_FSHAPE,                       /* E2: the filter machine's own control (MULTI's morph, the combs' LPF, EQ's Q) */
+    QD_QP_FGAIN,                        /* E2: EQ's gain -64..63 */
+    QD_QP_BWPOST,                       /* E2: base-width 0 before the filter, 1 after */
+    QD_QP_BITS,                         /* E3: CRUSH: bit reduction 0 OFF, 1..127 */
+    QD_QP_SRR,                          /* E3: .. sample-rate reduction 0 OFF, 1..127 */
+    QD_QP_CRPOST,                       /* E3: .. 0 before the filter, 1 after */
+    QD_QP_MOD0                          /* E4: eight modulation slots: QD_QP_MOD(k, QD_QM_SRC / DST / DEPTH) */
 };
+enum { QD_QM_SRC, QD_QM_DST, QD_QM_DEPTH };
+#define QD_QP_MOD(k, f) (QD_QP_MOD0 + (k) * 3 + (f))
+#define QD_NMOD 8
+enum { QD_PORT_OFF, QD_PORT_ON, QD_PORT_LEGATO };
 enum { QD_QL_SPEED, QD_QL_MULT, QD_QL_FADE, QD_QL_DEST, QD_QL_WAVE, QD_QL_PHASE, QD_QL_TRIG, QD_QL_DEPTH };
 #define QD_QP_LFO(k, f) (QD_QP_LFO0 + (k) * 8 + (f))
 enum { QD_QF_OFF, QD_QF_LP12, QD_QF_HP12, QD_QF_LP24 };   /* FTYPE */
@@ -55,6 +77,14 @@ typedef struct qd_quad_owner {
     const qd_quad_voice_t *m_v;         /* the latest note's voice */
     const int16_t *quad_patch;          /* the track's sound: the FREE LFOs run at its rates (none: they stand) */
     int16_t bpm;                        /* the tempo: synced LFOs, the envelope DELAYs */
+    int16_t last_pitch;                 /* E1: the track's last note (1/16 semitone; -1 none): a glide's start */
+    uint8_t lc_n;                       /* E1: the last chord (its pitches, low to high) .. */
+    int16_t lc[8];
+    uint8_t cc_n;                       /* E1: .. the chord starting now: its notes as they come, their pool slots */
+    uint8_t cc[8], cc_slot[8];
+    const void *cc_key;                 /* .. what makes it one chord (the trig's record and tick) */
+    int64_t cc_tick;
+    uint8_t cc_held;                    /* .. a voice of the track was in gate when it started (PORT LEGATO glides) */
 } qd_quad_owner_t;
 
 /* A voice. The first fields are ChoralRoot's voice_t's that FM TONE and its driver use (eng_quad.c reads this as its
@@ -70,6 +100,8 @@ struct qd_quad_voice {
     uint64_t qstate[QD_QUAD_STATE_WORDS];   /* eng_quad.c quad_voice_t */
     uint8_t dip;                        /* the dip (PLAN §5): this block ramps the voice to 0 as kill's does, but it
                                          * goes on (the next block ramps back from 0); set and cleared by the pool */
+    int32_t gstep;                      /* E1: the glide's step a block (1/16 semitone; 0: by its RATE) */
+    struct { int32_t hp, lp1, lp2; } dpre;   /* E1: DRIVE before the filter: its state (quad_ext.c) */
 };
 
 /* ---- the owner (one per track) */
@@ -83,6 +115,9 @@ void qd_quad_voice_init(qd_quad_voice_t *v, uint32_t idx);   /* silent; idx: its
 void qd_quad_voice_start(qd_quad_voice_t *v, const int16_t *patch, qd_quad_owner_t *o, int note, int vel);
 void qd_quad_voice_release(qd_quad_voice_t *v);   /* the key up: the envelopes' release */
 void qd_quad_voice_kill(qd_quad_voice_t *v);      /* the fade steal: its next block ramps it to 0, and it ends */
+/* E1: the voice's glide starts from pitch from (1/16 semitone; -1 or PORT OFF: none, the note at once): before its
+ * first block (a fresh start), or a legato move */
+void qd_quad_voice_glide(qd_quad_voice_t *v, int from);
 /* MONO legato (ChoralRoot's voice.c mono_play, then eng_quad.c quad_legato): the sounding voice moves to note
  * without a new attack; the gate is held, the amplitude and filter envelopes and the phases run on, the operator
  * envelopes restart only where the patch's A / B TRIG is on (the Digitone's "every note"); the amplitude follows vel
@@ -101,9 +136,14 @@ void qd_quad_dist(qd_dist_t *st, int drive, int32_t *b, int n);
 /* ---- patches */
 void qd_quad_preset_patch(int k, int16_t *p);    /* k 0: INIT, 1..16: the factory sounds (P1.4a: with their DRIVE) */
 const char *qd_quad_preset_name(int k);         /* "INIT", "EP" .. "NOISE-ISH" */
-void qd_quad_pack(const int16_t *p, uint8_t *blob);         /* QD_QUAD_BLOB bytes (P1.4a: DRIVE in byte 87, after
-                                                             * version 5's values; 0 there: ChoralRoot's blob) */
-int qd_quad_unpack(const uint8_t *blob, int16_t *p);        /* 1: taken; 0: not a blob (p = INIT) */
+void qd_quad_pack(const int16_t *p, uint8_t *blob);         /* QD_QUAD_BLOB bytes, version 6 (E1) */
+void qd_quad_pack5(const int16_t *p, uint8_t *blob);        /* QD_QUAD_BLOB5 bytes, version 5 (P1.4a: DRIVE in byte 87,
+                                                             * after version 5's values; 0 there: ChoralRoot's blob);
+                                                             * values 74.. are lost */
+/* n bytes there (QD_QUAD_BLOB5 or QD_QUAD_BLOB): versions 1..5 (values 74.. their defaults) and 6. 1: taken; 0: not a
+ * blob (p = INIT) */
+int qd_quad_unpack(const uint8_t *blob, int n, int16_t *p);
+int qd_quad_ext_used(const int16_t *p); /* E1: a value 74.. away from its default (the sound needs a version-6 blob) */
 /* P1.4a: algorithm a's routing (a 1..8, the patch's ALGO; eng_quad.c QUAD_ALGO): each operator's modulators (C A B1 B2;
  * bit 0 C .. 3 B2), the feedback operator, the X and Y outputs (bit sets) */
 void qd_quad_algo(int a, uint8_t *mod4, int *fb, int *outx, int *outy);

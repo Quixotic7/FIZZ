@@ -565,11 +565,11 @@ DECAY, HARM and FDBK.
 
   | key | group | pages |
   | --- | --- | --- |
-  | **B1** | TRIG / KEYS | TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL) |
+  | **B1** | PLAY / MOD | TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL), **PORT** (PORT, TIME, SLOPE) |
   | **B2** | OPERATORS | RATIO (KNOB 1 RATIO C, KNOB 2 RATIO A, KNOB 3 **RATIO B**, KNOB 4 **MIX**; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK, **MIX**: the same MIX as RATIO's, P1.5n), OFFSET (the four offsets) |
   | **B3** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay) |
   | **B4** | FILTERS | FILTER (FREQ, RESO, TYPE, DEPTH), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK) |
-  | **B5** | ENVELOPES | AMP (attack, decay, sustain, release), LEVEL (LEVEL, **DRIVE**) |
+  | **B5** | AMP / FX | AMP (attack, decay, sustain, release; **ALGORITHM the MODE**, ADSR / AHD: in AHD attack, **HOLD**, decay), LEVEL (LEVEL, **DRIVE**, **ROUTE**) |
   | **B6 / B7 / B8** | LFO 1 / 2 / 3 | the LFO's page (SPEED, MULT, DEPTH, **DEST**), its WAVE page (WAVE, PHASE, TRIG, FADE) |
 
   Every value of the sound is on exactly one page.
@@ -633,9 +633,24 @@ DECAY, HARM and FDBK.
     envelope depth 40..75 %), the amp's sustain at least 40 %, short attacks, DRIVE up to 25 %, HARM and DTUNE near
     the middle, the offsets near centre; the LFOs gentle (depth up to a sixth of its range either way, no fade, their
     destinations and triggers kept). LEVEL, the filter TYPE and the TRIG / RESET / PHRT switches are never changed.
-- **DRIVE** (B4, LEVEL page, KNOB 2) is part of the sound now: ChoralRoot's DIST (low cut, the drive, a soft clip, a
+- **DRIVE** (B5, LEVEL page, KNOB 2) is part of the sound now: ChoralRoot's DIST (low cut, the drive, a soft clip, a
   tone low-pass, make-up gain), in each voice, so a step with its own sound or a DRIVE lock has its own. A preset
   loads its drive (WOBBLE: 10; the others 0). FM TONE's LFOs can move it (destination DRIVE).
+  - **ROUTE** (KNOB 3, 0.8.0): **POST** (as before) drives the voice after its filter; **PRE** drives it before the
+    filter, so the filter tames the grit (the Digitone II's OD ROUTING). The picture's chain shows the order.
+- **Portamento** (B1, PORT page, 0.8.0), in the sound, so a step can lock it:
+  - **PORT**: OFF (as before), **ON** (every note glides from the track's last), **LEGATO** (only when the last note
+    is still held: tied or overlapping steps, or a key still down).
+  - **TIME** (0..127) and **SLOPE**: TIME glides in the same time whatever the interval; RATE at the same speed, so a
+    wider leap takes longer.
+  - **Chords** glide note by note: the lowest from the last chord's lowest, and so on up; a note more than the last
+    chord had glides from the nearest. A single note after a chord glides from its top note.
+  - **The 303 slide**: on a MONO track (limit 1), hold the step to slide into and turn PORT to ON (a lock); its note
+    glides in from the one before. A TIE glides too when PORT is on.
+- **AHD** (B5, AMP page, ALGORITHM = MODE, 0.8.0): **attack, hold, decay** to silence, the Digitone II's other amp
+  envelope. HOLD is a time (the gate does nothing: one-shot, for drums and plucks), or **NOTE** (127): held while the
+  key is down, then DEC is the release. DEC INF holds for ever. Switching the MODE while a note plays carries on from
+  where the envelope is. In AHD, SUS and REL are not used (KNOB 4 is empty).
 
 ## The scale (for now)
 
@@ -732,6 +747,9 @@ bright).
   as above, with their pan and sends (and a Digitone II preset's tags: BASS, CHORD as KEYS, PAD, LEAD, the drums as
   DRUMS, SOUND FX as FX); a note over the screen says how many went in. A Digitone II sound of another machine
   (WAVETONE, FM DRUM, SWARMER, MIDI) is refused, the note says why. **PRESETS** then finds them (B9: MY PRESETS).
+- **0.8.0:** a Digitone II sound keeps its **AHD** amp envelope (HOLD too), its **portamento** (ON and its time) and
+  its overdrive **before the filter** (its OD ROUTING; how the Digitone II stores that is still a guess), as FIZZ's
+  own (the SysEx's STORE6).
 
 ## How do I manage projects? (SEQ tapped)
 

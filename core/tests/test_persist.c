@@ -211,7 +211,7 @@ static void pages_test(void)
 static void migration_test(void)
 {
     static uint8_t b[QDS_MAXREC * 256];
-    uint8_t blob[QD_QUAD_BLOB];
+    uint8_t blob[QD_QUAD_BLOB5];
     int16_t p[QD_QUAD_NP];
     int len, t, n;
     G = &A;
@@ -221,33 +221,40 @@ static void migration_test(void)
     qd_persist_flush(&A);
     /* 0.6's records: a library slot, a pool slot (EP's copy), the pattern's track sounds, the header */
     qd_quad_preset_patch(3, p);                         /* (BASS) */
-    qd_quad_pack(p, blob);
+    qd_quad_pack5(p, blob);
     b[0] = 'S', b[1] = 1;
     memset(b + 2, 0, QD_SOUND_NAME);
     strcpy((char *)b + 2, "OLD LIB");
-    memcpy(b + 2 + QD_SOUND_NAME, blob, QD_QUAD_BLOB);
-    qd_store_put(&A.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 7), b, 2 + QD_SOUND_NAME + QD_QUAD_BLOB);
+    memcpy(b + 2 + QD_SOUND_NAME, blob, QD_QUAD_BLOB5);
+    qd_store_put(&A.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 7), b, 2 + QD_SOUND_NAME + QD_QUAD_BLOB5);
     qd_store_flush(&A.per.lib_st);
     qd_quad_preset_patch(1, p);                         /* (EP, as the 0.6 pool had it) */
-    qd_quad_pack(p, blob);
+    qd_quad_pack5(p, blob);
     memset(b + 2, 0, QD_SOUND_NAME);
     strcpy((char *)b + 2, "EP");
-    memcpy(b + 2 + QD_SOUND_NAME, blob, QD_QUAD_BLOB);
-    qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SND, 0, 40), b, 2 + QD_SOUND_NAME + QD_QUAD_BLOB);
+    memcpy(b + 2 + QD_SOUND_NAME, blob, QD_QUAD_BLOB5);
+    qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SND, 0, 40), b, 2 + QD_SOUND_NAME + QD_QUAD_BLOB5);
     qd_store_flush(&A.per.prj_st);
     A.proj.pat[QD_PAT_START].snd[3].sound = 40;         /* (track 4, SQUARE LEAD's place, from pool 40) */
     A.proj.pat[QD_PAT_START].snd[3].preset = 0;
     A.proj.pat[QD_PAT_START].used = 1;
     qd_persist_flush(&A);
     len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), b, sizeof b);
-    {   /* 'P' 2 -> 'P' 1: each track sound without its two preset bytes */
-        const uint32_t one = QD_QUAD_BLOB + 2 + QD_SOUND_NAME, start = (uint32_t)len - 8u * (one + 2u);
+    {   /* 'P' 3 -> 'P' 1: each track sound a 96-byte blob (E1), without its two preset bytes; the mix's lock ids as
+         * 0.6 had them (74..) */
+        const uint32_t one3 = QD_QUAD_BLOB + 2 + QD_SOUND_NAME + 2u, one1 = QD_QUAD_BLOB5 + 2 + QD_SOUND_NAME;
+        const uint32_t start = (uint32_t)len - 8u * one3;
         static uint8_t c[QDS_MAXREC * 256];
         memcpy(c, b, start);
-        for (t = 0; t < 8; t++)
-            memcpy(c + start + (uint32_t)t * one, b + start + (uint32_t)t * (one + 2u), one);
+        for (t = 0; t < 8; t++) {
+            int16_t q[QD_QUAD_NP];
+            qd_quad_unpack(b + start + (uint32_t)t * one3, QD_QUAD_BLOB, q);
+            qd_quad_pack5(q, c + start + (uint32_t)t * one1);
+            memcpy(c + start + (uint32_t)t * one1 + QD_QUAD_BLOB5, b + start + (uint32_t)t * one3 + QD_QUAD_BLOB,
+                   2 + QD_SOUND_NAME);
+        }
         c[1] = 1;
-        qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), c, start + 8u * one);
+        qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), c, start + 8u * one1);
         qd_store_flush(&A.per.prj_st);
     }
     len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, sizeof b);
@@ -273,6 +280,17 @@ static void migration_test(void)
 
 /* P1.5v: the tags: several on one of MY presets and on a pool sound, the factory's as the owner set them, kept across
  * a restart; an 'S' 2 record's kind becomes its one tag */
+/* E1: an 'S' 5 record as an older one had it: its blob 96 bytes (version 5), the rest as it was; the new length */
+static long snd_to_v5(uint8_t *b, long len)
+{
+    int16_t q[QD_QUAD_NP];
+    const uint32_t o = 2 + QD_SOUND_NAME;
+    qd_quad_unpack(b + o, QD_QUAD_BLOB, q);
+    qd_quad_pack5(q, b + o);
+    memmove(b + o + QD_QUAD_BLOB5, b + o + QD_QUAD_BLOB, (size_t)len - o - QD_QUAD_BLOB);
+    return len - (QD_QUAD_BLOB - QD_QUAD_BLOB5);
+}
+
 static void tags_test(void)
 {
     static uint8_t b[QDS_MAXREC];
@@ -305,8 +323,8 @@ static void tags_test(void)
     CHECK(!B.per.ftags[2] && f.tags == QD_PKB(qd_tags_first(f.tags)), "another factory preset untouched: the "
           "classifier's");
     len = qd_store_get(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 0), b, sizeof b);   /* 0.7.1's record: 'S' 2, a kind */
-    CHECK(len > 8 && b[0] == 'S' && b[1] == 4, "written as 'S' 4 (P1.5x: with its mix)");
-    len -= 4;                                           /* (no mix: an 'S' 2) */
+    CHECK(len > 8 && b[0] == 'S' && b[1] == 5, "written as 'S' 5 (P1.5x: with its mix; E1: a version-6 blob)");
+    len = snd_to_v5(b, len) - 4;                        /* (no mix: an 'S' 2) */
     b[1] = 2;
     b[len - 2] = QD_PK_PAD;
     qd_store_put(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 0), b, (uint32_t)len);
@@ -423,13 +441,13 @@ static void refs_test(void)
  * tags kept); again: nothing new (the same references) */
 static void put_copy(qd_app_t *a, int p, int k, const char *name, const int16_t *patch, int preset, int tags)
 {
-    uint8_t b[2 + QD_SOUND_NAME + QD_QUAD_BLOB + 4];
-    uint32_t o = 2 + QD_SOUND_NAME + QD_QUAD_BLOB;
+    uint8_t b[2 + QD_SOUND_NAME + QD_QUAD_BLOB5 + 4];
+    uint32_t o = 2 + QD_SOUND_NAME + QD_QUAD_BLOB5;
     uint16_t pr = (uint16_t)preset;
     b[0] = 'S', b[1] = 3;
     memset(b + 2, 0, QD_SOUND_NAME);
     strcpy((char *)b + 2, name);
-    qd_quad_pack(patch, b + 2 + QD_SOUND_NAME);
+    qd_quad_pack5(patch, b + 2 + QD_SOUND_NAME);
     memcpy(b + o, &pr, 2);
     b[o + 2] = (uint8_t)tags, b[o + 3] = 0;
     qd_store_put(&a->per.prj_st, QD_RKEY(QD_RK_SND, p, k), b, o + 4);
@@ -502,6 +520,7 @@ static void mix_test(void)
     CHECK(B.per.lib[3].pan == -25 && B.per.lib[3].chorus == 9 && B.per.lib[3].delay == 19 && B.per.lib[3].reverb == 29,
           "P1.5x: a restart: a MY preset's pan and sends kept");
     len = qd_store_get(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 3), b, sizeof b);
+    len = snd_to_v5(b, len);
     b[1] = 3;
     qd_store_put(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 3), b, (uint32_t)len - 4u);   /* (0.7.3's: no mix) */
     qd_store_flush(&B.per.lib_st);
@@ -688,17 +707,17 @@ int main(void)
     CHECK(qd_proj_load(&A, 0) && A.per.proj == 0 && !memcmp(&keep.pat[9], &A.proj.pat[9], sizeof keep.pat[9]),
           "load 1 again: as it was");
     {   /* P1.5r: a sound imported over SysEx into LIBRARY 100: autosaved like any other */
-        uint8_t f[160], blob[QD_QUAD_BLOB];
+        uint8_t f[160], blob[QD_QUAD_BLOB5];
         int16_t p[QD_QUAD_NP];
         uint32_t i, n = 0, sum = QD_SX_STORE;
         qd_quad_preset_patch(3, p);
-        qd_quad_pack(p, blob);
+        qd_quad_pack5(p, blob);
         f[n++] = 0x7D, f[n++] = 0x46, f[n++] = 0x5A, f[n++] = 0x01, f[n++] = QD_SX_STORE;
         f[n++] = 0, f[n++] = 0, f[n++] = 100;
         for (i = 0; i < QD_SX_NAME; i++)
             f[n++] = (uint8_t)("SX KEEP     "[i]);
         f[n++] = 0, f[n++] = 0, f[n++] = 64, f[n++] = 0, f[n++] = 0, f[n++] = 0, f[n++] = 0;
-        n += qd_sx_pack7(blob, QD_QUAD_BLOB, f + n);
+        n += qd_sx_pack7(blob, QD_QUAD_BLOB5, f + n);
         for (i = 4; i < n; i++)
             sum += i > 4 ? f[i] : 0;
         f[n++] = (uint8_t)((0x80u - (sum & 0x7Fu)) & 0x7Fu);

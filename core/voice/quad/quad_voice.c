@@ -34,6 +34,7 @@ typedef qd_quad_voice_t voice_t;        /* (eng_quad.c's voice_t and track_t: QU
 typedef qd_quad_owner_t track_t;
 #include "dsp.c"
 #include "eng_quad.c"
+#include "quad_ext.c"                   /* QUADRILLE (e): FIZZ's extensions (research/FMTONE-DN2-PLAN.md) */
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #elif defined(__GNUC__)
@@ -41,9 +42,11 @@ typedef qd_quad_owner_t track_t;
 #endif
 
 /* (C99: an array of negative size fails the build) quad_voice.h's sizes are eng_quad.c's; quad_voice_t fits */
-typedef char qd_quad_sizes_ok[QD_QUAD_FMNP == QP_NP && QD_QUAD_NP == QP_NP + 1 && QD_QP_DRIVE == QP_NP &&
-                              QUAD_V5_LEN < QUAD_BLOB && QD_QUAD_BLOB == QUAD_BLOB && QD_QUAD_CTL == CTL &&
-                              QD_QUAD_NPRESET == 1 + QUAD_NPRESETS ? 1 : -1];
+typedef char qd_quad_sizes_ok[QD_QUAD_FMNP == QP_NP && QD_QUAD_NP5 == QP_NP + 1 && QD_QP_DRIVE == QP_NP &&
+                              QUAD_V5_LEN < QUAD_BLOB && QD_QUAD_BLOB5 == QUAD_BLOB && QD_QUAD_CTL == CTL &&
+                              QD_QUAD_NPRESET == 1 + QUAD_NPRESETS && QD_QP_MOD(QD_NMOD - 1, QD_QM_DEPTH) + 1 == QD_QUAD_NP &&
+                              QUAD_V5_LEN + 1 + (QD_QUAD_NP - QD_QUAD_NP5) <= QD_QUAD_BLOB ? 1 : -1];
+typedef char qd_quad_dpre_ok[sizeof(((qd_quad_voice_t *)0)->dpre) == sizeof(qd_dist_t) ? 1 : -1];
 typedef char qd_quad_qp_ok[QD_QP_ALGO == QP_ALGO && QD_QP_PHRT == QP_PHRT && QD_QP_FREQ == QP_FREQ &&
                            QD_QP_FTYPE == QP_FTYPE && QD_QP_LEVEL == QP_LEVEL && QD_QP_LFO0 == QP_LFO0 &&
                            QD_QP_LFO(2, QD_QL_DEPTH) == QP_LFO(2, QL_DEPTH) && QD_QP_RB2 == QP_RB2 &&
@@ -51,12 +54,52 @@ typedef char qd_quad_qp_ok[QD_QP_ALGO == QP_ALGO && QD_QP_PHRT == QP_PHRT && QD_
                            QD_QF_LP24 == QF_LP24 && QD_QL_TRIG == QL_TRIG ? 1 : -1];
 typedef char qd_quad_state_fits[sizeof(quad_voice_t) <= sizeof(((qd_quad_voice_t *)0)->qstate) ? 1 : -1];
 
+/* ---------------------------------------------------------------- E1: the values 74.. --- */
+/* each one's range and default (today's sound), its label and its names (research/FMTONE-DN2-PLAN.md §3) */
+typedef struct { int16_t min, max, def; const char *name; const char *const *names; } qe_val_t;
+static const char *const QE_AMOD[2] = {"ADSR", "AHD"};
+static const char *const QE_PORT[3] = {"OFF", "ON", "LEGATO"};
+static const char *const QE_PSLOPE[2] = {"TIME", "RATE"};
+static const char *const QE_PREPOST[2] = {"POST", "PRE"};
+static const char *const QE_BEFAFT[2] = {"BEFORE", "AFTER"};
+static qe_val_t qe_val(int i)
+{
+    static const qe_val_t T[QD_QP_MOD0 - QD_QP_AMOD] = {
+        {0, 1, 0, "MODE", QE_AMOD}, {0, 127, 127, "HOLD", 0}, {0, 2, 0, "PORT", QE_PORT}, {0, 127, 32, "TIME", 0},
+        {0, 1, 0, "SLOPE", QE_PSLOPE}, {0, 1, 0, "ROUTE", QE_PREPOST}, {0, 127, 0, "SHAPE", 0},
+        {-64, 63, 0, "GAIN", 0}, {0, 1, 0, "ROUTE", QE_BEFAFT}, {0, 127, 0, "BITS", 0}, {0, 127, 0, "SRR", 0},
+        {0, 1, 1, "ROUTE", QE_BEFAFT}};
+    static const qe_val_t M[3] = {{0, 8, 0, "SOURCE", 0}, {0, (int16_t)(QD_N - 1), 0, "DEST", 0},
+                                  {-127, 127, 0, "DEPTH", 0}};
+    static const qe_val_t Z = {0, 0, 0, "?", 0};
+    if (i >= QD_QP_AMOD && i < QD_QP_MOD0)
+        return T[i - QD_QP_AMOD];
+    if (i >= QD_QP_MOD0 && i < QD_QUAD_NP)
+        return M[(i - QD_QP_MOD0) % 3];
+    return Z;
+}
+static void qe_defaults(int16_t *p)
+{
+    int i;
+    for (i = QD_QP_AMOD; i < QD_QUAD_NP; i++)
+        p[i] = qe_val(i).def;
+}
+int qd_quad_ext_used(const int16_t *p)
+{
+    int i;
+    for (i = QD_QP_AMOD; i < QD_QUAD_NP; i++)
+        if (p[i] != qe_val(i).def)
+            return 1;
+    return 0;
+}
+
 /* ---------------------------------------------------------------- the owner --- */
 void qd_quad_owner_init(qd_quad_owner_t *o)
 {
     memset(o, 0, sizeof *o);
     o->p[P_VOICE] = V_POLY;
     o->bpm = 120;
+    o->last_pitch = -1;                                 /* (E1: no note yet: no glide) */
 }
 
 void qd_quad_owner_block(qd_quad_owner_t *o)
@@ -70,6 +113,7 @@ void qd_quad_voice_init(qd_quad_voice_t *v, uint32_t idx)
 {
     memset(v, 0, sizeof *v);
     quad_init_patch(v->patch);
+    qe_defaults(v->patch);
     ((quad_voice_t *)(void *)v->qstate)->idx = idx;
 }
 
@@ -87,9 +131,12 @@ void qd_quad_voice_start(qd_quad_voice_t *v, const int16_t *patch, qd_quad_owner
     v->gate = v->active = 1;
     v->kill = 0;
     v->pitch16 = v->pitch_cur = (int32_t)note * 16;
+    v->gstep = 0;                                       /* (E1: no glide unless qd_quad_voice_glide says so) */
     o->m_v = v;
-    if (!sounding)
+    if (!sounding) {
         v->env = v->env_out = 0;
+        memset(&v->dpre, 0, sizeof v->dpre);            /* (E1: DRIVE PRE from rest) */
+    }
     song.g[G_BPM] = o->bpm;
     quad_note_on(o, v);
 }
@@ -104,13 +151,38 @@ void qd_quad_voice_legato(qd_quad_voice_t *v, int note, int vel)
     note = note < 0 ? 0 : note > 127 ? 127 : note;
     vel = vel < 1 ? 1 : vel > 127 ? 127 : vel;
     v->note = (uint8_t)note;
-    v->pitch16 = v->pitch_cur = (int32_t)note * 16;   /* (no glide: QUADRILLE has none yet) */
+    {   /* E1: PORT on (a TIE is held: LEGATO too): the glide from where the voice is; off: at once (as before) */
+        const int from = v->pitch_cur;
+        v->pitch16 = v->pitch_cur = (int32_t)note * 16;
+        v->gstep = 0;
+        if (v->patch[QD_QP_PORT])
+            qd_quad_voice_glide(v, from);
+    }
     v->mvel = (uint8_t)vel;
     if (vel > v->vel)
         v->vel = (uint8_t)vel;
     v->gate = 1;
     song.g[G_BPM] = v->owner->bpm;
     quad_legato(v->owner, v);
+}
+
+/* E1: the glide from pitch from to the note: TIME (PSLOPE 0) 1 + PTIM^2 / 8 blocks whatever the interval, RATE (1) a
+ * fixed speed (QE_GLRATE); ChoralRoot's voice.c glide_set / its control tick */
+void qd_quad_voice_glide(qd_quad_voice_t *v, int from)
+{
+    int32_t d, ticks;
+    v->gstep = 0;
+    if (from < 0 || !v->patch[QD_QP_PORT] || from == v->pitch16) {
+        v->pitch_cur = v->pitch16;
+        return;
+    }
+    v->pitch_cur = clamp(from, 0, 127 * 16);
+    if (!v->patch[QD_QP_PSLOPE]) {
+        d = v->pitch16 - v->pitch_cur;
+        d = d < 0 ? -d : d;
+        ticks = 1 + v->patch[QD_QP_PTIM] * v->patch[QD_QP_PTIM] / 8;
+        v->gstep = d / ticks > 0 ? d / ticks : 1;
+    }
 }
 
 void qd_quad_voice_kill(qd_quad_voice_t *v)
@@ -140,6 +212,12 @@ int qd_quad_voice_render(qd_quad_voice_t *v, int32_t *out)
     memset(&m, 0, sizeof m);
     m.amp0 = v->env_out;
     m.amp1 = v->env_out = v->kill || v->dip ? 0 : 32767;   /* (QUADRILLE's dip: to 0 and on, PLAN §5) */
+    if (v->pitch_cur != v->pitch16) {                   /* E1: the glide, a step a block (voice.c's control tick) */
+        const int32_t d = v->pitch16 - v->pitch_cur;
+        int32_t st = v->gstep ? v->gstep : (int32_t)QE_GLRATE[v->patch[QD_QP_PTIM] & 127];
+        st = st < 1 ? 1 : st;
+        v->pitch_cur += d > 0 ? (d < st ? d : st) : (-d < st ? d : -st);
+    }
     m.pitch16 = v->pitch_cur;
     m.inc = pitch_inc((uint32_t)m.pitch16);
     m.shape = 64 << 8;
@@ -185,6 +263,7 @@ void qd_quad_dist(qd_dist_t *st, int drive, int32_t *b, int n)
 /* ---------------------------------------------------------------- patches --- */
 void qd_quad_preset_patch(int k, int16_t *p)
 {
+    qe_defaults(p);                                     /* (E1: the values 74..: today's sound) */
     if (k <= 0 || k > (int)QUAD_NPRESETS) {
         quad_init_patch(p);
         p[QD_QP_DRIVE] = 0;
@@ -200,20 +279,66 @@ const char *qd_quad_preset_name(int k)
     return k <= 0 || k > (int)QUAD_NPRESETS ? "INIT" : QUAD_PRESETS[k - 1].name;
 }
 
-void qd_quad_pack(const int16_t *p, uint8_t *blob)
+void qd_quad_pack5(const int16_t *p, uint8_t *blob)
 {
     quad_pack(p, blob);
     blob[QUAD_V5_LEN] = (uint8_t)clamp(p[QD_QP_DRIVE], 0, 127);   /* P1.4a: DRIVE after version 5's values */
 }
-int qd_quad_unpack(const uint8_t *blob, int16_t *p)
+/* E1: version 6: version 5's values, DRIVE at 87, then the values 74.. a byte each (value - min), zeros to 128 */
+void qd_quad_pack(const int16_t *p, uint8_t *blob)
+{
+    int i, o = (int)QUAD_V5_LEN + 1;
+    qd_quad_pack5(p, blob);
+    blob[1] = 6;
+    for (i = QD_QP_AMOD; i < QD_QUAD_NP; i++) {
+        const qe_val_t r = qe_val(i);
+        blob[o++] = (uint8_t)(clamp(p[i], r.min, r.max) - r.min);
+    }
+    while (o < QD_QUAD_BLOB)
+        blob[o++] = 0;
+}
+int qd_quad_unpack(const uint8_t *blob, int n, int16_t *p)
 {
     uint8_t b[QUAD_BLOB];
-    int ok;
+    int ok, i, o;
+    if (n < (int)QUAD_BLOB || !blob) {
+        quad_init_patch(p);
+        qe_defaults(p);
+        p[QD_QP_DRIVE] = 0;
+        return 0;
+    }
     memcpy(b, blob, sizeof b);
-    if (b[0] == QUAD_MAGIC && b[1] == QUAD_VER)
+    if (b[0] == QUAD_MAGIC && b[1] == 6u) {             /* E1: version 6 */
+        if (n < QD_QUAD_BLOB)
+            b[0] = 0;                                   /* (cut short: not a blob) */
+        b[1] = QUAD_VER;
+        for (i = (int)QUAD_V5_LEN; i < (int)QUAD_BLOB; i++)
+            b[i] = 0;
+    } else if (b[0] == QUAD_MAGIC && b[1] == QUAD_VER) {
         b[QUAD_V5_LEN] = 0;                             /* (DRIVE: not FM TONE's; the rest must be zeros) */
+    }
     ok = quad_unpack(b, p);
-    p[QD_QP_DRIVE] = (int16_t)(ok && blob[1] == QUAD_VER && blob[QUAD_V5_LEN] <= 127 ? blob[QUAD_V5_LEN] : 0);
+    qe_defaults(p);
+    p[QD_QP_DRIVE] = (int16_t)(ok && (blob[1] == QUAD_VER || blob[1] == 6u) && blob[QUAD_V5_LEN] <= 127
+                                   ? blob[QUAD_V5_LEN] : 0);
+    if (ok && blob[1] == 6u) {
+        o = (int)QUAD_V5_LEN + 1;
+        for (i = QD_QP_AMOD; i < QD_QUAD_NP; i++, o++) {
+            const qe_val_t r = qe_val(i);
+            if (blob[o] > (uint32_t)(r.max - r.min))
+                ok = 0;
+            else
+                p[i] = (int16_t)(blob[o] + r.min);
+        }
+        for (; o < QD_QUAD_BLOB; o++)
+            if (blob[o])
+                ok = 0;
+        if (!ok) {
+            quad_init_patch(p);
+            qe_defaults(p);
+            p[QD_QP_DRIVE] = 0;
+        }
+    }
     return ok;
 }
 
@@ -232,6 +357,17 @@ const char *qd_quad_value_text(int i, int v, char *buf)
     uint32_t pg, c;
     int32_t a;
     buf[0] = 0;
+    if (i >= QD_QP_AMOD && i < QD_QUAD_NP) {             /* E1: the values 74.. */
+        const qe_val_t r = qe_val(i);
+        if (r.names && v >= r.min && v <= r.max)
+            return strcpy(buf, r.names[v - r.min]);
+        if (i == QD_QP_HOLD && v >= 127)
+            return strcpy(buf, "NOTE");
+        if (i >= QD_QP_MOD0 && (i - QD_QP_MOD0) % 3 == QD_QM_DST)
+            return strcpy(buf, v >= 0 && v < (int)QD_N ? N_QUAD_DEST[v] : "?");
+        snprintf(buf, 12, r.min < 0 && v > 0 ? "+%d" : "%d", v);
+        return buf;
+    }
     if (i == QD_QP_DRIVE || i == QP_RB1 || i == QP_RB2) {
         if (i != QD_QP_DRIVE && v >= 0 && v < (int)QUAD_NRCB)
             return strcpy(buf, N_QUAD_RCB[v]);
@@ -287,6 +423,8 @@ const char *qd_quad_value_name(int i)
     uint32_t pg, c;
     if (i == QD_QP_DRIVE)
         return "DRIVE";
+    if (i >= QD_QP_AMOD && i < QD_QUAD_NP)              /* E1 */
+        return qe_val(i).name;
     if (i == QP_RB1)
         return "RATIO B1";
     if (i == QP_RB2)
@@ -301,6 +439,16 @@ const char *qd_quad_value_name(int i)
 int qd_quad_value_range(int i, int16_t *min, int16_t *max, int16_t *def)
 {
     quad_rng_t r;
+    if (i >= QD_QP_AMOD && i < QD_QUAD_NP) {             /* E1: the values 74.. */
+        const qe_val_t e = qe_val(i);
+        if (min)
+            *min = e.min;
+        if (max)
+            *max = e.max;
+        if (def)
+            *def = e.def;
+        return 1;
+    }
     if (i == QD_QP_DRIVE) {                             /* P1.4a: 0..127, 0 */
         if (min)
             *min = 0;

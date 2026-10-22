@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // FIZZ P1.5x: tools/fizz_sysex.mjs's STORE frames as FIZZ reads them (core/tests/test_sysex --feed): a preset's pan
-// and sends kept LOAD or not, the optional tags byte (a mask or FIZZ's names; 0 or none: FIZZ's classifier), the
+// and sends kept LOAD or not, E1's STORE6 (the version-6 blob), the optional tags byte (a mask or FIZZ's names; 0 or none: FIZZ's classifier), the
 // library's 256 places, and a frame's bytes where docs/SYSEX.md puts them.
 //
 //   node tools/test_fizz_sysex.mjs TEST_SYSEX
@@ -53,6 +53,21 @@ const feed = (frame) => {
   r = feed(storeSound({ name: "POOLED", blob, pool: true, pan: 5, reverb: 9, tags: ["LEAD"] }));
   check(r.reply && r.reply.status === 0 && r.reply.pool && r.mix.join() === "5,0,0,9" && r.tags === 16,
         `POOL: its preset's mix ${r.mix} and tags ${r.tags} (P1.5w: a reference to a new MY preset)`);
+}
+{   // E1: STORE6, the 128-byte version-6 blob (FIZZ's values 74..: AMOD 1, HOLD 50, PORT ON, PTIM 40, DRIVE AT PRE)
+  const b6 = new Uint8Array(128);
+  b6[0] = 0x51, b6[1] = 6;
+  b6[88] = 1, b6[89] = 50, b6[90] = 1, b6[91] = 40, b6[93] = 1;
+  const f = storeSound({ name: "SIX", blob: b6, drive: 30, tags: 1 });
+  check(f[5] === 0x11 && f.length === 6 + 22 + 147 + 1 + 2, `a 128-byte blob: STORE6, ${f.length} bytes`);
+  const out = execFileSync(exe, ["--feed", (writeFileSync(join(tmp, "six.syx"), f), join(tmp, "six.syx"))], { encoding: "utf8" });
+  const r = parseReply(Uint8Array.from(out.match(/^reply(.*)$/m)[1].trim().split(/\s+/).map((h) => parseInt(h, 16))));
+  const v = ((out.match(/^values (.*)$/m) || [])[1] || "").split(" ").map(Number);
+  check(r && r.status === 0 && v[73] === 30 && v[74] === 1 && v[75] === 50 && v[76] === 1 && v[77] === 40 && v[79] === 1,
+        `STORE6 stored: DRIVE ${v[73]}, AMOD ${v[74]} HOLD ${v[75]} PORT ${v[76]} PTIM ${v[77]} ROUTE ${v[79]}`);
+  const b5 = blob.slice(); b5[1] = 6;
+  const r5 = feed(storeSound({ name: "SHORT SIX", blob: b5 }));
+  check(r5.reply && r5.reply.status !== 0, `a version-6 blob in a STORE (96 bytes): refused (${r5.reply && r5.reply.statusName})`);
 }
 console.log(`test_fizz_sysex: ${checks} checks, ${fails} failed`);
 process.exit(fails ? 1 : 0);

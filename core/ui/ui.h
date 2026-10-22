@@ -634,9 +634,14 @@ void ui_menu_draw(const ui_menu_t *v);
  *   BAND      the base-width band (a high-pass at BASE, a low-pass WIDTH above), KTRK a slant
  *   DRIVE     LEVEL a fader; DRIVE a sine through the saturation (the input grey, the output shaped)
  *   LFO       the wave (its shape from the WAVE page) at its speed, its depth (a negative one upside down), the fade
- *   LFOSHAPE  the wave over three notes, restarting by its TRIG mode, the start PHASE a dot */
+ *   LFOSHAPE  the wave over three notes, restarting by its TRIG mode, the start PHASE a dot
+ *   PORT      (E1) two note bars, the second higher, the pitch gliding between them as long as TIME (OFF a hard step;
+ *             LEGATO the bars overlapping); SLOPE a ghost glide of a smaller interval: TIME the same length, RATE the
+ *             same slant
+ * (E1: AMP in AHD (ALGORITHM MODE): attack, a flat top as long as HOLD (NOTE: over a note bar, to its end), the decay
+ * to 0; LEVEL's ROUTE: a FILTER / DRIVE chain in its order) */
 enum { UI_SD_ALGO, UI_SD_TONE, UI_SD_OFS, UI_SD_OPENV, UI_SD_TRIG, UI_SD_KEYS, UI_SD_FILTER, UI_SD_ADSR, UI_SD_BAND,
-       UI_SD_DRIVE, UI_SD_LFO, UI_SD_LFOSHAPE };
+       UI_SD_DRIVE, UI_SD_LFO, UI_SD_LFOSHAPE, UI_SD_PORT };
 typedef struct ui_snd {
     const char *name;                   /* the page's ("RATIO", "ENV A") */
     int npg, ipg;                       /* its group's pages, this one's place (the dots in the head) */

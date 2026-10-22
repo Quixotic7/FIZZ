@@ -12,8 +12,10 @@ void qd_pool_init(qd_pool_t *p, int nvoice)
     int i;
     memset(p, 0, sizeof *p);
     p->nvoice = nvoice < 1 ? 1 : nvoice > QD_POOL_MAX ? QD_POOL_MAX : nvoice;
-    for (i = 0; i < QD_POOL_MAX; i++)
+    for (i = 0; i < QD_POOL_MAX; i++) {
         qd_quad_voice_init(&p->v[i].q, (uint32_t)i);
+        p->v[i].pend_gfrom = -1;
+    }
     for (i = 0; i < QD_POOL_NTRACK; i++)
         p->limit[i] = QD_POOL_LIMIT_MAX;
     p->dip_on = 1;
@@ -68,6 +70,10 @@ static void start(qd_pool_t *p, int i, int track, qd_quad_owner_t *o, int note, 
         set_at(&v->at, at);
     v->track = (uint8_t)track;
     qd_quad_voice_start(&v->q, patch, o, note, vel);
+    if (v->pend_gfrom >= 0) {                           /* (E1: the glide settled while it waited) */
+        qd_quad_voice_glide(&v->q, v->pend_gfrom);
+        v->pend_gfrom = -1;
+    }
     v->age = ++p->clock;
     v->serial++;
     p->starts++;
@@ -90,6 +96,7 @@ static int take(qd_pool_t *p, int i, int track, qd_quad_owner_t *o, int note, in
     v->pend_note = (uint8_t)note;
     v->pend_vel = (uint8_t)vel;
     v->pend_off = 0;
+    v->pend_gfrom = -1;
     memcpy(v->pend_patch, patch, sizeof v->pend_patch);
     set_at(&v->pend_at, at);
     return i;
@@ -257,9 +264,17 @@ void qd_pool_kill_all(qd_pool_t *p)
     }
 }
 
+static void glide_settle(qd_pool_t *p, qd_quad_owner_t *o);
 void qd_pool_block_begin(qd_pool_t *p)
 {
     int i;
+    for (i = 0; i < p->nvoice; i++) {                   /* (E1: the chords started since: their glides first) */
+        qd_pool_voice_t *v = &p->v[i];
+        if (v->pend && v->pend_owner && v->pend_owner->cc_n)
+            glide_settle(p, v->pend_owner);
+        if (v->q.active && v->q.owner && v->q.owner->cc_n)
+            glide_settle(p, v->q.owner);
+    }
     for (i = 0; i < p->nvoice; i++) {
         qd_pool_voice_t *v = &p->v[i];
         if (v->pend && !v->q.active) {                  /* its fade has been rendered: the note starts */
@@ -295,6 +310,8 @@ int qd_pool_is_dip_id(int id)
     int k;
     if (id == QD_QP_ALGO || id == QD_QP_FTYPE || id == QD_QP_PHRT)
         return 1;
+    if (id == QD_QP_AMOD || id == QD_QP_DRPRE || id == QD_QP_BWPOST || id == QD_QP_CRPOST)
+        return 1;                                       /* (E1..E3: a routing change) */
     for (k = 0; k < 3; k++)
         if (id == QD_QP_LFO(k, QD_QL_WAVE) || id == QD_QP_LFO(k, QD_QL_TRIG))
             return 1;
@@ -374,4 +391,88 @@ int qd_pool_legato(qd_pool_t *p, int i, int note, int vel)
     v->age = ++p->clock;
     p->legatos++;
     return 1;
+}
+
+/* ---------------------------------------------------------------- E1: portamento's starts --- */
+int qd_pool_gated(const qd_pool_t *p, int track)
+{
+    int i;
+    for (i = 0; i < p->nvoice; i++)
+        if (sounding(&p->v[i]) && p->v[i].track == track && p->v[i].q.gate)
+            return 1;
+    return 0;
+}
+
+/* owner o's chord (o->cc) settled: each note's start by rank against the last chord (o->lc), a lone note from the track's
+ * last note; then it is the last chord */
+static void glide_settle(qd_pool_t *p, qd_quad_owner_t *o)
+{
+    int n = o->cc_n, k, j, ord[8];
+    if (!n)
+        return;
+    for (k = 0; k < n; k++)                             /* the chord's notes low to high (ties: as they came) */
+        ord[k] = k;
+    for (k = 1; k < n; k++)
+        for (j = k; j > 0 && o->cc[ord[j]] < o->cc[ord[j - 1]]; j--) {
+            const int x = ord[j];
+            ord[j] = ord[j - 1];
+            ord[j - 1] = x;
+        }
+    for (k = 0; k < n; k++) {
+        const int e = ord[k], i = o->cc_slot[e], note = o->cc[e];
+        qd_pool_voice_t *v = &p->v[i];
+        const int16_t *pt = v->pend ? v->pend_patch : v->q.patch;
+        int from = -1;
+        if (i >= p->nvoice)
+            continue;
+        if (n == 1 || !o->lc_n) {
+            from = o->last_pitch;
+        } else if (k < o->lc_n) {
+            from = o->lc[k];
+        } else {                                        /* (one more than the last chord had: the nearest) */
+            int best = 0, b;
+            for (b = 1; b < o->lc_n; b++)
+                if ((o->lc[b] - note * 16 < 0 ? note * 16 - o->lc[b] : o->lc[b] - note * 16) <
+                    (o->lc[best] - note * 16 < 0 ? note * 16 - o->lc[best] : o->lc[best] - note * 16))
+                    best = b;
+            from = o->lc[best];
+        }
+        if (!pt[QD_QP_PORT] || (pt[QD_QP_PORT] == QD_PORT_LEGATO && !o->cc_held))
+            from = -1;
+        if (v->pend && v->pend_owner == o && v->pend_note == note)
+            v->pend_gfrom = (int16_t)from;
+        else if (v->q.active && v->q.owner == o && v->q.note == note)
+            qd_quad_voice_glide(&v->q, from);
+    }
+    for (k = 0; k < n; k++)
+        o->lc[k] = (int16_t)(o->cc[ord[k]] * 16);
+    o->lc_n = (uint8_t)n;
+    o->last_pitch = o->lc[n - 1];                       /* (a lone note next glides from the chord's top) */
+    o->cc_n = 0;
+}
+
+void qd_pool_glide_note(qd_pool_t *p, int i, qd_quad_owner_t *o, const void *key, int64_t tick, int held)
+{
+    const qd_pool_voice_t *v;
+    if (!o || i < 0 || i >= p->nvoice)
+        return;
+    v = &p->v[i];
+    if (o->cc_n && (!key || key != o->cc_key || tick != o->cc_tick || o->cc_n >= 8))
+        glide_settle(p, o);                             /* (another chord: the one before settles first) */
+    if (!o->cc_n) {
+        o->cc_key = key;
+        o->cc_tick = tick;
+        o->cc_held = (uint8_t)(held != 0);
+    }
+    o->cc[o->cc_n] = (uint8_t)(v->pend ? v->pend_note : v->q.note);
+    o->cc_slot[o->cc_n++] = (uint8_t)i;
+}
+
+void qd_pool_glide_tie(qd_pool_t *p, qd_quad_owner_t *o, int note)
+{
+    if (!o)
+        return;
+    glide_settle(p, o);
+    o->lc[0] = o->last_pitch = (int16_t)((note & 127) * 16);
+    o->lc_n = 1;
 }

@@ -3036,18 +3036,28 @@ static void g_snd(void)
     int seen[QD_QUAD_NP], i, k, ok = 1, a0, d0;
     static ui_snd_t sv;
     memset(seen, 0, sizeof seen);
-    for (i = 0; i < QD_SND_NPAGE; i++)
-        for (k = 0; k < 5; k++)
-            if (QD_SND_PAGES[i].id[k] >= 0) {
-                seen[QD_SND_PAGES[i].id[k]]++;
-                if (QD_SND_PAGES[i].id[k] == QD_QP_RB1)   /* (P1.5i: RATIO B, the pair: B1 and B2 in one) */
+    for (i = 0; i < QD_SND_NPAGE; i++) {
+        int on[QD_QUAD_NP];                             /* (E1: a page's ids and its alt ids, each once) */
+        memset(on, 0, sizeof on);
+        for (k = 0; k < 10; k++) {
+            const int id = k < 5 ? QD_SND_PAGES[i].id[k] : QD_SND_PAGES[i].alt_if ? QD_SND_PAGES[i].alt[k - 5] : -1;
+            if (id >= 0)
+                on[id] = 1;
+        }
+        for (k = 0; k < QD_QUAD_NP; k++)
+            if (on[k]) {
+                seen[k]++;
+                if (k == QD_QP_RB1)                     /* (P1.5i: RATIO B, the pair: B1 and B2 in one) */
                     seen[QD_QP_RB2]++;
-                if (QD_SND_PAGES[i].id[k] == QD_QP_MIX && !strcmp(QD_SND_PAGES[i].name, "TONE"))
+                if (k == QD_QP_MIX && !strcmp(QD_SND_PAGES[i].name, "TONE"))
                     seen[QD_QP_MIX]--;                  /* (P1.5n: the one exception: MIX on RATIO and on TONE) */
             }
+    }
     for (i = 0; i < QD_QUAD_NP; i++)
-        ok &= seen[i] == 1;
-    CHECK(ok, "every one of the sound's %d values on exactly one page (RATIO B the pair B1 / B2)", QD_QUAD_NP);
+        if (i < QD_QP_FSHAPE || i == QD_QP_DRPRE)       /* (E1: the values of E2..E4 get their pages there) */
+            ok &= seen[i] == 1;
+    CHECK(ok, "every one of the sound's %d values on exactly one page (RATIO B the pair B1 / B2; E2..E4's to come)",
+          QD_QP_FSHAPE);
     start();
     wtap(0);
     btap(QD_B_SOUND);
@@ -4238,7 +4248,7 @@ static void g_p15k_lfo(void)
 static void g_p15l_groups(void)
 {
     static const char *const FIRST[8] = {"TRIG", "RATIO", "ENV A", "FILTER", "AMP", "LFO 1", "LFO 2", "LFO 3"};
-    static const char *const ORDER[QD_SND_NPAGE] = {"TRIG", "KEYS", "RATIO", "TONE", "OFFSET", "ENV A", "ENV B",
+    static const char *const ORDER[QD_SND_NPAGE] = {"TRIG", "KEYS", "PORT", "RATIO", "TONE", "OFFSET", "ENV A", "ENV B",
         "FILTER", "F ENV", "BASE", "AMP", "LEVEL", "LFO 1", "LFO 1 WAVE", "LFO 2", "LFO 2 WAVE", "LFO 3", "LFO 3 WAVE"};
     static ui_snd_t sv;
     int b, ok = 1, p;
@@ -4254,12 +4264,16 @@ static void g_p15l_groups(void)
     black(B1);
     black(B1);
     qd_view_snd(&A, &sv);
-    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "KEYS") && sv.npg == 2 && sv.ipg == 1, "B1 again: KEYS (two dots)");
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "KEYS") && sv.npg == 3 && sv.ipg == 1,
+          "B1 again: KEYS (three dots: E1's PORT)");
+    black(B1);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "PORT"), "B1 again: PORT (E1)");
     black(B1);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TRIG"), "B1 again: round to TRIG");
     for (ok = 1, p = 0; p < QD_SND_NPAGE; p++)
         ok &= !strcmp(QD_SND_PAGES[p].name, ORDER[p]);
-    CHECK(ok, "SELECT's order: TRIG KEYS RATIO TONE OFFSET ENV A ENV B FILTER F ENV BASE AMP LEVEL LFO 1 .. LFO 3 WAVE");
+    CHECK(ok, "SELECT's order: TRIG KEYS PORT RATIO TONE OFFSET ENV A ENV B FILTER F ENV BASE AMP LEVEL LFO 1 .. LFO 3 "
+          "WAVE");
     A.ui.snd_page = qd_snd_page_of("LEVEL");
     turn(QD_K_SELECT, 1);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 1"), "SELECT from LEVEL: LFO 1");

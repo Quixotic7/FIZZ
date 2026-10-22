@@ -18,7 +18,10 @@
  *       reads the owner's offsets), the editor's screens, QUAD_DEEP and ENG_QUAD. The page table (QUAD_PAGES) stays:
  *       it is where the ranges and the init patch come from;
  *   (d) one memory-safety guard that changes no result: quad_bwk no longer reads one entry past QUAD_BW_K when BASE is
- *       at its top (the value read was multiplied by 0). */
+ *       at its top (the value read was multiplied by 0);
+ *   (e) FIZZ's extensions (research/FMTONE-DN2-PLAN.md; quad_ext.c, included after this file): calls at marked hook
+ *       points, each behind its feature's test (every new value at its default: this file's code alone, as
+ *       ChoralRoot's): the amp envelope (AHD), before the multimode filter (DRIVE PRE), quad_endless (AHD). */
 /* QUAD (FM TONE on the device): a Digitone-style four-operator FM voice (ChoralRoot, FELUCCA_QUAD; docs/QUAD.md).
  * Our own code: no Elektron code; the routings, the B LEV law, the HARM series, the ranges are from the Digitone
  * manual (OS 1.44, §11.3-11.12, §9.5, Appendix A, C), the curves where it gives none (DTUN, FDBK, key scaling, the
@@ -400,6 +403,10 @@ typedef struct {
 } quad_voice_t;
 #define QUAD_FON_NEW 0xFFu
 #define QUAD_MIX_NEW (-128)
+/* QUADRILLE (e): FIZZ's extensions (quad_ext.c, after this file) */
+static int32_t quad_ext_ahd(quad_voice_t *s, int32_t atk, int32_t hold, int32_t dec, int gate);
+static void quad_ext_adsr_back(quad_voice_t *s);
+static void quad_ext_drive_pre(track_t *t, voice_t *v, int32_t *b, uint32_t n);
 /* QUADRILLE (c): no quad_vs (the state is in the voice: voice_t.qstate) and no quad_tr (no part index) */
 
 static void quad_init_patch(int16_t *p)
@@ -975,6 +982,8 @@ static int quad_endless(const track_t *t, const voice_t *v)
 {
     const quad_voice_t *s = (const quad_voice_t *)(const void *)v->qstate;   /* QUADRILLE (a, c): the voice's */
     (void)t;
+    if (v->patch[QD_QP_AMOD])                    /* QUADRILLE (e): AHD: its DEC at INF holds the level for ever */
+        return s && s->live && s->stage[3] && v->patch[QP_EDEC] >= 127;
     return s && s->live && s->stage[3] && (v->patch[QP_EREL] >= 127 || s->stage[3] == 5u);
 }
 
@@ -1233,8 +1242,15 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     eF = quad_env_tick(s, 2, QMV(QP_FATK, QD_FATK, 127, 0, 127), QMV(QP_FDEC, QD_FDEC, 127, 0, 127),
                        QMV(QP_FSUS, QD_FSUS, 127, 0, 127) << 17, QMV(QP_FREL, QD_FREL, 127, 0, 127),
                        QMV(QP_FDLY, QD_FDLY, 127, 0, 127), v->gate, 1);
-    eE = quad_env_tick(s, 3, QMV(QP_EATK, QD_EATK, 127, 0, 127), QMV(QP_EDEC, QD_EDEC, 127, 0, 127),
-                       QMV(QP_ESUS, QD_ESUS, 127, 0, 127) << 17, QMV(QP_EREL, QD_EREL, 127, 0, 127), 0, v->gate, 1);
+    if (p[QD_QP_AMOD]) {                         /* QUADRILLE (e), hook 1: the amp envelope in AHD */
+        eE = quad_ext_ahd(s, QMV(QP_EATK, QD_EATK, 127, 0, 127), p[QD_QP_HOLD], QMV(QP_EDEC, QD_EDEC, 127, 0, 127),
+                          v->gate);
+    } else {
+        if (s->stage[3] >= 6u)                   /* (QUADRILLE (e): back from AHD mid-note) */
+            quad_ext_adsr_back(s);
+        eE = quad_env_tick(s, 3, QMV(QP_EATK, QD_EATK, 127, 0, 127), QMV(QP_EDEC, QD_EDEC, 127, 0, 127),
+                           QMV(QP_ESUS, QD_ESUS, 127, 0, 127) << 17, QMV(QP_EREL, QD_EREL, 127, 0, 127), 0, v->gate, 1);
+    }
     if (v == t->m_v)                             /* the part's PAN: from the latest note's voice (QUADRILLE (b): the
                                                   * owner's latest voice, its offsets) */
     {
@@ -1435,6 +1451,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
      * products rounded: truncation's bias, integrated, was DC), the soft knee after it. Switched in (its envelope or
      * an LFO bringing a wide-open LP down): its states start at the input (the LP's at the input, the band's at 0)
      * and its output fades in over the block; switched out: its last block fades out to the input */
+    if (p[QD_QP_DRPRE])                          /* QUADRILLE (e), hook 2: DRIVE before the filter */
+        quad_ext_drive_pre(t, v, acc, n);
     if ((fon | fon0) & 1u) {
         int32_t ic1 = s->f1, ic2 = s->f2, ic3 = s->f3, ic4 = s->f4;
         uint32_t sw = (fon ^ fon0) & 1u;

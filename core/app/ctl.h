@@ -541,13 +541,17 @@ const qd_lockscreen_t *qd_ctl_lock_screen(const struct qd_app *a);
 enum { QD_SG_TRIG, QD_SG_OPS, QD_SG_OPENV, QD_SG_FILTER, QD_SG_AMP, QD_SG_LFO1, QD_SG_LFO2, QD_SG_LFO3,
        QD_NSG };                       /* P1.5l: a group a black key, B1..B8 */
 int qd_snd_page_of(const char *name);   /* P1.5l: a page's index by its name ("FILTER"; 0 none) */
-#define QD_SND_START_PAGE 2            /* P1.5l: a fresh start: RATIO (B2), the sound's first page */
-#define QD_SND_NPAGE 18
+/* E1: page's ids on KNOB 1..4 and ALGORITHM as they are now (the held step's value, else the track's: AMP in AHD) */
+const int8_t *qd_snd_ids(const struct qd_app *a, int page);
+#define QD_SND_START_PAGE 3            /* P1.5l: a fresh start: RATIO (B2), the sound's first page (E1: after PORT) */
+#define QD_SND_NPAGE 19
 typedef struct {
     const char *name;
     uint8_t group, draw;
     int8_t id[5];
     uint8_t arg;
+    uint8_t alt_if;                    /* E1: a value (0 none) that, not 0, puts alt on the knobs (AMP's AHD) */
+    int8_t alt[5];
 } qd_sndpage_t;
 extern const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE];
 extern const char *const QD_SND_GROUP_NAME[QD_NSG];
@@ -563,7 +567,7 @@ void qd_snd_lfo_key(struct qd_app *a, int n, int down);   /* P1.5k: B6..B8 (n 0.
                                                          * knob's value its destination, the depth */
 int qd_snd_knob(struct qd_app *a, int knob, int d);   /* 1: taken */
 void qd_snd_leds(const struct qd_app *a, uint8_t *black);   /* the eleven black keys' LEDs */
-const qd_lockscreen_t *qd_snd_lock_screen(int page);
+const qd_lockscreen_t *qd_snd_lock_screen(const struct qd_app *a, int page);
 
 /* ---- ctl_mix.c (P1.4b, built through ctl_latch.c): the track settings, the mix, the effects. The effects' pages: a
  * cell is a qd_fx.h parameter, QD_FXC_SEND (the selected track's send into the page's effect), QD_FXC_TIME /

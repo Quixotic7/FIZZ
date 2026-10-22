@@ -21,6 +21,9 @@
  *        becomes its one tag
  *   SND / LIB  (P1.5x) 'S' 4: as 'S' 3, then its mix: pan (-64..63), chorus, delay, reverb; an older record: no
  *        sends, pan centre (a factory preset's are its table's)
+ *   PAT / SND / LIB  (E1) 'P' 3 and 'S' 5: the packed patches are version-6 blobs (QD_QUAD_BLOB, 128 bytes: the values
+ *        74..); 'P' 1..2 and 'S' 1..4 carry 96-byte blobs (their values 74.. at their defaults), and a 'P' 1..2's lock
+ *        ids of the mix (74..78 then) move up past the new values (QD_LK_PAN ..)
  *   FTAG 'F' 1, the factory presets' tags as the owner set them (QD_NFACTORY bytes: 0x80 | tags, 0 the classifier's);
  *        in the library's store. P1.5w: 'F' 2, then the next MY preset id (u16)
  *   SND  (P1.5w) 'R' 1, a pool slot's preset id (u16): THE POOL HOLDS REFERENCES. An 'S' record in the pool (0.7.2 and
@@ -53,7 +56,7 @@ static uint32_t ser_pat(const qd_pattern_t *p, uint8_t *b)
 {
     uint32_t o = 0;
     int t, pg, s;
-    b[o++] = 'P', b[o++] = 2;
+    b[o++] = 'P', b[o++] = 3;
     b[o++] = (uint8_t)sizeof(qd_step_t), b[o++] = (uint8_t)sizeof(qd_tset_t);
     memcpy(b + o, &p->master, 2), o += 2;
     b[o++] = p->swing, b[o++] = p->used;
@@ -96,7 +99,7 @@ static int de_pat(qd_pattern_t *p, const uint8_t *b, uint32_t len)
 {
     uint32_t o = 0;
     int t, pg, s, v;
-    if (len < 4 || b[0] != 'P' || (b[1] != 1 && b[1] != 2) || b[2] != sizeof(qd_step_t) || b[3] != sizeof(qd_tset_t))
+    if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 3 || b[2] != sizeof(qd_step_t) || b[3] != sizeof(qd_tset_t))
         return 0;
     v = b[1];
     o = 4;
@@ -126,11 +129,18 @@ static int de_pat(qd_pattern_t *p, const uint8_t *b, uint32_t len)
         }
     }
     memcpy(p->lock, b + o, (size_t)p->nlock * sizeof(qd_lock_t)), o += (uint32_t)p->nlock * sizeof(qd_lock_t);
+    if (v < 3) {                                        /* (E1: the mix's lock ids past the new values) */
+        int k;
+        for (k = 0; k < p->nlock; k++)
+            if (p->lock[k].id >= QD_QUAD_NP5)
+                p->lock[k].id = (uint8_t)(p->lock[k].id + (QD_QUAD_NP - QD_QUAD_NP5));
+    }
     for (t = 0; t < QD_PAT_NTRACK; t++) {
-        if (o + QD_QUAD_BLOB + 2 + QD_SOUND_NAME + (v >= 2 ? 2u : 0u) > len)
+        const uint32_t bl = v >= 3 ? QD_QUAD_BLOB : QD_QUAD_BLOB5;
+        if (o + bl + 2 + QD_SOUND_NAME + (v >= 2 ? 2u : 0u) > len)
             return 0;
         memset(&p->snd[t], 0, sizeof p->snd[t]);
-        qd_quad_unpack(b + o, p->snd[t].patch), o += QD_QUAD_BLOB;
+        qd_quad_unpack(b + o, (int)bl, p->snd[t].patch), o += bl;
         p->snd[t].sound = b[o++], p->snd[t].edited = b[o++];
         memcpy(p->snd[t].name, b + o, QD_SOUND_NAME), o += QD_SOUND_NAME;
         p->snd[t].name[QD_SOUND_NAME - 1] = 0;
@@ -147,7 +157,7 @@ static uint32_t ser_snd(const qd_sound_t *s, uint8_t *b)
         b[0] = 'E', b[1] = 1;
         return 2;
     }
-    b[0] = 'S', b[1] = 4;
+    b[0] = 'S', b[1] = 5;
     memcpy(b + 2, s->name, QD_SOUND_NAME);
     qd_quad_pack(s->patch, b + 2 + QD_SOUND_NAME);
     memcpy(b + o, &s->preset, 2), o += 2;               /* P1.5t */
@@ -160,19 +170,20 @@ static uint32_t ser_snd(const qd_sound_t *s, uint8_t *b)
 static int de_snd_v1;
 static int de_snd(qd_sound_t *s, const uint8_t *b, uint32_t len)
 {
-    const uint32_t n1 = 2 + QD_SOUND_NAME + QD_QUAD_BLOB;
+    const uint32_t bl = len >= 2 && b[1] >= 5 ? QD_QUAD_BLOB : QD_QUAD_BLOB5;   /* (E1: 'S' 5 a version-6 blob) */
+    const uint32_t n1 = 2 + QD_SOUND_NAME + bl;
     memset(s, 0, sizeof *s);
     de_snd_v1 = 0;
     if (len == 2 && b[0] == 'E' && b[1] == 1)
         return 1;
     if (b[0] != 'S' || !((b[1] == 1 && len == n1) || ((b[1] == 2 || b[1] == 3) && len == n1 + 4) ||
-                         (b[1] == 4 && len == n1 + 8)))
+                         ((b[1] == 4 || b[1] == 5) && len == n1 + 8)))
         return 0;
     memcpy(s->name, b + 2, QD_SOUND_NAME);
     s->name[QD_SOUND_NAME - 1] = 0;
     if (!s->name[0])
         s->name[0] = '?';
-    qd_quad_unpack(b + 2 + QD_SOUND_NAME, s->patch);
+    qd_quad_unpack(b + 2 + QD_SOUND_NAME, (int)bl, s->patch);
     if (b[1] >= 2) {
         memcpy(&s->preset, b + n1, 2);
         if (b[1] >= 3)
@@ -1221,7 +1232,7 @@ static int rec_pat_steps(const uint8_t *b, uint32_t len, const uint8_t *mask)
     uint32_t o;
     int t, pg, s, n = 0;
     uint16_t nlock;
-    if (len < 4 || b[0] != 'P' || (b[1] != 1 && b[1] != 2) || b[2] != sizeof(qd_step_t) || b[3] != sizeof(qd_tset_t))
+    if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 3 || b[2] != sizeof(qd_step_t) || b[3] != sizeof(qd_tset_t))
         return 0;
     o = 4 + 2 + 2 + 2;
     memcpy(&nlock, b + o, 2), o += 2;

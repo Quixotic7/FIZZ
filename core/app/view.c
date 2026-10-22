@@ -1312,6 +1312,7 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     static qd_trec_t r;
     const qd_ui_t *u = &a->ui;
     const qd_sndpage_t *pg = &QD_SND_PAGES[u->snd_page];
+    const int8_t *ids = qd_snd_ids(a, u->snd_page);   /* (E1: AMP in AHD its alt) */
     const int16_t *tp = a->model.t[a->sel].patch, *pp = tp;
     int k, i;
     memset(v, 0, sizeof *v);
@@ -1330,7 +1331,7 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->step = u->held[0] + 1;
     }
     for (k = 0; k < 5; k++) {
-        const int id = pg->id[k];
+        const int id = ids[k];
         int16_t x;
         if (id < 0)
             continue;
@@ -1407,7 +1408,7 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->lk_depth = (float)dep / 6400.f;
         if (v->lk_k < 0)                                /* (not turned yet: the column already mapped, if on this page) */
             for (k = 0; k < 4; k++)
-                if (pg->id[k] >= 0 && dst > 0 && qd_quad_dest_of(pg->id[k], lf) == dst)
+                if (ids[k] >= 0 && dst > 0 && qd_quad_dest_of(ids[k], lf) == dst)
                     v->lk_k = k;
     }
     if (pg->draw == UI_SD_ALGO) {

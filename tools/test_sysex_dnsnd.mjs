@@ -44,12 +44,12 @@ for (const f of files) {
   const vals = ((out.match(/^values (.*)$/m) || [])[1] || "").split(" ").map(Number);
   const got = ((out.match(/^mix (.*)$/m) || [])[1] || "").split(" ").map(Number);
   const want = [...q.values, Math.max(0, Math.min(127, q.drive))];
-  const same = vals.length === 74 && want.every((v, i) => v === vals[i]);
+  const same = vals.length === 110 && want.every((v, i) => v === vals[i]);
   check(reply && reply.kind === "store" && reply.status === 0 && !reply.pool && reply.slot === 1,
         `${f}: the reply ${JSON.stringify(reply)}`);
   check(name === s.name.slice(0, 12).replace(/\s+$/, ""), `${f}: the name "${name}" (the reader's "${s.name}")`);
   check(got.join() === [mix.pan, mix.chorus, mix.delay, mix.reverb].join(), `${f}: its pan and sends kept (${got} / ${JSON.stringify(mix)})`);
-  check(same, `${f}: the values stored = the reader's (${vals.length}; first difference at ${want.findIndex((v, i) => v !== vals[i])})`);
+  check(same, `${f}: the values stored = the reader's (${vals.length} values, the first 74 compared; first difference at ${want.findIndex((v, i) => v !== vals[i])})`);
   console.log(`  ${f.padEnd(28)} -> LIBRARY ${reply && reply.slot}: "${name}", DRIVE ${q.drive}, ${msg.length} bytes`);
 }
 console.log(`test_sysex_dnsnd: ${files.length} presets, ${checks} checks, ${fails} failed`);

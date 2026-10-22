@@ -19,35 +19,40 @@
 const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     /* P1.5l (the owner): the groups on B1..B8, in SELECT's order: B1 TRIG / KEYS (out of OP ENVELOPES), B2 OPERATORS,
      * B3 OP ENVELOPES, B4 FILTERS, B5 ENVELOPES, B6 / B7 / B8 the LFOs (the MODULATION key gone) */
-    {"TRIG", QD_SG_TRIG, UI_SD_TRIG, {QD_QP_ATRIG, QD_QP_ARST, QD_QP_BTRIG, QD_QP_BRST, QD_QP_PHRT}, 0},
-    {"KEYS", QD_SG_TRIG, UI_SD_KEYS, {QD_QP_AKEY, QD_QP_B1KEY, QD_QP_B2KEY, QD_QP_VEL, -1}, 0},
+    {"TRIG", QD_SG_TRIG, UI_SD_TRIG, {QD_QP_ATRIG, QD_QP_ARST, QD_QP_BTRIG, QD_QP_BRST, QD_QP_PHRT}, 0, 0, {0}},
+    {"KEYS", QD_SG_TRIG, UI_SD_KEYS, {QD_QP_AKEY, QD_QP_B1KEY, QD_QP_B2KEY, QD_QP_VEL, -1}, 0, 0, {0}},
+    /* E1 (research/FMTONE-DN2-PLAN.md §7): portamento, in the sound; B1 is PLAY / MOD */
+    {"PORT", QD_SG_TRIG, UI_SD_PORT, {QD_QP_PORT, QD_QP_PTIM, QD_QP_PSLOPE, -1, -1}, 0, 0, {0}},
     /* P1.5i (the owner, as ChoralRoot and the Digitone): RATIO B is one value, the pair (QD_QP_RB1 here stands for it:
      * B1 x 19 + B2, B2 the fast hand; snd_pair), and MIX moved here from TONE */
-    {"RATIO", QD_SG_OPS, UI_SD_ALGO, {QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_MIX, QD_QP_ALGO}, 0},
-    {"TONE", QD_SG_OPS, UI_SD_TONE, {QD_QP_HARM, QD_QP_DTUN, QD_QP_FDBK, QD_QP_MIX, -1}, 0},   /* (P1.5n: MIX here
+    {"RATIO", QD_SG_OPS, UI_SD_ALGO, {QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_MIX, QD_QP_ALGO}, 0, 0, {0}},
+    {"TONE", QD_SG_OPS, UI_SD_TONE, {QD_QP_HARM, QD_QP_DTUN, QD_QP_FDBK, QD_QP_MIX, -1}, 0, 0, {0}},   /* (P1.5n: MIX here
                                                          * too, the one value on two pages) */
-    {"OFFSET", QD_SG_OPS, UI_SD_OFS, {QD_QP_OFSC, QD_QP_OFSA, QD_QP_OFSB1, QD_QP_OFSB2, -1}, 0},
-    {"ENV A", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_AATK, QD_QP_ADEC, QD_QP_AEND, QD_QP_ALEV, QD_QP_ADLY}, 0},
-    {"ENV B", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_BATK, QD_QP_BDEC, QD_QP_BEND, QD_QP_BLEV, QD_QP_BDLY}, 1},
-    {"FILTER", QD_SG_FILTER, UI_SD_FILTER, {QD_QP_FREQ, QD_QP_RESO, QD_QP_FTYPE, QD_QP_FDEPTH, -1}, 0},
-    {"F ENV", QD_SG_FILTER, UI_SD_ADSR, {QD_QP_FATK, QD_QP_FDEC, QD_QP_FSUS, QD_QP_FREL, QD_QP_FDLY}, 0},
-    {"BASE", QD_SG_FILTER, UI_SD_BAND, {QD_QP_BASE, QD_QP_WIDTH, QD_QP_FKTRK, -1, -1}, 0},
-    {"AMP", QD_SG_AMP, UI_SD_ADSR, {QD_QP_EATK, QD_QP_EDEC, QD_QP_ESUS, QD_QP_EREL, -1}, 1},
-    {"LEVEL", QD_SG_AMP, UI_SD_DRIVE, {QD_QP_LEVEL, QD_QP_DRIVE, -1, -1, -1}, 0},
+    {"OFFSET", QD_SG_OPS, UI_SD_OFS, {QD_QP_OFSC, QD_QP_OFSA, QD_QP_OFSB1, QD_QP_OFSB2, -1}, 0, 0, {0}},
+    {"ENV A", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_AATK, QD_QP_ADEC, QD_QP_AEND, QD_QP_ALEV, QD_QP_ADLY}, 0, 0, {0}},
+    {"ENV B", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_BATK, QD_QP_BDEC, QD_QP_BEND, QD_QP_BLEV, QD_QP_BDLY}, 1, 0, {0}},
+    {"FILTER", QD_SG_FILTER, UI_SD_FILTER, {QD_QP_FREQ, QD_QP_RESO, QD_QP_FTYPE, QD_QP_FDEPTH, -1}, 0, 0, {0}},
+    {"F ENV", QD_SG_FILTER, UI_SD_ADSR, {QD_QP_FATK, QD_QP_FDEC, QD_QP_FSUS, QD_QP_FREL, QD_QP_FDLY}, 0, 0, {0}},
+    {"BASE", QD_SG_FILTER, UI_SD_BAND, {QD_QP_BASE, QD_QP_WIDTH, QD_QP_FKTRK, -1, -1}, 0, 0, {0}},
+    /* E1: AMP's MODE on ALGORITHM (ADSR / AHD; in AHD: ATK HOLD DEC); LEVEL's ROUTE (DRIVE before or after the
+     * filter); B5 is AMP / FX */
+    {"AMP", QD_SG_AMP, UI_SD_ADSR, {QD_QP_EATK, QD_QP_EDEC, QD_QP_ESUS, QD_QP_EREL, QD_QP_AMOD}, 1, QD_QP_AMOD,
+     {QD_QP_EATK, QD_QP_HOLD, QD_QP_EDEC, -1, QD_QP_AMOD}},
+    {"LEVEL", QD_SG_AMP, UI_SD_DRIVE, {QD_QP_LEVEL, QD_QP_DRIVE, QD_QP_DRPRE, -1, -1}, 0, 0, {0}},
     /* P1.5k (the owner): an LFO's page SPEED MULT DEPTH DEST (DEST in the menu now, not ALGORITHM's), its WAVE page
      * WAVE PHASE TRIG FADE; ALGORITHM nothing on them (ChoralRoot's LFO has these eight values, no fifth) */
-    {"LFO 1", QD_SG_LFO1, UI_SD_LFO, {L(0, QD_QL_SPEED), L(0, QD_QL_MULT), L(0, QD_QL_DEPTH), L(0, QD_QL_DEST), -1}, 0},
+    {"LFO 1", QD_SG_LFO1, UI_SD_LFO, {L(0, QD_QL_SPEED), L(0, QD_QL_MULT), L(0, QD_QL_DEPTH), L(0, QD_QL_DEST), -1}, 0, 0, {0}},
     {"LFO 1 WAVE", QD_SG_LFO1, UI_SD_LFOSHAPE, {L(0, QD_QL_WAVE), L(0, QD_QL_PHASE), L(0, QD_QL_TRIG), L(0, QD_QL_FADE),
-                                                -1}, 0},
-    {"LFO 2", QD_SG_LFO2, UI_SD_LFO, {L(1, QD_QL_SPEED), L(1, QD_QL_MULT), L(1, QD_QL_DEPTH), L(1, QD_QL_DEST), -1}, 1},
+                                                -1}, 0, 0, {0}},
+    {"LFO 2", QD_SG_LFO2, UI_SD_LFO, {L(1, QD_QL_SPEED), L(1, QD_QL_MULT), L(1, QD_QL_DEPTH), L(1, QD_QL_DEST), -1}, 1, 0, {0}},
     {"LFO 2 WAVE", QD_SG_LFO2, UI_SD_LFOSHAPE, {L(1, QD_QL_WAVE), L(1, QD_QL_PHASE), L(1, QD_QL_TRIG), L(1, QD_QL_FADE),
-                                                -1}, 1},
-    {"LFO 3", QD_SG_LFO3, UI_SD_LFO, {L(2, QD_QL_SPEED), L(2, QD_QL_MULT), L(2, QD_QL_DEPTH), L(2, QD_QL_DEST), -1}, 2},
+                                                -1}, 1, 0, {0}},
+    {"LFO 3", QD_SG_LFO3, UI_SD_LFO, {L(2, QD_QL_SPEED), L(2, QD_QL_MULT), L(2, QD_QL_DEPTH), L(2, QD_QL_DEST), -1}, 2, 0, {0}},
     {"LFO 3 WAVE", QD_SG_LFO3, UI_SD_LFOSHAPE, {L(2, QD_QL_WAVE), L(2, QD_QL_PHASE), L(2, QD_QL_TRIG), L(2, QD_QL_FADE),
-                                                -1}, 2},
+                                                -1}, 2, 0, {0}},
 };
 #undef L
-const char *const QD_SND_GROUP_NAME[QD_NSG] = {"TRIG / KEYS", "OPERATORS", "OP ENVELOPES", "FILTERS", "ENVELOPES",
+const char *const QD_SND_GROUP_NAME[QD_NSG] = {"PLAY / MOD", "OPERATORS", "OP ENVELOPES", "FILTERS", "AMP / FX",
                                                "LFO 1", "LFO 2", "LFO 3"};
 int qd_snd_page_of(const char *name)
 {
@@ -58,35 +63,54 @@ int qd_snd_page_of(const char *name)
     return 0;
 }
 
+const int8_t *qd_snd_ids(const qd_app_t *a, int page)
+{
+    const qd_sndpage_t *pg = &QD_SND_PAGES[page < 0 ? 0 : page >= QD_SND_NPAGE ? QD_SND_NPAGE - 1 : page];
+    int v;
+    if (!pg->alt_if)
+        return pg->id;
+    if (a->ui.nheld) {
+        int16_t x;
+        v = qd_lock_get(qd_ctl_cpat(a), a->sel, a->ui.held[0], pg->alt_if, &x)
+                ? x : qd_step_base((qd_app_t *)a, a->sel, a->ui.held[0], pg->alt_if);
+    } else {
+        v = a->model.t[a->sel].patch[pg->alt_if];
+    }
+    return v ? pg->alt : pg->id;
+}
+
 /* the editor's knob slots: KNOB 1..4, ALGORITHM */
 static const uint8_t SND_KNOB[5] = {QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_K_ALGO};
 
 /* P-LOCK's hook: a lock table a page (built once from the pages; the knobs' own takeover none: the page shows it) */
-static qd_lockknob_t SND_LOCKS[QD_SND_NPAGE][6];
-static qd_lockscreen_t SND_SCREEN[QD_SND_NPAGE];
-const qd_lockscreen_t *qd_snd_lock_screen(int page)
+static qd_lockknob_t SND_LOCKS[QD_SND_NPAGE][2][6];   /* (E1: [1] the page's alt ids) */
+static qd_lockscreen_t SND_SCREEN[QD_SND_NPAGE][2];
+const qd_lockscreen_t *qd_snd_lock_screen(const qd_app_t *a, int page)
 {
     static int built;
     if (!built) {
-        int p, k;
-        for (p = 0; p < QD_SND_NPAGE; p++) {
-            int n = 0;
-            for (k = 0; k < 5; k++)
-                if (QD_SND_PAGES[p].id[k] >= 0) {
-                    SND_LOCKS[p][n].knob = SND_KNOB[k];
-                    SND_LOCKS[p][n].id = QD_SND_PAGES[p].id[k];
-                    SND_LOCKS[p][n++].tk = QD_TK_NONE;
-                }
-            SND_LOCKS[p][n].knob = QD_K_PRESETS;      /* PRESETS: the sound lock, as everywhere */
-            SND_LOCKS[p][n].id = QD_LOCK_SOUND;
-            SND_LOCKS[p][n++].tk = QD_TK_PRESET;
-            SND_SCREEN[p].name = QD_SND_PAGES[p].name;
-            SND_SCREEN[p].n = n;
-            SND_SCREEN[p].k = SND_LOCKS[p];
-        }
+        int p, k, w;
+        for (p = 0; p < QD_SND_NPAGE; p++)
+            for (w = 0; w < 2; w++) {
+                const int8_t *ids = w && QD_SND_PAGES[p].alt_if ? QD_SND_PAGES[p].alt : QD_SND_PAGES[p].id;
+                int n = 0;
+                for (k = 0; k < 5; k++)
+                    if (ids[k] >= 0) {
+                        SND_LOCKS[p][w][n].knob = SND_KNOB[k];
+                        SND_LOCKS[p][w][n].id = ids[k];
+                        SND_LOCKS[p][w][n++].tk = QD_TK_NONE;
+                    }
+                SND_LOCKS[p][w][n].knob = QD_K_PRESETS;   /* PRESETS: the sound lock, as everywhere */
+                SND_LOCKS[p][w][n].id = QD_LOCK_SOUND;
+                SND_LOCKS[p][w][n++].tk = QD_TK_PRESET;
+                SND_SCREEN[p][w].name = QD_SND_PAGES[p].name;
+                SND_SCREEN[p][w].n = n;
+                SND_SCREEN[p][w].k = SND_LOCKS[p][w];
+            }
         built = 1;
     }
-    return &SND_SCREEN[page < 0 ? 0 : page >= QD_SND_NPAGE ? QD_SND_NPAGE - 1 : page];
+    page = page < 0 ? 0 : page >= QD_SND_NPAGE ? QD_SND_NPAGE - 1 : page;
+    return &SND_SCREEN[page][qd_snd_ids(a, page) != QD_SND_PAGES[page].id];
 }
 
 int qd_snd_open(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_SND; }
@@ -188,16 +212,16 @@ void qd_snd_black(qd_app_t *a, int b)
     qd_ui_t *u = &a->ui;
     int p, first = -1, next = -1;
     if (b == 10) {
-        const qd_sndpage_t *pg = &QD_SND_PAGES[u->snd_page];
+        const int8_t *ids = qd_snd_ids(a, u->snd_page);
         int i, k, n = 0;
         if (!u->nheld)
             return;
         for (i = 0; i < u->nheld; i++)
             for (k = 0; k < 5; k++)
-                if (pg->id[k] >= 0) {
+                if (ids[k] >= 0) {
                     int16_t v;
-                    n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], pg->id[k], &v);
-                    if (pg->id[k] == QD_QP_RB1)
+                    n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], ids[k], &v);
+                    if (ids[k] == QD_QP_RB1)
                         n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], QD_QP_RB2, &v);
                 }
         if (!n)
@@ -205,9 +229,9 @@ void qd_snd_black(qd_app_t *a, int b)
         qd_clip_keep(&u->clip, qd_ctl_cpat(a), a->seq.cur, a->sel);
         for (i = 0; i < u->nheld; i++)
             for (k = 0; k < 5; k++)
-                if (pg->id[k] >= 0) {
-                    qd_lock_clear(qd_ctl_pat(a), a->sel, u->held[i], pg->id[k]);
-                    if (pg->id[k] == QD_QP_RB1)         /* (the pair's other half) */
+                if (ids[k] >= 0) {
+                    qd_lock_clear(qd_ctl_pat(a), a->sel, u->held[i], ids[k]);
+                    if (ids[k] == QD_QP_RB1)         /* (the pair's other half) */
                         qd_lock_clear(qd_ctl_pat(a), a->sel, u->held[i], QD_QP_RB2);
                 }
         qd_ctl_confirm(a, "LOCKS CLEARED", 0);
@@ -313,7 +337,7 @@ static void snd_map(qd_app_t *a, int n, int id, int d)
     int k;
     u->snd_lk_k = -1;
     for (k = 0; k < 5; k++)
-        if (QD_SND_PAGES[u->snd_page].id[k] == id)
+        if (qd_snd_ids(a, u->snd_page)[k] == id)
             u->snd_lk_k = k;
     u->snd_lk_id = id;
     if (dest < 0) {
@@ -334,7 +358,7 @@ static void snd_map(qd_app_t *a, int n, int id, int d)
 int qd_snd_knob(qd_app_t *a, int knob, int d)
 {
     qd_ui_t *u = &a->ui;
-    const qd_sndpage_t *pg = &QD_SND_PAGES[u->snd_page];
+    const int8_t *ids = qd_snd_ids(a, u->snd_page);
     const int fine = qd_ctl_shift(a);
     int k, id = -1;
     if (knob == QD_K_SELECT) {
@@ -351,7 +375,7 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     }
     for (k = 0; k < 5; k++)
         if (SND_KNOB[k] == knob)
-            id = pg->id[k], u->snd_knob = k;
+            id = ids[k], u->snd_knob = k;
     u->snd_ms = a->ms;
     if (u->snd_lk) {                                    /* P1.5k: an LFO key held: the knob's value its destination */
         if (id >= 0)
@@ -388,6 +412,7 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
 {
     const qd_ui_t *u = &a->ui;
     const qd_sndpage_t *pg = &QD_SND_PAGES[u->snd_page];
+    const int8_t *ids = qd_snd_ids(a, u->snd_page);
     int i, k, n = 0;
     for (i = 0; i < 11; i++)                            /* (P1.5l: B1..B8 the groups, B6..B8 the LFOs: also lit held) */
         black[i] = i < QD_NSG ? (i == pg->group || (i >= QD_SG_LFO1 && u->snd_lk == i - QD_SG_LFO1 + 1) ? QD_LED_LIT
@@ -397,10 +422,10 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
     black[9] = u->rnd_kind >= 2 ? QD_LED_LIT : QD_LED_DIM;
     for (i = 0; i < u->nheld; i++)
         for (k = 0; k < 5; k++)
-            if (pg->id[k] >= 0) {
+            if (ids[k] >= 0) {
                 int16_t v;
-                n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], pg->id[k], &v);
-                if (pg->id[k] == QD_QP_RB1)
+                n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], ids[k], &v);
+                if (ids[k] == QD_QP_RB1)
                     n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], QD_QP_RB2, &v);
             }
     black[10] = n ? QD_LED_LIT : QD_LED_OFF;
@@ -489,9 +514,10 @@ void qd_snd_randomise(qd_app_t *a, int page)
     int k;
     qd_undo_hint(a, QD_UK_RANDOM);
     if (page >= 0) {
+        const int8_t *ids = qd_snd_ids(a, page);
         for (k = 0; k < 5; k++)
-            if (QD_SND_PAGES[page].id[k] >= 0)
-                snd_rnd_value(a, QD_SND_PAGES[page].id[k]);
+            if (ids[k] >= 0)
+                snd_rnd_value(a, ids[k]);
         return;
     }
     for (k = 0; k < QD_QUAD_NP; k++)

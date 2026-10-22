@@ -649,6 +649,11 @@ static uint32_t r_fnv(const int16_t *p)
     for (i = 0; i < QD_QUAD_NP; i++) {
         if (i == QD_QP_DRIVE && !p[i])
             continue;                                   /* (P1.4a: DRIVE 0 is not hashed: the goldens of before) */
+        if (i >= QD_QUAD_NP5) {                         /* (E1: nor a value 74.. at its default) */
+            int16_t lo, hi, def;
+            if (qd_quad_value_range(i, &lo, &hi, &def) && p[i] == def)
+                continue;
+        }
         h = (h ^ ((uint16_t)p[i] & 0xFFu)) * 16777619u;
         h = (h ^ ((uint16_t)p[i] >> 8)) * 16777619u;
     }
@@ -2466,6 +2471,61 @@ static void u_patch(void)
            "masks; live edits pass own values by\n", fails == n0 ? "ok" : "FAIL");
 }
 
+/* E1: a step locking PORT ON slides (a MONO bass, its last note held into it: the 303's slide); a step without the
+ * lock does not; a chord's notes glide by rank */
+static int u_voice_of(int t, int note)
+{
+    int i;
+    for (i = 0; i < POOL.nvoice; i++)
+        if (qd_pool_sounding(&POOL, i) && POOL.v[i].track == t && POOL.v[i].q.note == note && POOL.v[i].q.gate)
+            return i;
+    return -1;
+}
+static void u_port(void)
+{
+    const double s16 = 44100.0 * 15.0 / 120.0;          /* a 16th at 120 BPM */
+    int n0 = fails, v;
+    TP *p = tp_new(0, 120);
+    TS *st;
+    p->trk[0].limit = 1;
+    S(p, 0, 0, QD_TRIG_NOTE, 36, 0, 0, 0)->len = 2;     /* held into step 2 */
+    st = S(p, 0, 1, QD_TRIG_NOTE, 48, 0, 0, 0);         /* the slide */
+    st->len = 2;
+    LK(st, QD_QP_PORT, QD_PORT_ON);
+    LK(st, QD_QP_PTIM, 30);
+    S(p, 0, 4, QD_TRIG_NOTE, 36, 0, 0, 0)->len = 2;
+    S(p, 0, 5, QD_TRIG_NOTE, 48, 0, 0, 0)->len = 1;     /* no lock: no slide */
+    p->trk[2].limit = 6;                                /* chords: 48 52 55 then 50 53 57 60, PORT ON (locked) */
+    st = S(p, 2, 8, QD_TRIG_NOTE, 48, 52, 55, 0);
+    st->len = 1;
+    LK(st, QD_QP_PORT, QD_PORT_ON);
+    st = S(p, 2, 9, QD_TRIG_NOTE, 50, 53, 57, 60);
+    st->len = 1;
+    LK(st, QD_QP_PORT, QD_PORT_ON);
+    LK(st, QD_QP_PTIM, 40);
+    run_pattern(0.05, 1);
+    rig_run_to((uint64_t)(s16 * 1.0) + 1200);
+    v = u_voice_of(0, 48);
+    CHECK(v >= 0 && POOL.v[v].q.pitch_cur > 36 * 16 && POOL.v[v].q.pitch_cur < 48 * 16,
+          "PORT ON locked on step 2: 36 slides to 48 (at %d / 16, 1200 samples in)", v >= 0 ? POOL.v[v].q.pitch_cur : -1);
+    rig_run_to((uint64_t)(s16 * 5.0) + 1200);
+    v = u_voice_of(0, 48);
+    CHECK(v >= 0 && POOL.v[v].q.pitch_cur == 48 * 16 && !POOL.v[v].q.gstep, "no lock on step 6: 48 at once");
+    rig_run_to((uint64_t)(s16 * 9.0) + 600);
+    {
+        static const int C2[4] = {50, 53, 57, 60}, FROM[4] = {48, 52, 55, 55};
+        int k, ok = 1;
+        for (k = 0; k < 4; k++) {
+            const int i = u_voice_of(2, C2[k]);
+            ok &= i >= 0 && POOL.v[i].q.gstep > 0 && POOL.v[i].q.pitch_cur > FROM[k] * 16 &&
+                  POOL.v[i].q.pitch_cur <= C2[k] * 16;     /* (52 -> 53 already there) */
+        }
+        CHECK(ok, "a chord after a chord: each note from its rank's (60 from the nearest, 55)");
+    }
+    printf("  %-4s portamento        a locked PORT ON slides a MONO bass; no lock no slide; chords by rank\n",
+           fails == n0 ? "ok" : "FAIL");
+}
+
 /* the dip: a routing change on a sounding voice, with and without it. The measure: the largest step between two
  * samples in the four blocks from the change, against the held tone's own largest step before and after the change
  * and its peak (the dip's ramp to 0 and back over 32 samples each steps by peak / 32 at most, on top of the tone's) */
@@ -3188,6 +3248,7 @@ int main(int argc, char **argv)
     u_lockpool();
     u_edit();
     u_patch();
+    u_port();
     u_dip();
     u_transport();
     u_ext();

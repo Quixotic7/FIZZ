@@ -26,7 +26,8 @@ extern "C" {
 #define QD_SX_ID2 0x5Au
 #define QD_SX_PROTO 1u
 
-enum { QD_SX_IDENTITY = 0x01, QD_SX_STORE = 0x10, QD_SX_R_IDENTITY = 0x41, QD_SX_R_STORE = 0x50, QD_SX_R_ERROR = 0x7F };
+enum { QD_SX_IDENTITY = 0x01, QD_SX_STORE = 0x10, QD_SX_STORE6 = 0x11, QD_SX_R_IDENTITY = 0x41, QD_SX_R_STORE = 0x50,
+       QD_SX_R_ERROR = 0x7F };          /* (E1: STORE6, the 128-byte version-6 blob; its reply is STORE's) */
 
 /* STORE's flags */
 #define QD_SXF_POOL 0x01u              /* into the project's POOL (else the LIBRARY) */
@@ -46,6 +47,9 @@ enum { QD_SX_OK, QD_SX_FULL, QD_SX_BAD_LENGTH, QD_SX_BAD_CHECKSUM, QD_SX_BAD_PAT
 #define QD_SX_BLOB 96
 #define QD_SX_BLOB7 110                /* 13 groups of 7 bytes -> 8, the last 5 -> 6 */
 #define QD_SX_STORE_BODY (1 + 2 + QD_SX_NAME + 1 + 1 + 4 + 1 + QD_SX_BLOB7)   /* 132 (P1.5x: or 133, + a tags byte) */
+#define QD_SX_BLOB6 128                /* E1: STORE6's blob (version 6) .. */
+#define QD_SX_BLOB6_7 147              /* .. 18 groups of 7 -> 8, the last 2 -> 3 */
+#define QD_SX_STORE6_BODY (1 + 2 + QD_SX_NAME + 1 + 1 + 4 + 1 + QD_SX_BLOB6_7)   /* 169 (or 170, + a tags byte) */
 #define QD_SX_OUT 4                    /* replies waiting */
 #define QD_SX_OUT_MAX 48               /* a reply's bytes, F0 .. F7 */
 

@@ -78,7 +78,7 @@ int main(void)
         qd_quad_preset_patch(k, pq);
         cr_ref_preset_patch(k, pr);
         pr[QD_QP_DRIVE] = (int16_t)cr_ref_preset_drive(k);   /* (P1.4a: the sound's DRIVE is its preset's FX() drive) */
-        if (memcmp(pq, pr, sizeof pq) || strcmp(qd_quad_preset_name(k), cr_ref_preset_name(k))) {
+        if (memcmp(pq, pr, QD_QUAD_NP5 * sizeof pq[0]) || strcmp(qd_quad_preset_name(k), cr_ref_preset_name(k))) {   /* (E1: ChoralRoot has values 0..73) */
             printf("  FAIL %-12s the patch or the name differs\n", qd_quad_preset_name(k));
             kbad++;
         }

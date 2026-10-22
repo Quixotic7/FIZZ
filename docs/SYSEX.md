@@ -88,6 +88,31 @@ The body is 132 bytes, or 133 with the optional **tags** byte (P1.5x), then `chk
 - An older version in 96 bytes is read the way ChoralRoot's `quad_unpack` reads it. Send version 5 (what `quadToV4` / `quadToV5` make).
 - Byte 87, where FIZZ's own packing keeps DRIVE, is ignored. The **drive** field sets DRIVE.
 
+### `11` STORE6 (E1, 0.8.0)
+
+STORE SOUND with FIZZ's **version-6 blob**: the same body, the patch field 147 bytes (the 128-byte blob, 7-bit packed:
+18 groups of 7, the last 2 bytes a group of their own). The body is 169 bytes, or 170 with the tags byte (at 169). The
+reply is STORE's (`50`), with the same statuses.
+
+**The version-6 blob** (FIZZ's `qd_quad_pack`): `'Q'`, 6, version 5's values as above (bytes 2..86), DRIVE at 87 (the
+**drive** field overrides it, as in STORE), then FIZZ's values 74..109 one byte each (value − its minimum) at 88..123,
+then zeros to 128. A value out of its range, or a nonzero byte after 123, makes it BAD PATCH. The values:
+
+| id | value | range (default) |
+| --- | --- | --- |
+| 74 | AMP MODE | 0 ADSR, 1 AHD (0) |
+| 75 | HOLD (AHD) | 0..126, 127 NOTE (127) |
+| 76 | PORT | 0 OFF, 1 ON, 2 LEGATO (0) |
+| 77 | PORT TIME | 0..127 (32) |
+| 78 | PORT SLOPE | 0 TIME, 1 RATE (0) |
+| 79 | DRIVE ROUTE | 0 POST (after the voice), 1 PRE (before the filter) (0) |
+| 80..85 | E2 / E3's filter shape, gain, BASE route, BITS, SRR, CRUSH route | (0, 0 of −64..63, 0, 0, 0, 1) |
+| 86..109 | E4's eight modulation slots: SOURCE 0..8, DEST 0..57, DEPTH −127..127 | (0) |
+
+Every value at its default plays exactly what a version-5 blob plays. `tools/fizz_sysex.mjs` `storeSound` sends a
+128-byte blob as STORE6 by itself; `tools/dn2pst.mjs` `dn2pstToQuad` gives `blob6` (and `six`: it needs it). A STORE
+whose 96-byte blob says version 6 is BAD PATCH.
+
 Reply: `F0 7D 46 5A 01 50 <status> <0 LIBRARY / 1 POOL> <slot hi> <slot lo> <chk> F7`
 
 - `<slot>` is where the sound went (1-based, as the panel numbers it), or 0 on an error.
@@ -157,7 +182,10 @@ values plus DRIVE equal `dnsndToQuad`'s values (P1.5x: and its pan and sends are
 ## From a Digitone II `.dn2pst`
 
 `tools/dn2pst.mjs` (`parseDn2pst`, `dn2pstToQuad`: research/DN2-FORMAT.md) gives `{blob, name, drive, pan, sends: {chorus,
-delay, reverb}}` and the parsed `fizzTags`; send them as above (`tags: parsed.fizzTags`). FM1VST's drop reads `.dn2pst`
+delay, reverb}}` and the parsed `fizzTags`; send them as above (`tags: parsed.fizzTags`). E1: it also gives `blob6`
+and `six`; when `six` is true send `blob6` (STORE6): the sound uses AHD (AMP MODE 0, HOLD 1:1), portamento (PORT ON
+from +226 = 64, TIME 1:1 from +228) or DRIVE before the filter (OD ROUTING +240 = 0, read as PRE: a guess, not yet
+verified on a unit). FM1VST's drop reads `.dn2pst`
 with a C++ port of it (FM1VST `plugin/Dnsnd.cpp` `parseDn2`, checked byte for byte against the JS).
 
 ### ChoralRoot's sound format compared with FIZZ's patch

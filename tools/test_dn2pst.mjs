@@ -12,7 +12,7 @@
 // 3. DN2_DIR (optional; real .dn2pst files): each one read and converted, the result printed.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { parseDn2pst, dn2pstToQuad, dn2RecordFromParams, wrapDn2Record, dn2pstZip, DN2_FIELDS, DN2_TAGS, QP } from "./dn2pst.mjs";
+import { parseDn2pst, dn2pstToQuad, dn2RecordFromParams, wrapDn2Record, dn2pstZip, DN2_FIELDS, DN2_TAGS, QP, QX } from "./dn2pst.mjs";
 import { parseDnsnd, dnsndToQuad } from "../site/js/fm1dnsnd.js";
 
 let fails = 0, checks = 0;
@@ -69,7 +69,16 @@ for (const compress of [true, false]) {
   check((await parseDn2pst(rec)).params.mix === -20, "a bare 359-byte record");
   const ahd = dn2RecordFromParams({ ...want, "amp.mode": 0, "amp.hold": 127, "amp.dec": 70 });
   const qa = dn2pstToQuad(await parseDn2pst(ahd));
-  check(qa.values[QP.ESUS] === 127 && qa.values[QP.EREL] === 70, "AHD, HOLD NOTE -> SUS 127, REL = DEC");
+  check(qa.ext[QX.AMOD - 74] === 1 && qa.ext[QX.HOLD - 74] === 127 && qa.values[QP.EDEC] === 70 && qa.six &&
+        qa.blob6.length === 128 && qa.blob6[1] === 6 && qa.blob6[88] === 1 && qa.blob6[89] === 127,
+        "E1: AHD, HOLD NOTE -> FIZZ's AHD (AMOD 1, HOLD 127, DEC 70), a version-6 blob");
+  const pt = dn2pstToQuad(await parseDn2pst(dn2RecordFromParams({ ...want, portamento: 64, "portamento.time": 50 })));
+  check(pt.ext[QX.PORT - 74] === 1 && pt.ext[QX.PTIM - 74] === 50 && !pt.notes.some((n) => /PORTAMENTO/.test(n)),
+        "E1: PORTAMENTO on, TIME 50 -> PORT ON, TIME 50");
+  const od = dn2RecordFromParams(want); od[240] = 1;
+  const qod = dn2pstToQuad(await parseDn2pst(od)), qpre = dn2pstToQuad(await parseDn2pst(dn2RecordFromParams(want)));
+  check(!qod.ext[QX.DRPRE - 74] && qpre.ext[QX.DRPRE - 74] === 1 && qpre.blob6[87] === 12,
+        "E1: OD ROUTING 1 -> DRIVE after the voice, 0 -> before the filter; DRIVE at byte 87");
   // the OCTAVE -12 halves each ratio: C 2 -> 1 (3), A 5.5 -> 2.75 (10), B1 1 -> 0.5 (1)
   const qo = dn2pstToQuad(await parseDn2pst(dn2RecordFromParams({ ...want, octave: -12 })));
   check(qo.values[QP.RC] === 3 && qo.values[QP.RA] === 10 && qo.values[QP.RB1] === 1 && qo.notes.some((n) => /OCTAVE -1/.test(n)),

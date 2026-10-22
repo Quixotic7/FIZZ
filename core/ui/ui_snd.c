@@ -367,11 +367,59 @@ static void sd_filter(const ui_snd_t *v)
     }
 }
 
+/* E1: AMP in AHD: attack, HOLD a flat top (NOTE: over a note bar, to its end), the decay to 0 (INF: held) */
+static void sd_ahd(const ui_snd_t *v)
+{
+    const float base = 170.f, top = 44.f;
+    const int note = v->v[1] >= 127, inf = v->v[2] >= 127;
+    const float xa = 19.f + (float)v->v[0] * 0.35f;
+    const float xh = note ? xa + 70.f : xa + 3.f + (float)v->v[1] * 0.35f;
+    const float xd = inf ? 222.f : sd_clampf(xh + 3.f + (float)v->v[2] * 0.4f, 0.f, 222.f);
+    const float p[8] = {16.f, base, xa, top, xh, top, xd, inf ? top : base};
+    line2(16.f, base, 222.f, base, UI_G3, 1.f);
+    if (note)                                           /* NOTE: the key's bar, the top ends where it ends */
+        ui_RR(16.f, base + 3.f, xh - 16.f, 7.f, 3.5f, QD_NONE, 1.f, UI_G2);
+    sd_poly(p, 4, UI_K3, 1.6f, 0);
+    if (inf) {
+        const float a[6] = {xd - 5.f, top - 4.f, xd, top, xd - 5.f, top + 4.f};
+        ui_P(a, 3, UI_K3, 1.4f, 0, QD_NONE);
+    }
+    ui_O(xa, top, 3.4f, QD_NONE, 1.f, SNDK[0]);
+    ui_O((xa + xh) * 0.5f, top, 3.4f, QD_NONE, 1.f, SNDK[1]);
+    ui_O(inf ? xd - 8.f : (xh + xd) * 0.5f, inf ? top : (top + base) * 0.5f, 3.4f, QD_NONE, 1.f, SNDK[2]);
+    sd_run_dot(p, 4, v->t * 0.4f);
+}
+
+/* E1: portamento: two note bars, the pitch's trace gliding between them */
+static void sd_port(const ui_snd_t *v)
+{
+    const int mode = v->v[0], rate = v->has[2] && v->v[2];
+    const float y1 = 146.f, y2 = 72.f, xs = 104.f;     /* the low note, the high one, the second's start */
+    const float gw = mode ? 6.f + (float)v->v[1] / 127.f * 96.f : 0.f;
+    const float e1 = mode == 2 ? xs + 22.f : xs - 4.f;  /* (LEGATO: the first bar overlaps the second) */
+    const qd_rgb on = mode ? SNDK[0] : UI_G2;
+    ui_RR(16.f, y1 - 6.f, e1 - 16.f, 12.f, 6.f, QD_NONE, 1.f, UI_G3);
+    ui_RR(xs, y2 - 6.f, 222.f - xs, 12.f, 6.f, QD_NONE, 1.f, UI_G3);
+    if (mode) {                                         /* SLOPE: a ghost of a smaller interval */
+        const float h = (y1 - y2) * 0.5f, w = rate ? gw * 0.5f : gw;
+        const float g[6] = {xs, y1, xs + w, y1 - h, 222.f, y1 - h};
+        sd_poly(g, 3, UI_G2, 1.2f, 1);
+    }
+    {
+        const float x2 = sd_clampf(xs + gw, xs, 222.f);
+        const float p[8] = {16.f, y1, xs, y1, x2, y2, 222.f, y2};
+        ui_P(p, 4, on, 2.2f, 0, QD_NONE);
+        ui_O(x2, y2, 3.4f, QD_NONE, 1.f, mode ? SNDK[1] : UI_G2);
+        if (mode)
+            sd_run_dot(p, 4, v->t * 0.4f);
+    }
+}
+
 /* an ADSR's points: delay, attack, decay to sustain, held, release (INF: held to the edge) */
 static void sd_adsr(const ui_snd_t *v)
 {
     const float base = 170.f, top = 44.f;
-    const int dly = v->has[4] ? v->v[4] : 0, inf = v->v[3] >= 127;
+    const int dly = v->has[4] && v->arg != 1 ? v->v[4] : 0, inf = v->v[3] >= 127;   /* (E1: AMP's ALGORITHM its MODE) */
     const float x0 = 16.f + (float)dly * 0.25f, xa = x0 + 3.f + (float)v->v[0] * 0.35f;
     const float xd = xa + 3.f + (float)v->v[1] * 0.35f, ys = base - (base - top) * (float)v->v[2] / 127.f;
     const float xs = xd + 30.f, xr = inf ? 222.f : xs + 3.f + (float)v->v[3] * 0.3f;
@@ -412,18 +460,37 @@ static void sd_drive(const ui_snd_t *v)
     const float g = (4096.f + (float)(v->v[1] * v->v[1]) * 2.f) / 4096.f, lev = (float)v->v[0] / 127.f;
     float p[2 * 61], q[2 * 61];
     int i;
+    const float cy = v->has[2] ? 92.f : 108.f, am = v->has[2] ? 46.f : 58.f;   /* (E1: room for ROUTE's chain) */
     ui_RR(18.f, 40.f, 16.f, 134.f, 4.f, UI_G2, 1.2f, QD_NONE);   /* LEVEL */
     ui_RR(18.f, 40.f + 134.f * (1.f - lev), 16.f, 134.f * lev, 4.f, QD_NONE, 1.f, SNDK[0]);
-    line2(52.f, 108.f, 228.f, 108.f, UI_G3, 1.f);
+    line2(52.f, cy, 228.f, cy, UI_G3, 1.f);
     for (i = 0; i <= 60; i++) {                         /* a sine (grey) through the saturation (green) */
         const float u = (float)i / 60.f, x = sinf((u * 2.f + v->t * 0.25f) * UI_TAU);
         const float y = tanhf(x * g * 1.2f) / tanhf(g * 1.2f);
         p[2 * i] = q[2 * i] = 52.f + u * 176.f;
-        p[2 * i + 1] = 108.f - x * 58.f;
-        q[2 * i + 1] = 108.f - y * 58.f;
+        p[2 * i + 1] = cy - x * am;
+        q[2 * i + 1] = cy - y * am;
     }
     ui_P(p, 61, UI_G2, 1.2f, 0, QD_NONE);
     ui_P(q, 61, SNDK[1], 2.f, 0, QD_NONE);
+    if (v->has[2]) {                                    /* E1: ROUTE: FILTER then DRIVE (POST), or DRIVE first (PRE) */
+        const int pre = v->v[2] != 0;
+        const float bx[2] = {72.f, 160.f}, by = 156.f, bw = 52.f, bh = 22.f;
+        const float fx = bx[pre ? 1 : 0], dx = bx[pre ? 0 : 1];
+        float f[2 * 9], d[2 * 9];
+        for (i = 0; i <= 8; i++) {                      /* a low-pass's curve; the saturation's S */
+            const float u = (float)i / 8.f, s = u * 2.f - 1.f;
+            f[2 * i] = fx + 8.f + u * (bw - 16.f);
+            f[2 * i + 1] = by + 6.f + (u < 0.55f ? 0.f : (u - 0.55f) * 22.f);
+            d[2 * i] = dx + 8.f + u * (bw - 16.f);
+            d[2 * i + 1] = by + bh * 0.5f - tanhf(s * 3.f) * 6.f;
+        }
+        ui_RR(fx, by, bw, bh, 5.f, UI_G2, 1.4f, QD_NONE);
+        ui_P(f, 9, UI_G1, 1.4f, 0, QD_NONE);
+        ui_RR(dx, by, bw, bh, 5.f, SNDK[2], 1.6f, QD_NONE);
+        ui_P(d, 9, SNDK[1], 1.6f, 0, QD_NONE);
+        sd_arrow(bx[0] + bw + 4.f, by + bh * 0.5f, bx[1] - 4.f, by + bh * 0.5f, UI_G1);
+    }
 }
 
 static void sd_lfo(const ui_snd_t *v)
@@ -665,10 +732,16 @@ void ui_snd_draw(const ui_snd_t *v)
     case UI_SD_TRIG: sd_trig(v); break;
     case UI_SD_KEYS: sd_keys(v); break;
     case UI_SD_FILTER: sd_filter(v); break;
-    case UI_SD_ADSR: sd_adsr(v); break;
+    case UI_SD_ADSR:                                    /* (E1: AMP in AHD, its MODE on ALGORITHM) */
+        if (v->arg == 1 && v->has[4] && v->v[4])
+            sd_ahd(v);
+        else
+            sd_adsr(v);
+        break;
     case UI_SD_BAND: sd_band(v); break;
     case UI_SD_DRIVE: sd_drive(v); break;
     case UI_SD_LFO: sd_lfo(v); break;
+    case UI_SD_PORT: sd_port(v); break;
     default: sd_lfoshape(v); break;
     }
     /* P1.5j (the owner: the lock boxes "change dimensions", "overlap with the orange border"): the foot is four fixed

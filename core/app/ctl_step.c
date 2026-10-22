@@ -81,7 +81,7 @@ static const qd_lockscreen_t STEPVIEW = {"STEP VIEW", (int)(sizeof STEPVIEW_LOCK
 const qd_lockscreen_t *qd_ctl_lock_screen(const qd_app_t *a)
 {
     if (qd_snd_open(a))                                 /* P1.4a: the sound editor's page */
-        return qd_snd_lock_screen(a->ui.snd_page);
+        return qd_snd_lock_screen(a, a->ui.snd_page);
     return &STEPVIEW;
 }
 

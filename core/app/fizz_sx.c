@@ -76,13 +76,14 @@ static void sx_store_reply(qd_app_t *a, int status, int pool, int slot)
 }
 
 /* STORE: body[0..n) after the command byte, its checksum included */
-static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
+static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
 {
-    uint8_t blob[QD_SX_BLOB + 8];
+    uint8_t blob[QD_SX_BLOB6 + 8];
     char name[QD_SX_NAME + 1];
     int16_t patch[QD_QUAD_NP];
     int flags, pool, slot, i, track, lib_slot = 0;
-    if (n != QD_SX_STORE_BODY + 1u && n != QD_SX_STORE_BODY + 2u) {   /* (P1.5x: + the tags byte) */
+    const uint32_t body = six ? QD_SX_STORE6_BODY : QD_SX_STORE_BODY;   /* (E1: STORE6: the 128-byte blob) */
+    if (n != body + 1u && n != body + 2u) {             /* (P1.5x: + the tags byte) */
         sx_store_reply(a, QD_SX_BAD_LENGTH, n ? (b[0] & QD_SXF_POOL) != 0 : 0, 0);
         return;
     }
@@ -96,13 +97,13 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
         name[i] = 0;
     if (!name[0])
         strcpy(name, "IMPORTED");
-    if (qd_sx_unpack7(b + 22, QD_SX_BLOB7, blob) != QD_SX_BLOB) {
+    if (qd_sx_unpack7(b + 22, six ? QD_SX_BLOB6_7 : QD_SX_BLOB7, blob) != (six ? QD_SX_BLOB6 : QD_SX_BLOB)) {
         sx_store_reply(a, QD_SX_BAD_LENGTH, pool, slot);
         return;
     }
-    if (blob[1] == 5)                                   /* (version 5: DRIVE after its values, as FIZZ packs it) */
+    if (blob[1] == 5 || blob[1] == 6)                   /* (version 5 / 6: DRIVE after its values, as FIZZ packs it) */
         blob[87] = b[15] & 0x7F;
-    if (!qd_quad_unpack(blob, patch)) {
+    if ((!six && blob[1] == 6) || !qd_quad_unpack(blob, six ? QD_SX_BLOB6 : QD_SX_BLOB, patch)) {
         sx_store_reply(a, QD_SX_BAD_PATCH, pool, slot);
         return;
     }
@@ -156,8 +157,8 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
         ls->chorus = mask & QD_SXM_CHORUS ? b[18] : 0;
         ls->delay = mask & QD_SXM_DELAY ? b[19] : 0;
         ls->reverb = mask & QD_SXM_REVERB ? b[20] : 0;
-        if (n == QD_SX_STORE_BODY + 2u && (b[QD_SX_STORE_BODY] & QD_PK_MASK))
-            ls->tags = (uint8_t)(b[QD_SX_STORE_BODY] & QD_PK_MASK);
+        if (n == body + 2u && (b[body] & QD_PK_MASK))
+            ls->tags = (uint8_t)(b[body] & QD_PK_MASK);
         qd_pool_resolve(a);
     }
     a->undo.join = 0;
@@ -195,7 +196,7 @@ void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
     for (i = 4; i < n; i++)
         sum += f[i];
     if (n < 6u || (sum & 0x7Fu)) {                      /* (a command and its checksum at least; the sum 0) */
-        if (n >= 5u && f[4] == QD_SX_STORE)
+        if (n >= 5u && (f[4] == QD_SX_STORE || f[4] == QD_SX_STORE6))
             sx_store_reply(a, QD_SX_BAD_CHECKSUM, n > 5u ? (f[5] & QD_SXF_POOL) != 0 : 0, 0);
         else {
             const uint8_t b[3] = {QD_SX_R_ERROR, QD_SX_BAD_CHECKSUM, f[4] & 0x7F};
@@ -217,7 +218,10 @@ void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
         break;
     }
     case QD_SX_STORE:
-        sx_store(a, f + 5, n - 5u);
+        sx_store(a, f + 5, n - 5u, 0);
+        break;
+    case QD_SX_STORE6:                                  /* E1 */
+        sx_store(a, f + 5, n - 5u, 1);
         break;
     default: {
         const uint8_t b[3] = {QD_SX_R_ERROR, QD_SX_BAD_COMMAND, f[4] & 0x7F};

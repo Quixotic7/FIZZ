@@ -16,6 +16,8 @@
  *               under 0.9 FS at LEVEL 92, not silent, every voice ended 20 s after the release; the extremes (every
  *               algorithm at full feedback, levels, HARM, MIX, LFOs onto every destination, resonance, filter types,
  *               key tracks, notes 12..127): no wrap, the voices end
+ *   t_ext       E1: AHD (ATK, HOLD, DEC against the tables; NOTE; INF; a switch mid-note both ways), DRIVE PRE, the
+ *               glide (TIME, RATE, OFF, a legato)
  *   t_dc        every preset held 1 s, a plain feedback operator at FDBK 0..120: the mean of 0.3..1 s under 2 % / 1 %
  *               of the RMS
  * Built (tools/Makefile) with -fsanitize=signed-integer-overflow -fno-sanitize-recover=all, as ChoralRoot builds
@@ -55,7 +57,8 @@ static const char *goldens = "core/tests/quad_goldens";
 #define NV 16
 static qd_quad_owner_t own;
 static qd_quad_voice_t vv[NV];
-static int16_t part_patch[QD_QUAD_NP];       /* ChoralRoot's quad_patch[0]: every voice takes it */
+static int16_t part_patch[QD_QUAD_NP];       /* ChoralRoot's quad_patch[0]: every voice takes it (E1: the values 74..
+                                              * zero: AHD, PORT, DRIVE PRE off) */
 #define QS(i) (*(quad_voice_t *)(void *)vv[i].qstate)
 
 static void drv_reset(void)
@@ -75,6 +78,8 @@ static void quad_init3(int16_t *p)
     uint32_t i;
     for (i = 0; i < QP_NP; i++)
         p[i] = quad_range_v3(i).def;
+    qe_defaults(p);                              /* (E1: DRIVE and the values 74..: today's sound) */
+    p[QD_QP_DRIVE] = 0;
 }
 static void quad_preset3(uint32_t k, int16_t *p)
 {
@@ -92,6 +97,8 @@ static void drv_patch(const int16_t *p)
     uint32_t i;
     for (i = 0; i < QP_NP; i++)
         part_patch[i] = (int16_t)v5_of_v3(i, p[i]);
+    for (; i < QD_QUAD_NP; i++)                  /* (E1: DRIVE and the values 74.. as they are) */
+        part_patch[i] = p[i];
 }
 static void drv_on(uint32_t i, uint32_t note, uint32_t vel)
 {
@@ -124,39 +131,55 @@ static void rnd_patch(int16_t *p)
 }
 static void t_blob(void)
 {
-    uint8_t b[QUAD_BLOB], b2[QUAD_BLOB];
+    uint8_t b[QD_QUAD_BLOB], b2[QD_QUAD_BLOB];
     int16_t p[QD_QUAD_NP], q[QD_QUAD_NP];
     uint32_t n, i, w;
-    for (n = 0; n < 2000u; n++) {
+    for (n = 0; n < 2000u; n++) {                /* version 5 (ChoralRoot's 96 bytes): FM TONE's values, DRIVE */
         rnd_patch(p);
-        qd_quad_pack(p, b);
+        qd_quad_pack5(p, b);
         CHECK(quad_blob_ok(b), "random patch %u: its blob is not valid", n);
-        CHECK(qd_quad_unpack(b, q) == 1 && !memcmp(p, q, QP_NP * sizeof(int16_t)), "random patch %u: round trip differs", n);
-        qd_quad_pack(q, b2);
+        CHECK(qd_quad_unpack(b, QUAD_BLOB, q) == 1 && !memcmp(p, q, QP_NP * sizeof(int16_t)), "random patch %u: round trip differs", n);
+        qd_quad_pack5(q, b2);
         CHECK(!memcmp(b, b2, QUAD_BLOB), "random patch %u: blob round trip differs", n);
         CHECK(b[0] == 'Q' && b[1] == 5u, "magic / version");
         for (i = QUAD_V5_LEN; i < QUAD_BLOB; i++)
             CHECK(!b[i], "padding byte %u not 0", i);
     }
-    for (w = 0; w < 3u; w++) {                   /* every value at its min, its max, its default */
-        quad_init_patch(p);
-        for (i = 0; i < QP_NP; i++) {
-            quad_rng_t r = quad_range(i);
-            p[i] = w == 0u ? r.min : w == 1u ? r.max : r.def;
+    for (n = 0; n < 2000u; n++) {                /* E1: version 6 (128 bytes): every value, 74.. too */
+        int16_t lo, hi;
+        rnd_patch(p);
+        p[QD_QP_DRIVE] = (int16_t)(rnd() % 128u);
+        for (i = QD_QP_AMOD; i < QD_QUAD_NP; i++) {
+            qd_quad_value_range((int)i, &lo, &hi, 0);
+            p[i] = (int16_t)(lo + (int32_t)(rnd() % (uint32_t)(hi - lo + 1)));
         }
-        p[QD_QP_DRIVE] = w == 1u ? 127 : 0;
         qd_quad_pack(p, b);
-        CHECK(qd_quad_unpack(b, q) == 1 && !memcmp(p, q, sizeof p), "the %s patch: round trip", w == 0u ? "min" : w == 1u ? "max" : "default");
+        CHECK(b[0] == 'Q' && b[1] == 6u && qd_quad_unpack(b, QD_QUAD_BLOB, q) == 1 && !memcmp(p, q, sizeof p),
+              "version 6 %u: round trip", n);
+        CHECK(qd_quad_unpack(b, QUAD_BLOB, q) == 0, "version 6 in 96 bytes: not taken");
+        for (i = QUAD_V5_LEN + 1u + (QD_QUAD_NP - QD_QUAD_NP5); i < QD_QUAD_BLOB; i++)
+            CHECK(!b[i], "version 6 padding byte %u not 0", i);
+    }
+    for (w = 0; w < 3u; w++) {                   /* every value at its min, its max, its default */
+        int16_t lo, hi, df;
+        quad_init_patch(p);
+        for (i = 0; i < QD_QUAD_NP; i++) {
+            qd_quad_value_range((int)i, &lo, &hi, &df);
+            p[i] = w == 0u ? lo : w == 1u ? hi : df;
+        }
+        qd_quad_pack(p, b);
+        CHECK(qd_quad_unpack(b, QD_QUAD_BLOB, q) == 1 && !memcmp(p, q, sizeof p), "the %s patch: round trip", w == 0u ? "min" : w == 1u ? "max" : "default");
     }
     rnd_patch(p);                                /* P1.4a: DRIVE in byte 87, back again; ChoralRoot's unpack refuses it */
+    for (i = QD_QP_AMOD; i < QD_QUAD_NP; i++)
+        qd_quad_value_range((int)i, 0, 0, &p[i]);
     p[QD_QP_DRIVE] = 10;
-    qd_quad_pack(p, b);
-    CHECK(b[QUAD_V5_LEN] == 10 && !quad_blob_ok(b) && qd_quad_unpack(b, q) == 1 && !memcmp(p, q, sizeof p),
-          "DRIVE 10: in byte %u, the round trip", (unsigned)QUAD_V5_LEN);
+    qd_quad_pack5(p, b);
+    CHECK(b[QUAD_V5_LEN] == 10 && !quad_blob_ok(b) && qd_quad_unpack(b, QUAD_BLOB, q) == 1 && !memcmp(p, q, sizeof p),
+          "DRIVE 10: in byte %u, the round trip (the values 74.. their defaults)", (unsigned)QUAD_V5_LEN);
     memset(b, 0, sizeof b);
-    CHECK(qd_quad_unpack(b, q) == 0, "an empty blob taken");
-    quad_init_patch(p);
-    p[QD_QP_DRIVE] = 0;
+    CHECK(qd_quad_unpack(b, QD_QUAD_BLOB, q) == 0, "an empty blob taken");
+    qd_quad_preset_patch(0, p);
     CHECK(!memcmp(p, q, sizeof p), "a bad blob: not the init patch");
 }
 
@@ -227,6 +250,8 @@ static void t_golden(void)
         CHECK(np == QP_NP && nf == 2048u && nr == 29u, "%s: patch %u, first %u, rms %u", fn, np, nf, nr);
         if (np != QP_NP || nf != 2048u || !nr)
             continue;
+        qd_quad_preset_patch(0, p);             /* (E1: DRIVE and the values 74..: today's) */
+        p[QD_QP_DRIVE] = 0;
         for (i = 0; i < QP_NP; i++)
             p[i] = (int16_t)pv[i];
         if (g >= 8u) {                           /* a preset: the model's copy is the firmware's */
@@ -607,6 +632,175 @@ static void t_dc(void)
     printf("  DC: the presets' worst mean %.2f %% of the RMS (limit 2 %%)\n", worst * 100.0);
 }
 
+/* ------------------------------------------------------------- E1: AHD, DRIVE PRE, the glide --- */
+/* the ticks until the amp envelope's stage is st (at most max) */
+static uint32_t until_stage(uint32_t st, uint32_t max)
+{
+    int32_t out[CTL];
+    uint32_t n;
+    for (n = 0; n < max && QS(0).stage[3] != st && vv[0].active; n++)
+        drv_tick(out);
+    return n;
+}
+static void t_ext(void)
+{
+    int32_t out[CTL], a[CTL], b[CTL];
+    int16_t p[QD_QUAD_NP];
+    uint32_t n, na, nh;
+    double d;
+    /* AHD: ATK 20, HOLD 40 (the attack's table), DEC 40; one-shot: the key up in HOLD changes nothing */
+    quad_init3(p);
+    drv_reset();
+    drv_patch(p);
+    part_patch[QD_QP_AMOD] = 1, part_patch[QP_EATK] = 20, part_patch[QD_QP_HOLD] = 40, part_patch[QP_EDEC] = 40;
+    drv_on(0, 60, 100);
+    na = until_stage(6, 20000);
+    CHECK(fabs(tms(na) - atk_ms(QUAD_T_AATK, 20)) <= tms(1) + 0.5, "AHD ATK 20: %.1f ms (the table's %.1f)", tms(na),
+          atk_ms(QUAD_T_AATK, 20));
+    vv[0].gate = 0;                              /* (the key up in a timed HOLD: nothing) */
+    nh = until_stage(7, 20000);
+    CHECK(fabs(tms(nh) - atk_ms(QUAD_T_AATK, 40)) <= tms(1) + 0.5 && QS(0).env[3] == 1 << 24,
+          "AHD HOLD 40: %.1f ms at the top (ATK 40's time %.1f)", tms(nh), atk_ms(QUAD_T_AATK, 40));
+    for (n = 0; n < ticks_of(t60_ms(QUAD_T_ADEC, 40)) && vv[0].active; n++)
+        drv_tick(out);
+    d = 20.0 * log10((double)QS(0).env[3] / 16777216.0);
+    CHECK(d < -50.0 && d > -70.0, "AHD DEC 40: %.1f dB after its T60 (want about -60)", d);
+    for (n = 0; n < 4u * FS / CTL && drv_tick(out); n++)
+        ;
+    CHECK(!vv[0].active, "AHD: the voice ends after its decay");
+    /* HOLD NOTE: at the top while the key is down, then the decay; DEC INF: held, endless */
+    drv_reset();
+    part_patch[QD_QP_HOLD] = 127;
+    drv_on(0, 60, 100);
+    for (n = 0; n < 2u * FS / CTL; n++)
+        drv_tick(out);
+    CHECK(QS(0).stage[3] == 6u && QS(0).env[3] == 1 << 24, "HOLD NOTE: at the top 2 s on (stage %u)", QS(0).stage[3]);
+    vv[0].gate = 0;
+    drv_tick(out);
+    CHECK(QS(0).stage[3] == 7u && !qd_quad_voice_endless(&vv[0]), "HOLD NOTE: the key up: the decay (stage %u)",
+          QS(0).stage[3]);
+    for (n = 0; n < 4u * FS / CTL && drv_tick(out); n++)
+        ;
+    CHECK(!vv[0].active, "HOLD NOTE: the voice ends after the key");
+    drv_reset();
+    part_patch[QP_EDEC] = 127;
+    drv_on(0, 60, 100);
+    vv[0].gate = 0;
+    for (n = 0; n < FS / CTL; n++)
+        drv_tick(out);
+    CHECK(vv[0].active && QS(0).stage[3] == 7u && QS(0).env[3] == 1 << 24 && qd_quad_voice_endless(&vv[0]),
+          "AHD DEC INF: held at the top after the key, endless");
+    /* a switch mid-note: ADSR at SUS -> AHD (the hold, NOTE) -> the key up: AHD's decay -> back to ADSR: its release */
+    quad_init3(p);
+    drv_reset();
+    drv_patch(p);
+    part_patch[QP_EATK] = 0, part_patch[QP_EDEC] = 30, part_patch[QP_ESUS] = 100, part_patch[QP_EREL] = 30;
+    drv_on(0, 60, 100);
+    for (n = 0; n < FS / 2u / CTL; n++)
+        drv_tick(out);
+    CHECK(QS(0).stage[3] == 3u, "ADSR: at SUS (stage %u)", QS(0).stage[3]);
+    part_patch[QD_QP_AMOD] = 1;
+    drv_tick(out);
+    CHECK(QS(0).stage[3] == 6u, "ADSR -> AHD at SUS: the hold (stage %u)", QS(0).stage[3]);
+    vv[0].gate = 0;
+    drv_tick(out);
+    CHECK(QS(0).stage[3] == 7u, "AHD, the key up: the decay (stage %u)", QS(0).stage[3]);
+    part_patch[QD_QP_AMOD] = 0;
+    drv_tick(out);
+    CHECK(QS(0).stage[3] == 4u, "AHD -> ADSR in the decay: the release (stage %u)", QS(0).stage[3]);
+    for (n = 0; n < 4u * FS / CTL && drv_tick(out); n++)
+        ;
+    CHECK(!vv[0].active, "the switched voice ends (stage %u, env %d, live %u)", QS(0).stage[3], QS(0).env[3], QS(0).live);
+    /* DRIVE PRE: the voice's own signal driven (before its filter); POST: the voice untouched (the mix drives it) */
+    {
+        double ea = 0.0, eb = 0.0, diff = 0.0;
+        uint32_t k;
+        quad_init3(p);
+        for (k = 0; k < 2; k++) {
+            drv_reset();
+            drv_patch(p);
+            part_patch[QD_QP_DRIVE] = 110;
+            part_patch[QD_QP_DRPRE] = (int16_t)k;
+            drv_on(0, 48, 120);
+            for (n = 0; n < FS / 4u / CTL; n++) {
+                drv_tick(k ? b : a);
+                if (k) {
+                    uint32_t j;
+                    for (j = 0; j < CTL; j++) {
+                        eb += (double)b[j] * b[j];
+                        diff += fabs((double)b[j]);
+                    }
+                }
+            }
+            if (!k) {                            /* (POST: the same as DRIVE 0's voice) */
+                drv_reset();
+                drv_patch(p);
+                drv_on(0, 48, 120);
+                for (n = 0; n < FS / 4u / CTL; n++) {
+                    uint32_t j;
+                    drv_tick(out);
+                    if (n == FS / 4u / CTL - 1u)
+                        for (j = 0; j < CTL; j++)
+                            ea += (double)(out[j] - a[j]) * (out[j] - a[j]);
+                }
+            }
+        }
+        CHECK(ea == 0.0, "DRIVE POST: the voice untouched (the mix drives it)");
+        CHECK(eb > 0.0 && diff > 0.0, "DRIVE PRE: the voice sounds");
+        {   /* PRE against no drive at all: different */
+            double e2 = 0.0;
+            drv_reset();
+            drv_patch(p);
+            drv_on(0, 48, 120);
+            for (n = 0; n < FS / 4u / CTL; n++) {
+                uint32_t j;
+                drv_tick(out);
+                if (n == FS / 4u / CTL - 1u)
+                    for (j = 0; j < CTL; j++)
+                        e2 += (double)(out[j] - b[j]) * (out[j] - b[j]);
+            }
+            CHECK(e2 > 0.0, "DRIVE PRE 110: the voice changed by it");
+        }
+    }
+    /* the glide: TIME (1 + PTIM^2 / 8 blocks, whatever the interval), RATE (QE_GLRATE a block), PORT OFF: none */
+    quad_init3(p);
+    drv_reset();
+    drv_patch(p);
+    part_patch[QD_QP_PORT] = 1, part_patch[QD_QP_PTIM] = 20, part_patch[QD_QP_PSLOPE] = 0;
+    drv_on(0, 60, 100);
+    qd_quad_voice_glide(&vv[0], 48 * 16);
+    CHECK(vv[0].pitch_cur == 48 * 16 && vv[0].pitch16 == 60 * 16, "glide: from 48 to 60");
+    for (n = 0; n < 400 && vv[0].pitch_cur != vv[0].pitch16; n++)
+        drv_tick(out);
+    CHECK(n == 64, "TIME 20: 12 semitones in %u blocks (51 blocks' step, 3 / 16 a block: 64)", n);
+    drv_on(0, 72, 100);
+    qd_quad_voice_glide(&vv[0], 48 * 16);
+    for (n = 0; n < 400 && vv[0].pitch_cur != vv[0].pitch16; n++)
+        drv_tick(out);
+    CHECK(n == 55, "TIME 20: 24 semitones in %u blocks (about as long: 7 / 16 a block, 55)", n);
+    part_patch[QD_QP_PSLOPE] = 1;
+    drv_on(0, 60, 100);
+    qd_quad_voice_glide(&vv[0], 48 * 16);
+    for (n = 0; n < 400 && vv[0].pitch_cur != vv[0].pitch16; n++)
+        drv_tick(out);
+    CHECK(n == (192u + QE_GLRATE[20] - 1u) / QE_GLRATE[20], "RATE 20: 12 semitones in %u blocks (%u a block)", n,
+          QE_GLRATE[20]);
+    part_patch[QD_QP_PORT] = 0;
+    drv_on(0, 60, 100);
+    qd_quad_voice_glide(&vv[0], 48 * 16);
+    CHECK(vv[0].pitch_cur == 60 * 16, "PORT OFF: no glide");
+    part_patch[QD_QP_PORT] = 1, part_patch[QD_QP_PSLOPE] = 0;   /* a TIE (legato) glides from where the voice is */
+    drv_on(0, 60, 100);
+    drv_tick(out);
+    qd_quad_voice_legato(&vv[0], 67, 100);
+    CHECK(vv[0].pitch_cur == 60 * 16 && vv[0].pitch16 == 67 * 16 && vv[0].gstep > 0, "legato with PORT: glides 60 -> 67");
+    part_patch[QD_QP_PORT] = 0;
+    drv_tick(out);
+    vv[0].patch[QD_QP_PORT] = 0;
+    qd_quad_voice_legato(&vv[0], 70, 100);
+    CHECK(vv[0].pitch_cur == 70 * 16, "legato with PORT OFF: at once (as before)");
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1)
@@ -617,6 +811,7 @@ int main(int argc, char **argv)
     t_rel_inf();
     t_render();
     t_dc();
+    t_ext();
     printf("test_quad: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

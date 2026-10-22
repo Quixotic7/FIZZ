@@ -1642,7 +1642,7 @@ static int k_unlock(qd_app_t *a, int knob, int d)
     if (qd_snd_open(a)) {
         static const int SLOT[QD_NKNOB] = {-1, 4, -1, 0, 1, 2, 3};
         const int k = SLOT[knob];
-        id = k >= 0 ? QD_SND_PAGES[u->snd_page].id[k] : -1;
+        id = k >= 0 ? qd_snd_ids(a, u->snd_page)[k] : -1;
     } else if (knob >= QD_K_1) {
         id = qd_step_quick_id(knob - QD_K_1);
     } else if (knob == QD_K_PRESETS) {

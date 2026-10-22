@@ -367,8 +367,11 @@ static void fill_rec(const qd_seq_t *s, qd_trec_t *r, int t, int step, const qd_
     r->pat = (int16_t)c->pat;
     if (st->sound) {
         memcpy(r->patch, qd_sound_patch(s->proj, st->sound), sizeof r->patch);
-        r->at.own[0] = r->at.own[1] = 0xFFFFFFFFu;
-        r->at.own[2] = (1u << (QD_QUAD_NP - 64)) - 1u;
+        {   /* (every patch value its own) */
+            int w;
+            for (w = 0; w < (QD_QUAD_NP + 31) / 32; w++)
+                r->at.own[w] = w < QD_QUAD_NP / 32 ? 0xFFFFFFFFu : (1u << (QD_QUAD_NP % 32)) - 1u;
+        }
     } else {
         memcpy(r->patch, s->pv_patch[t] ? s->pv_patch[t] : P->snd[t].patch, sizeof r->patch);   /* (P1.5a: its
                                                          * pattern's track sound; P1.5t: the browser's preview) */

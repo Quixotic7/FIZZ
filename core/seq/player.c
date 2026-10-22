@@ -12,6 +12,11 @@ uint32_t qd_patch_hash(const int16_t *patch)
         const uint16_t v = (uint16_t)patch[i];
         if (i == QD_QP_DRIVE && !v)
             continue;                                   /* (P1.4a: DRIVE 0 hashes as before it existed) */
+        if (i >= QD_QUAD_NP5) {                         /* (E1: a value 74.. at its default hashes as before it existed) */
+            int16_t lo, hi, def;
+            if (qd_quad_value_range(i, &lo, &hi, &def) && patch[i] == def)
+                continue;
+        }
         h = (h ^ (v & 255u)) * 16777619u;
         h = (h ^ (v >> 8)) * 16777619u;
     }
@@ -95,9 +100,12 @@ static void note_on(qd_player_t *pl, const qd_seq_ev_t *e)
 {
     const qd_trec_t *r = e->rec;
     const qd_tset_t *ts = &pl->seq->proj->pat[r->pat].trk[e->track];
+    qd_quad_owner_t *o = &pl->model->t[e->track].owner;
+    const int held = qd_pool_gated(pl->pool, e->track);   /* (E1: LEGATO's test, before this note takes a voice) */
     int i;
     qd_pool_set_track(pl->pool, e->track, ts->limit, ts->reserve);
-    i = qd_pool_note_on_at(pl->pool, e->track, &pl->model->t[e->track].owner, e->note, e->vel, r->patch, &r->at);
+    i = qd_pool_note_on_at(pl->pool, e->track, o, e->note, e->vel, r->patch, &r->at);
+    qd_pool_glide_note(pl->pool, i, o, r, e->tick, held);   /* E1: portamento's start (the chord: the trig's notes) */
     pl->last_on[e->track][e->note & 127] = e->serial;
     pl->ons++;
     plog(pl, e, QD_LOG_ON, i, -1, 0);
@@ -151,6 +159,7 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
         }
         pl->last_on[t][pl->pool->v[held].q.note & 127] = 0;
         qd_pool_legato(pl->pool, held, e->note, e->vel);
+        qd_pool_glide_tie(pl->pool, &pl->model->t[t].owner, e->note);   /* (E1: the track's last note) */
         apply_locks(pl, e, held);
         pl->last_on[t][e->note & 127] = e->serial;
         pl->legatos++;
@@ -168,9 +177,12 @@ void qd_player_stop(qd_player_t *pl) { qd_seq_stop(pl->seq, qd_player_event, pl)
 
 void qd_player_key_on(qd_player_t *pl, int t, int note, int vel)
 {
+    int held, i;
     if (t < 0 || t >= QD_PAT_NTRACK || note < 0 || note > 127)
         return;
-    qd_pool_note_on(pl->pool, t, &pl->model->t[t].owner, note, vel, pl->model->t[t].patch);
+    held = qd_pool_gated(pl->pool, t);
+    i = qd_pool_note_on(pl->pool, t, &pl->model->t[t].owner, note, vel, pl->model->t[t].patch);
+    qd_pool_glide_note(pl->pool, i, &pl->model->t[t].owner, 0, 0, held);   /* E1: a played note glides alone */
     pl->last_on[t][note] = 0;
 }
 

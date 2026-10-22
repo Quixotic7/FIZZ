@@ -140,7 +140,7 @@ static void feed(const char *path)
 
 int main(int argc, char **argv)
 {
-    static uint8_t f[256], in[256], pk[300], un[300], blob[QD_QUAD_BLOB], blob2[QD_QUAD_BLOB];
+    static uint8_t f[256], in[256], pk[300], un[300], blob[QD_QUAD_BLOB5], blob2[QD_QUAD_BLOB5];
     static int16_t p0[QD_QUAD_NP], p1[QD_QUAD_NP];
     uint32_t n, i;
     int ok, k, s0;
@@ -172,7 +172,7 @@ int main(int argc, char **argv)
     fresh();                                            /* a round trip: EP with DRIVE 33 into the first free */
     qd_quad_preset_patch(1, p0);
     p0[QD_QP_DRIVE] = 33;
-    qd_quad_pack(p0, blob);
+    qd_quad_pack5(p0, blob);
     memcpy(blob2, blob, sizeof blob2);
     blob2[87] = 0;                                      /* (as ChoralRoot's blob: DRIVE in its own byte) */
     s0 = qd_lib_free_slot(&A);
@@ -186,7 +186,7 @@ int main(int argc, char **argv)
               A.per.lib[k - 1].tags == QD_PKB(QD_PK_KEYS), "P1.5t: one of MY presets, imported, its own id, its kind (KEYS)");
     CHECK(A.ui.tk == QD_TK_IMPORT && !strcmp(A.ui.imp_name, "MY EP") && A.ui.imp_slot == k && !A.ui.imp_pool,
           "the panel: the import's takeover (its name, its slot)");
-    qd_quad_unpack(blob, p1);
+    qd_quad_unpack(blob, QD_QUAD_BLOB5, p1);
     CHECK(!memcmp(p0, p1, sizeof p0), "(the blob as FIZZ packs it unpacks the same)");
     n = store_msg(f, 0, 7, "SEVEN", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
