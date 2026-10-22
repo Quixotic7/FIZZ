@@ -500,7 +500,7 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
 
 static void fill_shift(const qd_app_t *a, ui_shift_t *v)
 {
-    static char scale[24], root[4], swing[8];
+    static char scale[24], root[4], swing[8], trk[4];
     const qd_ui_t *u = &a->ui;
     const qd_pattern_t *P = qd_ctl_cpat(a);
     char n[12];
@@ -513,10 +513,11 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
     cat(scale, qd_scale_name(sc));
     cat(root, qd_pc_name(rt));
     cat(cat(swing, ui_itoa(n, P->swing)), "%");
+    ui_itoa(trk, a->sel + 1);
 #define ROW(c, i, w) (v->ctl[v->n] = (c), v->icon[v->n] = (i), v->val[v->n++] = (w))
     if (u->mode == QD_MODE_KEYS) {                      /* P1.3v: the controls, their jobs' icons, the values now */
         ROW(UI_SC_REC, UI_IC_GEAR, a->proj.rec_mode ? "STEP" : "LIVE");   /* P1.3y: the record settings */
-        ROW(UI_SC_SELECT, UI_IC_SWING, swing);
+        ROW(UI_SC_SELECT, UI_IC_TRACK, trk);            /* P1.5z: the track (the swing: F3 + ALGORITHM) */
     } else if (u->mode == QD_MODE_STEP && u->nheld) {
         ROW(UI_SC_ALGO, u->hmode == UI_F_RATCH ? UI_IC_RAMP : UI_IC_STRUM, 0);
     } else {
@@ -524,6 +525,7 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
         static const char *const VIEW[QD_NVIEW] = {"ROLL", "STEPS", "EDIT"};
         knobs[0] = (char)('A' + u->knobs);
         knobs[1] = 0;
+        ROW(UI_SC_SELECT, UI_IC_TRACK, trk);            /* P1.5z: the track */
         ROW(UI_SC_ALGO, UI_IC_SCALE, scale);
         ROW(UI_SC_PRESETS, UI_IC_KEY, root);
         ROW(UI_SC_F3_ALGO, UI_IC_SWING, swing);
@@ -534,6 +536,7 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
     }
     if (u->mode == QD_MODE_STEP && (!u->latch || u->latch == QD_LATCH_F3)) {   /* P1.5c: the black keys' shortcuts */
         v->keys = 1;
+        v->follow = u->follow;
         v->snap_ok = a->undo.snap_ok;
         v->pclip_ok = a->undo.pclip_ok;
         v->metro = a->metro;
@@ -547,7 +550,7 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
 {
     static const char *const NAMES[UI_NTK] = {"FREQ", "DECAY", "HARM", "FEEDBACK", "ALGO", "TEMPO", "SWING",
                                               "LENGTH", "RATE", "LIMIT", "SWING", "PAGE", "SCALE", "ROOT",
-                                              "OCTAVE", "TRACK", "TRACK"};
+                                              "OCTAVE", "TRACK", "TRACK", "TAP", "PAGE FOLLOW"};
     const qd_ui_t *u = &a->ui;
     const int t = a->sel;
     const qd_pattern_t *P = qd_ctl_cpat(a);
@@ -660,6 +663,25 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         for (i = 0; i < QD_NPAGE; i++)
             for (s = 0; s < QD_PAGE; s++)
                 v->trig[i][s] = (uint8_t)qd_step_is_on(qd_step(P, t, i * QD_PAGE + s));
+        break;
+    case UI_TK_TAP: {                                   /* P1.5z: SHIFT + B6's taps */
+        const int nt = u->ntap < 8 ? u->ntap : 8;
+        v->has_col = 1;
+        v->col = UI_KSEL;
+        v->ntap = nt;
+        for (i = 0; i < nt; i++)
+            v->tap_age[i] = secs(a->ms - u->tap_ms[(u->ntap - 1 - i) % 8]);
+        v->since = nt ? v->tap_age[0] : 0.f;
+        v->ext = qd_seq_ext_running(&a->seq);
+        v->value = a->bpm;
+        break;
+    }
+    case UI_TK_FOLLOW:                                  /* P1.5z: SHIFT + B8: page follow */
+        v->has_col = 1;
+        v->col = UI_K2;
+        v->value = u->follow;
+        strcpy(v->val, u->follow ? "ON" : "OFF");
+        v->play_page = qd_ctl_playing_page(a, t);
         break;
     case UI_TK_TRACKBIG:                                /* P1.3y: FX held + ALGORITHM: the track big */
         v->has_col = 1;
@@ -849,6 +871,17 @@ static void fill_browse(const qd_app_t *a, ui_browse_t *v)
             c += qd_sound_used(&a->proj, k);
         v->pool_n = c;
     }
+    {   /* P1.5z: the outline says the pool: lime in it, champagne not; + POOL turns it lime as the cassette lands in
+         * the tray, - POOL champagne as it pops out */
+        int inp = n && v->e[2].in_pool;
+        if (v->fx == QD_BRFX_IN && v->fx_u < 0.6f)
+            inp = 0;
+        if (v->fx == QD_BRFX_OUT && v->fx_u < 0.45f)
+            inp = 1;
+        v->ocol = inp ? UI_POOL_COL : UI_LIB_COL;
+    }
+    if (v->fx == QD_BRFX_OUT)                           /* (P1.5z: - POOL's animation at the foot: the users after) */
+        v->users_row = 0;
     if (b->moved && a->ms - b->move_ms < 600u)
         v->sound = (float)(a->ms - b->move_ms) / 600.f;
     if (b->moved && a->ms - b->move_ms < (uint32_t)QD_ROLL_MS)
@@ -928,10 +961,14 @@ static void fill_type(const qd_app_t *a, ui_type_t *v)
     v->del_ch = y->del_ch;
     v->del_at = y->del_at;
     v->del = y->del_ms && ms - y->del_ms < (uint32_t)QD_TY_DEL_MS ? (float)(ms - y->del_ms) / QD_TY_DEL_MS : 1.f;
-    v->ideas_on = y->idea_ms && ms - y->idea_ms < (uint32_t)QD_TY_IDEA_MS && y->nidea;
-    v->ideas = (const char (*)[13])y->ideas;
-    v->nidea = y->nidea;
-    v->idea = y->idea < 0 ? 0 : y->idea;
+    v->ideas_on = y->idea_ms && ms - y->idea_ms < (uint32_t)QD_TY_IDEA_MS && y->nhist;
+    v->nhist = y->nhist;
+    v->hpos = y->hpos;
+    for (k = 0; k < y->nhist && k < QD_UI_NHIST; k++)
+        v->hist[k] = qd_type_hist(a, k);
+    v->dice = y->dice_ms && !y->hpos ? (ms - y->dice_ms >= (uint32_t)QD_TY_DICE_MS ? 1.f
+                                        : (float)(ms - y->dice_ms) / (float)QD_TY_DICE_MS) : -1.f;
+    v->dice_face = y->dice_face;
     if (save) {
         char nm[QD_SOUND_NAME];
         v->replace = a->ui.sv.replace >= 0;
@@ -1261,6 +1298,7 @@ void qd_view_edit(qd_app_t *a, ui_held_t *h, ui_lane_t *l)
     const int fs = qd_view_edit_follows(a);
     fill_lane(a, l, pat);
     if (fs >= 0) {                                      /* P1.5q: the step playing */
+        static ui_held_t hd;                            /* (P1.5z: the head stays the track's default's) */
         const qd_pattern_t *P = qd_ctl_cpat(a);
         const qd_tset_t *ts = &P->trk[a->sel];
         const qd_step_t *st = qd_step(P, a->sel, fs);
@@ -1284,6 +1322,10 @@ void qd_view_edit(qd_app_t *a, ui_held_t *h, ui_lane_t *l)
             qd_step_resolve(P, a->sel, ph, &r);
             h->dim = !r.on;                             /* (the playhead on an empty step: the last step, dimmed) */
         }
+        fill_held(a, &hd, 1);                           /* P1.5z: the head: "TRACK DEFAULT · MODE", its colours, its
+                                                         * value, as when not playing */
+        hd.head = 0;
+        h->head = &hd;
         return;
     }
     fill_held(a, h, !u->nheld || mk || (preset && !u->tk_lock));
@@ -1609,11 +1651,22 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
     v->last = u->menu_knob;
 }
 
+/* P1.5z: the models, for the tests */
+void qd_view_browse(const qd_app_t *a, ui_browse_t *v) { fill_browse(a, v); }
+void qd_view_turn(qd_app_t *a, ui_turn_t *v)
+{
+    static char ctx[48];
+    fill_turn(a, v, ctx);
+}
+void qd_view_shift(const qd_app_t *a, ui_shift_t *v) { fill_shift(a, v); }
+
 int qd_view_overlay(const qd_app_t *a)
 {
     /* (P1.5n: the octave / bank takeover over EDIT too: an OCT tap's octave was not shown there at all, only F2's map
      * for a moment) */
     return a->ui.tk != QD_TK_NONE && (qd_view_screen(a) != QD_SCR_EDIT || a->ui.tk == UI_TK_OCTAVE ||
+                                      a->ui.tk == UI_TK_SCALE || a->ui.tk == UI_TK_ROOT ||   /* (P1.5z: SHIFT's) */
+                                      a->ui.tk == UI_TK_TAP || a->ui.tk == UI_TK_FOLLOW || a->ui.tk == UI_TK_TRACKBIG ||
                                       a->ui.tk == QD_TK_UNDO || a->ui.tk == QD_TK_IMPORT || a->ui.tk == QD_TK_LOADED ||
                                       a->ui.tk == QD_TK_BACK || a->ui.tk == QD_TK_SAVED ||
                                       (a->ui.tk == QD_TK_PRESET && a->ui.tk_lock));   /* (P1.5t: the step's pool
@@ -1739,7 +1792,8 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         }
     } else if (u->tk != QD_TK_NONE) {                   /* the takeover, then 120 ms back */
         const uint32_t d = a->ms - u->tk_ms;
-        const float al = d < QD_TK_MS || u->tk_hold ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;   /* (P1.5v:
+        const uint32_t tms = u->tk == UI_TK_TAP ? QD_TAP_TK_MS : QD_TK_MS;   /* (P1.5z: TAP's 2 s) */
+        const float al = d < tms || u->tk_hold ? 1.f : 1.f - (float)(d - tms) / (float)QD_TK_FADE_MS;   /* (P1.5v:
                                                          * the step's pool picker: while held) */
         if (al > 0.f) {
             overlay_begin(al);

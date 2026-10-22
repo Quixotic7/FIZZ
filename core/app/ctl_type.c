@@ -7,8 +7,11 @@
  *                bottom row); SHIFT held: 0..9 and -, . , ' & ! ? # + / ( ) * : _ ~ and SPACE. A key types at the
  *                cursor (inserting) and moves it on; upper case, no repeat, twelve characters (full: the row flashes
  *                orange, nothing typed). The suggested name starts selected: the first key replaces it.
- *   ALGORITHM    the cursor; SELECT the character under it (A..Z, 0..9, the signs, SPACE); PRESETS name ideas (a
- *                rolodex; the one stopped on is the name, selected again)
+ *   ALGORITHM    the cursor; SELECT (P1.5z: or KNOB 1) the character under it (A..Z, 0..9, the signs, SPACE)
+ *   PRESETS      P1.5z (the owner): right, or KNOB 4 right: a brand-new name every detent, for ever (qd_name_roll:
+ *                mostly namesizer pairs, a made-up word now and then, the sound's own now and then; a die tumbles
+ *                beside it); left: back through the last ten seen (stopping at the oldest; right then forward through
+ *                them first). The one shown is the name, selected again
  *   F1           deletes the character before the cursor (a selected name: all of it); SHIFT + F1 clears
  *   SAVE         confirms (SAVE PRESET: its choice, NEW or REPLACE; a project's name: kept); F2 (SAVE PRESET, REPLACE
  *                offered) switches NEW / REPLACE (P1.5v); HOME cancels (SAVE PRESET: closed; a project's name: back to
@@ -45,7 +48,7 @@ void qd_type_start(qd_app_t *a, const char *name, int spark)
 {
     qd_typer_t *y = &a->ui.ty;
     memset(y, 0, sizeof *y);
-    y->seed = qd_type_seed(a);                          /* (P1.5y: its ideas' namesizer seed) */
+    y->seed = y->rseed = qd_type_seed(a);               /* (P1.5y: its namesizer seed; P1.5z: its rolls') */
     snprintf(y->name, sizeof y->name, "%s", name ? name : "");
     y->cur = ty_len(y);
     y->sel = y->name[0] != 0;
@@ -53,7 +56,8 @@ void qd_type_start(qd_app_t *a, const char *name, int spark)
     y->hit = -1;
     y->fresh = -1;
     y->del_at = -1;
-    y->idea = -1;
+    if (y->name[0])                                     /* (P1.5z: the first name the history's oldest) */
+        qd_type_hist_push(a, y->name);
 }
 
 void qd_type_trimmed(const qd_app_t *a, char *out)
@@ -144,17 +148,60 @@ static void ty_clear(qd_app_t *a)                       /* SHIFT + F1 */
     ty_changed(a);
 }
 
-/* PRESETS' ideas (P1.5y: the owner's namesizer, names.h): SAVE PRESET's: namesizer pairs (the suggestion first),
- * phonic nonsense and cosmic words, the sound's own ideas (one second); a project's: its own name, then namesizer's */
-static void ty_ideas(qd_app_t *a)
+/* P1.5z: the names seen, a ring of QD_TY_NHIST: k back from the newest; a name in as the newest (the walk back ends) */
+const char *qd_type_hist(const qd_app_t *a, int k)
+{
+    const qd_typer_t *y = &a->ui.ty;
+    return k >= 0 && k < y->nhist ? y->hist[(y->hnew - k + QD_TY_NHIST) % QD_TY_NHIST] : "";
+}
+void qd_type_hist_push(qd_app_t *a, const char *nm)
 {
     qd_typer_t *y = &a->ui.ty;
-    if (a->ui.latch == QD_LATCH_SAVE) {
-        y->nidea = qd_name_ideas(y->seed, a->model.t[a->sel].patch, y->ideas, 0, QD_TY_NIDEA);
-    } else {
-        const int p = a->ui.nm.proj < 0 ? 0 : a->ui.nm.proj;
-        y->nidea = qd_name_project_ideas(y->seed, a->per.pname[p], y->ideas, 0, QD_TY_NIDEA);
+    if (!nm || !nm[0])
+        return;
+    y->hnew = (y->hnew + 1) % QD_TY_NHIST;
+    snprintf(y->hist[y->hnew], QD_SOUND_NAME, "%s", nm);
+    if (y->nhist < QD_TY_NHIST)
+        y->nhist++;
+    y->hpos = 0;
+}
+
+/* P1.5z: PRESETS / KNOB 4: right a new name rolled (or, back in the history, forward through it first), left back
+ * through it (stopping at the oldest); the one shown is the name, selected */
+static void ty_roll(qd_app_t *a, int d)
+{
+    qd_typer_t *y = &a->ui.ty;
+    const int save = a->ui.latch == QD_LATCH_SAVE;
+    int n = d < 0 ? -d : d, moved = 0;
+    if (n > QD_TY_NHIST)
+        n = QD_TY_NHIST;
+    if (!y->nhist || strcmp(y->name, qd_type_hist(a, y->hpos)))
+        qd_type_hist_push(a, y->name);                  /* (typed or edited since: kept, as the newest) */
+    while (n-- > 0) {
+        if (d > 0 && y->hpos > 0) {
+            y->hpos--;
+        } else if (d > 0) {
+            char nm[QD_SOUND_NAME];
+            qd_name_roll(&y->rseed, save ? a->model.t[a->sel].patch : 0, qd_type_hist(a, 0), nm);
+            qd_type_hist_push(a, nm);
+            y->dice_ms = ty_now(a);
+            y->dice_face = 1 + (int)(qd_name_next(&y->rseed) % 6u);
+        } else if (y->hpos < y->nhist - 1) {
+            y->hpos++;
+        } else {
+            break;                                      /* (the oldest: it stops) */
+        }
+        moved = 1;
     }
+    if (!moved && !y->nhist)
+        return;
+    snprintf(y->name, sizeof y->name, "%s", qd_type_hist(a, y->hpos));
+    y->cur = ty_len(y);
+    y->sel = 1;
+    y->spark = 1;
+    y->fresh = -1;
+    y->idea_ms = ty_now(a);
+    ty_changed(a);
 }
 
 int qd_type_knob(qd_app_t *a, int knob, int d)
@@ -165,7 +212,8 @@ int qd_type_knob(qd_app_t *a, int knob, int d)
         ty_unselect(y, 0);
         y->cur = y->cur + d < 0 ? 0 : y->cur + d > len ? len : y->cur + d;
         y->idea_ms = 0;
-    } else if (knob == QD_K_SELECT) {                   /* the character under the cursor (at the end: a new one) */
+    } else if (knob == QD_K_SELECT || knob == QD_K_1) {   /* the character under the cursor (at the end: a new one;
+                                                         * P1.5z: KNOB 1 too) */
         const int n = (int)sizeof TY_AL - 1;
         int i;
         ty_unselect(y, 0);
@@ -185,22 +233,10 @@ int qd_type_knob(qd_app_t *a, int knob, int d)
         y->spark = 0;
         y->idea_ms = 0;
         ty_changed(a);
-    } else if (knob == QD_K_PRESETS) {                  /* name ideas: the one stopped on is the name, selected */
-        if (!y->nidea)
-            ty_ideas(a);
-        if (y->nidea) {
-            y->idea = y->idea < 0 ? (d > 0 ? d - 1 : 0) : y->idea + d;
-            y->idea = y->idea < 0 ? 0 : y->idea >= y->nidea ? y->nidea - 1 : y->idea;
-            memcpy(y->name, y->ideas[y->idea], QD_SOUND_NAME);
-            y->cur = ty_len(y);
-            y->sel = 1;
-            y->spark = 1;
-            y->fresh = -1;
-            y->idea_ms = ty_now(a);
-            ty_changed(a);
-        }
+    } else if (knob == QD_K_PRESETS || knob == QD_K_4) {   /* P1.5z: names rolled, endless; left: the last ten */
+        ty_roll(a, d);
     }
-    return 1;                                           /* (KNOB 1..4: nothing) */
+    return 1;                                           /* (KNOB 2, 3: nothing) */
 }
 
 int qd_type_button(qd_app_t *a, int button, int down)

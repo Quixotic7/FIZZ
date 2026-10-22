@@ -305,6 +305,18 @@ void ui_icon(int id, float cx, float cy, float s, qd_rgb c)
         }
         break;
     }
+    case UI_IC_TRACK:                                   /* P1.5z: the track: three lanes, the middle one lit */
+        ui_RR(cx - 7.f * s, cy - 6.f * s, 14.f * s, 3.f * s, 1.f, c, 1.f, QD_NONE);
+        ui_RR(cx - 7.f * s, cy - 1.5f * s, 14.f * s, 3.f * s, 1.f, c, 1.f, c);
+        ui_RR(cx - 7.f * s, cy + 3.f * s, 14.f * s, 3.f * s, 1.f, c, 1.f, QD_NONE);
+        break;
+    case UI_IC_FOLLOW:                                  /* P1.5z: page follow: two pages, an arrow across them */
+        ui_RR(cx - 7.f * s, cy - 5.f * s, 6.f * s, 8.f * s, 1.f, c, 1.1f, QD_NONE);
+        ui_RR(cx + 1.f * s, cy - 5.f * s, 6.f * s, 8.f * s, 1.f, c, 1.1f, QD_NONE);
+        ln(cx - 7.f * s, cy + 6.f * s, cx + 7.f * s, cy + 6.f * s, c, 1.2f);
+        ln(cx + 4.f * s, cy + 4.f * s, cx + 7.f * s, cy + 6.f * s, c, 1.2f);
+        ln(cx + 4.f * s, cy + 8.f * s, cx + 7.f * s, cy + 6.f * s, c, 1.2f);
+        break;
     case UI_IC_VIEWS:                                   /* P1.3y: the three views: three panes side by side */
         ui_RR(cx - 7.f * s, cy - 5.f * s, 4.f * s, 10.f * s, 1.f, c, 1.1f, QD_NONE);
         ui_RR(cx - 2.f * s, cy - 5.f * s, 4.f * s, 10.f * s, 1.f, c, 1.1f, QD_NONE);

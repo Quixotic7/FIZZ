@@ -365,7 +365,8 @@ static int w_step_view(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP; }
 /* P1.5c: SHIFT held in the step view (no menu open): its black-key shortcuts */
 static int w_shift_keys(const qd_app_t *a)
 {
-    return a->ui.mode == QD_MODE_STEP && qd_ctl_shift(a) && (!a->ui.latch || a->ui.latch == QD_LATCH_F3);
+    return a->ui.mode == QD_MODE_STEP && qd_ctl_shift(a) &&
+           (!a->ui.latch || a->ui.latch == QD_LATCH_F3 || a->ui.latch == QD_LATCH_SND);   /* (P1.5z: the editor too) */
 }
 static void k_shift_black(qd_app_t *a, int key, int b, int down, int vel)
 {
@@ -1383,20 +1384,15 @@ static void tempo_turn(qd_app_t *a, int d)
     }
 }
 
-/* the keyboard (not recording live): SELECT tempo (SHIFT: swing), PRESETS the sound, KNOB 1..4 the quick page */
+/* the keyboard (not recording live): SELECT tempo (P1.5z: SHIFT + SELECT is the track now; the swing is F3 +
+ * ALGORITHM), PRESETS the sound, KNOB 1..4 the quick page */
 static int k_track(qd_app_t *a, int knob, int d)
 {
     switch (knob) {
     case QD_K_SELECT:
-        if (qd_ctl_shift(a)) {
-            qd_pattern_t *p = qd_ctl_pat(a);
-            p->swing = (uint8_t)clampi(p->swing + d, 50, 80);
-            qd_ctl_takeover(a, UI_TK_SWING, 1, d, 0, -1);
-        } else {
-            tempo_turn(a, d);
-            if (!qd_seq_ext_running(&a->seq))
-                qd_ctl_takeover(a, UI_TK_TEMPO, 0, d, 0, -1);
-        }
+        tempo_turn(a, d);
+        if (!qd_seq_ext_running(&a->seq))
+            qd_ctl_takeover(a, UI_TK_TEMPO, 0, d, 0, -1);
         return 1;
     case QD_K_PRESETS:
         if (qd_ctl_shift(a))                            /* P1.5b: the root */
@@ -1624,6 +1620,26 @@ static int k_fx_track(qd_app_t *a, int knob, int d)
 }
 
 static int when_keys_shift(const qd_app_t *a) { return qd_keys_on(a) && qd_ctl_shift(a); }
+/* P1.5z (the owner: "a quick shortcut for changing the track ... Shift + SEL knob"): SHIFT + SELECT the selected track,
+ * a track a detent, round 1..8, FX + ALGORITHM's big track takeover; in every view, the sound editor (the new track's
+ * sound), the browser (its preview put back first, then the new track's own sound), the mix, the effects. Not in the
+ * typewriter (its row is first: SELECT the letter). It was: the keyboard's swing (F3 + ALGORITHM has it) and,
+ * elsewhere, the page as without SHIFT */
+static int when_shift(const qd_app_t *a) { return qd_ctl_shift(a) && a->ui.mode != QD_MODE_IDLE; }
+static int k_shift_track(qd_app_t *a, int knob, int d)
+{
+    const int t = ((a->sel + d) % QD_NTRACK + QD_NTRACK) % QD_NTRACK;
+    if (knob != QD_K_SELECT || !d)
+        return 0;
+    a->ui.shift_used = 1;
+    a->ui.tracks_tap = 0;
+    if (a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_BROWSE)
+        qd_br_track(a, t);                              /* (the preview put back, then the new track) */
+    else
+        qd_ctl_select_track(a, t);
+    qd_ctl_takeover(a, UI_TK_TRACKBIG, 0, d, 0, -1);
+    return 1;
+}
 /* P1.5o (the owner): F2 held + a knob in the sound editor or in P-LOCK: that value's locks cleared, on the held or
  * selected steps, with nothing held on every step of the track; a word says so in the knob's colour */
 static int when_unlock(const qd_app_t *a)
@@ -1690,6 +1706,7 @@ static const struct {
 } KNOB_ROWS[] = {
     {when_type, qd_type_knob},         /* P1.5u: a name typed: ALGORITHM the cursor, SELECT the character, PRESETS ideas */
     {when_metro, qd_shift_metro_knob}, /* P1.5c: SHIFT + B7 held: any knob the click's level */
+    {when_shift, k_shift_track},       /* P1.5z: SHIFT + SELECT: the track (the others go on down the rows) */
     {when_lmode, k_lmode},             /* P1.5h: LFO held, its screen up: SELECT the latch mode */
     {when_unlock, k_unlock},           /* P1.5o: F2 held (the editor, P-LOCK) + a knob: that value unlocked */
     {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track (over every page) */
@@ -1760,8 +1777,9 @@ void qd_ctl_ms(qd_app_t *a)
     if (u->tk == QD_TK_PRESET && u->tk_hold) {         /* P1.5v: the step's pool picker: up while the step is held */
         if (!u->nheld)
             u->tk = QD_TK_NONE, u->tk_hold = 0, u->tk_lock = 0;   /* (let go: closed, the choice kept) */
-    } else if (u->tk != QD_TK_NONE && a->ms - u->tk_ms >= QD_TK_MS + QD_TK_FADE_MS) {
-        u->tk = QD_TK_NONE;
+    } else if (u->tk != QD_TK_NONE &&
+               a->ms - u->tk_ms >= (u->tk == UI_TK_TAP ? QD_TAP_TK_MS : QD_TK_MS) + QD_TK_FADE_MS) {
+        u->tk = QD_TK_NONE;                             /* (P1.5z: TAP's stays 2 s after the last tap) */
     }
     if (u->cf_on && a->ms - u->cf_ms >= QD_CONFIRM_MS)
         u->cf_on = 0;

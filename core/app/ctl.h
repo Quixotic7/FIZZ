@@ -135,6 +135,7 @@ struct qd_app;
 #define QD_IDLE_MS 120000u             /* untouched this long, stopped: the idle screen */
 #define QD_TK_MS 1000u                 /* a takeover stays this long after the last detent .. */
 #define QD_TK_FADE_MS 120u             /* .. then fades back */
+#define QD_TAP_TK_MS 2000u             /* P1.5z: SHIFT + B6's TAP takeover stays this long after the last tap */
 #define QD_CONFIRM_MS 1100u            /* a confirmation word stays this long (its last 120 ms a fade) */
 #define QD_BLINK_MS 250u               /* a blink's half period (the playing page, the queued pattern, solo) */
 #define QD_FAST_MS 90u                 /* a fast blink's half period (the held step) */
@@ -273,7 +274,9 @@ typedef struct {
 /* P1.5u: the typewriter (ctl_type.c): one keyboard for every name. The black keys A..K, the white keys L..Z and
  * SPACE (SHIFT: 0..9 -, . , ' & ! ? # + / ( ) * : _ ~ SPACE) */
 #define QD_TY_LEN (QD_SOUND_NAME - 1)  /* twelve characters */
-#define QD_TY_NIDEA 12                 /* PRESETS' name ideas */
+#define QD_TY_NIDEA 12                 /* PRESETS' name ideas (P1.5y; P1.5z: the qd_name_ideas list's size) */
+#define QD_TY_NHIST 10                 /* P1.5z: the names seen, a ring (PRESETS / KNOB 4 left walks back) */
+#define QD_TY_DICE_MS 650              /* .. a new name rolled: the die tumbles this long, then lands */
 #define QD_TY_IDEA_MS 1200             /* the ideas' rolodex stays this long after a detent */
 #define QD_TY_HIT_MS 450               /* a key's glow (and its letter's flight) after the press */
 #define QD_TY_FULL_MS 600              /* full: the row flashes */
@@ -291,10 +294,13 @@ typedef struct {
     int del_at;                        /* .. its place .. */
     uint32_t del_ms;                   /* .. and when (it drops away) */
     uint32_t roll_ms;                  /* SELECT turned the character under the cursor */
-    char ideas[QD_TY_NIDEA][QD_SOUND_NAME];   /* PRESETS' ideas (made at the first detent) .. */
-    int nidea, idea;                   /* .. their count (0: not made yet), the one chosen (-1 none) */
-    uint32_t idea_ms;                  /* .. the last detent (the rolodex shows) */
-    uint32_t seed;                     /* P1.5y: the namesizer's seed for this name (its suggestion, its ideas) */
+    uint32_t idea_ms;                  /* PRESETS / KNOB 4's last detent (the rolodex shows) */
+    uint32_t seed;                     /* P1.5y: the namesizer's seed for this name (its suggestion) .. */
+    uint32_t rseed;                    /* .. P1.5z: the rolls' (advancing) */
+    char hist[QD_TY_NHIST][QD_SOUND_NAME];   /* P1.5z: the names seen (a ring: the newest at hnew) .. */
+    int nhist, hnew, hpos;             /* .. how many, the newest's place, where shown (0 the newest, k: k back) */
+    uint32_t dice_ms;                  /* .. a name rolled (the die tumbles), its face (1..6) */
+    int dice_face;
 } qd_typer_t;
 typedef struct {
     int replace;                       /* the MY preset the track's sound came from (its place; -1 none): REPLACE offered */
@@ -418,7 +424,7 @@ typedef struct {
     int undo_dir, undo_kind;           /* P1.5c: the last undo (-1) / redo (+1), its level's kind (QD_UK_*; -1 none) */
     int clr_armed;                     /* P1.5c: SHIFT + B11 pressed once (the track cleared on the second) .. */
     uint32_t clr_ms;
-    uint32_t tap_ms[4];                /* .. SHIFT + B6: the last taps */
+    uint32_t tap_ms[8];                /* .. SHIFT + B6: the last taps (P1.5z: eight, the takeover's dots) */
     int ntap;
     int rnd_kind;                      /* P1.5c: the editor's randomise: 1 the page (the dice rolling), 2 the sound
                                         * (B10 held: the bottle filling), 3 the bottle burst .. */
@@ -615,6 +621,7 @@ int qd_lib_oct(struct qd_app *a, int d, int down);   /* 1 taken */
 void qd_lib_ms(struct qd_app *a);
 /* ---- ctl_presets.c (P1.5t): the library browser, SAVE PRESET */
 void qd_br_turn(struct qd_app *a, int d);        /* PRESETS, nothing held: the browser opened / moved */
+void qd_br_track(struct qd_app *a, int t);   /* P1.5z: SHIFT + SELECT: the preview put back, track t browsed */
 void qd_br_cancel(struct qd_app *a);             /* the track's own sound back, the browser closed */
 void qd_br_home(struct qd_app *a);               /* .. by HOME (to the view) */
 void qd_br_load(struct qd_app *a);               /* the chosen onto the track, the browser closed */
@@ -635,6 +642,8 @@ int qd_type_open(const struct qd_app *a);        /* a name being typed (SAVE PRE
 char qd_type_char(int white, int idx, int shift);   /* the character of black key idx (0..10) / white key idx (0..15) */
 void qd_type_start(struct qd_app *a, const char *name, int spark);   /* a suggested name, selected */
 uint32_t qd_type_seed(struct qd_app *a);   /* P1.5y: a fresh namesizer seed (names.h) */
+const char *qd_type_hist(const struct qd_app *a, int k);   /* P1.5z: the name k back in the names seen ("" none) */
+void qd_type_hist_push(struct qd_app *a, const char *nm);
 void qd_type_key(struct qd_app *a, int white, int idx, int down);   /* a key typed (the press; SHIFT: the signs) */
 int qd_type_knob(struct qd_app *a, int knob, int d);   /* ALGORITHM the cursor, SELECT the character, PRESETS ideas */
 int qd_type_button(struct qd_app *a, int button, int down);   /* F1 delete (SHIFT: clear), F2, SAVE, HOME; 1 taken */

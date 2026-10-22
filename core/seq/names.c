@@ -232,3 +232,25 @@ int qd_name_project_ideas(uint32_t seed, const char *own, char (*out)[QD_NAME_MA
     }
     return n;
 }
+
+int qd_name_roll(uint32_t *seed, const int16_t *patch, const char *avoid, char *out)
+{
+    char snd[8][QD_NAME_MAX + 1];
+    const int nsnd = patch ? qd_sound_ideas(patch, snd, 8) : 0;
+    int tries, k = QD_NK_RND;
+    for (tries = 0; tries < 6; tries++) {
+        const int r = nm_int(seed, 0, 9);
+        k = r < 6 ? QD_NK_RND : r == 6 ? QD_NK_PHONIC : r == 7 ? QD_NK_WORD : nsnd ? QD_NK_SOUND : QD_NK_RND;
+        if (k == QD_NK_SOUND)
+            memcpy(out, snd[nm_int(seed, 0, nsnd - 1)], QD_NAME_MAX + 1);
+        else if (k == QD_NK_PHONIC)
+            qd_name_phonic(seed, out);
+        else if (k == QD_NK_WORD)
+            qd_name_word(seed, out);
+        else
+            qd_name_rnd(seed, out);
+        if (qd_name_ok(out) && (!avoid || strcmp(out, avoid)))
+            break;
+    }
+    return k;
+}

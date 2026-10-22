@@ -126,21 +126,68 @@ static void ty_pill(float x, float y, float w, const char *s, qd_rgb col, int on
     qd_restore();
 }
 
-/* PRESETS turned: the ideas, a rolodex */
+/* P1.5z: a neon die, its face (1..6), turned by an (radians), at (cx, cy), half-size h */
+static void ty_die(float cx, float cy, float h, float an, int face, qd_rgb col, float a)
+{
+    static const signed char PIP[7][6][2] = {
+        {{0, 0}}, {{0, 0}}, {{-1, -1}, {1, 1}}, {{-1, -1}, {0, 0}, {1, 1}}, {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}},
+        {{-1, -1}, {1, -1}, {0, 0}, {-1, 1}, {1, 1}}, {{-1, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {1, 1}}};
+    const float c = cosf(an), s = sinf(an);
+    float p[8];
+    int k;
+    face = face < 1 ? 1 : face > 6 ? 6 : face;
+    for (k = 0; k < 4; k++) {
+        const float x = (k == 0 || k == 3) ? -h : h, y = k < 2 ? -h : h;
+        p[2 * k] = cx + x * c - y * s;
+        p[2 * k + 1] = cy + x * s + y * c;
+    }
+    qd_save();
+    qd_alpha(qd_get_alpha() * a * 0.3f);
+    ui_P(p, 4, col, 6.f, 1, QD_NONE);                   /* (neon: a wide glow under the line) */
+    qd_restore();
+    qd_save();
+    qd_alpha(qd_get_alpha() * a);
+    ui_P(p, 4, col, 1.8f, 1, QD_NONE);
+    for (k = 0; k < face; k++) {
+        const float x = (float)PIP[face][k][0] * h * 0.5f, y = (float)PIP[face][k][1] * h * 0.5f;
+        ui_O(cx + x * c - y * s, cy + x * s + y * c, h * 0.16f, QD_NONE, 1.f, col);
+    }
+    qd_restore();
+}
+
+/* PRESETS / KNOB 4 turned: the names, a rolodex (P1.5z: the newest at the foot; older ones above, faded); a new one
+ * rolled: a die tumbles in beside it and lands; walking back: the ten places as dots, the one shown lit */
 static void ty_ideas(const ui_type_t *v)
 {
     int d;
-    for (d = -2; d <= 2; d++) {
-        const int i = v->idea + d;
+    for (d = -2; d <= 1; d++) {
+        const int i = v->hpos - d;                      /* (above: older; below: newer) */
         const float y = d < 0 ? 58.f + (float)(d + 1) * 22.f : 92.f + (float)d * 24.f;
-        if (i < 0 || i >= v->nidea)
+        if (i < 0 || i >= v->nhist || !v->hist[i])
             continue;
         qd_save();
         qd_alpha(qd_get_alpha() * (d == 0 ? 1.f : d == 1 || d == -1 ? 0.6f : 0.3f));
-        ui_T(v->ideas[i], 120.f, y, d ? 15.f : 24.f, d ? 400 : 300, 0.f, d ? UI_G1 : UI_K3, QD_CENTER);
+        ui_T(v->hist[i], 120.f, y, d ? 15.f : 24.f, d ? 400 : 300, 0.f, d ? UI_G1 : UI_K3, QD_CENTER);
         qd_restore();
     }
-    ty_spark(219.f, 81.f, 6.f, UI_LIB_COL);
+    if (v->dice >= 0.f && v->hpos == 0) {               /* the die: tumbling in from above, then landed */
+        const float u = v->dice, e = u < 1.f ? u : 1.f;
+        const float bounce = e < 1.f ? fabsf(sinf(e * UI_PI * 2.5f)) * (1.f - e) * 22.f : 0.f;
+        const int face = e < 1.f ? 1 + ((int)(u * 14.f) + v->dice_face) % 6 : v->dice_face;
+        ty_die(214.f, 86.f - bounce, 9.f, (1.f - e) * UI_PI * 3.f, face, UI_K2, 1.f);
+    } else {
+        ty_spark(219.f, 81.f, 6.f, UI_LIB_COL);
+    }
+    if (v->hpos > 0) {                                  /* back in the history: where among the ten */
+        int k;
+        for (k = 0; k < QD_UI_NHIST; k++) {
+            const float x = 120.f + (float)(QD_UI_NHIST - 1 - k) * 9.f - (float)(QD_UI_NHIST - 1) * 4.5f;
+            if (k < v->nhist)
+                ui_O(x, 132.f, k == v->hpos ? 3.6f : 2.2f, QD_NONE, 1.f, k == v->hpos ? UI_LIB_COL : UI_G1);
+            else
+                ui_O(x, 132.f, 2.2f, UI_G3, 1.f, QD_NONE);
+        }
+    }
 }
 
 void ui_type_draw(const ui_type_t *v)

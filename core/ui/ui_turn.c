@@ -574,6 +574,80 @@ static void d_trackbig(const ui_turn_t *v)
     }
 }
 
+/* ---------------------------------------------------------------- TAP (P1.5z): SHIFT + B6's taps */
+/* the BPM big once two taps make one (the tempo's colour; an external clock: dimmed, a clock beside it); each tap a
+ * neon ring out of the middle and the metronome's swing; the taps as dots on a timeline (the newest at the right, popping
+ * in; the last four, averaged, bright; older fading); the count over (2 s on): the dots clear away */
+static float tp_ease(float x) { x = x < 0.f ? 0.f : x > 1.f ? 1.f : x; return x * x * (3.f - 2.f * x); }
+static void d_tap(const ui_turn_t *v, qd_rgb col)
+{
+    char s[12];
+    const qd_rgb c = v->ext ? UI_G2 : col;
+    const float last = v->ntap ? v->tap_age[0] : 9.f;
+    const float clr = v->since > 1.6f ? tp_ease((v->since - 1.6f) / 0.4f) : 0.f;   /* (the count over: clearing) */
+    int i;
+    if (last < 0.7f) {                                  /* the tap's ring, neon: a wide faint line under a bright one */
+        const float u = last / 0.7f, r = 16.f + 104.f * tp_ease(u);
+        qd_save();
+        qd_alpha(qd_get_alpha() * (1.f - u) * 0.3f);
+        ui_O(120.f, 112.f, r, c, 7.f, QD_NONE);
+        qd_restore();
+        qd_save();
+        qd_alpha(qd_get_alpha() * (1.f - u));
+        ui_O(120.f, 112.f, r, c, 1.8f, QD_NONE);
+        qd_restore();
+    }
+    {   /* the metronome, its pendulum kicked by each tap (one tap: armed at its side) */
+        const float beat = v->value > 0 ? 60.f / (float)v->value : 0.5f;
+        const float f = v->ntap >= 2 ? (last / beat > 0.999f ? 0.999f : last / beat) : 0.f;
+        metronome(206.f, 150.f, 0.42f, v->ntap, f, 50, 0);
+    }
+    if (v->ext) {                                       /* an external clock: tapping does nothing: a clock, dimmed */
+        ui_O(36.f, 112.f, 13.f, UI_G1, 1.6f, QD_NONE);
+        line2(36.f, 112.f, 36.f, 103.f, UI_G1, 1.6f);
+        line2(36.f, 112.f, 43.f, 116.f, UI_G1, 1.6f);
+    }
+    if (v->ntap >= 2 || v->ext) {
+        const float pop = last < 0.15f && !v->ext ? 1.f + 0.08f * (1.f - last / 0.15f) : 1.f;
+        ui_T(ui_itoa(s, v->value), 120.f, 136.f, 72.f * pop, 200, 0.f, c, QD_CENTER);
+        ui_lab("BPM", 120.f, 156.f, UI_G1, QD_CENTER);
+    }
+    line2(20.f, 200.f, 220.f, 200.f, UI_G3, 1.f);      /* the timeline, the taps on it */
+    for (i = v->ntap - 1; i >= 0; i--) {
+        const float age = v->tap_age[i], x = 204.f - age * 72.f - clr * 220.f;
+        const float a = (i < 4 ? 1.f : 0.45f - 0.1f * (float)(i - 4)) * (1.f - clr);
+        const float r = age < 0.25f ? 4.5f + 4.f * (1.f - age / 0.25f) : 4.5f;   /* (a new one pops in) */
+        if (x < 14.f || a <= 0.f)
+            continue;
+        qd_save();
+        qd_alpha(qd_get_alpha() * a);
+        ui_O(x, 200.f, r, QD_NONE, 1.f, i < 4 ? c : UI_G1);
+        qd_restore();
+    }
+}
+
+/* ---------------------------------------------------------------- FOLLOW (P1.5z): SHIFT + B8's page follow */
+/* the settings' picture big: four pages, the playhead crossing them, the page lit under it when following; the arrow
+ * under them (off: crossed in red); ON / OFF big (the frame's value) */
+static void d_follow(const ui_turn_t *v, qd_rgb col)
+{
+    const int on = v->value != 0;
+    const float px = 30.f + fmodf(v->t * 60.f, 180.f);
+    const qd_rgb c = on ? col : UI_G2;
+    int k;
+    for (k = 0; k < 4; k++)
+        ui_RR(30.f + (float)k * 46.f, 60.f, 42.f, 52.f, 5.f, on && (int)((px - 30.f) / 46.f) == k ? col : UI_G2, 1.6f,
+              QD_NONE);
+    line2(px, 52.f, px, 120.f, UI_RED, 2.f);
+    line2(30.f, 140.f, 208.f, 140.f, c, 2.f);
+    {
+        const float a[6] = {198.f, 132.f, 210.f, 140.f, 198.f, 148.f};
+        ui_P(a, 3, c, 2.f, 0, QD_NONE);
+    }
+    if (!on)
+        line2(104.f, 126.f, 132.f, 154.f, UI_RED, 2.4f);
+}
+
 /* ---------------------------------------------------------------- the knob band (P1.3d) */
 void ui_band_draw(const ui_band_t *v)
 {
@@ -651,6 +725,8 @@ void ui_turn_draw(const ui_turn_t *v)
     case UI_TK_ROOT: d_scale(v, col); val = 0; break;
     case UI_TK_TRACK: d_track(v, col); val = 0; break;
     case UI_TK_TRACKBIG: d_trackbig(v); val = 0; break;
+    case UI_TK_TAP: d_tap(v, col); val = 0; break;     /* P1.5z */
+    case UI_TK_FOLLOW: d_follow(v, col); break;
     case UI_TK_TSWING:
         metronome(120.f, 128.f, 0.62f, v->beats, v->beat, v->value ? (v->swing > 50 ? v->swing : 62) : 50, 0);
         if (!val[0])

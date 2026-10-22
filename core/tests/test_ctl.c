@@ -4959,7 +4959,8 @@ static void g_p15p_band(void)
     btap(QD_B_HOME);
 }
 
-/* P1.5q: EDIT follows the selected track's step as it plays (the head, the value; an empty step keeps the last, dimmed;
+/* P1.5q: EDIT follows the selected track's step as it plays (the picture, the value; P1.5z: not the head, the track's
+ * default's; an empty step keeps the last, dimmed;
  * micro-timing and the track's rate; a ratchet once a step; the latch, a held step, a stop, a takeover: back) */
 static ui_held_t fh;
 static ui_lane_t fl;
@@ -5016,9 +5017,12 @@ static void g_p15q_follow(void)
           tch[4] - tch[1]);
     CHECK(dim_ok && ndim > 50, "step 5 empty: step 4 kept, dimmed (%d ms)", ndim);
     CHECK(nupd == 10, "two loops: ten updates (step 3's four hits one; a step again on the next loop: again) (%d)", nupd);
-    {
-        int st = follow_now();                          /* the head: "STEP n" from the step shown */
-        CHECK(st >= 1 && fh.step == st && !fh.is_default && !fh.nheld, "the head: STEP %d", st);
+    {   /* P1.5z (the owner: "lets not change the header during playback"): the picture the step playing's, the head
+         * the track's default's ("TRACK DEFAULT · VEL", its value) */
+        int st = follow_now();
+        CHECK(st >= 1 && fh.step == st && !fh.is_default && !fh.nheld && fh.head && fh.head->is_default &&
+                  fh.head->vel == A.proj.pat[A.seq.cur].trk[0].def.vel,
+              "following: the picture step %d's, the head the track's default's (VEL %d)", st, fh.head ? fh.head->vel : -1);
     }
     btap(LFO);                                          /* the latch: back */
     ok = !follow_now() && qd_view_edit_follows(&A) < 0;
@@ -5404,12 +5408,8 @@ static void g_p15t_save(void)
     CHECK(leds().button[QD_B_OCTDN] == QD_LED_LIT, "F1 lit");
     turn(QD_K_PRESETS, 2);                              /* P1.5u: another idea */
     CHECK(strcmp(A.ui.ty.name, nm) != 0 && A.ui.ty.sel, "PRESETS: another name (an idea: %s)", A.ui.ty.name);
-    {   /* P1.5y: twelve ideas, the namesizer suggestion first, the sound's own second (the one PRESETS stopped on) */
-        char own[QD_SOUND_NAME];
-        qd_sound_autoname(A.model.t[0].patch, 0, own);
-        CHECK(A.ui.ty.nidea == 12 && !strcmp(A.ui.ty.ideas[0], nm) && !strcmp(A.ui.ty.ideas[1], own) &&
-                  !strcmp(A.ui.ty.name, own), "PRESETS: 12 ideas, the suggestion first, the sound's (%s) second", own);
-    }
+    CHECK(A.ui.ty.nhist == 3 && !strcmp(qd_type_hist(&A, 2), nm) && !strcmp(qd_type_hist(&A, 0), A.ui.ty.name) &&
+              A.ui.ty.dice_ms, "P1.5z: two names rolled, the suggestion the oldest of three, a die rolled");
     turn(QD_K_SELECT, 1);                               /* the last letter on one (P1.5u: the cursor at the end) */
     turn(QD_K_ALGO, -1);
     btap(F1);                                           /* .. the one before it deleted */
@@ -5593,29 +5593,58 @@ static void g_p15u_edit(void)
 
 static void g_p15u_ideas(void)
 {
-    char nm[QD_SOUND_NAME];
-    int k, j, ok = 1;
+    /* P1.5z (the owner): PRESETS (or KNOB 4) right rolls a new name every detent, endless (mostly namesizer pairs, a
+     * made-up word now and then, the sound's own now and then); left walks back through the last ten, stopping at the
+     * oldest; right then forward first */
+    char nm[QD_SOUND_NAME], seen[40][QD_SOUND_NAME];
+    int k, j, ok = 1, words = 0, sound = 0, n;
     ty_open();
     snprintf(nm, sizeof nm, "%s", A.ui.ty.name);
     turn(QD_K_PRESETS, 1);
-    CHECK(A.ui.ty.nidea >= 5 && A.ui.ty.idea == 0 && !strcmp(A.ui.ty.name, nm) && A.ui.ty.sel && A.ui.ty.spark,
-          "PRESETS: the ideas (%d), the first the suggestion, selected", A.ui.ty.nidea);
-    for (k = 0; k < A.ui.ty.nidea; k++) {
-        ok &= A.ui.ty.ideas[k][0] && strlen(A.ui.ty.ideas[k]) <= 12;
-        for (j = 0; j < k; j++)
-            ok &= strcmp(A.ui.ty.ideas[j], A.ui.ty.ideas[k]) != 0;
+    CHECK(A.ui.ty.nhist == 2 && strcmp(A.ui.ty.name, nm) && !strcmp(qd_type_hist(&A, 1), nm) && A.ui.ty.sel &&
+              A.ui.ty.spark && A.ui.ty.dice_ms && A.ui.ty.idea_ms, "PRESETS right: a new name (%s), selected, a die rolled",
+          A.ui.ty.name);
+    for (k = 0; k < 40; k++) {                          /* forty more: each new, the mix */
+        char own[8][QD_SOUND_NAME];
+        int m;
+        turn(k & 1 ? QD_K_4 : QD_K_PRESETS, 1);
+        snprintf(seen[k], QD_SOUND_NAME, "%s", A.ui.ty.name);
+        ok &= qd_name_ok(seen[k]) && (!k || strcmp(seen[k], seen[k - 1]));
+        words += !strchr(seen[k], ' ');
+        n = qd_sound_ideas(A.model.t[0].patch, own, 8);
+        for (m = 0; m < n; m++)
+            sound += !strcmp(own[m], seen[k]);
     }
-    CHECK(ok, "each once, twelve letters at most (%s, %s, %s ..)", A.ui.ty.ideas[0], A.ui.ty.ideas[1], A.ui.ty.ideas[2]);
+    CHECK(ok && A.ui.ty.nhist == QD_TY_NHIST, "forty more (PRESETS and KNOB 4): each a new name, each fits; ten kept");
+    CHECK(words >= 3 && sound >= 2 && sound <= 18, "the mix: made-up words %d, the sound's own %d of 40 (%s, %s, %s ..)",
+          words, sound, seen[0], seen[1], seen[2]);
+    turn(QD_K_PRESETS, -3);
+    CHECK(A.ui.ty.hpos == 3 && !strcmp(A.ui.ty.name, seen[36]) && A.ui.ty.sel, "left 3: back to the fourth newest (%s)",
+          A.ui.ty.name);
+    turn(QD_K_4, -20);
+    CHECK(A.ui.ty.hpos == QD_TY_NHIST - 1 && !strcmp(A.ui.ty.name, seen[30]), "on left: it stops at the oldest kept (%s)",
+          A.ui.ty.name);
     turn(QD_K_PRESETS, 2);
-    CHECK(A.ui.ty.idea == 2 && !strcmp(A.ui.ty.name, A.ui.ty.ideas[2]) && A.ui.ty.sel && A.ui.ty.idea_ms,
-          "two more: the third (%s), selected, the rolodex showing", A.ui.ty.name);
-    turn(QD_K_PRESETS, -9);
-    CHECK(A.ui.ty.idea == 0, "back: the first (clamped)");
-    turn(QD_K_PRESETS, 40);
-    CHECK(A.ui.ty.idea == A.ui.ty.nidea - 1, "on: the last (clamped)");
+    CHECK(A.ui.ty.hpos == QD_TY_NHIST - 3 && !strcmp(A.ui.ty.name, seen[32]), "right in the history: forward through it "
+          "first (%s)", A.ui.ty.name);
+    turn(QD_K_PRESETS, QD_TY_NHIST - 3);
+    CHECK(!A.ui.ty.hpos && !strcmp(A.ui.ty.name, seen[39]), "to the newest");
+    turn(QD_K_PRESETS, 1);
+    CHECK(!A.ui.ty.hpos && strcmp(A.ui.ty.name, seen[39]) && !strcmp(qd_type_hist(&A, 1), seen[39]),
+          "past it: a new one rolled (%s)", A.ui.ty.name);
+    for (j = 0, ok = 1; j < 2; j++) {                   /* the same seed: the same names */
+        ty_open();
+        A.ui.ty.rseed = 777u;
+        turn(QD_K_PRESETS, 1);
+        if (!j)
+            snprintf(nm, sizeof nm, "%s", A.ui.ty.name);
+        else
+            ok &= !strcmp(nm, A.ui.ty.name);
+    }
+    CHECK(ok, "deterministic: the same seed, the same name (%s)", nm);
     run(QD_TY_IDEA_MS + 20);
     wtap(4);
-    CHECK(!strcmp(A.ui.ty.name, "P"), "a key: the idea replaced (selected)");
+    CHECK(!strcmp(A.ui.ty.name, "P"), "a key: the name replaced (selected)");
     {   /* the classifier's words: a pluck gets PLUCK and its other words */
         char ideas[QD_TY_NIDEA][QD_SOUND_NAME];
         int16_t p[QD_QUAD_NP];
@@ -6083,6 +6112,293 @@ static void g_p15x_mix(void)
     CHECK(R(1, 6).sound == k && mix_is(1, -30, 4, 4, 4), "a step locking it: the track's pan and sends untouched");
 }
 
+
+/* ================================================================ P1.5z: the owner's batch === */
+/* - POOL: its own animation (the cassette out of the lime tray, bubbles, the + back); the outline lime in the pool,
+ *   champagne not, in every source, the animations ending in the right one */
+static void g_p15z_pool(void)
+{
+    ui_browse_t v;
+    int k;
+    start();
+    run(600);
+    qd_sounds_clear(&A.proj);
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, 4 - A.ui.br.pos);
+    qd_view_browse(&A, &v);
+    CHECK(v.ocol == UI_LIB_COL && v.e[2].tray == 1, "ALL, not in the pool: the champagne outline, the tray's +");
+    black(B10);
+    k = qd_br_pool_k(&A);
+    qd_view_browse(&A, &v);
+    CHECK(k > 0 && v.fx == QD_BRFX_IN && v.ocol == UI_LIB_COL, "B10 in: the cassette on its way into the tray, still "
+          "champagne");
+    run(700);
+    qd_view_browse(&A, &v);
+    CHECK(v.ocol == UI_POOL_COL, "landed: the outline lime");
+    run(400);
+    black(B10);                                         /* out: its own animation */
+    qd_view_browse(&A, &v);
+    CHECK(!qd_br_pool_k(&A) && v.fx == QD_BRFX_OUT && v.fx_u < 0.2f && v.ocol == UI_POOL_COL && !v.users_row,
+          "B10 out: - POOL's animation (the cassette pops out of the lime tray), still lime as it starts");
+    run(500);
+    qd_view_browse(&A, &v);
+    CHECK(v.fx == QD_BRFX_OUT && v.fx_u > 0.45f && v.ocol == UI_LIB_COL, "popped out: the outline champagne again");
+    run(500);
+    qd_view_browse(&A, &v);
+    CHECK(!v.fx && v.ocol == UI_LIB_COL && v.e[2].tray == 1, "after it: champagne, the tray's + back");
+    black(B10);                                         /* the POOL source: lime; its OUT (confirmed) animates too */
+    run(1000);
+    k = qd_br_pool_k(&A);
+    qd_step_on(PAT(), 1, 3);
+    qd_step_set_sound(PAT(), 1, 3, k);
+    black(B9);
+    black(B9);
+    qd_view_browse(&A, &v);
+    CHECK(A.ui.br.src == QD_BR_POOL && v.ocol == UI_POOL_COL, "the POOL: lime");
+    black(B10);
+    black(B10);
+    qd_view_browse(&A, &v);
+    CHECK(!qd_sound_used(&A.proj, k) && v.fx == QD_BRFX_OUT && !v.users_row, "the POOL's OUT, confirmed: - POOL's "
+          "animation (the users' row after it)");
+    mine_add("MINE LIME", 5);
+    black(B9);                                          /* (POOL -> ALL -> MY PRESETS) */
+    black(B9);
+    qd_view_browse(&A, &v);
+    CHECK(A.ui.br.src == QD_BR_MINE && v.ocol == UI_LIB_COL, "MY PRESETS, not in the pool: champagne");
+    black(B10);
+    run(1000);
+    qd_view_browse(&A, &v);
+    CHECK(v.ocol == UI_POOL_COL, "MY PRESETS, in the pool: lime");
+    btap(QD_B_HOME);
+}
+
+/* - SAVE PRESET: KNOB 1 turns the letter under the cursor, as SELECT */
+static void g_p15z_save_knob1(void)
+{
+    start();
+    run(600);
+    btap(QD_B_SAVE);
+    bdown(SHIFT);
+    run(10);
+    btap(F1);                                           /* (cleared) */
+    bup(SHIFT);
+    run(10);
+    black(B1);                                          /* A */
+    turn(QD_K_ALGO, -1);
+    turn(QD_K_1, 2);                                    /* A -> C */
+    CHECK(!strcmp(A.ui.ty.name, "C"), "KNOB 1: A turned to C (%s)", A.ui.ty.name);
+    turn(QD_K_SELECT, -1);                              /* SELECT still: C -> B */
+    CHECK(!strcmp(A.ui.ty.name, "B"), "SELECT too: B (%s)", A.ui.ty.name);
+    turn(QD_K_ALGO, 1);
+    turn(QD_K_1, 1);                                    /* at the end: a new character */
+    CHECK(!strcmp(A.ui.ty.name, "BA"), "KNOB 1 at the end: a new one (%s)", A.ui.ty.name);
+    btap(QD_B_HOME);
+}
+
+/* - SHIFT + ALGORITHM / PRESETS: the scale / root takeover in EDIT, the PIANO ROLL and STEPS */
+static void g_p15z_scale_popup(void)
+{
+    static const int VIEWS[3] = {QD_VIEW_EDIT, QD_VIEW_ROLL, QD_VIEW_STEPS};
+    ui_turn_t tv;
+    int i, ok = 1, sc0;
+    start();
+    for (i = 0; i < 3; i++) {
+        A.ui.view = VIEWS[i];
+        run(50);
+        sc0 = PAT()->trk[0].scale;
+        bdown(SHIFT);
+        run(10);
+        turn(QD_K_ALGO, 1);
+        qd_view_turn(&A, &tv);
+        ok &= A.ui.tk == UI_TK_SCALE && qd_view_overlay(&A) && PAT()->trk[0].scale == sc0 + 1 &&
+              !strcmp(tv.val, qd_scale_name(sc0 + 1)) && tv.scale_mask != 0;
+        turn(QD_K_PRESETS, 2);
+        qd_view_turn(&A, &tv);
+        ok &= A.ui.tk == UI_TK_ROOT && qd_view_overlay(&A) && tv.root == 2;
+        bup(SHIFT);
+        run(QD_TK_MS + QD_TK_FADE_MS + 20);
+        PAT()->trk[0].scale = (uint8_t)sc0, PAT()->trk[0].root = 0;
+        if (!ok)
+            printf("    (view %d)\n", VIEWS[i]);
+    }
+    CHECK(ok, "SHIFT + ALGORITHM: the scale's takeover (its name, its keys), SHIFT + PRESETS the root's, over EDIT, the "
+          "PIANO ROLL and STEPS");
+    A.ui.view = QD_VIEW_EDIT;
+    btap(QD_B_HOME);
+}
+
+/* - the sound editor: SHIFT + B1..B11 do their jobs (GLO held + a black key, as the panel delivers them); no SHIFT map */
+static void g_p15z_editor_shift(void)
+{
+    qd_leds_t l;
+    int m0, f0, t0, ok;
+    start();
+    qd_step_set_trig(PAT(), 0, 0, QD_TRIG_NOTE);
+    btap(QD_B_SOUND);
+    run(50);
+    bdown(SHIFT);
+    run(600);                                           /* (held long: a map would be up by now) */
+    l = leds();
+    CHECK(qd_view_screen(&A) == QD_SCR_SOUND && l.key[BK(B1)] == QD_LED_LIT && l.key[BK(B2)] == QD_LED_OFF &&
+              l.key[BK(B8)] == QD_LED_LIT, "SHIFT held in the editor: no map (the editor stays), its shortcuts lit");
+    black(B1);
+    CHECK(A.undo.snap_ok && qd_snd_open(&A), "SHIFT + B1: the snapshot stored, the editor open");
+    black(B4);
+    CHECK(A.undo.pclip_ok, "SHIFT + B4: the pattern copied");
+    m0 = A.metro;
+    black(B7);
+    CHECK(A.metro == !m0, "SHIFT + B7: the click on / off");
+    f0 = A.ui.follow;
+    black(B8);
+    CHECK(A.ui.follow == !f0 && A.ui.tk == UI_TK_FOLLOW, "SHIFT + B8: page follow on / off, its takeover");
+    t0 = A.ui.ntap;
+    black(B6);
+    CHECK(A.ui.ntap == t0 + 1 && A.ui.tk == UI_TK_TAP, "SHIFT + B6: a tap, the TAP takeover");
+    black(B9);
+    CHECK(qd_track_loop(&PAT()->trk[0]) == 3, "SHIFT + B9: the track doubled");
+    black(B11);
+    black(B11);
+    CHECK(!R(0, 0).on, "SHIFT + B11 twice: the track cleared");
+    black(B3);
+    CHECK(R(0, 0).on, "SHIFT + B3: the snapshot recalled");
+    bup(SHIFT);
+    run(20);
+    ok = A.ui.snd_page == QD_SND_START_PAGE;
+    black(B5);
+    CHECK(ok && QD_SND_PAGES[A.ui.snd_page].group == QD_SG_AMP, "SHIFT let go: B5 the editor's group again");
+    btap(QD_B_SOUND);
+    btap(QD_B_HOME);
+}
+
+/* - SHIFT + B6: TAP: from the first tap, the BPM after two, closed 2 s after the last; an external clock: dimmed */
+static void g_p15z_tap(void)
+{
+    ui_turn_t tv;
+    int i;
+    start();
+    qd_ctl_set_tempo(&A, 120);
+    bdown(SHIFT);
+    run(20);
+    black(B6);
+    qd_view_turn(&A, &tv);
+    CHECK(A.ui.tk == UI_TK_TAP && tv.ntap == 1 && A.bpm == 120 && qd_view_overlay(&A),
+          "the first tap: the TAP takeover, one dot, no tempo yet");
+    run(400 - 30);
+    black(B6);
+    qd_view_turn(&A, &tv);
+    CHECK(tv.ntap == 2 && A.bpm >= 148 && A.bpm <= 152 && tv.value == A.bpm, "the second tap, 400 ms on: the BPM (%d)",
+          A.bpm);
+    for (i = 0; i < 2; i++) {
+        run(400 - 30);
+        black(B6);
+    }
+    qd_view_turn(&A, &tv);
+    CHECK(tv.ntap == 4 && A.bpm >= 148 && A.bpm <= 152 && tv.tap_age[0] < tv.tap_age[3], "four taps: %d BPM, the dots "
+          "newest first", A.bpm);
+    bup(SHIFT);
+    run(1900);
+    CHECK(A.ui.tk == UI_TK_TAP, "1.9 s after the last tap: still up");
+    run(300);
+    CHECK(A.ui.tk == QD_TK_NONE, "2 s after it (and the fade): closed");
+}
+
+/* - SHIFT + B8: PAGE FOLLOW, its takeover; SHIFT's map: B8's glyph, SELECT's track row */
+static void g_p15z_follow(void)
+{
+    ui_turn_t tv;
+    ui_shift_t sv;
+    int f0, i, sel_row = 0;
+    start();
+    bdown(SHIFT);
+    run(400);
+    qd_view_shift(&A, &sv);
+    for (i = 0; i < sv.n; i++)
+        sel_row |= sv.ctl[i] == UI_SC_SELECT && sv.icon[i] == UI_IC_TRACK;
+    CHECK(sv.keys && sel_row && leds().key[BK(B8)] == QD_LED_LIT && qd_view_screen(&A) == QD_SCR_SHIFT,
+          "SHIFT's map: SELECT the track, B8 (page follow) lit");
+    f0 = A.ui.follow;
+    black(B8);
+    qd_view_turn(&A, &tv);
+    CHECK(A.ui.follow == !f0 && A.ui.tk == UI_TK_FOLLOW && tv.value == A.ui.follow &&
+              !strcmp(tv.val, A.ui.follow ? "ON" : "OFF"), "SHIFT + B8: page follow %s, its takeover",
+          A.ui.follow ? "ON" : "OFF");
+    black(B8);
+    CHECK(A.ui.follow == f0, "again: back");
+    bup(SHIFT);
+    run(20);
+}
+
+/* - SHIFT + SELECT: the track in every view; the browser's preview put back first; not in the typewriter */
+static void shift_sel(int d)
+{
+    bdown(SHIFT);
+    run(10);
+    turn(QD_K_SELECT, d);
+    bup(SHIFT);
+    run(10);
+}
+static void g_p15z_shift_select(void)
+{
+    static const int VIEWS[3] = {QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT};
+    int16_t own[QD_QUAD_NP];
+    qd_mix_track_t mix0;
+    int i, ok = 1, pg;
+    start();
+    for (i = 0; i < 3; i++) {
+        A.ui.view = VIEWS[i];
+        pg = A.ui.page[A.sel];
+        shift_sel(1);
+        ok &= A.sel == i + 1 && A.ui.tk == UI_TK_TRACKBIG && qd_view_overlay(&A) && A.ui.page[0] == pg;
+    }
+    CHECK(ok, "the PIANO ROLL, STEPS, EDIT: SHIFT + SELECT the next track, the big track takeover (%d)", A.sel + 1);
+    shift_sel(-5);
+    CHECK(A.sel == 6, "round: track 3 - 5 = track 7 (%d)", A.sel + 1);
+    shift_sel(2);
+    CHECK(A.sel == 0, "and on round: track 1 (%d)", A.sel + 1);
+    btap(QD_B_REC);                                     /* the keyboard */
+    shift_sel(1);
+    CHECK(A.ui.mode == QD_MODE_KEYS && A.sel == 1, "the keyboard: the track (the swing is F3's)");
+    btap(QD_B_REC);
+    btap(QD_B_SOUND);                                   /* the sound editor: the new track's sound */
+    shift_sel(1);
+    {
+        static ui_snd_t sv;
+        qd_view_snd(&A, &sv);
+        CHECK(qd_snd_open(&A) && A.sel == 2 && sv.v[0] == A.model.t[2].patch[qd_snd_ids(&A, A.ui.snd_page)[0]],
+              "the sound editor: track 3, its sound on the page");
+    }
+    btap(QD_B_SOUND);
+    btap(QD_B_HOME);
+    memcpy(own, A.model.t[2].patch, sizeof own);        /* the browser: the preview put back exactly */
+    mix0 = A.model.t[2].mix;
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, 3);
+    CHECK(memcmp(own, A.model.t[2].patch, sizeof own) != 0, "(browsing on track 3: a preset previewed)");
+    shift_sel(1);
+    CHECK(A.ui.latch == QD_LATCH_BROWSE && A.sel == 3 && A.ui.br.t == 3 && !A.ui.br.moved &&
+              !memcmp(own, A.model.t[2].patch, sizeof own) && !memcmp(&mix0, &A.model.t[2].mix, sizeof mix0),
+          "the browser: track 3's own sound and mix back exactly, track 4 browsed (latch %d sel %d t %d moved %d own %d mix %d)",
+          A.ui.latch, A.sel, A.ui.br.t, A.ui.br.moved, !memcmp(own, A.model.t[2].patch, sizeof own),
+          !memcmp(&mix0, &A.model.t[2].mix, sizeof mix0));
+    btap(QD_B_HOME);
+    btap(QD_B_PAGE);                                    /* the mix */
+    shift_sel(1);
+    CHECK(A.ui.latch == QD_LATCH_MIX && A.sel == 4, "the mix: track 5");
+    btap(QD_B_HOME);
+    btap(QD_B_SAVE);                                    /* the typewriter: SELECT the letter, not the track */
+    bdown(SHIFT);
+    run(10);
+    btap(F1);
+    bup(SHIFT);
+    run(10);
+    black(B1);
+    turn(QD_K_ALGO, -1);
+    shift_sel(1);
+    CHECK(A.sel == 4 && !strcmp(A.ui.ty.name, "B"), "the typewriter: SHIFT + SELECT the letter (%s), the track kept",
+          A.ui.ty.name);
+    btap(QD_B_HOME);
+}
+
 int main(void)
 {
     static const struct {
@@ -6180,6 +6496,13 @@ int main(void)
         {"P1.5x: presets carry their mix: LOAD, CANCEL, SAVE, a lock", g_p15x_mix},
         {"P1.5x: the chosen preset's tags on B2..B8", g_p15x_tag_leds},
         {"P1.5t: the browser's LEDs", g_p15t_leds},
+        {"P1.5z: - POOL's animation; the outline lime in the pool", g_p15z_pool},
+        {"P1.5z: SAVE PRESET: KNOB 1 turns the letter", g_p15z_save_knob1},
+        {"P1.5z: SHIFT's scale / root takeover in every view", g_p15z_scale_popup},
+        {"P1.5z: SHIFT's shortcuts in the sound editor, no map", g_p15z_editor_shift},
+        {"P1.5z: SHIFT + B6: the TAP takeover", g_p15z_tap},
+        {"P1.5z: SHIFT + B8: page follow; SHIFT's map", g_p15z_follow},
+        {"P1.5z: SHIFT + SELECT: the track everywhere", g_p15z_shift_select},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

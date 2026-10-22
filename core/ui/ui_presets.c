@@ -231,7 +231,7 @@ void ui_browse_draw(const ui_browse_t *v)
         pr_cassette(34.f, 82.f, 172.f, 76.f, 0, v->col, v->t, 1, "\xe2\x80\x94");
         return;
     }
-    pr_rollo(v, v->out_armed || v->del_armed ? UI_RED : v->col);
+    pr_rollo(v, v->out_armed || v->del_armed ? UI_RED : v->ocol ? v->ocol : v->col);   /* (P1.5z: lime: in the pool) */
     if (v->users_row && v->del_armed) {                 /* P1.5w: DELETE?: the projects referencing it, its steps */
         float x = 14.f;
         char n[12];
@@ -350,12 +350,31 @@ void ui_browse_draw(const ui_browse_t *v)
             const int on = (int)(u * 6.f) % 2 == 0;
             pr_tray(104.f, 200.f, on ? PR_ORANGE : UI_POOL_COL, 1.f);
             ui_T(n, 128.f, 211.f, 12.f, 600, 0.f, on ? PR_ORANGE : UI_POOL_COL, QD_LEFT);
-        } else if (v->fx == 4 && !v->users_row) {       /* P1.5v: out: the tray empties (its + back) */
-            if (u < 0.5f)
-                pr_tray(104.f, 200.f, PR_ORANGE, 1.f - u / 0.5f);
+        } else if (v->fx == 4) {                        /* P1.5z: out: the cassette pops back out of the lime tray,
+                                                         * a burst of lime bubbles fizzes away, the tray's + comes back */
+            int k;
+            if (u < 0.55f)
+                pr_tray(104.f, 200.f, UI_POOL_COL, 1.f - lb_ease(u / 0.55f) * 0.6f);
             else
-                pr_tray_add(104.f, 200.f, UI_POOL_COL, (u - 0.5f) / 0.5f);
+                pr_tray_add(104.f, 200.f, UI_POOL_COL, lb_ease((u - 0.55f) / 0.45f));
             ui_T(n, 128.f, 211.f, 12.f, 600, 0.f, UI_POOL_COL, QD_LEFT);
+            if (u < 0.45f) {                            /* (out it pops: from the tray up to the cassette, growing) */
+                const float w = lb_ease(u / 0.45f), cx = 113.f + (120.f - 113.f) * w, cy = 206.f + (120.f - 206.f) * w;
+                const float s = 0.1f + 0.9f * w, pop = 1.f + 0.12f * sinf(w * UI_PI);
+                qd_save();
+                qd_alpha(qd_get_alpha() * (0.95f - 0.6f * w));
+                ui_RR(cx - 86.f * s * pop, cy - 38.f * s * pop, 172.f * s * pop, 76.f * s * pop, 8.f * s, UI_POOL_COL, 1.8f,
+                      QD_NONE);
+                qd_restore();
+            }
+            if (u > 0.12f && u < 0.85f) {               /* (the bubbles: out of the tray, up and away, fizzing) */
+                const float f = (u - 0.12f) / 0.73f;
+                for (k = 0; k < 14; k++) {
+                    const float an = -UI_PI * (0.1f + 0.8f * lb_hash(k + 11)), sp = 30.f + 50.f * lb_hash(k + 23);
+                    lb_bubble(113.f + cosf(an) * sp * f, 204.f + sinf(an) * sp * f - 10.f * f * f,
+                              1.f + 2.2f * lb_hash(k + 31) * (1.f - f * 0.5f), UI_POOL_COL, (1.f - f) * 0.95f);
+                }
+            }
         }
     }
 }

@@ -202,6 +202,8 @@ typedef struct {
     int pos, n;                         /* "7/31" (n 0: the list empty) */
     ui_preset_t e[5];                   /* the chosen (e[2]) and two either side */
     qd_rgb col;                         /* the cassette's colour (the library's, the pool's; armed: orange) */
+    qd_rgb ocol;                        /* P1.5z: the chosen cassette's outline: lime in this project's pool, champagne
+                                         * not (any source; through + POOL / - POOL's animations: the old one first) */
     int pool;                           /* the POOL source: who uses it at the foot (B10 takes it out) */
     uint8_t users;                      /* .. the tracks (bit t) .. */
     int usteps;                         /* .. the steps */
@@ -222,6 +224,7 @@ typedef struct {
 } ui_browse_t;
 void ui_browse_draw(const ui_browse_t *v);
 /* P1.5u: the typewriter (SAVE PRESET's name, a project's): the name, the keybed with its characters */
+#define QD_UI_NHIST 10                  /* (ctl.h QD_TY_NHIST) */
 typedef struct {
     const char *title;                  /* SAVE PRESET, PROJECT NAME */
     int track;                          /* the head's box (0: none) */
@@ -236,9 +239,11 @@ typedef struct {
     char del_ch;                        /* F1: the character deleted, its place, 0..1 its drop (1: done) */
     int del_at;
     float del;
-    int ideas_on;                       /* PRESETS turned: the ideas' rolodex .. */
-    const char (*ideas)[13];            /* .. the ideas, their count, the one chosen */
-    int nidea, idea;
+    int ideas_on;                       /* PRESETS / KNOB 4 turned: the names' rolodex .. */
+    const char *hist[QD_UI_NHIST];      /* .. P1.5z: the names seen, the newest first (0: none) .. */
+    int nhist, hpos;                    /* .. how many, the one shown (0 the newest) .. */
+    float dice;                         /* .. a new one rolled: 0..1 the die tumbling (1 landed; < 0 none) .. */
+    int dice_face;                      /* .. its face 1..6 */
     int replace;                        /* SAVE PRESET: REPLACE offered (F2) .. */
     int choice;                         /* .. P1.5v: 0 NEW, 1 REPLACE (the one SAVE does: bright, filled) */
     const char *newname;                /* .. NEW then saves as this (shown when it differs) */
@@ -301,6 +306,7 @@ enum { UI_IC_NONE, UI_IC_CLEAR, UI_IC_COPY, UI_IC_PASTE, UI_IC_UNDO, UI_IC_CUT, 
        UI_IC_DOT, UI_IC_TRI, UI_IC_RESET, UI_IC_SCALE, UI_IC_SWING, UI_IC_REC, UI_IC_NOW, UI_IC_RAMP, UI_IC_STRUM,
        UI_IC_KEY, UI_IC_LEFT, UI_IC_RIGHT, UI_IC_FLIP, UI_IC_DICE, UI_IC_DICE_FN, UI_IC_JUMP, UI_IC_LEAP,
        UI_IC_GEAR, UI_IC_VIEWS,         /* P1.3y: a settings menu (a cog); the views (three panes) */
+       UI_IC_TRACK, UI_IC_FOLLOW,       /* P1.5z: the track (three lanes, one lit); page follow (pages, an arrow) */
        UI_IC_NOTE };                    /* UI_IC_NOTE + v: a note value's glyph (v 0 1/1 .. 6 1/64) */
 int ui_fn_icon(int func);               /* P1.3w: a step function's icon (UI_IC_NONE for none) */
 #define UI_FN_JUMP 7                    /* (pattern.h's QD_FN_JUMP: JUMP n is UI_FN_JUMP + n) */
@@ -403,7 +409,7 @@ void ui_steps_row(const ui_lane_t *v, float y, float open);   /* P1.3r: the page
 /* ---- a held step (line.html s4..s10, s19, s20; PLAN §9a rule 7, §8b): one layout, "STEP n · MODE" top left, the
  * track top right, the value big top left, the mode's drawing, the value strip at the foot. is_default: the same
  * drawing for the track's default (ALGORITHM's takeover with nothing held): "DEFAULT · MODE", no strip */
-typedef struct {
+typedef struct ui_held {
     int field;                          /* UI_F_* */
     int is_default;                     /* the track's default (no step) */
     int step;                           /* 1..128 (the first held) */
@@ -479,6 +485,9 @@ typedef struct {
     int dim;                            /* .. the playhead on an empty step: the last step played, dimmed a little */
     int band;                           /* P1.5p: the knob band is over the head (y 0..41): what the body draws there
                                          * (NOTE's scale, VEL's value and ramp) is left out while it shows */
+    const struct ui_held *head;         /* P1.5z (the owner: "lets not change the header during playback"): EDIT
+                                         * following, the head (its words, colours, tag and value) is this model's (the
+                                         * track's default), the picture the step playing's; 0: v's own */
 } ui_held_t;
 void ui_held_draw(const ui_held_t *v);
 /* P1.3r: the EDIT view: the mode's picture (v: the step held / selected, or the track's default) re-laid-out in the
@@ -586,6 +595,7 @@ typedef struct {
     const char *val[8];                 /* its value now ("D DORIAN", "D", "55%"), or 0 */
     int keys;                           /* P1.5c: the step view: its black-key shortcuts drawn under the rows .. */
     int snap_ok, pclip_ok, metro, armed;   /* .. a snapshot to recall, a pattern to paste, the click on, B11 armed */
+    int follow;                         /* .. P1.5z: page follow on (B8's glyph lit) */
 } ui_shift_t;
 void ui_shift_draw(const ui_shift_t *v);
 
@@ -683,6 +693,8 @@ void ui_import_draw(const char *name, int pool, int slot, float t);   /* P1.5r (
 enum { UI_TK_FREQ, UI_TK_DECAY, UI_TK_HARM, UI_TK_FDBK, UI_TK_ALGO, UI_TK_TEMPO, UI_TK_SWING, UI_TK_LEN, UI_TK_RATE,
        UI_TK_LIMIT, UI_TK_TSWING, UI_TK_PAGE, UI_TK_SCALE, UI_TK_ROOT, UI_TK_OCTAVE, UI_TK_TRACK,
        UI_TK_TRACKBIG,                  /* P1.3y: FX held + ALGORITHM: the track big (number, name, its colour) */
+       UI_TK_TAP,                       /* P1.5z: SHIFT + B6: the taps (the BPM big, the taps' dots, a pulse) */
+       UI_TK_FOLLOW,                    /* P1.5z: SHIFT + B8: PAGE FOLLOW on / off (the pages, the playhead's arrow) */
        UI_NTK };
 /* (OCTAVE: ui_octave. P1.3d: TRACK, ALGORITHM in P-LOCK with nothing held: the eight tracks, the one chosen boxed) */
 typedef struct {
@@ -726,6 +738,11 @@ typedef struct {
     uint8_t tmute;
     uint8_t tlen[8];
     uint8_t ttrig[8][32];
+    /* P1.5z, TAP (SHIFT + B6): the taps' ages (s, the newest first; up to 8), the count, the clock external (dimmed) */
+    int ntap;
+    float tap_age[8];
+    int ext;
+    float since;                        /* seconds since the last tap (the takeover closes 2 s after it) */
 } ui_turn_t;
 void ui_turn_draw(const ui_turn_t *v);
 
@@ -743,6 +760,12 @@ typedef struct {
     char val[24];                       /* "101", "+3/24", "E4", "014 MARIMBA" */
 } ui_band_t;
 void ui_band_draw(const ui_band_t *v);
+
+/* P1.5z: the models the frame fills (view.c), for the tests */
+struct qd_app;
+void qd_view_browse(const struct qd_app *a, ui_browse_t *v);   /* the library browser's */
+void qd_view_turn(struct qd_app *a, ui_turn_t *v);              /* the takeover's (UI_TK_*) */
+void qd_view_shift(const struct qd_app *a, ui_shift_t *v);      /* SHIFT's map's */
 
 #ifdef __cplusplus
 }

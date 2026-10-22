@@ -239,6 +239,24 @@ static void br_cancel(qd_app_t *a, int reopen)
     qd_ctl_takeover(a, QD_TK_BACK, 0, 0, 0, -1);
 }
 void qd_br_cancel(qd_app_t *a) { br_cancel(a, 1); }
+
+/* P1.5z: SHIFT + SELECT in the browser: the track browsed put back exactly (its own sound and mix, as a cancel), then
+ * track t selected and browsed from its own sound, the list where it was */
+void qd_br_track(qd_app_t *a, int t)
+{
+    qd_brui_t *b = &a->ui.br;
+    qd_track_from_tsound(&a->model.t[b->t], &b->own);
+    a->model.t[b->t].mix = b->own_mix;
+    qd_seq_preview(&a->seq, b->t, 0);
+    a->ui.latch = QD_LATCH_NONE;                        /* (the selection would close the browser: it stays) */
+    qd_ctl_select_track(a, t);
+    a->ui.latch = QD_LATCH_BROWSE;
+    b->t = a->sel;
+    qd_track_to_tsound(&a->model.t[b->t], &b->own);
+    b->own_mix = a->model.t[b->t].mix;
+    b->moved = 0;
+    b->del_armed = b->out_armed = 0;
+}
 void qd_br_home(qd_app_t *a) { br_cancel(a, 0); }
 
 void qd_br_load(qd_app_t *a)
@@ -498,6 +516,7 @@ void qd_sv_open(qd_app_t *a)
         qd_name_rnd(&s, nm);
         qd_type_start(a, nm, 1);                        /* (P1.5u: selected: the first key typed replaces it) */
         a->ui.ty.seed = seed;
+        a->ui.ty.rseed = s;                             /* (P1.5z: the rolls go on from there) */
     }
     sv_update_new(a);
 }

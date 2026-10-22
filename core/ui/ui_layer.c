@@ -407,12 +407,12 @@ static void control(int c, float cx, float cy)
 /* P1.5c: SHIFT's black-key shortcuts, the keys drawn where they are, each its glyph (none: dark) */
 static void shift_keys(const ui_shift_t *v)
 {
-    static const uint8_t SK[11] = {1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1};   /* (ctl_shift.c QD_SHIFT_KEYS) */
+    static const uint8_t SK[11] = {1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1};   /* (ctl_shift.c QD_SHIFT_KEYS; P1.5z: B8) */
     int i;
     for (i = 0; i < 11; i++) {
         const float x = 10.f + (float)i * 20.4f, cx = x + 9.f, cy = 210.f;
         const qd_rgb c = !SK[i] ? UI_G3 : (i == 2 && !v->snap_ok) || (i == 4 && !v->pclip_ok) ? UI_G2
-                       : i == 10 && v->armed ? UI_K4 : i == 6 && v->metro ? UI_K2 : UI_K3;
+                       : i == 10 && v->armed ? UI_K4 : i == 6 && v->metro ? UI_K2 : i == 7 && v->follow ? UI_K2 : UI_K3;
         ui_RR(x, 190.f, 18.f, 40.f, 4.f, c, SK[i] ? 1.4f : 1.f, QD_NONE);
         switch (i) {
         case 0:                                         /* the snapshot stored: a frame, its shutter, filled */
@@ -437,6 +437,7 @@ static void shift_keys(const ui_shift_t *v)
             line2(cx, cy + 5.f, cx + 5.f, cy - 6.f, c, 1.2f);
             break;
         }
+        case 7: ui_icon(UI_IC_FOLLOW, cx, cy, 0.9f, c); break;   /* P1.5z: page follow */
         case 8:                                         /* the track doubled: two pages */
             ui_RR(cx - 7.f, cy - 4.f, 6.f, 8.f, 1.f, c, 1.1f, QD_NONE);
             ui_RR(cx + 1.f, cy - 4.f, 6.f, 8.f, 1.f, c, 1.1f, QD_NONE);

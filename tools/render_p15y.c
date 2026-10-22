@@ -161,18 +161,28 @@ static void turn(int k, int d)
     qd_app_knob(&A, k, d);
     run(5);
 }
-static void idea(int k)                                 /* PRESETS to idea k */
+/* P1.5z: PRESETS rolled until a name of kind k (QD_NK_*) shows, a few hundred detents at most */
+static void roll_to(int want)
 {
-    turn(QD_K_PRESETS, k - (A.ui.ty.idea < 0 ? -1 : A.ui.ty.idea));
-    run(200);
+    int n;
+    for (n = 0; n < 300; n++) {
+        char own[8][QD_NAME_MAX + 1];
+        const int no = qd_sound_ideas(A.model.t[A.sel].patch, own, 8);
+        int m, k = strchr(A.ui.ty.name, ' ') ? QD_NK_RND : QD_NK_PHONIC;
+        for (m = 0; m < no; m++)
+            if (!strcmp(own[m], A.ui.ty.name))
+                k = QD_NK_SOUND;
+        if (n && k == want)
+            break;
+        turn(QD_K_PRESETS, 1);
+        run(QD_TY_IDEA_MS / 3);
+    }
+    run(QD_TY_DICE_MS + 50);
 }
 
 int render_p15y(const char *out)
 {
     char cap[112];
-    int i, want[3] = {-1, -1, -1};
-    int kind[12];
-    char ideas[12][QD_NAME_MAX + 1];
     outdir = out;
     nshot = 0;
     failed = 0;
@@ -191,21 +201,13 @@ int render_p15y(const char *out)
     run(400);
     snprintf(cap, sizeof cap, "SAVE PRESET on track 4: %s (namesizer)", A.ui.ty.name);
     shot("save4", cap, 0);
-    qd_name_ideas(A.ui.ty.seed, A.model.t[3].patch, ideas, kind, 12);
-    for (i = 0; i < 12; i++) {                          /* (the sound's own, a phonic word, a cosmic word) */
-        if (kind[i] == QD_NK_SOUND && want[0] < 0)
-            want[0] = i;
-        if (kind[i] == QD_NK_PHONIC && want[1] < 0)
-            want[1] = i;
-        if (kind[i] == QD_NK_WORD && want[2] < 0)
-            want[2] = i;
-    }
-    idea(want[0]);
-    shot("idea-sound", "PRESETS: the sound's own idea, second", 0);
-    idea(want[1]);
-    shot("idea-phonic", "PRESETS: a phonic nonsense word", 0);
-    idea(want[2]);
-    shot("idea-word", "PRESETS: a word from the cosmos", 0);
+    roll_to(QD_NK_SOUND);
+    shot("idea-sound", "PRESETS: now and then the sound's own name", 0);
+    roll_to(QD_NK_PHONIC);
+    shot("idea-word", "PRESETS: now and then a made-up word", 0);
+    roll_to(QD_NK_RND);
+    snprintf(cap, sizeof cap, "PRESETS: mostly namesizer pairs, %s", A.ui.ty.name);
+    shot("idea-pair", cap, 0);
     btap(QD_B_HOME);
     run(500);
     qd_ctl_select_track(&A, 1);                         /* track 2: another sound, another seed */
@@ -216,9 +218,6 @@ int render_p15y(const char *out)
     run(400);
     snprintf(cap, sizeof cap, "SAVE PRESET on track 2: %s", A.ui.ty.name);
     shot("save2", cap, 0);
-    idea(4);
-    snprintf(cap, sizeof cap, "PRESETS: another pair, %s", A.ui.ty.name);
-    shot("idea-pair", cap, 0);
     btap(QD_B_HOME);
     run(500);
     btap(QD_B_MIX);                                     /* a project's name: its own first, then namesizer's */
@@ -227,12 +226,13 @@ int render_p15y(const char *out)
     run(20);
     key(BK(9), 0);
     run(300);
-    idea(1);
-    snprintf(cap, sizeof cap, "a project's ideas: %s (after its own)", A.ui.ty.name);
+    turn(QD_K_PRESETS, 1);
+    run(QD_TY_DICE_MS + 50);
+    snprintf(cap, sizeof cap, "a project's names: %s (after its own)", A.ui.ty.name);
     shot("project", cap, 0);
     btap(QD_B_HOME);
     run(500);
     if (!failed)
-        sheet_as("p15y-sheet.png", "FIZZ P1.5y: names from the owner's namesizer (1.5x)");
+        sheet_as("p15y-sheet.png", "FIZZ P1.5y: names from the owner's namesizer (P1.5z: rolled, endless) (1.5x)");
     return failed;
 }

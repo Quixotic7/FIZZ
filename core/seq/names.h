@@ -27,6 +27,10 @@ int qd_name_ok(const char *s);          /* fits twelve characters and FIZZ's set
  * qd_name_rnd gives for seed (SAVE PRESET's suggestion). kind (optional): each one's QD_NK_* */
 enum { QD_NK_RND, QD_NK_PHONIC, QD_NK_WORD, QD_NK_SOUND, QD_NK_OWN };
 int qd_name_ideas(uint32_t seed, const int16_t *patch, char (*out)[QD_NAME_MAX + 1], int *kind, int max);
+/* P1.5z: one rolled name, endless (SAVE PRESET's PRESETS / KNOB 4 right): a namesizer pair six times in ten, a phonic
+ * or cosmic word two (one each), the sound's own idea two (qd_sound_ideas; no patch: a pair); not avoid (the name just
+ * shown) if it can help it. Its kind (QD_NK_*) */
+int qd_name_roll(uint32_t *seed, const int16_t *patch, const char *avoid, char *out);
 /* a project's ideas: its own name first (own, if any), then namesizer's (pairs, a phonic word, a cosmic word) */
 int qd_name_project_ideas(uint32_t seed, const char *own, char (*out)[QD_NAME_MAX + 1], int *kind, int max);
 #endif

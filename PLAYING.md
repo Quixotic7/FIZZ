@@ -60,8 +60,9 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   Holding, the step latch and the cursor all stay in EDIT. Turning **PRESETS** opens the library browser (with a
   finger on a step: that step's pool picker).
 - **EDIT follows the music** (P1.5q): while playing, with nothing held, the step latch off, no mode key held and no
-  pop-up, the top shows **the selected track's step as it plays**: its head ("STEP 7 · VEL"), its value and its
-  picture (the chord, the rider at that velocity, the bar, the flag, the ball, the cassette ..), each with its own
+  pop-up, the picture shows **the selected track's step as it plays** (the chord, the rider at that velocity, the bar,
+  the flag, the ball, the cassette ..), while the head stays still (P1.5z): "TRACK DEFAULT · VEL" with the track's
+  default value and colours, as when stopped. Each picture has its own
   "it plays" moment (the rider's kick, the chord's name squeezing in, the ball bouncing through the step). It changes
   when you hear the step, so a step with micro-timing changes late by that much, and a slow track (1/8 ..) changes
   at its pace; a ratchet changes it once. An empty step keeps the last one played, dimmed a little. A muted track is
@@ -419,7 +420,8 @@ A track's speed is a **note value** and a **type**, each kept when you change th
 ## SHIFT's keys (P1.5c)
 
 Hold **SHIFT**: only its shortcut keys light (the white keys go dark), and SHIFT's map draws the black keys under its
-list, each with its picture.
+list, each with its picture. P1.5z: they work **in the sound editor too** (SHIFT shows no map there: only the
+shortcuts act; SHIFT + a knob stays the editor's fine step).
 
 | key | does |
 | --- | --- |
@@ -427,11 +429,13 @@ list, each with its picture.
 | **B3** | **recall** the snapshot onto it at once (undoable; dim: none stored) |
 | **B4** | **copy** the pattern |
 | **B5** | **paste** it onto the pattern you are on (undoable; dim: nothing copied) |
-| **B6** | **tap tempo**: tap it in time; the tempo is the average of your last four taps (start again after 2 s) |
+| **B6** | **tap tempo**: tap it in time; the tempo is the average of your last four taps (start again after 2 s). P1.5z: the **TAP** screen shows from the first tap until 2 s after the last: the BPM big once two taps make one, each tap a ring out of the middle and the metronome's swing, the taps as dots (the last four bright); after 2 s the dots clear away. An external clock: the tempo dimmed, a clock beside it (tapping does nothing) |
 | **B7** | tap: the **metronome** (CLICK on / off). Hold B7 and turn any knob: its level (0..100, 60 at first) |
+| **B8** | **PAGE FOLLOW** on / off (P1.5z), its picture (the pages, the playhead, the arrow; OFF crossed) and ON / OFF big. It is the same switch as the global settings' KNOB 2 and the track settings' PAGE FOLLOW: one for all tracks |
 | **B9** | **double the track**: its looped pages copied after themselves, the loop twice as long ("FULL": no room) |
 | **B11** | **clear the track**: press twice within two seconds ("CLEAR?", B11 blinks; then "CLEARED") |
 | **F1 / F2** | **undo / redo** |
+| **SELECT** | **the track** (P1.5z): a track a detent, round 1..8, the big track picture (as FX + ALGORITHM). In every view, the sound editor (it shows the new track's sound), the browser (the preview is put back first, then you browse the new track), the mix and the effects; not while typing a name (there SELECT turns the letter). It was the keyboard's swing: the swing is F3 + ALGORITHM |
 
 - The snapshot and the copied pattern stay until the unit is switched off; they are not saved with the project. One
   snapshot (the last stored), from whichever pattern; recalling puts it on the pattern you are on.
@@ -523,7 +527,9 @@ Three things, one job each:
 - **B9 the source**: ALL PRESETS → MY PRESETS → POOL → ALL.
 - **B10 = the pool, from any source** (P1.5v): **+ POOL** when the chosen preset is not in the project's pool (B10
   lit; it is copied in without loading it, the cassette shrinks into the tray; the pool full: the tray flashes
-  orange), **− POOL** when it is (B10 breathing; in the POOL source always). If steps lock it, B10 first **arms**:
+  orange), **− POOL** when it is (B10 breathing; in the POOL source always): P1.5z, the cassette pops back out of the
+  lime tray, a burst of lime bubbles fizzes away and the tray's + comes back. **The cassette's outline says it**: lime
+  when the preset is in this project's pool, champagne when not, in ALL, MY PRESETS and the POOL alike. If steps lock it, B10 first **arms**:
   a big **red X** crosses the cassette, it shakes, the head turns red with **OUT?**, and its users show at the foot
   (the tracks' boxes, ×N steps) **→ TRACK**; B10 again takes it out, and those steps go back to their track's sound.
 - **B11 deletes** one of MY presets (B11 is lit only on them; factory presets cannot be deleted): the first press
@@ -655,7 +661,8 @@ DECAY, HARM and FDBK.
 ## The scale (for now)
 
 - **SHIFT + ALGORITHM** sets the track's scale (chromatic, major, minor, the modes, harmonic and melodic minor,
-  pentatonics, blues, whole tone). **SHIFT + PRESETS** sets its root.
+  pentatonics, blues, whole tone). **SHIFT + PRESETS** sets its root. Its picture (the scale's name, its keys) shows
+  over the PIANO ROLL, STEPS and EDIT alike (P1.5z).
 - This is temporary until the track settings page exists.
 
 ## The global settings (SHIFT + SEL)
@@ -726,11 +733,14 @@ bright).
 - **SHIFT held**: the black keys are **0..9 and -**, the white keys **. , ' & ! ? # + / ( ) \* : _ ~** and SPACE (the
   screen's keybed changes with it). While a name is typed SHIFT is only this: SHIFT + a button does nothing else (no
   snapshots, undo, settings or views), but **SHIFT + F1 clears** the name.
-- **PRESETS**: twelve name ideas, a rolodex: the one you stop on is the name, selected again. For a sound (P1.5y):
-  the suggestion first, then **the sound's own** (BRIGHT PLUCK, WARM PING ...: the first one second), more namesizer
-  pairs, and two or three made-up words (phonic nonsense like NIRE or SHOOCK, cosmic words like FM-GX). For a
-  project: its own name first, then namesizer's.
-- **ALGORITHM** moves the cursor (typing inserts there); **SELECT** turns the character under it (A..Z, 0..9, the
+- **PRESETS (or KNOB 4) right rolls a new name, every detent, for ever** (P1.5z): mostly namesizer pairs, now and
+  then a made-up word (phonic nonsense like NIRE, cosmic words like FM-GX) and, about one time in five, one of the
+  sound's own names (BRIGHT PLUCK, WARM PING ...). A neon die tumbles in beside each new one and lands. The name
+  shown is the name, selected again (the sparkle stays).
+- **Left walks back** through the last ten names you saw (dots under the name show where you are among them; no
+  die); it stops at the oldest. Right then goes forward through them first, and past the newest rolls new ones
+  again. A name you typed or edited is kept among them. A project's name works the same (its own name the oldest).
+- **ALGORITHM** moves the cursor (typing inserts there); **SELECT** or **KNOB 1** (P1.5z) turns the character under it (A..Z, 0..9, the
   signs, SPACE; at the end of the name it adds one), to fix one letter without looking for its key.
 - **F1** deletes the character before the cursor (it drops away in orange; a selected name: all of it); **SHIFT +
   F1** clears.

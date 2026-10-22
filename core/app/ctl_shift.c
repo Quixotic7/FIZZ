@@ -7,12 +7,15 @@
  *   SHIFT + B4           the pattern copied (RAM)                             B9   the track doubled (its looped
  *   SHIFT + B5           .. pasted onto the active one (undoable)                  pages copied after themselves)
  *   SHIFT + B11          the track cleared: pressed twice within QD_ARM_MS (the first arms it, B11 blinking)
- * While SHIFT is held only these keys light (and SHIFT's map draws them). B2, B8, B10 free; the W keys unchanged. */
+ *   SHIFT + B8           P1.5z: PAGE FOLLOW on / off (the global one, the settings' KNOB 2 and the track settings' page 2
+ *                        KNOB 3 are the same flag), its takeover
+ * While SHIFT is held only these keys light (and SHIFT's map draws them). B2, B10 free; the W keys unchanged. P1.5z: in
+ * the sound editor too (its map not shown there). SHIFT + B6's taps show the TAP takeover (QD_TAP_TK_MS). */
 
 #define QD_ARM_MS 2000u                /* B11's second press within this */
 #define QD_TAP_RESET_MS 2000u          /* a tap this long after the last starts a new count */
 
-const uint8_t QD_SHIFT_KEYS[11] = {1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1};   /* B1..B11: a shortcut there */
+const uint8_t QD_SHIFT_KEYS[11] = {1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1};   /* B1..B11: a shortcut there (P1.5z: B8) */
 
 static void pat_reload(qd_app_t *a)                   /* the tracks' sounds from the pattern (its copy replaced) */
 {
@@ -65,21 +68,21 @@ static void tap_tempo(qd_app_t *a)
     qd_ui_t *u = &a->ui;
     int i, n = 0;
     uint32_t sum = 0;
-    if (u->ntap && a->ms - u->tap_ms[(u->ntap - 1) % 4] > QD_TAP_RESET_MS)
+    if (u->ntap && a->ms - u->tap_ms[(u->ntap - 1) % 8] > QD_TAP_RESET_MS)
         u->ntap = 0;
-    u->tap_ms[u->ntap % 4] = a->ms;
+    u->tap_ms[u->ntap % 8] = a->ms;
     u->ntap++;
     for (i = 1; i < (u->ntap < 4 ? u->ntap : 4); i++) {   /* the intervals between the last (up to) four taps */
-        const uint32_t t1 = u->tap_ms[(u->ntap - i) % 4], t0 = u->tap_ms[(u->ntap - i - 1) % 4];
+        const uint32_t t1 = u->tap_ms[(u->ntap - i) % 8], t0 = u->tap_ms[(u->ntap - i - 1) % 8];
         sum += t1 - t0, n++;
     }
+    qd_ctl_takeover(a, UI_TK_TAP, 0, 1, 0, -1);        /* P1.5z: the TAP takeover, from the first tap */
     if (n && sum) {
         const int bpm = (int)(60000u * (uint32_t)n / sum);
         if (!qd_seq_ext_running(&a->seq))
             qd_ctl_set_tempo(a, bpm);
         a->ui.tempo_ms = a->ms ? a->ms : 1u;
-    }
-    qd_ctl_takeover(a, UI_TK_TEMPO, 0, 1, 0, -1);
+    }                                                   /* (P1.5z: TAP's takeover, no more TEMPO's) */
 }
 
 void qd_shift_black(qd_app_t *a, int b)
@@ -124,6 +127,11 @@ void qd_shift_black(qd_app_t *a, int b)
         a->metro = !a->metro;
         a->metro_beat = -1;
         qd_ctl_confirm(a, "CLICK", a->metro ? "on" : "off");
+        break;
+    case 7:                                             /* P1.5z, B8: page follow on / off */
+        u->follow = !u->follow;
+        u->play_page[a->sel] = -1;
+        qd_ctl_takeover(a, UI_TK_FOLLOW, 0, u->follow ? 1 : -1, 0, -1);
         break;
     case 8:                                             /* B9: the track doubled */
         qd_undo_hint(a, QD_UK_DOUBLE);

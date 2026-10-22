@@ -53,6 +53,16 @@ static void fm1core_qd_in(void)
     fm1panel_t *p = &fm1core_qd_panel;
     uint32_t down, up, held, taps;
     int i;
+    uint32_t bdown, bup;
+    /* the matrix buttons as labels (FM1P_B_* order is QUADRILLE's QD_B_* order). P1.5z: the buttons pressed go in
+     * before the keys and the buttons let go after them, so a modifier (SHIFT, FX, SEL, SEQ ..) pressed with a key in
+     * the same tick (RemoteFM1: one audio block's events) is down for it ("SHIFT for numbers ... not working") */
+    held = fm1p_labels(p, p->buttons);
+    taps = fm1p_labels(p, fm1p_take_button_taps(p));
+    fm1p_edges(&fm1core_qd_bedges, held, taps, &bdown, &bup);
+    for (i = 0; i < FM1P_NB; i++)
+        if ((bdown >> i) & 1u)
+            qd_app_button(&fm1core_qd_app, i, 1);
     fm1p_edges(&fm1core_qd_kedges, p->keys, fm1p_take_key_taps(p), &down, &up);
     for (i = 0; i < FM1P_NKEY; i++) {
         if ((down >> i) & 1u)
@@ -60,16 +70,9 @@ static void fm1core_qd_in(void)
         else if ((up >> i) & 1u)
             qd_app_key(&fm1core_qd_app, i, 0, 0);
     }
-    /* the matrix buttons as labels (FM1P_B_* order is QUADRILLE's QD_B_* order) */
-    held = fm1p_labels(p, p->buttons);
-    taps = fm1p_labels(p, fm1p_take_button_taps(p));
-    fm1p_edges(&fm1core_qd_bedges, held, taps, &down, &up);
-    for (i = 0; i < FM1P_NB; i++) {
-        if ((down >> i) & 1u)
-            qd_app_button(&fm1core_qd_app, i, 1);
-        else if ((up >> i) & 1u)
+    for (i = 0; i < FM1P_NB; i++)
+        if (((bup >> i) & 1u) && !((bdown >> i) & 1u))
             qd_app_button(&fm1core_qd_app, i, 0);
-    }
     /* the knobs by role (FM1P_E_SELECT .. FM1P_E_K4 is QD_K_SELECT .. QD_K_4) */
     for (i = 0; i < FM1P_NE - 1; i++) {
         const int32_t d = fm1p_take_role(p, i);
@@ -220,7 +223,7 @@ void fm1core_qd_ui_info(char *buf, uint32_t n)
     char pat[4];
     if (buf && n)
         snprintf(buf, n, "%s: %s %s, %d BPM, track %d %s (%s), oct %d, voices %d/%d, keys %07x buttons %04x, view %s, "
-                 "edit follows %d",
+                 "edit follows %d, name \"%s\"",
                  fm1core_qd_app.ui.mode == QD_MODE_KEYS     ? "keys"
                  : fm1core_qd_app.ui.mode == QD_MODE_TRACKS ? "tracks"
                  : fm1core_qd_app.ui.mode == QD_MODE_STEP   ? (fm1core_qd_app.ui.nheld ? "step held" : "steps")
@@ -231,7 +234,8 @@ void fm1core_qd_ui_info(char *buf, uint32_t n)
                  qd_pool_in_use(&fm1core_qd_app.pool), fm1core_qd_app.pool.nvoice, (unsigned)fm1core_qd_app.keys_held,
                  (unsigned)fm1core_qd_app.buttons_held,
                  fm1core_qd_app.ui.view == QD_VIEW_EDIT ? "EDIT" : fm1core_qd_app.ui.view == QD_VIEW_STEPS ? "STEPS" : "ROLL",
-                 qd_view_edit_follows(&fm1core_qd_app) + 1);   /* P1.5s: the step EDIT shows playing (0: none) */
+                 qd_view_edit_follows(&fm1core_qd_app) + 1,     /* P1.5s: the step EDIT shows playing (0: none) */
+                 qd_type_open(&fm1core_qd_app) ? fm1core_qd_app.ui.ty.name : "");   /* P1.5z: the name typed */
 }
 void fm1core_qd_shutdown(void)
 {

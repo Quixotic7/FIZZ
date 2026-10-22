@@ -910,23 +910,30 @@ static int other_mode(int field)
  * what is edited), the DEFAULT / EMPTY STEP tag (P1.3t: no SELECTED) */
 static float g_tag_x;                                   /* P1.3s: EDIT puts the tag in the head row: its right end */
 static int g_edit_head;
-static int held_head(const ui_held_t *v, pal_t *p)
+/* the palette of v (its colours: the body's and the head's) */
+static int held_pal(const ui_held_t *v, pal_t *p)
 {
     const int field = v->field >= 0 && v->field < UI_NFIELD ? v->field : UI_F_NOTE;
     const int lit = v->is_default || v->ovr;
-    char left[48], n[12];
-
     p->empty = v->type == 0 && field != UI_F_TRIG && !v->is_default;
     p->k[0] = p->empty ? UI_G2 : v->is_default ? (field == UI_F_VEL ? UI_MODE_COL[UI_F_VEL] : UI_TRACK_COL)
             : lit ? UI_MODE_COL[field] : DEF_COL;           /* (P1.5o: the default's VEL value green, as a step's) */
-    if (!v->is_default && !v->follow)                   /* P1.5d (the frames the other way round): a held step (or the
-                                                         * latch's selection) has the frame, a track's default none
-                                                         * (P1.5q: nor the step playing, followed: none held) */
-        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
     p->k[1] = p->empty ? UI_G2 : UI_MODE_COL[other_mode(field)];
     p->wh = p->empty ? UI_G1 : UI_K3;
     p->nobig = 0;
     p->pull = 0.f;
+    return field;
+}
+static int held_head(const ui_held_t *v, pal_t *p)
+{
+    const int field = held_pal(v, p);
+    const int lit = v->is_default || v->ovr;
+    char left[48], n[12];
+
+    if (!v->is_default && !v->follow)                   /* P1.5d (the frames the other way round): a held step (or the
+                                                         * latch's selection) has the frame, a track's default none
+                                                         * (P1.5q: nor the step playing, followed: none held) */
+        ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
 
     left[0] = 0;                                        /* "STEP 5 · NOTE", several held: "STEP 5+2 · NOTE" */
     if (v->is_default) {
@@ -1046,16 +1053,45 @@ static void ed_plock(const ui_held_t *v, const ui_lane_t *lane, char *val)
     }
 }
 
+/* P1.5z: the head's value of v as the EDIT view's switch below makes it (for the head of another model than the
+ * picture's: EDIT following shows the track's default's) */
+static void ed_head_val(const ui_held_t *v, const ui_lane_t *lane, int field, char *val)
+{
+    static const char *const TRIGS[4] = {"", "NOTE", "LOCK", "TIE"};
+    char n[12];
+    val[0] = 0;
+    switch (field) {
+    case UI_F_VEL: cat(val, ui_itoa(n, v->vel)); break;
+    case UI_F_LEN: cat(val, v->len_name ? v->len_name : ""); break;
+    case UI_F_MICRO: cat(cat(val, v->micro > 0 ? "+" : ""), ui_itoa(n, v->micro)); break;
+    case UI_F_RATCH: cat(cat(val, "\xc3\x97"), ui_itoa(n, v->count < 1 ? 1 : v->count > 8 ? 8 : v->count)); break;
+    case UI_F_TRIG: cat(val, TRIGS[v->type >= 1 && v->type <= 3 ? v->type : 0]); break;
+    case UI_F_SOUND: cat(val, v->sound_cur ? v->sound_cur : "TRACK SOUND"); break;
+    case UI_F_FUNC: cat(val, v->func_name); break;
+    case UI_F_PLOCK:
+        if (!v->is_default) {
+            const int c = (v->step - 1) % 16, nl = lane->col[c < 0 ? 0 : c].nlock;
+            cat(cat(val, ui_itoa(n, nl)), nl == 1 ? " LOCK" : " LOCKS");
+        }
+        break;
+    default: break;
+    }
+}
+
 void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
 {
-    pal_t p;
+    pal_t p, hp;
     int field;
     char val[40], n[12], sub[48];
+    const ui_held_t *hv = v->head ? v->head : v;        /* (P1.5z: following: the head the track's default's) */
 
     g_edit_head = 1;
     g_tag_x = 0.f;
-    field = held_head(v, &p);
+    field = held_head(hv, &hp);
     g_edit_head = 0;
+    p = hp;
+    if (hv != v)
+        held_pal(v, &p);                                /* (the picture: the step playing's colours) */
 
     p.nobig = 1;
     val[0] = sub[0] = 0;
@@ -1126,11 +1162,13 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
         break;
     }
     qd_restore();
-    if (p.empty) {
+    if (hv != v)                                        /* P1.5z: the head's value: the track's default's */
+        ed_head_val(hv, lane, field, val);
+    if (hp.empty) {
         val[0] = 0;
         cat(val, "EMPTY STEP");
     }
-    head_value(v, &p, val);
+    head_value(hv, &hp, val);
     if (sub[0])
         ui_lab(sub, 8.f, 31.f, UI_G1, QD_LEFT);
     if (v->is_default && v->reset)                      /* the mode key held: B11 resets the default */

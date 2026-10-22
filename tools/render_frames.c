@@ -72,6 +72,7 @@ int render_p15l(const char *out);                       /* render_p15l.c: the ed
 int render_p15n(const char *out);                       /* render_p15n.c: the latch's octave, move-all, MIX on TONE */
 int render_p15x(const char *out);                       /* render_p15x.c: presets' mix, tag LEDs (P1.5x) */
 int render_e1(const char *out);                         /* render_e1.c: E1's editor pages (PORT, AHD, ROUTE) */
+int render_p15z(const char *out);                       /* render_p15z.c: the owner's batch (P1.5z) */
 int render_p15y(const char *out);                       /* render_p15y.c: namesizer names (P1.5y) */
 int render_p15w(const char *out);                       /* render_p15w.c: the pool's references (P1.5w) */
 int render_p15v(const char *out);                       /* render_p15v.c: the owner's fixes (P1.5v) */
@@ -236,7 +237,7 @@ int main(int argc, char **argv)
         if (!qd_init())
             return 1;
         qd_text_stats_reset();
-        failed = !strcmp(only, "p15y") ? render_p15y(out) : !strcmp(only, "e1") ? render_e1(out) : !strcmp(only, "p15x") ? render_p15x(out) : !strcmp(only, "p15w") ? render_p15w(out) : !strcmp(only, "p15v") ? render_p15v(out) : !strcmp(only, "p15u") ? render_p15u(out, mocks) : !strcmp(only, "p15t") ? render_p15t(out, mocks) : !strcmp(only, "p15s") ? render_p15s(out) : !strcmp(only, "p15r") ? render_p15r(out) : !strcmp(only, "p15q") ? render_p15q(out) : !strcmp(only, "p15p") ? render_p15p(out) : !strcmp(only, "p15c") ? render_p15c(out) : !strcmp(only, "p15o") ? render_p15o(out) : !strcmp(only, "p15n") ? render_p15n(out) : !strcmp(only, "p15l") ? render_p15l(out) : !strcmp(only, "p15k") ? render_p15k(out) : !strcmp(only, "p15j") ? render_p15j(out) : !strcmp(only, "p15i") ? render_p15i(out) : !strcmp(only, "p15h") ? render_p15h(out) : !strcmp(only, "p15g") ? render_p15g(out) : !strcmp(only, "p15f") ? render_p15f(out) : !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
+        failed = !strcmp(only, "p15z") ? render_p15z(out) : !strcmp(only, "p15y") ? render_p15y(out) : !strcmp(only, "e1") ? render_e1(out) : !strcmp(only, "p15x") ? render_p15x(out) : !strcmp(only, "p15w") ? render_p15w(out) : !strcmp(only, "p15v") ? render_p15v(out) : !strcmp(only, "p15u") ? render_p15u(out, mocks) : !strcmp(only, "p15t") ? render_p15t(out, mocks) : !strcmp(only, "p15s") ? render_p15s(out) : !strcmp(only, "p15r") ? render_p15r(out) : !strcmp(only, "p15q") ? render_p15q(out) : !strcmp(only, "p15p") ? render_p15p(out) : !strcmp(only, "p15c") ? render_p15c(out) : !strcmp(only, "p15o") ? render_p15o(out) : !strcmp(only, "p15n") ? render_p15n(out) : !strcmp(only, "p15l") ? render_p15l(out) : !strcmp(only, "p15k") ? render_p15k(out) : !strcmp(only, "p15j") ? render_p15j(out) : !strcmp(only, "p15i") ? render_p15i(out) : !strcmp(only, "p15h") ? render_p15h(out) : !strcmp(only, "p15g") ? render_p15g(out) : !strcmp(only, "p15f") ? render_p15f(out) : !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
                : !strcmp(only, "p14a") ? render_p14a(out) : 2;
         {
             const char *small = "";
@@ -459,6 +460,7 @@ int main(int argc, char **argv)
     failed |= render_p15x(out);                         /* P1.5x: presets carry their mix, tag LEDs */
     failed |= render_e1(out);                           /* E1: PORT, AHD, DRIVE's ROUTE */
     failed |= render_p15y(out);                         /* P1.5y: namesizer names */
+    failed |= render_p15z(out);                         /* P1.5z: the owner's batch */
     {   /* P1.3v: the clarity guard over every frame rendered: no text under 11 px */
         const char *small = "";
         const float mn = qd_text_stats_min(&small);

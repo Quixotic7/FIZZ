@@ -216,6 +216,85 @@ int main(int argc, char **argv)
         CHECK(e && atoi(e + 13) == 0, "stopped: the default again");
     }
 
+    {   /* P1.5z (the owner: "Using the Shift for numbers and stuff is not actually working"): the typewriter through the
+         * panel as RemoteFM1 and the Standalone deliver it: SAVE PRESET, SHIFT + F1 clears; GLO held, then B1 and W1
+         * (held keys, and taps); GLO and the key down in the same tick; the key before GLO lets go */
+        char info[512];
+        const char *q;
+        btap(FM1P_B_HOME);
+        btap(FM1P_B_SAVE);                              /* SAVE PRESET */
+        run(100);
+        bdown(FM1P_B_GLO);                              /* SHIFT + F1: cleared */
+        run(30);
+        btap(FM1P_B_OCTDN);
+        bup(FM1P_B_GLO);
+        run(30);
+        bdown(FM1P_B_GLO);                              /* GLO held (1.2 s: well past its map's time), then B1 and W1 */
+        run(1200);
+        P->keys |= 1u << 1;
+        run(30);
+        P->keys &= ~(1u << 1);
+        run(30);
+        P->keys |= 1u << 0;
+        run(30);
+        P->keys &= ~(1u << 0);
+        run(30);
+        P->keys_tap |= 1u << 1;                         /* .. a tap (press and release between two ticks) */
+        run(30);
+        bup(FM1P_B_GLO);
+        run(30);
+        P->keys |= 1u << 3;                             /* B2 alone: B */
+        run(30);
+        P->keys &= ~(1u << 3);
+        run(30);
+        P->buttons |= 1u << P->btn_id[FM1P_B_GLO];      /* GLO and B1 down in the same tick */
+        P->keys |= 1u << 1;
+        run(30);
+        P->keys &= ~(1u << 1);
+        run(10);
+        bup(FM1P_B_GLO);
+        run(30);
+        C->ui_info(info, sizeof info);
+        q = strstr(info, "name \"");
+        CHECK(q && !strncmp(q + 6, "0.0B0\"", 6), "the typewriter through the panel: GLO + B1 '0', GLO + W1 '.', a tap "
+              "'0', B2 'B', GLO and B1 in one tick '0' (%s)", q ? q : info);
+        {   /* P1.5z: PRESETS right, every detent a new name (now and then a made-up word: no space); KNOB 1 the letter */
+            char prev[16] = "", cur[16];
+            int k, words = 0, fresh = 1;
+            for (k = 0; k < 24; k++) {
+                const char *e;
+                turn(FM1P_E_PRESETS, 1);
+                run(30);
+                C->ui_info(info, sizeof info);
+                q = strstr(info, "name \"");
+                e = q ? strchr(q + 6, '"') : 0;
+                snprintf(cur, sizeof cur, "%.*s", e ? (int)(e - q - 6) : 0, q ? q + 6 : "");
+                fresh &= cur[0] && strcmp(cur, prev) != 0;
+                words += cur[0] && !strchr(cur, ' ');
+                snprintf(prev, sizeof prev, "%s", cur);
+            }
+            CHECK(fresh && words >= 1, "PRESETS through the panel: 24 detents, 24 new names, %d made-up words (the last "
+                  "%s)", words, cur);
+            bdown(FM1P_B_GLO);                          /* KNOB 1: SHIFT + F1 clears, B1 types A, KNOB 1 +2: C */
+            run(30);
+            btap(FM1P_B_OCTDN);
+            bup(FM1P_B_GLO);
+            run(30);
+            P->keys |= 1u << 1;
+            run(30);
+            P->keys &= ~(1u << 1);
+            run(30);
+            turn(FM1P_E_ALGO, -1);
+            turn(FM1P_E_K1, 2);
+            run(30);
+            C->ui_info(info, sizeof info);
+            q = strstr(info, "name \"");
+            CHECK(q && !strncmp(q + 6, "C\"", 2), "KNOB 1 through the panel: A turned to C (%s)", q ? q : info);
+        }
+        btap(FM1P_B_HOME);
+        run(100);
+    }
+
     C->shutdown();
 
     {   /* P1.5a, the restart: a flash FILE (as FM1VST's <core-id>/flash.bin); the tempo (the pattern's) and the selected
