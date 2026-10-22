@@ -34,8 +34,8 @@ const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     {"OFFSET", QD_SG_OPS, UI_SD_OFS, {QD_QP_OFSC, QD_QP_OFSA, QD_QP_OFSB1, QD_QP_OFSB2, -1}, 0, 0, {0}},
     {"ENV A", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_AATK, QD_QP_ADEC, QD_QP_AEND, QD_QP_ALEV, QD_QP_ADLY}, 0, 0, {0}},
     {"ENV B", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_BATK, QD_QP_BDEC, QD_QP_BEND, QD_QP_BLEV, QD_QP_BDLY}, 1, 0, {0}},
-    /* E2: FILTER's ALGORITHM is the MACHINE (LEGACY LP/HP/OFF, LOWPASS 4, MULTI, COMB+, COMB-, EQ), KNOB 2 / 3 by it
-     * (snd_filter_ids); BASE's KNOB 4 BWPOST */
+    /* E2: FILTER's ALGORITHM is the MACHINE (E4.1: turned in the Digitone II's order: MULTI, LOWPASS 4, LEGACY
+     * LP/HP/OFF, COMB-, COMB+, EQ), KNOB 2 / 3 by it (snd_filter_ids); BASE's KNOB 4 BWPOST */
     {"FILTER", QD_SG_FILTER, UI_SD_FILTER, {QD_QP_FREQ, QD_QP_RESO, QD_QP_FTYPE, QD_QP_FDEPTH, QD_QP_FTYPE}, 0, 0, {0}},
     {"F ENV", QD_SG_FILTER, UI_SD_ADSR, {QD_QP_FATK, QD_QP_FDEC, QD_QP_FSUS, QD_QP_FREL, QD_QP_FDLY}, 0, 0, {0}},
     {"BASE", QD_SG_FILTER, UI_SD_BAND, {QD_QP_BASE, QD_QP_WIDTH, QD_QP_FKTRK, QD_QP_BWPOST, -1}, 0, 0, {0}},
@@ -537,11 +537,16 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     }
     if (id == QD_QP_FTYPE) {                            /* E2: ALGORITHM the machine, LEGACY's KNOB 3 its TYPE */
         static const int16_t MACH_FT[6] = {QD_QF_LP12, QD_QF_LP24, QD_QF_MULTI, QD_QF_COMBP, QD_QF_COMBN, QD_QF_EQ};
+        static const int8_t MENU[6] = {2, 1, 0, 4, 3, 5};   /* (E4.1: the Digitone II's menu order: MULTI, LOWPASS 4,
+                                                         * LEGACY, COMB-, COMB+, EQ; the stored FTYPE as before) */
         const int cur = snd_cur(a, QD_QP_FTYPE), m = qd_snd_machine(cur);
         if (knob == QD_K_ALGO) {
-            const int nm = m + (d > 0 ? 1 : -1) < 0 ? 0 : m + (d > 0 ? 1 : -1) > 5 ? 5 : m + (d > 0 ? 1 : -1);
-            if (nm != m)
-                snd_put(a, QD_QP_FTYPE, MACH_FT[nm]);
+            int pos = 0, np;
+            while (pos < 5 && MENU[pos] != m)
+                pos++;
+            np = pos + (d > 0 ? 1 : -1) < 0 ? 0 : pos + (d > 0 ? 1 : -1) > 5 ? 5 : pos + (d > 0 ? 1 : -1);
+            if (np != pos)
+                snd_put(a, QD_QP_FTYPE, MACH_FT[(int)MENU[np]]);   /* (LEGACY: LP12, its default TYPE) */
         } else {
             snd_put(a, QD_QP_FTYPE, cur + d < 0 ? 0 : cur + d > QD_QF_HP12 ? QD_QF_HP12 : cur + d);
         }

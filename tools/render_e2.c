@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' E2 part: the filter machines on FILTER (MACHINE on ALGORITHM: LEGACY, LOWPASS 4, MULTI, COMB+, COMB-,
- * EQ; KNOB 2 / 3 by the machine; the response drawn) and BASE's BWPOST. Into OUT/e2-*.png and OUT/e2-sheet.png */
+/* render_frames' E2 part: the filter machines on FILTER (MACHINE on ALGORITHM, E4.1: MULTI, LOWPASS 4, LEGACY, COMB-,
+ * COMB+, EQ; KNOB 2 / 3 by the machine; the response drawn) and BASE's BWPOST. Into OUT/e2-*.png and OUT/e2-sheet.png */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

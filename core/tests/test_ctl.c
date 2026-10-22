@@ -4338,6 +4338,35 @@ static void g_e4_mods(void)
 #undef MS
 }
 
+/* E4.1 (the owner): FILTER's ALGORITHM turns the machines in the Digitone II's menu order, MULTI, LOWPASS 4, LEGACY,
+ * COMB-, COMB+, EQ (the stored FTYPE as before); LEGACY lands on LP12, its TYPE on KNOB 3 */
+static void g_e41_machines(void)
+{
+    static const char *const WANT[6] = {"MULTI", "LOWPASS 4", "LEGACY", "COMB-", "COMB+", "EQ"};
+    static const int FT[6] = {QD_QF_MULTI, QD_QF_LP24, QD_QF_LP12, QD_QF_COMBN, QD_QF_COMBP, QD_QF_EQ};
+    const int16_t *pt;
+    int k, ok = 1;
+    start();
+    btap(QD_B_SOUND);
+    pt = A.model.t[0].patch;
+    A.ui.snd_page = qd_snd_page_of("FILTER");
+    turn(QD_K_ALGO, -1), turn(QD_K_ALGO, -1), turn(QD_K_ALGO, -1);
+    for (k = 0; k < 6; k++) {
+        ok &= pt[QD_QP_FTYPE] == FT[k] && !strcmp(QD_SND_MACHINE[qd_snd_machine(pt[QD_QP_FTYPE])], WANT[k]);
+        turn(QD_K_ALGO, 1);
+    }
+    CHECK(ok && pt[QD_QP_FTYPE] == QD_QF_EQ, "ALGORITHM: MULTI, LOWPASS 4, LEGACY, COMB-, COMB+, EQ (and stops)");
+    for (k = 0; k < 3; k++)
+        turn(QD_K_ALGO, -1);
+    turn(QD_K_3, 1);
+    CHECK(pt[QD_QP_FTYPE] == QD_QF_HP12, "LEGACY: KNOB 3 its TYPE (HP12)");
+    turn(QD_K_ALGO, 1);
+    CHECK(pt[QD_QP_FTYPE] == QD_QF_COMBN, "LEGACY, then COMB-");
+    turn(QD_K_ALGO, -1);
+    CHECK(pt[QD_QP_FTYPE] == QD_QF_LP12, "back to LEGACY: LP12, its default");
+    btap(QD_B_HOME);
+}
+
 /* P1.5l: the editor's black keys regrouped: B1 TRIG / KEYS, B2 OPERATORS, B3 OP ENVELOPES, B4 FILTERS, B5 ENVELOPES,
  * B6..B8 the LFOs; SELECT in that order; a fresh start on RATIO; the LEDs */
 static void g_p15l_groups(void)
@@ -6650,6 +6679,7 @@ int main(void)
         {"P1.5j: the editor's foot clear of the frame", g_p15j_margins},
         {"P1.5k: the LFOs: keys, DEST, hold-to-map", g_p15k_lfo},
         {"E4: the modulation slots: B1's hold-to-map, MOD, MIDI", g_e4_mods},
+        {"E4.1: FILTER's machines in the Digitone II's order", g_e41_machines},
         {"P1.5l: the editor's black keys regrouped", g_p15l_groups},
         {"P1.5m: the F layers with the step latch on", g_p15m_flatch},
         {"P1.5n/o: the octave tap's takeover, SELECT moves all, LFO's LED, MIX on TONE", g_p15n},
