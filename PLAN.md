@@ -1786,3 +1786,11 @@ versions 0.6.5-p1.5s, 0.7.0-p1.5t; relaunched; the web preview on 0.7.0, 976e3c2
   the pool with preset ids, PRESETS = the library browser (preview never reaches the pattern; load / cancel, kinds,
   sources, + / − pool, delete), a step + PRESETS = the pool with TRACK, SAVE PRESET (NEW / REPLACE, names); 0.6
   projects keep their pools, new ones start empty; SysEx LIBRARY stores go into MY PRESETS.
+
+**2026-10-22, P1.5w** (FMToneSeq c22b9c1; FM1VST `core-quadrille` ab354ec, pushed; version 0.7.3-p1.5w; the Standalone
+waits for P1.5x): the pool holds references (preset ids, `'R'` records); REPLACE updates the preset and so every pool
+and lock using it, in every project; a track's own sound stays a copy and does not follow (the owner: "Tracks should
+keep their unique versions of presets once loaded"); DELETE? counts its use across projects and clears references and
+locks (other projects on load; ids never reused); SysEx POOL stores make a MY preset plus a reference; 0.6 / 0.7.2 pools
+migrate by content. The web preview imports Digitone II `.dn2pst` FM TONE sounds (00562f4, ded4645; research
+`research/DN2-FORMAT.md`, reader `tools/dn2pst.mjs`, acf84b3) and shows old-firmware notes as a quiet mark.
