@@ -1275,6 +1275,23 @@ its own group ("the track on MIDI FX 4, step 6 on MIDI FX 2"): TRIG's KNOB 2 / B
 first build. ARP tapped on a track with no group puts it on the first unused group and adds an arp there. Groups are
 kept with the project.
 
+### Version 2.7 (2026-10-22, the owner after playing 0.9.0-p1.6c): P1.6d
+
+- **The latch**: SHIFT + PRESETS / ALGORITHM = root / scale with the latch on (a bug: it opened the sound lock);
+  VALUES with nothing selected: the black keys set the **track default's** value (not the mode); a **double-tap** on a
+  step creates or deletes it.
+- **The sound editor**: a page's dice needs a **1 s hold** (the dice shake, then roll); TONE's MIX glyph in its own
+  cell; **hold the FILTER key** for a machine popup.
+- **FX sends lockable on a step**: the FX pages' sends and the mixer's values, with a step held, as the sound editor.
+- **Automation**: **hold REC + turn knobs** while playing, in any view: locks on the steps passed, empty steps become
+  ghost (LOCK) steps; the record settings gain **AUTOMATION ON / OFF** for armed recording.
+- **Track names and kinds**: a KIND (the 7 tags, with an icon) and a typed NAME in the track settings.
+- **ARP tapped = the MIDI FX screen, ARP held = the arp on / off, SHIFT + ARP held = FILL**; ARP's light = the arp
+  on. The group-change animation glides; the slot stays selected across groups; **hold a slot + a knob moves it**;
+  **F1 / F2 + slot keys copy / pick up and drop** as on steps. The empty slot's orbit stays ("Fire!").
+- The owner's pattern of the day is backed up: `FIZZ-saves/2026-10-22-owner-pattern-flash.bin` (the Standalone's
+  flash, next to the repos).
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
