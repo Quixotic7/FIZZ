@@ -30,8 +30,16 @@
  *        older: a copy) becomes a reference when its project loads: to the preset with that very sound (factory or
  *        MINE), else to a new MY preset made from it (its name made unique, its tags kept). A reference to a MY
  *        preset that is gone (deleted while another project was open) is dropped when its project loads, its steps
- *        back to their track's sound */
+ *        back to their track's sound
+ *   PAT  (P1.6c) 'P' 4: the track settings with their MIDI FX group (qd_tset_t.mfx, appended: 'P' 1..3 carry 42-byte
+ *        track settings, read with it 0, OFF); a step's MIDI FX is its former pad byte (0: TRACK)
+ *   MFX  (P1.6c) 'X' 1, the slot's size, the five MIDI FX groups (qd_mfx_group_t) as they are; none: every group
+ *        empty */
+#include <stddef.h>
+
 #include "../voice/fx/qd_fx.h"
+
+typedef char qd_tset_old_ok[offsetof(qd_tset_t, mfx) == QD_TSET_SIZE_OLD ? 1 : -1];   /* (P1.6c: 'P' 1..3's) */
 
 static uint8_t pr_buf[QDS_MAXREC], pr_buf2[QDS_MAXREC];
 static void pool_cache(const qd_app_t *a, qd_sound_t *s);   /* (P1.5w: the pool's references, below) */
@@ -56,7 +64,7 @@ static uint32_t ser_pat(const qd_pattern_t *p, uint8_t *b)
 {
     uint32_t o = 0;
     int t, pg, s;
-    b[o++] = 'P', b[o++] = 3;
+    b[o++] = 'P', b[o++] = 4;
     b[o++] = (uint8_t)sizeof(qd_step_t), b[o++] = (uint8_t)sizeof(qd_tset_t);
     memcpy(b + o, &p->master, 2), o += 2;
     b[o++] = p->swing, b[o++] = p->used;
@@ -95,11 +103,22 @@ static uint32_t ser_pat(const qd_pattern_t *p, uint8_t *b)
     return o;
 }
 
+/* P1.6c: a record's track settings' size by its version ('P' 4: today's; 1..3: before the MIDI FX field); 0 bad */
+static uint32_t pat_tset_size(const uint8_t *b, uint32_t len)
+{
+    if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 4 || b[2] != sizeof(qd_step_t))
+        return 0;
+    if (b[1] >= 4)
+        return b[3] == sizeof(qd_tset_t) ? (uint32_t)sizeof(qd_tset_t) : 0u;
+    return b[3] == QD_TSET_SIZE_OLD ? (uint32_t)QD_TSET_SIZE_OLD : 0u;
+}
+
 static int de_pat(qd_pattern_t *p, const uint8_t *b, uint32_t len)
 {
     uint32_t o = 0;
     int t, pg, s, v;
-    if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 3 || b[2] != sizeof(qd_step_t) || b[3] != sizeof(qd_tset_t))
+    const uint32_t tsz = pat_tset_size(b, len);
+    if (!tsz)
         return 0;
     v = b[1];
     o = 4;
@@ -109,7 +128,11 @@ static int de_pat(qd_pattern_t *p, const uint8_t *b, uint32_t len)
     memcpy(&p->nlock, b + o, 2), o += 2;
     if (p->nlock > QD_NLOCK)
         return 0;
-    memcpy(p->trk, b + o, sizeof p->trk), o += sizeof p->trk;
+    if (o + tsz * QD_PAT_NTRACK > len)
+        return 0;
+    memset(p->trk, 0, sizeof p->trk);                   /* (P1.6c: an older record's tracks: MIDI FX OFF) */
+    for (t = 0; t < QD_PAT_NTRACK; t++)
+        memcpy(&p->trk[t], b + o, tsz), o += tsz;
     memcpy(p->lock_start, b + o, sizeof p->lock_start), o += sizeof p->lock_start;
     memcpy(p->lock_n, b + o, sizeof p->lock_n), o += sizeof p->lock_n;
     memset(p->step, 0, sizeof p->step);
@@ -298,6 +321,26 @@ static uint32_t ser_ftag(const qd_app_t *a, uint8_t *b)
     return 2 + QD_NFACTORY + 2;
 }
 
+/* P1.6c: the project's MIDI FX groups: 'X' 1, the slot's size, then the five groups as they are */
+static uint32_t ser_mfx(const qd_app_t *a, uint8_t *b)
+{
+    b[0] = 'X', b[1] = 1, b[2] = (uint8_t)sizeof(qd_mfx_slot_t);
+    memcpy(b + 3, a->proj.mfx, sizeof a->proj.mfx);
+    return 3 + (uint32_t)sizeof a->proj.mfx;
+}
+static int de_mfx(qd_app_t *a, const uint8_t *b, uint32_t len)
+{
+    int g, k;
+    if (len != 3 + sizeof a->proj.mfx || b[0] != 'X' || b[1] != 1 || b[2] != sizeof(qd_mfx_slot_t))
+        return 0;
+    memcpy(a->proj.mfx, b + 3, sizeof a->proj.mfx);
+    for (g = 0; g < QD_MFX_NGROUP; g++)                 /* (a type not known: the slot empty) */
+        for (k = 0; k < QD_MFX_NSLOT; k++)
+            if (a->proj.mfx[g].slot[k].type >= QD_MFX_NTYPE)
+                qd_mfx_slot_init(&a->proj.mfx[g].slot[k], QD_MFX_NONE);
+    return 1;
+}
+
 /* an item's key and bytes now */
 static uint32_t item_key(const qd_app_t *a, int it)
 {
@@ -308,6 +351,8 @@ static uint32_t item_key(const qd_app_t *a, int it)
         return QD_RKEY(QD_RK_SET, 0, 0);
     if (it == QD_PI_HDR)
         return QD_RKEY(QD_RK_HDR, p, 0);
+    if (it == QD_PI_MFX)
+        return QD_RKEY(QD_RK_MFX, p, 0);
     if (it < QD_PI_SND)
         return QD_RKEY(QD_RK_PAT, p, it - QD_PI_PAT);
     if (it < QD_PI_LIB)
@@ -322,6 +367,8 @@ static uint32_t item_bytes(const qd_app_t *a, int it, uint8_t *b)
         return ser_set(a, b);
     if (it == QD_PI_HDR)
         return ser_hdr(a, b);
+    if (it == QD_PI_MFX)
+        return ser_mfx(a, b);
     if (it < QD_PI_SND)
         return ser_pat(&a->proj.pat[it - QD_PI_PAT], b);
     if (it < QD_PI_LIB) {
@@ -335,7 +382,10 @@ static uint32_t item_bytes(const qd_app_t *a, int it, uint8_t *b)
     }
     return ser_snd(&a->per.lib[it - QD_PI_LIB], b);
 }
-static qd_store_t *item_store(qd_app_t *a, int it) { return it >= QD_PI_LIB ? &a->per.lib_st : &a->per.prj_st; }
+static qd_store_t *item_store(qd_app_t *a, int it)
+{
+    return it >= QD_PI_LIB && it != QD_PI_MFX ? &a->per.lib_st : &a->per.prj_st;
+}
 
 /* everything as it is now: as written (after a load) */
 static void mark_all_saved(qd_app_t *a)
@@ -409,6 +459,9 @@ static void proj_read(qd_app_t *a, int p)
             }
         }
     }
+    len = qd_store_get(&ps->prj_st, QD_RKEY(QD_RK_MFX, p, 0), pr_buf, sizeof pr_buf);   /* P1.6c (none: empty) */
+    if (len > 0 && len != (int)QDS_DELETED)
+        de_mfx(a, pr_buf, (uint32_t)len);
     qd_sound_recount(&a->proj);
     for (k = 0; k < QD_NPAT; k++) {                     /* (0.6's track sounds: their preset from the pool source) */
         int t;
@@ -589,6 +642,7 @@ void qd_persist_ms(qd_app_t *a)
         look(a, QD_PI_SET);
         look(a, QD_PI_HDR);
         look(a, QD_PI_FTAG);
+        look(a, QD_PI_MFX);                             /* P1.6c */
         look(a, QD_PI_PAT + a->seq.cur);
         ps->scan = (ps->scan + 1) % QD_NPAT;
         look(a, QD_PI_PAT + ps->scan);
@@ -1232,11 +1286,12 @@ static int rec_pat_steps(const uint8_t *b, uint32_t len, const uint8_t *mask)
     uint32_t o;
     int t, pg, s, n = 0;
     uint16_t nlock;
-    if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 3 || b[2] != sizeof(qd_step_t) || b[3] != sizeof(qd_tset_t))
+    const uint32_t tsz = pat_tset_size(b, len);
+    if (!tsz)
         return 0;
     o = 4 + 2 + 2 + 2;
     memcpy(&nlock, b + o, 2), o += 2;
-    o += (uint32_t)(sizeof(qd_tset_t) * QD_PAT_NTRACK + sizeof(((qd_pattern_t *)0)->lock_start) +
+    o += (uint32_t)(tsz * QD_PAT_NTRACK + sizeof(((qd_pattern_t *)0)->lock_start) +
                     sizeof(((qd_pattern_t *)0)->lock_n));
     for (t = 0; t < QD_PAT_NTRACK && o < len; t++) {
         const uint8_t pm = b[o++];

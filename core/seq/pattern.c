@@ -175,6 +175,20 @@ void qd_project_init(qd_project_t *pr)
     pr->rec_quant = 0;
     pr->rec_dub = 0;
     pr->rec_ekeys = 0;                                  /* P1.5b: the editor's keyboard: SCALE */
+    memset(pr->mfx, 0, sizeof pr->mfx);                 /* P1.6c: the MIDI FX groups empty */
+}
+
+int qd_step_mfx(const qd_pattern_t *p, int t, int s)
+{
+    int m;
+    if (t < 0 || t >= QD_PAT_NTRACK)
+        return 0;
+    m = s >= 0 && s < QD_NSTEP ? p->step[t][s].mfx : QD_SMFX_TRACK;
+    if (m == QD_SMFX_OFF)
+        return 0;
+    if (m >= QD_SMFX_G1 && m < QD_SMFX_G1 + QD_MFX_NGROUP)
+        return m - QD_SMFX_G1 + 1;
+    return p->trk[t].mfx <= QD_MFX_NGROUP ? p->trk[t].mfx : 0;
 }
 
 const char *qd_pat_name(int k, char *buf)

@@ -28,6 +28,7 @@ static void undo_take(qd_app_t *a)                    /* the gesture's "before" 
     memcpy(u->snd0, a->proj.sound, sizeof u->snd0);
     u->nsound0 = a->proj.nsound;
     memcpy(u->lib0, a->per.lib, sizeof u->lib0);
+    memcpy(u->mfx0, a->proj.mfx, sizeof u->mfx0);     /* P1.6c */
     u->xl_n = 0;
     u->xl_over = 0;
     u->hint = -1;
@@ -149,7 +150,8 @@ static void undo_drop_oldest(qd_hist_t *u)
         u->pos--;
 }
 
-/* a level: three regions' differences, each [u32 bytes] then its runs */
+/* a level: four regions' differences (the pattern, the pool, the library, P1.6c the MIDI FX groups), each [u32 bytes]
+ * then its runs */
 void qd_undo_close(qd_app_t *a)
 {
     qd_hist_t *u = &a->undo;
@@ -158,14 +160,15 @@ void qd_undo_close(qd_app_t *a)
         uint32_t o = 0, z = 0;
         long d;
         int r;
-        const uint8_t *now[3], *was[3];
-        uint32_t sz[3];
+        const uint8_t *now[4], *was[4];
+        uint32_t sz[4];
         if (!u->open)
             return;
         now[0] = (const uint8_t *)&a->proj.pat[u->pat], was[0] = (const uint8_t *)&u->pat0, sz[0] = sizeof u->pat0;
         now[1] = (const uint8_t *)a->proj.sound, was[1] = (const uint8_t *)u->snd0, sz[1] = sizeof u->snd0;
         now[2] = (const uint8_t *)a->per.lib, was[2] = (const uint8_t *)u->lib0, sz[2] = sizeof u->lib0;
-        for (r = 0; r < 3; r++) {
+        now[3] = (const uint8_t *)a->proj.mfx, was[3] = (const uint8_t *)u->mfx0, sz[3] = sizeof u->mfx0;
+        for (r = 0; r < 4; r++) {
             if (o + 4u > sizeof tmp)
                 break;
             d = undo_diff(tmp + o + 4u, (uint32_t)(sizeof tmp - o - 4u), now[r], was[r], sz[r]);
@@ -224,13 +227,14 @@ void qd_undo_ms(qd_app_t *a)
 static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
 {
     const uint8_t *d = a->undo.pool + l->off;
-    uint8_t *mem[3];
-    uint32_t sz[3], o = 0;
+    uint8_t *mem[4];
+    uint32_t sz[4], o = 0;
     int r, t;
     mem[0] = (uint8_t *)&a->proj.pat[l->pat], sz[0] = sizeof(qd_pattern_t);
     mem[1] = (uint8_t *)a->proj.sound, sz[1] = sizeof a->proj.sound;
     mem[2] = (uint8_t *)a->per.lib, sz[2] = sizeof a->per.lib;
-    for (r = 0; r < 3; r++) {
+    mem[3] = (uint8_t *)a->proj.mfx, sz[3] = sizeof a->proj.mfx;   /* (P1.6c) */
+    for (r = 0; r < 4; r++) {
         uint32_t len;
         memcpy(&len, d + o, 4);
         undo_apply_runs(mem[r], sz[r], d + o + 4u, len);

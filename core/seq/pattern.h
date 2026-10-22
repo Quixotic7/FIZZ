@@ -33,6 +33,7 @@
 #include <stdint.h>
 
 #include "../voice/quad/quad_voice.h"
+#include "mfx.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,8 +85,10 @@ typedef struct {
     uint8_t strum;                      /* 0..23 24ths between a chord's notes */
     uint8_t func;                       /* P1.3w: the step function (QD_FN_*; no override bit, no track default: 0
                                          * none) */
-    uint8_t pad;
+    uint8_t mfx;                        /* P1.6c: its MIDI FX (no override bit: 0 TRACK, the track's; 1 OFF; 2..6 group
+                                         * 1..5; was padding, so 0 in older steps) */
 } qd_step_t;
+enum { QD_SMFX_TRACK, QD_SMFX_OFF, QD_SMFX_G1 };
 
 /* P1.3w (PLAN §8b "FUNC on B9", Form's FUNCTION): what a step does to its track's playing when it fires (after its
  * condition and chance): RESTART (the next step is the loop's start, the passes from 0), REVERSE / FORWARD (the
@@ -180,7 +183,10 @@ typedef struct {
     uint8_t scale, root;                /* the track's key (scale.h: QD_SCALE_*, root 0..11 = C..B) */
     uint8_t key_global;                 /* 1: the track follows the project's global key */
     uint8_t rtype;                      /* .. and its type (QD_RTYPE_*), kept apart (P1.3c; was padding) */
+    uint8_t mfx;                        /* P1.6c: its MIDI FX group, 0 OFF, 1..5 (appended: a record of an older layout
+                                         * reads 0) */
 } qd_tset_t;
+#define QD_TSET_SIZE_OLD 42             /* (the record's track settings before P1.6c) */
 int qd_tset_rate(const qd_tset_t *ts);  /* the track's rate code */
 void qd_tset_set_rate(qd_tset_t *ts, int rate);   /* base and type from a code */
 
@@ -239,7 +245,10 @@ typedef struct {
                                          * starting pool) */
     uint8_t rec_ekeys;                  /* P1.5b: the keyboard in the sound editor: 0 SCALE (W the scale, B the pages), 1
                                          * FULL (every key as the keyboard; the pages on SELECT) */
+    qd_mfx_group_t mfx[QD_MFX_NGROUP];  /* P1.6c: the MIDI FX groups (mfx.h) */
 } qd_project_t;
+/* the MIDI FX group a step of track t plays through: 0 none, 1..5 (the step's, else the track's) */
+int qd_step_mfx(const qd_pattern_t *p, int t, int s);
 
 /* ---- errors */
 #define QD_OK 0

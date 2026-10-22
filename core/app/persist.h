@@ -41,12 +41,12 @@ struct qd_app;
 #define QD_FLASH_PRJ 0x020000u
 #define QD_FLASH_PRJ_SEC 224
 /* the keys: kind << 24 | project << 16 | index */
-enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB, QD_RK_FTAG };   /* (P1.5v: the factory tags) */
+enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB, QD_RK_FTAG, QD_RK_MFX };   /* (P1.6c: MIDI FX) */   /* (P1.5v: the factory tags) */
 #define QD_RKEY(kind, p, i) ((uint32_t)(kind) << 24 | (uint32_t)(p) << 16 | (uint32_t)(i))
 
 /* the things the app writes, each with a hash of its record as last written and as last seen, and when it changed */
 enum { QD_PI_SET, QD_PI_HDR, QD_PI_PAT, QD_PI_SND = QD_PI_PAT + QD_NPAT, QD_PI_LIB = QD_PI_SND + QD_NSOUND,
-       QD_PI_FTAG = QD_PI_LIB + QD_NLIB, QD_PI_N };
+       QD_PI_FTAG = QD_PI_LIB + QD_NLIB, QD_PI_MFX, QD_PI_N };
 
 typedef struct {
     int on;                            /* a flash attached */

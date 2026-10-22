@@ -3,6 +3,9 @@
 #include <string.h>
 
 #include "player.h"
+#include "scale.h"
+
+#include "mfx.c"                                        /* (P1.6c: the MIDI FX groups; built here) */
 
 uint32_t qd_patch_hash(const int16_t *patch)
 {
@@ -33,12 +36,20 @@ void qd_player_voice_patch(const qd_pool_t *pool, int i, int16_t *out)
             out[v->dip_id[k]] = v->dip_v[k];
 }
 
+static void mfx_out_on(void *ctx, int g, const qd_mfx_note_t *n);
+static void mfx_out_off(void *ctx, int g, int track, int pitch);
+static void mfx_key(void *ctx, int track, int *scale, int *root);
+
 void qd_player_init(qd_player_t *pl, qd_seq_t *s, qd_pool_t *pool, qd_model_t *m)
 {
+    qd_mfx_io_t io;
     memset(pl, 0, sizeof *pl);
     pl->seq = s;
     pl->pool = pool;
     pl->model = m;
+    io.on = mfx_out_on, io.off = mfx_out_off, io.key = mfx_key, io.ctx = pl;
+    qd_mfx_init(&pl->mfx, s->proj->mfx, &io);
+    pl->mfx_audible = 0xFF;
 }
 
 static void plog(qd_player_t *pl, const qd_seq_ev_t *e, int kind, int voice, int id, int value)
@@ -111,6 +122,99 @@ static void note_on(qd_player_t *pl, const qd_seq_ev_t *e)
     plog(pl, e, QD_LOG_ON, i, -1, 0);
 }
 
+/* ---------------------------------------------------------------- P1.6c: the MIDI FX groups */
+/* the group a trig plays through: 1..5, 0 none (or a group with no effect playing: straight on, as before) */
+static int mfx_route(const qd_player_t *pl, int pat, int t, int step)
+{
+    const qd_project_t *pr = pl->seq->proj;
+    int g;
+    if (pat < 0 || pat >= QD_NPAT)
+        return 0;
+    g = qd_step_mfx(&pr->pat[pat], t, step);
+    return g && qd_mfx_group_active(&pr->mfx[g - 1]) ? g : 0;
+}
+static int64_t mfx_tick_of(const qd_player_t *pl, int64_t seq_tick) { return pl->mfx_base + seq_tick; }
+int64_t qd_player_mfx_tick(const qd_player_t *pl) { return (pl->mfx_sub + QD_SUB - 1) / QD_SUB; }
+
+/* a group's note to the voices: its trig's sound and locks (the record while it plays, else resolved again), on its
+ * own track */
+static void mfx_out_on(void *ctx, int g, const qd_mfx_note_t *n)
+{
+    qd_player_t *pl = (qd_player_t *)ctx;
+    const int t = n->track;
+    const qd_trec_t *r = (const qd_trec_t *)n->rec;
+    qd_quad_owner_t *o;
+    qd_seq_ev_t e;
+    int held, i;
+    (void)g;
+    if (t >= QD_PAT_NTRACK)
+        return;
+    o = &pl->model->t[t].owner;
+    if (!r && !n->live && n->pat >= 0 && n->pat < QD_NPAT && n->step >= 0) {
+        qd_seq_step_rec(pl->seq, n->pat, t, n->step, &pl->mrec);
+        r = &pl->mrec;
+    }
+    held = qd_pool_gated(pl->pool, t);
+    if (r && n->pat >= 0 && n->pat < QD_NPAT) {
+        const qd_tset_t *ts = &pl->seq->proj->pat[n->pat].trk[t];
+        qd_pool_set_track(pl->pool, t, ts->limit, ts->reserve);
+        i = qd_pool_note_on_at(pl->pool, t, o, n->pitch, n->vel, r->patch, &r->at);
+    } else {
+        i = qd_pool_note_on(pl->pool, t, o, n->pitch, n->vel, pl->model->t[t].patch);
+    }
+    qd_pool_glide_note(pl->pool, i, o, 0, 0, held);
+    pl->ons++, pl->mfx_ons++;
+    memset(&e, 0, sizeof e);
+    e.sample = pl->seq->now, e.tick = pl->mfx.now, e.track = t, e.note = n->pitch, e.vel = n->vel;
+    e.step = n->step, e.pat = n->pat, e.gate = n->len;
+    plog(pl, &e, QD_LOG_ON, i, -1, 0);
+}
+static void mfx_out_off(void *ctx, int g, int track, int pitch)
+{
+    qd_player_t *pl = (qd_player_t *)ctx;
+    qd_seq_ev_t e;
+    (void)g;
+    if (track >= QD_PAT_NTRACK)
+        return;
+    qd_pool_note_off(pl->pool, track, pitch);
+    pl->offs++, pl->mfx_offs++;
+    memset(&e, 0, sizeof e);
+    e.sample = pl->seq->now, e.tick = pl->mfx.now, e.track = track, e.note = pitch, e.step = -1, e.pat = -1;
+    plog(pl, &e, QD_LOG_OFF, -1, -1, 0);
+}
+static void mfx_key(void *ctx, int track, int *scale, int *root)
+{
+    const qd_player_t *pl = (const qd_player_t *)ctx;
+    qd_track_key(pl->seq->proj, qd_seq_track_pat(pl->seq, track), track, scale, root);
+}
+
+static void mfx_seq_note(qd_player_t *pl, const qd_seq_ev_t *e, int g, int on)
+{
+    qd_mfx_note_t n;
+    memset(&n, 0, sizeof n);
+    n.track = (uint8_t)e->track, n.pitch = n.prev = (uint8_t)(e->note & 127), n.vel = (uint8_t)e->vel;
+    n.pat = (int16_t)e->pat, n.step = (int16_t)e->step;
+    n.glen = e->gate > 0 && e->gate < 0x7FFFFFFF ? (int32_t)e->gate : 0;
+    n.rec = on ? e->rec : 0;
+    qd_mfx_note(&pl->mfx, g, on, &n, mfx_tick_of(pl, e->tick));
+}
+
+/* a TIE or an ON through a group: the track's notes before it into a group end first (a TIE's previous note never
+ * gets its OFF) */
+static void mfx_end_track(qd_player_t *pl, const qd_seq_ev_t *e)
+{
+    const int t = e->track;
+    int p;
+    for (p = 0; p < 128; p++)
+        if (pl->on_grp[t][p] && pl->last_on[t][p]) {
+            qd_seq_ev_t o = *e;
+            o.note = p;
+            mfx_seq_note(pl, &o, pl->on_grp[t][p], 0);
+            pl->on_grp[t][p] = 0;
+            pl->last_on[t][p] = 0;
+        }
+}
+
 void qd_player_event(void *ctx, const qd_seq_ev_t *e)
 {
     qd_player_t *pl = (qd_player_t *)ctx;
@@ -118,11 +222,43 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
     int i;
     if (t < 0 || t >= QD_PAT_NTRACK)
         return;
+    if (e->kind == QD_EV_ON || e->kind == QD_EV_TIE) {   /* P1.6c: through a group */
+        const int g = mfx_route(pl, e->pat, t, e->step);
+        if (pl->on_grp[t][e->note & 127] && pl->last_on[t][e->note & 127]) {   /* (struck again: the one before
+                                                         * into a group ends) */
+            mfx_seq_note(pl, e, pl->on_grp[t][e->note & 127], 0);
+            pl->on_grp[t][e->note & 127] = 0;
+        }
+        if (g) {
+            if (e->kind == QD_EV_TIE) {
+                int p;
+                for (p = 0; p < 128; p++)               /* (the tied note held straight: it ends too) */
+                    if (!pl->on_grp[t][p] && pl->last_on[t][p]) {
+                        qd_pool_note_off(pl->pool, t, p);
+                        pl->last_on[t][p] = 0;
+                    }
+                mfx_end_track(pl, e);
+            }
+            pl->on_grp[t][e->note & 127] = (uint8_t)g;
+            pl->last_on[t][e->note & 127] = e->serial;
+            mfx_seq_note(pl, e, g, 1);
+            return;
+        }
+        if (e->kind == QD_EV_TIE)
+            mfx_end_track(pl, e);                       /* (a tie straight on after notes into a group) */
+        pl->on_grp[t][e->note & 127] = 0;
+    }
     switch (e->kind) {
     case QD_EV_ON:
         note_on(pl, e);
         break;
     case QD_EV_OFF:
+        if (e->serial && pl->last_on[t][e->note & 127] == e->serial && pl->on_grp[t][e->note & 127]) {
+            mfx_seq_note(pl, e, pl->on_grp[t][e->note & 127], 0);   /* P1.6c: to the group its ON went to */
+            pl->on_grp[t][e->note & 127] = 0;
+            pl->last_on[t][e->note & 127] = 0;
+            break;
+        }
         if (e->serial && pl->last_on[t][e->note & 127] == e->serial) {
             qd_pool_note_off(pl->pool, t, e->note);
             pl->last_on[t][e->note & 127] = 0;
@@ -171,15 +307,82 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
     }
 }
 
-void qd_player_block(qd_player_t *pl) { qd_seq_block(pl->seq, qd_player_event, pl); }
+void qd_player_block(qd_player_t *pl)
+{
+    qd_seq_t *s = pl->seq;
+    const int playing = s->playing && !(s->ext && s->ext_wait);
+    if (playing && (!pl->mfx_play || s->pos < pl->mfx_pos)) {   /* P1.6c: the transport (re)starts: the groups' clock
+                                                         * carries on from where it is, the grid from here */
+        pl->mfx_base = qd_player_mfx_tick(pl) - s->pos / QD_SUB;
+        pl->mfx.qref = pl->mfx_base;
+    }
+    qd_seq_block(s, qd_player_event, pl);
+    if (playing)
+        pl->mfx_sub = pl->mfx_base * QD_SUB + s->pos;
+    else
+        pl->mfx_sub += QD_SEQ_BLOCK * 8 * (int64_t)s->mbpm;
+    pl->mfx_play = playing;
+    pl->mfx_pos = s->pos;
+    {   /* a track that falls silent: its sequencer notes out of the groups */
+        uint8_t aud = 0;
+        int t;
+        for (t = 0; t < QD_PAT_NTRACK; t++)
+            if (qd_seq_audible(s, qd_seq_track_pat(s, t), t))
+                aud |= (uint8_t)(1u << t);
+        if (aud != pl->mfx_audible) {
+            for (t = 0; t < QD_PAT_NTRACK; t++)
+                if (((pl->mfx_audible >> t) & 1u) && !((aud >> t) & 1u))
+                    qd_mfx_flush_track(&pl->mfx, t, 0);
+            pl->mfx_audible = aud;
+        }
+    }
+    qd_mfx_advance(&pl->mfx, qd_player_mfx_tick(pl));
+}
 
-void qd_player_stop(qd_player_t *pl) { qd_seq_stop(pl->seq, qd_player_event, pl); }
+void qd_player_stop(qd_player_t *pl)
+{
+    qd_seq_stop(pl->seq, qd_player_event, pl);
+    qd_mfx_reset(&pl->mfx);                             /* P1.6c: every group's notes end, its arps and repeats stop */
+    memset(pl->on_grp, 0, sizeof pl->on_grp);
+    memset(pl->key_grp, 0, sizeof pl->key_grp);
+}
+
+void qd_player_flush_track(qd_player_t *pl, int t)
+{
+    if (t < 0 || t >= QD_PAT_NTRACK)
+        return;
+    qd_mfx_flush_track(&pl->mfx, t, -1);
+    memset(pl->on_grp[t], 0, sizeof pl->on_grp[t]);
+    memset(pl->key_grp[t], 0, sizeof pl->key_grp[t]);
+    qd_pool_release_all(pl->pool, t);
+}
+
+static void mfx_key_note(qd_player_t *pl, int t, int note, int vel, int g, int on)
+{
+    qd_mfx_note_t n;
+    memset(&n, 0, sizeof n);
+    n.track = (uint8_t)t, n.pitch = n.prev = (uint8_t)note, n.vel = (uint8_t)vel;
+    n.pat = -1, n.step = -1, n.live = 1;
+    qd_mfx_note(&pl->mfx, g, on, &n, qd_player_mfx_tick(pl));
+}
 
 void qd_player_key_on(qd_player_t *pl, int t, int note, int vel)
 {
     int held, i;
     if (t < 0 || t >= QD_PAT_NTRACK || note < 0 || note > 127)
         return;
+    {   /* P1.6c: through the track's group */
+        const qd_pattern_t *P = qd_seq_track_pat(pl->seq, t);
+        const int g = qd_step_mfx(P, t, -1);
+        if (pl->key_grp[t][note])
+            mfx_key_note(pl, t, note, vel, pl->key_grp[t][note], 0);
+        pl->key_grp[t][note] = 0;
+        if (g && qd_mfx_group_active(&pl->seq->proj->mfx[g - 1])) {
+            pl->key_grp[t][note] = (uint8_t)g;
+            mfx_key_note(pl, t, note, vel, g, 1);
+            return;
+        }
+    }
     held = qd_pool_gated(pl->pool, t);
     i = qd_pool_note_on(pl->pool, t, &pl->model->t[t].owner, note, vel, pl->model->t[t].patch);
     qd_pool_glide_note(pl->pool, i, &pl->model->t[t].owner, 0, 0, held);   /* E1: a played note glides alone */
@@ -190,6 +393,11 @@ void qd_player_key_off(qd_player_t *pl, int t, int note)
 {
     if (t < 0 || t >= QD_PAT_NTRACK || note < 0 || note > 127)
         return;
+    if (pl->key_grp[t][note]) {                         /* P1.6c */
+        mfx_key_note(pl, t, note, 0, pl->key_grp[t][note], 0);
+        pl->key_grp[t][note] = 0;
+        return;
+    }
     qd_pool_note_off(pl->pool, t, note);
 }
 

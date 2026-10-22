@@ -185,7 +185,7 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
             qd_ctl_preview_sync(a);
     }
     if (kind == 0xB0 && (d1 == 120 || d1 == 123)) {
-        qd_pool_release_all(&a->pool, ch);
+        qd_player_flush_track(&a->player, ch);           /* (P1.6c: its groups' notes too) */
     }
     {   /* E4: the track's MIDI state, the modulation slots' sources: CC 1 MOD WHEEL, CC 2 BREATH, channel pressure,
          * pitch bend (channel n is track n) */

@@ -242,6 +242,7 @@ static void migration_test(void)
     A.proj.pat[QD_PAT_START].snd[3].sound = 40;         /* (track 4, SQUARE LEAD's place, from pool 40) */
     A.proj.pat[QD_PAT_START].snd[3].preset = 0;
     A.proj.pat[QD_PAT_START].used = 1;
+    A.proj.pat[QD_PAT_START].trk[2].mfx = 3;            /* (P1.6c: cut off below: OFF when read) */
     qd_persist_flush(&A);
     len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), b, sizeof b);
     {   /* 'P' 3 -> 'P' 1: each track sound a 96-byte blob (E1), without its two preset bytes; the mix's lock ids as
@@ -258,7 +259,16 @@ static void migration_test(void)
                    2 + QD_SOUND_NAME);
         }
         c[1] = 1;
-        qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), c, start + 8u * one1);
+        {   /* (P1.6c: and its track settings 42 bytes, without the MIDI FX field) */
+            const uint32_t hd = 12u, ts = (uint32_t)sizeof(qd_tset_t), cut = ts - QD_TSET_SIZE_OLD;
+            uint32_t k, total = start + 8u * one1;
+            for (k = 0; k < 8u; k++)
+                memmove(c + hd + k * QD_TSET_SIZE_OLD, c + hd + k * ts, QD_TSET_SIZE_OLD);
+            memmove(c + hd + 8u * QD_TSET_SIZE_OLD, c + hd + 8u * ts, total - (hd + 8u * ts));
+            total -= 8u * cut;
+            c[3] = QD_TSET_SIZE_OLD;
+            qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), c, total);
+        }
         qd_store_flush(&A.per.prj_st);
     }
     len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, sizeof b);
@@ -273,6 +283,9 @@ static void migration_test(void)
     for (n = 0, t = 1; t <= QD_NFACTORY; t++)
         n += qd_sound_used(&B.proj, t) && B.proj.sound[t - 1].preset == t;
     CHECK(n == QD_NFACTORY && !B.proj.pool_empty, "its absent pool records: the old starting pool, as before (%d)", n);
+    CHECK(B.proj.pat[QD_PAT_START].trk[2].mfx == 0 && B.proj.pat[QD_PAT_START].trk[2].limit ==
+              A.proj.pat[QD_PAT_START].trk[2].limit, "P1.6c: an older pattern record (42-byte track settings): its tracks' "
+          "MIDI FX OFF, the rest as it was");
     CHECK(B.proj.pat[QD_PAT_START].snd[3].preset == 2 && B.proj.pat[QD_PAT_START].snd[0].preset > 0,
           "its track sounds: their presets from their pool source (4: EP) or their factory sound (%d)",
           B.proj.pat[QD_PAT_START].snd[0].preset);
@@ -280,6 +293,33 @@ static void migration_test(void)
     boot(&A);
     CHECK(A.per.lib[7].preset == QD_PRESET_MINE0 + 7 && A.proj.pat[QD_PAT_START].snd[3].preset == 2,
           "written back as 0.7's records: the same after another restart");
+}
+
+/* P1.6c: the MIDI FX groups and the routing kept across a restart; a project without a groups record: empty */
+static void mfx_test(void)
+{
+    int ok;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    CHECK(!qd_mfx_group_active(&A.proj.mfx[0]) && !A.proj.pat[0].trk[0].mfx && !A.proj.pat[0].step[0][0].mfx,
+          "P1.6c: a new project: every group empty, the tracks OFF, the steps TRACK");
+    qd_mfx_slot_init(&A.proj.mfx[2].slot[1], QD_MFX_ARP);
+    A.proj.mfx[2].slot[1].v[QD_MA_PAT] = QD_AP_CONDIV, A.proj.mfx[2].slot[1].lane[0][3] = QD_AL_TIE;
+    A.proj.mfx[2].slot[1].lane[1][15] = -48, A.proj.mfx[2].slot[1].bypass = 1;
+    qd_mfx_slot_init(&A.proj.mfx[4].slot[7], QD_MFX_SELECTOR);
+    A.proj.pat[QD_PAT_START].trk[5].mfx = 3;
+    A.proj.pat[QD_PAT_START].step[5][9].mfx = QD_SMFX_G1 + 4;
+    A.proj.pat[QD_PAT_START].used = 1;
+    run(&A, 2000);                                      /* (written by itself) */
+    qd_persist_flush(&A);
+    boot(&B);
+    ok = !memcmp(B.proj.mfx, A.proj.mfx, sizeof A.proj.mfx);
+    CHECK(ok && B.proj.mfx[2].slot[1].bypass && B.proj.pat[QD_PAT_START].trk[5].mfx == 3 &&
+              B.proj.pat[QD_PAT_START].step[5][9].mfx == QD_SMFX_G1 + 4,
+          "P1.6c: the groups (an ARP with its lanes, bypassed: the bypass saved; a SELECTOR), a track's group, a step's: "
+          "the same after a restart");
 }
 
 /* P1.5v: the tags: several on one of MY presets and on a pool sound, the factory's as the owner set them, kept across
@@ -738,6 +778,7 @@ int main(void)
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
     pages_test();
     migration_test();
+    mfx_test();
     tags_test();
     refs_test();
     migrate72_test();

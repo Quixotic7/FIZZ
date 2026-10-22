@@ -15,7 +15,7 @@
  * P1.5w: a pool slot emptied (- POOL, a MY preset deleted) clears its locks in every pattern: those outside the
  * gesture's pattern are kept as a list (pattern, track, step, the pool number, the override bit), up to QD_UNDO_XLOCKS,
  * stored as a fourth region of the level and XORed back the same way (a bigger clear: the level is forgotten, as a
- * difference too big for the pool).
+ * difference too big for the pool). P1.6c: the project's MIDI FX groups are a region too (2.3 KB).
  *
  * COST: the copies are held once (the gesture's "before": a pattern 26 KB, the pool 21 KB, the library 21 KB; RAM
  * that Phase 2 will have to find, or narrow to the pattern), the levels' differences share a QD_UNDO_POOL byte pool;
@@ -55,6 +55,7 @@ typedef struct {
     qd_sound_t snd0[QD_NSOUND];
     uint8_t nsound0;
     qd_sound_t lib0[QD_NLIB_UNDO];
+    qd_mfx_group_t mfx0[QD_MFX_NGROUP];   /* P1.6c: the MIDI FX groups (a fourth region) */
     uint8_t xl[QD_UNDO_XLOCKS * 5];    /* P1.5w: the other patterns' locks cleared (pattern, track, step, number, ovr) */
     uint32_t xl_n;
     int xl_over;

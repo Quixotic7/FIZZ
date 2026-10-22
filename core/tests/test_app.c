@@ -244,6 +244,47 @@ static void t_midi(void)
     printf("  midi: channels 1..8 play tracks 1..8\n");
 }
 
+/* P1.6c: MIDI in through the track's group, CC 123 its notes off, recording pre-FX by design (ctl_rec takes the
+ * played note); the groups' edits an undo level */
+static void t_mfx(void)
+{
+    qd_pattern_t *P;
+    fresh();
+    run(5, 0);
+    P = &A.proj.pat[A.seq.cur];
+    P->trk[4].mfx = 2;
+    qd_mfx_slot_init(&A.proj.mfx[1].slot[0], QD_MFX_TRANSPOSE);
+    A.proj.mfx[1].slot[0].v[QD_MT_SEMI] = 7, A.proj.mfx[1].slot[0].v[QD_MT_OCT] = 0;
+    qd_mfx_slot_init(&A.proj.mfx[1].slot[1], QD_MFX_HARM);
+    qd_app_midi(&A, 0x94, 60, 90);                      /* channel 5: track 5, through group 2 */
+    run(5, 0);
+    CHECK(sounding(4, 67) && sounding(4, 74) && sounding(4, 79) && !sounding(4, 60), "MIDI in through track 5's group 2: "
+          "TRANSPOSE +7, then HARM (+7, +12): 67 74 79");
+    qd_app_midi(&A, 0x84, 60, 0);
+    run(5, 0);
+    CHECK(!voices_of(4), "its note off: all three released");
+    A.proj.mfx[1].slot[1].v[QD_MH_N2] = 0, A.proj.mfx[1].slot[1].v[QD_MH_N3] = 0;
+    qd_mfx_slot_init(&A.proj.mfx[1].slot[0], QD_MFX_ARP);
+    A.proj.mfx[1].slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
+    qd_app_midi(&A, 0x94, 60, 90);
+    qd_app_midi(&A, 0x84, 60, 0);
+    run(400, 0);
+    CHECK(qd_mfx_arp_playing(&A.player.mfx, 2), "an ARP latched (HOLD) on MIDI in, stopped: it plays on the tempo");
+    qd_app_midi(&A, 0xB4, 123, 0);                      /* ALL NOTES OFF on channel 5 */
+    run(300, 0);
+    CHECK(!voices_of(4) && !qd_mfx_busy(&A.player.mfx, 2), "ALL NOTES OFF: the group's notes out too");
+    /* undo: a group's edit */
+    run(QD_UNDO_QUIET_MS + 10, 0);
+    qd_undo_input(&A, 0);
+    qd_mfx_slot_init(&A.proj.mfx[3].slot[5], QD_MFX_CHORD);
+    qd_undo_close(&A);
+    qd_undo_step(&A, -1);
+    CHECK(A.proj.mfx[3].slot[5].type == QD_MFX_NONE, "undo: the CHORD added to group 4 gone");
+    qd_undo_step(&A, 1);
+    CHECK(A.proj.mfx[3].slot[5].type == QD_MFX_CHORD, "redo: back");
+    printf("  mfx: MIDI in through a group, ALL NOTES OFF, undo\n");
+}
+
 static void t_mix(void)
 {
     qd_track_t *t;
@@ -653,6 +694,7 @@ int main(void)
     t_presets();
     t_screens();
     t_midi();
+    t_mfx();
     t_mix();
     t_limiter();
     t_panic();

@@ -15,10 +15,20 @@
  *   live    qd_player_live_edit: the track's sound changes, and so does every sounding voice of the track whose value
  *           is not its own (routing values dip), and every trig resolved and waiting
  *
+ * P1.6c, MIDI FX (mfx.h): a trig whose step plays through a group (qd_step_mfx: the step's, else the track's; a group
+ * with no effect playing: straight on, as before) goes into the group, its OFF after it (to the group its ON went to),
+ * and the group's notes come back here to the pool: each with its trig's sound and locks (resolved again, qd_seq_step_rec,
+ * when the group plays it later: an arp's), on its own track (that track's limit). A TIE into a group: the track's
+ * notes held before it end, then it strikes (a retrigger: no legato through a group). The keys (the keybed, MIDI in)
+ * play through the selected track's group likewise. The groups run on the player's clock: the transport's ticks while
+ * playing, the tempo's while stopped (the arp plays the keys at any time). STOP ends every group's notes; a track
+ * that falls silent (a mute, a solo) has its sequencer notes taken out of the groups.
+ *
  * Everything that happens can be logged (qd_player_t.log): the timelines of the tests. */
 #pragma once
 #include <stdint.h>
 
+#include "mfx.h"
 #include "seq.h"
 
 #ifdef __cplusplus
@@ -48,6 +58,17 @@ typedef struct {
     void *log_ctx;
     uint32_t ons, offs, offs_kept, locks, legatos, dips;
     uint32_t previews;                  /* P1.3d: steps struck by qd_player_preview */
+    /* P1.6c: the MIDI FX groups' run-time, the group each note went into (0 none), the clock */
+    qd_mfx_t mfx;
+    uint8_t on_grp[QD_PAT_NTRACK][128]; /* the sequencer's notes .. */
+    uint8_t key_grp[QD_PAT_NTRACK][128];   /* .. the keys' */
+    int64_t mfx_sub;                    /* the groups' clock (subticks, never back) */
+    int64_t mfx_base;                   /* .. the tick of the transport's 0 */
+    int64_t mfx_pos;                    /* .. the transport's position at the last block */
+    int mfx_play;                       /* .. it was playing */
+    uint8_t mfx_audible;                /* the tracks heard at the last block (bit t) */
+    qd_trec_t mrec;                     /* (a trig resolved again for a group's note) */
+    uint32_t mfx_ons, mfx_offs;
 } qd_player_t;
 
 void qd_player_init(qd_player_t *pl, qd_seq_t *s, qd_pool_t *pool, qd_model_t *m);
@@ -57,6 +78,9 @@ void qd_player_stop(qd_player_t *pl);   /* the transport stops: the sequencer's 
 /* the keybed and MIDI notes on a track (P1.1's path; the sequencer's OFFs leave a key's note alone) */
 void qd_player_key_on(qd_player_t *pl, int t, int note, int vel);
 void qd_player_key_off(qd_player_t *pl, int t, int note);
+/* P1.6c: the groups' tick now; track t's notes released (MIDI's ALL NOTES OFF: the pool's and the groups') */
+int64_t qd_player_mfx_tick(const qd_player_t *pl);
+void qd_player_flush_track(qd_player_t *pl, int t);
 /* P1.3d, the stopped preview (PLAN §8b 2.2): step s of pattern pat on track t struck as the sequencer strikes it (its
  * notes at its velocity, its sound lock or the track's sound, its p-locks and mix locks, the track's limit and
  * reserve), owned as a key's notes (released with qd_player_key_off; the sequencer's OFFs leave them). The sequencer's
