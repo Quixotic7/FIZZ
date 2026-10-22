@@ -4,7 +4,9 @@
 // RemoteFM1's web/site/js/main.js (GPL-3.0-only), cut to one firmware: no catalog, Hub, emulated engine, managers or
 // recorder.
 //   ?view=screen|device   the view
-import { Controls, DeviceView, ScreenView, Lcd, VIEW, SRC, PANEL_LABELS } from "./panel.js";
+import { Controls, DeviceView, ScreenView, Lcd, VIEW, SRC, PANEL_LABELS, B } from "./panel.js";
+import { LabelsLayer } from "./labels-ui.js";
+import { createLabelsLink, stubLabels } from "./labels.js";
 import { DEFAULT_THEME, presetNamed, css, derive } from "./theme.js";
 import { Keyboard, attachPointer, MidiInput } from "./input.js";
 import { Player } from "./audio.js";
@@ -36,6 +38,7 @@ const state = {
   notesPlayKeys: prefs.notesPlayKeys === true,            // FIZZ: a MIDI keyboard plays its tracks through its MIDI in
   reachFirmware: prefs.reachFirmware !== false,
   keyHints: keyHintsOn(prefs),
+  labels: prefs.labels !== false,                          // FIZZ's live labels on the panel (on by default)
   saves: [], selectedSave: null, carryOffer: null,
   pixels: null, frameSeq: 0, levels: new Uint8Array(44), playGreen: 0,
   volume: typeof prefs.volume === "number" ? Math.max(0, Math.min(1, prefs.volume)) : 1,
@@ -43,10 +46,17 @@ const state = {
 };
 let player = null, sheet = null, site = null, siteEmit = () => {}, fm1 = null;
 const lcd = new Lcd();
-const controls = new Controls((p) => { if (player) player.panel(p); });
+const controls = new Controls((p) => { if (player) player.panel(p); panelChanged(); });
 const device = new DeviceView($("device"), controls, lcd);
 const screen = new ScreenView($("screen"), lcd);
 device.setHints(state.keyHints);
+// FIZZ's live labels (js/labels.js, js/labels-ui.js): from FIZZ's LABELS replies; ?labels=stub: a fixed stand-in
+// (PLAYING.md's step view and SHIFT layer) that follows the panel's SHIFT, for trying the page before FIZZ sends them
+const labelsLayer = new LabelsLayer({ wrap: $("device-wrap"), canvas: $("device"), device });
+labelsLayer.show(state.labels);
+const LABELS_STUB = params.get("labels") === "stub";
+let labelsLink = null;
+function panelChanged() { if (LABELS_STUB && state.info) labelsLayer.set(stubLabels({ shift: controls.btnHeld(B.GLO) })); }
 const version = () => (state.meta ? state.meta.version : "");
 const wasmUrl = () => `fizz.wasm?v=${encodeURIComponent(state.meta ? (state.meta.commit || "").slice(0, 12) + "-" + state.meta.bytes : "0")}`;
 
@@ -81,6 +91,7 @@ function layout() {
     if (showDevice) device.layout(W, H, dpr);
     if (showScreen) screen.layout(W, H, dpr);
   }
+  labelsLayer.layout();
   placeCorner();
   invalidate();
 }
@@ -225,6 +236,9 @@ function makePlayer() {
       invalidate();
       if (sheet) sheet.render();
       siteEmit("info", info); siteEmit("firmware", { entry: { id: FW, name: "FIZZ" }, engine: ENGINE });
+      // the live labels: FIZZ is asked for them, and to send them again whenever they change
+      if (LABELS_STUB) panelChanged();
+      else if (labelsLink) labelsLink.request(true);
       // a carried flash: read back once FIZZ has settled (a FIZZ that cannot read it formats it while booting)
       if (carried) setTimeout(() => { if (carried && player) player.flashReq(); }, 2500);
     },
@@ -331,6 +345,7 @@ const app = {
   set(k, v) {
     if (k === "theme") { state.theme = presetNamed(v) || state.theme; prefs.theme = state.theme.name; applyTheme(); }
     else if (k === "view") { state.view = v; prefs.view = v; layout(); }
+    else if (k === "labels") { state.labels = !!v; prefs.labels = !!v; labelsLayer.show(state.labels); invalidate(); }
     else if (k === "keyHints") { state.keyHints = !!v; prefs.keyHints = !!v; device.setHints(state.keyHints); invalidate(); }
     else { state[k] = v; prefs[k] = v; }
     savePrefs();
@@ -382,6 +397,7 @@ const app = {
 
 function applyTheme() {
   device.setTheme(state.theme); screen.setTheme(state.theme);
+  labelsLayer.setTheme(derive(state.theme));
   const p = derive(state.theme);
   document.documentElement.style.setProperty("--plate", css(p.plate));
   document.documentElement.style.setProperty("--backdrop", css(p.backdrop));
@@ -431,6 +447,8 @@ async function main() {
   window.FIZZDigitone = mountDigitone({ button: $("dn-btn"), sendMidi: (b) => player && player.midi(b),
     onMidiOut: (cb) => midiOutSubs.add(cb), ensureRunning: async () => { if (!state.running) await start(); }, toast });
 
+  labelsLink = createLabelsLink({ sendMidi: (b) => player && player.midi(b), onMidiOut: (cb) => midiOutSubs.add(cb), onLabels: (l) => labelsLayer.set(l) });
+
   // input
   new Keyboard({
     controls,
@@ -469,7 +487,7 @@ async function main() {
 
 // (for tests and the curious: the page's state and its player, read only in spirit)
 window.FIZZ = {
-  get state() { return state; }, get player() { return player; }, controls, start, boot, checkUpdate, BUILD,
+  get state() { return state; }, get player() { return player; }, controls, start, boot, checkUpdate, BUILD, labels: labelsLayer, setLabels: (v) => app.set("labels", v),
   // the output's peak since the last call (an AnalyserNode after the worklet)
   peak() {
     if (!player || !player.ctx) return 0;

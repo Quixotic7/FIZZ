@@ -426,3 +426,24 @@ body { background: #000; }
 .dn-tag[data-tag="LEAD"] { background: var(--fz-green); }
 .dn-tag[data-tag="DRUMS"] { background: var(--fz-orange); }
 .dn-tag[data-tag="FX"] { background: var(--fz-pink); color: #fff; }
+/* FIZZ's live labels on the drawn panel (js/labels-ui.js): placed by the panel's geometry, sized with it */
+.labels { position: absolute; pointer-events: none; overflow: hidden; z-index: 1; }
+.labels[hidden] { display: none; }
+.lbl { position: absolute; display: flex; align-items: center; justify-content: center; gap: .35em; text-align: center;
+  font-weight: 700; line-height: 1.05; letter-spacing: .02em; white-space: nowrap; transition: color .25s, text-shadow .25s; }
+.lbl .t { overflow: hidden; text-overflow: ellipsis; }
+.lbl.knob { color: var(--lbl-plate, #b8b8c0); align-items: flex-start; }
+.lbl.btn, .lbl.key { white-space: normal; overflow-wrap: normal; word-break: keep-all; }
+.lbl.btn { color: var(--lbl-cap, #e8e8ec); padding: 0 .2em; }
+.lbl.btn.long .t { font-size: .8em; }
+.lbl.key { color: var(--lbl-key, #c8c8d0); align-items: flex-start; padding: 0 .15em; }
+.lbl.key.long .t { font-size: .88em; }
+.lbl.none { visibility: hidden; }
+.lbl kbd { display: none; font-size: .8em; padding: 0 .3em; border-radius: 3px; line-height: 1.3; background: rgba(0,0,0,.75);
+  color: var(--fz-champagne); border: 1px solid #3a3a44; font-weight: 700; flex: none; }
+.lbl.hover kbd { display: inline-block; }
+.lbl.hover { overflow: visible; z-index: 2; }
+.lbl.glow { color: var(--fz-cyan) !important; text-shadow: 0 0 6px rgba(40, 225, 255, .9); animation: lbl-pop .7s ease-out; }
+@keyframes lbl-pop { 0% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.labels.no-knobs .lbl.knob, .labels.no-btns .lbl.btn, .labels.no-keys .lbl.key { display: none; }
+@media (prefers-reduced-motion: reduce) { .lbl.glow { animation: none; } }

@@ -162,6 +162,7 @@ export class Sheet {
     // VIEW
     out.push(heading("View"));
     out.push(row("Show", null, segmented(["Device", "Screen"], st.view === "screen" ? 1 : 0, (i) => a.set("view", i ? "screen" : "device"))));
+    out.push(row("Live labels", "what each knob, button and key does right now, from FIZZ; hold SHIFT for its shortcuts", toggle(st.labels, (v) => a.set("labels", v))));
 
     // ABOUT
     out.push(heading("About"));

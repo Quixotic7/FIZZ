@@ -26,6 +26,8 @@ const ENC_R = 21, ENC_CAP = 12;
 const BODY = { x: 22, y: 22, w: 860, h: 522 }, SCREEN = { x: 247, y: 59, w: 201, h: 201 }, SCREEN_A = { x: 272, y: 84, w: 150, h: 150 };
 export const VIEW = { x: 14, y: 14, w: 876, h: 538 };
 const ENC_NAME = ["SELECT", "ALGORITHM", "PRESETS", "KNOB1", "KNOB2", "KNOB3", "KNOB4", "MASTER"];
+// (FIZZ's live labels, js/labels-ui.js, place themselves by these)
+export const GEOM = { KEY_W, KEY_H, BTN_S, ENC_CX, ENC_CY, ENC_LY, ENC_R, keys: null, btns: null };
 export const PANEL_LABELS = ["FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC", "OCT-", "OCT+"];
 const LCD = 240;
 
@@ -39,6 +41,7 @@ const KEYS = [], BTNS = [];
   }
   for (let i = 0; i < 12; i++) BTNS.push({ x: BTN_X[i % 6], y: BTN_Y[(i / 6) | 0], w: BTN_S, h: BTN_S });
   BTNS.push({ x: 87, y: 250, w: 42, h: 22 }, { x: 153, y: 250, w: 42, h: 22 });
+  GEOM.keys = KEYS; GEOM.btns = BTNS;
 }
 const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 export const noteName = (k) => { const m = 53 + k; return NOTE[m % 12] + ((m / 12 | 0) - 1); };
@@ -287,6 +290,8 @@ export class DeviceView {
   // the computer-key hints (the green letters: the sheet's "Show computer-key hints", off by default); off, the keys'
   // LED and note name and the buttons' names sit centred in the space the letters took
   setHints(on) { this.hints = !!on; }
+  // FIZZ's live labels (js/labels-ui.js) drawn over the panel: the buttons' names and the keys' note names give way
+  setLabelled(on) { this.labelled = !!on; }
   setButtonNames(n) { this.names = (n && n.length === NB ? n : PANEL_LABELS).map((s) => String(s || "")); this.base = null; }
   setKeymap(km) { this.ledIdx = ledIndexOf(km); }
   setLeds(levels, playGreen) { this.levels = levels; this.playGreen = playGreen | 0; }
@@ -372,7 +377,7 @@ export class DeviceView {
     const slot = { x: cx - 4, y: y + 14, w: 8, h: 30 };
     fillRR(g, slot, 4, p.ledOff);
     if (lv) fillRR(g, slot, 4, p.white, ledAlpha(lv));
-    text(g, cx, y + 50, 6.5, noteName(k), p.noteText);
+    if (!(this.labelled && this.labelGroups && this.labelGroups.keys)) text(g, cx, y + 50, 6.5, noteName(k), p.noteText);
     if (hint) text(g, cx, r.y + 61, 6.5, hint, p.hint, 0.9);
   }
 
@@ -387,7 +392,7 @@ export class DeviceView {
     const base = oct ? 6.5 : 7.5, size = fitSize(n, base, r.w - 5);
     const h = this.hints ? BTN_HINT[i] : "";
     const ny = oct ? 7.5 : h ? 11 : (r.h - base) / 2;            // (no hint: the name centred on the cap)
-    text(g, r.x + r.w / 2, r.y + ny + (base - size) / 2, size, n, ledLit(lv) ? p.litText : lv ? p.capTextDim : p.capText);
+    if (!(this.labelled && this.labelGroups && this.labelGroups.btns)) text(g, r.x + r.w / 2, r.y + ny + (base - size) / 2, size, n, ledLit(lv) ? p.litText : lv ? p.capTextDim : p.capText);
     if (h && !oct) text(g, r.x + r.w / 2, r.y + 25, 5, h, ledLit(lv) ? p.hintLit : lv ? p.hintDim : p.hint, 0.9);
     else if (h) text(g, r.x + r.w / 2, r.y + r.h + 4, 5, h, p.hintBed, 0.9);
     if (i === B.PLAY) {

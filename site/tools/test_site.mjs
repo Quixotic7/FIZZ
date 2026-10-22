@@ -227,6 +227,37 @@ try {
     await shot("page-digitone-reloaded.png");
     await evaluate("FIZZDigitone.close()");
   } else note("Digitone: no .dnsnd files to try (--dnsnd)");
+  // 7. the live labels (the stand-in: ?labels=stub, until FIZZ's LABELS SysEx lands): drawn, flipped by SHIFT, toggled
+  await load(new URL("?labels=stub", URL0).href);
+  await waitFor("window.FIZZ && FIZZ.state.info && FIZZ.labels.visible", 15000);
+  const lab = () => evaluate(`(() => { const L = FIZZ.labels; const t = (d) => d.firstChild.textContent;
+    return { shown: !L.el.hidden, fx: t(L.btns[0]), octdn: t(L.btns[12]), b1: t(L.keys[1]), w1: t(L.keys[0]), sel: t(L.knobs[0]),
+      glow: document.querySelectorAll(".lbl.glow").length, drawn: [...document.querySelectorAll(".lbl")].filter((d) => d.offsetParent && !d.classList.contains("none")).length }; })()`);
+  const base = await lab();
+  check(base.shown && base.fx === "EFFECTS" && base.b1 === "NOTE" && base.w1 === "STEP 1" && base.sel === "PAGE" && base.drawn >= 40,
+    `labels drawn on the panel: ${base.drawn} (FX "${base.fx}", B1 "${base.b1}", W1 "${base.w1}", SELECT "${base.sel}")`);
+  await shot("labels-base.png");
+  await evaluate("FIZZ.controls.holdBtn(5, 4, true)");             // SHIFT (GLO) held
+  await sleep(120);
+  const sh = await lab();
+  await shot("labels-shift.png");
+  check(sh.octdn === "UNDO" && sh.b1 === "SNAPSHOT" && sh.glow > 5, `SHIFT held flips them: OCT- "${sh.octdn}", B1 "${sh.b1}", ${sh.glow} glowing`);
+  await evaluate("FIZZ.controls.holdBtn(5, 4, false)");
+  await sleep(120);
+  check((await lab()).b1 === "NOTE", "SHIFT let go: the step view's labels again");
+  const hov = await evaluate(`(() => { const c = document.getElementById("device"), r = c.getBoundingClientRect(), p = FIZZ.labels.device.toCss(518, 195);
+    c.dispatchEvent(new PointerEvent("pointermove", { clientX: r.left + p.x, clientY: r.top + p.y, pointerType: "mouse", bubbles: true }));
+    const d = FIZZ.labels.btns[0]; return { hover: d.classList.contains("hover"), key: getComputedStyle(d.querySelector("kbd")).display !== "none" && d.querySelector("kbd").textContent,
+      others: [...document.querySelectorAll(".lbl kbd")].filter((k) => getComputedStyle(k).display !== "none").length }; })()`);
+  check(hov.hover && /\bC\b/.test(hov.key) && hov.others === 1, `the computer key only on hover: FX shows "${hov.key}", ${hov.others} key shown`);
+  await evaluate("FIZZ.setLabels(false)");
+  const off = await evaluate("({ hidden: FIZZ.labels.el.hidden, labelled: FIZZ.labels.device.labelled, kept: JSON.parse(localStorage.getItem('fizz-preview')).labels })");
+  await shot("labels-off.png");
+  check(off.hidden && !off.labelled && off.kept === false, `the toggle hides them (the printed names back) and is remembered: ${JSON.stringify(off)}`);
+  await load(new URL("?labels=stub", URL0).href);
+  await waitFor("window.FIZZ && FIZZ.state.info", 15000);
+  check(await evaluate("FIZZ.labels.el.hidden"), "after a reload they stay off");
+  await evaluate("FIZZ.setLabels(true)");
   check(errors.length === 0, `the player: no console errors${errors.length ? ": " + errors.join(" | ") : ""}`);
 
   // 5. the guide, and phone-sized pages
@@ -244,15 +275,16 @@ try {
   const gw = await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth");
   check(gw, "the guide at 390 px: no horizontal scroll");
   await shot("guide-phone.png");
-  await load(URL0);
-  await waitFor("window.FIZZ && FIZZ.state.frameSeq > 0", 15000);
+  await load(new URL("?labels=stub", URL0).href);
+  await waitFor("window.FIZZ && FIZZ.state.frameSeq > 0 && FIZZ.labels.visible", 15000);
   await sleep(800);
   const pw = await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth");
+  note(`the phone's labels: ${await evaluate("['knobs', 'btns', 'keys'].filter((g) => !FIZZ.labels.el.classList.contains('no-' + g)).join(', ') || 'none (too small)'")}`);
   check(pw, "the player at 390 px: no horizontal scroll");
   await shot("page-phone.png");
   await send("Emulation.clearDeviceMetricsOverride");
 } catch (e) {
-  check(false, e.stack || String(e));
+  check(false, (e.stack || String(e)) + (errors.length ? "\n      page errors: " + errors.join(" | ") : ""));
 } finally {
   try { ws && ws.close(); } catch (_) {}
   killChrome();
