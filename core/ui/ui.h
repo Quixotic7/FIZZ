@@ -631,6 +631,7 @@ void ui_snd_draw(const ui_snd_t *v);
 void ui_confirm_draw(const char *big, const char *small, qd_rgb col);
 /* P1.5c: SHIFT + F1 / F2: UNDO / REDO big, under it what it was as a glyph (undo.h QD_UK_*; -1: nothing there, dim) */
 void ui_undo_draw(int redo, int kind, float t);
+void ui_import_draw(const char *name, int pool, int slot, float t);   /* P1.5r (ui_lib.c): a sound imported */
 
 /* ---- a knob turned: the whole screen (line.html s21..s25, s16; PLAN §9a rule 5) */
 enum { UI_TK_FREQ, UI_TK_DECAY, UI_TK_HARM, UI_TK_FDBK, UI_TK_ALGO, UI_TK_TEMPO, UI_TK_SWING, UI_TK_LEN, UI_TK_RATE,

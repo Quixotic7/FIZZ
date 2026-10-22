@@ -52,7 +52,7 @@ void qd_undo_input(qd_app_t *a, int knob)
 void qd_undo_hint(qd_app_t *a, int kind)
 {
     undo_follow(a);
-    if (kind != QD_UK_REC && a->undo.open) {           /* an operation (a paste, a clear, a randomise ..): a level of its
+    if (kind != QD_UK_REC && a->undo.open && !(a->undo.join && a->undo.hint == kind)) {           /* an operation (a paste, a clear, a randomise ..): a level of its
                                                          * own, whatever came before it in the gesture (a take's notes:
                                                          * one level together) */
         const uint32_t last = a->undo.last_ms;

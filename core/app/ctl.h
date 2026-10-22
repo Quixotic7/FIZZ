@@ -167,6 +167,7 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TK_DEFAULT 101              /* a default turned, nothing held (P1.3e: the mode's full TRACK DEFAULT picture) */
 #define QD_TK_HELDKNOB 102             /* P1.3d: a knob turned with a step held: the band over the held step's screen */
 #define QD_TK_UNDO 104                 /* P1.5c: SHIFT + F1 / F2: UNDO / REDO, what it was */
+#define QD_TK_IMPORT 105               /* P1.5r: a sound imported over SysEx: its cassette, "imported" */
 #define QD_TK_LMODE 103                /* P1.5b: the latch mode's screen (P1.5h: only while LFO is held: lmode_open) */
 #define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
 enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes */
@@ -375,6 +376,8 @@ typedef struct {
     uint32_t lfo_ms;                   /* P1.5b: LFO went down (held QD_LFO_HOLD_MS alone: the latch mode) */
     int lmode;                         /* P1.5b: the latch mode (QD_LMODE_*; a global setting, saved) */
     int lmode_open;                    /* P1.5h: LFO held alone: the latch mode's screen is up (SELECT turns it) */
+    char imp_name[13];                 /* P1.5r: the sound imported last (SysEx), LIBRARY / POOL, its slot */
+    int imp_pool, imp_slot;
     int undo_dir, undo_kind;           /* P1.5c: the last undo (-1) / redo (+1), its level's kind (QD_UK_*; -1 none) */
     int clr_armed;                     /* P1.5c: SHIFT + B11 pressed once (the track cleared on the second) .. */
     uint32_t clr_ms;
@@ -463,6 +466,7 @@ int qd_ctl_playing_page(const struct qd_app *a, int t);   /* the page under the 
 void qd_ctl_set_page(struct qd_app *a, int p);      /* the page edited on the selected track (slides) */
 void qd_ctl_takeover(struct qd_app *a, int tk, int knob, int dir, int lock, int step);
 void qd_ctl_confirm(struct qd_app *a, const char *big, const char *small);
+void qd_ctl_imported(struct qd_app *a, const char *name, int pool, int slot);   /* P1.5r: its takeover */
 void qd_ctl_confirm_col(struct qd_app *a, const char *big, const char *small, uint32_t col);   /* P1.5o: in a colour */
 int qd_ctl_rate_index(int rate);       /* a rate's place in the picker (slowest first) */
 int qd_ctl_rate_at(int i);             /* .. and back */

@@ -52,6 +52,7 @@
 #include "ctl.h"
 #include "persist.h"
 #include "undo.h"
+#include "fizz_sx.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -128,6 +129,7 @@ typedef struct qd_app {
     /* the UI (P1.3: core/app/ctl.h) */
     qd_ui_t ui;
     qd_hist_t undo;                    /* P1.5c: undo / redo, the snapshot, the pattern clipboard (undo.h) */
+    qd_sx_t sx;                        /* P1.5r: SysEx: the replies waiting (fizz_sx.h) */
     int metro, metro_lvl;                         /* P1.5c: the metronome on (SHIFT + B7) .. */
     int64_t metro_beat;                /* .. the last beat it clicked (-1) .. */
     uint32_t metro_ph, metro_left;     /* .. its click's phase and samples left */

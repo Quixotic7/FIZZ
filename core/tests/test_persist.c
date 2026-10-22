@@ -413,10 +413,29 @@ int main(void)
     CHECK(qd_proj_delete(&A, 2) && !A.per.pexists[2], "delete 3");
     CHECK(qd_proj_load(&A, 0) && A.per.proj == 0 && !memcmp(&keep.pat[9], &A.proj.pat[9], sizeof keep.pat[9]),
           "load 1 again: as it was");
+    {   /* P1.5r: a sound imported over SysEx into LIBRARY 100: autosaved like any other */
+        uint8_t f[160], blob[QD_QUAD_BLOB];
+        int16_t p[QD_QUAD_NP];
+        uint32_t i, n = 0, sum = QD_SX_STORE;
+        qd_quad_preset_patch(3, p);
+        qd_quad_pack(p, blob);
+        f[n++] = 0x7D, f[n++] = 0x46, f[n++] = 0x5A, f[n++] = 0x01, f[n++] = QD_SX_STORE;
+        f[n++] = 0, f[n++] = 0, f[n++] = 100;
+        for (i = 0; i < QD_SX_NAME; i++)
+            f[n++] = (uint8_t)("SX KEEP     "[i]);
+        f[n++] = 0, f[n++] = 0, f[n++] = 64, f[n++] = 0, f[n++] = 0, f[n++] = 0, f[n++] = 0;
+        n += qd_sx_pack7(blob, QD_QUAD_BLOB, f + n);
+        for (i = 4; i < n; i++)
+            sum += i > 4 ? f[i] : 0;
+        f[n++] = (uint8_t)((0x80u - (sum & 0x7Fu)) & 0x7Fu);
+        qd_app_sysex(&A, f, n);
+        CHECK(!strcmp(A.per.lib[99].name, "SX KEEP"), "a SysEx import into LIBRARY 100");
+    }
     qd_persist_flush(&A);
     boot(&B);
     CHECK(B.per.proj == 0 && B.per.pexists[4] && !B.per.pexists[2] && !strcmp(B.per.pname[4], "MY SONG"),
           "a restart: project 1 worked on, 5 kept, 3 gone");
+    CHECK(!strcmp(B.per.lib[99].name, "SX KEEP"), "a restart: the SysEx import kept (P1.5r)");
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
     pages_test();
     printf("test_persist: %d checks, %d failed\n", checks, failed);

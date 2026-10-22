@@ -320,3 +320,4 @@ void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames)
 #include "../seq/sounds.h"
 #include "persist.c"
 #include "undo.c"
+#include "fizz_sx.c"                                  /* P1.5r: SysEx (fizz_sx.h) */

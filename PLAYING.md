@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5q)
+# Playing FIZZ (P1.5r)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -24,6 +24,9 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | the black keys, left to right (F#3 .. D#5) | **B1 .. B10** |
 | the rightmost black key (F#5) | **B11** |
 | the white keys | **W1 .. W16**, the 16 steps of the page you are editing |
+
+The on-screen panel in FM1VST and the web preview labels the buttons by these roles (P1.5r): FX, TRACKS (SEL), MIX
+(ENV), LATCH (LFO), EDIT, SHIFT (GLO), HOME, SOUNDS (SAVE), FILL (ARP), PATTERNS (SEQ), PLAY, REC, F1, F2.
 
 "Held" means down for 400 ms (a white step key: 250 ms). Anything shorter is a tap.
 
@@ -636,6 +639,14 @@ They stay open (OCT− or HOME back). For now:
 - **F1** or **HOME** leaves the sounds page.
 - The LEDs: the W keys lit for filled slots (the chosen one bright), the bank key in the tab's colour, B9 in the
   other tab's colour, B10 and B11 lit.
+
+### Sounds from a computer (P1.5r)
+
+- A page or tool can send FIZZ sounds over MIDI SysEx (the FIZZ web preview loads your Digitone `.dnsnd` presets
+  this way): each goes into the **LIBRARY** (or the project's **POOL**), into the first free slot or one it names,
+  with its name. The screen shows it a moment: its cassette dropping in, its slot, **imported**. It is saved by
+  itself like any change, and **SHIFT + F1 undoes it** (a batch sent together: one undo). The format is in
+  `docs/SYSEX.md`.
 
 ## How do I manage projects? (SEQ tapped)
 

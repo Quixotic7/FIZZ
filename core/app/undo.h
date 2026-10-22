@@ -42,6 +42,7 @@ typedef struct {
 typedef struct {
     /* the gesture open */
     int open, hint, knob;
+    int join;                          /* P1.5r: an operation of the open gesture's kind joins it (an import batch) */
     uint32_t last_ms;
     int pat;
     qd_pattern_t pat0;

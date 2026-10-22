@@ -44,7 +44,7 @@ INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/se
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
 HDRS := $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
-        $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_snd.c \
+        $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_snd.c \
         $(PVG)/include/plutovg.h
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
 PVG_OBJ := $(addprefix $(B)/pvg-,$(notdir $(PVG_SRC:.c=.o)))
@@ -59,7 +59,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p14a.o $(B)/render_p14b.o $(B)/render_p15a.o $(B)/render_p15b.o $(B)/render_p15d.o $(B)/render_p15e.o $(B)/render_p15f.o $(B)/render_p15g.o $(B)/render_p15h.o $(B)/render_p15i.o $(B)/render_p15j.o $(B)/render_p15k.o $(B)/render_p15l.o $(B)/render_p15n.o $(B)/render_p15o.o $(B)/render_p15c.o $(B)/render_p15p.o $(B)/render_p15q.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p14a.o $(B)/render_p14b.o $(B)/render_p15a.o $(B)/render_p15b.o $(B)/render_p15d.o $(B)/render_p15e.o $(B)/render_p15f.o $(B)/render_p15g.o $(B)/render_p15h.o $(B)/render_p15i.o $(B)/render_p15j.o $(B)/render_p15k.o $(B)/render_p15l.o $(B)/render_p15n.o $(B)/render_p15o.o $(B)/render_p15c.o $(B)/render_p15p.o $(B)/render_p15q.o $(B)/render_p15r.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
@@ -131,13 +131,16 @@ $(B)/test_quad_bitexact: $(T)/test_quad_bitexact.c $(ROOT)/core/voice/quad/quad_
 $(B)/test_fx_bitexact: $(T)/test_fx_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_fx_ref.o $(HDRS)
 	$(CC) -O2 $(WARN) $(INC) -o $@ $(T)/test_fx_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_fx_ref.o -lm
 
+$(B)/test_sysex: $(T)/test_sysex.c $(SAN_OBJ) $(HDRS)
+	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_sysex.c $(SAN_OBJ) -lm
 $(B)/test_persist: $(T)/test_persist.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_persist.c $(SAN_OBJ) -lm
 $(B)/test_store: $(T)/test_store.c $(ROOT)/core/store/store.c $(ROOT)/core/store/store.h | $(B)
 	$(CC) $(SAN) $(WARN) -o $@ $(T)/test_store.c $(ROOT)/core/store/store.c
 
+DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
-         $(B)/test_store $(B)/test_persist
+         $(B)/test_store $(B)/test_persist $(B)/test_sysex
 test: $(TESTS)
 	$(B)/test_quad $(T)/quad_goldens
 	$(B)/test_pool
@@ -147,6 +150,8 @@ test: $(TESTS)
 	$(B)/test_ctl
 	$(B)/test_store
 	$(B)/test_persist
+	$(B)/test_sysex
+	@if [ -d "$(DNSND_DIR)" ]; then node test_sysex_dnsnd.mjs "$(DNSND_DIR)" $(B)/test_sysex; else echo "test_sysex_dnsnd: no $(DNSND_DIR) (skipped)"; fi
 	$(B)/test_quad_bitexact
 	$(B)/test_fx_bitexact
 	@echo "make test: all passed"

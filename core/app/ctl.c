@@ -168,6 +168,17 @@ void qd_ctl_takeover(qd_app_t *a, int tk, int knob, int dir, int lock, int step)
     u->tk_step = step;
 }
 
+void qd_ctl_imported(qd_app_t *a, const char *name, int pool, int slot)
+{
+    qd_ui_t *u = &a->ui;
+    memset(u->imp_name, 0, sizeof u->imp_name);
+    strncpy(u->imp_name, name, sizeof u->imp_name - 1);
+    u->imp_pool = pool;
+    u->imp_slot = slot;
+    u->cf_on = 0;
+    qd_ctl_takeover(a, QD_TK_IMPORT, 0, 0, 0, -1);
+}
+
 void qd_ctl_confirm(qd_app_t *a, const char *big, const char *small)
 {
     a->ui.cf_col = 0;

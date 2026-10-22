@@ -1517,7 +1517,7 @@ int qd_view_overlay(const qd_app_t *a)
     /* (P1.5n: the octave / bank takeover over EDIT too: an OCT tap's octave was not shown there at all, only F2's map
      * for a moment) */
     return a->ui.tk != QD_TK_NONE && (qd_view_screen(a) != QD_SCR_EDIT || a->ui.tk == UI_TK_OCTAVE ||
-                                      a->ui.tk == QD_TK_UNDO);
+                                      a->ui.tk == QD_TK_UNDO || a->ui.tk == QD_TK_IMPORT);
 }
 
 /* P1.5p: the knob band shows (a held step's knob turned): over the head, y 0..41, its fade included */
@@ -1641,7 +1641,9 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
         if (al > 0.f) {
             overlay_begin(al);
-            if (u->tk == QD_TK_UNDO) {                  /* P1.5c: UNDO / REDO, what it was */
+            if (u->tk == QD_TK_IMPORT) {                /* P1.5r: a sound imported (SysEx) */
+                ui_import_draw(u->imp_name, u->imp_pool, u->imp_slot, secs(a->ms - u->tk_ms));
+            } else if (u->tk == QD_TK_UNDO) {           /* P1.5c: UNDO / REDO, what it was */
                 ui_undo_draw(u->undo_dir > 0, u->undo_kind, secs(a->ms));
             } else if (u->tk == QD_TK_PRESET) {
                 draw_picker(a);

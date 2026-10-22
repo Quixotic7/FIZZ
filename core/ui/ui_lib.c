@@ -198,6 +198,20 @@ static void lb_scope(float x, float y, float w, float h, float t, const float *e
     line2(x, y, x + w, y, UI_G3, 1.f);
 }
 
+/* P1.5r: a sound imported over SysEx: its cassette dropping in, its reels turning, the slot it went to, "imported" */
+void ui_import_draw(const char *name, int pool, int slot, float t)
+{
+    const qd_rgb col = pool ? UI_POOL_COL : UI_LIB_COL;
+    const float drop = t < 0.25f ? (1.f - lb_ease(t / 0.25f)) * -40.f : 0.f;
+    ui_libtile_t s;
+    memset(&s, 0, sizeof s);
+    s.name = name;
+    ui_RR(0.f, 0.f, 240.f, 240.f, 0.f, QD_NONE, 1.f, UI_BG);
+    ui_T(pool ? "POOL" : "LIBRARY", 120.f, 28.f, 12.f, 600, 1.f, col, QD_CENTER);
+    lb_cassette(30.f, 46.f + drop, 180.f, 110.f, &s, slot, col, t);
+    ui_T("imported", 120.f, 196.f, 22.f, 300, 0.f, UI_K3, QD_CENTER);
+}
+
 void ui_lib_draw(const ui_lib_t *v)
 {
     const qd_rgb col = v->tab ? UI_POOL_COL : UI_LIB_COL;

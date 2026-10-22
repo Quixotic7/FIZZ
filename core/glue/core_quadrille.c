@@ -15,7 +15,9 @@
  * sequencer runs from this sample clock, a block of 32 frames at a time; P1.3: the controller, core/app/ctl.h). The flash
  * (P1.5a): the common NOR image (core-glue/common nor.h, the host keeps it: FM1VST's <core-id>/flash.bin) is the app's
  * flash (core/app/persist.h: the library and the projects, written by themselves); flash_sync and shutdown write what
- * is still waiting. */
+ * is still waiting. SysEx (P1.5r, docs/SYSEX.md): midi_in's CIN 4..7 packets are collected by FM1VST's common
+ * sysex.h; a whole frame of FIZZ's (7D 46 5A) goes to the app at once (qd_app_sysex), its replies into sysex.h's ring
+ * of CIN 4..7 packets, which midi_out_take serves. */
 #include <stdio.h>
 #include <string.h>
 
@@ -23,6 +25,7 @@
 #include "version.h"
 #include "panel.h"
 #include "nor.h"
+#include "sysex.h"
 
 #include "app.h"
 #include "qd_gfx.h"
@@ -34,6 +37,14 @@ static fm1p_edges_t fm1core_qd_kedges, fm1core_qd_bedges;
 static uint16_t fm1core_qd_lcd[FM1P_LCD_W * FM1P_LCD_H];
 static int fm1core_qd_up;
 static int32_t fm1core_qd_master_seen;
+static fm1sx_in_t fm1core_qd_sx_in;
+static fm1sx_out_t fm1core_qd_sx_out;
+
+/* P1.5r: FIZZ's frames only (7D 46 5A ..): the rest (notes, other managers') never held */
+static int fm1core_qd_sx_accept(const uint8_t *f, uint32_t n)
+{
+    return n >= 1u && f[0] == QD_SX_ID0 && (n < 2u || f[1] == QD_SX_ID1) && (n < 3u || f[2] == QD_SX_ID2);
+}
 
 /* ---------------------------------------------------------------- in / out --- */
 static void fm1core_qd_in(void)
@@ -123,6 +134,9 @@ void fm1core_qd_init(int demo)
     memset(&fm1core_qd_bedges, 0, sizeof fm1core_qd_bedges);
     qd_init();
     qd_app_init(&fm1core_qd_app);
+    qd_app_sysex_version(&fm1core_qd_app, "FIZZ " FM1CORE_VERSION);   /* P1.5r: the identity's */
+    fm1sx_in_init(&fm1core_qd_sx_in, fm1core_qd_sx_accept);
+    fm1sx_out_reset(&fm1core_qd_sx_out);
     qd_app_tick(&fm1core_qd_app, 0);
     qd_persist_attach(&fm1core_qd_app, &fm1core_qd_fl);   /* P1.5a: the library, the project worked on */
     fm1core_qd_master_seen = fm1core_qd_panel.master;   /* (0: the host has not said; the app's default stands) */
@@ -171,17 +185,27 @@ void fm1core_qd_audio(int16_t *stereo, uint32_t frames)
 int fm1core_qd_midi_in(uint32_t pkt)
 {
     const uint32_t cin = pkt & 15u;
+    if (!fm1sx_in_pkt(&fm1core_qd_sx_in, pkt))
+        return 0;                                       /* (a frame still waits: the host offers the packet again) */
+    if (fm1core_qd_up) {                                /* P1.5r: a whole frame of FIZZ's: into the app, its reply out */
+        const uint8_t *f;
+        uint32_t n;
+        uint8_t r[QD_SX_OUT_MAX];
+        int k;
+        if (fm1sx_frame(&fm1core_qd_sx_in, &f, &n)) {
+            qd_app_sysex(&fm1core_qd_app, f, n);
+            fm1sx_done(&fm1core_qd_sx_in);
+        }
+        while ((k = qd_app_sysex_take(&fm1core_qd_app, r, sizeof r)) > 0)
+            fm1sx_send(&fm1core_qd_sx_out, r, (uint32_t)k);
+    }
     if (fm1core_qd_up && cin >= 8u && cin <= 14u)             /* a channel message (note off .. pitch bend) */
         qd_app_midi(&fm1core_qd_app, (int)((pkt >> 8) & 0xFFu), (int)((pkt >> 16) & 0x7Fu), (int)((pkt >> 24) & 0x7Fu));
     else if (fm1core_qd_up && cin == 15u && ((pkt >> 8) & 0xFFu) >= 0xF8u)   /* real time: the clock, START .. */
         qd_app_midi(&fm1core_qd_app, (int)((pkt >> 8) & 0xFFu), 0, 0);
     return 1;
 }
-int fm1core_qd_midi_out_take(uint32_t *pkt)
-{
-    (void)pkt;
-    return 0;
-}
+int fm1core_qd_midi_out_take(uint32_t *pkt) { return fm1sx_take(&fm1core_qd_sx_out, pkt); }   /* P1.5r: replies */
 void fm1core_qd_dump(void) {}
 void fm1core_qd_stats(uint32_t *shed, uint32_t *cpu_pct)
 {

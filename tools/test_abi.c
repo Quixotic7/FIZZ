@@ -153,6 +153,32 @@ int main(int argc, char **argv)
     CHECK(bpm() == b0 + 4, "no clock for 700 ms: the knob's tempo again (%d -> %d)", b0, bpm());
     btap(FM1P_B_OCTDN);
 
+    {   /* P1.5r: SysEx through midi_in / midi_out_take: the identity (F0 7D 46 5A 01 01 7F F7 as USB-MIDI packets),
+         * its reply "FIZZ <version>"; the panel's names */
+        static const uint32_t ID[3] = {4u | 0xF0u << 8 | 0x7Du << 16 | 0x46u << 24,
+                                       4u | 0x5Au << 8 | 0x01u << 16 | 0x01u << 24, 6u | 0x7Fu << 8 | 0xF7u << 16};
+        uint8_t r[64];
+        char want[64];
+        uint32_t pkt;
+        int n = 0, i, ok = 1;
+        for (i = 0; i < 3; i++)
+            ok &= C->midi_in(ID[i]) == 1;
+        run(5);
+        while (C->midi_out_take(&pkt) && n < 60) {
+            const uint32_t cin = pkt & 15u, nb = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u;
+            uint32_t j;
+            for (j = 0; j < nb; j++)
+                r[n++] = (uint8_t)(pkt >> (8u * (j + 1u)));
+        }
+        snprintf(want, sizeof want, "FIZZ %s", C->version);
+        CHECK(ok && n == 9 + (int)strlen(want) && r[0] == 0xF0 && r[5] == 0x41 && r[6] == 1 &&
+                  !memcmp(r + 7, want, strlen(want)) && r[n - 1] == 0xF7,
+              "SysEx IDENTITY through midi_in: the reply \"%s\" through midi_out_take (%d bytes)", want, n);
+        CHECK(!strcmp(C->button_names[0], "FX") && !strcmp(C->button_names[3], "LATCH") &&
+                  !strcmp(C->button_names[7], "SOUNDS") && !strcmp(C->button_names[12], "F1"),
+              "the panel's names are today's (FX .. LATCH .. SOUNDS .. F1)");
+    }
+
     C->shutdown();
 
     {   /* P1.5a, the restart: a flash FILE (as FM1VST's <core-id>/flash.bin); the tempo (the pattern's) and the selected

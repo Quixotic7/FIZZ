@@ -6,7 +6,19 @@
 # key (D4) held 500 ms is then heard at once. The sequencer is stopped at power-on (A02 selected, PLAY starts it), so
 # the key is heard alone.
 sound btn REC 60
-# the flash: nothing is saved yet (the project is saved as a file later; PLAN.md §13)
-flash none nothing is saved yet: no settings, no project
+# the flash (P1.5a): FIZZ keeps its LIBRARY, its eight projects (patterns, pool, track settings) and its settings in
+# the common NOR image (core-glue/common nor.h, FM1VST's <core-id>/flash.bin), written by themselves a moment after a
+# change (autosave, core/app/persist.c; no save gesture); flash_sync and shutdown write what still waits. The round
+# trip: HOME wakes the unit to the step view, W1 toggles step 1 of the pattern (an edit autosaves; the note key F3 by
+# "btn": "key F3" would be the computer key F3); the second unit boots from that image, which still differs from a
+# fresh unit's
+save wait 300
+save btn HOME
+save wait 200
+save btn F3 100
+save wait 1500
+save quit
+saved wait 1000
+saved quit
 # the reboot: nothing reboots or exits (no boot guard, no update mode)
 reboot none FIZZ has no reboot, update mode or exit path
