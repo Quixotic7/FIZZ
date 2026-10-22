@@ -452,15 +452,15 @@ async function main() {
   const presetLink = createPresetLink({ sendMidi: toFizz, onMidiOut: (cb) => midiOutSubs.add(cb), stub: stubPresets });
   const ensureRunning = async () => { if (!state.running) await start(); };
   // Import sounds (js/digitone-ui.js): read here, sent into FIZZ's MIDI in as its sound SysEx
+  const save = (name, bytes, type) => {
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([bytes], { type })), download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
   window.FIZZDigitone = mountDigitone({ button: $("dn-btn"), sendMidi: toFizz, presets: presetLink,
-    onMidiOut: (cb) => midiOutSubs.add(cb), ensureRunning, toast });
-  window.FIZZPresets = mountLibrary({ button: $("lib-btn"), presets: presetLink, ensureRunning, toast,
-    fizzVersion: () => (state.meta ? state.meta.version : ""), openImport: () => { window.FIZZDigitone.open(); window.FIZZDigitone.pick(); },
-    save: (name, bytes, type) => {
-      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([bytes], { type })), download: name });
-      document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    } });
+    onMidiOut: (cb) => midiOutSubs.add(cb), ensureRunning, toast, save });
+  window.FIZZPresets = mountLibrary({ button: $("lib-btn"), presets: presetLink, ensureRunning, toast, save,
+    fizzVersion: () => (state.meta ? state.meta.version : ""), openImport: () => { window.FIZZDigitone.open(); window.FIZZDigitone.pick(); } });
   app.openImport = () => { sheet.close(); window.FIZZDigitone.open(); };
   app.openPresets = () => { sheet.close(); window.FIZZPresets.open(); };
 

@@ -18,6 +18,10 @@ import { spawn, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { feedbackUrl, browserName } from "../js/feedback.js";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
+import { dnReadZip } from "../js/fm1dnsnd.js";
+import { readDn2 } from "../js/digitone.js";
+import { soundFromStoreFrame } from "../js/library.js";
+import { fizzValues } from "../js/fizz2dn.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, "../.build/test");
@@ -285,6 +289,23 @@ try {
     const one = await evaluate("(() => { const e = FIZZPresets.lastExport; return { name: e.name, text: new TextDecoder().decode(e.bytes) }; })()");
     const oneJ = JSON.parse(one.text);
     check(one.name === `${oneJ.name}.fizzsnd` && oneJ.format === "fizz-sound" && oneJ.patch.blobVersion === 5, `1 preset exports as "${one.name}" (fizz-sound, version ${oneJ.version})`);
+    // Digitone II export from My presets (experimental): the notes shown first, then the zip
+    await evaluate("FIZZPresets.select([1, 2, 3])");
+    await evaluate("FIZZPresets.setFormat('dn2pst')");
+    await evaluate("FIZZPresets.exportSelected()");
+    const rv = await evaluate("({ shown: !!document.querySelector('.lib-panel .dnx-review'), items: FIZZPresets.lastExport.items.map(i => i.file + ':' + i.notes.length), pending: FIZZPresets.lastExport.pending })");
+    await shot("presets-digitone.png");
+    await evaluate("FIZZPresets.download()");
+    const dz = await evaluate("(() => { const e = FIZZPresets.lastExport; let s = ''; for (const b of e.bytes) s += String.fromCharCode(b); return { name: e.name, pending: e.pending, b64: btoa(s) }; })()");
+    const dzBytes = new Uint8Array(Buffer.from(dz.b64, "base64"));
+    const dzZip = await dnReadZip(dzBytes);
+    const reread = [];
+    for (const n of dzZip.names) { const s = (await readDn2(await dzZip.get(n), n)); reread.push(s); }
+    const origS = orig.map((f) => soundFromStoreFrame(Uint8Array.from(f)));
+    const sameVals = reread.length === 3 && reread.every((s, i) => fizzValues(s).join() === fizzValues(origS[i]).join());
+    check(rv.shown && rv.pending && !dz.pending && /\(Digitone II\)\.zip$/.test(dz.name) && sameVals,
+      `My presets -> Digitone II (experimental): notes shown first (${rv.items.join(", ")}), then "${dz.name}"; read back: ${sameVals ? "the same values" : "DIFFERENT"}`);
+    await evaluate("FIZZPresets.setFormat('fizz')");
     await evaluate("FIZZPresets.close()");
     // into a blank flash
     await blank();
@@ -301,6 +322,12 @@ try {
       const same = orig.every((f, i) => read(f) === read(back2[i]) && read(f).includes("values"));
       check(same, "FIZZ's test_sysex --feed reads the re-imported presets exactly as the originals (name, values, mix, tags)");
     } else note("no tools/build/test_sysex: the FIZZ read-back skipped");
+    // the .fizzlib's presets straight to Digitone files from Import sounds (no FIZZ needed)
+    await evaluate("FIZZDigitone.exportDigitone('dnsnd')");
+    await evaluate("FIZZDigitone.download()");
+    const ix = await evaluate("(() => { const e = FIZZDigitone.lastExport; let s = ''; for (const b of e.bytes) s += String.fromCharCode(b); return { name: e.name, pending: e.pending, b64: btoa(s) }; })()");
+    const ixZip = await dnReadZip(new Uint8Array(Buffer.from(ix.b64, "base64")));
+    check(!ix.pending && ixZip.names.length >= 3 && ixZip.names.every((n) => n.endsWith(".dnsnd")), `Import sounds -> Digitone (experimental): "${ix.name}" (${ixZip.names.length} .dnsnd)`);
     // a duplicate: skipped, then kept
     await evaluate(addJs(JSON.stringify([{ name: one.name, b64: Buffer.from(one.text).toString("base64") }])));
     await waitFor("FIZZDigitone.items[FIZZDigitone.items.length - 1].dup === 1", 5000);

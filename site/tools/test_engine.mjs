@@ -22,6 +22,9 @@ import { identity, parseReply } from "../js/fizz_sysex.js";
 import { readDnsnd, readFiles, storeFrame } from "../js/digitone.js";
 import { fizzTagMask } from "../js/fizz_sysex.js";
 import { makeFizzlib, parseFizzlib, soundFromStoreFrame } from "../js/library.js";
+import { digitoneExport } from "../js/dnexport.js";
+import { fizzValues } from "../js/fizz2dn.js";
+import { dnReadZip } from "../js/fm1dnsnd.js";
 import { execFileSync } from "node:child_process";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 
@@ -256,6 +259,38 @@ e.dispose();
       const r6 = parseReply(Uint8Array.from((out.match(/^reply(.*)$/m) || ["", ""])[1].trim().split(/\s+/).map((x) => parseInt(x, 16))));
       check(s.six && f6[5] === 0x11 && r6 && r6.status === 0 && [0, 1, 2, 3, 4, 5].every((k) => vals[74 + k] === s.ext[k]) && vals[73] === s.drive,
         `${s.file} as STORE6 (0x${f6[5].toString(16)}): AMP MODE ${vals[74]}, HOLD ${vals[75]}, PORT ${vals[76]} / ${vals[77]} / ${vals[78]}, DRIVE ${vals[73]} ${vals[79] ? "PRE" : "POST"} kept (the reader's ${s.ext.slice(0, 6).join(" ")})`);
+    }
+    // Digitone export (experimental): FIZZ presets written as .dnsnd / .dn2pst (js/dnexport.js, FIZZ's fizz2dn), read
+    // back by the site's own readers: the same FIZZ values (DRIVE, the E values too for .dn2pst), name, tags and sends;
+    // the files pass the writer's checks (unzip -t, the readers' warnings: none, the trailer's length field)
+    {
+      const src = [];
+      for (const f of ["A001 DIGIT-ONE.dnsnd", "A002 CHAPPET DL.dnsnd", "A036 TX BASS 1 MF.dnsnd"]) {
+        const p = path.join("/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets", f);
+        if (fs.existsSync(p)) src.push(soundFromStoreFrame(storeFrame(await readDnsnd(fs.readFileSync(p), f))));
+      }
+      if (got2.length === 2) src.push(soundFromStoreFrame(storeFrame(got2[0].sound)));
+      const unzipOk = (bytes) => { const f = path.join(fs.mkdtempSync(path.join(OUT, "unz-")), "t.zip"); fs.writeFileSync(f, bytes); try { execFileSync("unzip", ["-tq", f], { stdio: "pipe" }); return true; } catch (_) { return false; } };
+      for (const kind of ["dnsnd", "dn2pst"]) {
+        for (const s of src) {
+          const dn1Only = kind === "dnsnd" && s.blob.length === 128;     // (a version-6 sound: the Digitone 1 has no E values)
+          const ex = digitoneExport([s], kind);
+          const back = (await readFiles([{ name: ex.name, bytes: ex.bytes }]))[0];
+          const a = fizzValues({ blob: s.blob, drive: s.drive }), b = back.ok ? fizzValues({ blob: back.sound.blob, drive: back.sound.drive }) : [];
+          // (a Digitone 1 file has two LFOs and no E values: for a version-6 sound, LFO 3 at depth 0 (inaudible) and the E
+          // values are not compared; the writer notes what it drops of them that is heard)
+          const silentL3 = a[70] === 0;
+          const diff = a.map((v, i) => (v !== b[i] ? i : -1)).filter((i) => i >= 0 && !(dn1Only && (i >= 74 || (silentL3 && i >= 63 && i <= 70))));
+          const pl = (await (await dnReadZip(ex.bytes)).get(JSON.parse(new TextDecoder().decode(await (await dnReadZip(ex.bytes)).get("manifest.json"))).Payload));
+          const lenOk = pl.length - 43 === ((pl[pl.length - 8] << 24 | pl[pl.length - 7] << 16 | pl[pl.length - 6] << 8 | pl[pl.length - 5]) >>> 0);
+          check(back.ok && !diff.length && back.sound.name === s.name && back.sound.fizzTags.join() === s.fizzTags.join() &&
+                JSON.stringify(back.sound.sends) === JSON.stringify(s.sends) && unzipOk(ex.bytes) && !back.sound.origin.length && lenOk,
+            `${s.name} -> ${ex.name} -> read back: ${diff.length ? "values differ at " + diff.join(" ") : "the same values"}${dn1Only ? " (the E values aside: " + ex.items[0].notes.length + " notes)" : ""}, tags ${back.ok && back.sound.fizzTags.join("+")}, unzip -t ${unzipOk(ex.bytes) ? "OK" : "FAIL"}, reader warnings ${back.ok ? back.sound.origin.length : "-"}`);
+        }
+        const many = digitoneExport(src, kind);
+        const z = await dnReadZip(many.bytes);
+        check(unzipOk(many.bytes) && z.names.length === src.length && z.names.every((n) => n.endsWith("." + kind)), `${src.length} presets -> "${many.name}" (${z.names.join(", ")})`);
+      }
     }
     // a .fizzlib of 20 presets (20 of the owner's .dnsnd, as FIZZ's DUMP would give them: STORE frames): written, read
     // back, stored into a blank unit; every frame the same, and FIZZ's test_sysex reads them the same

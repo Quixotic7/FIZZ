@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copied unchanged from FIZZ's tools/dn2pst.mjs (d0767fd) so the published site is self-contained.
+// Copied from FIZZ's tools/dn2pst.mjs (d93c8c5) so the published site is self-contained.
 // Elektron Digitone II presets (.dn2pst) read for FM TONE (FIZZ's patch = ChoralRoot's eng_quad.c QP_*, plus DRIVE).
 // A PROTOTYPE: written from other people's reverse engineering (research/DN2-FORMAT.md cites each fact) and checked
 // against a synthetic object, against Digitone 1 sounds put through the DN1 -> DN2 map, and against one real file (the
@@ -394,18 +394,22 @@ export function dn2pstToQuad(parsed) {
   if (P["filter.reset"] === 0) notes.push("FILTER ENV RESET off not imported");
   // the amp: ADSR as it is; AHD (MODE 0): FIZZ's AHD (E1: AMOD, HOLD 1:1, 127 NOTE; DEC 127 INF, as FIZZ's)
   const adec = P["amp.dec"], rel = P["amp.rel"];
+  xset(QX.HOLD, P["amp.hold"]);                       // (HOLD is stored whatever the mode: kept)
   if (P["amp.mode"] === 0) {
     xset(QX.AMOD, 1);
-    xset(QX.HOLD, P["amp.hold"]);
     p[QP.EDEC] = Math.min(127, adec);
+    p[QP.ESUS] = P["amp.sus"];                         // (stored though AHD has none: kept, so a switch to ADSR has them)
+    p[QP.EREL] = rel >= 127 ? 127 : Math.min(126, R(rel));
   } else {
     p[QP.EDEC] = adec >= 127 ? 127 : Math.min(126, adec);
     p[QP.ESUS] = P["amp.sus"];
     p[QP.EREL] = rel >= 127 ? 127 : Math.min(126, R(rel));
   }
   if (P["amp.reset"] === 0) notes.push("AMP ENV RESET off not imported (FM TONE's amp envelope always resets)");
-  if (P["fx.bitreduction"]) notes.push(`BIT REDUCTION ${P["fx.bitreduction"]} not imported`);
-  if (P["fx.srr"]) notes.push(`SAMPLE RATE REDUCTION ${P["fx.srr"]} not imported`);
+  if (P["fx.bitreduction"] || P["fx.srr"]) {          // E3's CRUSH values (1:1: the laws are not verified; FIZZ plays them from E3)
+    xset(QX.BITS, P["fx.bitreduction"]); xset(QX.SRR, P["fx.srr"]); xset(QX.CRPOST, P["fx.srrRouting"] ? 1 : 0);
+    notes.push(`BIT REDUCTION ${P["fx.bitreduction"]}, SAMPLE RATE REDUCTION ${P["fx.srr"]}: taken 1:1 (the laws are not verified)`);
+  }
   if (P.portamento === 64) { xset(QX.PORT, 1); xset(QX.PTIM, P["portamento.time"]); }   // (E1: PORT ON, TIME 1:1)
   if (P["fx.odRouting"] === 0) {                       // E1: OD ROUTING 0 read as before the filter (a guess)
     xset(QX.DRPRE, 1);

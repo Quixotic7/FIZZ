@@ -7,11 +7,13 @@
 import { h } from "./sheet.js";
 import { readFiles, createSender, notesWithLoad, IMPORTABLE } from "./digitone.js";
 import { soundFromStoreFrame, sameSound } from "./library.js";
+import { digitoneExport } from "./dnexport.js";
+import { digitoneReview } from "./library-ui.js";
 
 const X_ICON = '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
 
 // presets: js/library.js's link (LIST / DUMP), for the duplicate check (by name and patch: skip or keep both)
-export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toast, presets = null }) {
+export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toast, presets = null, save = null }) {
   const sender = createSender({ sendMidi, onMidiOut });
   let items = [], pool = false, track = -1, busy = false, fizz = null, asked = false, keepDups = false;
 
@@ -25,6 +27,22 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
   const dupSeg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Sounds already in MY PRESETS" });
   const dupRow = h("div", { class: "dn-row", hidden: true }, h("span", { class: "row-label" }, "Already in MY PRESETS"), dupSeg);
   const send = h("button", { class: "pill primary dn-send", onclick: () => go() });
+  // FIZZ presets from files (.fizzsnd / .fizzlib) straight to Digitone files, FIZZ not needed (experimental)
+  let review = null, lastExport = null;
+  const dnxSlot = h("div", {});
+  const dnx = (kind) => {
+    const sounds = items.filter((it) => it.ok && it.sound.fizz).map((it) => it.sound);
+    if (!sounds.length) return;
+    const result = digitoneExport(sounds, kind);
+    lastExport = { name: result.name, bytes: result.bytes, items: result.items, pending: true };
+    review = digitoneReview(result, kind, {
+      onDownload: () => { if (save) save(result.name, result.bytes, result.type); lastExport.pending = false; review = null; render(); },
+      onCancel: () => { review = null; render(); } });
+    render();
+  };
+  const dnxRow = h("div", { class: "dn-row", hidden: true }, h("span", { class: "row-label" }, "FIZZ presets to"),
+    h("span", { class: "dnx-btns" }, h("button", { class: "pill", onclick: () => dnx("dnsnd") }, "Digitone", h("sup", { class: "dnx-exp" }, "exp")),
+      h("button", { class: "pill", onclick: () => dnx("dn2pst") }, "Digitone II", h("sup", { class: "dnx-exp" }, "exp"))));
   const who = h("p", { class: "dn-who small" });
   const foot = h("p", { class: "note dn-foot" });
   const panel = h("div", { class: "dn-panel", role: "dialog", "aria-label": "Import sounds", hidden: true },
@@ -34,7 +52,7 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
     list,
     h("div", { class: "dn-row" }, h("span", { class: "row-label" }, "Into"), seg),
     h("div", { class: "dn-row" }, h("span", { class: "row-label" }, "Also load the first onto"), trackSel),
-    dupRow, send, who, foot);
+    dupRow, send, dnxRow, dnxSlot, who, foot);
   document.body.append(panel);
   const drop = h("div", { class: "dn-drop", hidden: true }, h("div", {}, h("b", {}, "Drop sounds"), h("span", {}, ".fizzsnd, .fizzlib, .dnsnd and .dn2pst files, read in this browser")));
   document.body.append(drop);
@@ -104,6 +122,8 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
     seg.replaceChildren(...[[false, "My presets"], [true, "This project's pool"]].map(([k, label]) =>
       h("button", { class: pool === k ? "on" : "", role: "radio", "aria-checked": String(pool === k), onclick: () => { pool = k; render(); } }, label)));
     trackSel.value = String(track);
+    dnxRow.hidden = !items.some((it) => it.ok && it.sound.fizz);
+    dnxSlot.replaceChildren(review || "");
     const dups = pending().filter((it) => it.dup).length;
     dupRow.hidden = !dups;
     dupSeg.replaceChildren(...[[false, `Skip ${dups}`], [true, "Keep both"]].map(([k, label]) =>
@@ -152,5 +172,6 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
   });
   render();
   return { open, close, add, send: go, pick: () => fileIn.click(), setKeepDups: (v) => { keepDups = !!v; render(); },
+    exportDigitone: dnx, download: () => { const b = dnxSlot.querySelector(".dnx-review .pill.primary"); if (b) b.click(); }, get lastExport() { return lastExport; },
     get items() { return items; }, get fizz() { return fizz; } };
 }
