@@ -215,16 +215,16 @@ int render_p15c(const char *out)
     btap(QD_B_SOUND);                                   /* the editor: the dice */
     A.ui.snd_page = qd_snd_page_of("FILTER");
     run(600);
-    kdown(BK(8));
-    run(90);
-    shot("dice-1", "B9: the dice thrown (0.1 s)", 0);
+    kdown(BK(8));                                       /* (P1.6d: held a second, the dice shaking, then they roll) */
+    run(700);
+    shot("dice-1", "B9 held: the dice shaking (0.7 s)", 0);
+    run(400);
+    shot("dice-2", "a second: they roll, the page new", 0);
     kup(BK(8));
-    run(210);
-    shot("dice-2", "the dice tumbling (0.3 s)", 0);
     run(250);
-    shot("dice-3", "settling (0.55 s)", 0);
+    shot("dice-3", "settling", 0);
     run(300);
-    shot("dice-page", "at 0.6 s: FILTER's values new", 0);
+    shot("dice-page", "FILTER's values new", 0);
     kdown(BK(9));                                       /* the bottle */
     run(300);
     shot("bottle-1", "B10 held: the bottle filling (0.3 s)", 0);

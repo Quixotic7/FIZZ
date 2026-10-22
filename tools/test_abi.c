@@ -107,6 +107,24 @@ static double au_rms(uint32_t ms)                       /* E4: the audio's level
     run(ms);
     return sqrt(au_e / (au_n ? au_n : 1u));
 }
+/* P1.6d: the LABELS now (a request, its reply parsed: the 49 labels) */
+static void labels(char lb[49][12])
+{
+    static const uint8_t LREQ0[9] = {0xF0, 0x7D, 0x46, 0x5A, 0x01, 0x20, 0x00, 0x60, 0xF7};
+    static uint8_t r[4096];
+    int n, i, o;
+    run(60);
+    sx_out(r, sizeof r);
+    sx_in(LREQ0, 9);
+    run(5);
+    n = sx_out(r, sizeof r);
+    memset(lb, 0, 49 * 12);
+    for (i = 0, o = 9; i < 49 && o < n - 2; i++) {
+        const int l = r[o++];
+        memcpy(lb[i], r + o, (size_t)(l < 11 ? l : 11));
+        o += l;
+    }
+}
 static void f3_open(void)
 {
     bdown(FM1P_B_OCTDN);
@@ -360,7 +378,8 @@ int main(int argc, char **argv)
         }
     }
 
-    {   /* P1.6c: the MIDI FX screen through the panel: GLO + ARP opens it, ALGORITHM the track's group, PRESETS an ARP;
+    {   /* P1.6c: the MIDI FX screen through the panel: ARP tapped opens it (P1.6d; was GLO + ARP), ALGORITHM the track's
+         * group, PRESETS an ARP;
          * the LABELS reply says so (ALGORITHM GROUP, PRESETS EFFECT, KNOB 1 PATTERN, B1 ARP); W1 held (through the
          * group); F1 tapped closes it */
         static const uint8_t LREQ0[9] = {0xF0, 0x7D, 0x46, 0x5A, 0x01, 0x20, 0x00, 0x60, 0xF7};
@@ -369,10 +388,7 @@ int main(int argc, char **argv)
         int n, i, o, ok;
         btap(FM1P_B_HOME);
         run(100);
-        bdown(FM1P_B_GLO);
-        run(20);
         btap(FM1P_B_ARP);
-        bup(FM1P_B_GLO);
         run(20);
         turn(FM1P_E_ALGO, 1);
         turn(FM1P_E_PRESETS, 1);
@@ -388,7 +404,7 @@ int main(int argc, char **argv)
             o += l;
         }
         ok = !strcmp(lb[1], "GROUP") && !strcmp(lb[2], "EFFECT") && !strcmp(lb[3], "PATTERN") && !strcmp(lb[38], "ARP");
-        CHECK(ok, "GLO + ARP: the MIDI FX screen; ALGORITHM and PRESETS: group 1, an ARP (labels %s / %s / %s / %s)", lb[1],
+        CHECK(ok, "ARP tapped: the MIDI FX screen; ALGORITHM and PRESETS: group 1, an ARP (labels %s / %s / %s / %s)", lb[1],
               lb[2], lb[3], lb[38]);
         P->keys |= 1u << 0;                             /* W1 held: through the group */
         run(700);
@@ -401,6 +417,44 @@ int main(int argc, char **argv)
         run(5);
         n = sx_out(r, sizeof r);
         CHECK(n > 20 && r[9] == 4 && !memcmp(r + 10, "PAGE", 4), "F1 tapped: closed (SELECT is PAGE again)");
+    }
+
+    {   /* P1.6d's controls through the panel, by their labels: ARP tapped opens the MIDI FX screen (FILL's button
+         * CLOSE), again closes it; GLO held: FILL's button FILL; SEL three times: the track settings' page 3 (KIND,
+         * NAME); GLO + REC twice: the record settings' page 2 (AUTOMATION); ARP held: the arp's ON (the takeover; the
+         * screen not opened) */
+        char lb[49][12];
+        btap(FM1P_B_HOME);
+        run(100);
+        btap(FM1P_B_ARP);
+        run(20);
+        labels(lb);
+        CHECK(!strcmp(lb[1], "GROUP") && !strcmp(lb[16], "CLOSE"), "P1.6d: ARP tapped: the MIDI FX screen (%s, %s)", lb[1],
+              lb[16]);
+        btap(FM1P_B_ARP);
+        run(20);
+        labels(lb);
+        CHECK(!strcmp(lb[0], "PAGE") && !strcmp(lb[16], "MIDI FX"), "ARP again: closed (%s, %s)", lb[0], lb[16]);
+        bdown(FM1P_B_GLO);
+        run(30);
+        labels(lb);
+        bup(FM1P_B_GLO);
+        run(30);
+        CHECK(!strcmp(lb[16], "FILL"), "GLO held: FILL's button FILL (%s)", lb[16]);
+        btap(FM1P_B_SEL), btap(FM1P_B_SEL), btap(FM1P_B_SEL);
+        labels(lb);
+        CHECK(!strcmp(lb[3], "KIND") && !strcmp(lb[4], "NAME"), "SEL three times: KIND, NAME (%s, %s)", lb[3], lb[4]);
+        btap(FM1P_B_HOME);
+        bdown(FM1P_B_GLO);
+        run(20);
+        btap(FM1P_B_REC), btap(FM1P_B_REC);
+        bup(FM1P_B_GLO);
+        run(20);
+        labels(lb);
+        CHECK(!strcmp(lb[3], "AUTOMATION") && !strcmp(lb[0], "PAGE"), "GLO + REC twice: the record settings' page 2 "
+              "(%s)", lb[3]);
+        btap(FM1P_B_HOME);
+        run(50);
     }
 
     {   /* P1.6m: an export through the ABI: 40 presets stored through midi_in, DUMP all (slot 0), the host reading

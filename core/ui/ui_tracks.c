@@ -75,6 +75,8 @@ void ui_mix_draw(const ui_mix_t *v)
                     ui_RR(bx - 2.5f, bot - h, 5.f, h, 2.f, QD_NONE, 1.f, mute ? UI_G3 : sel ? FK[j] : UI_G1);
             }
         }
+        if (ui_track_kind(i + 1) >= 0)                  /* P1.6d: its kind, over the faders */
+            ui_kind_icon(ui_track_kind(i + 1), x, 31.f, 0.75f, mute ? UI_G3 : UI_PK_COL[ui_track_kind(i + 1)]);
         if (mute) {
             ln(x - 4.f, 190.f, x + 4.f, 198.f, UI_K4, 1.4f);
             ln(x + 4.f, 190.f, x - 4.f, 198.f, UI_K4, 1.4f);
@@ -89,6 +91,14 @@ void ui_mix_draw(const ui_mix_t *v)
         int j;
         for (j = 0; j < 3; j++)
             ui_T(S[j], 40.f + (float)j * 80.f, 226.f, 12.f, 600, 0.5f, FK[j], QD_CENTER);
+    }
+    {   /* P1.6d: the locks as chips in the head (KNOB 1..4's colours), the step's frame */
+        int k;
+        for (k = 0; k < 4; k++)
+            if (v->locked[k] || v->lockany[k])
+                ui_chip(v->ltxt[k], 98.f + (float)k * 30.f, 18.f, 12.f, 27.f, FK[k], v->locked[k]);
+        if (v->step)
+            ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
     }
 }
 
@@ -415,8 +425,13 @@ void ui_fx_draw(const ui_fx_t *v)
         (void)w;
         ui_T(v->lab[k] ? v->lab[k] : "", cx, 204.f, 12.f, 600, 0.3f, UI_G1, QD_CENTER);
         w = ui_TW(v->txt[k], 16.f, 500, 0.f);
-        ui_T(v->txt[k], cx, 228.f, w > 58.f ? fmaxf(12.f, 16.f * 58.f / w) : 16.f, 500, 0.f, FK[k], QD_CENTER);
+        if (v->locked[k] || v->lockany[k])              /* P1.6d: a send's lock: a chip (filled: on this step) */
+            ui_chip(v->txt[k], cx, 228.f, 15.f, 54.f, FK[k], v->locked[k]);
+        else
+            ui_T(v->txt[k], cx, 228.f, w > 58.f ? fmaxf(12.f, 16.f * 58.f / w) : 16.f, 500, 0.f, FK[k], QD_CENTER);
         if (v->last == k)
             ln(cx - 18.f, 235.f, cx + 18.f, 235.f, FK[k], 2.f);
     }
+    if (v->step)                                        /* P1.6d: the step's frame */
+        ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
 }

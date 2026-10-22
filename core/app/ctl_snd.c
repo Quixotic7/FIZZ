@@ -356,6 +356,12 @@ static void snd_pair(qd_app_t *a, int d, int fine)
         }
         return;
     }
+    if (qd_auto_on(a)) {                                /* P1.6d: automation recording */
+        const int c = snd_pair_step(qd_auto_cur(a, QD_QP_RB1), qd_auto_cur(a, QD_QP_RB2), d, fine);
+        qd_auto_put(a, QD_QP_RB1, c / SND_NRCB);
+        qd_auto_put(a, QD_QP_RB2, c % SND_NRCB);
+        return;
+    }
     {
         const int16_t *p = a->model.t[a->sel].patch;
         const int c = snd_pair_step(p[QD_QP_RB1], p[QD_QP_RB2], d, fine);
@@ -372,6 +378,8 @@ static int snd_cur(qd_app_t *a, int id)                 /* (the held step's valu
         int16_t v;
         return qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], id, &v) ? v : qd_step_base(a, a->sel, u->held[0], id);
     }
+    if (qd_auto_on(a))                                  /* P1.6d: automation recording: the take's value */
+        return qd_auto_cur(a, id);
     return a->model.t[a->sel].patch[id];
 }
 static void snd_put(qd_app_t *a, int id, int v)
@@ -389,6 +397,8 @@ static void snd_put(qd_app_t *a, int id, int v)
             }
         return;
     }
+    if (qd_auto_put(a, id, v))                          /* P1.6d: automation recording */
+        return;
     qd_player_live_edit(&a->player, a->sel, id, v);
 }
 static void snd_dest(qd_app_t *a, int id, int d)
@@ -486,6 +496,63 @@ void qd_snd_mod_src(qd_app_t *a, int w)
     a->ui.snd_lk_used = 1;
 }
 
+/* E4.1: the machines in the Digitone II's menu order (MULTI, LOWPASS 4, LEGACY, COMB-, COMB+, EQ; the stored FTYPE as
+ * before); P1.6d: the FILTER key held, the popup of the six */
+static const int16_t SND_MACH_FT[6] = {QD_QF_LP12, QD_QF_LP24, QD_QF_MULTI, QD_QF_COMBP, QD_QF_COMBN, QD_QF_EQ};
+const int8_t QD_SND_MENU[6] = {2, 1, 0, 4, 3, 5};
+int qd_snd_machine_pos(const qd_app_t *a)               /* the machine's place in the menu (0..5) */
+{
+    const int m = qd_snd_machine(snd_now(a, QD_QP_FTYPE));
+    int pos = 0;
+    while (pos < 5 && QD_SND_MENU[pos] != m)
+        pos++;
+    return pos;
+}
+static void snd_machine_at(qd_app_t *a, int pos)        /* (LEGACY: LP12, its default TYPE; through the dip) */
+{
+    pos = pos < 0 ? 0 : pos > 5 ? 5 : pos;
+    if (pos != qd_snd_machine_pos(a))
+        snd_put(a, QD_QP_FTYPE, SND_MACH_FT[(int)QD_SND_MENU[pos]]);
+}
+/* P1.6d: the FILTER group's key (B4): a tap its pages (at the release), held QD_FPOP_MS the machines' popup (while
+ * held: ALGORITHM or any knob turns the choice, B1..B6 pick one; let go: closed, the choice kept) */
+void qd_snd_fkey(qd_app_t *a, int down)
+{
+    qd_ui_t *u = &a->ui;
+    if (down) {
+        u->snd_fkey = 1, u->snd_fkey_ms = a->ms, u->snd_fkey_used = 0, u->snd_fpop = 0;
+        return;
+    }
+    if (!u->snd_fkey)
+        return;
+    u->snd_fkey = 0;
+    if (u->snd_fpop) {
+        u->snd_fpop = 0;
+        return;
+    }
+    if (!u->snd_fkey_used)
+        qd_snd_black(a, QD_SG_FILTER);                  /* (a tap: its pages) */
+}
+void qd_snd_fkey_ms(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    if (u->snd_fkey && !u->snd_fpop && !u->snd_fkey_used && a->ms - u->snd_fkey_ms >= QD_FPOP_MS && qd_snd_open(a)) {
+        u->snd_fpop = 1;
+        u->snd_page = qd_snd_page_of("FILTER");
+        u->snd_knob = -1;
+    }
+    if (u->snd_fkey && !qd_snd_open(a))
+        u->snd_fkey = u->snd_fpop = 0;
+}
+int qd_snd_fpop_key(qd_app_t *a, int b)                 /* B1..B6 with the popup up: that machine; 1 taken */
+{
+    if (!a->ui.snd_fpop)
+        return 0;
+    if (b >= 0 && b < 6)
+        snd_machine_at(a, b);
+    return 1;
+}
+
 /* a knob; 1: taken */
 int qd_snd_knob(qd_app_t *a, int knob, int d)
 {
@@ -493,6 +560,16 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     const int8_t *ids = qd_snd_ids(a, u->snd_page);
     const int fine = qd_ctl_shift(a);
     int k, id = -1;
+    if (u->snd_fkey && !u->snd_fpop) {                  /* (the FILTER key down, a knob: the popup at once) */
+        u->snd_fpop = 1;
+        u->snd_page = qd_snd_page_of("FILTER");
+        u->snd_knob = -1;
+    }
+    if (u->snd_fpop) {                                  /* P1.6d: the machines' popup: any knob the choice */
+        if (d)
+            snd_machine_at(a, qd_snd_machine_pos(a) + (d > 0 ? 1 : -1));
+        return 1;
+    }
     if (knob == QD_K_SELECT) {
         if (fine && u->ekeys)                           /* (P1.5b: the keyboard on, SHIFT + SELECT: nothing) */
             return 1;
@@ -536,17 +613,10 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
         return 1;
     }
     if (id == QD_QP_FTYPE) {                            /* E2: ALGORITHM the machine, LEGACY's KNOB 3 its TYPE */
-        static const int16_t MACH_FT[6] = {QD_QF_LP12, QD_QF_LP24, QD_QF_MULTI, QD_QF_COMBP, QD_QF_COMBN, QD_QF_EQ};
-        static const int8_t MENU[6] = {2, 1, 0, 4, 3, 5};   /* (E4.1: the Digitone II's menu order: MULTI, LOWPASS 4,
-                                                         * LEGACY, COMB-, COMB+, EQ; the stored FTYPE as before) */
-        const int cur = snd_cur(a, QD_QP_FTYPE), m = qd_snd_machine(cur);
+        const int cur = snd_cur(a, QD_QP_FTYPE);
         if (knob == QD_K_ALGO) {
-            int pos = 0, np;
-            while (pos < 5 && MENU[pos] != m)
-                pos++;
-            np = pos + (d > 0 ? 1 : -1) < 0 ? 0 : pos + (d > 0 ? 1 : -1) > 5 ? 5 : pos + (d > 0 ? 1 : -1);
-            if (np != pos)
-                snd_put(a, QD_QP_FTYPE, MACH_FT[(int)MENU[np]]);   /* (LEGACY: LP12, its default TYPE) */
+            const int pos = qd_snd_machine_pos(a);
+            snd_machine_at(a, pos + (d > 0 ? 1 : -1));
         } else {
             snd_put(a, QD_QP_FTYPE, cur + d < 0 ? 0 : cur + d > QD_QF_HP12 ? QD_QF_HP12 : cur + d);
         }
@@ -556,6 +626,10 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
         if (!fine)
             return qd_step_lock_knob(a, knob, d);
         qd_step_lock_fine(a, id, d);
+        return 1;
+    }
+    if (qd_auto_on(a)) {                                /* P1.6d: automation recording */
+        qd_auto_put(a, id, qd_auto_cur(a, id) + (fine ? d : qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)));
         return 1;
     }
     {
@@ -577,8 +651,8 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
         black[i] = i < QD_NSG ? (i == pg->group || (i >= QD_SG_LFO1 && u->snd_lk == i - QD_SG_LFO1 + 1) ? QD_LED_LIT
                                                                                                         : QD_LED_DIM)
                               : QD_LED_OFF;
-    black[8] = u->rnd_kind == 1 ? QD_LED_LIT : QD_LED_DIM;   /* P1.5c: B9 the dice, B10 the bottle */
-    black[9] = u->rnd_kind >= 2 ? QD_LED_LIT : QD_LED_DIM;
+    black[8] = u->rnd_kind == 1 || u->rnd_kind == 4 ? QD_LED_LIT : QD_LED_DIM;   /* P1.5c: B9 the dice, B10 the bottle */
+    black[9] = u->rnd_kind == 2 || u->rnd_kind == 3 ? QD_LED_LIT : QD_LED_DIM;
     for (i = 0; i < u->nheld; i++)
         for (k = 0; k < 5; k++)
             if (ids[k] >= 0) {
@@ -588,6 +662,12 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
                     n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], QD_QP_RB2, &v);
             }
     black[10] = n ? QD_LED_LIT : QD_LED_OFF;
+    if (u->snd_fpop) {                                  /* P1.6d: the machines' popup: B1..B6 the six, the current lit */
+        const int pos = qd_snd_machine_pos(a);
+        for (i = 0; i < 11; i++)
+            black[i] = i < 6 ? (i == pos ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
+        black[QD_SG_FILTER] = pos == QD_SG_FILTER ? QD_LED_LIT : QD_LED_MID;   /* (held) */
+    }
 }
 
 /* ---------------------------------------------------------------- P1.5c: randomise (B9 the page, B10 held the sound) */
@@ -684,14 +764,16 @@ void qd_snd_randomise(qd_app_t *a, int page)
             snd_rnd_value(a, k);
 }
 
-/* B9 down: the dice roll, the page new at their end; B10 down: the bottle fills while held, the sound new at the pop
- * (released early: nothing) */
+/* B9 held (P1.6d: a second): the dice shake harder and harder, then roll: the page new as they roll (released early:
+ * nothing); B10 down: the bottle fills while held, the sound new at the pop (released early: nothing) */
 static void snd_rnd_key(qd_app_t *a, int b, int down)
 {
     qd_ui_t *u = &a->ui;
     if (b == 8 && down && !u->rnd_kind) {
         u->rnd_kind = 1;
         u->rnd_ms = a->ms;
+    } else if (b == 8 && !down && u->rnd_kind == 1) {
+        u->rnd_kind = 0;                                /* (P1.6d: let go before the second: nothing) */
     } else if (b == 9 && down && !u->rnd_kind) {
         u->rnd_kind = 2;
         u->rnd_ms = a->ms;
@@ -708,8 +790,11 @@ void qd_snd_rnd_ms(qd_app_t *a)
         u->rnd_kind = 0;
         return;
     }
-    if (u->rnd_kind == 1 && a->ms - u->rnd_ms >= QD_RND_DICE_MS) {
+    if (u->rnd_kind == 1 && a->ms - u->rnd_ms >= QD_RND_PAGE_HOLD_MS) {   /* P1.6d: held a second: they roll */
         qd_snd_randomise(a, u->snd_page);
+        u->rnd_kind = 4;
+        u->rnd_ms = a->ms;
+    } else if (u->rnd_kind == 4 && a->ms - u->rnd_ms >= QD_RND_DICE_MS) {
         u->rnd_kind = 0;
     } else if (u->rnd_kind == 2 && a->ms - u->rnd_ms >= QD_RND_HOLD_MS) {
         qd_snd_randomise(a, -1);

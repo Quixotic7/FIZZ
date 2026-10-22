@@ -246,6 +246,7 @@ typedef struct {
     uint8_t rec_ekeys;                  /* P1.5b: the keyboard in the sound editor: 0 SCALE (W the scale, B the pages), 1
                                          * FULL (every key as the keyboard; the pages on SELECT) */
     qd_mfx_group_t mfx[QD_MFX_NGROUP];  /* P1.6c: the MIDI FX groups (mfx.h) */
+    uint8_t rec_auto;                   /* P1.6d: AUTOMATION: armed live recording records knob moves too (1 ON) */
 } qd_project_t;
 /* the MIDI FX group a step of track t plays through: 0 none, 1..5 (the step's, else the track's) */
 int qd_step_mfx(const qd_pattern_t *p, int t, int s);

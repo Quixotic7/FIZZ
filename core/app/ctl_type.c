@@ -182,7 +182,11 @@ static void ty_roll(qd_app_t *a, int d)
             y->hpos--;
         } else if (d > 0) {
             char nm[QD_SOUND_NAME];
-            qd_name_roll(&y->rseed, save ? a->model.t[a->sel].patch : 0, qd_type_hist(a, 0), nm);
+            if (!save && a->ui.nm.target == 3)          /* P1.6d: a track's: from its kind */
+                qd_name_track_roll(&y->rseed, a->model.t[a->ui.nm.proj & 7].kind < 7 ? a->model.t[a->ui.nm.proj & 7].kind
+                                                                                     : -1, qd_type_hist(a, 0), nm);
+            else
+                qd_name_roll(&y->rseed, save ? a->model.t[a->sel].patch : 0, qd_type_hist(a, 0), nm);
             qd_type_hist_push(a, nm);
             y->dice_ms = ty_now(a);
             y->dice_face = 1 + (int)(qd_name_next(&y->rseed) % 6u);

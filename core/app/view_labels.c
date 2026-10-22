@@ -48,7 +48,8 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
     lb_set(o, LB_BTN(QD_B_FUNC), "SHIFT");
     lb_set(o, LB_BTN(QD_B_HOME), "HOME");
     lb_set(o, LB_BTN(QD_B_SAVE), "SAVE");
-    lb_set(o, LB_BTN(QD_B_KEYS), "ARP/FILL");      /* (P1.6c: a tap the arp on / off, held FILL) */
+    lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");       /* (P1.6d: a tap the MIDI FX screen, held the arp on / off;
+                                                         * SHIFT + ARP: FILL) */
     lb_set(o, LB_BTN(QD_B_MIX), "PATTERNS");
     lb_set(o, LB_BTN(QD_B_PLAY), a->seq.playing ? "STOP" : "PLAY");
     lb_set(o, LB_BTN(QD_B_REC), keys ? (u->rec ? "REC OFF" : "REC") : "KEYS");
@@ -230,6 +231,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_BTN(QD_B_REC), "REC SET");
         lb_set(o, LB_BTN(QD_B_PATTERN), "SETTINGS");
         lb_set(o, LB_BTN(QD_B_MIX), "AT ONCE");
+        lb_set(o, LB_BTN(QD_B_KEYS), "FILL");          /* (P1.6d) */
         return;
     }
     if (shift && u->mode == QD_MODE_KEYS) {             /* the keyboard, SHIFT: the scale, the root, the track */
@@ -245,9 +247,12 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
     if (step && QD_LATCH_MENU(u->latch)) {              /* the settings menus */
         static const char *const REC[4] = {"MODE", "QUANTIZE", "OVERDUB", "EDIT KEYS"};
         static const char *const SET[4] = {"KNOBS", "FOLLOW", "", ""};
-        static const char *const TRK[2][4] = {{"SCALE", "ROOT", "FOLLOW KEY", "MIDI CH"},
-                                              {"VOICES", "SWING", "FOLLOW", "MIDI FX"}};
-        const char *const *r = u->latch == QD_LATCH_REC ? REC : u->latch == QD_LATCH_SET ? SET : TRK[u->trk_page & 1];
+        static const char *const TRK[3][4] = {{"SCALE", "ROOT", "FOLLOW KEY", "MIDI CH"},
+                                              {"VOICES", "SWING", "FOLLOW", "MIDI FX"},
+                                              {"KIND", "NAME", "", ""}};   /* (P1.6d: page 3) */
+        static const char *const REC2[4] = {"AUTOMATION", "", "", ""};   /* P1.6d: the record settings' page 2 */
+        const char *const *r = u->latch == QD_LATCH_REC ? (u->rec_page ? REC2 : REC) : u->latch == QD_LATCH_SET ? SET
+                             : TRK[u->trk_page < 0 || u->trk_page > 2 ? 0 : u->trk_page];
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), r[k]);
         if (u->latch == QD_LATCH_TRK) {
@@ -256,6 +261,8 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
             lb_set(o, LB_BTN(QD_B_PATTERN), "PAGE");
         }
+        if (u->latch == QD_LATCH_REC)
+            lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_BTN(QD_B_OCTDN), "BACK");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
@@ -302,10 +309,11 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         const int g = qd_mfx_tgroup(a), lane = qd_mfx_lane_page(a);
         char val[12];
         lb_set(o, LB_KNOB(QD_K_ALGO), "GROUP");
-        lb_set(o, LB_BTN(QD_B_OCTDN), lb_held(a, QD_B_OCTDN) ? "COPY TO B" : "CLOSE");
-        lb_set(o, LB_BTN(QD_B_OCTUP), "MOVE TO B");
+        lb_set(o, LB_BTN(QD_B_OCTDN), !lb_held(a, QD_B_OCTDN) ? "CLOSE" : a->ui.mfx_f1_copied ? "PASTE" : "COPY");
+        lb_set(o, LB_BTN(QD_B_OCTUP), a->ui.mfx_f2_holding ? "DROP" : "PICK UP");   /* (P1.6d: the sequencer's F1 /
+                                                         * F2) */
         lb_set(o, LB_BTN(QD_B_HOME), "CLOSE");
-        lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");
+        lb_set(o, LB_BTN(QD_B_KEYS), "CLOSE");
         if (!g)
             return;
         lb_set(o, LB_KNOB(QD_K_PRESETS), "EFFECT");

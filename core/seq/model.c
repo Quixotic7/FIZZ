@@ -8,17 +8,52 @@
  * limits of the brief (drums 4, the bass mono, the rest 6) */
 static const struct {
     const char *name;
-    uint8_t preset, limit;
+    uint8_t preset, limit, kind;        /* (P1.6d: the kind, sounds.h QD_PK_*) */
 } QD_TRACK_DEF[QD_NTRACK] = {
-    {"DRUMS", 13, 4},                   /* MARIMBA: short, struck, no sustain (low notes thump, high ones click) */
-    {"BASS", 3, 1},                     /* BASS: ChoralRoot's mono bass */
-    {"KEYS", 1, 6},                     /* EP */
-    {"LEAD", 8, 6},                     /* SQUARE LEAD */
-    {"PLUCK", 4, 6},                    /* PLUCK */
-    {"PAD", 6, 6},                      /* GLASS PAD */
-    {"BELL", 2, 6},                     /* BELL */
-    {"NOISE", 16, 6},                   /* NOISE-ISH */
+    {"DRUMS", 13, 4, 5},                /* MARIMBA: short, struck, no sustain (low notes thump, high ones click) */
+    {"BASS", 3, 1, 0},                  /* BASS: ChoralRoot's mono bass */
+    {"KEYS", 1, 6, 1},                  /* EP */
+    {"LEAD", 8, 6, 4},                  /* SQUARE LEAD */
+    {"PLUCK", 4, 6, 2},                 /* PLUCK */
+    {"PAD", 6, 6, 3},                   /* GLASS PAD */
+    {"BELL", 2, 6, 1},                  /* BELL (KEYS) */
+    {"NOISE", 16, 6, 6},                /* NOISE-ISH (FX) */
 };
+
+const char *qd_track_kind_name(int kind)
+{
+    static const char *const N[7] = {"BASS", "KEYS", "PLUCK", "PAD", "LEAD", "DRUMS", "FX"};   /* (sounds.h's) */
+    return kind >= 0 && kind < 7 ? N[kind] : "";
+}
+
+void qd_track_name_default(qd_track_t *t, int i)
+{
+    i = i < 0 ? 0 : i >= QD_NTRACK ? QD_NTRACK - 1 : i;
+    memset(t->name, 0, sizeof t->name);
+    strncpy(t->name, QD_TRACK_DEF[i].name, QD_TRACK_NAME - 1);
+    t->kind = QD_TRACK_DEF[i].kind;
+    t->named = 0;
+}
+
+void qd_track_set_kind(qd_track_t *t, int kind)
+{
+    if (kind < 0 || kind >= 7)
+        return;
+    t->kind = (uint8_t)kind;
+    if (!t->named) {
+        memset(t->name, 0, sizeof t->name);
+        strncpy(t->name, qd_track_kind_name(kind), QD_TRACK_NAME - 1);
+    }
+}
+
+void qd_track_set_name(qd_track_t *t, const char *name)
+{
+    if (!name || !name[0])
+        return;
+    memset(t->name, 0, sizeof t->name);
+    strncpy(t->name, name, QD_TRACK_NAME - 1);
+    t->named = strcmp(t->name, qd_track_kind_name(t->kind)) != 0;
+}
 
 void qd_track_load_preset(qd_track_t *t, int k)
 {
@@ -110,7 +145,7 @@ void qd_model_init(qd_model_t *m)
     memset(m, 0, sizeof *m);
     for (i = 0; i < QD_NTRACK; i++) {
         qd_track_t *t = &m->t[i];
-        strncpy(t->name, QD_TRACK_DEF[i].name, QD_TRACK_NAME - 1);
+        qd_track_name_default(t, i);
         qd_track_load_preset(t, QD_TRACK_DEF[i].preset);
         t->mix.level = QD_MIX_LEVEL_DEFAULT;
         t->mix.pan = 0;

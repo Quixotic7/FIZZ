@@ -209,13 +209,8 @@ static void open_on(int t, int slot)
 {
     qd_ctl_select_track(&A, t);
     run(20);
-    if (!qd_mfx_open(&A)) {
-        bdown(QD_B_FUNC);
-        run(10);
+    if (!qd_mfx_open(&A))                               /* (P1.6d: ARP tapped opens it) */
         btap(QD_B_KEYS);
-        bup(QD_B_FUNC);
-        run(10);
-    }
     if (slot >= 0 && A.ui.mfx_slot != slot)
         black(slot);
     A.ui.mfx_knob = -1;
@@ -241,7 +236,7 @@ int render_p16c(const char *out)
     open_on(0, 0);
     kdown(WK(0)), kdown(WK(2)), kdown(WK(4));
     run(700);
-    shot("arp", "SHIFT + ARP: group 1 (tracks 1, 4), its ARP; W1 W3 W5 held", 1);
+    shot("arp", "ARP tapped: group 1 (tracks 1, 4), its ARP; W1 W3 W5 held", 1);
     kup(WK(0)), kup(WK(2)), kup(WK(4));
     run(300);
     /* 2: playing: the notes run along the rail (both tracks into one arp) */
@@ -335,9 +330,10 @@ int render_p16c(const char *out)
     black(1);
     bdown(QD_B_OCTUP);
     run(20);
-    kdown(BK(2)), run(30), kup(BK(2));
-    run(480);
-    shot("move", "F2 + B3: CHANCE moved to slot 3", 1);
+    kdown(BK(1)), run(30), kup(BK(1));                  /* (P1.6d: F2 + B, Form's: B2 picked up, B4 dropped) */
+    kdown(BK(3)), run(30), kup(BK(3));
+    run(400);
+    shot("move", "F2 + B2, B4: CHANCE carried to slot 4", 1);
     bup(QD_B_OCTUP);
     run(900);
     btap(QD_B_HOME);
@@ -345,9 +341,10 @@ int render_p16c(const char *out)
     /* 22: ARP tapped (track 5, group 4: no arp yet) */
     qd_ctl_select_track(&A, 4);
     run(50);
-    btap(QD_B_KEYS);
-    run(250);
-    shot("arpon", "ARP tapped, anywhere: ARP ON (added in slot 3)", 1);
+    bdown(QD_B_KEYS);                                   /* (P1.6d: ARP held) */
+    run(QD_ARP_HOLD_MS + 250);
+    bup(QD_B_KEYS);
+    shot("arpon", "ARP held, anywhere: ARP ON (added in slot 3)", 1);
     run(1400);
     /* 23: a held step in TRIG, KNOB 2: its MIDI FX */
     qd_ctl_select_track(&A, 0);

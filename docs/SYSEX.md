@@ -160,7 +160,10 @@ Reply: `F0 7D 46 5A 01 60 <count hi> <count lo> <n = 49> { <len> <len ASCII byte
   CLEAR), SEQ held (the patterns, the banks), SEL held (MUTE / SOLO / TRACK), F1 / F2 / F3, the settings menus, the
   mix, the effects (their cells' names), the keyboard (the notes), P1.6c's MIDI FX screen (the slots' effects on
   B1..B8, BYPASS / PLAY, REMOVE; ALGORITHM GROUP, PRESETS EFFECT, the page's value names; the notes, or LANE 1..16 on
-  the arp's lanes; F1 CLOSE / COPY TO B, F2 MOVE TO B) and FILL's button ARP/FILL (a tap the arp on / off).
+  the arp's lanes; P1.6d: F1 CLOSE, held COPY then PASTE, F2 PICK UP / DROP) and FILL's button (P1.6d: MIDI FX, its
+  tap the screen and its hold the arp on / off; SHIFT held FILL; CLOSE in the MIDI FX screen). P1.6d's new contexts:
+  the record settings' page 2 (KNOB 1 AUTOMATION, SELECT PAGE) and the track settings' page 3 (KNOB 1 KIND, KNOB 2
+  NAME).
 - **Subscribed**, FIZZ sends a LABELS reply by itself whenever the set changes, looking at most every 50 ms (20 a
   second); nothing while it stays the same. A request without the flag answers once and ends the subscription.
 

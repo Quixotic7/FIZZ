@@ -44,7 +44,10 @@ void qd_name_open(qd_app_t *a, int target, int proj)
     n->target = target;
     n->proj = proj;
     qd_latch_open(a, QD_LATCH_NAME);
-    qd_type_start(a, a->per.pname[proj < 0 ? 0 : proj], 0);
+    if (target == 3)                                    /* P1.6d: track proj's name */
+        qd_type_start(a, a->model.t[proj < 0 ? 0 : proj & 7].name, 0);
+    else
+        qd_type_start(a, a->per.pname[proj < 0 ? 0 : proj], 0);
 }
 
 static void name_keep(qd_app_t *a)
@@ -53,10 +56,23 @@ static void name_keep(qd_app_t *a)
     qd_type_trimmed(a, out);
     if (!out[0])
         return;                                         /* (an empty name is not kept) */
+    if (a->ui.nm.target == 3) {                         /* P1.6d: a track's (typed: the kind keeps it) */
+        qd_track_set_name(&a->model.t[a->ui.nm.proj & 7], out);
+        return;
+    }
     qd_proj_name(a, a->ui.nm.proj, out);
 }
 
-static void name_back(qd_app_t *a) { qd_latch_open(a, QD_LATCH_PRJ); }
+static void name_back(qd_app_t *a)
+{
+    if (a->ui.nm.target == 3) {                         /* P1.6d: back to the track settings' page 3 */
+        qd_latch_open(a, QD_LATCH_TRK);
+        a->ui.trk_page = 2;
+        a->ui.menu_knob = -1;
+        return;
+    }
+    qd_latch_open(a, QD_LATCH_PRJ);
+}
 
 /* ---------------------------------------------------------------- the project pages */
 void qd_prj_button(qd_app_t *a)

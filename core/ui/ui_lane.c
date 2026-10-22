@@ -715,7 +715,7 @@ void ui_lane_draw(const ui_lane_t *v)
     def_col = v->def_hot ? UI_MODE_COL[mode] : UI_G1;
 
     ui_head(v->name, v->pattern, v->track, UI_K3, UI_G1);
-    mx = 29.f + ui_TW(v->name, 12.f, 600, 0.8f) + 8.f;   /* the mode in its colour after the name (P1.3v: 12 px; the
+    mx = ui_head_x(v->track) + ui_TW(v->name, 12.f, 600, 0.8f) + 8.f;   /* the mode in its colour after the name (P1.3v: 12 px; the
                                                          * tempo no longer here: its takeover and F3 show it) */
     ui_lab(UI_FIELD_NAME[mode], mx, 18.f, UI_MODE_COL[mode], QD_LEFT);
     mx += ui_TW(UI_FIELD_NAME[mode], 12.f, 600, 0.5f);

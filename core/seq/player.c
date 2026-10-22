@@ -474,3 +474,22 @@ void qd_player_live_edit(qd_player_t *pl, int t, int id, int value)
     }
     qd_seq_live_patch(pl->seq, t, id, value);
 }
+
+void qd_player_voice_lock(qd_player_t *pl, int t, int id, int value)
+{
+    int16_t lo, hi;
+    int i;
+    if (t < 0 || t >= QD_PAT_NTRACK || !qd_lock_range(id, &lo, &hi))
+        return;
+    value = value < lo ? lo : value > hi ? hi : value;
+    for (i = 0; i < pl->pool->nvoice; i++) {
+        if (!voice_of_track(pl->pool, i, t))
+            continue;
+        if (id < QD_QUAD_NP) {
+            if (qd_pool_write(pl->pool, i, id, value, 1) == 2)
+                pl->dips++;
+        } else if (id < QD_LK_N) {
+            qd_pool_set_mix(pl->pool, i, id - QD_LK_PAN, value);
+        }
+    }
+}

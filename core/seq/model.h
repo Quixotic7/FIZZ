@@ -19,10 +19,13 @@ extern "C" {
 #endif
 
 #define QD_NTRACK 8
-#define QD_TRACK_NAME 12
+#define QD_TRACK_NAME 13               /* (P1.6d: twelve characters, as every name typed) */
+#define QD_TKIND_NONE 255               /* P1.6d: a track of no kind */
 
 typedef struct {
-    char name[QD_TRACK_NAME];           /* its role: "DRUMS", "BASS", .. */
+    char name[QD_TRACK_NAME];           /* its role: "DRUMS", "BASS", .. (P1.6d: the user's, or its kind's) */
+    uint8_t kind;                       /* P1.6d: its kind (sounds.h QD_PK_*: BASS .. FX; its icon), QD_TKIND_NONE */
+    uint8_t named;                      /* .. 1: the name typed by the user (a kind chosen keeps it) */
     /* the sound */
     int16_t patch[QD_QUAD_NP];
     uint8_t sound;                      /* the pool sound it was loaded from (0: not from the pool) */
@@ -46,6 +49,13 @@ typedef struct {
 void qd_model_init(qd_model_t *m);
 void qd_model_bind(qd_model_t *m);      /* the owners' pointers (after a load) */
 void qd_model_tempo(qd_model_t *m, int bpm);
+/* P1.6d: track i's name and kind as the default kit has them (DRUMS .. NOISE; the kinds DRUMS, BASS, KEYS, LEAD,
+ * PLUCK, PAD, KEYS, FX), not typed; a kind chosen (named 0: the name becomes the kind's); a name typed (the kind's own
+ * name: named 0 again); the kinds' names */
+void qd_track_name_default(qd_track_t *t, int i);
+void qd_track_set_kind(qd_track_t *t, int kind);
+void qd_track_set_name(qd_track_t *t, const char *name);
+const char *qd_track_kind_name(int kind);
 /* the track's sound: FM TONE's factory sound k (0 INIT, 1..16: preset id k + 1), edited 0; the voices sounding keep
  * theirs */
 void qd_track_load_preset(qd_track_t *t, int k);

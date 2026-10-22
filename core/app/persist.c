@@ -244,6 +244,13 @@ static uint32_t ser_hdr(const qd_app_t *a, uint8_t *b)
     }
     b[o++] = pr->rec_ekeys;                             /* P1.5b (a record of 0.4 has none: SCALE) */
     b[o++] = pr->pool_empty;                            /* P1.5t (0.6's have none: the old starting pool) */
+    b[o++] = pr->rec_auto;                              /* P1.6d (0.9.0's have none: ON) */
+    for (t = 0; t < QD_NTRACK; t++) {                   /* P1.6d: the tracks' kinds and names (0.9.0's: the default
+                                                         * kit's) */
+        const qd_track_t *k = &a->model.t[t];
+        b[o++] = k->kind, b[o++] = k->named;
+        memcpy(b + o, k->name, QD_TRACK_NAME - 1), o += QD_TRACK_NAME - 1;
+    }
     return o;
 }
 
@@ -253,7 +260,7 @@ static int de_hdr(qd_app_t *a, int p, const uint8_t *b, uint32_t len, int apply)
     qd_project_t *pr = &a->proj;
     uint32_t o = 2;
     int t;
-    if (len < 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK || len > 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK + 2 || b[0] != 'H' ||
+    if (len < 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK || len > 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK + 3 + QD_NTRACK * (QD_TRACK_NAME + 1) || b[0] != 'H' ||
         b[1] != 1)
         return 0;
     memcpy(ps->pname[p], b + o, QD_PROJ_NAME), o += QD_PROJ_NAME;
@@ -270,6 +277,19 @@ static int de_hdr(qd_app_t *a, int p, const uint8_t *b, uint32_t len, int apply)
     }
     pr->rec_ekeys = o < len ? (uint8_t)(b[o] != 0) : 0;
     pr->pool_empty = o + 1 < len ? (uint8_t)(b[o + 1] != 0) : 0;
+    pr->rec_auto = o + 2 < len ? (uint8_t)(b[o + 2] != 0) : 1;
+    o += 3;
+    if (o + QD_NTRACK * (QD_TRACK_NAME + 1) <= len)     /* P1.6d: the kinds and names (else the default kit's) */
+        for (t = 0; t < QD_NTRACK; t++) {
+            qd_track_t *k = &a->model.t[t];
+            char nm[QD_TRACK_NAME];
+            k->kind = b[o] < 7 ? b[o] : QD_TKIND_NONE;
+            k->named = b[o + 1] != 0;
+            memcpy(nm, b + o + 2, QD_TRACK_NAME - 1), nm[QD_TRACK_NAME - 1] = 0;
+            if (nm[0])
+                memcpy(k->name, nm, sizeof nm);
+            o += QD_TRACK_NAME + 1;
+        }
     return 1;
 }
 
@@ -416,6 +436,7 @@ static void proj_initial(qd_app_t *a, int demo, int pool_empty)
         a->model.t[t].mix = m.t[t].mix;
         a->model.t[t].limit = m.t[t].limit;
         a->model.t[t].reserve = m.t[t].reserve;
+        qd_track_name_default(&a->model.t[t], t);       /* P1.6d (a project of 0.9.0: the names it had) */
     }
 }
 
@@ -431,7 +452,8 @@ static void proj_read(qd_app_t *a, int p)
         int empty = 0;
         if (len > 0 && len != (int)QDS_DELETED) {
             ps->pdemo = pr_buf[2 + QD_PROJ_NAME];
-            empty = len == 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK + 2 && pr_buf[len - 1];
+            empty = len >= 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK + 2 && pr_buf[2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK + 1];
+                                                        /* (P1.6d: pool_empty's place, the record longer since) */
         }
         proj_initial(a, ps->pdemo, empty);
     }

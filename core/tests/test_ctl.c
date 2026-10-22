@@ -1484,12 +1484,12 @@ static void g_keyboard_scale(void)
 static void g_fill_page(void)
 {
     start();
-    bdown(QD_B_KEYS);
+    bdown(SHIFT), bdown(QD_B_KEYS);                     /* (P1.6d: FILL is SHIFT + ARP held) */
     run(10);
-    CHECK(A.seq.fill && leds().button[QD_B_KEYS] == QD_LED_LIT, "ARP held: FILL, ARP lit");
-    bup(QD_B_KEYS);
+    CHECK(A.seq.fill && leds().button[QD_B_KEYS] == QD_LED_LIT, "SHIFT + ARP held: FILL, ARP lit (blinking)");
+    bup(QD_B_KEYS), bup(SHIFT);
     run(10);
-    CHECK(!A.seq.fill, "ARP up: FILL off");
+    CHECK(!A.seq.fill && qd_view_screen(&A) != QD_SCR_MFX, "ARP up: FILL off (no MIDI FX screen)");
     CHECK(A.ui.follow && leds().button[QD_B_PAGE] == QD_LED_OFF, "follow on at power-on (P1.4b: ENV is MIX, unlit)");
 }
 
@@ -2158,17 +2158,18 @@ static void g_step_latch(void)
     wtap(5);
     CHECK(A.ui.nheld == 1 && A.ui.held[0] == 5 && !R(0, 5).on && R(0, 2).on, "P1.3f: W6 tapped: it replaces the "
           "selection (no trig made); step 3 kept its trig");
+    run(QD_CLICK_MS + 10);                              /* (P1.6d: two taps within QD_CLICK_MS are a double tap) */
     wtap(5);
     CHECK(A.ui.nheld == 0 && A.ui.slatch && leds().button[LFO] == QD_LED_LIT && qd_view_screen(&A) == QD_SCR_LANE &&
               !sounding(60),
           "W6 tapped again (the whole selection): nothing selected, the latch still on, the lane");
-    black(B3);
-    CHECK(A.ui.hmode == M_LEN && leds().key[BK(B3)] == QD_LED_LIT, "an empty selection: the black keys are the modes "
-          "again (LEN)");
+    bdown(LFO), black(B3), bup(LFO), run(10);           /* (P1.6d: an empty selection in VALUES: the black keys the
+                                                         * default's values; LFO + a black key the mode) */
+    CHECK(A.ui.hmode == M_LEN && A.ui.slatch, "an empty selection: LFO + B3, the mode (LEN)");
     turn(QD_K_1, 1);
     CHECK(PAT()->trk[0].def.len == QD_LEN_1 + 1 && A.ui.tk == QD_TK_DEFAULT, "the knobs: the track's default (LEN)");
     run(QD_TK_MS + QD_TK_FADE_MS + 5);
-    mode(M_VEL);
+    bdown(LFO), black(B2), bup(LFO), run(10);
     kdown(WK(0));
     run(20);
     CHECK(A.ui.nheld == 1 && A.ui.held[0] == 0, "a gesture: W1 down, selected at once (the fingers shown)");
@@ -2305,13 +2306,12 @@ static void g_mkey(void)
     /* the latch with an empty selection: a mode key held edits the default too */
     btap(LFO);
     wtap(0);
-    kdown(BK(B2));
-    run(300);
+    bdown(LFO), black(B2), bup(LFO), run(10);
     turn(QD_K_1, 3);
-    CHECK(qd_view_screen(&A) == QD_SCR_DEFAULT && PAT()->trk[0].def.vel == 108, "the latch, nothing selected: VEL key "
-          "held, KNOB 1: the default (108)");
-    kup(BK(B2));
-    run(10);
+    CHECK(PAT()->trk[0].def.vel == 108 && A.ui.tk == QD_TK_DEFAULT, "the latch, nothing selected (P1.6d: VEL by LFO + "
+          "B2): KNOB 1 the default (108)");
+    black(B10);
+    CHECK(PAT()->trk[0].def.vel == 127 && A.ui.hmode == M_VEL, "P1.6d: .. B10: the default's velocity 127, the mode kept");
     btap(LFO);
     printf("  mode keys held: %d of 9 modes edit their default with the picture, %d reset by B11\n", ok, okr);
 }
@@ -3687,10 +3687,10 @@ static void g_p15b_keys(void)
     p0 = A.ui.snd_page;
     kdown(BK(B4));
     run(5);
-    CHECK(key_note_of(BK(B4)) < 0 && QD_SND_PAGES[A.ui.snd_page].group == QD_SG_FILTER && A.ui.snd_page != p0,
-          "SCALE: B4 is the FILTERS page, no note");
-    kup(BK(B4));
+    CHECK(key_note_of(BK(B4)) < 0, "SCALE: B4 is no note");
+    kup(BK(B4));                                        /* (P1.6d: the FILTERS key acts on its release: a tap) */
     run(5);
+    CHECK(QD_SND_PAGES[A.ui.snd_page].group == QD_SG_FILTER && A.ui.snd_page != p0, "SCALE: B4 the FILTERS page");
     btap(F2);
     CHECK(A.oct == 1 && play_key(WK(0)) == 60 && A.ui.latch == QD_LATCH_SND, "F2: the octave up (W1 C4), the editor stays");
     btap(F1);
@@ -4377,10 +4377,10 @@ static void g_p16c_screen(void)
     qd_labels_t lb;
     qd_mfx_group_t *G;
     start();
-    bdown(SHIFT), run(10), btap(QD_B_KEYS), bup(SHIFT), run(10);
+    btap(QD_B_KEYS);
     qd_view_mfx(&A, &v);
     CHECK(qd_view_screen(&A) == QD_SCR_MFX && !v.g && leds().key[BK(B1)] == QD_LED_OFF && !A.seq.fill,
-          "SHIFT + ARP: the MIDI FX screen, track 1 OFF (the slots dark), no FILL");
+          "ARP tapped (P1.6d): the MIDI FX screen, track 1 OFF (the slots dark), no FILL");
     turn(QD_K_ALGO, 1);
     qd_view_mfx(&A, &v);
     G = &A.proj.mfx[0];
@@ -4440,14 +4440,19 @@ static void g_p16c_screen(void)
     bdown(SHIFT), btap(F1), bup(SHIFT), run(10);
     CHECK(G->slot[1].type == QD_MFX_CHANCE && G->slot[1].v[QD_MC_CHANCE] == 70, "SHIFT + F1: the removal undone");
     CHECK(qd_view_screen(&A) == QD_SCR_MFX, "(the screen stays)");
-    black(B2);
-    bdown(F1), run(10), black(B4), bup(F1), run(10);
-    CHECK(G->slot[3].type == QD_MFX_CHANCE && G->slot[1].type == QD_MFX_CHANCE && A.ui.mfx_slot == 3 &&
-              qd_view_screen(&A) == QD_SCR_MFX, "F1 + B4: slot 2 copied to 4 (F1's release: no close)");
+    bdown(F1), run(10), black(B2), black(B4), black(B6), bup(F1), run(10);
+    CHECK(G->slot[3].type == QD_MFX_CHANCE && G->slot[1].type == QD_MFX_CHANCE && G->slot[5].type == QD_MFX_CHANCE &&
+              A.ui.mfx_slot == 5 && qd_view_screen(&A) == QD_SCR_MFX,
+          "P1.6d: F1 + B2 copies, B4 and B6 pasted (F1's release: no close)");
+    bdown(F2), run(10), black(B6);                      /* (the hand: F1's copy loaded it) */
+    CHECK(G->slot[5].type == QD_MFX_CHANCE && !A.ui.mfx_f2_holding, "F2 + B6: F1's copy pasted (Form's: the copy "
+          "loads the hand)");
     black(B1);
-    bdown(F2), run(10), black(B3), bup(F2), run(10);
-    CHECK(G->slot[0].type == QD_MFX_CHANCE && G->slot[1].type == QD_MFX_NONE && G->slot[2].type == QD_MFX_ARP &&
-              A.ui.mfx_slot == 2, "F2 + B3: the ARP moved to slot 3, the others closed up");
+    CHECK(G->slot[0].type == QD_MFX_NONE && A.ui.mfx_f2_holding, ".. B1 (full, empty-handed): cut into the hand");
+    black(B3);
+    bup(F2), run(10);
+    CHECK(G->slot[0].type == QD_MFX_NONE && G->slot[1].type == QD_MFX_CHANCE && G->slot[2].type == QD_MFX_ARP &&
+              A.ui.mfx_slot == 2, "F2 + B3 (empty): the ARP dropped there");
     qd_ctl_labels(&A, &lb);
     CHECK(!strcmp(lb.s[QD_LBL_B0 + 2], "ARP") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_ALGO], "GROUP") &&
               !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_PRESETS], "EFFECT") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "PATTERN") &&
@@ -4464,7 +4469,11 @@ static void g_p16c_screen(void)
     CHECK(A.sel == 1 && !v.g && qd_view_screen(&A) == QD_SCR_MFX, "SHIFT + SELECT: track 2, its group (OFF)");
     btap(F1);
     CHECK(qd_view_screen(&A) != QD_SCR_MFX && !A.ui.latch, "F1 tapped: closed");
-    bdown(SHIFT), run(10), btap(QD_B_KEYS), bup(SHIFT), run(10);
+    btap(QD_B_KEYS);
+    CHECK(qd_view_screen(&A) == QD_SCR_MFX, "ARP tapped: open");
+    btap(QD_B_KEYS);
+    CHECK(qd_view_screen(&A) != QD_SCR_MFX, "ARP tapped again: closed");
+    btap(QD_B_KEYS);
     btap(QD_B_HOME);
     CHECK(qd_view_screen(&A) != QD_SCR_MFX, "HOME: closed");
     btap(QD_B_PATTERN);                                 /* the track settings, page 2, KNOB 4 */
@@ -4476,37 +4485,44 @@ static void g_p16c_screen(void)
 
 /* P1.6c: ARP tapped: a track with no group: the first unused, empty group, an arp in it, ON (big); again: OFF, its mode
  * kept; held: FILL, no toggle */
+static void arp_hold(void)                              /* P1.6d: ARP held: the arp on / off */
+{
+    bdown(QD_B_KEYS);
+    run(QD_ARP_HOLD_MS + 20);
+    bup(QD_B_KEYS);
+    run(20);
+}
 static void g_p16c_arp(void)
 {
     start();
     PAT()->trk[3].mfx = 1;                              /* (group 1 used by track 4) */
     qd_mfx_slot_init(&A.proj.mfx[1].slot[0], QD_MFX_CHANCE);   /* (group 2 not empty) */
     qd_ctl_select_track(&A, 2);
-    btap(QD_B_KEYS);
+    arp_hold();
     CHECK(PAT()->trk[2].mfx == 3 && A.proj.mfx[2].slot[0].type == QD_MFX_ARP && A.ui.tk == QD_TK_MFX_ARP && A.ui.tk_on &&
               A.ui.tk_new == 0 && !A.seq.fill, "ARP tapped, track 3 OFF: group 3 (the first unused and empty), an ARP in "
           "slot 1, ON");
     A.proj.mfx[2].slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
     run(QD_TK_MS + 200);
-    btap(QD_B_KEYS);
+    arp_hold();
     CHECK(A.proj.mfx[2].slot[0].v[QD_MA_MODE] == QD_AM_OFF && !A.ui.tk_on, "tapped again: OFF");
-    btap(QD_B_KEYS);
+    arp_hold();
     CHECK(A.proj.mfx[2].slot[0].v[QD_MA_MODE] == QD_AM_HOLD && A.ui.tk_on, "again: ON, its mode back (HOLD)");
-    bdown(QD_B_KEYS);
-    run(400);
-    CHECK(A.seq.fill, "ARP held: FILL");
-    bup(QD_B_KEYS);
+    bdown(SHIFT), bdown(QD_B_KEYS);
+    run(600);
+    CHECK(A.seq.fill, "SHIFT + ARP held: FILL");
+    bup(QD_B_KEYS), bup(SHIFT);
     run(10);
     CHECK(!A.seq.fill && A.proj.mfx[2].slot[0].v[QD_MA_MODE] == QD_AM_HOLD, "let go: no FILL, no toggle");
     qd_ctl_select_track(&A, 0);
     PAT()->trk[0].mfx = 2;                              /* (group 2: a CHANCE, no arp) */
     run(QD_TK_MS + 200);
-    btap(QD_B_KEYS);
+    arp_hold();
     CHECK(PAT()->trk[0].mfx == 2 && A.proj.mfx[1].slot[1].type == QD_MFX_ARP && A.ui.tk_new == 1 && A.ui.tk_g == 2,
           "track 1 on group 2 (a CHANCE, no arp): an arp in its first empty slot (2)");
     qd_ctl_select_track(&A, 5);
     run(QD_TK_MS + 200);
-    btap(QD_B_KEYS);
+    arp_hold();
     CHECK(PAT()->trk[5].mfx == 4, "track 6 OFF: group 4 (groups 1..3 in use)");
     btap(QD_B_HOME);
 }
@@ -4533,6 +4549,400 @@ static void g_p16c_trig(void)
     turn(QD_K_2, 3);                                    /* (nothing held: the track's group, the default) */
     CHECK(PAT()->trk[0].mfx == 3 && qd_step_mfx(PAT(), 0, 0) == 2 && qd_step_mfx(PAT(), 0, 1) == 3,
           "nothing held, KNOB 2: the track's group (3); step 1 locked to group 2, the others follow the track");
+    btap(QD_B_HOME);
+}
+
+/* P1.6d: the sends lock on a held step (or the latch's selection): the mix's LEVEL / PAN / DELAY / REVERB and its
+ * CHORUS, the effects' OVERVIEW KNOB 1..3 and each effect's SEND; the frame and the chips; F2 + knob clears; nothing
+ * held: the track's values */
+static void g_p16d_sends(void)
+{
+    static ui_mix_t mv;
+    static ui_fx_t fv;
+    int v0, l0;
+    start();
+    wtap(2);                                            /* (a trig on step 3) */
+    btap(QD_B_PAGE);
+    v0 = A.model.t[0].mix.level;
+    whold(2);
+    turn(QD_K_1, -20);
+    qd_view_mix(&A, &mv);
+    CHECK(LK(0, 2, QD_LK_LEVEL) == v0 - 20 && A.model.t[0].mix.level == v0 && qd_view_screen(&A) == QD_SCR_MIX &&
+              mv.step && mv.locked[0] && mv.tr[0].level == v0 - 20,
+          "the mix, W3 held + KNOB 1 -20: a LEVEL lock on step 3 (%d), the track's level kept; the frame, the chip",
+          LK(0, 2, QD_LK_LEVEL));
+    turn(QD_K_2, 9);
+    CHECK(LK(0, 2, QD_LK_PAN) == A.model.t[0].mix.pan + 9, "KNOB 2: a PAN lock");
+    wrel(2);
+    qd_view_mix(&A, &mv);
+    CHECK(!mv.step && !mv.locked[0] && mv.lockany[0] && mv.tr[0].level == v0 && A.ui.latch == QD_LATCH_MIX,
+          "let go: the track's values, an outlined chip (some step locks it)");
+    l0 = A.model.t[0].mix.level;
+    turn(QD_K_1, 3);
+    CHECK(A.model.t[0].mix.level == l0 + 3 && LK(0, 2, QD_LK_LEVEL) == v0 - 20, "nothing held: the track's LEVEL");
+    wtap(6);
+    CHECK(!R(0, 6).on, "a W tapped in the mix makes no trig");
+    whold(2);
+    bdown(F2);
+    run(10);
+    turn(QD_K_1, 1);
+    bup(F2);
+    run(10);
+    CHECK(LK(0, 2, QD_LK_LEVEL) == -99999 && LK(0, 2, QD_LK_PAN) != -99999, "F2 + KNOB 1: the LEVEL lock cleared");
+    wrel(2);
+    btap(QD_B_PAGE);                                    /* the sends' page */
+    whold(2);
+    turn(QD_K_1, 5);
+    CHECK(A.ui.mix_page == 1 && LK(0, 2, QD_LK_CHORUS) == A.model.t[0].mix.chorus + 5, "SENDS, KNOB 1: a CHORUS lock");
+    wrel(2);
+    btap(QD_B_HOME);
+    /* the latch's selection */
+    btap(LFO);
+    wtap(4);
+    btap(QD_B_PAGE);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.latch == QD_LATCH_MIX, "the latch's selection kept into the mix");
+    turn(QD_K_3, 10);
+    CHECK(LK(0, 4, QD_LK_DELAY) == A.model.t[0].mix.delay + 10, "KNOB 3: step 5's DELAY lock");
+    btap(QD_B_OCTDN);
+    btap(QD_B_TRACKS);
+    CHECK(A.ui.latch == QD_LATCH_FX && A.ui.slatch && A.ui.nheld == 1, "the effects: the selection kept");
+    turn(QD_K_1, 7);
+    qd_view_fx(&A, &fv);
+    CHECK(LK(0, 4, QD_LK_CHORUS) == A.model.t[0].mix.chorus + 7 && fv.step && fv.locked[0] && !fv.locked[2],
+          "OVERVIEW KNOB 1 (CHORUS): the lock, its chip, the frame");
+    black(B2);
+    turn(QD_K_4, -4);
+    qd_view_fx(&A, &fv);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY") && LK(0, 4, QD_LK_DELAY) == A.model.t[0].mix.delay + 6 &&
+              fv.locked[3],
+          "DELAY's SEND -4: the step's lock (%d)", LK(0, 4, QD_LK_DELAY));
+    btap(QD_B_HOME);
+    CHECK(!A.ui.slatch, "HOME: the latch off");
+    btap(QD_B_TRACKS);
+    wtap(3);
+    CHECK(A.sel == 3 && !A.ui.nheld, "nothing held: the OVERVIEW's W4 picks track 4");
+    btap(QD_B_HOME);
+}
+
+/* P1.6d: automation recording. Playing, REC held in the step view: KNOB 1 (the quick page's first) as locks into the
+ * steps the playhead passes (an empty step a ghost, a LOCK trig), the track's sound unchanged; several moves in a step:
+ * the last; one undo level a take; REC let go: no tap, no arming, the view stays. Then the take through the player
+ * (the next pass's voice has the lock); the mix (REC held + KNOB 1: LEVEL); the record settings' page 2 AUTOMATION;
+ * the keyboard armed (ON: knob moves recorded, ghosts; OFF: notes only, the sound edited; REC held: recorded anyway) */
+static int ph(void)                                     /* the step under track 1's playhead */
+{
+    return qd_track_loop_step(&PAT()->trk[0], (int)qd_seq_track_pos(&A.seq, 0) % qd_track_len(&PAT()->trk[0]));
+}
+static void to_step(int s)
+{
+    int n = 0;
+    while (ph() != s && n++ < 5000)
+        run(1);
+    run(10);
+}
+static void g_p16d_auto(void)
+{
+    const int id = qd_step_quick_id(0);
+    int f0, u0, v2, i, got = 0, s;
+    int16_t vp[QD_QUAD_NP];
+    start();
+    wtap(4);                                            /* a note on step 5 */
+    run(QD_UNDO_QUIET_MS + 50);
+    f0 = A.model.t[0].patch[id];
+    u0 = qd_undo_count(&A, -1);
+    btap(QD_B_PLAY);
+    to_step(2);
+    bdown(QD_B_REC);
+    run(10);
+    turn(QD_K_1, -3);
+    turn(QD_K_1, -2);
+    v2 = LK(0, 2, id);
+    CHECK(v2 != -99999 && v2 != f0 && R(0, 2).on && R(0, 2).type == QD_TRIG_LOCK && A.model.t[0].patch[id] == f0,
+          "playing, REC held + KNOB 1 on step 3: a lock (%d, the track's %d kept), an empty step a ghost (LOCK)", v2, f0);
+    turn(QD_K_1, 1);
+    CHECK(LK(0, 2, id) > v2 && LK(0, 2, id) != -99999, "a third move within the step: the last value (%d)", LK(0, 2, id));
+    v2 = LK(0, 2, id);
+    to_step(4);
+    turn(QD_K_1, -1);
+    CHECK(LK(0, 4, id) < v2 && R(0, 4).type == QD_TRIG_NOTE, "step 5 (a note): the lock goes on from the last value "
+          "(%d < %d), the note kept", LK(0, 4, id), v2);
+    run(QD_REC_HOLD_MS);
+    CHECK(A.ui.mode == QD_MODE_STEP && !A.ui.rec && qd_auto_on(&A), "REC held long in the step view: no arming, the view "
+          "stays");
+    bup(QD_B_REC);
+    run(10);
+    CHECK(A.ui.mode == QD_MODE_STEP && !qd_auto_on(&A) && !A.ui.auto_take, "REC let go: no tap (the sequencer stays), "
+          "the take ends");
+    run(QD_UNDO_QUIET_MS + 50);
+    CHECK(qd_undo_count(&A, -1) == u0 + 1, "one undo level for the take (%d -> %d)", u0, qd_undo_count(&A, -1));
+    /* the take played: step 5's voice on the next pass has the lock */
+    to_step(3);
+    to_step(4);
+    for (i = 0; i < A.pool.nvoice; i++)
+        if (qd_pool_sounding(&A.pool, i) && A.pool.v[i].track == 0) {
+            qd_player_voice_patch(&A.pool, i, vp);
+            got |= vp[id] == LK(0, 4, id);
+        }
+    CHECK(got, "through the player: step 5's voice plays the recorded value (%d)", LK(0, 4, id));
+    qd_undo_step(&A, -1);
+    CHECK(LK(0, 2, id) == -99999 && !R(0, 2).on && LK(0, 4, id) == -99999 && R(0, 4).on, "undo: the take gone (the "
+          "ghost too), the note kept");
+    /* the mix */
+    btap(QD_B_PAGE);
+    f0 = A.model.t[0].mix.level;
+    to_step(6);
+    bdown(QD_B_REC);
+    run(10);
+    turn(QD_K_1, -12);
+    bup(QD_B_REC);
+    run(10);
+    CHECK(LK(0, 6, QD_LK_LEVEL) == f0 - 12 && A.model.t[0].mix.level == f0 && A.ui.latch == QD_LATCH_MIX,
+          "the mix, REC held + KNOB 1: a LEVEL lock on step 7 (%d)", LK(0, 6, QD_LK_LEVEL));
+    btap(QD_B_HOME);
+    /* the record settings' page 2 */
+    bdown(SHIFT);
+    btap(QD_B_REC);
+    btap(QD_B_REC);
+    bup(SHIFT);
+    CHECK(A.ui.latch == QD_LATCH_REC && A.ui.rec_page == 1 && A.proj.rec_auto == 1, "SHIFT + REC twice: the record "
+          "settings' page 2, AUTOMATION ON");
+    turn(QD_K_1, -1);
+    CHECK(A.proj.rec_auto == 0, "KNOB 1: AUTOMATION OFF");
+    turn(QD_K_SELECT, -1);
+    CHECK(A.ui.rec_page == 0, "SELECT: page 1");
+    btap(QD_B_OCTDN);
+    /* the keyboard, armed */
+    btap(QD_B_REC);
+    live_arm();
+    CHECK(A.ui.mode == QD_MODE_KEYS && A.ui.rec && !qd_auto_on(&A), "the keyboard, REC held: armed; AUTOMATION OFF: no "
+          "automation");
+    f0 = A.model.t[0].patch[id];
+    to_step(9);
+    turn(QD_K_1, -2);
+    CHECK(LK(0, 9, id) == -99999 && !R(0, 9).on && A.model.t[0].patch[id] != f0, "OFF: a knob edits the sound, nothing "
+          "recorded");
+    bdown(QD_B_REC);
+    run(10);
+    to_step(10);
+    turn(QD_K_1, -2);
+    bup(QD_B_REC);
+    run(10);
+    CHECK(LK(0, 10, id) != -99999 && R(0, 10).type == QD_TRIG_LOCK && A.ui.rec, "REC held, armed: recorded anyway (a "
+          "ghost); its release no tap (still armed)");
+    A.proj.rec_auto = 1;
+    to_step(12);
+    s = ph();
+    turn(QD_K_2, -3);
+    CHECK(LK(0, s, qd_step_quick_id(1)) != -99999 && R(0, s).type == QD_TRIG_LOCK, "ON: armed live recording records "
+          "KNOB 2, a ghost on step %d", s + 1);
+    btap(QD_B_PLAY);
+    btap(QD_B_HOME);
+}
+
+/* P1.6d: the track settings' page 3: KIND (the name follows until one is typed), NAME (the name keyboard: typed,
+ * SAVE kept, back to page 3; HOME cancels; PRESETS ideas); the kinds' icons the view's */
+static void g_p16d_kinds(void)
+{
+    static ui_menu_t mv;
+    static ui_type_t tv;
+    char was[QD_TRACK_NAME];
+    int k, ok;
+    start();
+    qd_ctl_select_track(&A, 6);                         /* BELL (KEYS) */
+    btap(QD_B_PATTERN);
+    btap(QD_B_PATTERN);
+    btap(QD_B_PATTERN);
+    CHECK(A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2, "SEL three times: the track settings' page 3");
+    turn(QD_K_1, 2);
+    CHECK(A.model.t[6].kind == QD_PK_PAD && !strcmp(A.model.t[6].name, "PAD"), "KNOB 1 +2: KIND PAD, the name PAD");
+    qd_view_menu(&A, &mv);
+    CHECK(mv.page == 2 && mv.tkind == QD_PK_PAD && !strcmp(mv.tname, "PAD") && !mv.named, "its picture: PAD, not typed");
+    turn(QD_K_2, 1);
+    qd_view_type(&A, &tv);
+    CHECK(qd_type_open(&A) && qd_view_screen(&A) == QD_SCR_NAME && !strcmp(tv.title, "TRACK NAME") && tv.track == 7 &&
+              !strcmp(A.ui.ty.name, "PAD"),
+          "KNOB 2: the name keyboard, TRACK NAME, track 7's name selected");
+    black(B1);                                          /* A (it replaces the selection) */
+    wtap(6);                                            /* R */
+    wtap(4);                                            /* P */
+    btap(QD_B_SAVE);
+    CHECK(!strcmp(A.model.t[6].name, "ARP") && A.model.t[6].named && A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2,
+          "A R P, SAVE: named ARP (typed), back on page 3 (%s)", A.model.t[6].name);
+    turn(QD_K_1, -1);
+    CHECK(A.model.t[6].kind == QD_PK_PLUCK && !strcmp(A.model.t[6].name, "ARP"), "a kind chosen: the typed name stays");
+    turn(QD_K_2, 1);
+    for (ok = 0, k = 0; k < 6; k++) {
+        turn(QD_K_PRESETS, 1);
+        ok += A.ui.ty.name[0] != 0 && strlen(A.ui.ty.name) <= 12;
+    }
+    CHECK(ok == 6, "PRESETS: names rolled (%s)", A.ui.ty.name);
+    strcpy(was, A.model.t[6].name);
+    btap(QD_B_HOME);
+    CHECK(!strcmp(A.model.t[6].name, was) && A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2, "HOME: cancelled, page 3");
+    btap(QD_B_PATTERN);
+    CHECK(A.ui.trk_page == 0, "SEL again: round to page 1");
+    btap(QD_B_HOME);
+    {
+        static uint16_t lcd[QD_W * QD_H];
+        qd_view_frame(&A, lcd);
+    }
+    CHECK(UI_TRACK_KIND[6] == QD_PK_PLUCK && UI_TRACK_KIND[0] == QD_PK_DRUMS, "the view: the kinds for the icons");
+}
+
+/* P1.6d, the step latch: SHIFT + ALGORITHM the scale, SHIFT + PRESETS the root in every latch state (VALUES and
+ * MODES, a selection or none: no sound lock, no browser); VALUES with nothing selected: the black keys the track's
+ * default (NOTE: its notes; LFO + a black key still the mode); a W double-tapped: the step made, again removed (one
+ * undo level each, the first tap leaving none) */
+static void g_p16d_latch(void)
+{
+    qd_tset_t *ts;
+    int lm, sel, s0, r0, u0;
+    start();
+    ts = &PAT()->trk[0];
+    wtap(2);
+    run(QD_UNDO_QUIET_MS + 50);
+    btap(LFO);
+    for (lm = 0; lm < 2; lm++)
+        for (sel = 1; sel >= 0; sel--) {
+            if (lm == 1 && sel == 1) {                  /* MODES */
+                bdown(LFO), run(QD_LFO_HOLD_MS + 20), turn(QD_K_SELECT, 1), bup(LFO), run(10);
+            }
+            if (!sel && A.ui.nheld) {                   /* (the selection emptied: its step tapped again) */
+                run(QD_CLICK_MS + 10);
+                wtap(A.ui.held[0] % 16);
+                run(QD_CLICK_MS + 10);
+            }
+            if (sel && !A.ui.nheld) {
+                wtap(2);
+                run(QD_CLICK_MS + 10);
+            }
+            s0 = ts->scale, r0 = ts->root;
+            bdown(SHIFT), turn(QD_K_ALGO, 2), turn(QD_K_PRESETS, 3), bup(SHIFT), run(10);
+            CHECK(ts->scale == s0 + 2 && ts->root == (r0 + 3) % 12 && qd_view_screen(&A) != QD_SCR_BROWSE &&
+                      !ST(0, 2)->sound && A.ui.slatch && A.ui.nheld == sel,
+                  "the latch (%s, %s): SHIFT + ALGORITHM the scale, SHIFT + PRESETS the root (%d %d)",
+                  lm ? "MODES" : "VALUES", sel ? "a selection" : "none", ts->scale, ts->root);
+        }
+    bdown(LFO), run(QD_LFO_HOLD_MS + 20), turn(QD_K_SELECT, -1), bup(LFO), run(10);   /* VALUES, nothing selected */
+    bdown(LFO), black(B1), bup(LFO), run(10);           /* (NOTE: LFO + B1) */
+    CHECK(A.ui.hmode == M_NOTE && !A.ui.nheld && A.ui.lmode == QD_LMODE_VALUES, "LFO + B1: the mode NOTE");
+    {
+        uint8_t n0[QD_NNOTE];
+        memcpy(n0, PAT()->trk[0].def.note, sizeof n0);
+        black(B5);
+        s0 = memcmp(n0, PAT()->trk[0].def.note, sizeof n0);
+    }
+    CHECK(s0 && A.ui.tk == QD_TK_DEFAULT && A.ui.hmode == M_NOTE,
+          "VALUES, nothing selected: B5 the default's note (the picture; the mode kept)");
+    /* the double tap */
+    run(QD_UNDO_QUIET_MS + 50);
+    u0 = qd_undo_count(&A, -1);
+    wtap(9);
+    wtap(9);
+    run(QD_UNDO_QUIET_MS + 50);
+    CHECK(R(0, 9).on && qd_undo_count(&A, -1) == u0 + 1, "W10 double-tapped (empty): the step made, one undo level "
+          "(%d -> %d)", u0, qd_undo_count(&A, -1));
+    run(QD_CLICK_MS + 10);
+    wtap(9);
+    wtap(9);
+    run(QD_UNDO_QUIET_MS + 50);
+    CHECK(!R(0, 9).on && qd_undo_count(&A, -1) == u0 + 2, "double-tapped again: removed (one more level)");
+    run(QD_CLICK_MS + 10);
+    wtap(11);
+    run(QD_UNDO_QUIET_MS + 50);
+    CHECK(!R(0, 11).on && A.ui.nheld == 1 && A.ui.held[0] == 11 && qd_undo_count(&A, -1) == u0 + 2,
+          "a single tap: selected, nothing made, no undo level");
+    btap(LFO);
+}
+
+/* P1.6d: the FILTER key held: the machines' popup (B1..B6 MULTI .. EQ, ALGORITHM or a knob turns it, the current
+ * lit); let go: closed, the choice kept, the page not cycled; a tap still cycles */
+static void g_p16d_filter(void)
+{
+    static ui_snd_t sv;
+    int pg;
+    start();
+    btap(QD_B_SOUND);
+    kdown(BK(B4));
+    run(QD_FPOP_MS + 20);
+    qd_view_snd(&A, &sv);
+    CHECK(A.ui.snd_fpop && sv.fpop && !strcmp(QD_SND_PAGES[A.ui.snd_page].name, "FILTER"), "FILTER held 400 ms: the "
+          "machines' popup");
+    kdown(BK(B1)), run(20), kup(BK(B1)), run(10);
+    CHECK(qd_snd_machine_pos(&A) == 0 && A.ui.snd_fpop, "B1: MULTI");
+    turn(QD_K_ALGO, 1);
+    qd_view_snd(&A, &sv);
+    CHECK(qd_snd_machine_pos(&A) == 1 && sv.fpop_sel == 1, "ALGORITHM +1: LOWPASS 4 (lit)");
+    turn(QD_K_2, 1);
+    turn(QD_K_2, 1);
+    CHECK(qd_snd_machine_pos(&A) == 3, "KNOB 2, two detents: COMB-");
+    kdown(BK(B6)), run(20), kup(BK(B6)), run(10);
+    CHECK(qd_snd_machine_pos(&A) == 5 && A.ui.snd_fpop, "B6: EQ, the popup still up");
+    pg = A.ui.snd_page;
+    kup(BK(B4));
+    run(10);
+    qd_view_snd(&A, &sv);
+    CHECK(!A.ui.snd_fpop && !sv.fpop && qd_snd_machine_pos(&A) == 5 && A.ui.snd_page == pg, "let go: closed, EQ kept, "
+          "the page not cycled");
+    kdown(BK(B1)), run(20), kup(BK(B1)), run(10);
+    CHECK(qd_snd_machine_pos(&A) == 5, "B1 after: a group key again (no machine)");
+    btap(QD_B_HOME);
+}
+
+/* P1.6d: ARP's LED steady while the selected track's group has an arp ON, off otherwise; FILL blinks it; ARP held:
+ * the arp on / off without the screen; the groups' screen: ALGORITHM keeps the slot, the glide continuous (the rails
+ * up, the square from where it was); a slot key held + a knob moves the slot (the lift), a tap still selects */
+static void g_p16d_mfx(void)
+{
+    static ui_mfx_t v;
+    qd_mfx_group_t *G;
+    float p1;
+    start();
+    CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "no group: ARP dark");
+    arp_hold();
+    G = &A.proj.mfx[0];
+    CHECK(PAT()->trk[0].mfx == 1 && G->slot[0].type == QD_MFX_ARP && qd_view_screen(&A) != QD_SCR_MFX,
+          "ARP held: an arp ON in group 1, the screen not opened");
+    run(QD_TK_MS + 200);
+    CHECK(leds().button[QD_B_KEYS] == QD_LED_LIT && !half_period(QD_B_KEYS), "the arp ON: ARP lit, steady");
+    arp_hold();
+    run(QD_TK_MS + 200);
+    CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "ARP held again: OFF, ARP dark");
+    arp_hold();
+    bdown(SHIFT), bdown(QD_B_KEYS), run(10);
+    CHECK(A.seq.fill && half_period(QD_B_KEYS) > 0, "SHIFT + ARP held: FILL, ARP blinking");
+    bup(QD_B_KEYS), bup(SHIFT), run(10);
+    /* the screen */
+    btap(QD_B_KEYS);
+    qd_mfx_slot_init(&G->slot[1], QD_MFX_CHANCE);
+    qd_mfx_slot_init(&G->slot[2], QD_MFX_SCALER);
+    black(B3);
+    CHECK(A.ui.mfx_slot == 2, "B3: slot 3");
+    turn(QD_K_ALGO, 1);
+    CHECK(PAT()->trk[0].mfx == 2 && A.ui.mfx_slot == 2, "ALGORITHM: group 2, slot 3 kept");
+    run(100);
+    qd_view_mfx(&A, &v);
+    p1 = v.gsel_pos;
+    turn(QD_K_ALGO, 1);
+    qd_view_mfx(&A, &v);
+    CHECK(v.gsel && p1 > 1.f && p1 < 2.f && v.gsel_pos >= p1 - 0.01f && v.gsel_pos < 2.f,
+          "a detent mid-glide: the rails up, the square goes on from where it was (%.2f -> %.2f)", p1, v.gsel_pos);
+    run(QD_MFX_GLIDE_MS + 20);
+    qd_view_mfx(&A, &v);
+    CHECK(v.gsel && v.gsel_pos > 2.99f, "settled on group 3 (%.2f)", v.gsel_pos);
+    turn(QD_K_ALGO, -2);                                /* back to group 1: ARP, CHANCE, SCALE */
+    run(QD_TK_MS + 300);
+    kdown(BK(B1));
+    run(20);
+    turn(QD_K_1, 2);
+    kup(BK(B1));
+    run(10);
+    qd_view_mfx(&A, &v);
+    CHECK(G->slot[0].type == QD_MFX_CHANCE && G->slot[1].type == QD_MFX_SCALER && G->slot[2].type == QD_MFX_ARP &&
+              A.ui.mfx_slot == 2 && A.ui.mfx_page == 0 && v.lift_from == 0 && v.lift_to == 2,
+          "B1 held + KNOB 1 +2: the ARP moved to slot 3, the others closed up (the lift), no page change");
+    black(B2);
+    CHECK(A.ui.mfx_slot == 1 && A.ui.mfx_page == 0, "B2 tapped: selected");
     btap(QD_B_HOME);
 }
 
@@ -5103,14 +5513,25 @@ static void g_p15c_random(void)
     run(600);
     memcpy(t0, A.model.t[0].patch, sizeof t0);
     memcpy(&p0, PAT(), sizeof p0);
-    kdown(BK(B9));
+    kdown(BK(B9));                                      /* P1.6d: a tap, half a second: nothing */
     run(20);
     kup(BK(B9));
     run(200);
-    qd_view_snd(&A, &sv);
-    CHECK(sv.rnd_kind == 1 && sv.rnd_u > 0.2f && sv.rnd_u < 0.6f && !memcmp(t0, A.model.t[0].patch, sizeof t0),
-          "B9: the dice rolling (%.2f), nothing changed yet", sv.rnd_u);
+    kdown(BK(B9));
     run(500);
+    kup(BK(B9));
+    run(800);
+    CHECK(!A.ui.rnd_kind && !memcmp(t0, A.model.t[0].patch, sizeof t0), "P1.6d: B9 tapped, held half a second: nothing");
+    kdown(BK(B9));
+    run(500);
+    qd_view_snd(&A, &sv);
+    CHECK(sv.rnd_kind == 1 && sv.rnd_u > 0.4f && sv.rnd_u < 0.6f && !memcmp(t0, A.model.t[0].patch, sizeof t0),
+          "B9 held: the dice shaking (%.2f of the second), nothing changed yet", sv.rnd_u);
+    run(520);
+    qd_view_snd(&A, &sv);
+    CHECK(sv.rnd_kind == 4, "held a second: they roll");
+    kup(BK(B9));
+    run(700);
     for (same = 0, i = 0; i < 5; i++) {
         const int id = QD_SND_PAGES[pg].id[i];
         if (id >= 0)
@@ -5123,7 +5544,7 @@ static void g_p15c_random(void)
         if (!on)
             ok &= A.model.t[0].patch[k] == t0[k];
     }
-    CHECK(!A.ui.rnd_kind && same < 3 && ok, "after 600 ms: FILTER's values new (%d the same), no other value", same);
+    CHECK(!A.ui.rnd_kind && same < 3 && ok, "rolled: FILTER's values new (%d the same), no other value", same);
     run(600);
     undo_redo(-1);
     CHECK(!memcmp(t0, A.model.t[0].patch, sizeof t0) && A.ui.undo_kind == QD_UK_RANDOM, "undone (the dice's glyph)");
@@ -5168,7 +5589,7 @@ static void g_p15c_random(void)
     memcpy(t0, A.model.t[0].patch, sizeof t0);
     whold(0);                                           /* a step held: locks */
     kdown(BK(B9));
-    run(20);
+    run(1020);
     kup(BK(B9));
     run(700);
     wrel(0);
@@ -6852,6 +7273,12 @@ int main(void)
         {"P1.6c: the MIDI FX screen", g_p16c_screen},
         {"P1.6c: ARP tapped: the arp on / off", g_p16c_arp},
         {"P1.6c: TRIG's MIDI FX on a held step", g_p16c_trig},
+        {"P1.6d: the sends lock on a held step", g_p16d_sends},
+        {"P1.6d: automation recording", g_p16d_auto},
+        {"P1.6d: track kinds and names", g_p16d_kinds},
+        {"P1.6d: the step latch's SHIFT, defaults, double tap", g_p16d_latch},
+        {"P1.6d: the FILTER machines' popup", g_p16d_filter},
+        {"P1.6d: ARP's LED and hold, the groups' glide, slot moves", g_p16d_mfx},
         {"P1.5l: the editor's black keys regrouped", g_p15l_groups},
         {"P1.5m: the F layers with the step latch on", g_p15m_flatch},
         {"P1.5n/o: the octave tap's takeover, SELECT moves all, LFO's LED, MIX on TONE", g_p15n},

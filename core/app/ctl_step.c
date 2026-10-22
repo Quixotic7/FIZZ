@@ -266,6 +266,7 @@ static int jump_target(qd_app_t *a, int w)
     return 1;
 }
 
+static void tap(qd_app_t *a, int w);
 void qd_step_white_down(qd_app_t *a, int w)
 {
     qd_ui_t *u = &a->ui;
@@ -282,6 +283,14 @@ void qd_step_white_down(qd_app_t *a, int w)
             u->gest_sole = u->nheld == 1 ? u->held[0] : -1;
             u->gest_n = 0;
             u->nheld = 0;
+            u->dt_double = 0;
+            if (u->dt_w == w + 1 && a->ms - u->dt_ms < QD_CLICK_MS) {   /* P1.6d: a double tap: the step made or
+                                                         * removed (the first tap only selected) */
+                tap(a, w);
+                u->dt_double = 1;
+                u->gest_sole = -1;
+            }
+            u->dt_w = 0;
         }
         if (held_find(u, s) < 0)
             held_add(a, s, -1);
@@ -329,6 +338,10 @@ void qd_step_white_up(qd_app_t *a, int w)
     u->wk_down &= (uint16_t)~bit;
     if (u->slatch) {                                    /* the step latch: the gesture's set stays selected, but
                                                          * one tap on the step that was the whole selection empties it */
+        if (!u->wk_down && u->gest_n == 1 && a->ms - u->wk_t0[w] < QD_TAP_MS && !u->dt_double) {
+            u->dt_w = w + 1;                            /* (P1.6d: a tap: a second within QD_CLICK_MS is a double) */
+            u->dt_ms = a->ms;
+        }
         if (!u->wk_down && u->gest_n == 1 && u->nheld == 1 && u->held[0] == u->gest_sole &&
             a->ms - u->wk_t0[w] < QD_TAP_MS) {
             u->nheld = 0;
@@ -356,6 +369,19 @@ void qd_step_white_up(qd_app_t *a, int w)
     }
 }
 
+/* P1.6d: the mix and the effects: a W only holds (its tap makes and removes nothing there) */
+void qd_step_white_up_hold(qd_app_t *a, int w)
+{
+    qd_ui_t *u = &a->ui;
+    const uint16_t bit = (uint16_t)(1u << w);
+    if ((u->wk_pending & bit) && !u->slatch && a->ms - u->wk_t0[w] < QD_TAP_MS && !u->nheld) {
+        u->wk_pending &= (uint16_t)~bit;
+        u->wk_down &= (uint16_t)~bit;
+        return;
+    }
+    qd_step_white_up(a, w);
+}
+
 /* ---------------------------------------------------------------- the key, the scale --- */
 static void key_of(const qd_app_t *a, int *scale, int *root)
 {
@@ -372,10 +398,11 @@ int qd_step_entry_note(const qd_app_t *a, int b)
 int qd_step_sound_bank(const qd_app_t *a) { return a->ui.sound_bank; }
 
 /* ---------------------------------------------------------------- the ten values --- */
-/* one held step: B(b+1) of mode m */
-static void value_set(qd_app_t *a, int s, int m, int b)
+/* one held step: B(b+1) of mode m (P1.6d: in pattern p) */
+static void value_set_p(qd_app_t *a, qd_pattern_t *p, int s, int m, int b);
+static void value_set(qd_app_t *a, int s, int m, int b) { value_set_p(a, PAT(a), s, m, b); }
+static void value_set_p(qd_app_t *a, qd_pattern_t *p, int s, int m, int b)
 {
-    qd_pattern_t *p = PAT(a);
     const int t = a->sel;
     qd_rstep_t r;
     qd_step_resolve(p, t, s, &r);
@@ -513,6 +540,85 @@ void qd_step_value_key(qd_app_t *a, int b, int down)
         u->roll_ms = a->ms;
         u->roll_dir = 1;
     }
+}
+
+/* P1.6d (the owner: "that is how I want to set a track's default notes"): the step latch in VALUES with nothing
+ * selected: the black keys set the track's DEFAULT of the hold mode, as a held step's value keys set the step (NOTE:
+ * Form's "pressed", the default chord; SOUND: the track's own sound; TRIG B5..B10: the track's group; FUNC: none),
+ * B11 back to the initial default. The hold mode changes with LFO + a black key */
+static void band(qd_app_t *a, int tk, int job, int knob, int d);
+int qd_step_latch_default(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    return u->mode == QD_MODE_STEP && u->slatch && u->lmode == QD_LMODE_VALUES && !u->nheld && !u->wk_down &&
+           !u->wk_pending && u->hmode != UI_F_PLOCK && qd_ctl_layer(a) == QD_LAYER_NONE &&
+           (!u->latch || u->latch == QD_LATCH_F3);
+}
+void qd_step_value_key_default(qd_app_t *a, int b, int down)
+{
+    qd_ui_t *u = &a->ui;
+    qd_pattern_t *p = PAT(a);
+    const int m = u->hmode, t = a->sel;
+    if (!down) {
+        u->note_keys &= (uint16_t)~(1u << b);
+        return;
+    }
+    if (b == 10) {
+        qd_step_default_reset(a, m);
+        return;
+    }
+    switch (m) {
+    case UI_F_NOTE: {
+        const int note = qd_step_entry_note(a, b);
+        if (!u->note_keys)
+            u->entry_n = 0;
+        u->note_keys |= (uint16_t)(1u << b);
+        chord_add(u->entry_chord, &u->entry_n, note);
+        qd_tdef_set_notes(p, t, u->entry_chord, u->entry_n);
+        u->chord_ms = a->ms;
+        qd_app_note_on(a, QD_BLACK_KEY[b], note, a->key_vel[QD_BLACK_KEY[b]] ? a->key_vel[QD_BLACK_KEY[b]] : 100);
+        break;
+    }
+    case UI_F_FUNC:
+        return;                                         /* (no default) */
+    case UI_F_SOUND: {
+        const int k = u->sound_bank * 10 + b + 1;
+        qd_track_t *tr = &a->model.t[t];
+        if (k > a->proj.nsound || !qd_sound_used(&a->proj, k))
+            return;
+        qd_track_load_sound(tr, k, qd_sound_name(&a->proj, k), qd_sound_patch(&a->proj, k));
+        tr->preset = a->proj.sound[k - 1].preset;
+        break;
+    }
+    case UI_F_TRIG:
+        if (b >= 3) {                                   /* (B5 OFF, B6..B10 groups 1..5: the track's group) */
+            if (b > 3)
+                p->trk[t].mfx = (uint8_t)(b == 4 ? 0 : b - 4);
+            p->used = 1;
+            break;
+        }
+        /* fall through */
+    default: {
+        static qd_pattern_t sp;                         /* (the value on an empty step, then its parameter the default) */
+        qd_step_t *st;
+        sp = *p;
+        qd_step_clear(&sp, t, 0);
+        value_set_p(a, &sp, 0, m, b);
+        st = &sp.step[t][0];
+        switch (m) {
+        case UI_F_VEL: qd_tdef_set(p, t, QD_PM_VEL, st->vel); break;
+        case UI_F_LEN: qd_tdef_set(p, t, QD_PM_LEN, st->len); break;
+        case UI_F_MICRO: qd_tdef_set(p, t, QD_PM_MICRO, st->micro); break;
+        case UI_F_RATCH: qd_tdef_set(p, t, QD_PM_RATCH, st->ratch); break;
+        case UI_F_CHNC: qd_tdef_set(p, t, QD_PM_CHANCE, st->chance); break;
+        case UI_F_COND: qd_tdef_set(p, t, QD_PM_COND, st->cond); break;
+        case UI_F_TRIG: qd_tdef_set(p, t, QD_PM_TRIG, st->type); break;
+        default: return;
+        }
+        break;
+    }
+    }
+    band(a, QD_TK_DEFAULT, QD_KJ_MAIN, QD_K_ALGO, 1);
 }
 
 /* ---------------------------------------------------------------- the sound lock --- */
@@ -1204,8 +1310,17 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
     memset(lab, 0, 10 * 6);
     *lit = *def = *none = 0;
     *clr = 0;
-    if (!u->nheld)
+    if (!u->nheld && !qd_step_latch_default(a))
         return;
+    if (!u->nheld) {                                    /* P1.6d: the latch in VALUES, nothing selected: the track's
+                                                         * defaults (a step with no overrides), B11 when not initial */
+        static qd_pattern_t sp;
+        sp = *p;
+        qd_step_clear(&sp, a->sel, 0);
+        qd_step_on(&sp, a->sel, 0);
+        qd_step_resolve(&sp, a->sel, 0, &r);
+        goto keys;
+    }
     resolve(a, u->held[0], &r);
     if (m == UI_F_PLOCK) {                              /* P-LOCK: B1..B10 nothing, B11 the p-locks to clear */
         int i, n = 0;
@@ -1218,6 +1333,9 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
     *clr = m == UI_F_MICRO ? (qd_step_overrides(qd_step(p, a->sel, u->held[0]), QD_PM_MICRO) ||
                               qd_step_overrides(qd_step(p, a->sel, u->held[0]), QD_PM_STRUM))
                            : qd_step_overrides(qd_step(p, a->sel, u->held[0]), MODE_PM[m]);
+keys:
+    if (!u->nheld)
+        *clr = !qd_step_default_initial(a, m);
     for (b = 0; b < 10; b++) {
         const uint16_t bit = (uint16_t)(1u << b);
         switch (m) {
@@ -1300,8 +1418,15 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
             } else {                                    /* P1.6c: B4 TRACK, B5 OFF, B6..B10 groups 1..5 */
                 static const char *const MF[7] = {"TRK", "OFF", "1", "2", "3", "4", "5"};
                 strcpy(lab[b], MF[b - 3]);
-                *lit |= p->step[a->sel][u->held[0]].mfx == b - 3 ? bit : 0;
-                *def |= b == 3 ? bit : 0;
+                if (u->nheld) {
+                    *lit |= p->step[a->sel][u->held[0]].mfx == b - 3 ? bit : 0;
+                    *def |= b == 3 ? bit : 0;
+                } else if (b == 3) {                    /* (the default: the track's group, no TRACK) */
+                    *none |= bit;
+                } else {
+                    *lit |= (b == 4 ? 0 : b - 4) == p->trk[a->sel].mfx ? bit : 0;
+                    *def |= *lit & bit;
+                }
             }
             break;
         case UI_F_FUNC:                                 /* P1.3y: the function's key lit (B8 LEAP, B9 JUMP) */

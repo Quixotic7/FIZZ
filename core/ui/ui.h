@@ -55,6 +55,13 @@ void ui_idle_word(float t, float *solid, float *parts);
 void ui_box(float x, float y, int n, qd_rgb col);   /* the track's number in a little box */
 /* the top line: [n] left .......... right (n 0: no box) */
 void ui_head(const char *left, const char *right, int n, qd_rgb lcol, qd_rgb rcol);
+float ui_head_x(int n);                 /* P1.6d: where ui_head's left text starts (the track's box, its kind's icon) */
+/* P1.6d: the tracks' kinds (sounds.h QD_PK_*: BASS .. FX; 255 none), set by the view each frame: their icons beside
+ * the tracks' names (the headers, the track picker, the mix, the track takeovers); a kind's icon centred at cx, cy,
+ * 12 px at s 1 */
+extern uint8_t UI_TRACK_KIND[8];
+void ui_kind_icon(int kind, float cx, float cy, float s, qd_rgb col);
+int ui_track_kind(int n);               /* track n's (1..8) kind, -1 none */
 /* a line-drawn keybed of two octaves (14 white keys) from note lo (a C) at x0, y0, w x h; fill[note] (128 entries, or
  * 0) is the colour a key is filled with, QD_NONE: outlined only */
 void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fill);
@@ -134,6 +141,9 @@ typedef struct {
         float meter;                    /* its voices' level now, 0..1 */
     } tr[8];
     int last;                           /* the knob turned last (0..3, -1) */
+    int step;                           /* P1.6d: a step held (or the latch's selection): its locks (the frame) */
+    char ltxt[4][8];                    /* .. KNOB 1..4's values as chips in the head: */
+    uint8_t locked[4], lockany[4];      /* .. locked on the step (filled), on some step of the track (outlined) */
 } ui_mix_t;
 void ui_mix_draw(const ui_mix_t *v);
 enum { UI_FXD_DELAY, UI_FXD_DELAY2, UI_FXD_REVERB, UI_FXD_REVERB2, UI_FXD_CHORUS, UI_FXD_MASTER,
@@ -160,6 +170,8 @@ typedef struct {
     uint8_t mute;                       /* .. the tracks not heard */
     float rt[4];                        /* P1.5b, ROUTING: DELAY > REVERB, CHORUS > DELAY, CHORUS > REVERB 0..1, the
                                          * filter BEFORE (1) */
+    int step;                           /* P1.6d: a step held (or the latch's selection): the sends lock (the frame) */
+    uint8_t locked[4], lockany[4];      /* .. a cell locked on the step (a filled chip), on some step (outlined) */
 } ui_fx_t;
 void ui_fx_draw(const ui_fx_t *v);
 
@@ -294,6 +306,10 @@ void ui_lock(float x, float y, qd_rgb col, float s);   /* a lock (P1.5b: a fille
 float ui_chip(const char *txt, float cx, float y, float size, float maxw, qd_rgb col, int filled);
 /* P1.5b: LFO held: the latch mode switched, two drawings (the keys as values / the keys as modes), the one chosen lit */
 void ui_lmode_draw(int mode, float t);
+/* P1.6d: automation recording's cue (a red frame; a red dot on the band under the knob that wrote): k the knob that
+ * wrote last (0..3 KNOB 1..4, else an encoder), since its write
+ * (seconds; < 0 none yet) */
+void ui_auto_cue(int k, float since, float t);
 void ui_knob_mark(float x, float y, float v, qd_rgb col);   /* a little knob at v 0..1 */
 /* where note n sits on ui_keyboard(x0, .., w, .., lo): its centre x; *black 1 for a black key */
 float ui_keyboard_x(float x0, float w, int lo, int n, int *black);
@@ -587,12 +603,13 @@ void ui_octave_draw(const ui_octave_t *v);
 
 /* ---- SHIFT held (P1.3v: visual): a row per control SHIFT changes here: the control, the job's icon, its value now */
 enum { UI_SC_SELECT, UI_SC_ALGO, UI_SC_PRESETS, UI_SC_REC, UI_SC_F3_ALGO, UI_SC_SEQ_W,
-       UI_SC_SEL, UI_SC_HOME };        /* (P1.3y: SEL's button, HOME's) */
+       UI_SC_SEL, UI_SC_HOME,          /* (P1.3y: SEL's button, HOME's) */
+       UI_SC_ARP };                    /* (P1.6d: ARP's: FILL) */
 typedef struct {
     int n;
-    int ctl[8];                         /* UI_SC_* */
-    int icon[8];                        /* UI_IC_*: what it does */
-    const char *val[8];                 /* its value now ("D DORIAN", "D", "55%"), or 0 */
+    int ctl[9];                         /* UI_SC_* */
+    int icon[9];                        /* UI_IC_*: what it does */
+    const char *val[9];                 /* its value now ("D DORIAN", "D", "55%"), or 0 */
     int keys;                           /* P1.5c: the step view: its black-key shortcuts drawn under the rows .. */
     int snap_ok, pclip_ok, metro, armed;   /* .. a snapshot to recall, a pattern to paste, the click on, B11 armed */
     int follow;                         /* .. P1.5z: page follow on (B8's glyph lit) */
@@ -612,6 +629,7 @@ typedef struct {
     int kind;                           /* UI_MENU_* */
     int rec_step, quant, dub;           /* REC: MODE STEP (else LIVE), QUANTIZE 0..100, OVERDUB (else REPLACE) */
     int ekeys;                          /* .. P1.5b: EDIT KEYS FULL (else SCALE) */
+    int rec_page, rec_auto;             /* .. P1.6d: the page (2: AUTOMATION), AUTOMATION ON */
     int layout;                         /* SETTINGS: KNOBS (0 A .. 3 D) */
     const char *role[2][3];             /* .. its roles: [PIANO ROLL, STEPS / EDIT][SELECT, ALGORITHM, PRESETS] */
     int follow;                         /* .. PAGE FOLLOW */
@@ -622,6 +640,7 @@ typedef struct {
     const char *tname, *scale, *root;
     int scale_mask, root_pc, follow_key, chan, limit, swing, voices_now;
     int mfx;                            /* P1.6c: the track's MIDI FX group (0 OFF) */
+    int tkind, named;                   /* P1.6d, page 3: its kind (-1 none), its name typed */
     int last;                           /* the knob turned last (0..3, -1) */
 } ui_menu_t;
 void ui_menu_draw(const ui_menu_t *v);
@@ -684,7 +703,9 @@ typedef struct ui_snd {
     const char *lk_name;                /* .. the value it maps ("FREQ"; 0: none yet) */
     int lk_ok, lk_k;                    /* .. a destination (else dim, shaking), the knob's column (-1) */
     float lk_depth, lk_shake;           /* .. the depth -1..1, the shake 0..1 (1: just refused) */
-    int rnd_kind;                       /* P1.5c: randomise: 1 the dice rolling, 2 the bottle filling, 3 its burst .. */
+    int fpop, fpop_sel;                 /* P1.6d: the FILTER key held: the machines' popup up, the current (menu order) */
+    int rnd_kind;                       /* P1.5c: randomise: 1 the dice shaking (P1.6d: held), 4 rolling, 2 the bottle
+                                         * filling, 3 its burst .. */
     float rnd_u;                        /* .. 0..1 through it */
 } ui_snd_t;
 void ui_snd_draw(const ui_snd_t *v);
@@ -822,6 +843,10 @@ void ui_mfx_step_draw(int step, int m, int g, const uint8_t type[8], const char 
 /* P1.5z: the models the frame fills (view.c), for the tests */
 struct qd_app;
 void qd_view_browse(const struct qd_app *a, ui_browse_t *v);   /* the library browser's */
+void qd_view_mix(const struct qd_app *a, ui_mix_t *v);         /* P1.6d: the mix's */
+void qd_view_fx(const struct qd_app *a, ui_fx_t *v);           /* P1.6d: the effects' */
+void qd_view_menu(const struct qd_app *a, ui_menu_t *v);       /* P1.6d: the settings menus' */
+void qd_view_type(const struct qd_app *a, ui_type_t *v);       /* P1.6d: the typewriter's */
 void qd_view_turn(struct qd_app *a, ui_turn_t *v);              /* the takeover's (UI_TK_*) */
 void qd_view_shift(const struct qd_app *a, ui_shift_t *v);      /* SHIFT's map's */
 

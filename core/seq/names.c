@@ -233,6 +233,32 @@ int qd_name_project_ideas(uint32_t seed, const char *own, char (*out)[QD_NAME_MA
     return n;
 }
 
+void qd_name_track_roll(uint32_t *seed, int kind, const char *avoid, char *out)
+{
+    const char *kn = qd_preset_kind_name(kind);
+    int tries;
+    for (tries = 0; tries < 8 && kn[0]; tries++) {
+        const int r = nm_int(seed, 0, 9);
+        if (r < 5) {                                    /* a descriptor and the kind's word */
+            char pair[QD_NAME_MAX + 1], *sp;
+            qd_name_rnd(seed, pair);
+            sp = strchr(pair, ' ');
+            if (sp)
+                *sp = 0;
+            if (strlen(pair) + 1 + strlen(kn) > QD_NAME_MAX)
+                continue;
+            snprintf(out, QD_NAME_MAX + 1, "%s %s", pair, kn);
+        } else if (r < 7) {                             /* the kind numbered */
+            snprintf(out, QD_NAME_MAX + 1, "%s %d", kn, nm_int(seed, 2, 9));
+        } else {
+            qd_name_roll(seed, 0, avoid, out);
+        }
+        if (qd_name_ok(out) && (!avoid || strcmp(out, avoid)))
+            return;
+    }
+    qd_name_roll(seed, 0, avoid, out);
+}
+
 int qd_name_roll(uint32_t *seed, const int16_t *patch, const char *avoid, char *out)
 {
     char snd[8][QD_NAME_MAX + 1];

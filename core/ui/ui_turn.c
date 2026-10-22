@@ -539,7 +539,10 @@ static void d_track(const ui_turn_t *v, qd_rgb col)
         if (sel)
             ui_RR(8.f, y - 11.f, 224.f, 18.f, 5.f, col, 1.2f, QD_NONE);
         ui_T(NUM[i], 20.f, y + 3.5f, 12.f, 600, 0.f, tc, QD_CENTER);
-        ui_T(v->tname[i] ? v->tname[i] : "", 32.f, y + 3.5f, 12.f, 600, 0.5f, sel ? UI_K3 : tc, QD_LEFT);
+        if (ui_track_kind(i + 1) >= 0)                  /* P1.6d: its kind */
+            ui_kind_icon(ui_track_kind(i + 1), 37.f, y - 1.f, 0.85f, sel ? UI_PK_COL[ui_track_kind(i + 1)] : tc);
+        ui_T(v->tname[i] ? v->tname[i] : "", ui_track_kind(i + 1) >= 0 ? 46.f : 32.f, y + 3.5f, 12.f, 600, 0.5f,
+             sel ? UI_K3 : tc, QD_LEFT);
         if (mute) {                                     /* (P1.3v: muted: an orange cross, was an 8 px M) */
             const float m[4] = {100.f, y - 6.f, 108.f, y + 2.f}, n[4] = {108.f, y - 6.f, 100.f, y + 2.f};
             ui_P(m, 2, UI_K4, 1.5f, 0, QD_NONE);
@@ -566,6 +569,8 @@ static void d_trackbig(const ui_turn_t *v)
     if (v->tname[t]) {
         const float w = ui_TW(v->tname[t], 28.f, 300, 1.f);
         ui_T(v->tname[t], 120.f, 182.f, w > 220.f ? 28.f * 220.f / w : 28.f, 300, 1.f, UI_K3, QD_CENTER);
+        if (ui_track_kind(t + 1) >= 0)                  /* P1.6d: its kind, above the name's start */
+            ui_kind_icon(ui_track_kind(t + 1), 200.f, 40.f, 2.f, UI_PK_COL[ui_track_kind(t + 1)]);
     }
     for (i = 0; i < 8; i++) {                           /* the eight tracks, the one chosen lit in its colour */
         const float x = 26.f + (float)i * 26.f;

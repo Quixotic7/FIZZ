@@ -202,8 +202,14 @@ and chance; a LOCK step's runs too).
   Tapping the step that is the only one selected unselects it. Selected keys blink.
 - Everything you do with a held step works on the selection: black keys, knobs, the screens, OCT for the octave, the
   preview.
-- **With nothing selected** the latch stays on but acts as if nothing is held: the black keys choose the mode
-  again, the knobs edit the track's defaults. Tap a step to select again.
+- **With nothing selected** the latch stays on and the knobs edit the track's defaults. In **VALUES** (0.9.1) the black
+  keys set **the track's default** for the mode, as a held mode key + value does (NOTE: its notes; VEL: B10 is 127 ..;
+  B11 resets it); **LFO + a black key** changes the mode. In MODES the black keys choose the mode, as before. Tap a step
+  to select again.
+- **Double-tap a white key** (0.9.1, two taps within 200 ms, as everywhere in FIZZ): an empty step gets a trig, a step
+  with one loses it. A single tap still only selects; the first tap of a double leaves no edit or undo level of its own.
+- **SHIFT + ALGORITHM** the track's scale, **SHIFT + PRESETS** its root (0.9.1: with the latch on too, in VALUES and
+  MODES, with or without a selection; no sound lock or browser).
 - **F1, F2 and F3 work over the latch** (P1.5m) exactly as without it: F1 + W copies and pastes, F2 + W picks up and
   drops, F1 + B1..B8 the pages, F1 + B9 / B10 / B11 clear, copy, undo, both for F3; the selection stays as it was.
   **F1 / F2 tapped** (nothing with them) are the selection's octave in NOTE and its group of ten in SOUND, as for a
@@ -340,13 +346,23 @@ Undo and redo of everything (P1.5c):
 
 ## How do I change a track's settings? (SEL tapped)
 
-- **Tap SEL**: the selected track's settings in this pattern (its number and name in its colour at the top). **SEL
-  again** (or SELECT) for the second page. **OCT− or HOME** closes it. **B1..B8** switch to another track's.
+- **Tap SEL**: the selected track's settings in this pattern (its number, kind and name in its colour at the top).
+  **SEL again** (or SELECT) for the next page (three, round). **OCT− or HOME** closes it. **B1..B8** switch to another track's.
 - Page 1: **KNOB 1 SCALE** (its twelve notes shown as dots, the root ringed), **KNOB 2 ROOT**, **KNOB 3 FOLLOW KEY**
   (the project's global key instead of its own), **KNOB 4 MIDI CH** (the channel whose notes play into a held step or
   the recording).
 - Page 2: **KNOB 1 VOICES** (the voice limit, 1 = mono; the voices sounding white), **KNOB 2 SWING** on / off,
-  **KNOB 3 PAGE FOLLOW**.
+  **KNOB 3 PAGE FOLLOW**, **KNOB 4 MIDI FX**.
+- Page 3 (0.9.1): **KNOB 1 KIND**: BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX (the presets' seven tags), each with its
+  icon; choosing one **renames the track to the kind** unless you typed a name of your own. **KNOB 2 NAME**: a turn
+  opens the name keyboard (TRACK NAME; PRESETS rolls names from the kind and namesizer: DUSTY BASS, PAD 3 ..); SAVE
+  keeps it (a typed name stays when the kind changes; typing the kind's own name lets it follow again), HOME cancels;
+  both come back to page 3.
+- **The kind's icon** shows wherever the track's name does: the track picker (SEL held), the mixer (over the faders),
+  the headers (the keyboard, the lanes, the track settings), the track takeovers (FX + ALGORITHM, P-LOCK's ALGORITHM).
+- Names and kinds are **saved with the project** (its header). A project from before 0.9.1 keeps the names it had
+  (the default kit's: DRUMS, BASS, KEYS, LEAD, PLUCK, PAD, BELL, NOISE), with the kinds DRUMS, BASS, KEYS, LEAD,
+  PLUCK, PAD, KEYS, FX.
 - SHIFT + ALGORITHM / PRESETS still set the scale / root from the step view.
 
 ## How do I mix? (ENV = MIX)
@@ -357,6 +373,11 @@ Undo and redo of everything (P1.5c):
 - **ENV again**: the **sends**, every track's chorus, delay and reverb as three bars; **KNOB 1 CHORUS, KNOB 2 DELAY,
   KNOB 3 REVERB**. ENV again goes back to the faders. OCT− or HOME closes it.
 - Mute and solo stay on **SEL held** (it works over the mixer too).
+- **Locks on a step** (0.9.1): **hold a W** (or have the latch's selection) and turn a knob: LEVEL, PAN, DELAY, REVERB
+  (and CHORUS on the sends' page) become **locks of that step** (its voices play them; the track's values stay). The
+  screen gets the step's magenta frame, the locked values as chips in the head and the faders at the step's values;
+  let go and the chips are outlined (some step locks it). **F2 + the knob** clears the lock. A W tapped here does
+  nothing (no trig).
 
 ## How do I change the effects? (FX tapped)
 
@@ -386,6 +407,11 @@ Undo and redo of everything (P1.5c):
 
   **SEND** is the selected track's send into that effect (its number at the top right; the same value as the
   mixer's).
+- **Send locks** (0.9.1): with a step held (a W on any page but the OVERVIEW, whose W1..W8 choose the track) or the
+  latch's selection, the OVERVIEW's KNOB 1..3 and each effect's **SEND** write a **lock on the step** instead of the
+  track's send: the step's voices send that much (per trig, as Elektron's; a step without the lock keeps the track's).
+  The magenta frame, the cell's value as a filled chip (outlined: some step of the track locks it); **F2 + the knob**
+  clears it.
 - The drawings: the delay a ball bouncing between two walls at the delay time, its echoes fading by the feedback; the
   reverb a room as big as its size, its tail as long as its decay; the chorus three wavy lines; the master filter its
   curve.
@@ -469,11 +495,14 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   - **KNOB 3 TAKE**: **REPLACE** (a step you record into is cleared first) or **OVERDUB** (your notes join the step's;
     its velocity, timing and length stay);
   - **KNOB 4 EDIT KEYS** (P1.5b): **SCALE** or **FULL**, the keyboard in the sound editor (below).
+- **SHIFT + REC again** (or SELECT): the settings' **page 2**: **KNOB 1 AUTOMATION** ON (the default) / OFF: armed live
+  recording also records knob moves (ON) or only notes (OFF).
 - **Hold REC**: recording armed (in the keyboard) in the MODE chosen.
   **LIVE**: stopped, nothing moves until you play the **first key**:
   playback and recording start together, that note on the loop's first step.
   - Notes go to the nearest step **at the track's speed** (dotted and triplet too), the offset kept as micro-timing,
-    the length from how long you held the key. Knob turns become locks on the step playing.
+    the length from how long you held the key. With AUTOMATION ON, knob turns become locks on the step playing (an
+    empty step a ghost, below).
   - An **empty track grows** as you record: it starts as page 1, and each next page joins the loop as the playhead
     gets there; when the recording ends the loop is the pages it reached. After page 8 it goes round and records over
     what is there. A track with steps records into its own loop.
@@ -482,8 +511,17 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   on. F2 leaves a rest, F1 steps back, PRESETS moves the cursor. REC tapped ends it (still the keyboard).
 - SHIFT + REC no longer arms recording (it opens the settings).
 - **REC + PLAY** starts playing with recording armed, in the keyboard.
-- **Hold ARP** for **FILL** (ARP blinks): steps with the FILL / NOT FILL condition follow it. A **tap** of ARP is the
-  arpeggiator on / off (0.9.0: MIDI FX, below).
+- **Automation** (0.9.1): **playing, hold REC and turn knobs, in any view**: each move is recorded as a lock into the
+  step the selected track's playhead is on (the value the knob gives: the sound editor's, the mix's, the sends', in the
+  steps view and the keyboard KNOB 1..4's quick page). A step with a note gets the lock; **an empty step becomes a
+  ghost** (a LOCK trig) holding it. Several moves within one step keep the last; the next step goes on from that value.
+  It is heard at once on the sounding notes; the track's own sound does not change. Let go of REC: it stops (no
+  keyboard switch, nothing armed, in the other views). In the keyboard holding REC still arms live recording; armed with
+  AUTOMATION ON the knobs record too (ghosts included), and REC held records them even with AUTOMATION OFF. **One undo
+  level per take.** While it records the screen is framed in red (pulsing), and a red dot shows on the band under the
+  knob that wrote.
+- **FILL is SHIFT + ARP held** (0.9.1; it was ARP held): FILL while both are down (ARP blinks). ARP alone: MIDI FX,
+  below.
 - A **MIDI keyboard** on the track's channel plays, records, or sets the notes of a held step (up to five).
 
 ## How do I change sounds? (P1.5t: presets, the pool, the track's sound)
@@ -634,7 +672,8 @@ DECAY, HARM and FDBK.
 - **PRESETS**: the library browser (nothing held) or the step's sound lock (a step held), as everywhere. F1 or F2
   in the browser brings you back to the editor.
 - **Randomise** (P1.5c), drawn in neon lines over the page's picture:
-  - **B9**: two dice roll for 0.6 s, then **this page's values** are new.
+  - **Hold B9** 1 s (0.9.1): the dice shake, harder and harder, then roll at 1 s and **this page's values** are new.
+    Let go before: nothing changes.
   - **Hold B10** 1.5 s: a champagne bottle fills with bubbles, the cork pops and it bursts: **the whole sound** is
     new. Let go before the pop: nothing.
   - B9 and B10 are dim, bright while rolling or filling. **SHIFT + F1 undoes** it. **With a step held** (or the
@@ -665,6 +704,10 @@ DECAY, HARM and FDBK.
   - **COMB-** / **COMB+**: FREQ is the comb's pitch (43 Hz and up), KNOB 2 **FDBK** how much it rings, KNOB 3 **LPF**
     how bright the ring stays (COMB+ every harmonic, string-like; COMB- the odd ones, hollow);
   - **EQ**: a bell at FREQ, KNOB 2 **GAIN** (-18 .. +18 dB), KNOB 3 **Q** (wide .. narrow).
+  - **Hold B4** (the FILTERS key, 400 ms; 0.9.1): a popup of the six machines, each with its curve, the current one
+    lit. While held, **ALGORITHM or any knob** turns the choice (a detent a machine), or **B1..B6** picks one. Let go:
+    closed, the choice kept (through the dip). A tap of B4 still turns the group's pages; ALGORITHM on the FILTER page
+    still turns the machine.
   - The picture draws each machine's response; the filter envelope, DEPTH, key tracking and the base-width work with
     every machine. Changing the machine on a playing note takes a short dip (no click). BASE's KNOB 4 **ROUTE** puts
     the base-width filter before (as before) or after the machine.
@@ -694,7 +737,7 @@ DECAY, HARM and FDBK.
   key is down, then DEC is the release. DEC INF holds for ever. Switching the MODE while a note plays carries on from
   where the envelope is. In AHD, SUS and REL are not used (KNOB 4 is empty).
 
-## MIDI FX: the arpeggiator and friends (SHIFT + ARP, 0.9.0)
+## MIDI FX: the arpeggiator and friends (ARP, 0.9.0; 0.9.1's gestures)
 
 - **Five groups of eight slots**, kept with the project. A slot holds one of ten effects or nothing; a track's notes
   pass the slots in order (an empty or bypassed slot is skipped), then sound on the track. **A track plays through
@@ -702,22 +745,29 @@ DECAY, HARM and FDBK.
   sounding on its own track). Notes the group makes count against the track's voices.
 - **The keys and a MIDI keyboard** play through the track's group too (stopped as well: the arp runs on the tempo);
   recording keeps what you **played**, before the effects.
-- **SHIFT + ARP** opens the **MIDI FX** screen of the selected track's group: its number in a hexagon, the tracks on it
+- **ARP tapped** (0.9.1; it was SHIFT + ARP) opens the **MIDI FX** screen of the selected track's group: its number in a hexagon, the tracks on it
   as small squares, the eight slots as a rail (notes run along it as they pass), the selected effect's picture, its
-  values at the foot. **HOME** or **F1 tapped** close it.
-  - **B1 .. B8** select slot 1 .. 8; the selected one again: its next page (the dots). **SELECT** turns the page too.
+  values at the foot. **ARP again**, **HOME** or **F1 tapped** close it.
+  - **B1 .. B8** select slot 1 .. 8; the selected one again: its next page (the dots, on the release). **SELECT** turns
+    the page too.
+  - **Hold a slot key and turn any knob** (0.9.1): that slot moves along the rail, a place a detent, the others
+    closing up (the lift). A plain tap still selects.
   - **PRESETS** chooses the slot's effect (NONE, then the ten, a rolodex while turning); it is heard at once.
   - **KNOB 1 .. 4** the page's values; **KNOB 4 is CHANCE** on every effect's first page (the effect acts on that share
     of the notes; the others pass untouched).
-  - **ALGORITHM** puts the track on a group (OFF, 1 .. 5); the screen follows. **SHIFT + SELECT** goes to the next
-    track (its group).
+  - **ALGORITHM** puts the track on a group (OFF, 1 .. 5); the screen follows, **keeping the slot number** (0.9.1).
+    While you turn, the five groups' rails stay up and the track's square glides on from where it is (no restart a
+    detent). **SHIFT + SELECT** goes to the next track (its group).
   - **B10** bypasses the slot (and back; saved). **B11** removes its effect: press it twice (the first arms a red X).
     **SHIFT + F1** undoes.
-  - **F1 + B n** copies the slot to slot n; **F2 + B n** moves it there (the others close up).
+  - **F1 / F2 as in the sequencer** (0.9.1): **F1 + B**: the first slot pressed is copied, every other slot pressed
+    while F1 is held gets it pasted (the copy stays for F2). **F2 + B**: pick up and drop, as F2 + W on steps (the first
+    press cuts into the hand, an empty slot gets a paste, a full one alternates; the slot flies to where it lands).
   - **The white keys** play the track through the group (its scale, as the sound editor's keyboard).
-- **ARP tapped** (anywhere): the track's group's arp **on / off**, big. A group with no arp gets one in its first empty
-  slot; a track with no group is put on the first group no track uses (an empty one first) with an arp in it. **ARP
-  held** is still FILL. ARP is lit while the arp plays.
+- **ARP held** (400 ms, anywhere; 0.9.1, it was the tap): the track's group's arp **on / off**, big. A group with no
+  arp gets one in its first empty slot; a track with no group is put on the first group no track uses (an empty one
+  first) with an arp in it. **ARP is lit steady** while the selected track's group has an arp ON (off otherwise); FILL
+  (SHIFT + ARP held) blinks it.
 - **A step's own group**: hold the step in **TRIG** (B8): **KNOB 2** is its MIDI FX (TRACK: the track's, the default;
   OFF; group 1 .. 5), or **B4 TRACK, B5 OFF, B6 .. B10 groups 1 .. 5**. With nothing held KNOB 2 is the track's group.
   The track settings' page 2, **KNOB 4**, is the track's group too.
@@ -808,7 +858,8 @@ They stay open (OCT− or HOME back). For now:
 
 ## How do I type a name? (P1.5u: the keybed is a typewriter)
 
-One keyboard for every name: SAVE PRESET's and a project's (B10 on the project page). The screen draws the keybed
+One keyboard for every name: SAVE PRESET's, a project's (B10 on the project page) and a track's (0.9.1: the track
+settings' page 3, KNOB 2). The screen draws the keybed
 with a character on every key; the key you press glows there, and on the panel all 27 keys are lit (the one held
 bright).
 

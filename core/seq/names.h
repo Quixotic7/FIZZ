@@ -31,6 +31,9 @@ int qd_name_ideas(uint32_t seed, const int16_t *patch, char (*out)[QD_NAME_MAX +
  * or cosmic word two (one each), the sound's own idea two (qd_sound_ideas; no patch: a pair); not avoid (the name just
  * shown) if it can help it. Its kind (QD_NK_*) */
 int qd_name_roll(uint32_t *seed, const int16_t *patch, const char *avoid, char *out);
+/* P1.6d: a track's name rolled from its kind (sounds.h QD_PK_*; -1 none): namesizer's descriptor before the kind's
+ * word ("DUSTY BASS"), the kind numbered ("PAD 3"), or qd_name_roll's (no sound) */
+void qd_name_track_roll(uint32_t *seed, int kind, const char *avoid, char *out);
 /* a project's ideas: its own name first (own, if any), then namesizer's (pairs, a phonic word, a cosmic word) */
 int qd_name_project_ideas(uint32_t seed, const char *own, char (*out)[QD_NAME_MAX + 1], int *kind, int max);
 #endif

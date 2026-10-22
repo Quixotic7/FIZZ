@@ -314,21 +314,88 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
     }
 }
 
-/* live recording: KNOB 1..4 (the quick page) as locks on the step playing */
+/* ---------------------------------------------------------------- P1.6d: automation recording */
+int qd_auto_on(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    if (!a->seq.playing || u->mode == QD_MODE_IDLE || qd_type_open(a))
+        return 0;
+    if (((a->buttons_held >> QD_B_REC) & 1u) && !qd_ctl_shift(a) && u->latch != QD_LATCH_REC)
+        return 1;                                       /* REC held: any view */
+    return u->mode == QD_MODE_KEYS && u->rec && !qd_rec_stepping(a) && a->proj.rec_auto;   /* armed, AUTOMATION ON */
+}
+
+static int auto_step_now(qd_app_t *a)                 /* the step under the selected track's playhead */
+{
+    return loop_step(a, (int)qd_seq_track_pos(&a->seq, a->sel) % tlen(a));
+}
+
+int qd_auto_cur(const qd_app_t *a, int id)
+{
+    const qd_ui_t *u = &a->ui;
+    int16_t v;
+    int s;
+    if (id < 0 || id >= QD_LK_N)
+        return 0;
+    if (u->auto_take && ((u->auto_has[id >> 5] >> (id & 31)) & 1u))
+        return u->auto_v[id];
+    s = qd_track_loop_step(&qd_ctl_cpat(a)->trk[a->sel],
+                           (int)qd_seq_track_pos(&a->seq, a->sel) % qd_track_len(&qd_ctl_cpat(a)->trk[a->sel]));
+    return qd_lock_get(qd_ctl_cpat(a), a->sel, s, id, &v) ? v : qd_step_base((qd_app_t *)a, a->sel, s, id);
+}
+
+int qd_auto_put(qd_app_t *a, int id, int value)
+{
+    qd_ui_t *u = &a->ui;
+    qd_pattern_t *p = PAT(a);
+    const int t = a->sel;
+    int16_t lo, hi;
+    int s;
+    if (!qd_auto_on(a) || id < 0 || id >= QD_LK_N || !qd_lock_range(id, &lo, &hi))
+        return 0;
+    value = value < lo ? lo : value > hi ? hi : value;
+    if (!u->auto_take) {                                /* a take starts (a level of its own: the gesture before it
+                                                         * closes) */
+        u->auto_take = 1;
+        memset(u->auto_has, 0, sizeof u->auto_has);
+        if (a->undo.open && a->undo.hint != QD_UK_REC)
+            qd_undo_close(a);
+    }
+    qd_undo_hint(a, QD_UK_REC);                         /* (one undo level: the take's) */
+    s = auto_step_now(a);
+    if (qd_lock_set(p, t, s, id, value) == QD_EFULL) {
+        qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
+        return 1;
+    }
+    if (!qd_step_is_on(qd_step(p, t, s)))               /* an empty step: a ghost (a LOCK trig) holds it */
+        qd_step_set_trig(p, t, s, QD_TRIG_LOCK);
+    u->auto_has[id >> 5] |= 1u << (id & 31);
+    u->auto_v[id] = (int16_t)value;
+    u->auto_step = s;
+    u->auto_knob = u->last_knob;
+    u->auto_ms = a->ms ? a->ms : 1u;
+    if ((a->buttons_held >> QD_B_REC) & 1u)
+        u->rec_auto_used = 1;
+    qd_player_voice_lock(&a->player, t, id, value);   /* (heard now) */
+    return 1;
+}
+
+void qd_auto_ms(qd_app_t *a)
+{
+    if (a->ui.auto_take && !qd_auto_on(a))
+        a->ui.auto_take = 0;
+}
+
+/* automation: KNOB 1..4 (the quick page) as locks on the step playing (the keyboard, the step view: P1.6d) */
 int qd_rec_knob(qd_app_t *a, int knob, int d)
 {
-    const int t = a->sel;
-    int id, s, base;
-    int16_t v;
-    if (knob >= QD_K_1)
-        id = qd_step_quick_id(knob - QD_K_1);
-    else
+    int id;
+    if (knob < QD_K_1)
         return 0;
-    s = loop_step(a, (int)qd_seq_track_pos(&a->seq, t) % tlen(a));
-    base = qd_lock_get(PAT(a), t, s, id, &v) ? v : qd_step_base(a, t, s, id);
-    if (qd_lock_set(PAT(a), t, s, id, base + qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)) == QD_EFULL)
-        qd_ctl_confirm(a, "NO ROOM", "for locks: the pattern has 1024");
-    qd_ctl_takeover(a, UI_TK_FREQ + (knob - QD_K_1), knob - QD_K_1, d, 1, s);
+    id = qd_step_quick_id(knob - QD_K_1);
+    if (!qd_auto_put(a, id, qd_auto_cur(a, id) + qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)))
+        return 0;
+    qd_ctl_takeover(a, UI_TK_FREQ + (knob - QD_K_1), knob - QD_K_1, d, 1, a->ui.auto_step);
     return 1;
 }
 

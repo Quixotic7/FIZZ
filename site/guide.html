@@ -82,7 +82,7 @@
     <ul>
       <li><b>Chords:</b> in NOTE, hold a step and press black keys: the first replaces the note, more pressed together add to the chord (up to six). SELECT moves the whole chord; KNOB 1 … 4 move notes 2 … 5 each alone. F1 / F2 shift the ten keys an octave.</li>
       <li><b>Several steps at once:</b> hold several white keys.</li>
-      <li><b>No holding:</b> <b>LFO (LATCH)</b> is the step latch: tap steps to select them, then edit as if held. LFO or HOME ends it.</li>
+      <li><b>No holding:</b> <b>LFO (LATCH)</b> is the step latch: tap steps to select them, then edit as if held. <b>Double-tap</b> a step to add or remove it. With nothing selected the black keys set the track's default (LFO + a black key: the mode). LFO or HOME ends it.</li>
       <li><b>A track's default:</b> hold the mode's black key and turn the knobs; B11 resets it.</li>
       <li><b>P-LOCK (B11):</b> hold a step and turn KNOB 1 … 4 to lock FREQ, DECAY, HARM and FDBK on it.</li>
     </ul>
@@ -113,10 +113,10 @@
       <li>Nothing held, a turn changes the track's sound (dark orange frame). <b>A step held</b>, every turn is a lock on that step (bright orange frame).</li>
       <li><b>Hold an LFO key (B6 … B8) and turn any knob</b> to send that LFO to the value; turning sets the depth.</li>
       <li><b>Hold B1 and turn any knob</b> to put a modulation source on the value: W1 … W8 choose it while B1 is held (VEL, KEY, MW, AT, PB, BR, RAND, F ENV); turning sets the depth. B1's <b>MOD</b> page shows the eight slots (ALGORITHM picks one). MW, AT, PB and BR come from MIDI on the track's channel.</li>
-      <li><b>B9</b> rolls the dice for this page's values; <b>hold B10</b> until the cork pops for a whole new sound. <b>SHIFT + F1</b> undoes it.</li>
+      <li><b>Hold B9</b> a second: the dice shake, then roll for this page's values (let go early: nothing); <b>hold B10</b> until the cork pops for a whole new sound. <b>SHIFT + F1</b> undoes it.</li>
       <li><b>REC</b> in the editor turns its keyboard on, to play while you tweak.</li>
       <li><b>Portamento</b> (B1, PORT): OFF, ON (every note glides from the last) or LEGATO (only into a held note); TIME, and SLOPE (TIME: the same time for any leap; RATE: the same speed). Chords glide note by note. Lock PORT ON on a step of a MONO track for a 303 slide.</li>
-      <li><b>The filter machines</b> (B4, FILTER: ALGORITHM is the MACHINE): MULTI (TYPE morphs LP to BP to HP), LOWPASS 4, LEGACY (LP12 / HP12 / OFF), COMB- and COMB+ (FREQ the pitch, FDBK the ring, LPF its brightness), EQ (a bell: GAIN and Q). BASE's ROUTE puts the base-width before or after the filter.</li>
+      <li><b>The filter machines</b> (B4, FILTER: ALGORITHM is the MACHINE; or <b>hold B4</b> for the six as a popup: a knob or B1 … B6 picks one): MULTI (TYPE morphs LP to BP to HP), LOWPASS 4, LEGACY (LP12 / HP12 / OFF), COMB- and COMB+ (FREQ the pitch, FDBK the ring, LPF its brightness), EQ (a bell: GAIN and Q). BASE's ROUTE puts the base-width before or after the filter.</li>
       <li><b>CRUSH</b> (B5): BITS (16 down to 1), SRR (the sample rate divided, up to 64 times) and ROUTE, after or before the filter: the Digitone II's bit and sample-rate reduction, in the sound.</li>
       <li><b>AHD</b> (B5, AMP: ALGORITHM is the MODE): attack, hold, decay. HOLD is a time (one-shot) or NOTE (while the key is down).</li>
       <li><b>DRIVE's ROUTE</b> (B5, LEVEL, KNOB 3): POST after the filter, as before, or PRE before it.</li>
@@ -129,8 +129,10 @@
       <li><b>Hold SEL (TRACKS)</b>: the eight tracks. SEL + B1 … B8 selects one; SEL + tap W1 … W8 mutes, hold solos.</li>
       <li><b>Hold SEQ (PATTERNS)</b>: the patterns. SEQ + B1 … B4 the bank, SEQ + W the pattern (it comes in at the end of the playing one).</li>
       <li><b>F3</b> (both OCT keys, or hold PLAY): SELECT the tempo, ALGORITHM the swing, B1 … B7 the track's note value. OCT− closes it.</li>
-      <li><b>ENV (MIX)</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter).</li>
+      <li><b>ENV (MIX)</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter). Hold a step there and turn: its level, pan and sends become locks of that step (F2 + the knob clears one).</li>
+      <li><b>Tap SEL</b>: the track's settings; page 3 gives it a <b>KIND</b> (its icon everywhere its name shows) and a <b>NAME</b> typed on the keybed.</li>
       <li><b>REC</b> makes the keybed a keyboard for the track; <b>hold REC</b> to record. <b>SHIFT + F1 / F2</b> undo and redo.</li>
+      <li><b>Automation:</b> playing, <b>hold REC and turn knobs</b> in any view: the moves become locks on the steps the playhead passes (empty steps become ghost steps). The screen is framed red while it records. SHIFT + REC twice: AUTOMATION on or off for armed recording.</li>
       <li><b>F1 + W</b> copies a step, then other steps pressed with F1 get it pasted.</li>
     </ul>
   </section>
@@ -139,8 +141,8 @@
     <h2>MIDI FX</h2>
     <ul>
       <li><b>Five groups of eight slots</b> (kept with the project): ARP, CHANCE, REPEAT, HARM, TRANSPOSE, SCALER, RANDOM, CHORD, MONO, SELECTOR. A track plays through one group or none; two tracks can share one arp.</li>
-      <li><b>SHIFT + ARP</b> opens the track's group: B1 … B8 the slots (again: the next page), PRESETS the effect, KNOB 1 … 4 its values (KNOB 4 its CHANCE), ALGORITHM the track's group, B10 bypass, B11 twice remove, F1 + B copy, F2 + B move. The white keys play through it. F1 or HOME close it.</li>
-      <li><b>Tap ARP</b> anywhere: the arp on / off (one is added if the track has none). Hold ARP: FILL.</li>
+      <li><b>Tap ARP</b> to open the track's group: B1 … B8 the slots (again: the next page; hold one and turn a knob to move it), PRESETS the effect, KNOB 1 … 4 its values (KNOB 4 its CHANCE), ALGORITHM the track's group, B10 bypass, B11 twice remove, F1 + B copy then paste, F2 + B pick up and drop. The white keys play through it. ARP again, F1 or HOME close it.</li>
+      <li><b>Hold ARP</b> anywhere: the arp on / off (one is added if the track has none); ARP stays lit while it is on. <b>SHIFT + ARP held</b>: FILL.</li>
       <li>The arp's pages 3 and 4: the MOD and TRANSPOSE lanes on the white keys (SHIFT + W a random step).</li>
       <li>A step's own group: hold it in <b>TRIG</b>, KNOB 2 (or B4 TRACK, B5 OFF, B6 … B10 groups 1 … 5).</li>
     </ul>

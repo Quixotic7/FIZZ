@@ -533,6 +533,7 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
         ROW(UI_SC_HOME, UI_IC_VIEWS, VIEW[(u->view + 1) % QD_NVIEW]);   /* P1.3y: the next view */
         ROW(UI_SC_REC, UI_IC_GEAR, a->proj.rec_mode ? "STEP" : "LIVE");   /* .. the record settings */
         ROW(UI_SC_SEL, UI_IC_GEAR, knobs);              /* .. the global settings (the knobs' layout) */
+        ROW(UI_SC_ARP, UI_IC_NONE, "FILL");             /* P1.6d: SHIFT + ARP held: FILL */
     }
     if (u->mode == QD_MODE_STEP && (!u->latch || u->latch == QD_LATCH_F3)) {   /* P1.5c: the black keys' shortcuts */
         v->keys = 1;
@@ -939,8 +940,8 @@ static void fill_type(const qd_app_t *a, ui_type_t *v)
     const int save = a->ui.latch == QD_LATCH_SAVE;
     int k;
     memset(v, 0, sizeof *v);
-    v->title = save ? "SAVE PRESET" : "PROJECT NAME";
-    v->track = save ? a->sel + 1 : 0;
+    v->title = save ? "SAVE PRESET" : a->ui.nm.target == 3 ? "TRACK NAME" : "PROJECT NAME";
+    v->track = save ? a->sel + 1 : a->ui.nm.target == 3 ? (a->ui.nm.proj & 7) + 1 : 0;
     v->name = y->name;
     v->sel = y->sel;
     v->cur = y->sel ? (int)strlen(y->name) : y->cur;
@@ -975,7 +976,7 @@ static void fill_type(const qd_app_t *a, ui_type_t *v)
         v->choice = v->replace && a->ui.sv.choice;
         qd_type_trimmed(a, nm);
         v->newname = strcmp(nm, a->ui.sv.newname) ? a->ui.sv.newname : 0;
-    } else {
+    } else if (a->ui.nm.target != 3) {
         const int p = a->ui.nm.proj < 0 ? 0 : a->ui.nm.proj;
         sub[0] = (char)('0' + (p + 1) / 10), sub[1] = (char)('0' + (p + 1) % 10), sub[2] = 0;
         v->sub = sub;
@@ -1445,8 +1446,11 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     }
     v->last = u->snd_knob;
     v->t = secs(a->ms);
+    v->fpop = u->snd_fpop;                              /* P1.6d: the machines' popup */
+    v->fpop_sel = qd_snd_machine_pos(a);
     if (u->rnd_kind) {                                  /* P1.5c: the dice, the bottle */
-        const uint32_t len = u->rnd_kind == 1 ? QD_RND_DICE_MS : u->rnd_kind == 2 ? QD_RND_HOLD_MS : QD_RND_BURST_MS;
+        const uint32_t len = u->rnd_kind == 1 ? QD_RND_PAGE_HOLD_MS : u->rnd_kind == 4 ? QD_RND_DICE_MS
+                           : u->rnd_kind == 2 ? QD_RND_HOLD_MS : QD_RND_BURST_MS;
         v->rnd_kind = u->rnd_kind;
         v->rnd_u = (float)(a->ms - u->rnd_ms) / (float)len;
         v->rnd_u = v->rnd_u > 1.f ? 1.f : v->rnd_u;
@@ -1552,12 +1556,10 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
             v->tr[v->ntr++] = (uint8_t)(t + 1);
     if (!g)
         v->tr[v->ntr++] = (uint8_t)(a->sel + 1);
-    if (u->mfx_gsel_ms && a->ms - u->mfx_gsel_ms < QD_TK_MS) {   /* ALGORITHM: the five groups */
-        const float e = secs(a->ms - u->mfx_gsel_ms) / 0.25f;
-        const float w = e >= 1.f ? 1.f : e * e * (3.f - 2.f * e);
+    if (u->mfx_gsel_ms && a->ms - u->mfx_gsel_ms < QD_TK_MS) {   /* ALGORITHM: the five groups (P1.6d: gliding) */
         int gi;
         v->gsel = 1;
-        v->gsel_pos = (float)u->mfx_gsel_from + (float)(g - u->mfx_gsel_from) * w;
+        v->gsel_pos = (float)qd_mfx_glide(a, u->mfx_gsel_from, u->mfx_gsel_to, u->mfx_gsel_t0) / 100.f;
         for (gi = 0; gi < QD_MFX_NGROUP; gi++) {
             for (k = 0; k < QD_MFX_NSLOT; k++)
                 v->gtype[gi][k] = a->proj.mfx[gi].slot[k].type;
@@ -1598,12 +1600,9 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
             v->lift_from = u->mfx_lift_from, v->lift_to = u->mfx_lift_to;
             v->lift_u = (float)(a->ms - u->mfx_lift_ms) / 900.f;
         }
-        if (u->mfx_roll_ms && a->ms - u->mfx_roll_ms < QD_TK_MS) {   /* PRESETS: the rolodex */
-            const float e = secs(a->ms - u->mfx_roll_ms) / 0.2f;
-            const float w = e >= 1.f ? 1.f : e * e * (3.f - 2.f * e);
+        if (u->mfx_roll_ms && a->ms - u->mfx_roll_ms < QD_TK_MS) {   /* PRESETS: the rolodex (P1.6d: gliding) */
             v->roll = 1;
-            v->roll_from = (float)u->mfx_roll_from;
-            v->roll_pos = v->roll_from + ((float)s->type - v->roll_from) * w;
+            v->roll_pos = (float)qd_mfx_glide(a, u->mfx_roll_from, u->mfx_roll_to, u->mfx_roll_t0) / 100.f;
         }
         for (k = 0; k < 4 && s->type; k++) {           /* the foot */
             const int id = qd_mfx_page_id(s->type, v->page, k);
@@ -1655,6 +1654,8 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
     v->quant = a->proj.rec_quant;
     v->dub = a->proj.rec_dub;
     v->ekeys = a->proj.rec_ekeys;
+    v->rec_page = u->rec_page;
+    v->rec_auto = a->proj.rec_auto;
     v->layout = u->knobs;
     for (r = 0; r < 2; r++)
         for (k = 0; k < 3; k++)
@@ -1668,6 +1669,8 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
         v->track = a->sel + 1;
         v->page = u->trk_page;
         v->tname = a->model.t[a->sel].name;
+        v->tkind = a->model.t[a->sel].kind < 7 ? a->model.t[a->sel].kind : -1;   /* P1.6d */
+        v->named = a->model.t[a->sel].named;
         v->scale = qd_scale_name(sc);
         v->root = qd_pc_name(rt);
         v->root_pc = rt;
@@ -1708,6 +1711,32 @@ static void fill_mix(const qd_app_t *a, ui_mix_t *v)
                 lv = l > lv ? l : lv;
             }
         v->tr[t].meter = sqrtf((float)lv / 32767.f) * (float)m->level / 127.f;
+    }
+    {   /* P1.6d: a step held (or the latch's selection): the selected track's values its locks; the chips */
+        const qd_ui_t *u = &a->ui;
+        const qd_pattern_t *p = qd_ctl_cpat(a);
+        int k;
+        v->step = u->nheld > 0;
+        for (k = 0; k < 4; k++) {
+            const int id = qd_panel_lock_id(a, QD_K_1 + k);
+            int16_t x;
+            if (id < 0)
+                continue;
+            if (u->nheld && qd_lock_get(p, a->sel, u->held[0], id, &x)) {
+                v->locked[k] = 1;
+                if (id == QD_LK_LEVEL) v->tr[a->sel].level = x;
+                else if (id == QD_LK_PAN) v->tr[a->sel].pan = x;
+                else if (id == QD_LK_DELAY) v->tr[a->sel].delay = x;
+                else if (id == QD_LK_REVERB) v->tr[a->sel].reverb = x;
+                else v->tr[a->sel].chorus = x;
+                snprintf(v->ltxt[k], sizeof v->ltxt[k], "%d", x);
+            } else if (!u->nheld && track_locks(p, a->sel, id)) {
+                v->lockany[k] = 1;
+                snprintf(v->ltxt[k], sizeof v->ltxt[k], "%d", id == QD_LK_LEVEL ? v->tr[a->sel].level
+                         : id == QD_LK_PAN ? v->tr[a->sel].pan : id == QD_LK_DELAY ? v->tr[a->sel].delay
+                         : id == QD_LK_REVERB ? v->tr[a->sel].reverb : v->tr[a->sel].chorus);
+            }
+        }
     }
 }
 
@@ -1770,7 +1799,12 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
         v->has[k] = 1;
         if (c == QD_FXC_SEND || c <= QD_FXC_SENDX(0)) {   /* (P1.5b: the overview's cells: their effect's) */
             const int fx = c == QD_FXC_SEND ? pg->fx : QD_FXC_SENDX(0) - c;
-            const int s = qd_fx_send(a, a->sel, fx);
+            int s = qd_fx_send(a, a->sel, fx);
+            int16_t x;
+            if (u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], qd_fx_send_id(fx), &x))
+                s = x, v->locked[k] = 1;                /* P1.6d: the held step's lock */
+            else if (!u->nheld && track_locks(qd_ctl_cpat(a), a->sel, qd_fx_send_id(fx)))
+                v->lockany[k] = 1;
             v->lab[k] = c == QD_FXC_SEND ? "SEND" : QD_FX_NAME[fx];
             snprintf(v->txt[k], sizeof v->txt[k], "%d%%", (s * 100 + 63) / 127);
             v->x[k] = (float)s / 127.f;
@@ -1794,6 +1828,11 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
             v->sends[t][2] = qd_fx_send(a, t, 1);
             if (!qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, t), t))
                 v->mute |= (uint8_t)(1u << t);
+        }
+        for (k = 0; k < 3; k++) {                       /* P1.6d: the selected track's bars: the held step's locks */
+            int16_t x;
+            if (u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], qd_fx_send_id(k == 0 ? 2 : k - 1), &x))
+                v->sends[a->sel][k] = x;
         }
         v->track = a->sel + 1;
     }
@@ -1821,10 +1860,15 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
     v->fslope = qd_fx_get(QD_FXP_FSLOPE);
     v->fon = qd_fx_get(QD_FXP_FON);
     v->last = u->menu_knob;
+    v->step = u->nheld > 0;                             /* P1.6d */
 }
 
 /* P1.5z: the models, for the tests */
 void qd_view_browse(const qd_app_t *a, ui_browse_t *v) { fill_browse(a, v); }
+void qd_view_mix(const qd_app_t *a, ui_mix_t *v) { fill_mix(a, v); }
+void qd_view_fx(const qd_app_t *a, ui_fx_t *v) { fill_fx(a, v); }
+void qd_view_menu(const qd_app_t *a, ui_menu_t *v) { fill_menu(a, v); }
+void qd_view_type(const qd_app_t *a, ui_type_t *v) { fill_type(a, v); }
 void qd_view_turn(qd_app_t *a, ui_turn_t *v)
 {
     static char ctx[48];
@@ -1872,6 +1916,9 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_mfx_t mfv;
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
+    int kt;
+    for (kt = 0; kt < QD_NTRACK; kt++)                  /* P1.6d: the tracks' kinds (their icons) */
+        UI_TRACK_KIND[kt] = a->model.t[kt].kind;
     qd_begin();
     switch (qd_view_screen(a)) {
     case QD_SCR_MENU:                                   /* P1.3y: a settings menu */
@@ -2012,6 +2059,9 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
             qd_restore();
         }
     }
+    if (qd_auto_on(a))                                  /* P1.6d: automation recording: the cue */
+        ui_auto_cue(u->auto_take ? u->auto_knob - QD_K_1 : -1,
+                    u->auto_take ? (float)(a->ms - u->auto_ms) / 1000.f : -1.f, secs(a->ms));
     if (u->cf_on) {                                     /* a confirmation word */
         const uint32_t d = a->ms - u->cf_ms;
         const float al = d + QD_TK_FADE_MS < QD_CONFIRM_MS ? 1.f

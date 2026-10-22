@@ -78,12 +78,74 @@ void ui_box(float x, float y, int n, qd_rgb col)
 }
 
 /* head(c, left, right, { n, lcol, rcol }) */
+uint8_t UI_TRACK_KIND[8] = {255, 255, 255, 255, 255, 255, 255, 255};
+int ui_track_kind(int n) { return n >= 1 && n <= 8 && UI_TRACK_KIND[n - 1] < 7 ? UI_TRACK_KIND[n - 1] : -1; }
+
+/* P1.6d: the kinds' icons. BASS a long low wave, KEYS three keys and two black ones, PLUCK a spike decaying, PAD a
+ * slow swell, LEAD a square wave, DRUMS a drum and its sticks, FX a sparkle */
+void ui_kind_icon(int kind, float cx, float cy, float s, qd_rgb col)
+{
+    float p[20];
+    int i;
+#define PT(k, x, y) (p[2 * (k)] = cx + (x) * s, p[2 * (k) + 1] = cy + (y) * s)
+    switch (kind) {
+    case 0:                                             /* BASS */
+        for (i = 0; i < 9; i++)
+            PT(i, -6.f + 1.5f * (float)i, -3.2f * sinf((float)i * UI_PI / 4.f));
+        ui_P(p, 9, col, 1.8f * s, 0, QD_NONE);
+        break;
+    case 1:                                             /* KEYS */
+        ui_RR(cx - 6.f * s, cy - 5.f * s, 12.f * s, 10.f * s, 1.5f * s, col, 1.2f * s, QD_NONE);
+        PT(0, -2.f, -5.f), PT(1, -2.f, 5.f);
+        ui_P(p, 2, col, 1.f * s, 0, QD_NONE);
+        PT(0, 2.f, -5.f), PT(1, 2.f, 5.f);
+        ui_P(p, 2, col, 1.f * s, 0, QD_NONE);
+        ui_RR(cx - 3.3f * s, cy - 5.f * s, 2.6f * s, 5.5f * s, 0.6f * s, QD_NONE, 1.f, col);
+        ui_RR(cx + 0.7f * s, cy - 5.f * s, 2.6f * s, 5.5f * s, 0.6f * s, QD_NONE, 1.f, col);
+        break;
+    case 2:                                             /* PLUCK */
+        PT(0, -6.f, 5.f), PT(1, -4.5f, -5.5f), PT(2, -2.5f, 0.5f), PT(3, 0.f, 3.f), PT(4, 3.f, 4.4f), PT(5, 6.f, 5.f);
+        ui_P(p, 6, col, 1.6f * s, 0, QD_NONE);
+        break;
+    case 3:                                             /* PAD */
+        PT(0, -6.f, 5.f), PT(1, -4.f, 0.f), PT(2, -2.f, -3.5f), PT(3, 2.f, -3.5f), PT(4, 4.f, 0.f), PT(5, 6.f, 5.f);
+        ui_P(p, 6, col, 1.6f * s, 0, QD_NONE);
+        break;
+    case 4:                                             /* LEAD */
+        PT(0, -6.f, 4.f), PT(1, -6.f, -4.f), PT(2, -1.f, -4.f), PT(3, -1.f, 4.f), PT(4, 4.f, 4.f), PT(5, 4.f, -4.f),
+        PT(6, 6.f, -4.f);
+        ui_P(p, 7, col, 1.6f * s, 0, QD_NONE);
+        break;
+    case 5:                                             /* DRUMS */
+        ui_RR(cx - 5.5f * s, cy - 1.5f * s, 11.f * s, 7.f * s, 2.f * s, col, 1.3f * s, QD_NONE);
+        PT(0, -5.f, -6.f), PT(1, -1.f, -2.f);
+        ui_P(p, 2, col, 1.3f * s, 0, QD_NONE);
+        PT(0, 5.f, -6.f), PT(1, 1.f, -2.f);
+        ui_P(p, 2, col, 1.3f * s, 0, QD_NONE);
+        break;
+    case 6:                                             /* FX */
+        PT(0, 0.f, -6.f), PT(1, 1.4f, -1.4f), PT(2, 6.f, 0.f), PT(3, 1.4f, 1.4f), PT(4, 0.f, 6.f), PT(5, -1.4f, 1.4f),
+        PT(6, -6.f, 0.f), PT(7, -1.4f, -1.4f);
+        ui_P(p, 8, col, 1.2f * s, 1, col);
+        break;
+    default:
+        break;
+    }
+#undef PT
+}
+
+float ui_head_x(int n) { return !n ? 8.f : ui_track_kind(n) >= 0 ? 44.f : 29.f; }
+
 void ui_head(const char *left, const char *right, int n, qd_rgb lcol, qd_rgb rcol)
 {
     float x = 8.f;
     if (n) {
         ui_box(8.f, 5.f, n, UI_K3);
         x = 29.f;
+        if (ui_track_kind(n) >= 0) {                    /* P1.6d: the track's kind */
+            ui_kind_icon(ui_track_kind(n), 36.f, 13.f, 1.f, UI_PK_COL[ui_track_kind(n)]);
+            x = 44.f;
+        }
     }
     ui_T(left, x, 18.f, 12.f, 600, 0.8f, lcol, QD_LEFT);   /* (P1.3v: 12 px, 600) */
     if (right)
@@ -125,9 +187,12 @@ const qd_rgb UI_MODE_COL[UI_NFIELD] = {0x3f7dffu, 0x1fd47eu, 0x36d6e7u, 0xa879ff
 void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol)
 {
     const float w = ui_TW(name, 12.f, 500, 0.8f);
+    const int kd = name[0] ? ui_track_kind(n) : -1;     /* (P1.6d: the kind's icon between the box and the name) */
     ui_T(left, 8.f, 18.f, 12.f, 600, 0.8f, lcol, QD_LEFT);
     ui_T(name, 232.f, 18.f, 12.f, 500, 0.8f, UI_G1, QD_RIGHT);
-    ui_box(232.f - w - 22.f, 5.f, n, UI_G1);
+    if (kd >= 0)
+        ui_kind_icon(kd, 232.f - w - 9.f, 13.f, 1.f, UI_PK_COL[kd]);
+    ui_box(232.f - w - 22.f - (kd >= 0 ? 15.f : 0.f), 5.f, n, UI_G1);
 }
 
 int ui_fn_icon(int f)

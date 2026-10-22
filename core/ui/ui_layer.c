@@ -26,6 +26,7 @@
  *   SHIFT             a row per control SHIFT changes here: the control (a knob's badge, REC, F3, SEQ + a key), an
  *                     arrow, the job's icon and its value now (the scale, the root, the swing) */
 #include <math.h>
+#include <string.h>
 
 #include "ui.h"
 
@@ -282,6 +283,8 @@ static void tracks(const ui_layer_t *v)
         speaker(x - 2.f, y, mute ? UI_G2 : UI_K3, v->flash[i] != 0, mute);
         ui_T(NUM[i], x, y + 28.f, 12.f, 600, 0.f, mute ? UI_G2 : UI_K3, QD_CENTER);
         name_fit(v->tname[i] ? v->tname[i] : "", x, y + 42.f, 50.f, mute ? UI_G2 : sel ? UI_K3 : UI_G1);
+        if (ui_track_kind(i + 1) >= 0)                  /* P1.6d: its kind */
+            ui_kind_icon(ui_track_kind(i + 1), x - 17.f, y - 13.f, 1.f, mute ? UI_G2 : UI_PK_COL[ui_track_kind(i + 1)]);
         if (solo) {                                     /* soloed: an S in a ring, blinking */
             ui_O(x + 19.f, y - 14.f, 8.f, SOLO_COL, 1.2f, v->blink ? SOLO_COL : QD_NONE);
             ui_T("S", x + 19.f, y - 9.5f, 12.f, 700, 0.f, v->blink ? UI_BG : SOLO_COL, QD_CENTER);
@@ -396,8 +399,8 @@ static void control(int c, float cx, float cy)
     } else if (c == UI_SC_SEQ_W) {                      /* SEQ's button, then a white key */
         ui_RR(cx - 20.f, cy - 6.f, 18.f, 12.f, 3.f, UI_K3, 1.2f, QD_NONE);
         ui_icon(UI_IC_KEY, cx + 8.f, cy, 1.f, UI_K3);
-    } else if (c == UI_SC_SEL || c == UI_SC_HOME) {     /* P1.3y: a button with its printed name */
-        const char *nm = c == UI_SC_SEL ? "SEL" : "HOME";
+    } else if (c == UI_SC_SEL || c == UI_SC_HOME || c == UI_SC_ARP) {   /* P1.3y: a button with its printed name */
+        const char *nm = c == UI_SC_SEL ? "SEL" : c == UI_SC_ARP ? "ARP" : "HOME";
         const float w = ui_TW(nm, 12.f, 700, 0.5f) + 10.f;
         ui_RR(cx - w / 2.f, cy - 9.f, w, 18.f, 4.f, UI_K3, 1.2f, QD_NONE);
         ui_T(nm, cx, cy + 4.5f, 12.f, 700, 0.5f, UI_K3, QD_CENTER);
@@ -450,7 +453,7 @@ static void shift_keys(const ui_shift_t *v)
 
 void ui_shift_draw(const ui_shift_t *v)
 {
-    const int n = v->n < 0 ? 0 : v->n > 8 ? 8 : v->n;
+    const int n = v->n < 0 ? 0 : v->n > 9 ? 9 : v->n;
     const float sp = v->keys ? (n > 1 ? 136.f / (float)(n - 1) : 0.f)   /* (P1.5c: the keys below: the rows tighter) */
                    : n > 5 ? 182.f / (float)(n - 1 > 0 ? n - 1 : 1) : 40.f;
     const float y0 = v->keys ? 40.f : n > 5 ? 44.f : 58.f;
@@ -499,12 +502,43 @@ static void menu_head(const char *title)
     line2(8.f, 27.f, 232.f, 27.f, UI_G3, 1.f);
 }
 
+/* P1.6d, the record settings' page 2: KNOB 1 AUTOMATION. A lane of eight steps under the moving playhead (its red dot):
+ * ON, the knob's moves as bars over every step (the empty steps ghosts, outlined); OFF, the bars faint and crossed */
+static void menu_rec2(const ui_menu_t *v)
+{
+    static const float LV[8] = {0.25f, 0.4f, 0.65f, 0.85f, 0.7f, 0.5f, 0.3f, 0.45f};
+    static const uint8_t NOTE[8] = {1, 0, 0, 1, 0, 1, 0, 0};
+    const int on = v->rec_auto;
+    const float px = 34.f + fmodf(v->t * 44.f, 176.f);
+    int i;
+    menu_row(0, 44.f, "AUTOMATION", on ? "ON" : "OFF");
+    for (i = 0; i < 8; i++) {
+        const float x = 34.f + (float)i * 22.f, h = 56.f * LV[i];
+        ui_RR(x + 5.f, 168.f - h, 8.f, h, 2.f, QD_NONE, 1.f, on ? UI_K1 : UI_G3);
+        if (NOTE[i])
+            ui_RR(x, 178.f, 18.f, 18.f, 3.f, UI_G1, 1.2f, UI_G1);
+        else
+            ui_RR(x, 178.f, 18.f, 18.f, 3.f, on ? UI_K1 : UI_G3, 1.2f, QD_NONE);   /* (ON: a ghost) */
+    }
+    if (!on)
+        line2(30.f, 104.f, 210.f, 172.f, UI_RED, 1.6f);
+    line2(px, 100.f, px, 200.f, on ? UI_RED : UI_G2, 1.2f);
+    if (on)
+        ui_O(px, 96.f, 4.5f, QD_NONE, 1.f, UI_RED);
+}
+
 static void menu_rec(const ui_menu_t *v)
 {
     static const float OFF[4] = {7.f, -6.f, 4.f, -9.f};    /* the notes' places off their grid lines (px) */
     char q[12];
     int i;
     menu_head("REC");
+    for (i = 0; i < 2; i++)                             /* P1.6d: two pages */
+        ui_O(52.f + (float)i * 9.f, 14.f, 2.6f, i == v->rec_page ? UI_K3 : UI_G2, 1.f, i == v->rec_page ? UI_K3 : QD_NONE);
+    if (v->rec_page) {
+        menu_rec2(v);
+        return;
+    }
     /* KNOB 1: MODE (P1.5b: four rows, 52 px apart) */
     menu_row(0, 42.f, "MODE", v->rec_step ? "STEP" : "LIVE");
     if (v->rec_step) {                                  /* a row of cells, the cursor's lit */
@@ -558,6 +592,24 @@ static void menu_rec(const ui_menu_t *v)
         static const uint8_t B[7] = {1, 1, 0, 1, 1, 1, 0};
         if (B[i])
             ui_RR(34.f + (float)i * 13.f + 8.f, 210.f, 8.f, 10.f, 2.f, QD_NONE, 1.f, v->ekeys ? UI_G1 : UI_G3);
+    }
+}
+
+/* P1.6d: automation recording: the screen framed in red, pulsing, while the knobs record; the knob that wrote last
+ * a red dot on its band at the foot (KNOB 1..4's cells; an encoder: the frame flashes), fading */
+void ui_auto_cue(int k, float since, float t)
+{
+    const float pulse = 0.5f + 0.5f * sinf(t * 6.f);
+    const float al = since < 0.f ? 0.f : since < 0.3f ? 1.f : since < 0.9f ? 1.f - (since - 0.3f) / 0.6f : 0.f;
+    qd_save();
+    qd_alpha(0.45f + 0.35f * pulse + (k < 0 || k > 3 ? 0.2f * al : 0.f));
+    ui_RR(1.f, 1.f, 238.f, 238.f, 8.f, UI_RED, 2.f, QD_NONE);
+    qd_restore();
+    if (al > 0.f && k >= 0 && k < 4) {
+        qd_save();
+        qd_alpha(al);
+        ui_O(30.f + (float)k * 60.f, 235.f, 4.f, UI_BG, 1.5f, UI_RED);
+        qd_restore();
     }
 }
 
@@ -656,14 +708,17 @@ static void menu_set(const ui_menu_t *v)
 /* P1.4b: the track settings: the track's number and name in its colour; page 1 SCALE (its twelve pitch classes as
  * dots, the scale's filled, the root ringed), ROOT, FOLLOW KEY, MIDI CH; page 2 VOICES (sixteen dots: the limit lit,
  * the ones sounding white), SWING, PAGE FOLLOW */
+static const char *const KIND_NAME[7] = {"BASS", "KEYS", "PLUCK", "PAD", "LEAD", "DRUMS", "FX"};
 static void menu_trk(const ui_menu_t *v)
 {
     const qd_rgb tc = UI_TRACK_PAL[(v->track - 1) & 7];
     char n[12];
     int k;
     ui_box(8.f, 5.f, v->track, tc);
-    ui_T(v->tname ? v->tname : "", 32.f, 18.f, 12.f, 600, 0.8f, tc, QD_LEFT);
-    for (k = 0; k < 2; k++)
+    if (ui_track_kind(v->track) >= 0)                   /* P1.6d: its kind */
+        ui_kind_icon(ui_track_kind(v->track), 38.f, 13.f, 1.f, UI_PK_COL[ui_track_kind(v->track)]);
+    ui_T(v->tname ? v->tname : "", ui_track_kind(v->track) >= 0 ? 48.f : 32.f, 18.f, 12.f, 600, 0.8f, tc, QD_LEFT);
+    for (k = 0; k < 3; k++)
         ui_O(170.f + (float)k * 9.f, 14.f, 2.6f, k == v->page ? UI_K3 : UI_G2, 1.f, k == v->page ? UI_K3 : QD_NONE);
     ui_RR(208.f, 4.f, 24.f, 17.f, 4.f, UI_K3, 1.2f, QD_NONE);
     ui_icon(UI_IC_BACK, 220.f, 12.5f, 1.f, UI_K3);
@@ -680,6 +735,21 @@ static void menu_trk(const ui_menu_t *v)
         menu_row(1, 106.f, "ROOT", v->root);
         menu_row(2, 152.f, "FOLLOW KEY", v->follow_key ? "ON" : "OFF");
         menu_row(3, 198.f, "MIDI CH", ui_itoa(n, v->chan));
+    } else if (v->page == 2) {                          /* P1.6d: KIND (the seven icons, its own lit), NAME */
+        menu_row(0, 44.f, "KIND", v->tkind >= 0 ? KIND_NAME[v->tkind] : "NONE");
+        for (k = 0; k < 7; k++) {
+            const float x = 40.f + (float)k * 27.f;
+            const int on = k == v->tkind;
+            if (on)
+                ui_RR(x - 12.f, 84.f, 24.f, 24.f, 5.f, UI_PK_COL[k], 1.4f, QD_NONE);
+            ui_kind_icon(k, x, 96.f, 1.f, on ? UI_PK_COL[k] : UI_G2);
+        }
+        menu_row(1, 124.f, "NAME", v->tname ? v->tname : "");
+        for (k = 0; k < 12; k++) {                      /* its twelve places, the ones used lit (typed: KNOB 2's) */
+            const int used = v->tname && k < (int)strlen(v->tname);
+            ui_RR(36.f + (float)k * 10.f, 178.f, 8.f, 10.f, 2.f, used ? (v->named ? KCOL[1] : UI_G1) : UI_G3, 1.f,
+                  used && v->named ? KCOL[1] : QD_NONE);
+        }
     } else {
         menu_row(0, 44.f, "VOICES", ui_itoa(n, v->limit));
         for (k = 0; k < 16; k++)                        /* the limit lit, the voices sounding white */
@@ -695,8 +765,9 @@ static void menu_trk(const ui_menu_t *v)
             ui_mfx_hex(46.f, 222.f, 9.f, 0, UI_G2, 1.2f, 1);
     }
     if (v->last >= 0 && v->last < 4) {                  /* the row turned last: its badge ringed */
-        static const float Y0[2][4] = {{44.f, 106.f, 152.f, 198.f}, {44.f, 98.f, 152.f, 198.f}};
-        ui_O(18.f, Y0[v->page & 1][v->last], 12.f, KCOL[v->last], 1.2f, QD_NONE);
+        static const float Y0[3][4] = {{44.f, 106.f, 152.f, 198.f}, {44.f, 98.f, 152.f, 198.f},
+                                       {44.f, 124.f, -40.f, -40.f}};
+        ui_O(18.f, Y0[v->page < 0 || v->page > 2 ? 0 : v->page][v->last], 12.f, KCOL[v->last], 1.2f, QD_NONE);
     }
 }
 

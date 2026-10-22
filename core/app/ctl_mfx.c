@@ -66,6 +66,7 @@ void qd_mfx_screen(qd_app_t *a)
     u->mfx_f1 = u->mfx_f1_used = 0;
     u->mfx_lift_from = -1;
     u->mfx_roll_ms = u->mfx_gsel_ms = 0;
+    u->mfx_bheld = 0, u->mfx_f1_copied = u->mfx_f2_loaded = u->mfx_f2_holding = 0, u->mfx_f2_from = -1;
     mf_first_slot(a);
 }
 static void mf_closed(qd_app_t *a) { a->ui.mfx_arm = -1, a->ui.mfx_f1 = 0; }
@@ -89,31 +90,67 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
     qd_ui_t *u = &a->ui;
     const int g = qd_mfx_tgroup(a);
     qd_mfx_slot_t *s = mf_slot(a);
-    if (!down || !g)
+    if (!down) {                                        /* P1.6d: a slot key let go: a tap of the selected one (no
+                                                         * knob turned with it) is its next page */
+        if (b < QD_MFX_NSLOT && u->mfx_bheld == b + 1) {
+            u->mfx_bheld = 0;
+            if (g && !u->mfx_bused && u->mfx_bwas && a->proj.mfx[g - 1].slot[b].type) {
+                const int n = qd_mfx_npages(a->proj.mfx[g - 1].slot[b].type);
+                u->mfx_page = n > 0 ? (u->mfx_page + 1) % n : 0;
+                u->mfx_knob = -1;
+            }
+        }
+        return;
+    }
+    if (!g)
         return;
     if (b != 10)
         u->mfx_arm = -1;                                /* (any other key disarms B11) */
     if (b < QD_MFX_NSLOT) {
         qd_mfx_group_t *G = &a->proj.mfx[g - 1];
-        if (mf_held(a, QD_B_OCTDN) && b != u->mfx_slot) {   /* F1 + B: copied there */
-            G->slot[b] = G->slot[u->mfx_slot];
+        if (mf_held(a, QD_B_OCTDN)) {                   /* P1.6d: F1 + B, the sequencer's F1: the first slot pressed
+                                                         * copied, every other one pasted (the copy loads F2's hand) */
+            if (!u->mfx_f1_copied) {
+                u->mfx_clip = G->slot[b];
+                u->mfx_f1_copied = 1;
+                u->mfx_f2_loaded = u->mfx_f2_holding = 1;
+                qd_ctl_confirm(a, "COPIED", "");
+            } else {
+                qd_undo_hint(a, QD_UK_PASTE);
+                G->slot[b] = u->mfx_clip;
+                qd_ctl_confirm(a, "PASTED", "");
+            }
             u->mfx_slot = b, u->mfx_page = 0;
             u->mfx_f1_used = 1;
-            qd_ctl_confirm(a, "COPIED", "");
             return;
         }
-        if (mf_held(a, QD_B_OCTUP) && b != u->mfx_slot) {   /* F2 + B: moved there */
-            mf_move(G, u->mfx_slot, b);
-            u->mfx_lift_from = u->mfx_slot, u->mfx_lift_to = b, u->mfx_lift_ms = a->ms ? a->ms : 1u;
-            u->mfx_slot = b;
-            return;
-        }
-        if (b == u->mfx_slot && G->slot[b].type) {     /* again: its next page */
-            const int n = qd_mfx_npages(G->slot[b].type);
-            u->mfx_page = n > 0 ? (u->mfx_page + 1) % n : 0;
-        } else {
+        if (mf_held(a, QD_B_OCTUP)) {                   /* P1.6d: F2 + B, Form's pick-up / drop (k_f2_white's): not
+                                                         * loaded CUT (an empty slot too); loaded, an empty slot PASTE;
+                                                         * a full one PASTE holding, CUT empty-handed */
+            int cut;
+            if (!u->mfx_f2_loaded)
+                cut = 1;
+            else if (!G->slot[b].type)
+                cut = 0;
+            else
+                cut = !u->mfx_f2_holding;
+            if (cut) {
+                u->mfx_clip = G->slot[b];
+                qd_mfx_slot_init(&G->slot[b], QD_MFX_NONE);
+                u->mfx_f2_loaded = u->mfx_f2_holding = 1;
+                u->mfx_f2_from = b;
+            } else {
+                G->slot[b] = u->mfx_clip;
+                u->mfx_f2_holding = 0;
+                if (u->mfx_f2_from >= 0 && u->mfx_f2_from != b)   /* (its picture: carried from where it was cut) */
+                    u->mfx_lift_from = u->mfx_f2_from, u->mfx_lift_to = b, u->mfx_lift_ms = a->ms ? a->ms : 1u;
+            }
             u->mfx_slot = b, u->mfx_page = 0;
+            return;
         }
+        u->mfx_bheld = b + 1, u->mfx_bused = 0, u->mfx_bwas = b == u->mfx_slot;
+        if (b != u->mfx_slot)
+            u->mfx_slot = b, u->mfx_page = 0;
         u->mfx_knob = -1;
         return;
     }
@@ -168,6 +205,15 @@ static void mf_value(qd_app_t *a, qd_mfx_slot_t *s, int id, int d)
         s->v[QD_MA_LAST] = s->v[id];
 }
 
+/* P1.6d: a glide (hundredths) from `from` to `to` begun at t0: eased over QD_MFX_GLIDE_MS, where it is now */
+int qd_mfx_glide(const qd_app_t *a, int from, int to, uint32_t t0)
+{
+    float e = (float)(a->ms - t0) / (float)QD_MFX_GLIDE_MS;
+    e = e < 0.f ? 0.f : e > 1.f ? 1.f : e;
+    e = e * e * (3.f - 2.f * e);
+    return from + (int)((float)(to - from) * e);
+}
+
 int qd_mfx_knob(qd_app_t *a, int knob, int d)
 {
     qd_ui_t *u = &a->ui;
@@ -175,29 +221,43 @@ int qd_mfx_knob(qd_app_t *a, int knob, int d)
     qd_mfx_slot_t *s = mf_slot(a);
     if (knob != QD_K_ALGO)
         u->mfx_arm = -1;
+    if (u->mfx_bheld && g && d) {                       /* P1.6d: a slot key held + any knob: that slot moved along the
+                                                         * rail, a place a detent, the others closing up */
+        const int from = u->mfx_slot, to = mf_clampi(from + d, 0, QD_MFX_NSLOT - 1);
+        u->mfx_bused = 1;
+        if (to != from) {
+            mf_move(&a->proj.mfx[g - 1], from, to);
+            u->mfx_lift_from = from, u->mfx_lift_to = to, u->mfx_lift_ms = a->ms ? a->ms : 1u;
+            u->mfx_slot = to;
+            u->mfx_bheld = to + 1;
+        }
+        return 1;
+    }
     switch (knob) {
-    case QD_K_ALGO: {                                   /* the track's group (the screen follows) */
+    case QD_K_ALGO: {                                   /* the track's group (the screen follows; P1.6d: the slot
+                                                         * kept, the glide from where it is) */
         qd_tset_t *ts = &qd_ctl_pat(a)->trk[a->sel];
         const int was = qd_mfx_tgroup(a);
-        if (!(a->ms - u->mfx_gsel_ms < QD_TK_MS && u->mfx_gsel_ms))
-            u->mfx_gsel_from = was;
+        const int up = u->mfx_gsel_ms && a->ms - u->mfx_gsel_ms < QD_TK_MS;
+        u->mfx_gsel_from = up ? qd_mfx_glide(a, u->mfx_gsel_from, u->mfx_gsel_to, u->mfx_gsel_t0) : was * 100;
         ts->mfx = (uint8_t)mf_clampi(was + d, 0, QD_MFX_NGROUP);
-        u->mfx_gsel_ms = a->ms ? a->ms : 1u;
+        u->mfx_gsel_to = ts->mfx * 100;
+        u->mfx_gsel_ms = u->mfx_gsel_t0 = a->ms ? a->ms : 1u;
         u->mfx_arm = -1;
         u->mfx_page = 0;
-        mf_first_slot(a);
         return 1;
     }
     case QD_K_PRESETS: {                                /* the slot's effect (NONE, then the ten) */
         int ty;
+        const int up = u->mfx_roll_ms && a->ms - u->mfx_roll_ms < QD_TK_MS;
         if (!s)
             return 1;
-        if (!(a->ms - u->mfx_roll_ms < QD_TK_MS && u->mfx_roll_ms))
-            u->mfx_roll_from = s->type;
+        u->mfx_roll_from = up ? qd_mfx_glide(a, u->mfx_roll_from, u->mfx_roll_to, u->mfx_roll_t0) : s->type * 100;
         ty = mf_clampi(s->type + d, 0, QD_MFX_NTYPE - 1);
         if (ty != s->type)
             qd_mfx_slot_init(s, ty);
-        u->mfx_roll_ms = a->ms ? a->ms : 1u;
+        u->mfx_roll_to = ty * 100;
+        u->mfx_roll_ms = u->mfx_roll_t0 = a->ms ? a->ms : 1u;
         u->mfx_page = 0;
         return 1;
     }
@@ -243,9 +303,12 @@ int qd_mfx_oct(qd_app_t *a, int d, int down)
         if (u->mfx_f1 && !u->mfx_f1_used && qd_mfx_open(a))
             qd_latch_close(a);
         u->mfx_f1 = 0;
+        u->mfx_f1_copied = 0;
         return 1;
     }
-    return 1;                                           /* F2: held for a move (with a B) */
+    if (!down)                                          /* F2 let go: the hand empties (Form's) */
+        u->mfx_f2_loaded = u->mfx_f2_holding = 0, u->mfx_f2_from = -1;
+    return 1;
 }
 
 void qd_mfx_leds(const qd_app_t *a, uint8_t *key)

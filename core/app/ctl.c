@@ -322,6 +322,15 @@ static int w_snd(const qd_app_t *a) { return qd_snd_open(a) && !held(a, QD_B_MIX
 static void k_snd_black(qd_app_t *a, int key, int b, int down, int vel)
 {
     (void)key, (void)vel;
+    if (down && a->ui.snd_fpop && b != QD_SG_FILTER) {   /* P1.6d: the machines' popup: B1..B6 one of them */
+        qd_snd_fpop_key(a, b);
+        a->ui.snd_fkey_used = 1;
+        return;
+    }
+    if (b == QD_SG_FILTER) {                            /* P1.6d: B4 FILTERS: a tap its pages, held the popup */
+        qd_snd_fkey(a, down);
+        return;
+    }
     if (b >= 5 && b <= 7)                               /* P1.5k: B6..B8 the LFOs (a tap their page, held: the mapping) */
         qd_snd_lfo_key(a, b - 5, down);
     else if (b == 0)                                    /* E4: B1: its group; held, the modulation slots' mapping */
@@ -407,6 +416,14 @@ static void k_shift_black(qd_app_t *a, int key, int b, int down, int vel)
 static void k_panel_white(qd_app_t *a, int key, int w, int down, int vel)
 {
     (void)key, (void)vel;
+    if (qd_panel_steps(a, w)) {                         /* P1.6d: the mix, the effects: held, the steps their sends
+                                                         * lock on */
+        if (down)
+            qd_step_white_down(a, w);
+        else
+            qd_step_white_up_hold(a, w);
+        return;
+    }
     if (down)
         qd_panel_white(a, w);
 }
@@ -824,6 +841,12 @@ int qd_ctl_latch_modes(const qd_app_t *a)
     return u->mode == QD_MODE_STEP && u->slatch && u->lmode == QD_LMODE_MODES && !u->wk_down && !u->wk_pending;
 }
 static int w_latch_modes(const qd_app_t *a) { return qd_ctl_latch_modes(a); }
+static int w_latch_default(const qd_app_t *a) { return qd_step_latch_default(a); }
+static void k_latch_default(qd_app_t *a, int key, int b, int down, int vel)
+{
+    (void)key, (void)vel;
+    qd_step_value_key_default(a, b, down);
+}
 static void k_mkey(qd_app_t *a, int key, int b, int down, int vel)
 {
     (void)key, (void)vel;
@@ -887,6 +910,7 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_f1, k_f1_black},                /* F1: pages, clear page / track, copy / paste a page, undo */
     {w_f2, k_none},                    /* F2: (only the step pick-up / drop, on W) */
     {w_f3, k_f3_black},                /* F3: the rate */
+    {w_latch_default, k_latch_default},   /* P1.6d: the latch in VALUES, nothing selected: the track's defaults */
     {w_step_view, k_mode},             /* nothing held: the hold mode */
 };
 static void k_flayer_white(qd_app_t *a, int key, int w, int down, int vel)
@@ -1034,27 +1058,33 @@ static void b_lfo(qd_app_t *a, int down)
     qd_step_latch(a, !a->ui.slatch);
 }
 
-/* ARP held: FILL (the FILL / NOT FILL conditions), as before, from its press. P1.6c: ARP acts on its RELEASE: a tap
- * (released under QD_TAP_MS, nothing with it) is the track's group's arp on / off (ctl_mfx.c, big); SHIFT + ARP opens
- * the MIDI FX screen */
+/* P1.6d (the owner's batch): ARP tapped (released under QD_ARP_HOLD_MS, nothing with it) opens the MIDI FX screen
+ * (tapped again, or HOME, closes it); ARP held QD_ARP_HOLD_MS is the track's group's arp on / off (ctl_mfx.c, big; at
+ * the moment it is reached, qd_ctl_ms); SHIFT + ARP held is FILL (the FILL / NOT FILL conditions), while both are down */
 static void b_fill(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
     if (down) {
         u->arp_ms = a->ms;
         u->arp_used = 0;
-        if (qd_ctl_shift(a) && u->mode != QD_MODE_IDLE) {
+        if (qd_ctl_shift(a)) {                          /* SHIFT + ARP: FILL */
             u->arp_used = 1;
             u->shift_used = 1;
-            qd_mfx_screen(a);
-            return;
+            u->arp_fill = 1;
+            qd_seq_fill(&a->seq, 1);
         }
-        qd_seq_fill(&a->seq, 1);
         return;
     }
-    qd_seq_fill(&a->seq, 0);
-    if (!u->arp_used && a->ms - u->arp_ms < QD_TAP_MS && u->mode != QD_MODE_IDLE)
-        qd_mfx_arp_tap(a);
+    if (u->arp_fill) {
+        u->arp_fill = 0;
+        qd_seq_fill(&a->seq, 0);
+    }
+    if (!u->arp_used && a->ms - u->arp_ms < QD_ARP_HOLD_MS && u->mode != QD_MODE_IDLE) {
+        if (qd_mfx_open(a))
+            qd_latch_close(a);
+        else
+            qd_mfx_screen(a);
+    }
     u->arp_used = 1;
 }
 
@@ -1108,19 +1138,26 @@ static void b_rec(qd_app_t *a, int down)
     qd_ui_t *u = &a->ui;
     if (down) {
         u->rec_down_used = 0;
+        u->rec_auto_used = 0;
         u->rec_down_ms = a->ms;
         if (qd_ctl_shift(a)) {
             u->rec_down_used = 1;
             u->shift_used = 1;
+            if (u->latch == QD_LATCH_REC) {             /* P1.6d: open: the next page */
+                u->rec_page ^= 1;
+                u->menu_knob = -1;
+                return;
+            }
             if (u->mode != QD_MODE_STEP)
                 set_mode(a, QD_MODE_STEP);
             u->slatch = 0;
             qd_step_release_all(a);
             qd_latch_open(a, QD_LATCH_REC);
+            u->rec_page = 0;
         }
         return;
     }
-    if (u->rec_down_used)
+    if (u->rec_down_used || u->rec_auto_used)           /* (P1.6d: knobs recorded while held: no tap) */
         return;
     if (u->mode == QD_MODE_KEYS && u->rec) {            /* P1.3x / P1.3y: the recording ends */
         qd_rec_end(a);
@@ -1520,10 +1557,7 @@ static int k_mkey_knob(qd_app_t *a, int knob, int d)
         qd_step_job_default(a, job, knob, d);
     return 1;
 }
-static int when_live(const qd_app_t *a)
-{
-    return a->ui.mode == QD_MODE_KEYS && a->ui.rec && a->seq.playing && !qd_rec_stepping(a);
-}
+static int when_auto(const qd_app_t *a) { return qd_auto_on(a) && !a->ui.nheld; }   /* P1.6d: automation */
 static int when_step_rec(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS && qd_rec_stepping(a); }
 static int when_stepview(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP; }
 static int when_always(const qd_app_t *a) { (void)a; return 1; }
@@ -1639,6 +1673,17 @@ static int k_menu(qd_app_t *a, int knob, int d)
     if (u->latch == QD_LATCH_TRK)
         return qd_trk_knob(a, knob, d);
     if (u->latch == QD_LATCH_REC) {
+        if (knob == QD_K_SELECT) {                      /* P1.6d: the pages */
+            u->rec_page = clampi(u->rec_page + d, 0, 1);
+            return 1;
+        }
+        if (u->rec_page) {                              /* P1.6d, page 2: KNOB 1 AUTOMATION */
+            if (knob == QD_K_1)
+                pr->rec_auto = d > 0;
+            if (knob >= QD_K_1)
+                u->menu_knob = knob - QD_K_1;
+            return 1;
+        }
         switch (knob) {
         case QD_K_1: pr->rec_mode = d > 0; break;
         case QD_K_2: pr->rec_quant = (uint8_t)clampi(pr->rec_quant + d * 5, 0, 100); break;
@@ -1670,6 +1715,13 @@ static int k_fx_track(qd_app_t *a, int knob, int d)
 }
 
 static int when_keys_shift(const qd_app_t *a) { return qd_keys_on(a) && qd_ctl_shift(a); }
+/* P1.6d (the owner): the step latch on, SHIFT: ALGORITHM the scale, PRESETS the root, as everywhere (VALUES or MODES,
+ * a selection or none; a finger on a step keeps SHIFT's strum / ramp) */
+static int when_latch_shift(const qd_app_t *a)
+{
+    return a->ui.mode == QD_MODE_STEP && a->ui.slatch && qd_ctl_shift(a) && !finger_held(a) &&
+           (!a->ui.latch || a->ui.latch == QD_LATCH_F3);
+}
 /* P1.5z (the owner: "a quick shortcut for changing the track ... Shift + SEL knob"): SHIFT + SELECT the selected track,
  * a track a detent, round 1..8, FX + ALGORITHM's big track takeover; in every view, the sound editor (the new track's
  * sound), the browser (its preview put back first, then the new track's own sound), the mix, the effects. Not in the
@@ -1695,7 +1747,8 @@ static int k_shift_track(qd_app_t *a, int knob, int d)
 static int when_unlock(const qd_app_t *a)
 {
     return a->ui.mode == QD_MODE_STEP && held(a, QD_B_OCTUP) && !held(a, QD_B_OCTDN) &&
-           (qd_snd_open(a) || (a->ui.hmode == UI_F_PLOCK && !a->ui.latch));
+           (qd_snd_open(a) || (a->ui.hmode == UI_F_PLOCK && !a->ui.latch) ||
+            a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_FX);   /* (P1.6d: the sends' locks) */
 }
 static int k_unlock(qd_app_t *a, int knob, int d)
 {
@@ -1709,6 +1762,10 @@ static int k_unlock(qd_app_t *a, int knob, int d)
         static const int SLOT[QD_NKNOB] = {-1, 4, -1, 0, 1, 2, 3};
         const int k = SLOT[knob];
         id = k >= 0 ? qd_snd_ids(a, u->snd_page)[k] : -1;
+    } else if (u->latch == QD_LATCH_MIX || u->latch == QD_LATCH_FX) {   /* P1.6d: a send's (a mix value's) locks */
+        id = qd_panel_lock_id(a, knob);
+        if (id < 0)
+            return 1;
     } else if (knob >= QD_K_1) {
         id = qd_step_quick_id(knob - QD_K_1);
     } else if (knob == QD_K_PRESETS) {
@@ -1734,7 +1791,11 @@ static int k_unlock(qd_app_t *a, int knob, int d)
             qd_lock_clear(p, a->sel, s, QD_QP_RB2);
         }
     }
-    name = id == QD_LOCK_SOUND ? "SOUND" : id == QD_QP_RB1 ? "RATIO B" : qd_quad_value_name(id);
+    {
+        static const char *const MIXN[5] = {"PAN", "DELAY", "REVERB", "CHORUS", "LEVEL"};
+        name = id == QD_LOCK_SOUND ? "SOUND" : id == QD_QP_RB1 ? "RATIO B" : id >= QD_LK_PAN ? MIXN[id - QD_LK_PAN]
+                                                                                           : qd_quad_value_name(id);
+    }
     qd_ctl_confirm_col(a, name, "unlocked", KC[knob]);
     (void)n;
     return 1;
@@ -1762,6 +1823,7 @@ static const struct {
     {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track (over every page) */
     {when_keys_shift, scale_root},     /* P1.5b: the keyboard on (the editor's too), SHIFT: ALGORITHM the scale, PRESETS
                                         * the root, recording or not */
+    {when_latch_shift, scale_root},    /* P1.6d: the step latch on, SHIFT: the scale, the root */
     {when_lib, k_libk},                /* P1.5a: the sounds page (SELECT / PRESETS), the name editor, the projects */
     {when_menu, k_menu},               /* P1.3y: a settings menu: KNOB 1..4 its rows (P1.4b: the track settings) */
     {when_mix, k_mix},                 /* P1.4b: the mix */
@@ -1770,10 +1832,10 @@ static const struct {
     {when_snd, k_snd},                 /* P1.4a: the sound editor: its page's values (a finger: p-locks) */
     {when_seq, k_seq},                 /* SEQ held: ALGORITHM the launch mode */
     {when_f3, k_f3},                   /* F3: SELECT page, ALGO tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */
+    {when_auto, k_live},               /* P1.6d: automation recording: the quick page as locks on the step playing */
     {when_cursor, k_steps_cursor},     /* P1.3y: no finger on a step: ALGORITHM cursor, PRESETS preset, SELECT page */
     {when_steps_held, k_held},         /* a step held: SELECT page, ALGORITHM value, PRESETS sound lock, p-locks */
     {when_mkey, k_mkey_knob},          /* a mode key held (P1.3e): its default */
-    {when_live, k_live},               /* live recording: the quick page as locks on the step playing */
     {when_step_rec, k_cursor},         /* step recording: PRESETS moves the cursor */
     {when_stepview, k_stepview},       /* the step view: page, the mode's default, the sound, the quick page */
     {when_always, k_track},            /* the keyboard: tempo, the sound, the quick page */
@@ -1799,6 +1861,7 @@ void qd_ctl_knob(qd_app_t *a, int knob, int d)
 {
     qd_ui_t *u = &a->ui;
     size_t i;
+    u->last_knob = knob;                                /* (P1.6d: automation's cue) */
     if (knob >= 0 && knob < 8 && d) {                   /* P1.5b: the time since this knob's last detent that way */
         const int dir = d > 0 ? 1 : -1;
         u->knob_dt = u->knob_dir[knob] == dir && u->knob_ms[knob] ? a->ms - u->knob_ms[knob] : 100000u;
@@ -1817,6 +1880,15 @@ void qd_ctl_ms(qd_app_t *a)
     qd_ui_t *u = &a->ui;
     qd_lib_ms(a);                                       /* P1.5a: the sounds page's sound heard */
     qd_snd_rnd_ms(a);                                   /* P1.5c: the editor's dice, its bottle */
+    qd_snd_fkey_ms(a);                                  /* P1.6d: the FILTER key held: the machines' popup */
+    if (held(a, QD_B_KEYS) && !u->arp_used && a->ms - u->arp_ms >= QD_ARP_HOLD_MS && u->mode != QD_MODE_IDLE) {
+        u->arp_used = 1;                                /* P1.6d: ARP held: the arp on / off, big */
+        qd_mfx_arp_tap(a);
+    }
+    if (u->arp_fill && !(held(a, QD_B_KEYS) && qd_ctl_shift(a))) {   /* (FILL while SHIFT and ARP are both down) */
+        u->arp_fill = 0;
+        qd_seq_fill(&a->seq, 0);
+    }
     if (held(a, QD_B_MUTE) && !u->lfo_used && !u->lmode_open && u->mode == QD_MODE_STEP &&
         a->ms - u->lfo_ms >= QD_LFO_HOLD_MS)
         u->lmode_open = 1;                              /* P1.5h: LFO held alone: the latch mode's screen, while held */
@@ -1862,7 +1934,11 @@ void qd_ctl_ms(qd_app_t *a)
                 qd_clip_group(&u->clip, 1);
         }
     }
-    if (held(a, QD_B_REC) && !u->rec_down_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS) {
+    if (held(a, QD_B_REC) && !u->rec_down_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS && u->mode != QD_MODE_KEYS &&
+        a->seq.playing) {
+        u->rec_down_used = 1;                           /* P1.6d: another view, playing: REC held records automation
+                                                         * (no arming, the view stays) */
+    } else if (held(a, QD_B_REC) && !u->rec_down_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS) {
         u->rec_down_used = 1;                           /* P1.3x: REC held: recording armed (P1.3y: in the record
                                                          * settings' MODE) */
         if (u->mode != QD_MODE_KEYS)
@@ -1873,6 +1949,7 @@ void qd_ctl_ms(qd_app_t *a)
             qd_rec_arm_live(a);
     }
     qd_rec_ms(a);
+    qd_auto_ms(a);                                      /* P1.6d: an automation take ends */
     {   /* page follow: the page edited moves when the playhead goes to another page (a page chosen by hand stays
          * until then); not while steps are held or a layer is */
         const int pp = qd_ctl_playing_page(a, a->sel);

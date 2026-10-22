@@ -334,12 +334,12 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     }
     if (u->mode == QD_MODE_KEYS)                        /* REC: lit in the keyboard, blinking while armed */
         out->button[QD_B_REC] = !u->rec || blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
-    {   /* P1.6c: ARP lit while the track's group's arp plays, blinking while FILL is held */
+    {   /* P1.6d: ARP lit steady while the track's group has an arp ON (off otherwise), blinking with FILL */
         const int g = qd_mfx_tgroup(a);
-        if (a->seq.fill)
-            out->button[QD_B_KEYS] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_DIM;
-        else if (g && qd_mfx_arp_playing(&a->player.mfx, g))
-            out->button[QD_B_KEYS] = QD_LED_LIT;
+        const int k = g ? qd_mfx_arp_slot(&a->proj.mfx[g - 1]) : -1;
+        const int on = k >= 0 && a->proj.mfx[g - 1].slot[k].v[QD_MA_MODE] != QD_AM_OFF && !a->proj.mfx[g - 1].slot[k].bypass;
+        out->button[QD_B_KEYS] = a->seq.fill ? (blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_DIM)
+                                             : on ? QD_LED_LIT : QD_LED_OFF;
     }
     if (u->latch == QD_LATCH_MIX)                       /* P1.4b: ENV (MIX), FX, SEL lit while their pages are open */
         out->button[QD_B_PAGE] = QD_LED_LIT;

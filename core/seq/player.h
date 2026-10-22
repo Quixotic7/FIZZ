@@ -89,6 +89,9 @@ void qd_player_flush_track(qd_player_t *pl, int t);
 int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes);
 /* a live edit of track t's sound: patch value id (0..73, DRIVE 73) or a mix value (QD_LK_PAN .. QD_LK_LEVEL) */
 void qd_player_live_edit(qd_player_t *pl, int t, int id, int value);
+/* P1.6d, automation recording: value id (a patch value or a mix value) into track t's sounding voices as their own, as
+ * a LOCK trig writes it (heard now; the track's sound unchanged) */
+void qd_player_voice_lock(qd_player_t *pl, int t, int id, int value);
 
 uint32_t qd_patch_hash(const int16_t *patch);   /* FNV-1a over the 74 values, little-endian (DRIVE 0 skipped) */
 /* voice i's patch as it will be after its dip (the values waiting applied) */

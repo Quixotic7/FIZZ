@@ -49,8 +49,11 @@ int qd_fx_send(const qd_app_t *a, int t, int fx)
 static void panel_open(qd_app_t *a, int kind)
 {
     qd_ui_t *u = &a->ui;
-    u->slatch = 0;
-    qd_step_release_all(a);
+    if (kind == QD_LATCH_TRK) {                         /* (P1.6d: the mix and the effects keep the held steps and the
+                                                         * latch's selection: their sends lock on them) */
+        u->slatch = 0;
+        qd_step_release_all(a);
+    }
     u->tk = QD_TK_NONE;
     qd_latch_open(a, kind);
     u->menu_knob = -1;
@@ -60,7 +63,7 @@ static void panel_open(qd_app_t *a, int kind)
 void qd_trk_button(qd_app_t *a)
 {
     if (a->ui.latch == QD_LATCH_TRK) {
-        a->ui.trk_page ^= 1;
+        a->ui.trk_page = (a->ui.trk_page + 1) % 3;      /* (P1.6d: a third page, KIND and NAME) */
         a->ui.menu_knob = -1;
         return;
     }
@@ -128,12 +131,20 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
     qd_ui_t *u = &a->ui;
     qd_tset_t *ts = &qd_ctl_pat(a)->trk[a->sel];
     if (knob == QD_K_SELECT) {
-        u->trk_page = cl(u->trk_page + d, 0, 1);
+        u->trk_page = cl(u->trk_page + d, 0, 2);
         return 1;
     }
     if (knob < QD_K_1)
         return 1;
     u->menu_knob = knob - QD_K_1;
+    if (u->trk_page == 2) {                             /* P1.6d, page 3: KIND, NAME */
+        qd_track_t *tk = &a->model.t[a->sel];
+        if (knob == QD_K_1)
+            qd_track_set_kind(tk, tk->kind < 7 ? cl(tk->kind + d, 0, 6) : d > 0 ? 0 : 6);
+        else if (knob == QD_K_2)                        /* a turn: the name keyboard */
+            qd_name_open(a, 3, a->sel);
+        return 1;
+    }
     if (!u->trk_page) {
         switch (knob) {
         case QD_K_1: ts->scale = (uint8_t)cl(ts->scale + d, 0, QD_NSCALE - 1), ts->key_global = 0; break;
@@ -169,10 +180,42 @@ int qd_mix_knob(qd_app_t *a, int knob, int d)
     if (id < 0)
         return 1;
     u->menu_knob = knob - QD_K_1;
+    qd_step_promote_all(a);
+    if (u->nheld) {                                     /* P1.6d: a step held (or the latch's selection): locks */
+        qd_step_lock_fine(a, id, qd_ctl_acc(a, d, 128));
+        return 1;
+    }
+    if (qd_auto_on(a) && qd_auto_put(a, id, qd_auto_cur(a, id) + qd_ctl_acc(a, d, 128)))
+        return 1;                                       /* P1.6d: automation recording */
     v = id == QD_LK_LEVEL ? m->level : id == QD_LK_PAN ? m->pan : id == QD_LK_DELAY ? m->delay
       : id == QD_LK_REVERB ? m->reverb : m->chorus;
     qd_player_live_edit(&a->player, a->sel, id, v + qd_ctl_acc(a, d, 128));
     return 1;
+}
+/* P1.6d: the lock id a knob turns on the mix / the effects page now (-1 none) */
+int qd_panel_lock_id(const qd_app_t *a, int knob)
+{
+    static const int16_t ID[2][4] = {{QD_LK_LEVEL, QD_LK_PAN, QD_LK_DELAY, QD_LK_REVERB},
+                                     {QD_LK_CHORUS, QD_LK_DELAY, QD_LK_REVERB, -1}};
+    const qd_ui_t *u = &a->ui;
+    if (knob < QD_K_1)
+        return -1;
+    if (u->latch == QD_LATCH_MIX)
+        return ID[u->mix_page & 1][knob - QD_K_1];
+    if (u->latch == QD_LATCH_FX) {
+        const qd_fxpage_t *pg = &QD_FX_PAGES[u->fx_page];
+        const int c = pg->c[knob - QD_K_1];
+        if (c == QD_FXC_SEND || (c <= QD_FXC_SENDX(0) && c != QD_FXC_NONE && c > QD_FXC_SENDX(3)))
+            return qd_fx_send_id(c == QD_FXC_SEND ? pg->fx : QD_FXC_SENDX(0) - c);
+    }
+    return -1;
+}
+/* P1.6d: the W keys on the mix and the effects' pages (the overview's W1..W8 the tracks): held, the steps the sends
+ * lock on (a tap does nothing here); 1 taken */
+int qd_panel_steps(const qd_app_t *a, int w)
+{
+    return a->ui.latch == QD_LATCH_MIX ||
+           (a->ui.latch == QD_LATCH_FX && !(QD_FX_PAGES[a->ui.fx_page].fx == QD_FXG_OVER && w < QD_NTRACK));
 }
 
 int qd_fx_knob(qd_app_t *a, int knob, int d)
@@ -194,6 +237,14 @@ int qd_fx_knob(qd_app_t *a, int knob, int d)
     if (c == QD_FXC_SEND || c <= QD_FXC_SENDX(0)) {    /* the selected track's send into this effect (the overview:
                                                          * the cell's) */
         const int fx = c == QD_FXC_SEND ? pg->fx : QD_FXC_SENDX(0) - c;
+        qd_step_promote_all(a);
+        if (u->nheld) {                                 /* P1.6d: a step held (or the latch's selection): locks */
+            qd_step_lock_fine(a, qd_fx_send_id(fx), qd_ctl_acc(a, d, 128));
+            return 1;
+        }
+        if (qd_auto_on(a) &&
+            qd_auto_put(a, qd_fx_send_id(fx), qd_auto_cur(a, qd_fx_send_id(fx)) + qd_ctl_acc(a, d, 128)))
+            return 1;                                   /* P1.6d: automation recording */
         qd_player_live_edit(&a->player, a->sel, qd_fx_send_id(fx), qd_fx_send(a, a->sel, fx) + qd_ctl_acc(a, d, 128));
         return 1;
     }

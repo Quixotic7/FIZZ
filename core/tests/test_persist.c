@@ -573,6 +573,46 @@ static void mix_test(void)
               !A.per.lib[3].reverb, "an 'S' 3 record (0.7.3 and older): no sends, pan centre");
 }
 
+/* P1.6d: the tracks' kinds and names, AUTOMATION, kept across a restart; a 0.9.0 header (none of them): the default
+ * kit's names and kinds, AUTOMATION ON, the pool byte still read */
+static void names_test(void)
+{
+    static uint8_t b[QDS_MAXREC];
+    const uint32_t base = 2u + QD_PROJ_NAME + 7u + 7u * QD_NTRACK;
+    int len;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    CHECK(!strcmp(A.model.t[0].name, "DRUMS") && A.model.t[0].kind == QD_PK_DRUMS && !strcmp(A.model.t[6].name, "BELL") &&
+              A.model.t[6].kind == QD_PK_KEYS && A.model.t[7].kind == QD_PK_FX && !A.model.t[6].named && A.proj.rec_auto,
+          "the default kit: DRUMS .. NOISE, their kinds (BELL KEYS, NOISE FX), none typed; AUTOMATION ON");
+    qd_track_set_kind(&A.model.t[6], QD_PK_PAD);
+    CHECK(!strcmp(A.model.t[6].name, "PAD") && A.model.t[6].kind == QD_PK_PAD, "a kind chosen: the name its own (PAD)");
+    qd_track_set_name(&A.model.t[2], "GLASSY KEYS!");
+    qd_track_set_kind(&A.model.t[2], QD_PK_LEAD);
+    CHECK(!strcmp(A.model.t[2].name, "GLASSY KEYS!") && A.model.t[2].named && A.model.t[2].kind == QD_PK_LEAD,
+          "a name typed (twelve characters): a kind chosen keeps it");
+    qd_track_set_name(&A.model.t[2], "LEAD");
+    CHECK(!A.model.t[2].named, "the kind's own name typed: not typed (a kind chosen renames it again)");
+    qd_track_set_name(&A.model.t[2], "GLASSY KEYS!");
+    A.proj.rec_auto = 0;
+    run(&A, 20);
+    CHECK(qd_persist_flush(&A), "flushed");
+    boot(&B);
+    CHECK(!strcmp(B.model.t[2].name, "GLASSY KEYS!") && B.model.t[2].named && B.model.t[2].kind == QD_PK_LEAD &&
+              !strcmp(B.model.t[6].name, "PAD") && B.model.t[6].kind == QD_PK_PAD && !B.model.t[6].named &&
+              !strcmp(B.model.t[1].name, "BASS") && !B.proj.rec_auto,
+          "a restart: the names, the kinds, typed or not, AUTOMATION OFF");
+    len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, sizeof b);
+    CHECK(len == (int)(base + 3u + QD_NTRACK * (QD_TRACK_NAME + 1)), "the header: %d bytes", len);
+    qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, base + 2u);   /* (0.9.0's) */
+    qd_store_flush(&B.per.prj_st);
+    boot(&A);
+    CHECK(!strcmp(A.model.t[2].name, "KEYS") && A.model.t[2].kind == QD_PK_KEYS && !A.model.t[2].named &&
+              !strcmp(A.model.t[6].name, "BELL") && A.proj.rec_auto,
+          "a 0.9.0 header: the names it had (the default kit's), their kinds; AUTOMATION ON");
+}
+
 int main(void)
 {
     static qd_project_t keep;
@@ -668,8 +708,9 @@ int main(void)
         qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, 9u + 46u);
         qd_store_flush(&B.per.prj_st);
         len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, sizeof b);
-        qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, (uint32_t)len - 2u);   /* (no EDIT KEYS, no P1.5t
-                                                         * pool byte) */
+        (void)len;
+        qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, 2u + QD_PROJ_NAME + 7u + 7u * QD_NTRACK);   /* (no
+                                                         * EDIT KEYS, no P1.5t pool byte, no P1.6d bytes) */
         qd_store_flush(&B.per.prj_st);
         qd_fx_set(QD_FXP_RSIZE, 88);
         boot(&A);
@@ -783,6 +824,7 @@ int main(void)
     refs_test();
     migrate72_test();
     mix_test();
+    names_test();
     printf("test_persist: %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

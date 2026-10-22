@@ -173,7 +173,8 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TK_BACK 107                 /* .. its F1 / HOME: the track's own sound back, "BACK" */
 #define QD_TK_SAVED 108                /* .. SAVE PRESET done: into MY presets, "SAVED" */
 #define QD_TK_LMODE 103                /* P1.5b: the latch mode's screen (P1.5h: only while LFO is held: lmode_open) */
-#define QD_TK_MFX_ARP 109              /* P1.6c: ARP tapped: the group's arp ON / OFF */
+#define QD_TK_MFX_ARP 109              /* P1.6c: ARP (P1.6d: held) the group's arp ON / OFF */
+#define QD_ARP_HOLD_MS 400u            /* P1.6d: ARP held this long: the arp on / off (a tap: the MIDI FX screen) */
 #define QD_TK_MFX_STEP 110             /* P1.6c: a held step's MIDI FX (TRIG's KNOB 2, B4..B10) */
 #define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
 enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes */
@@ -229,7 +230,8 @@ void qd_shift_black(struct qd_app *a, int b);
 void qd_shift_leds(const struct qd_app *a, uint8_t *key);
 int qd_shift_metro_knob(struct qd_app *a, int knob, int d);   /* SHIFT + B7 held: the click's level */
 /* P1.5c: the editor's randomise (ctl_snd.c): B9 the page (after the dice), B10 held the sound (after the bottle) */
-#define QD_RND_DICE_MS 600u
+#define QD_RND_DICE_MS 600u                /* (the roll) */
+#define QD_RND_PAGE_HOLD_MS 1000u          /* P1.6d: B9 held this long: the page randomised (the dice shake till then) */
 #define QD_RND_HOLD_MS 1500u
 #define QD_RND_BURST_MS 600u
 void qd_snd_rnd_ms(struct qd_app *a);
@@ -356,6 +358,8 @@ typedef struct {
     /* P1.3d: the step latch (LFO): the held steps are a selection that stays (held_key -1); a W selects */
     int slatch;
     int scursor;                       /* P1.3q: the latch's selection is PRESETS' cursor (STEPS): the STEPS view stays */
+    int dt_w, dt_double;               /* P1.6d: the latch's last tap (its W + 1; 0 none), the gesture a double tap .. */
+    uint32_t dt_ms;                    /* .. its release */
     int gest_n, gest_sole;             /* P1.3f: the latch's gesture (every W from the first down to all up): its key
                                         * presses, and the step that was the whole selection before it (-1) */
     int last_step[8];                  /* the last step held or tapped, per track (-1 none): the latch starts there */
@@ -447,21 +451,27 @@ typedef struct {
     uint32_t mfx_ms;                   /* .. when */
     int mfx_arm;                       /* B11 armed on this slot (-1 none): B11 again removes its effect */
     int mfx_f1, mfx_f1_used;           /* F1 down there (a tap closes the screen at its release); a B copied */
+    int mfx_bheld, mfx_bused, mfx_bwas;   /* P1.6d: a slot key down (its B + 1), a knob moved it, it was the selected */
+    qd_mfx_slot_t mfx_clip;            /* P1.6d: F1's copy, F2's hand .. */
+    int mfx_f1_copied, mfx_f2_loaded, mfx_f2_holding, mfx_f2_from;
     int mfx_lift_from, mfx_lift_to;    /* F2 + B: the slot moved (its animation) .. */
     uint32_t mfx_lift_ms;
-    int mfx_roll_from;                 /* PRESETS turned: the rolodex from this type .. */
-    uint32_t mfx_roll_ms;
-    int mfx_gsel_from;                 /* ALGORITHM turned: the track's square from this group .. */
-    uint32_t mfx_gsel_ms;
+    int mfx_roll_from, mfx_roll_to;    /* PRESETS turned: the rolodex gliding (hundredths of a type) .. */
+    uint32_t mfx_roll_ms, mfx_roll_t0; /* .. the last detent, the glide's start */
+    int mfx_gsel_from, mfx_gsel_to;    /* ALGORITHM turned: the track's square gliding (hundredths of a group) .. */
+    uint32_t mfx_gsel_ms, mfx_gsel_t0;
     uint32_t mfx_seen[8], mfx_hit_ms[8];   /* the slots' notes seen (the rail's glow) */
     int mfx_seen_g;
-    uint32_t arp_ms;                   /* ARP went down (a tap: the arp on / off at its release) .. */
+    uint32_t arp_ms;                   /* ARP went down (P1.6d: a tap the MIDI FX screen, held the arp on / off) .. */
     int arp_used;                      /* .. SHIFT + ARP, or held: no tap */
+    int arp_fill;                      /* P1.6d: SHIFT + ARP: FILL on (while both are down) */
     int tk_g, tk_on, tk_new;           /* the ARP takeover: the group, on, the slot an arp was added in (-1) */
     int snd_lk, snd_lk_used, snd_lk_k, snd_lk_id;   /* P1.5k: an LFO key held in the editor (1..3; E4: 4 B1, the MOD
                                          * slots), a knob used with it,
                                         * the knob slot and the value it mapped .. */
     uint32_t snd_lk_ms, snd_lk_bad_ms; /* .. when it went down; a value that is no destination turned (its shake) */
+    int snd_fkey, snd_fkey_used, snd_fpop;   /* P1.6d: the FILTER key down, used; its machines' popup up .. */
+    uint32_t snd_fkey_ms;
     int snd_page;                      /* P1.4a: the sound editor's page (QD_SND_PAGES) .. */
     int snd_knob;                      /* .. the knob last turned there (0..3 KNOB 1..4, 4 ALGORITHM; -1 none) .. */
     uint32_t snd_ms;                   /* .. and when */
@@ -483,6 +493,14 @@ typedef struct {
     int sel_used;                      /* .. a key used it */
     int rec_down_used;                 /* REC + PLAY: REC's release is not a tap */
     uint32_t rec_down_ms;              /* P1.3x: REC went down (held QD_REC_HOLD_MS: live recording armed) */
+    int rec_auto_used;                 /* P1.6d: a knob recorded while REC was held (its release is no tap) */
+    int rec_page;                      /* P1.6d: the record settings' page (2: AUTOMATION) */
+    int auto_take;                     /* P1.6d, automation recording: a take on (its values below) */
+    uint32_t auto_has[(QD_LK_N + 31) / 32];   /* .. the values moved in the take (bit id), .. */
+    int16_t auto_v[QD_LK_N];           /* .. their last value (the next move goes on from it) */
+    int auto_step, auto_knob;          /* .. the step written last, the knob that did (QD_K_*) */
+    uint32_t auto_ms;                  /* .. when */
+    int last_knob;                     /* P1.6d: the knob turned last (QD_K_*) */
     uint32_t play_down_ms;             /* P1.3x: PLAY went down (held QD_PLAY_HOLD_MS: F3); .. */
     int play_used;                     /* .. its release is no tap */
     int live_wait;                     /* P1.3x: live recording armed, stopped: the first note starts it all */
@@ -582,6 +600,12 @@ void qd_snd_mod_key(struct qd_app *a, int down);    /* E4: B1 in the editor: a t
 void qd_snd_mod_src(struct qd_app *a, int w);       /* E4: .. B1 held, W1..W8: the source (VEL .. F ENV) */
 int qd_snd_mod_slot_of(const struct qd_app *a, int src, int dest);   /* E4: the slot with src -> dest, -1 none */
 extern const char *const QD_SND_MACHINE[6];
+extern const int8_t QD_SND_MENU[6];                 /* E4.1: the machines' menu order (indices of QD_SND_MACHINE) */
+int qd_snd_machine_pos(const struct qd_app *a);     /* .. the machine's place in it */
+#define QD_FPOP_MS 400u                             /* P1.6d: the FILTER key held this long: the machines' popup */
+void qd_snd_fkey(struct qd_app *a, int down);
+void qd_snd_fkey_ms(struct qd_app *a);
+int qd_snd_fpop_key(struct qd_app *a, int b);
 #define QD_SND_START_PAGE 4            /* P1.5l: a fresh start: RATIO (B2), the sound's first page (E1, E4: after PORT, MOD) */
 #define QD_SND_NPAGE 21
 typedef struct {
@@ -623,6 +647,8 @@ int qd_mfx_oct(struct qd_app *a, int d, int down);   /* F1 / F2 there; 1 taken *
 void qd_mfx_leds(const struct qd_app *a, uint8_t *key);
 void qd_mfx_arp_tap(struct qd_app *a);            /* ARP tapped: the arp on / off (a group made for it if none) */
 int qd_mfx_lane_page(const struct qd_app *a);     /* the arp's lane on screen: 0 none, 1 MOD, 2 TRANSPOSE */
+#define QD_MFX_GLIDE_MS 260u
+int qd_mfx_glide(const struct qd_app *a, int from, int to, uint32_t t0);   /* P1.6d: a glide's place now (x100) */
 const char *qd_mfx_knob_name(const struct qd_app *a, int k, char *val);   /* KNOB k's (0..3) name, value (12) */
 
 /* ---- ctl_mix.c (P1.4b, built through ctl_latch.c): the track settings, the mix, the effects. The effects' pages: a
@@ -651,6 +677,8 @@ void qd_mix_button(struct qd_app *a);   /* ENV (MIX): open / the sends / the fad
 void qd_fx_button(struct qd_app *a);    /* FX tapped: open / the next page */
 void qd_panel_black(struct qd_app *a, int b);
 void qd_panel_white(struct qd_app *a, int w);     /* P1.5b: the effects' overview: W1..W8 the track */
+int qd_panel_lock_id(const struct qd_app *a, int knob);   /* P1.6d: the send / mix lock a knob turns there (-1) */
+int qd_panel_steps(const struct qd_app *a, int w);        /* P1.6d: W w holds a step there (the sends' locks) */
 int qd_trk_knob(struct qd_app *a, int knob, int d);
 int qd_mix_knob(struct qd_app *a, int knob, int d);
 int qd_fx_knob(struct qd_app *a, int knob, int d);
@@ -729,10 +757,13 @@ extern const uint8_t QD_WHITE_KEY[16], QD_BLACK_KEY[11];
 /* ---- ctl_step.c */
 void qd_step_white_down(struct qd_app *a, int w);
 void qd_step_white_up(struct qd_app *a, int w);
+void qd_step_white_up_hold(struct qd_app *a, int w);   /* P1.6d: .. a hold-only key (the mix, the effects: no tap) */
 void qd_step_promote(struct qd_app *a, int w);      /* a pending white key becomes held */
 void qd_step_promote_all(struct qd_app *a);
 void qd_step_promote_due(struct qd_app *a);         /* those down 250 ms, in the order they went down */
 void qd_step_value_key(struct qd_app *a, int b, int down);   /* B1..B11 with steps held */
+int qd_step_latch_default(const struct qd_app *a);  /* P1.6d: the latch in VALUES, nothing selected: B the defaults */
+void qd_step_value_key_default(struct qd_app *a, int b, int down);   /* .. B1..B11 on the track's default */
 int qd_step_knob(struct qd_app *a, int knob, int d);   /* a knob with steps held; 1: taken */
 void qd_step_oct(struct qd_app *a, int d);          /* OCT- / OCT+ with steps held: NOTE's octave, SOUND's bank */
 int qd_step_lock_knob(struct qd_app *a, int knob, int d);   /* a lockable knob of the screen: the held steps; 1 taken */
@@ -775,7 +806,15 @@ int qd_rec_stepping(const struct qd_app *a);    /* P1.3y: step recording (the cu
 void qd_rec_ms(struct qd_app *a);               /* P1.3x: an empty track's loop growing as it is recorded */
 void qd_rec_rest(struct qd_app *a);
 void qd_rec_cursor(struct qd_app *a, int d);
-int qd_rec_knob(struct qd_app *a, int knob, int d);   /* live recording: a knob turn as a lock; 1: taken */
+int qd_rec_knob(struct qd_app *a, int knob, int d);   /* automation: KNOB 1..4 (the quick page) as a lock; 1: taken */
+/* P1.6d, automation recording (ctl_rec.c): playing, REC held (any view; the keyboard: as well as arming), or armed live
+ * recording with AUTOMATION ON. A knob's value goes as a lock into the step under the selected track's playhead (an
+ * empty step: a LOCK trig, a ghost), heard at once on the track's sounding voices; the track's sound is not changed.
+ * One undo level a take; within a step the last value stays */
+int qd_auto_on(const struct qd_app *a);
+int qd_auto_cur(const struct qd_app *a, int id);       /* the value a move goes on from */
+int qd_auto_put(struct qd_app *a, int id, int value);  /* 1: recorded (else: not recording, the caller edits) */
+void qd_auto_ms(struct qd_app *a);                     /* the take ends */
 void qd_rec_midi_note(struct qd_app *a, int note, int down, int vel);   /* MIDI into a held step / the recording */
 int qd_rec_key_note(const struct qd_app *a, int key);   /* the keyboard's note of key k (the octave, the scale) */
 

@@ -91,6 +91,36 @@ static void sd_mixrow(const ui_snd_t *v)
     }
 }
 
+/* P1.6d (the owner: on TONE "something is missing" lower right): MIX as a glyph in KNOB 4's square, as HARM, DTUNE
+ * and FDBK have theirs: X's and Y's outputs as two bars as tall as their shares (their carriers' colours), a short
+ * slider under them with KNOB 4's handle, X and Y its ends */
+static void sd_mixcell(const ui_snd_t *v)
+{
+    const float sx = v->has_mix ? (63.f - (float)v->mix) / 127.f : 1.f, sy = 1.f - sx;
+    const float x0 = 148.f, x1 = 212.f, yy = 150.f, hx = x0 + (x1 - x0) * ((float)v->mix + 64.f) / 127.f;
+    int o, cx = -1, cy = -1;
+    if (!v->has_mix)
+        return;
+    for (o = 0; o < 4; o++) {
+        if (cx < 0 && ((v->outx >> o) & 1u))
+            cx = o;
+        if (cy < 0 && ((v->outy >> o) & 1u))
+            cy = o;
+    }
+    {
+        const qd_rgb xc = cx >= 0 ? SNDK[cx] : UI_G1, yc = cy >= 0 ? SNDK[cy] : UI_G1;
+        const float hmax = 30.f, base = 136.f;
+        ui_RR(160.f, base - 4.f - hmax * sx, 12.f, 4.f + hmax * sx, 3.f, QD_NONE, 1.f, sd_fade(xc, 0.35f + 0.65f * sx));
+        ui_RR(188.f, base - 4.f - hmax * sy, 12.f, 4.f + hmax * sy, 3.f, QD_NONE, 1.f, sd_fade(yc, 0.35f + 0.65f * sy));
+        line2(152.f, base + 1.f, 208.f, base + 1.f, UI_G3, 1.f);
+        line2(x0, yy, x1, yy, UI_G2, 2.f);
+        line2((x0 + x1) * 0.5f, yy - 4.f, (x0 + x1) * 0.5f, yy + 4.f, UI_G1, 1.2f);   /* MIX 0 */
+        ui_O(x0 - 8.f, yy, 4.f, xc, 1.5f, UI_BG);       /* X */
+        ui_O(x1 + 8.f, yy, 4.f, yc, 1.5f, UI_BG);       /* Y */
+        ui_RR(hx - 4.f, yy - 7.f, 8.f, 14.f, 2.5f, QD_NONE, 1.f, SNDK[3]);
+    }
+}
+
 /* the operators wired by the algorithm. P1.5j (the owner): shorter, the bus and the speaker higher (SD_BUS_Y), a deep
  * chain zig-zagging; with MIX (the RATIO page): each operator faded by its output's share (an operator only in X's chain
  * X's, only in Y's Y's, in both full), the wires to the bus as thick as their share, and the mix's own row: a slider
@@ -220,7 +250,7 @@ static void sd_tone(const ui_snd_t *v)
     }
     ui_P(p, 41, SNDK[2], 1.2f, 0, QD_NONE);
     qd_arc(68.f, 134.f, 28.f, UI_PI * 1.15f, UI_PI * 1.85f, UI_G2, 1.f);
-    sd_mixrow(v);                                       /* P1.5n: MIX back on TONE (KNOB 4), the row as RATIO's */
+    sd_mixcell(v);                                      /* P1.6d: MIX in its own square, lower right (KNOB 4's) */
 }
 
 static void sd_ofs(const ui_snd_t *v)
@@ -821,6 +851,62 @@ static void sd_dice(float u, float t)
     }
 }
 
+/* P1.6d: B9 held: the two dice where they will start their roll, shaking harder as u (0..1, a second) grows, a ring
+ * closing round them as the roll nears */
+static void sd_dice_shake(float u, float t)
+{
+    int d;
+    for (d = 0; d < 2; d++) {
+        const qd_rgb col = d ? 0xff3ca0u : 0x28e1ffu;
+        const float amp = 1.f + u * u * 7.f, h = 20.f;
+        const float x = 120.f + (d ? 34.f : -34.f) - (d ? -30.f : 30.f) + sinf(t * (40.f + 30.f * u) + (float)d * 2.f) * amp;
+        const float y = 106.f + cosf(t * (47.f + 30.f * u) + (float)d) * amp * 0.7f;
+        const float spin = sinf(t * 23.f + (float)d) * 0.18f * u;
+        float p[8];
+        int k;
+        for (k = 0; k < 4; k++) {
+            const float an = spin + (float)k * UI_PI * 0.5f + UI_PI * 0.25f;
+            p[2 * k] = x + cosf(an) * h * 1.414f;
+            p[2 * k + 1] = y + sinf(an) * h * 1.414f;
+        }
+        sd_glow(p, 4, 1, col, 1.6f);
+        ui_O(x, y, 2.6f, QD_NONE, 1.f, col);
+    }
+    {   /* the second, as a ring closing */
+        float p[2 * 33];
+        int i, n = 1 + (int)(u * 32.f);
+        for (i = 0; i < n && i <= 32; i++) {
+            const float an = -UI_PI / 2.f + (float)i / 32.f * UI_TAU;
+            p[2 * i] = 120.f + cosf(an) * 70.f, p[2 * i + 1] = 106.f + sinf(an) * 56.f;
+        }
+        if (n > 1)
+            ui_P(p, n > 33 ? 33 : n, UI_G2, 1.4f, 0, QD_NONE);
+    }
+}
+
+/* P1.6d: a machine's response as a small glyph (menu order: MULTI LOWPASS 4 LEGACY COMB- COMB+ EQ) in w x h at x, y */
+static void sd_machine_glyph(int k, float x, float y, float w, float h, qd_rgb c)
+{
+    float p[2 * 25];
+    int i;
+    for (i = 0; i <= 24; i++) {
+        const float u = (float)i / 24.f;
+        float g;
+        switch (k) {
+        case 0: g = 0.5f + 0.4f * expf(-(u - 0.5f) * (u - 0.5f) * 40.f) - 0.25f * fabsf(u - 0.5f); break;   /* band */
+        case 1: g = u < 0.55f ? 0.85f : 0.85f - (u - 0.55f) * 3.2f; break;            /* 24 dB */
+        case 2: g = u < 0.6f ? 0.8f + 0.1f * u : 0.86f - (u - 0.6f) * 1.6f; break;    /* 12 dB */
+        case 3: g = 0.3f + 0.6f * powf(fabsf(sinf(u * UI_PI * 3.5f)), 6.f); break;   /* COMB-: teeth between */
+        case 4: g = 0.35f + 0.55f * powf(fabsf(cosf(u * UI_PI * 3.5f)), 6.f); break;  /* teeth */
+        default: g = 0.45f + 0.45f * expf(-(u - 0.5f) * (u - 0.5f) * 60.f); break;   /* a bell */
+        }
+        g = g < 0.f ? 0.f : g > 1.f ? 1.f : g;
+        p[2 * i] = x + u * w, p[2 * i + 1] = y + h - g * h;
+    }
+    ui_P(p, 25, c, 1.5f, 0, QD_NONE);
+    line2(x, y + h + 1.f, x + w, y + h + 1.f, UI_G3, 1.f);
+}
+
 /* the bottle: filling with rising bubbles while held (u 0..1), then (burst) the cork flies and it bursts */
 static void sd_bottle(float u, int burst, float t)
 {
@@ -996,9 +1082,28 @@ void ui_snd_draw(const ui_snd_t *v)
     if (v->rnd_kind) {                                  /* P1.5c: randomise: the dice, the bottle (over the drawing) */
         ui_RR(12.f, 34.f, 216.f, 146.f, 10.f, QD_NONE, 1.f, UI_BG);
         if (v->rnd_kind == 1)
+            sd_dice_shake(v->rnd_u, v->t);
+        else if (v->rnd_kind == 4)
             sd_dice(v->rnd_u, v->t);
         else
             sd_bottle(v->rnd_u, v->rnd_kind == 3, v->t);
+    }
+    if (v->fpop) {                                      /* P1.6d: the FILTER key held: the six machines */
+        static const char *const NM[6] = {"MULTI", "LOWPASS 4", "LEGACY", "COMB-", "COMB+", "EQ"};
+        int k;
+        ui_RR(8.f, 30.f, 224.f, 152.f, 10.f, SNDK[4], 2.f, UI_BG);
+        for (k = 0; k < 6; k++) {
+            const float x = 14.f + (float)(k % 2) * 108.f, y = 36.f + (float)(k / 2) * 48.f;
+            const int on = k == v->fpop_sel;
+            const qd_rgb c = on ? SNDK[4] : UI_G1;
+            char n[2] = {(char)('1' + k), 0};
+            if (on)
+                ui_RR(x, y, 104.f, 44.f, 7.f, QD_NONE, 1.f, 0x2a1622u);
+            ui_RR(x, y, 104.f, 44.f, 7.f, on ? SNDK[4] : UI_G3, on ? 1.8f : 1.f, QD_NONE);
+            sd_machine_glyph(k, x + 8.f, y + 6.f, 40.f, 22.f, c);
+            ui_T(NM[k], x + 52.f + 24.f, y + 22.f, 12.f, 600, 0.f, on ? UI_K3 : UI_G1, QD_CENTER);
+            ui_T(n, x + 76.f, y + 38.f, 12.f, 600, 0.f, on ? SNDK[4] : UI_G2, QD_CENTER);
+        }
     }
     if (v->lk) {                                        /* P1.5k: an LFO key held: "LFO n -> VALUE", the depth (E4: B1
                                                          * held: the source's glyph and name -> VALUE) */
