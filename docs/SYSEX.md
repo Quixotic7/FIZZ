@@ -158,6 +158,40 @@ Reply: `F0 7D 46 5A 01 60 <count hi> <count lo> <n = 49> { <len> <len ASCII byte
 `tools/fizz_sysex.mjs`: `labelsRequest({subscribe})`, `parseLabels(bytes)` → `{count, list, knobs, buttons, white,
 black}`; `parseReply` gives `{kind: "labels", ..}`.
 
+### `21` LIST, `22` DUMP (P1.6m, 0.8.0-p1.6m): presets out
+
+For a page that exports FIZZ's presets (a backup, a library to load back later).
+
+**LIST**: `F0 7D 46 5A 01 21 <flags> <chk> F7`; flags bit 0 the factory presets too, bit 1 the project's pool too.
+Replies `61`, one part after another (16 entries a part at most):
+`F0 .. 61 <part> <last: 1 the end> <total hi> <total lo> <n> { entry } x n <chk> F7`, an entry 20 bytes:
+
+| bytes | |
+| --- | --- |
+| 1 | source: 0 MY PRESETS, 1 factory, 2 the pool |
+| 2 | slot, 7 bits each (1-based: MY PRESETS 1..256, factory 1..23, pool 1..128) |
+| 3 | the preset's id, 7 bits each (a pool slot: the preset it references) |
+| 12 | the name, ASCII, spaces after |
+| 1 | tags (FIZZ's, bit 0 BASS .. 6 FX) |
+| 1 | bit 0 imported (not saved on FIZZ), bit 1 in this project's pool |
+
+**DUMP**: `F0 7D 46 5A 01 22 <source> <slot hi> <slot lo> <chk> F7`. Slot 0: every one of that source, one after another.
+Each reply **is a STORE (`10`) or STORE6 (`11`, when the sound uses a value 74..) frame** with everything to make the
+preset again: its slot (a factory preset: 0, the first free), name, DRIVE, pan, the three sends (mixmask 0F), its
+patch, its tags byte; a pool slot's has the POOL flag (the preset it references, as a pool store makes it). Its flags
+carry **DUMP (`08`)**: FIZZ ignores a STORE with DUMP set (no store, no reply), so an echo is harmless. **To restore,
+send it back with DUMP cleared and the checksum redone** (`restoreFrame`; another slot by changing bytes 7..8, 0 the
+first free): the same name, patch, tags, pan and sends. An empty place: `7F 05 22` (BAD SLOT).
+
+**Pacing**: a long LIST or a DUMP of everything goes out as there is room: FIZZ makes the next reply when its reply
+ring (4 KiB) has room for it, and its glue moves replies into the ABI's packet ring (12 KiB) as the host reads, so a
+256-preset export never overflows; the page reads the replies in order (test_abi reads 40 at four packets a ms).
+
+`tools/fizz_sysex.mjs`: `listRequest({factory, pool})`, `parseList(bytes)` → `{part, last, total, entries}`,
+`dumpRequest({source: "mine" | "factory" | "pool", slot})`, `parseDump(bytes)` → `{source, slot, name, drive, pan,
+chorus, delay, reverb, tags, blob, six, frame}`, `restoreFrame(bytes, {slot})`; `parseReply` gives `{kind: "list"}`
+and `{kind: "dump"}`.
+
 ## What FIZZ does with a sound
 
 - **Stores it** in the LIBRARY slot or POOL number, with its name. A LIBRARY import becomes one of MY presets: its own

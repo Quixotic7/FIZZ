@@ -32,6 +32,8 @@ uint32_t qd_sx_unpack7(const uint8_t *in, uint32_t n, uint8_t *out)
 }
 
 /* a reply into the queue: F0 7D 46 5A 01, the bytes, the checksum, F7 */
+static void sx_job(qd_app_t *a);                        /* (P1.6m) */
+
 /* P1.6l: the replies wait in a ring of bytes, each its length (2 bytes) then F0 .. F7 */
 static uint32_t sx_room(const qd_sx_t *s) { return QD_SX_RING - (s->w - s->r); }
 static void sx_put(qd_sx_t *s, uint8_t v) { s->ring[s->w++ % QD_SX_RING] = v; }
@@ -60,7 +62,7 @@ int qd_app_sysex_peek(const qd_app_t *a)
     return s->r == s->w ? 0 : (int)(sx_at(s, 0) | (uint32_t)sx_at(s, 1) << 8);
 }
 
-int qd_app_sysex_busy(const qd_app_t *a) { (void)a; return 0; }
+int qd_app_sysex_busy(const qd_app_t *a) { return a->sx.job != 0; }
 
 int qd_app_sysex_take(qd_app_t *a, uint8_t *out, uint32_t max)
 {
@@ -118,6 +120,8 @@ void qd_sx_ms(qd_app_t *a)
 {
     static qd_labels_t l;
     uint32_t h;
+    if (a->sx.job)
+        sx_job(a);                                      /* (P1.6m: a LIST / DUMP going out as there is room) */
     if (!a->sx.lbl_sub || a->ms - a->sx.lbl_ms < QD_SX_LABELS_MS)
         return;
     a->sx.lbl_ms = a->ms;
@@ -155,6 +159,8 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
         return;
     }
     flags = b[0];
+    if (flags & QD_SXF_DUMP)
+        return;                                         /* (P1.6m: a DUMP's reply, echoed: not stored, no reply) */
     pool = (flags & QD_SXF_POOL) != 0;
     slot = b[1] << 7 | b[2];
     for (i = 0; i < QD_SX_NAME; i++)                    /* the name: printable ASCII, the trailing spaces off */
@@ -248,6 +254,182 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
     sx_store_reply(a, QD_SX_OK, pool, slot);
 }
 
+/* ---------------------------------------------------------------- P1.6m: LIST, DUMP */
+/* source src's entry k (0-based): its sound (a pool slot: its preset, resolved; the pool's own name), 0 none */
+static int sx_entry(const qd_app_t *a, int src, int k, qd_sound_t *s)
+{
+    if (src == QD_SXS_MINE) {
+        if (k < 0 || k >= QD_NLIB || !a->per.lib[k].name[0])
+            return 0;
+        *s = a->per.lib[k];
+        return 1;
+    }
+    if (src == QD_SXS_FACTORY) {
+        if (k < 0 || k >= QD_NFACTORY)
+            return 0;
+        qd_factory_get(a, k, s);
+        return 1;
+    }
+    if (k < 0 || k >= QD_NSOUND || !a->proj.sound[k].name[0])
+        return 0;
+    {
+        int m;
+        *s = a->proj.sound[k];
+        m = qd_lib_find(a, s->preset);                  /* (a MY preset's: its mix, its tags, as the preset) */
+        if (m >= 0) {
+            s->pan = a->per.lib[m].pan, s->chorus = a->per.lib[m].chorus;
+            s->delay = a->per.lib[m].delay, s->reverb = a->per.lib[m].reverb;
+            s->tags = a->per.lib[m].tags;
+            s->flags = a->per.lib[m].flags;
+        }
+    }
+    return 1;
+}
+static int sx_count(const qd_app_t *a, int src)
+{
+    qd_sound_t s;
+    int k, n = 0, max = src == QD_SXS_MINE ? QD_NLIB : src == QD_SXS_FACTORY ? QD_NFACTORY : QD_NSOUND;
+    for (k = 0; k < max; k++)
+        n += sx_entry(a, src, k, &s);
+    return n;
+}
+
+/* DUMP's reply: a STORE (STORE6 when the sound uses a value 74..) frame of it, the DUMP flag set: its slot, name,
+ * DRIVE, pan, the sends (mixmask 0F), its patch, its tags; FIZZ ignores it as it is (sent back with the flag cleared:
+ * the preset made again) */
+static int sx_dump_one(qd_app_t *a, int src, int k)
+{
+    static uint8_t b[QD_SX_STORE6_BODY + 4];
+    uint8_t blob[QD_SX_BLOB6];
+    qd_sound_t s;
+    uint32_t o = 0;
+    int i, six;
+    if (!sx_entry(a, src, k, &s))
+        return -1;
+    six = qd_quad_ext_used(s.patch);
+    if (six)
+        qd_quad_pack(s.patch, blob);
+    else
+        qd_quad_pack5(s.patch, blob);
+    b[o++] = six ? QD_SX_STORE6 : QD_SX_STORE;
+    b[o++] = (uint8_t)(QD_SXF_DUMP | (src == QD_SXS_POOL ? QD_SXF_POOL : 0));
+    {
+        const int slot = src == QD_SXS_FACTORY ? 0 : k + 1;   /* (a factory preset: back as a new MY preset) */
+        b[o++] = (uint8_t)((slot >> 7) & 0x7F), b[o++] = (uint8_t)(slot & 0x7F);
+    }
+    for (i = 0; i < QD_SX_NAME; i++)
+        b[o++] = (uint8_t)(s.name[i] && i < (int)strlen(s.name) ? s.name[i] & 0x7F : ' ');
+    b[o++] = (uint8_t)(s.patch[QD_QP_DRIVE] & 0x7F);
+    b[o++] = 0;                                         /* (no LOAD) */
+    b[o++] = (uint8_t)(s.pan + 64 < 0 ? 0 : s.pan + 64 > 127 ? 127 : s.pan + 64);
+    b[o++] = s.chorus & 0x7F, b[o++] = s.delay & 0x7F, b[o++] = s.reverb & 0x7F;
+    b[o++] = QD_SXM_PAN | QD_SXM_CHORUS | QD_SXM_DELAY | QD_SXM_REVERB;
+    o += qd_sx_pack7(blob, six ? QD_SX_BLOB6 : QD_SX_BLOB, b + o);
+    b[o++] = (uint8_t)(s.tags & QD_PK_MASK);
+    return sx_reply(a, b, o) ? 1 : 0;
+}
+
+/* LIST's reply: part, last (1: the listing's end), the total (2 x 7 bits), how many here, the entries: source, slot
+ * (2), preset id (3 x 7 bits), name (12, spaces), tags, flags (bit 0 imported, bit 1 in this project's pool) */
+static int sx_list_part(qd_app_t *a)
+{
+    static uint8_t b[8 + QD_SX_LIST_PER * QD_SX_ENTRY];
+    qd_sx_t *x = &a->sx;
+    const int total = sx_count(a, QD_SXS_MINE) + (x->job_flags & QD_SXL_FACTORY ? QD_NFACTORY : 0) +
+                      (x->job_flags & QD_SXL_POOL ? sx_count(a, QD_SXS_POOL) : 0);
+    uint32_t o = 6;
+    int n = 0;
+    while (n < QD_SX_LIST_PER && x->job_src <= QD_SXS_POOL) {
+        const int src = x->job_src, max = src == QD_SXS_MINE ? QD_NLIB : src == QD_SXS_FACTORY ? QD_NFACTORY : QD_NSOUND;
+        qd_sound_t s;
+        if ((src == QD_SXS_FACTORY && !(x->job_flags & QD_SXL_FACTORY)) ||
+            (src == QD_SXS_POOL && !(x->job_flags & QD_SXL_POOL)) || x->job_at >= max) {
+            x->job_src++, x->job_at = 0;
+            continue;
+        }
+        if (sx_entry(a, src, x->job_at, &s)) {
+            int i, inpool = 0;
+            const int slot = x->job_at + 1;
+            for (i = 0; i < QD_NSOUND && !inpool; i++)
+                inpool = a->proj.sound[i].name[0] && a->proj.sound[i].preset == s.preset && s.preset;
+            b[o++] = (uint8_t)src;
+            b[o++] = (uint8_t)((slot >> 7) & 0x7F), b[o++] = (uint8_t)(slot & 0x7F);
+            b[o++] = (uint8_t)((s.preset >> 14) & 0x7F), b[o++] = (uint8_t)((s.preset >> 7) & 0x7F);
+            b[o++] = (uint8_t)(s.preset & 0x7F);
+            for (i = 0; i < QD_SX_NAME; i++)
+                b[o++] = (uint8_t)(i < (int)strlen(s.name) ? s.name[i] & 0x7F : ' ');
+            b[o++] = (uint8_t)(s.tags & QD_PK_MASK);
+            b[o++] = (uint8_t)((s.flags & QD_SNDF_IMPORTED ? 1 : 0) | (inpool ? 2 : 0));
+            n++;
+        }
+        x->job_at++;
+    }
+    b[0] = QD_SX_R_LIST;
+    b[1] = (uint8_t)(x->job_part & 0x7F);
+    b[2] = (uint8_t)(x->job_src > QD_SXS_POOL);
+    b[3] = (uint8_t)((total >> 7) & 0x7F), b[4] = (uint8_t)(total & 0x7F);
+    b[5] = (uint8_t)n;
+    if (!sx_reply(a, b, o))
+        return 0;
+    x->job_part++;
+    return 1;
+}
+
+/* the job going out: as many replies as there is room for now (the rest: qd_sx_ms, as the host reads) */
+static void sx_job(qd_app_t *a)
+{
+    qd_sx_t *x = &a->sx;
+    while (x->job && sx_room(x) >= QD_SX_FRAME_MAX + 2u) {
+        if (x->job == QD_SX_LIST) {
+            if (!sx_list_part(a))
+                return;
+            if (x->job_src > QD_SXS_POOL)
+                x->job = 0;
+        } else {                                        /* DUMP, a whole source */
+            const int max = x->job_src == QD_SXS_MINE ? QD_NLIB : x->job_src == QD_SXS_FACTORY ? QD_NFACTORY : QD_NSOUND;
+            if (x->job_at >= max) {
+                x->job = 0;
+                return;
+            }
+            if (sx_dump_one(a, x->job_src, x->job_at) == 0)
+                return;                                 /* (no room after all: again later; -1: an empty place) */
+            x->job_at++;
+        }
+    }
+}
+
+static void sx_list(qd_app_t *a, const uint8_t *b, uint32_t n)
+{
+    qd_sx_t *x = &a->sx;
+    x->job = QD_SX_LIST;
+    x->job_flags = n >= 2u ? b[0] : 0;
+    x->job_src = QD_SXS_MINE, x->job_at = 0, x->job_part = 0;
+    sx_job(a);
+}
+
+/* DUMP: source, slot (2 x 7 bits; 1-based; 0: every one of that source, paced) */
+static void sx_dump(qd_app_t *a, const uint8_t *b, uint32_t n)
+{
+    int src, slot;
+    if (n < 4u) {
+        const uint8_t e[3] = {QD_SX_R_ERROR, QD_SX_BAD_LENGTH, QD_SX_DUMP};
+        sx_reply(a, e, 3);
+        return;
+    }
+    src = b[0], slot = b[1] << 7 | b[2];
+    if (src > QD_SXS_POOL || (slot && sx_dump_one(a, src, slot - 1) < 0)) {
+        const uint8_t e[3] = {QD_SX_R_ERROR, QD_SX_BAD_SLOT, QD_SX_DUMP};
+        a->sx.errors++;
+        sx_reply(a, e, 3);
+        return;
+    }
+    if (!slot) {
+        a->sx.job = QD_SX_DUMP;
+        a->sx.job_src = src, a->sx.job_at = 0;
+        sx_job(a);
+    }
+}
+
 void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
 {
     uint32_t i, sum = 0;
@@ -292,6 +474,12 @@ void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
         break;
     case QD_SX_LABELS:                                  /* P1.6l */
         sx_labels(a, f + 5, n - 5u);
+        break;
+    case QD_SX_LIST:                                    /* P1.6m */
+        sx_list(a, f + 5, n - 5u);
+        break;
+    case QD_SX_DUMP:
+        sx_dump(a, f + 5, n - 5u);
         break;
     default: {
         const uint8_t b[3] = {QD_SX_R_ERROR, QD_SX_BAD_COMMAND, f[4] & 0x7F};

@@ -29,7 +29,8 @@ The on-screen panel in FM1VST and the web preview labels the buttons by these ro
 (ENV), LATCH (LFO), EDIT, SHIFT (GLO), HOME, SOUNDS (SAVE), FILL (ARP), PATTERNS (SEQ), PLAY, REC, F1, F2. P1.6l:
 FIZZ also tells a page **what every knob, button and key does right now** (the SysEx LABELS, `docs/SYSEX.md`): hold
 SHIFT and the labels become its shortcuts, hold a step and the black keys become that mode's values, open the sound
-editor and the knobs carry the page's value names.
+editor and the knobs carry the page's value names. P1.6m: a page can also **export your presets** (LIST and DUMP: MY PRESETS, the factory's, the
+pool's) as a library to load back later.
 
 "Held" means down for 400 ms (a white step key: 250 ms). Anything shorter is a tap.
 

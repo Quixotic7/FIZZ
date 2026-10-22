@@ -26,8 +26,17 @@ extern "C" {
 #define QD_SX_ID2 0x5Au
 #define QD_SX_PROTO 1u
 
-enum { QD_SX_IDENTITY = 0x01, QD_SX_STORE = 0x10, QD_SX_STORE6 = 0x11, QD_SX_LABELS = 0x20, QD_SX_R_IDENTITY = 0x41,
-       QD_SX_R_STORE = 0x50, QD_SX_R_LABELS = 0x60, QD_SX_R_ERROR = 0x7F };   /* (P1.6l: LABELS) */
+enum { QD_SX_IDENTITY = 0x01, QD_SX_STORE = 0x10, QD_SX_STORE6 = 0x11, QD_SX_LABELS = 0x20, QD_SX_LIST = 0x21,
+       QD_SX_DUMP = 0x22, QD_SX_R_IDENTITY = 0x41, QD_SX_R_STORE = 0x50, QD_SX_R_LABELS = 0x60, QD_SX_R_LIST = 0x61,
+       QD_SX_R_ERROR = 0x7F };          /* (P1.6l: LABELS; P1.6m: LIST, DUMP: its replies STORE / STORE6 frames) */
+#define QD_SXF_DUMP 0x08u              /* P1.6m: a STORE that is a DUMP's reply: FIZZ ignores it (clear it to restore) */
+#define QD_SXS_MINE 0                  /* P1.6m: LIST / DUMP's sources: MY PRESETS (slot 1..256) .. */
+#define QD_SXS_FACTORY 1               /* .. the factory presets (1..23) .. */
+#define QD_SXS_POOL 2                  /* .. the project's pool (1..128: its preset) */
+#define QD_SXL_FACTORY 0x01u           /* LIST's flags: the factory presets too, .. */
+#define QD_SXL_POOL 0x02u              /* .. the pool too */
+#define QD_SX_LIST_PER 16              /* a LIST reply's entries at most */
+#define QD_SX_ENTRY 20                 /* an entry: source, slot (2), preset id (3), name (12), tags, flags */
 #define QD_SXL_SUB 0x01u               /* P1.6l: LABELS' flags: subscribe (a LABELS reply by itself when they change) */
 #define QD_SX_LABELS_MS 50u            /* .. looked at every this many ms at most (20 a second) */          /* (E1: STORE6, the 128-byte version-6 blob; its reply is STORE's) */
 
@@ -61,6 +70,7 @@ typedef struct {
     uint8_t ring[QD_SX_RING];
     uint32_t r, w;
     int lbl_sub;                       /* P1.6l: LABELS subscribed .. */
+    int job, job_flags, job_src, job_at, job_part;   /* P1.6m: a LIST / DUMP going out (0 none): its cursor, its part */
     uint32_t lbl_count, lbl_hash, lbl_ms;   /* .. the set's change count, its hash, when last looked at */
     const char *version;               /* the identity's version ("FIZZ 0.6.4-p1.5r"; the glue sets it) */
     uint32_t frames, errors;           /* (counters) */

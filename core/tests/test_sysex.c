@@ -315,9 +315,9 @@ int main(int argc, char **argv)
     blob2[0] = blob[0];
     send(f, n);
     CHECK(status() == QD_SX_BAD_PATCH && qd_lib_free_slot(&A) == s0, "not an FM TONE blob: BAD PATCH");
-    n = frame(f, 0x22, 0, 0);
+    n = frame(f, 0x2F, 0, 0);
     send(f, n);
-    CHECK(reply_ok() && R[5] == QD_SX_R_ERROR && R[6] == QD_SX_BAD_COMMAND && R[7] == 0x22, "an unknown command: 7F 07 22");
+    CHECK(reply_ok() && R[5] == QD_SX_R_ERROR && R[6] == QD_SX_BAD_COMMAND && R[7] == 0x2F, "an unknown command: 7F 07 2F");
     n = frame(f, QD_SX_IDENTITY, 0, 0);
     f[3] = 2;
     send(f, n);
@@ -409,6 +409,178 @@ int main(int argc, char **argv)
         qd_app_button(&A, QD_B_FUNC, 0);
         run(200);
         CHECK(ln > 60 && !qd_app_sysex_peek(&A), "unsubscribed: its reply, then none when they change");
+    }
+    {   /* P1.6m: LIST and DUMP: the list after a few stores; each dumped and stored back into an empty library (the patch,
+         * the name, the tags, the sends the same); a dump echoed: ignored; the factory's; a full 256 export round trip */
+        static uint8_t D[300][QD_SX_FRAME_MAX];
+        static int dn[300];
+        static qd_sound_t want[QD_NLIB];
+        static uint8_t LR[QD_SX_FRAME_MAX];
+        int nd = 0, j, total = -1, got = 0, ok3 = 1, last = 0, g;
+        uint32_t seed = 4242u;
+        fresh();
+        for (k = 0; k < 3; k++) {                       /* three of MY presets: 2, 5, 9; random patches, their mix */
+            int16_t pp[QD_QUAD_NP];
+            char nm[16];
+            for (j = 0; j < QD_QUAD_NP; j++) {
+                int16_t lo, hi;
+                qd_quad_value_range(j, &lo, &hi, 0);
+                seed = seed * 1664525u + 1013904223u;
+                pp[j] = (int16_t)(lo + (int)((seed >> 8) % (uint32_t)(hi - lo + 1)));
+            }
+            snprintf(nm, sizeof nm, "LIST %d", k + 1);
+            qd_lib_store(&A, k == 0 ? 1 : k == 1 ? 4 : 8, nm, pp);
+            A.per.lib[k == 0 ? 1 : k == 1 ? 4 : 8].pan = (int8_t)(-20 + k * 10);
+            A.per.lib[k == 0 ? 1 : k == 1 ? 4 : 8].reverb = (uint8_t)(30 + k);
+            A.per.lib[k == 0 ? 1 : k == 1 ? 4 : 8].tags = (uint8_t)(1 << k);
+        }
+        {
+            const uint8_t lf = 0;
+            n = frame(f, QD_SX_LIST, &lf, 1);
+        }
+        qd_app_sysex(&A, f, n);
+        for (g = 0; g < 50 && !last; g++) {
+            int ln;
+            while (!last && (ln = qd_app_sysex_take(&A, LR, sizeof LR)) > 0) {
+                int e, o2 = 11;
+                ok3 &= LR[5] == QD_SX_R_LIST;
+                total = LR[8] << 7 | LR[9];
+                last = LR[7];
+                for (e = 0; e < LR[10]; e++, o2 += QD_SX_ENTRY) {
+                    const int slot = LR[o2 + 1] << 7 | LR[o2 + 2];
+                    char nm[13];
+                    memcpy(nm, LR + o2 + 6, 12);
+                    nm[12] = 0;
+                    ok3 &= LR[o2] == QD_SXS_MINE && !strncmp(nm, A.per.lib[slot - 1].name, strlen(A.per.lib[slot - 1].name)) &&
+                           LR[o2 + 18] == A.per.lib[slot - 1].tags;
+                    got++;
+                }
+            }
+            run(1);
+        }
+        CHECK(ok3 && last && total == 3 && got == 3, "LIST: three of MY presets (slots, names, tags), one part, last (%d %d)",
+              total, got);
+        {
+            const uint8_t lf = QD_SXL_FACTORY | QD_SXL_POOL;
+            int pools = 0;
+            for (j = 0; j < QD_NSOUND; j++)
+                pools += A.proj.sound[j].name[0] != 0;
+            n = frame(f, QD_SX_LIST, &lf, 1);
+            qd_app_sysex(&A, f, n);
+            for (got = 0, last = 0, g = 0; g < 100 && !last; g++) {
+                int ln;
+                while (!last && (ln = qd_app_sysex_take(&A, LR, sizeof LR)) > 0)
+                    got += LR[10], total = LR[8] << 7 | LR[9], last = LR[7];
+                run(1);
+            }
+            CHECK(last && total == 3 + QD_NFACTORY + pools && got == total, "LIST with the factory and the pool: %d "
+                  "(3 + %d + %d)", got, QD_NFACTORY, pools);
+        }
+        for (k = 0; k < 3; k++) {                       /* DUMP each */
+            const int slot = k == 0 ? 2 : k == 1 ? 5 : 9;
+            const uint8_t db[3] = {QD_SXS_MINE, 0, (uint8_t)slot};
+            n = frame(f, QD_SX_DUMP, db, 3);
+            qd_app_sysex(&A, f, n);
+            dn[nd] = qd_app_sysex_take(&A, D[nd], sizeof D[nd]);
+            want[k] = A.per.lib[slot - 1];
+            nd++;
+        }
+        CHECK(dn[0] > 100 && (D[0][5] == QD_SX_STORE || D[0][5] == QD_SX_STORE6) && (D[0][6] & QD_SXF_DUMP) &&
+                  (D[0][7] << 7 | D[0][8]) == 2, "DUMP: a STORE / STORE6 frame, the DUMP flag, slot 2 (%d bytes)", dn[0]);
+        qd_app_sysex(&A, D[0] + 1, (uint32_t)dn[0] - 2u);   /* echoed back as it is: ignored */
+        CHECK(!qd_app_sysex_peek(&A), "the dump echoed as it is: not stored, no reply");
+        {
+            const uint8_t db[3] = {QD_SXS_MINE, 0, 3};
+            n = frame(f, QD_SX_DUMP, db, 3);
+            send(f, n);
+            CHECK(reply_ok() && R[5] == QD_SX_R_ERROR && R[6] == QD_SX_BAD_SLOT, "DUMP of an empty place: BAD SLOT");
+        }
+        fresh();                                        /* stored back into an empty library */
+        for (ok3 = 1, k = 0; k < 3; k++) {
+            const int slot = D[k][7] << 7 | D[k][8];
+            int sum3 = 0;
+            D[k][6] &= (uint8_t)~QD_SXF_DUMP;
+            for (j = 5; j < dn[k] - 2; j++)
+                sum3 += D[k][j];
+            D[k][dn[k] - 2] = (uint8_t)((0x80 - (sum3 & 0x7F)) & 0x7F);
+            send(D[k] + 1, (uint32_t)dn[k] - 2u);
+            ok3 &= status() == QD_SX_OK && !strcmp(A.per.lib[slot - 1].name, want[k].name) &&
+                   !memcmp(A.per.lib[slot - 1].patch, want[k].patch, sizeof want[k].patch) &&
+                   A.per.lib[slot - 1].tags == want[k].tags && A.per.lib[slot - 1].pan == want[k].pan &&
+                   A.per.lib[slot - 1].reverb == want[k].reverb && A.per.lib[slot - 1].chorus == want[k].chorus;
+        }
+        CHECK(ok3, "stored back (the flag cleared): the same places, names, patches (110 values), tags, pan, sends");
+        {   /* a factory preset: back as a new MY preset */
+            const uint8_t db[3] = {QD_SXS_FACTORY, 0, 7};
+            qd_sound_t fs;
+            int m;
+            n = frame(f, QD_SX_DUMP, db, 3);
+            qd_app_sysex(&A, f, n);
+            dn[0] = qd_app_sysex_take(&A, D[0], sizeof D[0]);
+            qd_factory_get(&A, 6, &fs);
+            D[0][6] &= (uint8_t)~QD_SXF_DUMP;
+            {
+                int sum3 = 0;
+                for (j = 5; j < dn[0] - 2; j++)
+                    sum3 += D[0][j];
+                D[0][dn[0] - 2] = (uint8_t)((0x80 - (sum3 & 0x7F)) & 0x7F);
+            }
+            m = qd_lib_free_slot(&A);
+            send(D[0] + 1, (uint32_t)dn[0] - 2u);
+            CHECK(status() == QD_SX_OK && (D[0][7] << 7 | D[0][8]) == 0 && !strcmp(A.per.lib[m].name, fs.name) &&
+                      !memcmp(A.per.lib[m].patch, fs.patch, sizeof fs.patch) && A.per.lib[m].reverb == fs.reverb,
+                  "a factory preset's dump (%s): stored back as a new MY preset, the same sound and sends", fs.name);
+        }
+        fresh();                                        /* the full library: 256, DUMP them all, paced */
+        for (k = 0; k < QD_NLIB; k++) {
+            int16_t pp[QD_QUAD_NP];
+            char nm[16];
+            for (j = 0; j < QD_QUAD_NP; j++) {
+                int16_t lo, hi;
+                qd_quad_value_range(j, &lo, &hi, 0);
+                seed = seed * 1664525u + 1013904223u;
+                pp[j] = (int16_t)(lo + (int)((seed >> 8) % (uint32_t)(hi - lo + 1)));
+            }
+            if (k % 3 == 0)                             /* (a third with every value 74.. at its default: STORE) */
+                for (j = 74; j < QD_QUAD_NP; j++)
+                    qd_quad_value_range(j, 0, 0, &pp[j]);
+            snprintf(nm, sizeof nm, "ALL %03d", k + 1);
+            qd_lib_store(&A, k, nm, pp);
+            A.per.lib[k].pan = (int8_t)((int)(seed % 128u) - 64);
+            A.per.lib[k].chorus = (uint8_t)(k % 128), A.per.lib[k].delay = (uint8_t)((k * 7) % 128);
+            A.per.lib[k].reverb = (uint8_t)((k * 13) % 128), A.per.lib[k].tags = (uint8_t)(1 + k % 127);
+            want[k] = A.per.lib[k];
+        }
+        {
+            const uint8_t db[3] = {QD_SXS_MINE, 0, 0};
+            int five = 0, six = 0;
+            n = frame(f, QD_SX_DUMP, db, 3);
+            qd_app_sysex(&A, f, n);
+            for (nd = 0, g = 0; g < 2000 && (qd_app_sysex_busy(&A) || qd_app_sysex_peek(&A)); g++) {
+                while (nd < 300 && (dn[nd] = qd_app_sysex_take(&A, D[nd], sizeof D[nd])) > 0) {
+                    five += D[nd][5] == QD_SX_STORE, six += D[nd][5] == QD_SX_STORE6;
+                    nd++;
+                }
+                run(1);
+            }
+            CHECK(nd == QD_NLIB && five > 50 && six > 100, "DUMP all of MY PRESETS: 256 frames, paced (%d STORE, %d "
+                  "STORE6) in %d ms", five, six, g);
+        }
+        fresh();
+        for (ok3 = 1, k = 0; k < nd; k++) {
+            const int slot = D[k][7] << 7 | D[k][8];
+            int sum3 = 0;
+            D[k][6] &= (uint8_t)~QD_SXF_DUMP;
+            for (j = 5; j < dn[k] - 2; j++)
+                sum3 += D[k][j];
+            D[k][dn[k] - 2] = (uint8_t)((0x80 - (sum3 & 0x7F)) & 0x7F);
+            send(D[k] + 1, (uint32_t)dn[k] - 2u);
+            ok3 &= status() == QD_SX_OK && slot == k + 1 && !strcmp(A.per.lib[k].name, want[k].name) &&
+                   !memcmp(A.per.lib[k].patch, want[k].patch, sizeof want[k].patch) && A.per.lib[k].tags == want[k].tags &&
+                   A.per.lib[k].pan == want[k].pan && A.per.lib[k].chorus == want[k].chorus &&
+                   A.per.lib[k].delay == want[k].delay && A.per.lib[k].reverb == want[k].reverb;
+        }
+        CHECK(ok3, "the 256 stored back into an empty library: every one the same (name, patch, tags, pan, sends)");
     }
     qd_shutdown();
     printf("test_sysex: %d checks, %d failed\n", checks, fails);

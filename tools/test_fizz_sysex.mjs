@@ -8,7 +8,8 @@ import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { storeSound, parseReply, fizzTagMask, FIZZ_TAGS, labelsRequest, parseLabels, LABELS_N } from "./fizz_sysex.mjs";
+import { storeSound, parseReply, fizzTagMask, FIZZ_TAGS, labelsRequest, parseLabels, LABELS_N, listRequest, parseList, dumpRequest,
+  parseDump, restoreFrame, parseReply as reply2 } from "./fizz_sysex.mjs";
 
 const [exe] = process.argv.slice(2);
 if (!exe) { console.error("usage: node test_fizz_sysex.mjs TEST_SYSEX"); process.exit(2); }
@@ -80,6 +81,33 @@ const feed = (frame) => {
         l.buttons.PLAY === "PLAY" && l.knobs.MASTER === "VOLUME" && l.list.every((x) => x.length <= 10),
         `parseLabels: 49, W1 ${l && l.white[0]}, B2 ${l && l.black[1]}, SELECT ${l && l.knobs.SELECT}`);
   check(parseReply(Uint8Array.from(line.trim().split(/\s+/).map((h) => parseInt(h, 16)))).kind === "labels", "parseReply: labels");
+}
+{   // P1.6m: two presets stored (one STORE6), LIST, DUMP each, then stored back into a fresh FIZZ: the same
+  const b6 = new Uint8Array(128);
+  b6[0] = 0x51, b6[1] = 6, b6[88] = 1, b6[90] = 1;
+  const a1 = storeSound({ name: "EXPORT ONE", blob, slot: 3, pan: -7, chorus: 5, delay: 6, reverb: 7, tags: ["PAD"] });
+  const a2 = storeSound({ name: "EXPORT SIX", blob: b6, slot: 9, drive: 40, reverb: 99, tags: ["LEAD", "FX"] });
+  const syx = (frames) => { const p = join(tmp, "s.syx"); writeFileSync(p, Uint8Array.from(frames.flatMap((f) => Array.from(f)))); return p; };
+  const replies = (frames) => execFileSync(exe, ["--session", syx(frames)], { encoding: "utf8" }).split("\n")
+    .filter((l) => l.startsWith("reply")).map((l) => Uint8Array.from(l.slice(5).trim().split(/\s+/).map((h) => parseInt(h, 16))));
+  const r = replies([a1, a2, listRequest(), dumpRequest({ source: "mine", slot: 3 }), dumpRequest({ source: "mine", slot: 9 }),
+                     dumpRequest({ source: "factory", slot: 1 }), dumpRequest({ source: "mine", slot: 0 })]);
+  const list = r.map((x) => parseList(x)).filter(Boolean);
+  const dumps = r.map((x) => parseDump(x)).filter(Boolean);
+  check(list.length === 1 && list[0].last && list[0].total === 2 && list[0].entries.map((e) => `${e.slot} ${e.name}`).join() ===
+        "3 EXPORT ONE,9 EXPORT SIX" && list[0].entries[0].imported, `LIST: ${JSON.stringify(list[0] && list[0].entries)}`);
+  check(dumps.length === 5 && dumps[0].name === "EXPORT ONE" && !dumps[0].six && dumps[0].pan === -7 && dumps[0].reverb === 7 &&
+        dumps[0].tags === 8 && dumps[1].six && dumps[1].drive === 40 && dumps[1].blob[88] === 1 && dumps[1].tags === 80 &&
+        dumps[2].slot === 0 && dumps[3].name === "EXPORT ONE" && dumps[4].name === "EXPORT SIX",
+        `DUMP: the two, the factory's (slot 0: a new one), all (${dumps.map((d) => d.name).join(", ")})`);
+  const back = replies([restoreFrame(dumps[0].frame), restoreFrame(dumps[1].frame), dumpRequest({ source: "mine", slot: 3 }),
+                        dumpRequest({ source: "mine", slot: 9 }), restoreFrame(dumps[0].frame).slice(0, 0)]);
+  const again = back.map((x) => parseDump(x)).filter(Boolean);
+  const same = (x, y) => x && y && x.name === y.name && x.pan === y.pan && x.chorus === y.chorus && x.delay === y.delay &&
+    x.reverb === y.reverb && x.tags === y.tags && x.drive === y.drive && x.blob.join() === y.blob.join();
+  check(back.filter((x) => reply2(x) && reply2(x).kind === "store" && reply2(x).status === 0).length === 2 &&
+        again.length === 2 && same(again[0], dumps[0]) && same(again[1], dumps[1]),
+        "restoreFrame: stored back into a fresh FIZZ, its dumps the same as the first ones");
 }
 console.log(`test_fizz_sysex: ${checks} checks, ${fails} failed`);
 process.exit(fails ? 1 : 0);

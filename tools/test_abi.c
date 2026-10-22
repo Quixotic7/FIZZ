@@ -347,6 +347,67 @@ int main(int argc, char **argv)
         }
     }
 
+    {   /* P1.6m: an export through the ABI: 40 presets stored through midi_in, DUMP all (slot 0), the host reading
+         * slowly (a few packets a ms): every frame whole, in order, none lost (the replies wait in FIZZ and go out as
+         * the packet ring has room) */
+        static uint8_t f[300], r[1 << 16];
+        uint8_t blob[96], body[140];
+        int k, n, i, frames = 0, ok = 1, o2 = 0;
+        uint32_t pkt;
+        memset(blob, 0, sizeof blob);
+        blob[0] = 0x51, blob[1] = 5;
+        for (k = 0; k < 40; k++) {
+            int b = 0, sum = 0, j;
+            body[b++] = 0x10, body[b++] = 0, body[b++] = 0, body[b++] = (uint8_t)(k + 1);   /* STORE, slot k + 1 */
+            for (j = 0; j < 12; j++)
+                body[b++] = (uint8_t)(j < 7 ? "EXPORT "[j] : j == 7 ? '0' + k / 10 : j == 8 ? '0' + k % 10 : ' ');
+            body[b++] = 0, body[b++] = 0, body[b++] = 64, body[b++] = 0, body[b++] = 0, body[b++] = (uint8_t)k, body[b++] = 0x0F;
+            for (j = 0; j < 96; j += 7) {               /* (7-bit packing) */
+                const int m = 96 - j < 7 ? 96 - j : 7;
+                int q, hi = 0;
+                for (q = 0; q < m; q++)
+                    hi |= ((blob[j + q] >> 7) & 1) << q;
+                body[b++] = (uint8_t)hi;
+                for (q = 0; q < m; q++)
+                    body[b++] = blob[j + q] & 0x7F;
+            }
+            n = 0;
+            f[n++] = 0xF0, f[n++] = 0x7D, f[n++] = 0x46, f[n++] = 0x5A, f[n++] = 0x01;
+            for (j = 0; j < b; j++)
+                f[n++] = body[j], sum += body[j];
+            f[n++] = (uint8_t)((0x80 - (sum & 0x7F)) & 0x7F), f[n++] = 0xF7;
+            sx_in(f, n);
+            run(2);
+            sx_out(r, sizeof r);
+        }
+        {
+            static const uint8_t DALL[10] = {0xF0, 0x7D, 0x46, 0x5A, 0x01, 0x22, 0x00, 0x00, 0x00, 0x5E};
+            uint8_t dall[11];
+            memcpy(dall, DALL, 10);
+            dall[10] = 0xF7;
+            sx_in(dall, 11);
+        }
+        for (k = 0; k < 4000; k++) {                    /* the host: four packets a ms */
+            for (i = 0; i < 4 && C->midi_out_take(&pkt); i++) {
+                const uint32_t cin = pkt & 15u, nb = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u;
+                uint32_t j;
+                for (j = 0; j < nb && o2 < (int)sizeof r; j++)
+                    r[o2++] = (uint8_t)(pkt >> (8u * (j + 1u)));
+            }
+            run(1);
+        }
+        for (i = 0, n = -1; i < o2; i++) {              /* whole frames, F0 .. F7, DUMP's STOREs in slot order */
+            if (r[i] == 0xF0)
+                n = i;
+            else if (r[i] == 0xF7 && n >= 0) {
+                ok &= r[n + 5] == 0x10 && (r[n + 6] & 0x08) && (r[n + 7] << 7 | r[n + 8]) == frames + 1 && i - n == 140 - 1 + 1;
+                frames++;
+                n = -1;
+            }
+        }
+        CHECK(ok && frames == 40, "DUMP all through the ABI, read slowly: %d whole frames in order (%d bytes)", frames, o2);
+    }
+
     C->shutdown();
 
     {   /* P1.5a, the restart: a flash FILE (as FM1VST's <core-id>/flash.bin); the tempo (the pattern's) and the selected
