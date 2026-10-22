@@ -94,8 +94,9 @@ listeners.push((m) => {
 });
 async function load(url) {
   errors.length = 0;
+  try { await evaluate("window.__leaving = 1"); } catch (_) { /* (no page yet) */ }
   await send("Page.navigate", { url });
-  await waitFor("document.readyState === 'complete'", 15000);
+  await waitFor("!window.__leaving && document.readyState === 'complete'", 15000);   // (the new document, not the old one)
 }
 
 try {

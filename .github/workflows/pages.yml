@@ -35,15 +35,9 @@ jobs:
           node site/tools/test_engine.mjs
           echo "FIZZ $(node -p 'require("./site/fizz.json").version')" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Assemble
+      - name: Assemble, every asset URL versioned with the site's build (site/tools/assemble.mjs)
         run: |
-          mkdir _site
-          # the published files: the pages, their scripts and styles, the engine, the font, the wasm (not the build
-          # scripts, the tests or the build folder)
-          cp -R site/index.html site/guide.html site/fizz.wasm site/fizz.json site/css site/js site/worklet site/fonts site/remote _site/
-          mkdir _site/engine && cp site/engine/engine.js _site/engine/
-          cp LICENSE _site/LICENSE.txt
-          touch _site/.nojekyll
+          node site/tools/assemble.mjs _site
           find _site -type f | sort
 
       - uses: actions/upload-pages-artifact@v3

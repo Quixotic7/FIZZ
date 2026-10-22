@@ -15,6 +15,7 @@ import { createFm1, mountUseFm1, mountHeader } from "./use-fm1.js";
 import { loadPrefs, savePrefs as writePrefs, keyHintsOn } from "./prefs.js";
 import { feedbackUrl } from "./feedback.js";
 import { mountDigitone } from "./digitone-ui.js";
+import { BUILD, ver } from "./build.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -140,26 +141,45 @@ async function refreshSaves() {
   if (sheet) sheet.render();
 }
 
-// (re)start FIZZ from a save, else its autosave, else an erased flash
-let bootSeq = 0;
+// (re)start FIZZ from a save, else its autosave, else (a new FIZZ version) the newest older version's autosave, carried
+// over as a copy, else an erased flash. The saves of other versions are never changed or deleted.
+let bootSeq = 0, carried = null;   // carried: { from, used, until } while a carried flash's first writes are watched
 async function boot(fromSave = null, { blank = false } = {}) {
   const seq = ++bootSeq;
   if (!player || !state.meta) return;
   state.engineState = "loading"; state.info = null;
   setStatus("Loading FIZZ...");
+  carried = null;
   try {
-    const rec = blank ? null : fromSave || (await saves.get(FW, ENGINE, version(), saves.AUTOSAVE));
+    let rec = blank ? null : fromSave || (await saves.get(FW, ENGINE, version(), saves.AUTOSAVE));
+    if (!rec && !blank) {
+      const o = await carry.check(FW, ENGINE, version()).catch(() => null);
+      if (o) {
+        rec = await carry.answer(o, true);
+        carried = { from: o.from, used: usedBytes(rec.bytes), until: performance.now() + 12000 };
+        await refreshSaves();
+        toast(`Your FIZZ ${o.from} projects came along to ${o.to}. The ${o.from} save is kept as it was.`, "ok", 7000);
+      }
+    }
     await player.load(wasmUrl(), rec ? rec.bytes : null);
-    if (!fromSave && !blank) offerCarry();
   } catch (err) {
     if (seq !== bootSeq) return;
     setStatus("");
     toast(err.message || String(err), "bad", 12000);
   }
 }
+const usedBytes = (b) => { let n = 0; for (let i = 0; i < b.length; i++) if (b[i] !== 0xff) n++; return n; };
+// a carried flash a new FIZZ could not read: it formats its flash (most of the image erased) within seconds of booting
+function checkCarried(bytes) {
+  if (!carried) return;
+  if (performance.now() > carried.until) { carried = null; return; }
+  if (usedBytes(bytes) < carried.used / 2) {
+    toast(`This FIZZ could not read your ${carried.from} projects and started blank. The ${carried.from} save is kept: export it from the settings (⋯, Saves) to keep it safe.`, "bad", 15000);
+    carried = null;
+  }
+}
 
-// ------------------------------------------------------------- carry a save ---
-// a new FIZZ version with no save of its own, an older version with one: offered once (saves.js Carry)
+// a newer FIZZ version than the save's: its projects are carried over by itself (saves.js Carry; a copy)
 function compareVersions(a, b) {
   const num = (v) => (String(v).match(/\d+/g) || []).map(Number);
   const x = num(a), y = num(b);
@@ -170,33 +190,21 @@ const carry = new saves.Carry({
   compare: compareVersions,
   decisions: { get: (k) => (prefs.carry || {})[k], set: (k, v) => { prefs.carry = { ...(prefs.carry || {}), [k]: v }; savePrefs(); } },
 });
-const carryText = (o) => `Bring your FIZZ ${o.from} projects to ${o.to}? (the ${o.from} save is kept as it is)`;
-async function offerCarry() {
-  let o = null;
-  try { o = await carry.check(FW, ENGINE, version()); } catch (_) { return; }
-  if (!o) return;
-  state.carryOffer = o;
-  const box = $("offer");
-  $("offer-text").textContent = carryText(o);
-  box.hidden = false;
-  requestAnimationFrame(() => box.classList.add("show"));
-  if (sheet) sheet.render();
-}
-function hideOffer() {
-  state.carryOffer = null;
-  const box = $("offer");
-  box.classList.remove("show"); box.hidden = true;
-}
-async function answerCarry(yes) {
-  const o = state.carryOffer;
-  if (!o) return;
-  hideOffer();
-  try {
-    const rec = await carry.answer(o, yes);
-    await refreshSaves();
-    if (rec) { toast(`Your ${o.from} projects are now ${o.to}'s; the ${o.from} save is kept as it was.`, "ok"); if (state.running) await boot(rec); }
-  } catch (err) { toast(err.message || String(err), "bad"); }
-  if (sheet) sheet.render();
+const carryText = (o) => `Bring your FIZZ ${o.from} projects to ${o.to}?`;
+async function answerCarry() { /* (carried by itself: boot) */ }
+
+// ------------------------------------------------------------ a newer site ---
+// fizz.json, never from a cache: a deploy newer than this page (its build, or FIZZ's commit) shows a note to reload
+async function checkUpdate() {
+  if (!state.meta) return;
+  let j = null;
+  try { j = await (await fetch("fizz.json", { cache: "no-store" })).json(); } catch (_) { return; }
+  const newer = (j.site && BUILD !== "dev" && j.site !== BUILD) || j.commit !== state.meta.commit || j.bytes !== state.meta.bytes;
+  const box = $("update");
+  if (newer && box.hidden) {
+    $("update-text").textContent = j.version !== state.meta.version ? `FIZZ ${j.version} is out.` : "A new FIZZ is out.";
+    box.hidden = false;
+  }
 }
 
 // ------------------------------------------------------------------ audio ---
@@ -217,10 +225,13 @@ function makePlayer() {
       invalidate();
       if (sheet) sheet.render();
       siteEmit("info", info); siteEmit("firmware", { entry: { id: FW, name: "FIZZ" }, engine: ENGINE });
+      // a carried flash: read back once FIZZ has settled (a FIZZ that cannot read it formats it while booting)
+      if (carried) setTimeout(() => { if (carried && player) player.flashReq(); }, 2500);
     },
     // FIZZ writes its flash by itself (1.5 s after an edit): the image is fetched 0.4 s after it last moved and kept
     flash(m) {
       if (!m.bytes) { clearTimeout(flashTimer); flashTimer = setTimeout(() => player.flashReq(), 400); return; }
+      checkCarried(m.bytes);
       const hsh = quickHash(m.bytes);
       if (lastSaved !== hsh) {
         lastSaved = hsh;
@@ -384,7 +395,7 @@ async function main() {
   applyTheme();
   updateFeedback();
   try {
-    const r = await fetch("fizz.json", { cache: "no-cache" });
+    const r = await fetch("fizz.json", { cache: "no-store" });
     state.meta = await r.json();
   } catch (e) {
     toast("FIZZ's build information could not be loaded. Reload the page.", "bad");
@@ -392,6 +403,7 @@ async function main() {
   }
   for (const el of document.querySelectorAll("[data-version]")) el.textContent = state.meta.version;
   document.title = `FIZZ ${state.meta.version} · preview`;
+  if (state.meta.site && BUILD !== "dev" && state.meta.site !== BUILD) checkUpdate();   // (this page is older than the deploy)
   updateFeedback();
   await refreshSaves();
 
@@ -402,10 +414,10 @@ async function main() {
   site = made.site; siteEmit = made.emit;
   window.FM1Site = site;
   // Connect FM-1: RemoteFM1's web back end (remote/remote.js, remote/remotefm1.mjs: site/build_remote.sh)
-  import(new URL("remote/remote.js", document.baseURI).href).then((m) => {
+  import(new URL(ver("remote/remote.js"), document.baseURI).href).then((m) => {
     app.remoteMounted = true;
     if (typeof m.isCandidatePortName === "function") midi.isUnitPort = m.isCandidatePortName;
-    fm1 = createFm1(site, m, { moduleUrl: new URL("remote/remotefm1.mjs", document.baseURI).href,
+    fm1 = createFm1(site, m, { moduleUrl: new URL(ver("remote/remotefm1.mjs"), document.baseURI).href,
                                onUnitPorts: (ports) => { midi.unitPorts = ports; midi.bind(); } });
     mountUseFm1(sheet.remoteSlot, fm1, site);
     mountHeader($("fm1-btn"), fm1, { openSheet: () => sheet.open() });
@@ -434,8 +446,11 @@ async function main() {
   $("menu-btn").addEventListener("click", () => sheet.open());
   $("start-btn").addEventListener("click", () => start());
   $("start-fm1").addEventListener("click", playOnFm1);
-  $("offer-yes").addEventListener("click", () => answerCarry(true));
-  $("offer-no").addEventListener("click", () => answerCarry(false));
+  $("update-btn").addEventListener("click", () => location.reload());
+  $("update-no").addEventListener("click", () => { $("update").hidden = true; });
+  addEventListener("focus", checkUpdate);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
+  setInterval(() => { if (!document.hidden) checkUpdate(); }, 10 * 60 * 1000);
   for (const a of document.querySelectorAll("a[data-feedback]")) a.addEventListener("click", () => updateFeedback());
   addEventListener("keydown", (e) => {
     if (e.key !== "Escape" || !sheet.isOpen) return;
@@ -454,7 +469,7 @@ async function main() {
 
 // (for tests and the curious: the page's state and its player, read only in spirit)
 window.FIZZ = {
-  get state() { return state; }, get player() { return player; }, controls, start, boot,
+  get state() { return state; }, get player() { return player; }, controls, start, boot, checkUpdate, BUILD,
   // the output's peak since the last call (an AnalyserNode after the worklet)
   peak() {
     if (!player || !player.ctx) return 0;
