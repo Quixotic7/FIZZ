@@ -70,7 +70,10 @@ const waitFor = async (expr, ms = 15000) => { const t = Date.now(); while (Date.
 const booted = () => waitFor("window.FIZZ && FIZZ.state.info && FIZZ.state.frameSeq > 0");
 const tap = async (b) => { await evaluate(`FIZZ.controls.holdBtn(${b}, 4, true)`); await sleep(120); await evaluate(`FIZZ.controls.holdBtn(${b}, 4, false)`); await sleep(150); };
 const tapKey = async (k) => { await evaluate(`FIZZ.controls.holdKey(${k}, 4, true)`); await sleep(120); await evaluate(`FIZZ.controls.holdKey(${k}, 4, false)`); await sleep(150); };
-const HASH = "(() => { let h = 2166136261; const p = FIZZ.state.pixels; for (let i = 0; i < p.length; i++) h = Math.imul(h ^ p[i], 16777619); return h >>> 0; })()";
+// the LCD's step rows (the bottom 60 lines: the page's 16 steps; FIZZ's pictures above them animate, and the steps last
+// touched are highlighted, so screens are compared by which they are closer to)
+const HASH = "Array.from(FIZZ.state.pixels.subarray(180 * 240))";
+const diff = (x, y) => { let n = 0; for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) n++; return n; };
 const shot = async (f) => fs.writeFileSync(path.join(OUT, f), Buffer.from((await send("Page.captureScreenshot", { format: "png" })).data, "base64"));
 
 try {
@@ -83,12 +86,13 @@ try {
   check(await booted(), `build ${A.site} (FIZZ ${A.version}) boots`);
   check(await evaluate("FIZZ.BUILD") === A.site, `the page runs build ${A.site}`);
   await tap(6);
+  await sleep(600);
+  const plain = await evaluate(HASH);
   const t0 = await evaluate("Date.now()");
   await tapKey(2); await tapKey(4);
-  await sleep(400);
-  const edited = await evaluate(HASH);
   check(await waitFor(`(() => { const s = FIZZ.state.saves.find(r => r.name === 'Autosave'); return !!s && Date.parse(s.saved) > ${t0}; })()`),
     "the edit is kept in IndexedDB (A's version)");
+  const edited = await evaluate(HASH);
 
   // build B deployed over it: a new build of the site, and a new FIZZ version in fizz.json
   const NEWV = A.version.replace(/^(\d+)\.(\d+)\.(\d+).*$/, (_, x, y, z) => `${x}.${y}.${+z + 1}-update-test`);
@@ -128,7 +132,7 @@ try {
   check(saves.includes(`${A.version}/Autosave`) && saves.includes(`${NEWV}/Autosave`), `the projects came along, A's save kept: ${saves.join(", ")}`);
   await sleep(800); await tap(6); await sleep(400);
   const back = await evaluate(HASH);
-  check(back === edited, `FIZZ ${NEWV} shows the step added under ${A.version}`);
+  check(diff(back, edited) < diff(back, plain), `FIZZ ${NEWV} shows the steps changed under ${A.version} (the step rows: ${diff(back, edited)} px from the edited screen, ${diff(back, plain)} from the one before the edit)`)
   await shot("update-reloaded.png");
   // 4. a flash a new FIZZ cannot read (junk under an old version, the only save): said so, nothing deleted
   await evaluate(`(async () => {

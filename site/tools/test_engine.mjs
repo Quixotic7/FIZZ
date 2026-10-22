@@ -19,7 +19,8 @@ import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { createEngine } from "../engine/engine.js";
 import { identity, parseReply } from "../js/fizz_sysex.js";
-import { readDnsnd, storeFrame } from "../js/digitone.js";
+import { readDnsnd, readFiles, storeFrame } from "../js/digitone.js";
+import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SITE = path.resolve(HERE, "..");
@@ -208,6 +209,21 @@ e.dispose();
       const ro = ask(e2, storeFrame(s));
       check(ro && ro.status === 0, `${path.basename(OLD)} imports: ${ro && `${ro.statusName} LIBRARY ${ro.slot}`}`);
     } else note(`no ${OLD}: the older-file check skipped`);
+    // a Digitone II FM TONE preset (the owner's BASSSINE.dn2pst, read in place) and a WAVETONE one (synthetic)
+    const DN2 = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/Digitone2Presets/BASSSINE.dn2pst";
+    const wave = dn2RecordFromParams({}, { name: "WAVE TEST" }); wave[244] = 1;
+    const waveZip = dn2pstZip(wrapDn2Record(wave), { FormatVersion: 1, ProductType: ["24", "38"], Payload: "WAVE TEST.dn2snd", FileType: "Sound", FirmwareVersion: "1.10D", MetaInfo: { Tags: [] } });
+    const list = [{ name: "WAVE TEST.dn2pst", bytes: waveZip }];
+    if (fs.existsSync(DN2)) list.unshift({ name: path.basename(DN2), bytes: fs.readFileSync(DN2) });
+    const got2 = await readFiles(list);
+    const wv = got2[got2.length - 1];
+    check(!wv.ok && /WAVETONE sound: FIZZ imports FM TONE sounds only/.test(wv.error), `a WAVETONE .dn2pst is refused: ${wv.error}`);
+    if (got2.length === 2) {
+      const s = got2[0].sound;
+      check(got2[0].ok && s.dn2 && s.blob.length === 96, `${path.basename(DN2)}: "${s.name}", DRIVE ${s.drive}, mark "${s.mark}", ${s.notes.length} lost or approximated`);
+      const r2 = ask(e2, storeFrame(s));
+      check(r2 && r2.status === 0, `${path.basename(DN2)} imports: ${r2 && `${r2.statusName} LIBRARY ${r2.slot}`}`);
+    } else note(`no ${DN2}: the Digitone II check skipped`);
     e2.dispose();
   } else { note(`SysEx: no .dnsnd files (--dnsnd ${DIR}): only IDENTITY checked`); e.dispose(); }
 }

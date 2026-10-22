@@ -4,7 +4,7 @@
 // library (default) or the current project's pool, the first one optionally loaded onto a track with its pan and
 // sends (js/digitone.js: the reader and FIZZ's SysEx).
 import { h } from "./sheet.js";
-import { readFiles, createSender, notesWithLoad } from "./digitone.js";
+import { readFiles, createSender, notesWithLoad, IMPORTABLE } from "./digitone.js";
 
 const X_ICON = '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
 
@@ -12,7 +12,7 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
   const sender = createSender({ sendMidi, onMidiOut });
   let items = [], pool = false, track = -1, busy = false, fizz = null, asked = false;
 
-  const fileIn = h("input", { type: "file", accept: ".dnsnd", multiple: true, hidden: true,
+  const fileIn = h("input", { type: "file", accept: ".dnsnd,.dn2pst,.dn2snd", multiple: true, hidden: true,
     onchange: (ev) => { const f = [...ev.target.files]; ev.target.value = ""; if (f.length) add(f); } });
   const list = h("ul", { class: "dn-list" });
   const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Where the sounds go" });
@@ -24,14 +24,14 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
   const foot = h("p", { class: "note dn-foot" });
   const panel = h("div", { class: "dn-panel", role: "dialog", "aria-label": "Digitone sounds", hidden: true },
     h("div", { class: "dn-head" }, h("b", {}, "Digitone sounds"), h("button", { class: "icon-btn", "aria-label": "Close", onclick: () => close(), html: X_ICON })),
-    h("p", { class: "dn-lead" }, "Elektron Digitone .dnsnd files become FIZZ sounds. They are read and converted here, in this browser: nothing is uploaded."),
+    h("p", { class: "dn-lead" }, "Elektron Digitone (.dnsnd) and Digitone II (.dn2pst) FM TONE sounds become FIZZ sounds. They are read and converted here, in this browser: nothing is uploaded."),
     h("div", { class: "dn-pick" }, h("button", { class: "pill", onclick: () => fileIn.click() }, "Choose files..."), h("span", { class: "muted small" }, "or drop them on the page"), fileIn),
     list,
     h("div", { class: "dn-row" }, h("span", { class: "row-label" }, "Into"), seg),
     h("div", { class: "dn-row" }, h("span", { class: "row-label" }, "Also load the first onto"), trackSel),
     send, who, foot);
   document.body.append(panel);
-  const drop = h("div", { class: "dn-drop", hidden: true }, h("div", {}, h("b", {}, "Drop Digitone sounds"), h("span", {}, ".dnsnd files, read in this browser")));
+  const drop = h("div", { class: "dn-drop", hidden: true }, h("div", {}, h("b", {}, "Drop Digitone sounds"), h("span", {}, ".dnsnd and .dn2pst files, read in this browser")));
   document.body.append(drop);
 
   // who is listening: FIZZ's identity reply (asked once FIZZ runs and the panel opens)
@@ -62,13 +62,15 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
     const first = pending()[0];
     list.replaceChildren(...items.map((it, i) => {
       const x = h("button", { class: "icon-btn dn-x", "aria-label": `Remove ${it.file}`, onclick: () => { items.splice(i, 1); render(); }, html: X_ICON });
-      if (!it.ok) return h("li", { class: "dn-item bad" }, h("div", { class: "dn-top" }, h("b", {}, it.file), x), h("div", { class: "dn-err" }, it.error));
+      if (!it.ok) return h("li", { class: "dn-item bad" }, h("div", { class: "dn-top" }, h("b", {}, it.file), x),
+        h("div", { class: "dn-err" }, /FM TONE sounds only/.test(it.error) ? `Not importable: ${it.error}` : it.error));
       const s = it.sound, r = it.result;
       const loads = r ? r.ok && r.loaded >= 0 : it === first && track >= 0;
       const notes = loads ? notesWithLoad(s) : s.notes;
       const where = r && r.ok ? `${r.pool ? "POOL" : "LIBRARY"} ${r.slot}${r.loaded >= 0 ? `, on track ${r.loaded + 1}` : ""}` : r ? r.error : loads ? `+ track ${track + 1}` : null;
       return h("li", { class: "dn-item" + (r ? (r.ok ? " sent" : " failed") : "") },
-        h("div", { class: "dn-top" }, h("b", {}, s.name), h("span", { class: "muted small dn-file" }, it.file),
+        h("div", { class: "dn-top" }, h("b", {}, s.name), s.dn2 ? h("span", { class: "dn-chip", title: "a Digitone II sound" }, "DN2") : null,
+          h("span", { class: "muted small dn-file" }, it.file),
           where ? h("span", { class: "dn-res" }, where) : null, x),
         s.mark ? h("div", { class: "dn-mark", title: s.origin.join("\n") }, s.mark) : null,
         notes.length ? h("details", { class: "dn-notes" }, h("summary", {}, `${notes.length} thing${notes.length === 1 ? "" : "s"} lost or approximated`),
@@ -114,8 +116,8 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
   addEventListener("drop", (e) => {
     if (!hasFiles(e)) return;
     e.preventDefault(); depth = 0; drop.hidden = true;
-    const dn = [...e.dataTransfer.files].filter((x) => /\.dnsnd$/i.test(x.name));
-    if (!dn.length) { toast("Only Digitone .dnsnd files can be dropped here.", "bad"); return; }
+    const dn = [...e.dataTransfer.files].filter((x) => IMPORTABLE.test(x.name));
+    if (!dn.length) { toast("Only Digitone .dnsnd and Digitone II .dn2pst files can be dropped here.", "bad"); return; }
     add(dn);
   });
   render();

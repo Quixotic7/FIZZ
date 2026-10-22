@@ -17,6 +17,7 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { feedbackUrl, browserName } from "../js/feedback.js";
+import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, "../.build/test");
@@ -206,6 +207,19 @@ try {
       check(li.mark === "older Digitone file (OS 1.42)" && !li.lost && li.whole && li.ok,
         `${path.basename(OLD)} in the panel: mark "${li.mark}", ${li.lost ? "a lost count shown" : "no lost count"}, ${li.ok ? `in LIBRARY ${li.slot}` : "not stored"}`);
     }
+    // Digitone II: the owner's BASSSINE.dn2pst (read in place) with its DN2 chip, stored; a WAVETONE one refused
+    const DN2 = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/Digitone2Presets/BASSSINE.dn2pst";
+    if (fs.existsSync(DN2)) {
+      const wave = dn2RecordFromParams({}, { name: "WAVE TEST" }); wave[244] = 1;
+      const waveZip = dn2pstZip(wrapDn2Record(wave), { FormatVersion: 1, ProductType: ["24", "38"], Payload: "WAVE TEST.dn2snd", FileType: "Sound", FirmwareVersion: "1.10D", MetaInfo: { Tags: [] } });
+      const before = await evaluate("FIZZDigitone.items.length");
+      await evaluate(addJs(JSON.stringify([{ name: path.basename(DN2), b64: fs.readFileSync(DN2).toString("base64") }, { name: "WAVE TEST.dn2pst", b64: Buffer.from(waveZip).toString("base64") }])));
+      await evaluate("FIZZDigitone.send()");
+      const d2 = await evaluate(`(() => { const lis = [...document.querySelectorAll(".dn-item")].slice(${before}); const it = FIZZDigitone.items.slice(${before});
+        return { chip: !!lis[0].querySelector(".dn-chip"), name: it[0].ok && it[0].sound.name, res: it[0].result, refused: lis[1].querySelector(".dn-err") && lis[1].querySelector(".dn-err").textContent }; })()`);
+      check(d2.chip && d2.res && d2.res.ok && /^Not importable: .*WAVETONE/.test(d2.refused || ""),
+        `Digitone II in the panel: "${d2.name}" with its DN2 chip, ${d2.res && d2.res.ok ? `in LIBRARY ${d2.res.slot}` : "not stored"}; ${d2.refused}`);
+    } else note(`no ${DN2}: the Digitone II check skipped`);
     await shot("page-digitone-reloaded.png");
     await evaluate("FIZZDigitone.close()");
   } else note("Digitone: no .dnsnd files to try (--dnsnd)");
