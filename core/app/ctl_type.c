@@ -35,10 +35,17 @@ char qd_type_char(int white, int idx, int shift)
 static uint32_t ty_now(const qd_app_t *a) { return a->ms ? a->ms : 1u; }
 static int ty_len(const qd_typer_t *y) { return (int)strlen(y->name); }
 
+uint32_t qd_type_seed(qd_app_t *a)
+{
+    a->ui.name_seed = a->ui.name_seed * 1664525u + 1013904223u + a->ms * 2654435761u;
+    return a->ui.name_seed ? a->ui.name_seed : 1u;
+}
+
 void qd_type_start(qd_app_t *a, const char *name, int spark)
 {
     qd_typer_t *y = &a->ui.ty;
     memset(y, 0, sizeof *y);
+    y->seed = qd_type_seed(a);                          /* (P1.5y: its ideas' namesizer seed) */
     snprintf(y->name, sizeof y->name, "%s", name ? name : "");
     y->cur = ty_len(y);
     y->sel = y->name[0] != 0;
@@ -137,31 +144,16 @@ static void ty_clear(qd_app_t *a)                       /* SHIFT + F1 */
     ty_changed(a);
 }
 
-/* PRESETS' ideas: SAVE PRESET's from the sound; a project's a few word pairs (its own name first) */
+/* PRESETS' ideas (P1.5y: the owner's namesizer, names.h): SAVE PRESET's: namesizer pairs (the suggestion first),
+ * phonic nonsense and cosmic words, the sound's own ideas (one second); a project's: its own name, then namesizer's */
 static void ty_ideas(qd_app_t *a)
 {
     qd_typer_t *y = &a->ui.ty;
     if (a->ui.latch == QD_LATCH_SAVE) {
-        y->nidea = qd_sound_ideas(a->model.t[a->sel].patch, y->ideas, QD_TY_NIDEA);
+        y->nidea = qd_name_ideas(y->seed, a->model.t[a->sel].patch, y->ideas, 0, QD_TY_NIDEA);
     } else {
-        static const char *const W1[10] = {"NIGHT", "SLOW", "NEON", "LATE", "DEEP", "LOST", "GOLD", "BLUE", "LOW", "ODD"};
-        static const char *const W2[10] = {"BUS", "TAPE", "GLOW", "SKETCH", "DRIVE", "ROOM", "LOOP", "CITY", "RAIN",
-                                           "DREAM"};
         const int p = a->ui.nm.proj < 0 ? 0 : a->ui.nm.proj;
-        int i;
-        y->nidea = 0;
-        snprintf(y->ideas[y->nidea++], QD_SOUND_NAME, "%s", a->per.pname[p]);
-        for (i = 0; y->nidea < QD_TY_NIDEA && i < 40; i++) {
-            char nm[32];
-            int j, dup = 0;
-            snprintf(nm, sizeof nm, "%s %s", W1[(i * 3 + p) % 10], W2[(i * 7 + p * 3 + i / 10) % 10]);
-            if (strlen(nm) > QD_TY_LEN)
-                continue;
-            for (j = 0; j < y->nidea; j++)
-                dup |= !strcmp(y->ideas[j], nm);
-            if (!dup)
-                memcpy(y->ideas[y->nidea++], nm, QD_SOUND_NAME);
-        }
+        y->nidea = qd_name_project_ideas(y->seed, a->per.pname[p], y->ideas, 0, QD_TY_NIDEA);
     }
 }
 

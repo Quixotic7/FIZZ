@@ -700,9 +700,9 @@ They stay open (OCT− or HOME back). For now:
 
 ## How do I keep a sound? (SAVE: SAVE PRESET)
 
-- **SAVE** (from anywhere) opens **SAVE PRESET** for the selected track's sound, with a **name made from the sound**
-  (a sparkle marks it), **selected** (a shaded band): PLUCK, PAD, BASS, KEYS, LEAD, KICK ... with BRIGHT, DARK, SOFT,
-  WIDE ... Name it on the keybed (below), or keep it.
+- **SAVE** (from anywhere) opens **SAVE PRESET** for the selected track's sound, with a **suggested name** (a sparkle
+  marks it), **selected** (a shaded band): since P1.5y a pair from the owner's **namesizer** (SPICY WALRUS, RAPID
+  CAR, COSMIC TREE ...), a new one each time. Name it on the keybed (below), or keep it.
 - **SAVE again** saves it as a **NEW** preset in MY PRESETS. When the sound came from one of MY presets, **NEW and
   REPLACE** both show and **F2 switches which one is chosen** (the chosen bright and filled, the other dim; F2 lit;
   NEW first): **SAVE does the chosen one** (P1.5v). NEW saves under a new name such as "DARK BASS 2" when the name is
@@ -726,8 +726,10 @@ bright).
 - **SHIFT held**: the black keys are **0..9 and -**, the white keys **. , ' & ! ? # + / ( ) \* : _ ~** and SPACE (the
   screen's keybed changes with it). While a name is typed SHIFT is only this: SHIFT + a button does nothing else (no
   snapshots, undo, settings or views), but **SHIFT + F1 clears** the name.
-- **PRESETS**: name ideas from the sound, a rolodex (BRIGHT PLUCK, WARM PING, DEEP TINE, CLEAR HARP ...): the one you
-  stop on is the name, selected again. For a project: a few word pairs (NIGHT BUS, SLOW TAPE ...), its own name first.
+- **PRESETS**: twelve name ideas, a rolodex: the one you stop on is the name, selected again. For a sound (P1.5y):
+  the suggestion first, then **the sound's own** (BRIGHT PLUCK, WARM PING ...: the first one second), more namesizer
+  pairs, and two or three made-up words (phonic nonsense like NIRE or SHOOCK, cosmic words like FM-GX). For a
+  project: its own name first, then namesizer's.
 - **ALGORITHM** moves the cursor (typing inserts there); **SELECT** turns the character under it (A..Z, 0..9, the
   signs, SPACE; at the end of the name it adds one), to fix one letter without looking for its key.
 - **F1** deletes the character before the cursor (it drops away in orange; a selected name: all of it); **SHIFT +

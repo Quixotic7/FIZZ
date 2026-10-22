@@ -294,6 +294,7 @@ typedef struct {
     char ideas[QD_TY_NIDEA][QD_SOUND_NAME];   /* PRESETS' ideas (made at the first detent) .. */
     int nidea, idea;                   /* .. their count (0: not made yet), the one chosen (-1 none) */
     uint32_t idea_ms;                  /* .. the last detent (the rolodex shows) */
+    uint32_t seed;                     /* P1.5y: the namesizer's seed for this name (its suggestion, its ideas) */
 } qd_typer_t;
 typedef struct {
     int replace;                       /* the MY preset the track's sound came from (its place; -1 none): REPLACE offered */
@@ -423,6 +424,7 @@ typedef struct {
                                         * (B10 held: the bottle filling), 3 the bottle burst .. */
     uint32_t rnd_ms;                   /* .. since */
     uint32_t rnd_seed;
+    uint32_t name_seed;                /* P1.5y: the namesizer's seeds come from it (qd_type_seed) */
     int fn_leap, fn_target;            /* P1.3y, FUNC: the last LEAP's n (2) and JUMP's target (-1: the step's page start) */
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
     int knobs;                         /* P1.3y: the encoders' layout (QD_KNOBS_*; the global settings) */
@@ -632,6 +634,7 @@ void qd_sv_leds(const struct qd_app *a, uint8_t *key);
 int qd_type_open(const struct qd_app *a);        /* a name being typed (SAVE PRESET, the name editor) */
 char qd_type_char(int white, int idx, int shift);   /* the character of black key idx (0..10) / white key idx (0..15) */
 void qd_type_start(struct qd_app *a, const char *name, int spark);   /* a suggested name, selected */
+uint32_t qd_type_seed(struct qd_app *a);   /* P1.5y: a fresh namesizer seed (names.h) */
 void qd_type_key(struct qd_app *a, int white, int idx, int down);   /* a key typed (the press; SHIFT: the signs) */
 int qd_type_knob(struct qd_app *a, int knob, int d);   /* ALGORITHM the cursor, SELECT the character, PRESETS ideas */
 int qd_type_button(struct qd_app *a, int button, int down);   /* F1 delete (SHIFT: clear), F2, SAVE, HOME; 1 taken */

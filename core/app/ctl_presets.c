@@ -492,9 +492,12 @@ void qd_sv_open(qd_app_t *a)
     v->choice = 0;                                      /* (P1.5v: NEW first; F2 switches) */
     if (v->replace >= 0) {
         qd_type_start(a, a->per.lib[v->replace].name, 0);
-    } else {
-        qd_sound_autoname(t->patch, 0, nm);
+    } else {                                            /* P1.5y: a namesizer pair, its ideas' first */
+        const uint32_t seed = qd_type_seed(a);
+        uint32_t s = seed;
+        qd_name_rnd(&s, nm);
         qd_type_start(a, nm, 1);                        /* (P1.5u: selected: the first key typed replaces it) */
+        a->ui.ty.seed = seed;
     }
     sv_update_new(a);
 }

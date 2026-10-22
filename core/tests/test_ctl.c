@@ -45,6 +45,7 @@
 #include "chord.h"
 #include "scale.h"
 #include "sounds.h"
+#include "names.h"
 #include "ui.h"
 #include "qd_fx.h"
 
@@ -5392,14 +5393,23 @@ static void g_p15t_save(void)
     int n;
     start();
     run(600);
-    qd_sound_autoname(A.model.t[0].patch, 0, nm);
     btap(QD_B_SAVE);
+    {   /* P1.5y: the suggestion is the namesizer pair of the name's seed */
+        uint32_t sd = A.ui.ty.seed;
+        qd_name_rnd(&sd, nm);
+    }
     CHECK(A.ui.latch == QD_LATCH_SAVE && qd_view_screen(&A) == QD_SCR_SAVE && A.ui.ty.spark && A.ui.ty.sel &&
-              A.ui.sv.replace < 0 && !strcmp(A.ui.ty.name, nm), "SAVE: SAVE PRESET, a name from the sound (%s), selected",
-          nm);
+              A.ui.sv.replace < 0 && !strcmp(A.ui.ty.name, nm) && qd_name_ok(nm),
+          "SAVE: SAVE PRESET, a namesizer name (%s), selected", nm);
     CHECK(leds().button[QD_B_OCTDN] == QD_LED_LIT, "F1 lit");
     turn(QD_K_PRESETS, 2);                              /* P1.5u: another idea */
     CHECK(strcmp(A.ui.ty.name, nm) != 0 && A.ui.ty.sel, "PRESETS: another name (an idea: %s)", A.ui.ty.name);
+    {   /* P1.5y: twelve ideas, the namesizer suggestion first, the sound's own second (the one PRESETS stopped on) */
+        char own[QD_SOUND_NAME];
+        qd_sound_autoname(A.model.t[0].patch, 0, own);
+        CHECK(A.ui.ty.nidea == 12 && !strcmp(A.ui.ty.ideas[0], nm) && !strcmp(A.ui.ty.ideas[1], own) &&
+                  !strcmp(A.ui.ty.name, own), "PRESETS: 12 ideas, the suggestion first, the sound's (%s) second", own);
+    }
     turn(QD_K_SELECT, 1);                               /* the last letter on one (P1.5u: the cursor at the end) */
     turn(QD_K_ALGO, -1);
     btap(F1);                                           /* .. the one before it deleted */
@@ -5420,9 +5430,9 @@ static void g_p15t_save(void)
     A.model.t[0].edited = 1;
     run(20);
     btap(QD_B_SAVE);
-    CHECK(A.ui.sv.replace == 0 && !strncmp(A.ui.sv.newname, nm, strlen(nm)) && strstr(A.ui.sv.newname, " 2") &&
-              leds().button[QD_B_OCTUP] != QD_LED_OFF + 1, "from one of MY presets, edited: REPLACE offered; NEW as %s",
-          A.ui.sv.newname);
+    CHECK(A.ui.sv.replace == 0 && !strncmp(A.ui.sv.newname, nm, 4) && strstr(A.ui.sv.newname, " 2") &&
+              leds().button[QD_B_OCTUP] != QD_LED_OFF + 1, "from one of MY presets, edited: REPLACE offered; NEW as %s (%s)",
+          A.ui.sv.newname, nm);
     btap(QD_B_HOME);
     CHECK(!A.ui.latch && A.per.lib[0].patch[QD_QP_HARM] != 1200 && !A.per.lib[1].name[0],
           "HOME: cancelled, nothing saved");

@@ -86,6 +86,7 @@ int qd_latch_oct(qd_app_t *a, int d)
 #include "../voice/fx/qd_fx.h"
 #include "ctl_mix.c"
 #include "../seq/sounds.h"
+#include "../seq/names.h"
 #include <stdio.h>
 #include <string.h>
 #include "ctl_presets.c"

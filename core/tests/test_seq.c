@@ -76,6 +76,7 @@
 #include "scale.h"
 #include "seq.h"
 #include "sounds.h"
+#include "names.h"
 
 static int fails, checks;
 #define CHECK(c, ...)                                     \
@@ -2471,6 +2472,79 @@ static void u_patch(void)
            "masks; live edits pass own values by\n", fails == n0 ? "ok" : "FAIL");
 }
 
+/* P1.5y: the owner's namesizer (names.h): fixed seeds give fixed names; every name fits twelve characters and FIZZ's
+ * set; the ideas hold the mix (half pairs, phonic / cosmic words, the sound's own second); a project's its own first */
+static void u_names(void)
+{
+    static const char *const WANT[3][4] = {
+        {"SPACE RACOON", "ASTRO ICEAGE", "FM FURBALL", "RAPID RIDE"}, {"PLEW", "LEAR", "DARE", "BIRE"},
+        {"DOWMOO", "CKICSP", "CA-UO", "ZE-UU"}};
+    char nm[QD_NAME_MAX + 1], ideas[12][QD_NAME_MAX + 1];
+    int kind[12], cnt[5], k, i, ok = 1, n0 = fails, n;
+    uint32_t s;
+    int16_t p[QD_QUAD_NP];
+    for (k = 0; k < 3; k++) {
+        s = 12345u;
+        for (i = 0; i < 4; i++) {
+            if (k == 0)
+                qd_name_rnd(&s, nm);
+            else if (k == 1)
+                qd_name_phonic(&s, nm);
+            else
+                qd_name_word(&s, nm);
+            if (getenv("NAMES"))
+                printf("    names %d %d \"%s\"\n", k, i, nm);
+            ok &= !strcmp(nm, WANT[k][i]);
+        }
+    }
+    CHECK(ok, "seed 12345: the same names as ever (pairs, phonic, cosmic)");
+    for (ok = 1, k = 0; k < 3; k++) {
+        int spaces = 0, hyph = 0;
+        for (i = 0, s = 1u; i < 20000; i++) {
+            if (k == 0)
+                qd_name_rnd(&s, nm);
+            else if (k == 1)
+                qd_name_phonic(&s, nm);
+            else
+                qd_name_word(&s, nm);
+            ok &= qd_name_ok(nm);
+            spaces += strchr(nm, ' ') != 0;
+            hyph += strchr(nm, '-') != 0;
+            if (!qd_name_ok(nm) && getenv("NAMES"))
+                printf("    bad %d \"%s\"\n", k, nm);
+        }
+        if (k == 0)
+            ok &= spaces > 19000;                       /* (nearly every one a pair) */
+        if (k == 2)
+            ok &= hyph > 6000 && hyph < 14000;           /* (a hyphen about half the time) */
+    }
+    CHECK(ok, "60000 names: each at most twelve, FIZZ's characters, no space at an end; pairs, hyphens as namesizer's");
+    qd_quad_preset_patch(3, p);
+    n = qd_name_ideas(777u, p, ideas, kind, 12);
+    memset(cnt, 0, sizeof cnt);
+    for (i = 0; i < n; i++)
+        cnt[kind[i]]++;
+    s = 777u;
+    qd_name_rnd(&s, nm);
+    CHECK(n == 12 && kind[0] == QD_NK_RND && !strcmp(ideas[0], nm) && kind[1] == QD_NK_SOUND && cnt[QD_NK_RND] >= 5 &&
+              cnt[QD_NK_RND] <= 7 && cnt[QD_NK_PHONIC] + cnt[QD_NK_WORD] >= 2 && cnt[QD_NK_PHONIC] + cnt[QD_NK_WORD] <= 3
+              && cnt[QD_NK_SOUND] >= 2,
+          "SAVE PRESET's ideas: 12 (%d), the suggestion first, the sound's second; pairs %d, phonic / cosmic %d, the "
+          "sound's %d", n, cnt[QD_NK_RND], cnt[QD_NK_PHONIC] + cnt[QD_NK_WORD], cnt[QD_NK_SOUND]);
+    for (ok = 1, i = 0; i < n; i++) {
+        int j;
+        ok &= qd_name_ok(ideas[i]);
+        for (j = 0; j < i; j++)
+            ok &= strcmp(ideas[i], ideas[j]) != 0;
+    }
+    CHECK(ok, "the ideas: all different, all fit");
+    n = qd_name_project_ideas(777u, "PROJECT 1", ideas, kind, 12);
+    CHECK(n == 12 && kind[0] == QD_NK_OWN && !strcmp(ideas[0], "PROJECT 1") && kind[1] == QD_NK_RND,
+          "a project's ideas: its own name first, then namesizer's (%d)", n);
+    printf("  %-4s names             the owner's namesizer: fixed seeds, twelve characters, the ideas' mix\n",
+           fails == n0 ? "ok" : "FAIL");
+}
+
 /* E1: a step locking PORT ON slides (a MONO bass, its last note held into it: the 303's slide); a step without the
  * lock does not; a chord's notes glide by rank */
 static int u_voice_of(int t, int note)
@@ -3256,6 +3330,7 @@ int main(int argc, char **argv)
     u_clip();
     u_scale();
     u_sounds();
+    u_names();
     p_sixteenths();
     p_polymeter();
     p_swing();

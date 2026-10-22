@@ -363,3 +363,5 @@ const char *qd_preset_kind_name(int pk)
     static const char *const N[QD_NPK] = {"BASS", "KEYS", "PLUCK", "PAD", "LEAD", "DRUMS", "FX"};
     return pk >= 0 && pk < QD_NPK ? N[pk] : "";
 }
+
+#include "names.c"                     /* P1.5y: the owner's namesizer (names.h; built here: the source lists stay) */

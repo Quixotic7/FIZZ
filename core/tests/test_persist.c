@@ -19,6 +19,7 @@
 #include "app.h"
 #include "qd_fx.h"
 #include "sounds.h"
+#include "names.h"
 
 static int checks, failed;
 #define CHECK(c, ...) do { checks++; if (!(c)) { failed++; printf("  FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
@@ -142,9 +143,12 @@ static void pages_test(void)
     /* P1.5t: SAVE PRESET: the track's sound into MY presets */
     qd_ctl_select_track(G, 3);
     btap(QD_B_SAVE);
-    qd_sound_autoname(G->model.t[3].patch, 0, nm);
+    {   /* (P1.5y: the suggestion: the namesizer pair of the name's seed) */
+        uint32_t sd = G->ui.ty.seed;
+        qd_name_rnd(&sd, nm);
+    }
     CHECK(qd_view_screen(G) == QD_SCR_SAVE && G->ui.ty.spark && G->ui.ty.sel && !strcmp(G->ui.ty.name, nm) &&
-              G->ui.sv.replace < 0, "SAVE: SAVE PRESET, a name from the sound (%s), no REPLACE (a factory sound)", nm);
+              G->ui.sv.replace < 0, "SAVE: SAVE PRESET, a suggested name (%s), no REPLACE (a factory sound)", nm);
     btap(QD_B_SAVE);
     CHECK(!strcmp(G->per.lib[0].name, nm) && !memcmp(G->per.lib[0].patch, G->model.t[3].patch, sizeof G->per.lib[0].patch) &&
               G->per.lib[0].preset >= QD_PRESET_MINE0 && G->model.t[3].preset == G->per.lib[0].preset &&
