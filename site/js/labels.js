@@ -23,11 +23,11 @@ const MODES = ["NOTE", "VEL", "LEN", "MICRO", "RATCH", "CHNC", "COND", "TRIG", "
 // buttons in matrix order: 0 OCT- 1 OCT+ 2 FX 3 SEL 4 ENV 5 LFO 6 EDIT 7 GLO 8 HOME 9 SAVE 10 ARP 11 SEQ 12 PLAY 13 REC
 const BASE_BTN = ["COPY", "MOVE", "EFFECTS", "TRACKS", "MIX", "LATCH", "EDITOR", "SHIFT", "HOME", "SOUNDS", "FILL", "PATTERNS", "PLAY", "KEYS"];
 const SHIFT_BTN = ["UNDO", "REDO", "", "GLOBAL", "", "", "", "SHIFT", "VIEWS", "", "", "", "", "REC SET"];
-const SHIFT_BLACK = ["SNAPSHOT", "", "RECALL", "COPY PAT", "PASTE PAT", "TAP TEMPO", "CLICK", "", "DOUBLE", "", "CLEAR TRK"];
+const SHIFT_BLACK = ["SNAPSHOT", "", "RECALL", "COPY PAT", "PASTE PAT", "TAP TEMPO", "CLICK", "FOLLOW", "DOUBLE", "", "CLEAR TRK"];   // (P1.5z: B8 page follow)
 export function stubLabels(held = {}) {
   const l = empty();
   if (held.shift) {
-    l.enc = ["FINE", "SCALE", "FINE", "FINE", "FINE", "FINE", "ROOT"];
+    l.enc = ["TRACK", "SCALE", "FINE", "FINE", "FINE", "FINE", "ROOT"];   // (P1.5z: SHIFT + SELECT the track)
     l.master = "VOLUME";
     l.buttons = SHIFT_BTN.slice();
     BLACK.forEach((k, i) => { l.keys[k] = SHIFT_BLACK[i]; });
