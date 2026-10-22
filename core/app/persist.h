@@ -55,6 +55,8 @@ typedef struct {
     qd_sound_t lib[QD_NLIB];           /* MY presets, the library's (name[0] 0: an empty place; .preset its own id) */
     uint8_t ftags[QD_NFACTORY];        /* P1.5v: the factory presets' tags as the owner set them (0x80 | tags; 0: the
                                         * classifier's) */
+    uint16_t id_next;                  /* P1.5w: the next MY preset id (never one used before: a deleted preset's
+                                        * references in other projects stay dangling until they load) */
     char pname[QD_NPROJ][QD_PROJ_NAME];   /* the projects' names */
     uint8_t pexists[QD_NPROJ];
     int proj;                          /* the project worked on, 0..7 */
@@ -114,6 +116,18 @@ int qd_lib_store_ex(struct qd_app *a, int slot, const char *name, const int16_t 
 int qd_lib_replace(struct qd_app *a, int slot, const char *name, const int16_t *patch);
 int qd_lib_delete(struct qd_app *a, int slot);
 int qd_lib_find(const struct qd_app *a, int id);
+/* ---- P1.5w: THE POOL HOLDS REFERENCES (PLAN.md P1.5w): a pool slot is a preset id (factory 1..23, MINE 0x100..);
+ * proj.sound[k] keeps the preset's name, sound and tags as a cache (what plays; resolved from the library), so a
+ * REPLACE plays everywhere. A slot of a pool that could not become a reference (the library full) stays a copy (preset
+ * 0) until it can. */
+void qd_pool_resolve(struct qd_app *a);          /* the current pool's cache from the library (after a library change) */
+void qd_preset_usage(const struct qd_app *a, int id, int *projects, int *steps);   /* the projects whose pools
+                                                   * reference it, the steps locking it there (this one's from RAM,
+                                                   * the others' from the flash) */
+int qd_preset_delete(struct qd_app *a, int slot);   /* one of MY presets out, with its references in this project's
+                                                   * pool (their steps back to their track's sound); one undo level.
+                                                   * Other projects drop theirs when they load */
+void qd_lib_unique_name(const struct qd_app *a, const char *name, char *out);   /* a name no MY preset has ("X 2") */
 int qd_preset_get(const struct qd_app *a, int id, qd_sound_t *out);
 
 #ifdef __cplusplus

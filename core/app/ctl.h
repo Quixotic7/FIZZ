@@ -267,6 +267,7 @@ typedef struct {
     qd_sound_t fx_snd;                 /* .. the MY preset deleted (QD_BRFX_DEL: its pieces) */
     uint32_t tag_ms;                   /* .. SHIFT + B2..B8: a tag toggled, which, on or off */
     int tag_k, tag_on;
+    int use_proj, use_steps;           /* P1.5w: DELETE?: the projects referencing it, the steps locking it */
 } qd_brui_t;
 /* P1.5u: the typewriter (ctl_type.c): one keyboard for every name. The black keys A..K, the white keys L..Z and
  * SPACE (SHIFT: 0..9 -, . , ' & ! ? # + / ( ) * : _ ~ SPACE) */

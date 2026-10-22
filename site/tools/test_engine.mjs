@@ -198,6 +198,16 @@ e.dispose();
     check(r4 && r4.status === 0 && r4.slot === 4, `after a reboot from the flash the library keeps them: the next sound goes to LIBRARY ${r4 && r4.slot}`);
     const rp = ask(e2, storeFrame(sounds[3], { pool: true }));
     check(rp && rp.status === 0 && rp.pool && rp.slot >= 2, `STORE into the POOL: ${rp && `${rp.statusName} POOL ${rp.slot}`}`);
+    // an older Digitone file (DN1, OS 1.42, the "0095" payload header; the owner's, read in place): its file notes
+    // are a mark, not losses, and it imports
+    const OLD = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/Digitone2Presets/H003 BRITE2.dnsnd";
+    if (fs.existsSync(OLD)) {
+      const s = await readDnsnd(fs.readFileSync(OLD), path.basename(OLD));
+      check(s.notes.length === 0 && s.origin.length === 2 && s.mark === "older Digitone file (OS 1.42)",
+        `${path.basename(OLD)}: mark "${s.mark}", ${s.notes.length} lost (${s.notes.join("; ")})`);
+      const ro = ask(e2, storeFrame(s));
+      check(ro && ro.status === 0, `${path.basename(OLD)} imports: ${ro && `${ro.statusName} LIBRARY ${ro.slot}`}`);
+    } else note(`no ${OLD}: the older-file check skipped`);
     e2.dispose();
   } else { note(`SysEx: no .dnsnd files (--dnsnd ${DIR}): only IDENTITY checked`); e.dispose(); }
 }

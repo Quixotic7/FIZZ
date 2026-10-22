@@ -416,3 +416,4 @@ body { background: #000; }
 }
 .update[hidden] { display: none; }
 .update .pill { padding: 0 12px; flex: none; }
+.dn-mark { margin-top: 2px; font-size: 12px; color: var(--muted); }

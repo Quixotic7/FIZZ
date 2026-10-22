@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5v)
+# Playing FIZZ (P1.5w)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -490,8 +490,10 @@ Three things, one job each:
   - Every preset carries **tags**, one or several of BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX (P1.5v). A saved or
     imported preset starts with the one read from the sound; you can change any preset's tags, the factory ones' too
     (their sounds stay read only).
-- **The Sound Pool** (lime) is the project's own 128 sounds, the palette steps lock. A pool sound is a copy and
-  remembers the preset it came from. **A new project's pool starts empty** (the demo project keeps its sounds).
+- **The Sound Pool** (lime) is the project's palette of up to 128 sounds, the ones its steps lock. **The pool holds
+  references to presets** (P1.5w), not copies: a pool sound is the preset itself, as it is now, so replacing one of MY
+  presets changes it in every project's pool. **A new project's pool starts empty** (the demo project keeps its
+  sounds). The track's own sound is still a copy (loaded from a preset, edited in EDIT, saved with the pattern).
 
 **PRESETS with nothing held** opens the **library browser**, in every view:
 
@@ -517,8 +519,10 @@ Three things, one job each:
   (the tracks' boxes, ×N steps) **→ TRACK**; B10 again takes it out, and those steps go back to their track's sound.
 - **B11 deletes** one of MY presets (B11 is lit only on them; factory presets cannot be deleted): the first press
   arms it (a big **red X**, the cassette shakes, the head red with **DELETE?**, B11 blinking); **B11 again** and it
-  breaks up and fizzes away in red. Nothing in any project changes: pools hold copies. **Any other key** (or a turn)
-  disarms OUT? and DELETE?.
+  breaks up and fizzes away in red. DELETE? shows where it is used: the projects whose pools reference it (a little
+  stack and their number) and the steps locking it (×N) **→ TRACK**. Deleting it takes its reference out of every
+  pool (this project's at once, another project's as it loads) and sends those steps back to their track's sound.
+  **Any other key** (or a turn) disarms OUT? and DELETE?.
 - **SHIFT + F1** undoes a load, a + / − POOL, a delete, and a tag change on one of MY presets or a pool sound (a
   factory preset's tags you set back by hand).
 
@@ -530,10 +534,17 @@ no time-out), and letting go closes it, keeping the sound. An empty pool offers 
 F1 / F2 show the ten before / after; B11 removes the sound lock. In **P-LOCK**, KNOB 1..4 turn the track's FREQ,
 DECAY, HARM and FDBK.
 
-**What happens to the steps** (P1.5v, shown on the screens): taking a sound out of the pool sends the steps that
-lock it back to their track's sound (OUT? shows them going to TRACK). Deleting one of MY presets changes nothing in
-any project (pools and tracks hold copies: DELETE? shows nothing else). Replacing one of MY presets changes neither
-the pool's copies nor the tracks.
+**What happens to the steps** (P1.5w, shown on the screens):
+- **Taking a sound out of the pool** (B10) sends the steps that lock it back to their track's sound (OUT? shows them
+  going to TRACK).
+- **Replacing one of MY presets** (SAVE, REPLACE) changes the preset itself: every pool that references it, in every
+  project, and every step locking it, play the new version. **A track's own sound does not change**: it is a copy (a
+  track loaded from that preset and not edited keeps the old sound, without a \*, until you load it again).
+- **Deleting one of MY presets** takes its references out of every pool and sends the steps that locked them back to
+  their track's sound (DELETE? shows how many projects and steps). Tracks keep their own copies. **SHIFT + F1** brings
+  the preset back with its references and its locks (this project's, every pattern; another project's were never
+  touched before it loads). An unused preset just goes.
+- Factory presets can be in any pool; they are never deleted.
 
 ## How do I edit a sound? (the sound editor, EDIT)
 

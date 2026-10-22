@@ -183,7 +183,12 @@ int main(int argc, char **argv)
     CHECK(status() == QD_SX_OK && R[7] == 1 && rslot() == s0 && !strcmp(A.proj.sound[s0 - 1].name, "POOLED") &&
               A.proj.sound[s0 - 1].patch[QD_QP_DRIVE] == 5,
           "STORE, the POOL, the first free (%d)", s0);
-    CHECK(A.proj.sound[s0 - 1].tags == QD_PKB(QD_PK_KEYS) && !A.proj.sound[s0 - 1].preset, ".. its kind read (P1.5t)");
+    {   /* P1.5w: the pool holds references: a MY preset (imported) made, referenced there */
+        const int m = qd_lib_find(&A, A.proj.sound[s0 - 1].preset);
+        CHECK(A.proj.sound[s0 - 1].tags == QD_PKB(QD_PK_KEYS) && m >= 0 && !strcmp(A.per.lib[m].name, "POOLED") &&
+                  (A.per.lib[m].flags & QD_SNDF_IMPORTED) && A.per.lib[m].patch[QD_QP_DRIVE] == 5,
+              ".. P1.5w: one of MY presets (imported, its tag read), referenced at that number");
+    }
     n = store_msg(f, QD_SXF_POOL, 1, "ONE", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
     CHECK(status() == QD_SX_OK && !strcmp(A.proj.sound[0].name, "ONE"), "the POOL's slot 1: as any other (P1.5t)");
@@ -200,6 +205,9 @@ int main(int argc, char **argv)
     n = store_msg(f, 0, 0, "NO ROOM", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
     CHECK(status() == QD_SX_FULL && rslot() == 0, "the LIBRARY full: FULL");
+    n = store_msg(f, QD_SXF_POOL, 0, "NO ROOM", blob2, 0, 0, 64, 0, 0, 0, 0);
+    send(f, n);
+    CHECK(status() == QD_SX_FULL, "P1.5w: the LIBRARY full: a POOL store FULL too (it needs a MY preset)");
     n = store_msg(f, 0, 9, "OVER", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
     CHECK(status() == QD_SX_OK && !strcmp(A.per.lib[8].name, "OVER"), ".. a slot given: overwritten");

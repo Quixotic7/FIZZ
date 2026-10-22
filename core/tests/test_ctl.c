@@ -5755,8 +5755,7 @@ static void g_p15v_delete(void)
     black(B11);
     CHECK(!A.per.lib[0].name[0] && A.ui.br.fx == QD_BRFX_DEL && !strcmp(A.ui.br.fx_snd.name, "GONE SOON"),
           "B11 again: deleted, it breaks up");
-    CHECK(qd_sound_used(&A.proj, k) && !strcmp(A.proj.sound[k - 1].name, "GONE SOON"),
-          "the pool's copy untouched (pools hold copies)");
+    CHECK(!qd_sound_used(&A.proj, k), "its reference gone from the pool too (P1.5w: the pool holds references)");
     run(900);
     btap(QD_B_HOME);
 }
@@ -5904,6 +5903,59 @@ static void g_p15v_picker(void)
     CHECK(!A.ui.slatch && A.ui.tk == QD_TK_NONE, "the latch off (the selection cleared): closed");
 }
 
+/* ================================================================ P1.5w: the pool holds references === */
+static void g_p15w_refs(void)
+{
+    int k, id, harm;
+    start();
+    run(600);
+    mine_add("REF ME", 3);
+    id = A.per.lib[0].preset;
+    k = qd_pool_add_sound(&A, &A.per.lib[0]);
+    qd_step_on(PAT(), 1, 2);
+    qd_step_set_sound(PAT(), 1, 2, k);
+    qd_step_on(&A.proj.pat[A.seq.cur == 9 ? 10 : 9], 2, 3);
+    qd_step_set_sound(&A.proj.pat[A.seq.cur == 9 ? 10 : 9], 2, 3, k);
+    qd_ctl_select_track(&A, 0);                         /* track 1 plays REF ME (its own copy) */
+    turn(QD_K_PRESETS, 1);
+    black(B9);
+    btap(F2);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    harm = A.model.t[0].patch[QD_QP_HARM];
+    CHECK(A.model.t[0].preset == id && !A.model.t[0].edited, "(track 1 loaded REF ME)");
+    qd_ctl_select_track(&A, 1);                         /* track 2: from it, edited, SAVE: REPLACE */
+    A.model.t[1].preset = (uint16_t)id;
+    memcpy(A.model.t[1].patch, A.per.lib[0].patch, sizeof A.model.t[1].patch);
+    A.model.t[1].patch[QD_QP_HARM] = 1500;
+    A.model.t[1].edited = 1;
+    run(20);
+    btap(QD_B_SAVE);
+    btap(F2);
+    btap(QD_B_SAVE);
+    run(600);
+    CHECK(A.per.lib[0].patch[QD_QP_HARM] == 1500 && A.proj.sound[k - 1].patch[QD_QP_HARM] == 1500 &&
+              R(1, 2).sound == k, "REPLACE: the pool's reference (and the step locking it) play the new REF ME");
+    CHECK(A.model.t[0].patch[QD_QP_HARM] == harm && !A.model.t[0].edited, "track 1's own sound: its copy as it was");
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    turn(QD_K_PRESETS, 1);
+    black(B9);
+    if (br_code() != QD_BR_MINE_CODE)
+        turn(QD_K_PRESETS, -5);
+    black(B11);
+    CHECK(A.ui.br.del_armed && A.ui.br.use_proj == 1 && A.ui.br.use_steps == 2, "DELETE?: its use, 1 project, 2 steps "
+          "(%d, %d)", A.ui.br.use_proj, A.ui.br.use_steps);
+    run(300);
+    black(B11);
+    CHECK(qd_lib_find(&A, id) < 0 && !qd_sound_used(&A.proj, k) && !R(1, 2).sound, "B11 again: the preset, its "
+          "reference, the steps back to TRACK");
+    btap(QD_B_HOME);
+    run(600);
+    undo_redo(-1);
+    CHECK(qd_lib_find(&A, id) == 0 && A.proj.sound[k - 1].preset == id && R(1, 2).sound == k &&
+              A.proj.pat[A.seq.cur == 9 ? 10 : 9].step[2][3].sound == k, "undo: the preset, its reference, the locks "
+          "(the other pattern's too)");
+}
+
 int main(void)
 {
     static const struct {
@@ -5997,6 +6049,7 @@ int main(void)
         {"P1.5v: tags: SHIFT + B2..B8, the filters, the factory's", g_p15v_tags},
         {"P1.5v: NEW / REPLACE: F2 chooses, SAVE does it", g_p15v_save},
         {"P1.5v: a step + PRESETS: the picker up while held", g_p15v_picker},
+        {"P1.5w: the pool's references: REPLACE, DELETE?'s use, undo", g_p15w_refs},
         {"P1.5t: the browser's LEDs", g_p15t_leds},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };

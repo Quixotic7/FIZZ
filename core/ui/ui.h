@@ -188,6 +188,7 @@ typedef struct {
     int tags;                           /* P1.5v: its tags (bit QD_PK_*: the cassette's dots) */
     float env[4];                       /* the amp envelope (0..1) */
     int mine, imported, in_pool;
+    int missing;                        /* P1.5w: a pool reference whose preset is not there (INIT, greyed) */
     int tray;                           /* P1.5v: the cassette's tray: 0 by in_pool, 1 empty with a + (not in the pool:
                                          * B10 adds it), 2 full (in the pool: B10 takes it out) */
 } ui_preset_t;
@@ -206,6 +207,7 @@ typedef struct {
     int out_armed, del_armed;           /* B10 / B11 armed (P1.5v: a red X, the head red: OUT? / DELETE?) .. */
     float arm_t;                        /* .. seconds since (the cassette shakes) */
     int users_row;                      /* P1.5v: the users at the foot (the POOL; OUT? from any source: to TRACK) */
+    int use_proj, use_steps;            /* P1.5w: DELETE?: the projects referencing it, the steps locking it (to TRACK) */
     int fx;                             /* + POOL's animation (ctl.h QD_BRFX_*), its progress, the pool's count */
     float fx_u;
     int pool_n;

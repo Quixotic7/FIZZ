@@ -135,12 +135,15 @@ try {
   const t0 = await evaluate("Date.now()");
   await tapKey(2); await tapKey(4);
   await sleep(500);
-  const hash = "(() => { let h = 2166136261; const p = FIZZ.state.pixels; for (let i = 0; i < p.length; i++) h = Math.imul(h ^ p[i], 16777619); return h >>> 0; })()";
-  const edited = await evaluate(hash);
-  await shot("page-edited.png");
+  // the LCD's pixels (FIZZ's screens animate a little: compared by how many pixels differ, not exactly)
+  const hash = "Array.from(FIZZ.state.pixels)";
+  // (the bottom rows: the page's 16 steps; the picture above them may animate)
+  const diff = (x, y) => { let n = 0; for (let i = 180 * 240; i < x.length; i++) if (x[i] !== y[i]) n++; return n; };
   const saved = await waitFor(`(() => { const s = FIZZ.state.saves.find(r => r.name === 'Autosave'); return !!s && Date.parse(s.saved) > ${t0}; })()`, 15000);
   const lag = await evaluate(`Date.parse(FIZZ.state.saves.find(r => r.name === 'Autosave').saved) - ${t0}`);
   check(saved, `FIZZ's autosave of the edit reached this browser's IndexedDB ${lag} ms after the first key`);
+  const edited = await evaluate(hash);              // (settled: a tapped step's own flash is over)
+  await shot("page-edited.png");
   await load(URL0);
   await waitFor("window.FIZZ && FIZZ.state.info && FIZZ.state.frameSeq > 0", 15000);
   await sleep(800);
@@ -148,13 +151,14 @@ try {
   await sleep(400);
   const back = await evaluate(hash);
   await shot("page-reloaded.png");
-  check(back === edited, `after a reload FIZZ comes back with the steps (screen hash ${back} vs ${edited})`);
+  const dBack = diff(back, edited);
   // a fresh profile's step view for contrast: Start blank, HOME
   await evaluate("(async () => { await FIZZ.boot(null, { blank: true }); })()");
   await waitFor("FIZZ.state.info", 8000);
   await sleep(800); await tap(6); await sleep(400);
   const blankHash = await evaluate(hash);
-  check(blankHash !== edited, "a blank unit's step view differs from the edited one (the comparison means something)");
+  const dBlank = diff(blankHash, edited);
+  check(dBack * 4 < dBlank, `after a reload FIZZ comes back with the steps (${dBack} px differ from the edited screen; a blank unit: ${dBlank})`);
 
   // 4. the Feedback link
   const href = await evaluate("document.querySelector('a[data-feedback]').href");
@@ -190,6 +194,16 @@ try {
     const r4 = await evaluate("FIZZDigitone.items[0].result");
     check(r4 && r4.ok && r4.slot === 4, `after a reload the library still holds them: the next sound goes to LIBRARY ${r4 && r4.slot}`);
     await sleep(700);
+    // an older Digitone file (the owner's, read in place): a grey mark, nothing counted as lost, and it imports
+    const OLD = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/Digitone2Presets/H003 BRITE2.dnsnd";
+    if (fs.existsSync(OLD)) {
+      await evaluate(addJs(JSON.stringify([{ name: path.basename(OLD), b64: fs.readFileSync(OLD).toString("base64") }])));
+      await evaluate("FIZZDigitone.send()");
+      const li = await evaluate(`(() => { const li = [...document.querySelectorAll(".dn-item")].pop(); const r = FIZZDigitone.items[FIZZDigitone.items.length - 1].result;
+        return { mark: (li.querySelector(".dn-mark") || {}).textContent, lost: !!li.querySelector(".dn-notes"), whole: li.textContent.includes("converted whole"), ok: r && r.ok, slot: r && r.slot }; })()`);
+      check(li.mark === "older Digitone file (OS 1.42)" && !li.lost && li.whole && li.ok,
+        `${path.basename(OLD)} in the panel: mark "${li.mark}", ${li.lost ? "a lost count shown" : "no lost count"}, ${li.ok ? `in LIBRARY ${li.slot}` : "not stored"}`);
+    }
     await shot("page-digitone-reloaded.png");
     await evaluate("FIZZDigitone.close()");
   } else note("Digitone: no .dnsnd files to try (--dnsnd)");

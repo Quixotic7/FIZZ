@@ -9,7 +9,11 @@
 // The frames are FIZZ's tools/fizz_sysex.mjs (js/fizz_sysex.js, copied).
 //
 // No DOM: site/tools/test_site.mjs runs it in Node too.
-//   await readDnsnd(bytes, fileName) -> { file, name, blob, pan, drive, sends: {chorus, delay, reverb}, notes, tags }
+//   await readDnsnd(bytes, fileName) -> { file, name, blob, pan, drive, sends: {chorus, delay, reverb}, notes, origin,
+//                                         mark, tags }
+//     notes: what did not carry over or was approximated (dnsndToQuad's, and any reader warning not known below);
+//     origin: the reader's notes about the file itself (an older payload header, the Digitone OS, the product), which
+//     lose nothing; mark: those in one line ("older Digitone file (OS 1.42)"), or "" 
 //   await readFiles([{ name, bytes }]) -> [{ file, ok: true, sound } | { file, ok: false, error }]
 //   createSender({ sendMidi, onMidiOut }) -> { identify(), send(sounds, { pool, track }, progress) }
 import { parseDnsnd, dnsndToQuad } from "./fm1dnsnd.js";
@@ -23,13 +27,26 @@ export function soundName(raw, fallback = "DIGITONE") {
   return s || fallback;
 }
 
+// the reader's container / version warnings (fm1dnsnd.js parseDnsnd, by their known starts): nothing is lost by them
+const ORIGIN = [/^the payload header is not the 0097 kind/, /^made on Digitone firmware /, /^product /];
+export const isOrigin = (w) => ORIGIN.some((re) => re.test(w));
+export function originMark(origin) {
+  if (!origin.length) return "";
+  const os = origin.map((w) => (w.match(/^made on Digitone firmware (\S+):/) || [])[1]).find(Boolean);
+  const prod = origin.map((w) => (w.match(/^product (.*): read as a Digitone$/) || [])[1]).find(Boolean);
+  const older = origin.some((w) => /^the payload header/.test(w));
+  const bits = [os ? `OS ${os}` : "", prod ? `product ${prod}` : ""].filter(Boolean).join(", ");
+  return `${older ? "older Digitone file" : "Digitone file"}${bits ? ` (${bits})` : ""}`;
+}
+
 export async function readDnsnd(bytes, file = "") {
   const parsed = await parseDnsnd(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
   const q = dnsndToQuad(parsed), p = parsed.params || {};
   const send = (k) => (typeof p[k] === "number" ? Math.max(0, Math.min(127, Math.round(p[k]))) : undefined);
+  const origin = parsed.warnings.filter(isOrigin);
   return { file, name: soundName(parsed.name), blob: q.blob, pan: q.pan, drive: q.drive,
            sends: { chorus: send("send.chorus"), delay: send("send.delay"), reverb: send("send.reverb") },
-           notes: [...parsed.warnings, ...q.notes], tags: parsed.tags || [] };
+           notes: [...parsed.warnings.filter((w) => !isOrigin(w)), ...q.notes], origin, mark: originMark(origin), tags: parsed.tags || [] };
 }
 
 export async function readFiles(files) {

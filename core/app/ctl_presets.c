@@ -12,8 +12,10 @@
  * that tag), B9 the source (ALL -> MINE -> POOL), B10 the pool, from any source (P1.5v): + POOL (a library entry
  * copied into the pool, not loaded; full: the tray flashes orange) when it is not there, - POOL when it is (a sound
  * steps use is armed first: a red X, OUT?, its users going to TRACK; B10 again takes it out), B11 deletes one of MY
- * presets (armed first: a red X, DELETE?; B11 again: it breaks up and fizzes away; nothing in any project changes:
- * pools hold copies). Any other key disarms. SHIFT + B2..B8 toggles that tag on the chosen (P1.5v: a factory
+ * presets (armed first: a red X, DELETE?, where it is used: the projects whose pools reference it, the steps locking
+ * it, going to TRACK; B11 again: it breaks up and fizzes away, its references gone from the pools (P1.5w: the pool
+ * holds references; this project's now, the others' as they load), their steps back to their track's sound; one
+ * undo level). Any other key disarms. SHIFT + B2..B8 toggles that tag on the chosen (P1.5v: a factory
  * preset's tags are the owner's too, its sound read only).
  * SAVE PRESET (QD_LATCH_SAVE): SAVE. A name from the sound (the sparkle), selected, typed on the keybed (P1.5u:
  * ctl_type.c's typewriter: the keys type, PRESETS name ideas, ALGORITHM the cursor, SELECT the character, F1
@@ -317,11 +319,14 @@ static void br_delete(qd_app_t *a)                     /* B11: one of MY presets
     if (!b->del_armed) {
         b->del_armed = 1;
         b->arm_ms = a->ms ? a->ms : 1u;
+        qd_preset_usage(a, s.preset, &b->use_proj, &b->use_steps);   /* (P1.5w: where it is used) */
         return;
     }
     b->del_armed = 0;
     b->fx_snd = s;                                      /* (the one going: its pieces) */
-    qd_lib_delete(a, code - QD_BR_MINE_CODE);           /* (nothing in any project changes: pools hold copies) */
+    if (b->own.sound && b->own.sound <= QD_NSOUND && a->proj.sound[b->own.sound - 1].preset == s.preset)
+        b->own.sound = 0;
+    qd_preset_delete(a, code - QD_BR_MINE_CODE);        /* (P1.5w: its references with it, their locks to TRACK) */
     b->fx = QD_BRFX_DEL;
     b->fx_ms = a->ms ? a->ms : 1u;
     br_relist(a, -1);
@@ -443,26 +448,8 @@ void qd_br_leds(const qd_app_t *a, uint8_t *key)
 }
 
 /* ---------------------------------------------------------------- SAVE PRESET */
-/* a name no MY preset has: "DARK BASS" -> "DARK BASS 2" .. */
-static void sv_unique(const qd_app_t *a, const char *nm, char *out)
-{
-    int n, k, clash;
-    snprintf(out, QD_SOUND_NAME, "%s", nm);
-    for (n = 2; n < 100; n++) {
-        for (clash = 0, k = 0; k < QD_NLIB && !clash; k++)
-            clash = a->per.lib[k].name[0] && !strcmp(a->per.lib[k].name, out);
-        if (!clash)
-            return;
-        {
-            char base[QD_SOUND_NAME];
-            const int room = QD_SOUND_NAME - 1 - (n < 10 ? 2 : 3);
-            snprintf(base, sizeof base, "%.*s", room, nm);
-            while (strlen(base) && base[strlen(base) - 1] == ' ')
-                base[strlen(base) - 1] = 0;
-            snprintf(out, QD_SOUND_NAME, "%s %d", base, n);
-        }
-    }
-}
+/* a name no MY preset has: "DARK BASS" -> "DARK BASS 2" .. (P1.5w: persist.c's, migration's too) */
+static void sv_unique(const qd_app_t *a, const char *nm, char *out) { qd_lib_unique_name(a, nm, out); }
 static void sv_update_new(qd_app_t *a)
 {
     qd_saveui_t *v = &a->ui.sv;

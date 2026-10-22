@@ -786,6 +786,7 @@ static void pr_fill(const qd_app_t *a, const qd_sound_t *s, int mine, ui_preset_
     p->env[3] = (float)q[QD_QP_EREL] / 127.f * 0.7f;
     p->mine = mine;
     p->imported = mine && (s->flags & QD_SNDF_IMPORTED);
+    p->missing = (s->flags & QD_SNDF_MISSING) != 0;     /* (P1.5w) */
     probe = *s;
     p->in_pool = qd_pool_find(a, &probe) != 0;
 }
@@ -826,7 +827,9 @@ static void fill_browse(const qd_app_t *a, ui_browse_t *v)
         v->usteps = qd_pool_users_all(a, list[v->pos] - QD_BR_POOL_CODE, &v->users);
     else if (n && b->out_armed)                         /* (OUT? from ALL / MINE: the pool's copy's users) */
         v->usteps = qd_pool_users_all(a, qd_br_pool_k(a), &v->users);
-    v->users_row = v->pool || b->out_armed;
+    if (b->del_armed)                                   /* P1.5w: DELETE?: where it is used */
+        v->use_proj = b->use_proj, v->use_steps = b->use_steps;
+    v->users_row = v->pool || b->out_armed || (b->del_armed && b->use_proj);
     v->out_armed = b->out_armed;
     v->del_armed = b->del_armed;
     v->arm_t = (b->out_armed || b->del_armed) && b->arm_ms ? secs(a->ms - b->arm_ms) : 0.f;

@@ -70,6 +70,7 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
       return h("li", { class: "dn-item" + (r ? (r.ok ? " sent" : " failed") : "") },
         h("div", { class: "dn-top" }, h("b", {}, s.name), h("span", { class: "muted small dn-file" }, it.file),
           where ? h("span", { class: "dn-res" }, where) : null, x),
+        s.mark ? h("div", { class: "dn-mark", title: s.origin.join("\n") }, s.mark) : null,
         notes.length ? h("details", { class: "dn-notes" }, h("summary", {}, `${notes.length} thing${notes.length === 1 ? "" : "s"} lost or approximated`),
           h("ul", {}, notes.map((n) => h("li", {}, n)))) : h("div", { class: "muted small" }, "converted whole"));
     }));

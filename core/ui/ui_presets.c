@@ -102,12 +102,12 @@ static void pr_cassette(float x, float y, float w, float h, const ui_preset_t *p
         return;
     }
     ui_RR(x + 10.f, y + 8.f, w - 20.f, h * 0.42f, 4.f, UI_G2, 1.f, QD_NONE);
-    lb_glyph(x + 18.f, y + 14.f, 34.f, 14.f, p->env, pr_kind_col(p->kind), 1.5f);
+    lb_glyph(x + 18.f, y + 14.f, 34.f, 14.f, p->env, p->missing ? UI_G2 : pr_kind_col(p->kind), 1.5f);
     {
         const char *nm = p->name ? p->name : "";
         const float room = w - 20.f - 46.f, tw = ui_TW(nm, 18.f, 400, 0.f);
         const float sz = tw > room ? lb_clamp(18.f * room / tw, 12.f, 18.f) : 18.f;
-        ui_T(nm, x + w / 2.f + 14.f, y + 8.f + h * 0.42f - 9.f, sz, 400, 0.f, UI_K3, QD_CENTER);
+        ui_T(nm, x + w / 2.f + 14.f, y + 8.f + h * 0.42f - 9.f, sz, 400, 0.f, p->missing ? UI_G1 : UI_K3, QD_CENTER);
     }
     for (j = 0; j < 2; j++) {                           /* the reels */
         const float rx = x + w * (j ? 0.68f : 0.32f), ry = y + h * 0.74f, r = h * 0.15f < 12.f ? h * 0.15f : 12.f;
@@ -160,7 +160,7 @@ static void pr_rollo(const ui_browse_t *v, qd_rgb col)
             pr_tag_dots(60.f, y - 4.f, p->tags, 2.6f, -1);
         else if (!p->track)
             ui_O(60.f, y - 4.f, 3.f, QD_NONE, 1.f, pr_kind_col(p->kind));
-        ui_T(p->track ? "TRACK" : p->name ? p->name : "", 70.f, y, 14.f, 400, 0.f, UI_K3, QD_LEFT);
+        ui_T(p->track ? "TRACK" : p->name ? p->name : "", 70.f, y, 14.f, 400, 0.f, p->missing ? UI_G1 : UI_K3, QD_LEFT);
         if (p->in_pool && !v->pool && !v->picker)
             pr_tray(198.f, y - 13.f, UI_POOL_COL, 1.f);
         qd_restore();
@@ -223,7 +223,31 @@ void ui_browse_draw(const ui_browse_t *v)
         return;
     }
     pr_rollo(v, v->out_armed || v->del_armed ? UI_RED : v->col);
-    if (v->users_row) {                                 /* who uses it (P1.5v: OUT?: they go back to TRACK) */
+    if (v->users_row && v->del_armed) {                 /* P1.5w: DELETE?: the projects referencing it, its steps */
+        float x = 14.f;
+        char n[12];
+        int k;
+        for (k = 1; k >= 0; k--)                        /* (a project: a little stack of patterns) */
+            ui_RR(x + (float)k * 3.f, 204.f - (float)k * 3.f, 15.f, 13.f, 2.f, UI_RED, 1.2f, UI_BG);
+        ui_itoa(n, v->use_proj);
+        ui_T(n, x + 22.f, 217.f, 12.f, 600, 0.f, UI_RED, QD_LEFT);
+        x += 22.f + ui_TW(n, 12.f, 600, 0.f) + 10.f;
+        if (v->use_steps) {
+            char m[12] = "\xc3\x97";
+            float w, ww;
+            ui_itoa(m + 2, v->use_steps);
+            w = ui_TW(m, 12.f, 600, 0.f) + 12.f, ww = w < 34.f ? 34.f : w;
+            ui_RR(x, 205.f, ww, 15.f, 3.f, UI_RED, 1.2f, QD_NONE);
+            ui_T(m, x + ww / 2.f, 216.f, 12.f, 600, 0.f, UI_RED, QD_CENTER);
+            x += ww + 6.f;
+            {
+                const float ar[6] = {x + 13.f, 208.f, x + 18.f, 212.5f, x + 13.f, 217.f};
+                line2(x, 212.5f, x + 17.f, 212.5f, UI_RED, 1.6f);
+                ui_P(ar, 3, UI_RED, 1.6f, 0, QD_NONE);
+                ui_T("TRACK", x + 24.f, 217.f, 12.f, 600, 0.5f, UI_RED, QD_LEFT);
+            }
+        }
+    } else if (v->users_row) {                          /* who uses it (P1.5v: OUT?: they go back to TRACK) */
         const qd_rgb uc = v->out_armed ? UI_RED : UI_G1;
         float x = v->out_armed ? 14.f : 60.f;
         int t;

@@ -12,6 +12,11 @@
  * snapshot recall, a randomise, a pool or library change, double) closes the gesture before it: a level of its own,
  * even with SHIFT still held for the next one.
  *
+ * P1.5w: a pool slot emptied (- POOL, a MY preset deleted) clears its locks in every pattern: those outside the
+ * gesture's pattern are kept as a list (pattern, track, step, the pool number, the override bit), up to QD_UNDO_XLOCKS,
+ * stored as a fourth region of the level and XORed back the same way (a bigger clear: the level is forgotten, as a
+ * difference too big for the pool).
+ *
  * COST: the copies are held once (the gesture's "before": a pattern 26 KB, the pool 21 KB, the library 21 KB; RAM
  * that Phase 2 will have to find, or narrow to the pattern), the levels' differences share a QD_UNDO_POOL byte pool;
  * when it is full the oldest levels go. A project load or a new project forgets them all. */
@@ -28,6 +33,7 @@ extern "C" {
 #define QD_UNDO_POOL 65536u
 #define QD_UNDO_QUIET_MS 500u
 #define QD_NLIB_UNDO 256               /* (persist.h's QD_NLIB) */
+#define QD_UNDO_XLOCKS 2048            /* P1.5w: the locks of the other patterns a pool slot's emptying cleared (10 KB) */
 
 /* what a level was (its glyph on the takeover) */
 enum { QD_UK_EDIT, QD_UK_KNOB, QD_UK_PASTE, QD_UK_CLEAR, QD_UK_REC, QD_UK_SOUNDS, QD_UK_RANDOM, QD_UK_SNAP,
@@ -49,6 +55,9 @@ typedef struct {
     qd_sound_t snd0[QD_NSOUND];
     uint8_t nsound0;
     qd_sound_t lib0[QD_NLIB_UNDO];
+    uint8_t xl[QD_UNDO_XLOCKS * 5];    /* P1.5w: the other patterns' locks cleared (pattern, track, step, number, ovr) */
+    uint32_t xl_n;
+    int xl_over;
     /* the levels: lvl[0 .. n), pos of them applied (undo: pos - 1; redo: pos) */
     qd_undo_lvl_t lvl[QD_UNDO_LEVELS];
     int n, pos;
@@ -62,6 +71,8 @@ typedef struct {
 struct qd_app;
 void qd_undo_init(struct qd_app *a);
 void qd_undo_reset(struct qd_app *a);          /* (a project loaded: the levels forgotten) */
+void qd_undo_xlock(struct qd_app *a, int pat, int t, int s, int k, int ovr);   /* P1.5w: a lock cleared outside the
+                                                   * gesture's pattern (kept for its undo) */
 void qd_undo_input(struct qd_app *a, int knob);   /* any input (knob: it was a knob) */
 void qd_undo_ms(struct qd_app *a);             /* the gesture closes when quiet */
 void qd_undo_close(struct qd_app *a);

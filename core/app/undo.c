@@ -28,9 +28,26 @@ static void undo_take(qd_app_t *a)                    /* the gesture's "before" 
     memcpy(u->snd0, a->proj.sound, sizeof u->snd0);
     u->nsound0 = a->proj.nsound;
     memcpy(u->lib0, a->per.lib, sizeof u->lib0);
+    u->xl_n = 0;
+    u->xl_over = 0;
     u->hint = -1;
     u->knob = 0;
     u->open = 1;
+}
+
+void qd_undo_xlock(qd_app_t *a, int pat, int t, int s, int k, int ovr)
+{
+    qd_hist_t *u = &a->undo;
+    uint8_t *e;
+    if (!u->open)
+        return;
+    if (u->xl_n >= QD_UNDO_XLOCKS) {
+        u->xl_over = 1;
+        return;
+    }
+    e = u->xl + u->xl_n * 5u;
+    e[0] = (uint8_t)pat, e[1] = (uint8_t)t, e[2] = (uint8_t)s, e[3] = (uint8_t)k, e[4] = (uint8_t)(ovr != 0);
+    u->xl_n++;
 }
 
 static void undo_follow(qd_app_t *a)                  /* the active pattern changed under an open gesture: it closes */
@@ -160,6 +177,17 @@ void qd_undo_close(qd_app_t *a)
             o += 4u + (uint32_t)d;
             z += (uint32_t)d;
         }
+        if (o + 4u + u->xl_n * 5u > sizeof tmp || u->xl_over) {   /* (P1.5w: the other patterns' locks: too many) */
+            u->open = 0;
+            return;
+        }
+        {
+            const uint32_t xb = u->xl_n * 5u;
+            memcpy(tmp + o, &xb, 4);
+            memcpy(tmp + o + 4u, u->xl, xb);
+            o += 4u + xb;
+            z += xb;
+        }
         if (a->proj.nsound != u->nsound0)
             z++;
         u->open = 0;
@@ -208,6 +236,20 @@ static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
         undo_apply_runs(mem[r], sz[r], d + o + 4u, len);
         o += 4u + len;
     }
+    {   /* P1.5w: the other patterns' locks, XORed back (or cleared again) */
+        uint32_t len, i;
+        memcpy(&len, d + o, 4);
+        for (i = 0; i + 5u <= len; i += 5u) {
+            const uint8_t *e = d + o + 4u + i;
+            if (e[0] < QD_NPAT && e[1] < QD_PAT_NTRACK && e[2] < QD_NSTEP) {
+                qd_step_t *st = &a->proj.pat[e[0]].step[e[1]][e[2]];
+                st->sound ^= e[3];
+                if (e[4])
+                    st->ovr ^= (uint16_t)QD_OV(QD_PM_SOUND);
+            }
+        }
+    }
+    qd_pool_resolve(a);                                 /* (P1.5w: the pool's references and the library together) */
     qd_sound_recount(&a->proj);
     if (l->pat == a->seq.cur)                           /* the tracks' sounds back from the pattern */
         for (t = 0; t < QD_NTRACK; t++)

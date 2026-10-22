@@ -215,6 +215,7 @@ typedef struct {
  * from (a pool sound; a MY preset: its own id), its flags (QD_SNDF_*); P1.5v: its tags, several kinds (bit QD_PK_*:
  * sounds.h QD_PKB) */
 #define QD_SNDF_IMPORTED 0x01           /* a MY preset that came in (SysEx, a dropped .dnsnd), not saved here */
+#define QD_SNDF_MISSING 0x02            /* P1.5w: a pool reference whose preset is not there (INIT plays; greyed) */
 typedef struct {
     char name[QD_SOUND_NAME];
     int16_t patch[QD_QUAD_NP];

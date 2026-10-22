@@ -299,7 +299,11 @@ static void tags_test(void)
               B.proj.sound[1].tags == (QD_PKB(QD_PK_DRUMS) | QD_PKB(QD_PK_KEYS)),
           "a restart: the tags kept (MY preset, the factory's, the pool's)");
     qd_factory_get(&B, 1, &f);
-    CHECK(f.tags == QD_PKB(QD_PK_KEYS) && !B.per.ftags[1], "EP untouched: the classifier's (KEYS)");
+    CHECK(f.tags == (QD_PKB(QD_PK_DRUMS) | QD_PKB(QD_PK_KEYS)) && B.proj.sound[1].preset == 2,
+          "P1.5w: pool sound 2 is a reference to EP: its tags are EP's");
+    qd_factory_get(&B, 2, &f);
+    CHECK(!B.per.ftags[2] && f.tags == QD_PKB(qd_tags_first(f.tags)), "another factory preset untouched: the "
+          "classifier's");
     len = qd_store_get(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 0), b, sizeof b);   /* 0.7.1's record: 'S' 2, a kind */
     CHECK(len > 4 && b[0] == 'S' && b[1] == 3, "written as 'S' 3");
     b[1] = 2;
@@ -309,6 +313,174 @@ static void tags_test(void)
     boot(&A);
     CHECK(A.per.lib[0].tags == QD_PKB(QD_PK_PAD) && !strcmp(A.per.lib[0].name, "TWO TAGS"),
           "an 'S' 2 record (0.7.0 .. 0.7.1): its kind (PAD) its one tag");
+}
+
+/* P1.5w: THE POOL HOLDS REFERENCES. REPLACE plays in every project's pool and its locks; a track's own sound stays
+ * its copy; a used preset's delete (its references, its locks, one undo level; another project drops its own as it
+ * loads); an unused one's; a restart */
+static int count_lib(const qd_app_t *a)
+{
+    int k, n = 0;
+    for (k = 0; k < QD_NLIB; k++)
+        n += a->per.lib[k].name[0] != 0;
+    return n;
+}
+static int lock_n(const qd_app_t *a, int k)
+{
+    int p, t, s, n = 0;
+    for (p = 0; p < QD_NPAT; p++)
+        for (t = 0; t < QD_PAT_NTRACK; t++)
+            for (s = 0; s < QD_NSTEP; s++)
+                n += a->proj.pat[p].step[t][s].sound == k && k;
+    return n;
+}
+static void refs_test(void)
+{
+    int16_t p[QD_QUAD_NP];
+    int id, k0, k1, np, ns, harm0;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    qd_quad_preset_patch(5, p);
+    p[QD_QP_HARM] = 100;
+    qd_lib_store(&A, 0, "LEAD X", p);
+    id = A.per.lib[0].preset;
+    k0 = qd_pool_add_sound(&A, &A.per.lib[0]);          /* project 1: a reference, two locks (two patterns) */
+    qd_step_on(&A.proj.pat[A.seq.cur], 1, 2);
+    qd_step_set_sound(&A.proj.pat[A.seq.cur], 1, 2, k0);
+    qd_step_on(&A.proj.pat[40], 3, 7);
+    qd_step_set_sound(&A.proj.pat[40], 3, 7, k0);
+    CHECK(k0 > 0 && A.proj.sound[k0 - 1].preset == id && A.proj.sound[k0 - 1].patch[QD_QP_HARM] == 100,
+          "+ POOL: a reference to LEAD X (its id), its sound the preset's");
+    {   /* track 3: loaded from it (its own copy, not edited) */
+        qd_track_t *t = &A.model.t[2];
+        qd_track_load_sound(t, 0, "LEAD X", A.per.lib[0].patch);
+        t->preset = (uint16_t)id;
+        t->edited = 0;
+        run(&A, 5);
+        harm0 = t->patch[QD_QP_HARM];
+    }
+    CHECK(qd_persist_flush(&A), "flushed");
+    qd_proj_new(&A, 1);                                 /* project 2: a reference too, a lock */
+    k1 = qd_pool_add_sound(&A, &A.per.lib[0]);
+    qd_step_on(&A.proj.pat[A.seq.cur], 0, 5);
+    qd_step_set_sound(&A.proj.pat[A.seq.cur], 0, 5, k1);
+    run(&A, 5);
+    p[QD_QP_HARM] = 1234;                               /* REPLACE (in project 2) */
+    qd_lib_replace(&A, 0, "LEAD X", p);
+    CHECK(A.proj.sound[k1 - 1].patch[QD_QP_HARM] == 1234 && qd_sound_patch(&A.proj, k1)[QD_QP_HARM] == 1234,
+          "REPLACE: project 2's reference (and its locked step) plays the new LEAD X");
+    CHECK(qd_persist_flush(&A) && qd_proj_load(&A, 0), "flushed; project 1 loaded");
+    CHECK(A.proj.sound[k0 - 1].preset == id && A.proj.sound[k0 - 1].patch[QD_QP_HARM] == 1234 &&
+              A.proj.pat[A.seq.cur].step[1][2].sound == k0,
+          "project 1's reference plays the new LEAD X too, its lock as it was");
+    run(&A, 5);
+    CHECK(A.model.t[2].patch[QD_QP_HARM] == harm0 && A.model.t[2].preset == id && !A.model.t[2].edited,
+          "a track's own sound (loaded from it, not edited): its copy as it was (%d)", A.model.t[2].patch[QD_QP_HARM]);
+    qd_preset_usage(&A, id, &np, &ns);
+    CHECK(np == 2 && ns == 3, "its use: 2 projects, 3 steps (%d, %d)", np, ns);
+    CHECK(qd_persist_flush(&A), "flushed");
+    boot(&B);                                           /* a restart */
+    G = &B;
+    CHECK(B.per.proj == 0 && B.proj.sound[k0 - 1].preset == id && B.proj.sound[k0 - 1].patch[QD_QP_HARM] == 1234 &&
+              !strcmp(B.proj.sound[k0 - 1].name, "LEAD X"), "a restart: the reference, resolved");
+    {
+        uint8_t b[8];
+        const int len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_SND, 0, k0), b, sizeof b);
+        CHECK(len == 4 && b[0] == 'R' && b[1] == 1, "its record: 'R' 1, an id (%d bytes)", len);
+    }
+    qd_undo_reset(&B);                                  /* delete, used: the references and the locks; undo; redo */
+    qd_undo_input(&B, 0);
+    CHECK(qd_preset_delete(&B, 0) && qd_lib_find(&B, id) < 0 && !qd_sound_used(&B.proj, k0) && !lock_n(&B, k0) &&
+              !B.proj.pat[40].step[3][7].sound, "delete (used): the preset, its reference, its locks (both patterns)");
+    qd_undo_close(&B);
+    qd_undo_step(&B, -1);
+    CHECK(qd_lib_find(&B, id) == 0 && B.proj.sound[k0 - 1].preset == id && lock_n(&B, k0) == 2 &&
+              (B.proj.pat[40].step[3][7].ovr & QD_OV(QD_PM_SOUND)) && B.proj.sound[k0 - 1].patch[QD_QP_HARM] == 1234,
+          "undo: the preset, its reference, both locks (the other pattern's too) back");
+    qd_undo_step(&B, 1);
+    CHECK(qd_lib_find(&B, id) < 0 && !qd_sound_used(&B.proj, k0) && !lock_n(&B, k0), "redo: deleted again");
+    CHECK(qd_persist_flush(&B) && qd_proj_load(&B, 1), "flushed; project 2 loaded");
+    CHECK(!qd_sound_used(&B.proj, k1) && !lock_n(&B, k1) && !(B.proj.pat[B.seq.cur].step[0][5].ovr & QD_OV(QD_PM_SOUND)),
+          "project 2 as it loads: its reference to the deleted preset dropped, its lock back to TRACK");
+    qd_lib_store(&B, 5, "UNUSED", p);
+    id = B.per.lib[5].preset;
+    qd_preset_usage(&B, id, &np, &ns);
+    CHECK(np == 0 && ns == 0 && qd_preset_delete(&B, 5) && !B.per.lib[5].name[0], "an unused one: no use, deleted");
+    {
+        int id2;
+        qd_lib_store(&B, 6, "NEW ONE", p);
+        id2 = B.per.lib[6].preset;
+        CHECK(id2 > id, "a new MY preset: an id never used before (%d > %d)", id2, id);
+    }
+    CHECK(qd_persist_flush(&B), "flushed");
+}
+
+/* P1.5w: a 0.7.2 flash's pools (copies, 'S' 3) become references as their project loads: a copy of a factory sound
+ * references it, one of a MY preset's references that, another becomes a new MY preset (its name made unique, its
+ * tags kept); again: nothing new (the same references) */
+static void put_copy(qd_app_t *a, int p, int k, const char *name, const int16_t *patch, int preset, int tags)
+{
+    uint8_t b[2 + QD_SOUND_NAME + QD_QUAD_BLOB + 4];
+    uint32_t o = 2 + QD_SOUND_NAME + QD_QUAD_BLOB;
+    uint16_t pr = (uint16_t)preset;
+    b[0] = 'S', b[1] = 3;
+    memset(b + 2, 0, QD_SOUND_NAME);
+    strcpy((char *)b + 2, name);
+    qd_quad_pack(patch, b + 2 + QD_SOUND_NAME);
+    memcpy(b + o, &pr, 2);
+    b[o + 2] = (uint8_t)tags, b[o + 3] = 0;
+    qd_store_put(&a->per.prj_st, QD_RKEY(QD_RK_SND, p, k), b, o + 4);
+    qd_store_flush(&a->per.prj_st);
+}
+static void migrate72_test(void)
+{
+    int16_t p[QD_QUAD_NP];
+    qd_sound_t f;
+    int nlib, m;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    qd_quad_preset_patch(6, p);
+    qd_lib_store(&A, 0, "MINE A", p);                   /* one of MY presets */
+    qd_persist_flush(&A);
+    qd_factory_get(&A, 3, &f);
+    put_copy(&A, 0, 30, "MY BASS", f.patch, 0, 0);      /* a factory sound's copy (another name) */
+    put_copy(&A, 0, 31, "A COPY", A.per.lib[0].patch, A.per.lib[0].preset, QD_PKB(QD_PK_PAD));   /* MINE A's */
+    p[QD_QP_HARM] = 777;
+    put_copy(&A, 0, 32, "MINE A", p, A.per.lib[0].preset, QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX));   /* an edited copy */
+    qd_step_on(&A.proj.pat[A.seq.cur], 0, 0);
+    qd_step_set_sound(&A.proj.pat[A.seq.cur], 0, 0, 32);
+    qd_persist_flush(&A);
+    nlib = count_lib(&A);
+    boot(&B);
+    G = &B;
+    m = qd_lib_find(&B, B.proj.sound[31].preset);
+    CHECK(B.proj.sound[29].preset == 4 && !strcmp(B.proj.sound[29].name, f.name), "a factory sound's copy: a reference "
+          "to it (%s)", B.proj.sound[29].name);
+    CHECK(B.proj.sound[30].preset == B.per.lib[0].preset, "a MY preset's copy: a reference to it");
+    CHECK(m > 0 && !strcmp(B.per.lib[m].name, "MINE A 2") && B.per.lib[m].patch[QD_QP_HARM] == 777 &&
+              B.per.lib[m].tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX)) && count_lib(&B) == nlib + 1 &&
+              B.proj.pat[B.seq.cur].step[0][0].sound == 32,
+          "another sound: a new MY preset (%s, its tags kept), referenced; its lock as it was", m > 0 ? B.per.lib[m].name : "-");
+    {
+        int n, k;
+        for (n = 0, k = 1; k <= QD_NFACTORY; k++)
+            n += B.proj.sound[k - 1].preset == k;
+        CHECK(n == QD_NFACTORY, "the demo's starting pool: references to the factory presets (%d)", n);
+    }
+    qd_persist_flush(&B);
+    boot(&A);
+    G = &A;
+    CHECK(count_lib(&A) == nlib + 1 && A.proj.sound[31].preset == B.proj.sound[31].preset &&
+              A.proj.sound[29].preset == 4, "again: nothing new, the same references");
+    {
+        uint8_t b[8];
+        const int len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SND, 0, 32), b, sizeof b);
+        CHECK(len == 4 && b[0] == 'R', "written as references");
+    }
 }
 
 int main(void)
@@ -358,11 +530,12 @@ int main(void)
         qd_quad_preset_patch((int)(rnd() % 17u), p);
         p[QD_QP_DRIVE] = (int16_t)(k % 30);
         snprintf(nm, sizeof nm, "S%03d", k);
+        qd_lib_store(&A, 100 + k, nm, p);               /* (P1.5w: the pool references presets: MY ones here) */
         memset(&A.proj.sound[k - 1], 0, sizeof A.proj.sound[k - 1]);
         strcpy(A.proj.sound[k - 1].name, nm);
-        memcpy(A.proj.sound[k - 1].patch, p, sizeof p);
+        A.proj.sound[k - 1].preset = A.per.lib[100 + k].preset;
     }
-    qd_sound_recount(&A.proj);
+    qd_pool_resolve(&A);
     A.model.t[3].mix.level = 77;
     A.model.t[3].mix.pan = -20;
     A.proj.rec_quant = 35;
@@ -516,6 +689,8 @@ int main(void)
     pages_test();
     migration_test();
     tags_test();
+    refs_test();
+    migrate72_test();
     printf("test_persist: %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

@@ -108,8 +108,12 @@ Any other command, or a frame whose checksum fails before its command is known, 
 
 - **Stores it** in the LIBRARY slot or POOL number, with its name. A LIBRARY import becomes one of MY presets: its own
   preset id, its first tag read from the sound (BASS, KEYS, PLUCK, PAD, LEAD, DRUMS or FX; the owner can add more in
-  the browser, SHIFT + B2..B8), marked imported (the ↓ in the browser). A POOL import gets its tag too.
-  - A POOL sound overwritten in place: steps that lock that number play the new sound. Tracks keep their own copies, as when a pool sound is edited.
+  the browser, SHIFT + B2..B8), marked imported (the ↓ in the browser).
+  - A POOL import (P1.5w: the pool holds references to presets): the sound becomes one of MY presets too (imported,
+    in the first free place), and the POOL number references it. The reply keeps its format: the POOL flag and the
+    POOL number. With MY presets full, a POOL store replies FULL too.
+  - A POOL number stored over: it references the new preset; steps that lock that number play it. Tracks keep their
+    own copies.
 - **Shows it** for about a second, over any screen including the EDIT view: the cassette drops in with the name and slot number, in the LIBRARY's cream or the POOL's green, with "MY PRESETS" / "POOL" above and **imported** below.
 - **Saves it** through FIZZ's usual autosave. The library and the project are written by themselves a moment later, as for any edit (`core/app/persist.c`).
 - **Undo.** SHIFT + F1 undoes **one message**, or **one batch**.

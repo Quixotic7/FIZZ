@@ -81,7 +81,7 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
     uint8_t blob[QD_SX_BLOB + 8];
     char name[QD_SX_NAME + 1];
     int16_t patch[QD_QUAD_NP];
-    int flags, pool, slot, i, track;
+    int flags, pool, slot, i, track, lib_slot = 0;
     if (n != QD_SX_STORE_BODY + 1u) {
         sx_store_reply(a, QD_SX_BAD_LENGTH, n ? (b[0] & QD_SXF_POOL) != 0 : 0, 0);
         return;
@@ -118,6 +118,10 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
             sx_store_reply(a, QD_SX_FULL, pool, 0);
             return;
         }
+        if (qd_lib_free_slot(a) < 0) {                  /* (P1.5w: a pool slot references a new MY preset) */
+            sx_store_reply(a, QD_SX_FULL, pool, 0);
+            return;
+        }
     } else {                                            /* LIBRARY: MY presets (P1.5t), 1..256, 0 the first free */
         if (slot == 0)
             slot = qd_lib_free_slot(a) + 1;
@@ -132,14 +136,15 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
     }
     qd_undo_input(a, 0);                                /* (an input: the batch's gesture stays open while they come) */
     a->undo.join = (flags & QD_SXF_BATCH) != 0;         /* (a batch: the previous import's level goes on) */
-    if (pool) {
+    if (pool) {                                         /* P1.5w: a MY preset (imported), referenced at that number */
+        const int m = qd_lib_free_slot(a);
         qd_sound_t *s = &a->proj.sound[slot - 1];
-        qd_undo_hint(a, QD_UK_SOUNDS);
+        qd_lib_store_ex(a, m, name, patch, QD_SNDF_IMPORTED);
         memset(s, 0, sizeof *s);
-        strncpy(s->name, name, QD_SOUND_NAME - 1);
-        memcpy(s->patch, patch, sizeof s->patch);
-        s->tags = (uint8_t)qd_preset_tags(patch);       /* (P1.5t: its kind read on arrival; P1.5v: its first tag) */
-        qd_sound_recount(&a->proj);
+        s->preset = a->per.lib[m].preset;
+        strcpy(s->name, "?");
+        qd_pool_resolve(a);
+        lib_slot = m;
     } else {
         qd_lib_store_ex(a, slot - 1, name, patch, QD_SNDF_IMPORTED);   /* (P1.5t: one of MY presets, imported) */
     }
@@ -149,7 +154,7 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
         qd_track_t *t = &a->model.t[track];
         const int mask = b[21];
         qd_track_load_sound(t, pool ? slot : 0, name, patch);
-        t->preset = pool ? 0 : a->per.lib[slot - 1].preset;
+        t->preset = pool ? a->per.lib[lib_slot].preset : a->per.lib[slot - 1].preset;
         if (mask & QD_SXM_PAN)
             t->mix.pan = (int8_t)((int)b[17] - 64);
         if (mask & QD_SXM_CHORUS)

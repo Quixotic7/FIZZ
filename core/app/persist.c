@@ -20,10 +20,17 @@
  *   SND / LIB  (P1.5v) 'S' 3: as 'S' 2 with the TAGS (a byte, bit QD_PK_k) where the kind was; an 'S' 2's kind
  *        becomes its one tag
  *   FTAG 'F' 1, the factory presets' tags as the owner set them (QD_NFACTORY bytes: 0x80 | tags, 0 the classifier's);
- *        in the library's store */
+ *        in the library's store. P1.5w: 'F' 2, then the next MY preset id (u16)
+ *   SND  (P1.5w) 'R' 1, a pool slot's preset id (u16): THE POOL HOLDS REFERENCES. An 'S' record in the pool (0.7.2 and
+ *        older: a copy) becomes a reference when its project loads: to the preset with that very sound (factory or
+ *        MINE), else to a new MY preset made from it (its name made unique, its tags kept). A reference to a MY
+ *        preset that is gone (deleted while another project was open) is dropped when its project loads, its steps
+ *        back to their track's sound */
 #include "../voice/fx/qd_fx.h"
 
 static uint8_t pr_buf[QDS_MAXREC], pr_buf2[QDS_MAXREC];
+static void pool_cache(const qd_app_t *a, qd_sound_t *s);   /* (P1.5w: the pool's references, below) */
+static void pool_fixup(qd_app_t *a);
 
 static uint32_t fnv(const uint8_t *p, uint32_t n)
 {
@@ -265,9 +272,10 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
 /* P1.5v: the factory tags' record */
 static uint32_t ser_ftag(const qd_app_t *a, uint8_t *b)
 {
-    b[0] = 'F', b[1] = 1;
+    b[0] = 'F', b[1] = 2;
     memcpy(b + 2, a->per.ftags, QD_NFACTORY);
-    return 2 + QD_NFACTORY;
+    memcpy(b + 2 + QD_NFACTORY, &a->per.id_next, 2);    /* (P1.5w) */
+    return 2 + QD_NFACTORY + 2;
 }
 
 /* an item's key and bytes now */
@@ -296,8 +304,15 @@ static uint32_t item_bytes(const qd_app_t *a, int it, uint8_t *b)
         return ser_hdr(a, b);
     if (it < QD_PI_SND)
         return ser_pat(&a->proj.pat[it - QD_PI_PAT], b);
-    if (it < QD_PI_LIB)
-        return ser_snd(&a->proj.sound[it - QD_PI_SND], b);
+    if (it < QD_PI_LIB) {
+        const qd_sound_t *s = &a->proj.sound[it - QD_PI_SND];
+        if (s->name[0] && s->preset) {                  /* P1.5w: a reference */
+            b[0] = 'R', b[1] = 1;
+            memcpy(b + 2, &s->preset, 2);
+            return 4;
+        }
+        return ser_snd(s, b);                           /* (an empty slot; a copy the library had no room for) */
+    }
     return ser_snd(&a->per.lib[it - QD_PI_LIB], b);
 }
 static qd_store_t *item_store(qd_app_t *a, int it) { return it >= QD_PI_LIB ? &a->per.lib_st : &a->per.prj_st; }
@@ -365,8 +380,13 @@ static void proj_read(qd_app_t *a, int p)
         len = qd_store_get(&ps->prj_st, QD_RKEY(QD_RK_SND, p, k), pr_buf, sizeof pr_buf);
         if (len > 0 && len != (int)QDS_DELETED) {
             qd_sound_t *s = &a->proj.sound[k - 1];
-            if (de_snd(s, pr_buf, (uint32_t)len) && de_snd_v1)
+            if (len == 4 && pr_buf[0] == 'R' && pr_buf[1] == 1) {   /* P1.5w: a reference (resolved below) */
+                memset(s, 0, sizeof *s);
+                memcpy(&s->preset, pr_buf + 2, 2);
+                pool_cache(a, s);                       /* (gone: INIT, flagged: the fixup drops it) */
+            } else if (de_snd(s, pr_buf, (uint32_t)len) && de_snd_v1) {
                 s->preset = (uint16_t)qd_factory_of(s->name, s->patch);   /* (0.6's: the factory preset it is) */
+            }
         }
     }
     qd_sound_recount(&a->proj);
@@ -427,10 +447,13 @@ static void lib_read(qd_app_t *a)
             ps->lib[k].preset = (uint16_t)(QD_PRESET_MINE0 + k);   /* (0.6's library: MY presets, saved) */
     }
     memset(ps->ftags, 0, sizeof ps->ftags);             /* P1.5v: the factory tags (none: the classifier's) */
+    ps->id_next = 0;
     {
         const int len = qd_store_get(&ps->lib_st, QD_RKEY(QD_RK_FTAG, 0, 0), pr_buf, sizeof pr_buf);
-        if (len == 2 + QD_NFACTORY && pr_buf[0] == 'F' && pr_buf[1] == 1)
+        if (len >= 2 + QD_NFACTORY && pr_buf[0] == 'F' && (pr_buf[1] == 1 || pr_buf[1] == 2))
             memcpy(ps->ftags, pr_buf + 2, QD_NFACTORY);
+        if (len == 2 + QD_NFACTORY + 2 && pr_buf[1] == 2)
+            memcpy(&ps->id_next, pr_buf + 2 + QD_NFACTORY, 2);
     }
 }
 
@@ -481,6 +504,7 @@ void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)
     qd_ctl_select_track(a, sel);
     mark_all_saved(a);
     ps->saved[QD_PI_SET] ^= 1u;                         /* (the settings written once: the project's in them) */
+    pool_fixup(a);                                      /* (P1.5w: after: what it changes is written) */
 }
 
 int qd_persist_dirty(const qd_app_t *a)
@@ -659,6 +683,7 @@ int qd_proj_load(qd_app_t *a, int p)
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
     mark_all_saved(a);
     ps->saved[QD_PI_SET] ^= 1u;
+    pool_fixup(a);                                      /* (P1.5w) */
     return 1;
 }
 
@@ -760,18 +785,114 @@ int qd_pool_free_slot(const qd_project_t *pr)
     return 0;
 }
 
+/* P1.5w: one sound's patch as the flash keeps it (two sounds the same: their packed patches the same) */
+static int same_sound(const int16_t *x, const int16_t *y)
+{
+    uint8_t bx[QD_QUAD_BLOB], by[QD_QUAD_BLOB];
+    qd_quad_pack(x, bx);
+    qd_quad_pack(y, by);
+    return !memcmp(bx, by, sizeof bx);
+}
+
+/* the preset (its id) that is this sound: its own id when trusted and there, else the one with that very sound
+ * (factory first, then MINE); 0 none */
+static int preset_with_sound(const qd_app_t *a, const qd_sound_t *s, int trust_id)
+{
+    qd_sound_t p;
+    int k;
+    if (s->preset && qd_preset_get(a, s->preset, &p) && (trust_id || same_sound(p.patch, s->patch)))
+        return s->preset;
+    for (k = 0; k < QD_NFACTORY; k++) {
+        qd_factory_get(a, k, &p);
+        if (same_sound(p.patch, s->patch))
+            return k + 1;
+    }
+    for (k = 0; k < QD_NLIB; k++)
+        if (a->per.lib[k].name[0] && same_sound(a->per.lib[k].patch, s->patch))
+            return a->per.lib[k].preset;
+    return 0;
+}
+
+static int lib_put(qd_app_t *a, int slot, const char *name, const int16_t *patch, int flags);
+
+/* .. or a new MY preset made from it (its name made unique, its tags kept); 0: the library full */
+static int preset_of_sound(qd_app_t *a, const qd_sound_t *s, int trust_id)
+{
+    char nm[QD_SOUND_NAME];
+    int id = preset_with_sound(a, s, trust_id), slot;
+    if (id)
+        return id;
+    slot = qd_lib_free_slot(a);
+    if (slot < 0)
+        return 0;
+    qd_lib_unique_name(a, s->name[0] ? s->name : "SOUND", nm);
+    lib_put(a, slot, nm, s->patch, s->flags & QD_SNDF_IMPORTED);
+    if (s->tags & QD_PK_MASK)
+        a->per.lib[slot].tags = (uint8_t)(s->tags & QD_PK_MASK);
+    return a->per.lib[slot].preset;
+}
+
+/* a pool slot's cache from its preset (gone: INIT, greyed) */
+static void pool_cache(const qd_app_t *a, qd_sound_t *s)
+{
+    qd_sound_t p;
+    const uint16_t id = s->preset;
+    if (qd_preset_get(a, id, &p)) {
+        *s = p;
+        s->flags = (uint8_t)(p.flags & QD_SNDF_IMPORTED);
+    } else {
+        qd_factory_preset(0, &p);
+        *s = p;
+        s->flags = QD_SNDF_MISSING;
+    }
+    s->preset = id;
+}
+
+/* the references' caches; drop: (a project loading) a reference to a MY preset that is gone is dropped, its locks
+ * back to the track's sound */
+static void pool_unref_all(qd_app_t *a, int k);
+static void pool_resolve(qd_app_t *a, int drop)
+{
+    int k;
+    for (k = 1; k <= QD_NSOUND; k++) {
+        qd_sound_t *s = &a->proj.sound[k - 1];
+        if (!s->name[0] || !s->preset)
+            continue;
+        pool_cache(a, s);
+        if (drop && (s->flags & QD_SNDF_MISSING) && s->preset >= QD_PRESET_MINE0)
+            pool_unref_all(a, k);
+    }
+    qd_sound_recount(&a->proj);
+}
+void qd_pool_resolve(qd_app_t *a) { pool_resolve(a, 0); }
+
+/* a project loaded: its copies made references (0.7.2 and older), its dangling references dropped */
+static void pool_fixup(qd_app_t *a)
+{
+    int k;
+    for (k = 1; k <= QD_NSOUND; k++) {                  /* (a reference: its own preset again; a copy: the preset
+                                                         * with its very sound, or a new MY one; the library full: it
+                                                         * stays a copy) */
+        qd_sound_t *s = &a->proj.sound[k - 1];
+        if (s->name[0] && !(s->flags & QD_SNDF_MISSING))
+            s->preset = (uint16_t)preset_of_sound(a, s, 0);
+    }
+    pool_resolve(a, 1);
+}
+
 int qd_pool_add_sound(qd_app_t *a, const qd_sound_t *s)
 {
     const int k = qd_pool_free_slot(&a->proj);
-    qd_sound_t n;
+    int id;
     qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (!k)
         return 0;
-    n = *s;
-    n.flags = 0;
-    if (!n.name[0])
-        strcpy(n.name, "SOUND");
-    a->proj.sound[k - 1] = n;
+    id = preset_of_sound(a, s, 1);                      /* (P1.5w: a reference: the preset it is, or a new MY one) */
+    if (!id)
+        return 0;
+    memset(&a->proj.sound[k - 1], 0, sizeof a->proj.sound[k - 1]);
+    a->proj.sound[k - 1].preset = (uint16_t)id;
+    pool_cache(a, &a->proj.sound[k - 1]);
     qd_sound_recount(&a->proj);
     return k;
 }
@@ -793,9 +914,9 @@ int qd_pool_find(const qd_app_t *a, const qd_sound_t *s)
         const qd_sound_t *p = &a->proj.sound[k - 1];
         if (!p->name[0])
             continue;
-        if (s->preset && p->preset == s->preset && !memcmp(p->patch, s->patch, sizeof p->patch))
+        if (s->preset && p->preset == s->preset)        /* (P1.5w: a reference to it) */
             return k;
-        if (!strcmp(p->name, s->name) && !memcmp(p->patch, s->patch, sizeof p->patch))
+        if (!p->preset && !strcmp(p->name, s->name) && !memcmp(p->patch, s->patch, sizeof p->patch))
             return k;
     }
     return 0;
@@ -852,17 +973,19 @@ int qd_pool_copy(qd_app_t *a, int from, int to)
     return 1;
 }
 
-int qd_pool_delete(qd_app_t *a, int k)
+/* pool slot k emptied: its locks in every pattern back to the track's sound (rec: P1.5w, kept for undo outside the
+ * gesture's pattern), the tracks' sources gone */
+static void pool_unref(qd_app_t *a, int k, int rec)
 {
     int p, t, s;
-    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
-    if (k < 1 || k > QD_NSOUND || !a->proj.sound[k - 1].name[0])
-        return 0;
     for (p = 0; p < QD_NPAT; p++) {
         qd_pattern_t *P = &a->proj.pat[p];
         for (t = 0; t < QD_PAT_NTRACK; t++) {
             for (s = 0; s < QD_NSTEP; s++)
                 if (P->step[t][s].sound == k) {         /* back to the track's sound */
+                    const int ov = (P->step[t][s].ovr & QD_OV(QD_PM_SOUND)) != 0;
+                    if (rec && p != a->undo.pat)
+                        qd_undo_xlock(a, p, t, s, k, ov);
                     P->step[t][s].sound = 0;
                     P->step[t][s].ovr &= (uint16_t)~QD_OV(QD_PM_SOUND);
                 }
@@ -875,6 +998,15 @@ int qd_pool_delete(qd_app_t *a, int k)
             a->model.t[t].sound = 0;
     memset(&a->proj.sound[k - 1], 0, sizeof a->proj.sound[k - 1]);
     qd_sound_recount(&a->proj);
+}
+static void pool_unref_all(qd_app_t *a, int k) { pool_unref(a, k, 0); }
+
+int qd_pool_delete(qd_app_t *a, int k)
+{
+    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
+    if (k < 1 || k > QD_NSOUND || !a->proj.sound[k - 1].name[0])
+        return 0;
+    pool_unref(a, k, a->undo.open);                     /* (P1.5w: the other patterns' locks kept for undo) */
     return 1;
 }
 
@@ -940,22 +1072,38 @@ static uint16_t lib_new_id(const qd_app_t *a)
     for (t = 0; t < QD_NTRACK; t++)
         if (a->model.t[t].preset > m)
             m = a->model.t[t].preset;
+    if (a->per.id_next > m + 1u)                        /* (P1.5w: never an id used before) */
+        m = a->per.id_next - 1u;
     return (uint16_t)(m >= 0xFFFFu ? QD_PRESET_MINE0 + QD_NLIB : m + 1u);
 }
 
-int qd_lib_store_ex(qd_app_t *a, int slot, const char *name, const int16_t *patch, int flags)
+/* a MY preset stored (no undo level: the callers' own); into one that is there: its id kept (P1.5w: its references
+ * follow) */
+static int lib_put(qd_app_t *a, int slot, const char *name, const int16_t *patch, int flags)
 {
     qd_sound_t n;                                       /* (name or patch may be the slot's own) */
-    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (slot < 0 || slot >= QD_NLIB)
         return 0;
     memset(&n, 0, sizeof n);
     strncpy(n.name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
     memcpy(n.patch, patch, sizeof n.patch);
-    n.preset = lib_new_id(a);
+    n.preset = a->per.lib[slot].name[0] ? a->per.lib[slot].preset : lib_new_id(a);
+    if (n.preset >= a->per.id_next)
+        a->per.id_next = (uint16_t)(n.preset + 1u);
     n.tags = (uint8_t)qd_preset_tags(patch);
     n.flags = (uint8_t)flags;
     a->per.lib[slot] = n;
+    return 1;
+}
+
+int qd_lib_store_ex(qd_app_t *a, int slot, const char *name, const int16_t *patch, int flags)
+{
+    const int was = slot >= 0 && slot < QD_NLIB && a->per.lib[slot].name[0];
+    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
+    if (!lib_put(a, slot, name, patch, flags))
+        return 0;
+    if (was)
+        pool_resolve(a, 0);                             /* (P1.5w: over one that was there: its references follow) */
     return 1;
 }
 
@@ -977,6 +1125,7 @@ int qd_lib_replace(qd_app_t *a, int slot, const char *name, const int16_t *patch
     memcpy(s->name, nm, sizeof nm);
     memcpy(s->patch, patch, sizeof s->patch);
     s->flags = 0;                                       /* (saved here now; P1.5v: its tags kept) */
+    pool_resolve(a, 0);                                 /* (P1.5w: the pool's references to it play it now) */
     return 1;
 }
 
@@ -1025,10 +1174,18 @@ void qd_factory_get(const qd_app_t *a, int k, qd_sound_t *out)
 int qd_tags_set(qd_app_t *a, int code, int tags)
 {
     tags &= (int)QD_PK_MASK;
-    if (code >= QD_BR_POOL_CODE) {                      /* (a pool sound) */
+    if (code >= QD_BR_POOL_CODE) {                      /* (a pool sound: P1.5w: its preset's tags) */
+        const qd_sound_t *s;
+        int m;
         if (!qd_sound_used(&a->proj, code - QD_BR_POOL_CODE))
             return 0;
-        qd_undo_hint(a, QD_UK_SOUNDS);
+        s = &a->proj.sound[code - QD_BR_POOL_CODE - 1];
+        if (s->preset >= 1 && s->preset <= QD_NFACTORY)
+            return qd_tags_set(a, s->preset - 1, tags);
+        m = qd_lib_find(a, s->preset);
+        if (m >= 0)
+            return qd_tags_set(a, QD_BR_MINE_CODE + m, tags);
+        qd_undo_hint(a, QD_UK_SOUNDS);                  /* (a copy) */
         a->proj.sound[code - QD_BR_POOL_CODE - 1].tags = (uint8_t)tags;
         return 1;
     }
@@ -1037,11 +1194,127 @@ int qd_tags_set(qd_app_t *a, int code, int tags)
             return 0;
         qd_undo_hint(a, QD_UK_SOUNDS);
         a->per.lib[code - QD_BR_MINE_CODE].tags = (uint8_t)tags;
+        pool_resolve(a, 0);
         return 1;
     }
     if (code < 0 || code >= QD_NFACTORY)
         return 0;
     a->per.ftags[code] = (uint8_t)(0x80u | (unsigned)tags);   /* (the factory sound stays as it is; its tags the
                                                          * owner's, not undone) */
+    pool_resolve(a, 0);
     return 1;
+}
+
+/* ---------------------------------------------------------------- P1.5w: a preset's users, its delete */
+/* the steps (on) of a pattern record whose sound lock is in mask (a bit a pool number), from its bytes */
+static int rec_pat_steps(const uint8_t *b, uint32_t len, const uint8_t *mask)
+{
+    uint32_t o;
+    int t, pg, s, n = 0;
+    uint16_t nlock;
+    if (len < 4 || b[0] != 'P' || (b[1] != 1 && b[1] != 2) || b[2] != sizeof(qd_step_t) || b[3] != sizeof(qd_tset_t))
+        return 0;
+    o = 4 + 2 + 2 + 2;
+    memcpy(&nlock, b + o, 2), o += 2;
+    o += (uint32_t)(sizeof(qd_tset_t) * QD_PAT_NTRACK + sizeof(((qd_pattern_t *)0)->lock_start) +
+                    sizeof(((qd_pattern_t *)0)->lock_n));
+    for (t = 0; t < QD_PAT_NTRACK && o < len; t++) {
+        const uint8_t pm = b[o++];
+        for (pg = 0; pg < QD_NPAGE; pg++) {
+            uint16_t sm;
+            if (!((pm >> pg) & 1u))
+                continue;
+            if (o + 2 > len)
+                return n;
+            memcpy(&sm, b + o, 2), o += 2;
+            for (s = 0; s < QD_PAGE; s++)
+                if ((sm >> s) & 1u) {
+                    qd_step_t st;
+                    if (o + sizeof st > len)
+                        return n;
+                    memcpy(&st, b + o, sizeof st), o += sizeof st;
+                    n += st.sound && ((mask[st.sound >> 3] >> (st.sound & 7)) & 1u) && (st.flags & QD_SF_ON);
+                }
+        }
+    }
+    (void)nlock;
+    return n;
+}
+
+void qd_preset_usage(const qd_app_t *a, int id, int *projects, int *steps)
+{
+    const qd_persist_t *ps = &a->per;
+    int p, k, np = 0, ns = 0;
+    {   /* this project: its pool in RAM */
+        int used = 0;
+        for (k = 1; k <= QD_NSOUND; k++)
+            if (qd_sound_used(&a->proj, k) && a->proj.sound[k - 1].preset == id) {
+                used = 1;
+                ns += qd_pool_users_all(a, k, 0);
+            }
+        np += used;
+    }
+    for (p = 0; ps->on && p < QD_NPROJ; p++) {          /* the others: their records */
+        uint8_t mask[(QD_NSOUND + 8) / 8];
+        int used = 0;
+        if (p == ps->proj || !ps->pexists[p])
+            continue;
+        memset(mask, 0, sizeof mask);
+        for (k = 1; k <= QD_NSOUND; k++) {
+            uint8_t b[8];
+            const int len = qd_store_get((qd_store_t *)&ps->prj_st, QD_RKEY(QD_RK_SND, p, k), b, sizeof b);
+            uint16_t r;
+            if (len != 4 || b[0] != 'R' || b[1] != 1)
+                continue;
+            memcpy(&r, b + 2, 2);
+            if (r == id)
+                mask[k >> 3] |= (uint8_t)(1u << (k & 7)), used = 1;
+        }
+        if (!used)
+            continue;
+        np++;
+        for (k = 0; k < QD_NPAT; k++) {
+            const int len = qd_store_get((qd_store_t *)&ps->prj_st, QD_RKEY(QD_RK_PAT, p, k), pr_buf, sizeof pr_buf);
+            if (len > 0 && len != (int)QDS_DELETED)
+                ns += rec_pat_steps(pr_buf, (uint32_t)len, mask);
+        }
+    }
+    if (projects)
+        *projects = np;
+    if (steps)
+        *steps = ns;
+}
+
+int qd_preset_delete(qd_app_t *a, int slot)
+{
+    int k, id;
+    if (slot < 0 || slot >= QD_NLIB || !a->per.lib[slot].name[0])
+        return 0;
+    id = a->per.lib[slot].preset;
+    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (one level: the preset, its references, their locks) */
+    for (k = 1; k <= QD_NSOUND; k++)
+        if (qd_sound_used(&a->proj, k) && a->proj.sound[k - 1].preset == id)
+            pool_unref(a, k, a->undo.open);
+    memset(&a->per.lib[slot], 0, sizeof a->per.lib[slot]);
+    return 1;
+}
+
+void qd_lib_unique_name(const qd_app_t *a, const char *nm, char *out)
+{
+    int n, k, clash;
+    snprintf(out, QD_SOUND_NAME, "%s", nm);
+    for (n = 2; n < 100; n++) {
+        for (clash = 0, k = 0; k < QD_NLIB && !clash; k++)
+            clash = a->per.lib[k].name[0] && !strcmp(a->per.lib[k].name, out);
+        if (!clash)
+            return;
+        {
+            char base[QD_SOUND_NAME];
+            const int room = QD_SOUND_NAME - 1 - (n < 10 ? 2 : 3);
+            snprintf(base, sizeof base, "%.*s", room, nm);
+            while (strlen(base) && base[strlen(base) - 1] == ' ')
+                base[strlen(base) - 1] = 0;
+            snprintf(out, QD_SOUND_NAME, "%s %d", base, n);
+        }
+    }
 }
