@@ -1794,3 +1794,11 @@ keep their unique versions of presets once loaded"); DELETE? counts its use acro
 locks (other projects on load; ids never reused); SysEx POOL stores make a MY preset plus a reference; 0.6 / 0.7.2 pools
 migrate by content. The web preview imports Digitone II `.dn2pst` FM TONE sounds (00562f4, ded4645; research
 `research/DN2-FORMAT.md`, reader `tools/dn2pst.mjs`, acf84b3) and shows old-firmware notes as a quiet mark.
+
+**2026-10-22, P1.5x, E1** (FMToneSeq b0d24d4, d0767fd; FM1VST `core-quadrille` ea3a8d4, 49c3128, pushed; versions
+0.7.4-p1.5x, 0.8.0-e1; relaunched): presets carry pan and sends (factory ones ChoralRoot's), tag LEDs (filter solid,
+tags breathing), SysEx STORE tags byte, the FM1VST `.dn2pst` drop. E1 of `research/FMTONE-DN2-PLAN.md`: the patch is
+110 values (74 AMOD, 75 HOLD, 76 PORT, 77 PTIM, 78 PSLOPE, 79 DRPRE; 80..109 reserved for E2..E4), the v6 128-byte blob,
+STORE6 (0x11), `quad_ext.c` behind feature tests (bit-exact unchanged), AHD, portamento (chords by rank, LEGATO,
+lone note from the track's last), DRIVE pre / post; B1 PLAY / MOD (PORT), B5 AMP / FX. Measured cost: ~0.
+Web: live control labels (stand-in until the LABELS SysEx), the Digitone II harvest wizard (dn2-wizard.html).
