@@ -24,7 +24,7 @@
 //   wrapDn2Record(record, {compress}) -> the stored container (payload) around it; dn2pstZip(payload, manifest) -> a .dn2pst
 
 // ---- FM TONE's patch (eng_quad.c QP_*, version 5; the same table as fm1dnsnd.js DN_QUAD_RANGES)
-export const QUAD_RANGES = [[1,8,1],[0,18,3],[0,63,3],[0,18,3],[-2600,2600,0],[0,12700,0],[0,127,0],[-64,63,-64],[-100,100,0],[-100,100,0],[-100,100,0],[-100,100,0],[0,127,0],[0,127,32],[0,127,127],[0,127,0],[0,127,0],[0,127,32],[0,127,127],[0,127,0],[0,127,0],[0,1,1],[0,1,1],[0,4,1],[0,127,0],[0,1,1],[0,1,1],[0,127,64],[0,127,0],[0,127,0],[0,127,0],[0,127,64],[0,127,0],[0,127,64],[0,12700,12700],[0,12700,0],[0,3,1],[-6400,6399,0],[0,127,0],[0,127,0],[0,12700,0],[0,127,127],[0,127,8],[0,127,32],[0,127,96],[0,127,24],[0,127,110],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,57,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,57,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,57,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[0,18,3],[0,127,0]];
+export const QUAD_RANGES = [[1,8,1],[0,18,3],[0,63,3],[0,18,3],[-2600,2600,0],[0,12700,0],[0,127,0],[-64,63,-64],[-100,100,0],[-100,100,0],[-100,100,0],[-100,100,0],[0,127,0],[0,127,32],[0,127,127],[0,127,0],[0,127,0],[0,127,32],[0,127,127],[0,127,0],[0,127,0],[0,1,1],[0,1,1],[0,4,1],[0,127,0],[0,1,1],[0,1,1],[0,127,64],[0,127,0],[0,127,0],[0,127,0],[0,127,64],[0,127,0],[0,127,64],[0,12700,12700],[0,12700,0],[0,7,1],[-6400,6399,0],[0,127,0],[0,127,0],[0,12700,0],[0,127,127],[0,127,8],[0,127,32],[0,127,96],[0,127,24],[0,127,110],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,57,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,57,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,57,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[0,18,3],[0,127,0]];
 export const QP = { ALGO: 0, RC: 1, RA: 2, RB1: 3, HARM: 4, DTUN: 5, FDBK: 6, MIX: 7, OFSC: 8, OFSA: 9, OFSB1: 10, OFSB2: 11,
   AATK: 12, ADEC: 13, AEND: 14, ALEV: 15, BATK: 16, BDEC: 17, BEND: 18, BLEV: 19, ADLY: 20, ATRIG: 21, ARST: 22, PHRT: 23,
   BDLY: 24, BTRIG: 25, BRST: 26, VEL: 27, AKEY: 28, B1KEY: 29, FATK: 30, FDEC: 31, FSUS: 32, FREL: 33, FREQ: 34, RESO: 35,
@@ -40,7 +40,7 @@ export const QX = { AMOD: 74, HOLD: 75, PORT: 76, PTIM: 77, PSLOPE: 78, DRPRE: 7
   BITS: 83, SRR: 84, CRPOST: 85, MOD0: 86 };
 const QUAD_EXT0 = 74, QUAD_BLOB6 = 128;
 const QUAD_HIRES = [4, 5, 34, 35, 37, 40, 47, 54, 55, 62, 63, 70];
-const QF = { OFF: 0, LP12: 1, HP12: 2, LP24: 3 };
+const QF = { OFF: 0, LP12: 1, HP12: 2, LP24: 3, MULTI: 4, COMBP: 5, COMBN: 6, EQ: 7 };   // (E2: the machines 4..7)
 // FM TONE's LFO destinations (eng_quad.c QD_*; fm1dnsnd.js DN_QD)
 const QD = { NONE: 0, PITCH: 1, PAB2: 2, ALGO: 3, RC: 4, RA: 5, RB: 6, OFSC: 7, OFSA: 8, OFSB1: 9, OFSB2: 10, HARM: 11, DTUN: 12,
   FDBK: 13, MIX: 14, ALEV: 15, BLEV: 16, AATK: 17, ADEC: 18, AEND: 19, BATK: 20, BDEC: 21, BEND: 22, ADLY: 23, BDLY: 24, FREQ: 25,
@@ -374,20 +374,23 @@ export function dn2pstToQuad(parsed) {
   const out = { pan: 0, drive: 0, note: (s) => notes.push(s),
     set: (i, v) => { const [mn, mx, df] = QUAD_RANGES[i]; p[i] = Math.max(mn, Math.min(mx, Number.isFinite(v) ? v : df)); } };
   for (const [k, , , c, , apply] of DN2_FIELDS) if (apply && c !== "info") apply(P[k], out);
-  // the filter: machine + TYPE -> FM TONE's OFF LP12 HP12 LP24
+  // the filter: machine + TYPE (E2: FIZZ's machines: LEGACY OFF / LP12 / HP12, LOWPASS 4, MULTI, COMB+, COMB-, EQ; TYPE
+  // their third control, FSHAPE: MULTI's morph, the combs' LPF, EQ's Q; EQ's GAIN is RESO's coarse - 64)
   const fm = parsed.filterMachine, ty = P["filter.type"];
   if (fm === 1) p[QP.FTYPE] = QF.LP24;                                                   // LOWPASS 4
   else if (fm === 4) {                                                                   // LEGACY LP/HP: LP HP OFF (+ 3: DN1's OFF)
     p[QP.FTYPE] = ty === 0 ? QF.LP12 : ty === 1 ? QF.HP12 : QF.OFF;
     if (ty > 3) notes.push(`LEGACY LP/HP type ${ty}: not a known value, the filter off`);
-  } else if (fm === 0) {                                                                 // MULTI-MODE: TYPE morphs LP .. BP .. HP (inferred)
-    p[QP.FTYPE] = ty >= 96 ? QF.HP12 : QF.LP12;
-    if (ty > 32 && ty < 96) notes.push(`MULTI-MODE filter type ${ty} (between low-pass and high-pass): FM TONE has no band-pass, read as LP12`);
-    else if (ty) notes.push(`MULTI-MODE filter type ${ty} read as ${ty >= 96 ? "HP12" : "LP12"} (the TYPE law is not verified)`);
+  } else if (fm === 0 || fm === 5 || fm === 3 || fm === 2) {                             // MULTI, COMB+, COMB-, EQ
+    p[QP.FTYPE] = fm === 0 ? QF.MULTI : fm === 5 ? QF.COMBP : fm === 3 ? QF.COMBN : QF.EQ;
+    xset(QX.FSHAPE, ty | 0);
+    if (fm === 2) xset(QX.FGAIN, R(P["filter.reso"] || 0) - 64);
+    if (fm === 0 && ty) notes.push(`MULTI-MODE TYPE ${ty} taken 1:1 as FIZZ's morph (the law is not verified)`);
   } else {
     p[QP.FTYPE] = QF.OFF;
-    notes.push(`${parsed.filterMachineName} filter: FM TONE has none, the filter off`);
+    notes.push(`${parsed.filterMachineName} filter: not a known machine, the filter off`);
   }
+  if (P["fx.bwRouting"]) xset(QX.BWPOST, 1);                                            // (E2: BW ROUTING 1: after)
   // the Digitone's filter DEC 127 is INF: FM TONE's filter DEC has none: SUS 127 (as dnsndToQuad)
   if (P["filter.dec"] === 127) { p[QP.FSUS] = 127; notes.push("filter DEC INF: FM TONE's filter SUS set to 127"); }
   if (P["filter.reset"] === 0) notes.push("FILTER ENV RESET off not imported");

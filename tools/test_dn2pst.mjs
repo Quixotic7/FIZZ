@@ -55,7 +55,7 @@ for (const compress of [true, false]) {
         "SYN 1 values");
   check(p[QP.OFSC] === 50 && p[QP.OFSA] === -25 && p[QP.OFSB2] === -100, "ratio offsets");
   check(p[QP.AKEY] === 40 && p[QP.B1KEY] === 30 && p[QP.B2KEY] === 20 && p[QP.FKTRK] === 64, "key tracks");
-  check(p[QP.FTYPE] === 1 && p[QP.FREQ] === 8050 && p[QP.FDEPTH] === -3000 && p[QP.FREL] === 127, "filter");
+  check(p[QP.FTYPE] === 4 && p[QP.FREQ] === 8050 && p[QP.FDEPTH] === -3000 && p[QP.FREL] === 127, "filter (E2: MULTI-MODE as FIZZ's MULTI, TYPE 0)");
   check(p[QP.EDEC] === 40 && p[QP.ESUS] === 90 && p[QP.EREL] === 46 && p[QP.LEVEL] === 100, "amp (ADSR)");
   check(p[47 + 1] === 13 && p[55 + 1] === 3 && p[63 + 1] === 6, `MULT 7 / 3 / 12 -> ${p[48]} ${p[56]} ${p[64]} (fixed x2, BPM x8, BPM x64)`);
   check(p[47 + 3] === 25 && p[55 + 3] === 40 && p[63 + 3] === 0, `LFO dests ${p[50]} ${p[58]} ${p[66]} (FREQ, L1SPD, none)`);
@@ -86,7 +86,20 @@ for (const compress of [true, false]) {
   const lp4 = dn2RecordFromParams(want); lp4[245] = 1;
   check(dn2pstToQuad(await parseDn2pst(lp4)).values[QP.FTYPE] === 3, "LOWPASS 4 -> LP24");
   const comb = dn2RecordFromParams(want); comb[245] = 5;
-  check(dn2pstToQuad(await parseDn2pst(comb)).values[QP.FTYPE] === 0, "COMB+ -> OFF");
+  {   // E2: every machine: COMB+ 5, COMB- 6 (LPF FSHAPE, FDBK RESO), EQ 7 (Q FSHAPE, GAIN RESO's coarse - 64), BW ROUTING
+    const qc = dn2pstToQuad(await parseDn2pst(comb));
+    check(qc.values[QP.FTYPE] === 5 && qc.ext[QX.FSHAPE - 74] === 0 && qc.values[QP.RESO] === 2025 && qc.six, "COMB+ -> 5");
+    const cn = dn2RecordFromParams({ ...want, "filter.type": 90 }); cn[245] = 3;
+    const qn = dn2pstToQuad(await parseDn2pst(cn));
+    check(qn.values[QP.FTYPE] === 6 && qn.ext[QX.FSHAPE - 74] === 90, "COMB- -> 6, LPF 90");
+    const eq = dn2RecordFromParams({ ...want, "filter.type": 40, "filter.reso": 80 }); eq[245] = 2; eq[238] = 1;
+    const qe = dn2pstToQuad(await parseDn2pst(eq));
+    check(qe.values[QP.FTYPE] === 7 && qe.ext[QX.FSHAPE - 74] === 40 && qe.ext[QX.FGAIN - 74] === 16 &&
+          qe.ext[QX.BWPOST - 74] === 1, `EQUALIZER -> 7, Q 40, GAIN 80 - 64 = ${qe.ext[QX.FGAIN - 74]}; BW ROUTING 1: after`);
+    const mm = dn2RecordFromParams({ ...want, "filter.type": 64 });
+    const qm = dn2pstToQuad(await parseDn2pst(mm));
+    check(qm.values[QP.FTYPE] === 4 && qm.ext[QX.FSHAPE - 74] === 64, "MULTI-MODE TYPE 64 -> MULTI, its morph 64");
+  }
   const drum = dn2RecordFromParams(want); drum[244] = 2;
   let err = null;
   try { await parseDn2pst(drum); } catch (e) { err = e; }

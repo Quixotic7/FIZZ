@@ -62,6 +62,8 @@ enum { QD_QM_SRC, QD_QM_DST, QD_QM_DEPTH };
 #define QD_QP_MOD(k, f) (QD_QP_MOD0 + (k) * 3 + (f))
 #define QD_NMOD 8
 enum { QD_PORT_OFF, QD_PORT_ON, QD_PORT_LEGATO };
+/* E2: the filter machines: QD_QP_FTYPE 0 OFF, 1 LP12, 2 HP12 (LEGACY), 3 LP24 (LOWPASS 4), then: */
+enum { QD_QF_MULTI = 4, QD_QF_COMBP = 5, QD_QF_COMBN = 6, QD_QF_EQ = 7, QD_QF_N = 8 };
 enum { QD_QL_SPEED, QD_QL_MULT, QD_QL_FADE, QD_QL_DEST, QD_QL_WAVE, QD_QL_PHASE, QD_QL_TRIG, QD_QL_DEPTH };
 #define QD_QP_LFO(k, f) (QD_QP_LFO0 + (k) * 8 + (f))
 enum { QD_QF_OFF, QD_QF_LP12, QD_QF_HP12, QD_QF_LP24 };   /* FTYPE */
@@ -102,6 +104,9 @@ struct qd_quad_voice {
                                          * goes on (the next block ramps back from 0); set and cleared by the pool */
     int32_t gstep;                      /* E1: the glide's step a block (1/16 semitone; 0: by its RATE) */
     struct { int32_t hp, lp1, lp2; } dpre;   /* E1: DRIVE before the filter: its state (quad_ext.c) */
+    struct { int32_t lp, len; uint16_t w; uint8_t mach, fresh; } comb;   /* E2: the filter machines' state (quad_ext.c:
+                                         * the comb's damping and length (Q8), its write place; the machine last run; a
+                                         * fresh start: its line from silence) */
 };
 
 /* ---- the owner (one per track) */

@@ -3037,28 +3037,22 @@ static void g_snd(void)
     int seen[QD_QUAD_NP], i, k, ok = 1, a0, d0;
     static ui_snd_t sv;
     memset(seen, 0, sizeof seen);
-    for (i = 0; i < QD_SND_NPAGE; i++) {
-        int on[QD_QUAD_NP];                             /* (E1: a page's ids and its alt ids, each once) */
-        memset(on, 0, sizeof on);
-        for (k = 0; k < 10; k++) {
-            const int id = k < 5 ? QD_SND_PAGES[i].id[k] : QD_SND_PAGES[i].alt_if ? QD_SND_PAGES[i].alt[k - 5] : -1;
-            if (id >= 0)
-                on[id] = 1;
+    for (i = 0; i < QD_SND_NPAGE; i++) {               /* (E1: a page's ids and its alt ids; E2: every machine's) */
+        int8_t ids[32];
+        const int nids = qd_snd_page_all_ids(i, ids);
+        for (k = 0; k < nids; k++) {
+            seen[ids[k]]++;
+            if (ids[k] == QD_QP_RB1)                    /* (P1.5i: RATIO B, the pair: B1 and B2 in one) */
+                seen[QD_QP_RB2]++;
+            if (ids[k] == QD_QP_MIX && !strcmp(QD_SND_PAGES[i].name, "TONE"))
+                seen[QD_QP_MIX]--;                      /* (P1.5n: the one exception: MIX on RATIO and on TONE) */
         }
-        for (k = 0; k < QD_QUAD_NP; k++)
-            if (on[k]) {
-                seen[k]++;
-                if (k == QD_QP_RB1)                     /* (P1.5i: RATIO B, the pair: B1 and B2 in one) */
-                    seen[QD_QP_RB2]++;
-                if (k == QD_QP_MIX && !strcmp(QD_SND_PAGES[i].name, "TONE"))
-                    seen[QD_QP_MIX]--;                  /* (P1.5n: the one exception: MIX on RATIO and on TONE) */
-            }
     }
     for (i = 0; i < QD_QUAD_NP; i++)
-        if (i < QD_QP_FSHAPE || i == QD_QP_DRPRE)       /* (E1: the values of E2..E4 get their pages there) */
+        if (i < QD_QP_BITS)                             /* (E3, E4's values get their pages there) */
             ok &= seen[i] == 1;
-    CHECK(ok, "every one of the sound's %d values on exactly one page (RATIO B the pair B1 / B2; E2..E4's to come)",
-          QD_QP_FSHAPE);
+    CHECK(ok, "every one of the sound's %d values on exactly one page (RATIO B the pair B1 / B2; E3, E4's to come)",
+          QD_QP_BITS);
     start();
     wtap(0);
     btap(QD_B_SOUND);
@@ -4136,8 +4130,11 @@ static int margin_clear(void)
             if (!in_band || ((x < 9 || x >= QD_W - 9) && (y < 9 || y >= QD_H - 9)))   /* (the frame's round corners) */
                 continue;
             v = (uint16_t)(b[2 * (y * QD_W + x)] << 8 | b[2 * (y * QD_W + x) + 1]);
-            if (((v >> 11) & 31u) > 5u || ((v >> 5) & 63u) > 10u || (v & 31u) > 5u)
+            if (((v >> 11) & 31u) > 5u || ((v >> 5) & 63u) > 10u || (v & 31u) > 5u) {
+                if (getenv("MARGIN"))
+                    printf("    (the first pixel in the margin: %d, %d)\n", x, y);
                 return 0;
+            }
         }
     return 1;
 }

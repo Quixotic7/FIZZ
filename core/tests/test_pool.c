@@ -482,6 +482,8 @@ int main(void)
     t_fade();
     t_free();
     t_glide();
+    CHECK(qd_pool_is_dip_id(QD_QP_FTYPE) && qd_pool_is_dip_id(QD_QP_BWPOST) && !qd_pool_is_dip_id(QD_QP_FSHAPE) &&
+          !qd_pool_is_dip_id(QD_QP_FGAIN), "E2: a machine switched, BWPOST: the dip (the morph, the gain: not)");
     printf("test_pool: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

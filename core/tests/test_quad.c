@@ -801,6 +801,186 @@ static void t_ext(void)
     CHECK(vv[0].pitch_cur == 70 * 16, "legato with PORT OFF: at once (as before)");
 }
 
+/* ------------------------------------------------------------- E2: the filter machines --- */
+/* a voice of patch p held, n blocks rendered into out (mono, n * CTL) */
+static void e2_render(const int16_t *p, int note, uint32_t blocks, int32_t *out)
+{
+    uint32_t b;
+    drv_reset();
+    memcpy(part_patch, p, sizeof part_patch);
+    drv_on(0, (uint32_t)note, 100);
+    for (b = 0; b < blocks; b++)
+        drv_tick(out + b * CTL);
+}
+/* the machine alone on a buffer (the hook as eng_quad.c calls it, block by block): cut Q8 (ChoralRoot's law), reso */
+static void e2_machine(int16_t *p, const int32_t *in, int32_t *out, uint32_t n, int32_t cut, int32_t reso)
+{
+    static qd_quad_voice_t v;
+    quad_voice_t s;
+    quad_svf_t c;
+    int32_t ic1 = 0, ic2 = 0, kd = 8192 - reso * 3 / 5;
+    uint32_t o;
+    memset(&v, 0, sizeof v);
+    memset(&s, 0, sizeof s);
+    s.idx = 3;
+    v.comb.fresh = 1;
+    quad_svf_coef(&c, cut, kd);
+    for (o = 0; o + CTL <= n; o += CTL) {
+        int32_t blk[CTL];
+        memcpy(blk, in + o, sizeof blk);
+        quad_ext_machine(&v, &s, p, blk, CTL, &c, kd, cut, reso, &ic1, &ic2);
+        memcpy(out + o, blk, sizeof blk);
+    }
+}
+static int32_t e2_cut_of(double hz) { return (int32_t)(256.0 * 127.0 * log(hz / 30.0) / log(16000.0 / 30.0) + 0.5); }
+static double e2_goertzel(const int32_t *x, uint32_t n, double f)   /* the magnitude of x at f Hz */
+{
+    double w = 2.0 * M_PI * f / FS, s0, s1 = 0.0, s2 = 0.0, cw = 2.0 * cos(w);
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        s0 = (double)x[i] + cw * s1 - s2;
+        s2 = s1, s1 = s0;
+    }
+    return sqrt(s1 * s1 + s2 * s2 - cw * s1 * s2) / (double)n;
+}
+static void t_machines(void)
+{
+    enum { NB = 400 };
+    static int32_t a[NB * CTL], b[NB * CTL], noise[16384], y[16384];
+    int16_t p[QD_QUAD_NP];
+    uint32_t i;
+    int32_t maxd;
+    /* MULTI at 0 is LP12, at 127 HP12 (within 1 LSB), over a whole held note */
+    quad_init3(p);
+    drv_patch(p);
+    memcpy(p, part_patch, sizeof p);
+    p[QP_FREQ] = 6000, p[QP_RESO] = 5000, p[QP_FDEPTH] = 2000;
+    for (i = 0; i < 2; i++) {
+        uint32_t k;
+        p[QP_FTYPE] = i ? QF_HP12 : QF_LP12;
+        p[QD_QP_FSHAPE] = 0;
+        e2_render(p, 48, NB, a);
+        p[QP_FTYPE] = QD_QF_MULTI;
+        p[QD_QP_FSHAPE] = i ? 127 : 0;
+        e2_render(p, 48, NB, b);
+        for (maxd = 0, k = 0; k < NB * CTL; k++)
+            maxd = abs(a[k] - b[k]) > maxd ? abs(a[k] - b[k]) : maxd;
+        CHECK(maxd <= 1, "MULTI at %d: %s within 1 LSB (%d)", i ? 127 : 0, i ? "HP12" : "LP12", maxd);
+    }
+    p[QD_QP_FSHAPE] = 64;                               /* (the middle: band-pass, neither) */
+    e2_render(p, 48, NB, b);
+    for (maxd = 0, i = 0; i < NB * CTL; i++)
+        maxd = abs(a[i] - b[i]) > maxd ? abs(a[i] - b[i]) : maxd;
+    CHECK(maxd > 100, "MULTI at 64: the band, not the high-pass (%d)", maxd);
+    /* the combs: their pitch on noise (autocorrelation within 1 %), COMB-'s odd harmonics */
+    for (i = 0; i < 16384; i++)
+        noise[i] = (int32_t)(rnd() % 4001u) - 2000;
+    {
+        static const double HZ[3] = {110.0, 440.0, 1760.0};
+        int k, ok = 1;
+        for (k = 0; k < 3; k++) {
+            const int32_t cut = e2_cut_of(HZ[k]);
+            int lag, best = 0;
+            double bv = -1e300, f;
+            quad_init3(p);
+            p[QP_FTYPE] = QD_QF_COMBP, p[QD_QP_FSHAPE] = 127;
+            e2_machine(p, noise, y, 16384, cut, 11500);
+            for (lag = 20; lag < 1100; lag++) {
+                double r = 0.0;
+                for (i = 4096; i < 16384 - 1100; i++)
+                    r += (double)y[i] * (double)y[i + (uint32_t)lag];
+                if (r > bv)
+                    bv = r, best = lag;
+            }
+            f = (double)FS / (double)best;
+            ok &= fabs(f - HZ[k]) / HZ[k] < 0.012;
+            if (getenv("VERBOSE") || fabs(f - HZ[k]) / HZ[k] >= 0.012)
+                printf("    COMB+ at %.0f Hz: the period %d samples, %.1f Hz\n", HZ[k], best, f);
+        }
+        CHECK(ok, "COMB+: its pitch on noise at 110, 440, 1760 Hz within about 1 %% (a whole-sample lag)");
+    }
+    {
+        const double f = 440.0, f0 = f / 2.0;          /* COMB-: y = x - g y[n - L]: peaks at the odd multiples of f / 2 */
+        double odd = 0.0, even = 0.0;
+        int h;
+        quad_init3(p);
+        p[QP_FTYPE] = QD_QF_COMBN, p[QD_QP_FSHAPE] = 127;
+        e2_machine(p, noise, y, 16384, e2_cut_of(f), 11500);
+        for (h = 1; h <= 6; h++) {
+            const double m = e2_goertzel(y + 4096, 12288, f0 * (double)h);
+            if (h & 1)
+                odd += m;
+            else
+                even += m;
+        }
+        CHECK(odd > 4.0 * even, "COMB-: odd harmonics only (of f / 2: odd %.1f, even %.1f)", odd, even);
+        quad_init3(p);
+        p[QP_FTYPE] = QD_QF_COMBP, p[QD_QP_FSHAPE] = 127;
+        e2_machine(p, noise, y, 16384, e2_cut_of(f), 11500);
+        for (odd = even = 0.0, h = 1; h <= 6; h++) {
+            const double m = e2_goertzel(y + 4096, 12288, f * (double)h);
+            even += m;
+            odd += e2_goertzel(y + 4096, 12288, f * ((double)h - 0.5));
+        }
+        CHECK(even > 4.0 * odd, "COMB+: every harmonic of f (on %.1f, between %.1f)", even, odd);
+    }
+    {   /* the EQ: the gain at its centre against its table (within 0.3 dB) */
+        static const int GAINS[4] = {-60, -20, 25, 63};
+        int k, ok = 1;
+        for (k = 0; k < 4; k++) {
+            const double f = 1000.0, want = 20.0 * log10(1.0 + (double)QE_EQ_G[GAINS[k] + 64] / 4096.0);
+            double gi, go, got;
+            for (i = 0; i < 16384; i++)
+                noise[i] = (int32_t)(2000.0 * sin(2.0 * M_PI * f * (double)i / FS));
+            quad_init3(p);
+            p[QP_FTYPE] = QD_QF_EQ, p[QD_QP_FSHAPE] = 60, p[QD_QP_FGAIN] = (int16_t)GAINS[k];
+            e2_machine(p, noise, y, 16384, e2_cut_of(f), 0);
+            gi = e2_goertzel(noise + 8192, 8192, f), go = e2_goertzel(y + 8192, 8192, f);
+            got = 20.0 * log10(go / gi);
+            ok &= fabs(got - want) < 0.3;
+            if (getenv("VERBOSE") || fabs(got - want) >= 0.3)
+                printf("    EQ %+d: %.2f dB (its table %.2f)\n", GAINS[k], got, want);
+        }
+        CHECK(ok, "EQ: its gain at its centre within 0.3 dB of its table (-17, -6, +7, +17.7 dB)");
+    }
+    /* BWPOST: no base-width (BASE 0, WIDTH 127): the same either way; with one: not */
+    quad_init3(p);
+    drv_patch(p);
+    memcpy(p, part_patch, sizeof p);
+    p[QP_FREQ] = 7000, p[QP_RESO] = 3000, p[QP_BASE] = 0, p[QP_WIDTH] = 127;
+    e2_render(p, 48, 120, a);
+    p[QD_QP_BWPOST] = 1;
+    e2_render(p, 48, 120, b);
+    CHECK(!memcmp(a, b, 120 * CTL * sizeof a[0]), "BWPOST with no base-width: the same");
+    p[QP_BASE] = 3000, p[QP_WIDTH] = 40, p[QD_QP_BWPOST] = 0;
+    e2_render(p, 48, 120, a);
+    p[QD_QP_BWPOST] = 1;
+    e2_render(p, 48, 120, b);
+    CHECK(memcmp(a, b, 120 * CTL * sizeof a[0]) != 0, "BWPOST with a base-width: after the filter, a different sound");
+    /* every machine at its extremes and through the voice: no overflow (the sanitizer), the voice ends */
+    {
+        int m, ok = 1;
+        for (m = QD_QF_MULTI; m <= QD_QF_EQ; m++) {
+            uint32_t k, n;
+            quad_init3(p);
+            drv_patch(p);
+            memcpy(p, part_patch, sizeof p);
+            p[QP_FTYPE] = (int16_t)m, p[QP_RESO] = 12700, p[QD_QP_FSHAPE] = (int16_t)(m & 1 ? 127 : 0);
+            p[QD_QP_FGAIN] = 63, p[QP_FDEPTH] = 6399, p[QP_LEVEL] = 127;
+            e2_render(p, 24, NB, a);
+            vv[0].gate = 0;
+            for (n = 0; n < 8u * FS / CTL && drv_tick(a); n++)
+                ;
+            ok &= !vv[0].active;
+            for (k = 0; k < CTL; k++)
+                ok &= a[k] > -2000000000 && a[k] < 2000000000;
+        }
+        CHECK(ok, "MULTI, COMB+, COMB-, EQ at full resonance / gain on a low note: no overflow, the voice ends");
+    }
+    CHECK(sizeof qe_comb == (size_t)QE_NCOMB * 2048u, "the comb arena: %u lines of 1024 (%u KB here; the FM-1's 16: 32 KB)",
+          (unsigned)QE_NCOMB, (unsigned)(sizeof qe_comb / 1024u));
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1)
@@ -812,6 +992,7 @@ int main(int argc, char **argv)
     t_render();
     t_dc();
     t_ext();
+    t_machines();
     printf("test_quad: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

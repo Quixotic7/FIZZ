@@ -8,7 +8,11 @@
  *       decay to 0 (then the voice ends); SUS and REL unread, the gate unread in a timed HOLD (one-shot)
  *       DRIVE before the filter (QD_QP_DRPRE): ChoralRoot's DIST (qd_quad_dist) on the voice before its multimode
  *       filter, its state the voice's (qd_quad_voice_t.dpre); the mix's after the voice then skips it
- *       portamento: the glide's RATE table (quad_voice.c glides pitch_cur toward pitch16 once a block) */
+ *       portamento: the glide's RATE table (quad_voice.c glides pitch_cur toward pitch16 once a block)
+ *   E2  the filter machines (QD_QP_FTYPE 4..7, quad_ext_machine): MULTI (the SVF's LP, BP, HP morphed by FSHAPE),
+ *       COMB+ / COMB- (a 1024-sample line a voice, FREQ its pitch, RESO its feedback, FSHAPE its damping), EQ (a
+ *       peaking bell from the SVF: FREQ its centre, FSHAPE its Q, FGAIN -18 .. +18 dB); BWPOST: the base-width
+ *       filter after the machine (quad_ext_bw_post) */
 
 /* E1: RATE's step a block (1/16 semitone) by PTIM: ChoralRoot's (voice.c, its slide: ENV_LIN[v] >> 14, at least 1;
  * tools/gen_tables.py ENV_LIN = 2^24 CTL / (ms(v) FS / 1000), ms(v) = 10000^(v / 127)) */
@@ -84,4 +88,158 @@ static void quad_ext_drive_pre(track_t *t, voice_t *v, int32_t *b, uint32_t n)
     if (t->quad_fx_off[0])
         dr = clamp(dr + t->quad_fx_off[0], 0, 127);
     qd_quad_dist((qd_dist_t *)(void *)&v->dpre, dr, b, (int)n);
+}
+
+/* ================================================================ E2: the filter machines */
+/* the comb's length (Q8 samples) at FREQ's cut (cut >> 8: ChoralRoot's cutoff law, 30 Hz .. 16 kHz), at most 1022:
+ * the lowest pitch 43 Hz; the EQ's damping k = 1 / Q (Q12, Q 0.5 .. 10 by FSHAPE), its gain 10^(dB / 20) - 1 (Q12,
+ * FGAIN + 64: -18 .. +17.7 dB) (tools: research/FMTONE-DN2-PLAN.md §4.3) */
+static const uint32_t QE_COMB_LEN[128] = {
+    261632, 261632, 261632, 261632, 261632, 261632, 261632, 261632, 253383, 241160, 229527, 218454,
+    207916, 197886, 188340, 179255, 170608, 162378, 154544, 147089, 139994, 133240, 126813, 120696,
+    114873, 109332, 104058, 99038, 94260, 89713, 85386, 81267, 77346, 73615, 70064, 66684,
+    63467, 60406, 57492, 54718, 52079, 49566, 47175, 44900, 42734, 40672, 38710, 36843,
+    35066, 33374, 31764, 30232, 28773, 27385, 26064, 24807, 23610, 22471, 21387, 20356,
+    19374, 18439, 17550, 16703, 15897, 15130, 14400, 13706, 13045, 12415, 11816, 11246,
+    10704, 10188, 9696, 9228, 8783, 8359, 7956, 7572, 7207, 6859, 6529, 6214,
+    5914, 5629, 5357, 5099, 4853, 4619, 4396, 4184, 3982, 3790, 3607, 3433,
+    3267, 3110, 2960, 2817, 2681, 2552, 2429, 2312, 2200, 2094, 1993, 1897,
+    1805, 1718, 1635, 1556, 1481, 1410, 1342, 1277, 1216, 1157, 1101, 1048,
+    997, 949, 903, 860, 818, 779, 741, 706,
+};
+static const uint16_t QE_EQ_K[128] = {
+    8192, 8001, 7815, 7632, 7454, 7281, 7111, 6945, 6783, 6625, 6471, 6320,
+    6172, 6029, 5888, 5751, 5617, 5486, 5358, 5233, 5111, 4992, 4875, 4762,
+    4651, 4542, 4436, 4333, 4232, 4133, 4037, 3943, 3851, 3761, 3674, 3588,
+    3504, 3423, 3343, 3265, 3189, 3114, 3042, 2971, 2902, 2834, 2768, 2703,
+    2640, 2579, 2519, 2460, 2403, 2347, 2292, 2238, 2186, 2135, 2086, 2037,
+    1989, 1943, 1898, 1854, 1810, 1768, 1727, 1687, 1647, 1609, 1571, 1535,
+    1499, 1464, 1430, 1397, 1364, 1332, 1301, 1271, 1241, 1212, 1184, 1156,
+    1129, 1103, 1077, 1052, 1028, 1004, 980, 958, 935, 913, 892, 871,
+    851, 831, 812, 793, 774, 756, 739, 721, 705, 688, 672, 657,
+    641, 626, 612, 597, 583, 570, 557, 544, 531, 519, 506, 495,
+    483, 472, 461, 450, 440, 429, 419, 410,
+};
+static const int16_t QE_EQ_G[128] = {
+    -3580, -3563, -3546, -3528, -3509, -3490, -3470, -3449, -3428, -3406, -3383, -3360,
+    -3335, -3310, -3285, -3258, -3230, -3202, -3172, -3142, -3111, -3078, -3045, -3010,
+    -2974, -2937, -2899, -2860, -2819, -2777, -2734, -2689, -2643, -2595, -2545, -2494,
+    -2442, -2387, -2331, -2273, -2213, -2151, -2087, -2021, -1953, -1882, -1809, -1734,
+    -1656, -1576, -1493, -1407, -1319, -1227, -1133, -1035, -935, -831, -723, -612,
+    -498, -379, -257, -131, 0, 135, 274, 418, 566, 720, 878, 1042,
+    1211, 1386, 1566, 1753, 1945, 2144, 2349, 2561, 2780, 3007, 3240, 3482,
+    3731, 3989, 4255, 4530, 4814, 5107, 5410, 5723, 6046, 6379, 6724, 7080,
+    7448, 7828, 8220, 8626, 9044, 9477, 9924, 10385, 10862, 11354, 11862, 12387,
+    12930, 13490, 14069, 14667, 15284, 15922, 16581, 17261, 17964, 18690, 19440, 20215,
+    21015, 21841, 22695, 23576, 24487, 25428, 26399, 27403,
+};
+#ifndef QE_NCOMB
+#define QE_NCOMB 64                     /* the comb arena: a line for every voice (the FM-1: 16, -DQE_NCOMB=16) */
+#endif
+#define QE_COMB_N 1024
+static int16_t qe_comb[QE_NCOMB][QE_COMB_N];
+
+static int32_t qe_comb_len(int32_t cut)
+{
+    int32_t i;
+    cut = clamp(cut, 0, 127 << 8);
+    i = cut >> 8;
+    if (i >= 127)
+        return (int32_t)QE_COMB_LEN[127];
+    return (int32_t)QE_COMB_LEN[i] + (((int32_t)QE_COMB_LEN[i + 1] - (int32_t)QE_COMB_LEN[i]) * (cut & 255)) / 256;
+}
+
+/* hook 3: machines 4..7 in the place of the multimode SVF (its coefficients c by FREQ and RESO's damping kd), its
+ * states ic1 / ic2 (MULTI, EQ), the soft knee after it as the SVF's */
+static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int32_t *acc, uint32_t n,
+                             const quad_svf_t *c, int32_t kd, int32_t cut, int32_t reso, int32_t *ic1, int32_t *ic2)
+{
+    const int mach = p[QD_QP_FTYPE];
+    const int32_t shape = clamp(p[QD_QP_FSHAPE], 0, 127);
+    uint32_t i;
+    if (v->comb.fresh || v->comb.mach != mach) {        /* (a fresh voice, or a machine switched: from rest; the dip
+                                                         * makes it silent meanwhile) */
+        if (mach == QD_QF_COMBP || mach == QD_QF_COMBN)
+            memset(qe_comb[s->idx % QE_NCOMB], 0, sizeof qe_comb[0]);
+        v->comb.w = 0, v->comb.lp = 0, v->comb.len = qe_comb_len(cut);
+        if (v->comb.mach != mach && !v->comb.fresh)
+            *ic1 = 0, *ic2 = acc[0];
+        v->comb.mach = (uint8_t)mach, v->comb.fresh = 0;
+    }
+    if (mach == QD_QF_MULTI || mach == QD_QF_EQ) {
+        quad_svf_t ce;
+        const quad_svf_t *cc = c;
+        int32_t a = *ic1, b = *ic2, k = kd, g = 0, wm = 0;
+        if (mach == QD_QF_EQ) {                         /* the bell: its own damping (FSHAPE: Q), FGAIN its height */
+            k = QE_EQ_K[shape];
+            quad_svf_coef(&ce, cut, k);
+            cc = &ce;
+            g = QE_EQ_G[clamp(p[QD_QP_FGAIN] + 64, 0, 127)];
+        } else {
+            wm = shape <= 64 ? shape * 512 : (shape - 64) * 32768 / 63;   /* (Q15: LP -> BP, then BP -> HP) */
+        }
+        for (i = 0; i < n; i++) {
+            int32_t v1, v2, v3, x = acc[i], y;
+            v3 = x - b;
+            v1 = (cc->a1 * a + cc->a2 * v3 + ((cc->f2 * v3) >> 5) + 4096) >> 13;
+            v2 = b + ((cc->a2 * a + cc->a3 * v3 + ((cc->f2 * a) >> 5) + 4096) >> 13);
+            a = clamp(2 * v1 - a, -150000, 150000);
+            b = clamp(2 * v2 - b, -150000, 150000);
+            if (mach == QD_QF_EQ) {
+                y = x + (int32_t)(((int64_t)g * ((k * v1) >> 12)) >> 12);
+            } else {
+                const int32_t bp = (kd * v1) >> 12, hp = x - bp - v2;
+                y = shape == 0 ? v2 : shape == 127 ? hp
+                  : shape <= 64 ? v2 + (int32_t)(((int64_t)(bp - v2) * wm) >> 15)
+                                : bp + (int32_t)(((int64_t)(hp - bp) * wm) >> 15);
+            }
+            acc[i] = soft_knee(clamp(y, -200000, 200000), 16000);
+        }
+        *ic1 = a, *ic2 = b;
+        return;
+    }
+    {   /* COMB+ / COMB-: y = x +- g lp(d[n - L]) into the line; out y (1 - g / 2) */
+        int16_t *line = qe_comb[s->idx % QE_NCOMB];
+        const int32_t g = (int32_t)(((int64_t)clamp(reso, 0, 12700) * 32276) / 12700);   /* (0 .. 0.985, Q15) */
+        const int32_t ka = 1024 + shape * 31744 / 127, l0 = v->comb.len, l1 = qe_comb_len(cut);
+        const int32_t outk = 32768 - g / 2;
+        const int neg = mach == QD_QF_COMBN;
+        int32_t lp = v->comb.lp;
+        uint32_t w = v->comb.w;
+        for (i = 0; i < n; i++) {
+            const int32_t len = l0 + (int32_t)(((int64_t)(l1 - l0) * (int32_t)i) / (int32_t)n);
+            const int32_t di = len >> 8, fr = len & 255;
+            const int32_t a0 = line[(w - (uint32_t)di) & (QE_COMB_N - 1)];
+            const int32_t a1 = line[(w - (uint32_t)di - 1u) & (QE_COMB_N - 1)];
+            const int32_t d = a0 + (((a1 - a0) * fr) >> 8);
+            int32_t y;
+            lp += (int32_t)(((int64_t)(d - lp) * ka) >> 15);
+            y = acc[i] + (neg ? -1 : 1) * (int32_t)(((int64_t)g * lp) >> 15);
+            line[w & (QE_COMB_N - 1)] = (int16_t)clamp(y, -32768, 32767);
+            w++;
+            acc[i] = soft_knee(clamp((int32_t)(((int64_t)y * outk) >> 15), -200000, 200000), 16000);
+        }
+        v->comb.lp = lp, v->comb.len = l1, v->comb.w = (uint16_t)(w & (QE_COMB_N - 1));
+    }
+}
+
+/* hook 4: BWPOST: the base-width filter (BASE: a one-pole high-pass hpk, BASE + WIDTH: a one-pole low-pass lpk, its
+ * states the voice's bh / bl) after the machine, as eng_quad.c runs it before (its switches by the dip) */
+static void quad_ext_bw_post(quad_voice_t *s, int32_t *acc, uint32_t n, int32_t hpk, int32_t lpk)
+{
+    int32_t bh = s->bh, bl = s->bl;
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        int32_t y = acc[i];
+        if (hpk) {
+            bh += (int32_t)(((int64_t)((y << 8) - bh) * hpk) >> 16);
+            y -= bh >> 8;
+        }
+        if (lpk) {
+            bl += (int32_t)(((int64_t)((y << 8) - bl) * lpk) >> 16);
+            y = bl >> 8;
+        }
+        acc[i] = y;
+    }
+    s->bh = bh, s->bl = bl;
 }

@@ -334,30 +334,81 @@ static void sd_keys(const ui_snd_t *v)
     }
 }
 
+/* the filter's response (E2: by its machine, pv[0] its FTYPE, pv[1] FSHAPE, pv[2] FGAIN): LEGACY's LP / HP, LOWPASS 4's
+ * steeper skirt, MULTI's LP -> BP -> HP, the combs' teeth at FREQ's harmonics (COMB-: the odd ones) as tall as FDBK and
+ * bowed down by LPF, EQ's bell at FREQ as wide as Q and as tall as GAIN (a dip below 0 dB) */
 static void sd_filter(const ui_snd_t *v)
 {
-    const float fc = 16.f + (float)v->v[0] / 12700.f * 200.f, res = (float)v->v[1] / 12700.f;
-    const int ty = v->v[2];
-    float p[2 * 61];
+    const float fc = 16.f + (float)v->v[0] / 12700.f * 200.f;
+    const int ft = v->pv[0], mach = ft <= 2 ? 0 : ft - 2;
+    const float res = (float)(v->has[1] && mach != 5 ? v->v[1] : 0) / 12700.f, sh = (float)v->pv[1] / 127.f;
+    const int ty = mach == 0 ? ft : mach == 1 ? 3 : mach == 2 ? 4 : 0;
+    float p[2 * 81];
     int i;
     line2(16.f, 170.f, 224.f, 170.f, UI_G3, 1.f);
-    for (i = 0; i <= 60; i++) {
-        const float x = 16.f + (float)i / 60.f * 208.f, d = (x - fc) / 40.f;
+    if (mach == 5) {                                    /* EQ: 0 dB across the middle, the bell up or down */
+        const float gn = (float)v->pv[2] / 64.f, wd = 6.f + (1.f - sh) * 44.f;
+        line2(16.f, 112.f, 224.f, 112.f, UI_G3, 1.f);
+        for (i = 0; i <= 80; i++) {
+            const float x = 16.f + (float)i / 80.f * 208.f, d = (x - fc) / wd;
+            p[2 * i] = x;
+            p[2 * i + 1] = 112.f - gn * 64.f * expf(-d * d);
+        }
+        ui_P(p, 81, SNDK[2], 1.6f, 0, QD_NONE);
+        ui_O(fc, 112.f - gn * 64.f, 3.4f, QD_NONE, 1.f, SNDK[1]);
+        line2(fc, 170.f, fc, 176.f, SNDK[0], 2.f);
+        ui_O(fc, 176.f, 3.4f, QD_NONE, 1.f, SNDK[0]);
+        return;
+    }
+    if (mach == 3 || mach == 4) {                       /* COMB+ / COMB-: the teeth */
+        const float sp = 14.f + (fc - 16.f) * 0.22f, amp = 20.f + res * 100.f, damp = 0.55f + 0.45f * sh;
+        for (i = 0; i <= 80; i++) {
+            const float x = 16.f + (float)i / 80.f * 208.f;
+            float g = 0.f, h = 1.f;
+            int k;
+            for (k = 1; k < 40; k++) {
+                const float xk = 16.f + (mach == 4 ? ((float)k - 0.5f) : (float)k) * sp, d = (x - xk) / (2.f + 3.f * (1.f - res));
+                if (xk > 230.f)
+                    break;
+                g = fmaxf(g, h * expf(-d * d));
+                h *= damp;
+            }
+            p[2 * i] = x;
+            p[2 * i + 1] = 166.f - g * amp;
+        }
+        ui_P(p, 81, SNDK[2], 1.4f, 0, QD_NONE);
+        if (mach == 4) {                                /* (COMB-: the even places empty, a dim stub each) */
+            int k;
+            for (k = 1; 16.f + (float)k * sp < 222.f; k++)
+                line2(16.f + (float)k * sp, 166.f, 16.f + (float)k * sp, 156.f, UI_G2, 1.4f);
+        }
+        ui_O(16.f + (mach == 4 ? 0.5f : 1.f) * sp, 166.f - amp, 3.4f, QD_NONE, 1.f, SNDK[1]);
+        line2(fc, 170.f, fc, 176.f, SNDK[0], 2.f);
+        ui_O(fc, 176.f, 3.4f, QD_NONE, 1.f, SNDK[0]);
+        return;
+    }
+    for (i = 0; i <= 80; i++) {                         /* LEGACY, LOWPASS 4, MULTI: as ever, MULTI morphing */
+        const float x = 16.f + (float)i / 80.f * 208.f, d = (x - fc) / 40.f;
+        const float lp = d <= 0.f ? 1.f : 1.f / (1.f + d * d * 2.f), hp = d >= 0.f ? 1.f : 1.f / (1.f + d * d * 2.f);
+        const float bp = 1.f / (1.f + d * d * 3.f);
         float g = 1.f, pk = res * 50.f * expf(-d * d * 6.f);
         if (ty == 1)
-            g = d <= 0.f ? 1.f : 1.f / (1.f + d * d * 2.f);
+            g = lp;
         else if (ty == 2)
-            g = d >= 0.f ? 1.f : 1.f / (1.f + d * d * 2.f);
+            g = hp;
         else if (ty == 3)
             g = d <= 0.f ? 1.f : 1.f / (1.f + d * d * d * d * 6.f);
+        else if (ty == 4)
+            g = sh <= 0.5f ? lp + (bp - lp) * sh * 2.f : bp + (hp - bp) * (sh - 0.5f) * 2.f;
         if (!ty)
             pk = 0.f;
         p[2 * i] = x;
         p[2 * i + 1] = 170.f - sd_clampf(g * 90.f + pk, 0.f, 128.f);
     }
-    ui_P(p, 61, SNDK[2], 1.6f, 0, QD_NONE);
+    ui_P(p, 81, SNDK[2], 1.6f, 0, QD_NONE);
     if (ty) {
-        ui_O(fc, 170.f - sd_clampf(90.f + res * 50.f, 0.f, 128.f), 3.4f, QD_NONE, 1.f, SNDK[1]);
+        ui_O(fc, 170.f - sd_clampf(90.f * (ty == 4 && sh > 0.f && sh < 1.f ? 1.f : 1.f) + res * 50.f, 0.f, 128.f), 3.4f,
+             QD_NONE, 1.f, SNDK[1]);
         line2(fc, 170.f, fc, 176.f, SNDK[0], 2.f);
         ui_O(fc, 176.f, 3.4f, QD_NONE, 1.f, SNDK[0]);
         if (v->v[3]) {                                  /* DEPTH: the envelope moves the cutoff */
@@ -449,6 +500,16 @@ static void sd_band(const ui_snd_t *v)
     sd_poly(p, 6, UI_K3, 1.6f, 0);
     ui_O(lo, 80.f, 3.4f, QD_NONE, 1.f, SNDK[0]);
     ui_O(hi, 80.f, 3.4f, QD_NONE, 1.f, SNDK[1]);
+    {   /* E2: BWPOST: the band (a little window) before or after the filter (a little curve in a box) */
+        const int post = v->pv[0] != 0;
+        const float fx = post ? 150.f : 196.f, bx = post ? 196.f : 150.f, y = 38.f;
+        const float f[8] = {fx + 4.f, y + 5.f, fx + 14.f, y + 5.f, fx + 20.f, y + 13.f, fx + 26.f, y + 15.f};
+        ui_RR(fx, y, 30.f, 18.f, 4.f, UI_G1, 1.2f, QD_NONE);
+        ui_P(f, 4, UI_G1, 1.2f, 0, QD_NONE);
+        ui_RR(bx, y, 30.f, 18.f, 4.f, SNDK[3], 1.4f, QD_NONE);
+        ui_RR(bx + 8.f, y + 4.f, 14.f, 10.f, 2.f, QD_NONE, 1.f, SNDK[3]);
+        sd_arrow(184.f, y + 9.f, 192.f, y + 9.f, UI_G1);
+    }
     if (v->v[2]) {                                      /* KTRK: the band slides up the keys */
         const float k = (float)v->v[2] / 127.f * 40.f;
         sd_arrow((lo + hi) * 0.5f - 20.f, 120.f + k * 0.4f, (lo + hi) * 0.5f + 20.f, 120.f - k * 0.4f, SNDK[2]);
@@ -712,8 +773,9 @@ void ui_snd_draw(const ui_snd_t *v)
         float left;
         if (v->locked[4] || v->lockany[4]) {
             float bw = ui_TW(v->txt[4], 13.f, 600, 0.f) + 10.f;
-            bw = bw > 60.f ? 60.f : bw;
-            ui_chip(v->txt[4], 232.f - bw * 0.5f, 21.f, 13.f, 60.f, SNDK[4], v->locked[4]);
+            const float b12 = ui_TW(v->txt[4], 12.f, 600, 0.f) + 10.f;   /* (E2: a long name, LOWPASS 4: at 12 px) */
+            bw = bw > 60.f ? (b12 > 60.f ? b12 : 60.f) : bw;
+            ui_chip(v->txt[4], 232.f - bw * 0.5f, 21.f, 13.f, bw, SNDK[4], v->locked[4]);
             left = 232.f - bw;
         } else {
             left = 230.f - ui_TW(v->txt[4], 14.f, 500, 0.f);

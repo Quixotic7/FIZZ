@@ -106,10 +106,15 @@ then zeros to 128. A value out of its range, or a nonzero byte after 123, makes 
 | 77 | PORT TIME | 0..127 (32) |
 | 78 | PORT SLOPE | 0 TIME, 1 RATE (0) |
 | 79 | DRIVE ROUTE | 0 POST (after the voice), 1 PRE (before the filter) (0) |
-| 80..85 | E2 / E3's filter shape, gain, BASE route, BITS, SRR, CRUSH route | (0, 0 of −64..63, 0, 0, 0, 1) |
+| 80 | FSHAPE (E2): MULTI's TYPE morph, the combs' LPF, the EQ's Q | 0..127 (0) |
+| 81 | FGAIN (E2): the EQ's gain | −64..63 (0) |
+| 82 | BWPOST (E2): the base-width 0 before the filter, 1 after | (0) |
+| 83..85 | E3's BITS, SRR, CRUSH route | (0, 0, 1) |
 | 86..109 | E4's eight modulation slots: SOURCE 0..8, DEST 0..57, DEPTH −127..127 | (0) |
 
-Every value at its default plays exactly what a version-5 blob plays. `tools/fizz_sysex.mjs` `storeSound` sends a
+Every value at its default plays exactly what a version-5 blob plays. E2: FTYPE (value 36) is the **filter machine**,
+0..7: 0 OFF, 1 LP12, 2 HP12 (LEGACY), 3 LP24 (LOWPASS 4), 4 MULTI, 5 COMB+, 6 COMB−, 7 EQ (a version-5 blob may carry
+4..7 too). `tools/fizz_sysex.mjs` `storeSound` sends a
 128-byte blob as STORE6 by itself; `tools/dn2pst.mjs` `dn2pstToQuad` gives `blob6` (and `six`: it needs it). A STORE
 whose 96-byte blob says version 6 is BAD PATCH.
 
@@ -247,7 +252,8 @@ values plus DRIVE equal `dnsndToQuad`'s values (P1.5x: and its pan and sends are
 delay, reverb}}` and the parsed `fizzTags`; send them as above (`tags: parsed.fizzTags`). E1: it also gives `blob6`
 and `six`; when `six` is true send `blob6` (STORE6): the sound uses AHD (AMP MODE 0, HOLD 1:1), portamento (PORT ON
 from +226 = 64, TIME 1:1 from +228) or DRIVE before the filter (OD ROUTING +240 = 0, read as PRE: a guess, not yet
-verified on a unit). FM1VST's drop reads `.dn2pst`
+verified on a unit). E2: the filter machines too (MULTI, COMB+, COMB−, EQ: FTYPE 4..7; their TYPE / LPF / Q as
+FSHAPE, the EQ's GAIN as FGAIN) and BW ROUTING (+238) as BWPOST. FM1VST's drop reads `.dn2pst`
 with a C++ port of it (FM1VST `plugin/Dnsnd.cpp` `parseDn2`, checked byte for byte against the JS).
 
 ### ChoralRoot's sound format compared with FIZZ's patch

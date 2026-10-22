@@ -551,6 +551,10 @@ enum { QD_SG_TRIG, QD_SG_OPS, QD_SG_OPENV, QD_SG_FILTER, QD_SG_AMP, QD_SG_LFO1, 
 int qd_snd_page_of(const char *name);   /* P1.5l: a page's index by its name ("FILTER"; 0 none) */
 /* E1: page's ids on KNOB 1..4 and ALGORITHM as they are now (the held step's value, else the track's: AMP in AHD) */
 const int8_t *qd_snd_ids(const struct qd_app *a, int page);
+const char *qd_snd_label(const struct qd_app *a, int page, int k);   /* E2: KNOB k's (4 ALGORITHM) value name there */
+int qd_snd_page_all_ids(int page, int8_t *out);    /* E2: every id the page can show (its machines too), each once */
+int qd_snd_machine(int ftype);                      /* E2: the filter machine (0 LEGACY .. 5 EQ) of QD_QP_FTYPE */
+extern const char *const QD_SND_MACHINE[6];
 #define QD_SND_START_PAGE 3            /* P1.5l: a fresh start: RATIO (B2), the sound's first page (E1: after PORT) */
 #define QD_SND_NPAGE 19
 typedef struct {

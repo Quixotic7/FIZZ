@@ -1381,7 +1381,9 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->v[k] = pp[id];
         v->tv[k] = tp[id];
         qd_quad_value_text(id, v->v[k], v->txt[k]);
-        v->lab[k] = qd_quad_value_name(id);
+        v->lab[k] = qd_snd_label(a, u->snd_page, k);  /* (E2: the FILTER's by its machine) */
+        if (pg->draw == UI_SD_FILTER && k == 4)         /* (E2: ALGORITHM the machine's name) */
+            snprintf(v->txt[4], sizeof v->txt[4], "%s", QD_SND_MACHINE[qd_snd_machine(pp[QD_QP_FTYPE])]);
         v->locked[k] = (uint8_t)(u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], id, &x));
         v->lockany[k] = (uint8_t)(!u->nheld && track_locks(qd_ctl_cpat(a), a->sel, id));
         if (id == QD_QP_RB1) {                          /* P1.5i: RATIO B, the pair: B2 (the fast hand) over B1 */
@@ -1467,6 +1469,12 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->pv[0] = pp[QD_QP_LFO(pg->arg, QD_QL_WAVE)];
         v->pv[1] = pp[QD_QP_LFO(pg->arg, QD_QL_TRIG)];
         v->pv[2] = pp[QD_QP_LFO(pg->arg, QD_QL_FADE)];
+    } else if (pg->draw == UI_SD_FILTER) {             /* E2: the machine, its shape, its gain */
+        v->pv[0] = pp[QD_QP_FTYPE];
+        v->pv[1] = pp[QD_QP_FSHAPE];
+        v->pv[2] = pp[QD_QP_FGAIN];
+    } else if (pg->draw == UI_SD_BAND) {               /* E2: BWPOST */
+        v->pv[0] = pp[QD_QP_BWPOST];
     } else if (pg->draw == UI_SD_LFOSHAPE) {
         v->pv[0] = pp[QD_QP_LFO(pg->arg, QD_QL_SPEED)];
         v->pv[1] = pp[QD_QP_LFO(pg->arg, QD_QL_DEPTH)];

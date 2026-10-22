@@ -145,7 +145,8 @@ enum {                                                                     /* LF
 };
 #define QD_N_V3A 40u             /* the destinations before 2026-10-14 (an older firmware refuses a blob with more) */
 #define QUAD_NMULT 24u           /* 0..11 x1 .. x2k at the part's BPM, 12..23 the same at 120 BPM */
-static const char *const N_QUAD_FTYPE[QF_N] = {"OFF", "LP12", "HP12", "LP24"};
+static const char *const N_QUAD_FTYPE[QD_QF_N] = {"OFF", "LP12", "HP12", "LP24",   /* QUADRILLE (e): the machines */
+                                                  "MULTI", "COMB+", "COMB-", "EQ"};
 static const char *const N_QUAD_WAVE[QW_N] = {"TRI", "SINE", "SQR", "SAW", "RAMP", "EXP", "RAND"};
 static const char *const N_QUAD_TRIG[QT_N] = {"FREE", "TRIG", "HOLD", "ONE", "HALF"};
 static const char *const N_QUAD_PHRT[QR_N] = {"OFF", "ALL", "C", "A+B", "A+B2"};
@@ -209,7 +210,7 @@ static const quad_algo_t QUAD_ALGO[8] = {
 #define QC_ON(l, d) {l, F_ONOFF, 0, 1, d, 0, 0}
 #define QC_PHRT {"PHRT", F_ENUM, 0, QR_N - 1, QR_ALL, N_QUAD_PHRT, 0}
 #define QC_FREQ {"FREQ", F_FIX2, 0, 12700, 12700, 0, 0}
-#define QC_FTYPE {"TYPE", F_ENUM, 0, QF_N - 1, QF_LP12, N_QUAD_FTYPE, 0}
+#define QC_FTYPE {"TYPE", F_ENUM, 0, QD_QF_N - 1, QF_LP12, N_QUAD_FTYPE, 0}   /* (QUADRILLE (e): 4..7 the machines) */
 #define QC_DEPTH(l) {l, F_FIX2, -6400, 6399, 0, 0, 0}
 #define QC_PAN {"PAN", F_OFS, -64, 63, 0, 0, 0}
 #define QC_SPEED {"SPEED", F_FIX2, -6400, 6399, 3200, 0, 0}
@@ -407,6 +408,11 @@ typedef struct {
 static int32_t quad_ext_ahd(quad_voice_t *s, int32_t atk, int32_t hold, int32_t dec, int gate);
 static void quad_ext_adsr_back(quad_voice_t *s);
 static void quad_ext_drive_pre(track_t *t, voice_t *v, int32_t *b, uint32_t n);
+typedef struct { int32_t a1, a2, a3, f2; } quad_svf_t;   /* (the multimode's coefficients: quad_svf_coef, below) */
+static void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k);
+static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int32_t *acc, uint32_t n,
+                             const quad_svf_t *c, int32_t kd, int32_t cut, int32_t reso, int32_t *ic1, int32_t *ic2);
+static void quad_ext_bw_post(quad_voice_t *s, int32_t *acc, uint32_t n, int32_t hpk, int32_t lpk);
 /* QUADRILLE (c): no quad_vs (the state is in the voice: voice_t.qstate) and no quad_tr (no part index) */
 
 static void quad_init_patch(int16_t *p)
@@ -1053,8 +1059,7 @@ static inline int32_t quad_hw(const int16_t *a, const int16_t *b, int32_t f, uin
  * (f2: the fraction, 0..31): FREQ in hundredths moves g by 0.05 % a hundredth, below a Q13 step where g is small
  * (FREQ 42: a2 ~ 116), so the fine part would not reach the sound; g is interpolated in Q20. (a3 = a2 g, a3's own
  * fraction: not worth its multiply a sample) */
-typedef struct { int32_t a1, a2, a3, f2; } quad_svf_t;
-static void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k)
+static void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k)   /* (QUADRILLE (e): its type declared above) */
 {
     int32_t i, g, den;
     int64_t a2, a3;
@@ -1147,6 +1152,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     int32_t eA, eB, eF, eE, dst[QD_N], A0, A1, dA, a, x, y;
     int32_t hq, dt, mix, ra, rb, cut, kd, reso, gy, gq, dgq, fbq, hf, fdep, base, wid;
     int32_t la, lb1, lb2, dla, dlb1, dlb2, tl[3], hpk, lpk, svf, fty, fb1, fb2, bh, bl;
+    int32_t bwh, bwl;                            /* QUADRILLE (e): the base-width's poles (BWPOST: after the filter) */
     uint32_t fon, fon0;
     const int16_t *ha_t = QUAD_HARM[0], *hb_t = QUAD_HARM[0];
     uint32_t p0, p1, p2, p3, i0, i1, i2, i3;
@@ -1338,11 +1344,16 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     reso = QMV(QP_RESO, QD_RESO, 12700, 0, 12700);
     fty = p[QP_FTYPE];
     svf = fty != QF_OFF && !(fty != QF_HP12 && cut >= (127 << 8) && !reso);   /* LP wide open, no resonance: none */
+    if (fty >= QD_QF_MULTI)                      /* QUADRILLE (e): the machines 4..7 always run */
+        svf = 1;
     kd = 8192 - reso * 3 / 5;                    /* (60 a whole step) */
     base = QMV(QP_BASE, QD_BASE, 12700, 0, 12700);
     wid = QMV(QP_WIDTH, QD_WIDTH, 127, 0, 127);
     hpk = base ? quad_bwk(base) : 0;
     lpk = base + wid * 100 < 12700 ? quad_bwk(base + wid * 100) : 0;
+    bwh = hpk, bwl = lpk;
+    if (p[QD_QP_BWPOST])                         /* QUADRILLE (e): BWPOST: the base-width after the filter (hook 4) */
+        hpk = lpk = 0;
     /* the filters running now (fon) and in the last block (fon0): one switched in or out (an envelope or an LFO taking
      * the multimode past its open top, BASE to 0, BASE + WIDTH to the top) runs this block too and crossfades (below) */
     fon = (svf ? 1u : 0u) | (hpk ? 2u : 0u) | (lpk ? 4u : 0u);
@@ -1476,7 +1487,9 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         ic2 = clamp(2 * v2 - ic2, -150000, 150000);                        \
         acc[i] = soft_knee(clamp((Y), -200000, 200000), 16000);            \
     }
-        if (fty == QF_HP12)
+        if (fty >= QD_QF_MULTI)                  /* QUADRILLE (e), hook 3: the filter machines */
+            quad_ext_machine(v, s, p, acc, n, &c, kd, cut, reso, &ic1, &ic2);
+        else if (fty == QF_HP12)
             QUAD_SVF(, x - ((kd * v1) >> 12) - v2)
         else if (fty == QF_LP24)
             QUAD_SVF(v3 = x - ic4; v1 = (c2.a1 * ic3 + c2.a2 * v3 + 4096) >> 13;
@@ -1495,6 +1508,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         }
         s->f1 = ic1, s->f2 = ic2, s->f3 = ic3, s->f4 = ic4;
     }
+    if (p[QD_QP_BWPOST])                         /* QUADRILLE (e), hook 4 */
+        quad_ext_bw_post(s, acc, n, bwh, bwl);
     /* the amplitude, into the part at the engine's output scale: >> 12, 6 dB under the >> 11 of before 2026-10-16. At
      * the Digitone's levels (VOL 100 .. 127: INIT's 110, a .dnsnd import's own) a sound was 6 dB over the other
      * engines' (tests/va_levels.c loud / dnsnd; docs/QUAD.md "Level"); the factory presets' LEVELs went up by the same

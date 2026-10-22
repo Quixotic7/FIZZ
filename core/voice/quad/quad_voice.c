@@ -136,6 +136,7 @@ void qd_quad_voice_start(qd_quad_voice_t *v, const int16_t *patch, qd_quad_owner
     if (!sounding) {
         v->env = v->env_out = 0;
         memset(&v->dpre, 0, sizeof v->dpre);            /* (E1: DRIVE PRE from rest) */
+        v->comb.fresh = 1;                              /* (E2: the machines from rest) */
     }
     song.g[G_BPM] = o->bpm;
     quad_note_on(o, v);

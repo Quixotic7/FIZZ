@@ -578,7 +578,7 @@ DECAY, HARM and FDBK.
   | **B1** | PLAY / MOD | TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL), **PORT** (PORT, TIME, SLOPE) |
   | **B2** | OPERATORS | RATIO (KNOB 1 RATIO C, KNOB 2 RATIO A, KNOB 3 **RATIO B**, KNOB 4 **MIX**; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK, **MIX**: the same MIX as RATIO's, P1.5n), OFFSET (the four offsets) |
   | **B3** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay) |
-  | **B4** | FILTERS | FILTER (FREQ, RESO, TYPE, DEPTH), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK) |
+  | **B4** | FILTERS | FILTER (FREQ, KNOB 2 and 3 by the machine, DEPTH; **ALGORITHM the MACHINE**), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK, **ROUTE**: the base-width before or after the filter) |
   | **B5** | AMP / FX | AMP (attack, decay, sustain, release; **ALGORITHM the MODE**, ADSR / AHD: in AHD attack, **HOLD**, decay), LEVEL (LEVEL, **DRIVE**, **ROUTE**) |
   | **B6 / B7 / B8** | LFO 1 / 2 / 3 | the LFO's page (SPEED, MULT, DEPTH, **DEST**), its WAVE page (WAVE, PHASE, TRIG, FADE) |
 
@@ -657,6 +657,15 @@ DECAY, HARM and FDBK.
     chord had glides from the nearest. A single note after a chord glides from its top note.
   - **The 303 slide**: on a MONO track (limit 1), hold the step to slide into and turn PORT to ON (a lock); its note
     glides in from the one before. A TIE glides too when PORT is on.
+- **The filter machines** (B4, FILTER page, ALGORITHM = MACHINE, 0.8.1), the Digitone II's six:
+  - **LEGACY** (the filter as before: KNOB 3 TYPE OFF / LP12 / HP12), **LOWPASS 4** (24 dB, the old LP24);
+  - **MULTI**: KNOB 3 TYPE morphs low-pass (0) to band-pass (64) to high-pass (127);
+  - **COMB+** / **COMB-**: FREQ is the comb's pitch (43 Hz and up), KNOB 2 **FDBK** how much it rings, KNOB 3 **LPF**
+    how bright the ring stays (COMB+ every harmonic, string-like; COMB- the odd ones, hollow);
+  - **EQ**: a bell at FREQ, KNOB 2 **GAIN** (-18 .. +18 dB), KNOB 3 **Q** (wide .. narrow).
+  - The picture draws each machine's response; the filter envelope, DEPTH, key tracking and the base-width work with
+    every machine. Changing the machine on a playing note takes a short dip (no click). BASE's KNOB 4 **ROUTE** puts
+    the base-width filter before (as before) or after the machine.
 - **AHD** (B5, AMP page, ALGORITHM = MODE, 0.8.0): **attack, hold, decay** to silence, the Digitone II's other amp
   envelope. HOLD is a time (the gate does nothing: one-shot, for drums and plucks), or **NOTE** (127): held while the
   key is down, then DEC is the release. DEC INF holds for ever. Switching the MODE while a note plays carries on from

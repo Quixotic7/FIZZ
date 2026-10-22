@@ -294,7 +294,6 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
     if (qd_snd_open(a)) {                               /* the sound editor: its groups, the page's values */
         static const char *const GRP[QD_NSG] = {"PLAY/MOD", "OPERATORS", "OP ENV", "FILTERS", "AMP/FX", "LFO 1", "LFO 2",
                                                 "LFO 3"};
-        const int8_t *ids = qd_snd_ids(a, u->snd_page);
         static const int KN[5] = {QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_K_ALGO};
         if (qd_snd_keys(a))
             lb_notes(a, o, !a->proj.rec_ekeys);
@@ -308,7 +307,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_B(9), "NEW SOUND");
         lb_set(o, LB_B(10), u->nheld ? "CLR LOCKS" : "");
         for (k = 0; k < 5; k++)
-            lb_set(o, LB_KNOB(KN[k]), ids[k] < 0 ? "" : ids[k] == QD_QP_RB1 ? "RATIO B" : qd_quad_value_name(ids[k]));
+            lb_set(o, LB_KNOB(KN[k]), qd_snd_label(a, u->snd_page, k));
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_PRESETS), u->nheld ? "SOUND LOCK" : "PRESETS");
         lb_set(o, LB_BTN(QD_B_SOUND), "CLOSE");

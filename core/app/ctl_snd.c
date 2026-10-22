@@ -31,9 +31,11 @@ const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     {"OFFSET", QD_SG_OPS, UI_SD_OFS, {QD_QP_OFSC, QD_QP_OFSA, QD_QP_OFSB1, QD_QP_OFSB2, -1}, 0, 0, {0}},
     {"ENV A", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_AATK, QD_QP_ADEC, QD_QP_AEND, QD_QP_ALEV, QD_QP_ADLY}, 0, 0, {0}},
     {"ENV B", QD_SG_OPENV, UI_SD_OPENV, {QD_QP_BATK, QD_QP_BDEC, QD_QP_BEND, QD_QP_BLEV, QD_QP_BDLY}, 1, 0, {0}},
-    {"FILTER", QD_SG_FILTER, UI_SD_FILTER, {QD_QP_FREQ, QD_QP_RESO, QD_QP_FTYPE, QD_QP_FDEPTH, -1}, 0, 0, {0}},
+    /* E2: FILTER's ALGORITHM is the MACHINE (LEGACY LP/HP/OFF, LOWPASS 4, MULTI, COMB+, COMB-, EQ), KNOB 2 / 3 by it
+     * (snd_filter_ids); BASE's KNOB 4 BWPOST */
+    {"FILTER", QD_SG_FILTER, UI_SD_FILTER, {QD_QP_FREQ, QD_QP_RESO, QD_QP_FTYPE, QD_QP_FDEPTH, QD_QP_FTYPE}, 0, 0, {0}},
     {"F ENV", QD_SG_FILTER, UI_SD_ADSR, {QD_QP_FATK, QD_QP_FDEC, QD_QP_FSUS, QD_QP_FREL, QD_QP_FDLY}, 0, 0, {0}},
-    {"BASE", QD_SG_FILTER, UI_SD_BAND, {QD_QP_BASE, QD_QP_WIDTH, QD_QP_FKTRK, -1, -1}, 0, 0, {0}},
+    {"BASE", QD_SG_FILTER, UI_SD_BAND, {QD_QP_BASE, QD_QP_WIDTH, QD_QP_FKTRK, QD_QP_BWPOST, -1}, 0, 0, {0}},
     /* E1: AMP's MODE on ALGORITHM (ADSR / AHD; in AHD: ATK HOLD DEC); LEVEL's ROUTE (DRIVE before or after the
      * filter); B5 is AMP / FX */
     {"AMP", QD_SG_AMP, UI_SD_ADSR, {QD_QP_EATK, QD_QP_EDEC, QD_QP_ESUS, QD_QP_EREL, QD_QP_AMOD}, 1, QD_QP_AMOD,
@@ -63,54 +65,93 @@ int qd_snd_page_of(const char *name)
     return 0;
 }
 
+/* the value id as the editor sees it now: the held step's (its lock, else what it starts from), else the track's */
+static int snd_now(const qd_app_t *a, int id)
+{
+    if (a->ui.nheld) {
+        int16_t x;
+        return qd_lock_get(qd_ctl_cpat(a), a->sel, a->ui.held[0], id, &x)
+                   ? x : qd_step_base((qd_app_t *)a, a->sel, a->ui.held[0], id);
+    }
+    return a->model.t[a->sel].patch[id];
+}
+
+/* E2: the filter machines: FTYPE 0..2 LEGACY (its TYPE on KNOB 3), 3 LOWPASS 4, 4 MULTI, 5 COMB+, 6 COMB-, 7 EQ; the
+ * FILTER page's ids by machine, KNOB 2 / 3's names */
+int qd_snd_machine(int ftype) { return ftype <= QD_QF_HP12 ? 0 : ftype - 2; }   /* 0 LEGACY .. 5 EQ */
+const char *const QD_SND_MACHINE[6] = {"LEGACY", "LOWPASS 4", "MULTI", "COMB+", "COMB-", "EQ"};
+static const int8_t SND_FILTER_IDS[6][5] = {
+    {QD_QP_FREQ, QD_QP_RESO, QD_QP_FTYPE, QD_QP_FDEPTH, QD_QP_FTYPE},    /* LEGACY: TYPE (OFF, LP12, HP12) */
+    {QD_QP_FREQ, QD_QP_RESO, -1, QD_QP_FDEPTH, QD_QP_FTYPE},             /* LOWPASS 4 */
+    {QD_QP_FREQ, QD_QP_RESO, QD_QP_FSHAPE, QD_QP_FDEPTH, QD_QP_FTYPE},   /* MULTI: TYPE, the morph */
+    {QD_QP_FREQ, QD_QP_RESO, QD_QP_FSHAPE, QD_QP_FDEPTH, QD_QP_FTYPE},   /* COMB+: FDBK, LPF */
+    {QD_QP_FREQ, QD_QP_RESO, QD_QP_FSHAPE, QD_QP_FDEPTH, QD_QP_FTYPE},   /* COMB- */
+    {QD_QP_FREQ, QD_QP_FGAIN, QD_QP_FSHAPE, QD_QP_FDEPTH, QD_QP_FTYPE}}; /* EQ: GAIN, Q */
+static const char *const SND_FILTER_LAB[6][2] = {{"RESO", "TYPE"}, {"RESO", ""}, {"RESO", "TYPE"}, {"FDBK", "LPF"},
+                                                 {"FDBK", "LPF"}, {"GAIN", "Q"}};
+const char *qd_snd_label(const qd_app_t *a, int page, int k)
+{
+    const int8_t *ids = qd_snd_ids(a, page);
+    if (k < 0 || k > 4 || ids[k] < 0)
+        return "";
+    if (QD_SND_PAGES[page].draw == UI_SD_FILTER && (k == 1 || k == 2))
+        return SND_FILTER_LAB[qd_snd_machine(snd_now(a, QD_QP_FTYPE))][k - 1];
+    if (QD_SND_PAGES[page].draw == UI_SD_FILTER && k == 4)
+        return "MACHINE";
+    return ids[k] == QD_QP_RB1 ? "RATIO B" : qd_quad_value_name(ids[k]);
+}
+int qd_snd_page_all_ids(int page, int8_t *out)   /* every id the page can show (its machines, its alt), each once */
+{
+    const qd_sndpage_t *pg = &QD_SND_PAGES[page];
+    int n = 0, k, j, m;
+    for (m = 0; m < (pg->draw == UI_SD_FILTER ? 6 : 1); m++)
+        for (k = 0; k < 10; k++) {
+            const int id = pg->draw == UI_SD_FILTER ? (k < 5 ? SND_FILTER_IDS[m][k] : -1)
+                         : k < 5 ? pg->id[k] : pg->alt_if ? pg->alt[k - 5] : -1;
+            int dup = id < 0;
+            for (j = 0; j < n && !dup; j++)
+                dup = out[j] == id;
+            if (!dup)
+                out[n++] = (int8_t)id;
+        }
+    return n;
+}
+
 const int8_t *qd_snd_ids(const qd_app_t *a, int page)
 {
     const qd_sndpage_t *pg = &QD_SND_PAGES[page < 0 ? 0 : page >= QD_SND_NPAGE ? QD_SND_NPAGE - 1 : page];
-    int v;
+    if (pg->draw == UI_SD_FILTER)                       /* (E2: by its machine) */
+        return SND_FILTER_IDS[qd_snd_machine(snd_now(a, QD_QP_FTYPE))];
     if (!pg->alt_if)
         return pg->id;
-    if (a->ui.nheld) {
-        int16_t x;
-        v = qd_lock_get(qd_ctl_cpat(a), a->sel, a->ui.held[0], pg->alt_if, &x)
-                ? x : qd_step_base((qd_app_t *)a, a->sel, a->ui.held[0], pg->alt_if);
-    } else {
-        v = a->model.t[a->sel].patch[pg->alt_if];
-    }
-    return v ? pg->alt : pg->id;
+    return snd_now(a, pg->alt_if) ? pg->alt : pg->id;
 }
 
 /* the editor's knob slots: KNOB 1..4, ALGORITHM */
 static const uint8_t SND_KNOB[5] = {QD_K_1, QD_K_2, QD_K_3, QD_K_4, QD_K_ALGO};
 
 /* P-LOCK's hook: a lock table a page (built once from the pages; the knobs' own takeover none: the page shows it) */
-static qd_lockknob_t SND_LOCKS[QD_SND_NPAGE][2][6];   /* (E1: [1] the page's alt ids) */
-static qd_lockscreen_t SND_SCREEN[QD_SND_NPAGE][2];
+static qd_lockknob_t SND_LOCKS[6];                   /* (E2: built for the page as it is now) */
+static qd_lockscreen_t SND_SCREEN;
 const qd_lockscreen_t *qd_snd_lock_screen(const qd_app_t *a, int page)
 {
-    static int built;
-    if (!built) {
-        int p, k, w;
-        for (p = 0; p < QD_SND_NPAGE; p++)
-            for (w = 0; w < 2; w++) {
-                const int8_t *ids = w && QD_SND_PAGES[p].alt_if ? QD_SND_PAGES[p].alt : QD_SND_PAGES[p].id;
-                int n = 0;
-                for (k = 0; k < 5; k++)
-                    if (ids[k] >= 0) {
-                        SND_LOCKS[p][w][n].knob = SND_KNOB[k];
-                        SND_LOCKS[p][w][n].id = ids[k];
-                        SND_LOCKS[p][w][n++].tk = QD_TK_NONE;
-                    }
-                SND_LOCKS[p][w][n].knob = QD_K_PRESETS;   /* PRESETS: the sound lock, as everywhere */
-                SND_LOCKS[p][w][n].id = QD_LOCK_SOUND;
-                SND_LOCKS[p][w][n++].tk = QD_TK_PRESET;
-                SND_SCREEN[p][w].name = QD_SND_PAGES[p].name;
-                SND_SCREEN[p][w].n = n;
-                SND_SCREEN[p][w].k = SND_LOCKS[p][w];
-            }
-        built = 1;
-    }
+    const int8_t *ids;
+    int k, n = 0;
     page = page < 0 ? 0 : page >= QD_SND_NPAGE ? QD_SND_NPAGE - 1 : page;
-    return &SND_SCREEN[page][qd_snd_ids(a, page) != QD_SND_PAGES[page].id];
+    ids = qd_snd_ids(a, page);
+    for (k = 0; k < 5; k++)
+        if (ids[k] >= 0 && !(k == 4 && QD_SND_PAGES[page].draw == UI_SD_FILTER && ids[2] == ids[4])) {
+            SND_LOCKS[n].knob = SND_KNOB[k];
+            SND_LOCKS[n].id = ids[k];
+            SND_LOCKS[n++].tk = QD_TK_NONE;
+        }
+    SND_LOCKS[n].knob = QD_K_PRESETS;                   /* PRESETS: the sound lock, as everywhere */
+    SND_LOCKS[n].id = QD_LOCK_SOUND;
+    SND_LOCKS[n++].tk = QD_TK_PRESET;
+    SND_SCREEN.name = QD_SND_PAGES[page].name;
+    SND_SCREEN.n = n;
+    SND_SCREEN.k = SND_LOCKS;
+    return &SND_SCREEN;
 }
 
 int qd_snd_open(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_SND; }
@@ -391,6 +432,18 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     }
     if (id == QD_QP_RB1) {                              /* P1.5i: RATIO B, the pair */
         snd_pair(a, d, fine);
+        return 1;
+    }
+    if (id == QD_QP_FTYPE) {                            /* E2: ALGORITHM the machine, LEGACY's KNOB 3 its TYPE */
+        static const int16_t MACH_FT[6] = {QD_QF_LP12, QD_QF_LP24, QD_QF_MULTI, QD_QF_COMBP, QD_QF_COMBN, QD_QF_EQ};
+        const int cur = snd_cur(a, QD_QP_FTYPE), m = qd_snd_machine(cur);
+        if (knob == QD_K_ALGO) {
+            const int nm = m + (d > 0 ? 1 : -1) < 0 ? 0 : m + (d > 0 ? 1 : -1) > 5 ? 5 : m + (d > 0 ? 1 : -1);
+            if (nm != m)
+                snd_put(a, QD_QP_FTYPE, MACH_FT[nm]);
+        } else {
+            snd_put(a, QD_QP_FTYPE, cur + d < 0 ? 0 : cur + d > QD_QF_HP12 ? QD_QF_HP12 : cur + d);
+        }
         return 1;
     }
     if (u->nheld) {                                     /* a finger on a step: a p-lock */
