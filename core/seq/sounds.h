@@ -55,7 +55,13 @@ int qd_sound_ideas(const int16_t *patch, char (*out)[QD_SOUND_NAME], int max);
 enum { QD_PK_BASS, QD_PK_KEYS, QD_PK_PLUCK, QD_PK_PAD, QD_PK_LEAD, QD_PK_DRUMS, QD_PK_FX, QD_NPK };
 int qd_preset_kind(const int16_t *patch);
 const char *qd_preset_kind_name(int pk);   /* "BASS" .. "FX" */
-void qd_factory_preset(int i, qd_sound_t *out);   /* i 0..QD_NFACTORY-1: id i + 1, its kind */
+/* P1.5v: a preset's TAGS: several kinds, bit k for QD_PK_k (the owner's to edit; the classifier's kind first) */
+#define QD_PKB(k) ((uint8_t)(1u << (k)))
+#define QD_PK_MASK 0x7Fu
+int qd_preset_tags(const int16_t *patch);   /* the classifier's: one tag */
+int qd_tags_first(int tags);                /* the first tag (its colour: the glyph's), -1 none */
+void qd_factory_preset(int i, qd_sound_t *out);   /* i 0..QD_NFACTORY-1: id i + 1, its classifier tag (persist.h's
+                                                   * qd_factory_get: with the owner's tags) */
 int qd_factory_of(const char *name, const int16_t *patch);   /* the factory preset this is (its id), 0 none */
 
 #ifdef __cplusplus

@@ -167,6 +167,7 @@ void qd_ctl_takeover(qd_app_t *a, int tk, int knob, int dir, int lock, int step)
     u->tk_knob = knob;
     u->tk_lock = lock;
     u->tk_step = step;
+    u->tk_hold = 0;                                     /* (P1.5v: the pool picker's caller sets it) */
 }
 
 void qd_ctl_imported(qd_app_t *a, const char *name, int pool, int slot)
@@ -1537,6 +1538,9 @@ static int k_steps_cursor(qd_app_t *a, int knob, int d)
         qd_step_cursor(a, d);
         return 1;
     case QD_KR_PRESET:
+        if (a->ui.nheld)
+            return 0;                                   /* (P1.5v: the latch's selection: its sound lock from the pool,
+                                                         * as a finger: k_held) */
         track_sound(a, d);
         return 1;
     case QD_KR_PAGE:
@@ -1753,8 +1757,12 @@ void qd_ctl_ms(qd_app_t *a)
     sel_seq_timers(a);                                  /* SEL + W held: solo; SEQ + W held: at once */
     if (u->pv_note >= 0 && a->ms - u->pv_ms >= QD_PREVIEW_MS)
         qd_ctl_preview(a, -1, 0);                       /* a knob's note: its moment is over */
-    if (u->tk != QD_TK_NONE && a->ms - u->tk_ms >= QD_TK_MS + QD_TK_FADE_MS)
+    if (u->tk == QD_TK_PRESET && u->tk_hold) {         /* P1.5v: the step's pool picker: up while the step is held */
+        if (!u->nheld)
+            u->tk = QD_TK_NONE, u->tk_hold = 0, u->tk_lock = 0;   /* (let go: closed, the choice kept) */
+    } else if (u->tk != QD_TK_NONE && a->ms - u->tk_ms >= QD_TK_MS + QD_TK_FADE_MS) {
         u->tk = QD_TK_NONE;
+    }
     if (u->cf_on && a->ms - u->cf_ms >= QD_CONFIRM_MS)
         u->cf_on = 0;
     if (a->seq.flash_sample[a->sel] != u->flash_seen && a->seq.flash_sample[a->sel] <= a->seq.now) {

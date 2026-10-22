@@ -86,7 +86,7 @@ void qd_factory_preset(int i, qd_sound_t *out)
                 strncpy(s->name, DRUM[d].name, QD_SOUND_NAME - 1);
             }
             s->preset = (uint16_t)(k + 1);
-            s->kind = (uint8_t)qd_preset_kind(s->patch);
+            s->tags = (uint8_t)qd_preset_tags(s->patch);
         }
         made = 1;
     }
@@ -173,7 +173,7 @@ int qd_sound_add(qd_project_t *pr, const char *name, const int16_t *patch)
     memset(s, 0, sizeof *s);
     strncpy(s->name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
     memcpy(s->patch, patch, sizeof s->patch);
-    s->kind = (uint8_t)qd_preset_kind(patch);
+    s->tags = (uint8_t)qd_preset_tags(patch);
     qd_sound_recount(pr);
     return k;
 }
@@ -331,6 +331,17 @@ int qd_preset_kind(const int16_t *p)
     case QD_SK_PLUCK: return QD_PK_PLUCK;
     default: return QD_PK_LEAD;
     }
+}
+
+int qd_preset_tags(const int16_t *patch) { return QD_PKB(qd_preset_kind(patch)); }
+
+int qd_tags_first(int tags)
+{
+    int k;
+    for (k = 0; k < QD_NPK; k++)
+        if ((tags >> k) & 1)
+            return k;
+    return -1;
 }
 
 const char *qd_preset_kind_name(int pk)

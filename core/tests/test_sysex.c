@@ -168,7 +168,7 @@ int main(int argc, char **argv)
               !memcmp(A.per.lib[k - 1].patch, p0, sizeof p0),
           "STORE, the LIBRARY, the first free (%d): OK, the slot back, the name, the patch byte for byte (DRIVE 33)", k);
     CHECK(A.per.lib[k - 1].preset >= QD_PRESET_MINE0 && (A.per.lib[k - 1].flags & QD_SNDF_IMPORTED) &&
-              A.per.lib[k - 1].kind == QD_PK_KEYS, "P1.5t: one of MY presets, imported, its own id, its kind (KEYS)");
+              A.per.lib[k - 1].tags == QD_PKB(QD_PK_KEYS), "P1.5t: one of MY presets, imported, its own id, its kind (KEYS)");
     CHECK(A.ui.tk == QD_TK_IMPORT && !strcmp(A.ui.imp_name, "MY EP") && A.ui.imp_slot == k && !A.ui.imp_pool,
           "the panel: the import's takeover (its name, its slot)");
     qd_quad_unpack(blob, p1);
@@ -183,7 +183,7 @@ int main(int argc, char **argv)
     CHECK(status() == QD_SX_OK && R[7] == 1 && rslot() == s0 && !strcmp(A.proj.sound[s0 - 1].name, "POOLED") &&
               A.proj.sound[s0 - 1].patch[QD_QP_DRIVE] == 5,
           "STORE, the POOL, the first free (%d)", s0);
-    CHECK(A.proj.sound[s0 - 1].kind == QD_PK_KEYS && !A.proj.sound[s0 - 1].preset, ".. its kind read (P1.5t)");
+    CHECK(A.proj.sound[s0 - 1].tags == QD_PKB(QD_PK_KEYS) && !A.proj.sound[s0 - 1].preset, ".. its kind read (P1.5t)");
     n = store_msg(f, QD_SXF_POOL, 1, "ONE", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
     CHECK(status() == QD_SX_OK && !strcmp(A.proj.sound[0].name, "ONE"), "the POOL's slot 1: as any other (P1.5t)");

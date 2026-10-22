@@ -212,13 +212,14 @@ typedef struct {
 } qd_pattern_t;
 
 /* a sound of the pool (or a preset of the library's MINE): an FM TONE patch and its name; P1.5t: the preset it came
- * from (a pool sound; a MY preset: its own id), its kind (sounds.h QD_PK_*), its flags (QD_SNDF_*) */
+ * from (a pool sound; a MY preset: its own id), its flags (QD_SNDF_*); P1.5v: its tags, several kinds (bit QD_PK_*:
+ * sounds.h QD_PKB) */
 #define QD_SNDF_IMPORTED 0x01           /* a MY preset that came in (SysEx, a dropped .dnsnd), not saved here */
 typedef struct {
     char name[QD_SOUND_NAME];
     int16_t patch[QD_QUAD_NP];
     uint16_t preset;
-    uint8_t kind, flags;
+    uint8_t tags, flags;
 } qd_sound_t;
 
 typedef struct {

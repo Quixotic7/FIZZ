@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5u)
+# Playing FIZZ (P1.5v)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -486,8 +486,10 @@ Three things, one job each:
 - **The Preset Library** (champagne) holds every preset, shared by every project:
   - **FACTORY**, built in and read only: INIT, the 16 FM TONE sounds and the six drums (KICK, SNARE, CLAP, GHOST,
     HAT, OPEN HAT);
-  - **MY PRESETS**, the ones you saved or imported, up to 256. Each has a **kind** read from the sound: BASS, KEYS,
-    PLUCK, PAD, LEAD, DRUMS or FX.
+  - **MY PRESETS**, the ones you saved or imported, up to 256.
+  - Every preset carries **tags**, one or several of BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX (P1.5v). A saved or
+    imported preset starts with the one read from the sound; you can change any preset's tags, the factory ones' too
+    (their sounds stay read only).
 - **The Sound Pool** (lime) is the project's own 128 sounds, the palette steps lock. A pool sound is a copy and
   remembers the preset it came from. **A new project's pool starts empty** (the demo project keeps its sounds).
 
@@ -495,30 +497,43 @@ Three things, one job each:
 
 - It opens on the track's current preset. **Every detent moves one preset and the track plays it at once**: playing,
   you hear it in the pattern; stopped, a short note each turn.
-- The screen is a rolodex: the chosen preset is the big cassette (its envelope in its kind's colour, a ★ for one of
-  MY presets, ↓ for an imported one, a lime tray when it is already in the pool), two neighbours above and below, a
-  bar on the right for where you are in the list, and "7/31" at the top.
+- The screen is a rolodex: the chosen preset is the big cassette (its envelope in its first tag's colour, a dot for
+  each tag between the reels, a ★ for one of MY presets, ↓ for an imported one; bottom left a **full lime tray** when
+  it is in the pool, an **empty tray with +** when it is not), two neighbours above and below, a bar on the right for
+  where you are in the list, and "7/31" at the top.
 - **SELECT** jumps ten. **The white keys play the chosen preset** in the track's scale.
 - **F2 = LOAD**: the preset replaces the track's sound and the browser closes ("LOADED").
 - **F1 or HOME = CANCEL**: the track's own sound comes back exactly as it was, edits included ("BACK"). Leaving any
   other way (EDIT, choosing another track) is a cancel too: browsing never loses a sound.
-- **B1..B8 filter by kind**: B1 ALL, B2 BASS, B3 KEYS, B4 PLUCK, B5 PAD, B6 LEAD, B7 DRUMS, B8 FX (the chosen kind's
-  key lit, a chip in the head).
+- **B1..B8 filter by tag**: B1 ALL, B2 BASS, B3 KEYS, B4 PLUCK, B5 PAD, B6 LEAD, B7 DRUMS, B8 FX: every preset
+  carrying that tag (the chosen filter's key lit, a chip in the head).
+- **SHIFT + B2..B8 toggles that tag** on the chosen preset (P1.5v): its chip pops, filled when on, struck when off;
+  holding SHIFT lights the chosen preset's tags on B2..B8. Inside the browser SHIFT means tags (no snapshots there).
 - **B9 the source**: ALL PRESETS → MY PRESETS → POOL → ALL.
-- **B10 = + POOL**: the chosen preset is copied into the project's pool, without loading it (the cassette shrinks
-  into the tray). Already there: the tray pulses, no copy. The pool full: the tray flashes orange.
-- In the **POOL** source, **B10 = − POOL**: the sound leaves the pool. If steps lock it, its users show (the tracks'
-  boxes, ×N steps) with **OUT?**, and B10 again takes it out; those steps go back to the track's sound.
-- **B11 deletes** one of MY presets: press it twice (B11 is lit only on MY presets; factory presets cannot be
-  deleted).
-- **SHIFT + F1** undoes a load, a + / − POOL and a delete.
+- **B10 = the pool, from any source** (P1.5v): **+ POOL** when the chosen preset is not in the project's pool (B10
+  lit; it is copied in without loading it, the cassette shrinks into the tray; the pool full: the tray flashes
+  orange), **− POOL** when it is (B10 breathing; in the POOL source always). If steps lock it, B10 first **arms**:
+  a big **red X** crosses the cassette, it shakes, the head turns red with **OUT?**, and its users show at the foot
+  (the tracks' boxes, ×N steps) **→ TRACK**; B10 again takes it out, and those steps go back to their track's sound.
+- **B11 deletes** one of MY presets (B11 is lit only on them; factory presets cannot be deleted): the first press
+  arms it (a big **red X**, the cassette shakes, the head red with **DELETE?**, B11 blinking); **B11 again** and it
+  breaks up and fizzes away in red. Nothing in any project changes: pools hold copies. **Any other key** (or a turn)
+  disarms OUT? and DELETE?.
+- **SHIFT + F1** undoes a load, a + / − POOL, a delete, and a tag change on one of MY presets or a pool sound (a
+  factory preset's tags you set back by hand).
 
 **A step held** (or the step latch's selection) **+ PRESETS** chooses the step's sound from **the pool** (a sound
 lock), in any mode: the first entry is **TRACK** (no lock: the step plays the track's sound), then the pool's sounds;
-the step plays each one, and letting go keeps it. An empty pool offers TRACK only (an empty tray, 0/128). In
+the step plays each one. **The picker stays up as long as the step is held** (or the latch's selection lasts; P1.5v:
+no time-out), and letting go closes it, keeping the sound. An empty pool offers TRACK only (an empty tray, 0/128). In
 **SOUND** mode the ten black keys are still ten sounds of the pool (the group of ten that holds the step's sound);
 F1 / F2 show the ten before / after; B11 removes the sound lock. In **P-LOCK**, KNOB 1..4 turn the track's FREQ,
 DECAY, HARM and FDBK.
+
+**What happens to the steps** (P1.5v, shown on the screens): taking a sound out of the pool sends the steps that
+lock it back to their track's sound (OUT? shows them going to TRACK). Deleting one of MY presets changes nothing in
+any project (pools and tracks hold copies: DELETE? shows nothing else). Replacing one of MY presets changes neither
+the pool's copies nor the tracks.
 
 ## How do I edit a sound? (the sound editor, EDIT)
 
@@ -653,9 +668,11 @@ They stay open (OCT− or HOME back). For now:
 - **SAVE** (from anywhere) opens **SAVE PRESET** for the selected track's sound, with a **name made from the sound**
   (a sparkle marks it), **selected** (a shaded band): PLUCK, PAD, BASS, KEYS, LEAD, KICK ... with BRIGHT, DARK, SOFT,
   WIDE ... Name it on the keybed (below), or keep it.
-- **SAVE again** saves it as a **NEW** preset in MY PRESETS. When the sound came from one of MY presets, **F2 =
-  REPLACE** overwrites that preset instead (NEW and REPLACE show then; NEW is still there, under a new name such as
-  "DARK BASS 2" when the name is taken). Factory presets are never replaced. **HOME** cancels.
+- **SAVE again** saves it as a **NEW** preset in MY PRESETS. When the sound came from one of MY presets, **NEW and
+  REPLACE** both show and **F2 switches which one is chosen** (the chosen bright and filled, the other dim; F2 lit;
+  NEW first): **SAVE does the chosen one** (P1.5v). NEW saves under a new name such as "DARK BASS 2" when the name is
+  taken; REPLACE overwrites that preset. Only NEW possible: only NEW shows, F2 dark. Factory presets are never
+  replaced. **HOME** cancels.
 - Saved: it drops into MY PRESETS ("SAVED"), and the track now plays that preset, no longer edited.
 - **SHIFT + F1** undoes a save.
 - The old sounds page (banks, the LIBRARY / POOL tabs, F1 / F2 / B11 + W) is gone: the browser does all of it.

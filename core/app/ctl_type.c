@@ -10,8 +10,9 @@
  *   ALGORITHM    the cursor; SELECT the character under it (A..Z, 0..9, the signs, SPACE); PRESETS name ideas (a
  *                rolodex; the one stopped on is the name, selected again)
  *   F1           deletes the character before the cursor (a selected name: all of it); SHIFT + F1 clears
- *   SAVE         confirms (SAVE PRESET: saved NEW; a project's name: kept); F2 REPLACE (SAVE PRESET, where offered);
- *                HOME cancels (SAVE PRESET: closed; a project's name: back to the project page)
+ *   SAVE         confirms (SAVE PRESET: its choice, NEW or REPLACE; a project's name: kept); F2 (SAVE PRESET, REPLACE
+ *                offered) switches NEW / REPLACE (P1.5v); HOME cancels (SAVE PRESET: closed; a project's name: back to
+ *                the project page)
  * While a name is typed SHIFT is the signs' layer: SHIFT + a button does nothing else (P1.5b / P1.5c's shortcuts:
  * snapshots, undo, the views, the settings), SHIFT + F1 clears. */
 
@@ -241,14 +242,16 @@ int qd_type_button(qd_app_t *a, int button, int down)
         }
         u->oct_eaten &= (uint8_t)~1u;
         return 1;
-    case QD_B_OCTUP:                                    /* F2: REPLACE where offered */
-        if (!down && save)
-            qd_sv_replace(a);
+    case QD_B_OCTUP:                                    /* F2: NEW / REPLACE (where offered) */
+        if (down && save && u->sv.replace >= 0)
+            u->sv.choice ^= 1;
         u->oct_eaten &= (uint8_t)~2u;
         return 1;
-    case QD_B_SAVE:                                     /* SAVE: confirmed */
+    case QD_B_SAVE:                                     /* SAVE: confirmed (SAVE PRESET: the choice) */
         if (down) {
-            if (save) {
+            if (save && u->sv.choice && u->sv.replace >= 0) {
+                qd_sv_replace(a);
+            } else if (save) {
                 qd_sv_new(a);
             } else {
                 name_keep(a);

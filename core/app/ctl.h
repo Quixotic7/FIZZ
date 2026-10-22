@@ -245,7 +245,8 @@ typedef struct qd_latch {
 /* P1.5t (ctl_presets.c; PLAN.md "The sound system, redesigned", mockups/fizz-presets.html): the library browser and
  * SAVE PRESET */
 enum { QD_BR_ALL, QD_BR_MINE, QD_BR_POOL, QD_NBRSRC };   /* the browser's source (B9: ALL -> MINE -> POOL -> ALL) */
-enum { QD_BRFX_NONE, QD_BRFX_IN, QD_BRFX_THERE, QD_BRFX_FULL, QD_BRFX_OUT };   /* + POOL: in, already there (the tray
+enum { QD_BRFX_NONE, QD_BRFX_IN, QD_BRFX_THERE, QD_BRFX_FULL, QD_BRFX_OUT, QD_BRFX_DEL };   /* (P1.5v: DEL, a MY
+                                                         * preset deleted: it breaks up) */   /* + POOL: in, already there (the tray
                                                          * pulses), full (it flashes orange); - POOL: out */
 #define QD_BR_LIST (QD_NFACTORY + QD_NLIB)               /* the longest list (ALL) */
 #define QD_BR_MINE_CODE 1000            /* a list entry: 0.. a factory preset, QD_BR_MINE_CODE + its place a MY preset, */
@@ -262,6 +263,10 @@ typedef struct {
     uint32_t fx_ms;
     uint32_t move_ms;                  /* the last detent (its envelope lights along, the list rolls) .. */
     int move_dir;                      /* .. its direction */
+    uint32_t arm_ms;                   /* P1.5v: OUT? / DELETE? armed (the cassette shakes) */
+    qd_sound_t fx_snd;                 /* .. the MY preset deleted (QD_BRFX_DEL: its pieces) */
+    uint32_t tag_ms;                   /* .. SHIFT + B2..B8: a tag toggled, which, on or off */
+    int tag_k, tag_on;
 } qd_brui_t;
 /* P1.5u: the typewriter (ctl_type.c): one keyboard for every name. The black keys A..K, the white keys L..Z and
  * SPACE (SHIFT: 0..9 -, . , ' & ! ? # + / ( ) * : _ ~ SPACE) */
@@ -289,7 +294,8 @@ typedef struct {
     uint32_t idea_ms;                  /* .. the last detent (the rolodex shows) */
 } qd_typer_t;
 typedef struct {
-    int replace;                       /* the MY preset the track's sound came from (its place; -1 none): F2 replaces */
+    int replace;                       /* the MY preset the track's sound came from (its place; -1 none): REPLACE offered */
+    int choice;                        /* P1.5v: 0 NEW, 1 REPLACE (F2 switches it; SAVE does it) */
     char newname[QD_SOUND_NAME];       /* .. NEW then saves under this ("DARK BASS 2") */
     int ret_mode;
 } qd_saveui_t;
@@ -384,6 +390,7 @@ typedef struct {
     uint32_t tk_ms;                    /* the last detent */
     int tk_dir;
     int tk_lock;                       /* a p-lock (or the sound lock) on the held step (or the step recorded live) */
+    int tk_hold;                       /* P1.5v: the step's pool picker: up while the step is held (no time-out) */
     int tk_step;                       /* .. that step */
     int tk_knob;                       /* the colour, 0..3 */
     int tk_job, tk_src;                /* P1.3d: the band's job (QD_KJ_*) and the knob turned (QD_K_*) */
@@ -610,6 +617,7 @@ int qd_br_chosen(const struct qd_app *a, qd_sound_t *s, int *code, int *n);   /*
 void qd_br_key(struct qd_app *a, int key, int w, int b, int down, int vel);
 int qd_br_knob(struct qd_app *a, int knob, int d);
 void qd_br_leds(const struct qd_app *a, uint8_t *key);
+int qd_br_pool_k(const struct qd_app *a);        /* P1.5v: the pool number the chosen is (or its copy's), 0 none */
 void qd_sv_open(struct qd_app *a);               /* SAVE: SAVE PRESET (again: saved as NEW) */
 void qd_sv_new(struct qd_app *a);
 void qd_sv_replace(struct qd_app *a);

@@ -184,9 +184,12 @@ typedef struct {
     int ok;                             /* an entry here (0: none) */
     int track;                          /* (the pool picker's first) TRACK: no lock */
     const char *name;
-    int kind;                           /* QD_PK_* */
+    int kind;                           /* QD_PK_* (P1.5v: its first tag: the glyph's colour) */
+    int tags;                           /* P1.5v: its tags (bit QD_PK_*: the cassette's dots) */
     float env[4];                       /* the amp envelope (0..1) */
     int mine, imported, in_pool;
+    int tray;                           /* P1.5v: the cassette's tray: 0 by in_pool, 1 empty with a + (not in the pool:
+                                         * B10 adds it), 2 full (in the pool: B10 takes it out) */
 } ui_preset_t;
 typedef struct {
     int picker;                         /* 0 the browser, 1 the step's pool picker */
@@ -200,10 +203,15 @@ typedef struct {
     int pool;                           /* the POOL source: who uses it at the foot (B10 takes it out) */
     uint8_t users;                      /* .. the tracks (bit t) .. */
     int usteps;                         /* .. the steps */
-    int out_armed, del_armed;           /* B10 / B11 armed (OUT?; the cassette blinking) */
+    int out_armed, del_armed;           /* B10 / B11 armed (P1.5v: a red X, the head red: OUT? / DELETE?) .. */
+    float arm_t;                        /* .. seconds since (the cassette shakes) */
+    int users_row;                      /* P1.5v: the users at the foot (the POOL; OUT? from any source: to TRACK) */
     int fx;                             /* + POOL's animation (ctl.h QD_BRFX_*), its progress, the pool's count */
     float fx_u;
     int pool_n;
+    ui_preset_t gone;                   /* P1.5v: QD_BRFX_DEL: the preset deleted (its pieces fizz away) */
+    int tag_k, tag_on;                  /* P1.5v: a tag toggled (SHIFT + B2..B8): which, on / off, 0..1 (1: none) */
+    float tag_u;
     float sound;                        /* 0..1 after a detent: its envelope lights along (it sounds) */
     float roll;                         /* 1 at a detent .. 0, its direction */
     int dir;
@@ -229,6 +237,7 @@ typedef struct {
     const char (*ideas)[13];            /* .. the ideas, their count, the one chosen */
     int nidea, idea;
     int replace;                        /* SAVE PRESET: REPLACE offered (F2) .. */
+    int choice;                         /* .. P1.5v: 0 NEW, 1 REPLACE (the one SAVE does: bright, filled) */
     const char *newname;                /* .. NEW then saves as this (shown when it differs) */
     const char *sub;                    /* a project's number ("01") */
     float t;

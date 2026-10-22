@@ -336,11 +336,11 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     if (u->latch == QD_LATCH_BROWSE) {                  /* P1.5t: F1 (cancel) and F2 (load) lit */
         out->button[QD_B_OCTDN] = QD_LED_LIT;
         out->button[QD_B_OCTUP] = QD_LED_LIT;
-    } else if (u->latch == QD_LATCH_SAVE) {             /* .. SAVE blinking (NEW), F1 lit (delete), F2 blinking with
-                                                         * REPLACE */
+    } else if (u->latch == QD_LATCH_SAVE) {             /* .. SAVE blinking, F1 lit (delete), F2 lit with REPLACE
+                                                         * offered (P1.5v: it switches NEW / REPLACE) */
         out->button[QD_B_SAVE] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_DIM;
         out->button[QD_B_OCTDN] = QD_LED_LIT;
-        out->button[QD_B_OCTUP] = u->sv.replace >= 0 ? (blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF) : QD_LED_OFF;
+        out->button[QD_B_OCTUP] = u->sv.replace >= 0 ? QD_LED_LIT : QD_LED_OFF;
     } else if (u->latch == QD_LATCH_PRJ) {
         out->button[QD_B_MIX] = QD_LED_LIT;
         out->button[QD_B_OCTUP] = u->pj.page == 1 && u->pj.chosen != a->per.proj

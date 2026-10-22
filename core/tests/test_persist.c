@@ -130,8 +130,8 @@ static void pages_test(void)
         for (ok = 0, k = 0; k < QD_NFACTORY; k++) {
             qd_sound_t f;
             qd_factory_preset(k, &f);
-            ok += f.kind == PK[k] && f.preset == k + 1;
-            seen[f.kind]++;
+            ok += f.tags == QD_PKB(PK[k]) && f.preset == k + 1;
+            seen[qd_tags_first(f.tags)]++;
         }
         for (k = 0; k < QD_NPK; k++)
             ok += seen[k] > 0;
@@ -156,7 +156,8 @@ static void pages_test(void)
     btap(QD_B_SAVE);
     CHECK(G->ui.sv.replace == 0 && !strcmp(G->ui.ty.name, nm), "edited, SAVE: REPLACE offered (its "
           "name kept)");
-    btap(QD_B_OCTUP);
+    btap(QD_B_OCTUP);                                   /* (P1.5v: F2 chooses REPLACE, SAVE does it) */
+    btap(QD_B_SAVE);
     CHECK(G->per.lib[0].patch[QD_QP_HARM] == 900 && G->per.lib[0].preset == G->model.t[3].preset &&
               !G->model.t[3].edited && !G->per.lib[1].name[0], "F2: replaced (the same id), nothing new");
     /* the browser on MY presets: load it onto another track */
@@ -254,9 +255,9 @@ static void migration_test(void)
     qd_store_flush(&A.per.prj_st);
     boot(&B);
     CHECK(!strcmp(B.per.lib[7].name, "OLD LIB") && B.per.lib[7].preset == QD_PRESET_MINE0 + 7 &&
-              B.per.lib[7].kind == QD_PK_BASS && !B.per.lib[7].flags,
+              B.per.lib[7].tags == QD_PKB(QD_PK_BASS) && !B.per.lib[7].flags,
           "a 0.6 library slot: one of MY presets (its id %d, its kind BASS, saved)", B.per.lib[7].preset);
-    CHECK(!strcmp(B.proj.sound[39].name, "EP") && B.proj.sound[39].preset == 2 && B.proj.sound[39].kind == QD_PK_KEYS,
+    CHECK(!strcmp(B.proj.sound[39].name, "EP") && B.proj.sound[39].preset == 2 && B.proj.sound[39].tags == QD_PKB(QD_PK_KEYS),
           "a 0.6 pool sound: kept, knowing its factory preset (EP: 2), its kind");
     for (n = 0, t = 1; t <= QD_NFACTORY; t++)
         n += qd_sound_used(&B.proj, t) && B.proj.sound[t - 1].preset == t;
@@ -268,6 +269,46 @@ static void migration_test(void)
     boot(&A);
     CHECK(A.per.lib[7].preset == QD_PRESET_MINE0 + 7 && A.proj.pat[QD_PAT_START].snd[3].preset == 2,
           "written back as 0.7's records: the same after another restart");
+}
+
+/* P1.5v: the tags: several on one of MY presets and on a pool sound, the factory's as the owner set them, kept across
+ * a restart; an 'S' 2 record's kind becomes its one tag */
+static void tags_test(void)
+{
+    static uint8_t b[QDS_MAXREC];
+    int len;
+    qd_sound_t f;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    qd_quad_preset_patch(3, A.per.lib[0].patch);        /* (BASS) */
+    qd_lib_store(&A, 0, "TWO TAGS", A.per.lib[0].patch);
+    CHECK(qd_tags_set(&A, QD_BR_MINE_CODE + 0, QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)) &&
+              qd_tags_set(&A, 0, QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_LEAD)) &&
+              qd_tags_set(&A, QD_BR_POOL_CODE + 2, QD_PKB(QD_PK_DRUMS) | QD_PKB(QD_PK_KEYS)),
+          "tags set on one of MY presets, on INIT (factory), on pool sound 2");
+    qd_factory_get(&A, 0, &f);
+    CHECK(f.tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_LEAD)) && A.per.ftags[0] == (0x80 | f.tags),
+          "INIT's tags the owner's (PAD, LEAD), its sound as it was");
+    qd_persist_flush(&A);
+    boot(&B);
+    qd_factory_get(&B, 0, &f);
+    CHECK(B.per.lib[0].tags == (QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)) &&
+              f.tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_LEAD)) &&
+              B.proj.sound[1].tags == (QD_PKB(QD_PK_DRUMS) | QD_PKB(QD_PK_KEYS)),
+          "a restart: the tags kept (MY preset, the factory's, the pool's)");
+    qd_factory_get(&B, 1, &f);
+    CHECK(f.tags == QD_PKB(QD_PK_KEYS) && !B.per.ftags[1], "EP untouched: the classifier's (KEYS)");
+    len = qd_store_get(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 0), b, sizeof b);   /* 0.7.1's record: 'S' 2, a kind */
+    CHECK(len > 4 && b[0] == 'S' && b[1] == 3, "written as 'S' 3");
+    b[1] = 2;
+    b[len - 2] = QD_PK_PAD;
+    qd_store_put(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 0), b, (uint32_t)len);
+    qd_store_flush(&B.per.lib_st);
+    boot(&A);
+    CHECK(A.per.lib[0].tags == QD_PKB(QD_PK_PAD) && !strcmp(A.per.lib[0].name, "TWO TAGS"),
+          "an 'S' 2 record (0.7.0 .. 0.7.1): its kind (PAD) its one tag");
 }
 
 int main(void)
@@ -423,7 +464,7 @@ int main(void)
         CHECK(!strcmp(A.per.lib[0].name, "WOB BASS") && !strcmp(A.per.lib[9].name, "WOB REPL") &&
                   A.per.lib[9].preset == id9 && A.per.lib[9].patch[QD_QP_HARM] == 500 && !A.per.lib[2].name[0] &&
                   !strcmp(A.per.lib[255].name, "THE LAST") && A.per.lib[0].patch[QD_QP_DRIVE] == 10 &&
-                  A.per.lib[0].kind == QD_PK_BASS && A.per.lib[0].preset >= QD_PRESET_MINE0 &&
+                  A.per.lib[0].tags == QD_PKB(QD_PK_BASS) && A.per.lib[0].preset >= QD_PRESET_MINE0 &&
                   A.per.lib[0].preset != A.per.lib[9].preset && !strcmp(A.proj.sound[30].name, A.proj.sound[4].name),
               "a restart: MY presets (their ids, kinds; replace kept the id; place 256) and the pool's changes kept");
     }
@@ -474,6 +515,7 @@ int main(void)
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
     pages_test();
     migration_test();
+    tags_test();
     printf("test_persist: %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

@@ -16,7 +16,11 @@
  *        name and the packed patch (a library sound becomes a MY preset, id QD_PRESET_MINE0 + its place; a pool
  *        sound remembers the factory preset of its name and patch); or 'E' 1: an empty slot
  *   HDR  (P1.5t) one more byte: 1, the project's pool starts empty (a project of 0.6 has none: its pool's absent
- *        records are the old starting pool) */
+ *        records are the old starting pool)
+ *   SND / LIB  (P1.5v) 'S' 3: as 'S' 2 with the TAGS (a byte, bit QD_PK_k) where the kind was; an 'S' 2's kind
+ *        becomes its one tag
+ *   FTAG 'F' 1, the factory presets' tags as the owner set them (QD_NFACTORY bytes: 0x80 | tags, 0 the classifier's);
+ *        in the library's store */
 #include "../voice/fx/qd_fx.h"
 
 static uint8_t pr_buf[QDS_MAXREC], pr_buf2[QDS_MAXREC];
@@ -134,11 +138,11 @@ static uint32_t ser_snd(const qd_sound_t *s, uint8_t *b)
         b[0] = 'E', b[1] = 1;
         return 2;
     }
-    b[0] = 'S', b[1] = 2;
+    b[0] = 'S', b[1] = 3;
     memcpy(b + 2, s->name, QD_SOUND_NAME);
     qd_quad_pack(s->patch, b + 2 + QD_SOUND_NAME);
     memcpy(b + o, &s->preset, 2), o += 2;               /* P1.5t */
-    b[o++] = s->kind, b[o++] = s->flags;
+    b[o++] = s->tags, b[o++] = s->flags;                /* (P1.5v: the tags) */
     return o;
 }
 
@@ -151,19 +155,22 @@ static int de_snd(qd_sound_t *s, const uint8_t *b, uint32_t len)
     de_snd_v1 = 0;
     if (len == 2 && b[0] == 'E' && b[1] == 1)
         return 1;
-    if (b[0] != 'S' || !((b[1] == 1 && len == n1) || (b[1] == 2 && len == n1 + 4)))
+    if (b[0] != 'S' || !((b[1] == 1 && len == n1) || ((b[1] == 2 || b[1] == 3) && len == n1 + 4)))
         return 0;
     memcpy(s->name, b + 2, QD_SOUND_NAME);
     s->name[QD_SOUND_NAME - 1] = 0;
     if (!s->name[0])
         s->name[0] = '?';
     qd_quad_unpack(b + 2 + QD_SOUND_NAME, s->patch);
-    if (b[1] == 2) {
+    if (b[1] >= 2) {
         memcpy(&s->preset, b + n1, 2);
-        s->kind = b[n1 + 2] < QD_NPK ? b[n1 + 2] : (uint8_t)qd_preset_kind(s->patch);
+        if (b[1] == 3)
+            s->tags = (uint8_t)(b[n1 + 2] & QD_PK_MASK);
+        else                                            /* (0.7.0 .. 0.7.1's one kind: one tag) */
+            s->tags = b[n1 + 2] < QD_NPK ? QD_PKB(b[n1 + 2]) : (uint8_t)qd_preset_tags(s->patch);
         s->flags = b[n1 + 3];
     } else {
-        s->kind = (uint8_t)qd_preset_kind(s->patch);   /* (0.6's: the kind read now) */
+        s->tags = (uint8_t)qd_preset_tags(s->patch);   /* (0.6's: the kind read now) */
         de_snd_v1 = 1;
     }
     return 1;
@@ -255,10 +262,20 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
     return 1;
 }
 
+/* P1.5v: the factory tags' record */
+static uint32_t ser_ftag(const qd_app_t *a, uint8_t *b)
+{
+    b[0] = 'F', b[1] = 1;
+    memcpy(b + 2, a->per.ftags, QD_NFACTORY);
+    return 2 + QD_NFACTORY;
+}
+
 /* an item's key and bytes now */
 static uint32_t item_key(const qd_app_t *a, int it)
 {
     const int p = a->per.proj;
+    if (it == QD_PI_FTAG)
+        return QD_RKEY(QD_RK_FTAG, 0, 0);
     if (it == QD_PI_SET)
         return QD_RKEY(QD_RK_SET, 0, 0);
     if (it == QD_PI_HDR)
@@ -271,6 +288,8 @@ static uint32_t item_key(const qd_app_t *a, int it)
 }
 static uint32_t item_bytes(const qd_app_t *a, int it, uint8_t *b)
 {
+    if (it == QD_PI_FTAG)
+        return ser_ftag(a, b);
     if (it == QD_PI_SET)
         return ser_set(a, b);
     if (it == QD_PI_HDR)
@@ -407,6 +426,12 @@ static void lib_read(qd_app_t *a)
             ps->lib[k].name[0])
             ps->lib[k].preset = (uint16_t)(QD_PRESET_MINE0 + k);   /* (0.6's library: MY presets, saved) */
     }
+    memset(ps->ftags, 0, sizeof ps->ftags);             /* P1.5v: the factory tags (none: the classifier's) */
+    {
+        const int len = qd_store_get(&ps->lib_st, QD_RKEY(QD_RK_FTAG, 0, 0), pr_buf, sizeof pr_buf);
+        if (len == 2 + QD_NFACTORY && pr_buf[0] == 'F' && pr_buf[1] == 1)
+            memcpy(ps->ftags, pr_buf + 2, QD_NFACTORY);
+    }
 }
 
 static void names_read(qd_app_t *a)
@@ -519,6 +544,7 @@ void qd_persist_ms(qd_app_t *a)
     if (a->ms % QD_SAVE_LOOK_MS == 0) {                 /* the looks */
         look(a, QD_PI_SET);
         look(a, QD_PI_HDR);
+        look(a, QD_PI_FTAG);
         look(a, QD_PI_PAT + a->seq.cur);
         ps->scan = (ps->scan + 1) % QD_NPAT;
         look(a, QD_PI_PAT + ps->scan);
@@ -756,7 +782,7 @@ int qd_pool_add(qd_app_t *a, const char *name, const int16_t *patch)
     memset(&n, 0, sizeof n);
     strncpy(n.name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
     memcpy(n.patch, patch, sizeof n.patch);
-    n.kind = (uint8_t)qd_preset_kind(patch);
+    n.tags = (uint8_t)qd_preset_tags(patch);
     return qd_pool_add_sound(a, &n);
 }
 
@@ -878,7 +904,11 @@ int qd_pool_users_all(const qd_app_t *a, int k, uint8_t *tracks)
     for (p = 0; p < QD_NPAT; p++)
         for (t = 0; t < QD_PAT_NTRACK; t++)
             for (s = 0; s < QD_NSTEP; s++)
-                n += a->proj.pat[p].step[t][s].sound == k && (a->proj.pat[p].step[t][s].flags & QD_SF_ON);
+                if (a->proj.pat[p].step[t][s].sound == k && (a->proj.pat[p].step[t][s].flags & QD_SF_ON)) {
+                    n++;
+                    if (tracks)                         /* (P1.5v: the tracks whose steps lock it too) */
+                        *tracks |= (uint8_t)(1u << t);
+                }
     return n;
 }
 
@@ -923,7 +953,7 @@ int qd_lib_store_ex(qd_app_t *a, int slot, const char *name, const int16_t *patc
     strncpy(n.name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
     memcpy(n.patch, patch, sizeof n.patch);
     n.preset = lib_new_id(a);
-    n.kind = (uint8_t)qd_preset_kind(patch);
+    n.tags = (uint8_t)qd_preset_tags(patch);
     n.flags = (uint8_t)flags;
     a->per.lib[slot] = n;
     return 1;
@@ -946,8 +976,7 @@ int qd_lib_replace(qd_app_t *a, int slot, const char *name, const int16_t *patch
     strncpy(nm, name && name[0] ? name : s->name, QD_SOUND_NAME - 1);
     memcpy(s->name, nm, sizeof nm);
     memcpy(s->patch, patch, sizeof s->patch);
-    s->kind = (uint8_t)qd_preset_kind(patch);
-    s->flags = 0;                                       /* (saved here now) */
+    s->flags = 0;                                       /* (saved here now; P1.5v: its tags kept) */
     return 1;
 }
 
@@ -975,12 +1004,44 @@ int qd_preset_get(const qd_app_t *a, int id, qd_sound_t *out)
 {
     int k;
     if (id >= 1 && id <= QD_NFACTORY) {
-        qd_factory_preset(id - 1, out);
+        qd_factory_get(a, id - 1, out);
         return 1;
     }
     k = qd_lib_find(a, id);
     if (k < 0)
         return 0;
     *out = a->per.lib[k];
+    return 1;
+}
+
+/* ---------------------------------------------------------------- P1.5v: the tags */
+void qd_factory_get(const qd_app_t *a, int k, qd_sound_t *out)
+{
+    qd_factory_preset(k, out);
+    if (k >= 0 && k < QD_NFACTORY && (a->per.ftags[k] & 0x80u))
+        out->tags = (uint8_t)(a->per.ftags[k] & QD_PK_MASK);
+}
+
+int qd_tags_set(qd_app_t *a, int code, int tags)
+{
+    tags &= (int)QD_PK_MASK;
+    if (code >= QD_BR_POOL_CODE) {                      /* (a pool sound) */
+        if (!qd_sound_used(&a->proj, code - QD_BR_POOL_CODE))
+            return 0;
+        qd_undo_hint(a, QD_UK_SOUNDS);
+        a->proj.sound[code - QD_BR_POOL_CODE - 1].tags = (uint8_t)tags;
+        return 1;
+    }
+    if (code >= QD_BR_MINE_CODE) {                      /* (one of MY presets) */
+        if (code - QD_BR_MINE_CODE >= QD_NLIB || !a->per.lib[code - QD_BR_MINE_CODE].name[0])
+            return 0;
+        qd_undo_hint(a, QD_UK_SOUNDS);
+        a->per.lib[code - QD_BR_MINE_CODE].tags = (uint8_t)tags;
+        return 1;
+    }
+    if (code < 0 || code >= QD_NFACTORY)
+        return 0;
+    a->per.ftags[code] = (uint8_t)(0x80u | (unsigned)tags);   /* (the factory sound stays as it is; its tags the
+                                                         * owner's, not undone) */
     return 1;
 }

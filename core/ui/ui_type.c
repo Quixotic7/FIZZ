@@ -2,7 +2,7 @@
 /* P1.5u: the typewriter's screen (ui.h ui_type_t): SAVE PRESET's name and a project's, typed on the keybed, drawn as
  * mockups/fizz-names.html draws them: its positions, sizes, colours and motions (saveHead, nameRow, keybed, the
  * letter's flight, the ideas' rolodex, the SHIFT chip, the full row's flash, the deleted letter dropping away). Built
- * through ui_layer.c after ui_presets.c (its pr_button). PLAN §9a's clarity rules: the name, the keys' characters
+ * through ui_layer.c after ui_presets.c. PLAN §9a's clarity rules: the name, the keys' characters
  * (13 px), the ideas, the few words the mock-up has (SHIFT, NEW, REPLACE); the rest is drawing, colour and motion. */
 
 #define TY_X0 9.f                                       /* the name's twelve cells */
@@ -116,6 +116,16 @@ static void ty_row(const ui_type_t *v)
     }
 }
 
+/* P1.5v: NEW / REPLACE: the one chosen bright and filled, the other dim */
+static void ty_pill(float x, float y, float w, const char *s, qd_rgb col, int on)
+{
+    qd_save();
+    qd_alpha(qd_get_alpha() * (on ? 1.f : 0.4f));
+    ui_RR(x, y, w, 26.f, 6.f, col, 1.8f, on ? col : QD_NONE);
+    ui_T(s, x + w / 2.f, y + 18.f, 14.f, 600, 1.f, on ? UI_BG : col, QD_CENTER);
+    qd_restore();
+}
+
 /* PRESETS turned: the ideas, a rolodex */
 static void ty_ideas(const ui_type_t *v)
 {
@@ -149,11 +159,11 @@ void ui_type_draw(const ui_type_t *v)
     if (v->shift) {                                     /* SHIFT held: the signs' layer */
         ui_RR(8.f, 112.f, 50.f, 18.f, 4.f, UI_K3, 1.3f, QD_NONE);
         ui_T("SHIFT", 33.f, 125.f, 12.f, 600, 0.f, UI_K3, QD_CENTER);
-    } else if (v->replace && !v->ideas_on) {            /* NEW (as the new name) or REPLACE (F2) */
-        if (v->newname && v->newname[0])
+    } else if (v->replace && !v->ideas_on) {            /* NEW (as the new name) or REPLACE: F2 chooses (P1.5v) */
+        if (v->newname && v->newname[0] && !v->choice)
             ui_T(v->newname, 120.f, 104.f, 13.f, 400, 0.f, UI_G1, QD_CENTER);
-        pr_button(12.f, 112.f, 104.f, "NEW", UI_LIB_COL);
-        pr_button(124.f, 112.f, 104.f, "REPLACE", PR_ORANGE);
+        ty_pill(12.f, 112.f, 104.f, "NEW", UI_LIB_COL, !v->choice);
+        ty_pill(124.f, 112.f, 104.f, "REPLACE", PR_ORANGE, v->choice);
     }
     if (v->sub && v->sub[0] && !v->ideas_on && !v->shift)
         ui_T(v->sub, 120.f, 116.f, 14.f, 300, 0.f, UI_LIB_COL, QD_CENTER);

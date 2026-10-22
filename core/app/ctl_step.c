@@ -723,8 +723,8 @@ int qd_step_lock_knob(qd_app_t *a, int knob, int d)
             continue;
         if (k->id == QD_LOCK_SOUND) {
             qd_step_sound_pick(a, d);
-            if (u->hmode != UI_F_SOUND)                 /* (SOUND's own screen is the pool's picker) */
-                qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 1, u->held[0]);
+            qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 1, u->held[0]);   /* (P1.5v: every mode, up while held) */
+            u->tk_hold = 1;
         } else {
             lock_all(a, k->id, d);
             if (k->tk != QD_TK_NONE)                    /* (P1.4a: the sound editor's pages show it themselves) */
@@ -1009,10 +1009,11 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
         return 1;
     }
     switch (knob) {
-    case QD_K_PRESETS:                                  /* the sound lock, any pool sound, in every mode */
+    case QD_K_PRESETS:                                  /* the sound lock, any pool sound, in every mode: P1.5v: the
+                                                         * pool picker, up until the step is let go */
         qd_step_sound_pick(a, d);
-        if (m != UI_F_SOUND)                            /* (SOUND's own screen is the pool's picker) */
-            qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 1, u->held[0]);
+        qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 1, u->held[0]);
+        u->tk_hold = 1;
         return 1;
     case QD_K_ALGO:
         if (m == UI_F_NOTE)                             /* P1.5o: NOTE: SELECT moves the chord, ALGORITHM no note (the

@@ -138,7 +138,7 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
         memset(s, 0, sizeof *s);
         strncpy(s->name, name, QD_SOUND_NAME - 1);
         memcpy(s->patch, patch, sizeof s->patch);
-        s->kind = (uint8_t)qd_preset_kind(patch);       /* (P1.5t: its kind read on arrival) */
+        s->tags = (uint8_t)qd_preset_tags(patch);       /* (P1.5t: its kind read on arrival; P1.5v: its first tag) */
         qd_sound_recount(&a->proj);
     } else {
         qd_lib_store_ex(a, slot - 1, name, patch, QD_SNDF_IMPORTED);   /* (P1.5t: one of MY presets, imported) */

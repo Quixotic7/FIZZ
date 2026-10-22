@@ -5227,7 +5227,7 @@ static void g_p15t_browse(void)
     n = qd_br_list(&A, A.ui.br.src, A.ui.br.kind, list);
     for (ok = n > 0, i = 0; i < n; i++) {
         qd_br_entry(&A, list[i], &s);
-        ok &= s.kind == QD_PK_BASS;
+        ok &= (s.tags & QD_PKB(QD_PK_BASS)) != 0;
     }
     CHECK(A.ui.br.kind == 1 + QD_PK_BASS && ok && n == 2, "B2: BASS only (%d: BASS, WOBBLE)", n);
     black(B7);
@@ -5269,7 +5269,10 @@ static void g_p15t_pool(void)
               A.ui.br.fx == QD_BRFX_IN && A.model.t[0].preset == 18, "B10: + POOL: KICK into the empty pool (not loaded: "
           "the track still plays the chosen, its own sound apart)");
     black(B10);
-    CHECK(A.proj.nsound == 1 && A.ui.br.fx == QD_BRFX_THERE, "B10 again: there already, no duplicate (the tray pulses)");
+    CHECK(A.proj.nsound == 0 && A.ui.br.fx == QD_BRFX_OUT && !qd_br_pool_k(&A), "B10 again (P1.5v): in the pool, no "
+          "step uses it: out at once");
+    black(B10);
+    CHECK(A.proj.nsound == 1 && qd_br_pool_k(&A) == 1, "B10: in again (no duplicate: one KICK)");
     for (k = 2; k <= QD_NSOUND; k++) {                  /* the pool full */
         strcpy(A.proj.sound[k - 1].name, "X");
         A.proj.sound[k - 1].preset = 0;
@@ -5410,10 +5413,15 @@ static void g_p15t_save(void)
     CHECK(!A.ui.latch && A.per.lib[0].patch[QD_QP_HARM] != 1200 && !A.per.lib[1].name[0],
           "HOME: cancelled, nothing saved");
     btap(QD_B_SAVE);
+    CHECK(A.ui.sv.choice == 0 && leds().button[F2] == QD_LED_LIT, "REPLACE offered: NEW chosen first, F2 lit");
     btap(F2);
+    CHECK(A.ui.sv.choice == 1 && A.ui.latch == QD_LATCH_SAVE, "F2 (P1.5v): REPLACE chosen, nothing saved yet");
+    btap(F2);
+    btap(F2);
+    btap(QD_B_SAVE);
     run(600);
     CHECK(A.per.lib[0].patch[QD_QP_HARM] == 1200 && !A.per.lib[1].name[0] && !A.model.t[0].edited &&
-              A.model.t[0].preset == A.per.lib[0].preset, "F2: REPLACED (the same preset), nothing new");
+              A.model.t[0].preset == A.per.lib[0].preset, "F2 again (NEW), again (REPLACE), SAVE: REPLACED (the same preset), nothing new");
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
     btap(QD_B_SAVE);
@@ -5432,7 +5440,8 @@ static void g_p15t_leds(void)
     l = leds();
     for (ok = 1, i = 0; i < 8; i++)
         ok &= l.key[BK(i)] == (i == 2 ? QD_LED_LIT : QD_LED_DIM);
-    CHECK(ok && l.key[BK(B9)] == QD_LED_LIT && l.key[BK(B10)] == QD_LED_LIT && l.key[BK(B11)] == QD_LED_OFF &&
+    CHECK(ok && l.key[BK(B9)] == QD_LED_LIT && l.key[BK(B10)] == (qd_br_pool_k(&A) ? qd_led_breath(A.ms) : QD_LED_LIT) &&
+              l.key[BK(B11)] == QD_LED_OFF &&
               l.button[F1] == QD_LED_LIT && l.button[F2] == QD_LED_LIT,
           "browsing: the kinds dim (KEYS lit), B9, B10 lit, B11 dark (a factory preset), F1 F2 lit");
     btap(QD_B_HOME);
@@ -5614,10 +5623,11 @@ static void g_p15u_save(void)
           "offered");
     ty_type("DUSK");
     btap(F2);
+    btap(QD_B_SAVE);
     run(600);
     CHECK(!A.ui.latch && !strcmp(A.per.lib[0].name, "DUSK") && A.per.lib[0].preset == id &&
               A.per.lib[0].patch[QD_QP_HARM] == 700 && !A.per.lib[1].name[0] && !strcmp(A.model.t[0].sound_name, "DUSK"),
-          "D U S K, F2: REPLACED under the typed name, the same preset, nothing new");
+          "D U S K, F2, SAVE: REPLACED under the typed name, the same preset, nothing new");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
@@ -5703,6 +5713,195 @@ static void g_p15u_leds(void)
     btap(QD_B_HOME);
     CHECK(!strcmp(A.per.pname[A.per.proj], "NIGHT BUS") && A.ui.latch == QD_LATCH_PRJ, "HOME: the old name, the page");
     btap(QD_B_HOME);
+}
+
+/* ================================================================ P1.5v: the owner's fixes === */
+static void mine_add(const char *name, int k)           /* one of MY presets, from FM TONE preset k's sound */
+{
+    int16_t p[QD_QUAD_NP];
+    qd_quad_preset_patch(k, p);
+    qd_lib_store(&A, qd_lib_free_slot(&A), name, p);
+}
+static void g_p15v_delete(void)
+{
+    int k, lit = 0, off = 0, i;
+    start();
+    run(600);
+    mine_add("GONE SOON", 3);
+    turn(QD_K_PRESETS, 1);
+    black(B9);
+    CHECK(A.ui.br.src == QD_BR_MINE && br_code() == QD_BR_MINE_CODE, "(MY PRESETS: GONE SOON)");
+    black(B10);
+    k = qd_br_pool_k(&A);
+    CHECK(k > 0, "B10: into the pool (a copy)");
+    black(B11);
+    CHECK(A.ui.br.del_armed && A.per.lib[0].name[0], "B11: armed (DELETE?: the red X), not deleted");
+    for (i = 0; i < 12; i++) {
+        const int l = leds().key[BK(B11)];
+        lit += l == QD_LED_LIT, off += l == QD_LED_OFF;
+        run(QD_FAST_MS / 2 + 1);
+    }
+    CHECK(lit && off, "B11 blinks (%d lit, %d dark)", lit, off);
+    black(B1);
+    CHECK(!A.ui.br.del_armed && A.per.lib[0].name[0], "another key (B1): disarmed, kept");
+    black(B11);
+    wtap(3);
+    CHECK(!A.ui.br.del_armed && A.per.lib[0].name[0], "a white key: disarmed");
+    black(B11);
+    turn(QD_K_PRESETS, 1);
+    CHECK(!A.ui.br.del_armed && A.per.lib[0].name[0], "a turn: disarmed");
+    turn(QD_K_PRESETS, -5);
+    black(B11);
+    black(B11);
+    CHECK(!A.per.lib[0].name[0] && A.ui.br.fx == QD_BRFX_DEL && !strcmp(A.ui.br.fx_snd.name, "GONE SOON"),
+          "B11 again: deleted, it breaks up");
+    CHECK(qd_sound_used(&A.proj, k) && !strcmp(A.proj.sound[k - 1].name, "GONE SOON"),
+          "the pool's copy untouched (pools hold copies)");
+    run(900);
+    btap(QD_B_HOME);
+}
+
+static void g_p15v_pool(void)
+{
+    int k;
+    start();
+    run(600);
+    qd_sounds_clear(&A.proj);
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, 4 - A.ui.br.pos);
+    CHECK(br_code() == 4 && !qd_br_pool_k(&A) && leds().key[BK(B10)] == QD_LED_LIT, "ALL, not in the pool: B10 lit (adds)");
+    black(B10);
+    k = qd_br_pool_k(&A);
+    CHECK(k == 1 && A.ui.br.fx == QD_BRFX_IN && leds().key[BK(B10)] == qd_led_breath(A.ms), "B10: in; B10 breathing "
+          "(takes out)");
+    qd_step_on(PAT(), 1, 3);
+    qd_step_set_sound(PAT(), 1, 3, k);
+    black(B10);
+    CHECK(A.ui.br.out_armed && qd_sound_used(&A.proj, k), "B10 on a sound a step uses (from ALL): armed (OUT?)");
+    wtap(0);
+    CHECK(!A.ui.br.out_armed && qd_sound_used(&A.proj, k), "a white key: disarmed");
+    black(B10);
+    black(B10);
+    CHECK(!qd_sound_used(&A.proj, k) && !qd_br_pool_k(&A) && !R(1, 3).sound && !OV(1, 3, QD_PM_SOUND) &&
+              A.ui.br.src == QD_BR_ALL && br_code() == 4, "B10 again: out, the step back to TRACK, still on it in ALL");
+    mine_add("MINE ONE", 5);
+    black(B9);
+    CHECK(A.ui.br.src == QD_BR_MINE && br_code() == QD_BR_MINE_CODE, "(MY PRESETS: MINE ONE)");
+    black(B10);
+    CHECK(qd_br_pool_k(&A) > 0, "MY PRESETS, B10: in");
+    black(B10);
+    CHECK(!qd_br_pool_k(&A) && A.proj.nsound == 0, "B10: out at once (no step uses it)");
+    btap(QD_B_HOME);
+}
+
+static void g_p15v_tags(void)
+{
+    qd_sound_t f, f0;
+    qd_leds_t l;
+    int i, ok;
+    start();
+    run(600);
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, -200);
+    CHECK(br_code() == 0, "(INIT chosen)");
+    shift_black(B5);
+    qd_factory_get(&A, 0, &f);
+    qd_factory_preset(0, &f0);
+    CHECK(f.tags == (QD_PKB(QD_PK_LEAD) | QD_PKB(QD_PK_PAD)) && A.per.ftags[0] == (0x80 | f.tags) && A.ui.br.kind == 0 &&
+              !memcmp(f.patch, f0.patch, sizeof f.patch), "SHIFT + B5: INIT tagged PAD too (LEAD, PAD), its sound as it "
+          "was, the filter unchanged");
+    black(B5);
+    CHECK(A.ui.br.kind == 1 + QD_PK_PAD && br_code() == 0, "B5 (PAD): INIT listed");
+    shift_black(B6);
+    qd_factory_get(&A, 0, &f);
+    CHECK(f.tags == QD_PKB(QD_PK_PAD), "SHIFT + B6: LEAD off (PAD only)");
+    black(B6);
+    for (ok = 1, i = 0; i < br_n(); i++) {
+        A.ui.br.pos = i;
+        ok &= br_code() != 0;
+    }
+    CHECK(ok, "B6 (LEAD): INIT not listed");
+    mine_add("TAGGED", 3);
+    black(B1);
+    black(B9);
+    shift_black(B8);
+    CHECK(A.per.lib[0].tags == (QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)), "MY preset: SHIFT + B8: FX too (BASS, FX)");
+    shift_black(B1);
+    shift_black(B9);
+    CHECK(A.ui.latch == QD_LATCH_BROWSE && A.ui.br.kind == 0 && A.ui.br.src == QD_BR_MINE &&
+              A.per.lib[0].tags == (QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)), "SHIFT + B1, B9: nothing (no snapshot, no "
+          "filter)");
+    bdown(SHIFT);
+    run(10);
+    l = leds();
+    CHECK(l.key[BK(B2)] == QD_LED_LIT && l.key[BK(B8)] == QD_LED_LIT && l.key[BK(B3)] == QD_LED_DIM,
+          "SHIFT held: the chosen's tags lit (BASS, FX)");
+    bup(SHIFT);
+    run(10);
+    btap(QD_B_HOME);
+}
+
+static void g_p15v_save(void)
+{
+    start();
+    run(600);
+    btap(QD_B_SAVE);
+    CHECK(A.ui.sv.replace < 0 && leds().button[F2] == QD_LED_OFF, "a factory sound: NEW only, F2 dark");
+    btap(F2);
+    CHECK(A.ui.sv.choice == 0 && A.ui.latch == QD_LATCH_SAVE, "F2: nothing");
+    btap(QD_B_SAVE);
+    run(600);
+    CHECK(A.per.lib[0].name[0] && !A.ui.latch, "SAVE: NEW");
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    A.model.t[0].edited = 1;
+    btap(QD_B_SAVE);
+    CHECK(A.ui.sv.replace == 0 && A.ui.sv.choice == 0 && leds().button[F2] == QD_LED_LIT, "from one of MY presets: "
+          "NEW chosen, F2 lit");
+    btap(F2);
+    btap(QD_B_SAVE);
+    run(600);
+    CHECK(!A.per.lib[1].name[0] && !A.ui.latch, "F2, SAVE: REPLACE (nothing new)");
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    A.model.t[0].edited = 1;
+    btap(QD_B_SAVE);
+    btap(F2);
+    btap(F2);
+    btap(QD_B_SAVE);
+    run(600);
+    CHECK(A.per.lib[1].name[0], "F2, F2, SAVE: NEW (%s)", A.per.lib[1].name);
+}
+
+static void g_p15v_picker(void)
+{
+    start();
+    run(600);
+    wtap(4);
+    whold(4);
+    turn(QD_K_PRESETS, 2);
+    CHECK(A.ui.tk == QD_TK_PRESET && A.ui.tk_hold && qd_view_overlay(&A), "a step held + PRESETS: the pool picker");
+    run(QD_TK_MS + QD_TK_FADE_MS + 800);
+    CHECK(A.ui.tk == QD_TK_PRESET && qd_view_overlay(&A), "still up while held (no time-out)");
+    wrel(4);
+    run(20);
+    CHECK(A.ui.tk == QD_TK_NONE && R(0, 4).sound == 2, "let go: closed, the choice kept (2)");
+    mode(M_SOUND);
+    whold(4);
+    turn(QD_K_PRESETS, 1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 300);
+    CHECK(A.ui.tk == QD_TK_PRESET && R(0, 4).sound == 3, "SOUND held: the picker too, up");
+    wrel(4);
+    run(20);
+    CHECK(A.ui.tk == QD_TK_NONE, "let go: closed");
+    mode(M_NOTE);
+    btap(QD_B_MUTE);                                    /* the step latch: a selection (the cursor's step) */
+    if (!A.ui.nheld)
+        wtap(4);
+    turn(QD_K_PRESETS, 1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 300);
+    CHECK(A.ui.slatch && A.ui.tk == QD_TK_PRESET, "the latch's selection + PRESETS: up while selected");
+    btap(QD_B_MUTE);
+    run(20);
+    CHECK(!A.ui.slatch && A.ui.tk == QD_TK_NONE, "the latch off (the selection cleared): closed");
 }
 
 int main(void)
@@ -5793,6 +5992,11 @@ int main(void)
         {"P1.5u: SAVE NEW and REPLACE with a typed name; HOME cancels", g_p15u_save},
         {"P1.5u: SHIFT is the signs: its shortcuts off while naming", g_p15u_shift},
         {"P1.5u: the LEDs: all 27 lit, the pressed one bright", g_p15u_leds},
+        {"P1.5v: DELETE?: armed, cancelled by any other key, deleted", g_p15v_delete},
+        {"P1.5v: B10 toggles the pool from ALL and MINE; OUT?", g_p15v_pool},
+        {"P1.5v: tags: SHIFT + B2..B8, the filters, the factory's", g_p15v_tags},
+        {"P1.5v: NEW / REPLACE: F2 chooses, SAVE does it", g_p15v_save},
+        {"P1.5v: a step + PRESETS: the picker up while held", g_p15v_picker},
         {"P1.5t: the browser's LEDs", g_p15t_leds},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };

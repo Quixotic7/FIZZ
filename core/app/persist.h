@@ -21,6 +21,7 @@
 
 #include "../store/store.h"
 #include "../seq/pattern.h"
+#include "../seq/sounds.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,18 +41,20 @@ struct qd_app;
 #define QD_FLASH_PRJ 0x020000u
 #define QD_FLASH_PRJ_SEC 224
 /* the keys: kind << 24 | project << 16 | index */
-enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB };
+enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB, QD_RK_FTAG };   /* (P1.5v: the factory tags) */
 #define QD_RKEY(kind, p, i) ((uint32_t)(kind) << 24 | (uint32_t)(p) << 16 | (uint32_t)(i))
 
 /* the things the app writes, each with a hash of its record as last written and as last seen, and when it changed */
 enum { QD_PI_SET, QD_PI_HDR, QD_PI_PAT, QD_PI_SND = QD_PI_PAT + QD_NPAT, QD_PI_LIB = QD_PI_SND + QD_NSOUND,
-       QD_PI_N = QD_PI_LIB + QD_NLIB };
+       QD_PI_FTAG = QD_PI_LIB + QD_NLIB, QD_PI_N };
 
 typedef struct {
     int on;                            /* a flash attached */
     qd_store_t lib_st, prj_st;
     qd_flash_t fl;
     qd_sound_t lib[QD_NLIB];           /* MY presets, the library's (name[0] 0: an empty place; .preset its own id) */
+    uint8_t ftags[QD_NFACTORY];        /* P1.5v: the factory presets' tags as the owner set them (0x80 | tags; 0: the
+                                        * classifier's) */
     char pname[QD_NPROJ][QD_PROJ_NAME];   /* the projects' names */
     uint8_t pexists[QD_NPROJ];
     int proj;                          /* the project worked on, 0..7 */
@@ -92,7 +95,8 @@ int qd_pool_add(struct qd_app *a, const char *name, const int16_t *patch);
 int qd_pool_add_sound(struct qd_app *a, const qd_sound_t *s);
 int qd_pool_find(const struct qd_app *a, const qd_sound_t *s);   /* P1.5t: the pool sound that is s (its preset, or its
                                                                   * name and patch), 0 none */
-int qd_pool_users_all(const struct qd_app *a, int k, uint8_t *tracks);   /* steps locking it in all patterns */
+int qd_pool_users_all(const struct qd_app *a, int k, uint8_t *tracks);   /* steps locking it in all patterns (tracks:
+                                                                         * the tracks playing it or locking it) */
 int qd_pool_swap(struct qd_app *a, int x, int y);
 int qd_pool_copy(struct qd_app *a, int from, int to);
 int qd_pool_delete(struct qd_app *a, int k);
@@ -102,6 +106,9 @@ int qd_pool_users(const struct qd_app *a, int k, uint8_t *tracks, int *steps);  
  * QD_SNDF_*), replace one (its id kept), delete; the first free place (-1 none); a place by its preset id (-1 none); a
  * preset by its id (factory or mine: 1 found) */
 int qd_lib_free_slot(const struct qd_app *a);
+void qd_factory_get(const struct qd_app *a, int k, qd_sound_t *out);   /* P1.5v: factory preset k with its tags */
+int qd_tags_set(struct qd_app *a, int code, int tags);   /* P1.5v: an entry's tags (the browser's code: factory k,
+                                                           * QD_BR_MINE_CODE + place, QD_BR_POOL_CODE + number); 1 done */
 int qd_lib_store(struct qd_app *a, int slot, const char *name, const int16_t *patch);
 int qd_lib_store_ex(struct qd_app *a, int slot, const char *name, const int16_t *patch, int flags);
 int qd_lib_replace(struct qd_app *a, int slot, const char *name, const int16_t *patch);

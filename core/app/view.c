@@ -778,7 +778,8 @@ static void pr_fill(const qd_app_t *a, const qd_sound_t *s, int mine, ui_preset_
     memset(p, 0, sizeof *p);
     p->ok = 1;
     p->name = s->name;
-    p->kind = s->kind < QD_NPK ? s->kind : qd_preset_kind(q);
+    p->tags = s->tags & QD_PK_MASK;
+    p->kind = qd_tags_first(p->tags) >= 0 ? qd_tags_first(p->tags) : qd_preset_kind(q);   /* (P1.5v: the first tag) */
     p->env[0] = (float)q[QD_QP_EATK] / 127.f * 0.6f;
     p->env[1] = (float)(q[QD_QP_EDEC] > 126 ? 126 : q[QD_QP_EDEC]) / 127.f * 0.7f;
     p->env[2] = (float)q[QD_QP_ESUS] / 127.f;
@@ -819,11 +820,24 @@ static void fill_browse(const qd_app_t *a, ui_browse_t *v)
             v->e[d + 2].imported = m >= 0 && (a->per.lib[m].flags & QD_SNDF_IMPORTED);
         }
     }
+    if (n && !v->pool)                                  /* P1.5v: the tray: B10 adds it (+) or takes it out */
+        v->e[2].tray = v->e[2].in_pool ? 2 : 1;
     if (v->pool && n)
         v->usteps = qd_pool_users_all(a, list[v->pos] - QD_BR_POOL_CODE, &v->users);
+    else if (n && b->out_armed)                         /* (OUT? from ALL / MINE: the pool's copy's users) */
+        v->usteps = qd_pool_users_all(a, qd_br_pool_k(a), &v->users);
+    v->users_row = v->pool || b->out_armed;
     v->out_armed = b->out_armed;
     v->del_armed = b->del_armed;
-    if (b->fx && a->ms - b->fx_ms < 900u) {
+    v->arm_t = (b->out_armed || b->del_armed) && b->arm_ms ? secs(a->ms - b->arm_ms) : 0.f;
+    v->tag_u = 1.f;
+    if (b->tag_ms && a->ms - b->tag_ms < 900u)
+        v->tag_k = b->tag_k, v->tag_on = b->tag_on, v->tag_u = (float)(a->ms - b->tag_ms) / 900.f;
+    if (b->fx == QD_BRFX_DEL && a->ms - b->fx_ms < 800u) {   /* P1.5v: a MY preset deleted: it breaks up */
+        v->fx = b->fx;
+        v->fx_u = (float)(a->ms - b->fx_ms) / 800.f;
+        pr_fill(a, &b->fx_snd, 1, &v->gone);
+    } else if (b->fx && b->fx != QD_BRFX_DEL && a->ms - b->fx_ms < 900u) {
         int k, c = 0;
         v->fx = b->fx;
         v->fx_u = (float)(a->ms - b->fx_ms) / 900.f;
@@ -917,6 +931,7 @@ static void fill_type(const qd_app_t *a, ui_type_t *v)
     if (save) {
         char nm[QD_SOUND_NAME];
         v->replace = a->ui.sv.replace >= 0;
+        v->choice = v->replace && a->ui.sv.choice;
         qd_type_trimmed(a, nm);
         v->newname = strcmp(nm, a->ui.sv.newname) ? a->ui.sv.newname : 0;
     } else {
@@ -1719,7 +1734,8 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         }
     } else if (u->tk != QD_TK_NONE) {                   /* the takeover, then 120 ms back */
         const uint32_t d = a->ms - u->tk_ms;
-        const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
+        const float al = d < QD_TK_MS || u->tk_hold ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;   /* (P1.5v:
+                                                         * the step's pool picker: while held) */
         if (al > 0.f) {
             overlay_begin(al);
             if (u->tk == QD_TK_LOADED || u->tk == QD_TK_BACK || u->tk == QD_TK_SAVED) {
