@@ -25,7 +25,7 @@ if (!OUT) { console.error("usage: node site/tools/assemble.mjs OUT [--salt S] [-
 const opt = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : null; };
 const SALT = opt("--salt"), FIZZ_VERSION = opt("--fizz-version");
 
-const ENTRIES = ["index.html", "guide.html", "fizz.wasm", "fizz.json", "css", "js", "worklet", "fonts", "remote", "engine/engine.js"];
+const ENTRIES = ["index.html", "guide.html", "dn2-wizard.html", "fizz.wasm", "fizz.json", "css", "js", "worklet", "fonts", "remote", "engine/engine.js"];
 const files = [];
 const walk = (rel) => {
   const p = path.join(SITE, rel);
