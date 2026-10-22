@@ -1677,3 +1677,11 @@ note 1), ALGORITHM no note; the default's VEL green; locks over a sound lock (th
 editor shows the layered values, a turn p-locks the step, never the pool); F2 + a knob unlocks (a step, or the whole
 track with nothing held; P-LOCK too) with an "unlocked" takeover. The default has no sound field, so nothing to mark.
 Open: the knob band covers NOTE's scale name while turning.
+
+**2026-10-22, P1.5c** (FMToneSeq 4c7bec8; FM1VST `core-quadrille` ee4d0ad, pushed; version 0.6.1-p1.5c; relaunched):
+undo / redo on SHIFT + F1 / F2 (8 levels, a gesture closes after 500 ms idle; XOR diffs of the pattern, pool and
+library, run-length coded in a 64 KB pool; ~180 KB of RAM in all: Phase 2 must shrink it); the one snapshot (SHIFT + B1
+store, B3 recall, RAM only); SHIFT's keys (B4 / B5 copy / paste the pattern, B6 tap tempo, B7 metronome with SHIFT + B7
++ a knob for its level, B9 double, B11 clear twice), only shortcut keys lit under SHIFT; randomise in the editor (B9
+dice = the page, B10 held 1.5 s champagne = the whole sound; playable ranges; a step held = p-locks). Limit: undoing a
+pool delete does not bring back its locks in other patterns.
