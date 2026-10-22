@@ -179,6 +179,7 @@ typedef struct {
     int flash_step[QD_PAT_NTRACK];
     int64_t flash_tick[QD_PAT_NTRACK];
     uint64_t flash_sample[QD_PAT_NTRACK];
+    int64_t flash_g[QD_PAT_NTRACK];     /* .. its step's grid tick (P1.5q: a chord's notes, a ratchet's hits: one step) */
     /* the queue */
     qd_sev_t ev[QD_SEQ_NEV];
     int nev;

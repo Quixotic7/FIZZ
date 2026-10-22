@@ -70,6 +70,7 @@ int render_p15j(const char *out);                       /* render_p15j.c: the ed
 int render_p15k(const char *out);                       /* render_p15k.c: the LFOs in the sound editor */
 int render_p15l(const char *out);                       /* render_p15l.c: the editor's black keys regrouped */
 int render_p15n(const char *out);                       /* render_p15n.c: the latch's octave, move-all, MIX on TONE */
+int render_p15q(const char *out);                       /* render_p15q.c: EDIT follows the step playing */
 int render_p15p(const char *out);                       /* render_p15p.c: the knob band clear of the heads */
 int render_p15c(const char *out);                       /* render_p15c.c: undo, SHIFT's keys, randomise */
 int render_p15o(const char *out);                       /* render_p15o.c: NOTE's knobs, locks over sound locks */                       /* render_p13u.c (was render_p13t.c): NOTE, EDIT's values */
@@ -226,7 +227,7 @@ int main(int argc, char **argv)
         if (!qd_init())
             return 1;
         qd_text_stats_reset();
-        failed = !strcmp(only, "p15p") ? render_p15p(out) : !strcmp(only, "p15c") ? render_p15c(out) : !strcmp(only, "p15o") ? render_p15o(out) : !strcmp(only, "p15n") ? render_p15n(out) : !strcmp(only, "p15l") ? render_p15l(out) : !strcmp(only, "p15k") ? render_p15k(out) : !strcmp(only, "p15j") ? render_p15j(out) : !strcmp(only, "p15i") ? render_p15i(out) : !strcmp(only, "p15h") ? render_p15h(out) : !strcmp(only, "p15g") ? render_p15g(out) : !strcmp(only, "p15f") ? render_p15f(out) : !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
+        failed = !strcmp(only, "p15q") ? render_p15q(out) : !strcmp(only, "p15p") ? render_p15p(out) : !strcmp(only, "p15c") ? render_p15c(out) : !strcmp(only, "p15o") ? render_p15o(out) : !strcmp(only, "p15n") ? render_p15n(out) : !strcmp(only, "p15l") ? render_p15l(out) : !strcmp(only, "p15k") ? render_p15k(out) : !strcmp(only, "p15j") ? render_p15j(out) : !strcmp(only, "p15i") ? render_p15i(out) : !strcmp(only, "p15h") ? render_p15h(out) : !strcmp(only, "p15g") ? render_p15g(out) : !strcmp(only, "p15f") ? render_p15f(out) : !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
                : !strcmp(only, "p14a") ? render_p14a(out) : 2;
         {
             const char *small = "";
@@ -437,6 +438,7 @@ int main(int argc, char **argv)
     failed |= render_p15o(out);                         /* P1.5o: NOTE's knobs, locks over sound locks */
     failed |= render_p15c(out);                         /* P1.5c: undo, SHIFT's keys, randomise */
     failed |= render_p15p(out);                         /* P1.5p: the knob band clear of the heads */
+    failed |= render_p15q(out);                         /* P1.5q: EDIT follows the step playing */
     {   /* P1.3v: the clarity guard over every frame rendered: no text under 11 px */
         const char *small = "";
         const float mn = qd_text_stats_min(&small);

@@ -122,6 +122,8 @@ void qd_ctl_init(qd_app_t *a)
     int i;
     memset(u, 0, sizeof *u);
     u->mode = QD_MODE_IDLE;            /* power-on: the idle screen (any key or button: the step view) */
+    u->fol_step = -1;
+    u->fol_g = -1;
     u->follow = 1;
     u->hmode = UI_F_NOTE;
     u->tk = QD_TK_NONE;
@@ -1746,6 +1748,17 @@ void qd_ctl_ms(qd_app_t *a)
             u->held_play_ms = a->ms;
             u->held_played = 1;
         }
+    }
+    if (!a->seq.playing || u->fol_t != a->sel) {         /* P1.5q: the step the selected track plays (EDIT follows it) */
+        u->fol_step = -1;
+        u->fol_g = -1;
+        u->fol_t = a->sel;
+    } else if (a->seq.flash_step[a->sel] >= 0 && a->seq.flash_sample[a->sel] <= a->seq.now &&
+               a->seq.flash_g[a->sel] != u->fol_g) {   /* (a new step: its first note heard; its other notes, its
+                                                         * ratchet's hits the same step) */
+        u->fol_g = a->seq.flash_g[a->sel];
+        u->fol_step = a->seq.flash_step[a->sel];
+        u->fol_ms = a->ms;
     }
     if (u->rec_live && !a->seq.playing)                 /* the transport stopped under live notes: they end */
         qd_rec_key(a, -1, 0, 0);

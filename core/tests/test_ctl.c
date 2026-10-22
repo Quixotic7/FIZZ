@@ -4929,6 +4929,115 @@ static void g_p15p_band(void)
     btap(QD_B_HOME);
 }
 
+/* P1.5q: EDIT follows the selected track's step as it plays (the head, the value; an empty step keeps the last, dimmed;
+ * micro-timing and the track's rate; a ratchet once a step; the latch, a held step, a stop, a takeover: back) */
+static ui_held_t fh;
+static ui_lane_t fl;
+static int follow_now(void)                             /* the step EDIT shows (1..), following; 0: not following */
+{
+    qd_view_edit(&A, &fh, &fl);
+    return fh.follow ? fh.step : 0;
+}
+static void g_p15q_follow(void)
+{
+    static const uint8_t CHA[3] = {60, 64, 67}, CHB[3] = {62, 65, 69};
+    static const int VEL[4] = {30, 60, 90, 120};
+    uint32_t t0 = 0, tch[8];
+    int i, ok, last, n, seen[8], vel_at[8], dim_ok, ndim, nupd;
+    start();
+    A.ui.view = QD_VIEW_EDIT;
+    qd_ctl_set_tempo(&A, 120);                          /* (16ths: 125 ms) */
+    for (i = 0; i < 4; i++) {
+        qd_step_set_trig(PAT(), 0, i, QD_TRIG_NOTE);
+        qd_step_set_vel(PAT(), 0, i, VEL[i]);
+    }
+    qd_step_set_trig(PAT(), 0, 5, QD_TRIG_NOTE);        /* step 6: half a step late */
+    qd_step_set_vel(PAT(), 0, 5, 50);
+    qd_step_set_micro(PAT(), 0, 5, 12);
+    qd_step_set_ratchet(PAT(), 0, 2, 4, 0);             /* step 3: four hits */
+    mode(M_VEL);
+    run(300);
+    CHECK(!follow_now() && fh.is_default, "stopped: EDIT as before (the track's default)");
+    btap(QD_B_PLAY);
+    for (n = 0, last = 0, dim_ok = 1, ndim = 0, nupd = 0, i = 0; i < 2000 + 2000; i++) {
+        const uint32_t fm = A.ui.fol_ms;
+        const int st = follow_now();
+        if (st != last && st && n < 8 && (i < 2000)) {
+            if (!n)
+                t0 = now;
+            seen[n] = st, vel_at[n] = fh.vel, tch[n] = now - t0, n++;
+        }
+        if (st == 4 && qd_seq_track_step(&A.seq, 0) == 4)   /* (the playhead on step 5, empty: step 4 kept, dimmed) */
+            dim_ok &= fh.dim && fh.vel == 120, ndim++;
+        else if (st)
+            dim_ok &= !fh.dim || qd_seq_track_step(&A.seq, 0) >= 6;
+        last = st;
+        run(1);
+        nupd += A.ui.fol_ms != fm;
+    }
+    ok = n >= 5 && seen[0] == 1 && seen[1] == 2 && seen[2] == 3 && seen[3] == 4 && seen[4] == 6;
+    CHECK(ok, "playing: EDIT shows steps 1 2 3 4 6 in turn (%d: %d %d %d %d %d)", n, seen[0], seen[1], seen[2], seen[3],
+          seen[4]);
+    ok = vel_at[0] == 30 && vel_at[1] == 60 && vel_at[2] == 90 && vel_at[3] == 120 && vel_at[4] == 50;
+    CHECK(ok, "the value each step's own (30 60 90 120 50)");
+    ok = tch[2] - tch[1] >= 122 && tch[2] - tch[1] <= 128 && tch[3] - tch[1] >= 247 && tch[3] - tch[1] <= 253;
+    CHECK(ok, "each at its play time (steps 2 to 3, 2 to 4: 125, 250 ms: %u %u)", tch[2] - tch[1], tch[3] - tch[1]);
+    CHECK(tch[4] - tch[1] >= 559 && tch[4] - tch[1] <= 566, "step 6, micro +12: half a step late (2 to 6: 562.5 ms: %u)",
+          tch[4] - tch[1]);
+    CHECK(dim_ok && ndim > 50, "step 5 empty: step 4 kept, dimmed (%d ms)", ndim);
+    CHECK(nupd == 10, "two loops: ten updates (step 3's four hits one; a step again on the next loop: again) (%d)", nupd);
+    {
+        int st = follow_now();                          /* the head: "STEP n" from the step shown */
+        CHECK(st >= 1 && fh.step == st && !fh.is_default && !fh.nheld, "the head: STEP %d", st);
+    }
+    btap(LFO);                                          /* the latch: back */
+    ok = !follow_now() && qd_view_edit_follows(&A) < 0;
+    btap(LFO);
+    run(300);
+    ok &= follow_now() > 0;
+    whold(9);                                           /* a step held: that step */
+    ok &= !follow_now() && fh.step == 10;
+    wrel(9);
+    run(300);
+    ok &= follow_now() > 0;
+    CHECK(ok, "the latch on, a step held: not following (the held step); off, let go: following again");
+    turn(QD_K_1, 1);                                    /* a knob, nothing held: its takeover (VEL's default), then
+                                                         * following */
+    ok = A.ui.tk != QD_TK_NONE && !follow_now();
+    run(QD_TK_MS + QD_TK_FADE_MS + 300);
+    ok &= follow_now() > 0;
+    CHECK(ok, "a knob's takeover: not following while it shows, then again");
+    btap(QD_B_PLAY);
+    run(50);
+    CHECK(!follow_now() && fh.is_default, "stopped: back to the default");
+    start();                                            /* the track's rate: 1/8, a step 250 ms */
+    A.ui.view = QD_VIEW_EDIT;
+    qd_ctl_set_tempo(&A, 120);
+    qd_tset_set_rate(&PAT()->trk[0], qd_rate_make(3, QD_RTYPE_NORMAL));
+    qd_step_set_trig(PAT(), 0, 0, QD_TRIG_NOTE);
+    qd_step_set_trig(PAT(), 0, 1, QD_TRIG_NOTE);
+    qd_step_set_trig(PAT(), 0, 2, QD_TRIG_NOTE);
+    qd_step_set_notes(PAT(), 0, 0, CHA, 3);
+    qd_step_set_notes(PAT(), 0, 1, CHB, 3);
+    qd_step_set_notes(PAT(), 0, 2, CHA, 3);
+    mode(M_NOTE);
+    btap(QD_B_PLAY);
+    for (n = 0, last = 0, i = 0; i < 900; i++) {
+        const int st = follow_now();
+        if (st != last && st && n < 8) {
+            if (!n)
+                t0 = now;
+            seen[n] = st, vel_at[n] = fh.note[1], tch[n] = now - t0, n++;
+        }
+        last = st;
+        run(1);
+    }
+    ok = n >= 3 && seen[0] == 1 && seen[1] == 2 && seen[2] == 3 && vel_at[0] == 64 && vel_at[1] == 65 && vel_at[2] == 64 &&
+         tch[2] - tch[1] >= 247 && tch[2] - tch[1] <= 253;
+    CHECK(ok, "NOTE, the track at 1/8: C E G, D F A, C E G, a step 250 ms (%u)", n >= 3 ? tch[2] - tch[1] : 0);
+    btap(QD_B_PLAY);
+}
+
 int main(void)
 {
     static const struct {
@@ -5003,6 +5112,7 @@ int main(void)
         {"P1.5c: SHIFT's keys: snapshot, tap, click, double, clear", g_p15c_shift},
         {"P1.5c: randomise: the dice, the bottle, the rules", g_p15c_random},
         {"P1.5p: the knob band clear of every held screen's head", g_p15p_band},
+        {"P1.5q: EDIT follows the step playing", g_p15q_follow},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

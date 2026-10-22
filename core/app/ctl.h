@@ -319,6 +319,9 @@ typedef struct {
     uint32_t held_play_ms;             /* the held step last played (the mallet strikes, the reels turn) */
     int held_played;                   /* .. it has, since it was held */
     uint64_t flash_seen;               /* the selected track's last trig seen (the sequencer's flash_sample) */
+    int fol_step, fol_t;               /* P1.5q: the selected track's step last played (-1: none since PLAY), its track .. */
+    int64_t fol_g;                     /* .. its grid tick (one step: its notes, its hits) .. */
+    uint32_t fol_ms;                   /* .. when it played (heard: its micro-timing, the track's rate in it) */
     /* NOTE entry (Form's "pressed") and SOUND's banks */
     int entry_oct;                     /* the octave B1's degree starts at */
     uint16_t note_keys;                /* bit b: B(b+1) is down as a note key */

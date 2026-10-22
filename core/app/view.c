@@ -278,11 +278,11 @@ static const char *cond_text(int c)
 }
 
 /* the screen of mode m for step s (is_default: the track's default, s ignored: a step with no overrides) */
-static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
+static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
 {
     static char scale_buf[24];
     const qd_ui_t *u = &a->ui;
-    const int t = a->sel, s = is_default ? -1 : u->held[0], m = u->hmode;
+    const int t = a->sel, s = is_default ? -1 : s_at, m = u->hmode;
     const qd_pattern_t *P = qd_ctl_cpat(a);
     const qd_tset_t *ts = &P->trk[t];
     const qd_step_t *st = qd_step(P, t, s < 0 ? 0 : s);
@@ -426,6 +426,7 @@ static void fill_held(qd_app_t *a, ui_held_t *v, int is_default)
     }
     (void)st;
 }
+static void fill_held(qd_app_t *a, ui_held_t *v, int is_default) { fill_held_at(a, v, is_default, a->ui.held[0]); }
 
 /* ---------------------------------------------------------------- the layer maps, SHIFT's map --- */
 static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
@@ -1066,13 +1067,52 @@ int qd_view_screen(const qd_app_t *a)
 
 /* P1.3r: the EDIT view's models: the page's row (as STEPS'), and the mode's picture: the step held / selected, else
  * (nothing held, or a mode key held) the track's default */
+/* P1.5q (the owner: "while I am playing, the glyph updates to show the value of each step that it plays"): EDIT, playing,
+ * nothing held, the latch off, no mode key, no takeover, no menu: the picture is the selected track's step as it plays,
+ * changing when it is heard (its micro-timing, the track's rate); an empty step keeps the last, dimmed a little */
+int qd_view_edit_follows(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    if (!a->seq.playing || u->fol_step < 0 || u->fol_t != a->sel || u->view != QD_VIEW_EDIT || u->mode != QD_MODE_STEP ||
+        u->latch || u->slatch || u->nheld || u->wk_pending || qd_ctl_mkey(a) >= 0 || u->tk != QD_TK_NONE)
+        return -1;
+    return u->fol_step;
+}
+
 void qd_view_edit(qd_app_t *a, ui_held_t *h, ui_lane_t *l)
 {
     static char pat[4];
     const qd_ui_t *u = &a->ui;
     const int mk = qd_ctl_mkey_shown(a);
     const int preset = u->tk == QD_TK_PRESET && a->ms - u->tk_ms < QD_TK_MS + QD_TK_FADE_MS;
+    const int fs = qd_view_edit_follows(a);
     fill_lane(a, l, pat);
+    if (fs >= 0) {                                      /* P1.5q: the step playing */
+        const qd_pattern_t *P = qd_ctl_cpat(a);
+        const qd_tset_t *ts = &P->trk[a->sel];
+        const qd_step_t *st = qd_step(P, a->sel, fs);
+        const float step_s = (float)qd_rate_ticks(qd_tset_rate(ts)) / (float)QD_TPS * 15.f /
+                             (float)(a->bpm > 0 ? a->bpm : 120);
+        const int ph = qd_seq_track_step(&a->seq, a->sel);
+        float k;
+        qd_rstep_t r;
+        fill_held_at(a, h, 0, fs);
+        h->nheld = 0;
+        h->follow = 1;
+        h->play = secs(a->ms - u->fol_ms);              /* (each picture's "the step plays": the kick, the reels ..) */
+        h->squeeze = h->play;                           /* (the chord's name squeezes in) */
+        k = h->play / (step_s > 0.f ? step_s : 0.125f);
+        h->ball = k > 0.999f ? 0.999f : k;              /* (the ball in, then along its bounces, within the step) */
+        h->walk = (float)h->micro + k * 24.f;           /* (MICRO's playhead from the flag on, at the step's pace) */
+        h->ovr = u->hmode == UI_F_FUNC ? st->func != 0
+               : u->hmode == UI_F_MICRO ? qd_step_overrides(st, QD_PM_MICRO) || qd_step_overrides(st, QD_PM_STRUM)
+               : u->hmode == UI_F_PLOCK ? (st->flags & QD_SF_LOCKS) != 0 : qd_step_overrides(st, mode_pm(u->hmode));
+        if (ph >= 0 && ph != fs) {
+            qd_step_resolve(P, a->sel, ph, &r);
+            h->dim = !r.on;                             /* (the playhead on an empty step: the last step, dimmed) */
+        }
+        return;
+    }
     fill_held(a, h, !u->nheld || mk || (preset && !u->tk_lock));
     if (!mk)
         h->reset = 0;

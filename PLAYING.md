@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5p)
+# Playing FIZZ (P1.5q)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -55,6 +55,14 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   right). Every edit moves both at once (the cell's fill rises as the value changes); no knob pop-up covers it.
   Holding, the step latch and the cursor all stay in EDIT. Turning **PRESETS** shows the sound picture in the top
   while you turn (with a finger on a step: that step's sound lock).
+- **EDIT follows the music** (P1.5q): while playing, with nothing held, the step latch off, no mode key held and no
+  pop-up, the top shows **the selected track's step as it plays**: its head ("STEP 7 · VEL"), its value and its
+  picture (the chord, the rider at that velocity, the bar, the flag, the ball, the cassette ..), each with its own
+  "it plays" moment (the rider's kick, the chord's name squeezing in, the ball bouncing through the step). It changes
+  when you hear the step, so a step with micro-timing changes late by that much, and a slow track (1/8 ..) changes
+  at its pace; a ratchet changes it once. An empty step keeps the last one played, dimmed a little. Stop, turn the
+  latch on (or the cursor), or hold a step and it shows that step again as before; a knob's pop-up shows as before
+  and following comes back after it.
 - **The knobs with no finger on a step** (nothing held, or the step latch's selection), in every view, layout **A**
   (the global settings can switch layouts, see below):
   - **ALGORITHM = the step cursor**: it turns the step latch on and moves its one selected step through all eight

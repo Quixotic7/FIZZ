@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' P1.5o part: NOTE's knobs (SELECT the chord, its shape kept and stopped at the end; KNOB 1 collapsed
- * into note 1), a step's sound lock under its p-locks in the editor, F2 + a knob's "unlocked", the default's VEL
- * green; into OUT/p15c-*.png and OUT/p15c-sheet.png */
+/* render_frames' P1.5c part: randomise's dice and champagne bottle at a few moments, UNDO / REDO's takeovers with
+ * their glyphs, SHIFT's map with its key strip and LEDs, the snapshot, tap tempo, the click, double and clear; into
+ * OUT/p15c-*.png and OUT/p15c-sheet.png */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

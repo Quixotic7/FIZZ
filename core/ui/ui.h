@@ -434,6 +434,8 @@ typedef struct {
     int jump_page, jump_step;
     uint8_t jump_trig[16];
     int bank;                           /* the bank of ten on the keys (0: 1..10) */
+    int follow;                         /* P1.5q: EDIT follows the step playing (nothing held, the latch off) .. */
+    int dim;                            /* .. the playhead on an empty step: the last step played, dimmed a little */
     int band;                           /* P1.5p: the knob band is over the head (y 0..41): what the body draws there
                                          * (NOTE's scale, VEL's value and ramp) is left out while it shows */
 } ui_held_t;
@@ -443,6 +445,7 @@ void ui_held_draw(const ui_held_t *v);
 void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane);
 struct qd_app;
 void qd_view_edit(struct qd_app *a, ui_held_t *h, ui_lane_t *l);   /* (view.c) its models, as its frame fills them */
+int qd_view_edit_follows(const struct qd_app *a);   /* P1.5q: EDIT shows the step playing (the step, else -1) */
 
 /* ---- the layer maps (§8b: while F1, F2 or F3 is held the screen is that layer's map, so it explains itself) */
 typedef struct {

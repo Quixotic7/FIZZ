@@ -919,8 +919,9 @@ static int held_head(const ui_held_t *v, pal_t *p)
     p->empty = v->type == 0 && field != UI_F_TRIG && !v->is_default;
     p->k[0] = p->empty ? UI_G2 : v->is_default ? (field == UI_F_VEL ? UI_MODE_COL[UI_F_VEL] : UI_TRACK_COL)
             : lit ? UI_MODE_COL[field] : DEF_COL;           /* (P1.5o: the default's VEL value green, as a step's) */
-    if (!v->is_default)                                 /* P1.5d (the frames the other way round): a held step (or the
-                                                         * latch's selection) has the frame, a track's default none */
+    if (!v->is_default && !v->follow)                   /* P1.5d (the frames the other way round): a held step (or the
+                                                         * latch's selection) has the frame, a track's default none
+                                                         * (P1.5q: nor the step playing, followed: none held) */
         ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
     p->k[1] = p->empty ? UI_G2 : UI_MODE_COL[other_mode(field)];
     p->wh = p->empty ? UI_G1 : UI_K3;
@@ -1060,6 +1061,9 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
     val[0] = sub[0] = 0;
     qd_save();
     qd_clip_rect(0.f, ED_TOP - 4.f, 240.f, ED_BOT - ED_TOP + 4.f);   /* (nothing spills onto the row) */
+    if (v->dim)                                         /* P1.5q: following, the playhead on an empty step: the last
+                                                         * step played, dimmed a little */
+        qd_alpha(qd_get_alpha() * 0.6f);
     switch (field) {
     case UI_F_NOTE:                                     /* the keybed full width, the note line over it */
         if (v->scale_name && v->scale_name[0])

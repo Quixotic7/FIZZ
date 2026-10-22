@@ -600,6 +600,7 @@ static void start_at(qd_seq_t *s, int pat)
         s->inf_n[t] = 0;
         s->tie_pending[t] = 0;
         s->flash_step[t] = -1;
+        s->flash_g[t] = -1;
         s->skip_n[t] = 0;
     }
     if (!s->ext)
@@ -858,6 +859,7 @@ static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq
         s->flash_step[t] = e->step;
         s->flash_tick[t] = e->tick;
         s->flash_sample[t] = o.sample;
+        s->flash_g[t] = e->g;
         if (e->gate >= 0) {
             push_off(s, t, e->note, o.serial, e->tick + (e->gate > 0 ? e->gate : 1), e->g, e->origin, e->step, e->hit);
         } else if (s->inf_n[t] < QD_NNOTE * 8) {
