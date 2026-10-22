@@ -1685,3 +1685,7 @@ store, B3 recall, RAM only); SHIFT's keys (B4 / B5 copy / paste the pattern, B6 
 + a knob for its level, B9 double, B11 clear twice), only shortcut keys lit under SHIFT; randomise in the editor (B9
 dice = the page, B10 held 1.5 s champagne = the whole sound; playable ranges; a step held = p-locks). Limit: undoing a
 pool delete does not bring back its locks in other patterns.
+
+**2026-10-22, P1.5p** (FMToneSeq 802b91e; FM1VST `core-quadrille` 2aeb073, pushed; version 0.6.2-p1.5p; relaunched): the
+knob band no longer covers a held screen's head: while it shows, NOTE's scale name and VEL's big value and ticks step
+aside (`ui_held_t.band`); a test checks the band's edge on every hold mode in both views.
