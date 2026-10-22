@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="fizz-build" content="dev">
+<link rel="icon" href="data:,">
+<title>Digitone II harvest · FIZZ</title>
+<style>
+  :root { --bg: #f6f4ef; --fg: #1d1b18; --muted: #6b665d; --card: #fff; --line: #e2ddd3; --acc: #ff6a2c; --ok: #1a9c5a; --bad: #c8372d; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15140f; --fg: #eeeae2; --muted: #a39d92; --card: #1f1d18; --line: #34312a; --ok: #3ccf86; --bad: #ff6b5e; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 28px; margin: 8px 0 4px; } h2 { font-size: 20px; margin: 0 0 10px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 14px; margin: 0 0 16px; }
+  ol, ul { padding-left: 22px; margin: 6px 0 10px; } li { margin: 3px 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 8px 0; }
+  label { font-size: 14px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  select { font: inherit; font-size: 15px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); max-width: 100%; }
+  button, .btn { font: inherit; font-weight: 600; font-size: 15px; padding: 8px 16px; border-radius: 10px; border: 0; background: var(--acc); color: #fff; cursor: pointer; text-decoration: none; display: inline-block; }
+  button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+  button:disabled { opacity: .4; cursor: default; }
+  .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; }
+  .meter { position: relative; width: 220px; height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; }
+  #meter-bar { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--ok), #f5c400 80%, var(--bad)); }
+  .progress { height: 14px; background: var(--line); border-radius: 7px; overflow: hidden; margin: 10px 0 6px; }
+  #bar { height: 100%; width: 0; background: var(--acc); transition: width .2s; }
+  #items li.person { color: var(--muted); } .tag { font-size: 12px; margin-left: 8px; padding: 1px 7px; border-radius: 6px; background: var(--line); color: var(--fg); }
+  #ask { border: 2px solid var(--acc); border-radius: 10px; padding: 12px 14px; margin: 12px 0; }
+  #ask-text { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
+  pre#log { max-height: 220px; overflow: auto; font-size: 12px; background: var(--bg); padding: 8px; border-radius: 8px; white-space: pre-wrap; }
+  .note { font-size: 14px; color: var(--muted); }
+  #now { font-weight: 600; font-size: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Digitone II harvest</h1>
+  <p class="sub">FIZZ, the FM sequencer for the M-VAVE FM-1, can load Digitone II presets. A few of their settings can only be learned from a real Digitone II. This page asks yours, mostly by itself, in about 20 minutes, and makes a zip for you to send us. Thank you! <span class="note" id="version"></span></p>
+
+  <section>
+    <h2>1. Before you start</h2>
+    <ol>
+      <li>Use <b>Chrome or Edge</b> on a computer, with the Digitone II connected by <b>USB</b>.</li>
+      <li>On the Digitone II, start a <b>new, empty project</b>. Pick a track (track 1 is fine) and give it an <b>INIT FM TONE</b> sound.</li>
+      <li><b>Stop the sequencer</b>, and make sure <b>live recording is off</b>. Otherwise every change would be recorded into the pattern.</li>
+      <li>In <b>SETTINGS &gt; MIDI CONFIG</b>, let USB <b>receive notes and CC/NRPN</b>. Check which MIDI channel the track listens on (by default, track 1 is channel 1).</li>
+      <li>To record the audio, the Digitone II's <b>USB audio</b> must reach the computer. Its USB audio input appears in the list below.</li>
+    </ol>
+    <p class="note">The wizard only changes that one track's sound and <b>never saves anything</b>. When it is done, load another project without saving, or reload this one.</p>
+  </section>
+
+  <section>
+    <h2>2. Connect</h2>
+    <div class="row"><button id="connect">Connect MIDI</button><span id="midi-state" class="note">not connected</span></div>
+    <div class="row">
+      <label>MIDI in <select id="midi-in"></select></label>
+      <label>MIDI out <select id="midi-out"></select></label>
+    </div>
+    <div class="row">
+      <label>Track <select id="track"></select></label>
+      <label>its MIDI channel <select id="channel"></select></label>
+      <label>Pattern on screen <select id="pattern"></select></label>
+    </div>
+    <div class="row">
+      <button class="ghost" id="audio-list">List audio inputs</button>
+      <label>Audio in <select id="audio-in"></select></label>
+      <button class="ghost" id="audio-open">Use it</button>
+      <span id="audio-state" class="note">no audio yet</span>
+    </div>
+    <div class="row"><span class="note">Level (play a note on the Digitone):</span><div class="meter"><div id="meter-bar"></div></div><span id="meter-db" class="note"></span></div>
+    <div class="row"><button id="check" disabled>Check the Digitone II</button><span id="check-out" class="note"></span></div>
+  </section>
+
+  <section id="plan-box" hidden>
+    <h2>3. What it will do</h2>
+    <ul id="items"></ul>
+    <label><input type="checkbox" id="person" checked> Include the steps that need me: switching the filter machine, the modulation menus, the octave, the other machines. I will be asked, one at a time.</label>
+    <p id="plan-sum"></p>
+    <p><b>Exactly what it sends to the Digitone II:</b></p>
+    <ul id="sends" class="note"></ul>
+    <label><input type="checkbox" id="agree"> I understand: this changes the chosen track's sound, plays short notes, and saves nothing.</label>
+    <div class="row"><button id="start" disabled>Start</button></div>
+  </section>
+
+  <section id="run-box" hidden>
+    <h2>4. Running</h2>
+    <div id="now"></div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="row"><span id="count" class="note"></span><span id="eta" class="note"></span></div>
+    <div id="ask" hidden><p id="ask-text"></p><button id="ask-go">Done, continue</button> <button class="ghost" id="ask-skip">Skip this</button></div>
+    <div class="row"><button class="ghost" id="pause" disabled>Pause</button><button class="ghost" id="resume" disabled>Resume</button><button class="ghost" id="stop" disabled>Stop</button></div>
+    <p class="note">Leave the Digitone II alone while this runs, unless the wizard asks you to do something. If the cable comes out, plug it back in, choose the ports again, then Resume: nothing is lost.</p>
+  </section>
+
+  <section id="results" hidden>
+    <h2>5. Send it to us</h2>
+    <p><a class="btn" id="download" href="#">Download the results</a></p>
+    <p>Send this zip to <b>the FIZZ Discord</b> (or to: <b>[the owner's address here]</b>). It holds the Digitone II's answers, the short recordings and a log; nothing personal.</p>
+    <p class="note">Now load another project on the Digitone II without saving, or reload this one: your track's sound goes back to what it was.</p>
+  </section>
+
+  <details><summary class="note">Log</summary><pre id="log"></pre></details>
+</main>
+<script type="module" src="js/dn2wizard/main.js"></script>
+</body>
+</html>
