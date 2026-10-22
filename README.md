@@ -8,6 +8,8 @@ and end, conditions, chance, ratchets and chords of up to six notes.
 through RemoteFM1: the keys, the knobs and the screen are the unit's, and the sound comes from the Mac. Phase 2 will be
 the FM-1 firmware itself.
 
+- **[Play the preview in the browser](https://quixotic7.github.io/FIZZ/)** (the on-screen FM-1, or your own FM-1 with
+  RemoteFM1), and send feedback from there. The site is [site/](site/README.md).
 - **[PLAN.md](PLAN.md)**: the design, the controls (§8b) and the build log (§13).
 - **[PLAYING.md](PLAYING.md)**: how to play it, organised by "how do I ...".
 

@@ -1,0 +1,49 @@
+name: Feedback on the FIZZ preview
+description: You played FIZZ (in the browser or with your FM-1). Tell us how it felt.
+title: "[Feedback] "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying FIZZ! A few honest sentences help more than a long list. Screenshots or a short video are welcome too (drag them into any box).
+  - type: textarea
+    id: tried
+    attributes:
+      label: What did you try?
+      description: What you set out to do, and roughly how (a beat, a chord progression, the sound editor, a Digitone sound ...).
+    validations:
+      required: true
+  - type: textarea
+    id: good
+    attributes:
+      label: What felt good?
+  - type: textarea
+    id: confusing
+    attributes:
+      label: What felt confusing or bad?
+      description: Where you got stuck, what you expected to happen, anything that sounded or looked wrong.
+    validations:
+      required: true
+  - type: dropdown
+    id: setup
+    attributes:
+      label: Setup
+      options:
+        - FM-1 with RemoteFM1
+        - On-screen panel (mouse, touch or computer keyboard)
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Filled in by the page's Feedback button; correct it if needed.
+      placeholder: Chrome 141 on macOS
+  - type: input
+    id: version
+    attributes:
+      label: FIZZ version
+      description: Filled in by the page's Feedback button (the version at the top of the page).
+      placeholder: 0.6.2-p1.5p

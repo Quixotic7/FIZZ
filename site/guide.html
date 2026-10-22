@@ -1,0 +1,170 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FIZZ guide</title>
+<meta name="description" content="Get playing FIZZ, the FM TONE step sequencer for the M-VAVE FM-1: the step view, holding a step and the black keys, the knobs, the sound editor, saving, and a key map.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Ccircle cx='13' cy='18' r='8' fill='none' stroke='%2328E1FF' stroke-width='2.5'/%3E%3Ccircle cx='23.5' cy='8.5' r='4' fill='none' stroke='%23FF3CA0' stroke-width='2.2'/%3E%3Ccircle cx='24' cy='22' r='2.4' fill='none' stroke='%23FFD23F' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preload" href="fonts/InterTight-VF-latin.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="css/guide.css">
+</head>
+<body>
+<header class="g-top">
+  <a class="logo" href="./" aria-label="FIZZ, the player">
+    <svg class="bubbles" viewBox="0 0 32 32" aria-hidden="true"><circle cx="13" cy="18" r="8"/><circle cx="23.5" cy="8.5" r="4"/><circle cx="24" cy="22" r="2.4"/></svg>
+    <b class="wordmark">FIZZ</b>
+  </a>
+  <span class="g-crumb">Guide <span class="ver" data-version></span></span>
+  <nav>
+    <a href="./" class="nav-link play">Play</a>
+    <a data-feedback class="nav-link feedback" href="https://github.com/Quixotic7/FIZZ/issues/new?template=feedback.yml" target="_blank" rel="noopener">Feedback</a>
+  </nav>
+</header>
+
+<main class="g-main">
+  <div class="g-hero">
+    <h1>Get playing FIZZ</h1>
+    <p class="lead">FIZZ is a step sequencer for FM TONE, ChoralRoot's FM voice, made for the M-VAVE FM-1: eight tracks sharing 16 voices, per-step locks, chance, conditions, ratchets and chords of up to six notes. This page is the short version; the <a href="https://github.com/Quixotic7/FIZZ/blob/master/PLAYING.md" target="_blank" rel="noopener">full player's guide</a> has every detail.</p>
+    <p class="preview-note"><i></i>A preview: the controls still change. Tell us what felt good and what didn't with <a data-feedback href="https://github.com/Quixotic7/FIZZ/issues/new?template=feedback.yml" target="_blank" rel="noopener">Feedback</a>.</p>
+    <nav class="toc" aria-label="On this page">
+      <a href="#start" style="--c:#28E1FF">Start</a><a href="#steps" style="--c:#3F7DFF">Steps</a><a href="#hold" style="--c:#1FD47E">Hold a step</a>
+      <a href="#knobs" style="--c:#FFD23F">The knobs</a><a href="#editor" style="--c:#FF6A2C">Sound editor</a><a href="#more" style="--c:#9664FF">Tracks and patterns</a>
+      <a href="#saving" style="--c:#F3D9A4">Saving</a><a href="#keys" style="--c:#FF3CA0">Key map</a>
+    </nav>
+  </div>
+
+  <section id="start" style="--c:#28E1FF">
+    <h2>Start</h2>
+    <ul>
+      <li><b>On screen:</b> click <b>Play FIZZ</b>. The FM-1 is drawn on the page: click or touch its keys and buttons, drag a knob up or down (or use the wheel). The computer keyboard plays it too (the <a href="#keys">key map</a>).</li>
+      <li><b>With your FM-1:</b> it needs <a href="https://quixotic7.github.io/RemoteFM1/installer/" target="_blank" rel="noopener">RemoteFM1</a>, installed from the browser in about a minute (any other firmware can go back on later). Then <b>Connect FM-1</b> in Chrome or Edge: its keys, knobs and screen become FIZZ's, and the sound comes from the computer.</li>
+      <li>FIZZ wakes on its bubbles screen. <b>Press anything</b> to get to the step view. <b>PLAY</b> starts and stops.</li>
+    </ul>
+    <div class="names">
+      <h3>Names used here</h3>
+      <dl>
+        <dt>F1 / F2</dt><dd>OCT− / OCT+</dd>
+        <dt>F3</dt><dd>OCT− and OCT+ together (or hold PLAY): tempo, speed, the page's start and end</dd>
+        <dt>SHIFT</dt><dd>GLO</dd>
+        <dt>W1 … W16</dt><dd>the white keys: the 16 steps of the page</dd>
+        <dt>B1 … B11</dt><dd>the black keys, left to right</dd>
+        <dt>held</dt><dd>down for 400 ms (a white key: 250 ms); shorter is a tap</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section id="steps" style="--c:#3F7DFF">
+    <h2>The step view</h2>
+    <ul>
+      <li><b>Tap a white key</b>: that step plays the track's note. Tap it again to remove it.</li>
+      <li>A new step plays the <b>track's defaults</b> (its notes, velocity, length…). Change a default and every step still using it follows.</li>
+      <li><b>SELECT</b> turns the page: a track has 8 pages of 16 steps.</li>
+      <li><b>HOME</b> always brings you back here, from anywhere. <b>SHIFT + HOME</b> cycles the three views: PIANO ROLL, STEPS and EDIT.</li>
+      <li>Colours tell you what a step plays: <span class="sw" style="--s:#FFF0D2">warm white</span> its own notes, <span class="sw" style="--s:#63C4D6">cyan</span> the track's, <span class="sw" style="--s:#A57CFF">violet</span> a lock with no note. While playing, a red marker walks the steps.</li>
+    </ul>
+  </section>
+
+  <section id="hold" style="--c:#1FD47E">
+    <h2>Hold a step, and the black keys</h2>
+    <ol>
+      <li><b>Pick what to edit</b> with a black key, nothing held:
+        <span class="modes"><b style="--m:#3F7DFF">B1 NOTE</b><b style="--m:#1FD47E">B2 VEL</b><b style="--m:#36D6E7">B3 LEN</b><b style="--m:#A879FF">B4 MICRO</b><b style="--m:#FF6A2C">B5 RATCH</b><b style="--m:#FFD23F">B6 CHNC</b><b style="--m:#FF52C0">B7 COND</b><b style="--m:#F1F0EA">B8 TRIG</b><b style="--m:#9FE6FF">B9 FUNC</b><b style="--m:#B5E853">B10 SOUND</b><b style="--m:#D8C39A">B11 P-LOCK</b></span>
+        The screen draws the page for that choice: steps with their own value in colour, the rest grey.</li>
+      <li><b>Hold the step's white key.</b> The screen shows that step with a magenta frame, and it plays (when stopped).</li>
+      <li><b>Turn SELECT or KNOB 1</b> for the value, or <b>press a black key B1 … B10</b> for one of ten values (VEL 13 … 127, LEN ¼ … ∞, chance 10 % … 100 % …).</li>
+      <li><b>B11</b> puts the step back on the track's default.</li>
+    </ol>
+    <ul>
+      <li><b>Chords:</b> in NOTE, hold a step and press black keys: the first replaces the note, more pressed together add to the chord (up to six). SELECT moves the whole chord; KNOB 1 … 4 move notes 2 … 5 each alone. F1 / F2 shift the ten keys an octave.</li>
+      <li><b>Several steps at once:</b> hold several white keys.</li>
+      <li><b>No holding:</b> <b>LFO</b> is the step latch: tap steps to select them, then edit as if held. LFO or HOME ends it.</li>
+      <li><b>A track's default:</b> hold the mode's black key and turn the knobs; B11 resets it.</li>
+      <li><b>P-LOCK (B11):</b> hold a step and turn KNOB 1 … 4 to lock FREQ, DECAY, HARM and FDBK on it.</li>
+    </ul>
+  </section>
+
+  <section id="knobs" style="--c:#FFD23F">
+    <h2>The knobs</h2>
+    <div class="knobs">
+      <div><b style="--k:#FFD23F">SELECT</b><span>the page · with a step held: its main value (NOTE: the chord)</span></div>
+      <div><b style="--k:#FF8FC8">ALGORITHM</b><span>the step cursor: it selects one step and walks through the pages</span></div>
+      <div><b style="--k:#28E1FF">PRESETS</b><span>the track's sound · with a step held: that step's sound</span></div>
+      <div><b style="--k:#3F7DFF">KNOB 1</b><b style="--k:#1FD47E">KNOB 2</b><b style="--k:#F1F0EA">KNOB 3</b><b style="--k:#FF6A2C">KNOB 4</b><span>the held step's values, or the track's defaults when nothing is held (KNOB 4 quietly, with no picture)</span></div>
+    </div>
+    <ul>
+      <li>The knobs <b>accelerate</b>: slowly one step a click, spun much faster. <b>SHIFT + a knob</b> is always the finest step.</li>
+      <li>Every knob turn shows its name and value in a band at the top of the screen.</li>
+    </ul>
+  </section>
+
+  <section id="editor" style="--c:#FF6A2C">
+    <h2>The sound editor</h2>
+    <ul>
+      <li><b>EDIT</b> opens it for the selected track; EDIT again, OCT− or HOME closes it.</li>
+      <li>The black keys are its groups; press one again for its next page, or turn <b>SELECT</b> through every page:
+        <span class="groups"><b>B1 TRIG / KEYS</b><b>B2 OPERATORS</b><b>B3 OP ENVELOPES</b><b>B4 FILTERS</b><b>B5 ENVELOPES</b><b>B6 · B7 · B8 LFO 1 · 2 · 3</b></span></li>
+      <li><b>KNOB 1 … 4</b> turn the four values along the bottom; ALGORITHM is the pink badge's (on RATIO: the algorithm).</li>
+      <li>Nothing held, a turn changes the track's sound (dark orange frame). <b>A step held</b>, every turn is a lock on that step (bright orange frame).</li>
+      <li><b>Hold an LFO key (B6 … B8) and turn any knob</b> to send that LFO to the value; turning sets the depth.</li>
+      <li><b>B9</b> rolls the dice for this page's values; <b>hold B10</b> until the cork pops for a whole new sound. <b>SHIFT + F1</b> undoes it.</li>
+      <li><b>REC</b> in the editor turns its keyboard on, to play while you tweak.</li>
+    </ul>
+  </section>
+
+  <section id="more" style="--c:#9664FF">
+    <h2>Tracks, patterns, tempo, the keyboard</h2>
+    <ul>
+      <li><b>Hold SEL</b>: the eight tracks. SEL + B1 … B8 selects one; SEL + tap W1 … W8 mutes, hold solos.</li>
+      <li><b>Hold SEQ</b>: the patterns. SEQ + B1 … B4 the bank, SEQ + W the pattern (it comes in at the end of the playing one).</li>
+      <li><b>F3</b> (both OCT keys, or hold PLAY): SELECT the tempo, ALGORITHM the swing, B1 … B7 the track's note value. OCT− closes it.</li>
+      <li><b>ENV</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter).</li>
+      <li><b>REC</b> makes the keybed a keyboard for the track; <b>hold REC</b> to record. <b>SHIFT + F1 / F2</b> undo and redo.</li>
+      <li><b>F1 + W</b> copies a step, then other steps pressed with F1 get it pasted.</li>
+    </ul>
+  </section>
+
+  <section id="saving" style="--c:#F3D9A4">
+    <h2>Saving</h2>
+    <ul>
+      <li><b>Nothing to save by hand.</b> FIZZ writes its project by itself a moment after your last change, while you play too. Here the page keeps FIZZ's flash in this browser, so your projects are back after a reload (give it two seconds after an edit).</li>
+      <li>Eight projects, each with 64 patterns and its own pool of 128 sounds; a library of 128 sounds is shared by every project.</li>
+      <li><b>SAVE</b> opens the sounds page with the selected track's sound ready to store in the library: <b>SAVE again</b> stores it. F2 then adds it to the project's pool.</li>
+      <li>In the page's settings (<b>⋯</b>): named saves of the whole flash, export and import, and <b>Start blank</b>.</li>
+      <li><b>Digitone sounds:</b> drop Elektron Digitone <code>.dnsnd</code> files on the player (or use its <b>Digitone sounds</b> button). They are converted in your browser, nothing is uploaded, and the page lists what could not come across exactly.</li>
+    </ul>
+  </section>
+
+  <section id="keys" class="keys" style="--c:#FF3CA0">
+    <h2>Key map</h2>
+    <p class="hint">FIZZ's name for every control, and the computer key that presses it.</p>
+    <div class="km-wrap" id="keymap"></div>
+  </section>
+
+  <section class="cta" style="--c:#28E1FF">
+    <h2>Tell us how it felt</h2>
+    <p>What did you try, what felt good, what was confusing? Each answer shapes the firmware FIZZ becomes.</p>
+    <p><a data-feedback class="big-btn" href="https://github.com/Quixotic7/FIZZ/issues/new?template=feedback.yml" target="_blank" rel="noopener">Give feedback</a> <a class="big-btn ghost" href="./">Back to playing</a></p>
+  </section>
+</main>
+<footer class="g-foot">
+  FIZZ is free software (GPL-3.0-only): <a href="https://github.com/Quixotic7/FIZZ" target="_blank" rel="noopener">source</a>. FM TONE and the effects from <a href="https://github.com/Quixotic7/ChoralRootFM1" target="_blank" rel="noopener">ChoralRoot FM-1</a>; the player and Connect FM-1 from <a href="https://github.com/Quixotic7/RemoteFM1" target="_blank" rel="noopener">RemoteFM1</a>. Inter Tight (<a href="fonts/OFL.txt">OFL 1.1</a>). "M-VAVE" and "FM-1" belong to their owners; not made or endorsed by M-VAVE.
+</footer>
+<script type="module">
+  import { keymapSvg } from "./js/keymap.js";
+  import { feedbackUrl } from "./js/feedback.js";
+  document.getElementById("keymap").innerHTML = keymapSvg();
+  const setLinks = (meta) => {
+    const url = feedbackUrl({ meta, ua: navigator.userAgent, platform: (navigator.userAgentData && navigator.userAgentData.platform) || "" });
+    for (const a of document.querySelectorAll("a[data-feedback]")) a.href = url;
+  };
+  setLinks(null);
+  fetch("fizz.json", { cache: "no-cache" }).then((r) => r.json()).then((meta) => {
+    for (const el of document.querySelectorAll("[data-version]")) el.textContent = meta.version;
+    setLinks(meta);
+  }).catch(() => {});
+</script>
+</body>
+</html>
