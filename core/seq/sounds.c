@@ -214,17 +214,17 @@ const char *qd_sound_kind_name(int k)
     return k >= 0 && k < QD_NSK ? N[k] : "SOUND";
 }
 
-void qd_sound_autoname(const int16_t *p, int variant, char *out)
+/* the adjectives that hold for the sound, the strongest first (a drum: of its body only), then the general ones; the
+ * kind's name in kind; their count */
+static int sound_adjectives(const int16_t *p, const char **cand, const char **kind)
 {
     static const char *const MORE[] = {"WARM", "DEEP", "CLEAR", "ROUND", "THIN", "BIG", "TINY", "DUST", "GLOW", "VELVET",
                                        "DRY", "RAW"};
-    const char *cand[24], *kind;
     const int k = qd_sound_kind(p);
     int n = 0, i;
     const int lp = p[QD_QP_FTYPE] == QD_QF_LP12 || p[QD_QP_FTYPE] == QD_QF_LP24;
     const int drum = k == QD_SK_KICK || k == QD_SK_SNARE || k == QD_SK_CLAP || k == QD_SK_HAT;
-    kind = k == QD_SK_HAT && p[QD_QP_EDEC] >= 24 ? "OPEN HAT" : qd_sound_kind_name(k);
-    /* the adjectives that hold, the strongest first (a drum: of its body only) */
+    *kind = k == QD_SK_HAT && p[QD_QP_EDEC] >= 24 ? "OPEN HAT" : qd_sound_kind_name(k);
     if (k == QD_SK_KICK)
         cand[n++] = "DEEP";
     if (lp && p[QD_QP_FREQ] < 8000)
@@ -251,23 +251,65 @@ void qd_sound_autoname(const int16_t *p, int variant, char *out)
         cand[n++] = "GLASS";
     for (i = 0; i < (int)(sizeof MORE / sizeof MORE[0]); i++)
         cand[n++] = MORE[i];
-    memset(out, 0, QD_SOUND_NAME);
-    {   /* variant v: the v-th of those that fit with the kind */
-        const char *fit[24];
-        int m = 0;
+    {   /* each once */
+        int m = 0, j;
         for (i = 0; i < n; i++) {
-            int j, dup = 0;
+            int dup = 0;
             for (j = 0; j < m; j++)
-                dup |= !strcmp(fit[j], cand[i]);
-            if (!dup && strlen(cand[i]) + 1 + strlen(kind) <= QD_SOUND_NAME - 1)
-                fit[m++] = cand[i];
+                dup |= !strcmp(cand[j], cand[i]);
+            if (!dup)
+                cand[m++] = cand[i];
         }
-        if (m) {
-            snprintf(out, QD_SOUND_NAME, "%s %s", fit[(variant < 0 ? 0 : variant) % m], kind);
-            return;
-        }
+        n = m;
+    }
+    return n;
+}
+
+void qd_sound_autoname(const int16_t *p, int variant, char *out)
+{
+    const char *cand[24], *fit[24], *kind;
+    const int n = sound_adjectives(p, cand, &kind);
+    int m = 0, i;
+    memset(out, 0, QD_SOUND_NAME);
+    for (i = 0; i < n; i++)                             /* variant v: the v-th of those that fit with the kind */
+        if (strlen(cand[i]) + 1 + strlen(kind) <= QD_SOUND_NAME - 1)
+            fit[m++] = cand[i];
+    if (m) {
+        snprintf(out, QD_SOUND_NAME, "%s %s", fit[(variant < 0 ? 0 : variant) % m], kind);
+        return;
     }
     snprintf(out, QD_SOUND_NAME, "%s", kind);
+}
+
+/* P1.5u: name ideas (PRESETS in SAVE PRESET): the best name first (qd_sound_autoname's), then the adjectives that
+ * hold paired with the kind's other words (a PLUCK: PING, TINE, HARP ..), each once, twelve letters at most */
+int qd_sound_ideas(const int16_t *p, char (*out)[QD_SOUND_NAME], int max)
+{
+    static const char *const NOUN[QD_NSK][4] = {
+        {"BASS", "SUB", "LOW", "BOTTOM"},  {"KEYS", "PIANO", "ORGAN", "KEY"},  {"PLUCK", "PING", "TINE", "HARP"},
+        {"BELL", "CHIME", "TINE", "DROP"}, {"PAD", "DRONE", "CLOUD", "HAZE"}, {"LEAD", "LINE", "SYNTH", "VOICE"},
+        {"KICK", "THUMP", "BOOM", "DRUM"}, {"SNARE", "SNAP", "CRACK", "RIM"}, {"CLAP", "SLAP", "HANDS", "SNAP"},
+        {"HAT", "TICK", "SHAKER", "SIZZLE"}, {"NOISE", "HISS", "WIND", "STATIC"}};
+    const char *cand[24], *kind;
+    const int na = sound_adjectives(p, cand, &kind), k = qd_sound_kind(p);
+    int n = 0, i, j;
+    if (max <= 0)
+        return 0;
+    qd_sound_autoname(p, 0, out[n++]);
+    for (i = 0; i < na * 4 && n < max; i++) {
+        const int w = (i + i / na) % 4;                 /* (the adjectives in turn, each with the next word) */
+        const char *adj = cand[i % na], *noun = w ? NOUN[k][w] : kind;   /* (an open hat stays OPEN HAT) */
+        char nm[32];
+        int dup = 0;
+        if (strlen(adj) + 1 + strlen(noun) > QD_SOUND_NAME - 1)
+            continue;
+        snprintf(nm, sizeof nm, "%s %s", adj, noun);
+        for (j = 0; j < n; j++)
+            dup |= !strcmp(out[j], nm);
+        if (!dup)
+            memcpy(out[n++], nm, QD_SOUND_NAME);
+    }
+    return n;
 }
 
 /* ---------------------------------------------------------------- P1.5t: the seven kinds */

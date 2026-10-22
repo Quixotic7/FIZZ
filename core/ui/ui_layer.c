@@ -710,4 +710,5 @@ void ui_menu_draw(const ui_menu_t *v)
 /* ---------------------------------------------------------------- P1.5a: the sounds page, names, the projects */
 #include <string.h>
 #include "ui_lib.c"
-#include "ui_presets.c"                                 /* P1.5t: the library browser, SAVE PRESET */
+#include "ui_presets.c"                                 /* P1.5t: the library browser */
+#include "ui_type.c"                                    /* P1.5u: the typewriter (SAVE PRESET, a project's name) */

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The name editor and the project pages (P1.5a; ui.h ui_name_t, ui_prj_t; P1.5t: the sounds page's grid is gone, the
+/* The project pages (P1.5a; ui.h ui_prj_t; P1.5u: the name editor is the typewriter's, ui_type.c; P1.5t: the sounds page's grid is gone, the
  * library browser is ui_presets.c), drawn as mockups/fizz-save-pool.html draws them: its positions, sizes, colours
  * and motions. Built through ui_layer.c (it
  * includes this file: its line2 and cat). PLAN §9a's clarity rules: names, numbers and the tabs' words; the rest is
@@ -85,46 +85,6 @@ void ui_import_draw(const char *name, int pool, int slot, float t)
     ui_T(pool ? "POOL" : "MY PRESETS", 120.f, 28.f, 12.f, 600, 1.f, col, QD_CENTER);   /* (P1.5t: MINE) */
     lb_cassette(30.f, 46.f + drop, 180.f, 110.f, &s, slot, col, t);
     ui_T("imported", 120.f, 196.f, 22.f, 300, 0.f, UI_K3, QD_CENTER);
-}
-
-void ui_name_draw(const ui_name_t *v)
-{
-    static const char AL[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -";
-    const float cw = 18.5f, x0 = 9.f, cx = x0 + (float)v->cur * cw + cw / 2.f;
-    const int len = (int)sizeof AL - 1;
-    const char *p = strchr(AL, v->buf[v->cur] ? v->buf[v->cur] : ' ');
-    const int li = p ? (int)(p - AL) : len - 2;
-    int k, d;
-    ui_T("NAME", 8.f, 17.f, 12.f, 600, 1.f, v->col, QD_LEFT);
-    lb_back();
-    line2(8.f, 25.f, 232.f, 25.f, UI_G3, 1.f);
-    for (k = 0; k < 12; k++) {                          /* the twelve cells */
-        const float x = x0 + (float)k * cw;
-        char ch[2] = {v->buf[k], 0};
-        line2(x + 2.f, 150.f, x + cw - 3.f, 150.f, k == v->cur ? UI_KSEL : UI_G2, k == v->cur ? 2.2f : 1.2f);
-        if (k != v->cur && ch[0] && ch[0] != ' ')
-            ui_T(ch, x + cw / 2.f, 144.f, 24.f, 300, 0.f, UI_K3, QD_CENTER);
-    }
-    qd_save();                                          /* the letter drum over the cursor */
-    qd_clip_rect(cx - 14.f, 40.f, 28.f, 112.f);
-    for (d = -3; d <= 3; d++) {
-        char ch[2] = {AL[((li + d) % len + len) % len], 0};
-        const float yy = 144.f + ((float)d + (1.f - lb_ease(v->roll)) * (float)v->roll_dir) * 34.f;   /* (a turn: the
-                                                         * drum rolls the new letter in) */
-        qd_save();
-        qd_alpha(d ? 0.35f : 1.f);
-        ui_T(ch[0] == ' ' ? "_" : ch, cx, yy, 24.f, d ? 300 : 400, 0.f, d ? UI_G1 : UI_KSEL, QD_CENTER);
-        qd_restore();
-    }
-    qd_restore();
-    ui_RR(cx - 14.f, 116.f, 28.f, 36.f, 4.f, UI_KSEL, 1.4f, QD_NONE);
-    {   /* the dice: B10 again, another name from the sound */
-        static const float PIP[5][2] = {{6, 6}, {12, 12}, {18, 18}, {18, 6}, {6, 18}};
-        const float dx = 200.f, dy = 192.f;
-        ui_RR(dx, dy, 24.f, 24.f, 4.f, v->col, 1.4f, QD_NONE);
-        for (k = 0; k < 5; k++)
-            ui_O(dx + PIP[k][0], dy + PIP[k][1], 1.6f, QD_NONE, 1.f, v->col);
-    }
 }
 
 /* ---------------------------------------------------------------- the project pages */

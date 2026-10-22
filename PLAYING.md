@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5t)
+# Playing FIZZ (P1.5u)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -651,15 +651,37 @@ They stay open (OCT− or HOME back). For now:
 ## How do I keep a sound? (SAVE: SAVE PRESET)
 
 - **SAVE** (from anywhere) opens **SAVE PRESET** for the selected track's sound, with a **name made from the sound**
-  (a sparkle marks it): PLUCK, PAD, BASS, KEYS, LEAD, KICK ... with BRIGHT, DARK, SOFT, WIDE ...
-- **B10** rolls another name (the dice). To name it yourself: **SELECT** turns the letter under the cursor,
-  **ALGORITHM** moves the cursor, **B11** deletes a letter (the name then shows as twelve big cells).
+  (a sparkle marks it), **selected** (a shaded band): PLUCK, PAD, BASS, KEYS, LEAD, KICK ... with BRIGHT, DARK, SOFT,
+  WIDE ... Name it on the keybed (below), or keep it.
 - **SAVE again** saves it as a **NEW** preset in MY PRESETS. When the sound came from one of MY presets, **F2 =
-  REPLACE** overwrites that preset instead; NEW is still there, under a new name ("DARK BASS 2"). Factory presets are
-  never replaced. **F1** cancels.
+  REPLACE** overwrites that preset instead (NEW and REPLACE show then; NEW is still there, under a new name such as
+  "DARK BASS 2" when the name is taken). Factory presets are never replaced. **HOME** cancels.
 - Saved: it drops into MY PRESETS ("SAVED"), and the track now plays that preset, no longer edited.
 - **SHIFT + F1** undoes a save.
 - The old sounds page (banks, the LIBRARY / POOL tabs, F1 / F2 / B11 + W) is gone: the browser does all of it.
+
+## How do I type a name? (P1.5u: the keybed is a typewriter)
+
+One keyboard for every name: SAVE PRESET's and a project's (B10 on the project page). The screen draws the keybed
+with a character on every key; the key you press glows there, and on the panel all 27 keys are lit (the one held
+bright).
+
+- **The black keys B1..B11 are A..K, the white keys W1..W16 are L..Z and SPACE** (reading order: the top row, then
+  the bottom row). A key types its letter at the cursor and moves the cursor on (it flies up into the name). Upper
+  case only; holding a key does not repeat; twelve characters (a key on a full name flashes the row orange and types
+  nothing).
+- **The suggested name starts selected**: SAVE right away keeps it; **the first key typed replaces it**.
+- **SHIFT held**: the black keys are **0..9 and -**, the white keys **. , ' & ! ? # + / ( ) \* : _ ~** and SPACE (the
+  screen's keybed changes with it). While a name is typed SHIFT is only this: SHIFT + a button does nothing else (no
+  snapshots, undo, settings or views), but **SHIFT + F1 clears** the name.
+- **PRESETS**: name ideas from the sound, a rolodex (BRIGHT PLUCK, WARM PING, DEEP TINE, CLEAR HARP ...): the one you
+  stop on is the name, selected again. For a project: a few word pairs (NIGHT BUS, SLOW TAPE ...), its own name first.
+- **ALGORITHM** moves the cursor (typing inserts there); **SELECT** turns the character under it (A..Z, 0..9, the
+  signs, SPACE; at the end of the name it adds one), to fix one letter without looking for its key.
+- **F1** deletes the character before the cursor (it drops away in orange; a selected name: all of it); **SHIFT +
+  F1** clears.
+- **SAVE** confirms (SAVE PRESET: saves NEW; F2 REPLACE where offered; a project: its name kept). **HOME** cancels
+  (SAVE PRESET: closed; a project's name: back to the project page, the old name kept).
 
 ### Sounds from a computer (P1.5r)
 
@@ -679,7 +701,7 @@ They stay open (OCT− or HOME back). For now:
 - **SELECT** or **SEQ again**: the **projects**, W1..W8 (the current one champagne). A W chooses one; **F2** loads it
   (an empty one starts a new project). **F1 + W** picks a project, **another W** copies it there (onto a project: that
   W turns orange, the same W again replaces it). **B11 + W** deletes one (the one you work on: a blank project in
-  its place). **B10** names the current project.
+  its place). **B10** names the current project (on the keybed, as above: SAVE keeps it, HOME the old one).
 - **F1** or **HOME** leaves.
 
 ## Not built yet

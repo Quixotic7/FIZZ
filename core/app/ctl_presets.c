@@ -12,12 +12,10 @@
  * MINE -> POOL), B10 + POOL (a library entry copied into the pool, not loaded; there already: the tray pulses; full:
  * it flashes orange) / - POOL (in the POOL source: out; a sound steps use is armed first, B10 again takes it out),
  * B11 deletes one of MY presets (twice).
- * SAVE PRESET (QD_LATCH_SAVE): SAVE. A name from the sound (the sparkle); B10 another (the dice); SELECT the letter
- * under the cursor, ALGORITHM the cursor, B11 deletes a letter (the twelve cells shown); SAVE again a NEW preset in
- * MY presets; F2 REPLACES the MY preset the sound came from (when it did); F1 cancels. Saved: the track plays that
- * preset (not edited). */
-
-static const char SV_AL[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -";
+ * SAVE PRESET (QD_LATCH_SAVE): SAVE. A name from the sound (the sparkle), selected, typed on the keybed (P1.5u:
+ * ctl_type.c's typewriter: the keys type, PRESETS name ideas, ALGORITHM the cursor, SELECT the character, F1
+ * deletes); SAVE again a NEW preset in MY presets; F2 REPLACES the MY preset the sound came from (when it did); HOME
+ * cancels. Saved: the track plays that preset (not edited). */
 
 /* ---------------------------------------------------------------- the list */
 int qd_br_list(const qd_app_t *a, int src, int kind, int *out)
@@ -396,26 +394,6 @@ void qd_br_leds(const qd_app_t *a, uint8_t *key)
 }
 
 /* ---------------------------------------------------------------- SAVE PRESET */
-static void sv_set_name(qd_saveui_t *v, const char *nm)
-{
-    int k;
-    memset(v->name, ' ', QD_SOUND_NAME - 1);
-    v->name[QD_SOUND_NAME - 1] = 0;
-    for (k = 0; k < QD_SOUND_NAME - 1 && nm[k]; k++)
-        v->name[k] = nm[k];
-}
-static void sv_trimmed(const qd_saveui_t *v, char *out)
-{
-    int e = QD_SOUND_NAME - 1, s = 0;
-    memcpy(out, v->name, QD_SOUND_NAME);
-    while (e > 0 && out[e - 1] == ' ')
-        e--;
-    out[e] = 0;
-    while (out[s] == ' ')
-        s++;
-    if (s)
-        memmove(out, out + s, (size_t)(e - s + 1));
-}
 /* a name no MY preset has: "DARK BASS" -> "DARK BASS 2" .. */
 static void sv_unique(const qd_app_t *a, const char *nm, char *out)
 {
@@ -440,7 +418,7 @@ static void sv_update_new(qd_app_t *a)
 {
     qd_saveui_t *v = &a->ui.sv;
     char nm[QD_SOUND_NAME];
-    sv_trimmed(v, nm);
+    qd_type_trimmed(a, nm);
     sv_unique(a, nm[0] ? nm : "SOUND", v->newname);
 }
 
@@ -461,18 +439,12 @@ void qd_sv_open(qd_app_t *a)
         qd_step_release_all(a);
     u->tk = QD_TK_NONE;
     qd_latch_open(a, QD_LATCH_SAVE);
-    v->variant = 0;
-    v->cur = 0;
-    v->naming = 0;
-    v->roll_ms = 0;
     v->replace = qd_lib_find(a, t->preset);             /* (from one of MY presets: F2 replaces it) */
     if (v->replace >= 0) {
-        sv_set_name(v, a->per.lib[v->replace].name);
-        v->spark = 0;
+        qd_type_start(a, a->per.lib[v->replace].name, 0);
     } else {
         qd_sound_autoname(t->patch, 0, nm);
-        sv_set_name(v, nm);
-        v->spark = 1;
+        qd_type_start(a, nm, 1);                        /* (P1.5u: selected: the first key typed replaces it) */
     }
     sv_update_new(a);
 }
@@ -512,64 +484,11 @@ void qd_sv_replace(qd_app_t *a)
     char nm[QD_SOUND_NAME];
     if (v->replace < 0 || !a->per.lib[v->replace].name[0])
         return;                                         /* (factory presets are never replaced) */
-    sv_trimmed(v, nm);
+    qd_type_trimmed(a, nm);
+    if (!nm[0])
+        snprintf(nm, sizeof nm, "%s", a->per.lib[v->replace].name);
     qd_lib_replace(a, v->replace, nm, a->model.t[a->sel].patch);
     sv_done(a, v->replace);
 }
 
-void qd_sv_key(qd_app_t *a, int b, int down)
-{
-    qd_saveui_t *v = &a->ui.sv;
-    int k;
-    if (!down)
-        return;
-    if (b == 9) {                                       /* another name from the sound (the dice) */
-        char nm[QD_SOUND_NAME];
-        v->variant++;
-        qd_sound_autoname(a->model.t[a->sel].patch, v->variant, nm);
-        sv_set_name(v, nm);
-        v->spark = 1;
-        v->cur = 0;
-        sv_update_new(a);
-    } else if (b == 10) {                               /* a letter deleted */
-        for (k = v->cur; k < QD_SOUND_NAME - 2; k++)
-            v->name[k] = v->name[k + 1];
-        v->name[QD_SOUND_NAME - 2] = ' ';
-        v->naming = 1;
-        v->spark = 0;
-        sv_update_new(a);
-    }
-}
-
-int qd_sv_knob(qd_app_t *a, int knob, int d)
-{
-    qd_saveui_t *v = &a->ui.sv;
-    if (knob == QD_K_SELECT) {                          /* the letter */
-        const char *p = strchr(SV_AL, v->name[v->cur]);
-        const int len = (int)sizeof SV_AL - 1;
-        int i = p ? (int)(p - SV_AL) : len - 2;
-        i = ((i + d) % len + len) % len;
-        v->name[v->cur] = SV_AL[i];
-        v->roll_ms = a->ms ? a->ms : 1u;
-        v->roll_dir = d > 0 ? 1 : -1;
-        v->naming = 1;
-        v->spark = 0;
-        sv_update_new(a);
-    } else if (knob == QD_K_ALGO) {                     /* the cursor */
-        v->cur = v->cur + d < 0 ? 0 : v->cur + d > QD_SOUND_NAME - 2 ? QD_SOUND_NAME - 2 : v->cur + d;
-        v->naming = 1;
-    }
-    return 1;
-}
-
-void qd_sv_leds(const qd_app_t *a, uint8_t *key)
-{
-    int i;
-    (void)a;
-    for (i = 0; i < 16; i++)
-        key[QD_WHITE_KEY[i]] = QD_LED_OFF;
-    for (i = 0; i < 11; i++)
-        key[QD_BLACK_KEY[i]] = QD_LED_OFF;
-    key[QD_BLACK_KEY[9]] = QD_LED_LIT;
-    key[QD_BLACK_KEY[10]] = QD_LED_DIM;
-}
+void qd_sv_leds(const qd_app_t *a, uint8_t *key) { qd_type_leds(a, key); }   /* (P1.5u: the typewriter's) */

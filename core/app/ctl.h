@@ -263,23 +263,39 @@ typedef struct {
     uint32_t move_ms;                  /* the last detent (its envelope lights along, the list rolls) .. */
     int move_dir;                      /* .. its direction */
 } qd_brui_t;
+/* P1.5u: the typewriter (ctl_type.c): one keyboard for every name. The black keys A..K, the white keys L..Z and
+ * SPACE (SHIFT: 0..9 -, . , ' & ! ? # + / ( ) * : _ ~ SPACE) */
+#define QD_TY_LEN (QD_SOUND_NAME - 1)  /* twelve characters */
+#define QD_TY_NIDEA 12                 /* PRESETS' name ideas */
+#define QD_TY_IDEA_MS 1200             /* the ideas' rolodex stays this long after a detent */
+#define QD_TY_HIT_MS 450               /* a key's glow (and its letter's flight) after the press */
+#define QD_TY_FULL_MS 600              /* full: the row flashes */
+#define QD_TY_DEL_MS 480               /* F1: the character drops away */
 typedef struct {
-    char name[QD_SOUND_NAME];          /* twelve cells (spaces), the end */
+    char name[QD_SOUND_NAME];          /* the name (a string: upper case, up to twelve) */
+    int cur;                           /* the cursor, 0..strlen (typing inserts there) */
+    int sel;                           /* the whole name selected (a suggestion): the first key replaces it */
     int spark;                         /* a name made from the sound (the sparkle) */
-    int variant, cur, naming;          /* B10's dice, the cursor, the cells shown (SELECT / ALGORITHM turned) */
+    int hit, hit_shift;                /* the key typed last (0..10 B1..B11, 11..26 W1..W16; -1 none), with SHIFT */
+    uint32_t hit_ms;                   /* .. when */
+    int fresh;                         /* the character it typed (its place; -1 none) */
+    uint32_t full_ms;                  /* a key on a full name (the row flashes orange) */
+    char del_ch;                       /* F1: the character deleted .. */
+    int del_at;                        /* .. its place .. */
+    uint32_t del_ms;                   /* .. and when (it drops away) */
+    uint32_t roll_ms;                  /* SELECT turned the character under the cursor */
+    char ideas[QD_TY_NIDEA][QD_SOUND_NAME];   /* PRESETS' ideas (made at the first detent) .. */
+    int nidea, idea;                   /* .. their count (0: not made yet), the one chosen (-1 none) */
+    uint32_t idea_ms;                  /* .. the last detent (the rolodex shows) */
+} qd_typer_t;
+typedef struct {
     int replace;                       /* the MY preset the track's sound came from (its place; -1 none): F2 replaces */
     char newname[QD_SOUND_NAME];       /* .. NEW then saves under this ("DARK BASS 2") */
-    uint32_t roll_ms;                  /* the letter drum turned (its roll) */
-    int roll_dir;
     int ret_mode;
 } qd_saveui_t;
 typedef struct {
-    char buf[QD_SOUND_NAME];           /* twelve cells (spaces), the end */
-    int cur, variant;
     int target, proj;                  /* 2: project proj (P1.5t: the only one; SAVE PRESET names its own) */
     int ret;                           /* the latch it came from */
-    uint32_t roll_ms;                  /* the letter drum turned (its roll) */
-    int roll_dir;
 } qd_nameui_t;
 typedef struct {
     int page;                          /* 0 the project, 1 the projects */
@@ -416,6 +432,7 @@ typedef struct {
     uint32_t knob_dt;                  /* .. the time since it for the turn now (QD_ACC_SLOW_MS and up: none) */
     qd_brui_t br;                      /* P1.5t: the library browser */
     qd_saveui_t sv;                    /* .. SAVE PRESET */
+    qd_typer_t ty;                     /* P1.5u: the typewriter (SAVE PRESET's name, a project's) */
     qd_sound_t tk_snd, tk_snd2;        /* .. the takeovers' sounds (LOADED: the preset; BACK: the own, the one left) */
     qd_nameui_t nm;                    /* P1.5a: the name editor (a project's) */
     qd_prjui_t pj;                     /* .. the project pages */
@@ -596,9 +613,16 @@ void qd_br_leds(const struct qd_app *a, uint8_t *key);
 void qd_sv_open(struct qd_app *a);               /* SAVE: SAVE PRESET (again: saved as NEW) */
 void qd_sv_new(struct qd_app *a);
 void qd_sv_replace(struct qd_app *a);
-void qd_sv_key(struct qd_app *a, int b, int down);
-int qd_sv_knob(struct qd_app *a, int knob, int d);
 void qd_sv_leds(const struct qd_app *a, uint8_t *key);
+/* ---- ctl_type.c (P1.5u): the typewriter, one keyboard for every name (SAVE PRESET, a project's name) */
+int qd_type_open(const struct qd_app *a);        /* a name being typed (SAVE PRESET, the name editor) */
+char qd_type_char(int white, int idx, int shift);   /* the character of black key idx (0..10) / white key idx (0..15) */
+void qd_type_start(struct qd_app *a, const char *name, int spark);   /* a suggested name, selected */
+void qd_type_key(struct qd_app *a, int white, int idx, int down);   /* a key typed (the press; SHIFT: the signs) */
+int qd_type_knob(struct qd_app *a, int knob, int d);   /* ALGORITHM the cursor, SELECT the character, PRESETS ideas */
+int qd_type_button(struct qd_app *a, int button, int down);   /* F1 delete (SHIFT: clear), F2, SAVE, HOME; 1 taken */
+void qd_type_trimmed(const struct qd_app *a, char *out);   /* the name, spaces trimmed (QD_SOUND_NAME bytes) */
+void qd_type_leds(const struct qd_app *a, uint8_t *key);
 void qd_ctl_set_mode(struct qd_app *a, int mode);
 int qd_ctl_black(int key);             /* the black key 0..10 of a note key, or -1 */
 int qd_ctl_knob_job(int mode, int knob);

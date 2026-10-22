@@ -5377,16 +5377,17 @@ static void g_p15t_save(void)
     run(600);
     qd_sound_autoname(A.model.t[0].patch, 0, nm);
     btap(QD_B_SAVE);
-    CHECK(A.ui.latch == QD_LATCH_SAVE && qd_view_screen(&A) == QD_SCR_SAVE && A.ui.sv.spark && A.ui.sv.replace < 0 &&
-              !strncmp(A.ui.sv.name, nm, strlen(nm)), "SAVE: SAVE PRESET, a name from the sound (%s)", nm);
-    CHECK(leds().button[QD_B_OCTDN] == QD_LED_LIT && leds().key[BK(B10)] == QD_LED_LIT, "F1 and B10 lit");
-    black(B10);
-    CHECK(A.ui.sv.variant == 1 && strncmp(A.ui.sv.name, nm, strlen(nm)) != 0, "B10: another name (the dice: %.12s)",
-          A.ui.sv.name);
-    turn(QD_K_SELECT, 1);                               /* the first letter on one */
-    turn(QD_K_ALGO, 1);
-    black(B11);                                         /* the second deleted */
-    CHECK(A.ui.sv.naming && A.ui.sv.cur == 1, "SELECT / ALGORITHM / B11: the cells shown, the cursor on 2");
+    CHECK(A.ui.latch == QD_LATCH_SAVE && qd_view_screen(&A) == QD_SCR_SAVE && A.ui.ty.spark && A.ui.ty.sel &&
+              A.ui.sv.replace < 0 && !strcmp(A.ui.ty.name, nm), "SAVE: SAVE PRESET, a name from the sound (%s), selected",
+          nm);
+    CHECK(leds().button[QD_B_OCTDN] == QD_LED_LIT, "F1 lit");
+    turn(QD_K_PRESETS, 2);                              /* P1.5u: another idea */
+    CHECK(strcmp(A.ui.ty.name, nm) != 0 && A.ui.ty.sel, "PRESETS: another name (an idea: %s)", A.ui.ty.name);
+    turn(QD_K_SELECT, 1);                               /* the last letter on one (P1.5u: the cursor at the end) */
+    turn(QD_K_ALGO, -1);
+    btap(F1);                                           /* .. the one before it deleted */
+    CHECK(!A.ui.ty.sel && A.ui.ty.cur == (int)strlen(A.ui.ty.name) - 2, "SELECT / ALGORITHM / F1: edited, the cursor "
+          "two before the end");
     memcpy(nm, A.ui.sv.newname, QD_SOUND_NAME);
     n = qd_undo_count(&A, -1);
     btap(QD_B_SAVE);
@@ -5405,8 +5406,9 @@ static void g_p15t_save(void)
     CHECK(A.ui.sv.replace == 0 && !strncmp(A.ui.sv.newname, nm, strlen(nm)) && strstr(A.ui.sv.newname, " 2") &&
               leds().button[QD_B_OCTUP] != QD_LED_OFF + 1, "from one of MY presets, edited: REPLACE offered; NEW as %s",
           A.ui.sv.newname);
-    btap(F1);
-    CHECK(!A.ui.latch && A.per.lib[0].patch[QD_QP_HARM] != 1200 && !A.per.lib[1].name[0], "F1: cancelled, nothing saved");
+    btap(QD_B_HOME);
+    CHECK(!A.ui.latch && A.per.lib[0].patch[QD_QP_HARM] != 1200 && !A.per.lib[1].name[0],
+          "HOME: cancelled, nothing saved");
     btap(QD_B_SAVE);
     btap(F2);
     run(600);
@@ -5433,6 +5435,273 @@ static void g_p15t_leds(void)
     CHECK(ok && l.key[BK(B9)] == QD_LED_LIT && l.key[BK(B10)] == QD_LED_LIT && l.key[BK(B11)] == QD_LED_OFF &&
               l.button[F1] == QD_LED_LIT && l.button[F2] == QD_LED_LIT,
           "browsing: the kinds dim (KEYS lit), B9, B10 lit, B11 dark (a factory preset), F1 F2 lit");
+    btap(QD_B_HOME);
+}
+
+/* ================================================================ P1.5u: the typewriter === */
+static const char TY_B[] = "ABCDEFGHIJK", TY_W[] = "LMNOPQRSTUVWXYZ ";
+static const char TY_SB[] = "0123456789-", TY_SW[] = ".,'&!?#+/()*:_~ ";
+static void ty_clear(void)                              /* SHIFT + F1 */
+{
+    bdown(SHIFT);
+    run(10);
+    btap(F1);
+    bup(SHIFT);
+    run(10);
+}
+static void ty_open(void)                               /* SAVE on track 1's sound */
+{
+    start();
+    run(600);
+    btap(QD_B_SAVE);
+}
+static void ty_type(const char *s)                      /* typed on the keys (upper case and SPACE) */
+{
+    for (; *s; s++) {
+        const char *b = strchr(TY_B, *s), *w = strchr(TY_W, *s);
+        if (b)
+            black((int)(b - TY_B));
+        else if (w)
+            wtap((int)(w - TY_W));
+    }
+}
+
+static void g_p15u_keys(void)
+{
+    int k, ok, okc;
+    ty_open();
+    for (ok = 0, k = 0; k < 11; k++) {
+        ty_clear();
+        black(k);
+        ok += !strcmp(A.ui.ty.name, (char[]){TY_B[k], 0}) && A.ui.ty.cur == 1;
+    }
+    for (k = 0; k < 16; k++) {
+        ty_clear();
+        wtap(k);
+        ok += A.ui.ty.name[0] == TY_W[k] && !A.ui.ty.name[1] && A.ui.ty.cur == 1;
+    }
+    CHECK(ok == 27, "the black keys A..K, the white keys L..Z and SPACE (%d of 27)", ok);
+    bdown(SHIFT);
+    run(10);
+    for (okc = 0, k = 0; k < 11; k++) {
+        btap(F1);                                       /* (SHIFT held: F1 clears) */
+        black(k);
+        okc += A.ui.ty.name[0] == TY_SB[k] && !A.ui.ty.name[1];
+    }
+    for (k = 0; k < 16; k++) {
+        btap(F1);
+        wtap(k);
+        okc += A.ui.ty.name[0] == TY_SW[k] && !A.ui.ty.name[1];
+    }
+    bup(SHIFT);
+    run(10);
+    CHECK(okc == 27 && A.ui.latch == QD_LATCH_SAVE, "SHIFT: 0..9 -, . , ' & ! ? # + / ( ) * : _ ~ SPACE (%d of 27), "
+          "SAVE PRESET still open", okc);
+    ty_clear();
+    kdown(BK(B1));
+    run(400);                                           /* (held: no repeat) */
+    kup(BK(B1));
+    run(10);
+    CHECK(!strcmp(A.ui.ty.name, "A"), "a key held: no repeat");
+    btap(QD_B_HOME);
+}
+
+static void g_p15u_edit(void)
+{
+    char nm[QD_SOUND_NAME];
+    ty_open();
+    snprintf(nm, sizeof nm, "%s", A.ui.ty.name);
+    CHECK(A.ui.ty.sel && nm[0] && A.ui.ty.cur == (int)strlen(nm), "the suggested name (%s), selected", nm);
+    black(B4);
+    CHECK(!strcmp(A.ui.ty.name, "D") && !A.ui.ty.sel && A.ui.ty.cur == 1 && A.ui.ty.fresh == 0,
+          "the first key replaces it: D");
+    ty_type("UST");
+    CHECK(!strcmp(A.ui.ty.name, "DUST") && A.ui.ty.cur == 4, "U S T: DUST, the cursor after it");
+    turn(QD_K_ALGO, -2);
+    black(B1);
+    CHECK(!strcmp(A.ui.ty.name, "DUAST") && A.ui.ty.cur == 3, "ALGORITHM back two, A: inserted (DUAST)");
+    btap(F1);
+    CHECK(!strcmp(A.ui.ty.name, "DUST") && A.ui.ty.cur == 2 && A.ui.ty.del_ch == 'A', "F1: the one before the cursor "
+          "deleted (DUST)");
+    turn(QD_K_ALGO, 9);
+    ty_type(" PAD");
+    CHECK(!strcmp(A.ui.ty.name, "DUST PAD") && A.ui.ty.cur == 8, "ALGORITHM to the end (clamped), SPACE P A D: DUST PAD");
+    turn(QD_K_SELECT, 2);
+    CHECK(!strcmp(A.ui.ty.name, "DUST PADB") && A.ui.ty.cur == 8, "SELECT at the end: a new character turned (B)");
+    turn(QD_K_ALGO, -8);
+    turn(QD_K_SELECT, 3);
+    CHECK(!strcmp(A.ui.ty.name, "GUST PADB"), "SELECT: the character under the cursor turned (D -> G)");
+    turn(QD_K_SELECT, -8);
+    CHECK(A.ui.ty.name[0] == '~', "SELECT back past A: SPACE, the signs (%c)", A.ui.ty.name[0]);
+    turn(QD_K_ALGO, 20);
+    ty_type("XYZ");
+    CHECK(!strcmp(A.ui.ty.name, "~UST PADBXYZ") && A.ui.ty.full_ms == 0, "twelve characters");
+    black(B5);
+    run(30);
+    CHECK(!strcmp(A.ui.ty.name, "~UST PADBXYZ") && A.ui.ty.full_ms, "full: a key types nothing, the row flashes");
+    ty_clear();
+    CHECK(!A.ui.ty.name[0] && A.ui.ty.cur == 0 && A.ui.latch == QD_LATCH_SAVE, "SHIFT + F1: cleared");
+    btap(F1);
+    CHECK(!A.ui.ty.name[0] && A.ui.latch == QD_LATCH_SAVE, "F1 on nothing: nothing (still open)");
+    btap(QD_B_SAVE);
+    run(600);
+    CHECK(!A.ui.latch && !strcmp(A.per.lib[0].name, "SOUND"), "SAVE on an empty name: saved as SOUND (%s)",
+          A.per.lib[0].name);
+    btap(QD_B_SAVE);                                    /* a selected name: F1 deletes all of it */
+    btap(F1);
+    CHECK(!A.ui.ty.name[0] && !A.ui.ty.sel, "the suggestion selected, F1: all of it");
+    btap(QD_B_HOME);
+}
+
+static void g_p15u_ideas(void)
+{
+    char nm[QD_SOUND_NAME];
+    int k, j, ok = 1;
+    ty_open();
+    snprintf(nm, sizeof nm, "%s", A.ui.ty.name);
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.ty.nidea >= 5 && A.ui.ty.idea == 0 && !strcmp(A.ui.ty.name, nm) && A.ui.ty.sel && A.ui.ty.spark,
+          "PRESETS: the ideas (%d), the first the suggestion, selected", A.ui.ty.nidea);
+    for (k = 0; k < A.ui.ty.nidea; k++) {
+        ok &= A.ui.ty.ideas[k][0] && strlen(A.ui.ty.ideas[k]) <= 12;
+        for (j = 0; j < k; j++)
+            ok &= strcmp(A.ui.ty.ideas[j], A.ui.ty.ideas[k]) != 0;
+    }
+    CHECK(ok, "each once, twelve letters at most (%s, %s, %s ..)", A.ui.ty.ideas[0], A.ui.ty.ideas[1], A.ui.ty.ideas[2]);
+    turn(QD_K_PRESETS, 2);
+    CHECK(A.ui.ty.idea == 2 && !strcmp(A.ui.ty.name, A.ui.ty.ideas[2]) && A.ui.ty.sel && A.ui.ty.idea_ms,
+          "two more: the third (%s), selected, the rolodex showing", A.ui.ty.name);
+    turn(QD_K_PRESETS, -9);
+    CHECK(A.ui.ty.idea == 0, "back: the first (clamped)");
+    turn(QD_K_PRESETS, 40);
+    CHECK(A.ui.ty.idea == A.ui.ty.nidea - 1, "on: the last (clamped)");
+    run(QD_TY_IDEA_MS + 20);
+    wtap(4);
+    CHECK(!strcmp(A.ui.ty.name, "P"), "a key: the idea replaced (selected)");
+    {   /* the classifier's words: a pluck gets PLUCK and its other words */
+        char ideas[QD_TY_NIDEA][QD_SOUND_NAME];
+        int16_t p[QD_QUAD_NP];
+        int n, words = 0;
+        qd_quad_preset_patch(4, p);                     /* (PLUCK) */
+        n = qd_sound_ideas(p, ideas, QD_TY_NIDEA);
+        for (k = 0; k < n; k++)
+            words += strstr(ideas[k], "PLUCK") || strstr(ideas[k], "PING") || strstr(ideas[k], "TINE") ||
+                     strstr(ideas[k], "HARP");
+        CHECK(n == QD_TY_NIDEA && words == n, "a PLUCK's ideas: twelve, each with PLUCK, PING, TINE or HARP (%s, %s ..)",
+              ideas[1], ideas[2]);
+    }
+    btap(QD_B_HOME);
+}
+
+static void g_p15u_save(void)
+{
+    int id, n;
+    ty_open();
+    ty_type("DUST");
+    n = qd_undo_count(&A, -1);
+    btap(QD_B_SAVE);
+    run(600);
+    CHECK(!A.ui.latch && !strcmp(A.per.lib[0].name, "DUST") && A.model.t[0].preset == A.per.lib[0].preset &&
+              !strcmp(A.model.t[0].sound_name, "DUST") && qd_undo_count(&A, -1) == n + 1,
+          "D U S T, SAVE: NEW as DUST, the track plays it; one undo level");
+    id = A.per.lib[0].preset;
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    A.model.t[0].patch[QD_QP_HARM] = 700;
+    A.model.t[0].edited = 1;
+    run(20);
+    btap(QD_B_SAVE);
+    CHECK(A.ui.sv.replace == 0 && A.ui.ty.sel && !strcmp(A.ui.ty.name, "DUST"), "edited, SAVE: DUST selected, REPLACE "
+          "offered");
+    ty_type("DUSK");
+    btap(F2);
+    run(600);
+    CHECK(!A.ui.latch && !strcmp(A.per.lib[0].name, "DUSK") && A.per.lib[0].preset == id &&
+              A.per.lib[0].patch[QD_QP_HARM] == 700 && !A.per.lib[1].name[0] && !strcmp(A.model.t[0].sound_name, "DUSK"),
+          "D U S K, F2: REPLACED under the typed name, the same preset, nothing new");
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    A.model.t[0].edited = 1;
+    btap(QD_B_SAVE);
+    ty_type("ZZZ");
+    btap(QD_B_HOME);
+    run(20);
+    CHECK(!A.ui.latch && !strcmp(A.per.lib[0].name, "DUSK") && !A.per.lib[1].name[0] && A.model.t[0].edited &&
+              !strcmp(A.model.t[0].sound_name, "DUSK"), "Z Z Z, HOME: cancelled, nothing changed");
+}
+
+static void g_p15u_shift(void)
+{
+    int k, view;
+    ty_open();
+    view = A.ui.view;
+    ty_clear();
+    bdown(SHIFT);
+    run(10);
+    for (k = 0; k < 11; k++)
+        black(k);                                       /* (in the step view: SHIFT's shortcuts) */
+    bdown(QD_B_REC);                                    /* (SHIFT + REC: the record settings; held: armed) */
+    run(500);
+    bup(QD_B_REC);
+    run(10);
+    bdown(QD_B_PLAY);                                   /* (PLAY held: F3) */
+    run(600);
+    bup(QD_B_PLAY);
+    run(10);
+    btap(QD_B_PATTERN);                                 /* (SHIFT + SEL: the global settings) */
+    btap(QD_B_HOME);                                    /* (SHIFT + HOME: the next view) */
+    btap(F2);                                           /* (SHIFT + F2: redo) */
+    bup(SHIFT);
+    run(10);
+    CHECK(A.ui.latch == QD_LATCH_SAVE && !strcmp(A.ui.ty.name, "0123456789-") && A.ui.view == view &&
+              A.ui.mode == QD_MODE_STEP, "SHIFT + the black keys typed 0..9 -; SHIFT + REC (held), PLAY (held), SEL, HOME, F2 "
+          "nothing (%s)",
+          A.ui.ty.name);
+    btap(QD_B_HOME);
+    CHECK(!A.ui.latch, "HOME: cancelled");
+}
+
+static void g_p15u_leds(void)
+{
+    qd_leds_t l;
+    int i, ok;
+    ty_open();
+    l = leds();
+    for (ok = 1, i = 0; i < 11; i++)
+        ok &= l.key[BK(i)] == QD_LED_DIM;
+    for (i = 0; i < 16; i++)
+        ok &= l.key[WK(i)] == QD_LED_DIM;
+    CHECK(ok && l.button[F1] == QD_LED_LIT, "naming: all 27 keys lit (dim), F1 lit");
+    kdown(BK(B3));
+    run(10);
+    l = leds();
+    for (ok = 1, i = 0; i < 11; i++)
+        ok &= l.key[BK(i)] == (i == B3 ? QD_LED_LIT : QD_LED_DIM);
+    kup(BK(B3));
+    kdown(WK(9));
+    run(10);
+    l = leds();
+    ok &= l.key[WK(9)] == QD_LED_LIT && l.key[WK(8)] == QD_LED_DIM;
+    kup(WK(9));
+    run(10);
+    CHECK(ok && !strcmp(A.ui.ty.name, "CU"), "the key pressed bright (C, U typed)");
+    btap(QD_B_HOME);
+    bdown(QD_B_MIX);                                    /* the project's name: the same keyboard */
+    run(10);
+    bup(QD_B_MIX);
+    run(10);
+    black(B10);
+    l = leds();
+    for (ok = 1, i = 0; i < 16; i++)
+        ok &= l.key[WK(i)] == QD_LED_DIM;
+    CHECK(qd_view_screen(&A) == QD_SCR_NAME && ok && A.ui.ty.sel == !!A.per.pname[A.per.proj][0], "B10 on the project page: the name, the same keys "
+          "lit");
+    ty_type("NIGHT BUS");
+    btap(QD_B_SAVE);
+    CHECK(!strcmp(A.per.pname[A.per.proj], "NIGHT BUS") && A.ui.latch == QD_LATCH_PRJ, "N I G H T SPACE B U S, SAVE: "
+          "the project named; its page (%s)", A.per.pname[A.per.proj]);
+    black(B10);
+    ty_type("XX");
+    btap(QD_B_HOME);
+    CHECK(!strcmp(A.per.pname[A.per.proj], "NIGHT BUS") && A.ui.latch == QD_LATCH_PRJ, "HOME: the old name, the page");
     btap(QD_B_HOME);
 }
 
@@ -5518,6 +5787,12 @@ int main(void)
         {"P1.5t: delete one of MY presets", g_p15t_delete},
         {"P1.5t: a step + PRESETS: TRACK and the pool", g_p15t_picker},
         {"P1.5t: SAVE PRESET: NEW, the dice, naming, REPLACE", g_p15t_save},
+        {"P1.5u: the typewriter: every key, with and without SHIFT", g_p15u_keys},
+        {"P1.5u: the selection, insert, delete, clear, SELECT, full", g_p15u_edit},
+        {"P1.5u: PRESETS' name ideas", g_p15u_ideas},
+        {"P1.5u: SAVE NEW and REPLACE with a typed name; HOME cancels", g_p15u_save},
+        {"P1.5u: SHIFT is the signs: its shortcuts off while naming", g_p15u_shift},
+        {"P1.5u: the LEDs: all 27 lit, the pressed one bright", g_p15u_leds},
         {"P1.5t: the browser's LEDs", g_p15t_leds},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };

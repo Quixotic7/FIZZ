@@ -37,6 +37,8 @@ for i in range(1, 15):                         # P1.5a: fizz-save-pool.html's fo
     SHOTS[f'sp-{i}'] = (f'shot={i}', 240, 240, f'fizz-save-pool-{i:02d}.png', 'fizz-save-pool.html')
 for i in range(1, 16):                         # P1.5t: fizz-presets.html's fifteen screens (render_p15t sets FIZZ's beside)
     SHOTS[f'pr-{i}'] = (f'shot={i}', 240, 240, f'fizz-presets-{i:02d}.png', 'fizz-presets.html')
+for i in range(1, 9):                          # P1.5u: fizz-names.html's eight screens (render_p15u sets FIZZ's beside)
+    SHOTS[f'nm-{i}'] = (f'shot={i}', 240, 240, f'fizz-names-{i:02d}.png', 'fizz-names.html')
 
 
 def render(key, scratch):

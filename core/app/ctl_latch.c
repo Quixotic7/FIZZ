@@ -32,7 +32,7 @@ static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_MIX] = {"MIX", "BACK", 0, 0, 0, 0},      /* P1.4b: the mix */
     [QD_LATCH_FX] = {"FX", "BACK", 0, 0, 0, 0},        /* P1.4b: the effects */
     [QD_LATCH_BROWSE] = {"PRESETS", "CANCEL", "LOAD", 0, 0, br_closed},   /* P1.5t: the library browser */
-    [QD_LATCH_NAME] = {"NAME", "BACK", 0, 0, 0, 0},    /* P1.5a: the name editor */
+    [QD_LATCH_NAME] = {"PROJECT NAME", "BACK", 0, 0, 0, 0},   /* P1.5a: the name editor (P1.5u: the typewriter) */
     [QD_LATCH_PRJ] = {"PROJECT", "BACK", 0, 0, 0, 0}, /* P1.5a: the project pages */
     [QD_LATCH_SAVE] = {"SAVE PRESET", "CANCEL", "REPLACE", 0, 0, 0},   /* P1.5t: SAVE PRESET */
 };
@@ -90,4 +90,5 @@ int qd_latch_oct(qd_app_t *a, int d)
 #include <string.h>
 #include "ctl_presets.c"
 #include "ctl_lib.c"
+#include "ctl_type.c"
 #include "ctl_shift.c"

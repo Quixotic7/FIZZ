@@ -39,6 +39,9 @@ enum { QD_SK_BASS, QD_SK_KEYS, QD_SK_PLUCK, QD_SK_BELL, QD_SK_PAD, QD_SK_LEAD, Q
 int qd_sound_kind(const int16_t *patch);
 const char *qd_sound_kind_name(int kind);
 void qd_sound_autoname(const int16_t *patch, int variant, char *out);   /* out: QD_SOUND_NAME bytes */
+/* P1.5u: up to max name ideas (the first: autoname's best; then adjectives with the kind's words: WARM PLUCK, GLASS
+ * TINE, SOFT PING ..); their count */
+int qd_sound_ideas(const int16_t *patch, char (*out)[QD_SOUND_NAME], int max);
 
 /* ---- P1.5t (PLAN.md "The sound system, redesigned"): THE PRESETS. A preset is a sound with an id:
  *   FACTORY   ids 1..QD_NFACTORY, compiled in, read only: INIT, the 16 FM TONE sounds (quad_voice.h's presets 1..16),

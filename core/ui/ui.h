@@ -163,8 +163,8 @@ typedef struct {
 } ui_fx_t;
 void ui_fx_draw(const ui_fx_t *v);
 
-/* ---- P1.5a (ui_lib.c, built through ui_layer.c; mockups/fizz-save-pool.html): THE NAME EDITOR: twelve cells, the
- * letter drum, the dice. THE PROJECT: its number and name, the 64 patterns (bubbles off one when written), the flash
+/* ---- P1.5a (ui_lib.c, built through ui_layer.c; mockups/fizz-save-pool.html; P1.5u: the name editor is the
+ * typewriter's, ui_type.c): THE PROJECT: its number and name, the 64 patterns (bubbles off one when written), the flash
  * and the pool in use; THE PROJECTS: eight tiles. (P1.5t: the sounds page's grid is gone: ui_presets.c) */
 #define UI_LIB_COL 0xf3d9a4u
 #define UI_POOL_COL 0xb5e853u
@@ -210,29 +210,33 @@ typedef struct {
     float t;
 } ui_browse_t;
 void ui_browse_draw(const ui_browse_t *v);
+/* P1.5u: the typewriter (SAVE PRESET's name, a project's): the name, the keybed with its characters */
 typedef struct {
-    int track;
-    char name[16];                      /* twelve cells */
-    ui_preset_t s;                      /* the sound (its envelope, its kind) */
-    int spark, naming, cur;             /* a name from the sound; the cells shown; the cursor */
-    int replace;                        /* REPLACE offered (F2) .. */
-    const char *newname;                /* .. NEW then saves as this */
-    float roll;                         /* the letter drum (0..1 after a turn), its direction */
-    int roll_dir;
+    const char *title;                  /* SAVE PRESET, PROJECT NAME */
+    int track;                          /* the head's box (0: none) */
+    const char *name;                   /* the name (a string, up to twelve) */
+    int cur, sel, spark;                /* the cursor; selected (the first key replaces it); made from the sound */
+    int fresh;                          /* the character just typed (champagne; -1 none) */
+    int hit;                            /* the key that typed it (0..10 black, 11..26 white; -1): the flight's start */
+    float fly;                          /* 0..1 the typed character's flight (1: done) */
+    int glow;                           /* the key glowing (held, or just pressed; -1 none) */
+    int shift;                          /* SHIFT held: the keybed's signs, the chip */
+    float full;                         /* 0..1 a key on a full name: the row flashes (1: none) */
+    char del_ch;                        /* F1: the character deleted, its place, 0..1 its drop (1: done) */
+    int del_at;
+    float del;
+    int ideas_on;                       /* PRESETS turned: the ideas' rolodex .. */
+    const char (*ideas)[13];            /* .. the ideas, their count, the one chosen */
+    int nidea, idea;
+    int replace;                        /* SAVE PRESET: REPLACE offered (F2) .. */
+    const char *newname;                /* .. NEW then saves as this (shown when it differs) */
+    const char *sub;                    /* a project's number ("01") */
     float t;
-} ui_save_t;
-void ui_save_draw(const ui_save_t *v);
+} ui_type_t;
+void ui_type_draw(const ui_type_t *v);
 enum { UI_PFX_LOADED, UI_PFX_BACK, UI_PFX_SAVED };
 /* the takeovers: LOADED (s onto the track), BACK (own back, s the one left), SAVED (s into MY PRESETS); u 0..1 */
 void ui_pfx_draw(int kind, const ui_preset_t *s, const ui_preset_t *own, int track, float u, float t);
-typedef struct {
-    char buf[16];                       /* twelve cells */
-    int cur;
-    qd_rgb col;                         /* the title's colour (the library's, the pool's, the project's) */
-    float roll;                         /* the drum's roll (0..1 after a turn), its direction */
-    int roll_dir;
-} ui_name_t;
-void ui_name_draw(const ui_name_t *v);
 typedef struct {
     int page;                           /* 0 the project, 1 the projects */
     int num;                            /* the one worked on, 1..8 */

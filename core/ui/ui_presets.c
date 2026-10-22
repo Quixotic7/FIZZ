@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* P1.5t: the library browser, the step's pool picker, SAVE PRESET and the LOADED / BACK / SAVED takeovers (ui.h
- * ui_browse_t, ui_save_t, ui_pfx_draw), drawn as mockups/fizz-presets.html draws them: its positions, sizes, colours
+/* P1.5t: the library browser, the step's pool picker and the LOADED / BACK / SAVED takeovers (ui.h ui_browse_t,
+ * ui_pfx_draw; P1.5u: SAVE PRESET is the typewriter's, ui_type.c), drawn as mockups/fizz-presets.html draws them: its positions, sizes, colours
  * and motions (headP, rollo, cassette, trayIcon, the dice, the name cells). Built through ui_layer.c after ui_lib.c
  * (its lb_* helpers: the glyph, the bubbles, the dashed outline). PLAN §9a's clarity rules: names, numbers and the
  * few words the mock-up has (LOADED, BACK, SAVED, NEW, REPLACE, OUT?); the rest is drawing, colour and motion. */
@@ -232,78 +232,11 @@ void ui_browse_draw(const ui_browse_t *v)
     }
 }
 
-/* ---------------------------------------------------------------- SAVE PRESET */
+/* ---------------------------------------------------------------- a button (NEW, REPLACE: ui_type.c) */
 static void pr_button(float x, float y, float w, const char *s, qd_rgb col)
 {
     ui_RR(x, y, w, 26.f, 6.f, col, 1.8f, QD_NONE);
     ui_T(s, x + w / 2.f, y + 18.f, 14.f, 600, 1.f, col, QD_CENTER);
-}
-
-void ui_save_draw(const ui_save_t *v)
-{
-    pr_head("SAVE PRESET", UI_LIB_COL, "", v->track, 0);
-    if (v->naming) {                                    /* the twelve cells, the letter under the cursor rolling */
-        static const char AL[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -";
-        const float cw = 18.5f, x0 = 9.f;
-        int k;
-        for (k = 0; k < 12; k++) {
-            const float x = x0 + (float)k * cw;
-            const int c = k == v->cur;
-            char ch[2] = {v->name[k], 0};
-            line2(x + 2.f, 120.f, x + cw - 3.f, 120.f, c ? UI_KSEL : UI_G2, c ? 2.2f : 1.2f);
-            if (ch[0] && ch[0] != ' ') {
-                const float dy = c && v->roll < 1.f ? (1.f - lb_ease(v->roll)) * 10.f * (float)v->roll_dir : 0.f;
-                ui_T(ch, x + cw / 2.f, 114.f + dy, 24.f, c ? 400 : 300, 0.f, c ? UI_KSEL : UI_K3, QD_CENTER);
-            }
-        }
-        {
-            const char *p = strchr(AL, v->name[v->cur]);
-            const int len = (int)sizeof AL - 1, i = p ? (int)(p - AL) : len - 2;
-            const char up[2] = {AL[(i - 1 + len) % len], 0}, dn[2] = {AL[(i + 1) % len], 0};
-            const float x = x0 + (float)v->cur * cw + cw / 2.f;
-            qd_save();
-            qd_alpha(qd_get_alpha() * 0.4f);
-            if (up[0] != ' ')
-                ui_T(up, x, 78.f, 20.f, 300, 0.f, UI_G1, QD_CENTER);
-            if (dn[0] != ' ')
-                ui_T(dn, x, 150.f, 20.f, 300, 0.f, UI_G1, QD_CENTER);
-            qd_restore();
-        }
-    } else {
-        ui_preset_t s = v->s;
-        char nm[16];
-        int e = 12;
-        memcpy(nm, v->name, sizeof nm);
-        nm[12] = 0;
-        while (e > 0 && nm[e - 1] == ' ')
-            nm[--e] = 0;
-        s.name = nm;
-        s.mine = 1, s.imported = 0, s.in_pool = 0;
-        pr_cassette(34.f, 50.f, 172.f, 76.f, &s, UI_LIB_COL, v->t, 0, 0);
-        if (v->spark) {                                 /* the name from the sound: the sparkle */
-            const float a = 0.5f + 0.5f * (sinf(v->t * 5.f) + 1.f) * 0.5f;
-            qd_save();
-            qd_alpha(qd_get_alpha() * a);
-            line2(200.f, 54.f, 208.f, 54.f, UI_LIB_COL, 1.3f);
-            line2(204.f, 50.f, 204.f, 58.f, UI_LIB_COL, 1.3f);
-            qd_restore();
-        }
-        if (!v->replace) {                              /* the dice: another name */
-            static const float PIP[5][2] = {{6, 6}, {12, 12}, {18, 18}, {18, 6}, {6, 18}};
-            int k;
-            ui_RR(108.f, 150.f, 24.f, 24.f, 4.f, UI_LIB_COL, 1.4f, QD_NONE);
-            for (k = 0; k < 5; k++)
-                ui_O(108.f + PIP[k][0], 150.f + PIP[k][1], 1.6f, QD_NONE, 1.f, UI_LIB_COL);
-        }
-    }
-    if (v->replace) {                                   /* NEW (as the new name) or REPLACE */
-        if (!v->naming && v->newname)
-            ui_T(v->newname, 120.f, 160.f, 14.f, 400, 0.f, UI_G1, QD_CENTER);
-        pr_button(12.f, 196.f, 104.f, "NEW", UI_LIB_COL);
-        pr_button(124.f, 196.f, 104.f, "REPLACE", PR_ORANGE);
-    } else {
-        pr_button(62.f, 196.f, 116.f, "NEW", UI_LIB_COL);
-    }
 }
 
 /* ---------------------------------------------------------------- LOADED, BACK, SAVED */

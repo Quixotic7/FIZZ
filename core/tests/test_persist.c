@@ -143,7 +143,7 @@ static void pages_test(void)
     qd_ctl_select_track(G, 3);
     btap(QD_B_SAVE);
     qd_sound_autoname(G->model.t[3].patch, 0, nm);
-    CHECK(qd_view_screen(G) == QD_SCR_SAVE && G->ui.sv.spark && !strncmp(G->ui.sv.name, nm, strlen(nm)) &&
+    CHECK(qd_view_screen(G) == QD_SCR_SAVE && G->ui.ty.spark && G->ui.ty.sel && !strcmp(G->ui.ty.name, nm) &&
               G->ui.sv.replace < 0, "SAVE: SAVE PRESET, a name from the sound (%s), no REPLACE (a factory sound)", nm);
     btap(QD_B_SAVE);
     CHECK(!strcmp(G->per.lib[0].name, nm) && !memcmp(G->per.lib[0].patch, G->model.t[3].patch, sizeof G->per.lib[0].patch) &&
@@ -154,7 +154,7 @@ static void pages_test(void)
     G->model.t[3].edited = 1;
     p_run(20);
     btap(QD_B_SAVE);
-    CHECK(G->ui.sv.replace == 0 && !strncmp(G->ui.sv.name, nm, strlen(nm)), "edited, SAVE: REPLACE offered (its "
+    CHECK(G->ui.sv.replace == 0 && !strcmp(G->ui.ty.name, nm), "edited, SAVE: REPLACE offered (its "
           "name kept)");
     btap(QD_B_OCTUP);
     CHECK(G->per.lib[0].patch[QD_QP_HARM] == 900 && G->per.lib[0].preset == G->model.t[3].preset &&
@@ -192,10 +192,13 @@ static void pages_test(void)
     bkey(10, 0);
     p_run(20);
     CHECK(!G->per.pexists[5], "B11 + W6: deleted");
-    black(9);
-    knob(QD_K_SELECT, 2);
-    btap(QD_B_OCTUP);
-    CHECK(G->per.pname[2][0] == 'R', "B10: the project named (%s)", G->per.pname[2]);
+    black(9);                                           /* B10: named on the keybed (P1.5u) */
+    CHECK(qd_view_screen(G) == QD_SCR_NAME && G->ui.ty.sel && !strcmp(G->ui.ty.name, G->per.pname[2]),
+          "B10: the project's name, selected");
+    wtap(6), black(0), black(8), wtap(2);               /* R A I N */
+    btap(QD_B_SAVE);
+    CHECK(!strcmp(G->per.pname[2], "RAIN") && qd_view_screen(G) == QD_SCR_PRJ, "R, A, I, N, SAVE: the project named "
+          "(%s), the project page", G->per.pname[2]);
     btap(QD_B_HOME);
     CHECK(!G->ui.latch, "HOME: back");
     CHECK(G->per.prj_st.c.erases_noisy == 0, "no erase while sounding");

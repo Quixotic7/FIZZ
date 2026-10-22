@@ -879,27 +879,52 @@ static void draw_picker(const qd_app_t *a)
     ui_browse_draw(&v);
 }
 
-/* P1.5t: SAVE PRESET's model */
-static void fill_save(const qd_app_t *a, ui_save_t *v)
+/* P1.5u: the typewriter's model (SAVE PRESET's name, a project's) */
+static void fill_type(const qd_app_t *a, ui_type_t *v)
 {
-    static qd_sound_t s;
-    const qd_saveui_t *sv = &a->ui.sv;
-    const qd_track_t *t = &a->model.t[a->sel];
+    static char sub[4];
+    const qd_typer_t *y = &a->ui.ty;
+    const uint32_t ms = a->ms;
+    const int save = a->ui.latch == QD_LATCH_SAVE;
+    int k;
     memset(v, 0, sizeof *v);
-    v->track = a->sel + 1;
-    memcpy(v->name, sv->name, QD_SOUND_NAME);
-    memset(&s, 0, sizeof s);
-    memcpy(s.patch, t->patch, sizeof s.patch);
-    s.kind = (uint8_t)qd_preset_kind(t->patch);
-    pr_fill(a, &s, 1, &v->s);
-    v->spark = sv->spark;
-    v->naming = sv->naming;
-    v->cur = sv->cur;
-    v->replace = sv->replace >= 0;
-    v->newname = sv->newname;
-    v->roll = sv->roll_ms && a->ms - sv->roll_ms < 200u ? (float)(a->ms - sv->roll_ms) / 200.f : 1.f;
-    v->roll_dir = sv->roll_dir;
-    v->t = secs(a->ms);
+    v->title = save ? "SAVE PRESET" : "PROJECT NAME";
+    v->track = save ? a->sel + 1 : 0;
+    v->name = y->name;
+    v->sel = y->sel;
+    v->cur = y->sel ? (int)strlen(y->name) : y->cur;
+    v->spark = y->spark;
+    v->hit = y->hit;
+    v->fresh = y->hit_ms && ms - y->hit_ms < 1200u ? y->fresh : -1;
+    if (y->roll_ms && ms - y->roll_ms < 1200u && (!y->hit_ms || y->roll_ms > y->hit_ms))
+        v->fresh = y->fresh, v->hit = -1;               /* (SELECT turned it: champagne, no flight) */
+    v->fly = y->hit_ms && v->hit >= 0 && ms - y->hit_ms < 350u ? (float)(ms - y->hit_ms) / 350.f : 1.f;
+    v->glow = -1;                                       /* the key held (or just pressed) glows */
+    for (k = 0; k < 27 && v->glow < 0; k++)
+        if ((a->keys_held >> (k < 11 ? QD_BLACK_KEY[k] : QD_WHITE_KEY[k - 11])) & 1u)
+            v->glow = k;
+    if (v->glow < 0 && y->hit_ms && ms - y->hit_ms < (uint32_t)QD_TY_HIT_MS)
+        v->glow = y->hit;
+    v->shift = qd_ctl_shift(a);
+    v->full = y->full_ms && ms - y->full_ms < (uint32_t)QD_TY_FULL_MS ? (float)(ms - y->full_ms) / QD_TY_FULL_MS : 1.f;
+    v->del_ch = y->del_ch;
+    v->del_at = y->del_at;
+    v->del = y->del_ms && ms - y->del_ms < (uint32_t)QD_TY_DEL_MS ? (float)(ms - y->del_ms) / QD_TY_DEL_MS : 1.f;
+    v->ideas_on = y->idea_ms && ms - y->idea_ms < (uint32_t)QD_TY_IDEA_MS && y->nidea;
+    v->ideas = (const char (*)[13])y->ideas;
+    v->nidea = y->nidea;
+    v->idea = y->idea < 0 ? 0 : y->idea;
+    if (save) {
+        char nm[QD_SOUND_NAME];
+        v->replace = a->ui.sv.replace >= 0;
+        qd_type_trimmed(a, nm);
+        v->newname = strcmp(nm, a->ui.sv.newname) ? a->ui.sv.newname : 0;
+    } else {
+        const int p = a->ui.nm.proj < 0 ? 0 : a->ui.nm.proj;
+        sub[0] = (char)('0' + (p + 1) / 10), sub[1] = (char)('0' + (p + 1) % 10), sub[2] = 0;
+        v->sub = sub;
+    }
+    v->t = secs(ms);
 }
 
 /* P1.5t: LOADED, BACK, SAVED */
@@ -1452,18 +1477,7 @@ static void fill_mix(const qd_app_t *a, ui_mix_t *v)
     }
 }
 
-/* P1.5a: the name editor's and the project pages' models */
-static void fill_name(const qd_app_t *a, ui_name_t *v)
-{
-    const qd_nameui_t *n = &a->ui.nm;
-    memset(v, 0, sizeof *v);
-    memcpy(v->buf, n->buf, QD_SOUND_NAME);
-    v->cur = n->cur;
-    v->col = UI_LIB_COL;
-    v->roll = n->roll_ms && a->ms - n->roll_ms < 200u ? (float)(a->ms - n->roll_ms) / 200.f : 1.f;
-    v->roll_dir = n->roll_dir;
-}
-
+/* P1.5a: the project pages' model */
 static void fill_prj(const qd_app_t *a, ui_prj_t *v)
 {
     const qd_prjui_t *p = &a->ui.pj;
@@ -1606,8 +1620,7 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_snd_t sv5;
     static ui_mix_t xv;
     static ui_browse_t brv;
-    static ui_save_t svv;
-    static ui_name_t nmv;
+    static ui_type_t tyv;
     static ui_prj_t pjv;
     static ui_fx_t fv;
     const qd_ui_t *u = &a->ui;
@@ -1622,13 +1635,10 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         fill_browse(a, &brv);
         ui_browse_draw(&brv);
         break;
-    case QD_SCR_SAVE:                                   /* P1.5t: SAVE PRESET */
-        fill_save(a, &svv);
-        ui_save_draw(&svv);
-        break;
-    case QD_SCR_NAME:
-        fill_name(a, &nmv);
-        ui_name_draw(&nmv);
+    case QD_SCR_SAVE:                                   /* P1.5t: SAVE PRESET (P1.5u: the typewriter) */
+    case QD_SCR_NAME:                                   /* .. a project's name (B10 on the project page) */
+        fill_type(a, &tyv);
+        ui_type_draw(&tyv);
         break;
     case QD_SCR_PRJ:
         fill_prj(a, &pjv);

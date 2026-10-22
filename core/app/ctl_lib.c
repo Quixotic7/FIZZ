@@ -7,14 +7,12 @@
  *
  *   PRESETS (nothing held)   THE LIBRARY BROWSER (ctl_presets.c)
  *   SAVE (anywhere)          SAVE PRESET (ctl_presets.c)
- *   THE NAME EDITOR (B10 on the project page): twelve cells; SELECT the letter, ALGORITHM the cursor, B11 deletes a
- *        letter, B10 again another name, F2 keeps, OCT- leaves the old name.
+ *   THE NAME EDITOR (B10 on the project page): P1.5u: the typewriter (ctl_type.c): the project's name selected, the
+ *        keys type; SAVE keeps it, HOME leaves the old name (both back to the project page).
  *   SEQ tapped (SEQ held stays the patterns)  THE PROJECT: its number and name, its 64 patterns, the flash and the pool
  *        in use. SELECT or SEQ again: THE PROJECTS, eight on W1..W8: W chooses (it blinks with F2), F2 loads (an empty
  *        one: a new project), F1 + W copies one onto another (onto one that exists: armed, that W again), B11 + W
  *        deletes one, B10 names the one worked on. */
-
-static const char LIB_AL[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -";
 
 int qd_lib_open(const qd_app_t *a)
 {
@@ -42,73 +40,23 @@ void qd_lib_back(qd_app_t *a) { qd_latch_close(a); }
 void qd_name_open(qd_app_t *a, int target, int proj)
 {
     qd_nameui_t *n = &a->ui.nm;
-    const char *src;
-    int k;
     n->ret = a->ui.latch;
     n->target = target;
     n->proj = proj;
-    n->variant = 0;
-    n->cur = 0;
-    src = a->per.pname[proj < 0 ? 0 : proj];
-    memset(n->buf, ' ', QD_SOUND_NAME - 1);
-    n->buf[QD_SOUND_NAME - 1] = 0;
-    for (k = 0; k < QD_SOUND_NAME - 1 && src[k]; k++)
-        n->buf[k] = src[k];
     qd_latch_open(a, QD_LATCH_NAME);
+    qd_type_start(a, a->per.pname[proj < 0 ? 0 : proj], 0);
 }
 
 static void name_keep(qd_app_t *a)
 {
-    qd_nameui_t *n = &a->ui.nm;
     char out[QD_SOUND_NAME];
-    int e = QD_SOUND_NAME - 1;
-    memcpy(out, n->buf, QD_SOUND_NAME);
-    while (e > 0 && out[e - 1] == ' ')
-        e--;
-    out[e] = 0;
-    if (!e)
+    qd_type_trimmed(a, out);
+    if (!out[0])
         return;                                         /* (an empty name is not kept) */
-    qd_proj_name(a, n->proj, out);
+    qd_proj_name(a, a->ui.nm.proj, out);
 }
 
 static void name_back(qd_app_t *a) { qd_latch_open(a, QD_LATCH_PRJ); }
-
-static void name_black(qd_app_t *a, int b)
-{
-    qd_nameui_t *n = &a->ui.nm;
-    int k;
-    if (b == 10) {                                      /* a letter deleted */
-        for (k = n->cur; k < QD_SOUND_NAME - 2; k++)
-            n->buf[k] = n->buf[k + 1];
-        n->buf[QD_SOUND_NAME - 2] = ' ';
-        return;
-    }
-    if (b == 9) {                                       /* another name (the dice) */
-        char nm[QD_SOUND_NAME];
-        n->variant++;
-        snprintf(nm, sizeof nm, "SKETCH %d", n->variant + 1);
-        memset(n->buf, ' ', QD_SOUND_NAME - 1);
-        for (k = 0; k < QD_SOUND_NAME - 1 && nm[k]; k++)
-            n->buf[k] = nm[k];
-        n->cur = 0;
-    }
-}
-
-static void name_knob(qd_app_t *a, int knob, int d)
-{
-    qd_nameui_t *n = &a->ui.nm;
-    if (knob == QD_K_SELECT) {                          /* the letter */
-        const char *p = strchr(LIB_AL, n->buf[n->cur]);
-        const int len = (int)sizeof LIB_AL - 1;
-        int i = p ? (int)(p - LIB_AL) : len - 2;
-        i = ((i + d) % len + len) % len;
-        n->buf[n->cur] = LIB_AL[i];
-        n->roll_ms = a->ms ? a->ms : 1u;
-        n->roll_dir = d > 0 ? 1 : -1;
-    } else if (knob == QD_K_ALGO) {                     /* the cursor */
-        n->cur = n->cur + d < 0 ? 0 : n->cur + d > QD_SOUND_NAME - 2 ? QD_SOUND_NAME - 2 : n->cur + d;
-    }
-}
 
 /* ---------------------------------------------------------------- the project pages */
 void qd_prj_button(qd_app_t *a)
@@ -192,16 +140,8 @@ void qd_lib_key(qd_app_t *a, int key, int w, int b, int down, int vel)
         qd_br_key(a, key, w, b, down, vel);
         return;
     }
-    if (a->ui.latch == QD_LATCH_SAVE) {
-        if (b >= 0)
-            qd_sv_key(a, b, down);
-        return;
-    }
-    if (a->ui.latch == QD_LATCH_NAME) {
-        if (down && b >= 0)
-            name_black(a, b);
-        return;
-    }
+    if (a->ui.latch == QD_LATCH_SAVE || a->ui.latch == QD_LATCH_NAME)
+        return;                                         /* (P1.5u: the typewriter's rows take the keys first) */
     if (w >= 0)
         prj_white(a, w, down);
     else
@@ -212,50 +152,32 @@ int qd_lib_knob(qd_app_t *a, int knob, int d)
 {
     if (a->ui.latch == QD_LATCH_BROWSE)
         return qd_br_knob(a, knob, d);
-    if (a->ui.latch == QD_LATCH_SAVE)
-        return qd_sv_knob(a, knob, d);
-    if (a->ui.latch == QD_LATCH_NAME) {
-        name_knob(a, knob, d);
-        return 1;
-    }
+    if (a->ui.latch == QD_LATCH_SAVE || a->ui.latch == QD_LATCH_NAME)
+        return qd_type_knob(a, knob, d);                /* P1.5u: the typewriter */
     if (knob == QD_K_SELECT)
         a->ui.pj.page = d > 0;
     return 1;
 }
 
-/* the OCT keys on these pages, at their release: the browser OCT- cancels, OCT+ loads; SAVE PRESET OCT- cancels,
- * OCT+ replaces; the name editor OCT- back, OCT+ keeps; the projects OCT- back (held + W copies), OCT+ loads. 1 taken */
+/* the OCT keys on these pages, at their release: the browser OCT- cancels, OCT+ loads; the projects OCT- back (held +
+ * W copies), OCT+ loads (P1.5u: SAVE PRESET's and the name editor's are the typewriter's: qd_type_button). 1 taken */
 int qd_lib_oct(qd_app_t *a, int d, int down)
 {
     qd_ui_t *u = &a->ui;
     if (!qd_lib_open(a))
         return 0;
-    if (u->latch == QD_LATCH_BROWSE || u->latch == QD_LATCH_SAVE) {
-        if (down)
-            return 1;
-        if (u->latch == QD_LATCH_BROWSE) {
-            if (d > 0)
-                qd_br_load(a);
-            else
-                qd_br_cancel(a);
-        } else if (d > 0) {
-            qd_sv_replace(a);
-        } else {
-            if (u->sv.ret_mode != QD_MODE_STEP && u->sv.ret_mode != QD_MODE_IDLE)
-                u->mode = u->sv.ret_mode;
-            qd_latch_close(a);
-        }
-        u->oct_eaten &= (uint8_t)~(d < 0 ? 1u : 2u);
-        return 1;
-    }
-    if (u->latch == QD_LATCH_NAME) {
+    if (u->latch == QD_LATCH_BROWSE) {
         if (down)
             return 1;
         if (d > 0)
-            name_keep(a);
-        name_back(a);
+            qd_br_load(a);
+        else
+            qd_br_cancel(a);
+        u->oct_eaten &= (uint8_t)~(d < 0 ? 1u : 2u);
         return 1;
     }
+    if (u->latch == QD_LATCH_SAVE || u->latch == QD_LATCH_NAME)
+        return 1;
     {
         qd_prjui_t *p = &u->pj;
         if (down) {

@@ -336,6 +336,10 @@ static int w_keys_mode(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS; }
 static int w_lib(const qd_app_t *a) { return qd_lib_open(a); }
 static void k_lib_white(qd_app_t *a, int key, int w, int down, int vel) { qd_lib_key(a, key, w, -1, down, vel); }
 static void k_lib_black(qd_app_t *a, int key, int b, int down, int vel) { qd_lib_key(a, key, -1, b, down, vel); }
+/* P1.5u: a name typed (SAVE PRESET, the name editor): every key types (ctl_type.c), before every other row */
+static int w_type(const qd_app_t *a) { return qd_type_open(a); }
+static void k_type_white(qd_app_t *a, int key, int w, int down, int vel) { (void)key, (void)vel, qd_type_key(a, 1, w, down); }
+static void k_type_black(qd_app_t *a, int key, int b, int down, int vel) { (void)key, (void)vel, qd_type_key(a, 0, b, down); }
 /* P1.4b: the track settings, the mix, the effects: black keys the track (the effect), the W keys nothing */
 static int w_panel(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_PANEL(a->ui.latch); }
 static void k_panel_black(qd_app_t *a, int key, int b, int down, int vel)
@@ -823,6 +827,7 @@ typedef struct {
     qd_key_fn fn;
 } qd_key_row_t;
 static const qd_key_row_t WHITE_ROWS[] = {
+    {w_type, k_type_white},            /* P1.5u: a name typed: L..Z, SPACE (SHIFT: the signs) */
     {w_seq_held, k_pattern},           /* SEQ held: A01 .. A16 (SHIFT: at once) */
     {w_sel_held, k_sel_white},         /* SEL held: W1..W8 mute, W9..W16 solo */
     {w_tracks_held, k_track_select},   /* FX (TRACKS) held: tracks 1..8 (over the pages too) */
@@ -840,6 +845,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_step_view, k_step},             /* the step view: the steps */
 };
 static const qd_key_row_t BLACK_ROWS[] = {
+    {w_type, k_type_black},            /* P1.5u: a name typed: A..K (SHIFT: 0..9 -) */
     {w_seq_held, k_bank},              /* SEQ held: B1..B4 the bank (P1.3d) */
     {w_sel_held, k_sel_black},         /* SEL held: B1..B8 select the track */
     {w_shift_keys, k_shift_black},     /* P1.5c: SHIFT's shortcuts (snapshot, copy / paste, tap, click, double, clear) */
@@ -1283,6 +1289,8 @@ void qd_ctl_button(qd_app_t *a, int button, int down)
         if (a->ui.mode == QD_MODE_IDLE)
             a->ui.mode = QD_MODE_STEP;
     }
+    if (qd_type_open(a) && qd_type_button(a, button, down))
+        return;                                         /* P1.5u: a name typed: F1, F2, SAVE, HOME, SHIFT + a button */
     BUTTONS[button](a, down);
 }
 
@@ -1568,6 +1576,7 @@ static int k_snd(qd_app_t *a, int knob, int d)
 /* P1.3y: the settings menus' knobs (KNOB 1..4 their rows; the encoders nothing) */
 static int when_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
 static int when_lib(const qd_app_t *a) { return qd_lib_open(a); }
+static int when_type(const qd_app_t *a) { return qd_type_open(a); }   /* P1.5u: a name typed: its knobs only */
 static int k_libk(qd_app_t *a, int knob, int d) { return qd_lib_knob(a, knob, d); }
 static int when_mix(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_MIX; }
 static int k_mix(qd_app_t *a, int knob, int d) { return qd_mix_knob(a, knob, d); }
@@ -1675,6 +1684,7 @@ static const struct {
     qd_when_fn when;
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
+    {when_type, qd_type_knob},         /* P1.5u: a name typed: ALGORITHM the cursor, SELECT the character, PRESETS ideas */
     {when_metro, qd_shift_metro_knob}, /* P1.5c: SHIFT + B7 held: any knob the click's level */
     {when_lmode, k_lmode},             /* P1.5h: LFO held, its screen up: SELECT the latch mode */
     {when_unlock, k_unlock},           /* P1.5o: F2 held (the editor, P-LOCK) + a knob: that value unlocked */
