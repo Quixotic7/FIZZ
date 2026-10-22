@@ -38,3 +38,7 @@ and saving. Thank you!
 2. Put the WAVs and the screen photos in the same folder.
 3. Write the OS version in a short note.txt.
 4. Zip the folder and send it to us.
+
+## And one more: a preset made by FIZZ
+
+FIZZ can now write `.dn2pst` files. We will send a few (the harvest page offers three: `FIZZ TEST 1..3`). Please load them with Transfer into empty preset slots, put each on a track, and tell us: does it load, are its name and tags right, and does it sound like its description?

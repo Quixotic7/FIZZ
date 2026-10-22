@@ -7,6 +7,7 @@ import { buildPlan, summarize, ITEMS } from "./plan.js";
 import { Runner, WIZARD_VERSION } from "./runner.js";
 import { IDENTITY_REQUEST, isIdentityReply, apiMessage, parseApi, readVersion, DUMP, trackRecord } from "./sysex.js";
 import { createMockDevice } from "./mock.js";
+import { testPresetFiles } from "./testpresets.js";
 
 const Q = new URLSearchParams(location.search);
 const MOCK = Q.get("mock") === "1", FAST = Q.get("fast") === "1", AUTO = Q.get("auto") === "1";
@@ -166,6 +167,10 @@ function results() {
   a.textContent = `Download the results (${(z.length / 1048576).toFixed(1)} MB)`;
   $("results").hidden = false;
   $("start").disabled = false;
+  $("tests").replaceChildren(...testPresetFiles().map((t) => {
+    const u = URL.createObjectURL(new Blob([t.bytes], { type: "application/zip" }));
+    return h("li", {}, h("a", { href: u, download: `${t.name}.dn2pst` }, `${t.name}.dn2pst`), ` — ${t.hint}`);
+  }));
 }
 W.zipBase64 = () => { let s = ""; const z = W.zip; for (let i = 0; i < z.length; i += 0x8000) s += String.fromCharCode(...z.subarray(i, i + 0x8000)); return btoa(s); };
 W.state = () => W.runner ? W.runner.progress().state : "idle";

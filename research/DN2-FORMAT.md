@@ -378,3 +378,137 @@ fixed here: the ChoralRoot repo is read-only from this task.
 - **Project files** (`.dn2prj`) hold up to 128 pool sounds and 16 kit sounds, each a bare 359-byte record.
   - The geometry is in DNX `dn2image.ts` / `soundmap.ts` `DN2_POOL_OFFSET`.
   - `parseDn2pst(record)` reads each one. A project import would need only the LZ4 chain and the offsets.
+
+## 11. Export: FIZZ presets as Digitone files (2026-10-22)
+
+`tools/fizz2dn.mjs` writes a FIZZ sound as a Digitone file:
+
+- `fizzToDnsnd(sound)` writes a `.dnsnd` for the Digitone, as OS 1.44 saves it, with a version-5 record.
+- `fizzToDn2pst(sound)` writes a `.dn2pst` for the Digitone II, with a version-2 record and machine FM TONE.
+- Each returns `{bytes, notes}`. The notes say what the format cannot hold.
+- The input is a FIZZ patch: a version-5 or version-6 blob, or the 110 values. The name, tags, pan, sends and DRIVE come with it.
+- The wizard publishes a copy as `site/js/dn2wizard/fizz2dn.js`, with three FIZZ-made test presets for the owner to load (`testpresets.js`).
+- The tests are in `tools/test_fizz2dn.mjs`. They read the owner's files in place.
+
+### The file, as the instruments and Transfer write it
+
+- **The ZIP.** It has the same entries and the same header fields as Transfer's:
+  - version made by 2.0, version needed 1.0, the UTF-8 flag, method 8, no extra fields.
+  - Each entry is one *stored* deflate block, a valid deflate stream that `unzip -t` accepts. Transfer compresses its entries for real. This is the only difference in structure.
+- **`manifest.json`.** It is written exactly as Transfer writes it: two-space indents, CRLF line endings, no final newline, the keys in Transfer's order. That is `JSON.stringify(m, null, 2)` with each `\n` turned into `\r\n`.
+  - A Digitone file says `ProductType ["24","30"]` and `FirmwareVersion "1.42A"`. Every Transfer 1.42A file in the corpus says that, the OS 1.44 sounds included.
+  - A Digitone II file says `ProductType []` and `"1.10E"`.
+  - The tags are the record's tag bits, in bit order.
+  - The manifest is identical in **146 of 146** version-5 corpus files written by Transfer 1.42A. The other 60, from an older Transfer, have `"1.32A"`, product `["20","28"]`, no tags and build `0070`.
+- **The container** matches the instrument's, field for field:
+  - the device byte: 9 on the Digitone, 15 on the Digitone II;
+  - the build: `0097` on the Digitone, `0050` on the Digitone II;
+  - content kind 3, the record's version, index 0 (the slot: the device stamps it), the body length, the compressed flag 1, trailer length 12;
+  - the CRC-32 (zero seed) and the trailer.
+  - The header is identical, slot aside, in **146 of 146** Transfer-1.42A files. Against `BASSSINE.dn2pst`, the magic, family, device, kind, lengths and flags all match.
+- **Elektron's LZ4, found.** The instruments compress with the reference LZ4 fast compressor at acceleration 1, with one difference: the four bytes to hash are read **big-endian**. The hash is `(be32(p) × 2654435761) >> 20`, a 4096-entry table of positions, MINMATCH 4, MFLIMIT 12, LASTLITERALS 5, skip trigger 6.
+  - `lz4Elektron` rebuilds **every one of the 463 blocks on hand**, byte for byte: all 462 Digitone files and BASSSINE.
+  - The usual little-endian read gives 448, or 457 with the 8,192-entry table.
+  - So a FIZZ export's payload is what the instrument itself would write for the same record.
+
+### The records
+
+- **The Digitone's record** (302 bytes, version 5) is written from the field table of `fm1dnsnd.js` (§4's DN1 offsets), inverted.
+  - Key tracks A, B1, B2 and the filter's go to +274..+277 (DNX's map).
+  - Portamento goes to +170 / +172: ON = 64 (inferred, as on the DN2), OFF = 63.
+  - Every other byte takes its INIT value from `DN1_INIT`:
+    - the eight `40 00` at +112..+127;
+    - AMP ENV RESET on at +168;
+    - portamento OFF at +170 and its time at +172;
+    - +188 = 2;
+    - the arpeggiator's defaults at +251 / +253..+256;
+    - +279 = 2 and +283 = 100;
+    - the end mark at +298.
+  - Each of these is the value in the owner's INIT-based export (`BASE`) and in most of the 206 version-5 records: 83 % for +188, 91 % for +168, 97 % or more for the rest. Their meanings, where DNX knows them, are in §3.
+  - **No Elektron or owner file is embedded:** the table holds a value per byte, as DNX's `DEFAULT_BYTES` does.
+- **The Digitone II's record** (359 bytes, version 2) is written from §4's table (`28 + 2 × id`) with these mappings:
+
+| FIZZ value | Digitone II field |
+| --- | --- |
+| FTYPE OFF / LP12 / HP12 | LEGACY LP/HP type 3 / 0 / 1 (Elektron's own conversion of the DN1's) |
+| LP24 | LOWPASS 4 |
+| FIZZ's planned MULTI, COMB+, COMB−, EQ | their machines; FSHAPE to TYPE (+174), FGAIN to the EQ's GAIN (+178) |
+| AMOD / HOLD | AMP MODE (+222: 0 AHD, 1 ADSR) / HOLD (+204) |
+| PORT / PTIM | +226 (64 ON, 63 OFF) / +228 |
+| BITS / SRR / CRPOST | +230 / +232 / +234 |
+| BWPOST | +238 |
+| DRPRE | OD ROUTING (+240: 0 before the filter) |
+| LFO 3 | its own fields |
+| MULT | in the Digitone II's order (`multToQuad` inverted) |
+
+  - The other bytes come from `DN2_INIT`, Elektron's DN1 → DN2 conversion of the DN1 INIT: DNX's `DEFAULT_BYTES` and its copies (+246 = 2, +250 = 2, +326 = 100, the arpeggiator at +332..+337).
+  - BASSSINE, a third party's sound, has +246 = 4 and +324 = 2 there. **The Digitone II's own INIT may differ in these bytes.** The wizard's baseline dump of an INIT FM TONE sound will tell, and `DN2_INIT` should then take its values.
+- **The name** is upper-cased printable ASCII (Latin-1 letters kept), at most 16 characters. The ZIP's payload entry is cut to 15, as Transfer cuts it.
+- **FIZZ's tags** map to the nearest Digitone words:
+
+| FIZZ | Digitone |
+| --- | --- |
+| BASS | BASS |
+| KEYS | CHORD |
+| PLUCK | ARPEGGIO |
+| PAD | PAD |
+| LEAD | LEAD |
+| DRUMS | PERCUSSION |
+| FX | SOUND FX |
+
+- **Pan, the sends and DRIVE** go into their fields. DRIVE goes to the DN1's DRIVE and the DN2's OVERDRIVE.
+
+### What the formats cannot hold (the `notes`)
+
+| | Digitone | Digitone II |
+| --- | --- | --- |
+| VEL (the operators' velocity) | dropped | dropped |
+| LFO 3 | dropped | kept |
+| AHD, HOLD | as an ADSR like it | kept |
+| CRUSH (BITS, SRR), base-width after the filter | dropped | kept (the laws are not verified) |
+| DRIVE after the voice | the DN1's drive is before the filter (noted) | OD ROUTING |
+| the modulation slots | not written (the records are not decoded) | not written |
+| portamento LEGATO, SLOPE RATE | written as ON; the slope dropped | the same |
+| RATIO A off the 36 steps | the nearest step | the nearest step |
+| filter DEC 127 with SUS < 127 | 126 (127 is INF there) | 126 |
+| filter key track | percent: 101 steps for FIZZ's 128 | the same |
+
+### Checked (`node tools/test_fizz2dn.mjs`)
+
+- **Elektron's LZ4:** 463 of 463 blocks rebuilt.
+- **All 462 Digitone files.** Each is imported (`dnsndToQuad`), exported and imported again, and comes back as **the same FIZZ patch**.
+  - In 36 of them, RATIO A sits on a step that ChoralRoot's reader interpolates (§9). Those are compared without RATIO A.
+- **The 206 version-5 originals, byte for byte:**
+  - 11 records come out identical.
+  - The bytes that differ all fall into these groups (the test lists each offset and how many files):
+    - the fine bytes: FIZZ keeps hundredths, where the Digitone keeps 1/256ths;
+    - the sends, AMP REL, DRIVE and VOL, which are whole numbers in FIZZ;
+    - the octave, folded into the ratios on import;
+    - RATIO B's low bit;
+    - AMP ENV RESET off (FIZZ always resets);
+    - the importer's DEC-INF → SUS 127 rule;
+    - the bytes FIZZ has no value for: +110, +188, the modulation records, the arpeggiator, the tail +273..+297;
+    - key tracks and portamento, which ChoralRoot's importer does not read;
+    - name bytes after the name's end.
+  - **No other byte differs.**
+- **400 random FIZZ patches through each format and its reader** come back as they were:
+  - through the Digitone: within what it holds;
+  - through the Digitone II: AHD, portamento, DRIVE's place, CRUSH, LFO 3 and key tracks included.
+- `unzip -t` passes on both kinds of file, and the payloads read clean (CRC, lengths, the LZ4 chain).
+
+The import side moved with the export (`dn2pst.mjs`): HOLD and AHD's SUS / REL are kept, and BITS / SRR / CRPOST are taken 1:1, so a FIZZ → Digitone II → FIZZ round trip keeps them.
+
+### How sure, and what is not proved
+
+- **Digitone (`.dnsnd`): high confidence.**
+  - The payload is what the instrument writes, given the record, and the manifest is Transfer's own.
+  - The record differs from real ones only in the fields listed.
+  - Not proved: that Transfer and OS 1.44 accept a ZIP whose entries are *stored* deflate blocks. It is standard deflate, but no device has seen one.
+- **Digitone II (`.dn2pst`): good on the container, moderate on the record.**
+  - The container and LZ4 match BASSSINE's exactly.
+  - The FM TONE fields are §4's confirmed table.
+  - Not proved:
+    - the INIT bytes FIZZ has no value for (+246, +324, the arpeggiator: see above);
+    - the encodings of PORT / PTIM, AHD's HOLD, BITS / SRR and their routings, BWPOST and OD ROUTING (§8);
+    - that OS 1.11 takes a version-2 record, as syxgrid's notes say it does, upgrading it on load.
+- **The next proof** is a Digitone II owner loading the wizard's `FIZZ TEST 1..3` (DN2-MEASURE.md), and a Digitone owner loading an exported `.dnsnd`.
