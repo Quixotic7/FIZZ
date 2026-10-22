@@ -162,6 +162,8 @@ static void pr_rollo(const ui_browse_t *v, qd_rgb col)
         const float y = (d < 0 ? 64.f + (float)(d + 1) * 22.f : 160.f + (float)d * 26.f) + dy, a = d * d == 1 ? 0.6f : 0.28f;
         if (!p->ok || (v->users_row && d == 2))
             continue;                                   /* (the POOL, OUT?: its users' row there) */
+        if (d > 0 && v->fx && v->fx_u < 1.f && !v->picker)
+            continue;                                   /* (P1.5z: + / - POOL's animation and its count there) */
         qd_save();
         qd_alpha(qd_get_alpha() * a);
         qd_clip_rect(0.f, 27.f, 222.f, 213.f);
