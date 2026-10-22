@@ -173,5 +173,24 @@ check(r2 === N, `random patches, Digitone II (AHD, portamento, DRIVE's place, CR
       `the wizard's ${t.name}: a clean Digitone II preset that reads back as itself`);
   }
 }
+// ---- 5. E2: FIZZ's filter machines (FTYPE 4 MULTI, 5 COMB+, 6 COMB-, 7 EQ; FSHAPE, FGAIN, BWPOST) written as the
+// Digitone II's machines and read back by dn2pst.mjs: every value the same (on EQ, RESO aside: the machine has none,
+// its place holds the GAIN); a Digitone 1 file says each one is approximated
+{
+  const cases = [[4, 0, 0, 0], [4, 64, 0, 1], [4, 127, 0, 0], [5, 40, 0, 0], [6, 90, 0, 1], [7, 30, -20, 0], [7, 100, 17, 1], [3, 0, 0, 1]];
+  for (const [ft, shape, gain, bw] of cases) {
+    const v = defaults(); v[Q.LEVEL] = 100; v[Q.RESO] = 4200; v[Q.FREQ] = 8800;
+    v[Q.FTYPE] = ft; v[Q.FSHAPE] = shape; v[Q.FGAIN] = gain; v[Q.BWPOST] = bw;
+    const d2 = fizzToDn2pst({ values: v, name: "MACHINE" }, { date: DATE });
+    const q = dn2pstToQuad(await parseDn2pst(d2.bytes)), back = [...q.values, q.drive, ...q.ext];
+    const diff = v.map((x, i) => (x !== back[i] && !(ft === 7 && i === Q.RESO) ? i : -1)).filter((i) => i >= 0);
+    const what = ft === 4 ? "MULTI" : ft === 5 ? "COMB+" : ft === 6 ? "COMB-" : ft === 7 ? "EQ" : "LOWPASS 4";
+    check(!diff.length && q.six === (shape !== 0 || gain !== 0 || bw !== 0), `${what} (TYPE ${shape}, GAIN ${gain}, BW ${bw ? "after" : "before"}) round-trips through dn2pst.mjs${diff.length ? ": differs at " + diff.join(" ") : ""}`);
+    if (ft > 3) {
+      const n1 = fizzToDnsnd({ values: v, name: "MACHINE" }).notes;
+      check(n1.some((s) => /approximated as (LP2|HP2|off)/.test(s)), `Digitone 1: ${n1.find((s) => /approximated/.test(s))}`);
+    }
+  }
+}
 console.log(`test_fizz2dn: ${checks} checks, ${fails} failed`);
 process.exit(fails ? 1 : 0);

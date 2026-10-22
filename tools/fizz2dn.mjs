@@ -151,8 +151,15 @@ export function dn1Record(v, { name, tagBits, pan = 0, sends = {} }, notes) {
   r[74] = v[Q.FDBK]; r[76] = v[Q.MIX] + 64; r[78] = v[Q.PHRT];
   [Q.AATK, Q.ADEC, Q.AEND, Q.ALEV, Q.BATK, Q.BDEC, Q.BEND, Q.BLEV].forEach((i, k) => { r[82 + 2 * k] = v[i]; });
   [Q.ADLY, Q.ATRIG, Q.ARST, Q.BDLY, Q.BTRIG, Q.BRST].forEach((i, k) => { r[98 + 2 * k] = v[i]; });
+  // the filter: FM TONE's OFF LP12 HP12 LP24 as they are; FIZZ's E2 machines (4 MULTI, 5 COMB+, 6 COMB-, 7 EQ) the
+  // Digitone 1 has none of: the nearest legacy type, noted. MULTI by its morph (FSHAPE 0 LP12 .. 64 BP .. 127 HP12): the
+  // nearer end; the combs and the EQ's bell have no counterpart: off
   let ft = v[Q.FTYPE];
-  if (ft > 3) { const t = ft === 4 ? (v[Q.FSHAPE] >= 96 ? 2 : 1) : 0; notes.push(`filter ${["MULTI", "COMB+", "COMB-", "EQ"][ft - 4]}: the Digitone has ${t ? (t === 1 ? "LP2" : "HP2") : "none: off"}`); ft = t; }
+  if (ft > 3) {
+    const t = ft === 4 ? (v[Q.FSHAPE] < 64 ? 1 : 2) : 0, name = ["MULTI", "COMB+", "COMB-", "EQ"][ft - 4];
+    notes.push(`filter ${name}${ft === 4 ? ` (morph ${v[Q.FSHAPE]})` : ""}: the Digitone has no such filter: approximated as ${t === 1 ? "LP2" : t === 2 ? "HP2" : "off"}`);
+    ft = t;
+  }
   r[128] = ft;
   put(r, 130, hiBytes(v[Q.FREQ])); put(r, 132, hiBytes(v[Q.RESO])); put(r, 134, hiBytes(v[Q.FDEPTH] + 6400));
   r[136] = v[Q.FATK]; r[138] = fdec(v, notes); r[140] = v[Q.FSUS]; r[142] = v[Q.FREL];
