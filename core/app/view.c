@@ -1480,6 +1480,14 @@ int qd_view_overlay(const qd_app_t *a)
                                       a->ui.tk == QD_TK_UNDO);
 }
 
+/* P1.5p: the knob band shows (a held step's knob turned): over the head, y 0..41, its fade included */
+static int band_up(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    return u->tk == QD_TK_HELDKNOB && u->nheld && !u->lmode_open && qd_view_overlay(a) &&
+           a->ms - u->tk_ms < QD_TK_MS + QD_TK_FADE_MS;
+}
+
 void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
 {
     static ui_lane_t lv;
@@ -1543,6 +1551,7 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         break;
     case QD_SCR_HELD:
         fill_held(a, &hv, 0);
+        hv.band = band_up(a);                           /* (P1.5p: the band over the head: its zone left clear) */
         ui_held_draw(&hv);
         break;
     case QD_SCR_DEFAULT:                                /* P1.3e: a mode key held: its default's full picture */
@@ -1580,7 +1589,7 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     } else if (u->tk == QD_TK_HELDKNOB) {                      /* P1.3d: a held step's knob: the band over its screen */
         const uint32_t d = a->ms - u->tk_ms;
         const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
-        if (al > 0.f && u->nheld) {
+        if (band_up(a) && al > 0.f) {
             qd_save();
             qd_alpha(al);
             fill_band(a, &bv, 0);

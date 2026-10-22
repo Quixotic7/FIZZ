@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5c)
+# Playing FIZZ (P1.5p)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -111,6 +111,8 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
 4. **B11** puts the step back on the track's default.
 
 Hold several white keys to edit them all at once. Each knob turn shows its name and value in a band at the top.
+While the band shows, the screen leaves its own top row clear under it (P1.5p): NOTE's scale name and VEL's big
+value and ramp ticks step aside and come back when the band goes.
 
 The knobs with a step held:
 

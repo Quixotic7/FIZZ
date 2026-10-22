@@ -434,6 +434,8 @@ typedef struct {
     int jump_page, jump_step;
     uint8_t jump_trig[16];
     int bank;                           /* the bank of ten on the keys (0: 1..10) */
+    int band;                           /* P1.5p: the knob band is over the head (y 0..41): what the body draws there
+                                         * (NOTE's scale, VEL's value and ramp) is left out while it shows */
 } ui_held_t;
 void ui_held_draw(const ui_held_t *v);
 /* P1.3r: the EDIT view: the mode's picture (v: the step held / selected, or the track's default) re-laid-out in the

@@ -212,7 +212,8 @@ static void f_note(const ui_held_t *v, const pal_t *p)
         x = ui_keyboard_x(14.f, 212.f, lo, v->note[i], &b);
         ui_O(x, b ? KB_Y + 32.f : KB_Y + 60.f, 3.8f, QD_NONE, 1.f, col);
     }
-    if (!p->nobig && v->scale_name && v->scale_name[0])   /* the track's scale, small */
+    if (!p->nobig && !v->band && v->scale_name && v->scale_name[0])   /* the track's scale, small (P1.5p: not under
+                                                                         * the knob band) */
         ui_lab(v->scale_name, 8.f, 37.f, UI_G1, QD_LEFT);
 }
 
@@ -538,13 +539,13 @@ static void f_vel(const ui_held_t *v, const pal_t *p)
     rd_c = -k * sinf(pitch), rd_d = k * cosf(pitch);
     rider(u, v->t);
     /* the value big, top right; the ratchet's ramp as four ticks, top left */
-    if (!p->nobig) {
+    if (!p->nobig && !v->band) {                        /* (P1.5p: the band carries the value while it shows) */
         if (p->empty)
             big(p, "", 12.f, 84.f, 64.f);
         else
             ui_T(ui_itoa(s, v->vel), 232.f, 84.f, 64.f, 200, 0.f, p->k[0], QD_RIGHT);
     }
-    for (i = 0; i < 4; i++) {                           /* (EDIT, nobig: a little lower, under its head) */
+    for (i = 0; i < 4 && (p->nobig || !v->band); i++) {   /* (EDIT, nobig: a little lower, under its head) */
         const float x = 10.f + (float)i * 8.f, h = (float)ramp_vel(v->vel, v->ramp, i, 4) / 127.f * 16.f;
         const float y = p->nobig ? 80.f : 46.f;
         line2(x, y, x, y - (h < 1.f ? 1.f : h), p->k[1], 2.f);

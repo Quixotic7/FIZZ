@@ -4866,6 +4866,69 @@ static void g_p15c_random(void)
     btap(QD_B_HOME);
 }
 
+/* P1.5p: the knob band over a held screen's head: nothing of the screen under it cut by its edge */
+static uint16_t band_lcd[QD_W * QD_H];
+static int row_ink(const uint16_t *lcd, int y, int x0, int x1)     /* pixels not black on a row */
+{
+    const uint8_t *b = (const uint8_t *)lcd;
+    int x, n = 0;
+    for (x = x0; x < x1; x++) {
+        const uint16_t v = (uint16_t)(b[2 * (y * QD_W + x)] << 8 | b[2 * (y * QD_W + x) + 1]);
+        const int r = (v >> 11) & 31, g = (v >> 5) & 63, bl = v & 31;
+        n += r + g / 2 + bl > 6;
+    }
+    return n;
+}
+static void g_p15p_band(void)
+{
+    static uint16_t nb[QD_W * QD_H];
+    int m, v, y, ok, clear, band, under, sc;
+    for (v = 0; v < 2; v++)                             /* PIANO ROLL, STEPS (EDIT's top is its own: no band) */
+        for (m = M_NOTE; m <= M_SOUND; m++) {
+            start();
+            A.ui.view = v;
+            if (m == M_NOTE)
+                PAT()->trk[0].scale = QD_SCALE_MAJOR, PAT()->trk[0].root = 0, PAT()->trk[0].key_global = 0;
+            wtap(1);
+            mode(m);
+            whold(1);
+            run(1200);
+            qd_app_frame(&A, nb);
+            turn(m == M_NOTE ? QD_K_SELECT : QD_K_1, 1);
+            run(30);
+            qd_app_frame(&A, band_lcd);
+            band = row_ink(band_lcd, 40, 0, QD_W) > 200;
+            for (clear = 1, y = 41; y < 47; y++)
+                clear &= row_ink(band_lcd, y, 6, 234) == 0;
+            CHECK(band && clear, "view %d, mode %d, a step held, a knob: the band (%d), nothing of the screen cut under "
+                  "its edge (rows 41..46 clear)", v, m, band);
+            if (m == M_NOTE) {
+                for (sc = 0, y = 36; y < 45; y++)
+                    sc += row_ink(nb, y, 6, 120);
+                CHECK(sc > 100, "NOTE, no band: the scale's name under the head (%d)", sc);
+                run(QD_TK_MS + QD_TK_FADE_MS + 50);
+                qd_app_frame(&A, band_lcd);
+                for (under = 0, y = 36; y < 45; y++)
+                    under += row_ink(band_lcd, y, 6, 120);
+                CHECK(under > 100, "NOTE: the band gone, the scale's name back (%d)", under);
+            }
+            wrel(1);
+            btap(QD_B_HOME);
+        }
+    start();                                            /* the editor: a knob over a held step, no band over its head */
+    wtap(1);
+    btap(QD_B_SOUND);
+    whold(1);
+    run(600);
+    turn(QD_K_1, 1);
+    run(30);
+    qd_app_frame(&A, band_lcd);
+    ok = qd_view_screen(&A) == QD_SCR_SOUND && !(A.ui.tk == QD_TK_HELDKNOB && qd_view_overlay(&A));
+    CHECK(ok, "the editor, a step held, a knob: no band over its head (tk %d)", A.ui.tk);
+    wrel(1);
+    btap(QD_B_HOME);
+}
+
 int main(void)
 {
     static const struct {
@@ -4939,6 +5002,7 @@ int main(void)
         {"P1.5c: undo / redo, eight levels", g_p15c_undo},
         {"P1.5c: SHIFT's keys: snapshot, tap, click, double, clear", g_p15c_shift},
         {"P1.5c: randomise: the dice, the bottle, the rules", g_p15c_random},
+        {"P1.5p: the knob band clear of every held screen's head", g_p15p_band},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;
