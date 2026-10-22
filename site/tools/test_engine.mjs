@@ -344,6 +344,24 @@ e.dispose();
             fizzValues(back).join() === fizzValues(s).join(),
         `E3: a Digitone II with BR 10 / SRR 24 goes as STORE6, FIZZ keeps BITS ${vals[83]}, SRR ${vals[84]}, CRPOST ${vals[85]}; out as .dn2pst and back: ${fizzValues(back).join() === fizzValues(s).join() ? "the same" : "DIFFERENT"}`);
     }
+    // E4: a Digitone II sound with modulation records (synthetic: VEL -> FILTER FREQ +32, MOD WHEEL -> HARM -10) goes
+    // as STORE6, FIZZ keeps the two slots (values 86..), and out as .dn2pst it reads back the same
+    if (fs.existsSync(FEED)) {
+      const rec = dn2RecordFromParams({}, { name: "MOD TEST" });
+      const put = (k, depth, id) => { const x = depth / 2 + 64, c = Math.floor(x); rec[252 + 3 * k] = c; rec[253 + 3 * k] = Math.round((x - c) * 256); rec[254 + 3 * k] = id; };
+      put(4, 32, 74); put(8, -10, 37);
+      const man = { FormatVersion: 1, ProductType: ["24", "38"], Payload: "MOD TEST.dn2snd", FileType: "Sound", FirmwareVersion: "1.10D", MetaInfo: { Tags: [] } };
+      const it = (await readFiles([{ name: "MOD TEST.dn2pst", bytes: dn2pstZip(wrapDn2Record(rec), man) }]))[0];
+      const s = it.sound, f = storeFrame(s);
+      const tmpm = fs.mkdtempSync(path.join(OUT, "feede4-"));
+      fs.writeFileSync(path.join(tmpm, "one.syx"), f);
+      const vals = ((execFileSync(FEED, ["--feed", path.join(tmpm, "one.syx")], { encoding: "utf8" }).match(/^values (.*)$/m) || [])[1] || "").split(" ").map(Number);
+      const slots = [0, 1].map((k) => vals.slice(86 + 3 * k, 89 + 3 * k).join("/"));
+      const out = digitoneExport([soundFromStoreFrame(f)], "dn2pst");
+      const back = (await readFiles([{ name: out.name, bytes: out.bytes }]))[0].sound;
+      check(it.ok && s.six && f[5] === 0x11 && slots.join(" ") === "1/25/32 3/11/-10" && fizzValues(back).join() === fizzValues(s).join(),
+        `E4: a Digitone II with VEL -> FREQ +32 and MW -> HARM -10 goes as STORE6, FIZZ keeps the slots ${slots.join(", ")} (source / dest / depth); out as .dn2pst and back: ${fizzValues(back).join() === fizzValues(s).join() ? "the same" : "DIFFERENT"}`);
+    }
     // a .fizzlib of 20 presets (20 of the owner's .dnsnd, as FIZZ's DUMP would give them: STORE frames): written, read
     // back, stored into a blank unit; every frame the same, and FIZZ's test_sysex reads them the same
     const DIR20 = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets";

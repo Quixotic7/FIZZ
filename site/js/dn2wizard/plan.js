@@ -117,9 +117,15 @@ export function buildPlan({ person = true } = {}) {
   add({ k: "ref", item: "mod" });
   [["VELOCITY", "FILTER FREQ", "+32", [4, 0x2000, 74]], ["VELOCITY", "FILTER FREQ", "-32", [4, 0x6000, 74]], ["MOD WHEEL", "HARM", "+64", [8, 0x4000, 37]],
    ["AFTERTOUCH", "A LEV", "+64", [16, 0x4000, 46]], ["PITCH BEND", "MIX", "+64", [0, 0x4000, 40]], ["BREATH", "FDBK", "+64", [12, 0x4000, 39]],
-   ["KEY TRACK (if it is a source)", "FILTER FREQ", "+64", [20, 0x4000, 74]]].forEach(([src, dst, dep, mock]) => {
-    add(man("mod", `In the sound's ${src} modulation menu, set the first slot to ${dst} with depth ${dep}. Then press Continue; afterwards, set that slot back to none.`, { mod: mock }),
-      { k: "dump", item: "mod", label: `${src} ${dst} ${dep}` }, man("mod", `Set that ${src} slot back to none (no destination).`, { mod: [mock[0], 0, 0] }));
+   ["KEY TRACK (if it is a source)", "FILTER FREQ", "+64", [20, 0x4000, 74]],
+   // E4 (FIZZ's import reads the records as six sources x four, depth = (coarse + fine / 256 - 64) x 2: inferred): a
+   // source's second slot (is it the next record, k + 1?) and a small odd depth (the fine byte's law); the mock follows
+   // that reading (depth / 2 + 64)
+   ["VELOCITY (its second slot)", "HARM", "+16", [5, 0x4800, 37]], ["VELOCITY", "FILTER FREQ", "+1", [4, 0x4080, 74]],
+   ["MOD WHEEL", "HARM", "-127", [8, 0x0080, 37]]].forEach(([src, dst, dep, mock]) => {
+    const which = /second slot/.test(src) ? "the second slot" : "the first slot", srcName = src.replace(/ \(its second slot\)/, "");
+    add(man("mod", `In the sound's ${srcName} modulation menu, set ${which} to ${dst} with depth ${dep}. Then press Continue; afterwards, set that slot back to none.`, { mod: mock }),
+      { k: "dump", item: "mod", label: `${src} ${dst} ${dep}` }, man("mod", `Set that ${srcName} slot back to none (no destination).`, { mod: [mock[0], 0, 0] }));
   });
   add({ k: "ref", item: "octave" });
   for (const [o, v] of [["-1", -12], ["+1", 12], ["0", 0]])

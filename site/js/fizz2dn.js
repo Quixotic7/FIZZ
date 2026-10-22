@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copied from FIZZ's tools/fizz2dn.mjs (4e6588d) so the published site is self-contained (its import of ./dn2pst.mjs as ./dn2pst.js).
+// Copied from FIZZ's tools/fizz2dn.mjs (bb3cae1) so the published site is self-contained (its import of ./dn2pst.mjs as ./dn2pst.js).
 // FIZZ presets written as Elektron Digitone files: .dnsnd (Digitone, OS 1.44: a version-5 sound record) and .dn2pst
 // (Digitone II, OS 1.10 and later: a version-2 record, machine FM TONE). Pure JS, no dependencies beyond FIZZ's own
 // dn2pst.mjs (its Digitone II tables). The inverse of the readers: ChoralRoot's fm1dnsnd.js dnsndToQuad (the DN1 laws,
@@ -98,7 +98,7 @@ function commonNotes(v, notes, lfos) {
   if (v[Q.PSLOPE]) notes.push("portamento SLOPE RATE: the Digitone's slope is a menu setting not in the file: dropped");
   if (v[Q.PORT] === 2) notes.push("portamento LEGATO: written as ON (the Digitone's legato-only type is a menu setting)");
   const mods = Array.from({ length: 8 }, (_, k) => v[Q.MOD0 + 3 * k]).filter((s) => s).length;
-  if (mods) notes.push(`${mods} modulation slot(s): not written (the Digitone's modulation records are not decoded yet)`);
+  if (mods && lfos < 3) notes.push(`${mods} modulation slot(s): not written (the Digitone 1's modulation records are not decoded)`);
 }
 function ratioA(v, notes, table) {
   const want = RA_QUARTERS(v[Q.RA]), s = nearestStep(table, want);
@@ -181,6 +181,26 @@ export function dn1Record(v, { name, tagBits, pan = 0, sends = {} }, notes) {
   return r;
 }
 
+// E4: FIZZ's eight modulation slots into the Digitone II's modulation records, the inverse of dn2pst.mjs's reading
+// (+252 + 3k, k < 24: six sources x four records, PB VEL MW BR AT KEY; the first two bytes the depth, depth / 2 + 64 as a
+// coarse byte and a 1/256 fine byte; the third the destination's id; inferred, not verified on a real sound). RAND and
+// F ENV have no record, a destination the Digitone II lacks has no id, a source's fifth slot has no room: noted, dropped
+const SRC_NAMES = ["", "VEL", "KEY", "MW", "AT", "PB", "BR", "RAND", "F ENV"];
+const SRC_GROUP = { 5: 0, 1: 1, 3: 2, 6: 3, 4: 4, 2: 5 };   // FIZZ's source -> the record group (dn2pst.mjs SRC, inverted)
+function modRecords(r, v, notes) {
+  const used = [0, 0, 0, 0, 0, 0];
+  for (let k = 0; k < 8; k++) {
+    const src = v[Q.MOD0 + 3 * k], dest = v[Q.MOD0 + 3 * k + 1], depth = v[Q.MOD0 + 3 * k + 2];
+    if (!src || !dest) continue;
+    const g = SRC_GROUP[src], id = DN2_DEST[dest];
+    if (g === undefined) { notes.push(`MOD ${k + 1}: ${SRC_NAMES[src] || `source ${src}`} has no Digitone II modulation record: dropped`); continue; }
+    if (!id) { notes.push(`MOD ${k + 1} (${SRC_NAMES[src]}): destination #${dest}: the Digitone II has none: dropped`); continue; }
+    if (used[g] >= 4) { notes.push(`MOD ${k + 1}: a fifth ${SRC_NAMES[src]} slot: the Digitone II has four records a source: dropped`); continue; }
+    const o = 252 + 3 * (g * 4 + used[g]++), x = depth / 2 + 64, c = Math.floor(x);
+    r[o] = c; r[o + 1] = Math.round((x - c) * 256); r[o + 2] = id;
+  }
+}
+
 // ---- the Digitone II's record (version 2, 359 bytes: dn2pst.mjs DN2_FIELDS's offsets, 28 + 2 x id)
 // INIT values of the bytes no FIZZ value writes: Elektron's DN1 -> DN2 conversion of the DN1 INIT (DNX soundmap.ts
 // DEFAULT_BYTES and its copies of DN1_INIT's bytes), research/DN2-FORMAT.md "Export"
@@ -241,6 +261,7 @@ export function dn2Record(v, { name, tagBits, pan = 0, sends = {} }, notes) {
   r[238] = v[Q.BWPOST];
   r[240] = v[Q.DRPRE] ? 0 : 1;                           // OD ROUTING: 0 before the filter (dn2pst.mjs's reading), 1 after
   r[244] = 0;                                            // the machine: FM TONE
+  modRecords(r, v, notes);
   commonNotes(v, notes, 3);
   return r;
 }
