@@ -86,6 +86,17 @@ for (const compress of [true, false]) {
   const lp4 = dn2RecordFromParams(want); lp4[245] = 1;
   check(dn2pstToQuad(await parseDn2pst(lp4)).values[QP.FTYPE] === 3, "LOWPASS 4 -> LP24");
   const comb = dn2RecordFromParams(want); comb[245] = 5;
+  {   // E4: the modulation records into the slots: VEL (records 4..7) -> FREQ +32, PB (0) -> HARM -20; nine: one lost
+    const mr = dn2RecordFromParams(want);
+    mr[252 + 3 * 4] = 80, mr[252 + 3 * 4 + 2] = 74;        // VEL -> FREQ, (80 - 64) x 2 = +32
+    mr[252] = 54, mr[254] = 37;                             // PB -> HARM, (54 - 64) x 2 = -20
+    const qm = dn2pstToQuad(await parseDn2pst(mr)), M = (s, f) => qm.ext[QX.MOD0 + 3 * s + f - 74];
+    check(M(0, 0) === 5 && M(0, 1) === 11 && M(0, 2) === -20 && M(1, 0) === 1 && M(1, 1) === 25 && M(1, 2) === 32 && qm.six,
+          `MOD: PB -> HARM -20, VEL -> FREQ +32 (${[0, 1].map((s) => [0, 1, 2].map((f) => M(s, f)).join("/")).join(", ")})`);
+    for (let k = 0; k < 9; k++) mr[252 + 3 * (k + 8)] = 70, mr[252 + 3 * (k + 8) + 2] = 74;
+    const q9 = dn2pstToQuad(await parseDn2pst(mr));
+    check(q9.notes.some((n) => /not imported/.test(n)), "more than eight: noted");
+  }
   {   // E2: every machine: COMB+ 5, COMB- 6 (LPF FSHAPE, FDBK RESO), EQ 7 (Q FSHAPE, GAIN RESO's coarse - 64), BW ROUTING
     const qc = dn2pstToQuad(await parseDn2pst(comb));
     check(qc.values[QP.FTYPE] === 5 && qc.ext[QX.FSHAPE - 74] === 0 && qc.values[QP.RESO] === 2025 && qc.six, "COMB+ -> 5");

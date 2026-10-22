@@ -59,6 +59,8 @@ enum {
     QD_QP_MOD0                          /* E4: eight modulation slots: QD_QP_MOD(k, QD_QM_SRC / DST / DEPTH) */
 };
 enum { QD_QM_SRC, QD_QM_DST, QD_QM_DEPTH };
+/* E4: the modulation slots' sources (SOURCE 0 OFF) */
+enum { QD_MS_OFF, QD_MS_VEL, QD_MS_KEY, QD_MS_MW, QD_MS_AT, QD_MS_PB, QD_MS_BR, QD_MS_RAND, QD_MS_FENV, QD_MS_N };
 #define QD_QP_MOD(k, f) (QD_QP_MOD0 + (k) * 3 + (f))
 #define QD_NMOD 8
 enum { QD_PORT_OFF, QD_PORT_ON, QD_PORT_LEGATO };
@@ -87,6 +89,9 @@ typedef struct qd_quad_owner {
     const void *cc_key;                 /* .. what makes it one chord (the trig's record and tick) */
     int64_t cc_tick;
     uint8_t cc_held;                    /* .. a voice of the track was in gate when it started (PORT LEGATO glides) */
+    uint8_t mw, at, br;                 /* E4: the track's MIDI state: CC 1, channel pressure, CC 2 (0..127) .. */
+    int16_t pb;                         /* .. the pitch bend (-8192..8191) */
+    uint32_t nserial;                   /* .. the notes struck (the RANDOM source's seed) */
 } qd_quad_owner_t;
 
 /* A voice. The first fields are ChoralRoot's voice_t's that FM TONE and its driver use (eng_quad.c reads this as its
@@ -105,7 +110,9 @@ struct qd_quad_voice {
     int32_t gstep;                      /* E1: the glide's step a block (1/16 semitone; 0: by its RATE) */
     struct { int32_t hp, lp1, lp2; } dpre;   /* E1: DRIVE before the filter: its state (quad_ext.c) */
     struct { int32_t lp, len; uint16_t w; uint8_t mach, fresh; } comb;
-    struct { uint32_t ph; int32_t held; } crush;   /* E3: CRUSH's sample and hold: its phase, the value held */   /* E2: the filter machines' state (quad_ext.c:
+    struct { uint32_t ph; int32_t held; } crush;   /* E3: CRUSH's sample and hold: its phase, the value held */
+    int16_t ptim_mod;                   /* E4: PTIM's modulation now (the glide's RATE) */
+    int16_t mrnd;                       /* E4: the RANDOM source's value for this note (Q15, bipolar) */   /* E2: the filter machines' state (quad_ext.c:
                                          * the comb's damping and length (Q8), its write place; the machine last run; a
                                          * fresh start: its line from silence) */
 };

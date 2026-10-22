@@ -23,6 +23,9 @@ const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     {"KEYS", QD_SG_TRIG, UI_SD_KEYS, {QD_QP_AKEY, QD_QP_B1KEY, QD_QP_B2KEY, QD_QP_VEL, -1}, 0, 0, {0}},
     /* E1 (research/FMTONE-DN2-PLAN.md §7): portamento, in the sound; B1 is PLAY / MOD */
     {"PORT", QD_SG_TRIG, UI_SD_PORT, {QD_QP_PORT, QD_QP_PTIM, QD_QP_PSLOPE, -1, -1}, 0, 0, {0}},
+    /* E4: the eight modulation slots: ALGORITHM the slot, KNOB 1 SOURCE, 2 DEST, 3 DEPTH (snd_mod_ids) */
+    {"MOD", QD_SG_TRIG, UI_SD_MOD, {QD_QP_MOD(0, QD_QM_SRC), QD_QP_MOD(0, QD_QM_DST), QD_QP_MOD(0, QD_QM_DEPTH), -1, -1}, 0, 0,
+     {0}},
     /* P1.5i (the owner, as ChoralRoot and the Digitone): RATIO B is one value, the pair (QD_QP_RB1 here stands for it:
      * B1 x 19 + B2, B2 the fast hand; snd_pair), and MIX moved here from TONE */
     {"RATIO", QD_SG_OPS, UI_SD_ALGO, {QD_QP_RC, QD_QP_RA, QD_QP_RB1, QD_QP_MIX, QD_QP_ALGO}, 0, 0, {0}},
@@ -94,18 +97,37 @@ static const char *const SND_FILTER_LAB[6][2] = {{"RESO", "TYPE"}, {"RESO", ""},
 const char *qd_snd_label(const qd_app_t *a, int page, int k)
 {
     const int8_t *ids = qd_snd_ids(a, page);
+    if (k == 4 && QD_SND_PAGES[page].draw == UI_SD_MOD)
+        return "SLOT";                                  /* (E4: ALGORITHM the slot, no value of its own) */
     if (k < 0 || k > 4 || ids[k] < 0)
         return "";
     if (QD_SND_PAGES[page].draw == UI_SD_FILTER && (k == 1 || k == 2))
         return SND_FILTER_LAB[qd_snd_machine(snd_now(a, QD_QP_FTYPE))][k - 1];
     if (QD_SND_PAGES[page].draw == UI_SD_FILTER && k == 4)
         return "MACHINE";
+    if (QD_SND_PAGES[page].draw == UI_SD_MOD && k == 4)
+        return "SLOT";
     return ids[k] == QD_QP_RB1 ? "RATIO B" : qd_quad_value_name(ids[k]);
+}
+static int8_t SND_MOD_IDS[QD_NMOD][5];
+static const int8_t *snd_mod_ids(int slot)
+{
+    int8_t *r = SND_MOD_IDS[slot < 0 ? 0 : slot >= QD_NMOD ? QD_NMOD - 1 : slot];
+    slot = slot < 0 ? 0 : slot >= QD_NMOD ? QD_NMOD - 1 : slot;
+    r[0] = (int8_t)QD_QP_MOD(slot, QD_QM_SRC), r[1] = (int8_t)QD_QP_MOD(slot, QD_QM_DST);
+    r[2] = (int8_t)QD_QP_MOD(slot, QD_QM_DEPTH), r[3] = r[4] = -1;
+    return r;
 }
 int qd_snd_page_all_ids(int page, int8_t *out)   /* every id the page can show (its machines, its alt), each once */
 {
     const qd_sndpage_t *pg = &QD_SND_PAGES[page];
     int n = 0, k, j, m;
+    if (pg->draw == UI_SD_MOD) {                        /* (E4: every slot's) */
+        for (m = 0; m < QD_NMOD; m++)
+            for (k = 0; k < 3; k++)
+                out[n++] = (int8_t)QD_QP_MOD(m, k);
+        return n;
+    }
     for (m = 0; m < (pg->draw == UI_SD_FILTER ? 6 : 1); m++)
         for (k = 0; k < 10; k++) {
             const int id = pg->draw == UI_SD_FILTER ? (k < 5 ? SND_FILTER_IDS[m][k] : -1)
@@ -124,6 +146,8 @@ const int8_t *qd_snd_ids(const qd_app_t *a, int page)
     const qd_sndpage_t *pg = &QD_SND_PAGES[page < 0 ? 0 : page >= QD_SND_NPAGE ? QD_SND_NPAGE - 1 : page];
     if (pg->draw == UI_SD_FILTER)                       /* (E2: by its machine) */
         return SND_FILTER_IDS[qd_snd_machine(snd_now(a, QD_QP_FTYPE))];
+    if (pg->draw == UI_SD_MOD)                          /* (E4: the chosen slot's) */
+        return snd_mod_ids(a->ui.mod_slot);
     if (!pg->alt_if)
         return pg->id;
     return snd_now(a, pg->alt_if) ? pg->alt : pg->id;
@@ -397,6 +421,71 @@ static void snd_map(qd_app_t *a, int n, int id, int d)
     }
 }
 
+/* E4: B1 held + a knob on value id: the slot with the chosen source -> id's destination (else the first empty one)
+ * takes it, each detent its depth; no destination, or no slot free: refused (the shake) */
+int qd_snd_mod_slot_of(const qd_app_t *a, int src, int dest)
+{
+    int k;
+    for (k = 0; k < QD_NMOD; k++)
+        if (snd_now(a, QD_QP_MOD(k, QD_QM_SRC)) == src && snd_now(a, QD_QP_MOD(k, QD_QM_DST)) == dest)
+            return k;
+    return -1;
+}
+static void snd_modmap(qd_app_t *a, int id, int d)
+{
+    qd_ui_t *u = &a->ui;
+    const int dest = qd_quad_dest_of(id, 1), src = u->mod_src ? u->mod_src : QD_MS_VEL;
+    int k, slot;
+    u->snd_lk_k = -1;
+    for (k = 0; k < 5; k++)
+        if (qd_snd_ids(a, u->snd_page)[k] == id)
+            u->snd_lk_k = k;
+    u->snd_lk_id = id;
+    slot = dest < 0 ? -1 : qd_snd_mod_slot_of(a, src, dest);
+    for (k = 0; dest >= 0 && slot < 0 && k < QD_NMOD; k++)
+        if (!snd_now(a, QD_QP_MOD(k, QD_QM_SRC)))
+            slot = k;
+    if (slot < 0) {
+        u->snd_lk_bad_ms = a->ms ? a->ms : 1u;
+        return;
+    }
+    u->snd_lk_bad_ms = 0;
+    u->mod_slot = slot;
+    if (snd_now(a, QD_QP_MOD(slot, QD_QM_SRC)) != src || snd_now(a, QD_QP_MOD(slot, QD_QM_DST)) != dest) {
+        snd_put(a, QD_QP_MOD(slot, QD_QM_SRC), src);
+        snd_put(a, QD_QP_MOD(slot, QD_QM_DST), dest);
+        snd_put(a, QD_QP_MOD(slot, QD_QM_DEPTH), 0);
+    }
+    snd_put(a, QD_QP_MOD(slot, QD_QM_DEPTH), snd_cur(a, QD_QP_MOD(slot, QD_QM_DEPTH)) + qd_ctl_acc(a, d, 255));
+}
+
+/* E4: B1: a tap its group's next page (as before), held the slots' hold-to-map; W1..W8 while held: the source */
+void qd_snd_mod_key(qd_app_t *a, int down)
+{
+    qd_ui_t *u = &a->ui;
+    if (down) {
+        u->snd_lk = 4;
+        u->snd_lk_used = 0;
+        u->snd_lk_ms = a->ms;
+        u->snd_lk_k = -1;
+        if (!u->mod_src)
+            u->mod_src = QD_MS_VEL;
+        return;
+    }
+    if (u->snd_lk != 4)
+        return;
+    u->snd_lk = 0;
+    if (!u->snd_lk_used)
+        qd_snd_black(a, 0);                             /* (a tap: B1's group, its next page) */
+}
+void qd_snd_mod_src(qd_app_t *a, int w)
+{
+    if (w < 0 || w >= QD_MS_N - 1)
+        return;
+    a->ui.mod_src = w + 1;
+    a->ui.snd_lk_used = 1;
+}
+
 /* a knob; 1: taken */
 int qd_snd_knob(qd_app_t *a, int knob, int d)
 {
@@ -416,19 +505,29 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
             return qd_step_lock_knob(a, knob, d);       /* the sound lock */
         return 0;                                       /* (the track's preset: the step view's) */
     }
+    if (QD_SND_PAGES[u->snd_page].draw == UI_SD_MOD && knob == QD_K_ALGO && !u->snd_lk) {   /* E4: the slot */
+        u->mod_slot = u->mod_slot + (d > 0 ? 1 : -1) < 0 ? 0 : u->mod_slot + (d > 0 ? 1 : -1) > QD_NMOD - 1
+                    ? QD_NMOD - 1 : u->mod_slot + (d > 0 ? 1 : -1);
+        u->snd_knob = 4;
+        u->snd_ms = a->ms;
+        return 1;
+    }
     for (k = 0; k < 5; k++)
         if (SND_KNOB[k] == knob)
             id = ids[k], u->snd_knob = k;
     u->snd_ms = a->ms;
     if (u->snd_lk) {                                    /* P1.5k: an LFO key held: the knob's value its destination */
-        if (id >= 0)
+        if (id >= 0 && u->snd_lk == 4)
+            snd_modmap(a, id, d);                       /* (E4: B1 held: a modulation slot) */
+        else if (id >= 0)
             snd_map(a, u->snd_lk - 1, id, d);
         u->snd_lk_used = 1;
         return 1;
     }
     if (id < 0)
         return 1;
-    if (id >= QD_QP_LFO0 && id < QD_QP_LFO0 + 3 * 8 && (id - QD_QP_LFO0) % 8 == QD_QL_DEST) {
+    if ((id >= QD_QP_LFO0 && id < QD_QP_LFO0 + 3 * 8 && (id - QD_QP_LFO0) % 8 == QD_QL_DEST) ||
+        (id >= QD_QP_MOD0 && id < QD_QUAD_NP && (id - QD_QP_MOD0) % 3 == QD_QM_DST)) {   /* (E4: a slot's DEST too) */
         snd_dest(a, id, d);                             /* P1.5k: DEST, through ChoralRoot's list in its order */
         return 1;
     }

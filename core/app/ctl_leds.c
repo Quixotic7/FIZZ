@@ -173,6 +173,13 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         qd_snd_leds(a, bk);
         for (i = 0; i < 11; i++)
             out->key[QD_BLACK_KEY[i]] = bk[i];
+        if (u->snd_lk == 4) {                           /* E4: B1 held: W1..W8 the sources, the chosen one lit */
+            for (i = 0; i < 16; i++)
+                out->key[QD_WHITE_KEY[i]] = i < QD_MS_N - 1 ? (i + 1 == u->mod_src ? QD_LED_LIT : QD_LED_DIM)
+                                                            : QD_LED_OFF;
+            out->key[QD_BLACK_KEY[0]] = QD_LED_LIT;
+            return;
+        }
         if (u->ekeys) {                                 /* P1.5b: its keyboard: the scale (SCALE: the W keys; FULL:
                                                          * every key) */
             uint8_t k[QD_NKEY];

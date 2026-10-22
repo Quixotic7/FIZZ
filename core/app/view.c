@@ -1396,6 +1396,13 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
             v->locked[k] |= (uint8_t)(u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], QD_QP_RB2, &x));
             v->lockany[k] |= (uint8_t)(!u->nheld && track_locks(qd_ctl_cpat(a), a->sel, QD_QP_RB2));
         }
+        {   /* E4: a modulation slot's destination: its source's mark */
+            int ms;
+            for (ms = 0; ms < QD_NMOD && !v->modmark[k]; ms++)
+                if (pp[QD_QP_MOD(ms, QD_QM_SRC)] && pp[QD_QP_MOD(ms, QD_QM_DEPTH)] &&
+                    qd_quad_dest_of(id, 1) == pp[QD_QP_MOD(ms, QD_QM_DST)] && qd_quad_dest_of(id, 1) > 0)
+                    v->modmark[k] = (uint8_t)pp[QD_QP_MOD(ms, QD_QM_SRC)];
+        }
         {   /* P1.5k: the LFOs whose destination this value is (their marks by its label) */
             int lf;
             for (lf = 0; lf < 3; lf++) {
@@ -1433,7 +1440,23 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->rnd_u = (float)(a->ms - u->rnd_ms) / (float)len;
         v->rnd_u = v->rnd_u > 1.f ? 1.f : v->rnd_u;
     }
-    if (u->snd_lk && (u->snd_lk_used || a->ms - u->snd_lk_ms >= QD_TAP_MS)) {   /* P1.5k: an LFO key held: the mapping */
+    if (u->snd_lk == 4 && (u->snd_lk_used || a->ms - u->snd_lk_ms >= QD_TAP_MS)) {   /* E4: B1 held: a slot's mapping */
+        const int dest = u->snd_lk_k >= 0 || u->snd_lk_id ? qd_quad_dest_of(u->snd_lk_id, 1) : -1;
+        const int slot = dest > 0 ? qd_snd_mod_slot_of(a, u->mod_src, dest) : -1;
+        v->lk = 4;
+        v->lk_src = u->mod_src ? u->mod_src : 1;
+        v->lk_k = u->snd_lk_k;
+        v->lk_ok = 1;
+        if (u->snd_lk_bad_ms && a->ms - u->snd_lk_bad_ms < 450u) {
+            v->lk_ok = 0;
+            v->lk_shake = 1.f - (float)(a->ms - u->snd_lk_bad_ms) / 450.f;
+            v->lk_name = u->snd_lk_id == QD_QP_RB1 ? "RATIO B" : qd_quad_value_name(u->snd_lk_id);
+        } else if (slot >= 0) {
+            v->lk_name = qd_quad_dest_name(dest);
+            v->lk_depth = (float)pp[QD_QP_MOD(slot, QD_QM_DEPTH)] / 127.f;
+        }
+    } else if (u->snd_lk && u->snd_lk < 4 && (u->snd_lk_used || a->ms - u->snd_lk_ms >= QD_TAP_MS)) {   /* P1.5k: an LFO
+                                                         * key held: the mapping */
         const int lf = u->snd_lk - 1, dst = pp[QD_QP_LFO(lf, QD_QL_DEST)];
         const int16_t dep = pp[QD_QP_LFO(lf, QD_QL_DEPTH)];
         v->lk = u->snd_lk;
@@ -1473,6 +1496,19 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->pv[0] = pp[QD_QP_FTYPE];
         v->pv[1] = pp[QD_QP_FSHAPE];
         v->pv[2] = pp[QD_QP_FGAIN];
+    } else if (pg->draw == UI_SD_MOD) {                /* E4: the eight slots; ALGORITHM the chosen one */
+        int ms;
+        static char slot[4];
+        for (ms = 0; ms < QD_NMOD; ms++) {
+            v->mod_src[ms] = pp[QD_QP_MOD(ms, QD_QM_SRC)];
+            v->mod_dep[ms] = pp[QD_QP_MOD(ms, QD_QM_DEPTH)];
+            v->mod_dst[ms] = qd_quad_dest_name(pp[QD_QP_MOD(ms, QD_QM_DST)]);
+        }
+        v->mod_sel = u->mod_slot;
+        slot[0] = (char)('1' + u->mod_slot), slot[1] = 0;
+        v->has[4] = 1;
+        snprintf(v->txt[4], sizeof v->txt[4], "%s", slot);
+        v->lab[4] = "SLOT";
     } else if (pg->draw == UI_SD_CRUSH) {              /* E3: the step's width, its height (BITS' bits) */
         v->pv[0] = pp[QD_QP_SRR] ? (int)(4294967296.0 / (double)qd_quad_srr_inc(pp[QD_QP_SRR]) + 0.5) : 0;
         v->pv[1] = pp[QD_QP_BITS] ? qd_quad_crush_bits(pp[QD_QP_BITS]) : 0;

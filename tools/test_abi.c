@@ -11,6 +11,7 @@
  *     test_abi path/to/fizz.fm1core      exit 1 on a failed check
  * It needs FM1VST's core-api (FM1CORE_API, tools/Makefile) and the built module: make -C tools abi. */
 #include <dlfcn.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +22,8 @@ static const fm1core_t *C;
 static fm1panel_t *P;
 static uint32_t now;
 static uint64_t frames_done;
+static double au_e;                                     /* E4: the audio's energy (both channels) since au_e = 0 .. */
+static uint32_t au_n;                                   /* .. over this many samples */
 static int fails, checks;
 #define CHECK(c, ...)                                     \
     do {                                                  \
@@ -42,7 +45,11 @@ static void run(uint32_t n)
             C->frame();
         while (frames_done + 128u <= (uint64_t)now * FM1P_FS / 1000u) {
             int16_t blk[256];
+            int i;
             C->audio(blk, 128);
+            for (i = 0; i < 256; i++)
+                au_e += (double)blk[i] * blk[i];
+            au_n += 256u;
             frames_done += 128u;
         }
     }
@@ -93,6 +100,12 @@ static int sx_out(uint8_t *r, int max)
             r[n++] = (uint8_t)(pkt >> (8u * (j + 1u)));
     }
     return n;
+}
+static double au_rms(uint32_t ms)                       /* E4: the audio's level over the next ms */
+{
+    au_e = 0.0, au_n = 0u;
+    run(ms);
+    return sqrt(au_e / (au_n ? au_n : 1u));
 }
 static void f3_open(void)
 {
@@ -406,6 +419,84 @@ int main(int argc, char **argv)
             }
         }
         CHECK(ok && frames == 40, "DUMP all through the ABI, read slowly: %d whole frames in order (%d bytes)", frames, o2);
+    }
+
+    {   /* E4: the MOD WHEEL through midi_in: INIT (DUMPed from the factory presets) with one slot MW -> LEVEL -127, STORE6d
+         * with LOAD onto track 1; a note held on channel 1 and CC 1 ramped 0 -> 127 -> 0: the level down, then back */
+        static const uint8_t DF[11] = {0xF0, 0x7D, 0x46, 0x5A, 0x01, 0x22, 0x01, 0x00, 0x01, 0x5C, 0xF7};
+        static const int EXT_MIN[12] = {0, 0, 0, 0, 0, 0, 0, -64, 0, 0, 0, 0}, EXT_DEF[12] = {0, 127, 0, 32, 0, 0, 0, 0, 0,
+                                                                                              0, 0, 1};
+        static uint8_t r[2048], f[256];
+        uint8_t b5[96], b6[128], body[200];
+        int n, i, j, b = 0, sum = 0, got = 0;
+        double l0, l1, l2;
+        run(50);
+        sx_out(r, sizeof r);
+        sx_in(DF, 11);
+        run(20);
+        n = sx_out(r, sizeof r);
+        for (i = 0; i + 140 <= n; i++)                   /* the DUMP's frame: F0 7D 46 5A 01 10 .. (version 5's) */
+            if (r[i] == 0xF0 && r[i + 5] == 0x10) {
+                const uint8_t *p7 = r + i + 6 + 22;
+                int o = 0, q = 0;
+                while (q < 110) {
+                    const uint8_t hi = p7[q++];
+                    for (j = 0; j < 7 && q < 110; j++)
+                        b5[o++] = (uint8_t)(p7[q++] | ((hi >> j) & 1) << 7);
+                }
+                got = o == 96 && b5[0] == 0x51;
+                break;
+            }
+        CHECK(got, "DUMP of the factory INIT through midi_in (%d bytes back)", n);
+        memcpy(b6, b5, 87);
+        b6[1] = 6, b6[87] = 0;
+        for (i = 0; i < 12; i++)
+            b6[88 + i] = (uint8_t)(EXT_DEF[i] - EXT_MIN[i]);
+        for (i = 0; i < 24; i++)                         /* (the slots: SOURCE, DEST 0; DEPTH 0, at -127's offset) */
+            b6[100 + i] = (uint8_t)(i % 3 == 2 ? 127 : 0);
+        b6[100] = 3, b6[101] = 38, b6[102] = 0;          /* MW -> LEVEL, -127 */
+        body[b++] = 0x11, body[b++] = 0x04, body[b++] = 0x01, body[b++] = 0x00;   /* STORE6, LOAD, MY preset 128 */
+        for (i = 0; i < 12; i++)
+            body[b++] = (uint8_t)"MW TEST     "[i];
+        body[b++] = 0, body[b++] = 0, body[b++] = 64, body[b++] = 0, body[b++] = 0, body[b++] = 0, body[b++] = 0;
+        for (i = 0; i < 128; i += 7) {
+            const int m = 128 - i < 7 ? 128 - i : 7;
+            int hi = 0;
+            for (j = 0; j < m; j++)
+                hi |= ((b6[i + j] >> 7) & 1) << j;
+            body[b++] = (uint8_t)hi;
+            for (j = 0; j < m; j++)
+                body[b++] = b6[i + j] & 0x7F;
+        }
+        n = 0;
+        f[n++] = 0xF0, f[n++] = 0x7D, f[n++] = 0x46, f[n++] = 0x5A, f[n++] = 0x01;
+        for (i = 0; i < b; i++)
+            f[n++] = body[i], sum += body[i];
+        f[n++] = (uint8_t)((0x80 - (sum & 0x7F)) & 0x7F), f[n++] = 0xF7;
+        sx_in(f, n);
+        run(20);
+        n = sx_out(r, sizeof r);
+        CHECK(n >= 12 && r[5] == 0x50 && r[6] == 0, "STORE6 with LOAD through midi_in: OK (%02X %02X)", r[5], r[6]);
+        C->midi_in(0x0Bu | 0xB0u << 8 | 1u << 16);      /* CC 1 at 0, a note on channel 1 */
+        C->midi_in(0x09u | 0x90u << 8 | 60u << 16 | 100u << 24);
+        run(300);
+        l0 = au_rms(200);
+        for (i = 0; i <= 127; i++) {                     /* the ramp up, a value a ms */
+            C->midi_in(0x0Bu | 0xB0u << 8 | 1u << 16 | (uint32_t)i << 24);
+            run(1);
+        }
+        run(50);
+        l1 = au_rms(200);
+        for (i = 127; i >= 0; i--) {
+            C->midi_in(0x0Bu | 0xB0u << 8 | 1u << 16 | (uint32_t)i << 24);
+            run(1);
+        }
+        run(50);
+        l2 = au_rms(200);
+        C->midi_in(0x08u | 0x80u << 8 | 60u << 16);
+        run(500);
+        CHECK(l0 > 100.0 && l1 < l0 * 0.5 && l2 > l0 * 0.8, "CC 1 ramped through midi_in, MW -> LEVEL -127: the level "
+              "%.0f, at 127 %.0f, back at 0 %.0f", l0, l1, l2);
     }
 
     C->shutdown();

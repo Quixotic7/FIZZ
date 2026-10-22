@@ -575,7 +575,7 @@ DECAY, HARM and FDBK.
 
   | key | group | pages |
   | --- | --- | --- |
-  | **B1** | PLAY / MOD | TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL), **PORT** (PORT, TIME, SLOPE) |
+  | **B1** | PLAY / MOD | TRIG (A / B TRIG and RESET; ALGORITHM PHRT), KEYS (A, B1, B2 key scaling, VEL), **PORT** (PORT, TIME, SLOPE), **MOD** (the slot's SOURCE, DEST, DEPTH; **ALGORITHM the slot**) |
   | **B2** | OPERATORS | RATIO (KNOB 1 RATIO C, KNOB 2 RATIO A, KNOB 3 **RATIO B**, KNOB 4 **MIX**; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK, **MIX**: the same MIX as RATIO's, P1.5n), OFFSET (the four offsets) |
   | **B3** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay) |
   | **B4** | FILTERS | FILTER (FREQ, KNOB 2 and 3 by the machine, DEPTH; **ALGORITHM the MACHINE**), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK, **ROUTE**: the base-width before or after the filter) |
@@ -671,6 +671,22 @@ DECAY, HARM and FDBK.
   to 64: each value held longer, aliasing on purpose), **ROUTE** after the filter (as the Digitone's default) or
   before it. The picture is a sine as stairs, as wide as SRR's hold and as tall as BITS' step, and the FILTER / CRUSH
   chain in ROUTE's order. Both OFF: the sound as before.
+- **The modulation slots** (B1, MOD page, 0.8.3), the Digitone II's modulation and two more: eight slots, each a
+  **SOURCE**, a **DEST** (the LFOs' list) and a **DEPTH** (-127 .. +127). The sources: **VEL** (the note's velocity),
+  **KEY** (the note: above middle C up, below it down), **MW** (the mod wheel, CC 1), **AT** (aftertouch, channel pressure),
+  **PB** (pitch bend), **BR** (breath, CC 2), **RAND** (a new value each note) and **F ENV** (the filter envelope's
+  level). MW, AT, PB and BR come from MIDI on the track's channel (channel 1 is track 1), in FM1VST from the host or
+  a keyboard. The page draws the eight as rows: the source's glyph, its destination, the depth as a bar from the
+  centre; ALGORITHM picks the slot, KNOB 1 .. 3 set it.
+  - **Hold B1 and turn a knob** on any page to map, as with an LFO key: the first click puts the source on that value
+    (the slot with the same source and value, else the first empty one) and turning sets the depth. While B1 is held
+    **W1 .. W8 choose the source** (VEL KEY MW AT PB BR RAND F ENV, the chosen one lit; VEL at first) and a picture
+    shows the source's glyph over the value's name with the depth. A value that cannot be a destination, or all eight
+    slots taken: refused (a shake). **With a step held** the slot is locks of that step. A tap of B1 still steps
+    through its pages.
+  - A value a slot moves has the source's glyph by its name, on every page.
+  - The LFOs and the slots can also move **HOLD**, **PORT TIME**, the filter's **SHAPE** and **GAIN**, **BITS** and
+    **SRR** (0.8.3).
 - **AHD** (B5, AMP page, ALGORITHM = MODE, 0.8.0): **attack, hold, decay** to silence, the Digitone II's other amp
   envelope. HOLD is a time (the gate does nothing: one-shot, for drums and plucks), or **NOTE** (127): held while the
   key is down, then DEC is the release. DEC INF holds for ever. Switching the MODE while a note plays carries on from
@@ -780,6 +796,9 @@ bright).
 - **0.8.0:** a Digitone II sound keeps its **AHD** amp envelope (HOLD too), its **portamento** (ON and its time) and
   its overdrive **before the filter** (its OD ROUTING; how the Digitone II stores that is still a guess), as FIZZ's
   own (the SysEx's STORE6).
+- **0.8.3:** a Digitone II sound's **modulation** (velocity, key, mod wheel, aftertouch, pitch bend, breath, four
+  destinations each) comes into the eight slots, the first eight that FIZZ has a destination for; how the Digitone
+  II stores the depth is still a guess, the note over the screen says so.
 
 ## How do I manage projects? (SEQ tapped)
 

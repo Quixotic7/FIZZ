@@ -141,7 +141,9 @@ enum {                                                                     /* LF
      * LFO 1's own SPEED MULT FADE WAVE SPH MODE DEPTH (for LFO 2 and 3; LFO 1 on itself: none), RATIO ALL, the AB
      * macros (both operator envelopes), the part's DRIVE and its three sends, the filter envelope's DELAY */
     QD_L1SPD, QD_L1MUL, QD_L1FAD, QD_L1WAV, QD_L1SPH, QD_L1MOD, QD_L1DEP, QD_RALL, QD_ABLEV, QD_ABATK, QD_ABDEC,
-    QD_ABEND, QD_ABDLY, QD_DRIVE, QD_SREV, QD_SDLY, QD_SCHO, QD_FDLY, QD_N
+    QD_ABEND, QD_ABDLY, QD_DRIVE, QD_SREV, QD_SDLY, QD_SCHO, QD_FDLY,
+    /* QUADRILLE (e), E4: FIZZ's values 74.. as destinations (the LFOs' and the modulation slots') */
+    QD_HOLD, QD_PTIM, QD_FSHAPE, QD_FGAIN, QD_BITS, QD_SRR, QD_N
 };
 #define QD_N_V3A 40u             /* the destinations before 2026-10-14 (an older firmware refuses a blob with more) */
 #define QUAD_NMULT 24u           /* 0..11 x1 .. x2k at the part's BPM, 12..23 the same at 120 BPM */
@@ -155,7 +157,7 @@ static const char *const N_QUAD_DEST[QD_N] = {   /* <= 5 characters (params.c pr
     "FDBK", "MIX", "A LEV", "B LEV", "A ATK", "A DEC", "A END", "B ATK", "B DEC", "B END", "A DLY", "B DLY", "FREQ",
     "RESO", "FENV", "BASE", "WIDTH", "F ATK", "F DEC", "F SUS", "F REL", "AMP A", "AMP D", "AMP S", "AMP R", "LEVEL",
     "PAN", "L1SPD", "L1MUL", "L1FAD", "L1WAV", "L1SPH", "L1MOD", "L1DEP", "R ALL", "ABLEV", "ABATK", "ABDEC",
-    "ABEND", "ABDLY", "DRIVE", "REV", "DEL", "CHO", "F DLY"};
+    "ABEND", "ABDLY", "DRIVE", "REV", "DEL", "CHO", "F DLY", "HOLD", "PTIM", "SHAPE", "GAIN", "BITS", "SRR"};
 /* the editor's order of DEST (cr_pages.c cp_dstep steps through it): the Digitone's (its destination numbers 0, 1 .. 77
  * ascending, docs/QUAD.md "LFO"), so the list reads as the Digitone's; the stored numbers are QD_*'s */
 static const uint8_t QUAD_DEST_ORDER[QD_N] = {
@@ -163,7 +165,8 @@ static const uint8_t QUAD_DEST_ORDER[QD_N] = {
     QD_HARM, QD_DTUN, QD_FDBK, QD_MIX, QD_AATK, QD_ADEC, QD_AEND, QD_ALEV, QD_BATK, QD_BDEC, QD_BEND, QD_BLEV,
     QD_ADLY, QD_BDLY, QD_PITCH, QD_PAB2, QD_RALL, QD_ABLEV, QD_ABATK, QD_ABDEC, QD_ABEND, QD_ABDLY, QD_FREQ, QD_RESO,
     QD_FENV, QD_FATK, QD_FDEC, QD_FSUS, QD_FREL, QD_BASE, QD_WIDTH, QD_EATK, QD_EDEC, QD_ESUS, QD_EREL, QD_DRIVE,
-    QD_PAN, QD_LEVEL, QD_SREV, QD_SDLY, QD_SCHO, QD_OFSC, QD_OFSA, QD_OFSB1, QD_OFSB2, QD_FDLY};
+    QD_PAN, QD_LEVEL, QD_SREV, QD_SDLY, QD_SCHO, QD_OFSC, QD_OFSA, QD_OFSB1, QD_OFSB2, QD_FDLY,
+    QD_HOLD, QD_PTIM, QD_FSHAPE, QD_FGAIN, QD_BITS, QD_SRR};   /* (QUADRILLE (e), E4: FIZZ's own, after the Digitone's) */
 static const char *const N_QUAD_MULT[QUAD_NMULT] = {"1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1k",
     "2k", "F1", "F2", "F4", "F8", "F16", "F32", "F64", "F128", "F256", "F512", "F1k", "F2k"};
 
@@ -411,9 +414,11 @@ static void quad_ext_drive_pre(track_t *t, voice_t *v, int32_t *b, uint32_t n);
 typedef struct { int32_t a1, a2, a3, f2; } quad_svf_t;   /* (the multimode's coefficients: quad_svf_coef, below) */
 static void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k);
 static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int32_t *acc, uint32_t n,
-                             const quad_svf_t *c, int32_t kd, int32_t cut, int32_t reso, int32_t *ic1, int32_t *ic2);
+                             const quad_svf_t *c, int32_t kd, int32_t cut, int32_t reso, int32_t shape, int32_t gain,
+                             int32_t *ic1, int32_t *ic2);
 static void quad_ext_bw_post(quad_voice_t *s, int32_t *acc, uint32_t n, int32_t hpk, int32_t lpk);
-static void quad_ext_crush(voice_t *v, const int16_t *p, int32_t *acc, uint32_t n);
+static void quad_ext_crush(voice_t *v, int bits, int srr, int32_t *acc, uint32_t n);
+static void quad_ext_mods(track_t *t, voice_t *v, quad_voice_t *s, const int16_t *p, int32_t *dst);
 /* QUADRILLE (c): no quad_vs (the state is in the voice: voice_t.qstate) and no quad_tr (no part index) */
 
 static void quad_init_patch(int16_t *p)
@@ -1154,6 +1159,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     int32_t hq, dt, mix, ra, rb, cut, kd, reso, gy, gq, dgq, fbq, hf, fdep, base, wid;
     int32_t la, lb1, lb2, dla, dlb1, dlb2, tl[3], hpk, lpk, svf, fty, fb1, fb2, bh, bl;
     int32_t bwh, bwl;                            /* QUADRILLE (e): the base-width's poles (BWPOST: after the filter) */
+    int32_t crb, crs, mfs, mfg;                  /* QUADRILLE (e): CRUSH's BITS and SRR, the machine's shape and gain,
+                                                  * modulated */
     uint32_t fon, fon0;
     const int16_t *ha_t = QUAD_HARM[0], *hb_t = QUAD_HARM[0];
     uint32_t p0, p1, p2, p3, i0, i1, i2, i3;
@@ -1237,6 +1244,9 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     }
     if (s->ticks < 0xFFFFFFFFu)
         s->ticks++;
+    if (p[QD_QP_MOD(0, QD_QM_SRC)] | p[QD_QP_MOD(1, QD_QM_SRC)] | p[QD_QP_MOD(2, QD_QM_SRC)] | p[QD_QP_MOD(3, QD_QM_SRC)] |
+        p[QD_QP_MOD(4, QD_QM_SRC)] | p[QD_QP_MOD(5, QD_QM_SRC)] | p[QD_QP_MOD(6, QD_QM_SRC)] | p[QD_QP_MOD(7, QD_QM_SRC)])
+        quad_ext_mods(t, v, s, p, dst);          /* QUADRILLE (e), hook 6: the modulation slots into dst */
 #define QMV(i, d, sc, lo, hi) clamp(p[i] + ((dst[d] * (sc)) >> 15), lo, hi)
 #define QMV2(i, d, d2, sc, lo, hi) clamp(p[i] + (((dst[d] + dst[d2]) * (sc)) >> 15), lo, hi)   /* (+ an AB macro) */
     /* the envelopes (their times, END, SUS modulated; the AB macros move A's and B's together) */
@@ -1250,8 +1260,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
                        QMV(QP_FSUS, QD_FSUS, 127, 0, 127) << 17, QMV(QP_FREL, QD_FREL, 127, 0, 127),
                        QMV(QP_FDLY, QD_FDLY, 127, 0, 127), v->gate, 1);
     if (p[QD_QP_AMOD]) {                         /* QUADRILLE (e), hook 1: the amp envelope in AHD */
-        eE = quad_ext_ahd(s, QMV(QP_EATK, QD_EATK, 127, 0, 127), p[QD_QP_HOLD], QMV(QP_EDEC, QD_EDEC, 127, 0, 127),
-                          v->gate);
+        eE = quad_ext_ahd(s, QMV(QP_EATK, QD_EATK, 127, 0, 127), QMV(QD_QP_HOLD, QD_HOLD, 127, 0, 127),
+                          QMV(QP_EDEC, QD_EDEC, 127, 0, 127), v->gate);
     } else {
         if (s->stage[3] >= 6u)                   /* (QUADRILLE (e): back from AHD mid-note) */
             quad_ext_adsr_back(s);
@@ -1373,6 +1383,11 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             A1 = (A1 * 13107) >> 15;             /* 2 / 5 */
         A1 = mulq15(A1, m->amp1);
     }
+    crb = QMV(QD_QP_BITS, QD_BITS, 127, 0, 127);   /* QUADRILLE (e): CRUSH's, PTIM's (the glide's RATE: quad_voice.c) */
+    crs = QMV(QD_QP_SRR, QD_SRR, 127, 0, 127);
+    mfs = QMV(QD_QP_FSHAPE, QD_FSHAPE, 127, 0, 127);    /* (the machines' shape and gain) */
+    mfg = QMV(QD_QP_FGAIN, QD_FGAIN, 127, -64, 63);
+    v->ptim_mod = (int16_t)((dst[QD_PTIM] * 127) >> 15);
 #undef QMV
 #undef QMV2
     A0 = s->amp;
@@ -1465,8 +1480,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
      * and its output fades in over the block; switched out: its last block fades out to the input */
     if (p[QD_QP_DRPRE])                          /* QUADRILLE (e), hook 2: DRIVE before the filter */
         quad_ext_drive_pre(t, v, acc, n);
-    if ((p[QD_QP_BITS] || p[QD_QP_SRR]) && !p[QD_QP_CRPOST])   /* QUADRILLE (e), hook 5: CRUSH before the filter */
-        quad_ext_crush(v, p, acc, n);
+    if ((crb || crs) && !p[QD_QP_CRPOST])        /* QUADRILLE (e), hook 5: CRUSH before the filter */
+        quad_ext_crush(v, crb, crs, acc, n);
     if ((fon | fon0) & 1u) {
         int32_t ic1 = s->f1, ic2 = s->f2, ic3 = s->f3, ic4 = s->f4;
         uint32_t sw = (fon ^ fon0) & 1u;
@@ -1491,7 +1506,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         acc[i] = soft_knee(clamp((Y), -200000, 200000), 16000);            \
     }
         if (fty >= QD_QF_MULTI)                  /* QUADRILLE (e), hook 3: the filter machines */
-            quad_ext_machine(v, s, p, acc, n, &c, kd, cut, reso, &ic1, &ic2);
+            quad_ext_machine(v, s, p, acc, n, &c, kd, cut, reso, mfs, mfg, &ic1, &ic2);
         else if (fty == QF_HP12)
             QUAD_SVF(, x - ((kd * v1) >> 12) - v2)
         else if (fty == QF_LP24)
@@ -1513,8 +1528,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     }
     if (p[QD_QP_BWPOST])                         /* QUADRILLE (e), hook 4 */
         quad_ext_bw_post(s, acc, n, bwh, bwl);
-    if ((p[QD_QP_BITS] || p[QD_QP_SRR]) && p[QD_QP_CRPOST])    /* QUADRILLE (e), hook 5: CRUSH after it */
-        quad_ext_crush(v, p, acc, n);
+    if ((crb || crs) && p[QD_QP_CRPOST])         /* QUADRILLE (e), hook 5: CRUSH after it */
+        quad_ext_crush(v, crb, crs, acc, n);
     /* the amplitude, into the part at the engine's output scale: >> 12, 6 dB under the >> 11 of before 2026-10-16. At
      * the Digitone's levels (VOL 100 .. 127: INIT's 110, a .dnsnd import's own) a sound was 6 dB over the other
      * engines' (tests/va_levels.c loud / dnsnd; docs/QUAD.md "Level"); the factory presets' LEVELs went up by the same

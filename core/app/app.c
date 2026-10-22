@@ -187,6 +187,18 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
     if (kind == 0xB0 && (d1 == 120 || d1 == 123)) {
         qd_pool_release_all(&a->pool, ch);
     }
+    {   /* E4: the track's MIDI state, the modulation slots' sources: CC 1 MOD WHEEL, CC 2 BREATH, channel pressure,
+         * pitch bend (channel n is track n) */
+        qd_quad_owner_t *o = &a->model.t[ch].owner;
+        if (kind == 0xB0 && d1 == 1)
+            o->mw = (uint8_t)d2;
+        else if (kind == 0xB0 && d1 == 2)
+            o->br = (uint8_t)d2;
+        else if (kind == 0xD0)
+            o->at = (uint8_t)d1;
+        else if (kind == 0xE0)
+            o->pb = (int16_t)((d2 << 7 | d1) - 8192);
+    }
 }
 
 /* ---------------------------------------------------------------- time --- */

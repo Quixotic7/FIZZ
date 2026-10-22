@@ -112,7 +112,7 @@ then zeros to 128. A value out of its range, or a nonzero byte after 123, makes 
 | 83 | BITS (E3): 0 OFF, 1..127 16 bits down to 1 | (0) |
 | 84 | SRR (E3): 0 OFF, 1..127 the rate divided by 64^(SRR / 127) | (0) |
 | 85 | CRPOST (E3): CRUSH 0 before the filter, 1 after | (1) |
-| 86..109 | E4's eight modulation slots: SOURCE 0..8, DEST 0..57, DEPTH −127..127 | (0) |
+| 86..109 | E4's eight modulation slots: SOURCE 0..8, DEST 0..63, DEPTH −127..127 | (0) |
 
 Every value at its default plays exactly what a version-5 blob plays. E2: FTYPE (value 36) is the **filter machine**,
 0..7: 0 OFF, 1 LP12, 2 HP12 (LEGACY), 3 LP24 (LOWPASS 4), 4 MULTI, 5 COMB+, 6 COMB−, 7 EQ (a version-5 blob may carry

@@ -828,7 +828,7 @@ static void e2_machine(int16_t *p, const int32_t *in, int32_t *out, uint32_t n, 
     for (o = 0; o + CTL <= n; o += CTL) {
         int32_t blk[CTL];
         memcpy(blk, in + o, sizeof blk);
-        quad_ext_machine(&v, &s, p, blk, CTL, &c, kd, cut, reso, &ic1, &ic2);
+        quad_ext_machine(&v, &s, p, blk, CTL, &c, kd, cut, reso, p[QD_QP_FSHAPE], p[QD_QP_FGAIN], &ic1, &ic2);
         memcpy(out + o, blk, sizeof blk);
     }
 }
@@ -998,7 +998,7 @@ static void t_crush(void)
     memset(&cv, 0, sizeof cv);
     for (o = 0; o < N; o += CTL) {
         memcpy(y + o, sine + o, CTL * sizeof y[0]);
-        quad_ext_crush(&cv, p, y + o, CTL);
+        quad_ext_crush(&cv, p[QD_QP_BITS], p[QD_QP_SRR], y + o, CTL);
     }
     for (ok = 1, run = 1, i = 1; i < N; i++) {
         if (y[i] == y[i - 1]) {
@@ -1017,7 +1017,7 @@ static void t_crush(void)
         p[QD_QP_BITS] = k ? 127 : 103;                  /* (1 bit; 103: 4 bits) */
         memset(&cv, 0, sizeof cv);
         memcpy(y, sine, sizeof y);
-        quad_ext_crush(&cv, p, y, N);
+        quad_ext_crush(&cv, p[QD_QP_BITS], p[QD_QP_SRR], y, N);
         for (i = 0; i < N; i++) {
             for (j = 0; j < nseen && seen[j] != y[i]; j++)
                 ;
@@ -1046,6 +1046,156 @@ static void t_crush(void)
     CHECK(memcmp(a, b, sizeof a) != 0, "before the filter or after it: two sounds");
 }
 
+/* ------------------------------------------------------------- E4: the modulation slots --- */
+static struct { uint8_t mw, at, br; int16_t pb; uint32_t serial; } m_midi;   /* (the track's MIDI state for m_render) */
+static void m_render(const int16_t *p, int note, int vel, uint32_t blocks, int32_t *out)
+{
+    uint32_t b;
+    drv_reset();
+    own.mw = m_midi.mw, own.at = m_midi.at, own.br = m_midi.br, own.pb = m_midi.pb, own.nserial = m_midi.serial;
+    memcpy(part_patch, p, sizeof part_patch);
+    drv_on(0, (uint32_t)note, (uint32_t)vel);
+    for (b = 0; b < blocks; b++)
+        drv_tick(out + b * CTL);
+}
+/* the brightness: the first difference's energy over the signal's (level-free) */
+static double m_bright(const int32_t *x, uint32_t n)
+{
+    double e = 0.0, d = 0.0;
+    uint32_t i;
+    for (i = 1; i < n; i++)
+        e += (double)x[i] * x[i], d += (double)(x[i] - x[i - 1]) * (x[i] - x[i - 1]);
+    return d / (e + 1e-9);
+}
+static double m_rms(const int32_t *x, uint32_t n)
+{
+    double e = 0.0;
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        e += (double)x[i] * x[i];
+    return sqrt(e / n);
+}
+static int m_same(const int32_t *a, const int32_t *b, uint32_t n) { return !memcmp(a, b, n * sizeof *a); }
+static void m_slot(int16_t *p, int k, int src, int dst, int dep)
+{
+    p[QD_QP_MOD(k, QD_QM_SRC)] = (int16_t)src, p[QD_QP_MOD(k, QD_QM_DST)] = (int16_t)dst;
+    p[QD_QP_MOD(k, QD_QM_DEPTH)] = (int16_t)dep;
+}
+static void t_mods(void)
+{
+    enum { NB = 300, N = NB * CTL };
+    static int32_t a[N], b[N], c[N], d[N];
+    static const char *const SN[QD_MS_N] = {"", "VEL", "KEY", "MW", "AT", "PB", "BR", "RAND", "F ENV"};
+    int16_t p0[QD_QUAD_NP], p[QD_QUAD_NP];
+    double r0, r1;
+    int s;
+    quad_init3(p0);
+    drv_patch(p0);
+    memcpy(p0, part_patch, sizeof p0);
+    p0[QP_FTYPE] = QF_LP12, p0[QP_FREQ] = 3000, p0[QP_RESO] = 2000, p0[QP_FDBK] = 100, p0[QP_ALEV] = 110, p0[QP_BLEV] = 110;   /* (bright, the cut low) */
+    memset(&m_midi, 0, sizeof m_midi);
+    /* an empty matrix: a slot with no SOURCE, no DEST or no DEPTH changes nothing (bit for bit) */
+    m_render(p0, 48, 100, NB, a);
+    memcpy(p, p0, sizeof p);
+    m_slot(p, 0, QD_MS_VEL, QD_FREQ, 0), m_slot(p, 1, QD_MS_OFF, QD_FREQ, 127), m_slot(p, 2, QD_MS_KEY, QD_NONE, 127);
+    m_render(p, 48, 100, NB, b);
+    CHECK(m_same(a, b, N), "no SOURCE, no DEST or no DEPTH: the sound bit for bit");
+    /* VEL -> FREQ: 127 against 20 the brighter, beyond what velocity alone does */
+    m_render(p0, 48, 20, NB, a), m_render(p0, 48, 127, NB, b);
+    r0 = m_bright(b, N) / m_bright(a, N);
+    memcpy(p, p0, sizeof p);
+    m_slot(p, 0, QD_MS_VEL, QD_FREQ, 127);
+    m_render(p, 48, 20, NB, c), m_render(p, 48, 127, NB, d);
+    r1 = m_bright(d, N) / m_bright(c, N);
+    CHECK(r1 > r0 * 1.5, "VEL -> FREQ: velocity 127 against 20 %.2fx as bright (%.2fx unmodulated)", r1, r0);
+    /* KEY -> LEVEL, depth -127: four octaves up the quieter, beyond what the key alone does */
+    m_render(p0, 36, 100, NB, a), m_render(p0, 84, 100, NB, b);
+    r0 = m_rms(b, N) / m_rms(a, N);
+    memcpy(p, p0, sizeof p);
+    m_slot(p, 0, QD_MS_KEY, QD_LEVEL, -127);
+    m_render(p, 36, 100, NB, c), m_render(p, 84, 100, NB, d);
+    r1 = m_rms(d, N) / m_rms(c, N);
+    CHECK(r1 < r0 * 0.6, "KEY -> LEVEL -127: note 84 against 36 at %.2f the level (%.2f unmodulated)", r1, r0);
+    m_render(p, 60, 100, NB, a);
+    m_render(p0, 60, 100, NB, b);
+    CHECK(m_same(a, b, N), "KEY at note 60: no change (the centre)");
+    /* MW, AT, PB, BR (the track's MIDI state), RAND, F ENV: each -> FREQ moves the sound; at rest (MIDI 0) nothing */
+    for (s = QD_MS_MW; s < QD_MS_N; s++) {
+        memcpy(p, p0, sizeof p);
+        m_slot(p, 3, s, QD_FREQ, 100);
+        memset(&m_midi, 0, sizeof m_midi);
+        m_render(p, 48, 100, NB, a);
+        m_midi.mw = s == QD_MS_MW ? 127 : 0, m_midi.at = s == QD_MS_AT ? 127 : 0;
+        m_midi.br = s == QD_MS_BR ? 127 : 0, m_midi.pb = (int16_t)(s == QD_MS_PB ? 8191 : 0);
+        m_midi.serial = s == QD_MS_RAND ? 7u : 0u;
+        m_render(p, 48, 100, NB, b);
+        m_render(p0, 48, 100, NB, c);
+        if (s == QD_MS_RAND || s == QD_MS_FENV) {
+            CHECK(!m_same(a, c, N), "%s -> FREQ: the sound moved", SN[s]);
+            if (s == QD_MS_RAND) {
+                CHECK(!m_same(a, b, N), "RAND: another note, another value");
+                m_render(p, 48, 100, NB, d);
+                CHECK(m_same(b, d, N), "RAND: the same note count, the same value (deterministic)");
+            }
+        } else {
+            CHECK(m_same(a, c, N), "%s at rest: the sound as unmodulated", SN[s]);
+            CHECK(fabs(m_bright(b, N) / m_bright(a, N) - 1.0) > 0.1, "%s 127 -> FREQ: the sound moved (%.2fx bright)",
+                  SN[s], m_bright(b, N) / m_bright(a, N));
+        }
+    }
+    memset(&m_midi, 0, sizeof m_midi);
+    m_midi.pb = -8192;
+    memcpy(p, p0, sizeof p);
+    m_slot(p, 0, QD_MS_PB, QD_FREQ, 127);
+    m_render(p, 48, 100, NB, a);
+    m_midi.pb = 8191;
+    m_render(p, 48, 100, NB, b);
+    CHECK(m_bright(b, N) > m_bright(a, N) * 1.2, "PB: up the brighter, down the darker (%.2fx)", m_bright(b, N) / m_bright(a, N));
+    memset(&m_midi, 0, sizeof m_midi);
+    /* E4's destinations (the LFOs' and the slots'): HOLD, FSHAPE, FGAIN, BITS, SRR each move the sound (PTIM: below) */
+    {
+        static const struct { int dst; const char *n; } D[5] = {{QD_HOLD, "HOLD"}, {QD_FSHAPE, "FSHAPE"},
+                                                               {QD_FGAIN, "FGAIN"}, {QD_BITS, "BITS"}, {QD_SRR, "SRR"}};
+        int k;
+        for (k = 0; k < 5; k++) {
+            memcpy(p, p0, sizeof p);
+            if (D[k].dst == QD_HOLD)
+                p[QD_QP_AMOD] = 1, p[QD_QP_HOLD] = 5, p[QP_EDEC] = 20;
+            if (D[k].dst == QD_FSHAPE)
+                p[QP_FTYPE] = QD_QF_MULTI;
+            if (D[k].dst == QD_FGAIN)
+                p[QP_FTYPE] = QD_QF_EQ;
+            m_render(p, 48, 100, NB, a);
+            m_slot(p, 5, QD_MS_VEL, D[k].dst, 127);
+            m_render(p, 48, 100, NB, b);
+            CHECK(!m_same(a, b, N), "VEL -> %s: the sound moved", D[k].n);
+            m_slot(p, 5, QD_MS_OFF, 0, 0);
+            p[QP_LFO(0, QL_DEST)] = (int16_t)D[k].dst, p[QP_LFO(0, QL_DEPTH)] = 6000;
+            m_render(p, 48, 100, NB, b);
+            CHECK(!m_same(a, b, N), "LFO 1 -> %s: the sound moved", D[k].n);
+        }
+    }
+    /* PTIM: VEL -> PTIM, depth 127: a slower glide at velocity 127 than the patch's TIME alone */
+    {
+        int t0, t1;
+        memcpy(p, p0, sizeof p);
+        p[QD_QP_PORT] = 1, p[QD_QP_PTIM] = 20;
+        for (s = 0; s < 2; s++) {
+            int n;
+            m_slot(p, 0, s ? QD_MS_VEL : QD_MS_OFF, QD_PTIM, s ? 127 : 0);
+            m_render(p, 48, 127, 4, a);
+            qd_quad_voice_legato(&vv[0], 72, 127);
+            for (n = 0; n < 2000 && vv[0].pitch_cur != 72 * 16; n++)
+                drv_tick(a);
+            if (s)
+                t1 = n;
+            else
+                t0 = n;
+        }
+        CHECK(t1 > t0, "VEL -> PTIM: the glide %d blocks against %d", t1, t0);
+    }
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1)
@@ -1059,6 +1209,7 @@ int main(int argc, char **argv)
     t_ext();
     t_machines();
     t_crush();
+    t_mods();
     printf("test_quad: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

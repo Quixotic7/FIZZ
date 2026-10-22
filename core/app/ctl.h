@@ -435,7 +435,9 @@ typedef struct {
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
     int knobs;                         /* P1.3y: the encoders' layout (QD_KNOBS_*; the global settings) */
     int ekeys;                         /* P1.5b: the keyboard on in the sound editor (REC tapped there) */
-    int snd_lk, snd_lk_used, snd_lk_k, snd_lk_id;   /* P1.5k: an LFO key held in the editor (1..3), a knob used with it,
+    int mod_slot, mod_src;             /* E4: the MOD page's chosen slot (0..7); hold-to-map's source (QD_MS_*) */
+    int snd_lk, snd_lk_used, snd_lk_k, snd_lk_id;   /* P1.5k: an LFO key held in the editor (1..3; E4: 4 B1, the MOD
+                                         * slots), a knob used with it,
                                         * the knob slot and the value it mapped .. */
     uint32_t snd_lk_ms, snd_lk_bad_ms; /* .. when it went down; a value that is no destination turned (its shake) */
     int snd_page;                      /* P1.4a: the sound editor's page (QD_SND_PAGES) .. */
@@ -554,9 +556,12 @@ const int8_t *qd_snd_ids(const struct qd_app *a, int page);
 const char *qd_snd_label(const struct qd_app *a, int page, int k);   /* E2: KNOB k's (4 ALGORITHM) value name there */
 int qd_snd_page_all_ids(int page, int8_t *out);    /* E2: every id the page can show (its machines too), each once */
 int qd_snd_machine(int ftype);                      /* E2: the filter machine (0 LEGACY .. 5 EQ) of QD_QP_FTYPE */
+void qd_snd_mod_key(struct qd_app *a, int down);    /* E4: B1 in the editor: a tap its group, held: hold-to-map (slots) */
+void qd_snd_mod_src(struct qd_app *a, int w);       /* E4: .. B1 held, W1..W8: the source (VEL .. F ENV) */
+int qd_snd_mod_slot_of(const struct qd_app *a, int src, int dest);   /* E4: the slot with src -> dest, -1 none */
 extern const char *const QD_SND_MACHINE[6];
-#define QD_SND_START_PAGE 3            /* P1.5l: a fresh start: RATIO (B2), the sound's first page (E1: after PORT) */
-#define QD_SND_NPAGE 20
+#define QD_SND_START_PAGE 4            /* P1.5l: a fresh start: RATIO (B2), the sound's first page (E1, E4: after PORT, MOD) */
+#define QD_SND_NPAGE 21
 typedef struct {
     const char *name;
     uint8_t group, draw;

@@ -507,6 +507,87 @@ static void sd_crush(const ui_snd_t *v)
     }
 }
 
+/* E4: a modulation source's glyph (QD_MS_*): VEL a wedge, KEY a key, MW a wheel, AT a finger pressing, PB a bent
+ * arrow, BR a breath's puffs, RAND a die, F ENV a small ADSR */
+static void sd_mod_icon(int src, float cx, float cy, float s, qd_rgb c)
+{
+    switch (src) {
+    case 1: {
+        const float w[6] = {cx - 7.f * s, cy + 6.f * s, cx + 7.f * s, cy + 6.f * s, cx + 7.f * s, cy - 6.f * s};
+        ui_P(w, 3, c, 1.3f, 1, QD_NONE);
+        break;
+    }
+    case 2:
+        ui_RR(cx - 4.f * s, cy - 7.f * s, 8.f * s, 14.f * s, 1.5f, c, 1.3f, QD_NONE);
+        ui_RR(cx - 2.f * s, cy - 7.f * s, 4.f * s, 8.f * s, 1.f, QD_NONE, 1.f, c);
+        break;
+    case 3:
+        ui_O(cx, cy, 6.5f * s, c, 1.3f, QD_NONE);
+        line2(cx - 6.5f * s, cy, cx + 6.5f * s, cy, c, 1.3f);
+        break;
+    case 4:
+        ui_O(cx, cy - 3.f * s, 3.f * s, QD_NONE, 1.f, c);
+        line2(cx - 7.f * s, cy + 6.f * s, cx + 7.f * s, cy + 6.f * s, c, 1.5f);
+        line2(cx, cy, cx, cy + 4.f * s, c, 1.3f);
+        break;
+    case 5: {
+        const float b[6] = {cx - 7.f * s, cy + 4.f * s, cx, cy + 4.f * s, cx + 6.f * s, cy - 5.f * s};
+        ui_P(b, 3, c, 1.4f, 0, QD_NONE);
+        line2(cx + 6.f * s, cy - 5.f * s, cx + 1.f * s, cy - 5.f * s, c, 1.3f);
+        line2(cx + 6.f * s, cy - 5.f * s, cx + 6.f * s, cy, c, 1.3f);
+        break;
+    }
+    case 6:
+        ui_O(cx - 4.f * s, cy + 2.f * s, 2.5f * s, c, 1.2f, QD_NONE);
+        ui_O(cx + 1.f * s, cy - 2.f * s, 3.f * s, c, 1.2f, QD_NONE);
+        ui_O(cx + 6.f * s, cy - 5.f * s, 2.f * s, c, 1.2f, QD_NONE);
+        break;
+    case 7:
+        ui_icon(UI_IC_DICE, cx, cy, s, c);
+        break;
+    case 8: {
+        const float e[10] = {cx - 7.f * s, cy + 5.f * s, cx - 4.f * s, cy - 5.f * s, cx, cy, cx + 4.f * s, cy,
+                             cx + 7.f * s, cy + 5.f * s};
+        ui_P(e, 5, c, 1.3f, 0, QD_NONE);
+        break;
+    }
+    default:
+        line2(cx - 5.f * s, cy, cx + 5.f * s, cy, c, 1.2f);
+        break;
+    }
+}
+
+/* E4: MOD: the eight slots as rows: the source's glyph, an arrow, the destination; the depth a bar from the middle
+ * (the chosen slot bright in a box; an empty one a dash) */
+static void sd_mod(const ui_snd_t *v)
+{
+    int k;
+    for (k = 0; k < 8; k++) {
+        const float y = 44.f + (float)k * 17.f;
+        const int sel = k == v->mod_sel, on = v->mod_src[k] > 0;
+        const qd_rgb c = sel ? UI_K3 : on ? UI_G1 : UI_G3;
+        char n[4] = {(char)('1' + k), 0};
+        if (sel)
+            ui_RR(10.f, y - 8.f, 220.f, 16.f, 4.f, SNDK[4], 1.3f, QD_NONE);
+        ui_T(n, 18.f, y + 4.5f, 12.f, 600, 0.f, sel ? SNDK[4] : UI_G2, QD_CENTER);
+        if (!on) {
+            line2(34.f, y, 46.f, y, UI_G3, 1.2f);
+            continue;
+        }
+        sd_mod_icon(v->mod_src[k], 40.f, y, 0.72f, sel ? SNDK[0] : c);
+        sd_arrow(52.f, y, 62.f, y, c);
+        ui_T(v->mod_dst[k] ? v->mod_dst[k] : "", 68.f, y + 4.5f, 12.f, 600, 0.f, sel ? SNDK[1] : c, QD_LEFT);
+        {
+            const float mid = 180.f, half = 42.f, dx = (float)v->mod_dep[k] / 127.f * half;
+            line2(mid - half, y, mid + half, y, UI_G3, 1.f);
+            line2(mid, y - 5.f, mid, y + 5.f, UI_G2, 1.f);
+            if (dx > 0.5f || dx < -0.5f)
+                ui_RR(dx > 0.f ? mid : mid + dx, y - 3.f, dx > 0.f ? dx : -dx, 6.f, 2.f, QD_NONE, 1.f,
+                      sel ? SNDK[2] : c);
+        }
+    }
+}
+
 /* an ADSR's points: delay, attack, decay to sustain, held, release (INF: held to the edge) */
 static void sd_adsr(const ui_snd_t *v)
 {
@@ -846,6 +927,7 @@ void ui_snd_draw(const ui_snd_t *v)
     case UI_SD_LFO: sd_lfo(v); break;
     case UI_SD_PORT: sd_port(v); break;
     case UI_SD_CRUSH: sd_crush(v); break;
+    case UI_SD_MOD: sd_mod(v); break;
     default: sd_lfoshape(v); break;
     }
     /* P1.5j (the owner: the lock boxes "change dimensions", "overlap with the orange border"): the foot is four fixed
@@ -862,7 +944,13 @@ void ui_snd_draw(const ui_snd_t *v)
         float w;
         if (!v->has[k])
             continue;
-        if (v->lfomark[k]) {                            /* P1.5k: an LFO's destination: its number in its colour, left */
+        if (v->modmark[k] && !v->lfomark[k]) {           /* E4: a modulation slot's destination: its source's glyph */
+            const float room = SD_COL_W - 18.f;
+            sd_mod_icon(v->modmark[k], x0 + 7.f, SD_LAB_Y - 4.5f, 0.75f, UI_K2);
+            w = ui_TW(v->lab[k] ? v->lab[k] : "", 12.f, 600, 0.3f);
+            ui_T(v->lab[k] ? v->lab[k] : "", x0 + 15.f + room * 0.5f, SD_LAB_Y, w > room ? (12.f * room / w < 12.f ? 12.f
+                 : 12.f * room / w) : 12.f, 600, 0.f, v->locked[k] ? UI_K3 : UI_G1, QD_CENTER);
+        } else if (v->lfomark[k]) {                     /* P1.5k: an LFO's destination: its number in its colour, left */
             const int lf = v->lfomark[k] & 1u ? 0 : v->lfomark[k] & 2u ? 1 : 2;
             char d[2] = {(char)('1' + lf), 0};
             const float room = SD_COL_W - 18.f;
@@ -883,7 +971,7 @@ void ui_snd_draw(const ui_snd_t *v)
                 p[2 * i] = cx - 16.f + (float)i * 2.f;
                 p[2 * i + 1] = SD_LAB_Y + 3.5f - sinf((float)i / 16.f * UI_TAU * 2.f + v->t * 6.f) * 2.f;
             }
-            ui_P(p, 17, UI_LFO_COL[v->lk - 1], 1.4f, 0, QD_NONE);
+            ui_P(p, 17, v->lk == 4 ? UI_K2 : UI_LFO_COL[v->lk - 1], 1.4f, 0, QD_NONE);
         } else if (v->last == k) {                      /* the knob turned last: underlined, under its label */
             line2(cx - 16.f, SD_LAB_Y + 3.5f, cx + 16.f, SD_LAB_Y + 3.5f, SNDK[k], 2.f);
         }
@@ -912,13 +1000,20 @@ void ui_snd_draw(const ui_snd_t *v)
         else
             sd_bottle(v->rnd_u, v->rnd_kind == 3, v->t);
     }
-    if (v->lk) {                                        /* P1.5k: an LFO key held: "LFO n -> VALUE", the depth */
-        const qd_rgb lc = UI_LFO_COL[v->lk - 1];
+    if (v->lk) {                                        /* P1.5k: an LFO key held: "LFO n -> VALUE", the depth (E4: B1
+                                                         * held: the source's glyph and name -> VALUE) */
+        static const char *const SRCN[9] = {"", "VEL", "KEY", "MW", "AT", "PB", "BR", "RAND", "F ENV"};
+        const qd_rgb lc = v->lk == 4 ? UI_K2 : UI_LFO_COL[v->lk - 1];
         const float sh = v->lk_ok ? 0.f : sinf(v->lk_shake * 30.f) * 6.f * v->lk_shake;
         char t[8] = "LFO 1";
         t[4] = (char)('0' + v->lk);
         ui_RR(12.f, 36.f, 216.f, 140.f, 10.f, lc, 2.f, UI_BG);
-        ui_T(t, 26.f, 62.f, 16.f, 600, 0.8f, lc, QD_LEFT);
+        if (v->lk == 4) {
+            sd_mod_icon(v->lk_src, 34.f, 57.f, 1.4f, lc);
+            ui_T(SRCN[v->lk_src > 0 && v->lk_src < 9 ? v->lk_src : 1], 52.f, 62.f, 16.f, 600, 0.8f, lc, QD_LEFT);
+        } else {
+            ui_T(t, 26.f, 62.f, 16.f, 600, 0.8f, lc, QD_LEFT);
+        }
         sd_arrow(26.f, 80.f, 58.f, 98.f, lc);
         if (v->lk_name)
             ui_T(v->lk_name, 120.f + sh, 116.f, 26.f, 300, 0.f, v->lk_ok ? UI_K3 : UI_G2, QD_CENTER);

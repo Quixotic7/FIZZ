@@ -24,7 +24,7 @@
 //   wrapDn2Record(record, {compress}) -> the stored container (payload) around it; dn2pstZip(payload, manifest) -> a .dn2pst
 
 // ---- FM TONE's patch (eng_quad.c QP_*, version 5; the same table as fm1dnsnd.js DN_QUAD_RANGES)
-export const QUAD_RANGES = [[1,8,1],[0,18,3],[0,63,3],[0,18,3],[-2600,2600,0],[0,12700,0],[0,127,0],[-64,63,-64],[-100,100,0],[-100,100,0],[-100,100,0],[-100,100,0],[0,127,0],[0,127,32],[0,127,127],[0,127,0],[0,127,0],[0,127,32],[0,127,127],[0,127,0],[0,127,0],[0,1,1],[0,1,1],[0,4,1],[0,127,0],[0,1,1],[0,1,1],[0,127,64],[0,127,0],[0,127,0],[0,127,0],[0,127,64],[0,127,0],[0,127,64],[0,12700,12700],[0,12700,0],[0,7,1],[-6400,6399,0],[0,127,0],[0,127,0],[0,12700,0],[0,127,127],[0,127,8],[0,127,32],[0,127,96],[0,127,24],[0,127,110],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,57,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,57,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,57,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[0,18,3],[0,127,0]];
+export const QUAD_RANGES = [[1,8,1],[0,18,3],[0,63,3],[0,18,3],[-2600,2600,0],[0,12700,0],[0,127,0],[-64,63,-64],[-100,100,0],[-100,100,0],[-100,100,0],[-100,100,0],[0,127,0],[0,127,32],[0,127,127],[0,127,0],[0,127,0],[0,127,32],[0,127,127],[0,127,0],[0,127,0],[0,1,1],[0,1,1],[0,4,1],[0,127,0],[0,1,1],[0,1,1],[0,127,64],[0,127,0],[0,127,0],[0,127,0],[0,127,64],[0,127,0],[0,127,64],[0,12700,12700],[0,12700,0],[0,7,1],[-6400,6399,0],[0,127,0],[0,127,0],[0,12700,0],[0,127,127],[0,127,8],[0,127,32],[0,127,96],[0,127,24],[0,127,110],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,63,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,63,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[-6400,6399,3200],[0,23,5],[-64,63,0],[0,63,0],[0,6,0],[0,127,0],[0,4,0],[-6400,6399,0],[0,18,3],[0,127,0]];
 export const QP = { ALGO: 0, RC: 1, RA: 2, RB1: 3, HARM: 4, DTUN: 5, FDBK: 6, MIX: 7, OFSC: 8, OFSA: 9, OFSB1: 10, OFSB2: 11,
   AATK: 12, ADEC: 13, AEND: 14, ALEV: 15, BATK: 16, BDEC: 17, BEND: 18, BLEV: 19, ADLY: 20, ATRIG: 21, ARST: 22, PHRT: 23,
   BDLY: 24, BTRIG: 25, BRST: 26, VEL: 27, AKEY: 28, B1KEY: 29, FATK: 30, FDEC: 31, FSUS: 32, FREL: 33, FREQ: 34, RESO: 35,
@@ -35,7 +35,7 @@ const qlfo = (k, f) => 47 + k * 8 + QL[f];
 const QUAD_NP = 73, QUAD_BLOB = 96, QUAD_VER = 5;
 // E1: FIZZ's values 74..109 (core/voice/quad/quad_voice.c qe_val): [min, max, default]; the default today's sound
 export const QUAD_EXT_RANGES = [[0,1,0],[0,127,127],[0,2,0],[0,127,32],[0,1,0],[0,1,0],[0,127,0],[-64,63,0],[0,1,0],
-  [0,127,0],[0,127,0],[0,1,1], ...Array.from({ length: 8 }, () => [[0,8,0],[0,57,0],[-127,127,0]]).flat()];   // (MOD DEST: FM TONE's 58)
+  [0,127,0],[0,127,0],[0,1,1], ...Array.from({ length: 8 }, () => [[0,8,0],[0,63,0],[-127,127,0]]).flat()];   // (MOD DEST: 64, E4)
 export const QX = { AMOD: 74, HOLD: 75, PORT: 76, PTIM: 77, PSLOPE: 78, DRPRE: 79, FSHAPE: 80, FGAIN: 81, BWPOST: 82,
   BITS: 83, SRR: 84, CRPOST: 85, MOD0: 86 };
 const QUAD_EXT0 = 74, QUAD_BLOB6 = 128;
@@ -46,7 +46,8 @@ const QD = { NONE: 0, PITCH: 1, PAB2: 2, ALGO: 3, RC: 4, RA: 5, RB: 6, OFSC: 7, 
   FDBK: 13, MIX: 14, ALEV: 15, BLEV: 16, AATK: 17, ADEC: 18, AEND: 19, BATK: 20, BDEC: 21, BEND: 22, ADLY: 23, BDLY: 24, FREQ: 25,
   RESO: 26, FENV: 27, BASE: 28, WIDTH: 29, FATK: 30, FDEC: 31, FSUS: 32, FREL: 33, EATK: 34, EDEC: 35, ESUS: 36, EREL: 37, LEVEL: 38,
   PAN: 39, L1SPD: 40, L1MUL: 41, L1FAD: 42, L1WAV: 43, L1SPH: 44, L1MOD: 45, L1DEP: 46, RALL: 47, ABLEV: 48, ABATK: 49, ABDEC: 50,
-  ABEND: 51, ABDLY: 52, DRIVE: 53, SREV: 54, SDLY: 55, SCHO: 56, FDLY: 57 };
+  ABEND: 51, ABDLY: 52, DRIVE: 53, SREV: 54, SDLY: 55, SCHO: 56, FDLY: 57,
+  HOLD: 58, PTIM: 59, FSHAPE: 60, FGAIN: 61, BITS: 62, SRR: 63 };   // (E4: FIZZ's own)
 
 // ---- the Digitone II's tables
 // the machine byte at record +244 and the filter machine at +245 (DNX machine.ts; syxgrid TRACK_MACHINE_REL 232 and
@@ -77,7 +78,8 @@ export const DN2_LFO_DEST = { 0: QD.NONE, 1: QD.L1SPD, 5: QD.L1MUL, 9: QD.L1FAD,
   58: QD.PITCH, 59: QD.PAB2, 60: QD.RALL, 61: QD.ABLEV, 62: QD.ABATK, 63: QD.ABDEC, 64: QD.ABEND, 65: QD.ABDLY, 66: QD.OFSC,
   67: QD.OFSA, 68: QD.OFSB1, 69: QD.OFSB2, 74: QD.FREQ, 75: QD.RESO, 76: QD.FENV, 77: QD.FDLY, 78: QD.FATK, 79: QD.FDEC,
   80: QD.FSUS, 81: QD.FREL, 83: QD.BASE, 84: QD.WIDTH, 87: QD.EATK, 89: QD.EDEC, 90: QD.ESUS, 91: QD.EREL, 92: QD.SCHO,
-  93: QD.SDLY, 94: QD.SREV, 95: QD.PAN, 96: QD.LEVEL, 104: QD.DRIVE };
+  93: QD.SDLY, 94: QD.SREV, 95: QD.PAN, 96: QD.LEVEL, 104: QD.DRIVE,
+  73: QD.FSHAPE, 88: QD.HOLD, 100: QD.PTIM, 101: QD.BITS, 102: QD.SRR };   // (E4: FIZZ's destinations for the DN2's own)
 // the names of the ids (DNX plockparams.ts / machineplock.ts, syxgrid PLOCK_NAMES), for the notes
 const DN2_ID_NAMES = { 2: "LFO2 SPD", 6: "LFO2 MULT", 10: "LFO2 FADE", 14: "LFO2 DEST", 18: "LFO2 WAVE", 22: "LFO2 SPH",
   26: "LFO2 MODE", 30: "LFO2 DEP", 41: "PHRT", 52: "A TRIG", 53: "A RESET", 55: "B TRIG", 56: "B RESET", 70: "KEY TRACK A",
@@ -422,6 +424,25 @@ export function dn2pstToQuad(parsed) {
   if (oct) {
     notes.push(octave(p, oct) ? `the sound's OCTAVE ${oct > 0 ? "+" : ""}${oct / 12}: every ratio x ${2 ** (oct / 12)}` :
       `the sound's OCTAVE ${oct > 0 ? "+" : ""}${oct / 12} not imported (a ratio has no such value in FM TONE)`);
+  }
+  {   // E4: the modulation records (+252 + 3k, k < 24: six sources x four, PB VEL MW BR AT KEY; the third byte the
+      // destination's id, the first two the depth, bipolar about 64: inferred, not verified) into the eight slots
+    const rec = parsed.record, SRC = [5, 1, 3, 6, 4, 2], SRCN = ["PB", "VEL", "MW", "BR", "AT", "KEY"];
+    let slot = 0, lost = 0;
+    if (rec && rec.length >= 252 + 72)
+      for (let k = 0; k < 24; k++) {
+        const o = 252 + 3 * k, id = rec[o + 2];
+        if (!id) continue;
+        const q = DN2_LFO_DEST[id];
+        if (q === undefined || q === QD.NONE) { notes.push(`MOD ${SRCN[k >> 2]} -> ${DN2_ID_NAMES[id] ?? `#${id}`}: FIZZ has no such destination`); continue; }
+        if (slot >= 8) { lost++; continue; }
+        xset(QX.MOD0 + 3 * slot, SRC[k >> 2]);
+        xset(QX.MOD0 + 3 * slot + 1, q);
+        xset(QX.MOD0 + 3 * slot + 2, Math.round((rec[o] + rec[o + 1] / 256 - 64) * 2));
+        slot++;
+      }
+    if (slot) notes.push(`MOD: ${slot} slot(s) from the Digitone's modulation records (their layout and depth law are inferred, not verified)`);
+    if (lost) notes.push(`MOD: ${lost} more record(s) not imported (FIZZ has eight slots)`);
   }
   if (parsed.warnings && parsed.warnings.length) notes.push(...parsed.warnings.map((w) => `file: ${w}`));
   const send = (v) => Math.max(0, Math.min(127, R(v || 0)));

@@ -3049,10 +3049,9 @@ static void g_snd(void)
         }
     }
     for (i = 0; i < QD_QUAD_NP; i++)
-        if (i < QD_QP_MOD0)                             /* (E4's values get their pages there) */
-            ok &= seen[i] == 1;
-    CHECK(ok, "every one of the sound's %d values on exactly one page (RATIO B the pair B1 / B2; E4's to come)",
-          QD_QP_MOD0);
+        ok &= seen[i] == 1;
+    CHECK(ok, "every one of the sound's %d values on exactly one page (RATIO B the pair B1 / B2; E4: MOD's slots)",
+          QD_QUAD_NP);
     start();
     wtap(0);
     btap(QD_B_SOUND);
@@ -4241,12 +4240,110 @@ static void g_p15k_lfo(void)
 }
 
 
+/* E4: the modulation slots: B1 held + a knob maps the chosen source (W1..W8 while held; VEL at first) to the value's
+ * destination in a slot (the same source and destination's, else the first empty one), each detent its depth; refused:
+ * no destination, every slot taken; a step held: locks; B1 tapped: its pages; the MOD page; MIDI's sources */
+static void g_e4_mods(void)
+{
+    static ui_snd_t sv;
+    const int16_t *pt;
+    int fr, rs, k, ok;
+#define MS(k, f) pt[QD_QP_MOD(k, QD_QM_##f)]
+    start();
+    wtap(2);
+    btap(QD_B_SOUND);
+    pt = A.model.t[0].patch;
+    fr = qd_quad_dest_of(QD_QP_FREQ, 1), rs = qd_quad_dest_of(QD_QP_RESO, 1);
+    A.ui.snd_page = qd_snd_page_of("FILTER");
+    kdown(BK(B1));
+    run(300);
+    qd_view_snd(&A, &sv);
+    CHECK(sv.lk == 4 && sv.lk_src == QD_MS_VEL && leds().key[WK(0)] == QD_LED_LIT && leds().key[WK(1)] == QD_LED_DIM &&
+              leds().key[WK(8)] == QD_LED_OFF, "B1 held (past a tap): the mapping, VEL chosen (W1 lit, W2..W8 dim)");
+    turn(QD_K_1, 3);
+    qd_view_snd(&A, &sv);
+    CHECK(MS(0, SRC) == QD_MS_VEL && MS(0, DST) == fr && MS(0, DEPTH) == 3 && sv.lk_ok && sv.lk_k == 0,
+          "B1 + KNOB 1 (FREQ): slot 1 VEL -> FREQ, depth +3 (%d %d %d)", MS(0, SRC), MS(0, DST), MS(0, DEPTH));
+    turn(QD_K_1, -1);
+    CHECK(MS(0, DEPTH) == 2 && !MS(1, SRC), "the same again: slot 1's depth from where it was (+2), no other slot");
+    wtap(2);
+    qd_view_snd(&A, &sv);
+    CHECK(A.ui.mod_src == QD_MS_MW && sv.lk_src == QD_MS_MW && leds().key[WK(2)] == QD_LED_LIT && A.ui.snd_lk == 4,
+          "W3 while B1 held: MW the source (W3 lit), no step");
+    turn(QD_K_2, -2);
+    turn(QD_K_1, 1);
+    CHECK(MS(1, SRC) == QD_MS_MW && MS(1, DST) == rs && MS(1, DEPTH) == -2 && MS(2, SRC) == QD_MS_MW &&
+              MS(2, DST) == fr && MS(2, DEPTH) == 1 && MS(0, DEPTH) == 2,
+          "MW + KNOB 2: slot 2 MW -> RESO -2; MW + KNOB 1: slot 3 MW -> FREQ (VEL -> FREQ's slot kept)");
+    turn(QD_K_3, 1);
+    qd_view_snd(&A, &sv);
+    CHECK(!sv.lk_ok && !MS(3, SRC), "KNOB 3 (TYPE, no destination): refused, no slot taken");
+    kup(BK(B1));
+    run(20);
+    qd_view_snd(&A, &sv);
+    CHECK(A.ui.snd_page == qd_snd_page_of("FILTER") && !sv.lk && sv.modmark[0] && sv.modmark[1],
+          "released: the page stays (FILTER), FREQ and RESO marked");
+    for (k = 3; k < 8; k++)                             /* the other five slots taken */
+        qd_player_live_edit(&A.player, 0, QD_QP_MOD(k, QD_QM_SRC), QD_MS_AT),
+            qd_player_live_edit(&A.player, 0, QD_QP_MOD(k, QD_QM_DST), qd_quad_dest_of(QD_QP_HARM, 1));
+    kdown(BK(B1));
+    run(20);
+    turn(QD_K_4, 1);
+    qd_view_snd(&A, &sv);
+    ok = !sv.lk_ok;
+    turn(QD_K_1, 1);
+    qd_view_snd(&A, &sv);
+    CHECK(ok && sv.lk_ok && MS(2, DEPTH) == 2, "every slot taken: a new destination refused, MW -> FREQ still turned (+2)");
+    kup(BK(B1));
+    run(20);
+    black(B1);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TRIG"), "B1 tapped: its pages (TRIG)");
+    black(B1), black(B1), black(B1);
+    qd_view_snd(&A, &sv);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "MOD") && sv.mod_src[0] == QD_MS_VEL && sv.mod_dep[0] == 2 &&
+              sv.mod_src[1] == QD_MS_MW && sv.mod_dep[1] == -2 && sv.mod_sel == 2 && sv.mod_dst[0] &&
+              !strcmp(sv.mod_dst[0], "FREQ"), "MOD: the slots' rows, the last mapped slot chosen (3)");
+    turn(QD_K_ALGO, -1);
+    turn(QD_K_3, 5);
+    CHECK(A.ui.mod_slot == 1 && MS(1, DEPTH) == 3, "MOD: ALGORITHM the slot (2), its DEPTH turned (-2 -> +3)");
+    btap(QD_B_HOME);
+    /* a step held: the slot locked on the step, the track's sound untouched */
+    start();
+    wtap(2);
+    btap(QD_B_SOUND);
+    pt = A.model.t[0].patch;
+    A.ui.snd_page = qd_snd_page_of("FILTER");
+    whold(2);
+    kdown(BK(B1));
+    run(20);
+    turn(QD_K_1, 2);
+    kup(BK(B1));
+    run(20);
+    CHECK(LK(0, 2, QD_QP_MOD(0, QD_QM_SRC)) == QD_MS_VEL && LK(0, 2, QD_QP_MOD(0, QD_QM_DST)) == fr &&
+              LK(0, 2, QD_QP_MOD(0, QD_QM_DEPTH)) == 2 && !MS(0, SRC),
+          "a step held, B1 + KNOB 1: slot 1 VEL -> FREQ +2 locked on the step, the track's sound untouched");
+    wrel(2);
+    btap(QD_B_HOME);
+    /* MIDI's sources: channel n's CC 1, CC 2, pressure, pitch bend into track n's state */
+    qd_app_midi(&A, 0xB0, 1, 99);
+    qd_app_midi(&A, 0xB1, 2, 77);
+    qd_app_midi(&A, 0xD0, 55, 0);
+    qd_app_midi(&A, 0xE2, 0, 0);
+    CHECK(A.model.t[0].owner.mw == 99 && A.model.t[1].owner.br == 77 && A.model.t[0].owner.at == 55 &&
+              A.model.t[2].owner.pb == -8192 && A.model.t[1].owner.mw == 0, "MIDI: CC 1, CC 2, pressure, bend: the "
+          "channel's track's (%d %d %d %d)", A.model.t[0].owner.mw, A.model.t[1].owner.br, A.model.t[0].owner.at,
+          A.model.t[2].owner.pb);
+    qd_app_midi(&A, 0xE2, 0x7F, 0x7F);
+    CHECK(A.model.t[2].owner.pb == 8191, "bend at the top: +8191");
+#undef MS
+}
+
 /* P1.5l: the editor's black keys regrouped: B1 TRIG / KEYS, B2 OPERATORS, B3 OP ENVELOPES, B4 FILTERS, B5 ENVELOPES,
  * B6..B8 the LFOs; SELECT in that order; a fresh start on RATIO; the LEDs */
 static void g_p15l_groups(void)
 {
     static const char *const FIRST[8] = {"TRIG", "RATIO", "ENV A", "FILTER", "AMP", "LFO 1", "LFO 2", "LFO 3"};
-    static const char *const ORDER[QD_SND_NPAGE] = {"TRIG", "KEYS", "PORT", "RATIO", "TONE", "OFFSET", "ENV A", "ENV B",
+    static const char *const ORDER[QD_SND_NPAGE] = {"TRIG", "KEYS", "PORT", "MOD", "RATIO", "TONE", "OFFSET", "ENV A", "ENV B",
         "FILTER", "F ENV", "BASE", "AMP", "LEVEL", "CRUSH", "LFO 1", "LFO 1 WAVE", "LFO 2", "LFO 2 WAVE", "LFO 3", "LFO 3 WAVE"};
     static ui_snd_t sv;
     int b, ok = 1, p;
@@ -4262,15 +4359,17 @@ static void g_p15l_groups(void)
     black(B1);
     black(B1);
     qd_view_snd(&A, &sv);
-    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "KEYS") && sv.npg == 3 && sv.ipg == 1,
-          "B1 again: KEYS (three dots: E1's PORT)");
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "KEYS") && sv.npg == 4 && sv.ipg == 1,
+          "B1 again: KEYS (four dots: E1's PORT, E4's MOD)");
     black(B1);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "PORT"), "B1 again: PORT (E1)");
+    black(B1);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "MOD"), "B1 again: MOD (E4)");
     black(B1);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TRIG"), "B1 again: round to TRIG");
     for (ok = 1, p = 0; p < QD_SND_NPAGE; p++)
         ok &= !strcmp(QD_SND_PAGES[p].name, ORDER[p]);
-    CHECK(ok, "SELECT's order: TRIG KEYS PORT RATIO TONE OFFSET ENV A ENV B FILTER F ENV BASE AMP LEVEL CRUSH LFO 1 .. LFO 3 "
+    CHECK(ok, "SELECT's order: TRIG KEYS PORT MOD RATIO TONE OFFSET ENV A ENV B FILTER F ENV BASE AMP LEVEL CRUSH LFO 1 .. LFO 3 "
           "WAVE");
     A.ui.snd_page = qd_snd_page_of("CRUSH");
     turn(QD_K_SELECT, 1);
@@ -6550,6 +6649,7 @@ int main(void)
         {"P1.5i: RATIO B the pair, MIX on RATIO", g_p15i_ratio},
         {"P1.5j: the editor's foot clear of the frame", g_p15j_margins},
         {"P1.5k: the LFOs: keys, DEST, hold-to-map", g_p15k_lfo},
+        {"E4: the modulation slots: B1's hold-to-map, MOD, MIDI", g_e4_mods},
         {"P1.5l: the editor's black keys regrouped", g_p15l_groups},
         {"P1.5m: the F layers with the step latch on", g_p15m_flatch},
         {"P1.5n/o: the octave tap's takeover, SELECT moves all, LFO's LED, MIX on TONE", g_p15n},

@@ -62,6 +62,7 @@ static const char *const QE_PORT[3] = {"OFF", "ON", "LEGATO"};
 static const char *const QE_PSLOPE[2] = {"TIME", "RATE"};
 static const char *const QE_PREPOST[2] = {"POST", "PRE"};
 static const char *const QE_BEFAFT[2] = {"BEFORE", "AFTER"};
+static const char *const QE_MSRC[QD_MS_N] = {"OFF", "VEL", "KEY", "MW", "AT", "PB", "BR", "RAND", "F ENV"};
 static qe_val_t qe_val(int i)
 {
     static const qe_val_t T[QD_QP_MOD0 - QD_QP_AMOD] = {
@@ -69,7 +70,7 @@ static qe_val_t qe_val(int i)
         {0, 1, 0, "SLOPE", QE_PSLOPE}, {0, 1, 0, "ROUTE", QE_PREPOST}, {0, 127, 0, "SHAPE", 0},
         {-64, 63, 0, "GAIN", 0}, {0, 1, 0, "ROUTE", QE_BEFAFT}, {0, 127, 0, "BITS", 0}, {0, 127, 0, "SRR", 0},
         {0, 1, 1, "ROUTE", QE_BEFAFT}};
-    static const qe_val_t M[3] = {{0, 8, 0, "SOURCE", 0}, {0, (int16_t)(QD_N - 1), 0, "DEST", 0},
+    static const qe_val_t M[3] = {{0, 8, 0, "SOURCE", QE_MSRC}, {0, (int16_t)(QD_N - 1), 0, "DEST", 0},
                                   {-127, 127, 0, "DEPTH", 0}};
     static const qe_val_t Z = {0, 0, 0, "?", 0};
     if (i >= QD_QP_AMOD && i < QD_QP_MOD0)
@@ -135,6 +136,11 @@ void qd_quad_voice_start(qd_quad_voice_t *v, const int16_t *patch, qd_quad_owner
     v->kill = 0;
     v->pitch16 = v->pitch_cur = (int32_t)note * 16;
     v->gstep = 0;                                       /* (E1: no glide unless qd_quad_voice_glide says so) */
+    {   /* E4: RANDOM: a value a note, from the voice's place and the track's count of notes (deterministic) */
+        uint32_t r = ((quad_voice_t *)(void *)v->qstate)->idx * 0x9E3779B9u + ++o->nserial * 0x85EBCA6Bu;
+        r ^= r >> 15, r *= 0x2C1B3C6Du, r ^= r >> 12;
+        v->mrnd = (int16_t)(r >> 16);
+    }
     o->m_v = v;
     if (!sounding) {
         v->env = v->env_out = 0;
@@ -185,7 +191,10 @@ void qd_quad_voice_glide(qd_quad_voice_t *v, int from)
     if (!v->patch[QD_QP_PSLOPE]) {
         d = v->pitch16 - v->pitch_cur;
         d = d < 0 ? -d : d;
-        ticks = 1 + v->patch[QD_QP_PTIM] * v->patch[QD_QP_PTIM] / 8;
+        {   /* (E4: TIME with its modulation, the last block's) */
+            const int32_t tm = clamp(v->patch[QD_QP_PTIM] + v->ptim_mod, 0, 127);
+            ticks = 1 + tm * tm / 8;
+        }
         v->gstep = d / ticks > 0 ? d / ticks : 1;
     }
 }
@@ -219,7 +228,7 @@ int qd_quad_voice_render(qd_quad_voice_t *v, int32_t *out)
     m.amp1 = v->env_out = v->kill || v->dip ? 0 : 32767;   /* (QUADRILLE's dip: to 0 and on, PLAN §5) */
     if (v->pitch_cur != v->pitch16) {                   /* E1: the glide, a step a block (voice.c's control tick) */
         const int32_t d = v->pitch16 - v->pitch_cur;
-        int32_t st = v->gstep ? v->gstep : (int32_t)QE_GLRATE[v->patch[QD_QP_PTIM] & 127];
+        int32_t st = v->gstep ? v->gstep : (int32_t)QE_GLRATE[clamp(v->patch[QD_QP_PTIM] + v->ptim_mod, 0, 127)];
         st = st < 1 ? 1 : st;
         v->pitch_cur += d > 0 ? (d < st ? d : st) : (-d < st ? d : -st);
     }
@@ -489,6 +498,12 @@ int qd_quad_value_range(int i, int16_t *min, int16_t *max, int16_t *def)
 static int quad_dest_id(int d)
 {
     switch (d) {
+    case QD_HOLD: return QD_QP_HOLD;                    /* (E4: FIZZ's own) */
+    case QD_PTIM: return QD_QP_PTIM;
+    case QD_FSHAPE: return QD_QP_FSHAPE;
+    case QD_FGAIN: return QD_QP_FGAIN;
+    case QD_BITS: return QD_QP_BITS;
+    case QD_SRR: return QD_QP_SRR;
     case QD_ALGO: return QP_ALGO;
     case QD_RC: return QP_RC;
     case QD_RA: return QP_RA;

@@ -324,6 +324,8 @@ static void k_snd_black(qd_app_t *a, int key, int b, int down, int vel)
     (void)key, (void)vel;
     if (b >= 5 && b <= 7)                               /* P1.5k: B6..B8 the LFOs (a tap their page, held: the mapping) */
         qd_snd_lfo_key(a, b - 5, down);
+    else if (b == 0)                                    /* E4: B1: its group; held, the modulation slots' mapping */
+        qd_snd_mod_key(a, down);
     else if (down)
         qd_snd_black(a, b);
     else
@@ -352,6 +354,13 @@ static void k_panel_black(qd_app_t *a, int key, int b, int down, int vel)
 /* P1.5b: the sound editor with the keyboard on: SCALE, the W keys the track's scale (the black keys stay its pages);
  * FULL, every key as the keyboard (k_note's notes; the pages on SELECT). Played, not recorded */
 static int w_snd_keys(const qd_app_t *a) { return qd_snd_keys(a) && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN); }
+static int w_snd_mk(const qd_app_t *a) { return qd_snd_open(a) && a->ui.snd_lk == 4; }   /* E4: B1 held: W the source */
+static void k_snd_mk(qd_app_t *a, int key, int w, int down, int vel)
+{
+    (void)key, (void)vel;
+    if (down)
+        qd_snd_mod_src(a, w);
+}
 static int w_snd_full(const qd_app_t *a) { return w_snd_keys(a) && a->proj.rec_ekeys; }
 static void k_snd_note(qd_app_t *a, int key, int idx, int down, int vel)
 {
@@ -837,6 +846,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
     {w_panel, k_panel_white},          /* P1.4b: the mix, the effects: nothing (P1.5b: the overview's W1..W8 the
                                         * track) */
+    {w_snd_mk, k_snd_mk},              /* E4: the editor, B1 held: W1..W8 the modulation source */
     {w_snd_keys, k_snd_note},          /* P1.5b: the sound editor's keyboard */
     {w_keys_mode, k_note},             /* the keyboard */
     {w_flayer_latch, k_flayer_white},  /* P1.5m: the latch's selection, F1 / F2 / F3 down: the layer's W */

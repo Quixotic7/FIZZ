@@ -651,7 +651,8 @@ void ui_menu_draw(const ui_menu_t *v);
  * (E1: AMP in AHD (ALGORITHM MODE): attack, a flat top as long as HOLD (NOTE: over a note bar, to its end), the decay
  * to 0; LEVEL's ROUTE: a FILTER / DRIVE chain in its order) */
 enum { UI_SD_ALGO, UI_SD_TONE, UI_SD_OFS, UI_SD_OPENV, UI_SD_TRIG, UI_SD_KEYS, UI_SD_FILTER, UI_SD_ADSR, UI_SD_BAND,
-       UI_SD_DRIVE, UI_SD_LFO, UI_SD_LFOSHAPE, UI_SD_PORT, UI_SD_CRUSH };   /* (E3: CRUSH: a sine as stairs) */
+       UI_SD_DRIVE, UI_SD_LFO, UI_SD_LFOSHAPE, UI_SD_PORT, UI_SD_CRUSH,   /* (E3: CRUSH: a sine as stairs) */
+       UI_SD_MOD };                     /* (E4: the eight slots as rows) */
 typedef struct ui_snd {
     const char *name;                   /* the page's ("RATIO", "ENV A") */
     int npg, ipg;                       /* its group's pages, this one's place (the dots in the head) */
@@ -674,6 +675,10 @@ typedef struct ui_snd {
     char den[5][8];
     int has_mix, mix;                   /* P1.5i: RATIO's MIX (-64 X .. 63 Y): the outputs' balance in the drawing */
     uint8_t lfomark[5];                 /* P1.5k: bit n: LFO n + 1 has this value as its destination (a mark by its label) */
+    uint8_t modmark[5];                 /* E4: a modulation slot has it as its destination: its source (QD_MS_*), 0 none */
+    int mod_src[8], mod_dep[8], mod_sel;   /* E4: MOD: the slots' sources, depths (-127..127), the chosen one .. */
+    const char *mod_dst[8];             /* .. their destinations' names */
+    int lk_src;                         /* E4: B1 held (lk 4): the source mapped (QD_MS_*) */
     int lk;                             /* P1.5k: an LFO key held (1..3): the mapping's takeover .. */
     const char *lk_name;                /* .. the value it maps ("FREQ"; 0: none yet) */
     int lk_ok, lk_k;                    /* .. a destination (else dim, shaking), the knob's column (-1) */

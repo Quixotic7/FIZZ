@@ -14,7 +14,10 @@
  *       peaking bell from the SVF: FREQ its centre, FSHAPE its Q, FGAIN -18 .. +18 dB); BWPOST: the base-width
  *       filter after the machine (quad_ext_bw_post)
  *   E3  CRUSH (quad_ext_crush): SRR a sample and hold (its rate 1 / N of the sample rate, N 1..64 on a log table), BITS
- *       the sample quantized to b bits of +-32768 (b 16 .. 1: 2^b steps across, 0 kept); CRPOST 0 before the filter, 1 after; both OFF: none */
+ *       the sample quantized to b bits of +-32768 (b 16 .. 1: 2^b steps across, 0 kept); CRPOST 0 before the filter, 1
+ *       after; both OFF: none
+ *   E4  the modulation slots (quad_ext_mods): eight SOURCE -> DEST x DEPTH into the LFOs' dst[] (their destinations,
+ *       FIZZ's new ones too: HOLD, PTIM, SHAPE, GAIN, BITS, SRR) */
 
 /* E1: RATE's step a block (1/16 semitone) by PTIM: ChoralRoot's (voice.c, its slide: ENV_LIN[v] >> 14, at least 1;
  * tools/gen_tables.py ENV_LIN = 2^24 CTL / (ms(v) FS / 1000), ms(v) = 10000^(v / 127)) */
@@ -154,10 +157,10 @@ static int32_t qe_comb_len(int32_t cut)
 /* hook 3: machines 4..7 in the place of the multimode SVF (its coefficients c by FREQ and RESO's damping kd), its
  * states ic1 / ic2 (MULTI, EQ), the soft knee after it as the SVF's */
 static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int32_t *acc, uint32_t n,
-                             const quad_svf_t *c, int32_t kd, int32_t cut, int32_t reso, int32_t *ic1, int32_t *ic2)
+                             const quad_svf_t *c, int32_t kd, int32_t cut, int32_t reso, int32_t shape, int32_t gain,
+                             int32_t *ic1, int32_t *ic2)
 {
     const int mach = p[QD_QP_FTYPE];
-    const int32_t shape = clamp(p[QD_QP_FSHAPE], 0, 127);
     uint32_t i;
     if (v->comb.fresh || v->comb.mach != mach) {        /* (a fresh voice, or a machine switched: from rest; the dip
                                                          * makes it silent meanwhile) */
@@ -176,7 +179,7 @@ static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int3
             k = QE_EQ_K[shape];
             quad_svf_coef(&ce, cut, k);
             cc = &ce;
-            g = QE_EQ_G[clamp(p[QD_QP_FGAIN] + 64, 0, 127)];
+            g = QE_EQ_G[clamp(gain + 64, 0, 127)];
         } else {
             wm = shape <= 64 ? shape * 512 : (shape - 64) * 32768 / 63;   /* (Q15: LP -> BP, then BP -> HP) */
         }
@@ -269,9 +272,8 @@ static const uint32_t QE_SRR_INC[128] = {
 static int qe_crush_bits(int v) { return v <= 0 ? 16 : 16 - (v - 1) * 15 / 126; }
 
 /* hook 5: CRUSH on the voice's signal (before the filter with CRPOST 0, after it with 1) */
-static void quad_ext_crush(voice_t *v, const int16_t *p, int32_t *acc, uint32_t n)
+static void quad_ext_crush(voice_t *v, int bits, int srr, int32_t *acc, uint32_t n)
 {
-    const int srr = clamp(p[QD_QP_SRR], 0, 127), bits = clamp(p[QD_QP_BITS], 0, 127);
     const uint32_t inc = srr ? QE_SRR_INC[srr] : 0u;
     const int sh = bits ? 16 - qe_crush_bits(bits) : 0;
     uint32_t ph = v->crush.ph, i;
@@ -293,4 +295,29 @@ static void quad_ext_crush(voice_t *v, const int16_t *p, int32_t *acc, uint32_t 
         acc[i] = y;
     }
     v->crush.ph = ph, v->crush.held = held;
+}
+
+/* ================================================================ E4: the modulation slots */
+/* hook 6, a block: each slot with a SOURCE adds source x DEPTH / 127 (Q15) to its destination, after the LFOs */
+static void quad_ext_mods(track_t *t, voice_t *v, quad_voice_t *s, const int16_t *p, int32_t *dst)
+{
+    int k;
+    for (k = 0; k < QD_NMOD; k++) {
+        const int src = p[QD_QP_MOD(k, QD_QM_SRC)], d = p[QD_QP_MOD(k, QD_QM_DST)], dep = p[QD_QP_MOD(k, QD_QM_DEPTH)];
+        int32_t x;
+        if (!src || d <= 0 || d >= (int)QD_N || !dep)
+            continue;
+        switch (src) {
+        case QD_MS_VEL: x = (int32_t)(v->mvel ? v->mvel : v->vel) * 32767 / 127; break;
+        case QD_MS_KEY: x = clamp((v->pitch16 - 60 * 16) * 32767 / (64 * 16), -32767, 32767); break;
+        case QD_MS_MW: x = (int32_t)t->mw * 32767 / 127; break;
+        case QD_MS_AT: x = (int32_t)t->at * 32767 / 127; break;
+        case QD_MS_PB: x = clamp((int32_t)t->pb * 4, -32767, 32767); break;
+        case QD_MS_BR: x = (int32_t)t->br * 32767 / 127; break;
+        case QD_MS_RAND: x = v->mrnd; break;
+        case QD_MS_FENV: x = s->env[2] >> 9; break;  /* (the filter envelope's level, the last block's: Q15) */
+        default: x = 0; break;
+        }
+        dst[d] += x * dep / 127;
+    }
 }
