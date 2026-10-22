@@ -24,6 +24,12 @@
   </div>
   <span id="status" role="status"></span>
   <nav>
+    <div id="rec" class="rec" hidden>
+      <button id="rec-btn" class="rec-btn" aria-pressed="false" aria-label="Record" title="Record (Shift+R)"><span class="rec-dot"></span></button>
+      <span id="rec-time" class="rec-time" hidden>0:00</span>
+      <span id="rec-meter" class="rec-meter" aria-hidden="true" hidden><i></i><i></i></span>
+      <button id="takes-btn" class="takes-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="takes" hidden><span class="takes-label">Takes</span><b id="takes-n">0</b></button>
+    </div>
     <button id="fm1-btn" class="fm1-btn" aria-haspopup="dialog" aria-expanded="false" hidden><span class="fm1-dot off"></span><span class="fm1-label">Connect FM-1</span><span class="fm1-short">FM-1</span><span class="fm1-via" hidden></span></button>
     <button id="dn-btn" class="nav-btn" aria-haspopup="dialog" aria-expanded="false" title="Load FIZZ presets (.fizzsnd, .fizzlib) and Elektron Digitone (.dnsnd) and Digitone II (.dn2pst) FM TONE sounds into FIZZ: read in this browser, nothing is uploaded"><span class="long">Import sounds</span><span class="short">Import</span></button>
     <button id="lib-btn" class="nav-btn" aria-haspopup="dialog" aria-expanded="false" title="MY PRESETS: export them as files (.fizzsnd, .fizzlib) to keep or share"><span class="long">My presets</span><span class="short">Presets</span></button>
@@ -51,6 +57,8 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </main>
+<div id="takes" class="takes-pop" role="dialog" aria-label="Takes" hidden></div>
+<span id="rec-live" class="sr-only" aria-live="polite"></span>
 <noscript><p style="color:#ddd;padding:24px">FIZZ's preview needs JavaScript.</p></noscript>
 <script type="module" src="js/main.js"></script>
 </body>

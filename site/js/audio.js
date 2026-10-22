@@ -7,6 +7,8 @@
 //   await p.start();                         // in a user gesture (the autoplay policy)
 //   await p.load(wasmUrl, flashBytes | null)
 //   p.panel(msg); p.midi(bytes); p.flashReq(); p.setVolume(0..1)
+//   p.recStart({ id, chunkFrames, maxFrames }); p.recStop(); p.recBuf(l, r)   the recorder (js/rec-ui.js, RemoteFM1's):
+//     events rec(m) (the worklet's chunks and levels) and beforeLoad (a take ends before the engine is replaced)
 
 import { ver } from "./build.js";
 
@@ -68,6 +70,7 @@ export class Player {
     else if (m.type === "midiOut") this.emit("midiOut", m.bytes);
     else if (m.type === "error") this.emit("error", m.message);
     else if (m.type === "load") this.emit("load", m);
+    else if (m.type === "recChunk" || m.type === "recLevel") this.emit("rec", m);
   }
 
   // the engine's module in the worklet: a shim that imports it statically and registers it with host.js
@@ -84,6 +87,7 @@ export class Player {
   // load FIZZ (wasmUrl: fizz.wasm, versioned so a new build is never a cached old one) from a flash image or erased
   async load(wasmUrl, flash = null) {
     if (!this.ctx) throw new Error("start() first");
+    this.emit("beforeLoad");   // (the recorder ends a take: the engine is about to be replaced)
     await this.addEngine();
     if (!this.wasm || this.wasm.url !== wasmUrl) this.wasm = { url: wasmUrl, bytes: await fetchBytes(abs(wasmUrl), "FIZZ") };
     this.node.port.postMessage({ type: "load", engine: "native", files: { wasm: this.wasm.bytes.slice().buffer },
@@ -94,6 +98,9 @@ export class Player {
     if (this.out) this.out.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.015);
   }
   get sampleRate() { return this.ctx ? this.ctx.sampleRate : 0; }
+  recStart(o) { if (this.node) this.node.port.postMessage({ type: "rec", on: true, ...o }); }
+  recStop() { if (this.node) this.node.port.postMessage({ type: "rec", on: false }); }
+  recBuf(l, r) { if (this.node && l && l.buffer.byteLength) this.node.port.postMessage({ type: "recBuf", l, r }, [l.buffer, r.buffer]); }
   panel(p) { if (this.node) this.node.port.postMessage({ type: "panel", ...p }); }
   midi(bytes) { if (this.node) this.node.port.postMessage({ type: "midi", bytes: Uint8Array.from(bytes) }); }
   flashReq() { if (this.node) this.node.port.postMessage({ type: "flashReq" }); }

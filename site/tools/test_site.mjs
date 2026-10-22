@@ -92,6 +92,8 @@ async function shot(file, clip) {
   fs.writeFileSync(path.join(OUT, file), Buffer.from(r.data, "base64"));
 }
 const errors = [];
+// a dialog (a page asking before it closes) would stall the run: accepted, and counted as an error
+listeners.push((m) => { if (m.method === "Page.javascriptDialogOpening") { errors.push(`dialog: ${m.params.type} ${m.params.message}`); send("Page.handleJavaScriptDialog", { accept: true }); } });
 listeners.push((m) => {
   if (m.method === "Runtime.exceptionThrown") errors.push(m.params.exceptionDetails.exception ? m.params.exceptionDetails.exception.description : m.params.exceptionDetails.text);
   if (m.method === "Runtime.consoleAPICalled" && (m.params.type === "error" || m.params.type === "warning"))
@@ -258,6 +260,58 @@ try {
   check(mfx.algo === "GROUP" && mfx.presets === "EFFECT" && mfx.b[0] === "EMPTY" && mfx.b[7] === "SLOT 8",
     `the MIDI FX screen on the panel: ALGORITHM "${mfx.algo}", PRESETS "${mfx.presets}", B1..B8 ${mfx.b.join(" / ")}`);
   await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(300);
+
+  // 7b. Shift-click latching (RemoteFM1 ceb0025), with real mouse events: Shift-click GLO (FIZZ's SHIFT) and the black
+  // key B6 (SHIFT + B6: TAP): both stay held, FIZZ gets both (the panel message, its SHIFT labels, its TAP screen);
+  // a plain click on GLO lets it go; Shift-click on an empty spot lets the rest go
+  {
+    const at = async (ux, uy) => evaluate(`(() => { const c = document.getElementById("device"), r = c.getBoundingClientRect(), p = FIZZ.labels.device.toCss(${ux}, ${uy}); return { x: r.left + p.x, y: r.top + p.y }; })()`);
+    const click = async (pt, shift) => {
+      for (const type of ["mouseMoved", "mousePressed", "mouseReleased"])
+        await send("Input.dispatchMouseEvent", { type, x: pt.x, y: pt.y, button: type === "mouseMoved" ? "none" : "left", buttons: type === "mousePressed" ? 1 : 0, clickCount: 1, modifiers: shift ? 8 : 0 });
+      await sleep(150);
+    };
+    await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(400);
+    await evaluate("window.__panel = null; { const p = FIZZ.player, f = p.panel.bind(p); p.panel = (m) => { window.__panel = m; f(m); }; }");
+    const glo = await at(786, 195), b6 = await at(453, 364), empty = await at(470, 300);
+    const lcd0 = await evaluate("Array.from(FIZZ.state.pixels.subarray(0, 240 * 180))");
+    await click(glo, true);
+    await waitFor("FIZZ.labels.knobs[0].firstChild.textContent === 'TRACK'", 3000);
+    await click(b6, true);
+    await sleep(400);
+    const st = await evaluate("({ glo: FIZZ.controls.btnLatched(5), b6: FIZZ.controls.keyLatched(13), msg: window.__panel && { keys: window.__panel.keys, buttons: window.__panel.buttons }, sel: FIZZ.labels.knobs[0].firstChild.textContent })");
+    const lcd1 = await evaluate("Array.from(FIZZ.state.pixels.subarray(0, 240 * 180))");
+    await shot("latch.png");
+    const changed = lcd1.filter((v, i) => v !== lcd0[i]).length;
+    check(st.glo && st.b6 && st.msg && (st.msg.buttons & (1 << 7)) && (st.msg.keys & (1 << 13)) && st.sel === "TRACK" && changed > 500,
+      `Shift-click GLO and B6: both latched, FIZZ gets both (buttons ${st.msg && st.msg.buttons.toString(2)}, keys bit 13 ${st.msg && !!(st.msg.keys & (1 << 13))}), SHIFT's labels (SELECT "${st.sel}"), its screen changed (${changed} px: TAP)`);
+    await click(glo, false);
+    await waitFor("FIZZ.labels.knobs[0].firstChild.textContent !== 'TRACK'", 3000);
+    const st2 = await evaluate("({ glo: FIZZ.controls.btnLatched(5), b6: FIZZ.controls.keyLatched(13), buttons: window.__panel.buttons })");
+    await click(empty, true);
+    const st3 = await evaluate("({ any: FIZZ.controls.anyLatched(), keys: window.__panel.keys })");
+    check(!st2.glo && st2.b6 && !(st2.buttons & (1 << 7)) && !st3.any && !(st3.keys & (1 << 13)),
+      `a plain click lets GLO go (B6 still held); Shift-click on an empty spot lets the rest go (FIZZ's keys ${st3.keys})`);
+  }
+
+  // 7c. the recorder (RemoteFM1's ad408fa): Shift+R records, FIZZ playing, Shift+R stops; a take with sound in it
+  {
+    const shiftR = async () => {
+      await send("Input.dispatchKeyEvent", { type: "keyDown", key: "R", code: "KeyR", modifiers: 8, windowsVirtualKeyCode: 82 });
+      await send("Input.dispatchKeyEvent", { type: "keyUp", key: "R", code: "KeyR", modifiers: 8, windowsVirtualKeyCode: 82 });
+    };
+    await evaluate("FIZZ.controls.holdBtn(10, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(10, 4, false)");   // PLAY
+    await shiftR();
+    await waitFor("document.body.classList.contains('recording')", 5000);
+    await sleep(1500);
+    await shiftR();
+    await waitFor("FIZZRec.takes.length === 1", 5000);
+    const take = await evaluate("(async () => { const t = FIZZRec.takes[0]; const b = new Uint8Array(await t.blob.arrayBuffer()); let peak = 0; for (let i = 44; i + 2 < b.length; i += 3) { const v = (b[i] | b[i + 1] << 8 | b[i + 2] << 16) << 8 >> 8; peak = Math.max(peak, Math.abs(v)); } return { name: t.name, frames: t.frames, sr: t.sampleRate, bits: t.bits, peak, riff: String.fromCharCode(...b.subarray(0, 4)) }; })()");
+    await shot("recorder.png");
+    await evaluate("FIZZ.controls.holdBtn(10, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(10, 4, false)");
+    await evaluate("FIZZRec.takes.forEach((t) => { t.saved = true; })");   // (else the page asks before a reload: unsaved takes)
+    check(take.riff === "RIFF" && take.frames > take.sr && take.bits === 24 && take.peak > 1000, `Shift+R records: "${take.name}", ${(take.frames / take.sr).toFixed(1)} s, ${take.bits}-bit, peak ${take.peak}`);
+  }
 
   // 7. the live labels (the stand-in: ?labels=stub, for the layer itself): drawn, flipped by SHIFT, toggled
   await load(new URL("?labels=stub", URL0).href);

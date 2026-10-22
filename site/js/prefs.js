@@ -17,3 +17,5 @@ export function savePrefs(storage, prefs) {
   try { storage.setItem(PREF_KEY, JSON.stringify(prefs)); return true; } catch (_) { return false; }
 }
 export const keyHintsOn = (prefs) => !!prefs && prefs.keyHints === true;
+// "Shift-click to hold" (input.js latches) not shown yet: it shows once, ever (RemoteFM1 ceb0025)
+export const shiftHintDue = (prefs) => !prefs || prefs.shiftHintShown !== true;

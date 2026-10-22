@@ -14,9 +14,10 @@ import * as saves from "./saves.js";
 import { Sheet, icon } from "./sheet.js";
 import { makeSite } from "./remote-hook.js";
 import { createFm1, mountUseFm1, mountHeader } from "./use-fm1.js";
-import { loadPrefs, savePrefs as writePrefs, keyHintsOn } from "./prefs.js";
+import { loadPrefs, savePrefs as writePrefs, keyHintsOn, shiftHintDue } from "./prefs.js";
 import { feedbackUrl } from "./feedback.js";
 import { mountDigitone } from "./digitone-ui.js";
+import { RecUI } from "./rec-ui.js";
 import { mountLibrary } from "./library-ui.js";
 import { createPresetLink } from "./library.js";
 import { BUILD, ver } from "./build.js";
@@ -45,8 +46,9 @@ const state = {
   pixels: null, frameSeq: 0, levels: new Uint8Array(44), playGreen: 0,
   volume: typeof prefs.volume === "number" ? Math.max(0, Math.min(1, prefs.volume)) : 1,
   fm1: false,                                             // an FM-1 is connected (the feedback form's setup)
+  recBits: prefs.recBits === 16 ? 16 : 24, recCountIn: prefs.recCountIn === true,   // the recorder (js/rec-ui.js)
 };
-let player = null, sheet = null, site = null, siteEmit = () => {}, fm1 = null;
+let player = null, sheet = null, site = null, siteEmit = () => {}, fm1 = null, rec = null;
 const lcd = new Lcd();
 const controls = new Controls((p) => { if (player) player.panel(p); panelChanged(); });
 const device = new DeviceView($("device"), controls, lcd);
@@ -66,8 +68,10 @@ const wasmUrl = () => `fizz.wasm?v=${encodeURIComponent(state.meta ? (state.meta
 let drawQueued = false;
 const invalidate = () => { if (!drawQueued) { drawQueued = true; requestAnimationFrame(draw); } };
 controls.onDraw = invalidate;
+let laidOut = false;   // (no draw before the first layout: the canvases' default 300 x 150 bitmaps; RemoteFM1 e09e7f3)
 function draw() {
   drawQueued = false;
+  if (!laidOut) return;
   if (!$("device-wrap").hidden) device.draw();
   if (!$("screen-wrap").hidden) screen.draw();
 }
@@ -95,6 +99,7 @@ function layout() {
   }
   labelsLayer.layout();
   placeCorner();
+  laidOut = true;
   invalidate();
 }
 // the corner button: on the body's empty top-right corner (units 860, 46), or the screen view's bezel corner
@@ -163,6 +168,7 @@ async function boot(fromSave = null, { blank = false } = {}) {
   state.engineState = "loading"; state.info = null;
   setStatus("Loading FIZZ...");
   carried = null;
+  controls.releaseLatches();   // (FIZZ (re)starting lets the panel's latches go: input.js)
   try {
     let rec = blank ? null : fromSave || (await saves.get(FW, ENGINE, version(), saves.AUTOSAVE));
     if (!rec && !blank) {
@@ -259,6 +265,8 @@ function makePlayer() {
       toast(`FIZZ restarted (code ${code}).`);
       currentFlash().catch(() => null).then((bytes) => boot(bytes ? { name: saves.AUTOSAVE, bytes } : null));
     },
+    rec(m) { if (rec) rec.onRec(m); else if (m.type === "recChunk") player.recBuf(m.l, m.r); },
+    beforeLoad() { if (rec) rec.beforeLoad(); },
     midiOut(bytes) { siteEmit("midiOut", bytes); for (const f of midiOutSubs) f(bytes); },
     error(msg) {
       console.warn("worklet:", msg);
@@ -411,6 +419,10 @@ async function main() {
   $("corner").innerHTML = icon("dots");
   $("menu-btn").innerHTML = icon("dots");
   applyTheme();
+  // the FM-1 at its size from the first frame on (before any await: RemoteFM1 e09e7f3)
+  layout();
+  addEventListener("resize", layout);
+  new ResizeObserver(layout).observe($("stage"));
   updateFeedback();
   try {
     const r = await fetch("fizz.json", { cache: "no-store" });
@@ -465,6 +477,17 @@ async function main() {
 
   labelsLink = createLabelsLink({ sendMidi: (b) => player && player.midi(b), onMidiOut: (cb) => midiOutSubs.add(cb), onLabels: (l) => labelsLayer.set(l) });
 
+  // the recorder (js/rec-ui.js, RemoteFM1's): the header's record button, Shift+R, Takes
+  rec = new RecUI({
+    getPlayer: () => player,
+    ensureRunning: async () => state.running || start(),
+    nameParts: () => ({ id: "fizz", version: version() }),
+    settings: () => ({ bits: state.recBits, countIn: state.recCountIn }),
+    onIdle: () => {},
+    toast,
+  });
+  window.FIZZRec = rec;
+
   // input
   new Keyboard({
     controls,
@@ -472,7 +495,8 @@ async function main() {
     onLcdView: () => app.set("view", state.view === "screen" ? "device" : "screen"),
     onActivity: activity,
   });
-  attachPointer($("device"), device, controls, { onActivity: () => { activity(); if (!state.running) start(); }, onScreenTap: () => {} });
+  attachPointer($("device"), device, controls, { onActivity: () => { activity(); if (!state.running) start(); }, onScreenTap: () => {},
+    onShiftHint: () => { if (!shiftHintDue(prefs)) return; prefs.shiftHintShown = true; savePrefs(); toast("Shift-click to hold a key or button (FIZZ's SHIFT is GLO)", "", 3500); } });
   $("screen").addEventListener("pointerdown", () => { activity(); if (!state.running) start(); });
   $("stage").addEventListener("pointermove", activity);
   $("corner").addEventListener("click", () => sheet.open());
@@ -491,8 +515,6 @@ async function main() {
     e.stopImmediatePropagation(); e.preventDefault();
     if (sheet.inline) { sheet.inline = null; sheet.render(); } else if (sheet.page !== "main") sheet.show("main"); else sheet.close();
   }, true);
-  addEventListener("resize", layout);
-  new ResizeObserver(layout).observe($("stage"));
   layout();
 
   // audio starts at once where the browser allows it, else on the first click or key

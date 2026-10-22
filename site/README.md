@@ -44,6 +44,7 @@ it is needed only when RemoteFM1's protocol changes.
 | `engine/` | RemoteFM1's native engine: `engine.js` (the runtime, published), `wasm_glue.c`, `coro_wasm.c` and `CMakeLists.txt` (the build) |
 | `worklet/host.js`, `js/audio.js` | the AudioWorklet host and the page's side of it |
 | `js/saves.js` | FIZZ's flash (its projects) kept in IndexedDB; named saves, export and import |
+| `js/rec-ui.js`, `js/recorder.js` | the recorder (RemoteFM1's): the record button, Shift+R, Takes, WAV files |
 | `remote/`, `js/use-fm1.js`, `js/fm1-link.js`, `js/remote-hook.js` | Connect FM-1 (WebUSB / Web MIDI, RemoteFM1) |
 | `js/digitone.js`, `js/digitone-ui.js`, `js/fm1dnsnd.js` | Digitone `.dnsnd` sounds read in the browser (ChoralRoot's reader) and sent to FIZZ over its SysEx (`js/fizz_sysex.js`, FIZZ's `tools/fizz_sysex.mjs` copied) |
 | `js/feedback.js`, `../.github/ISSUE_TEMPLATE/feedback.yml` | the Feedback button's prefilled issue |

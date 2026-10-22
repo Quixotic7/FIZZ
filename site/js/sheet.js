@@ -152,6 +152,12 @@ export class Sheet {
     out.push(h("p", { class: "note" }, "Steps W1-W16: 2 3 4 Tab, then A S D F G H J K L ; ' ]. Black keys B1-B11: F1-F4, E T Y U O P [. Buttons: C V B N M , (FX TRACKS MIX LATCH EDIT SHIFT) and 7 8 9 0 - = (HOME SOUNDS FILL PATTERNS PLAY REC). Z X are F1 F2, End both (F3). Page Up/Down pick a knob, arrows turn it; or drag a knob, or use the wheel. ` the screen view. ",
       h("a", { href: a.guideUrl + "#keys" }, "The key map")));
 
+    // RECORDING (js/rec-ui.js: the header's record button, Shift+R)
+    out.push(heading("Recording"));
+    out.push(row("WAV format", "PCM, stereo, at the sound card's rate", segmented(["24-bit", "16-bit"], st.recBits === 16 ? 1 : 0, (i) => a.set("recBits", i ? 16 : 24))));
+    out.push(row("Count-in", "3 seconds before a take starts", toggle(st.recCountIn, (v) => a.set("recCountIn", v))));
+    out.push(h("p", { class: "note" }, "The record button (or Shift+R) records FIZZ's sound exactly as it renders, before this page's volume; the FM-1's MASTER knob counts. Takes stay in this page until you close it (up to 30 minutes each): save the ones to keep."));
+
     // LOOK
     out.push(heading("Look", h("span", { class: "heading-val" }, st.theme.name)));
     out.push(h("div", { class: "swatches" }, PRESETS.map((t) => {
@@ -261,7 +267,7 @@ export class Sheet {
     out.push(heading("Credits and notices"));
     out.push(h("ul", { class: "credit-list" },
       h("li", {}, "FM TONE, the effects and the output chain: ", link("https://github.com/Quixotic7/ChoralRootFM1", "ChoralRoot FM-1"), " (GPL-3.0-only), a fork of Felucca (Leo Kuroshita, Hügelton Instruments)."),
-      h("li", {}, "The player, the panel and Connect FM-1: ", link("https://github.com/Quixotic7/RemoteFM1", "RemoteFM1"), "'s site (GPL-3.0-only): its native engine, AudioWorklet host, saves, and libremotefm1 compiled with Emscripten (MIT). The panel and the sheet follow ", link("https://github.com/Quixotic7/FM1VST", "FM1VST"), "'s design (GPL-3.0)."),
+      h("li", {}, "The player, the panel and Connect FM-1: ", link("https://github.com/Quixotic7/RemoteFM1", "RemoteFM1"), "'s site (GPL-3.0-only): its native engine, AudioWorklet host, saves, the recorder, Shift-click latching, and libremotefm1 compiled with Emscripten (MIT). The panel and the sheet follow ", link("https://github.com/Quixotic7/FM1VST", "FM1VST"), "'s design (GPL-3.0)."),
       h("li", {}, "Drawn with ", link("https://github.com/sammycage/plutovg", "plutovg"), " (MIT). Portions copyright (c) 2006 The FreeType Project."),
       h("li", {}, "Inter Tight by the Inter Project Authors, SIL Open Font License 1.1 (", h("a", { href: "fonts/OFL.txt" }, "OFL.txt"), ")."),
       h("li", {}, "The sequencer's controls owe a lot to the OMX-27 Form sequencer and to Elektron's machines."),
