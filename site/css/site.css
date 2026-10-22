@@ -447,3 +447,16 @@ body { background: #000; }
 @keyframes lbl-pop { 0% { transform: scale(1.12); } 100% { transform: scale(1); } }
 .labels.no-knobs .lbl.knob, .labels.no-btns .lbl.btn, .labels.no-keys .lbl.key { display: none; }
 @media (prefers-reduced-motion: reduce) { .lbl.glow { animation: none; } }
+/* My presets (js/library-ui.js) */
+.dn-row[hidden] { display: none; }
+.dn-item.dup { border-color: rgba(255, 210, 63, .5); }
+.dn-item.dup .dn-res, .dn-item.skipped .dn-res { color: var(--fz-yellow); }
+.lib-acts { display: flex; align-items: center; gap: 6px; }
+.lib-acts .pill { height: 28px; padding: 0 10px; }
+.lib-all { display: flex; align-items: center; gap: 8px; margin: 4px 0 0 10px; color: var(--muted); font-size: 13px; cursor: pointer; }
+.lib-item .dn-top { cursor: pointer; }
+.lib-item.on { border-color: rgba(40, 225, 255, .5); }
+.lib-slot { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; min-width: 22px; text-align: right; }
+.lib-mark { color: var(--fz-yellow); font-size: 13px; }
+.lib-panel .dn-row .text { width: 100%; }
+@media (max-width: 480px) { #lib-btn { display: none; } }

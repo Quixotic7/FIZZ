@@ -21,6 +21,7 @@ import { createEngine } from "../engine/engine.js";
 import { identity, parseReply } from "../js/fizz_sysex.js";
 import { readDnsnd, readFiles, storeFrame } from "../js/digitone.js";
 import { fizzTagMask } from "../js/fizz_sysex.js";
+import { makeFizzlib, parseFizzlib, soundFromStoreFrame } from "../js/library.js";
 import { execFileSync } from "node:child_process";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 
@@ -244,6 +245,29 @@ e.dispose();
           `${s.file}: FIZZ keeps pan / chorus / delay / reverb ${mix.join(" ")} (sent ${want.join(" ")}), tags ${tags}${mask ? ` (sent ${mask}: ${s.fizzTags.join(", ")})` : " (none mapped: FIZZ's classifier)"}`);
       }
     } else note(`no ${FEED}: the kept mix and tags not checked (make -C tools test builds it)`);
+    // a .fizzlib of 20 presets (20 of the owner's .dnsnd, as FIZZ's DUMP would give them: STORE frames): written, read
+    // back, stored into a blank unit; every frame the same, and FIZZ's test_sysex reads them the same
+    const DIR20 = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets";
+    const twenty = fs.readdirSync(DIR20).filter((f) => f.endsWith(".dnsnd")).sort().slice(10, 30);
+    if (twenty.length === 20) {
+      const frames = [];
+      for (const f of twenty) frames.push(storeFrame(await readDnsnd(fs.readFileSync(path.join(DIR20, f)), f)));
+      const lib = makeFizzlib(frames.map((f) => soundFromStoreFrame(f)), { fizz: info.version, author: "test" });
+      const back = await parseFizzlib(lib, "twenty.fizzlib");
+      const again = back.items.map((it) => it.ok ? storeFrame(it.sound) : null);
+      const same = again.length === 20 && again.every((f, i) => f && f.join() === frames[i].join());
+      check(same && back.meta.count === 20, `a .fizzlib of 20 presets (${lib.length} bytes): read back, the same 20 STORE frames`);
+      const e3 = await mk();
+      run(e3, 300);
+      const slots = again.map((f) => { const r = f && ask(e3, f); return r && r.status === 0 ? r.slot : 0; });
+      e3.dispose();
+      check(slots.join() === Array.from({ length: 20 }, (_, i) => i + 1).join(), `the 20 into a blank unit: MY PRESETS ${slots[0]}..${slots[19]}`);
+      if (fs.existsSync(FEED)) {
+        const tmp = fs.mkdtempSync(path.join(OUT, "feed20-"));
+        const read = (f) => { fs.writeFileSync(path.join(tmp, "one.syx"), f); return execFileSync(FEED, ["--feed", path.join(tmp, "one.syx")], { encoding: "utf8" }).split("\n").filter((l) => /^(name|values|mix|tags) /.test(l)).join("\n"); };
+        check(frames.every((f, i) => read(f) === read(again[i])), "FIZZ's test_sysex reads the 20 round-tripped presets as the originals");
+      }
+    }
     e2.dispose();
   } else { note(`SysEx: no .dnsnd files (--dnsnd ${DIR}): only IDENTITY checked`); e.dispose(); }
 }

@@ -17,6 +17,8 @@ import { createFm1, mountUseFm1, mountHeader } from "./use-fm1.js";
 import { loadPrefs, savePrefs as writePrefs, keyHintsOn } from "./prefs.js";
 import { feedbackUrl } from "./feedback.js";
 import { mountDigitone } from "./digitone-ui.js";
+import { mountLibrary } from "./library-ui.js";
+import { createPresetLink, StubPresets } from "./library.js";
 import { BUILD, ver } from "./build.js";
 
 const $ = (id) => document.getElementById(id);
@@ -55,7 +57,7 @@ device.setHints(state.keyHints);
 const labelsLayer = new LabelsLayer({ wrap: $("device-wrap"), canvas: $("device"), device });
 labelsLayer.show(state.labels);
 const LABELS_STUB = params.get("labels") === "stub";
-let labelsLink = null;
+let labelsLink = null, stubPresets = null;
 function panelChanged() { if (LABELS_STUB && state.info) labelsLayer.set(stubLabels({ shift: controls.btnHeld(B.GLO) })); }
 const version = () => (state.meta ? state.meta.version : "");
 const wasmUrl = () => `fizz.wasm?v=${encodeURIComponent(state.meta ? (state.meta.commit || "").slice(0, 12) + "-" + state.meta.bytes : "0")}`;
@@ -367,6 +369,7 @@ const app = {
   async renameSave(rec, to) { await saves.rename(rec.fw, rec.engine, rec.version, rec.name, to); state.selectedSave = to; await refreshSaves(); },
   async deleteSave(rec) { await saves.remove(rec.fw, rec.engine, rec.version, rec.name); state.selectedSave = null; await refreshSaves(); toast(`Deleted "${rec.name}".`); },
   async eraseFlash() {
+    if (stubPresets) stubPresets.clear();
     await saves.remove(FW, ENGINE, version(), saves.AUTOSAVE).catch(() => {});
     lastSaved = ""; state.selectedSave = null;
     await boot(null, { blank: true });
@@ -443,9 +446,23 @@ async function main() {
     fm1.auto();                                          // connects now if MIDI was allowed before (no prompt)
   }).catch((e) => { console.warn("remote:", e); app.remoteStatus = "Connect FM-1 could not load."; if (sheet) sheet.render(); });
 
-  // Digitone sounds (js/digitone-ui.js): read here, sent into FIZZ's MIDI in as its sound SysEx
-  window.FIZZDigitone = mountDigitone({ button: $("dn-btn"), sendMidi: (b) => player && player.midi(b),
-    onMidiOut: (cb) => midiOutSubs.add(cb), ensureRunning: async () => { if (!state.running) await start(); }, toast });
+  // MY PRESETS (js/library.js): FIZZ's LIST / DUMP; ?presets=stub: a stand-in that remembers what this page stored
+  stubPresets = params.get("presets") === "stub" ? new StubPresets() : null;
+  const toFizz = (b) => { if (stubPresets) stubPresets.out(b); if (player) player.midi(b); };
+  const presetLink = createPresetLink({ sendMidi: toFizz, onMidiOut: (cb) => midiOutSubs.add(cb), stub: stubPresets });
+  const ensureRunning = async () => { if (!state.running) await start(); };
+  // Import sounds (js/digitone-ui.js): read here, sent into FIZZ's MIDI in as its sound SysEx
+  window.FIZZDigitone = mountDigitone({ button: $("dn-btn"), sendMidi: toFizz, presets: presetLink,
+    onMidiOut: (cb) => midiOutSubs.add(cb), ensureRunning, toast });
+  window.FIZZPresets = mountLibrary({ button: $("lib-btn"), presets: presetLink, ensureRunning, toast,
+    fizzVersion: () => (state.meta ? state.meta.version : ""), openImport: () => { window.FIZZDigitone.open(); window.FIZZDigitone.pick(); },
+    save: (name, bytes, type) => {
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([bytes], { type })), download: name });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    } });
+  app.openImport = () => { sheet.close(); window.FIZZDigitone.open(); };
+  app.openPresets = () => { sheet.close(); window.FIZZPresets.open(); };
 
   labelsLink = createLabelsLink({ sendMidi: (b) => player && player.midi(b), onMidiOut: (cb) => midiOutSubs.add(cb), onLabels: (l) => labelsLayer.set(l) });
 
@@ -487,7 +504,7 @@ async function main() {
 
 // (for tests and the curious: the page's state and its player, read only in spirit)
 window.FIZZ = {
-  get state() { return state; }, get player() { return player; }, controls, start, boot, checkUpdate, BUILD, labels: labelsLayer, setLabels: (v) => app.set("labels", v),
+  get state() { return state; }, get player() { return player; }, controls, start, boot, checkUpdate, BUILD, labels: labelsLayer, setLabels: (v) => app.set("labels", v), get stubPresets() { return stubPresets; },
   // the output's peak since the last call (an AnalyserNode after the worklet)
   peak() {
     if (!player || !player.ctx) return 0;

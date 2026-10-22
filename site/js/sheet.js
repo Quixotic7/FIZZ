@@ -111,7 +111,8 @@ export class Sheet {
     out.push(h("div", { class: "fizz-card" },
       h("p", {}, "An FM TONE step sequencer for the M-VAVE FM-1, in preview. It runs here exactly as it will on the unit."),
       h("div", { class: "pills two" }, h("a", { class: "pill", href: a.guideUrl }, "Guide"),
-        h("a", { class: "pill primary", href: a.feedbackUrl(), target: "_blank", rel: "noopener" }, "Feedback"))));
+        h("a", { class: "pill primary", href: a.feedbackUrl(), target: "_blank", rel: "noopener" }, "Feedback")),
+      h("div", { class: "pills two" }, pill("Import sounds", () => a.openImport && a.openImport()), pill("My presets", () => a.openPresets && a.openPresets()))));
 
     // SAVES
     out.push(heading("Saves"));

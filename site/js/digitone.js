@@ -19,6 +19,7 @@
 //   createSender({ sendMidi, onMidiOut }) -> { identify(), send(sounds, { pool, track }, progress) }
 import { parseDnsnd, dnsndToQuad } from "./fm1dnsnd.js";
 import { parseDn2pst, dn2pstToQuad } from "./dn2pst.js";
+import { parseFizzsnd, parseFizzlib } from "./library.js";
 import { identity, storeSound, parseReply, NAME_LEN, FIZZ_TAGS, fizzTagMask } from "./fizz_sysex.js";
 
 // ---- tags: the Digitone's (DN1 manifests' MetaInfo.Tags; DN2 the record's tag bits, dn2pst.js DN2_TAGS: the same 32
@@ -89,12 +90,15 @@ export async function readDn2(bytes, file = "") {
            fizzTags: fizzTagsOf(parsed.tags) };
 }
 export const isDn2Name = (name) => /\.dn2(pst|snd)$/i.test(name || "");
-export const IMPORTABLE = /\.(dnsnd|dn2pst|dn2snd)$/i;
+export const IMPORTABLE = /\.(dnsnd|dn2pst|dn2snd|fizzsnd|fizzlib)$/i;
 
 export async function readFiles(files) {
   const out = [];
   for (const f of files) {
-    try { out.push({ file: f.name, ok: true, sound: await (isDn2Name(f.name) ? readDn2(f.bytes, f.name) : readDnsnd(f.bytes, f.name)) }); }
+    try {
+      if (/\.fizzlib$/i.test(f.name)) { out.push(...(await parseFizzlib(f.bytes, f.name)).items); continue; }   // (a library: its presets)
+      out.push({ file: f.name, ok: true, sound: await (/\.fizzsnd$/i.test(f.name) ? parseFizzsnd(f.bytes, f.name) : isDn2Name(f.name) ? readDn2(f.bytes, f.name) : readDnsnd(f.bytes, f.name)) });
+    }
     catch (e) { out.push({ file: f.name, ok: false, error: e.message || String(e) }); }
   }
   return out;
