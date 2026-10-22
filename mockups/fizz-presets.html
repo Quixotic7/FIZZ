@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ presets</title>
+<!-- FIZZ: the Preset Library and the Sound Pool, a proposal (2026-10-22, the owner's review of sound management).
+     ?shot=N  one canvas at 1x   ?sheet=1  every screen at 2x with its keys   no query: the page -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f1eee8; --fg:#1b1b1f; --dim:#66625b; --line:#d6d1c7; } }
+:root[data-theme="dark"] { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 6px; }
+p, li { color: var(--dim); max-width: 860px; }
+p strong, li strong { color: var(--fg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 480px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+canvas.keys { width: 480px; max-width: 100%; height: auto; display: block; margin-top: 6px; }
+body.shot { padding: 0; background: #000; }
+body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; color: #ddd; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px 22px; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+.sheettitle { font: 700 20px -apple-system, "Helvetica Neue", Arial; margin: 0 0 14px; color: #eee; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: the Preset Library and the Sound Pool (proposal)</h1>
+<p>Three things, one job each. <strong>The track's sound</strong> is what a track plays (saved with its pattern, edited in EDIT).
+<strong>The Preset Library</strong> holds every preset: FACTORY (built in) and MINE (saved and imported), shared by every project.
+<strong>The Sound Pool</strong> is the project's own 128 sounds that steps lock. <strong>PRESETS</strong> browses the library
+(the track plays what you turn to; F2 loads, F1 cancels); <strong>a step + PRESETS</strong> chooses from the pool;
+<strong>SAVE</strong> saves the track's sound as a preset. Under each screen: the keys (filled = held, outlined = lit, dashed = blinking).</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+/* ---------------------------------------------------------------- palette */
+const C = { bg: '#000', k1: '#3f7dff', k2: '#1fd47e', k3: '#f1f0ea', k4: '#ff6a2c', sel: '#ffd23f', red: '#ff3448',
+            g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d', save: '#f3d9a4', pool: '#b5e853', trk: '#f03cff' };
+const TP = ['#3f7dff', '#1fd47e', '#f1f0ea', '#ff6a2c', '#ff3ca0', '#ffd23f', '#9664ff', '#28e1ff'];
+const F = 'IT', TAU = Math.PI * 2;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const ease = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const lerp = (a, b, u) => a + (b - a) * u;
+
+/* ---------------------------------------------------------------- drawing helpers (line.html's) */
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = o.bl || 'alphabetic';
+  if (o.a != null) c.globalAlpha = o.a;
+  if (o.clip) { c.beginPath(); c.rect(o.clip[0], o.clip[1], o.clip[2], o.clip[3]); c.clip(); }
+  c.fillText(s, x, y); c.restore();
+}
+function TW(c, s, o = {}) { c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; const w = c.measureText(s).width; c.restore(); return w; }
+function P(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = o.a;
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  if (o.close) c.closePath(); if (o.fill) { c.fillStyle = o.fill; c.fill(); } c.stroke(); c.restore();
+}
+function O(c, x, y, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = o.a; if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.arc(x, y, Math.max(0.1, r), o.a0 || 0, o.a1 == null ? TAU : o.a1);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.stroke(); } c.restore();
+}
+function RR(c, x, y, w, h, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = o.a; if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.roundRect(x + lw / 2, y + lw / 2, w - lw, h - lw, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function bg(c) { c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); }
+function box(c, x, y, n, col) {                      /* a track's number in its box */
+  RR(c, x, y, 16, 16, 2, col, 1.3); T(c, String(n), x + 8, y + 12.5, { s: 12, w: 600, col, al: 'center' });
+}
+function back(c) {                                   /* the latched page's back mark, top right (as the firmware's) */
+  RR(c, 208, 4, 26, 17, 3, C.k3, 1.3); P(c, [227, 12.5, 215, 12.5], C.k3, 1.4); P(c, [219, 8.5, 215, 12.5, 219, 16.5], C.k3, 1.4);
+}
+function head(c, title, col, o = {}) {               /* TITLE (12 px 600) + page dots, the back mark */
+  T(c, title, 8, 17, { s: 12, w: 600, ls: 1, col });
+  let x = 8 + TW(c, title, { s: 12, w: 600, ls: 1 }) + 9;
+  if (o.pages) for (let i = 0; i < o.pages[1]; i++) { O(c, x + i * 9, 13, 2.6, i === o.pages[0] ? null : C.g1, 1, i === o.pages[0] ? C.k3 : null); }
+  if (o.back !== false) back(c);
+  P(c, [8, 25, 232, 25], C.g3, 1);
+}
+function lockIcon(c, x, y, col) { RR(c, x, y + 4, 9, 7, 1.5, null, 1, col); O(c, x + 4.5, y + 4, 3, col, 1.4, null, { a0: Math.PI, a1: 0 }); }
+function bubble(c, x, y, r, col, a = 1) { O(c, x, y, r, col, 1, null, { a }); if (r > 2.5) O(c, x - r * 0.3, y - r * 0.3, r * 0.35, null, 1, col, { a: a * 0.6 }); }
+function ring(c, x, y, r, u, col, lw = 2.5) {        /* a hold's progress ring */
+  O(c, x, y, r, C.g3, lw); if (u > 0) O(c, x, y, r, col, lw, null, { a0: -Math.PI / 2, a1: -Math.PI / 2 + TAU * clamp(u, 0, 1) });
+}
+
+/* ---------------------------------------------------------------- the example */
+const KIND = { bass: C.k1, keys: C.k3, pluck: '#36d6e7', pad: '#9664ff', lead: C.k2, drum: C.k4, fx: '#ff3ca0' };
+const KINDS = ['all', 'bass', 'keys', 'pluck', 'pad', 'lead', 'drum', 'fx'];
+const KNAME = { all: 'ALL', bass: 'BASS', keys: 'KEYS', pluck: 'PLUCK', pad: 'PAD', lead: 'LEAD', drum: 'DRUMS', fx: 'FX' };
+const LIB = [   /* the Preset Library: FACTORY (built in) then MINE (saved, imported) */
+  ['INIT', 'keys', 'f'], ['EP', 'keys', 'f'], ['BELL', 'keys', 'f'], ['BASS', 'bass', 'f'], ['PLUCK', 'pluck', 'f'],
+  ['BRASS', 'lead', 'f'], ['GLASS PAD', 'pad', 'f'], ['HOLLOW', 'pad', 'f'], ['SQUARE LEAD', 'lead', 'f'],
+  ['METAL', 'fx', 'f'], ['WOBBLE', 'bass', 'f'], ['CLAV', 'keys', 'f'], ['STRINGS', 'pad', 'f'], ['MARIMBA', 'pluck', 'f'],
+  ['DRONE', 'pad', 'f'], ['FEEDBACK', 'fx', 'f'], ['NOISE-ISH', 'fx', 'f'], ['KICK', 'drum', 'f'], ['SNARE', 'drum', 'f'],
+  ['CLAP', 'drum', 'f'], ['GHOST', 'drum', 'f'], ['HAT', 'drum', 'f'], ['OPEN HAT', 'drum', 'f'],
+  ['BRIGHT PLUCK', 'pluck', 'm'], ['DARK BASS', 'bass', 'm'], ['SOFT KEYS', 'keys', 'm'], ['DIGIT-ONE', 'lead', 'm', 'imp'],
+  ['CHAPPET DL', 'keys', 'm', 'imp'], ['SQB TK', 'bass', 'm', 'imp'], ['WIDE LEAD', 'lead', 'm'], ['VOX PAD', 'pad', 'm'],
+].map(([name, kind, src, imp], i) => ({ n: i + 1, name, kind, src, imp: !!imp }));
+const POOL = ['KICK', 'SNARE', 'HAT', 'OPEN HAT', 'CLAP', 'DARK BASS', 'SOFT KEYS', 'DIGIT-ONE']
+  .map((nm, i) => ({ ...LIB.find(p => p.name === nm), slot: i + 1, users: [0, 12, 8, 2, 4, 0, 6, 1][i] }));
+const inPool = p => POOL.some(q => q.name === p.name);
+const ENV = { bass: [0, 0.3, 0.6, 0.12], keys: [0.02, 0.55, 0.3, 0.35], pluck: [0, 0.36, 0.12, 0.25], pad: [0.55, 0.4, 0.8, 0.65],
+              lead: [0.05, 0.3, 0.7, 0.3], drum: [0, 0.22, 0, 0.12], fx: [0.1, 0.5, 0.35, 0.5] };
+const LIBC = C.save, POOLC = C.pool;
+const num3 = n => String(n).padStart(3, '0');
+
+function glyph(c, x, y, w, h, env, col, a = 1, lw = 1.4) {
+  const [at, de, su, re] = env, tot = 0.15 + at + de + 0.35 + re, k = w / tot;
+  const x1 = x + 0.08 * k, x2 = x1 + at * k, x3 = x2 + de * k, x4 = x3 + 0.35 * k, x5 = x4 + re * k;
+  P(c, [x, y + h, x1, y + h, x2, y, x3, y + h - su * h, x4, y + h - su * h, x5, y + h, x + w, y + h], col, lw, { a });
+}
+function trayIcon(c, x, y, col, a = 1) {             /* the pool: a little tray of four slots */
+  c.save(); c.globalAlpha = a; RR(c, x, y, 18, 13, 3, col, 1.3);
+  for (let k = 0; k < 4; k++) RR(c, x + 3 + (k % 2) * 7, y + 3 + Math.floor(k / 2) * 4.5, 5.5, 3.2, 1, null, 1, col); c.restore();
+}
+/* a preset as a cassette: its kind's envelope in the label, the name big, FACTORY / MINE / IMPORTED as a small mark */
+function cassette(c, x, y, w, h, p, col, t, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = o.a;
+  RR(c, x, y, w, h, 8, col, o.lw || 1.8, C.bg, { dash: o.dash });
+  if (!p) { T(c, o.label || 'TRACK', x + w / 2, y + h / 2 + 7, { s: 20, w: 300, col, al: 'center' }); c.restore(); return; }
+  RR(c, x + 10, y + 8, w - 20, h * 0.42, 4, C.g2, 1);
+  glyph(c, x + 18, y + 14, 34, 14, ENV[p.kind], KIND[p.kind], 1, 1.5);
+  T(c, p.name, x + w / 2 + 14, y + 8 + h * 0.42 - 9, { s: o.big || 18, w: 400, col: C.k3, al: 'center' });
+  [0.32, 0.68].forEach((u, j) => { const rx = x + w * u, ry = y + h * 0.74, r = Math.min(12, h * 0.15);
+    O(c, rx, ry, r, C.g1, 1.3);
+    for (let k = 0; k < 3; k++) { const an = t * (o.spin == null ? 3 : o.spin) + k * TAU / 3 + j;
+      P(c, [rx + Math.cos(an) * r * 0.35, ry + Math.sin(an) * r * 0.35, rx + Math.cos(an) * r * 0.8, ry + Math.sin(an) * r * 0.8], C.g1, 1.2); } });
+  if (p.src === 'm') { T(c, p.imp ? '↓' : '★', x + w - 14, y + h - 9, { s: 12, w: 700, col: LIBC, al: 'center' }); }
+  if (o.pool !== false && inPool(p)) trayIcon(c, x + 8, y + h - 18, POOLC);
+  c.restore();
+}
+function rollo(c, list, i, t, col, o = {}) {          /* the list as a rolodex: neighbours above and below, the chosen big */
+  const dy = o.dy || 0;
+  [-2, -1, 1, 2].forEach(d => { const p = list[i + d]; if (!p && !(i + d === -1 && o.track)) return;
+    const y = (d < 0 ? 64 + (d + 1) * 22 : 160 + d * 26) + dy, a = d * d === 1 ? 0.6 : 0.28;
+    const name = p ? p.name : 'TRACK';
+    if (p) O(c, 60, y - 4, 3, null, 1, KIND[p.kind], { a });
+    T(c, name, 70, y, { s: 14, w: 400, col: C.k3, a });
+    if (p && inPool(p) && o.poolMarks !== false) trayIcon(c, 198, y - 13, POOLC, a);
+  });
+  cassette(c, 34, 82 + dy, 172, 76, list[i], col, t, { label: o.label, dash: list[i] ? null : [4, 4] });
+  const n = list.length + (o.track ? 1 : 0), at = i + (o.track ? 1 : 0);   /* where in the list: a thin bar on the right */
+  P(c, [228, 40, 228, 210], C.g3, 2); P(c, [228, 40 + 170 * at / Math.max(1, n - 1) - 6, 228, 40 + 170 * at / Math.max(1, n - 1) + 6], col, 3);
+}
+function headP(c, title, col, right, o = {}) {
+  T(c, title, 8, 17, { s: 12, w: 600, ls: 1, col });
+  let x = 8 + TW(c, title, { s: 12, w: 600, ls: 1 }) + 8;
+  if (o.chip) { const w = TW(c, o.chip, { s: 12, w: 600, ls: 1 }) + 10; RR(c, x, 5, w, 16, 3, o.chipCol, 1.3); T(c, o.chip, x + 5, 17, { s: 12, w: 600, ls: 1, col: o.chipCol }); }
+  if (o.track) box(c, 214, 4, o.track, TP[o.track - 1]);
+  if (right) T(c, right, o.track ? 208 : 232, 17, { s: 12, w: 500, col: C.g1, al: 'right' });
+  P(c, [8, 25, 232, 25], C.g3, 1);
+}
+function filtered(kind, src) { return LIB.filter(p => (kind === 'all' || p.kind === kind) && (src !== 'mine' || p.src === 'm')); }
+
+/* ---------------------------------------------------------------- the screens */
+function sBrowse(c, t) {                              /* PRESETS turned: the library, the track playing what you turn to */
+  bg(c); const L = filtered('all'), i = 6;
+  headP(c, 'PRESETS', LIBC, `${i + 1}/${L.length}`, { track: 4 });
+  rollo(c, L, i, t, LIBC);
+  const pulse = (t * 2) % 1; c.save(); c.beginPath(); c.rect(52, 88, 34 * pulse, 20); c.clip();
+  glyph(c, 52, 96, 34, 14, ENV[L[i].kind], C.k3, 1, 1.9); c.restore();          /* it sounds: its envelope lights along */
+}
+function sFilter(c, t) {                              /* a black key filters by kind (here B2 BASS) */
+  bg(c); const L = filtered('bass'), i = 1;
+  headP(c, 'PRESETS', LIBC, `${i + 1}/${L.length}`, { track: 4, chip: 'BASS', chipCol: KIND.bass });
+  rollo(c, L, i, t, LIBC);
+}
+function sMine(c, t) {                                /* B9: MY PRESETS (saved and imported) */
+  bg(c); const L = filtered('all', 'mine'), i = 3;
+  headP(c, 'MY PRESETS', LIBC, `${i + 1}/${L.length}`, { track: 4 });
+  rollo(c, L, i, t, LIBC);
+}
+function sLoad(c, t) {                                /* F2: LOAD: the preset drops onto the track, the browser closes */
+  bg(c); const L = filtered('all'), p = L[6], u = (t % 1.6) / 1.6, v = ease(u / 0.55);
+  headP(c, 'PRESETS', LIBC, '', { track: 4 });
+  const x = lerp(34, 200, v), y = lerp(82, 2, v), s = lerp(1, 0.12, v);
+  c.save(); c.translate(x, y); c.scale(s, s); cassette(c, 0, 0, 172, 76, p, TP[3], t, { a: 1 - v * 0.3 }); c.restore();
+  if (u > 0.55) { const f = 1 - ease((u - 0.55) / 0.45); RR(c, 210, 1, 26, 22, 4, TP[3], 2, null, { a: f });
+    T(c, p.name, 120, 140, { s: 28, w: 300, col: TP[3], al: 'center', a: 1 - f * 0.3 }); T(c, 'LOADED', 120, 166, { s: 12, w: 600, ls: 1, col: C.g1, al: 'center' }); }
+}
+function sCancel(c, t) {                              /* F1 / HOME: CANCEL: the track's own sound comes back, edits and all */
+  bg(c); const u = (t % 1.6) / 1.6, v = ease(u / 0.5), L = filtered('all');
+  headP(c, 'PRESETS', LIBC, '', { track: 4 });
+  cassette(c, lerp(34, -180, v), 82, 172, 76, L[6], LIBC, t, { a: 1 - v });
+  const own = { name: 'LEAD 4 *', kind: 'lead', src: 'x' };
+  cassette(c, lerp(260, 34, v), 82, 172, 76, own, TP[3], t, { pool: false });
+  if (u > 0.5) T(c, 'BACK', 120, 186, { s: 12, w: 600, ls: 1, col: C.g1, al: 'center' });
+}
+function sAddPool(c, t) {                             /* B10: + POOL: the preset copied into the project's pool */
+  bg(c); const L = filtered('all'), i = 9, u = (t % 1.6) / 1.6, v = ease(u / 0.6);
+  headP(c, 'PRESETS', LIBC, `${i + 1}/${L.length}`, { track: 4 });
+  rollo(c, L, i, t, LIBC, { poolMarks: true });
+  trayIcon(c, 104, 200, POOLC, 1); T(c, `${POOL.length + (u > 0.6 ? 1 : 0)}/128`, 128, 211, { s: 12, w: 600, col: POOLC });
+  if (u < 0.6) { c.save(); c.translate(lerp(120, 112, v), lerp(120, 205, v)); c.scale(lerp(1, 0.1, v), lerp(1, 0.1, v));
+    cassette(c, -86, -38, 172, 76, L[i], POOLC, t, { pool: false, a: 0.85 }); c.restore(); }
+  else { const f = (u - 0.6) / 0.4; for (let k = 0; k < 8; k++) bubble(c, 104 + hash(k) * 22, 196 - f * 24 * (0.5 + hash(k + 3)), 1 + 1.6 * hash(k + 7), POOLC, 1 - f); }
+}
+function sPoolView(c, t) {                            /* B9 again: the POOL: what it holds, who uses it; B10 takes it out */
+  bg(c); const i = 6, p = POOL[i];
+  headP(c, 'POOL', POOLC, `${i + 1}/128`, { track: 4 });
+  rollo(c, POOL, i, t, POOLC, { poolMarks: false });
+  box(c, 60, 204, 4, TP[3]); RR(c, 84, 205, 34, 15, 3, C.g1, 1.2); T(c, '×' + p.users, 101, 216, { s: 12, w: 600, col: C.g1, al: 'center' });
+}
+function sPoolRemove(c, t) {                          /* B10 in the POOL: out (its users shown first; again to confirm) */
+  bg(c); const i = 6, p = POOL[i], blink = Math.floor(t * 3) % 2;
+  headP(c, 'POOL', POOLC, `${i + 1}/128`, { track: 4 });
+  rollo(c, POOL, i, t, blink ? C.k4 : POOLC, { poolMarks: false });
+  box(c, 60, 204, 4, C.k4); RR(c, 84, 205, 34, 15, 3, C.k4, 1.2); T(c, '×' + p.users, 101, 216, { s: 12, w: 600, col: C.k4, al: 'center' });
+  T(c, 'OUT?', 168, 216, { s: 12, w: 600, ls: 1, col: C.k4, al: 'center' });
+}
+function sStepPick(c, t) {                            /* a step held + PRESETS: its sound lock, from the pool (TRACK = no lock) */
+  bg(c); const i = 1;
+  T(c, 'STEP 5 · SOUND', 8, 17, { s: 12, w: 600, ls: 1, col: C.k3 }); P(c, [8, 25, 232, 25], C.g3, 1);
+  RR(c, 0, 0, 240, 240, 8, '#f03cff', 3);
+  rollo(c, POOL, i, t, POOLC, { track: true, poolMarks: false });
+}
+function sStepTrack(c, t) {                           /* .. turned all the way down: TRACK (the step plays the track's sound) */
+  bg(c);
+  T(c, 'STEP 5 · SOUND', 8, 17, { s: 12, w: 600, ls: 1, col: C.k3 }); P(c, [8, 25, 232, 25], C.g3, 1);
+  RR(c, 0, 0, 240, 240, 8, '#f03cff', 3);
+  rollo(c, POOL, -1, t, POOLC, { track: true, poolMarks: false, label: 'TRACK' });
+}
+function sEmpty(c, t) {                               /* a new project's pool: empty; the step can only keep the track's sound */
+  bg(c);
+  T(c, 'STEP 5 · SOUND', 8, 17, { s: 12, w: 600, ls: 1, col: C.k3 }); P(c, [8, 25, 232, 25], C.g3, 1);
+  RR(c, 0, 0, 240, 240, 8, '#f03cff', 3);
+  cassette(c, 34, 60, 172, 76, null, POOLC, t, { label: 'TRACK', dash: [4, 4] });
+  trayIcon(c, 98, 168, POOLC, 0.6); T(c, '0/128', 122, 179, { s: 12, w: 600, col: POOLC, a: 0.7 });
+}
+function sSave(c, t) {                                /* SAVE: the track's sound as a new preset, a name from the sound */
+  bg(c); const sp = (Math.sin(t * 5) + 1) / 2;
+  headP(c, 'SAVE PRESET', LIBC, '', { track: 4 });
+  const p = { name: 'BRIGHT PLUCK', kind: 'pluck', src: 'm' };
+  cassette(c, 34, 50, 172, 76, p, LIBC, t, { pool: false });
+  P(c, [200, 54, 208, 54], LIBC, 1.3, { a: 0.5 + sp * 0.5 }); P(c, [204, 50, 204, 58], LIBC, 1.3, { a: 0.5 + sp * 0.5 });
+  const dx = 108, dy = 150;                            /* the dice: another name */
+  RR(c, dx, dy, 24, 24, 4, LIBC, 1.4); [[6, 6], [12, 12], [18, 18], [18, 6], [6, 18]].forEach(([a, b]) => O(c, dx + a, dy + b, 1.6, null, 1, LIBC));
+  RR(c, 62, 196, 116, 26, 6, LIBC, 1.8); T(c, 'NEW', 120, 214, { s: 14, w: 600, ls: 1, col: LIBC, al: 'center' });
+}
+function sSaveName(c, t) {                            /* SELECT turns the letter, ALGORITHM moves along */
+  bg(c); headP(c, 'SAVE PRESET', LIBC, '', { track: 4 });
+  const name = 'BRIGHT PLUCK', cur = 7, cw = 18.5, x0 = 9;
+  for (let k = 0; k < 12; k++) { const x = x0 + k * cw;
+    P(c, [x + 2, 120, x + cw - 3, 120], k === cur ? C.sel : C.g2, k === cur ? 2.2 : 1.2);
+    if (name[k] && name[k] !== ' ') T(c, name[k], x + cw / 2, 114, { s: 24, w: k === cur ? 400 : 300, col: k === cur ? C.sel : C.k3, al: 'center' }); }
+  ['O', 'Q'].forEach((ch, j) => T(c, ch, x0 + cur * cw + cw / 2, 78 + j * 72, { s: 20, w: 300, col: C.g1, al: 'center', a: 0.4 }));
+  RR(c, 62, 196, 116, 26, 6, LIBC, 1.8); T(c, 'NEW', 120, 214, { s: 14, w: 600, ls: 1, col: LIBC, al: 'center' });
+}
+function sSaveReplace(c, t) {                         /* the sound came from one of MY presets: F2 replaces it instead */
+  bg(c); headP(c, 'SAVE PRESET', LIBC, '', { track: 4 });
+  const p = { name: 'DARK BASS', kind: 'bass', src: 'm' };
+  cassette(c, 34, 50, 172, 76, p, LIBC, t, { pool: false });
+  RR(c, 12, 196, 104, 26, 6, LIBC, 1.8); T(c, 'NEW', 64, 214, { s: 14, w: 600, ls: 1, col: LIBC, al: 'center' });
+  RR(c, 124, 196, 104, 26, 6, C.k4, 1.8); T(c, 'REPLACE', 176, 214, { s: 14, w: 600, ls: 1, col: C.k4, al: 'center' });
+  T(c, 'DARK BASS 2', 120, 160, { s: 14, w: 400, col: C.g1, al: 'center' });
+}
+function sSaved(c, t) {                               /* saved: into MY PRESETS (the track now plays it, not edited) */
+  bg(c); const u = (t % 1.6) / 1.6, v = ease(u / 0.5);
+  headP(c, 'MY PRESETS', LIBC, '', { track: 4 });
+  const p = { name: 'BRIGHT PLUCK', kind: 'pluck', src: 'm' };
+  cassette(c, 34, lerp(50, 82, v), 172, 76, p, LIBC, t, { pool: false });
+  if (u > 0.5) { const f = (u - 0.5) / 0.5; for (let k = 0; k < 10; k++) bubble(c, 50 + hash(k) * 140, 80 - f * 40 * (0.5 + hash(k + 2)), 1 + 2 * hash(k + 5), LIBC, 1 - f);
+    T(c, 'SAVED', 120, 196, { s: 14, w: 600, ls: 1, col: LIBC, al: 'center' }); }
+}
+
+/* ---------------------------------------------------------------- the keys under a screen */
+const BTNS = ['F1', 'F2', 'SAVE', 'HOME', 'PRESETS', 'SELECT'];
+function keysDraw(c, k) {
+  c.fillStyle = '#0c0c0e'; c.fillRect(0, 0, 480, 132);
+  const held = new Set(k.held || []), blink = new Set(k.blink || []);
+  BTNS.forEach((b, i) => { const x = 8 + i * 79, w = 72, col = (k.btn || {})[b], on = held.has(b), bl = blink.has(b);
+    RR(c, x, 6, w, 24, b === 'PRESETS' || b === 'SELECT' ? 12 : 5, col || '#3a3a42', 1.5, on ? col : null, { dash: bl ? [3, 3] : null });
+    T(c, b === 'F1' ? 'F1 (OCT−)' : b === 'F2' ? 'F2 (OCT+)' : b, x + w / 2, 22.5, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center' }); });
+  const kw = 29, y0 = 40, wh = 88, bw = 18, bh = 52;
+  for (let i = 0; i < 16; i++) { const id = 'W' + (i + 1), col = (k.W || {})[i + 1], on = held.has(id);
+    RR(c, 8 + i * kw, y0, kw - 2, wh, 3, col || '#3a3a42', 1.4, on ? col : null);
+    T(c, String(i + 1), 8 + i * kw + (kw - 2) / 2, y0 + wh - 8, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center' }); }
+  [1, 2, 3, 5, 6, 8, 9, 10, 12, 13, 15].forEach((w, j) => { const id = 'B' + (j + 1), col = (k.B || {})[j + 1], on = held.has(id), bl = blink.has(id), x = 8 + w * kw - bw / 2 - 1;
+    RR(c, x, y0 - 1, bw, bh, 3, col || '#3a3a42', 1.4, on ? col : '#0c0c0e', { dash: bl ? [3, 3] : null });
+    T(c, String(j + 1), x + bw / 2, y0 + bh - 8, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center' }); });
+}
+const range = (a, b, col) => { const o = {}; for (let i = a; i <= b; i++) o[i] = col; return o; };
+const KINDKEYS = (on) => { const o = {}; KINDS.forEach((k, j) => o[j + 1] = j === on ? (k === 'all' ? C.k3 : KIND[k]) : '#5a5a64'); return o; };
+const BROWSEKEYS = (x = {}) => ({ W: range(1, 16, C.g2), B: { ...KINDKEYS(x.kind == null ? 0 : x.kind), 9: x.src || LIBC, 10: POOLC, 11: x.del || '#3a3a42', ...(x.B || {}) },
+  btn: { F1: C.k3, F2: C.k3, HOME: C.k3, PRESETS: LIBC, SELECT: C.g1, ...(x.btn || {}) }, held: x.held, blink: x.blink });
+
+const SCREENS = [
+  { f: sBrowse, t: 0.3, title: 'PRESETS turned: the Preset Library', keys: BROWSEKEYS({ btn: { F2: C.k3 }, blink: ['F2'] }),
+    text: '<strong>PRESETS turned with nothing held</strong> opens the <strong>Preset Library</strong> on the track\'s current preset. Each detent moves one preset and <strong>the track plays it at once</strong> (playing: you hear it in the pattern; stopped: a short note each turn, the envelope lighting along). The chosen preset is the big cassette (its kind\'s envelope and colour), its neighbours above and below, a bar on the right shows where in the list (7 of 31). A lime tray = already in this project\'s pool; ★ = one of MY presets, ↓ = imported. <strong>The white keys play it</strong> (in the track\'s scale) to try it without the pattern. SELECT jumps ten at a time.' },
+  { f: sFilter, t: 0.3, title: 'B1..B8: by kind', keys: BROWSEKEYS({ kind: 1, held: [] }),
+    text: '<strong>B1 ALL, B2 BASS, B3 KEYS, B4 PLUCK, B5 PAD, B6 LEAD, B7 DRUMS, B8 FX</strong>: the black keys filter the list by kind (each lit in its kind\'s colour, the chosen one bright; the kind is read from the sound itself, as the auto-names are). The chip in the head says which.' },
+  { f: sMine, t: 0.3, title: 'B9: MY PRESETS / the POOL', keys: BROWSEKEYS({ src: LIBC, held: ['B9'] }),
+    text: '<strong>B9</strong> steps the list\'s source: <strong>ALL PRESETS</strong> (factory then mine) → <strong>MY PRESETS</strong> (saved and imported) → <strong>POOL</strong> (this project\'s) → ALL again. Kind filters work in each.' },
+  { f: sLoad, t: 1.2, title: 'F2: LOAD', keys: BROWSEKEYS({ btn: { F2: TP[3] }, held: ['F2'] }),
+    text: '<strong>F2 (OCT+) loads it</strong>: it replaces the track\'s sound (the cassette drops into the track\'s box) and the browser closes. The track remembers which preset it came from.' },
+  { f: sCancel, t: 1.2, title: 'F1 / HOME: CANCEL', keys: BROWSEKEYS({ btn: { F1: C.k3 }, held: ['F1'] }),
+    text: '<strong>F1 (OCT−) or HOME cancels</strong>: the track\'s own sound comes back exactly as it was, edits included (here an edited LEAD 4, the * marks unsaved edits), and the browser closes. Leaving any other way (EDIT, a mode key) is a cancel too: browsing never loses a sound by accident.' },
+  { f: sAddPool, t: 0.7, title: 'B10: + POOL', keys: BROWSEKEYS({ B: { 10: POOLC }, held: ['B10'] }),
+    text: '<strong>B10 adds the chosen preset to this project\'s pool</strong> (the cassette shrinks into the pool tray, the count goes up), without loading it: add a kick, a snare and a hat for a drum track in a few turns. Already in the pool: the tray mark just pulses (no duplicate). Pool full: the tray flashes orange.' },
+  { f: sPoolView, t: 0.4, title: 'B9 → POOL: the project\'s sounds', keys: BROWSEKEYS({ src: POOLC, B: { 10: C.k4 } }),
+    text: 'The <strong>POOL</strong> source lists the project\'s 128-sound pool the same way: turn, it plays on the track, F2 loads it, F1 cancels. At the foot: who uses it (the tracks\' boxes, the steps that lock it: ×6). In the pool <strong>B10 takes the sound out</strong>.' },
+  { f: sPoolRemove, t: 0.2, title: 'B10 in the POOL: take it out', keys: BROWSEKEYS({ src: POOLC, B: { 10: C.k4 }, blink: ['B10'] }),
+    text: 'A sound some steps use turns orange with <strong>OUT?</strong> and its users; <strong>B10 again</strong> takes it out (those steps go back to their track\'s sound), anything else keeps it. An unused one goes at once. Undo (SHIFT + F1) brings it back.' },
+  { f: sStepPick, t: 0.3, title: 'A step held + PRESETS: the pool', keys: { W: { 5: '#f03cff' }, B: {}, btn: { PRESETS: POOLC }, held: ['W5'] },
+    text: '<strong>Hold a step and turn PRESETS</strong>: it chooses <strong>the step\'s sound from the pool</strong> (a sound lock), lime, the step playing each one. The first entry is <strong>TRACK</strong>: no lock, the step plays the track\'s sound. Releasing the step keeps the choice. (SOUND mode\'s ten black keys stay ten pool sounds.)' },
+  { f: sStepTrack, t: 0.3, title: '.. down to TRACK: no lock', keys: { W: { 5: '#f03cff' }, B: {}, btn: { PRESETS: POOLC }, held: ['W5'] },
+    text: 'Turned all the way down: <strong>TRACK</strong>, dashed (the step\'s sound lock removed).' },
+  { f: sEmpty, t: 0.3, title: 'A new project: the pool empty', keys: { W: { 5: '#f03cff' }, B: {}, btn: { PRESETS: POOLC }, held: ['W5'] },
+    text: 'A <strong>new project\'s pool starts empty</strong>: a step can only keep TRACK until you add presets with B10 in the browser (the demo project keeps its drums in its pool).' },
+  { f: sSave, t: 0.3, title: 'SAVE: save the track\'s sound as a preset', keys: { W: {}, B: { 10: LIBC, 11: C.g1 }, btn: { SAVE: LIBC, F1: C.k3 }, blink: ['SAVE'] },
+    text: '<strong>SAVE</strong> (anywhere) opens <strong>SAVE PRESET</strong> for the selected track\'s sound with a <strong>name made from the sound</strong> (the sparkle). <strong>B10 rolls another name</strong> (the dice). To name it yourself, turn <strong>SELECT</strong> (the letter) and <strong>ALGORITHM</strong> (along). <strong>SAVE again</strong> saves it as a <strong>NEW</strong> preset in MY PRESETS; F1 cancels.' },
+  { f: sSaveName, t: 0.3, title: '.. naming it yourself', keys: { W: {}, B: { 10: LIBC, 11: C.g1 }, btn: { SAVE: LIBC, F1: C.k3, SELECT: C.sel }, blink: ['SAVE'] },
+    text: 'The name in twelve big cells; the letter under the cursor rolls with SELECT (yellow), ALGORITHM moves the cursor, B11 deletes a letter.' },
+  { f: sSaveReplace, t: 0.3, title: '.. or REPLACE one of MY presets', keys: { W: {}, B: { 10: LIBC }, btn: { SAVE: LIBC, F2: C.k4, F1: C.k3 }, blink: ['SAVE', 'F2'] },
+    text: 'When the track\'s sound came from one of <strong>MY presets</strong> (and was edited), the screen offers both: <strong>SAVE = NEW</strong> (as "DARK BASS 2"), <strong>F2 = REPLACE</strong> DARK BASS itself. Factory presets are never replaced.' },
+  { f: sSaved, t: 1.2, title: 'Saved', keys: { W: {}, B: {}, btn: {} },
+    text: 'It drops into <strong>MY PRESETS</strong> with a fizz; the track now plays that preset (not "edited" any more). It is in the library for every project; B10 in the browser adds it to a project\'s pool.' },
+];
+
+/* ---------------------------------------------------------------- the page */
+async function main() {
+  const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search), shot = q.get('shot'), sheet = q.get('sheet'), qt = q.get('t');
+  const mk = (cls, w = 240, h = 240) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; if (cls) cv.className = cls; return cv; };
+  if (shot) { document.body.className = 'shot'; document.getElementById('page').remove();
+    const s = SCREENS[+shot - 1], cv = mk(); s.f(cv.getContext('2d'), qt != null ? +qt : s.t); document.body.appendChild(cv); return; }
+  if (sheet) {
+    document.body.className = 'sheet'; document.getElementById('page').remove();
+    const h = document.createElement('div'); h.className = 'sheettitle'; h.textContent = 'FIZZ: the Preset Library and the Sound Pool (a proposal; 2x, the keys under each)'; document.body.appendChild(h);
+    const g = document.createElement('div'); g.className = 'sheetgrid'; document.body.appendChild(g);
+    SCREENS.forEach((s, i) => { const f = document.createElement('figure'); f.style.margin = 0;
+      const cv = mk('scr'); s.f(cv.getContext('2d'), s.t); f.appendChild(cv);
+      const kc = mk('keys', 480, 132); keysDraw(kc.getContext('2d'), s.keys); f.appendChild(kc);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; f.appendChild(cap); g.appendChild(f); });
+    return;
+  }
+  const root = document.getElementById('cells'), live = [];
+  SCREENS.forEach((s, i) => { const d = document.createElement('div'); d.className = 'cell';
+    const h = document.createElement('h2'); h.textContent = `${i + 1}. ${s.title}`; d.appendChild(h);
+    const cv = mk('scr'); d.appendChild(cv); live.push([s, cv.getContext('2d')]);
+    const kc = mk('keys', 480, 132); keysDraw(kc.getContext('2d'), s.keys); d.appendChild(kc);
+    const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); root.appendChild(d); });
+  const t0 = performance.now();
+  const frame = () => { const t = (performance.now() - t0) / 1000; live.forEach(([s, c]) => s.f(c, t + s.t)); requestAnimationFrame(frame); };
+  frame();
+}
+main();
+</script>
+</body>
+</html>

@@ -1136,6 +1136,71 @@ P1.5c).
 - F3 tempo with Live stopped works on the unit (closed).
 - FM1VST `core-quadrille` pushed to GitHub as a branch (a backup; main untouched).
 
+### The sound system, redesigned (2026-10-22, a proposal: P1.5t)
+
+The owner: "It's fairly confusing in its current state." Wanted: a **Preset Library** with every factory and user
+preset; a **Sound Pool** per project (128); **browse the library with easy previews, load (replace the track's sound),
+cancel (back to the track's sound), add to the pool, remove from the pool**; **save to the library**, named by hand or
+given a random name; **PRESETS enters the library**; **a step + PRESETS chooses from the pool**.
+Mock-up: `mockups/fizz-presets.html`, sheet `mockups/png/fizz-presets-sheet.png` (15 screens with their keys).
+
+**What is confusing now:** factory sounds live in each project's pool, not in the library; the library holds only
+the user's sounds and is reached only through SAVE; the sounds page is a 16-tile grid with banks, tabs and four
+held-key gestures (copy, move, delete, name); PRESETS turns through the pool (and, since P1.5s, on into the library);
+saving asks for a slot.
+
+**Three things, one job each**
+- **The track's sound**: what a track plays. Saved with its pattern (P1.5a), edited in EDIT. It remembers the
+  preset it came from and whether it has been edited since (a * after its name).
+- **The Preset Library** (champagne): **FACTORY** (built in, read only: INIT, the 16 FM TONE sounds, the 6 drums) then
+  **MINE** (saved and imported; 256 places). Shared by every project; each preset has a **kind** read from the sound
+  (BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX: the classifier of the auto-names).
+- **The Sound Pool** (lime): the project's own 128 sounds, the palette **steps lock**. A pool sound is a copy, marked
+  with the preset it came from. **A new project's pool starts empty** (the demo keeps its drums).
+
+**PRESETS (nothing held): the library browser**
+- One turn opens it on the track's current preset. **Every detent moves one preset and the track plays it at once**
+  (playing: heard in the pattern; stopped: a short note each turn). The screen is a rolodex: the chosen preset as the
+  big cassette (its kind's envelope and colour, ★ mine, ↓ imported, a lime tray if already in the pool), two
+  neighbours above and below, a position bar. **SELECT jumps ten.** **The white keys play it** in the track's scale.
+- **F2 = LOAD** (it replaces the track's sound; the browser closes). **F1 or HOME = CANCEL** (the track's own sound
+  comes back exactly, edits and all). Leaving any other way is a cancel: browsing never loses a sound.
+- **B1..B8 = kind filters**: ALL, BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX (lit in the kinds' colours).
+- **B9 = the source**: ALL PRESETS → MY PRESETS → POOL → ALL.
+- **B10 = + POOL** (in the library: copy the chosen preset into the pool without loading it; already there: the tray
+  pulses, no duplicate; pool full: the tray flashes orange) / **− POOL** (in the POOL source: take it out; a sound
+  steps use shows its users and OUT?, B10 again confirms, those steps go back to the track's sound).
+- **B11 = delete** one of MY presets (twice to confirm; factory presets cannot be deleted).
+- Undo (SHIFT + F1) covers load, + / − pool and delete.
+
+**A step + PRESETS: the pool**
+- Holding a step (or the latch's selection), PRESETS turns through **the pool** (lime): the first entry is **TRACK**
+  (no lock: the step plays the track's sound), then the pool's sounds; the step plays each. Releasing keeps it.
+- SOUND mode's ten black keys stay ten pool sounds. An empty pool offers TRACK only (the empty tray, 0/128).
+
+**SAVE: the track's sound into the library**
+- **SAVE** (anywhere) opens **SAVE PRESET** with a **name made from the sound** (the sparkle). **B10 rolls another
+  name** (the dice); **SELECT** turns the letter under the cursor, **ALGORITHM** moves it, **B11** deletes a letter.
+- **SAVE again = NEW** preset in MY PRESETS. When the sound came from one of MY presets, **F2 = REPLACE** it instead
+  (both offered; the new one would be "DARK BASS 2"). Factory presets are never replaced. **F1 cancels.**
+- Saved: it drops into MY PRESETS with a fizz; the track now plays that preset (not edited).
+
+**Imports** (the web page's Digitone sounds, the FM1VST drop, SysEx): into **MY PRESETS** (↓), kinds read on arrival.
+
+**What goes away**: the sounds page grid (banks, LIBRARY / POOL tabs, F1 / F2 / B11 + W gestures, slot choosing), the
+P1.5s walk from the pool into the library, saving into a chosen slot.
+
+**Data and migration**: the factory presets compiled in (not stored); MINE = the library store, raised to 256, each
+with its kind and origin (saved / imported); pool entries keep a preset id; the track's sound keeps its origin id and
+an edited flag. Existing projects keep their pools as they are (their factory copies stay pool sounds); existing
+library slots become MINE.
+
+**Questions for the owner**
+1. While browsing, the track plays the preset you turn to (recommended), or only on the white keys?
+2. A new project's pool empty (recommended), or starting with the 6 drums?
+3. B9 cycling ALL / MINE / POOL and B1..B8 as kind filters: right, or keep it simpler (no filters at first)?
+4. 256 places for MY presets: enough?
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
