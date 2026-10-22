@@ -1216,7 +1216,7 @@ The owner asked for "a keyboard system for intuitively typing in names". `mockup
 - One keyboard for every name: SAVE PRESET, the project's name, anything named later. Replaces P1.5t's
   SELECT / ALGORITHM / B10 dice / B11 naming (the dice becomes PRESETS' ideas).
 
-### MIDI FX groups (2026-10-22, a proposal: P1.6c)
+### MIDI FX groups (2026-10-22, approved: P1.6c)
 
 The owner chose OMX-style shared groups (§ Version 2.6). Mock-up: `mockups/fizz-midifx.html`, sheet
 `mockups/png/fizz-midifx-sheet.png`. Mechanics after research/OMX-MIDIFX.md (OMX-27 v1.15.4).
@@ -1270,13 +1270,10 @@ at the foot.
   stay NOTE / LOCK / TIE).
 - **Track settings page 2, KNOB 4** = MIDI FX (OFF / 1..5).
 
-**Questions for the owner**
-1. ALGORITHM in the MIDI FX screen **reroutes the track** (the screen follows it), so there is one idea, "this track
-   plays through group n". Or keep editing a group and routing a track apart (the OMX's way)?
-2. The per-step group in **TRIG** (KNOB 2, B4..B10): right place?
-3. Build **all 10 effects** at once, or ARP, CHANCE, REPEAT, HARM, TRANSPOSE first and the rest after?
-4. **ARP tapped** with the track on OFF: route it to the first empty group and add an arp there, or do nothing?
-5. Groups kept **with the project** (recommended) or shared by every project (the OMX's)?
+**The owner's answers (2026-10-22)**: ALGORITHM reroutes the track (the screen follows), **and** a step can lock
+its own group ("the track on MIDI FX 4, step 6 on MIDI FX 2"): TRIG's KNOB 2 / B4..B10 as above. All 10 effects in the
+first build. ARP tapped on a track with no group puts it on the first unused group and adds an arp there. Groups are
+kept with the project.
 
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
