@@ -181,7 +181,7 @@ try {
     await evaluate(addJs(fileJs(files.slice(0, 3)).replace(/]$/, ',{"name":"broken.dnsnd","b64":"UEsDBAAA"}]')));
     await waitFor("!!FIZZDigitone.fizz", 8000);
     const items = await evaluate("FIZZDigitone.items.map(i => i.ok ? { name: i.sound.name, notes: i.sound.notes.length, blob: i.sound.blob.length } : { error: i.error })");
-    check(items.length === 4 && items.slice(0, 3).every((i) => i.blob === 96) && items[3].error,
+    check(items.length === 4 && items.slice(0, 3).every((i) => i.blob === 96 || i.blob === 128) && items[3].error,
       `Digitone: 3 .dnsnd read and converted, a broken file refused: ${JSON.stringify(items)}`);
     const who = await evaluate("FIZZDigitone.fizz");
     check(who === `FIZZ ${meta.version}`, `the panel shows who answers the identity query: "${who}"`);

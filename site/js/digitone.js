@@ -18,7 +18,7 @@
 //   await readFiles([{ name, bytes }]) -> [{ file, ok: true, sound } | { file, ok: false, error }] (by the file's extension)
 //   createSender({ sendMidi, onMidiOut }) -> { identify(), send(sounds, { pool, track }, progress) }
 import { parseDnsnd, dnsndToQuad } from "./fm1dnsnd.js";
-import { parseDn2pst, dn2pstToQuad } from "./dn2pst.js";
+import { parseDn2pst, dn2pstToQuad, quadPack6, QUAD_EXT_RANGES, QX } from "./dn2pst.js";
 import { parseFizzsnd, parseFizzlib } from "./library.js";
 import { identity, storeSound, parseReply, NAME_LEN, FIZZ_TAGS, fizzTagMask } from "./fizz_sysex.js";
 
@@ -67,7 +67,16 @@ export async function readDnsnd(bytes, file = "") {
   const q = dnsndToQuad(parsed), p = parsed.params || {};
   const send = (k) => (typeof p[k] === "number" ? Math.max(0, Math.min(127, Math.round(p[k]))) : undefined);
   const origin = parsed.warnings.filter(isOrigin);
-  return { file, name: soundName(parsed.name), blob: q.blob, pan: q.pan, drive: q.drive,
+  // a Digitone's drive sits before its filter (it has no routing): with DRIVE > 0 the sound goes as FIZZ's version-6
+  // blob with DRIVE ROUTE PRE (STORE6), so it plays as on the Digitone; DRIVE 0 stays the plain version-5 STORE
+  const six = q.drive > 0;
+  let blob = q.blob, ext = null;
+  if (six) {
+    ext = QUAD_EXT_RANGES.map((r) => r[2]);
+    ext[QX.DRPRE - QX.AMOD] = 1;
+    blob = quadPack6(q.values, q.drive, ext);
+  }
+  return { file, name: soundName(parsed.name), blob, six, ext, pan: q.pan, drive: q.drive,
            sends: { chorus: send("send.chorus"), delay: send("send.delay"), reverb: send("send.reverb") },
            notes: [...parsed.warnings.filter((w) => !isOrigin(w)), ...q.notes.filter((n) => !SEND_LOST.test(n))], origin, mark: originMark(origin),
            tags: parsed.tags || [], fizzTags: fizzTagsOf(parsed.tags) };

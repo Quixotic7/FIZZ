@@ -248,6 +248,20 @@ e.dispose();
           `${s.file}: FIZZ keeps pan / chorus / delay / reverb ${mix.join(" ")} (sent ${want.join(" ")}), tags ${tags}${mask ? ` (sent ${mask}: ${s.fizzTags.join(", ")})` : " (none mapped: FIZZ's classifier)"}`);
       }
     } else note(`no ${FEED}: the kept mix and tags not checked (make -C tools test builds it)`);
+    // a Digitone 1 sound with drive (CHAPPET DL, DRIVE 44): the Digitone's drive is before its filter, so the import
+    // goes as STORE6 with DRIVE ROUTE PRE, which FIZZ keeps (test_sysex --feed)
+    if (fs.existsSync(FEED)) {
+      const p = path.join("/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets", "A002 CHAPPET DL.dnsnd");
+      if (fs.existsSync(p)) {
+        const s = await readDnsnd(fs.readFileSync(p), path.basename(p)), f = storeFrame(s);
+        const tmpd = fs.mkdtempSync(path.join(OUT, "feedd-"));
+        fs.writeFileSync(path.join(tmpd, "one.syx"), f);
+        const vals = ((execFileSync(FEED, ["--feed", path.join(tmpd, "one.syx")], { encoding: "utf8" }).match(/^values (.*)$/m) || [])[1] || "").split(" ").map(Number);
+        const plain = await readDnsnd(fs.readFileSync(path.join(path.dirname(p), "A001 DIGIT-ONE.dnsnd")), "A001");
+        check(s.six && f[5] === 0x11 && vals[73] === 44 && vals[79] === 1 && !plain.six && storeFrame(plain)[5] === 0x10,
+          `${s.file}: STORE6, FIZZ keeps DRIVE ${vals[73]} ${vals[79] ? "PRE" : "POST"}; DIGIT-ONE (DRIVE 0) stays a plain STORE`);
+      }
+    }
     // E1: BASSSINE uses FIZZ's extension (its drive before the filter): it goes as STORE6, and FIZZ keeps AMP MODE /
     // HOLD, PORT / its time and slope, and the drive's routing (values 74..79) and DRIVE (73) as the reader made them
     if (got2.length === 2 && fs.existsSync(FEED)) {
@@ -273,19 +287,21 @@ e.dispose();
       const unzipOk = (bytes) => { const f = path.join(fs.mkdtempSync(path.join(OUT, "unz-")), "t.zip"); fs.writeFileSync(f, bytes); try { execFileSync("unzip", ["-tq", f], { stdio: "pipe" }); return true; } catch (_) { return false; } };
       for (const kind of ["dnsnd", "dn2pst"]) {
         for (const s of src) {
-          const dn1Only = kind === "dnsnd" && s.blob.length === 128;     // (a version-6 sound: the Digitone 1 has no E values)
+          // (a Digitone 1 file: two LFOs and no E values but its drive's place, before the filter, which the import sets
+          // again whenever DRIVE > 0; so the E values are compared too, LFO 3 only when it is heard)
+          const dn1Only = kind === "dnsnd";
           const ex = digitoneExport([s], kind);
           const back = (await readFiles([{ name: ex.name, bytes: ex.bytes }]))[0];
           const a = fizzValues({ blob: s.blob, drive: s.drive }), b = back.ok ? fizzValues({ blob: back.sound.blob, drive: back.sound.drive }) : [];
           // (a Digitone 1 file has two LFOs and no E values: for a version-6 sound, LFO 3 at depth 0 (inaudible) and the E
           // values are not compared; the writer notes what it drops of them that is heard)
           const silentL3 = a[70] === 0;
-          const diff = a.map((v, i) => (v !== b[i] ? i : -1)).filter((i) => i >= 0 && !(dn1Only && (i >= 74 || (silentL3 && i >= 63 && i <= 70))));
+          const diff = a.map((v, i) => (v !== b[i] ? i : -1)).filter((i) => i >= 0 && !(dn1Only && silentL3 && i >= 63 && i <= 70));
           const pl = (await (await dnReadZip(ex.bytes)).get(JSON.parse(new TextDecoder().decode(await (await dnReadZip(ex.bytes)).get("manifest.json"))).Payload));
           const lenOk = pl.length - 43 === ((pl[pl.length - 8] << 24 | pl[pl.length - 7] << 16 | pl[pl.length - 6] << 8 | pl[pl.length - 5]) >>> 0);
           check(back.ok && !diff.length && back.sound.name === s.name && back.sound.fizzTags.join() === s.fizzTags.join() &&
                 JSON.stringify(back.sound.sends) === JSON.stringify(s.sends) && unzipOk(ex.bytes) && !back.sound.origin.length && lenOk,
-            `${s.name} -> ${ex.name} -> read back: ${diff.length ? "values differ at " + diff.join(" ") : "the same values"}${dn1Only ? " (the E values aside: " + ex.items[0].notes.length + " notes)" : ""}, tags ${back.ok && back.sound.fizzTags.join("+")}, unzip -t ${unzipOk(ex.bytes) ? "OK" : "FAIL"}, reader warnings ${back.ok ? back.sound.origin.length : "-"}`);
+            `${s.name} -> ${ex.name} -> read back: ${diff.length ? "values differ at " + diff.join(" ") : "the same values"}${s.blob.length === 128 ? ` (DRIVE ${b[73]} ${b[79] ? "PRE" : "POST"})` : ""}, tags ${back.ok && back.sound.fizzTags.join("+")}, unzip -t ${unzipOk(ex.bytes) ? "OK" : "FAIL"}, reader warnings ${back.ok ? back.sound.origin.length : "-"}`);
         }
         const many = digitoneExport(src, kind);
         const z = await dnReadZip(many.bytes);
