@@ -470,3 +470,4 @@ body { background: #000; }
 .dnx-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; font-size: 13px; }
 .dnx-review .pill.primary { background: var(--fz-orange) !important; color: #120600 !important; overflow: hidden; text-overflow: ellipsis; }
 .dnx-file { margin: 0 0 6px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.lib-pool { flex: none; padding: 0 4px; border-radius: 4px; border: 1px solid var(--fz-lime, #b5e853); color: #b5e853; font-size: 9.5px; font-weight: 800; line-height: 14px; }

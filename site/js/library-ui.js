@@ -43,7 +43,7 @@ export function mountLibrary({ button, presets, ensureRunning, fizzVersion, open
   document.body.append(panel);
 
   async function refresh() {
-    if (!presets.ready) { rows = []; status = "Listing MY PRESETS needs a FIZZ that answers LIST (coming with its next build)."; render(); return; }
+    if (!presets.ready) { rows = []; status = "Listing MY PRESETS needs a FIZZ that answers LIST (0.8.0-p1.6m or later)."; render(); return; }
     status = "Asking FIZZ..."; render();
     try { await ensureRunning(); } catch (_) { /* (no audio yet) */ }
     const got = await presets.list();
@@ -65,7 +65,8 @@ export function mountLibrary({ button, presets, ensureRunning, fizzVersion, open
         h("label", { class: "dn-top" }, cb, h("span", { class: "lib-slot" }, String(r.slot)), h("b", {}, r.name),
           ...(r.tags || []).map((t) => h("span", { class: "dn-tag", "data-tag": t }, t)),
           r.favourite ? h("span", { class: "lib-mark", title: "a favourite" }, "★") : null,
-          r.imported ? h("span", { class: "lib-mark", title: "imported" }, "↓") : null));
+          r.inPool ? h("span", { class: "lib-pool", title: "in this project's pool" }, "POOL") : null,
+          r.imported ? h("span", { class: "lib-mark", title: "imported (not saved on FIZZ)" }, "↓") : null));
     }));
     if (!rows.length) list.append(h("li", { class: "dn-empty muted small" }, presets.ready ? "No presets yet." : "—"));
     all.checked = rows.length > 0 && sel.size === rows.length;
@@ -87,8 +88,19 @@ export function mountLibrary({ button, presets, ensureRunning, fizzVersion, open
     busy = true; render();
     try {
       const sounds = [];
-      for (const r of slots) {
-        const f = await presets.dump(r.slot);
+      // a few: one DUMP each; more: DUMP everything (FIZZ paces it) and keep the chosen ones
+      let frames;
+      if (slots.length > 4 && presets.dumpAll) {
+        const got = await presets.dumpAll(rows.length, (n, t) => { status = `Reading MY PRESETS from FIZZ: ${n} / ${t}...`; render(); });
+        const bySlot = new Map(got.filter(Boolean).map((f) => [((f[7] << 7) | f[8]), f]));
+        frames = slots.map((r) => bySlot.get(r.slot) || null);
+      } else {
+        frames = [];
+        for (const r of slots) { status = `Reading MY PRESETS ${r.slot}...`; render(); frames.push(await presets.dump(r.slot)); }
+      }
+      status = `${rows.length} preset${rows.length === 1 ? "" : "s"} in MY PRESETS.`;
+      for (let i = 0; i < slots.length; i++) {
+        const r = slots[i], f = frames[i];
         if (!f) throw new Error(`FIZZ did not send MY PRESETS ${r.slot}`);
         const s = soundFromStoreFrame(f);
         s.favourite = !!r.favourite;

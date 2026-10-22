@@ -17,13 +17,12 @@
 //   soundFromStoreFrame(frame) -> sound                  (a DUMP reply is a ready-to-send STORE / STORE6 frame)
 //   sameSound(a, b)                                      the duplicate check: the same name and the same patch
 //   libraryFileName(date), soundFileName(name)           "FIZZ presets 2026-10-22.fizzlib", "PLUCK 2.fizzsnd"
-//   createPresetLink({ sendMidi, onMidiOut, stub })      LIST / DUMP (stubbed until docs/SYSEX.md has them)
-//   new StubPresets()                                    the stand-in: MY PRESETS as this page stored them
+//   createPresetLink({ sendMidi, onMidiOut })            LIST / DUMP (docs/SYSEX.md sections 21, 22)
 //
 // A sound here has js/digitone.js's shape: { name, blob, drive, pan, sends: {chorus, delay, reverb}, fizzTags: [..],
 // notes: [], origin: [], mark: "", tags: [] } plus { fizz: true, favourite, source } for a FIZZ preset.
 import { dnReadZip } from "./fm1dnsnd.js";
-import { FIZZ_TAGS, unpack7, parseReply } from "./fizz_sysex.js";
+import { FIZZ_TAGS, unpack7, parseReply, listRequest, parseList, dumpRequest, parseDump } from "./fizz_sysex.js";
 
 export const FORMAT = "fizz-sound", LIB_FORMAT = "fizz-library", VERSION = 1;
 const BLOB = { 5: 96, 6: 128 };
@@ -159,39 +158,16 @@ export function sameSound(a, b) {
   return true;
 }
 
-// ---- LIST / DUMP (the adapter): filled when docs/SYSEX.md defines them
-// list -> [{ slot, id, name, tags: [FIZZ tag names], favourite, imported }]; dump(slot) -> a STORE / STORE6 frame
-export const PRESETS_READY = false;
-export function encodeList() { return null; }
-export function decodeList(bytes) { void bytes; return null; }
-export function encodeDump(slot) { void slot; return null; }
-export function decodeDump(bytes) { void bytes; return null; }
+// ---- LIST / DUMP (docs/SYSEX.md sections 21, 22, P1.6m): fizz_sysex.js's listRequest / parseList, dumpRequest /
+// parseDump. LIST answers in parts (16 entries each) until "last"; DUMP slot 0 sends every preset of the source, one
+// STORE / STORE6 frame each (with the DUMP flag), as FIZZ's reply ring has room.
+// list -> [{ slot, id, name, tags: [FIZZ tag names], imported, inPool }]; dump(slot) -> a frame; dumpAll -> [frames]
+export const PRESETS_READY = true;
+const tagNames = (m) => FIZZ_TAGS.filter((_, k) => (m >> k) & 1);
 
-// the stand-in: MY PRESETS as this page stored them (each STORE it sent into MY PRESETS and FIZZ's OK reply), so the
-// panel and its tests run before FIZZ answers LIST / DUMP. It sees the page's MIDI to FIZZ and FIZZ's replies.
-export class StubPresets {
-  constructor() { this.slots = new Map(); this.pending = []; }
-  out(bytes) {
-    const f = Array.from(bytes);
-    if (f[0] === 0xf0 && f[1] === 0x7d && (f[5] === 0x10 || f[5] === 0x11) && !(f[6] & 1)) this.pending.push(Uint8Array.from(f));
-  }
-  in(bytes) {
-    const r = parseReply(bytes);
-    if (!r || r.kind !== "store") return;
-    const f = this.pending.shift();
-    if (f && r.status === 0 && !r.pool) this.slots.set(r.slot, f);
-  }
-  clear() { this.slots.clear(); this.pending = []; }
-  list() {
-    return [...this.slots.entries()].sort((a, b) => a[0] - b[0]).map(([slot, f]) => {
-      const s = soundFromStoreFrame(f);
-      return { slot, id: 0x100 + slot, name: s.name, tags: s.fizzTags, favourite: false, imported: true };
-    });
-  }
-  dump(slot) { return this.slots.get(slot) || null; }
-}
-
-export function createPresetLink({ sendMidi, onMidiOut, stub = null, timeoutMs = 3000 }) {
+// the link: one question at a time; collect(frame) gets each FIZZ frame and returns undefined (not its answer yet)
+// or the result (done); the wait restarts with every frame FIZZ sends (a long DUMP is paced, not slow)
+export function createPresetLink({ sendMidi, onMidiOut, timeoutMs = 3000 }) {
   let waiting = null, sx = null;
   onMidiOut((bytes) => {
     for (const b of bytes) {
@@ -199,21 +175,53 @@ export function createPresetLink({ sendMidi, onMidiOut, stub = null, timeoutMs =
       else if (sx && b === 0xf7) {
         sx.push(b);
         const f = Uint8Array.from(sx); sx = null;
-        if (stub) stub.in(f);
-        if (waiting) { const r = waiting.decode(f); if (r) { const w = waiting; waiting = null; clearTimeout(w.t); w.resolve(r); } }
+        if (waiting) {
+          const w = waiting, r = w.collect(f);
+          clearTimeout(w.t);
+          if (r !== undefined) { waiting = null; w.resolve(r); }
+          else w.t = setTimeout(() => { if (waiting === w) { waiting = null; w.resolve(w.partial ? w.partial() : null); } }, timeoutMs);
+        }
       } else if (sx && b < 0x80) sx.push(b);
       else if (sx && b < 0xf8) sx = null;
     }
   });
-  const ask = (msg, decode) => new Promise((resolve) => {
-    if (!msg) return resolve(null);
-    waiting = { decode, resolve, t: setTimeout(() => { waiting = null; resolve(null); }, timeoutMs) };
+  const ask = (msg, collect, partial) => new Promise((resolve) => {
+    const w = { collect, partial, resolve };
+    w.t = setTimeout(() => { if (waiting === w) { waiting = null; resolve(partial ? partial() : null); } }, timeoutMs);
+    waiting = w;
     sendMidi(msg);
   });
   return {
-    get ready() { return PRESETS_READY || !!stub; },
-    stub,
-    async list() { return stub ? stub.list() : ask(encodeList(), decodeList); },
-    async dump(slot) { return stub ? stub.dump(slot) : ask(encodeDump(slot), decodeDump); },
+    get ready() { return PRESETS_READY; },
+    // MY PRESETS' directory
+    async list() {
+      const rows = [];
+      return ask(listRequest({}), (f) => {
+        const l = parseList(f);
+        if (!l) return undefined;
+        for (const e of l.entries) if (e.source === "mine") rows.push({ slot: e.slot, id: e.id, name: e.name, tags: tagNames(e.tags), favourite: false, imported: e.imported, inPool: e.inPool });
+        return l.last ? rows : undefined;
+      });
+    },
+    // one preset as its STORE / STORE6 frame (DUMP flag set), or null (an empty place: BAD SLOT)
+    async dump(slot) {
+      return ask(dumpRequest({ source: "mine", slot }), (f) => {
+        const d = parseDump(f);
+        if (d && d.slot === slot) return d.frame;
+        const r = parseReply(f);
+        return r && r.kind === "error" && r.command === 0x22 ? null : undefined;
+      });
+    },
+    // every preset (DUMP slot 0), as many as expected; progress(n, total) after each
+    async dumpAll(total, progress = () => {}) {
+      const out = [];
+      return ask(dumpRequest({ source: "mine", slot: 0 }), (f) => {
+        const d = parseDump(f);
+        if (!d || d.source !== "mine") return undefined;
+        out.push(d.frame);
+        progress(out.length, total);
+        return out.length >= total ? out : undefined;
+      }, () => out);
+    },
   };
 }

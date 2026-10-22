@@ -18,7 +18,7 @@ import { loadPrefs, savePrefs as writePrefs, keyHintsOn } from "./prefs.js";
 import { feedbackUrl } from "./feedback.js";
 import { mountDigitone } from "./digitone-ui.js";
 import { mountLibrary } from "./library-ui.js";
-import { createPresetLink, StubPresets } from "./library.js";
+import { createPresetLink } from "./library.js";
 import { BUILD, ver } from "./build.js";
 
 const $ = (id) => document.getElementById(id);
@@ -57,7 +57,7 @@ device.setHints(state.keyHints);
 const labelsLayer = new LabelsLayer({ wrap: $("device-wrap"), canvas: $("device"), device });
 labelsLayer.show(state.labels);
 const LABELS_STUB = params.get("labels") === "stub";
-let labelsLink = null, stubPresets = null;
+let labelsLink = null;
 function panelChanged() { if (LABELS_STUB && state.info) labelsLayer.set(stubLabels({ shift: controls.btnHeld(B.GLO) })); }
 const version = () => (state.meta ? state.meta.version : "");
 const wasmUrl = () => `fizz.wasm?v=${encodeURIComponent(state.meta ? (state.meta.commit || "").slice(0, 12) + "-" + state.meta.bytes : "0")}`;
@@ -369,7 +369,6 @@ const app = {
   async renameSave(rec, to) { await saves.rename(rec.fw, rec.engine, rec.version, rec.name, to); state.selectedSave = to; await refreshSaves(); },
   async deleteSave(rec) { await saves.remove(rec.fw, rec.engine, rec.version, rec.name); state.selectedSave = null; await refreshSaves(); toast(`Deleted "${rec.name}".`); },
   async eraseFlash() {
-    if (stubPresets) stubPresets.clear();
     await saves.remove(FW, ENGINE, version(), saves.AUTOSAVE).catch(() => {});
     lastSaved = ""; state.selectedSave = null;
     await boot(null, { blank: true });
@@ -446,10 +445,10 @@ async function main() {
     fm1.auto();                                          // connects now if MIDI was allowed before (no prompt)
   }).catch((e) => { console.warn("remote:", e); app.remoteStatus = "Connect FM-1 could not load."; if (sheet) sheet.render(); });
 
-  // MY PRESETS (js/library.js): FIZZ's LIST / DUMP; ?presets=stub: a stand-in that remembers what this page stored
-  stubPresets = params.get("presets") === "stub" ? new StubPresets() : null;
-  const toFizz = (b) => { if (stubPresets) stubPresets.out(b); if (player) player.midi(b); };
-  const presetLink = createPresetLink({ sendMidi: toFizz, onMidiOut: (cb) => midiOutSubs.add(cb), stub: stubPresets });
+  // MY PRESETS (js/library.js): FIZZ's LIST / DUMP
+  const toFizz = (b) => { if (player) player.midi(b); };
+  const presetLink = createPresetLink({ sendMidi: toFizz, onMidiOut: (cb) => midiOutSubs.add(cb) });
+  window.FIZZ.presetLink = presetLink;
   const ensureRunning = async () => { if (!state.running) await start(); };
   // Import sounds (js/digitone-ui.js): read here, sent into FIZZ's MIDI in as its sound SysEx
   const save = (name, bytes, type) => {
@@ -504,7 +503,7 @@ async function main() {
 
 // (for tests and the curious: the page's state and its player, read only in spirit)
 window.FIZZ = {
-  get state() { return state; }, get player() { return player; }, controls, start, boot, checkUpdate, BUILD, labels: labelsLayer, setLabels: (v) => app.set("labels", v), get stubPresets() { return stubPresets; },
+  get state() { return state; }, get player() { return player; }, controls, start, boot, checkUpdate, BUILD, labels: labelsLayer, setLabels: (v) => app.set("labels", v), 
   // the output's peak since the last call (an AnalyserNode after the worklet)
   peak() {
     if (!player || !player.ctx) return 0;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copied unchanged from FIZZ's tools/fizz_sysex.mjs (d0767fd) so the published site is self-contained.
+// Copied unchanged from FIZZ's tools/fizz_sysex.mjs (80f60da) so the published site is self-contained.
 // FIZZ's SysEx (docs/SYSEX.md), the host side: the frames a page (or a tool) sends FIZZ, and its replies read.
 // Pure: no DOM, no Node APIs. The FIZZ web preview hands the bytes to the engine's midiIn (as USB-MIDI packets:
 // usbPackets below); tools/test_sysex_dnsnd.mjs uses it with ChoralRoot's .dnsnd reader.
@@ -13,14 +13,37 @@
 //   parseReply(bytes)                            -> {kind: "identity", protocol, version} | {kind: "store", status,
 //                                                   statusName, pool, slot} | {kind: "error", status, statusName,
 //                                                   command} | null (not FIZZ's, or a bad checksum)
+//   labelsRequest({subscribe})                   -> P1.6l: LABELS (20): the controls' labels now; subscribe: FIZZ
+//                                                   sends LABELS again by itself whenever they change (at most 20 a
+//                                                   second), until a request without it
+//   parseLabels(bytes)                           -> {count, list: [49 strings], knobs: {SELECT, ALGORITHM, PRESETS,
+//                                                   K1..K4, MASTER}, buttons: {FX .. F2}, white: [16], black: [11]}
+//                                                   | null (not a LABELS reply)
+//   listRequest({factory, pool})                 -> P1.6m: LIST (21): MY PRESETS (and the factory's, the pool's): its
+//                                                   replies (61) come one part after another
+//   parseList(bytes)                             -> {part, last, total, entries: [{source, slot, id, name, tags,
+//                                                   imported, inPool}]} | null
+//   dumpRequest({source, slot})                  -> P1.6m: DUMP (22): one preset (source "mine" 1..256, "factory"
+//                                                   1..23, "pool" 1..128), or slot 0: all of that source, paced; the
+//                                                   reply is a STORE / STORE6 frame with the DUMP flag
+//   parseDump(bytes)                             -> {source: "mine" | "pool", slot, name, drive, pan, chorus, delay,
+//                                                   reverb, tags, blob (96 or 128 bytes), six, frame} | null
+//   restoreFrame(bytes)                          -> the dump as a STORE / STORE6 to send back (the DUMP flag cleared:
+//                                                   FIZZ stores it again; {slot} to put it elsewhere, 0 the first free)
 //   usbPackets(frame)                            -> [u32]: the frame as USB-MIDI packets (cable 0, CIN 4 / 5 / 6 / 7)
 //   pack7(bytes), unpack7(bytes)                 the 7-bit packing (groups of 7 -> 8, the first byte their top bits)
 
 export const FIZZ_HEADER = [0x7d, 0x46, 0x5a];
 export const FIZZ_PROTOCOL = 1;
-export const CMD = { IDENTITY: 0x01, STORE: 0x10, STORE6: 0x11 };   // (E1: STORE6, the version-6 blob)
-export const REPLY = { IDENTITY: 0x41, STORE: 0x50, ERROR: 0x7f };
-export const FLAGS = { POOL: 0x01, BATCH: 0x02, LOAD: 0x04 };
+export const CMD = { IDENTITY: 0x01, STORE: 0x10, STORE6: 0x11, LABELS: 0x20, LIST: 0x21, DUMP: 0x22 };   // (E1, P1.6l, P1.6m)
+export const REPLY = { IDENTITY: 0x41, STORE: 0x50, LABELS: 0x60, LIST: 0x61, ERROR: 0x7f };
+export const SOURCES = ["mine", "factory", "pool"];    // P1.6m: LIST / DUMP's sources
+// P1.6l: the labels' order (docs/SYSEX.md): the knobs, the 14 buttons (the FM-1's panel labels), W1..W16, B1..B11
+export const LABEL_KNOBS = ["SELECT", "ALGORITHM", "PRESETS", "K1", "K2", "K3", "K4", "MASTER"];
+export const LABEL_BUTTONS = ["FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "HOME", "SOUNDS", "FILL", "PATTERNS", "PLAY",
+  "REC", "F1", "F2"];
+export const LABELS_N = LABEL_KNOBS.length + LABEL_BUTTONS.length + 16 + 11;   // 49
+export const FLAGS = { POOL: 0x01, BATCH: 0x02, LOAD: 0x04, DUMP: 0x08 };   // (P1.6m: DUMP: a dump's reply, ignored as it is)
 export const MIX = { PAN: 0x01, CHORUS: 0x02, DELAY: 0x04, REVERB: 0x08 };
 export const STATUS = ["OK", "FULL", "BAD LENGTH", "BAD CHECKSUM", "BAD PATCH", "BAD SLOT", "BAD VERSION", "BAD COMMAND"];
 export const NAME_LEN = 12, BLOB_LEN = 96, BLOB6_LEN = 128;
@@ -82,6 +105,66 @@ export function storeSound({ name = "", blob, drive = 0, pool = false, slot = 0,
                            ...pack7(blob), ...(tm ? [tm] : [])]);
 }
 
+export const labelsRequest = ({ subscribe = false } = {}) => frame(CMD.LABELS, [subscribe ? 1 : 0]);
+
+export function parseLabels(bytes) {
+  const b = Array.from(bytes);
+  if (b.length < 10 || b[0] !== 0xf0 || b[b.length - 1] !== 0xf7 || b[1] !== 0x7d || b[2] !== 0x46 || b[3] !== 0x5a ||
+      b[5] !== REPLY.LABELS) return null;
+  if (b.slice(5, -1).reduce((s, x) => s + x, 0) & 0x7f) return null;
+  const count = (b[6] << 7) | b[7], n = b[8], list = [];
+  let o = 9;
+  for (let i = 0; i < n && o < b.length - 2; i++) {
+    const len = b[o++];
+    list.push(String.fromCharCode(...b.slice(o, o + len)));
+    o += len;
+  }
+  if (list.length !== n) return null;
+  const at = (k) => list[k] || "";
+  const nk = LABEL_KNOBS.length, nb = LABEL_BUTTONS.length;
+  return { count, list,
+    knobs: Object.fromEntries(LABEL_KNOBS.map((k, i) => [k, at(i)])),
+    buttons: Object.fromEntries(LABEL_BUTTONS.map((k, i) => [k, at(nk + i)])),
+    white: Array.from({ length: 16 }, (_, i) => at(nk + nb + i)),
+    black: Array.from({ length: 11 }, (_, i) => at(nk + nb + 16 + i)) };
+}
+
+// ---- P1.6m: LIST, DUMP
+export const listRequest = ({ factory = false, pool = false } = {}) => frame(CMD.LIST, [(factory ? 1 : 0) | (pool ? 2 : 0)]);
+export const dumpRequest = ({ source = "mine", slot = 0 } = {}) => {
+  const src = SOURCES.indexOf(source);
+  if (src < 0) throw new Error(`source: one of ${SOURCES.join(", ")}`);
+  return frame(CMD.DUMP, [src, (slot >> 7) & 0x7f, slot & 0x7f]);
+};
+const sumOk = (b) => !(b.slice(5, -1).reduce((s, x) => s + x, 0) & 0x7f);
+const isFizz = (b) => b.length >= 8 && b[0] === 0xf0 && b[b.length - 1] === 0xf7 && b[1] === 0x7d && b[2] === 0x46 && b[3] === 0x5a;
+export function parseList(bytes) {
+  const b = Array.from(bytes);
+  if (!isFizz(b) || b[5] !== REPLY.LIST || !sumOk(b)) return null;
+  const entries = [];
+  for (let e = 0, o = 11; e < b[10] && o + 20 <= b.length - 2; e++, o += 20)
+    entries.push({ source: SOURCES[b[o]] || String(b[o]), slot: (b[o + 1] << 7) | b[o + 2],
+      id: (b[o + 3] << 14) | (b[o + 4] << 7) | b[o + 5], name: String.fromCharCode(...b.slice(o + 6, o + 18)).trimEnd(),
+      tags: b[o + 18], imported: !!(b[o + 19] & 1), inPool: !!(b[o + 19] & 2) });
+  return { part: b[6], last: !!b[7], total: (b[8] << 7) | b[9], entries };
+}
+export function parseDump(bytes) {
+  const b = Array.from(bytes);
+  if (!isFizz(b) || (b[5] !== CMD.STORE && b[5] !== CMD.STORE6) || !sumOk(b) || !(b[6] & FLAGS.DUMP)) return null;
+  const six = b[5] === CMD.STORE6, n7 = six ? 147 : 110, body = b.slice(6, -2);
+  const blob = unpack7(body.slice(22, 22 + n7));
+  return { source: body[0] & FLAGS.POOL ? "pool" : "mine", slot: (body[1] << 7) | body[2],
+    name: String.fromCharCode(...body.slice(3, 15)).trimEnd(), drive: body[15], pan: body[17] - 64, chorus: body[18],
+    delay: body[19], reverb: body[20], tags: body.length > 22 + n7 ? body[22 + n7] : 0, blob, six, frame: Uint8Array.from(b) };
+}
+export function restoreFrame(bytes, { slot } = {}) {
+  const b = Array.from(bytes);
+  b[6] &= ~FLAGS.DUMP & 0x7f;
+  if (slot !== undefined) { b[7] = (slot >> 7) & 0x7f; b[8] = slot & 0x7f; }
+  b[b.length - 2] = (0x80 - (b.slice(5, -2).reduce((s, x) => s + x, 0) & 0x7f)) & 0x7f;
+  return Uint8Array.from(b);
+}
+
 export function parseReply(bytes) {
   const b = Array.from(bytes);
   if (b.length < 8 || b[0] !== 0xf0 || b[b.length - 1] !== 0xf7 || b[1] !== 0x7d || b[2] !== 0x46 || b[3] !== 0x5a)
@@ -93,6 +176,9 @@ export function parseReply(bytes) {
   if (kind === REPLY.STORE)
     return { kind: "store", status: rest[0], statusName: STATUS[rest[0]], pool: rest[1] === 1, slot: (rest[2] << 7) | rest[3] };
   if (kind === REPLY.ERROR) return { kind: "error", status: rest[0], statusName: STATUS[rest[0]], command: rest[1] };
+  if (kind === REPLY.LABELS) return { kind: "labels", ...parseLabels(bytes) };
+  if (kind === REPLY.LIST) return { kind: "list", ...parseList(bytes) };
+  if ((kind === CMD.STORE || kind === CMD.STORE6) && (rest[0] & FLAGS.DUMP)) return { kind: "dump", ...parseDump(bytes) };
   return null;
 }
 

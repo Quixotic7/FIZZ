@@ -18,7 +18,9 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { createEngine } from "../engine/engine.js";
-import { identity, parseReply } from "../js/fizz_sysex.js";
+import { identity, parseReply, parseDump, restoreFrame } from "../js/fizz_sysex.js";
+import { encodeRequest as labelsReq, decodeLabels } from "../js/labels.js";
+import { listRequest, parseList, dumpRequest } from "../js/fizz_sysex.js";
 import { readDnsnd, readFiles, storeFrame } from "../js/digitone.js";
 import { fizzTagMask } from "../js/fizz_sysex.js";
 import { makeFizzlib, parseFizzlib, soundFromStoreFrame } from "../js/library.js";
@@ -333,6 +335,59 @@ e.dispose();
     }
     e2.dispose();
   } else { note(`SysEx: no .dnsnd files (--dnsnd ${DIR}): only IDENTITY checked`); e.dispose(); }
+}
+
+// 7. P1.6l LABELS and P1.6m LIST / DUMP against the wasm, raw MIDI in and out as the page sends them
+{
+  const frames = (eng) => { const out = [], b = eng.midiOut(); let sx = null; for (const x of b) { if (x === 0xf0) sx = [x]; else if (sx) { sx.push(x); if (x === 0xf7) { out.push(Uint8Array.from(sx)); sx = null; } } } return out; };
+  const pump = (eng, ms) => { const got = []; for (let t = 0; t < ms; t += 5) { run(eng, 5); got.push(...frames(eng)); } return got; };
+  // labels: subscribed; the step view, then SHIFT held
+  e = await mk();
+  p = new Panel(e);
+  run(e, 500); tapBtn(e, p, "HOME"); run(e, 300); frames(e);
+  e.midiIn(labelsReq(true));
+  let ls = pump(e, 200).map(decodeLabels).filter(Boolean);
+  const base = ls[ls.length - 1];
+  const W = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26], BK = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25];
+  check(base && base.keys[W[0]] && base.keys[BK[0]], `LABELS, the step view: SELECT "${base && base.enc[0]}", W1 "${base && base.keys[W[0]]}", B1 "${base && base.keys[BK[0]]}", HOME "${base && base.buttons[8]}"`);
+  p.btn("GLO", true);
+  ls = pump(e, 300).map(decodeLabels).filter(Boolean);
+  const sh = ls[ls.length - 1];
+  check(sh && sh.enc[0] === "TRACK" && sh.keys[BK[7]] === "FOLLOW" && sh.count !== base.count, `SHIFT held, FIZZ sends a new set by itself: SELECT "${sh && sh.enc[0]}", B8 "${sh && sh.keys[BK[7]]}", F1 "${sh && sh.buttons[0]}"`);
+  p.btn("GLO", false);
+  ls = pump(e, 300).map(decodeLabels).filter(Boolean);
+  check(ls.length >= 1 && ls[ls.length - 1].keys[W[0]] === base.keys[W[0]], "SHIFT let go: the step view's labels again");
+  e.dispose();
+  // presets: 3 stored, LIST, DUMP everything, restored into a blank unit, dumped again: the same frames
+  const DIR3 = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets";
+  const three = fs.existsSync(DIR3) ? fs.readdirSync(DIR3).filter((f) => f.endsWith(".dnsnd")).sort().slice(0, 3) : [];
+  if (three.length === 3) {
+    e = await mk(); run(e, 300); frames(e);
+    for (let i = 0; i < 3; i++) { e.midiIn(storeFrame(await readDnsnd(fs.readFileSync(path.join(DIR3, three[i])), three[i]), { batch: i > 0 })); pump(e, 50); }
+    e.midiIn(listRequest({}));
+    const parts = pump(e, 200).map(parseList).filter(Boolean);
+    const rows = parts.flatMap((x) => x.entries).filter((x) => x.source === "mine");
+    check(parts.length && parts[parts.length - 1].last && rows.length === 3, `LIST: ${parts.length} part(s), MY PRESETS ${rows.map((r) => r.slot + " " + r.name).join(", ")}`);
+    e.midiIn(dumpRequest({ source: "mine", slot: 0 }));
+    const dumps = pump(e, 300).map(parseDump).filter(Boolean);
+    e.dispose();
+    check(dumps.length === 3 && dumps.every((d, i) => d.slot === i + 1), `DUMP everything: ${dumps.map((d) => `${d.slot} ${d.name} (${d.six ? "STORE6" : "STORE"})`).join(", ")}`);
+    const e4 = await mk(); run(e4, 300); frames(e4);
+    for (const d of dumps) { e4.midiIn(restoreFrame(d.frame)); pump(e4, 50); }
+    e4.midiIn(dumpRequest({ source: "mine", slot: 0 }));
+    const again = pump(e4, 300).map(parseDump).filter(Boolean);
+    e4.dispose();
+    check(again.length === 3 && again.every((d, i) => d.frame.join() === dumps[i].frame.join()), "restoreFrame into a blank unit, dumped again: the same 3 frames, byte for byte");
+    // and through the site's own files: the dumps -> .fizzlib -> read back -> STORE (first free) -> dumped again
+    const lib = makeFizzlib(dumps.map((d) => soundFromStoreFrame(d.frame)), { fizz: info.version });
+    const items = (await parseFizzlib(lib, "x.fizzlib")).items;
+    const e5 = await mk(); run(e5, 300); frames(e5);
+    for (let i = 0; i < items.length; i++) { e5.midiIn(storeFrame(items[i].sound, { batch: i > 0 })); pump(e5, 50); }
+    e5.midiIn(dumpRequest({ source: "mine", slot: 0 }));
+    const viaFile = pump(e5, 300).map(parseDump).filter(Boolean);
+    e5.dispose();
+    check(viaFile.length === 3 && viaFile.every((d, i) => d.frame.join() === dumps[i].frame.join()), "dumps -> .fizzlib -> imported into a blank unit -> dumped again: the same 3 frames");
+  }
 }
 
 console.log(`\nfizz.wasm ${wasm.length} bytes; PNGs in ${path.relative(process.cwd(), OUT)}`);

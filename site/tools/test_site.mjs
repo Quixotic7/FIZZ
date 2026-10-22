@@ -21,6 +21,7 @@ import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 import { dnReadZip } from "../js/fm1dnsnd.js";
 import { readDn2 } from "../js/digitone.js";
 import { soundFromStoreFrame } from "../js/library.js";
+import { restoreFrame } from "../js/fizz_sysex.js";
 import { fizzValues } from "../js/fizz2dn.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -231,7 +232,23 @@ try {
     await shot("page-digitone-reloaded.png");
     await evaluate("FIZZDigitone.close()");
   } else note("Digitone: no .dnsnd files to try (--dnsnd)");
-  // 7. the live labels (the stand-in: ?labels=stub, until FIZZ's LABELS SysEx lands): drawn, flipped by SHIFT, toggled
+  // 7a. FIZZ's own live labels (P1.6l, subscribed): the step view's, then SHIFT held: SELECT TRACK, B8 FOLLOW
+  await load(URL0);
+  await waitFor("window.FIZZ && FIZZ.state.info && FIZZ.labels.visible", 15000);
+  await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(400);
+  const real = () => evaluate("(() => { const L = FIZZ.labels, t = (d) => d.firstChild.textContent; return { sel: t(L.knobs[0]), w1: t(L.keys[0]), b1: t(L.keys[1]), b8: t(L.keys[17]), f1: t(L.btns[12]) }; })()");
+  const r0 = await real();
+  await evaluate("FIZZ.controls.holdBtn(5, 4, true)");
+  await waitFor("FIZZ.labels.knobs[0].firstChild.textContent === 'TRACK'", 3000);
+  const r1 = await real();
+  await shot("labels-fizz-shift.png");
+  await evaluate("FIZZ.controls.holdBtn(5, 4, false)");
+  await waitFor(`FIZZ.labels.knobs[0].firstChild.textContent === ${JSON.stringify(r0.sel)}`, 3000);
+  check(r0.w1 === "STEP 1" && r0.b1 === "NOTE" && r1.sel === "TRACK" && r1.b8 === "FOLLOW" && r1.f1 === "UNDO",
+    `FIZZ's labels: the step view SELECT "${r0.sel}", W1 "${r0.w1}", B1 "${r0.b1}"; SHIFT held: SELECT "${r1.sel}", B8 "${r1.b8}", F1 "${r1.f1}"`);
+  await shot("labels-fizz.png");
+
+  // 7. the live labels (the stand-in: ?labels=stub, for the layer itself): drawn, flipped by SHIFT, toggled
   await load(new URL("?labels=stub", URL0).href);
   await waitFor("window.FIZZ && FIZZ.state.info && FIZZ.labels.visible", 15000);
   const lab = () => evaluate(`(() => { const L = FIZZ.labels; const t = (d) => d.firstChild.textContent;
@@ -264,12 +281,13 @@ try {
   await evaluate("FIZZ.setLabels(true)");
   check(errors.length === 0, `the player: no console errors${errors.length ? ": " + errors.join(" | ") : ""}`);
 
-  // 8. My presets (the stand-in for FIZZ's LIST / DUMP: ?presets=stub): 3 imported, exported, re-imported into a blank
-  // flash: the same frames, read back the same by FIZZ's own test_sysex --feed; duplicates; corrupt files refused
+  // 8. My presets (FIZZ's LIST / DUMP, P1.6m): 3 imported, exported, re-imported into a blank flash: the same DUMP
+  // frames, read back the same by FIZZ's own test_sysex --feed; duplicates; a long export's progress; corrupt files
   if (files.length === 4) {
-    await load(new URL("?presets=stub", URL0).href);
+    await load(URL0);
     await waitFor("window.FIZZ && FIZZ.state.info && FIZZ.state.frameSeq > 0", 15000);
-    const blank = async () => { await evaluate("(async () => { FIZZ.stubPresets.clear(); await FIZZ.boot(null, { blank: true }); })()"); await waitFor("FIZZ.state.info", 8000); await sleep(600); };
+    const blank = async () => { await evaluate("(async () => { await FIZZ.boot(null, { blank: true }); })()"); await waitFor("FIZZ.state.info", 8000); await sleep(600); };
+    const dumpJs = "(async () => { const out = []; for (const s of [1, 2, 3]) { const f = await FIZZ.presetLink.dump(s); out.push(Array.from(f || [])); } return out; })()";
     await blank();
     await evaluate(addJs(fileJs(files.slice(0, 3))));
     await waitFor("!!FIZZDigitone.fizz", 8000);
@@ -278,7 +296,7 @@ try {
     await waitFor("FIZZPresets.rows.length === 3", 5000);
     const rows = await evaluate("FIZZPresets.rows.map(r => r.slot + ' ' + r.name + ' ' + r.tags.join('+'))");
     check(rows.length === 3, `My presets lists them: ${rows.join(", ")}`);
-    const orig = await evaluate("[1, 2, 3].map(s => Array.from(FIZZ.stubPresets.dump(s) || []))");
+    const orig = await evaluate(dumpJs);
     await evaluate("FIZZPresets.select([1, 2, 3])");
     await evaluate("FIZZPresets.exportSelected()");
     const lib = await evaluate("(() => { const e = FIZZPresets.lastExport; let s = ''; for (const b of e.bytes) s += String.fromCharCode(b); return { name: e.name, b64: btoa(s) }; })()");
@@ -313,12 +331,12 @@ try {
     await evaluate(addJs(JSON.stringify([{ name: lib.name, b64: lib.b64 }])));
     await evaluate("FIZZDigitone.send()");
     const re = await evaluate(`FIZZDigitone.items.slice(${before}).map(i => i.result && i.result.ok && i.result.slot)`);
-    const back2 = await evaluate("[1, 2, 3].map(s => Array.from(FIZZ.stubPresets.dump(s) || []))");
+    const back2 = await evaluate(dumpJs);
     check(re.join() === "1,2,3" && back2.every((f, i) => f.length && f.join() === orig[i].join()), `the .fizzlib back into a blank flash: MY PRESETS ${re.join(", ")}, the same frames as exported`);
     const FEED = process.env.FIZZ_TEST_SYSEX || path.resolve(HERE, "../../tools/build/test_sysex");
     if (fs.existsSync(FEED)) {
       const tmp = fs.mkdtempSync(path.join(OUT, "feed-"));
-      const read = (f) => { fs.writeFileSync(path.join(tmp, "one.syx"), Uint8Array.from(f)); return execFileSync(FEED, ["--feed", path.join(tmp, "one.syx")], { encoding: "utf8" }).split("\n").filter((l) => /^(name|values|mix|tags) /.test(l)).join("\n"); };
+      const read = (f) => { fs.writeFileSync(path.join(tmp, "one.syx"), restoreFrame(Uint8Array.from(f))); return execFileSync(FEED, ["--feed", path.join(tmp, "one.syx")], { encoding: "utf8" }).split("\n").filter((l) => /^(name|values|mix|tags) /.test(l)).join("\n"); };
       const same = orig.every((f, i) => read(f) === read(back2[i]) && read(f).includes("values"));
       check(same, "FIZZ's test_sysex --feed reads the re-imported presets exactly as the originals (name, values, mix, tags)");
     } else note("no tools/build/test_sysex: the FIZZ read-back skipped");
@@ -339,6 +357,18 @@ try {
     await evaluate("FIZZDigitone.send()");
     const kept = await evaluate("FIZZDigitone.items[FIZZDigitone.items.length - 1].result");
     check(sk && sk.skipped && kept && kept.ok && kept.slot === 4, `a duplicate (same name and patch): ${sk && sk.error}; kept both: MY PRESETS ${kept && kept.slot}`);
+    // a long export: everything (DUMP slot 0, paced), with its progress
+    await evaluate(addJs(fileJs(files.slice(3))));
+    await evaluate("FIZZDigitone.send()");
+    await evaluate("FIZZPresets.open()");
+    await waitFor("FIZZPresets.rows.length === 5", 5000);
+    await evaluate("window.__progress = []; new MutationObserver(() => { const t = document.querySelector('.lib-panel .dn-who').textContent; if (/Reading/.test(t)) window.__progress.push(t); }).observe(document.querySelector('.lib-panel .dn-who'), { childList: true, characterData: true, subtree: true })");
+    await evaluate("FIZZPresets.select(FIZZPresets.rows.map(r => r.slot))");
+    await evaluate("FIZZPresets.exportSelected()");
+    const all5 = await evaluate("({ name: FIZZPresets.lastExport.name, n: FIZZPresets.lastExport.bytes.length, progress: window.__progress })");
+    const all5lib = await evaluate("(async () => { const { parseFizzlib } = await import('./js/library.js'); return (await parseFizzlib(FIZZPresets.lastExport.bytes)).items.filter(i => i.ok).length; })()");
+    check(all5lib === 5 && all5.progress.some((t) => /5 \/ 5/.test(t)), `all 5 at once (DUMP everything): "${all5.name}" with ${all5lib} presets; progress shown: ${all5.progress.slice(-1)[0]}`);
+    await evaluate("FIZZPresets.close()");
     // corrupt files
     await evaluate(addJs(JSON.stringify([{ name: "broken.fizzsnd", b64: Buffer.from("{oops").toString("base64") }, { name: "broken.fizzlib", b64: "AQID" },
       { name: "wrong.fizzsnd", b64: Buffer.from(JSON.stringify({ ...oneJ, patch: { blob: "AAAA", blobVersion: 5 } })).toString("base64") }])));

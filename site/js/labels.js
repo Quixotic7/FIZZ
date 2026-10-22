@@ -9,9 +9,11 @@
 //
 //   createLabelsLink({ sendMidi, onMidiOut, onLabels, stub }) -> { request(subscribe), ready }
 //     the adapter: request() asks FIZZ (subscribe: FIZZ sends again whenever they change); onLabels(labels) on each
-//     reply. Until FIZZ's format lands, encode() is null and nothing is sent; stub (a function of the panel's held
-//     controls, below) stands in where the page asks for it (?labels=stub, the tests).
+//     reply (subscribed: FIZZ sends them again whenever they change, at most 20 a second). stubLabels (below) stands in
+//     where the page asks for it (?labels=stub: the tests of the layer itself).
 //   stubLabels(held) -> labels   PLAYING.md's step view, nothing held, and its SHIFT layer: a fixed stand-in
+
+import { labelsRequest, parseLabels } from "./fizz_sysex.js";
 
 export const NENC = 7, NBTN = 14, NKEY = 27;
 export const empty = () => ({ enc: Array(NENC).fill(""), master: "", buttons: Array(NBTN).fill(""), keys: Array(NKEY).fill("") });
@@ -41,10 +43,25 @@ export function stubLabels(held = {}) {
   return l;
 }
 
-// ---- FIZZ's LABELS SysEx (the adapter): filled when docs/SYSEX.md defines it
-export const LABELS_READY = false;
-export function encodeRequest(subscribe) { void subscribe; return null; }   // -> Uint8Array (F0 .. F7), or null
-export function decodeLabels(bytes) { void bytes; return null; }          // a reply -> labels, or null (not ours)
+// ---- FIZZ's LABELS SysEx (docs/SYSEX.md section 20, P1.6l): fizz_sysex.js's labelsRequest / parseLabels. Its 49
+// labels come in panel order (the knobs SELECT ALGORITHM PRESETS K1..K4 MASTER, the buttons as printed FX .. REC F1
+// F2, W1..W16, B1..B11): here they become the shape above (matrix orders, the keys by note)
+export const LABELS_READY = true;
+const ROLE_MATRIX = [0, 1, 6, 2, 3, 4, 5];                       // (panel.js roleToMatrix: knob role -> matrix encoder)
+const LABEL_MATRIX = (b) => (b < 12 ? b + 2 : b - 12);           // (panel.js labelToMatrix: printed button -> matrix)
+export function encodeRequest(subscribe) { return labelsRequest({ subscribe }); }
+export function decodeLabels(bytes) {
+  const p = parseLabels(bytes);
+  if (!p || p.list.length !== 49) return null;
+  const l = empty(), at = (i) => p.list[i] || "";
+  for (let r = 0; r < 7; r++) l.enc[ROLE_MATRIX[r]] = at(r);
+  l.master = at(7);
+  for (let b = 0; b < 14; b++) l.buttons[LABEL_MATRIX(b)] = at(8 + b);
+  WHITE.forEach((k, i) => { l.keys[k] = at(22 + i); });
+  BLACK.forEach((k, i) => { l.keys[k] = at(38 + i); });
+  l.count = p.count;
+  return l;
+}
 
 export function createLabelsLink({ sendMidi, onMidiOut, onLabels }) {
   let sx = null;
