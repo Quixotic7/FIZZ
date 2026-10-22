@@ -1689,3 +1689,9 @@ pool delete does not bring back its locks in other patterns.
 **2026-10-22, P1.5p** (FMToneSeq 802b91e; FM1VST `core-quadrille` 2aeb073, pushed; version 0.6.2-p1.5p; relaunched): the
 knob band no longer covers a held screen's head: while it shows, NOTE's scale name and VEL's big value and ticks step
 aside (`ui_held_t.band`); a test checks the band's edge on every hold mode in both views.
+
+**2026-10-22, P1.5q** (FMToneSeq a3a78a6; FM1VST `core-quadrille` f14a987, pushed; version 0.6.3-p1.5q; relaunched):
+EDIT follows the music: while playing with nothing held, the latch off and no takeover, the picture shows the selected
+track's step as it is heard (audio-clock timed: micro-timing and the track's rate), each picture's play moment, empty
+steps keep the last at 60 %; 0.78 ms a frame. The FIZZ web preview is live at https://quixotic7.github.io/FIZZ/ (site/,
+GitHub Pages by Actions; the prebuilt fizz.wasm, 0.6.2-p1.5p, rebuilt with `site/build_wasm.sh` on updates).
