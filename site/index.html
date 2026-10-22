@@ -3,6 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="fizz-build" content="dev">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FIZZ · preview</title>
 <meta name="description" content="FIZZ, an FM TONE step sequencer for the M-VAVE FM-1, in preview: play it in the browser with the on-screen panel, or with your own FM-1 running RemoteFM1. Feedback welcome.">
@@ -43,9 +44,9 @@
     <p>Sound starts with a click. Steps <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> &hellip; &middot; <kbd>-</kbd> PLAY &middot; <a href="guide.html">the guide</a></p>
     <p class="start-small">An FM-1 as the panel needs <a href="https://quixotic7.github.io/RemoteFM1/installer/" target="_blank" rel="noopener">RemoteFM1 installed</a> (Chrome or Edge).</p>
   </div>
-  <div id="offer" class="offer" role="alertdialog" aria-labelledby="offer-text" hidden>
-    <span id="offer-text"></span>
-    <span class="offer-btns"><button id="offer-yes" class="pill primary">Bring them</button><button id="offer-no" class="pill ghost">Start fresh</button></span>
+  <div id="update" class="update" role="status" hidden>
+    <span id="update-text">A new FIZZ is out.</span>
+    <button id="update-btn" class="pill primary">Reload</button><button id="update-no" class="pill ghost" aria-label="Not now">Later</button>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </main>

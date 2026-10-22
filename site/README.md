@@ -23,6 +23,14 @@ python3 -m http.server 8765 --bind 127.0.0.1 -d site &    # then open http://127
 node site/tools/test_site.mjs                             # headless Chromium: boots, sound, flash, feedback, guide
 ```
 
+**Caching.** GitHub Pages caches for about 10 minutes. The workflow publishes `site/` through
+`node site/tools/assemble.mjs _site`, which versions every asset URL (the pages' scripts and styles, every module
+import, the worklet, the engine, Connect FM-1's modules) with the site's build, a hash of all its files, and writes it
+into the published `fizz.json`. The page reads `fizz.json` uncached on load and when the tab comes back, and offers
+"A new FIZZ is out: Reload" when it is newer than itself. A new FIZZ version starts from the previous version's
+projects (copied: the old save is never changed), and says so if it cannot read them. `node site/tools/test_update.mjs`
+checks all of this in headless Chromium against a server that caches as Pages does.
+
 `site/build_remote.sh` refreshes Connect FM-1 (`remote/`, RemoteFM1's web back end) from RemoteFM1's `origin/main`;
 it is needed only when RemoteFM1's protocol changes.
 
@@ -39,7 +47,8 @@ it is needed only when RemoteFM1's protocol changes.
 | `remote/`, `js/use-fm1.js`, `js/fm1-link.js`, `js/remote-hook.js` | Connect FM-1 (WebUSB / Web MIDI, RemoteFM1) |
 | `js/digitone.js`, `js/digitone-ui.js`, `js/fm1dnsnd.js` | Digitone `.dnsnd` sounds read in the browser (ChoralRoot's reader) and sent to FIZZ over its SysEx (`js/fizz_sysex.js`, FIZZ's `tools/fizz_sysex.mjs` copied) |
 | `js/feedback.js`, `../.github/ISSUE_TEMPLATE/feedback.yml` | the Feedback button's prefilled issue |
-| `tools/test_engine.mjs`, `tools/test_site.mjs` | the checks (Node; headless Chromium over the DevTools protocol) |
+| `tools/assemble.mjs`, `js/build.js` | the published tree with every asset URL versioned (the workflow runs it) |
+| `tools/test_engine.mjs`, `tools/test_site.mjs`, `tools/test_update.mjs` | the checks (Node; headless Chromium over the DevTools protocol; a new deploy over a cached old one) |
 
 ## Credits and licences
 
