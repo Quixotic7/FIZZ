@@ -158,7 +158,9 @@ try {
   await sleep(800); await tap(6); await sleep(400);
   const blankHash = await evaluate(hash);
   const dBlank = diff(blankHash, edited);
-  check(dBack * 4 < dBlank, `after a reload FIZZ comes back with the steps (${dBack} px differ from the edited screen; a blank unit: ${dBlank})`);
+  // (closer to the edited screen than to a blank unit's: a highlight of the steps last touched may differ)
+  const dBackBlank = diff(back, blankHash);
+  check(dBack < dBackBlank && dBlank > 0, `after a reload FIZZ comes back with the steps (the step rows: ${dBack} px differ from the edited screen, ${dBackBlank} from a blank unit's)`);
 
   // 4. the Feedback link
   const href = await evaluate("document.querySelector('a[data-feedback]').href");
