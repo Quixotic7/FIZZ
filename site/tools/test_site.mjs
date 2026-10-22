@@ -247,6 +247,17 @@ try {
   check(r0.w1 === "STEP 1" && r0.b1 === "NOTE" && r1.sel === "TRACK" && r1.b8 === "FOLLOW" && r1.f1 === "UNDO",
     `FIZZ's labels: the step view SELECT "${r0.sel}", W1 "${r0.w1}", B1 "${r0.b1}"; SHIFT held: SELECT "${r1.sel}", B8 "${r1.b8}", F1 "${r1.f1}"`);
   await shot("labels-fizz.png");
+  // P1.6c: SHIFT + ARP, a group (ALGORITHM a click): the MIDI FX screen's labels on the panel
+  await evaluate("FIZZ.controls.holdBtn(5, 4, true)"); await sleep(120);
+  await evaluate("FIZZ.controls.holdBtn(8, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(8, 4, false)"); await sleep(120);
+  await evaluate("FIZZ.controls.holdBtn(5, 4, false)"); await sleep(300);
+  await evaluate("FIZZ.controls.turn(1, 1)");
+  await waitFor("FIZZ.labels.knobs[2].firstChild.textContent === 'EFFECT'", 3000);
+  const mfx = await evaluate("(() => { const L = FIZZ.labels, t = (d) => d.firstChild.textContent; return { algo: t(L.knobs[1]), presets: t(L.knobs[2]), b: [1, 3, 5, 8, 10, 13, 15, 17].map((k) => t(L.keys[k])) }; })()");
+  await shot("labels-midifx.png");
+  check(mfx.algo === "GROUP" && mfx.presets === "EFFECT" && mfx.b[0] === "EMPTY" && mfx.b[7] === "SLOT 8",
+    `the MIDI FX screen on the panel: ALGORITHM "${mfx.algo}", PRESETS "${mfx.presets}", B1..B8 ${mfx.b.join(" / ")}`);
+  await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(300);
 
   // 7. the live labels (the stand-in: ?labels=stub, for the layer itself): drawn, flipped by SHIFT, toggled
   await load(new URL("?labels=stub", URL0).href);

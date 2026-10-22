@@ -389,6 +389,45 @@ e.dispose();
   } else { note(`SysEx: no .dnsnd files (--dnsnd ${DIR}): only IDENTITY checked`); e.dispose(); }
 }
 
+// 8. a save from the previous published FIZZ (the last committed site/fizz.wasm with another version: git; skipped
+// without its history): a project made there, booted by this FIZZ: it reads it (the steps are there, the flash is not
+// formatted), as the page's carry-over to a new version relies on
+{
+  let prev = null;
+  try {
+    const git = (...a) => execFileSync("git", ["-C", SITE, ...a], { encoding: "buffer", stdio: ["ignore", "pipe", "ignore"] });
+    for (const h of git("log", "--format=%H", "--", "fizz.json").toString().trim().split("\n")) {
+      const j = JSON.parse(git("show", `${h}:site/fizz.json`).toString());
+      if (j.version !== info.version) { prev = { version: j.version, wasm: git("show", `${h}:site/fizz.wasm`) }; break; }
+    }
+  } catch (_) { prev = null; }
+  if (prev) {
+    const mod0 = await WebAssembly.compile(prev.wasm);
+    const old = await createEngine({ sampleRate: 44100, files: { wasm: mod0 }, flash: null, options: {} });
+    let po = new Panel(old);
+    run(old, 500); tapBtn(old, po, "HOME"); run(old, 300);
+    tapKey(old, po, 2); tapKey(old, po, 4);
+    run(old, 3000);
+    const img = old.flash().bytes, oldShot = old.screen().pixels.slice(180 * 240);
+    old.dispose();
+    const used = (b) => { let n = 0; for (const x of b) if (x !== 0xff) n++; return n; };
+    const nw = await mk(img);
+    const pn = new Panel(nw);
+    run(nw, 500); tapBtn(nw, pn, "HOME"); run(nw, 300);
+    const newShot = nw.screen().pixels.slice(180 * 240);
+    run(nw, 3000);
+    const after = nw.flash().bytes;
+    nw.dispose();
+    const blankE = await mk(); const pb = new Panel(blankE);
+    run(blankE, 500); tapBtn(blankE, pb, "HOME"); run(blankE, 300);
+    const blankShot = blankE.screen().pixels.slice(180 * 240);
+    blankE.dispose();
+    const dOld = diffPx(newShot, oldShot), dBlank = diffPx(newShot, blankShot);
+    check(dOld < dBlank && used(after) >= used(img) / 2,
+      `a ${prev.version} save booted by ${info.version}: the steps are there (the step rows ${dOld} px from the old screen, ${dBlank} from a blank one), the flash kept (${used(img)} -> ${used(after)} bytes in use)`);
+  } else note("no earlier site/fizz.wasm in git: the older-save check skipped");
+}
+
 // 7. P1.6l LABELS and P1.6m LIST / DUMP against the wasm, raw MIDI in and out as the page sends them
 {
   const frames = (eng) => { const out = [], b = eng.midiOut(); let sx = null; for (const x of b) { if (x === 0xf0) sx = [x]; else if (sx) { sx.push(x); if (x === 0xf7) { out.push(Uint8Array.from(sx)); sx = null; } } } return out; };
@@ -409,6 +448,19 @@ e.dispose();
   p.btn("GLO", false);
   ls = pump(e, 300).map(decodeLabels).filter(Boolean);
   check(ls.length >= 1 && ls[ls.length - 1].keys[W[0]] === base.keys[W[0]], "SHIFT let go: the step view's labels again");
+  // P1.6c: SHIFT + ARP opens the MIDI FX screen (ALGORITHM GROUP); a group chosen (ALGORITHM a click): B1..B8 the
+  // slots, PRESETS EFFECT
+  p.btn("GLO", true); run(e, 120); tapBtn(e, p, "ARP"); p.btn("GLO", false);
+  ls = pump(e, 300).map(decodeLabels).filter(Boolean);
+  const none = ls[ls.length - 1];
+  check(none && none.enc[1] === "GROUP", `SHIFT + ARP opens the MIDI FX screen: ALGORITHM "${none && none.enc[1]}" (no group yet: PRESETS "${none && none.enc[6]}")`);
+  { const enc = new Int32Array(7); enc[p.t.encId[1]] = p.t.encDir[1]; e.setPanel({ keys: 0, buttons: 0, enc, keyVel: new Uint8Array(27) }); }
+  ls = pump(e, 400).map(decodeLabels).filter(Boolean);
+  const mf = ls[ls.length - 1];
+  const slots = mf ? BK.slice(0, 8).map((k) => mf.keys[k]) : [];
+  check(mf && mf.enc[1] === "GROUP" && mf.enc[6] === "EFFECT" && slots.every((x) => /^(EMPTY|SLOT [1-8]|[A-Z][A-Z0-9 .+-]*)$/.test(x)),
+    `SHIFT + ARP, the MIDI FX screen: ALGORITHM "${mf && mf.enc[1]}", PRESETS "${mf && mf.enc[6]}", B1..B8 ${slots.join(" / ")}`);
+  writePng(path.join(OUT, "midi-fx.png"), e.screen().pixels);
   e.dispose();
   // presets: 3 stored, LIST, DUMP everything, restored into a blank unit, dumped again: the same frames
   const DIR3 = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets";
