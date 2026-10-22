@@ -20,6 +20,8 @@ import { fileURLToPath } from "node:url";
 import { createEngine } from "../engine/engine.js";
 import { identity, parseReply } from "../js/fizz_sysex.js";
 import { readDnsnd, readFiles, storeFrame } from "../js/digitone.js";
+import { fizzTagMask } from "../js/fizz_sysex.js";
+import { execFileSync } from "node:child_process";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -224,6 +226,24 @@ e.dispose();
       const r2 = ask(e2, storeFrame(s));
       check(r2 && r2.status === 0, `${path.basename(DN2)} imports: ${r2 && `${r2.statusName} LIBRARY ${r2.slot}`}`);
     } else note(`no ${DN2}: the Digitone II check skipped`);
+    // what FIZZ keeps of an import (P1.5x): the preset's pan, sends and tags, read back by FIZZ's own test_sysex --feed
+    // (tools/build/test_sysex, built by make -C tools test; the wasm has no read-back command)
+    const FEED = path.resolve(SITE, "../tools/build/test_sysex");
+    const mixed = got.length ? [sounds[0], sounds[1]] : [];
+    try { const tx = path.join("/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets", "A036 TX BASS 1 MF.dnsnd"); if (fs.existsSync(tx)) mixed.push(await readDnsnd(fs.readFileSync(tx), path.basename(tx))); } catch (_) {}
+    if (got2.length === 2) mixed.push(got2[0].sound);
+    if (fs.existsSync(FEED) && mixed.length) {
+      const tmp = fs.mkdtempSync(path.join(OUT, "feed-"));
+      for (const s of mixed) {
+        const f = path.join(tmp, "one.syx");
+        fs.writeFileSync(f, storeFrame(s));
+        const out = execFileSync(FEED, ["--feed", f], { encoding: "utf8" });
+        const mix = ((out.match(/^mix (.*)$/m) || [])[1] || "").split(" ").map(Number), tags = Number((out.match(/^tags (.*)$/m) || [])[1]);
+        const want = [s.pan, s.sends.chorus, s.sends.delay, s.sends.reverb], mask = fizzTagMask(s.fizzTags);
+        check(want.every((v, i) => v === mix[i]) && (mask ? tags === mask : true),
+          `${s.file}: FIZZ keeps pan / chorus / delay / reverb ${mix.join(" ")} (sent ${want.join(" ")}), tags ${tags}${mask ? ` (sent ${mask}: ${s.fizzTags.join(", ")})` : " (none mapped: FIZZ's classifier)"}`);
+      }
+    } else note(`no ${FEED}: the kept mix and tags not checked (make -C tools test builds it)`);
     e2.dispose();
   } else { note(`SysEx: no .dnsnd files (--dnsnd ${DIR}): only IDENTITY checked`); e.dispose(); }
 }

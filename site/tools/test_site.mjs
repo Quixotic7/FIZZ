@@ -185,6 +185,10 @@ try {
     await evaluate("FIZZDigitone.send()");
     const res = await evaluate("FIZZDigitone.items.filter(i => i.ok).map(i => i.result)");
     check(res.length === 3 && res.every((r, k) => r && r.ok && !r.pool && r.slot === k + 1), `sent through the page into the running wasm: ${JSON.stringify(res)}`);
+    // P1.5x: the sends are kept (no "not imported" note), the Digitone's tags shown as FIZZ's
+    const tg = await evaluate(`[...document.querySelectorAll(".dn-item")].slice(0, 3).map((li) => ({ tags: [...li.querySelectorAll(".dn-tag")].map((c) => c.textContent),
+      sendLost: /send .* not imported/.test(li.textContent) }))`);
+    check(tg.every((t) => !t.sendLost) && tg[1].tags.join() === "PAD", `tags as chips and no lost sends: ${JSON.stringify(tg)}`);
     await evaluate("document.querySelector('.dn-notes') && (document.querySelector('.dn-notes').open = true)");
     await shot("page-digitone.png");
     const kept = await waitFor(`(() => { const s = FIZZ.state.saves.find(r => r.name === 'Autosave'); return !!s && Date.parse(s.saved) > ${tSend}; })()`, 15000);

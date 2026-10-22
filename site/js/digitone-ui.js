@@ -67,9 +67,10 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
       const s = it.sound, r = it.result;
       const loads = r ? r.ok && r.loaded >= 0 : it === first && track >= 0;
       const notes = loads ? notesWithLoad(s) : s.notes;
-      const where = r && r.ok ? `${r.pool ? "POOL" : "LIBRARY"} ${r.slot}${r.loaded >= 0 ? `, on track ${r.loaded + 1}` : ""}` : r ? r.error : loads ? `+ track ${track + 1}` : null;
+      const where = r && r.ok ? `${r.pool ? "POOL" : "MY PRESETS"} ${r.slot}${r.loaded >= 0 ? `, on track ${r.loaded + 1}` : ""}` : r ? r.error : loads ? `+ track ${track + 1}` : null;
       return h("li", { class: "dn-item" + (r ? (r.ok ? " sent" : " failed") : "") },
         h("div", { class: "dn-top" }, h("b", {}, s.name), s.dn2 ? h("span", { class: "dn-chip", title: "a Digitone II sound" }, "DN2") : null,
+          ...(s.fizzTags || []).map((t) => h("span", { class: "dn-tag", "data-tag": t, title: `FIZZ's ${t} tag, from the Digitone's ${s.tags.join(", ")}` }, t)),
           h("span", { class: "muted small dn-file" }, it.file),
           where ? h("span", { class: "dn-res" }, where) : null, x),
         s.mark ? h("div", { class: "dn-mark", title: s.origin.join("\n") }, s.mark) : null,
@@ -77,15 +78,16 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
           h("ul", {}, notes.map((n) => h("li", {}, n)))) : h("div", { class: "muted small" }, "converted whole"));
     }));
     if (!items.length) list.append(h("li", { class: "dn-empty muted small" }, "No sounds yet."));
-    seg.replaceChildren(...[[false, "Library"], [true, "This project's pool"]].map(([k, label]) =>
+    seg.replaceChildren(...[[false, "My presets"], [true, "This project's pool"]].map(([k, label]) =>
       h("button", { class: pool === k ? "on" : "", role: "radio", "aria-checked": String(pool === k), onclick: () => { pool = k; render(); } }, label)));
     trackSel.value = String(track);
     const n = pending().length;
     send.textContent = busy ? "Sending..." : n ? `Send ${n} sound${n === 1 ? "" : "s"} to FIZZ` : "Send to FIZZ";
     send.disabled = busy || !n;
     who.textContent = fizz ? `${fizz} is listening.` : asked ? "Waiting for FIZZ..." : "";
-    foot.textContent = (pool ? "Into the project you are on: PRESETS picks them. " : "Into the library, shared by every project: SAVE opens it, F2 puts a sound in the pool. ")
-      + (track >= 0 ? `The first also goes onto track ${track + 1}, with its pan and its reverb, delay and chorus sends. ` : "")
+    foot.textContent = (pool ? "Into the project you are on: PRESETS picks them. " : "Into MY PRESETS, shared by every project: PRESETS finds them. ")
+      + "Each keeps its pan, its reverb, delay and chorus sends and its tags. "
+      + (track >= 0 ? `The first also goes onto track ${track + 1}, with its mix. ` : "")
       + "SHIFT + F1 on FIZZ undoes the whole import.";
   }
 
@@ -99,7 +101,7 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
       const res = await sender.send(todo.map((it) => it.sound), { pool, track }, (i, r) => { todo[i].result = r; render(); });
       const ok = res.filter((r) => r.ok).length, full = res.find((r) => r.full);
       if (full) for (const it of todo.slice(res.length)) it.result = { ok: false, error: "not sent: " + full.error };
-      const where = pool ? "pool" : "library";
+      const where = pool ? "pool" : "MY PRESETS";
       toast(full ? `${ok} sound${ok === 1 ? "" : "s"} in FIZZ's ${where}, then ${full.error}: the rest were not sent.`
         : ok === todo.length ? `${ok} Digitone sound${ok === 1 ? "" : "s"} in FIZZ's ${where}. SHIFT + F1 undoes the import.`
         : `${ok} of ${todo.length} sounds went in; see the list.`, ok && !full && ok === todo.length ? "ok" : "bad", 7000);

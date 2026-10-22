@@ -19,7 +19,27 @@
 //   createSender({ sendMidi, onMidiOut }) -> { identify(), send(sounds, { pool, track }, progress) }
 import { parseDnsnd, dnsndToQuad } from "./fm1dnsnd.js";
 import { parseDn2pst, dn2pstToQuad } from "./dn2pst.js";
-import { identity, storeSound, parseReply, NAME_LEN } from "./fizz_sysex.js";
+import { identity, storeSound, parseReply, NAME_LEN, FIZZ_TAGS, fizzTagMask } from "./fizz_sysex.js";
+
+// ---- tags: the Digitone's (DN1 manifests' MetaInfo.Tags; DN2 the record's tag bits, dn2pst.js DN2_TAGS: the same 32
+// words) onto FIZZ's 7 (FIZZ_TAGS). A judgement, as the owner asked; the character tags (SOFT, HARD, DARK, BRIGHT,
+// VINTAGE, EPIC, NOISY, METALLIC, ACOUSTIC, EXPRESSIVE, DEEP, LOOP, FAIL, MINE, FAVOURITE) map to nothing. A sound with
+// no FIZZ tag sends 0: FIZZ's classifier decides from the sound.
+export const TAG_MAP = {
+  BASS: "BASS",
+  PAD: "PAD", ATMOSPHERIC: "PAD", TEXTURE: "PAD", EVOLVING: "PAD", STRINGS: "PAD",
+  LEAD: "LEAD", BRASS: "LEAD",
+  CHORD: "KEYS", KEYS: "KEYS", PIANO: "KEYS", EP: "KEYS", ORGAN: "KEYS",
+  PLUCK: "PLUCK", BELL: "PLUCK", MALLET: "PLUCK", ARPEGGIO: "PLUCK",
+  KICK: "DRUMS", SNARE: "DRUMS", "HI-HAT": "DRUMS", HAT: "DRUMS", CYMBAL: "DRUMS", PERCUSSION: "DRUMS", PERC: "DRUMS", DRUM: "DRUMS",
+  "SOUND FX": "FX", SFX: "FX", FX: "FX", NOISE: "FX", GLITCH: "FX",
+};
+// the Digitone's tags -> FIZZ's, in FIZZ_TAGS order
+export const fizzTagsOf = (tags) => FIZZ_TAGS.filter((k) => (tags || []).some((t) => TAG_MAP[String(t).toUpperCase()] === k));
+
+// ChoralRoot's reader says the sends are lost ("reverb send 39.45 not imported: effects are global on the FM-1",
+// fm1dnsnd.js dnLost); FIZZ keeps them with the preset (P1.5x): those notes are dropped
+const SEND_LOST = /^(reverb|delay|chorus) send -?[\d.]+ not imported: effects are global on the FM-1$/;
 
 export const NAME_MAX = NAME_LEN;          // FIZZ's (and ChoralRoot's SND_NAME): 12
 
@@ -48,7 +68,8 @@ export async function readDnsnd(bytes, file = "") {
   const origin = parsed.warnings.filter(isOrigin);
   return { file, name: soundName(parsed.name), blob: q.blob, pan: q.pan, drive: q.drive,
            sends: { chorus: send("send.chorus"), delay: send("send.delay"), reverb: send("send.reverb") },
-           notes: [...parsed.warnings.filter((w) => !isOrigin(w)), ...q.notes], origin, mark: originMark(origin), tags: parsed.tags || [] };
+           notes: [...parsed.warnings.filter((w) => !isOrigin(w)), ...q.notes.filter((n) => !SEND_LOST.test(n))], origin, mark: originMark(origin),
+           tags: parsed.tags || [], fizzTags: fizzTagsOf(parsed.tags) };
 }
 
 // a Digitone II .dn2pst (or .dn2snd, the same stored container without the ZIP: research/DN2-FORMAT.md §10), read
@@ -64,7 +85,8 @@ export async function readDn2(bytes, file = "") {
     ? `Digitone II file${firmware ? ` (${firmware})` : ""}${origin.length ? ` · ${origin.length} note${origin.length === 1 ? "" : "s"} on the file` : ""}` : "";
   return { file, dn2: true, name: soundName(q.name, "DIGITONE II"), blob: q.blob, pan: q.pan, drive: q.drive,
            sends: { chorus: q.sends.chorus, delay: q.sends.delay, reverb: q.sends.reverb },
-           notes: q.notes.filter((n) => !n.startsWith("file: ")), origin, mark, tags: parsed.tags || [] };
+           notes: q.notes.filter((n) => !n.startsWith("file: ") && !SEND_LOST.test(n)), origin, mark, tags: parsed.tags || [],
+           fizzTags: fizzTagsOf(parsed.tags) };
 }
 export const isDn2Name = (name) => /\.dn2(pst|snd)$/i.test(name || "");
 export const IMPORTABLE = /\.(dnsnd|dn2pst|dn2snd)$/i;
@@ -79,19 +101,18 @@ export async function readFiles(files) {
 }
 
 // the notes of a sound loaded onto a track with its mix: the sends are no longer lost (the track takes them)
-export const notesWithLoad = (sound) => sound.notes.filter((n) => !/send .* not imported/.test(n));
+export const notesWithLoad = (sound) => sound.notes.filter((n) => !SEND_LOST.test(n));
 
 // the STORE SOUND frame of one sound: into the LIBRARY (pool false) or the project's POOL, the first free slot; batch:
 // one undo level with the previous message; track 0..7: also loaded onto it, with its pan and sends
-// MIX_WITH_EVERY_STORE: FIZZ's presets do not keep pan and sends yet, so they go only with LOAD (onto the track); once
-// FIZZ stores them with every preset (P1.5x), set it true and every STORE carries them (the helper may need the mix
-// fields without LOAD then: storeFrame is the one place to change)
-export const MIX_WITH_EVERY_STORE = false;
+// MIX_WITH_EVERY_STORE: FIZZ's presets keep their pan and sends (P1.5x): every STORE carries them, LOAD or not
+export const MIX_WITH_EVERY_STORE = true;
 export const mixOf = (sound) => ({ pan: sound.pan, chorus: sound.sends.chorus, delay: sound.sends.delay, reverb: sound.sends.reverb });
 export function storeFrame(sound, { pool = false, batch = false, track = -1 } = {}) {
   const load = track >= 0 && track <= 7;
   return storeSound({ name: sound.name, blob: sound.blob, drive: sound.drive, pool, slot: 0, batch,
-    ...(load ? { track } : {}), ...(load || MIX_WITH_EVERY_STORE ? mixOf(sound) : {}) });
+    ...(load ? { track } : {}), ...(load || MIX_WITH_EVERY_STORE ? mixOf(sound) : {}),
+    tags: fizzTagMask(sound.fizzTags || []) });
 }
 
 // sendMidi(bytes): raw MIDI into the engine's MIDI in (engine.js makes the USB-MIDI packets the core takes);
@@ -131,7 +152,7 @@ export function createSender({ sendMidi, onMidiOut, timeoutMs = 3000 }) {
         const r = await ask(storeFrame(sounds[i], { pool, batch: i > 0, track: i === 0 ? track : -1 }), (x) => x.kind === "store" || x.kind === "error");
         const res = !r ? { ok: false, error: "FIZZ did not answer" }
           : r.kind === "store" && r.status === 0 ? { ok: true, pool: r.pool, slot: r.slot, loaded: i === 0 && track >= 0 ? track : -1 }
-          : { ok: false, full: r.status === 1, error: r.status === 1 ? (pool ? "the pool is full" : "the library is full") : (r.statusName || `error ${r.status}`).toLowerCase() };
+          : { ok: false, full: r.status === 1, error: r.status === 1 ? (pool ? "the pool is full" : "MY PRESETS is full") : (r.statusName || `error ${r.status}`).toLowerCase() };
         results.push(res);
         progress(i, res);
         if (res.full) break;
