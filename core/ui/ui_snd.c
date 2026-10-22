@@ -1100,9 +1100,10 @@ void ui_snd_draw(const ui_snd_t *v)
             if (on)
                 ui_RR(x, y, 104.f, 44.f, 7.f, QD_NONE, 1.f, 0x2a1622u);
             ui_RR(x, y, 104.f, 44.f, 7.f, on ? SNDK[4] : UI_G3, on ? 1.8f : 1.f, QD_NONE);
-            sd_machine_glyph(k, x + 8.f, y + 6.f, 40.f, 22.f, c);
-            ui_T(NM[k], x + 52.f + 24.f, y + 22.f, 12.f, 600, 0.f, on ? UI_K3 : UI_G1, QD_CENTER);
-            ui_T(n, x + 76.f, y + 38.f, 12.f, 600, 0.f, on ? SNDK[4] : UI_G2, QD_CENTER);
+            sd_machine_glyph(k, x + 10.f, y + 4.f, 64.f, 17.f, c);   /* (P1.6d.1: the curve on top, the name the
+                                                         * tile's width under it, the number top right) */
+            ui_T(NM[k], x + 52.f, y + 38.f, 12.f, 600, 0.f, on ? UI_K3 : UI_G1, QD_CENTER);
+            ui_T(n, x + 92.f, y + 16.f, 12.f, 600, 0.f, on ? SNDK[4] : UI_G2, QD_CENTER);
         }
     }
     if (v->lk) {                                        /* P1.5k: an LFO key held: "LFO n -> VALUE", the depth (E4: B1

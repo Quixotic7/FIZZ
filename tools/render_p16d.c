@@ -281,7 +281,7 @@ int render_p16d(const char *out)
     turn(QD_K_1, -6);
     run(150);
     bup(QD_B_REC);
-    run(50);
+    run(1500);                                          /* (P1.6d.1: the steps view's KNOB 1 takeover gone first) */
     btap(QD_B_SOUND);
     run(200);
     bdown(QD_B_REC);
