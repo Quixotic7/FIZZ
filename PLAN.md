@@ -1136,7 +1136,7 @@ P1.5c).
 - F3 tempo with Live stopped works on the unit (closed).
 - FM1VST `core-quadrille` pushed to GitHub as a branch (a backup; main untouched).
 
-### The sound system, redesigned (2026-10-22, a proposal: P1.5t)
+### The sound system, redesigned (2026-10-22, approved: P1.5t)
 
 The owner: "It's fairly confusing in its current state." Wanted: a **Preset Library** with every factory and user
 preset; a **Sound Pool** per project (128); **browse the library with easy previews, load (replace the track's sound),
@@ -1195,11 +1195,8 @@ with its kind and origin (saved / imported); pool entries keep a preset id; the 
 an edited flag. Existing projects keep their pools as they are (their factory copies stay pool sounds); existing
 library slots become MINE.
 
-**Questions for the owner**
-1. While browsing, the track plays the preset you turn to (recommended), or only on the white keys?
-2. A new project's pool empty (recommended), or starting with the 6 drums?
-3. B9 cycling ALL / MINE / POOL and B1..B8 as kind filters: right, or keep it simpler (no filters at first)?
-4. 256 places for MY presets: enough?
+**Decided (the owner, 2026-10-22)**: the track plays the preset you turn to; a new project's pool starts empty;
+B1..B8 kind filters and B9 ALL / MINE / POOL as mocked up; 256 places for MY presets.
 
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
