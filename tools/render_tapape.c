@@ -195,31 +195,69 @@ int render_tapape(const char *out)
         draw(&v);
         shot_lcd(S[i].name, S[i].cap);
     }
-    {   /* the cost a frame: the busiest moments (a tap's flash and ghost; the flurry), 200 frames each */
-        static const int W[3] = {2, 10, 14};
-        int w;
-        for (w = 0; w < 3; w++) {
-            const int s = W[w], n = taps_run(tap, S[s].n, S[s].b, 0.012f);
-            const clock_t c0 = clock();
-            int f;
-            for (f = 0; f < 200; f++) {
-                model(&v, tap, n, (uint32_t)lroundf(S[s].t * 1000.f) + (uint32_t)(f % 40), S[s].ext, 124);
-                draw(&v);
-            }
-            printf("render_tapape: %s %.2f ms a frame (this machine)\n", S[s].name,
-                   (double)(clock() - c0) * 1000.0 / CLOCKS_PER_SEC / 200.0);
-        }
-    }
-    {   /* a tap's frame: the new pose's glow layer made (three poses in turn: never cached) */
-        const clock_t c0 = clock();
-        int f;
-        for (f = 0; f < 120; f++) {
-            const int n = taps_run(tap, 4 + f % 3, 0.5f, 0.012f);
-            model(&v, tap, n, tap[n - 1] + 100u, 0, 124);
+    {   /* the cost a frame, as the unit and the site draw it: a frame every 15 ms through ten taps at 120 BPM, the
+         * finale and the close; then six at 200 (the flurry); then the external clock. Each frame timed, sorted by what
+         * it shows: the first frame after a tap, the ghost / flash frames (the tap's first 160 ms), the steady grooving
+         * ones, the finale's, the flurry's, the external clock's */
+        enum { F_TAP, F_GHOST, F_STEADY, F_TADA, F_FLURRY, F_EXT, F_WARM, F_N };
+        static const char *const FN[F_N] = {"tap (the first frame)", "ghost / flash (160 ms)", "steady (grooving)",
+                                             "finale", "flurry", "external clock", "SHIFT held (prewarm)"};
+        double sum[F_N] = {0}, mx[F_N] = {0};
+        int cnt[F_N] = {0}, pass;
+        {   /* cold, no SHIFT before it (no prewarm): the first tap's frame makes its pose at once */
+            struct timespec t0, t1;
+            ui_ape_forget();
+            taps_run(tap, 1, 0.5f, 0.f);
+            model(&v, tap, 1, 15u, 0, 124);
+            clock_gettime(CLOCK_MONOTONIC, &t0);
             draw(&v);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            printf("render_tapape: %-24s %5.2f ms (once; this machine)\n", "cold first tap",
+                   (double)(t1.tv_sec - t0.tv_sec) * 1e3 + (double)(t1.tv_nsec - t0.tv_nsec) / 1e6);
+            ui_ape_forget();
         }
-        printf("render_tapape: a frame making a pose's glow layer %.2f ms\n",
-               (double)(clock() - c0) * 1000.0 / CLOCKS_PER_SEC / 120.0);
+        for (pass = 0; pass < 3; pass++) {
+            const int nt = pass == 0 ? 10 : pass == 1 ? 6 : 0;
+            const float b = pass == 1 ? 0.3f : 0.5f;
+            const uint32_t end = pass == 2 ? 2000u : (uint32_t)(1000.f * ((float)(nt - 1) * b + 2.9f));
+            uint32_t now2;
+            int prev_n = 0;
+            taps_run(tap, nt, b, 0.012f);
+            for (now2 = 0; now2 < 300u; now2 += 15u) {     /* (SHIFT held before B6: the view prewarms) */
+                struct timespec t0, t1;
+                double ms;
+                clock_gettime(CLOCK_MONOTONIC, &t0);
+                ui_ape_prewarm(pass == 2);
+                clock_gettime(CLOCK_MONOTONIC, &t1);
+                ms = (double)(t1.tv_sec - t0.tv_sec) * 1e3 + (double)(t1.tv_nsec - t0.tv_nsec) / 1e6;
+                sum[F_WARM] += ms, cnt[F_WARM]++;
+                mx[F_WARM] = ms > mx[F_WARM] ? ms : mx[F_WARM];
+            }
+            for (now2 = 0; now2 < end; now2 += 15u) {
+                int n = 0, f;
+                struct timespec t0, t1;
+                double ms;
+                while (n < nt && tap[n] <= now2)
+                    n++;
+                if (pass < 2 && !n)
+                    continue;
+                model(&v, tap, n, now2, pass == 2, 124);
+                clock_gettime(CLOCK_MONOTONIC, &t0);
+                draw(&v);
+                clock_gettime(CLOCK_MONOTONIC, &t1);
+                ms = (double)(t1.tv_sec - t0.tv_sec) * 1e3 + (double)(t1.tv_nsec - t0.tv_nsec) / 1e6;
+                f = pass == 2 ? F_EXT : n != prev_n ? F_TAP : pass == 1 && n >= 2 && v.since < 2.f ? F_FLURRY
+                  : v.since >= 2.f ? F_TADA : v.since < 0.16f ? F_GHOST : F_STEADY;
+                if (ms > 1.2 && getenv("TAPAPE_DEBUG"))
+                    printf("  (pass %d, %u ms, tap %d, since %.3f: %.2f ms)\n", pass, now2, n, v.since, ms);
+                prev_n = n;
+                sum[f] += ms, cnt[f]++;
+                mx[f] = ms > mx[f] ? ms : mx[f];
+            }
+        }
+        for (i = 0; i < F_N; i++)
+            printf("render_tapape: %-24s %5.2f ms a frame (worst %5.2f, %d frames; this machine)\n", FN[i],
+                   cnt[i] ? sum[i] / cnt[i] : 0.0, mx[i], cnt[i]);
     }
     {   /* for scale: the EDIT view (the VEL rider, neon too), the same way */
         static qd_app_t A;

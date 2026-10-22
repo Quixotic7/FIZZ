@@ -777,6 +777,8 @@ typedef struct {
 /* the TAP ape (ui_ape.c): the pose a tap shows: the n-th tap of a count (1..), its BPM (180 and up: the flurry) */
 int ui_ape_pose(int n, int bpm);
 void ui_ape_draw(const ui_turn_t *v);   /* the TAP takeover, whole (SHIFT + B6) */
+void ui_ape_prewarm(int ext);
+void ui_ape_forget(void);               /* (its layers forgotten: the render's cold measures) */              /* 0.9.2.1: SHIFT held: the first poses' layers built, a part a frame */
 void ui_turn_draw(const ui_turn_t *v);
 
 /* ---- P1.3d (§8b 2.2): the knob band. Every knob turned in a hold mode shows what it turned in a band over the top of

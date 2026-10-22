@@ -135,11 +135,11 @@ static void ap_sparkle(float x, float y, float r, qd_rgb col)
 static int16_t ap_i16(const uint8_t *b) { return (int16_t)(b[0] | b[1] << 8); }
 /* colour c of pose k into the path (the pose's units: half px, y up negative): its smooth lines as quadratics through
  * the midpoints, its straight chains as lines */
-static void ap_path(int k, int c)
+static void ap_path_part(int k, int c, int p0, int p1)   /* (its polylines p0 .. p1 - 1 only: the others read past) */
 {
     const uint8_t *b = APE_BYTES + APE_POSES[k].off[c];
-    int n = APE_POSES[k].n[c], px = 0, py = 0, first = 1;
-    while (n-- > 0) {
+    int n = APE_POSES[k].n[c] < p1 ? APE_POSES[k].n[c] : p1, px = 0, py = 0, first = 1, p = 0;
+    for (; p < n; p++) {
         const int h = *b++, np = (h & 63) + 1, straight = h & 0x80;
         int x, y, i;
         float pts[2 * 65];
@@ -158,6 +158,9 @@ static void ap_path(int k, int c)
             x += (int8_t)b[0], y += (int8_t)b[1], b += 2;
             pts[2 * i] = (float)x, pts[2 * i + 1] = (float)y;
         }
+        px = x, py = y;
+        if (p < p0)
+            continue;
         qd_move_to(pts[0], pts[1]);
         if (straight || np == 2) {
             for (i = 1; i < np; i++)
@@ -168,9 +171,9 @@ static void ap_path(int k, int c)
                            (pts[2 * i + 1] + pts[2 * i + 3]) * 0.5f);
             qd_line_to(pts[2 * (np - 1)], pts[2 * (np - 1) + 1]);
         }
-        px = x, py = y;
     }
 }
+static void ap_path(int k, int c) { ap_path_part(k, c, 0, 255); }
 
 typedef struct { float x0, x1, y0, y1, cx, cy; } ap_box_t;
 static float ap_posex(int k) { return k == 8 ? AP_BX : 236.f - AP_S * (float)APE_POSES[k].ext[2]; }
@@ -184,16 +187,26 @@ static ap_box_t ap_posebox(int k, float dx)
     b.cx = x + AP_S * (float)(e[0] + e[2]) * 0.5f, b.cy = AP_FY - AP_S * (float)(e[1] + e[3]) * 0.5f;
     return b;
 }
-/* the glow cached (the two faint wide strokes of every colour, at half resolution): a pose's, redrawn when the pose
- * (or the dimming) changes, placed under its lines each frame with the groove's transform (the lines themselves still
- * drawn sharp): the glow is most of the drawing's cost */
+/* The poses cached (0.9.2.1: the site draws FIZZ inside the browser's audio thread; the unit needs it cheap too). A pose
+ * is drawn once, into a layer at full resolution (its glow and its lines, a colour at a time as on screen), and a half
+ * resolution layer of its lines in cream for the tap's flash; each frame places them with the groove's transform. Three
+ * poses are kept (the one shown, the one it left, being the ghost, and the one coming: the next of the loop, or the
+ * finale near the end of a count, or the first pose while SHIFT is held, ui_ape_prewarm); the coming one is built a
+ * colour a frame, so no frame pays for a whole pose (a pose wanted at once and not ready is finished there and then). */
+#define AP_NC 3                          /* the poses cached */
+#define AP_PART 12                       /* a pose's build: its colours, up to this many polylines a part, then the flash */
 typedef struct {
-    int k, ok;                          /* the pose (-1 none), drawn */
-    float dim, x, y, w, h;              /* .. at that dimming; where it goes (screen px, the pose unmoved) */
+    int k;                               /* the pose (-1 none) */
+    int done;                            /* its polylines drawn (every colour's in turn, then again for the flash; twice
+                                          * its count: ready) */
+    float x, y, w, h;                    /* where its layer goes (screen px, the pose unmoved) */
     uint32_t used;
 } ap_cache_t;
-static ap_cache_t ap_cache[QD_NLAYER] = {{-1, 0, 0.f, 0.f, 0.f, 0.f, 0.f, 0u}, {-1, 0, 0.f, 0.f, 0.f, 0.f, 0.f, 0u}};
+static ap_cache_t ap_cache[AP_NC] = {{-1, 0, 0.f, 0.f, 0.f, 0.f, 0u}, {-1, 0, 0.f, 0.f, 0.f, 0.f, 0u},
+                                     {-1, 0, 0.f, 0.f, 0.f, 0.f, 0u}};
 static uint32_t ap_use;
+static int ap_keep[2] = {-1, -1};        /* the poses not to evict now (shown, ghost) */
+
 static void ap_strokes(int k, int g0, int g1)
 {
     const float lw = 1.55f * 2.f / AP_S;
@@ -212,73 +225,191 @@ static void ap_strokes(int k, int g0, int g1)
         qd_path_begin();
     }
 }
-/* pose k's glow: its layer (made if neither holds it: the one used longest ago), -1 none */
-static int ap_glow_cache(int k)
+/* the cache entry holding pose k (made, evicting the oldest not kept, if none); -1 none */
+static int ap_entry(int k)
 {
-    const ap_box_t b = ap_posebox(k, 0.f);
-    const float m = 6.f;
+    const float m = 4.f;
     ap_cache_t *e;
-    int i, lw, lh;
-    for (i = 0; i < QD_NLAYER; i++)
-        if (ap_cache[i].k == k && ap_cache[i].dim == ap_dim) {
-            ap_cache[i].used = ++ap_use;
-            return ap_cache[i].ok ? i : -1;
-        }
-    i = ap_cache[0].used <= ap_cache[1].used ? 0 : 1;
-    e = &ap_cache[i];
-    e->k = k, e->dim = ap_dim, e->used = ++ap_use;
-    e->x = b.x0 - m, e->y = b.y0 - m;
-    lw = (int)ceilf((b.x1 - b.x0 + 2.f * m) * 0.5f), lh = (int)ceilf((b.y1 - b.y0 + 2.f * m) * 0.5f);
-    e->w = (float)lw * 2.f, e->h = (float)lh * 2.f;
-    e->ok = qd_layer_begin(i, lw, lh);
-    if (!e->ok)
+    int i, best = -1;
+    for (i = 0; i < AP_NC; i++)
+        if (ap_cache[i].k == k)
+            return i;
+    for (i = 0; i < AP_NC; i++)
+        if ((ap_cache[i].k < 0 || (ap_cache[i].k != ap_keep[0] && ap_cache[i].k != ap_keep[1])) &&
+            (best < 0 || ap_cache[i].k < 0 || (ap_cache[best].k >= 0 && ap_cache[i].used < ap_cache[best].used)))
+            best = i;
+    if (best < 0)
         return -1;
-    qd_scale(0.5f, 0.5f);
+    e = &ap_cache[best];
+    {
+        const ap_box_t b = ap_posebox(k, 0.f);
+        e->k = k, e->done = 0, e->used = ++ap_use;
+        e->x = floorf(b.x0 - m), e->y = floorf(b.y0 - m);   /* (whole pixels: the lines stay crisp, unmoved) */
+        e->w = ceilf(b.x1 + m) - e->x, e->h = ceilf(b.y1 + m) - e->y;
+    }
+    return best;
+}
+static int ap_total(int k)                              /* pose k's polylines */
+{
+    int c, n = 0;
+    for (c = 0; c < APE_NCOL; c++)
+        n += APE_POSES[k].n[c];
+    return n;
+}
+#define AP_READY(e) ((e)->done >= 2 * ap_total((e)->k))
+/* one part of entry i's build: up to AP_PART polylines of a colour (their glow, their line) into the pose's layer, the
+ * colours in the drawing order; then the same in cream (twice as many a part: one stroke) into the flash's layer */
+static int ap_build_chunk(int i)
+{
+    ap_cache_t *e = &ap_cache[i];
+    const int k = e->k, tot = k >= 0 ? ap_total(k) : 0, flash = e->done >= tot;
+    const float lw = 1.55f * 2.f / AP_S;
+    int g, c = 0, p0 = flash ? e->done - tot : e->done, p1, ok;
+    if (k < 0 || e->done >= 2 * tot)
+        return 0;
+    while (p0 >= APE_POSES[k].n[c])                     /* (the colour and its polyline the part starts at) */
+        p0 -= APE_POSES[k].n[c], c++;
+    p1 = p0 + (flash ? 2 * AP_PART : AP_PART);
+    p1 = p1 < APE_POSES[k].n[c] ? p1 : APE_POSES[k].n[c];
+    if (!flash)
+        ok = e->done ? qd_layer_resume(2 * i) : qd_layer_begin(2 * i, (int)e->w, (int)e->h);
+    else
+        ok = e->done > tot ? qd_layer_resume(2 * i + 1)
+                           : qd_layer_begin(2 * i + 1, (int)(e->w * 0.5f + 0.5f), (int)(e->h * 0.5f + 0.5f));
+    if (!ok) {
+        e->k = -1;
+        return 0;
+    }
+    if (flash)
+        qd_scale(0.5f, 0.5f);
     qd_translate(-e->x, -e->y);
     qd_translate(ap_posex(k), AP_FY);
     qd_scale(AP_S * 0.5f, AP_S * 0.5f);
-    ap_strokes(k, 0, 1);
+    qd_path_begin();
+    ap_path_part(k, c, p0, p1);
+    if (flash) {
+        qd_path_stroke(AP_CREAM, lw * 1.1f);
+    } else {
+        for (g = 0; g < 3; g++) {
+            qd_save();
+            qd_alpha(AP_GA[g]);
+            qd_path_stroke_keep(AP_COL[c], lw * AP_GW[g]);
+            qd_restore();
+        }
+        qd_path_begin();
+    }
     qd_layer_end();
+    e->done += p1 - p0;
+    return 1;
+}
+/* pose k ready now (built there and then if not): its entry, -1 none (no memory) */
+static int ap_ready(int k)
+{
+    const int i = ap_entry(k);
+    if (i < 0)
+        return -1;
+    while (ap_cache[i].k == k && !AP_READY(&ap_cache[i]))
+        ap_build_chunk(i);
+    if (ap_cache[i].k != k)
+        return -1;
+    ap_cache[i].used = ++ap_use;
     return i;
+}
+/* pose k coming: one chunk of its build (if it is not ready); 1 done (0: it was ready, or no room) */
+static int ap_prepare(int k)
+{
+    const int i = k >= 0 ? ap_entry(k) : -1;
+    return i >= 0 && !AP_READY(&ap_cache[i]) && ap_build_chunk(i);
+}
+static int ap_cached(int k)                             /* (ready, not built: the ghost's) */
+{
+    int i;
+    for (i = 0; i < AP_NC; i++)
+        if (ap_cache[i].k == k && AP_READY(&ap_cache[i]))
+            return i;
+    return -1;
+}
+
+void ui_ape_forget(void)                                /* (the renders' measures: from cold) */
+{
+    int i;
+    for (i = 0; i < AP_NC; i++)
+        ap_cache[i].k = -1, ap_cache[i].done = 0, ap_cache[i].used = 0u;
+}
+
+void ui_ape_prewarm(int ext)                            /* SHIFT held: the first poses on their way, two parts a frame:
+                                                         * the point, the step, the flurry's headstand */
+{
+    static const int8_t K[3] = {0, 1, AP_FLURRY};
+    int parts = 2, j = 0;
+    ap_keep[0] = ext ? 8 : 0, ap_keep[1] = ext ? -1 : 1;
+    while (parts > 0 && j < (ext ? 1 : 3)) {
+        if (ap_prepare(ext ? 8 : K[j]))
+            parts--;
+        else
+            j++;
+    }
 }
 
 typedef struct { float dx, lift, sx, sy, rot, alpha, flash; int mid; } ap_pose_o;
-static void ap_pose(int k, const ap_pose_o *o)
+static void ap_place(int i, const ap_pose_o *o)        /* entry i's layers with the transform o */
 {
+    const int k = ap_cache[i].k;
     const ap_box_t b = ap_posebox(k, o->dx);
-    const float ax = b.cx, ay = o->mid ? b.cy : AP_FY, lw = 1.55f * 2.f / AP_S;
-    int c;
-    (void)lw;
+    const float ax = b.cx, ay = o->mid ? b.cy : AP_FY;
+    const ap_cache_t *e = &ap_cache[i];
     qd_save();
     qd_alpha(qd_get_alpha() * o->alpha);
     qd_translate(ax, ay - o->lift);
     if (o->rot != 0.f)
         qd_rotate(o->rot);
-    qd_scale(o->sx, o->sy);
+    if (o->sx != 1.f || o->sy != 1.f)
+        qd_scale(o->sx, o->sy);
     qd_translate(-ax, -ay);
-    if ((c = ap_glow_cache(k)) >= 0) {                  /* the glow, cached; the lines sharp over it */
-        qd_layer_draw(c, ap_cache[c].x + o->dx, ap_cache[c].y, ap_cache[c].w, ap_cache[c].h);
-        qd_translate(ap_posex(k) + o->dx, AP_FY);
-        qd_scale(AP_S * 0.5f, AP_S * 0.5f);
-        ap_strokes(k, 2, 2);
-    } else {                                            /* (no layer: all three strokes, a colour at a time) */
-        qd_translate(ap_posex(k) + o->dx, AP_FY);
-        qd_scale(AP_S * 0.5f, AP_S * 0.5f);
-        ap_strokes(k, 0, 2);
-    }
-    if (o->flash > 0.f) {                               /* the snap's flash: the lines again, cream, fading */
+    qd_layer_draw(2 * i, e->x + o->dx, e->y, e->w, e->h);
+    if (o->flash > 0.f) {                               /* the snap's flash: the lines in cream, fading */
         qd_alpha(qd_get_alpha() * o->flash * 0.7f);
-        qd_path_begin();
-        for (c = 0; c < APE_NCOL; c++)
-            ap_path(k, c);
-        qd_path_stroke(ap_c(AP_CREAM), lw * 1.1f);
+        qd_layer_draw(2 * i + 1, e->x + o->dx, e->y, e->w, e->h);
     }
     qd_restore();
 }
-static void ap_pose_plain(int k, float alpha, float lift)
+static void ap_pose(int k, const ap_pose_o *o)
 {
+    const int i = ap_ready(k);
+    if (i >= 0) {
+        ap_place(i, o);
+        return;
+    }
+    {   /* (no memory for a layer: drawn directly, every stroke) */
+        const ap_box_t b = ap_posebox(k, o->dx);
+        const float ax = b.cx, ay = o->mid ? b.cy : AP_FY, lw = 1.55f * 2.f / AP_S;
+        int c;
+        qd_save();
+        qd_alpha(qd_get_alpha() * o->alpha);
+        qd_translate(ax, ay - o->lift);
+        if (o->rot != 0.f)
+            qd_rotate(o->rot);
+        qd_scale(o->sx, o->sy);
+        qd_translate(-ax, -ay);
+        qd_translate(ap_posex(k) + o->dx, AP_FY);
+        qd_scale(AP_S * 0.5f, AP_S * 0.5f);
+        ap_strokes(k, 0, 2);
+        if (o->flash > 0.f) {
+            qd_alpha(qd_get_alpha() * o->flash * 0.7f);
+            qd_path_begin();
+            for (c = 0; c < APE_NCOL; c++)
+                ap_path(k, c);
+            qd_path_stroke(AP_CREAM, lw * 1.1f);
+        }
+        qd_restore();
+    }
+}
+static void ap_ghost(int k, float alpha, float lift)    /* the pose it left: its layer, if still kept */
+{
+    const int i = ap_cached(k);
     ap_pose_o o = {0.f, lift, 1.f, 1.f, 0.f, alpha, 0.f, 0};
-    ap_pose(k, &o);
+    if (i >= 0)
+        ap_place(i, &o);
 }
 
 /* ---------------------------------------------------------------- the boombox (the reference's, drawn) */
@@ -349,11 +480,12 @@ static void ap_ext(const ui_turn_t *v)
     ap_line2(cx, 49.f, cx + cosf(t * 0.8f - UI_PI * 0.5f) * 6.f, 49.f + sinf(t * 0.8f - UI_PI * 0.5f) * 6.f, UI_G1, 1.5f);
     ap_dim = 0.45f;                                     /* the boombox and the lounging ape, dimmed, breathing */
     ap_box(0.f, 0.f);
+    ap_dim = 1.f;
+    ap_keep[0] = 8, ap_keep[1] = -1;
     {
-        ap_pose_o o = {0.f, 0.f, 1.f, 1.f + 0.012f * sinf(t * 1.7f), 0.012f * sinf(t * 0.9f), 1.f, 0.f, 0};
+        ap_pose_o o = {0.f, 0.f, 1.f, 1.f + 0.012f * sinf(t * 1.7f), 0.012f * sinf(t * 0.9f), 0.45f, 0.f, 0};
         ap_pose(8, &o);
     }
-    ap_dim = 1.f;
 }
 
 /* ---------------------------------------------------------------- the takeover */
@@ -420,6 +552,7 @@ void ui_ape_draw(const ui_turn_t *v)
     }
     en = n;
     flurry = kind == AP_TAP && n >= 2 && v->tap_bpm[0] >= 180;
+    ap_keep[0] = k, ap_keep[1] = kind != AP_ENTERS && age < 0.16f ? prevk : -1;   /* (the poses cached: kept now) */
     ap_head(n, UI_KSEL);
     ap_floor();
     /* the boombox: its speakers pump on each tap (lightly on the beat while the ape grooves); its sound arcs */
@@ -475,7 +608,7 @@ void ui_ape_draw(const ui_turn_t *v)
         sx *= 1.f - 0.035f * s;
     }
     if (prevk >= 0 && kind != AP_ENTERS && age < 0.16f)   /* the ghost of the pose it left */
-        ap_pose_plain(prevk, 0.4f * (1.f - age / 0.16f), 4.f * age / 0.16f);
+        ap_ghost(prevk, 0.4f * (1.f - age / 0.16f), 4.f * age / 0.16f);
     B = ap_posebox(k, 0.f);
     if (flurry)
         ap_rings(&B, t, 0);
@@ -527,5 +660,21 @@ void ui_ape_draw(const ui_turn_t *v)
             ui_O(x, 224.f, r, QD_NONE, 1.f, i < 4 ? UI_KSEL : UI_G1);
             qd_restore();
         }
+    }
+    /* the pose coming, a chunk of its build a frame: the loop's next; near the count's end the finale; after it the
+     * first of a new count */
+    {   /* (a part every 15 ms of the clock, however often the screen is drawn; the next pose's BPM guessed from the
+         * tempo: 180 and up, the flurry's headstand) */
+        static float last_t = -1.f;
+        const float dt = last_t < 0.f || t < last_t ? 0.015f : t - last_t > 0.1f ? 0.1f : t - last_t;
+        const int guess = n >= 2 ? v->tap_bpm[0] : 0;   /* (after one tap: the step; a flurry from the 2nd tap is
+                                                         * rare, its headstand then made at once) */
+        const int next = kind == AP_TADAS ? 0 : since < 1.4f ? ui_ape_pose(n + 1, guess) : AP_FINALE;
+        const int next2 = n == 1 && kind != AP_TADAS ? AP_FLURRY : -1;   /* (after one tap: the flurry's too) */
+        int parts = (int)(dt / 0.015f + 0.5f);
+        last_t = t;
+        while (parts-- > 0)
+            if (!ap_prepare(next) && next2 >= 0)
+                ap_prepare(next2);
     }
 }

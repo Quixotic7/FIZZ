@@ -296,9 +296,14 @@ static float qd_lw_saved;
 int qd_layer_begin(int slot, int w, int h)
 {
     static const plutovg_color_t clear = {0.f, 0.f, 0.f, 0.f};
+    const int uw = w, uh = h;
     if (!qd_cv || qd_main_cv || slot < 0 || slot >= QD_NLAYER || w < 1 || h < 1)
         return 0;
     if (!qd_lsurf[slot] || plutovg_surface_get_width(qd_lsurf[slot]) < w || qd_lw_h[slot] < h) {
+        if (qd_lsurf[slot]) {                           /* (grown in both: the largest asked for, made once) */
+            const int ow = plutovg_surface_get_width(qd_lsurf[slot]);
+            w = w > ow ? w : ow, h = h > qd_lw_h[slot] ? h : qd_lw_h[slot];
+        }
         if (qd_lcv[slot])
             plutovg_canvas_destroy(qd_lcv[slot]);
         if (qd_lsurf[slot])
@@ -313,7 +318,14 @@ int qd_layer_begin(int slot, int w, int h)
         qd_lw_h[slot] = h;
     }
     plutovg_surface_clear(qd_lsurf[slot], &clear);
-    qd_luse[slot][0] = w, qd_luse[slot][1] = h;
+    qd_luse[slot][0] = uw, qd_luse[slot][1] = uh;
+    return qd_layer_resume(slot);
+}
+
+int qd_layer_resume(int slot)
+{
+    if (!qd_cv || qd_main_cv || slot < 0 || slot >= QD_NLAYER || !qd_lcv[slot])
+        return 0;
     qd_main_cv = qd_cv;
     qd_cv = qd_lcv[slot];
     qd_lw_main = qd_depth;
@@ -341,9 +353,19 @@ void qd_layer_end(void)
 
 void qd_layer_draw(int slot, float x, float y, float w, float h)
 {
-    plutovg_matrix_t m;
+    plutovg_matrix_t m, ctm;
     if (!qd_cv || slot < 0 || slot >= QD_NLAYER || !qd_lsurf[slot])
         return;
+    plutovg_canvas_get_matrix(qd_cv, &ctm);
+    if (w == (float)qd_luse[slot][0] && h == (float)qd_luse[slot][1] && ctm.a == 1.f && ctm.b == 0.f && ctm.c == 0.f &&
+        ctm.d == 1.f) {                                 /* (unscaled, unturned: placed as it is, a pixel a pixel) */
+        plutovg_matrix_init_translate(&m, x, y);
+        plutovg_canvas_set_texture(qd_cv, qd_lsurf[slot], PLUTOVG_TEXTURE_TYPE_PLAIN, 1.f, &m);
+        plutovg_canvas_new_path(qd_cv);
+        plutovg_canvas_rect(qd_cv, x, y, w, h);
+        plutovg_canvas_fill(qd_cv);
+        return;
+    }
     /* (plutovg samples a texture bilinearly only when tiled and turned: a turn of a millionth of a degree and the
      * layer's margin left clear, so the tiling never shows; else a scaled layer is blocky) */
     plutovg_matrix_init_translate(&m, x, y);

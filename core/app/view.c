@@ -1926,6 +1926,8 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     int kt;
     for (kt = 0; kt < QD_NTRACK; kt++)                  /* P1.6d: the tracks' kinds (their icons) */
         UI_TRACK_KIND[kt] = a->model.t[kt].kind;
+    if (qd_ctl_shift(a) && u->tk != UI_TK_TAP && !qd_type_open(a))
+        ui_ape_prewarm(qd_seq_ext_running(&a->seq));                               /* 0.9.2.1: SHIFT held (B6 may come): the TAP ape's first poses */
     qd_begin();
     switch (qd_view_screen(a)) {
     case QD_SCR_MENU:                                   /* P1.3y: a settings menu */

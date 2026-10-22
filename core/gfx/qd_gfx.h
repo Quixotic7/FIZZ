@@ -84,8 +84,9 @@ void qd_path_clip(void);        /* intersects the clip with the path (and ends i
  * qd_layer_begin: the drawing calls after it go to layer slot (w x h px, cleared transparent, the identity transform,
  * alpha 1) until qd_layer_end; 0 when it cannot (no memory: the caller draws directly). qd_layer_draw: its w x h px
  * placed over the rectangle (x, y, w', h') under the current transform and alpha (scaled: smoothed). */
-#define QD_NLAYER 2
+#define QD_NLAYER 6
 int qd_layer_begin(int slot, int w, int h);
+int qd_layer_resume(int slot);          /* .. drawing on into it as it is (not cleared); 0 none */
 void qd_layer_end(void);
 void qd_layer_draw(int slot, float x, float y, float w, float h);
 
