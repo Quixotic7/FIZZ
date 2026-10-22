@@ -26,8 +26,10 @@ extern "C" {
 #define QD_SX_ID2 0x5Au
 #define QD_SX_PROTO 1u
 
-enum { QD_SX_IDENTITY = 0x01, QD_SX_STORE = 0x10, QD_SX_STORE6 = 0x11, QD_SX_R_IDENTITY = 0x41, QD_SX_R_STORE = 0x50,
-       QD_SX_R_ERROR = 0x7F };          /* (E1: STORE6, the 128-byte version-6 blob; its reply is STORE's) */
+enum { QD_SX_IDENTITY = 0x01, QD_SX_STORE = 0x10, QD_SX_STORE6 = 0x11, QD_SX_LABELS = 0x20, QD_SX_R_IDENTITY = 0x41,
+       QD_SX_R_STORE = 0x50, QD_SX_R_LABELS = 0x60, QD_SX_R_ERROR = 0x7F };   /* (P1.6l: LABELS) */
+#define QD_SXL_SUB 0x01u               /* P1.6l: LABELS' flags: subscribe (a LABELS reply by itself when they change) */
+#define QD_SX_LABELS_MS 50u            /* .. looked at every this many ms at most (20 a second) */          /* (E1: STORE6, the 128-byte version-6 blob; its reply is STORE's) */
 
 /* STORE's flags */
 #define QD_SXF_POOL 0x01u              /* into the project's POOL (else the LIBRARY) */
@@ -50,13 +52,16 @@ enum { QD_SX_OK, QD_SX_FULL, QD_SX_BAD_LENGTH, QD_SX_BAD_CHECKSUM, QD_SX_BAD_PAT
 #define QD_SX_BLOB6 128                /* E1: STORE6's blob (version 6) .. */
 #define QD_SX_BLOB6_7 147              /* .. 18 groups of 7 -> 8, the last 2 -> 3 */
 #define QD_SX_STORE6_BODY (1 + 2 + QD_SX_NAME + 1 + 1 + 4 + 1 + QD_SX_BLOB6_7)   /* 169 (or 170, + a tags byte) */
-#define QD_SX_OUT 4                    /* replies waiting */
-#define QD_SX_OUT_MAX 48               /* a reply's bytes, F0 .. F7 */
+#define QD_SX_OUT_MAX 48               /* an identity / store reply's bytes, F0 .. F7 (the short ones) */
+#define QD_SX_FRAME_MAX 1024           /* P1.6l: the longest reply, F0 .. F7 (LABELS ~ 560) */
+#define QD_SX_RING 4096                /* P1.6l: the replies waiting, a ring of bytes (each one: 2 bytes its length, then
+                                        * it) */
 
 typedef struct {
-    uint8_t q[QD_SX_OUT][QD_SX_OUT_MAX];
-    uint8_t n[QD_SX_OUT];
-    int r, w;
+    uint8_t ring[QD_SX_RING];
+    uint32_t r, w;
+    int lbl_sub;                       /* P1.6l: LABELS subscribed .. */
+    uint32_t lbl_count, lbl_hash, lbl_ms;   /* .. the set's change count, its hash, when last looked at */
     const char *version;               /* the identity's version ("FIZZ 0.6.4-p1.5r"; the glue sets it) */
     uint32_t frames, errors;           /* (counters) */
 } qd_sx_t;
@@ -64,6 +69,9 @@ typedef struct {
 struct qd_app;
 void qd_app_sysex(struct qd_app *a, const uint8_t *f, uint32_t n);   /* one frame: its bytes between F0 and F7 */
 int qd_app_sysex_take(struct qd_app *a, uint8_t *out, uint32_t max);  /* a reply, F0 .. F7: its length (0: none) */
+int qd_app_sysex_peek(const struct qd_app *a);   /* P1.6l: the next reply's length (0: none) */
+int qd_app_sysex_busy(const struct qd_app *a);   /* P1.6m: replies still to be made (an export going out) */
+void qd_sx_ms(struct qd_app *a);       /* P1.6l: each ms: a subscribed page's LABELS when they change */
 void qd_app_sysex_version(struct qd_app *a, const char *version);
 
 /* the 7-bit packing: groups of seven bytes as eight, the first holding their top bits (bit k: byte k's); n bytes ->

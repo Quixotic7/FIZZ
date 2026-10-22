@@ -8,7 +8,7 @@ import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { storeSound, parseReply, fizzTagMask, FIZZ_TAGS } from "./fizz_sysex.mjs";
+import { storeSound, parseReply, fizzTagMask, FIZZ_TAGS, labelsRequest, parseLabels, LABELS_N } from "./fizz_sysex.mjs";
 
 const [exe] = process.argv.slice(2);
 if (!exe) { console.error("usage: node test_fizz_sysex.mjs TEST_SYSEX"); process.exit(2); }
@@ -68,6 +68,18 @@ const feed = (frame) => {
   const b5 = blob.slice(); b5[1] = 6;
   const r5 = feed(storeSound({ name: "SHORT SIX", blob: b5 }));
   check(r5.reply && r5.reply.status !== 0, `a version-6 blob in a STORE (96 bytes): refused (${r5.reply && r5.reply.statusName})`);
+}
+{   // P1.6l: LABELS through FIZZ (--session: awake, the step view): the step view's labels, parsed
+  const req = labelsRequest({ subscribe: true });
+  check(req.length === 9 && req[5] === 0x20 && req[6] === 1, `labelsRequest: 9 bytes, 20 01 (${Array.from(req)})`);
+  writeFileSync(join(tmp, "labels.syx"), req);
+  const out = execFileSync(exe, ["--session", join(tmp, "labels.syx")], { encoding: "utf8" });
+  const line = (out.match(/^reply(.*)$/m) || [])[1] || "";
+  const l = parseLabels(Uint8Array.from(line.trim().split(/\s+/).map((h) => parseInt(h, 16))));
+  check(l && l.list.length === LABELS_N && l.white[0] === "STEP 1" && l.black[1] === "VEL" && l.knobs.SELECT === "PAGE" &&
+        l.buttons.PLAY === "PLAY" && l.knobs.MASTER === "VOLUME" && l.list.every((x) => x.length <= 10),
+        `parseLabels: 49, W1 ${l && l.white[0]}, B2 ${l && l.black[1]}, SELECT ${l && l.knobs.SELECT}`);
+  check(parseReply(Uint8Array.from(line.trim().split(/\s+/).map((h) => parseInt(h, 16)))).kind === "labels", "parseReply: labels");
 }
 console.log(`test_fizz_sysex: ${checks} checks, ${fails} failed`);
 process.exit(fails ? 1 : 0);

@@ -152,12 +152,28 @@ void fm1core_qd_init(int demo)
     fm1core_qd_leds_out();
 }
 
+/* P1.5r / P1.6l: the app's replies into the ABI's ring of packets, as many as it has room for (the rest wait: a long
+ * export or a subscribed LABELS goes out as the host reads) */
+static void fm1core_qd_drain(void)
+{
+    static uint8_t r[QD_SX_FRAME_MAX];
+    int k;
+    while ((k = qd_app_sysex_peek(&fm1core_qd_app)) > 0 &&
+           ((uint32_t)k + 2u) / 3u <= FM1SX_OUT_PKTS - (fm1core_qd_sx_out.w - fm1core_qd_sx_out.r)) {
+        k = qd_app_sysex_take(&fm1core_qd_app, r, sizeof r);
+        if (k <= 0)
+            break;
+        fm1sx_send(&fm1core_qd_sx_out, r, (uint32_t)k);
+    }
+}
+
 void fm1core_qd_tick(uint32_t ms)
 {
     if (!fm1core_qd_up)
         return;
     fm1core_qd_in();
     qd_app_tick(&fm1core_qd_app, ms);
+    fm1core_qd_drain();
 }
 
 void fm1core_qd_frame(void)
@@ -194,14 +210,11 @@ int fm1core_qd_midi_in(uint32_t pkt)
     if (fm1core_qd_up) {                                /* P1.5r: a whole frame of FIZZ's: into the app, its reply out */
         const uint8_t *f;
         uint32_t n;
-        uint8_t r[QD_SX_OUT_MAX];
-        int k;
         if (fm1sx_frame(&fm1core_qd_sx_in, &f, &n)) {
             qd_app_sysex(&fm1core_qd_app, f, n);
             fm1sx_done(&fm1core_qd_sx_in);
         }
-        while ((k = qd_app_sysex_take(&fm1core_qd_app, r, sizeof r)) > 0)
-            fm1sx_send(&fm1core_qd_sx_out, r, (uint32_t)k);
+        fm1core_qd_drain();
     }
     if (fm1core_qd_up && cin >= 8u && cin <= 14u)             /* a channel message (note off .. pitch bend) */
         qd_app_midi(&fm1core_qd_app, (int)((pkt >> 8) & 0xFFu), (int)((pkt >> 16) & 0x7Fu), (int)((pkt >> 24) & 0x7Fu));

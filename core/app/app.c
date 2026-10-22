@@ -217,6 +217,7 @@ static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
 {
     qd_app_sounds(a);
     qd_persist_ms(a);                                   /* P1.5a: written by itself */
+    qd_sx_ms(a);                                        /* P1.6l: a subscribed page's LABELS, when they change */
     if (a->seq.playing != a->playing) {                 /* (MIDI START / STOP moved the transport) */
         if (a->seq.playing)
             qd_dance_play(a);

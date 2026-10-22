@@ -755,6 +755,19 @@ enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR
 int qd_view_overlay(const struct qd_app *a);
 struct ui_snd;
 void qd_view_snd(struct qd_app *a, struct ui_snd *v);   /* P1.4a: the sound editor's model (the tests read it) */
+/* P1.6l: every control's job now, as short labels (view_labels.c; the order: the 7 knobs SELECT ALGORITHM PRESETS
+ * KNOB 1..4 and MASTER, the 14 buttons in QD_B_* order, W1..W16, B1..B11); up to ten characters, upper case, "" none */
+#define QD_LBL_LEN 11
+#define QD_LBL_KNOB0 0
+#define QD_LBL_MASTER 7
+#define QD_LBL_BTN0 8
+#define QD_LBL_W0 (QD_LBL_BTN0 + 14)       /* (QD_NBTN) */
+#define QD_LBL_B0 (QD_LBL_W0 + 16)
+#define QD_LBL_N (QD_LBL_B0 + 11)          /* 49 */
+typedef struct {
+    char s[QD_LBL_N][QD_LBL_LEN];
+} qd_labels_t;
+void qd_ctl_labels(const struct qd_app *a, qd_labels_t *out);
 int qd_view_screen(const struct qd_app *a);
 
 #ifdef __cplusplus

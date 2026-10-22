@@ -6,7 +6,8 @@
  *
  *     test_sysex                 the tests (exit 1 on a failed check)
  *     test_sysex --feed F.syx    each frame of F into a fresh FIZZ: its reply (hex) and the sound stored ("name",
- *                                its 74 values), for tools/test_sysex_dnsnd.mjs */
+ *                                its 74 values), for tools/test_sysex_dnsnd.mjs
+ *     test_sysex --session F.syx P1.6l: every frame of F into one FIZZ (awake), every reply after each (hex) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -81,7 +82,7 @@ static uint32_t store_msg_tags(uint8_t *f, int flags, int slot, const char *name
     b[o++] = (uint8_t)tags;
     return frame(f, QD_SX_STORE, b, o);
 }
-static uint8_t R[64];
+static uint8_t R[QD_SX_FRAME_MAX];
 static int rn;
 static int send(const uint8_t *f, uint32_t n)           /* -> the reply's length (R) */
 {
@@ -103,6 +104,45 @@ static int reply_ok(void)                               /* F0 7D 46 5A 01 .. chk
 }
 static int status(void) { return reply_ok() && R[5] == QD_SX_R_STORE ? R[6] : -1; }
 static int rslot(void) { return R[8] << 7 | R[9]; }
+
+/* P1.6l / P1.6m: --session: every frame of the file into one FIZZ (awake, in the step view), each reply after it
+ * (all of them: a long one, several) as "reply .." lines, a few ms of time between frames */
+static void session(const char *path)
+{
+    static uint8_t buf[1 << 20];
+    FILE *fp = fopen(path, "rb");
+    size_t n, i, s = 0;
+    if (!fp) {
+        printf("cannot read %s\n", path);
+        exit(1);
+    }
+    n = fread(buf, 1, sizeof buf, fp);
+    fclose(fp);
+    fresh();
+    qd_app_button(&A, QD_B_HOME, 1);
+    run(20);
+    qd_app_button(&A, QD_B_HOME, 0);
+    run(20);
+    for (i = 0; i < n; i++) {
+        if (buf[i] == 0xF0)
+            s = i + 1;
+        else if (buf[i] == 0xF7) {
+            int k, g;
+            qd_app_sysex(&A, buf + s, (uint32_t)(i - s));
+            for (g = 0; g < 4000; g++) {                /* (replies paced over time: take them as they come) */
+                while ((rn = qd_app_sysex_take(&A, R, sizeof R)) > 0) {
+                    printf("reply");
+                    for (k = 0; k < rn; k++)
+                        printf(" %02X", R[k]);
+                    printf("\n");
+                }
+                run(1);
+                if (!qd_app_sysex_peek(&A) && qd_app_sysex_busy(&A) == 0)
+                    break;
+            }
+        }
+    }
+}
 
 static void feed(const char *path)
 {
@@ -147,6 +187,11 @@ int main(int argc, char **argv)
     if (!qd_init()) {
         printf("test_sysex: qd_init failed\n");
         return 1;
+    }
+    if (argc == 3 && !strcmp(argv[1], "--session")) {   /* (P1.6l) */
+        session(argv[2]);
+        qd_shutdown();
+        return 0;
     }
     if (argc == 3 && !strcmp(argv[1], "--feed")) {
         feed(argv[2]);
@@ -318,6 +363,53 @@ int main(int argc, char **argv)
               A.model.t[2].mix.reverb == 90 && A.model.t[2].mix.chorus == k &&
               !strcmp(A.proj.pat[A.seq.cur].snd[2].name, "LOADED"),
           "LOAD onto track 3: its sound (the pool's), pan -24, delay 70, reverb 90, chorus untouched (not in the mask)");
+    {   /* P1.6l: LABELS: asked, its reply (the count, 49 labels); subscribed: a reply by itself when they change, none
+         * when they do not; unsubscribed: none */
+        static uint8_t LR[QD_SX_FRAME_MAX];
+        const uint8_t sub = QD_SXL_SUB, unsub = 0;
+        char l[QD_LBL_N][QD_LBL_LEN];
+        int ln, c0, ok2 = 1, j, sum2 = 0;
+        fresh();
+        qd_app_button(&A, QD_B_HOME, 1);                /* (awake: the step view) */
+        run(20);
+        qd_app_button(&A, QD_B_HOME, 0);
+        run(20);
+        n = frame(f, QD_SX_LABELS, &sub, 1);
+        qd_app_sysex(&A, f, n);
+        ln = qd_app_sysex_take(&A, LR, sizeof LR);
+        for (j = 5; j < ln - 1; j++)
+            sum2 += LR[j];
+        ok2 = ln > 60 && LR[5] == QD_SX_R_LABELS && LR[8] == QD_LBL_N && !(sum2 & 0x7F) && LR[ln - 1] == 0xF7;
+        {   /* the labels back */
+            int o2 = 9;
+            for (k = 0; k < QD_LBL_N && ok2; k++) {
+                const int len = LR[o2++];
+                ok2 &= len <= 10 && o2 + len < ln;
+                memcpy(l[k], LR + o2, (size_t)len);
+                l[k][len] = 0;
+                o2 += len;
+            }
+        }
+        c0 = LR[6] << 7 | LR[7];
+        CHECK(ok2 && !strcmp(l[QD_LBL_W0], "STEP 1") && !strcmp(l[QD_LBL_B0 + 1], "VEL") && !strcmp(l[QD_LBL_BTN0 + QD_B_PLAY], "PLAY"),
+              "LABELS: 60, the count %d, 49 labels (W1 %s, B2 %s, PLAY %s), %d bytes", c0, l[QD_LBL_W0], l[QD_LBL_B0 + 1],
+              l[QD_LBL_BTN0 + QD_B_PLAY], ln);
+        run(200);
+        CHECK(!qd_app_sysex_peek(&A), "subscribed, nothing changed: no reply");
+        qd_app_button(&A, QD_B_FUNC, 1);                /* SHIFT down: they change */
+        run(60);
+        ln = qd_app_sysex_take(&A, LR, sizeof LR);
+        CHECK(ln > 60 && LR[5] == QD_SX_R_LABELS && (LR[6] << 7 | LR[7]) == c0 + 1 && !memcmp(LR + 9, "\x05TRACK", 6),
+              "SHIFT down: a LABELS reply by itself within 50 ms, the count %d, SELECT TRACK", LR[6] << 7 | LR[7]);
+        run(100);
+        CHECK(!qd_app_sysex_peek(&A), "SHIFT held: no more");
+        n = frame(f, QD_SX_LABELS, &unsub, 1);           /* unsubscribed: asked once, then none */
+        qd_app_sysex(&A, f, n);
+        ln = qd_app_sysex_take(&A, LR, sizeof LR);
+        qd_app_button(&A, QD_B_FUNC, 0);
+        run(200);
+        CHECK(ln > 60 && !qd_app_sysex_peek(&A), "unsubscribed: its reply, then none when they change");
+    }
     qd_shutdown();
     printf("test_sysex: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

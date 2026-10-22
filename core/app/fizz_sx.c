@@ -32,37 +32,104 @@ uint32_t qd_sx_unpack7(const uint8_t *in, uint32_t n, uint8_t *out)
 }
 
 /* a reply into the queue: F0 7D 46 5A 01, the bytes, the checksum, F7 */
-static void sx_reply(qd_app_t *a, const uint8_t *b, uint32_t n)
+/* P1.6l: the replies wait in a ring of bytes, each its length (2 bytes) then F0 .. F7 */
+static uint32_t sx_room(const qd_sx_t *s) { return QD_SX_RING - (s->w - s->r); }
+static void sx_put(qd_sx_t *s, uint8_t v) { s->ring[s->w++ % QD_SX_RING] = v; }
+static uint8_t sx_at(const qd_sx_t *s, uint32_t i) { return s->ring[(s->r + i) % QD_SX_RING]; }
+static int sx_reply(qd_app_t *a, const uint8_t *b, uint32_t n)
 {
     qd_sx_t *s = &a->sx;
-    uint8_t *q;
-    uint32_t i, sum = 0, o = 0;
-    if (s->w - s->r >= QD_SX_OUT || n + 7u > QD_SX_OUT_MAX)
-        return;                                         /* (no room: the oldest stay; a host asks again) */
-    q = s->q[s->w % QD_SX_OUT];
-    q[o++] = 0xF0, q[o++] = QD_SX_ID0, q[o++] = QD_SX_ID1, q[o++] = QD_SX_ID2, q[o++] = QD_SX_PROTO;
+    uint32_t i, sum = 0;
+    const uint32_t len = n + 7u;
+    if (len > QD_SX_FRAME_MAX || len + 2u > sx_room(s))
+        return 0;                                       /* (no room: the older stay; a host asks again) */
+    sx_put(s, (uint8_t)(len & 0xFFu)), sx_put(s, (uint8_t)(len >> 8));
+    sx_put(s, 0xF0), sx_put(s, QD_SX_ID0), sx_put(s, QD_SX_ID1), sx_put(s, QD_SX_ID2), sx_put(s, QD_SX_PROTO);
     for (i = 0; i < n; i++) {
-        q[o++] = b[i] & 0x7Fu;
+        sx_put(s, b[i] & 0x7Fu);
         sum += b[i] & 0x7Fu;
     }
-    q[o++] = (uint8_t)((0x80u - (sum & 0x7Fu)) & 0x7Fu);
-    q[o++] = 0xF7;
-    s->n[s->w % QD_SX_OUT] = (uint8_t)o;
-    s->w++;
+    sx_put(s, (uint8_t)((0x80u - (sum & 0x7Fu)) & 0x7Fu));
+    sx_put(s, 0xF7);
+    return 1;
 }
+
+int qd_app_sysex_peek(const qd_app_t *a)
+{
+    const qd_sx_t *s = &a->sx;
+    return s->r == s->w ? 0 : (int)(sx_at(s, 0) | (uint32_t)sx_at(s, 1) << 8);
+}
+
+int qd_app_sysex_busy(const qd_app_t *a) { (void)a; return 0; }
 
 int qd_app_sysex_take(qd_app_t *a, uint8_t *out, uint32_t max)
 {
     qd_sx_t *s = &a->sx;
-    uint32_t n;
-    if (s->r == s->w)
+    const uint32_t n = (uint32_t)qd_app_sysex_peek(a);
+    uint32_t i;
+    if (!n || n > max)
         return 0;
-    n = s->n[s->r % QD_SX_OUT];
-    if (n > max)
-        return 0;
-    memcpy(out, s->q[s->r % QD_SX_OUT], n);
-    s->r++;
+    for (i = 0; i < n; i++)
+        out[i] = sx_at(s, 2u + i);
+    s->r += 2u + n;
     return (int)n;
+}
+
+/* P1.6l: LABELS: the change count (two 7-bit bytes), how many (49), each label its length (0..10) then its
+ * characters (qd_ctl_labels) */
+static uint32_t sx_labels_hash(const qd_labels_t *l)
+{
+    uint32_t h = 2166136261u, i;
+    const uint8_t *p = (const uint8_t *)l->s;
+    for (i = 0; i < sizeof l->s; i++)
+        h = (h ^ p[i]) * 16777619u;
+    return h;
+}
+static void sx_labels_reply(qd_app_t *a, const qd_labels_t *l)
+{
+    uint8_t b[4 + QD_LBL_N * QD_LBL_LEN];
+    uint32_t o = 0;
+    int i;
+    b[o++] = QD_SX_R_LABELS;
+    b[o++] = (uint8_t)((a->sx.lbl_count >> 7) & 0x7Fu);
+    b[o++] = (uint8_t)(a->sx.lbl_count & 0x7Fu);
+    b[o++] = QD_LBL_N;
+    for (i = 0; i < QD_LBL_N; i++) {
+        const uint32_t n = (uint32_t)strlen(l->s[i]);
+        b[o++] = (uint8_t)n;
+        memcpy(b + o, l->s[i], n);
+        o += n;
+    }
+    sx_reply(a, b, o);
+}
+static void sx_labels(qd_app_t *a, const uint8_t *b, uint32_t n)
+{
+    static qd_labels_t l;
+    qd_ctl_labels(a, &l);
+    a->sx.lbl_sub = n >= 2u && (b[0] & QD_SXL_SUB);
+    if (sx_labels_hash(&l) != a->sx.lbl_hash) {
+        a->sx.lbl_hash = sx_labels_hash(&l);
+        a->sx.lbl_count = (a->sx.lbl_count + 1u) & 0x3FFFu;
+    }
+    a->sx.lbl_ms = a->ms;
+    sx_labels_reply(a, &l);
+}
+void qd_sx_ms(qd_app_t *a)
+{
+    static qd_labels_t l;
+    uint32_t h;
+    if (!a->sx.lbl_sub || a->ms - a->sx.lbl_ms < QD_SX_LABELS_MS)
+        return;
+    a->sx.lbl_ms = a->ms;
+    qd_ctl_labels(a, &l);
+    h = sx_labels_hash(&l);
+    if (h == a->sx.lbl_hash)
+        return;                                         /* (the same set: nothing sent) */
+    if (sx_room(&a->sx) < 2u * QD_SX_FRAME_MAX)
+        return;                                         /* (the host is behind: the next look sends it) */
+    a->sx.lbl_hash = h;
+    a->sx.lbl_count = (a->sx.lbl_count + 1u) & 0x3FFFu;
+    sx_labels_reply(a, &l);
 }
 
 void qd_app_sysex_version(qd_app_t *a, const char *version) { a->sx.version = version; }
@@ -222,6 +289,9 @@ void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
         break;
     case QD_SX_STORE6:                                  /* E1 */
         sx_store(a, f + 5, n - 5u, 1);
+        break;
+    case QD_SX_LABELS:                                  /* P1.6l */
+        sx_labels(a, f + 5, n - 5u);
         break;
     default: {
         const uint8_t b[3] = {QD_SX_R_ERROR, QD_SX_BAD_COMMAND, f[4] & 0x7F};

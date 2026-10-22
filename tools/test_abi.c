@@ -72,6 +72,28 @@ static int bpm(void)
     return b ? atoi(b) : -1;
 }
 static void midi_rt(int status) { C->midi_in(15u | (uint32_t)status << 8); }
+/* P1.6l: a SysEx frame (F0 .. F7) into midi_in as USB-MIDI packets; the replies out of midi_out_take, their bytes */
+static void sx_in(const uint8_t *f, int n)
+{
+    int i;
+    for (i = 0; i < n; i += 3) {
+        const int k = n - i < 3 ? n - i : 3, end = i + k >= n;
+        const uint32_t cin = end ? 4u + (uint32_t)k : 4u;
+        C->midi_in(cin | (uint32_t)f[i] << 8 | (k > 1 ? (uint32_t)f[i + 1] << 16 : 0u) | (k > 2 ? (uint32_t)f[i + 2] << 24 : 0u));
+    }
+}
+static int sx_out(uint8_t *r, int max)
+{
+    uint32_t pkt;
+    int n = 0;
+    while (C->midi_out_take(&pkt) && n < max - 3) {
+        const uint32_t cin = pkt & 15u, nb = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u;
+        uint32_t j;
+        for (j = 0; j < nb; j++)
+            r[n++] = (uint8_t)(pkt >> (8u * (j + 1u)));
+    }
+    return n;
+}
 static void f3_open(void)
 {
     bdown(FM1P_B_OCTDN);
@@ -293,6 +315,36 @@ int main(int argc, char **argv)
         }
         btap(FM1P_B_HOME);
         run(100);
+    }
+
+    {   /* P1.6l: LABELS through midi_in, subscribed: the reply, then GLO held: a reply by itself (SELECT TRACK) */
+        static const uint8_t LREQ[9] = {0xF0, 0x7D, 0x46, 0x5A, 0x01, 0x20, 0x01, 0x5F, 0xF7};
+        static uint8_t r[4096];
+        int n, n2;
+        btap(FM1P_B_HOME);
+        run(100);
+        sx_out(r, sizeof r);                            /* (whatever waited) */
+        sx_in(LREQ, 9);
+        run(5);
+        n = sx_out(r, sizeof r);
+        CHECK(n > 60 && r[0] == 0xF0 && r[5] == 0x60 && r[8] == 49 && r[n - 1] == 0xF7, "LABELS through midi_in: the "
+              "reply out of midi_out_take (%d bytes)", n);
+        run(200);
+        n = sx_out(r, sizeof r);
+        bdown(FM1P_B_GLO);
+        run(80);
+        n2 = sx_out(r, sizeof r);
+        CHECK(!n && n2 > 60 && r[5] == 0x60 && !memcmp(r + 9, "\x05TRACK", 6), "subscribed: nothing while nothing "
+              "changes; GLO held: LABELS by itself, SELECT TRACK (%d bytes)", n2);
+        bup(FM1P_B_GLO);
+        run(80);
+        sx_out(r, sizeof r);
+        {
+            static const uint8_t UNSUB[9] = {0xF0, 0x7D, 0x46, 0x5A, 0x01, 0x20, 0x00, 0x60, 0xF7};
+            sx_in(UNSUB, 9);
+            run(5);
+            sx_out(r, sizeof r);
+        }
     }
 
     C->shutdown();

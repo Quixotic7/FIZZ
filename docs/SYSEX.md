@@ -130,6 +130,34 @@ Reply: `F0 7D 46 5A 01 50 <status> <0 LIBRARY / 1 POOL> <slot hi> <slot lo> <chk
 
 Any other command, or a frame whose checksum fails before its command is known, gets `F0 7D 46 5A 01 7F <status> <cmd> <chk> F7`. A STORE whose checksum fails gets a STORE reply with status 3.
 
+### `20` LABELS (P1.6l, 0.8.0-p1.6l)
+
+What every control does right now, for a page that draws the panel (the owner: "hold Shift and it should update
+with labels of available shortcuts"). Request: `F0 7D 46 5A 01 20 <flags> <chk> F7`; flags bit 0 **subscribe**.
+
+Reply: `F0 7D 46 5A 01 60 <count hi> <count lo> <n = 49> { <len> <len ASCII bytes> } x 49 <chk> F7`
+
+- **count**: the label set's change counter (14 bits, two 7-bit bytes); it goes up by one whenever the set differs
+  from the last one sent.
+- **The 49 labels, in this order**: the knobs SELECT, ALGORITHM, PRESETS, KNOB 1..4, MASTER (8); the 14 buttons as
+  the FM-1's panel prints them: FX, TRACKS, MIX, LATCH, EDIT, SHIFT, HOME, SOUNDS, FILL, PATTERNS, PLAY, REC, F1, F2;
+  the white keys W1..W16; the black keys B1..B11. Each is 0..10 characters, upper case, printable ASCII; **empty: the
+  control has no job here** (SHIFT held: the white keys and B2, B10; the typewriter: PLAY and most buttons; asleep:
+  everything but HOME WAKE, PLAY and MASTER).
+- **They follow FIZZ's own state** (`core/app/view_labels.c`, from the same tables the controls use): the step view
+  (STEP 1..16, the hold modes NOTE .. P-LOCK, the knobs' jobs), a step held (the mode's values: 13 .. 127, 1/4 ..
+  INF; RESET), SHIFT held (SNAP SAVE, RECALL, COPY PTN, PASTE, TAP, CLICK, FOLLOW, DOUBLE, CLEAR TRK; SELECT TRACK,
+  ALGORITHM SCALE, PRESETS ROOT; F1 UNDO, F2 REDO, HOME VIEW, REC REC SET, TRACKS SETTINGS), the sound editor (its
+  groups, the page's value names, DICE, NEW SOUND), the browser (ALL, BASS .. FX, the next source, +POOL / -POOL,
+  DELETE, LOAD, CANCEL), the typewriter (the letters, or SHIFT's characters; CURSOR, LETTER, NEW NAME, DELETE /
+  CLEAR), SEQ held (the patterns, the banks), SEL held (MUTE / SOLO / TRACK), F1 / F2 / F3, the settings menus, the
+  mix, the effects (their cells' names), the keyboard (the notes).
+- **Subscribed**, FIZZ sends a LABELS reply by itself whenever the set changes, looking at most every 50 ms (20 a
+  second); nothing while it stays the same. A request without the flag answers once and ends the subscription.
+
+`tools/fizz_sysex.mjs`: `labelsRequest({subscribe})`, `parseLabels(bytes)` → `{count, list, knobs, buttons, white,
+black}`; `parseReply` gives `{kind: "labels", ..}`.
+
 ## What FIZZ does with a sound
 
 - **Stores it** in the LIBRARY slot or POOL number, with its name. A LIBRARY import becomes one of MY presets: its own
@@ -199,5 +227,7 @@ with a C++ port of it (FM1VST `plugin/Dnsnd.cpp` `parseDn2`, checked byte for by
 ## Limits
 
 - A frame waits for its `F7`. A partial frame followed by another status byte is dropped.
-- At most 4 replies wait at a time; a host should read the reply before sending the next message. The web preview's engine runs `midiOutTake` every render, which is plenty.
+- Replies wait in a 4 KiB ring inside FIZZ (P1.6l; was 4 replies), then in the ABI's packet ring (12 KiB); a host
+  reads them with `midiOutTake` (the web preview's engine every render). FIZZ moves them on each tick as there is
+  room, so a long run of replies goes out as the host reads.
 - The identity request does not use the universal Identity Request (`F0 7E 7F 06 01 F7`), so that FIZZ does not claim a manufacturer ID.

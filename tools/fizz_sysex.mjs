@@ -12,13 +12,24 @@
 //   parseReply(bytes)                            -> {kind: "identity", protocol, version} | {kind: "store", status,
 //                                                   statusName, pool, slot} | {kind: "error", status, statusName,
 //                                                   command} | null (not FIZZ's, or a bad checksum)
+//   labelsRequest({subscribe})                   -> P1.6l: LABELS (20): the controls' labels now; subscribe: FIZZ
+//                                                   sends LABELS again by itself whenever they change (at most 20 a
+//                                                   second), until a request without it
+//   parseLabels(bytes)                           -> {count, list: [49 strings], knobs: {SELECT, ALGORITHM, PRESETS,
+//                                                   K1..K4, MASTER}, buttons: {FX .. F2}, white: [16], black: [11]}
+//                                                   | null (not a LABELS reply)
 //   usbPackets(frame)                            -> [u32]: the frame as USB-MIDI packets (cable 0, CIN 4 / 5 / 6 / 7)
 //   pack7(bytes), unpack7(bytes)                 the 7-bit packing (groups of 7 -> 8, the first byte their top bits)
 
 export const FIZZ_HEADER = [0x7d, 0x46, 0x5a];
 export const FIZZ_PROTOCOL = 1;
-export const CMD = { IDENTITY: 0x01, STORE: 0x10, STORE6: 0x11 };   // (E1: STORE6, the version-6 blob)
-export const REPLY = { IDENTITY: 0x41, STORE: 0x50, ERROR: 0x7f };
+export const CMD = { IDENTITY: 0x01, STORE: 0x10, STORE6: 0x11, LABELS: 0x20 };   // (E1: STORE6; P1.6l: LABELS)
+export const REPLY = { IDENTITY: 0x41, STORE: 0x50, LABELS: 0x60, ERROR: 0x7f };
+// P1.6l: the labels' order (docs/SYSEX.md): the knobs, the 14 buttons (the FM-1's panel labels), W1..W16, B1..B11
+export const LABEL_KNOBS = ["SELECT", "ALGORITHM", "PRESETS", "K1", "K2", "K3", "K4", "MASTER"];
+export const LABEL_BUTTONS = ["FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "HOME", "SOUNDS", "FILL", "PATTERNS", "PLAY",
+  "REC", "F1", "F2"];
+export const LABELS_N = LABEL_KNOBS.length + LABEL_BUTTONS.length + 16 + 11;   // 49
 export const FLAGS = { POOL: 0x01, BATCH: 0x02, LOAD: 0x04 };
 export const MIX = { PAN: 0x01, CHORUS: 0x02, DELAY: 0x04, REVERB: 0x08 };
 export const STATUS = ["OK", "FULL", "BAD LENGTH", "BAD CHECKSUM", "BAD PATCH", "BAD SLOT", "BAD VERSION", "BAD COMMAND"];
@@ -81,6 +92,30 @@ export function storeSound({ name = "", blob, drive = 0, pool = false, slot = 0,
                            ...pack7(blob), ...(tm ? [tm] : [])]);
 }
 
+export const labelsRequest = ({ subscribe = false } = {}) => frame(CMD.LABELS, [subscribe ? 1 : 0]);
+
+export function parseLabels(bytes) {
+  const b = Array.from(bytes);
+  if (b.length < 10 || b[0] !== 0xf0 || b[b.length - 1] !== 0xf7 || b[1] !== 0x7d || b[2] !== 0x46 || b[3] !== 0x5a ||
+      b[5] !== REPLY.LABELS) return null;
+  if (b.slice(5, -1).reduce((s, x) => s + x, 0) & 0x7f) return null;
+  const count = (b[6] << 7) | b[7], n = b[8], list = [];
+  let o = 9;
+  for (let i = 0; i < n && o < b.length - 2; i++) {
+    const len = b[o++];
+    list.push(String.fromCharCode(...b.slice(o, o + len)));
+    o += len;
+  }
+  if (list.length !== n) return null;
+  const at = (k) => list[k] || "";
+  const nk = LABEL_KNOBS.length, nb = LABEL_BUTTONS.length;
+  return { count, list,
+    knobs: Object.fromEntries(LABEL_KNOBS.map((k, i) => [k, at(i)])),
+    buttons: Object.fromEntries(LABEL_BUTTONS.map((k, i) => [k, at(nk + i)])),
+    white: Array.from({ length: 16 }, (_, i) => at(nk + nb + i)),
+    black: Array.from({ length: 11 }, (_, i) => at(nk + nb + 16 + i)) };
+}
+
 export function parseReply(bytes) {
   const b = Array.from(bytes);
   if (b.length < 8 || b[0] !== 0xf0 || b[b.length - 1] !== 0xf7 || b[1] !== 0x7d || b[2] !== 0x46 || b[3] !== 0x5a)
@@ -92,6 +127,7 @@ export function parseReply(bytes) {
   if (kind === REPLY.STORE)
     return { kind: "store", status: rest[0], statusName: STATUS[rest[0]], pool: rest[1] === 1, slot: (rest[2] << 7) | rest[3] };
   if (kind === REPLY.ERROR) return { kind: "error", status: rest[0], statusName: STATUS[rest[0]], command: rest[1] };
+  if (kind === REPLY.LABELS) return { kind: "labels", ...parseLabels(bytes) };
   return null;
 }
 

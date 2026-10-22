@@ -6399,6 +6399,94 @@ static void g_p15z_shift_select(void)
     btap(QD_B_HOME);
 }
 
+
+/* ================================================================ P1.6l: the controls' labels === */
+static qd_labels_t LB;
+static const char *lab(int i)
+{
+    qd_ctl_labels(&A, &LB);
+    return LB.s[i];
+}
+#define LW(w) (QD_LBL_W0 + (w))
+#define LBK(b) (QD_LBL_B0 + (b))
+#define LBT(b) (QD_LBL_BTN0 + (b))
+#define LKN(k) (QD_LBL_KNOB0 + (k))
+static int labels_clean(void)                           /* every label: at most ten, upper case, printable */
+{
+    int i, k;
+    qd_ctl_labels(&A, &LB);
+    for (i = 0; i < QD_LBL_N; i++) {
+        if (strlen(LB.s[i]) > 10)
+            return 0;
+        for (k = 0; LB.s[i][k]; k++)
+            if ((LB.s[i][k] >= 'a' && LB.s[i][k] <= 'z') || LB.s[i][k] < 0x20 || LB.s[i][k] > 0x7E)
+                return 0;
+    }
+    return 1;
+}
+static void g_p16l_labels(void)
+{
+    start();
+    mode(M_VEL);
+    CHECK(!strcmp(lab(LW(0)), "STEP 1") && !strcmp(lab(LW(15)), "STEP 16") && !strcmp(lab(LBK(0)), "NOTE") &&
+              !strcmp(lab(LBK(1)), "VEL") && !strcmp(lab(LBK(10)), "P-LOCK") && !strcmp(lab(LKN(QD_K_SELECT)), "PAGE") &&
+              !strcmp(lab(LKN(QD_K_ALGO)), "VEL DEF") && !strcmp(lab(LBT(QD_B_PLAY)), "PLAY") &&
+              !strcmp(lab(LBT(QD_B_OCTDN)), "F1") && !strcmp(lab(QD_LBL_MASTER), "VOLUME") && labels_clean(),
+          "the step view: STEP 1..16, the hold modes, SELECT PAGE, ALGORITHM VEL DEF, PLAY, F1, MASTER VOLUME");
+    bdown(SHIFT);
+    run(20);
+    CHECK(!strcmp(lab(LBK(0)), "SNAP SAVE") && !lab(LBK(1))[0] && !strcmp(lab(LBK(5)), "TAP") &&
+              !strcmp(lab(LBK(7)), "FOLLOW") && !strcmp(lab(LBK(10)), "CLEAR TRK") && !lab(LW(0))[0] &&
+              !strcmp(lab(LKN(QD_K_SELECT)), "TRACK") && !strcmp(lab(LKN(QD_K_ALGO)), "SCALE") &&
+              !strcmp(lab(LKN(QD_K_PRESETS)), "ROOT") && !strcmp(lab(LBT(QD_B_OCTDN)), "UNDO") &&
+              !strcmp(lab(LBT(QD_B_OCTUP)), "REDO") && !strcmp(lab(LBT(QD_B_HOME)), "VIEW") && labels_clean(),
+          "SHIFT held: its shortcuts (B2 none), SELECT TRACK, SCALE, ROOT, UNDO, REDO, VIEW; the white keys none");
+    bup(SHIFT);
+    run(20);
+    whold(2);                                           /* a step held in VEL: the values */
+    CHECK(!strcmp(lab(LBK(0)), "13") && !strcmp(lab(LBK(9)), "127") && !strcmp(lab(LBK(10)), "RESET") &&
+              !strcmp(lab(LKN(QD_K_PRESETS)), "SOUND LOCK") && labels_clean(),
+          "a step held in VEL: B1 13 .. B10 127, B11 RESET, PRESETS SOUND LOCK (%s %s)", lab(LBK(0)), lab(LBK(9)));
+    wrel(2);
+    btap(QD_B_SOUND);                                   /* the sound editor on FILTER */
+    A.ui.snd_page = qd_snd_page_of("FILTER");
+    CHECK(!strcmp(lab(LKN(QD_K_1)), qd_quad_value_name(QD_QP_FREQ)) &&
+              !strcmp(lab(LKN(QD_K_2)), qd_quad_value_name(QD_QP_RESO)) && !strcmp(lab(LBK(3)), "FILTERS") &&
+              !strcmp(lab(LBK(0)), "PLAY/MOD") && !strcmp(lab(LBK(8)), "DICE") && !strcmp(lab(LBT(QD_B_SOUND)), "CLOSE") &&
+              labels_clean(), "the sound editor on FILTER: KNOB 1 %s, KNOB 2 %s, the groups, B9 DICE, EDIT CLOSE",
+          lab(LKN(QD_K_1)), lab(LKN(QD_K_2)));
+    btap(QD_B_SOUND);
+    btap(QD_B_HOME);
+    run(600);
+    turn(QD_K_PRESETS, 1);                              /* the browser */
+    {
+        const int in = qd_br_pool_k(&A) > 0;
+        CHECK(A.ui.latch == QD_LATCH_BROWSE && !strcmp(lab(LBK(0)), "ALL") && !strcmp(lab(LBK(1)), "BASS") &&
+                  !strcmp(lab(LBK(7)), "FX") && !strcmp(lab(LBK(8)), "MY PRESETS") &&
+                  !strcmp(lab(LBK(9)), in ? "-POOL" : "+POOL") && !strcmp(lab(LBT(QD_B_OCTUP)), "LOAD") &&
+                  !strcmp(lab(LBT(QD_B_OCTDN)), "CANCEL") && labels_clean(),
+              "the browser: ALL, BASS .. FX, B9 the next source, B10 %s, F2 LOAD, F1 CANCEL", lab(LBK(9)));
+        black(B10);
+        CHECK(!strcmp(lab(LBK(9)), in ? "+POOL" : "-POOL"), "B10: the other way now (%s)", lab(LBK(9)));
+    }
+    btap(QD_B_HOME);
+    btap(QD_B_SAVE);                                    /* the typewriter, with SHIFT */
+    CHECK(!strcmp(lab(LBK(0)), "A") && !strcmp(lab(LW(15)), "SPACE") && !strcmp(lab(LKN(QD_K_ALGO)), "CURSOR") &&
+              !strcmp(lab(LKN(QD_K_PRESETS)), "NEW NAME") && !strcmp(lab(LKN(QD_K_1)), "LETTER") &&
+              !lab(LKN(QD_K_2))[0] && !strcmp(lab(LBT(QD_B_OCTDN)), "DELETE") && !lab(LBT(QD_B_PLAY))[0],
+          "the typewriter: A .. K, L .. SPACE, CURSOR, NEW NAME, LETTER, DELETE; PLAY none");
+    bdown(SHIFT);
+    run(20);
+    CHECK(!strcmp(lab(LBK(0)), "0") && !strcmp(lab(LW(0)), ".") && !strcmp(lab(LBT(QD_B_OCTDN)), "CLEAR") &&
+              labels_clean(), "the typewriter with SHIFT: B1 0, W1 ., F1 CLEAR");
+    bup(SHIFT);
+    run(20);
+    btap(QD_B_HOME);
+    fresh();
+    CHECK(!strcmp(lab(LBT(QD_B_HOME)), "WAKE") && !lab(LW(0))[0] && !lab(LKN(QD_K_SELECT))[0] && labels_clean(),
+          "asleep: HOME WAKE, the rest none but PLAY and MASTER");
+}
+
 int main(void)
 {
     static const struct {
@@ -6503,6 +6591,7 @@ int main(void)
         {"P1.5z: SHIFT + B6: the TAP takeover", g_p15z_tap},
         {"P1.5z: SHIFT + B8: page follow; SHIFT's map", g_p15z_follow},
         {"P1.5z: SHIFT + SELECT: the track everywhere", g_p15z_shift_select},
+        {"P1.6l: the controls' labels", g_p16l_labels},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

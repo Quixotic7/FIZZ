@@ -44,7 +44,7 @@ INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/se
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
 HDRS := $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
-        $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/seq/names.c $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/ctl_presets.c $(ROOT)/core/app/ctl_type.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_presets.c $(ROOT)/core/ui/ui_type.c $(ROOT)/core/ui/ui_snd.c \
+        $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/seq/names.c $(ROOT)/core/app/view_labels.c $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/ctl_presets.c $(ROOT)/core/app/ctl_type.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_presets.c $(ROOT)/core/ui/ui_type.c $(ROOT)/core/ui/ui_snd.c \
         $(PVG)/include/plutovg.h
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
 PVG_OBJ := $(addprefix $(B)/pvg-,$(notdir $(PVG_SRC:.c=.o)))

@@ -1829,3 +1829,5 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     }
     qd_end(lcd_be);
 }
+
+#include "view_labels.c"                /* P1.6l: the controls' labels (built here: the source lists stay) */
