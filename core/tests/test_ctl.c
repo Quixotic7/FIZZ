@@ -6985,7 +6985,9 @@ static void g_p15z_editor_shift(void)
     btap(QD_B_HOME);
 }
 
-/* - SHIFT + B6: TAP: from the first tap, the BPM after two, closed 2 s after the last; an external clock: dimmed */
+/* - SHIFT + B6: TAP: from the first tap, the BPM after two, closed 2.8 s after the last (0.9.2, the TAP ape: its
+ * finale at 2 s); an external clock: dimmed. The ape's poses: the first tap point-and-squat, taps 2.. the ten round
+ * (step .. back freeze), 180 BPM and up the headstand; a count begun while the screen is up: no bounce in */
 static void g_p15z_tap(void)
 {
     ui_turn_t tv;
@@ -7010,11 +7012,44 @@ static void g_p15z_tap(void)
     qd_view_turn(&A, &tv);
     CHECK(tv.ntap == 4 && A.bpm >= 148 && A.bpm <= 152 && tv.tap_age[0] < tv.tap_age[3], "four taps: %d BPM, the dots "
           "newest first", A.bpm);
+    CHECK(tv.ntotal == 4 && tv.tap_bpm[0] == A.bpm && tv.tap_bpm[1] >= 148 && tv.tap_bpm[1] <= 152 && !tv.tap_cont,
+          "the ape's model: the count 4, the BPM of the last two taps (%d %d)", tv.tap_bpm[0], tv.tap_bpm[1]);
     bup(SHIFT);
-    run(1900);
-    CHECK(A.ui.tk == UI_TK_TAP, "1.9 s after the last tap: still up");
-    run(300);
-    CHECK(A.ui.tk == QD_TK_NONE, "2 s after it (and the fade): closed");
+    run(2700);
+    CHECK(A.ui.tk == UI_TK_TAP, "2.7 s after the last tap: still up (the ape's finale from 2 s)");
+    bdown(SHIFT);
+    run(20);
+    black(B6);                                          /* (2.75 s on: a new count, the screen still up) */
+    qd_view_turn(&A, &tv);
+    CHECK(A.ui.ntap == 1 && tv.ntotal == 1 && tv.tap_cont && !tv.tap_bpm[0], "a tap 2.75 s on: a new count, begun "
+          "while the screen was up (no bounce in)");
+    bup(SHIFT);
+    run(2700);
+    CHECK(A.ui.tk == UI_TK_TAP, "2.7 s on: still up");
+    run(250);
+    CHECK(A.ui.tk == QD_TK_NONE, "2.8 s after it (and the fade): closed");
+    bdown(SHIFT);
+    run(20);
+    black(B6);
+    qd_view_turn(&A, &tv);
+    CHECK(tv.ntotal == 1 && !tv.tap_cont, "a tap after the close: the ape bounces in");
+    for (i = 0; i < 4; i++) {                           /* 0.3 s apart: 200 BPM, the flurry */
+        run(300 - 40);
+        black(B6);
+    }
+    qd_view_turn(&A, &tv);
+    CHECK(tv.tap_bpm[0] >= 195 && ui_ape_pose(tv.ntotal, tv.tap_bpm[0]) == 9, "taps at 200 BPM: the headstand's "
+          "flurry (%d BPM)", tv.tap_bpm[0]);
+    bup(SHIFT);
+    run(3000);
+    {   /* the order: 1 the point, 2..11 the ten, round from 12 (the step again); 180 BPM: the headstand */
+        static const int WANT[14] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3};
+        int ok = 1, n;
+        for (n = 1; n <= 14; n++)
+            ok &= ui_ape_pose(n, 120) == WANT[n - 1];
+        CHECK(ok && ui_ape_pose(1, 200) == 0 && ui_ape_pose(5, 179) == 4 && ui_ape_pose(5, 180) == 9,
+              "the poses' order: point, step .. back freeze, round; the first tap always the point; 180 up the headstand");
+    }
 }
 
 /* - SHIFT + B8: PAGE FOLLOW, its takeover; SHIFT's map: B8's glyph, SELECT's track row */

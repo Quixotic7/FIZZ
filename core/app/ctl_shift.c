@@ -70,6 +70,8 @@ static void tap_tempo(qd_app_t *a)
     uint32_t sum = 0;
     if (u->ntap && a->ms - u->tap_ms[(u->ntap - 1) % 8] > QD_TAP_RESET_MS)
         u->ntap = 0;
+    if (!u->ntap)                                       /* (the TAP ape: no bounce in while its screen is still up) */
+        u->tap_cont = u->tk == UI_TK_TAP && a->ms - u->tk_ms < QD_TAP_TK_MS + QD_TK_FADE_MS;
     u->tap_ms[u->ntap % 8] = a->ms;
     u->ntap++;
     for (i = 1; i < (u->ntap < 4 ? u->ntap : 4); i++) {   /* the intervals between the last (up to) four taps */

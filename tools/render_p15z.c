@@ -213,13 +213,13 @@ int render_p15z(const char *out)
     shot("shift-map", "SHIFT's map: SELECT the track; B8 page follow", 1);
     black(5);
     run(60);
-    shot("tap-1", "TAP: the first tap: a dot, the metronome armed", 0);
+    shot("tap-1", "TAP: the first tap: a dot, the ape in (0.9.2)", 0);
     for (k = 0; k < 2; k++) {
         run(430 - 30);
         black(5);
     }
     run(40);
-    shot("tap-3", "three taps: the BPM, the ring, the dots", 0);
+    shot("tap-3", "three taps: the BPM, the dots, the ape's third pose", 0);
     run(430 - 70);
     black(5);
     run(300);

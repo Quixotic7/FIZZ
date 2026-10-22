@@ -135,7 +135,8 @@ struct qd_app;
 #define QD_IDLE_MS 120000u             /* untouched this long, stopped: the idle screen */
 #define QD_TK_MS 1000u                 /* a takeover stays this long after the last detent .. */
 #define QD_TK_FADE_MS 120u             /* .. then fades back */
-#define QD_TAP_TK_MS 2000u             /* P1.5z: SHIFT + B6's TAP takeover stays this long after the last tap */
+#define QD_TAP_TK_MS 2800u             /* P1.5z: SHIFT + B6's TAP takeover stays this long after the last tap (the TAP
+                                         * ape: 2.8 s, its finale at 2 s) */
 #define QD_CONFIRM_MS 1100u            /* a confirmation word stays this long (its last 120 ms a fade) */
 #define QD_BLINK_MS 250u               /* a blink's half period (the playing page, the queued pattern, solo) */
 #define QD_FAST_MS 90u                 /* a fast blink's half period (the held step) */
@@ -433,6 +434,7 @@ typedef struct {
     int clr_armed;                     /* P1.5c: SHIFT + B11 pressed once (the track cleared on the second) .. */
     uint32_t clr_ms;
     uint32_t tap_ms[8];                /* .. SHIFT + B6: the last taps (P1.5z: eight, the takeover's dots) */
+    int tap_cont;                      /* the TAP ape: this count began while the TAP screen was still up */
     int ntap;
     int rnd_kind;                      /* P1.5c: the editor's randomise: 1 the page (the dice rolling), 2 the sound
                                         * (B10 held: the bottle filling), 3 the bottle burst .. */

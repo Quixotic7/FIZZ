@@ -675,6 +675,13 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         v->since = nt ? v->tap_age[0] : 0.f;
         v->ext = qd_seq_ext_running(&a->seq);
         v->value = a->bpm;
+        v->ntotal = u->ntap;                            /* the TAP ape: the count, the BPM of its last two taps */
+        v->tap_cont = u->tap_cont;
+        for (i = 0; i < 2; i++) {
+            const int m = u->ntap - 1 - i, j0 = m - 3 > 0 ? m - 3 : 0;   /* (tap m, 0-based, and up to three before) */
+            const uint32_t sum = m > 0 ? u->tap_ms[m % 8] - u->tap_ms[j0 % 8] : 0u;
+            v->tap_bpm[i] = sum ? (int)(60000u * (uint32_t)(m - j0) / sum) : 0;
+        }
         break;
     }
     case UI_TK_FOLLOW:                                  /* P1.5z: SHIFT + B8: page follow */

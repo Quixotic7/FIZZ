@@ -75,6 +75,7 @@ int render_e1(const char *out);
 int render_e2(const char *out);
 int render_p16c(const char *out);                       /* render_p16c.c: P1.6c's MIDI FX screen */
 int render_p16d(const char *out);                       /* render_p16d.c: P1.6d's screens */
+int render_tapape(const char *out);                     /* render_tapape.c: the TAP ape (0.9.2) */
 int render_e4(const char *out);                         /* render_e4.c: E4's modulation slots */
 int render_e3(const char *out);                         /* render_e3.c: E3's CRUSH */                         /* render_e2.c: E2's filter machines */                         /* render_e1.c: E1's editor pages (PORT, AHD, ROUTE) */
 int render_p15z(const char *out);                       /* render_p15z.c: the owner's batch (P1.5z) */
@@ -242,7 +243,7 @@ int main(int argc, char **argv)
         if (!qd_init())
             return 1;
         qd_text_stats_reset();
-        failed = !strcmp(only, "p16d") ? render_p16d(out) : !strcmp(only, "p16c") ? render_p16c(out) : !strcmp(only, "e4") ? render_e4(out) : !strcmp(only, "e3") ? render_e3(out) : !strcmp(only, "e2") ? render_e2(out) : !strcmp(only, "p15z") ? render_p15z(out) : !strcmp(only, "p15y") ? render_p15y(out) : !strcmp(only, "e1") ? render_e1(out) : !strcmp(only, "p15x") ? render_p15x(out) : !strcmp(only, "p15w") ? render_p15w(out) : !strcmp(only, "p15v") ? render_p15v(out) : !strcmp(only, "p15u") ? render_p15u(out, mocks) : !strcmp(only, "p15t") ? render_p15t(out, mocks) : !strcmp(only, "p15s") ? render_p15s(out) : !strcmp(only, "p15r") ? render_p15r(out) : !strcmp(only, "p15q") ? render_p15q(out) : !strcmp(only, "p15p") ? render_p15p(out) : !strcmp(only, "p15c") ? render_p15c(out) : !strcmp(only, "p15o") ? render_p15o(out) : !strcmp(only, "p15n") ? render_p15n(out) : !strcmp(only, "p15l") ? render_p15l(out) : !strcmp(only, "p15k") ? render_p15k(out) : !strcmp(only, "p15j") ? render_p15j(out) : !strcmp(only, "p15i") ? render_p15i(out) : !strcmp(only, "p15h") ? render_p15h(out) : !strcmp(only, "p15g") ? render_p15g(out) : !strcmp(only, "p15f") ? render_p15f(out) : !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
+        failed = !strcmp(only, "tapape") ? render_tapape(out) : !strcmp(only, "p16d") ? render_p16d(out) : !strcmp(only, "p16c") ? render_p16c(out) : !strcmp(only, "e4") ? render_e4(out) : !strcmp(only, "e3") ? render_e3(out) : !strcmp(only, "e2") ? render_e2(out) : !strcmp(only, "p15z") ? render_p15z(out) : !strcmp(only, "p15y") ? render_p15y(out) : !strcmp(only, "e1") ? render_e1(out) : !strcmp(only, "p15x") ? render_p15x(out) : !strcmp(only, "p15w") ? render_p15w(out) : !strcmp(only, "p15v") ? render_p15v(out) : !strcmp(only, "p15u") ? render_p15u(out, mocks) : !strcmp(only, "p15t") ? render_p15t(out, mocks) : !strcmp(only, "p15s") ? render_p15s(out) : !strcmp(only, "p15r") ? render_p15r(out) : !strcmp(only, "p15q") ? render_p15q(out) : !strcmp(only, "p15p") ? render_p15p(out) : !strcmp(only, "p15c") ? render_p15c(out) : !strcmp(only, "p15o") ? render_p15o(out) : !strcmp(only, "p15n") ? render_p15n(out) : !strcmp(only, "p15l") ? render_p15l(out) : !strcmp(only, "p15k") ? render_p15k(out) : !strcmp(only, "p15j") ? render_p15j(out) : !strcmp(only, "p15i") ? render_p15i(out) : !strcmp(only, "p15h") ? render_p15h(out) : !strcmp(only, "p15g") ? render_p15g(out) : !strcmp(only, "p15f") ? render_p15f(out) : !strcmp(only, "p15e") ? render_p15e(out) : !strcmp(only, "p15d") ? render_p15d(out) : !strcmp(only, "p15b") ? render_p15b(out) : !strcmp(only, "p15a") ? render_p15a(out, mocks) : !strcmp(only, "p14b") ? render_p14b(out)
                : !strcmp(only, "p14a") ? render_p14a(out) : 2;
         {
             const char *small = "";
@@ -471,6 +472,7 @@ int main(int argc, char **argv)
     failed |= render_e4(out);                           /* E4: the modulation slots */
     failed |= render_p16c(out);                         /* P1.6c: the MIDI FX screen */
     failed |= render_p16d(out);                         /* P1.6d */
+    failed |= render_tapape(out);                       /* 0.9.2: the TAP ape */
     {   /* P1.3v: the clarity guard over every frame rendered: no text under 11 px */
         const char *small = "";
         const float mn = qd_text_stats_min(&small);

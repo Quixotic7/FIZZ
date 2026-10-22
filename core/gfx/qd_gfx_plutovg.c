@@ -17,6 +17,8 @@
 
 static plutovg_surface_t *qd_surf;
 static plutovg_canvas_t *qd_cv;
+static plutovg_surface_t *qd_lsurf[QD_NLAYER];
+static plutovg_canvas_t *qd_lcv[QD_NLAYER];
 static plutovg_path_t *qd_tmp;                 /* the ellipse arc's path */
 static plutovg_font_face_t *qd_face[QD_FONTS_GEN_N];
 static float qd_lw = 1.f;                      /* the state's default width (qd_path_stroke): saved with the state */
@@ -49,6 +51,13 @@ void qd_shutdown(void)
         if (qd_face[i])
             plutovg_font_face_destroy(qd_face[i]);
         qd_face[i] = NULL;
+    }
+    for (i = 0; i < QD_NLAYER; i++) {                   /* (0.9.2: the layers) */
+        if (qd_lcv[i])
+            plutovg_canvas_destroy(qd_lcv[i]);
+        if (qd_lsurf[i])
+            plutovg_surface_destroy(qd_lsurf[i]);
+        qd_lcv[i] = NULL, qd_lsurf[i] = NULL;
     }
     if (qd_tmp)
         plutovg_path_destroy(qd_tmp);
@@ -129,6 +138,7 @@ void qd_restore(void)
 }
 void qd_translate(float x, float y) { plutovg_canvas_translate(qd_cv, x, y); }
 void qd_scale(float sx, float sy) { plutovg_canvas_scale(qd_cv, sx, sy); }
+void qd_rotate(float a) { plutovg_canvas_rotate(qd_cv, a); }
 void qd_alpha(float a) { plutovg_canvas_set_opacity(qd_cv, a); }
 float qd_get_alpha(void) { return qd_cv ? plutovg_canvas_get_opacity(qd_cv) : 1.f; }
 void qd_clip_rect(float x, float y, float w, float h) { plutovg_canvas_clip_rect(qd_cv, x, y, w, h); }
@@ -267,8 +277,83 @@ void qd_path_arc(float cx, float cy, float r, float a0, float a1) { plutovg_canv
 void qd_path_close(void) { plutovg_canvas_close_path(qd_cv); }
 void qd_path_fill(qd_rgb col) { qd_paint(QD_NONE, 0.f, col); }
 void qd_path_stroke(qd_rgb col, float lw) { qd_paint(col, lw > 0.f ? lw : qd_lw, QD_NONE); }
+void qd_path_stroke_keep(qd_rgb col, float lw)
+{
+    if (col == QD_NONE)
+        return;
+    qd_color(col);
+    plutovg_canvas_set_line_width(qd_cv, lw > 0.f ? lw : qd_lw);
+    plutovg_canvas_stroke_preserve(qd_cv);
+}
 void qd_path_paint(qd_rgb stroke, float lw, qd_rgb fill) { qd_paint(stroke, lw > 0.f ? lw : qd_lw, fill); }
 void qd_path_clip(void) { plutovg_canvas_clip(qd_cv); }
+
+/* ---------------------------------------------------------------- 0.9.2: layers --- */
+static plutovg_canvas_t *qd_main_cv;                  /* (the screen's, while a layer is drawn) */
+static int qd_lw_main, qd_lw_h[QD_NLAYER], qd_luse[QD_NLAYER][2];   /* (its surface's height; the part in use) */
+static float qd_lw_saved;
+
+int qd_layer_begin(int slot, int w, int h)
+{
+    static const plutovg_color_t clear = {0.f, 0.f, 0.f, 0.f};
+    if (!qd_cv || qd_main_cv || slot < 0 || slot >= QD_NLAYER || w < 1 || h < 1)
+        return 0;
+    if (!qd_lsurf[slot] || plutovg_surface_get_width(qd_lsurf[slot]) < w || qd_lw_h[slot] < h) {
+        if (qd_lcv[slot])
+            plutovg_canvas_destroy(qd_lcv[slot]);
+        if (qd_lsurf[slot])
+            plutovg_surface_destroy(qd_lsurf[slot]);
+        qd_lcv[slot] = NULL;
+        qd_lsurf[slot] = plutovg_surface_create(w, h);
+        if (!qd_lsurf[slot])
+            return 0;
+        qd_lcv[slot] = plutovg_canvas_create(qd_lsurf[slot]);
+        if (!qd_lcv[slot])
+            return 0;
+        qd_lw_h[slot] = h;
+    }
+    plutovg_surface_clear(qd_lsurf[slot], &clear);
+    qd_luse[slot][0] = w, qd_luse[slot][1] = h;
+    qd_main_cv = qd_cv;
+    qd_cv = qd_lcv[slot];
+    qd_lw_main = qd_depth;
+    qd_lw_saved = qd_lw;
+    plutovg_canvas_reset_matrix(qd_cv);
+    plutovg_canvas_new_path(qd_cv);
+    plutovg_canvas_set_opacity(qd_cv, 1.f);
+    plutovg_canvas_set_line_cap(qd_cv, PLUTOVG_LINE_CAP_ROUND);
+    plutovg_canvas_set_line_join(qd_cv, PLUTOVG_LINE_JOIN_ROUND);
+    plutovg_canvas_set_dash_array(qd_cv, qd_nodash, 0);
+    plutovg_canvas_set_operator(qd_cv, PLUTOVG_OPERATOR_SRC_OVER);
+    return 1;
+}
+
+void qd_layer_end(void)
+{
+    if (!qd_main_cv)
+        return;
+    while (qd_depth > qd_lw_main)                       /* (the layer's own saves undone) */
+        qd_restore();
+    qd_cv = qd_main_cv;
+    qd_main_cv = NULL;
+    qd_lw = qd_lw_saved;
+}
+
+void qd_layer_draw(int slot, float x, float y, float w, float h)
+{
+    plutovg_matrix_t m;
+    if (!qd_cv || slot < 0 || slot >= QD_NLAYER || !qd_lsurf[slot])
+        return;
+    /* (plutovg samples a texture bilinearly only when tiled and turned: a turn of a millionth of a degree and the
+     * layer's margin left clear, so the tiling never shows; else a scaled layer is blocky) */
+    plutovg_matrix_init_translate(&m, x, y);
+    plutovg_matrix_rotate(&m, 2e-5f);
+    plutovg_matrix_scale(&m, w / (float)qd_luse[slot][0], h / (float)qd_luse[slot][1]);
+    plutovg_canvas_set_texture(qd_cv, qd_lsurf[slot], PLUTOVG_TEXTURE_TYPE_TILED, 1.f, &m);
+    plutovg_canvas_new_path(qd_cv);
+    plutovg_canvas_rect(qd_cv, x, y, w, h);
+    plutovg_canvas_fill(qd_cv);
+}
 
 /* ---------------------------------------------------------------- text --- */
 static plutovg_font_face_t *qd_face_for(int weight)

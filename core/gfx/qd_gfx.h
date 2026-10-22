@@ -47,6 +47,7 @@ void qd_save(void);
 void qd_restore(void);
 void qd_translate(float x, float y);
 void qd_scale(float sx, float sy);
+void qd_rotate(float a);        /* (the TAP ape's groove) radians, clockwise on the screen */
 void qd_alpha(float a);         /* global alpha 0..1 (absolute, as the canvas's globalAlpha) */
 float qd_get_alpha(void);       /* P1.5e: the global alpha now (a glow's strokes are a part of it) */
 void qd_clip_rect(float x, float y, float w, float h);   /* intersects the clip */
@@ -75,8 +76,18 @@ void qd_path_arc(float cx, float cy, float r, float a0, float a1);   /* joined t
 void qd_path_close(void);
 void qd_path_fill(qd_rgb col);
 void qd_path_stroke(qd_rgb col, float lw);   /* lw <= 0: the state's width */
+void qd_path_stroke_keep(qd_rgb col, float lw);   /* .. the path kept (stroked again: a neon glow's layers) */
 void qd_path_paint(qd_rgb stroke, float lw, qd_rgb fill);   /* P1.5d: fill, then stroke, the one path (QD_NONE: none) */
 void qd_path_clip(void);        /* intersects the clip with the path (and ends it) */
+
+/* ---- 0.9.2: a layer, an offscreen picture drawn once and placed many times (the TAP ape's glow, cached a pose).
+ * qd_layer_begin: the drawing calls after it go to layer slot (w x h px, cleared transparent, the identity transform,
+ * alpha 1) until qd_layer_end; 0 when it cannot (no memory: the caller draws directly). qd_layer_draw: its w x h px
+ * placed over the rectangle (x, y, w', h') under the current transform and alpha (scaled: smoothed). */
+#define QD_NLAYER 2
+int qd_layer_begin(int slot, int w, int h);
+void qd_layer_end(void);
+void qd_layer_draw(int slot, float x, float y, float w, float h);
 
 /* ---- text: Inter Tight, at a baseline */
 typedef struct {

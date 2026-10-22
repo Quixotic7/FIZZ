@@ -769,8 +769,14 @@ typedef struct {
     int ntap;
     float tap_age[8];
     int ext;
-    float since;                        /* seconds since the last tap (the takeover closes 2 s after it) */
+    float since;                        /* seconds since the last tap (the takeover closes 2.8 s after it) */
+    int ntotal;                         /* TAP ape: the taps of this count (not capped), .. */
+    int tap_cont;                       /* .. its first came while the screen was still up (no bounce in), .. */
+    int tap_bpm[2];                     /* .. the BPM each of the last two taps made (0: none yet) */
 } ui_turn_t;
+/* the TAP ape (ui_ape.c): the pose a tap shows: the n-th tap of a count (1..), its BPM (180 and up: the flurry) */
+int ui_ape_pose(int n, int bpm);
+void ui_ape_draw(const ui_turn_t *v);   /* the TAP takeover, whole (SHIFT + B6) */
 void ui_turn_draw(const ui_turn_t *v);
 
 /* ---- P1.3d (§8b 2.2): the knob band. Every knob turned in a hold mode shows what it turned in a band over the top of
