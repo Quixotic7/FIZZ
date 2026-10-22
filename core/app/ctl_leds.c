@@ -308,6 +308,8 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         leds_step(a, out);
     else if (u->mode == QD_MODE_KEYS)
         leds_keys(a, out);
+    if (held(a, QD_B_FUNC) && u->mode == QD_MODE_STEP && (!u->latch || u->latch == QD_LATCH_F3))
+        qd_shift_leds(a, out->key);                     /* P1.5c: SHIFT held: only its shortcuts lit */
     if (held(a, QD_B_TRACKS)) {                         /* TRACKS held: the selected track's white key dim */
         const int k = QD_WHITE_KEY[a->sel];
         if (out->key[k] < QD_LED_DIM)

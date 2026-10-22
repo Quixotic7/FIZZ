@@ -40,6 +40,9 @@ void qd_app_init(qd_app_t *a)
     a->snd_pat = -1;                                    /* (the first ms: the pattern's sounds into the tracks) */
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
     qd_ctl_init(a);
+    qd_undo_init(a);                                    /* P1.5c */
+    a->metro_beat = -1;
+    a->metro_lvl = QD_METRO_LVL;
 }
 
 /* ---------------------------------------------------------------- the transport and the idle screen --- */
@@ -102,6 +105,7 @@ void qd_app_key(qd_app_t *a, int key, int down, int vel)
     } else {
         a->keys_held &= ~(1u << key);
     }
+    qd_undo_input(a, 0);                                /* P1.5c: a gesture (its edits one undo level) */
     qd_ctl_key(a, key, down, a->key_vel[key]);
     if (!down)
         qd_app_note_off(a, key);                        /* whatever the controller did, a key's note ends with it */
@@ -116,6 +120,7 @@ void qd_app_button(qd_app_t *a, int button, int down)
         a->buttons_held |= 1u << button;
     else
         a->buttons_held &= ~(1u << button);
+    qd_undo_input(a, 0);
     qd_ctl_button(a, button, down);
     qd_ctl_preview_sync(a);
 }
@@ -123,6 +128,7 @@ void qd_app_button(qd_app_t *a, int button, int down)
 void qd_app_knob(qd_app_t *a, int knob, int detents)
 {
     if (detents && knob >= 0 && knob < QD_NKNOB) {
+        qd_undo_input(a, 1);
         qd_ctl_knob(a, knob, detents);
         qd_ctl_preview_sync(a);
     }
@@ -140,6 +146,8 @@ void qd_app_master(qd_app_t *a, int pot)
 void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
 {
     const int ch = status & 15, kind = status & 0xF0;
+    if ((status & 0xF0) != 0xF0)
+        qd_undo_input(a, 0);                            /* (P1.5c: notes into a held step or a take: a gesture) */
     switch (status & 0xFF) {
     case 0xF8:
         qd_seq_midi_clock(&a->seq);
@@ -215,6 +223,8 @@ static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
     if (a->playing)
         a->beats = (double)qd_seq_tick(&a->seq) / (4.0 * QD_TPS);   /* the transport's own position */
     qd_ctl_ms(a);
+    if (!(a->ui.rec && a->seq.playing))                 /* P1.5c: a gesture closes when quiet (a take: as one) */
+        qd_undo_ms(a);
     qd_ctl_preview_sync(a);                             /* (a step held at 250 ms, the transport moved) */
 }
 
@@ -262,6 +272,26 @@ static void qd_app_block(qd_app_t *a, int16_t *out)
         mt[i] = a->model.t[i].mix;
     }
     qd_mix_block(&a->mix, &a->pool, ow, mt, QD_NTRACK, l, r, sc, sd, sr);
+    if (a->metro && a->playing) {                       /* P1.5c: the metronome: a click on each beat into the mix
+                                                         * (its own level, no track's), accented on the bar's first */
+        const int64_t beat = (int64_t)floor(a->beats);
+        if (beat != a->metro_beat && beat >= 0) {
+            a->metro_beat = beat;
+            a->metro_left = QD_FS / 40;                 /* (25 ms) */
+            a->metro_ph = 0;
+            a->metro_acc = (int)(beat % 4) == 0;
+        }
+        for (i = 0; i < QD_MIX_CTL && a->metro_left; i++, a->metro_left--) {
+            const float t = (float)a->metro_ph / (float)QD_FS, env = expf(-t * 180.f);
+            const float v = sinf(t * 6.2831853f * (a->metro_acc ? 2600.f : 1700.f)) * env *
+                            (a->metro_acc ? 15000.f : 10000.f) * (float)a->metro_lvl / 100.f;
+            l[i] += (int32_t)v, r[i] += (int32_t)v;
+            a->metro_ph++;
+        }
+    } else {
+        a->metro_left = 0;
+        a->metro_beat = -1;
+    }
     qd_fx_block(sc, sd, sr, l, r, o);
     for (i = 0; i < 2 * QD_MIX_CTL; i++)
         out[i] = (int16_t)(o[i] > 32767 ? 32767 : o[i] < -32768 ? -32768 : o[i]);
@@ -289,3 +319,4 @@ void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames)
 #include "../store/store.c"
 #include "../seq/sounds.h"
 #include "persist.c"
+#include "undo.c"

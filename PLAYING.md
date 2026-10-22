@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5o)
+# Playing FIZZ (P1.5c)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -286,6 +286,20 @@ Pages and tracks (hold **F1**):
   the page joins the loop). The copied page's key blinks.
 - **F1 + B11**: undo. Everything you did during one F1 or F2 hold is undone together. Press it again to redo.
 
+Undo and redo of everything (P1.5c):
+
+- **SHIFT + F1 = UNDO, SHIFT + F2 = REDO**, eight levels. A big UNDO / REDO with an arrow shows a moment, and under it
+  what was undone: a knob, a step edit, a paste, a clear (an X), a recorded take (a red ring), a sound (the pool or the
+  library), the dice (a randomise), the snapshot, two pages (double). A dash: nothing left.
+- **One level is one gesture**: a knob turned until you pause about half a second, a step held and edited, a paste, a
+  clear, a recorded take (all its notes), a pool or library change, a randomise, a snapshot recall, a double.
+- Undo covers the **pattern you are on** (its steps, locks, track settings and track sounds), **the pool** and **the
+  library**. It survives page and view changes and a pattern change (each level returns to its own pattern), but a
+  **project load or a new project forgets it**.
+- A new edit after undoing drops what you could have redone.
+- Not undone: a pool sound's delete also clears that sound's locks in the other patterns; undo brings the sound and
+  this pattern's locks back, the other patterns' stay cleared.
+
 ## How do I choose, mute and solo tracks?
 
 - Hold **SEL**: the screen shows the eight tracks (after a quarter second, or at once when you press a key with it;
@@ -382,6 +396,28 @@ A track's speed is a **note value** and a **type**, each kept when you change th
 - **EXT CLOCK**: while a MIDI clock (a DAW) is running the unit, the tempo is the clock's: the F3 screen says EXT CLOCK
   with its BPM, and a tempo turn shows EXT CLOCK instead of changing it. A MIDI STOP, or no clock for half a second,
   gives the tempo back to the knob.
+
+## SHIFT's keys (P1.5c)
+
+Hold **SHIFT**: only its shortcut keys light (the white keys go dark), and SHIFT's map draws the black keys under its
+list, each with its picture.
+
+| key | does |
+| --- | --- |
+| **B1** | store the **snapshot** of the pattern you are on ("SNAPSHOT stored") |
+| **B3** | **recall** the snapshot onto it at once (undoable; dim: none stored) |
+| **B4** | **copy** the pattern |
+| **B5** | **paste** it onto the pattern you are on (undoable; dim: nothing copied) |
+| **B6** | **tap tempo**: tap it in time; the tempo is the average of your last four taps (start again after 2 s) |
+| **B7** | tap: the **metronome** (CLICK on / off). Hold B7 and turn any knob: its level (0..100, 60 at first) |
+| **B9** | **double the track**: its looped pages copied after themselves, the loop twice as long ("FULL": no room) |
+| **B11** | **clear the track**: press twice within two seconds ("CLEAR?", B11 blinks; then "CLEARED") |
+| **F1 / F2** | **undo / redo** |
+
+- The snapshot and the copied pattern stay until the unit is switched off; they are not saved with the project. One
+  snapshot (the last stored), from whichever pattern; recalling puts it on the pattern you are on.
+- The metronome clicks on every beat while playing, a higher click on the bar's first beat, mixed after the tracks
+  (no effects, no track level). Tap tempo does nothing while an external clock runs (the tempo takeover shows).
 
 ## The OCT keys' lights
 
@@ -499,6 +535,17 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
     SHIFT + KNOB 1..4 stay the fine step. The keys light the scale as the keyboard's do.
   - **EDIT** closes the editor back to the keyboard; HOME to the steps. Playing here is heard, not recorded.
 - **PRESETS**: the track's preset (nothing held) or the step's sound lock (a step held), as everywhere.
+- **Randomise** (P1.5c), drawn in neon lines over the page's picture:
+  - **B9**: two dice roll for 0.6 s, then **this page's values** are new.
+  - **Hold B10** 1.5 s: a champagne bottle fills with bubbles, the cork pops and it bursts: **the whole sound** is
+    new. Let go before the pop: nothing.
+  - B9 and B10 are dim, bright while rolling or filling. **SHIFT + F1 undoes** it. **With a step held** (or the
+    latch's selection) the new values are that step's p-locks.
+  - The values stay playable: ratios only from simple sets (C 1, 3..6; A 1, 3, 7, 11, 15; B1 and B2 1, 3..5), the
+    algorithm 1..8, each operator's level at least 40 %, the filter open (FREQ 45..100 %, RESO up to 60 %, its
+    envelope depth 40..75 %), the amp's sustain at least 40 %, short attacks, DRIVE up to 25 %, HARM and DTUNE near
+    the middle, the offsets near centre; the LFOs gentle (depth up to a sixth of its range either way, no fade, their
+    destinations and triggers kept). LEVEL, the filter TYPE and the TRIG / RESET / PHRT switches are never changed.
 - **DRIVE** (B4, LEVEL page, KNOB 2) is part of the sound now: ChoralRoot's DIST (low cut, the drive, a soft clip, a
   tone low-pass, make-up gain), in each voice, so a step with its own sound or a DRIVE lock has its own. A preset
   loads its drive (WOBBLE: 10; the others 0). FM TONE's LFOs can move it (destination DRIVE).
@@ -535,7 +582,7 @@ They stay open (OCT− or HOME back). For now:
   No sentences: what each does is in this guide.
 - Holding **SHIFT** alone shows the controls SHIFT changes here (a knob, REC, F3, SEQ and a step, HOME, SEL), each
   with its job's icon and its value now (the scale, the root, the swing, the next view, the record MODE, the knob
-  layout).
+  layout), and under them the black keys with SHIFT's shortcuts (P1.5c).
 - A page change in the PIANO ROLL with page follow off: a crossed arrow at the top right (was FOLLOW OFF). The small
   dots over the columns mark the beats. The PIANO ROLL's top line no longer shows the tempo (turn it, or open F3).
 
@@ -592,5 +639,5 @@ They stay open (OCT− or HOME back). For now:
 
 ## Not built yet
 
-- Snapshots (SHIFT + SAVE), undo for deleting a sound, randomise (P1.5c).
+- Undo of a pool delete's effect on the other patterns.
 - Pattern chains.

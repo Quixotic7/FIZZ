@@ -166,6 +166,7 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TK_PRESET 100               /* the pool picker: the track's sound, or the held steps' sound lock */
 #define QD_TK_DEFAULT 101              /* a default turned, nothing held (P1.3e: the mode's full TRACK DEFAULT picture) */
 #define QD_TK_HELDKNOB 102             /* P1.3d: a knob turned with a step held: the band over the held step's screen */
+#define QD_TK_UNDO 104                 /* P1.5c: SHIFT + F1 / F2: UNDO / REDO, what it was */
 #define QD_TK_LMODE 103                /* P1.5b: the latch mode's screen (P1.5h: only while LFO is held: lmode_open) */
 #define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
 enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes */
@@ -210,7 +211,19 @@ enum { QD_KR_NONE, QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET, QD_KR_VALUE, QD_NKR }
 enum { QD_KNOBS_A, QD_KNOBS_B, QD_KNOBS_C, QD_KNOBS_D, QD_NKNOBS };
 int qd_ctl_sel_map(const struct qd_app *a);
 int qd_ctl_seq_map(const struct qd_app *a);
-int qd_ctl_latch_modes(const struct qd_app *a);   /* P1.5b: the latch's selection in MODES: the black keys the modes */       /* P1.5a: SEQ's pattern map is up (held a moment, or used) */       /* P1.3y: SEL's track map is up (held a moment, or a key used) */
+int qd_ctl_latch_modes(const struct qd_app *a);
+/* ---- ctl_shift.c (P1.5c, built through ctl_latch.c): SHIFT's keys, undo / redo */
+extern const uint8_t QD_SHIFT_KEYS[11];
+void qd_shift_undo(struct qd_app *a, int dir);
+void qd_shift_black(struct qd_app *a, int b);
+void qd_shift_leds(const struct qd_app *a, uint8_t *key);
+int qd_shift_metro_knob(struct qd_app *a, int knob, int d);   /* SHIFT + B7 held: the click's level */
+/* P1.5c: the editor's randomise (ctl_snd.c): B9 the page (after the dice), B10 held the sound (after the bottle) */
+#define QD_RND_DICE_MS 600u
+#define QD_RND_HOLD_MS 1500u
+#define QD_RND_BURST_MS 600u
+void qd_snd_rnd_ms(struct qd_app *a);
+void qd_snd_randomise(struct qd_app *a, int page);   /* page: this page's values, -1: the whole sound */   /* P1.5b: the latch's selection in MODES: the black keys the modes */       /* P1.5a: SEQ's pattern map is up (held a moment, or used) */       /* P1.3y: SEL's track map is up (held a moment, or a key used) */
 int qd_ctl_knob_role(const struct qd_app *a, int knob);           /* the encoder's role now (QD_KR_*; KNOB 1..4: NONE) */
 int qd_ctl_layout_role(int layout, int rows, int knob);          /* .. in a layout (rows: STEPS / EDIT) */
 const char *qd_ctl_role_name(int role);                           /* "PAGE", "CURSOR", "PRESET", "VALUE" */
@@ -359,6 +372,15 @@ typedef struct {
     uint32_t lfo_ms;                   /* P1.5b: LFO went down (held QD_LFO_HOLD_MS alone: the latch mode) */
     int lmode;                         /* P1.5b: the latch mode (QD_LMODE_*; a global setting, saved) */
     int lmode_open;                    /* P1.5h: LFO held alone: the latch mode's screen is up (SELECT turns it) */
+    int undo_dir, undo_kind;           /* P1.5c: the last undo (-1) / redo (+1), its level's kind (QD_UK_*; -1 none) */
+    int clr_armed;                     /* P1.5c: SHIFT + B11 pressed once (the track cleared on the second) .. */
+    uint32_t clr_ms;
+    uint32_t tap_ms[4];                /* .. SHIFT + B6: the last taps */
+    int ntap;
+    int rnd_kind;                      /* P1.5c: the editor's randomise: 1 the page (the dice rolling), 2 the sound
+                                        * (B10 held: the bottle filling), 3 the bottle burst .. */
+    uint32_t rnd_ms;                   /* .. since */
+    uint32_t rnd_seed;
     int fn_leap, fn_target;            /* P1.3y, FUNC: the last LEAP's n (2) and JUMP's target (-1: the step's page start) */
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
     int knobs;                         /* P1.3y: the encoders' layout (QD_KNOBS_*; the global settings) */
@@ -389,6 +411,7 @@ typedef struct {
     int live_wait;                     /* P1.3x: live recording armed, stopped: the first note starts it all */
     int rec_grow;                      /* P1.3x: an empty track recorded: its loop grows a page as it is reached .. */
     int grow_reached;                  /* .. the last page reached (the loop at the stop) */
+    int metro_held, metro_turned;      /* P1.5c: SHIFT + B7 held, a knob turned with it */
     int shift_used;                    /* SHIFT did something while down (its map then stops) */
     /* the keyboard (ctl_rec.c) */
     int rec;                           /* recording armed in the keyboard (step recording stopped, live playing) */
@@ -486,7 +509,8 @@ int qd_snd_scale_note(const struct qd_app *a, int w);   /* .. SCALE: W w's note 
 int qd_keys_on(const struct qd_app *a);         /* P1.5b: the keyboard (the keyboard mode, or the editor's) */
 void qd_keys_leds(const struct qd_app *a, uint8_t *key);   /* P1.5b: the keys lit by the scale (27 levels) */
 void qd_snd_button(struct qd_app *a);           /* EDIT: open / close */
-void qd_snd_black(struct qd_app *a, int b);     /* B1..B5 the groups (again: the next page), B11 the page's locks */
+void qd_snd_black(struct qd_app *a, int b);
+void qd_snd_black_up(struct qd_app *a, int b);  /* P1.5c: B10 let go (the bottle: released early, nothing) */     /* B1..B5 the groups (again: the next page), B11 the page's locks */
 void qd_snd_lfo_key(struct qd_app *a, int n, int down);   /* P1.5k: B6..B8 (n 0..2): tapped its page, held + a knob: the
                                                          * knob's value its destination, the depth */
 int qd_snd_knob(struct qd_app *a, int knob, int d);   /* 1: taken */

@@ -572,6 +572,7 @@ int qd_proj_load(qd_app_t *a, int p)
     qd_persist_t *ps = &a->per;
     if (p < 0 || p >= QD_NPROJ || !ps->on)
         return 0;
+    qd_undo_reset(a);                                   /* (P1.5c: undo does not survive a project load) */
     if (!ps->pexists[p])
         return qd_proj_new(a, p);
     proj_switch_prep(a);
@@ -588,6 +589,7 @@ int qd_proj_new(qd_app_t *a, int p)
     qd_persist_t *ps = &a->per;
     if (p < 0 || p >= QD_NPROJ || !ps->on)
         return 0;
+    qd_undo_reset(a);
     proj_switch_prep(a);
     if (ps->pexists[p])
         proj_erase_records(a, p);
@@ -683,6 +685,7 @@ int qd_pool_add(qd_app_t *a, const char *name, const int16_t *patch)
 {
     const int k = qd_pool_free_slot(&a->proj);
     qd_sound_t n;
+    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (!k)
         return 0;
     memset(&n, 0, sizeof n);
@@ -724,6 +727,7 @@ static void renumber(qd_app_t *a, int x, int y, int swap)
 int qd_pool_swap(qd_app_t *a, int x, int y)
 {
     qd_sound_t tmp;
+    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (x < 1 || x > QD_NSOUND || y < 1 || y > QD_NSOUND || x == y || x == 1 || y == 1)
         return 0;                                       /* (INIT stays first) */
     tmp = a->proj.sound[x - 1];
@@ -746,6 +750,7 @@ int qd_pool_copy(qd_app_t *a, int from, int to)
 int qd_pool_delete(qd_app_t *a, int k)
 {
     int p, t, s;
+    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (k < 2 || k > QD_NSOUND || !a->proj.sound[k - 1].name[0])
         return 0;                                       /* (INIT cannot go) */
     for (p = 0; p < QD_NPAT; p++) {
@@ -800,6 +805,7 @@ int qd_lib_free_slot(const qd_app_t *a)
 int qd_lib_store(qd_app_t *a, int slot, const char *name, const int16_t *patch)
 {
     qd_sound_t n;                                       /* (name or patch may be the slot's own) */
+    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (slot < 0 || slot >= QD_NLIB)
         return 0;
     memset(&n, 0, sizeof n);
@@ -820,6 +826,7 @@ int qd_lib_copy(qd_app_t *a, int from, int to)
 int qd_lib_swap(qd_app_t *a, int x, int y)
 {
     qd_sound_t tmp;
+    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (x < 0 || x >= QD_NLIB || y < 0 || y >= QD_NLIB || x == y)
         return 0;
     tmp = a->per.lib[x];
@@ -830,6 +837,7 @@ int qd_lib_swap(qd_app_t *a, int x, int y)
 
 int qd_lib_delete(qd_app_t *a, int slot)
 {
+    qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (slot < 0 || slot >= QD_NLIB || !a->per.lib[slot].name[0])
         return 0;
     memset(&a->per.lib[slot], 0, sizeof a->per.lib[slot]);

@@ -538,6 +538,8 @@ typedef struct {
     int ctl[8];                         /* UI_SC_* */
     int icon[8];                        /* UI_IC_*: what it does */
     const char *val[8];                 /* its value now ("D DORIAN", "D", "55%"), or 0 */
+    int keys;                           /* P1.5c: the step view: its black-key shortcuts drawn under the rows .. */
+    int snap_ok, pclip_ok, metro, armed;   /* .. a snapshot to recall, a pattern to paste, the click on, B11 armed */
 } ui_shift_t;
 void ui_shift_draw(const ui_shift_t *v);
 
@@ -615,11 +617,15 @@ typedef struct ui_snd {
     const char *lk_name;                /* .. the value it maps ("FREQ"; 0: none yet) */
     int lk_ok, lk_k;                    /* .. a destination (else dim, shaking), the knob's column (-1) */
     float lk_depth, lk_shake;           /* .. the depth -1..1, the shake 0..1 (1: just refused) */
+    int rnd_kind;                       /* P1.5c: randomise: 1 the dice rolling, 2 the bottle filling, 3 its burst .. */
+    float rnd_u;                        /* .. 0..1 through it */
 } ui_snd_t;
 void ui_snd_draw(const ui_snd_t *v);
 
 /* ---- a brief full-screen word (CLEARED; UNDONE; COPIED; NO ROOM FOR LOCKS) */
 void ui_confirm_draw(const char *big, const char *small, qd_rgb col);
+/* P1.5c: SHIFT + F1 / F2: UNDO / REDO big, under it what it was as a glyph (undo.h QD_UK_*; -1: nothing there, dim) */
+void ui_undo_draw(int redo, int kind, float t);
 
 /* ---- a knob turned: the whole screen (line.html s21..s25, s16; PLAN §9a rule 5) */
 enum { UI_TK_FREQ, UI_TK_DECAY, UI_TK_HARM, UI_TK_FDBK, UI_TK_ALGO, UI_TK_TEMPO, UI_TK_SWING, UI_TK_LEN, UI_TK_RATE,

@@ -527,6 +527,100 @@ static void sd_keys_strip(const ui_snd_t *v, qd_rgb tc)
     }
 }
 
+
+/* ---------------------------------------------------------------- P1.5c: randomise's pictures, in FIZZ's neon lines */
+static void sd_glow(const float *p, int n, int close, qd_rgb col, float lw)   /* a line three times: wide faint, the line */
+{
+    static const float W[3] = {3.4f, 2.f, 1.f}, AL[3] = {0.14f, 0.3f, 1.f};
+    const float a0 = qd_get_alpha();
+    int i;
+    for (i = 0; i < 3; i++) {
+        qd_save();
+        qd_alpha(a0 * AL[i]);
+        ui_P(p, n, col, lw * W[i], close, QD_NONE);
+        qd_restore();
+    }
+}
+static float sd_hash(int k) { const float h = sinf((float)k * 127.1f) * 43758.5f; return h - floorf(h); }
+
+/* the dice: two tumbling, their faces flicking, settling as u reaches 1 */
+static void sd_dice(float u, float t)
+{
+    static const float PIP[7][6][2] = {{{0}}, {{0, 0}}, {{-1, -1}, {1, 1}}, {{-1, -1}, {0, 0}, {1, 1}},
+        {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}}, {{-1, -1}, {1, -1}, {0, 0}, {-1, 1}, {1, 1}},
+        {{-1, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {1, 1}}};
+    static const int NP[7] = {0, 1, 2, 3, 4, 5, 6};
+    int d;
+    for (d = 0; d < 2; d++) {
+        const qd_rgb col = d ? 0xff3ca0u : 0x28e1ffu;
+        const float spin = (1.f - u) * (1.f - u) * (d ? -9.f : 11.f), x = 120.f + (d ? 34.f : -34.f) - (1.f - u) * (d ? -30.f : 30.f);
+        const float y = 106.f - fabsf(sinf(u * 9.f + (float)d)) * 26.f * (1.f - u), h = 20.f;
+        const int face = 1 + (int)(sd_hash((int)(t * 16.f) + d * 31) * 6.f) % 6;
+        float p[8];
+        int k;
+        for (k = 0; k < 4; k++) {
+            const float an = spin + (float)k * UI_PI * 0.5f + UI_PI * 0.25f;
+            p[2 * k] = x + cosf(an) * h * 1.414f;
+            p[2 * k + 1] = y + sinf(an) * h * 1.414f;
+        }
+        sd_glow(p, 4, 1, col, 1.6f);
+        for (k = 0; k < NP[face]; k++) {
+            const float px = PIP[face][k][0] * 9.f, py = PIP[face][k][1] * 9.f;
+            ui_O(x + px * cosf(spin) - py * sinf(spin), y + px * sinf(spin) + py * cosf(spin), 2.6f, QD_NONE, 1.f, col);
+        }
+    }
+}
+
+/* the bottle: filling with rising bubbles while held (u 0..1), then (burst) the cork flies and it bursts */
+static void sd_bottle(float u, int burst, float t)
+{
+    static const qd_rgb GLASS = 0x1fd47eu, CHAMP = 0xf3d9a4u, FOIL = 0xffd23fu;
+    const float cx = 120.f, top = burst ? 62.f : 62.f, bot = 176.f;
+    const float body[] = {cx - 24.f, bot, cx - 24.f, 112.f, cx - 20.f, 100.f, cx - 9.f, 86.f, cx - 9.f, top,
+                          cx + 9.f, top, cx + 9.f, 86.f, cx + 20.f, 100.f, cx + 24.f, 112.f, cx + 24.f, bot};
+    int k;
+    sd_glow(body, 10, 1, GLASS, 1.5f);
+    {   /* the foil on the neck */
+        const float f[8] = {cx - 9.f, top + 16.f, cx - 9.f, top, cx + 9.f, top, cx + 9.f, top + 16.f};
+        sd_glow(f, 4, 0, FOIL, 1.2f);
+    }
+    {   /* the wine, its level rising with u (full at the burst) */
+        const float lv = burst ? 104.f : bot - 4.f - (bot - 112.f) * u;
+        const float w[4] = {cx - 21.f, lv, cx + 21.f, lv};
+        sd_glow(w, 2, 0, CHAMP, 1.3f);
+        for (k = 0; k < (burst ? 0 : 4 + (int)(u * 14.f)); k++) {   /* bubbles rising inside */
+            const float ph = fmodf(t * (0.8f + sd_hash(k) * 0.9f) + sd_hash(k + 7), 1.f);
+            const float bx = cx - 16.f + sd_hash(k + 3) * 32.f, by = bot - 6.f - ph * (bot - 6.f - lv);
+            ui_O(bx, by, 1.2f + sd_hash(k + 11) * 1.8f, CHAMP, 1.2f, QD_NONE);
+        }
+    }
+    if (!burst) {                                       /* the cork, pushed up as it fills */
+        const float cy = top - 8.f - u * u * 6.f;
+        const float c[8] = {cx - 7.f, top, cx - 8.f, cy - 6.f, cx + 8.f, cy - 6.f, cx + 7.f, top};
+        sd_glow(c, 4, 0, CHAMP, 1.4f);
+        return;
+    }
+    {   /* the burst: the cork away, a fountain of bubbles, rays */
+        const float cy = top - 14.f - u * 120.f;
+        const float c[8] = {cx - 7.f, cy + 10.f, cx - 8.f, cy - 2.f, cx + 8.f, cy - 2.f, cx + 7.f, cy + 10.f};
+        if (cy > 30.f)
+            sd_glow(c, 4, 1, CHAMP, 1.4f);
+        qd_save();
+        qd_alpha(qd_get_alpha() * (1.f - u));
+        for (k = 0; k < 14; k++) {
+            const float an = -UI_PI * 0.5f + (sd_hash(k) - 0.5f) * 1.9f, r = 10.f + u * (50.f + sd_hash(k + 5) * 40.f);
+            ui_O(cx + cosf(an) * r, top - 4.f + sinf(an) * r + u * u * 30.f, 1.5f + sd_hash(k + 2) * 2.5f,
+                 k % 3 ? CHAMP : FOIL, 1.3f, QD_NONE);
+        }
+        for (k = 0; k < 8; k++) {
+            const float an = (float)k / 8.f * UI_TAU, r0 = 12.f + u * 30.f, r1 = r0 + 10.f;
+            const float l[4] = {cx + cosf(an) * r0, top - 4.f + sinf(an) * r0, cx + cosf(an) * r1, top - 4.f + sinf(an) * r1};
+            sd_glow(l, 2, 0, FOIL, 1.2f);
+        }
+        qd_restore();
+    }
+}
+
 /* ---------------------------------------------------------------- the screen */
 void ui_snd_draw(const ui_snd_t *v)
 {
@@ -634,6 +728,13 @@ void ui_snd_draw(const ui_snd_t *v)
         }
     }
     (void)ncell;
+    if (v->rnd_kind) {                                  /* P1.5c: randomise: the dice, the bottle (over the drawing) */
+        ui_RR(12.f, 34.f, 216.f, 146.f, 10.f, QD_NONE, 1.f, UI_BG);
+        if (v->rnd_kind == 1)
+            sd_dice(v->rnd_u, v->t);
+        else
+            sd_bottle(v->rnd_u, v->rnd_kind == 3, v->t);
+    }
     if (v->lk) {                                        /* P1.5k: an LFO key held: "LFO n -> VALUE", the depth */
         const qd_rgb lc = UI_LFO_COL[v->lk - 1];
         const float sh = v->lk_ok ? 0.f : sinf(v->lk_shake * 30.f) * 6.f * v->lk_shake;

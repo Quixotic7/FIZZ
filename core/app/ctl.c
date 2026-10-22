@@ -309,6 +309,8 @@ static void k_snd_black(qd_app_t *a, int key, int b, int down, int vel)
         qd_snd_lfo_key(a, b - 5, down);
     else if (down)
         qd_snd_black(a, b);
+    else
+        qd_snd_black_up(a, b);
 }
 /* P1.3y: a settings menu open: the keys do nothing (KNOB 1..4 its values; OCT- / HOME back) */
 static int w_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
@@ -347,6 +349,28 @@ static void k_snd_note(qd_app_t *a, int key, int idx, int down, int vel)
                        vel);
 }
 static int w_step_view(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP; }
+/* P1.5c: SHIFT held in the step view (no menu open): its black-key shortcuts */
+static int w_shift_keys(const qd_app_t *a)
+{
+    return a->ui.mode == QD_MODE_STEP && qd_ctl_shift(a) && (!a->ui.latch || a->ui.latch == QD_LATCH_F3);
+}
+static void k_shift_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    (void)key, (void)vel;
+    if (b == 6) {                                       /* B7: on / off at its release; held, a knob: the click's level */
+        if (down)
+            a->ui.shift_used = 1, a->ui.metro_held = 1, a->ui.metro_turned = 0;
+        else if (a->ui.metro_held && !a->ui.metro_turned)
+            qd_shift_black(a, 6);
+        if (!down)
+            a->ui.metro_held = 0;
+        return;
+    }
+    if (down) {
+        a->ui.shift_used = 1;
+        qd_shift_black(a, b);
+    }
+}
 static void k_panel_white(qd_app_t *a, int key, int w, int down, int vel)
 {
     (void)key, (void)vel;
@@ -489,7 +513,8 @@ static void k_f1_white(qd_app_t *a, int key, int w, int down, int vel)
         qd_clip_copy_step(&u->clip, qd_ctl_pat(a), a->sel, step_of(a, w));
         u->f1_copied = 1;
         u->f2_loaded = u->f2_holding = 1;               /* (Form: "a copy loads the buffer .. the next F2 press pastes") */
-    } else if (qd_clip_paste_step(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel, step_of(a, w)) == QD_EFULL) {
+    } else if (qd_undo_hint(a, QD_UK_PASTE),
+               qd_clip_paste_step(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel, step_of(a, w)) == QD_EFULL) {
         no_room(a);
     }
 }
@@ -586,6 +611,7 @@ static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
             u->pg_t0[b] = a->ms;
             u->pg_done &= (uint16_t)~bit;
             if (u->pg_copied >= 0) {                    /* a page copied: paste it here */
+                qd_undo_hint(a, QD_UK_PASTE);
                 if (qd_clip_paste_page(&u->clip, p, a->seq.cur, a->sel, b) == QD_EFULL)
                     no_room(a);
                 qd_ctl_set_page(a, b);
@@ -638,6 +664,7 @@ static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
         } else if (u->b9_down) {
             u->b9_down = 0;
             if (!u->b9_done) {
+                qd_undo_hint(a, QD_UK_CLEAR);
                 qd_clip_clear_page(&u->clip, p, a->seq.cur, a->sel, u->page[a->sel]);
                 qd_ctl_confirm(a, "PAGE CLEARED", "F1 + B11 undoes it");
             }
@@ -674,6 +701,7 @@ static void f1_timers(qd_app_t *a)
         }
     }
     if (u->b9_down && !u->b9_done && a->ms - u->b9_t0 >= QD_CLEAR_HOLD_MS) {
+        qd_undo_hint(a, QD_UK_CLEAR);
         qd_clip_clear_track(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel);
         qd_ctl_confirm(a, "TRACK CLEARED", "F1 + B11 undoes it");
         u->b9_done = 1;
@@ -806,6 +834,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
 static const qd_key_row_t BLACK_ROWS[] = {
     {w_seq_held, k_bank},              /* SEQ held: B1..B4 the bank (P1.3d) */
     {w_sel_held, k_sel_black},         /* SEL held: B1..B8 select the track */
+    {w_shift_keys, k_shift_black},     /* P1.5c: SHIFT's shortcuts (snapshot, copy / paste, tap, click, double, clear) */
     {w_lib, k_lib_black},              /* P1.5a: the banks, LIBRARY / POOL, NAME, delete */
     {w_panel, k_panel_black},          /* P1.4b: the track settings, the mix: the track; the effects: B1..B4 */
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
@@ -1075,6 +1104,12 @@ static void b_oct(qd_app_t *a, int d, int down)
 {
     qd_ui_t *u = &a->ui;
     const int both = held(a, QD_B_OCTDN) && held(a, QD_B_OCTUP);
+    if (down && qd_ctl_shift(a) && !both && u->mode != QD_MODE_IDLE) {   /* P1.5c: SHIFT + F1 / F2: undo / redo */
+        u->shift_used = 1;
+        u->oct_eaten |= (uint8_t)(d < 0 ? 1u : 2u);
+        qd_shift_undo(a, d);
+        return;
+    }
     if (qd_lib_oct(a, d, down))                         /* P1.5a: the sounds page, the name editor, the projects */
         return;
     if (!down) {
@@ -1620,6 +1655,7 @@ static int k_unlock(qd_app_t *a, int knob, int d)
 }
 /* P1.5h: the latch mode's screen up (LFO held): SELECT VALUES / MODES (set at once, saved), the other knobs nothing */
 static int when_lmode(const qd_app_t *a) { return a->ui.lmode_open; }
+static int when_metro(const qd_app_t *a) { return a->ui.metro_held && qd_ctl_shift(a); }
 static int k_lmode(qd_app_t *a, int knob, int d)
 {
     if (knob == QD_K_SELECT && d) {
@@ -1632,6 +1668,7 @@ static const struct {
     qd_when_fn when;
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
 } KNOB_ROWS[] = {
+    {when_metro, qd_shift_metro_knob}, /* P1.5c: SHIFT + B7 held: any knob the click's level */
     {when_lmode, k_lmode},             /* P1.5h: LFO held, its screen up: SELECT the latch mode */
     {when_unlock, k_unlock},           /* P1.5o: F2 held (the editor, P-LOCK) + a knob: that value unlocked */
     {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track (over every page) */
@@ -1690,6 +1727,7 @@ void qd_ctl_ms(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     qd_lib_ms(a);                                       /* P1.5a: the sounds page's sound heard */
+    qd_snd_rnd_ms(a);                                   /* P1.5c: the editor's dice, its bottle */
     if (held(a, QD_B_MUTE) && !u->lfo_used && !u->lmode_open && u->mode == QD_MODE_STEP &&
         a->ms - u->lfo_ms >= QD_LFO_HOLD_MS)
         u->lmode_open = 1;                              /* P1.5h: LFO held alone: the latch mode's screen, while held */

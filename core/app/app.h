@@ -51,6 +51,7 @@
 #include "../voice/pool.h"
 #include "ctl.h"
 #include "persist.h"
+#include "undo.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,6 +62,7 @@ extern "C" {
 #define QD_FS 44100                    /* the audio's sample rate */
 #define QD_BPM_MIN 30
 #define QD_BPM_MAX 300
+#define QD_METRO_LVL 60                /* P1.5c: the click's level, % (SHIFT + B7 held + a knob) */
 #define QD_BPM_DEFAULT 122             /* line.html's BPM */
 #define QD_BEAT_LED_MS 80              /* PLAY's green LED: lit this long from each beat */
 #define QD_OCT_MIN (-2)
@@ -125,6 +127,11 @@ typedef struct qd_app {
     int oct;                           /* the keybed's octave shift */
     /* the UI (P1.3: core/app/ctl.h) */
     qd_ui_t ui;
+    qd_hist_t undo;                    /* P1.5c: undo / redo, the snapshot, the pattern clipboard (undo.h) */
+    int metro, metro_lvl;                         /* P1.5c: the metronome on (SHIFT + B7) .. */
+    int64_t metro_beat;                /* .. the last beat it clicked (-1) .. */
+    uint32_t metro_ph, metro_left;     /* .. its click's phase and samples left */
+    int metro_acc;                     /* .. an accent (beat 1) */
     /* the audio: blocks of 32 frames made ahead of a call that asks for fewer */
     int16_t fifo[2 * QD_MIX_CTL];
     int nfifo, ififo;

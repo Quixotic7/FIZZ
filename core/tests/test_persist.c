@@ -403,8 +403,13 @@ int main(void)
     A.proj.pat[0].used = 1;
     qd_proj_name(&A, 2, "MY SONG");
     CHECK(qd_proj_copy(&A, 2, 4) && A.per.pexists[4] && !strcmp(A.per.pname[4], "MY SONG"), "copy 3 -> 5");
+    qd_undo_input(&A, 0);                               /* (P1.5c: an undo level, then a load forgets it) */
+    qd_step_on(&A.proj.pat[A.seq.cur], 0, 5);
+    qd_undo_close(&A);
+    CHECK(qd_undo_count(&A, -1) == 1, "an edit: one undo level");
     CHECK(qd_proj_load(&A, 4) && A.per.proj == 4 && qd_step_is_on(qd_step(&A.proj.pat[0], 0, 0)),
           "load 5: the copy has the edit");
+    CHECK(qd_undo_count(&A, -1) == 0 && qd_undo_count(&A, 1) == 0, "a project load: undo forgets (P1.5c)");
     CHECK(qd_proj_delete(&A, 2) && !A.per.pexists[2], "delete 3");
     CHECK(qd_proj_load(&A, 0) && A.per.proj == 0 && !memcmp(&keep.pat[9], &A.proj.pat[9], sizeof keep.pat[9]),
           "load 1 again: as it was");

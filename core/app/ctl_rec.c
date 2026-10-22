@@ -223,6 +223,7 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
     }
     if (!u->rec || u->mode != QD_MODE_KEYS)
         return;
+    qd_undo_hint(a, QD_UK_REC);                         /* (P1.5c: a recorded take: one undo level) */
     note &= 127;
     if (!down) {
         if (u->rec_t0[note] < 0)

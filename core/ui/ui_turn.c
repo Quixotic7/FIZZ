@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "ui.h"
+#include "../app/undo.h"
 
 static const float DASH[2] = {2.f, 3.f};
 
@@ -673,4 +674,54 @@ void ui_confirm_draw(const char *big, const char *small, qd_rgb col)
     if (small && small[0] && !strchr(small, ' '))      /* (P1.5o: a one-word state under it, "unlocked"; never a
                                                          * sentence) */
         ui_T(small, 120.f, 162.f, 16.f, 600, 1.f, col, QD_CENTER);
+}
+
+/* P1.5c: UNDO / REDO, what it was as a glyph */
+void ui_undo_draw(int redo, int kind, float t)
+{
+    const qd_rgb c = kind < 0 ? UI_G2 : UI_K3;
+    const float cx = 120.f, cy = 150.f;
+    (void)t;
+    ui_T(redo ? "REDO" : "UNDO", 120.f, 92.f, 40.f, 200, 2.f, c, QD_CENTER);
+    {   /* an arc over the glyph, its head at the left (undo: back) or the right (redo: on) */
+        const float hx = redo ? 120.f + 64.f : 120.f - 64.f, hy = 120.f;
+        const float d = redo ? -1.f : 1.f;
+        const float h[6] = {hx + d * 7.f, hy - 6.f, hx, hy, hx + d * 9.f, hy + 3.f};
+        qd_ellipse_arc(120.f, 124.f, 64.f, 20.f, UI_PI * 1.05f, UI_PI * 1.95f, c, 1.4f);
+        ui_P(h, 3, c, 1.4f, 0, QD_NONE);
+    }
+    switch (kind) {
+    case QD_UK_PASTE: ui_icon(UI_IC_PASTE, cx, cy, 3.f, c); break;
+    case QD_UK_CLEAR: ui_icon(UI_IC_CLEAR, cx, cy, 3.f, c); break;
+    case QD_UK_REC: ui_O(cx, cy, 14.f, UI_RED, 2.f, QD_NONE), ui_O(cx, cy, 7.f, QD_NONE, 1.f, UI_RED); break;
+    case QD_UK_RANDOM: ui_icon(UI_IC_DICE, cx, cy, 3.f, c); break;
+    case QD_UK_KNOB:                                    /* a knob turned */
+        ui_O(cx, cy, 16.f, c, 2.f, QD_NONE);
+        line2(cx, cy, cx + 11.f, cy - 11.f, c, 2.f);
+        break;
+    case QD_UK_SOUNDS: {                                /* a sound's tile: its envelope */
+        const float e[8] = {cx - 22.f, cy + 12.f, cx - 14.f, cy - 12.f, cx + 6.f, cy - 2.f, cx + 22.f, cy + 12.f};
+        ui_RR(cx - 28.f, cy - 20.f, 56.f, 40.f, 6.f, c, 1.6f, QD_NONE);
+        ui_P(e, 4, c, 1.6f, 0, QD_NONE);
+        break;
+    }
+    case QD_UK_SNAP:                                    /* the snapshot: a frame, its shutter */
+        ui_RR(cx - 24.f, cy - 16.f, 48.f, 32.f, 5.f, c, 1.6f, QD_NONE);
+        ui_O(cx, cy, 9.f, c, 1.6f, QD_NONE);
+        break;
+    case QD_UK_DOUBLE:                                  /* two pages */
+        ui_RR(cx - 30.f, cy - 12.f, 26.f, 24.f, 3.f, c, 1.6f, QD_NONE);
+        ui_RR(cx + 4.f, cy - 12.f, 26.f, 24.f, 3.f, c, 1.6f, QD_NONE);
+        break;
+    case QD_UK_EDIT: {                                  /* a step's cell, edited */
+        int k;
+        for (k = 0; k < 4; k++)
+            ui_RR(cx - 34.f + (float)k * 18.f, cy - 8.f, 14.f, 16.f, 2.f, k == 1 ? QD_NONE : UI_G2, 1.2f,
+                  k == 1 ? c : QD_NONE);
+        break;
+    }
+    default:                                            /* nothing there: a dash */
+        line2(cx - 14.f, cy, cx + 14.f, cy, c, 2.f);
+        break;
+    }
 }

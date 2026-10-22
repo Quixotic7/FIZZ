@@ -531,6 +531,13 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
         ROW(UI_SC_REC, UI_IC_GEAR, a->proj.rec_mode ? "STEP" : "LIVE");   /* .. the record settings */
         ROW(UI_SC_SEL, UI_IC_GEAR, knobs);              /* .. the global settings (the knobs' layout) */
     }
+    if (u->mode == QD_MODE_STEP && (!u->latch || u->latch == QD_LATCH_F3)) {   /* P1.5c: the black keys' shortcuts */
+        v->keys = 1;
+        v->snap_ok = a->undo.snap_ok;
+        v->pclip_ok = a->undo.pclip_ok;
+        v->metro = a->metro;
+        v->armed = u->clr_armed && a->ms - u->clr_ms < 2000u;
+    }
 #undef ROW
 }
 
@@ -1162,6 +1169,12 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     }
     v->last = u->snd_knob;
     v->t = secs(a->ms);
+    if (u->rnd_kind) {                                  /* P1.5c: the dice, the bottle */
+        const uint32_t len = u->rnd_kind == 1 ? QD_RND_DICE_MS : u->rnd_kind == 2 ? QD_RND_HOLD_MS : QD_RND_BURST_MS;
+        v->rnd_kind = u->rnd_kind;
+        v->rnd_u = (float)(a->ms - u->rnd_ms) / (float)len;
+        v->rnd_u = v->rnd_u > 1.f ? 1.f : v->rnd_u;
+    }
     if (u->snd_lk && (u->snd_lk_used || a->ms - u->snd_lk_ms >= QD_TAP_MS)) {   /* P1.5k: an LFO key held: the mapping */
         const int lf = u->snd_lk - 1, dst = pp[QD_QP_LFO(lf, QD_QL_DEST)];
         const int16_t dep = pp[QD_QP_LFO(lf, QD_QL_DEPTH)];
@@ -1463,7 +1476,8 @@ int qd_view_overlay(const qd_app_t *a)
 {
     /* (P1.5n: the octave / bank takeover over EDIT too: an OCT tap's octave was not shown there at all, only F2's map
      * for a moment) */
-    return a->ui.tk != QD_TK_NONE && (qd_view_screen(a) != QD_SCR_EDIT || a->ui.tk == UI_TK_OCTAVE);
+    return a->ui.tk != QD_TK_NONE && (qd_view_screen(a) != QD_SCR_EDIT || a->ui.tk == UI_TK_OCTAVE ||
+                                      a->ui.tk == QD_TK_UNDO);
 }
 
 void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
@@ -1578,7 +1592,9 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
         if (al > 0.f) {
             overlay_begin(al);
-            if (u->tk == QD_TK_PRESET) {
+            if (u->tk == QD_TK_UNDO) {                  /* P1.5c: UNDO / REDO, what it was */
+                ui_undo_draw(u->undo_dir > 0, u->undo_kind, secs(a->ms));
+            } else if (u->tk == QD_TK_PRESET) {
                 draw_picker(a);
             } else if (u->tk == UI_TK_OCTAVE) {
                 draw_octave(a);

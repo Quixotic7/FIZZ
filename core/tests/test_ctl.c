@@ -4553,6 +4553,319 @@ static void g_p15o_locks(void)
     run(20);
 }
 
+/* P1.5c: undo / redo (a gesture a level, eight, the redo tail dropped by a new edit, a project load forgets), the
+ * snapshot, SHIFT's keys (copy / paste the pattern, tap tempo, the metronome and its level, double, clear twice; only
+ * the shortcuts lit), randomise in the editor (the dice's page at 600 ms, the bottle's sound at 1500 ms, released early
+ * nothing, the values in their rules, a step held: locks, undone) */
+static void shift_black(int b)                          /* SHIFT + a black key */
+{
+    bdown(SHIFT);
+    run(20);
+    black(b);
+    bup(SHIFT);
+    run(20);
+}
+static void undo_redo(int dir)
+{
+    bdown(SHIFT);
+    run(20);
+    btap(dir < 0 ? F1 : F2);
+    bup(SHIFT);
+    run(20);
+}
+static void g_p15c_undo(void)
+{
+    static qd_pattern_t p0, p1;
+    int i, ok, n0;
+    start();
+    wtap(0);
+    run(600);
+    memcpy(&p0, PAT(), sizeof p0);
+    mode(M_VEL);                                        /* a knob gesture: VEL turned in three bursts < 500 ms apart */
+    run(600);
+    n0 = qd_undo_count(&A, -1);
+    memcpy(&p0, PAT(), sizeof p0);
+    whold(0);
+    for (i = 0; i < 3; i++) {
+        turn(QD_K_ALGO, -4);
+        run(200);
+    }
+    wrel(0);
+    run(600);
+    memcpy(&p1, PAT(), sizeof p1);
+    CHECK(qd_undo_count(&A, -1) == n0 + 1 && memcmp(PAT(), &p0, sizeof p0),
+          "three turns under 500 ms apart: one level (%d -> %d)", n0, qd_undo_count(&A, -1));
+    undo_redo(-1);
+    CHECK(!memcmp(PAT(), &p0, sizeof p0) && A.ui.tk == QD_TK_UNDO && A.ui.undo_dir < 0 && A.ui.undo_kind == QD_UK_KNOB,
+          "SHIFT + F1: the pattern as before the turns; UNDO's takeover, a knob's glyph");
+    CHECK(qd_view_overlay(&A), "UNDO drawn over the step view");
+    undo_redo(1);
+    CHECK(!memcmp(PAT(), &p1, sizeof p1) && A.ui.undo_dir > 0, "SHIFT + F2: redone, byte for byte");
+    btap(QD_B_HOME);
+    run(600);
+    start();                                            /* a paste, a clear: each its own level, its kind */
+    wtap(0), wtap(3), wtap(9);
+    run(600);
+    memcpy(&p0, PAT(), sizeof p0);
+    shift_black(B4);                                    /* the pattern copied */
+    wtap(5);
+    run(600);
+    memcpy(&p1, PAT(), sizeof p1);
+    shift_black(B11);
+    shift_black(B11);                                   /* the track cleared */
+    run(600);
+    CHECK(!R(0, 3).on && !R(0, 9).on && A.ui.undo_kind >= -1, "SHIFT + B11 twice: the track cleared");
+    undo_redo(-1);
+    CHECK(!memcmp(PAT(), &p1, sizeof p1) && A.ui.undo_kind == QD_UK_CLEAR, "undo: the clear back (its glyph CLEAR)");
+    shift_black(B5);
+    run(600);
+    CHECK(!memcmp(PAT(), &p0, sizeof p0), "SHIFT + B5: the copied pattern pasted onto the active one");
+    undo_redo(-1);
+    CHECK(!memcmp(PAT(), &p1, sizeof p1) && A.ui.undo_kind == QD_UK_PASTE, "undo: the paste gone (PASTE)");
+    CHECK(qd_undo_count(&A, 1) == 1, "the clear's redo dropped by the paste: one redo there (%d)", qd_undo_count(&A, 1));
+    for (i = 0; i < 12; i++) {                          /* eight levels at most */
+        wtap(i);
+        run(600);
+    }
+    CHECK(qd_undo_count(&A, -1) == QD_UNDO_LEVELS && qd_undo_count(&A, 1) == 0, "twelve edits: eight levels (%d), no redo",
+          qd_undo_count(&A, -1));
+    for (ok = 1, i = 0; i < 8; i++) {
+        undo_redo(-1);
+        ok &= A.ui.undo_kind == QD_UK_EDIT;
+    }
+    CHECK(ok && !R(0, 0).on && R(0, 1).on && !R(0, 3).on && !R(0, 4).on && R(0, 5).on,
+          "eight undos: the four oldest of the twelve taps stay, the eight newest undone");
+    undo_redo(-1);
+    CHECK(A.ui.undo_kind == -1, "a ninth: nothing there (the takeover's dash)");
+    btap(QD_B_PAGE);                                    /* page and view changes keep it */
+    btap(QD_B_HOME);
+    for (i = 0; i < 8; i++)
+        undo_redo(1);
+    CHECK(R(0, 11).on && qd_undo_count(&A, 1) == 0, "after a page / view change: all eight redone");
+    n0 = qd_pool_add(&A, "UNDO", A.model.t[0].patch);   /* a pool operation */
+    run(600);
+    ok = A.proj.nsound;
+    undo_redo(-1);
+    CHECK(n0 >= 0 && A.proj.nsound == ok - 1 && A.ui.undo_kind == QD_UK_SOUNDS, "a pool add undone (%d -> %d sounds)", ok,
+          A.proj.nsound);
+    undo_redo(1);
+    CHECK(A.proj.nsound == ok, "and redone");
+    /* (a project load forgetting it: test_persist, which has a flash) */
+}
+
+static int run_peak(uint32_t n)                         /* run (as run()), the audio's peak */
+{
+    int pk = 0;
+    while (n--) {
+        now++;
+        qd_app_tick(&A, now);
+        while (frames_done + 128u <= (uint64_t)now * QD_FS / 1000u) {
+            int16_t blk[256];
+            int k;
+            qd_app_audio(&A, blk, 128);
+            for (k = 0; k < 256; k++)
+                pk = abs(blk[k]) > pk ? abs(blk[k]) : pk;
+            frames_done += 128u;
+        }
+    }
+    return pk;
+}
+static void g_p15c_shift(void)
+{
+    static qd_pattern_t p0;
+    qd_leds_t l;
+    int i, ok, pk, pk2;
+    start();
+    wtap(1), wtap(5);
+    run(600);
+    memcpy(&p0, PAT(), sizeof p0);
+    shift_black(B1);
+    CHECK(A.undo.snap_ok && A.ui.cf_on && !strcmp(A.ui.cf_big, "SNAPSHOT"), "SHIFT + B1: the snapshot stored");
+    wtap(1), wtap(12);
+    run(600);
+    shift_black(B3);
+    run(600);
+    CHECK(!memcmp(PAT(), &p0, sizeof p0), "SHIFT + B3: recalled at once");
+    undo_redo(-1);
+    CHECK(R(0, 12).on && !R(0, 1).on && A.ui.undo_kind == QD_UK_SNAP, "the recall undone");
+    bdown(SHIFT);                                       /* the LEDs: the shortcuts only */
+    run(300);
+    l = leds();
+    for (ok = 1, i = 0; i < 16; i++)
+        ok &= l.key[WK(i)] == QD_LED_OFF;
+    for (i = 0; i < 11; i++)
+        ok &= QD_SHIFT_KEYS[i] ? l.key[BK(i)] >= QD_LED_DIM : l.key[BK(i)] == QD_LED_OFF;
+    CHECK(ok && l.key[BK(B3)] == QD_LED_LIT && l.key[BK(B5)] == QD_LED_DIM && l.key[BK(B6)] == QD_LED_LIT,
+          "SHIFT held: only B1 B3 B4 B5 B6 B7 B9 B11 lit (B5 dim: nothing copied)");
+    CHECK(qd_view_screen(&A) == QD_SCR_SHIFT, "SHIFT's map");
+    for (i = 0; i < 4; i++) {                           /* tap tempo: 500 ms apart -> 120 */
+        black(B6);
+        run(470);
+    }
+    CHECK(PAT()->bpm == 120, "SHIFT + B6 four times 500 ms apart: 120 BPM (%d)", PAT()->bpm);
+    black(B6);
+    run(370);
+    black(B6);                                          /* (the last three intervals: 500 500 400 -> 128) */
+    CHECK(PAT()->bpm >= 127 && PAT()->bpm <= 129, "the last taps averaged (%d)", PAT()->bpm);
+    run(2100);
+    black(B6);
+    run(570);
+    black(B6);
+    CHECK(PAT()->bpm == 100, "after two seconds a new count (600 ms: 100, %d)", PAT()->bpm);
+    bup(SHIFT);
+    run(20);
+    start();
+    btap(QD_B_PLAY);                                    /* the metronome */
+    pk = run_peak(1200);
+    shift_black(B7);
+    CHECK(A.metro && !strcmp(A.ui.cf_small, "on"), "SHIFT + B7: the click on");
+    pk2 = run_peak(1200);
+    CHECK(pk == 0 && pk2 > 2000, "an empty pattern playing: silent (%d); the click heard (peak %d)", pk, pk2);
+    bdown(SHIFT);
+    run(20);
+    kdown(BK(B7));
+    run(20);
+    turn(QD_K_1, -4);
+    kup(BK(B7));
+    run(20);
+    bup(SHIFT);
+    run(20);
+    CHECK(A.metro && A.metro_lvl == QD_METRO_LVL - 20 && !strcmp(A.ui.cf_big, "CLICK"),
+          "SHIFT + B7 held + a knob: the click's level (%d), still on", A.metro_lvl);
+    shift_black(B7);
+    CHECK(!A.metro, "SHIFT + B7 again: off");
+    btap(QD_B_PLAY);
+    start();                                            /* double the track */
+    wtap(0), wtap(7);
+    run(600);
+    shift_black(B9);
+    CHECK(qd_track_loop(&PAT()->trk[0]) == 3 && R(0, 16).on && R(0, 23).on && !R(0, 17).on,
+          "SHIFT + B9: the track doubled (page 2 = page 1, the loop both)");
+    shift_black(B9);
+    CHECK(qd_track_loop(&PAT()->trk[0]) == 15 && R(0, 48).on, "twice: four pages");
+    bdown(SHIFT);
+    run(20);
+    black(B11);
+    CHECK(R(0, 0).on && A.ui.clr_armed && !strcmp(A.ui.cf_big, "CLEAR?"), "SHIFT + B11 once: armed, nothing cleared");
+    run(QD_FAST_MS);
+    i = leds().key[BK(B11)];
+    run(QD_FAST_MS);
+    CHECK(i != leds().key[BK(B11)], "B11 blinking while armed");
+    run(2100);
+    black(B11);
+    CHECK(R(0, 0).on && A.ui.clr_armed, "two seconds late: armed again, nothing cleared");
+    black(B11);
+    CHECK(!R(0, 0).on && !R(0, 16).on && !A.ui.clr_armed, "the second press in time: cleared");
+    btap(F1);
+    ok = A.ui.undo_kind == QD_UK_CLEAR && R(0, 48).on;
+    btap(F1);
+    ok &= A.ui.undo_kind == QD_UK_DOUBLE && qd_track_loop(&PAT()->trk[0]) == 3;
+    CHECK(ok, "SHIFT held all along: the clear and the second double each their own level");
+    bup(SHIFT);
+    run(20);
+}
+
+static void g_p15c_random(void)
+{
+    static qd_pattern_t p0;
+    static int16_t t0[QD_QUAD_NP];
+    static ui_snd_t sv;
+    int i, k, ok, same, pg;
+    start();
+    wtap(0);
+    btap(QD_B_SOUND);
+    pg = qd_snd_page_of("FILTER");
+    A.ui.snd_page = pg;
+    run(600);
+    memcpy(t0, A.model.t[0].patch, sizeof t0);
+    memcpy(&p0, PAT(), sizeof p0);
+    kdown(BK(B9));
+    run(20);
+    kup(BK(B9));
+    run(200);
+    qd_view_snd(&A, &sv);
+    CHECK(sv.rnd_kind == 1 && sv.rnd_u > 0.2f && sv.rnd_u < 0.6f && !memcmp(t0, A.model.t[0].patch, sizeof t0),
+          "B9: the dice rolling (%.2f), nothing changed yet", sv.rnd_u);
+    run(500);
+    for (same = 0, i = 0; i < 5; i++) {
+        const int id = QD_SND_PAGES[pg].id[i];
+        if (id >= 0)
+            same += A.model.t[0].patch[id] == t0[id];
+    }
+    for (ok = 1, k = 0; k < QD_QUAD_NP; k++) {
+        int on = 0;
+        for (i = 0; i < 5; i++)
+            on |= QD_SND_PAGES[pg].id[i] == k;
+        if (!on)
+            ok &= A.model.t[0].patch[k] == t0[k];
+    }
+    CHECK(!A.ui.rnd_kind && same < 3 && ok, "after 600 ms: FILTER's values new (%d the same), no other value", same);
+    run(600);
+    undo_redo(-1);
+    CHECK(!memcmp(t0, A.model.t[0].patch, sizeof t0) && A.ui.undo_kind == QD_UK_RANDOM, "undone (the dice's glyph)");
+    kdown(BK(B10));                                     /* the bottle, released early */
+    run(1000);
+    qd_view_snd(&A, &sv);
+    CHECK(sv.rnd_kind == 2 && sv.rnd_u > 0.6f && sv.rnd_u < 0.7f, "B10 held 1 s: the bottle two thirds full (%.2f)", sv.rnd_u);
+    kup(BK(B10));
+    run(1000);
+    CHECK(!A.ui.rnd_kind && !memcmp(t0, A.model.t[0].patch, sizeof t0), "released early: nothing");
+    kdown(BK(B10));
+    run(1520);
+    qd_view_snd(&A, &sv);
+    CHECK(sv.rnd_kind == 3, "held 1.5 s: the cork pops (the burst)");
+    kup(BK(B10));
+    run(700);
+    for (same = 0, k = 0; k < QD_QUAD_NP; k++)
+        same += A.model.t[0].patch[k] == t0[k];
+    CHECK(!A.ui.rnd_kind && same < QD_QUAD_NP - 30, "the whole sound new (%d of %d the same)", same, QD_QUAD_NP);
+    for (i = 0; i < 40; i++) {                          /* the rules, forty times */
+        int16_t lo, hi;
+        const int16_t *v = A.model.t[0].patch;
+        ok = v[QD_QP_ALGO] >= 1 && v[QD_QP_ALGO] <= 8 && v[QD_QP_LEVEL] == t0[QD_QP_LEVEL] && v[QD_QP_FTYPE] == t0[QD_QP_FTYPE];
+        ok &= v[QD_QP_RC] == 1 || v[QD_QP_RC] == 3 || v[QD_QP_RC] == 4 || v[QD_QP_RC] == 5 || v[QD_QP_RC] == 6;
+        ok &= v[QD_QP_RA] == 1 || v[QD_QP_RA] == 3 || v[QD_QP_RA] == 7 || v[QD_QP_RA] == 11 || v[QD_QP_RA] == 15;
+        qd_quad_value_range(QD_QP_FREQ, &lo, &hi, 0);
+        ok &= v[QD_QP_FREQ] >= lo + (hi - lo) * 45 / 100;
+        qd_quad_value_range(QD_QP_RESO, &lo, &hi, 0);
+        ok &= v[QD_QP_RESO] <= lo + (hi - lo) * 60 / 100;
+        qd_quad_value_range(QD_QP_ALEV, &lo, &hi, 0);
+        ok &= v[QD_QP_ALEV] >= lo + (hi - lo) * 40 / 100;
+        for (k = 0; k < QD_QUAD_NP; k++)
+            if (qd_quad_value_range(k, &lo, &hi, 0) && hi > lo)
+                ok &= v[k] >= lo && v[k] <= hi;
+        if (!ok)
+            break;
+        qd_snd_randomise(&A, -1);
+        run(600);
+    }
+    CHECK(ok, "forty randomised sounds: every value in range, ALGO 1..8, the ratios from their sets, FREQ >= 45 %%, RESO "
+          "<= 60 %%, A's level >= 40 %%, LEVEL and FTYPE kept (%d)", i);
+    memcpy(t0, A.model.t[0].patch, sizeof t0);
+    whold(0);                                           /* a step held: locks */
+    kdown(BK(B9));
+    run(20);
+    kup(BK(B9));
+    run(700);
+    wrel(0);
+    run(600);
+    for (ok = 0, i = 0; i < 5; i++) {
+        const int id = QD_SND_PAGES[pg].id[i];
+        if (id >= 0)
+            ok += LK(0, 0, id) != -99999;
+    }
+    CHECK(ok >= 3 && !memcmp(t0, A.model.t[0].patch, sizeof t0), "a step held: the dice make p-locks (%d), the track's "
+          "sound untouched", ok);
+    undo_redo(-1);
+    for (ok = 0, i = 0; i < 5; i++) {
+        const int id = QD_SND_PAGES[pg].id[i];
+        if (id >= 0)
+            ok += LK(0, 0, id) != -99999;
+    }
+    CHECK(!ok, "undo: the locks gone");
+    btap(QD_B_HOME);
+}
+
 int main(void)
 {
     static const struct {
@@ -4623,6 +4936,9 @@ int main(void)
         {"P1.5m: the F layers with the step latch on", g_p15m_flatch},
         {"P1.5n/o: the octave tap's takeover, SELECT moves all, LFO's LED, MIX on TONE", g_p15n},
         {"P1.5o: locks over a sound lock, F2 unlocks, the default's VEL green", g_p15o_locks},
+        {"P1.5c: undo / redo, eight levels", g_p15c_undo},
+        {"P1.5c: SHIFT's keys: snapshot, tap, click, double, clear", g_p15c_shift},
+        {"P1.5c: randomise: the dice, the bottle, the rules", g_p15c_random},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

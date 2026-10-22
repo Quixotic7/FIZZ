@@ -404,11 +404,56 @@ static void control(int c, float cx, float cy)
     }
 }
 
+/* P1.5c: SHIFT's black-key shortcuts, the keys drawn where they are, each its glyph (none: dark) */
+static void shift_keys(const ui_shift_t *v)
+{
+    static const uint8_t SK[11] = {1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1};   /* (ctl_shift.c QD_SHIFT_KEYS) */
+    int i;
+    for (i = 0; i < 11; i++) {
+        const float x = 10.f + (float)i * 20.4f, cx = x + 9.f, cy = 210.f;
+        const qd_rgb c = !SK[i] ? UI_G3 : (i == 2 && !v->snap_ok) || (i == 4 && !v->pclip_ok) ? UI_G2
+                       : i == 10 && v->armed ? UI_K4 : i == 6 && v->metro ? UI_K2 : UI_K3;
+        ui_RR(x, 190.f, 18.f, 40.f, 4.f, c, SK[i] ? 1.4f : 1.f, QD_NONE);
+        switch (i) {
+        case 0:                                         /* the snapshot stored: a frame, its shutter, filled */
+            ui_RR(cx - 6.f, cy - 4.f, 12.f, 9.f, 2.f, c, 1.2f, QD_NONE);
+            ui_O(cx, cy + 0.5f, 2.2f, QD_NONE, 1.f, c);
+            break;
+        case 2:                                         /* .. recalled: the frame, an arrow out of it */
+            ui_RR(cx - 6.f, cy - 1.f, 12.f, 9.f, 2.f, c, 1.2f, QD_NONE);
+            line2(cx, cy - 10.f, cx, cy + 2.f, c, 1.2f);
+            line2(cx - 3.f, cy - 7.f, cx, cy - 10.f, c, 1.2f);
+            line2(cx + 3.f, cy - 7.f, cx, cy - 10.f, c, 1.2f);
+            break;
+        case 3: ui_icon(UI_IC_COPY, cx, cy, 1.f, c); break;
+        case 4: ui_icon(UI_IC_PASTE, cx, cy, 1.f, c); break;
+        case 5:                                         /* tap tempo: a tap and its ring */
+            ui_O(cx, cy, 2.5f, QD_NONE, 1.f, c);
+            ui_O(cx, cy, 6.5f, c, 1.2f, QD_NONE);
+            break;
+        case 6: {                                       /* the metronome */
+            const float m[8] = {cx - 6.f, cy + 8.f, cx - 2.f, cy - 8.f, cx + 2.f, cy - 8.f, cx + 6.f, cy + 8.f};
+            ui_P(m, 4, c, 1.2f, 1, QD_NONE);
+            line2(cx, cy + 5.f, cx + 5.f, cy - 6.f, c, 1.2f);
+            break;
+        }
+        case 8:                                         /* the track doubled: two pages */
+            ui_RR(cx - 7.f, cy - 4.f, 6.f, 8.f, 1.f, c, 1.1f, QD_NONE);
+            ui_RR(cx + 1.f, cy - 4.f, 6.f, 8.f, 1.f, c, 1.1f, QD_NONE);
+            break;
+        case 10: ui_icon(UI_IC_CLEAR, cx, cy, 1.f, c); break;
+        default: break;
+        }
+    }
+}
+
 void ui_shift_draw(const ui_shift_t *v)
 {
     const int n = v->n < 0 ? 0 : v->n > 8 ? 8 : v->n;
-    const float sp = n > 5 ? 182.f / (float)(n - 1 > 0 ? n - 1 : 1) : 40.f, y0 = n > 5 ? 44.f : 58.f;
-    const float big = n > 5 ? 18.f : 20.f;
+    const float sp = v->keys ? (n > 1 ? 136.f / (float)(n - 1) : 0.f)   /* (P1.5c: the keys below: the rows tighter) */
+                   : n > 5 ? 182.f / (float)(n - 1 > 0 ? n - 1 : 1) : 40.f;
+    const float y0 = v->keys ? 40.f : n > 5 ? 44.f : 58.f;
+    const float big = v->keys ? 15.f : n > 5 ? 18.f : 20.f;
     int i;
     ui_head("SHIFT", 0, 0, UI_K3, UI_G1);
     for (i = 0; i < n; i++) {
@@ -424,6 +469,8 @@ void ui_shift_draw(const ui_shift_t *v)
             ui_T(v->val[i], 128.f, y + 7.f, sz < 12.f ? 12.f : sz, sz < 16.f ? 500 : 300, 0.f, UI_K3, QD_LEFT);
         }
     }
+    if (v->keys)
+        shift_keys(v);
 }
 
 /* ---------------------------------------------------------------- P1.3y: the settings menus */

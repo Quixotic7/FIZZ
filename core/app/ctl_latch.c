@@ -87,3 +87,4 @@ int qd_latch_oct(qd_app_t *a, int d)
 #include <stdio.h>
 #include <string.h>
 #include "ctl_lib.c"
+#include "ctl_shift.c"

@@ -181,6 +181,8 @@ void qd_snd_lfo_key(qd_app_t *a, int n, int down)
 }
 
 /* a black key: B1..B5 the group (again: its next page), B11 a step held: its locks on this page cleared */
+static void snd_rnd_key(qd_app_t *a, int b, int down);
+void qd_snd_black_up(qd_app_t *a, int b) { snd_rnd_key(a, b, 0); }
 void qd_snd_black(qd_app_t *a, int b)
 {
     qd_ui_t *u = &a->ui;
@@ -209,6 +211,10 @@ void qd_snd_black(qd_app_t *a, int b)
                         qd_lock_clear(qd_ctl_pat(a), a->sel, u->held[i], QD_QP_RB2);
                 }
         qd_ctl_confirm(a, "LOCKS CLEARED", 0);
+        return;
+    }
+    if (b == 8 || b == 9) {                             /* P1.5c: B9 the dice (the page), B10 held the bottle (all) */
+        snd_rnd_key(a, b, 1);
         return;
     }
     if (b >= QD_NSG)
@@ -387,6 +393,8 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
         black[i] = i < QD_NSG ? (i == pg->group || (i >= QD_SG_LFO1 && u->snd_lk == i - QD_SG_LFO1 + 1) ? QD_LED_LIT
                                                                                                         : QD_LED_DIM)
                               : QD_LED_OFF;
+    black[8] = u->rnd_kind == 1 ? QD_LED_LIT : QD_LED_DIM;   /* P1.5c: B9 the dice, B10 the bottle */
+    black[9] = u->rnd_kind >= 2 ? QD_LED_LIT : QD_LED_DIM;
     for (i = 0; i < u->nheld; i++)
         for (k = 0; k < 5; k++)
             if (pg->id[k] >= 0) {
@@ -396,4 +404,133 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
                     n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], QD_QP_RB2, &v);
             }
     black[10] = n ? QD_LED_LIT : QD_LED_OFF;
+}
+
+/* ---------------------------------------------------------------- P1.5c: randomise (B9 the page, B10 held the sound) */
+/* THE RULES: every value inside its range (snd_put clamps), and inside a musical part of it so the sound stays
+ * playable: ratios from the plain ones (C 0.50 1 2 3 4; A 0.50 1 2 3 4; B's pair from 0.50 1 2 3), the operator
+ * envelopes' levels never low (A LEV, B LEV 40 .. 100 %: no carrier silent), their attacks short, decays and ends
+ * audible; the filter open enough (FREQ from 45 %), RESO at most 60 %, its type kept; the amp's attack short,
+ * sustain from 40 %, release modest; LEVEL kept (the loudness is the mix's); DRIVE at most 25 %; the LFOs gentle (depth
+ * at most a third, their destinations kept: no new modulation appears from nowhere); the switches (TRIG, RESET,
+ * PHRT) kept. A fraction pair (lo, hi) of the range a value, or kept */
+typedef struct { int8_t id; uint8_t lo, hi; } snd_rule_t;   /* lo, hi: % of the range; 255: kept */
+static const snd_rule_t SND_RULES[] = {
+    {QD_QP_HARM, 25, 75}, {QD_QP_DTUN, 40, 60}, {QD_QP_FDBK, 0, 60}, {QD_QP_MIX, 0, 100},
+    {QD_QP_OFSC, 45, 55}, {QD_QP_OFSA, 45, 55}, {QD_QP_OFSB1, 45, 55}, {QD_QP_OFSB2, 45, 55},
+    {QD_QP_AATK, 0, 30}, {QD_QP_ADEC, 15, 80}, {QD_QP_AEND, 20, 100}, {QD_QP_ALEV, 40, 100},
+    {QD_QP_BATK, 0, 30}, {QD_QP_BDEC, 15, 80}, {QD_QP_BEND, 20, 100}, {QD_QP_BLEV, 40, 100},
+    {QD_QP_ADLY, 0, 10}, {QD_QP_BDLY, 0, 10}, {QD_QP_VEL, 20, 80},
+    {QD_QP_AKEY, 0, 30}, {QD_QP_B1KEY, 0, 30}, {QD_QP_B2KEY, 0, 30},
+    {QD_QP_FATK, 0, 30}, {QD_QP_FDEC, 15, 70}, {QD_QP_FSUS, 20, 100}, {QD_QP_FREL, 10, 60},
+    {QD_QP_FREQ, 45, 100}, {QD_QP_RESO, 0, 60}, {QD_QP_FDEPTH, 40, 75}, {QD_QP_FDLY, 0, 5},
+    {QD_QP_FKTRK, 0, 60}, {QD_QP_BASE, 0, 20}, {QD_QP_WIDTH, 70, 100},
+    {QD_QP_EATK, 0, 20}, {QD_QP_EDEC, 20, 80}, {QD_QP_ESUS, 40, 100}, {QD_QP_EREL, 10, 55},
+    {QD_QP_DRIVE, 0, 25},
+};
+static uint32_t snd_rnd(qd_app_t *a)                    /* xorshift32 (seeded by the clock once) */
+{
+    uint32_t x = a->ui.rnd_seed ? a->ui.rnd_seed : (a->ms * 2654435761u) | 1u;
+    x ^= x << 13, x ^= x >> 17, x ^= x << 5;
+    a->ui.rnd_seed = x;
+    return x;
+}
+static int snd_pick(qd_app_t *a, const uint8_t *from, int n) { return from[snd_rnd(a) % (uint32_t)n]; }
+static void snd_rnd_value(qd_app_t *a, int id)
+{
+    static const uint8_t RC[5] = {1, 3, 4, 5, 6}, RA[5] = {1, 3, 7, 11, 15}, RB[4] = {1, 3, 4, 5};
+    int16_t lo, hi;
+    size_t k;
+    if (id == QD_QP_ALGO) {
+        snd_put(a, id, 1 + (int)(snd_rnd(a) % 8u));
+        return;
+    }
+    if (id == QD_QP_RC || id == QD_QP_RA) {
+        snd_put(a, id, id == QD_QP_RC ? snd_pick(a, RC, 5) : snd_pick(a, RA, 5));
+        return;
+    }
+    if (id == QD_QP_RB1 || id == QD_QP_RB2) {          /* (the pair: both) */
+        snd_put(a, QD_QP_RB1, snd_pick(a, RB, 4));
+        snd_put(a, QD_QP_RB2, snd_pick(a, RB, 4));
+        return;
+    }
+    if (id >= QD_QP_LFO0 && id < QD_QP_LFO0 + 3 * 8) {  /* the LFOs: gentle, their destinations kept */
+        const int f = (id - QD_QP_LFO0) % 8;
+        if (f == QD_QL_DEST || f == QD_QL_TRIG)
+            return;
+        if (!qd_quad_value_range(id, &lo, &hi, 0))
+            return;
+        if (f == QD_QL_DEPTH) {
+            const int r = (hi - lo) / 6;
+            snd_put(a, id, (int)(snd_rnd(a) % (uint32_t)(2 * r + 1)) - r);
+        } else if (f == QD_QL_FADE) {
+            snd_put(a, id, 0);
+        } else {
+            snd_put(a, id, lo + (int)(snd_rnd(a) % (uint32_t)(hi - lo + 1)));
+        }
+        return;
+    }
+    for (k = 0; k < sizeof SND_RULES / sizeof SND_RULES[0]; k++)
+        if (SND_RULES[k].id == id) {
+            if (!qd_quad_value_range(id, &lo, &hi, 0) || hi <= lo)
+                return;
+            {
+                const int a0 = lo + (hi - lo) * SND_RULES[k].lo / 100, a1 = lo + (hi - lo) * SND_RULES[k].hi / 100;
+                snd_put(a, id, a0 + (int)(snd_rnd(a) % (uint32_t)(a1 - a0 + 1)));
+            }
+            return;
+        }
+    /* (not in the rules: kept: LEVEL, FTYPE, the TRIG / RESET / PHRT switches) */
+}
+
+/* page: that page's values (the pair both halves); -1: every value of the sound. A step held: its p-locks */
+void qd_snd_randomise(qd_app_t *a, int page)
+{
+    int k;
+    qd_undo_hint(a, QD_UK_RANDOM);
+    if (page >= 0) {
+        for (k = 0; k < 5; k++)
+            if (QD_SND_PAGES[page].id[k] >= 0)
+                snd_rnd_value(a, QD_SND_PAGES[page].id[k]);
+        return;
+    }
+    for (k = 0; k < QD_QUAD_NP; k++)
+        if (k != QD_QP_RB2)
+            snd_rnd_value(a, k);
+}
+
+/* B9 down: the dice roll, the page new at their end; B10 down: the bottle fills while held, the sound new at the pop
+ * (released early: nothing) */
+static void snd_rnd_key(qd_app_t *a, int b, int down)
+{
+    qd_ui_t *u = &a->ui;
+    if (b == 8 && down && !u->rnd_kind) {
+        u->rnd_kind = 1;
+        u->rnd_ms = a->ms;
+    } else if (b == 9 && down && !u->rnd_kind) {
+        u->rnd_kind = 2;
+        u->rnd_ms = a->ms;
+    } else if (b == 9 && !down && u->rnd_kind == 2) {
+        u->rnd_kind = 0;                                /* (released early: nothing) */
+    }
+}
+void qd_snd_rnd_ms(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    if (!u->rnd_kind)
+        return;
+    if (!qd_snd_open(a)) {
+        u->rnd_kind = 0;
+        return;
+    }
+    if (u->rnd_kind == 1 && a->ms - u->rnd_ms >= QD_RND_DICE_MS) {
+        qd_snd_randomise(a, u->snd_page);
+        u->rnd_kind = 0;
+    } else if (u->rnd_kind == 2 && a->ms - u->rnd_ms >= QD_RND_HOLD_MS) {
+        qd_snd_randomise(a, -1);
+        u->rnd_kind = 3;
+        u->rnd_ms = a->ms;
+    } else if (u->rnd_kind == 3 && a->ms - u->rnd_ms >= QD_RND_BURST_MS) {
+        u->rnd_kind = 0;
+    }
 }
