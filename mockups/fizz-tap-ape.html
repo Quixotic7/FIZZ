@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ tap ape</title>
+<!-- FIZZ: SHIFT + B6's TAP takeover with a breakdancing ape in place of the metronome, a proposal (2026-10-22; the
+     owner's reference: UI Inspiration/fizz-tap-breakdance-ape.webp, not traced: our own ape in its palette).
+     ?shot=N  one screen at 1x   ?sheet=1  every screen at 2x with captions   ?poses=1  every pose
+     ?gif=1  the GIF's frames as a sprite (25 fps, 16 across)   no query: the page, with a live demo (click or space taps) -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f1eee8; --fg:#1b1b1f; --dim:#66625b; --line:#d6d1c7; } }
+:root[data-theme="dark"] { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 6px; }
+h3 { font-size: 15px; margin: 28px 0 4px; }
+p, li { color: var(--dim); max-width: 860px; }
+p strong, li strong { color: var(--fg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 32px 24px; margin-top: 16px; }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 18px 14px; margin-top: 16px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+.pgrid .cell p { margin: 4px 0 0; }
+canvas.scr { width: 480px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+canvas.pose { width: 240px; max-width: 100%; height: auto; aspect-ratio: 1; display: block; border-radius: 6px; }
+.demo { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; margin-top: 12px; }
+.demo canvas { cursor: pointer; outline: none; }
+.demo label { display: block; color: var(--dim); margin: 6px 0; }
+.demo button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; }
+body.shot { padding: 0; background: #000; }
+body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; color: #ddd; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px 22px; }
+.sheetgrid.p5 { grid-template-columns: repeat(5, 360px); }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+.sheettitle { font: 700 20px -apple-system, "Helvetica Neue", Arial; margin: 0 0 14px; color: #eee; }
+body.gif { padding: 0; background: #000; }
+body.gif canvas { display: block; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: the TAP ape (proposal)</h1>
+<p><strong>SHIFT + B6</strong> taps the tempo. The metronome goes; <strong>a breakdancing ape</strong> takes the right of the screen and
+<strong>jumps to a new dance pose on every tap</strong> (a 120 ms snap with a hop, motion streaks, a burst of sparkles, the boombox
+pumping). Once two taps give a tempo, <strong>it grooves on the beat between taps</strong>. "TAP", the BPM and the tap dots stay;
+the BPM moves to the top left, over the boombox, so the ape's raised fists never cross it.</p>
+<h3>Try it</h3>
+<div class="demo">
+  <canvas id="demo" class="scr" width="240" height="240" tabindex="0"></canvas>
+  <div>
+    <p>Click the screen or press <strong>space</strong> to tap (the BPM is the firmware's: the average of the last four taps).
+    Stop for 2 s: the dots clear, the ape strikes its <strong>ta-da</strong> and the screen closes. Tap faster than
+    <strong>180 BPM</strong> for the easter egg.</p>
+    <label><input type="checkbox" id="ext"> external clock (tapping does nothing)</label>
+    <label><input type="checkbox" id="box"> layout option 2: the BPM on the boombox</label>
+    <button id="auto">play 10 taps at 120</button>
+  </div>
+</div>
+<h3>The screens</h3>
+<div class="grid" id="cells"></div>
+<h3>The poses</h3>
+<p>Twelve dance poses and the bench pose for an external clock. Each is a set of joint angles on one skeleton (torso, head, two
+arms and two legs, two segments each); the firmware tweens the angles between poses.</p>
+<div class="pgrid" id="poses"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+/* ---------------------------------------------------------------- palette */
+const C = { bg: '#000', k3: '#f1f0ea', tempo: '#ffd23f', g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d' };
+const TP = ['#3f7dff', '#1fd47e', '#f1f0ea', '#ff6a2c', '#ff3ca0', '#ffd23f', '#9664ff', '#28e1ff'];
+/* the ape's neon (the reference's palette): magenta fur, cyan shades and shorts, orange shirt, green flowers, yellow chain
+   and sneakers, cream grin and sparkles, grey boombox */
+const A = { fur: '#ff4fd8', cyan: '#28e1ff', shirt: '#ff8a2c', leaf: '#3ee07a', gold: '#ffd23f', cream: '#fff1d0', box: '#9a9aa6' };
+const F = 'IT', TAU = Math.PI * 2, DEG = Math.PI / 180;
+const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
+const ease = x => { x = clamp(x); return x * x * (3 - 2 * x); };
+const easeOut = x => { x = clamp(x); return 1 - (1 - x) * (1 - x) * (1 - x); };
+const backOut = x => { x = clamp(x); const s = 1.5; return 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2); };
+const lerp = (a, b, u) => a + (b - a) * u;
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+/* ---------------------------------------------------------------- drawing helpers (fizz-vel-rider.html's neon) */
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; if (o.a != null) c.globalAlpha *= o.a;
+  c.fillText(s, x, y); c.restore();
+}
+function P(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round'; if (o.a != null) c.globalAlpha *= o.a;
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.stroke(); c.restore();
+}
+function O(c, x, y, r, col, lw = 1.5, fill) {
+  c.save(); c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, TAU); if (fill) { c.fillStyle = fill; c.fill(); }
+  if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function glowStroke(c, col, lw, draw, fill) {        /* every line glows: two wide faint strokes under the line itself */
+  if (fill) { c.save(); c.fillStyle = fill; c.beginPath(); draw(); c.fill(); c.restore(); }
+  [[lw * 3.4, 0.14], [lw * 2.0, 0.3], [lw, 1]].forEach(([w, a]) => {
+    c.save(); c.globalAlpha *= a; c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); draw(); c.stroke(); c.restore(); });
+}
+function nLine(c, pts, col, lw = 1.5) { glowStroke(c, col, lw, () => { c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); }); }
+function nCirc(c, x, y, r, col, lw = 1.5, fill) { glowStroke(c, col, lw, () => c.arc(x, y, Math.max(0.1, r), 0, TAU), fill); }
+function nArc(c, x, y, r, a0, a1, col, lw = 1.5) { glowStroke(c, col, lw, () => c.arc(x, y, r, a0, a1)); }
+function curvePath(c, pts, close) {
+  const n = pts.length / 2, Q = i => [pts[(i % n) * 2], pts[(i % n) * 2 + 1]];
+  if (close) { const [a0, b0] = Q(n - 1), [a1, b1] = Q(0); c.moveTo((a0 + a1) / 2, (b0 + b1) / 2);
+    for (let i = 0; i < n; i++) { const [x0, y0] = Q(i), [x1, y1] = Q(i + 1); c.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2); }
+    c.closePath(); return; }
+  c.moveTo(...Q(0));
+  for (let i = 1; i < n - 1; i++) { const [x0, y0] = Q(i), [x1, y1] = Q(i + 1); c.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2); }
+  c.lineTo(...Q(n - 1));
+}
+function nCurve(c, pts, col, lw = 1.5, close = false, fill = null) { glowStroke(c, col, lw, () => curvePath(c, pts, close), fill); }
+/* a limb as a neon tube: a wide line in its colour with a black core, so it reads as two parallel lines */
+function nTube(c, pts, col, w) {                     /* (the glow hugs the outline: it does not scale with the tube) */
+  [[w + 6, 0.13], [w + 2.6, 0.32], [w, 1]].forEach(([lw, a]) => { c.save(); c.globalAlpha *= a; c.strokeStyle = col; c.lineWidth = lw;
+    c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.stroke(); c.restore(); });
+  c.save(); c.strokeStyle = C.bg; c.lineWidth = w - 2.8; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.stroke(); c.restore();
+}
+function sparkle(c, x, y, r, col, lw = 1.3) { nLine(c, [x - r, y, x + r, y], col, lw); nLine(c, [x, y - r, x, y + r], col, lw); }
+
+/* ---------------------------------------------------------------- the ape: a skeleton of joints */
+/* A pose is twelve numbers: [T, H, uL, fL, uR, fR, tL, sL, tR, sR, air, dx]. Every angle is in degrees on the screen:
+   0 points down, 90 right, 180 up, -90 left (dir(a) = (sin a, cos a), y down). T: the torso (hip to neck); H: the head's
+   tilt on the torso; u/f: the upper arm and forearm; t/s: the thigh and shin; L/R: the ape's left and right (screen left
+   and right when he stands). air: px off the floor; dx: px sideways. The lengths and joints (px at 1x, before the scale): */
+const LEN = { ua: 22, fa: 25, th: 19, sh: 19, hand: 5.5 };
+const SHOULDER = 19, SHY = 37, HIPX = 10, HIPY = 3, NECKY = 39;
+const KAPE = 1.12;                                   /* the scale on the screen: about 140 px standing tall */
+const dir = a => [Math.sin(a * DEG), Math.cos(a * DEG)];
+const angDiff = (a, b) => ((b - a) % 360 + 540) % 360 - 180;
+
+/* the parts' outlines, each in its own frame (x right, y up) */
+const SHIRT = [-14, -1, 14, -1, 19, 12, 23, 28, 20, 40, -20, 40, -23, 28, -19, 12];
+const BELLY = [-8, 39, -10, 24, -7, 8, 0, 3, 7, 8, 10, 24, 8, 39];
+const FLOWERS = [[-16, 30], [-17, 15], [16, 23], [14, 8], [-13, 4], [18, 34]];
+const CHAIN = [-9, 39, -6, 32, 0, 29, 6, 32, 9, 39];
+const HEAD = [0, 33, 12, 30, 17, 21, 18, 12, 14, 4, 8, -1, 0, -2, -8, -1, -14, 4, -18, 12, -17, 21, -12, 30];
+const SHADES = [-15, 21, 15, 21, 14, 14, 4, 14.5, 0, 17, -4, 14.5, -14, 14];
+const MUZZLE = [-10, 11, -11, 4, -6, -0.5, 6, -0.5, 11, 4, 10, 11];
+const SNEAKER = [-5, -4, 14, -4, 17, 0, 12, 4.5, 2, 5.5, -5, 4];   /* (fwd, up from the sole's top): ankle at the origin */
+
+const POSE = {};
+const mirror = p => [-p[0], -p[1], -p[4], -p[5], -p[2], -p[3], -p[8], -p[9], -p[6], -p[7], p[10], -p[11]];
+const G0 = new Array(12).fill(0);
+const gv = o => { const g = G0.slice(), I = { T: 0, H: 1, uL: 2, fL: 3, uR: 4, fR: 5, tL: 6, sL: 7, tR: 8, sR: 9, air: 10, dx: 11 };
+  for (const k in o) g[I[k]] = o[k]; return g; };
+/* the groove between taps: dip (down on every beat), sway (side to side over two beats), spin (the legs' V turning, one
+   half turn a beat) */
+const STAND_DIP = gv({ tL: -12, sL: 12, tR: 12, sR: -12, uL: -6, uR: 6 });
+function pose(name, p, hands, g = {}) {
+  POSE[name] = { p, hands, dip: g.dip || STAND_DIP, sway: g.sway || gv({ T: 4, H: 7, uL: 10, fL: 14, uR: 10, fR: 14 }), spin: g.spin || null, ground: g.ground !== false };
+}
+pose('ready',    [180, 0, -22, -6, 22, 6, -32, 8, 32, -8, 0, 0], 'ff');
+pose('topL',     [172, -8, -128, -168, 40, 100, -72, -18, 8, -6, 0, 0], 'ff',
+     { sway: gv({ T: 3, H: 6, uL: 10, fL: 10, uR: 12, fR: 18, tL: 8, sL: 8 }) });
+pose('topR',     mirror(POSE.topL.p), 'ff', { sway: gv({ T: 3, H: 6, uL: 12, fL: 18, uR: 10, fR: 10, tR: 8, sR: 8 }) });
+pose('point',    [176, -12, -92, -92, 58, -38, -52, -4, 50, 6, 0, 0], 'pf',
+     { sway: gv({ T: 3, H: 6, uL: 6, fL: 6, uR: 4, fR: 6 }) });
+pose('jump',     [180, 0, -150, 178, 92, 60, -118, -6, 112, 20, 24, 0], 'ff',
+     { dip: gv({ uL: -10, fL: -8, uR: 10, fR: 8, tL: -6, tR: 6, air: -6 }), sway: gv({ T: 4, H: 6 }) });
+pose('crouch',   [180, 0, -46, -14, 46, 14, -118, -8, 118, 8, 0, 0], 'ff',
+     { dip: gv({ tL: -6, sL: 6, tR: 6, sR: -6, H: 0 }), sway: gv({ T: 6, H: 8, uL: 8, fL: 8, uR: 8, fR: 8 }) });
+pose('windmill', [76, 6, 150, 118, 62, -14, -176, -168, -112, -100, 0, 0], 'of',
+     { dip: G0, sway: gv({ T: 4, uL: 14, fL: 16 }), spin: gv({ tL: 22, sL: 30, tR: -22, sR: -30 }) });
+pose('headspin', [0, 0, 74, 14, -74, -14, 156, 140, -156, -140, 0, 0], 'oo',
+     { dip: G0, sway: G0, spin: gv({ tL: 24, sL: 40, tR: -24, sR: -40 }) });
+pose('hand',     [-32, 0, 96, 120, -28, -28, 176, 112, -140, -150, 0, 0], 'of',
+     { dip: G0, sway: gv({ uL: 14, fL: 22, sL: 10, sR: -10 }) });
+pose('shoulder', [-64, -15, -6, 44, 146, 62, 150, 84, 178, 126, 0, 0], 'ff',
+     { dip: G0, sway: gv({ tL: 8, sL: 14, tR: 8, sR: 14 }) });
+pose('kneel',    [180, -10, -44, 30, 138, 176, -6, -96, 76, 2, 0, 0], 'of',
+     { dip: gv({ uR: 6, fR: 4, H: -4 }), sway: gv({ T: 3, H: 6, uR: 8, fR: 10 }) });
+pose('tada',     [180, 0, -130, -148, 130, 148, -24, -12, 42, 64, 0, 0], 'oo');
+pose('sit',      [180, 12, -30, 18, 30, -18, -22, -8, 22, 8, 0, 0], 'ff', { ground: false });
+
+const LOOP = ['topL', 'topR', 'point', 'jump', 'crouch', 'windmill', 'headspin', 'hand', 'shoulder', 'kneel'];
+const NAMES = { ready: 'ready (the first tap)', topL: 'toprock left', topR: 'toprock right', point: 'point', jump: 'jump',
+  crouch: 'crouch (the drop)', windmill: 'windmill', headspin: 'headspin', hand: 'handstand freeze', shoulder: 'shoulder freeze',
+  kneel: 'kneel, fist up', tada: 'ta-da (the close)', sit: 'bench (external clock)' };
+
+/* the skeleton: the joints (hip at the origin, px at 1x), every outline point for the floor and the box */
+function rig(p) {
+  const T0 = p[0], up = dir(T0), rt = dir(T0 - 90), loc = (x, y) => [rt[0] * x + up[0] * y, rt[1] * x + up[1] * y];
+  const add = (a, d, l) => [a[0] + d[0] * l, a[1] + d[1] * l];
+  const J = { up, rt, loc, T: T0 };
+  J.neck = loc(0, NECKY);
+  J.shL = loc(-SHOULDER, SHY); J.shR = loc(SHOULDER, SHY);
+  J.hipL = loc(-HIPX, HIPY); J.hipR = loc(HIPX, HIPY);
+  J.elL = add(J.shL, dir(p[2]), LEN.ua); J.haL = add(J.elL, dir(p[3]), LEN.fa + 2);
+  J.elR = add(J.shR, dir(p[4]), LEN.ua); J.haR = add(J.elR, dir(p[5]), LEN.fa + 2);
+  J.knL = add(J.hipL, dir(p[6]), LEN.th); J.anL = add(J.knL, dir(p[7]), LEN.sh);
+  J.knR = add(J.hipR, dir(p[8]), LEN.th); J.anR = add(J.knR, dir(p[9]), LEN.sh);
+  J.fL = { fwd: dir(p[7] - 90), up: dir(p[7] + 180) };       /* the feet turn out, square to the shin */
+  J.fR = { fwd: dir(p[9] + 90), up: dir(p[9] + 180) };
+  const hu = dir(T0 + p[1]), hr = dir(T0 + p[1] - 90);
+  J.head = (x, y) => [J.neck[0] + hr[0] * x + hu[0] * y, J.neck[1] + hr[1] * x + hu[1] * y];
+  J.hu = hu;
+  /* the points that can touch the floor or bound the figure */
+  const pts = [];
+  for (let i = 0; i < SHIRT.length; i += 2) pts.push(loc(SHIRT[i], SHIRT[i + 1]));
+  for (let i = 0; i < HEAD.length; i += 2) pts.push(J.head(HEAD[i], HEAD[i + 1]));
+  const foot = (an, f) => { for (let i = 0; i < SNEAKER.length; i += 2) pts.push(footPt(an, f, SNEAKER[i], SNEAKER[i + 1])); };
+  foot(J.anL, J.fL); foot(J.anR, J.fR);
+  [J.haL, J.haR].forEach(h => pts.push([h[0], h[1] + LEN.hand], [h[0] - LEN.hand, h[1]], [h[0] + LEN.hand, h[1]], [h[0], h[1] - LEN.hand]));
+  [J.knL, J.knR].forEach(k => pts.push([k[0], k[1] + 6.5]));
+  [J.elL, J.elR].forEach(k => pts.push([k[0], k[1] + 5.5]));
+  J.pts = pts;
+  return J;
+}
+function footPt(an, f, x, y) { return [an[0] + f.fwd[0] * x + f.up[0] * (y - 4), an[1] + f.fwd[1] * x + f.up[1] * (y - 4)]; }
+function bounds(J) { let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; J.pts.forEach(([x, y]) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }); return { x0, x1, y0, y1 }; }
+
+/* draws the ape, its hip at the origin of the current transform (already scaled) */
+function drawApe(c, J, hands, o = {}) {
+  const tw = { th: 14, sh: 10.5, ua: 12.5, fa: 10.5 };
+  /* the legs: cyan shorts, magenta shins, yellow sneakers */
+  [['L', J.hipL, J.knL, J.anL, J.fL], ['R', J.hipR, J.knR, J.anR, J.fR]].forEach(([s, hip, kn, an, f]) => {
+    nTube(c, [kn[0], kn[1], an[0], an[1]], A.fur, tw.sh);
+    nTube(c, [hip[0], hip[1], kn[0], kn[1]], A.cyan, tw.th);
+    const sp = []; for (let i = 0; i < SNEAKER.length; i += 2) sp.push(...footPt(an, f, SNEAKER[i], SNEAKER[i + 1]));
+    nCurve(c, sp, A.gold, 1.5, true, C.bg);
+    const a = footPt(an, f, -3, -1.2), b = footPt(an, f, 13, -1.2);
+    nLine(c, [a[0], a[1], b[0], b[1]], A.gold, 1.1);                  /* the sole's stripe */
+  });
+  /* the torso: the orange shirt (filled black: it hides what is behind it), the open front, the flowers, the chain */
+  const L = (arr) => { const out = []; for (let i = 0; i < arr.length; i += 2) out.push(...J.loc(arr[i], arr[i + 1])); return out; };
+  nCurve(c, L(SHIRT), A.shirt, 1.6, true, C.bg);
+  nCurve(c, L(BELLY), A.fur, 1.3);
+  FLOWERS.forEach(([x, y]) => { const q = J.loc(x, y); nCirc(c, q[0], q[1], 1.5, A.leaf, 1.2, A.leaf); });
+  nCurve(c, L(CHAIN), A.gold, 1.5);
+  { const q = J.loc(0, 28); nCirc(c, q[0], q[1], 1.8, A.gold, 1.2, A.gold); }
+  /* the head: a magenta dome, a cyan bar of shades, the muzzle, a cream grin */
+  const H = (arr) => { const out = []; for (let i = 0; i < arr.length; i += 2) out.push(...J.head(arr[i], arr[i + 1])); return out; };
+  nCurve(c, H(HEAD), A.fur, 1.7, true, C.bg);
+  nCurve(c, H([-17, 16, -21, 13, -17, 8]), A.fur, 1.3);               /* the ears */
+  nCurve(c, H([17, 16, 21, 13, 17, 8]), A.fur, 1.3);
+  nCurve(c, H([-4, 31, -2, 36, 1, 32, 4, 35]), A.fur, 1.2);           /* a tuft */
+  nCurve(c, H(SHADES), A.cyan, 1.6, true, A.cyan + '55');
+  nCurve(c, H(MUZZLE), A.fur, 1.3);
+  [[-2.6, 8], [2.6, 8]].forEach(([x, y]) => { const q = J.head(x, y); O(c, q[0], q[1], 0.9, null, 1, A.fur); });
+  nCurve(c, H(o.grin ? [-7, 5, -4, 1.5, 0, 0.5, 4, 1.5, 7, 5, 0, 4] : [-6, 4.5, 0, 2.2, 6, 4.5]), A.cream, 1.3, !!o.grin);
+  /* the arms: orange sleeves, magenta forearms, the hands (fist, open, pointing) */
+  [['L', J.shL, J.elL, J.haL, hands[0]], ['R', J.shR, J.elR, J.haR, hands[1]]].forEach(([s, sh, el, ha, h]) => {
+    nTube(c, [el[0], el[1], ha[0], ha[1]], A.fur, tw.fa);
+    nTube(c, [sh[0], sh[1], el[0], el[1]], A.shirt, tw.ua);
+    const d = [ha[0] - el[0], ha[1] - el[1]], dl = Math.hypot(...d) || 1, u = [d[0] / dl, d[1] / dl], n = [-u[1], u[0]];
+    if (h === 'p') {                                  /* pointing: a finger out along the forearm */
+      nLine(c, [ha[0] + u[0] * 3, ha[1] + u[1] * 3, ha[0] + u[0] * 12, ha[1] + u[1] * 12], A.fur, 1.6);
+    }
+    if (h === 'o') {                                  /* open: three fingers fanned */
+      [-0.55, 0, 0.55].forEach(k => { const a = Math.atan2(u[1], u[0]) + k, q = [Math.cos(a), Math.sin(a)];
+        nLine(c, [ha[0] + q[0] * 5, ha[1] + q[1] * 5, ha[0] + q[0] * 10, ha[1] + q[1] * 10], A.fur, 1.5); });
+    }
+    nCirc(c, ha[0], ha[1], h === 'f' ? LEN.hand + 0.5 : LEN.hand, A.fur, 1.6, C.bg);
+    if (h === 'f') nLine(c, [ha[0] + n[0] * 3 + u[0] * 1.5, ha[1] + n[1] * 3 + u[1] * 1.5, ha[0] - n[0] * 3 + u[0] * 1.5, ha[1] - n[1] * 3 + u[1] * 1.5], A.fur, 1.1);
+  });
+}
+
+/* ---------------------------------------------------------------- the boombox */
+function boombox(c, x, y, w, h, pulse, o = {}) {      /* x, y: its top left; pulse 0..1 pumps the speakers */
+  const col = A.box;
+  nLine(c, [x + w * 0.22, y, x + w * 0.22, y - 7, x + w * 0.78, y - 7, x + w * 0.78, y], col, 1.4);      /* the handle */
+  glowStroke(c, col, 1.5, () => c.roundRect(x, y, w, h, 4), C.bg);
+  const r = h * 0.3, sy = y + h * 0.6;
+  [x + w * 0.22, x + w * 0.78].forEach((sx, i) => {
+    nCirc(c, sx, sy, r, col, 1.3);
+    nCirc(c, sx, sy, r * (0.55 + 0.25 * pulse), i ? A.fur : A.shirt, 1.5 + pulse * 0.6);
+    nCirc(c, sx, sy, 1.6, A.gold, 1, A.gold);
+  });
+  if (!o.noDeck) {
+    glowStroke(c, A.gold, 1.2, () => c.roundRect(x + w * 0.39, y + h * 0.42, w * 0.22, h * 0.3, 2));    /* the cassette */
+    nCirc(c, x + w * 0.45, y + h * 0.57, 1.3, A.gold, 1); nCirc(c, x + w * 0.55, y + h * 0.57, 1.3, A.gold, 1);
+    [0.4, 0.5, 0.6].forEach((k, i) => nLine(c, [x + w * k - 1.5, y + h * 0.18, x + w * k + 1.5, y + h * 0.18], [A.leaf, A.cyan, A.fur][i], 1.3));
+  }
+}
+
+/* ---------------------------------------------------------------- the taps: events and the pose at a time */
+const SNAP = 0.12, HOP = 0.26, CLOSE = 2.0, FADE = 0.12, TADA = 1.6, ENTER = 0.32;
+function bpmOf(taps, i) {                             /* the firmware's: the average of the intervals among the last four taps */
+  if (i < 1) return 0; const j = Math.max(0, i - 3), n = i - j, sum = taps[i] - taps[j];
+  return sum > 0 ? Math.floor(60 * n / sum) : 0;
+}
+function events(taps) {
+  const ev = [];
+  taps.forEach((tt, i) => {
+    const bpm = bpmOf(taps, i), flurry = bpm >= 180;
+    const name = i === 0 ? 'ready' : flurry ? 'headspin' : LOOP[(i - 1) % LOOP.length];
+    ev.push({ t: tt, kind: i === 0 ? 'enter' : 'tap', pose: name, bpm, n: i + 1, flurry });
+  });
+  if (taps.length) { const e = ev[ev.length - 1]; ev.push({ t: e.t + TADA, kind: 'tada', pose: 'tada', bpm: e.bpm, n: e.n }); }
+  return ev;
+}
+function grooveOf(e, age) {                           /* the groove's weight and its deltas at this age of the event */
+  const P0 = POSE[e.pose];
+  if (e.kind !== 'tap' || !e.bpm) return G0;
+  const beat = 60 / e.bpm, w = ease((age - SNAP) / 0.15), ph = age / beat;
+  const dip = Math.pow(0.5 + 0.5 * Math.cos(TAU * ph), 2), sway = Math.sin(Math.PI * ph);
+  const g = G0.slice();
+  for (let i = 0; i < 12; i++) g[i] = w * (P0.dip[i] * dip + P0.sway[i] * sway);
+  if (P0.spin || e.flurry) {
+    const sv = P0.spin || POSE.headspin.spin, th = Math.PI * ph * (e.flurry ? 2 : 1);
+    for (let i = 0; i < 12; i++) g[i] += w * sv[i] * (1 - Math.cos(th));
+  }
+  return g;
+}
+/* the pose at time t: the latest event's snap from where the ape was, plus the groove */
+function stateK(ev, k, t) {
+  const e = ev[k], age = t - e.t, P0 = POSE[e.pose];
+  let p, hands = P0.hands, u = 1, from = null;
+  if (e.kind === 'enter' || k === 0) p = P0.p.slice();
+  else {
+    from = stateK(ev, k - 1, e.t);
+    u = clamp(age / SNAP); const w = backOut(u);
+    p = from.p.map((a, i) => i < 10 ? a + angDiff(a, P0.p[i]) * w : lerp(a, P0.p[i], w));
+    if (u < 0.5) hands = from.hands;
+  }
+  const g = grooveOf(e, age);
+  for (let i = 0; i < 12; i++) p[i] += g[i];
+  return { p, hands, e, age, u, ground: P0.ground };
+}
+function stateAt(ev, t) { let k = -1; for (let i = 0; i < ev.length; i++) if (ev[i].t <= t) k = i; return k < 0 ? null : stateK(ev, k, t); }
+
+/* ---------------------------------------------------------------- the screen */
+const FY = 204, AX = 164;                             /* the floor; the ape's middle */
+function bg(c) { c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); }
+function knobMark(c, x, y, col, a) { O(c, x, y, 6, col, 1.3); P(c, [x, y, x + Math.cos(a) * 5, y + Math.sin(a) * 5], col, 1.3); }
+function apeAt(c, st, x, fy, o = {}) {
+  const J = rig(st.p), k = o.k || KAPE;
+  /* the middle: from the poses without the groove (so planted feet stay put while it grooves) */
+  const noG = st.e ? stateNoGroove(st) : st.p, bb = bounds(rig(noG));
+  const b = bounds(J);
+  let ox = x - ((bb.x0 + bb.x1) / 2) * k + (st.p[11] || 0);
+  if (o.clamp) {                                    /* keeps clear of the BPM and the screen's edge (from the pose without the groove) */
+    const l = ox + bb.x0 * k, r = ox + bb.x1 * k;
+    if (r > o.clamp[1]) ox -= r - o.clamp[1]; else if (l < o.clamp[0]) ox += o.clamp[0] - l;
+  }
+  const oy = st.ground === false ? fy : fy - b.y1 * k - (st.p[10] || 0) - (o.lift || 0);
+  c.save(); c.translate(ox + (o.dx || 0), oy); c.scale(k, k);
+  if (o.alpha != null) c.globalAlpha *= o.alpha;
+  drawApe(c, J, st.hands, { grin: o.grin });
+  c.restore();
+  const T = (q) => [ox + (o.dx || 0) + q[0] * k, oy + q[1] * k];
+  return { J, T, ox, oy, k, ext: [T(J.haL), T(J.haR), T(J.anL), T(J.anR)], mid: T(J.loc(0, 24)) };
+}
+function stateNoGroove(st) { return st.base || st.p; }
+
+/* the TAP takeover. taps: tap times (s); t: now; o.ext: an external clock; o.layout: 'box' puts the BPM on the boombox */
+function screen(c, taps, t, o = {}) {
+  bg(c);
+  if (o.ext) return screenExt(c, t, o);
+  const ev = events(taps);
+  const tapsNow = taps.filter(x => x <= t), n = tapsNow.length;
+  if (!n) return;
+  const last = tapsNow[n - 1], since = t - last, bpm = bpmOf(taps, n - 1);
+  const fade = since > CLOSE ? 1 - clamp((since - CLOSE) / FADE) : 1;
+  if (fade <= 0) return;
+  c.save(); c.globalAlpha = fade;
+  const box = o.layout === 'box';
+  const st = stateAt(ev, t), e = st.e, age = st.age;
+  /* the tween without the groove: for the middle */
+  const stB = Object.assign({}, st); { const g = grooveOf(e, age); stB.base = st.p.map((v, i) => v - g[i]); st.base = stB.base; }
+  const flurry = e.kind === 'tap' && e.flurry;
+  const beat = bpm ? 60 / bpm : 0.5;
+  /* the header: the tempo's mark (a clock face) and TAP */
+  knobMark(c, 14, 12, C.tempo, -Math.PI / 2 + (n ? (n % 12) * TAU / 12 : 0));
+  T(c, 'TAP', 26, 18, { s: 12, w: 600, ls: 0.8, col: C.tempo });
+  /* the floor */
+  P(c, [8, FY + 0.5, 232, FY + 0.5], C.g3, 1);
+  /* the boombox, its speakers pumping on each tap (and lightly on the beat while it grooves) */
+  const tapPulse = 1 - clamp(since / 0.3), beatPulse = bpm && n >= 2 ? Math.pow(0.5 + 0.5 * Math.cos(TAU * since / beat), 6) * 0.45 * ease((since - 0.2) / 0.2) : 0;
+  const pulse = Math.max(tapPulse, beatPulse, flurry ? 0.5 + 0.5 * Math.sin(t * 40) : 0);
+  const bx = box ? { x: 8, y: 132, w: 98, h: 72 } : { x: 10, y: 170, w: 62, h: 34 };
+  /* its sound: arcs out of the top on each tap */
+  for (let j = 0; j < 3; j++) {
+    const a = since - j * 0.07; if (a < 0 || a > 0.6) continue; const u = a / 0.6;
+    c.save(); c.globalAlpha *= (1 - u) * 0.9;
+    nArc(c, bx.x + bx.w / 2, bx.y + 4, 10 + 46 * easeOut(u), -Math.PI * 0.82, -Math.PI * 0.18, C.tempo, 1.6);
+    c.restore();
+  }
+  const bshake = flurry ? Math.sin(t * 50) * 1.2 : 0;
+  boombox(c, bx.x + bshake, bx.y - pulse * 1.2, bx.w, bx.h + pulse * 1.2, pulse, { noDeck: box });
+  /* the BPM: big, top left (option 2: in the boombox's display); it pops on a tap */
+  if (n >= 2) {
+    const pop = since < 0.15 ? 1 + 0.08 * (1 - since / 0.15) : 1;
+    if (box) {
+      glowStroke(c, C.tempo, 1.2, () => c.roundRect(bx.x + 12, bx.y + 8, bx.w - 24, 30, 3));
+      c.save(); c.translate(bx.x + bx.w / 2, bx.y + 33); c.scale(pop, pop); T(c, String(bpm), 0, 0, { s: 28, w: 300, col: C.tempo, al: 'center' }); c.restore();
+    } else {
+      c.save(); c.translate(6, 96); c.scale(pop, pop); T(c, String(bpm), 0, 0, { s: 60, w: 200, col: C.tempo }); c.restore();
+      T(c, 'BPM', 9, 114, { s: 12, w: 600, ls: 0.8, col: C.g1 });
+    }
+  }
+  /* the ape: the hop on each snap, sliding in on the first tap */
+  let lift = 0, dx = 0;
+  if (e.kind === 'enter') { const u = clamp(age / ENTER); dx = 130 * (1 - easeOut(u)); lift = 9 * Math.abs(Math.sin(TAU * u)); }
+  else { const hopH = e.kind === 'tada' ? 14 : e.pose === 'jump' ? 16 : 10; lift = hopH * Math.sin(Math.PI * clamp(age / HOP)); }
+  const ax = box ? 170 : AX;
+  /* flurry: rainbow spin rings round the legs, behind the ape */
+  const ring = (front) => {
+    if (!flurry) return;
+    const J = rig(st.p), k = KAPE;
+    const cx = ax, hy = FY - (bounds(rig(st.p)).y1) * k;   /* the hip's height on the screen */
+    for (let i = 0; i < 4; i++) {
+      const y = hy - 6 - i * 13, rx = 26 + i * 6, ph = t * 9 + i * 1.3, col = TP[(i * 2 + Math.floor(t * 6)) % 8];
+      c.save(); c.globalAlpha *= 0.9;
+      glowStroke(c, col, 1.6, () => c.ellipse(cx, y, rx, rx * 0.22, 0, front ? ph % TAU : ph % TAU + Math.PI, (front ? ph % TAU : ph % TAU + Math.PI) + 1.6));
+      c.restore();
+    }
+  };
+  ring(false);
+  const fromSt = e.kind !== 'enter' && st.u < 1 ? stateK(ev, ev.indexOf(e) - 1, e.t) : null;
+  const CL = box ? [bx.x + bx.w + 6, 234] : [106, 234];
+  const drawn = apeAt(c, st, ax, FY, { lift, dx, grin: e.kind === 'tada' || flurry, clamp: CL });
+  ring(true);
+  /* motion streaks: from where the hands and feet were to where they are, fading over 0.25 s */
+  if (fromSt && age < 0.25 || e.kind === 'enter' && age < ENTER) {
+    const a = e.kind === 'enter' ? 1 - age / ENTER : 1 - age / 0.25;
+    if (e.kind === 'enter') {
+      for (let i = 0; i < 3; i++) { const y = FY - 30 - i * 26, x = drawn.mid[0] + 40 + i * 6;
+        c.save(); c.globalAlpha *= a; nLine(c, [x, y, x + 26, y], [A.cyan, A.cream, A.fur][i], 1.4); c.restore(); }
+    } else {
+      fromSt.base = fromSt.p;
+      const old = apeAt(document.createElement('canvas').getContext('2d'), fromSt, ax, FY, { clamp: CL });
+      drawn.ext.forEach((q, i) => {
+        const p0 = old.ext[i], d = [q[0] - p0[0], q[1] - p0[1]], L = Math.hypot(...d);
+        if (L < 16) return;
+        const u = [d[0] / L, d[1] / L], nrm = [-u[1], u[0]], len = Math.min(34, L * 0.75);
+        c.save(); c.globalAlpha *= a;
+        [-4, 0, 4].forEach((off, j) => {
+          const s = 9 + Math.abs(off) * 1.5, b0 = [q[0] - u[0] * s + nrm[0] * off, q[1] - u[1] * s + nrm[1] * off];
+          const l = len * (j === 1 ? 1 : 0.7);
+          nLine(c, [b0[0], b0[1], b0[0] - u[0] * l, b0[1] - u[1] * l], j === 1 ? A.cream : A.cyan, 1.3);
+        });
+        c.restore();
+      });
+    }
+  }
+  /* the sparkles: a burst out of the ape on each tap (a big one for the ta-da; a shower in the flurry) */
+  const burst = (age0, seed, nS, R) => {
+    if (age0 < 0 || age0 > 0.5) return;
+    const u = age0 / 0.5;
+    for (let i = 0; i < nS; i++) {
+      const a = seed + i * TAU / nS + hash(seed * 10 + i) * 0.5, r = R * 0.45 + R * easeOut(u) * (0.7 + 0.5 * hash(i + seed));
+      const x = drawn.mid[0] + Math.cos(a) * r, y = drawn.mid[1] + Math.sin(a) * r * 0.9;
+      c.save(); c.globalAlpha *= 1 - u * u; sparkle(c, x, y, 3.6 * (1 - 0.5 * u), [C.tempo, A.cyan, A.fur, A.leaf][i % 4]); c.restore();
+    }
+  };
+  if (e.kind !== 'enter') burst(age, e.n * 1.7, e.kind === 'tada' ? 12 : 8, e.kind === 'tada' ? 62 : 52);
+  if (flurry) for (let j = 1; j < 4; j++) { const tt = (t * 2.5 + j / 3) % 1; burst(tt * 0.5, Math.floor(t * 2.5 + j / 3) * 3.1 + j, 5, 58); }
+  /* the tap dots, under the floor: the last four bright; they slide off as the count closes */
+  const clr = since > TADA ? ease((since - TADA) / 0.4) : 0;
+  for (let i = n - 1; i >= 0; i--) {
+    const ag = t - tapsNow[n - 1 - i], x = 204 - ag * 72 - clr * 220;
+    const a = (i < 4 ? 1 : 0.45 - 0.1 * (i - 4)) * (1 - clr), r = ag < 0.25 ? 4.5 + 4 * (1 - ag / 0.25) : 4.5;
+    if (x < 14 || a <= 0) continue;
+    c.save(); c.globalAlpha *= a; O(c, x, 224, r, null, 1, i < 4 ? C.tempo : C.g1); c.restore();
+  }
+  c.restore();
+}
+
+/* an external clock: tapping does nothing. The ape sits on the boombox, dimmed, nodding slowly; the clock, the BPM grey */
+function screenExt(c, t, o = {}) {
+  knobMark(c, 14, 12, C.g2, -Math.PI / 2);
+  T(c, 'TAP', 26, 18, { s: 12, w: 600, ls: 0.8, col: C.g2 });
+  P(c, [8, FY + 0.5, 232, FY + 0.5], C.g3, 1);
+  T(c, String(o.bpm || 124), 6, 96, { s: 60, w: 200, col: C.g1 });
+  T(c, 'BPM', 9, 114, { s: 12, w: 600, ls: 0.8, col: C.g2 });
+  /* the clock: the sequencer follows it */
+  nCirc(c, 36, 168, 15, C.g1, 1.6);
+  const ha = t * 0.8; nLine(c, [36, 168, 36, 158], C.g1, 1.6); nLine(c, [36, 168, 36 + Math.cos(ha) * 8, 168 + Math.sin(ha) * 8], C.g1, 1.6);
+  const bx = 116, bw = 96, bh = 40;
+  /* dimmed as one layer (the firmware: the same drawing in colours scaled to 45 %) */
+  const lay = document.createElement('canvas'); lay.width = lay.height = 240; const l = lay.getContext('2d');
+  boombox(l, bx, FY - bh, bw, bh, 0);
+  const st = { p: POSE.sit.p.slice(), hands: POSE.sit.hands, ground: false, e: { pose: 'sit' } };
+  st.p[1] += 6 * Math.sin(t * 1.6);                  /* a slow, bored nod */
+  st.base = POSE.sit.p;
+  apeAt(l, st, bx + bw / 2, FY - bh - 4, {});
+  c.save(); c.globalAlpha *= 0.45; c.drawImage(lay, 0, 0); c.restore();
+}
+
+/* ---------------------------------------------------------------- the shots */
+const B = 0.5;                                        /* 120 BPM */
+const run = (nT, b = B, j = 0.012) => Array.from({ length: nT }, (_, i) => 0.0 + i * b + (i ? (hash(i) - 0.5) * j : 0));
+const SHOTS = [
+  { title: 'The first tap: the ape bounces in', taps: run(1), t: 0.12,
+    text: 'The first tap opens TAP. <strong>The ape bounces in from the right</strong> (two little hops, streaks behind) and stands ready by the boombox. One dot; no BPM yet (as now: it needs two taps).' },
+  { title: 'Ready: one tap, no tempo yet', taps: run(1), t: 0.7,
+    text: '<strong>Ready</strong>: standing loose, knuckles low, waiting for the second tap.' },
+  { title: 'Tap 2: the snap to toprock', taps: run(2), t: B + 0.06,
+    text: '<strong>Each tap snaps the ape to the next pose in 120 ms</strong> (eased, with a little overshoot) and <strong>hops</strong> 10 px. <strong>Motion streaks</strong> trail its hands and feet, <strong>sparkles burst</strong> out of it, <strong>the boombox pumps</strong> and sends sound arcs up. The BPM appears, popping.' },
+  { title: 'Between taps: the groove', taps: run(3), t: 2 * B + 0.26,
+    text: 'With a tempo, <strong>the ape grooves on the beat between taps</strong>: knees dip on every beat, arms and head sway over two; the speakers pump lightly on the beat.' },
+  { title: 'Tap 4: point', taps: run(4), t: 3 * B + 0.2,
+    text: 'The poses follow <strong>a fixed routine</strong>: toprock left, toprock right, point, jump, the drop to a crouch, windmill, headspin, handstand freeze, shoulder freeze, kneel with a fist up; then round again from toprock.' },
+  { title: 'Tap 5: jump', taps: run(5), t: 4 * B + 0.1,
+    text: 'The <strong>jump</strong> hops higher (16 px on top of its own air).' },
+  { title: 'Tap 6: the drop', taps: run(6), t: 5 * B + 0.3,
+    text: '<strong>The drop</strong>: a deep crouch, knuckles on the floor.' },
+  { title: 'Tap 7: windmill', taps: run(7), t: 6 * B + 0.07,
+    text: '<strong>Windmill</strong>: on its shoulder, legs in a V that keeps turning between taps.' },
+  { title: 'Tap 8: headspin', taps: run(8), t: 7 * B + 0.3,
+    text: '<strong>Headspin</strong>: upside down, the legs\' V turning half a turn a beat.' },
+  { title: 'Tap 9: handstand freeze', taps: run(9), t: 8 * B + 0.25,
+    text: '<strong>Handstand freeze</strong>: one arm, legs bent, the free hand waving.' },
+  { title: 'Tap 10: shoulder freeze', taps: run(10), t: 9 * B + 0.25,
+    text: '<strong>Shoulder freeze</strong>: on its side, legs up.' },
+  { title: 'Tap 11: kneel, fist up', taps: run(11), t: 10 * B + 0.25,
+    text: '<strong>Kneel, fist up</strong>: the end of the routine; tap 12 starts again at toprock left.' },
+  { title: '2 s on: ta-da, the dots clear', taps: run(8), t: 7 * B + TADA + 0.14,
+    text: 'No tap for 1.6 s: <strong>the ape strikes ta-da</strong> (arms wide, a big grin, a big burst) <strong>as the dots slide away</strong>; at 2 s the screen closes (fades in 120 ms).' },
+  { title: 'An external clock: on the bench', taps: [], t: 0.6, ext: true,
+    text: '<strong>An external clock</strong> runs the tempo: tapping does nothing. <strong>The ape sits on the boombox, dimmed</strong>, nodding slowly; the clock, the BPM grey.' },
+  { title: 'Easter egg: past 180 BPM, the flurry', taps: run(5, 0.3), t: 4 * 0.3 + 0.17,
+    text: '<strong>The easter egg</strong>: tap faster than <strong>180 BPM</strong> and every tap is a <strong>headspin flurry</strong>: the legs whirl twice as fast, rainbow rings (the track colours) spin round them, sparkles shower, the boombox shakes. Back under 180, the routine carries on.' },
+  { title: 'Option 2: the BPM on the boombox', taps: run(7), t: 6 * B + 0.3, layout: 'box',
+    text: '<strong>Layout option 2</strong>: a bigger boombox with <strong>the BPM in its display</strong> (28 px), the top left free. Smaller number, more stage; option 1 (the BPM big, top left) is my pick.' },
+];
+
+/* the GIF: ten taps at 120 BPM (a little human jitter), then the close */
+const GIF_TAPS = run(10, B, 0.02), GIF_FPS = 25, GIF_LEN = GIF_TAPS[9] + CLOSE + FADE + 0.3, GIF_COLS = 16;
+
+/* ---------------------------------------------------------------- the page */
+function poseTile(c, name, t = 0) {
+  bg(c);
+  P(c, [8, FY + 0.5, 232, FY + 0.5], C.g3, 1);
+  if (name === 'sit') { boombox(c, 116, FY - 40, 96, 40, 0); const st = { p: POSE.sit.p, hands: POSE.sit.hands, ground: false, e: { pose: 'sit' } }; apeAt(c, st, 164, FY - 44); return; }
+  boombox(c, 10, 170, 62, 34, 0);
+  const st = { p: POSE[name].p.slice(), hands: POSE[name].hands, ground: true, e: { pose: name } };
+  apeAt(c, st, AX, FY, { grin: name === 'tada', clamp: [106, 234] });
+}
+async function main() {
+  const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search);
+  const mk = (cls, w = 240, h = 240) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; if (cls) cv.className = cls; return cv; };
+  const shotDraw = (c, s, t) => screen(c, s.taps, t, s);
+  if (q.has('shot')) { document.body.className = 'shot'; document.getElementById('page').remove();
+    const s = SHOTS[+q.get('shot') - 1], cv = mk(); shotDraw(cv.getContext('2d'), s, q.has('t') ? +q.get('t') : s.t); document.body.appendChild(cv); return; }
+  if (q.has('gif')) { document.body.className = 'gif'; document.getElementById('page').remove();
+    const nF = Math.ceil(GIF_LEN * GIF_FPS), rows = Math.ceil(nF / GIF_COLS), cv = mk(null, GIF_COLS * 240, rows * 240), c = cv.getContext('2d');
+    c.fillStyle = '#000'; c.fillRect(0, 0, cv.width, cv.height);
+    for (let f = 0; f < nF; f++) { c.save(); c.translate((f % GIF_COLS) * 240, Math.floor(f / GIF_COLS) * 240);
+      c.beginPath(); c.rect(0, 0, 240, 240); c.clip(); screen(c, GIF_TAPS, f / GIF_FPS); c.restore(); }
+    document.title = 'frames ' + nF; document.body.appendChild(cv); return; }
+  if (q.has('sheet') || q.has('poses')) {
+    const poses = q.has('poses');
+    document.body.className = 'sheet'; document.getElementById('page').remove();
+    const h = document.createElement('div'); h.className = 'sheettitle';
+    h.textContent = poses ? 'FIZZ TAP ape: the poses (1.5x)' : 'FIZZ TAP ape: SHIFT + B6 with a breakdancing ape (a proposal, 2x)'; document.body.appendChild(h);
+    const g = document.createElement('div'); g.className = 'sheetgrid' + (poses ? ' p5' : ''); document.body.appendChild(g);
+    const list = poses ? ['ready', ...LOOP, 'tada', 'sit'].map((nm, i) => ({ nm, i })) : SHOTS;
+    list.forEach((s, i) => { const f = document.createElement('figure'); f.style.margin = 0;
+      const cv = mk('scr'); if (poses) { cv.style.width = '360px'; poseTile(cv.getContext('2d'), s.nm); } else shotDraw(cv.getContext('2d'), s, s.t);
+      f.appendChild(cv);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = poses ? `${i + 1} · ${NAMES[s.nm]}` : `${i + 1} · ${s.title}`; f.appendChild(cap); g.appendChild(f); });
+    return;
+  }
+  /* the page: the live demo, the screens (each looping its moment), the poses */
+  const root = document.getElementById('cells'), live = [];
+  SHOTS.forEach((s, i) => { const d = document.createElement('div'); d.className = 'cell';
+    const h = document.createElement('h2'); h.textContent = `${i + 1}. ${s.title}`; d.appendChild(h);
+    const cv = mk('scr'); d.appendChild(cv); live.push([s, cv.getContext('2d')]);
+    const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); root.appendChild(d); });
+  const pr = document.getElementById('poses');
+  ['ready', ...LOOP, 'tada', 'sit'].forEach((nm, i) => { const d = document.createElement('div'); d.className = 'cell';
+    const cv = mk('pose'); poseTile(cv.getContext('2d'), nm); d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1}</strong> ${NAMES[nm]}`; d.appendChild(p); pr.appendChild(d); });
+  const demo = document.getElementById('demo'), dc = demo.getContext('2d'), ext = document.getElementById('ext'), boxL = document.getElementById('box');
+  let taps = [], t0 = performance.now() / 1000;
+  const now = () => performance.now() / 1000 - t0;
+  const tap = () => { if (ext.checked) return; const n = now(); if (taps.length && n - taps[taps.length - 1] > CLOSE) taps = []; taps.push(n); };
+  demo.addEventListener('pointerdown', e => { e.preventDefault(); tap(); demo.focus(); });
+  window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); tap(); } });
+  document.getElementById('auto').onclick = () => { taps = []; const n = now() + 0.1; run(10, B, 0.02).forEach(x => taps.push(n + x)); };
+  document.getElementById('auto').onclick();          /* (it plays the routine once on load, then waits for taps) */
+  const t00 = performance.now();
+  const frame = () => {
+    const t = now();
+    if (ext.checked) screen(dc, [], t, { ext: true });
+    else screen(dc, taps, t, { layout: boxL.checked ? 'box' : null });
+    const tt = (performance.now() - t00) / 1000;
+    live.forEach(([s, c]) => {                        /* each screen replays its own moment: its last 2 s, looping */
+      const lead = s.ext ? 0 : Math.min(s.t, 1.2), span = lead + 0.9, at = s.ext ? tt : s.t - lead + (tt % span);
+      shotDraw(c, s, at); });
+    requestAnimationFrame(frame);
+  };
+  frame();
+}
+main();
+</script>
+</body>
+</html>
