@@ -1216,6 +1216,68 @@ The owner asked for "a keyboard system for intuitively typing in names". `mockup
 - One keyboard for every name: SAVE PRESET, the project's name, anything named later. Replaces P1.5t's
   SELECT / ALGORITHM / B10 dice / B11 naming (the dice becomes PRESETS' ideas).
 
+### MIDI FX groups (2026-10-22, a proposal: P1.6c)
+
+The owner chose OMX-style shared groups (§ Version 2.6). Mock-up: `mockups/fizz-midifx.html`, sheet
+`mockups/png/fizz-midifx-sheet.png`. Mechanics after research/OMX-MIDIFX.md (OMX-27 v1.15.4).
+
+**The model**
+- **5 groups × 8 slots**, kept with the project. A slot holds one of 10 MIDI effects or nothing; notes pass the
+  slots in order (an empty slot is skipped), then go to the voices. The group tracks note-offs by the pitch that
+  entered, so no effect handles its own offs (the OMX's design, copied).
+- **Any track routes through one group or none** (OFF, the default); two tracks may share a group (their notes meet in
+  one arp, each still sounding on its own track).
+- **A step can override it** (a lock): TRACK (follow the track, the default), OFF, or group 1..5.
+- **The live keys and a MIDI keyboard** play through the track's group; recording keeps what was **played** (before
+  the effects), as the OMX does. Notes the chain makes count against the track's voice limit.
+- **The 10 effects**: ARP (with its MOD and TRANSPOSE lanes), CHANCE, REPEAT, HARM, TRANSPOSE, SCALER, RANDOM,
+  CHORD, MONO, SELECTOR; every one has a **CHANCE** (KNOB 4 on its first page), so any effect can act "sometimes".
+- Fixed on the way from the OMX: a new arp starts **on**; chance starts at 100 %; the bypass is saved; CHORD keeps
+  the played velocity.
+
+**The MIDI FX screen** (**SHIFT + ARP**; HOME or F1 closes it): always the **selected track's group**. Its number in
+a hexagon (never a track's square), the tracks routed to it as small squares, **the 8 slots as a rail** (each tile
+the effect's glyph in its colour; dots run along it as notes pass), the selected effect's drawing big, its four values
+at the foot.
+
+| control | does |
+| --- | --- |
+| **B1..B8** | select slot 1..8; the selected one again: its next page |
+| **PRESETS** | the slot's effect: NONE, then the 10 (a rolodex; heard at once) |
+| **KNOB 1..4**, SELECT | the page's values (KNOB 4 = CHANCE on page 1); SELECT the page too |
+| **ALGORITHM** | **the track's group**: OFF, 1..5 (the screen follows; the five groups as small rails) |
+| **B10** | bypass the slot on / off (lit = playing) |
+| **B11** | remove the slot's effect (twice) |
+| **F1 + B n** / **F2 + B n** | copy the slot to n / move it to n |
+| **the white keys** | play the track through the group (hear the arp while you edit) |
+| the arp's lanes (pages 3, 4) | W = the lane's 16 steps (a tap selects), KNOB 1 the step's value, KNOB 4 the length, SHIFT + W random; B1..B8 stay the slots |
+
+**Settled while drawing it**
+- **ARP acts on its release**: a tap = the arp on / off, held = FILL (as now). Its light: lit while the arp plays,
+  blinking while FILL is held.
+- **F1 acts on its release** too: a tap closes the screen, held + B copies (as the step latch's keys).
+- **The lanes keep B1..B8 as the slots** (no quick values on the black keys), so the slot keys mean one thing on every
+  page; SELECT or a slot key leaves a lane.
+- **SHIFT here works as in the sound editor**: no map, its shortcuts act, SHIFT + W is a random lane value.
+- **PRESETS chooses the slot's effect** here, as it chooses a held step's sound: "what is in this place".
+- **SHIFT + SELECT** (the track) moves the screen to the new track's group.
+- The bypass is saved with the project; SHIFT + F1 undoes a removal.
+
+**Elsewhere**
+- **ARP tapped** (anywhere): the track's group's arp on / off, big (one is added in the first empty slot if needed).
+  ARP held stays FILL.
+- **A held step in TRIG** (B8): **KNOB 2 = the step's MIDI FX**; **B4 TRACK, B5 OFF, B6..B10 groups 1..5** (B1..B3
+  stay NOTE / LOCK / TIE).
+- **Track settings page 2, KNOB 4** = MIDI FX (OFF / 1..5).
+
+**Questions for the owner**
+1. ALGORITHM in the MIDI FX screen **reroutes the track** (the screen follows it), so there is one idea, "this track
+   plays through group n". Or keep editing a group and routing a track apart (the OMX's way)?
+2. The per-step group in **TRIG** (KNOB 2, B4..B10): right place?
+3. Build **all 10 effects** at once, or ARP, CHANCE, REPEAT, HARM, TRANSPOSE first and the rest after?
+4. **ARP tapped** with the track on OFF: route it to the first empty group and add an arp there, or do nothing?
+5. Groups kept **with the project** (recommended) or shared by every project (the OMX's)?
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.

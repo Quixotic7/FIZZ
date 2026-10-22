@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ MIDI FX</title>
+<!-- FIZZ: MIDI FX groups (OMX-style shared groups, 5 x 8 slots), a mock-up for the owner's approval (2026-10-22).
+     ?shot=N  one canvas at 1x (&t=seconds)   ?sheet=1  every screen at 2x with its keys   ?film=N&n=F&dt=S  F frames of shot N in a row (for a GIF)
+     no query: the page -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f1eee8; --fg:#1b1b1f; --dim:#66625b; --line:#d6d1c7; } }
+:root[data-theme="dark"] { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 6px; }
+h3 { font-size: 16px; margin: 28px 0 6px; }
+p, li { color: var(--dim); max-width: 860px; }
+p strong, li strong, td strong { color: var(--fg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 480px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+canvas.keys { width: 480px; max-width: 100%; height: auto; display: block; margin-top: 6px; }
+table.keys { border-collapse: collapse; font-size: 13.5px; max-width: 900px; width: 100%; }
+table.keys td, table.keys th { border-bottom: 1px solid var(--line); padding: 5px 10px 5px 0; text-align: left; vertical-align: top; color: var(--dim); }
+table.keys th { color: var(--fg); font-weight: 600; }
+table.keys td:first-child { color: var(--fg); white-space: nowrap; font-weight: 600; }
+.wrap { overflow-x: auto; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+body.shot { padding: 0; background: #000; }
+body.shot canvas { display: block; }
+body.film { padding: 0; background: #000; display: flex; flex-wrap: nowrap; }
+body.film canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; color: #ddd; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px 22px; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+.sheettitle { font: 700 20px -apple-system, "Helvetica Neue", Arial; margin: 0 0 14px; color: #eee; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: MIDI FX groups (mock-up)</h1>
+<p><strong>Five shared groups of eight slots</strong>, as on the OMX-27. Each slot holds one of ten MIDI effects, or nothing. A track sends its notes
+through <strong>one group</strong> (or OFF); two tracks may share a group, and then their notes meet in one chain (one arp plays both tracks' notes).
+Notes pass the slots in order, slot 1 → slot 8 → the voices. <strong>SHIFT + ARP</strong> opens the MIDI FX screen on the
+<strong>selected track's group</strong>; HOME or a tap of F1 closes it. Under each screen are its keys: filled = held, outlined = lit, faint = dim, dashed = blinking.
+The LEDs are one colour, so the keys canvas uses mint for the MIDI FX screen's lights.</p>
+<p>The ten types and their colours:
+<span id="legend"></span></p>
+<h3>Keys</h3>
+<div class="wrap"><table class="keys">
+<tr><th>where</th><th>gesture</th><th>does</th></tr>
+<tr><td>anywhere</td><td>SHIFT + ARP</td><td>the MIDI FX screen of the selected track's group (HOME or F1 tapped closes it)</td></tr>
+<tr><td>anywhere</td><td>ARP tapped</td><td>the arp of the track's group on / off (takeover: ARP ON / OFF). No arp in the group: one is added in the first empty slot. ARP held stays FILL</td></tr>
+<tr><td>MIDI FX</td><td>B1..B8</td><td>select slot 1..8; the selected slot again: its next page (the page dots)</td></tr>
+<tr><td>MIDI FX</td><td>PRESETS</td><td>the selected slot's type: NONE, ARP, CHANCE, REPEAT, HARM, TRANSPOSE, SCALER, RANDOM, CHORD, MONO, SELECTOR (heard at once; a rolodex takeover)</td></tr>
+<tr><td>MIDI FX</td><td>KNOB 1..4, SELECT</td><td>the page's four values; SELECT the page. KNOB 4 is CHANCE on every FX's first page (CHANCE's own % is KNOB 1)</td></tr>
+<tr><td>MIDI FX</td><td>ALGORITHM</td><td>the track's group: OFF, 1..5 (the five groups as mini rails; the screen follows)</td></tr>
+<tr><td>MIDI FX</td><td>B10</td><td>bypass the selected slot on / off (lit = playing)</td></tr>
+<tr><td>MIDI FX</td><td>B11, B11 again</td><td>remove the slot's FX (the first press arms: B11 blinks, the tile shakes under a red X)</td></tr>
+<tr><td>MIDI FX</td><td>F1 held + B n</td><td>copy the selected slot into slot n</td></tr>
+<tr><td>MIDI FX</td><td>F2 held + B n</td><td>move the selected slot to slot n (picked up, dropped; the others close up)</td></tr>
+<tr><td>MIDI FX</td><td>W1..W16</td><td>play the selected track through the group, in its scale</td></tr>
+<tr><td>ARP pages 3, 4</td><td>W1..W16</td><td>the MOD / TRANSPOSE lane's 16 steps; a tap selects a step</td></tr>
+<tr><td>ARP pages 3, 4</td><td>B1..B10</td><td>quick values: MOD × · − R &lt; &gt; ″ # 1 2 (as played, rest, tie, repeat, low −oct, high +oct, power chord, chord, note 1, note 2); TRANSPOSE 0..+9</td></tr>
+<tr><td>ARP pages 3, 4</td><td>KNOB 1, KNOB 4, SHIFT + W</td><td>any value; the lane's length; a random value for that step</td></tr>
+<tr><td>step held, TRIG (B8)</td><td>KNOB 2; B4..B10</td><td>the step's MIDI FX: TRACK (the default), OFF, group 1..5; keys B4 TRACK, B5 OFF, B6..B10 groups 1..5 (B1..B3 stay NOTE / LOCK / TIE)</td></tr>
+<tr><td>track settings p. 2</td><td>KNOB 4</td><td>MIDI FX: OFF, 1..5</td></tr>
+</table></div>
+<h3>The ARP's pages</h3>
+<p><strong>1</strong> PATTERN, RATE, RANGE, CHANCE · <strong>2</strong> MODE (ON / 1-ST / ONCE / HOLD), GATE, OCT DIST, QUANT ·
+<strong>3</strong> the MOD lane · <strong>4</strong> the TRANSPOSE lane. The 17 patterns: UP, DN, UPDN, DNUP, U&amp;D, D&amp;U, CON, DIV, C-V, HI 1, HI 2, LO 1, LO 2, RAND, ROTH, RONC, ASP.</p>
+<h3>Open points (for the owner)</h3>
+<ul id="open">
+<li><strong>ARP's light</strong> would carry two things: FILL (ARP held, lit) and the arp's on / off (ARP tapped). Suggestion: lit = arp on, blinking fast while FILL is held.</li>
+<li><strong>On the arp's lanes (pages 3, 4)</strong> B1..B10 are values and the white keys are steps, so B1..B8 cannot select a slot, B10 / B11 do nothing and the keys cannot play. SELECT (or HOME) is the way out, as on the OMX.</li>
+<li><strong>SHIFT + W</strong> (a random lane value) means SHIFT held there shows no SHIFT map (as in the sound editor, P1.5z).</li>
+<li><strong>PRESETS</strong> chooses the slot's type here; everywhere else (the sound editor too) it opens the library browser.</li>
+<li><strong>The bypassed slot's key</strong>: drawn blinking here (B10 dark). A slot key that is the selected one and bypassed blinks bright; another bypassed slot blinks dim.</li>
+</ul>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+/* ---------------------------------------------------------------- palette (fizz-presets.html's) */
+const C = { bg: '#000', k1: '#3f7dff', k2: '#1fd47e', k3: '#f1f0ea', k4: '#ff6a2c', sel: '#ffd23f', red: '#ff3448',
+            g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d', save: '#f3d9a4', pool: '#b5e853', trk: '#f03cff' };
+const TP = ['#3f7dff', '#1fd47e', '#f1f0ea', '#ff6a2c', '#ff3ca0', '#ffd23f', '#9664ff', '#28e1ff'];
+const MINT = '#5cf2c4';                                   /* the MIDI FX role colour */
+const F = 'IT', TAU = Math.PI * 2;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const ease = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const lerp = (a, b, u) => a + (b - a) * u;
+
+/* ---------------------------------------------------------------- drawing helpers (line.html's) */
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = o.bl || 'alphabetic';
+  if (o.a != null) c.globalAlpha = o.a;
+  c.fillText(s, x, y); c.restore();
+}
+function TW(c, s, o = {}) { c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; const w = c.measureText(s).width; c.restore(); return w; }
+function P(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1);
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  if (o.close) c.closePath(); if (o.fill) { c.fillStyle = o.fill; c.fill(); } c.stroke(); c.restore();
+}
+function O(c, x, y, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1); if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.arc(x, y, Math.max(0.1, r), o.a0 || 0, o.a1 == null ? TAU : o.a1);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.stroke(); } c.restore();
+}
+function RR(c, x, y, w, h, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1); if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.roundRect(x + lw / 2, y + lw / 2, w - lw, h - lw, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function Q(c, x0, y0, cx, cy, x1, y1, col, lw = 1.5, o = {}) {      /* a quadratic curve */
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1); if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo(cx, cy, x1, y1); c.stroke(); c.restore();
+}
+const qpt = (x0, y0, cx, cy, x1, y1, u) => [(1 - u) * (1 - u) * x0 + 2 * (1 - u) * u * cx + u * u * x1, (1 - u) * (1 - u) * y0 + 2 * (1 - u) * u * cy + u * u * y1];
+/* neon: a wide faint stroke under the line */
+function G(c, pts, col, lw = 1.6, o = {}) { const a = o.a == null ? 1 : o.a; P(c, pts, col, lw * 3.4, { ...o, a: a * 0.16 }); P(c, pts, col, lw, o); }
+function GQ(c, x0, y0, cx, cy, x1, y1, col, lw = 1.6, o = {}) { const a = o.a == null ? 1 : o.a; Q(c, x0, y0, cx, cy, x1, y1, col, lw * 3.4, { ...o, a: a * 0.16 }); Q(c, x0, y0, cx, cy, x1, y1, col, lw, o); }
+function dot(c, x, y, r, col, a = 1) { O(c, x, y, r * 2.3, null, 1, col, { a: a * 0.16 }); O(c, x, y, r, null, 1, col, { a }); }
+function bg(c) { c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); }
+function clipMid(c, f) { c.save(); c.beginPath(); c.rect(0, 84, 240, 104); c.clip(); f(); c.restore(); }
+function along(pts, u) {                              /* a point a fraction u along a polyline */
+  let L = 0; const seg = []; for (let i = 2; i < pts.length; i += 2) { const l = Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]); seg.push(l); L += l; }
+  let d = clamp(u, 0, 1) * L; for (let i = 0; i < seg.length; i++) { if (d <= seg[i] || i === seg.length - 1) { const v = seg[i] ? d / seg[i] : 0;
+    return [lerp(pts[i * 2], pts[i * 2 + 2], v), lerp(pts[i * 2 + 1], pts[i * 2 + 3], v)]; } d -= seg[i]; }
+}
+function hexagon(c, x, y, r, col, lw = 1.4, o = {}) {
+  const pts = []; for (let k = 0; k < 6; k++) { const an = -Math.PI / 2 + k * TAU / 6; pts.push(x + Math.cos(an) * r, y + Math.sin(an) * r); }
+  P(c, pts, col, lw, { close: true, dash: o.dash, a: o.a, fill: o.fill });
+}
+function hexBadge(c, x, y, n, col = MINT, o = {}) {  /* a group: its number in a hexagon (a track's is a square) */
+  const r = o.r || 10;
+  hexagon(c, x, y, r, col, o.lw || 1.5, { dash: o.dash, a: o.a, fill: o.fill });
+  if (n != null) T(c, String(n), x, y + (o.s || 12) * 0.36, { s: o.s || 12, w: 600, col: o.tcol || col, al: 'center', a: o.a });
+}
+function sq(c, x, y, n, s = 10, ring) {              /* a track's colour square */
+  RR(c, x, y, s, s, 2, null, 1, TP[n - 1]);
+  if (ring) RR(c, x - 3, y - 3, s + 6, s + 6, 3.5, C.k3, 1.2);
+}
+
+/* ---------------------------------------------------------------- the ten types */
+const FX = {
+  ARP:       { col: '#3f8cff', pages: 4 },
+  CHANCE:    { col: '#ff2d45', pages: 1 },
+  REPEAT:    { col: '#ff8268', pages: 2 },
+  HARM:      { col: '#ff6fb4', pages: 2 },
+  TRANSPOSE: { col: '#a86cff', pages: 1 },
+  SCALER:    { col: '#ffd23f', pages: 1 },
+  RANDOM:    { col: '#ff5418', pages: 2 },
+  CHORD:     { col: '#28e1ff', pages: 2 },
+  MONO:      { col: '#6f72ff', pages: 1 },
+  SELECTOR:  { col: '#ffa21f', pages: 1 },
+};
+const TYPES = ['ARP', 'CHANCE', 'REPEAT', 'HARM', 'TRANSPOSE', 'SCALER', 'RANDOM', 'CHORD', 'MONO', 'SELECTOR'];
+
+/* each type's small glyph, in a box of 2s px */
+function glyph(c, ty, cx, cy, s, col, a = 1, lw = 1.4) {
+  const u = s / 8, X = v => cx + v * u, Y = v => cy + v * u;
+  const L = (arr, o = {}) => P(c, arr.map((v, i) => i % 2 ? Y(v) : X(v)), col, lw, { a, ...o });
+  const D = (x, y, r, fill = true, aa = a) => O(c, X(x), Y(y), r * u, fill ? null : col, lw, fill ? col : null, { a: aa });
+  switch (ty) {
+    case 'ARP': L([-7, 6, -3, 6, -3, 1, 1, 1, 1, -4, 6, -4]); D(6, -4, 1.9); break;
+    case 'CHANCE': D(-6.5, -2, 1.7); D(-2, -2, 1.7); L([1.5, -7, 1.5, 3]); D(5.5, -2, 1.7); D(5.5, 5.5, 1.7, false, a * 0.6); break;
+    case 'REPEAT': {
+      const fl = 6; [[-7, -2, 6], [-2, 2, 4], [2, 5, 2.4], [5, 7.2, 1.2]].forEach(([x0, x1, h]) =>
+        Q(c, X(x0), Y(fl), X((x0 + x1) / 2), Y(fl - 2 * h), X(x1), Y(fl), col, lw, { a }));
+      D(-4.5, -0.2, 2); break; }
+    case 'HARM': L([-7, -5, 7, -5], { }); L([-7, 0, 3, 0]); L([-7, 5, -1, 5]); L([-7, -7.5, -7, 7.5]); break;
+    case 'TRANSPOSE': D(-5, 5, 2.2); Q(c, X(-3.5, 0), Y(2.5), X(-3), Y(-6), X(5.5), Y(-5), col, lw, { a }); L([5.5, -5, 2, -6.6]); L([5.5, -5, 3.6, -1.8]); break;
+    case 'SCALER':
+      RR(c, X(-7.5), Y(-6.5), 15 * u, 13 * u, 1.5 * u, col, lw, null, { a });
+      L([-2.5, -6, -2.5, 6]); L([2.5, -6, 2.5, 6]);
+      RR(c, X(-4), Y(-6.5), 3 * u, 7 * u, 0.6, null, 1, col, { a }); RR(c, X(1), Y(-6.5), 3 * u, 7 * u, 0.6, null, 1, col, { a }); break;
+    case 'RANDOM':
+      RR(c, X(-7), Y(-7), 14 * u, 14 * u, 2.5 * u, col, lw, null, { a });
+      [[-3.3, -3.3], [3.3, -3.3], [0, 0], [-3.3, 3.3], [3.3, 3.3]].forEach(([x, y]) => D(x, y, 1.3)); break;
+    case 'CHORD': [5, 0.5, -4].forEach(y => { c.save(); c.globalAlpha = a; c.fillStyle = col; c.beginPath(); c.ellipse(X(-1.5), Y(y), 2.6 * u, 1.9 * u, -0.35, 0, TAU); c.fill(); c.restore(); });
+      L([1.2, 5, 1.2, -8]); break;
+    case 'MONO': L([-7, -5.5, -3, -5.5, 1.5, 0]); L([-7, 0, 1.5, 0]); L([-7, 5.5, -3, 5.5, 1.5, 0]); L([1.5, 0, 6.5, 0]); D(6.8, 0, 1.6); break;
+    case 'SELECTOR': L([-7, 0, -2, 0]); D(-2, 0, 1.6); L([-2, 0, 7, -5.5]); L([-2, 0, 7, 0], { a: a * 0.4 }); L([-2, 0, 7, 5.5], { a: a * 0.4 }); break;
+  }
+}
+
+/* a slot's tile */
+function tile(c, x, y, w, ty, o = {}) {
+  if (o.sel) { y -= 3; RR(c, x + 1, y + w + 2, w - 2, 3, 1.5, null, 1, '#1d1d24'); }       /* raised: a shadow under it */
+  if (!ty) {
+    RR(c, x, y, w, w, 4, null, 1, C.bg);
+    RR(c, x, y, w, w, 4, o.sel ? C.k3 : C.g2, o.sel ? 1.8 : 1, null, { a: o.sel ? 0.95 : 0.55, dash: o.sel ? null : [2, 2] });
+    return;
+  }
+  const col = FX[ty].col, a = (o.byp ? 0.32 : 1) * (o.a == null ? 1 : o.a);
+  RR(c, x, y, w, w, 4, null, 1, C.bg);
+  if (o.glow) RR(c, x - 2, y - 2, w + 4, w + 4, 6, null, 1, col, { a: 0.22 * o.glow });
+  if (o.sel) RR(c, x - 2.5, y - 2.5, w + 5, w + 5, 6, C.k3, 1.8);
+  RR(c, x, y, w, w, 4, col, 1.4, null, { a: a * (o.sel ? 1 : 0.8) });
+  glyph(c, ty, x + w / 2, y + w / 2, w * 0.31, col, a, w > 30 ? 2 : 1.35);
+  if (o.byp) { P(c, [x + 2.5, y + w - 2.5, x + w - 2.5, y + 2.5], C.g1, 1.5); }
+}
+
+/* ---------------------------------------------------------------- the groups (the example project) */
+const GR = {
+  1: { slots: ['ARP', 'CHANCE', 'HARM', null, null, null, null, null], tracks: [1, 4] },
+  2: { slots: ['SELECTOR', 'REPEAT', 'TRANSPOSE', 'SCALER', 'MONO', null, null, null], tracks: [2] },
+  3: { slots: ['CHORD', 'RANDOM', 'CHANCE', 'ARP', null, null, null, null], tracks: [3, 7] },
+  4: { slots: ['TRANSPOSE', 'HARM', null, null, null, null, null, null], tracks: [5] },
+  5: { slots: [null, null, null, null, null, null, null, null], tracks: [] },
+};
+const RX = i => 10 + i * 28, RY = 44, RW = 22;       /* the rail: tile i's left x, the line's y, the tile size */
+
+/* notes running along the rail: a dot stream; an ARP or REPEAT starts a faster stream, CHANCE drops some, HARM / CHORD stack three */
+function railFlow(c, t, slots) {
+  const hits = new Array(8).fill(0), items = slots.map((ty, i) => ({ ty, i, x: RX(i) + RW / 2 })).filter(s => s.ty);
+  const starts = [{ x: 2, rate: 1.7, col: C.k3, id: 0 }];
+  items.forEach(s => { if (s.ty === 'ARP' || s.ty === 'REPEAT') starts.push({ x: s.x, rate: 6, col: FX[s.ty].col, id: s.i + 1 }); });
+  const speed = 64;
+  starts.forEach((st, si) => {
+    const end = si + 1 < starts.length ? starts[si + 1].x : 238, life = (end - st.x) / speed;
+    for (let k = Math.floor((t - life) * st.rate) - 1; k <= Math.floor(t * st.rate); k++) {
+      const age = t - k / st.rate; if (age < 0 || age > life) continue;
+      const x = st.x + age * speed; let col = st.col, mult = 1, fell = -1;
+      for (const s of items) {
+        if (s.x <= st.x + 0.5 || s.x > end) continue;
+        if (Math.abs(x - s.x) < 13) hits[s.i] = Math.max(hits[s.i], 1 - Math.abs(x - s.x) / 13);
+        if (s.x > x) continue;
+        if (s.ty === 'CHANCE' && hash(k * 7.31 + s.i * 3 + st.id * 17) > 0.62) { fell = x - s.x; col = FX.CHANCE.col; break; }
+        if (s.ty === 'HARM' || s.ty === 'CHORD') mult = 3;
+        col = FX[s.ty].col;
+      }
+      if (fell >= 0) { O(c, x, RY + fell * 0.7, 1.6, null, 1, col, { a: 1 - fell / 22 }); continue; }
+      for (let m = 0; m < mult; m++) dot(c, x, RY + (m - (mult - 1) / 2) * 4.4, 1.8, col);
+    }
+  });
+  return hits;
+}
+function rail(c, t, o) {
+  const slots = o.slots;
+  P(c, [2, RY, 238, RY], C.g2, 1.2);
+  P(c, [232, RY - 3.5, 237, RY, 232, RY + 3.5], C.g2, 1.2);
+  const hits = o.play ? railFlow(c, t, slots) : new Array(8).fill(0);
+  if (o.branch) { const [s, n] = o.branch;           /* a SELECTOR's block: its next n slots bracketed */
+    P(c, [RX(s + 1) - 1, 62, RX(s + 1) - 1, 64, RX(s + n) + RW + 1, 64, RX(s + n) + RW + 1, 62], FX.SELECTOR.col, 1.2, { a: 0.8 }); }
+  const lift = o.lift;
+  slots.forEach((ty, i) => {
+    if (lift && i === lift.from) return;
+    let x = RX(i), y = RY - RW / 2;
+    if (lift && i > lift.from && i <= lift.to) x = lerp(RX(i), RX(i - 1), ease((lift.u - 0.2) / 0.5));
+    if (o.arm === i) x += Math.sin(t * 46) * 2.2;
+    tile(c, x, y, RW, ty, { sel: i === o.sel && !lift, byp: o.byp && o.byp.includes(i), glow: hits[i] });
+    if (o.arm === i) { P(c, [x - 1, y - 4, x + RW + 1, y + RW - 2], C.red, 2.2); P(c, [x + RW + 1, y - 4, x - 1, y + RW - 2], C.red, 2.2); }
+  });
+  if (lift) {                                         /* picked up: raised above the rail, carried, dropped */
+    const u = lift.u, up = u < 0.15 ? ease(u / 0.15) : u > 0.75 ? 1 - ease((u - 0.75) / 0.15) : 1;
+    const x = lerp(RX(lift.from), RX(lift.to), ease((u - 0.2) / 0.5)), y = RY - RW / 2 - 9 * up;
+    if (up > 0.05) RR(c, x + 2, RY + RW / 2 + 1, RW - 4, 3, 1.5, null, 1, '#2a2a33', { a: up });
+    tile(c, x, y, RW, slots[lift.from], { sel: true });
+  }
+}
+
+/* the head: page dots, MIDI FX, the group's hexagon, the routed tracks' squares */
+function headM(c, o) {
+  let x = 8;
+  if (o.pages && o.pages[1] > 1) { for (let i = 0; i < o.pages[1]; i++) O(c, x + 3 + i * 9, 13, 2.6, i === o.pages[0] ? null : C.g1, 1, i === o.pages[0] ? C.k3 : null); x += o.pages[1] * 9 + 4; }
+  const title = o.title || 'MIDI FX';
+  T(c, title, x, 17, { s: 12, w: 600, ls: 1, col: o.tcol || MINT });
+  x += TW(c, title, { s: 12, w: 600, ls: 1 }) + 15;
+  if (o.g) hexBadge(c, x, 12.5, o.g, MINT);
+  else if (o.g === 0) hexBadge(c, x, 12.5, null, C.g1, { dash: [2, 2] });
+  const tr = o.tracks || [];
+  tr.slice().reverse().forEach((n, j) => sq(c, 222 - j * 17, 7.5, n, 10, n === o.track));
+  P(c, [8, 25, 232, 25], C.g3, 1);
+}
+function nameOf(ty) { return ty; }
+/* the foot: four labels and values in the knob colours (the sound editor's) */
+function foot(c, cells, o = {}) {
+  const cols = [C.k1, C.k2, C.k3, C.k4];
+  cells.forEach((cell, i) => {
+    if (!cell) return; const x = 31 + i * 59.3;
+    T(c, cell[0], x, 204, { s: 12, w: 500, col: C.g1, al: 'center', a: o.a });
+    let s = 19; while (s > 14 && TW(c, cell[1], { s, w: 400 }) > 55) s--;
+    T(c, cell[1], x, 228, { s, w: 400, col: cols[i], al: 'center', a: o.a });
+    if (cell[2]) P(c, [x - 12, 209, x + 12, 209], cols[i], 1.6);
+  });
+}
+
+/* ---------------------------------------------------------------- the big drawings (the middle, y 84..188) */
+function drawArp(c, t, o = {}) {
+  const col = FX.ARP.col, held = o.held || [0, 4, 7], seq = [];
+  for (let oc = 0; oc < 2; oc++) held.forEach(p => seq.push(p + 12 * oc));
+  const py = p => 178 - p * 3.55, x0 = 50, w = (228 - x0) / seq.length, rate = o.rate || 5;
+  const pos = t * rate, cur = Math.floor(pos) % seq.length, f = pos % 1, gate = o.gate || 0.8;
+  [12, 24].forEach(p => P(c, [46, py(p) + 0.5, 230, py(p) + 0.5], C.g3, 1, { dash: [2, 4] }));
+  /* the held notes: a column of dots (a latch closes over it in HOLD) */
+  const top = py(held[held.length - 1]) - 10, bot = py(held[0]) + 10;
+  RR(c, 13, top, 24, bot - top, 12, o.latch ? col : C.g2, 1.3, null, { a: o.latch ? 0.8 : 1 });
+  held.forEach((p, j) => dot(c, 25, py(p), 3.6, o.holdCols ? o.holdCols[j] : C.k3, o.released ? 0.9 : 1));
+  if (o.latch) {                                     /* the latch: a bar swinging shut over the column, a catch on the right */
+    const u = (t % 2.4) / 2.4, an = u < 0.3 ? lerp(-1.0, 0, ease(u / 0.3)) : 0, hx = 13, hy = top - 7;
+    O(c, hx, hy, 3.2, col, 1.6, C.bg);
+    G(c, [hx, hy, hx + Math.cos(an) * 28, hy + Math.sin(an) * 28], col, 3.2);
+    P(c, [41, top - 11, 41, top - 2, 37, top - 2], col, 1.6, { a: an > -0.05 ? 1 : 0.4 });
+    P(c, [25, hy + 1, 25, top], col, 1.2, { a: 0.6 });
+  }
+  /* the pattern: a glowing staircase through the octave range, the playing note bright */
+  for (let i = 0; i < seq.length; i++) {
+    const x = x0 + i * w, y = py(seq[i]), on = i === cur;
+    if (i > 0) P(c, [x, py(seq[i - 1]), x, y], col, 1.2, { a: 0.4 });
+    G(c, [x, y, x + w, y], col, on ? 2 : 1.4, { a: on ? 0.6 : 0.38 });
+    G(c, [x + 2, y, x + 2 + (w - 4) * gate, y], col, on ? 4.4 : 3.4, { a: on ? 1 : 0.55 });
+  }
+  const xc = x0 + cur * w + 2 + (w - 4) * gate * Math.min(1, f / gate);
+  dot(c, xc, py(seq[cur]), 3.6, o.holdCols ? o.holdCols[cur % held.length] : C.k3);
+  if (f < 0.3) O(c, x0 + cur * w + 2, py(seq[cur]), 4 + f * 30, col, 1.2, null, { a: 1 - f / 0.3 });
+}
+function drawChance(c, t, pct = 70, o = {}) {
+  const col = FX.CHANCE.col, y = 162, gx = 122;
+  T(c, pct + '%', 120, 134, { s: 42, w: 300, col, al: 'center', a: o.a });
+  G(c, [gx, y - 19, gx, y - 8], col, 2.2, { a: o.a }); G(c, [gx, y + 8, gx, y + 19], col, 2.2, { a: o.a });
+  const speed = 56, rate = 3;
+  for (let k = Math.floor((t - 5) * rate); k <= t * rate; k++) {
+    const age = t - k / rate, x = 10 + age * speed; if (x < 10 || x > 232) continue;
+    const pass = hash(k * 3.17) < pct / 100;
+    if (x < gx || pass) dot(c, x, y, 3.3, x < gx ? C.k3 : col, (o.a == null ? 1 : o.a) * (x > 210 ? (232 - x) / 22 : 1));
+    else { const d = x - gx; O(c, gx + d * 0.45, y + d * d * 0.02, 3.3, col, 1.3, null, { a: (o.a == null ? 1 : o.a) * Math.max(0, 1 - d / 55) }); }
+  }
+}
+function drawRepeat(c, t) {
+  const col = FX.REPEAT.col, n = 4, fl = 180, xs = i => 52 + i * 50, vel = [1, 0.78, 0.58, 0.4], period = 2.2;
+  const u = (t % period) / period, pos = u * (n + 0.6), cur = Math.floor(pos), f = pos - cur;
+  P(c, [12, fl, 228, fl], C.g2, 1.2);
+  dot(c, 22, 104, 4, C.k3); P(c, [22, 110, 22, fl - 2], C.g2, 1, { dash: [2, 3] });          /* the note in */
+  for (let i = 0; i < n; i++) {
+    const h = 74 * vel[i], lit = cur === i && f < 0.35;
+    G(c, [xs(i), fl, xs(i), fl - h], col, lit ? 3.4 : 2.4, { a: (lit ? 1 : 0.55) * (0.45 + 0.55 * vel[i]) });
+    if (lit) O(c, xs(i), fl, 6 + f * 40, col, 1.2, null, { a: 1 - f / 0.35 });
+  }
+  /* the ball: from the note down to the first hit, then a hop per hit, lower each time */
+  let bx, by;
+  if (cur === 0 && pos < 1 && false) { bx = 0; }
+  if (cur >= n) { bx = xs(n - 1) + f * 30; by = fl - 6 - 10 * Math.sin(Math.PI * Math.min(1, f)); }
+  else { const xa = cur === 0 ? 22 : xs(cur - 1), xb = xs(cur), H = cur === 0 ? 70 : 64 * vel[cur - 1];
+    bx = lerp(xa, xb, f); by = cur === 0 ? lerp(104, fl - 6, f * f) : fl - 6 - H * 4 * f * (1 - f); }
+  dot(c, bx, by, 5.5, col, cur >= n ? 1 - f : 1);
+}
+function drawHarm(c, t, ints = [4, 7, 12], o = {}) {
+  const col = FX.HARM.col, py = p => 176 - p * 5.5, a = o.a == null ? 1 : o.a, kx = 14, kw = 26;
+  /* a vertical keyboard */
+  RR(c, kx, py(15) - 2.75, kw, py(-0.5) - py(15) + 2.75, 2, C.g2, 1.2, null, { a });
+  for (let p = 0; p <= 15; p++) { const pc = p % 12;
+    if ([1, 3, 6, 8, 10].includes(pc)) { RR(c, kx, py(p) - 2.2, 15, 4.4, 1, null, 1, C.g2, { a }); P(c, [kx + 15, py(p), kx + kw, py(p)], C.g3, 1, { a }); }
+    if (pc === 4 || pc === 11) P(c, [kx, py(p + 0.5), kx + kw, py(p + 0.5)], C.g3, 1, { a }); }
+  const notes = [0, ...ints], u = (t % 2.2) / 2.2, kc = [C.k1, C.k2, C.k3];
+  notes.forEach((p, j) => {
+    const g = o.still ? 1 : ease((u - j * 0.1) / 0.12), y = py(p), x1 = lerp(48, 176, g);
+    if (g <= 0) return;
+    G(c, [48, y, x1, y], j ? col : C.k3, 3.2, { a: a * (j ? 1 : 0.9) });
+    dot(c, kx + kw - 4, y, 2.4, j ? col : C.k3, a);
+    if (j) T(c, '+' + p, 186, y + 5, { s: 15, w: 500, col: kc[j - 1], a: a * g });
+  });
+}
+function NH(c, x, y, col, fill, a = 1) { c.save(); c.globalAlpha = a; c.beginPath(); c.ellipse(x, y, 8, 5.6, -0.35, 0, TAU);
+  if (fill) { c.fillStyle = col; c.fill(); } c.strokeStyle = col; c.lineWidth = 1.6; c.stroke(); c.restore(); }
+function drawTranspose(c, t) {
+  const col = FX.TRANSPOSE.col, A = [34, 150], M = [118, 126], B = [204, 172], u = (t % 2.4) / 2.4;
+  P(c, [14, 150, 226, 150], C.g3, 1, { dash: [2, 4] });
+  GQ(c, A[0] + 6, A[1] - 6, 70, 76, M[0], M[1], C.k1, 1.6, { a: 0.85 });
+  GQ(c, M[0], M[1], 168, 92, B[0] - 7, B[1] - 7, C.k2, 1.6, { a: 0.85 });
+  P(c, [B[0] - 7, B[1] - 7, B[0] - 15, B[1] - 9], C.k2, 1.6); P(c, [B[0] - 7, B[1] - 7, B[0] - 9, B[1] - 15], C.k2, 1.6);
+  O(c, M[0], M[1], 3, C.g1, 1.2, C.bg);
+  NH(c, A[0], A[1], C.k3, true);
+  NH(c, B[0], B[1], col, u > 0.75, u > 0.75 ? 1 : 0.6);
+  T(c, '+5', 64, 104, { s: 16, w: 500, col: C.k1, al: 'center' });
+  T(c, '−1', 170, 112, { s: 16, w: 500, col: C.k2, al: 'center' });
+  if (u < 0.75) { const v = u / 0.75, [x, y] = v < 0.5 ? qpt(A[0] + 6, A[1] - 6, 70, 76, M[0], M[1], v * 2) : qpt(M[0], M[1], 168, 92, B[0] - 7, B[1] - 7, v * 2 - 1);
+    dot(c, x, y, 4.2, col); }
+  else O(c, B[0], B[1], 8 + (u - 0.75) * 60, col, 1.3, null, { a: 1 - (u - 0.75) / 0.25 });
+}
+function keyboardH(c, x0, y0, kw, nWhite, h, bh, o = {}) {   /* a horizontal keyboard; returns pitch -> [x, y of a dot] */
+  const wp = [0, 2, 4, 5, 7, 9, 11], pos = {};
+  for (let i = 0; i < nWhite; i++) { const p = Math.floor(i / 7) * 12 + wp[i % 7], x = x0 + i * kw;
+    RR(c, x, y0, kw - 1.5, h, 2, o.out && !o.inScale(p) ? C.g3 : C.g2, 1.1, '#050507'); pos[p] = [x + (kw - 1.5) / 2, y0 + h - 9]; }
+  for (let i = 0; i < nWhite - 1; i++) { const p = Math.floor(i / 7) * 12 + wp[i % 7]; if (p % 12 === 4 || p % 12 === 11) continue;
+    const x = x0 + (i + 1) * kw - 0.75 - kw * 0.32; RR(c, x, y0 - 1, kw * 0.64, bh, 2, C.g1, 1, '#121216'); pos[p + 1] = [x + kw * 0.32, y0 + bh - 8]; }
+  return pos;
+}
+function drawScaler(c, t) {
+  const col = FX.SCALER.col, sc = new Set([0, 2, 3, 5, 7, 8, 10]), inS = p => sc.has(((p % 12) + 12) % 12);
+  const pos = keyboardH(c, 10, 112, 22, 10, 72, 42, { out: true, inScale: inS });
+  Object.keys(pos).forEach(p => { if (inS(+p)) dot(c, pos[p][0], pos[p][1], 2.6, col, 0.55); });
+  const moves = [[4, 3], [9, 8], [11, 10], [6, 5]], k = Math.floor(t / 1.5) % moves.length, u = (t % 1.5) / 1.5, [from, to] = moves[k];
+  const A = pos[from], B = pos[to];
+  if (u < 0.3) { const v = ease(u / 0.3); dot(c, A[0], lerp(90, A[1], v), 4, C.k3); }
+  else if (u < 0.45) dot(c, A[0], A[1], 4, C.k3);
+  else if (u < 0.8) { const v = ease((u - 0.45) / 0.35), mx = (A[0] + B[0]) / 2, my = Math.min(A[1], B[1]) - 22;
+    const [x, y] = qpt(A[0], A[1], mx, my, B[0], B[1], v); dot(c, x, y, 4, lerp(0, 1, v) > 0.5 ? col : C.k3);
+    GQ(c, A[0], A[1], mx, my, x, y, col, 1.2, { a: 0.5 }); }
+  else { dot(c, B[0], B[1], 4.4, col); O(c, B[0], B[1], 5 + (u - 0.8) * 60, col, 1.2, null, { a: 1 - (u - 0.8) / 0.2 }); }
+}
+function drawRandom(c, t) {
+  const col = FX.RANDOM.col, tick = Math.floor(t * 2.4), f = (t * 2.4) % 1, fresh = 1 - Math.min(1, f / 0.3);
+  /* PITCH: a box of seven semitone rows, the note's own row white */
+  RR(c, 16, 90, 52, 94, 5, C.k1, 1.3, null, { dash: [4, 3] });
+  for (let r = 0; r < 7; r++) P(c, [24, 99 + r * 13, 60, 99 + r * 13], r === 3 ? C.k3 : C.g3, r === 3 ? 1.4 : 1, { a: r === 3 ? 0.7 : 1 });
+  const pr = Math.floor(hash(tick * 1.3) * 7), ppr = Math.floor(hash((tick - 1) * 1.3) * 7);
+  dot(c, 42, 99 + ppr * 13, 3, col, 0.25 * (1 - fresh)); dot(c, 42, 99 + pr * 13, 4, col);
+  if (fresh > 0) O(c, 42, 99 + pr * 13, 5 + (1 - fresh) * 10, col, 1.2, null, { a: fresh });
+  /* VELOCITY: a bar whose top lands anywhere in its range */
+  RR(c, 90, 104, 52, 46, 5, C.k2, 1.3, null, { dash: [4, 3] });
+  P(c, [96, 127, 136, 127], C.k3, 1.4, { a: 0.7 });
+  const vy = 108 + hash(tick * 2.7 + 5) * 38;
+  G(c, [116, 184, 116, vy], col, 3); dot(c, 116, vy, 3.6, col);
+  /* LENGTH: a note bar that only grows, up to +40 % */
+  RR(c, 164, 126, 64, 24, 5, C.k3, 1.3, null, { dash: [4, 3] });
+  P(c, [170, 132, 170, 144], C.k3, 1.2, { a: 0.7 }); P(c, [208, 128, 208, 148], C.k3, 1.4, { a: 0.7 });
+  const lx = 208 + hash(tick * 3.9 + 2) * 14;
+  G(c, [170, 138, lx, 138], col, 4); P(c, [lx, 133, lx, 143], col, 1.6);
+}
+function drawChord(c, t) {
+  const col = FX.CHORD.col, roots = [9, 2, 4], names = ['Am7', 'Dm7', 'Em7'], per = 1.8, k = Math.floor(t / per) % 3, u = (t % per) / per;
+  const pos = keyboardH(c, 8, 140, 16, 14, 46, 27);
+  const notes = [0, 3, 7, 10].map(d => roots[k] + d);
+  T(c, names[k], 120, 124, { s: 34, w: 300, col, al: 'center', a: ease(u / 0.35) });
+  notes.forEach((p, j) => { const g = ease((u - j * 0.08) / 0.1); if (g <= 0 || !pos[p]) return;
+    const [x, y] = pos[p]; dot(c, x, y, j ? 3.2 : 3.6, j ? col : C.k3, g);
+    if (j) P(c, [x, y - 6, x, lerp(y - 6, y - 14, g)], col, 1, { a: 0.4 * g }); });
+}
+function drawMono(c, t) {
+  const col = FX.MONO.col, mx = 136, my = 136, ys = [96, 122, 150, 176], per = 0.75;
+  const path = y => [14, y, 66, y, mx, my];
+  ys.forEach(y => G(c, path(y), col, 1.4, { a: 0.45 }));
+  G(c, [mx, my, 228, my], col, 1.6, { a: 0.45 });
+  O(c, mx, my, 4, col, 1.6, C.bg);
+  const n0 = Math.floor(t / per);
+  for (let n = n0 - 3; n <= n0; n++) {
+    const tn = n * per, ln = [0, 2, 1, 3][((n % 4) + 4) % 4], age = t - tn, travel = 0.55;
+    if (age < 0) continue;
+    if (age < travel) { const [x, y] = along(path(ys[ln]), age / travel); dot(c, x, y, 3.4, C.k3); continue; }
+    const cutAt = per;                               /* the next note arrives: this one is cut */
+    const out = age - travel, x = mx + Math.min(out, cutAt) * 120;
+    if (out < cutAt) { G(c, [mx, my, x, my], col, 3.4); dot(c, x, my, 3.6, C.k3); }
+    else { const fz = (out - cutAt) / 0.25; if (fz < 1) { P(c, [mx + (x - mx) * fz, my, x, my], col, 3, { a: 1 - fz }); } }
+  }
+}
+function drawSelector(c, t, branches = ['REPEAT', 'TRANSPOSE']) {
+  const col = FX.SELECTOR.col, sx = 72, sy = 136, tx = 146, ty = [104, 168], ox = 228, per = 1.3;
+  const n = Math.floor(t / per), u = (t % per) / per, ch = hash(n * 5.3) < 0.5 ? 0 : 1, prev = hash((n - 1) * 5.3) < 0.5 ? 0 : 1;
+  const inP = [12, sy, sx, sy], br = i => [sx, sy, tx - 18, ty[i]], ou = i => [tx + 18, ty[i], 204, sy, ox, sy];
+  G(c, inP, col, 1.6, { a: 0.7 });
+  [0, 1].forEach(i => { G(c, br(i), col, 1.6, { a: i === ch ? 0.75 : 0.22 }); G(c, ou(i), col, 1.4, { a: i === ch ? 0.6 : 0.22 }); });
+  [0, 1].forEach(i => tile(c, tx - 16, ty[i] - 16, 32, branches[i], { glow: i === ch && u > 0.45 && u < 0.7 ? 1 : 0, a: i === ch ? 1 : 0.45 }));
+  /* the switch blade */
+  const ang = i => Math.atan2(ty[i] - sy, tx - 18 - sx), an = lerp(ang(prev), ang(ch), ease(u / 0.18));
+  G(c, [sx, sy, sx + Math.cos(an) * 26, sy + Math.sin(an) * 26], C.k3, 2.6);
+  O(c, sx, sy, 4, C.k3, 1.6, C.bg);
+  let p;
+  if (u < 0.25) p = along(inP, u / 0.25); else if (u < 0.45) p = along(br(ch), (u - 0.25) / 0.2);
+  else if (u < 0.65) p = null; else p = along(ou(ch), (u - 0.65) / 0.35);
+  if (p) dot(c, p[0], p[1], 3.6, u < 0.25 ? C.k3 : col);
+}
+function drawEmpty(c, t) {
+  const cx = 120, cy = 136, pulse = 0.5 + 0.5 * Math.sin(t * 3);
+  RR(c, cx - 27, cy - 27, 54, 54, 9, C.k3, 1.7, null, { dash: [5, 4], a: 0.45 + 0.35 * pulse });
+  P(c, [cx - 9, cy, cx + 9, cy], C.k3, 1.8, { a: 0.6 + 0.3 * pulse }); P(c, [cx, cy - 9, cx, cy + 9], C.k3, 1.8, { a: 0.6 + 0.3 * pulse });
+  const hi = Math.floor(t * 1.5) % 10;
+  TYPES.forEach((ty, i) => { const an = -Math.PI / 2 + i * TAU / 10 + t * 0.25, x = cx + Math.cos(an) * 86, y = cy + Math.sin(an) * 43;
+    glyph(c, ty, x, y, 7, FX[ty].col, i === hi ? 1 : 0.3, 1.4); });
+}
+/* PRESETS: the types as a rolodex (NONE first) */
+const ROLL = [null, ...TYPES];
+function drawRoll(c, t, from, to) {
+  const u = (t % 2) / 2, pos = lerp(from, to, ease(u / 0.45));
+  for (let k = 0; k < ROLL.length; k++) {
+    const d = k - pos; if (Math.abs(d) > 1.75) continue;
+    const ad = Math.min(Math.abs(d), 1), y = 136 + d * 20 + Math.sign(d) * ad * 12, s = lerp(22, 14, ad), a = Math.max(0, 1 - Math.abs(d) * 0.4);
+    const ty = ROLL[k], col = ty ? FX[ty].col : C.g1, nm = ty || 'NONE';
+    const gx = 64, gs = lerp(13, 7, ad);
+    if (ad < 0.5) RR(c, 34, y - 25, 172, 50, 8, col, 1.8, null, { a: 1 - ad * 2 });
+    if (ty) glyph(c, ty, gx, y, gs, col, a, lerp(2, 1.4, ad)); else RR(c, gx - gs, y - gs, gs * 2, gs * 2, 3, C.g1, 1.2, null, { dash: [2, 2], a });
+    T(c, nm, 86, y + s * 0.36, { s, w: ad < 0.5 ? 400 : 400, col: ad < 0.5 ? col : C.k3, a });
+  }
+  const at = pos / (ROLL.length - 1);
+  P(c, [229, 90, 229, 184], C.g3, 2); P(c, [229, 90 + 94 * at - 6, 229, 90 + 94 * at + 6], MINT, 3);
+}
+/* the arp's lanes */
+const MODLANE = ['×', '×', '·', '×', 'R', '−', '<', '×', '#', '·', '>', '"', '×', '×', '×', '×'];
+const TRLANE = [0, 7, 0, 5, 0, 7, 12, 3, 0, 0, 0, 0, 0, 0, 0, 0];
+function laneCells(c, t, len, sel, cur, f) {
+  for (let i = 0; i < 16; i++) { const x = 8 + i * 14, inL = i < len;
+    if (i === sel) continue;
+    RR(c, x, 152, 13, 32, 3, inL ? C.g1 : C.g3, 1, i === cur ? '#132548' : null, { dash: inL ? null : [2, 2], a: inL ? 0.8 : 0.6 }); }
+}
+function drawModLane(c, t) {
+  const col = FX.ARP.col, len = 12, sel = 4, rate = 5, cur = Math.floor(t * rate) % len;
+  const seq = [0, 4, 7, 12, 16, 19], py = p => 140 - (p + 12) * 1.05;
+  laneCells(c, t, len, sel, cur);
+  /* what the lane makes of the arp: each step's notes as short bars above it */
+  let last = null, ai = 0;
+  for (let i = 0; i < len; i++) { const m = MODLANE[i], x = 8 + i * 14, on = i === cur; let ps = [];
+    if (m === '×') { ps = [seq[ai % 6]]; ai++; } else if (m === 'R') ps = last || []; else if (m === '<') ps = [-12]; else if (m === '>') ps = [31];
+    else if (m === '#') ps = [0, 4, 7]; else if (m === '"') ps = [0, 7 + 12];
+    if (m === '−' && last) G(c, [x - 4, py(last[0]), x + 11, py(last[0])], col, 3.4, { a: on ? 1 : 0.55 });
+    ps.forEach(p => G(c, [x + 2, py(p), x + 11, py(p)], col, 3.4, { a: on ? 1 : 0.55 }));
+    if (ps.length) last = ps; }
+  for (let i = 0; i < 16; i++) { const x = 8 + i * 14 + 6.5, inL = i < len;
+    T(c, MODLANE[i], x, i === sel ? 172 : 174, { s: 14, w: 600, col: i === sel ? C.k3 : inL ? (i === cur ? C.k3 : col) : C.g2, al: 'center' }); }
+  RR(c, 8 + sel * 14 - 2, 148, 17, 37, 4, C.k3, 1.8);
+}
+function drawTrLane(c, t) {
+  const col = FX.ARP.col, len = 8, sel = 1, rate = 5, cur = Math.floor(t * rate) % len, z = 172;
+  for (let i = 0; i < 16; i++) { const x = 8 + i * 14, inL = i < len, v = TRLANE[i], on = i === cur;
+    P(c, [x + 1, z, x + 12, z], inL ? C.g1 : C.g3, 1, { dash: inL ? null : [2, 2] });
+    if (!inL) continue;
+    if (v) { G(c, [x + 6.5, z - 3, x + 6.5, z - 3 - v * 5.6], i === sel ? C.k3 : col, 5, { a: on || i === sel ? 1 : 0.55 }); }
+    else O(c, x + 6.5, z - 4, 1.6, null, 1, col, { a: on ? 1 : 0.5 });
+    if (on) P(c, [x + 1, z + 6, x + 12, z + 6], C.k3, 2); }
+  const sx = 8 + sel * 14;
+  RR(c, sx - 2, 92, 17, 90, 4, C.k3, 1.6);
+  T(c, '+' + TRLANE[sel], sx + 26, 108, { s: 18, w: 400, col: C.k1 });
+}
+
+/* ---------------------------------------------------------------- the MIDI FX screen */
+function mfx(c, t, o) {
+  bg(c);
+  const g = GR[o.g], slots = o.slots || g.slots, ty = slots[o.sel];
+  headM(c, { pages: ty && FX[ty].pages > 1 ? [o.page || 0, FX[ty].pages] : null, g: o.g, tracks: o.tracks || g.tracks, track: o.track || g.tracks[0] });
+  rail(c, t, { slots, sel: o.sel, byp: o.byp, play: o.play, arm: o.arm, branch: o.branch, lift: o.lift });
+  if (o.label !== false && (o.label || ty)) T(c, o.label || nameOf(ty), 10, 80, { s: 14, w: 500, ls: 0.5, col: ty ? FX[ty].col : C.g1, a: o.byp && o.byp.includes(o.sel) ? 0.45 : 1 });
+  if (o.draw) clipMid(c, () => o.draw(c, t));
+  if (o.foot) foot(c, o.foot, { a: o.footA });
+}
+const FOOT = {
+  ARP: [['PATTERN', 'UP'], ['RATE', '1/16'], ['RANGE', '2'], ['CHANCE', '100%']],
+  ARP2: [['MODE', 'HOLD', 1], ['GATE', '80%'], ['OCT DIST', '+12'], ['QUANT', '1/16']],
+  ARP3: [['MOD', 'R'], null, null, ['LENGTH', '12']],
+  ARP4: [['OFFSET', '+7'], null, null, ['LENGTH', '8']],
+  CHANCE: [['CHANCE', '70%'], null, null, null],
+  REPEAT: [['RATE', '1/16'], ['HITS', '4'], ['FADE', '−60%'], ['CHANCE', '100%']],
+  HARM: [['NOTE 2', '+4'], ['NOTE 3', '+7'], ['NOTE 4', '+12'], ['CHANCE', '100%']],
+  TRANSPOSE: [['SEMI', '+5'], ['OCT', '−1'], null, ['CHANCE', '100%']],
+  SCALER: [['SCALE', 'MINOR'], ['ROOT', 'C'], ['KEY', 'OWN'], ['CHANCE', '100%']],
+  RANDOM: [['PITCH', '±3'], ['VEL', '±20'], ['LENGTH', '+40%'], ['CHANCE', '60%']],
+  CHORD: [['CHORD', 'MIN7'], ['NOTES', '4'], ['INVERT', '0'], ['CHANCE', '100%']],
+  MONO: [null, null, null, ['CHANCE', '100%']],
+  SELECTOR: [['MODE', 'RND'], ['LENGTH', '2'], null, ['CHANCE', '100%']],
+};
+
+/* ---------------------------------------------------------------- the screens */
+function s1(c, t) { mfx(c, t, { g: 1, sel: 0, play: true, foot: FOOT.ARP, draw: (c, t) => drawArp(c, t) }); }
+function s2(c, t) { mfx(c, t, { g: 1, sel: 0, play: true, foot: FOOT.ARP, draw: (c, t) => drawArp(c, t, { held: [0, 4, 7, 11], holdCols: [TP[0], TP[3], TP[0], TP[3]], rate: 6 }) }); }
+function s3(c, t) { mfx(c, t, { g: 1, sel: 3, play: false, draw: drawEmpty }); }
+function s4(c, t) { const slots = GR[1].slots.slice(); slots[3] = 'CHORD';
+  mfx(c, t, { g: 1, sel: 3, slots, label: false, draw: (c, t) => drawRoll(c, t, 7, 8) }); }
+function s5(c, t) { mfx(c, t, { g: 1, sel: 1, foot: FOOT.CHANCE, draw: (c, t) => drawChance(c, t, 70) }); }
+function s6(c, t) { mfx(c, t, { g: 2, sel: 1, foot: FOOT.REPEAT, branch: [0, 2], draw: drawRepeat }); }
+function s7(c, t) { mfx(c, t, { g: 1, sel: 2, foot: FOOT.HARM, draw: (c, t) => drawHarm(c, t) }); }
+function s8(c, t) { mfx(c, t, { g: 2, sel: 2, foot: FOOT.TRANSPOSE, branch: [0, 2], draw: drawTranspose }); }
+function s9(c, t) { mfx(c, t, { g: 2, sel: 3, foot: FOOT.SCALER, branch: [0, 2], draw: drawScaler }); }
+function s10(c, t) { mfx(c, t, { g: 3, sel: 1, foot: FOOT.RANDOM, draw: drawRandom }); }
+function s11(c, t) { mfx(c, t, { g: 3, sel: 0, foot: FOOT.CHORD, draw: drawChord }); }
+function s12(c, t) { mfx(c, t, { g: 2, sel: 4, foot: FOOT.MONO, branch: [0, 2], draw: drawMono }); }
+function s13(c, t) { mfx(c, t, { g: 2, sel: 0, foot: FOOT.SELECTOR, branch: [0, 2], draw: (c, t) => drawSelector(c, t) }); }
+function s14(c, t) { mfx(c, t, { g: 1, sel: 0, page: 1, play: true, foot: FOOT.ARP2, draw: (c, t) => drawArp(c, t, { latch: true, released: true, gate: 0.8 }) }); }
+function s15(c, t) { mfx(c, t, { g: 1, sel: 0, page: 2, foot: FOOT.ARP3, draw: drawModLane }); }
+function s16(c, t) { mfx(c, t, { g: 1, sel: 0, page: 3, foot: FOOT.ARP4, draw: drawTrLane }); }
+function s17(c, t) {                                  /* ALGORITHM: the track's group; the five groups as mini rails */
+  bg(c); const u = (t % 2.6) / 2.6, pos = 1 + 2 * ease(clamp((u - 0.1) / 0.6, 0, 1)), chosen = Math.round(pos);
+  headM(c, { g: chosen, tracks: GR[chosen].tracks.filter(n => n !== 1).concat([1]).sort(), track: 1 });
+  const cx = i => 24 + i * 38.4;
+  const hx = lerp(cx(1), cx(3), ease(clamp((u - 0.1) / 0.6, 0, 1)));
+  RR(c, hx - 18, 82, 36, 155, 7, MINT, 1.6);
+  T(c, 'OFF', cx(0), 103, { s: 12, w: 600, col: C.g1, al: 'center' });
+  P(c, [cx(0), 112, cx(0), 196], C.g2, 1.2, { dash: [2, 3] });
+  for (let gi = 1; gi <= 5; gi++) { const x = cx(gi), on = gi === chosen;
+    hexBadge(c, x, 97, gi, on ? MINT : C.g1, { r: 11, a: on ? 1 : 0.8 });
+    P(c, [x, 112, x, 198], C.g3, 1);
+    GR[gi].slots.forEach((ty, i) => { const y = 112 + i * 11;
+      if (ty) RR(c, x - 8, y, 16, 9, 2, null, 1, FX[ty].col, { a: on ? 1 : 0.7 }); else RR(c, x - 8, y, 16, 9, 2, C.g3, 1, C.bg); });
+    GR[gi].tracks.filter(n => n !== 1).forEach((n, j, arr) => sq(c, x - arr.length * 6 + 1 + j * 12, 204, n, 10)); }
+  sq(c, hx - 5.5, 220, 1, 11, true);
+  if (GR[1].tracks.includes(4)) {}                    /* track 4 stays on group 1 */
+}
+function s18(c, t) {                                  /* a track routed OFF: the notes go straight to the voices */
+  bg(c); headM(c, { g: 0, tracks: [6], track: 6 });
+  P(c, [2, RY, 238, RY], C.g3, 1.2, { dash: [2, 4] });
+  T(c, 'OFF', 120, 128, { s: 38, w: 300, col: C.g1, al: 'center' });
+  const y = 160; sq(c, 14, y - 7, 6, 14);
+  G(c, [34, y, 196, y], TP[5], 1.4, { a: 0.5 });
+  P(c, [204, y - 6, 210, y - 6, 218, y - 12, 218, y + 12, 210, y + 6, 204, y + 6], C.k3, 1.4, { close: true });
+  [0, 1].forEach(k => O(c, 222, y, 6 + k * 6, C.k3, 1.2, null, { a0: -0.7, a1: 0.7, a: 0.7 }));
+  for (let k = 0; k < 6; k++) { const x = 36 + ((t * 60 + k * 30) % 160); dot(c, x, y, 3, TP[5]); }
+  for (let gi = 1; gi <= 5; gi++) hexBadge(c, 60 + (gi - 1) * 30, 216, gi, C.g2, { r: 10, dash: [2, 2], tcol: C.g1 });
+}
+function s19(c, t) { mfx(c, t, { g: 1, sel: 2, byp: [2], play: true, foot: FOOT.HARM, footA: 0.4,
+  draw: (c, t) => { drawHarm(c, t, [4, 7, 12], { a: 0.28, still: true });
+    const bpth = [10, 140, 34, 140, 50, 93, 200, 93, 214, 140, 230, 140];
+    G(c, bpth, C.k3, 1.6, { a: 0.7 });
+    for (let k = 0; k < 4; k++) { const p = along(bpth, ((t * 0.45 + k / 4) % 1)); dot(c, p[0], p[1], 3, C.k3); } } }); }
+function s20(c, t) { mfx(c, t, { g: 1, sel: 1, arm: 1, foot: FOOT.CHANCE,
+  draw: (c, t) => { c.save(); c.translate(Math.sin(t * 46) * 2.5, 0); drawChance(c, t, 70, { a: 0.35 });
+    G(c, [70, 94, 170, 184], C.red, 4); G(c, [170, 94, 70, 184], C.red, 4); c.restore(); } }); }
+function s21(c, t) {                                  /* F2 + B3: CHANCE picked up and dropped into slot 3; HARM closes up */
+  const u = (t % 2.4) / 2.4;
+  mfx(c, t, { g: 1, sel: 1, lift: { from: 1, to: 2, u }, label: 'CHANCE',
+    draw: (c, t) => { const up = u < 0.15 ? ease(u / 0.15) : u > 0.75 ? 1 - ease((u - 0.75) / 0.15) : 1;
+      const x = lerp(92, 148, ease((u - 0.2) / 0.5)), y = 138 - 12 * up + Math.sin(t * 5) * 2 * up;
+      c.save(); c.globalAlpha = 0.5 * up + 0.2; c.fillStyle = '#1a1a20'; c.beginPath(); c.ellipse(x, 182, 26 - 6 * up, 3.5, 0, 0, TAU); c.fill(); c.restore();
+      if (u > 0.2 && u < 0.7) for (let k = 0; k < 3; k++) P(c, [x - 40 - k * 6, y - 14 + k * 14, x - 52 - k * 10, y - 14 + k * 14], C.k3, 1.4, { a: 0.5 - k * 0.12 });
+      tile(c, x - 30, y - 30, 60, 'CHANCE', {});
+    } });
+}
+function s22(c, t) {                                  /* ARP tapped: ARP ON (group 4 had none: one comes into slot 3) */
+  bg(c); const u = (t % 2.4) / 2.4, col = FX.ARP.col;
+  headM(c, { title: 'ARP', g: 4, tracks: [5], track: 5 });
+  const s = 44, cx = 120, cy = 108, U = s / 8, X = v => cx + v * U, Y = v => cy + v * U;
+  G(c, [X(-7), Y(6), X(-3), Y(6), X(-3), Y(1), X(1), Y(1), X(1), Y(-4), X(6), Y(-4)], col, 3.6);
+  const st = Math.floor(t * 3) % 3, pts = [[-5, 6], [-1, 1], [3.5, -4]][st];
+  dot(c, X(pts[0]), Y(pts[1]) - 7, 6.5, C.k3);
+  T(c, 'ON', 120, 196, { s: 44, w: 300, col, al: 'center' });
+  const slots = GR[4].slots.slice(); slots[2] = 'ARP';
+  slots.forEach((ty, i) => { const x = 40 + i * 20, pop = i === 2 ? 1 + 0.35 * Math.max(0, 1 - u / 0.25) * Math.sin(u / 0.25 * Math.PI) : 1, w = 15 * pop;
+    tile(c, x + 7.5 - w / 2, 220 - w / 2, w, ty, {}); });
+  P(c, [34, 220, 37, 220], C.g2, 1); P(c, [198, 220, 206, 220], C.g2, 1);
+}
+function s23(c, t) {                                  /* a step held in TRIG: KNOB 2 = the step's MIDI FX, group 3 */
+  bg(c); RR(c, 0, 0, 240, 240, 8, C.trk, 3);
+  T(c, 'STEP 5 · MIDI FX', 10, 19, { s: 12, w: 600, ls: 1, col: C.k3 }); P(c, [10, 27, 230, 27], C.g3, 1);
+  const pulse = 0.5 + 0.5 * Math.sin(t * 3);
+  hexagon(c, 120, 92, 36 + pulse * 2, MINT, 6, { a: 0.12 });
+  hexBadge(c, 120, 92, 3, MINT, { r: 34, s: 36, lw: 2.4 });
+  GR[3].slots.forEach((ty, i) => tile(c, 24 + i * 24, 146, 18, ty, {}));
+  P(c, [12, 155, 24, 155], C.g2, 1); P(c, [216, 155, 228, 155], C.g2, 1);
+  for (let i = 0; i < 7; i++) P(c, [42 + i * 24, 155, 48 + i * 24, 155], C.g2, 1);
+  const cols = [C.k1, C.k2];
+  T(c, 'TRIG', 31, 204, { s: 12, w: 500, col: C.g1, al: 'center' }); T(c, 'NOTE', 31, 228, { s: 19, w: 400, col: C.k1, al: 'center' });
+  T(c, 'MIDI FX', 90, 204, { s: 12, w: 500, col: C.g1, al: 'center' }); hexBadge(c, 90, 222, 3, C.k2, { r: 11, s: 14 }); P(c, [78, 209, 102, 209], C.k2, 1.6);
+}
+
+/* ---------------------------------------------------------------- the keys under a screen */
+const BTNS = ['SHIFT', 'F1', 'F2', 'HOME', 'ARP', 'PLAY'];
+const DIM = col => ({ col, dim: true });
+const lv = v => v == null ? null : typeof v === 'string' ? { col: v } : v;
+function keysDraw(c, k) {
+  c.fillStyle = '#0c0c0e'; c.fillRect(0, 0, 480, 132);
+  const held = new Set(k.held || []), blink = new Set(k.blink || []);
+  BTNS.forEach((b, i) => { const x = 8 + i * 79, w = 72, L = lv((k.btn || {})[b]), on = held.has(b), bl = blink.has(b), col = L ? L.col : null;
+    RR(c, x, 6, w, 24, 5, col || '#3a3a42', 1.5, on ? col || '#8d8d96' : null, { dash: bl ? [3, 3] : null, a: L && L.dim ? 0.45 : 1 });
+    T(c, b === 'F1' ? 'F1 (OCT−)' : b === 'F2' ? 'F2 (OCT+)' : b === 'SHIFT' ? 'SHIFT (GLO)' : b, x + w / 2, 22.5, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center', a: L && L.dim && !on ? 0.6 : 1 }); });
+  const kw = 29, y0 = 40, wh = 88, bw = 18, bh = 52;
+  for (let i = 0; i < 16; i++) { const id = 'W' + (i + 1), L = lv((k.W || {})[i + 1]), on = held.has(id), bl = blink.has(id), col = L ? L.col : null;
+    RR(c, 8 + i * kw, y0, kw - 2, wh, 3, col || '#3a3a42', 1.4, on ? col || C.k3 : null, { dash: bl ? [3, 3] : null, a: L && L.dim && !on ? 0.42 : 1 });
+    T(c, String(i + 1), 8 + i * kw + (kw - 2) / 2, y0 + wh - 8, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center', a: L && L.dim && !on ? 0.6 : 1 }); }
+  [1, 2, 3, 5, 6, 8, 9, 10, 12, 13, 15].forEach((w, j) => { const id = 'B' + (j + 1), L = lv((k.B || {})[j + 1]), on = held.has(id), bl = blink.has(id), x = 8 + w * kw - bw / 2 - 1, col = L ? L.col : null;
+    RR(c, x, y0 - 1, bw, bh, 3, '#0c0c0e', 1, '#0c0c0e');
+    RR(c, x, y0 - 1, bw, bh, 3, col || '#3a3a42', 1.4, on ? col || C.k3 : null, { dash: bl ? [3, 3] : null, a: L && L.dim && !on ? 0.42 : 1 });
+    T(c, String(j + 1), x + bw / 2, y0 + bh - 8, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center', a: L && L.dim && !on ? 0.6 : 1 }); });
+}
+/* the MIDI FX screen's lights: B1..B8 the slots (selected bright, holding an FX dim, empty dark), B10 lit = the slot plays,
+   B11 lit = there is an FX to remove, the white keys the track's scale (roots bright) */
+function MK(g, sel, x = {}) {
+  const slots = x.slots || GR[g].slots, B = {}, W = {};
+  slots.forEach((ty, i) => { if (i === sel) B[i + 1] = MINT; else if (ty) B[i + 1] = DIM(MINT); });
+  if (slots[sel]) { if (!(x.byp && x.byp.includes(sel))) B[10] = MINT; B[11] = C.red; }
+  for (let i = 1; i <= 16; i++) W[i] = [1, 8, 15].includes(i) ? C.k3 : DIM(C.k3);
+  const hasArp = slots.includes('ARP');
+  return { B: { ...B, ...(x.B || {}) }, W: { ...W, ...(x.W || {}) },
+    btn: { F1: C.k3, HOME: C.k3, ARP: hasArp ? FX.ARP.col : null, ...(x.btn || {}) }, held: x.held || [], blink: x.blink || [] };
+}
+const range = (a, b, col) => { const o = {}; for (let i = a; i <= b; i++) o[i] = col; return o; };
+const legendRow = () => TYPES.map(ty => `<span style="white-space:nowrap;margin-right:12px"><span class="sw" style="background:${FX[ty].col}"></span>${ty}</span>`).join('');
+
+const SCREENS = [
+  { f: s1, t: 0.4, title: 'SHIFT + ARP: group 1, its ARP', keys: MK(1, 0, { held: ['W1', 'W3', 'W5'] }),
+    text: '<strong>SHIFT + ARP</strong> opens the <strong>MIDI FX</strong> screen on the selected track\'s group: <strong>group 1</strong> (the hexagon), which <strong>tracks 1 and 4</strong> share (their squares; the selected one ringed). The <strong>rail</strong> under the head is its eight slots: ARP, CHANCE, HARM, five empty. The ARP is selected (raised, outlined white; its four page dots, page 1). The middle draws it: the held notes as a column of dots, the pattern UP as a staircase through two octaves, the playing note bright. Here W1, W3, W5 are held: <strong>the white keys play the track through the group</strong>, so the notes run along the rail (white into the arp, blue out of it, some dropped by CHANCE, stacked three by HARM). The foot: KNOB 1..4 PATTERN, RATE, RANGE, CHANCE.' },
+  { f: s2, t: 0.9, title: 'Playing: the notes run along the rail', keys: MK(1, 0, { btn: { PLAY: C.k3 } }),
+    text: 'While the pattern plays, the <strong>rail shows the activity</strong>: dots run in from the left, light each slot they pass, and leave in the colour of the last FX. The arp\'s held column now holds <strong>both tracks\' notes</strong> (tracks 1 and 4 share the group: one arp plays both, each note keeping its track and its colour), the staircase mid-run.' },
+  { f: s3, t: 0.2, title: 'B4: an empty slot', keys: MK(1, 3, { held: ['B4'] }),
+    text: '<strong>B1..B8 select slot 1..8.</strong> An empty slot: its tile dashed on the rail; the middle is an inviting empty tile with a plus, the ten types circling it faintly, one lighting in turn. No foot (nothing to turn). B10 and B11 are dark.' },
+  { f: s4, t: 0.5, title: 'PRESETS: the type, a rolodex', keys: MK(1, 3, { slots: ['ARP', 'CHANCE', 'HARM', 'CHORD', null, null, null, null] }),
+    text: '<strong>PRESETS turns the selected slot\'s type</strong>: NONE, then ARP, CHANCE, REPEAT, HARM, TRANSPOSE, SCALER, RANDOM, CHORD, MONO, SELECTOR. <strong>It is heard at once</strong>; the takeover rolls like the preset browser\'s rolodex, each type with its glyph and colour, the chosen one framed, a bar on the right for where you are. The rail\'s tile changes with it. A moment after the last detent the slot\'s own picture comes back.' },
+  { f: s5, t: 0.3, title: 'CHANCE', keys: MK(1, 1, { held: ['B2'] }),
+    text: '<strong>CHANCE</strong> drops notes: a stream of dots passes a gate; some go on in red, the others fall away. Its <strong>%</strong> big, and on <strong>KNOB 1</strong> (CHANCE has no other values, so the foot has one).' },
+  { f: s6, t: 0.3, title: 'REPEAT', keys: MK(2, 1, { held: ['B2'] }),
+    text: '<strong>REPEAT</strong> (note repeat / ratchet), in <strong>group 2</strong>: FIZZ\'s bouncing ball, the note dropping in and bouncing once per hit, each hit\'s bar as tall as its velocity (FADE −60 %: lower each time). KNOB 1 RATE, KNOB 2 HITS, KNOB 3 FADE, KNOB 4 CHANCE; page 2: MODE, GATE, QUANT. The orange bracket under the rail marks the SELECTOR\'s block (slots 2 and 3 are its alternatives).' },
+  { f: s7, t: 1.0, title: 'HARM', keys: MK(1, 2, { held: ['B3'] }),
+    text: '<strong>HARM</strong> adds fixed intervals: a vertical keyboard, the played note white, the added notes as rose bars at +4, +7, +12 (each interval in its knob\'s colour, the bars stacking one after another as a note comes in). Page 2: NOTE 5..8 and the original note on / off.' },
+  { f: s8, t: 0.3, title: 'TRANSPOSE', keys: MK(2, 2, { held: ['B3'] }),
+    text: '<strong>TRANSPOSE</strong>: a note leaping along the arrows, +5 semitones (KNOB 1, blue) then −1 octave (KNOB 2, green), landing in purple. A result outside the MIDI range is dropped.' },
+  { f: s9, t: 0.5, title: 'SCALER', keys: MK(2, 3, { held: ['B4'] }),
+    text: '<strong>SCALER</strong>: a keyboard with the scale\'s notes marked (C minor); a note on an out-of-scale key slides down to the scale note below it. KNOB 1 SCALE, KNOB 2 ROOT, KNOB 3 KEY (OWN, or TRACK: follow the track\'s scale and root), KNOB 4 CHANCE.' },
+  { f: s10, t: 0.4, title: 'RANDOM', keys: MK(3, 1, { held: ['B2'] }),
+    text: '<strong>RANDOM</strong>, in <strong>group 3</strong>: each value\'s range as a dashed box in its knob\'s colour, the note\'s own value a white line, a dot landing anywhere in the box on each note: PITCH ±3 semitones, VEL ±20, LENGTH up to +40 % (lengths only grow). CHANCE 60 %: four notes in ten pass untouched. Page 2: OCTAVE range and DELAY.' },
+  { f: s11, t: 0.5, title: 'CHORD', keys: MK(3, 0, { held: ['B1'] }),
+    text: '<strong>CHORD</strong>: each note becomes a chord on it, stacked on a keyboard (the played note white, the added ones cyan) and named big: MIN7 on A is Am7, on D Dm7. KNOB 2 NOTES (how many), KNOB 3 INVERT. Page 2: SPREAD and VOICING.' },
+  { f: s12, t: 0.7, title: 'MONO', keys: MK(2, 4, { held: ['B5'] }),
+    text: '<strong>MONO</strong>: several note lines merging into one; each new note cuts the one before (last-note priority). Only CHANCE to set, on KNOB 4 as on every FX.' },
+  { f: s13, t: 0.5, title: 'SELECTOR', keys: MK(2, 0, { held: ['B1'] }),
+    text: '<strong>SELECTOR</strong> sends each note to <strong>one of the next N slots</strong> (LENGTH 2: REPEAT or TRANSPOSE), a railway switch throwing its blade, the chosen branch lit; the unchosen slot is skipped for that note. KNOB 1 MODE (RND, UP, DOWN). The bracket under the rail shows the block it chooses from.' },
+  { f: s14, t: 0.5, title: 'ARP page 2: MODE HOLD', keys: MK(1, 0, { held: ['B1'] }),
+    text: '<strong>B1 again</strong>: the arp\'s page 2 (second dot). <strong>MODE HOLD</strong> (KNOB 1, last turned: underlined): a latch swings shut over the held column, so the notes keep playing after the keys are up (the next chord, after all keys are up, replaces them). GATE 80 % is each note\'s bar against its step; OCT DIST +12 the jump between the octave bands; QUANT when a new run starts.' },
+  { f: s15, t: 0.5, title: 'ARP page 3: the MOD lane', keys: { ...MK(1, 0), W: { ...range(1, 12, DIM(MINT)), 5: MINT }, blink: ['W5'],
+      B: { ...range(1, 10, DIM(MINT)), 4: MINT } },
+    text: '<strong>Page 3, the MOD lane</strong>: 16 steps with their symbols (× as played, · rest, − tie, R repeat, &lt; low −oct, &gt; high +oct, ″ power chord, # chord, 1 / 2 note 1 / 2), <strong>length 12</strong> (13..16 dashed), step 5 selected. Above each step, what it makes of the arp\'s notes. <strong>The white keys are the steps</strong> (W5 blinking), <strong>B1..B10 the quick values</strong> (B4 = R lit), KNOB 1 any value, KNOB 4 the length, SHIFT + W a random one.' },
+  { f: s16, t: 0.5, title: 'ARP page 4: the TRANSPOSE lane', keys: { ...MK(1, 0), W: { ...range(1, 8, DIM(MINT)), 2: MINT }, blink: ['W2'],
+      B: { ...range(1, 10, DIM(MINT)), 8: MINT } },
+    text: '<strong>Page 4, the TRANSPOSE lane</strong>: a bar per step, as high as its offset, <strong>length 8</strong>, step 2 selected (+7). B1..B10 = 0..+9 (B8 = +7 lit), KNOB 1 any offset (−48..+48), KNOB 4 the length.' },
+  { f: s17, t: 1.6, title: 'ALGORITHM: the track\'s group', keys: MK(3, 0),
+    text: '<strong>ALGORITHM chooses the track\'s group</strong>: OFF, 1..5. The takeover shows <strong>the five groups as mini rails</strong> (each slot a bar in its type\'s colour), the selected track\'s square moving to the chosen one (here track 1 from group 1 to group 3, which tracks 3 and 7 use). The screen then follows: it shows group 3.' },
+  { f: s18, t: 0.3, title: 'A track routed OFF', keys: { W: range(1, 16, DIM(C.k3)), B: {}, btn: { F1: C.k3, HOME: C.k3 } },
+    text: 'A track with <strong>no group</strong> (track 6, OFF): the hexagon empty and dashed, no rail; OFF big, the track\'s notes running straight to the voices, the five groups dim at the foot for ALGORITHM to choose from. The slot keys are dark.' },
+  { f: s19, t: 0.4, title: 'B10: the slot bypassed', keys: MK(1, 2, { byp: [2], blink: ['B3'] }),
+    text: '<strong>B10 bypasses the selected slot</strong> (and back): its tile dims and is crossed on the rail, its picture fades, and the notes run round it. B10 is lit while the slot plays, dark while it is bypassed; the slot\'s key blinks. The bypass is saved with the project.' },
+  { f: s20, t: 0.3, title: 'B11: remove? (armed)', keys: MK(1, 1, { blink: ['B11'] }),
+    text: '<strong>B11 removes the slot\'s FX, pressed twice.</strong> The first press arms it: a <strong>red X</strong> over the tile and the picture, both shaking, B11 blinking. B11 again empties the slot; any other key or turn disarms it. SHIFT + F1 undoes a removal.' },
+  { f: s21, t: 0.9, title: 'F2 + B3: move the slot', keys: MK(1, 2, { slots: ['ARP', 'HARM', 'CHANCE', null, null, null, null, null], held: ['F2', 'B3'], btn: { F2: C.k3 } }),
+    text: '<strong>F2 held + B n moves the selected slot to slot n</strong> (FIZZ\'s pick-up and drop): CHANCE lifts off the rail, HARM closes up into slot 2, CHANCE drops into slot 3 (so HARM now harmonises before CHANCE drops notes). <strong>F1 held + B n</strong> copies it there instead.' },
+  { f: s22, t: 0.4, title: 'ARP tapped, anywhere: ARP ON', keys: { W: { 1: C.k3, 5: C.k3, 9: C.k3, 13: C.k3 }, B: { 1: C.k3 }, btn: { ARP: FX.ARP.col, HOME: null }, held: ['ARP'] },
+    text: '<strong>ARP tapped</strong> (in the step view, or anywhere): the arp of the track\'s group <strong>on or off</strong>; a takeover shows the arp\'s staircase and <strong>ON</strong> / OFF big, with the group\'s hexagon. Group 4 (track 5) had no arp, so <strong>one is added in the first empty slot</strong>: it pops into slot 3 on the mini rail. ARP held stays FILL.' },
+  { f: s23, t: 0.4, title: 'A held step, TRIG: KNOB 2 = its MIDI FX', keys: { W: { 5: C.trk }, B: { 1: C.k3, 2: DIM(C.k3), 3: DIM(C.k3), ...range(4, 10, DIM(C.k3)), 8: C.k3 }, btn: {}, held: ['W5'] },
+    text: '<strong>A step held in TRIG</strong> (B8): <strong>KNOB 2 = the step\'s MIDI FX</strong>: TRACK (follow the track; the default), OFF, or group 1..5. Here <strong>group 3</strong>: its hexagon big, its rail under it; the magenta frame as for every held step. Quick keys <strong>B4 TRACK, B5 OFF, B6..B10 groups 1..5</strong> (B8 lit = group 3), B1..B3 stay NOTE / LOCK / TIE (B1 lit). On the track settings\' page 2, <strong>KNOB 4</strong> is the track\'s MIDI FX.' },
+];
+
+/* ---------------------------------------------------------------- the page */
+async function main() {
+  const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search), shot = q.get('shot'), sheet = q.get('sheet'), qt = q.get('t'), film = q.get('film');
+  const mk = (cls, w = 240, h = 240) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; if (cls) cv.className = cls; return cv; };
+  if (shot) { document.body.className = 'shot'; document.getElementById('page').remove();
+    const s = SCREENS[+shot - 1], cv = mk(); s.f(cv.getContext('2d'), qt != null ? +qt : s.t); document.body.appendChild(cv); return; }
+  if (film) { document.body.className = 'film'; document.getElementById('page').remove();
+    const s = SCREENS[+film - 1], n = +(q.get('n') || 24), dt = +(q.get('dt') || 0.1);
+    for (let i = 0; i < n; i++) { const cv = mk(); s.f(cv.getContext('2d'), s.t + i * dt); document.body.appendChild(cv); } return; }
+  if (sheet) {
+    document.body.className = 'sheet'; document.getElementById('page').remove();
+    const h = document.createElement('div'); h.className = 'sheettitle'; h.textContent = 'FIZZ: MIDI FX groups (a mock-up; 2x, the keys under each)'; document.body.appendChild(h);
+    const g = document.createElement('div'); g.className = 'sheetgrid'; document.body.appendChild(g);
+    SCREENS.forEach((s, i) => { const f = document.createElement('figure'); f.style.margin = 0;
+      const cv = mk('scr'); s.f(cv.getContext('2d'), s.t); f.appendChild(cv);
+      const kc = mk('keys', 480, 132); keysDraw(kc.getContext('2d'), s.keys); f.appendChild(kc);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; f.appendChild(cap); g.appendChild(f); });
+    return;
+  }
+  document.getElementById('legend').innerHTML = legendRow();
+  const root = document.getElementById('cells'), live = [];
+  SCREENS.forEach((s, i) => { const d = document.createElement('div'); d.className = 'cell';
+    const h = document.createElement('h2'); h.textContent = `${i + 1}. ${s.title}`; d.appendChild(h);
+    const cv = mk('scr'); d.appendChild(cv); live.push([s, cv.getContext('2d')]);
+    const kc = mk('keys', 480, 132); keysDraw(kc.getContext('2d'), s.keys); d.appendChild(kc);
+    const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); root.appendChild(d); });
+  const t0 = performance.now();
+  const frame = () => { const t = (performance.now() - t0) / 1000; live.forEach(([s, c]) => s.f(c, t + s.t)); requestAnimationFrame(frame); };
+  frame();
+}
+main();
+</script>
+</body>
+</html>
