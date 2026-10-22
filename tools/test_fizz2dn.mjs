@@ -162,7 +162,7 @@ check(r2 === N, `random patches, Digitone II (AHD, portamento, DRIVE's place, CR
   const n1 = fizzToDnsnd({ values: x, name: "N" }).notes, nn2 = fizzToDn2pst({ values: x, name: "N" }).notes;
   check(n1.some((s) => /VEL/.test(s)) && n1.some((s) => /LFO 3/.test(s)) && n1.some((s) => /AHD/.test(s)) && n1.some((s) => /BIT/.test(s)) && n1.some((s) => /modulation/.test(s)),
     `Digitone notes: ${n1.join(" | ")}`);
-  check(nn2.some((s) => /VEL/.test(s)) && !nn2.some((s) => /LFO 3|AHD|BIT/.test(s)) && nn2.some((s) => /modulation/.test(s)), `Digitone II notes: ${nn2.join(" | ")}`);
+  check(nn2.some((s) => /VEL/.test(s)) && !nn2.some((s) => /LFO 3|AHD|BIT|modulation|MOD/.test(s)), `Digitone II notes (E4: the slot written, no note): ${nn2.join(" | ")}`);
   check(fizzValues({ blob: Uint8Array.from([0x51, 5, ...new Array(94).fill(0)]) })[Q.ALGO] === 1, "a version-5 blob is read");
   // the wizard's three test presets (site/js/dn2wizard/testpresets.js, through the site's copy of this exporter)
   const { testPresetFiles } = await import("../site/js/dn2wizard/testpresets.js");
@@ -191,6 +191,31 @@ check(r2 === N, `random patches, Digitone II (AHD, portamento, DRIVE's place, CR
       check(n1.some((s) => /approximated as (LP2|HP2|off)/.test(s)), `Digitone 1: ${n1.find((s) => /approximated/.test(s))}`);
     }
   }
+}
+// ---- 6. E4: the eight modulation slots into the Digitone II's modulation records and back through dn2pst.mjs (the
+// reader fills the slots in the records' order, PB VEL MW BR AT KEY: compared as a set); FIZZ's own LFO destinations
+// (FSHAPE HOLD PTIM BITS SRR) as the DN2's ids 73 88 100 101 102; RAND / F ENV, a destination the DN2 lacks and a fifth
+// slot of one source noted and dropped; the Digitone 1 notes the slots
+{
+  const QDN = { FREQ: 25, HARM: 11, PAN: 39, RESO: 26, FSHAPE: 60, HOLD: 58, PTIM: 59, BITS: 62, SRR: 63, L1DEP: 46 };
+  const slotsOf = (vals) => Array.from({ length: 8 }, (_, k) => vals.slice(Q.MOD0 + 3 * k, Q.MOD0 + 3 * k + 3)).filter((s) => s[0] && s[1]).map((s) => s.join(",")).sort();
+  const v = defaults(); v[Q.LEVEL] = 100;
+  const want = [[1, QDN.FREQ, 32], [1, QDN.HARM, -32], [3, QDN.HARM, 127], [2, QDN.PAN, -127], [4, QDN.RESO, 1], [5, QDN.FSHAPE, -5], [6, QDN.BITS, 64], [3, QDN.SRR, -1]];
+  want.forEach(([s, d, x], k) => { v[Q.MOD0 + 3 * k] = s; v[Q.MOD0 + 3 * k + 1] = d; v[Q.MOD0 + 3 * k + 2] = x; });
+  [QDN.FSHAPE, QDN.HOLD, QDN.PTIM].forEach((d, k) => { v[47 + 8 * k + 3] = d; v[47 + 8 * k + 7] = 1000 * (k + 1); });
+  const d2 = fizzToDn2pst({ values: v, name: "MODS" }, { date: DATE });
+  const q = dn2pstToQuad(await parseDn2pst(d2.bytes)), back = [...q.values, q.drive, ...q.ext];
+  check(slotsOf(back).join(" ") === slotsOf(v).join(" ") && !d2.notes.some((s) => /MOD|modulation/.test(s)),
+    `8 slots (VEL KEY MW AT PB BR, depths -127..127, odd and even) round-trip through dn2pst.mjs: ${slotsOf(back).join(" ")}`);
+  check([0, 1, 2].every((k) => back[47 + 8 * k + 3] === v[47 + 8 * k + 3]), `LFO 1..3 aimed at FSHAPE, HOLD, PTIM (ids 73, 88, 100) come back so: ${[0, 1, 2].map((k) => back[47 + 8 * k + 3]).join(" ")}`);
+  const w = defaults(); w[Q.LEVEL] = 100;
+  [[7, QDN.FREQ, 10], [8, QDN.HARM, 10], [1, 61, 10], [1, QDN.FREQ, 1], [1, QDN.HARM, 2], [1, QDN.PAN, 3], [1, QDN.RESO, 4], [1, QDN.L1DEP, 5]]
+    .forEach(([s, d, x], k) => { w[Q.MOD0 + 3 * k] = s; w[Q.MOD0 + 3 * k + 1] = d; w[Q.MOD0 + 3 * k + 2] = x; });
+  const n2 = fizzToDn2pst({ values: w, name: "LOST" }).notes;
+  check(n2.some((s) => /RAND has no/.test(s)) && n2.some((s) => /F ENV has no/.test(s)) && n2.some((s) => /destination #61: the Digitone II has none/.test(s)) && n2.some((s) => /fifth VEL/.test(s)),
+    `what the Digitone II cannot hold is noted: ${n2.filter((s) => /MOD/.test(s)).join(" | ")}`);
+  const n1 = fizzToDnsnd({ values: v, name: "MODS" }).notes;
+  check(n1.some((s) => /8 modulation slot\(s\): not written/.test(s)), `the Digitone 1: ${n1.find((s) => /modulation/.test(s))}`);
 }
 console.log(`test_fizz2dn: ${checks} checks, ${fails} failed`);
 process.exit(fails ? 1 : 0);
