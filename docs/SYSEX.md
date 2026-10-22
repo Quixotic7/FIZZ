@@ -1,6 +1,8 @@
 # FIZZ SysEx (protocol 1)
 
-FIZZ (from 0.6.4-p1.5r) takes sounds over MIDI System Exclusive and stores them in its **LIBRARY** or the active
+FIZZ (from 0.6.4-p1.5r) takes sounds over MIDI System Exclusive and stores them in its **LIBRARY** (from 0.7.0-p1.5t:
+**MY PRESETS**, the user's part of the Preset Library, 256 places; each import is marked as imported and gets its
+kind) or the active
 project's **POOL**. It can also put a sound on a track, together with the track's pan and sends. A page or tool can
 ask FIZZ who it is. The use this was built for is the FIZZ web preview loading a user's Digitone `.dnsnd` presets: the
 page converts each preset in the browser with ChoralRoot's reader, then hands the result to FIZZ through the
@@ -68,7 +70,7 @@ The body has a fixed length of 132 bytes, then `chk`.
 | offset | bytes | field |
 | --- | --- | --- |
 | 0 | 1 | **flags**: `01` POOL (else the LIBRARY), `02` BATCH, `04` LOAD |
-| 1 | 2 | **slot**, 14-bit: high 7 bits, then low 7 bits. LIBRARY 1..128, POOL 2..128 (POOL 1 is INIT and stays). **0 = the first free slot.** A slot given is overwritten. |
+| 1 | 2 | **slot**, 14-bit: high 7 bits, then low 7 bits. LIBRARY (MY presets) 1..256, POOL 1..128. **0 = the first free slot.** A slot given is overwritten. (0.6.x: LIBRARY 1..128, POOL 2..128.) |
 | 3 | 12 | **name**, ASCII 0x20..0x7E, padded with spaces (or 0). Trailing spaces are dropped, other bytes become `?`, and an empty name becomes `IMPORTED`. |
 | 15 | 1 | **drive**: FIZZ's DRIVE, 0..127. This is the `drive` of ChoralRoot's `dnsndToQuad`. |
 | 16 | 1 | **track** 0..7, with LOAD; otherwise 0 |
@@ -96,7 +98,7 @@ Reply: `F0 7D 46 5A 01 50 <status> <0 LIBRARY / 1 POOL> <slot hi> <slot lo> <chk
 | 2 | BAD LENGTH | the body is not 132 bytes, or the patch does not unpack to 96 |
 | 3 | BAD CHECKSUM | the sum is not zero (nothing is read) |
 | 4 | BAD PATCH | not an FM TONE blob (FIZZ's `qd_quad_unpack` refuses it) |
-| 5 | BAD SLOT | LIBRARY > 128, POOL 1 or > 128 |
+| 5 | BAD SLOT | LIBRARY > 256, POOL > 128 |
 | 6 | BAD VERSION | (error reply `7F 06 <protocol>`) |
 | 7 | BAD COMMAND | (error reply `7F 07 <cmd>`) |
 
@@ -104,9 +106,11 @@ Any other command, or a frame whose checksum fails before its command is known, 
 
 ## What FIZZ does with a sound
 
-- **Stores it** in the LIBRARY slot or POOL number, with its name.
+- **Stores it** in the LIBRARY slot or POOL number, with its name. A LIBRARY import becomes one of MY presets: its own
+  preset id, its kind read from the sound (BASS, KEYS, PLUCK, PAD, LEAD, DRUMS or FX), marked imported (the ↓ in the
+  browser). A POOL import gets its kind too.
   - A POOL sound overwritten in place: steps that lock that number play the new sound. Tracks keep their own copies, as when a pool sound is edited.
-- **Shows it** for about a second, over any screen including the EDIT view: the cassette drops in with the name and slot number, in the LIBRARY's cream or the POOL's green, with "LIBRARY" / "POOL" above and **imported** below.
+- **Shows it** for about a second, over any screen including the EDIT view: the cassette drops in with the name and slot number, in the LIBRARY's cream or the POOL's green, with "MY PRESETS" / "POOL" above and **imported** below.
 - **Saves it** through FIZZ's usual autosave. The library and the project are written by themselves a moment later, as for any edit (`core/app/persist.c`).
 - **Undo.** SHIFT + F1 undoes **one message**, or **one batch**.
   - A batch is the messages after the first, sent with BATCH (`02`) and arriving less than half a second apart. Each joins the first message's level.

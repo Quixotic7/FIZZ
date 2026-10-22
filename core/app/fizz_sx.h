@@ -9,7 +9,8 @@
  *   chk: (sum of cmd, body, chk) & 0x7F == 0      every byte between F0 and F7 7-bit
  *
  *   01  IDENTITY       -> 41 <protocol 01> <"FIZZ 0.6.4-p1.5r" ASCII>
- *   10  STORE SOUND    flags, slot hi, slot lo, name[12], drive, track, pan, chorus, delay, reverb, mixmask,
+ *   10  STORE SOUND    (P1.5t: the LIBRARY is MY presets: 256 places, the sound marked imported, its kind read)
+ *                      flags, slot hi, slot lo, name[12], drive, track, pan, chorus, delay, reverb, mixmask,
  *                      patch[110] (the 96-byte FM TONE blob, 7-bit packed)
  *                      -> 50 <status> <0 LIBRARY / 1 POOL> <slot hi> <slot lo>
  *   any other command  -> 7F <status 7> <cmd> */

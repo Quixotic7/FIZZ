@@ -18,7 +18,8 @@ extern "C" {
 enum { QD_SND_INIT = 1, QD_SND_NOISE = 17, QD_SND_KICK = 18, QD_SND_SNARE, QD_SND_CLAP, QD_SND_GHOST, QD_SND_HAT,
        QD_SND_OHAT, QD_SND_FIRST_FREE };
 
-void qd_sounds_init(qd_project_t *pr);  /* the pool's first sounds (above) */
+void qd_sounds_init(qd_project_t *pr);  /* the pool's first sounds (above): the demo's (and a 0.6 project's) pool */
+void qd_sounds_clear(qd_project_t *pr); /* P1.5t: an empty pool (a new project's) */
 const char *qd_sound_name(const qd_project_t *pr, int k);   /* k 1..nsound; else "" */
 const int16_t *qd_sound_patch(const qd_project_t *pr, int k);   /* k 1..nsound; else INIT's */
 int qd_sound_add(qd_project_t *pr, const char *name, const int16_t *patch);   /* its number (the first free slot), 0:
@@ -38,6 +39,21 @@ enum { QD_SK_BASS, QD_SK_KEYS, QD_SK_PLUCK, QD_SK_BELL, QD_SK_PAD, QD_SK_LEAD, Q
 int qd_sound_kind(const int16_t *patch);
 const char *qd_sound_kind_name(int kind);
 void qd_sound_autoname(const int16_t *patch, int variant, char *out);   /* out: QD_SOUND_NAME bytes */
+
+/* ---- P1.5t (PLAN.md "The sound system, redesigned"): THE PRESETS. A preset is a sound with an id:
+ *   FACTORY   ids 1..QD_NFACTORY, compiled in, read only: INIT, the 16 FM TONE sounds (quad_voice.h's presets 1..16),
+ *             the six drums (above); id k = the pool's old number k
+ *   MINE      ids QD_PRESET_MINE0.. (each MY preset keeps its own: persist.h's library holds them, 256 places)
+ * A pool sound and a track's sound remember the preset they came from (0: none known).
+ * THE KINDS (the browser's filters B2..B8): the auto-names' classifier, in seven: BASS KEYS PLUCK PAD LEAD DRUMS FX
+ * (a BELL is KEYS; KICK SNARE CLAP HAT are DRUMS; NOISE, a strongly detuned or fed-back sound is FX) */
+#define QD_NFACTORY 23
+#define QD_PRESET_MINE0 0x100
+enum { QD_PK_BASS, QD_PK_KEYS, QD_PK_PLUCK, QD_PK_PAD, QD_PK_LEAD, QD_PK_DRUMS, QD_PK_FX, QD_NPK };
+int qd_preset_kind(const int16_t *patch);
+const char *qd_preset_kind_name(int pk);   /* "BASS" .. "FX" */
+void qd_factory_preset(int i, qd_sound_t *out);   /* i 0..QD_NFACTORY-1: id i + 1, its kind */
+int qd_factory_of(const char *name, const int16_t *patch);   /* the factory preset this is (its id), 0 none */
 
 #ifdef __cplusplus
 }

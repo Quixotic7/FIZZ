@@ -200,10 +200,13 @@ static void qd_app_sounds(qd_app_t *a)
         a->snd_pat = a->seq.cur;
         for (t = 0; t < QD_NTRACK; t++)
             qd_track_from_tsound(&a->model.t[t], &P->snd[t]);
+        qd_br_sync(a);                                  /* (P1.5t: browsing: the preview again over the new one) */
         return;
     }
     for (t = 0; t < QD_NTRACK; t++) {
         qd_tsound_t s;
+        if (a->ui.latch == QD_LATCH_BROWSE && t == a->ui.br.t)
+            continue;                                   /* (P1.5t: the browser's preview is not the pattern's) */
         qd_track_to_tsound(&a->model.t[t], &s);
         if (memcmp(&s, &P->snd[t], sizeof s))
             P->snd[t] = s;

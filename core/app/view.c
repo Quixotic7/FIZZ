@@ -244,7 +244,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         case UI_F_CHNC: cat(cat(cat(v->def_label, "DEFAULT "), ui_itoa(n, df->chance)), "%"); break;
         case UI_F_COND: cat(cat(v->def_label, "DEFAULT "), qd_cond_name(df->cond, cn)); break;
         case UI_F_TRIG: cat(cat(v->def_label, "DEFAULT "), TY[df->type & 3]); break;
-        case UI_F_SOUND: cat(cat(v->def_label, "TRACK SOUND "), qd_track_sound_name(&a->model.t[t])); break;
+        case UI_F_SOUND: cat(cat(v->def_label, "TRACK SOUND "), qd_track_sound_label(&a->model.t[t])); break;
         case UI_F_FUNC: break;                          /* (P1.3w: no default: none) */
         default: cat(v->def_label, "P-LOCKS"); break;
         }
@@ -407,7 +407,7 @@ static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
         for (i = 0; i < QD_PAGE; i++)
             v->jump_trig[i] = (uint8_t)qd_step_is_on(qd_step(P, t, v->jump_page * QD_PAGE + i));
     }
-    v->sound_cur = is_default || r.sound <= 0 ? qd_track_sound_name(&a->model.t[t]) : sound_name(a, r.sound);   /* (P1.3y:
+    v->sound_cur = is_default || r.sound <= 0 ? qd_track_sound_label(&a->model.t[t]) : sound_name(a, r.sound);   /* (P1.3y:
                                                          * no lock: the track's sound by name, under TRACK) */
     v->sound_prev = r.sound > 0 ? sound_name(a, r.sound - 1) : 0;
     v->sound_next = r.sound < a->proj.nsound ? sound_name(a, r.sound + 1) : 0;
@@ -727,7 +727,7 @@ static void draw_keys(qd_app_t *a)
     v.track = a->sel + 1;
     v.name = t->name;
     v.preset = t->sound;
-    v.sound = qd_track_sound_name(t);
+    v.sound = qd_track_sound_label(t);
     v.edited = t->edited;
     qd_track_key(&a->proj, P, a->sel, &sc, &rt);
     v.scale = sc;
@@ -770,51 +770,158 @@ static void draw_keys(qd_app_t *a)
 }
 
 
-/* the pool's picker: the track's sound, or (a lock) the held steps' sound lock */
-static void draw_picker(const qd_app_t *a)
+/* P1.5t: a preset for the drawing (its envelope, its kind, its marks) */
+static void pr_fill(const qd_app_t *a, const qd_sound_t *s, int mine, ui_preset_t *p)
 {
-    const qd_track_t *t = &a->model.t[a->sel];
-    const float d = (float)(a->ms - a->ui.tk_ms);
-    ui_picker_t v;
-    memset(&v, 0, sizeof v);
-    v.track = a->sel + 1;
-    v.name = t->name;
-    v.n = a->proj.nsound;
-    v.lock = a->ui.tk_lock;
-    if (v.lock) {
-        qd_rstep_t r;
-        qd_step_resolve(qd_ctl_cpat(a), a->sel, a->ui.tk_step, &r);
-        v.k = r.sound;
-        v.step = a->ui.tk_step + 1;
-    } else {
-        v.k = t->sound;
-    }
-    v.cur = v.k ? qd_sound_name(&a->proj, v.k) : "TRACK SOUND";
-    v.prev = v.k > 1 ? qd_sound_name(&a->proj, v.k - 1) : v.k == 1 && v.lock ? "TRACK SOUND" : 0;
-    v.next = v.k < v.n ? qd_sound_name(&a->proj, v.k + 1) : 0;
-    v.pk = v.k - 1, v.nk = v.k + 1;
-    if (!v.lock) {                                      /* P1.5s: the walk: the pool, then the LIBRARY */
-        const int lib = a->ui.pick_lib && a->ui.pick_t == a->sel, k = lib ? a->ui.pick_lib - 1 : v.k;
-        int pl, nl, pk, nk;
-        if (lib || v.k) {
-            pk = qd_preset_walk(a, lib, k, -1, &pl);
-            nk = qd_preset_walk(a, lib, k, 1, &nl);
-            v.lib = lib;
-            if (lib) {
-                v.k = k + 1;
-                v.cur = a->per.lib[k].name;
-                v.n = QD_NLIB;
-            }
-            v.prev = pl == lib && pk == k ? 0 : pl ? a->per.lib[pk].name : qd_sound_name(&a->proj, pk);
-            v.next = nl == lib && nk == k ? 0 : nl ? a->per.lib[nk].name : qd_sound_name(&a->proj, nk);
-            v.pk = pl ? pk + 1 : pk, v.plib = pl;
-            v.nk = nl ? nk + 1 : nk, v.nlib = nl;
+    const int16_t *q = s->patch;
+    qd_sound_t probe;
+    memset(p, 0, sizeof *p);
+    p->ok = 1;
+    p->name = s->name;
+    p->kind = s->kind < QD_NPK ? s->kind : qd_preset_kind(q);
+    p->env[0] = (float)q[QD_QP_EATK] / 127.f * 0.6f;
+    p->env[1] = (float)(q[QD_QP_EDEC] > 126 ? 126 : q[QD_QP_EDEC]) / 127.f * 0.7f;
+    p->env[2] = (float)q[QD_QP_ESUS] / 127.f;
+    p->env[3] = (float)q[QD_QP_EREL] / 127.f * 0.7f;
+    p->mine = mine;
+    p->imported = mine && (s->flags & QD_SNDF_IMPORTED);
+    probe = *s;
+    p->in_pool = qd_pool_find(a, &probe) != 0;
+}
+
+/* P1.5t: the library browser's model */
+static void fill_browse(const qd_app_t *a, ui_browse_t *v)
+{
+    static int list[QD_BR_LIST];
+    static qd_sound_t ent[5];
+    const qd_brui_t *b = &a->ui.br;
+    const int n = qd_br_list(a, b->src, b->kind, list);
+    int d;
+    memset(v, 0, sizeof *v);
+    v->title = b->src == QD_BR_POOL ? "POOL" : b->src == QD_BR_MINE ? "MY PRESETS" : "PRESETS";
+    v->tcol = b->src == QD_BR_POOL ? UI_POOL_COL : UI_LIB_COL;
+    v->col = v->tcol;
+    v->chip = b->kind;
+    v->track = b->t + 1;
+    v->n = n;
+    v->pos = b->pos < 0 ? 0 : b->pos >= n ? (n ? n - 1 : 0) : b->pos;
+    v->pool = b->src == QD_BR_POOL;
+    for (d = -2; d <= 2; d++) {
+        const int i = v->pos + d;
+        if (i < 0 || i >= n || !qd_br_entry(a, list[i], &ent[d + 2]))
+            continue;
+        pr_fill(a, &ent[d + 2], list[i] >= QD_BR_MINE_CODE && list[i] < QD_BR_POOL_CODE, &v->e[d + 2]);
+        if (v->pool) {                                  /* (a pool sound: in the pool; from one of MY presets: its
+                                                         * mark) */
+            const int m = qd_lib_find(a, ent[d + 2].preset);
+            v->e[d + 2].in_pool = 1;
+            v->e[d + 2].mine = m >= 0;
+            v->e[d + 2].imported = m >= 0 && (a->per.lib[m].flags & QD_SNDF_IMPORTED);
         }
     }
-    v.roll = d >= QD_ROLL_MS ? 0.f : 1.f - d / QD_ROLL_MS;
+    if (v->pool && n)
+        v->usteps = qd_pool_users_all(a, list[v->pos] - QD_BR_POOL_CODE, &v->users);
+    v->out_armed = b->out_armed;
+    v->del_armed = b->del_armed;
+    if (b->fx && a->ms - b->fx_ms < 900u) {
+        int k, c = 0;
+        v->fx = b->fx;
+        v->fx_u = (float)(a->ms - b->fx_ms) / 900.f;
+        for (k = 1; k <= QD_NSOUND; k++)
+            c += qd_sound_used(&a->proj, k);
+        v->pool_n = c;
+    }
+    if (b->moved && a->ms - b->move_ms < 600u)
+        v->sound = (float)(a->ms - b->move_ms) / 600.f;
+    if (b->moved && a->ms - b->move_ms < (uint32_t)QD_ROLL_MS)
+        v->roll = 1.f - (float)(a->ms - b->move_ms) / QD_ROLL_MS, v->dir = b->move_dir;
+    v->t = secs(a->ms);
+}
+
+/* P1.5t: the step's pool picker (a step held, or the latch's selection, + PRESETS): TRACK, then the pool */
+static void draw_picker(const qd_app_t *a)
+{
+    static qd_sound_t ent[5];
+    ui_browse_t v;
+    qd_rstep_t r;
+    int list[QD_NSOUND + 1], n = 0, k, at = 0, d;
+    static char title[32];
+    memset(&v, 0, sizeof v);
+    qd_step_resolve(qd_ctl_cpat(a), a->sel, a->ui.tk_step, &r);
+    list[n++] = 0;                                      /* TRACK */
+    for (k = 1; k <= QD_NSOUND; k++)
+        if (qd_sound_used(&a->proj, k)) {
+            if (k == r.sound)
+                at = n;
+            list[n++] = k;
+        }
+    snprintf(title, sizeof title, "STEP %d \xc2\xb7 SOUND", a->ui.tk_step + 1);
+    v.picker = 1;
+    v.title = title;
+    v.n = n - 1;
+    v.pos = at;
+    for (d = -2; d <= 2; d++) {
+        const int i = at + d;
+        if (i < 0 || i >= n)
+            continue;
+        if (!list[i]) {
+            v.e[d + 2].ok = 1;
+            v.e[d + 2].track = 1;
+            continue;
+        }
+        ent[d + 2] = a->proj.sound[list[i] - 1];
+        pr_fill(a, &ent[d + 2], 0, &v.e[d + 2]);
+        v.e[d + 2].in_pool = 1;
+    }
+    v.roll = a->ms - a->ui.tk_ms < (uint32_t)QD_ROLL_MS ? 1.f - (float)(a->ms - a->ui.tk_ms) / QD_ROLL_MS : 0.f;
     v.dir = a->ui.tk_dir;
-    v.reel = (float)fmod((double)a->ms * 0.0025, 6.283185307179586);
-    ui_picker_draw(&v);
+    v.t = secs(a->ms);
+    ui_browse_draw(&v);
+}
+
+/* P1.5t: SAVE PRESET's model */
+static void fill_save(const qd_app_t *a, ui_save_t *v)
+{
+    static qd_sound_t s;
+    const qd_saveui_t *sv = &a->ui.sv;
+    const qd_track_t *t = &a->model.t[a->sel];
+    memset(v, 0, sizeof *v);
+    v->track = a->sel + 1;
+    memcpy(v->name, sv->name, QD_SOUND_NAME);
+    memset(&s, 0, sizeof s);
+    memcpy(s.patch, t->patch, sizeof s.patch);
+    s.kind = (uint8_t)qd_preset_kind(t->patch);
+    pr_fill(a, &s, 1, &v->s);
+    v->spark = sv->spark;
+    v->naming = sv->naming;
+    v->cur = sv->cur;
+    v->replace = sv->replace >= 0;
+    v->newname = sv->newname;
+    v->roll = sv->roll_ms && a->ms - sv->roll_ms < 200u ? (float)(a->ms - sv->roll_ms) / 200.f : 1.f;
+    v->roll_dir = sv->roll_dir;
+    v->t = secs(a->ms);
+}
+
+/* P1.5t: LOADED, BACK, SAVED */
+static void draw_pfx(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    ui_preset_t s, own;
+    const float u01 = (float)(a->ms - u->tk_ms) / (float)(QD_TK_MS + QD_TK_FADE_MS);
+    memset(&s, 0, sizeof s), memset(&own, 0, sizeof own);
+    if (u->tk == QD_TK_BACK) {
+        static char lab[QD_SOUND_NAME + 3];
+        if (u->tk_snd2.name[0])
+            pr_fill(a, &u->tk_snd2, 0, &s);
+        pr_fill(a, &u->tk_snd, 0, &own);
+        snprintf(lab, sizeof lab, "%s%s", u->tk_snd.name, u->tk_snd.flags ? " *" : "");
+        own.name = lab;
+        own.in_pool = 0;
+        ui_pfx_draw(UI_PFX_BACK, &s, &own, a->sel + 1, u01, secs(a->ms));
+        return;
+    }
+    pr_fill(a, &u->tk_snd, u->tk == QD_TK_SAVED, &s);
+    ui_pfx_draw(u->tk == QD_TK_SAVED ? UI_PFX_SAVED : UI_PFX_LOADED, &s, 0, a->sel + 1, u01, secs(a->ms));
 }
 
 /* P1.3c: the octave takeover (a change of NOTE's entry octave, the keyboard's octave, SOUND's bank) */
@@ -972,7 +1079,7 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
             const int k = is_default || !u->nheld ? a->model.t[t].sound : r.sound;
             if (k > 0) {
                 cat(cat(v->val, ui_itoa(n, k)), " ");
-                cat(v->val, is_default || !u->nheld ? qd_track_sound_name(&a->model.t[t]) : qd_sound_name(&a->proj, k));
+                cat(v->val, is_default || !u->nheld ? qd_track_sound_label(&a->model.t[t]) : qd_sound_name(&a->proj, k));
             } else {
                 cat(v->val, "TRACK");
             }
@@ -1045,8 +1152,10 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_MENU;                             /* P1.3y: a settings menu */
     if (qd_snd_open(a))
         return QD_SCR_SOUND;                            /* P1.4a: the sound editor */
-    if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_LIB)
-        return QD_SCR_LIB;                              /* P1.5a: the sounds page */
+    if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_BROWSE)
+        return QD_SCR_BROWSE;                           /* P1.5t: the library browser */
+    if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_SAVE)
+        return QD_SCR_SAVE;                             /* P1.5t: SAVE PRESET */
     if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_NAME)
         return QD_SCR_NAME;                             /* P1.5a: the name editor */
     if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_PRJ)
@@ -1343,80 +1452,14 @@ static void fill_mix(const qd_app_t *a, ui_mix_t *v)
     }
 }
 
-/* P1.5a: the sounds page's, the name editor's and the project pages' models */
-static void lib_tile(const qd_sound_t *s, ui_libtile_t *t)
-{
-    const int16_t *p = s->patch;
-    t->name = s->name;
-    t->used = s->name[0] != 0;
-    t->kind = qd_sound_kind(p);
-    t->env[0] = (float)p[QD_QP_EATK] / 127.f * 0.6f;
-    t->env[1] = (float)(p[QD_QP_EDEC] > 126 ? 126 : p[QD_QP_EDEC]) / 127.f * 0.7f;
-    t->env[2] = (float)p[QD_QP_ESUS] / 127.f;
-    t->env[3] = (float)p[QD_QP_EREL] / 127.f * 0.7f;
-}
-
-static void fill_lib(const qd_app_t *a, ui_lib_t *v)
-{
-    static qd_sound_t snd;
-    const qd_libui_t *l = &a->ui.lb;
-    const int bank = l->chosen / 16;
-    int i;
-    memset(v, 0, sizeof *v);
-    v->tab = l->tab;
-    v->bank = bank;
-    for (i = 0; i < 16; i++)
-        lib_tile(qd_lib_sound(a, l->tab, bank * 16 + i), &v->tile[i]);
-    v->chosen = l->chosen % 16;
-    v->cnum = l->chosen + 1;
-    v->c = v->tile[v->chosen];
-    if (l->tab)
-        qd_pool_users(a, l->chosen + 1, &v->utracks, &v->usteps);
-    v->track = a->sel + 1;
-    v->track_name = a->model.t[a->sel].name;
-    v->storing = l->storing;
-    v->spark = l->spark;
-    v->armed = l->armed;
-    v->offer = l->offer;
-    memset(&snd, 0, sizeof snd);
-    memcpy(snd.name, l->sname, QD_SOUND_NAME);
-    memcpy(snd.patch, a->model.t[a->sel].patch, sizeof snd.patch);
-    lib_tile(&snd, &v->s);
-    v->lift = -1;
-    v->armed_tile = -1;
-    if (l->f1_down && l->f1_src >= 0 && l->f1_tab == l->tab && l->f1_src / 16 == bank)
-        v->lift = l->f1_src % 16, v->lift_kind = 1;
-    if (l->f2_down && l->f2_pick >= 0 && l->f2_pick / 16 == bank)
-        v->lift = l->f2_pick % 16, v->lift_kind = 2;
-    if (l->f1_down && l->f1_armed >= 0 && l->f1_armed / 16 == bank)   /* (only while F1 is held) */
-        v->armed_tile = l->f1_armed % 16;
-    v->fx_kind = 0;
-    if (l->fx_kind && a->ms - l->fx_ms < 900u && l->fx_slot / 16 == bank) {
-        v->fx_kind = l->fx_kind;
-        v->fx_tile = l->fx_slot % 16;
-        v->fx_u = (float)(a->ms - l->fx_ms) / 900.f;
-    }
-    {
-        static qd_sound_t del;
-        memset(&del, 0, sizeof del);
-        memcpy(del.name, l->del_name, QD_SOUND_NAME);
-        lib_tile(&del, &v->del);
-        v->del.kind = l->del_kind;
-        v->del.used = 1;
-    }
-    v->del_tracks = l->del_tracks;
-    v->del_steps = l->del_steps;
-    v->aud = l->aud;
-    v->t = secs(a->ms);
-}
-
+/* P1.5a: the name editor's and the project pages' models */
 static void fill_name(const qd_app_t *a, ui_name_t *v)
 {
     const qd_nameui_t *n = &a->ui.nm;
     memset(v, 0, sizeof *v);
     memcpy(v->buf, n->buf, QD_SOUND_NAME);
     v->cur = n->cur;
-    v->col = n->target == 0 && a->ui.lb.tab ? UI_POOL_COL : UI_LIB_COL;
+    v->col = UI_LIB_COL;
     v->roll = n->roll_ms && a->ms - n->roll_ms < 200u ? (float)(a->ms - n->roll_ms) / 200.f : 1.f;
     v->roll_dir = n->roll_dir;
 }
@@ -1537,7 +1580,10 @@ int qd_view_overlay(const qd_app_t *a)
     /* (P1.5n: the octave / bank takeover over EDIT too: an OCT tap's octave was not shown there at all, only F2's map
      * for a moment) */
     return a->ui.tk != QD_TK_NONE && (qd_view_screen(a) != QD_SCR_EDIT || a->ui.tk == UI_TK_OCTAVE ||
-                                      a->ui.tk == QD_TK_UNDO || a->ui.tk == QD_TK_IMPORT);
+                                      a->ui.tk == QD_TK_UNDO || a->ui.tk == QD_TK_IMPORT || a->ui.tk == QD_TK_LOADED ||
+                                      a->ui.tk == QD_TK_BACK || a->ui.tk == QD_TK_SAVED ||
+                                      (a->ui.tk == QD_TK_PRESET && a->ui.tk_lock));   /* (P1.5t: the step's pool
+                                                         * picker takes the screen in EDIT too) */
 }
 
 /* P1.5p: the knob band shows (a held step's knob turned): over the head, y 0..41, its fade included */
@@ -1559,7 +1605,8 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_menu_t mv;
     static ui_snd_t sv5;
     static ui_mix_t xv;
-    static ui_lib_t lbv;
+    static ui_browse_t brv;
+    static ui_save_t svv;
     static ui_name_t nmv;
     static ui_prj_t pjv;
     static ui_fx_t fv;
@@ -1571,9 +1618,13 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         fill_menu(a, &mv);
         ui_menu_draw(&mv);
         break;
-    case QD_SCR_LIB:                                    /* P1.5a: the sounds page */
-        fill_lib(a, &lbv);
-        ui_lib_draw(&lbv);
+    case QD_SCR_BROWSE:                                 /* P1.5t: the library browser */
+        fill_browse(a, &brv);
+        ui_browse_draw(&brv);
+        break;
+    case QD_SCR_SAVE:                                   /* P1.5t: SAVE PRESET */
+        fill_save(a, &svv);
+        ui_save_draw(&svv);
         break;
     case QD_SCR_NAME:
         fill_name(a, &nmv);
@@ -1661,7 +1712,9 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
         const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
         if (al > 0.f) {
             overlay_begin(al);
-            if (u->tk == QD_TK_IMPORT) {                /* P1.5r: a sound imported (SysEx) */
+            if (u->tk == QD_TK_LOADED || u->tk == QD_TK_BACK || u->tk == QD_TK_SAVED) {
+                draw_pfx(a);                            /* P1.5t: LOADED, BACK, SAVED */
+            } else if (u->tk == QD_TK_IMPORT) {         /* P1.5r: a sound imported (SysEx) */
                 ui_import_draw(u->imp_name, u->imp_pool, u->imp_slot, secs(a->ms - u->tk_ms));
             } else if (u->tk == QD_TK_UNDO) {           /* P1.5c: UNDO / REDO, what it was */
                 ui_undo_draw(u->undo_dir > 0, u->undo_kind, secs(a->ms));

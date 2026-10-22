@@ -100,7 +100,7 @@ static void pages_test(void)
         {"SNARE", QD_SK_SNARE}, {"CLAP", QD_SK_CLAP}, {"GHOST", QD_SK_SNARE}, {"HAT", QD_SK_HAT},
         {"OPEN HAT", QD_SK_HAT}};
     char nm[QD_SOUND_NAME], nm2[QD_SOUND_NAME];
-    int k, ok = 0, okn = 0, before;
+    int k, ok = 0, okn = 0;
     G = &A;
     memset(FL, 0xFF, sizeof FL);
     boot(G);
@@ -121,102 +121,55 @@ static void pages_test(void)
           "the classifier: the 16 factory sounds' and the 6 drums' kinds (%d), names of 12 letters at most with the "
           "kind, the same each time, another with the dice (%d)", ok, okn);
 
-    /* SAVE: storing the track's sound into the library */
+    {   /* P1.5t: the seven kinds of the factory presets (the browser's filters) */
+        static const int PK[QD_NFACTORY] = {QD_PK_LEAD, QD_PK_KEYS, QD_PK_KEYS, QD_PK_BASS, QD_PK_PLUCK, QD_PK_LEAD,
+                                            QD_PK_PAD, QD_PK_LEAD, QD_PK_LEAD, QD_PK_FX, QD_PK_BASS, QD_PK_PLUCK,
+                                            QD_PK_PAD, QD_PK_PLUCK, QD_PK_PAD, QD_PK_FX, QD_PK_FX, QD_PK_DRUMS,
+                                            QD_PK_DRUMS, QD_PK_DRUMS, QD_PK_DRUMS, QD_PK_DRUMS, QD_PK_DRUMS};
+        int seen[QD_NPK] = {0};
+        for (ok = 0, k = 0; k < QD_NFACTORY; k++) {
+            qd_sound_t f;
+            qd_factory_preset(k, &f);
+            ok += f.kind == PK[k] && f.preset == k + 1;
+            seen[f.kind]++;
+        }
+        for (k = 0; k < QD_NPK; k++)
+            ok += seen[k] > 0;
+        CHECK(ok == QD_NFACTORY + QD_NPK, "the factory presets' kinds (METAL, FEEDBACK, NOISE-ISH FX; the drums DRUMS; "
+              "BELL KEYS ..), every one of the seven used (%d)", ok);
+    }
+
+    /* P1.5t: SAVE PRESET: the track's sound into MY presets */
     qd_ctl_select_track(G, 3);
     btap(QD_B_SAVE);
     qd_sound_autoname(G->model.t[3].patch, 0, nm);
-    CHECK(qd_view_screen(G) == QD_SCR_LIB && G->ui.lb.storing && G->ui.lb.tab == 0 && G->ui.lb.chosen == 0 &&
-              !strcmp(G->ui.lb.sname, nm), "SAVE: the sounds page on the LIBRARY, the first free slot, a name from the "
-          "sound (%s)", nm);
+    CHECK(qd_view_screen(G) == QD_SCR_SAVE && G->ui.sv.spark && !strncmp(G->ui.sv.name, nm, strlen(nm)) &&
+              G->ui.sv.replace < 0, "SAVE: SAVE PRESET, a name from the sound (%s), no REPLACE (a factory sound)", nm);
     btap(QD_B_SAVE);
     CHECK(!strcmp(G->per.lib[0].name, nm) && !memcmp(G->per.lib[0].patch, G->model.t[3].patch, sizeof G->per.lib[0].patch) &&
-              G->ui.lb.offer && !G->ui.lb.storing, "SAVE again: stored in slot 1; F2 offered");
+              G->per.lib[0].preset >= QD_PRESET_MINE0 && G->model.t[3].preset == G->per.lib[0].preset &&
+              !G->model.t[3].edited && !G->ui.latch && G->ui.tk == QD_TK_SAVED,
+          "SAVE again: a NEW MY preset (place 1, its own id), the track plays it, not edited; SAVED");
+    G->model.t[3].patch[QD_QP_HARM] = 900;              /* edited, then SAVE: REPLACE offered */
+    G->model.t[3].edited = 1;
+    p_run(20);
+    btap(QD_B_SAVE);
+    CHECK(G->ui.sv.replace == 0 && !strncmp(G->ui.sv.name, nm, strlen(nm)), "edited, SAVE: REPLACE offered (its "
+          "name kept)");
     btap(QD_B_OCTUP);
-    k = G->ui.lb.chosen + 1;
-    CHECK(G->ui.lb.tab == 1 && k == 24 && !strcmp(G->proj.sound[23].name, nm), "F2: into the pool's first free slot "
-          "(%d), the POOL shown", k);
-    /* SAVE onto a sound: armed, anything else cancels, SAVE again replaces (the name stays) */
-    btap(QD_B_SAVE);
-    CHECK(G->ui.lb.storing && G->ui.lb.chosen == 1, "SAVE: storing again, the next free slot (2)");
-    wtap(0);
-    G->model.t[3].patch[QD_QP_HARM] = 900;
-    btap(QD_B_SAVE);
-    CHECK(G->ui.lb.armed && G->per.lib[0].patch[QD_QP_HARM] != 900, "W1 (a sound), SAVE: armed, not stored");
-    black(0);
-    CHECK(!G->ui.lb.armed, "another key: the arm cancelled");
-    btap(QD_B_SAVE);
-    btap(QD_B_SAVE);
-    CHECK(G->per.lib[0].patch[QD_QP_HARM] == 900 && !strcmp(G->per.lib[0].name, nm), "SAVE, SAVE: replaced, the name "
-          "kept");
-    /* browsing: a W plays once; held, while held */
-    black(8);                                           /* B9: the pool */
-    black(1);                                           /* B2: sounds 17..32 */
-    before = qd_pool_in_use(&G->pool);
-    wkey(1, 1);                                         /* KICK (18) */
-    p_run(30);
-    CHECK(G->ui.lb.chosen == 17 && qd_pool_in_use(&G->pool) > before, "the POOL, B2, W2: KICK chosen and heard");
-    wkey(1, 0);
-    p_run(700);
-    CHECK(!G->ui.lb.pv_on, ".. once (it stops)");
-    wkey(1, 1);
-    p_run(400);
-    CHECK(G->ui.lb.aud && qd_view_screen(G) == QD_SCR_LIB, "W held: heard while held, on the screen");
-    wkey(1, 0);
-    p_run(20);
-    CHECK(!G->ui.lb.aud && !G->ui.lb.pv_on, "let go: it stops");
-    /* F2 in the pool: onto the selected track */
+    CHECK(G->per.lib[0].patch[QD_QP_HARM] == 900 && G->per.lib[0].preset == G->model.t[3].preset &&
+              !G->model.t[3].edited && !G->per.lib[1].name[0], "F2: replaced (the same id), nothing new");
+    /* the browser on MY presets: load it onto another track */
+    qd_ctl_select_track(G, 1);
+    p_run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    knob(QD_K_PRESETS, 1);
+    CHECK(qd_view_screen(G) == QD_SCR_BROWSE, "PRESETS: the library browser");
+    black(8);                                           /* B9: MY PRESETS */
+    knob(QD_K_PRESETS, 1);
     btap(QD_B_OCTUP);
-    CHECK(G->model.t[3].sound == 18 && !strcmp(G->model.t[3].sound_name, "KICK"), "F2 in the pool: KICK on track 4");
-    /* F1 + W copy, then paste (a free slot: "KICK 2") */
-    bt(QD_B_OCTDN, 1);
-    p_run(20);
-    wtap(1);
-    black(9 - 9 + 2);                                   /* (B3: the bank of 33..48) */
-    wtap(0);
-    bt(QD_B_OCTDN, 0);
-    p_run(20);
-    CHECK(!strcmp(G->proj.sound[32].name, "KICK 2") && qd_view_screen(G) == QD_SCR_LIB, "F1 + W2, B3, W1: KICK copied "
-          "into 33 (KICK 2), F1 let go: still the page");
-    /* F2 + W: pick up, drop on a filled slot: a swap (the locks follow) */
-    qd_step_on(&G->proj.pat[G->seq.cur], 0, 0);
-    qd_step_set_sound(&G->proj.pat[G->seq.cur], 0, 0, 33);
-    bt(QD_B_OCTUP, 1);
-    p_run(20);
-    wtap(0);                                            /* KICK 2 (33) picked up */
-    black(1);
-    wtap(2);                                            /* dropped on SNARE (19) */
-    bt(QD_B_OCTUP, 0);
-    p_run(20);
-    CHECK(!strcmp(G->proj.sound[18].name, "KICK 2") && !strcmp(G->proj.sound[32].name, "SNARE") &&
-              G->proj.pat[G->seq.cur].step[0][0].sound == 19 && G->model.t[3].sound == 18,
-          "F2 + W1, B2, W3: KICK 2 and SNARE swapped, the step's lock follows (19), no F2 tap");
-    /* B11 + W: delete; INIT stays */
-    bkey(10, 1);
-    p_run(20);
-    wtap(2);                                            /* (19: KICK 2) */
-    black(0);
-    wtap(0);                                            /* (1: INIT) */
-    bkey(10, 0);
-    p_run(20);
-    CHECK(!G->proj.sound[18].name[0] && G->proj.pat[G->seq.cur].step[0][0].sound == 0 && G->proj.sound[0].name[0],
-          "B11 + W3: deleted, the lock back to the track's sound; B11 + W1: INIT stays");
-    /* the name editor */
-    black(1);
-    wtap(1);                                            /* KICK (18) */
-    black(9);                                           /* B10 */
-    CHECK(qd_view_screen(G) == QD_SCR_NAME, "B10: the name editor");
-    knob(QD_K_SELECT, 1);                               /* K -> L */
-    knob(QD_K_ALGO, 1);
-    black(10);                                          /* B11: the I deleted */
-    btap(QD_B_OCTUP);
-    CHECK(!strcmp(G->proj.sound[17].name, "LCK") && qd_view_screen(G) == QD_SCR_LIB, "SELECT +1, ALGORITHM, B11, F2: "
-          "LCK kept (%s), back to the page", G->proj.sound[17].name);
-    black(9);
-    black(9);                                           /* the dice */
-    btap(QD_B_OCTDN);
-    CHECK(!strcmp(G->proj.sound[17].name, "LCK"), "B10, the dice, OCT-: the old name stays");
-    btap(QD_B_OCTDN);
-    CHECK(!G->ui.latch && qd_view_screen(G) != QD_SCR_LIB, "OCT- tapped: the page left");
+    CHECK(G->model.t[1].preset == G->per.lib[0].preset && G->model.t[1].patch[QD_QP_HARM] == 900 &&
+              G->proj.pat[G->seq.cur].snd[1].preset == G->per.lib[0].preset, "B9, a turn, F2: MY preset loaded on track 2");
+
     /* the project pages */
     btap(QD_B_MIX);
     CHECK(qd_view_screen(G) == QD_SCR_PRJ && G->ui.pj.page == 0, "SEQ tapped: the project page");
@@ -246,6 +199,72 @@ static void pages_test(void)
     btap(QD_B_HOME);
     CHECK(!G->ui.latch, "HOME: back");
     CHECK(G->per.prj_st.c.erases_noisy == 0, "no erase while sounding");
+}
+
+/* P1.5t: a 0.6 flash: its library slots become MY presets (ids, kinds), its pool stays as it was (its factory copies
+ * knowing their factory preset), its track sounds learn their preset from their pool source; its absent pool records
+ * are still the old starting pool (its header has no pool byte) */
+static void migration_test(void)
+{
+    static uint8_t b[QDS_MAXREC * 256];
+    uint8_t blob[QD_QUAD_BLOB];
+    int16_t p[QD_QUAD_NP];
+    int len, t, n;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);                                           /* (an erased flash: the demo project, written) */
+    run(&A, 20);
+    qd_persist_flush(&A);
+    /* 0.6's records: a library slot, a pool slot (EP's copy), the pattern's track sounds, the header */
+    qd_quad_preset_patch(3, p);                         /* (BASS) */
+    qd_quad_pack(p, blob);
+    b[0] = 'S', b[1] = 1;
+    memset(b + 2, 0, QD_SOUND_NAME);
+    strcpy((char *)b + 2, "OLD LIB");
+    memcpy(b + 2 + QD_SOUND_NAME, blob, QD_QUAD_BLOB);
+    qd_store_put(&A.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 7), b, 2 + QD_SOUND_NAME + QD_QUAD_BLOB);
+    qd_store_flush(&A.per.lib_st);
+    qd_quad_preset_patch(1, p);                         /* (EP, as the 0.6 pool had it) */
+    qd_quad_pack(p, blob);
+    memset(b + 2, 0, QD_SOUND_NAME);
+    strcpy((char *)b + 2, "EP");
+    memcpy(b + 2 + QD_SOUND_NAME, blob, QD_QUAD_BLOB);
+    qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SND, 0, 40), b, 2 + QD_SOUND_NAME + QD_QUAD_BLOB);
+    qd_store_flush(&A.per.prj_st);
+    A.proj.pat[QD_PAT_START].snd[3].sound = 40;         /* (track 4, SQUARE LEAD's place, from pool 40) */
+    A.proj.pat[QD_PAT_START].snd[3].preset = 0;
+    A.proj.pat[QD_PAT_START].used = 1;
+    qd_persist_flush(&A);
+    len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), b, sizeof b);
+    {   /* 'P' 2 -> 'P' 1: each track sound without its two preset bytes */
+        const uint32_t one = QD_QUAD_BLOB + 2 + QD_SOUND_NAME, start = (uint32_t)len - 8u * (one + 2u);
+        static uint8_t c[QDS_MAXREC * 256];
+        memcpy(c, b, start);
+        for (t = 0; t < 8; t++)
+            memcpy(c + start + (uint32_t)t * one, b + start + (uint32_t)t * (one + 2u), one);
+        c[1] = 1;
+        qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), c, start + 8u * one);
+        qd_store_flush(&A.per.prj_st);
+    }
+    len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, sizeof b);
+    qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, (uint32_t)len - 1u);   /* (no pool byte) */
+    qd_store_flush(&A.per.prj_st);
+    boot(&B);
+    CHECK(!strcmp(B.per.lib[7].name, "OLD LIB") && B.per.lib[7].preset == QD_PRESET_MINE0 + 7 &&
+              B.per.lib[7].kind == QD_PK_BASS && !B.per.lib[7].flags,
+          "a 0.6 library slot: one of MY presets (its id %d, its kind BASS, saved)", B.per.lib[7].preset);
+    CHECK(!strcmp(B.proj.sound[39].name, "EP") && B.proj.sound[39].preset == 2 && B.proj.sound[39].kind == QD_PK_KEYS,
+          "a 0.6 pool sound: kept, knowing its factory preset (EP: 2), its kind");
+    for (n = 0, t = 1; t <= QD_NFACTORY; t++)
+        n += qd_sound_used(&B.proj, t) && B.proj.sound[t - 1].preset == t;
+    CHECK(n == QD_NFACTORY && !B.proj.pool_empty, "its absent pool records: the old starting pool, as before (%d)", n);
+    CHECK(B.proj.pat[QD_PAT_START].snd[3].preset == 2 && B.proj.pat[QD_PAT_START].snd[0].preset > 0,
+          "its track sounds: their presets from their pool source (4: EP) or their factory sound (%d)",
+          B.proj.pat[QD_PAT_START].snd[0].preset);
+    qd_persist_flush(&B);
+    boot(&A);
+    CHECK(A.per.lib[7].preset == QD_PRESET_MINE0 + 7 && A.proj.pat[QD_PAT_START].snd[3].preset == 2,
+          "written back as 0.7's records: the same after another restart");
 }
 
 int main(void)
@@ -342,7 +361,8 @@ int main(void)
         qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, 9u + 46u);
         qd_store_flush(&B.per.prj_st);
         len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, sizeof b);
-        qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, (uint32_t)len - 1u);
+        qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, (uint32_t)len - 2u);   /* (no EDIT KEYS, no P1.5t
+                                                         * pool byte) */
         qd_store_flush(&B.per.prj_st);
         qd_fx_set(QD_FXP_RSIZE, 88);
         boot(&A);
@@ -374,32 +394,41 @@ int main(void)
             }
         CHECK(locks_a == 1 && locks_b == 1 && src == 1 && !strcmp(B.proj.sound[30].name, "S030"),
               "pool move (30 <-> 31): the locks in every pattern and the track source follow");
-        CHECK(!qd_pool_delete(&B, 1), "INIT cannot be deleted");
+        CHECK(qd_pool_delete(&B, 1) && !B.proj.sound[0].name[0], "P1.5t: slot 1 as any other: deleted");
         CHECK(qd_pool_delete(&B, 31) && B.proj.pat[3].step[2][4].sound == 0 && !B.proj.sound[30].name[0] &&
                   B.proj.pat[20].snd[1].sound == 0,
               "pool delete: the locks back to the track's sound, the track keeps its copy");
         CHECK(qd_pool_copy(&B, 5, 31) && !strcmp(B.proj.sound[30].name, B.proj.sound[4].name), "pool copy 5 -> 31");
     }
-    /* the library: store, copy, swap, delete, kept */
+    /* MY presets: store, replace, delete, kept (256 places) */
     {
         int16_t p[QD_QUAD_NP];
+        int id9;
         qd_quad_preset_patch(10, p);
-        CHECK(qd_lib_free_slot(&B) == 0 && qd_lib_store(&B, 0, "WOB BASS", p), "the library: the first free slot (1)");
-        qd_lib_copy(&B, 0, 5);
-        qd_lib_swap(&B, 5, 9);
+        for (k = 0; k < QD_NLIB; k++)
+            memset(&B.per.lib[k], 0, sizeof B.per.lib[k]);
+        CHECK(qd_lib_free_slot(&B) == 0 && qd_lib_store(&B, 0, "WOB BASS", p), "MY presets: the first free place (1)");
+        qd_lib_store(&B, 9, "WOB TWO", p);
+        id9 = B.per.lib[9].preset;
+        p[QD_QP_HARM] = 500;
+        qd_lib_replace(&B, 9, "WOB REPL", p);
         qd_lib_store(&B, 2, "GONE", p);
         qd_lib_delete(&B, 2);
+        qd_lib_store(&B, 255, "THE LAST", p);
         CHECK(qd_persist_flush(&B), "flushed");
         boot(&A);
-        CHECK(!strcmp(A.per.lib[0].name, "WOB BASS") && !strcmp(A.per.lib[9].name, "WOB BASS") && !A.per.lib[5].name[0] &&
-                  !A.per.lib[2].name[0] && A.per.lib[0].patch[QD_QP_DRIVE] == 10 && !strcmp(A.proj.sound[30].name,
-                                                                                            A.proj.sound[4].name),
-              "a restart: the library (copy, swap, delete) and the pool's changes kept");
+        CHECK(!strcmp(A.per.lib[0].name, "WOB BASS") && !strcmp(A.per.lib[9].name, "WOB REPL") &&
+                  A.per.lib[9].preset == id9 && A.per.lib[9].patch[QD_QP_HARM] == 500 && !A.per.lib[2].name[0] &&
+                  !strcmp(A.per.lib[255].name, "THE LAST") && A.per.lib[0].patch[QD_QP_DRIVE] == 10 &&
+                  A.per.lib[0].kind == QD_PK_BASS && A.per.lib[0].preset >= QD_PRESET_MINE0 &&
+                  A.per.lib[0].preset != A.per.lib[9].preset && !strcmp(A.proj.sound[30].name, A.proj.sound[4].name),
+              "a restart: MY presets (their ids, kinds; replace kept the id; place 256) and the pool's changes kept");
     }
     /* the projects */
     A.ui.view = QD_VIEW_ROLL;
     CHECK(qd_proj_new(&A, 2) && A.ui.view == QD_VIEW_EDIT && A.per.proj == 2 && A.per.pexists[2] && !A.proj.pat[0].used &&
-              !strcmp(A.per.pname[2], "PROJECT 3"), "new project 3: blank");
+              !strcmp(A.per.pname[2], "PROJECT 3") && A.proj.nsound == 0 && A.proj.pool_empty,
+          "new project 3: blank, its pool empty (P1.5t)");
     qd_step_on(&A.proj.pat[0], 0, 0);
     A.proj.pat[0].used = 1;
     qd_proj_name(&A, 2, "MY SONG");
@@ -408,8 +437,8 @@ int main(void)
     qd_step_on(&A.proj.pat[A.seq.cur], 0, 5);
     qd_undo_close(&A);
     CHECK(qd_undo_count(&A, -1) == 1, "an edit: one undo level");
-    CHECK(qd_proj_load(&A, 4) && A.per.proj == 4 && qd_step_is_on(qd_step(&A.proj.pat[0], 0, 0)),
-          "load 5: the copy has the edit");
+    CHECK(qd_proj_load(&A, 4) && A.per.proj == 4 && qd_step_is_on(qd_step(&A.proj.pat[0], 0, 0)) && A.proj.nsound == 0,
+          "load 5: the copy has the edit (its pool empty still: a copy of a new project)");
     CHECK(qd_undo_count(&A, -1) == 0 && qd_undo_count(&A, 1) == 0, "a project load: undo forgets (P1.5c)");
     CHECK(qd_proj_delete(&A, 2) && !A.per.pexists[2], "delete 3");
     CHECK(qd_proj_load(&A, 0) && A.per.proj == 0 && !memcmp(&keep.pat[9], &A.proj.pat[9], sizeof keep.pat[9]),
@@ -441,6 +470,7 @@ int main(void)
     CHECK(!strcmp(B.per.lib[99].name, "SX KEEP"), "a restart: the SysEx import kept (P1.5r)");
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
     pages_test();
+    migration_test();
     printf("test_persist: %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

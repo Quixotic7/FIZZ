@@ -107,10 +107,10 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
         return;
     }
     patch[QD_QP_DRIVE] = (int16_t)(b[15] & 0x7F);
-    if (pool) {                                         /* POOL: 2..128 (1 is INIT), 0 the first free */
+    if (pool) {                                         /* POOL: 1..128 (P1.5t: slot 1 as any), 0 the first free */
         if (slot == 0)
             slot = qd_pool_free_slot(&a->proj);
-        else if (slot < 2 || slot > QD_NSOUND) {
+        else if (slot < 1 || slot > QD_NSOUND) {
             sx_store_reply(a, QD_SX_BAD_SLOT, pool, slot);
             return;
         }
@@ -118,7 +118,7 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
             sx_store_reply(a, QD_SX_FULL, pool, 0);
             return;
         }
-    } else {                                            /* LIBRARY: 1..128, 0 the first free */
+    } else {                                            /* LIBRARY: MY presets (P1.5t), 1..256, 0 the first free */
         if (slot == 0)
             slot = qd_lib_free_slot(a) + 1;
         else if (slot > QD_NLIB) {
@@ -138,9 +138,10 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
         memset(s, 0, sizeof *s);
         strncpy(s->name, name, QD_SOUND_NAME - 1);
         memcpy(s->patch, patch, sizeof s->patch);
+        s->kind = (uint8_t)qd_preset_kind(patch);       /* (P1.5t: its kind read on arrival) */
         qd_sound_recount(&a->proj);
     } else {
-        qd_lib_store(a, slot - 1, name, patch);
+        qd_lib_store_ex(a, slot - 1, name, patch, QD_SNDF_IMPORTED);   /* (P1.5t: one of MY presets, imported) */
     }
     a->undo.join = 0;
     track = b[16];
@@ -148,6 +149,7 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
         qd_track_t *t = &a->model.t[track];
         const int mask = b[21];
         qd_track_load_sound(t, pool ? slot : 0, name, patch);
+        t->preset = pool ? 0 : a->per.lib[slot - 1].preset;
         if (mask & QD_SXM_PAN)
             t->mix.pan = (int8_t)((int)b[17] - 64);
         if (mask & QD_SXM_CHORUS)

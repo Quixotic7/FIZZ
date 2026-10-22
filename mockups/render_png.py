@@ -35,6 +35,8 @@ SHOTS['sheet-line'] = ('sheet=line', 2030, 3720, 'sheet-line.png', 'line.html')
 SHOTS['legend'] = ('shot=legend', 960, 96, 'led-legend.png')
 for i in range(1, 15):                         # P1.5a: fizz-save-pool.html's fourteen screens (render_p15a sets FIZZ's beside)
     SHOTS[f'sp-{i}'] = (f'shot={i}', 240, 240, f'fizz-save-pool-{i:02d}.png', 'fizz-save-pool.html')
+for i in range(1, 16):                         # P1.5t: fizz-presets.html's fifteen screens (render_p15t sets FIZZ's beside)
+    SHOTS[f'pr-{i}'] = (f'shot={i}', 240, 240, f'fizz-presets-{i:02d}.png', 'fizz-presets.html')
 
 
 def render(key, scratch):

@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5s)
+# Playing FIZZ (P1.5t)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -16,7 +16,7 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | GLO | **SHIFT** |
 | SEL (printed) | **SEL**: hold it for the tracks; tap it for the track settings |
 | SEQ (printed) | **SEQ**: hold it for the patterns; tap it for the project |
-| SAVE (printed) | **SAVE**: the sounds page, storing the selected track's sound |
+| SAVE (printed) | **SAVE**: SAVE PRESET, the selected track's sound into MY PRESETS |
 | LFO (printed) | **LATCH**: the step latch, on / off |
 | FX (printed) | **FX**: tap it for the effects; hold it to choose the track |
 | ENV (printed) | **MIX**: the mixer |
@@ -57,8 +57,8 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   mode's drawing above it at full size, its value large in the top line: the step you hold, select or point at with
   the cursor, or the track's default when nothing is held (a mode key held: its default, "B11 RESET" small top
   right). Every edit moves both at once (the cell's fill rises as the value changes); no knob pop-up covers it.
-  Holding, the step latch and the cursor all stay in EDIT. Turning **PRESETS** shows the sound picture in the top
-  while you turn (with a finger on a step: that step's sound lock).
+  Holding, the step latch and the cursor all stay in EDIT. Turning **PRESETS** opens the library browser (with a
+  finger on a step: that step's pool picker).
 - **EDIT follows the music** (P1.5q): while playing, with nothing held, the step latch off, no mode key held and no
   pop-up, the top shows **the selected track's step as it plays**: its head ("STEP 7 · VEL"), its value and its
   picture (the chord, the rider at that velocity, the bar, the flag, the ball, the cassette ..), each with its own
@@ -307,12 +307,13 @@ Pages and tracks (hold **F1**):
 Undo and redo of everything (P1.5c):
 
 - **SHIFT + F1 = UNDO, SHIFT + F2 = REDO**, eight levels. A big UNDO / REDO with an arrow shows a moment, and under it
-  what was undone: a knob, a step edit, a paste, a clear (an X), a recorded take (a red ring), a sound (the pool or the
-  library), the dice (a randomise), the snapshot, two pages (double). A dash: nothing left.
+  what was undone: a knob, a step edit, a paste, a clear (an X), a recorded take (a red ring), a sound (a load, the pool or
+  MY presets), the dice (a randomise), the snapshot, two pages (double). A dash: nothing left.
 - **One level is one gesture**: a knob turned until you pause about half a second, a step held and edited, a paste, a
-  clear, a recorded take (all its notes), a pool or library change, a randomise, a snapshot recall, a double.
-- Undo covers the **pattern you are on** (its steps, locks, track settings and track sounds), **the pool** and **the
-  library**. It survives page and view changes and a pattern change (each level returns to its own pattern), but a
+  clear, a recorded take (all its notes), a preset loaded, a + / − POOL, a preset deleted or saved, a randomise, a
+  snapshot recall, a double.
+- Undo covers the **pattern you are on** (its steps, locks, track settings and track sounds), **the pool** and **MY
+  presets**. It survives page and view changes and a pattern change (each level returns to its own pattern), but a
   **project load or a new project forgets it**.
 - A new edit after undoing drops what you could have redone.
 - Not undone: a pool sound's delete also clears that sound's locks in the other patterns; undo brings the sound and
@@ -476,16 +477,48 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 - **Hold ARP** for **FILL** (ARP lit): steps with the FILL / NOT FILL condition follow it.
 - A **MIDI keyboard** on the track's channel plays, records, or sets the notes of a held step (up to five).
 
-## How do I change sounds?
+## How do I change sounds? (P1.5t: presets, the pool, the track's sound)
 
-- The project has a **pool** of sounds: INIT, the 16 factory sounds, and the drums KICK, SNARE, CLAP, GHOST, HAT and
-  OPEN HAT, plus what you add (up to 128). **SAVE** opens the sounds page (below) to keep and share sounds.
-- **Nothing held: PRESETS** picks the track's own sound from the pool, in every view (EDIT shows the sound picture
-  while you turn). In **P-LOCK**, KNOB 1..4 turn the track's FREQ, DECAY, HARM and FDBK.
-- **A step held: PRESETS** gives the held steps a sound from the pool (a sound lock), in any mode. Turn it all the way
-  down to go back to the track's sound.
-- In **SOUND** mode the ten black keys are ten sounds of the pool (the group of ten that holds the step's sound);
-  F1 / F2 show the ten before / after; B11 removes the sound lock.
+Three things, one job each:
+
+- **The track's sound** is what a track plays. It is saved with its pattern and edited in EDIT. It remembers the
+  preset it came from; once you edit it, a **\*** follows its name ("LEAD 4 \*").
+- **The Preset Library** (champagne) holds every preset, shared by every project:
+  - **FACTORY**, built in and read only: INIT, the 16 FM TONE sounds and the six drums (KICK, SNARE, CLAP, GHOST,
+    HAT, OPEN HAT);
+  - **MY PRESETS**, the ones you saved or imported, up to 256. Each has a **kind** read from the sound: BASS, KEYS,
+    PLUCK, PAD, LEAD, DRUMS or FX.
+- **The Sound Pool** (lime) is the project's own 128 sounds, the palette steps lock. A pool sound is a copy and
+  remembers the preset it came from. **A new project's pool starts empty** (the demo project keeps its sounds).
+
+**PRESETS with nothing held** opens the **library browser**, in every view:
+
+- It opens on the track's current preset. **Every detent moves one preset and the track plays it at once**: playing,
+  you hear it in the pattern; stopped, a short note each turn.
+- The screen is a rolodex: the chosen preset is the big cassette (its envelope in its kind's colour, a ★ for one of
+  MY presets, ↓ for an imported one, a lime tray when it is already in the pool), two neighbours above and below, a
+  bar on the right for where you are in the list, and "7/31" at the top.
+- **SELECT** jumps ten. **The white keys play the chosen preset** in the track's scale.
+- **F2 = LOAD**: the preset replaces the track's sound and the browser closes ("LOADED").
+- **F1 or HOME = CANCEL**: the track's own sound comes back exactly as it was, edits included ("BACK"). Leaving any
+  other way (EDIT, choosing another track) is a cancel too: browsing never loses a sound.
+- **B1..B8 filter by kind**: B1 ALL, B2 BASS, B3 KEYS, B4 PLUCK, B5 PAD, B6 LEAD, B7 DRUMS, B8 FX (the chosen kind's
+  key lit, a chip in the head).
+- **B9 the source**: ALL PRESETS → MY PRESETS → POOL → ALL.
+- **B10 = + POOL**: the chosen preset is copied into the project's pool, without loading it (the cassette shrinks
+  into the tray). Already there: the tray pulses, no copy. The pool full: the tray flashes orange.
+- In the **POOL** source, **B10 = − POOL**: the sound leaves the pool. If steps lock it, its users show (the tracks'
+  boxes, ×N steps) with **OUT?**, and B10 again takes it out; those steps go back to the track's sound.
+- **B11 deletes** one of MY presets: press it twice (B11 is lit only on MY presets; factory presets cannot be
+  deleted).
+- **SHIFT + F1** undoes a load, a + / − POOL and a delete.
+
+**A step held** (or the step latch's selection) **+ PRESETS** chooses the step's sound from **the pool** (a sound
+lock), in any mode: the first entry is **TRACK** (no lock: the step plays the track's sound), then the pool's sounds;
+the step plays each one, and letting go keeps it. An empty pool offers TRACK only (an empty tray, 0/128). In
+**SOUND** mode the ten black keys are still ten sounds of the pool (the group of ten that holds the step's sound);
+F1 / F2 show the ten before / after; B11 removes the sound lock. In **P-LOCK**, KNOB 1..4 turn the track's FREQ,
+DECAY, HARM and FDBK.
 
 ## How do I edit a sound? (the sound editor, EDIT)
 
@@ -552,11 +585,8 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   - **F1 / F2** the octave (both: every voice off). **SHIFT + ALGORITHM** the scale, **SHIFT + PRESETS** the root;
     SHIFT + KNOB 1..4 stay the fine step. The keys light the scale as the keyboard's do.
   - **EDIT** closes the editor back to the keyboard; HOME to the steps. Playing here is heard, not recorded.
-- **PRESETS**: the track's preset (nothing held) or the step's sound lock (a step held), as everywhere.
-- **PRESETS goes on into the LIBRARY** (P1.5s): with nothing held, turning past the pool's last sound continues
-  through the LIBRARY's sounds (the picker turns champagne, "LIBRARY" at its top). The track plays each as you turn;
-  the one you stop on joins this project's pool (the same sound already there: that one) and becomes the track's.
-  Turning back leaves the library for the pool. A step's sound lock still chooses from the pool only.
+- **PRESETS**: the library browser (nothing held) or the step's sound lock (a step held), as everywhere. F1 or F2
+  in the browser brings you back to the editor.
 - **Randomise** (P1.5c), drawn in neon lines over the page's picture:
   - **B9**: two dice roll for 0.6 s, then **this page's values** are new.
   - **Hold B10** 1.5 s: a champagne bottle fills with bubbles, the cork pops and it bursts: **the whole sound** is
@@ -615,50 +645,32 @@ They stay open (OCT− or HOME back). For now:
   switching patterns switches the sounds.
 - Switching the unit off and on (in FM1VST: quitting and starting the Standalone) brings back the project you worked
   on, its pattern and the selected track, the effects and the knob layout.
-- Eight projects, each with its 64 patterns and its own pool of 128 sounds; the **library** of 128 sounds is yours,
-  shared by every project.
+- Eight projects, each with its 64 patterns and its own pool of 128 sounds; **MY PRESETS** (256) are yours, shared
+  by every project.
 
-## How do I keep a sound? (SAVE, the sounds page)
+## How do I keep a sound? (SAVE: SAVE PRESET)
 
-- **SAVE** (from anywhere) opens the sounds page on the **LIBRARY** (champagne), storing the **selected track's
-  sound** (its box top right): the first free slot is chosen (dashed, blinking) and the sound gets a **name from the
-  sound** (PLUCK, PAD, BASS, KEYS, BELL, LEAD, KICK, SNARE, HAT ... with BRIGHT, DARK, SOFT, WIDE ...; a sparkle marks
-  a made-up name). A W chooses another slot. **SAVE again stores it.**
-- **A slot that holds a sound**: SAVE turns it orange, the old and the new silhouettes in turn. **SAVE again replaces
-  it** (its name stays); anything else cancels. Two presses, never a hold.
-- **Stored**: the pool's tray blinks with F2. **F2** adds the sound to this project's **pool** (its first free slot)
-  and the page turns to the POOL. Anything else leaves it in the library only.
-- **The sounds page**: **B1..B8** the bank, **W1..W16** its sounds (8 x 16 = 128); **SELECT** or **PRESETS** turn
-  through all 128. **B9** switches **LIBRARY / POOL** (the pool lime). A tile is the sound's envelope, coloured by
-  its kind (blue bass, white keys, violet pads, green leads, orange drums).
-- **W tapped**: that sound is chosen and plays once. **W held**: it plays while held and takes the screen (the
-  cassette, its wave).
-- **F2** in the LIBRARY: the chosen sound into the pool. **F2** in the POOL: the chosen sound onto the selected
-  track; with the step latch's steps selected, it is locked on those steps instead.
-- In the POOL the chosen sound shows who uses it: the tracks' boxes, and a padlock with the number of steps that lock
-  it.
-- **F1 + W** copies a sound, **another W** pastes it (onto a free slot it becomes "NAME 2"; onto a sound: that W
-  turns orange, the same W again replaces it). B9 between the two copies across the library and the pool.
-- **F2 + W** picks a sound up, **another W** drops it (onto a sound: they swap). In the pool the tracks and steps
-  using them follow.
-- **B11 + W** deletes a sound: its users flash orange, then it fizzes away. Tracks and steps that used a pool sound
-  go back to INIT (slot 1, INIT itself, cannot be deleted).
-- **B10** names the chosen sound (or the one being stored): **SELECT** turns the letter, **ALGORITHM** moves along,
-  **B11** deletes the letter, **B10 again** deals another name from the sound, **F2** keeps it, **F1** cancels.
-- **F1** or **HOME** leaves the sounds page.
-- The LEDs: the W keys lit for filled slots (the chosen one bright), the bank key in the tab's colour, B9 in the
-  other tab's colour, B10 and B11 lit.
+- **SAVE** (from anywhere) opens **SAVE PRESET** for the selected track's sound, with a **name made from the sound**
+  (a sparkle marks it): PLUCK, PAD, BASS, KEYS, LEAD, KICK ... with BRIGHT, DARK, SOFT, WIDE ...
+- **B10** rolls another name (the dice). To name it yourself: **SELECT** turns the letter under the cursor,
+  **ALGORITHM** moves the cursor, **B11** deletes a letter (the name then shows as twelve big cells).
+- **SAVE again** saves it as a **NEW** preset in MY PRESETS. When the sound came from one of MY presets, **F2 =
+  REPLACE** overwrites that preset instead; NEW is still there, under a new name ("DARK BASS 2"). Factory presets are
+  never replaced. **F1** cancels.
+- Saved: it drops into MY PRESETS ("SAVED"), and the track now plays that preset, no longer edited.
+- **SHIFT + F1** undoes a save.
+- The old sounds page (banks, the LIBRARY / POOL tabs, F1 / F2 / B11 + W) is gone: the browser does all of it.
 
 ### Sounds from a computer (P1.5r)
 
 - A page or tool can send FIZZ sounds over MIDI SysEx (the FIZZ web preview loads your Digitone `.dnsnd` presets
-  this way): each goes into the **LIBRARY** (or the project's **POOL**), into the first free slot or one it names,
-  with its name. The screen shows it a moment: its cassette dropping in, its slot, **imported**. It is saved by
+  this way): each goes into **MY PRESETS** (marked imported, its kind read; or the project's **POOL**), into the
+  first free place or one it names, with its name. The screen shows it a moment: its cassette dropping in, its slot, **imported**. It is saved by
   itself like any change, and **SHIFT + F1 undoes it** (a batch sent together: one undo). The format is in
   `docs/SYSEX.md`.
 - **In FM1VST** (the Standalone or the plugin, P1.5s): drop `.dnsnd` files on the window (one or many), or right-click
-  the screen > **Import Digitone sounds…**. They go into the LIBRARY's free slots as above; a note over the screen
-  says how many went in. Then **PRESETS** reaches them past the end of the pool.
+  the screen > **Import Digitone sounds…**. They go into MY PRESETS as above; a note over the screen says how many
+  went in. **PRESETS** then finds them (B9: MY PRESETS).
 
 ## How do I manage projects? (SEQ tapped)
 

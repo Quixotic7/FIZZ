@@ -30,19 +30,18 @@ static int16_t clampv(int id, int v)
 
 typedef struct { int id, v; } kv_t;
 
-static void make(qd_project_t *pr, const char *name, int preset, const kv_t *kv, int n)
+static void make_patch(int preset, const kv_t *kv, int n, int16_t *p)
 {
-    int16_t p[QD_QUAD_NP];
     int i;
     qd_quad_preset_patch(preset, p);
     for (i = 0; i < n; i++)
         p[kv[i].id] = clampv(kv[i].id, kv[i].v);
-    qd_sound_add(pr, name, p);
 }
 
 #define N(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
-void qd_sounds_init(qd_project_t *pr)
+/* P1.5t: factory preset i (0..QD_NFACTORY-1): INIT, the 16 FM TONE sounds, the six drums */
+void qd_factory_preset(int i, qd_sound_t *out)
 {
     static const kv_t KICK[] = {
         {QD_QP_EDEC, 32}, {QD_QP_ESUS, 0}, {QD_QP_EREL, 20}, {QD_QP_LFO(0, QD_QL_SPEED), 4000},
@@ -65,17 +64,60 @@ void qd_sounds_init(qd_project_t *pr)
                                {QD_QP_EREL, 8}};
     static const kv_t OHAT[] = {{QD_QP_FREQ, 9000}, {QD_QP_RESO, 1000}, {QD_QP_EDEC, 32}, {QD_QP_ESUS, 0},
                                 {QD_QP_EREL, 26}};
+    static const struct {
+        const char *name;
+        const kv_t *kv;
+        int n;
+    } DRUM[6] = {{"KICK", KICK, N(KICK)}, {"SNARE", SNARE, N(SNARE)}, {"CLAP", CLAP, N(CLAP)},
+                 {"GHOST", GHOST, N(GHOST)}, {"HAT", HAT, N(HAT)}, {"OPEN HAT", OHAT, N(OHAT)}};
+    static qd_sound_t cache[QD_NFACTORY];
+    static int made;
+    if (!made) {                                        /* (made once: the classifier run once for the set) */
+        int k;
+        for (k = 0; k < QD_NFACTORY; k++) {
+            qd_sound_t *s = &cache[k];
+            memset(s, 0, sizeof *s);
+            if (k < QD_QUAD_NPRESET) {
+                qd_quad_preset_patch(k, s->patch);
+                strncpy(s->name, qd_quad_preset_name(k), QD_SOUND_NAME - 1);
+            } else {
+                const int d = k - QD_QUAD_NPRESET;
+                make_patch(d ? QD_SND_NOISE - 1 : 0, DRUM[d].kv, DRUM[d].n, s->patch);
+                strncpy(s->name, DRUM[d].name, QD_SOUND_NAME - 1);
+            }
+            s->preset = (uint16_t)(k + 1);
+            s->kind = (uint8_t)qd_preset_kind(s->patch);
+        }
+        made = 1;
+    }
+    *out = cache[i < 0 ? 0 : i >= QD_NFACTORY ? QD_NFACTORY - 1 : i];
+}
+
+int qd_factory_of(const char *name, const int16_t *patch)
+{
     int k;
+    for (k = 0; k < QD_NFACTORY; k++) {
+        qd_sound_t f;
+        qd_factory_preset(k, &f);
+        if (!strcmp(f.name, name) && !memcmp(f.patch, patch, sizeof f.patch))
+            return k + 1;
+    }
+    return 0;
+}
+
+void qd_sounds_init(qd_project_t *pr)
+{
+    int k;
+    qd_sounds_clear(pr);
+    for (k = 0; k < QD_NFACTORY; k++)
+        qd_factory_preset(k, &pr->sound[k]);
+    qd_sound_recount(pr);
+}
+
+void qd_sounds_clear(qd_project_t *pr)
+{
     memset(pr->sound, 0, sizeof pr->sound);
     pr->nsound = 0;
-    for (k = 0; k < QD_QUAD_NPRESET; k++)
-        make(pr, qd_quad_preset_name(k), k, 0, 0);
-    make(pr, "KICK", 0, KICK, N(KICK));
-    make(pr, "SNARE", QD_SND_NOISE - 1, SNARE, N(SNARE));
-    make(pr, "CLAP", QD_SND_NOISE - 1, CLAP, N(CLAP));
-    make(pr, "GHOST", QD_SND_NOISE - 1, GHOST, N(GHOST));
-    make(pr, "HAT", QD_SND_NOISE - 1, HAT, N(HAT));
-    make(pr, "OPEN HAT", QD_SND_NOISE - 1, OHAT, N(OHAT));
 }
 
 const char *qd_sound_name(const qd_project_t *pr, int k)
@@ -87,15 +129,21 @@ int qd_sound_used(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOU
 
 const int16_t *qd_sound_patch(const qd_project_t *pr, int k)
 {
-    return pr->sound[qd_sound_used(pr, k) ? k - 1 : 0].patch;
+    static int16_t init[QD_QUAD_NP];
+    static int made;
+    if (qd_sound_used(pr, k))
+        return pr->sound[k - 1].patch;
+    if (!made)
+        qd_quad_preset_patch(0, init), made = 1;
+    return init;                                        /* (P1.5t: no sound there: INIT's patch) */
 }
 
 void qd_sound_recount(qd_project_t *pr)
 {
     int k;
-    for (k = QD_NSOUND; k > 1 && !pr->sound[k - 1].name[0]; k--)
+    for (k = QD_NSOUND; k > 0 && !pr->sound[k - 1].name[0]; k--)
         ;
-    pr->nsound = (uint8_t)k;
+    pr->nsound = (uint8_t)k;                            /* (P1.5t: 0: the pool empty) */
 }
 
 int qd_sound_step(const qd_project_t *pr, int k, int d, int lo)
@@ -122,9 +170,10 @@ int qd_sound_add(qd_project_t *pr, const char *name, const int16_t *patch)
     if (k > QD_NSOUND)
         return 0;
     s = &pr->sound[k - 1];
-    memset(s->name, 0, sizeof s->name);
+    memset(s, 0, sizeof *s);
     strncpy(s->name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
     memcpy(s->patch, patch, sizeof s->patch);
+    s->kind = (uint8_t)qd_preset_kind(patch);
     qd_sound_recount(pr);
     return k;
 }
@@ -219,4 +268,31 @@ void qd_sound_autoname(const int16_t *p, int variant, char *out)
         }
     }
     snprintf(out, QD_SOUND_NAME, "%s", kind);
+}
+
+/* ---------------------------------------------------------------- P1.5t: the seven kinds */
+int qd_preset_kind(const int16_t *p)
+{
+    const int k = qd_sound_kind(p);
+    if (k == QD_SK_KICK || k == QD_SK_SNARE || k == QD_SK_CLAP || k == QD_SK_HAT)
+        return QD_PK_DRUMS;
+    if (k == QD_SK_NOISE)
+        return QD_PK_FX;
+    if (k == QD_SK_PAD)
+        return QD_PK_PAD;
+    if (p[QD_QP_DTUN] >= 8000 || p[QD_QP_FDBK] >= 40)  /* (METAL, FEEDBACK: strongly detuned or fed back) */
+        return QD_PK_FX;
+    switch (k) {
+    case QD_SK_BASS: return QD_PK_BASS;
+    case QD_SK_KEYS:
+    case QD_SK_BELL: return QD_PK_KEYS;
+    case QD_SK_PLUCK: return QD_PK_PLUCK;
+    default: return QD_PK_LEAD;
+    }
+}
+
+const char *qd_preset_kind_name(int pk)
+{
+    static const char *const N[QD_NPK] = {"BASS", "KEYS", "PLUCK", "PAD", "LEAD", "DRUMS", "FX"};
+    return pk >= 0 && pk < QD_NPK ? N[pk] : "";
 }

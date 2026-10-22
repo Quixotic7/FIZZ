@@ -167,6 +167,7 @@ void qd_project_init(qd_project_t *pr)
     for (k = 0; k < QD_NPAT; k++)
         qd_pat_init(&pr->pat[k]);
     qd_sounds_init(pr);
+    pr->pool_empty = 0;
     pr->key_scale = QD_SCALE_CHROMATIC;
     pr->key_root = 0;
     pr->launch = 0;                                     /* (QD_LAUNCH_END) */

@@ -576,7 +576,8 @@ static void g_sound(void)
     CHECK(R(0, 0).sound == 0 && !OV(0, 0, QD_PM_SOUND), "B11: the lock cleared");
     wrel(0);
     turn(QD_K_PRESETS, 2);
-    CHECK(A.model.t[0].sound == 16 && !A.ui.tk_lock, "nothing held: PRESETS = the track's sound (16)");
+    CHECK(A.ui.latch == QD_LATCH_BROWSE && !A.ui.tk_lock, "nothing held: PRESETS opens the library browser (P1.5t)");
+    btap(QD_B_HOME);
 }
 
 static void g_plocks(void)
@@ -1926,7 +1927,9 @@ static void g_plock_track(void)
               A.ui.tk == UI_TK_DECAY && !memcmp(&before, PAT(), offsetof(qd_pattern_t, snd)),
           "KNOB 2: the track's DECAY, live (the pattern untouched)");
     turn(QD_K_PRESETS, 1);
-    CHECK(A.ui.tk == QD_TK_PRESET && !A.ui.tk_lock, "PRESETS: the track's sound");
+    CHECK(A.ui.latch == QD_LATCH_BROWSE && !A.ui.tk_lock, "PRESETS: the library browser (P1.5t)");
+    btap(QD_B_HOME);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "SELECT: the page");
 }
@@ -2511,13 +2514,15 @@ static void g_cursor(void)
     mode(M_VEL);
     shome();
     CHECK(A.ui.view == QD_VIEW_STEPS && !A.ui.slatch, "STEPS, the latch off");
-    snd = A.model.t[0].sound;
+    snd = A.model.t[0].preset;
     turn(QD_K_PRESETS, 1);
-    CHECK(!A.ui.slatch && A.model.t[0].sound == snd + 1 && A.ui.tk == QD_TK_PRESET,
-          "P1.3y: STEPS, PRESETS: the track's preset (%d), the latch untouched", A.model.t[0].sound);
-    turn(QD_K_PRESETS, -1);
+    CHECK(!A.ui.slatch && A.ui.latch == QD_LATCH_BROWSE,
+          "P1.3y: STEPS, PRESETS: the track's preset (P1.5t: the library browser), the latch untouched");
+    btap(QD_B_HOME);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    CHECK(A.ui.view == QD_VIEW_STEPS, "HOME: the browser closed, STEPS still");
     turn(QD_K_ALGO, 1);
-    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 0 && A.model.t[0].sound == snd &&
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 0 && A.model.t[0].preset == snd &&
           qd_view_screen(&A) == QD_SCR_LANE, "ALGORITHM: the latch on, step 1 selected, STEPS stays");
     turn(QD_K_ALGO, 3);
     CHECK(A.ui.nheld == 1 && A.ui.held[0] == 3, "three detents: step 4 (%d)", A.ui.held[0] + 1);
@@ -2556,7 +2561,9 @@ static void g_cursor(void)
     shome();
     CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME twice: the PIANO ROLL");
     turn(QD_K_PRESETS, 1);
-    CHECK(!A.ui.slatch && A.model.t[0].sound == snd + 1, "the PIANO ROLL: PRESETS is the track's sound as before");
+    CHECK(!A.ui.slatch && A.ui.latch == QD_LATCH_BROWSE, "the PIANO ROLL: PRESETS is the browser too");
+    btap(QD_B_HOME);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
     turn(QD_K_ALGO, 1);
     k = A.ui.held[0];
     turn(QD_K_ALGO, 2);
@@ -2597,8 +2604,8 @@ static void g_edit(void)
           "ALGORITHM finely: both follow (%d); its takeover is not drawn over EDIT", h.vel);
     turn(QD_K_PRESETS, 1);
     qd_view_edit(&A, &h, &l);
-    CHECK(h.field == UI_F_SOUND && !h.is_default && A.ui.tk_lock && !qd_view_overlay(&A),
-          "P1.3y: PRESETS, a step held: its sound lock, EDIT's top the sound picture");
+    CHECK(h.field == UI_F_SOUND && !h.is_default && A.ui.tk_lock && qd_view_overlay(&A),
+          "P1.3y: PRESETS, a step held: its sound lock (P1.5t: the pool picker over EDIT, the mock-up's)");
     run(QD_TK_MS + QD_TK_FADE_MS + 5);
     qd_view_edit(&A, &h, &l);
     CHECK(h.field == UI_F_VEL, "a second on: VEL's picture again");
@@ -3110,9 +3117,16 @@ static void g_snd(void)
         ;
     CHECK(k <= A.proj.nsound && qd_sound_patch(&A.proj, k)[QD_QP_DRIVE] == 10, "the pool's WOBBLE (%d): DRIVE 10", k);
     btap(QD_B_SOUND);
-    turn(QD_K_PRESETS, k - A.model.t[0].sound);
-    CHECK(A.model.t[0].sound == k && A.model.t[0].patch[QD_QP_DRIVE] == 10 && qd_snd_open(&A),
-          "the editor, PRESETS: the track's sound WOBBLE, its DRIVE 10 with it");
+    turn(QD_K_PRESETS, 1);                              /* (P1.5t: the browser, then on to WOBBLE, F2) */
+    {
+        int list[QD_BR_LIST], n = qd_br_list(&A, QD_BR_ALL, 0, list), i;
+        for (i = 0; i < n && list[i] != 10; i++)        /* (WOBBLE: factory preset 10, id 11) */
+            ;
+        turn(QD_K_PRESETS, i - A.ui.br.pos);
+    }
+    btap(F2);
+    CHECK(A.model.t[0].preset == 11 && A.model.t[0].patch[QD_QP_DRIVE] == 10 && qd_snd_open(&A),
+          "the editor, PRESETS: the browser, WOBBLE loaded (F2), its DRIVE 10 with it; back in the editor");
     btap(QD_B_SOUND);
 }
 
@@ -5134,50 +5148,291 @@ static void g_p15s_follow(void)
     CHECK(!follow_now() && fh.is_default, "stopped: the default");
 }
 
-/* P1.5s: PRESETS past the pool's end walks on into the LIBRARY (its champagne); the sound kept joins the pool */
-static void g_p15s_library(void)
+/* ================================================================ P1.5t: the sound system (PLAN.md "The sound
+ * system, redesigned"): the library browser, the pool, the step's picker, SAVE PRESET */
+static int br_code(void)                                /* the chosen entry's list code (-1: none) */
+{
+    qd_sound_t s;
+    int c = -1;
+    return qd_br_chosen(&A, &s, &c, 0) ? c : -1;
+}
+static int br_n(void)
+{
+    qd_sound_t s;
+    int n = 0;
+    qd_br_chosen(&A, &s, 0, &n);
+    return n;
+}
+static void g_p15t_browse(void)
+{
+    static qd_tsound_t own, pat0;
+    qd_sound_t s;
+    int list[QD_BR_LIST], n, i, ok;
+    start();
+    run(20);
+    A.model.t[0].patch[QD_QP_HARM] += 300;              /* the track's sound edited */
+    A.model.t[0].edited = 1;
+    run(QD_TK_MS + QD_TK_FADE_MS + 600);
+    qd_track_to_tsound(&A.model.t[0], &own);
+    pat0 = PAT()->snd[0];
+    CHECK(own.edited && !memcmp(&own, &pat0, sizeof own), "(the track's sound edited: its pattern's copy the same)");
+    turn(QD_K_PRESETS, 1);                              /* opens on the track's preset (MARIMBA, 14) */
+    CHECK(A.ui.latch == QD_LATCH_BROWSE && qd_view_screen(&A) == QD_SCR_BROWSE && !A.ui.br.moved &&
+              br_code() == own.preset - 1 && !memcmp(A.model.t[0].patch, own.patch, sizeof own.patch),
+          "PRESETS: the browser, on the track's preset (%d), the track's own sound still", br_code() + 1);
+    turn(QD_K_PRESETS, 1);
+    qd_br_chosen(&A, &s, 0, 0);
+    CHECK(A.ui.br.moved && !memcmp(A.model.t[0].patch, s.patch, sizeof s.patch) && !strcmp(A.model.t[0].sound_name, s.name) &&
+              !memcmp(&PAT()->snd[0], &pat0, sizeof pat0) && A.seq.pv_patch[0] == A.model.t[0].patch,
+          "a detent: the track plays the next (%s); the pattern's copy untouched (the preview apart)", s.name);
+    run(5);
+    CHECK(A.ui.pv_note >= 0, "stopped: a short note");
+    run(400);
+    CHECK(A.ui.pv_note < 0, ".. short (it ends)");
+    turn(QD_K_SELECT, -1);
+    CHECK(A.ui.br.pos == 13 + 1 - 10, "SELECT: ten back (%d)", A.ui.br.pos);
+    btap(F1);
+    CHECK(!A.ui.latch && A.ui.tk == QD_TK_BACK && !memcmp(A.model.t[0].patch, own.patch, sizeof own.patch) &&
+              A.model.t[0].edited && A.model.t[0].preset == own.preset && !strcmp(A.model.t[0].sound_name, own.name) &&
+              !A.seq.pv_patch[0] && !memcmp(&PAT()->snd[0], &pat0, sizeof pat0),
+          "F1: CANCEL: the own sound back exactly (edited, its patch, its name, its preset); BACK");
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, 3);
+    btap(QD_B_HOME);
+    CHECK(!A.ui.latch && !memcmp(A.model.t[0].patch, own.patch, sizeof own.patch) && A.model.t[0].edited,
+          "HOME: a cancel too");
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, 2);
+    btap(QD_B_SOUND);                                   /* EDIT: any other way out is a cancel */
+    CHECK(qd_snd_open(&A) && !memcmp(A.model.t[0].patch, own.patch, sizeof own.patch), "EDIT: a cancel (the editor)");
+    btap(QD_B_HOME);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    run(600);
+    n = qd_undo_count(&A, -1);
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, -3);                             /* MARIMBA - 3: WOBBLE (10), id 11 */
+    btap(F2);
+    CHECK(!A.ui.latch && A.ui.tk == QD_TK_LOADED && A.model.t[0].preset == 11 && !A.model.t[0].edited &&
+              !strcmp(A.model.t[0].sound_name, "WOBBLE") && PAT()->snd[0].preset == 11 && !A.seq.pv_patch[0],
+          "F2: LOAD: WOBBLE onto the track (its preset 11, not edited), its pattern's copy too; LOADED");
+    run(700);
+    CHECK(qd_undo_count(&A, -1) == n + 1, "one undo level");
+    undo_redo(-1);
+    CHECK(!memcmp(A.model.t[0].patch, own.patch, sizeof own.patch) && A.model.t[0].edited && PAT()->snd[0].preset == own.preset,
+          "undo: the own sound back (edited)");
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    turn(QD_K_PRESETS, 1);                              /* the kinds: B2 BASS */
+    black(B2);
+    n = qd_br_list(&A, A.ui.br.src, A.ui.br.kind, list);
+    for (ok = n > 0, i = 0; i < n; i++) {
+        qd_br_entry(&A, list[i], &s);
+        ok &= s.kind == QD_PK_BASS;
+    }
+    CHECK(A.ui.br.kind == 1 + QD_PK_BASS && ok && n == 2, "B2: BASS only (%d: BASS, WOBBLE)", n);
+    black(B7);
+    CHECK(br_n() == 6, "B7: DRUMS (the six)");
+    black(B1);
+    CHECK(br_n() == QD_NFACTORY, "B1: ALL (the factory's 23; no MY presets yet)");
+    black(B9);
+    CHECK(A.ui.br.src == QD_BR_MINE && br_n() == 0 && qd_view_screen(&A) == QD_SCR_BROWSE, "B9: MY PRESETS (none)");
+    black(B9);
+    CHECK(A.ui.br.src == QD_BR_POOL && br_n() == A.proj.nsound, "B9: the POOL (%d)", br_n());
+    black(B9);
+    CHECK(A.ui.br.src == QD_BR_ALL, "B9: ALL again");
+    btap(F1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    turn(QD_K_PRESETS, 1);                              /* the W keys play it (in the track's scale) */
+    kdown(WK(2));
+    run(10);
+    CHECK(sounding(qd_snd_scale_note(&A, 2)), "a W key: its note in the track's scale");
+    kup(WK(2));
+    run(10);
+    btap(QD_B_PLAY);                                    /* playing: the pattern's trigs play the preview */
+    turn(QD_K_PRESETS, 2);
+    CHECK(A.seq.pv_patch[0] == A.model.t[0].patch, "playing: the sequencer plays the chosen");
+    btap(F1);
+    CHECK(!A.seq.pv_patch[0], "cancelled: its own again");
+    btap(QD_B_PLAY);
+}
+
+static void g_p15t_pool(void)
+{
+    int k, n0, s0;
+    start();
+    qd_sounds_clear(&A.proj);                           /* (a new project's pool: empty) */
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, 17 - A.ui.br.pos);               /* KICK (factory 17, id 18) */
+    CHECK(br_code() == 17, "(KICK chosen)");
+    black(B10);
+    CHECK(A.proj.nsound == 1 && !strcmp(A.proj.sound[0].name, "KICK") && A.proj.sound[0].preset == 18 &&
+              A.ui.br.fx == QD_BRFX_IN && A.model.t[0].preset == 18, "B10: + POOL: KICK into the empty pool (not loaded: "
+          "the track still plays the chosen, its own sound apart)");
+    black(B10);
+    CHECK(A.proj.nsound == 1 && A.ui.br.fx == QD_BRFX_THERE, "B10 again: there already, no duplicate (the tray pulses)");
+    for (k = 2; k <= QD_NSOUND; k++) {                  /* the pool full */
+        strcpy(A.proj.sound[k - 1].name, "X");
+        A.proj.sound[k - 1].preset = 0;
+    }
+    qd_sound_recount(&A.proj);
+    turn(QD_K_PRESETS, 1);
+    black(B10);
+    CHECK(A.ui.br.fx == QD_BRFX_FULL && strcmp(A.proj.sound[QD_NSOUND - 1].name, "X") == 0, "the pool full: nothing, "
+          "the tray flashes orange");
+    btap(F1);
+    start();                                            /* - POOL (the demo's pool: 23) */
+    qd_step_on(PAT(), 0, 5);
+    qd_step_set_sound(PAT(), 0, 5, 19);                 /* step 6 locks SNARE */
+    run(600);
+    turn(QD_K_PRESETS, 1);
+    black(B9), black(B9);                               /* the POOL */
+    turn(QD_K_PRESETS, -200);
+    turn(QD_K_PRESETS, 18);                             /* 19: SNARE */
+    CHECK(br_code() == QD_BR_POOL_CODE + 19, "(SNARE chosen in the POOL)");
+    n0 = A.proj.nsound;
+    black(B10);
+    CHECK(A.ui.br.out_armed && qd_sound_used(&A.proj, 19), "B10 on a sound steps use: armed (OUT?), not out yet");
+    black(B10);
+    run(600);
+    CHECK(!qd_sound_used(&A.proj, 19) && !R(0, 5).sound && !OV(0, 5, QD_PM_SOUND) && A.ui.br.fx == QD_BRFX_OUT,
+          "B10 again: out; the step back to the track's sound");
+    turn(QD_K_PRESETS, -200);                           /* INIT (pool 1): no step uses it */
+    s0 = br_code();
+    black(B10);
+    CHECK(s0 == QD_BR_POOL_CODE + 1 && !qd_sound_used(&A.proj, 1), "an unused one: out at once");
+    run(600);
+    undo_redo(-1);
+    CHECK(qd_sound_used(&A.proj, s0 - QD_BR_POOL_CODE), "undo: back");
+    undo_redo(-1);
+    CHECK(qd_sound_used(&A.proj, 19) && R(0, 5).sound == 19, "undo: SNARE back, the step's lock too");
+    (void)n0;
+    btap(QD_B_HOME);
+    start();                                            /* undo of + POOL */
+    qd_sounds_clear(&A.proj);
+    run(600);
+    turn(QD_K_PRESETS, 1);
+    black(B10);
+    run(600);
+    CHECK(A.proj.nsound == 1, "(+ POOL)");
+    undo_redo(-1);
+    CHECK(A.proj.nsound == 0, "undo: the pool empty again");
+    btap(QD_B_HOME);
+}
+
+static void g_p15t_delete(void)
 {
     int16_t p[QD_QUAD_NP];
-    int last, n0, k;
+    int id;
     start();
     qd_quad_preset_patch(3, p);
-    qd_lib_store(&A, 4, "LIBSND", p);
-    qd_quad_preset_patch(5, p);
-    qd_lib_store(&A, 9, "LIBTWO", p);
-    for (last = A.proj.nsound; last > 1 && !qd_sound_used(&A.proj, last); last--)
-        ;
-    qd_track_load_sound(&A.model.t[0], last, qd_sound_name(&A.proj, last), qd_sound_patch(&A.proj, last));
-    run(20);
-    n0 = A.proj.nsound;
+    qd_lib_store(&A, 4, "DARK BASS", p);
+    id = A.per.lib[4].preset;
+    run(600);
     turn(QD_K_PRESETS, 1);
-    CHECK(A.ui.pick_lib == 5 && A.model.t[0].sound == 0 && !strcmp(A.model.t[0].sound_name, "LIBSND") &&
-              A.ui.tk == QD_TK_PRESET,
-          "PRESETS past the pool's last (%d): the LIBRARY's first sound (5, LIBSND) on the track", last);
+    black(B11);
+    CHECK(!A.ui.br.del_armed, "B11 on a factory preset: nothing");
+    black(B9);                                          /* MY PRESETS */
     turn(QD_K_PRESETS, 1);
-    CHECK(A.ui.pick_lib == 10 && !strcmp(A.model.t[0].sound_name, "LIBTWO"), "on: the library's next (10, LIBTWO)");
-    turn(QD_K_PRESETS, -2);
-    CHECK(!A.ui.pick_lib && A.model.t[0].sound == last, "back two: the pool's last again");
-    turn(QD_K_PRESETS, 1);
-    run(QD_TK_MS + QD_TK_FADE_MS + 20);
-    k = A.model.t[0].sound;
-    CHECK(!A.ui.pick_lib && k > 0 && !strcmp(A.proj.sound[k - 1].name, "LIBSND") && A.proj.nsound >= n0,
-          "the picker gone on LIBSND: it joined the pool (%d), the track's source", k);
-    qd_track_load_sound(&A.model.t[0], last, qd_sound_name(&A.proj, last), qd_sound_patch(&A.proj, last));
-    run(20);
-    n0 = qd_pool_free_slot(&A.proj);
+    CHECK(br_code() == QD_BR_MINE_CODE + 4, "(DARK BASS chosen in MY PRESETS)");
+    CHECK(leds().key[BK(B11)] == QD_LED_LIT, "B11 lit on one of MY presets");
+    black(B11);
+    CHECK(A.ui.br.del_armed && A.per.lib[4].name[0], "B11: armed (blinking), still there");
+    black(B11);
+    run(600);
+    CHECK(!A.per.lib[4].name[0] && br_n() == 0, "B11 again: deleted");
+    undo_redo(-1);
+    CHECK(!strcmp(A.per.lib[4].name, "DARK BASS") && A.per.lib[4].preset == id, "undo: back (its id)");
+    btap(QD_B_HOME);
+}
+
+static void g_p15t_picker(void)
+{
+    static uint16_t lcd[QD_W * QD_H];
+    start();
+    qd_sounds_clear(&A.proj);                           /* an empty pool: TRACK only */
+    wtap(4);
+    whold(4);
+    turn(QD_K_PRESETS, 3);
+    qd_app_frame(&A, lcd);
+    CHECK(R(0, 4).sound == 0 && A.ui.tk == QD_TK_PRESET && A.ui.tk_lock, "a step + PRESETS, the pool empty: TRACK "
+          "(no lock)");
+    wrel(4);
+    start();
+    wtap(4);
+    whold(4);
     turn(QD_K_PRESETS, 2);
-    turn(QD_K_PRESETS, -1);
-    CHECK(A.model.t[0].sound == k, "the pool now ends with it: PRESETS walks the pool to it, then the library");
-    turn(QD_K_PRESETS, 2);
-    run(QD_TK_MS + QD_TK_FADE_MS + 20);
-    CHECK(A.model.t[0].sound > 0 && !strcmp(A.proj.sound[A.model.t[0].sound - 1].name, "LIBTWO"), "LIBTWO kept: in the pool");
-    qd_track_load_sound(&A.model.t[0], k, qd_sound_name(&A.proj, k), qd_sound_patch(&A.proj, k));
+    CHECK(R(0, 4).sound == 2 && A.ui.tk_lock, "the demo's pool: TRACK, 1, 2 (EP)");
+    turn(QD_K_PRESETS, -5);
+    CHECK(R(0, 4).sound == 0, "down: TRACK, the lock off");
+    qd_app_frame(&A, lcd);
+    wrel(4);
+    CHECK(R(0, 4).sound == 0 && !A.ui.nheld, "let go: kept");
+}
+
+static void g_p15t_save(void)
+{
+    char nm[QD_SOUND_NAME];
+    int n;
+    start();
+    run(600);
+    qd_sound_autoname(A.model.t[0].patch, 0, nm);
+    btap(QD_B_SAVE);
+    CHECK(A.ui.latch == QD_LATCH_SAVE && qd_view_screen(&A) == QD_SCR_SAVE && A.ui.sv.spark && A.ui.sv.replace < 0 &&
+              !strncmp(A.ui.sv.name, nm, strlen(nm)), "SAVE: SAVE PRESET, a name from the sound (%s)", nm);
+    CHECK(leds().button[QD_B_OCTDN] == QD_LED_LIT && leds().key[BK(B10)] == QD_LED_LIT, "F1 and B10 lit");
+    black(B10);
+    CHECK(A.ui.sv.variant == 1 && strncmp(A.ui.sv.name, nm, strlen(nm)) != 0, "B10: another name (the dice: %.12s)",
+          A.ui.sv.name);
+    turn(QD_K_SELECT, 1);                               /* the first letter on one */
+    turn(QD_K_ALGO, 1);
+    black(B11);                                         /* the second deleted */
+    CHECK(A.ui.sv.naming && A.ui.sv.cur == 1, "SELECT / ALGORITHM / B11: the cells shown, the cursor on 2");
+    memcpy(nm, A.ui.sv.newname, QD_SOUND_NAME);
+    n = qd_undo_count(&A, -1);
+    btap(QD_B_SAVE);
+    run(600);
+    CHECK(!strcmp(A.per.lib[0].name, nm) && A.model.t[0].preset == A.per.lib[0].preset && !A.model.t[0].edited &&
+              A.ui.tk == QD_TK_SAVED && !A.ui.latch, "SAVE again: NEW (%s), the track plays it; SAVED", nm);
+    CHECK(qd_undo_count(&A, -1) == n + 1, "one undo level");
+    undo_redo(-1);
+    CHECK(!A.per.lib[0].name[0], "undo: not saved");
+    undo_redo(1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    A.model.t[0].patch[QD_QP_HARM] = 1200;              /* edited: SAVE offers REPLACE, NEW as "NAME 2" */
+    A.model.t[0].edited = 1;
     run(20);
-    A.ui.pick_lib = 5, A.ui.pick_t = 0;                 /* (the walk on LIBSND again: the pool has it already) */
-    qd_track_load_sound(&A.model.t[0], 0, "LIBSND", A.per.lib[4].patch);
-    n0 = A.proj.nsound;
-    run(10);
-    CHECK(A.model.t[0].sound == k && A.proj.nsound == n0, "a library sound the pool has already: that one, no copy");
+    btap(QD_B_SAVE);
+    CHECK(A.ui.sv.replace == 0 && !strncmp(A.ui.sv.newname, nm, strlen(nm)) && strstr(A.ui.sv.newname, " 2") &&
+              leds().button[QD_B_OCTUP] != QD_LED_OFF + 1, "from one of MY presets, edited: REPLACE offered; NEW as %s",
+          A.ui.sv.newname);
+    btap(F1);
+    CHECK(!A.ui.latch && A.per.lib[0].patch[QD_QP_HARM] != 1200 && !A.per.lib[1].name[0], "F1: cancelled, nothing saved");
+    btap(QD_B_SAVE);
+    btap(F2);
+    run(600);
+    CHECK(A.per.lib[0].patch[QD_QP_HARM] == 1200 && !A.per.lib[1].name[0] && !A.model.t[0].edited &&
+              A.model.t[0].preset == A.per.lib[0].preset, "F2: REPLACED (the same preset), nothing new");
+    A.model.t[0].edited = 1;
+    btap(QD_B_SAVE);
+    btap(QD_B_SAVE);
+    CHECK(A.per.lib[1].name[0] && strstr(A.per.lib[1].name, " 2") && A.model.t[0].preset == A.per.lib[1].preset,
+          "SAVE, SAVE: NEW as %s", A.per.lib[1].name);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+}
+
+static void g_p15t_leds(void)
+{
+    qd_leds_t l;
+    int i, ok;
+    start();
+    turn(QD_K_PRESETS, 1);
+    black(B3);
+    l = leds();
+    for (ok = 1, i = 0; i < 8; i++)
+        ok &= l.key[BK(i)] == (i == 2 ? QD_LED_LIT : QD_LED_DIM);
+    CHECK(ok && l.key[BK(B9)] == QD_LED_LIT && l.key[BK(B10)] == QD_LED_LIT && l.key[BK(B11)] == QD_LED_OFF &&
+              l.button[F1] == QD_LED_LIT && l.button[F2] == QD_LED_LIT,
+          "browsing: the kinds dim (KEYS lit), B9, B10 lit, B11 dark (a factory preset), F1 F2 lit");
     btap(QD_B_HOME);
 }
 
@@ -5258,7 +5513,12 @@ int main(void)
         {"P1.5q: EDIT follows the step playing", g_p15q_follow},
         {"P1.5s: the latch's preview only on a finger or the cursor", g_p15s_preview},
         {"P1.5s: EDIT follows with the latch on, nothing selected; muted", g_p15s_follow},
-        {"P1.5s: PRESETS walks on into the LIBRARY", g_p15s_library},
+        {"P1.5t: the library browser: preview, cancel, load, kinds, sources", g_p15t_browse},
+        {"P1.5t: + POOL, - POOL, undo", g_p15t_pool},
+        {"P1.5t: delete one of MY presets", g_p15t_delete},
+        {"P1.5t: a step + PRESETS: TRACK and the pool", g_p15t_picker},
+        {"P1.5t: SAVE PRESET: NEW, the dice, naming, REPLACE", g_p15t_save},
+        {"P1.5t: the browser's LEDs", g_p15t_leds},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

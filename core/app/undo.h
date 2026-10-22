@@ -27,7 +27,7 @@ extern "C" {
 #define QD_UNDO_LEVELS 8
 #define QD_UNDO_POOL 65536u
 #define QD_UNDO_QUIET_MS 500u
-#define QD_NLIB_UNDO 128               /* (persist.h's QD_NLIB) */
+#define QD_NLIB_UNDO 256               /* (persist.h's QD_NLIB) */
 
 /* what a level was (its glyph on the takeover) */
 enum { QD_UK_EDIT, QD_UK_KNOB, QD_UK_PASTE, QD_UK_CLEAR, QD_UK_REC, QD_UK_SOUNDS, QD_UK_RANDOM, QD_UK_SNAP,

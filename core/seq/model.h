@@ -25,9 +25,10 @@ typedef struct {
     char name[QD_TRACK_NAME];           /* its role: "DRUMS", "BASS", .. */
     /* the sound */
     int16_t patch[QD_QUAD_NP];
-    uint8_t sound;                      /* the pool sound it was loaded from (1 INIT, 2..17 the factory sounds, ..) */
-    uint8_t edited;                     /* the patch differs from that sound's */
+    uint8_t sound;                      /* the pool sound it was loaded from (0: not from the pool) */
+    uint8_t edited;                     /* the patch differs from that sound's (shown as a * after its name) */
     char sound_name[QD_SOUND_NAME];     /* .. its name */
+    uint16_t preset;                    /* P1.5t: the preset it came from (sounds.h: 1..23 factory, MINE ids; 0 none) */
     /* the mix */
     qd_mix_track_t mix;
     /* the voices (PLAN.md §2) */
@@ -45,15 +46,17 @@ typedef struct {
 void qd_model_init(qd_model_t *m);
 void qd_model_bind(qd_model_t *m);      /* the owners' pointers (after a load) */
 void qd_model_tempo(qd_model_t *m, int bpm);
-/* the track's sound: factory sound k (0 INIT, 1..16; pool sound k + 1), edited 0; the voices sounding keep theirs */
+/* the track's sound: FM TONE's factory sound k (0 INIT, 1..16: preset id k + 1), edited 0; the voices sounding keep
+ * theirs */
 void qd_track_load_preset(qd_track_t *t, int k);
-/* P1.3e: track i's starting sound (the default kit's: its pool number) and the track back on it (a SOUND default's
+/* P1.3e: track i's starting sound (the default kit's: its preset id) and the track back on it (a SOUND default's
  * reset) */
 int qd_track_start_sound(int i);
 void qd_track_reset_sound(qd_track_t *t, int i);
-/* the track's sound: pool sound k (its name, its patch), edited 0 */
+/* the track's sound: pool sound k (0: none; its name, its patch), edited 0 (P1.5t: its preset id apart) */
 void qd_track_load_sound(qd_track_t *t, int k, const char *name, const int16_t *patch);
 const char *qd_track_sound_name(const qd_track_t *t);   /* the sound's name */
+const char *qd_track_sound_label(const qd_track_t *t);  /* P1.5t: .. with " *" when edited (a static buffer) */
 /* P1.5a: the track's sound to and from its pattern's copy (pattern.h qd_tsound_t) */
 void qd_track_to_tsound(const qd_track_t *t, qd_tsound_t *s);
 void qd_track_from_tsound(qd_track_t *t, const qd_tsound_t *s);

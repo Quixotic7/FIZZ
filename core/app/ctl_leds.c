@@ -115,6 +115,14 @@ static void leds_lib(const qd_app_t *a, qd_leds_t *out)
         out->key[QD_WHITE_KEY[i]] = QD_LED_OFF;
     for (i = 0; i < 11; i++)
         out->key[QD_BLACK_KEY[i]] = QD_LED_OFF;
+    if (u->latch == QD_LATCH_BROWSE) {                  /* P1.5t: the kinds, the source, + / - POOL, delete */
+        qd_br_leds(a, out->key);
+        return;
+    }
+    if (u->latch == QD_LATCH_SAVE) {
+        qd_sv_leds(a, out->key);
+        return;
+    }
     if (u->latch == QD_LATCH_NAME) {
         out->key[QD_BLACK_KEY[9]] = QD_LED_LIT;
         out->key[QD_BLACK_KEY[10]] = QD_LED_DIM;
@@ -129,25 +137,6 @@ static void leds_lib(const qd_app_t *a, qd_leds_t *out)
                                           : a->per.pexists[i] ? QD_LED_DIM : QD_LED_FAINT;
             out->key[QD_BLACK_KEY[10]] = u->pj.b11_down ? QD_LED_LIT : QD_LED_DIM;
         }
-        return;
-    }
-    {
-        const qd_libui_t *l = &u->lb;
-        const int bank = l->chosen / 16;
-        for (i = 0; i < 16; i++) {
-            const int slot = bank * 16 + i;
-            uint8_t lv = qd_lib_sound(a, l->tab, slot)->name[0] ? QD_LED_DIM : QD_LED_OFF;
-            if (slot == l->chosen)
-                lv = (l->storing || l->armed) && !blink(a, QD_BLINK_MS) ? QD_LED_OFF : QD_LED_LIT;
-            if ((l->f1_down && slot == l->f1_src) || (l->f2_down && slot == l->f2_pick))
-                lv = blink(a, QD_FAST_MS) ? QD_LED_LIT : QD_LED_DIM;
-            out->key[QD_WHITE_KEY[i]] = lv;
-        }
-        for (i = 0; i < 8; i++)
-            out->key[QD_BLACK_KEY[i]] = i == bank ? QD_LED_LIT : QD_LED_DIM;
-        out->key[QD_BLACK_KEY[8]] = QD_LED_LIT;
-        out->key[QD_BLACK_KEY[9]] = QD_LED_LIT;
-        out->key[QD_BLACK_KEY[10]] = l->b11_down ? QD_LED_LIT : QD_LED_DIM;
     }
 }
 
@@ -345,12 +334,13 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_OCTDN] = QD_LED_LIT;
         out->button[QD_B_OCTUP] = qd_latch_cur(a)->confirm ? QD_LED_LIT : QD_LED_OFF;
     }
-    if (u->latch == QD_LATCH_LIB) {                     /* P1.5a: SAVE lit (blinking while storing / armed), F2
-                                                         * blinking with the pool's offer */
-        out->button[QD_B_SAVE] = (u->lb.storing || u->lb.armed) && !blink(a, QD_BLINK_MS) ? QD_LED_DIM : QD_LED_LIT;
-        out->button[QD_B_OCTUP] = u->lb.offer ? (blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF)
-                                              : u->lb.f2_down ? QD_LED_LIT : QD_LED_DIM;
-        out->button[QD_B_OCTDN] = u->lb.f1_down ? QD_LED_LIT : QD_LED_DIM;
+    if (u->latch == QD_LATCH_BROWSE) {                  /* P1.5t: F1 (cancel) and F2 (load) lit */
+        out->button[QD_B_OCTDN] = QD_LED_LIT;
+        out->button[QD_B_OCTUP] = QD_LED_LIT;
+    } else if (u->latch == QD_LATCH_SAVE) {             /* .. SAVE blinking (NEW), F1 lit, F2 blinking with REPLACE */
+        out->button[QD_B_SAVE] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_DIM;
+        out->button[QD_B_OCTDN] = QD_LED_LIT;
+        out->button[QD_B_OCTUP] = u->sv.replace >= 0 ? (blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF) : QD_LED_OFF;
     } else if (u->latch == QD_LATCH_PRJ) {
         out->button[QD_B_MIX] = QD_LED_LIT;
         out->button[QD_B_OCTUP] = u->pj.page == 1 && u->pj.chosen != a->per.proj

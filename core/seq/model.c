@@ -24,7 +24,8 @@ void qd_track_load_preset(qd_track_t *t, int k)
 {
     k = k < 0 ? 0 : k >= QD_QUAD_NPRESET ? QD_QUAD_NPRESET - 1 : k;
     qd_quad_preset_patch(k, t->patch);
-    t->sound = (uint8_t)(k + 1);
+    t->sound = 0;
+    t->preset = (uint16_t)(k + 1);
     t->edited = 0;
     memset(t->sound_name, 0, sizeof t->sound_name);
     strncpy(t->sound_name, qd_quad_preset_name(k), sizeof t->sound_name - 1);
@@ -41,12 +42,23 @@ void qd_track_load_sound(qd_track_t *t, int k, const char *name, const int16_t *
 
 const char *qd_track_sound_name(const qd_track_t *t) { return t->sound_name; }
 
+const char *qd_track_sound_label(const qd_track_t *t)
+{
+    static char b[QD_SOUND_NAME + 3];
+    size_t n = strlen(t->sound_name);
+    memcpy(b, t->sound_name, n);
+    if (t->edited)
+        b[n++] = ' ', b[n++] = '*';
+    b[n] = 0;
+    return b;
+}
+
 void qd_tsound_default(int t, qd_tsound_t *s)
 {
     const int k = QD_TRACK_DEF[t < 0 ? 0 : t >= QD_NTRACK ? QD_NTRACK - 1 : t].preset;
     memset(s, 0, sizeof *s);
     qd_quad_preset_patch(k, s->patch);
-    s->sound = (uint8_t)(k + 1);
+    s->preset = (uint16_t)(k + 1);
     strncpy(s->name, qd_quad_preset_name(k), sizeof s->name - 1);
 }
 
@@ -57,6 +69,7 @@ void qd_track_to_tsound(const qd_track_t *t, qd_tsound_t *s)
     s->sound = t->sound;
     s->edited = t->edited;
     memcpy(s->name, t->sound_name, sizeof s->name);
+    s->preset = t->preset;
 }
 
 void qd_track_from_tsound(qd_track_t *t, const qd_tsound_t *s)
@@ -65,6 +78,7 @@ void qd_track_from_tsound(qd_track_t *t, const qd_tsound_t *s)
     t->sound = s->sound;
     t->edited = s->edited;
     memcpy(t->sound_name, s->name, sizeof t->sound_name);
+    t->preset = s->preset;
 }
 
 int qd_track_start_sound(int i) { return QD_TRACK_DEF[i < 0 ? 0 : i >= QD_NTRACK ? QD_NTRACK - 1 : i].preset + 1; }

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' P1.5s part: EDIT at power-on; EDIT following PLAY with the step latch on and nothing selected; PRESETS
- * walking past the pool into the LIBRARY; into OUT/p15s-*.png and OUT/p15s-sheet.png */
+/* render_frames' P1.5s part: EDIT at power-on; EDIT following PLAY with the step latch on and nothing selected; into
+ * OUT/p15s-*.png and OUT/p15s-sheet.png (P1.5s's walk from the pool into the LIBRARY gave way to P1.5t's browser:
+ * render_p15t) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -159,17 +160,9 @@ static void key_tap(int k)
     qd_app_key(&A, k, 0, 0);
     run(30);
 }
-static void turn(int k, int d)
-{
-    A.ui.knob_ms[k] = 0;
-    qd_app_knob(&A, k, d);
-    run(5);
-}
 int render_p15s(const char *out)
 {
     qd_pattern_t *P;
-    int16_t p[QD_QUAD_NP];
-    int i, last;
     outdir = out;
     nshot = 0;
     failed = 0;
@@ -195,35 +188,9 @@ int render_p15s(const char *out)
     shot("follow-2", "a moment later", 0);
     btap(QD_B_PLAY);
     run(200);
-    btap(QD_B_HOME);
-    A.ui.view = QD_VIEW_ROLL;                           /* the LIBRARY on PRESETS */
-    qd_quad_preset_patch(3, p);
-    qd_lib_store(&A, 4, "CHAPPET DL", p);
-    qd_quad_preset_patch(9, p);
-    qd_lib_store(&A, 9, "GRUMLIG JM", p);
-    for (last = A.proj.nsound; last > 1 && !qd_sound_used(&A.proj, last); last--)
-        ;
-    qd_track_load_sound(&A.model.t[0], last, qd_sound_name(&A.proj, last), qd_sound_patch(&A.proj, last));
     run(200);
-    turn(QD_K_PRESETS, -1);
-    run(10);
-    turn(QD_K_PRESETS, 1);
-    run(300);
-    shot("pool-last", "PRESETS: the pool's last sound", 0);
-    turn(QD_K_PRESETS, 1);
-    run(300);
-    shot("lib-first", "on past it: the LIBRARY (champagne), its first sound", 0);
-    turn(QD_K_PRESETS, 1);
-    run(300);
-    shot("lib-next", "the library's next", 0);
-    for (i = 0; i < 2000; i += 10)
-        run(10);
-    turn(QD_K_PRESETS, 1);
-    run(300);
-    shot("joined", "GRUMLIG JM kept: it joined the pool (024); on past it: the library again", 0);
-    run(2000);
     (void)P;
     if (!failed)
-        sheet_as("p15s-sheet.png", "FIZZ P1.5s: EDIT the default, following with the latch on, PRESETS into the LIBRARY (1.5x)");
+        sheet_as("p15s-sheet.png", "FIZZ P1.5s: EDIT the default, following with the latch on (1.5x)");
     return failed;
 }

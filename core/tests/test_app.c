@@ -182,23 +182,26 @@ static void t_presets(void)
         if (qd_pool_sounding(&A.pool, i))
             v = i;
     memcpy(before, A.model.t[0].patch, sizeof before);
-    qd_app_knob(&A, QD_K_PRESETS, 2);                   /* MARIMBA (pool 14) -> FEEDBACK (16) */
+    qd_app_knob(&A, QD_K_PRESETS, 1);                   /* P1.5t: the library browser, on MARIMBA (preset 14) .. */
+    run(300, 0);                                        /* (no acceleration) */
+    qd_app_knob(&A, QD_K_PRESETS, 2);                   /* .. -> FEEDBACK (16), the track plays it */
     run(10, 0);
-    CHECK(A.model.t[0].sound == 16 && !strcmp(qd_track_sound_name(&A.model.t[0]), "FEEDBACK") && A.ui.tk == QD_TK_PRESET,
-          "PRESETS +2: track 1's sound %d (%s), picker %d", A.model.t[0].sound, qd_track_sound_name(&A.model.t[0]), A.ui.tk);
+    CHECK(A.ui.latch == QD_LATCH_BROWSE && A.model.t[0].preset == 16 &&
+              !strcmp(qd_track_sound_name(&A.model.t[0]), "FEEDBACK"),
+          "PRESETS: the browser; +2: track 1 plays %d (%s)", A.model.t[0].preset, qd_track_sound_name(&A.model.t[0]));
     CHECK(v >= 0 && !memcmp(A.pool.v[v].q.patch, before, sizeof before), "the sounding voice keeps its patch");
     qd_app_knob(&A, QD_K_PRESETS, 40);
-    CHECK(A.model.t[0].sound == A.proj.nsound && !strcmp(qd_track_sound_name(&A.model.t[0]), "OPEN HAT"),
-          "PRESETS clamps at the pool's last sound");
+    CHECK(!strcmp(qd_track_sound_name(&A.model.t[0]), "OPEN HAT"), "PRESETS clamps at the last preset");
     qd_app_knob(&A, QD_K_PRESETS, -60);
-    CHECK(A.model.t[0].sound == 1 && !strcmp(qd_track_sound_name(&A.model.t[0]), "INIT"), "PRESETS clamps at INIT");
-    run(1100, 0);
-    CHECK(A.ui.tk == QD_TK_PRESET, "the picker still up 1.1 s after the last detent (its fade)");
-    run(30, 0);
-    CHECK(A.ui.tk == QD_TK_NONE, "the picker gone 1.13 s after the last detent");
+    CHECK(!strcmp(qd_track_sound_name(&A.model.t[0]), "INIT"), "PRESETS clamps at INIT");
+    qd_app_button(&A, QD_B_OCTDN, 1);
+    run(20, 0);
+    qd_app_button(&A, QD_B_OCTDN, 0);
+    run(20, 0);
+    CHECK(!A.ui.latch && A.ui.mode == QD_MODE_KEYS && !memcmp(A.model.t[0].patch, before, sizeof before) &&
+              A.ui.tk == QD_TK_BACK, "F1: cancelled, its own sound back, the keyboard again");
     qd_app_key(&A, 7, 0, 0);
-    printf("  presets: PRESETS steps the pool, INIT .. OPEN HAT (clamped); the picker leaves 1.12 s after; voices keep "
-           "theirs\n");
+    printf("  presets: PRESETS browses the library, INIT .. OPEN HAT (clamped); F1 back; voices keep theirs\n");
 }
 
 static void t_screens(void)

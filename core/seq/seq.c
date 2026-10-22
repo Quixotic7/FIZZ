@@ -370,7 +370,8 @@ static void fill_rec(const qd_seq_t *s, qd_trec_t *r, int t, int step, const qd_
         r->at.own[0] = r->at.own[1] = 0xFFFFFFFFu;
         r->at.own[2] = (1u << (QD_QUAD_NP - 64)) - 1u;
     } else {
-        memcpy(r->patch, P->snd[t].patch, sizeof r->patch);   /* (P1.5a: its pattern's track sound) */
+        memcpy(r->patch, s->pv_patch[t] ? s->pv_patch[t] : P->snd[t].patch, sizeof r->patch);   /* (P1.5a: its
+                                                         * pattern's track sound; P1.5t: the browser's preview) */
     }
     r->nlk = 0;
     for (k = 0; k < n; k++) {
@@ -1080,6 +1081,23 @@ void qd_seq_live_patch(qd_seq_t *s, int t, int id, int value)
         qd_trec_t *r = &s->rec[i];
         if (r->used && r->track == t && !((r->at.own[id >> 5] >> (id & 31)) & 1u))
             r->patch[id] = (int16_t)value;
+    }
+}
+
+void qd_seq_preview(qd_seq_t *s, int t, const int16_t *patch)
+{
+    int i, k;
+    if (t < 0 || t >= QD_PAT_NTRACK)
+        return;
+    s->pv_patch[t] = patch;
+    for (i = 0; i < QD_SEQ_NREC; i++) {
+        qd_trec_t *r = &s->rec[i];
+        if (!r->used || r->track != t || r->sound)
+            continue;
+        memcpy(r->patch, patch ? patch : s->proj->pat[r->pat].snd[t].patch, sizeof r->patch);
+        for (k = 0; k < r->nlk; k++)
+            if (r->lk_id[k] < QD_QUAD_NP)
+                r->patch[r->lk_id[k]] = r->lk_v[k];
     }
 }
 

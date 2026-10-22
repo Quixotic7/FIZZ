@@ -184,6 +184,8 @@ typedef struct {
     int heard_step[QD_PAT_NTRACK];
     int64_t heard_g[QD_PAT_NTRACK];
     uint64_t heard_sample[QD_PAT_NTRACK];
+    /* P1.5t: a track's sound heard instead of its pattern's (the library browser's preview; 0: none) */
+    const int16_t *pv_patch[QD_PAT_NTRACK];
     /* the queue */
     qd_sev_t ev[QD_SEQ_NEV];
     int nev;
@@ -248,6 +250,9 @@ const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t);   /* the pattern
 
 /* a live edit of track t's sound reaches the trigs resolved and waiting too (their values not their own) */
 void qd_seq_live_patch(qd_seq_t *s, int t, int id, int value);
+/* P1.5t: track t's trigs (those with no sound lock) play patch instead of the pattern's track sound (0: back to it);
+ * the trigs already resolved follow at once (their locks kept) */
+void qd_seq_preview(qd_seq_t *s, int t, const int16_t *patch);
 
 /* P1.3d: the record step `step` of pattern `pat` on track t would have if it were resolved now (its sound lock or the
  * track's sound, its p-locks over it, the own mask, the mix locks): the stopped preview's (player.h). Reads only: the

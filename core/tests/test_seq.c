@@ -2953,9 +2953,10 @@ static void u_sounds(void)
         CHECK(sn[QD_QP_FTYPE] == QD_QF_LP12 && sn[QD_QP_LEVEL] == 120 && hat[QD_QP_FTYPE] == init[QD_QP_FTYPE] &&
                   hat[QD_QP_FREQ] == 9500, "SNARE: NOISE-ISH through LP12, LEVEL 120; HAT: NOISE-ISH's own filter type");
     }
+    qd_quad_preset_patch(0, init);
     CHECK(!strcmp(qd_sound_name(&PROJ, 0), "") && !strcmp(qd_sound_name(&PROJ, 24), "") &&
-              qd_sound_patch(&PROJ, 0) == qd_sound_patch(&PROJ, 1) && qd_sound_patch(&PROJ, 99) == PROJ.sound[0].patch,
-          "out of the pool: no name, INIT's patch");
+              !memcmp(qd_sound_patch(&PROJ, 0), init, sizeof init) && !memcmp(qd_sound_patch(&PROJ, 99), init, sizeof init),
+          "out of the pool: no name, INIT's patch (P1.5t: INIT's own, the pool's slot 1 may be anything)");
     qd_quad_preset_patch(3, want);
     k = qd_sound_add(&PROJ, "A NAME TOO LONG", want);
     CHECK(k == 24 && PROJ.nsound == 24 && !strcmp(qd_sound_name(&PROJ, 24), "A NAME TOO L") &&

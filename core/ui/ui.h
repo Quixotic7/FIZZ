@@ -163,14 +163,9 @@ typedef struct {
 } ui_fx_t;
 void ui_fx_draw(const ui_fx_t *v);
 
-/* ---- P1.5a (ui_lib.c, built through ui_layer.c; mockups/fizz-save-pool.html): THE SOUNDS PAGE (LIBRARY champagne,
- * POOL SOUND's lime): the tabs and the bank's dots, the chosen sound on top (its number, its name big, who uses it), a
- * bank's sixteen tiles (the amp envelope as a silhouette in the colour of its kind, the name); storing (a slot
- * dashed and blinking, the sound flying in in the track's colour, a sparkle by a name from the sound), armed (orange,
- * the old and the new silhouettes in turn), stored (it fizzes; the pool's tray blinks), a sound held (the cassette
- * and its wave), copy and pick-up (the tile lifted), delete (its users orange, it fizzes away), onto the track (a bar
- * in the track's colour). THE NAME EDITOR: twelve cells, the letter drum, the dice. THE PROJECT: its number and name,
- * the 64 patterns (bubbles off one when written), the flash and the pool in use; THE PROJECTS: eight tiles */
+/* ---- P1.5a (ui_lib.c, built through ui_layer.c; mockups/fizz-save-pool.html): THE NAME EDITOR: twelve cells, the
+ * letter drum, the dice. THE PROJECT: its number and name, the 64 patterns (bubbles off one when written), the flash
+ * and the pool in use; THE PROJECTS: eight tiles. (P1.5t: the sounds page's grid is gone: ui_presets.c) */
 #define UI_LIB_COL 0xf3d9a4u
 #define UI_POOL_COL 0xb5e853u
 #define UI_PAD_COL 0x9664ffu
@@ -179,29 +174,57 @@ typedef struct {
     int used, kind;                     /* (sounds.h QD_SK_*) */
     float env[4];                       /* the amp envelope: attack, decay, sustain, release (0..1) */
 } ui_libtile_t;
+/* ---- P1.5t (ui_presets.c, built through ui_layer.c; mockups/fizz-presets.html): THE LIBRARY BROWSER (PRESETS,
+ * MY PRESETS, POOL), the step's pool picker (STEP n . SOUND, TRACK first), SAVE PRESET, and the LOADED / BACK / SAVED
+ * takeovers. A preset as a cassette: its amp envelope in its kind's colour, its name big, a star (one of MY presets)
+ * or an arrow (imported), a lime tray (in this project's pool); its neighbours above and below; a bar for where in
+ * the list */
+extern const qd_rgb UI_PK_COL[7];       /* the kinds' colours: BASS KEYS PLUCK PAD LEAD DRUMS FX */
 typedef struct {
-    int tab, bank;                      /* 0 the LIBRARY, 1 the POOL; the bank 0..7 */
-    ui_libtile_t tile[16];
-    int chosen;                         /* its tile (0..15) */
-    int cnum;                           /* its number, 1..128 */
-    ui_libtile_t c;                     /* the chosen sound */
-    uint8_t utracks;                    /* the pool: the tracks whose sound it is (bit t) .. */
-    int usteps;                         /* .. the steps that lock it */
-    int track;                          /* the selected track, 1..8 */
-    const char *track_name;
-    int storing, spark, armed, offer;
-    ui_libtile_t s;                     /* the sound being stored (its name from the sound) */
-    int lift, lift_kind;                /* a tile lifted (-1): 1 copied, 2 picked up */
-    int armed_tile;                     /* a paste armed onto this tile (-1) */
-    int fx_kind, fx_tile;               /* an animation: 1 stored, 2 added, 3 deleted, 4 onto the track, 5 moved */
-    float fx_u;                         /* .. its progress 0..1 */
-    ui_libtile_t del;                   /* .. the sound deleted */
-    uint8_t del_tracks;
-    int del_steps;
-    int aud;                            /* a sound held: the cassette and its wave */
+    int ok;                             /* an entry here (0: none) */
+    int track;                          /* (the pool picker's first) TRACK: no lock */
+    const char *name;
+    int kind;                           /* QD_PK_* */
+    float env[4];                       /* the amp envelope (0..1) */
+    int mine, imported, in_pool;
+} ui_preset_t;
+typedef struct {
+    int picker;                         /* 0 the browser, 1 the step's pool picker */
+    const char *title;                  /* "PRESETS", "MY PRESETS", "POOL"; the picker "STEP 5 . SOUND" */
+    qd_rgb tcol;
+    int chip;                           /* the kind filter's chip (1 + QD_PK_*; 0 none) */
+    int track;                          /* 1..8 (the head's box) */
+    int pos, n;                         /* "7/31" (n 0: the list empty) */
+    ui_preset_t e[5];                   /* the chosen (e[2]) and two either side */
+    qd_rgb col;                         /* the cassette's colour (the library's, the pool's; armed: orange) */
+    int pool;                           /* the POOL source: who uses it at the foot (B10 takes it out) */
+    uint8_t users;                      /* .. the tracks (bit t) .. */
+    int usteps;                         /* .. the steps */
+    int out_armed, del_armed;           /* B10 / B11 armed (OUT?; the cassette blinking) */
+    int fx;                             /* + POOL's animation (ctl.h QD_BRFX_*), its progress, the pool's count */
+    float fx_u;
+    int pool_n;
+    float sound;                        /* 0..1 after a detent: its envelope lights along (it sounds) */
+    float roll;                         /* 1 at a detent .. 0, its direction */
+    int dir;
     float t;
-} ui_lib_t;
-void ui_lib_draw(const ui_lib_t *v);
+} ui_browse_t;
+void ui_browse_draw(const ui_browse_t *v);
+typedef struct {
+    int track;
+    char name[16];                      /* twelve cells */
+    ui_preset_t s;                      /* the sound (its envelope, its kind) */
+    int spark, naming, cur;             /* a name from the sound; the cells shown; the cursor */
+    int replace;                        /* REPLACE offered (F2) .. */
+    const char *newname;                /* .. NEW then saves as this */
+    float roll;                         /* the letter drum (0..1 after a turn), its direction */
+    int roll_dir;
+    float t;
+} ui_save_t;
+void ui_save_draw(const ui_save_t *v);
+enum { UI_PFX_LOADED, UI_PFX_BACK, UI_PFX_SAVED };
+/* the takeovers: LOADED (s onto the track), BACK (own back, s the one left), SAVED (s into MY PRESETS); u 0..1 */
+void ui_pfx_draw(int kind, const ui_preset_t *s, const ui_preset_t *own, int track, float u, float t);
 typedef struct {
     char buf[16];                       /* twelve cells */
     int cur;

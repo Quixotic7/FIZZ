@@ -932,8 +932,17 @@ void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
         case UI_F_TRIG: qd_tdef_set(p, t, QD_PM_TRIG, clampi(df->type + d, QD_TRIG_NOTE, QD_TRIG_TIE)); break;
         case UI_F_SOUND: {                              /* the track's own sound, from the pool */
             qd_track_t *tr = &a->model.t[t];
-            const int k = clampi((int)tr->sound + d, 1, a->proj.nsound);
+            int k0 = tr->sound, k;
+            if (!a->proj.nsound)
+                return;                                 /* (P1.5t: the pool empty: nothing) */
+            if (!k0)                                    /* (P1.5t: not from the pool: from the pool's sound of its
+                                                         * preset) */
+                for (k = 1; k <= a->proj.nsound && !k0; k++)
+                    if (qd_sound_used(&a->proj, k) && tr->preset && a->proj.sound[k - 1].preset == tr->preset)
+                        k0 = k;
+            k = qd_sound_step(&a->proj, k0 ? k0 : 1, k0 ? d : d - (d > 0), 1);
             qd_track_load_sound(tr, k, qd_sound_name(&a->proj, k), qd_sound_patch(&a->proj, k));
+            tr->preset = a->proj.sound[k - 1].preset;
             break;
         }
         default:
@@ -1076,7 +1085,7 @@ int qd_step_default_initial(const qd_app_t *a, int m)
     case UI_F_TRIG: return d->type == z.type;
     case UI_F_SOUND: {
         const qd_track_t *t = &a->model.t[a->sel];
-        return t->sound == qd_track_start_sound(a->sel) && !t->edited;
+        return t->preset == qd_track_start_sound(a->sel) && !t->edited;
     }
     default: return 1;
     }

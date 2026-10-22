@@ -1,9 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* render_frames' P1.5a part: the sounds page (SAVE: storing the track's sound, stored, into the pool, browsing, a sound
- * held, armed onto a sound, the pool, onto the track, the name editor, copy, pick up, delete) and the project pages
- * (SEQ tapped), from real states on a RAM flash, in the order of mockups/fizz-save-pool.html's fourteen screens; into
- * OUT/p15a-*.png and OUT/p15a-sheet.png, each beside the mock-up's screen (MOCKS/fizz-save-pool-NN.png, made by
- * mockups/render_png.py sp-1 .. sp-14) */
+/* render_frames' P1.5a part: the project pages (SEQ tapped), from real states on a RAM flash, mockups/fizz-save-pool.html's
+ * screens 13 and 14 (P1.5t: its sounds page, screens 1..12, is gone: render_p15t.c); into OUT/p15a-*.png and
+ * OUT/p15a-sheet.png, each beside the mock-up's screen (MOCKS/fizz-save-pool-NN.png, mockups/render_png.py sp-13, 14) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -85,13 +83,6 @@ static void btap(int b)
     bup(b);
     run(20);
 }
-static void black(int b)
-{
-    qd_app_key(&A, BK(b), 1, 100);
-    run(20);
-    qd_app_key(&A, BK(b), 0, 0);
-    run(10);
-}
 static void wtap(int w)
 {
     qd_app_key(&A, WK(w), 1, 100);
@@ -128,17 +119,17 @@ static void sheet(void)
     plutovg_canvas_fill(c);
     plutovg_canvas_set_font(c, f, 18.f);
     plutovg_canvas_set_rgb(c, 0.9f, 0.9f, 0.9f);
-    plutovg_canvas_fill_text(c, "FIZZ P1.5a: the library, the pool, the project: the mock-up (left) and FIZZ (right), 1.5x",
+    plutovg_canvas_fill_text(c, "FIZZ P1.5a: the project pages: the mock-up (left) and FIZZ (right), 1.5x",
                              -1, PLUTOVG_TEXT_ENCODING_UTF8, (float)pad, 32.f);
     for (i = 0; i < nshot; i++) {
         const float x = (float)(pad + (i % 2) * 2 * (cell + pad)), y = (float)(50 + (i / 2) * (cell_h + pad));
         plutovg_surface_t *m, *o;
         char cap[160];
-        snprintf(path, sizeof path, "%s/fizz-save-pool-%02d.png", mockdir, i + 1);
+        snprintf(path, sizeof path, "%s/fizz-save-pool-%02d.png", mockdir, i + 13);   /* (P1.5t: 13, 14) */
         m = plutovg_surface_load_from_image_file(path);
         snprintf(path, sizeof path, "%s/%s", outdir, shots[i].file);
         o = plutovg_surface_load_from_image_file(path);
-        snprintf(cap, sizeof cap, "%d  %s", i + 1, shots[i].caption);
+        snprintf(cap, sizeof cap, "%d  %s", i + 13, shots[i].caption);
         plutovg_canvas_set_font_size(c, 13.f);
         plutovg_canvas_set_rgb(c, 0.85f, 0.85f, 0.85f);
         plutovg_canvas_fill_text(c, cap, -1, PLUTOVG_TEXT_ENCODING_UTF8, x, y + 20.f);
@@ -207,75 +198,8 @@ int render_p15a(const char *out, const char *mocks)
     A.model.t[3].patch[QD_QP_HARM] = 600;
     run(100);
 
-    btap(QD_B_SAVE);                                    /* 1 SAVE: storing */
-    run(1400);
-    shot("store", "SAVE tapped: store the track's sound");
-    btap(QD_B_SAVE);                                    /* 2 stored, F2 offered */
-    run(300);
-    shot("stored", "SAVE again: stored; F2 adds it to the pool");
-    btap(QD_B_OCTUP);                                   /* 3 into the pool */
-    run(250);
-    shot("to-pool", "F2: into the project's pool");
-    black(8);                                           /* 4 the library, W3 */
-    black(0);
-    wtap(2);
-    run(100);
-    shot("browse", "Browsing: W chooses and plays once");
-    qd_app_key(&A, WK(2), 1, 100);                      /* 5 held: audition */
-    run(700);
-    shot("audition", "A white key held: audition");
-    qd_app_key(&A, WK(2), 0, 0);
-    run(30);
-    btap(QD_B_SAVE);                                    /* 6 SAVE onto a sound: armed */
-    wtap(1);
-    btap(QD_B_SAVE);
-    run(150);
-    shot("armed", "SAVE onto a sound: it blinks, SAVE again replaces it");
-    black(4);                                           /* (cancelled) */
-    black(8);                                           /* 7 the pool, SOFT KEYS (24) with its users */
-    black(1);
-    wtap(7);
-    A.model.t[3].sound = 24;
-    run(700);
-    shot("pool", "B9: the project's pool (SOFT KEYS: track 4, six steps)");
-    wtap(9);                                            /* 8 F2: TINE onto track 4 */
-    run(700);
-    btap(QD_B_OCTUP);
-    run(200);
-    shot("to-track", "F2 in the pool: onto the track");
-    run(800);
-    black(9);                                           /* 9 the name editor */
-    qd_app_knob(&A, QD_K_ALGO, 2);
-    run(20);
-    qd_app_knob(&A, QD_K_SELECT, 1);
-    run(60);
-    shot("name", "B10: naming");
-    btap(QD_B_OCTDN);
-    bdown(QD_B_OCTDN);                                  /* 10 F1 + W: copied (lifted) */
-    run(20);
-    wtap(4);
-    run(100);
-    wtap(12);                                           /* (pasted: GHOST 2) */
-    run(120);
-    shot("copy", "F1 + W: copy (the tile lifted), another W pastes");
-    bup(QD_B_OCTDN);
-    run(150);
-    bdown(QD_B_OCTUP);                                  /* 11 F2 + W: picked up */
-    run(20);
-    wtap(9);
-    run(100);
-    shot("move", "F2 + W: pick up, another W drops (a sound: a swap)");
-    wtap(2);
-    bup(QD_B_OCTUP);
-    run(300);
-    qd_app_key(&A, BK(10), 1, 100);                     /* 12 B11 + W: delete (the users orange) */
-    run(20);
-    wtap(7);
-    qd_app_key(&A, BK(10), 0, 0);
-    run(60);
-    shot("delete", "B11 + W: delete (its users orange, then it fizzes)");
-    run(1000);
-    btap(QD_B_HOME);
+    /* (P1.5t: the sounds page's twelve screens are gone with it: render_p15t.c draws the library browser and SAVE
+     * PRESET beside mockups/fizz-presets.html; the project pages stay, the mock-up's 13 and 14) */
     for (k = 0; k < 12; k++)                            /* 13 the project: patterns in use, one just written */
         A.proj.pat[k == 9 ? 32 : k].used = 1;
     A.proj.pat[A.seq.cur].step[0][3].vel = 77;

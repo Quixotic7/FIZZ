@@ -168,6 +168,9 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TK_HELDKNOB 102             /* P1.3d: a knob turned with a step held: the band over the held step's screen */
 #define QD_TK_UNDO 104                 /* P1.5c: SHIFT + F1 / F2: UNDO / REDO, what it was */
 #define QD_TK_IMPORT 105               /* P1.5r: a sound imported over SysEx: its cassette, "imported" */
+#define QD_TK_LOADED 106               /* P1.5t: the browser's F2: the preset onto the track, "LOADED" */
+#define QD_TK_BACK 107                 /* .. its F1 / HOME: the track's own sound back, "BACK" */
+#define QD_TK_SAVED 108                /* .. SAVE PRESET done: into MY presets, "SAVED" */
 #define QD_TK_LMODE 103                /* P1.5b: the latch mode's screen (P1.5h: only while LFO is held: lmode_open) */
 #define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
 enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes */
@@ -191,9 +194,10 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
        QD_LATCH_TRK,                    /* P1.4b: SEL tapped: the track settings (ctl_mix.c) */
        QD_LATCH_MIX,                    /* P1.4b: ENV (printed) = MIX: the faders, again the sends */
        QD_LATCH_FX,                     /* P1.4b: FX (printed) tapped: the effects */
-       QD_LATCH_LIB,                    /* P1.5a: SAVE: the sounds page (the LIBRARY, the POOL; ctl_lib.c) */
-       QD_LATCH_NAME,                   /* P1.5a: B10 there: the name editor */
+       QD_LATCH_BROWSE,                 /* P1.5t: PRESETS, nothing held: the library browser (ctl_presets.c) */
+       QD_LATCH_NAME,                   /* P1.5a: the name editor (a project's name) */
        QD_LATCH_PRJ,                    /* P1.5a: SEQ tapped: the project, the projects */
+       QD_LATCH_SAVE,                   /* P1.5t: SAVE: SAVE PRESET, the track's sound into MY presets */
        QD_NLATCH };
 #define QD_LATCH_MENU(l) ((l) == QD_LATCH_REC || (l) == QD_LATCH_SET || (l) == QD_LATCH_TRK)   /* a settings menu:
                                                          * its own screen, KNOB 1..4 */
@@ -238,35 +242,41 @@ typedef struct qd_latch {
 
 #define QD_NROLL 32
 
-/* P1.5a (ctl_lib.c): the sounds page's, the name editor's and the project pages' state */
+/* P1.5t (ctl_presets.c; PLAN.md "The sound system, redesigned", mockups/fizz-presets.html): the library browser and
+ * SAVE PRESET */
+enum { QD_BR_ALL, QD_BR_MINE, QD_BR_POOL, QD_NBRSRC };   /* the browser's source (B9: ALL -> MINE -> POOL -> ALL) */
+enum { QD_BRFX_NONE, QD_BRFX_IN, QD_BRFX_THERE, QD_BRFX_FULL, QD_BRFX_OUT };   /* + POOL: in, already there (the tray
+                                                         * pulses), full (it flashes orange); - POOL: out */
+#define QD_BR_LIST (QD_NFACTORY + QD_NLIB)               /* the longest list (ALL) */
+#define QD_BR_MINE_CODE 1000            /* a list entry: 0.. a factory preset, QD_BR_MINE_CODE + its place a MY preset, */
+#define QD_BR_POOL_CODE 2000            /* .. QD_BR_POOL_CODE + its number a pool sound */
 typedef struct {
-    int tab;                           /* 0 the LIBRARY, 1 the POOL */
-    int chosen;                        /* the slot (0..127; the pool's number - 1) */
-    int storing;                       /* SAVE opened it: the selected track's sound to store into chosen .. */
-    char sname[QD_SOUND_NAME];         /* .. under this name (from the sound: spark) */
-    int spark, namevar;
-    int armed;                         /* SAVE onto a sound: SAVE again replaces it */
-    int offer;                         /* stored: F2 adds it to the pool */
-    int w_down;                        /* a W down (1 + its index) .. */
-    uint32_t w_ms;
-    int aud;                           /* .. held: heard while held, on the screen */
-    int pv_on, pv_track;               /* a sound heard */
-    uint32_t pv_ms;
-    int f1_down, f1_src, f1_tab, f1_armed;   /* F1 + W: copied from (tab, slot), a paste armed onto a sound */
-    int f2_down, f2_pick;              /* F2 + W: picked up */
-    int oct_used;                      /* bit 0 F1, 1 F2: used with a W (their release is no tap) */
-    int b11_down, b11_used;            /* B11 + W: delete */
-    uint8_t del_tracks;                /* .. what it took (its users flash) */
-    int del_steps, del_kind;
-    char del_name[QD_SOUND_NAME];
-    int fx_kind, fx_slot;              /* an animation: 1 stored, 2 added (or pasted), 3 deleted, 4 onto the track, 5
-                                        * moved */
+    int src, kind;                     /* the list: QD_BR_*, 0 every kind or 1 + QD_PK_* (B1..B8) */
+    int pos;                           /* the chosen entry's place in it */
+    int moved;                         /* turned since it opened: the track plays the chosen (before: its own sound) */
+    int t;                             /* the track it browses for */
+    qd_tsound_t own;                   /* the track's own sound when it opened: back to it on a cancel */
+    int ret_mode, ret_latch;           /* where it came from (F1 / F2 go back there; HOME to the view) */
+    int del_armed, out_armed;          /* B11 on one of MY presets / B10 on a pool sound steps use: armed once */
+    int fx, fx_k;                      /* an animation (QD_BRFX_*), the pool's count then */
     uint32_t fx_ms;
-} qd_libui_t;
+    uint32_t move_ms;                  /* the last detent (its envelope lights along, the list rolls) .. */
+    int move_dir;                      /* .. its direction */
+} qd_brui_t;
+typedef struct {
+    char name[QD_SOUND_NAME];          /* twelve cells (spaces), the end */
+    int spark;                         /* a name made from the sound (the sparkle) */
+    int variant, cur, naming;          /* B10's dice, the cursor, the cells shown (SELECT / ALGORITHM turned) */
+    int replace;                       /* the MY preset the track's sound came from (its place; -1 none): F2 replaces */
+    char newname[QD_SOUND_NAME];       /* .. NEW then saves under this ("DARK BASS 2") */
+    uint32_t roll_ms;                  /* the letter drum turned (its roll) */
+    int roll_dir;
+    int ret_mode;
+} qd_saveui_t;
 typedef struct {
     char buf[QD_SOUND_NAME];           /* twelve cells (spaces), the end */
     int cur, variant;
-    int target, proj;                  /* 0 the chosen sound, 1 the name being stored, 2 project proj */
+    int target, proj;                  /* 2: project proj (P1.5t: the only one; SAVE PRESET names its own) */
     int ret;                           /* the latch it came from */
     uint32_t roll_ms;                  /* the letter drum turned (its roll) */
     int roll_dir;
@@ -404,8 +414,10 @@ typedef struct {
     uint32_t knob_ms[8];               /* P1.5b: each knob's last detent (acceleration) .. */
     int knob_dir[8];                   /* .. its direction */
     uint32_t knob_dt;                  /* .. the time since it for the turn now (QD_ACC_SLOW_MS and up: none) */
-    qd_libui_t lb;                     /* P1.5a: the sounds page */
-    qd_nameui_t nm;                    /* .. the name editor */
+    qd_brui_t br;                      /* P1.5t: the library browser */
+    qd_saveui_t sv;                    /* .. SAVE PRESET */
+    qd_sound_t tk_snd, tk_snd2;        /* .. the takeovers' sounds (LOADED: the preset; BACK: the own, the one left) */
+    qd_nameui_t nm;                    /* P1.5a: the name editor (a project's) */
     qd_prjui_t pj;                     /* .. the project pages */
     uint32_t seq_ms;                   /* P1.5a: SEQ went down (its map after QD_TAP_MS, or once used) .. */
     int seq_used;                      /* .. a key or a knob used it (its release is no tap) */
@@ -558,17 +570,35 @@ int qd_mix_knob(struct qd_app *a, int knob, int d);
 int qd_fx_knob(struct qd_app *a, int knob, int d);
 void qd_panel_leds(const struct qd_app *a, uint8_t *black);
 
-/* ---- ctl_lib.c (P1.5a, built through ctl_latch.c): the sounds page, the name editor, the project pages */
+/* ---- ctl_lib.c (P1.5a, built through ctl_latch.c): the pages over the step view: the library browser and SAVE
+ * PRESET (P1.5t, ctl_presets.c), the name editor, the project pages; their keys, knobs, OCT keys and clock */
 int qd_lib_open(const struct qd_app *a);         /* one of them open */
 void qd_lib_save(struct qd_app *a);              /* SAVE */
 void qd_prj_button(struct qd_app *a);            /* SEQ tapped */
 void qd_lib_back(struct qd_app *a);
 void qd_name_open(struct qd_app *a, int target, int proj);
-void qd_lib_key(struct qd_app *a, int w, int b, int down);
+void qd_lib_key(struct qd_app *a, int key, int w, int b, int down, int vel);
 int qd_lib_knob(struct qd_app *a, int knob, int d);
 int qd_lib_oct(struct qd_app *a, int d, int down);   /* 1 taken */
 void qd_lib_ms(struct qd_app *a);
-const qd_sound_t *qd_lib_sound(const struct qd_app *a, int tab, int slot);
+/* ---- ctl_presets.c (P1.5t): the library browser, SAVE PRESET */
+void qd_br_turn(struct qd_app *a, int d);        /* PRESETS, nothing held: the browser opened / moved */
+void qd_br_cancel(struct qd_app *a);             /* the track's own sound back, the browser closed */
+void qd_br_home(struct qd_app *a);               /* .. by HOME (to the view) */
+void qd_br_load(struct qd_app *a);               /* the chosen onto the track, the browser closed */
+void qd_br_sync(struct qd_app *a);               /* (the pattern's sounds reloaded under it: its preview again) */
+int qd_br_list(const struct qd_app *a, int src, int kind, int *out);   /* the list's entries (QD_BR_*_CODE), count */
+int qd_br_entry(const struct qd_app *a, int code, qd_sound_t *s);   /* an entry's sound (with its preset id); 1 ok */
+int qd_br_chosen(const struct qd_app *a, qd_sound_t *s, int *code, int *n);   /* the chosen (0: the list empty) */
+void qd_br_key(struct qd_app *a, int key, int w, int b, int down, int vel);
+int qd_br_knob(struct qd_app *a, int knob, int d);
+void qd_br_leds(const struct qd_app *a, uint8_t *key);
+void qd_sv_open(struct qd_app *a);               /* SAVE: SAVE PRESET (again: saved as NEW) */
+void qd_sv_new(struct qd_app *a);
+void qd_sv_replace(struct qd_app *a);
+void qd_sv_key(struct qd_app *a, int b, int down);
+int qd_sv_knob(struct qd_app *a, int knob, int d);
+void qd_sv_leds(const struct qd_app *a, uint8_t *key);
 void qd_ctl_set_mode(struct qd_app *a, int mode);
 int qd_ctl_black(int key);             /* the black key 0..10 of a note key, or -1 */
 int qd_ctl_knob_job(int mode, int knob);
@@ -668,7 +698,8 @@ enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR
        QD_SCR_MENU,                    /* P1.3y: a settings menu (the record settings, the global settings) */
        QD_SCR_SOUND,                   /* P1.4a: the sound editor */
        QD_SCR_MIX, QD_SCR_FX,          /* P1.4b: the mix, the effects */
-       QD_SCR_LIB, QD_SCR_NAME, QD_SCR_PRJ };   /* P1.5a: the sounds page, the name editor, the project pages */
+       QD_SCR_BROWSE, QD_SCR_NAME, QD_SCR_PRJ,   /* P1.5t: the library browser; P1.5a: the name editor, the projects */
+       QD_SCR_SAVE };                  /* P1.5t: SAVE PRESET */
 /* P1.3r: a knob's takeover (band, picture, picker) drawn over the screen now: never over EDIT, whose top is the pop-up */
 int qd_view_overlay(const struct qd_app *a);
 struct ui_snd;

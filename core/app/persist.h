@@ -29,14 +29,14 @@ extern "C" {
 struct qd_app;
 
 #define QD_NPROJ 8
-#define QD_NLIB 128
+#define QD_NLIB 256                    /* P1.5t: MY presets (was the LIBRARY's 128) */
 #define QD_PROJ_NAME 13
 #define QD_SAVE_DEBOUNCE_MS 1500u      /* §7: written a moment after the last edit */
 #define QD_SAVE_LOOK_MS 50u            /* how often the app looks for changes */
 #define QD_QUIET_MS 10000u             /* §7 rule 1: erases (GC, blank sectors ahead) after this long untouched, stopped,
                                         * nothing sounding (ChoralRoot's ST_AHEAD_IDLE_MS) */
 #define QD_FLASH_LIB 0x000000u
-#define QD_FLASH_LIB_SEC 32
+#define QD_FLASH_LIB_SEC 32            /* (256 presets of about 120 bytes: a quarter of it) */
 #define QD_FLASH_PRJ 0x020000u
 #define QD_FLASH_PRJ_SEC 224
 /* the keys: kind << 24 | project << 16 | index */
@@ -51,7 +51,7 @@ typedef struct {
     int on;                            /* a flash attached */
     qd_store_t lib_st, prj_st;
     qd_flash_t fl;
-    qd_sound_t lib[QD_NLIB];           /* the LIBRARY (name[0] 0: an empty slot) */
+    qd_sound_t lib[QD_NLIB];           /* MY presets, the library's (name[0] 0: an empty place; .preset its own id) */
     char pname[QD_NPROJ][QD_PROJ_NAME];   /* the projects' names */
     uint8_t pexists[QD_NPROJ];
     int proj;                          /* the project worked on, 0..7 */
@@ -82,22 +82,32 @@ int qd_proj_copy(struct qd_app *a, int from, int to);
 int qd_proj_delete(struct qd_app *a, int p);
 void qd_proj_name(struct qd_app *a, int p, const char *name);
 
-/* the POOL (the project's, slots 1..128; INIT, slot 1, stays): the first free slot (0 none); add (into the first free:
- * its number, 0 full); move / swap a and b (every step's sound lock and every track's source in all 64 patterns
- * follow); copy a onto b; delete (the steps locking it go back to their track's sound; the tracks keep their copy) */
+/* the POOL (the project's, slots 1..128; P1.5t: a new project's starts empty, slot 1 is no different): the first free
+ * slot (0 none); add (into the first free: its number, 0 full; add_sound keeps the preset it came from); move / swap a
+ * and b (every step's sound lock and every track's source in all 64 patterns follow); copy a onto b; delete (the steps
+ * locking it go back to their track's sound; the tracks keep their copy); its users (the selected pattern's tracks and
+ * steps; P1.5t: users_all, every pattern's steps) */
 int qd_pool_free_slot(const qd_project_t *pr);
 int qd_pool_add(struct qd_app *a, const char *name, const int16_t *patch);
+int qd_pool_add_sound(struct qd_app *a, const qd_sound_t *s);
+int qd_pool_find(const struct qd_app *a, const qd_sound_t *s);   /* P1.5t: the pool sound that is s (its preset, or its
+                                                                  * name and patch), 0 none */
+int qd_pool_users_all(const struct qd_app *a, int k, uint8_t *tracks);   /* steps locking it in all patterns */
 int qd_pool_swap(struct qd_app *a, int x, int y);
 int qd_pool_copy(struct qd_app *a, int from, int to);
 int qd_pool_delete(struct qd_app *a, int k);
 int qd_pool_users(const struct qd_app *a, int k, uint8_t *tracks, int *steps);   /* tracks: bit t; 1 used */
 
-/* the LIBRARY (slots 0..127): store a sound (its name), copy, swap, delete; the first free slot (-1 none) */
+/* MY PRESETS (the library's, places 0..255; P1.5t): store a new preset (its name, a new id, its kind read; flags
+ * QD_SNDF_*), replace one (its id kept), delete; the first free place (-1 none); a place by its preset id (-1 none); a
+ * preset by its id (factory or mine: 1 found) */
 int qd_lib_free_slot(const struct qd_app *a);
 int qd_lib_store(struct qd_app *a, int slot, const char *name, const int16_t *patch);
-int qd_lib_copy(struct qd_app *a, int from, int to);
-int qd_lib_swap(struct qd_app *a, int x, int y);
+int qd_lib_store_ex(struct qd_app *a, int slot, const char *name, const int16_t *patch, int flags);
+int qd_lib_replace(struct qd_app *a, int slot, const char *name, const int16_t *patch);
 int qd_lib_delete(struct qd_app *a, int slot);
+int qd_lib_find(const struct qd_app *a, int id);
+int qd_preset_get(const struct qd_app *a, int id, qd_sound_t *out);
 
 #ifdef __cplusplus
 }

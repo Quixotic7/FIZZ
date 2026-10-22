@@ -20,6 +20,7 @@
 #include "ui.h"
 
 static void f3_close(qd_app_t *a) { a->ui.f3_anchor = -1; }
+static void br_closed(qd_app_t *a);                     /* (ctl_presets.c) */
 static void snd_close(qd_app_t *a) { a->ui.ekeys = 0, a->ui.snd_lk = 0; }   /* (P1.5b: the editor's keyboard ends with it) */
 
 static const qd_latch_t LATCHES[QD_NLATCH] = {
@@ -30,9 +31,10 @@ static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_TRK] = {"TRACK", "BACK", 0, 0, 0, 0},    /* P1.4b: the track settings (ctl_mix.c) */
     [QD_LATCH_MIX] = {"MIX", "BACK", 0, 0, 0, 0},      /* P1.4b: the mix */
     [QD_LATCH_FX] = {"FX", "BACK", 0, 0, 0, 0},        /* P1.4b: the effects */
-    [QD_LATCH_LIB] = {"SOUNDS", "BACK", 0, 0, 0, 0},   /* P1.5a: the sounds page (ctl_lib.c) */
+    [QD_LATCH_BROWSE] = {"PRESETS", "CANCEL", "LOAD", 0, 0, br_closed},   /* P1.5t: the library browser */
     [QD_LATCH_NAME] = {"NAME", "BACK", 0, 0, 0, 0},    /* P1.5a: the name editor */
     [QD_LATCH_PRJ] = {"PROJECT", "BACK", 0, 0, 0, 0}, /* P1.5a: the project pages */
+    [QD_LATCH_SAVE] = {"SAVE PRESET", "CANCEL", "REPLACE", 0, 0, 0},   /* P1.5t: SAVE PRESET */
 };
 
 const qd_latch_t *qd_latch_cur(const qd_app_t *a)
@@ -86,5 +88,6 @@ int qd_latch_oct(qd_app_t *a, int d)
 #include "../seq/sounds.h"
 #include <stdio.h>
 #include <string.h>
+#include "ctl_presets.c"
 #include "ctl_lib.c"
 #include "ctl_shift.c"

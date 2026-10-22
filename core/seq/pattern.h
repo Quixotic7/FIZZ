@@ -191,6 +191,7 @@ typedef struct {
     uint8_t sound;                      /* the pool number it came from (0: none, a copy) */
     uint8_t edited;                     /* changed since */
     char name[QD_SOUND_NAME];
+    uint16_t preset;                    /* P1.5t: the preset it came from (sounds.h QD_PRESET_*; 0 none) */
 } qd_tsound_t;
 void qd_tsound_default(int t, qd_tsound_t *s);   /* track t's sound in a new pattern: the default kit's (model.c) */
 
@@ -210,10 +211,14 @@ typedef struct {
     qd_tsound_t snd[QD_PAT_NTRACK];     /* P1.5a: the tracks' sounds */
 } qd_pattern_t;
 
-/* a sound of the pool: an FM TONE patch and its name */
+/* a sound of the pool (or a preset of the library's MINE): an FM TONE patch and its name; P1.5t: the preset it came
+ * from (a pool sound; a MY preset: its own id), its kind (sounds.h QD_PK_*), its flags (QD_SNDF_*) */
+#define QD_SNDF_IMPORTED 0x01           /* a MY preset that came in (SysEx, a dropped .dnsnd), not saved here */
 typedef struct {
     char name[QD_SOUND_NAME];
     int16_t patch[QD_QUAD_NP];
+    uint16_t preset;
+    uint8_t kind, flags;
 } qd_sound_t;
 
 typedef struct {
@@ -226,6 +231,8 @@ typedef struct {
     uint8_t rec_mode;                   /* what holding REC arms: 0 LIVE, 1 STEP */
     uint8_t rec_quant;                  /* live recording's quantize, 0..100 % (100: on the step, the micro-timing gone) */
     uint8_t rec_dub;                    /* 0 REPLACE (a step recorded into is cleared first), 1 OVERDUB (the notes join) */
+    uint8_t pool_empty;                 /* P1.5t: its pool started empty (a new project's; 0.6's and the demo's: the old
+                                         * starting pool) */
     uint8_t rec_ekeys;                  /* P1.5b: the keyboard in the sound editor: 0 SCALE (W the scale, B the pages), 1
                                          * FULL (every key as the keyboard; the pages on SELECT) */
 } qd_project_t;
