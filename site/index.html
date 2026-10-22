@@ -1,0 +1,55 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FIZZ · preview</title>
+<meta name="description" content="FIZZ, an FM TONE step sequencer for the M-VAVE FM-1, in preview: play it in the browser with the on-screen panel, or with your own FM-1 running RemoteFM1. Feedback welcome.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Ccircle cx='13' cy='18' r='8' fill='none' stroke='%2328E1FF' stroke-width='2.5'/%3E%3Ccircle cx='23.5' cy='8.5' r='4' fill='none' stroke='%23FF3CA0' stroke-width='2.2'/%3E%3Ccircle cx='24' cy='22' r='2.4' fill='none' stroke='%23FFD23F' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preload" href="fonts/InterTight-VF-latin.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+<header id="top">
+  <a class="logo" href="./" aria-label="FIZZ, home">
+    <svg class="bubbles" viewBox="0 0 32 32" aria-hidden="true"><circle cx="13" cy="18" r="8"/><circle cx="23.5" cy="8.5" r="4"/><circle cx="24" cy="22" r="2.4"/></svg>
+    <b class="wordmark">FIZZ</b>
+  </a>
+  <div class="tagline">
+    <span class="pitch">An FM TONE step sequencer for the M-VAVE FM-1</span>
+    <span class="preview"><i></i>Preview: feedback welcome <span class="ver" data-version></span></span>
+  </div>
+  <span id="status" role="status"></span>
+  <nav>
+    <button id="fm1-btn" class="fm1-btn" aria-haspopup="dialog" aria-expanded="false" hidden><span class="fm1-dot off"></span><span class="fm1-label">Connect FM-1</span><span class="fm1-short">FM-1</span><span class="fm1-via" hidden></span></button>
+    <button id="dn-btn" class="nav-btn" aria-haspopup="dialog" aria-expanded="false" title="Load Elektron Digitone sounds (.dnsnd) into FIZZ: read in this browser, nothing is uploaded"><span class="long">Digitone sounds</span><span class="short">.dnsnd</span></button>
+    <a href="guide.html" class="nav-link">Guide</a>
+    <a data-feedback class="nav-link feedback" href="https://github.com/Quixotic7/FIZZ/issues/new?template=feedback.yml" target="_blank" rel="noopener">Feedback</a>
+    <button id="menu-btn" class="icon-btn menu" aria-label="Settings" title="Settings"></button>
+  </nav>
+</header>
+<main id="stage" tabindex="-1">
+  <div id="screen-wrap" hidden><canvas id="screen" aria-label="FIZZ's screen"></canvas></div>
+  <div id="device-wrap"><canvas id="device" aria-label="The FM-1 running FIZZ: click or touch its keys, buttons and knobs"></canvas></div>
+  <button id="corner" aria-label="Settings" title="Settings"></button>
+  <div id="start" hidden>
+    <div class="start-row">
+      <button id="start-btn"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2v9.6L12.6 8z"/></svg><span>Play <b>FIZZ</b></span></button>
+      <button id="start-fm1" class="start-fm1"><span class="fm1-dot off"></span><span>Play on my FM-1</span></button>
+    </div>
+    <p id="start-fm1-note" class="start-note" hidden></p>
+    <p>Sound starts with a click. Steps <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> &hellip; &middot; <kbd>-</kbd> PLAY &middot; <a href="guide.html">the guide</a></p>
+    <p class="start-small">An FM-1 as the panel needs <a href="https://quixotic7.github.io/RemoteFM1/installer/" target="_blank" rel="noopener">RemoteFM1 installed</a> (Chrome or Edge).</p>
+  </div>
+  <div id="offer" class="offer" role="alertdialog" aria-labelledby="offer-text" hidden>
+    <span id="offer-text"></span>
+    <span class="offer-btns"><button id="offer-yes" class="pill primary">Bring them</button><button id="offer-no" class="pill ghost">Start fresh</button></span>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</main>
+<noscript><p style="color:#ddd;padding:24px">FIZZ's preview needs JavaScript.</p></noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

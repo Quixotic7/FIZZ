@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# FIZZ's preview site on GitHub Pages: publishes site/ as it is in the tree. Nothing is compiled here: fizz.wasm and
+# the RemoteFM1 module are built locally and committed (site/README.md).
+#
+# Pages must be set once by the owner: Settings > Pages > Build and deployment > Source: "GitHub Actions".
+name: Pages
+
+on:
+  push:
+    branches: [master]
+    paths: ["site/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check the site (the committed wasm boots, sounds and keeps its flash in Node)
+        run: |
+          test -s site/fizz.wasm && test -s site/fizz.json && test -s site/remote/remotefm1.mjs
+          node -e 'const j=require("./site/fizz.json"); const n=require("fs").statSync("site/fizz.wasm").size; if (j.bytes !== n) { console.error(`fizz.json says ${j.bytes} bytes, fizz.wasm is ${n}`); process.exit(1); } console.log(`FIZZ ${j.version} (${j.commit.slice(0, 7)}), ${n} bytes`)'
+          node site/tools/test_engine.mjs
+          echo "FIZZ $(node -p 'require("./site/fizz.json").version')" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Assemble
+        run: |
+          mkdir _site
+          # the published files: the pages, their scripts and styles, the engine, the font, the wasm (not the build
+          # scripts, the tests or the build folder)
+          cp -R site/index.html site/guide.html site/fizz.wasm site/fizz.json site/css site/js site/worklet site/fonts site/remote _site/
+          mkdir _site/engine && cp site/engine/engine.js _site/engine/
+          cp LICENSE _site/LICENSE.txt
+          touch _site/.nojekyll
+          find _site -type f | sort
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
