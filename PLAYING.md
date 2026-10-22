@@ -579,7 +579,7 @@ DECAY, HARM and FDBK.
   | **B2** | OPERATORS | RATIO (KNOB 1 RATIO C, KNOB 2 RATIO A, KNOB 3 **RATIO B**, KNOB 4 **MIX**; **ALGORITHM the algorithm**), TONE (HARM, DTUNE, FDBK, **MIX**: the same MIX as RATIO's, P1.5n), OFFSET (the four offsets) |
   | **B3** | OP ENVELOPES | ENV A, ENV B (attack, decay, end, level; ALGORITHM the delay) |
   | **B4** | FILTERS | FILTER (FREQ, KNOB 2 and 3 by the machine, DEPTH; **ALGORITHM the MACHINE**), F ENV (attack, decay, sustain, release; ALGORITHM the delay), BASE (BASE, WIDTH, KTRK, **ROUTE**: the base-width before or after the filter) |
-  | **B5** | AMP / FX | AMP (attack, decay, sustain, release; **ALGORITHM the MODE**, ADSR / AHD: in AHD attack, **HOLD**, decay), LEVEL (LEVEL, **DRIVE**, **ROUTE**) |
+  | **B5** | AMP / FX | AMP (attack, decay, sustain, release; **ALGORITHM the MODE**, ADSR / AHD: in AHD attack, **HOLD**, decay), LEVEL (LEVEL, **DRIVE**, **ROUTE**), **CRUSH** (BITS, SRR, ROUTE) |
   | **B6 / B7 / B8** | LFO 1 / 2 / 3 | the LFO's page (SPEED, MULT, DEPTH, **DEST**), its WAVE page (WAVE, PHASE, TRIG, FADE) |
 
   Every value of the sound is on exactly one page.
@@ -666,6 +666,11 @@ DECAY, HARM and FDBK.
   - The picture draws each machine's response; the filter envelope, DEPTH, key tracking and the base-width work with
     every machine. Changing the machine on a playing note takes a short dip (no click). BASE's KNOB 4 **ROUTE** puts
     the base-width filter before (as before) or after the machine.
+- **CRUSH** (B5, CRUSH page, 0.8.2), the Digitone II's bit and sample-rate reduction, in each voice (a step can lock
+  it): **BITS** (OFF, then 16 bits down to 1: the steps get taller), **SRR** (OFF, then the sample rate divided by up
+  to 64: each value held longer, aliasing on purpose), **ROUTE** after the filter (as the Digitone's default) or
+  before it. The picture is a sine as stairs, as wide as SRR's hold and as tall as BITS' step, and the FILTER / CRUSH
+  chain in ROUTE's order. Both OFF: the sound as before.
 - **AHD** (B5, AMP page, ALGORITHM = MODE, 0.8.0): **attack, hold, decay** to silence, the Digitone II's other amp
   envelope. HOLD is a time (the gate does nothing: one-shot, for drums and plucks), or **NOTE** (127): held while the
   key is down, then DEC is the release. DEC INF holds for ever. Switching the MODE while a note plays carries on from

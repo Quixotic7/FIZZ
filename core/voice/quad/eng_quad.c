@@ -413,6 +413,7 @@ static void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k);
 static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int32_t *acc, uint32_t n,
                              const quad_svf_t *c, int32_t kd, int32_t cut, int32_t reso, int32_t *ic1, int32_t *ic2);
 static void quad_ext_bw_post(quad_voice_t *s, int32_t *acc, uint32_t n, int32_t hpk, int32_t lpk);
+static void quad_ext_crush(voice_t *v, const int16_t *p, int32_t *acc, uint32_t n);
 /* QUADRILLE (c): no quad_vs (the state is in the voice: voice_t.qstate) and no quad_tr (no part index) */
 
 static void quad_init_patch(int16_t *p)
@@ -1464,6 +1465,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
      * and its output fades in over the block; switched out: its last block fades out to the input */
     if (p[QD_QP_DRPRE])                          /* QUADRILLE (e), hook 2: DRIVE before the filter */
         quad_ext_drive_pre(t, v, acc, n);
+    if ((p[QD_QP_BITS] || p[QD_QP_SRR]) && !p[QD_QP_CRPOST])   /* QUADRILLE (e), hook 5: CRUSH before the filter */
+        quad_ext_crush(v, p, acc, n);
     if ((fon | fon0) & 1u) {
         int32_t ic1 = s->f1, ic2 = s->f2, ic3 = s->f3, ic4 = s->f4;
         uint32_t sw = (fon ^ fon0) & 1u;
@@ -1510,6 +1513,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     }
     if (p[QD_QP_BWPOST])                         /* QUADRILLE (e), hook 4 */
         quad_ext_bw_post(s, acc, n, bwh, bwl);
+    if ((p[QD_QP_BITS] || p[QD_QP_SRR]) && p[QD_QP_CRPOST])    /* QUADRILLE (e), hook 5: CRUSH after it */
+        quad_ext_crush(v, p, acc, n);
     /* the amplitude, into the part at the engine's output scale: >> 12, 6 dB under the >> 11 of before 2026-10-16. At
      * the Digitone's levels (VOL 100 .. 127: INIT's 110, a .dnsnd import's own) a sound was 6 dB over the other
      * engines' (tests/va_levels.c loud / dnsnd; docs/QUAD.md "Level"); the factory presets' LEVELs went up by the same

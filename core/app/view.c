@@ -1473,6 +1473,9 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->pv[0] = pp[QD_QP_FTYPE];
         v->pv[1] = pp[QD_QP_FSHAPE];
         v->pv[2] = pp[QD_QP_FGAIN];
+    } else if (pg->draw == UI_SD_CRUSH) {              /* E3: the step's width, its height (BITS' bits) */
+        v->pv[0] = pp[QD_QP_SRR] ? (int)(4294967296.0 / (double)qd_quad_srr_inc(pp[QD_QP_SRR]) + 0.5) : 0;
+        v->pv[1] = pp[QD_QP_BITS] ? qd_quad_crush_bits(pp[QD_QP_BITS]) : 0;
     } else if (pg->draw == UI_SD_BAND) {               /* E2: BWPOST */
         v->pv[0] = pp[QD_QP_BWPOST];
     } else if (pg->draw == UI_SD_LFOSHAPE) {

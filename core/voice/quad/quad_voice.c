@@ -93,6 +93,9 @@ int qd_quad_ext_used(const int16_t *p)
     return 0;
 }
 
+uint32_t qd_quad_srr_inc(int srr) { return QE_SRR_INC[srr < 0 ? 0 : srr > 127 ? 127 : srr]; }
+int qd_quad_crush_bits(int bits) { return qe_crush_bits(bits); }
+
 /* ---------------------------------------------------------------- the owner --- */
 void qd_quad_owner_init(qd_quad_owner_t *o)
 {
@@ -137,6 +140,7 @@ void qd_quad_voice_start(qd_quad_voice_t *v, const int16_t *patch, qd_quad_owner
         v->env = v->env_out = 0;
         memset(&v->dpre, 0, sizeof v->dpre);            /* (E1: DRIVE PRE from rest) */
         v->comb.fresh = 1;                              /* (E2: the machines from rest) */
+        memset(&v->crush, 0, sizeof v->crush);          /* (E3: CRUSH from rest) */
     }
     song.g[G_BPM] = o->bpm;
     quad_note_on(o, v);
@@ -364,6 +368,16 @@ const char *qd_quad_value_text(int i, int v, char *buf)
             return strcpy(buf, r.names[v - r.min]);
         if (i == QD_QP_HOLD && v >= 127)
             return strcpy(buf, "NOTE");
+        if ((i == QD_QP_BITS || i == QD_QP_SRR) && v <= 0)   /* (E3: CRUSH: OFF; BITS its bits, SRR its divider) */
+            return strcpy(buf, "OFF");
+        if (i == QD_QP_BITS) {
+            snprintf(buf, 12, "%d", qe_crush_bits(v));
+            return buf;
+        }
+        if (i == QD_QP_SRR) {
+            snprintf(buf, 12, "/%.1f", 4294967296.0 / (double)QE_SRR_INC[v & 127]);
+            return buf;
+        }
         if (i >= QD_QP_MOD0 && (i - QD_QP_MOD0) % 3 == QD_QM_DST)
             return strcpy(buf, v >= 0 && v < (int)QD_N ? N_QUAD_DEST[v] : "?");
         snprintf(buf, 12, r.min < 0 && v > 0 ? "+%d" : "%d", v);

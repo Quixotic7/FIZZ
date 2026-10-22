@@ -41,6 +41,8 @@ const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     {"AMP", QD_SG_AMP, UI_SD_ADSR, {QD_QP_EATK, QD_QP_EDEC, QD_QP_ESUS, QD_QP_EREL, QD_QP_AMOD}, 1, QD_QP_AMOD,
      {QD_QP_EATK, QD_QP_HOLD, QD_QP_EDEC, -1, QD_QP_AMOD}},
     {"LEVEL", QD_SG_AMP, UI_SD_DRIVE, {QD_QP_LEVEL, QD_QP_DRIVE, QD_QP_DRPRE, -1, -1}, 0, 0, {0}},
+    /* E3: B5's CRUSH: BITS, SRR, ROUTE (before / after the filter) */
+    {"CRUSH", QD_SG_AMP, UI_SD_CRUSH, {QD_QP_BITS, QD_QP_SRR, QD_QP_CRPOST, -1, -1}, 0, 0, {0}},
     /* P1.5k (the owner): an LFO's page SPEED MULT DEPTH DEST (DEST in the menu now, not ALGORITHM's), its WAVE page
      * WAVE PHASE TRIG FADE; ALGORITHM nothing on them (ChoralRoot's LFO has these eight values, no fifth) */
     {"LFO 1", QD_SG_LFO1, UI_SD_LFO, {L(0, QD_QL_SPEED), L(0, QD_QL_MULT), L(0, QD_QL_DEPTH), L(0, QD_QL_DEST), -1}, 0, 0, {0}},

@@ -104,7 +104,8 @@ struct qd_quad_voice {
                                          * goes on (the next block ramps back from 0); set and cleared by the pool */
     int32_t gstep;                      /* E1: the glide's step a block (1/16 semitone; 0: by its RATE) */
     struct { int32_t hp, lp1, lp2; } dpre;   /* E1: DRIVE before the filter: its state (quad_ext.c) */
-    struct { int32_t lp, len; uint16_t w; uint8_t mach, fresh; } comb;   /* E2: the filter machines' state (quad_ext.c:
+    struct { int32_t lp, len; uint16_t w; uint8_t mach, fresh; } comb;
+    struct { uint32_t ph; int32_t held; } crush;   /* E3: CRUSH's sample and hold: its phase, the value held */   /* E2: the filter machines' state (quad_ext.c:
                                          * the comb's damping and length (Q8), its write place; the machine last run; a
                                          * fresh start: its line from silence) */
 };
@@ -148,7 +149,9 @@ void qd_quad_pack5(const int16_t *p, uint8_t *blob);        /* QD_QUAD_BLOB5 byt
 /* n bytes there (QD_QUAD_BLOB5 or QD_QUAD_BLOB): versions 1..5 (values 74.. their defaults) and 6. 1: taken; 0: not a
  * blob (p = INIT) */
 int qd_quad_unpack(const uint8_t *blob, int n, int16_t *p);
-int qd_quad_ext_used(const int16_t *p); /* E1: a value 74.. away from its default (the sound needs a version-6 blob) */
+int qd_quad_ext_used(const int16_t *p);
+uint32_t qd_quad_srr_inc(int srr);       /* E3: SRR's phase step a sample (2^32 / its divider) */
+int qd_quad_crush_bits(int bits);        /* E3: BITS' bits (16 .. 1) */ /* E1: a value 74.. away from its default (the sound needs a version-6 blob) */
 /* P1.4a: algorithm a's routing (a 1..8, the patch's ALGO; eng_quad.c QUAD_ALGO): each operator's modulators (C A B1 B2;
  * bit 0 C .. 3 B2), the feedback operator, the X and Y outputs (bit sets) */
 void qd_quad_algo(int a, uint8_t *mod4, int *fb, int *outx, int *outy);

@@ -3049,10 +3049,10 @@ static void g_snd(void)
         }
     }
     for (i = 0; i < QD_QUAD_NP; i++)
-        if (i < QD_QP_BITS)                             /* (E3, E4's values get their pages there) */
+        if (i < QD_QP_MOD0)                             /* (E4's values get their pages there) */
             ok &= seen[i] == 1;
-    CHECK(ok, "every one of the sound's %d values on exactly one page (RATIO B the pair B1 / B2; E3, E4's to come)",
-          QD_QP_BITS);
+    CHECK(ok, "every one of the sound's %d values on exactly one page (RATIO B the pair B1 / B2; E4's to come)",
+          QD_QP_MOD0);
     start();
     wtap(0);
     btap(QD_B_SOUND);
@@ -4247,7 +4247,7 @@ static void g_p15l_groups(void)
 {
     static const char *const FIRST[8] = {"TRIG", "RATIO", "ENV A", "FILTER", "AMP", "LFO 1", "LFO 2", "LFO 3"};
     static const char *const ORDER[QD_SND_NPAGE] = {"TRIG", "KEYS", "PORT", "RATIO", "TONE", "OFFSET", "ENV A", "ENV B",
-        "FILTER", "F ENV", "BASE", "AMP", "LEVEL", "LFO 1", "LFO 1 WAVE", "LFO 2", "LFO 2 WAVE", "LFO 3", "LFO 3 WAVE"};
+        "FILTER", "F ENV", "BASE", "AMP", "LEVEL", "CRUSH", "LFO 1", "LFO 1 WAVE", "LFO 2", "LFO 2 WAVE", "LFO 3", "LFO 3 WAVE"};
     static ui_snd_t sv;
     int b, ok = 1, p;
     start();
@@ -4270,11 +4270,11 @@ static void g_p15l_groups(void)
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TRIG"), "B1 again: round to TRIG");
     for (ok = 1, p = 0; p < QD_SND_NPAGE; p++)
         ok &= !strcmp(QD_SND_PAGES[p].name, ORDER[p]);
-    CHECK(ok, "SELECT's order: TRIG KEYS PORT RATIO TONE OFFSET ENV A ENV B FILTER F ENV BASE AMP LEVEL LFO 1 .. LFO 3 "
+    CHECK(ok, "SELECT's order: TRIG KEYS PORT RATIO TONE OFFSET ENV A ENV B FILTER F ENV BASE AMP LEVEL CRUSH LFO 1 .. LFO 3 "
           "WAVE");
-    A.ui.snd_page = qd_snd_page_of("LEVEL");
+    A.ui.snd_page = qd_snd_page_of("CRUSH");
     turn(QD_K_SELECT, 1);
-    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 1"), "SELECT from LEVEL: LFO 1");
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 1"), "SELECT from CRUSH (E3): LFO 1");
     btap(QD_B_SOUND);
     btap(QD_B_SOUND);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "LFO 1"), "closed and opened: the last page used");

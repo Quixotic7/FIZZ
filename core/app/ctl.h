@@ -556,7 +556,7 @@ int qd_snd_page_all_ids(int page, int8_t *out);    /* E2: every id the page can 
 int qd_snd_machine(int ftype);                      /* E2: the filter machine (0 LEGACY .. 5 EQ) of QD_QP_FTYPE */
 extern const char *const QD_SND_MACHINE[6];
 #define QD_SND_START_PAGE 3            /* P1.5l: a fresh start: RATIO (B2), the sound's first page (E1: after PORT) */
-#define QD_SND_NPAGE 19
+#define QD_SND_NPAGE 20
 typedef struct {
     const char *name;
     uint8_t group, draw;

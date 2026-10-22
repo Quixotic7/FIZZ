@@ -109,7 +109,9 @@ then zeros to 128. A value out of its range, or a nonzero byte after 123, makes 
 | 80 | FSHAPE (E2): MULTI's TYPE morph, the combs' LPF, the EQ's Q | 0..127 (0) |
 | 81 | FGAIN (E2): the EQ's gain | −64..63 (0) |
 | 82 | BWPOST (E2): the base-width 0 before the filter, 1 after | (0) |
-| 83..85 | E3's BITS, SRR, CRUSH route | (0, 0, 1) |
+| 83 | BITS (E3): 0 OFF, 1..127 16 bits down to 1 | (0) |
+| 84 | SRR (E3): 0 OFF, 1..127 the rate divided by 64^(SRR / 127) | (0) |
+| 85 | CRPOST (E3): CRUSH 0 before the filter, 1 after | (1) |
 | 86..109 | E4's eight modulation slots: SOURCE 0..8, DEST 0..57, DEPTH −127..127 | (0) |
 
 Every value at its default plays exactly what a version-5 blob plays. E2: FTYPE (value 36) is the **filter machine**,

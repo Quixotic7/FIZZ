@@ -466,6 +466,47 @@ static void sd_port(const ui_snd_t *v)
     }
 }
 
+/* E3: CRUSH: one sine cycle as stairs (each step as wide as SRR's divider, as tall as BITS' step; both OFF: smooth),
+ * the input faint under it; FILTER -> CRUSH or CRUSH -> FILTER below (ROUTE) */
+static void sd_crush(const ui_snd_t *v)
+{
+    const int n = v->pv[0], b = v->pv[1];
+    const float sw = n > 1 ? 2.f + (float)n * 1.6f : 0.f, sh = b ? 92.f / (float)(1 << (b > 8 ? 8 : b)) : 0.f;
+    float p[2 * 121], q[2 * 241];
+    int i, m = 0;
+    for (i = 0; i <= 120; i++) {                        /* the sine, faint */
+        const float u = (float)i / 120.f;
+        p[2 * i] = 16.f + u * 208.f;
+        p[2 * i + 1] = 86.f - sinf(u * UI_TAU) * 46.f;
+    }
+    ui_P(p, 121, UI_G3, 1.2f, 0, QD_NONE);
+    for (i = 0; i <= 120 && m < 240; i++) {             /* the stairs */
+        float x = 16.f + (float)i / 120.f * 208.f, xs = sw > 0.f ? 16.f + floorf((x - 16.f) / sw) * sw : x;
+        float y = sinf((xs - 16.f) / 208.f * UI_TAU) * 46.f;
+        if (sh > 0.f)
+            y = roundf(y / sh) * sh;
+        if (m && (sw > 0.f || sh > 0.f) && q[2 * m - 1] != 86.f - y) {
+            q[2 * m] = x, q[2 * m + 1] = q[2 * m - 1];   /* (a riser) */
+            m++;
+        }
+        q[2 * m] = x, q[2 * m + 1] = 86.f - y;
+        m++;
+    }
+    ui_P(q, m, SNDK[0], 1.8f, 0, QD_NONE);
+    {   /* the chain: FILTER and CRUSH in ROUTE's order */
+        const int after = v->v[2] != 0;
+        const float fx = after ? 72.f : 128.f, cx = after ? 128.f : 72.f, y = 146.f;
+        const float f[8] = {fx + 6.f, y + 5.f, fx + 18.f, y + 5.f, fx + 26.f, y + 13.f, fx + 34.f, y + 15.f};
+        const float st[10] = {cx + 6.f, y + 15.f, cx + 6.f, y + 10.f, cx + 18.f, y + 10.f, cx + 18.f, y + 5.f, cx + 34.f,
+                              y + 5.f};
+        ui_RR(fx, y, 40.f, 20.f, 4.f, UI_G1, 1.2f, QD_NONE);
+        ui_P(f, 4, UI_G1, 1.2f, 0, QD_NONE);
+        ui_RR(cx, y, 40.f, 20.f, 4.f, SNDK[2], 1.4f, QD_NONE);
+        ui_P(st, 5, SNDK[2], 1.4f, 0, QD_NONE);
+        sd_arrow(114.f, y + 10.f, 124.f, y + 10.f, UI_G1);
+    }
+}
+
 /* an ADSR's points: delay, attack, decay to sustain, held, release (INF: held to the edge) */
 static void sd_adsr(const ui_snd_t *v)
 {
@@ -804,6 +845,7 @@ void ui_snd_draw(const ui_snd_t *v)
     case UI_SD_DRIVE: sd_drive(v); break;
     case UI_SD_LFO: sd_lfo(v); break;
     case UI_SD_PORT: sd_port(v); break;
+    case UI_SD_CRUSH: sd_crush(v); break;
     default: sd_lfoshape(v); break;
     }
     /* P1.5j (the owner: the lock boxes "change dimensions", "overlap with the orange border"): the foot is four fixed

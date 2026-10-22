@@ -12,7 +12,9 @@
  *   E2  the filter machines (QD_QP_FTYPE 4..7, quad_ext_machine): MULTI (the SVF's LP, BP, HP morphed by FSHAPE),
  *       COMB+ / COMB- (a 1024-sample line a voice, FREQ its pitch, RESO its feedback, FSHAPE its damping), EQ (a
  *       peaking bell from the SVF: FREQ its centre, FSHAPE its Q, FGAIN -18 .. +18 dB); BWPOST: the base-width
- *       filter after the machine (quad_ext_bw_post) */
+ *       filter after the machine (quad_ext_bw_post)
+ *   E3  CRUSH (quad_ext_crush): SRR a sample and hold (its rate 1 / N of the sample rate, N 1..64 on a log table), BITS
+ *       the sample quantized to b bits of +-32768 (b 16 .. 1: 2^b steps across, 0 kept); CRPOST 0 before the filter, 1 after; both OFF: none */
 
 /* E1: RATE's step a block (1/16 semitone) by PTIM: ChoralRoot's (voice.c, its slide: ENV_LIN[v] >> 14, at least 1;
  * tools/gen_tables.py ENV_LIN = 2^24 CTL / (ms(v) FS / 1000), ms(v) = 10000^(v / 127)) */
@@ -242,4 +244,53 @@ static void quad_ext_bw_post(quad_voice_t *s, int32_t *acc, uint32_t n, int32_t 
         acc[i] = y;
     }
     s->bh = bh, s->bl = bl;
+}
+
+/* ================================================================ E3: CRUSH */
+/* SRR's phase step a sample (2^32 / N, N = 64^(SRR / 127)); BITS b = 16 .. 1 over 1..127 (0: OFF) */
+static const uint32_t QE_SRR_INC[128] = {
+    0u, 4156597496u, 4022685519u, 3893087748u, 3767665193u, 3646283343u, 3528812018u, 3415125236u,
+    3305101070u, 3198621523u, 3095572399u, 2995843180u, 2899326911u, 2805920080u, 2715522512u, 2628037257u,
+    2543370492u, 2461431413u, 2382132143u, 2305387636u, 2231115586u, 2159236339u, 2089672806u, 2022350382u,
+    1957196867u, 1894142385u, 1833119312u, 1774062203u, 1716907721u, 1661594569u, 1608063426u, 1556256882u,
+    1506119375u, 1457597134u, 1410638122u, 1365191975u, 1321209954u, 1278644891u, 1237451134u, 1197584506u,
+    1159002250u, 1121662988u, 1085526674u, 1050554555u, 1016709123u, 983954080u, 952254298u, 921575779u,
+    891885621u, 863151983u, 835344050u, 808431996u, 782386961u, 757181012u, 732787116u, 709179112u,
+    686331680u, 664220318u, 642821312u, 622111712u, 602069307u, 582672603u, 563900797u, 545733758u,
+    528152001u, 511136671u, 494669519u, 478732885u, 463309677u, 448383354u, 433937909u, 419957849u,
+    406428181u, 393334394u, 380662446u, 368398747u, 356530144u, 345043909u, 333927723u, 323169664u,
+    312758194u, 302682148u, 292930719u, 283493449u, 274360217u, 265521228u, 256967003u, 248688366u,
+    240676441u, 232922633u, 225418627u, 218156376u, 211128091u, 204326235u, 197743512u, 191372863u,
+    185207455u, 179240676u, 173466128u, 167877617u, 162469149u, 157234924u, 152169329u, 147266931u,
+    142522472u, 137930864u, 133487183u, 129186662u, 125024691u, 120996804u, 117098683u, 113326146u,
+    109675148u, 106141774u, 102722233u, 99412859u, 96210101u, 93110527u, 90110810u, 87207734u,
+    84398186u, 81679153u, 79047718u, 76501059u, 74036445u, 71651233u, 69342864u, 67108864u,
+};
+static int qe_crush_bits(int v) { return v <= 0 ? 16 : 16 - (v - 1) * 15 / 126; }
+
+/* hook 5: CRUSH on the voice's signal (before the filter with CRPOST 0, after it with 1) */
+static void quad_ext_crush(voice_t *v, const int16_t *p, int32_t *acc, uint32_t n)
+{
+    const int srr = clamp(p[QD_QP_SRR], 0, 127), bits = clamp(p[QD_QP_BITS], 0, 127);
+    const uint32_t inc = srr ? QE_SRR_INC[srr] : 0u;
+    const int sh = bits ? 16 - qe_crush_bits(bits) : 0;
+    uint32_t ph = v->crush.ph, i;
+    int32_t held = v->crush.held;
+    for (i = 0; i < n; i++) {
+        int32_t y = acc[i];
+        if (inc) {                                      /* the sample and hold: a new value when the phase wraps */
+            const uint32_t np = ph + inc;
+            if (np <= ph)                               /* (fresh: the phase at 0, the first value N samples on) */
+                held = y;
+            ph = np;
+            y = held;
+        }
+        if (sh) {                                       /* b bits of the voice's +-32768: a step 2^(16 - b), rounded
+                                                         * (0 stays 0: a silent voice stays silent; 1 bit: -, 0, +) */
+            y = clamp(y, -32768, 32767);
+            y = ((y + (1 << (sh - 1))) >> sh) << sh;
+        }
+        acc[i] = y;
+    }
+    v->crush.ph = ph, v->crush.held = held;
 }

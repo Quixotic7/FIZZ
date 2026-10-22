@@ -981,6 +981,71 @@ static void t_machines(void)
           (unsigned)QE_NCOMB, (unsigned)(sizeof qe_comb / 1024u));
 }
 
+/* ------------------------------------------------------------- E3: CRUSH --- */
+static void t_crush(void)
+{
+    enum { N = 4096, NB = 200 };
+    static int32_t sine[N], y[N], a[NB * CTL], b[NB * CTL];
+    static qd_quad_voice_t cv;
+    int16_t p[QD_QUAD_NP];
+    uint32_t i, o;
+    int ok, run, lv, k;
+    for (i = 0; i < N; i++)
+        sine[i] = (int32_t)(30000.0 * sin(2.0 * M_PI * 97.0 * (double)i / FS));
+    /* SRR 127: N = 64: the held steps are 64 samples long */
+    quad_init3(p);
+    p[QD_QP_SRR] = 127;
+    memset(&cv, 0, sizeof cv);
+    for (o = 0; o < N; o += CTL) {
+        memcpy(y + o, sine + o, CTL * sizeof y[0]);
+        quad_ext_crush(&cv, p, y + o, CTL);
+    }
+    for (ok = 1, run = 1, i = 1; i < N; i++) {
+        if (y[i] == y[i - 1]) {
+            run++;
+        } else {
+            ok &= i < 64 || run == 64;
+            run = 1;
+        }
+    }
+    CHECK(ok && QE_SRR_INC[127] == 67108864u, "SRR 127: a sample and hold, its steps 64 samples long");
+    /* BITS b: at most 2^b levels (1 bit: 2; 4 bits: 16) */
+    for (k = 0; k < 2; k++) {
+        static int32_t seen[70000];
+        int nseen = 0, j;
+        quad_init3(p);
+        p[QD_QP_BITS] = k ? 127 : 103;                  /* (1 bit; 103: 4 bits) */
+        memset(&cv, 0, sizeof cv);
+        memcpy(y, sine, sizeof y);
+        quad_ext_crush(&cv, p, y, N);
+        for (i = 0; i < N; i++) {
+            for (j = 0; j < nseen && seen[j] != y[i]; j++)
+                ;
+            if (j == nseen)
+                seen[nseen++] = y[i];
+        }
+        lv = (1 << qe_crush_bits(p[QD_QP_BITS])) + 1;    /* (2^b steps across +-32768, 0 among them) */
+        CHECK(nseen <= lv && nseen >= 2, "BITS %d (%d bits): %d levels (at most 2^b + 1: %d)", p[QD_QP_BITS],
+              qe_crush_bits(p[QD_QP_BITS]), nseen, lv);
+    }
+    /* both OFF: the voice as before, CRPOST either way */
+    quad_init3(p);
+    drv_patch(p);
+    memcpy(p, part_patch, sizeof p);
+    e2_render(p, 48, NB, a);
+    p[QD_QP_CRPOST] = 0;
+    e2_render(p, 48, NB, b);
+    CHECK(!memcmp(a, b, sizeof a), "BITS and SRR OFF: the voice bit-identical, CRUSH before or after the filter");
+    p[QP_FREQ] = 5000, p[QP_RESO] = 4000;               /* (a filter that does something) */
+    e2_render(p, 48, NB, a);
+    p[QD_QP_BITS] = 90, p[QD_QP_SRR] = 60;
+    e2_render(p, 48, NB, b);
+    CHECK(memcmp(a, b, sizeof a) != 0, "BITS 90, SRR 60: crushed");
+    p[QD_QP_CRPOST] = 1;
+    e2_render(p, 48, NB, a);
+    CHECK(memcmp(a, b, sizeof a) != 0, "before the filter or after it: two sounds");
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1)
@@ -993,6 +1058,7 @@ int main(int argc, char **argv)
     t_dc();
     t_ext();
     t_machines();
+    t_crush();
     printf("test_quad: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }
