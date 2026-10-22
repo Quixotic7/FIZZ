@@ -298,7 +298,10 @@ e.dispose();
           // (a Digitone 1 file has two LFOs and no E values: for a version-6 sound, LFO 3 at depth 0 (inaudible) and the E
           // values are not compared; the writer notes what it drops of them that is heard)
           const silentL3 = a[70] === 0;
-          const diff = a.map((v, i) => (v !== b[i] ? i : -1)).filter((i) => i >= 0 && !(dn1Only && silentL3 && i >= 63 && i <= 70));
+          const diff = a.map((v, i) => (v !== b[i] ? i : -1)).filter((i) => i >= 0 && !(dn1Only && silentL3 && i >= 63 && i <= 70)
+            // (E2: a filter machine the Digitone 1 lacks, or the base-width after the filter: approximated, and noted)
+            && !(dn1Only && [36, 80, 81].includes(i) && ex.items[0].notes.some((n) => /approximated/.test(n)))
+            && !(dn1Only && i === 82 && ex.items[0].notes.some((n) => /base-width/.test(n))));
           const pl = (await (await dnReadZip(ex.bytes)).get(JSON.parse(new TextDecoder().decode(await (await dnReadZip(ex.bytes)).get("manifest.json"))).Payload));
           const lenOk = pl.length - 43 === ((pl[pl.length - 8] << 24 | pl[pl.length - 7] << 16 | pl[pl.length - 6] << 8 | pl[pl.length - 5]) >>> 0);
           check(back.ok && !diff.length && back.sound.name === s.name && back.sound.fizzTags.join() === s.fizzTags.join() &&
@@ -309,6 +312,21 @@ e.dispose();
         const z = await dnReadZip(many.bytes);
         check(unzipOk(many.bytes) && z.names.length === src.length && z.names.every((n) => n.endsWith("." + kind)), `${src.length} presets -> "${many.name}" (${z.names.join(", ")})`);
       }
+    }
+    // E2: a Digitone II sound on a filter machine (a synthetic COMB+ with TYPE 40, BW ROUTING after) is imported
+    // as STORE6 and FIZZ keeps FTYPE 5, FSHAPE 40, BWPOST 1; written back out as .dn2pst it reads the same
+    if (fs.existsSync(FEED)) {
+      const rec = dn2RecordFromParams({}, { name: "COMB TEST" }); rec[245] = 5; rec[174] = 40; rec[238] = 1;
+      const man = { FormatVersion: 1, ProductType: ["24", "38"], Payload: "COMB TEST.dn2snd", FileType: "Sound", FirmwareVersion: "1.10D", MetaInfo: { Tags: [] } };
+      const it = (await readFiles([{ name: "COMB TEST.dn2pst", bytes: dn2pstZip(wrapDn2Record(rec), man) }]))[0];
+      const s = it.sound, f = storeFrame(s);
+      const tmpe = fs.mkdtempSync(path.join(OUT, "feede2-"));
+      fs.writeFileSync(path.join(tmpe, "one.syx"), f);
+      const vals = ((execFileSync(FEED, ["--feed", path.join(tmpe, "one.syx")], { encoding: "utf8" }).match(/^values (.*)$/m) || [])[1] || "").split(" ").map(Number);
+      const out = digitoneExport([soundFromStoreFrame(f)], "dn2pst");
+      const back = (await readFiles([{ name: out.name, bytes: out.bytes }]))[0].sound;
+      check(it.ok && s.six && f[5] === 0x11 && vals[36] === 5 && vals[80] === 40 && vals[82] === 1 && fizzValues(back).join() === fizzValues(s).join(),
+        `E2: a Digitone II COMB+ (TYPE 40, BW after) goes as STORE6, FIZZ keeps FTYPE ${vals[36]}, FSHAPE ${vals[80]}, BWPOST ${vals[82]}; out as .dn2pst and back: ${fizzValues(back).join() === fizzValues(s).join() ? "the same" : "DIFFERENT"}`);
     }
     // a .fizzlib of 20 presets (20 of the owner's .dnsnd, as FIZZ's DUMP would give them: STORE frames): written, read
     // back, stored into a blank unit; every frame the same, and FIZZ's test_sysex reads them the same
