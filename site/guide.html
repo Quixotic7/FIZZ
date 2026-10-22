@@ -48,7 +48,7 @@
       <dl>
         <dt>F1 / F2</dt><dd>OCT− / OCT+</dd>
         <dt>F3</dt><dd>OCT− and OCT+ together (or hold PLAY): tempo, speed, the page's start and end</dd>
-        <dt>SHIFT</dt><dd>GLO</dd>
+        <dt>SHIFT</dt><dd>GLO (the panel here shows FIZZ's names: TRACKS is SEL, MIX is ENV, LATCH is LFO, SOUNDS is SAVE, FILL is ARP, PATTERNS is SEQ)</dd>
         <dt>W1 … W16</dt><dd>the white keys: the 16 steps of the page</dd>
         <dt>B1 … B11</dt><dd>the black keys, left to right</dd>
         <dt>held</dt><dd>down for 400 ms (a white key: 250 ms); shorter is a tap</dd>
@@ -80,7 +80,7 @@
     <ul>
       <li><b>Chords:</b> in NOTE, hold a step and press black keys: the first replaces the note, more pressed together add to the chord (up to six). SELECT moves the whole chord; KNOB 1 … 4 move notes 2 … 5 each alone. F1 / F2 shift the ten keys an octave.</li>
       <li><b>Several steps at once:</b> hold several white keys.</li>
-      <li><b>No holding:</b> <b>LFO</b> is the step latch: tap steps to select them, then edit as if held. LFO or HOME ends it.</li>
+      <li><b>No holding:</b> <b>LFO (LATCH)</b> is the step latch: tap steps to select them, then edit as if held. LFO or HOME ends it.</li>
       <li><b>A track's default:</b> hold the mode's black key and turn the knobs; B11 resets it.</li>
       <li><b>P-LOCK (B11):</b> hold a step and turn KNOB 1 … 4 to lock FREQ, DECAY, HARM and FDBK on it.</li>
     </ul>
@@ -117,10 +117,10 @@
   <section id="more" style="--c:#9664FF">
     <h2>Tracks, patterns, tempo, the keyboard</h2>
     <ul>
-      <li><b>Hold SEL</b>: the eight tracks. SEL + B1 … B8 selects one; SEL + tap W1 … W8 mutes, hold solos.</li>
-      <li><b>Hold SEQ</b>: the patterns. SEQ + B1 … B4 the bank, SEQ + W the pattern (it comes in at the end of the playing one).</li>
+      <li><b>Hold SEL (TRACKS)</b>: the eight tracks. SEL + B1 … B8 selects one; SEL + tap W1 … W8 mutes, hold solos.</li>
+      <li><b>Hold SEQ (PATTERNS)</b>: the patterns. SEQ + B1 … B4 the bank, SEQ + W the pattern (it comes in at the end of the playing one).</li>
       <li><b>F3</b> (both OCT keys, or hold PLAY): SELECT the tempo, ALGORITHM the swing, B1 … B7 the track's note value. OCT− closes it.</li>
-      <li><b>ENV</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter).</li>
+      <li><b>ENV (MIX)</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter).</li>
       <li><b>REC</b> makes the keybed a keyboard for the track; <b>hold REC</b> to record. <b>SHIFT + F1 / F2</b> undo and redo.</li>
       <li><b>F1 + W</b> copies a step, then other steps pressed with F1 get it pasted.</li>
     </ul>
@@ -131,9 +131,9 @@
     <ul>
       <li><b>Nothing to save by hand.</b> FIZZ writes its project by itself a moment after your last change, while you play too. Here the page keeps FIZZ's flash in this browser, so your projects are back after a reload (give it two seconds after an edit).</li>
       <li>Eight projects, each with 64 patterns and its own pool of 128 sounds; a library of 128 sounds is shared by every project.</li>
-      <li><b>SAVE</b> opens the sounds page with the selected track's sound ready to store in the library: <b>SAVE again</b> stores it. F2 then adds it to the project's pool.</li>
+      <li><b>SAVE (SOUNDS)</b> opens the sounds page with the selected track's sound ready to store in the library: <b>SAVE again</b> stores it. F2 then adds it to the project's pool.</li>
       <li>In the page's settings (<b>⋯</b>): named saves of the whole flash, export and import, and <b>Start blank</b>.</li>
-      <li><b>Digitone sounds:</b> drop Elektron Digitone <code>.dnsnd</code> files on the player (or use its <b>Digitone sounds</b> button). They are converted in your browser, nothing is uploaded, and the page lists what could not come across exactly.</li>
+      <li><b>Digitone sounds:</b> drop Elektron Digitone <code>.dnsnd</code> files on the player (or use its <b>Digitone sounds</b> button). They are converted in your browser (nothing is uploaded), the page lists what could not come across exactly, and <b>Send</b> puts them in FIZZ's library (or the project's pool), where PRESETS and the sounds page find them. The first can also go straight onto a track, with its pan and sends. <b>SHIFT + F1</b> on FIZZ undoes the whole import.</li>
     </ul>
   </section>
 

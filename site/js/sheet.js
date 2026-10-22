@@ -148,7 +148,7 @@ export class Sheet {
       out.push(row("...and reach FIZZ's MIDI in too", null, toggle(st.reachFirmware, (v) => a.set("reachFirmware", v))));
     }
     out.push(row("Show computer-key hints", "the keyboard letters on the panel's keys and buttons", toggle(st.keyHints, (v) => a.set("keyHints", v))));
-    out.push(h("p", { class: "note" }, "Steps W1-W16: 2 3 4 Tab, then A S D F G H J K L ; ' ]. Black keys B1-B11: F1-F4, E T Y U O P [. Buttons: C V B N M , (FX SEL ENV LFO EDIT GLO) and 7 8 9 0 - = (HOME SAVE ARP SEQ PLAY REC). Z X OCT- OCT+, End both. Page Up/Down pick a knob, arrows turn it; or drag a knob, or use the wheel. ` the screen view. ",
+    out.push(h("p", { class: "note" }, "Steps W1-W16: 2 3 4 Tab, then A S D F G H J K L ; ' ]. Black keys B1-B11: F1-F4, E T Y U O P [. Buttons: C V B N M , (FX TRACKS MIX LATCH EDIT SHIFT) and 7 8 9 0 - = (HOME SOUNDS FILL PATTERNS PLAY REC). Z X are F1 F2, End both (F3). Page Up/Down pick a knob, arrows turn it; or drag a knob, or use the wheel. ` the screen view. ",
       h("a", { href: a.guideUrl + "#keys" }, "The key map")));
 
     // LOOK

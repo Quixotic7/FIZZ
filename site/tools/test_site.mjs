@@ -161,17 +161,35 @@ try {
   check(u.pathname === "/Quixotic7/FIZZ/issues/new" && q.get("template") === "feedback.yml" && q.get("version").startsWith(meta.version) &&
         q.get("setup").startsWith("On-screen") && /Chrom/.test(q.get("browser")), `Feedback: ${href}`);
 
-  // 6. Digitone sounds (local test files only)
-  const files = fs.existsSync(DNSND) ? fs.readdirSync(DNSND).filter((f) => f.endsWith(".dnsnd")).slice(0, 3) : [];
-  if (files.length) {
-    const payload = JSON.stringify(files.map((f) => ({ name: f, b64: fs.readFileSync(path.join(DNSND, f)).toString("base64") })).concat([{ name: "broken.dnsnd", b64: "UEsDBAAA" }]));
-    await evaluate(`(async () => { const list = ${payload}.map(x => new File([Uint8Array.from(atob(x.b64), c => c.charCodeAt(0))], x.name)); await FIZZDigitone.add(list); })()`);
-    await sleep(300);
+  // 6. Digitone sounds (local test files only): read, sent to FIZZ's library, kept over a reload
+  const files = fs.existsSync(DNSND) ? fs.readdirSync(DNSND).filter((f) => f.endsWith(".dnsnd")).sort().slice(0, 4) : [];
+  const fileJs = (list) => JSON.stringify(list.map((f) => ({ name: f, b64: fs.readFileSync(path.join(DNSND, f)).toString("base64") })));
+  const addJs = (json) => `(async () => { const list = ${json}.map(x => new File([Uint8Array.from(atob(x.b64), c => c.charCodeAt(0))], x.name)); await FIZZDigitone.add(list); })()`;
+  if (files.length === 4) {
+    await evaluate(addJs(fileJs(files.slice(0, 3)).replace(/]$/, ',{"name":"broken.dnsnd","b64":"UEsDBAAA"}]')));
+    await waitFor("!!FIZZDigitone.fizz", 8000);
     const items = await evaluate("FIZZDigitone.items.map(i => i.ok ? { name: i.sound.name, notes: i.sound.notes.length, blob: i.sound.blob.length } : { error: i.error })");
-    check(items.length === files.length + 1 && items.slice(0, -1).every((i) => i.blob === 96) && items[items.length - 1].error,
-      `Digitone: ${files.length} .dnsnd read and converted, a broken file refused: ${JSON.stringify(items)}`);
+    check(items.length === 4 && items.slice(0, 3).every((i) => i.blob === 96) && items[3].error,
+      `Digitone: 3 .dnsnd read and converted, a broken file refused: ${JSON.stringify(items)}`);
+    const who = await evaluate("FIZZDigitone.fizz");
+    check(who === `FIZZ ${meta.version}`, `the panel shows who answers the identity query: "${who}"`);
+    const tSend = await evaluate("Date.now()");
+    await evaluate("FIZZDigitone.send()");
+    const res = await evaluate("FIZZDigitone.items.filter(i => i.ok).map(i => i.result)");
+    check(res.length === 3 && res.every((r, k) => r && r.ok && !r.pool && r.slot === k + 1), `sent through the page into the running wasm: ${JSON.stringify(res)}`);
     await evaluate("document.querySelector('.dn-notes') && (document.querySelector('.dn-notes').open = true)");
     await shot("page-digitone.png");
+    const kept = await waitFor(`(() => { const s = FIZZ.state.saves.find(r => r.name === 'Autosave'); return !!s && Date.parse(s.saved) > ${tSend}; })()`, 15000);
+    check(kept, "the imported sounds reached the autosave");
+    await load(URL0);
+    await waitFor("window.FIZZ && FIZZ.state.info && FIZZ.state.frameSeq > 0", 15000);
+    await evaluate(addJs(fileJs(files.slice(3))));
+    await waitFor("!!FIZZDigitone.fizz", 8000);
+    await evaluate("FIZZDigitone.send()");
+    const r4 = await evaluate("FIZZDigitone.items[0].result");
+    check(r4 && r4.ok && r4.slot === 4, `after a reload the library still holds them: the next sound goes to LIBRARY ${r4 && r4.slot}`);
+    await sleep(700);
+    await shot("page-digitone-reloaded.png");
     await evaluate("FIZZDigitone.close()");
   } else note("Digitone: no .dnsnd files to try (--dnsnd)");
   check(errors.length === 0, `the player: no console errors${errors.length ? ": " + errors.join(" | ") : ""}`);

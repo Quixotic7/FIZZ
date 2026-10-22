@@ -406,3 +406,5 @@ body { background: #000; }
   #stage { height: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .sheet, .scrim, #corner, .toast { transition: none; } .fm1-dot.busy.live, .bubbles circle { animation: none !important; } }
+.dn-who { margin: 8px 0 0; color: var(--fz-green); font-weight: 600; min-height: 1em; }
+.dn-row .select { max-width: 150px; }

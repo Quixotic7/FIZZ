@@ -9,12 +9,17 @@
 //   4. the flash: a step added (W1 tapped in the step view), FIZZ's autosave (1.5 s after the last change) moves
 //      flash().seq; a second unit booted from flash().bytes shows the step, a fresh unit does not
 //   5. the real-time factor: 10 s at 48 kHz (through the resampler) with the sequencer playing
+//   6. FIZZ's SysEx (docs/SYSEX.md) through engine.midiIn / midiOut as raw bytes, as the page sends it: IDENTITY, three
+//      Digitone sounds (--dnsnd DIR, the owner's; never copied here) stored in the LIBRARY (slots 1..3, a batch), the
+//      first loaded onto track 2; after FIZZ's autosave a unit booted from the flash puts the next sound in slot 4
 // Adapted from RemoteFM1's web/engines/native/test.mjs (GPL-3.0-only).
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { createEngine } from "../engine/engine.js";
+import { identity, parseReply } from "../js/fizz_sysex.js";
+import { readDnsnd, storeFrame } from "../js/digitone.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SITE = path.resolve(HERE, "..");
@@ -156,6 +161,46 @@ for (let q = 0; q < N; q++) { e.render(L, R); pk = Math.max(pk, peakOf()); }
 const wall = (performance.now() - t0) / 1000;
 check(pk > 64 / 32768, `48 kHz, sequencer playing: 10 s in ${wall.toFixed(2)} s, real-time factor ${(10 / wall).toFixed(1)}x, ${(wall / N * 1000).toFixed(3)} ms per 128-frame quantum (budget 2.667 ms), peak ${Math.round(pk * 32768)}`);
 e.dispose();
+
+// 6. the SysEx
+{
+  const arg = process.argv.indexOf("--dnsnd");
+  const DIR = arg > 0 ? process.argv[arg + 1] : "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets";
+  const replies = (eng) => {        // every whole SysEx in the engine's MIDI out since the last call
+    const out = [], b = eng.midiOut();
+    let sx = null;
+    for (const x of b) { if (x === 0xf0) sx = [x]; else if (sx) { sx.push(x); if (x === 0xf7) { out.push(parseReply(sx)); sx = null; } } }
+    return out;
+  };
+  const ask = (eng, frame) => { eng.midiIn(frame); for (let i = 0; i < 40; i++) { run(eng, 5); const r = replies(eng); if (r.length) return r[0]; } return null; };
+  e = await mk();
+  p = new Panel(e);
+  run(e, 500);
+  const bn = e.info().buttonNames;
+  check(bn.includes("TRACKS") && bn.includes("MIX") && bn.includes("LATCH") && bn.includes("SOUNDS"), `the panel's names: ${bn.join(" ")}`);
+  const id = ask(e, identity());
+  check(id && id.kind === "identity" && id.version.includes(info.version), `IDENTITY: ${JSON.stringify(id)}`);
+  const files = fs.existsSync(DIR) ? fs.readdirSync(DIR).filter((f) => f.endsWith(".dnsnd")).sort().slice(0, 4) : [];
+  if (files.length === 4) {
+    const sounds = await Promise.all(files.map((f) => readDnsnd(fs.readFileSync(path.join(DIR, f)), f)));
+    const got = [];
+    for (let i = 0; i < 3; i++) got.push(ask(e, storeFrame(sounds[i], { batch: i > 0, track: i === 0 ? 1 : -1 })));
+    check(got.every((r, i) => r && r.kind === "store" && r.status === 0 && !r.pool && r.slot === i + 1),
+      `STORE x3 (${sounds.slice(0, 3).map((s) => s.name).join(", ")}): ${got.map((r) => r && `${r.statusName} LIBRARY ${r.slot}`).join(", ")}`);
+    run(e, 300);
+    writePng(path.join(OUT, "sysex-imported.png"), e.screen().pixels);
+    run(e, 3000);
+    const img = e.flash().bytes;
+    e.dispose();
+    const e2 = await mk(img);
+    run(e2, 500);
+    const r4 = ask(e2, storeFrame(sounds[3]));
+    check(r4 && r4.status === 0 && r4.slot === 4, `after a reboot from the flash the library keeps them: the next sound goes to LIBRARY ${r4 && r4.slot}`);
+    const rp = ask(e2, storeFrame(sounds[3], { pool: true }));
+    check(rp && rp.status === 0 && rp.pool && rp.slot >= 2, `STORE into the POOL: ${rp && `${rp.statusName} POOL ${rp.slot}`}`);
+    e2.dispose();
+  } else { note(`SysEx: no .dnsnd files (--dnsnd ${DIR}): only IDENTITY checked`); e.dispose(); }
+}
 
 console.log(`\nfizz.wasm ${wasm.length} bytes; PNGs in ${path.relative(process.cwd(), OUT)}`);
 console.log(fails ? `${fails} check(s) failed` : "all passed");

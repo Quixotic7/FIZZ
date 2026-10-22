@@ -9,8 +9,8 @@ const MODES = [["NOTE", "#3F7DFF"], ["VEL", "#1FD47E"], ["LEN", "#36D6E7"], ["MI
   ["CHNC", "#FFD23F"], ["COND", "#FF52C0"], ["TRIG", "#F1F0EA"], ["FUNC", "#9FE6FF"], ["SOUND", "#B5E853"], ["P-LOCK", "#D8C39A"]];
 // [printed, FIZZ's job, computer key, colour]
 const BUTTONS = [
-  ["FX", "FX", "C"], ["SEL", "TRACKS", "V"], ["ENV", "MIX", "B"], ["LFO", "LATCH", "N"], ["EDIT", "EDITOR", "M"], ["GLO", "SHIFT", ",", "#FFD23F"],
-  ["HOME", "HOME", "7"], ["SAVE", "SOUNDS", "8"], ["ARP", "FILL", "9"], ["SEQ", "PATTERNS", "0"], ["PLAY", "PLAY", "-", "#1FD47E"], ["REC", "KEYS", "=", "#FF3448"],
+  ["FX", "FX", "C"], ["SEL", "TRACKS", "V"], ["ENV", "MIX", "B"], ["LFO", "LATCH", "N"], ["EDIT", "EDIT", "M"], ["GLO", "SHIFT", ",", "#FFD23F"],
+  ["HOME", "HOME", "7"], ["SAVE", "SOUNDS", "8"], ["ARP", "FILL", "9"], ["SEQ", "PATTERNS", "0"], ["PLAY", "PLAY", "-", "#1FD47E"], ["REC", "REC", "=", "#FF3448"],
 ];
 // [cx, cy, name, job, colour]
 const KNOBS = [[84, 82, "MASTER", "volume"], [204, 82, "SELECT", "page", "#FFD23F"], [84, 196, "PRESETS", "sound", "#28E1FF"],
