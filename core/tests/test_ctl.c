@@ -1752,7 +1752,8 @@ static const struct {
     {M_CHNC, QD_K_3, 1, 0}, {M_CHNC, QD_K_4, -1, X_CHANCE},
     {M_COND, QD_K_SELECT, 1, X_COND}, {M_COND, QD_K_1, 3, X_COND}, {M_COND, QD_K_2, -1, X_CHANCE},
     {M_COND, QD_K_3, 1, 0}, {M_COND, QD_K_4, 1, X_COND},
-    {M_TRIG, QD_K_SELECT, 1, X_TYPE}, {M_TRIG, QD_K_1, 2, X_TYPE}, {M_TRIG, QD_K_2, 1, 0}, {M_TRIG, QD_K_3, 1, 0},
+    {M_TRIG, QD_K_SELECT, 1, X_TYPE}, {M_TRIG, QD_K_1, 2, X_TYPE}, {M_TRIG, QD_K_3, 1, 0},   /* (P1.6c: KNOB 2 the
+                                                         * MIDI FX: g_p16c_trig) */
     {M_TRIG, QD_K_4, 1, X_TYPE},
     {M_SOUND, QD_K_SELECT, 1, X_SOUND}, {M_SOUND, QD_K_1, 2, X_SOUND}, {M_SOUND, QD_K_2, 1, 0},
     {M_SOUND, QD_K_3, 1, 0}, {M_SOUND, QD_K_4, 1, X_SOUND},
@@ -1841,7 +1842,7 @@ static const struct {
     {M_CHNC, QD_K_4, -1, X_CHANCE, 0},
     {M_COND, QD_K_1, 1, X_COND, 0}, {M_COND, QD_K_2, -1, X_CHANCE, 0}, {M_COND, QD_K_3, 1, 0, 0},
     {M_COND, QD_K_4, 1, X_COND, 0},
-    {M_TRIG, QD_K_1, 1, X_TYPE, 0}, {M_TRIG, QD_K_2, 1, 0, 0}, {M_TRIG, QD_K_3, 1, 0, 0}, {M_TRIG, QD_K_4, 1, X_TYPE, 0},
+    {M_TRIG, QD_K_1, 1, X_TYPE, 0}, {M_TRIG, QD_K_3, 1, 0, 0}, {M_TRIG, QD_K_4, 1, X_TYPE, 0},   /* (P1.6c: KNOB 2) */
     {M_SOUND, QD_K_1, 1, 0, X_TRK}, {M_SOUND, QD_K_2, 1, 0, 0}, {M_SOUND, QD_K_3, 1, 0, 0},
     {M_SOUND, QD_K_4, 1, 0, X_TRK},
 };
@@ -4367,6 +4368,174 @@ static void g_e41_machines(void)
     btap(QD_B_HOME);
 }
 
+/* P1.6c: the MIDI FX screen: SHIFT + ARP; ALGORITHM the track's group; PRESETS the effect; the pages, the arp's lanes;
+ * B10 bypass, B11 remove (twice) and its undo; F1 + B copy, F2 + B move; F1 tapped closes; the keys through the group;
+ * the LEDs and the labels */
+static void g_p16c_screen(void)
+{
+    static ui_mfx_t v;
+    qd_labels_t lb;
+    qd_mfx_group_t *G;
+    start();
+    bdown(SHIFT), run(10), btap(QD_B_KEYS), bup(SHIFT), run(10);
+    qd_view_mfx(&A, &v);
+    CHECK(qd_view_screen(&A) == QD_SCR_MFX && !v.g && leds().key[BK(B1)] == QD_LED_OFF && !A.seq.fill,
+          "SHIFT + ARP: the MIDI FX screen, track 1 OFF (the slots dark), no FILL");
+    turn(QD_K_ALGO, 1);
+    qd_view_mfx(&A, &v);
+    G = &A.proj.mfx[0];
+    CHECK(PAT()->trk[0].mfx == 1 && v.g == 1 && v.gsel && v.ntr == 1 && v.tr[0] == 1,
+          "ALGORITHM: track 1 on group 1 (the groups' choice up; its square)");
+    run(QD_TK_MS + 10);
+    turn(QD_K_PRESETS, 1);
+    qd_view_mfx(&A, &v);
+    CHECK(G->slot[0].type == QD_MFX_ARP && G->slot[0].v[QD_MA_MODE] == QD_AM_ON && v.roll && v.has[0] &&
+              !strcmp(v.lab[0], "PATTERN") && !strcmp(v.val[0], "UP") && !strcmp(v.lab[3], "CHANCE"),
+          "PRESETS: slot 1 an ARP (ON); the foot PATTERN UP .. CHANCE");
+    turn(QD_K_1, 2);
+    qd_view_mfx(&A, &v);
+    CHECK(G->slot[0].v[QD_MA_PAT] == QD_AP_UPDN && !strcmp(v.val[0], "UP DN") && v.last == 0, "KNOB 1: PATTERN UP DN");
+    black(B1);
+    CHECK(A.ui.mfx_page == 1, "B1 again: page 2");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.mfx_page == 2 && qd_mfx_lane_page(&A) == 1, "SELECT: page 3, the MOD lane");
+    wtap(4);
+    turn(QD_K_1, 3);
+    turn(QD_K_4, -4);
+    CHECK(A.ui.mfx_lane[0] == 4 && G->slot[0].lane[0][4] == QD_AL_REPEAT && G->slot[0].v[QD_MA_MLEN] == 12 &&
+              A.ui.mfx_slot == 0, "the lane: W5 its step, KNOB 1 its value (R), KNOB 4 the length (12); slot 1 still");
+    CHECK(leds().key[WK(11)] == QD_LED_DIM && leds().key[WK(12)] == QD_LED_OFF,
+          "the lane's LEDs: its length dim, beyond it off");
+    {
+        int k, ch = 0;
+        for (k = 0; k < 6; k++) {
+            const int8_t was = G->slot[0].lane[0][7];
+            bdown(SHIFT), wtap(7), bup(SHIFT);
+            ch += G->slot[0].lane[0][7] != was;
+        }
+        CHECK(ch >= 3, "SHIFT + W8: a random value (changed %d of 6)", ch);
+    }
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.mfx_page == 3 && qd_mfx_lane_page(&A) == 2, "SELECT: page 4, the TRANSPOSE lane");
+    wtap(1);
+    turn(QD_K_1, 7);
+    CHECK(G->slot[0].lane[1][1] == 7, "KNOB 1: the step's offset +7");
+    black(B2);
+    turn(QD_K_PRESETS, 2);
+    turn(QD_K_1, -6);
+    CHECK(A.ui.mfx_slot == 1 && G->slot[1].type == QD_MFX_CHANCE && G->slot[1].v[QD_MC_CHANCE] == 70,
+          "B2, PRESETS +2: a CHANCE in slot 2; KNOB 1: 70 %%");
+    black(B10);
+    qd_view_mfx(&A, &v);
+    CHECK(G->slot[1].bypass && v.byp_sel && leds().key[BK(B10)] == QD_LED_OFF, "B10: bypassed (B10 dark)");
+    black(B10);
+    CHECK(!G->slot[1].bypass && leds().key[BK(B10)] == QD_LED_LIT, "B10 again: playing (lit)");
+    run(QD_UNDO_QUIET_MS + 10);
+    black(B11);
+    qd_view_mfx(&A, &v);
+    CHECK(G->slot[1].type == QD_MFX_CHANCE && v.arm > 0.f, "B11: armed (the red X), nothing removed yet");
+    black(B11);
+    CHECK(G->slot[1].type == QD_MFX_NONE, "B11 again: removed");
+    run(QD_UNDO_QUIET_MS + 10);
+    bdown(SHIFT), btap(F1), bup(SHIFT), run(10);
+    CHECK(G->slot[1].type == QD_MFX_CHANCE && G->slot[1].v[QD_MC_CHANCE] == 70, "SHIFT + F1: the removal undone");
+    CHECK(qd_view_screen(&A) == QD_SCR_MFX, "(the screen stays)");
+    black(B2);
+    bdown(F1), run(10), black(B4), bup(F1), run(10);
+    CHECK(G->slot[3].type == QD_MFX_CHANCE && G->slot[1].type == QD_MFX_CHANCE && A.ui.mfx_slot == 3 &&
+              qd_view_screen(&A) == QD_SCR_MFX, "F1 + B4: slot 2 copied to 4 (F1's release: no close)");
+    black(B1);
+    bdown(F2), run(10), black(B3), bup(F2), run(10);
+    CHECK(G->slot[0].type == QD_MFX_CHANCE && G->slot[1].type == QD_MFX_NONE && G->slot[2].type == QD_MFX_ARP &&
+              A.ui.mfx_slot == 2, "F2 + B3: the ARP moved to slot 3, the others closed up");
+    qd_ctl_labels(&A, &lb);
+    CHECK(!strcmp(lb.s[QD_LBL_B0 + 2], "ARP") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_ALGO], "GROUP") &&
+              !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_PRESETS], "EFFECT") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "PATTERN") &&
+              !strcmp(lb.s[QD_LBL_B0 + 10], "REMOVE"), "the labels: B3 ARP, GROUP, EFFECT, PATTERN, REMOVE");
+    kdown(WK(0)), kdown(WK(2));                         /* the keys through the group: the arp plays them */
+    run(600);
+    CHECK(qd_mfx_arp_playing(&A.player.mfx, 1) && leds().button[QD_B_KEYS] == QD_LED_LIT,
+          "W1 W3 held: the arp plays (ARP lit)");
+    kup(WK(0)), kup(WK(2));
+    run(300);
+    CHECK(!qd_mfx_arp_playing(&A.player.mfx, 1), "let go: it stops");
+    bdown(SHIFT), turn(QD_K_SELECT, 1), bup(SHIFT), run(10);
+    qd_view_mfx(&A, &v);
+    CHECK(A.sel == 1 && !v.g && qd_view_screen(&A) == QD_SCR_MFX, "SHIFT + SELECT: track 2, its group (OFF)");
+    btap(F1);
+    CHECK(qd_view_screen(&A) != QD_SCR_MFX && !A.ui.latch, "F1 tapped: closed");
+    bdown(SHIFT), run(10), btap(QD_B_KEYS), bup(SHIFT), run(10);
+    btap(QD_B_HOME);
+    CHECK(qd_view_screen(&A) != QD_SCR_MFX, "HOME: closed");
+    btap(QD_B_PATTERN);                                 /* the track settings, page 2, KNOB 4 */
+    btap(QD_B_PATTERN);
+    turn(QD_K_4, 4);
+    CHECK(PAT()->trk[1].mfx == 4, "the track settings' page 2, KNOB 4: the track's MIDI FX (4)");
+    btap(QD_B_HOME);
+}
+
+/* P1.6c: ARP tapped: a track with no group: the first unused, empty group, an arp in it, ON (big); again: OFF, its mode
+ * kept; held: FILL, no toggle */
+static void g_p16c_arp(void)
+{
+    start();
+    PAT()->trk[3].mfx = 1;                              /* (group 1 used by track 4) */
+    qd_mfx_slot_init(&A.proj.mfx[1].slot[0], QD_MFX_CHANCE);   /* (group 2 not empty) */
+    qd_ctl_select_track(&A, 2);
+    btap(QD_B_KEYS);
+    CHECK(PAT()->trk[2].mfx == 3 && A.proj.mfx[2].slot[0].type == QD_MFX_ARP && A.ui.tk == QD_TK_MFX_ARP && A.ui.tk_on &&
+              A.ui.tk_new == 0 && !A.seq.fill, "ARP tapped, track 3 OFF: group 3 (the first unused and empty), an ARP in "
+          "slot 1, ON");
+    A.proj.mfx[2].slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
+    run(QD_TK_MS + 200);
+    btap(QD_B_KEYS);
+    CHECK(A.proj.mfx[2].slot[0].v[QD_MA_MODE] == QD_AM_OFF && !A.ui.tk_on, "tapped again: OFF");
+    btap(QD_B_KEYS);
+    CHECK(A.proj.mfx[2].slot[0].v[QD_MA_MODE] == QD_AM_HOLD && A.ui.tk_on, "again: ON, its mode back (HOLD)");
+    bdown(QD_B_KEYS);
+    run(400);
+    CHECK(A.seq.fill, "ARP held: FILL");
+    bup(QD_B_KEYS);
+    run(10);
+    CHECK(!A.seq.fill && A.proj.mfx[2].slot[0].v[QD_MA_MODE] == QD_AM_HOLD, "let go: no FILL, no toggle");
+    qd_ctl_select_track(&A, 0);
+    PAT()->trk[0].mfx = 2;                              /* (group 2: a CHANCE, no arp) */
+    run(QD_TK_MS + 200);
+    btap(QD_B_KEYS);
+    CHECK(PAT()->trk[0].mfx == 2 && A.proj.mfx[1].slot[1].type == QD_MFX_ARP && A.ui.tk_new == 1 && A.ui.tk_g == 2,
+          "track 1 on group 2 (a CHANCE, no arp): an arp in its first empty slot (2)");
+    qd_ctl_select_track(&A, 5);
+    run(QD_TK_MS + 200);
+    btap(QD_B_KEYS);
+    CHECK(PAT()->trk[5].mfx == 4, "track 6 OFF: group 4 (groups 1..3 in use)");
+    btap(QD_B_HOME);
+}
+
+/* P1.6c: a held step in TRIG: KNOB 2 the step's MIDI FX (TRACK, OFF, 1..5), B4 TRACK, B5 OFF, B6..B10 groups 1..5 */
+static void g_p16c_trig(void)
+{
+    start();
+    mode(M_TRIG);
+    whold(0);
+    turn(QD_K_2, 3);
+    CHECK(PAT()->step[0][0].mfx == QD_SMFX_G1 + 1 && A.ui.tk == QD_TK_MFX_STEP, "TRIG, KNOB 2 +3: the step on group 2 "
+          "(its picture)");
+    black(B5);
+    CHECK(PAT()->step[0][0].mfx == QD_SMFX_OFF, "B5: OFF");
+    black(B10);
+    CHECK(PAT()->step[0][0].mfx == QD_SMFX_G1 + 4, "B10: group 5");
+    black(B4);
+    CHECK(PAT()->step[0][0].mfx == QD_SMFX_TRACK, "B4: TRACK");
+    black(B7);
+    CHECK(leds().key[BK(B7)] == QD_LED_LIT && leds().key[BK(B4)] != QD_LED_LIT, "B7 (group 2) lit");
+    wrel(0);
+    CHECK(A.ui.tk != QD_TK_MFX_STEP, "let go: its picture gone");
+    turn(QD_K_2, 3);                                    /* (nothing held: the track's group, the default) */
+    CHECK(PAT()->trk[0].mfx == 3 && qd_step_mfx(PAT(), 0, 0) == 2 && qd_step_mfx(PAT(), 0, 1) == 3,
+          "nothing held, KNOB 2: the track's group (3); step 1 locked to group 2, the others follow the track");
+    btap(QD_B_HOME);
+}
+
 /* P1.5l: the editor's black keys regrouped: B1 TRIG / KEYS, B2 OPERATORS, B3 OP ENVELOPES, B4 FILTERS, B5 ENVELOPES,
  * B6..B8 the LFOs; SELECT in that order; a fresh start on RATIO; the LEDs */
 static void g_p15l_groups(void)
@@ -6680,6 +6849,9 @@ int main(void)
         {"P1.5k: the LFOs: keys, DEST, hold-to-map", g_p15k_lfo},
         {"E4: the modulation slots: B1's hold-to-map, MOD, MIDI", g_e4_mods},
         {"E4.1: FILTER's machines in the Digitone II's order", g_e41_machines},
+        {"P1.6c: the MIDI FX screen", g_p16c_screen},
+        {"P1.6c: ARP tapped: the arp on / off", g_p16c_arp},
+        {"P1.6c: TRIG's MIDI FX on a held step", g_p16c_trig},
         {"P1.5l: the editor's black keys regrouped", g_p15l_groups},
         {"P1.5m: the F layers with the step latch on", g_p15m_flatch},
         {"P1.5n/o: the octave tap's takeover, SELECT moves all, LFO's LED, MIX on TONE", g_p15n},

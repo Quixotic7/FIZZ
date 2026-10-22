@@ -139,7 +139,7 @@ void qd_step_release_all(qd_app_t *a)
     u->wk_down = u->wk_pending = u->wk_target = 0;
     u->note_keys = 0;
     u->scursor = 0;
-    if (u->tk == QD_TK_HELDKNOB)                        /* (the band of a step no longer held) */
+    if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)                        /* (the band of a step no longer held) */
         u->tk = QD_TK_NONE;
 }
 
@@ -186,7 +186,7 @@ void qd_step_cursor(qd_app_t *a, int d)
         while (!qd_page_in_range(ts, s) && ++n < QD_NSTEP);
     }
     u->nheld = 0;
-    if (u->tk == QD_TK_HELDKNOB)
+    if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
         u->tk = QD_TK_NONE;
     held_add(a, s, -1);
     qd_ctl_set_page(a, s / QD_PAGE);
@@ -202,7 +202,7 @@ void qd_step_cursor_page(qd_app_t *a)
     if (!u->slatch || !u->nheld || u->wk_down)
         return;
     u->nheld = 0;
-    if (u->tk == QD_TK_HELDKNOB)
+    if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
         u->tk = QD_TK_NONE;
     held_add(a, pg * QD_PAGE + (ts->pstart[pg] < QD_PAGE ? ts->pstart[pg] : 0), -1);
 }
@@ -333,7 +333,7 @@ void qd_step_white_up(qd_app_t *a, int w)
             a->ms - u->wk_t0[w] < QD_TAP_MS) {
             u->nheld = 0;
             u->note_keys = 0;
-            if (u->tk == QD_TK_HELDKNOB)
+            if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
                 u->tk = QD_TK_NONE;
         }
         return;
@@ -351,7 +351,7 @@ void qd_step_white_up(qd_app_t *a, int w)
         }
     if (!u->nheld) {
         u->note_keys = 0;
-        if (u->tk == QD_TK_HELDKNOB)
+        if (u->tk == QD_TK_HELDKNOB || u->tk == QD_TK_MFX_STEP)
             u->tk = QD_TK_NONE;
     }
 }
@@ -413,8 +413,13 @@ static void value_set(qd_app_t *a, int s, int m, int b)
         break;
     }
     case UI_F_TRIG:
-        if (b < 3)
+        if (b < 3) {
             qd_step_set_trig(p, t, s, QD_TRIG_NOTE + b);
+        } else {                                        /* P1.6c: B4 TRACK, B5 OFF, B6..B10 groups 1..5 */
+            qd_step_set_mfx(p, t, s, b - 3);
+            a->ui.tk_step = s;
+            qd_ctl_takeover(a, QD_TK_MFX_STEP, 1, 0, 0, s);
+        }
         break;
     case UI_F_FUNC:                                     /* P1.3w: B1 none, B2 RESTART .. B7 RANDOM FUNCTION; P1.3y: B8
                                                          * LEAP (the last n), B9 JUMP (the last target) */
@@ -871,6 +876,14 @@ void qd_step_job_held(qd_app_t *a, int job, int knob, int d)
             qd_step_set_func(p, t, u->held[i], QD_FN_MAKE_LEAP(n));
         break;
     }
+    case QD_KJ_MFX: {                                   /* P1.6c: TRIG's KNOB 2: the step's MIDI FX, TRACK OFF 1..5 */
+        const int m0 = p->step[t][u->held[0]].mfx;
+        for (i = 0; i < u->nheld; i++)
+            qd_step_set_mfx(p, t, u->held[i], clampi(m0 + d, 0, QD_SMFX_G1 + QD_MFX_NGROUP - 1));
+        u->tk_step = u->held[0];
+        qd_ctl_takeover(a, QD_TK_MFX_STEP, knob - QD_K_1, d, 0, u->held[0]);
+        return;
+    }
     case QD_KJ_JTGT: {                                  /* JUMP's target (1..128): the function a JUMP */
         qd_rstep_t r;
         int x;
@@ -980,6 +993,12 @@ void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
         break;
     case QD_KJ_COND: qd_tdef_set(p, t, QD_PM_COND, clampi(df->cond + d, 0, QD_NCOND - 1)); break;
     case QD_KJ_CHANCE: qd_tdef_set(p, t, QD_PM_CHANCE, clampi(df->chance + qd_ctl_acc(a, d, 101), 0, 100)); break;
+    case QD_KJ_MFX: {                                   /* P1.6c: the default: the track's group (OFF, 1..5) */
+        qd_tset_t *ts = &p->trk[t];
+        ts->mfx = (uint8_t)clampi(ts->mfx + d, 0, QD_MFX_NGROUP);
+        p->used = 1;
+        break;
+    }
     default:
         return;
     }
@@ -1278,8 +1297,11 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
                 strcpy(lab[b], TRIG_LAB[b]);
                 *lit |= r.on && r.type == QD_TRIG_NOTE + b ? bit : 0;
                 *def |= df->type == QD_TRIG_NOTE + b ? bit : 0;
-            } else {
-                *none |= bit;
+            } else {                                    /* P1.6c: B4 TRACK, B5 OFF, B6..B10 groups 1..5 */
+                static const char *const MF[7] = {"TRK", "OFF", "1", "2", "3", "4", "5"};
+                strcpy(lab[b], MF[b - 3]);
+                *lit |= p->step[a->sel][u->held[0]].mfx == b - 3 ? bit : 0;
+                *def |= b == 3 ? bit : 0;
             }
             break;
         case UI_F_FUNC:                                 /* P1.3y: the function's key lit (B8 LEAP, B9 JUMP) */

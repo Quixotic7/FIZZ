@@ -307,6 +307,8 @@ int qd_step_set_chance(qd_pattern_t *p, int t, int s, int chance);
 int qd_step_set_sound(qd_pattern_t *p, int t, int s, int sound);   /* 0 (the track's: the override cleared) .. 128 */
 int qd_step_set_strum(qd_pattern_t *p, int t, int s, int strum);
 int qd_step_set_func(qd_pattern_t *p, int t, int s, int func);   /* P1.3w: 0..QD_NFN-1 (an empty step: a trig made) */
+int qd_step_set_mfx(qd_pattern_t *p, int t, int s, int m);   /* P1.6c: QD_SMFX_* (TRACK, OFF, group 1..5; not TRACK on an
+                                                              * empty step: a trig made) */
 int qd_step_reset(qd_pattern_t *p, int t, int s, int pm);   /* parameter pm back to the track's (the bit cleared) */
 /* the resolved ratchet of a step's stored byte / of a default */
 int qd_ratch_count(int ratch);

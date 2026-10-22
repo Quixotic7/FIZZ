@@ -79,7 +79,7 @@ static const uint8_t KNOB_JOB[UI_NFIELD][5] = {         /* P1.3e: KNOB 4 the qui
     [UI_F_RATCH] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_RAMP, 0, QD_KJ_QUIET},
     [UI_F_CHNC] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_COND, 0, QD_KJ_QUIET},
     [UI_F_COND] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_CHANCE, 0, QD_KJ_QUIET},
-    [UI_F_TRIG] = {QD_KJ_MAIN, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
+    [UI_F_TRIG] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_MFX, 0, QD_KJ_QUIET},   /* (P1.6c: KNOB 2 the MIDI FX) */
     [UI_F_FUNC] = {0, QD_KJ_FTYPE, QD_KJ_LEAP, QD_KJ_JTGT, QD_KJ_QUIET},   /* P1.3y: SELECT the page; KNOB 1 the kind,
                                                          * 2 LEAP's n, 3 JUMP's target */
     [UI_F_SOUND] = {QD_KJ_MAIN, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
@@ -371,11 +371,21 @@ static void k_snd_note(qd_app_t *a, int key, int idx, int down, int vel)
                        vel);
 }
 static int w_step_view(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP; }
+/* P1.6c: the MIDI FX screen: B1..B8 the slots, B10 bypass, B11 remove; the W keys the track through the group (the
+ * arp's lanes: their steps) */
+static int w_mfx(const qd_app_t *a) { return qd_mfx_open(a) && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN); }
+static void k_mfx_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    (void)key, (void)vel;
+    qd_mfx_black(a, b, down);
+}
+static void k_mfx_white(qd_app_t *a, int key, int w, int down, int vel) { qd_mfx_white(a, key, w, down, vel); }
 /* P1.5c: SHIFT held in the step view (no menu open): its black-key shortcuts */
 static int w_shift_keys(const qd_app_t *a)
 {
     return a->ui.mode == QD_MODE_STEP && qd_ctl_shift(a) &&
-           (!a->ui.latch || a->ui.latch == QD_LATCH_F3 || a->ui.latch == QD_LATCH_SND);   /* (P1.5z: the editor too) */
+           (!a->ui.latch || a->ui.latch == QD_LATCH_F3 || a->ui.latch == QD_LATCH_SND ||   /* (P1.5z: the editor too) */
+            a->ui.latch == QD_LATCH_MFX);              /* (P1.6c: and the MIDI FX screen) */
 }
 static void k_shift_black(qd_app_t *a, int key, int b, int down, int vel)
 {
@@ -846,6 +856,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
     {w_panel, k_panel_white},          /* P1.4b: the mix, the effects: nothing (P1.5b: the overview's W1..W8 the
                                         * track) */
+    {w_mfx, k_mfx_white},              /* P1.6c: the MIDI FX screen: the track through the group (the lanes' steps) */
     {w_snd_mk, k_snd_mk},              /* E4: the editor, B1 held: W1..W8 the modulation source */
     {w_snd_keys, k_snd_note},          /* P1.5b: the sound editor's keyboard */
     {w_keys_mode, k_note},             /* the keyboard */
@@ -864,6 +875,7 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_lib, k_lib_black},              /* P1.5a: the banks, LIBRARY / POOL, NAME, delete */
     {w_panel, k_panel_black},          /* P1.4b: the track settings, the mix: the track; the effects: B1..B4 */
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
+    {w_mfx, k_mfx_black},              /* P1.6c: the MIDI FX screen: the slots, bypass, remove */
     {w_snd_full, k_snd_note},          /* P1.5b: the editor's keyboard, FULL: the black keys play too */
     {w_snd, k_snd_black},              /* P1.4a: the sound editor: B1..B5 its groups, B11 the page's locks */
     {w_keys_mode, k_note},             /* the keyboard */
@@ -1022,8 +1034,29 @@ static void b_lfo(qd_app_t *a, int down)
     qd_step_latch(a, !a->ui.slatch);
 }
 
-/* ARP held: FILL (the FILL / NOT FILL conditions) */
-static void b_fill(qd_app_t *a, int down) { qd_seq_fill(&a->seq, down); }
+/* ARP held: FILL (the FILL / NOT FILL conditions), as before, from its press. P1.6c: ARP acts on its RELEASE: a tap
+ * (released under QD_TAP_MS, nothing with it) is the track's group's arp on / off (ctl_mfx.c, big); SHIFT + ARP opens
+ * the MIDI FX screen */
+static void b_fill(qd_app_t *a, int down)
+{
+    qd_ui_t *u = &a->ui;
+    if (down) {
+        u->arp_ms = a->ms;
+        u->arp_used = 0;
+        if (qd_ctl_shift(a) && u->mode != QD_MODE_IDLE) {
+            u->arp_used = 1;
+            u->shift_used = 1;
+            qd_mfx_screen(a);
+            return;
+        }
+        qd_seq_fill(&a->seq, 1);
+        return;
+    }
+    qd_seq_fill(&a->seq, 0);
+    if (!u->arp_used && a->ms - u->arp_ms < QD_TAP_MS && u->mode != QD_MODE_IDLE)
+        qd_mfx_arp_tap(a);
+    u->arp_used = 1;
+}
 
 /* PLAY (P1.3x): a tap plays / stops on its RELEASE (held QD_PLAY_HOLD_MS it opens F3 instead: qd_ctl_ms); while
  * recording (live, or armed and waiting) the tap ends the recording and playback goes on (waiting: it starts playback
@@ -1144,6 +1177,9 @@ static void b_oct(qd_app_t *a, int d, int down)
         qd_shift_undo(a, d);
         return;
     }
+    if (qd_mfx_oct(a, d, down))                         /* P1.6c: the MIDI FX screen: F1 tapped closes it (at its
+                                                         * release), F1 / F2 held + B copy / move */
+        return;
     if (qd_lib_oct(a, d, down))                         /* P1.5a: the sounds page, the name editor, the projects */
         return;
     if (!down) {
@@ -1583,6 +1619,10 @@ static int k_snd(qd_app_t *a, int knob, int d)
     return qd_snd_knob(a, knob, d);
 }
 
+/* P1.6c: the MIDI FX screen's knobs (ctl_mfx.c) */
+static int when_mfx(const qd_app_t *a) { return qd_mfx_open(a) && !held(a, QD_B_MIX) && !held(a, QD_B_TRACKS); }
+static int k_mfx(qd_app_t *a, int knob, int d) { return qd_mfx_knob(a, knob, d); }
+
 /* P1.3y: the settings menus' knobs (KNOB 1..4 their rows; the encoders nothing) */
 static int when_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
 static int when_lib(const qd_app_t *a) { return qd_lib_open(a); }
@@ -1726,6 +1766,7 @@ static const struct {
     {when_menu, k_menu},               /* P1.3y: a settings menu: KNOB 1..4 its rows (P1.4b: the track settings) */
     {when_mix, k_mix},                 /* P1.4b: the mix */
     {when_fx, k_fx},                   /* P1.4b: the effects */
+    {when_mfx, k_mfx},                 /* P1.6c: the MIDI FX screen */
     {when_snd, k_snd},                 /* P1.4a: the sound editor: its page's values (a finger: p-locks) */
     {when_seq, k_seq},                 /* SEQ held: ALGORITHM the launch mode */
     {when_f3, k_f3},                   /* F3: SELECT page, ALGO tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */

@@ -482,7 +482,8 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   on. F2 leaves a rest, F1 steps back, PRESETS moves the cursor. REC tapped ends it (still the keyboard).
 - SHIFT + REC no longer arms recording (it opens the settings).
 - **REC + PLAY** starts playing with recording armed, in the keyboard.
-- **Hold ARP** for **FILL** (ARP lit): steps with the FILL / NOT FILL condition follow it.
+- **Hold ARP** for **FILL** (ARP blinks): steps with the FILL / NOT FILL condition follow it. A **tap** of ARP is the
+  arpeggiator on / off (0.9.0: MIDI FX, below).
 - A **MIDI keyboard** on the track's channel plays, records, or sets the notes of a held step (up to five).
 
 ## How do I change sounds? (P1.5t: presets, the pool, the track's sound)
@@ -692,6 +693,57 @@ DECAY, HARM and FDBK.
   envelope. HOLD is a time (the gate does nothing: one-shot, for drums and plucks), or **NOTE** (127): held while the
   key is down, then DEC is the release. DEC INF holds for ever. Switching the MODE while a note plays carries on from
   where the envelope is. In AHD, SUS and REL are not used (KNOB 4 is empty).
+
+## MIDI FX: the arpeggiator and friends (SHIFT + ARP, 0.9.0)
+
+- **Five groups of eight slots**, kept with the project. A slot holds one of ten effects or nothing; a track's notes
+  pass the slots in order (an empty or bypassed slot is skipped), then sound on the track. **A track plays through
+  one group or none** (OFF, the default); **two tracks may share a group** (their notes meet in one arp, each still
+  sounding on its own track). Notes the group makes count against the track's voices.
+- **The keys and a MIDI keyboard** play through the track's group too (stopped as well: the arp runs on the tempo);
+  recording keeps what you **played**, before the effects.
+- **SHIFT + ARP** opens the **MIDI FX** screen of the selected track's group: its number in a hexagon, the tracks on it
+  as small squares, the eight slots as a rail (notes run along it as they pass), the selected effect's picture, its
+  values at the foot. **HOME** or **F1 tapped** close it.
+  - **B1 .. B8** select slot 1 .. 8; the selected one again: its next page (the dots). **SELECT** turns the page too.
+  - **PRESETS** chooses the slot's effect (NONE, then the ten, a rolodex while turning); it is heard at once.
+  - **KNOB 1 .. 4** the page's values; **KNOB 4 is CHANCE** on every effect's first page (the effect acts on that share
+    of the notes; the others pass untouched).
+  - **ALGORITHM** puts the track on a group (OFF, 1 .. 5); the screen follows. **SHIFT + SELECT** goes to the next
+    track (its group).
+  - **B10** bypasses the slot (and back; saved). **B11** removes its effect: press it twice (the first arms a red X).
+    **SHIFT + F1** undoes.
+  - **F1 + B n** copies the slot to slot n; **F2 + B n** moves it there (the others close up).
+  - **The white keys** play the track through the group (its scale, as the sound editor's keyboard).
+- **ARP tapped** (anywhere): the track's group's arp **on / off**, big. A group with no arp gets one in its first empty
+  slot; a track with no group is put on the first group no track uses (an empty one first) with an arp in it. **ARP
+  held** is still FILL. ARP is lit while the arp plays.
+- **A step's own group**: hold the step in **TRIG** (B8): **KNOB 2** is its MIDI FX (TRACK: the track's, the default;
+  OFF; group 1 .. 5), or **B4 TRACK, B5 OFF, B6 .. B10 groups 1 .. 5**. With nothing held KNOB 2 is the track's group.
+  The track settings' page 2, **KNOB 4**, is the track's group too.
+- **The effects** (page by page, KNOB 1 .. 4):
+  - **ARP**: PATTERN (UP, DOWN, UP DN, DN UP, U+D, D+U, CONV, DIV, CON DIV, HI UP, HI UPDN, LO UP, LO UPDN, RAND,
+    RAND OTH, SHUFFLE, AS PLAYED), RATE (1/1 .. 1/64 of a bar), RANGE (octaves), CHANCE; MODE (OFF, ON while held,
+    1-ST once through even after release, ONCE at most once, HOLD latched: the next chord after every key is up
+    replaces it), GATE, OCT DIST (the octaves' step: +12, -12 goes down, +7 climbs in fifths), QUANT (when a run
+    starts); page 3 the **MOD lane** and page 4 the **TRANSPOSE lane**: the white keys are their 16 steps (a tap
+    selects one; **SHIFT + W** a random value), KNOB 1 the step's value, KNOB 4 the lane's length (B1 .. B8 stay the
+    slots). The MOD lane: x as played, . rest, - tie (the note before lasts longer), R repeat, < lowest -oct, > highest
+    +oct, " power chord, # every held note, 1 .. 6 the n-th note played. RESET (page 3, KNOB 2): NORM, NOTE (a new
+    note restarts it), MPAT / TPAT (restarts as the MOD / TRANSPOSE lane wraps). Every arp note at the first held
+    note's velocity. A new arp starts ON.
+  - **CHANCE**: lets a note through or drops it.
+  - **REPEAT**: RATE, HITS, FADE (the velocity over the hits), CHANCE; MODE (ON while held, 1-ST, ONCE, HOLD), GATE,
+    QUANT.
+  - **HARM**: NOTE 2 .. 7 added at fixed intervals (duplicates skipped), ORIG (the played note on / off).
+  - **TRANSPOSE**: SEMI, OCT (a note outside the range is dropped). **SCALER**: SCALE, ROOT, KEY (OWN, or TRACK: the
+    track's key): each note down onto the scale.
+  - **RANDOM**: PITCH +-, VEL +-, LENGTH + (a sequencer note's end later, up to that much), CHANCE; OCTAVE +-, DELAY
+    (a random wait, up to 1/64 .. 1/1 of a bar).
+  - **CHORD**: the note as a chord's root: CHORD (its shape), NOTES (more than the shape: doubled an octave up), INVERT,
+    CHANCE; SPREAD, VOICING (CLOSE, DROP 2, DROP 3, OPEN). The played velocity is kept.
+  - **MONO**: one note at a time per track (the newest cuts the one before).
+  - **SELECTOR**: each note to ONE of the next LENGTH slots (RND, UP, DOWN); the others are skipped for it.
 
 ## The scale (for now)
 

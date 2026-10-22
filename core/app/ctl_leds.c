@@ -168,6 +168,10 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
                                         i < QD_NTRACK ? (i == a->sel ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
         return;
     }
+    if (qd_mfx_open(a)) {                               /* P1.6c: the MIDI FX screen (ctl_mfx.c) */
+        qd_mfx_leds(a, out->key);
+        return;
+    }
     if (qd_snd_open(a)) {                               /* P1.4a: the sound editor: its groups, B11 the page's locks */
         uint8_t bk[11];
         qd_snd_leds(a, bk);
@@ -330,8 +334,13 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     }
     if (u->mode == QD_MODE_KEYS)                        /* REC: lit in the keyboard, blinking while armed */
         out->button[QD_B_REC] = !u->rec || blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
-    if (a->seq.fill)
-        out->button[QD_B_KEYS] = QD_LED_LIT;            /* ARP: FILL */
+    {   /* P1.6c: ARP lit while the track's group's arp plays, blinking while FILL is held */
+        const int g = qd_mfx_tgroup(a);
+        if (a->seq.fill)
+            out->button[QD_B_KEYS] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_DIM;
+        else if (g && qd_mfx_arp_playing(&a->player.mfx, g))
+            out->button[QD_B_KEYS] = QD_LED_LIT;
+    }
     if (u->latch == QD_LATCH_MIX)                       /* P1.4b: ENV (MIX), FX, SEL lit while their pages are open */
         out->button[QD_B_PAGE] = QD_LED_LIT;
     if (u->latch == QD_LATCH_FX)

@@ -360,6 +360,49 @@ int main(int argc, char **argv)
         }
     }
 
+    {   /* P1.6c: the MIDI FX screen through the panel: GLO + ARP opens it, ALGORITHM the track's group, PRESETS an ARP;
+         * the LABELS reply says so (ALGORITHM GROUP, PRESETS EFFECT, KNOB 1 PATTERN, B1 ARP); W1 held (through the
+         * group); F1 tapped closes it */
+        static const uint8_t LREQ0[9] = {0xF0, 0x7D, 0x46, 0x5A, 0x01, 0x20, 0x00, 0x60, 0xF7};
+        static uint8_t r[4096];
+        char lb[49][12];
+        int n, i, o, ok;
+        btap(FM1P_B_HOME);
+        run(100);
+        bdown(FM1P_B_GLO);
+        run(20);
+        btap(FM1P_B_ARP);
+        bup(FM1P_B_GLO);
+        run(20);
+        turn(FM1P_E_ALGO, 1);
+        turn(FM1P_E_PRESETS, 1);
+        run(50);
+        sx_out(r, sizeof r);
+        sx_in(LREQ0, 9);
+        run(5);
+        n = sx_out(r, sizeof r);
+        memset(lb, 0, sizeof lb);
+        for (i = 0, o = 9; i < 49 && o < n - 2; i++) {  /* (length-prefixed labels after the head) */
+            const int l = r[o++];
+            memcpy(lb[i], r + o, (size_t)(l < 11 ? l : 11));
+            o += l;
+        }
+        ok = !strcmp(lb[1], "GROUP") && !strcmp(lb[2], "EFFECT") && !strcmp(lb[3], "PATTERN") && !strcmp(lb[38], "ARP");
+        CHECK(ok, "GLO + ARP: the MIDI FX screen; ALGORITHM and PRESETS: group 1, an ARP (labels %s / %s / %s / %s)", lb[1],
+              lb[2], lb[3], lb[38]);
+        P->keys |= 1u << 0;                             /* W1 held: through the group */
+        run(700);
+        P->keys &= ~(1u << 0);
+        run(300);
+        turn(FM1P_E_ALGO, -1);                          /* (track 1 OFF again: the tests below play it straight) */
+        btap(FM1P_B_OCTDN);
+        run(20);
+        sx_in(LREQ0, 9);
+        run(5);
+        n = sx_out(r, sizeof r);
+        CHECK(n > 20 && r[9] == 4 && !memcmp(r + 10, "PAGE", 4), "F1 tapped: closed (SELECT is PAGE again)");
+    }
+
     {   /* P1.6m: an export through the ABI: 40 presets stored through midi_in, DUMP all (slot 0), the host reading
          * slowly (a few packets a ms): every frame whole, in order, none lost (the replies wait in FIZZ and go out as
          * the packet ring has room) */
@@ -448,6 +491,7 @@ int main(int argc, char **argv)
                 break;
             }
         CHECK(got, "DUMP of the factory INIT through midi_in (%d bytes back)", n);
+        memset(b6, 0, sizeof b6);                        /* (the bytes after the slots: zeros) */
         memcpy(b6, b5, 87);
         b6[1] = 6, b6[87] = 0;
         for (i = 0; i < 12; i++)

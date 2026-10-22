@@ -685,12 +685,17 @@ static void menu_trk(const ui_menu_t *v)
         for (k = 0; k < 16; k++)                        /* the limit lit, the voices sounding white */
             ui_O(38.f + (float)k * 7.f, 72.f, 2.4f, QD_NONE, 1.f,
                  k < v->voices_now ? UI_K3 : k < v->limit ? UI_K1 : UI_G3);
-        menu_row(1, 108.f, "SWING", v->swing ? "ON" : "OFF");
-        ui_icon(UI_IC_SWING, 46.f, 138.f, 1.4f, v->swing ? UI_K2 : UI_G2);
-        menu_row(2, 172.f, "PAGE FOLLOW", v->follow ? "ON" : "OFF");
+        menu_row(1, 98.f, "SWING", v->swing ? "ON" : "OFF");
+        ui_icon(UI_IC_SWING, 46.f, 126.f, 1.4f, v->swing ? UI_K2 : UI_G2);
+        menu_row(2, 152.f, "PAGE FOLLOW", v->follow ? "ON" : "OFF");
+        menu_row(3, 198.f, "MIDI FX", v->mfx ? 0 : "OFF");   /* P1.6c: the track's group, a hexagon */
+        if (v->mfx)
+            ui_mfx_hex(214.f, 220.f, 13.f, v->mfx, KCOL[3], 1.6f, 0);
+        else
+            ui_mfx_hex(46.f, 222.f, 9.f, 0, UI_G2, 1.2f, 1);
     }
     if (v->last >= 0 && v->last < 4) {                  /* the row turned last: its badge ringed */
-        static const float Y0[2][4] = {{44.f, 106.f, 152.f, 198.f}, {44.f, 108.f, 172.f, -100.f}};
+        static const float Y0[2][4] = {{44.f, 106.f, 152.f, 198.f}, {44.f, 98.f, 152.f, 198.f}};
         ui_O(18.f, Y0[v->page & 1][v->last], 12.f, KCOL[v->last], 1.2f, QD_NONE);
     }
 }
@@ -713,3 +718,4 @@ void ui_menu_draw(const ui_menu_t *v)
 #include "ui_lib.c"
 #include "ui_presets.c"                                 /* P1.5t: the library browser */
 #include "ui_type.c"                                    /* P1.5u: the typewriter (SAVE PRESET, a project's name) */
+#include "ui_mfx.c"                                     /* P1.6c: the MIDI FX screen */

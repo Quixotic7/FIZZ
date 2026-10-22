@@ -1217,6 +1217,15 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
         v->name = "CHANCE";
         cat(ui_itoa(v->val, r.chance), "%");
         break;
+    case QD_KJ_MFX: {                                   /* P1.6c: the track's MIDI FX group (the default) */
+        const int g = qd_ctl_cpat(a)->trk[t].mfx;
+        v->name = "MIDI FX";
+        if (g)
+            ui_itoa(v->val, g);
+        else
+            cat(v->val, "OFF");
+        break;
+    }
     default:
         break;
     }
@@ -1233,6 +1242,8 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_MENU;                             /* P1.3y: a settings menu */
     if (qd_snd_open(a))
         return QD_SCR_SOUND;                            /* P1.4a: the sound editor */
+    if (qd_mfx_open(a))
+        return QD_SCR_MFX;                              /* P1.6c: the MIDI FX screen */
     if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_BROWSE)
         return QD_SCR_BROWSE;                           /* P1.5t: the library browser */
     if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_SAVE)
@@ -1520,6 +1531,119 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     }
 }
 
+/* P1.6c: the MIDI FX screen's model: the selected track's group, its rail (the notes passing: the glow), the selected
+ * slot's values and, for an ARP, what it holds and plays now */
+void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
+{
+    qd_ui_t *u = &a->ui;
+    const qd_pattern_t *P = qd_ctl_cpat(a);
+    const int g = qd_mfx_tgroup(a);
+    int k, t;
+    memset(v, 0, sizeof *v);
+    v->g = g;
+    v->track = a->sel + 1;
+    v->t = secs(a->ms);
+    v->lift_from = -1;
+    v->last = -1;
+    v->lane_cur = -1;
+    v->sel_branch = -1;
+    for (t = 0; t < QD_PAT_NTRACK; t++)
+        if (g && P->trk[t].mfx == g)
+            v->tr[v->ntr++] = (uint8_t)(t + 1);
+    if (!g)
+        v->tr[v->ntr++] = (uint8_t)(a->sel + 1);
+    if (u->mfx_gsel_ms && a->ms - u->mfx_gsel_ms < QD_TK_MS) {   /* ALGORITHM: the five groups */
+        const float e = secs(a->ms - u->mfx_gsel_ms) / 0.25f;
+        const float w = e >= 1.f ? 1.f : e * e * (3.f - 2.f * e);
+        int gi;
+        v->gsel = 1;
+        v->gsel_pos = (float)u->mfx_gsel_from + (float)(g - u->mfx_gsel_from) * w;
+        for (gi = 0; gi < QD_MFX_NGROUP; gi++) {
+            for (k = 0; k < QD_MFX_NSLOT; k++)
+                v->gtype[gi][k] = a->proj.mfx[gi].slot[k].type;
+            for (t = 0; t < QD_PAT_NTRACK; t++)
+                if (t != a->sel && P->trk[t].mfx == gi + 1 && v->gtrn[gi] < 8)
+                    v->gtr[gi][v->gtrn[gi]++] = (uint8_t)(t + 1);
+        }
+    }
+    if (!g)
+        return;
+    {
+        const qd_mfx_group_t *G = &a->proj.mfx[g - 1];
+        const qd_mfx_grt_t *R = &a->player.mfx.g[g - 1];
+        const qd_mfx_slot_t *s = &G->slot[u->mfx_slot & 7];
+        if (u->mfx_seen_g != g) {
+            u->mfx_seen_g = g;
+            for (k = 0; k < QD_MFX_NSLOT; k++)
+                u->mfx_seen[k] = R->passed[k], u->mfx_hit_ms[k] = 0;
+        }
+        for (k = 0; k < QD_MFX_NSLOT; k++) {
+            v->type[k] = G->slot[k].type;
+            v->byp[k] = G->slot[k].bypass;
+            if (R->passed[k] != u->mfx_seen[k])
+                u->mfx_seen[k] = R->passed[k], u->mfx_hit_ms[k] = a->ms ? a->ms : 1u;
+            if (u->mfx_hit_ms[k] && a->ms - u->mfx_hit_ms[k] < 300u)
+                v->glow[k] = 1.f - (float)(a->ms - u->mfx_hit_ms[k]) / 300.f;
+        }
+        v->flow = qd_mfx_busy(&a->player.mfx, g) || (a->seq.playing && R->sent);
+        v->sel = u->mfx_slot & 7;
+        v->npages = qd_mfx_npages(s->type);
+        v->page = v->npages ? u->mfx_page % v->npages : 0;
+        v->byp_sel = s->type && s->bypass;
+        memcpy(v->v, s->v, sizeof v->v);
+        memcpy(v->lane, s->lane, sizeof v->lane);
+        if (u->mfx_arm == v->sel && s->type)
+            v->arm = 1.f;
+        if (u->mfx_lift_from >= 0 && u->mfx_lift_ms && a->ms - u->mfx_lift_ms < 900u) {
+            v->lift_from = u->mfx_lift_from, v->lift_to = u->mfx_lift_to;
+            v->lift_u = (float)(a->ms - u->mfx_lift_ms) / 900.f;
+        }
+        if (u->mfx_roll_ms && a->ms - u->mfx_roll_ms < QD_TK_MS) {   /* PRESETS: the rolodex */
+            const float e = secs(a->ms - u->mfx_roll_ms) / 0.2f;
+            const float w = e >= 1.f ? 1.f : e * e * (3.f - 2.f * e);
+            v->roll = 1;
+            v->roll_from = (float)u->mfx_roll_from;
+            v->roll_pos = v->roll_from + ((float)s->type - v->roll_from) * w;
+        }
+        for (k = 0; k < 4 && s->type; k++) {           /* the foot */
+            const int id = qd_mfx_page_id(s->type, v->page, k);
+            if (id == -1)
+                continue;
+            v->has[k] = 1;
+            v->lab[k] = qd_mfx_knob_name(a, k, v->val[k]);
+        }
+        if (u->mfx_knob >= 0 && a->ms - u->mfx_ms < 2000u)
+            v->last = u->mfx_knob;
+        if (s->type == QD_MFX_ARP) {                    /* the arp: its held notes, its walk, where it is */
+            const qd_mfx_srt_t *r = &R->s[v->sel];
+            const int range = s->v[QD_MA_RANGE] < 1 ? 1 : s->v[QD_MA_RANGE];
+            int n = 0, i, o;
+            while (n < QD_MFX_NHOLD && r->h[n].used)
+                n++;
+            v->lane_sel = u->mfx_lane[v->page == 3 ? 1 : 0] & 15;
+            if ((r->type & 0x7F) == QD_MFX_ARP && n) {
+                v->nheld = n;
+                for (i = 0; i < n; i++)
+                    v->held_p[i] = r->h[r->order[i]].n.pitch, v->held_t[i] = (uint8_t)(r->h[r->order[i]].n.track + 1);
+                for (o = 0; o < range && v->nseq < 24; o++)
+                    for (i = 0; i < r->nseq && v->nseq < 24; i++) {
+                        const int p = v->held_p[r->seq[i] < n ? r->seq[i] : 0] + o * s->v[QD_MA_ODIST];
+                        v->seq[v->nseq++] = (uint8_t)(p < 0 ? 0 : p > 127 ? 127 : p);
+                    }
+                v->arp_run = r->run;
+                v->arp_step = r->oct * r->nseq + (r->pos > 0 ? r->pos - 1 : 0);
+                if (r->run)
+                    v->lane_cur = v->page == 3 ? (r->tpos + s->v[QD_MA_TLEN] - 1) % (s->v[QD_MA_TLEN] < 1 ? 1 : s->v[QD_MA_TLEN])
+                                               : (r->mpos + s->v[QD_MA_MLEN] - 1) % (s->v[QD_MA_MLEN] < 1 ? 1 : s->v[QD_MA_MLEN]);
+            }
+        }
+        if (s->type == QD_MFX_CHORD) {                  /* CHORD: the chord on A, named */
+            const int sh = s->v[QD_MK_SHAPE] > 0 && s->v[QD_MK_SHAPE] < QD_NSHAPE ? s->v[QD_MK_SHAPE] : 1;
+            snprintf(v->chord, sizeof v->chord, "A%s", QD_SHAPE[sh].name);
+        }
+    }
+}
+
 /* P1.3y: the settings menus' model */
 static void fill_menu(const qd_app_t *a, ui_menu_t *v)
 {
@@ -1553,6 +1677,7 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
         v->chan = ts->chan + 1;
         v->limit = ts->limit;
         v->swing = ts->swing;
+        v->mfx = ts->mfx <= QD_MFX_NGROUP ? ts->mfx : 0;
         for (i = 0; i < a->pool.nvoice; i++)
             v->voices_now += qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == a->sel;
         v->last = u->menu_knob;
@@ -1716,6 +1841,7 @@ int qd_view_overlay(const qd_app_t *a)
                                       a->ui.tk == UI_TK_TAP || a->ui.tk == UI_TK_FOLLOW || a->ui.tk == UI_TK_TRACKBIG ||
                                       a->ui.tk == QD_TK_UNDO || a->ui.tk == QD_TK_IMPORT || a->ui.tk == QD_TK_LOADED ||
                                       a->ui.tk == QD_TK_BACK || a->ui.tk == QD_TK_SAVED ||
+                                      a->ui.tk == QD_TK_MFX_ARP || a->ui.tk == QD_TK_MFX_STEP ||   /* (P1.6c) */
                                       (a->ui.tk == QD_TK_PRESET && a->ui.tk_lock));   /* (P1.5t: the step's pool
                                                          * picker takes the screen in EDIT too) */
 }
@@ -1743,6 +1869,7 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_type_t tyv;
     static ui_prj_t pjv;
     static ui_fx_t fv;
+    static ui_mfx_t mfv;
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
     qd_begin();
@@ -1775,6 +1902,10 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     case QD_SCR_SOUND:                                  /* P1.4a: the sound editor */
         qd_view_snd(a, &sv5);
         ui_snd_draw(&sv5);
+        break;
+    case QD_SCR_MFX:                                    /* P1.6c: the MIDI FX screen */
+        qd_view_mfx(a, &mfv);
+        ui_mfx_draw(&mfv);
         break;
     case QD_SCR_SEQ:                                    /* printed SEQ held: the patterns */
         draw_patterns(a);
@@ -1848,6 +1979,23 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
                 draw_pfx(a);                            /* P1.5t: LOADED, BACK, SAVED */
             } else if (u->tk == QD_TK_IMPORT) {         /* P1.5r: a sound imported (SysEx) */
                 ui_import_draw(u->imp_name, u->imp_pool, u->imp_slot, secs(a->ms - u->tk_ms));
+            } else if (u->tk == QD_TK_MFX_ARP) {        /* P1.6c: ARP tapped: the arp ON / OFF */
+                uint8_t ty[8];
+                int k;
+                for (k = 0; k < 8; k++)
+                    ty[k] = u->tk_g ? a->proj.mfx[u->tk_g - 1].slot[k].type : 0;
+                ui_mfx_arp_draw(u->tk_g, u->tk_on, ty, u->tk_new, a->sel + 1, secs(a->ms - u->tk_ms), secs(a->ms));
+            } else if (u->tk == QD_TK_MFX_STEP) {       /* P1.6c: a held step's MIDI FX */
+                static const char *const TRIG[4] = {"NOTE", "NOTE", "LOCK", "TIE"};
+                uint8_t ty[8];
+                const int s = u->nheld ? u->held[0] : u->tk_step >= 0 ? u->tk_step : 0;
+                const int m = qd_ctl_cpat(a)->step[a->sel][s].mfx, g = qd_step_mfx(qd_ctl_cpat(a), a->sel, s);
+                int k;
+                qd_rstep_t r;
+                qd_step_resolve(qd_ctl_cpat(a), a->sel, s, &r);
+                for (k = 0; k < 8; k++)
+                    ty[k] = g ? a->proj.mfx[g - 1].slot[k].type : 0;
+                ui_mfx_step_draw(s + 1, m, g, ty, TRIG[r.type & 3], secs(a->ms));
             } else if (u->tk == QD_TK_UNDO) {           /* P1.5c: UNDO / REDO, what it was */
                 ui_undo_draw(u->undo_dir > 0, u->undo_kind, secs(a->ms));
             } else if (u->tk == QD_TK_PRESET) {

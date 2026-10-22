@@ -146,7 +146,7 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
         case QD_K_1: ts->limit = (uint8_t)cl(ts->limit + d, 1, 16); break;
         case QD_K_2: ts->swing = d > 0; break;
         case QD_K_3: u->follow = d > 0, u->play_page[a->sel] = -1; break;
-        default: break;
+        default: ts->mfx = (uint8_t)cl(ts->mfx + d, 0, QD_MFX_NGROUP); break;   /* P1.6c: KNOB 4 MIDI FX */
         }
     }
     return 1;

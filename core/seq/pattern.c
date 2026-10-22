@@ -833,6 +833,19 @@ int qd_step_set_func(qd_pattern_t *p, int t, int s, int func)
     return QD_OK;
 }
 
+int qd_step_set_mfx(qd_pattern_t *p, int t, int s, int m)
+{
+    qd_step_t *st;
+    if (!ts_ok(t, s) || m < 0 || m >= QD_SMFX_G1 + QD_MFX_NGROUP)
+        return QD_EARG;
+    st = &p->step[t][s];
+    if (m && !(st->flags & QD_SF_ON))                   /* (a MIDI FX on an empty step: a trig) */
+        st->flags |= QD_SF_ON;
+    st->mfx = (uint8_t)m;
+    p->used = 1;
+    return QD_OK;
+}
+
 const char *qd_fn_name(int f, char *out)
 {
     static const char *const N[QD_FN_JUMP] = {"NONE", "RESTART", "REVERSE", "FORWARD", "FLIP", "RANDOM", "RND FUNC"};

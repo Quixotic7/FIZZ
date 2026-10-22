@@ -22,6 +22,7 @@
 static void f3_close(qd_app_t *a) { a->ui.f3_anchor = -1; }
 static void br_closed(qd_app_t *a);                     /* (ctl_presets.c) */
 static void snd_close(qd_app_t *a) { a->ui.ekeys = 0, a->ui.snd_lk = 0; }   /* (P1.5b: the editor's keyboard ends with it) */
+static void mf_closed(qd_app_t *a);                     /* (ctl_mfx.c) */
 
 static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_F3] = {"F3", "EXIT", 0, 0, 0, f3_close},
@@ -35,6 +36,7 @@ static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_NAME] = {"PROJECT NAME", "BACK", 0, 0, 0, 0},   /* P1.5a: the name editor (P1.5u: the typewriter) */
     [QD_LATCH_PRJ] = {"PROJECT", "BACK", 0, 0, 0, 0}, /* P1.5a: the project pages */
     [QD_LATCH_SAVE] = {"SAVE PRESET", "CANCEL", "REPLACE", 0, 0, 0},   /* P1.5t: SAVE PRESET */
+    [QD_LATCH_MFX] = {"MIDI FX", "BACK", 0, 0, 0, mf_closed},   /* P1.6c: the MIDI FX screen (ctl_mfx.c) */
 };
 
 const qd_latch_t *qd_latch_cur(const qd_app_t *a)
@@ -93,3 +95,4 @@ int qd_latch_oct(qd_app_t *a, int d)
 #include "ctl_lib.c"
 #include "ctl_type.c"
 #include "ctl_shift.c"
+#include "ctl_mfx.c"                                    /* P1.6c: the MIDI FX screen */

@@ -621,6 +621,7 @@ typedef struct {
     int track, page;
     const char *tname, *scale, *root;
     int scale_mask, root_pc, follow_key, chan, limit, swing, voices_now;
+    int mfx;                            /* P1.6c: the track's MIDI FX group (0 OFF) */
     int last;                           /* the knob turned last (0..3, -1) */
 } ui_menu_t;
 void ui_menu_draw(const ui_menu_t *v);
@@ -765,6 +766,58 @@ typedef struct {
     char val[24];                       /* "101", "+3/24", "E4", "014 MARIMBA" */
 } ui_band_t;
 void ui_band_draw(const ui_band_t *v);
+
+/* ---- P1.6c: the MIDI FX screen (ui_mfx.c; mockups/fizz-midifx.html). The head: the page dots, MIDI FX, the group's
+ * number in a hexagon (OFF: an empty dashed one), the tracks routed to it as squares (the selected ringed). The rail:
+ * the eight slots as tiles (each its effect's glyph in its colour; empty dashed; bypassed dimmed and crossed; the
+ * selected raised and outlined), dots running along it as notes pass, a SELECTOR's block bracketed. The middle: the
+ * selected effect's drawing (its name above in its colour); the foot: KNOB 1..4's labels and values. PRESETS' type
+ * rolodex and ALGORITHM's group choice draw in the middle / over the screen while turning */
+#define UI_MFX_MINT 0x5cf2c4u          /* the MIDI FX colour (a group's hexagon) */
+extern const qd_rgb UI_MFX_COL[11];     /* each effect's colour (mfx.h QD_MFX_*; NONE grey) */
+void ui_mfx_glyph(int type, float cx, float cy, float s, qd_rgb col, float lw);   /* an effect's glyph, 2 s wide */
+void ui_mfx_hex(float x, float y, float r, int n, qd_rgb col, float lw, int dashed);   /* a group: n in a hexagon */
+typedef struct ui_mfx {
+    int g;                              /* the group shown (1..5); 0: the selected track is OFF */
+    int track;                          /* the selected track (1..8) */
+    int ntr;                            /* the tracks routed to the group (1-based) .. */
+    uint8_t tr[8];
+    uint8_t type[8], byp[8];            /* the rail: each slot's effect (QD_MFX_*), bypassed */
+    float glow[8];                      /* .. a note passing it (0..1, decaying) */
+    int flow;                           /* notes are passing (the dots run) */
+    int sel, page, npages;              /* the selected slot, its page */
+    int has[4], last;                   /* the foot: KNOB 1..4's values, the knob turned last (-1) */
+    const char *lab[4];
+    char val[4][12];
+    int16_t v[12];                      /* the selected slot's values (mfx.h QD_M*) .. */
+    int8_t lane[2][16];                 /* .. its lanes */
+    int lane_sel, lane_cur;             /* the lane step selected; the one playing (-1) */
+    int nheld;                          /* ARP: the notes it holds (by pitch), their tracks .. */
+    uint8_t held_p[8], held_t[8];
+    int arp_run, arp_step;              /* .. it runs, the step of its walk playing (into seq) */
+    int nseq;                           /* .. its walk over the range (pitches, up to 24) */
+    uint8_t seq[24];
+    int sel_branch;                     /* SELECTOR: the slot chosen last (-1) */
+    char chord[12];                     /* CHORD: the chord's name ("Am7") */
+    int byp_sel;                        /* the selected slot is bypassed */
+    float arm;                          /* B11 armed: 1 just armed .. 0 (the red X shakes) */
+    int lift_from, lift_to;             /* F2 + B: the slot carried (-1 none) .. */
+    float lift_u;                       /* .. 0..1 through it */
+    int roll;                           /* PRESETS turned: the rolodex up .. */
+    float roll_pos, roll_from;          /* .. at type pos (0 NONE .. 10), coming from */
+    int gsel;                           /* ALGORITHM turned: the five groups' choice up .. */
+    float gsel_pos;                     /* .. the track's square at (0 OFF .. 5) */
+    uint8_t gtype[5][8];                /* .. each group's slots' effects */
+    uint8_t gtr[5][8];                  /* .. the tracks on it (but the selected), how many */
+    int gtrn[5];
+    float t;                            /* seconds (motion) */
+} ui_mfx_t;
+void ui_mfx_draw(const ui_mfx_t *v);
+/* ARP tapped (anywhere): the arp's staircase, ON / OFF big, the group's hexagon and its slots (a new one popping in at
+ * slot k_new, -1 none) */
+void ui_mfx_arp_draw(int g, int on, const uint8_t type[8], int k_new, int track, float u, float t);
+/* a held step's MIDI FX (TRIG's KNOB 2, B4..B10): its group's hexagon big (TRACK: the track's, OFF: none) and rail */
+void ui_mfx_step_draw(int step, int m, int g, const uint8_t type[8], const char *trig, float t);
 
 /* P1.5z: the models the frame fills (view.c), for the tests */
 struct qd_app;

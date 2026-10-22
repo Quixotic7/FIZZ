@@ -158,7 +158,9 @@ Reply: `F0 7D 46 5A 01 60 <count hi> <count lo> <n = 49> { <len> <len ASCII byte
   groups, the page's value names, DICE, NEW SOUND), the browser (ALL, BASS .. FX, the next source, +POOL / -POOL,
   DELETE, LOAD, CANCEL), the typewriter (the letters, or SHIFT's characters; CURSOR, LETTER, NEW NAME, DELETE /
   CLEAR), SEQ held (the patterns, the banks), SEL held (MUTE / SOLO / TRACK), F1 / F2 / F3, the settings menus, the
-  mix, the effects (their cells' names), the keyboard (the notes).
+  mix, the effects (their cells' names), the keyboard (the notes), P1.6c's MIDI FX screen (the slots' effects on
+  B1..B8, BYPASS / PLAY, REMOVE; ALGORITHM GROUP, PRESETS EFFECT, the page's value names; the notes, or LANE 1..16 on
+  the arp's lanes; F1 CLOSE / COPY TO B, F2 MOVE TO B) and FILL's button ARP/FILL (a tap the arp on / off).
 - **Subscribed**, FIZZ sends a LABELS reply by itself whenever the set changes, looking at most every 50 ms (20 a
   second); nothing while it stays the same. A request without the flag answers once and ends the subscription.
 
