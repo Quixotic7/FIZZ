@@ -1757,3 +1757,14 @@ EDIT follows the music: while playing with nothing held, the latch off and no ta
 track's step as it is heard (audio-clock timed: micro-timing and the track's rate), each picture's play moment, empty
 steps keep the last at 60 %; 0.78 ms a frame. The FIZZ web preview is live at https://quixotic7.github.io/FIZZ/ (site/,
 GitHub Pages by Actions; the prebuilt fizz.wasm, 0.6.2-p1.5p, rebuilt with `site/build_wasm.sh` on updates).
+
+**2026-10-22, P1.5s, P1.5t** (FMToneSeq ca4febc..3daa898; FM1VST `core-quadrille` 4ef0d71, f0c7872, a711f46, pushed;
+versions 0.6.5-p1.5s, 0.7.0-p1.5t; relaunched; the web preview on 0.7.0, 976e3c2):
+- P1.5s: EDIT follows from PLAY (the case: the latch on with nothing selected; and a muted selected track), EDIT the
+  default view, the latch's selection silent (only a finger sounds; the cursor previews once), `.dnsnd` drop and
+  menu in FM1VST (a C++ port of ChoralRoot's reader, 256 / 256 presets byte-identical); the stop-gap walk from the pool
+  into the library (gone again in P1.5t).
+- P1.5t: the sound system redesigned as approved (above): FACTORY 1..23 compiled in, MY PRESETS 256 (ids from 0x100),
+  the pool with preset ids, PRESETS = the library browser (preview never reaches the pattern; load / cancel, kinds,
+  sources, + / − pool, delete), a step + PRESETS = the pool with TRACK, SAVE PRESET (NEW / REPLACE, names); 0.6
+  projects keep their pools, new ones start empty; SysEx LIBRARY stores go into MY PRESETS.
