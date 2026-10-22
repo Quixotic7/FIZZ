@@ -318,6 +318,31 @@ try {
     check(am >= 3, `REC held from the computer key (=) with a knob turned (the arrows): ${am} panel messages carry both`);
   }
 
+  // 7e. the TAP ape (0.9.2): SHIFT + B6 tapped four times draws the ape (offscreen layers) in the page's AudioWorklet;
+  // the worklet's render-load reports (host.js "load", every half second) while it dances
+  {
+    await evaluate("window.__load = []; FIZZ.player.ev.load = (m) => window.__load.push(m);");
+    await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(300);
+    const lcd0 = await evaluate("Array.from(FIZZ.state.pixels)");
+    // (a baseline: the step view while the sequencer plays, its playhead redrawn)
+    await evaluate("FIZZ.controls.holdBtn(10, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(10, 4, false)");
+    await evaluate("window.__load = []"); await sleep(2000);
+    const base = await evaluate("window.__load");
+    await evaluate("FIZZ.controls.holdBtn(10, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(10, 4, false)"); await sleep(300);
+    await evaluate("FIZZ.controls.holdBtn(5, 4, true)"); await sleep(100);
+    for (let i = 0; i < 4; i++) { await evaluate("FIZZ.controls.holdKey(13, 4, true)"); await sleep(60); await evaluate("FIZZ.controls.holdKey(13, 4, false)"); await sleep(400); }
+    await evaluate("FIZZ.controls.holdBtn(5, 4, false)");
+    await evaluate("window.__load = []");
+    await sleep(2000);
+    const lcd1 = await evaluate("Array.from(FIZZ.state.pixels)");
+    await shot("ape.png");
+    const ld = await evaluate("window.__load");
+    const ch = lcd1.filter((v, i) => v !== lcd0[i]).length;
+    const maxMs = Math.max(...ld.map((m) => m.maxMs)), late = Math.max(...ld.map((m) => m.lateMs)), load = Math.max(...ld.map((m) => m.load));
+    check(ch > 5000 && ld.length >= 2 && late < 50, `the TAP ape in the page (${ch} px from the step view); the worklet over 2 s: the slowest quantum ${maxMs.toFixed(2)} ms, load ${(load * 100).toFixed(1)} %, late ${late.toFixed(0)} ms (${ld.length} reports); the step view playing: ${Math.max(...base.map((m) => m.maxMs)).toFixed(2)} ms, ${(Math.max(...base.map((m) => m.load)) * 100).toFixed(1)} %`);
+    await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(300);
+  }
+
   // 7c. the recorder (RemoteFM1's ad408fa): Shift+R records, FIZZ playing, Shift+R stops; a take with sound in it
   {
     const shiftR = async () => {

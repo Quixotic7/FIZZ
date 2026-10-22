@@ -389,6 +389,29 @@ e.dispose();
   } else { note(`SysEx: no .dnsnd files (--dnsnd ${DIR}): only IDENTITY checked`); e.dispose(); }
 }
 
+// 9. the TAP ape (0.9.2): SHIFT + B6 tapped in time opens the TAP screen, a breakdancing ape drawn through the
+// offscreen layers (qd_layer_*); it animates, and the render quanta that draw it stay well inside the audio budget
+{
+  e = await mk();
+  p = new Panel(e);
+  run(e, 500); tapBtn(e, p, "HOME"); run(e, 300);
+  const before = e.screen().pixels.slice();
+  p.btn("GLO", true); run(e, 100);
+  for (let i = 0; i < 4; i++) { tapKey(e, p, 13, 60); run(e, 360); }        // B6 = key 13, about 120 BPM
+  p.btn("GLO", false);
+  const shots = [], times = [];
+  for (let f = 0; f < 6; f++) {
+    for (let q = 0; q < 70; q++) { const t = performance.now(); e.render(L, R); times.push(performance.now() - t); }   // (~0.2 s)
+    shots.push(e.screen().pixels.slice());
+    writePng(path.join(OUT, `ape-${f}.png`), shots[f]);
+  }
+  e.dispose();
+  const moved = shots.slice(1).filter((s, i) => diffPx(s, shots[i]) > 200).length;
+  const sorted = times.slice().sort((a, b) => a - b), max = sorted[sorted.length - 1], p99 = sorted[Math.floor(sorted.length * 0.99)];
+  check(diffPx(shots[0], before) > 5000 && moved >= 3 && max < 2.9,
+    `SHIFT + B6 x4: the TAP ape (${diffPx(shots[0], before)} px from the step view, it moves in ${moved} of 5 gaps); a quantum (2.9 ms of audio at 44.1 kHz, a frame drawn every 15 ms) took at most ${max.toFixed(2)} ms, p99 ${p99.toFixed(2)} ms`);
+}
+
 // 8. a save from the previous published FIZZ (the last committed site/fizz.wasm with another version: git; skipped
 // without its history): a project made there, booted by this FIZZ: it reads it (the steps are there, the flash is not
 // formatted), as the page's carry-over to a new version relies on
