@@ -59,7 +59,7 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p14a.o $(B)/render_p14b.o $(B)/render_p15a.o $(B)/render_p15b.o $(B)/render_p15d.o $(B)/render_p15e.o $(B)/render_p15f.o $(B)/render_p15g.o $(B)/render_p15h.o $(B)/render_p15i.o $(B)/render_p15j.o $(B)/render_p15k.o $(B)/render_p15l.o $(B)/render_p15n.o $(B)/render_p15o.o $(B)/render_p15c.o $(B)/render_p15p.o $(B)/render_p15q.o $(B)/render_p15r.o $(B)/render_p15s.o $(B)/render_p15t.o $(B)/render_p15u.o $(B)/render_p15v.o $(B)/render_p15w.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p14a.o $(B)/render_p14b.o $(B)/render_p15a.o $(B)/render_p15b.o $(B)/render_p15d.o $(B)/render_p15e.o $(B)/render_p15f.o $(B)/render_p15g.o $(B)/render_p15h.o $(B)/render_p15i.o $(B)/render_p15j.o $(B)/render_p15k.o $(B)/render_p15l.o $(B)/render_p15n.o $(B)/render_p15o.o $(B)/render_p15c.o $(B)/render_p15p.o $(B)/render_p15q.o $(B)/render_p15r.o $(B)/render_p15s.o $(B)/render_p15t.o $(B)/render_p15u.o $(B)/render_p15v.o $(B)/render_p15w.o $(B)/render_p15x.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
@@ -152,6 +152,7 @@ test: $(TESTS)
 	$(B)/test_persist
 	$(B)/test_sysex
 	@if [ -d "$(DNSND_DIR)" ]; then node test_sysex_dnsnd.mjs "$(DNSND_DIR)" $(B)/test_sysex; else echo "test_sysex_dnsnd: no $(DNSND_DIR) (skipped)"; fi
+	node test_fizz_sysex.mjs $(B)/test_sysex
 	$(B)/test_quad_bitexact
 	$(B)/test_fx_bitexact
 	@echo "make test: all passed"

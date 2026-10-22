@@ -41,6 +41,12 @@ static void make_patch(int preset, const kv_t *kv, int n, int16_t *p)
 #define N(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
 /* P1.5t: factory preset i (0..QD_NFACTORY-1): INIT, the 16 FM TONE sounds, the six drums */
+/* P1.5x: the FM TONE presets' sends, chorus / delay / reverb, as ChoralRoot's FX() has them (firmware/src/eng_quad.c
+ * QUAD_PRESETS: EP .. NOISE-ISH, the order of quad_voice.h's presets 1..16) */
+static const uint8_t FX_SENDS[16][3] = {
+    {30, 20, 40}, {20, 35, 60}, {0, 10, 10}, {20, 30, 40}, {25, 20, 40}, {50, 25, 70}, {35, 25, 50}, {25, 40, 40},
+    {20, 30, 50}, {0, 15, 10}, {15, 20, 25}, {55, 15, 65}, {15, 25, 40}, {50, 30, 80}, {25, 30, 40}, {20, 30, 50}};
+
 void qd_factory_preset(int i, qd_sound_t *out)
 {
     static const kv_t KICK[] = {
@@ -87,6 +93,14 @@ void qd_factory_preset(int i, qd_sound_t *out)
             }
             s->preset = (uint16_t)(k + 1);
             s->tags = (uint8_t)qd_preset_tags(s->patch);
+            if (k >= 1 && k <= 16) {                    /* P1.5x: ChoralRoot's FX(drive, chorus, delay, reverb) of its
+                                                         * QUAD preset (eng_quad.c QUAD_PRESETS); pan centre */
+                s->chorus = FX_SENDS[k - 1][0];
+                s->delay = FX_SENDS[k - 1][1];
+                s->reverb = FX_SENDS[k - 1][2];
+            } else {
+                s->reverb = 20;                         /* (INIT, the drums: the default kit's, QD_MIX_REVERB_DEFAULT) */
+            }
         }
         made = 1;
     }

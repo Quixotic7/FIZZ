@@ -305,7 +305,8 @@ static void tags_test(void)
     CHECK(!B.per.ftags[2] && f.tags == QD_PKB(qd_tags_first(f.tags)), "another factory preset untouched: the "
           "classifier's");
     len = qd_store_get(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 0), b, sizeof b);   /* 0.7.1's record: 'S' 2, a kind */
-    CHECK(len > 4 && b[0] == 'S' && b[1] == 3, "written as 'S' 3");
+    CHECK(len > 8 && b[0] == 'S' && b[1] == 4, "written as 'S' 4 (P1.5x: with its mix)");
+    len -= 4;                                           /* (no mix: an 'S' 2) */
     b[1] = 2;
     b[len - 2] = QD_PK_PAD;
     qd_store_put(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 0), b, (uint32_t)len);
@@ -481,6 +482,32 @@ static void migrate72_test(void)
         const int len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SND, 0, 32), b, sizeof b);
         CHECK(len == 4 && b[0] == 'R', "written as references");
     }
+}
+
+/* P1.5x: a MY preset's mix kept across a restart; an older record ('S' 3): no sends, pan centre */
+static void mix_test(void)
+{
+    static uint8_t b[QDS_MAXREC];
+    int16_t p[QD_QUAD_NP];
+    int len;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    qd_quad_preset_patch(2, p);
+    qd_lib_store(&A, 3, "MIXED", p);
+    A.per.lib[3].pan = -25, A.per.lib[3].chorus = 9, A.per.lib[3].delay = 19, A.per.lib[3].reverb = 29;
+    qd_persist_flush(&A);
+    boot(&B);
+    CHECK(B.per.lib[3].pan == -25 && B.per.lib[3].chorus == 9 && B.per.lib[3].delay == 19 && B.per.lib[3].reverb == 29,
+          "P1.5x: a restart: a MY preset's pan and sends kept");
+    len = qd_store_get(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 3), b, sizeof b);
+    b[1] = 3;
+    qd_store_put(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 3), b, (uint32_t)len - 4u);   /* (0.7.3's: no mix) */
+    qd_store_flush(&B.per.lib_st);
+    boot(&A);
+    CHECK(!strcmp(A.per.lib[3].name, "MIXED") && !A.per.lib[3].pan && !A.per.lib[3].chorus && !A.per.lib[3].delay &&
+              !A.per.lib[3].reverb, "an 'S' 3 record (0.7.3 and older): no sends, pan centre");
 }
 
 int main(void)
@@ -691,6 +718,7 @@ int main(void)
     tags_test();
     refs_test();
     migrate72_test();
+    mix_test();
     printf("test_persist: %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

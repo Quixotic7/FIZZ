@@ -257,6 +257,7 @@ typedef struct {
     int moved;                         /* turned since it opened: the track plays the chosen (before: its own sound) */
     int t;                             /* the track it browses for */
     qd_tsound_t own;                   /* the track's own sound when it opened: back to it on a cancel */
+    qd_mix_track_t own_mix;            /* P1.5x: .. and its mix (a preset's pan and sends previewed with it) */
     int ret_mode, ret_latch;           /* where it came from (F1 / F2 go back there; HOME to the view) */
     int del_armed, out_armed;          /* B11 on one of MY presets / B10 on a pool sound steps use: armed once */
     int fx, fx_k;                      /* an animation (QD_BRFX_*), the pool's count then */
@@ -720,7 +721,8 @@ void qd_ctl_leds(const struct qd_app *a, struct qd_leds *out);
 void qd_ctl_sounding(const struct qd_app *a, uint8_t *notes);   /* the selected track's notes sounding (128) */
 int qd_ctl_trig_flash(const struct qd_app *a, int t);          /* track t's trig flash (80 ms) */
 #define QD_LED_BREATH_MS 1500u
-uint8_t qd_led_breath(uint32_t ms);    /* P1.5n: LFO's LED in MODES: 60 % .. full, breathing */
+uint8_t qd_led_breath(uint32_t ms);
+uint8_t qd_led_breath_lo(uint32_t ms);   /* P1.5x: 30 % .. full, breathing (the chosen preset's tags on B2..B8) */    /* P1.5n: LFO's LED in MODES: 60 % .. full, breathing */
 
 /* ---- view.c */
 void qd_view_frame(struct qd_app *a, uint16_t *lcd_be);

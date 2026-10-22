@@ -66,6 +66,21 @@ static uint32_t store_msg(uint8_t *f, int flags, int slot, const char *name, con
     o += qd_sx_pack7(blob, QD_SX_BLOB, b + o);
     return frame(f, QD_SX_STORE, b, o);
 }
+/* P1.5x: the same with the tags byte after the body */
+static uint32_t store_msg_tags(uint8_t *f, int flags, int slot, const char *name, const uint8_t *blob, int track, int pan,
+                               int ch, int dl, int rv, int mask, int tags)
+{
+    uint8_t b[QD_SX_STORE_BODY + 1];
+    uint32_t o = 0, i;
+    b[o++] = (uint8_t)flags, b[o++] = (uint8_t)(slot >> 7), b[o++] = (uint8_t)(slot & 0x7F);
+    for (i = 0; i < QD_SX_NAME; i++)
+        b[o++] = (uint8_t)(i < strlen(name) ? name[i] : ' ');
+    b[o++] = 0, b[o++] = (uint8_t)track, b[o++] = (uint8_t)pan, b[o++] = (uint8_t)ch, b[o++] = (uint8_t)dl,
+    b[o++] = (uint8_t)rv, b[o++] = (uint8_t)mask;
+    o += qd_sx_pack7(blob, QD_SX_BLOB, b + o);
+    b[o++] = (uint8_t)tags;
+    return frame(f, QD_SX_STORE, b, o);
+}
 static uint8_t R[64];
 static int rn;
 static int send(const uint8_t *f, uint32_t n)           /* -> the reply's length (R) */
@@ -117,7 +132,7 @@ static void feed(const char *path)
                 printf("name \"%s\"\nvalues", snd->name);
                 for (k = 0; k < QD_QUAD_NP; k++)
                     printf(" %d", snd->patch[k]);
-                printf("\n");
+                printf("\nmix %d %d %d %d\ntags %d\n", snd->pan, snd->chorus, snd->delay, snd->reverb, snd->tags);   /* (P1.5x) */
             }
         }
     }
@@ -196,6 +211,33 @@ int main(int argc, char **argv)
     send(f, n);
     CHECK(status() == QD_SX_OK && rslot() == 200 && !strcmp(A.per.lib[199].name, "TWO HUNDRED"),
           "LIBRARY 200: MY presets have 256 places (P1.5t)");
+    {   /* P1.5x: the preset keeps the frame's pan and sends (LOAD or not); the tags byte; LOAD applies them */
+        int m;
+        n = store_msg(f, 0, 0, "WITH MIX", blob2, 0, 0, 64 - 20, 11, 22, 33, QD_SXM_PAN | QD_SXM_CHORUS | QD_SXM_DELAY |
+                      QD_SXM_REVERB);
+        send(f, n);
+        m = rslot() - 1;
+        CHECK(status() == QD_SX_OK && A.per.lib[m].pan == -20 && A.per.lib[m].chorus == 11 && A.per.lib[m].delay == 22 &&
+                  A.per.lib[m].reverb == 33 && A.model.t[0].mix.reverb != 33,
+              "P1.5x: STORE without LOAD: the preset keeps its pan and sends (the track untouched)");
+        n = store_msg(f, 0, 0, "NO MIX", blob2, 0, 0, 64, 9, 9, 9, 0);
+        send(f, n);
+        m = rslot() - 1;
+        CHECK(!A.per.lib[m].pan && !A.per.lib[m].chorus && !A.per.lib[m].delay && !A.per.lib[m].reverb,
+              ".. mixmask 0: no sends, pan centre");
+        n = store_msg_tags(f, QD_SXF_LOAD, 0, "TAGGED", blob2, 3, 64 + 10, 40, 50, 60, 0x0F,
+                           QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX));
+        send(f, n);
+        m = rslot() - 1;
+        CHECK(status() == QD_SX_OK && A.per.lib[m].tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX)) &&
+                  A.per.lib[m].pan == 10 && A.per.lib[m].reverb == 60 && A.model.t[3].mix.pan == 10 &&
+                  A.model.t[3].mix.chorus == 40 && A.model.t[3].mix.delay == 50 && A.model.t[3].mix.reverb == 60,
+              "the tags byte (133 bytes): PAD, FX; LOAD: track 4 takes its pan and sends");
+        n = store_msg_tags(f, 0, 0, "TAGS ZERO", blob2, 0, 64, 0, 0, 0, 0, 0);
+        send(f, n);
+        m = rslot() - 1;
+        CHECK(status() == QD_SX_OK && A.per.lib[m].tags == QD_PKB(QD_PK_KEYS), ".. a tags byte 0: the classifier's (KEYS)");
+    }
     n = store_msg(f, 0, 257, "X", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
     CHECK(status() == QD_SX_BAD_SLOT, "LIBRARY 257: BAD SLOT");

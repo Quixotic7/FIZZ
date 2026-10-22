@@ -102,6 +102,13 @@ static int br_find(const qd_app_t *a, const int *list, int n, int preset, int po
 static int br_note(qd_app_t *a) { return qd_snd_scale_note(a, 0); }
 
 /* the track plays the chosen (moved), else its own sound */
+/* P1.5x: a preset's mix onto the track (its pan and sends; its level stays) */
+static void br_mix(qd_track_t *t, const qd_sound_t *s)
+{
+    t->mix.pan = s->pan;
+    t->mix.chorus = s->chorus, t->mix.delay = s->delay, t->mix.reverb = s->reverb;
+}
+
 static void br_apply(qd_app_t *a)
 {
     qd_brui_t *b = &a->ui.br;
@@ -111,9 +118,11 @@ static void br_apply(qd_app_t *a)
     if (b->moved && qd_br_chosen(a, &s, &code, 0)) {
         qd_track_load_sound(t, code >= QD_BR_POOL_CODE ? code - QD_BR_POOL_CODE : 0, s.name, s.patch);
         t->preset = s.preset;
+        br_mix(t, &s);                                  /* (P1.5x: its mix heard too) */
         qd_seq_preview(&a->seq, b->t, t->patch);
     } else {
         qd_track_from_tsound(t, &b->own);
+        t->mix = b->own_mix;
         qd_seq_preview(&a->seq, b->t, 0);
     }
 }
@@ -160,6 +169,7 @@ static void br_open(qd_app_t *a)
     qd_latch_open(a, QD_LATCH_BROWSE);
     b->t = a->sel;
     qd_track_to_tsound(t, &b->own);
+    b->own_mix = t->mix;                                /* (P1.5x: the track's own mix, back on a cancel) */
     b->src = QD_BR_ALL;
     b->kind = 0;
     b->moved = 0;
@@ -196,6 +206,7 @@ static void br_closed(qd_app_t *a)
 {
     qd_brui_t *b = &a->ui.br;
     qd_track_from_tsound(&a->model.t[b->t], &b->own);
+    a->model.t[b->t].mix = b->own_mix;
     qd_seq_preview(&a->seq, b->t, 0);
     if (b->ret_mode != QD_MODE_STEP && b->ret_mode != QD_MODE_IDLE && a->ui.mode == QD_MODE_STEP)
         a->ui.mode = b->ret_mode;
@@ -248,6 +259,8 @@ void qd_br_load(qd_app_t *a)
     memcpy(now.name, s.name, QD_SOUND_NAME);
     now.preset = s.preset;
     b->own = now;                                       /* (the latch closes on it: br_closed keeps it) */
+    br_mix(&a->model.t[b->t], &s);                      /* (P1.5x: and its mix, the preset's: kept) */
+    b->own_mix = a->model.t[b->t].mix;
     qd_ctl_pat(a)->snd[b->t] = now;
     u->tk_snd = s;
     br_back_to(a, 1);
@@ -435,11 +448,11 @@ void qd_br_leds(const qd_app_t *a, uint8_t *key)
         code = -1;
     for (i = 0; i < 16; i++)
         key[QD_WHITE_KEY[i]] = QD_LED_DIM;              /* (they play it) */
-    for (i = 0; i < 8; i++)
-        key[QD_BLACK_KEY[i]] = i == b->kind ? QD_LED_LIT : QD_LED_DIM;
-    for (i = 1; i < 8; i++)                             /* (P1.5v: SHIFT: the chosen's tags lit) */
-        if (qd_ctl_shift(a) && code >= 0)
-            key[QD_BLACK_KEY[i]] = (s.tags >> (i - 1)) & 1u ? QD_LED_LIT : QD_LED_DIM;
+    for (i = 0; i < 8; i++)                             /* P1.5x (the owner): the filter solid; B2..B8 the chosen's
+                                                         * tags breathing (SHIFT too: a toggle shows at once); the
+                                                         * rest off */
+        key[QD_BLACK_KEY[i]] = i == b->kind ? QD_LED_LIT
+                               : i >= 1 && code >= 0 && ((s.tags >> (i - 1)) & 1u) ? qd_led_breath_lo(a->ms) : QD_LED_OFF;
     key[QD_BLACK_KEY[8]] = QD_LED_LIT;
     key[QD_BLACK_KEY[9]] = b->out_armed ? (fast ? QD_LED_LIT : QD_LED_OFF)   /* (P1.5v: add lit, remove breathing) */
                            : code < 0 ? QD_LED_DIM : br_pool_k(a, &s, code) ? qd_led_breath(a->ms) : QD_LED_LIT;
@@ -503,6 +516,16 @@ static void sv_done(qd_app_t *a, int slot)
     qd_ctl_takeover(a, QD_TK_SAVED, 0, 0, 0, -1);
 }
 
+/* P1.5x: the track's pan and sends saved with the sound */
+static void sv_mix(qd_app_t *a, int slot)
+{
+    const qd_mix_track_t *m = &a->model.t[a->sel].mix;
+    qd_sound_t *s = &a->per.lib[slot];
+    s->pan = m->pan;
+    s->chorus = m->chorus, s->delay = m->delay, s->reverb = m->reverb;
+    qd_pool_resolve(a);                                 /* (the pool's references: its mix too) */
+}
+
 void qd_sv_new(qd_app_t *a)
 {
     const int slot = qd_lib_free_slot(a);
@@ -512,6 +535,7 @@ void qd_sv_new(qd_app_t *a)
     }
     sv_update_new(a);
     qd_lib_store(a, slot, a->ui.sv.newname, a->model.t[a->sel].patch);
+    sv_mix(a, slot);
     sv_done(a, slot);
 }
 
@@ -525,6 +549,7 @@ void qd_sv_replace(qd_app_t *a)
     if (!nm[0])
         snprintf(nm, sizeof nm, "%s", a->per.lib[v->replace].name);
     qd_lib_replace(a, v->replace, nm, a->model.t[a->sel].patch);
+    sv_mix(a, v->replace);
     sv_done(a, v->replace);
 }
 

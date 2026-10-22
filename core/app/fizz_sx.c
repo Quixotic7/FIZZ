@@ -82,7 +82,7 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
     char name[QD_SX_NAME + 1];
     int16_t patch[QD_QUAD_NP];
     int flags, pool, slot, i, track, lib_slot = 0;
-    if (n != QD_SX_STORE_BODY + 1u) {
+    if (n != QD_SX_STORE_BODY + 1u && n != QD_SX_STORE_BODY + 2u) {   /* (P1.5x: + the tags byte) */
         sx_store_reply(a, QD_SX_BAD_LENGTH, n ? (b[0] & QD_SXF_POOL) != 0 : 0, 0);
         return;
     }
@@ -147,6 +147,18 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n)
         lib_slot = m;
     } else {
         qd_lib_store_ex(a, slot - 1, name, patch, QD_SNDF_IMPORTED);   /* (P1.5t: one of MY presets, imported) */
+        lib_slot = slot - 1;
+    }
+    {   /* P1.5x: the preset keeps the mix the frame gives (mixmask), LOAD or not; the tags byte (nonzero) its tags */
+        qd_sound_t *ls = &a->per.lib[lib_slot];
+        const int mask = b[21];
+        ls->pan = mask & QD_SXM_PAN ? (int8_t)((int)b[17] - 64) : 0;
+        ls->chorus = mask & QD_SXM_CHORUS ? b[18] : 0;
+        ls->delay = mask & QD_SXM_DELAY ? b[19] : 0;
+        ls->reverb = mask & QD_SXM_REVERB ? b[20] : 0;
+        if (n == QD_SX_STORE_BODY + 2u && (b[QD_SX_STORE_BODY] & QD_PK_MASK))
+            ls->tags = (uint8_t)(b[QD_SX_STORE_BODY] & QD_PK_MASK);
+        qd_pool_resolve(a);
     }
     a->undo.join = 0;
     track = b[16];

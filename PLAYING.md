@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5w)
+# Playing FIZZ (P1.5x)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -500,17 +500,26 @@ Three things, one job each:
 - It opens on the track's current preset. **Every detent moves one preset and the track plays it at once**: playing,
   you hear it in the pattern; stopped, a short note each turn.
 - The screen is a rolodex: the chosen preset is the big cassette (its envelope in its first tag's colour, a dot for
-  each tag between the reels, a ★ for one of MY presets, ↓ for an imported one; bottom left a **full lime tray** when
-  it is in the pool, an **empty tray with +** when it is not), two neighbours above and below, a bar on the right for
-  where you are in the list, and "7/31" at the top.
+  each tag between the reels, **three little bars right of the reels for its chorus, delay and reverb sends** (P1.5x:
+  blue, green, white, as the SENDS page), a ★ for one of MY presets, ↓ for an imported one; bottom left a **full lime
+  tray** when it is in the pool, an **empty tray with +** when it is not), two neighbours above and below, a bar on
+  the right for where you are in the list, and "7/31" at the top.
+- **A preset carries its mix** (P1.5x): its pan and its chorus / delay / reverb sends. Browsing plays them too (the
+  track's pan and sends while you turn; its level stays); **LOAD** keeps them on the track; **CANCEL** gives the
+  track its own pan and sends back exactly. The factory FM TONE presets carry ChoralRoot's sends (EP: chorus 30, delay
+  20, reverb 40); INIT and the drums the default kit's reverb 20. A step's sound lock (the pool) is the sound only: the
+  track's pan and sends stay.
 - **SELECT** jumps ten. **The white keys play the chosen preset** in the track's scale.
 - **F2 = LOAD**: the preset replaces the track's sound and the browser closes ("LOADED").
 - **F1 or HOME = CANCEL**: the track's own sound comes back exactly as it was, edits included ("BACK"). Leaving any
   other way (EDIT, choosing another track) is a cancel too: browsing never loses a sound.
 - **B1..B8 filter by tag**: B1 ALL, B2 BASS, B3 KEYS, B4 PLUCK, B5 PAD, B6 LEAD, B7 DRUMS, B8 FX: every preset
-  carrying that tag (the chosen filter's key lit, a chip in the head).
-- **SHIFT + B2..B8 toggles that tag** on the chosen preset (P1.5v): its chip pops, filled when on, struck when off;
-  holding SHIFT lights the chosen preset's tags on B2..B8. Inside the browser SHIFT means tags (no snapshots there).
+  carrying that tag (a chip in the head).
+- **The black keys show the tags** (P1.5x, the owner): the **chosen filter's key is solid**; **B2..B8 breathe slowly
+  for the tags the chosen preset has** (30 % to full, about 1.5 s); the kinds it does not have are dark (B1 too unless
+  it is the filter). They follow the browser as it moves.
+- **SHIFT + B2..B8 toggles that tag** on the chosen preset (P1.5v): its chip pops, filled when on, struck when off,
+  and its key starts or stops breathing at once. Inside the browser SHIFT means tags (no snapshots there).
 - **B9 the source**: ALL PRESETS → MY PRESETS → POOL → ALL.
 - **B10 = the pool, from any source** (P1.5v): **+ POOL** when the chosen preset is not in the project's pool (B10
   lit; it is copied in without loading it, the cassette shrinks into the tray; the pool full: the tray flashes
@@ -683,7 +692,7 @@ They stay open (OCT− or HOME back). For now:
   REPLACE** both show and **F2 switches which one is chosen** (the chosen bright and filled, the other dim; F2 lit;
   NEW first): **SAVE does the chosen one** (P1.5v). NEW saves under a new name such as "DARK BASS 2" when the name is
   taken; REPLACE overwrites that preset. Only NEW possible: only NEW shows, F2 dark. Factory presets are never
-  replaced. **HOME** cancels.
+  replaced. **HOME** cancels. The track's **pan and sends are saved with the sound** (P1.5x), NEW and REPLACE alike.
 - Saved: it drops into MY PRESETS ("SAVED"), and the track now plays that preset, no longer edited.
 - **SHIFT + F1** undoes a save.
 - The old sounds page (banks, the LIBRARY / POOL tabs, F1 / F2 / B11 + W) is gone: the browser does all of it.
@@ -714,13 +723,15 @@ bright).
 ### Sounds from a computer (P1.5r)
 
 - A page or tool can send FIZZ sounds over MIDI SysEx (the FIZZ web preview loads your Digitone `.dnsnd` presets
-  this way): each goes into **MY PRESETS** (marked imported, its kind read; or the project's **POOL**), into the
-  first free place or one it names, with its name. The screen shows it a moment: its cassette dropping in, its slot, **imported**. It is saved by
+  this way): each goes into **MY PRESETS** (marked imported, its kind read or the tags the page sends; or the
+  project's **POOL**), into the first free place or one it names, with its name, its **pan and sends** (P1.5x). The screen shows it a moment: its cassette dropping in, its slot, **imported**. It is saved by
   itself like any change, and **SHIFT + F1 undoes it** (a batch sent together: one undo). The format is in
   `docs/SYSEX.md`.
-- **In FM1VST** (the Standalone or the plugin, P1.5s): drop `.dnsnd` files on the window (one or many), or right-click
-  the screen > **Import Digitone sounds…**. They go into MY PRESETS as above; a note over the screen says how many
-  went in. **PRESETS** then finds them (B9: MY PRESETS).
+- **In FM1VST** (the Standalone or the plugin, P1.5s): drop `.dnsnd` (Digitone) or **`.dn2pst` (Digitone II, P1.5x)**
+  files on the window (one or many), or right-click the screen > **Import Digitone sounds…**. They go into MY PRESETS
+  as above, with their pan and sends (and a Digitone II preset's tags: BASS, CHORD as KEYS, PAD, LEAD, the drums as
+  DRUMS, SOUND FX as FX); a note over the screen says how many went in. A Digitone II sound of another machine
+  (WAVETONE, FM DRUM, SWARMER, MIDI) is refused, the note says why. **PRESETS** then finds them (B9: MY PRESETS).
 
 ## How do I manage projects? (SEQ tapped)
 

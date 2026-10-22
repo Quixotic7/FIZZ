@@ -46,6 +46,13 @@ uint8_t qd_led_breath(uint32_t ms)
     return (uint8_t)(153.f + 102.f * (0.5f + 0.5f * cosf(u * 6.2831853f)) + 0.5f);
 }
 
+/* P1.5x: a deeper breath, 30 % .. full over QD_LED_BREATH_MS (the browser's B2..B8: the chosen preset's tags) */
+uint8_t qd_led_breath_lo(uint32_t ms)
+{
+    const float u = (float)(ms % QD_LED_BREATH_MS) / (float)QD_LED_BREATH_MS;
+    return (uint8_t)(77.f + 178.f * (0.5f + 0.5f * cosf(u * 6.2831853f)) + 0.5f);
+}
+
 /* the notes the selected track sounds (keys held, MIDI notes held, notes waiting for a voice) */
 void qd_ctl_sounding(const qd_app_t *a, uint8_t *notes)
 {

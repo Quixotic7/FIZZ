@@ -5438,12 +5438,17 @@ static void g_p15t_leds(void)
     turn(QD_K_PRESETS, 1);
     black(B3);
     l = leds();
-    for (ok = 1, i = 0; i < 8; i++)
-        ok &= l.key[BK(i)] == (i == 2 ? QD_LED_LIT : QD_LED_DIM);
+    {
+        qd_sound_t s;
+        qd_br_chosen(&A, &s, 0, 0);                     /* (P1.5x: the filter solid, the chosen's tags breathing) */
+        for (ok = 1, i = 0; i < 8; i++)
+            ok &= l.key[BK(i)] == (i == 2 ? QD_LED_LIT : i && ((s.tags >> (i - 1)) & 1) ? qd_led_breath_lo(A.ms)
+                                                                                        : QD_LED_OFF);
+    }
     CHECK(ok && l.key[BK(B9)] == QD_LED_LIT && l.key[BK(B10)] == (qd_br_pool_k(&A) ? qd_led_breath(A.ms) : QD_LED_LIT) &&
               l.key[BK(B11)] == QD_LED_OFF &&
               l.button[F1] == QD_LED_LIT && l.button[F2] == QD_LED_LIT,
-          "browsing: the kinds dim (KEYS lit), B9, B10 lit, B11 dark (a factory preset), F1 F2 lit");
+          "browsing: the filter (KEYS) lit, the chosen's tags breathing, the rest dark; B9, B10 lit, B11 dark (a factory preset), F1 F2 lit");
     btap(QD_B_HOME);
 }
 
@@ -5833,8 +5838,9 @@ static void g_p15v_tags(void)
     bdown(SHIFT);
     run(10);
     l = leds();
-    CHECK(l.key[BK(B2)] == QD_LED_LIT && l.key[BK(B8)] == QD_LED_LIT && l.key[BK(B3)] == QD_LED_DIM,
-          "SHIFT held: the chosen's tags lit (BASS, FX)");
+    CHECK(l.key[BK(B2)] == qd_led_breath_lo(A.ms) && l.key[BK(B8)] == qd_led_breath_lo(A.ms) &&
+              l.key[BK(B3)] == QD_LED_OFF && l.key[BK(B1)] == QD_LED_LIT,
+          "SHIFT held: the chosen's tags breathing (BASS, FX), the filter (ALL) solid (P1.5x)");
     bup(SHIFT);
     run(10);
     btap(QD_B_HOME);
@@ -5956,6 +5962,103 @@ static void g_p15w_refs(void)
           "(the other pattern's too)");
 }
 
+/* ================================================================ P1.5x: presets carry their mix === */
+static int mix_is(int t, int pan, int ch, int dl, int rv)
+{
+    const qd_mix_track_t *m = &A.model.t[t].mix;
+    return m->pan == pan && m->chorus == ch && m->delay == dl && m->reverb == rv;
+}
+/* P1.5x (the owner): B2..B8 show the chosen preset's tags: breathing (30 % .. full); the filter key solid; the rest off */
+static void g_p15x_tag_leds(void)
+{
+    qd_leds_t l;
+    int i, ok, lo = 1000, hi = 0;
+    start();
+    run(600);
+    mine_add("TWO TAGS", 3);
+    qd_tags_set(&A, QD_BR_MINE_CODE, QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_PAD));
+    turn(QD_K_PRESETS, 1);
+    black(B9);                                          /* MY PRESETS, ALL: TWO TAGS */
+    l = leds();
+    for (ok = 1, i = 0; i < 8; i++)
+        ok &= l.key[BK(i)] == (i == 0 ? QD_LED_LIT : i == 1 || i == 4 ? qd_led_breath_lo(A.ms) : QD_LED_OFF);
+    CHECK(ok, "ALL: B1 solid, B2 (BASS) and B5 (PAD) breathing, the rest off");
+    for (i = 0; i < 40; i++) {
+        const int v = leds().key[BK(B2)];
+        lo = v < lo ? v : lo, hi = v > hi ? v : hi;
+        run(40);
+    }
+    CHECK(lo >= 70 && lo <= 90 && hi >= 250, "the breath: about 30 %% .. full over 1.5 s (%d .. %d)", lo, hi);
+    black(B5);                                          /* the filter on one of its tags */
+    l = leds();
+    CHECK(l.key[BK(B5)] == QD_LED_LIT && l.key[BK(B2)] == qd_led_breath_lo(A.ms) && l.key[BK(B1)] == QD_LED_OFF,
+          "B5 (PAD), one of its tags: solid; BASS breathing; B1 off");
+    black(B1);                                          /* (back to ALL: the filter on another key, B1) */
+    bdown(SHIFT);
+    run(10);
+    black(B6);                                          /* SHIFT + B6: LEAD on, at once */
+    l = leds();
+    CHECK(l.key[BK(B6)] == qd_led_breath_lo(A.ms) && l.key[BK(B1)] == QD_LED_LIT, "SHIFT + B6: LEAD starts breathing "
+          "at once (SHIFT held)");
+    black(B2);
+    l = leds();
+    CHECK(l.key[BK(B2)] == QD_LED_OFF, "SHIFT + B2: BASS off at once");
+    bup(SHIFT);
+    run(10);
+    btap(QD_B_HOME);
+}
+
+static void g_p15x_mix(void)
+{
+    qd_sound_t ep;
+    int lvl, k;
+    start();
+    run(600);
+    qd_factory_preset(1, &ep);
+    CHECK(!strcmp(ep.name, "EP") && ep.chorus == 30 && ep.delay == 20 && ep.reverb == 40 && !ep.pan,
+          "factory EP: ChoralRoot's sends (chorus 30, delay 20, reverb 40), pan centre");
+    A.model.t[0].mix.pan = -10, A.model.t[0].mix.chorus = 5, A.model.t[0].mix.delay = 6, A.model.t[0].mix.reverb = 7;
+    lvl = A.model.t[0].mix.level;
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, -200);
+    turn(QD_K_PRESETS, 1);                              /* EP */
+    CHECK(br_code() == 1 && mix_is(0, 0, 30, 20, 40) && A.model.t[0].mix.level == lvl, "browsing EP: its pan and sends "
+          "previewed (the level stays)");
+    btap(F1);
+    CHECK(!A.ui.latch && mix_is(0, -10, 5, 6, 7), "CANCEL: the track's own mix back");
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, -200);
+    turn(QD_K_PRESETS, 1);
+    btap(F2);
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    CHECK(!A.ui.latch && mix_is(0, 0, 30, 20, 40) && A.model.t[0].preset == 2, "LOAD: EP with its pan and sends");
+    A.model.t[0].mix.pan = 12, A.model.t[0].mix.chorus = 1, A.model.t[0].mix.delay = 2, A.model.t[0].mix.reverb = 3;
+    A.model.t[0].edited = 1;
+    btap(QD_B_SAVE);
+    btap(QD_B_SAVE);
+    run(600);
+    CHECK(A.per.lib[0].pan == 12 && A.per.lib[0].chorus == 1 && A.per.lib[0].delay == 2 && A.per.lib[0].reverb == 3,
+          "SAVE (NEW): the track's pan and sends saved with it");
+    run(QD_TK_MS + QD_TK_FADE_MS + 10);
+    A.model.t[0].mix.reverb = 99;
+    A.model.t[0].edited = 1;
+    btap(QD_B_SAVE);
+    btap(F2);
+    btap(QD_B_SAVE);
+    run(600);
+    CHECK(A.per.lib[0].reverb == 99 && !A.per.lib[1].name[0], "REPLACE: its mix too (reverb 99)");
+    k = qd_pool_add_sound(&A, &A.per.lib[0]);           /* a step's sound lock: the sound only */
+    CHECK(k > 0 && A.proj.sound[k - 1].reverb == 99, "(in the pool, its mix in the cache)");
+    A.model.t[1].mix.pan = -30, A.model.t[1].mix.chorus = 4, A.model.t[1].mix.delay = 4, A.model.t[1].mix.reverb = 4;
+    qd_ctl_select_track(&A, 1);
+    wtap(6);
+    whold(6);
+    turn(QD_K_PRESETS, k);
+    wrel(6);
+    CHECK(R(1, 6).sound == k && mix_is(1, -30, 4, 4, 4), "a step locking it: the track's pan and sends untouched");
+}
+
 int main(void)
 {
     static const struct {
@@ -6050,6 +6153,8 @@ int main(void)
         {"P1.5v: NEW / REPLACE: F2 chooses, SAVE does it", g_p15v_save},
         {"P1.5v: a step + PRESETS: the picker up while held", g_p15v_picker},
         {"P1.5w: the pool's references: REPLACE, DELETE?'s use, undo", g_p15w_refs},
+        {"P1.5x: presets carry their mix: LOAD, CANCEL, SAVE, a lock", g_p15x_mix},
+        {"P1.5x: the chosen preset's tags on B2..B8", g_p15x_tag_leds},
         {"P1.5t: the browser's LEDs", g_p15t_leds},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };

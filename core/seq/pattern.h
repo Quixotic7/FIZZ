@@ -221,6 +221,8 @@ typedef struct {
     int16_t patch[QD_QUAD_NP];
     uint16_t preset;
     uint8_t tags, flags;
+    int8_t pan;                         /* P1.5x: its mix, as a track takes it on LOAD: pan -64..63, .. */
+    uint8_t chorus, delay, reverb;      /* .. the sends 0..127 (a step's sound lock leaves the track's alone) */
 } qd_sound_t;
 
 typedef struct {

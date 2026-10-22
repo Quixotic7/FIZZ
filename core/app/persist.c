@@ -19,6 +19,8 @@
  *        records are the old starting pool)
  *   SND / LIB  (P1.5v) 'S' 3: as 'S' 2 with the TAGS (a byte, bit QD_PK_k) where the kind was; an 'S' 2's kind
  *        becomes its one tag
+ *   SND / LIB  (P1.5x) 'S' 4: as 'S' 3, then its mix: pan (-64..63), chorus, delay, reverb; an older record: no
+ *        sends, pan centre (a factory preset's are its table's)
  *   FTAG 'F' 1, the factory presets' tags as the owner set them (QD_NFACTORY bytes: 0x80 | tags, 0 the classifier's);
  *        in the library's store. P1.5w: 'F' 2, then the next MY preset id (u16)
  *   SND  (P1.5w) 'R' 1, a pool slot's preset id (u16): THE POOL HOLDS REFERENCES. An 'S' record in the pool (0.7.2 and
@@ -145,11 +147,12 @@ static uint32_t ser_snd(const qd_sound_t *s, uint8_t *b)
         b[0] = 'E', b[1] = 1;
         return 2;
     }
-    b[0] = 'S', b[1] = 3;
+    b[0] = 'S', b[1] = 4;
     memcpy(b + 2, s->name, QD_SOUND_NAME);
     qd_quad_pack(s->patch, b + 2 + QD_SOUND_NAME);
     memcpy(b + o, &s->preset, 2), o += 2;               /* P1.5t */
     b[o++] = s->tags, b[o++] = s->flags;                /* (P1.5v: the tags) */
+    b[o++] = (uint8_t)s->pan, b[o++] = s->chorus, b[o++] = s->delay, b[o++] = s->reverb;   /* (P1.5x: its mix) */
     return o;
 }
 
@@ -162,7 +165,8 @@ static int de_snd(qd_sound_t *s, const uint8_t *b, uint32_t len)
     de_snd_v1 = 0;
     if (len == 2 && b[0] == 'E' && b[1] == 1)
         return 1;
-    if (b[0] != 'S' || !((b[1] == 1 && len == n1) || ((b[1] == 2 || b[1] == 3) && len == n1 + 4)))
+    if (b[0] != 'S' || !((b[1] == 1 && len == n1) || ((b[1] == 2 || b[1] == 3) && len == n1 + 4) ||
+                         (b[1] == 4 && len == n1 + 8)))
         return 0;
     memcpy(s->name, b + 2, QD_SOUND_NAME);
     s->name[QD_SOUND_NAME - 1] = 0;
@@ -171,11 +175,16 @@ static int de_snd(qd_sound_t *s, const uint8_t *b, uint32_t len)
     qd_quad_unpack(b + 2 + QD_SOUND_NAME, s->patch);
     if (b[1] >= 2) {
         memcpy(&s->preset, b + n1, 2);
-        if (b[1] == 3)
+        if (b[1] >= 3)
             s->tags = (uint8_t)(b[n1 + 2] & QD_PK_MASK);
         else                                            /* (0.7.0 .. 0.7.1's one kind: one tag) */
             s->tags = b[n1 + 2] < QD_NPK ? QD_PKB(b[n1 + 2]) : (uint8_t)qd_preset_tags(s->patch);
         s->flags = b[n1 + 3];
+        if (b[1] >= 4) {                                /* (P1.5x: its mix; older: none, pan centre) */
+            s->pan = (int8_t)b[n1 + 4];
+            s->chorus = b[n1 + 5] & 0x7F, s->delay = b[n1 + 6] & 0x7F, s->reverb = b[n1 + 7] & 0x7F;
+            s->pan = s->pan < -64 ? -64 : s->pan > 63 ? 63 : s->pan;
+        }
     } else {
         s->tags = (uint8_t)qd_preset_tags(s->patch);   /* (0.6's: the kind read now) */
         de_snd_v1 = 1;

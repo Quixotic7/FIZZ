@@ -787,6 +787,7 @@ static void pr_fill(const qd_app_t *a, const qd_sound_t *s, int mine, ui_preset_
     p->mine = mine;
     p->imported = mine && (s->flags & QD_SNDF_IMPORTED);
     p->missing = (s->flags & QD_SNDF_MISSING) != 0;     /* (P1.5w) */
+    p->send[0] = s->chorus, p->send[1] = s->delay, p->send[2] = s->reverb;   /* (P1.5x) */
     probe = *s;
     p->in_pool = qd_pool_find(a, &probe) != 0;
 }

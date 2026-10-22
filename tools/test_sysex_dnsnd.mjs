@@ -32,18 +32,23 @@ const check = (ok, msg) => { checks++; if (!ok) { fails++; console.log(`  FAIL $
 for (const f of files) {
   const parsed = await parseDnsnd(new Uint8Array(readFileSync(join(dir, f))));
   const q = dnsndToQuad(parsed), s = soundFromDnsnd(parsed);
-  const msg = storeSound({ name: s.name, blob: q.blob, drive: q.drive });
+  const c7 = (v) => Math.max(0, Math.min(127, Math.round(v || 0)));
+  const mix = { pan: q.pan, chorus: c7(parsed.params["send.chorus"]), delay: c7(parsed.params["send.delay"]),
+                reverb: c7(parsed.params["send.reverb"]) };   // (P1.5x: the preset keeps them)
+  const msg = storeSound({ name: s.name, blob: q.blob, drive: q.drive, ...mix });
   const syx = join(tmp, "one.syx");
   writeFileSync(syx, msg);
   const out = execFileSync(exe, ["--feed", syx], { encoding: "utf8" });
   const reply = parseReply(Uint8Array.from(out.match(/^reply(.*)$/m)[1].trim().split(/\s+/).map((h) => parseInt(h, 16))));
   const name = (out.match(/^name "(.*)"$/m) || [])[1];
   const vals = ((out.match(/^values (.*)$/m) || [])[1] || "").split(" ").map(Number);
+  const got = ((out.match(/^mix (.*)$/m) || [])[1] || "").split(" ").map(Number);
   const want = [...q.values, Math.max(0, Math.min(127, q.drive))];
   const same = vals.length === 74 && want.every((v, i) => v === vals[i]);
   check(reply && reply.kind === "store" && reply.status === 0 && !reply.pool && reply.slot === 1,
         `${f}: the reply ${JSON.stringify(reply)}`);
   check(name === s.name.slice(0, 12).replace(/\s+$/, ""), `${f}: the name "${name}" (the reader's "${s.name}")`);
+  check(got.join() === [mix.pan, mix.chorus, mix.delay, mix.reverb].join(), `${f}: its pan and sends kept (${got} / ${JSON.stringify(mix)})`);
   check(same, `${f}: the values stored = the reader's (${vals.length}; first difference at ${want.findIndex((v, i) => v !== vals[i])})`);
   console.log(`  ${f.padEnd(28)} -> LIBRARY ${reply && reply.slot}: "${name}", DRIVE ${q.drive}, ${msg.length} bytes`);
 }

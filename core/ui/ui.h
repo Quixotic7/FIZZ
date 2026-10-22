@@ -189,6 +189,7 @@ typedef struct {
     float env[4];                       /* the amp envelope (0..1) */
     int mine, imported, in_pool;
     int missing;                        /* P1.5w: a pool reference whose preset is not there (INIT, greyed) */
+    int send[3];                        /* P1.5x: its sends, chorus / delay / reverb 0..127 (three little bars) */
     int tray;                           /* P1.5v: the cassette's tray: 0 by in_pool, 1 empty with a + (not in the pool:
                                          * B10 adds it), 2 full (in the pool: B10 takes it out) */
 } ui_preset_t;

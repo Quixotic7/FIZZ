@@ -50,7 +50,7 @@ The core's `midi_in` takes 32-bit USB-MIDI packets on cable 0: `CIN | b0 << 8 | 
 
 - **"Retry later".** While one whole frame waits, `midi_in` returns **0** for the next frame's first packet; the host offers that packet again later. FIZZ handles a frame as soon as its `F7` arrives, so in practice this does not happen.
 - **Replies.** They come out of `midi_out_take` as the same kind of packets.
-- **Frame size.** A frame may be up to 640 bytes; FIZZ's STORE frame is 140.
+- **Frame size.** A frame may be up to 640 bytes; FIZZ's STORE frame is 140, or 141 with the tags byte (P1.5x).
 
 ## Commands
 
@@ -65,7 +65,7 @@ Reply: `F0 7D 46 5A 01 41 01 <ASCII> <chk> F7`
 
 ### `10` STORE SOUND
 
-The body has a fixed length of 132 bytes, then `chk`.
+The body is 132 bytes, or 133 with the optional **tags** byte (P1.5x), then `chk`. A 132-byte body is read as before.
 
 | offset | bytes | field |
 | --- | --- | --- |
@@ -74,12 +74,13 @@ The body has a fixed length of 132 bytes, then `chk`.
 | 3 | 12 | **name**, ASCII 0x20..0x7E, padded with spaces (or 0). Trailing spaces are dropped, other bytes become `?`, and an empty name becomes `IMPORTED`. |
 | 15 | 1 | **drive**: FIZZ's DRIVE, 0..127. This is the `drive` of ChoralRoot's `dnsndToQuad`. |
 | 16 | 1 | **track** 0..7, with LOAD; otherwise 0 |
-| 17 | 1 | **pan** + 64 (0..127, 64 = centre), with LOAD and mixmask `01` |
-| 18 | 1 | **chorus** send 0..127, with LOAD and mixmask `02` |
-| 19 | 1 | **delay** send 0..127, with LOAD and mixmask `04` |
-| 20 | 1 | **reverb** send 0..127, with LOAD and mixmask `08` |
-| 21 | 1 | **mixmask**: which of pan, chorus, delay, reverb the track takes |
+| 17 | 1 | **pan** + 64 (0..127, 64 = centre), with mixmask `01` |
+| 18 | 1 | **chorus** send 0..127, with mixmask `02` |
+| 19 | 1 | **delay** send 0..127, with mixmask `04` |
+| 20 | 1 | **reverb** send 0..127, with mixmask `08` |
+| 21 | 1 | **mixmask**: which of pan, chorus, delay, reverb the frame gives. P1.5x: **the preset keeps them, LOAD or not** (the rest: none, pan centre); with LOAD the track takes them too |
 | 22 | 110 | **patch**: the 96-byte FM TONE blob, 7-bit packed |
+| 132 | 1 | **tags** (optional, P1.5x): FIZZ's tags as a 7-bit mask, bit 0 BASS, 1 KEYS, 2 PLUCK, 3 PAD, 4 LEAD, 5 DRUMS, 6 FX. Nonzero: the preset's tags. Absent or 0: FIZZ's classifier decides from the sound, as before. A page maps Digitone / Digitone II tags onto these (`tools/dn2pst.mjs` `fizzTags`: BASS, CHORD → KEYS, PAD, LEAD, KICK / SNARE / PERCUSSION / HI-HAT / CYMBAL → DRUMS, SOUND FX → FX) |
 
 **The patch** is ChoralRoot's FM TONE blob: `'Q'` (0x51), version 5, the values (`eng_quad.c` `quad_pack`), then zeros.
 
@@ -95,7 +96,7 @@ Reply: `F0 7D 46 5A 01 50 <status> <0 LIBRARY / 1 POOL> <slot hi> <slot lo> <chk
 | --- | --- | --- |
 | 0 | OK | stored |
 | 1 | FULL | slot 0 asked for, and no slot is free |
-| 2 | BAD LENGTH | the body is not 132 bytes, or the patch does not unpack to 96 |
+| 2 | BAD LENGTH | the body is not 132 (or 133) bytes, or the patch does not unpack to 96 |
 | 3 | BAD CHECKSUM | the sum is not zero (nothing is read) |
 | 4 | BAD PATCH | not an FM TONE blob (FIZZ's `qd_quad_unpack` refuses it) |
 | 5 | BAD SLOT | LIBRARY > 256, POOL > 128 |
@@ -119,6 +120,7 @@ Any other command, or a frame whose checksum fails before its command is known, 
 - **Undo.** SHIFT + F1 undoes **one message**, or **one batch**.
   - A batch is the messages after the first, sent with BATCH (`02`) and arriving less than half a second apart. Each joins the first message's level.
   - A track's pan and sends set with LOAD are the project's track settings, which undo does not cover: undo takes the sound back, not the mix.
+- **Keeps its mix** (P1.5x): a preset carries its pan and its chorus / delay / reverb sends (the fields mixmask gives). Loading it later from the browser (PRESETS, F2) sets the track's pan and sends to them; a step's sound lock does not.
 - **LOAD** (`04`, track 0..7) also puts the sound on that track in the pattern playing, the same as choosing it on the sounds page.
   - A POOL import becomes the track's source (its number); a LIBRARY import is loaded as a copy.
   - mixmask picks which of pan / chorus / delay / reverb the track also takes. The rest stay as they are.
@@ -138,9 +140,10 @@ const frame = storeSound({
   slot: 0,                              // the first free
   pool: false,                          // the LIBRARY
   batch: i > 0,                         // a batch: one undo
-  // optional, onto track 3 with its mix (the Digitone's sends: parsed.params["send.reverb"] ..):
-  // track: 2, pan: q.pan, delay: parsed.params["send.delay"], reverb: parsed.params["send.reverb"],
-  // chorus: parsed.params["send.chorus"],
+  // P1.5x: the preset keeps its pan and sends (the Digitone's: parsed.params["send.reverb"] ..), and its tags:
+  pan: q.pan, delay: parsed.params["send.delay"], reverb: parsed.params["send.reverb"],
+  chorus: parsed.params["send.chorus"], tags: ["BASS"],   // (FIZZ's names, or a mask; none: FIZZ's classifier)
+  // optional, onto track 3 as well (LOAD): track: 2,
 });
 for (const p of usbPackets(frame)) engine.midiIn(p);
 // then read engine.midiOutTake() packets back into bytes: parseReply(bytes) -> {kind: "store", status: 0, slot}
@@ -148,13 +151,20 @@ for (const p of usbPackets(frame)) engine.midiIn(p);
 
 `tools/test_sysex_dnsnd.mjs` runs this for the owner's presets, which are never copied into this tree. It feeds each
 frame to FIZZ and checks three things: the reply is OK, the stored name is the reader's, and all 73 stored FM TONE
-values plus DRIVE equal `dnsndToQuad`'s values. All 256 presets in the folder pass.
+values plus DRIVE equal `dnsndToQuad`'s values (P1.5x: and its pan and sends are the preset's). All 256 presets in the folder pass.
+`tools/test_fizz_sysex.mjs` checks the frames' P1.5x fields (the mix without LOAD, the tags byte) as FIZZ reads them.
+
+## From a Digitone II `.dn2pst`
+
+`tools/dn2pst.mjs` (`parseDn2pst`, `dn2pstToQuad`: research/DN2-FORMAT.md) gives `{blob, name, drive, pan, sends: {chorus,
+delay, reverb}}` and the parsed `fizzTags`; send them as above (`tags: parsed.fizzTags`). FM1VST's drop reads `.dn2pst`
+with a C++ port of it (FM1VST `plugin/Dnsnd.cpp` `parseDn2`, checked byte for byte against the JS).
 
 ### ChoralRoot's sound format compared with FIZZ's patch
 
 - **The 73 FM TONE values: same order.** FIZZ's patch values 0..72 are ChoralRoot's `eng_quad.c` `QP_*` values, in the same order and the same units. The blob is ChoralRoot's own packing, so nothing is renumbered.
 - **DRIVE.** FIZZ's value 73 is **DRIVE**. ChoralRoot keeps the drive in the sound *record* (`SND_P_DIST`, stored as drive + 64), not in the blob; its blobs have 0 in byte 87. So the message carries drive in its own field.
-- **Pan.** Pan is in ChoralRoot's record (`SND_P_PAN`, pan + 64). In FIZZ it is a track setting, so it only applies with LOAD.
+- **Pan.** Pan is in ChoralRoot's record (`SND_P_PAN`, pan + 64). In FIZZ it is a track setting; P1.5x: a preset keeps it (and the sends) and a track takes them when it loads the preset.
 - **Macro bytes.** The record's macro bytes (`SND_P_E0..`, for example HARM and DTUNE coarse) are ChoralRoot's performance macros. FIZZ does not use them, because the blob has the exact values.
 - **Sends.** The Digitone's reverb, delay and chorus sends are dropped by ChoralRoot's converter ("effects are global on the FM-1"). FIZZ has them per track: pass them with LOAD (they are 0..127 in both).
 

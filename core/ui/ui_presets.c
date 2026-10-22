@@ -126,11 +126,20 @@ static void pr_cassette(float x, float y, float w, float h, const ui_preset_t *p
         pr_tray_add(x + 8.f, y + h - 18.f, UI_POOL_COL, 0.75f);
     else if (p->tray == 2 || p->in_pool)                /* .. B10 takes it out */
         pr_tray(x + 8.f, y + h - 18.f, UI_POOL_COL, 1.f);
+    {   /* P1.5x: its sends, chorus / delay / reverb, three little bars right of the reels (the SENDS page's colours) */
+        static const qd_rgb SC[3] = {UI_K1, UI_K2, UI_K3};
+        const float bx = x + w * 0.68f + 16.f, by = y + h - 9.f;
+        int j2;
+        for (j2 = 0; j2 < 3; j2++) {
+            const float hh = 2.f + 16.f * (float)(p->send[j2] < 0 ? 0 : p->send[j2] > 127 ? 127 : p->send[j2]) / 127.f;
+            ui_RR(bx + (float)j2 * 5.f, by - hh, 3.f, hh, 1.f, QD_NONE, 1.f, p->missing ? UI_G2 : SC[j2]);
+        }
+    }
     if (p->tags) {                                      /* P1.5v: its tags, between the reels */
         int k, n = 0;
         for (k = 0; k < 7; k++)
             n += (p->tags >> k) & 1;
-        pr_tag_dots(x + w / 2.f - (float)(n - 1) * 3.5f, y + h * 0.74f, p->tags, 2.4f, 1);
+        pr_tag_dots(x + w / 2.f - (float)(n - 1) * 4.3f, y + h * 0.74f, p->tags, 3.f, 1);   /* (P1.5x: 6 px) */
     }
 }
 
@@ -157,7 +166,7 @@ static void pr_rollo(const ui_browse_t *v, qd_rgb col)
         qd_alpha(qd_get_alpha() * a);
         qd_clip_rect(0.f, 27.f, 222.f, 213.f);
         if (!p->track && p->tags)                       /* (P1.5v: its tags' dots) */
-            pr_tag_dots(60.f, y - 4.f, p->tags, 2.6f, -1);
+            pr_tag_dots(60.f, y - 4.f, p->tags, 3.f, -1);
         else if (!p->track)
             ui_O(60.f, y - 4.f, 3.f, QD_NONE, 1.f, pr_kind_col(p->kind));
         ui_T(p->track ? "TRACK" : p->name ? p->name : "", 70.f, y, 14.f, 400, 0.f, p->missing ? UI_G1 : UI_K3, QD_LEFT);

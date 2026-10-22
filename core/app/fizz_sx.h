@@ -45,7 +45,7 @@ enum { QD_SX_OK, QD_SX_FULL, QD_SX_BAD_LENGTH, QD_SX_BAD_CHECKSUM, QD_SX_BAD_PAT
 #define QD_SX_NAME 12
 #define QD_SX_BLOB 96
 #define QD_SX_BLOB7 110                /* 13 groups of 7 bytes -> 8, the last 5 -> 6 */
-#define QD_SX_STORE_BODY (1 + 2 + QD_SX_NAME + 1 + 1 + 4 + 1 + QD_SX_BLOB7)   /* 132 */
+#define QD_SX_STORE_BODY (1 + 2 + QD_SX_NAME + 1 + 1 + 4 + 1 + QD_SX_BLOB7)   /* 132 (P1.5x: or 133, + a tags byte) */
 #define QD_SX_OUT 4                    /* replies waiting */
 #define QD_SX_OUT_MAX 48               /* a reply's bytes, F0 .. F7 */
 
