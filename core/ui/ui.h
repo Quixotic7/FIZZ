@@ -105,8 +105,6 @@ typedef struct {
     int dir;                            /* the detent's direction: +1 the list moves up */
     float reel;                         /* the reels' turn, radians */
     int lock;                           /* a step's sound lock (the title "STEP n · SOUND") */
-    int lib;                            /* P1.5s: k is a LIBRARY slot (1..128; its champagne), past the pool's end */
-    int pk, nk, plib, nlib;             /* .. the neighbours' numbers and places */
     int step;                           /* .. the step, 1..128 */
 } ui_picker_t;
 void ui_picker_draw(const ui_picker_t *v);

@@ -5134,53 +5134,6 @@ static void g_p15s_follow(void)
     CHECK(!follow_now() && fh.is_default, "stopped: the default");
 }
 
-/* P1.5s: PRESETS past the pool's end walks on into the LIBRARY (its champagne); the sound kept joins the pool */
-static void g_p15s_library(void)
-{
-    int16_t p[QD_QUAD_NP];
-    int last, n0, k;
-    start();
-    qd_quad_preset_patch(3, p);
-    qd_lib_store(&A, 4, "LIBSND", p);
-    qd_quad_preset_patch(5, p);
-    qd_lib_store(&A, 9, "LIBTWO", p);
-    for (last = A.proj.nsound; last > 1 && !qd_sound_used(&A.proj, last); last--)
-        ;
-    qd_track_load_sound(&A.model.t[0], last, qd_sound_name(&A.proj, last), qd_sound_patch(&A.proj, last));
-    run(20);
-    n0 = A.proj.nsound;
-    turn(QD_K_PRESETS, 1);
-    CHECK(A.ui.pick_lib == 5 && A.model.t[0].sound == 0 && !strcmp(A.model.t[0].sound_name, "LIBSND") &&
-              A.ui.tk == QD_TK_PRESET,
-          "PRESETS past the pool's last (%d): the LIBRARY's first sound (5, LIBSND) on the track", last);
-    turn(QD_K_PRESETS, 1);
-    CHECK(A.ui.pick_lib == 10 && !strcmp(A.model.t[0].sound_name, "LIBTWO"), "on: the library's next (10, LIBTWO)");
-    turn(QD_K_PRESETS, -2);
-    CHECK(!A.ui.pick_lib && A.model.t[0].sound == last, "back two: the pool's last again");
-    turn(QD_K_PRESETS, 1);
-    run(QD_TK_MS + QD_TK_FADE_MS + 20);
-    k = A.model.t[0].sound;
-    CHECK(!A.ui.pick_lib && k > 0 && !strcmp(A.proj.sound[k - 1].name, "LIBSND") && A.proj.nsound >= n0,
-          "the picker gone on LIBSND: it joined the pool (%d), the track's source", k);
-    qd_track_load_sound(&A.model.t[0], last, qd_sound_name(&A.proj, last), qd_sound_patch(&A.proj, last));
-    run(20);
-    n0 = qd_pool_free_slot(&A.proj);
-    turn(QD_K_PRESETS, 2);
-    turn(QD_K_PRESETS, -1);
-    CHECK(A.model.t[0].sound == k, "the pool now ends with it: PRESETS walks the pool to it, then the library");
-    turn(QD_K_PRESETS, 2);
-    run(QD_TK_MS + QD_TK_FADE_MS + 20);
-    CHECK(A.model.t[0].sound > 0 && !strcmp(A.proj.sound[A.model.t[0].sound - 1].name, "LIBTWO"), "LIBTWO kept: in the pool");
-    qd_track_load_sound(&A.model.t[0], k, qd_sound_name(&A.proj, k), qd_sound_patch(&A.proj, k));
-    run(20);
-    A.ui.pick_lib = 5, A.ui.pick_t = 0;                 /* (the walk on LIBSND again: the pool has it already) */
-    qd_track_load_sound(&A.model.t[0], 0, "LIBSND", A.per.lib[4].patch);
-    n0 = A.proj.nsound;
-    run(10);
-    CHECK(A.model.t[0].sound == k && A.proj.nsound == n0, "a library sound the pool has already: that one, no copy");
-    btap(QD_B_HOME);
-}
-
 int main(void)
 {
     static const struct {
@@ -5258,7 +5211,6 @@ int main(void)
         {"P1.5q: EDIT follows the step playing", g_p15q_follow},
         {"P1.5s: the latch's preview only on a finger or the cursor", g_p15s_preview},
         {"P1.5s: EDIT follows with the latch on, nothing selected; muted", g_p15s_follow},
-        {"P1.5s: PRESETS walks on into the LIBRARY", g_p15s_library},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

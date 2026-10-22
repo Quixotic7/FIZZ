@@ -553,10 +553,6 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
     SHIFT + KNOB 1..4 stay the fine step. The keys light the scale as the keyboard's do.
   - **EDIT** closes the editor back to the keyboard; HOME to the steps. Playing here is heard, not recorded.
 - **PRESETS**: the track's preset (nothing held) or the step's sound lock (a step held), as everywhere.
-- **PRESETS goes on into the LIBRARY** (P1.5s): with nothing held, turning past the pool's last sound continues
-  through the LIBRARY's sounds (the picker turns champagne, "LIBRARY" at its top). The track plays each as you turn;
-  the one you stop on joins this project's pool (the same sound already there: that one) and becomes the track's.
-  Turning back leaves the library for the pool. A step's sound lock still chooses from the pool only.
 - **Randomise** (P1.5c), drawn in neon lines over the page's picture:
   - **B9**: two dice roll for 0.6 s, then **this page's values** are new.
   - **Hold B10** 1.5 s: a champagne bottle fills with bubbles, the cork pops and it bursts: **the whole sound** is
@@ -658,7 +654,7 @@ They stay open (OCT− or HOME back). For now:
   `docs/SYSEX.md`.
 - **In FM1VST** (the Standalone or the plugin, P1.5s): drop `.dnsnd` files on the window (one or many), or right-click
   the screen > **Import Digitone sounds…**. They go into the LIBRARY's free slots as above; a note over the screen
-  says how many went in. Then **PRESETS** reaches them past the end of the pool.
+  says how many went in.
 
 ## How do I manage projects? (SEQ tapped)
 
