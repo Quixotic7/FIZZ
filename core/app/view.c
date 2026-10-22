@@ -792,6 +792,25 @@ static void draw_picker(const qd_app_t *a)
     v.cur = v.k ? qd_sound_name(&a->proj, v.k) : "TRACK SOUND";
     v.prev = v.k > 1 ? qd_sound_name(&a->proj, v.k - 1) : v.k == 1 && v.lock ? "TRACK SOUND" : 0;
     v.next = v.k < v.n ? qd_sound_name(&a->proj, v.k + 1) : 0;
+    v.pk = v.k - 1, v.nk = v.k + 1;
+    if (!v.lock) {                                      /* P1.5s: the walk: the pool, then the LIBRARY */
+        const int lib = a->ui.pick_lib && a->ui.pick_t == a->sel, k = lib ? a->ui.pick_lib - 1 : v.k;
+        int pl, nl, pk, nk;
+        if (lib || v.k) {
+            pk = qd_preset_walk(a, lib, k, -1, &pl);
+            nk = qd_preset_walk(a, lib, k, 1, &nl);
+            v.lib = lib;
+            if (lib) {
+                v.k = k + 1;
+                v.cur = a->per.lib[k].name;
+                v.n = QD_NLIB;
+            }
+            v.prev = pl == lib && pk == k ? 0 : pl ? a->per.lib[pk].name : qd_sound_name(&a->proj, pk);
+            v.next = nl == lib && nk == k ? 0 : nl ? a->per.lib[nk].name : qd_sound_name(&a->proj, nk);
+            v.pk = pl ? pk + 1 : pk, v.plib = pl;
+            v.nk = nl ? nk + 1 : nk, v.nlib = nl;
+        }
+    }
     v.roll = d >= QD_ROLL_MS ? 0.f : 1.f - d / QD_ROLL_MS;
     v.dir = a->ui.tk_dir;
     v.reel = (float)fmod((double)a->ms * 0.0025, 6.283185307179586);
@@ -1074,8 +1093,9 @@ int qd_view_edit_follows(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
     if (!a->seq.playing || u->fol_step < 0 || u->fol_t != a->sel || u->view != QD_VIEW_EDIT || u->mode != QD_MODE_STEP ||
-        u->latch || u->slatch || u->nheld || u->wk_pending || qd_ctl_mkey(a) >= 0 || u->tk != QD_TK_NONE)
-        return -1;
+        u->latch || u->nheld || u->wk_pending || qd_ctl_mkey(a) >= 0 || u->tk != QD_TK_NONE)
+        return -1;                                      /* (P1.5s: the step latch on with nothing selected shows the
+                                                         * track's default: it follows too) */
     return u->fol_step;
 }
 

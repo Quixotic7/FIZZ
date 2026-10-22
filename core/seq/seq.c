@@ -600,7 +600,8 @@ static void start_at(qd_seq_t *s, int pat)
         s->inf_n[t] = 0;
         s->tie_pending[t] = 0;
         s->flash_step[t] = -1;
-        s->flash_g[t] = -1;
+        s->heard_step[t] = -1;
+        s->heard_g[t] = -1;
         s->skip_n[t] = 0;
     }
     if (!s->ext)
@@ -830,6 +831,11 @@ static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq
         break;
     case QD_EV_ON:
     case QD_EV_TIE:
+        if (s->heard_g[t] != e->g || s->heard_step[t] != e->step) {   /* P1.5s: the step coming to play (once a step) */
+            s->heard_step[t] = e->step;
+            s->heard_g[t] = e->g;
+            s->heard_sample[t] = o.sample;
+        }
         if (!qd_seq_audible(s, P, t)) {                 /* a muted (or not soloed) track plays nothing: it runs on */
             if (e->kind == QD_EV_TIE && !s->tie_pending[t])
                 unskip(s, t, e->tick);
@@ -859,7 +865,6 @@ static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq
         s->flash_step[t] = e->step;
         s->flash_tick[t] = e->tick;
         s->flash_sample[t] = o.sample;
-        s->flash_g[t] = e->g;
         if (e->gate >= 0) {
             push_off(s, t, e->note, o.serial, e->tick + (e->gate > 0 ? e->gate : 1), e->g, e->origin, e->step, e->hit);
         } else if (s->inf_n[t] < QD_NNOTE * 8) {

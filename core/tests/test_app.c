@@ -84,6 +84,7 @@ static void run(uint32_t n, int thr)
 static void fresh(void)
 {
     qd_app_init(&A);
+    A.ui.view = QD_VIEW_ROLL;   /* (P1.5s: EDIT is the power-on view; made on the PIANO ROLL) */
     now = frames_done = 0;
     qd_app_tick(&A, 0);
     peak_l = peak_r = 0;

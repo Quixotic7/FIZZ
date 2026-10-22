@@ -3,7 +3,8 @@
  * (it includes this file and core/store/store.c: the core's source lists stay as they are).
  *
  * The records' bytes (version 1; the host's byte order and struct layouts: a Phase 2 format would spell them out):
- *   SET  'G' 1, project, pattern, track, knob layout, view, page follow, the effects' parameters (QD_NFXP int16)
+ *   SET  'G' 1, project, pattern, track, knob layout, view, page follow, the effects' parameters (QD_NFXP int16),
+ *        the latch mode (P1.5b), 1 (P1.5s: the view is the user's; a record without it powers on in EDIT)
  *   HDR  'H' 1, name (QD_PROJ_NAME), demo, global key scale and root, launch, record mode, quantize, overdub, each
  *        track's mix (level, pan, chorus, delay, reverb) and voice limit and reserve
  *   PAT  'P' 1, the step's and the track settings' sizes, master, swing, used, bpm, nlock, the eight track settings,
@@ -204,6 +205,7 @@ static uint32_t ser_set(const qd_app_t *a, uint8_t *b)
         memcpy(b + o, &v, 2), o += 2;
     }
     b[o++] = (uint8_t)a->ui.lmode;                      /* P1.5b: the latch mode */
+    b[o++] = 1;                                         /* P1.5s: the view is the user's (EDIT the default since) */
     return o;
 }
 
@@ -212,18 +214,20 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
     int i;
     const uint32_t nf = len >= 9 ? b[8] : 0;            /* (P1.5b: an older record has fewer effects' values, no latch
                                                          * mode: the rest stay at their defaults) */
-    if (len < 9 || b[0] != 'G' || b[1] != 1 || nf > QD_NFXP || (len != 9u + 2u * nf && len != 10u + 2u * nf))
+    if (len < 9 || b[0] != 'G' || b[1] != 1 || nf > QD_NFXP ||
+        (len != 9u + 2u * nf && len != 10u + 2u * nf && len != 11u + 2u * nf))
         return 0;
     *proj = b[2] % QD_NPROJ, *pat = b[3] % QD_NPAT, *sel = b[4] % QD_NTRACK;
     a->ui.knobs = b[5] % QD_NKNOBS;
-    a->ui.view = b[6] % QD_NVIEW;
+    a->ui.view = len == 11u + 2u * nf ? b[6] % QD_NVIEW : QD_VIEW_EDIT;   /* (P1.5s: a record from before EDIT was
+                                                         * the default view: EDIT) */
     a->ui.follow = b[7] != 0;
     for (i = 0; i < (int)nf; i++) {
         int16_t v;
         memcpy(&v, b + 9 + 2 * i, 2);
         qd_fx_set(i, v);
     }
-    a->ui.lmode = len == 10u + 2u * nf ? b[9 + 2 * nf] % 2 : QD_LMODE_VALUES;
+    a->ui.lmode = len >= 10u + 2u * nf ? b[9 + 2 * nf] % 2 : QD_LMODE_VALUES;
     return 1;
 }
 
@@ -590,6 +594,7 @@ int qd_proj_new(qd_app_t *a, int p)
     if (p < 0 || p >= QD_NPROJ || !ps->on)
         return 0;
     qd_undo_reset(a);
+    a->ui.view = QD_VIEW_EDIT;                          /* P1.5s: a new project starts in EDIT */
     proj_switch_prep(a);
     if (ps->pexists[p])
         proj_erase_records(a, p);

@@ -1,4 +1,4 @@
-# Playing FIZZ (P1.5r)
+# Playing FIZZ (P1.5s)
 
 The prototype runs in the FM1VST Standalone on the Mac. Turn on **Remote FM-1** there; the FM-1 is the panel and the
 sound comes from the Mac. Printed names are in brackets.
@@ -39,7 +39,8 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
 - The unit wakes on the FIZZ logo screen: champagne bubbles rising in the app's colours, the big ones turning with
   tiny bubbles floating inside. Once a loop the word FIZZ gathers out of the bubbles as particles, stands as solid
   coloured letters, then fizzes apart again. While a DAW plays it, a surge of bubbles rises on each beat.
-  Press anything to get to the **step view**.
+  Press anything to get to the **step view**, in **EDIT** (P1.5s: the default view at power-on and in a new project;
+  the view you used last is kept).
 - **HOME** always brings you back to the view you are using (PIANO ROLL, STEPS or EDIT), from anywhere, in one press:
   it closes F3, a settings menu or the step latch and lands on the view at the same time. It never changes the view.
 - **SHIFT + HOME** cycles the views: **PIANO ROLL** (the mode's lane), **STEPS** and **EDIT**. STEPS shows all eight
@@ -63,9 +64,10 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   picture (the chord, the rider at that velocity, the bar, the flag, the ball, the cassette ..), each with its own
   "it plays" moment (the rider's kick, the chord's name squeezing in, the ball bouncing through the step). It changes
   when you hear the step, so a step with micro-timing changes late by that much, and a slow track (1/8 ..) changes
-  at its pace; a ratchet changes it once. An empty step keeps the last one played, dimmed a little. Stop, turn the
-  latch on (or the cursor), or hold a step and it shows that step again as before; a knob's pop-up shows as before
-  and following comes back after it.
+  at its pace; a ratchet changes it once. An empty step keeps the last one played, dimmed a little. A muted track is
+  followed too. Stop, select a step with the latch (or the cursor), or hold a step and it shows that step again as
+  before; the latch on with nothing selected follows (P1.5s); a knob's pop-up shows as before and following comes
+  back after it.
 - **The knobs with no finger on a step** (nothing held, or the step latch's selection), in every view, layout **A**
   (the global settings can switch layouts, see below):
   - **ALGORITHM = the step cursor**: it turns the step latch on and moves its one selected step through all eight
@@ -183,6 +185,9 @@ and chance; a LOCK step's runs too).
 
 - With the transport **stopped**, a held step plays: its notes, sound, locks and velocity. Every edit plays it again.
   Letting go stops it. Hold several and they play together. While playing there is no preview.
+- **With the step latch on** (P1.5s) only a finger plays: a white key down on a step sounds while it is down. The
+  selection alone is silent, also while you edit it; **ALGORITHM** (the step cursor) plays each step it moves to
+  once, briefly.
 
 ## How do I edit steps without holding them? (the step latch)
 
@@ -548,6 +553,10 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
     SHIFT + KNOB 1..4 stay the fine step. The keys light the scale as the keyboard's do.
   - **EDIT** closes the editor back to the keyboard; HOME to the steps. Playing here is heard, not recorded.
 - **PRESETS**: the track's preset (nothing held) or the step's sound lock (a step held), as everywhere.
+- **PRESETS goes on into the LIBRARY** (P1.5s): with nothing held, turning past the pool's last sound continues
+  through the LIBRARY's sounds (the picker turns champagne, "LIBRARY" at its top). The track plays each as you turn;
+  the one you stop on joins this project's pool (the same sound already there: that one) and becomes the track's.
+  Turning back leaves the library for the pool. A step's sound lock still chooses from the pool only.
 - **Randomise** (P1.5c), drawn in neon lines over the page's picture:
   - **B9**: two dice roll for 0.6 s, then **this page's values** are new.
   - **Hold B10** 1.5 s: a champagne bottle fills with bubbles, the cork pops and it bursts: **the whole sound** is
@@ -647,6 +656,9 @@ They stay open (OCT− or HOME back). For now:
   with its name. The screen shows it a moment: its cassette dropping in, its slot, **imported**. It is saved by
   itself like any change, and **SHIFT + F1 undoes it** (a batch sent together: one undo). The format is in
   `docs/SYSEX.md`.
+- **In FM1VST** (the Standalone or the plugin, P1.5s): drop `.dnsnd` files on the window (one or many), or right-click
+  the screen > **Import Digitone sounds…**. They go into the LIBRARY's free slots as above; a note over the screen
+  says how many went in. Then **PRESETS** reaches them past the end of the pool.
 
 ## How do I manage projects? (SEQ tapped)
 

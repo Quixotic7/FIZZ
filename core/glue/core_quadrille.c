@@ -29,6 +29,7 @@
 
 #include "app.h"
 #include "qd_gfx.h"
+#include "ui.h"
 
 fm1panel_t fm1core_qd_panel;
 static const int8_t fm1core_qd_keymap[6][FM1P_NCOL] = FM1P_KEYMAP_INIT;
@@ -218,7 +219,8 @@ void fm1core_qd_ui_info(char *buf, uint32_t n)
 {
     char pat[4];
     if (buf && n)
-        snprintf(buf, n, "%s: %s %s, %d BPM, track %d %s (%s), oct %d, voices %d/%d, keys %07x buttons %04x",
+        snprintf(buf, n, "%s: %s %s, %d BPM, track %d %s (%s), oct %d, voices %d/%d, keys %07x buttons %04x, view %s, "
+                 "edit follows %d",
                  fm1core_qd_app.ui.mode == QD_MODE_KEYS     ? "keys"
                  : fm1core_qd_app.ui.mode == QD_MODE_TRACKS ? "tracks"
                  : fm1core_qd_app.ui.mode == QD_MODE_STEP   ? (fm1core_qd_app.ui.nheld ? "step held" : "steps")
@@ -227,7 +229,9 @@ void fm1core_qd_ui_info(char *buf, uint32_t n)
                  fm1core_qd_app.bpm, fm1core_qd_app.sel + 1, fm1core_qd_app.model.t[fm1core_qd_app.sel].name,
                  qd_track_sound_name(&fm1core_qd_app.model.t[fm1core_qd_app.sel]), fm1core_qd_app.oct,
                  qd_pool_in_use(&fm1core_qd_app.pool), fm1core_qd_app.pool.nvoice, (unsigned)fm1core_qd_app.keys_held,
-                 (unsigned)fm1core_qd_app.buttons_held);
+                 (unsigned)fm1core_qd_app.buttons_held,
+                 fm1core_qd_app.ui.view == QD_VIEW_EDIT ? "EDIT" : fm1core_qd_app.ui.view == QD_VIEW_STEPS ? "STEPS" : "ROLL",
+                 qd_view_edit_follows(&fm1core_qd_app) + 1);   /* P1.5s: the step EDIT shows playing (0: none) */
 }
 void fm1core_qd_shutdown(void)
 {

@@ -85,6 +85,7 @@ static void run(uint32_t n)
 static void fresh(void)
 {
     qd_app_init(&A);
+    A.ui.view = QD_VIEW_ROLL;   /* (P1.5s: EDIT is the power-on view; made on the PIANO ROLL) */
     now = 0;
     frames_done = 0;
     hash = 14695981039346656037ull;
@@ -2148,7 +2149,7 @@ static void g_step_latch(void)
     CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 2 && leds().button[LFO] == QD_LED_LIT &&
               qd_view_screen(&A) == QD_SCR_HELD,
           "LFO: the latch on (lit), step 3 (the last edited) selected, its screen");
-    CHECK(sounding(60), "stopped: the selection previews");
+    CHECK(!sounding(60), "stopped: the selection alone is silent (P1.5s: only a finger, or the cursor once)");
     wtap(5);
     CHECK(A.ui.nheld == 1 && A.ui.held[0] == 5 && !R(0, 5).on && R(0, 2).on, "P1.3f: W6 tapped: it replaces the "
           "selection (no trig made); step 3 kept its trig");
@@ -2195,7 +2196,7 @@ static void g_step_latch(void)
           "B10: velocity 127 on the selection; steps 3 and 9 not selected, unchanged");
     turn(QD_K_1, -7);
     CHECK(R(0, 0).vel == 120 && R(0, 4).vel == 120 && A.ui.tk == QD_TK_HELDKNOB, "KNOB 1: 120 on both, the band");
-    CHECK(sounding(60) && A.ui.pvs_n == 2, "the selection previews (both)");
+    CHECK(!sounding(60) && A.ui.pvs_n == 0, "P1.5s: an edit on the selection alone: silent");
     for (k = 0; k < 400; k++) {
         run(1);
         on += leds().key[WK(4)] == QD_LED_LIT;
@@ -5038,6 +5039,148 @@ static void g_p15q_follow(void)
     btap(QD_B_PLAY);
 }
 
+/* P1.5s: the stopped preview with the step latch on: silent while the selection stands or is edited; once (short) for
+ * each step the cursor moves to; a W held sounds while held */
+static int onsets(uint32_t ms, int note, int *still)    /* the note's starts over ms; *still: sounding at the end */
+{
+    int n = 0, was = sounding(note);
+    while (ms--) {
+        int now_s;
+        run(1);
+        now_s = sounding(note);
+        n += now_s && !was;
+        was = now_s;
+    }
+    if (still)
+        *still = was;
+    return n;
+}
+static void g_p15s_preview(void)
+{
+    int n, still;
+    start();
+    wtap(2);                                            /* (the latch starts on step 3, the last edited) */
+    for (n = 3; n < 8; n++)
+        qd_step_set_trig(PAT(), 0, n, QD_TRIG_NOTE);
+    mode(M_VEL);
+    btap(LFO);
+    n = onsets(3000, 60, &still);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && n == 0 && !still, "the latch on, nothing pressed, 3 s: no note (%d)", n);
+    turn(QD_K_ALGO, 1);
+    n = onsets(1500, 60, &still);
+    CHECK(A.ui.held[0] == 3 && n <= 1 && !still, "ALGORITHM: the cursor on step 4, one short preview (%d), then silence",
+          n);
+    CHECK(A.ui.pvs_n == 0, ".. nothing left sounding");
+    turn(QD_K_ALGO, 1);
+    run(5);
+    CHECK(sounding(60), "the cursor again (step 5): it sounds at once");
+    n = onsets(1500, 60, &still);
+    CHECK(n == 0 && !still, ".. once (no restrike, %d)", n);
+    turn(QD_K_1, -3);
+    n = onsets(1000, 60, &still);
+    CHECK(n == 0 && !still && R(0, 4).vel == 97 && A.ui.held[0] == 4, "a knob edit on the selection: no preview (%d)", n);
+    kdown(WK(4));
+    run(400);
+    CHECK(sounding(60), "W5 held (the latch on): it sounds while held");
+    turn(QD_K_1, 1);
+    run(5);
+    CHECK(sounding(60), ".. an edit with the finger on it: sounding (struck again)");
+    kup(WK(4));
+    run(50);
+    CHECK(!sounding(60), ".. let go: silent");
+    btap(LFO);                                          /* the latch off: a held W as before */
+    whold(6);
+    CHECK(sounding(60), "the latch off, W7 held: sounds");
+    wrel(6);
+    run(20);
+    CHECK(!sounding(60), ".. let go: silent");
+    btap(QD_B_HOME);
+}
+
+/* P1.5s: EDIT follows from PLAY also with the step latch on and nothing selected (the default shown) */
+static void g_p15s_follow(void)
+{
+    int i, last = 0, n = 0;
+    qd_app_init(&A);                                    /* (P1.5s: the power-on view) */
+    CHECK(A.ui.view == QD_VIEW_EDIT, "power-on: EDIT is the view (the owner: the default one)");
+    start();
+    A.ui.view = QD_VIEW_EDIT;
+    for (i = 0; i < 16; i += 2)
+        qd_step_set_trig(PAT(), 0, i, QD_TRIG_NOTE);
+    mode(M_VEL);
+    btap(LFO);
+    wtap(A.ui.held[0] % QD_PAGE);                       /* (the selection's step tapped: nothing selected) */
+    run(300);
+    CHECK(A.ui.slatch && !A.ui.nheld && !follow_now() && fh.is_default, "the latch on, nothing selected: the default");
+    btap(QD_B_PLAY);
+    for (i = 0; i < 1500; i++) {
+        const int st = follow_now();
+        if (st && st != last)
+            n++, last = st;
+        run(1);
+    }
+    CHECK(n >= 5, "PLAY: it follows the steps (%d seen)", n);
+    PAT()->trk[0].mute = 1;                             /* a muted track: followed too */
+    for (n = 0, i = 0; i < 1500; i++) {
+        const int st = follow_now();
+        if (st && st != last)
+            n++, last = st;
+        run(1);
+    }
+    CHECK(n >= 5, "the track muted: still followed (%d seen)", n);
+    PAT()->trk[0].mute = 0;
+    btap(QD_B_PLAY);
+    run(50);
+    CHECK(!follow_now() && fh.is_default, "stopped: the default");
+}
+
+/* P1.5s: PRESETS past the pool's end walks on into the LIBRARY (its champagne); the sound kept joins the pool */
+static void g_p15s_library(void)
+{
+    int16_t p[QD_QUAD_NP];
+    int last, n0, k;
+    start();
+    qd_quad_preset_patch(3, p);
+    qd_lib_store(&A, 4, "LIBSND", p);
+    qd_quad_preset_patch(5, p);
+    qd_lib_store(&A, 9, "LIBTWO", p);
+    for (last = A.proj.nsound; last > 1 && !qd_sound_used(&A.proj, last); last--)
+        ;
+    qd_track_load_sound(&A.model.t[0], last, qd_sound_name(&A.proj, last), qd_sound_patch(&A.proj, last));
+    run(20);
+    n0 = A.proj.nsound;
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.pick_lib == 5 && A.model.t[0].sound == 0 && !strcmp(A.model.t[0].sound_name, "LIBSND") &&
+              A.ui.tk == QD_TK_PRESET,
+          "PRESETS past the pool's last (%d): the LIBRARY's first sound (5, LIBSND) on the track", last);
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.pick_lib == 10 && !strcmp(A.model.t[0].sound_name, "LIBTWO"), "on: the library's next (10, LIBTWO)");
+    turn(QD_K_PRESETS, -2);
+    CHECK(!A.ui.pick_lib && A.model.t[0].sound == last, "back two: the pool's last again");
+    turn(QD_K_PRESETS, 1);
+    run(QD_TK_MS + QD_TK_FADE_MS + 20);
+    k = A.model.t[0].sound;
+    CHECK(!A.ui.pick_lib && k > 0 && !strcmp(A.proj.sound[k - 1].name, "LIBSND") && A.proj.nsound >= n0,
+          "the picker gone on LIBSND: it joined the pool (%d), the track's source", k);
+    qd_track_load_sound(&A.model.t[0], last, qd_sound_name(&A.proj, last), qd_sound_patch(&A.proj, last));
+    run(20);
+    n0 = qd_pool_free_slot(&A.proj);
+    turn(QD_K_PRESETS, 2);
+    turn(QD_K_PRESETS, -1);
+    CHECK(A.model.t[0].sound == k, "the pool now ends with it: PRESETS walks the pool to it, then the library");
+    turn(QD_K_PRESETS, 2);
+    run(QD_TK_MS + QD_TK_FADE_MS + 20);
+    CHECK(A.model.t[0].sound > 0 && !strcmp(A.proj.sound[A.model.t[0].sound - 1].name, "LIBTWO"), "LIBTWO kept: in the pool");
+    qd_track_load_sound(&A.model.t[0], k, qd_sound_name(&A.proj, k), qd_sound_patch(&A.proj, k));
+    run(20);
+    A.ui.pick_lib = 5, A.ui.pick_t = 0;                 /* (the walk on LIBSND again: the pool has it already) */
+    qd_track_load_sound(&A.model.t[0], 0, "LIBSND", A.per.lib[4].patch);
+    n0 = A.proj.nsound;
+    run(10);
+    CHECK(A.model.t[0].sound == k && A.proj.nsound == n0, "a library sound the pool has already: that one, no copy");
+    btap(QD_B_HOME);
+}
+
 int main(void)
 {
     static const struct {
@@ -5113,6 +5256,9 @@ int main(void)
         {"P1.5c: randomise: the dice, the bottle, the rules", g_p15c_random},
         {"P1.5p: the knob band clear of every held screen's head", g_p15p_band},
         {"P1.5q: EDIT follows the step playing", g_p15q_follow},
+        {"P1.5s: the latch's preview only on a finger or the cursor", g_p15s_preview},
+        {"P1.5s: EDIT follows with the latch on, nothing selected; muted", g_p15s_follow},
+        {"P1.5s: PRESETS walks on into the LIBRARY", g_p15s_library},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
     };
     size_t i;

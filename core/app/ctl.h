@@ -376,6 +376,7 @@ typedef struct {
     uint32_t lfo_ms;                   /* P1.5b: LFO went down (held QD_LFO_HOLD_MS alone: the latch mode) */
     int lmode;                         /* P1.5b: the latch mode (QD_LMODE_*; a global setting, saved) */
     int lmode_open;                    /* P1.5h: LFO held alone: the latch mode's screen is up (SELECT turns it) */
+    int pick_lib, pick_t;              /* P1.5s: PRESETS walked into the LIBRARY: its slot + 1 (0: the pool), the track */
     char imp_name[13];                 /* P1.5r: the sound imported last (SysEx), LIBRARY / POOL, its slot */
     int imp_pool, imp_slot;
     int undo_dir, undo_kind;           /* P1.5c: the last undo (-1) / redo (+1), its level's kind (QD_UK_*; -1 none) */
@@ -448,6 +449,7 @@ typedef struct {
     uint8_t pvs_track[16], pvs_nn[16];
     uint8_t pvs_note[16][QD_NNOTE];
     uint32_t pvs_sig[16];
+    uint32_t pvs_until[16];            /* P1.5s: a once-preview (the step cursor) ends then; 0: a finger's */
 } qd_ui_t;
 
 /* ---- ctl.c */
@@ -467,6 +469,7 @@ void qd_ctl_set_page(struct qd_app *a, int p);      /* the page edited on the se
 void qd_ctl_takeover(struct qd_app *a, int tk, int knob, int dir, int lock, int step);
 void qd_ctl_confirm(struct qd_app *a, const char *big, const char *small);
 void qd_ctl_imported(struct qd_app *a, const char *name, int pool, int slot);   /* P1.5r: its takeover */
+int qd_preset_walk(const struct qd_app *a, int lib, int k, int d, int *lib_out);   /* P1.5s: the pool, then the library */
 void qd_ctl_confirm_col(struct qd_app *a, const char *big, const char *small, uint32_t col);   /* P1.5o: in a colour */
 int qd_ctl_rate_index(int rate);       /* a rate's place in the picker (slowest first) */
 int qd_ctl_rate_at(int i);             /* .. and back */
@@ -591,6 +594,7 @@ const qd_latch_t *qd_latch_cur(const struct qd_app *a);   /* the latch open, 0 n
 
 /* ---- ctl_preview.c (P1.3d): with the transport stopped, the held steps sound (PLAN §8b 2.2) */
 int qd_ctl_previewing(const struct qd_app *a);   /* the held steps are previewed now */
+void qd_ctl_preview_once(struct qd_app *a, int s);   /* P1.5s: the step cursor's step sounds once */
 void qd_ctl_preview_sync(struct qd_app *a);      /* after every input and every millisecond: start, re-strike, stop */
 extern const uint8_t QD_WHITE_KEY[16], QD_BLACK_KEY[11];
 

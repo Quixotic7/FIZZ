@@ -184,6 +184,7 @@ int render_p15a(const char *out, const char *mocks)
 
     memset(FL, 0xFF, sizeof FL);                        /* a unit with a library of ten, a pool with some of them */
     qd_app_init(&A);
+    A.ui.view = QD_VIEW_ROLL;   /* (P1.5s: EDIT is the power-on view; made on the PIANO ROLL) */
     now = 0;
     frames_done = 0;
     qd_app_tick(&A, 0);

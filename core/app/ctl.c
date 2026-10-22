@@ -124,6 +124,7 @@ void qd_ctl_init(qd_app_t *a)
     u->mode = QD_MODE_IDLE;            /* power-on: the idle screen (any key or button: the step view) */
     u->fol_step = -1;
     u->fol_g = -1;
+    u->view = QD_VIEW_EDIT;            /* P1.5s (the owner: "this home screen should be the default one") */
     u->follow = 1;
     u->hmode = UI_F_NOTE;
     u->tk = QD_TK_NONE;
@@ -1292,15 +1293,103 @@ static void live_edit(qd_app_t *a, int id, int d, int tk, int knob)
     qd_ctl_takeover(a, tk, knob, d, 0, -1);
 }
 
-/* the track's sound from the pool (PRESETS with nothing held, SOUND's ALGORITHM) */
+/* P1.5s: the PRESETS walk: the pool's sounds (holes skipped), then on past its last the LIBRARY's (in its champagne).
+ * From (lib, k) d steps: the place reached (*lib 1: k a library slot 0..127; 0: a pool number) */
+int qd_preset_walk(const qd_app_t *a, int lib, int k, int d, int *lib_out)
+{
+    const qd_project_t *pr = &a->proj;
+    int n = d < 0 ? -d : d;
+    while (n-- > 0) {
+        if (!lib && d > 0) {
+            int j = qd_sound_step(pr, k, 1, 1);
+            if (j != k) {
+                k = j;
+                continue;
+            }
+            for (j = 0; j < QD_NLIB && !a->per.lib[j].name[0]; j++)   /* (the pool's last: the library's first) */
+                ;
+            if (j >= QD_NLIB)
+                break;
+            lib = 1, k = j;
+        } else if (!lib) {
+            k = qd_sound_step(pr, k, -1, 1);
+        } else if (d > 0) {
+            int j = k + 1;
+            while (j < QD_NLIB && !a->per.lib[j].name[0])
+                j++;
+            if (j >= QD_NLIB)
+                break;
+            k = j;
+        } else {
+            int j = k - 1;
+            while (j >= 0 && !a->per.lib[j].name[0])
+                j--;
+            if (j >= 0) {
+                k = j;
+                continue;
+            }
+            for (j = pr->nsound; j > 1 && !qd_sound_used(pr, j); j--)   /* (the library's first: the pool's last) */
+                ;
+            lib = 0, k = j;
+        }
+    }
+    *lib_out = lib;
+    return k;
+}
+
+/* P1.5s: a library sound the PRESETS walk left on the track: into the pool (the same sound there already: that one),
+ * the track's source; the pool full: the track keeps its copy */
+static void pick_commit(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    const qd_sound_t *s;
+    qd_track_t *t;
+    int k;
+    if (!u->pick_lib)
+        return;
+    s = &a->per.lib[u->pick_lib - 1];
+    t = &a->model.t[u->pick_t];
+    u->pick_lib = 0;
+    if (t->sound || memcmp(t->patch, s->patch, sizeof t->patch))
+        return;                                         /* (the track moved on meanwhile) */
+    for (k = 1; k <= a->proj.nsound; k++)
+        if (qd_sound_used(&a->proj, k) && !strcmp(a->proj.sound[k - 1].name, s->name) &&
+            !memcmp(a->proj.sound[k - 1].patch, s->patch, sizeof s->patch))
+            break;
+    if (k > a->proj.nsound)
+        k = qd_pool_add(a, s->name, s->patch);
+    if (!k) {
+        qd_ctl_confirm(a, "POOL FULL", 0);
+        return;
+    }
+    t->sound = (uint8_t)k;
+}
+
+/* the track's sound from the pool (PRESETS with nothing held, SOUND's ALGORITHM); P1.5s: on past the pool into the
+ * LIBRARY (a library sound plays as a copy while the picker shows; it stays: it joins the pool) */
 static void track_sound(qd_app_t *a, int d)
 {
+    qd_ui_t *u = &a->ui;
     qd_track_t *t = &a->model.t[a->sel];
-    int k;
+    int k, lib = u->pick_lib && u->pick_t == a->sel;
+    if (u->pick_lib && u->pick_t != a->sel)
+        pick_commit(a);
     d = qd_ctl_acc(a, d, a->proj.nsound);               /* (P1.5b: a big pool spins fast) */
-    k = qd_sound_step(&a->proj, t->sound ? (int)t->sound : 1, t->sound ? d : d - (d > 0), 1);   /* (P1.5a:
-                                                         * holes skipped; a track with no source starts at INIT) */
-    qd_track_load_sound(t, k, qd_sound_name(&a->proj, k), qd_sound_patch(&a->proj, k));
+    if (lib)
+        k = qd_preset_walk(a, 1, u->pick_lib - 1, d, &lib);
+    else if (t->sound)
+        k = qd_preset_walk(a, 0, t->sound, d, &lib);
+    else                                                /* (P1.5a: a track with no source starts at INIT) */
+        k = qd_preset_walk(a, 0, 1, d - (d > 0), &lib);
+    if (lib) {
+        const qd_sound_t *s = &a->per.lib[k];
+        qd_track_load_sound(t, 0, s->name, s->patch);
+        u->pick_lib = k + 1;
+        u->pick_t = a->sel;
+    } else {
+        u->pick_lib = 0;
+        qd_track_load_sound(t, k, qd_sound_name(&a->proj, k), qd_sound_patch(&a->proj, k));
+    }
     qd_ctl_takeover(a, QD_TK_PRESET, 0, d, 0, -1);
 }
 
@@ -1751,6 +1840,8 @@ void qd_ctl_ms(qd_app_t *a)
         qd_ctl_preview(a, -1, 0);                       /* a knob's note: its moment is over */
     if (u->tk != QD_TK_NONE && a->ms - u->tk_ms >= QD_TK_MS + QD_TK_FADE_MS)
         u->tk = QD_TK_NONE;
+    if (u->pick_lib && u->tk != QD_TK_PRESET)
+        pick_commit(a);                                 /* P1.5s: the picker gone on a library sound: into the pool */
     if (u->cf_on && a->ms - u->cf_ms >= QD_CONFIRM_MS)
         u->cf_on = 0;
     if (a->seq.flash_sample[a->sel] != u->flash_seen && a->seq.flash_sample[a->sel] <= a->seq.now) {
@@ -1764,11 +1855,11 @@ void qd_ctl_ms(qd_app_t *a)
         u->fol_step = -1;
         u->fol_g = -1;
         u->fol_t = a->sel;
-    } else if (a->seq.flash_step[a->sel] >= 0 && a->seq.flash_sample[a->sel] <= a->seq.now &&
-               a->seq.flash_g[a->sel] != u->fol_g) {   /* (a new step: its first note heard; its other notes, its
-                                                         * ratchet's hits the same step) */
-        u->fol_g = a->seq.flash_g[a->sel];
-        u->fol_step = a->seq.flash_step[a->sel];
+    } else if (a->seq.heard_step[a->sel] >= 0 && a->seq.heard_sample[a->sel] <= a->seq.now &&
+               a->seq.heard_g[a->sel] != u->fol_g) {   /* (a new step: its first note heard, muted or not; its other
+                                                         * notes, its ratchet's hits the same step) */
+        u->fol_g = a->seq.heard_g[a->sel];
+        u->fol_step = a->seq.heard_step[a->sel];
         u->fol_ms = a->ms;
     }
     if (u->rec_live && !a->seq.playing)                 /* the transport stopped under live notes: they end */

@@ -175,6 +175,7 @@ int render_p15d(const char *out)
     nshot = 0;
     failed = 0;
     qd_app_init(&A);
+    A.ui.view = QD_VIEW_ROLL;   /* (P1.5s: EDIT is the power-on view; made on the PIANO ROLL) */
     now = 0;
     frames_done = 0;
     qd_app_tick(&A, 0);

@@ -179,7 +179,11 @@ typedef struct {
     int flash_step[QD_PAT_NTRACK];
     int64_t flash_tick[QD_PAT_NTRACK];
     uint64_t flash_sample[QD_PAT_NTRACK];
-    int64_t flash_g[QD_PAT_NTRACK];     /* .. its step's grid tick (P1.5q: a chord's notes, a ratchet's hits: one step) */
+    /* P1.5s: the last step that came to play per track, audible or not (a muted or not soloed track too: EDIT follows
+     * it), its step's grid tick (a chord's notes, a ratchet's hits: one step) and when (its first note's sample) */
+    int heard_step[QD_PAT_NTRACK];
+    int64_t heard_g[QD_PAT_NTRACK];
+    uint64_t heard_sample[QD_PAT_NTRACK];
     /* the queue */
     qd_sev_t ev[QD_SEQ_NEV];
     int nev;

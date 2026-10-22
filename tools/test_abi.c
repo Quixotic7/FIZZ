@@ -179,6 +179,43 @@ int main(int argc, char **argv)
               "the panel's names are today's (FX .. LATCH .. SOUNDS .. F1)");
     }
 
+    {   /* P1.5s: EDIT follows the music when FIZZ's own PLAY (the panel's button) runs it: VEL, nothing held, the latch
+         * off; ui_info's "edit follows N" is the step EDIT shows playing (0: the track's default) */
+        char info[512];
+        const char *e;
+        int seen = 0, steps = 0, last = -1, i;
+        btap(FM1P_B_HOME);
+        while (strstr((C->ui_info(info, sizeof info), info), "view EDIT") == NULL && seen++ < 4) {
+            bdown(FM1P_B_GLO);                          /* SHIFT + HOME: the next view */
+            run(30);
+            btap(FM1P_B_HOME);
+            bup(FM1P_B_GLO);
+            run(30);
+        }
+        P->keys |= 1u << 3;                             /* B2 (G#3): VEL */
+        run(30);
+        P->keys &= ~(1u << 3);
+        run(30);
+        C->ui_info(info, sizeof info);
+        e = strstr(info, "edit follows ");
+        CHECK(strstr(info, "view EDIT") && e && atoi(e + 13) == 0, "EDIT, VEL, stopped: the default (%s)", info);
+        btap(FM1P_B_PLAY);                              /* the panel's PLAY */
+        for (i = 0; i < 2000; i += 10) {
+            run(10);
+            C->ui_info(info, sizeof info);
+            e = strstr(info, "edit follows ");
+            if (e && atoi(e + 13) > 0 && atoi(e + 13) != last)
+                last = atoi(e + 13), steps++;
+        }
+        CHECK(strstr(info, "playing") && steps >= 4, "PLAY on the panel: EDIT follows the steps playing (%d steps seen; "
+              "%s)", steps, info);
+        btap(FM1P_B_PLAY);
+        run(50);
+        C->ui_info(info, sizeof info);
+        e = strstr(info, "edit follows ");
+        CHECK(e && atoi(e + 13) == 0, "stopped: the default again");
+    }
+
     C->shutdown();
 
     {   /* P1.5a, the restart: a flash FILE (as FM1VST's <core-id>/flash.bin); the tempo (the pattern's) and the selected

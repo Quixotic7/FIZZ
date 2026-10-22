@@ -397,7 +397,8 @@ int main(void)
               "a restart: the library (copy, swap, delete) and the pool's changes kept");
     }
     /* the projects */
-    CHECK(qd_proj_new(&A, 2) && A.per.proj == 2 && A.per.pexists[2] && !A.proj.pat[0].used &&
+    A.ui.view = QD_VIEW_ROLL;
+    CHECK(qd_proj_new(&A, 2) && A.ui.view == QD_VIEW_EDIT && A.per.proj == 2 && A.per.pexists[2] && !A.proj.pat[0].used &&
               !strcmp(A.per.pname[2], "PROJECT 3"), "new project 3: blank");
     qd_step_on(&A.proj.pat[0], 0, 0);
     A.proj.pat[0].used = 1;
@@ -431,8 +432,10 @@ int main(void)
         qd_app_sysex(&A, f, n);
         CHECK(!strcmp(A.per.lib[99].name, "SX KEEP"), "a SysEx import into LIBRARY 100");
     }
+    A.ui.view = QD_VIEW_STEPS;                          /* (P1.5s: the user's view kept) */
     qd_persist_flush(&A);
     boot(&B);
+    CHECK(B.ui.view == QD_VIEW_STEPS, "a restart: the view kept (STEPS; P1.5s)");
     CHECK(B.per.proj == 0 && B.per.pexists[4] && !B.per.pexists[2] && !strcmp(B.per.pname[4], "MY SONG"),
           "a restart: project 1 worked on, 5 kept, 3 gone");
     CHECK(!strcmp(B.per.lib[99].name, "SX KEEP"), "a restart: the SysEx import kept (P1.5r)");

@@ -174,6 +174,8 @@ void qd_step_cursor(qd_app_t *a, int d)
         else
             qd_step_latch_seed(a);
         u->scursor = 1;
+        if (u->nheld)
+            qd_ctl_preview_once(a, u->held[0]);         /* P1.5s: the step it lands on, once */
         return;
     }
     s = u->held[0];
@@ -189,6 +191,7 @@ void qd_step_cursor(qd_app_t *a, int d)
     held_add(a, s, -1);
     qd_ctl_set_page(a, s / QD_PAGE);
     u->scursor = 1;
+    qd_ctl_preview_once(a, s);                          /* P1.5s: the step it moved to, once */
 }
 
 void qd_step_cursor_page(qd_app_t *a)
