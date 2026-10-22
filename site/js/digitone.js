@@ -84,7 +84,8 @@ export async function readDn2(bytes, file = "") {
   const firmware = parsed.firmware ? `OS ${parsed.firmware}` : "";
   const mark = origin.length || firmware
     ? `Digitone II file${firmware ? ` (${firmware})` : ""}${origin.length ? ` · ${origin.length} note${origin.length === 1 ? "" : "s"} on the file` : ""}` : "";
-  return { file, dn2: true, name: soundName(q.name, "DIGITONE II"), blob: q.blob, pan: q.pan, drive: q.drive,
+  // (E1: a sound using FIZZ's extension values, AHD, portamento, the drive's routing.., goes as the version-6 blob: STORE6)
+  return { file, dn2: true, name: soundName(q.name, "DIGITONE II"), blob: q.six ? q.blob6 : q.blob, six: !!q.six, ext: q.ext, pan: q.pan, drive: q.drive,
            sends: { chorus: q.sends.chorus, delay: q.sends.delay, reverb: q.sends.reverb },
            notes: q.notes.filter((n) => !n.startsWith("file: ") && !SEND_LOST.test(n)), origin, mark, tags: parsed.tags || [],
            fizzTags: fizzTagsOf(parsed.tags) };

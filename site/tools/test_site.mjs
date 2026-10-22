@@ -294,7 +294,7 @@ try {
     const re = await evaluate(`FIZZDigitone.items.slice(${before}).map(i => i.result && i.result.ok && i.result.slot)`);
     const back2 = await evaluate("[1, 2, 3].map(s => Array.from(FIZZ.stubPresets.dump(s) || []))");
     check(re.join() === "1,2,3" && back2.every((f, i) => f.length && f.join() === orig[i].join()), `the .fizzlib back into a blank flash: MY PRESETS ${re.join(", ")}, the same frames as exported`);
-    const FEED = path.resolve(HERE, "../../tools/build/test_sysex");
+    const FEED = process.env.FIZZ_TEST_SYSEX || path.resolve(HERE, "../../tools/build/test_sysex");
     if (fs.existsSync(FEED)) {
       const tmp = fs.mkdtempSync(path.join(OUT, "feed-"));
       const read = (f) => { fs.writeFileSync(path.join(tmp, "one.syx"), Uint8Array.from(f)); return execFileSync(FEED, ["--feed", path.join(tmp, "one.syx")], { encoding: "utf8" }).split("\n").filter((l) => /^(name|values|mix|tags) /.test(l)).join("\n"); };

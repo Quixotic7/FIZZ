@@ -223,13 +223,13 @@ e.dispose();
     check(!wv.ok && /WAVETONE sound: FIZZ imports FM TONE sounds only/.test(wv.error), `a WAVETONE .dn2pst is refused: ${wv.error}`);
     if (got2.length === 2) {
       const s = got2[0].sound;
-      check(got2[0].ok && s.dn2 && s.blob.length === 96, `${path.basename(DN2)}: "${s.name}", DRIVE ${s.drive}, mark "${s.mark}", ${s.notes.length} lost or approximated`);
+      check(got2[0].ok && s.dn2 && s.blob.length === (s.six ? 128 : 96), `${path.basename(DN2)}: "${s.name}", DRIVE ${s.drive}, mark "${s.mark}", ${s.notes.length} lost or approximated`);
       const r2 = ask(e2, storeFrame(s));
       check(r2 && r2.status === 0, `${path.basename(DN2)} imports: ${r2 && `${r2.statusName} LIBRARY ${r2.slot}`}`);
     } else note(`no ${DN2}: the Digitone II check skipped`);
     // what FIZZ keeps of an import (P1.5x): the preset's pan, sends and tags, read back by FIZZ's own test_sysex --feed
     // (tools/build/test_sysex, built by make -C tools test; the wasm has no read-back command)
-    const FEED = path.resolve(SITE, "../tools/build/test_sysex");
+    const FEED = process.env.FIZZ_TEST_SYSEX || path.resolve(SITE, "../tools/build/test_sysex");   // (FIZZ_TEST_SYSEX: a build of the same FIZZ)
     const mixed = got.length ? [sounds[0], sounds[1]] : [];
     try { const tx = path.join("/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets", "A036 TX BASS 1 MF.dnsnd"); if (fs.existsSync(tx)) mixed.push(await readDnsnd(fs.readFileSync(tx), path.basename(tx))); } catch (_) {}
     if (got2.length === 2) mixed.push(got2[0].sound);
@@ -245,6 +245,18 @@ e.dispose();
           `${s.file}: FIZZ keeps pan / chorus / delay / reverb ${mix.join(" ")} (sent ${want.join(" ")}), tags ${tags}${mask ? ` (sent ${mask}: ${s.fizzTags.join(", ")})` : " (none mapped: FIZZ's classifier)"}`);
       }
     } else note(`no ${FEED}: the kept mix and tags not checked (make -C tools test builds it)`);
+    // E1: BASSSINE uses FIZZ's extension (its drive before the filter): it goes as STORE6, and FIZZ keeps AMP MODE /
+    // HOLD, PORT / its time and slope, and the drive's routing (values 74..79) and DRIVE (73) as the reader made them
+    if (got2.length === 2 && fs.existsSync(FEED)) {
+      const s = got2[0].sound, f6 = storeFrame(s);
+      const tmp6 = fs.mkdtempSync(path.join(OUT, "feed6-"));
+      fs.writeFileSync(path.join(tmp6, "one.syx"), f6);
+      const out = execFileSync(FEED, ["--feed", path.join(tmp6, "one.syx")], { encoding: "utf8" });
+      const vals = ((out.match(/^values (.*)$/m) || [])[1] || "").split(" ").map(Number);
+      const r6 = parseReply(Uint8Array.from((out.match(/^reply(.*)$/m) || ["", ""])[1].trim().split(/\s+/).map((x) => parseInt(x, 16))));
+      check(s.six && f6[5] === 0x11 && r6 && r6.status === 0 && [0, 1, 2, 3, 4, 5].every((k) => vals[74 + k] === s.ext[k]) && vals[73] === s.drive,
+        `${s.file} as STORE6 (0x${f6[5].toString(16)}): AMP MODE ${vals[74]}, HOLD ${vals[75]}, PORT ${vals[76]} / ${vals[77]} / ${vals[78]}, DRIVE ${vals[73]} ${vals[79] ? "PRE" : "POST"} kept (the reader's ${s.ext.slice(0, 6).join(" ")})`);
+    }
     // a .fizzlib of 20 presets (20 of the owner's .dnsnd, as FIZZ's DUMP would give them: STORE frames): written, read
     // back, stored into a blank unit; every frame the same, and FIZZ's test_sysex reads them the same
     const DIR20 = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets";
