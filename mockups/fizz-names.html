@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ names</title>
+<!-- FIZZ: typing names on the keybed, a proposal (2026-10-22). ?shot=N  ?sheet=1  no query: the page -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f1eee8; --fg:#1b1b1f; --dim:#66625b; --line:#d6d1c7; } }
+:root[data-theme="dark"] { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 6px; }
+p, li { color: var(--dim); max-width: 860px; }
+p strong, li strong { color: var(--fg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 480px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+canvas.keys { width: 480px; max-width: 100%; height: auto; display: block; margin-top: 6px; }
+body.shot { padding: 0; background: #000; }
+body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; color: #ddd; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px 22px; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+.sheettitle { font: 700 20px -apple-system, "Helvetica Neue", Arial; margin: 0 0 14px; color: #eee; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: typing names on the keybed (proposal)</h1>
+<p>The keybed becomes a typewriter: <strong>the 11 black keys are A..K, the 16 white keys L..Z and SPACE</strong> (reading order: the top row, then the bottom row), drawn on the screen with a letter on every key. The suggested name starts selected, so the first key typed replaces it. SHIFT gives digits and signs, PRESETS name ideas, ALGORITHM the cursor, F1 deletes, SAVE confirms, HOME cancels.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+/* ---------------------------------------------------------------- palette */
+const C = { bg: '#000', k1: '#3f7dff', k2: '#1fd47e', k3: '#f1f0ea', k4: '#ff6a2c', sel: '#ffd23f', red: '#ff3448',
+            g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d', save: '#f3d9a4', pool: '#b5e853', trk: '#f03cff' };
+const TP = ['#3f7dff', '#1fd47e', '#f1f0ea', '#ff6a2c', '#ff3ca0', '#ffd23f', '#9664ff', '#28e1ff'];
+const F = 'IT', TAU = Math.PI * 2;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const ease = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const lerp = (a, b, u) => a + (b - a) * u;
+
+/* ---------------------------------------------------------------- drawing helpers (line.html's) */
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = o.bl || 'alphabetic';
+  if (o.a != null) c.globalAlpha = o.a;
+  if (o.clip) { c.beginPath(); c.rect(o.clip[0], o.clip[1], o.clip[2], o.clip[3]); c.clip(); }
+  c.fillText(s, x, y); c.restore();
+}
+function TW(c, s, o = {}) { c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; const w = c.measureText(s).width; c.restore(); return w; }
+function P(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = o.a;
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  if (o.close) c.closePath(); if (o.fill) { c.fillStyle = o.fill; c.fill(); } c.stroke(); c.restore();
+}
+function O(c, x, y, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = o.a; if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.arc(x, y, Math.max(0.1, r), o.a0 || 0, o.a1 == null ? TAU : o.a1);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.stroke(); } c.restore();
+}
+function RR(c, x, y, w, h, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = o.a; if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.roundRect(x + lw / 2, y + lw / 2, w - lw, h - lw, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function bg(c) { c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); }
+function box(c, x, y, n, col) {                      /* a track's number in its box */
+  RR(c, x, y, 16, 16, 2, col, 1.3); T(c, String(n), x + 8, y + 12.5, { s: 12, w: 600, col, al: 'center' });
+}
+function back(c) {                                   /* the latched page's back mark, top right (as the firmware's) */
+  RR(c, 208, 4, 26, 17, 3, C.k3, 1.3); P(c, [227, 12.5, 215, 12.5], C.k3, 1.4); P(c, [219, 8.5, 215, 12.5, 219, 16.5], C.k3, 1.4);
+}
+function head(c, title, col, o = {}) {               /* TITLE (12 px 600) + page dots, the back mark */
+  T(c, title, 8, 17, { s: 12, w: 600, ls: 1, col });
+  let x = 8 + TW(c, title, { s: 12, w: 600, ls: 1 }) + 9;
+  if (o.pages) for (let i = 0; i < o.pages[1]; i++) { O(c, x + i * 9, 13, 2.6, i === o.pages[0] ? null : C.g1, 1, i === o.pages[0] ? C.k3 : null); }
+  if (o.back !== false) back(c);
+  P(c, [8, 25, 232, 25], C.g3, 1);
+}
+function lockIcon(c, x, y, col) { RR(c, x, y + 4, 9, 7, 1.5, null, 1, col); O(c, x + 4.5, y + 4, 3, col, 1.4, null, { a0: Math.PI, a1: 0 }); }
+function bubble(c, x, y, r, col, a = 1) { O(c, x, y, r, col, 1, null, { a }); if (r > 2.5) O(c, x - r * 0.3, y - r * 0.3, r * 0.35, null, 1, col, { a: a * 0.6 }); }
+function ring(c, x, y, r, u, col, lw = 2.5) {        /* a hold's progress ring */
+  O(c, x, y, r, C.g3, lw); if (u > 0) O(c, x, y, r, col, lw, null, { a0: -Math.PI / 2, a1: -Math.PI / 2 + TAU * clamp(u, 0, 1) });
+}
+
+/* ---------------------------------------------------------------- the typing keyboard */
+/* the keys in the panel's order: the 11 black keys (3 | 2 | 3 | 2 | 1) then the 16 white keys */
+const BLACK = 'ABCDEFGHIJK'.split(''), WHITE = 'LMNOPQRSTUVWXYZ'.split('').concat(['␣']);
+const SBLACK = '0123456789-'.split(''), SWHITE = ". , ' & ! ? # + / ( ) * : _ ~ ␣".split(' ');
+const LIBC = C.save;
+const BX = [1, 2, 3, 5, 6, 8, 9, 10, 12, 13, 15];          /* a black key sits after this many white keys */
+
+/* the keybed drawn on the screen with a character on every key; hit = the key just pressed (its glow), shift */
+function keybed(c, y0, o = {}) {
+  const kw = 14.4, x0 = 5, wh = 76, bh = 42, bw = 12.5, B = o.shift ? SBLACK : BLACK, W = o.shift ? SWHITE : WHITE;
+  for (let i = 0; i < 16; i++) { const x = x0 + i * kw, on = o.hit === 'W' + i;
+    RR(c, x, y0, kw - 1.5, wh, 2.5, on ? LIBC : C.g2, on ? 1.8 : 1.1, on ? '#2a2414' : C.bg);
+    T(c, W[i], x + (kw - 1.5) / 2, y0 + wh - 8, { s: W[i] === '␣' ? 12 : 13, w: on ? 700 : 500, col: on ? LIBC : C.k3, al: 'center' }); }
+  BX.forEach((w, j) => { const x = x0 + w * kw - bw / 2 - 0.75, on = o.hit === 'B' + j;
+    RR(c, x, y0 - 2, bw, bh, 2.5, on ? LIBC : C.g1, on ? 1.8 : 1.1, on ? '#2a2414' : '#111');
+    T(c, B[j], x + bw / 2, y0 + bh - 11, { s: 13, w: on ? 700 : 500, col: on ? LIBC : C.k3, al: 'center' }); });
+}
+/* the name: twelve cells, the cursor, a selection (the suggested name, typed over by the first key) */
+function nameRow(c, name, cur, y, o = {}) {
+  const cw = 18.5, x0 = 9;
+  if (o.sel) RR(c, x0 - 2, y - 26, name.length * cw + 4, 34, 4, null, 1, '#3a3220');
+  for (let k = 0; k < 12; k++) { const x = x0 + k * cw;
+    P(c, [x + 2, y + 6, x + cw - 3, y + 6], k === cur ? C.sel : C.g3, k === cur ? 2.4 : 1);
+    const ch = name[k]; if (ch && ch !== ' ') T(c, ch, x + cw / 2, y, { s: 24, w: o.fresh === k ? 500 : 300, col: o.fresh === k ? LIBC : C.k3, al: 'center' }); }
+  if (o.full) RR(c, x0 - 3, y - 27, 12 * cw + 6, 36, 4, C.k4, 1.5);
+}
+function saveHead(c, title = 'SAVE PRESET') { T(c, title, 8, 17, { s: 12, w: 600, ls: 1, col: LIBC }); box(c, 214, 4, 4, TP[3]); P(c, [8, 25, 232, 25], C.g3, 1); }
+
+function sStart(c, t) {                                /* SAVE: the suggested name, selected: the first key replaces it */
+  bg(c); saveHead(c); nameRow(c, 'BRIGHT PLUCK', 12, 72, { sel: true });
+  T(c, '✦', 232, 52, { s: 12, w: 600, col: LIBC, al: 'right' });
+  keybed(c, 152);
+}
+function sType(c, t) {                                 /* typed D (a black key): the name replaced, the letter flying up */
+  bg(c); saveHead(c); const u = (t % 1.2) / 1.2, v = ease(u / 0.35);
+  nameRow(c, 'DU', 2, 72, { fresh: 1 });
+  if (u < 0.35) T(c, 'U', lerp(146, 37, v), lerp(215, 72, v), { s: lerp(13, 24, v), w: 600, col: LIBC, al: 'center' });
+  keybed(c, 152, { hit: u < 0.5 ? 'W9' : null });
+}
+function sShift(c, t) {                                 /* SHIFT held: digits on the black keys, signs on the white */
+  bg(c); saveHead(c); nameRow(c, 'DUST', 4, 72);
+  keybed(c, 152, { shift: true });
+  RR(c, 8, 112, 50, 18, 4, C.k3, 1.3); T(c, 'SHIFT', 33, 125, { s: 12, w: 600, col: C.k3, al: 'center' });
+}
+function sIdeas(c, t) {                                 /* PRESETS turned: name ideas from the sound, a rolodex */
+  bg(c); saveHead(c);
+  ['WARM PLUCK', 'BRIGHT PLUCK', 'GLASS TINE', 'SOFT PING', 'BELL DROP'].forEach((nm, j) => { const d = j - 2, y = d < 0 ? 58 + (d + 1) * 22 : 92 + d * 24;
+    T(c, nm, 120, y, { s: d === 0 ? 24 : 15, w: d === 0 ? 300 : 400, col: d === 0 ? C.k3 : C.g1, al: 'center', a: d === 0 ? 1 : Math.abs(d) === 1 ? 0.6 : 0.3 }); });
+  T(c, '✦', 214, 86, { s: 12, w: 600, col: LIBC });
+  keybed(c, 152);
+}
+function sCursor(c, t) {                                /* ALGORITHM moves the cursor; a key types there (inserts) */
+  bg(c); saveHead(c); nameRow(c, 'DUST PAD', 4, 72);
+  keybed(c, 152);
+}
+function sBack(c, t) {                                  /* F1: delete the character before the cursor */
+  bg(c); saveHead(c); const u = (t % 1.2) / 1.2;
+  nameRow(c, 'DUST PA', 7, 72);
+  if (u < 0.4) T(c, 'D', 9 + 7 * 18.5 + 9, 72 - u * 60, { s: 24, w: 300, col: C.k4, al: 'center', a: 1 - u / 0.4 });
+  keybed(c, 152);
+}
+function sFull(c, t) {                                  /* twelve: full, the row flashes orange on another key */
+  bg(c); saveHead(c); nameRow(c, 'DUSTY PADLAN', 12, 72, { full: Math.floor(t * 4) % 2 === 0 });
+  keybed(c, 152, { hit: 'B4' });
+}
+function sProject(c, t) {                               /* the same keyboard names a project (B10 on the project page) */
+  bg(c); saveHead(c, 'PROJECT NAME'); nameRow(c, 'NIGHT BUS', 9, 72);
+  T(c, '01', 120, 116, { s: 14, w: 300, col: LIBC, al: 'center' });
+  keybed(c, 152);
+}
+
+/* the FM-1's keys under a screen, with their characters */
+const BTNS = ['SHIFT', 'F1', 'F2', 'SAVE', 'HOME', 'PRESETS'];
+function keysDraw(c, k) {
+  c.fillStyle = '#0c0c0e'; c.fillRect(0, 0, 480, 132);
+  const held = new Set(k.held || []), lit = k.btn || {};
+  BTNS.forEach((b, i) => { const x = 8 + i * 79, w = 72, col = lit[b], on = held.has(b);
+    RR(c, x, 6, w, 24, b === 'PRESETS' ? 12 : 5, col || '#3a3a42', 1.5, on ? col : null);
+    T(c, b === 'F1' ? 'F1 (OCT−)' : b === 'F2' ? 'F2 (OCT+)' : b === 'SHIFT' ? 'SHIFT (GLO)' : b, x + w / 2, 22.5, { s: 12, w: 600, col: on ? '#000' : col || '#5a5a64', al: 'center' }); });
+  const kw = 29, y0 = 40, wh = 88, bw = 18, bh = 52, B = k.shift ? SBLACK : BLACK, W = k.shift ? SWHITE : WHITE;
+  for (let i = 0; i < 16; i++) { const on = held.has('W' + i);
+    RR(c, 8 + i * kw, y0, kw - 2, wh, 3, LIBC, 1.2, on ? LIBC : null, { a: on ? 1 : 0.55 });
+    T(c, W[i], 8 + i * kw + (kw - 2) / 2, y0 + wh - 8, { s: 12, w: 600, col: on ? '#000' : LIBC, al: 'center' }); }
+  BX.forEach((w, j) => { const on = held.has('B' + j), x = 8 + w * kw - bw / 2 - 1;
+    RR(c, x, y0 - 1, bw, bh, 3, LIBC, 1.2, on ? LIBC : '#0c0c0e', { a: on ? 1 : 0.8 });
+    T(c, B[j], x + bw / 2, y0 + bh - 8, { s: 12, w: 600, col: on ? '#000' : LIBC, al: 'center' }); });
+}
+const KB = (x = {}) => ({ btn: { SHIFT: C.k3, F1: C.k3, F2: C.k4, SAVE: LIBC, HOME: C.k3, PRESETS: LIBC, ...(x.btn || {}) }, held: x.held || [], shift: x.shift });
+
+const SCREENS = [
+  { f: sStart, t: 0.2, title: 'SAVE: a name ready, selected', keys: KB(),
+    text: '<strong>SAVE</strong> opens SAVE PRESET with a <strong>name made from the sound</strong>, <strong>selected</strong> (the shaded band): <strong>SAVE</strong> right away keeps it; <strong>the first key you type replaces it</strong>, as in any text field. The screen draws the keybed with <strong>a letter on every key</strong>, in reading order: the <strong>black keys A..K</strong>, then the <strong>white keys L..Z and SPACE</strong>. All 27 keys light (champagne): the whole keybed is a typewriter.' },
+  { f: sType, t: 0.2, title: 'Typing: press a key, its letter goes in', keys: KB({ held: ['W9'] }),
+    text: '<strong>Press a key: its letter is typed</strong> at the cursor and the cursor moves on (here D, then U on the 10th white key: the key glows on screen and on the panel, the letter flies up). Holding a key does not repeat. Upper case only, as FIZZ\'s names.' },
+  { f: sShift, t: 0.2, title: 'SHIFT held: digits and signs', keys: KB({ held: ['SHIFT'], shift: true }),
+    text: '<strong>Hold SHIFT</strong>: the black keys become <strong>0..9 and -</strong>, the white keys <strong>. , \' & ! ? # + / ( ) * : _ ~</strong> and SPACE; the screen\'s keybed changes with it.' },
+  { f: sIdeas, t: 0.2, title: 'PRESETS: name ideas', keys: KB({ btn: { PRESETS: LIBC } }),
+    text: '<strong>Turn PRESETS</strong> for <strong>name ideas from the sound</strong> (its kind and character: WARM PLUCK, GLASS TINE, SOFT PING ...), a rolodex; stop on one and it is the name (selected again, so typing still replaces it).' },
+  { f: sCursor, t: 0.2, title: 'ALGORITHM: the cursor', keys: KB({ btn: { PRESETS: LIBC } }),
+    text: '<strong>ALGORITHM moves the cursor</strong> (yellow) along the name; typing inserts there. <strong>SELECT</strong> still turns the character under the cursor through A..Z, 0..9 and signs, for fixing one letter without looking for its key.' },
+  { f: sBack, t: 0.2, title: 'F1: delete', keys: KB({ held: ['F1'] }),
+    text: '<strong>F1 (OCT−) deletes</strong> the character before the cursor (it drops away in orange); <strong>SHIFT + F1 clears</strong> the whole name. (In this screen F1 is backspace; <strong>HOME cancels</strong>.)' },
+  { f: sFull, t: 0.2, title: 'Twelve characters: full', keys: KB({ held: ['B4'] }),
+    text: 'A name holds <strong>twelve characters</strong>; a key pressed when it is full flashes the row orange and types nothing.' },
+  { f: sProject, t: 0.2, title: 'The same keyboard everywhere', keys: KB(),
+    text: 'One keyboard for every name in FIZZ: presets (SAVE), projects (B10 on the project page), and anything named later. <strong>SAVE</strong> confirms (in SAVE PRESET: saves NEW; <strong>F2</strong> REPLACE where offered), <strong>HOME</strong> cancels.' },
+];
+
+/* ---------------------------------------------------------------- the page */
+async function main() {
+  const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search), shot = q.get('shot'), sheet = q.get('sheet'), qt = q.get('t');
+  const mk = (cls, w = 240, h = 240) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; if (cls) cv.className = cls; return cv; };
+  if (shot) { document.body.className = 'shot'; document.getElementById('page').remove();
+    const s = SCREENS[+shot - 1], cv = mk(); s.f(cv.getContext('2d'), qt != null ? +qt : s.t); document.body.appendChild(cv); return; }
+  if (sheet) {
+    document.body.className = 'sheet'; document.getElementById('page').remove();
+    const h = document.createElement('div'); h.className = 'sheettitle'; h.textContent = 'FIZZ: typing names on the keybed (a proposal; 2x, the keys under each)'; document.body.appendChild(h);
+    const g = document.createElement('div'); g.className = 'sheetgrid'; document.body.appendChild(g);
+    SCREENS.forEach((s, i) => { const f = document.createElement('figure'); f.style.margin = 0;
+      const cv = mk('scr'); s.f(cv.getContext('2d'), s.t); f.appendChild(cv);
+      const kc = mk('keys', 480, 132); keysDraw(kc.getContext('2d'), s.keys); f.appendChild(kc);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; f.appendChild(cap); g.appendChild(f); });
+    return;
+  }
+  const root = document.getElementById('cells'), live = [];
+  SCREENS.forEach((s, i) => { const d = document.createElement('div'); d.className = 'cell';
+    const h = document.createElement('h2'); h.textContent = `${i + 1}. ${s.title}`; d.appendChild(h);
+    const cv = mk('scr'); d.appendChild(cv); live.push([s, cv.getContext('2d')]);
+    const kc = mk('keys', 480, 132); keysDraw(kc.getContext('2d'), s.keys); d.appendChild(kc);
+    const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); root.appendChild(d); });
+  const t0 = performance.now();
+  const frame = () => { const t = (performance.now() - t0) / 1000; live.forEach(([s, c]) => s.f(c, t + s.t)); requestAnimationFrame(frame); };
+  frame();
+}
+main();
+</script>
+</body>
+</html>

@@ -1198,6 +1198,24 @@ library slots become MINE.
 **Decided (the owner, 2026-10-22)**: the track plays the preset you turn to; a new project's pool starts empty;
 B1..B8 kind filters and B9 ALL / MINE / POOL as mocked up; 256 places for MY presets.
 
+### Typing names on the keybed (2026-10-22, a proposal)
+
+The owner asked for "a keyboard system for intuitively typing in names". `mockups/fizz-names.html`, sheet
+`mockups/png/fizz-names-sheet.png` (8 screens with their keys).
+- **The keybed is a typewriter**: the **11 black keys are A..K**, the **16 white keys L..Z and SPACE**: 27 keys for
+  26 letters and a space, in reading order (the top row, then the bottom row). The screen draws the keybed with a
+  letter on every key (the key pressed glows); all 27 keys light champagne on the panel.
+- **The suggested name starts selected**: SAVE right away keeps it; **the first key typed replaces it** (as a text
+  field); then each key types at the cursor and moves it on. Upper case; no auto-repeat; 12 characters (full: the row
+  flashes orange).
+- **SHIFT held**: the black keys 0..9 and -, the white keys . , ' & ! ? # + / ( ) * : _ ~ and SPACE.
+- **PRESETS**: name ideas from the sound (a rolodex; stopping on one makes it the name, selected again).
+- **ALGORITHM** moves the cursor (typing inserts); **SELECT** turns the character under it (to fix one letter);
+  **F1** deletes the character before the cursor, **SHIFT + F1** clears; **SAVE** confirms (F2 REPLACE where offered),
+  **HOME** cancels.
+- One keyboard for every name: SAVE PRESET, the project's name, anything named later. Replaces P1.5t's
+  SELECT / ALGORITHM / B10 dice / B11 naming (the dice becomes PRESETS' ideas).
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
