@@ -9,6 +9,7 @@
 #include "../../core/gfx/qd_gfx.h"
 #include "plat.h"
 #include "fizz_port.h"
+#include "fz_prof.h"
 
 /* the store on the unit's flash (persist.h): off until the core's device profile sizes its two stores to the data
  * region (0x97000..0xDFFFF, 73 sectors; today persist.h's 32 + 224 sectors are the 1 MiB image of the Mac's). With it
@@ -124,7 +125,33 @@ int fz_sysex_peek(void) { return qd_app_sysex_peek(&fz_app); }
 int fz_sysex_take(uint8_t *out, uint32_t max) { return qd_app_sysex_take(&fz_app, out, max); }
 void fz_tick(uint32_t ms) { qd_app_tick(&fz_app, ms); }
 void fz_audio(int16_t *stereo, uint32_t frames) { qd_app_audio(&fz_app, stereo, frames); }
-void fz_frame(fz_strip_fn out, void *ctx) { qd_app_frame_strips(&fz_app, 0, out, ctx); }
+/* P2.4: the drawing's profile (fz_prof.h); a frame's time by its screen */
+volatile fz_prof_t fz_prof;
+fz_screen_t fz_screens[FZ_NSCREEN];
+void fz_prof_reset(void)
+{
+    memset((void *)&fz_prof, 0, sizeof fz_prof);
+    memset(fz_screens, 0, sizeof fz_screens);
+}
+
+void fz_frame(fz_strip_fn out, void *ctx)
+{
+    const int sc = (fz_app.ui.mode & 3) * 4 + (fz_app.ui.view & 3);
+    const uint32_t t0 = plat_ticks24();
+    uint32_t t;
+    qd_app_frame_strips(&fz_app, 0, out, ctx);
+    t = plat_ticks24() - t0;
+    fz_screens[sc].n++;
+    fz_screens[sc].sum += t;
+    if (t > fz_screens[sc].max)
+        fz_screens[sc].max = t;
+}
+
+void fz_ui_state(int *mode, int *playing)
+{
+    *mode = fz_app.ui.mode;
+    *playing = fz_app.playing;
+}
 int fz_flush(void) { return fz_up ? qd_persist_flush(&fz_app) : 1; }
 
 void fz_leds(uint8_t *key, uint8_t *button, uint8_t *play_green)

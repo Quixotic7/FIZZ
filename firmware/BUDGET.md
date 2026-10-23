@@ -112,3 +112,60 @@ the interrupt only copies the ring (FIZZ renders on the main loop). The firmware
 `blk32_avg_us` / `blk32_max_us` (one 32-frame audio block: 726 us of sound), `underruns`, `ring_min`, `ring_target`,
 `cpu_isr`, `xruns` from the unit (`--reset` starts them again). The audit's estimates stand until then: the step view
 ~44 ms a frame and the idle screen ~148 ms with plutovg (E, x85 of the Mac), FM TONE ~176 us a voice a 128-frame half.
+
+## P2.4: the sound on its own, MASTER, the drawing's profile (2026-10-23)
+
+The unit's first numbers (P2.2, the idle screen): a frame 0.56 s (max 1.07 s), a 32-frame audio block 57 us, 1,463
+underruns in 15 s: the sound was made on the main loop and every frame starved it.
+
+**The sound now comes from the audio interrupt** (`app_render`, 256 frames a half, 5.8 ms), as ChoralRoot makes it:
+FIZZ's sequencer, voices and effects, and MIDI's real-time messages (clock, START, CONTINUE, STOP). The main loop does
+the rest: the panel, MIDI's channel messages (queued by the interrupt with their time), FIZZ's clock, SysEx, each call
+with the interrupts off around it (`plat_lock`, the clock 4 ms at a time). Those calls run between frames *and between
+the strips of a frame*, each press after FIZZ's clock has been given up to the press's own time (a hold stays a hold
+however slow the frame). The drawing reads FIZZ's state with the interrupts on. A slow frame can no longer make the
+sound late; the longest a main-loop call holds the interrupt is in the counters (`lock_max_us`, and fm1-base's own
+`fm1_remote.py log`). The ring is gone (8 KB of the RAM code region back).
+
+**MASTER** is fm1-base's: the render's gain is `APP_GAIN(pot)` (the square of the position, Q12), as in the template,
+for the speaker, the headphones and USB audio alike. FIZZ's own volume stays at its default. Host test: MASTER at 4096
+gives −8.0 dBFS peak, at 600 −41.5 dBFS.
+
+**Frames**: 30 a second for 1.5 s after a press or a turn, 15 while playing, 10 on the idle screen, 4 otherwise. Only
+the rows whose pixels changed are sent (as before). Skipping a frame whose content did not change needs the core to
+say so (below).
+
+**The FPU flags are in effect** for FIZZ's units: `firmware/app/build/o2/` objects are compiled with fm1-base's
+`-mcpu=r3 -mfprev1 -ffp-contract=off` (its `build_app` flags, which the o2 units share), the link has no single-float
+soft routines (`__addsf3`, `__mulsf3`, `__divsf3` .. are absent from `fizz.dis`), and plutovg's float code is FPU
+instructions (`plutovg_matrix_multiply`: `r7 = r8 * r3 (f)`, `r11 = r4 + r7 (f)`). What is soft is the doubles
+(`__adddf3` ..: the list in fizz-size.txt) and the 64-bit divisions (`__divdi3`, `__udivdi3`, `__moddi3`: FreeType's
+`PVG_FT_MulDiv` / `DivFix` in plutovg's stroker and rasteriser, the sequencer).
+
+**The profile** (`python3 firmware/tools/fizz_xdata.py stats`, `--reset` to start again), three lines:
+
+| line | fields |
+| --- | --- |
+| 1 | `isr_n`, `isr_avg_us` / `isr_max_us` (one half: 5,805 us of sound), `cpu_isr`, `xruns` (fm1-base's late halves), `lock_max_us` / `lock_kind` (1 a press, 2 the clock, 3 a knob, 4 MIDI, 5 SysEx in, 6 SysEx out), `midi_drops`, `frames`, `frame_avg_us`, `frame_max_us` |
+| 2 | a frame's average by phase (us): `raster` (plutovg_rasterize: outlines, strokes, flattening, spans), `blend` (painting the spans), `glyph` (glyph outlines from the TTF), `rgb565` (the strip's conversion), `lcd` (row hashes, blits, the DMA wait), `input` (the main loop's calls between strips), `isr_in_frame` (the audio interrupt inside the frame), `rest` (the core's own: its screens' logic, the paths built, plutovg's state); and the calls a frame: `rasters`, `blends`, `glyphs` |
+| 3 | by screen (mode/view: idle, step, keys, tracks / roll, steps, edit): frames, average and longest frame (us) |
+
+On the Mac (the host simulator, -Os, the step view while playing): a frame 1.48 ms, of which raster 1.13 ms (304
+outlines a frame: every path is outlined again for each of the 12 strips), rest 0.26, blend 0.02, glyphs 0.015; the
+idle screen 2.4 ms. The unit's idle screen took 562 ms: ~240x, not the audit's ~85x. The soft 64-bit divisions and
+doubles in plutovg's stroker and rasteriser are the first suspects; the unit's line 2 will say.
+
+**Core changes this asks for** (none made):
+1. *A frame worth drawing*: `int qd_app_frame_changed(const qd_app_t *a)` (or a counter the state's every change
+   bumps, the clock's animations included), so the port can skip frames whose picture would be the same.
+2. *Taller strips*: `QD_STRIP_DEV` 20 → 40 (or 60) in `core/qd_config.h`. Each strip draws the whole screen's logic
+   and outlines every path again (304 outlines a frame at 20 rows); 40 rows halves that for +19,200 B of RAM (RAM has
+   8,532 free, the RAM code region 13,216 since the ring went: it fits).
+3. *MIDI notes in the audio interrupt*: `qd_app_midi` split into the part that sounds (the player's key on and off,
+   the controllers: audio-safe, no undo, no recording) and the part for the UI (recording into a held step, undo,
+   the preview), so notes from a keyboard sound at once whatever the screen does. Today they wait for the main loop
+   (up to a strip).
+4. *The store's flush outside the clock*: when the store goes on (P2.6), `qd_persist_ms`'s erases and writes must not
+   run inside `qd_app_tick` while the interrupts are off around it: a `qd_persist_step()` the port calls on its own.
+5. *(Still open from P2.2)*: the stores sized to the data region; the doubles; `qd_arena.c`'s `free` / `realloc`
+   fallbacks on the unit.

@@ -8,13 +8,18 @@ the FM-1's data flash at 0xE5000 (fm1-base's PLAT_XDATA1), outside the update pa
 its blob's length and CRC-32 into the firmware, and the unit takes only its own build's blob.
 
   fizz_xdata.py push [--blob FILE] [--port NAME]   write the blob (the unit answers FZOK, or FZER and a code)
-  fizz_xdata.py stats [--reset] [--port NAME]      the port's counters: underruns, frame and audio times ..
+  fizz_xdata.py stats [--reset] [--port NAME]      the port's counters: the audio interrupt, the locks, the frames,
+                                                   a frame's time by phase and by screen (firmware/BUDGET.md)
   fizz_xdata.py info [--blob FILE]                 the blob's length and CRC-32 (no unit)
 
 The transfer is the update's own (fm1-base app_usb_cmd, plat_host_read): one command, 46 "FZXD" len crc off, then the
 unit asks for the blob in 512-byte reads and this answers them. Needs mido with python-rtmidi, as fm1_install.py.
 FZER codes: 1 another build's blob, 2 FIZZ already running, 3 erase, 4 a read or write failed, 5 the trailer, 6 the
-check after writing."""
+check after writing.
+
+To drive the unit from here while measuring, fm1-base's own remote works with FIZZ (presses, keys, knobs, MASTER):
+  python3 firmware/fm1-base/tools/fm1_remote.py tap HOME wait 2000 tap PLAY wait 5000 tap PLAY
+then `fizz_xdata.py stats`. (fm1-base takes these between frames: a press waits for the frame being drawn.)"""
 import argparse
 import struct
 import sys
@@ -28,6 +33,11 @@ import fm1_install as fi  # noqa: E402
 
 XDATA_OFF = 0xE5000                             # plat.h PLAT_XDATA1_LO (fizz.ld)
 BLOB = HERE.parent / "app" / "build" / "fizz-xdata.bin"
+
+
+MODES = ["idle", "step", "keys", "tracks"]
+VIEWS = ["roll", "steps", "edit", "view3"]
+SCREENS = {f"s{m}.{v}": f"{MODES[m]}/{VIEWS[v]}" for m in range(4) for v in range(4)}
 
 
 def is_fizz(ident):
@@ -90,15 +100,23 @@ def stats(a):
         print("counters started again")
         link.close()
         return 0
-    end = time.monotonic() + 2.0
+    end, got = time.monotonic() + 2.5, {}
     try:
-        while time.monotonic() < end:
+        while time.monotonic() < end and len(got) < 3:
             p = link.read(end - time.monotonic())
-            if p and p[:5] == bytes([0xF0, 0x7D, 0x46, 0x50, 0x01]):
-                print(p[5:-1].decode("ascii", "replace"))
-                return 0
-        print("no answer")
-        return 1
+            if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
+                got[p[4]] = p[5:-1].decode("ascii", "replace")
+        if not got:
+            print("no answer")
+            return 1
+        for part, title in ((1, "sound, locks, frames"), (2, "a frame by phase (us, averages)"),
+                            (3, "by screen: frames/avg us/max us")):
+            line = got.get(part, "(no answer)")
+            if part == 3:                   # s<mode>.<view>: name them
+                for k, v in SCREENS.items():
+                    line = line.replace(k + "=", v + "=")
+            print(f"{title}:\n  {line}")
+        return 0
     finally:
         link.close()
 

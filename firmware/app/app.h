@@ -9,7 +9,8 @@
 #define APP_NAME "FIZZ"
 #define APP_SPLASH_RGB RGB(255, 168, 40)     /* the cola's amber */
 #define APP_TAGLINE ""
-#define APP_BLOCK 128u                       /* frames per audio half: 2.9 ms (the interrupt only plays the ring) */
+#define APP_BLOCK 256u                       /* frames per audio half: 5.8 ms (FIZZ's sound made in the interrupt: a
+                                              * main-loop lock may hold it up to ~5 ms before a half is late) */
 /* fm1-base's canvas is for its own screens only (boot, crash, update, the splash): FIZZ draws in its own strips and
  * sends them from where they are. 24 rows: the tallest face (APP_BIG_FONT) */
 #define APP_CANVAS_PX (240u * 24u)
@@ -24,11 +25,11 @@ enum { OBJ_PANEL, OBJ_NOBJ };
 
 /* the contract: the platform calls these */
 void app_init(void);                         /* boot: FIZZ's core (or, its data missing, the screen that says so) */
-void app_render(int32_t *lr, uint32_t n, uint32_t master_q12);   /* audio interrupt: the ring's frames, 24-bit */
+void app_render(int32_t *lr, uint32_t n, uint32_t master_q12);   /* audio interrupt: FIZZ's sound, MASTER's gain */
 void app_panic(void);                        /* silence now (before an update rewrites the flash) */
 void app_ui_init(void);                      /* the screen drawn whole again (after the splash, an update, a restore) */
-void app_frame(void);                        /* the main loop, ~60 a second: input, the clock, the sound, a frame */
-void app_input_only(void);                   /* the main loop between frames: the same without the frame */
+void app_frame(void);                        /* the main loop, ~60 a second: input, the clock, a frame when due */
+void app_input_only(void);                   /* the main loop between those: the same */
 void app_say(const char *a, const char *b);  /* (the platform's messages: none reach FIZZ's screen) */
 int app_sysex(const uint8_t *p, uint32_t n);
 void app_usb_cmd(const uint8_t *d, uint32_t n);

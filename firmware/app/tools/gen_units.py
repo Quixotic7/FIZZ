@@ -4,7 +4,7 @@
 FIZZ's tools/Makefile lists (CORE_SRC, PVG_SRC), in firmware/app/build/units/, each including its source, so the
 firmware builds exactly what FIZZ's own tools build and follows them when they change. plutovg's units take the
 drawing's fixed arena first (core/gfx/qd_arena.h with QD_ARENA_REDIRECT: its malloc and free), as tools/Makefile's
-device profile builds them.
+device profile builds them. Four functions of the drawing are timed for the unit's profile (PROF, fz_prof.h).
 
   gen_units.py GEN_DIR        (GEN_DIR: fm1-base's generated headers, APP/build/gen; the units go beside it)
 """
@@ -24,6 +24,36 @@ def make_list(name):
     return [(REPO / "tools" / s).resolve() for s in r.stdout.split()]
 
 
+# P2.4: the drawing's profile (fz_prof.h): four functions renamed in their own unit and wrapped there, timed
+PROF = {
+    "plutovg-rasterize": ("plutovg_rasterize", "void", "plutovg_span_buffer_t* a, const plutovg_path_t* b, "
+                          "const plutovg_matrix_t* c, const plutovg_rect_t* d, const plutovg_stroke_data_t* e, "
+                          "plutovg_fill_rule_t f", "a, b, c, d, e, f", "raster"),
+    "plutovg-blend": ("plutovg_blend", "void", "plutovg_canvas_t* a, const plutovg_span_buffer_t* b", "a, b", "blend"),
+    "plutovg-font": ("plutovg_font_face_get_glyph_path", "float", "plutovg_font_face_t* a, float b, float c, float d, "
+                     "plutovg_codepoint_t e, plutovg_path_t* f", "a, b, c, d, e, f", "glyph"),
+    "qd_gfx_plutovg": ("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert"),
+}
+
+
+def prof_wrap(stem):
+    """the lines before and after the source's include: the function renamed, then its timed stand-in"""
+    if stem not in PROF:
+        return [], []
+    name, ret, params, args, field = PROF[stem]
+    real = "fz_real_" + name
+    keep = "" if ret == "void" else f"{ret} r = "
+    back = "" if ret == "void" else "    return r;\n"
+    return [f"#define {name} {real}"], [
+        f"#undef {name}",
+        '#include "fz_prof.h"',
+        "uint32_t plat_ticks24(void);",
+        f"{ret} {real}({params});",
+        f"{ret} {name}({params});",
+        f"{ret} {name}({params})\n{{\n    const uint32_t t = plat_ticks24();\n    {keep}{real}({args});\n"
+        f"    fz_prof.{field} += plat_ticks24() - t;\n    fz_prof.n_{field}++;\n{back}}}"]
+
+
 def main():
     gen = Path(sys.argv[1]).resolve()
     out = gen.parent / "units"
@@ -37,7 +67,10 @@ def main():
             if kind == "PVG_SRC":
                 lines += ["#define QD_ARENA_REDIRECT 1",
                           f'#include "{Path("../" * len(out.relative_to(REPO).parts)) / "core/gfx/qd_arena.h"}"']
+            pre, post = prof_wrap(src.stem)
+            lines += pre
             lines.append(f'#include "{rel.as_posix()}"')
+            lines += post
             want[stem + ".c"] = "\n".join(lines) + "\n"
     for f in out.glob("*.c"):
         if f.name not in want:

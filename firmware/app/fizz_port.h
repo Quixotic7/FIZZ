@@ -3,9 +3,9 @@
  * FIZZ's core (fz_port.c and core/, units of their own). Only plain C types cross it: the unity build never sees
  * FIZZ's headers (its C library is felucca-bsp's libc.c; the core's is newlib's, whose size_t differs).
  *
- * One context: every call below is made from fm1-base's main loop, never from an interrupt (FIZZ's core is written
- * for one caller, as FM1VST's Standalone drives it: tick, input, frame and audio in turn). The audio interrupt only
- * plays what fz_audio made ahead (app.c's ring). */
+ * Two contexts (P2.4, app.c's header): fz_audio and fz_midi's real-time messages run in the audio interrupt; everything
+ * else that changes FIZZ runs on the main loop with the interrupts off around each call (plat_lock); fz_frame and
+ * fz_leds, which only read, run on the main loop with them on. */
 #pragma once
 #include <stdint.h>
 
@@ -33,6 +33,8 @@ void fz_leds(uint8_t *key, uint8_t *button, uint8_t *play_green);
  * its pixels (RGB565, high byte first, 240 a row), valid until out returns */
 typedef void (*fz_strip_fn)(void *ctx, int y0, int rows, const uint16_t *px);
 void fz_frame(fz_strip_fn out, void *ctx);
+/* what the frame rate follows: FIZZ's mode (ctl.h QD_MODE_*: 0 the idle screen) and its transport */
+void fz_ui_state(int *mode, int *playing);
 /* the store: written now (before an update rewrites the flash); 1 done */
 int fz_flush(void);
 
