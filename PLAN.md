@@ -1498,6 +1498,14 @@ two-core voice split, `quad_render` in RAM, the flash store, `malloc` replaced b
 said would not fit. The headless tests of Phase 1 stay the acceptance tests: the device build must produce the same
 event timelines and the same screens.
 
+**Known budgets to settle on the device** (from Phase 1):
+- **The TAP ape** (0.9.2-tap-ape.1): its pose data is ~17 KB of flash; its speed comes from caching whole poses in
+  layers, **~415 KB of RAM** (3 poses × 138 KB: a 175 × 158 RGBA pose and its half-size flash layer). Options measured:
+  2 poses 277 KB (the ghost mostly missing), 1 pose 138 KB (~3 ms on a tap's frame on the Mac), the flash as strokes
+  (−28 KB a pose, +0.4 ms on those frames), or an 8-bit or RGB565 layer format.
+- **The comb filters**: `QE_NCOMB=16` on the FM-1 (16 × 2 KB).
+- **MIDI FX**: ~2.3 KB of settings and ~5 KB of run-time state per group (halvable by one held-note pool per group).
+
 ### Questions for Phase 1
 
 31. **A core run on the Mac or a browser app first?** **Decided 2026-10-18: the core on the Mac** (the owner: "Ok, lets
