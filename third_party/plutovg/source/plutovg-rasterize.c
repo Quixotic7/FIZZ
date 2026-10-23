@@ -557,7 +557,7 @@ static void dc_func(void* closure, plutovg_path_command_t command, const plutovg
     (void)npoints;
 }
 static PVG_FT_Outline* ft_outline_convert_dash_cull(const plutovg_path_t* path, const plutovg_matrix_t* matrix,
-                                                    const plutovg_stroke_dash_t* dash, double reach)
+                                                    const plutovg_stroke_dash_t* dash, float reach)
 {
     int y0, y1;
     cull_out_t c = {0, 0, 0};
@@ -565,7 +565,7 @@ static PVG_FT_Outline* ft_outline_convert_dash_cull(const plutovg_path_t* path, 
     if(!plutovg_raster_rows_get(&y0, &y1))
         return NULL;
     d.c = &c, d.m = matrix, d.n = 0, d.bad = 0;
-    d.lo = (float)(y0 - reach - 2.0), d.hi = (float)(y1 + reach + 2.0);
+    d.lo = y0 - reach - 2.0f, d.hi = y1 + reach + 2.0f;   /* FIZZ (P2.4): float (the device's FPU), was double */
     plutovg_path_traverse_dashed(path, dash->offset, dash->array.data, dash->array.size, dc_func, &d);
     dc_flush(&d);
     if(d.bad)
@@ -580,14 +580,14 @@ static PVG_FT_Outline* ft_outline_convert_dash_cull(const plutovg_path_t* path, 
 }
 
 /* the path's outline near the window (none: the whole) */
-static PVG_FT_Outline* ft_outline_convert_cull(const plutovg_path_t* path, const plutovg_matrix_t* matrix, double reach,
+static PVG_FT_Outline* ft_outline_convert_cull(const plutovg_path_t* path, const plutovg_matrix_t* matrix, float reach,
                                                int stroke)
 {
     int y0, y1;
     cull_out_t c = {0, 0, 0};
     if(!plutovg_raster_rows_get(&y0, &y1))
         return NULL;
-    const float lo = (float)(y0 - reach - 2.0), hi = (float)(y1 + reach + 2.0);
+    const float lo = y0 - reach - 2.0f, hi = y1 + reach + 2.0f;     /* FIZZ (P2.4): float, was double */
     if(!cull_walk(path, matrix, lo, hi, stroke, &c))
         return NULL;
     c.o = ft_outline_create(c.np, c.nc);
@@ -604,13 +604,13 @@ static char* taken_tags;
 #endif
 static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, const plutovg_matrix_t* matrix, const plutovg_stroke_data_t* stroke_data)
 {
-    double scale_x = sqrt(matrix->a * matrix->a + matrix->b * matrix->b);
-    double scale_y = sqrt(matrix->c * matrix->c + matrix->d * matrix->d);
+    /* FIZZ (P2.4): float (the device's FPU runs doubles as soft-float); was sqrt(), hypot() and a double scale and
+     * width. hypot(sqrt(A), sqrt(B)) / sqrt 2 is sqrt((A + B) / 2): one sqrtf, exact for a uniform scale */
+    const float scale = sqrtf(0.5f * (matrix->a * matrix->a + matrix->b * matrix->b
+                                      + matrix->c * matrix->c + matrix->d * matrix->d));
+    const float width = stroke_data->style.width * scale;
 
-    double scale = hypot(scale_x, scale_y) / PLUTOVG_SQRT2;
-    double width = stroke_data->style.width * scale;
-
-    PVG_FT_Fixed ftWidth = (PVG_FT_Fixed)(width * 0.5 * (1 << 6));
+    PVG_FT_Fixed ftWidth = (PVG_FT_Fixed)(width * 0.5f * (1 << 6));
     PVG_FT_Fixed ftMiterLimit = (PVG_FT_Fixed)(stroke_data->style.miter_limit * (1 << 16));
 
     PVG_FT_Stroker_LineCap ftCap;
@@ -646,19 +646,19 @@ static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, con
     PVG_FT_Outline* outline;
     {   /* FIZZ: only what reaches the strip (above); the pen's reach: half its width, times the miter limit for mitred
          * joins (square caps: x sqrt 2) */
-        const double ml = stroke_data->style.join == PLUTOVG_LINE_JOIN_MITER && stroke_data->style.miter_limit > 1.5f
-                              ? stroke_data->style.miter_limit : 1.5;
+        const float ml = stroke_data->style.join == PLUTOVG_LINE_JOIN_MITER && stroke_data->style.miter_limit > 1.5f
+                             ? stroke_data->style.miter_limit : 1.5f;           /* (FIZZ P2.4: float) */
         plutovg_path_t* dashed = NULL;
         const plutovg_path_t* src = path;
         outline = stroke_data->dash.array.size ? ft_outline_convert_dash_cull(path, matrix, &stroke_data->dash,
-                                                                              width * 0.5 * ml) : NULL;
+                                                                              width * 0.5f * ml) : NULL;
         if(!outline && stroke_data->dash.array.size) {
             dashed = plutovg_path_clone_dashed(path, stroke_data->dash.offset, stroke_data->dash.array.data,
                                                stroke_data->dash.array.size);
             src = dashed;
         }
         if(!outline)
-            outline = ft_outline_convert_cull(src, matrix, width * 0.5 * ml, 1);
+            outline = ft_outline_convert_cull(src, matrix, width * 0.5f * ml, 1);
         if(!outline)
             outline = ft_outline_convert(src, matrix, NULL);
         if(dashed)
@@ -713,7 +713,7 @@ static void spans_generation_callback(int count, const PVG_FT_Span* spans, void*
 int plutovg_rasterize_consume;
 void plutovg_rasterize(plutovg_span_buffer_t* span_buffer, const plutovg_path_t* path, const plutovg_matrix_t* matrix, const plutovg_rect_t* clip_rect, const plutovg_stroke_data_t* stroke_data, plutovg_fill_rule_t winding)
 {
-    PVG_FT_Outline* outline = stroke_data ? NULL : ft_outline_convert_cull(path, matrix, 0.0, 0);   /* (FIZZ) */
+    PVG_FT_Outline* outline = stroke_data ? NULL : ft_outline_convert_cull(path, matrix, 0.0f, 0);  /* (FIZZ; P2.4: 0.0f) */
     if(!outline)
         outline = ft_outline_convert(path, matrix, stroke_data);
     if(plutovg_rasterize_consume) {                     /* (FIZZ P2.1b: the path, an outline now, given back first) */

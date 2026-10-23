@@ -5,6 +5,9 @@
 #include <assert.h>
 
 #define STBTT_STATIC
+#include <math.h>
+#define STBTT_sqrt(x) sqrtf(x)                          /* FIZZ (P2.4): float (stb_truetype's default: sqrt, pow, doubles; */
+#define STBTT_pow(x, y) powf(x, y)                      /* (float) sqrt((double) f) is sqrtf(f), bit for bit) */
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "plutovg-stb-truetype.h"
 
