@@ -29,6 +29,9 @@
 #define QD_SEQ_NREC 64                 /* resolved trigs waiting (the demos peak at 13) */
 /* ---- the flash store */
 #define QDS_MAXKEY 1024                /* keys a store */
+#define QDS_JOBBUF 512                 /* a record the store copies (longer: streamed from its owner, store.h) */
+#define QD_LIB_KEYS 320                /* the library store's index: MY presets (256), the factory tags */
+#define QD_PRJ_KEYS 1024               /* the projects' store's index */
 #else
 #define QD_PROFILE_NAME "host"
 #define QD_POOL_MAX 64                 /* (a setting: 16 by default, more for experiments) */
@@ -36,6 +39,9 @@
 #define QD_SEQ_NEV 4096
 #define QD_SEQ_NREC 512
 #define QDS_MAXKEY 2048
+#define QDS_JOBBUF 28800               /* (QDS_MAXREC: every record copied, as in Phase 1) */
+#define QD_LIB_KEYS QDS_MAXKEY
+#define QD_PRJ_KEYS QDS_MAXKEY
 #endif
 
 /* ---- the same in both */

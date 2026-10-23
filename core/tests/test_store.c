@@ -55,6 +55,7 @@ static int f_prog(void *c, uint32_t off, const void *src, uint32_t n)
 static const qd_flash_t FLASH = {f_read, f_erase, f_prog, 0};
 
 static qd_store_t S, T;
+static qds_ent_t SE[QDS_MAXKEY], TE[QDS_MAXKEY];   /* (P2.1: the indexes are their owners') */
 
 /* record k's bytes at version v (len varies) */
 static uint32_t rec(uint8_t *b, uint32_t key, uint32_t v)
@@ -106,6 +107,19 @@ static void script(qd_store_t *s, int want[][NK], uint32_t *commit_op)
     }
 }
 
+/* P2.1: a source (its bytes from src); src_changes: it reports a change at its commit page */
+static int src_changes;
+static int src_fn(void *ctx, uint32_t off, uint8_t *dst, uint32_t n)
+{
+    memcpy(dst, (const uint8_t *)ctx + off, n);
+    return 0;
+}
+static int src_ok(void *ctx)
+{
+    (void)ctx;
+    return !src_changes;
+}
+
 int main(void)
 {
     static int want[NV + 1][NK];
@@ -115,24 +129,54 @@ int main(void)
 
     /* records in and out, overwritten, deleted, remounted */
     memset(FL, 0xFF, sizeof FL);
-    CHECK(qd_store_mount(&S, &FLASH, 0, 16), "mount an erased region");
+    CHECK(qd_store_mount(&S, &FLASH, 0, 16, SE, QDS_MAXKEY), "mount an erased region");
     for (k = 0; k < 20; k++)
         put_now(&S, (uint32_t)k + 1u, k);
     put_now(&S, 5, 100);
     put_now(&S, 7, -1);
-    qd_store_mount(&T, &FLASH, 0, 16);
+    qd_store_mount(&T, &FLASH, 0, 16, TE, QDS_MAXKEY);
     for (k = 0, v = 0; k < 20; k++)
         v += !same(&T, (uint32_t)k + 1u, k == 4 ? 100 : k == 6 ? -1 : k);
     CHECK(!v, "20 records, one overwritten, one deleted: all as written after a remount (%d differ)", v);
     CHECK(S.c.erases_noisy == 0, "no erase while sounding");
 
+    /* P2.1: a record from its owner's source, a page at a time; read back in parts; a source that changes before the
+     * commit page: dropped, the old version kept */
+    {
+        static uint8_t src[9000], got[9000];
+        uint32_t i, ok = 1, o;
+        for (i = 0; i < sizeof src; i++)
+            src[i] = (uint8_t)(i * 37u + 11u);
+        memset(FL, 0xFF, sizeof FL);
+        qd_store_mount(&S, &FLASH, 0, 16, SE, QDS_MAXKEY);
+        CHECK(qd_store_put_src(&S, 0x3000u, sizeof src, src_fn, src_ok, src), "put_src queued");
+        while (qd_store_busy(&S))
+            qd_store_step(&S, 1, 0, 1);                 /* (a page a step, as while playing) */
+        qd_store_mount(&T, &FLASH, 0, 16, TE, QDS_MAXKEY);
+        for (o = 0; o < sizeof src; o += 333u) {        /* (in parts that cross the pages) */
+            const uint32_t n = sizeof src - o < 333u ? sizeof src - o : 333u;
+            ok &= qd_store_read(&T, 0x3000u, o, got + o, n) == (int)n;
+        }
+        CHECK(ok && !memcmp(got, src, sizeof src) && qd_store_get(&T, 0x3000u, 0, 0) == (int)sizeof src,
+              "a 9000-byte record streamed in, a page a step, read back in 333-byte parts: the same");
+        src_changes = 1;
+        qd_store_put_src(&S, 0x3000u, sizeof src, src_fn, src_ok, src);
+        while (qd_store_busy(&S))
+            qd_store_step(&S, 1, 0, 1);
+        qd_store_mount(&T, &FLASH, 0, 16, TE, QDS_MAXKEY);
+        qd_store_read(&T, 0x3000u, 0, got, sizeof got);
+        CHECK(S.c.drops == 1 && !memcmp(got, src, sizeof src), "the source changed before its commit page: dropped "
+              "(%u), the old version still there", S.c.drops);
+        src_changes = 0;
+    }
+
     /* GC: 3000 writes of 30 keys through 32 sectors (the log goes round many times) */
     memset(FL, 0xFF, sizeof FL);
-    qd_store_mount(&S, &FLASH, 0, 32);
+    qd_store_mount(&S, &FLASH, 0, 32, SE, QDS_MAXKEY);
     for (v = 0; v < 100; v++)
         for (k = 0; k < 30; k++)
             put_now(&S, 0x1000u + (uint32_t)k, v);
-    qd_store_mount(&T, &FLASH, 0, 32);
+    qd_store_mount(&T, &FLASH, 0, 32, TE, QDS_MAXKEY);
     for (k = 0, v = 0; k < 30; k++)
         v += !same(&T, 0x1000u + (uint32_t)k, 99);
     CHECK(!v && S.c.gcs > 50 && !S.c.drops, "3000 records through 32 sectors: the latest of each after a remount (%d "
@@ -144,7 +188,7 @@ int main(void)
         uint32_t e0;
         int steps = 0, maxpg = 0;
         memset(FL, 0xFF, sizeof FL);
-        qd_store_mount(&S, &FLASH, 0, 16);
+        qd_store_mount(&S, &FLASH, 0, 16, SE, QDS_MAXKEY);
         e0 = S.c.erases;
         qd_store_put(&S, 0x2000u, b, rec(b, 0x2000u, 1));
         while (qd_store_busy(&S) && steps < 1000) {
@@ -172,7 +216,7 @@ int main(void)
     memset(FL, 0xFF, sizeof FL);
     ops = 0;
     cut = 0xFFFFFFFFu;
-    qd_store_mount(&S, &FLASH, 0, 10);
+    qd_store_mount(&S, &FLASH, 0, 10, SE, QDS_MAXKEY);
     for (k = 0; k < NK; k++)
         want[0][k] = -1;
     base_ops = ops;
@@ -186,10 +230,10 @@ int main(void)
             memset(FL, 0xFF, sizeof FL);
             ops = 0;
             cut = c;
-            qd_store_mount(&S, &FLASH, 0, 10);
+            qd_store_mount(&S, &FLASH, 0, 10, SE, QDS_MAXKEY);
             script(&S, 0, 0);
             cut = 0xFFFFFFFFu;                          /* power back: mount what is there */
-            qd_store_mount(&T, &FLASH, 0, 10);
+            qd_store_mount(&T, &FLASH, 0, 10, TE, QDS_MAXKEY);
             while (st < NV && commit_op[st + 1] <= c)
                 st++;
             for (k = 0, v = 0; k < NK; k++)

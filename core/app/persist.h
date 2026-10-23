@@ -51,6 +51,7 @@ enum { QD_PI_SET, QD_PI_HDR, QD_PI_PAT, QD_PI_SND = QD_PI_PAT + QD_NPAT, QD_PI_L
 typedef struct {
     int on;                            /* a flash attached */
     qd_store_t lib_st, prj_st;
+    qds_ent_t lib_ent[QD_LIB_KEYS], prj_ent[QD_PRJ_KEYS];   /* P2.1: their indexes, each sized to what it keeps */
     qd_flash_t fl;
     qd_sound_t lib[QD_NLIB];           /* MY presets, the library's (name[0] 0: an empty place; .preset its own id) */
     uint8_t ftags[QD_NFACTORY];        /* P1.5v: the factory presets' tags as the owner set them (0x80 | tags; 0: the
@@ -65,6 +66,7 @@ typedef struct {
     int scan;                          /* the round robin's place */
     int job;                           /* the item being written (-1 none) .. */
     uint32_t job_hash, job_drops;      /* .. its hash, the store's drops before it */
+    int job_it;                        /* P2.1: the item the store's source makes (the job's, while it is written) */
     uint32_t written;                  /* records committed (the project page's bubbles) */
     uint32_t written_ms[QD_NPAT];      /* when each pattern was last written (its bubbles) */
 } qd_persist_t;

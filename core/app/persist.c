@@ -42,17 +42,80 @@
 
 typedef char qd_tset_old_ok[offsetof(qd_tset_t, mfx) == QD_TSET_SIZE_OLD ? 1 : -1];   /* (P1.6c: 'P' 1..3's) */
 
-static uint8_t pr_buf[QDS_MAXREC], pr_buf2[QDS_MAXREC];
+/* P2.1: no record is ever held whole in RAM unless it is short (the device has no room for a 28 KB one): a record is
+ * made by an emitter (em_t) that hashes its bytes and copies the ones of a window (a page the store is writing, or
+ * the whole of a short record), and a long one is read through a reader (rd_t: a page at a time) */
+#define PR_SMALL 2560u                                  /* the longest short record (MIDI FX's 2.3 KB) */
+static uint8_t pr_buf[PR_SMALL];
+typedef struct {
+    uint8_t *win;                                       /* the window's bytes (0: hash only) .. */
+    uint32_t woff, wn;                                  /* .. bytes [woff, woff + wn) of the record */
+    uint32_t pos;                                       /* bytes made */
+    uint32_t h;                                         /* their FNV-1a */
+} em_t;
+static void em_init(em_t *e, uint8_t *win, uint32_t woff, uint32_t wn)
+{
+    e->win = win, e->woff = woff, e->wn = wn, e->pos = 0, e->h = 2166136261u;
+}
+static void em(em_t *e, const void *src, uint32_t n)
+{
+    const uint8_t *b = (const uint8_t *)src;
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        e->h = (e->h ^ b[i]) * 16777619u;
+    if (e->win && e->pos + n > e->woff && e->pos < e->woff + e->wn) {
+        const uint32_t from = e->pos < e->woff ? e->woff - e->pos : 0u;
+        const uint32_t to = e->pos + n > e->woff + e->wn ? e->woff + e->wn - e->pos : n;
+        memcpy(e->win + (e->pos + from - e->woff), b + from, to - from);
+    }
+    e->pos += n;
+}
+static void em8(em_t *e, uint32_t v)
+{
+    const uint8_t b = (uint8_t)v;
+    em(e, &b, 1);
+}
+static uint32_t em_hash(const em_t *e) { return e->h ? e->h : 1u; }
+
+/* a record read in parts (P2.1): the store's bytes a page at a time, the record's length; rd_get 0: past its end */
+typedef struct {
+    qd_store_t *st;
+    uint32_t key, len, pos;
+    uint32_t boff, bn;                                  /* the bytes in buf: the record's [boff, boff + bn) */
+    uint8_t buf[QDS_PAYLOAD];
+} rd_t;
+static int rd_open(rd_t *r, qd_store_t *st, uint32_t key)   /* the record's length (QDS_DELETED, -1: none) */
+{
+    const int len = qd_store_get(st, key, 0, 0);
+    memset(r, 0, sizeof *r);
+    r->st = st, r->key = key;
+    r->len = len > 0 && len != (int)QDS_DELETED ? (uint32_t)len : 0u;
+    return len;
+}
+static int rd_get(rd_t *r, void *dst, uint32_t n)
+{
+    uint8_t *d = (uint8_t *)dst;
+    if (r->pos + n > r->len)
+        return 0;
+    while (n) {
+        uint32_t take;
+        if (r->pos < r->boff || r->pos >= r->boff + r->bn) {
+            r->boff = r->pos / QDS_PAYLOAD * QDS_PAYLOAD;
+            r->bn = (uint32_t)qd_store_read(r->st, r->key, r->boff, r->buf, QDS_PAYLOAD);
+            if (!r->bn)
+                return 0;
+        }
+        take = r->boff + r->bn - r->pos < n ? r->boff + r->bn - r->pos : n;
+        memcpy(d, r->buf + (r->pos - r->boff), take);
+        d += take, n -= take, r->pos += take;
+    }
+    return 1;
+}
+static int rd_u8(rd_t *r, uint8_t *v) { return rd_get(r, v, 1); }
+static uint32_t rd_left(const rd_t *r) { return r->len - r->pos; }
+
 static void pool_cache(const qd_app_t *a, qd_sound_t *s);   /* (P1.5w: the pool's references, below) */
 static void pool_fixup(qd_app_t *a);
-
-static uint32_t fnv(const uint8_t *p, uint32_t n)
-{
-    uint32_t h = 2166136261u, i;
-    for (i = 0; i < n; i++)
-        h = (h ^ p[i]) * 16777619u;
-    return h ? h : 1u;
-}
 
 static int empty_step(const qd_step_t *s)
 {
@@ -61,26 +124,25 @@ static int empty_step(const qd_step_t *s)
 }
 
 /* ---------------------------------------------------------------- the records' bytes */
-static uint32_t ser_pat(const qd_pattern_t *p, uint8_t *b)
+static void ser_pat(const qd_pattern_t *p, em_t *e)
 {
-    uint32_t o = 0;
     int t, pg, s;
-    b[o++] = 'P', b[o++] = 4;
-    b[o++] = (uint8_t)sizeof(qd_step_t), b[o++] = (uint8_t)sizeof(qd_tset_t);
-    memcpy(b + o, &p->master, 2), o += 2;
-    b[o++] = p->swing, b[o++] = p->used;
-    memcpy(b + o, &p->bpm, 2), o += 2;
-    memcpy(b + o, &p->nlock, 2), o += 2;
-    memcpy(b + o, p->trk, sizeof p->trk), o += sizeof p->trk;
-    memcpy(b + o, p->lock_start, sizeof p->lock_start), o += sizeof p->lock_start;
-    memcpy(b + o, p->lock_n, sizeof p->lock_n), o += sizeof p->lock_n;
+    em8(e, 'P'), em8(e, 4);
+    em8(e, sizeof(qd_step_t)), em8(e, sizeof(qd_tset_t));
+    em(e, &p->master, 2);
+    em8(e, p->swing), em8(e, p->used);
+    em(e, &p->bpm, 2);
+    em(e, &p->nlock, 2);
+    em(e, p->trk, sizeof p->trk);
+    em(e, p->lock_start, sizeof p->lock_start);
+    em(e, p->lock_n, sizeof p->lock_n);
     for (t = 0; t < QD_PAT_NTRACK; t++) {
         uint8_t mask = 0;
         for (pg = 0; pg < QD_NPAGE; pg++)
             for (s = 0; s < QD_PAGE; s++)
                 if (!empty_step(&p->step[t][pg * QD_PAGE + s]))
                     mask |= (uint8_t)(1u << pg);
-        b[o++] = mask;
+        em8(e, mask);
         for (pg = 0; pg < QD_NPAGE; pg++) {
             uint16_t sm = 0;
             if (!((mask >> pg) & 1u))
@@ -88,20 +150,21 @@ static uint32_t ser_pat(const qd_pattern_t *p, uint8_t *b)
             for (s = 0; s < QD_PAGE; s++)
                 if (!empty_step(&p->step[t][pg * QD_PAGE + s]))
                     sm |= (uint16_t)(1u << s);
-            memcpy(b + o, &sm, 2), o += 2;
+            em(e, &sm, 2);
             for (s = 0; s < QD_PAGE; s++)
                 if ((sm >> s) & 1u)
-                    memcpy(b + o, &p->step[t][pg * QD_PAGE + s], sizeof(qd_step_t)), o += sizeof(qd_step_t);
+                    em(e, &p->step[t][pg * QD_PAGE + s], sizeof(qd_step_t));
         }
     }
-    memcpy(b + o, p->lock, (size_t)p->nlock * sizeof(qd_lock_t)), o += (uint32_t)p->nlock * sizeof(qd_lock_t);
+    em(e, p->lock, (uint32_t)p->nlock * sizeof(qd_lock_t));
     for (t = 0; t < QD_PAT_NTRACK; t++) {
-        qd_quad_pack(p->snd[t].patch, b + o), o += QD_QUAD_BLOB;
-        b[o++] = p->snd[t].sound, b[o++] = p->snd[t].edited;
-        memcpy(b + o, p->snd[t].name, QD_SOUND_NAME), o += QD_SOUND_NAME;
-        memcpy(b + o, &p->snd[t].preset, 2), o += 2;
+        uint8_t blob[QD_QUAD_BLOB];
+        qd_quad_pack(p->snd[t].patch, blob);
+        em(e, blob, QD_QUAD_BLOB);
+        em8(e, p->snd[t].sound), em8(e, p->snd[t].edited);
+        em(e, p->snd[t].name, QD_SOUND_NAME);
+        em(e, &p->snd[t].preset, 2);
     }
-    return o;
 }
 
 /* P1.6c: a record's track settings' size by its version ('P' 4: today's; 1..3: before the MIDI FX field); 0 bad */
@@ -114,45 +177,43 @@ static uint32_t pat_tset_size(const uint8_t *b, uint32_t len)
     return b[3] == QD_TSET_SIZE_OLD ? (uint32_t)QD_TSET_SIZE_OLD : 0u;
 }
 
-static int de_pat(qd_pattern_t *p, const uint8_t *b, uint32_t len)
+static int de_pat(qd_pattern_t *p, rd_t *r)
 {
-    uint32_t o = 0;
+    uint8_t h[4];
     int t, pg, s, v;
-    const uint32_t tsz = pat_tset_size(b, len);
-    if (!tsz)
+    uint32_t tsz;
+    if (!rd_get(r, h, 4) || !(tsz = pat_tset_size(h, r->len)))
         return 0;
-    v = b[1];
-    o = 4;
-    memcpy(&p->master, b + o, 2), o += 2;
-    p->swing = b[o++], p->used = b[o++];
-    memcpy(&p->bpm, b + o, 2), o += 2;
-    memcpy(&p->nlock, b + o, 2), o += 2;
+    v = h[1];
+    if (!rd_get(r, &p->master, 2) || !rd_u8(r, &p->swing) || !rd_u8(r, &p->used) || !rd_get(r, &p->bpm, 2) ||
+        !rd_get(r, &p->nlock, 2))
+        return 0;
     if (p->nlock > QD_NLOCK)
         return 0;
-    if (o + tsz * QD_PAT_NTRACK > len)
+    if (tsz * QD_PAT_NTRACK > rd_left(r))
         return 0;
     memset(p->trk, 0, sizeof p->trk);                   /* (P1.6c: an older record's tracks: MIDI FX OFF) */
     for (t = 0; t < QD_PAT_NTRACK; t++)
-        memcpy(&p->trk[t], b + o, tsz), o += tsz;
-    memcpy(p->lock_start, b + o, sizeof p->lock_start), o += sizeof p->lock_start;
-    memcpy(p->lock_n, b + o, sizeof p->lock_n), o += sizeof p->lock_n;
+        rd_get(r, &p->trk[t], tsz);
+    if (!rd_get(r, p->lock_start, sizeof p->lock_start) || !rd_get(r, p->lock_n, sizeof p->lock_n))
+        return 0;
     memset(p->step, 0, sizeof p->step);
     for (t = 0; t < QD_PAT_NTRACK; t++) {
-        const uint8_t mask = b[o++];
+        uint8_t mask = 0;
+        rd_u8(r, &mask);
         for (pg = 0; pg < QD_NPAGE; pg++) {
-            uint16_t sm;
+            uint16_t sm = 0;
             if (!((mask >> pg) & 1u))
                 continue;
-            memcpy(&sm, b + o, 2), o += 2;
+            rd_get(r, &sm, 2);
             for (s = 0; s < QD_PAGE; s++)
                 if ((sm >> s) & 1u) {
-                    if (o + sizeof(qd_step_t) > len)
+                    if (!rd_get(r, &p->step[t][pg * QD_PAGE + s], sizeof(qd_step_t)))
                         return 0;
-                    memcpy(&p->step[t][pg * QD_PAGE + s], b + o, sizeof(qd_step_t)), o += sizeof(qd_step_t);
                 }
         }
     }
-    memcpy(p->lock, b + o, (size_t)p->nlock * sizeof(qd_lock_t)), o += (uint32_t)p->nlock * sizeof(qd_lock_t);
+    rd_get(r, p->lock, (uint32_t)p->nlock * sizeof(qd_lock_t));
     if (v < 3) {                                        /* (E1: the mix's lock ids past the new values) */
         int k;
         for (k = 0; k < p->nlock; k++)
@@ -161,17 +222,19 @@ static int de_pat(qd_pattern_t *p, const uint8_t *b, uint32_t len)
     }
     for (t = 0; t < QD_PAT_NTRACK; t++) {
         const uint32_t bl = v >= 3 ? QD_QUAD_BLOB : QD_QUAD_BLOB5;
-        if (o + bl + 2 + QD_SOUND_NAME + (v >= 2 ? 2u : 0u) > len)
+        uint8_t blob[QD_QUAD_BLOB];
+        if (bl + 2 + QD_SOUND_NAME + (v >= 2 ? 2u : 0u) > rd_left(r))
             return 0;
         memset(&p->snd[t], 0, sizeof p->snd[t]);
-        qd_quad_unpack(b + o, (int)bl, p->snd[t].patch), o += bl;
-        p->snd[t].sound = b[o++], p->snd[t].edited = b[o++];
-        memcpy(p->snd[t].name, b + o, QD_SOUND_NAME), o += QD_SOUND_NAME;
+        rd_get(r, blob, bl);
+        qd_quad_unpack(blob, (int)bl, p->snd[t].patch);
+        rd_u8(r, &p->snd[t].sound), rd_u8(r, &p->snd[t].edited);
+        rd_get(r, p->snd[t].name, QD_SOUND_NAME);
         p->snd[t].name[QD_SOUND_NAME - 1] = 0;
         if (v >= 2)
-            memcpy(&p->snd[t].preset, b + o, 2), o += 2;
+            rd_get(r, &p->snd[t].preset, 2);
     }
-    return o == len;
+    return rd_left(r) == 0;
 }
 
 static uint32_t ser_snd(const qd_sound_t *s, uint8_t *b)
@@ -380,7 +443,7 @@ static uint32_t item_key(const qd_app_t *a, int it)
         return QD_RKEY(QD_RK_SND, p, it - QD_PI_SND + 1);
     return QD_RKEY(QD_RK_LIB, 0, it - QD_PI_LIB);
 }
-static uint32_t item_bytes(const qd_app_t *a, int it, uint8_t *b)
+static uint32_t item_small(const qd_app_t *a, int it, uint8_t *b)   /* (every item but a pattern: short) */
 {
     if (it == QD_PI_FTAG)
         return ser_ftag(a, b);
@@ -390,8 +453,6 @@ static uint32_t item_bytes(const qd_app_t *a, int it, uint8_t *b)
         return ser_hdr(a, b);
     if (it == QD_PI_MFX)
         return ser_mfx(a, b);
-    if (it < QD_PI_SND)
-        return ser_pat(&a->proj.pat[it - QD_PI_PAT], b);
     if (it < QD_PI_LIB) {
         const qd_sound_t *s = &a->proj.sound[it - QD_PI_SND];
         if (s->name[0] && s->preset) {                  /* P1.5w: a reference */
@@ -403,6 +464,25 @@ static uint32_t item_bytes(const qd_app_t *a, int it, uint8_t *b)
     }
     return ser_snd(&a->per.lib[it - QD_PI_LIB], b);
 }
+/* an item's record through an emitter (P2.1: a pattern's never whole in RAM) */
+static void item_em(const qd_app_t *a, int it, em_t *e)
+{
+    static uint8_t b[PR_SMALL];
+    if (it >= QD_PI_PAT && it < QD_PI_SND) {
+        ser_pat(&a->proj.pat[it - QD_PI_PAT], e);
+        return;
+    }
+    em(e, b, item_small(a, it, b));
+}
+static uint32_t item_hash(const qd_app_t *a, int it, uint32_t *len)
+{
+    em_t e;
+    em_init(&e, 0, 0, 0);
+    item_em(a, it, &e);
+    if (len)
+        *len = e.pos;
+    return em_hash(&e);
+}
 static qd_store_t *item_store(qd_app_t *a, int it)
 {
     return it >= QD_PI_LIB && it != QD_PI_MFX ? &a->per.lib_st : &a->per.prj_st;
@@ -413,7 +493,7 @@ static void mark_all_saved(qd_app_t *a)
 {
     int it;
     for (it = 0; it < QD_PI_N; it++) {
-        const uint32_t h = fnv(pr_buf, item_bytes(a, it, pr_buf));
+        const uint32_t h = item_hash(a, it, 0);
         a->per.saved[it] = a->per.seen[it] = h;
         a->per.changed[it] = a->ms;
     }
@@ -461,11 +541,12 @@ static void proj_read(qd_app_t *a, int p)
     if (len > 0 && len != (int)QDS_DELETED)
         de_hdr(a, p, pr_buf, (uint32_t)len, 1);
     for (k = 0; k < QD_NPAT; k++) {
-        len = qd_store_get(&ps->prj_st, QD_RKEY(QD_RK_PAT, p, k), pr_buf, sizeof pr_buf);
+        rd_t r;
+        len = rd_open(&r, &ps->prj_st, QD_RKEY(QD_RK_PAT, p, k));
         if (len > 0 && len != (int)QDS_DELETED) {
             qd_pattern_t *tmp = qd_pat_scratch();
             *tmp = a->proj.pat[k];
-            if (!de_pat(&a->proj.pat[k], pr_buf, (uint32_t)len))
+            if (!de_pat(&a->proj.pat[k], &r))
                 a->proj.pat[k] = *tmp;                  /* (a record of another layout: the default) */
         }
     }
@@ -523,6 +604,31 @@ static void put_now(qd_store_t *st, uint32_t key, const uint8_t *b, uint32_t len
     qd_store_flush(st);
 }
 
+/* P2.1: a record copied to another key, a page at a time (never whole in RAM) */
+typedef struct {
+    qd_store_t *st;
+    uint32_t key;
+} copy_ctx_t;
+static int copy_src(void *ctx, uint32_t off, uint8_t *dst, uint32_t n)
+{
+    const copy_ctx_t *c = (const copy_ctx_t *)ctx;
+    return qd_store_read(c->st, c->key, off, dst, n) == (int)n ? 0 : -1;
+}
+static void copy_now(qd_store_t *st, uint32_t from, uint32_t to)
+{
+    copy_ctx_t c;
+    const int len = qd_store_get(st, from, 0, 0);
+    if (len < 0 || len == (int)QDS_DELETED)
+        return;
+    c.st = st, c.key = from;
+    qd_store_flush(st);
+    if (!len)
+        qd_store_put(st, to, 0, 0);
+    else
+        qd_store_put_src(st, to, (uint32_t)len, copy_src, 0, &c);
+    qd_store_flush(st);
+}
+
 static void write_header(qd_app_t *a)
 {
     const uint32_t n = ser_hdr(a, pr_buf);
@@ -571,8 +677,8 @@ void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)
     qd_persist_t *ps = &a->per;
     int proj = 0, pat = QD_PAT_START, sel = 0, len;
     ps->fl = *fl;
-    if (!qd_store_mount(&ps->lib_st, fl, QD_FLASH_LIB, QD_FLASH_LIB_SEC) ||
-        !qd_store_mount(&ps->prj_st, fl, QD_FLASH_PRJ, QD_FLASH_PRJ_SEC))
+    if (!qd_store_mount(&ps->lib_st, fl, QD_FLASH_LIB, QD_FLASH_LIB_SEC, ps->lib_ent, QD_LIB_KEYS) ||
+        !qd_store_mount(&ps->prj_st, fl, QD_FLASH_PRJ, QD_FLASH_PRJ_SEC, ps->prj_ent, QD_PRJ_KEYS))
         return;
     qd_store_set_reserve(&ps->prj_st, 10);              /* (a full pattern record: 8 sectors) */
     ps->on = 1;
@@ -617,7 +723,7 @@ int qd_persist_dirty(const qd_app_t *a)
 static void look(qd_app_t *a, int it)
 {
     qd_persist_t *ps = &a->per;
-    const uint32_t h = fnv(pr_buf, item_bytes(a, it, pr_buf));
+    const uint32_t h = item_hash(a, it, 0);
     if (h != ps->seen[it]) {
         ps->seen[it] = h;
         ps->changed[it] = a->ms;
@@ -638,17 +744,44 @@ static void job_end(qd_app_t *a)
     ps->job = -1;
 }
 
+/* P2.1: the record the store is writing, made again page by page from the item (its bytes never held whole); before
+ * its commit page the item must still be what it was when it was queued */
+static int job_src(void *ctx, uint32_t off, uint8_t *dst, uint32_t n)
+{
+    qd_app_t *a = (qd_app_t *)ctx;
+    em_t e;
+    em_init(&e, dst, off, n);
+    item_em(a, a->per.job_it, &e);
+    return 0;
+}
+static int job_ok(void *ctx)
+{
+    qd_app_t *a = (qd_app_t *)ctx;
+    return item_hash(a, a->per.job_it, 0) == a->per.job_hash;
+}
+
 static int job_start(qd_app_t *a, int it)
 {
     qd_persist_t *ps = &a->per;
     qd_store_t *st = item_store(a, it);
-    const uint32_t n = item_bytes(a, it, pr_buf2);
+    uint32_t n;
+    const uint32_t h = item_hash(a, it, &n);
     if (qd_store_busy(st))
         return 0;
-    ps->job_hash = fnv(pr_buf2, n);
+    ps->job_hash = h;
     ps->job_drops = st->c.drops;
-    if (!qd_store_put(st, item_key(a, it), pr_buf2, n))
+    ps->job_it = it;
+    if (n <= QDS_JOBBUF) {                              /* (short, and the host's every record: copied now, as in
+                                                         * Phase 1: what is written is what it was at the start) */
+        static uint8_t flat[QDS_JOBBUF];
+        em_t e;
+        em_init(&e, flat, 0, n);
+        item_em(a, it, &e);
+        if (!qd_store_put(st, item_key(a, it), flat, n))
+            return 0;
+    } else if (!qd_store_put_src(st, item_key(a, it), n, job_src, job_ok, a)) {
         return 0;
+    }
     ps->job = it;
     return 1;
 }
@@ -700,9 +833,7 @@ int qd_persist_flush(qd_app_t *a)
         job_end(a);
     }
     for (it = 0; it < QD_PI_N; it++) {
-        uint32_t n, h;
-        n = item_bytes(a, it, pr_buf);
-        h = fnv(pr_buf, n);
+        const uint32_t h = item_hash(a, it, 0);
         ps->seen[it] = h;
         if (h == ps->saved[it])
             continue;
@@ -837,7 +968,7 @@ int qd_proj_copy(qd_app_t *a, int from, int to)
 {
     qd_persist_t *ps = &a->per;
     qd_store_t *st = &ps->prj_st;
-    static uint32_t keys[QDS_MAXKEY];
+    static uint32_t keys[QD_PRJ_KEYS];
     int i, n = 0;
     if (from < 0 || from >= QD_NPROJ || to < 0 || to >= QD_NPROJ || from == to || !ps->on || !ps->pexists[from])
         return 0;
@@ -852,12 +983,9 @@ int qd_proj_copy(qd_app_t *a, int from, int to)
             keys[n++] = st->ent[i].key;
     for (i = 0; i < n; i++) {                           /* the header last: the copy exists once it is all there */
         const uint32_t k = keys[i];
-        int len;
         if ((k >> 24) == QD_RK_HDR)
             continue;
-        len = qd_store_get(st, k, pr_buf, sizeof pr_buf);
-        if (len >= 0 && len != (int)QDS_DELETED)
-            put_now(st, (k & 0xFF00FFFFu) | (uint32_t)to << 16, pr_buf, (uint32_t)len);
+        copy_now(st, k, (k & 0xFF00FFFFu) | (uint32_t)to << 16);
     }
     {
         const int len = qd_store_get(st, QD_RKEY(QD_RK_HDR, from, 0), pr_buf, sizeof pr_buf);
@@ -1329,38 +1457,33 @@ int qd_tags_set(qd_app_t *a, int code, int tags)
 
 /* ---------------------------------------------------------------- P1.5w: a preset's users, its delete */
 /* the steps (on) of a pattern record whose sound lock is in mask (a bit a pool number), from its bytes */
-static int rec_pat_steps(const uint8_t *b, uint32_t len, const uint8_t *mask)
+static int rec_pat_steps(rd_t *r, const uint8_t *mask)
 {
-    uint32_t o;
+    uint8_t h[12];
     int t, pg, s, n = 0;
-    uint16_t nlock;
-    const uint32_t tsz = pat_tset_size(b, len);
-    if (!tsz)
+    uint32_t tsz;
+    if (!rd_get(r, h, 12) || !(tsz = pat_tset_size(h, r->len)))
         return 0;
-    o = 4 + 2 + 2 + 2;
-    memcpy(&nlock, b + o, 2), o += 2;
-    o += (uint32_t)(tsz * QD_PAT_NTRACK + sizeof(((qd_pattern_t *)0)->lock_start) +
-                    sizeof(((qd_pattern_t *)0)->lock_n));
-    for (t = 0; t < QD_PAT_NTRACK && o < len; t++) {
-        const uint8_t pm = b[o++];
+    r->pos += (uint32_t)(tsz * QD_PAT_NTRACK + sizeof(((qd_pattern_t *)0)->lock_start) +
+                         sizeof(((qd_pattern_t *)0)->lock_n));
+    for (t = 0; t < QD_PAT_NTRACK && rd_left(r); t++) {
+        uint8_t pm;
+        rd_u8(r, &pm);
         for (pg = 0; pg < QD_NPAGE; pg++) {
             uint16_t sm;
             if (!((pm >> pg) & 1u))
                 continue;
-            if (o + 2 > len)
+            if (!rd_get(r, &sm, 2))
                 return n;
-            memcpy(&sm, b + o, 2), o += 2;
             for (s = 0; s < QD_PAGE; s++)
                 if ((sm >> s) & 1u) {
                     qd_step_t st;
-                    if (o + sizeof st > len)
+                    if (!rd_get(r, &st, sizeof st))
                         return n;
-                    memcpy(&st, b + o, sizeof st), o += sizeof st;
                     n += st.sound && ((mask[st.sound >> 3] >> (st.sound & 7)) & 1u) && (st.flags & QD_SF_ON);
                 }
         }
     }
-    (void)nlock;
     return n;
 }
 
@@ -1397,9 +1520,10 @@ void qd_preset_usage(const qd_app_t *a, int id, int *projects, int *steps)
             continue;
         np++;
         for (k = 0; k < QD_NPAT; k++) {
-            const int len = qd_store_get((qd_store_t *)&ps->prj_st, QD_RKEY(QD_RK_PAT, p, k), pr_buf, sizeof pr_buf);
+            rd_t r;
+            const int len = rd_open(&r, (qd_store_t *)&ps->prj_st, QD_RKEY(QD_RK_PAT, p, k));
             if (len > 0 && len != (int)QDS_DELETED)
-                ns += rec_pat_steps(pr_buf, (uint32_t)len, mask);
+                ns += rec_pat_steps(&r, mask);
         }
     }
     if (projects)

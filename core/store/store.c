@@ -77,7 +77,7 @@ static void index_put(qd_store_t *s, uint32_t key, uint32_t rseq, int first, int
     if (e && e->rseq > rseq)
         return;
     if (!e) {
-        if (s->nkey >= QDS_MAXKEY)
+        if (s->nkey >= s->maxkey)
             return;
         e = &s->ent[s->nkey++];
         e->key = key;
@@ -123,11 +123,13 @@ int qd_store_blank(const qd_store_t *s)
     return n;
 }
 
-int qd_store_mount(qd_store_t *s, const qd_flash_t *fl, uint32_t base, int nsec)
+int qd_store_mount(qd_store_t *s, const qd_flash_t *fl, uint32_t base, int nsec, qds_ent_t *ent, int maxkey)
 {
     int order[QDS_MAXSEC], n = 0, i, k, newest = -1;
     uint32_t maxr = 0, maxs = 0;
     memset(s, 0, sizeof *s);
+    s->ent = ent;
+    s->maxkey = ent ? maxkey : 0;
     s->fl = *fl;
     s->base = base;
     s->nsec = nsec;
@@ -233,6 +235,30 @@ int qd_store_get(qd_store_t *s, uint32_t key, void *buf, uint32_t max)
     return e->len;
 }
 
+int qd_store_read(qd_store_t *s, uint32_t key, uint32_t off, void *buf, uint32_t n)
+{
+    const qds_ent_t *e = find(s, key);
+    uint8_t pay[QDS_PAYLOAD];
+    uint32_t got = 0, at = 0;
+    int pg, k;
+    if (!e || e->len == QDS_DELETED || off >= e->len)
+        return 0;
+    if (n > e->len - off)
+        n = e->len - off;
+    pg = e->page;
+    for (k = 0; k < e->npages && pg >= 0 && got < n; k++, at += QDS_PAYLOAD) {
+        if (at + QDS_PAYLOAD > off) {                   /* (a page holding some of it) */
+            qds_hdr_t h;
+            const uint32_t from = off + got - at, take = QDS_PAYLOAD - from < n - got ? QDS_PAYLOAD - from : n - got;
+            read_hdr(s, pg, &h, pay);
+            memcpy((uint8_t *)buf + got, pay + from, take);
+            got += take;
+        }
+        pg = next_page(s, pg);
+    }
+    return (int)got;
+}
+
 static uint32_t pages_of(uint32_t len) { return len == QDS_DELETED || !len ? 1u : (len + QDS_PAYLOAD - 1u) / QDS_PAYLOAD; }
 
 void qd_store_use(const qd_store_t *s, uint32_t *live_pages, uint32_t *total_pages)
@@ -250,7 +276,7 @@ void qd_store_use(const qd_store_t *s, uint32_t *live_pages, uint32_t *total_pag
 int qd_store_busy(const qd_store_t *s) { return s->busy; }
 void qd_store_set_reserve(qd_store_t *s, int sectors) { s->reserve = sectors < 1 ? 1 : sectors > s->nsec - 2 ? s->nsec - 2 : sectors; }
 
-int qd_store_put(qd_store_t *s, uint32_t key, const void *data, uint32_t len)
+static int put_job(qd_store_t *s, uint32_t key, uint32_t len)
 {
     uint32_t live, total;
     const qds_ent_t *e = find(s, key);
@@ -268,8 +294,30 @@ int qd_store_put(qd_store_t *s, uint32_t key, const void *data, uint32_t len)
     s->job_done = 0;
     s->job_first = -1;
     s->job_rseq = s->next_rseq++;
-    if (len != QDS_DELETED && len)
-        memcpy(s->job_buf, data, len);
+    s->job_data = 0, s->job_src = 0, s->job_ok = 0, s->job_ctx = 0;
+    return 1;
+}
+
+int qd_store_put(qd_store_t *s, uint32_t key, const void *data, uint32_t len)
+{
+    if (!put_job(s, key, len))
+        return 0;
+    if (len != QDS_DELETED && len) {
+        if (len <= QDS_JOBBUF) {
+            memcpy(s->job_buf, data, len);
+            s->job_data = s->job_buf;
+        } else {
+            s->job_data = (const uint8_t *)data;        /* (the caller keeps it while busy) */
+        }
+    }
+    return 1;
+}
+
+int qd_store_put_src(qd_store_t *s, uint32_t key, uint32_t len, qds_src_fn src, qds_ok_fn ok, void *ctx)
+{
+    if (!src || len == QDS_DELETED || !put_job(s, key, len))
+        return 0;
+    s->job_src = src, s->job_ok = ok, s->job_ctx = ctx;
     return 1;
 }
 
@@ -298,9 +346,10 @@ static int open_sector(qd_store_t *s)
     return 1;
 }
 
-/* one page of a record at the head: 1 written, 0 no room (no blank sector) */
+/* one page of a record at the head, its payload from data (the record's bytes), else src (P2.1: its owner's), else
+ * pay (a payload as it is: GC's copy): 1 written, 0 no room (no blank sector) or the source failed */
 static int write_page(qd_store_t *s, uint32_t key, uint32_t rseq, int idx, int np, uint32_t len, const uint8_t *data,
-                      int *at)
+                      qds_src_fn src, void *ctx, const uint8_t *pay, int *at)
 {
     uint8_t b[QDS_PAGE];
     uint32_t off = (uint32_t)idx * QDS_PAYLOAD, take = 0;
@@ -310,7 +359,13 @@ static int write_page(qd_store_t *s, uint32_t key, uint32_t rseq, int idx, int n
     memset(b + QDS_HDR, 0, QDS_PAYLOAD);
     if (len != QDS_DELETED && off < len) {
         take = len - off > QDS_PAYLOAD ? QDS_PAYLOAD : len - off;
-        memcpy(b + QDS_HDR, data + off, take);
+        if (data)
+            memcpy(b + QDS_HDR, data + off, take);
+        else if (src) {
+            if (src(ctx, off, b + QDS_HDR, take))
+                return 0;
+        } else if (pay)
+            memcpy(b + QDS_HDR, pay, take);
     }
     put32(b, key);
     put32(b + 4, rseq);
@@ -351,10 +406,10 @@ static int gc_victim(qd_store_t *s)
     return best;
 }
 
-/* GC one sector (quiet, no record half written): its records written again whole, then it is erased */
+/* GC one sector (quiet, no record half written): its records written again whole, page by page (P2.1: no copy of a
+ * record in RAM), then it is erased */
 static int gc_one(qd_store_t *s)
 {
-    static uint8_t buf[QDS_MAXREC];
     const int v = gc_victim(s);
     int i, moved = 1;
     if (v < 0)
@@ -372,14 +427,18 @@ static int gc_one(qd_store_t *s)
                 continue;
             {
                 const uint32_t key = e->key, len = e->len, np = e->npages, rseq = s->next_rseq++;
-                int first = -1, at;
-                if (len != QDS_DELETED)
-                    qd_store_get(s, key, buf, sizeof buf);
+                int first = -1, at, src = e->page;
                 for (k = 0; k < (int)np; k++) {
-                    if (!write_page(s, key, rseq, k, (int)np, len, buf, &at))
+                    uint8_t pay[QDS_PAYLOAD];
+                    qds_hdr_t h;
+                    memset(pay, 0, sizeof pay);
+                    if (len != QDS_DELETED && src >= 0)
+                        read_hdr(s, src, &h, pay);
+                    if (!write_page(s, key, rseq, k, (int)np, len, 0, 0, 0, pay, &at))
                         return 0;
                     if (!k)
                         first = at;
+                    src = src >= 0 ? next_page(s, src) : -1;
                 }
                 index_put(s, key, rseq, first, (int)np, (int)len);
                 s->c.commits++;
@@ -425,7 +484,14 @@ int qd_store_step(qd_store_t *s, int playing, int quiet, int max_pages)
             }
             continue;
         }
-        if (!write_page(s, s->job_key, s->job_rseq, s->job_done, s->job_np, s->job_len, s->job_buf, &at))
+        if (s->job_done + 1 == s->job_np && s->job_ok && !s->job_ok(s->job_ctx)) {   /* P2.1: the source changed while
+                                                         * it was written: not committed (its owner puts it again) */
+            s->busy = 0;
+            s->c.drops++;
+            return 0;
+        }
+        if (!write_page(s, s->job_key, s->job_rseq, s->job_done, s->job_np, s->job_len, s->job_data, s->job_src,
+                        s->job_ctx, 0, &at))
             return 1;
         if (playing)
             s->c.pages_playing++;

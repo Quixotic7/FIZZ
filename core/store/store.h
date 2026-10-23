@@ -17,8 +17,11 @@
  * the index; for a key, the highest record sequence wins (a tombstone, length QDS_DELETED, deletes). The write head is
  * the first blank page after the newest sector's last written page.
  *
- * WRITING. qd_store_put queues a record (copied: the caller's buffer is free at once); qd_store_step writes its pages
- * a few at a time. The rules of §7 are the store's own (the caller says, each step, whether anything sounds):
+ * WRITING. qd_store_put queues a record (copied: the caller's buffer is free at once, up to QDS_JOBBUF bytes; longer,
+ * the caller keeps it until the store is not busy); P2.1: qd_store_put_src queues one whose bytes a source gives,
+ * page by page as they are written (no copy of the record anywhere: the device has no room for one), and checks
+ * before the commit page that the source has not changed under it (else the record is dropped: its owner writes it
+ * again). qd_store_step writes its pages a few at a time. The rules of §7 are the store's own (the caller says, each step, whether anything sounds):
  *   - no erase unless the caller says it is quiet (the transport stopped and no voice sounding); the counter
  *     erases_noisy counts any that were not (it stays 0: the tests check);
  *   - while playing, at most one page a step (a UI frame): pages_playing, saves_playing count them;
@@ -72,6 +75,11 @@ typedef struct {
     uint32_t drops;                        /* records dropped: no room even after GC (the store full) */
 } qds_count_t;
 
+/* P2.1: a record's bytes from its owner: bytes [off, off + n) of it into dst (n <= QDS_PAYLOAD); 0 ok. ok (may be
+ * null): before the commit page, 1 if the record is still what it was when it was queued */
+typedef int (*qds_src_fn)(void *ctx, uint32_t off, uint8_t *dst, uint32_t n);
+typedef int (*qds_ok_fn)(void *ctx);
+
 typedef struct {
     qd_flash_t fl;
     uint32_t base;                         /* the region's first byte (sector aligned) */
@@ -80,7 +88,8 @@ typedef struct {
     uint32_t sseq[QDS_MAXSEC];             /* each sector's sequence number, 0: blank, 0xFFFFFFFF: to erase */
     uint16_t live[QDS_MAXSEC];             /* pages of index records in it */
     int nkey;
-    qds_ent_t ent[QDS_MAXKEY];
+    qds_ent_t *ent;                        /* P2.1: the index, the owner's (sized to what it keeps) .. */
+    int maxkey;                            /* .. its places */
     int head;                              /* the next page to write (sector * QDS_PPS + page), -1: none open */
     uint32_t next_sseq, next_rseq;
     /* the record being written */
@@ -88,17 +97,25 @@ typedef struct {
     uint32_t job_key, job_rseq;
     uint16_t job_len, job_np, job_done;
     int job_first;
-    uint8_t job_buf[QDS_MAXREC];
+    uint8_t job_buf[QDS_JOBBUF];           /* (a short record's copy) */
+    const uint8_t *job_data;               /* .. or the caller's bytes, or (P2.1) its source */
+    qds_src_fn job_src;
+    qds_ok_fn job_ok;
+    void *job_ctx;
     qds_count_t c;
 } qd_store_t;
 
-/* mount the region base .. base + nsec sectors (an erased flash: an empty store). 1 ok, 0 the region is bad */
-int qd_store_mount(qd_store_t *s, const qd_flash_t *fl, uint32_t base, int nsec);
+/* mount the region base .. base + nsec sectors (an erased flash: an empty store) with an index of maxkey places (the
+ * caller's ent: P2.1). 1 ok, 0 the region is bad */
+int qd_store_mount(qd_store_t *s, const qd_flash_t *fl, uint32_t base, int nsec, qds_ent_t *ent, int maxkey);
 /* a record's length (QDS_DELETED or -1: none) and, with buf, its bytes (up to max) */
 int qd_store_get(qd_store_t *s, uint32_t key, void *buf, uint32_t max);
+/* P2.1: bytes [off, off + n) of a record (a long one read in parts, never whole); the bytes read */
+int qd_store_read(qd_store_t *s, uint32_t key, uint32_t off, void *buf, uint32_t n);
 /* queue a record (len 0 .. QDS_MAXREC; QDS_DELETED with data NULL: delete the key). 0: busy (one at a time), the
  * record is too big, or the store could never hold it */
 int qd_store_put(qd_store_t *s, uint32_t key, const void *data, uint32_t len);
+int qd_store_put_src(qd_store_t *s, uint32_t key, uint32_t len, qds_src_fn src, qds_ok_fn ok, void *ctx);
 int qd_store_del(qd_store_t *s, uint32_t key);
 int qd_store_busy(const qd_store_t *s);
 /* write: playing (one page at most), else up to max_pages; quiet: erases allowed (the transport stopped and nothing
