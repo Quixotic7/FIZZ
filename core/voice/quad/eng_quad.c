@@ -929,52 +929,8 @@ static const uint32_t *const QUAD_TDEC[4] = {QUAD_T_ODEC, QUAD_T_ODEC, QUAD_T_FD
 static int32_t quad_env_tick(quad_voice_t *s, uint32_t k, int32_t atk, int32_t dec, int32_t sus, int32_t rel,
                              int32_t dly, int gate, int adsr)
 {
-    int32_t x = s->env[k];                       /* (rel: 0..126, 127 = INF) */
-    if (adsr && !gate && s->stage[k] && s->stage[k] < 4u)
-        s->stage[k] = 4;
-    switch (s->stage[k]) {
-    case 1:
-        s->dly[k] += (uint32_t)clamp(song.g[G_BPM], 20, 300) * QUAD_DLY_K;
-        if (s->dly[k] >= (uint32_t)(dly & 127) << 24)
-            s->stage[k] = 2;
-        break;
-    case 2:
-        if (k < 2u) {                            /* the operators: linear in dB from QUAD_OP_FLOOR (-38 dB) to the
-                                                  * top, the growth a tick (the Digitone's late bloom) */
-            x = x < QUAD_OP_FLOOR ? QUAD_OP_FLOOR : x;
-            x += (int32_t)(((int64_t)x * QUAD_TATK[k][atk & 127]) >> 24);
-        } else {
-            x += (int32_t)QUAD_TATK[k][atk & 127];
-        }
-        if (x >= (1 << 24)) {
-            x = 1 << 24;
-            s->stage[k] = 3;
-        }
-        break;
-    case 3:
-        if (k == 3u && dec >= 127)               /* AMP DEC INF: held */
-            break;
-        x += (int32_t)(((int64_t)(sus - x) * QUAD_TDEC[k][dec & 127]) >> 24);
-        break;
-    case 4:
-    case 5:
-        if (rel >= 127) {                        /* INF: held */
-            s->stage[k] = 5;
-            break;
-        }
-        s->stage[k] = 4;
-        x -= (int32_t)(((int64_t)x * QUAD_TDEC[k][rel] + 0xFFFFFF) >> 24);
-        if (x < (1 << 12)) {
-            x = 0;
-            s->stage[k] = 0;
-        }
-        break;
-    default:
-        x = 0;
-        break;
-    }
-    s->env[k] = x;
-    return x >> 9;
+    return fz_env_step(&s->env[k], &s->stage[k], &s->dly[k], k < 2u, QUAD_TATK[k], QUAD_TDEC[k], atk, dec, sus, rel, dly,
+                       gate, adsr, k == 3u, song.g[G_BPM], QUAD_OP_FLOOR, QUAD_DLY_K);   /* (L1: fz_voice.h) */
 }
 
 static int quad_done(track_t *t, voice_t *v)    /* the amp envelope has ended (voice.c, engine_t.done) */
@@ -1067,19 +1023,7 @@ static inline int32_t quad_hw(const int16_t *a, const int16_t *b, int32_t f, uin
  * fraction: not worth its multiply a sample) */
 static void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k)   /* (QUADRILLE (e): its type declared above) */
 {
-    int32_t i, g, den;
-    int64_t a2, a3;
-    cut = clamp(cut, 0, 127 << 8);
-    i = cut >> 8;
-    g = (int32_t)SVF_G[i] << 8;                  /* Q20 */
-    if (i < 127)
-        g += ((int32_t)SVF_G[i + 1] - (int32_t)SVF_G[i]) * (cut & 255);
-    den = 4096 + (int32_t)(((int64_t)g * (g + ((int64_t)k << 8))) >> 28);
-    c->a1 = (int32_t)((4096u << 13) / (uint32_t)den);
-    a2 = ((int64_t)c->a1 * g) >> 15;             /* Q18 */
-    a3 = (a2 * g) >> 20;
-    c->a2 = (int32_t)(a2 >> 5), c->f2 = (int32_t)(a2 & 31);
-    c->a3 = (int32_t)(a3 >> 5);
+    fz_svf_coef_fine(cut, k, &c->a1, &c->a2, &c->a3, &c->f2);   /* (L1: fz_dsp.h) */
 }
 
 /* the operator outputs: WS the sine (B2 always), WC / WA / WB1 C's, A's, B1's wave (HARM: defined per loop), QM a
@@ -1495,14 +1439,10 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         }
 #define QUAD_SVF(PRE, Y)                                                   \
     for (i = 0; i < n; i++) {                                              \
-        int32_t v1, v2, v3;                                                \
+        int32_t v1, v2;                                                    \
         x = acc[i];                                                        \
         PRE                                                                \
-        v3 = x - ic2;                                                      \
-        v1 = (c.a1 * ic1 + c.a2 * v3 + ((c.f2 * v3) >> 5) + 4096) >> 13;     \
-        v2 = ic2 + ((c.a2 * ic1 + c.a3 * v3 + ((c.f2 * ic1) >> 5) + 4096) >> 13); \
-        ic1 = clamp(2 * v1 - ic1, -150000, 150000);                        \
-        ic2 = clamp(2 * v2 - ic2, -150000, 150000);                        \
+        fz_svf_tick(c.a1, c.a2, c.a3, c.f2, &ic1, &ic2, x, &v1, &v2);      \
         acc[i] = soft_knee(clamp((Y), -200000, 200000), 16000);            \
     }
         if (fty >= QD_QF_MULTI)                  /* QUADRILLE (e), hook 3: the filter machines */
@@ -1510,10 +1450,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         else if (fty == QF_HP12)
             QUAD_SVF(, x - ((kd * v1) >> 12) - v2)
         else if (fty == QF_LP24)
-            QUAD_SVF(v3 = x - ic4; v1 = (c2.a1 * ic3 + c2.a2 * v3 + 4096) >> 13;
-                     v2 = ic4 + ((c2.a2 * ic3 + c2.a3 * v3 + 4096) >> 13);
-                     ic3 = clamp(2 * v1 - ic3, -150000, 150000); ic4 = clamp(2 * v2 - ic4, -150000, 150000); x = v2;,
-                     v2)
+            QUAD_SVF(fz_svf_tick(c2.a1, c2.a2, c2.a3, 0, &ic3, &ic4, x, &v1, &v2); x = v2;, v2)   /* (24 dB: two) */
         else
             QUAD_SVF(, v2)
 #undef QUAD_SVF

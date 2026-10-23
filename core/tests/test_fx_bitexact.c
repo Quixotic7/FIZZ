@@ -109,13 +109,11 @@ static void compare(const char *what, const int32_t *a, const int32_t *b, uint32
     bad += diff != 0;
 }
 
-static uint32_t xs = 0x2545F491u;
+static uint32_t ns = 0x2545F491u;              /* (L1: a linear congruential noise, both sides fed the same) */
 static int32_t noise(int32_t amp)
 {
-    xs ^= xs << 13;
-    xs ^= xs >> 17;
-    xs ^= xs << 5;
-    return (int32_t)(((int64_t)(int32_t)xs * amp) >> 31);
+    ns = ns * 1664525u + 1013904223u;
+    return (int32_t)(((int64_t)(int32_t)ns * amp) >> 31);
 }
 
 int main(void)
@@ -132,7 +130,7 @@ int main(void)
     qd_fx_init();
     printf("       the defaults: chorus rate %d depth %d, delay time %d fdbk %d sync %d mode %d, reverb size %d decay %d,"
            " Output %s, MASTER %u\n", song.g[G_CRATE], song.g[G_CDEPTH], xfp[XP_DTIME], xfp[XP_DFDBK],
-           xfp[XP_DSYNC], xfp[XP_DMODE], xfp[XP_RSIZE], xfp[XP_RDECAY], fx_out_mode ? "Clean" : "Classic",
+           xfp[XP_DSYNC], xfp[XP_DMODE], xfp[XP_RSIZE], xfp[XP_RDECAY], "Clean",
            (unsigned)song.master_q12);
     for (k = 0; k < sizeof IMP / sizeof IMP[0]; k++) {
         n = (uint32_t)(IMP[k].secs * 44100.0) / CTL * CTL;

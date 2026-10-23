@@ -19,61 +19,14 @@
  *   E4  the modulation slots (quad_ext_mods): eight SOURCE -> DEST x DEPTH into the LFOs' dst[] (their destinations,
  *       FIZZ's new ones too: HOLD, PTIM, SHAPE, GAIN, BITS, SRR) */
 
-/* E1: RATE's step a block (1/16 semitone) by PTIM: ChoralRoot's (voice.c, its slide: ENV_LIN[v] >> 14, at least 1;
- * tools/gen_tables.py ENV_LIN = 2^24 CTL / (ms(v) FS / 1000), ms(v) = 10000^(v / 127)) */
-static const uint16_t QE_GLRATE[128] = {
-    743, 691, 642, 597, 555, 517, 480, 447, 415, 386, 359, 334, 311, 289, 269, 250, 232, 216, 201, 187, 174, 162, 150,
-    140, 130, 121, 112, 104, 97, 90, 84, 78, 72, 67, 63, 58, 54, 50, 47, 43, 40, 37, 35, 32, 30, 28, 26, 24, 22, 21, 19,
-    18, 17, 15, 14, 13, 12, 11, 11, 10, 9, 8, 8, 7, 7, 6, 6, 5, 5, 4, 4, 4, 4, 3, 3, 3, 3, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1};
+/* E1: RATE's step a block (1/16 semitone) by PTIM: QE_GLRATE (fz_tables.h, tools/gen_fz_tables.py) */
 
 /* E1, hook 1: the amp envelope in AHD (stage 2 the attack, 6 the hold, 7 the decay; ADSR's stages met at a switch
  * mid-note: its decay / sustain is the hold, its release the decay). The hold's progress is dly[3] (the amp has no
  * DELAY: quad_note_on starts it with none). Q15, as quad_env_tick */
 static int32_t quad_ext_ahd(quad_voice_t *s, int32_t atk, int32_t hold, int32_t dec, int gate)
 {
-    int32_t x = s->env[3];
-    if (s->stage[3] == 3u || s->stage[3] == 1u) {
-        s->stage[3] = s->stage[3] == 1u ? 2u : 6u;
-        s->dly[3] = 0;
-    } else if (s->stage[3] == 4u || s->stage[3] == 5u) {
-        s->stage[3] = 7u;
-    }
-    switch (s->stage[3]) {
-    case 2:                                     /* ATK: linear to 1 on the amp attack's table, as ADSR's */
-        x += (int32_t)QUAD_T_AATK[atk & 127];
-        if (x >= (1 << 24)) {
-            x = 1 << 24;
-            s->stage[3] = 6;
-            s->dly[3] = 0;
-        }
-        break;
-    case 6:                                     /* HOLD: NOTE until the key is up; else its time, the gate unread */
-        if (hold >= 127) {
-            if (!gate)
-                s->stage[3] = 7;
-        } else {
-            s->dly[3] += QUAD_T_AATK[hold & 127];
-            if (s->dly[3] >= (1u << 24))
-                s->stage[3] = 7;
-        }
-        break;
-    case 7:                                     /* DEC: exponential to 0 on the amp decay's table (127 INF: held) */
-        if (dec >= 127)
-            break;
-        x -= (int32_t)(((int64_t)x * QUAD_T_ADEC[dec & 127] + 0xFFFFFF) >> 24);
-        if (x < (1 << 12)) {
-            x = 0;
-            s->stage[3] = 0;
-        }
-        break;
-    default:
-        x = 0;
-        break;
-    }
-    s->env[3] = x;
-    return x >> 9;
+    return fz_ahd_step(&s->env[3], &s->stage[3], &s->dly[3], QUAD_T_AATK, QUAD_T_ADEC, atk, hold, dec, gate);   /* (L1) */
 }
 
 /* E1: back to ADSR from an AHD stage (a switch mid-note): the hold is ADSR's decay / sustain, the decay its release */
@@ -221,12 +174,8 @@ static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int3
             wm = shape <= 64 ? shape * 512 : (shape - 64) * 32768 / 63;   /* (Q15: LP -> BP, then BP -> HP) */
         }
         for (i = 0; i < n; i++) {
-            int32_t v1, v2, v3, x = acc[i], y;
-            v3 = x - b;
-            v1 = (cc->a1 * a + cc->a2 * v3 + ((cc->f2 * v3) >> 5) + 4096) >> 13;
-            v2 = b + ((cc->a2 * a + cc->a3 * v3 + ((cc->f2 * a) >> 5) + 4096) >> 13);
-            a = clamp(2 * v1 - a, -150000, 150000);
-            b = clamp(2 * v2 - b, -150000, 150000);
+            int32_t v1, v2, x = acc[i], y;
+            fz_svf_tick(cc->a1, cc->a2, cc->a3, cc->f2, &a, &b, x, &v1, &v2);   /* (L1: fz_dsp.h) */
             if (run == QD_QF_EQ) {
                 y = x + (int32_t)(((int64_t)g * ((k * v1) >> 12)) >> 12);
             } else {

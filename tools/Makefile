@@ -113,6 +113,9 @@ audio: render_audio
 # ---- the tests
 $(B)/test_quad: $(T)/test_quad.c $(HDRS) | $(B)
 	$(CC) $(SAN_ENGINE) $(WARN) $(INC) -o $@ $< -lm
+# L1: the clean-room building blocks (core/voice/quad/fz_*.h) against independent references
+$(B)/test_fz_dsp: $(T)/test_fz_dsp.c $(HDRS) | $(B)
+	$(CC) $(SAN) $(WARN) $(INC) -o $@ $< -lm
 $(B)/test_pool: $(T)/test_pool.c $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/quad/quad_voice.c $(HDRS) | $(B)
 	$(CC) $(SAN) $(WARN) $(INC) -o $@ $(T)/test_pool.c $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/quad/quad_voice.c -lm
 SAN_OBJ := $(addprefix $(B)/san/,$(notdir $(CORE_SRC:.c=.o))) $(addprefix $(B)/san/pvg-,$(notdir $(PVG_SRC:.c=.o)))
@@ -167,7 +170,7 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 	$(CC) $(SAN) $(WARN) -o $@ $(T)/test_arena.c
 
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
-TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
+TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx
 test: test-host test-dev budget-ratchet
 	@echo "make test: all passed (host and device sizes)"
@@ -196,6 +199,7 @@ test-dev-run: $(DEV_TESTS)
 
 test-host: $(TESTS)
 	$(B)/test_quad $(T)/quad_goldens
+	$(B)/test_fz_dsp
 	$(B)/test_pool
 	mkdir -p $(OUT)
 	$(B)/test_seq $(T)/seq_goldens $(OUT)

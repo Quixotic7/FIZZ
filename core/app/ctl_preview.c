@@ -29,11 +29,13 @@ int qd_ctl_previewing(const qd_app_t *a)
     return a->ui.mode == QD_MODE_STEP && !a->seq.playing && a->ui.nheld > 0;
 }
 
-static uint32_t fnv(uint32_t h, const void *p, size_t n)
+static uint32_t fnv(uint32_t h, const void *p, size_t n)   /* FNV-1a over n bytes (the published 32-bit prime) */
 {
-    const uint8_t *b = (const uint8_t *)p;
-    while (n--)
-        h = (h ^ *b++) * 16777619u;
+    size_t i;
+    for (i = 0; i < n; i++) {
+        h ^= ((const uint8_t *)p)[i];
+        h *= 0x01000193u;
+    }
     return h;
 }
 

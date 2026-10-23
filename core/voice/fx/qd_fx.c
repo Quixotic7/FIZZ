@@ -30,16 +30,13 @@
                                          * ChoralRoot's hostsim.c builds them) */
 #define CR_FX 1                         /* ChoralRoot's delay, reverb and stereo chorus (cr_fx.c) */
 #define CR_CPU1 0                       /* one core */
-#define NPART 4                         /* (fx.c's fx_sg: ChoralRoot's parts' send ramps; QUADRILLE ramps a voice's,
-                                         * core/voice/mix.c) */
 #define CR_PROFX(k) ((void)0)           /* (cr_cpu1.h's profiling: none) */
 #define CR_PROFX_START() ((void)0)
-#include "cr_tables.h"
-#include "cr_core.h"
-#include "cr_ram.h"                     /* (ChoralRoot's core.h includes it) */
-#include "dsp.c"
-#include "fx.c"
-#include "master.c"
+#include "fz_tables.h"
+#include "fz_core.h"
+#include "cr_ram.h"                     /* (the CR_HOT_* markers: nothing on the host) */
+#include "fz_voice.h"                   /* (fz_dsp.h, fz_chorus_block) */
+#include "fz_out.c"
 #include "cr_fx.c"
 #undef __attribute__
 #if defined(__clang__)
@@ -48,7 +45,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-#define QD_FX_POT_DEFAULT 724           /* master_of_pot(724) = 2047: Felucca's power-on MASTER (master.c's note) */
+#define QD_FX_POT_DEFAULT 724           /* fz_master_of_pot(724) = 2047: the power-on MASTER, half way */
 
 typedef char qd_fx_ctl_ok[QD_FX_CTL == CTL ? 1 : -1];
 
@@ -69,14 +66,8 @@ void qd_fx_init(void)
     memset(xr_buf, 0, sizeof xr_buf);
     memset(xr_pbuf, 0, sizeof xr_pbuf);
     memset(cho_buf, 0, sizeof cho_buf);
-    xc_live = 0;
-    lim_env = LIM_T;
-    lim_g = 32768;
-    dc_l = dc_r = dce_l = dce_r = 0;
+    memset(fx_dc, 0, sizeof fx_dc);
     fx_off = 0;
-    fx_smooth = 1;                      /* (cr_out.c: ChoralRoot's; Classic's limiter only) */
-    fx_lowcut = 0;                      /* (cr_settings.c: ChoralRoot holds LOWCUT / BASS+ off) */
-    fx_usb_fixed = 0;
     /* ChoralRoot's defaults: the delay's and the reverb's (cr_fx.c XFP), the chorus's rate and depth (params.c GP:
      * G_CRATE 40, G_CDEPTH 60), the tempo */
     xf_defaults();
@@ -84,7 +75,7 @@ void qd_fx_init(void)
     song.g[G_BPM] = 120;
     song.g[G_CRATE] = 40;
     song.g[G_CDEPTH] = 60;
-    fx_master_now(master_of_pot(QD_FX_POT_DEFAULT));
+    fx_master_now(fz_master_of_pot(QD_FX_POT_DEFAULT));
     memset(qd_rt, 0, sizeof qd_rt);                      /* (P1.5b: no routing, ChoralRoot's chain) */
     memset(qd_dw, 0, sizeof qd_dw);
     qd_dw_live = 0;
@@ -102,7 +93,7 @@ void qd_fx_tempo(int bpm)
 void qd_fx_master_pot(int pot)
 {
     pot = pot < 0 ? 0 : pot > 1023 ? 1023 : pot;
-    song.master_q12 = master_of_pot((uint32_t)pot);     /* (master.c master_poll: Clean eases it over the block) */
+    song.master_q12 = fz_master_of_pot((uint32_t)pot);  /* (the chain eases it over the block) */
 }
 
 uint32_t qd_fx_master_q12(void) { return song.master_q12; }

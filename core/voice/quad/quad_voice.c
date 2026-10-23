@@ -28,11 +28,11 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif
-#include "cr_tables.h"
-#include "cr_core.h"
+#include "fz_tables.h"                 /* (L1: the tables, tools/gen_fz_tables.py) */
+#include "fz_core.h"                   /* (L1: the declarations eng_quad.c reads) */
 typedef qd_quad_voice_t voice_t;        /* (eng_quad.c's voice_t and track_t: QUADRILLE's voice and owner) */
 typedef qd_quad_owner_t track_t;
-#include "dsp.c"
+#include "fz_voice.h"                   /* (L1: the building blocks, fz_dsp.h, and the envelope, glide, drive) */
 #include "eng_quad.c"
 #include "quad_ext.c"                   /* QUADRILLE (e): FIZZ's extensions (research/FMTONE-DN2-PLAN.md) */
 #if defined(__clang__)
@@ -181,22 +181,14 @@ void qd_quad_voice_legato(qd_quad_voice_t *v, int note, int vel)
  * fixed speed (QE_GLRATE); ChoralRoot's voice.c glide_set / its control tick */
 void qd_quad_voice_glide(qd_quad_voice_t *v, int from)
 {
-    int32_t d, ticks;
     v->gstep = 0;
     if (from < 0 || !v->patch[QD_QP_PORT] || from == v->pitch16) {
         v->pitch_cur = v->pitch16;
         return;
     }
     v->pitch_cur = clamp(from, 0, 127 * 16);
-    if (!v->patch[QD_QP_PSLOPE]) {
-        d = v->pitch16 - v->pitch_cur;
-        d = d < 0 ? -d : d;
-        {   /* (E4: TIME with its modulation, the last block's) */
-            const int32_t tm = clamp(v->patch[QD_QP_PTIM] + v->ptim_mod, 0, 127);
-            ticks = 1 + tm * tm / 8;
-        }
-        v->gstep = d / ticks > 0 ? d / ticks : 1;
-    }
+    if (!v->patch[QD_QP_PSLOPE])                        /* (E4: TIME with its modulation, the last block's) */
+        v->gstep = fz_glide_time_step(v->pitch_cur, v->pitch16, clamp(v->patch[QD_QP_PTIM] + v->ptim_mod, 0, 127));
 }
 
 void qd_quad_voice_kill(qd_quad_voice_t *v)
@@ -207,38 +199,38 @@ void qd_quad_voice_kill(qd_quad_voice_t *v)
     }
 }
 
-/* cr_quad_test.c drv_tick for one voice: done, else render a block at full drive (m.amp1 32767: the engine's own
- * envelopes shape it); a killed voice's block ramps to 0 (voice.c: env_tick stage 4, then m.amp1 = 0), then it ends;
- * a dipped one's too, and it goes on: its next block ramps up from 0 (the engine's amplitude ramp from s->amp) */
+/* one control block of a voice (L1: FIZZ's own driver of the engine's interface): the engine says its amp envelope has
+ * ended -> the voice is free; else the block is rendered at the pitch the glide has reached, its amplitude a ramp
+ * from where the last block ended to full (the engine's envelopes shape it) or to 0 for a voice given up (it ends
+ * after this block: the fade steal) or dipped (PLAN §5: down to 0 and on, its next block ramps up again) */
 int qd_quad_voice_render(qd_quad_voice_t *v, int32_t *out)
 {
     qd_quad_owner_t *t = v->owner;
+    const int32_t full = 32767;
     vmod_t m;
     if (!v->active || !t)
         return 0;
     song.g[G_BPM] = t->bpm;
     if (quad_done(t, v)) {
-        v->active = v->gate = v->kill = 0;
         v->env = v->env_out = 0;
+        v->active = v->gate = v->kill = 0;
         return 0;
     }
-    v->env = 1 << 24;
+    if (v->pitch_cur != v->pitch16)                     /* E1: the glide, a step a block */
+        v->pitch_cur = fz_glide_move(v->pitch_cur, v->pitch16,
+                                     v->gstep ? v->gstep : (int32_t)QE_GLRATE[clamp(v->patch[QD_QP_PTIM] + v->ptim_mod, 0, 127)]);
     memset(&m, 0, sizeof m);
-    m.amp0 = v->env_out;
-    m.amp1 = v->env_out = v->kill || v->dip ? 0 : 32767;   /* (QUADRILLE's dip: to 0 and on, PLAN §5) */
-    if (v->pitch_cur != v->pitch16) {                   /* E1: the glide, a step a block (voice.c's control tick) */
-        const int32_t d = v->pitch16 - v->pitch_cur;
-        int32_t st = v->gstep ? v->gstep : (int32_t)QE_GLRATE[clamp(v->patch[QD_QP_PTIM] + v->ptim_mod, 0, 127)];
-        st = st < 1 ? 1 : st;
-        v->pitch_cur += d > 0 ? (d < st ? d : st) : (-d < st ? d : -st);
-    }
     m.pitch16 = v->pitch_cur;
-    m.inc = pitch_inc((uint32_t)m.pitch16);
-    m.shape = 64 << 8;
+    m.inc = pitch_inc((uint32_t)v->pitch_cur);
+    m.shape = 64 << 8;                                  /* (the engine's middle: FM TONE does not read it) */
+    m.amp0 = v->env_out;
+    v->env_out = v->kill || v->dip ? 0 : full;
+    m.amp1 = v->env_out;
+    v->env = 1 << 24;                                   /* (the voice's own envelope: the engine's are used) */
     quad_render(t, v, out, CTL, &m);
     if (v->kill) {                                      /* (faded to 0 over this block: gone) */
-        v->active = v->gate = v->kill = 0;
         v->env = v->env_out = 0;
+        v->active = v->gate = v->kill = 0;
     }
     return 1;
 }
@@ -252,26 +244,14 @@ int32_t qd_quad_voice_level(const qd_quad_voice_t *v)
 int qd_quad_voice_endless(const qd_quad_voice_t *v) { return v->active && quad_endless(v->owner, v); }
 
 /* ---------------------------------------------------------------- DRIVE (P1.4a) --- */
-/* ChoralRoot v0.25.1 fx.c track_dist, line for line: t->p[P_DIST] is drive (quad_drive's LFO offset added by the
- * caller), t->dist_* the voice's st */
+/* the voice's DRIVE (fz_voice.h fz_drive, L1): drive 0..127 (quad_drive's LFO offset added by the caller), 0 leaves the
+ * state as it is (switching on does not click) */
 void qd_quad_dist(qd_dist_t *st, int drive, int32_t *b, int n)
 {
-    int32_t d = drive, i, g, k, mk, bias = 2400, b0;
-    if (!d)
-        return;                                         /* states kept: switching on does not click */
-    g = 4096 + d * d * 2;                                /* Q12: 1x .. ~9x, gentle at first */
-    k = 32000 - d * 95;                                  /* tone: transparent at low drive .. ~3 kHz, Q15 */
-    mk = 30000 - d * 120;                                /* make-up */
-    b0 = softclip(bias);
-    for (i = 0; i < (int32_t)n; i++) {
-        int32_t x = b[i], y;
-        st->hp += (x - st->hp + 64) >> 7;                /* ~55 Hz low cut: keep the bass out of the clipper */
-        x = clamp(x - st->hp, -230000, 230000);          /* (x >> 2) * g fits 32 bits; the clip is flat out there */
-        y = softclip((((x >> 2) * g) >> 10) + bias) - b0;   /* >> 2 first: no overflow for loud poly */
-        st->lp1 += mulq15(y - st->lp1, k);               /* two poles: tames the fizz */
-        st->lp2 += mulq15(st->lp1 - st->lp2, k);
-        b[i] = mulq15(st->lp2, mk);
-    }
+    fz_drive_t d;
+    d.hp = st->hp, d.lp1 = st->lp1, d.lp2 = st->lp2;
+    fz_drive(&d, drive, b, n);
+    st->hp = d.hp, st->lp1 = d.lp1, st->lp2 = d.lp2;
 }
 
 /* ---------------------------------------------------------------- patches --- */
