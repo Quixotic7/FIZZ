@@ -22,6 +22,16 @@
 #define QD_HOST 1
 #endif
 
+/* P2.1b: the constant data that leaves the app slot for the data region (the fonts, the TAP ape's lines): the device's
+ * build puts each in its own section .qd_xdata.<name>; its link script gathers them at the data region's XIP address
+ * (FM1_XIP(off) = 0x02000000 + off - 0x4000, research/PHASE2-BUDGET.md §1.4), objcopy -j makes the blob, and the
+ * installer writes it there with the firmware (tools/budget counts it apart from the slot). Elsewhere: plain constants */
+#ifdef QD_TARGET_FM1
+#define QD_XDATA(name) __attribute__((section(".qd_xdata." #name)))
+#else
+#define QD_XDATA(name)
+#endif
+
 #ifdef QD_DEVICE
 #define QD_PROFILE_NAME "device"
 /* ---- the sound */

@@ -54,7 +54,7 @@ def c_array(name, data):
     lines = []
     for i in range(0, len(data), 20):
         lines.append('    ' + ','.join('0x%02x' % b for b in data[i:i + 20]) + ',')
-    return 'static const unsigned char %s[%d] = {\n%s\n};\n' % (name, len(data), '\n'.join(lines))
+    return 'static const unsigned char %s[%d] QD_XDATA(%s) = {\n%s\n};\n' % (name, len(data), name, '\n'.join(lines))
 
 
 def main():
@@ -77,7 +77,7 @@ def main():
          '/* Inter Tight (SIL Open Font License 1.1, Copyright 2022 The Inter Project Authors,',
          ' * https://github.com/rsms/inter-tight; assets/fonts/OFL.txt): static instances of the variable font,',
          ' * subset to ASCII, Latin-1 and a few symbols. Included once, by core/gfx/qd_gfx_plutovg.c. */',
-         '#pragma once', '']
+         '#pragma once', '#include "../qd_config.h"                   /* (P2.1b: QD_XDATA, the data region on the device) */', '']
     # P2.1: at the device's sizes (QD_FONTS3, core/qd_config.h) only 300, 500 and 700 (the others map to the nearest)
     three = (300, 500, 700)
     for w, data in parts:

@@ -46,6 +46,10 @@ BUDGET_RAM = FM1_RAM - PLATFORM_RAM - HEADROOM_RAM   # ~425 KB for FIZZ (the aud
 APP_SLOT = 573440                     # D: the app slot, XIP 0x02001000 (app.ld)
 PLATFORM_FLASH = 55000                # E: HAL, ISR, cpu1, USB MIDI + UAC, the LCD driver, OTA / loader, the stub's glue
 MARGIN_FLASH = 8192                   # E: kept free in the slot
+# P2.1b: the constants in .qd_xdata.* (core/qd_config.h QD_XDATA: the fonts, the TAP ape's lines) are a blob the
+# installer writes into the data region (0x97000..0xDFFFF, 292 KiB, read through the XIP window), not the slot.
+# Its share of the data region: 24 sectors (E: the rest stays the stores')
+XDATA_BUDGET = 24 * 4096
 MAIN_STACK = 24320                    # D: the user stack (crt0.S)
 ISR_STACK = 7936                      # D: the system stack (the audio ISR)
 MARGIN_STACK = 2048                   # E: kept free on each
@@ -144,6 +148,8 @@ def parse_map(path):
 
 
 def kind_of(sec):
+    if sec.startswith(".qd_xdata"):                  # (P2.1b: the data region's blob)
+        return ".xdata"
     for k in (".text", ".rodata", ".data", ".bss"):
         if sec.startswith(k):
             return k
@@ -404,11 +410,18 @@ def main():
     else:
         print("  (Docker is not up: the pi32v2 figure skipped; the arm-none-eabi approximation used)")
     budget_flash = APP_SLOT - PLATFORM_FLASH - lib_flash - MARGIN_FLASH
+    xdata = sum(by.get(o, {}).get(".xdata", 0) for o in ("core", "plutovg"))
     print(f"  FIZZ's flash                 {flash:>9} B {kb(flash)}   ({how})")
     print(f"  arm-none-eabi                {arm_flash:>9} B {kb(arm_flash)}")
     print(f"  libc / libm / libgcc (arm)   {lib_flash:>9} B {kb(lib_flash)}")
     print(f"  budget                       {budget_flash:>9} B {kb(budget_flash)} = {APP_SLOT} (the app slot) - "
           f"{PLATFORM_FLASH} (platform, E) - {lib_flash} (libc, M) - {MARGIN_FLASH} (margin)")
+    print(f"  the data blob (.qd_xdata)    {xdata:>9} B {kb(xdata)}   budget {XDATA_BUDGET} B (24 of the data region's 73"
+          f" sectors): the fonts and the ape's lines, written by the installer, read through XIP; not in the slot")
+    for m in sorted(mods):
+        x = mods[m].get(".xdata", 0)
+        if x:
+            print(f"    {m:<26} {x:>9} B")
 
     print("\nstack (static chains: calls through pointers not followed, a lower bound)")
     for root, (n, chain) in stacks.items():
@@ -426,14 +439,16 @@ def main():
         over.append(f"RAM {ram} > {BUDGET_RAM} (over by {ram - BUDGET_RAM} B)")
     if flash > budget_flash:
         over.append(f"flash {flash} > {budget_flash} (over by {flash - budget_flash} B)")
+    if xdata > XDATA_BUDGET:
+        over.append(f"data blob {xdata} > {XDATA_BUDGET} (over by {xdata - XDATA_BUDGET} B)")
     if ui + MARGIN_STACK > MAIN_STACK:
         over.append(f"main stack {ui} + {MARGIN_STACK} > {MAIN_STACK}")
     if au + MARGIN_STACK > ISR_STACK:
         over.append(f"audio stack {au} + {MARGIN_STACK} > {ISR_STACK}")
-    print("\nBUDGET-LINE ram=%d/%d flash=%d/%d stack_main=%d/%d stack_audio=%d/%d" % (ram, BUDGET_RAM, flash,
-          budget_flash, ui, MAIN_STACK, au, ISR_STACK))
+    print("\nBUDGET-LINE ram=%d/%d flash=%d/%d stack_main=%d/%d stack_audio=%d/%d xdata=%d/%d" % (ram, BUDGET_RAM,
+          flash, budget_flash, ui, MAIN_STACK, au, ISR_STACK, xdata, XDATA_BUDGET))
     now = {"ram": ram, "flash_" + ("pi32v2" if flash != arm_flash else "arm"): flash, "flash_arm": arm_flash,
-           "stack_main": ui, "stack_audio": au}
+           "stack_main": ui, "stack_audio": au, "xdata": xdata}
     if "--ratchet-set" in sys.argv:
         with open(RATCHET, "w") as f:
             f.write("# P2.1: the device profile's ceilings (tools/budget/budget.py --ratchet fails above any of them):\n"

@@ -4,6 +4,8 @@
 #pragma once
 #include <stdint.h>
 
+#include "../qd_config.h"                   /* (P2.1b: QD_XDATA, the data region on the device) */
+
 #define APE_NPOSE 12
 #define APE_NCOL 5
 #define APE_NBYTES 16808
@@ -14,7 +16,7 @@ typedef struct {
     uint8_t n[APE_NCOL];                /* .. its polylines */
 } ape_pose_t;
 
-static const uint8_t APE_BYTES[APE_NBYTES] = {
+static const uint8_t APE_BYTES[APE_NBYTES] QD_XDATA(APE_BYTES) = {
     2, 101, 1, 142, 255, 4, 254, 4, 2, 70, 0, 3, 246, 5, 245, 13, 250, 16, 1, 16, 247, 0, 66, 254,
     253, 251, 1, 66, 2, 2, 5, 0, 9, 249, 254, 236, 250, 233, 0, 245, 4, 232, 4, 0, 243, 252, 241, 247,
     242, 243, 249, 254, 252, 68, 5, 253, 20, 1, 25, 11, 27, 1, 129, 71, 246, 10, 0, 3, 128, 241, 0, 5,
