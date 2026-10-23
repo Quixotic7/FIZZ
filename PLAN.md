@@ -1514,6 +1514,19 @@ owner's decisions on its §7:
 - **Phase 1 from now on**: memory and containers must fit the device sizes on every merge; screen designs stay free
   until the drawing is settled on the unit.
 
+**The base: fm1-base, not TransitFM1 (the owner, 2026-10-23).** github.com/charlesvestal/fm1-base (Charles Vestal,
+on felucca-bsp): **MPL-2.0**, file by file, so an app on it may take any licence and may link JieLi's closed Bluetooth
+libraries. It brings the platform FIZZ needs (screen, panel, LEDs, audio, the second core, MIDI over USB and TRS,
+storage, the installer, a host simulator and a browser emulator, screen mirroring, USB audio, backups) and, later,
+Bluetooth MIDI. Decided with it:
+- **FIZZ's own code becomes MPL-2.0** (it was GPL-3.0-only), so a Bluetooth build can be distributed.
+- **Leo Kuroshita's Felucca code in FIZZ** (from ChoralRoot's fork: `dsp.c`, parts of the effects, the generated
+  tables, and whatever else the provenance audit finds) is **rewritten**, not relicensed.
+- **The first device build is USB only**; Bluetooth (~69 KB of RAM, ~124 KB of flash on fm1-base's template) comes
+  later, with its own budget.
+- The budget gate is re-measured against fm1-base's real platform cost (its template: 27 KB RAM + 68 KB pool + 77 KB
+  flash without a radio), replacing the TransitFM1 estimate behind today's 425,032 B.
+
 **Known budgets to settle on the device** (from Phase 1):
 - **The TAP ape** (0.9.2-tap-ape.1): its pose data is ~17 KB of flash; its speed comes from caching whole poses in
   layers, **~415 KB of RAM** (3 poses × 138 KB: a 175 × 158 RGBA pose and its half-size flash layer). Options measured:
