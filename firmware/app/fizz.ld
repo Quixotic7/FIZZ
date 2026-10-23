@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: MPL-2.0 */
-/* FIZZ's link: fm1-base's device/app.ld (ced9443) with two changes, used in its place by firmware/build.py.
+/* FIZZ's link: fm1-base's device/app.ld (ced9443) with three changes, used in its place by firmware/build.py.
  *   1. FIZZ's zero-initialised data (its units are the objects in build/o2/) spread over four regions, by unit (the
  *      compiler has no -fdata-sections: a unit's .bss is one piece):
  *        the pool          fz_port.c's (the one qd_app_t) and the effects' (qd_fx.c: the delay, the reverb, the chorus)
- *        RAM code region   after the RAM code: the voices' (quad_voice.c: the comb lines) and FIZZ's app.c's
+ *        RAM code region   after the RAM code: the voices' (quad_voice.c: the comb lines)
  *        NOINIT            after fm1-base's records: the view's and two screens' (view.c, ui_idle.c, ui_keys.c)
  *        RAM               the rest of FIZZ's, with the platform's
  *      crt0 clears only .bss and the pool: app.c clears the other two before FIZZ starts (_fz_rt_start.._fz_rt_end,
@@ -13,6 +13,12 @@
  *      off - 0x4000), read in place through the plain window main_fm1.c opens from 0x93000 up. It is not in the app
  *      image: firmware/build.py cuts it out (fizz-xdata.bin) and firmware/tools/fizz_xdata.py writes it there, with
  *      a 12-byte trailer after it (fz_port.c).
+ *   3. (P2.6) Audio code in RAM: the effects' unit (qd_fx.c) and the mix (mix.c), whole, copied at boot with the rest
+ *      of .ram_text: out of the flash cache's way (the drawing's code evicts it between halves). It runs only in the
+ *      audio interrupt (and their set-up on the main loop), never while the flash is off (the flash is programmed and
+ *      erased with the interrupts off), so like fm1-base's second-core code it may call into the flash: it sits in
+ *      the window fm1-base's build check exempts (_c1_start.._c1_end). The voices' quad_render (19 KB) needs the RAM
+ *      code region's data out first (BUDGET.md).
  * The regions, the stacks and fm1-base's symbols are as app.ld has them. */
 MEMORY
 {
@@ -25,20 +31,21 @@ MEMORY
 }
 SECTIONS
 {
-    .text : { KEEP(*(.text.crt0)) *(.text*) *(.rodata*)
+    .text : { KEEP(*(.text.crt0)) *(EXCLUDE_FILE(*/o2/build_units_c_qd_fx.o */o2/build_units_c_mix.o) .text*) *(.rodata*)
               *(.bt_stack_code .ble_sm_code .hci_controller_code .ble_hci_code .ble_att_code .ble_db_code
                 .classic_lmp_code .link_bulk_code .classic_rf_code .lmp_irq_code .ble_gatt_code .ble_ll_code
                 .ble_rf_code .bt_rf_code .hci_interface_code .vendor_manager_code .device_manager_code)
               *(.*_const)
               . = ALIGN(4); _etext = .; } > XIP
     .ram_text : { _rt_start = .; KEEP(*(.ram_text*)) *(.volatile_ram_code) *(*.rf.text.cache.L2.rf_trim)
-                  . = ALIGN(4); _c1_start = .; KEEP(*(.c1_text*)) . = ALIGN(4); _c1_end = .;
+                  . = ALIGN(4); _c1_start = .; KEEP(*(.c1_text*))
+                  */o2/build_units_c_qd_fx.o(.text*) */o2/build_units_c_mix.o(.text*)
+                  . = ALIGN(4); _c1_end = .;
                   _rt_end = .; } > RAMTEXT AT > XIP
     _rt_load = LOADADDR(.ram_text);
     .data : { . = ALIGN(4); _data_start = .; *(.data*) *(.sdata*) *(.*_data) . = ALIGN(4); _data_end = .; } > RAM AT > XIP
     _data_load = LOADADDR(.data);
     .fz_rt (NOLOAD) : { . = ALIGN(4); _fz_rt_start = .; */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)
-                       */o2/build_units_c_app.o(.bss* .sbss* COMMON)
                        . = ALIGN(4); _fz_rt_end = .; } > RAMTEXT
     .noinit (NOLOAD) : { *(.noinit*) } > NOINIT
     .fz_ni (NOLOAD) : { . = ALIGN(4); _fz_ni_start = .; */o2/build_units_c_view.o(.bss* .sbss* COMMON)

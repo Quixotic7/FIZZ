@@ -26,6 +26,9 @@
 #include "fz_prof.h"
 
 static void fz_message(const char *a, const char *b);
+#ifndef PLAT_HOST
+static int remote_frame(const uint8_t *p, uint32_t n);   /* (main_fm1.c's, later in the unity build) */
+#endif
 void fz_watchdog(void)                   /* (fizz_port.h: the store's flash flows feed it at each operation) */
 {
 #ifndef PLAT_HOST
@@ -112,11 +115,13 @@ static void fz_midi_isr(void)            /* USB and the TRS jack (fm1-base's que
 }
 
 #define FZ_RAMP_STEP 48u                 /* the start's ramp a half: 4096 in 86 halves, 0.5 s */
-#define FZ_OVER_US 4600u                 /* the guard: a half's sound over this (80 % of 5,805 us) .. */
-#define FZ_OVER_HALVES 8u                /* .. this many halves in a row: every voice let go */
+#define FZ_OVER_US 4930u                 /* the shed (P2.6, ChoralRoot's): a half's sound over this (85 % of 5,805 us) ..
+                                          * .. lets one voice go, at most every FZ_SHED_GAP halves */
+#define FZ_SHED_GAP 2u
 static uint32_t fz_ramp;                 /* 0..4096: the sound's start, from silence */
 static int32_t fz_gain;                  /* the last half's gain (Q12) */
-static volatile uint32_t fz_over, fz_over_run, fz_sheds;   /* halves over FZ_OVER_US; in a row; the voices let go */
+static volatile uint32_t fz_over, fz_over_run, fz_sheds;   /* halves over FZ_OVER_US; halves since the last shed; voices
+                                                            * let go */
 
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
@@ -153,17 +158,14 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         fz_prof.isr_max = d;
     if (fz_in_frame)
         fz_prof.isr_in_frame += d;
-    if (d > FZ_OVER_US * PLAT_TICKS_PER_US) {   /* the guard: the sound took most of its half, half after half */
+    if (fz_over_run < FZ_SHED_GAP)
+        fz_over_run++;
+    if (d > FZ_OVER_US * PLAT_TICKS_PER_US) {   /* the shed: the sound took most of its half: one voice let go */
         fz_over++;
-        if (++fz_over_run >= FZ_OVER_HALVES) {   /* .. every voice let go (all sound off on every channel) */
-            int ch;
-            for (ch = 0; ch < 16; ch++)
-                fz_midi_play(0xB0 | ch, 120, 0);
-            fz_over_run = 0;
+        if (fz_over_run >= FZ_SHED_GAP && fz_shed_one()) {
             fz_sheds++;
+            fz_over_run = 0;
         }
-    } else {
-        fz_over_run = 0;
     }
 }
 
@@ -443,11 +445,8 @@ static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region 
 #endif
         fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
         fz_ticked = 0;
-        if (fz_ok && !fz_safe) {
-            const uint32_t f = fz_lock();
-            fz_store_attach();
-            fz_unlock(f, FZ_LOCK_EVENT);
-        }
+        if (fz_ok && !fz_safe)
+            fz_store_attach();           /* (no lock: app_panic turned the sound off) */
     }
     c = fz_put_u(c, "wiped=", (uint32_t)fz_wiped);
     *c = 0;
@@ -543,6 +542,15 @@ static void fz_strip_out(void *ctx, int y0, int rows, const uint16_t *px)   /* o
         fz_rows_sent += (uint32_t)(last - first + 1);
     }
     fz_prof.lcd += plat_ticks24() - t;
+#ifndef PLAT_HOST
+    {   /* fm1-base's remote (fm1_remote.py: 7D 4C 43) taken here too: its SysEx buffer holds one frame, and a tap's
+         * release arriving while a slow frame keeps the press waiting there was dropped (the button then stuck) */
+        const uint8_t *p;
+        uint32_t k;
+        if (ota_frame_get(&p, &k) && remote_frame(p, k))
+            ota_frame_done();
+    }
+#endif
 #ifdef PLAT_HOST
     if (!fz_host_sync)                   /* (render_frames gives nothing between strips) */
 #endif
@@ -625,11 +633,8 @@ static void fz_store_start(void)         /* the store, once, at the first screen
         fz_message("FIZZ: CLEARING ITS STORE", "ONCE, A FEW SECONDS");
         fz_wiped = fz_store_wipe();
     }
-    {
-        const uint32_t f = fz_lock();
-        fz_store_attach();
-        fz_unlock(f, FZ_LOCK_EVENT);
-    }
+    fz_store_attach();                   /* (no lock: the sound is not on yet, the interrupt leaves FIZZ alone; the
+                                          * mount reads the region, ~0.1 s, the panel's scan going on) */
 }
 
 void app_ui_init(void)

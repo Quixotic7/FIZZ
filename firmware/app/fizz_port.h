@@ -37,6 +37,7 @@ int fz_sysex_take(uint8_t *out, uint32_t max);
 void fz_tick(uint32_t ms);
 void fz_audio(int16_t *stereo, uint32_t frames);
 uint32_t fz_audio_loads(void);                     /* patterns the sound had to load itself (should be 0) */
+int fz_shed_one(void);                              /* (the interrupt's) a voice let go: the key up first, else the oldest */
 void fz_state_line(char *line);                     /* FIZZ's state for the stats (up to ~400 characters) */
 /* the LEDs: a level 0..255 a key (27) and a button (14), PLAY's green */
 void fz_leds(uint8_t *key, uint8_t *button, uint8_t *play_green);

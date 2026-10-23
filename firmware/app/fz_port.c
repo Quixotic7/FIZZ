@@ -187,6 +187,27 @@ void fz_audio(int16_t *stereo, uint32_t frames)
 }
 uint32_t fz_audio_loads(void) { return fz_isr_loads; }
 
+/* P2.6: the audio interrupt over its time: one voice let go, as ChoralRoot's shed (its fade steal: a block's ramp to 0).
+ * The one whose key is up first (a release tail), else the oldest; never one already fading. 1: one was */
+int fz_shed_one(void)
+{
+    qd_pool_t *p = &fz_app.pool;
+    int i, best = -1, best_up = 0;
+    for (i = 0; i < p->nvoice; i++) {
+        const qd_quad_voice_t *q = &p->v[i].q;
+        const int up = !q->gate;
+        if (!q->active || q->kill)
+            continue;
+        if (best < 0 || up > best_up || (up == best_up && p->v[i].age < p->v[best].age))
+            best = i, best_up = up;
+    }
+    if (best < 0)
+        return 0;
+    p->v[best].pend = 0;
+    qd_quad_voice_kill(&p->v[best].q);
+    return 1;
+}
+
 /* P2.5: FIZZ's state for the stats (7D 46 50, line 4): what may make the sound or the store busy */
 static char *st_u(char *q, const char *label, uint32_t v)
 {

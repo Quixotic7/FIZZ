@@ -10,6 +10,7 @@
 What it adds to fm1-base's build (each a small patch of its module, applied here):
   - the toolchain's container sees the whole repository (FIZZ's core/ and third_party/ are above firmware/): its root
     is the repository, not fm1-base's and the app's common directory;
+  - FIZZ's units are compiled for long calls (-pi32v2-large-program: they call between the flash and the RAM code);
   - FIZZ's units find newlib's headers (the JieLi toolchain's pi32v2/include, after everything else) and link newlib's
     libm, libc and the compiler's runtime (r3: the FPU's), which an fm1-base app without Bluetooth links nothing of;
   - the link script is firmware/app/fizz.ld (FIZZ's zero-initialised data in the pool; the data blob at the data
@@ -62,6 +63,10 @@ def tc(tool, *args):
     args = list(args)
     if tool == "cc" and "-c" in args and any(isinstance(a, Path) and a.suffix == ".c" for a in args):
         args = ["-idirafter", jieli("pi32v2/include"), *args]
+        if any(isinstance(a, Path) and "o2" in a.parts and a.suffix == ".o" for a in args):
+            # (P2.6: FIZZ's units call between the flash and the RAM code region, 4 MiB apart: long calls, as
+            # fm1-base's Bluetooth build makes them)
+            args = ["-mllvm", "-pi32v2-large-program=true", *args]
     if tool == "pi32v2/bin/ld":
         for i, a in enumerate(args):
             if isinstance(a, Path) and a.name in ("app.ld", "app_wifi.ld"):

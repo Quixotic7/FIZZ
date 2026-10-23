@@ -245,3 +245,34 @@ What the port now does against it:
   core's own handling of a foreign region (`fznowipe`) was also measured: no extra cost in the sound, the sectors
   erased once quiet.
 - fm1-base's canvas is 240 x 16 now (`APP_BIG_FONT FONT_B`): the pool was 32 B short after the core's sound scratch.
+
+## P2.6 (device side, first part): audio code in RAM, the shed, the remote, the boot lock (2026-10-23)
+
+The unit with P2.5b, playing the first-boot demo: the interrupt 3.8 ms a half on average (59 %), 98 xruns; by part
+voices 2,546 us with 4..7 voices, effects 856, sequencer 301; idle voices 392 us with none sounding. Against the host
+(idle voices ~2 us a half) the unit is ~200x slower, not the ~85x the audit calibrated on ChoralRoot's code: the
+audio code runs from the flash through the XIP cache, and the fast drawing's code (in the flash too) runs between the
+halves and evicts it.
+
+- **Audio code in RAM**: the effects' unit (qd_fx.c: the reverb, the delay, the chorus, the output) and the mix
+  (mix.c), whole, 11.9 KB, in the RAM code region (fizz.ld change 3). FIZZ's units are compiled for long calls
+  (`-pi32v2-large-program`, as fm1-base's Bluetooth build): the flash and the RAM code are 4 MiB apart, out of a
+  direct call's reach. FIZZ's app.c data moved from the RAM code region to RAM. The region: 15,092 B of code (fm1-base's
+  3.1 KB with it), 16,420 B of the voices' data, 1,256 B free. **`quad_render` (19,210 B) does not fit yet**: the
+  voices' 16 KB of comb lines (`QE_NCOMB 8`) must leave the region first, and RAM (2,896 B free), the pool
+  (3,808 B above fm1-base's spare) and NOINIT (3,032 B) cannot take them whole.
+- **The shed** (ChoralRoot's): a half over 85 % (4.93 ms) lets one voice go (its key up first, else the oldest; never
+  one already fading: the fade steal's one-block ramp), at most every second half; `over_halves`, `sheds`.
+- **The remote**: fm1-base keeps one SysEx frame at a time and drops a frame that arrives while one waits; a tap's
+  release came while a slow frame kept the press waiting, so the button stuck (the next tap seemed ignored). The
+  port now takes fm1-base's remote frames (7D 4C 43) between strips too.
+- **The ~104 ms lock** was the port's own: the store's mount (73 sectors read, the project read) inside a lock at the
+  first screen. The sound is not on then, so no lock: the panel's scan and USB go on.
+
+**For `quad_render` in RAM (core):** ~19 KB of the RAM code region back: the comb lines out of it (`QE_NCOMB 8 -> 4`
+saves 8 KB; or the comb lines lent from the drawing's arena, 27 KB at GFX=fast, when a voice runs a comb), plus ~3 KB
+elsewhere (the arena 27 KB -> 24 KB, or the delay 64 -> 56 KB). **The second core** (8 + 8 voices) needs, from the core,
+a voice render split (`qd_mix_block` on a range of the pool's voices into its own buses, the two summed before the
+effects), and from the platform a working second core: felucca-bsp's `fm1_cpu1.h` says "EXPERIMENTAL: compiles, has
+not run on a device", and fm1-base has no `plat_cpu2_*` yet; ChoralRoot's second core works (DUALCORE.md) but its code
+is ChoralRoot's (GPL), so FIZZ's would be written for fm1-base anew.
