@@ -2305,7 +2305,7 @@ static void u_edit(void)
     qd_tdef_set(&P, 2, QD_PM_NOTE, 50);
     qd_tdef_set(&P, 2, QD_PM_VEL, 90);
     qd_tdef_set(&P, 2, QD_PM_LEN, 6);
-    CHECK(sizeof(qd_step_t) == 20 && sizeof(qd_lock_t) == 4, "step 20 bytes (P1.3w; %d), lock 4 (%d)",
+    CHECK(sizeof(qd_step_t) == 16 && sizeof(qd_lock_t) == 4, "step 16 bytes (P2.1c; %d), lock 4 (%d)",
           (int)sizeof(qd_step_t), (int)sizeof(qd_lock_t));
     rr = qd_step_on(&P, 2, 5);
     st = qd_step(&P, 2, 5);

@@ -76,6 +76,18 @@ int qd_init(void)
     QD_ARENA(0);
     return r;
 }
+#ifdef QD_DEVICE
+void plutovg_font_face_cache_release(plutovg_font_face_t *face);
+/* P2.1c: between frames, the drawing's kept memory back to the arena (a loan needs it): the glyphs, the kept arrays */
+static void qd_gfx_release(void)
+{
+    int i;
+    for (i = 0; i < QD_FONTS_GEN_N; i++)
+        plutovg_font_face_cache_release(qd_face[i]);
+    if (qd_cv)
+        plutovg_canvas_trim(qd_cv, 0);
+}
+#endif
 static int qd_init_(void)
 {
     int i;
@@ -93,6 +105,9 @@ static int qd_init_(void)
     for (i = 0; i < QD_FONTS_GEN_N; i++)
         if (!qd_face[i])
             return 0;
+#ifdef QD_DEVICE
+    qd_arena_set_release(qd_gfx_release);
+#endif
     return qd_cv && qd_tmp;
 }
 

@@ -208,6 +208,13 @@ static void plutovg_glyph_cache_finish(plutovg_glyph_cache_t* cache, plutovg_fon
     plutovg_mutex_unlock(&face->mutex);
 }
 
+/* FIZZ (P2.1c): a face's glyph cache emptied, its memory back (between frames: the arena's loans) */
+void plutovg_font_face_cache_release(plutovg_font_face_t* face)
+{
+    if(face)
+        plutovg_glyph_cache_finish(&face->cache, face);
+}
+
 #ifdef PLUTOVG_GLYPH_CACHE_MAX
 #define GLYPH_CACHE_INIT_CAPACITY 16                    /* (FIZZ P2.1b: a cache of PLUTOVG_GLYPH_CACHE_MAX, 8) */
 #else

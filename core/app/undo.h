@@ -26,8 +26,14 @@
  * gesture changes are copied by the code that changes them, before it does (qd_undo_snd: at most QD_UNDO_NSLOT a
  * gesture) and stored in the level as their XOR with what they became; the MIDI FX groups are copied as before. A
  * gesture the log cannot hold (its pattern too big to keep with the levels, more slots) is no level (as a difference
- * too big always was). The snapshot and the pattern clipboard are kept compressed in QD_SNAP_BYTES (a pattern that
- * does not fit is not taken: its confirm says so). The host keeps Phase 1's whole copies: the same levels. */
+ * too big always was). The snapshot and the pattern clipboard are kept compressed (P2.1c: in the log; a pattern that
+ * does not fit is not taken: its confirm says so). The host keeps Phase 1's whole copies: the same levels.
+ *
+ * P2.1c, THE ONE LOG (the device's): the 16 KB holds everything, from the top down: the snapshot and the pattern
+ * clipboard (compressed: keep bytes, the clipboard's last), the open gesture's copies (its pattern compressed, the
+ * MIDI FX groups, then its slots' and other patterns' locks' records as they come: the region pool[glo .. gend)),
+ * and from the bottom up the levels. Whatever needs room takes it from the oldest levels; what still does not fit
+ * is not taken (a snapshot, a copy: "too big"; a gesture: no level). */
 #pragma once
 #include <stdint.h>
 
@@ -63,19 +69,22 @@ typedef struct {
     uint32_t last_ms;
     int pat;
 #ifdef QD_UNDO_SLOTS
-    uint32_t top;                      /* P2.1: the gesture's pattern as it was: pool[top .. QD_UNDO_POOL) (0: none) */
+    uint32_t keep;                     /* P2.1c: the snapshot's and the clipboard's bytes: pool[POOL - keep .. POOL) */
+    uint32_t glo, gpz;                 /* .. the gesture's region pool[glo .. POOL - keep) (none: glo = POOL - keep);
+                                        * its pattern as it was, compressed, gpz bytes at its top */
     int b_ok;                          /* .. kept (else the gesture is no level) */
-    int nslot;                         /* .. the slots changed: region, slot, their copies before */
+    int nslot;                         /* .. the slots changed: region, slot (their copies before: in the region) */
     uint8_t slot_r[QD_UNDO_NSLOT], slot_k[QD_UNDO_NSLOT];
-    qd_sound_t slot0[QD_UNDO_NSLOT];
 #else
     qd_pattern_t pat0;
     qd_sound_t snd0[QD_NSOUND];
     qd_sound_t lib0[QD_NLIB_UNDO];
 #endif
     uint8_t nsound0;
+#ifndef QD_UNDO_SLOTS
     qd_mfx_group_t mfx0[QD_MFX_NGROUP];   /* P1.6c: the MIDI FX groups (a fourth region) */
     uint8_t xl[QD_UNDO_XLOCKS * 5];    /* P1.5w: the other patterns' locks cleared (pattern, track, step, number, ovr) */
+#endif
     uint32_t xl_n;
     int xl_over;
     /* the levels: lvl[0 .. n), pos of them applied (undo: pos - 1; redo: pos) */
@@ -85,8 +94,7 @@ typedef struct {
     uint32_t used;
     /* the snapshot of the active pattern (SHIFT + B1 / B3) and the pattern clipboard (SHIFT + B4 / B5); RAM only */
 #ifdef QD_UNDO_SLOTS
-    uint8_t snapb[QD_SNAP_BYTES];      /* P2.1: both compressed: the snapshot's bytes first, then the clipboard's */
-    uint32_t snap_len, pclip_len;
+    uint32_t snap_len, pclip_len;      /* P2.1c: in the log's top (keep): the snapshot's bytes, then the clipboard's */
 #else
     qd_pattern_t snap, pclip;
 #endif

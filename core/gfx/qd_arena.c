@@ -37,6 +37,8 @@ int qd_arena_use(int on) { (void)on; return 1; }
 #endif
 static uint32_t ar_mem[QD_GFX_ARENA / 4u];
 static uint32_t ar_live, ar_peak, ar_fails;
+static void (*ar_rel)(void);                    /* (P2.1c: the drawing's kept memory given back, between frames) */
+static int ar_lending;
 static int ar_ready;
 
 #define AR_W(i) ar_mem[(i) / 4u]                        /* (a 4-byte word at byte offset i) */
@@ -157,6 +159,14 @@ void *qd_arena_malloc(size_t n)
             return (uint8_t *)ar_mem + at + 4u;
         }
     }
+    if (ar_lending && ar_rel) {                         /* (P2.1c: a loan: the drawing's kept memory back, once more) */
+        void *p;
+        ar_lending = 0;
+        ar_rel();
+        p = qd_arena_malloc(n);
+        ar_lending = 1;
+        return p;
+    }
     ar_fails++;
 #if !defined(QD_TARGET_FM1)
 #ifdef QD_ARENA_DEBUG
@@ -265,3 +275,12 @@ size_t qd_arena_peak(void) { return ar_peak; }
 size_t qd_arena_live(void) { return ar_live; }
 size_t qd_arena_size(void) { return sizeof ar_mem; }
 unsigned qd_arena_fails(void) { return ar_fails; }
+void qd_arena_set_release(void (*fn)(void)) { ar_rel = fn; }
+void *qd_arena_lend(size_t n)
+{
+    void *p;
+    ar_lending = 1;
+    p = qd_arena_malloc(n);
+    ar_lending = 0;
+    return p;
+}

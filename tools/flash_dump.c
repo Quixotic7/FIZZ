@@ -68,7 +68,15 @@ static uint32_t pat_hash(const qd_pattern_t *p)
     HV(p->master), HV(p->swing), HV(p->used), HV(p->bpm), HV(p->nlock);
     H(p->trk, sizeof p->trk);                           /* (the records keep these as they are) */
     H(p->lock_start, sizeof p->lock_start), H(p->lock_n, sizeof p->lock_n);
-    H(p->step, sizeof p->step);
+    {   /* (P2.1c: the steps as the records keep them: their 20-byte layout, as the older cores' dumps hash them) */
+        int s;
+        for (t = 0; t < QD_PAT_NTRACK; t++)
+            for (s = 0; s < QD_NSTEP; s++) {
+                uint8_t w[QD_STEP_WIRE];
+                qd_step_wire(&p->step[t][s], w);
+                H(w, QD_STEP_WIRE);
+            }
+    }
     H(p->lock, (size_t)p->nlock * sizeof p->lock[0]);
     for (t = 0; t < QD_PAT_NTRACK; t++)
         tsnd_hash(&p->snd[t]);

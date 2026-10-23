@@ -28,6 +28,10 @@ size_t qd_arena_peak(void);             /* the most it has held at once (bytes, 
 size_t qd_arena_live(void);
 size_t qd_arena_size(void);
 unsigned qd_arena_fails(void);          /* requests it could not meet (the drawing skips what needed them) */
+/* P2.1c: room lent between frames (pattern.h qd_tmp_borrow): when the free room is in pieces, the drawing's kept memory
+ * (its glyphs, its kept arrays: qd_arena_set_release's function) is given back first, then it is tried again */
+void *qd_arena_lend(size_t n);
+void qd_arena_set_release(void (*fn)(void));
 int qd_arena_use(int on);               /* (the host's: the core drawing now; else the C library's, a tool's own); the
                                          * setting before */
 

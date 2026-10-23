@@ -51,15 +51,16 @@
 /* ---- the sounds (P2.1: the pool's and MY presets' in the store; seq/sounds.h) */
 #define QD_SND_RAM 8                   /* in RAM (their names, ids and tags all: the lists') */
 /* ---- undo (P2.1: a log; app/undo.h) */
-#define QD_UNDO_POOL 16384u            /* the levels and the open gesture's pattern as it was (compressed) */
+#define QD_UNDO_POOL 16384u            /* the one log (P2.1c): the levels, the open gesture's copies, the snapshot and
+                                        * the pattern clipboard (compressed) */
 #define QD_UNDO_XLOCKS 512             /* the other patterns' locks a pool slot's emptying cleared */
 #define QD_UNDO_NSLOT 8                /* pool / library slots a gesture changes (their before: copies) */
-#define QD_SNAP_BYTES 8192u            /* the snapshot and the pattern clipboard, compressed */
 #define QD_CLIP_ZBYTES 8192u           /* the eight tracks' clip undo levels (seq/clip.h), compressed */
 /* ---- the drawing (P2.1: core/gfx) */
 #define QD_STRIP_H QD_STRIP_DEV        /* the screen drawn in strips of this many rows (a 240 x 20 ARGB surface) */
-#define QD_GFX_ARENA 49152u            /* plutovg's fixed arena (qd_arena.h: no heap; P2.1b: render_frames' worst paint
-                                        * 41 928 B, nothing refused) */
+#define QD_GFX_ARENA 40960u            /* plutovg's fixed arena (qd_arena.h: no heap). P2.1c: 40 KB (render_frames'
+                                        * worst paint 35 552 B at 20-row strips, nothing refused) */
+#define QD_GFX_MARGIN 4096u            /* P2.1c: kept free at the worst paint (render_frames, test_ctl fail past it) */
 #define QD_FONTS3 1                    /* Inter Tight in three weights, 300 500 700 (the others: the nearest, upward) */
 #define QD_GLYPH_CACHE 1               /* glyph outlines plutovg keeps a weight (P2.1b: one: each read when drawn) */
 #define QD_GFX_KEEP 1024u              /* P2.1b: a canvas array above this goes back to the arena after its paint */

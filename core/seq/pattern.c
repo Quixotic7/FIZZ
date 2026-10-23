@@ -633,6 +633,34 @@ const qd_step_t *qd_step(const qd_pattern_t *p, int t, int s)
     return ts_ok(t, s) ? &p->step[t][s] : &none;
 }
 int qd_step_is_on(const qd_step_t *st) { return (st->flags & QD_SF_ON) != 0; }
+
+/* P2.1c: the records' layout: ovr (16 bits, little-endian), flags (0x01 on, 0x80 locks), type, the six notes, vel,
+ * len, micro, ratch, chance, cond, sound, strum, func, mfx */
+void qd_step_wire(const qd_step_t *st, uint8_t *w)
+{
+    int k;
+    w[0] = (uint8_t)(st->ovr & 0xFFu), w[1] = (uint8_t)(st->ovr >> 8);
+    w[2] = (uint8_t)((st->flags & QD_SF_ON ? 0x01u : 0u) | (st->flags & QD_SF_LOCKS ? 0x80u : 0u));
+    w[3] = (uint8_t)st->type;
+    for (k = 0; k < QD_NNOTE; k++)
+        w[4 + k] = st->note[k];
+    w[10] = st->vel, w[11] = (uint8_t)st->len, w[12] = (uint8_t)(int8_t)st->micro, w[13] = (uint8_t)st->ratch;
+    w[14] = st->chance, w[15] = (uint8_t)st->cond, w[16] = st->sound, w[17] = (uint8_t)st->strum;
+    w[18] = st->func, w[19] = (uint8_t)st->mfx;
+}
+void qd_step_unwire(qd_step_t *st, const uint8_t *w)
+{
+    int k;
+    memset(st, 0, sizeof *st);
+    st->ovr = (uint16_t)((w[0] | w[1] << 8) & 0x3FF);
+    st->flags = (uint16_t)((w[2] & 0x01u ? QD_SF_ON : 0u) | (w[2] & 0x80u ? QD_SF_LOCKS : 0u));
+    st->type = (uint16_t)(w[3] & 3u);
+    for (k = 0; k < QD_NNOTE; k++)
+        st->note[k] = w[4 + k];
+    st->vel = w[10], st->len = (uint16_t)(w[11] & 31u), st->micro = (int16_t)(int8_t)w[12];
+    st->ratch = (uint16_t)(w[13] & 63u), st->chance = w[14], st->cond = (uint16_t)(w[15] & 63u), st->sound = w[16];
+    st->strum = (uint16_t)(w[17] & 31u), st->func = w[18], st->mfx = (uint16_t)(w[19] & 7u);
+}
 int qd_step_overrides(const qd_step_t *st, int pm) { return (st->ovr >> pm) & 1u; }
 
 int qd_notes_abs(const uint8_t *note6, uint8_t *notes)
@@ -659,7 +687,7 @@ void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r)
 void *qd_tmp_borrow(size_t n)
 {
     const int was = qd_arena_use(1);                    /* (the host at the device's sizes: the arena, as the unit) */
-    void *p = qd_arena_malloc(n);
+    void *p = qd_arena_lend(n);                         /* (P2.1c: the drawing's kept memory back if it must) */
     qd_arena_use(was);
     return p;
 }

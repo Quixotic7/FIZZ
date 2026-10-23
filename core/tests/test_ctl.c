@@ -5982,8 +5982,87 @@ static void undo_redo(int dir)
     bup(SHIFT);
     run(20);
 }
+/* P2.1c: the one log (the device's): the snapshot and the pattern clipboard stored while a gesture is open (its
+ * copies moved under them), every level undone exactly, the snapshot recalled exactly; a dense clipboard takes its
+ * room from the oldest levels, the rest still exact */
+static void g_p21c_one_log(void)
+{
+    static qd_pattern_t st[8], snap, dense;
+    int e, n, ok = 1, t, s2;
+    start();
+    for (e = 0; e < 6; e++) {
+        st[e] = *PAT();
+        qd_undo_input(&A, 0);
+        qd_step_on(PAT(), 0, e);
+        qd_step_set_vel(PAT(), 0, e, 10 + e);
+        qd_undo_close(&A);
+    }
+    st[6] = *PAT();
+    qd_undo_input(&A, 0);                               /* a gesture: the snapshot and the clipboard stored in it */
+    qd_step_on(PAT(), 1, 0);
+    snap = *PAT();
+    CHECK(qd_hist_store(&A, 0) && qd_hist_store(&A, 1), "the snapshot and the clipboard stored with a gesture open");
+    qd_step_on(PAT(), 1, 1);
+    qd_undo_close(&A);
+    n = qd_undo_count(&A, -1);
+    for (e = 6; e >= 0 && qd_undo_count(&A, -1) > 0; e--) {
+        qd_undo_step(&A, -1);
+        ok &= !memcmp(PAT()->step, st[e].step, sizeof st[e].step);
+    }
+    CHECK(n == 7 && ok, "seven levels (%d), each undone exactly (the gesture's copies moved under the snapshot)", n);
+    CHECK(qd_hist_recall(&A, 0) && !memcmp(PAT()->step, snap.step, sizeof snap.step), "the snapshot recalled exactly");
+    static qd_pattern_t big[4];
+    for (e = 0; e < 4; e++) {                           /* four big levels (48 steps' velocities each) */
+        big[e] = *PAT();
+        qd_undo_input(&A, 0);
+        for (s2 = 0; s2 < 48; s2++) {
+            qd_step_on(PAT(), 2 + e, s2);
+            qd_step_set_vel(PAT(), 2 + e, s2, 1 + (e * 37 + s2 * 11) % 126);
+        }
+        qd_undo_close(&A);
+    }
+    qd_pat_init(&dense);
+    for (t = 0; t < QD_PAT_NTRACK; t++)                 /* (a dense pattern for the clipboard) */
+        for (s2 = 0; s2 < QD_NSTEP; s2++) {
+            qd_step_on(&dense, t, s2);
+            qd_step_set_vel(&dense, t, s2, 1 + (t * 37 + s2 * 11) % 126);
+            if (s2 % 4 == t % 4)
+                qd_lock_set(&dense, t, s2, QD_QP_HARM, s2 * 3 + t);
+        }
+    {
+        qd_pattern_t keep = *PAT();
+        const int before = qd_undo_count(&A, -1);
+        int left, ok2 = 1;
+        *PAT() = dense;
+        CHECK(qd_hist_store(&A, 1), "a dense pattern copied");
+        *PAT() = keep;
+        left = qd_undo_count(&A, -1);
+        for (e = 3; e >= 4 - left; e--) {
+            qd_undo_step(&A, -1);
+            ok2 &= !memcmp(PAT()->step, big[e].step, sizeof big[e].step);
+        }
+        printf("    (the one log: a dense clipboard of %u bytes: %d of %d levels kept)\n",
+#ifdef QD_UNDO_SLOTS
+               (unsigned)A.undo.pclip_len,
+#else
+               0u,
+#endif
+               left, before);
+#ifdef QD_UNDO_SLOTS
+        CHECK(left < before && left >= 1 && ok2, "its room from the oldest levels (%d of %d left), those undone exactly",
+              left, before);
+#else
+        CHECK(left == before && ok2, "the host: every level kept (%d), undone exactly", left);
+#endif
+        CHECK(qd_hist_recall(&A, 0) && !memcmp(PAT()->step, snap.step, sizeof snap.step) && qd_hist_recall(&A, 1) &&
+                  !memcmp(PAT()->step, dense.step, sizeof dense.step),
+              "the snapshot and the dense clipboard recalled exactly");
+    }
+}
+
 /* P2.1: undo at the device's sizes (a 16 KB log): a pattern too dense to keep with the levels: its gesture is no
- * level and its snapshot "too big"; the host keeps both. An ordinary pattern: undo as before at both sizes */
+ * level (P2.1c: its snapshot, 16-byte steps, now fits the log, and then fills it); the host keeps both. An ordinary
+ * pattern: undo as before at both sizes */
 static void g_p21_undo_log(void)
 {
     int t, s, n;
@@ -6006,8 +6085,9 @@ static void g_p21_undo_log(void)
     wtap(2);
     run(QD_UNDO_QUIET_MS + 50);
 #ifdef QD_UNDO_SLOTS
-    CHECK(!A.undo.snap_ok && !strcmp(A.ui.cf_small, "too big") && qd_undo_count(&A, -1) == n,
-          "the device's log: a full pattern (1024 steps, 1024 locks): its snapshot too big, its edit no level, the levels before it kept (%d)", qd_undo_count(&A, -1));
+    CHECK(A.undo.snap_ok && qd_undo_count(&A, -1) == n,
+          "the device's log: a full pattern (1024 steps, 1024 locks): its snapshot stored (P2.1c: 16-byte steps), its "
+          "edit no level (the log holds the snapshot), the levels before it kept (%d of %d)", qd_undo_count(&A, -1), n);
 #else
     CHECK(A.undo.snap_ok && qd_undo_count(&A, -1) == n + 1, "the host: a full pattern: its snapshot, its edit a level");
 #endif
@@ -8037,6 +8117,7 @@ int main(void)
         {"P1.6g: FILTER's popup, RATIO B, following, the ARP's walk", g_p16g_misc},
         {"P1.6h: F1 leaves no main page; the pop-ups go back", g_p16h_f1},
         {"P2.1: the undo log at the device's sizes", g_p21_undo_log},
+        {"P2.1c: the one log: the snapshot, the clipboard, the gesture's copies", g_p21c_one_log},
         {"P1.6h: F1 / F2 + W on every page of steps, whole", g_p16h_copy},
         {"P1.6h: the mix's locks: the selection, the count, the chips", g_p16h_mixlock},
         {"P1.6d: the step latch's SHIFT, defaults, double tap", g_p16d_latch},
@@ -8106,6 +8187,11 @@ int main(void)
 #ifdef QD_DEVICE
     CHECK(qd_arena_fails() == 0, "P2.1b: the drawing's arena never short (it lends its room between frames: %u "
           "refused)", qd_arena_fails());
+    CHECK(qd_arena_peak() + QD_GFX_MARGIN <= qd_arena_size(), "P2.1c: the arena's peak %lu with the margin %u within its %lu",
+          (unsigned long)qd_arena_peak(), (unsigned)QD_GFX_MARGIN, (unsigned long)qd_arena_size());
+#endif
+#ifdef QD_DEVICE
+    printf("  the arena: peak %lu of %lu bytes\n", (unsigned long)qd_arena_peak(), (unsigned long)qd_arena_size());
 #endif
     printf("test_ctl: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

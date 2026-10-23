@@ -68,28 +68,36 @@ enum { QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
 enum { QD_TRIG_NONE, QD_TRIG_NOTE, QD_TRIG_LOCK, QD_TRIG_TIE };
 enum { QD_RAMP_FLAT, QD_RAMP_UP, QD_RAMP_DOWN, QD_RAMP_ACCENT };
 #define QD_SF_ON 0x01u                  /* flags: the step has a trig */
-#define QD_SF_LOCKS 0x80u               /* .. it has locks in the pool */
+#define QD_SF_LOCKS 0x02u               /* .. it has locks in the pool (P2.1c: 0x02 in RAM; the records' 0x80) */
 #define QD_RT_COUNT 0x07u               /* ratch: bits 0-2 the count - 1 (x1..x8) */
 #define QD_RT_RAMP_SH 4                 /* .. bits 4-5 the ramp */
 #define QD_RT_RAMP 0x30u
+/* P2.1c: 16 bytes in RAM (the small fields as bit-fields; each holds its whole range), the records' 20-byte layout
+ * kept (QD_STEP_WIRE: qd_step_wire / qd_step_unwire, the old struct's bytes) */
 typedef struct {
-    uint16_t ovr;                       /* bit QD_PM_k: the step overrides parameter k (else the track's default) */
-    uint8_t flags;                      /* QD_SF_ON, QD_SF_LOCKS */
-    uint8_t type;                       /* QD_TRIG_NOTE / LOCK / TIE (with QD_PM_TRIG's bit) */
     uint8_t note[QD_NNOTE];             /* P1.3f: note k's pitch in slot k (1..127, 0 none; no two the same) */
     uint8_t vel;                        /* 1..127 */
-    uint8_t len;                        /* an index into the length table (qd_len_eighths), QD_LEN_INF the last */
-    int8_t micro;                       /* -23..+23 24ths of a step */
-    uint8_t ratch;                      /* QD_RT_*: the count and the ramp */
     uint8_t chance;                     /* 0..100 % */
-    uint8_t cond;                       /* QD_COND_*, then A:B (qd_cond_ab) */
     uint8_t sound;                      /* the sound lock: 0 none (the track's sound), 1..QD_NSOUND a pool number */
-    uint8_t strum;                      /* 0..23 24ths between a chord's notes */
     uint8_t func;                       /* P1.3w: the step function (QD_FN_*; no override bit, no track default: 0
                                          * none) */
-    uint8_t mfx;                        /* P1.6c: its MIDI FX (no override bit: 0 TRACK, the track's; 1 OFF; 2..6 group
+    uint16_t ovr : 10;                  /* bit QD_PM_k: the step overrides parameter k (else the track's default) */
+    uint16_t type : 2;                  /* QD_TRIG_NOTE / LOCK / TIE (with QD_PM_TRIG's bit) */
+    uint16_t flags : 2;                 /* QD_SF_ON, QD_SF_LOCKS */
+    uint16_t pad0 : 2;
+    uint16_t len : 5;                   /* an index into the length table (qd_len_eighths), QD_LEN_INF the last */
+    uint16_t cond : 6;                  /* QD_COND_*, then A:B (qd_cond_ab) */
+    uint16_t strum : 5;                 /* 0..23 24ths between a chord's notes */
+    int16_t micro : 6;                  /* -23..+23 24ths of a step */
+    uint16_t ratch : 6;                 /* QD_RT_*: the count and the ramp */
+    uint16_t mfx : 3;                   /* P1.6c: its MIDI FX (no override bit: 0 TRACK, the track's; 1 OFF; 2..6 group
                                          * 1..5; was padding, so 0 in older steps) */
+    uint16_t pad1 : 1;
 } qd_step_t;
+typedef char qd_step_size_ok[sizeof(qd_step_t) == 16 ? 1 : -1];
+#define QD_STEP_WIRE 20                 /* a step in a record (the 20-byte layout of P1.3w .. P2.1b) */
+void qd_step_wire(const qd_step_t *st, uint8_t *w);     /* into QD_STEP_WIRE bytes */
+void qd_step_unwire(qd_step_t *st, const uint8_t *w);   /* .. and back (the fields each to its range) */
 enum { QD_SMFX_TRACK, QD_SMFX_OFF, QD_SMFX_G1 };
 
 /* P1.3w (PLAN §8b "FUNC on B9", Form's FUNCTION): what a step does to its track's playing when it fires (after its

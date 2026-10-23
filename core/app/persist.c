@@ -169,7 +169,7 @@ static void ser_pat(const qd_app_t *a, const qd_pattern_t *p, em_t *e)
     for (t = 0; t < QD_PAT_NTRACK; t++)
         ref[t] = tsound_ref(a, &p->snd[t]);
     em8(e, 'P'), em8(e, qd_persist_write_v4 ? 4 : 5);
-    em8(e, sizeof(qd_step_t)), em8(e, sizeof(qd_tset_t));
+    em8(e, QD_STEP_WIRE), em8(e, sizeof(qd_tset_t));   /* (P2.1c: the steps' 20-byte layout, as before) */
     em(e, &p->master, 2);
     em8(e, p->swing), em8(e, p->used);
     em(e, &p->bpm, 2);
@@ -195,8 +195,11 @@ static void ser_pat(const qd_app_t *a, const qd_pattern_t *p, em_t *e)
                     sm |= (uint16_t)(1u << s);
             em(e, &sm, 2);
             for (s = 0; s < QD_PAGE; s++)
-                if ((sm >> s) & 1u)
-                    em(e, &p->step[t][pg * QD_PAGE + s], sizeof(qd_step_t));
+                if ((sm >> s) & 1u) {
+                    uint8_t w[QD_STEP_WIRE];
+                    qd_step_wire(&p->step[t][pg * QD_PAGE + s], w);
+                    em(e, w, QD_STEP_WIRE);
+                }
         }
     }
     em(e, p->lock, (uint32_t)p->nlock * sizeof(qd_lock_t));
@@ -217,7 +220,7 @@ static void ser_pat(const qd_app_t *a, const qd_pattern_t *p, em_t *e)
 /* P1.6c: a record's track settings' size by its version ('P' 4, 5: today's; 1..3: before the MIDI FX field); 0 bad */
 static uint32_t pat_tset_size(const uint8_t *b, uint32_t len)
 {
-    if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 5 || b[2] != sizeof(qd_step_t))
+    if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 5 || b[2] != QD_STEP_WIRE)
         return 0;
     if (b[1] >= 4)
         return b[3] == sizeof(qd_tset_t) ? (uint32_t)sizeof(qd_tset_t) : 0u;
@@ -259,8 +262,10 @@ static int de_pat(const qd_app_t *a, qd_pattern_t *p, rd_t *r)
             rd_get(r, &sm, 2);
             for (s = 0; s < QD_PAGE; s++)
                 if ((sm >> s) & 1u) {
-                    if (!rd_get(r, &p->step[t][pg * QD_PAGE + s], sizeof(qd_step_t)))
+                    uint8_t w[QD_STEP_WIRE];
+                    if (!rd_get(r, w, QD_STEP_WIRE))
                         return 0;
+                    qd_step_unwire(&p->step[t][pg * QD_PAGE + s], w);
                 }
         }
     }
@@ -2010,8 +2015,10 @@ static int rec_pat_steps(rd_t *r, const uint8_t *mask)
             for (s = 0; s < QD_PAGE; s++)
                 if ((sm >> s) & 1u) {
                     qd_step_t st;
-                    if (!rd_get(r, &st, sizeof st))
+                    uint8_t w[QD_STEP_WIRE];
+                    if (!rd_get(r, w, QD_STEP_WIRE))
                         return n;
+                    qd_step_unwire(&st, w);                 /* (P2.1c: the records' layout) */
                     n += st.sound && ((mask[st.sound >> 3] >> (st.sound & 7)) & 1u) && (st.flags & QD_SF_ON);
                 }
         }

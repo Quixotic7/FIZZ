@@ -212,6 +212,11 @@ static int strips_report(void)
 #ifdef QD_ARENA_SITES
     qd_arena_sites();
 #endif
+    if (qd_arena_peak() + QD_GFX_MARGIN > qd_arena_size() || qd_arena_fails()) {   /* (P2.1c: the margin test) */
+        printf("render_frames: FAIL: the arena's peak %lu + the margin %u is past its %lu bytes\n",
+               (unsigned long)qd_arena_peak(), (unsigned)QD_GFX_MARGIN, (unsigned long)qd_arena_size());
+        return 1;
+    }
 #endif
     if (!qd_view_strip_check)
         return 0;
