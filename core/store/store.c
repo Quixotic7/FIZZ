@@ -212,11 +212,27 @@ int qd_store_mount(qd_store_t *s, const qd_flash_t *fl, uint32_t base, int nsec,
     }
     s->next_rseq = maxr + 1;
     s->next_sseq = maxs + 1;
-    for (k = 0; k < nsec; k++)                          /* an erase cut short: erased again (power-on: quiet) */
-        if (s->sseq[k] == 0xFFFFFFFFu)
-            do_erase(s, k, 1);
-    count_live(s);
+    count_live(s);                                      /* P2.4: a sector neither the log's nor blank (an erase cut
+                                                         * short, or another firmware's data) is erased later, one a
+                                                         * quiet step (qd_store_step): the mount erases nothing */
     return 1;
+}
+
+/* P2.4: the sectors still to erase (another firmware's, an erase cut short) */
+static int to_erase(const qd_store_t *s)
+{
+    int k;
+    for (k = 0; k < s->nsec; k++)
+        if (s->sseq[k] == 0xFFFFFFFFu)
+            return k;
+    return -1;
+}
+int qd_store_pending(const qd_store_t *s)
+{
+    int k, n = 0;
+    for (k = 0; k < s->nsec; k++)
+        n += s->sseq[k] == 0xFFFFFFFFu;
+    return n;
 }
 
 int qd_store_get(qd_store_t *s, uint32_t key, void *buf, uint32_t max)
@@ -463,21 +479,25 @@ static int gc_one(qd_store_t *s)
 
 int qd_store_step(qd_store_t *s, int playing, int quiet, int max_pages)
 {
-    int n = playing ? 1 : max_pages < 1 ? 1 : max_pages;
-    if (quiet && !s->busy) {                            /* the blank sectors ahead (§7 rules 1, 3): GC while it gains */
-        int guard = s->nsec;
-        while (qd_store_blank(s) < s->reserve && guard-- > 0) {
-            const int before = qd_store_blank(s);
-            if (!gc_one(s) || qd_store_blank(s) <= before)
-                break;
-        }
+    int n = playing ? 1 : max_pages < 1 ? 1 : max_pages, erased = 0;
+    if (quiet) {                                        /* P2.4: at most one erase a step (a step returns soon) */
+        const int k = to_erase(s);
+        if (k >= 0)
+            erased = do_erase(s, k, 1);                 /* (another firmware's sector, one a step) */
+        else if (!s->busy && qd_store_blank(s) < s->reserve)
+            erased = gc_one(s);                         /* the blank sectors ahead (§7 rules 1, 3) */
     }
     while (s->busy && n-- > 0) {
         int at;
         if (s->head < 0 && !qd_store_blank(s)) {        /* no blank sector to go on in */
             s->c.waits++;
-            if (!quiet)
-                return 1;                               /* (§7 rule 4: it waits for a quiet moment) */
+            if (!quiet || erased)
+                return 1;                               /* (§7 rule 4: it waits for a quiet moment; P2.4: or the next
+                                                         * step, this one's erase done) */
+            if (to_erase(s) >= 0) {                     /* (P2.4: a sector to erase first) */
+                erased = do_erase(s, to_erase(s), 1);
+                continue;
+            }
             if (s->job_done) {                          /* a record half written: begun again after the GC */
                 s->job_done = 0;
                 s->job_first = -1;
@@ -489,6 +509,7 @@ int qd_store_step(qd_store_t *s, int playing, int quiet, int max_pages)
                 s->c.drops++;
                 return 0;
             }
+            erased = 1;
             continue;
         }
         if (s->job_done + 1 == s->job_np && s->job_ok && !s->job_ok(s->job_ctx)) {   /* P2.1: the source changed while

@@ -984,6 +984,7 @@ void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
 {
     int64_t adv, pos0, pos1, tend;
     int t, guard = 0;
+    s->proj->pat_fb = (int8_t)s->cur;                   /* (P2.4: what a miss plays, playing or not) */
     if (s->ext && s->now - s->clk_last > (uint64_t)QD_CLOCK_TIMEOUT)
         qd_seq_midi_stop(s, out, ctx);                  /* P1.3i: no pulse for 0.5 s: the clock is gone, stopped */
     if (!s->playing || (s->ext && s->ext_wait)) {
@@ -997,7 +998,6 @@ void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
         const int64_t cap = s->clk_target + (int64_t)QD_CLOCK_TICKS * QD_SUB;
         pos1 = pos1 > cap ? cap : pos1 < pos0 ? pos0 : pos1;
     }
-    s->proj->pat_fb = (int8_t)s->cur;                   /* (P2.4: what a miss plays) */
     while (s->sw_pat >= 0 && s->sw_x <= qd_div64(pos1 - 1, QD_SUB) && guard++ < 64) {   /* (in ticks: a pattern
                                                                                   * waiting for ever has a huge sw_x) */
         if (pat_ready(s, s->sw_pat))

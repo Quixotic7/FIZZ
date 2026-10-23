@@ -193,6 +193,7 @@ void qd_project_init(qd_project_t *pr)
 #endif
 #endif
     pr->pat_fb = -1;                                    /* P2.4 (nopage and the counters: the app's, kept) */
+    pr->fb_blank = 0;
     pr->demo = 0;
     qd_sounds_init(pr);
     pr->pool_empty = 0;
@@ -266,6 +267,8 @@ static void slot_in(qd_project_t *pr, int sl, int k)
             qd_pat_default(pr, k, &pr->pat[sl]);
     }
     pr->pat_loads++;
+    if (pr->fb_blank == sl + 1)
+        pr->fb_blank = 0;                               /* (the blank a miss kept: taken) */
     pr->pat_in[sl] = (int8_t)k;
     pr->slot_of[k] = (int8_t)sl;
 }
@@ -278,17 +281,21 @@ static int slot_free(const qd_project_t *pr)
     return -1;
 }
 
-/* P2.4: a miss on the audio side (nopage): the playing pattern's slot (pat_fb), else a free slot made blank (it stays
- * free: nothing claims it), else the slot used last; nothing read, nothing written */
+/* P2.4: a miss on the audio side (nopage): the playing pattern's slot (pat_fb), else a free slot made blank once (it
+ * stays free, kept blank for the next miss: a miss costs a lookup, never the blanking again), else the slot used
+ * last; nothing read, nothing written */
 static qd_pattern_t *miss(qd_project_t *pr)
 {
     int sl = pr->pat_fb >= 0 ? pr->slot_of[pk(pr->pat_fb)] : -1, i;
     pr->pat_miss++;
     if (sl >= 0)
         return &pr->pat[sl];
+    if (pr->fb_blank > 0 && pr->pat_in[pr->fb_blank - 1] < 0)
+        return &pr->pat[pr->fb_blank - 1];
     sl = slot_free(pr);
     if (sl >= 0) {
         qd_pat_init(&pr->pat[sl]);
+        pr->fb_blank = (int8_t)(sl + 1);
         return &pr->pat[sl];
     }
     for (i = sl = 0; i < QD_PAT_RAM; i++)
@@ -314,8 +321,9 @@ qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k)
                     if ((clean < 0 || pr->lru[i] < pr->lru[clean]) && slot_clean(pr, i))
                         clean = i;
                 }
-                if (forced < 0 || pr->lru[i] < pr->lru[forced])
-                    forced = i;
+                if (forced < 0 || (pr->pat_in[forced] == pr->pat_fb) > (pr->pat_in[i] == pr->pat_fb) ||
+                    ((pr->pat_in[forced] == pr->pat_fb) == (pr->pat_in[i] == pr->pat_fb) && pr->lru[i] < pr->lru[forced]))
+                    forced = i;                         /* (P2.4: the playing one last) */
             }
             if (clean >= 0)
                 best = clean;
@@ -354,6 +362,15 @@ int qd_proj_fetch(qd_project_t *pr, int k)
                 dirty = i;
             }
         }
+        if (sl < 0 && k == pr->pat_fb)                  /* the playing pattern itself: before any other the audio
+                                                         * side wants (a queued one, the cursors' last: they wait) */
+            for (i = 0; i < QD_PAT_RAM; i++)
+                if (pr->pat_in[i] != pr->pat_fb && slot_clean(pr, i) && (sl < 0 || pr->lru[i] < pr->lru[sl]))
+                    sl = i;
+        if (sl < 0 && k == pr->pat_fb && dirty < 0)     /* (every other slot pinned and waiting to be written) */
+            for (i = 0; i < QD_PAT_RAM; i++)
+                if (pr->pat_in[i] != pr->pat_fb && (dirty < 0 || pr->lru[i] < pr->lru[dirty]))
+                    dirty = i;
         if (sl < 0) {
             if (dirty >= 0 && pr->io.save_soon)
                 pr->io.save_soon(pr->io.ctx, pr->pat_in[dirty]);

@@ -890,6 +890,94 @@ static void isr_paging_test(void)
     CHECK(edit_ok, "P2.4: the edits to the playing A02 and to A03 (given up for A04) kept across a restart");
 }
 
+/* P2.4: A FOREIGN DATA REGION. The unit's region as another firmware left it (ChoralRoot's, RemoteFM1's), or worse:
+ * random bytes, all zeros, FIZZ's sector magic with a broken check or with garbage pages, a half-erased region, text.
+ * The mount reads and erases nothing (a call that returns soon: the watchdog; attach erases one sector at most, for
+ * the first project's header); nothing of it gets into the model (the
+ * same project, patterns and pool as a blank flash's); the region is erased in the background, one sector a quiet
+ * step (no call erases two); then saving works and a restart reads the same */
+static uint32_t fr_erases;
+static int fr_erase(void *c, uint32_t off) { fr_erases++; return f_erase(c, off); }
+static const qd_flash_t FLASH_F = {f_read, fr_erase, f_prog, 0};
+static uint64_t model_sig(qd_app_t *a)
+{
+    uint64_t h = 1469598103934665603ull;
+    int k;
+#define SIG(p, n) do { const uint8_t *b_ = (const uint8_t *)(p); size_t i_; for (i_ = 0; i_ < (size_t)(n); i_++) h = (h ^ b_[i_]) * 1099511628211ull; } while (0)
+    SIG(a->per.pname[0], QD_PROJ_NAME);
+    SIG(&a->seq.cur, sizeof a->seq.cur);
+    SIG(&a->proj.nsound, sizeof a->proj.nsound);
+    for (k = 0; k < 8; k++)
+        SIG(qd_proj_cpat(&a->proj, k), sizeof(qd_pattern_t));
+    for (k = 1; k <= QD_NSOUND; k++)
+        SIG(POOL(&a->proj, k), sizeof(qd_sound_t));
+    for (k = 0; k < QD_NLIB; k++)
+        h = (h ^ (uint64_t)qd_lib_used(a, k)) * 1099511628211ull;
+    for (k = 0; k < QD_NTRACK; k++)
+        SIG(a->model.t[k].patch, sizeof a->model.t[k].patch);
+#undef SIG
+    return h;
+}
+static void foreign_test(void)
+{
+    static const char *const KIND[] = {"random bytes", "all zeros", "FIZZ's magic, a broken check",
+                                       "FIZZ's magic, garbage pages", "half-erased", "another firmware's text"};
+    const uint32_t span = QD_FLASH_PRJ + QD_FLASH_PRJ_SEC * 4096u;
+    uint64_t want;
+    int kind, ok_model = 0, ok_mount = 0, ok_steps = 0, ok_done = 0, ok_again = 0;
+    uint32_t max_step = 0, i, r = 99u;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 100);
+    want = model_sig(&A);
+    for (kind = 0; kind < (int)(sizeof KIND / sizeof KIND[0]); kind++) {
+        uint32_t e0, k, ms;
+        memset(FL, 0xFF, sizeof FL);
+        for (i = 0; i < span; i++) {
+            r ^= r << 13, r ^= r >> 17, r ^= r << 5;
+            switch (kind) {
+            case 0: FL[i] = (uint8_t)r; break;
+            case 1: FL[i] = 0; break;
+            case 2: FL[i] = i % 4096u < 12u ? "Z2FS\x05\0\0\0\x5A\x5A\x5A\x5A"[i % 4096u] : (uint8_t)r; break;
+            case 3: FL[i] = i % 4096u < 12u ? "Z2FS\x05\0\0\0\x5A\x5A\xA5\xA5"[i % 4096u] : (uint8_t)r; break;
+            case 4: FL[i] = (r & 0xFFu) < 3u ? (uint8_t)(r >> 8) : 0xFF; break;
+            default: FL[i] = (uint8_t)"{\"choralroot\":{\"presets\":[1,2,3],\"name\":\"PAD\"}}\n"[i % 49u]; break;
+            }
+        }
+        qd_app_init(&A);
+        qd_app_tick(&A, 0);
+        fr_erases = 0;
+        qd_persist_attach(&A, &FLASH_F);
+        now = 0;
+        ok_mount += fr_erases <= 1u && A.per.on;        /* (one: the first project's header needs a sector) */
+        qd_persist_own_step(&A, 1);
+        ok_model += model_sig(&A) == want;
+        for (ms = 0; ms < 14000u; ms++) {               /* (quiet after 10 s untouched: one sector a step) */
+            qd_app_tick(&A, ++now);
+            if (now % 15u == 0) {
+                e0 = fr_erases;
+                qd_persist_step(&A);
+                k = fr_erases - e0;
+                max_step = k > max_step ? k : max_step;
+            }
+        }
+        ok_steps += max_step <= 1u;
+        ok_done += !qd_store_pending(&A.per.prj_st) && !qd_store_pending(&A.per.lib_st) && !qd_persist_dirty(&A);
+        qd_persist_flush(&A);
+        boot(&B);
+        ok_again += model_sig(&B) == want;
+        if (model_sig(&B) != want || model_sig(&A) != want)
+            printf("  (%s: the model differs)\n", KIND[kind]);
+    }
+    CHECK(ok_mount == kind, "P2.4: a foreign region (%d kinds): attached with one erase at most, the store on (%d)", kind,
+          ok_mount);
+    CHECK(ok_model == kind, "P2.4: .. nothing of it in the model: a blank flash's project, patterns, pool (%d)",
+          ok_model);
+    CHECK(ok_steps == kind && ok_done == kind, "P2.4: .. erased in the background, never two sectors a call (at most "
+          "%u), all of it within 14 s (quiet from 10 s), the project written (%d)", (unsigned)max_step, ok_done);
+    CHECK(ok_again == kind, "P2.4: .. a restart reads the same (%d)", ok_again);
+}
+
 /* P2.1: 'P' 5, TRACK SOUNDS BY REFERENCE: a track sound that is its preset (not edited) is written as the preset's id;
  * read back the same, exactly; one edited stays a copy. A track keeps the sound it loaded: REPLACE, an undo and a
  * redo of it, a delete leave every pattern's track sound as it was, in this project and another, in RAM or not */
@@ -1280,6 +1368,7 @@ int main(void)
     paging_test();
     sound_paging_test();
     isr_paging_test();
+    foreign_test();
     pref_test();
     p5_migration_test();
     migration_test();

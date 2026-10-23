@@ -15,7 +15,8 @@
  * every payload byte); a record without its commit page is ignored.
  *
  * MOUNT (power-on): sectors with a header are the log, in their sequence order; a sector neither a log sector nor
- * blank (an erase cut short) is erased again (power-on is before the audio). Every committed record found goes into
+ * blank (an erase cut short, or another firmware's data) is erased again later (P2.4: one a quiet qd_store_step, never
+ * in the mount: the mount reads, it returns soon, and nothing of another firmware's gets into the index). Every committed record found goes into
  * the index; for a key, the highest record sequence wins (a tombstone, length QDS_DELETED, deletes). The write head is
  * the first blank page after the newest sector's last written page.
  *
@@ -131,6 +132,9 @@ void qd_store_each(qd_store_t *s, uint32_t mask, uint32_t match, void (*fn)(void
 void qd_store_use(const qd_store_t *s, uint32_t *live_pages, uint32_t *total_pages);
 /* the blank sectors now */
 int qd_store_blank(const qd_store_t *s);
+/* P2.4: the sectors still to erase (another firmware's data, an erase cut short: the mount erases nothing; a quiet
+ * qd_store_step erases one) */
+int qd_store_pending(const qd_store_t *s);
 void qd_store_set_reserve(qd_store_t *s, int sectors);
 
 #ifdef __cplusplus

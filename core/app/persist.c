@@ -1044,8 +1044,10 @@ static int job_start(qd_app_t *a, int it)
 static void persist_writes(qd_app_t *a, int playing, int quiet)
 {
     qd_persist_t *ps = &a->per;
+    const uint32_t e0 = ps->prj_st.c.erases;
     qd_store_step(&ps->prj_st, playing, quiet, playing ? 1 : 8);
-    qd_store_step(&ps->lib_st, playing, quiet, playing ? 1 : 8);
+    qd_store_step(&ps->lib_st, playing, quiet && ps->prj_st.c.erases == e0, playing ? 1 : 8);   /* (P2.4: one erase a
+                                                         * call at most, the two stores together) */
     if (ps->job >= 0 && !qd_store_busy(item_store(a, ps->job)))
         job_end(a);
 }
@@ -2287,11 +2289,13 @@ static int pat_pinned(void *ctx, int k)
     const qd_app_t *a = (const qd_app_t *)ctx;
     const qd_seq_t *s = &a->seq;
     int i, g, sl, h;
-    if (k == s->cur || k == s->sw_pat || (a->undo.open && k == a->undo.pat))
-        return 1;
-    if (s->nchain > 1 && k == s->chain[(s->cpos + 1) % s->nchain])
+    if (k == s->cur || (a->undo.open && k == a->undo.pat))
         return 1;
     if (a->per.job == QD_PI_PAT + k && qd_store_busy(&a->per.prj_st))
+        return 1;
+    if (!s->playing)                                    /* P2.4: stopped, the cursors' last patterns pin nothing */
+        return 0;
+    if (k == s->sw_pat || (s->nchain > 1 && k == s->chain[(s->cpos + 1) % s->nchain]))
         return 1;
     for (i = 0; i < QD_PAT_NTRACK; i++)
         if (s->cur_t[i].pat == k)
@@ -2421,6 +2425,7 @@ void qd_persist_io(qd_app_t *a) { (void)a; }
  * no sound in, a lock whose sound is not in RAM plays the track's own */
 #if QD_SND_RAM
 #define PF_SND (QD_SND_RAM - 2)                           /* (two places left to the UI's reading) */
+#define PF_AHEAD 16                                       /* (the steps a track looked at: a bounded scan) */
 static int pf_add(int *keys, int n, int k)
 {
     int i;
@@ -2430,15 +2435,15 @@ static int pf_add(int *keys, int n, int k)
     keys[n] = k;
     return n + 1;
 }
-/* the sound locks soon wanted: the queued pattern's first two steps a track, then each track's coming steps (playing:
- * from its cursor, in its pattern; stopped: the pattern's own from its start), the tracks in turn, then the rest of
- * the queued one's; at most PF_SND */
+/* the sound locks soon wanted: the queued pattern's first two steps a track, then each track's next PF_AHEAD steps
+ * (playing: from its cursor, in its pattern; stopped: the pattern's own from its start), the tracks in turn, then the
+ * queued one's up to PF_AHEAD; at most PF_SND */
 static int pf_sounds(qd_app_t *a, int *keys)
 {
     const qd_seq_t *s = &a->seq;
     int n = 0, j, t, q;
     for (q = 0; q < 3 && n < PF_SND; q++)
-        for (j = q == 2 ? 2 : 0; j < (q == 0 ? 2 : QD_NSTEP) && n < PF_SND; j++)
+        for (j = q == 2 ? 2 : 0; j < (q == 0 ? 2 : PF_AHEAD) && n < PF_SND; j++)
             for (t = 0; t < QD_PAT_NTRACK && n < PF_SND; t++) {
                 const int pat = q != 1 ? s->sw_pat : s->playing ? s->cur_t[t].pat : s->cur;
                 const qd_pattern_t *P;
@@ -2463,6 +2468,7 @@ void qd_persist_prefetch(qd_app_t *a)
 {
     const qd_seq_t *s = &a->seq;
     int need[3], n = 0, i, wait = 0;
+    a->proj.pat_fb = (int8_t)s->cur;                    /* (the playing one first: it may take a pinned slot) */
     need[n++] = s->cur;
     if (s->sw_pat >= 0)
         need[n++] = s->sw_pat;

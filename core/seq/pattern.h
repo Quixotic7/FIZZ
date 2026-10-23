@@ -308,6 +308,7 @@ typedef struct {
     uint32_t pat_loads, pat_saves, pat_forced;   /* (the budget's counters: forced: every slot pinned) */
     uint8_t nopage;                     /* P2.4: the audio side is running: nothing is read in or written (a count) */
     int8_t pat_fb;                      /* P2.4: the pattern a miss plays instead (the sequencer's playing one) */
+    int8_t fb_blank;                    /* P2.4: 1 + a free slot a miss made blank (kept for the next: no work again) */
     uint32_t pat_miss, snd_miss;        /* P2.4: what the audio side asked for and did not find in RAM */
 #if QD_SND_RAM
     qd_sound_dir_t sdir[QD_NSOUND];     /* P2.1: the pool's directory (the sounds: sounds.h qd_sound_read) .. */
