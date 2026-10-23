@@ -13,12 +13,13 @@
  *      off - 0x4000), read in place through the plain window main_fm1.c opens from 0x93000 up. It is not in the app
  *      image: firmware/build.py cuts it out (fizz-xdata.bin) and firmware/tools/fizz_xdata.py writes it there, with
  *      a 12-byte trailer after it (fz_port.c).
- *   3. (P2.6) Audio code in RAM: the effects' unit (qd_fx.c) and the mix (mix.c), whole, copied at boot with the rest
- *      of .ram_text: out of the flash cache's way (the drawing's code evicts it between halves). It runs only in the
- *      audio interrupt (and their set-up on the main loop), never while the flash is off (the flash is programmed and
- *      erased with the interrupts off), so like fm1-base's second-core code it may call into the flash: it sits in
- *      the window fm1-base's build check exempts (_c1_start.._c1_end). The voices' quad_render (19 KB) needs the RAM
- *      code region's data out first (BUDGET.md).
+ *   3. (P2.6) Audio code in RAM: the mix (mix.c) whole, and the functions firmware/build.py renames .fzrt.* in their
+ *      objects (HOT: the effects' hot seven; in the single-core build also the voices' quad_render), copied at boot
+ *      with the rest of .ram_text: out of the flash cache's way (the drawing's code evicts it between halves). It runs
+ *      only in the audio interrupt (and their set-up on the main loop), never while the flash is off (the flash is
+ *      programmed and erased with the interrupts off), so like fm1-base's second-core code it may call into the
+ *      flash: it sits in the window fm1-base's build check exempts (_c1_start.._c1_end). The single-core build links
+ *      a copy of this script (build/fizz-1core.ld) with the voices' comb lines in the pool instead of .fz_rt.
  * The regions, the stacks and fm1-base's symbols are as app.ld has them. */
 MEMORY
 {
