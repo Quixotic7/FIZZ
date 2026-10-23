@@ -143,7 +143,8 @@ export class Sheet {
       midiCtl = sel;
     }
     out.push(row("MIDI input", m.error || (m.access ? `${m.inputs().length} found` : "a MIDI keyboard plays FIZZ's tracks"), midiCtl));
-    out.push(row("MIDI notes press the panel's keys", "off: they go to FIZZ's MIDI in, on the track's channel", toggle(st.notesPlayKeys, (v) => a.set("notesPlayKeys", v))));
+    out.push(row("MIDI keyboard plays the selected track", "on: sent to FIZZ on channel 16, which plays the selected track; off: on the keyboard's own channel (the tracks set to it)", toggle(st.midiSelTrack, (v) => a.set("midiSelTrack", v))));
+    out.push(row("MIDI notes press the panel's keys", "off: they go to FIZZ's MIDI in", toggle(st.notesPlayKeys, (v) => a.set("notesPlayKeys", v))));
     if (st.notesPlayKeys) {
       out.push(row("Transpose", "octaves, for those notes", stepper(String(st.transpose), (d) => a.set("transpose", Math.max(-3, Math.min(3, st.transpose + d))))));
       out.push(row("...and reach FIZZ's MIDI in too", null, toggle(st.reachFirmware, (v) => a.set("reachFirmware", v))));

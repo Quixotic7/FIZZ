@@ -23,6 +23,7 @@ import { readDn2 } from "../js/digitone.js";
 import { soundFromStoreFrame } from "../js/library.js";
 import { restoreFrame } from "../js/fizz_sysex.js";
 import { fizzValues } from "../js/fizz2dn.js";
+import { toSelectedTrack } from "../js/midimap.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, "../.build/test");
@@ -47,6 +48,13 @@ const note = (what) => console.log(`      ${what}`);
         q.get("version") === "0.6.2-p1.5p (33054d2)" && q.get("setup") === "FM-1 with RemoteFM1" && q.get("browser") === "Chrome 141 on macOS",
         `feedbackUrl (Node): ${u.href.slice(0, 120)}...`);
   check(browserName("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0") === "Firefox 131 on Windows", "browserName: Firefox on Windows");
+}
+
+// ---- the MIDI keyboard's channel (Node): to FIZZ's channel 16 (the selected track), system messages as they are
+{
+  const t = (b) => Array.from(toSelectedTrack(b)).join(" ");
+  check(t([0x90, 60, 100]) === "159 60 100" && t([0x83, 60, 0]) === "143 60 0" && t([0xb0, 1, 64]) === "191 1 64" && t([0xe2, 0, 64]) === "239 0 64" &&
+        t([0xf8]) === "248" && t([0xf0, 0x7d, 1, 0xf7]) === "240 125 1 247", "a MIDI keyboard's channel messages go to channel 16 (the selected track), system messages pass");
 }
 
 // ---- Chromium
@@ -352,6 +360,46 @@ try {
     const maxMs = Math.max(...ld.map((m) => m.maxMs)), late = Math.max(...ld.map((m) => m.lateMs)), load = Math.max(...ld.map((m) => m.load));
     check(ch > 5000 && ld.length >= 2 && late < 50, `the TAP ape in the page (${ch} px from the step view); the worklet over 2 s: the slowest quantum ${maxMs.toFixed(2)} ms, load ${(load * 100).toFixed(1)} %, late ${late.toFixed(0)} ms (${ld.length} reports); the step view playing: ${Math.max(...base.map((m) => m.maxMs)).toFixed(2)} ms, ${(Math.max(...base.map((m) => m.load)) * 100).toFixed(1)} %`);
     await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(300);
+  }
+
+  // 7f. P1.6g: recording in every view, from the computer keys and from Shift-click. Stopped, REC held about a second
+  // arms it (REC reads REC OFF), then PLAY starts it; a REC tap stops it. A MIDI keyboard on channel 1 plays the selected
+  // track through channel 16 (FIZZ's output has sound)
+  {
+    const recLabel = "FIZZ.labels.btns[11].firstChild.textContent";
+    const key = async (type, k, code, vk) => send("Input.dispatchKeyEvent", { type, key: k, code, windowsVirtualKeyCode: vk });
+    await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(300);
+    // the computer keys: = held 1.3 s, then - (PLAY)
+    await key("keyDown", "=", "Equal", 187); await sleep(1300);
+    const armed = await evaluate(recLabel);
+    await key("keyUp", "=", "Equal", 187); await sleep(200);
+    await key("keyDown", "-", "Minus", 189); await sleep(100); await key("keyUp", "-", "Minus", 189); await sleep(600);
+    const recording = await evaluate(recLabel);
+    await key("keyDown", "=", "Equal", 187); await sleep(100); await key("keyUp", "=", "Equal", 187); await sleep(400);
+    const stopped = await evaluate(recLabel);
+    await key("keyDown", "-", "Minus", 189); await sleep(100); await key("keyUp", "-", "Minus", 189); await sleep(400);
+    check(armed === "REC OFF" && recording === "REC OFF" && stopped !== "REC OFF",
+      `the computer keys: = held 1.3 s arms (REC "${armed}"), - starts it (REC "${recording}"), = tapped stops it (REC "${stopped}")`);
+    // Shift-click: REC latched 1.3 s (arms), clicked again (let go), PLAY clicked, REC clicked (stops)
+    const at = async (ux, uy) => evaluate(`(() => { const c = document.getElementById("device"), r = c.getBoundingClientRect(), p = FIZZ.labels.device.toCss(${ux}, ${uy}); return { x: r.left + p.x, y: r.top + p.y }; })()`);
+    const click = async (pt, shift) => { for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await send("Input.dispatchMouseEvent", { type, x: pt.x, y: pt.y, button: type === "mouseMoved" ? "none" : "left", buttons: type === "mousePressed" ? 1 : 0, clickCount: 1, modifiers: shift ? 8 : 0 }); await sleep(150); };
+    const rec = await at(786, 249), play = await at(733, 249);
+    await click(rec, true); await sleep(1300);
+    const armed2 = await evaluate(recLabel);
+    await click(rec, false); await sleep(200);
+    await click(play, false); await sleep(600);
+    const rec2 = await evaluate(recLabel);
+    await click(rec, false); await sleep(400);
+    const stop2 = await evaluate(recLabel);
+    await click(play, false); await sleep(300);
+    check(armed2 === "REC OFF" && rec2 === "REC OFF" && stop2 !== "REC OFF",
+      `Shift-click: REC latched 1.3 s arms (REC "${armed2}"), let go and PLAY clicked records (REC "${rec2}"), REC clicked stops it (REC "${stop2}")`);
+    // a MIDI keyboard (on channel 1) plays the selected track
+    await evaluate("FIZZ.peak()"); await sleep(100);
+    await evaluate("FIZZ.midiIn(Uint8Array.from([0x90, 62, 110]))");
+    let pk = 0; for (let i = 0; i < 12; i++) { await sleep(40); pk = Math.max(pk, await evaluate("FIZZ.peak()")); }
+    await evaluate("FIZZ.midiIn(Uint8Array.from([0x80, 62, 0]))");
+    check(pk > 0.002, `a MIDI keyboard on channel 1 plays the selected track (sent on channel 16): output peak ${pk.toFixed(4)}`);
   }
 
   // 7c. the recorder (RemoteFM1's ad408fa): Shift+R records, FIZZ playing, Shift+R stops; a take with sound in it

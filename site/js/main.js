@@ -18,6 +18,7 @@ import { loadPrefs, savePrefs as writePrefs, keyHintsOn, shiftHintDue } from "./
 import { feedbackUrl } from "./feedback.js";
 import { mountDigitone } from "./digitone-ui.js";
 import { RecUI } from "./rec-ui.js";
+import { toSelectedTrack } from "./midimap.js";
 import { mountLibrary } from "./library-ui.js";
 import { createPresetLink } from "./library.js";
 import { BUILD, ver } from "./build.js";
@@ -40,6 +41,7 @@ const state = {
   transpose: prefs.transpose | 0,
   notesPlayKeys: prefs.notesPlayKeys === true,            // FIZZ: a MIDI keyboard plays its tracks through its MIDI in
   reachFirmware: prefs.reachFirmware !== false,
+  midiSelTrack: prefs.midiSelTrack !== false,              // a MIDI keyboard plays the selected track (FIZZ's channel 16)
   keyHints: keyHintsOn(prefs),
   labels: prefs.labels !== false,                          // FIZZ's live labels on the panel (on by default)
   saves: [], selectedSave: null, carryOffer: null,
@@ -338,7 +340,7 @@ function onMidi(d) {
     if (k >= 0 && k < 27) controls.holdKey(k, SRC.MIDI, on, on ? d[2] : 0);
     if (!state.reachFirmware) return;
   }
-  if (player) player.midi(d);
+  if (player) player.midi(state.midiSelTrack ? toSelectedTrack(d) : d);
 }
 
 // -------------------------------------------------------------------- app ---
@@ -525,7 +527,7 @@ async function main() {
 
 // (for tests and the curious: the page's state and its player, read only in spirit)
 window.FIZZ = {
-  get state() { return state; }, get player() { return player; }, controls, start, boot, checkUpdate, BUILD, labels: labelsLayer, setLabels: (v) => app.set("labels", v), 
+  get state() { return state; }, get player() { return player; }, controls, start, boot, checkUpdate, BUILD, labels: labelsLayer, setLabels: (v) => app.set("labels", v), midiIn: (d) => onMidi(d), 
   // the output's peak since the last call (an AnalyserNode after the worklet)
   peak() {
     if (!player || !player.ctx) return 0;
