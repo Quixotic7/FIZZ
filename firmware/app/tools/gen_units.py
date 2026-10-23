@@ -56,9 +56,10 @@ PROF = {
     "plutovg-font": [("plutovg_font_face_get_glyph_path", "float", "plutovg_font_face_t* a, float b, float c, float d, "
                       "plutovg_codepoint_t e, plutovg_path_t* f", "a, b, c, d, e, f", "glyph")],
     "player": [("qd_player_block", "void", "qd_player_t *pl", "pl", "a_seq")],
-    "mix": [("qd_mix_block", "int", "qd_mix_t *m, qd_pool_t *pool, qd_quad_owner_t *const *owners, "
-             "const qd_mix_track_t *tracks, int ntracks, int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr",
-             "m, pool, owners, tracks, ntracks, l, r, sc, sd, sr", "a_voices")],
+    # (P2.6: the voices' render is qd_mix_voices since the core's split, 40f2a68; qd_mix_block calls it unwrapped)
+    "mix": [("qd_mix_voices", "int", "qd_mix_t *m, qd_pool_t *pool, const qd_mix_track_t *tracks, int ntracks, "
+             "int v0, int v1, int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr",
+             "m, pool, tracks, ntracks, v0, v1, l, r, sc, sd, sr", "a_voices")],
     "qd_fx": [("qd_fx_block", "void", "const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_t *l, int32_t *r, "
                "int32_t *out", "sc, sd, sr, l, r, out", "a_fx")],
     "qd_gfx_plutovg": [("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert")],

@@ -22,7 +22,7 @@ typedef struct {
     uint64_t isr_in_frame;    /* the audio interrupt's time inside frames */
     uint64_t isr;             /* the audio interrupt (app_render): FIZZ's sound, MIDI's sound */
     uint64_t a_seq;           /* inside the audio interrupt: qd_player_block (the sequencer, the player, MIDI FX) */
-    uint64_t a_voices;        /* .. qd_mix_block (the voices rendered and mixed) */
+    uint64_t a_voices;        /* .. qd_mix_voices (the voices rendered and mixed) */
     uint64_t a_fx;            /* .. qd_fx_block (chorus, delay, reverb, the output) */
     uint64_t check;           /* P2.5: qd_app_frame_changed (the screen's logic once, nothing drawn) */
     uint64_t store;           /* P2.5: qd_persist_step (the store's writes) */
