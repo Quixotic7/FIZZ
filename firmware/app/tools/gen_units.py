@@ -55,6 +55,12 @@ PROF = {
     "plutovg-blend": [("plutovg_blend", "void", "plutovg_canvas_t* a, const plutovg_span_buffer_t* b", "a, b", "blend")],
     "plutovg-font": [("plutovg_font_face_get_glyph_path", "float", "plutovg_font_face_t* a, float b, float c, float d, "
                       "plutovg_codepoint_t e, plutovg_path_t* f", "a, b, c, d, e, f", "glyph")],
+    "player": [("qd_player_block", "void", "qd_player_t *pl", "pl", "a_seq")],
+    "mix": [("qd_mix_block", "int", "qd_mix_t *m, qd_pool_t *pool, qd_quad_owner_t *const *owners, "
+             "const qd_mix_track_t *tracks, int ntracks, int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr",
+             "m, pool, owners, tracks, ntracks, l, r, sc, sd, sr", "a_voices")],
+    "qd_fx": [("qd_fx_block", "void", "const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_t *l, int32_t *r, "
+               "int32_t *out", "sc, sd, sr, l, r, out", "a_fx")],
     "qd_gfx_plutovg": [("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert")],
     "qd_gfx_fast": [("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert"),
                     ("qd_text", "float", "const char *u, float x, float y, const qd_font *f", "u, x, y, f", "text")] +
@@ -69,8 +75,8 @@ def prof_wrap(stem):
     pre, post = [], ["#undef " + n for n, *_ in PROF[stem]] + ['#include "fz_prof.h"', "uint32_t plat_ticks24(void);"]
     for name, ret, params, args, field in PROF[stem]:
         real = "fz_real_" + name
-        keep = "" if ret == "void" else f"{ret} r = "
-        back = "" if ret == "void" else "    return r;\n"
+        keep = "" if ret == "void" else f"{ret} fz_ret = "
+        back = "" if ret == "void" else "    return fz_ret;\n"
         pre.append(f"#define {name} {real}")
         post += [f"{ret} {real}({params});", f"{ret} {name}({params});",
                  f"{ret} {name}({params})\n{{\n    const uint32_t t = plat_ticks24();\n    {keep}{real}({args});\n"

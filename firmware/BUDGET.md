@@ -217,3 +217,31 @@ instead of written at once. Today a changed pattern leaving RAM during the main 
 port's lock, and the flash driver turns the interrupts back on after each page (`irq_restore` is an unconditional
 `sti`): the sound then runs in the middle of that main-loop call (a torn read at worst: the evicted slot is one the
 sequencer does not use).
+
+## P2.5b: a safe start, MASTER, the store's recovery (2026-10-23)
+
+The unit after P2.5 (30a27b9): the speaker at full level with MASTER doing nothing, a garbled sound, the audio
+interrupt at ~90 %. The overload was the core's (a pattern out of RAM re-blanked 32 times a half: fixed in bcc550f).
+With the interrupt near 100 % fm1-base's main loop, which reads and smooths the MASTER pot (`master_pos`), ran a pass
+in seconds, so MASTER followed the knob seconds late or not at all; and the late halves (xruns) were the "missing
+slices". The port's output path is fm1-base's own (render_block: `APP_GAIN(master_pos)` into `app_render`, as the
+template), and the simulator checks it (MASTER 4096: −14.1 dBFS peak, 600: −47.5).
+
+What the port now does against it:
+- **A safe start**: the sound ramps from silence to MASTER's level over 0.5 s whenever it starts (the boot, after an
+  update's screens), and the gain glides across each half from the last one's (no step when MASTER moves).
+- **ChoralRoot's ceiling**: 16 bits to 24 with ChoralRoot's −6 dBFS headroom (its `OUT_SHIFT 7`), 6 dB under P2.4's.
+- **A guard**: 8 halves in a row over 80 % of their time (4.6 ms of 5.8) let every voice go (all sound off on the 16
+  channels); `over_halves` and `sheds` count it.
+- **The store's recovery**: a region with nothing of FIZZ's in it and something else written is erased at the first
+  screen before the store is mounted ("FIZZ: CLEARING ITS STORE", ~1.3 s, once); **REC held at power-on is safe mode**
+  (the store not mounted: nothing read or written); `F0 7D 46 50 57 49 50 45 F7` ("WIPE",
+  `fizz_xdata.py wipe`) erases the region and starts FIZZ again on it without a restart. The watchdog is fed at each
+  flash operation of the store's long flows (project load / new / copy, migrate).
+- **The stats** add line 4 (inside the interrupt by part: sequencer, voices, effects, the rest; voices sounding,
+  `pat_miss`, `snd_miss`, `sw_late`, `snd_uncached`, the stores' sectors used / blank / to erase, keys, the pages)
+  and line 5 (the guard, MIDI and SysEx in, TIMER5's longest run and gap, fm1-base's longest lock and where).
+- The simulator (`tests/store.txt`): a region of noise, then of zeros, cleared and used; the wipe; safe mode. The
+  core's own handling of a foreign region (`fznowipe`) was also measured: no extra cost in the sound, the sectors
+  erased once quiet.
+- fm1-base's canvas is 240 x 16 now (`APP_BIG_FONT FONT_B`): the pool was 32 B short after the core's sound scratch.

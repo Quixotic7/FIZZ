@@ -25,6 +25,17 @@
 #include "fizz_port.h"
 #include "fz_prof.h"
 
+static void fz_message(const char *a, const char *b);
+void fz_watchdog(void)                   /* (fizz_port.h: the store's flash flows feed it at each operation) */
+{
+#ifndef PLAT_HOST
+    fm1_wdt_feed();
+#endif
+}
+#ifndef PLAT_HOST
+extern uint32_t _fz_rt_start[], _fz_rt_end[], _fz_ni_start[], _fz_ni_end[];   /* (fizz.ld: cleared by app_init) */
+#endif
+
 #define FZ_BARRIER() __asm__ volatile("" ::: "memory")
 #define FZ_LED_MS 10u                    /* the LEDs looked at every 10 ms */
 #define FZ_VEL 100                       /* the keys' velocity (no APP_TOUCH yet: FM1VST's default) */
@@ -71,7 +82,7 @@ static volatile uint8_t fz_audio_on;     /* 0: silence (no FIZZ, a panic, an upd
 static volatile uint8_t fz_in_frame;     /* (the profile: the interrupt's time inside frames) */
 #define FZ_MQ 128u                       /* MIDI's channel messages' UI part for the main loop, with their time */
 static uint32_t fz_mq_pkt[FZ_MQ], fz_mq_ms[FZ_MQ];
-static volatile uint32_t fz_mq_w, fz_mq_r, fz_mq_drops;
+static volatile uint32_t fz_mq_w, fz_mq_r, fz_mq_drops, fz_midi_pkts, fz_sx_frames_in, fz_sx_bytes_in;
 #ifdef PLAT_HOST
 static uint8_t fz_host_sync;             /* (fzsync: below) */
 #endif
@@ -82,6 +93,7 @@ static void fz_midi_isr(void)            /* USB and the TRS jack (fm1-base's que
     int port;
     while (plat_midi_in(&pkt, &port)) {
         const uint32_t cin = pkt & 15u, s = pkt >> 8 & 0xFFu, w = fz_mq_w;
+        fz_midi_pkts++;
         if (cin == 15u && s >= 0xF8u) {  /* the clock, START, CONTINUE, STOP: the sequencer's, here */
             if (s == 0xF8u || s == 0xFAu || s == 0xFBu || s == 0xFCu)
                 fz_midi_play((int)s, 0, 0);
@@ -99,6 +111,13 @@ static void fz_midi_isr(void)            /* USB and the TRS jack (fm1-base's que
     }
 }
 
+#define FZ_RAMP_STEP 48u                 /* the start's ramp a half: 4096 in 86 halves, 0.5 s */
+#define FZ_OVER_US 4600u                 /* the guard: a half's sound over this (80 % of 5,805 us) .. */
+#define FZ_OVER_HALVES 8u                /* .. this many halves in a row: every voice let go */
+static uint32_t fz_ramp;                 /* 0..4096: the sound's start, from silence */
+static int32_t fz_gain;                  /* the last half's gain (Q12) */
+static volatile uint32_t fz_over, fz_over_run, fz_sheds;   /* halves over FZ_OVER_US; in a row; the voices let go */
+
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     const uint32_t t0 = plat_ticks24();
@@ -114,8 +133,19 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     }
     fz_midi_isr();
     fz_audio(fz_abuf, n);
-    for (i = 0; i < 2u * n; i++)         /* 16 bits to 24, times MASTER's gain (Q12: 4096 full) */
-        lr[i] = ((int32_t)fz_abuf[i] * (int32_t)master_q12) >> 4;
+    {   /* 16 bits to 24 with ChoralRoot's -6 dBFS ceiling (its OUT_SHIFT 7: Q15 x 128; the codec and the amp ran clean
+         * there), times MASTER's gain (Q12: 4096 full) and the start's ramp, the gain glided across the half from the
+         * last one's (no step when MASTER moves) */
+        const int32_t g1 = (int32_t)((master_q12 > 4096u ? 4096u : master_q12) * fz_ramp >> 12), g0 = fz_gain;
+        for (i = 0; i < n; i++) {
+            const int32_t g = g0 + (g1 - g0) * (int32_t)i / (int32_t)n;   /* (32 bits: |g1 - g0| <= 4096, i < 256) */
+            lr[2u * i] = ((int32_t)fz_abuf[2u * i] * g) >> 5;
+            lr[2u * i + 1u] = ((int32_t)fz_abuf[2u * i + 1u] * g) >> 5;
+        }
+        fz_gain = g1;
+        if (fz_ramp < 4096u)             /* (from silence to MASTER's level in ~0.5 s after the sound starts) */
+            fz_ramp = fz_ramp + FZ_RAMP_STEP > 4096u ? 4096u : fz_ramp + FZ_RAMP_STEP;
+    }
     d = plat_ticks24() - t0;
     fz_prof.isr += d;
     fz_prof.n_isr++;
@@ -123,6 +153,18 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         fz_prof.isr_max = d;
     if (fz_in_frame)
         fz_prof.isr_in_frame += d;
+    if (d > FZ_OVER_US * PLAT_TICKS_PER_US) {   /* the guard: the sound took most of its half, half after half */
+        fz_over++;
+        if (++fz_over_run >= FZ_OVER_HALVES) {   /* .. every voice let go (all sound off on every channel) */
+            int ch;
+            for (ch = 0; ch < 16; ch++)
+                fz_midi_play(0xB0 | ch, 120, 0);
+            fz_over_run = 0;
+            fz_sheds++;
+        }
+    } else {
+        fz_over_run = 0;
+    }
 }
 
 /* ---------------------------------------------------------------- the panel, MIDI, the clock --- */
@@ -240,6 +282,16 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
 }
 
 /* ---------------------------------------------------------------- SysEx --- */
+#ifndef PLAT_HOST
+static uint32_t t5_gap_max, t5_late, t5_run_max;   /* (main_fm1.c's, defined after this file in the unity build) */
+extern uint32_t lock_max, lock_from;     /* (plat_fm1.c's: the longest any code kept the interrupts off, and where) */
+#endif
+static uint8_t fz_safe;                  /* safe mode: the store not attached (REC held at power-on) */
+static uint8_t fz_store_started;         /* the store looked at (fz_store_start; app_init clears it: a reboot) */
+#ifdef PLAT_HOST
+static uint8_t fz_host_nowipe;           /* (the simulator's fznowipe: no erase of a foreign region) */
+#endif
+static int fz_wiped = -1;                /* sectors the store's region had erased at the boot or by the wipe (-1 none) */
 static uint64_t fz_us(uint64_t ticks) { return ticks / PLAT_TICKS_PER_US; }
 
 static char *fz_put_u(char *q, const char *label, uint64_t v)
@@ -334,11 +386,84 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
         }
     *c = 0;
     fz_stats_send(3, line);
+    /* 4: inside the audio interrupt by part (us a half, averages: the sequencer, the voices, the effects, the rest);
+     * FIZZ's state (the voices, the misses, the store) */
+    {
+        const uint64_t rest = fz_prof.isr > fz_prof.a_seq + fz_prof.a_voices + fz_prof.a_fx
+                                  ? fz_prof.isr - fz_prof.a_seq - fz_prof.a_voices - fz_prof.a_fx : 0u;
+        c = line;
+        c = fz_put_u(c, "isr_seq_us=", fz_us(fz_prof.a_seq / ni));
+        c = fz_put_u(c, "isr_voices_us=", fz_us(fz_prof.a_voices / ni));
+        c = fz_put_u(c, "isr_fx_us=", fz_us(fz_prof.a_fx / ni));
+        c = fz_put_u(c, "isr_rest_us=", fz_us(rest / ni));
+        fz_state_line(c);
+        fz_stats_send(4, line);
+    }
+    /* 5: the platform: the guard, MIDI and SysEx in, the TIMER5 scan's delays, fm1-base's own longest lock */
+    c = line;
+    c = fz_put_u(c, "over_halves=", fz_over);
+    c = fz_put_u(c, "sheds=", fz_sheds);
+    c = fz_put_u(c, "ramp=", fz_ramp);
+    c = fz_put_u(c, "gain_q12=", (uint32_t)fz_gain);
+    c = fz_put_u(c, "master_q12=", APP_GAIN(plat_master()));
+    c = fz_put_u(c, "midi_in_pkts=", fz_midi_pkts);
+    c = fz_put_u(c, "sysex_in=", fz_sx_frames_in);
+    c = fz_put_u(c, "sysex_in_bytes=", fz_sx_bytes_in);
+    c = fz_put_u(c, "usb_midi_in=", plat_midi_count(PORT_USB, 0));
+    c = fz_put_u(c, "trs_midi_in=", plat_midi_count(PORT_TRS, 0));
+    c = fz_put_u(c, "store_safe_mode=", fz_safe);
+    c = fz_put_u(c, "store_wiped=", (uint32_t)fz_wiped);
+#ifndef PLAT_HOST
+    c = fz_put_u(c, "t5_run_max_us=", t5_run_max);
+    c = fz_put_u(c, "t5_gap_max_us=", t5_gap_max);
+    c = fz_put_u(c, "t5_late=", t5_late);
+    c = fz_put_u(c, "plat_lock_max_us=", lock_max);
+    c = fz_put_u(c, "plat_lock_from=", lock_from);
+#endif
+    *c = 0;
+    fz_stats_send(5, line);
+}
+
+static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region erased, FIZZ started again on it (as at a
+                                          * power-on with a blank region; nothing restarts but FIZZ) */
+{
+#ifndef PLAT_HOST
+    uint32_t *q;
+#endif
+    char line[48], *c = line;
+    app_panic();
+    fz_message("FIZZ: WIPING ITS STORE", "DO NOT SWITCH OFF");
+    fz_wiped = fz_store_wipe();
+    if (fz_ok) {
+#ifndef PLAT_HOST
+        for (q = _fz_rt_start; q < _fz_rt_end; q++)   /* (FIZZ's data outside .bss and the pool: as app_init) */
+            *q = 0;
+        for (q = _fz_ni_start; q < _fz_ni_end; q++)
+            *q = 0;
+#endif
+        fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
+        fz_ticked = 0;
+        if (fz_ok && !fz_safe) {
+            const uint32_t f = fz_lock();
+            fz_store_attach();
+            fz_unlock(f, FZ_LOCK_EVENT);
+        }
+    }
+    c = fz_put_u(c, "wiped=", (uint32_t)fz_wiped);
+    *c = 0;
+    fz_stats_send(9, line);
+    app_ui_init();
 }
 
 int app_sysex(const uint8_t *p, uint32_t n)
 {
+    fz_sx_frames_in++;
+    fz_sx_bytes_in += n;
     if (n >= 3u && p[0] == 0x7Du && p[1] == 0x46u && p[2] == 0x50u) {   /* "FP": the port's counters */
+        if (n >= 7u && p[3] == 'W' && p[4] == 'I' && p[5] == 'P' && p[6] == 'E') {   /* the store wiped, FIZZ again */
+            fz_wipe();
+            return 1;
+        }
         if (n >= 4u && p[3] == 0x7Fu) {  /* (7F: and start them again) */
             fz_prof_reset();
             fz_mq_drops = 0;
@@ -441,6 +566,17 @@ static void fz_draw(void)
         fz_prof.frame_max = d;
 }
 
+static void fz_hold_ms(uint32_t ms)      /* a message left on the screen a moment (the main loop's own wait) */
+{
+#ifdef PLAT_HOST
+    (void)ms;                            /* (the simulator's clock moves only between its script's steps) */
+#else
+    const uint32_t t0 = plat_ms();
+    while (plat_ms() - t0 < ms)
+        plat_yield();
+#endif
+}
+
 static void fz_message(const char *a, const char *b)   /* fm1-base's face on black: FIZZ cannot draw */
 {
     lcd_fill(0, 0, 240, 240, C_BLACK);
@@ -468,11 +604,38 @@ void app_init(void)
 #endif
     fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
     fz_ticked = 0;
+    fz_store_started = 0, fz_safe = 0, fz_wiped = -1;
+}
+static void fz_store_start(void)         /* the store, once, at the first screen (the panel is read by then) */
+{
+    if (fz_store_started || !fz_ok)
+        return;
+    fz_store_started = 1;
+    if (plat_buttons() >> B_REC & 1u) {  /* REC held at power-on: safe mode, no store (nothing read or written) */
+        fz_safe = 1;
+        fz_message("FIZZ: SAFE MODE", "THE STORE IS NOT USED");
+        fz_hold_ms(1500u);
+        return;
+    }
+#ifdef PLAT_HOST
+    if (!fz_host_nowipe && fz_store_foreign() > 0) {   /* (fznowipe: the core's store meets it as it is) */
+#else
+    if (fz_store_foreign() > 0) {        /* another firmware's data in the region (none of FIZZ's): erased first */
+#endif
+        fz_message("FIZZ: CLEARING ITS STORE", "ONCE, A FEW SECONDS");
+        fz_wiped = fz_store_wipe();
+    }
+    {
+        const uint32_t f = fz_lock();
+        fz_store_attach();
+        fz_unlock(f, FZ_LOCK_EVENT);
+    }
 }
 
 void app_ui_init(void)
 {
     uint32_t i;
+    fz_store_start();
     if (!fz_ok) {
         fz_message(fz_xdata_state() < 0 ? "FIZZ: ITS DATA IS ANOTHER BUILD'S" : "FIZZ NEEDS ITS DATA",
                    "RUN FIZZ_XDATA.PY OVER USB");
@@ -482,6 +645,8 @@ void app_ui_init(void)
     for (i = 0; i < 240u; i++)
         fz_row_hash[i] = 0;              /* (the whole screen sent again) */
     fz_redraw = 1;
+    if (!fz_audio_on)
+        fz_ramp = 0, fz_gain = 0;        /* (the sound starts from silence) */
     fz_audio_on = 1;
 }
 
@@ -662,6 +827,10 @@ int app_expect(const char *what, int *got)
         *got = (int)fz_host_sx_out;
     else if (!strcmp(what, "fz_isr_loads"))  /* patterns loaded inside the audio interrupt (the prefetch's misses) */
         *got = (int)fz_audio_loads();
+    else if (!strcmp(what, "fz_store_wiped"))   /* sectors erased at the boot or by the wipe (-1: none) */
+        *got = fz_wiped;
+    else if (!strcmp(what, "fz_safe"))
+        *got = fz_safe;
     else if (!strcmp(what, "fz_midi_drops"))
         *got = (int)fz_mq_drops;
     else
@@ -687,6 +856,36 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         const uint32_t f = fz_lock();
         fz_show(atoi(a), atoi(b));
         fz_unlock(f, FZ_LOCK_EVENT);
+        return 1;
+    }
+    if (!strcmp(cmd, "fzdata")) {        /* fzdata FILE | random | zero: the store's region (0x97000..) written from FILE,
+                                          * or noise, or zeros, as another firmware may leave it (fm1-base's "data" puts
+                                          * a file 16 KiB too low: its offset counts from PLAT_DATA_LO in an area that
+                                          * starts at PLAT_XDATA0_LO) */
+        static uint8_t buf[4096];
+        const int gen = !strcmp(a, "random") ? 1 : !strcmp(a, "zero") ? 2 : 0;
+        FILE *df = gen ? 0 : fopen(a, "rb");
+        uint32_t off = PLAT_DATA_LO, k, x = 12345u;
+        while ((df || gen) && off < PLAT_DATA_HI &&
+               (k = gen ? (uint32_t)sizeof buf : (uint32_t)fread(buf, 1, sizeof buf, df)) > 0) {
+            for (uint32_t i = 0; gen && i < k; i++)
+                buf[i] = gen == 2 ? 0 : (uint8_t)((x = x * 1664525u + 1013904223u) >> 24);
+            plat_data_erase(off);
+            plat_data_write(off, buf, k);
+            off += 0x1000u;
+        }
+        printf("  fzdata: %s, %u sectors\n", a, (unsigned)((off - PLAT_DATA_LO) / 0x1000u));
+        if (df)
+            fclose(df);
+        return 1;
+    }
+    if (!strcmp(cmd, "fznowipe")) {      /* fznowipe: a foreign region left as it is at the next boot (the core's own
+                                          * handling, measured) */
+        fz_host_nowipe = 1;
+        return 1;
+    }
+    if (!strcmp(cmd, "fzstats")) {       /* fzstats: the stats lines (7D 46 50), printed */
+        fz_stats_reply();
         return 1;
     }
     if (!strcmp(cmd, "fzseed")) {        /* fzseed N: qd_app_seed (the rolls of each PLAY) */

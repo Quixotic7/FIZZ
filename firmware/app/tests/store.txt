@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: MPL-2.0
+# The store against a region another firmware left (P2.5): noise in 0x97000..0xDFFFF, then a restart: FIZZ finds none
+# of its sectors, erases the region and starts on it; the sound costs what it did; the wipe (7D 46 50 "WIPE") and safe
+# mode (REC held at power-on: no store)
+fzdata random
+reboot
+wait 600
+expect fz_store_wiped 73
+expect fz_store_on 1
+tap PLAY
+wait 3000
+expect fz_isr_loads 0
+tap PLAY
+wait 3000
+fzstats
+# a region of zeros
+fzdata zero
+reboot
+wait 600
+expect fz_store_wiped 73
+expect fz_store_on 1
+# the wipe, FIZZ on: everything FIZZ wrote erased, FIZZ again on a blank store
+press SEL
+tapkey b2
+release SEL
+wait 4000
+expect fz_sel 2
+sysex F0 7D 46 50 57 49 50 45 F7
+wait 600
+expect fz_store_on 1
+expect fz_sel 0
+expect fz_store_wiped >0
+# safe mode: REC held at power-on
+press REC
+reboot
+wait 600
+release REC
+expect fz_safe 1
+expect fz_store_on 0
+expect fz_up 1

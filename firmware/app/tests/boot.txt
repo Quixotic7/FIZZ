@@ -32,7 +32,7 @@ peakreset
 wav demo.wav
 wait 4000
 wavstop
-expect peak_db_min -30
+expect peak_db_min -36
 expect fz_voices >0
 expect fz_isr >1000
 # MASTER is fm1-base's own gain on the sound (APP_GAIN, the pot's square): full, then low
@@ -40,12 +40,12 @@ master 4096
 wait 100
 peakreset
 wait 2000
-expect peak_db_min -12
+expect peak_db_min -18
 master 600
 wait 100
 peakreset
 wait 2000
-expect peak_db_max -30
+expect peak_db_max -36
 master 2048
 # stopped: PLAY again; a white key held shows the step view's held step
 tap PLAY

@@ -21,9 +21,13 @@ typedef struct {
     uint64_t frame;           /* app.c: whole frames (fz_frame) */
     uint64_t isr_in_frame;    /* the audio interrupt's time inside frames */
     uint64_t isr;             /* the audio interrupt (app_render): FIZZ's sound, MIDI's sound */
+    uint64_t a_seq;           /* inside the audio interrupt: qd_player_block (the sequencer, the player, MIDI FX) */
+    uint64_t a_voices;        /* .. qd_mix_block (the voices rendered and mixed) */
+    uint64_t a_fx;            /* .. qd_fx_block (chorus, delay, reverb, the output) */
     uint64_t check;           /* P2.5: qd_app_frame_changed (the screen's logic once, nothing drawn) */
     uint64_t store;           /* P2.5: qd_persist_step (the store's writes) */
     uint32_t n_raster, n_blend, n_glyph, n_text, n_shapes, n_convert, n_frame, n_isr, n_check, n_skip, n_store;
+    uint32_t n_a_seq, n_a_voices, n_a_fx;
     uint32_t frame_max, isr_max, store_max;
     uint32_t lock_max, lock_kind;   /* app.c's longest lock (interrupts off), and what it held (FZ_LOCK_*) */
 } fz_prof_t;

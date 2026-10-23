@@ -12,6 +12,12 @@
 /* boot: FIZZ's drawing (its fonts from the data flash on the unit) and the app. 0: its data blob is missing or not
  * this build's (fz_xdata_state), nothing else may be called but the xdata calls below */
 int fz_init(const char *version);
+/* P2.5: the store, attached after fz_init (not in safe mode). fz_store_foreign: the region's sectors that are neither
+ * blank nor FIZZ's when none is FIZZ's (a region another firmware left: erase it first); fz_store_wipe: every non-blank
+ * sector erased (the count) */
+int fz_store_foreign(void);
+int fz_store_wipe(void);
+void fz_store_attach(void);
 /* the panel, as the FM1VST glue gives it: a key 0..26 (F3..G5) with its velocity 1..127, a button in fm1-base's B_*
  * order (= FIZZ's QD_B_*), knob detents in the EN_* order (= QD_K_*), MASTER 0..1023 */
 void fz_key(int key, int down, int vel);
@@ -31,6 +37,7 @@ int fz_sysex_take(uint8_t *out, uint32_t max);
 void fz_tick(uint32_t ms);
 void fz_audio(int16_t *stereo, uint32_t frames);
 uint32_t fz_audio_loads(void);                     /* patterns the sound had to load itself (should be 0) */
+void fz_state_line(char *line);                     /* FIZZ's state for the stats (up to ~400 characters) */
 /* the LEDs: a level 0..255 a key (27) and a button (14), PLAY's green */
 void fz_leds(uint8_t *key, uint8_t *button, uint8_t *play_green);
 /* a frame, drawn in FIZZ's strips (core/qd_config.h QD_STRIP_H rows): out gets each one's first row, its rows and
@@ -43,6 +50,8 @@ void fz_ui_state(int *mode, int *playing);
  * while playing, a few stopped, erases only when quiet; the flash's own locks inside), every ~15 ms, between frames,
  * never inside a lock */
 int fz_flush(void);
+/* (app.c's, for fz_port.c: the platform's watchdog fed, inside a long flow of flash operations) */
+void fz_watchdog(void);
 void fz_persist_step(void);
 /* would the next frame differ from the last drawn? (qd_app_frame_changed: the screen's logic once, nothing drawn) */
 int fz_frame_changed(void);

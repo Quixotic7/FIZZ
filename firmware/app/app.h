@@ -12,9 +12,9 @@
 #define APP_BLOCK 256u                       /* frames per audio half: 5.8 ms (FIZZ's sound made in the interrupt: a
                                               * main-loop lock may hold it up to ~5 ms before a half is late) */
 /* fm1-base's canvas is for its own screens only (boot, crash, update, the splash): FIZZ draws in its own strips and
- * sends them from where they are. 24 rows: the tallest face (APP_BIG_FONT) */
-#define APP_CANVAS_PX (240u * 24u)
-#define APP_BIG_FONT FONT_M                  /* (FONT_L's 20 KB of flash saved; the splash's name in M) */
+ * sends them from where they are. 16 rows: the tallest face (APP_BIG_FONT; P2.5: the pool is full) */
+#define APP_CANVAS_PX (240u * 16u)
+#define APP_BIG_FONT FONT_B                  /* (FONT_L's 20 KB of flash saved; the splash's name in B, 16 rows) */
 #define APP_SYSEX                            /* FIZZ's SysEx (7D 46 5A: LIST, DUMP, STORE, LABELS ..) */
 #define APP_USB_CMD                          /* the data blob written over USB (firmware/tools/fizz_xdata.py) */
 

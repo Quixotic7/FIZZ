@@ -10,7 +10,9 @@ its blob's length and CRC-32 into the firmware, and the unit takes only its own 
   fizz_xdata.py push [--blob FILE] [--port NAME]   write the blob (the unit answers FZOK, or FZER and a code)
   fizz_xdata.py stats [--reset] [--port NAME]      the port's counters: the audio interrupt, the locks, the frames,
                                                    a frame's time by phase and by screen (firmware/BUDGET.md)
+  fizz_xdata.py wipe [--port NAME]                 FIZZ's store (0x97000..0xDFFFF) erased, FIZZ started again on it
   fizz_xdata.py info [--blob FILE]                 the blob's length and CRC-32 (no unit)
+Safe mode (the store not mounted): hold REC while switching the FM-1 on.
 
 The transfer is the update's own (fm1-base app_usb_cmd, plat_host_read): one command, 46 "FZXD" len crc off, then the
 unit asks for the blob in 512-byte reads and this answers them. Needs mido with python-rtmidi, as fm1_install.py.
@@ -102,7 +104,7 @@ def stats(a):
         return 0
     end, got = time.monotonic() + 2.5, {}
     try:
-        while time.monotonic() < end and len(got) < 3:
+        while time.monotonic() < end and len(got) < 5:
             p = link.read(end - time.monotonic())
             if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
                 got[p[4]] = p[5:-1].decode("ascii", "replace")
@@ -110,13 +112,33 @@ def stats(a):
             print("no answer")
             return 1
         for part, title in ((1, "sound, locks, frames"), (2, "a frame by phase (us, averages)"),
-                            (3, "by screen: frames/avg us/max us")):
+                            (3, "by screen: frames/avg us/max us"),
+                            (4, "inside the audio interrupt (us a half), FIZZ's state"),
+                            (5, "the platform: the guard, MIDI and SysEx in, the scan, the locks")):
             line = got.get(part, "(no answer)")
             if part == 3:                   # s<mode>.<view>: name them
                 for k, v in SCREENS.items():
                     line = line.replace(k + "=", v + "=")
             print(f"{title}:\n  {line}")
         return 0
+    finally:
+        link.close()
+
+
+def wipe(a):
+    dev = find(a.port)
+    link = dev.link
+    link.drain()
+    link.send(bytes([0xF0, 0x7D, 0x46, 0x50]) + b"WIPE" + bytes([0xF7]))
+    end = time.monotonic() + 15.0
+    try:
+        while time.monotonic() < end:
+            p = link.read(end - time.monotonic())
+            if p and p[:5] == bytes([0xF0, 0x7D, 0x46, 0x50, 0x09]):
+                print("the store's region erased, FIZZ started again on it:", p[5:-1].decode("ascii", "replace"))
+                return 0
+        print("no answer")
+        return 1
     finally:
         link.close()
 
@@ -130,16 +152,16 @@ def info(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("push", "stats", "info"):
+    for name in ("push", "stats", "wipe", "info"):
         p = sub.add_parser(name)
-        if name != "stats":
+        if name in ("push", "info"):
             p.add_argument("--blob", default=str(BLOB))
         if name != "info":
             p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
         if name == "stats":
             p.add_argument("--reset", action="store_true", help="start the counters again")
     a = ap.parse_args()
-    return {"push": push, "stats": stats, "info": info}[a.cmd](a)
+    return {"push": push, "stats": stats, "wipe": wipe, "info": info}[a.cmd](a)
 
 
 if __name__ == "__main__":

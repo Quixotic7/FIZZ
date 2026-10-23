@@ -37,11 +37,13 @@ static int fz_fread(void *c, uint32_t off, void *dst, uint32_t n)
 static int fz_ferase(void *c, uint32_t off)
 {
     (void)c;
+    fz_watchdog();                       /* (a store's long flow is a loop of these: the watchdog fed at each) */
     return plat_data_erase(PLAT_DATA_LO + (off & ~0xFFFu));
 }
 static int fz_fprog(void *c, uint32_t off, const void *src, uint32_t n)
 {
     (void)c;
+    fz_watchdog();
     return plat_data_write(PLAT_DATA_LO + off, src, n);
 }
 static const qd_flash_t fz_fl = {fz_fread, fz_ferase, fz_fprog, 0};
@@ -107,12 +109,52 @@ int fz_init(const char *version)
     qd_app_init(&fz_app);
     qd_app_sysex_version(&fz_app, version);
     qd_app_tick(&fz_app, 0);
+    fz_up = 1;
+    return 1;
+}
+
+/* P2.5: the store, attached after fz_init (app.c: unless safe mode). A region with no sector of FIZZ's stores in it
+ * and something else written (ChoralRoot's, RemoteFM1's, garbage) is erased first, whole: FIZZ owns it (the owner,
+ * 2026-10-23). Returns the sectors erased (-1: no store in this build) */
+#define FZ_STORE_SECTORS ((PLAT_DATA_HI - PLAT_DATA_LO) / 4096u)
+int fz_store_foreign(void)               /* sectors neither blank nor FIZZ's, when none is FIZZ's (else 0) */
+{
+    uint32_t k, i, fizz = 0, other = 0;
+    for (k = 0; k < FZ_STORE_SECTORS; k++) {
+        const uint8_t *p = plat_data(PLAT_DATA_LO + k * 4096u);
+        if (!p)
+            return 0;
+        if ((p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24) == QDS_MAGIC) {
+            fizz++;
+            continue;
+        }
+        for (i = 0; i < 4096u && p[i] == 0xFFu; i++)
+            ;
+        other += i < 4096u;
+    }
+    return fizz ? 0 : (int)other;
+}
+int fz_store_wipe(void)                  /* every non-blank sector of the region erased; the sectors erased */
+{
+    uint32_t k, i;
+    int n = 0;
+    for (k = 0; k < FZ_STORE_SECTORS; k++) {
+        const uint8_t *p = plat_data(PLAT_DATA_LO + k * 4096u);
+        for (i = 0; p && i < 4096u && p[i] == 0xFFu; i++)
+            ;
+        if (p && i < 4096u && !plat_data_erase(PLAT_DATA_LO + k * 4096u))
+            n++;
+    }
+    return n;
+}
+void fz_store_attach(void)
+{
 #if FZ_FLASH
+    if (!fz_up)
+        return;
     qd_persist_attach(&fz_app, &fz_fl);
     qd_persist_own_step(&fz_app, 1);
 #endif
-    fz_up = 1;
-    return 1;
 }
 
 void fz_key(int key, int down, int vel) { qd_app_key(&fz_app, key, down, vel); }
@@ -144,6 +186,73 @@ void fz_audio(int16_t *stereo, uint32_t frames)
         fz_isr_loads += fz_app.proj.pat_loads - l;
 }
 uint32_t fz_audio_loads(void) { return fz_isr_loads; }
+
+/* P2.5: FIZZ's state for the stats (7D 46 50, line 4): what may make the sound or the store busy */
+static char *st_u(char *q, const char *label, uint32_t v)
+{
+    char t[12];
+    int n = 0;
+    while (*label)
+        *q++ = *label++;
+    do
+        t[n++] = (char)('0' + v % 10u);
+    while ((v /= 10u) && n < 11);
+    while (n)
+        *q++ = t[--n];
+    *q++ = ' ';
+    return q;
+}
+static char *st_store(char *q, const char *name, const qd_store_t *st)
+{
+    int k, blank = 0, erase = 0, used = 0;
+    for (k = 0; k < st->nsec && k < QDS_MAXSEC; k++) {
+        if (st->sseq[k] == 0)
+            blank++;
+        else if (st->sseq[k] == 0xFFFFFFFFu)
+            erase++;
+        else
+            used++;
+    }
+    while (*name)
+        *q++ = *name++;
+    q = st_u(q, "_sec=", (uint32_t)st->nsec);
+    q = st_u(q, "used=", (uint32_t)used);
+    q = st_u(q, "blank=", (uint32_t)blank);
+    q = st_u(q, "to_erase=", (uint32_t)erase);
+    q = st_u(q, "keys=", (uint32_t)st->nkey);
+    q = st_u(q, "busy=", (uint32_t)st->busy);
+    return q;
+}
+void fz_state_line(char *q)
+{
+    const qd_app_t *a = &fz_app;
+    uint32_t live = 0, total = 0;
+    q = st_u(q, "voices=", (uint32_t)qd_pool_in_use(&a->pool));
+    q = st_u(q, "playing=", (uint32_t)a->playing);
+    q = st_u(q, "seq_playing=", (uint32_t)a->seq.playing);
+    q = st_u(q, "pat_miss=", a->proj.pat_miss);
+    q = st_u(q, "snd_miss=", a->proj.snd_miss);
+    q = st_u(q, "sw_late=", a->seq.sw_late);
+#if QD_SND_RAM
+    q = st_u(q, "snd_uncached=", a->per.sc.uncached);
+#endif
+#if QD_PAT_RAM < QD_NPAT
+    q = st_u(q, "pat_loads=", a->proj.pat_loads);
+    q = st_u(q, "pat_saves=", a->proj.pat_saves);
+#endif
+    q = st_u(q, "store_on=", (uint32_t)a->per.on);
+    if (a->per.on) {
+        qd_persist_use(a, &live, &total);
+        q = st_u(q, "pages_live=", live);
+        q = st_u(q, "pages=", total);
+        q = st_u(q, "written=", a->per.written);
+        q = st_u(q, "dirty=", (uint32_t)qd_persist_dirty(a));
+        q = st_u(q, "job=", (uint32_t)(a->per.job + 1));
+        q = st_store(q, "lib", &a->per.lib_st);
+        q = st_store(q, "prj", &a->per.prj_st);
+    }
+    *q = 0;
+}
 /* P2.4: a frame's time by its screen (fz_prof.h; the counters are app.c's, in RAM: this unit's .bss is the pool's) */
 void fz_frame(fz_strip_fn out, void *ctx)
 {
