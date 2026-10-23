@@ -31,7 +31,7 @@ MEMORY
 }
 SECTIONS
 {
-    .text : { KEEP(*(.text.crt0)) *(EXCLUDE_FILE(*/o2/build_units_c_qd_fx.o */o2/build_units_c_mix.o) .text*) *(.rodata*)
+    .text : { KEEP(*(.text.crt0)) *(EXCLUDE_FILE(*/o2/build_units_c_mix.o) .text*) *(.rodata*)
               *(.bt_stack_code .ble_sm_code .hci_controller_code .ble_hci_code .ble_att_code .ble_db_code
                 .classic_lmp_code .link_bulk_code .classic_rf_code .lmp_irq_code .ble_gatt_code .ble_ll_code
                 .ble_rf_code .bt_rf_code .hci_interface_code .vendor_manager_code .device_manager_code)
@@ -39,7 +39,7 @@ SECTIONS
               . = ALIGN(4); _etext = .; } > XIP
     .ram_text : { _rt_start = .; KEEP(*(.ram_text*)) *(.volatile_ram_code) *(*.rf.text.cache.L2.rf_trim)
                   . = ALIGN(4); _c1_start = .; KEEP(*(.c1_text*))
-                  */o2/build_units_c_qd_fx.o(.text*) */o2/build_units_c_mix.o(.text*)
+                  *(.fzrt.*) */o2/build_units_c_mix.o(.text*)
                   . = ALIGN(4); _c1_end = .;
                   _rt_end = .; } > RAMTEXT AT > XIP
     _rt_load = LOADADDR(.ram_text);

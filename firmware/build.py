@@ -6,8 +6,10 @@
                                             size report fizz-size.txt
   firmware/build.py --host                  the host simulator: firmware/app/build/host/fizz_host
   firmware/build.py --web                   the browser emulator (Emscripten): firmware/app/build/emu/
-  ... --single-core                         the single-core package (FZ_SINGLE_CORE=1: core 1 never started), its
-                                            files named fizz-1core* (fizz-1core.fwsc, the host's fizz-1core_host)
+  ... --single-core                         the single-core package (FZ_SINGLE_CORE=1: core 1 never started; 8
+                                            voices, QD_VOICES_DEV=8, and the voices' render in RAM), its files
+                                            named fizz-1core* (fizz-1core.fwsc, the host's fizz-1core_host).
+                                            Without it: Standard, QD_VOICES_DEV=16
 
 What it adds to fm1-base's build (each a small patch of its module, applied here):
   - the toolchain's container sees the whole repository (FIZZ's core/ and third_party/ are above firmware/): its root
@@ -60,22 +62,71 @@ def jieli(rel):
 
 _tc = fb.tc
 SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
+# the owner (2026-10-23): 8 voices on one core, 16 when core 1 renders half (core/qd_config.h QD_VOICES_DEV)
+DEFS = ["-DFZ_SINGLE_CORE=1", "-DQD_VOICES_DEV=8"] if SINGLE else ["-DQD_VOICES_DEV=16"]
+
+# ---- audio code in RAM, by function (fizz.ld: .fzrt.* in the RAM code region's window). The compiler is not told:
+# the function's section in the compiled object is renamed from .text.NAME to .fzrt.NAME (five bytes of the section
+# names' table, no code byte), so the code is the one the flash build has. A function the compiler did not emit on
+# its own (inlined) fails the build, unless its name starts with ? (a helper the core may not have). Calls in and
+# out are long calls already (FIZZ's units: -pi32v2-large-program). The design is ChoralRoot's (cr_ram.h: markers,
+# the object's section renamed), this code FIZZ's
+HOT = {"build_units_c_qd_fx.o": ["xf_reverb", "xf_delay", "out_master", "xq_block", "xc_block",
+                                 "fz_real_qd_fx_block", "qd_fx_block"]}
+if SINGLE:                                       # (8 voices: the RAM they free takes the voices' render)
+    HOT["build_units_c_quad_voice.o"] = ["quad_render", "qd_quad_voice_render", "?quad_lfo_incb", "?quad_lfo_incb_p",
+                                         "?quad_lfo_incv", "?quad_lfo_inc"]   # (?: its helpers, where the core has them)
+
+
+def place_hot(obj, names):
+    b = bytearray(obj.read_bytes())
+    if b[:4] != b"\x7fELF" or b[4] != 1 or b[5] != 1:
+        raise SystemExit(f"fizz: {obj.name} is not a 32-bit little-endian ELF")
+    shoff, = struct.unpack_from("<I", b, 0x20)
+    shentsize, shnum, shstrndx = struct.unpack_from("<HHH", b, 0x2E)
+    stroff, = struct.unpack_from("<I", b, shoff + shstrndx * shentsize + 0x10)
+    secs = []
+    for i in range(shnum):
+        nm, = struct.unpack_from("<I", b, shoff + i * shentsize)
+        end = b.index(b"\0", stroff + nm)
+        secs.append((stroff + nm, bytes(b[stroff + nm:end])))
+    for n in names:
+        at = [o for o, s in secs if s == b".text." + n.lstrip("?").encode()]
+        if not at and n.startswith("?"):
+            continue
+        if len(at) != 1:
+            raise SystemExit(f"fizz: {obj.name} has no section .text.{n} of its own (inlined?): not placed in RAM")
+        b[at[0]:at[0] + 5] = b".fzrt"
+    obj.write_bytes(bytes(b))
 
 
 def tc(tool, *args):
     args = list(args)
     if tool == "cc" and "-c" in args and any(isinstance(a, Path) and a.suffix == ".c" for a in args):
         args = ["-idirafter", jieli("pi32v2/include"), *args]
-        if SINGLE:
-            args = ["-DFZ_SINGLE_CORE=1", *args]
+        args = [*DEFS, *args]
         if any(isinstance(a, Path) and "o2" in a.parts and a.suffix == ".o" for a in args):
             # (P2.6: FIZZ's units call between the flash and the RAM code region, 4 MiB apart: long calls, as
             # fm1-base's Bluetooth build makes them)
             args = ["-mllvm", "-pi32v2-large-program=true", *args]
+            out = args[args.index("-o") + 1]
+            if out.name in HOT:
+                r = _tc(tool, *args)
+                place_hot(out, HOT[out.name])
+                return r
     if tool == "pi32v2/bin/ld":
         for i, a in enumerate(args):
             if isinstance(a, Path) and a.name in ("app.ld", "app_wifi.ld"):
                 args[i] = APP / "fizz.ld"
+                if SINGLE:                       # the voices' comb lines leave the RAM code region for the pool
+                    ld = (APP / "fizz.ld").read_text()
+                    comb = " */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)"
+                    if ld.count(comb) != 1 or ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1:
+                        raise SystemExit("fizz: fizz.ld's .fz_rt / .pool lines changed: see build.py")
+                    ld = ld.replace(comb, "").replace("*/o2/fz_port.o(.bss* .sbss* COMMON)",
+                                                      "*/o2/fz_port.o(.bss* .sbss* COMMON)" + comb)
+                    args[i] = fb.OUT / "fizz-1core.ld"
+                    args[i].write_text(ld)
         o = args.index("-o")
         args[o:o] = ["--start-group", jieli("pi32v2/lib/r3/libm.a"), jieli("pi32v2/lib/r3/libc.a"),
                      jieli("pi32v2/lib/r3/libcompiler_rt.a"), "--end-group", "-Map", fb.OUT / "fizz.map"]
@@ -227,8 +278,8 @@ class _Subprocess:
     def run(self, cmd, *a, **k):
         if cmd and cmd[0] == "emcc":
             cmd = [cmd[0], "-sSUPPORT_LONGJMP=wasm", *cmd[1:]]
-        if SINGLE and cmd and cmd[0] in ("emcc", os.environ.get("CC", "cc")):   # (the host's and the web's compilers)
-            cmd = [cmd[0], "-DFZ_SINGLE_CORE=1", *cmd[1:]]
+        if cmd and cmd[0] in ("emcc", os.environ.get("CC", "cc")):   # (the host's and the web's compilers)
+            cmd = [cmd[0], *DEFS, *cmd[1:]]
         return subprocess.run(cmd, *a, **k)
 
 
