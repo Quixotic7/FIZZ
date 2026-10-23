@@ -257,15 +257,21 @@ typedef struct {
 typedef struct {
     void (*load)(void *ctx, int key, qd_sound_t *dst);   /* the sound from its record (none: its default) */
     void (*save)(void *ctx, int key, const qd_sound_t *src);   /* written to its record, if it is not what that holds */
+    int (*clean)(void *ctx, int key, const qd_sound_t *s);    /* P2.4: its record holds s as it is (0: none) */
+    void (*save_soon)(void *ctx, int key);  /* P2.4: its record wanted written (outside this call) */
     void *ctx;
 } qd_snd_io_t;
 #if QD_SND_RAM
+/* P2.4: reading a sound (qd_sndc_get) never writes: a place whose sound its record does not hold yet is not given up
+ * (it is asked to be written soon); every place so: the sound is read into a scratch place, not kept */
 typedef struct qd_sndc {
     qd_sound_t s[QD_SND_RAM];
     int16_t key[QD_SND_RAM];            /* (-1: a free place) */
     uint32_t lru[QD_SND_RAM], clock;
     qd_snd_io_t io;
     uint32_t loads, saves;              /* (the budget's counters) */
+    qd_sound_t scratch;                 /* P2.4: a sound read with every place waiting to be written */
+    uint32_t uncached;                  /* (.. how often) */
 } qd_sndc_t;
 #endif
 
@@ -274,11 +280,18 @@ typedef struct qd_sndc {
  * patterns in use (the playing one, the queued one, one more), the rest are their records in the store: a pattern not
  * in a slot is read in when asked for (its record, else its default: blank, or a demo), the slot it takes given up by
  * the least recently used pattern not pinned (the owner's io.pinned: the sequencer's, the undo's ..), written back
- * first if it changed (io.save). A pointer from qd_proj_pat stays good until another pattern is asked for */
+ * first if it changed (io.save). A pointer from qd_proj_pat stays good until another pattern is asked for.
+ * P2.4: THE AUDIO PATH NEVER PAGES. While nopage is set (the app's audio side: qd_app_audio, qd_app_midi_play) a
+ * pattern not in RAM is not read in: qd_proj_pat gives the playing one's slot instead (pat_fb, else a blank), counted
+ * in pat_miss, and the sequencer holds a change until its pattern is in (seq.c). qd_proj_fetch is the main loop's way
+ * in: it never writes; a slot whose pattern the store does not hold yet (io.clean) is not given up but asked to be
+ * written soon (io.save_soon: the next record qd_persist_step writes), and taken once it is */
 typedef struct {
     int (*load)(void *ctx, int k, qd_pattern_t *dst);   /* pattern k from the backing into dst: 1; none there: 0 */
     void (*save)(void *ctx, int k, const qd_pattern_t *src);   /* written back (if it changed) */
     int (*pinned)(void *ctx, int k);    /* k must stay in RAM now */
+    int (*clean)(void *ctx, int k, const qd_pattern_t *p);    /* P2.4: the backing holds p as it is (0: none) */
+    void (*save_soon)(void *ctx, int k);    /* P2.4: k's record wanted written (outside this call) */
     void *ctx;
 } qd_pat_io_t;
 
@@ -293,6 +306,9 @@ typedef struct {
     uint8_t demo;                       /* P2.1: the patterns' defaults: the demos (A01..A03), else blank */
     qd_pat_io_t io;
     uint32_t pat_loads, pat_saves, pat_forced;   /* (the budget's counters: forced: every slot pinned) */
+    uint8_t nopage;                     /* P2.4: the audio side is running: nothing is read in or written (a count) */
+    int8_t pat_fb;                      /* P2.4: the pattern a miss plays instead (the sequencer's playing one) */
+    uint32_t pat_miss, snd_miss;        /* P2.4: what the audio side asked for and did not find in RAM */
 #if QD_SND_RAM
     qd_sound_dir_t sdir[QD_NSOUND];     /* P2.1: the pool's directory (the sounds: sounds.h qd_sound_read) .. */
     struct qd_sndc *sc;                 /* .. the RAM they are read into (the app's; 0: a test's bare project) */
@@ -333,6 +349,7 @@ qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k);
 const qd_pattern_t *qd_proj_cpat(const qd_project_t *pr, int k);
 int qd_proj_used(const qd_project_t *pr, int k);
 int qd_proj_resident(const qd_project_t *pr, int k);
+int qd_proj_fetch(qd_project_t *pr, int k);   /* P2.4: pattern k into RAM without writing anything: 1 in, 0 not yet */
 void qd_proj_drop(qd_project_t *pr);
 void qd_proj_save_all(qd_project_t *pr);
 void qd_pat_default(const qd_project_t *pr, int k, qd_pattern_t *dst);

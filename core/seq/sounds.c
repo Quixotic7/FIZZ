@@ -167,22 +167,51 @@ static int sc_find(const qd_sndc_t *c, int key)
             return i;
     return -1;
 }
-static int sc_place(qd_sndc_t *c)                       /* a free place, else the least recently used (written) */
+static int sc_clean(const qd_sndc_t *c, int i)
 {
-    int i, sl = -1;
+    return !c->io.clean || c->io.clean(c->io.ctx, c->key[i], &c->s[i]);
+}
+static int sc_kept(int key, const int *keep, int nkeep)
+{
+    int i;
+    for (i = 0; i < nkeep; i++)
+        if (keep[i] == key)
+            return 1;
+    return 0;
+}
+/* a free place, else the least recently used whose sound its record holds (P2.4); none (all waiting to be written):
+ * write: the least recently used, written now; else -1, the oldest asked to be written soon */
+static int sc_place_ex(qd_sndc_t *c, int write, const int *keep, int nkeep)
+{
+    int i, sl = -1, old = -1;
     for (i = 0; i < QD_SND_RAM; i++)
         if (c->key[i] < 0)
             return i;
-    for (i = 0; i < QD_SND_RAM; i++)
-        if (sl < 0 || c->lru[i] < c->lru[sl])
+    for (i = 0; i < QD_SND_RAM; i++) {
+        if (sc_kept(c->key[i], keep, nkeep))
+            continue;
+        if (old < 0 || c->lru[i] < c->lru[old])
+            old = i;
+        if ((sl < 0 || c->lru[i] < c->lru[sl]) && sc_clean(c, i))
             sl = i;
+    }
+    if (sl < 0 && old >= 0 && !write) {
+        if (c->io.save_soon)
+            c->io.save_soon(c->io.ctx, c->key[old]);
+        return -1;
+    }
+    if (sl < 0)
+        sl = old;
+    if (sl < 0)
+        return -1;
     if (c->io.save) {
-        c->io.save(c->io.ctx, c->key[sl], &c->s[sl]);
+        c->io.save(c->io.ctx, c->key[sl], &c->s[sl]);   /* (clean: nothing written) */
         c->saves++;
     }
     c->key[sl] = -1;
     return sl;
 }
+static int sc_place(qd_sndc_t *c) { return sc_place_ex(c, 1, 0, 0); }
 void qd_sndc_init(qd_sndc_t *c)
 {
     int i;
@@ -201,12 +230,44 @@ const qd_sound_t *qd_sndc_get(qd_sndc_t *c, int key)
                                                          * move the places) */
             c->io.load(c->io.ctx, key, &t);
         c->loads++;
-        sl = sc_place(c);
+        sl = sc_place_ex(c, 0, 0, 0);                   /* (P2.4: never a write) */
+        if (sl < 0) {
+            c->uncached++;
+            memcpy(&c->scratch, &t, sizeof t);
+            return &c->scratch;
+        }
         memcpy(&c->s[sl], &t, sizeof t);
         c->key[sl] = (int16_t)key;
     }
     c->lru[sl] = ++c->clock;
     return &c->s[sl];
+}
+int qd_sndc_fetch(qd_sndc_t *c, int key, const int *keep, int nkeep)
+{
+    qd_sound_t t;
+    int sl;
+    if (sc_find(c, key) >= 0)
+        return 1;
+    for (sl = 0; sl < QD_SND_RAM; sl++)                 /* (a place it could take: else nothing read) */
+        if (c->key[sl] < 0 || (!sc_kept(c->key[sl], keep, nkeep) && sc_clean(c, sl)))
+            break;
+    if (sl == QD_SND_RAM) {
+        sc_place_ex(c, 0, keep, nkeep);                 /* (the oldest asked to be written) */
+        return 0;
+    }
+    memset(&t, 0, sizeof t);
+    if (c->io.load)
+        c->io.load(c->io.ctx, key, &t);
+    c->loads++;
+    if (sc_find(c, key) >= 0)                           /* (its reading read it: a reference to itself) */
+        return 1;
+    sl = sc_place_ex(c, 0, keep, nkeep);
+    if (sl < 0)
+        return 0;
+    memcpy(&c->s[sl], &t, sizeof t);
+    c->key[sl] = (int16_t)key;
+    c->lru[sl] = ++c->clock;
+    return 1;
 }
 const qd_sound_t *qd_sndc_peek(const qd_sndc_t *c, int key)
 {
@@ -310,6 +371,15 @@ void qd_sound_clear(qd_project_t *pr, int k)
 uint16_t qd_sound_preset(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOUND ? POOL_DIR(pr, k)->preset : 0; }
 int qd_sound_tags(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOUND ? POOL_DIR(pr, k)->tags : 0; }
 int qd_sound_flags(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOUND ? POOL_DIR(pr, k)->flags : 0; }
+int qd_sound_ready(const qd_project_t *pr, int k)
+{
+#if QD_SND_RAM
+    return !qd_sound_used(pr, k) || !pr->sc || qd_sndc_peek(pr->sc, k) != 0;
+#else
+    (void)pr, (void)k;
+    return 1;
+#endif
+}
 int qd_sound_resident(const qd_project_t *pr, int k)
 {
 #if QD_SND_RAM

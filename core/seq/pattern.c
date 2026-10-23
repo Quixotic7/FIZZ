@@ -192,6 +192,7 @@ void qd_project_init(qd_project_t *pr)
         memset(pat_bare_has, 0, sizeof pat_bare_has);
 #endif
 #endif
+    pr->pat_fb = -1;                                    /* P2.4 (nopage and the counters: the app's, kept) */
     pr->demo = 0;
     qd_sounds_init(pr);
     pr->pool_empty = 0;
@@ -220,6 +221,7 @@ static int pk(int k) { return k < 0 ? 0 : k >= QD_NPAT ? QD_NPAT - 1 : k; }
 qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k) { return &pr->pat[pk(k)]; }
 int qd_proj_used(const qd_project_t *pr, int k) { return pr->pat[pk(k)].used; }
 int qd_proj_resident(const qd_project_t *pr, int k) { (void)pr, (void)k; return 1; }
+int qd_proj_fetch(qd_project_t *pr, int k) { (void)pr, (void)k; return 1; }
 void qd_proj_drop(qd_project_t *pr) { (void)pr; }
 void qd_proj_save_all(qd_project_t *pr) { (void)pr; }
 #else
@@ -243,45 +245,125 @@ static void slot_out(qd_project_t *pr, int sl, int save)
     pr->pat_in[sl] = -1;
 }
 
+static int slot_pinned(const qd_project_t *pr, int sl)
+{
+    return pr->io.pinned && pr->io.pinned(pr->io.ctx, pr->pat_in[sl]);
+}
+/* P2.4: the backing holds the slot's pattern as it is: it can leave without a write */
+static int slot_clean(const qd_project_t *pr, int sl)
+{
+    return !pr->io.clean || pr->io.clean(pr->io.ctx, pr->pat_in[sl], &pr->pat[sl]);
+}
+/* pattern k read into slot sl (its record, else its default) */
+static void slot_in(qd_project_t *pr, int sl, int k)
+{
+    if (!pr->io.load || !pr->io.load(pr->io.ctx, k, &pr->pat[sl])) {
+#ifndef QD_TARGET_FM1
+        if (!pr->io.load && pat_bare_has[k])
+            pr->pat[sl] = pat_bare[k];
+        else
+#endif
+            qd_pat_default(pr, k, &pr->pat[sl]);
+    }
+    pr->pat_loads++;
+    pr->pat_in[sl] = (int8_t)k;
+    pr->slot_of[k] = (int8_t)sl;
+}
+static int slot_free(const qd_project_t *pr)
+{
+    int i;
+    for (i = 0; i < QD_PAT_RAM; i++)
+        if (pr->pat_in[i] < 0)
+            return i;
+    return -1;
+}
+
+/* P2.4: a miss on the audio side (nopage): the playing pattern's slot (pat_fb), else a free slot made blank (it stays
+ * free: nothing claims it), else the slot used last; nothing read, nothing written */
+static qd_pattern_t *miss(qd_project_t *pr)
+{
+    int sl = pr->pat_fb >= 0 ? pr->slot_of[pk(pr->pat_fb)] : -1, i;
+    pr->pat_miss++;
+    if (sl >= 0)
+        return &pr->pat[sl];
+    sl = slot_free(pr);
+    if (sl >= 0) {
+        qd_pat_init(&pr->pat[sl]);
+        return &pr->pat[sl];
+    }
+    for (i = sl = 0; i < QD_PAT_RAM; i++)
+        if (pr->lru[i] > pr->lru[sl])
+            sl = i;
+    return &pr->pat[sl];
+}
+
 qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k)
 {
     int sl = pr->slot_of[k = pk(k)], i;
     if (sl < 0) {
-        for (i = 0; i < QD_PAT_RAM && sl < 0; i++)      /* a free slot, else the least recently used not pinned */
-            if (pr->pat_in[i] < 0)
-                sl = i;
-        for (i = 0; i < QD_PAT_RAM && sl < 0; i++)
-            ;
-        if (sl < 0) {
-            int best = -1, forced = -1;
+        if (pr->nopage)
+            return miss(pr);
+        sl = slot_free(pr);
+        if (sl < 0) {                                   /* the least recently used not pinned (P2.4: one the backing
+                                                         * holds first: no write), else every slot pinned: the oldest */
+            int best = -1, clean = -1, forced = -1;
             for (i = 0; i < QD_PAT_RAM; i++) {
-                const int pin = pr->io.pinned && pr->io.pinned(pr->io.ctx, pr->pat_in[i]);
-                if (!pin && (best < 0 || pr->lru[i] < pr->lru[best]))
-                    best = i;
+                if (!slot_pinned(pr, i)) {
+                    if (best < 0 || pr->lru[i] < pr->lru[best])
+                        best = i;
+                    if ((clean < 0 || pr->lru[i] < pr->lru[clean]) && slot_clean(pr, i))
+                        clean = i;
+                }
                 if (forced < 0 || pr->lru[i] < pr->lru[forced])
                     forced = i;
             }
-            if (best < 0) {                             /* (every slot pinned: the oldest goes all the same) */
+            if (clean >= 0)
+                best = clean;
+            if (best < 0) {
                 best = forced;
                 pr->pat_forced++;
             }
             sl = best;
             slot_out(pr, sl, 1);
         }
-        if (!pr->io.load || !pr->io.load(pr->io.ctx, k, &pr->pat[sl])) {
-#ifndef QD_TARGET_FM1
-            if (!pr->io.load && pat_bare_has[k])
-                pr->pat[sl] = pat_bare[k];
-            else
-#endif
-                qd_pat_default(pr, k, &pr->pat[sl]);
-        }
-        pr->pat_loads++;
-        pr->pat_in[sl] = (int8_t)k;
-        pr->slot_of[k] = (int8_t)sl;
+        slot_in(pr, sl, k);
     }
     pr->lru[sl] = ++pr->lru_clock;
     return &pr->pat[sl];
+}
+
+/* P2.4: the main loop's way in (the prefetch): a free slot, else the least recently used one not pinned whose pattern
+ * the backing holds; none of those but one to be written: that one's record asked for (io.save_soon) and 0 (asked
+ * again later, it is taken once written); every slot pinned: 0. Nothing is ever written here */
+int qd_proj_fetch(qd_project_t *pr, int k)
+{
+    int sl = pr->slot_of[k = pk(k)], i, dirty = -1;
+    if (sl >= 0)
+        return 1;
+    if (pr->nopage)
+        return 0;
+    sl = slot_free(pr);
+    if (sl < 0) {
+        for (i = 0; i < QD_PAT_RAM; i++) {
+            if (slot_pinned(pr, i))
+                continue;
+            if (slot_clean(pr, i)) {
+                if (sl < 0 || pr->lru[i] < pr->lru[sl])
+                    sl = i;
+            } else if (dirty < 0 || pr->lru[i] < pr->lru[dirty]) {
+                dirty = i;
+            }
+        }
+        if (sl < 0) {
+            if (dirty >= 0 && pr->io.save_soon)
+                pr->io.save_soon(pr->io.ctx, pr->pat_in[dirty]);
+            return 0;
+        }
+        slot_out(pr, sl, !pr->io.clean);                /* (no backing to ask: as qd_proj_pat gives one up) */
+    }
+    slot_in(pr, sl, k);
+    pr->lru[sl] = ++pr->lru_clock;
+    return 1;
 }
 int qd_proj_used(const qd_project_t *pr, int k)
 {

@@ -36,10 +36,15 @@ uint16_t qd_sound_preset(const qd_project_t *pr, int k);
 int qd_sound_tags(const qd_project_t *pr, int k);
 int qd_sound_flags(const qd_project_t *pr, int k);
 int qd_sound_resident(const qd_project_t *pr, int k);   /* in RAM now (the host: always) */
+int qd_sound_ready(const qd_project_t *pr, int k);      /* P2.4: its patch can be read without the store (unused,
+                                                         * in RAM, the host's) */
 #if QD_SND_RAM
 void qd_sndc_init(qd_sndc_t *c);
 const qd_sound_t *qd_sndc_get(qd_sndc_t *c, int key);  /* in RAM (read in; good until the next get or put) */
 const qd_sound_t *qd_sndc_peek(const qd_sndc_t *c, int key);   /* in RAM already, else 0 */
+/* P2.4: key into RAM without writing anything (the main loop's prefetch), keep[0..nkeep) not given up for it: 1 in,
+ * 0 not yet (a place waiting to be written: asked for) */
+int qd_sndc_fetch(qd_sndc_t *c, int key, const int *keep, int nkeep);
 void qd_sndc_put(qd_sndc_t *c, int key, const qd_sound_t *s);
 void qd_sndc_drop(qd_sndc_t *c, int lo, int hi);       /* keys lo..hi out of RAM, not written */
 void qd_sndc_save_all(qd_sndc_t *c);                   /* every place written if it changed */

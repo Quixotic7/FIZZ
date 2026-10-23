@@ -282,11 +282,27 @@ static int hist_at(const qd_tcur_t *c, int64_t g, int64_t origin)
     return 0;
 }
 
-/* the cursor reaches a queued pattern's start: it enters it */
+/* P2.4: pattern k is in RAM, or (not on the audio side: pattern.h nopage) read in now without a write */
+static int pat_ready(const qd_seq_t *s, int k)
+{
+    return qd_proj_resident(s->proj, k) || (!s->proj->nopage && qd_proj_fetch(s->proj, k));
+}
+
+static void rewind(qd_seq_t *s, int t, int64_t x, int pat);
+/* the cursor reaches a queued pattern's start: it enters it (P2.4: when the pattern is in RAM; until then it goes on
+ * in the playing one, and enters later with a rewind: what it resolved from sw_x on dropped) */
 static void cur_fix(qd_seq_t *s, qd_tcur_t *c)
 {
-    if (s->sw_pat >= 0 && c->origin < s->sw_x && c->g >= s->sw_x)
-        cur_enter(s, c, s->sw_pat, s->sw_x);
+    if (s->sw_pat >= 0 && c->origin < s->sw_x && c->g >= s->sw_x) {
+        if (!pat_ready(s, s->sw_pat)) {
+            s->sw_held = 1;
+            return;
+        }
+        if (s->sw_held)
+            rewind(s, (int)(c - s->cur_t), s->sw_x, s->sw_pat);
+        else
+            cur_enter(s, c, s->sw_pat, s->sw_x);
+    }
 }
 
 static void rewind(qd_seq_t *s, int t, int64_t x, int pat)
@@ -299,18 +315,48 @@ static void rewind(qd_seq_t *s, int t, int64_t x, int pat)
     s->rewinds++;
 }
 
+/* P2.4: track t's cursor back from a queued pattern it entered at x into the playing one, from x on (its loop from the
+ * start: what it resolved from x on dropped) */
+static void cur_back(qd_seq_t *s, int t, int64_t x)
+{
+    qd_tcur_t *c = &s->cur_t[t];
+    drop_from(s, t, x, qd_div64(s->pos, QD_SUB));
+    hist_drop_from(c, x);
+    dir_rewind(c, x);
+    cur_enter(s, c, s->cur, x);
+    c->origin = s->origin;                              /* (not an entry: the playing pattern goes on) */
+}
+
 /* the switch to pat at tick x (cpos: its place in the chain, -1 none); cursors past x wound back */
 static void schedule(qd_seq_t *s, int64_t x, int pat, int cpos)
 {
-    int t;
+    int t, ready;
     s->sw_pat = pat;
     s->sw_x = x;
     s->sw_cpos = cpos;
+    s->sw_held = 0;
+    ready = pat_ready(s, pat);                          /* P2.4: not in RAM (and not read in now, without a write): */
+    if (!ready) {                                       /* the cursors in a pattern queued before go back to the playing
+                                                         * one (it no longer pinned: tried again); a cursor past x goes on
+                                                         * in the playing one, held (cur_fix) */
+        for (t = 0; t < QD_PAT_NTRACK; t++) {
+            qd_tcur_t *c = &s->cur_t[t];
+            if (c->origin > s->origin && (c->origin != x || c->pat != pat))
+                cur_back(s, t, c->origin);
+        }
+        ready = pat_ready(s, pat);
+    }
     for (t = 0; t < QD_PAT_NTRACK; t++) {
         const qd_tcur_t *c = &s->cur_t[t];
         const int pending = c->origin > s->origin;      /* it entered a pattern that has not started */
-        if ((pending && (c->origin != x || c->pat != pat)) || (!pending && c->g > x))
+        if (pending && (c->origin != x || c->pat != pat))
             rewind(s, t, x, pat);
+        else if (!pending && c->g > x) {
+            if (ready)
+                rewind(s, t, x, pat);
+            else
+                s->sw_held = 1;
+        }
     }
 }
 
@@ -396,7 +442,9 @@ static void fill_rec(const qd_seq_t *s, qd_trec_t *r, int t, int step, const qd_
     r->sound = (uint8_t)st->sound;
     r->step = (int16_t)step;
     r->pat = (int16_t)c->pat;
-    if (st->sound) {
+    if (st->sound && !qd_sound_ready(s->proj, st->sound) && s->proj->nopage)
+        s->proj->snd_miss++;                            /* (P2.4: the audio side reads no sound in: the track's) */
+    if (st->sound && (qd_sound_ready(s->proj, st->sound) || !s->proj->nopage)) {
         memcpy(r->patch, qd_sound_patch(s->proj, st->sound), sizeof r->patch);
         {   /* (every patch value its own) */
             int w;
@@ -628,6 +676,7 @@ static void start_at(qd_seq_t *s, int pat)
     s->seed_play = s->seed;
     s->sw_pat = -1;
     s->sw_cpos = -1;
+    s->sw_held = 0;
     for (t = 0; t < QD_SEQ_NREC; t++)
         s->rec[t].used = 0;
     for (t = 0; t < QD_PAT_NTRACK; t++) {
@@ -816,6 +865,7 @@ static void take_switch(qd_seq_t *s)
         s->cpos = s->sw_cpos;
     s->sw_pat = -1;
     s->sw_cpos = -1;
+    s->sw_held = 0;
     if (!s->ext)
         qd_seq_tempo_mbpm(s, (int32_t)qd_proj_pat(s->proj, s->cur)->bpm * 1000);
     if (s->nchain > 1) {
@@ -824,6 +874,19 @@ static void take_switch(qd_seq_t *s)
         if (m > 0)
             schedule(s, x + m, s->chain[np], np);
     }
+}
+
+/* P2.4: the change's pattern is not in RAM at its tick (the audio side reads nothing in): the playing pattern goes on,
+ * the change waits for the next master boundary (it was on one) or the next 16th, counted */
+static void sw_hold(qd_seq_t *s)
+{
+    const int64_t m = qd_pat_master_ticks(qd_proj_pat(s->proj, s->cur));
+    if (m > 0 && !qd_mod64(s->sw_x - s->origin, (int32_t)m))
+        s->sw_x = next_boundary(s, s->sw_x);
+    else
+        s->sw_x += QD_TPS;
+    s->sw_held = 1;
+    s->sw_late++;
 }
 
 /* an event out: its sample in this block (P0 at the block's first sample, adv subticks a sample) */
@@ -934,9 +997,14 @@ void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
         const int64_t cap = s->clk_target + (int64_t)QD_CLOCK_TICKS * QD_SUB;
         pos1 = pos1 > cap ? cap : pos1 < pos0 ? pos0 : pos1;
     }
-    while (s->sw_pat >= 0 && s->sw_x <= qd_div64(pos1 - 1, QD_SUB) && guard++ < 64)   /* (in ticks: a pattern waiting
-                                                                                  * for ever has a huge sw_x) */
-        take_switch(s);
+    s->proj->pat_fb = (int8_t)s->cur;                   /* (P2.4: what a miss plays) */
+    while (s->sw_pat >= 0 && s->sw_x <= qd_div64(pos1 - 1, QD_SUB) && guard++ < 64) {   /* (in ticks: a pattern
+                                                                                  * waiting for ever has a huge sw_x) */
+        if (pat_ready(s, s->sw_pat))
+            take_switch(s);
+        else
+            sw_hold(s);
+    }
     tend = qd_div64(pos1 + QD_SUB - 1, QD_SUB);
     for (t = 0; t < QD_PAT_NTRACK; t++) {               /* the steps within two of their own steps */
         int n = 0;

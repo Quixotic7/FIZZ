@@ -952,9 +952,8 @@ int qd_persist_dirty(const qd_app_t *a)
 /* P2.4: a pattern's bytes in RAM, hashed fast (a word at a time; with the records committed so far: a MY preset's
  * change can change how a pattern's track sounds are written): the same as at its last look, its record is too, and
  * the record's own hash (the serialisation, the presets read) is not worked out again */
-static uint32_t pat_raw_hash(const qd_app_t *a, int k)
+static uint32_t pat_raw_of(const qd_app_t *a, const qd_pattern_t *P)
 {
-    const qd_pattern_t *P = qd_proj_cpat(&a->proj, k);
     const uint32_t *w = (const uint32_t *)(const void *)P;
     uint32_t h = 0x9E3779B9u ^ a->per.written, i;
     for (i = 0; i < sizeof *P / 4u; i++) {
@@ -964,6 +963,7 @@ static uint32_t pat_raw_hash(const qd_app_t *a, int k)
     }
     return h ? h : 1u;
 }
+static uint32_t pat_raw_hash(const qd_app_t *a, int k) { return pat_raw_of(a, qd_proj_cpat(&a->proj, k)); }
 
 static void look(qd_app_t *a, int it)
 {
@@ -1069,6 +1069,16 @@ void qd_persist_ms(qd_app_t *a)
         for (k = 0; k < 4; k++) {
             look(a, QD_PI_SND + (ps->scan * 2 + k) % QD_NSOUND);
             look(a, QD_PI_LIB + (ps->scan * 4 + k) % QD_NLIB);   /* (P1.5t: 256: four new ones a look) */
+        }
+    }
+    if (ps->job < 0 && ps->urgent) {                    /* P2.4: the one a prefetch waits on: now, no debounce */
+        it = ps->urgent - 1;
+        if (!item_here(a, it))
+            ps->urgent = 0;                             /* (gone from RAM already: written as it went) */
+        else {
+            look(a, it);
+            if (ps->seen[it] == ps->saved[it] || job_start(a, it))
+                ps->urgent = 0;
         }
     }
     if (ps->job < 0 && a->ms % 15u == 0) {              /* the next record due */
@@ -2240,6 +2250,36 @@ static void pat_save(void *ctx, int k, const qd_pattern_t *src)
         ps->written_ms[k] = a->ms ? a->ms : 1u;
 }
 
+/* P2.4: what the store holds of pattern k is P as it is (it can leave RAM with no write): the fast hash first (the
+ * same as at the last look: the record's hash then), else the record's hash worked out; not while it is being written */
+static int pat_clean(void *ctx, int k, const qd_pattern_t *P)
+{
+    qd_app_t *a = (qd_app_t *)ctx;
+    qd_persist_t *ps = &a->per;
+    const int it = QD_PI_PAT + k;
+    uint32_t r;
+    if (!pat_store(a))
+        return 1;
+    if (ps->job == it)
+        return 0;
+    r = pat_raw_of(a, P);
+    if (r != ps->pat_raw[k]) {
+        const uint32_t h = pat_hash(a, P);
+        ps->pat_raw[k] = r;
+        if (h != ps->seen[it]) {
+            ps->seen[it] = h;
+            ps->changed[it] = a->ms;
+        }
+    }
+    return ps->seen[it] == ps->saved[it];
+}
+static void item_soon(qd_app_t *a, int it)
+{
+    if (!a->per.urgent)
+        a->per.urgent = it + 1;
+}
+static void pat_save_soon(void *ctx, int k) { item_soon((qd_app_t *)ctx, QD_PI_PAT + k); }
+
 /* the patterns that must stay in RAM now: the sequencer's (playing, queued, the tracks', the chain's next, the trigs
  * and the MIDI FX notes waiting), the open undo gesture's, the record being written */
 static int pat_pinned(void *ctx, int k)
@@ -2336,11 +2376,27 @@ static void snd_save(void *ctx, int key, const qd_sound_t *src)
 }
 #endif
 
+#if QD_SND_RAM
+static int snd_clean(void *ctx, int key, const qd_sound_t *s)
+{
+    qd_app_t *a = (qd_app_t *)ctx;
+    const int it = snd_item(key);
+    uint8_t b[2 + QD_SOUND_NAME + QD_QUAD_BLOB + 16];
+    uint32_t n;
+    if (!snd_store(a, key))
+        return 1;
+    return a->per.job != it && snd_hash(s, key < QD_SK_LIB, b, &n) == a->per.saved[it];
+}
+static void snd_save_soon(void *ctx, int key) { item_soon((qd_app_t *)ctx, snd_item(key)); }
+#endif
+
 void qd_persist_io(qd_app_t *a)
 {
     a->proj.io.load = pat_load;
     a->proj.io.save = pat_save;
     a->proj.io.pinned = pat_pinned;
+    a->proj.io.clean = pat_clean;
+    a->proj.io.save_soon = pat_save_soon;
     a->proj.io.ctx = a;
 #ifndef QD_TARGET_FM1
     a->per.swap_on = 0;
@@ -2349,6 +2405,8 @@ void qd_persist_io(qd_app_t *a)
     qd_sndc_init(&a->per.sc);
     a->per.sc.io.load = snd_load;
     a->per.sc.io.save = snd_save;
+    a->per.sc.io.clean = snd_clean;
+    a->per.sc.io.save_soon = snd_save_soon;
     a->per.sc.io.ctx = a;
     a->proj.sc = &a->per.sc;
 #endif
@@ -2357,16 +2415,74 @@ void qd_persist_io(qd_app_t *a)
 void qd_persist_io(qd_app_t *a) { (void)a; }
 #endif
 
-/* the patterns the sequencer will ask for read in now (the UI's time, not the audio's) */
+/* the patterns the sequencer will ask for read in now (the UI's time, not the audio's). P2.4: without a write
+ * (pattern.h qd_proj_fetch): a slot waiting for its pattern's record to be written is taken once it is (asked again
+ * 8 ms on); then the pool sounds the playing tracks' next steps lock (sounds.h qd_sndc_fetch): the audio side reads
+ * no sound in, a lock whose sound is not in RAM plays the track's own */
+#if QD_SND_RAM
+#define PF_SND (QD_SND_RAM - 2)                           /* (two places left to the UI's reading) */
+static int pf_add(int *keys, int n, int k)
+{
+    int i;
+    for (i = 0; i < n; i++)
+        if (keys[i] == k)
+            return n;
+    keys[n] = k;
+    return n + 1;
+}
+/* the sound locks soon wanted: the queued pattern's first two steps a track, then each track's coming steps (playing:
+ * from its cursor, in its pattern; stopped: the pattern's own from its start), the tracks in turn, then the rest of
+ * the queued one's; at most PF_SND */
+static int pf_sounds(qd_app_t *a, int *keys)
+{
+    const qd_seq_t *s = &a->seq;
+    int n = 0, j, t, q;
+    for (q = 0; q < 3 && n < PF_SND; q++)
+        for (j = q == 2 ? 2 : 0; j < (q == 0 ? 2 : QD_NSTEP) && n < PF_SND; j++)
+            for (t = 0; t < QD_PAT_NTRACK && n < PF_SND; t++) {
+                const int pat = q != 1 ? s->sw_pat : s->playing ? s->cur_t[t].pat : s->cur;
+                const qd_pattern_t *P;
+                int len, idx, st;
+                if (pat < 0 || !qd_proj_resident(&a->proj, pat))
+                    continue;
+                P = qd_proj_cpat(&a->proj, pat);
+                len = qd_track_len(&P->trk[t]);
+                if (j >= len)
+                    continue;
+                idx = q == 1 && s->playing ? (s->cur_t[t].idx + j) % len : j;
+                st = qd_track_loop_step(&P->trk[t], idx < 0 ? 0 : idx);
+                if (st >= 0 && st < QD_NSTEP && (P->step[t][st].flags & QD_SF_ON) &&
+                    (P->step[t][st].ovr & QD_OV(QD_PM_SOUND)) && P->step[t][st].sound &&
+                    qd_sound_used(&a->proj, P->step[t][st].sound))
+                    n = pf_add(keys, n, P->step[t][st].sound);
+            }
+    return n;
+}
+#endif
 void qd_persist_prefetch(qd_app_t *a)
 {
     const qd_seq_t *s = &a->seq;
-    if (qd_proj_resident(&a->proj, s->cur) && (s->sw_pat < 0 || qd_proj_resident(&a->proj, s->sw_pat)) &&
-        (s->nchain < 2 || qd_proj_resident(&a->proj, s->chain[(s->cpos + 1) % s->nchain])))
-        return;
-    qd_proj_pat(&a->proj, s->cur);
+    int need[3], n = 0, i, wait = 0;
+    need[n++] = s->cur;
     if (s->sw_pat >= 0)
-        qd_proj_pat(&a->proj, s->sw_pat);
+        need[n++] = s->sw_pat;
     if (s->nchain > 1)
-        qd_proj_pat(&a->proj, s->chain[(s->cpos + 1) % s->nchain]);
+        need[n++] = s->chain[(s->cpos + 1) % s->nchain];
+    for (i = 0; i < n; i++)
+        if (!qd_proj_resident(&a->proj, need[i]))
+            break;
+    if (i < n && (!a->per.fetch_ms || a->ms - a->per.fetch_ms >= 8u)) {
+        for (i = 0; i < n; i++)
+            if (!qd_proj_fetch(&a->proj, need[i]))
+                wait = 1;
+        a->per.fetch_ms = wait ? (a->ms ? a->ms : 1u) : 0u;
+    }
+#if QD_SND_RAM
+    if (a->proj.sc && a->ms % 8u == 4u) {
+        int keys[PF_SND];
+        const int nk = pf_sounds(a, keys);
+        for (i = 0; i < nk; i++)
+            qd_sndc_fetch(a->proj.sc, keys[i], keys, nk);
+    }
+#endif
 }

@@ -93,6 +93,9 @@ typedef struct {
     uint32_t written;                  /* records committed (the project page's bubbles) */
     int own_step;                      /* P2.4: the port calls qd_persist_step itself */
     uint32_t pat_raw[QD_NPAT];         /* P2.4: each pattern's bytes' fast hash at its last look (0: none) */
+    int urgent;                        /* P2.4: 1 + the item a prefetch waits on to leave RAM (0 none): written next,
+                                        * with no debounce */
+    uint32_t fetch_ms;                 /* P2.4: the prefetch's last wait (it tries again 8 ms on) */
     uint32_t written_ms[QD_NPAT];      /* when each pattern was last written (its bubbles) */
 #if QD_PAT_RAM < QD_NPAT && !defined(QD_TARGET_FM1)
     /* P2.1: with no flash attached, at the device's sizes on the host (the tests, the tools), the patterns out of RAM

@@ -776,6 +776,120 @@ static void sound_paging_test(void)
           "P2.1: a restart from the flash: every pool sound and MY preset the same (%d of %d)", ok, QD_NSOUND + QD_NLIB);
 }
 
+/* P2.4: THE AUDIO PATH NEVER PAGES, AND NOTHING IS WRITTEN BUT IN qd_persist_step. The unit's way, simulated: the
+ * audio interrupt (qd_app_audio, 44.1 frames a ms) runs every ms; the main loop (qd_app_tick, then the port's own
+ * qd_persist_step every 15 ms) stalls for 400 ms at the worst moments, as a slow frame does. The patterns' changes
+ * (a queued one, a chain) need patterns that are not in RAM, the playing one is edited (its slot cannot be given up
+ * until its record is written), and the next patterns lock pool sounds. Checked: no flash access at all from the
+ * audio side, no write from a tick (the prefetch included), the changes held while their pattern is out (counted) and
+ * taken once it is in, no miss, the edit kept across a restart */
+static int io_audio, io_tick;
+static uint32_t n_audio_io, n_tick_writes, n_step_writes;
+static int c_read(void *c, uint32_t off, void *d, uint32_t n)
+{
+    n_audio_io += io_audio != 0;
+    return f_read(c, off, d, n);
+}
+static int c_erase(void *c, uint32_t off)
+{
+    n_audio_io += io_audio != 0, n_tick_writes += io_tick != 0, n_step_writes += !io_audio && !io_tick;
+    return f_erase(c, off);
+}
+static int c_prog(void *c, uint32_t off, const void *src, uint32_t n)
+{
+    n_audio_io += io_audio != 0, n_tick_writes += io_tick != 0, n_step_writes += !io_audio && !io_tick;
+    return f_prog(c, off, src, n);
+}
+static const qd_flash_t FLASH_C = {c_read, c_erase, c_prog, 0};
+static void isr_ms(qd_app_t *a, uint32_t ms, int main_loop)  /* ms of the unit: the interrupt's sound; the main loop's
+                                                         * tick and step (main_loop 0: stalled) */
+{
+    static int16_t buf[2 * 64];
+    static uint32_t frac, t_main;
+    while (ms--) {
+        frac += 441u;
+        io_audio = 1;
+        qd_app_audio(a, buf, frac / 10u);
+        io_audio = 0;
+        frac %= 10u;
+        now++;
+        if (!main_loop)
+            continue;
+        io_tick = 1;
+        qd_app_tick(a, now);                            /* (a stall's ms caught up at once, as the unit's loop does) */
+        io_tick = 0;
+        if (now - t_main >= 15u) {
+            t_main = now;
+            qd_persist_step(a);
+        }
+    }
+}
+static void isr_paging_test(void)
+{
+    static const int chain[3] = {4, 5, 0};
+    int k, edit_ok;
+    uint32_t late0;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    for (k = 0; k < 8; k++) {                           /* A01..A08: content; A05, A06 lock pool sounds */
+        qd_pattern_t *P = qd_proj_pat(&A.proj, k);
+        int s;
+        for (s = 0; s < 16; s += 2) {
+            qd_step_on(P, s % 4, s);
+            if (k == 4 || k == 5)
+                qd_step_set_sound(P, s % 4, s, 17 + (s / 2 + k) % 8);
+        }
+        P->used = 1;
+    }
+    qd_persist_flush(&A);
+    boot(&A);
+    qd_app_init(&A);                                    /* (the counting flash) */
+    qd_app_tick(&A, 0);
+    qd_persist_attach(&A, &FLASH_C);
+    qd_persist_own_step(&A, 1);
+    now = 0;
+    n_audio_io = n_tick_writes = n_step_writes = 0;
+    qd_seq_select(&A.seq, 1, 1);
+    qd_app_play(&A);
+    isr_ms(&A, 600, 1);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 7, 5);  /* the playing one edited (the UI: main loop) .. */
+    qd_step_on(qd_proj_pat(&A.proj, 2), 6, 9);          /* .. and A03 (the other slot: neither can be given up yet) */
+    late0 = A.seq.sw_late;
+    qd_seq_select(&A.seq, 3, 1);                        /* A04 at the next 16th .. */
+    isr_ms(&A, 400, 0);                                 /* .. the main loop stalled: no prefetch */
+    CHECK(QD_PAT_RAM >= QD_NPAT ? A.seq.cur == 3 : A.seq.cur == 1 && A.seq.sw_late > late0,   /* (the host: all in
+                                                         * RAM, taken at once) */
+          "P2.4: a change whose pattern is not in RAM, the main loop "
+          "stalled: held, the playing one goes on (playing A%02d, held %u times)", A.seq.cur + 1,
+          (unsigned)(A.seq.sw_late - late0));
+    isr_ms(&A, 3000, 1);
+    CHECK(A.seq.cur == 3, "P2.4: .. the main loop back: its pattern read in, the change taken (A%02d)", A.seq.cur + 1);
+    qd_seq_chain(&A.seq, chain, 3);                     /* A05 A06 A01: sound locks, the edited A02 to give up */
+    for (k = 0; k < 6; k++) {
+        isr_ms(&A, 1500, 1);
+        isr_ms(&A, 400, 0);
+    }
+    qd_seq_select(&A.seq, 1, 1);                        /* back to the edited A02 (given up while the chain played) */
+    isr_ms(&A, 3000, 1);
+    CHECK(A.seq.cur == 1, "P2.4: the chain played, then A02 again (A%02d)", A.seq.cur + 1);
+    CHECK(n_audio_io == 0, "P2.4: the audio side touched the flash %u times (patterns read in %u, misses %u, sound "
+          "misses %u)", (unsigned)n_audio_io, (unsigned)A.proj.pat_loads, (unsigned)A.proj.pat_miss,
+          (unsigned)A.proj.snd_miss);
+    CHECK(n_tick_writes == 0 && n_step_writes > 0, "P2.4: no flash write from a tick or its prefetch (%u), all from "
+          "qd_persist_step (%u)", (unsigned)n_tick_writes, (unsigned)n_step_writes);
+    CHECK(A.proj.pat_miss == 0 && !A.proj.pat_forced, "P2.4: no pattern missed on the audio side (%u), no pinned one "
+          "given up (%u)", (unsigned)A.proj.pat_miss, (unsigned)A.proj.pat_forced);
+    printf("  P2.4 paging: %u changes held for their pattern, %u sound locks played with the track's sound, %u "
+           "patterns read in, %u flash writes, all in qd_persist_step\n", (unsigned)A.seq.sw_late,
+           (unsigned)A.proj.snd_miss, (unsigned)A.proj.pat_loads, (unsigned)n_step_writes);
+    qd_app_stop(&A);
+    qd_persist_flush(&A);
+    boot(&B);
+    edit_ok = qd_step_is_on(qd_step(qd_proj_cpat(&B.proj, 1), 7, 5)) && qd_step_is_on(qd_step(qd_proj_cpat(&B.proj,
+                                                                                                         2), 6, 9));
+    CHECK(edit_ok, "P2.4: the edits to the playing A02 and to A03 (given up for A04) kept across a restart");
+}
+
 /* P2.1: 'P' 5, TRACK SOUNDS BY REFERENCE: a track sound that is its preset (not edited) is written as the preset's id;
  * read back the same, exactly; one edited stays a copy. A track keeps the sound it loaded: REPLACE, an undo and a
  * redo of it, a delete leave every pattern's track sound as it was, in this project and another, in RAM or not */
@@ -1165,6 +1279,7 @@ int main(void)
     pages_test();
     paging_test();
     sound_paging_test();
+    isr_paging_test();
     pref_test();
     p5_migration_test();
     migration_test();

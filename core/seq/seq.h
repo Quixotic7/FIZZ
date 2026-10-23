@@ -170,6 +170,9 @@ typedef struct {
     int sw_pat;                         /* the pattern queued (-1: none) */
     int64_t sw_x;                       /* .. the tick it takes over */
     int sw_cpos;                        /* .. its place in the chain (-1: not the chain's) */
+    int sw_held;                        /* P2.4: a cursor went on past sw_x in the playing pattern (its change not in
+                                         * RAM yet, pattern.h nopage): it enters with a rewind */
+    uint32_t sw_late;                   /* P2.4: changes held for their pattern (each: to the next boundary, or 16th) */
     int chain[QD_SEQ_NCHAIN], nchain, cpos;
     /* the tracks */
     qd_tcur_t cur_t[QD_PAT_NTRACK];

@@ -178,8 +178,16 @@ static int midi_tracks(const qd_app_t *a, int ch)       /* the tracks channel ch
 /* P2.4: in two parts. qd_app_midi_play, audio-safe (the clock and the transport, the notes to the player, the
  * controllers; nothing of the UI: no undo, no recording, no preview), so the port can play a note from its interrupt
  * at once; qd_app_midi_ui, the same message's UI side (a gesture's undo, the note into a held step or a take, the
- * preview), from the main loop after it. qd_app_midi is the two in a row, as it always was */
+ * preview), from the main loop after it. qd_app_midi is the two in a row, as it always was. P2.4: the audio side reads
+ * nothing from the store (pattern.h nopage) */
+static void midi_play(qd_app_t *a, int status, int d1, int d2);
 void qd_app_midi_play(qd_app_t *a, int status, int d1, int d2)
+{
+    a->proj.nopage++;
+    midi_play(a, status, d1, d2);
+    a->proj.nopage--;
+}
+static void midi_play(qd_app_t *a, int status, int d1, int d2)
 {
     const int ch = status & 15, kind = status & 0xF0;
     int m, t;
@@ -425,6 +433,7 @@ static void qd_app_block(qd_app_t *a, int16_t *out)
 
 void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames)
 {
+    a->proj.nopage++;                                   /* P2.4: the audio side reads nothing in (pattern.h) */
     while (frames) {
         uint32_t n;
         if (a->ififo >= a->nfifo) {
@@ -439,6 +448,7 @@ void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames)
         a->ififo += (int)n;
         frames -= n;
     }
+    a->proj.nopage--;
 }
 
 /* ---------------------------------------------------------------- P1.5a: saving (persist.h), the store (core/store) */
