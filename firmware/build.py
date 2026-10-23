@@ -6,6 +6,8 @@
                                             size report fizz-size.txt
   firmware/build.py --host                  the host simulator: firmware/app/build/host/fizz_host
   firmware/build.py --web                   the browser emulator (Emscripten): firmware/app/build/emu/
+  ... --single-core                         the single-core package (FZ_SINGLE_CORE=1: core 1 never started), its
+                                            files named fizz-1core* (fizz-1core.fwsc, the host's fizz-1core_host)
 
 What it adds to fm1-base's build (each a small patch of its module, applied here):
   - the toolchain's container sees the whole repository (FIZZ's core/ and third_party/ are above firmware/): its root
@@ -57,12 +59,15 @@ def jieli(rel):
 
 
 _tc = fb.tc
+SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
 
 
 def tc(tool, *args):
     args = list(args)
     if tool == "cc" and "-c" in args and any(isinstance(a, Path) and a.suffix == ".c" for a in args):
         args = ["-idirafter", jieli("pi32v2/include"), *args]
+        if SINGLE:
+            args = ["-DFZ_SINGLE_CORE=1", *args]
         if any(isinstance(a, Path) and "o2" in a.parts and a.suffix == ".o" for a in args):
             # (P2.6: FIZZ's units call between the flash and the RAM code region, 4 MiB apart: long calls, as
             # fm1-base's Bluetooth build makes them)
@@ -222,11 +227,18 @@ class _Subprocess:
     def run(self, cmd, *a, **k):
         if cmd and cmd[0] == "emcc":
             cmd = [cmd[0], "-sSUPPORT_LONGJMP=wasm", *cmd[1:]]
+        if SINGLE and cmd and cmd[0] in ("emcc", os.environ.get("CC", "cc")):   # (the host's and the web's compilers)
+            cmd = [cmd[0], "-DFZ_SINGLE_CORE=1", *cmd[1:]]
         return subprocess.run(cmd, *a, **k)
 
 
 fb.subprocess = _Subprocess()
 
+# ---- the single-core package: its own file names (the name in fm1.toml, -1core), FZ_SINGLE_CORE=1 everywhere
+if SINGLE:
+    _read_conf = fb.read_conf
+    fb.read_conf = lambda path: {**_read_conf(path), "name": _read_conf(path).get("name", "fizz") + "-1core"}
+
 if __name__ == "__main__":
-    sys.argv = [str(BASE / "tools" / "build.py"), str(APP), *sys.argv[1:]]
+    sys.argv = [str(BASE / "tools" / "build.py"), str(APP), *[a for a in sys.argv[1:] if a != "--single-core"]]
     sys.exit(fb.main())

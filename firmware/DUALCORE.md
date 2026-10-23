@@ -1,6 +1,7 @@
-# FIZZ on two cores: findings and a plan (P2.6, research only)
+# FIZZ on two cores: findings and a plan (P2.6)
 
-2026-10-23. Nothing here is built yet. Sources:
+2026-10-23. Research first; then the owner's decisions and the manager (core 1 not started yet): see "The owner's
+decisions" and "What is built" below. Sources:
 - ChoralRoot 0.26.1 (`ChoralRootFM1/.claude/worktrees/rel-0261-1b7a23`, its `docs/DUALCORE.md`) and the main checkout's
   git history;
 - fm1-x0x (`../fm1-x0x`, fe6b0ae) and Melodee (`../melodee`, 16daf99), checked out locally;
@@ -22,7 +23,7 @@ the two cores (PLAN §11 step 6). ChoralRoot renders its bass part and a share o
 | Melodee `firmware/hal/fm1_multicore.h`, `fm1_core1_*.h`, `fm1_cache.h`, `fm1_power.h`, `main.c`'s start | keremimo/melodee | Kerem Kilic (all commits) | GPL-3.0-only | his contributions: MPL-2.0 for felucca-bsp by his comment on issue #5 |
 | ChoralRoot `firmware/hal/fm1_cpu1.S` | ChoralRootFM1 | Michael P Jones (copied from fm1-x0x's; 10 lines of whitespace differ) and genkigenki (header-only commit 8221b7c) | GPL-3.0-only | it is Charles Vestal's file: through issue #5, not as ChoralRoot's |
 | ChoralRoot `firmware/hal/fm1_cpu1.h` (326 lines) | ChoralRootFM1 | Michael P Jones, on fm1-x0x's (Charles Vestal) and Melodee's PR 21 port (Kerem Kilic); genkigenki headers | GPL-3.0-only | **mixed**: the owner's additions are his to relicense; the base is Charles's, the validation and fault path Kerem's (both now MPL-willing), and anything from Jangada needs zednaked |
-| ChoralRoot `firmware/src/cr_cpu1.h` (706 lines: the job split, the budgets, the escalation, the persistent bar, the profile) | ChoralRootFM1 | Michael P Jones (15 commits), genkigenki (2, headers) | GPL-3.0-only | **the owner's own**: he may relicense it to MPL-2.0, as he did FIZZ. Its design follows Melodee PR 21 (credited); its code is ChoralRoot's. It is written for ChoralRoot's parts and engines, so FIZZ would take its structure, not its code |
+| ChoralRoot `firmware/src/cr_cpu1.h` (706 lines: the job split, the budgets, the escalation, the persistent bar, the profile) | ChoralRootFM1 | Michael P Jones (15 commits), genkigenki (2, headers) | GPL-3.0-only in ChoralRoot | **yes: relicensed MPL-2.0 by its author for FIZZ, 2026-10-23** (the owner's decision below). Its design follows Melodee PR 21 (credited); its code is ChoralRoot's. Only the owner's lines: genkigenki's two commits touched headers only, and nothing of `hal/fm1_cpu1.*` comes with it |
 | Felucca 1.0 | hugelton/Felucca | Leo Kuroshita | GPL-3.0-only | has no second-core code |
 
 **Conclusion.** The right base is the shared core that felucca-bsp issue #5 is turning into felucca-bsp's MPL-2.0
@@ -119,3 +120,83 @@ steps:
 **Expected gain.** Voices are ~70 % of the interrupt now (2,849 of 3,987 us for 6 voices). Halved, the interrupt
 playing that demo would be ~2,560 us (44 %), before the core's own per-voice work and `quad_render` in RAM. Sixteen
 voices need both.
+
+## The owner's decisions (2026-10-23)
+
+1. **Core 1's start waits for felucca-bsp issue #5**: FIZZ uses felucca-bsp's MPL-2.0 `chip/fm1_cpu1.*` when it lands
+   (choice (a) above). Nothing of fm1-x0x's, Melodee's, Jangada's or ChoralRoot's `hal/fm1_cpu1.*` /
+   `fm1_multicore.h` is copied into FIZZ, before or after.
+2. **ChoralRoot's `firmware/src/cr_cpu1.h` is relicensed MPL-2.0 for FIZZ by its author** (Michael P Jones, the
+   owner). Its design and its code may be reused: the job split, the budgets, the escalation, the persistent "core 1
+   off" record and bar, the stage profile.
+
+### LICENSING note (for the FIZZ agent and anyone copying from ChoralRoot)
+
+- What may be copied: **the owner's lines of ChoralRoot's `firmware/src/cr_cpu1.h`**, nothing else of ChoralRoot's
+  second-core code. Never `hal/fm1_cpu1.h` / `.S` (Charles Vestal's, with Melodee's and Jangada's parts: GPL-3.0 until
+  felucca-bsp issue #5 makes it MPL-2.0 there, and then it comes from felucca-bsp, not from ChoralRoot), never
+  Melodee's `fm1_multicore.h` / `fm1_core1_*.h`, never Jangada's code.
+- Every file holding such a copy starts with `SPDX-License-Identifier: MPL-2.0` and names where the copy is from:
+  > from ChoralRoot's cr_cpu1.h, Michael P Jones, relicensed MPL-2.0 by its author for FIZZ, 2026-10-23
+  (with the functions it took, when it is part of a file). `cr_cpu1.h` credits its design to Melodee PR 21 (Kerem
+  Kilic); keep that credit beside the line.
+- Copy from the owner's ChoralRoot checkout (`ChoralRootFM1/firmware/src/cr_cpu1.h`, or the 0.26.1 worktree), not from
+  a fork.
+- FIZZ's own files that already do this: `firmware/app/fz_dual.h`, `fz_dual.c` (the escalation `cr_c1_assess` /
+  `cr_c1_give_up`, the record's decision `cr_c1_bar_decide` / `cr_c1_bar_boot`, the power-on gating
+  `cr_c1_power_on` / `cr_c1_boot`, rewritten for FIZZ's names). The record itself (`fz_c1_bar_t`, its magic) is FIZZ's
+  own, not `hal/fm1_cpu1.h`'s `struct fm1_c1_bar`.
+
+## What is built (core 1 not started)
+
+**The manager** (`app/fz_dual.h`, `app/fz_dual.c`), in the unity build (app.c includes it) and in a host test:
+- **A back end** (`fz_c1_backend_t`: start, run a job, wait, hold, its misread and fault counters). Today the
+  **simulated** core 1: core 0 runs the job through the same mailbox a real core will read. `FZ_C1_BACKEND` in app.c
+  picks it.
+- **The mailbox**: 64-byte aligned, core 0's request on one cache line (sequence, job, argument, a check word over the
+  three), core 1's answer on the next (the sequence done, the status, the counters). A request with a wrong check
+  word is refused and counted, never run. `fz_c1_serve()` is core 1's side (a FIZZ idle loop or the simulator).
+- **Each block**: `posted = fz_dual_post(job, arg)`; core 0's own part; `fz_dual_join(posted, job, arg)`. The join
+  waits, and on a refusal, a stall or a fault runs the job on core 0 in that same block, so the block is never short.
+- **The escalation** (ChoralRoot's): a first misread is forgiven, a second (a later block) or any stall or fault gives
+  core 1 up for the session and sets the record.
+- **The record** (`fz_c1_bar_t` in `.noinit`, 12 B): a give-up, a crash beside core 1 (`APP_FAULT` -> `app_fault` ->
+  `fz_dual_crashed`, only with a real back end), or a watchdog reset while core 1 ran keep core 1 off the next boot.
+  A power-on clears it.
+- **Power-on** (`app_init`, before the sound): not in the single-core package, not when the setting is off, not after a
+  failed boot (fm1-base's `bootguard.failed`: a crash or the watchdog in the 30 s of the boot before: one core this
+  boot, nothing written), not when the record bars it; otherwise the back end starts, and if it does not answer it is
+  held and the session is single-core ("failed").
+- **Stats**: a sixth line on `7D 46 50` (`fizz_xdata.py stats`): `c1=` on / off / failed / gave up / single, the back
+  end, why it is barred, the start time, the jobs handed over, the jobs core 0 ran instead, stalls, refusals,
+  misreads, the longest wait.
+- **The build switch**: `firmware/build.py --single-core` (also with `--host`, `--web`, `--release`) builds with
+  `FZ_SINGLE_CORE=1` into `fizz-1core.fwsc` (`fizz-1core_host`); core 1's start is compiled out and every job runs on
+  core 0. The Standard package is the plain build.
+- **The test** (`app/tests/dual_test.c`, both builds): the power-on rules and the record (garbage, setting off, safe
+  mode, a counted boot, no answer, a watchdog hang, a crash, a give-up and the boots after them), and 400 blocks of
+  16 stand-in voices rendered 0..7 on core 0 and 8..15 as the job: bit for bit one core's samples with the job run
+  first, run last, refused once, refused twice, and stalled in the middle.
+
+  ```
+  cc -O2 -Wall -Iapp app/tests/dual_test.c -o /tmp/dual_test && /tmp/dual_test
+  cc -O2 -Wall -Iapp -DFZ_SINGLE_CORE=1 app/tests/dual_test.c -o /tmp/dual_test1 && /tmp/dual_test1
+  ```
+
+**Cost so far**: RAM 300 B (the mailbox's 128 B and its alignment, the counters), NOINIT 12 B, flash ~1 KB.
+Nothing is handed over yet: no block calls `fz_dual_post` until FIZZ's core has the split render.
+
+### Waiting for
+
+1. **The FIZZ agent's split render** (`qd_app_block_begin` / `qd_app_block_voices(a, v0, v1, bus)` /
+   `qd_app_block_end`) and its per-voice and effects profiling. Then, in `fz_audio`'s place: per block, begin; post
+   "voices 8..15 into bus B"; voices 0..7 into bus A; join; end. Proven on the host first: the simulated core 1
+   (`fz_c1_sim_late` 0 and 1) gives `qd_app_audio`'s samples bit for bit, and on the unit with the simulated back end
+   (both halves on core 0: the handshake's cost alone, ~0 voices' gain).
+2. **felucca-bsp issue #5** (`chip/fm1_cpu1.*`, MPL-2.0). Then FIZZ adds `fz_c1_felucca` (a back end over its start,
+   run, wait, hold and counters, with the PC guard opened around the start as ChoralRoot does), `app_cstart` with its
+   hold (fm1-base's `APP_CSTART`: core 1 left running by a reset, held before the RAM is cleared), core 1's stack
+   (2,816 B: NOINIT has ~3 KB free) and sets `FZ_C1_BACKEND`. fm1-base may by then have `plat_cpu2_*` (its
+   DESIGN.md), which would replace the back end's direct calls.
+3. **The supplies**: whether fm1-base's VDC14 / SYSVDD levels are the dual-core-safe ones (above), before core 1 runs
+   on the owner's unit.

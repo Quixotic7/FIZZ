@@ -24,6 +24,26 @@
  * writer (APP_USB_CMD, firmware/tools/fizz_xdata.py). */
 #include "fizz_port.h"
 #include "fz_prof.h"
+#include "fz_dual.c"                     /* the second core's manager (firmware/DUALCORE.md): until FIZZ's core has its
+                                          * split render and felucca-bsp its core-1 start (issue #5), it boots the
+                                          * simulated core and no block hands it anything */
+
+/* the core 1 to start: felucca-bsp's chip/fm1_cpu1.* behind an fz_c1_backend_t once issue #5 lands (FZ_C1_BACKEND
+ * set by build.py then); until then core 0 itself, through the mailbox. FZ_SINGLE_CORE 1 (build.py --single-core): none */
+#ifndef FZ_C1_BACKEND
+#define FZ_C1_BACKEND (&fz_c1_simulated)
+#endif
+#ifdef PLAT_HOST
+static fz_c1_bar_t fz_c1_bar;
+#else
+static fz_c1_bar_t fz_c1_bar __attribute__((section(".noinit")));   /* "core 1 off": kept across a reset */
+void app_fault(const fm1_crash_t *c)     /* (APP_FAULT) a crash: with a real core 1 running, the next boot keeps it off */
+{
+    (void)c;
+    if (FZ_C1_BACKEND != &fz_c1_simulated)
+        fz_dual_crashed(&fz_c1_bar);
+}
+#endif
 
 static void fz_message(const char *a, const char *b);
 #ifndef PLAT_HOST
@@ -424,6 +444,26 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
 #endif
     *c = 0;
     fz_stats_send(5, line);
+    /* 6: core 1 (fz_dual.c): its state and back end, why it is off, the jobs handed over and run by core 0 instead,
+     * the failures, the longest wait */
+    c = line;
+    {
+        const char *const w[] = {"c1=", fz_dual_state_name(), " c1_backend=", FZ_C1_BACKEND->name, " "};
+        unsigned i;
+        for (i = 0; i < sizeof w / sizeof w[0]; i++)
+            for (const char *t = w[i]; *t;)
+                *c++ = *t++;
+    }
+    c = fz_put_u(c, "c1_barred=", fz_dual.barred);
+    c = fz_put_u(c, "c1_start_us=", fz_us(fz_dual.start_ticks));
+    c = fz_put_u(c, "c1_posts=", fz_dual.posts);
+    c = fz_put_u(c, "c1_inline=", fz_dual.inline_jobs);
+    c = fz_put_u(c, "c1_stalls=", fz_dual.stalls);
+    c = fz_put_u(c, "c1_refusals=", fz_dual.refusals);
+    c = fz_put_u(c, "c1_misreads=", fz_dual.misreads);
+    c = fz_put_u(c, "c1_wait_max_us=", fz_us(fz_dual.wait_max_ticks));
+    *c = 0;
+    fz_stats_send(6, line);
 }
 
 static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region erased, FIZZ started again on it (as at a
@@ -613,6 +653,13 @@ void app_init(void)
     fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
     fz_ticked = 0;
     fz_store_started = 0, fz_safe = 0, fz_wiped = -1;
+    /* core 1, before the sound: not after a failed boot (fm1-base's boot guard counted the one before: a crash or the
+     * watchdog within its 30 s), and the record read with this reset's cause (the watchdog's: a hang beside core 1) */
+#ifdef PLAT_HOST
+    fz_dual_boot(&fz_c1_bar, FZ_C1_BACKEND, 0, 0, 0, 1);
+#else
+    fz_dual_boot(&fz_c1_bar, FZ_C1_BACKEND, 0, bootguard.failed != 0, (fm1_boot.p3_rst & 4u) != 0, 1);
+#endif
 }
 static void fz_store_start(void)         /* the store, once, at the first screen (the panel is read by then) */
 {
