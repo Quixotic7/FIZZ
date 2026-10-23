@@ -463,10 +463,10 @@ static void proj_read(qd_app_t *a, int p)
     for (k = 0; k < QD_NPAT; k++) {
         len = qd_store_get(&ps->prj_st, QD_RKEY(QD_RK_PAT, p, k), pr_buf, sizeof pr_buf);
         if (len > 0 && len != (int)QDS_DELETED) {
-            static qd_pattern_t tmp;
-            tmp = a->proj.pat[k];
+            qd_pattern_t *tmp = qd_pat_scratch();
+            *tmp = a->proj.pat[k];
             if (!de_pat(&a->proj.pat[k], pr_buf, (uint32_t)len))
-                a->proj.pat[k] = tmp;                   /* (a record of another layout: the default) */
+                a->proj.pat[k] = *tmp;                  /* (a record of another layout: the default) */
         }
     }
     for (k = 1; k <= QD_NSOUND; k++) {

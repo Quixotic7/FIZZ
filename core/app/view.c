@@ -290,12 +290,11 @@ static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
     int i, k;
     memset(v, 0, sizeof *v);
     if (is_default) {                                   /* the track's defaults: a step with no overrides */
-        static qd_pattern_t tmp;
-        tmp.trk[0] = *ts;
-        memset(&tmp.step[0][0], 0, sizeof tmp.step[0][0]);
-        tmp.step[0][0].flags = QD_SF_ON;
-        qd_step_resolve(&tmp, 0, 0, &r);
-        st = &tmp.step[0][0];
+        static qd_step_t on;
+        memset(&on, 0, sizeof on);
+        on.flags = QD_SF_ON;
+        qd_step_resolve_def(&ts->def, &on, &r);
+        st = &on;
     } else {
         qd_step_resolve(P, t, s, &r);
     }
@@ -459,10 +458,7 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     v->f1_src = u->f1_copied ? u->f1_src : -1;          /* P1.6h: where F1's copy came from */
     if (u->clip.st.valid) {                             /* the step in the clipboard (F1's copy, F2's hand) */
         qd_rstep_t r;
-        static qd_pattern_t tmp;
-        tmp.trk[0] = *ts;
-        tmp.step[0][0] = u->clip.st.step;
-        qd_step_resolve(&tmp, 0, 0, &r);
+        qd_step_resolve_def(&ts->def, &u->clip.st.step, &r);
         v->clip_type = r.type;
         v->clip_nnote = r.type == QD_TRIG_LOCK ? 0 : r.nn;
         memcpy(v->clip_note, r.notes, sizeof v->clip_note);
@@ -1130,11 +1126,10 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
     v->col = UI_MODE_COL[m];
     v->mode = UI_FIELD_NAME[m];
     if (is_default || !u->nheld) {
-        static qd_pattern_t tmp;                        /* the track's defaults: a step with no overrides */
-        tmp.trk[0] = P->trk[t];
-        memset(&tmp.step[0][0], 0, sizeof tmp.step[0][0]);
-        tmp.step[0][0].flags = QD_SF_ON;
-        qd_step_resolve(&tmp, 0, 0, &r);
+        qd_step_t on;                                   /* the track's defaults: a step with no overrides */
+        memset(&on, 0, sizeof on);
+        on.flags = QD_SF_ON;
+        qd_step_resolve_def(&P->trk[t].def, &on, &r);
         r.sound = 0;
         v->ctx = "TRACK DEFAULT";
     } else {
@@ -1572,10 +1567,7 @@ static void mfx_fstep(const qd_app_t *a, ui_mfx_t *v, int force)
         v->f2_hand = u->f2_loaded && u->f2_holding ? 1 : -1;
         if (u->clip.st.valid) {
             qd_rstep_t r;
-            static qd_pattern_t tmp;
-            tmp.trk[0] = qd_ctl_cpat(a)->trk[a->sel];
-            tmp.step[0][0] = u->clip.st.step;
-            qd_step_resolve(&tmp, 0, 0, &r);
+            qd_step_resolve_def(&qd_ctl_cpat(a)->trk[a->sel].def, &u->clip.st.step, &r);
             v->st_type = r.type;
             v->st_nnote = r.type == QD_TRIG_LOCK ? 0 : r.nn;
             memcpy(v->st_note, r.notes, sizeof v->st_note);

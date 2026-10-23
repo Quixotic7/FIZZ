@@ -285,6 +285,11 @@ int qd_step_is_on(const qd_step_t *st);
 int qd_step_overrides(const qd_step_t *st, int pm);
 /* the step as it plays (its own values where it overrides, else the track's defaults) */
 void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r);
+/* P2.1: a step resolved against a track's defaults (no pattern needed: the clipboard's step, the defaults' picture) */
+void qd_step_resolve_def(const qd_sdef_t *d, const qd_step_t *st, qd_rstep_t *r);
+/* P2.1: the one scratch pattern (the device has room for one, not seven): for a computation that needs a whole
+ * pattern for a moment; never held across calls, never by two at once */
+qd_pattern_t *qd_pat_scratch(void);
 int qd_step_type(const qd_pattern_t *p, int t, int s);   /* resolved: QD_TRIG_NONE when off */
 int qd_step_notes(const qd_pattern_t *p, int t, int s, uint8_t *notes);   /* resolved: the absolute notes (n) */
 int qd_notes_abs(const uint8_t *note6, uint8_t *notes);   /* the slots' pitches -> ascending (n) */

@@ -600,12 +600,12 @@ void qd_step_value_key_default(qd_app_t *a, int b, int down)
         }
         /* fall through */
     default: {
-        static qd_pattern_t sp;                         /* (the value on an empty step, then its parameter the default) */
+        qd_pattern_t *sp = qd_pat_scratch();            /* (the value on an empty step, then its parameter the default) */
         qd_step_t *st;
-        sp = *p;
-        qd_step_clear(&sp, t, 0);
-        value_set_p(a, &sp, 0, m, b);
-        st = &sp.step[t][0];
+        *sp = *p;
+        qd_step_clear(sp, t, 0);
+        value_set_p(a, sp, 0, m, b);
+        st = &sp->step[t][0];
         switch (m) {
         case UI_F_VEL: qd_tdef_set(p, t, QD_PM_VEL, st->vel); break;
         case UI_F_LEN: qd_tdef_set(p, t, QD_PM_LEN, st->len); break;
@@ -1315,11 +1315,10 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
         return;
     if (!u->nheld) {                                    /* P1.6d: the latch in VALUES, nothing selected: the track's
                                                          * defaults (a step with no overrides), B11 when not initial */
-        static qd_pattern_t sp;
-        sp = *p;
-        qd_step_clear(&sp, a->sel, 0);
-        qd_step_on(&sp, a->sel, 0);
-        qd_step_resolve(&sp, a->sel, 0, &r);
+        qd_step_t on;
+        memset(&on, 0, sizeof on);
+        on.flags = QD_SF_ON;
+        qd_step_resolve_def(&p->trk[a->sel].def, &on, &r);
         goto keys;
     }
     resolve(a, u->held[0], &r);

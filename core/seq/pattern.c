@@ -519,8 +519,17 @@ int qd_notes_abs(const uint8_t *note6, uint8_t *notes)
 
 void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r)
 {
-    const qd_step_t *st = qd_step(p, t, s);
-    const qd_sdef_t *d = &p->trk[t < 0 || t >= QD_PAT_NTRACK ? 0 : t].def;
+    qd_step_resolve_def(&p->trk[t < 0 || t >= QD_PAT_NTRACK ? 0 : t].def, qd_step(p, t, s), r);
+}
+
+qd_pattern_t *qd_pat_scratch(void)
+{
+    static qd_pattern_t scratch;
+    return &scratch;
+}
+
+void qd_step_resolve_def(const qd_sdef_t *d, const qd_step_t *st, qd_rstep_t *r)
+{
     const uint16_t o = st->ovr;
 #define PICK(pm, sv, dv) (((o >> (pm)) & 1u) ? (sv) : (dv))
     memset(r, 0, sizeof *r);
