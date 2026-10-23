@@ -4457,13 +4457,15 @@ static void g_p16c_screen(void)
     CHECK(!strcmp(lb.s[QD_LBL_B0 + 2], "ARP") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_ALGO], "GROUP") &&
               !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_PRESETS], "EFFECT") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "PATTERN") &&
               !strcmp(lb.s[QD_LBL_B0 + 10], "REMOVE"), "the labels: B3 ARP, GROUP, EFFECT, PATTERN, REMOVE");
+    btap(QD_B_REC);                                     /* (P1.6f: opened from the step view: STEPS; REC: KEYS) */
     kdown(WK(0)), kdown(WK(2));                         /* the keys through the group: the arp plays them */
     run(600);
-    CHECK(qd_mfx_arp_playing(&A.player.mfx, 1) && leds().button[QD_B_KEYS] == QD_LED_LIT,
-          "W1 W3 held: the arp plays (ARP lit)");
+    CHECK(qd_mfx_arp_playing(&A.player.mfx, 1) && leds().button[QD_B_KEYS] >= 153,
+          "W1 W3 held: the arp plays (ARP breathing high, P1.6f)");
     kup(WK(0)), kup(WK(2));
     run(300);
     CHECK(!qd_mfx_arp_playing(&A.player.mfx, 1), "let go: it stops");
+    btap(QD_B_REC);
     bdown(SHIFT), turn(QD_K_SELECT, 1), bup(SHIFT), run(10);
     qd_view_mfx(&A, &v);
     CHECK(A.sel == 1 && !v.g && qd_view_screen(&A) == QD_SCR_MFX, "SHIFT + SELECT: track 2, its group (OFF)");
@@ -5057,11 +5059,9 @@ static void g_p16e_mfx(void)
     run(10);
     CHECK(G->slot[0].type == QD_MFX_CHANCE, ".. B1 again: put back");
     /* REC: STEPS / KEYS */
-    CHECK(!A.ui.mfx_steps && leds().button[QD_B_REC] == QD_LED_LIT, "the screen opens on KEYS (REC lit)");
-    btap(QD_B_REC);
-    CHECK(A.ui.mfx_steps && qd_mfx_open(&A) && leds().button[QD_B_REC] == QD_LED_OFF && A.ui.mode == QD_MODE_STEP &&
+    CHECK(qd_mfx_open(&A) && leds().button[QD_B_REC] == QD_LED_OFF && A.ui.mode == QD_MODE_STEP &&
               leds().key[WK(4)] == QD_LED_LIT && leds().key[WK(5)] == QD_LED_FAINT,
-          "REC tapped: STEPS (REC dark), the steps lit as in the step view");
+          "opened from the step view: STEPS (REC dark, P1.6f), the steps lit as in the step view");
     kdown(WK(4)), kdown(WK(8));
     run(20);
     turn(QD_K_ALGO, 3);
@@ -5077,7 +5077,7 @@ static void g_p16e_mfx(void)
     CHECK(PAT()->trk[0].mfx == 2, "nothing held: ALGORITHM the track's group again");
     turn(QD_K_ALGO, -1);
     btap(QD_B_REC);
-    CHECK(!A.ui.mfx_steps && leds().button[QD_B_REC] == QD_LED_LIT, "REC again: KEYS");
+    CHECK(A.ui.mode == QD_MODE_KEYS && qd_mfx_open(&A) && leds().button[QD_B_REC] == QD_LED_LIT, "REC: KEYS (REC lit)");
     kdown(WK(0));
     run(400);
     for (n = 0; n < 128; n++)
@@ -5086,12 +5086,12 @@ static void g_p16e_mfx(void)
     CHECK(n < 128, "KEYS: W1 plays through the group");
     kup(WK(0));
     run(20);
+    btap(QD_B_REC);                                     /* (back to STEPS: the step view after) */
     btap(QD_B_HOME);
     /* the latch's selection counts */
     btap(LFO);
     wtap(4);
     btap(QD_B_KEYS);
-    btap(QD_B_REC);
     turn(QD_K_ALGO, -2);
     CHECK(A.ui.slatch && A.ui.nheld == 1 && PAT()->step[0][4].mfx == QD_SMFX_OFF && PAT()->step[0][8].mfx == QD_SMFX_G1 + 1,
           "the latch's selection (step 5): ALGORITHM -2 its MIDI FX (OFF)");
@@ -5129,6 +5129,96 @@ static void g_p16e_preview(void)
     wrel(2);
     run(400);
     CHECK(!qd_mfx_arp_playing(&A.player.mfx, 1), "let go: stopped");
+    btap(QD_B_HOME);
+}
+
+/* P1.6f (the owner: "F1 / F2 close the MIDI FX screen on release"): F1 held past the tap time and let go, F1 + B and
+ * let go, F2 held and let go: the screen stays; an F1 tap closes it */
+static void g_p16f_f1f2(void)
+{
+    start();
+    btap(QD_B_KEYS);
+    turn(QD_K_ALGO, 1);
+    qd_mfx_slot_init(&A.proj.mfx[0].slot[0], QD_MFX_ARP);
+    run(QD_TK_MS + 300);
+    bdown(F1), run(QD_TAP_MS + 100), bup(F1), run(20);
+    CHECK(qd_mfx_open(&A), "F1 held past the tap time, let go: the screen stays");
+    bdown(F1), run(30), black(B1), bup(F1), run(20);
+    CHECK(qd_mfx_open(&A), "F1 + B1, let go: the screen stays");
+    bdown(F2), run(30), bup(F2), run(20);
+    CHECK(qd_mfx_open(&A), "F2 tapped: the screen stays");
+    bdown(F2), run(QD_TAP_MS + 300), bup(F2), run(20);
+    CHECK(qd_mfx_open(&A), "F2 held, let go: the screen stays");
+    btap(F1);
+    CHECK(!qd_mfx_open(&A), "F1 tapped: closed");
+    btap(QD_B_HOME);
+}
+
+/* P1.6f: ARP's LED in the MIDI FX screen breathes, low (5 .. 25 %) with the arp off, high (60 .. 100 %) with it on;
+ * outside it steady. STEPS / KEYS is the main view's REC keyboard: opened from the step view STEPS, from the keyboard
+ * KEYS; REC switches it; leaving, the view follows; REC's light and label the same; REC held arms, staying; SHIFT +
+ * REC the record settings */
+static uint8_t arp_led_min, arp_led_max;
+static void arp_led_range(void)
+{
+    int k;
+    arp_led_min = 255, arp_led_max = 0;
+    for (k = 0; k < 1600; k += 20) {
+        const uint8_t l = leds().button[QD_B_KEYS];
+        arp_led_min = l < arp_led_min ? l : arp_led_min;
+        arp_led_max = l > arp_led_max ? l : arp_led_max;
+        run(20);
+    }
+}
+static void g_p16f_keys(void)
+{
+    qd_labels_t lb;
+    start();
+    btap(QD_B_KEYS);
+    turn(QD_K_ALGO, 1);                                 /* (group 1, no arp) */
+    arp_led_range();
+    CHECK(arp_led_min >= 10 && arp_led_max <= 66 && arp_led_max - arp_led_min > 30, "the screen, no arp: ARP breathing "
+          "low (%d .. %d)", arp_led_min, arp_led_max);
+    qd_mfx_slot_init(&A.proj.mfx[0].slot[0], QD_MFX_ARP);
+    arp_led_range();
+    CHECK(arp_led_min >= 150 && arp_led_max >= 250, "the arp on: breathing high (%d .. %d)", arp_led_min, arp_led_max);
+    btap(F1);
+    arp_led_range();
+    CHECK(arp_led_min == QD_LED_LIT && arp_led_max == QD_LED_LIT, "closed: steady lit");
+    /* STEPS / KEYS */
+    btap(QD_B_KEYS);
+    qd_ctl_labels(&A, &lb);
+    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP && leds().button[QD_B_REC] == QD_LED_OFF &&
+              !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "KEYS"), "opened from the step view: STEPS (REC dark, its label KEYS)");
+    btap(QD_B_REC);
+    qd_ctl_labels(&A, &lb);
+    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && leds().button[QD_B_REC] == QD_LED_LIT &&
+              !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "STEPS"), "REC: KEYS (REC lit, its label STEPS)");
+    btap(F1);
+    CHECK(!qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && qd_view_screen(&A) == QD_SCR_KEYS, "left on KEYS: the keyboard");
+    qd_ctl_labels(&A, &lb);
+    CHECK(leds().button[QD_B_REC] == QD_LED_LIT && !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "STEPS"), "the keyboard: REC lit, "
+          "its label STEPS (the same)");
+    btap(QD_B_KEYS);
+    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS, "opened from the keyboard: KEYS");
+    btap(QD_B_REC);
+    btap(QD_B_HOME);
+    CHECK(!qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP && qd_view_screen(&A) != QD_SCR_KEYS, "left on STEPS: the step view");
+    btap(QD_B_KEYS);
+    bdown(QD_B_REC);
+    run(QD_REC_HOLD_MS + 50);
+    bup(QD_B_REC);
+    run(10);
+    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && A.ui.rec, "REC held there (stopped): recording armed, the screen "
+          "stays, on KEYS");
+    btap(QD_B_REC);
+    CHECK(!A.ui.rec && A.ui.mode == QD_MODE_KEYS && qd_mfx_open(&A), "REC tapped while armed: the recording ends (as in "
+          "the keyboard)");
+    bdown(SHIFT);
+    btap(QD_B_REC);
+    bup(SHIFT);
+    run(10);
+    CHECK(A.ui.latch == QD_LATCH_REC, "SHIFT + REC: the record settings");
     btap(QD_B_HOME);
 }
 
@@ -7500,6 +7590,8 @@ int main(void)
         {"P1.6e: the stuck slot move (regression)", g_p16e_stuck},
         {"P1.6e: the MIDI FX screen's holds, F1 / F2, STEPS", g_p16e_mfx},
         {"P1.6e: the preview through the step's group", g_p16e_preview},
+        {"P1.6f: F1 / F2 in the MIDI FX screen", g_p16f_f1f2},
+        {"P1.6f: ARP's breath, STEPS / KEYS shared", g_p16f_keys},
         {"P1.6d: the step latch's SHIFT, defaults, double tap", g_p16d_latch},
         {"P1.6d: the FILTER machines' popup", g_p16d_filter},
         {"P1.6d: ARP's LED and hold, the groups' glide, slot moves", g_p16d_mfx},

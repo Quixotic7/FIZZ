@@ -239,10 +239,9 @@ int render_p16e(const char *out)
     black(2);
     bup(QD_B_OCTUP);
     run(900);
-    /* 8..11: REC: STEPS, KEYS */
-    btap(QD_B_REC);
+    /* 8..11: STEPS (opened from the step view: P1.6f), KEYS */
     run(300);
-    shot("steps", "REC: STEPS: the white keys the steps (REC dark)", 1);
+    shot("steps", "STEPS (opened from the step view): the white keys the steps (REC dark)", 1);
     kdown(WK(4)), kdown(WK(8));
     run(100);
     turn(QD_K_ALGO, 3);
@@ -252,7 +251,8 @@ int render_p16e(const char *out)
     run(200);
     btap(QD_B_REC);
     run(300);
-    shot("keys", "REC again: KEYS (REC lit): the keys play through the group", 1);
+    shot("keys", "REC: KEYS (REC lit): the keys play through the group", 1);
+    btap(QD_B_REC);
     btap(QD_B_HOME);
     run(300);
     if (!failed)

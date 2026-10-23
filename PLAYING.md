@@ -747,8 +747,10 @@ DECAY, HARM and FDBK.
   recording keeps what you **played**, before the effects.
 - **ARP tapped** (0.9.1; it was SHIFT + ARP) opens the **MIDI FX** screen of the selected track's group: its number in a hexagon, the tracks on it
   as small squares, the eight slots as a rail (notes run along it as they pass), the selected effect's picture, its
-  values at the foot. **ARP again**, **HOME** or **F1 tapped** close it. The step latch's selection stays while it is
-  open (0.9.3).
+  values at the foot. **ARP again**, **HOME** or **F1 tapped** close it (0.9.4: only a true tap of F1, short and
+  with nothing else pressed: F1 held, F1 + a key, and F2 never close it). The step latch's selection stays while it
+  is open (0.9.3). **ARP's light breathes** while the screen is open (0.9.4): low (5 .. 25 %) when the group's arp is
+  off, high (60 .. 100 %) when it is on; outside the screen it is steady when the arp is on.
   - **B1 .. B8** select slot 1 .. 8; the selected one again: its next page (the dots, on the release). **SELECT** turns
     the page too.
   - **Hold a slot key and turn any knob** (0.9.1): that slot moves along the rail, a place a detent, the others
@@ -769,11 +771,13 @@ DECAY, HARM and FDBK.
     0.9.3: **held, they show what they do**: F1 the copy glyph, then the copied effect (its slot marked on the rail)
     and where the next B puts it; F2 the hand, empty (the next B picks up) or with the effect in it (the next B drops).
   - **REC** (0.9.3) switches the white keys between **KEYS** (as before: the track through the group; REC lit) and
-    **STEPS** (REC dark): the track's 16 steps of the page you edit, lit as in the step view. **Hold steps and turn
+    **STEPS** (REC dark): the track's 16 steps of the page you edit, lit as in the step view. 0.9.4: this is the same
+    switch as the main view's REC keyboard: opened from the step view the screen starts on STEPS, from the keyboard on
+    KEYS, and when you leave it you are in the keyboard if it was on KEYS, in the step view if on STEPS. REC held arms
+    recording there as in the keyboard (the screen stays, on KEYS); SHIFT + REC opens the record settings. **Hold steps and turn
     ALGORITHM**: their MIDI FX lock (TRACK, OFF, group 1 .. 5), the same as TRIG's KNOB 2, with its picture and the
     step's frame; several held: all of them; the step latch's selection counts too. Nothing held: ALGORITHM is the
-    track's group again. The screen opens on KEYS and keeps the choice while open; on the arp's lanes (pages 3, 4) the
-    white keys stay the lane's steps.
+    track's group again. On the arp's lanes (pages 3, 4) the white keys stay the lane's steps.
   - **The white keys** play the track through the group (its scale, as the sound editor's keyboard).
 - **ARP held** (400 ms, anywhere; 0.9.1, it was the tap): the track's group's arp **on / off**, big. A group with no
   arp gets one in its first empty slot; a track with no group is put on the first group no track uses (an empty one

@@ -1948,6 +1948,8 @@ void qd_ctl_ms(qd_app_t *a)
     } else if (held(a, QD_B_REC) && !u->rec_down_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS) {
         u->rec_down_used = 1;                           /* P1.3x: REC held: recording armed (P1.3y: in the record
                                                          * settings' MODE) */
+        if (u->mode != QD_MODE_KEYS && qd_mfx_open(a))  /* (P1.6f: the MIDI FX screen stays, on its KEYS) */
+            qd_mfx_rec(a);
         if (u->mode != QD_MODE_KEYS)
             set_mode(a, QD_MODE_KEYS);
         if (a->proj.rec_mode)

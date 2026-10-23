@@ -462,8 +462,8 @@ typedef struct {
     int mfx_f1_src;                    /* P1.6e: F1's copy came from this slot (-1); F1 went down (its COPY picture once
                                          * held a moment) */
     uint32_t mfx_f1_ms;
-    int mfx_steps;                     /* P1.6e: REC there: the white keys the track's steps (else the keys) .. */
-    uint16_t mfx_wheld;                /* .. the steps held (the page's W keys), their MIDI FX locked by ALGORITHM */
+    uint16_t mfx_wheld;                /* P1.6e: STEPS (the mode STEP there; KEYS the keyboard's: P1.6f, one state): the
+                                        * steps held (the page's W keys), their MIDI FX locked by ALGORITHM */
     qd_mfx_slot_t mfx_clip;            /* P1.6d: F1's copy, F2's hand .. */
     int mfx_f1_copied, mfx_f2_loaded, mfx_f2_holding, mfx_f2_from;
     int mfx_lift_from, mfx_lift_to;    /* F2 + B: the slot moved (its animation) .. */
@@ -842,6 +842,7 @@ void qd_ctl_sounding(const struct qd_app *a, uint8_t *notes);   /* the selected 
 int qd_ctl_trig_flash(const struct qd_app *a, int t);          /* track t's trig flash (80 ms) */
 #define QD_LED_BREATH_MS 1500u
 uint8_t qd_led_breath(uint32_t ms);
+uint8_t qd_led_breath_dim(uint32_t ms);  /* P1.6f: 5 % .. 25 %, breathing (ARP in the MIDI FX screen, the arp off) */
 uint8_t qd_led_breath_lo(uint32_t ms);   /* P1.5x: 30 % .. full, breathing (the chosen preset's tags on B2..B8) */    /* P1.5n: LFO's LED in MODES: 60 % .. full, breathing */
 
 /* ---- view.c */

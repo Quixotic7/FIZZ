@@ -18,7 +18,11 @@
 static int mf_held(const qd_app_t *a, int b) { return (int)((a->buttons_held >> b) & 1u); }
 static int mf_clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 
-int qd_mfx_open(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_MFX; }
+/* (P1.6f: open over the step view or the keyboard: the mode is the white keys' STEPS / KEYS, one state for both) */
+int qd_mfx_open(const qd_app_t *a)
+{
+    return (a->ui.mode == QD_MODE_STEP || a->ui.mode == QD_MODE_KEYS) && a->ui.latch == QD_LATCH_MFX;
+}
 int qd_mfx_tgroup(const qd_app_t *a)
 {
     const int m = qd_ctl_cpat(a)->trk[a->sel].mfx;
@@ -54,12 +58,12 @@ static void mf_first_slot(qd_app_t *a)                  /* an empty slot selecte
 void qd_mfx_screen(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
-    if (u->mode != QD_MODE_STEP)
-        qd_ctl_set_mode(a, QD_MODE_STEP);
+    if (u->mode != QD_MODE_STEP && u->mode != QD_MODE_KEYS)
+        qd_ctl_set_mode(a, QD_MODE_STEP);               /* (P1.6f: from the keyboard: KEYS; else STEPS) */
     if (!u->slatch)                                     /* (P1.6e: the latch's selection kept: STEPS locks it) */
         qd_step_release_all(a);
     qd_latch_open(a, QD_LATCH_MFX);
-    u->mfx_steps = 0, u->mfx_wheld = 0;                 /* (P1.6e: it opens on the keys) */
+    u->mfx_wheld = 0;
     u->mfx_drop = -1, u->mfx_f1_src = -1;
     u->mfx_slot &= 7;
     u->mfx_page = 0;
@@ -130,6 +134,8 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
             mf_drop(a);
         return;
     }
+    if (u->mfx_f1)
+        u->mfx_f1_used = 1;                             /* (P1.6f: anything with F1: no tap) */
     if (u->mfx_bheld && b < QD_MFX_NSLOT)               /* (another slot key: the first one's move dropped) */
         mf_drop(a);
     if (!g)
@@ -206,6 +212,8 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
     const int lane = qd_mfx_lane_page(a);
+    if (u->mfx_f1)
+        u->mfx_f1_used = 1;                             /* (P1.6f: anything with F1: no tap) */
     u->mfx_arm = -1;
     if (lane) {                                         /* the arp's lane: its steps */
         qd_mfx_slot_t *s = mf_slot(a);
@@ -220,7 +228,7 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
         }
         return;
     }
-    if (u->mfx_steps) {                                 /* P1.6e, STEPS: held, the page's steps (ALGORITHM their MIDI
+    if (u->mode == QD_MODE_STEP) {                      /* P1.6e, STEPS: held, the page's steps (ALGORITHM their MIDI
                                                          * FX); no sound */
         if (w < 0 || w >= 16)
             return;
@@ -236,17 +244,29 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
         qd_app_note_on(a, key, qd_snd_scale_note(a, w), vel);
 }
 
-/* P1.6e: REC tapped there: the white keys STEPS (the track's steps of the page edited) or KEYS (as before) */
+/* P1.6e: REC tapped there: the white keys STEPS (the track's steps of the page edited) or KEYS (as before); P1.6f: the
+ * mode itself, the main view's (the screen stays open over either; leaving it, the view is the mode's) */
 void qd_mfx_rec(qd_app_t *a)
 {
-    a->ui.mfx_steps ^= 1;
-    a->ui.mfx_wheld = 0;
+    qd_ui_t *u = &a->ui;
+    if (u->mode == QD_MODE_KEYS) {
+        if (u->rec)
+            qd_rec_toggle(a);                           /* (leaving the keyboard: the recording ends, as anywhere) */
+        u->mode = QD_MODE_STEP;
+    } else {
+        u->slatch = 0;                                  /* (into the keyboard: the latch ends, as anywhere) */
+        qd_step_release_all(a);
+        u->mode = QD_MODE_KEYS;
+    }
+    u->mfx_wheld = 0;
+    if (u->tk == QD_TK_MFX_STEP)
+        u->tk = QD_TK_NONE, u->tk_hold = 0;
 }
 int qd_mfx_steps_held(const qd_app_t *a, int *first)   /* STEPS: the W keys held, else the latch's selection */
 {
     const qd_ui_t *u = &a->ui;
     int w, n = 0;
-    if (!qd_mfx_open(a) || !u->mfx_steps || qd_mfx_lane_page(a))
+    if (!qd_mfx_open(a) || u->mode != QD_MODE_STEP || qd_mfx_lane_page(a))
         return 0;
     for (w = 0; w < 16; w++)
         if ((u->mfx_wheld >> w) & 1u) {
@@ -288,6 +308,8 @@ int qd_mfx_knob(qd_app_t *a, int knob, int d)
     qd_ui_t *u = &a->ui;
     const int g = qd_mfx_tgroup(a);
     qd_mfx_slot_t *s = mf_slot(a);
+    if (u->mfx_f1)
+        u->mfx_f1_used = 1;                             /* (P1.6f: anything with F1: no tap) */
     if (knob != QD_K_ALGO)
         u->mfx_arm = -1;
     if (u->mfx_bheld && !mf_key_down(a, u->mfx_bheld - 1))
@@ -390,13 +412,16 @@ int qd_mfx_oct(qd_app_t *a, int d, int down)
             u->mfx_f1_ms = a->ms;
             return 1;
         }
-        if (u->mfx_f1 && !u->mfx_f1_used && qd_mfx_open(a))
+        if (u->mfx_f1 && !u->mfx_f1_used && a->ms - u->mfx_f1_ms < QD_TAP_MS && a->keys_held == 0 &&
+            qd_mfx_open(a))                             /* (P1.6f: only a true tap: short, nothing with it) */
             qd_latch_close(a);
         u->mfx_f1 = 0;
         u->mfx_f1_copied = 0;
         u->mfx_f1_src = -1;
         return 1;
     }
+    if (down && u->mfx_f1)
+        u->mfx_f1_used = 1;                             /* (P1.6f: F2 with F1: no tap) */
     if (!down)                                          /* F2 let go: the hand empties (Form's) */
         u->mfx_f2_loaded = u->mfx_f2_holding = 0, u->mfx_f2_from = -1;
     return 1;
@@ -409,7 +434,7 @@ void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
     const int bl = (int)((a->ms / QD_BLINK_MS) & 1u) == 0;
     int k;
     memset(key, 0, QD_NKEY);
-    if (!lane && u->mfx_steps) {                        /* P1.6e, STEPS: the page's steps as in the step view (a trig
+    if (!lane && u->mode == QD_MODE_STEP) {             /* P1.6e, STEPS: the page's steps as in the step view (a trig
                                                          * lit, a LOCK dim, none faint), held ones blinking */
         const qd_pattern_t *p = qd_ctl_cpat(a);
         for (k = 0; k < 16; k++) {
@@ -437,7 +462,7 @@ void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
         key[QD_BLACK_KEY[9]] = s->type && !s->bypass ? QD_LED_LIT : QD_LED_OFF;   /* B10: the slot plays */
         key[QD_BLACK_KEY[10]] = !s->type ? QD_LED_OFF : u->mfx_arm == u->mfx_slot ? (bl ? QD_LED_LIT : QD_LED_OFF)
                                                                                     : QD_LED_DIM;   /* B11 */
-        if (!lane && u->mfx_steps)                      /* (P1.6e, STEPS: the white keys above) */
+        if (!lane && u->mode == QD_MODE_STEP)           /* (P1.6e, STEPS: the white keys above) */
             return;
         if (lane) {                                     /* the lane's steps: within its length dim, the selected
                                                          * blinking */

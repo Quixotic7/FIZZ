@@ -484,13 +484,32 @@ int main(int argc, char **argv)
         turn(FM1P_E_K1, 1);
         labels(lb);
         CHECK(!strcmp(lb[38], s2) && !strcmp(lb[39], s1), "then KNOB 1: no more moves (%s %s)", lb[38], lb[39]);
-        btap(FM1P_B_REC);
         labels(lb);
         CHECK(!strcmp(lb[19], "KEYS") && !strcmp(lb[22], "STEP 1") && !strcmp(lb[1], "GROUP"),
-              "REC tapped: STEPS (REC %s, W1 %s)", lb[19], lb[22]);
+              "opened from the step view: STEPS (REC %s, W1 %s; P1.6f)", lb[19], lb[22]);
         btap(FM1P_B_REC);
         labels(lb);
-        CHECK(!strcmp(lb[19], "STEPS"), "REC again: KEYS (REC %s)", lb[19]);
+        CHECK(!strcmp(lb[19], "STEPS") && strcmp(lb[22], "STEP 1"), "REC: KEYS (REC %s, W1 %s)", lb[19], lb[22]);
+        /* P1.6f: F1 held and let go, F1 + B, F2 held: the screen stays (ALGORITHM still GROUP); an F1 tap closes it,
+         * on KEYS into the keyboard (REC's label STEPS still); ARP from there: KEYS again */
+        bdown(FM1P_B_OCTDN), run(400), bup(FM1P_B_OCTDN), run(30);
+        labels(lb);
+        CHECK(!strcmp(lb[1], "GROUP"), "P1.6f: F1 held, let go: the screen stays (%s)", lb[1]);
+        bdown(FM1P_B_OCTDN), run(30);
+        P->keys |= 1u << 1, run(30), P->keys &= ~(1u << 1), run(30);
+        bup(FM1P_B_OCTDN), run(30);
+        labels(lb);
+        CHECK(!strcmp(lb[1], "GROUP"), "F1 + B1, let go: the screen stays (%s)", lb[1]);
+        bdown(FM1P_B_OCTUP), run(400), bup(FM1P_B_OCTUP), run(30);
+        labels(lb);
+        CHECK(!strcmp(lb[1], "GROUP"), "F2 held, let go: the screen stays (%s)", lb[1]);
+        btap(FM1P_B_OCTDN);
+        labels(lb);
+        CHECK(strcmp(lb[1], "GROUP") && !strcmp(lb[19], "STEPS"), "F1 tapped: closed, into the keyboard (REC %s)", lb[19]);
+        btap(FM1P_B_ARP);
+        labels(lb);
+        CHECK(!strcmp(lb[1], "GROUP") && !strcmp(lb[19], "STEPS"), "ARP from the keyboard: KEYS (REC %s)", lb[19]);
+        btap(FM1P_B_REC);
         turn(FM1P_E_ALGO, -1);                          /* (track 1 OFF again) */
         btap(FM1P_B_HOME);
         run(50);
