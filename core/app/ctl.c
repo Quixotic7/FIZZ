@@ -1163,6 +1163,10 @@ static void b_rec(qd_app_t *a, int down)
         qd_rec_end(a);
         return;
     }
+    if (qd_mfx_open(a)) {                               /* P1.6e: the MIDI FX screen stays: its white keys STEPS / KEYS */
+        qd_mfx_rec(a);
+        return;
+    }
     if (qd_snd_open(a)) {                               /* P1.5b: the sound editor stays: its keyboard on / off */
         u->ekeys = !u->ekeys;
         qd_step_release_all(a);
@@ -1900,6 +1904,9 @@ void qd_ctl_ms(qd_app_t *a)
     if (u->tk == QD_TK_PRESET && u->tk_hold) {         /* P1.5v: the step's pool picker: up while the step is held */
         if (!u->nheld)
             u->tk = QD_TK_NONE, u->tk_hold = 0, u->tk_lock = 0;   /* (let go: closed, the choice kept) */
+    } else if (u->tk == QD_TK_MFX_STEP && u->tk_hold) {   /* P1.6e: STEPS' steps held: up while they are */
+        if (!u->mfx_wheld)
+            u->tk = QD_TK_NONE, u->tk_hold = 0;
     } else if (u->tk != QD_TK_NONE &&
                a->ms - u->tk_ms >= (u->tk == UI_TK_TAP ? QD_TAP_TK_MS : QD_TK_MS) + QD_TK_FADE_MS) {
         u->tk = QD_TK_NONE;                             /* (P1.5z: TAP's stays 2 s after the last tap) */
@@ -1950,6 +1957,7 @@ void qd_ctl_ms(qd_app_t *a)
     }
     qd_rec_ms(a);
     qd_auto_ms(a);                                      /* P1.6d: an automation take ends */
+    qd_mfx_ms(a);                                       /* P1.6e: a slot key let go however: its move dropped */
     {   /* page follow: the page edited moves when the playhead goes to another page (a page chosen by hand stays
          * until then); not while steps are held or a layer is */
         const int pp = qd_ctl_playing_page(a, a->sel);

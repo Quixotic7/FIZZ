@@ -457,6 +457,45 @@ int main(int argc, char **argv)
         run(50);
     }
 
+    {   /* P1.6e through the panel: the MIDI FX screen (ARP tapped), group 1: an ARP in slot 1, a CHANCE in slot 2; B1
+         * held + KNOB 1 +1: nothing moved until B1 is let go (the slots' labels), then the CHANCE first; REC tapped:
+         * STEPS (REC's label KEYS, W1 STEP 1), again KEYS */
+        char lb[49][12], s1[12], s2[12];
+        btap(FM1P_B_HOME);
+        run(100);
+        btap(FM1P_B_ARP);
+        run(20);
+        turn(FM1P_E_ALGO, 1);
+        P->keys |= 1u << 3, run(30), P->keys &= ~(1u << 3), run(30);   /* (B2: an effect in slot 2 too) */
+        turn(FM1P_E_PRESETS, 3);
+        run(1200);
+        labels(lb);
+        memcpy(s1, lb[38], 12), memcpy(s2, lb[39], 12);
+        P->keys |= 1u << 1;                             /* B1 held */
+        run(300);
+        turn(FM1P_E_K1, 1);
+        labels(lb);
+        CHECK(strcmp(s1, s2) && s1[0] && !strcmp(lb[38], s1) && !strcmp(lb[39], s2),
+              "P1.6e: B1 held + KNOB 1: previewed only (%s %s)", lb[38], lb[39]);
+        P->keys &= ~(1u << 1);
+        run(30);
+        labels(lb);
+        CHECK(!strcmp(lb[38], s2) && !strcmp(lb[39], s1), "B1 let go: dropped (%s %s)", lb[38], lb[39]);
+        turn(FM1P_E_K1, 1);
+        labels(lb);
+        CHECK(!strcmp(lb[38], s2) && !strcmp(lb[39], s1), "then KNOB 1: no more moves (%s %s)", lb[38], lb[39]);
+        btap(FM1P_B_REC);
+        labels(lb);
+        CHECK(!strcmp(lb[19], "KEYS") && !strcmp(lb[22], "STEP 1") && !strcmp(lb[1], "GROUP"),
+              "REC tapped: STEPS (REC %s, W1 %s)", lb[19], lb[22]);
+        btap(FM1P_B_REC);
+        labels(lb);
+        CHECK(!strcmp(lb[19], "STEPS"), "REC again: KEYS (REC %s)", lb[19]);
+        turn(FM1P_E_ALGO, -1);                          /* (track 1 OFF again) */
+        btap(FM1P_B_HOME);
+        run(50);
+    }
+
     {   /* P1.6m: an export through the ABI: 40 presets stored through midi_in, DUMP all (slot 0), the host reading
          * slowly (a few packets a ms): every frame whole, in order, none lost (the replies wait in FIZZ and go out as
          * the packet ring has room) */

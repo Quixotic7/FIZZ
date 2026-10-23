@@ -344,6 +344,23 @@ static void mf_flow(const uint8_t *type, const uint8_t *byp, float t, float *hit
     }
 }
 
+/* P1.6e: where slot i shows while slot `from` is previewed at `to` (the ones between making room) */
+static int mf_dpos(int i, int from, int to)
+{
+    if (from < to && i > from && i <= to)
+        return i - 1;
+    if (to < from && i >= to && i < from)
+        return i + 1;
+    return i;
+}
+static void mf_tri(float x, float y, float dir, qd_rgb c, float a)   /* a small arrow head, pointing dir (-1 / +1) */
+{
+    const float p[6] = {x - 2.5f * dir, y - 4.f, x + 2.5f * dir, y, x - 2.5f * dir, y + 4.f};
+    mf_alpha(a);
+    ui_P(p, 3, c, 1.6f, 1, c);
+    qd_restore();
+}
+
 static void mf_rail(const ui_mfx_t *v)
 {
     float hits[8] = {0}, arrow[6] = {232.f, MF_RY - 3.5f, 237.f, MF_RY, 232.f, MF_RY + 3.5f};
@@ -366,18 +383,47 @@ static void mf_rail(const ui_mfx_t *v)
         float x = MF_RX(i);
         const float y = MF_RY - MF_RW / 2.f;
         float g = hits[i] > v->glow[i] ? hits[i] : v->glow[i];
+        float yo = 0.f;
         if (v->lift_from >= 0 && i == v->lift_to)    /* (the data already moved: the carried one is there) */
             continue;
+        if (v->drag_from >= 0) {                        /* P1.6e: a slot held: drawn apart; the others making room */
+            if (i == v->drag_from)
+                continue;
+            x = mf_lerp(MF_RX(mf_dpos(i, v->drag_from, v->drag_prev)), MF_RX(mf_dpos(i, v->drag_from, v->drag_to)),
+                        mf_ease(v->drag_u));
+        }
+        if (v->drop >= 0 && i == v->drop)               /* .. dropped: landing */
+            yo = -7.f * (1.f - mf_ease(v->drop_u));
         if (v->lift_from >= 0 && v->lift_to > v->lift_from && i >= v->lift_from && i < v->lift_to)
             x = mf_lerp(MF_RX(i + 1), MF_RX(i), mf_ease((v->lift_u - 0.2f) / 0.5f));
         if (v->lift_from >= 0 && v->lift_to < v->lift_from && i > v->lift_to && i <= v->lift_from)
             x = mf_lerp(MF_RX(i - 1), MF_RX(i), mf_ease((v->lift_u - 0.2f) / 0.5f));
         if (v->arm > 0.f && i == v->sel)
             x += sinf(v->t * 46.f) * 2.2f * v->arm;
-        mf_tile(x, y, MF_RW, v->type[i], i == v->sel && v->lift_from < 0, v->byp[i], g, 1.f);
+        mf_tile(x, y + yo, MF_RW, v->type[i], i == v->sel && v->lift_from < 0, v->byp[i], g, 1.f);
+        if (i == v->f1_src) {                           /* P1.6e: F1's copy came from here: marked */
+            mf_RR(x - 3.5f, y - 6.5f, MF_RW + 7.f, MF_RW + 7.f, 6.f, UI_K2, 1.4f, QD_NONE, 1.f, 1);
+            ui_icon(UI_IC_COPY, x + MF_RW / 2.f, y + MF_RW + 12.f, 0.9f, UI_K2);
+        }
         if (v->arm > 0.f && i == v->sel) {
             mf_L(x - 1.f, y - 4.f, x + MF_RW + 1.f, y + MF_RW - 2.f, UI_RED, 2.2f, 1.f);
             mf_L(x + MF_RW + 1.f, y - 4.f, x - 1.f, y + MF_RW - 2.f, UI_RED, 2.2f, 1.f);
+        }
+    }
+    if (v->drag_from >= 0) {                            /* P1.6e: the slot held: lifted, at its preview place; arrows
+                                                         * either side (it can move) */
+        const float x = mf_lerp(MF_RX(v->drag_prev), MF_RX(v->drag_to), mf_ease(v->drag_u));
+        const float y = MF_RY - MF_RW / 2.f - 7.f * v->drag_up;
+        if (v->drag_up > 0.05f)
+            mf_RR(x + 2.f, MF_RY + MF_RW / 2.f + 1.f, MF_RW - 4.f, 3.f, 1.5f, QD_NONE, 1.f, 0x2a2a33u, v->drag_up, 0);
+        mf_tile(x, y, MF_RW, v->type[v->drag_from], 1, v->byp[v->drag_from], v->drag_up, 1.f);
+        if (v->drag_up > 0.f) {
+            const float pa = v->drag_up * (v->drag_moved ? 0.55f : 0.65f + 0.35f * sinf(v->t * 9.f));
+            const float off = v->drag_moved ? 0.f : 1.5f * sinf(v->t * 9.f);
+            if (v->drag_to > 0)
+                mf_tri(x - 6.f - off, y + MF_RW / 2.f, -1.f, UI_K3, pa);
+            if (v->drag_to < 7)
+                mf_tri(x + MF_RW + 6.f + off, y + MF_RW / 2.f, 1.f, UI_K3, pa);
         }
     }
     if (v->lift_from >= 0) {                            /* picked up: raised above the rail, carried, dropped */
@@ -1038,9 +1084,32 @@ void ui_mfx_draw(const ui_mfx_t *v)
     mf_head(npg, v->page, "MIDI FX", MF_MINT, v->g, v->tr, v->ntr, v->track);
     if (!v->g) {
         mf_off(v);
+        if (v->steps_frame)
+            ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
         return;
     }
     mf_rail(v);
+    if (v->f1 || v->f2) {                               /* P1.6e: F1 / F2 held: what they do (the step view's) */
+        const int copied = v->f1 && v->f1_src >= 0, hand = v->f2 ? v->f2_hand : copied ? v->type[v->f1_src] : -1;
+        const qd_rgb ac = v->f1 ? UI_K2 : hand >= 0 ? UI_K2 : UI_K4;
+        if (hand >= 0) {                                /* the copy / the hand's effect, lifted, then where it goes */
+            mf_RR(54.f, 166.f, 36.f, 4.f, 2.f, QD_NONE, 1.f, 0x2a2a33u, 1.f, 0);
+            mf_tile(50.f, 108.f + 2.f * sinf(v->t * 4.f), 44.f, hand, 1, 0, 0.6f, 1.f);
+            mf_L(108.f, 130.f, 140.f, 130.f, ac, 1.6f, 1.f);
+            mf_tri(142.f, 130.f, 1.f, ac, 1.f);
+            ui_icon(UI_IC_PASTE, 176.f, 130.f, 2.6f, ac);
+        } else if (v->f1) {                             /* nothing picked yet: COPY */
+            mf_RR(50.f, 108.f, 44.f, 44.f, 6.f, UI_G2, 1.2f, QD_NONE, 1.f, 1);
+            ui_icon(UI_IC_COPY, 72.f, 130.f, 2.2f, UI_G1);
+            ui_icon(UI_IC_COPY, 176.f, 130.f, 2.6f, ac);
+        } else {                                        /* F2, the hand empty: PICK UP */
+            mf_RR(50.f, 108.f, 44.f, 44.f, 6.f, UI_G2, 1.2f, QD_NONE, 1.f, 1);
+            ui_icon(UI_IC_CUT, 176.f, 130.f, 2.6f, ac);
+        }
+        if (v->steps_frame)
+            ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+        return;
+    }
     if (v->roll) {                                      /* PRESETS: the types' rolodex */
         qd_save();
         qd_clip_rect(0.f, 84.f, 240.f, 104.f);
@@ -1098,6 +1167,8 @@ void ui_mfx_draw(const ui_mfx_t *v)
     }
     if (ty && v->lift_from < 0)
         mf_foot(v, v->byp_sel ? 0.4f : 1.f);
+    if (v->steps_frame)                                 /* P1.6e: STEPS' steps held: the step's frame */
+        ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
 }
 
 /* ARP tapped: the arp's staircase, ON / OFF big, the group's slots (the new arp popping in) */

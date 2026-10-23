@@ -150,7 +150,7 @@ static void mfx_out_on(void *ctx, int g, const qd_mfx_note_t *n)
     if (t >= QD_PAT_NTRACK)
         return;
     o = &pl->model->t[t].owner;
-    if (!r && !n->live && n->pat >= 0 && n->pat < QD_NPAT && n->step >= 0) {
+    if (!r && n->pat >= 0 && n->pat < QD_NPAT && n->step >= 0) {   /* (P1.6e: a preview's, live, too) */
         qd_seq_step_rec(pl->seq, n->pat, t, n->step, &pl->mrec);
         r = &pl->mrec;
     }
@@ -417,6 +417,26 @@ int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes)
     qd_seq_step_rec(pl->seq, pat, t, s, &r);
     ts = &P->trk[t];
     qd_pool_set_track(pl->pool, t, ts->limit, ts->reserve);
+    {   /* P1.6e (the owner): through the step's MIDI FX group (its lock, else the track's): the arp, the chord .. heard;
+         * owned as a key's notes (qd_player_key_off ends each; qd_player_preview_end the group's) */
+        const int g = mfx_route(pl, pat, t, s);
+        if (g) {
+            for (i = 0; i < st.nn && i < QD_NNOTE; i++) {
+                const int note = st.notes[i] & 127;
+                qd_mfx_note_t mn;
+                if (pl->key_grp[t][note])
+                    mfx_key_note(pl, t, note, 0, pl->key_grp[t][note], 0);
+                pl->key_grp[t][note] = (uint8_t)g;
+                memset(&mn, 0, sizeof mn);
+                mn.track = (uint8_t)t, mn.pitch = mn.prev = (uint8_t)note, mn.vel = (uint8_t)st.vel;
+                mn.pat = (int16_t)pat, mn.step = (int16_t)s, mn.live = 1, mn.rec = &r;
+                qd_mfx_note(&pl->mfx, g, 1, &mn, qd_player_mfx_tick(pl));
+                notes[n++] = (uint8_t)note;
+            }
+            pl->previews++;
+            return n;
+        }
+    }
     for (i = 0; i < st.nn && i < QD_NNOTE; i++) {
         const int note = st.notes[i] & 127;
         qd_pool_note_on_at(pl->pool, t, &pl->model->t[t].owner, note, st.vel, r.patch, &r.at);
@@ -425,6 +445,14 @@ int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes)
     }
     pl->previews++;
     return n;
+}
+
+void qd_player_preview_end(qd_player_t *pl, int t)
+{
+    if (t < 0 || t >= QD_PAT_NTRACK)
+        return;
+    qd_mfx_flush_track(&pl->mfx, t, 1);                 /* (the keys' notes in the groups: a HOLD arp's too) */
+    memset(pl->key_grp[t], 0, sizeof pl->key_grp[t]);
 }
 
 void qd_player_live_edit(qd_player_t *pl, int t, int id, int value)

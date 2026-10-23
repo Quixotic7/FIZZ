@@ -832,6 +832,16 @@ typedef struct ui_mfx {
     float arm;                          /* B11 armed: 1 just armed .. 0 (the red X shakes) */
     int lift_from, lift_to;             /* F2 + B: the slot carried (-1 none) .. */
     float lift_u;                       /* .. 0..1 through it */
+    /* P1.6e: a slot key held: the slot lifted (past the tap time: arrows either side), a knob turned: its move
+     * previewed along the rail (the others making room), dropped at the release */
+    int drag_from, drag_to, drag_prev;  /* (-1 none); where it is, where it was before the last detent */
+    float drag_u, drag_up;              /* .. the glide since that detent 0..1; the lift 0..1 */
+    int drag_moved;                     /* .. a knob moved it */
+    int drop;                           /* the slot just dropped (-1), 0..1 through its landing */
+    float drop_u;
+    int f1, f1_src;                     /* P1.6e: F1 held: COPY (the source slot, once picked; -1) */
+    int f2, f2_hand;                    /* .. F2 held: the hand (the effect in it; -1 empty) */
+    int steps_frame;                    /* .. STEPS: steps held (the step's frame) */
     int roll;                           /* PRESETS turned: the rolodex up .. */
     float roll_pos, roll_from;          /* .. at type pos (0 NONE .. 10), coming from */
     int gsel;                           /* ALGORITHM turned: the five groups' choice up .. */

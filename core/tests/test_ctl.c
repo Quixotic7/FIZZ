@@ -4935,14 +4935,200 @@ static void g_p16d_mfx(void)
     kdown(BK(B1));
     run(20);
     turn(QD_K_1, 2);
+    qd_view_mfx(&A, &v);
+    CHECK(G->slot[0].type == QD_MFX_ARP && v.drag_from == 0 && v.drag_to == 2, "B1 held + KNOB 1 +2: previewed in "
+          "slot 3, nothing moved yet (P1.6e)");
     kup(BK(B1));
     run(10);
     qd_view_mfx(&A, &v);
     CHECK(G->slot[0].type == QD_MFX_CHANCE && G->slot[1].type == QD_MFX_SCALER && G->slot[2].type == QD_MFX_ARP &&
-              A.ui.mfx_slot == 2 && A.ui.mfx_page == 0 && v.lift_from == 0 && v.lift_to == 2,
-          "B1 held + KNOB 1 +2: the ARP moved to slot 3, the others closed up (the lift), no page change");
+              A.ui.mfx_slot == 2 && A.ui.mfx_page == 0 && v.drop == 2,
+          "let go: the ARP dropped into slot 3, the others closed up, no page change");
     black(B2);
     CHECK(A.ui.mfx_slot == 1 && A.ui.mfx_page == 0, "B2 tapped: selected");
+    btap(QD_B_HOME);
+}
+
+/* P1.6e (the owner: "the slot move gets stuck"): B1 held, KNOB 1 +2, B1 let go: KNOB 1 is the slot's value again (it
+ * moved no slot); the same with the release in the knob's tick, and with another key down at the release */
+static void g_p16e_stuck(void)
+{
+    qd_mfx_group_t *G;
+    int v0;
+    start();
+    btap(QD_B_KEYS);                                    /* (the MIDI FX screen) */
+    turn(QD_K_ALGO, 1);
+    G = &A.proj.mfx[0];
+    qd_mfx_slot_init(&G->slot[0], QD_MFX_ARP);
+    qd_mfx_slot_init(&G->slot[1], QD_MFX_CHANCE);
+    qd_mfx_slot_init(&G->slot[2], QD_MFX_HARM);
+    run(QD_TK_MS + 300);
+    kdown(BK(B1));
+    run(20);
+    turn(QD_K_1, 2);
+    kup(BK(B1));
+    run(20);
+    CHECK(G->slot[2].type == QD_MFX_ARP && G->slot[0].type == QD_MFX_CHANCE && A.ui.mfx_slot == 2,
+          "B1 held, KNOB 1 +2, let go: the ARP dropped into slot 3");
+    v0 = G->slot[2].v[QD_MA_PAT];
+    turn(QD_K_1, 1);
+    CHECK(G->slot[2].type == QD_MFX_ARP && G->slot[2].v[QD_MA_PAT] == v0 + 1 && G->slot[0].type == QD_MFX_CHANCE,
+          "then KNOB 1: the ARP's PATTERN, no move (the stuck move: fixed)");
+    kdown(BK(B3));                                      /* the release in the knob's own tick */
+    run(20);
+    qd_app_knob(&A, QD_K_1, -1);
+    kup(BK(B3));
+    run(20);
+    turn(QD_K_1, -1);
+    CHECK(G->slot[1].type == QD_MFX_ARP && G->slot[1].v[QD_MA_PAT] == v0 && G->slot[0].type == QD_MFX_CHANCE,
+          "a release in the knob's tick: dropped into slot 2, then KNOB 1 its PATTERN");
+    kdown(BK(B2));                                      /* another key down at the release */
+    run(20);
+    turn(QD_K_1, 1);
+    kdown(WK(3));
+    kup(BK(B2));
+    run(20);
+    kup(WK(3));
+    run(20);
+    turn(QD_K_1, 1);
+    CHECK(G->slot[2].type == QD_MFX_ARP && G->slot[2].v[QD_MA_PAT] == v0 + 1, "a W down at the release: dropped, "
+          "then KNOB 1 its PATTERN");
+    btap(QD_B_HOME);
+}
+
+/* P1.6e: the MIDI FX screen: a slot held lifts (arrows) past the tap time, its move a preview until the release (one
+ * undo level); F1 / F2 held: their states; REC: STEPS / KEYS (REC lit on KEYS), STEPS' steps held + ALGORITHM their
+ * MIDI FX lock (its picture, the frame), several, the latch's selection; KEYS again plays */
+static void g_p16e_mfx(void)
+{
+    static ui_mfx_t v;
+    qd_mfx_group_t *G;
+    int u0, n;
+    start();
+    wtap(0), wtap(4), wtap(8);                          /* (trigs on steps 1, 5, 9) */
+    btap(QD_B_KEYS);
+    turn(QD_K_ALGO, 1);
+    G = &A.proj.mfx[0];
+    qd_mfx_slot_init(&G->slot[0], QD_MFX_ARP);
+    qd_mfx_slot_init(&G->slot[1], QD_MFX_CHANCE);
+    run(QD_TK_MS + 300);
+    kdown(BK(B2));
+    run(100);
+    qd_view_mfx(&A, &v);
+    CHECK(v.drag_from == 1 && v.drag_up == 0.f, "B2 down 100 ms: not lifted yet (a tap)");
+    run(QD_TAP_MS + 200);
+    qd_view_mfx(&A, &v);
+    CHECK(v.drag_from == 1 && v.drag_up > 0.9f && !v.drag_moved, "held past the tap time: lifted (the arrows)");
+    run(QD_UNDO_QUIET_MS + 50);
+    u0 = qd_undo_count(&A, -1);
+    turn(QD_K_3, -1);
+    qd_view_mfx(&A, &v);
+    CHECK(G->slot[1].type == QD_MFX_CHANCE && v.drag_to == 0 && v.drag_moved, "KNOB 3 -1: previewed in slot 1, the "
+          "chain as it was");
+    kup(BK(B2));
+    run(QD_UNDO_QUIET_MS + 50);
+    CHECK(G->slot[0].type == QD_MFX_CHANCE && G->slot[1].type == QD_MFX_ARP && qd_undo_count(&A, -1) == u0 + 1,
+          "let go: dropped, one undo level");
+    kdown(BK(B1)), run(QD_TAP_MS + 100), kup(BK(B1)), run(10);
+    CHECK(G->slot[0].type == QD_MFX_CHANCE && A.ui.mfx_slot == 0 && A.ui.mfx_page == 0, "held, no knob: nothing moved, "
+          "no page turn");
+    /* F1, F2 held */
+    bdown(F1);
+    run(QD_TAP_MS + 50);
+    qd_view_mfx(&A, &v);
+    CHECK(v.f1 && v.f1_src < 0, "F1 held: its COPY picture");
+    black(B2);
+    qd_view_mfx(&A, &v);
+    CHECK(v.f1 && v.f1_src == 1, ".. B2: the source marked");
+    bup(F1);
+    run(10);
+    bdown(F2);
+    run(20);
+    qd_view_mfx(&A, &v);
+    CHECK(v.f2 && v.f2_hand == QD_MFX_ARP, "F2 held: the hand holds F1's copy (the ARP)");
+    black(B3);
+    qd_view_mfx(&A, &v);
+    CHECK(G->slot[2].type == QD_MFX_ARP && v.f2_hand < 0, ".. B3 (empty): dropped there, the hand empty");
+    black(B1);
+    qd_view_mfx(&A, &v);
+    CHECK(v.f2 && v.f2_hand == QD_MFX_CHANCE && G->slot[0].type == QD_MFX_NONE, ".. B1: picked up (in the hand)");
+    black(B1);
+    bup(F2);
+    run(10);
+    CHECK(G->slot[0].type == QD_MFX_CHANCE, ".. B1 again: put back");
+    /* REC: STEPS / KEYS */
+    CHECK(!A.ui.mfx_steps && leds().button[QD_B_REC] == QD_LED_LIT, "the screen opens on KEYS (REC lit)");
+    btap(QD_B_REC);
+    CHECK(A.ui.mfx_steps && qd_mfx_open(&A) && leds().button[QD_B_REC] == QD_LED_OFF && A.ui.mode == QD_MODE_STEP &&
+              leds().key[WK(4)] == QD_LED_LIT && leds().key[WK(5)] == QD_LED_FAINT,
+          "REC tapped: STEPS (REC dark), the steps lit as in the step view");
+    kdown(WK(4)), kdown(WK(8));
+    run(20);
+    turn(QD_K_ALGO, 3);
+    qd_view_mfx(&A, &v);
+    CHECK(PAT()->step[0][4].mfx == QD_SMFX_G1 + 1 && PAT()->step[0][8].mfx == QD_SMFX_G1 + 1 && A.ui.tk == QD_TK_MFX_STEP &&
+              v.steps_frame && PAT()->trk[0].mfx == 1 && !sounding(64),
+          "W5, W9 held + ALGORITHM +3: both locked to group 2 (the picture, the frame), the track's group kept");
+    kup(WK(4)), kup(WK(8));
+    run(20);
+    qd_view_mfx(&A, &v);
+    CHECK(A.ui.tk != QD_TK_MFX_STEP && !v.steps_frame, "let go: the picture and the frame gone");
+    turn(QD_K_ALGO, 1);
+    CHECK(PAT()->trk[0].mfx == 2, "nothing held: ALGORITHM the track's group again");
+    turn(QD_K_ALGO, -1);
+    btap(QD_B_REC);
+    CHECK(!A.ui.mfx_steps && leds().button[QD_B_REC] == QD_LED_LIT, "REC again: KEYS");
+    kdown(WK(0));
+    run(400);
+    for (n = 0; n < 128; n++)
+        if (sounding(n))
+            break;
+    CHECK(n < 128, "KEYS: W1 plays through the group");
+    kup(WK(0));
+    run(20);
+    btap(QD_B_HOME);
+    /* the latch's selection counts */
+    btap(LFO);
+    wtap(4);
+    btap(QD_B_KEYS);
+    btap(QD_B_REC);
+    turn(QD_K_ALGO, -2);
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && PAT()->step[0][4].mfx == QD_SMFX_OFF && PAT()->step[0][8].mfx == QD_SMFX_G1 + 1,
+          "the latch's selection (step 5): ALGORITHM -2 its MIDI FX (OFF)");
+    btap(QD_B_HOME);
+    btap(LFO);
+}
+
+/* P1.6e (the owner): a step held, stopped, sounds through its group (the arp's notes, not the dry chord); its release:
+ * every note ends, a HOLD arp's too */
+static void g_p16e_preview(void)
+{
+    qd_mfx_group_t *G;
+    int k, on;
+    start();
+    G = &A.proj.mfx[0];
+    qd_mfx_slot_init(&G->slot[0], QD_MFX_ARP);
+    G->slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
+    PAT()->trk[0].mfx = 1;
+    wtap(2);                                            /* (a trig: its note C4) */
+    run(400);
+    whold(2);
+    run(700);
+    CHECK(qd_mfx_arp_playing(&A.player.mfx, 1) && sounding(60), "step 3 held, stopped: through the group (the arp "
+          "plays its note)");
+    wrel(2);
+    run(400);
+    for (on = 0, k = 0; k < 128; k++)
+        on |= sounding(k);
+    CHECK(!qd_mfx_arp_playing(&A.player.mfx, 1) && !on, "let go: the arp stops (HOLD too), nothing sounds");
+    PAT()->trk[0].mfx = 0;                              /* the step's own lock: group 1, the track OFF */
+    qd_step_set_mfx(PAT(), 0, 2, QD_SMFX_G1);
+    whold(2);
+    run(700);
+    CHECK(qd_mfx_arp_playing(&A.player.mfx, 1), "the step's own group (the track OFF): through it");
+    wrel(2);
+    run(400);
+    CHECK(!qd_mfx_arp_playing(&A.player.mfx, 1), "let go: stopped");
     btap(QD_B_HOME);
 }
 
@@ -7311,6 +7497,9 @@ int main(void)
         {"P1.6d: the sends lock on a held step", g_p16d_sends},
         {"P1.6d: automation recording", g_p16d_auto},
         {"P1.6d: track kinds and names", g_p16d_kinds},
+        {"P1.6e: the stuck slot move (regression)", g_p16e_stuck},
+        {"P1.6e: the MIDI FX screen's holds, F1 / F2, STEPS", g_p16e_mfx},
+        {"P1.6e: the preview through the step's group", g_p16e_preview},
         {"P1.6d: the step latch's SHIFT, defaults, double tap", g_p16d_latch},
         {"P1.6d: the FILTER machines' popup", g_p16d_filter},
         {"P1.6d: ARP's LED and hold, the groups' glide, slot moves", g_p16d_mfx},

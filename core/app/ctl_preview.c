@@ -12,6 +12,9 @@
  *   playing, or not the step view              everything released, nothing struck
  * Nothing here writes the pattern or the sequencer: only the pool (through the player) and this record.
  *
+ * P1.6e (the owner): a step with a MIDI FX group (its lock, else the track's) previews through it: the arp, the chord ..
+ * heard; when the last held step is let go the group's notes of it end (a HOLD arp's too: nothing stuck).
+ *
  * P1.5s (the owner: "When you have Lock on, it is continuously playing the currently selected step. It should only play
  * the sound of the step while holding the step or if you turn the step selection knob"): only a FINGER sounds as
  * above (a W down on the step; with the latch off every held step is one). The step latch's selection alone is silent:
@@ -99,6 +102,13 @@ static int is_held(const qd_ui_t *u, int s)
     return 0;
 }
 
+static void mark_grp(qd_app_t *a, int s)                /* (P1.6e: through a group: its notes end with the preview) */
+{
+    const int g = qd_step_mfx(qd_ctl_cpat(a), a->sel, s);
+    if (g && qd_mfx_group_active(&a->proj.mfx[g - 1]))
+        a->ui.pvs_grp = a->sel + 1;
+}
+
 void qd_ctl_preview_sync(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
@@ -116,6 +126,10 @@ void qd_ctl_preview_sync(qd_app_t *a)
             drop(u, i);
         }
     }
+    if (!u->pvs_n && u->pvs_grp) {                      /* P1.6e: the preview over: its group's notes end */
+        qd_player_preview_end(&a->player, u->pvs_grp - 1);
+        u->pvs_grp = 0;
+    }
     if (!on)
         return;
     for (i = 0; i < u->nheld && u->pvs_n < 16; i++) {   /* held and not sounding: struck */
@@ -131,6 +145,7 @@ void qd_ctl_preview_sync(qd_app_t *a)
         u->pvs_track[j] = (uint8_t)a->sel;
         u->pvs_sig[j] = sig_of(a, a->sel, s);
         u->pvs_nn[j] = (uint8_t)qd_player_preview(&a->player, a->seq.cur, a->sel, s, u->pvs_note[j]);
+        mark_grp(a, s);
     }
 }
 
@@ -158,4 +173,5 @@ void qd_ctl_preview_once(qd_app_t *a, int s)
     u->pvs_sig[j] = sig_of(a, a->sel, s);
     u->pvs_until[j] = (a->ms + QD_PREVIEW_MS) | 1u;
     u->pvs_nn[j] = (uint8_t)qd_player_preview(&a->player, a->seq.cur, a->sel, s, u->pvs_note[j]);
+    mark_grp(a, s);
 }

@@ -308,7 +308,11 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
     if (qd_mfx_open(a)) {                               /* P1.6c: the MIDI FX screen */
         const int g = qd_mfx_tgroup(a), lane = qd_mfx_lane_page(a);
         char val[12];
-        lb_set(o, LB_KNOB(QD_K_ALGO), "GROUP");
+        lb_set(o, LB_KNOB(QD_K_ALGO), qd_mfx_steps_held(a, 0) ? "STEP MFX" : "GROUP");   /* (P1.6e: STEPS' steps) */
+        lb_set(o, LB_BTN(QD_B_REC), u->mfx_steps ? "KEYS" : "STEPS");   /* (P1.6e: what REC switches to) */
+        if (u->mfx_steps && !lane)
+            for (i = 0; i < 16; i++)
+                lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
         lb_set(o, LB_BTN(QD_B_OCTDN), !lb_held(a, QD_B_OCTDN) ? "CLOSE" : a->ui.mfx_f1_copied ? "PASTE" : "COPY");
         lb_set(o, LB_BTN(QD_B_OCTUP), a->ui.mfx_f2_holding ? "DROP" : "PICK UP");   /* (P1.6d: the sequencer's F1 /
                                                          * F2) */
@@ -334,7 +338,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             if (lane)
                 lb_setn(o, LB_W(i), "LANE ", i + 1);
         }
-        if (!lane)
+        if (!lane && !u->mfx_steps)
             lb_notes(a, o, 1);
         return;
     }

@@ -1555,6 +1555,8 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
     v->track = a->sel + 1;
     v->t = secs(a->ms);
     v->lift_from = -1;
+    v->drag_from = v->drop = v->f1_src = v->f2_hand = -1;
+    v->steps_frame = qd_mfx_steps_held(a, 0) > 0;
     v->last = -1;
     v->lane_cur = -1;
     v->sel_branch = -1;
@@ -1607,6 +1609,26 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
             v->lift_from = u->mfx_lift_from, v->lift_to = u->mfx_lift_to;
             v->lift_u = (float)(a->ms - u->mfx_lift_ms) / 900.f;
         }
+        if (u->mfx_bheld) {                             /* P1.6e: a slot key held: lifted, its move previewed */
+            const uint32_t held_ms = a->ms - u->mfx_bms;
+            v->drag_from = u->mfx_dfrom, v->drag_to = u->mfx_dto, v->drag_prev = u->mfx_dprev;
+            v->drag_moved = u->mfx_bused;
+            v->drag_u = u->mfx_dms ? (float)(a->ms - u->mfx_dms) / 160.f : 1.f;
+            v->drag_u = v->drag_u > 1.f ? 1.f : v->drag_u;
+            v->drag_up = u->mfx_bused ? 1.f : held_ms < QD_TAP_MS ? 0.f : (float)(held_ms - QD_TAP_MS) / 150.f;
+            v->drag_up = v->drag_up > 1.f ? 1.f : v->drag_up;
+            if (!u->mfx_bused)
+                v->drag_u = 1.f;
+            v->lift_from = -1;
+        }
+        if (u->mfx_drop >= 0 && a->ms - u->mfx_drop_ms < 220u) {
+            v->drop = u->mfx_drop;
+            v->drop_u = (float)(a->ms - u->mfx_drop_ms) / 220.f;
+        }
+        v->f1 = u->mfx_f1 && ((a->buttons_held >> QD_B_OCTDN) & 1u) && (a->ms - u->mfx_f1_ms >= QD_TAP_MS || u->mfx_f1_copied);
+        v->f1_src = u->mfx_f1_copied ? u->mfx_f1_src : -1;
+        v->f2 = (int)((a->buttons_held >> QD_B_OCTUP) & 1u);
+        v->f2_hand = u->mfx_f2_holding ? u->mfx_clip.type : -1;
         if (u->mfx_roll_ms && a->ms - u->mfx_roll_ms < QD_TK_MS) {   /* PRESETS: the rolodex (P1.6d: gliding) */
             v->roll = 1;
             v->roll_pos = (float)qd_mfx_glide(a, u->mfx_roll_from, u->mfx_roll_to, u->mfx_roll_t0) / 100.f;

@@ -334,6 +334,8 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     }
     if (u->mode == QD_MODE_KEYS)                        /* REC: lit in the keyboard, blinking while armed */
         out->button[QD_B_REC] = !u->rec || blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
+    else if (qd_mfx_open(a))                            /* P1.6e: the MIDI FX screen: lit on its KEYS, dark on STEPS */
+        out->button[QD_B_REC] = a->ui.mfx_steps ? QD_LED_OFF : QD_LED_LIT;
     {   /* P1.6d: ARP lit steady while the track's group has an arp ON (off otherwise), blinking with FILL */
         const int g = qd_mfx_tgroup(a);
         const int k = g ? qd_mfx_arp_slot(&a->proj.mfx[g - 1]) : -1;

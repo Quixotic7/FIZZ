@@ -454,6 +454,16 @@ typedef struct {
     int mfx_arm;                       /* B11 armed on this slot (-1 none): B11 again removes its effect */
     int mfx_f1, mfx_f1_used;           /* F1 down there (a tap closes the screen at its release); a B copied */
     int mfx_bheld, mfx_bused, mfx_bwas;   /* P1.6d: a slot key down (its B + 1), a knob moved it, it was the selected */
+    uint32_t mfx_bms;                  /* P1.6e: .. when it went down (held past QD_TAP_MS: the tile lifts, arrows) */
+    int mfx_dfrom, mfx_dto, mfx_dprev; /* P1.6e: the move previewed: from, to, where it was before the last detent .. */
+    uint32_t mfx_dms;                  /* .. that detent (the tiles glide); the drop only at the key's release */
+    int mfx_drop;                      /* P1.6e: the slot just dropped (-1), when .. */
+    uint32_t mfx_drop_ms;
+    int mfx_f1_src;                    /* P1.6e: F1's copy came from this slot (-1); F1 went down (its COPY picture once
+                                         * held a moment) */
+    uint32_t mfx_f1_ms;
+    int mfx_steps;                     /* P1.6e: REC there: the white keys the track's steps (else the keys) .. */
+    uint16_t mfx_wheld;                /* .. the steps held (the page's W keys), their MIDI FX locked by ALGORITHM */
     qd_mfx_slot_t mfx_clip;            /* P1.6d: F1's copy, F2's hand .. */
     int mfx_f1_copied, mfx_f2_loaded, mfx_f2_holding, mfx_f2_from;
     int mfx_lift_from, mfx_lift_to;    /* F2 + B: the slot moved (its animation) .. */
@@ -540,6 +550,8 @@ typedef struct {
     uint8_t pvs_note[16][QD_NNOTE];
     uint32_t pvs_sig[16];
     uint32_t pvs_until[16];            /* P1.5s: a once-preview (the step cursor) ends then; 0: a finger's */
+    int pvs_grp;                       /* P1.6e: the preview went through a MIDI FX group on this track (+ 1): at its end
+                                        * the group's notes of it end (qd_player_preview_end) */
 } qd_ui_t;
 
 /* ---- ctl.c */
@@ -649,6 +661,9 @@ int qd_mfx_oct(struct qd_app *a, int d, int down);   /* F1 / F2 there; 1 taken *
 void qd_mfx_leds(const struct qd_app *a, uint8_t *key);
 void qd_mfx_arp_tap(struct qd_app *a);            /* ARP tapped: the arp on / off (a group made for it if none) */
 int qd_mfx_lane_page(const struct qd_app *a);     /* the arp's lane on screen: 0 none, 1 MOD, 2 TRANSPOSE */
+void qd_mfx_ms(struct qd_app *a);                 /* P1.6e: a slot key let go however: its move dropped */
+void qd_mfx_rec(struct qd_app *a);                /* P1.6e: REC tapped there: STEPS / KEYS */
+int qd_mfx_steps_held(const struct qd_app *a, int *first);   /* P1.6e: STEPS: the steps held (or the latch's), 1st */
 #define QD_MFX_GLIDE_MS 260u
 int qd_mfx_glide(const struct qd_app *a, int from, int to, uint32_t t0);   /* P1.6d: a glide's place now (x100) */
 const char *qd_mfx_knob_name(const struct qd_app *a, int k, char *val);   /* KNOB k's (0..3) name, value (12) */

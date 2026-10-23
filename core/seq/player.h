@@ -87,6 +87,8 @@ void qd_player_flush_track(qd_player_t *pl, int t);
  * state and the pattern are not changed. An empty step, or a LOCK step (it plays no note): nothing. Returns the notes
  * struck (notes: room for QD_NNOTE), ascending */
 int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes);
+/* P1.6e: the preview over (every held step let go): track t's keys' notes taken out of the groups (a HOLD arp's too) */
+void qd_player_preview_end(qd_player_t *pl, int t);
 /* a live edit of track t's sound: patch value id (0..73, DRIVE 73) or a mix value (QD_LK_PAN .. QD_LK_LEVEL) */
 void qd_player_live_edit(qd_player_t *pl, int t, int id, int value);
 /* P1.6d, automation recording: value id (a patch value or a mix value) into track t's sounding voices as their own, as
