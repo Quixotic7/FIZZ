@@ -161,7 +161,8 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
         }
     } else {
         switch (knob) {
-        case QD_K_1: ts->limit = (uint8_t)cl(ts->limit + d, 1, 16); break;
+        case QD_K_1: ts->limit = (uint8_t)cl((ts->limit > QD_POOL_LIMIT_MAX ? QD_POOL_LIMIT_MAX : ts->limit) + d, 1,
+                                             QD_POOL_LIMIT_MAX); break;   /* (P2.6: up to the unit's voices) */
         case QD_K_2: ts->swing = d > 0; break;
         case QD_K_3: u->follow = d > 0, u->play_page[a->sel] = -1; break;
         default: ts->mfx = (uint8_t)cl(ts->mfx + d, 0, QD_MFX_NGROUP); break;   /* P1.6c: KNOB 4 MIDI FX */

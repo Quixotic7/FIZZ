@@ -186,7 +186,7 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx
-test: test-host test-dev test-dev-fast test-gfx-fast budget-ratchet
+test: test-host test-dev test-dev8 test-dev-fast test-dev-fast8 test-gfx-fast budget-ratchet
 	@echo "make test: all passed (host and device sizes, the device's drawing too)"
 
 # P2.0: the same tests at the device's sizes (core/qd_config.h QD_DEVICE), built into build/dev; the timelines into
@@ -199,12 +199,21 @@ test-dev:
 # P2.4: the same at the device's sizes with the unit's drawing (GFX=fast), into build/dev-fast
 test-dev-fast:
 	$(MAKE) PROFILE=-DQD_DEVICE GFX=fast B=build/dev-fast OUT=$(abspath $(OUT))/dev-fast test-dev-run
+# P2.6: the unit's 8 voices (one core, qd_config.h QD_VOICES_DEV), with either drawing. The sequencer's timelines name
+# the voice each note took and show the notes a full pool steals: at 8 voices their own goldens (core/tests/
+# seq_goldens8: blessed from the 16-voice ones' build, the same events but for the voices and the 8-voice steals)
+SEQ_GOLD ?= $(T)/seq_goldens
+test-dev8:
+	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8" B=build/dev8 OUT=$(abspath $(OUT))/dev8 SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
+test-dev-fast8:
+	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8" GFX=fast B=build/dev-fast8 OUT=$(abspath $(OUT))/dev-fast8 \
+	    SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
 test-dev-run: $(DEV_TESTS)
 	@echo "---- the device's sizes (QD_DEVICE)"
 	$(B)/test_quad $(T)/quad_goldens
 	$(B)/test_pool
 	mkdir -p $(OUT)
-	$(B)/test_seq $(T)/seq_goldens $(OUT)
+	$(B)/test_seq $(SEQ_GOLD) $(OUT)
 	$(B)/test_mfx
 	$(B)/test_app
 	$(B)/test_ctl
@@ -260,9 +269,12 @@ budget:
 	$(PY) budget/budget.py
 budget-gate:
 	$(PY) budget/budget.py --gate
-# (P2.4: the budget with plutovg on the unit instead of the fast drawing, for comparison: GFX=plutovg)
+# (P2.4: the budget with plutovg on the unit instead of the fast drawing, for comparison: GFX=plutovg; P2.6: with 16
+# voices, the second core's build: VOICES=16)
 budget-pvg:
 	GFX=plutovg $(PY) budget/budget.py
+budget-16:
+	VOICES=16 $(PY) budget/budget.py
 # P2.1: nothing of the device profile may grow past tools/budget/ratchet.txt (skipped without the arm toolchain)
 budget-ratchet: | $(B)
 	@$(PY) budget/budget.py --ratchet > $(B)/budget-ratchet.log; s=$$?; \
@@ -272,4 +284,4 @@ print-%:
 
 include gfx_fast.mk
 
-.PHONY: all frames strips audio test test-host test-dev test-dev-fast test-dev-run budget-pvg abi midimon remote budget budget-gate budget-ratchet
+.PHONY: all frames strips audio test test-host test-dev test-dev-fast test-dev8 test-dev-fast8 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet

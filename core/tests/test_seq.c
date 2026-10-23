@@ -1416,14 +1416,17 @@ static void ref_single(double sec, uint64_t seed)
 /* a timeline test: its golden, its reference */
 static void pattern_test(const char *name, const char *title, double sec, uint64_t seed)
 {
-    int n0 = fails;
-    run_pattern(sec, seed);
+    int n0 = fails, short_pool;
+    run_pattern(sec, seed);                             /* (its pool from rest: its counters this pattern's) */
+    short_pool = QD_POOL_MAX < 16 && POOL.steals_cross + POOL.drops > 0;
     /* (the events in the last 2 steps before the end may be still to come in one or the other: both stop at sec) */
     ref_single(sec, seed);
     timeline(name, title);
-    compare_ref(name, 1);
+    if (!short_pool)                                    /* P2.6: the reference has every voice it wants; a pool of 8
+                                                         * that stole: its golden alone (seq_goldens8) */
+        compare_ref(name, 1);
     printf("  %-4s %-16s %5d events (%u resolved, %u played), reference %d%s\n", fails == n0 ? "ok" : "FAIL", name,
-           NENG, SEQ.resolved, SEQ.played, NREF, "");
+           NENG, SEQ.resolved, SEQ.played, NREF, short_pool ? " (not compared: the 8-voice pool stole)" : "");
 }
 
 /* ================================================================ the timelines === */

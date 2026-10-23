@@ -42,10 +42,21 @@
 #ifdef QD_DEVICE
 #define QD_PROFILE_NAME "device"
 /* ---- the sound */
-#define QD_POOL_MAX 16                 /* voices (8 + 8 on the two cores) */
+/* P2.6, the owner's decision (2026-10-23): the unit's voices, a build option. 8 on one core (the port's
+ * --single-core: -DQD_VOICES_DEV=8), 16 with the second core (8 + 8). Everything sized by the voices follows it: the
+ * pool and its voices' state, the mix's, the tracks' limits and reserves (none above it) */
+#ifndef QD_VOICES_DEV
+#define QD_VOICES_DEV 16
+#endif
+#if QD_VOICES_DEV != 8 && QD_VOICES_DEV != 16
+#error "qd_config.h: QD_VOICES_DEV is 8 or 16"
+#endif
+#define QD_POOL_MAX QD_VOICES_DEV      /* voices */
 #define QE_NCOMB 8                     /* E2's comb lines (1024 x int16 each), lent to the voices that run a comb;
                                         * P2.1c, the owner's rule (16 if it fits, else 8): 8, a ninth comb voice runs
-                                        * MULTI (quad_ext.c) */
+                                        * MULTI (quad_ext.c); at 8 voices every voice can comb. (The MIDI FX's note
+                                        * tables stay as they are: they keep notes for their OFFs, MIDI out's too,
+                                        * not voices: test_mfx holds 20 at once) */
 /* ---- the sequencer */
 #define QD_SEQ_NEV 512                 /* events waiting (the demos peak at 25) */
 #define QD_SEQ_NREC 64                 /* resolved trigs waiting (the demos peak at 13) */
@@ -97,4 +108,8 @@
 #endif
 
 /* ---- the same in both */
-#define QD_POOL_DEFAULT 16             /* the voices a unit plays with */
+#ifdef QD_DEVICE
+#define QD_POOL_DEFAULT QD_VOICES_DEV  /* the voices a unit plays with (P2.6: the device's 8 or 16) */
+#else
+#define QD_POOL_DEFAULT 16             /* the voices a unit plays with (the host: FM1VST, the site) */
+#endif

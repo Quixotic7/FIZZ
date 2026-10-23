@@ -650,9 +650,9 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         break;
     }
     case UI_TK_LIMIT:
-        v->value = ts->limit;
-        v->v = (float)(ts->limit - 1) / 15.f;
-        ui_itoa(v->val, ts->limit);
+        v->value = ts->limit > QD_POOL_LIMIT_MAX ? QD_POOL_LIMIT_MAX : ts->limit;   /* (P2.6: what the pool plays) */
+        v->v = (float)(v->value - 1) / (float)(QD_POOL_LIMIT_MAX - 1);
+        ui_itoa(v->val, v->value);
         for (i = 0; i < a->pool.nvoice; i++)
             v->voices += qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == t;
         break;

@@ -41,7 +41,8 @@ HERE = Path(__file__).resolve().parent
 TOOLS = HERE.parent
 ROOT = TOOLS.parent
 GFX = os.environ.get("GFX", "fast")                 # P2.4: the unit's drawing (tools/Makefile GFX)
-OUT = TOOLS / "build" / ("budget" if GFX == "fast" else "budget-" + GFX)
+VOICES = int(os.environ.get("VOICES", "8"))           # P2.6: the unit's voices (qd_config.h QD_VOICES_DEV): 8 now, 16 with core 2
+OUT = TOOLS / "build" / ("budget" + ("" if GFX == "fast" else "-" + GFX) + ("" if VOICES == 8 else "-v%d" % VOICES))
 ARM = Path(os.environ.get("ARM_GCC_DIR", str(Path.home() / "arm-gnu-toolchain-14.2" / "bin")))
 JIELI = Path(os.environ.get("JIELI_TOOLCHAIN", str(Path.home() / ".jieli" / "toolchain")))
 
@@ -62,7 +63,7 @@ ISR_STACK = 7936                      # D: the system stack (the audio ISR)
 MARGIN_STACK = 2048                   # E: kept free on each
 RATCHET = HERE / "ratchet.txt"        # P2.1: the ceilings so far (budget-ratchet)
 
-GFX_DEF = ["-DQD_GFX_FAST"] if GFX == "fast" else []
+GFX_DEF = (["-DQD_GFX_FAST"] if GFX == "fast" else []) + ["-DQD_VOICES_DEV=%d" % VOICES]
 CC_FLAGS = ["-Os", "-ffunction-sections", "-fdata-sections", "-DQD_DEVICE", "-DQD_TARGET_FM1", *GFX_DEF, "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
             "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD"]
 ARM_FLAGS = ["-mcpu=cortex-m4", "-mthumb", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16"]
@@ -364,7 +365,7 @@ def main():
         print(f"budget: no arm-none-eabi-gcc in {ARM} (ARM_GCC_DIR): skipped")
         return 0
     core, pvg, inc = sources()
-    print(f"FIZZ's device budget (core/qd_config.h QD_DEVICE; the drawing: GFX={GFX}), {ROOT.name} {sh(['git', '-C', str(ROOT), 'rev-parse', '--short', 'HEAD']).strip()}")
+    print(f"FIZZ's device budget (core/qd_config.h QD_DEVICE; the drawing: GFX={GFX}; {VOICES} voices), {ROOT.name} {sh(['git', '-C', str(ROOT), 'rev-parse', '--short', 'HEAD']).strip()}")
     d, elf = arm_build(core, pvg, inc)
     by, mods, kept_fn, syms = arm_sizes(d, elf)
     hb = host_bench(core, pvg, inc)

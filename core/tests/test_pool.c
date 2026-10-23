@@ -472,6 +472,49 @@ static void t_glide(void)
           "limit 1: it glides from 48 as it starts (at %d / 16)", i >= 0 ? P.v[i].q.pitch_cur : -1);
 }
 
+/* P2.6: 8 voices shared by the tracks (the unit on one core): a note with every voice busy takes a released voice
+ * first (any track's, the quietest), and with all held, the oldest note of the track furthest over its reserve: a held
+ * chord loses its oldest note, never its newest */
+static void t_steal8(void)
+{
+    static const int CHORD[5] = {48, 52, 55, 59, 62};
+    int k, a, held = 0;
+    reset(8);
+    for (k = 0; k < 6; k++) {                           /* six held on track 1 */
+        on(0, 48 + 3 * k);
+        blocks(1);
+    }
+    on(1, 70);
+    on(1, 74);
+    blocks(2);
+    qd_pool_note_off(&P, 1, 70);                        /* two released on track 2 */
+    qd_pool_note_off(&P, 1, 74);
+    blocks(4);
+    a = on(2, 80);                                      /* every voice busy: a ninth note */
+    blocks(3);
+    for (k = 0; k < 6; k++)
+        held += sounding_note(0, 48 + 3 * k) >= 0;
+    CHECK(a >= 0 && held == 6 && sounding_note(2, 80) >= 0 && (sounding_note(1, 70) < 0 || sounding_note(1, 74) < 0),
+          "8 voices, 6 held and 2 released: the new note took a released voice (slot %d), the held ones all kept (%d)",
+          a, held);
+    reset(8);
+    for (k = 0; k < 5; k++) {                           /* a chord of five on track 1, struck low to high .. */
+        on(0, CHORD[k]);
+        blocks(1);
+    }
+    for (k = 0; k < 3; k++) {                           /* .. three held on track 4: all 8 held */
+        on(3, 64 + k);
+        blocks(1);
+    }
+    blocks(2);
+    a = on(2, 84);
+    blocks(3);
+    CHECK(a >= 0 && sounding_note(0, CHORD[0]) < 0 && sounding_note(0, CHORD[4]) >= 0 && sounding_note(2, 84) >= 0 &&
+              sounding_note(3, 64) >= 0, "8 voices all held: the note took the chord's oldest (of the track furthest "
+          "over), its newest kept");
+    printf("  steal at 8 voices: a released voice first, then the oldest held note of the busiest track\n");
+}
+
 int main(void)
 {
     qd_quad_preset_patch(0, PA);
@@ -479,13 +522,18 @@ int main(void)
     t_limits();
     t_choke();
     t_released();
+#if QD_POOL_MAX >= 16                                   /* (P2.6: these two fill a 16-voice pool; at 8, t_steal8) */
     t_reserve();
     t_17th();
+#else
+    printf("  reserve, 17th: 16-voice scenes (the pool holds %d here: t_steal8 checks the same rules at 8)\n", QD_POOL_MAX);
+#endif
     t_same_note();
     t_tap();
     t_fade();
     t_free();
     t_glide();
+    t_steal8();
     CHECK(qd_pool_is_dip_id(QD_QP_FTYPE) && qd_pool_is_dip_id(QD_QP_BWPOST) && !qd_pool_is_dip_id(QD_QP_FSHAPE) &&
           !qd_pool_is_dip_id(QD_QP_FGAIN), "E2: a machine switched, BWPOST: the dip (the morph, the gain: not)");
     printf("test_pool: %d checks, %d failed\n", checks, fails);

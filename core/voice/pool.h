@@ -39,7 +39,8 @@ extern "C" {
 #endif
 
 #define QD_POOL_NTRACK 8                /* tracks the limits and reserves are kept for */
-#define QD_POOL_LIMIT_MAX 16
+#define QD_POOL_LIMIT_MAX (QD_POOL_DEFAULT < 16 ? QD_POOL_DEFAULT : 16)   /* (P2.6: a track's limit and reserve: up to
+                                                         * the unit's voices) */
 
 /* a voice's mix values that a lock can set (the lock ids QD_LK_PAN.. in seq/pattern.h, in this order) */
 enum { QD_VMIX_PAN, QD_VMIX_DELAY, QD_VMIX_REVERB, QD_VMIX_CHORUS, QD_VMIX_LEVEL, QD_VMIX_N };   /* (P1.4a: DRIVE is

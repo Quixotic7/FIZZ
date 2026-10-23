@@ -350,7 +350,8 @@ static void t_limiter(void)
     run(3000, 26000);
     n_over = over;
     over = 0;
-    CHECK(qd_pool_in_use(&A.pool) == 16, "16 voices (%d)", qd_pool_in_use(&A.pool));
+    CHECK(qd_pool_in_use(&A.pool) == (A.pool.nvoice < 16 ? A.pool.nvoice : 16), "16 notes on %d voices: all in use (%d)",
+          A.pool.nvoice, qd_pool_in_use(&A.pool));
     CHECK(n_over == 0 && peak_l <= 26000 && peak_r <= 26000, "Output Clean's ceiling: %u samples above 26000, peaks %d %d",
           (unsigned)n_over, (int)peak_l, (int)peak_r);
     CHECK(peak_l > 24000 || peak_r > 24000, "the limiter at work: peaks %d %d", (int)peak_l, (int)peak_r);
@@ -929,6 +930,27 @@ static void t_split(void)
            split_calls, maxv);
 }
 
+/* P2.6: the demos at the unit's voices (8 on one core, 16 with two): the steals and the notes dropped */
+static void t_busy(void)
+{
+    int k;
+    uint32_t own, cross, drops, maxv = 0;
+    fresh();
+    tap_button(QD_B_PLAY);
+    for (k = 0; k < 3; k++) {
+        qd_seq_select(&A.seq, k, 0);
+        run(20000, 0);
+        if ((uint32_t)qd_pool_in_use(&A.pool) > maxv)
+            maxv = (uint32_t)qd_pool_in_use(&A.pool);
+    }
+    tap_button(QD_B_PLAY);
+    own = A.pool.steals_own, cross = A.pool.steals_cross, drops = A.pool.drops;
+    CHECK(A.pool.nvoice >= 16 ? drops == 0 : drops * 100u <= A.pool.starts, "the demos at %d voices: %u notes dropped "
+          "(at 8: only where more notes start in one block than there are voices; under 1 %%)", A.pool.nvoice, drops);
+    printf("  busy: A01..A03 20 s each at %d voices: %u steals within a track, %u across, %u dropped, %u notes\n",
+           A.pool.nvoice, own, cross, drops, A.pool.starts);
+}
+
 int main(void)
 {
     uint64_t h1, h2;
@@ -958,6 +980,7 @@ int main(void)
     t_clock();
     t_fizz();
     t_split();
+    t_busy();
     h1 = session_seq();
     h2 = session_seq();
     CHECK(h1 == h2, "two runs of the sequencer's session differ");
