@@ -977,8 +977,56 @@ static void t_machines(void)
         }
         CHECK(ok, "MULTI, COMB+, COMB-, EQ at full resonance / gain on a low note: no overflow, the voice ends");
     }
-    CHECK(sizeof qe_comb == (size_t)QE_NCOMB * 2048u, "the comb arena: %u lines of 1024 (%u KB here; the FM-1's 16: 32 KB)",
+    CHECK(sizeof qe_comb == (size_t)QE_NCOMB * 2048u, "the comb arena: %u lines of 1024 (%u KB here; the FM-1's 8: 16 KB)",
           (unsigned)QE_NCOMB, (unsigned)(sizeof qe_comb / 1024u));
+    {   /* P2.1c: the lines lent: QE_NCOMB comb voices take one each, the next runs MULTI (its output MULTI's, sample for
+         * sample), a line given back by a voice that ended goes to the next comb voice that starts */
+        enum { NCV = QE_NCOMB + 1, NSM = 16 * CTL };
+        static qd_quad_voice_t cv[NCV + 1];
+        static quad_voice_t cs[NCV + 1];
+        static int32_t out[NCV + 1][NSM];
+        const int32_t cut = e2_cut_of(440.0), reso = 9000, kd = 8192 - reso * 3 / 5;
+        quad_svf_t c;
+        int16_t pm[QD_QUAD_NP];
+        int k, lines = 0, same = 1, comb_like = 0;
+        uint32_t o;
+        quad_init3(p);
+        p[QP_FTYPE] = QD_QF_COMBP, p[QD_QP_FSHAPE] = 100;
+        memcpy(pm, p, sizeof pm);
+        pm[QP_FTYPE] = QD_QF_MULTI;
+        quad_svf_coef(&c, cut, kd);
+        memset(qe_comb_by, 0, sizeof qe_comb_by);
+        memset(cv, 0, sizeof cv), memset(cs, 0, sizeof cs);
+        for (k = 0; k <= NCV; k++) {                     /* NCV comb voices, then a MULTI one (the reference) */
+            int32_t ic1 = 0, ic2 = 0;
+            cv[k].active = 1, cv[k].comb.fresh = 1, cs[k].idx = (uint8_t)k;
+            for (o = 0; o < NSM; o += CTL) {
+                int32_t blk[CTL];
+                memcpy(blk, noise + o, sizeof blk);
+                quad_ext_machine(&cv[k], &cs[k], k < NCV ? p : pm, blk, CTL, &c, kd, cut, reso, 100, 0, &ic1, &ic2);
+                memcpy(out[k] + o, blk, sizeof blk);
+            }
+        }
+        for (k = 0; k < NCV; k++)
+            lines += cv[k].comb.line != 0;
+        for (o = 0; o < NSM; o++)
+            same &= out[NCV - 1][o] == out[NCV][o];
+        CHECK(lines == QE_NCOMB && !cv[NCV - 1].comb.line && same,
+              "%d comb voices: %d with a line, the next MULTI's output sample for sample (%s)", NCV, lines,
+              same ? "the same" : "differs");
+        cv[3].active = 0;                               /* a comb voice ends: its line to the next comb voice */
+        cv[NCV - 1].comb.fresh = 1;
+        {
+            int32_t ic1 = 0, ic2 = 0, blk[CTL];
+            memcpy(blk, noise, sizeof blk);
+            quad_ext_machine(&cv[NCV - 1], &cs[NCV - 1], p, blk, CTL, &c, kd, cut, reso, 100, 0, &ic1, &ic2);
+            for (o = 0; o < CTL; o++)
+                comb_like += blk[o] == out[0][o];
+        }
+        CHECK(cv[NCV - 1].comb.line == 4 && comb_like == CTL,
+              "the line voice 4 gave back went to the next comb voice (line %d), which runs the comb (%d of %d samples as "
+              "voice 1's)", cv[NCV - 1].comb.line, comb_like, CTL);
+    }
 }
 
 /* ------------------------------------------------------------- E3: CRUSH --- */

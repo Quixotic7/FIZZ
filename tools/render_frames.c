@@ -197,7 +197,7 @@ static void dump_leds(FILE *o, const qd_leds_t *l, uint32_t ms)
     fprintf(o, "%s\n", l->play_green ? "  PLAY-green" : "");
 }
 
-/* P2.1: --strips: every frame drawn again in 40-row strips (view.c) and compared with the whole one */
+/* P2.1: --strips: every frame drawn again in the device's strips (QD_STRIP_DEV rows, view.c) and compared */
 extern int qd_view_strip_check;
 extern uint32_t qd_view_strip_frames, qd_view_strip_bad, qd_view_strip_px;
 #ifdef QD_DEVICE
@@ -215,8 +215,8 @@ static int strips_report(void)
 #endif
     if (!qd_view_strip_check)
         return 0;
-    printf("render_frames --strips: %u frames drawn whole and in 40-row strips: %u differ (%u pixels)\n",
-           (unsigned)qd_view_strip_frames, (unsigned)qd_view_strip_bad, (unsigned)qd_view_strip_px);
+    printf("render_frames --strips: %u frames drawn whole and in %d-row strips: %u differ (%u pixels)\n",
+           (unsigned)qd_view_strip_frames, QD_STRIP_DEV, (unsigned)qd_view_strip_bad, (unsigned)qd_view_strip_px);
     return qd_view_strip_bad != 0;
 }
 

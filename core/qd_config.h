@@ -15,6 +15,10 @@
  * project sounds like or how it is stored: the store's format is the same in both profiles. */
 #pragma once
 
+/* P2.1c: the device's strip (the owner's choice: 20 rows, 19 KB, over a shorter delay or reverb); the host draws the
+ * whole screen and its strip tests draw it in these too */
+#define QD_STRIP_DEV 20
+
 #if defined(QD_DEVICE) && defined(QD_HOST)
 #error "qd_config.h: one profile, QD_DEVICE or QD_HOST"
 #endif
@@ -36,7 +40,9 @@
 #define QD_PROFILE_NAME "device"
 /* ---- the sound */
 #define QD_POOL_MAX 16                 /* voices (8 + 8 on the two cores) */
-#define QE_NCOMB 16                    /* E2's comb lines (1024 x int16 each): one for every voice */
+#define QE_NCOMB 8                     /* E2's comb lines (1024 x int16 each), lent to the voices that run a comb;
+                                        * P2.1c, the owner's rule (16 if it fits, else 8): 8, a ninth comb voice runs
+                                        * MULTI (quad_ext.c) */
 /* ---- the sequencer */
 #define QD_SEQ_NEV 512                 /* events waiting (the demos peak at 25) */
 #define QD_SEQ_NREC 64                 /* resolved trigs waiting (the demos peak at 13) */
@@ -51,7 +57,7 @@
 #define QD_SNAP_BYTES 8192u            /* the snapshot and the pattern clipboard, compressed */
 #define QD_CLIP_ZBYTES 8192u           /* the eight tracks' clip undo levels (seq/clip.h), compressed */
 /* ---- the drawing (P2.1: core/gfx) */
-#define QD_STRIP_H 40                  /* the screen drawn in strips of this many rows (a 240 x 40 ARGB surface) */
+#define QD_STRIP_H QD_STRIP_DEV        /* the screen drawn in strips of this many rows (a 240 x 20 ARGB surface) */
 #define QD_GFX_ARENA 49152u            /* plutovg's fixed arena (qd_arena.h: no heap; P2.1b: render_frames' worst paint
                                         * 41 928 B, nothing refused) */
 #define QD_FONTS3 1                    /* Inter Tight in three weights, 300 500 700 (the others: the nearest, upward) */
@@ -71,7 +77,7 @@
 #define QD_PAT_RAM 64                  /* (every pattern: QD_NPAT) */
 #define QD_SND_RAM 0                   /* (every sound in RAM, as in Phase 1) */
 #define QD_UNDO_POOL 65536u            /* (the levels' differences; the gesture's before: whole copies) */
-#define QD_STRIP_H 240                 /* (the whole screen at once; the pixel test draws it in 40-row strips too) */
+#define QD_STRIP_H 240                 /* (the whole screen at once; the pixel test draws it in QD_STRIP_DEV-row strips) */
 #define QD_UNDO_XLOCKS 2048
 #define QDS_MAXKEY 2048
 #define QDS_JOBBUF 28800               /* (QDS_MAXREC: every record copied, as in Phase 1) */

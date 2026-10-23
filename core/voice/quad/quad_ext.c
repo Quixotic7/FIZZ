@@ -141,6 +141,38 @@ static const int16_t QE_EQ_G[128] = {
 #include "../../qd_config.h"             /* (P2.0: QE_NCOMB, the comb arena: a line for every voice) */
 #define QE_COMB_N 1024
 static int16_t qe_comb[QE_NCOMB][QE_COMB_N];
+/* P2.1c: the lines are lent: a voice starting a comb (fresh, or switched to one) takes its own place's line (idx %
+ * QE_NCOMB) if it is free, else the first free one; it keeps it while it runs a comb and sounds. None free (the
+ * device's 8 for its 16 voices): that voice runs MULTI until its next start (the owner's rule). The host's 64: every
+ * voice its own place's, as before */
+static voice_t *qe_comb_by[QE_NCOMB];
+static int qe_is_comb(int mach) { return mach == QD_QF_COMBP || mach == QD_QF_COMBN; }
+static int qe_comb_taken(int k)
+{
+    const voice_t *o = qe_comb_by[k];
+    return o && o->active && o->comb.line == k + 1 && qe_is_comb(o->comb.mach);
+}
+static void qe_comb_claim(voice_t *v, int idx)
+{
+    int k;
+    if (v->comb.line && qe_comb_by[v->comb.line - 1] == v)
+        return;                                         /* (its own still) */
+    v->comb.line = 0;
+    for (k = 0; k < QE_NCOMB; k++) {
+        const int at = (idx + k) % QE_NCOMB;
+        if (!qe_comb_taken(at)) {
+            qe_comb_by[at] = v;
+            v->comb.line = (uint8_t)(at + 1);
+            return;
+        }
+    }
+}
+static void qe_comb_free(voice_t *v)
+{
+    if (v->comb.line && qe_comb_by[v->comb.line - 1] == v)
+        qe_comb_by[v->comb.line - 1] = 0;
+    v->comb.line = 0;
+}
 
 static int32_t qe_comb_len(int32_t cut)
 {
@@ -159,21 +191,28 @@ static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int3
                              int32_t *ic1, int32_t *ic2)
 {
     const int mach = p[QD_QP_FTYPE];
+    int run;
     uint32_t i;
     if (v->comb.fresh || v->comb.mach != mach) {        /* (a fresh voice, or a machine switched: from rest; the dip
                                                          * makes it silent meanwhile) */
-        if (mach == QD_QF_COMBP || mach == QD_QF_COMBN)
-            memset(qe_comb[s->idx % QE_NCOMB], 0, sizeof qe_comb[0]);
+        if (qe_is_comb(mach)) {
+            qe_comb_claim(v, (int)s->idx);              /* (P2.1c: a line lent; none: MULTI) */
+            if (v->comb.line)
+                memset(qe_comb[v->comb.line - 1], 0, sizeof qe_comb[0]);
+        } else {
+            qe_comb_free(v);
+        }
         v->comb.w = 0, v->comb.lp = 0, v->comb.len = qe_comb_len(cut);
         if (v->comb.mach != mach && !v->comb.fresh)
             *ic1 = 0, *ic2 = acc[0];
         v->comb.mach = (uint8_t)mach, v->comb.fresh = 0;
     }
-    if (mach == QD_QF_MULTI || mach == QD_QF_EQ) {
+    run = qe_is_comb(mach) && !v->comb.line ? QD_QF_MULTI : mach;   /* (P2.1c: no line: MULTI) */
+    if (run == QD_QF_MULTI || run == QD_QF_EQ) {
         quad_svf_t ce;
         const quad_svf_t *cc = c;
         int32_t a = *ic1, b = *ic2, k = kd, g = 0, wm = 0;
-        if (mach == QD_QF_EQ) {                         /* the bell: its own damping (FSHAPE: Q), FGAIN its height */
+        if (run == QD_QF_EQ) {                         /* the bell: its own damping (FSHAPE: Q), FGAIN its height */
             k = QE_EQ_K[shape];
             quad_svf_coef(&ce, cut, k);
             cc = &ce;
@@ -188,7 +227,7 @@ static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int3
             v2 = b + ((cc->a2 * a + cc->a3 * v3 + ((cc->f2 * a) >> 5) + 4096) >> 13);
             a = clamp(2 * v1 - a, -150000, 150000);
             b = clamp(2 * v2 - b, -150000, 150000);
-            if (mach == QD_QF_EQ) {
+            if (run == QD_QF_EQ) {
                 y = x + (int32_t)(((int64_t)g * ((k * v1) >> 12)) >> 12);
             } else {
                 const int32_t bp = (kd * v1) >> 12, hp = x - bp - v2;
@@ -202,7 +241,7 @@ static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int3
         return;
     }
     {   /* COMB+ / COMB-: y = x +- g lp(d[n - L]) into the line; out y (1 - g / 2) */
-        int16_t *line = qe_comb[s->idx % QE_NCOMB];
+        int16_t *line = qe_comb[v->comb.line - 1];
         const int32_t g = (int32_t)(((int64_t)clamp(reso, 0, 12700) * 32276) / 12700);   /* (0 .. 0.985, Q15) */
         const int32_t ka = 1024 + shape * 31744 / 127, l0 = v->comb.len, l1 = qe_comb_len(cut);
         const int32_t outk = 32768 - g / 2;

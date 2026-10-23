@@ -439,7 +439,7 @@ static void t_strips(void)
 
 /* P2.1b: shapes the strips' culling must leave exact (plutovg-rasterize.c cull_runs): a zigzag across every strip, a
  * closed quad, a square wave whose long lines run straight on through a vertex, a dashed one, curves, a fill, all
- * drawn whole and in 40-row strips (the host: its surface can hold the whole screen) */
+ * drawn whole and in the device's strips (the host: its surface can hold the whole screen) */
 #if QD_STRIP_H >= QD_H
 static void strip_shapes(void)
 {
@@ -478,14 +478,14 @@ static void t_strip_shapes(void)
     int y, i, n = 0;
     qd_set_strip_rows(QD_H);
     qd_begin_strip(0), strip_shapes(), qd_end_strip(whole);
-    qd_set_strip_rows(40);
-    for (y = 0; y < QD_H; y += 40)
+    qd_set_strip_rows(QD_STRIP_DEV);
+    for (y = 0; y < QD_H; y += QD_STRIP_DEV)
         qd_begin_strip(y), strip_shapes(), qd_end_strip(strips);
     qd_set_strip_rows(QD_STRIP_H);
     for (i = 0; i < QD_W * QD_H; i++)
         n += whole[i] != strips[i];
     CHECK(!n, "P2.1b: strokes (a zigzag, a closed quad, long straight runs, dashes, curves) and a fill, whole and in "
-          "40-row strips: the same (%d differ)", n);
+          "%d-row strips: the same (%d differ)", QD_STRIP_DEV, n);
 }
 #else
 static void t_strip_shapes(void) {}

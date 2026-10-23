@@ -2078,11 +2078,11 @@ static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_stri
         }
     }
 #ifndef QD_TARGET_FM1                                   /* (the host's test only: not on the unit) */
-    if (qd_view_strip_check && lcd_be) {                          /* (render_frames --strips: the same frame in 40-row strips) */
+    if (qd_view_strip_check && lcd_be) {                /* (render_frames --strips: the same frame in the device's strips) */
         static uint16_t lcd[QD_W * QD_H];
         const int rows = qd_strip_rows();
         uint32_t i, n = 0;
-        qd_set_strip_rows(40);
+        qd_set_strip_rows(QD_STRIP_DEV);
         for (y0 = 0; y0 < QD_H; y0 += qd_strip_rows()) {
             qd_begin_strip(y0);
             view_draw(a, &lv, &hv, &tv, &yv, &sv, &bv, &mv, &sv5, &xv, &brv, &tyv, &pjv, &fv, &mfv);
@@ -2288,7 +2288,7 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
 #undef mfv
 }
 
-/* P2.1: the strip test (render_frames --strips): the frame drawn again in 40-row strips must be the same, pixel for
+/* P2.1: the strip test (render_frames --strips): the frame drawn again in the device's strips must be the same, pixel for
  * pixel (frames and pixels that differ counted) */
 int qd_view_strip_check;
 uint32_t qd_view_strip_frames, qd_view_strip_bad, qd_view_strip_px;

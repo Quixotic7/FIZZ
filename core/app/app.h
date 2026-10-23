@@ -152,7 +152,7 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2);   /* status 0xF8 / FA
 void qd_app_tick(qd_app_t *a, uint32_t ms);
 /* the screen: one frame drawn (qd_gfx), written as RGB565 big-endian (240 x 240) */
 void qd_app_frame(qd_app_t *a, uint16_t *lcd_be);
-/* P2.1: .. or strip by strip (QD_STRIP_H rows: the device's 40; the host's one strip, the whole), each written into
+/* P2.1: .. or strip by strip (QD_STRIP_H rows: the device's 20; the host's one strip, the whole), each written into
  * strip_be (240 x QD_STRIP_H) and then given to out (its first row, its rows, its pixels): no whole frame in RAM.
  * P2.1b: strip_be 0: each strip written in place, in the core's own strip surface (px), good until out returns (the
  * platform sends it, or copies it, before the next strip is drawn: no buffer of the LCD's in FIZZ's RAM) */

@@ -8,7 +8,7 @@
  *   - RGB565 big-endian out of the premultiplied ARGB surface.
  * Nothing here calls the OS: the surface and the paths are malloc'ed once by qd_init.
  *
- * P2.1 (Phase 2): THE SCREEN IN STRIPS. The pixels are QD_W x QD_STRIP_H (the device's: 40 rows, 38 KB; the host's:
+ * P2.1 (Phase 2): THE SCREEN IN STRIPS. The pixels are QD_W x QD_STRIP_H (the device's: 20 rows, 19 KB; the host's:
  * the whole 240), seen by plutovg as a whole 240 x 240 surface whose rows y0 .. y0 + h are those pixels (its data
  * pointer moved for each strip, the drawing clipped to the strip): the transform is the whole screen's, so a strip's
  * pixels are exactly the whole surface's (tools: render_frames --strips checks it, frame by frame). A shape whose

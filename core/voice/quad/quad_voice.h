@@ -109,7 +109,7 @@ struct qd_quad_voice {
                                          * goes on (the next block ramps back from 0); set and cleared by the pool */
     int32_t gstep;                      /* E1: the glide's step a block (1/16 semitone; 0: by its RATE) */
     struct { int32_t hp, lp1, lp2; } dpre;   /* E1: DRIVE before the filter: its state (quad_ext.c) */
-    struct { int32_t lp, len; uint16_t w; uint8_t mach, fresh; } comb;
+    struct { int32_t lp, len; uint16_t w; uint8_t mach, fresh, line; } comb;   /* (P2.1c: line, its comb line + 1; 0 none) */
     struct { uint32_t ph; int32_t held; } crush;   /* E3: CRUSH's sample and hold: its phase, the value held */
     int16_t ptim_mod;                   /* E4: PTIM's modulation now (the glide's RATE) */
     int16_t mrnd;                       /* E4: the RANDOM source's value for this note (Q15, bipolar) */   /* E2: the filter machines' state (quad_ext.c:
