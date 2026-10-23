@@ -82,6 +82,7 @@ static void rec_unref(qd_seq_t *s, int r)
         s->rec[r].used = 0;
 }
 
+#define EV_G(e) ((e)->tick + (e)->dg)                  /* (P2.1b) an event's step's grid tick */
 static int push(qd_seq_t *s, qd_sev_t *e)
 {
     if (s->nev >= QD_SEQ_NEV) {
@@ -96,6 +97,12 @@ static int push(qd_seq_t *s, qd_sev_t *e)
     s->ev[s->nev] = *e;
     heap_up(s->ev, s->nev++);
     return 1;
+}
+
+static int push_at(qd_seq_t *s, qd_sev_t *e, int64_t g)   /* (P2.1b) its step's grid tick g kept as tick's offset */
+{
+    e->dg = (int32_t)(g - e->tick);
+    return push(s, e);
 }
 
 static qd_sev_t pop(qd_seq_t *s)
@@ -122,8 +129,7 @@ static int rec_alloc(qd_seq_t *s)
 }
 
 /* an OFF for (track, note, serial) at tick */
-static void push_off(qd_seq_t *s, int t, int note, uint32_t serial, int64_t tick, int64_t g, int64_t origin, int step,
-                     int hit)
+static void push_off(qd_seq_t *s, int t, int note, uint32_t serial, int64_t tick, int64_t g, int step, int hit)
 {
     qd_sev_t e;
     memset(&e, 0, sizeof e);
@@ -131,14 +137,12 @@ static void push_off(qd_seq_t *s, int t, int note, uint32_t serial, int64_t tick
     e.hit = (uint8_t)hit;
     e.tick = tick;
     e.gate = 0;
-    e.g = g;
-    e.origin = origin;
     e.serial = serial;
     e.rec = -1;
     e.kind = QD_EV_OFF;
     e.track = (uint8_t)t;
     e.note = (uint8_t)note;
-    push(s, &e);
+    push_at(s, &e, g);
 }
 
 /* the OFFs held back for a TIE that will not come: out at tick */
@@ -146,7 +150,7 @@ static void unskip(qd_seq_t *s, int t, int64_t tick)
 {
     int k;
     for (k = 0; k < s->skip_n[t]; k++)
-        push_off(s, t, s->skip_note[t][k], s->skip_serial[t][k], tick, tick, s->origin, 0, 0);
+        push_off(s, t, s->skip_note[t][k], s->skip_serial[t][k], tick, tick, 0, 0);
     s->skip_n[t] = 0;
 }
 
@@ -156,7 +160,7 @@ static void drop_from(qd_seq_t *s, int t, int64_t x, int64_t now_tick)
     int i, n = 0, ties = 0;
     for (i = 0; i < s->nev; i++) {
         qd_sev_t *e = &s->ev[i];
-        if (e->track == t && e->kind != QD_EV_OFF && e->g >= x) {
+        if (e->track == t && e->kind != QD_EV_OFF && EV_G(e) >= x) {
             if (e->kind == QD_EV_TIE) {
                 ties++;
                 if (s->tie_pending[t] > 0)
@@ -392,11 +396,9 @@ static void fill_rec(const qd_seq_t *s, qd_trec_t *r, int t, int step, const qd_
     }
 }
 
-static void ev_base(qd_sev_t *e, int t, const qd_tcur_t *c, int step, int rec, int kind)
+static void ev_base(qd_sev_t *e, int t, int step, int rec, int kind)
 {
-    memset(e, 0, sizeof *e);
-    e->g = c->g;
-    e->origin = c->origin;
+    memset(e, 0, sizeof *e);                            /* (P2.1b: its grid tick given at the push) */
     e->rec = (int16_t)rec;
     e->kind = (uint8_t)kind;
     e->track = (uint8_t)t;
@@ -423,17 +425,17 @@ static void emit_step(qd_seq_t *s, int t, int step, const qd_tcur_t *c, const qd
         notes[k] = (uint8_t)(x < 1 ? 1 : x > 127 ? 127 : x);
     }
     if (type == QD_TRIG_LOCK) {
-        ev_base(&e, t, c, step, ri, QD_EV_LOCK);
+        ev_base(&e, t, step, ri, QD_EV_LOCK);
         e.tick = start;
-        push(s, &e);
+        push_at(s, &e, c->g);
     } else if (type == QD_TRIG_TIE && ts->limit == 1) {   /* MONO: legato into the sounding voice */
         if (nn) {
-            ev_base(&e, t, c, step, ri, QD_EV_TIE);
+            ev_base(&e, t, step, ri, QD_EV_TIE);
             e.tick = start;
             e.note = notes[0];
             e.vel = (uint8_t)st->vel;
-            e.gate = gate_all;
-            push(s, &e);
+            e.gate = (int32_t)gate_all;
+            push_at(s, &e, c->g);
         }
     } else {                                            /* NOTE (and TIE on a POLY track: a NOTE) */
         const int nh = st->ratch, ramp = st->ramp;
@@ -449,13 +451,13 @@ static void emit_step(qd_seq_t *s, int t, int step, const qd_tcur_t *c, const qd
             else
                 gate = h < nh - 1 ? slice : gate_all - (nh - 1) * slice;   /* the last hit holds to the length */
             for (k = 0; k < nn; k++) {
-                ev_base(&e, t, c, step, ri, QD_EV_ON);
+                ev_base(&e, t, step, ri, QD_EV_ON);
                 e.tick = start + h * slice + k * strum;
                 e.note = notes[k];
                 e.vel = (uint8_t)ramp_vel(st->vel, ramp, h, nh);
-                e.gate = gate;
+                e.gate = (int32_t)gate;
                 e.hit = (uint8_t)h;
-                push(s, &e);
+                push_at(s, &e, c->g);
             }
         }
     }
@@ -836,9 +838,10 @@ static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq
         break;
     case QD_EV_ON:
     case QD_EV_TIE:
-        if (s->heard_g[t] != e->g || s->heard_step[t] != e->step) {   /* P1.5s: the step coming to play (once a step) */
+        if (s->heard_g[t] != EV_G(e) || s->heard_step[t] != e->step) {   /* P1.5s: the step coming to play (once a
+                                                         * step) */
             s->heard_step[t] = e->step;
-            s->heard_g[t] = e->g;
+            s->heard_g[t] = EV_G(e);
             s->heard_sample[t] = o.sample;
         }
         if (!qd_seq_audible(s, P, t)) {                 /* a muted (or not soloed) track plays nothing: it runs on */
@@ -851,7 +854,7 @@ static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq
             s->skip_n[t] = 0;
             s->inf_n[t] = 0;
         }
-        if (s->inf_n[t] && s->inf_g[t] != e->g) {     /* INF notes: held until the track's next NOTE */
+        if (s->inf_n[t] && s->inf_g[t] != EV_G(e)) {     /* INF notes: held until the track's next NOTE */
             qd_seq_ev_t f = o;
             f.kind = QD_EV_OFF;
             f.rec = 0;
@@ -871,9 +874,9 @@ static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq
         s->flash_tick[t] = e->tick;
         s->flash_sample[t] = o.sample;
         if (e->gate >= 0) {
-            push_off(s, t, e->note, o.serial, e->tick + (e->gate > 0 ? e->gate : 1), e->g, e->origin, e->step, e->hit);
+            push_off(s, t, e->note, o.serial, e->tick + (e->gate > 0 ? e->gate : 1), EV_G(e), e->step, e->hit);
         } else if (s->inf_n[t] < QD_NNOTE * 8) {
-            s->inf_g[t] = e->g;
+            s->inf_g[t] = EV_G(e);
             s->inf_note[t][s->inf_n[t]] = e->note;
             s->inf_serial[t][s->inf_n[t]++] = o.serial;
         }

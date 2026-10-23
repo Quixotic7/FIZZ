@@ -3035,6 +3035,35 @@ static void worst_run(int len, int rate_base, int ratch, int nn, double sec)
     }
     worst_drop_ev = SEQ.dropped_ev, worst_drop_rec = SEQ.dropped_rec;
 }
+/* P2.1b: an event's gate and its step's grid tick are 32 bits (seq.h qd_sev_t): the longest gate (128 steps of a dotted
+ * 1/1) and its OFF exact */
+static void u_longgate(void)
+{
+    static const uint8_t N1[1] = {60};
+    qd_pattern_t *P;
+    const int rate = QD_RATE_CODE(0, QD_RTYPE_DOTTED), len = QD_LEN_INF - 1;
+    const int64_t gate = qd_rate_ticks(rate) * qd_len_eighths(len) / 8;
+    int i, found = 0;
+    int64_t at = -1;
+    rig_reset();
+    P = qd_proj_pat(&PROJ, 0);
+    qd_tset_set_rate(&P->trk[0], rate);
+    qd_step_on(P, 0, 0);
+    qd_step_set_notes(P, 0, 0, N1, 1);
+    qd_step_set_len(P, 0, 0, len);
+    P->used = 1;
+    qd_seq_select(&SEQ, 0, 0);
+    qd_seq_play(&SEQ);
+    while (SEQ.played == 0 && SEQ.now < 44100u)
+        rig_block(0);
+    for (i = 0; i < SEQ.nev; i++)
+        if (SEQ.ev[i].kind == QD_EV_OFF && SEQ.ev[i].track == 0)
+            found++, at = SEQ.ev[i].tick;
+    CHECK(gate > 300000000 && gate < INT32_MAX && found == 1 && at == SEQ.flash_tick[0] + gate,
+          "the longest gate (%s steps of a dotted 1/1, %lld ticks): its OFF %lld ticks after the note (%d found)",
+          qd_len_name(len), (long long)gate, (long long)(at - SEQ.flash_tick[0]), found);
+}
+
 static void u_worst(void)
 {
     int n0 = fails, e_sane, r_sane, e_long, r_long, e_x, r_x, hung = 0, i, t, st;
@@ -3429,6 +3458,7 @@ int main(int argc, char **argv)
     u_clip();
     u_scale();
     u_worst();
+    u_longgate();
     u_sounds();
     u_names();
     p_sixteenths();

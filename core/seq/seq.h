@@ -103,9 +103,10 @@ typedef struct {
 /* an event waiting */
 typedef struct {
     int64_t tick;
-    int64_t gate;                       /* ON / TIE: ticks, -1 INF */
-    int64_t g;                          /* the grid tick of its step, the origin of its pattern */
-    int64_t origin;
+    int32_t gate;                       /* ON / TIE: ticks, -1 INF (P2.1b: 32 bits; the longest, 128 steps of a dotted
+                                         * 1/1, is 3.1e8 ticks) */
+    int32_t dg;                         /* the grid tick of its step, less tick (P2.1b: within a gate and a step of it;
+                                         * the pattern's origin it kept is gone: nothing read it) */
     uint32_t seq;                       /* the order it was made in */
     uint32_t serial;                    /* ON / TIE: its own; OFF: the one it ends */
     int16_t rec;                        /* ON / TIE / LOCK: its trig, else -1 */
