@@ -93,16 +93,18 @@ static int voice_of_track(const qd_pool_t *p, int i, int t)   /* sounding (gate 
 static void apply_locks(qd_player_t *pl, const qd_seq_ev_t *e, int i)
 {
     const qd_trec_t *r = e->rec;
-    int k;
-    for (k = 0; k < r->nlk; k++) {
-        const int id = r->lk_id[k];
+    int id;
+    for (id = 0; r->nlk && id < QD_LK_N; id++) {        /* (P2.1b: in the locks' order, by id; their values in the
+                                                         * record's patch and mix) */
+        if (!((r->lkm[id >> 5] >> (id & 31)) & 1u))
+            continue;
         if (id < QD_QUAD_NP) {
-            if (qd_pool_write(pl->pool, i, id, r->lk_v[k], 1) == 2) {
+            if (qd_pool_write(pl->pool, i, id, r->patch[id], 1) == 2) {
                 pl->dips++;
-                plog(pl, e, QD_LOG_DIP, i, id, r->lk_v[k]);
+                plog(pl, e, QD_LOG_DIP, i, id, r->patch[id]);
             }
-        } else if (id < QD_LK_N) {
-            qd_pool_set_mix(pl->pool, i, id - QD_LK_PAN, r->lk_v[k]);
+        } else {
+            qd_pool_set_mix(pl->pool, i, id - QD_LK_PAN, r->at.mixv[id - QD_LK_PAN]);
         }
     }
 }

@@ -95,8 +95,9 @@ typedef struct {
     int16_t patch[QD_QUAD_NP];
     qd_vattr_t at;
     uint8_t nlk;
-    uint8_t lk_id[QD_LK_N];
-    int16_t lk_v[QD_LK_N];
+    uint32_t lkm[(QD_LK_N + 31) / 32];  /* P2.1b: bit id: the step locks it; its value is patch[id] (a sound value: a
+                                         * live edit passes an own value by) or at.mixv (a mix value). Was the locks'
+                                         * copies (345 B a record) */
 } qd_trec_t;
 
 /* an event waiting */
