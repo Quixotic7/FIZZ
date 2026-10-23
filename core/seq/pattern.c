@@ -162,6 +162,14 @@ void qd_pat_init(qd_pattern_t *p)
         qd_tsound_default(t, &p->snd[t]);
 }
 
+#if QD_PAT_RAM < QD_NPAT
+#ifndef QD_TARGET_FM1
+/* (the host's tests at the device's sizes: a project with no backing (a test's bare one) keeps its patterns out of RAM
+ * here; the device's always has its store) */
+static qd_pattern_t pat_bare[QD_NPAT];
+static uint8_t pat_bare_has[QD_NPAT];
+#endif
+#endif
 void qd_project_init(qd_project_t *pr)
 {
     int k;
@@ -173,6 +181,10 @@ void qd_project_init(qd_project_t *pr)
     for (k = 0; k < QD_PAT_RAM; k++)
         pr->pat_in[k] = -1, pr->lru[k] = 0;
     pr->lru_clock = 0;
+#ifndef QD_TARGET_FM1
+    if (!pr->io.load)
+        memset(pat_bare_has, 0, sizeof pat_bare_has);
+#endif
 #endif
     pr->demo = 0;
     qd_sounds_init(pr);
@@ -214,6 +226,12 @@ static void slot_out(qd_project_t *pr, int sl, int save)
         pr->io.save(pr->io.ctx, k, &pr->pat[sl]);
         pr->pat_saves++;
     }
+#ifndef QD_TARGET_FM1
+    else if (save && !pr->io.save) {
+        pat_bare[k] = pr->pat[sl];
+        pat_bare_has[k] = 1;
+    }
+#endif
     pr->pat_used[k] = pr->pat[sl].used;
     pr->slot_of[k] = -1;
     pr->pat_in[sl] = -1;
@@ -244,8 +262,14 @@ qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k)
             sl = best;
             slot_out(pr, sl, 1);
         }
-        if (!pr->io.load || !pr->io.load(pr->io.ctx, k, &pr->pat[sl]))
-            qd_pat_default(pr, k, &pr->pat[sl]);
+        if (!pr->io.load || !pr->io.load(pr->io.ctx, k, &pr->pat[sl])) {
+#ifndef QD_TARGET_FM1
+            if (!pr->io.load && pat_bare_has[k])
+                pr->pat[sl] = pat_bare[k];
+            else
+#endif
+                qd_pat_default(pr, k, &pr->pat[sl]);
+        }
         pr->pat_loads++;
         pr->pat_in[sl] = (int8_t)k;
         pr->slot_of[k] = (int8_t)sl;

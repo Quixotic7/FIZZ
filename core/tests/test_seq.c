@@ -2995,6 +2995,77 @@ static void u_clip(void)
            fails == n0 ? "ok" : "FAIL");
 }
 
+/* P2.1b: the sequencer's queues at their worst, measured: every track playing every step, six-note chords, eight
+ * ratchets, strummed, micro-timed, at the fastest rate (1/64) and tempo (300 BPM); the high-water marks of the events
+ * waiting and of the resolved trigs, with each length (a step: the busiest steps; 8 steps: the OFFs of many held notes
+ * waiting too). core/qd_config.h sizes the device's queues from these */
+static int worst_ev, worst_rec;
+static uint32_t worst_drop_ev, worst_drop_rec;
+static void worst_run(int len, int rate_base, int ratch, int nn, double sec)
+{
+    static const uint8_t CH[6] = {48, 52, 55, 59, 62, 65};
+    qd_pattern_t *P;
+    int t, st, r, u;
+    rig_reset();
+    P = qd_proj_pat(&PROJ, 0);
+    P->bpm = 300;
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
+        P->trk[t].rbase = (uint8_t)rate_base;
+        for (st = 0; st < 16; st++) {
+            qd_step_on(P, t, st);
+            qd_step_set_notes(P, t, st, CH, nn);
+            qd_step_set_ratchet(P, t, st, ratch, QD_RAMP_FLAT);
+            qd_step_set_len(P, t, st, len);
+            qd_step_set_strum(P, t, st, 23);
+            qd_step_set_micro(P, t, st, st % 2 ? 23 : -23);
+        }
+    }
+    P->used = 1;
+    qd_model_tempo(&MODEL, 300);
+    qd_seq_seed(&SEQ, 3);
+    qd_seq_select(&SEQ, 0, 0);
+    qd_seq_play(&SEQ);
+    worst_ev = worst_rec = 0;
+    while (SEQ.now < (uint64_t)(sec * 44100.0)) {
+        rig_block(0);
+        for (u = 0, r = 0; r < QD_SEQ_NREC; r++)
+            u += SEQ.rec[r].used != 0;
+        worst_ev = SEQ.nev > worst_ev ? SEQ.nev : worst_ev;
+        worst_rec = u > worst_rec ? u : worst_rec;
+    }
+    worst_drop_ev = SEQ.dropped_ev, worst_drop_rec = SEQ.dropped_rec;
+}
+static void u_worst(void)
+{
+    int n0 = fails, e_sane, r_sane, e_long, r_long, e_x, r_x, hung = 0, i, t, st;
+    uint32_t d_sane, d_long, d_x;
+    worst_run(QD_LEN_1, 4, 1, 6, 3.0);                  /* six-note chords on every track, every 16th: must fit */
+    e_sane = worst_ev, r_sane = worst_rec, d_sane = worst_drop_ev + worst_drop_rec;
+    worst_run(QD_LEN_1 + 4, 4, 1, 6, 3.0);              /* .. the notes longer */
+    e_long = worst_ev, r_long = worst_rec, d_long = worst_drop_ev + worst_drop_rec;
+    CHECK(!d_sane && !d_long, "six-note chords on all eight tracks, every 16th at 300 BPM, a step or three long: nothing "
+          "dropped (%u, %u; %d, %d events waiting of %d; lengths 1 and %s)", d_sane, d_long, e_sane, e_long, QD_SEQ_NEV,
+          qd_len_name(QD_LEN_1 + 4));
+    worst_run(QD_LEN_1 + 8, 6, 8, 6, 3.0);              /* .. and eight ratchets each, 1/64, the notes longer still */
+    e_x = worst_ev, r_x = worst_rec, d_x = worst_drop_ev + worst_drop_rec;
+    {   /* (then nothing: every note it started ended, the trigs that found no room never started) */
+        qd_pattern_t *P = qd_proj_pat(&PROJ, 0);
+        for (t = 0; t < QD_PAT_NTRACK; t++)
+            for (st = 0; st < 16; st++)
+                qd_step_clear(P, t, st);
+        rig_run_to(SEQ.now + 4u * 44100u);
+        for (i = 0; i < POOL.nvoice; i++)
+            hung += qd_pool_sounding(&POOL, i) && POOL.v[i].q.gate;
+    }
+    CHECK(!hung && SEQ.nev == 0, "the extreme (six-note chords x 8 ratchets on 8 tracks, 1/64, 300 BPM, long notes): "
+          "what found no room was dropped and counted (%u), no note hangs (%d), the queue empties (%d)", d_x,
+          hung, SEQ.nev);
+    printf("  %-4s queues            six-note chords on 8 tracks every 16th: %d / %d events, %d / %d trigs waiting "
+           "(%s steps long: %d, %d); the extreme (x 8 ratchets, 1/64, %s steps long): %d, %d, %u dropped (the queues: "
+           "%d, %d)\n", fails == n0 ? "ok" : "FAIL", e_sane, QD_SEQ_NEV, r_sane, QD_SEQ_NREC, qd_len_name(QD_LEN_1 + 4),
+           e_long, r_long, qd_len_name(QD_LEN_1 + 8), e_x, r_x, d_x, QD_SEQ_NEV, QD_SEQ_NREC);
+}
+
 /* scale.h against the test's own tables */
 static void u_scale(void)
 {
@@ -3357,6 +3428,7 @@ int main(int argc, char **argv)
     u_determinism();
     u_clip();
     u_scale();
+    u_worst();
     u_sounds();
     u_names();
     p_sixteenths();

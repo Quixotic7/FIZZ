@@ -31,7 +31,7 @@
 #define QD_SEQ_NEV 512                 /* events waiting (the demos peak at 25) */
 #define QD_SEQ_NREC 64                 /* resolved trigs waiting (the demos peak at 13) */
 /* ---- the patterns (P2.1: paged; core/seq/pattern.h) */
-#define QD_PAT_RAM 3                   /* in RAM: the playing one, the queued one, one more (a change's old one) */
+#define QD_PAT_RAM 2                   /* in RAM: the playing one and the queued one (P2.1b: 2, was 3) */
 /* ---- the sounds (P2.1: the pool's and MY presets' in the store; seq/sounds.h) */
 #define QD_SND_RAM 8                   /* in RAM (their names, ids and tags all: the lists') */
 /* ---- undo (P2.1: a log; app/undo.h) */
