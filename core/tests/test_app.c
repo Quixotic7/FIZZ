@@ -408,9 +408,9 @@ static uint64_t frame_hash(void)
  * the whole frame, the strips in order, covering the screen */
 static uint16_t strip_lcd[QD_W * QD_H];
 static int strip_next, strip_bad;
-static void strip_out(void *ctx, int y0, int rows)
+static void strip_out(void *ctx, int y0, int rows, const uint16_t *px)
 {
-    const uint16_t *px = (const uint16_t *)ctx;
+    (void)ctx;
     strip_bad += y0 != strip_next || rows < 1;
     memcpy(strip_lcd + (size_t)y0 * QD_W, px, (size_t)rows * QD_W * sizeof px[0]);
     strip_next = y0 + rows;
@@ -423,12 +423,73 @@ static void t_strips(void)
     run(500, 1);
     qd_app_frame(&A, lcd);
     strip_next = strip_bad = 0;
-    qd_app_frame_strips(&A, strip, strip_out, strip);
+    qd_app_frame_strips(&A, strip, strip_out, 0);
     for (i = 0; i < QD_W * QD_H; i++)
         n += lcd[i] != strip_lcd[i];
     CHECK(!n && !strip_bad && strip_next == QD_H, "P2.1: the frame in strips of %d rows out one by one: the whole "
           "frame's pixels (%d differ)", QD_STRIP_H, n);
+    memset(strip_lcd, 0, sizeof strip_lcd);
+    strip_next = strip_bad = n = 0;
+    qd_app_frame_strips(&A, 0, strip_out, 0);           /* (P2.1b: in place, in the core's own strip surface) */
+    for (i = 0; i < QD_W * QD_H; i++)
+        n += lcd[i] != strip_lcd[i];
+    CHECK(!n && !strip_bad && strip_next == QD_H, "P2.1b: .. in place, in the core's own strip: the same (%d differ)",
+          n);
 }
+
+/* P2.1b: shapes the strips' culling must leave exact (plutovg-rasterize.c cull_runs): a zigzag across every strip, a
+ * closed quad, a square wave whose long lines run straight on through a vertex, a dashed one, curves, a fill, all
+ * drawn whole and in 40-row strips (the host: its surface can hold the whole screen) */
+#if QD_STRIP_H >= QD_H
+static void strip_shapes(void)
+{
+    static const float DASH[2] = {3.f, 2.f};
+    int i;
+    qd_path_begin();
+    qd_move_to(10, 5);
+    for (i = 1; i < 30; i++)
+        qd_line_to(10.f + (float)i * 7.f, (i % 2) ? 230.f : 5.f);
+    qd_path_stroke(0xFFFFFFu, 3.f);
+    qd_path_begin();
+    qd_move_to(20, 20), qd_line_to(200, 30), qd_line_to(210, 200), qd_line_to(30, 210), qd_path_close();
+    qd_path_stroke(0x80FF40u, 4.f);
+    qd_path_begin();
+    qd_move_to(52, 92);
+    for (i = 1; i < 60; i++)
+        qd_line_to(52.f + (float)i * 2.9333f, (i / 15) % 2 ? 46.f + (float)(i % 3) * 0.01f : 138.f);
+    qd_path_stroke(0x40C0FFu, 2.f);
+    qd_dash(DASH, 2);
+    qd_path_begin();
+    qd_move_to(5, 120);
+    for (i = 1; i < 12; i++)
+        qd_line_to(5.f + (float)i * 20.f, 120.f + ((i % 2) ? 100.f : -100.f));
+    qd_path_stroke(0xFF4080u, 1.5f);
+    qd_dash(0, 0);
+    qd_path_begin();
+    qd_move_to(30, 230), qd_cubic_to(80, -40, 160, 280, 220, 10);
+    qd_path_stroke(0xFFFF00u, 5.f);
+    qd_path_begin();
+    qd_move_to(100, 60), qd_cubic_to(200, 60, 200, 180, 100, 180), qd_cubic_to(0, 180, 0, 60, 100, 60);
+    qd_path_fill(0x2040A0u);
+}
+static void t_strip_shapes(void)
+{
+    static uint16_t whole[QD_W * QD_H], strips[QD_W * QD_H];
+    int y, i, n = 0;
+    qd_set_strip_rows(QD_H);
+    qd_begin_strip(0), strip_shapes(), qd_end_strip(whole);
+    qd_set_strip_rows(40);
+    for (y = 0; y < QD_H; y += 40)
+        qd_begin_strip(y), strip_shapes(), qd_end_strip(strips);
+    qd_set_strip_rows(QD_STRIP_H);
+    for (i = 0; i < QD_W * QD_H; i++)
+        n += whole[i] != strips[i];
+    CHECK(!n, "P2.1b: strokes (a zigzag, a closed quad, long straight runs, dashes, curves) and a fill, whole and in "
+          "40-row strips: the same (%d differ)", n);
+}
+#else
+static void t_strip_shapes(void) {}
+#endif
 
 static void t_play(void)
 {
@@ -751,6 +812,7 @@ int main(void)
     CHECK(h1 == h2, "two runs of one session differ");
     printf("  determinism: one session twice, the same samples (%016llx)\n", (unsigned long long)h1);
     t_strips();
+    t_strip_shapes();
     t_play();
     t_patterns();
     t_tracks();

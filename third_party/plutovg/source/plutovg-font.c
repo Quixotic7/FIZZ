@@ -208,7 +208,11 @@ static void plutovg_glyph_cache_finish(plutovg_glyph_cache_t* cache, plutovg_fon
     plutovg_mutex_unlock(&face->mutex);
 }
 
+#ifdef PLUTOVG_GLYPH_CACHE_MAX
+#define GLYPH_CACHE_INIT_CAPACITY 16                    /* (FIZZ P2.1b: a cache of PLUTOVG_GLYPH_CACHE_MAX, 8) */
+#else
 #define GLYPH_CACHE_INIT_CAPACITY 128
+#endif
 #ifdef PLUTOVG_GLYPH_CACHE_MAX
 unsigned plutovg_glyph_cache_clears;    /* (FIZZ: how often a full cache was emptied) */
 #endif

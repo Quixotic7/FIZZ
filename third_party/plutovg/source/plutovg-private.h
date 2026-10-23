@@ -96,12 +96,23 @@ typedef struct {
     plutovg_surface_t* surface;
 } plutovg_texture_paint_t;
 
+#ifdef QD_ARENA_REDIRECT
+/* FIZZ (P2.1b, a patch of this vendored copy): at the device's sizes a span is 8 bytes, not 16 (every surface it draws
+ * is far narrower and shorter than 32767): a paint's spans take half the device's fixed arena */
+typedef struct {
+    short x;
+    short len;
+    short y;
+    unsigned char coverage;
+} plutovg_span_t;
+#else
 typedef struct {
     int x;
     int len;
     int y;
     unsigned char coverage;
 } plutovg_span_t;
+#endif
 
 typedef struct {
     struct {

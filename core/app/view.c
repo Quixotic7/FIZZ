@@ -2031,17 +2031,17 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
 extern int qd_view_strip_check;
 extern uint32_t qd_view_strip_frames, qd_view_strip_bad, qd_view_strip_px;
 
-static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, void (*out)(void *ctx, int y0, int rows),
-                       void *ctx);
+typedef void (*qd_strip_fn)(void *ctx, int y0, int rows, const uint16_t *px);
+static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_strip_fn out, void *ctx);
 void qd_view_frame(qd_app_t *a, uint16_t *lcd_be) { view_frame(a, lcd_be, 0, 0, 0); }
-/* P2.1: the frame strip by strip into one strip's rows, out after each (the device's LCD: no whole frame in RAM) */
-void qd_view_frame_strips(qd_app_t *a, uint16_t *rows_be, void (*out)(void *ctx, int y0, int rows), void *ctx)
+/* P2.1: the frame strip by strip into one strip's rows, out after each (the device's LCD: no whole frame in RAM);
+ * P2.1b: rows_be 0: each strip in place, in the core's own strip surface */
+void qd_view_frame_strips(qd_app_t *a, uint16_t *rows_be, qd_strip_fn out, void *ctx)
 {
     view_frame(a, 0, rows_be, out, ctx);
 }
 
-static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, void (*out)(void *ctx, int y0, int rows),
-                       void *ctx)
+static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_strip_fn out, void *ctx)
 {
     static ui_lane_t lv;
     static ui_held_t hv;
@@ -2066,11 +2066,10 @@ static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, void (*
     for (y0 = 0; y0 < QD_H; y0 += qd_strip_rows()) {    /* P2.1: the screen in strips (the host: one, the whole) */
         qd_begin_strip(y0);
         view_draw(a, &lv, &hv, &tv, &yv, &sv, &bv, &mv, &sv5, &xv, &brv, &tyv, &pjv, &fv, &mfv);
-        if (rows_be) {
+        if (out) {
             const int rows = QD_H - y0 < qd_strip_rows() ? QD_H - y0 : qd_strip_rows();
-            qd_end_strip_rows(rows_be);
-            if (out)
-                out(ctx, y0, rows);
+            const uint16_t *px = qd_end_strip_rows(rows_be);
+            out(ctx, y0, rows, px);
         } else {
             qd_end_strip(lcd_be);
         }

@@ -757,3 +757,40 @@ float plutovg_canvas_text_extents(plutovg_canvas_t* canvas, const void* text, in
 
     return 0.f;
 }
+
+/* FIZZ (P2.1b, a patch of this vendored copy): the canvas's working arrays given back when they hold more than keep
+ * bytes: the fill and clip spans of the last paint, and the path once it is empty. Their room is then the next paint's
+ * own, not the largest paint's for ever (the device's fixed arena: core/gfx/qd_arena.h) */
+void plutovg_canvas_trim(plutovg_canvas_t* canvas, size_t keep)
+{
+    plutovg_span_buffer_t* b[2] = {&canvas->fill_spans, &canvas->clip_spans};
+    for(int i = 0; i < 2; i++) {
+        if((size_t)b[i]->spans.capacity * sizeof(plutovg_span_t) > keep) {
+            plutovg_span_buffer_destroy(b[i]);
+            plutovg_span_buffer_init(b[i]);
+        }
+    }
+    if(canvas->path->elements.size == 0 && (size_t)canvas->path->elements.capacity * sizeof(plutovg_path_element_t) > keep) {
+        free(canvas->path->elements.data);
+        canvas->path->elements.data = NULL;
+        canvas->path->elements.capacity = 0;
+    }
+}
+
+/* FIZZ (P2.1b): a fill or a stroke after which the path is not wanted: its memory given back as soon as its outline is
+ * made (plutovg-rasterize.c); the path is then empty, as after plutovg_canvas_fill */
+extern int plutovg_rasterize_consume;
+void plutovg_canvas_fill_consume(plutovg_canvas_t* canvas)
+{
+    plutovg_rasterize_consume = 1;
+    plutovg_canvas_fill_preserve(canvas);
+    plutovg_rasterize_consume = 0;
+    plutovg_canvas_new_path(canvas);
+}
+void plutovg_canvas_stroke_consume(plutovg_canvas_t* canvas)
+{
+    plutovg_rasterize_consume = 1;
+    plutovg_canvas_stroke_preserve(canvas);
+    plutovg_rasterize_consume = 0;
+    plutovg_canvas_new_path(canvas);
+}

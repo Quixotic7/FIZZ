@@ -18,6 +18,21 @@
 #ifndef PLUTOVG_FT_TYPES_H
 #define PLUTOVG_FT_TYPES_H
 
+/* FIZZ (P2.1b, a patch of this vendored copy): built at the device's sizes on a 64-bit host (QD_ARENA_REDIRECT: the
+ * tests and tools at QD_DEVICE), FreeType's long is the FM-1's, 32 bits: its outlines, its stroker's borders, its
+ * rasteriser's arithmetic and so its pixels and its memory are the unit's. Elsewhere: long, as it was */
+#include <limits.h>
+#ifdef QD_ARENA_REDIRECT
+#include <stdint.h>
+#define PVG_FT_LONG int32_t
+#define PVG_FT_ULONG uint32_t
+#define PVG_FT_ULONG_MAX UINT32_MAX
+#else
+#define PVG_FT_LONG long
+#define PVG_FT_ULONG unsigned long
+#define PVG_FT_ULONG_MAX ULONG_MAX
+#endif
+
 /*************************************************************************/
 /*                                                                       */
 /* <Type>                                                                */
@@ -27,7 +42,7 @@
 /*    This type is used to store 16.16 fixed-point values, like scaling  */
 /*    values or matrix coefficients.                                     */
 /*                                                                       */
-typedef signed long  PVG_FT_Fixed;
+typedef PVG_FT_LONG  PVG_FT_Fixed;
 
 
 /*************************************************************************/
@@ -60,7 +75,7 @@ typedef unsigned int  PVG_FT_UInt;
 /* <Description>                                                         */
 /*    A typedef for signed long.                                         */
 /*                                                                       */
-typedef signed long  PVG_FT_Long;
+typedef PVG_FT_LONG  PVG_FT_Long;
 
 
 /*************************************************************************/
@@ -71,7 +86,7 @@ typedef signed long  PVG_FT_Long;
 /* <Description>                                                         */
 /*    A typedef for unsigned long.                                       */
 /*                                                                       */
-typedef unsigned long PVG_FT_ULong;
+typedef PVG_FT_ULONG PVG_FT_ULong;
 
 /*************************************************************************/
 /*                                                                       */
@@ -130,7 +145,7 @@ typedef int  PVG_FT_Error;
 /*    on the context, these can represent distances in integer font      */
 /*    units, or 16.16, or 26.6 fixed-point pixel coordinates.            */
 /*                                                                       */
-typedef signed long  PVG_FT_Pos;
+typedef PVG_FT_LONG  PVG_FT_Pos;
 
 
 /*************************************************************************/

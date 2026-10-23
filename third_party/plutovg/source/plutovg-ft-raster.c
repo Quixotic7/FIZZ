@@ -120,10 +120,10 @@ PVG_FT_END_STMNT
   /* These macros speed up repetitive divisions by replacing them */
   /* with multiplications and right shifts.                       */
 #define PVG_FT_UDIVPREP( b )                                       \
-  long  b ## _r = (long)( ULONG_MAX >> PIXEL_BITS ) / ( b )
+  PVG_FT_LONG  b ## _r = (PVG_FT_LONG)( PVG_FT_ULONG_MAX >> PIXEL_BITS ) / ( b )
 #define PVG_FT_UDIV( a, b )                                        \
-  ( ( (unsigned long)( a ) * (unsigned long)( b ## _r ) ) >>   \
-    ( sizeof( long ) * CHAR_BIT - PIXEL_BITS ) )
+  ( ( (PVG_FT_ULONG)( a ) * (PVG_FT_ULONG)( b ## _r ) ) >>   \
+    ( sizeof( PVG_FT_LONG ) * CHAR_BIT - PIXEL_BITS ) )
 
 
   /*************************************************************************/
@@ -135,9 +135,9 @@ PVG_FT_END_STMNT
   /* need to define them to "float" or "double" when experimenting with   */
   /* new algorithms                                                       */
 
-  typedef long   TCoord;   /* integer scanline/pixel coordinate */
-  typedef long   TPos;     /* sub-pixel coordinate              */
-  typedef long   TArea ;   /* cell areas, coordinate products   */
+  typedef PVG_FT_LONG   TCoord;   /* integer scanline/pixel coordinate (FIZZ: PVG_FT_LONG, plutovg-ft-types.h) */
+  typedef PVG_FT_LONG   TPos;     /* sub-pixel coordinate              */
+  typedef PVG_FT_LONG   TArea ;   /* cell areas, coordinate products   */
 
   /* maximal number of gray spans in a call to the span callback */
 #define PVG_FT_MAX_GRAY_SPANS  256

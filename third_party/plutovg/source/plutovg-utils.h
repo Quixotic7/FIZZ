@@ -30,12 +30,19 @@
         (array).capacity = 0; \
     } while(0)
 
+/* FIZZ (P2.1b, a patch of this vendored copy): at the device's sizes an array grows by half again, not double (its
+ * slack in the fixed arena: a third at most, not a half) */
+#ifdef QD_ARENA_REDIRECT
+#define PLUTOVG_ARRAY_GROW(n) ((n) + (n) / 2)
+#else
+#define PLUTOVG_ARRAY_GROW(n) ((n) * 2)
+#endif
 #define plutovg_array_ensure(array, count) \
     do { \
         if((array).size + (count) > (array).capacity) { \
             int capacity = (array).size + (count); \
             int newcapacity = (array).capacity == 0 ? 8 : (array).capacity; \
-            while(newcapacity < capacity) { newcapacity *= 2; } \
+            while(newcapacity < capacity) { newcapacity = PLUTOVG_ARRAY_GROW(newcapacity); } \
             (array).data = realloc((array).data, newcapacity * sizeof((array).data[0])); \
             (array).capacity = newcapacity; \
         } \

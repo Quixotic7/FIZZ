@@ -46,9 +46,13 @@ void qd_end(uint16_t *lcd_be);  /* the frame out: QD_W * QD_H RGB565, big-endian
  * at 0 (the whole screen where the surface is: the host's). qd_set_strip_rows: fewer rows a strip (the tests) */
 void qd_begin_strip(int y0);
 void qd_end_strip(uint16_t *lcd_be);
-void qd_end_strip_rows(uint16_t *rows_be);   /* .. or into a strip's own rows (rows_be[0]: the strip's first row) */
+const uint16_t *qd_end_strip_rows(uint16_t *rows_be);   /* .. or into a strip's own rows (rows_be[0]: its first
+                                                         * row); P2.1b: rows_be 0: in place, the strip's own surface
+                                                         * (good until the next strip begins); where they are */
 int qd_strip_rows(void);
 void qd_set_strip_rows(int h);
+int qd_box_visible(float x, float y, float w, float h, float lw);   /* P2.1b: a box (and a stroke's width) may touch
+                                                                     * the strip: 0 when it cannot */
 
 /* ---- the state */
 void qd_save(void);
@@ -116,6 +120,8 @@ float qd_text_width(const char *utf8, const qd_font *f);              /* the wid
  * f->col ignored), for shapes made of the letters (the FIZZ logo's particles). Its own surface: the screen and its
  * state are untouched. 1 drawn, 0 not (no fonts, no memory). */
 int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *mask, int w, int h);
+/* P2.1b: rows [row0, row0 + rows) of it only, into mask (w x rows): exactly those rows of the whole mask */
+int qd_text_mask_rows(const char *utf8, float x, float y, const qd_font *f, uint8_t *mask, int w, int row0, int rows);
 
 #ifdef __cplusplus
 }

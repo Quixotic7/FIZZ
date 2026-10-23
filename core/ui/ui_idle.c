@@ -93,7 +93,7 @@ static struct {
 
 static void wd_build(void)
 {
-    static uint8_t mask[240 * WD_BANDH];
+    static uint8_t mask[240];                           /* (P2.1b: a row at a time: the rows sampled) */
     qd_font f;
     float x, total = 0.f;
     int n, i, j;
@@ -108,10 +108,10 @@ static void wd_build(void)
     wd.n = 0;
     for (n = 0; n < 4; n++) {
         wd.lx[n] = x;
-        if (qd_text_mask(WD_CH[n], x, WD_BASE - (float)WD_BAND0, &f, mask, 240, WD_BANDH))
-            for (j = 0; j < WD_BANDH; j += 2)
+        for (j = 0; j < WD_BANDH; j += 2)
+            if (qd_text_mask_rows(WD_CH[n], x, WD_BASE - (float)WD_BAND0, &f, mask, 240, j, 1))
                 for (i = 0; i < 240; i += 2)
-                    if (mask[j * 240 + i] >= 140 && wd.n < WD_MAXP) {
+                    if (mask[i] >= 140 && wd.n < WD_MAXP) {
                         wd.tx[wd.n] = (float)i + 0.5f;
                         wd.ty[wd.n] = (float)(WD_BAND0 + j) + 0.5f;
                         wd.letter[wd.n] = (uint8_t)n;

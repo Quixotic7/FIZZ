@@ -299,7 +299,8 @@ void qd_app_tick(qd_app_t *a, uint32_t ms)
 
 /* ---------------------------------------------------------------- out --- */
 void qd_app_frame(qd_app_t *a, uint16_t *lcd_be) { qd_view_frame(a, lcd_be); }
-void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx, int y0, int rows), void *ctx)
+void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
+                         void *ctx)
 {
     qd_view_frame_strips(a, strip_be, out, ctx);
 }

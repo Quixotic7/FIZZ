@@ -867,7 +867,8 @@ uint8_t qd_led_breath_lo(uint32_t ms);   /* P1.5x: 30 % .. full, breathing (the 
 
 /* ---- view.c */
 void qd_view_frame(struct qd_app *a, uint16_t *lcd_be);
-void qd_view_frame_strips(struct qd_app *a, uint16_t *rows_be, void (*out)(void *ctx, int y0, int rows), void *ctx);
+void qd_view_frame_strips(struct qd_app *a, uint16_t *rows_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
+                          void *ctx);
 /* the screen under the takeovers (what qd_view_frame draws first): QD_SCR_* */
 enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR_KEYS, QD_SCR_TRACKS, QD_SCR_SEL,
        QD_SCR_SEQ, QD_SCR_DEFAULT,     /* (P1.3e: a mode key held: the mode's default, its full picture) */

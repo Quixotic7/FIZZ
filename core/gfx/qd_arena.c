@@ -24,7 +24,9 @@ void qd_arena_use(int on) { (void)on; }
  * size again); the arena starts and ends with a used zero-size fence */
 #define AR_ALIGN 8u
 #define AR_MIN 16u
-#define AR_BIG 16384u                   /* (a large block: from the top; render_frames' whole run fits 256 KB at this) */
+#ifndef AR_BIG
+#define AR_BIG 192u                     /* (a large block: from the top; P2.1b: render_frames' whole run fits 48 KB) */
+#endif
 static uint32_t ar_mem[QD_GFX_ARENA / 4u];
 static uint32_t ar_live, ar_peak, ar_fails;
 static int ar_ready;

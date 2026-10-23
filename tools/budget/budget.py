@@ -371,8 +371,8 @@ def main():
     ap, asz, af = (int(x) for x in hb["arena"])
     print(f"  the drawing's arena          {asz:>9} B {kb(asz)}   (a static above: the bench's screens used {ap} at most,"
           f" {af} requests refused)")
-    print(f"  the LCD strip                {lcd:>9} B {kb(lcd)}   (what the core writes the screen into: 240 x 40 RGB565,"
-          f" a strip at a time)")
+    print(f"  the LCD buffer               {lcd:>9} B {kb(lcd)}   (P2.1b: each strip in place in the core's strip surface,"
+          f" sent before the next)")
     print(f"  libc / libm's own            {lib_ram:>9} B   (the platform's: not counted)")
     print(f"  FIZZ's RAM                   {ram:>9} B {kb(ram)}   budget {BUDGET_RAM} B {kb(BUDGET_RAM)}"
           f" = {FM1_RAM} (the FM-1) - {PLATFORM_RAM} (platform, E) - {HEADROOM_RAM} (headroom)")

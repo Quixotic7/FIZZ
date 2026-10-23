@@ -4,7 +4,8 @@
  * --gc-sections keeps what the device keeps, and .data + .bss is the core's static RAM. The app is one static
  * qd_app_t, as on the device. The platform's own buffers (the LCD strips and their DMA, USB, the NOR driver) are not
  * the core's: budget_lcd stands for what the core writes the screen into (counted apart, as the platform's; P2.1: one
- * strip, qd_app_frame_strips, the LCD's DMA sending each as it comes). Never run. */
+ * strip, qd_app_frame_strips, the LCD's DMA sending each as it comes; P2.1b: in place in the core's strip surface, sent
+ * before the next strip is drawn: none). Never run. */
 #include <stdint.h>
 #include <string.h>
 
@@ -12,12 +13,16 @@
 #include "persist.h"
 
 static qd_app_t A;
-uint16_t budget_lcd[240 * QD_STRIP_H];                 /* (the platform's; budget.py counts it apart) */
+uint16_t budget_lcd[1];                                /* (P2.1b: none: each strip in place, sent before the next) */
 static uint8_t sx_frame[64];
 static int16_t audio[256];
 volatile uint32_t budget_sink;
 
-static void lcd_out(void *ctx, int y0, int rows) { budget_sink += (uint32_t)y0 + (uint32_t)rows + ((uint16_t *)ctx)[0]; }
+static void lcd_out(void *ctx, int y0, int rows, const uint16_t *px)
+{
+    (void)ctx;
+    budget_sink += (uint32_t)y0 + (uint32_t)rows + px[0];
+}
 static int fl_read(void *c, uint32_t off, void *dst, uint32_t n) { (void)c, (void)off, memset(dst, 0xFF, n); return 0; }
 static int fl_erase(void *c, uint32_t off) { (void)c, (void)off; return 0; }
 static int fl_prog(void *c, uint32_t off, const void *src, uint32_t n) { (void)c, (void)off, (void)src, (void)n; return 0; }
@@ -40,7 +45,7 @@ int main(void)
         qd_app_sysex(&A, sx_frame, sizeof sx_frame);
         budget_sink += (uint32_t)qd_app_sysex_take(&A, sx_frame, sizeof sx_frame) + (uint32_t)qd_app_sysex_peek(&A);
         qd_app_audio(&A, audio, 128);
-        qd_app_frame_strips(&A, budget_lcd, lcd_out, budget_lcd);
+        qd_app_frame_strips(&A, 0, lcd_out, 0);
         qd_app_leds(&A, &leds);
         budget_sink += leds.key[0];
         if (ms % 1000u == 0u)

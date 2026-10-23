@@ -42,9 +42,11 @@
 #define QD_CLIP_ZBYTES 8192u           /* the eight tracks' clip undo levels (seq/clip.h), compressed */
 /* ---- the drawing (P2.1: core/gfx) */
 #define QD_STRIP_H 40                  /* the screen drawn in strips of this many rows (a 240 x 40 ARGB surface) */
-#define QD_GFX_ARENA 262144u           /* plutovg's fixed arena (qd_arena.h: no heap; render_frames: peak 240 304) */
+#define QD_GFX_ARENA 49152u            /* plutovg's fixed arena (qd_arena.h: no heap; P2.1b: render_frames' worst paint
+                                        * 41 928 B, nothing refused) */
 #define QD_FONTS3 1                    /* Inter Tight in three weights, 300 500 700 (the others: the nearest, upward) */
-#define QD_GLYPH_CACHE 32              /* glyph outlines plutovg keeps a weight (full: emptied; patched plutovg-font.c) */
+#define QD_GLYPH_CACHE 1               /* glyph outlines plutovg keeps a weight (P2.1b: one: each read when drawn) */
+#define QD_GFX_KEEP 1024u              /* P2.1b: a canvas array above this goes back to the arena after its paint */
 /* ---- the flash store */
 #define QDS_MAXKEY 1024                /* keys a store */
 #define QDS_JOBBUF 512                 /* a record the store copies (longer: streamed from its owner, store.h) */

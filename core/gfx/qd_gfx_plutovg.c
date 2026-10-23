@@ -25,8 +25,20 @@
 #ifdef QD_DEVICE
 #include "qd_arena.c"                           /* (built here: the core's source lists stay as they are) */
 #define QD_ARENA(on) qd_arena_use(on)
+/* P2.1b: after each paint the canvas's working arrays above QD_GFX_KEEP bytes go back to the arena (a patch of
+ * plutovg-canvas.c): the arena then holds one paint's need at a time, not every array at its largest */
+void plutovg_canvas_trim(plutovg_canvas_t *canvas, size_t keep);
+#define QD_TRIM() plutovg_canvas_trim(qd_cv, QD_GFX_KEEP)
+/* .. and a path not wanted after its paint goes back as soon as its outline is made (a patch of plutovg-canvas.c) */
+void plutovg_canvas_fill_consume(plutovg_canvas_t *canvas);
+void plutovg_canvas_stroke_consume(plutovg_canvas_t *canvas);
+#define QD_FILL_CONSUME(cv) plutovg_canvas_fill_consume(cv)
+#define QD_STROKE_CONSUME(cv) plutovg_canvas_stroke_consume(cv)
 #else
 #define QD_ARENA(on) ((void)0)
+#define QD_TRIM() ((void)0)
+#define QD_FILL_CONSUME(cv) plutovg_canvas_fill_preserve(cv)
+#define QD_STROKE_CONSUME(cv) plutovg_canvas_stroke_preserve(cv)
 #endif
 
 static plutovg_surface_t *qd_surf;
@@ -170,7 +182,13 @@ void qd_end(uint16_t *lcd_be) { qd_end_strip(lcd_be); }
 
 static void qd_strip_out(uint16_t *lcd_be);
 void qd_end_strip(uint16_t *lcd_be) { qd_strip_out(lcd_be ? lcd_be + (size_t)qd_y0 * QD_W : 0); }
-void qd_end_strip_rows(uint16_t *rows_be) { qd_strip_out(rows_be); }
+const uint16_t *qd_end_strip_rows(uint16_t *rows_be)
+{
+    uint16_t *to = rows_be ? rows_be : (uint16_t *)(void *)qd_px;   /* (P2.1b: none: in place, over the strip's own
+                                                                     * pixels: each 2 bytes written where 4 were read) */
+    qd_strip_out(to);
+    return to;
+}
 
 /* the strip's rows out (lcd_be: its first row's place) */
 static void qd_strip_out(uint16_t *lcd_be)
@@ -256,6 +274,24 @@ static int qd_visible(float lw)
            d.x + d.w + pad > 0.f;
 }
 
+/* P2.1b: a box (the current transform's units) that may touch the strip, as qd_visible for a path (lw: a stroke's
+ * width): a caller building a long path leaves out what cannot be seen (the device's arena holds less) */
+int qd_box_visible(float x, float y, float w, float h, float lw)
+{
+    plutovg_rect_t r, d;
+    plutovg_matrix_t m;
+    float sc, pad;
+    if (!qd_cv)
+        return 0;
+    r.x = x, r.y = y, r.w = w, r.h = h;
+    plutovg_canvas_map_rect(qd_cv, &r, &d);
+    plutovg_canvas_get_matrix(qd_cv, &m);
+    sc = sqrtf(fabsf(m.a * m.d - m.b * m.c));
+    pad = (lw > 0.f ? lw * sc * 5.f : 0.f) + 2.f;
+    return d.y - pad < (float)(qd_y0 + qd_sh) && d.y + d.h + pad > (float)qd_y0 && d.x - pad < (float)QD_W &&
+           d.x + d.w + pad > 0.f;
+}
+
 /* the current path: filled (if fill), then stroked (if stroke), then cleared */
 static void qd_paint(qd_rgb stroke, float lw, qd_rgb fill)
 {
@@ -265,14 +301,18 @@ static void qd_paint(qd_rgb stroke, float lw, qd_rgb fill)
     }
     if (fill != QD_NONE) {
         qd_color(fill);
-        plutovg_canvas_fill_preserve(qd_cv);
+        if (stroke != QD_NONE && lw > 0.f)
+            plutovg_canvas_fill_preserve(qd_cv);
+        else
+            QD_FILL_CONSUME(qd_cv);
     }
     if (stroke != QD_NONE && lw > 0.f) {
         qd_color(stroke);
         plutovg_canvas_set_line_width(qd_cv, lw);
-        plutovg_canvas_stroke_preserve(qd_cv);
+        QD_STROKE_CONSUME(qd_cv);
     }
     plutovg_canvas_new_path(qd_cv);
+    QD_TRIM();
 }
 
 /* ---------------------------------------------------------------- shapes --- */
@@ -387,9 +427,14 @@ void qd_path_stroke_keep(qd_rgb col, float lw)
     qd_color(col);
     plutovg_canvas_set_line_width(qd_cv, lw > 0.f ? lw : qd_lw);
     plutovg_canvas_stroke_preserve(qd_cv);
+    QD_TRIM();
 }
 void qd_path_paint(qd_rgb stroke, float lw, qd_rgb fill) { qd_paint(stroke, lw > 0.f ? lw : qd_lw, fill); }
-void qd_path_clip(void) { plutovg_canvas_clip(qd_cv); }
+void qd_path_clip(void)
+{
+    plutovg_canvas_clip(qd_cv);
+    QD_TRIM();
+}
 
 /* ---------------------------------------------------------------- 0.9.2: layers --- */
 static plutovg_canvas_t *qd_main_cv;                  /* (the screen's, while a layer is drawn) */
@@ -519,7 +564,9 @@ float qd_text_width(const char *utf8, const qd_font *f)
     return w;
 }
 
-int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *mask, int w, int h)
+/* rows [row0, row0 + rows) of the mask (P2.1b: a surface of those rows only, the glyphs moved up by row0: whole
+ * pixels, so each row's coverage is the whole mask's) */
+int qd_text_mask_rows(const char *utf8, float x, float y, const qd_font *f, uint8_t *mask, int w, int row0, int rows)
 {
     plutovg_text_iterator_t it;
     plutovg_surface_t *s;
@@ -527,9 +574,9 @@ int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *
     const unsigned char *d;
     float pen;
     int i, j, stride;
-    if (!qd_cv || !utf8 || !f || !mask || w <= 0 || h <= 0)
+    if (!qd_cv || !utf8 || !f || !mask || w <= 0 || rows <= 0)
         return 0;
-    s = plutovg_surface_create(w, h);
+    s = plutovg_surface_create(w, rows);
     c = s ? plutovg_canvas_create(s) : NULL;
     if (!c) {
         if (s)
@@ -541,14 +588,14 @@ int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *
     plutovg_canvas_set_font(c, qd_face_for(f->weight), f->size);
     plutovg_text_iterator_init(&it, utf8, -1, PLUTOVG_TEXT_ENCODING_UTF8);
     while (plutovg_text_iterator_has_next(&it))
-        pen += plutovg_canvas_add_glyph(c, plutovg_text_iterator_next(&it), pen, y) + f->ls;
+        pen += plutovg_canvas_add_glyph(c, plutovg_text_iterator_next(&it), pen, y - (float)row0) + f->ls;
     plutovg_canvas_set_rgba(c, 1.f, 1.f, 1.f, 1.f);
     qd_rows(0);                                         /* (P2.1: the mask's every row, in a strip or not) */
     plutovg_canvas_fill(c);
     qd_rows(!qd_main_cv);
     d = plutovg_surface_get_data(s);
     stride = plutovg_surface_get_stride(s);
-    for (j = 0; j < h; j++)
+    for (j = 0; j < rows; j++)
         for (i = 0; i < w; i++) {
             uint32_t px;
             memcpy(&px, d + (size_t)j * (size_t)stride + (size_t)i * 4u, 4);
@@ -557,6 +604,14 @@ int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *
     plutovg_canvas_destroy(c);
     plutovg_surface_destroy(s);
     return 1;
+}
+int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *mask, int w, int h)
+{
+    int r;
+    for (r = 0; r < h; r += 8)                          /* (P2.1b: eight rows a surface) */
+        if (!qd_text_mask_rows(utf8, x, y, f, mask + (size_t)r * (size_t)w, w, r, h - r < 8 ? h - r : 8))
+            return 0;
+    return h > 0;
 }
 
 static float qd_tmin = 1e9f;
@@ -601,6 +656,8 @@ float qd_text(const char *utf8, float x, float y, const qd_font *f)
     w = qd_text_width(utf8, f);
     pen = f->align == QD_CENTER ? x - w / 2.f : f->align == QD_RIGHT ? x - w : x;
     plutovg_canvas_new_path(qd_cv);
+    if (!qd_box_visible(pen - f->size, y - 1.5f * f->size, w + 2.f * f->size, 2.2f * f->size, 0.f))
+        return w;                                       /* (P2.1b: out of the strip: no glyphs built) */
     plutovg_canvas_set_font(qd_cv, face, f->size);
     plutovg_text_iterator_init(&it, utf8, -1, PLUTOVG_TEXT_ENCODING_UTF8);
     while (plutovg_text_iterator_has_next(&it))

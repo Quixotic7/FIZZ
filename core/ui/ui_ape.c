@@ -193,16 +193,23 @@ static ap_box_t ap_posebox(int k, float dx)
 /* P2.1 (the owner: "you should be able to procedurally draw the ape's poses for pretty cheap"): at the device's sizes no
  * layers and no cache (they were 384 KB): each frame draws the pose it shows from its lines, made cheap: straight
  * segments through the traced points, a point kept only when it is AP_LITE units (half px) or more from the last one
- * kept (a polyline's ends always), each colour one path stroked twice (a soft glow, the line) instead of three
- * times; the snap's flash the same lines once in cream. The host keeps the cached, smoothed, three-stroke drawing */
+ * kept (a polyline's ends always), each line stroked twice (a soft glow, the line) instead of three times; the snap's
+ * flash the same lines once in cream. P2.1b: each line by itself (the arena holds one line's outline). The host keeps the cached, smoothed, three-stroke drawing */
 #define AP_LITE 7
-static void ap_path_lite(int k, int c)
+/* P2.1b: each line drawn by itself (its glow, then itself; the device's arena holds one line's outline, not a colour's);
+ * a line out of the strip (its glow's width round it): left out */
+typedef struct {
+    qd_rgb col;
+    float lw, glow;                     /* (glow: its glow's width, 0 none) */
+} ap_ink_t;
+static void ap_path_lite(int k, int c, const ap_ink_t *ink)
 {
     const uint8_t *b = APE_BYTES + APE_POSES[k].off[c];
     int n = APE_POSES[k].n[c], px = 0, py = 0, first = 1, p;
     for (p = 0; p < n; p++) {
         const int h = *b++, np = (h & 63) + 1;
-        int x, y, i, lx, ly;
+        int x, y, i, lx, ly, nk = 0, x0, y0, x1, y1;
+        int16_t kx[64], ky[64];
         if (h & 0x40) {
             x = px, y = py;
         } else if (first) {
@@ -213,16 +220,32 @@ static void ap_path_lite(int k, int c)
             x = px + (int8_t)b[0], y = py + (int8_t)b[1], b += 2;
         }
         first = 0;
-        qd_move_to((float)x, (float)y);
+        kx[nk] = (int16_t)x, ky[nk++] = (int16_t)y;
+        x0 = x1 = x, y0 = y1 = y;
         lx = x, ly = y;
         for (i = 1; i < np; i++) {
             x += (int8_t)b[0], y += (int8_t)b[1], b += 2;
             if (i == np - 1 || (x - lx) * (x - lx) + (y - ly) * (y - ly) >= AP_LITE * AP_LITE) {
-                qd_line_to((float)x, (float)y);
+                kx[nk] = (int16_t)x, ky[nk++] = (int16_t)y;
+                x0 = x < x0 ? x : x0, x1 = x > x1 ? x : x1, y0 = y < y0 ? y : y0, y1 = y > y1 ? y : y1;
                 lx = x, ly = y;
             }
         }
         px = x, py = y;
+        if (!qd_box_visible((float)x0, (float)y0, (float)(x1 - x0), (float)(y1 - y0), ink->glow > ink->lw ? ink->glow
+                                                                                                      : ink->lw))
+            continue;
+        qd_path_begin();
+        qd_move_to((float)kx[0], (float)ky[0]);
+        for (i = 1; i < nk; i++)
+            qd_line_to((float)kx[i], (float)ky[i]);
+        if (ink->glow > 0.f) {
+            qd_save();
+            qd_alpha(qd_get_alpha() * 0.22f);
+            qd_path_stroke_keep(ink->col, ink->glow);
+            qd_restore();
+        }
+        qd_path_stroke(ink->col, ink->lw);
     }
 }
 typedef struct { float dx, lift, sx, sy, rot, alpha, flash; int mid; } ap_pose_o;
@@ -241,22 +264,15 @@ static void ap_pose(int k, const ap_pose_o *o)
     qd_translate(ap_posex(k) + o->dx, AP_FY);
     qd_scale(AP_S * 0.5f, AP_S * 0.5f);
     for (c = 0; c < APE_NCOL; c++) {
-        if (!APE_POSES[k].n[c])
-            continue;
-        qd_path_begin();
-        ap_path_lite(k, c);
-        qd_save();
-        qd_alpha(qd_get_alpha() * 0.22f);
-        qd_path_stroke_keep(ap_c(AP_COL[c]), lw * 2.8f);
-        qd_restore();
-        qd_path_stroke(ap_c(AP_COL[c]), lw);
+        const ap_ink_t ink = {ap_c(AP_COL[c]), lw, lw * 2.8f};
+        if (APE_POSES[k].n[c])
+            ap_path_lite(k, c, &ink);
     }
     if (o->flash > 0.f) {
+        const ap_ink_t ink = {AP_CREAM, lw * 1.1f, 0.f};
         qd_alpha(qd_get_alpha() * o->flash * 0.7f);
-        qd_path_begin();
         for (c = 0; c < APE_NCOL; c++)
-            ap_path_lite(k, c);
-        qd_path_stroke(AP_CREAM, lw * 1.1f);
+            ap_path_lite(k, c, &ink);
     }
     qd_restore();
 }
