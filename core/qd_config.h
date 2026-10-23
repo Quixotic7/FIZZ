@@ -44,7 +44,7 @@
 /* ---- the sound */
 /* P2.6, the owner's decision (2026-10-23): the unit's voices, a build option. 8 on one core (the port's
  * --single-core: -DQD_VOICES_DEV=8), 16 with the second core (8 + 8). Everything sized by the voices follows it: the
- * pool and its voices' state, the mix's, the tracks' limits and reserves (none above it) */
+ * pool and its voices' state, the mix's, the MIDI FX's note tables, the tracks' limits and reserves (none above it) */
 #ifndef QD_VOICES_DEV
 #define QD_VOICES_DEV 16
 #endif
@@ -54,9 +54,9 @@
 #define QD_POOL_MAX QD_VOICES_DEV      /* voices */
 #define QE_NCOMB 8                     /* E2's comb lines (1024 x int16 each), lent to the voices that run a comb;
                                         * P2.1c, the owner's rule (16 if it fits, else 8): 8, a ninth comb voice runs
-                                        * MULTI (quad_ext.c); at 8 voices every voice can comb. (The MIDI FX's note
-                                        * tables stay as they are: they keep notes for their OFFs, MIDI out's too,
-                                        * not voices: test_mfx holds 20 at once) */
+                                        * MULTI (quad_ext.c); at 8 voices every voice can comb */
+#define QD_MFX_NOUT (2 * QD_VOICES_DEV)   /* a MIDI FX group's held notes sent (32 at 16 voices: the OMX's) .. */
+#define QD_MFX_NPEND (4 * QD_VOICES_DEV)  /* .. its timed notes sounding (64 at 16); full: a note is not sent (counted) */
 /* ---- the sequencer */
 #define QD_SEQ_NEV 512                 /* events waiting (the demos peak at 25) */
 #define QD_SEQ_NREC 64                 /* resolved trigs waiting (the demos peak at 13) */

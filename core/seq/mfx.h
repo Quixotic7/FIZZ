@@ -58,8 +58,13 @@ extern "C" {
 #define QD_MFX_NSLOT 8
 #define QD_MFX_NV 12                    /* a slot's values */
 #define QD_MFX_LANE 16                  /* the ARP's lanes' steps */
+#include "../qd_config.h"               /* (P2.6: the device's note tables follow its voices) */
+#ifndef QD_MFX_NOUT
 #define QD_MFX_NOUT 32                  /* a group's held notes sent (the OMX's 32) */
+#endif
+#ifndef QD_MFX_NPEND
 #define QD_MFX_NPEND 64                 /* .. its timed notes sounding */
+#endif
 #define QD_MFX_NHOLD 8                  /* notes an ARP / REPEAT / RANDOM holds */
 #define QD_MFX_NRATE 16
 #define QD_MFX_BAR (16LL * 100800LL)    /* a bar in ticks (16 x QD_TPS) */

@@ -217,26 +217,31 @@ static void t_simple(void)
     CHECK(n == 3 && p[0] == 60 && p[1] == 64 && p[2] == 67 && EV[2].vel == 77, "CHORD MAJ, 3 notes: 60 64 67, the played "
           "velocity (%s)", list(p, n));
     G[0].slot[0].v[QD_MK_SHAPE] = 4, G[0].slot[0].v[QD_MK_NOTES] = 4;   /* m7 */
+    note(1, 0, 0, 60, 0, 0);                         /* (P2.6: the last chord released: an 8-voice unit's note tables) */
     NEV = 0;
     note(1, 1, 0, 57, 100, 0);
     n = ons(0, p, 16);
     CHECK(n == 4 && p[0] == 57 && p[1] == 60 && p[2] == 64 && p[3] == 67, "CHORD m7 on A: A C E G (%s)", list(p, n));
     G[0].slot[0].v[QD_MK_INV] = 1;
+    note(1, 0, 0, 57, 0, 0);
     NEV = 0;
     note(1, 1, 0, 57, 100, 0);
     n = ons(0, p, 16);
     CHECK(n == 4 && p[0] == 60 && p[3] == 69, "CHORD INVERT 1: C E G A (%s)", list(p, n));
     G[0].slot[0].v[QD_MK_INV] = 0, G[0].slot[0].v[QD_MK_VOICING] = QD_CV_DROP2;
+    note(1, 0, 0, 57, 0, 0);
     NEV = 0;
     note(1, 1, 0, 60, 100, 0);
     n = ons(0, p, 16);
     CHECK(n == 4 && p[0] == 55 && p[1] == 60 && p[2] == 63 && p[3] == 70, "CHORD DROP 2: G3 C Eb Bb (%s)", list(p, n));
     G[0].slot[0].v[QD_MK_VOICING] = QD_CV_CLOSE, G[0].slot[0].v[QD_MK_SHAPE] = 1, G[0].slot[0].v[QD_MK_NOTES] = 5;
+    note(1, 0, 0, 60, 0, 0);
     NEV = 0;
     note(1, 1, 0, 60, 100, 0);
     n = ons(0, p, 16);
     CHECK(n == 5 && p[3] == 72 && p[4] == 76, "CHORD NOTES 5 of a triad: doubled an octave up (%s)", list(p, n));
     G[0].slot[0].v[QD_MK_NOTES] = 3, G[0].slot[0].v[QD_MK_SPREAD] = 1;
+    note(1, 0, 0, 60, 0, 0);
     NEV = 0;
     note(1, 1, 0, 60, 100, 0);
     n = ons(0, p, 16);
