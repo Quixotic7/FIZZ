@@ -870,6 +870,7 @@ uint8_t qd_led_breath_lo(uint32_t ms);   /* P1.5x: 30 % .. full, breathing (the 
 
 /* ---- view.c */
 void qd_view_frame(struct qd_app *a, uint16_t *lcd_be);
+uint32_t qd_view_frame_hash(struct qd_app *a);   /* P2.4: the frame's calls hashed, nothing drawn */
 void qd_view_frame_strips(struct qd_app *a, uint16_t *rows_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
                           void *ctx);
 /* the screen under the takeovers (what qd_view_frame draws first): QD_SCR_* */

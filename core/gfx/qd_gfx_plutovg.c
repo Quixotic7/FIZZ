@@ -161,6 +161,57 @@ void qd_set_strip_rows(int h) { qd_sh = h < 1 ? 1 : h > QD_STRIP_H ? QD_STRIP_H 
 
 void qd_begin(void) { qd_begin_strip(0); }
 
+/* ---------------------------------------------------------------- P2.4: a frame hashed, nothing drawn --- */
+/* qd_hash_begin .. qd_hash_end: the calls between build their paths as ever but nothing is rasterised; what each paint
+ * would draw (its path's points, the transform, the alpha, the colours and widths; a text's string, place and font;
+ * the clips; the stroke state as it is set) goes into a hash. The same hash, the same pixels: a frame that hashes as
+ * the last one did need not be drawn (app.h qd_app_frame_changed) */
+static int qd_hashing;
+static uint32_t qd_hash;
+static void qd_strip_out(uint16_t *lcd_be);
+static void qh_bytes(const void *p, size_t n)
+{
+    const uint8_t *b = (const uint8_t *)p;
+    size_t i;
+    for (i = 0; i < n; i++) {
+        qd_hash ^= b[i];
+        qd_hash *= 0x01000193u;
+    }
+}
+static void qh_u(uint32_t u) { qh_bytes(&u, sizeof u); }
+static void qh_f(float f) { qh_bytes(&f, sizeof f); }
+static void qh_state(void)                              /* (the transform and the alpha now) */
+{
+    plutovg_matrix_t m;
+    plutovg_canvas_get_matrix(qd_cv, &m);
+    qh_bytes(&m, sizeof m);
+    qh_f(plutovg_canvas_get_opacity(qd_cv));
+}
+static void qh_path(void)                               /* (the current path's elements, then it is gone) */
+{
+    const plutovg_path_element_t *e;
+    const int n = plutovg_path_get_elements(plutovg_canvas_get_path(qd_cv), &e);
+    qh_u((uint32_t)n);
+    if (n > 0)
+        qh_bytes(e, (size_t)n * sizeof *e);
+    qh_state();
+    plutovg_canvas_new_path(qd_cv);
+}
+void qd_hash_begin(void)
+{
+    qd_begin_strip(0);
+    if (!qd_cv)
+        return;
+    qd_hashing = 1;
+    qd_hash = 2166136261u;
+}
+uint32_t qd_hash_end(void)
+{
+    qd_hashing = 0;
+    qd_strip_out(0);
+    return qd_hash;
+}
+
 void qd_begin_strip(int y0)
 {
     static const plutovg_color_t black = {0.f, 0.f, 0.f, 1.f};
@@ -256,21 +307,40 @@ void qd_scale(float sx, float sy) { plutovg_canvas_scale(qd_cv, sx, sy); }
 void qd_rotate(float a) { plutovg_canvas_rotate(qd_cv, a); }
 void qd_alpha(float a) { plutovg_canvas_set_opacity(qd_cv, a); }
 float qd_get_alpha(void) { return qd_cv ? plutovg_canvas_get_opacity(qd_cv) : 1.f; }
-void qd_clip_rect(float x, float y, float w, float h) { plutovg_canvas_clip_rect(qd_cv, x, y, w, h); }
+void qd_clip_rect(float x, float y, float w, float h)
+{
+    if (qd_hashing) {                                   /* (P2.4: hashed, not clipped: nothing is drawn) */
+        qh_u(0x434C5052u), qh_f(x), qh_f(y), qh_f(w), qh_f(h), qh_state();
+        return;
+    }
+    plutovg_canvas_clip_rect(qd_cv, x, y, w, h);
+}
 void qd_line_width(float w) { qd_lw = w; }
 void qd_line_cap(int cap)
 {
+    if (qd_hashing)
+        qh_u(0x43415020u + (uint32_t)cap);
     plutovg_canvas_set_line_cap(qd_cv, cap == QD_CAP_BUTT     ? PLUTOVG_LINE_CAP_BUTT
                                        : cap == QD_CAP_SQUARE ? PLUTOVG_LINE_CAP_SQUARE
                                                               : PLUTOVG_LINE_CAP_ROUND);
 }
 void qd_line_join(int join)
 {
+    if (qd_hashing)
+        qh_u(0x4A4F4900u + (uint32_t)join);
     plutovg_canvas_set_line_join(qd_cv, join == QD_JOIN_MITER   ? PLUTOVG_LINE_JOIN_MITER
                                         : join == QD_JOIN_BEVEL ? PLUTOVG_LINE_JOIN_BEVEL
                                                                 : PLUTOVG_LINE_JOIN_ROUND);
 }
-void qd_dash(const float *on_off, int n) { plutovg_canvas_set_dash(qd_cv, 0.f, n > 0 && on_off ? on_off : qd_nodash, n > 0 && on_off ? n : 0); }
+void qd_dash(const float *on_off, int n)
+{
+    if (qd_hashing) {
+        qh_u(0x44415348u), qh_u((uint32_t)n);
+        if (n > 0 && on_off)
+            qh_bytes(on_off, (size_t)n * sizeof *on_off);
+    }
+    plutovg_canvas_set_dash(qd_cv, 0.f, n > 0 && on_off ? on_off : qd_nodash, n > 0 && on_off ? n : 0);
+}
 
 /* P2.1: the current path may touch the strip (its control points' box under the transform, widened by the stroke
  * (a miter's reach) and a pixel's antialiasing): 0 when it cannot (nothing of it would be drawn) */
@@ -279,6 +349,8 @@ static int qd_visible(float lw)
     plutovg_rect_t r, d;
     plutovg_matrix_t m;
     float sc, pad;
+    if (qd_hashing)
+        return 1;
     if (plutovg_path_extents(plutovg_canvas_get_path(qd_cv), &r, false) < 0.f)
         return 1;
     if (r.w < 0.f || r.h < 0.f)
@@ -300,6 +372,8 @@ int qd_box_visible(float x, float y, float w, float h, float lw)
     float sc, pad;
     if (!qd_cv)
         return 0;
+    if (qd_hashing)                                     /* (P2.4: the whole frame is hashed) */
+        return 1;
     r.x = x, r.y = y, r.w = w, r.h = h;
     plutovg_canvas_map_rect(qd_cv, &r, &d);
     plutovg_canvas_get_matrix(qd_cv, &m);
@@ -312,6 +386,10 @@ int qd_box_visible(float x, float y, float w, float h, float lw)
 /* the current path: filled (if fill), then stroked (if stroke), then cleared */
 static void qd_paint(qd_rgb stroke, float lw, qd_rgb fill)
 {
+    if (qd_hashing) {
+        qh_u(0x50414E54u), qh_u(stroke), qh_f(lw), qh_u(fill), qh_path();
+        return;
+    }
     if (!qd_visible(stroke != QD_NONE ? lw : 0.f)) {
         plutovg_canvas_new_path(qd_cv);
         return;
@@ -439,6 +517,15 @@ void qd_path_fill(qd_rgb col) { qd_paint(QD_NONE, 0.f, col); }
 void qd_path_stroke(qd_rgb col, float lw) { qd_paint(col, lw > 0.f ? lw : qd_lw, QD_NONE); }
 void qd_path_stroke_keep(qd_rgb col, float lw)
 {
+    if (qd_hashing) {                                   /* (the path kept: its elements hashed, not cleared) */
+        const plutovg_path_element_t *e;
+        const int n = plutovg_path_get_elements(plutovg_canvas_get_path(qd_cv), &e);
+        qh_u(0x4B454550u), qh_u(col), qh_f(lw > 0.f ? lw : qd_lw), qh_u((uint32_t)n);
+        if (n > 0)
+            qh_bytes(e, (size_t)n * sizeof *e);
+        qh_state();
+        return;
+    }
     if (col == QD_NONE || !qd_visible(lw > 0.f ? lw : qd_lw))
         return;
     qd_color(col);
@@ -449,6 +536,10 @@ void qd_path_stroke_keep(qd_rgb col, float lw)
 void qd_path_paint(qd_rgb stroke, float lw, qd_rgb fill) { qd_paint(stroke, lw > 0.f ? lw : qd_lw, fill); }
 void qd_path_clip(void)
 {
+    if (qd_hashing) {
+        qh_u(0x434C4950u), qh_path();
+        return;
+    }
     plutovg_canvas_clip(qd_cv);
     QD_TRIM();
 }
@@ -525,6 +616,10 @@ void qd_layer_end(void)
 void qd_layer_draw(int slot, float x, float y, float w, float h)
 {
     plutovg_matrix_t m, ctm;
+    if (qd_hashing) {                                   /* (a layer's own pixels: its slot and place; the host's) */
+        qh_u(0x4C415952u + (uint32_t)slot), qh_f(x), qh_f(y), qh_f(w), qh_f(h), qh_state();
+        return;
+    }
     if (!qd_cv || slot < 0 || slot >= QD_NLAYER || !qd_lsurf[slot])
         return;
     plutovg_canvas_get_matrix(qd_cv, &ctm);
@@ -669,6 +764,12 @@ float qd_text(const char *utf8, float x, float y, const qd_font *f)
     if (!qd_cv || !utf8 || !f || f->size <= 0.f)
         return 0.f;
     face = qd_face_for(f->weight);
+    if (qd_hashing) {                                   /* (P2.4: the string, its place and font, the state) */
+        w = qd_text_width(utf8, f);
+        qh_u(0x54455854u), qh_bytes(utf8, strlen(utf8)), qh_f(x), qh_f(y), qh_f(f->size), qh_u((uint32_t)f->weight);
+        qh_u(f->col), qh_u((uint32_t)f->align), qh_f(f->ls), qh_state();
+        return w;
+    }
     qd_text_stat(utf8, f->size);
     w = qd_text_width(utf8, f);
     pen = f->align == QD_CENTER ? x - w / 2.f : f->align == QD_RIGHT ? x - w : x;

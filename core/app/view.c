@@ -2089,6 +2089,16 @@ void qd_view_frame_strips(qd_app_t *a, uint16_t *rows_be, qd_strip_fn out, void 
     view_frame(a, 0, rows_be, out, ctx);
 }
 
+static int vf_hash;                                     /* (P2.4: the frame's calls hashed, nothing drawn) */
+uint32_t qd_view_frame_hash(qd_app_t *a)
+{
+    qd_hash_begin();
+    vf_hash = 1;
+    view_frame(a, 0, 0, 0, 0);
+    vf_hash = 0;
+    return qd_hash_end();
+}
+
 static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_strip_fn out, void *ctx)
 {
     static ui_lane_t lv;
@@ -2109,6 +2119,11 @@ static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_stri
     int kt, y0;
     for (kt = 0; kt < QD_NTRACK; kt++)                  /* P1.6d: the tracks' kinds (their icons) */
         UI_TRACK_KIND[kt] = a->model.t[kt].kind;
+    if (vf_hash) {                                      /* (P2.4: the hash pass: the screen's calls once, the whole
+                                                         * frame; nothing built ahead, nothing drawn) */
+        view_draw(a, &lv, &hv, &tv, &yv, &sv, &bv, &mv, &sv5, &xv, &brv, &tyv, &pjv, &fv, &mfv);
+        return;
+    }
     if (qd_ctl_shift(a) && u->tk != UI_TK_TAP && !qd_type_open(a))
         ui_ape_prewarm(qd_seq_ext_running(&a->seq));                               /* 0.9.2.1: SHIFT held (B6 may come): the TAP ape's first poses */
     for (y0 = 0; y0 < QD_H; y0 += qd_strip_rows()) {    /* P2.1: the screen in strips (the host: one, the whole) */

@@ -38,10 +38,24 @@ struct qd_app;
 #define QD_SAVE_LOOK_MS 50u            /* how often the app looks for changes */
 #define QD_QUIET_MS 10000u             /* §7 rule 1: erases (GC, blank sectors ahead) after this long untouched, stopped,
                                         * nothing sounding (ChoralRoot's ST_AHEAD_IDLE_MS) */
+#ifdef QD_DEVICE
+/* P2.4: the unit's data region (0x97000..0xDFFFF: 73 sectors), from its first byte: the LIBRARY's 22 sectors (256 MY
+ * PRESETS, a page each, and the factory tags: 257 pages of 300, two sectors kept blank), then the projects' 51
+ * (765 pages, 10 kept blank for a full pattern's record: 615 for the eight projects, which keep their sounds by
+ * reference; the owner's projects today take 51 pages, a full one of 64 dense patterns ~835: the store refuses what
+ * does not fit, counted, and says so) */
+#define QD_FLASH_LIB 0x000000u
+#define QD_FLASH_LIB_SEC 22
+#define QD_FLASH_LIB_RESERVE 2
+#define QD_FLASH_PRJ (22u * 4096u)
+#define QD_FLASH_PRJ_SEC 51
+#else
 #define QD_FLASH_LIB 0x000000u
 #define QD_FLASH_LIB_SEC 32            /* (256 presets of about 120 bytes: a quarter of it) */
+#define QD_FLASH_LIB_RESERVE 6
 #define QD_FLASH_PRJ 0x020000u
 #define QD_FLASH_PRJ_SEC 224
+#endif
 #define QD_SWAP_SEC 256                /* (P2.1: the host's RAM store for the patterns and sounds at the device's sizes) */
 #define QD_SWAP_KEYS 1024
 /* the keys: kind << 24 | project << 16 | index */
@@ -77,6 +91,8 @@ typedef struct {
     uint32_t job_hash, job_drops;      /* .. its hash, the store's drops before it */
     int job_it;                        /* P2.1: the item the store's source makes (the job's, while it is written) */
     uint32_t written;                  /* records committed (the project page's bubbles) */
+    int own_step;                      /* P2.4: the port calls qd_persist_step itself */
+    uint32_t pat_raw[QD_NPAT];         /* P2.4: each pattern's bytes' fast hash at its last look (0: none) */
     uint32_t written_ms[QD_NPAT];      /* when each pattern was last written (its bubbles) */
 #if QD_PAT_RAM < QD_NPAT && !defined(QD_TARGET_FM1)
     /* P2.1: with no flash attached, at the device's sizes on the host (the tests, the tools), the patterns out of RAM
@@ -92,6 +108,10 @@ typedef struct {
  * pattern and track selected); an erased flash: the first project, the demos (written by itself from then on) */
 void qd_persist_attach(struct qd_app *a, const qd_flash_t *fl);
 void qd_persist_ms(struct qd_app *a);  /* each ms: the looks, the writes (by §7's rules) */
+/* P2.4: the port's own write steps: on, qd_persist_ms leaves the flash alone and the port calls qd_persist_step (a
+ * UI frame's step of the stores, every 15 ms or as it can: the erases and writes where it masks the interrupts) */
+void qd_persist_own_step(struct qd_app *a, int on);
+void qd_persist_step(struct qd_app *a);
 int qd_persist_flush(struct qd_app *a);   /* everything changed written now (a shutdown, a load); 1 done */
 int qd_persist_dirty(const struct qd_app *a);   /* something is not written yet */
 void qd_persist_io(struct qd_app *a);  /* P2.1: the patterns' and sounds' backing (pattern.h qd_pat_io_t, qd_snd_io_t):

@@ -41,6 +41,8 @@ enum { QD_LEFT, QD_CENTER, QD_RIGHT };
 /* ---- the frame */
 int qd_init(void);              /* once (idempotent): the surface, the fonts; 0 on failure */
 void qd_shutdown(void);
+void qd_hash_begin(void);        /* P2.4: a frame hashed, nothing drawn: the calls up to qd_hash_end go into a hash */
+uint32_t qd_hash_end(void);     /* .. its value (the same hash: the same pixels) */
 void qd_begin(void);            /* clear to black, reset the state (identity, alpha 1, no clip, width 1, round, no dash) */
 void qd_end(uint16_t *lcd_be);  /* the frame out: QD_W * QD_H RGB565, big-endian */
 /* P2.1: the frame in strips (the device: 20 rows): qd_begin_strip(y0) as qd_begin, the drawing calls then make rows

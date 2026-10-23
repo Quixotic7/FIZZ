@@ -909,6 +909,7 @@ void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)
         !qd_store_mount(&ps->prj_st, fl, QD_FLASH_PRJ, QD_FLASH_PRJ_SEC, ps->prj_ent, QD_PRJ_KEYS))
         return;
     qd_store_set_reserve(&ps->prj_st, 10);              /* (a full pattern record: 8 sectors) */
+    qd_store_set_reserve(&ps->lib_st, QD_FLASH_LIB_RESERVE);   /* (P2.4: a record a page) */
     ps->on = 1;
     ps->job = -1;
     lib_read(a);
@@ -948,12 +949,34 @@ int qd_persist_dirty(const qd_app_t *a)
     return a->per.job >= 0;
 }
 
+/* P2.4: a pattern's bytes in RAM, hashed fast (a word at a time; with the records committed so far: a MY preset's
+ * change can change how a pattern's track sounds are written): the same as at its last look, its record is too, and
+ * the record's own hash (the serialisation, the presets read) is not worked out again */
+static uint32_t pat_raw_hash(const qd_app_t *a, int k)
+{
+    const qd_pattern_t *P = qd_proj_cpat(&a->proj, k);
+    const uint32_t *w = (const uint32_t *)(const void *)P;
+    uint32_t h = 0x9E3779B9u ^ a->per.written, i;
+    for (i = 0; i < sizeof *P / 4u; i++) {
+        h ^= w[i];
+        h *= 0x85EBCA6Bu;
+        h ^= h >> 15;
+    }
+    return h ? h : 1u;
+}
+
 static void look(qd_app_t *a, int it)
 {
     qd_persist_t *ps = &a->per;
     uint32_t h;
     if (!item_here(a, it))
         return;
+    if (it >= QD_PI_PAT && it < QD_PI_SND) {
+        const uint32_t r = pat_raw_hash(a, it - QD_PI_PAT);
+        if (r == ps->pat_raw[it - QD_PI_PAT])
+            return;
+        ps->pat_raw[it - QD_PI_PAT] = r;
+    }
     h = item_hash(a, it, 0);
     if (h != ps->seen[it]) {
         ps->seen[it] = h;
@@ -1017,6 +1040,16 @@ static int job_start(qd_app_t *a, int it)
     return 1;
 }
 
+/* §7's writes: a step of each store's (a page while playing, up to 8 stopped; erases only when quiet), the job done */
+static void persist_writes(qd_app_t *a, int playing, int quiet)
+{
+    qd_persist_t *ps = &a->per;
+    qd_store_step(&ps->prj_st, playing, quiet, playing ? 1 : 8);
+    qd_store_step(&ps->lib_st, playing, quiet, playing ? 1 : 8);
+    if (ps->job >= 0 && !qd_store_busy(item_store(a, ps->job)))
+        job_end(a);
+}
+
 void qd_persist_ms(qd_app_t *a)
 {
     qd_persist_t *ps = &a->per;
@@ -1045,12 +1078,17 @@ void qd_persist_ms(qd_app_t *a)
                 break;
             }
     }
-    if (a->ms % 15u == 0) {                             /* a UI frame: §7's writes */
-        qd_store_step(&ps->prj_st, playing, quiet, playing ? 1 : 8);
-        qd_store_step(&ps->lib_st, playing, quiet, playing ? 1 : 8);
-        if (ps->job >= 0 && !qd_store_busy(item_store(a, ps->job)))
-            job_end(a);
-    }
+    if (a->ms % 15u == 0 && !ps->own_step)              /* a UI frame: §7's writes (P2.4: or the port's own call) */
+        persist_writes(a, playing, quiet);
+}
+
+void qd_persist_own_step(qd_app_t *a, int on) { a->per.own_step = on != 0; }
+
+void qd_persist_step(qd_app_t *a)
+{
+    const int playing = a->seq.playing, sounding = qd_pool_in_use(&a->pool) > 0;
+    if (a->per.on)
+        persist_writes(a, playing, !playing && !sounding && a->ms - a->ui.touch_ms >= QD_QUIET_MS);
 }
 
 int qd_persist_flush(qd_app_t *a)

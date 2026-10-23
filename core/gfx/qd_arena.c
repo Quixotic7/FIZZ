@@ -114,8 +114,10 @@ static int ar_in(const void *p) { return (const uint8_t *)p >= (const uint8_t *)
 void *qd_arena_malloc(size_t n)
 {
     uint32_t need, at, start, end = (uint32_t)sizeof ar_mem;
+#if !defined(QD_TARGET_FM1)
     if (AR_LIBC)
         return malloc(n);
+#endif
     if (!ar_ready)
         ar_init();
     if (n > end) {
@@ -194,8 +196,10 @@ void qd_arena_free(void *p)
     if (!p)
         return;
     if (!ar_in(p)) {
-        free(p);
-        return;
+#if !defined(QD_TARGET_FM1)
+        free(p);                                        /* (the host's: a block the C library gave) */
+#endif
+        return;                                         /* (P2.4: the unit has no heap; nothing outside the arena) */
     }
     at = (uint32_t)((uint8_t *)p - (uint8_t *)ar_mem) - 4u;
     sz = ar_size(at);
@@ -219,8 +223,13 @@ void *qd_arena_realloc(void *p, size_t n)
         qd_arena_free(p);
         return 0;
     }
-    if (!ar_in(p))
+    if (!ar_in(p)) {
+#if !defined(QD_TARGET_FM1)
         return realloc(p, n);
+#else
+        return 0;                                       /* (P2.4: the unit has no heap) */
+#endif
+    }
     at = (uint32_t)((uint8_t *)p - (uint8_t *)ar_mem) - 4u;
     sz = ar_size(at);
     need = ((uint32_t)n + 8u + AR_ALIGN - 1u) & ~(AR_ALIGN - 1u);

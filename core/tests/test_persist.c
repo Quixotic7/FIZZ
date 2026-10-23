@@ -976,9 +976,16 @@ int main(void)
     qd_app_stop(&A);
     run(&A, 100);
 
-    /* a full project: 64 patterns (two full: 1024 steps, 1024 locks), 128 pool sounds, the mix, the settings */
+    /* a full project: 64 patterns (two full: 1024 steps, 1024 locks), 128 pool sounds, the mix, the settings. P2.4: at
+     * the device's sizes the projects' store is the unit's 51 sectors (615 pages for records): one full pattern, the
+     * others lighter, so the copies below find room too */
+#ifdef QD_DEVICE
+    for (k = 0; k < QD_NPAT; k++)
+        fill_pattern(qd_proj_pat(&A.proj, k), k == 9 ? 1024 : (int)(4 + rnd() % 12u), k == 9 ? 1000 : (int)(rnd() % 8u));
+#else
     for (k = 0; k < QD_NPAT; k++)
         fill_pattern(qd_proj_pat(&A.proj, k), k == 9 || k == 40 ? 1024 : (int)(10 + rnd() % 60u), k == 9 || k == 40 ? 1000 : (int)(rnd() % 40u));
+#endif
     for (k = 1; k <= QD_NSOUND; k++) {
         int16_t p[QD_QUAD_NP];
         char nm[12];

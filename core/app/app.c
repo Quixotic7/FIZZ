@@ -63,8 +63,8 @@ static void qd_dance_stop(qd_app_t *a)
 
 void qd_app_play(qd_app_t *a)
 {
-    qd_seq_seed(&a->seq, 0x5155414452494C4Cull ^ a->ms);   /* (the rolls differ each PLAY; a run is still
-                                                             * determined by its input) */
+    qd_seq_seed(&a->seq, 0x5155414452494C4Cull ^ (a->seed_fix ? a->seed_fix : a->ms));   /* (the rolls differ each
+                                                         * PLAY; a run is still determined by its input) */
     qd_seq_play(&a->seq);
     qd_dance_play(a);
 }
@@ -137,6 +137,22 @@ void qd_app_knob(qd_app_t *a, int knob, int detents)
     }
 }
 
+void qd_app_show(qd_app_t *a, int mode, int view)
+{
+    if (mode < QD_MODE_IDLE || mode > QD_MODE_TRACKS)
+        return;
+    qd_latch_close(a);
+    qd_step_release_all(a);
+    a->ui.tk = QD_TK_NONE;
+    a->ui.cf_on = 0;
+    if (view >= 0 && view < QD_NVIEW)
+        a->ui.view = view;
+    a->ui.touch_ms = a->ms;                             /* (as a touch: the idle clock from now) */
+    qd_ctl_set_mode(a, mode);
+}
+
+void qd_app_seed(qd_app_t *a, uint32_t seed) { a->seed_fix = seed; }
+
 void qd_app_master(qd_app_t *a, int pot)
 {
     a->master_pot = pot < 0 ? 0 : pot > 1023 ? 1023 : pot;
@@ -159,12 +175,14 @@ static int midi_tracks(const qd_app_t *a, int ch)       /* the tracks channel ch
     return m;
 }
 
-void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
+/* P2.4: in two parts. qd_app_midi_play, audio-safe (the clock and the transport, the notes to the player, the
+ * controllers; nothing of the UI: no undo, no recording, no preview), so the port can play a note from its interrupt
+ * at once; qd_app_midi_ui, the same message's UI side (a gesture's undo, the note into a held step or a take, the
+ * preview), from the main loop after it. qd_app_midi is the two in a row, as it always was */
+void qd_app_midi_play(qd_app_t *a, int status, int d1, int d2)
 {
     const int ch = status & 15, kind = status & 0xF0;
     int m, t;
-    if ((status & 0xF0) != 0xF0)
-        qd_undo_input(a, 0);                            /* (P1.5c: notes into a held step or a take: a gesture) */
     switch (status & 0xFF) {
     case 0xF8:
         qd_seq_midi_clock(&a->seq);
@@ -204,17 +222,11 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
             for (t = 0; t < QD_NTRACK; t++)
                 if (((m >> t) & 1) && !(pv && t == a->sel))
                     qd_player_key_on(&a->player, t, d1, d2);
-            if (mine)
-                qd_rec_midi_note(a, d1, 1, d2);
         } else if (kind == 0x80 || kind == 0x90) {
             for (t = 0; t < QD_NTRACK; t++)
                 if (((m >> t) & 1) && !(pv && t == a->sel))
                     qd_player_key_off(&a->player, t, d1);
-            if (mine)
-                qd_rec_midi_note(a, d1, 0, 0);
         }
-        if (mine)
-            qd_ctl_preview_sync(a);
     }
     for (t = 0; t < QD_NTRACK; t++) {
         qd_quad_owner_t *o = &a->model.t[t].owner;
@@ -233,6 +245,44 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
     }
     if (kind == 0xB0 && (d1 == 120 || d1 == 123))
         memset(a->midi_on[ch], 0, sizeof a->midi_on[ch]);
+}
+
+void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2)
+{
+    const int ch = status & 15, kind = status & 0xF0;
+    int mine;
+    if (status >= 0xF0)
+        return;
+    qd_undo_input(a, 0);                                /* (P1.5c: notes into a held step or a take: a gesture) */
+    d1 &= 127;
+    d2 &= 127;
+    if (kind == 0x90 && d2) {                           /* (the selected track's: kept with the note, for its OFF) */
+        mine = (midi_tracks(a, ch) >> a->sel) & 1;
+        if (mine)
+            a->midi_sel[ch][d1 >> 3] |= (uint8_t)(1u << (d1 & 7));
+        else
+            a->midi_sel[ch][d1 >> 3] &= (uint8_t)~(1u << (d1 & 7));
+        if (mine)
+            qd_rec_midi_note(a, d1, 1, d2);
+    } else if (kind == 0x80 || kind == 0x90) {
+        mine = (a->midi_sel[ch][d1 >> 3] >> (d1 & 7)) & 1;
+        a->midi_sel[ch][d1 >> 3] &= (uint8_t)~(1u << (d1 & 7));
+        if (mine)
+            qd_rec_midi_note(a, d1, 0, 0);
+    } else {
+        mine = (midi_tracks(a, ch) >> a->sel) & 1;
+        if (kind == 0xB0 && (d1 == 120 || d1 == 123))
+            memset(a->midi_sel[ch], 0, sizeof a->midi_sel[ch]);
+    }
+    if (mine)
+        qd_ctl_preview_sync(a);
+}
+
+void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
+{
+    qd_app_midi_play(a, status, d1, d2);                /* (the player changes no pattern: the gesture's undo after it
+                                                         * keeps what it kept before it) */
+    qd_app_midi_ui(a, status, d1, d2);
 }
 
 /* ---------------------------------------------------------------- time --- */
@@ -306,6 +356,21 @@ void qd_app_tick(qd_app_t *a, uint32_t ms)
 
 /* ---------------------------------------------------------------- out --- */
 void qd_app_frame(qd_app_t *a, uint16_t *lcd_be) { qd_view_frame(a, lcd_be); }
+
+int qd_app_frame_changed(qd_app_t *a)
+{
+#ifdef QD_DEVICE
+    const uint32_t h = qd_view_frame_hash(a);           /* (the screen's calls once, nothing drawn: gfx qd_hash_*) */
+    const int changed = !a->frame_hash_ok || h != a->frame_hash;
+    a->frame_hash = h;
+    a->frame_hash_ok = 1;
+    return changed;
+#else
+    (void)a;
+    return 1;                                           /* (the host's cached layers (the TAP ape) are built while
+                                                         * drawing: every frame drawn) */
+#endif
+}
 void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
                          void *ctx)
 {

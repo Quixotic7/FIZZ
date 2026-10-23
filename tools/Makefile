@@ -75,6 +75,11 @@ $(B)/render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
+# P2.4: the core's per-ms tick and its frames timed at the device's sizes (make PROFILE=-DQD_DEVICE B=build/dev
+# build/dev/tick_bench)
+$(B)/tick_bench: $(B)/tick_bench.o $(CORE_OBJ) $(PVG_OBJ)
+	$(CC) -o $@ $^ -lm
+
 # P2.1: a flash image as the core reads it, a line a project / pattern / pool sound / MY preset (tools/flash_dump.c)
 $(B)/flash_dump: $(B)/flash_dump.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm

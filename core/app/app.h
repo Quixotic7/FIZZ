@@ -118,7 +118,11 @@ typedef struct qd_app {
     uint32_t keys_struck;              /* bit k: key k struck a note (it is released at the key's release) */
     uint8_t key_note[QD_NKEY], key_track[QD_NKEY];
     uint8_t midi_on[16][128];          /* P1.6g: MIDI in: the tracks (bit t) each channel's note struck (its OFF: those) */
+    uint8_t midi_sel[16][16];          /* P2.4: .. a bit a note: it went to the selected track (its OFF: recorded too) */
     int master_pot;                    /* MASTER, 0..1023 */
+    uint32_t seed_fix;                 /* P2.4: qd_app_seed's (0: the clock's) */
+    uint32_t frame_hash;               /* P2.4: qd_app_frame_changed's last frame .. */
+    int frame_hash_ok;
     /* the sound */
     qd_model_t model;
     qd_pool_t pool;
@@ -146,6 +150,11 @@ typedef struct qd_app {
 } qd_app_t;
 
 void qd_app_init(qd_app_t *a);
+/* P2.4: a supported seam for a harness (the host simulator, the device's checks): the screen shown (ctl.h QD_MODE_*,
+ * and QD_VIEW_* for the step view), as the panel would leave it (the latches closed, nothing held), and a fixed seed for
+ * the rolls of each PLAY (0: from the clock, as the panel's; the conditions' chance) */
+void qd_app_show(qd_app_t *a, int mode, int view);
+void qd_app_seed(qd_app_t *a, uint32_t seed);
 /* input, between ticks (as the panel's state changed): a key with its velocity 1..127, a button, knob detents, the
  * MASTER pot (0..1023), a MIDI message (status, two data bytes) */
 void qd_app_key(qd_app_t *a, int key, int down, int vel);
@@ -153,10 +162,16 @@ void qd_app_button(qd_app_t *a, int button, int down);
 void qd_app_knob(qd_app_t *a, int knob, int detents);
 void qd_app_master(qd_app_t *a, int pot);
 void qd_app_midi(qd_app_t *a, int status, int d1, int d2);   /* status 0xF8 / FA / FB / FC: MIDI clock */
+void qd_app_midi_play(qd_app_t *a, int status, int d1, int d2);   /* P2.4: its audio-safe part (the interrupt's) .. */
+void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2);     /* .. and its UI part, after it (the main loop's) */
 /* the clock: ms counts up from 0, one call per device millisecond (a gap is run through ms by ms) */
 void qd_app_tick(qd_app_t *a, uint32_t ms);
 /* the screen: one frame drawn (qd_gfx), written as RGB565 big-endian (240 x 240) */
 void qd_app_frame(qd_app_t *a, uint16_t *lcd_be);
+/* P2.4: would the frame now differ from the last one this said? The screen's logic runs once with nothing drawn and
+ * every call that would draw hashed (the paths, the transforms, the alpha, the colours, the texts): 1 changed (or the
+ * first), 0 the same pixels as before, the frame can be skipped. Call it once a frame, before drawing (the host: 1) */
+int qd_app_frame_changed(qd_app_t *a);
 /* P2.1: .. or strip by strip (QD_STRIP_H rows: the device's 20; the host's one strip, the whole), each written into
  * strip_be (240 x QD_STRIP_H) and then given to out (its first row, its rows, its pixels): no whole frame in RAM.
  * P2.1b: strip_be 0: each strip written in place, in the core's own strip surface (px), good until out returns (the
