@@ -78,13 +78,32 @@ def main():
          ' * https://github.com/rsms/inter-tight; assets/fonts/OFL.txt): static instances of the variable font,',
          ' * subset to ASCII, Latin-1 and a few symbols. Included once, by core/gfx/qd_gfx_plutovg.c. */',
          '#pragma once', '']
+    # P2.1: at the device's sizes (QD_FONTS3, core/qd_config.h) only 300, 500 and 700 (the others map to the nearest)
+    three = (300, 500, 700)
     for w, data in parts:
+        if w not in three:
+            h.append('#ifndef QD_FONTS3')
         h.append(c_array('qd_font_inter_tight_%d' % w, data))
+        if w not in three:
+            h.append('#endif')
     h.append('static const struct { int weight; const unsigned char *data; unsigned int len; } qd_fonts_gen[] = {')
     for w, data in parts:
+        if w not in three:
+            h.append('#ifndef QD_FONTS3')
         h.append('    {%d, qd_font_inter_tight_%d, %d},' % (w, w, len(data)))
+        if w not in three:
+            h.append('#endif')
     h.append('};')
+    h.append('#ifdef QD_FONTS3')
+    ws3 = [w for w, _ in parts if w in three]
+    ws = [w for w, _ in parts]
+    h.append("#define QD_FONTS_GEN_N %d                /* (P2.1: the device's three weights, 300 500 700) */" % len(ws3))
+    h.append('#define QD_FONTS_GEN_500 %d              /* (the 500\'s place: the tools\' sheet captions) */' %
+             ws3.index(500))
+    h.append('#else')
     h.append('#define QD_FONTS_GEN_N %d' % len(parts))
+    h.append('#define QD_FONTS_GEN_500 %d' % ws.index(500))
+    h.append('#endif')
     h.append('')
     out = os.path.join(ROOT, 'core', 'gfx', 'fonts_gen.h')
     with open(out, 'w') as f:

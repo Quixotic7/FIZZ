@@ -140,7 +140,7 @@ static void sheet(void)
     const int W = pad + cols * (cell_w + pad), H = 50 + rows * (cell_h + pad);
     plutovg_surface_t *s = plutovg_surface_create(W, H);
     plutovg_canvas_t *c = plutovg_canvas_create(s);
-    plutovg_font_face_t *f = plutovg_font_face_load_from_data(qd_fonts_gen[3].data, qd_fonts_gen[3].len, 0, NULL, NULL);
+    plutovg_font_face_t *f = plutovg_font_face_load_from_data(qd_fonts_gen[QD_FONTS_GEN_500].data, qd_fonts_gen[QD_FONTS_GEN_500].len, 0, NULL, NULL);
     char path[1024];
     int i;
     plutovg_canvas_set_rgb(c, 0.11f, 0.11f, 0.12f);

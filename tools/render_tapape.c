@@ -71,7 +71,7 @@ static void sheet_as(const char *file, const char *title)
     const int rows = (nshot + cols - 1) / cols, W = pad + cols * (cell + pad), H = 50 + rows * (cell_h + pad);
     plutovg_surface_t *s = plutovg_surface_create(W, H);
     plutovg_canvas_t *c = plutovg_canvas_create(s);
-    plutovg_font_face_t *f = plutovg_font_face_load_from_data(qd_fonts_gen[3].data, qd_fonts_gen[3].len, 0, NULL, NULL);
+    plutovg_font_face_t *f = plutovg_font_face_load_from_data(qd_fonts_gen[QD_FONTS_GEN_500].data, qd_fonts_gen[QD_FONTS_GEN_500].len, 0, NULL, NULL);
     char path[1024];
     int i;
     plutovg_canvas_set_rgb(c, 0.11f, 0.11f, 0.12f);
@@ -159,9 +159,12 @@ static void model(ui_turn_t *v, const uint32_t *tap, int n, uint32_t now, int ex
 }
 static void draw(const ui_turn_t *v)
 {
-    qd_begin();
-    ui_turn_draw(v);
-    qd_end(lcd);
+    int y;
+    for (y = 0; y < QD_H; y += qd_strip_rows()) {      /* (P2.1: in strips, as view.c: the device's are 40 rows) */
+        qd_begin_strip(y);
+        ui_turn_draw(v);
+        qd_end_strip(lcd);
+    }
 }
 
 int render_tapape(const char *out)

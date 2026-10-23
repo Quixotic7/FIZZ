@@ -122,7 +122,7 @@ static int write_led_png(const char *path, const qd_leds_t *l, uint32_t at_ms)
     const int W = 760, H = 260;
     plutovg_surface_t *s = plutovg_surface_create(W, H);
     plutovg_canvas_t *c = plutovg_canvas_create(s);
-    plutovg_font_face_t *f = plutovg_font_face_load_from_data(qd_fonts_gen[3].data, qd_fonts_gen[3].len, 0, NULL, NULL);
+    plutovg_font_face_t *f = plutovg_font_face_load_from_data(qd_fonts_gen[QD_FONTS_GEN_500].data, qd_fonts_gen[QD_FONTS_GEN_500].len, 0, NULL, NULL);
     static const int black[12] = {0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0};   /* from F: F F# G G# A A# B C C# D D# E */
     char t[64];
     int i, wi = 0, ok;
@@ -197,6 +197,29 @@ static void dump_leds(FILE *o, const qd_leds_t *l, uint32_t ms)
     fprintf(o, "%s\n", l->play_green ? "  PLAY-green" : "");
 }
 
+/* P2.1: --strips: every frame drawn again in 40-row strips (view.c) and compared with the whole one */
+extern int qd_view_strip_check;
+extern uint32_t qd_view_strip_frames, qd_view_strip_bad, qd_view_strip_px;
+#ifdef QD_DEVICE
+#include "qd_arena.h"
+extern unsigned plutovg_glyph_cache_clears;
+#endif
+static int strips_report(void)
+{
+#ifdef QD_DEVICE
+    printf("render_frames: the drawing's arena: peak %lu of %lu bytes, %u failed; the glyph cache emptied %u times\n",
+           (unsigned long)qd_arena_peak(), (unsigned long)qd_arena_size(), qd_arena_fails(), plutovg_glyph_cache_clears);
+#ifdef QD_ARENA_SITES
+    qd_arena_sites();
+#endif
+#endif
+    if (!qd_view_strip_check)
+        return 0;
+    printf("render_frames --strips: %u frames drawn whole and in 40-row strips: %u differ (%u pixels)\n",
+           (unsigned)qd_view_strip_frames, (unsigned)qd_view_strip_bad, (unsigned)qd_view_strip_px);
+    return qd_view_strip_bad != 0;
+}
+
 int main(int argc, char **argv)
 {
     static const uint8_t CHORD[4] = {7, 11, 14, 18}, CVEL[4] = {110, 90, 100, 80};   /* C4 E4 G4 B4 */
@@ -222,6 +245,8 @@ int main(int argc, char **argv)
             only = argv[++i];
         } else if (!strcmp(argv[i], "--mocks") && i + 1 < argc) {
             mocks = argv[++i];
+        } else if (!strcmp(argv[i], "--strips")) {      /* (P2.1: the strip test) */
+            qd_view_strip_check = 1;
         } else if (!strcmp(argv[i], "--at") && i + 1 < argc) {
             char *p = argv[++i];
             nat = 0;
@@ -255,6 +280,7 @@ int main(int argc, char **argv)
             if (mn < 11.f)
                 failed = 1;
         }
+        failed |= strips_report();
         qd_shutdown();
         return failed;
     }
@@ -489,6 +515,7 @@ int main(int argc, char **argv)
         }
     }
     failed |= render_p13p(out);                         /* P1.3p: FIZZ's logo screen, its GIF's frames */
+    failed |= strips_report();
     qd_shutdown();
     return failed;
 }

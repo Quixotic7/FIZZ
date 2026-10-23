@@ -46,7 +46,7 @@ PVG_SRC := $(wildcard $(PVG)/source/*.c)
 INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/seq -I$(ROOT)/core/voice \
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
-HDRS := $(ROOT)/core/qd_config.h $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
+HDRS := $(ROOT)/core/qd_config.h $(ROOT)/core/gfx/qd_arena.c $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
         $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/seq/names.c $(ROOT)/core/seq/mfx.c $(ROOT)/core/app/view_labels.c $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/ctl_presets.c $(ROOT)/core/app/ctl_type.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_presets.c $(ROOT)/core/ui/ui_type.c $(ROOT)/core/ui/ui_snd.c $(ROOT)/core/ui/ui_mfx.c $(ROOT)/core/app/ctl_mfx.c $(ROOT)/core/ui/ui_ape.c \
         $(PVG)/include/plutovg.h
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
@@ -72,8 +72,11 @@ $(B)/render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
-$(B)/pvg-%.o: $(PVG)/source/%.c $(PVG)/include/plutovg.h | $(B)
-	$(CC) $(OPT) -std=c11 -w $(DEFS) -I$(PVG)/include -I$(PVG)/source -c -o $@ $<
+# P2.1: at the device's sizes plutovg's malloc / free are the drawing's fixed arena (core/gfx/qd_arena.h)
+PVG_ARENA := $(if $(findstring QD_DEVICE,$(PROFILE)),$(PROFILE) -DQD_ARENA_REDIRECT -include $(ROOT)/core/gfx/qd_arena.h,)
+PVG_DEPS := $(PVG)/include/plutovg.h $(ROOT)/core/gfx/qd_arena.h $(ROOT)/core/qd_config.h
+$(B)/pvg-%.o: $(PVG)/source/%.c $(PVG_DEPS) | $(B)
+	$(CC) $(OPT) -std=c11 -w $(DEFS) $(PVG_ARENA) -I$(PVG)/include -I$(PVG)/source -c -o $@ $<
 
 $(B)/%.o: %.c $(HDRS) Makefile | $(B)
 	$(CC) $(OPT) $(WARN) $(DEFS) $(INC) -c -o $@ $<
@@ -90,6 +93,15 @@ frames: render_frames
 	    -vf "scale=480:480:flags=neighbor,split[a][b];[a]palettegen=max_colors=32[p];[b][p]paletteuse=dither=none" \
 	    $(OUT)/fizz-logo.gif && echo "$(OUT)/fizz-logo.gif" 
 
+# P2.1: the strip test over the render sheets: every frame drawn whole and again in 40-row strips must be the same,
+# pixel for pixel, at both sizes (the device's are drawn in strips anyway; the host's whole); the device's arena peak
+strips: render_frames
+	$(MAKE) PROFILE=-DQD_DEVICE B=build/dev build/dev/render_frames
+	mkdir -p $(OUT)/strips-host $(OUT)/strips-dev
+	./render_frames $(OUT)/strips-host --strips > $(OUT)/strips-host.log || { tail -3 $(OUT)/strips-host.log; exit 1; }
+	build/dev/render_frames $(OUT)/strips-dev --strips > $(OUT)/strips-dev.log || { tail -3 $(OUT)/strips-dev.log; exit 1; }
+	@grep -hE "strips:|arena: peak" $(OUT)/strips-host.log $(OUT)/strips-dev.log
+
 audio: render_audio
 	mkdir -p $(OUT)
 	./render_audio $(OUT)
@@ -100,9 +112,9 @@ $(B)/test_quad: $(T)/test_quad.c $(HDRS) | $(B)
 $(B)/test_pool: $(T)/test_pool.c $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/quad/quad_voice.c $(HDRS) | $(B)
 	$(CC) $(SAN) $(WARN) $(INC) -o $@ $(T)/test_pool.c $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/quad/quad_voice.c -lm
 SAN_OBJ := $(addprefix $(B)/san/,$(notdir $(CORE_SRC:.c=.o))) $(addprefix $(B)/san/pvg-,$(notdir $(PVG_SRC:.c=.o)))
-$(B)/san/pvg-%.o: $(PVG)/source/%.c $(PVG)/include/plutovg.h
+$(B)/san/pvg-%.o: $(PVG)/source/%.c $(PVG_DEPS)
 	@mkdir -p $(B)/san
-	$(CC) $(SAN) -std=c11 -w $(DEFS) -I$(PVG)/include -I$(PVG)/source -c -o $@ $<
+	$(CC) $(SAN) -std=c11 -w $(DEFS) $(PVG_ARENA) -I$(PVG)/include -I$(PVG)/source -c -o $@ $<
 $(B)/san/%.o: %.c $(HDRS) Makefile
 	@mkdir -p $(B)/san
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -c -o $@ $<
@@ -146,6 +158,8 @@ $(B)/test_persist: $(T)/test_persist.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_persist.c $(SAN_OBJ) -lm
 $(B)/test_store: $(T)/test_store.c $(ROOT)/core/store/store.c $(ROOT)/core/store/store.h | $(B)
 	$(CC) $(SAN) $(WARN) -o $@ $(T)/test_store.c $(ROOT)/core/store/store.c
+$(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/qd_arena.h | $(B)
+	$(CC) $(SAN) $(WARN) -o $@ $(T)/test_arena.c
 
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
@@ -157,7 +171,7 @@ test: test-host test-dev
 # core/tests/out/dev (the goldens are the same: the sizes change nothing a pattern sounds like). The bit-exact tests
 # compare the voice and the effects with ChoralRoot's code: no size of theirs differs, they run once (test-host)
 DEV_TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_mfx $(B)/test_app $(B)/test_ctl $(B)/test_store \
-             $(B)/test_persist $(B)/test_sysex
+             $(B)/test_persist $(B)/test_sysex $(B)/test_arena
 test-dev:
 	$(MAKE) PROFILE=-DQD_DEVICE B=build/dev OUT=$(abspath $(OUT))/dev test-dev-run
 test-dev-run: $(DEV_TESTS)
@@ -172,6 +186,7 @@ test-dev-run: $(DEV_TESTS)
 	$(B)/test_store
 	$(B)/test_persist
 	$(B)/test_sysex
+	$(B)/test_arena
 	@echo "make test-dev: all passed (device sizes)"
 
 test-host: $(TESTS)
@@ -222,4 +237,4 @@ budget-gate:
 print-%:
 	@echo $($*)
 
-.PHONY: all frames audio test test-host test-dev test-dev-run abi midimon remote budget budget-gate
+.PHONY: all frames strips audio test test-host test-dev test-dev-run abi midimon remote budget budget-gate

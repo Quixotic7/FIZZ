@@ -2025,6 +2025,12 @@ static int band_up(const qd_app_t *a)
            a->ms - u->tk_ms < QD_TK_MS + QD_TK_FADE_MS;
 }
 
+static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tvp, ui_layer_t *yvp, ui_shift_t *svp,
+                      ui_band_t *bvp, ui_menu_t *mvp, ui_snd_t *sv5p, ui_mix_t *xvp, ui_browse_t *brvp, ui_type_t *tyvp,
+                      ui_prj_t *pjvp, ui_fx_t *fvp, ui_mfx_t *mfvp);
+extern int qd_view_strip_check;
+extern uint32_t qd_view_strip_frames, qd_view_strip_bad, qd_view_strip_px;
+
 void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
 {
     static ui_lane_t lv;
@@ -2042,13 +2048,58 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
     static ui_fx_t fv;
     static ui_mfx_t mfv;
     const qd_ui_t *u = &a->ui;
-    char pat[4], ctx[24];
-    int kt;
+    int kt, y0;
     for (kt = 0; kt < QD_NTRACK; kt++)                  /* P1.6d: the tracks' kinds (their icons) */
         UI_TRACK_KIND[kt] = a->model.t[kt].kind;
     if (qd_ctl_shift(a) && u->tk != UI_TK_TAP && !qd_type_open(a))
         ui_ape_prewarm(qd_seq_ext_running(&a->seq));                               /* 0.9.2.1: SHIFT held (B6 may come): the TAP ape's first poses */
-    qd_begin();
+    for (y0 = 0; y0 < QD_H; y0 += qd_strip_rows()) {    /* P2.1: the screen in strips (the host: one, the whole) */
+        qd_begin_strip(y0);
+        view_draw(a, &lv, &hv, &tv, &yv, &sv, &bv, &mv, &sv5, &xv, &brv, &tyv, &pjv, &fv, &mfv);
+        qd_end_strip(lcd_be);
+    }
+#ifndef QD_TARGET_FM1                                   /* (the host's test only: not on the unit) */
+    if (qd_view_strip_check) {                          /* (render_frames --strips: the same frame in 40-row strips) */
+        static uint16_t lcd[QD_W * QD_H];
+        const int rows = qd_strip_rows();
+        uint32_t i, n = 0;
+        qd_set_strip_rows(40);
+        for (y0 = 0; y0 < QD_H; y0 += qd_strip_rows()) {
+            qd_begin_strip(y0);
+            view_draw(a, &lv, &hv, &tv, &yv, &sv, &bv, &mv, &sv5, &xv, &brv, &tyv, &pjv, &fv, &mfv);
+            qd_end_strip(lcd);
+        }
+        qd_set_strip_rows(rows);
+        for (i = 0; i < QD_W * QD_H; i++)
+            n += lcd[i] != lcd_be[i];
+        qd_view_strip_frames++;
+        qd_view_strip_bad += n != 0;
+        qd_view_strip_px += n;
+    }
+#endif
+}
+
+/* the frame's drawing, as many times as it has strips: the same each time (the state's, not the clock's) */
+static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tvp, ui_layer_t *yvp, ui_shift_t *svp,
+                      ui_band_t *bvp, ui_menu_t *mvp, ui_snd_t *sv5p, ui_mix_t *xvp, ui_browse_t *brvp, ui_type_t *tyvp,
+                      ui_prj_t *pjvp, ui_fx_t *fvp, ui_mfx_t *mfvp)
+{
+#define lv (*lvp)
+#define hv (*hvp)
+#define tv (*tvp)
+#define yv (*yvp)
+#define sv (*svp)
+#define bv (*bvp)
+#define mv (*mvp)
+#define sv5 (*sv5p)
+#define xv (*xvp)
+#define brv (*brvp)
+#define tyv (*tyvp)
+#define pjv (*pjvp)
+#define fv (*fvp)
+#define mfv (*mfvp)
+    const qd_ui_t *u = &a->ui;
+    char pat[4], ctx[24];
     switch (qd_view_screen(a)) {
     case QD_SCR_MENU:                                   /* P1.3y: a settings menu */
         fill_menu(a, &mv);
@@ -2202,7 +2253,25 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
             qd_restore();
         }
     }
-    qd_end(lcd_be);
+#undef lv
+#undef hv
+#undef tv
+#undef yv
+#undef sv
+#undef bv
+#undef mv
+#undef sv5
+#undef xv
+#undef brv
+#undef tyv
+#undef pjv
+#undef fv
+#undef mfv
 }
+
+/* P2.1: the strip test (render_frames --strips): the frame drawn again in 40-row strips must be the same, pixel for
+ * pixel (frames and pixels that differ counted) */
+int qd_view_strip_check;
+uint32_t qd_view_strip_frames, qd_view_strip_bad, qd_view_strip_px;
 
 #include "view_labels.c"                /* P1.6l: the controls' labels (built here: the source lists stay) */

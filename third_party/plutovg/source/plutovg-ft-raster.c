@@ -1647,6 +1647,8 @@ void PVG_FT_Outline_Get_CBox(const PVG_FT_Outline* outline, PVG_FT_BBox* acbox)
   }
 
 
+  static int pvg_ft_row0, pvg_ft_row1;   /* FIZZ: the row window (0, 0: none) */
+
   static int
   gray_convert_glyph( RAS_ARG )
   {
@@ -1699,17 +1701,29 @@ void PVG_FT_Outline_Get_CBox(const PVG_FT_Outline* outline, PVG_FT_BBox* acbox)
     ras.count_ex = ras.max_ex - ras.min_ex;
     ras.count_ey = ras.max_ey - ras.min_ey;
 
+    /* FIZZ (P2.1, a patch of this vendored copy): a row window (plutovg_raster_rows): only those rows are rendered,
+     * each exactly as a render of the whole would make it (the bands are exact; the lines are not clipped to the
+     * window, only to the clip box as before). A screen drawn in strips this way is the whole one, pixel for pixel */
+    min   = ras.min_ey;
+    max_y = ras.max_ey;
+    if ( pvg_ft_row1 > pvg_ft_row0 )
+    {
+      if ( min < pvg_ft_row0 )
+        min = pvg_ft_row0;
+      if ( max_y > pvg_ft_row1 )
+        max_y = pvg_ft_row1;
+      if ( min >= max_y )
+        return 0;
+    }
+
     /* set up vertical bands */
-    num_bands = (int)( ( ras.max_ey - ras.min_ey ) / ras.band_size );
+    num_bands = (int)( ( max_y - min ) / ras.band_size );
     if ( num_bands == 0 )
       num_bands = 1;
     if ( num_bands >= 39 )
       num_bands = 39;
 
     ras.band_shoot = 0;
-
-    min   = ras.min_ey;
-    max_y = ras.max_ey;
 
     for ( n = 0; n < num_bands; n++, min = max )
     {
@@ -1892,3 +1906,17 @@ void PVG_FT_Outline_Get_CBox(const PVG_FT_Outline* outline, PVG_FT_BBox* acbox)
   }
 
 /* END */
+
+/* FIZZ (P2.1, a patch of this vendored copy): the rows rendered, [y0, y1) (y1 <= y0: every row, as before) */
+void plutovg_raster_rows(int y0, int y1)
+{
+    pvg_ft_row0 = y0;
+    pvg_ft_row1 = y1;
+}
+/* (and read back: 1 and the window when there is one) */
+int plutovg_raster_rows_get(int *y0, int *y1)
+{
+    *y0 = pvg_ft_row0;
+    *y1 = pvg_ft_row1;
+    return pvg_ft_row1 > pvg_ft_row0;
+}

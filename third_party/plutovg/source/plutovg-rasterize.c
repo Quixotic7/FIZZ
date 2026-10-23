@@ -297,6 +297,41 @@ static PVG_FT_Outline* ft_outline_convert_dash(const plutovg_path_t* path, const
     return outline;
 }
 
+/* FIZZ (P2.1, a patch of this vendored copy): with a row window (plutovg_raster_rows, a strip), the contours a stroke
+ * cannot reach the window from (their points' rows, widened by the most the pen, its caps and joins can add, outside
+ * it) are dropped before stroking: a closed outline away from a row adds nothing to its coverage, so the strip's pixels
+ * are the same; a long dashed line costs only its dashes near the strip */
+int plutovg_raster_rows_get(int* y0, int* y1);
+static void ft_outline_cull_rows(PVG_FT_Outline* outline, double reach)
+{
+    int y0, y1;
+    if(!plutovg_raster_rows_get(&y0, &y1))
+        return;
+    const PVG_FT_Pos lo = (PVG_FT_Pos)((y0 - reach - 2.0) * 64.0), hi = (PVG_FT_Pos)((y1 + reach + 2.0) * 64.0);
+    int first = 0, np = 0, nc = 0;
+    for(int c = 0; c < outline->n_contours; ++c) {
+        const int last = outline->contours[c];
+        PVG_FT_Pos cmin = outline->points[first].y, cmax = cmin;
+        for(int i = first + 1; i <= last; ++i) {
+            if(outline->points[i].y < cmin) cmin = outline->points[i].y;
+            if(outline->points[i].y > cmax) cmax = outline->points[i].y;
+        }
+        if(cmax >= lo && cmin <= hi) {
+            const int n = last - first + 1;
+            if(np != first) {
+                memmove(outline->points + np, outline->points + first, n * sizeof(PVG_FT_Vector));
+                memmove(outline->tags + np, outline->tags + first, n);
+            }
+            outline->contours_flag[nc] = outline->contours_flag[c];
+            outline->contours[nc++] = np + n - 1;
+            np += n;
+        }
+        first = last + 1;
+    }
+    outline->n_points = np;
+    outline->n_contours = nc;
+}
+
 static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, const plutovg_matrix_t* matrix, const plutovg_stroke_data_t* stroke_data)
 {
     double scale_x = sqrt(matrix->a * matrix->a + matrix->b * matrix->b);
@@ -339,6 +374,11 @@ static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, con
     PVG_FT_Stroker_Set(stroker, ftWidth, ftCap, ftJoin, ftMiterLimit);
 
     PVG_FT_Outline* outline = ft_outline_convert_dash(path, matrix, &stroke_data->dash);
+    {   /* FIZZ: the pen's reach: half its width, times the miter limit for mitred joins (square caps: x sqrt 2) */
+        const double ml = stroke_data->style.join == PLUTOVG_LINE_JOIN_MITER && stroke_data->style.miter_limit > 1.5f
+                              ? stroke_data->style.miter_limit : 1.5;
+        ft_outline_cull_rows(outline, width * 0.5 * ml);
+    }
     PVG_FT_Stroker_ParseOutline(stroker, outline);
 
     PVG_FT_UInt points;

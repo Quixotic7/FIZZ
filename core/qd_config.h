@@ -37,6 +37,11 @@
 #define QD_UNDO_XLOCKS 512             /* the other patterns' locks a pool slot's emptying cleared */
 #define QD_UNDO_NSLOT 8                /* pool / library slots a gesture changes (their before: copies) */
 #define QD_SNAP_BYTES 8192u            /* the snapshot and the pattern clipboard, compressed */
+/* ---- the drawing (P2.1: core/gfx) */
+#define QD_STRIP_H 40                  /* the screen drawn in strips of this many rows (a 240 x 40 ARGB surface) */
+#define QD_GFX_ARENA 262144u           /* plutovg's fixed arena (qd_arena.h: no heap; render_frames: peak 240 304) */
+#define QD_FONTS3 1                    /* Inter Tight in three weights, 300 500 700 (the others: the nearest, upward) */
+#define QD_GLYPH_CACHE 32              /* glyph outlines plutovg keeps a weight (full: emptied; patched plutovg-font.c) */
 /* ---- the flash store */
 #define QDS_MAXKEY 1024                /* keys a store */
 #define QDS_JOBBUF 512                 /* a record the store copies (longer: streamed from its owner, store.h) */
@@ -50,6 +55,7 @@
 #define QD_SEQ_NREC 512
 #define QD_PAT_RAM 64                  /* (every pattern: QD_NPAT) */
 #define QD_UNDO_POOL 65536u            /* (the levels' differences; the gesture's before: whole copies) */
+#define QD_STRIP_H 240                 /* (the whole screen at once; the pixel test draws it in 40-row strips too) */
 #define QD_UNDO_XLOCKS 2048
 #define QDS_MAXKEY 2048
 #define QDS_JOBBUF 28800               /* (QDS_MAXREC: every record copied, as in Phase 1) */

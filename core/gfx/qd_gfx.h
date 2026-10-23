@@ -41,6 +41,13 @@ int qd_init(void);              /* once (idempotent): the surface, the fonts; 0 
 void qd_shutdown(void);
 void qd_begin(void);            /* clear to black, reset the state (identity, alpha 1, no clip, width 1, round, no dash) */
 void qd_end(uint16_t *lcd_be);  /* the frame out: QD_W * QD_H RGB565, big-endian */
+/* P2.1: the frame in strips (the device: 40 rows): qd_begin_strip(y0) as qd_begin, the drawing calls then make rows
+ * y0 .. y0 + qd_strip_rows() of the screen; qd_end_strip writes those rows of lcd_be. qd_begin / qd_end are the strip
+ * at 0 (the whole screen where the surface is: the host's). qd_set_strip_rows: fewer rows a strip (the tests) */
+void qd_begin_strip(int y0);
+void qd_end_strip(uint16_t *lcd_be);
+int qd_strip_rows(void);
+void qd_set_strip_rows(int h);
 
 /* ---- the state */
 void qd_save(void);

@@ -6,14 +6,28 @@
  *   - letter spacing and alignment: the text is laid out glyph by glyph (advance + spacing), as the canvas does;
  *   - the ellipse's arc: a unit arc path, transformed;
  *   - RGB565 big-endian out of the premultiplied ARGB surface.
- * Nothing here calls the OS: the surface and the paths are malloc'ed once by qd_init. */
+ * Nothing here calls the OS: the surface and the paths are malloc'ed once by qd_init.
+ *
+ * P2.1 (Phase 2): THE SCREEN IN STRIPS. The pixels are QD_W x QD_STRIP_H (the device's: 40 rows, 38 KB; the host's:
+ * the whole 240), seen by plutovg as a whole 240 x 240 surface whose rows y0 .. y0 + h are those pixels (its data
+ * pointer moved for each strip, the drawing clipped to the strip): the transform is the whole screen's, so a strip's
+ * pixels are exactly the whole surface's (tools: render_frames --strips checks it, frame by frame). A shape whose
+ * extent misses the strip is not rasterised (qd_visible). At the device's sizes plutovg's memory is the fixed arena
+ * (qd_arena.h), and there are no layers (the TAP ape draws its poses directly). */
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
 
 #include "plutovg.h"
 #include "qd_gfx.h"
+#include "../qd_config.h"                 /* (P2.1: before the fonts: QD_FONTS3) */
 #include "fonts_gen.h"
+#ifdef QD_DEVICE
+#include "qd_arena.c"                           /* (built here: the core's source lists stay as they are) */
+#define QD_ARENA(on) qd_arena_use(on)
+#else
+#define QD_ARENA(on) ((void)0)
+#endif
 
 static plutovg_surface_t *qd_surf;
 static plutovg_canvas_t *qd_cv;
@@ -25,15 +39,41 @@ static float qd_lw = 1.f;                      /* the state's default width (qd_
 static float qd_lw_stack[64];
 static int qd_depth;
 static const float qd_nodash[1] = {0.f};     /* (an empty dash array: solid; never a NULL to memcpy) */
+static int qd_y0, qd_sh = QD_STRIP_H;          /* P2.1: the strip being drawn: its first row, its rows */
+static uint32_t qd_px[QD_W * QD_STRIP_H];      /* .. its pixels (premultiplied ARGB) */
+void plutovg_raster_rows(int y0, int y1);      /* (FIZZ's patch of plutovg-ft-raster.c: the rows rendered) */
+struct qd_pvg_surface {                        /* (plutovg's surface as its private header has it: the data pointer
+                                                * moved a strip at a time; checked at qd_init) */
+    int ref_count, width, height, stride;
+    unsigned char *data;
+};
+static void qd_surf_rows(int y0)                /* the surface's row y0 is the pixels' first */
+{
+    ((struct qd_pvg_surface *)(void *)qd_surf)->data = (unsigned char *)qd_px - (ptrdiff_t)y0 * (ptrdiff_t)(QD_W * 4);
+}
+static int qd_strip_saved;                     /* .. its state level (a save over the canvas's base) */
 
+static int qd_init_(void);
 int qd_init(void)
 {
-    int i;
+    int r;
     if (qd_cv)
         return 1;
-    qd_surf = plutovg_surface_create(QD_W, QD_H);
-    if (!qd_surf)
+    QD_ARENA(1);
+    r = qd_init_();
+    QD_ARENA(0);
+    return r;
+}
+static int qd_init_(void)
+{
+    int i;
+    qd_surf = plutovg_surface_create_for_data((unsigned char *)qd_px, QD_W, QD_H, QD_W * 4);
+    if (!qd_surf || plutovg_surface_get_data(qd_surf) != (unsigned char *)qd_px)
         return 0;
+    qd_surf_rows(3);                                    /* (the private layout as expected: else no strips) */
+    if (plutovg_surface_get_data(qd_surf) != (unsigned char *)qd_px - 3 * QD_W * 4)
+        return 0;
+    qd_surf_rows(0);
     qd_cv = plutovg_canvas_create(qd_surf);
     qd_tmp = plutovg_path_create();
     for (i = 0; i < QD_FONTS_GEN_N; i++)
@@ -68,6 +108,7 @@ void qd_shutdown(void)
     qd_tmp = NULL;
     qd_cv = NULL;
     qd_surf = NULL;
+    qd_strip_saved = 0;
 }
 
 static void qd_color(qd_rgb c)
@@ -76,16 +117,45 @@ static void qd_color(qd_rgb c)
                            (float)(c & 255u) / 255.f);
 }
 
-void qd_begin(void)
+int qd_strip_rows(void) { return qd_sh; }
+/* (the rows the rasteriser makes, the strip's: only while the screen's canvas is drawn; a layer, a text mask, a tool's
+ * own sheet (after qd_end_strip) get every row) */
+static int qd_in_strip;
+static void qd_rows(int on)
+{
+    if (on && qd_in_strip && qd_sh < QD_H)
+        plutovg_raster_rows(qd_y0, qd_y0 + qd_sh);
+    else
+        plutovg_raster_rows(0, 0);
+}
+void qd_set_strip_rows(int h) { qd_sh = h < 1 ? 1 : h > QD_STRIP_H ? QD_STRIP_H : h; }
+
+void qd_begin(void) { qd_begin_strip(0); }
+
+void qd_begin_strip(int y0)
 {
     static const plutovg_color_t black = {0.f, 0.f, 0.f, 1.f};
     if (!qd_cv && !qd_init())
         return;
+    QD_ARENA(1);                                /* (P2.1: the core draws: the device's arena) */
     while (qd_depth > 0)                       /* (a screen that forgot a restore: the stack starts empty) */
         qd_restore();
+    qd_y0 = y0;
+    if (qd_strip_saved)                         /* (the strip's own state level: its clip undone) */
+        plutovg_canvas_restore(qd_cv);
     plutovg_canvas_reset_matrix(qd_cv);
+    plutovg_canvas_save(qd_cv);
+    qd_strip_saved = 1;
+    qd_surf_rows(y0);
+    qd_in_strip = 1;
+    qd_rows(1);
     plutovg_canvas_new_path(qd_cv);
-    plutovg_surface_clear(qd_surf, &black);
+    {   /* the strip's pixels black (opaque) */
+        int i;
+        (void)black;
+        for (i = 0; i < QD_W * qd_sh; i++)
+            qd_px[i] = 0xFF000000u;
+    }
     plutovg_canvas_set_opacity(qd_cv, 1.f);
     plutovg_canvas_set_line_width(qd_cv, 1.f);
     plutovg_canvas_set_line_cap(qd_cv, PLUTOVG_LINE_CAP_ROUND);
@@ -96,15 +166,21 @@ void qd_begin(void)
     qd_lw = 1.f;
 }
 
-void qd_end(uint16_t *lcd_be)
+void qd_end(uint16_t *lcd_be) { qd_end_strip(lcd_be); }
+
+void qd_end_strip(uint16_t *lcd_be)
 {
     const unsigned char *d;
     int stride, x, y;
+    QD_ARENA(0);
+    qd_in_strip = 0;
+    qd_rows(0);
     if (!qd_cv || !lcd_be)
         return;
-    d = plutovg_surface_get_data(qd_surf);
-    stride = plutovg_surface_get_stride(qd_surf);
-    for (y = 0; y < QD_H; y++) {
+    stride = QD_W * 4;
+    d = (const unsigned char *)qd_px;
+    lcd_be += (size_t)qd_y0 * QD_W;                     /* (P2.1: the strip's rows of the screen) */
+    for (y = 0; y < qd_sh && qd_y0 + y < QD_H; y++) {
         const uint32_t *row = (const uint32_t *)(const void *)(d + (size_t)y * (size_t)stride);
         for (x = 0; x < QD_W; x++) {
             /* premultiplied ARGB over an opaque black clear: alpha is 255 everywhere, the channels are the colour */
@@ -157,9 +233,32 @@ void qd_line_join(int join)
 }
 void qd_dash(const float *on_off, int n) { plutovg_canvas_set_dash(qd_cv, 0.f, n > 0 && on_off ? on_off : qd_nodash, n > 0 && on_off ? n : 0); }
 
+/* P2.1: the current path may touch the strip (its control points' box under the transform, widened by the stroke
+ * (a miter's reach) and a pixel's antialiasing): 0 when it cannot (nothing of it would be drawn) */
+static int qd_visible(float lw)
+{
+    plutovg_rect_t r, d;
+    plutovg_matrix_t m;
+    float sc, pad;
+    if (plutovg_path_extents(plutovg_canvas_get_path(qd_cv), &r, false) < 0.f)
+        return 1;
+    if (r.w < 0.f || r.h < 0.f)
+        return 0;                                       /* (an empty path) */
+    plutovg_canvas_map_rect(qd_cv, &r, &d);
+    plutovg_canvas_get_matrix(qd_cv, &m);
+    sc = sqrtf(fabsf(m.a * m.d - m.b * m.c));
+    pad = (lw > 0.f ? lw * sc * 5.f : 0.f) + 2.f;
+    return d.y - pad < (float)(qd_y0 + qd_sh) && d.y + d.h + pad > (float)qd_y0 && d.x - pad < (float)QD_W &&
+           d.x + d.w + pad > 0.f;
+}
+
 /* the current path: filled (if fill), then stroked (if stroke), then cleared */
 static void qd_paint(qd_rgb stroke, float lw, qd_rgb fill)
 {
+    if (!qd_visible(stroke != QD_NONE ? lw : 0.f)) {
+        plutovg_canvas_new_path(qd_cv);
+        return;
+    }
     if (fill != QD_NONE) {
         qd_color(fill);
         plutovg_canvas_fill_preserve(qd_cv);
@@ -279,7 +378,7 @@ void qd_path_fill(qd_rgb col) { qd_paint(QD_NONE, 0.f, col); }
 void qd_path_stroke(qd_rgb col, float lw) { qd_paint(col, lw > 0.f ? lw : qd_lw, QD_NONE); }
 void qd_path_stroke_keep(qd_rgb col, float lw)
 {
-    if (col == QD_NONE)
+    if (col == QD_NONE || !qd_visible(lw > 0.f ? lw : qd_lw))
         return;
     qd_color(col);
     plutovg_canvas_set_line_width(qd_cv, lw > 0.f ? lw : qd_lw);
@@ -297,6 +396,10 @@ int qd_layer_begin(int slot, int w, int h)
 {
     static const plutovg_color_t clear = {0.f, 0.f, 0.f, 0.f};
     const int uw = w, uh = h;
+#ifdef QD_DEVICE
+    (void)clear, (void)uw, (void)uh, (void)slot, (void)w, (void)h;
+    return 0;                                           /* (P2.1: no layers at the device's sizes) */
+#endif
     if (!qd_cv || qd_main_cv || slot < 0 || slot >= QD_NLAYER || w < 1 || h < 1)
         return 0;
     if (!qd_lsurf[slot] || plutovg_surface_get_width(qd_lsurf[slot]) < w || qd_lw_h[slot] < h) {
@@ -328,6 +431,7 @@ int qd_layer_resume(int slot)
         return 0;
     qd_main_cv = qd_cv;
     qd_cv = qd_lcv[slot];
+    qd_rows(0);
     qd_lw_main = qd_depth;
     qd_lw_saved = qd_lw;
     plutovg_canvas_reset_matrix(qd_cv);
@@ -349,6 +453,7 @@ void qd_layer_end(void)
     qd_cv = qd_main_cv;
     qd_main_cv = NULL;
     qd_lw = qd_lw_saved;
+    qd_rows(1);
 }
 
 void qd_layer_draw(int slot, float x, float y, float w, float h)
@@ -383,7 +488,8 @@ static plutovg_font_face_t *qd_face_for(int weight)
     int i, best = 0, bd = 1 << 30;
     for (i = 0; i < QD_FONTS_GEN_N; i++) {
         const int d = qd_fonts_gen[i].weight > weight ? qd_fonts_gen[i].weight - weight : weight - qd_fonts_gen[i].weight;
-        if (d < bd) {
+        if (d < bd || (d == bd && qd_fonts_gen[i].weight > qd_fonts_gen[best].weight)) {   /* (P2.1, three weights: a tie
+                                                         * goes to the heavier: 400 is 500, 600 700) */
             bd = d;
             best = i;
         }
@@ -433,7 +539,9 @@ int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *
     while (plutovg_text_iterator_has_next(&it))
         pen += plutovg_canvas_add_glyph(c, plutovg_text_iterator_next(&it), pen, y) + f->ls;
     plutovg_canvas_set_rgba(c, 1.f, 1.f, 1.f, 1.f);
+    qd_rows(0);                                         /* (P2.1: the mask's every row, in a strip or not) */
     plutovg_canvas_fill(c);
+    qd_rows(!qd_main_cv);
     d = plutovg_surface_get_data(s);
     stride = plutovg_surface_get_stride(s);
     for (j = 0; j < h; j++)

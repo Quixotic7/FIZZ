@@ -4,13 +4,14 @@
  * screens that cost the most heap: the idle screen, demo A01 playing in the step view, a held step and a p-lock,
  * knob takeovers, every button's screen held and tapped, the sound editor's pages, the TAP ape, a project written to
  * a RAM flash; and the sequencer's queues' high water over the three demos. The heap is counted by call site
- * (heapwrap.h, force-included into the core and plutovg). Prints "BUDGET <name> <value>" lines for budget.py. */
+ * (heapwrap.h, force-included into the core; P2.1: plutovg's in the drawing's arena, its peak reported). Prints "BUDGET <name> <value>" lines for budget.py. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "app.h"
 #include "persist.h"
+#include "qd_arena.h"
 #include "seq.h"
 
 void hw_report(FILE *o, const char *title);
@@ -122,6 +123,7 @@ int main(void)
     printf("BUDGET sizeof_app_host %lu\n", (unsigned long)sizeof(qd_app_t));
     printf("BUDGET heap_peak %ld\n", hw_peak);
     printf("BUDGET heap_live %ld\n", hw_live);
+    printf("BUDGET arena %lu %lu %u\n", (unsigned long)qd_arena_peak(), (unsigned long)qd_arena_size(), qd_arena_fails());
     printf("BUDGET seq_ev_peak %d %d\n", ev_peak, QD_SEQ_NEV);
     printf("BUDGET seq_rec_peak %d %d\n", rec_peak, QD_SEQ_NREC);
     printf("BUDGET seq_dropped %u %u\n", (unsigned)A.seq.dropped_ev, (unsigned)A.seq.dropped_rec);

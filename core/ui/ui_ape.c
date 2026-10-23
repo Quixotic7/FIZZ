@@ -133,6 +133,7 @@ static void ap_sparkle(float x, float y, float r, qd_rgb col)
 
 /* ---------------------------------------------------------------- the poses */
 static int16_t ap_i16(const uint8_t *b) { return (int16_t)(b[0] | b[1] << 8); }
+#ifndef QD_DEVICE
 /* colour c of pose k into the path (the pose's units: half px, y up negative): its smooth lines as quadratics through
  * the midpoints, its straight chains as lines */
 static void ap_path_part(int k, int c, int p0, int p1)   /* (its polylines p0 .. p1 - 1 only: the others read past) */
@@ -174,6 +175,7 @@ static void ap_path_part(int k, int c, int p0, int p1)   /* (its polylines p0 ..
     }
 }
 static void ap_path(int k, int c) { ap_path_part(k, c, 0, 255); }
+#endif
 
 typedef struct { float x0, x1, y0, y1, cx, cy; } ap_box_t;
 static float ap_posex(int k) { return k == 8 ? AP_BX : 236.f - AP_S * (float)APE_POSES[k].ext[2]; }
@@ -187,6 +189,87 @@ static ap_box_t ap_posebox(int k, float dx)
     b.cx = x + AP_S * (float)(e[0] + e[2]) * 0.5f, b.cy = AP_FY - AP_S * (float)(e[1] + e[3]) * 0.5f;
     return b;
 }
+#ifdef QD_DEVICE
+/* P2.1 (the owner: "you should be able to procedurally draw the ape's poses for pretty cheap"): at the device's sizes no
+ * layers and no cache (they were 384 KB): each frame draws the pose it shows from its lines, made cheap: straight
+ * segments through the traced points, a point kept only when it is AP_LITE units (half px) or more from the last one
+ * kept (a polyline's ends always), each colour one path stroked twice (a soft glow, the line) instead of three
+ * times; the snap's flash the same lines once in cream. The host keeps the cached, smoothed, three-stroke drawing */
+#define AP_LITE 7
+static void ap_path_lite(int k, int c)
+{
+    const uint8_t *b = APE_BYTES + APE_POSES[k].off[c];
+    int n = APE_POSES[k].n[c], px = 0, py = 0, first = 1, p;
+    for (p = 0; p < n; p++) {
+        const int h = *b++, np = (h & 63) + 1;
+        int x, y, i, lx, ly;
+        if (h & 0x40) {
+            x = px, y = py;
+        } else if (first) {
+            x = ap_i16(b), y = ap_i16(b + 2), b += 4;
+        } else if ((int8_t)b[0] == -128) {
+            x = ap_i16(b + 1), y = ap_i16(b + 3), b += 5;
+        } else {
+            x = px + (int8_t)b[0], y = py + (int8_t)b[1], b += 2;
+        }
+        first = 0;
+        qd_move_to((float)x, (float)y);
+        lx = x, ly = y;
+        for (i = 1; i < np; i++) {
+            x += (int8_t)b[0], y += (int8_t)b[1], b += 2;
+            if (i == np - 1 || (x - lx) * (x - lx) + (y - ly) * (y - ly) >= AP_LITE * AP_LITE) {
+                qd_line_to((float)x, (float)y);
+                lx = x, ly = y;
+            }
+        }
+        px = x, py = y;
+    }
+}
+typedef struct { float dx, lift, sx, sy, rot, alpha, flash; int mid; } ap_pose_o;
+static void ap_pose(int k, const ap_pose_o *o)
+{
+    const ap_box_t b = ap_posebox(k, o->dx);
+    const float ax = b.cx, ay = o->mid ? b.cy : AP_FY, lw = 1.55f * 2.f / AP_S;
+    int c;
+    qd_save();
+    qd_alpha(qd_get_alpha() * o->alpha);
+    qd_translate(ax, ay - o->lift);
+    if (o->rot != 0.f)
+        qd_rotate(o->rot);
+    qd_scale(o->sx, o->sy);
+    qd_translate(-ax, -ay);
+    qd_translate(ap_posex(k) + o->dx, AP_FY);
+    qd_scale(AP_S * 0.5f, AP_S * 0.5f);
+    for (c = 0; c < APE_NCOL; c++) {
+        if (!APE_POSES[k].n[c])
+            continue;
+        qd_path_begin();
+        ap_path_lite(k, c);
+        qd_save();
+        qd_alpha(qd_get_alpha() * 0.22f);
+        qd_path_stroke_keep(ap_c(AP_COL[c]), lw * 2.8f);
+        qd_restore();
+        qd_path_stroke(ap_c(AP_COL[c]), lw);
+    }
+    if (o->flash > 0.f) {
+        qd_alpha(qd_get_alpha() * o->flash * 0.7f);
+        qd_path_begin();
+        for (c = 0; c < APE_NCOL; c++)
+            ap_path_lite(k, c);
+        qd_path_stroke(AP_CREAM, lw * 1.1f);
+    }
+    qd_restore();
+}
+static void ap_ghost(int k, float alpha, float lift)    /* the pose it left, faint */
+{
+    ap_pose_o o = {0.f, lift, 1.f, 1.f, 0.f, alpha, 0.f, 0};
+    ap_pose(k, &o);
+}
+static int ap_keep[2] = {-1, -1};
+static int ap_prepare(int k) { (void)k; return 0; }
+void ui_ape_forget(void) {}
+void ui_ape_prewarm(int ext) { (void)ext; }
+#else
 /* The poses cached (0.9.2.1: the site draws FIZZ inside the browser's audio thread; the unit needs it cheap too). A pose
  * is drawn once, into a layer at full resolution (its glow and its lines, a colour at a time as on screen), and a half
  * resolution layer of its lines in cream for the tap's flash; each frame places them with the groove's transform. Three
@@ -411,6 +494,8 @@ static void ap_ghost(int k, float alpha, float lift)    /* the pose it left: its
     if (i >= 0)
         ap_place(i, &o);
 }
+
+#endif
 
 /* ---------------------------------------------------------------- the boombox (the reference's, drawn) */
 static void ap_boombox(float x, float y, float w, float h, float pulse)

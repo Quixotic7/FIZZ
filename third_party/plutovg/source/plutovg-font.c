@@ -209,6 +209,9 @@ static void plutovg_glyph_cache_finish(plutovg_glyph_cache_t* cache, plutovg_fon
 }
 
 #define GLYPH_CACHE_INIT_CAPACITY 128
+#ifdef PLUTOVG_GLYPH_CACHE_MAX
+unsigned plutovg_glyph_cache_clears;    /* (FIZZ: how often a full cache was emptied) */
+#endif
 
 static plutovg_glyph_t* plutovg_glyph_cache_get(plutovg_glyph_cache_t* cache, plutovg_font_face_t* face, plutovg_codepoint_t codepoint)
 {
@@ -227,6 +230,24 @@ static plutovg_glyph_t* plutovg_glyph_cache_get(plutovg_glyph_cache_t* cache, pl
     }
 
     if(glyph == NULL) {
+#ifdef PLUTOVG_GLYPH_CACHE_MAX
+        /* FIZZ (P2.1, a patch of this vendored copy): a face's cache holds at most PLUTOVG_GLYPH_CACHE_MAX glyphs; when
+         * full it is emptied before the next one goes in (a glyph is only used between its get and the next) */
+        if(cache->size >= PLUTOVG_GLYPH_CACHE_MAX) {
+            for(size_t i = 0; i < cache->capacity; ++i) {
+                plutovg_glyph_t* entry = cache->glyphs[i];
+                while(entry) {
+                    plutovg_glyph_t* next = entry->next;
+                    stbtt_FreeShape(&face->info, entry->vertices);
+                    free(entry);
+                    entry = next;
+                }
+                cache->glyphs[i] = NULL;
+            }
+            cache->size = 0;
+            plutovg_glyph_cache_clears++;
+        }
+#endif
         glyph = malloc(sizeof(plutovg_glyph_t));
         glyph->codepoint = codepoint;
         glyph->index = stbtt_FindGlyphIndex(&face->info, codepoint);

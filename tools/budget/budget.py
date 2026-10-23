@@ -55,6 +55,11 @@ PI_FLAGS = ["-target", "pi32v2", "-Os", "-ffunction-sections", "-fno-builtin", "
             "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD"]
 
 
+# P2.1: at the device's sizes plutovg's malloc / free are the drawing's fixed arena (core/gfx/qd_arena.h; tools/Makefile
+# PVG_ARENA): a static block, counted with the statics; the bench reports how much of it the screens used
+PVG_ARENA = ["-DQD_ARENA_REDIRECT", "-include", str(ROOT / "core/gfx/qd_arena.h")]
+
+
 def sh(cmd, **kw):
     r = subprocess.run(cmd, capture_output=True, text=True, **kw)
     if r.returncode:
@@ -95,8 +100,8 @@ def arm_build(core, pvg, inc):
     for s in pvg:
         o = d / ("pvg-" + s.stem + ".o")
         objs.append(o)
-        jobs.append([gcc, *ARM_FLAGS, *CC_FLAGS, "-std=c11", "-w", "-Wno-incompatible-pointer-types", "-fstack-usage", "-fcallgraph-info=su", *incf, "-c",
-                     "-o", str(o), str(s)])
+        jobs.append([gcc, *ARM_FLAGS, *CC_FLAGS, "-std=c11", "-w", "-Wno-incompatible-pointer-types", "-fstack-usage", "-fcallgraph-info=su", *incf,
+                     *PVG_ARENA, "-c", "-o", str(o), str(s)])
     compile_all(jobs)
     elf = d / "fizz-dev.elf"
     sh([gcc, *ARM_FLAGS, "--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", f"-Wl,-Map={d / 'fizz-dev.map'}",
@@ -264,8 +269,8 @@ def host_bench(core, pvg, inc):
     for s in pvg:
         o = d / ("pvg-" + s.stem + ".o")
         objs.append(o)
-        jobs.append([cc, "-O2", "-g", "-std=c11", "-w", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
-                     "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD", "-include", hw, *incf,
+        jobs.append([cc, "-O2", "-g", "-std=c11", "-w", "-DQD_DEVICE", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
+                     "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD", *PVG_ARENA, *incf,
                      f"-I{ROOT / 'third_party/plutovg/source'}", "-c", "-o", str(o), str(s)])
     for s in (HERE / "bench.c", HERE / "heapwrap.c"):
         o = d / (s.stem + ".o")
@@ -357,7 +362,11 @@ def main():
         r = mods[m].get(".data", 0) + mods[m].get(".bss", 0)
         print(f"  static {m:<22} {r:>9} B {kb(r)}")
     print(f"  static, the core + plutovg   {core_ram:>9} B {kb(core_ram)}")
-    print(f"  heap peak (bench)            {heap:>9} B {kb(heap)}   (live at the end {int(hb['heap_live'][0])})")
+    print(f"  heap peak (bench)            {heap:>9} B {kb(heap)}   (live at the end {int(hb['heap_live'][0])}; plutovg's"
+          f" in the arena)")
+    ap, asz, af = (int(x) for x in hb["arena"])
+    print(f"  the drawing's arena          {asz:>9} B {kb(asz)}   (a static above: the bench's screens used {ap} at most,"
+          f" {af} requests refused)")
     print(f"  the LCD frame                {lcd:>9} B {kb(lcd)}   (what the core draws into: 240 x 240 RGB565 today)")
     print(f"  libc / libm's own            {lib_ram:>9} B   (the platform's: not counted)")
     print(f"  FIZZ's RAM                   {ram:>9} B {kb(ram)}   budget {BUDGET_RAM} B {kb(BUDGET_RAM)}"
