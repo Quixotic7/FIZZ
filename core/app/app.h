@@ -127,6 +127,7 @@ typedef struct qd_app {
     qd_model_t model;
     qd_pool_t pool;
     qd_mix_t mix;
+    qd_mix_track_t blk_mt[QD_NTRACK];   /* P2.6: the tracks' mix as qd_app_block_begin found it (the voices' calls read it) */
     /* the sequencer (P1.2) */
     qd_project_t proj;
     qd_seq_t seq;
@@ -181,6 +182,24 @@ void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx,
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out);
 /* the sound: frames of 16-bit stereo, interleaved, at QD_FS (rendered in control blocks of 32 frames) */
 void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames);
+/* P2.6: one control block (QD_MIX_CTL frames) in three, for the two cores (qd_app_audio is the three in a row, the voices
+ * in two halves: 0 .. n/2 - 1 into A, n/2 .. n - 1 into B):
+ *   qd_app_block_begin   all the shared work: the sequencer's events, the voices started and stolen, the owners' LFOs
+ *                        and glides, the MIDI FX, the comb lines claimed;
+ *   qd_app_block_voices  voices v0 .. v1 - 1 rendered and mixed into bus (cleared first). Pure: it writes those voices'
+ *                        own state and bus, nothing else (no pool counter, owner, arena, flash or global), so the two
+ *                        halves may run at once on the two cores; its stack: under 1 KB;
+ *   qd_app_block_end     A + B (integer sums: the order of the halves changes nothing), the latest voices' LFO offsets
+ *                        to their tracks, the metronome, the effects, the output: QD_MIX_CTL stereo frames into out.
+ * The same samples whichever half runs first, bit for bit (test_app). The pool takes a free voice from the half with
+ * fewer in use (pool.h halves) */
+typedef struct {
+    int32_t l[QD_MIX_CTL], r[QD_MIX_CTL], sc[QD_MIX_CTL], sd[QD_MIX_CTL], sr[QD_MIX_CTL];   /* dry, chorus, delay, reverb */
+    int n;                                  /* voices rendered into it */
+} qd_bus_t;
+void qd_app_block_begin(qd_app_t *a);
+void qd_app_block_voices(qd_app_t *a, int v0, int v1, qd_bus_t *bus);
+void qd_app_block_end(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int16_t *out);
 
 /* for the controller (ctl*.c): the transport, the sound's tempo, a note key played on the selected track */
 void qd_app_play(qd_app_t *a);

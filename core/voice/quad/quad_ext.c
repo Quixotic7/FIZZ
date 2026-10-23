@@ -45,8 +45,9 @@ static void quad_ext_adsr_back(quad_voice_t *s)
 static void quad_ext_drive_pre(track_t *t, voice_t *v, int32_t *b, uint32_t n)
 {
     int32_t dr = v->patch[QD_QP_DRIVE];
-    if (t->quad_fx_off[0])
-        dr = clamp(dr + t->quad_fx_off[0], 0, 127);
+    const int32_t fo = v == t->m_v && v->nx_ok ? v->nx_fx[0] : t->quad_fx_off[0];   /* (P2.6: the latest voice's own) */
+    if (fo)
+        dr = clamp(dr + fo, 0, 127);
     qd_quad_dist((qd_dist_t *)(void *)&v->dpre, dr, b, (int)n);
 }
 
@@ -129,6 +130,19 @@ static void qe_comb_free(voice_t *v)
     v->comb.line = 0;
 }
 
+/* P2.6 (the owner's defer_off): a comb line claimed (or given back) before the block's voices, in the voices' order,
+ * where the render would at a fresh start or a machine switched: the render then only uses its line */
+static void qe_comb_prepare(voice_t *v, int idx)
+{
+    const int mach = v->patch[QD_QP_FTYPE];
+    if (!v->active || !v->owner || !v->owner->defer_off || !(v->comb.fresh || v->comb.mach != mach))
+        return;
+    if (qe_is_comb(mach))
+        qe_comb_claim(v, idx);
+    else
+        qe_comb_free(v);
+}
+
 static int32_t qe_comb_len(int32_t cut)
 {
     int32_t i;
@@ -151,10 +165,11 @@ static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int3
     if (v->comb.fresh || v->comb.mach != mach) {        /* (a fresh voice, or a machine switched: from rest; the dip
                                                          * makes it silent meanwhile) */
         if (qe_is_comb(mach)) {
-            qe_comb_claim(v, (int)s->idx);              /* (P2.1c: a line lent; none: MULTI) */
+            if (!v->owner || !v->owner->defer_off)      /* (P2.6: else claimed before the block) */
+                qe_comb_claim(v, (int)s->idx);          /* (P2.1c: a line lent; none: MULTI) */
             if (v->comb.line)
                 memset(qe_comb[v->comb.line - 1], 0, sizeof qe_comb[0]);
-        } else {
+        } else if (!v->owner || !v->owner->defer_off) {
             qe_comb_free(v);
         }
         v->comb.w = 0, v->comb.lp = 0, v->comb.len = qe_comb_len(cut);

@@ -113,6 +113,32 @@ void qd_quad_owner_block(qd_quad_owner_t *o)
     quad_block(o);
 }
 
+void qd_quad_owner_publish(qd_quad_owner_t *o)
+{
+    const qd_quad_voice_t *v = o->m_v;
+    int k;
+    if (!o->defer_off || !v || !v->nx_ok)
+        return;
+    o->quad_pan_off = v->nx_pan;
+    for (k = 0; k < 4; k++)
+        o->quad_fx_off[k] = v->nx_fx[k];
+}
+
+/* P2.6 (tests): a hash of what the voices share outside themselves (the song stub, who holds each comb line) */
+uint32_t qd_quad_shared_sig(void)
+{
+    const uint8_t *b = (const uint8_t *)(const void *)&song;
+    uint32_t h = 2166136261u, i;
+    for (i = 0; i < sizeof song; i++)
+        h = (h ^ b[i]) * 16777619u;
+    b = (const uint8_t *)(const void *)qe_comb_by;
+    for (i = 0; i < sizeof qe_comb_by; i++)
+        h = (h ^ b[i]) * 16777619u;
+    return h;
+}
+
+void qd_quad_voice_prepare(qd_quad_voice_t *v) { qe_comb_prepare(v, (int)((quad_voice_t *)(void *)v->qstate)->idx); }
+
 /* ---------------------------------------------------------------- a voice --- */
 void qd_quad_voice_init(qd_quad_voice_t *v, uint32_t idx)
 {
@@ -135,6 +161,7 @@ void qd_quad_voice_start(qd_quad_voice_t *v, const int16_t *patch, qd_quad_owner
     v->vel = v->mvel = (uint8_t)vel;
     v->gate = v->active = 1;
     v->kill = 0;
+    v->nx_ok = 0;                                       /* (P2.6: no offsets of its own until its first block) */
     v->pitch16 = v->pitch_cur = (int32_t)note * 16;
     v->gstep = 0;                                       /* (E1: no glide unless qd_quad_voice_glide says so) */
     {   /* E4: RANDOM: a value a note, from the voice's place and the track's count of notes (deterministic) */
@@ -211,8 +238,7 @@ int qd_quad_voice_render(qd_quad_voice_t *v, int32_t *out)
     vmod_t m;
     if (!v->active || !t)
         return 0;
-    song.g[G_BPM] = t->bpm;
-    if (quad_done(t, v)) {
+    if (quad_done(t, v)) {                              /* (P2.6: the owner's tempo read from it: no global written) */
         v->env = v->env_out = 0;
         v->active = v->gate = v->kill = 0;
         return 0;

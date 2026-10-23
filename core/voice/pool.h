@@ -78,6 +78,8 @@ typedef struct {
     uint32_t starts, restrikes, frees, steals_own, steals_cross, drops;   /* frees: notes that took a free voice */
     uint32_t dips, writes, legatos;
     int dip_on;                         /* 1 (the default): routing changes dip; 0: they land at once (tests) */
+    int halves;                         /* P2.6: a free voice from the half (0 .. n/2 - 1, n/2 .. n - 1) with fewer
+                                         * voices in use (the two cores' share); 0 (the default): the first free */
     qd_pool_voice_t v[QD_POOL_MAX];
 } qd_pool_t;
 

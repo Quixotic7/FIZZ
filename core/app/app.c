@@ -388,24 +388,54 @@ void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx,
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out) { qd_ctl_leds(a, out); }
 
 /* one control block: the sequencer's events of this block into the pool, the voices (per voice into the mix and the
- * sends), then ChoralRoot's effects and Output Clean, as 16-bit stereo */
-static void qd_app_block(qd_app_t *a, int16_t *out)
+ * sends), then ChoralRoot's effects and Output Clean, as 16-bit stereo. P2.6: in three (app.h qd_app_block_*) */
+static void owners_of(qd_app_t *a, qd_quad_owner_t **ow)
+{
+    int i;
+    for (i = 0; i < QD_NTRACK; i++)
+        ow[i] = &a->model.t[i].owner;
+}
+
+void qd_app_block_begin(qd_app_t *a)
 {
     qd_quad_owner_t *ow[QD_NTRACK];
-    qd_mix_track_t mt[QD_NTRACK];
-    int32_t l[QD_MIX_CTL], r[QD_MIX_CTL], sc[QD_MIX_CTL], sd[QD_MIX_CTL], sr[QD_MIX_CTL], o[2 * QD_MIX_CTL];
     int i;
+    a->proj.nopage++;                                   /* (the audio side: pattern.h) */
     qd_player_block(&a->player);
     {
         const int b = qd_seq_bpm(&a->seq);              /* (a pattern change or the MIDI clock moved it) */
         if (b != a->bpm)
             qd_app_tempo(a, b);
     }
+    owners_of(a, ow);
     for (i = 0; i < QD_NTRACK; i++) {
-        ow[i] = &a->model.t[i].owner;
-        mt[i] = a->model.t[i].mix;
+        ow[i]->defer_off = 1;                           /* (the voices write nothing of their owner's) */
+        a->blk_mt[i] = a->model.t[i].mix;
     }
-    qd_mix_block(&a->mix, &a->pool, ow, mt, QD_NTRACK, l, r, sc, sd, sr);
+    a->pool.halves = 1;
+    qd_mix_begin(&a->mix, &a->pool, ow, QD_NTRACK);
+    a->proj.nopage--;
+}
+
+void qd_app_block_voices(qd_app_t *a, int v0, int v1, qd_bus_t *bus)
+{
+    bus->n = qd_mix_voices(&a->mix, &a->pool, a->blk_mt, QD_NTRACK, v0, v1, bus->l, bus->r, bus->sc, bus->sd, bus->sr);
+}
+
+void qd_app_block_end(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int16_t *out)
+{
+    qd_quad_owner_t *ow[QD_NTRACK];
+    int32_t l[QD_MIX_CTL], r[QD_MIX_CTL], sc[QD_MIX_CTL], sd[QD_MIX_CTL], sr[QD_MIX_CTL], o[2 * QD_MIX_CTL];
+    int i;
+    for (i = 0; i < QD_MIX_CTL; i++) {                  /* A then B (integer sums: either order the same) */
+        l[i] = A->l[i] + B->l[i];
+        r[i] = A->r[i] + B->r[i];
+        sc[i] = A->sc[i] + B->sc[i];
+        sd[i] = A->sd[i] + B->sd[i];
+        sr[i] = A->sr[i] + B->sr[i];
+    }
+    owners_of(a, ow);
+    qd_mix_end(&a->mix, ow, QD_NTRACK, A->n + B->n);
     if (a->metro && a->playing) {                       /* P1.5c: the metronome: a click on each beat into the mix
                                                          * (its own level, no track's), accented on the bar's first */
         const int64_t beat = a->beat;
@@ -413,7 +443,7 @@ static void qd_app_block(qd_app_t *a, int16_t *out)
             a->metro_beat = beat;
             a->metro_left = QD_FS / 40;                 /* (25 ms) */
             a->metro_ph = 0;
-            a->metro_acc = (int)(beat % 4) == 0;
+            a->metro_acc = (beat & 3) == 0;             /* (P2.6: beat >= 0: no 64-bit remainder) */
         }
         for (i = 0; i < QD_MIX_CTL && a->metro_left; i++, a->metro_left--) {
             const float t = (float)a->metro_ph / (float)QD_FS, env = expf(-t * 180.f);
@@ -429,6 +459,16 @@ static void qd_app_block(qd_app_t *a, int16_t *out)
     qd_fx_block(sc, sd, sr, l, r, o);
     for (i = 0; i < 2 * QD_MIX_CTL; i++)
         out[i] = (int16_t)(o[i] > 32767 ? 32767 : o[i] < -32768 ? -32768 : o[i]);
+}
+
+static void qd_app_block(qd_app_t *a, int16_t *out)
+{
+    qd_bus_t A, B;                                      /* (1.3 KB of the audio side's stack) */
+    const int mid = a->pool.nvoice / 2;
+    qd_app_block_begin(a);
+    qd_app_block_voices(a, 0, mid, &A);
+    qd_app_block_voices(a, mid, a->pool.nvoice, &B);
+    qd_app_block_end(a, &A, &B, out);
 }
 
 void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames)

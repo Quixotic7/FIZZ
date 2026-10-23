@@ -745,12 +745,12 @@ static int32_t quad_exp2(int32_t x)
 /* LFO k's phase increment per control tick: f = SPEED x MULT / 128 x BPM / 240 Hz (SPEED x MULT = 128: a bar; MULT's
  * fixed set at 120 BPM); negative runs backwards, 0 stops. SPEED in hundredths (-6400..6399), exact in 64 bits */
 typedef char quad_lfo_k_ok[QUAD_LFO_K == 100u * 65536u + 94996u ? 1 : -1];   /* (P2.4: quad_lfo_incv's split) */
-static int32_t quad_lfo_incv(int32_t sp, uint32_t mu)
+static int32_t quad_lfo_incb(int32_t sp, uint32_t mu, int32_t gbpm)   /* (P2.6: the owner's tempo, no global) */
 {
     int32_t bpm;
     uint64_t v;
     mu %= QUAD_NMULT;
-    bpm = mu < 12u ? clamp(song.g[G_BPM], 20, 300) : 120;
+    bpm = mu < 12u ? clamp(gbpm, 20, 300) : 120;
     /* the magnitude (a signed clamp of the quotient made the compiler load a constant tools/build.py takes for a ROM
      * address) */
     {   /* a x K / (100 x 65536), a = |SPEED| << MULT x BPM (< 2^32): with K = 100 x 65536 + 94996 and 100 x 65536 =
@@ -762,9 +762,10 @@ static int32_t quad_lfo_incv(int32_t sp, uint32_t mu)
     v = v > 0x7FFFFFFFu ? 0x7FFFFFFFu : v;
     return sp < 0 ? -(int32_t)v : (int32_t)v;
 }
-static int32_t quad_lfo_inc(const int16_t *p, uint32_t k)
+static int32_t quad_lfo_incv(int32_t sp, uint32_t mu) { return quad_lfo_incb(sp, mu, song.g[G_BPM]); }
+static int32_t quad_lfo_incb_p(const int16_t *p, uint32_t k, int32_t gbpm)
 {
-    return quad_lfo_incv(p[QP_LFO(k, QL_SPEED)], (uint32_t)p[QP_LFO(k, QL_MULT)]);
+    return quad_lfo_incb(p[QP_LFO(k, QL_SPEED)], (uint32_t)p[QP_LFO(k, QL_MULT)], gbpm);
 }
 
 /* LFO wave w at phase ph (r: the random value, Q15): Q15 */
@@ -795,7 +796,7 @@ static void quad_block(track_t *t)
         return;
     for (k = 0; k < 3u; k++) {
         uint32_t old = t->quad_lfo.ph[k];
-        int32_t inc = quad_lfo_inc(p, k);
+        int32_t inc = quad_lfo_incb_p(p, k, t->bpm);
         t->quad_lfo.ph[k] = old + (uint32_t)inc;
         if (inc > 0 ? t->quad_lfo.ph[k] < old : inc < 0 && t->quad_lfo.ph[k] > old)
             t->quad_lfo.rnd[k] = quad_xs(t->quad_lfo.rnd[k] + k);
@@ -935,11 +936,16 @@ static const uint32_t *const QUAD_TDEC[4] = {QUAD_T_ODEC, QUAD_T_ODEC, QUAD_T_FD
  * end releases (REL, exponential to 0 on the decay's table, then off; REL 127 = INF: the level held, stage 5, until
  * REL (modulated) leaves 127, a steal or a panic: the Digitone's 0..126 + INF). The step of a release is rounded up,
  * so a long one's (a share < 1 / 4096) reaches the end at 2^12 too. Q15 */
+static int32_t quad_env_tickb(quad_voice_t *s, uint32_t k, int32_t atk, int32_t dec, int32_t sus, int32_t rel,
+                              int32_t dly, int gate, int adsr, int32_t gbpm)   /* (P2.6: the owner's tempo) */
+{
+    return fz_env_step(&s->env[k], &s->stage[k], &s->dly[k], k < 2u, QUAD_TATK[k], QUAD_TDEC[k], atk, dec, sus, rel, dly,
+                       gate, adsr, k == 3u, gbpm, QUAD_OP_FLOOR, QUAD_DLY_K);   /* (L1: fz_voice.h) */
+}
 static int32_t quad_env_tick(quad_voice_t *s, uint32_t k, int32_t atk, int32_t dec, int32_t sus, int32_t rel,
                              int32_t dly, int gate, int adsr)
 {
-    return fz_env_step(&s->env[k], &s->stage[k], &s->dly[k], k < 2u, QUAD_TATK[k], QUAD_TDEC[k], atk, dec, sus, rel, dly,
-                       gate, adsr, k == 3u, song.g[G_BPM], QUAD_OP_FLOOR, QUAD_DLY_K);   /* (L1: fz_voice.h) */
+    return quad_env_tickb(s, k, atk, dec, sus, rel, dly, gate, adsr, song.g[G_BPM]);
 }
 
 static int quad_done(track_t *t, voice_t *v)    /* the amp envelope has ended (voice.c, engine_t.done) */
@@ -1135,9 +1141,9 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         if (!k && (dst[QD_L1SPD] | dst[QD_L1MUL] | dst[QD_L1FAD] | dst[QD_L1WAV] | dst[QD_L1SPH] | dst[QD_L1MOD] |
                    dst[QD_L1DEP])) {            /* LFO 1's own parameters, moved by LFO 2 / 3 (none: as stored) */
             int32_t sp = clamp(p[QP_LFO(0, QL_SPEED)] + ((dst[QD_L1SPD] * 12700) >> 15), -6400, 6399);
-            int32_t mu = p[QP_LFO(0, QL_MULT)], ms = mu < 12 ? 0 : 12, ib = quad_lfo_inc(p, 0);
+            int32_t mu = p[QP_LFO(0, QL_MULT)], ms = mu < 12 ? 0 : 12, ib = quad_lfo_incb_p(p, 0, t->bpm);
             mu = ms + clamp(mu - ms + ((dst[QD_L1MUL] * 11) >> 15), 0, 11);   /* (within its set: BPM or fixed) */
-            inc0 = quad_lfo_incv(sp, (uint32_t)mu);
+            inc0 = quad_lfo_incb(sp, (uint32_t)mu, t->bpm);
             tm = (uint32_t)clamp((int32_t)tm + ((dst[QD_L1MOD] * (QT_N - 1)) >> 15), 0, QT_N - 1);
             if (tm == QT_FREE)                   /* the part's phase runs at the stored rate: the voice's lead */
                 s->lof += (uint32_t)inc0 - (uint32_t)ib;
@@ -1146,7 +1152,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             sph = clamp(sph + ((dst[QD_L1SPH] * 127) >> 15), 0, 127);
             dep = clamp(dep + ((dst[QD_L1DEP] * 12700) >> 15), -6400, 6399);
         } else {
-            inc0 = quad_lfo_inc(p, k);
+            inc0 = quad_lfo_incb_p(p, k, t->bpm);
         }
         if (tm == QT_FREE) {
             ph = t->quad_lfo.ph[k] + (wv == QW_RAND ? 0u : (uint32_t)sph << 25) + (k ? 0u : s->lof);   /* QUADRILLE
@@ -1203,30 +1209,37 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
 #define QMV(i, d, sc, lo, hi) clamp(p[i] + ((dst[d] * (sc)) >> 15), lo, hi)
 #define QMV2(i, d, d2, sc, lo, hi) clamp(p[i] + (((dst[d] + dst[d2]) * (sc)) >> 15), lo, hi)   /* (+ an AB macro) */
     /* the envelopes (their times, END, SUS modulated; the AB macros move A's and B's together) */
-    eA = quad_env_tick(s, 0, QMV2(QP_AATK, QD_AATK, QD_ABATK, 127, 0, 127),
+    eA = quad_env_tickb(s, 0, QMV2(QP_AATK, QD_AATK, QD_ABATK, 127, 0, 127),
                        QMV2(QP_ADEC, QD_ADEC, QD_ABDEC, 127, 0, 127), QMV2(QP_AEND, QD_AEND, QD_ABEND, 127, 0, 127) << 17,
-                       0, QMV2(QP_ADLY, QD_ADLY, QD_ABDLY, 127, 0, 127), 1, 0);
-    eB = quad_env_tick(s, 1, QMV2(QP_BATK, QD_BATK, QD_ABATK, 127, 0, 127),
+                       0, QMV2(QP_ADLY, QD_ADLY, QD_ABDLY, 127, 0, 127), 1, 0, t->bpm);
+    eB = quad_env_tickb(s, 1, QMV2(QP_BATK, QD_BATK, QD_ABATK, 127, 0, 127),
                        QMV2(QP_BDEC, QD_BDEC, QD_ABDEC, 127, 0, 127), QMV2(QP_BEND, QD_BEND, QD_ABEND, 127, 0, 127) << 17,
-                       0, QMV2(QP_BDLY, QD_BDLY, QD_ABDLY, 127, 0, 127), 1, 0);
-    eF = quad_env_tick(s, 2, QMV(QP_FATK, QD_FATK, 127, 0, 127), QMV(QP_FDEC, QD_FDEC, 127, 0, 127),
+                       0, QMV2(QP_BDLY, QD_BDLY, QD_ABDLY, 127, 0, 127), 1, 0, t->bpm);
+    eF = quad_env_tickb(s, 2, QMV(QP_FATK, QD_FATK, 127, 0, 127), QMV(QP_FDEC, QD_FDEC, 127, 0, 127),
                        QMV(QP_FSUS, QD_FSUS, 127, 0, 127) << 17, QMV(QP_FREL, QD_FREL, 127, 0, 127),
-                       QMV(QP_FDLY, QD_FDLY, 127, 0, 127), v->gate, 1);
+                       QMV(QP_FDLY, QD_FDLY, 127, 0, 127), v->gate, 1, t->bpm);
     if (p[QD_QP_AMOD]) {                         /* QUADRILLE (e), hook 1: the amp envelope in AHD */
         eE = quad_ext_ahd(s, QMV(QP_EATK, QD_EATK, 127, 0, 127), QMV(QD_QP_HOLD, QD_HOLD, 127, 0, 127),
                           QMV(QP_EDEC, QD_EDEC, 127, 0, 127), v->gate);
     } else {
         if (s->stage[3] >= 6u)                   /* (QUADRILLE (e): back from AHD mid-note) */
             quad_ext_adsr_back(s);
-        eE = quad_env_tick(s, 3, QMV(QP_EATK, QD_EATK, 127, 0, 127), QMV(QP_EDEC, QD_EDEC, 127, 0, 127),
-                           QMV(QP_ESUS, QD_ESUS, 127, 0, 127) << 17, QMV(QP_EREL, QD_EREL, 127, 0, 127), 0, v->gate, 1);
+        eE = quad_env_tickb(s, 3, QMV(QP_EATK, QD_EATK, 127, 0, 127), QMV(QP_EDEC, QD_EDEC, 127, 0, 127),
+                           QMV(QP_ESUS, QD_ESUS, 127, 0, 127) << 17, QMV(QP_EREL, QD_EREL, 127, 0, 127), 0, v->gate, 1,
+                           t->bpm);
     }
     if (v == t->m_v)                             /* the part's PAN: from the latest note's voice (QUADRILLE (b): the
                                                   * owner's latest voice, its offsets) */
     {
-        t->quad_pan_off = (int8_t)clamp((dst[QD_PAN] * 64) >> 15, -64, 63);
+        v->nx_pan = (int8_t)clamp((dst[QD_PAN] * 64) >> 15, -64, 63);
         for (k = 0; k < 4u; k++)                 /* DRIVE, REV, DEL, CHO: the part's, +-127 at full depth */
-            t->quad_fx_off[k] = (int8_t)clamp((dst[QD_DRIVE + k] * 127) >> 15, -127, 127);
+            v->nx_fx[k] = (int8_t)clamp((dst[QD_DRIVE + k] * 127) >> 15, -127, 127);
+        v->nx_ok = 1;
+        if (!t->defer_off) {                     /* (P2.6: the split block publishes them after its voices) */
+            t->quad_pan_off = v->nx_pan;
+            for (k = 0; k < 4u; k++)
+                t->quad_fx_off[k] = v->nx_fx[k];
+        }
     }
     /* the operators: ratios, detune, increments (PITCH: all, P AB2: A and B2, +-1 octave) */
     alg = (uint32_t)QMV(QP_ALGO, QD_ALGO, 7, 1, 8) - 1u;

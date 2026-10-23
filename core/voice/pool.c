@@ -184,13 +184,26 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
                 return i;
             }
     }
-    /* 2. a free voice */
-    for (i = 0; i < p->nvoice; i++)
-        if (is_free(&p->v[i])) {
-            start(p, i, track, o, note, vel, patch, at);
-            p->frees++;
-            return i;
+    /* 2. a free voice (P2.6, halves: in the half with fewer voices in use first; a tie: the first half) */
+    {
+        int h0 = 0, h1 = p->nvoice, k;
+        if (p->halves && p->nvoice >= 2) {
+            const int m = p->nvoice / 2;
+            int n0 = 0, n1 = 0;
+            for (i = 0; i < p->nvoice; i++)
+                if (!is_free(&p->v[i]))
+                    *(i < m ? &n0 : &n1) += 1;
+            h0 = n1 < n0 ? m : 0;
         }
+        for (k = 0; k < p->nvoice; k++) {
+            i = (h0 + k) % h1;
+            if (is_free(&p->v[i])) {
+                start(p, i, track, o, note, vel, patch, at);
+                p->frees++;
+                return i;
+            }
+        }
+    }
     /* 3. across the tracks: a released voice (the quietest), else the oldest held note of the track furthest over
      * its reserve; a track at or under its reserve is not robbed */
     {

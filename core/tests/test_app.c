@@ -31,6 +31,7 @@
  *   determinism a session with the sequencer (PLAY, a queued change, keys, MIDI clock) twice: the same samples
  *
  *     test_app      exit 1 on a failed check */
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -794,6 +795,140 @@ static uint64_t session(void)
     return hash;
 }
 
+/* ---------------------------------------------------------------- P2.6: the block in three --- */
+/* qd_app_block_begin / _voices / _end: three apps on one script (the demo playing, chords on two tracks over it, a
+ * pattern change, the transport stopped and started): one through qd_app_audio, one with the halves B then A, one A
+ * then B: every sample the same. And qd_app_block_voices writes nothing but its voices' own slots (the pool's, the
+ * mix's): the whole app compared byte for byte around each call, and what the voices share outside it (the song
+ * stub, the comb lines' holders) */
+static qd_app_t S1, SNAP;
+static uint32_t split_bad, split_calls;
+static int split_ok_byte(size_t off, int v0, int v1)
+{
+    const size_t pv = offsetof(qd_app_t, pool) + offsetof(qd_pool_t, v), mx = offsetof(qd_app_t, mix);
+    int i;
+    for (i = v0; i < v1; i++) {
+        const size_t a0 = pv + (size_t)i * sizeof(qd_pool_voice_t);
+        if (off >= a0 && off < a0 + sizeof(qd_pool_voice_t))
+            return 1;
+        if (off >= mx + offsetof(qd_mix_t, sg) + (size_t)i * sizeof S1.mix.sg[0] &&
+            off < mx + offsetof(qd_mix_t, sg) + (size_t)(i + 1) * sizeof S1.mix.sg[0])
+            return 1;
+        if (off >= mx + offsetof(qd_mix_t, serial) + (size_t)i * sizeof S1.mix.serial[0] &&
+            off < mx + offsetof(qd_mix_t, serial) + (size_t)(i + 1) * sizeof S1.mix.serial[0])
+            return 1;
+        if (off >= mx + offsetof(qd_mix_t, dist) + (size_t)i * sizeof S1.mix.dist[0] &&
+            off < mx + offsetof(qd_mix_t, dist) + (size_t)(i + 1) * sizeof S1.mix.dist[0])
+            return 1;
+    }
+    return 0;
+}
+static void split_voices(qd_app_t *a, int v0, int v1, qd_bus_t *bus, int guard)
+{
+    uint32_t sig = 0;
+    if (guard) {
+        memcpy(&SNAP, a, sizeof SNAP);
+        sig = qd_quad_shared_sig();
+    }
+    qd_app_block_voices(a, v0, v1, bus);
+    if (guard) {
+        const uint8_t *x = (const uint8_t *)(const void *)&SNAP, *y = (const uint8_t *)(const void *)a;
+        size_t k;
+        for (k = 0; k < sizeof SNAP; k++)
+            if (x[k] != y[k] && !split_ok_byte(k, v0, v1)) {
+                if (!split_bad)
+                    printf("  (qd_app_block_voices %d..%d wrote the app's byte %lu)\n", v0, v1, (unsigned long)k);
+                split_bad++;
+            }
+        if (sig != qd_quad_shared_sig()) {
+            if (!split_bad)
+                printf("  (qd_app_block_voices %d..%d wrote what the voices share)\n", v0, v1);
+            split_bad++;
+        }
+        split_calls++;
+    }
+}
+static void split_block(qd_app_t *a, int b_first, int16_t *out)
+{
+    qd_bus_t A, B;
+    const int mid = a->pool.nvoice / 2;
+    qd_app_block_begin(a);
+    if (b_first) {
+        split_voices(a, mid, a->pool.nvoice, &B, 1);
+        split_voices(a, 0, mid, &A, 1);
+    } else {
+        split_voices(a, 0, mid, &A, 0);
+        split_voices(a, mid, a->pool.nvoice, &B, 0);
+    }
+    qd_app_block_end(a, &A, &B, out);
+}
+/* one run of the script on S1 (the effects are the process's: the runs one after another, each from qd_app_init):
+ * mode 0 qd_app_audio, 1 the halves B then A (guarded), 2 A then B; a hash of each block's samples into hs */
+static uint32_t split_run(int mode, uint64_t *hs, uint32_t max, uint32_t *maxv, uint32_t *halfb)
+{
+    static const uint8_t CH[2][5] = {{48, 52, 55, 59, 62}, {60, 64, 67, 0, 0}};
+    qd_app_t *a = &S1;
+    int16_t o[2 * QD_MIX_CTL];
+    uint32_t ms, done = 0, blocks = 0;
+    int j, t;
+    qd_app_init(a);
+    qd_app_tick(a, 0);
+    qd_app_play(a);
+    for (ms = 1; ms <= 9000u; ms++) {
+        if (ms % 3000u == 300u || ms % 3000u == 1700u)  /* chords on tracks 1 and 4, struck and released */
+            for (j = 0; j < 5; j++)
+                for (t = 0; t < 2; t++) {
+                    if (!CH[t][j])
+                        continue;
+                    if (ms % 3000u == 300u)
+                        qd_player_key_on(&a->player, t * 3, CH[t][j], 100 - 10 * t);
+                    else
+                        qd_player_key_off(&a->player, t * 3, CH[t][j]);
+                }
+        if (ms == 4000u)
+            qd_seq_select(&a->seq, 0, 1);               /* A01 at the next 16th */
+        if (ms == 7000u)
+            qd_app_stop(a);
+        if (ms == 7600u)
+            qd_app_play(a);
+        qd_app_tick(a, ms);
+        while (done + QD_MIX_CTL <= (uint64_t)ms * QD_FS / 1000u && blocks < max) {
+            uint64_t h = 14695981039346656037ull;
+            if (mode == 0)
+                qd_app_audio(a, o, QD_MIX_CTL);
+            else
+                split_block(a, mode == 1, o);
+            for (j = 0; j < 2 * QD_MIX_CTL; j++)
+                h = (h ^ (uint16_t)o[j]) * 1099511628211ull;
+            hs[blocks++] = h;
+            done += QD_MIX_CTL;
+            if (maxv && (uint32_t)qd_pool_in_use(&a->pool) > *maxv)
+                *maxv = (uint32_t)qd_pool_in_use(&a->pool);
+            for (j = a->pool.nvoice / 2; halfb && j < a->pool.nvoice; j++)
+                *halfb += qd_pool_used(&a->pool, j);
+        }
+    }
+    return blocks;
+}
+static void t_split(void)
+{
+    static uint64_t h0[13000], h1[13000], h2[13000];
+    uint32_t n0, n1, n2, k, differ = 0, maxv = 0, halfb = 0;
+    split_bad = split_calls = 0;
+    n0 = split_run(0, h0, 13000, &maxv, &halfb);
+    n1 = split_run(1, h1, 13000, 0, 0);
+    n2 = split_run(2, h2, 13000, 0, 0);
+    for (k = 0; k < n0 && k < n1 && k < n2; k++)
+        differ += h0[k] != h1[k] || h0[k] != h2[k];
+    CHECK(!differ && n0 == n1 && n0 == n2 && n0 > 10000u, "P2.6: the block in three: %u blocks, the halves B then A "
+          "and A then B the same samples as qd_app_audio (%u differ)", n0, differ);
+    CHECK(!split_bad && split_calls > 20000u, "P2.6: qd_app_block_voices writes nothing but its voices' own slots (%u "
+          "calls, %u bytes elsewhere)", split_calls, split_bad);
+    CHECK(maxv >= 8u && halfb > 0u, "P2.6: voices in both halves (at most %u at once)", maxv);
+    printf("  split: %u blocks the same three ways, %u guarded voice calls clean, up to %u voices\n", n0,
+           split_calls, maxv);
+}
+
 int main(void)
 {
     uint64_t h1, h2;
@@ -822,6 +957,7 @@ int main(void)
     t_along();
     t_clock();
     t_fizz();
+    t_split();
     h1 = session_seq();
     h2 = session_seq();
     CHECK(h1 == h2, "two runs of the sequencer's session differ");

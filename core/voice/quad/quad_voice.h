@@ -94,6 +94,11 @@ typedef struct qd_quad_owner {
     uint8_t mw, at, br;                 /* E4: the track's MIDI state: CC 1, channel pressure, CC 2 (0..127) .. */
     int16_t pb;                         /* .. the pitch bend (-8192..8191) */
     uint32_t nserial;                   /* .. the notes struck (the RANDOM source's seed) */
+    uint8_t defer_off;                  /* P2.6: the split block (app.h qd_app_block_voices): a voice's render writes
+                                         * nothing of the owner's: the latest note's voice keeps the LFOs' offsets in
+                                         * itself (nx_*), qd_quad_owner_publish puts them here after the block, and a
+                                         * comb line is claimed before it (qd_quad_voice_prepare). 0: as ever (the
+                                         * engine's tests, ChoralRoot's order) */
 } qd_quad_owner_t;
 
 /* A voice. The first fields are ChoralRoot's voice_t's that FM TONE and its driver use (eng_quad.c reads this as its
@@ -114,7 +119,10 @@ struct qd_quad_voice {
     struct { int32_t lp, len; uint16_t w; uint8_t mach, fresh, line; } comb;   /* (P2.1c: line, its comb line + 1; 0 none) */
     struct { uint32_t ph; int32_t held; } crush;   /* E3: CRUSH's sample and hold: its phase, the value held */
     int16_t ptim_mod;                   /* E4: PTIM's modulation now (the glide's RATE) */
-    int16_t mrnd;                       /* E4: the RANDOM source's value for this note (Q15, bipolar) */   /* E2: the filter machines' state (quad_ext.c:
+    int16_t mrnd;                       /* E4: the RANDOM source's value for this note (Q15, bipolar) */
+    int8_t nx_pan, nx_fx[4];            /* P2.6: as the latest note's voice, the offsets its last block made (the
+                                         * owner's quad_pan_off, quad_fx_off) .. */
+    uint8_t nx_ok;                      /* .. made since its start */   /* E2: the filter machines' state (quad_ext.c:
                                          * the comb's damping and length (Q8), its write place; the machine last run; a
                                          * fresh start: its line from silence) */
 };
@@ -122,6 +130,11 @@ struct qd_quad_voice {
 /* ---- the owner (one per track) */
 void qd_quad_owner_init(qd_quad_owner_t *o);
 void qd_quad_owner_block(qd_quad_owner_t *o);   /* a control block: the FREE LFOs' phases advance */
+/* P2.6 (defer_off): after the block's voices, the latest note's voice's offsets become the owner's */
+void qd_quad_owner_publish(qd_quad_owner_t *o);
+/* P2.6 (defer_off): before the block's voices, what a voice's render would claim of the shared (a comb line) */
+void qd_quad_voice_prepare(qd_quad_voice_t *v);
+uint32_t qd_quad_shared_sig(void);              /* P2.6 (tests): what the voices share outside themselves, hashed */
 
 /* ---- a voice */
 void qd_quad_voice_init(qd_quad_voice_t *v, uint32_t idx);   /* silent; idx: its index in the pool (an LFO seed) */

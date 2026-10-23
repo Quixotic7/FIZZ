@@ -262,7 +262,7 @@ def stack_chains(d, kept_fn):
 
     out = {}
     for root in ("qd_app_frame", "qd_app_audio", "qd_app_tick", "qd_app_key", "qd_app_button", "qd_app_knob",
-                 "qd_app_sysex"):
+                 "qd_app_sysex", "qd_app_block_voices"):   # (P2.6: a half's voices: the second core's stack)
         r = resolve("app", root)
         if r:
             out[root] = depth(r, frozenset())

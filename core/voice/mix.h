@@ -29,7 +29,6 @@ typedef struct {
     int32_t sg[QD_POOL_MAX][3];         /* each voice's chorus, delay, reverb gains as the last block left them */
     uint32_t serial[QD_POOL_MAX];       /* the start they belong to (a fresh start: no ramp from another note's) */
     qd_dist_t dist[QD_POOL_MAX];        /* P1.4a: each voice's DRIVE state */
-    int32_t vbuf[QD_MIX_CTL];
     int rendered;                       /* the last block's voices */
 } qd_mix_t;
 
@@ -39,6 +38,16 @@ void qd_mix_init(qd_mix_t *m);
  * owners[t] and tracks[t] for t < ntracks (a voice of another track is not mixed). Returns the voices rendered */
 int qd_mix_block(qd_mix_t *m, qd_pool_t *pool, qd_quad_owner_t *const *owners, const qd_mix_track_t *tracks,
                  int ntracks, int32_t *l, int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr);
+/* P2.6: the same block in three (the two cores, app.h qd_app_block_*): qd_mix_begin (the pool's waiting notes start,
+ * every owner's block, what the voices will claim of the shared: their comb lines), qd_mix_voices (voices v0 .. v1 - 1
+ * rendered and mixed into l, r, sc, sd, sr, cleared first; it writes nothing but those voices' own state (the pool's
+ * and the mix's slot of each) and these buses: two ranges may run at once), qd_mix_end (the latest voices' offsets
+ * to their owners, the count of voices rendered). The buses of two ranges summed (in any order: integer sums) are
+ * qd_mix_block's */
+void qd_mix_begin(qd_mix_t *m, qd_pool_t *pool, qd_quad_owner_t *const *owners, int ntracks);
+int qd_mix_voices(qd_mix_t *m, qd_pool_t *pool, const qd_mix_track_t *tracks, int ntracks, int v0, int v1, int32_t *l,
+                  int32_t *r, int32_t *sc, int32_t *sd, int32_t *sr);
+void qd_mix_end(qd_mix_t *m, qd_quad_owner_t *const *owners, int ntracks, int rendered);
 
 #ifdef __cplusplus
 }
