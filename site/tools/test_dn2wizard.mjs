@@ -102,6 +102,11 @@ try {
   console.log(`      sent: ${JSON.stringify(sent)}`);
   const b64 = await evaluate("DN2W.zip ? DN2W.zipBase64() : ''");
   check(b64.length > 0, "the zip is made");
+  // the results page: the FIZZ Discord as a link beside the download (a new tab), no address placeholder
+  const dc = await evaluate(`(() => { const r = document.getElementById("results"), d = document.getElementById("discord");
+    return { shown: !r.hidden, href: d && d.href, target: d && d.target, links: [...r.querySelectorAll('a[href^="https://discord.gg/"]')].length, text: r.textContent }; })()`);
+  check(dc.shown && dc.href === "https://discord.gg/emf6DmZ9V" && dc.target === "_blank" && dc.links === 2 && !/address here|\[the owner/.test(dc.text),
+    `the results page sends to the FIZZ Discord: ${dc.href} (a new tab, ${dc.links} links), no address placeholder`);
   const zip = new Uint8Array(Buffer.from(b64, "base64"));
   fs.writeFileSync(path.join(OUT, "dn2-harvest-mock.zip"), zip);
   const a = analyze(zip);
