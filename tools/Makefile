@@ -168,7 +168,7 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx
-test: test-host test-dev
+test: test-host test-dev budget-ratchet
 	@echo "make test: all passed (host and device sizes)"
 
 # P2.0: the same tests at the device's sizes (core/qd_config.h QD_DEVICE), built into build/dev; the timelines into
@@ -238,7 +238,11 @@ budget:
 	$(PY) budget/budget.py
 budget-gate:
 	$(PY) budget/budget.py --gate
+# P2.1: nothing of the device profile may grow past tools/budget/ratchet.txt (skipped without the arm toolchain)
+budget-ratchet: | $(B)
+	@$(PY) budget/budget.py --ratchet > $(B)/budget-ratchet.log; s=$$?; \
+	    grep -E "^(ratchet|RATCHET|BUDGET-LINE|budget: no)" $(B)/budget-ratchet.log; exit $$s
 print-%:
 	@echo $($*)
 
-.PHONY: all frames strips audio test test-host test-dev test-dev-run abi midimon remote budget budget-gate
+.PHONY: all frames strips audio test test-host test-dev test-dev-run abi midimon remote budget budget-gate budget-ratchet

@@ -5,6 +5,9 @@ measured three ways, against the FM-1's resources.
 
   make -C tools budget        the report
   make -C tools budget-gate   the report, and a failure when the device profile is over its budget
+  make -C tools budget-ratchet  (P2.1, in make test when the arm toolchain is there) a failure when anything grew past
+                              tools/budget/ratchet.txt (what the device profile was at its last step): no step may
+                              undo the work while it is still over its budget; --ratchet-set writes today's values
 
   RAM    static: the core linked for a 32-bit target (arm-none-eabi, Cortex-M4 with a single-precision FPU, -Os,
          --gc-sections from tools/budget/dev_main.c: what the platform calls), .data + .bss by symbol;
@@ -46,6 +49,7 @@ MARGIN_FLASH = 8192                   # E: kept free in the slot
 MAIN_STACK = 24320                    # D: the user stack (crt0.S)
 ISR_STACK = 7936                      # D: the system stack (the audio ISR)
 MARGIN_STACK = 2048                   # E: kept free on each
+RATCHET = HERE / "ratchet.txt"        # P2.1: the ceilings so far (budget-ratchet)
 
 CC_FLAGS = ["-Os", "-ffunction-sections", "-fdata-sections", "-DQD_DEVICE", "-DQD_TARGET_FM1", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
             "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD"]
@@ -428,6 +432,28 @@ def main():
         over.append(f"audio stack {au} + {MARGIN_STACK} > {ISR_STACK}")
     print("\nBUDGET-LINE ram=%d/%d flash=%d/%d stack_main=%d/%d stack_audio=%d/%d" % (ram, BUDGET_RAM, flash,
           budget_flash, ui, MAIN_STACK, au, ISR_STACK))
+    now = {"ram": ram, "flash_" + ("pi32v2" if flash != arm_flash else "arm"): flash, "flash_arm": arm_flash,
+           "stack_main": ui, "stack_audio": au}
+    if "--ratchet-set" in sys.argv:
+        with open(RATCHET, "w") as f:
+            f.write("# P2.1: the device profile's ceilings (tools/budget/budget.py --ratchet fails above any of them):\n"
+                    "# what it was at its last step. Lower them (--ratchet-set) as things shrink; never raise them\n"
+                    "# without saying why in the commit\n")
+            for k in sorted(now):
+                f.write(f"{k} {now[k]}\n")
+        print(f"ratchet: {RATCHET} written")
+    if "--ratchet" in sys.argv:
+        lim = {}
+        for line in open(RATCHET):
+            p = line.split()
+            if len(p) == 2 and not line.startswith("#"):
+                lim[p[0]] = int(p[1])
+        grew = [f"{k} {now[k]} > {lim[k]}" for k in sorted(now) if k in lim and now[k] > lim[k]]
+        if grew:
+            print("RATCHET: grew past tools/budget/ratchet.txt: " + "; ".join(grew))
+            return 1
+        print("ratchet: nothing grew (" + ", ".join(f"{k} {now[k]} of {lim[k]}" for k in sorted(now) if k in lim)
+              + ")")
     if over:
         print("OVER BUDGET: " + "; ".join(over))
         return 1 if gate else 0
