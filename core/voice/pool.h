@@ -30,13 +30,12 @@
 #include <stdint.h>
 
 #include "quad/quad_voice.h"
+#include "../qd_config.h"                 /* (P2.0: QD_POOL_MAX, QD_POOL_DEFAULT) */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define QD_POOL_MAX 64                  /* voices at most (a setting: 16 by default, more for experiments) */
-#define QD_POOL_DEFAULT 16
 #define QD_POOL_NTRACK 8                /* tracks the limits and reserves are kept for */
 #define QD_POOL_LIMIT_MAX 16
 

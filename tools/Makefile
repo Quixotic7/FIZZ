@@ -22,6 +22,9 @@ CC ?= cc
 OPT ?= -O2 -g
 PVG := $(ROOT)/third_party/plutovg
 B := build
+# P2.0: the profile (core/qd_config.h): empty = the host's sizes; make PROFILE=-DQD_DEVICE B=build/dev builds the same
+# tools at the FM-1's (make test runs both: test-host, then test-dev)
+PROFILE ?=
 CR_REPO ?= $(abspath $(ROOT)/../ChoralRootFM1)
 CR_TAG ?= v0.25.1
 CRB := $(B)/cr-$(CR_TAG)
@@ -43,13 +46,13 @@ PVG_SRC := $(wildcard $(PVG)/source/*.c)
 INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/seq -I$(ROOT)/core/voice \
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
-HDRS := $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
+HDRS := $(ROOT)/core/qd_config.h $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
         $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/seq/names.c $(ROOT)/core/seq/mfx.c $(ROOT)/core/app/view_labels.c $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/ctl_presets.c $(ROOT)/core/app/ctl_type.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_presets.c $(ROOT)/core/ui/ui_type.c $(ROOT)/core/ui/ui_snd.c $(ROOT)/core/ui/ui_mfx.c $(ROOT)/core/app/ctl_mfx.c $(ROOT)/core/ui/ui_ape.c \
         $(PVG)/include/plutovg.h
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
 PVG_OBJ := $(addprefix $(B)/pvg-,$(notdir $(PVG_SRC:.c=.o)))
 OUT := $(ROOT)/core/tests/out
-WARN := -std=c99 -Wall -Wextra -Wpedantic
+WARN := -std=c99 -Wall -Wextra -Wpedantic $(PROFILE)
 SAN := -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all
 SAN_ENGINE := -O2 -g -fsanitize=address,signed-integer-overflow -fno-sanitize-recover=all
 T := $(ROOT)/core/tests
@@ -143,7 +146,31 @@ $(B)/test_store: $(T)/test_store.c $(ROOT)/core/store/store.c $(ROOT)/core/store
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx
-test: $(TESTS)
+test: test-host test-dev
+	@echo "make test: all passed (host and device sizes)"
+
+# P2.0: the same tests at the device's sizes (core/qd_config.h QD_DEVICE), built into build/dev; the timelines into
+# core/tests/out/dev (the goldens are the same: the sizes change nothing a pattern sounds like). The bit-exact tests
+# compare the voice and the effects with ChoralRoot's code: no size of theirs differs, they run once (test-host)
+DEV_TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_mfx $(B)/test_app $(B)/test_ctl $(B)/test_store \
+             $(B)/test_persist $(B)/test_sysex
+test-dev:
+	$(MAKE) PROFILE=-DQD_DEVICE B=build/dev OUT=$(abspath $(OUT))/dev test-dev-run
+test-dev-run: $(DEV_TESTS)
+	@echo "---- the device's sizes (QD_DEVICE)"
+	$(B)/test_quad $(T)/quad_goldens
+	$(B)/test_pool
+	mkdir -p $(OUT)
+	$(B)/test_seq $(T)/seq_goldens $(OUT)
+	$(B)/test_mfx
+	$(B)/test_app
+	$(B)/test_ctl
+	$(B)/test_store
+	$(B)/test_persist
+	$(B)/test_sysex
+	@echo "make test-dev: all passed (device sizes)"
+
+test-host: $(TESTS)
 	$(B)/test_quad $(T)/quad_goldens
 	$(B)/test_pool
 	mkdir -p $(OUT)
@@ -158,7 +185,7 @@ test: $(TESTS)
 	node test_fizz_sysex.mjs $(B)/test_sysex
 	$(B)/test_quad_bitexact
 	$(B)/test_fx_bitexact
-	@echo "make test: all passed"
+	@echo "make test-host: all passed"
 
 # P1.3i: FIZZ (P1.3k: was QUADRILLE) through the core ABI, as FM1VST's host drives it (dlopen of the built module):
 # FM1VST's core-api and the module from its build (both outside this tree: FM1VST_DIR, FM1CORE)
@@ -181,4 +208,14 @@ $(B)/midimon: midimon.c | $(B)
 	$(CC) -O1 -Wall -o $@ $< -framework CoreMIDI -framework CoreFoundation
 midimon: $(B)/midimon
 
-.PHONY: all frames audio test abi midimon remote
+# P2.0: the device budget (tools/budget/budget.py): RAM (32-bit static + the host bench's heap peak by call site),
+# flash (JieLi's pi32v2 clang in Docker when it is up, else the arm-none-eabi link: labelled), stack; budget-gate fails
+# when the device profile is over its budget
+budget:
+	$(PY) budget/budget.py
+budget-gate:
+	$(PY) budget/budget.py --gate
+print-%:
+	@echo $($*)
+
+.PHONY: all frames audio test test-host test-dev test-dev-run abi midimon remote budget budget-gate

@@ -69,6 +69,7 @@
 #include "model.h"
 #include "pattern.h"
 #include "../voice/pool.h"
+#include "../qd_config.h"                 /* (P2.0: QD_SEQ_NEV, QD_SEQ_NREC) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,8 +78,6 @@ extern "C" {
 #define QD_SUB 52500                    /* subticks a tick (P1.3c: halved as QD_TPS doubled: a 16th unchanged) */
 #define QD_SEQ_BLOCK 32                 /* samples a block (FM TONE's control block) */
 #define QD_SEQ_FS 44100
-#define QD_SEQ_NEV 4096                 /* events waiting at most */
-#define QD_SEQ_NREC 512                 /* resolved trigs waiting at most */
 #define QD_SEQ_NHIST 128                /* the conditional steps kept per track (NEI) */
 #define QD_SEQ_NCHAIN 16
 #define QD_CLOCK_TICKS (QD_TPS / 6)     /* a MIDI clock pulse: 6 a 16th */

@@ -372,21 +372,23 @@ static void t_fade(void)
 
 static void t_free(void)
 {
+    const int nn = QD_POOL_MAX * 5 / 8;                 /* (P2.0: the profile's pool: 40 of 64, the device's 10 of 16) */
     int k, i, left = 0;
-    reset(64);
-    CHECK(P.nvoice == 64, "64 voices as a setting");
-    for (k = 0; k < 40; k++)
+    reset(QD_POOL_MAX);
+    CHECK(P.nvoice == QD_POOL_MAX, "%d voices as a setting", QD_POOL_MAX);
+    for (k = 0; k < nn; k++)
         qd_pool_note_on(&P, k % 8, &O[k % 8], 40 + k, 90, PB);
     blocks(10);
-    CHECK(qd_pool_in_use(&P) == 40 && !P.steals_own && !P.steals_cross, "64 voices: 40 notes on 40 voices (%d)",
-          qd_pool_in_use(&P));
+    CHECK(qd_pool_in_use(&P) == nn && !P.steals_own && !P.steals_cross, "%d voices: %d notes on %d voices (%d)",
+          QD_POOL_MAX, nn, nn, qd_pool_in_use(&P));
     qd_pool_release_all(&P, -1);
     for (k = 0; k < 20 * 44100 / CTL && block(0); k++)
         ;
     for (i = 0; i < P.nvoice; i++)
         left += qd_pool_used(&P, i);
     CHECK(!left, "free: %d voices still in use 20 s after the release", left);
-    printf("  free: 40 notes on a 64-voice pool, released: every slot free again after %.1f s\n", k * CTL / 44100.0);
+    printf("  free: %d notes on a %d-voice pool, released: every slot free again after %.1f s\n", nn, QD_POOL_MAX,
+           k * CTL / 44100.0);
 }
 
 /* E1: portamento's starts: a lone note from the track's last; a chord by rank against the last chord (one more: the

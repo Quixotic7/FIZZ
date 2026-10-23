@@ -138,9 +138,7 @@ static const int16_t QE_EQ_G[128] = {
     12930, 13490, 14069, 14667, 15284, 15922, 16581, 17261, 17964, 18690, 19440, 20215,
     21015, 21841, 22695, 23576, 24487, 25428, 26399, 27403,
 };
-#ifndef QE_NCOMB
-#define QE_NCOMB 64                     /* the comb arena: a line for every voice (the FM-1: 16, -DQE_NCOMB=16) */
-#endif
+#include "../../qd_config.h"             /* (P2.0: QE_NCOMB, the comb arena: a line for every voice) */
 #define QE_COMB_N 1024
 static int16_t qe_comb[QE_NCOMB][QE_COMB_N];
 

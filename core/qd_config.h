@@ -1,0 +1,42 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* FIZZ's sizes (Phase 2, P2.0; research/PHASE2-BUDGET.md §5 item 1): every capacity of the core in one place, in two
+ * profiles of the same source.
+ *
+ *   QD_HOST    (the default) the Mac: the FM1VST plug-in and Standalone, the tools. Phase 1's sizes: free design.
+ *   QD_DEVICE  (-DQD_DEVICE) the FM-1: about 425 KiB of data RAM for FIZZ (the budget, tools/budget). The host tests
+ *              also run built this way (make -C tools test: build/dev/), so every change is checked at the device's
+ *              sizes (the owner's rule from P2.0: memory and containers must fit them on every merge).
+ *
+ * A container that fills up at the device's sizes counts its overflow (as ChoralRoot's shed) instead of growing; the
+ * demos peak far below them (the audit's `bench seqpeak`: 25 events, 13 trig records). Nothing here changes what a
+ * project sounds like or how it is stored: the store's format is the same in both profiles. */
+#pragma once
+
+#if defined(QD_DEVICE) && defined(QD_HOST)
+#error "qd_config.h: one profile, QD_DEVICE or QD_HOST"
+#endif
+#if !defined(QD_DEVICE) && !defined(QD_HOST)
+#define QD_HOST 1
+#endif
+
+#ifdef QD_DEVICE
+#define QD_PROFILE_NAME "device"
+/* ---- the sound */
+#define QD_POOL_MAX 16                 /* voices (8 + 8 on the two cores) */
+#define QE_NCOMB 16                    /* E2's comb lines (1024 x int16 each): one for every voice */
+/* ---- the sequencer */
+#define QD_SEQ_NEV 512                 /* events waiting (the demos peak at 25) */
+#define QD_SEQ_NREC 64                 /* resolved trigs waiting (the demos peak at 13) */
+/* ---- the flash store */
+#define QDS_MAXKEY 1024                /* keys a store */
+#else
+#define QD_PROFILE_NAME "host"
+#define QD_POOL_MAX 64                 /* (a setting: 16 by default, more for experiments) */
+#define QE_NCOMB 64                    /* a line for every voice the pool can have */
+#define QD_SEQ_NEV 4096
+#define QD_SEQ_NREC 512
+#define QDS_MAXKEY 2048
+#endif
+
+/* ---- the same in both */
+#define QD_POOL_DEFAULT 16             /* the voices a unit plays with */
