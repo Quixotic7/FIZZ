@@ -38,6 +38,7 @@
 #include <stddef.h>
 
 #include "../voice/fx/qd_fx.h"
+#include "../seq/names.h"
 
 typedef char qd_tset_old_ok[offsetof(qd_tset_t, mfx) == QD_TSET_SIZE_OLD ? 1 : -1];   /* (P1.6c: 'P' 1..3's) */
 
@@ -783,6 +784,30 @@ int qd_proj_load(qd_app_t *a, int p)
     return 1;
 }
 
+/* P1.6g: a new project's tracks named from their sounds: the kind from the preset's tags, the name rolled from the
+ * namesizer and the sound's own ideas (not typed: a kind chosen later renames it) */
+static void names_from_sounds(qd_app_t *a)
+{
+    int t;
+    for (t = 0; t < QD_NTRACK; t++) {
+        const qd_tsound_t *s = &a->proj.pat[QD_PAT_START].snd[t];
+        qd_track_t *k = &a->model.t[t];
+        uint32_t seed = (a->ms + 1u) * 2654435761u + (uint32_t)t * 40503u + 7u;
+        char nm[QD_NAME_MAX + 1];
+        int kind = -1;
+        if (s->preset >= 1 && s->preset <= QD_NFACTORY) {
+            qd_sound_t f;
+            qd_factory_preset(s->preset - 1, &f);
+            kind = qd_tags_first(f.tags);
+        }
+        qd_name_roll(&seed, s->patch, 0, nm);
+        memset(k->name, 0, sizeof k->name);
+        strncpy(k->name, nm[0] ? nm : qd_track_kind_name(kind), QD_TRACK_NAME - 1);
+        k->kind = kind >= 0 && kind < 7 ? (uint8_t)kind : QD_TKIND_NONE;
+        k->named = 0;
+    }
+}
+
 int qd_proj_new(qd_app_t *a, int p)
 {
     qd_persist_t *ps = &a->per;
@@ -796,6 +821,7 @@ int qd_proj_new(qd_app_t *a, int p)
     ps->proj = p;
     ps->pdemo = 0;
     proj_initial(a, 0, 1);
+    names_from_sounds(a);                               /* (P1.6g) */
     memset(ps->pname[p], 0, QD_PROJ_NAME);
     snprintf(ps->pname[p], QD_PROJ_NAME, "PROJECT %d", p + 1);
     write_header(a);

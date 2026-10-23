@@ -611,6 +611,30 @@ static void names_test(void)
     CHECK(!strcmp(A.model.t[2].name, "KEYS") && A.model.t[2].kind == QD_PK_KEYS && !A.model.t[2].named &&
               !strcmp(A.model.t[6].name, "BELL") && A.proj.rec_auto,
           "a 0.9.0 header: the names it had (the default kit's), their kinds; AUTOMATION ON");
+    {   /* P1.6g: a new project: its tracks named from their sounds (the kind from the preset's tags), kept */
+        static const char *const KIT[8] = {"DRUMS", "BASS", "KEYS", "LEAD", "PLUCK", "PAD", "BELL", "NOISE"};
+        int t, ok = 1, kit = 0;
+        run(&A, 300);
+        qd_proj_new(&A, 2);
+        run(&A, 20);
+        for (t = 0; t < 8; t++) {
+            qd_sound_t f;
+            const int pr = A.proj.pat[A.seq.cur].snd[t].preset;
+            if (pr >= 1 && pr <= QD_NFACTORY)
+                qd_factory_preset(pr - 1, &f), ok &= A.model.t[t].kind == qd_tags_first(f.tags);
+            ok &= A.model.t[t].name[0] != 0 && !A.model.t[t].named;
+            kit += !strcmp(A.model.t[t].name, KIT[t]);
+        }
+        CHECK(ok && kit < 8, "a new project: each track's kind from its preset's tags, its name from its sound (%s, %s, "
+              "%s ..)", A.model.t[0].name, A.model.t[1].name, A.model.t[2].name);
+        qd_persist_flush(&A);
+        {
+            char n0[QD_TRACK_NAME];
+            strcpy(n0, A.model.t[0].name);
+            boot(&B);
+            CHECK(B.per.proj == 2 && !strcmp(B.model.t[0].name, n0), "kept across a restart (%s)", B.model.t[0].name);
+        }
+    }
 }
 
 int main(void)

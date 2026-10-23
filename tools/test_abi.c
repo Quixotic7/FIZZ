@@ -515,6 +515,36 @@ int main(int argc, char **argv)
         run(50);
     }
 
+    {   /* P1.6g, recording in every view, through the panel: stopped, REC held arms (REC's label REC OFF), PLAY starts
+         * it, a REC tap stops it (KEYS again, playing on); in the sound editor the same; ARP reads MIDI FX */
+        char lb[49][12];
+        btap(FM1P_B_HOME);
+        run(100);
+        labels(lb);
+        CHECK(!strcmp(lb[16], "MIDI FX") && !strcmp(lb[19], "KEYS"), "P1.6g: the step view: ARP MIDI FX, REC KEYS (%s %s)",
+              lb[16], lb[19]);
+        bdown(FM1P_B_REC), run(1100), bup(FM1P_B_REC), run(30);
+        labels(lb);
+        CHECK(!strcmp(lb[19], "REC OFF"), "REC held, stopped: armed (REC %s)", lb[19]);
+        btap(FM1P_B_PLAY);
+        run(300);
+        labels(lb);
+        CHECK(!strcmp(lb[19], "REC OFF") && !strcmp(lb[18], "STOP"), "PLAY: recording, playing (%s, %s)", lb[19], lb[18]);
+        btap(FM1P_B_REC);
+        labels(lb);
+        CHECK(!strcmp(lb[19], "KEYS") && !strcmp(lb[18], "STOP"), "REC tapped: stopped recording, playing on (%s, %s)",
+              lb[19], lb[18]);
+        btap(FM1P_B_EDIT);                              /* the sound editor: REC held while playing, let go: latched */
+        run(50);
+        bdown(FM1P_B_REC), run(1100), bup(FM1P_B_REC), run(30);
+        labels(lb);
+        CHECK(!strcmp(lb[19], "REC OFF"), "the editor, playing: REC held, let go: recording (REC %s)", lb[19]);
+        btap(FM1P_B_REC);
+        btap(FM1P_B_PLAY);
+        btap(FM1P_B_HOME);
+        run(100);
+    }
+
     {   /* P1.6m: an export through the ABI: 40 presets stored through midi_in, DUMP all (slot 0), the host reading
          * slowly (a few packets a ms): every frame whole, in order, none lost (the replies wait in FIZZ and go out as
          * the packet ring has room) */

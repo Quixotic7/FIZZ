@@ -240,8 +240,12 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
             u->tk = QD_TK_NONE;                         /* (its picture: while held) */
         return;
     }
-    if (down)                                           /* the track through the group (its release: the app's) */
+    if (down) {                                         /* the track through the group (its release: the app's) */
         qd_app_note_on(a, key, qd_snd_scale_note(a, w), vel);
+        qd_rec_key(a, a->key_note[key], 1, vel);        /* (P1.6g: recording here too) */
+    } else if ((a->keys_struck >> key) & 1u) {
+        qd_rec_key(a, a->key_note[key], 0, 0);
+    }
 }
 
 /* P1.6e: REC tapped there: the white keys STEPS (the track's steps of the page edited) or KEYS (as before); P1.6f: the
@@ -250,8 +254,6 @@ void qd_mfx_rec(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     if (u->mode == QD_MODE_KEYS) {
-        if (u->rec)
-            qd_rec_toggle(a);                           /* (leaving the keyboard: the recording ends, as anywhere) */
         u->mode = QD_MODE_STEP;
     } else {
         u->slatch = 0;                                  /* (into the keyboard: the latch ends, as anywhere) */

@@ -534,7 +534,7 @@ void ui_ape_draw(const ui_turn_t *v)
     const float beat = bpm ? 60.f / (float)bpm : 0.5f;
     int kind, k, prevk, en, i;
     float age, pulse, lift, dx = 0.f, sx = 1.f, sy = 1.f, rot = 0.f, st;
-    int mid = 0, flurry;
+    int mid = 0, flurry, slow;
     ap_box_t B;
     if (v->ext) {
         ap_ext(v);
@@ -552,6 +552,7 @@ void ui_ape_draw(const ui_turn_t *v)
     }
     en = n;
     flurry = kind == AP_TAP && n >= 2 && v->tap_bpm[0] >= 180;
+    slow = kind == AP_TAP && n >= 2 && bpm > 0 && bpm <= 70;   /* P1.6g: 70 BPM and under: the slow-motion moonwalk */
     ap_keep[0] = k, ap_keep[1] = kind != AP_ENTERS && age < 0.16f ? prevk : -1;   /* (the poses cached: kept now) */
     ap_head(n, UI_KSEL);
     ap_floor();
@@ -580,7 +581,13 @@ void ui_ape_draw(const ui_turn_t *v)
         ap_bpm(bpm ? v->value : 0, UI_KSEL, since < 0.15f ? 1.f + 0.08f * (1.f - since / 0.15f) : 1.f, UI_G1);
     /* the groove: the whole drawing on the beat (it ramps in after the snap) */
     lift = 0.f;
-    if (kind == AP_TAP && bpm) {
+    if (slow) {                                         /* P1.6g: gliding back and forth over four beats, a soft step
+                                                         * on each, leaning back */
+        const float w = ap_ease((age - 0.3f) / 0.4f), ph = age / beat;
+        dx = -14.f * (1.f - cosf(AP_TAU * ph / 4.f)) * w;   /* (left, to the boombox, and back) */
+        lift = 2.5f * fabsf(sinf(UI_PI * ph)) * w;
+        rot = -0.05f * w;
+    } else if (kind == AP_TAP && bpm) {
         const float w = ap_ease((age - 0.15f) / 0.15f), ph = age / beat;
         const float c = 0.5f + 0.5f * cosf(AP_TAU * ph), dip = c * c, sway = sinf(UI_PI * ph);
         switch (flurry ? GR_FLIP : AP_GROOVE[k]) {
@@ -602,7 +609,8 @@ void ui_ape_draw(const ui_turn_t *v)
         dx = 150.f * (1.f - ap_easeout(u));
         lift += 8.f * fabsf(sinf(AP_TAU * u));
     } else {
-        const float u = ap_clamp(age / AP_HOP), s = sinf(UI_PI * u);
+        const float u = ap_clamp(age / (slow ? AP_HOP * 2.5f : AP_HOP)), s = sinf(UI_PI * u);   /* (slow: in slow
+                                                         * motion) */
         lift += (kind == AP_TADAS ? 12.f : 9.f) * s;
         sy *= 1.f + 0.06f * s;
         sx *= 1.f - 0.035f * s;
@@ -613,7 +621,22 @@ void ui_ape_draw(const ui_turn_t *v)
     if (flurry)
         ap_rings(&B, t, 0);
     {
-        ap_pose_o o = {dx, lift, sx, sy, rot, 1.f, kind != AP_ENTERS ? 1.f - ap_clamp(age / 0.12f) : 0.f, mid};
+        ap_pose_o o = {dx, lift, sx, sy, rot, 1.f,
+                       kind != AP_ENTERS ? 1.f - ap_clamp(age / (slow ? 0.3f : 0.12f)) : 0.f, mid};
+        if (slow) {                                     /* P1.6g: the motion trails: where it was a moment ago, fading */
+            const float w = ap_ease((age - 0.3f) / 0.4f);
+            int j;
+            for (j = 3; j >= 1; j--) {
+                const float ph = (age - 0.22f * (float)j) / beat;
+                ap_pose_o tr = o;
+                tr.dx = -14.f * (1.f - cosf(AP_TAU * ph / 4.f)) * w;
+                tr.lift = 2.5f * fabsf(sinf(UI_PI * ph)) * w;
+                tr.alpha = 0.4f / (float)j * w;
+                tr.flash = 0.f;
+                if (tr.alpha > 0.01f)
+                    ap_pose(k, &tr);
+            }
+        }
         ap_pose(k, &o);
     }
     if (flurry)

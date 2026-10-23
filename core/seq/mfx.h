@@ -79,6 +79,7 @@ enum { QD_MM_CHANCE = 3 };                                            /* MONO */
 enum { QD_ML_MODE, QD_ML_LEN, QD_ML_CHANCE = 3 };                    /* SELECTOR */
 /* ARP / REPEAT modes; ARP patterns; RESET; the MOD lane's values; SELECTOR's modes; CHORD's voicings */
 enum { QD_AM_OFF, QD_AM_ON, QD_AM_1ST, QD_AM_ONCE, QD_AM_HOLD, QD_NAM };
+int qd_mfx_arp_order(int pat, int n, uint8_t *out);   /* P1.6g: a pattern's walk over n notes (by pitch), its length */
 enum { QD_AP_UP, QD_AP_DN, QD_AP_UPDN, QD_AP_DNUP, QD_AP_UANDD, QD_AP_DANDU, QD_AP_CON, QD_AP_DIV, QD_AP_CONDIV,
        QD_AP_HI1, QD_AP_HI2, QD_AP_LO1, QD_AP_LO2, QD_AP_RAND, QD_AP_ROTH, QD_AP_RONC, QD_AP_ASP, QD_NAP };
 enum { QD_AR_NORM, QD_AR_NOTE, QD_AR_MPAT, QD_AR_TPAT, QD_NAR };

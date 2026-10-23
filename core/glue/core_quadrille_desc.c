@@ -42,7 +42,7 @@ static fm1core_t CORE = {
     .gated = FM1CORE_GATED_OR_NULL,
     .credits = FM1CORE_CREDITS_OR_NULL,
     .flash_size = 0x100000u,
-    .button_names = {"FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "HOME", "SOUNDS", "FILL", "PATTERNS", "PLAY", "REC",
+    .button_names = {"FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "HOME", "SOUNDS", "MIDI FX", "PATTERNS", "PLAY", "REC",
                      "F1", "F2"},
     .params = NULL,
     .nparams = 0,

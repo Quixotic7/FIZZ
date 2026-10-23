@@ -172,7 +172,7 @@ void qd_rec_ms(qd_app_t *a)
     int pp, k;
     if (!u->rec_grow)
         return;
-    if (!u->rec || u->mode != QD_MODE_KEYS || (!a->seq.playing && !u->live_wait)) {
+    if (!u->rec || (!a->seq.playing && !u->live_wait)) {
         grow_trim(a);                                   /* (the recording or the transport ended another way) */
         return;
     }
@@ -221,7 +221,7 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
         u->rec_live = 0;
         return;
     }
-    if (!u->rec || u->mode != QD_MODE_KEYS)
+    if (!u->rec || (!a->seq.playing && u->live_wait))   /* (P1.6g: any view's notes; armed, waiting: PLAY starts it) */
         return;
     qd_undo_hint(a, QD_UK_REC);                         /* (P1.5c: a recorded take: one undo level) */
     note &= 127;
@@ -237,10 +237,6 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
             u->rec_live = 0;
         }
         return;
-    }
-    if (!a->seq.playing && u->live_wait) {              /* P1.3x: armed live, stopped: this note starts it all */
-        u->live_wait = 0;
-        qd_app_play(a);
     }
     if (qd_rec_stepping(a)) {                           /* step recording */
         const int cs = loop_step(a, u->cursor);
@@ -322,7 +318,8 @@ int qd_auto_on(const qd_app_t *a)
         return 0;
     if (((a->buttons_held >> QD_B_REC) & 1u) && !qd_ctl_shift(a) && u->latch != QD_LATCH_REC)
         return 1;                                       /* REC held: any view */
-    return u->mode == QD_MODE_KEYS && u->rec && !qd_rec_stepping(a) && a->proj.rec_auto;   /* armed, AUTOMATION ON */
+    return u->rec && !u->live_wait && !qd_rec_stepping(a) && a->proj.rec_auto;   /* recording (P1.6g: any view),
+                                                                                * AUTOMATION ON */
 }
 
 static int auto_step_now(qd_app_t *a)                 /* the step under the selected track's playhead */
@@ -418,6 +415,5 @@ void qd_rec_midi_note(qd_app_t *a, int note, int down, int vel)
     }
     if (!down && u->midi_n > 0)
         u->midi_n--;
-    if (u->mode == QD_MODE_KEYS)
-        qd_rec_key(a, note, down, vel);
+    qd_rec_key(a, note, down, vel);                     /* (P1.6g: recording, in any view) */
 }

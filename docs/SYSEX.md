@@ -162,7 +162,8 @@ Reply: `F0 7D 46 5A 01 60 <count hi> <count lo> <n = 49> { <len> <len ASCII byte
   B1..B8, BYPASS / PLAY, REMOVE; ALGORITHM GROUP, PRESETS EFFECT, the page's value names; the notes, or LANE 1..16 on
   the arp's lanes; P1.6d: F1 CLOSE, held COPY then PASTE, F2 PICK UP / DROP; P1.6e: REC STEPS / KEYS, on STEPS the
   white keys STEP n and ALGORITHM STEP MFX while steps are held; P1.6f: REC is labelled with what a tap switches to
-  everywhere, KEYS in the step view, STEPS in the keyboard, REC OFF while recording) and FILL's button (P1.6d: MIDI FX, its
+  everywhere, KEYS in the step view, STEPS in the keyboard; P1.6g: REC OFF while armed or recording, in every view;
+  FILL's button reads MIDI FX in the core's descriptor too) and FILL's button (P1.6d: MIDI FX, its
   tap the screen and its hold the arp on / off; SHIFT held FILL; CLOSE in the MIDI FX screen). P1.6d's new contexts:
   the record settings' page 2 (KNOB 1 AUTOMATION, SELECT PAGE) and the track settings' page 3 (KNOB 1 KIND, KNOB 2
   NAME).

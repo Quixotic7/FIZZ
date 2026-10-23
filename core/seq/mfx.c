@@ -367,18 +367,12 @@ static int held_add(qd_mfx_t *m, qd_mfx_srt_t *r, const qd_mfx_note_t *n)
 }
 
 /* ---- ARP: the walk of a pattern over the held notes, by pitch */
-static void arp_build(qd_mfx_t *m, qd_mfx_srt_t *r, int pat)
+/* P1.6g: pattern pat's walk over n notes by pitch (indices 0..n-1; RAND, ROTH, ASP and RONC: up, their choice made as
+ * they play); its length (4 n at most). The arp's own (arp_build) and the screen's picture */
+int qd_mfx_arp_order(int pat, int n, uint8_t *out)
 {
-    const int n = held_n(r);
-    int i, j, k = 0;
-    for (i = 0; i < n; i++)                             /* by pitch (then as they came) */
-        r->order[i] = (uint8_t)i;
-    for (i = 1; i < n; i++)
-        for (j = i; j > 0 && r->h[r->order[j]].n.pitch < r->h[r->order[j - 1]].n.pitch; j--) {
-            const uint8_t x = r->order[j];
-            r->order[j] = r->order[j - 1], r->order[j - 1] = x;
-        }
-#define PUT(x) (r->seq[k++] = (uint8_t)(x))
+    int i, k = 0;
+#define PUT(x) (out[k++] = (uint8_t)(x))
     switch (pat) {
     case QD_AP_UP: case QD_AP_RAND: case QD_AP_ROTH: case QD_AP_ASP:
         for (i = 0; i < n; i++) PUT(i);
@@ -438,16 +432,32 @@ static void arp_build(qd_mfx_t *m, qd_mfx_srt_t *r, int pat)
         break;
     case QD_AP_RONC:
         for (i = 0; i < n; i++) PUT(i);
-        for (i = n - 1; i > 0; i--) {                   /* (a shuffle: every note once) */
-            const int x = (int)rnd(m, (uint32_t)(i + 1));
-            const uint8_t t = r->seq[i];
-            r->seq[i] = r->seq[x], r->seq[x] = t;
-        }
         break;
     default:
         break;
     }
 #undef PUT
+    return k;
+}
+
+static void arp_build(qd_mfx_t *m, qd_mfx_srt_t *r, int pat)
+{
+    const int n = held_n(r);
+    int i, j, k = 0;
+    for (i = 0; i < n; i++)                             /* by pitch (then as they came) */
+        r->order[i] = (uint8_t)i;
+    for (i = 1; i < n; i++)
+        for (j = i; j > 0 && r->h[r->order[j]].n.pitch < r->h[r->order[j - 1]].n.pitch; j--) {
+            const uint8_t x = r->order[j];
+            r->order[j] = r->order[j - 1], r->order[j - 1] = x;
+        }
+    k = qd_mfx_arp_order(pat, n, r->seq);
+    if (pat == QD_AP_RONC)
+        for (i = n - 1; i > 0; i--) {                   /* (a shuffle: every note once) */
+            const int x = (int)rnd(m, (uint32_t)(i + 1));
+            const uint8_t t = r->seq[i];
+            r->seq[i] = r->seq[x], r->seq[x] = t;
+        }
     r->nseq = k;
 }
 

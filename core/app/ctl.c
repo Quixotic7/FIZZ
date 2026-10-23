@@ -282,8 +282,6 @@ static void select_track(qd_app_t *a, int t) { qd_ctl_select_track(a, t); }
 static void set_mode(qd_app_t *a, int mode)
 {
     qd_ui_t *u = &a->ui;
-    if (u->mode == QD_MODE_KEYS && mode != QD_MODE_KEYS && u->rec)
-        qd_rec_toggle(a);                               /* leaving the keyboard: the recording ends */
     if (mode != QD_MODE_STEP) {
         qd_latch_close(a);                              /* (P1.3d: F3's latch and the step latch end with it) */
         u->slatch = 0;
@@ -374,10 +372,14 @@ static int w_snd_full(const qd_app_t *a) { return w_snd_keys(a) && a->proj.rec_e
 static void k_snd_note(qd_app_t *a, int key, int idx, int down, int vel)
 {
     (void)idx;
-    if (down)
+    if (down) {
         qd_app_note_on(a, key, a->proj.rec_ekeys || qd_ctl_white(key) < 0 ? qd_rec_key_note(a, key)
                                                                             : qd_snd_scale_note(a, qd_ctl_white(key)),
                        vel);
+        qd_rec_key(a, a->key_note[key], 1, vel);        /* (P1.6g: recording in the editor too) */
+    } else if ((a->keys_struck >> key) & 1u) {
+        qd_rec_key(a, a->key_note[key], 0, 0);
+    }
 }
 static int w_step_view(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP; }
 /* P1.6c: the MIDI FX screen: B1..B8 the slots, B10 bypass, B11 remove; the W keys the track through the group (the
@@ -1097,36 +1099,24 @@ static void b_play(qd_app_t *a, int down)
     if (down) {
         u->play_down_ms = a->ms;
         u->play_used = 0;
-        if (held(a, QD_B_REC)) {
-            u->rec_down_used = 1;
-            u->play_used = 1;
-            if (u->mode != QD_MODE_KEYS)
-                set_mode(a, QD_MODE_KEYS);
-            if (!a->seq.playing)
-                qd_app_play(a);
-            if (!u->rec)
-                qd_rec_toggle(a);
-            u->rec_kind = QD_REC_LIVE;
-        }
         return;
     }
     if (u->play_used)
         return;
     u->play_used = 1;
-    if (u->mode == QD_MODE_KEYS && u->rec && u->live_wait) {   /* armed, waiting: playback and recording now */
+    if (u->rec && u->live_wait) {                       /* P1.6g: armed, stopped: playback and the recording now (any
+                                                         * view) */
         u->live_wait = 0;
         qd_app_play(a);
         return;
     }
-    if (u->mode == QD_MODE_KEYS && u->rec && a->seq.playing && !qd_rec_stepping(a)) {   /* recording live: it ends,
-                                                         * playback goes on */
-        qd_rec_end(a);
-        return;
-    }
-    if (a->seq.playing)
+    if (a->seq.playing) {
+        if (u->rec && !qd_rec_stepping(a))              /* (P1.6g: a live recording ends with the transport) */
+            qd_rec_end(a);
         qd_app_stop(a);
-    else
+    } else {
         qd_app_play(a);
+    }
 }
 
 /* REC: a tap switches the keybed between the sequencer and the keyboard; held QD_REC_HOLD_MS (P1.3x, qd_ctl_ms) it
@@ -1157,9 +1147,22 @@ static void b_rec(qd_app_t *a, int down)
         }
         return;
     }
-    if (u->rec_down_used || u->rec_auto_used)           /* (P1.6d: knobs recorded while held: no tap) */
+    /* P1.6g (the owner's recording, in every view): held past QD_REC_HOLD_MS stopped, it armed (qd_ctl_ms; PLAY then
+     * starts it); held past it playing with no knob turned, at its release the recording starts and latches; a knob
+     * turned while held was a punch-in (automation, while held), nothing latches; a tap while armed or recording
+     * stops it (playback goes on); a tap otherwise the view's own job (the keyboard / steps, the editor's keys) */
+    if (u->rec_down_used || u->rec_auto_used)           /* (shifted; armed at the hold; a punch-in) */
         return;
-    if (u->mode == QD_MODE_KEYS && u->rec) {            /* P1.3x / P1.3y: the recording ends */
+    if (a->ms - u->rec_down_ms >= QD_REC_HOLD_MS) {     /* held, no knob: playing, the recording latches */
+        if (!u->rec) {
+            if (a->proj.rec_mode)
+                qd_rec_arm_step(a);
+            else
+                qd_rec_arm_live(a);
+        }
+        return;
+    }
+    if (u->rec) {                                       /* a tap while armed or recording: it stops */
         qd_rec_end(a);
         return;
     }
@@ -1941,21 +1944,16 @@ void qd_ctl_ms(qd_app_t *a)
                 qd_clip_group(&u->clip, 1);
         }
     }
-    if (held(a, QD_B_REC) && !u->rec_down_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS && u->mode != QD_MODE_KEYS &&
-        a->seq.playing) {
-        u->rec_down_used = 1;                           /* P1.6d: another view, playing: REC held records automation
-                                                         * (no arming, the view stays) */
-    } else if (held(a, QD_B_REC) && !u->rec_down_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS) {
-        u->rec_down_used = 1;                           /* P1.3x: REC held: recording armed (P1.3y: in the record
-                                                         * settings' MODE) */
-        if (u->mode != QD_MODE_KEYS && qd_mfx_open(a))  /* (P1.6f: the MIDI FX screen stays, on its KEYS) */
-            qd_mfx_rec(a);
-        if (u->mode != QD_MODE_KEYS)
-            set_mode(a, QD_MODE_KEYS);
-        if (a->proj.rec_mode)
-            qd_rec_arm_step(a);
-        else
-            qd_rec_arm_live(a);
+    if (held(a, QD_B_REC) && !u->rec_down_used && !u->rec_auto_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS &&
+        !a->seq.playing && u->mode != QD_MODE_IDLE) {
+        u->rec_down_used = 1;                           /* P1.6g: stopped, REC held: armed, latched, in any view (the
+                                                         * record settings' MODE: LIVE waits for PLAY; STEP the cursor) */
+        if (!u->rec) {
+            if (a->proj.rec_mode)
+                qd_rec_arm_step(a);
+            else
+                qd_rec_arm_live(a);
+        }
     }
     qd_rec_ms(a);
     qd_auto_ms(a);                                      /* P1.6d: an automation take ends */

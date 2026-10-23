@@ -474,6 +474,10 @@ typedef struct {
     uint32_t mfx_gsel_ms, mfx_gsel_t0;
     uint32_t mfx_seen[8], mfx_hit_ms[8];   /* the slots' notes seen (the rail's glow) */
     int mfx_seen_g;
+    uint32_t mfx_walk_key, mfx_walk_ms; /* P1.6g: the ARP picture's walk (its key: the pattern, the notes ..), when it
+                                         * changed; the one before (the morph) */
+    uint8_t mfx_walk[48], mfx_walk_prev[48];
+    int mfx_walk_n, mfx_walk_pn;
     uint32_t arp_ms;                   /* ARP went down (P1.6d: a tap the MIDI FX screen, held the arp on / off) .. */
     int arp_used;                      /* .. SHIFT + ARP, or held: no tap */
     int arp_fill;                      /* P1.6d: SHIFT + ARP: FILL on (while both are down) */
@@ -484,6 +488,7 @@ typedef struct {
     uint32_t snd_lk_ms, snd_lk_bad_ms; /* .. when it went down; a value that is no destination turned (its shake) */
     int snd_fkey, snd_fkey_used, snd_fpop;   /* P1.6d: the FILTER key down, used; its machines' popup up .. */
     uint32_t snd_fkey_ms;
+    uint32_t snd_fpop_ms;              /* P1.6g: ALGORITHM turned the machine: the popup shown (QD_FPOP_SHOW_MS after) */
     int snd_page;                      /* P1.4a: the sound editor's page (QD_SND_PAGES) .. */
     int snd_knob;                      /* .. the knob last turned there (0..3 KNOB 1..4, 4 ALGORITHM; -1 none) .. */
     uint32_t snd_ms;                   /* .. and when */
@@ -616,7 +621,8 @@ int qd_snd_mod_slot_of(const struct qd_app *a, int src, int dest);   /* E4: the 
 extern const char *const QD_SND_MACHINE[6];
 extern const int8_t QD_SND_MENU[6];                 /* E4.1: the machines' menu order (indices of QD_SND_MACHINE) */
 int qd_snd_machine_pos(const struct qd_app *a);     /* .. the machine's place in it */
-#define QD_FPOP_MS 400u                             /* P1.6d: the FILTER key held this long: the machines' popup */
+#define QD_FPOP_MS 400u
+#define QD_FPOP_SHOW_MS 1000u          /* P1.6g: ALGORITHM on the FILTER page: the machines' popup this long after */                             /* P1.6d: the FILTER key held this long: the machines' popup */
 void qd_snd_fkey(struct qd_app *a, int down);
 void qd_snd_fkey_ms(struct qd_app *a);
 int qd_snd_fpop_key(struct qd_app *a, int b);

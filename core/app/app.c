@@ -140,12 +140,26 @@ void qd_app_master(qd_app_t *a, int pot)
     qd_fx_master_pot(a->master_pot);
 }
 
-/* MIDI in: notes on channels 1..8 play tracks 1..8 (and, on the selected track's channel, go into a held step or the
- * recording: ctl_rec.c); all notes off / all sound off release the channel's track; the clock (0xF8), START (0xFA),
- * CONTINUE (0xFB), STOP (0xFC) drive the transport */
+/* MIDI in (P1.6g): a channel plays the tracks set to it (the track settings' MIDI CH, the track's pattern's; 1..8 by
+ * default) and channel 16 the selected track too, notes and controllers (MW, BREATH, AT, PB: the tracks' modulation
+ * sources); on the selected track the notes also go into a held step or the recording (ctl_rec.c); all notes off / all
+ * sound off release the channel's tracks; the clock (0xF8), START (0xFA), CONTINUE (0xFB), STOP (0xFC) drive the
+ * transport */
+static int midi_tracks(const qd_app_t *a, int ch)       /* the tracks channel ch plays (bit t) */
+{
+    int t, m = 0;
+    for (t = 0; t < QD_NTRACK; t++)
+        if (qd_seq_track_pat(&a->seq, t)->trk[t].chan == ch)
+            m |= 1 << t;
+    if (ch == 15)
+        m |= 1 << a->sel;
+    return m;
+}
+
 void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
 {
     const int ch = status & 15, kind = status & 0xF0;
+    int m, t;
     if ((status & 0xF0) != 0xF0)
         qd_undo_input(a, 0);                            /* (P1.5c: notes into a held step or a take: a gesture) */
     switch (status & 0xFF) {
@@ -164,41 +178,58 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
     default:
         break;
     }
-    if (status >= 0xF0 || ch >= QD_NTRACK)
+    if (status >= 0xF0)
         return;
     d1 &= 127;
     d2 &= 127;
+    if (kind == 0x90 && d2) {                           /* a note: the channel's tracks now (its OFF goes to them) */
+        m = midi_tracks(a, ch);
+        if (a->midi_on[ch][d1])                         /* (struck again: the last one's released first) */
+            for (t = 0; t < QD_NTRACK; t++)
+                if ((a->midi_on[ch][d1] >> t) & 1)
+                    qd_player_key_off(&a->player, t, d1);
+        a->midi_on[ch][d1] = (uint8_t)m;
+    } else if (kind == 0x80 || kind == 0x90) {
+        m = a->midi_on[ch][d1];
+        a->midi_on[ch][d1] = 0;
+    } else {
+        m = midi_tracks(a, ch);
+    }
     {   /* P1.3d: the notes going into a previewed held step sound through its preview, not as keys */
-        const int mine = ch == qd_ctl_pat(a)->trk[a->sel].chan, pv = mine && qd_ctl_previewing(a);
+        const int mine = (m >> a->sel) & 1, pv = mine && qd_ctl_previewing(a);
         if (kind == 0x90 && d2) {
-            if (!pv)
-                qd_player_key_on(&a->player, ch, d1, d2);
+            for (t = 0; t < QD_NTRACK; t++)
+                if (((m >> t) & 1) && !(pv && t == a->sel))
+                    qd_player_key_on(&a->player, t, d1, d2);
             if (mine)
                 qd_rec_midi_note(a, d1, 1, d2);
         } else if (kind == 0x80 || kind == 0x90) {
-            if (!pv)
-                qd_player_key_off(&a->player, ch, d1);
+            for (t = 0; t < QD_NTRACK; t++)
+                if (((m >> t) & 1) && !(pv && t == a->sel))
+                    qd_player_key_off(&a->player, t, d1);
             if (mine)
                 qd_rec_midi_note(a, d1, 0, 0);
         }
         if (mine)
             qd_ctl_preview_sync(a);
     }
-    if (kind == 0xB0 && (d1 == 120 || d1 == 123)) {
-        qd_player_flush_track(&a->player, ch);           /* (P1.6c: its groups' notes too) */
-    }
-    {   /* E4: the track's MIDI state, the modulation slots' sources: CC 1 MOD WHEEL, CC 2 BREATH, channel pressure,
-         * pitch bend (channel n is track n) */
-        qd_quad_owner_t *o = &a->model.t[ch].owner;
-        if (kind == 0xB0 && d1 == 1)
+    for (t = 0; t < QD_NTRACK; t++) {
+        qd_quad_owner_t *o = &a->model.t[t].owner;
+        if (!((m >> t) & 1))
+            continue;
+        if (kind == 0xB0 && (d1 == 120 || d1 == 123))
+            qd_player_flush_track(&a->player, t);       /* (P1.6c: its groups' notes too) */
+        else if (kind == 0xB0 && d1 == 1)               /* E4: the modulation slots' sources: MOD WHEEL, BREATH, */
             o->mw = (uint8_t)d2;
         else if (kind == 0xB0 && d1 == 2)
             o->br = (uint8_t)d2;
-        else if (kind == 0xD0)
+        else if (kind == 0xD0)                          /* .. channel pressure, pitch bend */
             o->at = (uint8_t)d1;
         else if (kind == 0xE0)
             o->pb = (int16_t)((d2 << 7 | d1) - 8192);
     }
+    if (kind == 0xB0 && (d1 == 120 || d1 == 123))
+        memset(a->midi_on[ch], 0, sizeof a->midi_on[ch]);
 }
 
 /* ---------------------------------------------------------------- time --- */

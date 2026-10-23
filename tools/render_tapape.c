@@ -166,7 +166,7 @@ static void draw(const ui_turn_t *v)
 
 int render_tapape(const char *out)
 {
-    static const struct { const char *name, *cap; int n; float b, t; int ext; } S[15] = {
+    static const struct { const char *name, *cap; int n; float b, t; int ext; } S[16] = {
         {"enter", "The first tap: the ape bounces in", 1, 0.5f, 0.12f, 0},
         {"point", "Point-and-squat: one tap, no tempo yet", 1, 0.5f, 0.7f, 0},
         {"tap2", "Tap 2: the jump to the step", 2, 0.5f, 0.5f + 0.05f, 0},
@@ -182,6 +182,7 @@ int render_tapape(const char *out)
         {"finale", "2 s on: the finale, kneel, fist up", 8, 0.5f, 3.5f + 2.f + 0.2f, 0},
         {"ext", "An external clock: lounging on the boombox", 0, 0.5f, 0.6f, 1},
         {"flurry", "Easter egg: past 180 BPM, the flurry", 5, 0.3f, 4.f * 0.3f + 0.3f, 0},
+        {"moonwalk", "P1.6g: 70 BPM and under: the slow-motion moonwalk, its trails", 5, 1.0f, 4.f + 0.85f, 0},
     };
     static uint32_t tap[16];
     ui_turn_t v;
@@ -189,7 +190,7 @@ int render_tapape(const char *out)
     outdir = out;
     nshot = 0;
     failed = 0;
-    for (i = 0; i < 15; i++) {
+    for (i = 0; i < 16; i++) {
         const int n = taps_run(tap, S[i].n, S[i].b, 0.012f);
         model(&v, tap, n, (uint32_t)lroundf(S[i].t * 1000.f), S[i].ext, 124);
         draw(&v);

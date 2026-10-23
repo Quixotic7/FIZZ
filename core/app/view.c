@@ -1302,9 +1302,9 @@ int qd_view_edit_follows(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
     if (!a->seq.playing || u->fol_step < 0 || u->fol_t != a->sel || u->view != QD_VIEW_EDIT || u->mode != QD_MODE_STEP ||
-        u->latch || u->nheld || u->wk_pending || qd_ctl_mkey(a) >= 0 || u->tk != QD_TK_NONE)
-        return -1;                                      /* (P1.5s: the step latch on with nothing selected shows the
-                                                         * track's default: it follows too) */
+        u->latch || u->slatch || u->nheld || u->wk_pending || qd_ctl_mkey(a) >= 0 || u->tk != QD_TK_NONE)
+        return -1;                                      /* (P1.6g, the owner's one rule: the step latch on with nothing
+                                                         * selected is the track's values: no following; P1.5s followed) */
     return u->fol_step;
 }
 
@@ -1390,6 +1390,12 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         qd_seq_step_rec(&a->seq, a->seq.cur, a->sel, u->held[0], &r);
         pp = r.patch;
         v->step = u->held[0] + 1;
+    } else if (a->seq.playing && !u->slatch && u->fol_t == a->sel && u->fol_step >= 0) {
+        qd_seq_step_rec(&a->seq, a->seq.cur, a->sel, u->fol_step, &r);   /* P1.6g, the one rule: the latch off, nothing
+                                                         * held, playing: the step as it plays (its sound, its locks;
+                                                         * shown only) */
+        pp = r.patch;
+        v->follow = 1;
     }
     for (k = 0; k < 5; k++) {
         const int id = ids[k];
@@ -1403,7 +1409,8 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->lab[k] = qd_snd_label(a, u->snd_page, k);  /* (E2: the FILTER's by its machine) */
         if (pg->draw == UI_SD_FILTER && k == 4)         /* (E2: ALGORITHM the machine's name) */
             snprintf(v->txt[4], sizeof v->txt[4], "%s", QD_SND_MACHINE[qd_snd_machine(pp[QD_QP_FTYPE])]);
-        v->locked[k] = (uint8_t)(u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], id, &x));
+        v->locked[k] = (uint8_t)(u->nheld ? qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], id, &x)
+                                 : v->follow && qd_lock_get(qd_ctl_cpat(a), a->sel, u->fol_step, id, &x));
         v->lockany[k] = (uint8_t)(!u->nheld && track_locks(qd_ctl_cpat(a), a->sel, id));
         if (id == QD_QP_RB1) {                          /* P1.5i: RATIO B, the pair: B2 (the fast hand) over B1 */
             v->pair[k] = 1;
@@ -1453,7 +1460,9 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     }
     v->last = u->snd_knob;
     v->t = secs(a->ms);
-    v->fpop = u->snd_fpop;                              /* P1.6d: the machines' popup */
+    v->fpop = u->snd_fpop || (u->snd_fpop_ms && a->ms - u->snd_fpop_ms < QD_FPOP_SHOW_MS &&
+                              !strcmp(QD_SND_PAGES[u->snd_page].name, "FILTER"));   /* P1.6d: the machines' popup (P1.6g:
+                                                         * ALGORITHM's too, a second after its last detent) */
     v->fpop_sel = qd_snd_machine_pos(a);
     if (u->rnd_kind) {                                  /* P1.5c: the dice, the bottle */
         const uint32_t len = u->rnd_kind == 1 ? QD_RND_PAGE_HOLD_MS : u->rnd_kind == 4 ? QD_RND_DICE_MS
@@ -1644,26 +1653,85 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
             v->last = u->mfx_knob;
         if (s->type == QD_MFX_ARP) {                    /* the arp: its held notes, its walk, where it is */
             const qd_mfx_srt_t *r = &R->s[v->sel];
-            const int range = s->v[QD_MA_RANGE] < 1 ? 1 : s->v[QD_MA_RANGE];
-            int n = 0, i, o;
+            const int range = s->v[QD_MA_RANGE] < 1 ? 1 : s->v[QD_MA_RANGE] > 4 ? 4 : s->v[QD_MA_RANGE];
+            const int pat = s->v[QD_MA_PAT], mlen = s->v[QD_MA_MLEN], tlen = s->v[QD_MA_TLEN];
+            static const uint8_t DEF[3] = {60, 64, 67};
+            uint8_t notes[QD_MFX_NHOLD], asp[QD_MFX_NHOLD], idx[QD_MFX_NHOLD * 4];
+            int n = 0, i, o, ni, nh = 0;
+            uint32_t key = 2166136261u;
             while (n < QD_MFX_NHOLD && r->h[n].used)
                 n++;
             v->lane_sel = u->mfx_lane[v->page == 3 ? 1 : 0] & 15;
             if ((r->type & 0x7F) == QD_MFX_ARP && n) {
+                nh = n;
                 v->nheld = n;
-                for (i = 0; i < n; i++)
-                    v->held_p[i] = r->h[r->order[i]].n.pitch, v->held_t[i] = (uint8_t)(r->h[r->order[i]].n.track + 1);
-                for (o = 0; o < range && v->nseq < 24; o++)
-                    for (i = 0; i < r->nseq && v->nseq < 24; i++) {
-                        const int p = v->held_p[r->seq[i] < n ? r->seq[i] : 0] + o * s->v[QD_MA_ODIST];
-                        v->seq[v->nseq++] = (uint8_t)(p < 0 ? 0 : p > 127 ? 127 : p);
-                    }
+                for (i = 0; i < n; i++) {
+                    v->held_p[i] = notes[i] = r->h[r->order[i]].n.pitch;
+                    v->held_t[i] = (uint8_t)(r->h[r->order[i]].n.track + 1);
+                }
+                for (i = 0; i < n; i++) {               /* (as played: the arrivals, by their place in pitch) */
+                    int j;
+                    for (j = 0; j < n && r->order[j] != i; j++)
+                        ;
+                    asp[i] = (uint8_t)(j < n ? j : 0);
+                }
                 v->arp_run = r->run;
                 v->arp_step = r->oct * r->nseq + (r->pos > 0 ? r->pos - 1 : 0);
                 if (r->run)
                     v->lane_cur = v->page == 3 ? (r->tpos + s->v[QD_MA_TLEN] - 1) % (s->v[QD_MA_TLEN] < 1 ? 1 : s->v[QD_MA_TLEN])
                                                : (r->mpos + s->v[QD_MA_MLEN] - 1) % (s->v[QD_MA_MLEN] < 1 ? 1 : s->v[QD_MA_MLEN]);
+            } else {                                    /* (nothing held: the pattern on C E G) */
+                nh = 3;
+                memcpy(notes, DEF, 3);
+                asp[0] = 0, asp[1] = 1, asp[2] = 2;
             }
+            /* P1.6g: the PATTERN's walk, as the arp makes it (its random ones scattered, changing) */
+            ni = qd_mfx_arp_order(pat, nh, idx);
+            if (pat == QD_AP_ASP) {
+                memcpy(idx, asp, (size_t)nh);
+                ni = nh;
+            } else if (pat == QD_AP_RAND || pat == QD_AP_ROTH || pat == QD_AP_RONC) {
+                uint32_t x = (a->ms / 700u) * 2654435761u + 12345u;
+                ni = pat == QD_AP_RONC ? nh : nh * 2 < 6 ? 6 : nh * 2;
+                for (i = 0; i < ni; i++) {
+                    x = x * 1664525u + 1013904223u;
+                    idx[i] = (uint8_t)((x >> 16) % (uint32_t)nh);
+                    if (pat == QD_AP_ROTH && i && idx[i] == idx[i - 1] && nh > 1)
+                        idx[i] = (uint8_t)((idx[i] + 1) % nh);
+                }
+                if (pat == QD_AP_RONC) {                /* (every note once, shuffled) */
+                    for (i = 0; i < nh; i++)
+                        idx[i] = (uint8_t)i;
+                    for (i = nh - 1; i > 0; i--) {
+                        const int j = (int)((x >> (i & 7)) % (uint32_t)(i + 1));
+                        const uint8_t tt = idx[i];
+                        idx[i] = idx[j], idx[j] = tt;
+                    }
+                }
+            }
+            for (o = 0; o < range && v->nseq < 48; o++)
+                for (i = 0; i < ni && v->nseq < 48; i++) {
+                    const int j = v->nseq;
+                    int p = notes[idx[i] < nh ? idx[i] : 0] + o * s->v[QD_MA_ODIST];
+                    if (mlen > 0 && s->lane[0][j % mlen] == QD_AL_REST)
+                        v->gap[j] = 1;                  /* (the MOD lane's rests: gaps) */
+                    if (tlen > 0)
+                        p += s->lane[1][j % tlen];      /* (the TRANSPOSE lane: offsets) */
+                    v->seq[v->nseq++] = (uint8_t)(p < 0 ? 0 : p > 127 ? 127 : p);
+                }
+            for (i = 0; i < v->nseq; i++)
+                key = (key ^ (uint32_t)(v->seq[i] | v->gap[i] << 7)) * 16777619u;
+            if (key != u->mfx_walk_key) {               /* changed: the old walk kept for the morph */
+                memcpy(u->mfx_walk_prev, u->mfx_walk, sizeof u->mfx_walk);
+                u->mfx_walk_pn = u->mfx_walk_n;
+                memcpy(u->mfx_walk, v->seq, sizeof u->mfx_walk);
+                u->mfx_walk_n = v->nseq;
+                u->mfx_walk_key = key;
+                u->mfx_walk_ms = a->ms ? a->ms : 1u;
+            }
+            v->morph = u->mfx_walk_pn && a->ms - u->mfx_walk_ms < 180u ? (float)(a->ms - u->mfx_walk_ms) / 180.f : 1.f;
+            v->nprev = u->mfx_walk_pn;
+            memcpy(v->prev, u->mfx_walk_prev, sizeof v->prev);
         }
         if (s->type == QD_MFX_CHORD) {                  /* CHORD: the chord on A, named */
             const int sh = s->v[QD_MK_SHAPE] > 0 && s->v[QD_MK_SHAPE] < QD_NSHAPE ? s->v[QD_MK_SHAPE] : 1;
@@ -2090,7 +2158,8 @@ void qd_view_frame(qd_app_t *a, uint16_t *lcd_be)
             qd_restore();
         }
     }
-    if (qd_auto_on(a))                                  /* P1.6d: automation recording: the cue */
+    if (qd_auto_on(a) || (u->rec && a->seq.playing && !u->live_wait && !qd_rec_stepping(a)))   /* P1.6d: automation
+                                                         * recording: the cue (P1.6g: a live recording too) */
         ui_auto_cue(u->auto_take ? u->auto_knob - QD_K_1 : -1,
                     u->auto_take ? (float)(a->ms - u->auto_ms) / 1000.f : -1.f, secs(a->ms));
     if (u->cf_on) {                                     /* a confirmation word */

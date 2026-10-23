@@ -447,7 +447,7 @@ static void mf_foot(const ui_mfx_t *v, float a)
         if (!v->has[i])
             continue;
         mf_T(v->lab[i] ? v->lab[i] : "", x, 204.f, 12.f, 500, 0.f, UI_G1, QD_CENTER, a);
-        while (s > 14.f && ui_TW(v->val[i], s, 400, 0.f) > 55.f)
+        while (s > 12.f && ui_TW(v->val[i], s, 400, 0.f) > 55.f)   /* (P1.6g: AS PLAYED fits: down to 12 px) */
             s -= 1.f;
         mf_T(v->val[i], x, 228.f, s, 400, 0.f, KC[i], QD_CENTER, a);
         if (v->last == i)
@@ -457,56 +457,57 @@ static void mf_foot(const ui_mfx_t *v, float a)
 
 /* ---------------------------------------------------------------- the big drawings (the middle, y 84..188) */
 static float mf_arp_y(int p, int lo) { return 178.f - (float)(p - lo) * 3.55f; }
+/* P1.6g: the ARP's picture: the PATTERN's real walk (its notes in play, or C E G dim) as a staircase of clean, even
+ * lines over RANGE octaves (the MOD lane's rests gaps, the TRANSPOSE lane's offsets in it), morphing from the last one
+ * when it changes, the playing step's dot running along it; at the left a small vertical keyboard on the same scale,
+ * its keys lit for the notes the arp plays from (a latch over it in HOLD / 1-ST) */
 static void mf_arp(const ui_mfx_t *v)
 {
     const qd_rgb col = UI_MFX_COL[QD_MFX_ARP];
-    uint8_t held[8], ht[8], seq[24];
-    int nh = v->nheld, ns = v->nseq, i, lo, cur;
-    const int latched = v->v[QD_MA_MODE] == QD_AM_HOLD || v->v[QD_MA_MODE] == QD_AM_1ST;
-    const float x0 = 50.f;
-    float w, f;
-    if (nh <= 0) {                                      /* (nothing held: the pattern's shape on C E G, dim) */
-        static const uint8_t DEF[3] = {60, 64, 67};
-        nh = 3;
-        memcpy(held, DEF, 3);
-        memset(ht, 0, sizeof ht);
-    } else {
-        memcpy(held, v->held_p, (size_t)nh);
-        memcpy(ht, v->held_t, (size_t)nh);
-    }
-    if (ns <= 0) {
-        int o, k = 0;
-        for (o = 0; o < 2 && k < 24; o++)
-            for (i = 0; i < nh && k < 24; i++)
-                seq[k++] = (uint8_t)(held[i] + 12 * o);
-        ns = k;
-    } else {
-        memcpy(seq, v->seq, (size_t)ns);
-    }
-    lo = held[0];
+    const int ns = v->nseq > 0 ? v->nseq : 1, latched = v->v[QD_MA_MODE] == QD_AM_HOLD || v->v[QD_MA_MODE] == QD_AM_1ST;
+    const float x0 = 50.f, da = v->nheld ? 1.f : 0.6f, mo = mf_ease(v->morph);
+    float ys[48], w, f;
+    int i, lo = 127, hi = 0, cur;
     for (i = 0; i < ns; i++)
-        lo = seq[i] < lo ? seq[i] : lo;
+        lo = v->seq[i] < lo ? v->seq[i] : lo, hi = v->seq[i] > hi ? v->seq[i] : hi;
+    for (i = 0; i < v->nheld; i++)
+        lo = v->held_p[i] < lo ? v->held_p[i] : lo;
     lo -= 1;
-    {
-        int hi = 0;
-        for (i = 0; i < ns; i++)
-            hi = seq[i] > hi ? seq[i] : hi;
-        if (hi - lo > 28)                               /* (a wide range: squeezed into the middle) */
-            lo = hi - 28;
+    if (hi - lo > 28)                                   /* (a wide range: squeezed into the middle) */
+        lo = hi - 28;
+    for (i = 0; i < ns; i++) {                          /* the walk's heights, morphing from the last one */
+        const float yn = mf_clamp(mf_arp_y(v->seq[i], lo), 88.f, 184.f);
+        if (mo < 1.f && v->nprev > 0) {
+            const float yp = mf_clamp(mf_arp_y(v->prev[i < v->nprev ? i : v->nprev - 1], lo), 88.f, 184.f);
+            ys[i] = mf_lerp(yp, yn, mo);
+        } else {
+            ys[i] = yn;
+        }
     }
     mf_Pd((const float[]){46.f, mf_arp_y(lo + 13, lo) + 0.5f, 230.f, mf_arp_y(lo + 13, lo) + 0.5f}, 2, UI_G3, 1.f, 1.f, 2.f, 4.f);
     mf_Pd((const float[]){46.f, mf_arp_y(lo + 25, lo) + 0.5f, 230.f, mf_arp_y(lo + 25, lo) + 0.5f}, 2, UI_G3, 1.f, 1.f, 2.f, 4.f);
-    {   /* the held notes: a column of dots (a latch closes over it in HOLD / 1-ST) */
-        const float top = mf_clamp(mf_arp_y(held[nh - 1], lo), 92.f, 180.f) - 10.f, bot = mf_clamp(mf_arp_y(held[0], lo), 92.f, 180.f) + 10.f;
-        mf_RR(13.f, top, 24.f, bot - top, 12.f, latched ? col : UI_G2, 1.3f, QD_NONE, latched ? 0.8f : 1.f, 0);
-        for (i = 0; i < nh; i++)
-            mf_dot(25.f, mf_clamp(mf_arp_y(held[i], lo), 92.f, 180.f), 3.6f, v->nheld ? MF_TP[(ht[i] - 1) & 7] : UI_G2,
-                   v->nheld ? 1.f : 0.6f);
-        if (latched) {
-            const float hx = 13.f, hy = top - 7.f;
-            mf_O(hx, hy, 3.2f, col, 1.6f, UI_BG, 1.f);
-            mf_G((const float[]){hx, hy, hx + 28.f, hy}, 2, col, 3.2f, 1.f);
-            mf_P((const float[]){41.f, top - 11.f, 41.f, top - 2.f, 37.f, top - 2.f}, 3, col, 1.6f, 1.f);
+    {   /* the keyboard strip: a key a semitone, on the staircase's scale; lit: the notes in play */
+        int p;
+        for (p = lo + 1; p <= lo + 28 && p < 128; p++) {
+            const float y = mf_arp_y(p, lo);
+            const int bk = (0x54a >> (p % 12)) & 1;     /* (C# D# F# G# A#) */
+            int in = -1, k;
+            if (y < 90.f || y > 184.f)
+                continue;
+            for (k = 0; k < v->nheld; k++)
+                if (v->held_p[k] == p)
+                    in = k;
+            if (in >= 0)
+                mf_RR(14.f, y - 1.5f, bk ? 13.f : 22.f, 3.f, 1.f, QD_NONE, 1.f,
+                      MF_TP[(v->held_t[in] - 1) & 7], 1.f, 0);
+            else
+                mf_RR(14.f, y - 1.5f, bk ? 13.f : 22.f, 3.f, 1.f, QD_NONE, 1.f, bk ? UI_G3 : UI_G2, 1.f, 0);
+        }
+        if (latched) {                                  /* HOLD / 1-ST: a latch over the strip */
+            const float hy = 86.f;
+            mf_O(14.f, hy, 3.f, col, 1.4f, UI_BG, 1.f);
+            mf_L(17.f, hy, 36.f, hy, col, 1.4f, 1.f);
+            mf_L(36.f, hy, 36.f, hy + 5.f, col, 1.4f, 1.f);
         }
     }
     w = (228.f - x0) / (float)ns;
@@ -514,21 +515,19 @@ static void mf_arp(const ui_mfx_t *v)
     f = v->arp_run && v->nheld ? 0.5f : fmodf(v->t * 5.f, 1.f);
     {
         const float gate = mf_clamp((float)v->v[QD_MA_GATE] / 100.f, 0.05f, 1.f);
-        const float da = v->nheld ? 1.f : 0.45f;
-        for (i = 0; i < ns; i++) {
-            const float x = x0 + (float)i * w, y = mf_clamp(mf_arp_y(seq[i], lo), 88.f, 184.f);
-            const int on = i == cur;
-            if (i > 0)
-                mf_L(x, mf_clamp(mf_arp_y(seq[i - 1], lo), 88.f, 184.f), x, y, col, 1.2f, 0.4f * da);
-            mf_G((const float[]){x, y, x + w, y}, 2, col, on ? 2.f : 1.4f, (on ? 0.6f : 0.38f) * da);
-            mf_G((const float[]){x + 2.f, y, x + 2.f + (w - 4.f) * gate, y}, 2, col, on ? 4.4f : 3.4f, (on ? 1.f : 0.55f) * da);
+        for (i = 0; i < ns; i++) {                      /* each step a clean line, even (no glow) */
+            const float x = x0 + (float)i * w;
+            if (v->gap[i])
+                continue;
+            if (i > 0 && !v->gap[i - 1])
+                mf_L(x, ys[i - 1], x, ys[i], col, 1.f, 0.45f * da);
+            mf_L(x + 1.f, ys[i], x + 1.f + mf_clamp((w - 2.f) * gate, 1.5f, w), ys[i], col, 2.f, (i == cur ? 1.f : 0.7f) * da);
         }
-        {
-            const float xc = x0 + (float)cur * w + 2.f + (w - 4.f) * gate * mf_clamp(f / gate, 0.f, 1.f);
-            const float yc = mf_clamp(mf_arp_y(seq[cur], lo), 88.f, 184.f);
-            mf_dot(xc, yc, 3.6f, v->nheld ? MF_TP[(ht[cur % nh] - 1) & 7] : UI_K3, da);
+        if (!v->gap[cur]) {                             /* the playing step: its dot, a clean ring as it strikes */
+            const float xc = x0 + (float)cur * w + 1.f + (w - 2.f) * gate * mf_clamp(f / gate, 0.f, 1.f);
+            mf_dot(xc, ys[cur], 3.2f, v->nheld ? MF_TP[(v->held_t[0] - 1) & 7] : UI_K3, da);
             if (f < 0.3f)
-                mf_O(x0 + (float)cur * w + 2.f, yc, 4.f + f * 30.f, col, 1.2f, QD_NONE, (1.f - f / 0.3f) * da);
+                mf_O(x0 + (float)cur * w + 1.f, ys[cur], 4.f + f * 26.f, col, 1.f, QD_NONE, (1.f - f / 0.3f) * da);
         }
     }
 }

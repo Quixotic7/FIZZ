@@ -52,7 +52,8 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
                                                          * SHIFT + ARP: FILL) */
     lb_set(o, LB_BTN(QD_B_MIX), "PATTERNS");
     lb_set(o, LB_BTN(QD_B_PLAY), a->seq.playing ? "STOP" : "PLAY");
-    lb_set(o, LB_BTN(QD_B_REC), keys ? (u->rec ? "REC OFF" : "STEPS") : "KEYS");   /* (P1.6f: what a tap switches to) */
+    lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : keys ? "STEPS" : "KEYS");   /* (P1.6f: what a tap switches to;
+                                                         * P1.6g: armed or recording, a tap stops it, in any view) */
     lb_set(o, LB_BTN(QD_B_OCTDN), keys ? "OCT-" : "F1");
     lb_set(o, LB_BTN(QD_B_OCTUP), keys ? "OCT+" : "F2");
     lb_set(o, LB_KNOB(QD_LBL_MASTER - QD_LBL_KNOB0), "VOLUME");
@@ -309,7 +310,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         const int g = qd_mfx_tgroup(a), lane = qd_mfx_lane_page(a);
         char val[12];
         lb_set(o, LB_KNOB(QD_K_ALGO), qd_mfx_steps_held(a, 0) ? "STEP MFX" : "GROUP");   /* (P1.6e: STEPS' steps) */
-        lb_set(o, LB_BTN(QD_B_REC), u->mode == QD_MODE_STEP ? "KEYS" : u->rec ? "REC OFF" : "STEPS");   /* (P1.6e:
+        lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : u->mode == QD_MODE_STEP ? "KEYS" : "STEPS");   /* (P1.6e:
                                                          * what REC switches to; P1.6f: the main view's) */
         if (u->mode == QD_MODE_STEP && !lane)
             for (i = 0; i < 16; i++)
@@ -363,7 +364,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_PRESETS), u->nheld ? "SOUND LOCK" : "PRESETS");
         lb_set(o, LB_BTN(QD_B_SOUND), "CLOSE");
-        lb_set(o, LB_BTN(QD_B_REC), qd_snd_keys(a) ? "STEPS" : "KEYS");
+        lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : qd_snd_keys(a) ? "STEPS" : "KEYS");
         return;
     }
     if (u->mode == QD_MODE_KEYS) {                      /* the keyboard */

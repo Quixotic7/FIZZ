@@ -112,6 +112,7 @@ typedef struct qd_app {
     uint8_t key_vel[QD_NKEY];
     uint32_t keys_struck;              /* bit k: key k struck a note (it is released at the key's release) */
     uint8_t key_note[QD_NKEY], key_track[QD_NKEY];
+    uint8_t midi_on[16][128];          /* P1.6g: MIDI in: the tracks (bit t) each channel's note struck (its OFF: those) */
     int master_pot;                    /* MASTER, 0..1023 */
     /* the sound */
     qd_model_t model;

@@ -210,7 +210,8 @@ static void t_screens(void)
     fresh();
     tap_button(QD_B_REC);
     qd_app_leds(&A, &l);
-    CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_REC] == QD_LED_LIT, "REC: the keyboard, REC's LED lit");
+    CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_REC] == QD_LED_DIM, "REC: the keyboard, REC's LED dim (P1.6g: lit "
+          "while recording)");
     CHECK(l.key[7] == QD_LED_80 && l.key[19] == QD_LED_80 && l.key[8] == QD_LED_HALF,
           "the keyboard: the scale lit (chromatic on C: the C keys 80 %%, the rest 50 %%; P1.5b)");
     qd_app_midi(&A, 0x90, 64, 100);                     /* E4 from MIDI on track 1 (selected): its key lit */
@@ -241,7 +242,26 @@ static void t_midi(void)
     qd_app_midi(&A, 0x97, 72, 0);                       /* velocity 0: off */
     run(5, 0);
     CHECK(!sounding(4, 60) && !sounding(7, 72), "note off and velocity 0 release");
-    printf("  midi: channels 1..8 play tracks 1..8\n");
+    /* P1.6g: channel 16 the selected track (notes and controllers); a track's MIDI CH set by hand: that channel */
+    qd_ctl_select_track(&A, 2);
+    qd_app_midi(&A, 0x9F, 64, 90);
+    qd_app_midi(&A, 0xBF, 1, 99);
+    run(10, 0);
+    CHECK(sounding(2, 64) && A.model.t[2].owner.mw == 99 && A.model.t[0].owner.mw != 99,
+          "channel 16: the selected track (3): its note, its MOD WHEEL");
+    qd_ctl_select_track(&A, 5);                         /* (selected another while the note sounds: its OFF still goes
+                                                         * to track 3) */
+    qd_app_midi(&A, 0x8F, 64, 0);
+    run(5, 0);
+    CHECK(!sounding(2, 64), "its note off: to the track it struck");
+    A.proj.pat[A.seq.cur].trk[6].chan = 9;              /* track 7 on channel 10 by hand */
+    qd_app_midi(&A, 0x99, 55, 90);
+    qd_app_midi(&A, 0x96, 57, 90);
+    run(10, 0);
+    CHECK(sounding(6, 55) && !sounding(6, 57), "track 7 set to channel 10: channel 10 plays it, channel 7 no more");
+    qd_app_midi(&A, 0x89, 55, 0);
+    qd_app_midi(&A, 0x86, 57, 0);
+    printf("  midi: channels 1..8 play tracks 1..8 (their MIDI CH), channel 16 the selected track\n");
 }
 
 /* P1.6c: MIDI in through the track's group, CC 123 its notes off, recording pre-FX by design (ctl_rec takes the

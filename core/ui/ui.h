@@ -704,6 +704,7 @@ typedef struct ui_snd {
     int lk_ok, lk_k;                    /* .. a destination (else dim, shaking), the knob's column (-1) */
     float lk_depth, lk_shake;           /* .. the depth -1..1, the shake 0..1 (1: just refused) */
     int fpop, fpop_sel;                 /* P1.6d: the FILTER key held: the machines' popup up, the current (menu order) */
+    int follow;                         /* P1.6g: the values the step playing's (the latch off, nothing held) */
     int rnd_kind;                       /* P1.5c: randomise: 1 the dice shaking (P1.6d: held), 4 rolling, 2 the bottle
                                          * filling, 3 its burst .. */
     float rnd_u;                        /* .. 0..1 through it */
@@ -824,8 +825,12 @@ typedef struct ui_mfx {
     int nheld;                          /* ARP: the notes it holds (by pitch), their tracks .. */
     uint8_t held_p[8], held_t[8];
     int arp_run, arp_step;              /* .. it runs, the step of its walk playing (into seq) */
-    int nseq;                           /* .. its walk over the range (pitches, up to 24) */
-    uint8_t seq[24];
+    int nseq;                           /* .. its walk over the range (pitches, up to 48; P1.6g: the PATTERN's real order,
+                                         * on the notes held or C E G, the lanes' rests as gaps, transposes as offsets) */
+    uint8_t seq[48], gap[48];
+    int nprev;                          /* P1.6g: the walk before the last change (its morph) .. */
+    uint8_t prev[48];
+    float morph;                        /* .. 0..1 into the new one */
     int sel_branch;                     /* SELECTOR: the slot chosen last (-1) */
     char chord[12];                     /* CHORD: the chord's name ("Am7") */
     int byp_sel;                        /* the selected slot is bypassed */

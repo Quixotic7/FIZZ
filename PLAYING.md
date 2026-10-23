@@ -71,8 +71,11 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   when you hear the step, so a step with micro-timing changes late by that much, and a slow track (1/8 ..) changes
   at its pace; a ratchet changes it once. An empty step keeps the last one played, dimmed a little. A muted track is
   followed too. Stop, select a step with the latch (or the cursor), or hold a step and it shows that step again as
-  before; the latch on with nothing selected follows (P1.5s); a knob's pop-up shows as before and following comes
-  back after it.
+  before; a knob's pop-up shows as before and following comes back after it. **One rule everywhere (0.9.5):** the
+  step latch on with nothing selected shows the track's values, still (no following; it followed before); the latch
+  off and nothing held follows; a step held or selected shows that step. **The sound editor follows the same way**:
+  playing, the latch off, nothing held, its values and pictures are the playing step's (its sound lock and its locks,
+  marked), shown only (nothing is edited by following).
 - **The knobs with no finger on a step** (nothing held, or the step latch's selection), in every view, layout **A**
   (the global settings can switch layouts, see below):
   - **ALGORITHM = the step cursor**: it turns the step latch on and moves its one selected step through all eight
@@ -349,8 +352,8 @@ Undo and redo of everything (P1.5c):
 - **Tap SEL**: the selected track's settings in this pattern (its number, kind and name in its colour at the top).
   **SEL again** (or SELECT) for the next page (three, round). **OCT− or HOME** closes it. **B1..B8** switch to another track's.
 - Page 1: **KNOB 1 SCALE** (its twelve notes shown as dots, the root ringed), **KNOB 2 ROOT**, **KNOB 3 FOLLOW KEY**
-  (the project's global key instead of its own), **KNOB 4 MIDI CH** (the channel whose notes play into a held step or
-  the recording).
+  (the project's global key instead of its own), **KNOB 4 MIDI CH** (the channel that plays the track, 1..8 by
+  default; channel 16 always plays the selected track).
 - Page 2: **KNOB 1 VOICES** (the voice limit, 1 = mono; the voices sounding white), **KNOB 2 SWING** on / off,
   **KNOB 3 PAGE FOLLOW**, **KNOB 4 MIDI FX**.
 - Page 3 (0.9.1): **KNOB 1 KIND**: BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX (the presets' seven tags), each with its
@@ -362,7 +365,8 @@ Undo and redo of everything (P1.5c):
   the headers (the keyboard, the lanes, the track settings), the track takeovers (FX + ALGORITHM, P-LOCK's ALGORITHM).
 - Names and kinds are **saved with the project** (its header). A project from before 0.9.1 keeps the names it had
   (the default kit's: DRUMS, BASS, KEYS, LEAD, PLUCK, PAD, BELL, NOISE), with the kinds DRUMS, BASS, KEYS, LEAD,
-  PLUCK, PAD, KEYS, FX.
+  PLUCK, PAD, KEYS, FX. **A new project** (0.9.5) names its tracks from their sounds: each track's kind from its
+  preset's tags, its name from the namesizer and the sound's own ideas (not typed: a kind chosen renames it).
 - SHIFT + ALGORITHM / PRESETS still set the scale / root from the step view.
 
 ## How do I mix? (ENV = MIX)
@@ -459,7 +463,7 @@ shortcuts act; SHIFT + a knob stays the editor's fine step).
 | **B3** | **recall** the snapshot onto it at once (undoable; dim: none stored) |
 | **B4** | **copy** the pattern |
 | **B5** | **paste** it onto the pattern you are on (undoable; dim: nothing copied) |
-| **B6** | **tap tempo**: tap it in time; the tempo is the average of your last four taps (start again after 2 s). The **TAP** screen (0.9.2: **the TAP ape**) shows from the first tap until **2.8 s** after the last: the BPM top left once two taps make one, the taps as dots under the floor (the last four bright), a boombox, and a breakdancing gorilla. The first tap it bounces in pointing at the boombox; **every tap jumps it to its next pose** (step, side lean, knuckle crouch, side kick, handstand, one-arm air freeze, spin, lying freeze on the boombox, headstand, back freeze, then round again) with a hop, a flash, the old pose's ghost, sparkles and the boombox pumping; between taps it **grooves on the beat** (bobs, rocks, spins, the headstand turning). 2 s after the last tap the dots clear and it kneels, fist up. **180 BPM and up**: every tap a headstand flurry (rainbow rings, a sparkle shower). An external clock: the ape lounges on the boombox, dimmed, the tempo grey with a clock beside it (tapping does nothing) |
+| **B6** | **tap tempo**: tap it in time; the tempo is the average of your last four taps (start again after 2 s). The **TAP** screen (0.9.2: **the TAP ape**) shows from the first tap until **2.8 s** after the last: the BPM top left once two taps make one, the taps as dots under the floor (the last four bright), a boombox, and a breakdancing gorilla. The first tap it bounces in pointing at the boombox; **every tap jumps it to its next pose** (step, side lean, knuckle crouch, side kick, handstand, one-arm air freeze, spin, lying freeze on the boombox, headstand, back freeze, then round again) with a hop, a flash, the old pose's ghost, sparkles and the boombox pumping; between taps it **grooves on the beat** (bobs, rocks, spins, the headstand turning). 2 s after the last tap the dots clear and it kneels, fist up. **180 BPM and up**: every tap a headstand flurry (rainbow rings, a sparkle shower). **70 BPM and under** (0.9.5): the moves in slow motion with motion trails, and it moonwalks. An external clock: the ape lounges on the boombox, dimmed, the tempo grey with a clock beside it (tapping does nothing) |
 | **B7** | tap: the **metronome** (CLICK on / off). Hold B7 and turn any knob: its level (0..100, 60 at first) |
 | **B8** | **PAGE FOLLOW** on / off (P1.5z), its picture (the pages, the playhead, the arrow; OFF crossed) and ON / OFF big. It is the same switch as the global settings' KNOB 2 and the track settings' PAGE FOLLOW: one for all tracks |
 | **B9** | **double the track**: its looped pages copied after themselves, the loop twice as long ("FULL": no room) |
@@ -497,32 +501,39 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   - **KNOB 4 EDIT KEYS** (P1.5b): **SCALE** or **FULL**, the keyboard in the sound editor (below).
 - **SHIFT + REC again** (or SELECT): the settings' **page 2**: **KNOB 1 AUTOMATION** ON (the default) / OFF: armed live
   recording also records knob moves (ON) or only notes (OFF).
-- **Hold REC**: recording armed (in the keyboard) in the MODE chosen.
-  **LIVE**: stopped, nothing moves until you play the **first key**:
-  playback and recording start together, that note on the loop's first step.
-  - Notes go to the nearest step **at the track's speed** (dotted and triplet too), the offset kept as micro-timing,
-    the length from how long you held the key. With AUTOMATION ON, knob turns become locks on the step playing (an
-    empty step a ghost, below).
-  - An **empty track grows** as you record: it starts as page 1, and each next page joins the loop as the playhead
-    gets there; when the recording ends the loop is the pages it reached. After page 8 it goes round and records over
-    what is there. A track with steps records into its own loop.
-  - **REC or PLAY** while recording ends the recording; playback goes on (PLAY again stops).
-  **STEP**: **step recording**, stopped or playing: each note or chord goes into the cursor's step and the cursor moves
-  on. F2 leaves a rest, F1 steps back, PRESETS moves the cursor. REC tapped ends it (still the keyboard).
-- SHIFT + REC no longer arms recording (it opens the settings).
-- **REC + PLAY** starts playing with recording armed, in the keyboard.
-- **Automation** (0.9.1): **playing, hold REC and turn knobs, in any view**: each move is recorded as a lock into the
-  step the selected track's playhead is on (the value the knob gives: the sound editor's, the mix's, the sends', in the
-  steps view and the keyboard KNOB 1..4's quick page). A step with a note gets the lock; **an empty step becomes a
-  ghost** (a LOCK trig) holding it. Several moves within one step keep the last; the next step goes on from that value.
-  It is heard at once on the sounding notes; the track's own sound does not change. Let go of REC: it stops (no
-  keyboard switch, nothing armed, in the other views). In the keyboard holding REC still arms live recording; armed with
-  AUTOMATION ON the knobs record too (ghosts included), and REC held records them even with AUTOMATION OFF. **One undo
-  level per take.** While it records the screen is framed in red (pulsing), and a red dot shows on the band under the
-  knob that wrote.
+- **Recording (0.9.5), in every view** (the keyboard, the step view, the sound editor, the MIDI FX screen): notes from
+  the keys that play there (the keyboard, the editor's keys, the MIDI FX screen's KEYS) and from MIDI, knobs when
+  AUTOMATION is ON.
+  - **Stopped: hold REC** (a second): **armed**, and it stays armed when you let go (REC blinking). Then **press PLAY**:
+    playback starts and the recording runs (REC lit). Two gestures, one after the other (REC + PLAY together is gone;
+    a key played while armed and stopped is not recorded).
+  - **Playing: hold REC and let go without turning a knob**: the recording starts and **latches** (REC lit).
+  - **A tap of REC while armed or recording stops it**; playback goes on. Otherwise a tap is the view's own job, as
+    before: the keyboard / the steps, the editor's keys, the MIDI FX screen's STEPS / KEYS. (So a tap never switches
+    the view while recording: it stops the recording first; the next tap switches.)
+  - **Playing: hold REC and turn knobs**: an **automation punch-in**, recording the knobs only while REC is held;
+    letting go ends it, nothing latches. While a recording is latched, REC held + a knob records the knob and the
+    recording goes on.
+  - **PLAY while recording** stops the transport and the recording.
+  - REC's light: **off** (the steps), **dim** (the keyboard / the editor's keys: what a tap switched), **blinking**
+    (armed), **lit** (recording). While it records the screen is framed in red, a red dot on the band under a knob as
+    it writes.
+  - The record settings' **MODE**: **LIVE** as above (notes to the nearest step at the track's speed, micro-timing
+    kept, the length from the hold; an **empty track grows** a page as the playhead reaches it, the loop the pages
+    reached when it ends); **STEP**: step recording, armed by the hold, playing or not: each note or chord into the
+    cursor's step (in the keyboard F2 a rest, F1 a step back, PRESETS the cursor). SHIFT + REC opens the settings.
+  - **Automation** (0.9.1): each knob move is a lock in the step the selected track's playhead is on (the sound
+    editor's values, the mix's, the sends'; in the step view and the keyboard KNOB 1..4's quick page). A step with a
+    note gets the lock; **an empty step becomes a ghost** (a LOCK trig). Several moves within one step keep the last;
+    the next goes on from that value. Heard at once; the track's own sound does not change. **One undo level per
+    take.**
 - **FILL is SHIFT + ARP held** (0.9.1; it was ARP held): FILL while both are down (ARP blinks). ARP alone: MIDI FX,
   below.
-- A **MIDI keyboard** on the track's channel plays, records, or sets the notes of a held step (up to five).
+- **MIDI in** (0.9.5): a channel plays **the tracks set to it** (the track settings' MIDI CH: tracks 1..8 on channels
+  1..8 by default, as they always were; set by hand, that channel), and **channel 16 always plays the selected track**,
+  notes and controllers (MOD WHEEL, BREATH, AFTERTOUCH, PITCH BEND into its modulation slots). On the selected track
+  the notes also record, or set the notes of a held step (up to five). (Before 0.9.5 a channel always played the
+  track with its number, whatever MIDI CH said; nothing in a project changes.)
 
 ## How do I change sounds? (P1.5t: presets, the pool, the track's sound)
 
@@ -635,7 +646,8 @@ DECAY, HARM and FDBK.
   page). **With a step held** (or the latch's selection) the destination and the depth are locks of that step.
 - A value an LFO moves has the LFO's number in its colour by its name (1 cyan, 2 yellow, 3 violet), on every page.
   **RATIO B** (P1.5i) is one value, as in ChoralRoot and the Digitone: the pair B2 over B1, shown as a fraction. A
-  click steps B2 (the fast hand) and carries into B1 after 16.00; **SHIFT + KNOB 3** steps B1. A step's lock of it
+  click steps B2 (the fast hand) and carries into B1 after 16.00; **SHIFT + KNOB 3** steps B1. A fast spin
+  accelerates as the other values do (0.9.5), so it sweeps B1 too in a few turns. A step's lock of it
   locks both. **MIX** is drawn in the RATIO picture as the balance of the algorithm's two outputs: X's wires and Y's
   as bright and thick as their share (the other faint, never gone), and (P1.5j) a slider of its own under the
   drawing, centred and wide, X's end and Y's marked in their carriers' colours, the handle in KNOB 4's orange, a tick
@@ -707,7 +719,7 @@ DECAY, HARM and FDBK.
   - **Hold B4** (the FILTERS key, 400 ms; 0.9.1): a popup of the six machines, each with its curve, the current one
     lit. While held, **ALGORITHM or any knob** turns the choice (a detent a machine), or **B1..B6** picks one. Let go:
     closed, the choice kept (through the dip). A tap of B4 still turns the group's pages; ALGORITHM on the FILTER page
-    still turns the machine.
+    still turns the machine, and shows the same popup for a second after its last detent (0.9.5).
   - The picture draws each machine's response; the filter envelope, DEPTH, key tracking and the base-width work with
     every machine. Changing the machine on a playing note takes a short dip (no click). BASE's KNOB 4 **ROUTE** puts
     the base-width filter before (as before) or after the machine.
@@ -793,7 +805,12 @@ DECAY, HARM and FDBK.
     RAND OTH, SHUFFLE, AS PLAYED), RATE (1/1 .. 1/64 of a bar), RANGE (octaves), CHANCE; MODE (OFF, ON while held,
     1-ST once through even after release, ONCE at most once, HOLD latched: the next chord after every key is up
     replaces it), GATE, OCT DIST (the octaves' step: +12, -12 goes down, +7 climbs in fifths), QUANT (when a run
-    starts); page 3 the **MOD lane** and page 4 the **TRANSPOSE lane**: the white keys are their 16 steps (a tap
+    starts). Its picture (0.9.5) draws **the PATTERN's real walk** over RANGE octaves, on the notes in play (or C E G,
+    dim, with none): DOWN falls, UP DN rises then falls, CONV comes in from the outside, the random ones scatter and
+    change, AS PLAYED follows the order played; the MOD lane's rests are gaps in it, the TRANSPOSE lane's steps
+    offsets; changing PATTERN morphs it; each step a clean line, the playing one's dot running along it; at the left
+    a small keyboard on the same scale, its keys lit for the notes the arp plays from. Page 3 the **MOD lane** and page 4
+    the **TRANSPOSE lane**: the white keys are their 16 steps (a tap
     selects one; **SHIFT + W** a random value), KNOB 1 the step's value, KNOB 4 the lane's length (B1 .. B8 stay the
     slots). The MOD lane: x as played, . rest, - tie (the note before lasts longer), R repeat, < lowest -oct, > highest
     +oct, " power chord, # every held note, 1 .. 6 the n-th note played. RESET (page 3, KNOB 2): NORM, NOTE (a new

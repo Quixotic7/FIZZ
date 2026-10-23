@@ -609,7 +609,8 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
         return 1;
     }
     if (id == QD_QP_RB1) {                              /* P1.5i: RATIO B, the pair */
-        snd_pair(a, d, fine);
+        snd_pair(a, fine ? d : qd_ctl_acc(a, d, SND_NRCB * SND_NRCB), fine);   /* (P1.6g: accelerated as the others:
+                                                         * the pair is one value of 361 steps, B1 every 19th) */
         return 1;
     }
     if (id == QD_QP_FTYPE) {                            /* E2: ALGORITHM the machine, LEGACY's KNOB 3 its TYPE */
@@ -617,6 +618,7 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
         if (knob == QD_K_ALGO) {
             const int pos = qd_snd_machine_pos(a);
             snd_machine_at(a, pos + (d > 0 ? 1 : -1));
+            u->snd_fpop_ms = a->ms ? a->ms : 1u;        /* (P1.6g: the popup, a second after the last detent) */
         } else {
             snd_put(a, QD_QP_FTYPE, cur + d < 0 ? 0 : cur + d > QD_QF_HP12 ? QD_QF_HP12 : cur + d);
         }
