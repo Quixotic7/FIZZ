@@ -61,9 +61,9 @@ typedef struct {                           /* the flash: offsets from the start 
 typedef struct {
     uint32_t key, rseq;
     uint16_t page;                         /* its first page: sector index * QDS_PPS + page in the sector */
-    uint16_t npages;
-    uint16_t len;                          /* QDS_DELETED: a tombstone */
+    uint16_t len;                          /* QDS_DELETED: a tombstone (P2.1b: its pages from it, no count kept) */
 } qds_ent_t;
+int qd_store_ent_pages(const qds_ent_t *e);   /* (P2.1b) the pages its record takes */
 
 typedef struct {
     uint32_t erases, progs;                /* the flash's operations */

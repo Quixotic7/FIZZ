@@ -1093,7 +1093,7 @@ uint32_t qd_persist_proj_pages(const qd_app_t *a, int p)
         return 0;
     for (i = 0; i < st->nkey; i++)
         if (((st->ent[i].key >> 16) & 0xFFu) == (uint32_t)p && (st->ent[i].key >> 24) != QD_RK_SET)
-            n += st->ent[i].npages;
+            n += (uint32_t)qd_store_ent_pages(&st->ent[i]);
     return n;
 }
 

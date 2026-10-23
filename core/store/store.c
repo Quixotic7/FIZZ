@@ -62,6 +62,10 @@ static int read_hdr(qd_store_t *s, int pg, qds_hdr_t *h, uint8_t *payload)
     return crc16(crc16(0xFFFFu, b, 14), b + QDS_HDR, QDS_PAYLOAD) == h->crc ? 1 : 0;
 }
 
+static uint32_t pages_of(uint32_t len) { return len == QDS_DELETED || !len ? 1u : (len + QDS_PAYLOAD - 1u) / QDS_PAYLOAD; }
+static int ent_np(const qds_ent_t *e) { return (int)pages_of(e->len); }   /* (P2.1b: its pages, from its length) */
+int qd_store_ent_pages(const qds_ent_t *e) { return ent_np(e); }
+
 static qds_ent_t *find(qd_store_t *s, uint32_t key)
 {
     int i;
@@ -74,6 +78,9 @@ static qds_ent_t *find(qd_store_t *s, uint32_t key)
 static void index_put(qd_store_t *s, uint32_t key, uint32_t rseq, int first, int np, int len)
 {
     qds_ent_t *e = find(s, key);
+    if ((uint32_t)np != pages_of((uint32_t)len))      /* (P2.1b: the index keeps no page count: a record whose header
+                                                         * says another than its length's is not one this store wrote) */
+        return;
     if (e && e->rseq > rseq)
         return;
     if (!e) {
@@ -84,7 +91,6 @@ static void index_put(qd_store_t *s, uint32_t key, uint32_t rseq, int first, int
     }
     e->rseq = rseq;
     e->page = (uint16_t)first;
-    e->npages = (uint16_t)np;
     e->len = (uint16_t)len;
 }
 
@@ -94,7 +100,7 @@ static void count_live(qd_store_t *s)
     memset(s->live, 0, sizeof s->live);
     for (i = 0; i < s->nkey; i++) {
         int pg = s->ent[i].page;
-        for (k = 0; k < s->ent[i].npages && pg >= 0; k++) {
+        for (k = 0; k < ent_np(&s->ent[i]) && pg >= 0; k++) {
             s->live[pg / (int)QDS_PPS]++;
             pg = next_page(s, pg);
         }
@@ -222,7 +228,7 @@ int qd_store_get(qd_store_t *s, uint32_t key, void *buf, uint32_t max)
     if (e->len == QDS_DELETED)
         return QDS_DELETED;
     pg = e->page;
-    for (k = 0; k < e->npages && pg >= 0 && buf; k++) {
+    for (k = 0; k < ent_np(e) && pg >= 0 && buf; k++) {
         qds_hdr_t h;
         uint32_t take = e->len - got > QDS_PAYLOAD ? QDS_PAYLOAD : e->len - got;
         read_hdr(s, pg, &h, pay);
@@ -246,7 +252,7 @@ int qd_store_read(qd_store_t *s, uint32_t key, uint32_t off, void *buf, uint32_t
     if (n > e->len - off)
         n = e->len - off;
     pg = e->page;
-    for (k = 0; k < e->npages && pg >= 0 && got < n; k++, at += QDS_PAYLOAD) {
+    for (k = 0; k < ent_np(e) && pg >= 0 && got < n; k++, at += QDS_PAYLOAD) {
         if (at + QDS_PAYLOAD > off) {                   /* (a page holding some of it) */
             qds_hdr_t h;
             const uint32_t from = off + got - at, take = QDS_PAYLOAD - from < n - got ? QDS_PAYLOAD - from : n - got;
@@ -259,14 +265,13 @@ int qd_store_read(qd_store_t *s, uint32_t key, uint32_t off, void *buf, uint32_t
     return (int)got;
 }
 
-static uint32_t pages_of(uint32_t len) { return len == QDS_DELETED || !len ? 1u : (len + QDS_PAYLOAD - 1u) / QDS_PAYLOAD; }
 
 void qd_store_use(const qd_store_t *s, uint32_t *live_pages, uint32_t *total_pages)
 {
     uint32_t l = 0;
     int i;
     for (i = 0; i < s->nkey; i++)
-        l += s->ent[i].npages;
+        l += ent_np(&s->ent[i]);
     if (live_pages)
         *live_pages = l;
     if (total_pages)
@@ -285,7 +290,7 @@ static int put_job(qd_store_t *s, uint32_t key, uint32_t len)
     if (len == QDS_DELETED && (!e || e->len == QDS_DELETED))
         return 1;                                       /* (nothing to delete) */
     qd_store_use(s, &live, &total);
-    if (live - (e ? e->npages : 0u) + pages_of(len) > (uint32_t)(s->nsec - s->reserve) * (QDS_PPS - 1u))
+    if (live - (e ? ent_np(e) : 0u) + pages_of(len) > (uint32_t)(s->nsec - s->reserve) * (QDS_PPS - 1u))
         return 0;                                       /* it could never fit */
     s->busy = 1;
     s->job_key = key;
@@ -391,10 +396,10 @@ static int gc_victim(qd_store_t *s)
     memset(cost, 0, sizeof cost);
     for (i = 0; i < s->nkey; i++) {                     /* each record's pages against each sector it touches */
         int pg = s->ent[i].page, last = -1;
-        for (k = 0; k < s->ent[i].npages && pg >= 0; k++) {
+        for (k = 0; k < ent_np(&s->ent[i]) && pg >= 0; k++) {
             const int sec = pg / (int)QDS_PPS;
             if (sec != last)
-                cost[sec] += s->ent[i].npages;
+                cost[sec] += ent_np(&s->ent[i]);
             last = sec;
             pg = next_page(s, pg);
         }
@@ -419,14 +424,14 @@ static int gc_one(qd_store_t *s)
         for (i = 0; i < s->nkey; i++) {
             qds_ent_t *e = &s->ent[i];
             int pg = e->page, k, in = 0;
-            for (k = 0; k < e->npages && pg >= 0; k++) {
+            for (k = 0; k < ent_np(e) && pg >= 0; k++) {
                 in |= pg / (int)QDS_PPS == v;
                 pg = next_page(s, pg);
             }
             if (!in)
                 continue;
             {
-                const uint32_t key = e->key, len = e->len, np = e->npages, rseq = s->next_rseq++;
+                const uint32_t key = e->key, len = e->len, np = ent_np(e), rseq = s->next_rseq++;
                 int first = -1, at, src = e->page;
                 for (k = 0; k < (int)np; k++) {
                     uint8_t pay[QDS_PAYLOAD];
