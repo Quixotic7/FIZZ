@@ -4,11 +4,13 @@
 
   compare_frames.py [--keep DIR]
 
-Builds render_frames at the device's sizes (FIZZ's tools/Makefile, PROFILE=-DQD_DEVICE) into a temporary directory,
+Builds render_frames at the device's sizes and with the unit's drawing (FIZZ's tools/Makefile, PROFILE=-DQD_DEVICE,
+GFX= as fm1.toml's gen line has it) into a temporary directory,
 renders its frames at 0, 1000, 2200 and 2500 ms, builds and runs the simulator's compare.txt, and compares each raw
 RGB565 dump with render_frames' PNG (its 8-bit expansion turned back into RGB565). Exit 0 when every frame matches.
 Needs Pillow."""
 import argparse
+import re
 import subprocess
 import sys
 import tempfile
@@ -41,8 +43,11 @@ def main():
     b, ref, sim = work / "rf-build", work / "rf-out", work / "sim"
     for d in (b, ref, sim):
         d.mkdir(exist_ok=True)
-    subprocess.run(["make", "-s", "-C", str(REPO / "tools"), "PROFILE=-DQD_DEVICE", f"B={b}", f"{b}/render_frames", "-j8"],
-                   check=True, stderr=subprocess.DEVNULL)
+    gfx = re.search(r"--gfx (\w+)", (FW / "app/fm1.toml").read_text())     # (the unit's drawing: render_frames' too)
+    gfx = gfx.group(1) if gfx else "plutovg"
+    print(f"the drawing: {gfx}")
+    subprocess.run(["make", "-s", "-C", str(REPO / "tools"), "PROFILE=-DQD_DEVICE", f"GFX={gfx}", f"B={b}",
+                    f"{b}/render_frames", "-j8"], check=True, stderr=subprocess.DEVNULL)
     subprocess.run([str(b / "render_frames"), str(ref), "--ms", "2600", "--at", ",".join(map(str, TIMES))], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run([sys.executable, str(FW / "build.py"), "--host"], check=True, stdout=subprocess.DEVNULL)

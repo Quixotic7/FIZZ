@@ -75,3 +75,33 @@ expect fz_frames >100
 sysex F0 7D 46 50 F7
 sysex F0 7D 46 50 7F F7
 expect fz_frames 0
+# the store (P2.5): the selected track (SEL + B3: track 3) written by itself, and back after a restart
+expect fz_store_on 1
+press SEL
+tapkey b2
+release SEL
+wait 100
+expect fz_sel 2
+wait 4000
+expect fz_store_dirty 0
+expect fz_store_written >0
+reboot
+wait 600
+expect fz_store_on 1
+expect fz_sel 2
+# a pattern change while playing (SEQ held + white key 1: A01 queued): the main loop's prefetch brings it, the
+# interrupt never loads one itself; and a MIDI note heard from the interrupt
+tap PLAY
+wait 500
+press SEQ
+tapkey w0
+release SEQ
+wait 5000
+expect fz_pattern 0
+expect fz_isr_loads 0
+midi 9F 3C 64
+wait 30
+expect fz_voices >0
+midi 8F 3C 00
+tap PLAY
+wait 300

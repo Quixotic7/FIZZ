@@ -2,10 +2,10 @@
 /* What FIZZ's core needs of a C library that neither felucca-bsp's libc.c (memset, memcpy, memcmp: in fm1-base's
  * unity build) nor JieLi's newlib (libc.a, linked after FIZZ's units by firmware/build.py) gives the unit as it should:
  *   snprintf / vsnprintf  newlib's libc.a for pi32v2 has none (JieLi's SDK prints through its own);
- *   memmove               newlib's shares its object with memcpy, which the unity build already defines;
- *   atof                  newlib's goes through strtod's big-number code and its allocator (no heap here).
- * The formats are the ones FIZZ uses (core/: %d %u %x %c %s %%, flags - and 0, a width, a precision for s and f, *,
- * the l length; %f for one label). The unit only: the host simulator uses its own C library. */
+ *   memmove               newlib's shares its object with memcpy, which the unity build already defines.
+ * The formats are the ones FIZZ uses (core/: %d %u %x %c %s %%, flags - and 0, a width, a precision for s, *, the l
+ * length). No %f and no atof (P2.5: the core has no double left; fm1-base's build refuses one). The unit only: the
+ * host simulator uses its own C library. */
 #ifndef PLAT_HOST
 #include <stdarg.h>
 #include <stddef.h>
@@ -147,34 +147,6 @@ int vsnprintf(char *buf, size_t size, const char *f, va_list ap)
             put_field(&o, s, n, width, left, ' ', "");
             break;
         }
-        case 'f':
-        case 'F': {
-            double v = va_arg(ap, double);
-            unsigned long ip, fp, scale = 1;
-            int p = prec < 0 ? 6 : prec > 6 ? 6 : prec, neg = v < 0.0;
-            if (neg)
-                v = -v;
-            for (i = 0; i < (size_t)p; i++)
-                scale *= 10u;
-            v = v * (double)scale + 0.5;
-            if (v > 4.0e18)              /* (FIZZ's values are small: a big one is shown as its top) */
-                v = 4.0e18;
-            ip = (unsigned long)(v / (double)scale);
-            fp = (unsigned long)(v - (double)ip * (double)scale);
-            k = utoa_base(t, ip, 10u);
-            for (i = 0; i < k; i++)
-                r[i] = t[k - 1u - i];
-            if (p) {
-                r[k++] = '.';
-                for (i = (size_t)p; i--;) {
-                    r[k + i] = (char)('0' + fp % 10u);
-                    fp /= 10u;
-                }
-                k += (size_t)p;
-            }
-            put_field(&o, r, k, width, left, pad, neg ? "-" : "");
-            break;
-        }
         case '%':
             put(&o, '%');
             break;
@@ -214,21 +186,4 @@ void __assert_func(const char *file, int line, const char *func, const char *exp
     __builtin_trap();
 }
 
-double atof(const char *s)
-{
-    double v = 0.0, scale = 1.0;
-    int neg = 0;
-    while (*s == ' ' || *s == '\t')
-        s++;
-    if (*s == '-' || *s == '+')
-        neg = *s++ == '-';
-    for (; *s >= '0' && *s <= '9'; s++)
-        v = v * 10.0 + (double)(*s - '0');
-    if (*s == '.')
-        for (s++; *s >= '0' && *s <= '9'; s++) {
-            scale *= 10.0;
-            v += (double)(*s - '0') / scale;
-        }
-    return neg ? -v : v;
-}
 #endif

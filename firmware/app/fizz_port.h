@@ -18,8 +18,11 @@ void fz_key(int key, int down, int vel);
 void fz_button(int button, int down);
 void fz_knob(int role, int detents);
 void fz_master(int pot);
-/* MIDI in: a channel message or a real-time byte (status 0xF8 / FA / FB / FC, d1 = d2 = 0) */
-void fz_midi(int status, int d1, int d2);
+/* MIDI in (P2.5, core/app/app.h): a message's sound and transport (the clock, START .. STOP, notes to the player,
+ * controllers: audio-safe, the interrupt's), then its UI part (undo, recording into a held step, the preview: the main
+ * loop's, in the same order); a real-time message has no UI part */
+void fz_midi_play(int status, int d1, int d2);
+void fz_midi_ui(int status, int d1, int d2);
 /* SysEx in: one frame's bytes between F0 and F7 (FIZZ's 7D 46 5A ..); its replies, whole frames F0 .. F7 */
 void fz_sysex(const uint8_t *f, uint32_t n);
 int fz_sysex_peek(void);
@@ -27,6 +30,7 @@ int fz_sysex_take(uint8_t *out, uint32_t max);
 /* the clock (plat_ms), the sound (16-bit stereo, interleaved, 44.1 kHz, any count of frames) */
 void fz_tick(uint32_t ms);
 void fz_audio(int16_t *stereo, uint32_t frames);
+uint32_t fz_audio_loads(void);                     /* patterns the sound had to load itself (should be 0) */
 /* the LEDs: a level 0..255 a key (27) and a button (14), PLAY's green */
 void fz_leds(uint8_t *key, uint8_t *button, uint8_t *play_green);
 /* a frame, drawn in FIZZ's strips (core/qd_config.h QD_STRIP_H rows): out gets each one's first row, its rows and
@@ -35,8 +39,13 @@ typedef void (*fz_strip_fn)(void *ctx, int y0, int rows, const uint16_t *px);
 void fz_frame(fz_strip_fn out, void *ctx);
 /* what the frame rate follows: FIZZ's mode (ctl.h QD_MODE_*: 0 the idle screen) and its transport */
 void fz_ui_state(int *mode, int *playing);
-/* the store: written now (before an update rewrites the flash); 1 done */
+/* the store: written now (before an update rewrites the flash); 1 done. fz_persist_step: a step of its writes (a page
+ * while playing, a few stopped, erases only when quiet; the flash's own locks inside), every ~15 ms, between frames,
+ * never inside a lock */
 int fz_flush(void);
+void fz_persist_step(void);
+/* would the next frame differ from the last drawn? (qd_app_frame_changed: the screen's logic once, nothing drawn) */
+int fz_frame_changed(void);
 
 /* the data blob (the fonts and the TAP ape's lines: core/qd_config.h QD_XDATA) in the data flash, at the XIP address
  * the link gave it: its size, and whether the flash holds this build's (1), none (0) or another's (-1). Unit only;
@@ -46,6 +55,8 @@ uint32_t fz_xdata_crc(void);                       /* the CRC-32 the build stamp
 uint32_t fz_xdata_flash_off(void);                 /* its first byte's flash offset */
 int fz_xdata_state(void);
 
-/* the host simulator's checks (app_expect): 1 = known; its view setter (as render_frames sets PIANO ROLL) */
+/* a harness's seams (qd_app_show, qd_app_seed): a screen as the panel would leave it, a fixed seed for the rolls; and
+ * the host simulator's checks (app_expect): 1 = known */
+void fz_show(int mode, int view);
+void fz_seed(uint32_t seed);
 int fz_expect(const char *what, int *got);
-void fz_host_view(int view);

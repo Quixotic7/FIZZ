@@ -169,3 +169,51 @@ doubles in plutovg's stroker and rasteriser are the first suspects; the unit's l
    run inside `qd_app_tick` while the interrupts are off around it: a `qd_persist_step()` the port calls on its own.
 5. *(Still open from P2.2)*: the stores sized to the data region; the doubles; `qd_arena.c`'s `free` / `realloc`
    fallbacks on the unit.
+
+## P2.5: the fast drawing, the core's seams, the store on (2026-10-23)
+
+The unit's P2.4 numbers: 0 xruns, the interrupt 538 us a 5.8 ms half (9 %), the longest lock 1.9 ms; the frames slow
+(idle 660 ms, the step view playing 284 ms, mostly plutovg's rasteriser).
+
+**The drawing is the fast one** (`core/gfx/qd_gfx_fast.c`): fm1.toml's gen line says `--gfx fast`, and
+`tools/gen_units.py` then builds what FIZZ's `tools/Makefile` builds with `GFX=fast` (`CORE_SRC`, `DEV_PVG_SRC`: no
+plutovg) and defines `QD_GFX_FAST` for every unit of FIZZ's (`build/gen/fz_gfx.h`, through `fizz_prefix.h`). `--gfx
+plutovg` still builds, but **with 40-row strips plutovg no longer fits the unit's RAM** (its unit's .bss is 85 KB, the
+RAM region has 79 KB after the platform's: 16 KB over). `compare_frames.py` builds render_frames with the same drawing:
+the simulator's frames still equal it pixel for pixel.
+
+**Sizes** (fast drawing, USB only): image 481,904 of 581,564 (99,660 free); RAM 87,064 of 98,304 (11,240 free); pool
+335,616 of 344,064 (8,448 free, fm1-base demands 8,192); the RAM code region 4,964 free (FIZZ's voices and its app.c's
+data there now); NOINIT 3,032 free; the blob 84,116 of 94,196 (flash 0xE5000..0xF9894, 21 sectors of PLAT_XDATA1,
+none of the store's). FIZZ's static data 428,504 B. No double left anywhere: fm1-base's soft-double check is back
+on (the exemption is gone, and fz_libc.c has no %f and no atof).
+
+**The seams adopted:**
+- *Frames*: looked at 30 a second for 1.5 s after a touch, 20 while playing, 15 on the idle screen, 10 otherwise, and
+  drawn only when `qd_app_frame_changed` says the picture would differ (`checks`, `skipped`, `check_avg_us` in the
+  stats).
+- *MIDI*: `qd_app_midi_play` in the audio interrupt (a note sounds at once, whatever the screen does),
+  `qd_app_midi_ui` on the main loop with the message's time, in the same order.
+- *The store is on* (`FZ_FLASH 1`): `qd_persist_attach` on the data region (offset 0 = 0x97000, 73 sectors),
+  `qd_persist_own_step(a, 1)`, and `qd_persist_step` every 15 ms on the main loop, between frames (never between strips:
+  it borrows the drawing's arena) and outside the port's locks (the flash driver masks the interrupts a 256-byte page
+  at a time, ~1 ms, inside a half's slack). The store erases only when FIZZ is quiet (stopped, silent, untouched 10 s);
+  an erase masks everything for ~18 ms, and fm1-base silences the DMA meanwhile, so `xruns` counts a few late halves
+  then, in silence. The first quiet spells after the first boot erase what ChoralRoot or RemoteFM1 left in the region.
+  `store_steps`, `store_avg_us`, `store_max_us` in the stats. Host test: the selected track written by itself and back
+  after a restart.
+- *`qd_app_show` / `qd_app_seed`*: the simulator's `fzshow MODE VIEW` and `fzseed N` (compare.txt uses `fzshow 0 0`).
+- *The profile* times the fast drawing's texts (`qd_text`) and shapes (`qd_line` .. `qd_fill_rect`, `qd_path_*`),
+  the RGB565 conversion, the LCD, the input; `isr_loads` counts patterns the sound had to load inside the interrupt
+  (the prefetch's misses: it must stay 0, see below). On the Mac (simulator, -Os): a frame 0.17 ms (plutovg's 1.08),
+  shapes 0.10, text 0.01, 538 shapes and 28 texts a frame.
+
+**What remains to watch (core):** the store can be read and written from inside the audio interrupt if the sequencer
+asks for a pattern the main loop's prefetch has not brought: `qd_proj_pat` then loads it there, and saves the one it
+evicts (a synchronous store write in the interrupt, concurrent with the main loop's own steps). `isr_loads` shows it;
+the host tests (a pattern change while playing) keep it at 0. A core guarantee would be better: the audio path never
+pages (a miss plays the pattern's default or nothing, counted), and an eviction's save queued for the store's step
+instead of written at once. Today a changed pattern leaving RAM during the main loop's prefetch is written inside the
+port's lock, and the flash driver turns the interrupts back on after each page (`irq_restore` is an unconditional
+`sti`): the sound then runs in the middle of that main-loop call (a torn read at worst: the evicted slot is one the
+sequencer does not use).

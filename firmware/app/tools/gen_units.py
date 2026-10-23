@@ -4,9 +4,14 @@
 FIZZ's tools/Makefile lists (CORE_SRC, PVG_SRC), in firmware/app/build/units/, each including its source, so the
 firmware builds exactly what FIZZ's own tools build and follows them when they change. plutovg's units take the
 drawing's fixed arena first (core/gfx/qd_arena.h with QD_ARENA_REDIRECT: its malloc and free), as tools/Makefile's
-device profile builds them. Four functions of the drawing are timed for the unit's profile (PROF, fz_prof.h).
+device profile builds them. Functions of the drawing are timed for the unit's profile (PROF, fz_prof.h).
 
-  gen_units.py GEN_DIR        (GEN_DIR: fm1-base's generated headers, APP/build/gen; the units go beside it)
+  gen_units.py GEN_DIR [--gfx plutovg|fast]   (GEN_DIR: fm1-base's generated headers, APP/build/gen; the units go
+                                              beside it)
+
+--gfx (fm1.toml's gen line; default plutovg): the unit's drawing, as FIZZ's tools/Makefile GFX= chooses it. fast:
+core/gfx/qd_gfx_fast.c and no plutovg (the Makefile's DEV_PVG_SRC), QD_GFX_FAST defined for every unit of FIZZ's
+(GEN_DIR/fz_gfx.h, which fizz_prefix.h includes, so fz_port.c sees the same core).
 """
 import subprocess
 import sys
@@ -16,55 +21,82 @@ APP = Path(__file__).resolve().parents[1]
 REPO = APP.parents[1]
 
 
-def make_list(name):
-    r = subprocess.run(["make", "-s", "-C", str(REPO / "tools"), f"print-{name}"], capture_output=True, text=True)
+def make_list(name, gfx):
+    r = subprocess.run(["make", "-s", "-C", str(REPO / "tools"), f"GFX={gfx}", f"print-{name}"], capture_output=True,
+                       text=True)
     if r.returncode:
         sys.stderr.write(r.stderr)
         raise SystemExit("gen_units: make print-" + name + " failed")
     return [(REPO / "tools" / s).resolve() for s in r.stdout.split()]
 
 
-# P2.4: the drawing's profile (fz_prof.h): four functions renamed in their own unit and wrapped there, timed
+# P2.4: the drawing's profile (fz_prof.h): functions renamed in their own unit and wrapped there, timed (a call from
+# inside the unit goes to the renamed one: only the screens' calls are counted, once)
+SHAPES = [("qd_line", "float x0, float y0, float x1, float y1, qd_rgb col, float lw", "x0, y0, x1, y1, col, lw"),
+          ("qd_polyline", "const float *xy, int npts, int closed, qd_rgb stroke, float lw, qd_rgb fill",
+           "xy, npts, closed, stroke, lw, fill"),
+          ("qd_circle", "float cx, float cy, float r, qd_rgb stroke, float lw, qd_rgb fill", "cx, cy, r, stroke, lw, fill"),
+          ("qd_arc", "float cx, float cy, float r, float a0, float a1, qd_rgb stroke, float lw",
+           "cx, cy, r, a0, a1, stroke, lw"),
+          ("qd_ellipse", "float cx, float cy, float rx, float ry, qd_rgb stroke, float lw, qd_rgb fill",
+           "cx, cy, rx, ry, stroke, lw, fill"),
+          ("qd_ellipse_arc", "float cx, float cy, float rx, float ry, float a0, float a1, qd_rgb stroke, float lw",
+           "cx, cy, rx, ry, a0, a1, stroke, lw"),
+          ("qd_rrect", "float x, float y, float w, float h, float r, qd_rgb stroke, float lw, qd_rgb fill",
+           "x, y, w, h, r, stroke, lw, fill"),
+          ("qd_fill_rect", "float x, float y, float w, float h, qd_rgb col", "x, y, w, h, col"),
+          ("qd_path_fill", "qd_rgb col", "col"), ("qd_path_stroke", "qd_rgb col, float lw", "col, lw"),
+          ("qd_path_stroke_keep", "qd_rgb col, float lw", "col, lw"),
+          ("qd_path_paint", "qd_rgb stroke, float lw, qd_rgb fill", "stroke, lw, fill")]
 PROF = {
-    "plutovg-rasterize": ("plutovg_rasterize", "void", "plutovg_span_buffer_t* a, const plutovg_path_t* b, "
-                          "const plutovg_matrix_t* c, const plutovg_rect_t* d, const plutovg_stroke_data_t* e, "
-                          "plutovg_fill_rule_t f", "a, b, c, d, e, f", "raster"),
-    "plutovg-blend": ("plutovg_blend", "void", "plutovg_canvas_t* a, const plutovg_span_buffer_t* b", "a, b", "blend"),
-    "plutovg-font": ("plutovg_font_face_get_glyph_path", "float", "plutovg_font_face_t* a, float b, float c, float d, "
-                     "plutovg_codepoint_t e, plutovg_path_t* f", "a, b, c, d, e, f", "glyph"),
-    "qd_gfx_plutovg": ("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert"),
+    "plutovg-rasterize": [("plutovg_rasterize", "void", "plutovg_span_buffer_t* a, const plutovg_path_t* b, "
+                           "const plutovg_matrix_t* c, const plutovg_rect_t* d, const plutovg_stroke_data_t* e, "
+                           "plutovg_fill_rule_t f", "a, b, c, d, e, f", "raster")],
+    "plutovg-blend": [("plutovg_blend", "void", "plutovg_canvas_t* a, const plutovg_span_buffer_t* b", "a, b", "blend")],
+    "plutovg-font": [("plutovg_font_face_get_glyph_path", "float", "plutovg_font_face_t* a, float b, float c, float d, "
+                      "plutovg_codepoint_t e, plutovg_path_t* f", "a, b, c, d, e, f", "glyph")],
+    "qd_gfx_plutovg": [("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert")],
+    "qd_gfx_fast": [("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert"),
+                    ("qd_text", "float", "const char *u, float x, float y, const qd_font *f", "u, x, y, f", "text")] +
+                   [(n, "void", p, a, "shapes") for n, p, a in SHAPES],
 }
 
 
 def prof_wrap(stem):
-    """the lines before and after the source's include: the function renamed, then its timed stand-in"""
+    """the lines before and after the source's include: the functions renamed, then their timed stand-ins"""
     if stem not in PROF:
         return [], []
-    name, ret, params, args, field = PROF[stem]
-    real = "fz_real_" + name
-    keep = "" if ret == "void" else f"{ret} r = "
-    back = "" if ret == "void" else "    return r;\n"
-    return [f"#define {name} {real}"], [
-        f"#undef {name}",
-        '#include "fz_prof.h"',
-        "uint32_t plat_ticks24(void);",
-        f"{ret} {real}({params});",
-        f"{ret} {name}({params});",
-        f"{ret} {name}({params})\n{{\n    const uint32_t t = plat_ticks24();\n    {keep}{real}({args});\n"
-        f"    fz_prof.{field} += plat_ticks24() - t;\n    fz_prof.n_{field}++;\n{back}}}"]
+    pre, post = [], ["#undef " + n for n, *_ in PROF[stem]] + ['#include "fz_prof.h"', "uint32_t plat_ticks24(void);"]
+    for name, ret, params, args, field in PROF[stem]:
+        real = "fz_real_" + name
+        keep = "" if ret == "void" else f"{ret} r = "
+        back = "" if ret == "void" else "    return r;\n"
+        pre.append(f"#define {name} {real}")
+        post += [f"{ret} {real}({params});", f"{ret} {name}({params});",
+                 f"{ret} {name}({params})\n{{\n    const uint32_t t = plat_ticks24();\n    {keep}{real}({args});\n"
+                 f"    fz_prof.{field} += plat_ticks24() - t;\n    fz_prof.n_{field}++;\n{back}}}"]
+    return pre, post
 
 
 def main():
     gen = Path(sys.argv[1]).resolve()
+    gfx = sys.argv[sys.argv.index("--gfx") + 1] if "--gfx" in sys.argv else "plutovg"
+    if gfx not in ("plutovg", "fast"):
+        raise SystemExit(f"gen_units: --gfx {gfx}: plutovg or fast")
     out = gen.parent / "units"
     out.mkdir(parents=True, exist_ok=True)
+    gen.mkdir(parents=True, exist_ok=True)
+    head = "/* generated by firmware/app/tools/gen_units.py: the unit's drawing */\n" + \
+        ("#define QD_GFX_FAST 1\n" if gfx == "fast" else "")
+    if not (gen / "fz_gfx.h").exists() or (gen / "fz_gfx.h").read_text() != head:
+        (gen / "fz_gfx.h").write_text(head)
     want = {}
-    for kind in ("CORE_SRC", "PVG_SRC"):
-        for src in make_list(kind):
+    for kind in ("CORE_SRC", "PVG_SRC" if gfx == "plutovg" else "DEV_PVG_SRC"):
+        for src in make_list(kind, gfx):
             rel = Path("../" * len(out.relative_to(REPO).parts)) / src.relative_to(REPO)
-            stem = ("pvg_" if kind == "PVG_SRC" else "c_") + src.stem.replace("-", "_")
+            stem = ("pvg_" if kind != "CORE_SRC" else "c_") + src.stem.replace("-", "_")
             lines = ["/* generated by firmware/app/tools/gen_units.py: do not edit */"]
-            if kind == "PVG_SRC":
+            if kind != "CORE_SRC":
                 lines += ["#define QD_ARENA_REDIRECT 1",
                           f'#include "{Path("../" * len(out.relative_to(REPO).parts)) / "core/gfx/qd_arena.h"}"']
             pre, post = prof_wrap(src.stem)
@@ -79,7 +111,7 @@ def main():
         f = out / name
         if not f.exists() or f.read_text() != text:
             f.write_text(text)
-    print(f"units: {len(want)} in {out}")
+    print(f"units: {len(want)} in {out} (the drawing: {gfx})")
 
 
 if __name__ == "__main__":

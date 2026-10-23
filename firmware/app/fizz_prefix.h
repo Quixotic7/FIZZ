@@ -3,6 +3,7 @@
  * firmware, the host simulator and the browser emulator alike, and on the unit its data blob's sections (QD_XDATA:
  * the fonts and the TAP ape's lines in the data flash). plutovg as FIZZ's tools build it. */
 #pragma once
+#include "fz_gfx.h"                          /* (tools/gen_units.py --gfx: QD_GFX_FAST or not) */
 #define QD_DEVICE 1
 #ifndef PLAT_HOST
 #define QD_TARGET_FM1 1

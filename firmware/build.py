@@ -16,8 +16,6 @@ What it adds to fm1-base's build (each a small patch of its module, applied here
     flash's address), with a map (build/fizz.map);
   - after the link: the data blob (.qd_xdata) cut out into fizz-xdata.bin, checked against the update loader's record
     rule (plat.h: never "AT" at 0xF06 of a sector), its length and CRC-32 stamped into the image (fz_port.c);
-  - fm1-base's check refuses soft doubles (the FPU is single precision): FIZZ's core still has some (BUDGET.md), so
-    here it is a note with their list, not a failure;
   - the size report (fizz-size.txt): the regions, the blob, the biggest symbols.
 Defaults for this Mac: JIELI_TOOLCHAIN ~/.jieli/toolchain, AC79_SDK ~/fw-AC79_AIoT_SDK (only uboot.boot, cfg_tool.bin,
 cfg/eq_cfg_hw.bin are read), DYLD_LIBRARY_PATH /opt/homebrew/lib (Pillow's raqm for fm1-base's font generator)."""
@@ -75,20 +73,6 @@ def tc(tool, *args):
 
 
 fb.tc = tc
-
-# ---- soft doubles: a note
-_check = fb.check
-
-
-def check(img, syms, dis, rt):
-    errors, notes = _check(img, syms, dis, rt)
-    for e in [e for e in errors if e.startswith("soft-double routines linked")]:
-        errors.remove(e)
-        notes.append("FIZZ: " + e + ": allowed while the core keeps its doubles (firmware/BUDGET.md)")
-    return errors, notes
-
-
-fb.check = check
 
 # ---- after the link: the blob, the stamp, the report
 _build_app = fb.build_app

@@ -3,20 +3,23 @@
  * the plat_* calls are in scope). FIZZ's core is behind fizz_port.h (fz_port.c).
  *
  * TWO CONTEXTS (P2.4). The sound is made in the audio interrupt (app_render, every 256 frames: 5.8 ms), as ChoralRoot
- * makes it: FIZZ's sequencer and voices run from it, and MIDI's real-time messages (the clock, START, CONTINUE, STOP)
- * go to the sequencer there. A slow frame can never starve it. Everything else that changes FIZZ runs on the main loop:
- * the panel, MIDI's other messages (queued by the interrupt with their time), FIZZ's clock (plat_ms), SysEx; each call
+ * makes it: FIZZ's sequencer and voices run from it, and MIDI's sound goes there (P2.5, qd_app_midi_play: the clock and
+ * the transport, the notes to the player, the controllers). A slow frame can never starve it. Everything else that
+ * changes FIZZ runs on the main loop: the panel, MIDI's UI part (qd_app_midi_ui, queued by the interrupt with its
+ * time), FIZZ's clock (plat_ms), SysEx; each call
  * with the interrupts off around it (plat_lock), the clock a few ms at a time, so the interrupt never meets an edit
  * half made and waits at most one call. Those calls are made between frames and between the strips of a frame (a press
  * acts within a strip's time, and FIZZ's clock is given up to each press's own time first, so a hold is a hold). The
  * drawing, which only reads, runs with the interrupts on: what it shows may move between two strips (the playhead).
  * fm1-base's own MASTER: the render's gain (APP_GAIN of the pot), as the template has it; FIZZ's own volume stays at
- * its default.
+ * its default. The store (P2.5): FIZZ's projects and MY PRESETS in the data region, its writes a step every 15 ms on the
+ * main loop between frames, outside the locks (the flash driver masks the interrupts a page at a time; it erases only
+ * when FIZZ is quiet: stopped, silent, untouched 10 s).
  *
  * A frame is FIZZ's 20-row strips (qd_app_frame_strips), each sent to the LCD from where FIZZ drew it (no second
- * screen buffer), only its rows whose pixels changed (a hash a row). Frames: 30 a second for 1.5 s after a touch, 15
- * while playing, 10 on the idle screen, 4 otherwise (the screens' own motion then slower; the core says nothing of
- * what changed). The rest: the LEDs (FIZZ's 0..255 a light onto fm1-base's off / glow / mid / lit), USB SysEx both
+ * screen buffer), only its rows whose pixels changed (a hash a row). A frame is looked at 30 a second for 1.5 s after a
+ * touch, 20 while playing, 15 on the idle screen, 10 otherwise, and drawn only when its picture would change
+ * (qd_app_frame_changed: the screen's logic once, nothing drawn). The rest: the LEDs (FIZZ's 0..255 a light onto fm1-base's off / glow / mid / lit), USB SysEx both
  * ways (APP_SYSEX: FIZZ's 7D 46 5A, and 7D 46 50 for this port's counters and profile), the data blob's check and its
  * writer (APP_USB_CMD, firmware/tools/fizz_xdata.py). */
 #include "fizz_port.h"
@@ -27,10 +30,24 @@
 #define FZ_VEL 100                       /* the keys' velocity (no APP_TOUCH yet: FM1VST's default) */
 #define FZ_TICK_CHUNK 4u                 /* FIZZ's clock: at most this many ms a lock */
 #define FZ_TOUCHED_MS 1500u              /* a frame every FZ_FRAME_TOUCHED for this long after a press or a turn */
-#define FZ_FRAME_TOUCHED 33u
-#define FZ_FRAME_PLAYING 66u
-#define FZ_FRAME_IDLE 100u               /* the idle screen's animation */
-#define FZ_FRAME_QUIET 250u
+#define FZ_FRAME_TOUCHED 33u             /* how often a frame is looked at (drawn if it changed) */
+#define FZ_FRAME_PLAYING 50u
+#define FZ_FRAME_IDLE 66u                /* the idle screen's animation */
+#define FZ_FRAME_QUIET 100u
+#define FZ_STORE_MS 15u                  /* the store's step (qd_persist_step) */
+
+/* the profile (fz_prof.h): here, in RAM with the platform's (FIZZ's units' .bss is the pool's, which is full) */
+volatile fz_prof_t fz_prof;
+fz_screen_t fz_screens[FZ_NSCREEN];
+void fz_prof_reset(void)
+{
+    uint32_t i;
+    volatile uint8_t *p = (volatile uint8_t *)&fz_prof;
+    for (i = 0; i < sizeof fz_prof; i++)
+        p[i] = 0;
+    for (i = 0; i < FZ_NSCREEN; i++)
+        fz_screens[i].n = fz_screens[i].max = 0, fz_screens[i].sum = 0;
+}
 
 /* ---------------------------------------------------------------- the locks --- */
 static uint32_t fz_lock_t0;
@@ -52,7 +69,7 @@ static void fz_unlock(uint32_t f, uint32_t kind)
 static int16_t fz_abuf[2u * APP_BLOCK];
 static volatile uint8_t fz_audio_on;     /* 0: silence (no FIZZ, a panic, an update) */
 static volatile uint8_t fz_in_frame;     /* (the profile: the interrupt's time inside frames) */
-#define FZ_MQ 128u                       /* MIDI's channel messages for the main loop, with their time */
+#define FZ_MQ 128u                       /* MIDI's channel messages' UI part for the main loop, with their time */
 static uint32_t fz_mq_pkt[FZ_MQ], fz_mq_ms[FZ_MQ];
 static volatile uint32_t fz_mq_w, fz_mq_r, fz_mq_drops;
 #ifdef PLAT_HOST
@@ -67,9 +84,10 @@ static void fz_midi_isr(void)            /* USB and the TRS jack (fm1-base's que
         const uint32_t cin = pkt & 15u, s = pkt >> 8 & 0xFFu, w = fz_mq_w;
         if (cin == 15u && s >= 0xF8u) {  /* the clock, START, CONTINUE, STOP: the sequencer's, here */
             if (s == 0xF8u || s == 0xFAu || s == 0xFBu || s == 0xFCu)
-                fz_midi((int)s, 0, 0);
+                fz_midi_play((int)s, 0, 0);
         } else if (cin >= 8u && cin <= 14u) {
-            if (w - fz_mq_r < FZ_MQ) {
+            fz_midi_play((int)s, (int)(pkt >> 16 & 0x7Fu), (int)(pkt >> 24 & 0x7Fu));   /* (heard now) */
+            if (w - fz_mq_r < FZ_MQ) {   /* (its UI part on the main loop) */
                 fz_mq_pkt[w % FZ_MQ] = pkt;
                 fz_mq_ms[w % FZ_MQ] = plat_ms();
                 FZ_BARRIER();
@@ -201,7 +219,7 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
             const uint32_t p = fz_mq_pkt[fz_mq_r % FZ_MQ];
             fz_tick_to(fz_mq_ms[fz_mq_r % FZ_MQ]);
             f = fz_lock();
-            fz_midi((int)(p >> 8 & 0xFFu), (int)(p >> 16 & 0x7Fu), (int)(p >> 24 & 0x7Fu));
+            fz_midi_ui((int)(p >> 8 & 0xFFu), (int)(p >> 16 & 0x7Fu), (int)(p >> 24 & 0x7Fu));
             fz_unlock(f, FZ_LOCK_MIDI);
             FZ_BARRIER();
             fz_mq_r++;
@@ -241,7 +259,7 @@ static char *fz_put_u(char *q, const char *label, uint64_t v)
 
 static void fz_stats_send(int part, const char *line)   /* F0 7D 46 50 part ASCII F7 */
 {
-    uint8_t f[512], *q = f;
+    uint8_t f[680], *q = f;
     *q++ = 0xF0, *q++ = 0x7D, *q++ = 0x46, *q++ = 0x50, *q++ = (uint8_t)part;
     for (; *line && q < f + sizeof f - 1u; line++)
         *q++ = (uint8_t)(*line & 0x7F);
@@ -254,7 +272,7 @@ static void fz_stats_send(int part, const char *line)   /* F0 7D 46 50 part ASCI
 
 static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, three lines (fizz_xdata.py stats) */
 {
-    char line[480], *c = line;
+    char line[640], *c = line;
     const uint64_t fr = fz_prof.n_frame ? fz_prof.n_frame : 1u, ni = fz_prof.n_isr ? fz_prof.n_isr : 1u;
     uint64_t parts;
     uint32_t i;
@@ -269,16 +287,25 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "lock_max_us=", fz_us(fz_prof.lock_max));
     c = fz_put_u(c, "lock_kind=", fz_prof.lock_kind);   /* (1 a press, 2 the clock, 3 a knob, 4 MIDI, 5 SysEx in, 6 out) */
     c = fz_put_u(c, "midi_drops=", fz_mq_drops);
+    c = fz_put_u(c, "isr_loads=", fz_audio_loads());   /* (patterns loaded inside the interrupt: should stay 0) */
     c = fz_put_u(c, "frames=", fz_prof.n_frame);
     c = fz_put_u(c, "frame_avg_us=", fz_us(fz_prof.frame / fr));
     c = fz_put_u(c, "frame_max_us=", fz_us(fz_prof.frame_max));
+    c = fz_put_u(c, "checks=", fz_prof.n_check);
+    c = fz_put_u(c, "skipped=", fz_prof.n_skip);
+    c = fz_put_u(c, "check_avg_us=", fz_us(fz_prof.check / (fz_prof.n_check ? fz_prof.n_check : 1u)));
+    c = fz_put_u(c, "store_steps=", fz_prof.n_store);
+    c = fz_put_u(c, "store_avg_us=", fz_us(fz_prof.store / (fz_prof.n_store ? fz_prof.n_store : 1u)));
+    c = fz_put_u(c, "store_max_us=", fz_us(fz_prof.store_max));
     *c = 0;
     fz_stats_send(1, line);
     /* 2: a frame's time by phase (us a frame, averages), and the calls a frame */
-    parts = fz_prof.raster + fz_prof.blend + fz_prof.glyph + fz_prof.convert + fz_prof.lcd + fz_prof.input +
-            fz_prof.isr_in_frame;
+    parts = fz_prof.raster + fz_prof.blend + fz_prof.glyph + fz_prof.text + fz_prof.shapes + fz_prof.convert +
+            fz_prof.lcd + fz_prof.input + fz_prof.isr_in_frame;
     c = line;
-    c = fz_put_u(c, "raster_us=", fz_us(fz_prof.raster / fr));
+    c = fz_put_u(c, "text_us=", fz_us(fz_prof.text / fr));       /* (the fast drawing's) */
+    c = fz_put_u(c, "shapes_us=", fz_us(fz_prof.shapes / fr));
+    c = fz_put_u(c, "raster_us=", fz_us(fz_prof.raster / fr));   /* (plutovg's) */
     c = fz_put_u(c, "blend_us=", fz_us(fz_prof.blend / fr));
     c = fz_put_u(c, "glyph_us=", fz_us(fz_prof.glyph / fr));
     c = fz_put_u(c, "rgb565_us=", fz_us(fz_prof.convert / fr));
@@ -287,6 +314,8 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "isr_in_frame_us=", fz_us(fz_prof.isr_in_frame / fr));
     c = fz_put_u(c, "rest_us=", fz_us((fz_prof.frame > parts ? fz_prof.frame - parts : 0u) / fr));   /* (the core's
                                                    * own: its screens' logic, the paths built, plutovg's state) */
+    c = fz_put_u(c, "texts=", fz_prof.n_text / fr);
+    c = fz_put_u(c, "shapes=", fz_prof.n_shapes / fr);
     c = fz_put_u(c, "rasters=", fz_prof.n_raster / fr);
     c = fz_put_u(c, "blends=", fz_prof.n_blend / fr);
     c = fz_put_u(c, "glyphs=", fz_prof.n_glyph / fr);
@@ -357,6 +386,8 @@ static void fz_lights(void)              /* (FIZZ's state read, the interrupts o
 
 /* ---------------------------------------------------------------- the screen --- */
 static uint32_t fz_row_hash[240];        /* each row's pixels as last sent (0: unknown, sent again) */
+static uint8_t fz_redraw = 1;            /* the next frame drawn whatever qd_app_frame_changed says (the screen was
+                                          * cleared: the boot, an update's screens) */
 static uint32_t fz_rows_sent;
 
 static uint32_t fz_hash_row(const uint16_t *p)
@@ -450,6 +481,7 @@ void app_ui_init(void)
     lcd_fill(0, 0, 240, 240, C_BLACK);
     for (i = 0; i < 240u; i++)
         fz_row_hash[i] = 0;              /* (the whole screen sent again) */
+    fz_redraw = 1;
     fz_audio_on = 1;
 }
 
@@ -473,7 +505,7 @@ static void fz_host_sync_audio(void)
 
 static void fz_step(int frame)
 {
-    static uint32_t led_t, frame_t;
+    static uint32_t led_t, frame_t, store_t;
     const uint32_t now = plat_ms();
     uint32_t period;
     int mode, playing;
@@ -501,9 +533,31 @@ static void fz_step(int frame)
              : mode == 0                       ? FZ_FRAME_IDLE
              : playing                         ? FZ_FRAME_PLAYING
                                                : FZ_FRAME_QUIET;
-    if (now - frame_t >= period || !fz_prof.n_frame) {
+    if (now - frame_t >= period || fz_redraw) {
+        const uint64_t tx = fz_prof.text, sh = fz_prof.shapes;   /* (the check's drawing calls are not the frame's) */
+        const uint32_t ntx = fz_prof.n_text, nsh = fz_prof.n_shapes;
+        uint32_t t = plat_ticks24();
+        const int changed = fz_frame_changed() || fz_redraw;
+        fz_prof.check += plat_ticks24() - t;
+        fz_prof.text = tx, fz_prof.shapes = sh, fz_prof.n_text = ntx, fz_prof.n_shapes = nsh;
+        fz_prof.n_check++;
         frame_t = now;
-        fz_draw();
+        if (changed) {
+            fz_redraw = 0;
+            fz_draw();
+        } else {
+            fz_prof.n_skip++;
+        }
+    }
+    if (now - store_t >= FZ_STORE_MS) {  /* the store's step: between frames, outside the locks */
+        uint32_t t = plat_ticks24(), d;
+        store_t = now;
+        fz_persist_step();
+        d = plat_ticks24() - t;
+        fz_prof.store += d;
+        fz_prof.n_store++;
+        if (d > fz_prof.store_max)
+            fz_prof.store_max = d;
     }
 }
 
@@ -606,6 +660,8 @@ int app_expect(const char *what, int *got)
         *got = (int)fz_rows_sent;
     else if (!strcmp(what, "fz_sx_out"))
         *got = (int)fz_host_sx_out;
+    else if (!strcmp(what, "fz_isr_loads"))  /* patterns loaded inside the audio interrupt (the prefetch's misses) */
+        *got = (int)fz_audio_loads();
     else if (!strcmp(what, "fz_midi_drops"))
         *got = (int)fz_mq_drops;
     else
@@ -615,7 +671,7 @@ int app_expect(const char *what, int *got)
 
 /* sysex F0 .. F7 (hex bytes): a SysEx frame in over USB, as the platform gives it (the bytes between F0 and F7).
  * fzdraw: a frame drawn now, whatever the time since the last (a screen at an exact ms, as FIZZ's render_frames
- * draws its "frame at T"). fzsync, fzview N: as render_frames runs the app (tests/compare.txt) */
+ * draws its "frame at T"). fzsync, fzshow MODE VIEW, fzseed N: as render_frames runs the app (tests/compare.txt) */
 int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
 {
     uint8_t f[512];
@@ -627,8 +683,14 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         fz_host_sync_done = (uint64_t)plat_ms() * 44100u / 1000u / 128u * 128u;
         return 1;
     }
-    if (!strcmp(cmd, "fzview")) {        /* fzview N: the sequencer's view (ctl.h QD_VIEW_*: 0 PIANO ROLL, 1 STEPS, 2 EDIT) */
-        fz_host_view(atoi(a));
+    if (!strcmp(cmd, "fzshow")) {        /* fzshow MODE VIEW: qd_app_show (ctl.h QD_MODE_*, QD_VIEW_*) */
+        const uint32_t f = fz_lock();
+        fz_show(atoi(a), atoi(b));
+        fz_unlock(f, FZ_LOCK_EVENT);
+        return 1;
+    }
+    if (!strcmp(cmd, "fzseed")) {        /* fzseed N: qd_app_seed (the rolls of each PLAY) */
+        fz_seed((uint32_t)strtoul(a, 0, 0));
         return 1;
     }
     if (!strcmp(cmd, "fzdraw")) {

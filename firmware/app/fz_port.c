@@ -11,11 +11,10 @@
 #include "fizz_port.h"
 #include "fz_prof.h"
 
-/* the store on the unit's flash (persist.h): off until the core's device profile sizes its two stores to the data
- * region (0x97000..0xDFFFF, 73 sectors; today persist.h's 32 + 224 sectors are the 1 MiB image of the Mac's). With it
- * on, FIZZ's flash offsets are the data region's from its first byte */
+/* the store on the unit's flash (persist.h, P2.5): the data region (0x97000..0xDFFFF, 73 sectors) from its first
+ * byte; the stores' writes are the port's own steps (qd_persist_own_step: fz_persist_step, outside the locks) */
 #ifndef FZ_FLASH
-#define FZ_FLASH 0
+#define FZ_FLASH 1
 #endif
 
 static qd_app_t fz_app;
@@ -110,6 +109,7 @@ int fz_init(const char *version)
     qd_app_tick(&fz_app, 0);
 #if FZ_FLASH
     qd_persist_attach(&fz_app, &fz_fl);
+    qd_persist_own_step(&fz_app, 1);
 #endif
     fz_up = 1;
     return 1;
@@ -119,21 +119,32 @@ void fz_key(int key, int down, int vel) { qd_app_key(&fz_app, key, down, vel); }
 void fz_button(int button, int down) { qd_app_button(&fz_app, button, down); }
 void fz_knob(int role, int detents) { qd_app_knob(&fz_app, role, detents); }
 void fz_master(int pot) { qd_app_master(&fz_app, pot); }
-void fz_midi(int status, int d1, int d2) { qd_app_midi(&fz_app, status, d1, d2); }
+void fz_midi_play(int status, int d1, int d2) { qd_app_midi_play(&fz_app, status, d1, d2); }
+void fz_midi_ui(int status, int d1, int d2) { qd_app_midi_ui(&fz_app, status, d1, d2); }
+int fz_frame_changed(void) { return qd_app_frame_changed(&fz_app); }
+void fz_persist_step(void)
+{
+    if (fz_up)
+        qd_persist_step(&fz_app);
+}
+void fz_show(int mode, int view) { qd_app_show(&fz_app, mode, view); }
+void fz_seed(uint32_t seed) { qd_app_seed(&fz_app, seed); }
 void fz_sysex(const uint8_t *f, uint32_t n) { qd_app_sysex(&fz_app, f, n); }
 int fz_sysex_peek(void) { return qd_app_sysex_peek(&fz_app); }
 int fz_sysex_take(uint8_t *out, uint32_t max) { return qd_app_sysex_take(&fz_app, out, max); }
 void fz_tick(uint32_t ms) { qd_app_tick(&fz_app, ms); }
-void fz_audio(int16_t *stereo, uint32_t frames) { qd_app_audio(&fz_app, stereo, frames); }
-/* P2.4: the drawing's profile (fz_prof.h); a frame's time by its screen */
-volatile fz_prof_t fz_prof;
-fz_screen_t fz_screens[FZ_NSCREEN];
-void fz_prof_reset(void)
+/* (the interrupt's paging: a pattern the sequencer wanted and the main loop's prefetch had not brought, loaded inside
+ * the interrupt (a store's read, and a write if one left RAM changed): counted, it should stay 0) */
+static volatile uint32_t fz_isr_loads;
+void fz_audio(int16_t *stereo, uint32_t frames)
 {
-    memset((void *)&fz_prof, 0, sizeof fz_prof);
-    memset(fz_screens, 0, sizeof fz_screens);
+    const uint32_t l = fz_app.proj.pat_loads;
+    qd_app_audio(&fz_app, stereo, frames);
+    if (fz_app.proj.pat_loads != l)
+        fz_isr_loads += fz_app.proj.pat_loads - l;
 }
-
+uint32_t fz_audio_loads(void) { return fz_isr_loads; }
+/* P2.4: a frame's time by its screen (fz_prof.h; the counters are app.c's, in RAM: this unit's .bss is the pool's) */
 void fz_frame(fz_strip_fn out, void *ctx)
 {
     const int sc = (fz_app.ui.mode & 3) * 4 + (fz_app.ui.view & 3);
@@ -163,15 +174,6 @@ void fz_leds(uint8_t *key, uint8_t *button, uint8_t *play_green)
     *play_green = l.play_green;
 }
 
-void fz_host_view(int view)
-{
-#ifdef PLAT_HOST
-    fz_app.ui.view = view;
-#else
-    (void)view;
-#endif
-}
-
 int fz_expect(const char *what, int *got)
 {
     const qd_app_t *a = &fz_app;
@@ -193,6 +195,12 @@ int fz_expect(const char *what, int *got)
         *got = a->sel;
     else if (!strcmp(what, "fz_seqtick"))              /* the transport's position (seq.h, ticks) */
         *got = (int)qd_seq_tick(&a->seq);
+    else if (!strcmp(what, "fz_store_on"))             /* the flash attached and mounted */
+        *got = a->per.on;
+    else if (!strcmp(what, "fz_store_written"))        /* records the store committed */
+        *got = (int)a->per.written;
+    else if (!strcmp(what, "fz_store_dirty"))          /* something not written yet */
+        *got = qd_persist_dirty(a);
     else if (!strcmp(what, "fz_sx_frames"))            /* SysEx frames of FIZZ's taken */
         *got = (int)a->sx.frames;
     else
