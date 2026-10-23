@@ -46,6 +46,7 @@ void qd_end(uint16_t *lcd_be);  /* the frame out: QD_W * QD_H RGB565, big-endian
  * at 0 (the whole screen where the surface is: the host's). qd_set_strip_rows: fewer rows a strip (the tests) */
 void qd_begin_strip(int y0);
 void qd_end_strip(uint16_t *lcd_be);
+void qd_end_strip_rows(uint16_t *rows_be);   /* .. or into a strip's own rows (rows_be[0]: the strip's first row) */
 int qd_strip_rows(void);
 void qd_set_strip_rows(int h);
 

@@ -152,6 +152,9 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2);   /* status 0xF8 / FA
 void qd_app_tick(qd_app_t *a, uint32_t ms);
 /* the screen: one frame drawn (qd_gfx), written as RGB565 big-endian (240 x 240) */
 void qd_app_frame(qd_app_t *a, uint16_t *lcd_be);
+/* P2.1: .. or strip by strip (QD_STRIP_H rows: the device's 40; the host's one strip, the whole), each written into
+ * strip_be (240 x QD_STRIP_H) and then given to out (its first row, its rows): no whole frame in RAM */
+void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx, int y0, int rows), void *ctx);
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out);
 /* the sound: frames of 16-bit stereo, interleaved, at QD_FS (rendered in control blocks of 32 frames) */
 void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames);

@@ -168,7 +168,12 @@ void qd_begin_strip(int y0)
 
 void qd_end(uint16_t *lcd_be) { qd_end_strip(lcd_be); }
 
-void qd_end_strip(uint16_t *lcd_be)
+static void qd_strip_out(uint16_t *lcd_be);
+void qd_end_strip(uint16_t *lcd_be) { qd_strip_out(lcd_be ? lcd_be + (size_t)qd_y0 * QD_W : 0); }
+void qd_end_strip_rows(uint16_t *rows_be) { qd_strip_out(rows_be); }
+
+/* the strip's rows out (lcd_be: its first row's place) */
+static void qd_strip_out(uint16_t *lcd_be)
 {
     const unsigned char *d;
     int stride, x, y;
@@ -179,7 +184,6 @@ void qd_end_strip(uint16_t *lcd_be)
         return;
     stride = QD_W * 4;
     d = (const unsigned char *)qd_px;
-    lcd_be += (size_t)qd_y0 * QD_W;                     /* (P2.1: the strip's rows of the screen) */
     for (y = 0; y < qd_sh && qd_y0 + y < QD_H; y++) {
         const uint32_t *row = (const uint32_t *)(const void *)(d + (size_t)y * (size_t)stride);
         for (x = 0; x < QD_W; x++) {

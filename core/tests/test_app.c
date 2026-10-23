@@ -404,6 +404,32 @@ static uint64_t frame_hash(void)
     return h;
 }
 
+/* P2.1: the frame strip by strip (qd_app_frame_strips: the device's LCD, no whole frame in RAM): the same pixels as
+ * the whole frame, the strips in order, covering the screen */
+static uint16_t strip_lcd[QD_W * QD_H];
+static int strip_next, strip_bad;
+static void strip_out(void *ctx, int y0, int rows)
+{
+    const uint16_t *px = (const uint16_t *)ctx;
+    strip_bad += y0 != strip_next || rows < 1;
+    memcpy(strip_lcd + (size_t)y0 * QD_W, px, (size_t)rows * QD_W * sizeof px[0]);
+    strip_next = y0 + rows;
+}
+static void t_strips(void)
+{
+    static uint16_t lcd[QD_W * QD_H], strip[QD_W * QD_STRIP_H];
+    int i, n = 0;
+    fresh();
+    run(500, 1);
+    qd_app_frame(&A, lcd);
+    strip_next = strip_bad = 0;
+    qd_app_frame_strips(&A, strip, strip_out, strip);
+    for (i = 0; i < QD_W * QD_H; i++)
+        n += lcd[i] != strip_lcd[i];
+    CHECK(!n && !strip_bad && strip_next == QD_H, "P2.1: the frame in strips of %d rows out one by one: the whole "
+          "frame's pixels (%d differ)", QD_STRIP_H, n);
+}
+
 static void t_play(void)
 {
     qd_leds_t l;
@@ -724,6 +750,7 @@ int main(void)
     h2 = session();
     CHECK(h1 == h2, "two runs of one session differ");
     printf("  determinism: one session twice, the same samples (%016llx)\n", (unsigned long long)h1);
+    t_strips();
     t_play();
     t_patterns();
     t_tracks();

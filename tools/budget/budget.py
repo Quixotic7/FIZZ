@@ -359,7 +359,7 @@ def main():
     ram = core_ram + heap + lcd
     print("\nRAM (32-bit static, M: the arm-none-eabi link; heap, M: the host bench at the device's sizes)")
     for m in sorted(mods):
-        r = mods[m].get(".data", 0) + mods[m].get(".bss", 0)
+        r = mods[m].get(".data", 0) + mods[m].get(".bss", 0) - (lcd if m == "the app (one qd_app_t)" else 0)
         print(f"  static {m:<22} {r:>9} B {kb(r)}")
     print(f"  static, the core + plutovg   {core_ram:>9} B {kb(core_ram)}")
     print(f"  heap peak (bench)            {heap:>9} B {kb(heap)}   (live at the end {int(hb['heap_live'][0])}; plutovg's"
@@ -367,7 +367,8 @@ def main():
     ap, asz, af = (int(x) for x in hb["arena"])
     print(f"  the drawing's arena          {asz:>9} B {kb(asz)}   (a static above: the bench's screens used {ap} at most,"
           f" {af} requests refused)")
-    print(f"  the LCD frame                {lcd:>9} B {kb(lcd)}   (what the core draws into: 240 x 240 RGB565 today)")
+    print(f"  the LCD strip                {lcd:>9} B {kb(lcd)}   (what the core writes the screen into: 240 x 40 RGB565,"
+          f" a strip at a time)")
     print(f"  libc / libm's own            {lib_ram:>9} B   (the platform's: not counted)")
     print(f"  FIZZ's RAM                   {ram:>9} B {kb(ram)}   budget {BUDGET_RAM} B {kb(BUDGET_RAM)}"
           f" = {FM1_RAM} (the FM-1) - {PLATFORM_RAM} (platform, E) - {HEADROOM_RAM} (headroom)")
