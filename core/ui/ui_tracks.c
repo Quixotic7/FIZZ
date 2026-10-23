@@ -17,15 +17,25 @@ static void ln(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
 }
 static float clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
 
-/* the head: the title, an effect's pages as dots, a back arrow (latched: OCT- back) */
-static void panel_head(const char *title, int npg, int ipg)
+/* the head: the title, an effect's pages as dots; P1.6h: no back arrow (F1 is no back on these main pages), the steps
+ * held or selected as a magenta count (their locks are what the knobs write) */
+static void panel_head(const char *title, int npg, int ipg, int nsel)
 {
     const float w = ui_T(title, 8.f, 18.f, 12.f, 600, 0.8f, UI_K3, QD_LEFT);
     int k;
     for (k = 0; k < npg && npg > 1; k++)
         ui_O(8.f + w + 10.f + (float)k * 9.f, 14.f, 2.6f, k == ipg ? UI_K3 : UI_G2, 1.f, k == ipg ? UI_K3 : QD_NONE);
-    ui_RR(208.f, 4.f, 24.f, 17.f, 4.f, UI_K3, 1.2f, QD_NONE);
-    ui_icon(UI_IC_BACK, 220.f, 12.5f, 1.f, UI_K3);
+    if (nsel > 0) {
+        char n[12];
+        ui_chip(ui_itoa(n, nsel), 220.f, 17.f, 13.f, 24.f, UI_STEP_FRAME, 1);
+    }
+}
+
+/* P1.6h: a value the knob writes as a lock on the held steps: a filled chip on the part it moves */
+static void lock_chip(float x, float y, qd_rgb col)
+{
+    ui_RR(x - 6.f, y - 5.f, 12.f, 10.f, 3.f, UI_BG, 1.4f, col);
+    ui_RR(x - 3.f, y - 1.5f, 6.f, 3.f, 1.f, QD_NONE, 1.f, UI_BG);
 }
 
 /* ---------------------------------------------------------------- the mix */
@@ -33,7 +43,7 @@ void ui_mix_draw(const ui_mix_t *v)
 {
     static const float DASH[2] = {2.f, 3.f};
     int i;
-    panel_head(v->page ? "SENDS" : "MIX", 2, v->page ? 1 : 0);
+    panel_head(v->page ? "SENDS" : "MIX", 2, v->page ? 1 : 0, v->nsel);
     for (i = 0; i < 8; i++) {
         const float x = 22.f + (float)i * 28.f;
         const int sel = i == v->sel, mute = v->tr[i].mute;
@@ -64,6 +74,16 @@ void ui_mix_draw(const ui_mix_t *v)
             }
             if (sel && v->last >= 0)                    /* the knob turned last: its part brightened */
                 ln(x - 9.f, 234.f, x + 9.f, 234.f, FK[v->last], 2.f);
+            if (sel) {                                  /* P1.6h: the parts locked on the held step: a chip on each */
+                if (v->locked[0])
+                    lock_chip(x, fy, FK[0]);
+                if (v->locked[1])
+                    lock_chip(x, 44.f, FK[1]);
+                if (v->locked[2])
+                    lock_chip(x + 13.f, 216.f, FK[2]);
+                if (v->locked[3])
+                    lock_chip(x + 13.f, 224.f, FK[3]);
+            }
         } else {
             int j;
             for (j = 0; j < 3; j++) {                   /* CHORUS, DELAY, REVERB: three bars a track */
@@ -73,6 +93,8 @@ void ui_mix_draw(const ui_mix_t *v)
                 ui_RR(bx - 2.5f, top, 5.f, bot - top, 2.f, UI_G3, 1.f, QD_NONE);
                 if (h > 0.f)
                     ui_RR(bx - 2.5f, bot - h, 5.f, h, 2.f, QD_NONE, 1.f, mute ? UI_G3 : sel ? FK[j] : UI_G1);
+                if (sel && v->locked[j])                /* P1.6h: locked on the held step: a chip on the bar */
+                    lock_chip(bx, bot - h, FK[j]);
             }
         }
         if (ui_track_kind(i + 1) >= 0)                  /* P1.6d: its kind, over the faders */
@@ -302,6 +324,8 @@ static void fx_over(const ui_fx_t *v)
             }
             if (sel)
                 ui_O(x + 3.f, bot + 6.f, 2.f, QD_NONE, 1.f, col);
+            if (sel && v->locked[c])                    /* P1.6h: locked on the held step: a chip on its bar */
+                lock_chip(x + 3.f, bot - h, FK[c]);
         }
     }
 }
@@ -403,7 +427,7 @@ static void fx_route(const ui_fx_t *v)
 void ui_fx_draw(const ui_fx_t *v)
 {
     int k;
-    panel_head(v->name ? v->name : "", v->npg, v->ipg);
+    panel_head(v->name ? v->name : "", v->npg, v->ipg, v->nsel);
     if (v->track >= 1 && v->track <= 8)                 /* the track whose SEND the page shows */
         ui_box(184.f, 5.f, v->track, UI_K4);
     switch (v->draw) {

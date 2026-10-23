@@ -7,6 +7,9 @@
  *   OCT+   yes / confirm / enter     (a latch's on_confirm; none: nothing, the key is reserved)
  *   HOME   closes any latch
  *
+ * P1.6h: the main pages (QD_LATCH_MAIN: the mix, the effects, the sound editor, the MIDI FX screen) are no menus: F1 /
+ * F2 there are the step view's layers (copy, pick-up / drop on the steps), and they close with HOME or their own key.
+ *
  * The OCT key that answered a latch is eaten (qd_ui_t.oct_eaten) until it is let go: it is no F1 / F2 layer meanwhile,
  * so nothing it does after leaves the latch leaks into a layer. A new latch is a row of LATCHES (the sound editor's
  * pages and the dialogs to come).
@@ -67,7 +70,7 @@ void qd_latch_close(qd_app_t *a)
 int qd_latch_oct(qd_app_t *a, int d)
 {
     const qd_latch_t *l = qd_latch_cur(a);
-    if (!l)
+    if (!l || QD_LATCH_MAIN(a->ui.latch))               /* (P1.6h: a main page: F1 / F2 no back, no confirm) */
         return 0;
     a->ui.oct_eaten |= (uint8_t)(d < 0 ? 1u : 2u);
     if (d < 0) {

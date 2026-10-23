@@ -58,13 +58,37 @@ int qd_ctl_layer(const qd_app_t *a)
         return QD_LAYER_NONE;
     if (a->ui.latch == QD_LATCH_F3)
         return QD_LAYER_F3;
+    if (qd_snd_keys(a))                                 /* (P1.6h: the editor's keyboard: F1 / F2 its octave) */
+        return QD_LAYER_NONE;
     if (finger_held(a) || (!dn && !up))                 /* (P1.5m: was steps_held: the latch's selection blocked them) */
         return QD_LAYER_NONE;
-    if (up && !dn && a->ui.hmode == UI_F_PLOCK)
+    if (up && !dn && a->ui.hmode == UI_F_PLOCK && !a->ui.latch)
         return QD_LAYER_NONE;                           /* (P1.5o: P-LOCK: F2 held is the unlock, no layer) */
-    if (dn && up)
-        return QD_LAYER_F3;
+    if (dn && up)                                       /* (P1.6h: on a main page both together are nothing) */
+        return QD_LATCH_MAIN(a->ui.latch) ? QD_LAYER_NONE : QD_LAYER_F3;
     return dn ? QD_LAYER_F1 : QD_LAYER_F2;
+}
+
+/* P1.6h (the owner: "If the white keys are steps then F1 / F2 across all modes should work for copy and cut"): the
+ * main pages whose W keys are the steps; there F1 / F2 held are the step view's layers (their W, F1's black keys,
+ * their pictures) */
+int qd_ctl_main_steps(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    if (u->mode != QD_MODE_STEP)
+        return 0;
+    switch (u->latch) {
+    case QD_LATCH_MIX:
+    case QD_LATCH_FX: return 1;
+    case QD_LATCH_SND: return !u->ekeys;                /* (its keyboard: F1 / F2 the octave) */
+    case QD_LATCH_MFX: return !qd_mfx_lane_page(a);     /* (STEPS; an arp lane's W keys are its steps) */
+    default: return 0;
+    }
+}
+int qd_ctl_main_layer(const qd_app_t *a)
+{
+    const int l = qd_ctl_main_steps(a) ? qd_ctl_layer(a) : QD_LAYER_NONE;
+    return l == QD_LAYER_F1 || l == QD_LAYER_F2 ? l : QD_LAYER_NONE;
 }
 
 /* P1.3d (§8b 2.2): the knobs' jobs in the hold modes, [mode][SELECT, KNOB 1..4]. With a step held SELECT and KNOB 1
@@ -135,6 +159,7 @@ void qd_ctl_init(qd_app_t *a)
     u->snd_page = QD_SND_START_PAGE;                    /* (P1.5l: RATIO; then the last page used) */
     u->fn_target = -1;
     u->f3_anchor = -1;
+    u->f1_src = -1;
     u->pg_copied = -1;
     u->f2_last_w = -1;
     u->pv_note = -1;
@@ -437,6 +462,8 @@ static int w_flayer_latch(const qd_app_t *a)
     return a->ui.mode == QD_MODE_STEP && a->ui.slatch && !finger_held(a) && qd_ctl_layer(a) != QD_LAYER_NONE;
 }
 static void k_flayer_white(qd_app_t *a, int key, int w, int down, int vel);
+static int w_main_layer(const qd_app_t *a);
+static void k_main_black(qd_app_t *a, int key, int b, int down, int vel);
 static void k_flayer_black(qd_app_t *a, int key, int b, int down, int vel);
 static int w_f2(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F2; }
 static int w_f3(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F3; }
@@ -561,9 +588,12 @@ static void k_f1_white(qd_app_t *a, int key, int w, int down, int vel)
     (void)key, (void)vel;
     if (!down)
         return;
+    if (u->latch == QD_LATCH_MFX)
+        u->mfx_fstep = 1;                               /* (P1.6h: the MIDI FX screen's picture: the step's) */
     if (!u->f1_copied) {
         qd_clip_copy_step(&u->clip, qd_ctl_pat(a), a->sel, step_of(a, w));
         u->f1_copied = 1;
+        u->f1_src = step_of(a, w);                      /* (P1.6h: its picture marks where it came from) */
         u->f2_loaded = u->f2_holding = 1;               /* (Form: "a copy loads the buffer .. the next F2 press pastes") */
     } else if (qd_undo_hint(a, QD_UK_PASTE),
                qd_clip_paste_step(&u->clip, qd_ctl_pat(a), a->seq.cur, a->sel, step_of(a, w)) == QD_EFULL) {
@@ -586,6 +616,8 @@ static void k_f2_white(qd_app_t *a, int key, int w, int down, int vel)
     (void)key, (void)vel;
     if (!down)
         return;
+    if (u->latch == QD_LATCH_MFX)
+        u->mfx_fstep = 1;                               /* (P1.6h: the MIDI FX screen's picture: the step's) */
     if (!u->f2_loaded)
         cut = 1;
     else if (!qd_step_is_on(qd_step(p, a->sel, s)))
@@ -879,6 +911,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_tracks_held, k_track_select},   /* FX (TRACKS) held: tracks 1..8 (over the pages too) */
     {w_lib, k_lib_white},              /* P1.5a: the sounds page's slots, the projects */
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
+    {w_main_layer, k_flayer_white},    /* P1.6h: a main page's steps, F1 / F2 held: the step view's copy, pick-up / drop */
     {w_panel, k_panel_white},          /* P1.4b: the mix, the effects: nothing (P1.5b: the overview's W1..W8 the
                                         * track) */
     {w_mfx, k_mfx_white},              /* P1.6c: the MIDI FX screen: the track through the group (the lanes' steps) */
@@ -898,6 +931,8 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_sel_held, k_sel_black},         /* SEL held: B1..B8 select the track */
     {w_shift_keys, k_shift_black},     /* P1.5c: SHIFT's shortcuts (snapshot, copy / paste, tap, click, double, clear) */
     {w_lib, k_lib_black},              /* P1.5a: the banks, LIBRARY / POOL, NAME, delete */
+    {w_main_layer, k_main_black},      /* P1.6h: .. F1 held: its pages, CLEAR, COPY, UNDO (MIDI FX: B9, B11; B1..B8 stay
+                                        * the slots); F2: nothing */
     {w_panel, k_panel_black},          /* P1.4b: the track settings, the mix: the track; the effects: B1..B4 */
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
     {w_mfx, k_mfx_black},              /* P1.6c: the MIDI FX screen: the slots, bypass, remove */
@@ -915,6 +950,28 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_latch_default, k_latch_default},   /* P1.6d: the latch in VALUES, nothing selected: the track's defaults */
     {w_step_view, k_mode},             /* nothing held: the hold mode */
 };
+static int w_main_layer(const qd_app_t *a) { return qd_ctl_main_layer(a) != QD_LAYER_NONE; }
+static void k_main_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    qd_ui_t *u = &a->ui;
+    const int mfx = u->latch == QD_LATCH_MFX;
+    const uint16_t bit = (uint16_t)(1u << b);
+    if (down) {                                         /* (the press decides; its release goes the same way) */
+        if (qd_ctl_layer(a) == QD_LAYER_F1 && (!mfx || b == 8 || b == 10)) {
+            u->main_f1b |= bit;
+            k_f1_black(a, key, b, 1, vel);
+        } else if (mfx) {
+            qd_mfx_black(a, b, 1);
+        }
+        return;
+    }
+    if (u->main_f1b & bit) {
+        u->main_f1b &= (uint16_t)~bit;
+        k_f1_black(a, key, b, 0, vel);
+    } else if (mfx) {
+        qd_mfx_black(a, b, 0);
+    }
+}
 static void k_flayer_white(qd_app_t *a, int key, int w, int down, int vel)
 {
     const int l = qd_ctl_layer(a);
@@ -1054,10 +1111,14 @@ static void b_lfo(qd_app_t *a, int down)
         return;
     if (a->ms - a->ui.lfo_ms >= QD_LFO_HOLD_MS)         /* (held long, the screen never opened: nothing) */
         return;
-    if (!a->ui.slatch && a->ui.latch != QD_LATCH_SND)
+    if (!a->ui.slatch && !QD_LATCH_MAIN(a->ui.latch))
         qd_latch_close(a);                              /* (F3's menu gives way to the selection; P1.4a: the sound
-                                                         * editor takes it: the selection's turns are its p-locks) */
+                                                         * editor takes it: the selection's turns are its p-locks;
+                                                         * P1.6h: so do the mix, the effects, the MIDI FX screen) */
     qd_step_latch(a, !a->ui.slatch);
+    if (a->ui.slatch && (a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_FX))
+        qd_step_release_all(a);                         /* (P1.6h: there it starts empty: the knobs the track's until
+                                                         * W keys select) */
 }
 
 /* P1.6d (the owner's batch): ARP tapped (released under QD_ARP_HOLD_MS, nothing with it) opens the MIDI FX screen
@@ -1221,8 +1282,8 @@ static void b_oct(qd_app_t *a, int d, int down)
         qd_shift_undo(a, d);
         return;
     }
-    if (qd_mfx_oct(a, d, down))                         /* P1.6c: the MIDI FX screen: F1 tapped closes it (at its
-                                                         * release), F1 / F2 held + B copy / move */
+    if (qd_mfx_oct(a, d, down))                         /* P1.6c: the MIDI FX screen: F1 / F2 held + B copy / move
+                                                         * (P1.6h: no close; STEPS goes on here: the step layers) */
         return;
     if (qd_lib_oct(a, d, down))                         /* P1.5a: the sounds page, the name editor, the projects */
         return;
@@ -1237,11 +1298,13 @@ static void b_oct(qd_app_t *a, int d, int down)
         if (d < 0) {                                    /* F1 let go: its step copy and page copy end (the clipboard
                                                          * stays: F2's hand stays loaded, as Form's) */
             u->f1_copied = 0;
+            u->f1_src = -1;
             u->pg_copied = -1;
             u->b9_down = 0;
         } else {                                        /* F2 let go: the hand empties (Form's) */
             u->f2_loaded = u->f2_holding = 0;
             u->f2_last_w = -1;
+            u->f2_knob = 0;
         }
         if (!held(a, QD_B_OCTDN) && !held(a, QD_B_OCTUP)) {
             u->lk_down = 0;
@@ -1293,11 +1356,15 @@ static void b_oct(qd_app_t *a, int d, int down)
         u->oct_tap = both ? 0 : d;
         u->oct_tap_used = both;
     }
-    if (qd_latch_oct(a, d))                             /* P1.3d: a latched menu: OCT- back, OCT+ confirm */
+    if (qd_latch_oct(a, d))                             /* P1.3d: a latched menu: OCT- back, OCT+ confirm (P1.6h: a
+                                                         * main page none: its F1 / F2 the step view's layers) */
         return;
-    if (both) {                                         /* P1.3d: both together open F3, latched */
-        qd_latch_open(a, QD_LATCH_F3);
-        u->oct_eaten |= 3u;
+    if (both) {                                         /* P1.3d: both together open F3, latched (P1.6h: from the step
+                                                         * view; on a main page nothing) */
+        if (!u->latch) {
+            qd_latch_open(a, QD_LATCH_F3);
+            u->oct_eaten |= 3u;
+        }
     } else {
         u->f_ms = a->ms;                                /* the layer's first key */
     }
@@ -1334,8 +1401,8 @@ int qd_ctl_seq_map(const qd_app_t *a)
     return held(a, QD_B_MIX) && (a->ui.seq_used || a->ms - a->ui.seq_ms >= QD_TAP_MS);
 }
 
-/* P1.4a: EDIT (printed): the sound editor for the selected track, latched (EDIT again, OCT- or HOME: closed); from
- * another screen (the keyboard, the tracks) it opens over the step view */
+/* P1.4a: EDIT (printed): the sound editor for the selected track, latched (EDIT again or HOME: closed; P1.6h: F1 no
+ * more); from another screen (the keyboard, the tracks) it opens over the step view */
 static void b_snd(qd_app_t *a, int down)
 {
     int keys;
@@ -1780,6 +1847,7 @@ static int k_unlock(qd_app_t *a, int knob, int d)
     }
     if (id == -1 && knob != QD_K_PRESETS)
         return 1;
+    u->f2_knob = 1;                                     /* (P1.6h: the page stays on screen, no F2 picture) */
     qd_clip_keep(&u->clip, qd_ctl_cpat(a), a->seq.cur, a->sel);
     for (i = 0; i < (u->nheld ? u->nheld : QD_NSTEP); i++) {
         int16_t v;

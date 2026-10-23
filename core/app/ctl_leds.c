@@ -165,7 +165,9 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         leds_lib(a, out);
         return;
     }
-    if (QD_LATCH_PANEL(u->latch)) {                     /* P1.4b: the track settings, the mix, the effects */
+    if (u->latch != QD_LATCH_MFX && qd_ctl_main_layer(a) != QD_LAYER_NONE) {
+        /* P1.6h: the mix, the effects, the editor with F1 / F2 held: the step view's layer keys (below) */
+    } else if (QD_LATCH_PANEL(u->latch)) {              /* P1.4b: the track settings, the mix, the effects */
         uint8_t bk[11];
         qd_panel_leds(a, bk);
         for (i = 0; i < 11; i++)
@@ -174,12 +176,10 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
             out->key[QD_WHITE_KEY[i]] = u->latch == QD_LATCH_FX && QD_FX_PAGES[u->fx_page].fx == QD_FXG_OVER &&
                                         i < QD_NTRACK ? (i == a->sel ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
         return;
-    }
-    if (qd_mfx_open(a)) {                               /* P1.6c: the MIDI FX screen (ctl_mfx.c) */
+    } else if (qd_mfx_open(a)) {                        /* P1.6c: the MIDI FX screen (ctl_mfx.c) */
         qd_mfx_leds(a, out->key);
         return;
-    }
-    if (qd_snd_open(a)) {                               /* P1.4a: the sound editor: its groups, B11 the page's locks */
+    } else if (qd_snd_open(a)) {                        /* P1.4a: the sound editor: its groups, B11 the page's locks */
         uint8_t bk[11];
         qd_snd_leds(a, bk);
         for (i = 0; i < 11; i++)
@@ -367,8 +367,8 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_MUTE] = u->lmode == QD_LMODE_MODES ? qd_led_breath(a->ms) : QD_LED_LIT;
     if (qd_snd_open(a))                                 /* P1.4a: EDIT lit while the sound editor is open */
         out->button[QD_B_SOUND] = QD_LED_LIT;
-    if (qd_latch_cur(a)) {                              /* P1.3d: a latched menu: OCT- (back) lit, OCT+ lit when it
-                                                         * confirms something */
+    if (qd_latch_cur(a) && !QD_LATCH_MAIN(u->latch)) {  /* P1.3d: a latched menu: OCT- (back) lit, OCT+ lit when it
+                                                         * confirms something (P1.6h: no main page: no back) */
         out->button[QD_B_OCTDN] = QD_LED_LIT;
         out->button[QD_B_OCTUP] = qd_latch_cur(a)->confirm ? QD_LED_LIT : QD_LED_OFF;
     }

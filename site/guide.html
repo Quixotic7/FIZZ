@@ -107,7 +107,7 @@
   <section id="editor" style="--c:#FF6A2C">
     <h2>The sound editor</h2>
     <ul>
-      <li><b>EDIT</b> opens it for the selected track; EDIT again, OCT− or HOME closes it.</li>
+      <li><b>EDIT</b> opens it for the selected track; EDIT again or HOME closes it (F1 does not: it copies steps here, as everywhere).</li>
       <li>The black keys are its groups; press one again for its next page, or turn <b>SELECT</b> through every page:
         <span class="groups"><b>B1 PLAY / MOD</b><b>B2 OPERATORS</b><b>B3 OP ENVELOPES</b><b>B4 FILTERS</b><b>B5 AMP / FX</b><b>B6 · B7 · B8 LFO 1 · 2 · 3</b></span></li>
       <li><b>KNOB 1 … 4</b> turn the four values along the bottom; ALGORITHM is the pink badge's (on RATIO: the algorithm).</li>
@@ -130,12 +130,13 @@
       <li><b>Hold SEL (TRACKS)</b>: the eight tracks. SEL + B1 … B8 selects one; SEL + tap W1 … W8 mutes, hold solos.</li>
       <li><b>Hold SEQ (PATTERNS)</b>: the patterns. SEQ + B1 … B4 the bank, SEQ + W the pattern (it comes in at the end of the playing one).</li>
       <li><b>F3</b> (both OCT keys, or hold PLAY): SELECT the tempo, ALGORITHM the swing, B1 … B7 the track's note value. OCT− closes it.</li>
-      <li><b>ENV (MIX)</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter). Hold a step there and turn: its level, pan and sends become locks of that step (F2 + the knob clears one).</li>
+      <li><b>ENV (MIX)</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter). Hold a step there and turn: its level, pan and sends become locks of that step (F2 + the knob clears one). The magenta frame and the count in the corner say steps are held or selected; the locked fader or bar gets a chip. A latch selection from the step view is let go there: select steps in the mixer itself. HOME closes them.</li>
       <li><b>Tap SEL</b>: the track's settings; page 3 gives it a <b>KIND</b> (its icon everywhere its name shows) and a <b>NAME</b> typed on the keybed.</li>
       <li><b>REC</b> makes the keybed a keyboard for the track. <b>Recording works in every view:</b> stopped, <b>hold REC</b> to arm it (it blinks), then press <b>PLAY</b>; playing, hold REC and let go to start recording; a tap of REC stops it. <b>SHIFT + F1 / F2</b> undo and redo.</li>
       <li><b>Automation:</b> playing, <b>hold REC and turn knobs</b> in any view: the moves become locks on the steps the playhead passes (empty steps become ghost steps), only while REC is held. The screen is framed red while it records. SHIFT + REC twice: AUTOMATION on or off for a latched recording.</li>
       <li><b>MIDI:</b> channels 1 … 8 play tracks 1 … 8 (each track's MIDI CH); channel 16 always plays the selected track, its controllers too.</li>
-      <li><b>F1 + W</b> copies a step, then other steps pressed with F1 get it pasted.</li>
+      <li><b>F1 + W</b> copies a step (whole: its locks, its sound, its MIDI FX), then other steps pressed with F1 get it pasted; <b>F2 + W</b> picks up and drops. They work wherever the white keys are steps: the step view, the mixer, the effects, the sound editor and MIDI FX on STEPS, with the same pictures.</li>
+      <li><b>F1 never closes a main page</b> (the step view, the mixer, the effects, the sound editor, MIDI FX): HOME or the page's own key does. Pop-ups (F3, the settings, the projects, the browser) still go back on F1.</li>
     </ul>
   </section>
 
@@ -143,7 +144,7 @@
     <h2>MIDI FX</h2>
     <ul>
       <li><b>Five groups of eight slots</b> (kept with the project): ARP, CHANCE, REPEAT, HARM, TRANSPOSE, SCALER, RANDOM, CHORD, MONO, SELECTOR. A track plays through one group or none; two tracks can share one arp.</li>
-      <li><b>Tap ARP</b> to open the track's group: B1 … B8 the slots (again: the next page; hold one, it lifts, turn a knob to slide it and let go to drop it there), PRESETS the effect, KNOB 1 … 4 its values (KNOB 4 its CHANCE), ALGORITHM the track's group, B10 bypass, B11 twice remove, F1 + B copy then paste, F2 + B pick up and drop (held, F1 and F2 show the copy and the hand). The white keys play through it; <b>REC</b> turns them into the track's steps (it is the main REC keyboard switch: from the step view the screen opens on the steps, from the keyboard on the keys, and you leave the way it is): hold steps and turn ALGORITHM to give them their own group. ARP's light breathes while it is open (bright: the arp is on). ARP again, a tap of F1, or HOME close it.</li>
+      <li><b>Tap ARP</b> to open the track's group: B1 … B8 the slots (again: the next page; hold one, it lifts, turn a knob to slide it and let go to drop it there), PRESETS the effect, KNOB 1 … 4 its values (KNOB 4 its CHANCE), ALGORITHM the track's group, B10 bypass, B11 twice remove, F1 + B copy then paste, F2 + B pick up and drop (held, F1 and F2 show the copy and the hand). The white keys play through it; <b>REC</b> turns them into the track's steps (it is the main REC keyboard switch: from the step view the screen opens on the steps, from the keyboard on the keys, and you leave the way it is): hold steps and turn ALGORITHM to give them their own group. ARP's light breathes while it is open (bright: the arp is on). On STEPS, F1 + W and F2 + W copy and move steps. ARP again or HOME close it.</li>
       <li>A step held while stopped plays through its MIDI FX group.</li>
       <li><b>Hold ARP</b> anywhere: the arp on / off (one is added if the track has none); ARP stays lit while it is on. <b>SHIFT + ARP held</b>: FILL.</li>
       <li>The arp's pages 3 and 4: the MOD and TRANSPOSE lanes on the white keys (SHIFT + W a random step).</li>

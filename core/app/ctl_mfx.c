@@ -69,7 +69,7 @@ void qd_mfx_screen(qd_app_t *a)
     u->mfx_page = 0;
     u->mfx_knob = -1;
     u->mfx_arm = -1;
-    u->mfx_f1 = u->mfx_f1_used = 0;
+    u->mfx_f1 = 0;
     u->mfx_lift_from = -1;
     u->mfx_roll_ms = u->mfx_gsel_ms = 0;
     u->mfx_bheld = 0, u->mfx_f1_copied = u->mfx_f2_loaded = u->mfx_f2_holding = 0, u->mfx_f2_from = -1;
@@ -134,8 +134,6 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
             mf_drop(a);
         return;
     }
-    if (u->mfx_f1)
-        u->mfx_f1_used = 1;                             /* (P1.6f: anything with F1: no tap) */
     if (u->mfx_bheld && b < QD_MFX_NSLOT)               /* (another slot key: the first one's move dropped) */
         mf_drop(a);
     if (!g)
@@ -144,6 +142,8 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
         u->mfx_arm = -1;                                /* (any other key disarms B11) */
     if (b < QD_MFX_NSLOT) {
         qd_mfx_group_t *G = &a->proj.mfx[g - 1];
+        if (mf_held(a, QD_B_OCTDN) || mf_held(a, QD_B_OCTUP))
+            u->mfx_fstep = 0;                           /* (P1.6h: the picture: the slot's) */
         if (mf_held(a, QD_B_OCTDN)) {                   /* P1.6d: F1 + B, the sequencer's F1: the first slot pressed
                                                          * copied, every other one pasted (the copy loads F2's hand) */
             if (!u->mfx_f1_copied) {
@@ -156,7 +156,6 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
                 G->slot[b] = u->mfx_clip;
             }
             u->mfx_slot = b, u->mfx_page = 0;
-            u->mfx_f1_used = 1;
             return;
         }
         if (mf_held(a, QD_B_OCTUP)) {                   /* P1.6d: F2 + B, Form's pick-up / drop (k_f2_white's): not
@@ -212,8 +211,6 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
 {
     qd_ui_t *u = &a->ui;
     const int lane = qd_mfx_lane_page(a);
-    if (u->mfx_f1)
-        u->mfx_f1_used = 1;                             /* (P1.6f: anything with F1: no tap) */
     u->mfx_arm = -1;
     if (lane) {                                         /* the arp's lane: its steps */
         qd_mfx_slot_t *s = mf_slot(a);
@@ -310,8 +307,6 @@ int qd_mfx_knob(qd_app_t *a, int knob, int d)
     qd_ui_t *u = &a->ui;
     const int g = qd_mfx_tgroup(a);
     qd_mfx_slot_t *s = mf_slot(a);
-    if (u->mfx_f1)
-        u->mfx_f1_used = 1;                             /* (P1.6f: anything with F1: no tap) */
     if (knob != QD_K_ALGO)
         u->mfx_arm = -1;
     if (u->mfx_bheld && !mf_key_down(a, u->mfx_bheld - 1))
@@ -406,27 +401,26 @@ int qd_mfx_knob(qd_app_t *a, int knob, int d)
 int qd_mfx_oct(qd_app_t *a, int d, int down)
 {
     qd_ui_t *u = &a->ui;
-    if (!qd_mfx_open(a) && !(d < 0 && !down && u->mfx_f1))
+    const int open = qd_mfx_open(a);
+    if (!open && down)
         return 0;
-    if (d < 0) {                                        /* F1: a tap closes the screen at its release */
+    if (d < 0) {                                        /* F1 (P1.6h: the owner: no exit on F1; HOME or ARP close) */
         if (down) {
-            u->mfx_f1 = 1, u->mfx_f1_used = 0;
+            u->mfx_f1 = 1;
             u->mfx_f1_ms = a->ms;
-            return 1;
+            u->mfx_fstep = 0;
+        } else {
+            u->mfx_f1 = 0;
+            u->mfx_f1_copied = 0;
+            u->mfx_f1_src = -1;
         }
-        if (u->mfx_f1 && !u->mfx_f1_used && a->ms - u->mfx_f1_ms < QD_TAP_MS && a->keys_held == 0 &&
-            qd_mfx_open(a))                             /* (P1.6f: only a true tap: short, nothing with it) */
-            qd_latch_close(a);
-        u->mfx_f1 = 0;
-        u->mfx_f1_copied = 0;
-        u->mfx_f1_src = -1;
-        return 1;
-    }
-    if (down && u->mfx_f1)
-        u->mfx_f1_used = 1;                             /* (P1.6f: F2 with F1: no tap) */
-    if (!down)                                          /* F2 let go: the hand empties (Form's) */
+    } else if (down) {
+        u->mfx_fstep = 0;
+    } else {                                            /* F2 let go: the hand empties (Form's) */
         u->mfx_f2_loaded = u->mfx_f2_holding = 0, u->mfx_f2_from = -1;
-    return 1;
+    }
+    return down && open && u->mode != QD_MODE_STEP;     /* (STEPS: on to the step view's F1 / F2: W the steps, B9 / B11
+                                                         * the page's CLEAR, UNDO; every release too) */
 }
 
 void qd_mfx_leds(const qd_app_t *a, uint8_t *key)

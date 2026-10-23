@@ -411,12 +411,12 @@ int main(int argc, char **argv)
         P->keys &= ~(1u << 0);
         run(300);
         turn(FM1P_E_ALGO, -1);                          /* (track 1 OFF again: the tests below play it straight) */
-        btap(FM1P_B_OCTDN);
+        btap(FM1P_B_ARP);                               /* (P1.6h: F1 no longer closes it; ARP does) */
         run(20);
         sx_in(LREQ0, 9);
         run(5);
         n = sx_out(r, sizeof r);
-        CHECK(n > 20 && r[9] == 4 && !memcmp(r + 10, "PAGE", 4), "F1 tapped: closed (SELECT is PAGE again)");
+        CHECK(n > 20 && r[9] == 4 && !memcmp(r + 10, "PAGE", 4), "ARP tapped again: closed (SELECT is PAGE again)");
     }
 
     {   /* P1.6d's controls through the panel, by their labels: ARP tapped opens the MIDI FX screen (FILL's button
@@ -505,7 +505,10 @@ int main(int argc, char **argv)
         CHECK(!strcmp(lb[1], "GROUP"), "F2 held, let go: the screen stays (%s)", lb[1]);
         btap(FM1P_B_OCTDN);
         labels(lb);
-        CHECK(strcmp(lb[1], "GROUP") && !strcmp(lb[19], "STEPS"), "F1 tapped: closed, into the keyboard (REC %s)", lb[19]);
+        CHECK(!strcmp(lb[1], "GROUP"), "P1.6h: F1 tapped: the screen stays (%s)", lb[1]);
+        btap(FM1P_B_ARP);
+        labels(lb);
+        CHECK(strcmp(lb[1], "GROUP") && !strcmp(lb[19], "STEPS"), "ARP tapped: closed, into the keyboard (REC %s)", lb[19]);
         btap(FM1P_B_ARP);
         labels(lb);
         CHECK(!strcmp(lb[1], "GROUP") && !strcmp(lb[19], "STEPS"), "ARP from the keyboard: KEYS (REC %s)", lb[19]);

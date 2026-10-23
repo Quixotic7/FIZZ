@@ -115,6 +115,7 @@ static void held_add(qd_app_t *a, int s, int key)
         u->note_keys = 0;
         u->entry_n = 0;
         u->sound_bank = r.sound > 0 ? (r.sound - 1) / 10 : 0;   /* SOUND: the bank holding the step's sound */
+        u->sel_panel = u->latch == QD_LATCH_MIX || u->latch == QD_LATCH_FX;   /* (P1.6h: made there or not) */
     }
     u->held[u->nheld] = s;
     u->held_key[u->nheld] = (int8_t)key;

@@ -107,6 +107,29 @@ static void lb_notes(const qd_app_t *a, qd_labels_t *o, int scale_whites)
     }
 }
 
+/* the step view's F1 / F2 layers: their keys (P1.6h: the main pages' too); 1 when one is held */
+static int lb_flayer(const qd_app_t *a, qd_labels_t *o, int layer)
+{
+    int i;
+    if (layer == QD_LAYER_F1) {                         /* F1: the pages */
+        for (i = 0; i < QD_NPAGE; i++)
+            lb_setn(o, LB_B(i), "PAGE ", i + 1);
+        lb_set(o, LB_B(8), "CLEAR PG");
+        lb_set(o, LB_B(9), "COPY PG");
+        lb_set(o, LB_B(10), "UNDO");
+        for (i = 0; i < 16; i++)
+            lb_set(o, LB_W(i), "COPY STEP");
+        return 1;
+    }
+    if (layer == QD_LAYER_F2) {                         /* F2: Form's pick-up and drop */
+        for (i = 0; i < 16; i++)
+            lb_set(o, LB_W(i), "PICK/DROP");
+        return 1;
+    }
+    (void)a;
+    return 0;
+}
+
 void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
 {
     const qd_ui_t *u = &a->ui;
@@ -268,6 +291,10 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
     }
+    if (u->latch != QD_LATCH_MFX && lb_flayer(a, o, qd_ctl_main_layer(a))) {   /* P1.6h: the mix, the effects, the
+                                                         * editor, F1 / F2 held: the step view's layers */
+        return;
+    }
     if (step && u->latch == QD_LATCH_MIX) {             /* the mix: the track, its level, pan, sends */
         static const char *const MIXK[2][4] = {{"LEVEL", "PAN", "DELAY", "REVERB"}, {"CHORUS", "DELAY", "REVERB", ""}};
         for (k = 0; k < 4; k++)
@@ -277,7 +304,6 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         for (i = 0; i < 8; i++)
             lb_setn(o, LB_B(i), "TRACK ", i + 1);
         lb_set(o, LB_BTN(QD_B_PAGE), (u->mix_page & 1) ? "FADERS" : "SENDS");
-        lb_set(o, LB_BTN(QD_B_OCTDN), "BACK");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
     }
@@ -291,7 +317,6 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         for (i = 0; i < QD_FX_NKEY; i++)
             lb_set(o, LB_B(i), FXB[i]);
         lb_set(o, LB_BTN(QD_B_TRACKS), "NEXT PAGE");
-        lb_set(o, LB_BTN(QD_B_OCTDN), "BACK");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
     }
@@ -307,7 +332,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     if (qd_mfx_open(a)) {                               /* P1.6c: the MIDI FX screen */
-        const int g = qd_mfx_tgroup(a), lane = qd_mfx_lane_page(a);
+        const int g = qd_mfx_tgroup(a), lane = qd_mfx_lane_page(a), ml = qd_ctl_main_layer(a);
         char val[12];
         lb_set(o, LB_KNOB(QD_K_ALGO), qd_mfx_steps_held(a, 0) ? "STEP MFX" : "GROUP");   /* (P1.6e: STEPS' steps) */
         lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : u->mode == QD_MODE_STEP ? "KEYS" : "STEPS");   /* (P1.6e:
@@ -315,7 +340,12 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         if (u->mode == QD_MODE_STEP && !lane)
             for (i = 0; i < 16; i++)
                 lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
-        lb_set(o, LB_BTN(QD_B_OCTDN), !lb_held(a, QD_B_OCTDN) ? "CLOSE" : a->ui.mfx_f1_copied ? "PASTE" : "COPY");
+        for (i = 0; i < 16 && ml != QD_LAYER_NONE; i++) /* P1.6h, STEPS: F1 / F2 on the steps */
+            lb_set(o, LB_W(i), ml == QD_LAYER_F1 ? "COPY STEP" : "PICK/DROP");
+        if (ml == QD_LAYER_F1)
+            lb_set(o, LB_B(8), "CLEAR PG");
+        lb_set(o, LB_BTN(QD_B_OCTDN), a->ui.mfx_f1_copied || a->ui.f1_copied ? "PASTE" : "COPY");   /* (P1.6h: no
+                                                         * CLOSE) */
         lb_set(o, LB_BTN(QD_B_OCTUP), a->ui.mfx_f2_holding ? "DROP" : "PICK UP");   /* (P1.6d: the sequencer's F1 /
                                                          * F2) */
         lb_set(o, LB_BTN(QD_B_HOME), "CLOSE");
@@ -334,6 +364,8 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             lb_set(o, LB_B(9), a->proj.mfx[g - 1].slot[u->mfx_slot & 7].bypass ? "PLAY" : "BYPASS");
             lb_set(o, LB_B(10), u->mfx_arm == u->mfx_slot ? "REMOVE!" : "REMOVE");
         }
+        if (ml == QD_LAYER_F1)
+            lb_set(o, LB_B(10), "UNDO");
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), qd_mfx_knob_name(a, k, val));
         for (i = 0; i < 16; i++) {
@@ -383,18 +415,11 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
     {
         const int layer = qd_ctl_layer(a);
         if (layer == QD_LAYER_F1) {                     /* F1: the pages */
-            for (i = 0; i < QD_NPAGE; i++)
-                lb_setn(o, LB_B(i), "PAGE ", i + 1);
-            lb_set(o, LB_B(8), "CLEAR PG");
-            lb_set(o, LB_B(9), "COPY PG");
-            lb_set(o, LB_B(10), "UNDO");
-            for (i = 0; i < 16; i++)
-                lb_set(o, LB_W(i), "COPY STEP");
+            lb_flayer(a, o, QD_LAYER_F1);
             return;
         }
         if (layer == QD_LAYER_F2) {                     /* F2: Form's pick-up and drop */
-            for (i = 0; i < 16; i++)
-                lb_set(o, LB_W(i), "PICK/DROP");
+            lb_flayer(a, o, QD_LAYER_F2);
             return;
         }
         if (layer == QD_LAYER_F3 || u->latch == QD_LATCH_F3) {   /* F3: the track's length, speed, start, end */

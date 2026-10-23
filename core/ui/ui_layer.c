@@ -96,6 +96,10 @@ static void f1(const ui_layer_t *v)
             else
                 ui_O(dx, dy, 1.6f, ed || in ? UI_G2 : UI_G3, 1.f, QD_NONE);
         }
+        if (v->f1_copied && v->f1_src >= 0 && v->f1_src / 16 == p) {   /* P1.6h: F1's copy came from here: ringed */
+            const int j = v->f1_src % 16;
+            ui_O(x + 27.f + (float)(j % 4) * 7.5f, y + 14.f + (float)(j / 4) * 10.5f, 4.2f, UI_K2, 1.4f, QD_NONE);
+        }
         if (p == v->play_page)                          /* playing: a red line under its number, blinking */
             line2(x + 8.f, y + 31.f, x + 21.f, y + 31.f, v->blink ? UI_RED : 0xa01c2au, 2.f);
     }
@@ -115,9 +119,9 @@ static void f1(const ui_layer_t *v)
 }
 
 /* ---------------------------------------------------------------- F2: Form's pick-up / drop */
-static void hand_card(const ui_layer_t *v, float x, float y, float w, float h)
+void ui_step_card(float x, float y, float w, float h, int full, int type, int nnote, const uint8_t *note)
 {
-    if (!v->hand) {                                     /* empty-handed: a dashed card */
+    if (!full) {                                        /* empty-handed: a dashed card */
         static const float DSH[2] = {3.f, 3.f};
         qd_save();
         qd_dash(DSH, 2);
@@ -126,21 +130,26 @@ static void hand_card(const ui_layer_t *v, float x, float y, float w, float h)
         return;
     }
     ui_RR(x, y, w, h, 6.f, UI_K3, 1.5f, QD_NONE);
-    if (v->clip_type == 0) {                            /* an empty step: an empty cell */
-        ui_icon(UI_IC_KEY, x + w / 2.f, y + h / 2.f, 2.4f, UI_G1);
-    } else if (v->clip_type == 2) {                     /* a LOCK step: a padlock */
-        ui_lock(x + w / 2.f - 10.5f, y + h / 2.f - 12.f, UI_MODE_COL[UI_F_PLOCK], 3.f);
+    if (type == 0) {                                    /* an empty step: an empty cell */
+        ui_icon(UI_IC_KEY, x + w / 2.f, y + h / 2.f, 2.4f * (w < 100.f ? w / 120.f : 1.f), UI_G1);
+    } else if (type == 2) {                             /* a LOCK step: a padlock */
+        const float s = w < 100.f ? 3.f * w / 120.f : 3.f;
+        ui_lock(x + w / 2.f - 3.5f * s, y + h / 2.f - 4.f * s, UI_MODE_COL[UI_F_PLOCK], s);
     } else {                                            /* its notes on a little keybed */
         qd_rgb fill[128];
         int i, lo = 127;
         for (i = 0; i < 128; i++)
             fill[i] = QD_NONE;
-        for (i = 0; i < v->clip_nnote && i < 6; i++) {
-            fill[v->clip_note[i] & 127] = UI_K3;
-            lo = v->clip_note[i] < lo ? v->clip_note[i] : lo;
+        for (i = 0; i < nnote && i < 6; i++) {
+            fill[note[i] & 127] = UI_K3;
+            lo = note[i] < lo ? note[i] : lo;
         }
         ui_keyboard(x + 8.f, y + 10.f, w - 16.f, h - 20.f, lo / 12 * 12, fill);
     }
+}
+static void hand_card(const ui_layer_t *v, float x, float y, float w, float h)
+{
+    ui_step_card(x, y, w, h, v->hand, v->clip_type, v->clip_nnote, v->clip_note);
 }
 
 static float cx16(int i) { return 9.f + (float)i * 13.5f + (float)(i / 4) * 2.f; }

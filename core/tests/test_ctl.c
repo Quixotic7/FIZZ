@@ -3114,8 +3114,7 @@ static void g_snd(void)
     btap(LFO);
     /* closing */
     btap(QD_B_OCTDN);
-    CHECK(!A.ui.latch && qd_view_screen(&A) != QD_SCR_SOUND, "OCT-: closed");
-    btap(QD_B_SOUND);
+    CHECK(A.ui.latch == QD_LATCH_SND && qd_view_screen(&A) == QD_SCR_SOUND, "F1 tapped: open (P1.6h: a main page)");
     btap(QD_B_HOME);
     CHECK(!A.ui.latch, "HOME: closed");
     btap(QD_B_SOUND);
@@ -4474,12 +4473,11 @@ static void g_p16c_screen(void)
     qd_view_mfx(&A, &v);
     CHECK(A.sel == 1 && !v.g && qd_view_screen(&A) == QD_SCR_MFX, "SHIFT + SELECT: track 2, its group (OFF)");
     btap(F1);
-    CHECK(qd_view_screen(&A) != QD_SCR_MFX && !A.ui.latch, "F1 tapped: closed");
+    CHECK(qd_view_screen(&A) == QD_SCR_MFX && A.ui.latch == QD_LATCH_MFX, "F1 tapped: open (P1.6h)");
     btap(QD_B_KEYS);
-    CHECK(qd_view_screen(&A) == QD_SCR_MFX, "ARP tapped: open");
+    CHECK(qd_view_screen(&A) != QD_SCR_MFX, "ARP tapped: closed");
     btap(QD_B_KEYS);
-    CHECK(qd_view_screen(&A) != QD_SCR_MFX, "ARP tapped again: closed");
-    btap(QD_B_KEYS);
+    CHECK(qd_view_screen(&A) == QD_SCR_MFX, "ARP tapped again: open");
     btap(QD_B_HOME);
     CHECK(qd_view_screen(&A) != QD_SCR_MFX, "HOME: closed");
     btap(QD_B_PATTERN);                                 /* the track settings, page 2, KNOB 4 */
@@ -4606,10 +4604,16 @@ static void g_p16d_sends(void)
     btap(LFO);
     wtap(4);
     btap(QD_B_PAGE);
-    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.latch == QD_LATCH_MIX, "the latch's selection kept into the mix");
+    CHECK(A.ui.slatch && A.ui.nheld == 0 && A.ui.latch == QD_LATCH_MIX, "P1.6h: the step view's selection let go "
+          "(the latch on)");
+    turn(QD_K_2, 3);
+    CHECK(LK(0, 4, QD_LK_PAN) == -99999, "KNOB 2: the track's PAN, no lock");
+    wtap(4);
+    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 4, "W5 in the mix: selected there");
     turn(QD_K_3, 10);
     CHECK(LK(0, 4, QD_LK_DELAY) == A.model.t[0].mix.delay + 10, "KNOB 3: step 5's DELAY lock");
     btap(QD_B_OCTDN);
+    CHECK(A.ui.latch == QD_LATCH_MIX, "F1 tapped: the mix stays (P1.6h)");
     btap(QD_B_TRACKS);
     CHECK(A.ui.latch == QD_LATCH_FX && A.ui.slatch && A.ui.nheld == 1, "the effects: the selection kept");
     turn(QD_K_1, 7);
@@ -5137,7 +5141,7 @@ static void g_p16e_preview(void)
 }
 
 /* P1.6f (the owner: "F1 / F2 close the MIDI FX screen on release"): F1 held past the tap time and let go, F1 + B and
- * let go, F2 held and let go: the screen stays; an F1 tap closes it */
+ * let go, F2 held and let go: the screen stays; P1.6h: an F1 tap too (HOME or ARP close it) */
 static void g_p16f_f1f2(void)
 {
     start();
@@ -5154,7 +5158,7 @@ static void g_p16f_f1f2(void)
     bdown(F2), run(QD_TAP_MS + 300), bup(F2), run(20);
     CHECK(qd_mfx_open(&A), "F2 held, let go: the screen stays");
     btap(F1);
-    CHECK(!qd_mfx_open(&A), "F1 tapped: closed");
+    CHECK(qd_mfx_open(&A), "F1 tapped: the screen stays (P1.6h: no exit on F1)");
     btap(QD_B_HOME);
 }
 
@@ -5186,7 +5190,7 @@ static void g_p16f_keys(void)
     qd_mfx_slot_init(&A.proj.mfx[0].slot[0], QD_MFX_ARP);
     arp_led_range();
     CHECK(arp_led_min >= 150 && arp_led_max >= 250, "the arp on: breathing high (%d .. %d)", arp_led_min, arp_led_max);
-    btap(F1);
+    btap(QD_B_HOME);
     arp_led_range();
     CHECK(arp_led_min == QD_LED_LIT && arp_led_max == QD_LED_LIT, "closed: steady lit");
     /* STEPS / KEYS */
@@ -5198,7 +5202,7 @@ static void g_p16f_keys(void)
     qd_ctl_labels(&A, &lb);
     CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && leds().button[QD_B_REC] == QD_LED_DIM &&
               !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "STEPS"), "REC: KEYS (REC dim, its label STEPS)");
-    btap(F1);
+    btap(QD_B_KEYS);
     CHECK(!qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && qd_view_screen(&A) == QD_SCR_KEYS, "left on KEYS: the keyboard");
     qd_ctl_labels(&A, &lb);
     CHECK(leds().button[QD_B_REC] == QD_LED_DIM && !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "STEPS"), "the keyboard: REC dim, "
@@ -5222,6 +5226,231 @@ static void g_p16f_keys(void)
     bup(SHIFT);
     run(10);
     CHECK(A.ui.latch == QD_LATCH_REC, "SHIFT + REC: the record settings");
+    btap(QD_B_HOME);
+}
+
+/* P1.6h (the owner: "None of these should exit with F1, only the pop-up menus"): F1 tapped leaves no main page (the
+ * step view, the mix and its sends, the effects, the sound editor with and without its keyboard, the MIDI FX screen in
+ * STEPS and KEYS); every pop-up still goes back on F1 (F3, the track settings, the record settings, the global
+ * settings, the projects, the browser) */
+static void g_p16h_f1(void)
+{
+    qd_labels_t lb;
+    int oct;
+    start();
+    btap(F1);
+    CHECK(A.ui.mode == QD_MODE_STEP && !A.ui.latch, "the step view: F1 tapped, nothing opens or leaves");
+    btap(QD_B_PAGE);
+    btap(F1);
+    CHECK(A.ui.latch == QD_LATCH_MIX && qd_view_screen(&A) == QD_SCR_MIX && !A.ui.mix_page, "the mix: F1 tapped, open");
+    qd_ctl_labels(&A, &lb);
+    CHECK(leds().button[F1] == QD_LED_OFF && strcmp(lb.s[QD_LBL_BTN0 + F1], "BACK") != 0, "the mix: F1 no back key "
+          "(dark, its label %s)", lb.s[QD_LBL_BTN0 + F1]);
+    btap(QD_B_PAGE);
+    btap(F1);
+    CHECK(A.ui.latch == QD_LATCH_MIX && A.ui.mix_page == 1, "the sends: F1 tapped, open");
+    bdown(F1), run(10), bdown(F2), run(200), bup(F2), bup(F1), run(10);
+    CHECK(A.ui.latch == QD_LATCH_MIX, "the sends: F1 + F2, open (no F3 over a main page)");
+    btap(QD_B_TRACKS);
+    btap(F1);
+    CHECK(A.ui.latch == QD_LATCH_FX && qd_view_screen(&A) == QD_SCR_FX, "the effects: F1 tapped, open");
+    btap(QD_B_SOUND);
+    btap(F1);
+    CHECK(qd_snd_open(&A) && qd_view_screen(&A) == QD_SCR_SOUND, "the sound editor: F1 tapped, open");
+    btap(QD_B_REC);
+    oct = A.oct;
+    btap(F1);
+    CHECK(qd_snd_keys(&A) && A.oct == oct - 1, "its keyboard: F1 the octave (%d -> %d), open", oct, A.oct);
+    btap(QD_B_HOME);
+    CHECK(!A.ui.latch, "HOME: closed");
+    btap(QD_B_KEYS);
+    btap(F1);
+    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_STEP, "MIDI FX, STEPS: F1 tapped, open");
+    btap(QD_B_REC);
+    oct = A.oct;
+    btap(F1);
+    CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && A.oct == oct, "MIDI FX, KEYS: F1 tapped, open (no octave)");
+    btap(QD_B_KEYS);
+    CHECK(!qd_mfx_open(&A), "ARP: closed");
+    btap(QD_B_HOME);
+    /* the pop-ups */
+    f3_down();
+    bup(F2), bup(F1), run(10);
+    CHECK(A.ui.latch == QD_LATCH_F3, "F1 + F2 in the step view: F3");
+    btap(F1);
+    CHECK(!A.ui.latch, "F3: F1 back");
+    btap(QD_B_PATTERN);
+    CHECK(A.ui.latch == QD_LATCH_TRK, "SEL: the track settings");
+    btap(F1);
+    CHECK(!A.ui.latch, "the track settings: F1 back");
+    bdown(SHIFT), btap(QD_B_REC), bup(SHIFT), run(10);
+    CHECK(A.ui.latch == QD_LATCH_REC, "SHIFT + REC: the record settings");
+    btap(F1);
+    CHECK(!A.ui.latch, "the record settings: F1 back");
+    bdown(SHIFT), btap(QD_B_PATTERN), bup(SHIFT), run(10);
+    CHECK(A.ui.latch == QD_LATCH_SET, "SHIFT + SEL: the global settings");
+    btap(F1);
+    CHECK(!A.ui.latch, "the global settings: F1 back");
+    btap(QD_B_MIX);
+    CHECK(A.ui.latch == QD_LATCH_PRJ, "SEQ tapped: the project");
+    btap(F1);
+    CHECK(!A.ui.latch, "the project: F1 back");
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.latch == QD_LATCH_BROWSE, "PRESETS: the browser");
+    btap(F1);
+    CHECK(!A.ui.latch, "the browser: F1 cancels");
+}
+
+/* P1.6h: wherever the W keys are the steps, F1 / F2 + W are the step view's: on the mix, the effects (the overview's
+ * W1..W8 too), the sound editor, the MIDI FX screen's STEPS; a copy carries the step whole (its mix, send and sound
+ * locks, its sound, its MIDI FX); F1 + B9 / B11 the page's CLEAR, UNDO; the pictures */
+static void g_p16h_copy(void)
+{
+    ui_layer_t yv;
+    ui_mfx_t v;
+    int s, ok;
+    start();
+    wtap(0);
+    qd_lock_set(PAT(), 0, 0, QD_LK_LEVEL, 90);
+    qd_lock_set(PAT(), 0, 0, QD_LK_DELAY, 40);
+    qd_lock_set(PAT(), 0, 0, QD_QP_EATK, 7);
+    qd_step_set_sound(PAT(), 0, 0, 3);
+    qd_step_set_mfx(PAT(), 0, 0, QD_SMFX_G1);
+    CHECK(qd_step_mfx(PAT(), 0, 0) == 1, "(step 1: a note, LEVEL, DELAY and a sound lock, sound 3, MIDI FX group 1)");
+    btap(QD_B_PAGE);
+    bdown(F1);
+    run(QD_CHORD_MS + 40);
+    CHECK(qd_view_screen(&A) == QD_SCR_LAYER, "the mix, F1 held: F1's picture (the pages)");
+    wtap(0);
+    qd_view_layer(&A, &yv);
+    CHECK(yv.f1_copied && yv.f1_src == 0, "W1: copied, its picture marks step 1");
+    wtap(4);
+    bup(F1);
+    run(10);
+#define SAME(d) (R(0, d).on && LK(0, d, QD_LK_LEVEL) == 90 && LK(0, d, QD_LK_DELAY) == 40 && LK(0, d, QD_QP_EATK) == 7 && \
+                 ST(0, d)->sound == 3 && ST(0, d)->mfx == QD_SMFX_G1)
+    CHECK(SAME(4) && A.ui.latch == QD_LATCH_MIX && !A.ui.nheld && qd_view_screen(&A) == QD_SCR_MIX,
+          "W5: pasted whole (LEVEL, DELAY, a sound lock, the sound, the MIDI FX); the mix open");
+    btap(F2);                                           /* (F1's copy loaded F2's hand, as Form's: emptied) */
+    bdown(F2);
+    run(QD_CHORD_MS + 40);
+    CHECK(qd_view_screen(&A) == QD_SCR_LAYER, "F2 held: its picture (the hand)");
+    wtap(4);
+    qd_view_layer(&A, &yv);
+    CHECK(!R(0, 4).on && yv.hand && yv.clip_type == QD_TRIG_NOTE, "F2 + W5: picked up (in the hand)");
+    wtap(8);
+    bup(F2);
+    run(10);
+    CHECK(SAME(8) && !R(0, 4).on, "W9: dropped there, whole");
+    bdown(F1);
+    run(QD_CHORD_MS + 40);
+    black(B9);
+    CHECK(!R(0, 0).on && !R(0, 8).on && A.ui.latch == QD_LATCH_MIX, "F1 + B9: the page cleared, the mix open");
+    black(B11);
+    bup(F1);
+    run(10);
+    CHECK(SAME(0) && SAME(8), "F1 + B11: undone");
+    btap(QD_B_TRACKS);                                  /* the effects' overview: W1..W8 the tracks, but under F1 */
+    bdown(F1);
+    run(QD_CHORD_MS + 40);
+    CHECK(qd_view_screen(&A) == QD_SCR_LAYER, "the effects, F1 held: its picture");
+    wtap(0), wtap(1);
+    bup(F1);
+    run(10);
+    CHECK(SAME(1) && A.sel == 0 && A.ui.latch == QD_LATCH_FX, "the overview, F1 + W1, W2: step 2 the copy (no track "
+          "chosen)");
+    btap(QD_B_SOUND);                                   /* the sound editor (its W keys the steps) */
+    bdown(F1);
+    run(QD_CHORD_MS + 40);
+    CHECK(qd_view_screen(&A) == QD_SCR_LAYER, "the sound editor, F1 held: its picture");
+    wtap(0), wtap(6);
+    bup(F1);
+    run(10);
+    CHECK(SAME(6) && qd_snd_open(&A), "the editor: F1 + W1, W7: copied whole, open");
+    bdown(F2);
+    run(QD_CHORD_MS + 40);
+    turn(QD_K_1, 1);
+    CHECK(qd_view_screen(&A) == QD_SCR_SOUND, "F2 + a knob (the unlock): the editor's page, not F2's picture");
+    bup(F2);
+    run(10);
+    btap(QD_B_HOME);
+    btap(QD_B_KEYS);                                    /* MIDI FX, STEPS */
+    bdown(F1);
+    run(QD_TAP_MS + 50);
+    wtap(0);
+    qd_view_mfx(&A, &v);
+    CHECK(v.f1 && v.fstep && v.st_copied && v.st_type == QD_TRIG_NOTE && v.f1_src < 0, "MIDI FX, STEPS: F1 + W1, the "
+          "step's picture (copied, a note)");
+    wtap(2);
+    bup(F1);
+    run(10);
+    CHECK(SAME(2) && qd_mfx_open(&A) && !A.ui.mfx_wheld, "W3: pasted whole; the screen open, no step held");
+    btap(F2);
+    bdown(F2);
+    run(30);
+    wtap(2);
+    qd_view_mfx(&A, &v);
+    CHECK(v.f2 && v.fstep && v.f2_hand >= 0 && !R(0, 2).on, "F2 + W3: picked up (the hand's picture: the step)");
+    wtap(3);
+    bup(F2);
+    run(10);
+    CHECK(SAME(3) && !R(0, 2).on && qd_mfx_open(&A), "W4: dropped whole");
+    bdown(F1);
+    run(30);
+    kdown(BK(B11)), run(20);
+    kup(BK(B11)), run(10);
+    bup(F1);
+    run(10);
+    CHECK(R(0, 2).on && !R(0, 3).on, "F1 + B11 there: undone");
+    btap(QD_B_HOME);
+    for (s = 0, ok = 1; s < 16; s++)                    /* (nothing left held anywhere) */
+        ok &= !A.ui.nheld && !A.ui.wk_down;
+    CHECK(ok, "nothing held after");
+#undef SAME
+}
+
+/* P1.6h (the owner: "the level kept reverting"): the step view's latch selection is let go entering the mix; one made there
+ * is kept (into the effects too) and counted in the head; a knob's lock: the frame from the key's press, a chip on
+ * the part */
+static void g_p16h_mixlock(void)
+{
+    ui_mix_t mv;
+    ui_fx_t fv;
+    start();
+    wtap(0);
+    btap(LFO);
+    CHECK(A.ui.slatch && A.ui.nheld == 1, "the latch on, step 1 selected");
+    btap(QD_B_PAGE);
+    qd_view_mix(&A, &mv);
+    CHECK(A.ui.slatch && !A.ui.nheld && !mv.step && !mv.nsel, "into the mix: the selection let go (no frame)");
+    turn(QD_K_1, 2);
+    CHECK(LK(0, 0, QD_LK_LEVEL) == -99999, "KNOB 1: the track's LEVEL, no lock");
+    kdown(WK(1)), kdown(WK(2)), kdown(WK(3)), run(30);
+    kup(WK(1)), kup(WK(2)), kup(WK(3)), run(10);
+    qd_view_mix(&A, &mv);
+    CHECK(A.ui.nheld == 3 && mv.step && mv.nsel == 3, "W2..W4 together: three selected, the frame, the head's 3");
+    turn(QD_K_1, 1);
+    qd_view_mix(&A, &mv);
+    CHECK(LK(0, 1, QD_LK_LEVEL) >= 0 && LK(0, 3, QD_LK_LEVEL) >= 0 && mv.locked[0] && !mv.locked[1],
+          "KNOB 1: LEVEL locks on them, its chip");
+    btap(QD_B_TRACKS);
+    qd_view_fx(&A, &fv);
+    CHECK(A.ui.latch == QD_LATCH_FX && A.ui.nheld == 3 && fv.nsel == 3 && fv.step, "the effects: the mix's selection kept");
+    btap(QD_B_PAGE);
+    CHECK(A.ui.nheld == 3, "back to the mix: kept");
+    btap(LFO);
+    CHECK(!A.ui.slatch && !A.ui.nheld && A.ui.latch == QD_LATCH_MIX, "LFO there: the latch off, the mix open");
+    btap(LFO);
+    CHECK(A.ui.slatch && !A.ui.nheld && A.ui.latch == QD_LATCH_MIX, "LFO again: on, the mix open, nothing selected yet");
+    btap(QD_B_HOME);
+    btap(QD_B_PAGE);
+    kdown(WK(5)), run(20);
+    qd_view_mix(&A, &mv);
+    CHECK(mv.step && !mv.nsel, "a W just pressed (not yet held): the frame already");
+    turn(QD_K_2, 3);
+    qd_view_mix(&A, &mv);
+    CHECK(LK(0, 5, QD_LK_PAN) != -99999 && mv.locked[1] && mv.nsel == 1, "its first detent: PAN's lock, its chip");
+    kup(WK(5)), run(10);
     btap(QD_B_HOME);
 }
 
@@ -7769,6 +7998,9 @@ int main(void)
         {"P1.6f: ARP's breath, STEPS / KEYS shared", g_p16f_keys},
         {"P1.6g: recording in every view", g_p16g_rec},
         {"P1.6g: FILTER's popup, RATIO B, following, the ARP's walk", g_p16g_misc},
+        {"P1.6h: F1 leaves no main page; the pop-ups go back", g_p16h_f1},
+        {"P1.6h: F1 / F2 + W on every page of steps, whole", g_p16h_copy},
+        {"P1.6h: the mix's locks: the selection, the count, the chips", g_p16h_mixlock},
         {"P1.6d: the step latch's SHIFT, defaults, double tap", g_p16d_latch},
         {"P1.6d: the FILTER machines' popup", g_p16d_filter},
         {"P1.6d: ARP's LED and hold, the groups' glide, slot moves", g_p16d_mfx},

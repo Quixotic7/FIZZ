@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The track settings, the mix and the effects (P1.4b; PLAN.md §8b "P1.4b, track settings and the mixer" and the
  * owner's 2.3 additions; ctl.h). Built through ctl_latch.c (it includes this file: three latched pages, the latch rule:
- * OCT- or HOME close them; the core's source lists stay as they are).
+ * OCT- or HOME close them; P1.6h: the mix and the effects HOME only, F1 / F2 there the step view's layers; the core's
+ * source lists stay as they are).
  *
  *   SEL tapped (held: the track map, as before)  THE TRACK SETTINGS of the selected track in the pattern: KNOB 1 SCALE,
  *        KNOB 2 ROOT, KNOB 3 FOLLOW KEY (the project's global key), KNOB 4 MIDI CHANNEL; SEL again (or SELECT): the
@@ -53,6 +54,10 @@ static void panel_open(qd_app_t *a, int kind)
                                                          * latch's selection: their sends lock on them) */
         u->slatch = 0;
         qd_step_release_all(a);
+    } else if (u->slatch && u->nheld && !u->sel_panel && !u->wk_down && !u->wk_pending) {
+        qd_step_release_all(a);                         /* P1.6h (the owner: "the level kept reverting"): a selection
+                                                         * made elsewhere is let go (the latch stays on: W keys
+                                                         * select here); one made on the mix or the effects stays */
     }
     u->tk = QD_TK_NONE;
     qd_latch_open(a, kind);

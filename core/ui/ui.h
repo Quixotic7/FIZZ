@@ -142,6 +142,7 @@ typedef struct {
     } tr[8];
     int last;                           /* the knob turned last (0..3, -1) */
     int step;                           /* P1.6d: a step held (or the latch's selection): its locks (the frame) */
+    int nsel;                           /* P1.6h: .. how many (the head's magenta count; 0 none) */
     char ltxt[4][8];                    /* .. KNOB 1..4's values as chips in the head: */
     uint8_t locked[4], lockany[4];      /* .. locked on the step (filled), on some step of the track (outlined) */
 } ui_mix_t;
@@ -171,6 +172,7 @@ typedef struct {
     float rt[4];                        /* P1.5b, ROUTING: DELAY > REVERB, CHORUS > DELAY, CHORUS > REVERB 0..1, the
                                          * filter BEFORE (1) */
     int step;                           /* P1.6d: a step held (or the latch's selection): the sends lock (the frame) */
+    int nsel;                           /* P1.6h: .. how many (the head's magenta count; 0 none) */
     uint8_t locked[4], lockany[4];      /* .. a cell locked on the step (a filled chip), on some step (outlined) */
 } ui_fx_t;
 void ui_fx_draw(const ui_fx_t *v);
@@ -299,6 +301,9 @@ extern const qd_rgb UI_MODE_COL[UI_NFIELD];
 
 /* ---- the kit's helpers (line.html's headTrack, lock, knobMark, keyboard's pos) */
 void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol);   /* left; [n] name at the right */
+void ui_step_card(float x, float y, float w, float h, int full, int type, int nnote, const uint8_t *note);
+                                         /* P1.6h (ui_layer.c): a step as a card: its notes on a little keybed, a LOCK
+                                          * step a lock, an empty step a key; not full: a dashed empty card */
 void ui_lock(float x, float y, qd_rgb col, float s);   /* a lock (P1.5b: a filled chip, no padlock), 7 px wide at s 1,
                                                         * its top left at x, y */
 /* P1.5b: a value as a chip, centred at cx on its text's baseline y: filled (locked here: black text) or outlined
@@ -532,6 +537,7 @@ typedef struct {
     int shift;                          /* (unused since P1.3c) */
     int page_copied;                    /* F1: the page copied this hold (-1 none): B1..B8 paste it */
     int f1_copied;                      /* F1: a step copied this hold (the next W pastes it) */
+    int f1_src;                         /* P1.6h: .. from this step (0..127, -1): ringed in its page's cell */
     int clip_step;                      /* .. the step in the clipboard (1..128; 0 none) */
     int clip_nnote;                     /* .. its notes (the card's little roll), its trig */
     uint8_t clip_note[6];
@@ -846,6 +852,10 @@ typedef struct ui_mfx {
     float drop_u;
     int f1, f1_src;                     /* P1.6e: F1 held: COPY (the source slot, once picked; -1) */
     int f2, f2_hand;                    /* .. F2 held: the hand (the effect in it; -1 empty) */
+    int fstep;                          /* P1.6h, STEPS: F1 / F2's last key a step: the picture the step's (F1:
+                                         * st_copied; F2: f2_hand >= 0), the step as st_* */
+    int st_copied, st_type, st_nnote;              /* .. the step in the clipboard: its trig (0 empty, 2 LOCK), its notes */
+    uint8_t st_note[6];
     int steps_frame;                    /* .. STEPS: steps held (the step's frame) */
     int roll;                           /* PRESETS turned: the rolodex up .. */
     float roll_pos, roll_from;          /* .. at type pos (0 NONE .. 10), coming from */
@@ -868,6 +878,7 @@ struct qd_app;
 void qd_view_browse(const struct qd_app *a, ui_browse_t *v);   /* the library browser's */
 void qd_view_mix(const struct qd_app *a, ui_mix_t *v);         /* P1.6d: the mix's */
 void qd_view_fx(const struct qd_app *a, ui_fx_t *v);           /* P1.6d: the effects' */
+void qd_view_layer(struct qd_app *a, ui_layer_t *v);         /* P1.6h: the F layer's map on screen */
 void qd_view_menu(const struct qd_app *a, ui_menu_t *v);       /* P1.6d: the settings menus' */
 void qd_view_type(const struct qd_app *a, ui_type_t *v);       /* P1.6d: the typewriter's */
 void qd_view_turn(struct qd_app *a, ui_turn_t *v);              /* the takeover's (UI_TK_*) */

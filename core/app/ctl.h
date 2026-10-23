@@ -210,6 +210,11 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
                                                          * its own screen, KNOB 1..4 */
 #define QD_LATCH_PANEL(l) ((l) == QD_LATCH_TRK || (l) == QD_LATCH_MIX || (l) == QD_LATCH_FX)   /* (P1.4b: B1..B8 the
                                                          * track, B1..B4 the effect; the W keys nothing) */
+/* P1.6h (the owner: "None of these should exit with F1, only the pop-up menus"): the main pages over the step view, F1
+ * no back there (HOME or their own key leave them): the mix, the effects, the sound editor, the MIDI FX screen. The
+ * pop-ups (F3, the settings menus, the track settings, the browser, SAVE PRESET, the name editor, the projects) keep
+ * F1 = back */
+#define QD_LATCH_MAIN(l) ((l) == QD_LATCH_MIX || (l) == QD_LATCH_FX || (l) == QD_LATCH_SND || (l) == QD_LATCH_MFX)
 
 /* P1.3y (the owner's addition): the encoders' layouts (the global settings' KNOBS), one table of roles: what SELECT,
  * ALGORITHM and PRESETS do with no finger on a step (nothing held, or the step latch's selection), in the PIANO ROLL
@@ -398,6 +403,12 @@ typedef struct {
     int f2_loaded, f2_holding;         /* F2: Form's seqF2Loaded_ / seqF2Holding_ (the hand) */
     int f2_last_w, f2_last_act;        /* F2: the last W and what it did (1 CUT, 2 PASTE): the map shows it */
     int f3_anchor;                     /* F3: the white key held first (-1 none) */
+    int f1_src;                        /* P1.6h: F1's step copy came from this step (-1): its picture marks it */
+    uint8_t f2_knob;                   /* P1.6h: F2 held turned a knob (the unlock): no F2 picture over the page */
+    uint8_t sel_panel;                 /* P1.6h: the latch's selection was made on the mix / the effects (else it stays
+                                        * behind when they open) */
+    uint8_t mfx_fstep;                 /* P1.6h: the MIDI FX screen, STEPS: F1 / F2's last key a step (its picture) */
+    uint16_t main_f1b;                 /* P1.6h: the black keys whose press was F1's on a main page (their release too) */
     /* SEL and SEQ held (P1.3c): their white keys' presses (a tap / a hold) */
     uint16_t sel_down, sel_done, seq_down, seq_done;
     uint32_t sel_t0[8], seq_t0[16];
@@ -452,7 +463,7 @@ typedef struct {
     int mfx_knob;                      /* the knob turned last (0..3; -1) .. */
     uint32_t mfx_ms;                   /* .. when */
     int mfx_arm;                       /* B11 armed on this slot (-1 none): B11 again removes its effect */
-    int mfx_f1, mfx_f1_used;           /* F1 down there (a tap closes the screen at its release); a B copied */
+    int mfx_f1;                        /* F1 down there (P1.6h: a tap no longer closes the screen); a B copied */
     int mfx_bheld, mfx_bused, mfx_bwas;   /* P1.6d: a slot key down (its B + 1), a knob moved it, it was the selected */
     uint32_t mfx_bms;                  /* P1.6e: .. when it went down (held past QD_TAP_MS: the tile lifts, arrows) */
     int mfx_dfrom, mfx_dto, mfx_dprev; /* P1.6e: the move previewed: from, to, where it was before the last detent .. */
@@ -571,6 +582,9 @@ const qd_pattern_t *qd_ctl_cpat(const struct qd_app *a);
 int qd_ctl_shift(const struct qd_app *a);           /* SHIFT held */
 int qd_ctl_layer(const struct qd_app *a);           /* QD_LAYER_*: the F layer held (none while steps are held) */
 int qd_ctl_layer_shown(const struct qd_app *a);     /* .. the one whose map is on screen (F1 / F2 after 60 ms) */
+int qd_ctl_main_steps(const struct qd_app *a);      /* P1.6h: a main page whose W keys are the steps (the mix, the
+                                                     * effects, the editor without its keyboard, MIDI FX STEPS) */
+int qd_ctl_main_layer(const struct qd_app *a);      /* .. there, F1 / F2 held: QD_LAYER_F1 / F2 (their W, their picture) */
 int qd_ctl_playing_page(const struct qd_app *a, int t);   /* the page under the track's play head, -1 stopped */
 void qd_ctl_set_page(struct qd_app *a, int p);      /* the page edited on the selected track (slides) */
 void qd_ctl_takeover(struct qd_app *a, int tk, int knob, int dir, int lock, int step);

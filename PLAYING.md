@@ -47,6 +47,12 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   the view you used last is kept).
 - **HOME** always brings you back to the view you are using (PIANO ROLL, STEPS or EDIT), from anywhere, in one press:
   it closes F3, a settings menu or the step latch and lands on the view at the same time. It never changes the view.
+- **Main pages and pop-ups (0.9.6).** The main pages are the step view (PIANO ROLL, STEPS, EDIT), the **mixer**
+  (ENV, both pages), the **effects** (FX), the **sound editor** (EDIT) and the **MIDI FX** screen (ARP). **F1 never
+  leaves them**: they close with **HOME** or their own key (EDIT, ARP; ENV and FX turn their pages), or by opening
+  another page. **LFO** keeps them open too. The **pop-ups** keep F1 = back: F3, the track settings (SEL tapped),
+  the record settings (SHIFT + REC), the global settings (SHIFT + SEL), the project pages (SEQ tapped), the browser
+  (F1 cancels) and the questions; SAVE PRESET and the name editor are the typewriter (F1 deletes, HOME cancels).
 - **SHIFT + HOME** cycles the views: **PIANO ROLL** (the mode's lane), **STEPS** and **EDIT**. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
   drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
@@ -310,6 +316,14 @@ Steps:
   - then an **empty step** always gets what's in your hand **pasted**;
   - a **full step** alternates: paste over it, then the next full step is cut into your hand, and so on;
   - letting go of F2 empties your hand. The screen shows the page and what's in your hand.
+- **Everywhere the white keys are steps (0.9.6)**: the mixer and its sends, the effects (the OVERVIEW's W1..W8 too,
+  while F1 or F2 is held), the sound editor (its keyboard off) and the MIDI FX screen on STEPS. F1 + W and F2 + W
+  work there exactly as here, and **F1 / F2 held show the same pictures** (the pages and the copy, ringed where it came
+  from; the page and the hand). F1 + B1..B8 / B9 / B10 / B11 are the pages, clear, copy, undo there too (MIDI FX: B9
+  and B11; its B1..B8 stay the slots' copy and move). The page stays open when you let go. In the sound editor with
+  its keyboard on, F1 / F2 stay the octave. F1 + F2 together does nothing on these pages (F3 is the step view's).
+- **A copy is the whole step**: its notes and values, its locks (sound, LEVEL, PAN and the sends), its sound and its
+  MIDI FX.
 
 Pages and tracks (hold **F1**):
 
@@ -375,19 +389,28 @@ Undo and redo of everything (P1.5c):
   track crossed), its delay and reverb sends as two little bars under it. **B1..B8** (or SELECT, ALGORITHM) choose the
   track; its parts take the knobs' colours: **KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4 REVERB**.
 - **ENV again**: the **sends**, every track's chorus, delay and reverb as three bars; **KNOB 1 CHORUS, KNOB 2 DELAY,
-  KNOB 3 REVERB**. ENV again goes back to the faders. OCT− or HOME closes it.
+  KNOB 3 REVERB**. ENV again goes back to the faders. **HOME** closes it (0.9.6: F1 no longer does: F1 / F2 + W copy
+  and move steps here, see copy and paste).
 - Mute and solo stay on **SEL held** (it works over the mixer too).
 - **Locks on a step** (0.9.1): **hold a W** (or have the latch's selection) and turn a knob: LEVEL, PAN, DELAY, REVERB
   (and CHORUS on the sends' page) become **locks of that step** (its voices play them; the track's values stay). The
   screen gets the step's magenta frame, the locked values as chips in the head and the faders at the step's values;
   let go and the chips are outlined (some step locks it). **F2 + the knob** clears the lock. A W tapped here does
   nothing (no trig).
+- **What a knob writes, at a glance (0.9.6)**: the magenta frame comes as soon as a W goes down; the head's top right
+  shows **how many steps** are held or selected (magenta, e.g. 3); the fader, pan dial or send bar a knob locks gets
+  a **chip in the knob's colour** on it (the effects: on the OVERVIEW's bar, the SEND cell's chip). No frame and no
+  count: the knobs move the track.
+- **The step latch here (0.9.6)**: a selection made in the step view **is let go** when you open the mixer or the
+  effects (the latch stays on), so LEVEL moves the track, not some step you can't see. Select steps **in** the mixer
+  (W keys, the latch on) and they stay, into the effects and back. **LFO** in the mixer or the effects turns the latch
+  on with nothing selected (the page stays open).
 
 ## How do I change the effects? (FX tapped)
 
 - **Tap FX**: the effects, ChoralRoot's (global: no sound or pattern changes them). It opens on the **OVERVIEW**.
   **FX again** (or SELECT) for the next page; **B1 OVERVIEW, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING**
-  (a key again: the effect's second page). OCT− or HOME closes it.
+  (a key again: the effect's second page). **HOME** closes it (0.9.6: F1 no longer does).
 - **OVERVIEW** (P1.5b): three columns, CHORUS, DELAY, REVERB, each with the eight tracks' send bars in the tracks'
   colours (the selected track's bright, an unheard track grey). **W1..W8 choose the track** (lit: the selected one
   bright); **KNOB 1..3 its CHORUS, DELAY, REVERB sends**. FX held + ALGORITHM still chooses the track too.
@@ -483,6 +506,7 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 - At the centre (octave 4 in NOTE, octave 0 on the keyboard, the first ten sounds) neither blinks.
 - One octave down, OCT− blinks slowly; two down, faster; three or more, faster still. OCT+ the same going up.
 - Each change shows the octave (or the group) big for a second, with a keyboard sliding to it.
+- A pop-up lights OCT− (back) and OCT+ when it confirms something; the main pages (0.9.6) don't: there they are F1 / F2.
 
 ## How do I play the keyboard and record?
 
@@ -617,8 +641,9 @@ DECAY, HARM and FDBK.
 
 ## How do I edit a sound? (the sound editor, EDIT)
 
-- **EDIT** opens the sound editor for the selected track (EDIT lit). **EDIT again, OCT− or HOME** closes it. It opens
-  over the step view from any screen.
+- **EDIT** opens the sound editor for the selected track (EDIT lit). **EDIT again or HOME** closes it (0.9.6: F1 no
+  longer does; with the keyboard off its W keys are the steps, and F1 / F2 + W copy and move them). It opens over the
+  step view from any screen.
 - The black keys are its eight groups (P1.5l); **press a group's key again for its next page** (round), or turn
   **SELECT** through every page (in the table's order). B1..B8 are lit (the group you are in bright). It opens on the
   page you used last (the first time: RATIO).
@@ -759,10 +784,9 @@ DECAY, HARM and FDBK.
   recording keeps what you **played**, before the effects.
 - **ARP tapped** (0.9.1; it was SHIFT + ARP) opens the **MIDI FX** screen of the selected track's group: its number in a hexagon, the tracks on it
   as small squares, the eight slots as a rail (notes run along it as they pass), the selected effect's picture, its
-  values at the foot. **ARP again**, **HOME** or **F1 tapped** close it (0.9.4: only a true tap of F1, short and
-  with nothing else pressed: F1 held, F1 + a key, and F2 never close it). The step latch's selection stays while it
-  is open (0.9.3). **ARP's light breathes** while the screen is open (0.9.4): low (5 .. 25 %) when the group's arp is
-  off, high (60 .. 100 %) when it is on; outside the screen it is steady when the arp is on.
+  values at the foot. **ARP again** or **HOME** close it (0.9.6: F1 no longer does, not even a tap). The step latch's
+  selection stays while it is open (0.9.3). **ARP's light breathes** while the screen is open (0.9.4): low (5 .. 25 %)
+  when the group's arp is off, high (60 .. 100 %) when it is on; outside the screen it is steady when the arp is on.
   - **B1 .. B8** select slot 1 .. 8; the selected one again: its next page (the dots, on the release). **SELECT** turns
     the page too.
   - **Hold a slot key and turn any knob** (0.9.1): that slot moves along the rail, a place a detent, the others
@@ -782,6 +806,8 @@ DECAY, HARM and FDBK.
     press cuts into the hand, an empty slot gets a paste, a full one alternates; the slot flies to where it lands).
     0.9.3: **held, they show what they do**: F1 the copy glyph, then the copied effect (its slot marked on the rail)
     and where the next B puts it; F2 the hand, empty (the next B picks up) or with the effect in it (the next B drops).
+    0.9.6, on **STEPS**: **F1 + W / F2 + W** copy and move **steps** as in the step view (whole, every lock), the
+    picture then the step as a card (its notes, a LOCK step a lock); **F1 + B9** clears the page, **F1 + B11** undoes.
   - **REC** (0.9.3) switches the white keys between **KEYS** (as before: the track through the group; REC lit) and
     **STEPS** (REC dark): the track's 16 steps of the page you edit, lit as in the step view. 0.9.4: this is the same
     switch as the main view's REC keyboard: opened from the step view the screen starts on STEPS, from the keyboard on

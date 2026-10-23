@@ -456,6 +456,7 @@ static void fill_layer(qd_app_t *a, ui_layer_t *v, int layer)
     v->shift = qd_ctl_shift(a);
     v->page_copied = u->pg_copied;
     v->f1_copied = u->f1_copied;
+    v->f1_src = u->f1_copied ? u->f1_src : -1;          /* P1.6h: where F1's copy came from */
     if (u->clip.st.valid) {                             /* the step in the clipboard (F1's copy, F2's hand) */
         qd_rstep_t r;
         static qd_pattern_t tmp;
@@ -1248,6 +1249,13 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_SEL;
     if (u->mode == QD_MODE_STEP && QD_LATCH_MENU(u->latch))
         return QD_SCR_MENU;                             /* P1.3y: a settings menu */
+    if (u->latch != QD_LATCH_MFX && qd_ctl_main_layer(a) != QD_LAYER_NONE) {   /* P1.6h: the mix, the effects, the
+                                                         * editor: F1 / F2 held, the step view's picture (F2 after a
+                                                         * knob's unlock: the page) */
+        const int l = qd_ctl_layer_shown(a);
+        if (l == QD_LAYER_F1 || (l == QD_LAYER_F2 && !u->f2_knob))
+            return QD_SCR_LAYER;
+    }
     if (qd_snd_open(a))
         return QD_SCR_SOUND;                            /* P1.4a: the sound editor */
     if (qd_mfx_open(a))
@@ -1551,6 +1559,30 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     }
 }
 
+/* P1.6h, STEPS: F1 / F2's last key a step (or no group: no slots): the picture is the step's (copied, the hand) */
+static void mfx_fstep(const qd_app_t *a, ui_mfx_t *v, int force)
+{
+    const qd_ui_t *u = &a->ui;
+    if ((u->mfx_fstep || force) && u->mode == QD_MODE_STEP && !qd_mfx_lane_page(a)) {
+        v->fstep = 1;
+        v->f1 = v->f1 || (u->f1_copied && ((a->buttons_held >> QD_B_OCTDN) & 1u));
+        v->f2 = (int)((a->buttons_held >> QD_B_OCTUP) & 1u);
+        v->f1_src = -1;                             /* (no slot marked) */
+        v->st_copied = u->f1_copied;
+        v->f2_hand = u->f2_loaded && u->f2_holding ? 1 : -1;
+        if (u->clip.st.valid) {
+            qd_rstep_t r;
+            static qd_pattern_t tmp;
+            tmp.trk[0] = qd_ctl_cpat(a)->trk[a->sel];
+            tmp.step[0][0] = u->clip.st.step;
+            qd_step_resolve(&tmp, 0, 0, &r);
+            v->st_type = r.type;
+            v->st_nnote = r.type == QD_TRIG_LOCK ? 0 : r.nn;
+            memcpy(v->st_note, r.notes, sizeof v->st_note);
+        }
+    }
+}
+
 /* P1.6c: the MIDI FX screen's model: the selected track's group, its rail (the notes passing: the glow), the selected
  * slot's values and, for an ARP, what it holds and plays now */
 void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
@@ -1586,8 +1618,10 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
                     v->gtr[gi][v->gtrn[gi]++] = (uint8_t)(t + 1);
         }
     }
-    if (!g)
+    if (!g) {
+        mfx_fstep(a, v, 1);                             /* (P1.6h: no group, no slots: F1 / F2 the steps') */
         return;
+    }
     {
         const qd_mfx_group_t *G = &a->proj.mfx[g - 1];
         const qd_mfx_grt_t *R = &a->player.mfx.g[g - 1];
@@ -1638,6 +1672,7 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
         v->f1_src = u->mfx_f1_copied ? u->mfx_f1_src : -1;
         v->f2 = (int)((a->buttons_held >> QD_B_OCTUP) & 1u);
         v->f2_hand = u->mfx_f2_holding ? u->mfx_clip.type : -1;
+        mfx_fstep(a, v, 0);
         if (u->mfx_roll_ms && a->ms - u->mfx_roll_ms < QD_TK_MS) {   /* PRESETS: the rolodex (P1.6d: gliding) */
             v->roll = 1;
             v->roll_pos = (float)qd_mfx_glide(a, u->mfx_roll_from, u->mfx_roll_to, u->mfx_roll_t0) / 100.f;
@@ -1813,7 +1848,8 @@ static void fill_mix(const qd_app_t *a, ui_mix_t *v)
         const qd_ui_t *u = &a->ui;
         const qd_pattern_t *p = qd_ctl_cpat(a);
         int k;
-        v->step = u->nheld > 0;
+        v->step = u->nheld > 0 || u->wk_pending;        /* (P1.6h: from the key's press, before its first detent) */
+        v->nsel = u->nheld;
         for (k = 0; k < 4; k++) {
             const int id = qd_panel_lock_id(a, QD_K_1 + k);
             int16_t x;
@@ -1957,13 +1993,15 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
     v->fslope = qd_fx_get(QD_FXP_FSLOPE);
     v->fon = qd_fx_get(QD_FXP_FON);
     v->last = u->menu_knob;
-    v->step = u->nheld > 0;                             /* P1.6d */
+    v->step = u->nheld > 0 || u->wk_pending;            /* P1.6d (P1.6h: from the key's press) */
+    v->nsel = u->nheld;
 }
 
 /* P1.5z: the models, for the tests */
 void qd_view_browse(const qd_app_t *a, ui_browse_t *v) { fill_browse(a, v); }
 void qd_view_mix(const qd_app_t *a, ui_mix_t *v) { fill_mix(a, v); }
 void qd_view_fx(const qd_app_t *a, ui_fx_t *v) { fill_fx(a, v); }
+void qd_view_layer(qd_app_t *a, ui_layer_t *v) { fill_layer(a, v, qd_ctl_layer_shown(a)); }
 void qd_view_menu(const qd_app_t *a, ui_menu_t *v) { fill_menu(a, v); }
 void qd_view_type(const qd_app_t *a, ui_type_t *v) { fill_type(a, v); }
 void qd_view_turn(qd_app_t *a, ui_turn_t *v)

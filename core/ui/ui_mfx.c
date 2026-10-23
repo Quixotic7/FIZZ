@@ -1081,13 +1081,29 @@ void ui_mfx_draw(const ui_mfx_t *v)
         return;
     }
     mf_head(npg, v->page, "MIDI FX", MF_MINT, v->g, v->tr, v->ntr, v->track);
-    if (!v->g) {
+    if (!v->g && !((v->f1 || v->f2) && v->fstep)) {
         mf_off(v);
         if (v->steps_frame)
             ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
         return;
     }
-    mf_rail(v);
+    if (v->g)
+        mf_rail(v);
+    if ((v->f1 || v->f2) && v->fstep) {                 /* P1.6h, STEPS: F1 / F2 on a step: the step as a card, then
+                                                         * where it goes (the step view's F1 / F2) */
+        const int full = v->f2 ? v->f2_hand >= 0 : v->st_copied;
+        const qd_rgb ac = v->f1 || full ? UI_K2 : UI_K4;
+        ui_step_card(40.f, 100.f + (full ? 2.f * sinf(v->t * 4.f) : 0.f), 64.f, 60.f, full, v->st_type, v->st_nnote,
+                     v->st_note);
+        if (full) {
+            mf_L(112.f, 130.f, 140.f, 130.f, ac, 1.6f, 1.f);
+            mf_tri(142.f, 130.f, 1.f, ac, 1.f);
+        }
+        ui_icon(full ? UI_IC_PASTE : v->f1 ? UI_IC_COPY : UI_IC_CUT, 176.f, 130.f, 2.6f, ac);
+        if (v->steps_frame)
+            ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
+        return;
+    }
     if (v->f1 || v->f2) {                               /* P1.6e: F1 / F2 held: what they do (the step view's) */
         const int copied = v->f1 && v->f1_src >= 0, hand = v->f2 ? v->f2_hand : copied ? v->type[v->f1_src] : -1;
         const qd_rgb ac = v->f1 ? UI_K2 : hand >= 0 ? UI_K2 : UI_K4;
