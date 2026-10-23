@@ -400,7 +400,7 @@ e.dispose();
   for (let q = 0; q < 400; q++) { const t = performance.now(); e.render(L, R); idle.push(performance.now() - t); }
   const idleS = idle.slice(50).sort((a, b) => a - b), idleMax = idleS.at(-1), idleP99 = idleS[Math.floor(idleS.length * 0.99)];
   run(e, 100); tapBtn(e, p, "HOME"); run(e, 300);
-  const before = e.screen().pixels.slice();
+  const before = e.screen().pixels.slice(), mem0 = e.rt.mem().buf.byteLength;
   p.btn("GLO", true); run(e, 100);
   for (let i = 0; i < 4; i++) { tapKey(e, p, 13, 60); run(e, 360); }        // B6 = key 13, about 120 BPM
   p.btn("GLO", false);
@@ -410,11 +410,12 @@ e.dispose();
     shots.push(e.screen().pixels.slice());
     writePng(path.join(OUT, `ape-${f}.png`), shots[f]);
   }
+  const mem1 = e.rt.mem().buf.byteLength;
   e.dispose();
   const moved = shots.slice(1).filter((s, i) => diffPx(s, shots[i]) > 200).length;
   const sorted = times.slice().sort((a, b) => a - b), max = sorted[sorted.length - 1], p99 = sorted[Math.floor(sorted.length * 0.99)];
-  check(diffPx(shots[0], before) > 5000 && moved >= 3 && p99 < 3 * idleP99 + 1,
-    `SHIFT + B6 x4: the TAP ape (${diffPx(shots[0], before)} px from the step view, it moves in ${moved} of 5 gaps); a quantum (2.9 ms of audio at 44.1 kHz, a frame drawn every 15 ms) took at most ${max.toFixed(2)} ms, p99 ${p99.toFixed(2)} ms (the logo screen's on this machine: at most ${idleMax.toFixed(2)}, p99 ${idleP99.toFixed(2)} ms; the ape's p99 is held under 3 x that + 1 ms)`);
+  check(diffPx(shots[0], before) > 5000 && moved >= 3 && p99 < 1.5 * idleP99 + 0.5,
+    `SHIFT + B6 x4: the TAP ape (${diffPx(shots[0], before)} px from the step view, it moves in ${moved} of 5 gaps); a quantum (2.9 ms of audio at 44.1 kHz, a frame drawn every 15 ms) took at most ${max.toFixed(2)} ms, p99 ${p99.toFixed(2)} ms (the logo screen's on this machine: at most ${idleMax.toFixed(2)}, p99 ${idleP99.toFixed(2)} ms; the ape's p99 is held under 1.5 x that + 0.5 ms); the wasm memory ${mem0 / 1048576} -> ${mem1 / 1048576} MiB with the ape's cached poses`);
 }
 
 // 8. a save from the previous published FIZZ (the last committed site/fizz.wasm with another version: git; skipped
