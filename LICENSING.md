@@ -35,7 +35,9 @@ unchanged. `research/PROVENANCE.md` lists where each part came from.
   limiter and of the stereo chorus's two taps, both written anew in ChoralRoot.
 - **OMX-27** (okyeron/OMX-27, its Form sequencer and MIDI FX; contributors including j__r0d): the MIDI FX groups'
   mechanics, re-implemented from a behaviour description.
-- **namesizer** (the owner's, MIT) and its phonic-nonsense adaptation (Euan Goddard): the name ideas.
+- **namesizer** (the owner's, MIT) and its phonic-nonsense adaptation (Euan Goddard, MIT): the name ideas and the
+  phonics grapheme lists in `core/seq/names.c`.
+- **The TAP ape** (`core/ui/ape_poses.h`): traced from the owner's own artwork.
 - **Elektron's Digitone**: FM TONE's design and measured envelope times.
 - **Felucca** (Leo Kuroshita, Hügelton Instruments): the firmware ChoralRoot began from. No Felucca code remains in
   FIZZ (L1).

@@ -88,17 +88,16 @@ the same, so FIZZ does not rely on that permission.
     transpose, chance, monophonic and the interface are mostly j__r0d's (Jarrod Kozeal). FIZZ's versions of those are a
     few lines each.
   - **For the owner:** whether to note this in the credits.
-- **phonic-nonsense (Euan Goddard; no licence):**
+- **phonic-nonsense (Euan Goddard; MIT):**
   - `core/seq/names.c` `qd_name_phonic` uses its phonics grapheme lists and three word shapes, through the owner's
     namesizer (MIT, the owner's).
-  - The lists are short factual phonics data, but carry no licence.
-  - **For the owner:** compile the lists independently, or ask the author.
+  - The owner confirmed (P2.4, 2026-10-23) that phonic-nonsense is MIT.
 - **Inter Tight:** OFL-1.1 (`assets/fonts/OFL.txt`; no Reserved Font Name).
 - **plutovg:** MIT. The FreeType files under it are FTL only as shipped; FTL asks that changes be stated, which
   `third_party/README.md` now does. stb is MIT OR Unlicense.
 - **The ape (`core/ui/ape_poses.h`):** traced by Claude from `UI Inspiration/fizz-tap-breakdance-ape.webp`, which the
   mock-up calls the owner's reference ("tracing allowed").
-  - **For the owner:** that image has no metadata or source; please confirm it is yours or licensed.
+  - The owner confirmed (P2.4, 2026-10-23) that the image is the owner's own artwork.
 - **genkigenki (M. Geisler):**
   - Nine ChoralRoot commits: the SMK-37 port and two header commits.
   - The header commits change only line endings and an e-mail address, and the second undoes the first.
