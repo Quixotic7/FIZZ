@@ -13,6 +13,7 @@
 #include "fonts_gen.h"
 #include "sounds.h"
 #include "ui.h"
+#include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
 #define NSHOT 20
 static qd_app_t A;
@@ -156,14 +157,14 @@ static int pool_of(const char *name)
 {
     int k;
     for (k = 1; k <= A.proj.nsound; k++)
-        if (!strcmp(A.proj.sound[k - 1].name, name))
+        if (!strcmp(POOL(&A.proj, k)->name, name))
             return k;
     return 1;
 }
 
 int render_p15a(const char *out, const char *mocks)
 {
-    static const struct { const char *name, *from; } LIB[10] = {
+    static const struct { const char *name, *from; } LIBS[10] = {
         {"DARK BASS", "WOBBLE"}, {"SOFT KEYS", "EP"}, {"GLASS PAD", "GLASS PAD"}, {"TIGHT KICK", "KICK"},
         {"TIN SNARE", "SNARE"}, {"WIDE LEAD", "SQUARE LEAD"}, {"BELL TONE", "BELL"}, {"HAT DUST", "HAT"},
         {"WARM PAD", "STRINGS"}, {"RUBBER BASS", "BASS"}};
@@ -182,11 +183,11 @@ int render_p15a(const char *out, const char *mocks)
     qd_persist_attach(&A, &FLASH);
     qd_proj_name(&A, 0, "NIGHT BUS");
     for (k = 0; k < 10; k++)
-        qd_lib_store(&A, k, LIB[k].name, A.proj.sound[pool_of(LIB[k].from) - 1].patch);
-    qd_pool_add(&A, "SOFT KEYS", A.per.lib[1].patch);   /* 24 */
-    qd_pool_add(&A, "DARK BASS", A.per.lib[0].patch);   /* 25 */
-    qd_pool_add(&A, "TINE", A.proj.sound[pool_of("MARIMBA") - 1].patch);
-    qd_pool_add(&A, "GLASS PAD", A.per.lib[2].patch);
+        qd_lib_store(&A, k, LIBS[k].name, POOL(&A.proj, pool_of(LIBS[k].from))->patch);
+    qd_pool_add(&A, "SOFT KEYS", LIB(&A, 1)->patch);   /* 24 */
+    qd_pool_add(&A, "DARK BASS", LIB(&A, 0)->patch);   /* 25 */
+    qd_pool_add(&A, "TINE", POOL(&A.proj, pool_of("MARIMBA"))->patch);
+    qd_pool_add(&A, "GLASS PAD", LIB(&A, 2)->patch);
     for (k = 0; k < 6; k++) {                           /* six steps lock SOFT KEYS */
         qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 3, k * 2);
         qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 3, k * 2, 24);

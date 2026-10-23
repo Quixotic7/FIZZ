@@ -21,9 +21,28 @@ enum { QD_SND_INIT = 1, QD_SND_NOISE = 17, QD_SND_KICK = 18, QD_SND_SNARE, QD_SN
 void qd_sounds_init(qd_project_t *pr);  /* the pool's first sounds (above): the demo's (and a 0.6 project's) pool */
 void qd_sounds_clear(qd_project_t *pr); /* P1.5t: an empty pool (a new project's) */
 const char *qd_sound_name(const qd_project_t *pr, int k);   /* k 1..nsound; else "" */
-const int16_t *qd_sound_patch(const qd_project_t *pr, int k);   /* k 1..nsound; else INIT's */
+const int16_t *qd_sound_patch(const qd_project_t *pr, int k);   /* k 1..nsound; else INIT's (P2.1: good until the
+                                                                 * next sound is read) */
 int qd_sound_add(qd_project_t *pr, const char *name, const int16_t *patch);   /* its number (the first free slot), 0:
                                                                                * the pool is full */
+/* P2.1: a pool sound read and written whole (every change through these: at the device's sizes the sounds are in the
+ * store, pattern.h qd_sndc_t; an unused slot reads as zeros); its id, tags and flags (the directory's, no reading) */
+void qd_sound_read(const qd_project_t *pr, int k, qd_sound_t *out);
+void qd_sound_write(qd_project_t *pr, int k, const qd_sound_t *s);
+void qd_sound_clear(qd_project_t *pr, int k);
+uint16_t qd_sound_preset(const qd_project_t *pr, int k);
+int qd_sound_tags(const qd_project_t *pr, int k);
+int qd_sound_flags(const qd_project_t *pr, int k);
+int qd_sound_resident(const qd_project_t *pr, int k);   /* in RAM now (the host: always) */
+#if QD_SND_RAM
+void qd_sndc_init(qd_sndc_t *c);
+const qd_sound_t *qd_sndc_get(qd_sndc_t *c, int key);  /* in RAM (read in; good until the next get or put) */
+const qd_sound_t *qd_sndc_peek(const qd_sndc_t *c, int key);   /* in RAM already, else 0 */
+void qd_sndc_put(qd_sndc_t *c, int key, const qd_sound_t *s);
+void qd_sndc_drop(qd_sndc_t *c, int lo, int hi);       /* keys lo..hi out of RAM, not written */
+void qd_sndc_save_all(qd_sndc_t *c);                   /* every place written if it changed */
+void qd_sound_dir(qd_sound_dir_t *d, const qd_sound_t *s);
+#endif
 /* P1.5a: the pool has holes (a sound deleted, moved): a slot is used when it has a name; nsound is the last used */
 int qd_sound_used(const qd_project_t *pr, int k);
 void qd_sound_recount(qd_project_t *pr);

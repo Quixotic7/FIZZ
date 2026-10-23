@@ -16,6 +16,7 @@
 #include "scale.h"
 #include "sounds.h"
 #include "ui.h"
+#include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
 #define NSHOT 12
 static qd_app_t A;
@@ -264,9 +265,9 @@ int render_p15v(const char *out)
     run(300);
     {                                                   /* 8, 9 SAVE PRESET: NEW / REPLACE */
         qd_track_t *t = &A.model.t[3];
-        memcpy(t->patch, A.per.lib[0].patch, sizeof t->patch);
+        memcpy(t->patch, LIB(&A, 0)->patch, sizeof t->patch);
         strcpy(t->sound_name, "DARK BASS");
-        t->preset = A.per.lib[0].preset;
+        t->preset = LIB(&A, 0)->preset;
         t->patch[QD_QP_FREQ] = 6000;
         t->edited = 1;
         run(20);
@@ -280,7 +281,7 @@ int render_p15v(const char *out)
     btap(QD_B_HOME);
     run(300);
     for (k = 0; k < 2; k++)                             /* 10 a step held + PRESETS: up while held */
-        qd_pool_add_sound(&A, &A.per.lib[k]);
+        qd_pool_add_sound(&A, LIB(&A, k));
     {
         qd_sound_t f;
         for (k = 17; k < 21; k++) {

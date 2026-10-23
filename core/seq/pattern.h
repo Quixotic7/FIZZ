@@ -232,6 +232,32 @@ typedef struct {
     uint8_t chorus, delay, reverb;      /* .. the sends 0..127 (a step's sound lock leaves the track's alone) */
 } qd_sound_t;
 
+/* P2.1 (Phase 2: the pool and MY presets in the store): at the device's sizes (QD_SND_RAM) a sound's name, id, tags
+ * and flags stay in RAM (what the lists show: qd_sound_dir_t), the sound itself is its record in the store, read into
+ * one of QD_SND_RAM places when asked for (sounds.h qd_sound_read); the least recently used place given up, written
+ * back first if it changed (io.save). Keys: pool number k (1..QD_NSOUND); MY preset place i: QD_SK_LIB + i. On the
+ * host every sound is in RAM, as in Phase 1 (proj.sound, persist.h's lib) */
+#define QD_SK_LIB 256
+typedef struct {
+    char name[QD_SOUND_NAME];
+    uint16_t preset;
+    uint8_t tags, flags;
+} qd_sound_dir_t;
+typedef struct {
+    void (*load)(void *ctx, int key, qd_sound_t *dst);   /* the sound from its record (none: its default) */
+    void (*save)(void *ctx, int key, const qd_sound_t *src);   /* written to its record, if it is not what that holds */
+    void *ctx;
+} qd_snd_io_t;
+#if QD_SND_RAM
+typedef struct qd_sndc {
+    qd_sound_t s[QD_SND_RAM];
+    int16_t key[QD_SND_RAM];            /* (-1: a free place) */
+    uint32_t lru[QD_SND_RAM], clock;
+    qd_snd_io_t io;
+    uint32_t loads, saves;              /* (the budget's counters) */
+} qd_sndc_t;
+#endif
+
 /* P2.1 (Phase 2: patterns paged): a project's patterns are read through qd_proj_pat. On the host all 64 are in RAM
  * (QD_PAT_RAM == QD_NPAT: pattern k is pat[k], as in Phase 1); at the device's sizes QD_PAT_RAM slots hold the
  * patterns in use (the playing one, the queued one, one more), the rest are their records in the store: a pattern not
@@ -256,7 +282,12 @@ typedef struct {
     uint8_t demo;                       /* P2.1: the patterns' defaults: the demos (A01..A03), else blank */
     qd_pat_io_t io;
     uint32_t pat_loads, pat_saves, pat_forced;   /* (the budget's counters: forced: every slot pinned) */
-    qd_sound_t sound[QD_NSOUND];        /* the pool: sound number k is sound[k - 1] */
+#if QD_SND_RAM
+    qd_sound_dir_t sdir[QD_NSOUND];     /* P2.1: the pool's directory (the sounds: sounds.h qd_sound_read) .. */
+    struct qd_sndc *sc;                 /* .. the RAM they are read into (the app's; 0: a test's bare project) */
+#else
+    qd_sound_t sound[QD_NSOUND];        /* the pool: sound number k is sound[k - 1] (sounds.h qd_sound_read) */
+#endif
     uint8_t nsound;                     /* sounds in it (1..QD_NSOUND) */
     uint8_t key_scale, key_root;        /* the global key (the tracks that follow it) */
     uint8_t launch;                     /* P1.3c: the pattern launch mode (seq.h QD_LAUNCH_*: END at power-on) */

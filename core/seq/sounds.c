@@ -119,34 +119,233 @@ int qd_factory_of(const char *name, const int16_t *patch)
     return 0;
 }
 
+/* ---------------------------------------------------------------- the pool's sounds (P2.1: read and written here) */
+#if QD_SND_RAM
+/* (P2.1: the device's sizes) the places in RAM */
+static int sc_find(const qd_sndc_t *c, int key)
+{
+    int i;
+    for (i = 0; i < QD_SND_RAM; i++)
+        if (c->key[i] == key)
+            return i;
+    return -1;
+}
+static int sc_place(qd_sndc_t *c)                       /* a free place, else the least recently used (written) */
+{
+    int i, sl = -1;
+    for (i = 0; i < QD_SND_RAM; i++)
+        if (c->key[i] < 0)
+            return i;
+    for (i = 0; i < QD_SND_RAM; i++)
+        if (sl < 0 || c->lru[i] < c->lru[sl])
+            sl = i;
+    if (c->io.save) {
+        c->io.save(c->io.ctx, c->key[sl], &c->s[sl]);
+        c->saves++;
+    }
+    c->key[sl] = -1;
+    return sl;
+}
+void qd_sndc_init(qd_sndc_t *c)
+{
+    int i;
+    memset(c->s, 0, sizeof c->s);
+    for (i = 0; i < QD_SND_RAM; i++)
+        c->key[i] = -1, c->lru[i] = 0;
+    c->clock = 0;
+}
+const qd_sound_t *qd_sndc_get(qd_sndc_t *c, int key)
+{
+    int sl = sc_find(c, key);
+    if (sl < 0) {
+        qd_sound_t t;
+        memset(&t, 0, sizeof t);
+        if (c->io.load)                                 /* (read first: a pool reference reads its preset, which may
+                                                         * move the places) */
+            c->io.load(c->io.ctx, key, &t);
+        c->loads++;
+        sl = sc_place(c);
+        memcpy(&c->s[sl], &t, sizeof t);
+        c->key[sl] = (int16_t)key;
+    }
+    c->lru[sl] = ++c->clock;
+    return &c->s[sl];
+}
+const qd_sound_t *qd_sndc_peek(const qd_sndc_t *c, int key)
+{
+    const int sl = sc_find(c, key);
+    return sl >= 0 ? &c->s[sl] : 0;
+}
+void qd_sndc_put(qd_sndc_t *c, int key, const qd_sound_t *s)
+{
+    int sl = sc_find(c, key);
+    if (sl < 0) {
+        sl = sc_place(c);
+        c->key[sl] = (int16_t)key;
+    }
+    memcpy(&c->s[sl], s, sizeof *s);
+    c->lru[sl] = ++c->clock;
+}
+void qd_sndc_drop(qd_sndc_t *c, int lo, int hi)
+{
+    int i;
+    for (i = 0; i < QD_SND_RAM; i++)
+        if (c->key[i] >= lo && c->key[i] <= hi)
+            c->key[i] = -1;
+}
+void qd_sndc_save_all(qd_sndc_t *c)
+{
+    int i;
+    for (i = 0; i < QD_SND_RAM; i++)
+        if (c->key[i] >= 0 && c->io.save)
+            c->io.save(c->io.ctx, c->key[i], &c->s[i]);
+}
+
+void qd_sound_dir(qd_sound_dir_t *d, const qd_sound_t *s)
+{
+    memcpy(d->name, s->name, sizeof d->name);
+    d->preset = s->preset, d->tags = s->tags, d->flags = s->flags;
+}
+
+#ifndef QD_TARGET_FM1
+static qd_sound_t sc_bare[QD_NSOUND];                   /* (the host's tests at the device's sizes: a project with no
+                                                         * app (pr->sc 0) keeps its pool here; the device has none) */
+#define SC_BARE(pr) (!(pr)->sc)
+#else
+#define SC_BARE(pr) 0
+#endif
+#endif
+
+void qd_sound_read(const qd_project_t *pr, int k, qd_sound_t *out)
+{
+    if (k < 1 || k > QD_NSOUND) {
+        memset(out, 0, sizeof *out);
+        return;
+    }
+#if QD_SND_RAM
+#ifndef QD_TARGET_FM1
+    if (SC_BARE(pr)) {
+        memcpy(out, &sc_bare[k - 1], sizeof *out);
+        return;
+    }
+#endif
+    if (!pr->sc || !pr->sdir[k - 1].name[0]) {          /* (an empty slot: nothing to read) */
+        memset(out, 0, sizeof *out);
+        return;
+    }
+    memcpy(out, qd_sndc_get(pr->sc, k), sizeof *out);
+#else
+    memcpy(out, &pr->sound[k - 1], sizeof *out);
+#endif
+}
+
+void qd_sound_write(qd_project_t *pr, int k, const qd_sound_t *s)
+{
+    if (k < 1 || k > QD_NSOUND)
+        return;
+#if QD_SND_RAM
+    qd_sound_dir(&pr->sdir[k - 1], s);
+#ifndef QD_TARGET_FM1
+    if (SC_BARE(pr)) {
+        memcpy(&sc_bare[k - 1], s, sizeof *s);
+        return;
+    }
+#endif
+    if (pr->sc)
+        qd_sndc_put(pr->sc, k, s);
+#else
+    memcpy(&pr->sound[k - 1], s, sizeof *s);
+#endif
+}
+
+void qd_sound_clear(qd_project_t *pr, int k)
+{
+    qd_sound_t z;
+    memset(&z, 0, sizeof z);
+    qd_sound_write(pr, k, &z);
+}
+
+#if QD_SND_RAM
+#define POOL_DIR(pr, k) (&(pr)->sdir[(k) - 1])
+#else
+#define POOL_DIR(pr, k) (&(pr)->sound[(k) - 1])
+#endif
+uint16_t qd_sound_preset(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOUND ? POOL_DIR(pr, k)->preset : 0; }
+int qd_sound_tags(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOUND ? POOL_DIR(pr, k)->tags : 0; }
+int qd_sound_flags(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOUND ? POOL_DIR(pr, k)->flags : 0; }
+int qd_sound_resident(const qd_project_t *pr, int k)
+{
+#if QD_SND_RAM
+    return pr->sc && qd_sndc_peek(pr->sc, k) != 0;
+#else
+    (void)pr, (void)k;
+    return 1;
+#endif
+}
+
+/* the default pool: the factory's sounds (a new project's: none). (P2.1, the device: their names, ids and tags; the
+ * sounds are what a slot with no record reads, persist.c) */
 void qd_sounds_init(qd_project_t *pr)
 {
     int k;
     qd_sounds_clear(pr);
-    for (k = 0; k < QD_NFACTORY; k++)
-        qd_factory_preset(k, &pr->sound[k]);
+    for (k = 0; k < QD_NFACTORY; k++) {
+        qd_sound_t f;
+        qd_factory_preset(k, &f);
+#if QD_SND_RAM
+        qd_sound_dir(&pr->sdir[k], &f);
+#ifndef QD_TARGET_FM1
+        if (SC_BARE(pr))
+            sc_bare[k] = f;
+#endif
+#else
+        pr->sound[k] = f;
+#endif
+    }
     qd_sound_recount(pr);
 }
 
 void qd_sounds_clear(qd_project_t *pr)
 {
+#if QD_SND_RAM
+    memset(pr->sdir, 0, sizeof pr->sdir);
+    if (pr->sc)                                         /* (a project starting: its pool's places out, unwritten: the
+                                                         * one before was written first, persist.c) */
+        qd_sndc_drop(pr->sc, 1, QD_NSOUND);
+#ifndef QD_TARGET_FM1
+    else
+        memset(sc_bare, 0, sizeof sc_bare);
+#endif
+#else
     memset(pr->sound, 0, sizeof pr->sound);
+#endif
     pr->nsound = 0;
 }
 
 const char *qd_sound_name(const qd_project_t *pr, int k)
 {
-    return k >= 1 && k <= pr->nsound ? pr->sound[k - 1].name : "";
+    return k >= 1 && k <= pr->nsound ? POOL_DIR(pr, k)->name : "";
 }
 
-int qd_sound_used(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOUND && pr->sound[k - 1].name[0]; }
+int qd_sound_used(const qd_project_t *pr, int k) { return k >= 1 && k <= QD_NSOUND && POOL_DIR(pr, k)->name[0]; }
 
+/* (P2.1: on the device the patch is in one of the places: good until the next sound is read) */
 const int16_t *qd_sound_patch(const qd_project_t *pr, int k)
 {
     static int16_t init[QD_QUAD_NP];
     static int made;
-    if (qd_sound_used(pr, k))
+    if (qd_sound_used(pr, k)) {
+#if QD_SND_RAM
+#ifndef QD_TARGET_FM1
+        if (SC_BARE(pr))
+            return sc_bare[k - 1].patch;
+#endif
+        if (pr->sc)
+            return qd_sndc_get(pr->sc, k)->patch;
+#else
         return pr->sound[k - 1].patch;
+#endif
+    }
     if (!made)
         qd_quad_preset_patch(0, init), made = 1;
     return init;                                        /* (P1.5t: no sound there: INIT's patch) */
@@ -155,7 +354,7 @@ const int16_t *qd_sound_patch(const qd_project_t *pr, int k)
 void qd_sound_recount(qd_project_t *pr)
 {
     int k;
-    for (k = QD_NSOUND; k > 0 && !pr->sound[k - 1].name[0]; k--)
+    for (k = QD_NSOUND; k > 0 && !POOL_DIR(pr, k)->name[0]; k--)
         ;
     pr->nsound = (uint8_t)k;                            /* (P1.5t: 0: the pool empty) */
 }
@@ -177,17 +376,17 @@ int qd_sound_step(const qd_project_t *pr, int k, int d, int lo)
 
 int qd_sound_add(qd_project_t *pr, const char *name, const int16_t *patch)
 {
-    qd_sound_t *s;
+    qd_sound_t s;
     int k;
-    for (k = 1; k <= QD_NSOUND && pr->sound[k - 1].name[0]; k++)
+    for (k = 1; k <= QD_NSOUND && POOL_DIR(pr, k)->name[0]; k++)
         ;
     if (k > QD_NSOUND)
         return 0;
-    s = &pr->sound[k - 1];
-    memset(s, 0, sizeof *s);
-    strncpy(s->name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
-    memcpy(s->patch, patch, sizeof s->patch);
-    s->tags = (uint8_t)qd_preset_tags(patch);
+    memset(&s, 0, sizeof s);
+    strncpy(s.name, name && name[0] ? name : "SOUND", QD_SOUND_NAME - 1);
+    memcpy(s.patch, patch, sizeof s.patch);
+    s.tags = (uint8_t)qd_preset_tags(patch);
+    qd_sound_write(pr, k, &s);
     qd_sound_recount(pr);
     return k;
 }

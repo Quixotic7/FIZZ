@@ -48,6 +48,7 @@
 #include "names.h"
 #include "ui.h"
 #include "qd_fx.h"
+#include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
 static int fails, checks;
 #define CHECK(c, ...)                                     \
@@ -6710,7 +6711,7 @@ static void g_p15t_pool(void)
     turn(QD_K_PRESETS, 17 - A.ui.br.pos);               /* KICK (factory 17, id 18) */
     CHECK(br_code() == 17, "(KICK chosen)");
     black(B10);
-    CHECK(A.proj.nsound == 1 && !strcmp(A.proj.sound[0].name, "KICK") && A.proj.sound[0].preset == 18 &&
+    CHECK(A.proj.nsound == 1 && !strcmp(POOL(&A.proj, 1)->name, "KICK") && POOL(&A.proj, 1)->preset == 18 &&
               A.ui.br.fx == QD_BRFX_IN && A.model.t[0].preset == 18, "B10: + POOL: KICK into the empty pool (not loaded: "
           "the track still plays the chosen, its own sound apart)");
     black(B10);
@@ -6719,13 +6720,15 @@ static void g_p15t_pool(void)
     black(B10);
     CHECK(A.proj.nsound == 1 && qd_br_pool_k(&A) == 1, "B10: in again (no duplicate: one KICK)");
     for (k = 2; k <= QD_NSOUND; k++) {                  /* the pool full */
-        strcpy(A.proj.sound[k - 1].name, "X");
-        A.proj.sound[k - 1].preset = 0;
+        qd_sound_t s = *POOL(&A.proj, k);
+        strcpy(s.name, "X");
+        s.preset = 0;
+        qd_sound_write(&A.proj, k, &s);
     }
     qd_sound_recount(&A.proj);
     turn(QD_K_PRESETS, 1);
     black(B10);
-    CHECK(A.ui.br.fx == QD_BRFX_FULL && strcmp(A.proj.sound[QD_NSOUND - 1].name, "X") == 0, "the pool full: nothing, "
+    CHECK(A.ui.br.fx == QD_BRFX_FULL && strcmp(POOL(&A.proj, QD_NSOUND)->name, "X") == 0, "the pool full: nothing, "
           "the tray flashes orange");
     btap(F1);
     start();                                            /* - POOL (the demo's pool: 23) */
@@ -6774,7 +6777,7 @@ static void g_p15t_delete(void)
     start();
     qd_quad_preset_patch(3, p);
     qd_lib_store(&A, 4, "DARK BASS", p);
-    id = A.per.lib[4].preset;
+    id = LIB(&A, 4)->preset;
     run(600);
     turn(QD_K_PRESETS, 1);
     black(B11);
@@ -6784,12 +6787,12 @@ static void g_p15t_delete(void)
     CHECK(br_code() == QD_BR_MINE_CODE + 4, "(DARK BASS chosen in MY PRESETS)");
     CHECK(leds().key[BK(B11)] == QD_LED_LIT, "B11 lit on one of MY presets");
     black(B11);
-    CHECK(A.ui.br.del_armed && A.per.lib[4].name[0], "B11: armed (blinking), still there");
+    CHECK(A.ui.br.del_armed && LIB(&A, 4)->name[0], "B11: armed (blinking), still there");
     black(B11);
     run(600);
-    CHECK(!A.per.lib[4].name[0] && br_n() == 0, "B11 again: deleted");
+    CHECK(!LIB(&A, 4)->name[0] && br_n() == 0, "B11 again: deleted");
     undo_redo(-1);
-    CHECK(!strcmp(A.per.lib[4].name, "DARK BASS") && A.per.lib[4].preset == id, "undo: back (its id)");
+    CHECK(!strcmp(LIB(&A, 4)->name, "DARK BASS") && LIB(&A, 4)->preset == id, "undo: back (its id)");
     btap(QD_B_HOME);
 }
 
@@ -6845,11 +6848,11 @@ static void g_p15t_save(void)
     n = qd_undo_count(&A, -1);
     btap(QD_B_SAVE);
     run(600);
-    CHECK(!strcmp(A.per.lib[0].name, nm) && A.model.t[0].preset == A.per.lib[0].preset && !A.model.t[0].edited &&
+    CHECK(!strcmp(LIB(&A, 0)->name, nm) && A.model.t[0].preset == LIB(&A, 0)->preset && !A.model.t[0].edited &&
               A.ui.tk == QD_TK_SAVED && !A.ui.latch, "SAVE again: NEW (%s), the track plays it; SAVED", nm);
     CHECK(qd_undo_count(&A, -1) == n + 1, "one undo level");
     undo_redo(-1);
-    CHECK(!A.per.lib[0].name[0], "undo: not saved");
+    CHECK(!LIB(&A, 0)->name[0], "undo: not saved");
     undo_redo(1);
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].patch[QD_QP_HARM] = 1200;              /* edited: SAVE offers REPLACE, NEW as "NAME 2" */
@@ -6860,7 +6863,7 @@ static void g_p15t_save(void)
               leds().button[QD_B_OCTUP] != QD_LED_OFF + 1, "from one of MY presets, edited: REPLACE offered; NEW as %s (%s)",
           A.ui.sv.newname, nm);
     btap(QD_B_HOME);
-    CHECK(!A.ui.latch && A.per.lib[0].patch[QD_QP_HARM] != 1200 && !A.per.lib[1].name[0],
+    CHECK(!A.ui.latch && LIB(&A, 0)->patch[QD_QP_HARM] != 1200 && !LIB(&A, 1)->name[0],
           "HOME: cancelled, nothing saved");
     btap(QD_B_SAVE);
     CHECK(A.ui.sv.choice == 0 && leds().button[F2] == QD_LED_LIT, "REPLACE offered: NEW chosen first, F2 lit");
@@ -6870,13 +6873,13 @@ static void g_p15t_save(void)
     btap(F2);
     btap(QD_B_SAVE);
     run(600);
-    CHECK(A.per.lib[0].patch[QD_QP_HARM] == 1200 && !A.per.lib[1].name[0] && !A.model.t[0].edited &&
-              A.model.t[0].preset == A.per.lib[0].preset, "F2 again (NEW), again (REPLACE), SAVE: REPLACED (the same preset), nothing new");
+    CHECK(LIB(&A, 0)->patch[QD_QP_HARM] == 1200 && !LIB(&A, 1)->name[0] && !A.model.t[0].edited &&
+              A.model.t[0].preset == LIB(&A, 0)->preset, "F2 again (NEW), again (REPLACE), SAVE: REPLACED (the same preset), nothing new");
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
     btap(QD_B_SAVE);
-    CHECK(A.per.lib[1].name[0] && strstr(A.per.lib[1].name, " 2") && A.model.t[0].preset == A.per.lib[1].preset,
-          "SAVE, SAVE: NEW as %s", A.per.lib[1].name);
+    CHECK(LIB(&A, 1)->name[0] && strstr(LIB(&A, 1)->name, " 2") && A.model.t[0].preset == LIB(&A, 1)->preset,
+          "SAVE, SAVE: NEW as %s", LIB(&A, 1)->name);
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
 }
 
@@ -7009,8 +7012,8 @@ static void g_p15u_edit(void)
     CHECK(!A.ui.ty.name[0] && A.ui.latch == QD_LATCH_SAVE, "F1 on nothing: nothing (still open)");
     btap(QD_B_SAVE);
     run(600);
-    CHECK(!A.ui.latch && !strcmp(A.per.lib[0].name, "SOUND"), "SAVE on an empty name: saved as SOUND (%s)",
-          A.per.lib[0].name);
+    CHECK(!A.ui.latch && !strcmp(LIB(&A, 0)->name, "SOUND"), "SAVE on an empty name: saved as SOUND (%s)",
+          LIB(&A, 0)->name);
     btap(QD_B_SAVE);                                    /* a selected name: F1 deletes all of it */
     btap(F1);
     CHECK(!A.ui.ty.name[0] && !A.ui.ty.sel, "the suggestion selected, F1: all of it");
@@ -7094,10 +7097,10 @@ static void g_p15u_save(void)
     n = qd_undo_count(&A, -1);
     btap(QD_B_SAVE);
     run(600);
-    CHECK(!A.ui.latch && !strcmp(A.per.lib[0].name, "DUST") && A.model.t[0].preset == A.per.lib[0].preset &&
+    CHECK(!A.ui.latch && !strcmp(LIB(&A, 0)->name, "DUST") && A.model.t[0].preset == LIB(&A, 0)->preset &&
               !strcmp(A.model.t[0].sound_name, "DUST") && qd_undo_count(&A, -1) == n + 1,
           "D U S T, SAVE: NEW as DUST, the track plays it; one undo level");
-    id = A.per.lib[0].preset;
+    id = LIB(&A, 0)->preset;
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].patch[QD_QP_HARM] = 700;
     A.model.t[0].edited = 1;
@@ -7109,8 +7112,8 @@ static void g_p15u_save(void)
     btap(F2);
     btap(QD_B_SAVE);
     run(600);
-    CHECK(!A.ui.latch && !strcmp(A.per.lib[0].name, "DUSK") && A.per.lib[0].preset == id &&
-              A.per.lib[0].patch[QD_QP_HARM] == 700 && !A.per.lib[1].name[0] && !strcmp(A.model.t[0].sound_name, "DUSK"),
+    CHECK(!A.ui.latch && !strcmp(LIB(&A, 0)->name, "DUSK") && LIB(&A, 0)->preset == id &&
+              LIB(&A, 0)->patch[QD_QP_HARM] == 700 && !LIB(&A, 1)->name[0] && !strcmp(A.model.t[0].sound_name, "DUSK"),
           "D U S K, F2, SAVE: REPLACED under the typed name, the same preset, nothing new");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].edited = 1;
@@ -7118,7 +7121,7 @@ static void g_p15u_save(void)
     ty_type("ZZZ");
     btap(QD_B_HOME);
     run(20);
-    CHECK(!A.ui.latch && !strcmp(A.per.lib[0].name, "DUSK") && !A.per.lib[1].name[0] && A.model.t[0].edited &&
+    CHECK(!A.ui.latch && !strcmp(LIB(&A, 0)->name, "DUSK") && !LIB(&A, 1)->name[0] && A.model.t[0].edited &&
               !strcmp(A.model.t[0].sound_name, "DUSK"), "Z Z Z, HOME: cancelled, nothing changed");
 }
 
@@ -7219,7 +7222,7 @@ static void g_p15v_delete(void)
     k = qd_br_pool_k(&A);
     CHECK(k > 0, "B10: into the pool (a copy)");
     black(B11);
-    CHECK(A.ui.br.del_armed && A.per.lib[0].name[0], "B11: armed (DELETE?: the red X), not deleted");
+    CHECK(A.ui.br.del_armed && LIB(&A, 0)->name[0], "B11: armed (DELETE?: the red X), not deleted");
     for (i = 0; i < 12; i++) {
         const int l = leds().key[BK(B11)];
         lit += l == QD_LED_LIT, off += l == QD_LED_OFF;
@@ -7227,17 +7230,17 @@ static void g_p15v_delete(void)
     }
     CHECK(lit && off, "B11 blinks (%d lit, %d dark)", lit, off);
     black(B1);
-    CHECK(!A.ui.br.del_armed && A.per.lib[0].name[0], "another key (B1): disarmed, kept");
+    CHECK(!A.ui.br.del_armed && LIB(&A, 0)->name[0], "another key (B1): disarmed, kept");
     black(B11);
     wtap(3);
-    CHECK(!A.ui.br.del_armed && A.per.lib[0].name[0], "a white key: disarmed");
+    CHECK(!A.ui.br.del_armed && LIB(&A, 0)->name[0], "a white key: disarmed");
     black(B11);
     turn(QD_K_PRESETS, 1);
-    CHECK(!A.ui.br.del_armed && A.per.lib[0].name[0], "a turn: disarmed");
+    CHECK(!A.ui.br.del_armed && LIB(&A, 0)->name[0], "a turn: disarmed");
     turn(QD_K_PRESETS, -5);
     black(B11);
     black(B11);
-    CHECK(!A.per.lib[0].name[0] && A.ui.br.fx == QD_BRFX_DEL && !strcmp(A.ui.br.fx_snd.name, "GONE SOON"),
+    CHECK(!LIB(&A, 0)->name[0] && A.ui.br.fx == QD_BRFX_DEL && !strcmp(A.ui.br.fx_snd.name, "GONE SOON"),
           "B11 again: deleted, it breaks up");
     CHECK(!qd_sound_used(&A.proj, k), "its reference gone from the pool too (P1.5w: the pool holds references)");
     run(900);
@@ -7308,11 +7311,11 @@ static void g_p15v_tags(void)
     black(B1);
     black(B9);
     shift_black(B8);
-    CHECK(A.per.lib[0].tags == (QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)), "MY preset: SHIFT + B8: FX too (BASS, FX)");
+    CHECK(LIB(&A, 0)->tags == (QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)), "MY preset: SHIFT + B8: FX too (BASS, FX)");
     shift_black(B1);
     shift_black(B9);
     CHECK(A.ui.latch == QD_LATCH_BROWSE && A.ui.br.kind == 0 && A.ui.br.src == QD_BR_MINE &&
-              A.per.lib[0].tags == (QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)), "SHIFT + B1, B9: nothing (no snapshot, no "
+              LIB(&A, 0)->tags == (QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)), "SHIFT + B1, B9: nothing (no snapshot, no "
           "filter)");
     bdown(SHIFT);
     run(10);
@@ -7335,7 +7338,7 @@ static void g_p15v_save(void)
     CHECK(A.ui.sv.choice == 0 && A.ui.latch == QD_LATCH_SAVE, "F2: nothing");
     btap(QD_B_SAVE);
     run(600);
-    CHECK(A.per.lib[0].name[0] && !A.ui.latch, "SAVE: NEW");
+    CHECK(LIB(&A, 0)->name[0] && !A.ui.latch, "SAVE: NEW");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
@@ -7344,7 +7347,7 @@ static void g_p15v_save(void)
     btap(F2);
     btap(QD_B_SAVE);
     run(600);
-    CHECK(!A.per.lib[1].name[0] && !A.ui.latch, "F2, SAVE: REPLACE (nothing new)");
+    CHECK(!LIB(&A, 1)->name[0] && !A.ui.latch, "F2, SAVE: REPLACE (nothing new)");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].edited = 1;
     btap(QD_B_SAVE);
@@ -7352,7 +7355,7 @@ static void g_p15v_save(void)
     btap(F2);
     btap(QD_B_SAVE);
     run(600);
-    CHECK(A.per.lib[1].name[0], "F2, F2, SAVE: NEW (%s)", A.per.lib[1].name);
+    CHECK(LIB(&A, 1)->name[0], "F2, F2, SAVE: NEW (%s)", LIB(&A, 1)->name);
 }
 
 static void g_p15v_picker(void)
@@ -7395,8 +7398,8 @@ static void g_p15w_refs(void)
     start();
     run(600);
     mine_add("REF ME", 3);
-    id = A.per.lib[0].preset;
-    k = qd_pool_add_sound(&A, &A.per.lib[0]);
+    id = LIB(&A, 0)->preset;
+    k = qd_pool_add_sound(&A, LIB(&A, 0));
     qd_step_on(PAT(), 1, 2);
     qd_step_set_sound(PAT(), 1, 2, k);
     qd_step_on(qd_proj_pat(&A.proj, A.seq.cur == 9 ? 10 : 9), 2, 3);
@@ -7410,7 +7413,7 @@ static void g_p15w_refs(void)
     CHECK(A.model.t[0].preset == id && !A.model.t[0].edited, "(track 1 loaded REF ME)");
     qd_ctl_select_track(&A, 1);                         /* track 2: from it, edited, SAVE: REPLACE */
     A.model.t[1].preset = (uint16_t)id;
-    memcpy(A.model.t[1].patch, A.per.lib[0].patch, sizeof A.model.t[1].patch);
+    memcpy(A.model.t[1].patch, LIB(&A, 0)->patch, sizeof A.model.t[1].patch);
     A.model.t[1].patch[QD_QP_HARM] = 1500;
     A.model.t[1].edited = 1;
     run(20);
@@ -7418,7 +7421,7 @@ static void g_p15w_refs(void)
     btap(F2);
     btap(QD_B_SAVE);
     run(600);
-    CHECK(A.per.lib[0].patch[QD_QP_HARM] == 1500 && A.proj.sound[k - 1].patch[QD_QP_HARM] == 1500 &&
+    CHECK(LIB(&A, 0)->patch[QD_QP_HARM] == 1500 && POOL(&A.proj, k)->patch[QD_QP_HARM] == 1500 &&
               R(1, 2).sound == k, "REPLACE: the pool's reference (and the step locking it) play the new REF ME");
     CHECK(A.model.t[0].patch[QD_QP_HARM] == harm && !A.model.t[0].edited, "track 1's own sound: its copy as it was");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
@@ -7436,7 +7439,7 @@ static void g_p15w_refs(void)
     btap(QD_B_HOME);
     run(600);
     undo_redo(-1);
-    CHECK(qd_lib_find(&A, id) == 0 && A.proj.sound[k - 1].preset == id && R(1, 2).sound == k &&
+    CHECK(qd_lib_find(&A, id) == 0 && POOL(&A.proj, k)->preset == id && R(1, 2).sound == k &&
               qd_proj_pat(&A.proj, A.seq.cur == 9 ? 10 : 9)->step[2][3].sound == k, "undo: the preset, its reference, the locks "
           "(the other pattern's too)");
 }
@@ -7517,7 +7520,7 @@ static void g_p15x_mix(void)
     btap(QD_B_SAVE);
     btap(QD_B_SAVE);
     run(600);
-    CHECK(A.per.lib[0].pan == 12 && A.per.lib[0].chorus == 1 && A.per.lib[0].delay == 2 && A.per.lib[0].reverb == 3,
+    CHECK(LIB(&A, 0)->pan == 12 && LIB(&A, 0)->chorus == 1 && LIB(&A, 0)->delay == 2 && LIB(&A, 0)->reverb == 3,
           "SAVE (NEW): the track's pan and sends saved with it");
     run(QD_TK_MS + QD_TK_FADE_MS + 10);
     A.model.t[0].mix.reverb = 99;
@@ -7526,9 +7529,9 @@ static void g_p15x_mix(void)
     btap(F2);
     btap(QD_B_SAVE);
     run(600);
-    CHECK(A.per.lib[0].reverb == 99 && !A.per.lib[1].name[0], "REPLACE: its mix too (reverb 99)");
-    k = qd_pool_add_sound(&A, &A.per.lib[0]);           /* a step's sound lock: the sound only */
-    CHECK(k > 0 && A.proj.sound[k - 1].reverb == 99, "(in the pool, its mix in the cache)");
+    CHECK(LIB(&A, 0)->reverb == 99 && !LIB(&A, 1)->name[0], "REPLACE: its mix too (reverb 99)");
+    k = qd_pool_add_sound(&A, LIB(&A, 0));           /* a step's sound lock: the sound only */
+    CHECK(k > 0 && POOL(&A.proj, k)->reverb == 99, "(in the pool, its mix in the cache)");
     A.model.t[1].mix.pan = -30, A.model.t[1].mix.chorus = 4, A.model.t[1].mix.delay = 4, A.model.t[1].mix.reverb = 4;
     qd_ctl_select_track(&A, 1);
     wtap(6);

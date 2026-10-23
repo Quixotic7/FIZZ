@@ -15,6 +15,7 @@
 #include "fonts_gen.h"
 #include "sounds.h"
 #include "ui.h"
+#include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
 #define NSHOT 20
 static qd_app_t A;
@@ -211,8 +212,8 @@ static void pool_put(const char *name)                 /* a preset (factory or M
         }
     }
     for (k = 0; k < QD_NLIB; k++)
-        if (!strcmp(A.per.lib[k].name, name)) {
-            qd_pool_add_sound(&A, &A.per.lib[k]);
+        if (!strcmp(LIB(&A, k)->name, name)) {
+            qd_pool_add_sound(&A, LIB(&A, k));
             return;
         }
 }
@@ -220,7 +221,7 @@ static int pool_num(const char *name)
 {
     int k;
     for (k = 1; k <= QD_NSOUND; k++)
-        if (qd_sound_used(&A.proj, k) && !strcmp(A.proj.sound[k - 1].name, name))
+        if (qd_sound_used(&A.proj, k) && !strcmp(POOL(&A.proj, k)->name, name))
             return k;
     return 1;
 }
@@ -346,10 +347,10 @@ int render_p15t(const char *out, const char *mocks)
     run(200);
     {                                                   /* 14 from DARK BASS (one of MY presets), edited: REPLACE */
         qd_track_t *t = &A.model.t[3];
-        const int slot = qd_lib_find(&A, A.per.lib[1].preset);
-        memcpy(t->patch, A.per.lib[slot].patch, sizeof t->patch);
+        const int slot = qd_lib_find(&A, LIB(&A, 1)->preset);
+        memcpy(t->patch, LIB(&A, slot)->patch, sizeof t->patch);
         strcpy(t->sound_name, "DARK BASS");
-        t->preset = A.per.lib[slot].preset;
+        t->preset = LIB(&A, slot)->preset;
         t->patch[QD_QP_FREQ] = 6000;
         t->edited = 1;
         run(20);

@@ -16,6 +16,7 @@
 #include "scale.h"
 #include "sounds.h"
 #include "ui.h"
+#include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
 #define NSHOT 8
 static qd_app_t A;
@@ -209,7 +210,7 @@ int render_p15w(const char *out)
     qd_quad_preset_patch(14, p);                        /* LEAD X: one of MY presets, in two projects' pools */
     qd_lib_store(&A, 0, "LEAD X", p);
     qd_proj_new(&A, 1);                                 /* (project 2 first: a reference, a locked step) */
-    kp = qd_pool_add_sound(&A, &A.per.lib[0]);
+    kp = qd_pool_add_sound(&A, LIB(&A, 0));
     qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 2, 4);
     qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 2, 4, kp);
     qd_persist_flush(&A);
@@ -219,7 +220,7 @@ int render_p15w(const char *out)
         qd_factory_get(&A, k, &f);
         qd_pool_add_sound(&A, &f);
     }
-    kp = qd_pool_add_sound(&A, &A.per.lib[0]);
+    kp = qd_pool_add_sound(&A, LIB(&A, 0));
     qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 3, 0);
     qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 3, 0, kp);
     qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 3, 8);
@@ -238,9 +239,9 @@ int render_p15w(const char *out)
     run(300);
     {                                                   /* 2 track 4 from LEAD X, edited: SAVE, F2: REPLACE */
         qd_track_t *t = &A.model.t[3];
-        memcpy(t->patch, A.per.lib[0].patch, sizeof t->patch);
+        memcpy(t->patch, LIB(&A, 0)->patch, sizeof t->patch);
         strcpy(t->sound_name, "LEAD X");
-        t->preset = A.per.lib[0].preset;
+        t->preset = LIB(&A, 0)->preset;
         t->patch[QD_QP_EATK] = 0;                       /* (a pluck now: its envelope shows it) */
         t->patch[QD_QP_EDEC] = 24;
         t->patch[QD_QP_ESUS] = 0;

@@ -15,6 +15,7 @@
 #include "app.h"
 #include "qd_gfx.h"
 #include "sounds.h"
+#include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
 static int fails, checks;
 #define CHECK(c, ...)                                     \
@@ -168,7 +169,7 @@ static void feed(const char *path)
             printf("\n");
             if (status() == QD_SX_OK) {
                 const int slot = rslot();
-                const qd_sound_t *snd = R[7] ? &A.proj.sound[slot - 1] : &A.per.lib[slot - 1];
+                const qd_sound_t *snd = R[7] ? POOL(&A.proj, slot) : LIB(&A, slot - 1);
                 printf("name \"%s\"\nvalues", snd->name);
                 for (k = 0; k < QD_QUAD_NP; k++)
                     printf(" %d", snd->patch[k]);
@@ -224,37 +225,37 @@ int main(int argc, char **argv)
     n = store_msg(f, 0, 0, "MY EP", blob2, 33, 0, 64, 0, 0, 0, 0);
     send(f, n);
     k = rslot();
-    CHECK(status() == QD_SX_OK && !R[7] && k == s0 + 1 && !strcmp(A.per.lib[k - 1].name, "MY EP") &&
-              !memcmp(A.per.lib[k - 1].patch, p0, sizeof p0),
+    CHECK(status() == QD_SX_OK && !R[7] && k == s0 + 1 && !strcmp(LIB(&A, k - 1)->name, "MY EP") &&
+              !memcmp(LIB(&A, k - 1)->patch, p0, sizeof p0),
           "STORE, the LIBRARY, the first free (%d): OK, the slot back, the name, the patch byte for byte (DRIVE 33)", k);
-    CHECK(A.per.lib[k - 1].preset >= QD_PRESET_MINE0 && (A.per.lib[k - 1].flags & QD_SNDF_IMPORTED) &&
-              A.per.lib[k - 1].tags == QD_PKB(QD_PK_KEYS), "P1.5t: one of MY presets, imported, its own id, its kind (KEYS)");
+    CHECK(LIB(&A, k - 1)->preset >= QD_PRESET_MINE0 && (LIB(&A, k - 1)->flags & QD_SNDF_IMPORTED) &&
+              LIB(&A, k - 1)->tags == QD_PKB(QD_PK_KEYS), "P1.5t: one of MY presets, imported, its own id, its kind (KEYS)");
     CHECK(A.ui.tk == QD_TK_IMPORT && !strcmp(A.ui.imp_name, "MY EP") && A.ui.imp_slot == k && !A.ui.imp_pool,
           "the panel: the import's takeover (its name, its slot)");
     qd_quad_unpack(blob, QD_QUAD_BLOB5, p1);
     CHECK(!memcmp(p0, p1, sizeof p0), "(the blob as FIZZ packs it unpacks the same)");
     n = store_msg(f, 0, 7, "SEVEN", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
-    CHECK(status() == QD_SX_OK && rslot() == 7 && !strcmp(A.per.lib[6].name, "SEVEN") && !A.per.lib[6].patch[QD_QP_DRIVE],
+    CHECK(status() == QD_SX_OK && rslot() == 7 && !strcmp(LIB(&A, 6)->name, "SEVEN") && !LIB(&A, 6)->patch[QD_QP_DRIVE],
           "STORE into LIBRARY 7: there (DRIVE 0)");
     n = store_msg(f, QD_SXF_POOL, 0, "POOLED", blob2, 5, 0, 64, 0, 0, 0, 0);
     s0 = qd_pool_free_slot(&A.proj);
     send(f, n);
-    CHECK(status() == QD_SX_OK && R[7] == 1 && rslot() == s0 && !strcmp(A.proj.sound[s0 - 1].name, "POOLED") &&
-              A.proj.sound[s0 - 1].patch[QD_QP_DRIVE] == 5,
+    CHECK(status() == QD_SX_OK && R[7] == 1 && rslot() == s0 && !strcmp(POOL(&A.proj, s0)->name, "POOLED") &&
+              POOL(&A.proj, s0)->patch[QD_QP_DRIVE] == 5,
           "STORE, the POOL, the first free (%d)", s0);
     {   /* P1.5w: the pool holds references: a MY preset (imported) made, referenced there */
-        const int m = qd_lib_find(&A, A.proj.sound[s0 - 1].preset);
-        CHECK(A.proj.sound[s0 - 1].tags == QD_PKB(QD_PK_KEYS) && m >= 0 && !strcmp(A.per.lib[m].name, "POOLED") &&
-                  (A.per.lib[m].flags & QD_SNDF_IMPORTED) && A.per.lib[m].patch[QD_QP_DRIVE] == 5,
+        const int m = qd_lib_find(&A, POOL(&A.proj, s0)->preset);
+        CHECK(POOL(&A.proj, s0)->tags == QD_PKB(QD_PK_KEYS) && m >= 0 && !strcmp(LIB(&A, m)->name, "POOLED") &&
+                  (LIB(&A, m)->flags & QD_SNDF_IMPORTED) && LIB(&A, m)->patch[QD_QP_DRIVE] == 5,
               ".. P1.5w: one of MY presets (imported, its tag read), referenced at that number");
     }
     n = store_msg(f, QD_SXF_POOL, 1, "ONE", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
-    CHECK(status() == QD_SX_OK && !strcmp(A.proj.sound[0].name, "ONE"), "the POOL's slot 1: as any other (P1.5t)");
+    CHECK(status() == QD_SX_OK && !strcmp(POOL(&A.proj, 1)->name, "ONE"), "the POOL's slot 1: as any other (P1.5t)");
     n = store_msg(f, 0, 200, "TWO HUNDRED", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
-    CHECK(status() == QD_SX_OK && rslot() == 200 && !strcmp(A.per.lib[199].name, "TWO HUNDRED"),
+    CHECK(status() == QD_SX_OK && rslot() == 200 && !strcmp(LIB(&A, 199)->name, "TWO HUNDRED"),
           "LIBRARY 200: MY presets have 256 places (P1.5t)");
     {   /* P1.5x: the preset keeps the frame's pan and sends (LOAD or not); the tags byte; LOAD applies them */
         int m;
@@ -262,33 +263,36 @@ int main(int argc, char **argv)
                       QD_SXM_REVERB);
         send(f, n);
         m = rslot() - 1;
-        CHECK(status() == QD_SX_OK && A.per.lib[m].pan == -20 && A.per.lib[m].chorus == 11 && A.per.lib[m].delay == 22 &&
-                  A.per.lib[m].reverb == 33 && A.model.t[0].mix.reverb != 33,
+        CHECK(status() == QD_SX_OK && LIB(&A, m)->pan == -20 && LIB(&A, m)->chorus == 11 && LIB(&A, m)->delay == 22 &&
+                  LIB(&A, m)->reverb == 33 && A.model.t[0].mix.reverb != 33,
               "P1.5x: STORE without LOAD: the preset keeps its pan and sends (the track untouched)");
         n = store_msg(f, 0, 0, "NO MIX", blob2, 0, 0, 64, 9, 9, 9, 0);
         send(f, n);
         m = rslot() - 1;
-        CHECK(!A.per.lib[m].pan && !A.per.lib[m].chorus && !A.per.lib[m].delay && !A.per.lib[m].reverb,
+        CHECK(!LIB(&A, m)->pan && !LIB(&A, m)->chorus && !LIB(&A, m)->delay && !LIB(&A, m)->reverb,
               ".. mixmask 0: no sends, pan centre");
         n = store_msg_tags(f, QD_SXF_LOAD, 0, "TAGGED", blob2, 3, 64 + 10, 40, 50, 60, 0x0F,
                            QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX));
         send(f, n);
         m = rslot() - 1;
-        CHECK(status() == QD_SX_OK && A.per.lib[m].tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX)) &&
-                  A.per.lib[m].pan == 10 && A.per.lib[m].reverb == 60 && A.model.t[3].mix.pan == 10 &&
+        CHECK(status() == QD_SX_OK && LIB(&A, m)->tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX)) &&
+                  LIB(&A, m)->pan == 10 && LIB(&A, m)->reverb == 60 && A.model.t[3].mix.pan == 10 &&
                   A.model.t[3].mix.chorus == 40 && A.model.t[3].mix.delay == 50 && A.model.t[3].mix.reverb == 60,
               "the tags byte (133 bytes): PAD, FX; LOAD: track 4 takes its pan and sends");
         n = store_msg_tags(f, 0, 0, "TAGS ZERO", blob2, 0, 64, 0, 0, 0, 0, 0);
         send(f, n);
         m = rslot() - 1;
-        CHECK(status() == QD_SX_OK && A.per.lib[m].tags == QD_PKB(QD_PK_KEYS), ".. a tags byte 0: the classifier's (KEYS)");
+        CHECK(status() == QD_SX_OK && LIB(&A, m)->tags == QD_PKB(QD_PK_KEYS), ".. a tags byte 0: the classifier's (KEYS)");
     }
     n = store_msg(f, 0, 257, "X", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
     CHECK(status() == QD_SX_BAD_SLOT, "LIBRARY 257: BAD SLOT");
     for (k = 0; k < QD_NLIB; k++)                       /* the library full */
-        if (!A.per.lib[k].name[0])
-            strcpy(A.per.lib[k].name, "FULL");
+        if (!LIB(&A, k)->name[0]) {
+            qd_sound_t s = *LIB(&A, k);
+            strcpy(s.name, "FULL");
+            qd_lib_write(&A, k, &s);
+        }
     n = store_msg(f, 0, 0, "NO ROOM", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
     CHECK(status() == QD_SX_FULL && rslot() == 0, "the LIBRARY full: FULL");
@@ -297,7 +301,7 @@ int main(int argc, char **argv)
     CHECK(status() == QD_SX_FULL, "P1.5w: the LIBRARY full: a POOL store FULL too (it needs a MY preset)");
     n = store_msg(f, 0, 9, "OVER", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
-    CHECK(status() == QD_SX_OK && !strcmp(A.per.lib[8].name, "OVER"), ".. a slot given: overwritten");
+    CHECK(status() == QD_SX_OK && !strcmp(LIB(&A, 8)->name, "OVER"), ".. a slot given: overwritten");
 
     fresh();                                            /* the errors: nothing stored */
     s0 = qd_lib_free_slot(&A);
@@ -332,9 +336,9 @@ int main(int argc, char **argv)
     run(600);
     k = rslot();
     qd_undo_step(&A, -1);
-    CHECK(!A.per.lib[k - 1].name[0], "undo: the import gone");
+    CHECK(!LIB(&A, k - 1)->name[0], "undo: the import gone");
     qd_undo_step(&A, 1);
-    CHECK(!strcmp(A.per.lib[k - 1].name, "ONE"), "redo: back");
+    CHECK(!strcmp(LIB(&A, k - 1)->name, "ONE"), "redo: back");
     s0 = qd_undo_count(&A, -1);
     for (i = 0; i < 4; i++) {
         char nm[8];
@@ -347,8 +351,8 @@ int main(int argc, char **argv)
     ok = qd_undo_count(&A, -1) == s0 + 1;
     qd_undo_step(&A, -1);
     for (s0 = 0, k = 0; k < QD_NLIB; k++) {
-        ok &= !(A.per.lib[k].name[0] == 'B' && A.per.lib[k].name[2] == 0);
-        s0 += !strcmp(A.per.lib[k].name, "ONE");
+        ok &= !(LIB(&A, k)->name[0] == 'B' && LIB(&A, k)->name[2] == 0);
+        s0 += !strcmp(LIB(&A, k)->name, "ONE");
     }
     CHECK(ok && s0 == 1, "a batch of four (BATCH on the last three): one undo level, all four gone, ONE kept");
 
@@ -430,9 +434,14 @@ int main(int argc, char **argv)
             }
             snprintf(nm, sizeof nm, "LIST %d", k + 1);
             qd_lib_store(&A, k == 0 ? 1 : k == 1 ? 4 : 8, nm, pp);
-            A.per.lib[k == 0 ? 1 : k == 1 ? 4 : 8].pan = (int8_t)(-20 + k * 10);
-            A.per.lib[k == 0 ? 1 : k == 1 ? 4 : 8].reverb = (uint8_t)(30 + k);
-            A.per.lib[k == 0 ? 1 : k == 1 ? 4 : 8].tags = (uint8_t)(1 << k);
+            {
+                const int at = k == 0 ? 1 : k == 1 ? 4 : 8;
+                qd_sound_t s = *LIB(&A, at);
+                s.pan = (int8_t)(-20 + k * 10);
+                s.reverb = (uint8_t)(30 + k);
+                s.tags = (uint8_t)(1 << k);
+                qd_lib_write(&A, at, &s);
+            }
         }
         {
             const uint8_t lf = 0;
@@ -451,8 +460,8 @@ int main(int argc, char **argv)
                     char nm[13];
                     memcpy(nm, LR + o2 + 6, 12);
                     nm[12] = 0;
-                    ok3 &= LR[o2] == QD_SXS_MINE && !strncmp(nm, A.per.lib[slot - 1].name, strlen(A.per.lib[slot - 1].name)) &&
-                           LR[o2 + 18] == A.per.lib[slot - 1].tags;
+                    ok3 &= LR[o2] == QD_SXS_MINE && !strncmp(nm, LIB(&A, slot - 1)->name, strlen(LIB(&A, slot - 1)->name)) &&
+                           LR[o2 + 18] == LIB(&A, slot - 1)->tags;
                     got++;
                 }
             }
@@ -464,7 +473,7 @@ int main(int argc, char **argv)
             const uint8_t lf = QD_SXL_FACTORY | QD_SXL_POOL;
             int pools = 0;
             for (j = 0; j < QD_NSOUND; j++)
-                pools += A.proj.sound[j].name[0] != 0;
+                pools += POOL(&A.proj, j + 1)->name[0] != 0;
             n = frame(f, QD_SX_LIST, &lf, 1);
             qd_app_sysex(&A, f, n);
             for (got = 0, last = 0, g = 0; g < 100 && !last; g++) {
@@ -482,7 +491,7 @@ int main(int argc, char **argv)
             n = frame(f, QD_SX_DUMP, db, 3);
             qd_app_sysex(&A, f, n);
             dn[nd] = qd_app_sysex_take(&A, D[nd], sizeof D[nd]);
-            want[k] = A.per.lib[slot - 1];
+            want[k] = (*LIB(&A, slot - 1));
             nd++;
         }
         CHECK(dn[0] > 100 && (D[0][5] == QD_SX_STORE || D[0][5] == QD_SX_STORE6) && (D[0][6] & QD_SXF_DUMP) &&
@@ -504,10 +513,10 @@ int main(int argc, char **argv)
                 sum3 += D[k][j];
             D[k][dn[k] - 2] = (uint8_t)((0x80 - (sum3 & 0x7F)) & 0x7F);
             send(D[k] + 1, (uint32_t)dn[k] - 2u);
-            ok3 &= status() == QD_SX_OK && !strcmp(A.per.lib[slot - 1].name, want[k].name) &&
-                   !memcmp(A.per.lib[slot - 1].patch, want[k].patch, sizeof want[k].patch) &&
-                   A.per.lib[slot - 1].tags == want[k].tags && A.per.lib[slot - 1].pan == want[k].pan &&
-                   A.per.lib[slot - 1].reverb == want[k].reverb && A.per.lib[slot - 1].chorus == want[k].chorus;
+            ok3 &= status() == QD_SX_OK && !strcmp(LIB(&A, slot - 1)->name, want[k].name) &&
+                   !memcmp(LIB(&A, slot - 1)->patch, want[k].patch, sizeof want[k].patch) &&
+                   LIB(&A, slot - 1)->tags == want[k].tags && LIB(&A, slot - 1)->pan == want[k].pan &&
+                   LIB(&A, slot - 1)->reverb == want[k].reverb && LIB(&A, slot - 1)->chorus == want[k].chorus;
         }
         CHECK(ok3, "stored back (the flag cleared): the same places, names, patches (110 values), tags, pan, sends");
         {   /* a factory preset: back as a new MY preset */
@@ -527,8 +536,8 @@ int main(int argc, char **argv)
             }
             m = qd_lib_free_slot(&A);
             send(D[0] + 1, (uint32_t)dn[0] - 2u);
-            CHECK(status() == QD_SX_OK && (D[0][7] << 7 | D[0][8]) == 0 && !strcmp(A.per.lib[m].name, fs.name) &&
-                      !memcmp(A.per.lib[m].patch, fs.patch, sizeof fs.patch) && A.per.lib[m].reverb == fs.reverb,
+            CHECK(status() == QD_SX_OK && (D[0][7] << 7 | D[0][8]) == 0 && !strcmp(LIB(&A, m)->name, fs.name) &&
+                      !memcmp(LIB(&A, m)->patch, fs.patch, sizeof fs.patch) && LIB(&A, m)->reverb == fs.reverb,
                   "a factory preset's dump (%s): stored back as a new MY preset, the same sound and sends", fs.name);
         }
         fresh();                                        /* the full library: 256, DUMP them all, paced */
@@ -546,10 +555,14 @@ int main(int argc, char **argv)
                     qd_quad_value_range(j, 0, 0, &pp[j]);
             snprintf(nm, sizeof nm, "ALL %03d", k + 1);
             qd_lib_store(&A, k, nm, pp);
-            A.per.lib[k].pan = (int8_t)((int)(seed % 128u) - 64);
-            A.per.lib[k].chorus = (uint8_t)(k % 128), A.per.lib[k].delay = (uint8_t)((k * 7) % 128);
-            A.per.lib[k].reverb = (uint8_t)((k * 13) % 128), A.per.lib[k].tags = (uint8_t)(1 + k % 127);
-            want[k] = A.per.lib[k];
+            {
+                qd_sound_t s = *LIB(&A, k);
+                s.pan = (int8_t)((int)(seed % 128u) - 64);
+                s.chorus = (uint8_t)(k % 128), s.delay = (uint8_t)((k * 7) % 128);
+                s.reverb = (uint8_t)((k * 13) % 128), s.tags = (uint8_t)(1 + k % 127);
+                qd_lib_write(&A, k, &s);
+            }
+            want[k] = (*LIB(&A, k));
         }
         {
             const uint8_t db[3] = {QD_SXS_MINE, 0, 0};
@@ -575,10 +588,10 @@ int main(int argc, char **argv)
                 sum3 += D[k][j];
             D[k][dn[k] - 2] = (uint8_t)((0x80 - (sum3 & 0x7F)) & 0x7F);
             send(D[k] + 1, (uint32_t)dn[k] - 2u);
-            ok3 &= status() == QD_SX_OK && slot == k + 1 && !strcmp(A.per.lib[k].name, want[k].name) &&
-                   !memcmp(A.per.lib[k].patch, want[k].patch, sizeof want[k].patch) && A.per.lib[k].tags == want[k].tags &&
-                   A.per.lib[k].pan == want[k].pan && A.per.lib[k].chorus == want[k].chorus &&
-                   A.per.lib[k].delay == want[k].delay && A.per.lib[k].reverb == want[k].reverb;
+            ok3 &= status() == QD_SX_OK && slot == k + 1 && !strcmp(LIB(&A, k)->name, want[k].name) &&
+                   !memcmp(LIB(&A, k)->patch, want[k].patch, sizeof want[k].patch) && LIB(&A, k)->tags == want[k].tags &&
+                   LIB(&A, k)->pan == want[k].pan && LIB(&A, k)->chorus == want[k].chorus &&
+                   LIB(&A, k)->delay == want[k].delay && LIB(&A, k)->reverb == want[k].reverb;
         }
         CHECK(ok3, "the 256 stored back into an empty library: every one the same (name, patch, tags, pan, sends)");
     }

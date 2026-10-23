@@ -29,7 +29,7 @@ int qd_br_list(const qd_app_t *a, int src, int kind, int *out)
     const unsigned bit = kind ? QD_PKB(kind - 1) : QD_PK_MASK;   /* (P1.5v: every one with the tag) */
     if (src == QD_BR_POOL) {
         for (k = 1; k <= QD_NSOUND; k++)
-            if (qd_sound_used(&a->proj, k) && (!kind || (a->proj.sound[k - 1].tags & bit)))
+            if (qd_sound_used(&a->proj, k) && (!kind || (qd_sound_tags(&a->proj, k) & bit)))
                 out[n++] = QD_BR_POOL_CODE + k;
         return n;
     }
@@ -41,7 +41,7 @@ int qd_br_list(const qd_app_t *a, int src, int kind, int *out)
                 out[n++] = k;
         }
     for (k = 0; k < QD_NLIB; k++)
-        if (a->per.lib[k].name[0] && (!kind || (a->per.lib[k].tags & bit)))
+        if (qd_lib_used(a, k) && (!kind || (qd_lib_tags(a, k) & bit)))
             out[n++] = QD_BR_MINE_CODE + k;
     return n;
 }
@@ -51,13 +51,13 @@ int qd_br_entry(const qd_app_t *a, int code, qd_sound_t *s)
     if (code >= QD_BR_POOL_CODE) {
         if (!qd_sound_used(&a->proj, code - QD_BR_POOL_CODE))
             return 0;
-        *s = a->proj.sound[code - QD_BR_POOL_CODE - 1];
+        qd_sound_read(&a->proj, code - QD_BR_POOL_CODE, s);
         return 1;
     }
     if (code >= QD_BR_MINE_CODE) {
-        if (code - QD_BR_MINE_CODE >= QD_NLIB || !a->per.lib[code - QD_BR_MINE_CODE].name[0])
+        if (code - QD_BR_MINE_CODE >= QD_NLIB || !qd_lib_used(a, code - QD_BR_MINE_CODE))
             return 0;
-        *s = a->per.lib[code - QD_BR_MINE_CODE];
+        qd_lib_read(a, code - QD_BR_MINE_CODE, s);
         return 1;
     }
     if (code < 0 || code >= QD_NFACTORY)
@@ -87,13 +87,13 @@ static int br_find(const qd_app_t *a, const int *list, int n, int preset, int po
     for (i = 0; i < n; i++) {
         const int c = list[i];
         if (c >= QD_BR_POOL_CODE ? (pool && c - QD_BR_POOL_CODE == pool)
-                                 : c >= QD_BR_MINE_CODE ? preset && a->per.lib[c - QD_BR_MINE_CODE].preset == preset
+                                 : c >= QD_BR_MINE_CODE ? preset && qd_lib_preset(a, c - QD_BR_MINE_CODE) == preset
                                                         : preset == c + 1)
             return i;
     }
     if (preset)                                         /* (in the POOL: the pool sound of that preset) */
         for (i = 0; i < n; i++)
-            if (list[i] >= QD_BR_POOL_CODE && a->proj.sound[list[i] - QD_BR_POOL_CODE - 1].preset == preset)
+            if (list[i] >= QD_BR_POOL_CODE && qd_sound_preset(&a->proj, list[i] - QD_BR_POOL_CODE) == preset)
                 return i;
     return -1;
 }
@@ -355,7 +355,7 @@ static void br_delete(qd_app_t *a)                     /* B11: one of MY presets
     }
     b->del_armed = 0;
     b->fx_snd = s;                                      /* (the one going: its pieces) */
-    if (b->own.sound && b->own.sound <= QD_NSOUND && a->proj.sound[b->own.sound - 1].preset == s.preset)
+    if (b->own.sound && b->own.sound <= QD_NSOUND && qd_sound_preset(&a->proj, b->own.sound) == s.preset)
         b->own.sound = 0;
     qd_preset_delete(a, code - QD_BR_MINE_CODE);        /* (P1.5w: its references with it, their locks to TRACK) */
     b->fx = QD_BRFX_DEL;
@@ -509,7 +509,7 @@ void qd_sv_open(qd_app_t *a)
     v->replace = qd_lib_find(a, t->preset);             /* (from one of MY presets: REPLACE offered) */
     v->choice = 0;                                      /* (P1.5v: NEW first; F2 switches) */
     if (v->replace >= 0) {
-        qd_type_start(a, a->per.lib[v->replace].name, 0);
+        qd_type_start(a, qd_lib_name(a, v->replace), 0);
     } else {                                            /* P1.5y: a namesizer pair, its ideas' first */
         const uint32_t seed = qd_type_seed(a);
         uint32_t s = seed;
@@ -525,12 +525,13 @@ static void sv_done(qd_app_t *a, int slot)
 {
     qd_ui_t *u = &a->ui;
     qd_track_t *t = &a->model.t[a->sel];
-    const qd_sound_t *s = &a->per.lib[slot];
-    memcpy(t->sound_name, s->name, QD_SOUND_NAME);
-    t->preset = s->preset;
+    qd_sound_t s;
+    qd_lib_read(a, slot, &s);
+    memcpy(t->sound_name, s.name, QD_SOUND_NAME);
+    t->preset = s.preset;
     t->sound = 0;
     t->edited = 0;
-    u->tk_snd = *s;
+    u->tk_snd = s;
     if (u->sv.ret_mode != QD_MODE_STEP && u->sv.ret_mode != QD_MODE_IDLE)
         u->mode = u->sv.ret_mode;
     qd_latch_close(a);
@@ -542,9 +543,11 @@ static void sv_done(qd_app_t *a, int slot)
 static void sv_mix(qd_app_t *a, int slot)
 {
     const qd_mix_track_t *m = &a->model.t[a->sel].mix;
-    qd_sound_t *s = &a->per.lib[slot];
-    s->pan = m->pan;
-    s->chorus = m->chorus, s->delay = m->delay, s->reverb = m->reverb;
+    qd_sound_t s;
+    qd_lib_read(a, slot, &s);
+    s.pan = m->pan;
+    s.chorus = m->chorus, s.delay = m->delay, s.reverb = m->reverb;
+    qd_lib_write(a, slot, &s);
     qd_pool_resolve(a);                                 /* (the pool's references: its mix too) */
 }
 
@@ -565,11 +568,11 @@ void qd_sv_replace(qd_app_t *a)
 {
     qd_saveui_t *v = &a->ui.sv;
     char nm[QD_SOUND_NAME];
-    if (v->replace < 0 || !a->per.lib[v->replace].name[0])
+    if (v->replace < 0 || !qd_lib_used(a, v->replace))
         return;                                         /* (factory presets are never replaced) */
     qd_type_trimmed(a, nm);
     if (!nm[0])
-        snprintf(nm, sizeof nm, "%s", a->per.lib[v->replace].name);
+        snprintf(nm, sizeof nm, "%s", qd_lib_name(a, v->replace));
     qd_lib_replace(a, v->replace, nm, a->model.t[a->sel].patch);
     sv_mix(a, v->replace);
     sv_done(a, v->replace);

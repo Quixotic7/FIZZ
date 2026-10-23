@@ -212,12 +212,13 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
     a->undo.join = (flags & QD_SXF_BATCH) != 0;         /* (a batch: the previous import's level goes on) */
     if (pool) {                                         /* P1.5w: a MY preset (imported), referenced at that number */
         const int m = qd_lib_free_slot(a);
-        qd_sound_t *s = &a->proj.sound[slot - 1];
+        qd_sound_t s;
         qd_lib_store_ex(a, m, name, patch, QD_SNDF_IMPORTED);
         qd_undo_snd(a, QD_UNDO_RPOOL, slot);            /* (P2.1: as it was, for the device's undo) */
-        memset(s, 0, sizeof *s);
-        s->preset = a->per.lib[m].preset;
-        strcpy(s->name, "?");
+        memset(&s, 0, sizeof s);
+        s.preset = qd_lib_preset(a, m);
+        strcpy(s.name, "?");
+        qd_sound_write(&a->proj, slot, &s);
         qd_pool_resolve(a);
         lib_slot = m;
     } else {
@@ -225,14 +226,16 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
         lib_slot = slot - 1;
     }
     {   /* P1.5x: the preset keeps the mix the frame gives (mixmask), LOAD or not; the tags byte (nonzero) its tags */
-        qd_sound_t *ls = &a->per.lib[lib_slot];
+        qd_sound_t ls;
         const int mask = b[21];
-        ls->pan = mask & QD_SXM_PAN ? (int8_t)((int)b[17] - 64) : 0;
-        ls->chorus = mask & QD_SXM_CHORUS ? b[18] : 0;
-        ls->delay = mask & QD_SXM_DELAY ? b[19] : 0;
-        ls->reverb = mask & QD_SXM_REVERB ? b[20] : 0;
+        qd_lib_read(a, lib_slot, &ls);
+        ls.pan = mask & QD_SXM_PAN ? (int8_t)((int)b[17] - 64) : 0;
+        ls.chorus = mask & QD_SXM_CHORUS ? b[18] : 0;
+        ls.delay = mask & QD_SXM_DELAY ? b[19] : 0;
+        ls.reverb = mask & QD_SXM_REVERB ? b[20] : 0;
         if (n == body + 2u && (b[body] & QD_PK_MASK))
-            ls->tags = (uint8_t)(b[body] & QD_PK_MASK);
+            ls.tags = (uint8_t)(b[body] & QD_PK_MASK);
+        qd_lib_write(a, lib_slot, &ls);
         qd_pool_resolve(a);
     }
     a->undo.join = 0;
@@ -241,7 +244,7 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
         qd_track_t *t = &a->model.t[track];
         const int mask = b[21];
         qd_track_load_sound(t, pool ? slot : 0, name, patch);
-        t->preset = pool ? a->per.lib[lib_slot].preset : a->per.lib[slot - 1].preset;
+        t->preset = pool ? qd_lib_preset(a, lib_slot) : qd_lib_preset(a, slot - 1);
         if (mask & QD_SXM_PAN)
             t->mix.pan = (int8_t)((int)b[17] - 64);
         if (mask & QD_SXM_CHORUS)
@@ -260,9 +263,9 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
 static int sx_entry(const qd_app_t *a, int src, int k, qd_sound_t *s)
 {
     if (src == QD_SXS_MINE) {
-        if (k < 0 || k >= QD_NLIB || !a->per.lib[k].name[0])
+        if (k < 0 || k >= QD_NLIB || !qd_lib_used(a, k))
             return 0;
-        *s = a->per.lib[k];
+        qd_lib_read(a, k, s);
         return 1;
     }
     if (src == QD_SXS_FACTORY) {
@@ -271,18 +274,44 @@ static int sx_entry(const qd_app_t *a, int src, int k, qd_sound_t *s)
         qd_factory_get(a, k, s);
         return 1;
     }
-    if (k < 0 || k >= QD_NSOUND || !a->proj.sound[k].name[0])
+    if (k < 0 || k >= QD_NSOUND || !qd_sound_used(&a->proj, k + 1))
         return 0;
     {
         int m;
-        *s = a->proj.sound[k];
+        qd_sound_read(&a->proj, k + 1, s);
         m = qd_lib_find(a, s->preset);                  /* (a MY preset's: its mix, its tags, as the preset) */
         if (m >= 0) {
-            s->pan = a->per.lib[m].pan, s->chorus = a->per.lib[m].chorus;
-            s->delay = a->per.lib[m].delay, s->reverb = a->per.lib[m].reverb;
-            s->tags = a->per.lib[m].tags;
-            s->flags = a->per.lib[m].flags;
+            qd_sound_t l;
+            qd_lib_read(a, m, &l);
+            s->pan = l.pan, s->chorus = l.chorus;
+            s->delay = l.delay, s->reverb = l.reverb;
+            s->tags = l.tags;
+            s->flags = l.flags;
         }
+    }
+    return 1;
+}
+/* P2.1: an entry's name, id, tags and flags only (LIST's: no sound read; the rest zeros), 0 none */
+static int sx_head(const qd_app_t *a, int src, int k, qd_sound_t *s)
+{
+    memset(s, 0, sizeof *s);
+    if (src == QD_SXS_MINE) {
+        if (k < 0 || k >= QD_NLIB || !qd_lib_used(a, k))
+            return 0;
+        memcpy(s->name, qd_lib_name(a, k), QD_SOUND_NAME);
+        s->preset = qd_lib_preset(a, k), s->tags = (uint8_t)qd_lib_tags(a, k), s->flags = (uint8_t)qd_lib_flags(a, k);
+        return 1;
+    }
+    if (src == QD_SXS_FACTORY)
+        return sx_entry(a, src, k, s);
+    if (k < 0 || k >= QD_NSOUND || !qd_sound_used(&a->proj, k + 1))
+        return 0;
+    {
+        const int m = qd_lib_find(a, qd_sound_preset(&a->proj, k + 1));
+        memcpy(s->name, qd_sound_name(&a->proj, k + 1), QD_SOUND_NAME);
+        s->preset = qd_sound_preset(&a->proj, k + 1);
+        s->tags = (uint8_t)(m >= 0 ? qd_lib_tags(a, m) : qd_sound_tags(&a->proj, k + 1));
+        s->flags = (uint8_t)(m >= 0 ? qd_lib_flags(a, m) : qd_sound_flags(&a->proj, k + 1));
     }
     return 1;
 }
@@ -291,7 +320,7 @@ static int sx_count(const qd_app_t *a, int src)
     qd_sound_t s;
     int k, n = 0, max = src == QD_SXS_MINE ? QD_NLIB : src == QD_SXS_FACTORY ? QD_NFACTORY : QD_NSOUND;
     for (k = 0; k < max; k++)
-        n += sx_entry(a, src, k, &s);
+        n += sx_head(a, src, k, &s);
     return n;
 }
 
@@ -348,11 +377,11 @@ static int sx_list_part(qd_app_t *a)
             x->job_src++, x->job_at = 0;
             continue;
         }
-        if (sx_entry(a, src, x->job_at, &s)) {
+        if (sx_head(a, src, x->job_at, &s)) {
             int i, inpool = 0;
             const int slot = x->job_at + 1;
-            for (i = 0; i < QD_NSOUND && !inpool; i++)
-                inpool = a->proj.sound[i].name[0] && a->proj.sound[i].preset == s.preset && s.preset;
+            for (i = 1; i <= QD_NSOUND && !inpool; i++)
+                inpool = qd_sound_used(&a->proj, i) && qd_sound_preset(&a->proj, i) == s.preset && s.preset;
             b[o++] = (uint8_t)src;
             b[o++] = (uint8_t)((slot >> 7) & 0x7F), b[o++] = (uint8_t)(slot & 0x7F);
             b[o++] = (uint8_t)((s.preset >> 14) & 0x7F), b[o++] = (uint8_t)((s.preset >> 7) & 0x7F);

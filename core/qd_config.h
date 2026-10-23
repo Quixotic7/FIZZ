@@ -32,6 +32,8 @@
 #define QD_SEQ_NREC 64                 /* resolved trigs waiting (the demos peak at 13) */
 /* ---- the patterns (P2.1: paged; core/seq/pattern.h) */
 #define QD_PAT_RAM 3                   /* in RAM: the playing one, the queued one, one more (a change's old one) */
+/* ---- the sounds (P2.1: the pool's and MY presets' in the store; seq/sounds.h) */
+#define QD_SND_RAM 8                   /* in RAM (their names, ids and tags all: the lists') */
 /* ---- undo (P2.1: a log; app/undo.h) */
 #define QD_UNDO_POOL 16384u            /* the levels and the open gesture's pattern as it was (compressed) */
 #define QD_UNDO_XLOCKS 512             /* the other patterns' locks a pool slot's emptying cleared */
@@ -54,6 +56,7 @@
 #define QD_SEQ_NEV 4096
 #define QD_SEQ_NREC 512
 #define QD_PAT_RAM 64                  /* (every pattern: QD_NPAT) */
+#define QD_SND_RAM 0                   /* (every sound in RAM, as in Phase 1) */
 #define QD_UNDO_POOL 65536u            /* (the levels' differences; the gesture's before: whole copies) */
 #define QD_STRIP_H 240                 /* (the whole screen at once; the pixel test draws it in 40-row strips too) */
 #define QD_UNDO_XLOCKS 2048

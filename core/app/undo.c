@@ -139,14 +139,25 @@ void qd_undo_xlock(qd_app_t *a, int pat, int t, int s, int k, int ovr)
 }
 
 #ifdef QD_UNDO_SLOTS
-/* P2.1: a pool slot (1..128) or a library slot (0..255) as it is now (0: none such) */
-static qd_sound_t *undo_slot(qd_app_t *a, int region, int slot)
+/* P2.1: a pool slot (1..128) or a library slot (0..255) as it is now (0: none such); written back */
+static int undo_slot(qd_app_t *a, int region, int slot, qd_sound_t *out)
+{
+    if (region == QD_UNDO_RPOOL && slot >= 1 && slot <= QD_NSOUND) {
+        qd_sound_read(&a->proj, slot, out);
+        return 1;
+    }
+    if (region == QD_UNDO_RLIB && slot >= 0 && slot < QD_NLIB) {
+        qd_lib_read(a, slot, out);
+        return 1;
+    }
+    return 0;
+}
+static void undo_slot_put(qd_app_t *a, int region, int slot, const qd_sound_t *s)
 {
     if (region == QD_UNDO_RPOOL)
-        return slot >= 1 && slot <= QD_NSOUND ? &a->proj.sound[slot - 1] : 0;
-    if (region == QD_UNDO_RLIB)
-        return slot >= 0 && slot < QD_NLIB ? &a->per.lib[slot] : 0;
-    return 0;
+        qd_sound_write(&a->proj, slot, s);
+    else if (region == QD_UNDO_RLIB)
+        qd_lib_write(a, slot, s);
 }
 #endif
 
@@ -154,9 +165,9 @@ void qd_undo_snd(qd_app_t *a, int region, int slot)
 {
 #ifdef QD_UNDO_SLOTS
     qd_hist_t *u = &a->undo;
-    const qd_sound_t *s = undo_slot(a, region, slot);
+    qd_sound_t s;
     int i;
-    if (!u->open || !s)
+    if (!u->open || !undo_slot(a, region, slot, &s))
         return;
     for (i = 0; i < u->nslot; i++)
         if (u->slot_r[i] == region && u->slot_k[i] == slot)
@@ -166,7 +177,7 @@ void qd_undo_snd(qd_app_t *a, int region, int slot)
         return;
     }
     u->slot_r[u->nslot] = (uint8_t)region, u->slot_k[u->nslot] = (uint8_t)slot;
-    u->slot0[u->nslot] = *s;
+    memcpy(&u->slot0[u->nslot], &s, sizeof s);
     u->nslot++;
 #else
     (void)a, (void)region, (void)slot;
@@ -287,9 +298,12 @@ static uint32_t undo_slots(qd_app_t *a, uint8_t *out)
     uint32_t o = 0;
     int i;
     for (i = 0; i < u->nslot; i++) {
-        const uint8_t *now = (const uint8_t *)undo_slot(a, u->slot_r[i], u->slot_k[i]);
+        qd_sound_t cur;
+        const uint8_t *now = (const uint8_t *)&cur;
         const uint8_t *was = (const uint8_t *)&u->slot0[i];
         uint32_t k, d = 0;
+        if (!undo_slot(a, u->slot_r[i], u->slot_k[i], &cur))
+            continue;
         for (k = 0; k < sizeof(qd_sound_t); k++)
             d |= (uint32_t)(now[k] ^ was[k]);
         if (!d)
@@ -394,8 +408,12 @@ static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
     uint32_t sz[4], o = 0;
     int r, t;
     mem[0] = (uint8_t *)qd_proj_pat(&a->proj, l->pat), sz[0] = sizeof(qd_pattern_t);
+#ifdef QD_UNDO_SLOTS
+    mem[1] = mem[2] = 0, sz[1] = sz[2] = 0;             /* (P2.1: the slots' entries, below; the library's: none) */
+#else
     mem[1] = (uint8_t *)a->proj.sound, sz[1] = sizeof a->proj.sound;
     mem[2] = (uint8_t *)a->per.lib, sz[2] = sizeof a->per.lib;
+#endif
     mem[3] = (uint8_t *)a->proj.mfx, sz[3] = sizeof a->proj.mfx;   /* (P1.6c) */
     for (r = 0; r < 4; r++) {
         uint32_t len;
@@ -405,10 +423,13 @@ static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
             uint32_t i;
             for (i = 0; i + 2u + sizeof(qd_sound_t) <= len; i += 2u + (uint32_t)sizeof(qd_sound_t)) {
                 const uint8_t *e = d + o + 4u + i;
-                qd_sound_t *s = undo_slot(a, e[0], e[1]);
+                qd_sound_t s;
                 uint32_t k;
-                for (k = 0; s && k < sizeof *s; k++)
-                    ((uint8_t *)s)[k] ^= e[2 + k];
+                if (!undo_slot(a, e[0], e[1], &s))
+                    continue;
+                for (k = 0; k < sizeof s; k++)
+                    ((uint8_t *)&s)[k] ^= e[2 + k];
+                undo_slot_put(a, e[0], e[1], &s);
             }
             o += 4u + len;
             continue;

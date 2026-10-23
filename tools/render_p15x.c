@@ -15,6 +15,7 @@
 #include "scale.h"
 #include "sounds.h"
 #include "ui.h"
+#include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
 #define NSHOT 6
 static qd_app_t A;
@@ -198,7 +199,11 @@ int render_p15x(const char *out)
     qd_quad_preset_patch(6, p);                         /* VOX PAD: two tags, its own sends */
     qd_lib_store(&A, 0, "VOX PAD", p);
     qd_tags_set(&A, QD_BR_MINE_CODE, QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_LEAD));
-    A.per.lib[0].chorus = 90, A.per.lib[0].delay = 10, A.per.lib[0].reverb = 120, A.per.lib[0].pan = -20;
+    {
+        qd_sound_t m = *LIB(&A, 0);
+        m.chorus = 90, m.delay = 10, m.reverb = 120, m.pan = -20;
+        qd_lib_write(&A, 0, &m);
+    }
     run(100);
 
     turn(QD_K_PRESETS, 1);                              /* 1 EP: ChoralRoot's sends, KEYS breathing */

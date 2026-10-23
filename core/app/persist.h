@@ -40,7 +40,8 @@ struct qd_app;
 #define QD_FLASH_LIB_SEC 32            /* (256 presets of about 120 bytes: a quarter of it) */
 #define QD_FLASH_PRJ 0x020000u
 #define QD_FLASH_PRJ_SEC 224
-#define QD_SWAP_SEC 256                /* (P2.1: the host's RAM store for the patterns at the device's sizes) */
+#define QD_SWAP_SEC 256                /* (P2.1: the host's RAM store for the patterns and sounds at the device's sizes) */
+#define QD_SWAP_KEYS 1024
 /* the keys: kind << 24 | project << 16 | index */
 enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB, QD_RK_FTAG, QD_RK_MFX };   /* (P1.6c: MIDI FX) */   /* (P1.5v: the factory tags) */
 #define QD_RKEY(kind, p, i) ((uint32_t)(kind) << 24 | (uint32_t)(p) << 16 | (uint32_t)(i))
@@ -54,7 +55,12 @@ typedef struct {
     qd_store_t lib_st, prj_st;
     qds_ent_t lib_ent[QD_LIB_KEYS], prj_ent[QD_PRJ_KEYS];   /* P2.1: their indexes, each sized to what it keeps */
     qd_flash_t fl;
+#if QD_SND_RAM
+    qd_sound_dir_t ldir[QD_NLIB];      /* P2.1: MY presets' directory (the sounds in the store: qd_lib_read) .. */
+    qd_sndc_t sc;                      /* .. the places in RAM the pool's and the library's sounds are read into */
+#else
     qd_sound_t lib[QD_NLIB];           /* MY presets, the library's (name[0] 0: an empty place; .preset its own id) */
+#endif
     uint8_t ftags[QD_NFACTORY];        /* P1.5v: the factory presets' tags as the owner set them (0x80 | tags; 0: the
                                         * classifier's) */
     uint16_t id_next;                  /* P1.5w: the next MY preset id (never one used before: a deleted preset's
@@ -74,7 +80,7 @@ typedef struct {
     /* P2.1: with no flash attached, at the device's sizes on the host (the tests, the tools), the patterns out of RAM
      * go to a RAM store (the device always has its flash: none of this is in its build) */
     qd_store_t swap_st;
-    qds_ent_t swap_ent[QD_NPAT * 2];
+    qds_ent_t swap_ent[QD_SWAP_KEYS];
     uint8_t swap_nor[QD_SWAP_SEC * QDS_SECTOR];
     int swap_on;
 #endif
@@ -86,7 +92,8 @@ void qd_persist_attach(struct qd_app *a, const qd_flash_t *fl);
 void qd_persist_ms(struct qd_app *a);  /* each ms: the looks, the writes (by §7's rules) */
 int qd_persist_flush(struct qd_app *a);   /* everything changed written now (a shutdown, a load); 1 done */
 int qd_persist_dirty(const struct qd_app *a);   /* something is not written yet */
-void qd_persist_io(struct qd_app *a);  /* P2.1: the patterns' backing (pattern.h qd_pat_io_t): the store */
+void qd_persist_io(struct qd_app *a);  /* P2.1: the patterns' and sounds' backing (pattern.h qd_pat_io_t, qd_snd_io_t):
+                                        * the store */
 void qd_persist_prefetch(struct qd_app *a);   /* P2.1: the patterns the sequencer will want read in (each ms) */
 void qd_persist_use(const struct qd_app *a, uint32_t *live_pages, uint32_t *total_pages);   /* the flash meter */
 uint32_t qd_persist_proj_pages(const struct qd_app *a, int p);   /* .. project p's part */
@@ -129,10 +136,19 @@ int qd_lib_store_ex(struct qd_app *a, int slot, const char *name, const int16_t 
 int qd_lib_replace(struct qd_app *a, int slot, const char *name, const int16_t *patch);
 int qd_lib_delete(struct qd_app *a, int slot);
 int qd_lib_find(const struct qd_app *a, int id);
+/* P2.1: MY preset at place i read and written whole (every change through these: at the device's sizes the sounds
+ * are in the store; an empty place reads as zeros); its name, id, tags, flags (the directory's, no reading) */
+void qd_lib_read(const struct qd_app *a, int i, qd_sound_t *out);
+void qd_lib_write(struct qd_app *a, int i, const qd_sound_t *s);
+int qd_lib_used(const struct qd_app *a, int i);
+const char *qd_lib_name(const struct qd_app *a, int i);
+uint16_t qd_lib_preset(const struct qd_app *a, int i);
+int qd_lib_tags(const struct qd_app *a, int i);
+int qd_lib_flags(const struct qd_app *a, int i);
 /* ---- P1.5w: THE POOL HOLDS REFERENCES (PLAN.md P1.5w): a pool slot is a preset id (factory 1..23, MINE 0x100..);
- * proj.sound[k] keeps the preset's name, sound and tags as a cache (what plays; resolved from the library), so a
- * REPLACE plays everywhere. A slot of a pool that could not become a reference (the library full) stays a copy (preset
- * 0) until it can. */
+ * the slot (qd_sound_read) keeps the preset's name, sound and tags as a cache (what plays; resolved from the library),
+ * so a REPLACE plays everywhere. A slot of a pool that could not become a reference (the library full) stays a copy
+ * (preset 0) until it can. */
 void qd_pool_resolve(struct qd_app *a);          /* the current pool's cache from the library (after a library change) */
 void qd_preset_usage(const struct qd_app *a, int id, int *projects, int *steps);   /* the projects whose pools
                                                    * reference it, the steps locking it there (this one's from RAM,

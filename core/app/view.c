@@ -846,7 +846,7 @@ static void fill_browse(const qd_app_t *a, ui_browse_t *v)
             const int m = qd_lib_find(a, ent[d + 2].preset);
             v->e[d + 2].in_pool = 1;
             v->e[d + 2].mine = m >= 0;
-            v->e[d + 2].imported = m >= 0 && (a->per.lib[m].flags & QD_SNDF_IMPORTED);
+            v->e[d + 2].imported = m >= 0 && (qd_lib_flags(a, m) & QD_SNDF_IMPORTED);
         }
     }
     if (n && !v->pool)                                  /* P1.5v: the tray: B10 adds it (+) or takes it out */
@@ -925,7 +925,7 @@ static void draw_picker(const qd_app_t *a)
             v.e[d + 2].track = 1;
             continue;
         }
-        ent[d + 2] = a->proj.sound[list[i] - 1];
+        qd_sound_read(&a->proj, list[i], &ent[d + 2]);
         pr_fill(a, &ent[d + 2], 0, &v.e[d + 2]);
         v.e[d + 2].in_pool = 1;
     }

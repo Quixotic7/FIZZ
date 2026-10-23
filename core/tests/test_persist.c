@@ -20,6 +20,7 @@
 #include "qd_fx.h"
 #include "sounds.h"
 #include "names.h"
+#include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
 static int checks, failed;
 #define CHECK(c, ...) do { checks++; if (!(c)) { failed++; printf("  FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
@@ -109,13 +110,13 @@ static void pages_test(void)
     /* the names from the sound: the factory sounds' and the drums' kinds, twelve letters, the same each time */
     for (k = 0; k < (int)(sizeof NAMES / sizeof NAMES[0]); k++) {
         int j;
-        for (j = 1; j <= G->proj.nsound && strcmp(G->proj.sound[j - 1].name, NAMES[k].name); j++)
+        for (j = 1; j <= G->proj.nsound && strcmp(POOL(&G->proj, j)->name, NAMES[k].name); j++)
             ;
-        ok += qd_sound_kind(G->proj.sound[j - 1].patch) == NAMES[k].kind;
-        qd_sound_autoname(G->proj.sound[j - 1].patch, 0, nm);
-        qd_sound_autoname(G->proj.sound[j - 1].patch, 0, nm2);
+        ok += qd_sound_kind(POOL(&G->proj, j)->patch) == NAMES[k].kind;
+        qd_sound_autoname(POOL(&G->proj, j)->patch, 0, nm);
+        qd_sound_autoname(POOL(&G->proj, j)->patch, 0, nm2);
         okn += !strcmp(nm, nm2) && strlen(nm) <= 12 && strstr(nm, NAMES[k].kind == QD_SK_HAT ? "HAT" : qd_sound_kind_name(NAMES[k].kind));
-        qd_sound_autoname(G->proj.sound[j - 1].patch, 1, nm2);
+        qd_sound_autoname(POOL(&G->proj, j)->patch, 1, nm2);
         okn += strcmp(nm, nm2) != 0;
     }
     CHECK(ok == (int)(sizeof NAMES / sizeof NAMES[0]) && okn == 2 * (int)(sizeof NAMES / sizeof NAMES[0]),
@@ -150,8 +151,8 @@ static void pages_test(void)
     CHECK(qd_view_screen(G) == QD_SCR_SAVE && G->ui.ty.spark && G->ui.ty.sel && !strcmp(G->ui.ty.name, nm) &&
               G->ui.sv.replace < 0, "SAVE: SAVE PRESET, a suggested name (%s), no REPLACE (a factory sound)", nm);
     btap(QD_B_SAVE);
-    CHECK(!strcmp(G->per.lib[0].name, nm) && !memcmp(G->per.lib[0].patch, G->model.t[3].patch, sizeof G->per.lib[0].patch) &&
-              G->per.lib[0].preset >= QD_PRESET_MINE0 && G->model.t[3].preset == G->per.lib[0].preset &&
+    CHECK(!strcmp(LIB(G, 0)->name, nm) && !memcmp(LIB(G, 0)->patch, G->model.t[3].patch, sizeof LIB(G, 0)->patch) &&
+              LIB(G, 0)->preset >= QD_PRESET_MINE0 && G->model.t[3].preset == LIB(G, 0)->preset &&
               !G->model.t[3].edited && !G->ui.latch && G->ui.tk == QD_TK_SAVED,
           "SAVE again: a NEW MY preset (place 1, its own id), the track plays it, not edited; SAVED");
     G->model.t[3].patch[QD_QP_HARM] = 900;              /* edited, then SAVE: REPLACE offered */
@@ -162,8 +163,8 @@ static void pages_test(void)
           "name kept)");
     btap(QD_B_OCTUP);                                   /* (P1.5v: F2 chooses REPLACE, SAVE does it) */
     btap(QD_B_SAVE);
-    CHECK(G->per.lib[0].patch[QD_QP_HARM] == 900 && G->per.lib[0].preset == G->model.t[3].preset &&
-              !G->model.t[3].edited && !G->per.lib[1].name[0], "F2: replaced (the same id), nothing new");
+    CHECK(LIB(G, 0)->patch[QD_QP_HARM] == 900 && LIB(G, 0)->preset == G->model.t[3].preset &&
+              !G->model.t[3].edited && !LIB(G, 1)->name[0], "F2: replaced (the same id), nothing new");
     /* the browser on MY presets: load it onto another track */
     qd_ctl_select_track(G, 1);
     p_run(QD_TK_MS + QD_TK_FADE_MS + 10);
@@ -172,8 +173,8 @@ static void pages_test(void)
     black(8);                                           /* B9: MY PRESETS */
     knob(QD_K_PRESETS, 1);
     btap(QD_B_OCTUP);
-    CHECK(G->model.t[1].preset == G->per.lib[0].preset && G->model.t[1].patch[QD_QP_HARM] == 900 &&
-              qd_proj_pat(&G->proj, G->seq.cur)->snd[1].preset == G->per.lib[0].preset, "B9, a turn, F2: MY preset loaded on track 2");
+    CHECK(G->model.t[1].preset == LIB(G, 0)->preset && G->model.t[1].patch[QD_QP_HARM] == 900 &&
+              qd_proj_pat(&G->proj, G->seq.cur)->snd[1].preset == LIB(G, 0)->preset, "B9, a turn, F2: MY preset loaded on track 2");
 
     /* the project pages */
     btap(QD_B_MIX);
@@ -275,13 +276,13 @@ static void migration_test(void)
     qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, (uint32_t)len - 1u);   /* (no pool byte) */
     qd_store_flush(&A.per.prj_st);
     boot(&B);
-    CHECK(!strcmp(B.per.lib[7].name, "OLD LIB") && B.per.lib[7].preset == QD_PRESET_MINE0 + 7 &&
-              B.per.lib[7].tags == QD_PKB(QD_PK_BASS) && !B.per.lib[7].flags,
-          "a 0.6 library slot: one of MY presets (its id %d, its kind BASS, saved)", B.per.lib[7].preset);
-    CHECK(!strcmp(B.proj.sound[39].name, "EP") && B.proj.sound[39].preset == 2 && B.proj.sound[39].tags == QD_PKB(QD_PK_KEYS),
+    CHECK(!strcmp(LIB(&B, 7)->name, "OLD LIB") && LIB(&B, 7)->preset == QD_PRESET_MINE0 + 7 &&
+              LIB(&B, 7)->tags == QD_PKB(QD_PK_BASS) && !LIB(&B, 7)->flags,
+          "a 0.6 library slot: one of MY presets (its id %d, its kind BASS, saved)", LIB(&B, 7)->preset);
+    CHECK(!strcmp(POOL(&B.proj, 40)->name, "EP") && POOL(&B.proj, 40)->preset == 2 && POOL(&B.proj, 40)->tags == QD_PKB(QD_PK_KEYS),
           "a 0.6 pool sound: kept, knowing its factory preset (EP: 2), its kind");
     for (n = 0, t = 1; t <= QD_NFACTORY; t++)
-        n += qd_sound_used(&B.proj, t) && B.proj.sound[t - 1].preset == t;
+        n += qd_sound_used(&B.proj, t) && POOL(&B.proj, t)->preset == t;
     CHECK(n == QD_NFACTORY && !B.proj.pool_empty, "its absent pool records: the old starting pool, as before (%d)", n);
     CHECK(qd_proj_pat(&B.proj, QD_PAT_START)->trk[2].mfx == 0 && qd_proj_pat(&B.proj, QD_PAT_START)->trk[2].limit ==
               qd_proj_pat(&A.proj, QD_PAT_START)->trk[2].limit, "P1.6c: an older pattern record (42-byte track settings): its tracks' "
@@ -291,7 +292,7 @@ static void migration_test(void)
           qd_proj_pat(&B.proj, QD_PAT_START)->snd[0].preset);
     qd_persist_flush(&B);
     boot(&A);
-    CHECK(A.per.lib[7].preset == QD_PRESET_MINE0 + 7 && qd_proj_pat(&A.proj, QD_PAT_START)->snd[3].preset == 2,
+    CHECK(LIB(&A, 7)->preset == QD_PRESET_MINE0 + 7 && qd_proj_pat(&A.proj, QD_PAT_START)->snd[3].preset == 2,
           "written back as 0.7's records: the same after another restart");
 }
 
@@ -344,8 +345,11 @@ static void tags_test(void)
     memset(FL, 0xFF, sizeof FL);
     boot(&A);
     run(&A, 20);
-    qd_quad_preset_patch(3, A.per.lib[0].patch);        /* (BASS) */
-    qd_lib_store(&A, 0, "TWO TAGS", A.per.lib[0].patch);
+    {
+        int16_t bp[QD_QUAD_NP];
+        qd_quad_preset_patch(3, bp);                    /* (BASS) */
+        qd_lib_store(&A, 0, "TWO TAGS", bp);
+    }
     CHECK(qd_tags_set(&A, QD_BR_MINE_CODE + 0, QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)) &&
               qd_tags_set(&A, 0, QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_LEAD)) &&
               qd_tags_set(&A, QD_BR_POOL_CODE + 2, QD_PKB(QD_PK_DRUMS) | QD_PKB(QD_PK_KEYS)),
@@ -356,12 +360,12 @@ static void tags_test(void)
     qd_persist_flush(&A);
     boot(&B);
     qd_factory_get(&B, 0, &f);
-    CHECK(B.per.lib[0].tags == (QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)) &&
+    CHECK(LIB(&B, 0)->tags == (QD_PKB(QD_PK_BASS) | QD_PKB(QD_PK_FX)) &&
               f.tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_LEAD)) &&
-              B.proj.sound[1].tags == (QD_PKB(QD_PK_DRUMS) | QD_PKB(QD_PK_KEYS)),
+              POOL(&B.proj, 2)->tags == (QD_PKB(QD_PK_DRUMS) | QD_PKB(QD_PK_KEYS)),
           "a restart: the tags kept (MY preset, the factory's, the pool's)");
     qd_factory_get(&B, 1, &f);
-    CHECK(f.tags == (QD_PKB(QD_PK_DRUMS) | QD_PKB(QD_PK_KEYS)) && B.proj.sound[1].preset == 2,
+    CHECK(f.tags == (QD_PKB(QD_PK_DRUMS) | QD_PKB(QD_PK_KEYS)) && POOL(&B.proj, 2)->preset == 2,
           "P1.5w: pool sound 2 is a reference to EP: its tags are EP's");
     qd_factory_get(&B, 2, &f);
     CHECK(!B.per.ftags[2] && f.tags == QD_PKB(qd_tags_first(f.tags)), "another factory preset untouched: the "
@@ -374,7 +378,7 @@ static void tags_test(void)
     qd_store_put(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 0), b, (uint32_t)len);
     qd_store_flush(&B.per.lib_st);
     boot(&A);
-    CHECK(A.per.lib[0].tags == QD_PKB(QD_PK_PAD) && !strcmp(A.per.lib[0].name, "TWO TAGS"),
+    CHECK(LIB(&A, 0)->tags == QD_PKB(QD_PK_PAD) && !strcmp(LIB(&A, 0)->name, "TWO TAGS"),
           "an 'S' 2 record (0.7.0 .. 0.7.1): its kind (PAD) its one tag");
 }
 
@@ -385,7 +389,7 @@ static int count_lib(const qd_app_t *a)
 {
     int k, n = 0;
     for (k = 0; k < QD_NLIB; k++)
-        n += a->per.lib[k].name[0] != 0;
+        n += LIB(a, k)->name[0] != 0;
     return n;
 }
 static int lock_n(const qd_app_t *a, int k)
@@ -408,17 +412,17 @@ static void refs_test(void)
     qd_quad_preset_patch(5, p);
     p[QD_QP_HARM] = 100;
     qd_lib_store(&A, 0, "LEAD X", p);
-    id = A.per.lib[0].preset;
-    k0 = qd_pool_add_sound(&A, &A.per.lib[0]);          /* project 1: a reference, two locks (two patterns) */
+    id = LIB(&A, 0)->preset;
+    k0 = qd_pool_add_sound(&A, LIB(&A, 0));          /* project 1: a reference, two locks (two patterns) */
     qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 1, 2);
     qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 1, 2, k0);
     qd_step_on(qd_proj_pat(&A.proj, 40), 3, 7);
     qd_step_set_sound(qd_proj_pat(&A.proj, 40), 3, 7, k0);
-    CHECK(k0 > 0 && A.proj.sound[k0 - 1].preset == id && A.proj.sound[k0 - 1].patch[QD_QP_HARM] == 100,
+    CHECK(k0 > 0 && POOL(&A.proj, k0)->preset == id && POOL(&A.proj, k0)->patch[QD_QP_HARM] == 100,
           "+ POOL: a reference to LEAD X (its id), its sound the preset's");
     {   /* track 3: loaded from it (its own copy, not edited) */
         qd_track_t *t = &A.model.t[2];
-        qd_track_load_sound(t, 0, "LEAD X", A.per.lib[0].patch);
+        qd_track_load_sound(t, 0, "LEAD X", LIB(&A, 0)->patch);
         t->preset = (uint16_t)id;
         t->edited = 0;
         run(&A, 5);
@@ -426,16 +430,16 @@ static void refs_test(void)
     }
     CHECK(qd_persist_flush(&A), "flushed");
     qd_proj_new(&A, 1);                                 /* project 2: a reference too, a lock */
-    k1 = qd_pool_add_sound(&A, &A.per.lib[0]);
+    k1 = qd_pool_add_sound(&A, LIB(&A, 0));
     qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, 5);
     qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 0, 5, k1);
     run(&A, 5);
     p[QD_QP_HARM] = 1234;                               /* REPLACE (in project 2) */
     qd_lib_replace(&A, 0, "LEAD X", p);
-    CHECK(A.proj.sound[k1 - 1].patch[QD_QP_HARM] == 1234 && qd_sound_patch(&A.proj, k1)[QD_QP_HARM] == 1234,
+    CHECK(POOL(&A.proj, k1)->patch[QD_QP_HARM] == 1234 && qd_sound_patch(&A.proj, k1)[QD_QP_HARM] == 1234,
           "REPLACE: project 2's reference (and its locked step) plays the new LEAD X");
     CHECK(qd_persist_flush(&A) && qd_proj_load(&A, 0), "flushed; project 1 loaded");
-    CHECK(A.proj.sound[k0 - 1].preset == id && A.proj.sound[k0 - 1].patch[QD_QP_HARM] == 1234 &&
+    CHECK(POOL(&A.proj, k0)->preset == id && POOL(&A.proj, k0)->patch[QD_QP_HARM] == 1234 &&
               qd_proj_pat(&A.proj, A.seq.cur)->step[1][2].sound == k0,
           "project 1's reference plays the new LEAD X too, its lock as it was");
     run(&A, 5);
@@ -446,8 +450,8 @@ static void refs_test(void)
     CHECK(qd_persist_flush(&A), "flushed");
     boot(&B);                                           /* a restart */
     G = &B;
-    CHECK(B.per.proj == 0 && B.proj.sound[k0 - 1].preset == id && B.proj.sound[k0 - 1].patch[QD_QP_HARM] == 1234 &&
-              !strcmp(B.proj.sound[k0 - 1].name, "LEAD X"), "a restart: the reference, resolved");
+    CHECK(B.per.proj == 0 && POOL(&B.proj, k0)->preset == id && POOL(&B.proj, k0)->patch[QD_QP_HARM] == 1234 &&
+              !strcmp(POOL(&B.proj, k0)->name, "LEAD X"), "a restart: the reference, resolved");
     {
         uint8_t b[8];
         const int len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_SND, 0, k0), b, sizeof b);
@@ -459,8 +463,8 @@ static void refs_test(void)
               !qd_proj_pat(&B.proj, 40)->step[3][7].sound, "delete (used): the preset, its reference, its locks (both patterns)");
     qd_undo_close(&B);
     qd_undo_step(&B, -1);
-    CHECK(qd_lib_find(&B, id) == 0 && B.proj.sound[k0 - 1].preset == id && lock_n(&B, k0) == 2 &&
-              (qd_proj_pat(&B.proj, 40)->step[3][7].ovr & QD_OV(QD_PM_SOUND)) && B.proj.sound[k0 - 1].patch[QD_QP_HARM] == 1234,
+    CHECK(qd_lib_find(&B, id) == 0 && POOL(&B.proj, k0)->preset == id && lock_n(&B, k0) == 2 &&
+              (qd_proj_pat(&B.proj, 40)->step[3][7].ovr & QD_OV(QD_PM_SOUND)) && POOL(&B.proj, k0)->patch[QD_QP_HARM] == 1234,
           "undo: the preset, its reference, both locks (the other pattern's too) back");
     qd_undo_step(&B, 1);
     CHECK(qd_lib_find(&B, id) < 0 && !qd_sound_used(&B.proj, k0) && !lock_n(&B, k0), "redo: deleted again");
@@ -468,13 +472,13 @@ static void refs_test(void)
     CHECK(!qd_sound_used(&B.proj, k1) && !lock_n(&B, k1) && !(qd_proj_pat(&B.proj, B.seq.cur)->step[0][5].ovr & QD_OV(QD_PM_SOUND)),
           "project 2 as it loads: its reference to the deleted preset dropped, its lock back to TRACK");
     qd_lib_store(&B, 5, "UNUSED", p);
-    id = B.per.lib[5].preset;
+    id = LIB(&B, 5)->preset;
     qd_preset_usage(&B, id, &np, &ns);
-    CHECK(np == 0 && ns == 0 && qd_preset_delete(&B, 5) && !B.per.lib[5].name[0], "an unused one: no use, deleted");
+    CHECK(np == 0 && ns == 0 && qd_preset_delete(&B, 5) && !LIB(&B, 5)->name[0], "an unused one: no use, deleted");
     {
         int id2;
         qd_lib_store(&B, 6, "NEW ONE", p);
-        id2 = B.per.lib[6].preset;
+        id2 = LIB(&B, 6)->preset;
         CHECK(id2 > id, "a new MY preset: an id never used before (%d > %d)", id2, id);
     }
     CHECK(qd_persist_flush(&B), "flushed");
@@ -511,34 +515,34 @@ static void migrate72_test(void)
     qd_persist_flush(&A);
     qd_factory_get(&A, 3, &f);
     put_copy(&A, 0, 30, "MY BASS", f.patch, 0, 0);      /* a factory sound's copy (another name) */
-    put_copy(&A, 0, 31, "A COPY", A.per.lib[0].patch, A.per.lib[0].preset, QD_PKB(QD_PK_PAD));   /* MINE A's */
+    put_copy(&A, 0, 31, "A COPY", LIB(&A, 0)->patch, LIB(&A, 0)->preset, QD_PKB(QD_PK_PAD));   /* MINE A's */
     p[QD_QP_HARM] = 777;
-    put_copy(&A, 0, 32, "MINE A", p, A.per.lib[0].preset, QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX));   /* an edited copy */
+    put_copy(&A, 0, 32, "MINE A", p, LIB(&A, 0)->preset, QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX));   /* an edited copy */
     qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, 0);
     qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 0, 0, 32);
     qd_persist_flush(&A);
     nlib = count_lib(&A);
     boot(&B);
     G = &B;
-    m = qd_lib_find(&B, B.proj.sound[31].preset);
-    CHECK(B.proj.sound[29].preset == 4 && !strcmp(B.proj.sound[29].name, f.name), "a factory sound's copy: a reference "
-          "to it (%s)", B.proj.sound[29].name);
-    CHECK(B.proj.sound[30].preset == B.per.lib[0].preset, "a MY preset's copy: a reference to it");
-    CHECK(m > 0 && !strcmp(B.per.lib[m].name, "MINE A 2") && B.per.lib[m].patch[QD_QP_HARM] == 777 &&
-              B.per.lib[m].tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX)) && count_lib(&B) == nlib + 1 &&
+    m = qd_lib_find(&B, POOL(&B.proj, 32)->preset);
+    CHECK(POOL(&B.proj, 30)->preset == 4 && !strcmp(POOL(&B.proj, 30)->name, f.name), "a factory sound's copy: a reference "
+          "to it (%s)", POOL(&B.proj, 30)->name);
+    CHECK(POOL(&B.proj, 31)->preset == LIB(&B, 0)->preset, "a MY preset's copy: a reference to it");
+    CHECK(m > 0 && !strcmp(LIB(&B, m)->name, "MINE A 2") && LIB(&B, m)->patch[QD_QP_HARM] == 777 &&
+              LIB(&B, m)->tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX)) && count_lib(&B) == nlib + 1 &&
               qd_proj_pat(&B.proj, B.seq.cur)->step[0][0].sound == 32,
-          "another sound: a new MY preset (%s, its tags kept), referenced; its lock as it was", m > 0 ? B.per.lib[m].name : "-");
+          "another sound: a new MY preset (%s, its tags kept), referenced; its lock as it was", m > 0 ? LIB(&B, m)->name : "-");
     {
         int n, k;
         for (n = 0, k = 1; k <= QD_NFACTORY; k++)
-            n += B.proj.sound[k - 1].preset == k;
+            n += POOL(&B.proj, k)->preset == k;
         CHECK(n == QD_NFACTORY, "the demo's starting pool: references to the factory presets (%d)", n);
     }
     qd_persist_flush(&B);
     boot(&A);
     G = &A;
-    CHECK(count_lib(&A) == nlib + 1 && A.proj.sound[31].preset == B.proj.sound[31].preset &&
-              A.proj.sound[29].preset == 4, "again: nothing new, the same references");
+    CHECK(count_lib(&A) == nlib + 1 && POOL(&A.proj, 32)->preset == POOL(&B.proj, 32)->preset &&
+              POOL(&A.proj, 30)->preset == 4, "again: nothing new, the same references");
     {
         uint8_t b[8];
         const int len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SND, 0, 32), b, sizeof b);
@@ -558,10 +562,14 @@ static void mix_test(void)
     run(&A, 20);
     qd_quad_preset_patch(2, p);
     qd_lib_store(&A, 3, "MIXED", p);
-    A.per.lib[3].pan = -25, A.per.lib[3].chorus = 9, A.per.lib[3].delay = 19, A.per.lib[3].reverb = 29;
+    {
+        qd_sound_t m = *LIB(&A, 3);
+        m.pan = -25, m.chorus = 9, m.delay = 19, m.reverb = 29;
+        qd_lib_write(&A, 3, &m);
+    }
     qd_persist_flush(&A);
     boot(&B);
-    CHECK(B.per.lib[3].pan == -25 && B.per.lib[3].chorus == 9 && B.per.lib[3].delay == 19 && B.per.lib[3].reverb == 29,
+    CHECK(LIB(&B, 3)->pan == -25 && LIB(&B, 3)->chorus == 9 && LIB(&B, 3)->delay == 19 && LIB(&B, 3)->reverb == 29,
           "P1.5x: a restart: a MY preset's pan and sends kept");
     len = qd_store_get(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 3), b, sizeof b);
     len = snd_to_v5(b, len);
@@ -569,8 +577,8 @@ static void mix_test(void)
     qd_store_put(&B.per.lib_st, QD_RKEY(QD_RK_LIB, 0, 3), b, (uint32_t)len - 4u);   /* (0.7.3's: no mix) */
     qd_store_flush(&B.per.lib_st);
     boot(&A);
-    CHECK(!strcmp(A.per.lib[3].name, "MIXED") && !A.per.lib[3].pan && !A.per.lib[3].chorus && !A.per.lib[3].delay &&
-              !A.per.lib[3].reverb, "an 'S' 3 record (0.7.3 and older): no sends, pan centre");
+    CHECK(!strcmp(LIB(&A, 3)->name, "MIXED") && !LIB(&A, 3)->pan && !LIB(&A, 3)->chorus && !LIB(&A, 3)->delay &&
+              !LIB(&A, 3)->reverb, "an 'S' 3 record (0.7.3 and older): no sends, pan centre");
 }
 
 /* P1.6d: the tracks' kinds and names, AUTOMATION, kept across a restart; a 0.9.0 header (none of them): the default
@@ -702,10 +710,70 @@ static void paging_test(void)
           (unsigned)A.proj.pat_saves);
 }
 
+/* P2.1: the pool's and MY presets' sounds paged (at the device's sizes QD_SND_RAM of them in RAM, the rest in the
+ * store): 200 presets stored, 100 pool slots referencing them, tags set, one replaced (its references follow), one
+ * deleted with its references; read back in another order: each as it was; a restart from the flash: the same */
+static void sound_paging_test(void)
+{
+    static qd_sound_t want_lib[QD_NLIB], want_pool[QD_NSOUND];
+    int k, ok, n0;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    for (k = 0; k < 200; k++) {
+        int16_t p[QD_QUAD_NP];
+        char nm[QD_SOUND_NAME];
+        qd_quad_preset_patch(k % 17, p);
+        p[QD_QP_HARM] = (int16_t)(10 + k);
+        snprintf(nm, sizeof nm, "PG %03d", k);
+        qd_lib_store(&A, k, nm, p);
+    }
+    n0 = A.proj.nsound;
+    for (k = 0; k < 100; k++) {
+        const qd_sound_t s = *LIB(&A, 199 - k);
+        qd_pool_add_sound(&A, &s);
+    }
+    for (k = 0; k < 200; k += 7)
+        qd_tags_set(&A, QD_BR_MINE_CODE + k, QD_PKB(k % QD_NPK) | QD_PKB(QD_PK_FX));
+    {
+        int16_t p[QD_QUAD_NP];
+        qd_quad_preset_patch(9, p);
+        p[QD_QP_HARM] = 1234;
+        qd_lib_replace(&A, 190, "PG REPL", p);          /* (pool slot n0 + 10 references it) */
+    }
+    qd_preset_delete(&A, 180);                          /* (.. and n0 + 20 this one: gone with it) */
+    qd_undo_close(&A);
+    for (k = 0; k < QD_NLIB; k++)
+        want_lib[k] = *LIB(&A, k);
+    for (k = 1; k <= QD_NSOUND; k++)
+        want_pool[k - 1] = *POOL(&A.proj, k);
+    for (ok = 0, k = QD_NSOUND; k >= 1; k--)
+        ok += !memcmp(POOL(&A.proj, k), &want_pool[k - 1], sizeof want_pool[0]);
+    for (k = QD_NLIB - 1; k >= 0; k--)
+        ok += !memcmp(LIB(&A, k), &want_lib[k], sizeof want_lib[0]);
+    CHECK(ok == QD_NSOUND + QD_NLIB && n0 > 0 && POOL(&A.proj, n0 + 10)->patch[QD_QP_HARM] == 1234 &&
+              !strcmp(POOL(&A.proj, n0 + 10)->name, "PG REPL") && !qd_sound_used(&A.proj, n0 + 20) &&
+              !qd_lib_used(&A, 180) && LIB(&A, 7)->tags == (QD_PKB(7 % QD_NPK) | QD_PKB(QD_PK_FX)),
+          "P2.1: 200 presets, 100 pool references, tags, a REPLACE, a delete: read back in another order, each as it "
+          "was (%d of %d)", ok, QD_NSOUND + QD_NLIB);
+#if QD_SND_RAM
+    CHECK(A.per.sc.loads > 0 && A.per.sc.saves > 0, "P2.1: %d of them in RAM: read in %u times, given up %u times",
+          QD_SND_RAM, (unsigned)A.per.sc.loads, (unsigned)A.per.sc.saves);
+#endif
+    qd_persist_flush(&A);
+    boot(&B);
+    for (ok = 0, k = 1; k <= QD_NSOUND; k++)
+        ok += !memcmp(POOL(&B.proj, k), &want_pool[k - 1], sizeof want_pool[0]);
+    for (k = 0; k < QD_NLIB; k++)
+        ok += !memcmp(LIB(&B, k), &want_lib[k], sizeof want_lib[0]);
+    CHECK(ok == QD_NSOUND + QD_NLIB && B.proj.nsound == A.proj.nsound,
+          "P2.1: a restart from the flash: every pool sound and MY preset the same (%d of %d)", ok, QD_NSOUND + QD_NLIB);
+}
+
 int main(void)
 {
     static qd_project_t keep;
     static qd_pattern_t keep_pat[QD_NPAT];             /* (P2.1: the 64 patterns, out of RAM or not) */
+    static qd_sound_t keep_snd[QD_NSOUND];             /* (P2.1: the pool's 128 sounds, the same) */
     int k, ok, t;
 
     /* a fresh flash: the first project, its demos, written */
@@ -751,9 +819,13 @@ int main(void)
         p[QD_QP_DRIVE] = (int16_t)(k % 30);
         snprintf(nm, sizeof nm, "S%03d", k);
         qd_lib_store(&A, 100 + k, nm, p);               /* (P1.5w: the pool references presets: MY ones here) */
-        memset(&A.proj.sound[k - 1], 0, sizeof A.proj.sound[k - 1]);
-        strcpy(A.proj.sound[k - 1].name, nm);
-        A.proj.sound[k - 1].preset = A.per.lib[100 + k].preset;
+        {
+            qd_sound_t s;
+            memset(&s, 0, sizeof s);
+            strcpy(s.name, nm);
+            s.preset = LIB(&A, 100 + k)->preset;
+            qd_sound_write(&A.proj, k, &s);
+        }
     }
     qd_pool_resolve(&A);
     A.model.t[3].mix.level = 77;
@@ -771,6 +843,8 @@ int main(void)
     keep = A.proj;
     for (k = 0; k < QD_NPAT; k++)
         keep_pat[k] = *qd_proj_cpat(&A.proj, k);
+    for (k = 1; k <= QD_NSOUND; k++)
+        qd_sound_read(&A.proj, k, &keep_snd[k - 1]);
     {
         uint32_t live, total;
         qd_persist_use(&A, &live, &total);
@@ -783,7 +857,9 @@ int main(void)
     for (k = 0, ok = 0; k < QD_NPAT; k++)
         ok += !memcmp(&keep_pat[k], qd_proj_cpat(&B.proj, k), sizeof keep_pat[k]);
     CHECK(ok == QD_NPAT, "a restart: the 64 patterns as they were (%d same)", ok);
-    CHECK(!memcmp(keep.sound, B.proj.sound, sizeof keep.sound) && B.proj.nsound == keep.nsound,
+    for (k = 1, ok = 0; k <= QD_NSOUND; k++)
+        ok += !memcmp(&keep_snd[k - 1], POOL(&B.proj, k), sizeof keep_snd[k - 1]);
+    CHECK(ok == QD_NSOUND && B.proj.nsound == keep.nsound,
           "the pool's 128 sounds (DRIVE among them)");
     CHECK(B.model.t[3].mix.level == 77 && B.model.t[3].mix.pan == -20 && B.proj.rec_quant == 35 &&
               qd_fx_get(QD_FXP_RSIZE) == 33 && B.ui.knobs == QD_KNOBS_C,
@@ -832,24 +908,27 @@ int main(void)
                 }
                 src += qd_proj_pat(&B.proj, k)->snd[t].sound == 31 && k == 20;
             }
-        CHECK(locks_a == 1 && locks_b == 1 && src == 1 && !strcmp(B.proj.sound[30].name, "S030"),
+        CHECK(locks_a == 1 && locks_b == 1 && src == 1 && !strcmp(POOL(&B.proj, 31)->name, "S030"),
               "pool move (30 <-> 31): the locks in every pattern and the track source follow");
-        CHECK(qd_pool_delete(&B, 1) && !B.proj.sound[0].name[0], "P1.5t: slot 1 as any other: deleted");
-        CHECK(qd_pool_delete(&B, 31) && qd_proj_pat(&B.proj, 3)->step[2][4].sound == 0 && !B.proj.sound[30].name[0] &&
+        CHECK(qd_pool_delete(&B, 1) && !POOL(&B.proj, 1)->name[0], "P1.5t: slot 1 as any other: deleted");
+        CHECK(qd_pool_delete(&B, 31) && qd_proj_pat(&B.proj, 3)->step[2][4].sound == 0 && !POOL(&B.proj, 31)->name[0] &&
                   qd_proj_pat(&B.proj, 20)->snd[1].sound == 0,
               "pool delete: the locks back to the track's sound, the track keeps its copy");
-        CHECK(qd_pool_copy(&B, 5, 31) && !strcmp(B.proj.sound[30].name, B.proj.sound[4].name), "pool copy 5 -> 31");
+        CHECK(qd_pool_copy(&B, 5, 31) && !strcmp(POOL(&B.proj, 31)->name, POOL(&B.proj, 5)->name), "pool copy 5 -> 31");
     }
     /* MY presets: store, replace, delete, kept (256 places) */
     {
         int16_t p[QD_QUAD_NP];
         int id9;
         qd_quad_preset_patch(10, p);
-        for (k = 0; k < QD_NLIB; k++)
-            memset(&B.per.lib[k], 0, sizeof B.per.lib[k]);
+        for (k = 0; k < QD_NLIB; k++) {
+            qd_sound_t z;
+            memset(&z, 0, sizeof z);
+            qd_lib_write(&B, k, &z);
+        }
         CHECK(qd_lib_free_slot(&B) == 0 && qd_lib_store(&B, 0, "WOB BASS", p), "MY presets: the first free place (1)");
         qd_lib_store(&B, 9, "WOB TWO", p);
-        id9 = B.per.lib[9].preset;
+        id9 = LIB(&B, 9)->preset;
         p[QD_QP_HARM] = 500;
         qd_lib_replace(&B, 9, "WOB REPL", p);
         qd_lib_store(&B, 2, "GONE", p);
@@ -857,11 +936,11 @@ int main(void)
         qd_lib_store(&B, 255, "THE LAST", p);
         CHECK(qd_persist_flush(&B), "flushed");
         boot(&A);
-        CHECK(!strcmp(A.per.lib[0].name, "WOB BASS") && !strcmp(A.per.lib[9].name, "WOB REPL") &&
-                  A.per.lib[9].preset == id9 && A.per.lib[9].patch[QD_QP_HARM] == 500 && !A.per.lib[2].name[0] &&
-                  !strcmp(A.per.lib[255].name, "THE LAST") && A.per.lib[0].patch[QD_QP_DRIVE] == 10 &&
-                  A.per.lib[0].tags == QD_PKB(QD_PK_BASS) && A.per.lib[0].preset >= QD_PRESET_MINE0 &&
-                  A.per.lib[0].preset != A.per.lib[9].preset && !strcmp(A.proj.sound[30].name, A.proj.sound[4].name),
+        CHECK(!strcmp(LIB(&A, 0)->name, "WOB BASS") && !strcmp(LIB(&A, 9)->name, "WOB REPL") &&
+                  LIB(&A, 9)->preset == id9 && LIB(&A, 9)->patch[QD_QP_HARM] == 500 && !LIB(&A, 2)->name[0] &&
+                  !strcmp(LIB(&A, 255)->name, "THE LAST") && LIB(&A, 0)->patch[QD_QP_DRIVE] == 10 &&
+                  LIB(&A, 0)->tags == QD_PKB(QD_PK_BASS) && LIB(&A, 0)->preset >= QD_PRESET_MINE0 &&
+                  LIB(&A, 0)->preset != LIB(&A, 9)->preset && !strcmp(POOL(&A.proj, 31)->name, POOL(&A.proj, 5)->name),
               "a restart: MY presets (their ids, kinds; replace kept the id; place 256) and the pool's changes kept");
     }
     /* the projects */
@@ -899,7 +978,7 @@ int main(void)
             sum += i > 4 ? f[i] : 0;
         f[n++] = (uint8_t)((0x80u - (sum & 0x7Fu)) & 0x7Fu);
         qd_app_sysex(&A, f, n);
-        CHECK(!strcmp(A.per.lib[99].name, "SX KEEP"), "a SysEx import into LIBRARY 100");
+        CHECK(!strcmp(LIB(&A, 99)->name, "SX KEEP"), "a SysEx import into LIBRARY 100");
     }
     A.ui.view = QD_VIEW_STEPS;                          /* (P1.5s: the user's view kept) */
     qd_persist_flush(&A);
@@ -907,10 +986,11 @@ int main(void)
     CHECK(B.ui.view == QD_VIEW_STEPS, "a restart: the view kept (STEPS; P1.5s)");
     CHECK(B.per.proj == 0 && B.per.pexists[4] && !B.per.pexists[2] && !strcmp(B.per.pname[4], "MY SONG"),
           "a restart: project 1 worked on, 5 kept, 3 gone");
-    CHECK(!strcmp(B.per.lib[99].name, "SX KEEP"), "a restart: the SysEx import kept (P1.5r)");
+    CHECK(!strcmp(LIB(&B, 99)->name, "SX KEEP"), "a restart: the SysEx import kept (P1.5r)");
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
     pages_test();
     paging_test();
+    sound_paging_test();
     migration_test();
     mfx_test();
     tags_test();
