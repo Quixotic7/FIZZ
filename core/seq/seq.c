@@ -184,7 +184,7 @@ static void cur_enter(qd_seq_t *s, qd_tcur_t *c, int pat, int64_t x)
     c->n = 0;
     c->idx = 0;
     if (c->dir < 0 && t >= 0 && t < QD_PAT_NTRACK)      /* P1.3w: in reverse, from the loop's last position */
-        c->idx = len_of(&s->proj->pat[pat], t) - 1;
+        c->idx = len_of(qd_proj_pat(s->proj, pat), t) - 1;
     c->pass = 0;
     c->pre = 0;
 }
@@ -518,7 +518,7 @@ static void resolve_one(qd_seq_t *s, int t)
     int64_t L, g0, n0;
     int len, step, fn = 0;
     cur_fix(s, c);
-    P = &s->proj->pat[c->pat];
+    P = qd_proj_pat(s->proj, c->pat);
     L = L_of(P, t);
     len = len_of(P, t);
     if (c->idx >= len || c->idx < 0) {                  /* (the loop shortened under the cursor) */
@@ -609,9 +609,9 @@ static void start_at(qd_seq_t *s, int pat)
         s->skip_n[t] = 0;
     }
     if (!s->ext)
-        qd_seq_tempo_mbpm(s, (int32_t)s->proj->pat[pat].bpm * 1000);
+        qd_seq_tempo_mbpm(s, (int32_t)qd_proj_pat(s->proj, pat)->bpm * 1000);
     if (s->nchain > 1) {
-        const int64_t m = qd_pat_master_ticks(&s->proj->pat[pat]);
+        const int64_t m = qd_pat_master_ticks(qd_proj_pat(s->proj, pat));
         if (m > 0)
             schedule(s, m, s->chain[1], 1);
     }
@@ -681,7 +681,7 @@ int64_t qd_seq_tick(const qd_seq_t *s) { return s->pos / QD_SUB; }
 
 static int64_t next_boundary(const qd_seq_t *s, int64_t tick)
 {
-    const int64_t m = qd_pat_master_ticks(&s->proj->pat[s->cur]);
+    const int64_t m = qd_pat_master_ticks(qd_proj_pat(s->proj, s->cur));
     if (m <= 0)
         return -1;
     return s->origin + ((tick - s->origin) / m + 1) * m;
@@ -708,7 +708,7 @@ void qd_seq_select_at(qd_seq_t *s, int pat, int launch)
         s->cur = pat;
         s->sw_pat = -1;
         if (!s->ext)
-            qd_seq_tempo_mbpm(s, (int32_t)s->proj->pat[pat].bpm * 1000);
+            qd_seq_tempo_mbpm(s, (int32_t)qd_proj_pat(s->proj, pat)->bpm * 1000);
         return;
     }
     {
@@ -784,10 +784,10 @@ static void take_switch(qd_seq_t *s)
     s->sw_pat = -1;
     s->sw_cpos = -1;
     if (!s->ext)
-        qd_seq_tempo_mbpm(s, (int32_t)s->proj->pat[s->cur].bpm * 1000);
+        qd_seq_tempo_mbpm(s, (int32_t)qd_proj_pat(s->proj, s->cur)->bpm * 1000);
     if (s->nchain > 1) {
         const int np = (s->cpos + 1) % s->nchain;
-        const int64_t m = qd_pat_master_ticks(&s->proj->pat[s->cur]);
+        const int64_t m = qd_pat_master_ticks(qd_proj_pat(s->proj, s->cur));
         if (m > 0)
             schedule(s, x + m, s->chain[np], np);
     }
@@ -800,7 +800,7 @@ static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq
     int64_t off = d <= 0 || adv <= 0 ? 0 : (d + adv - 1) / adv;
     const int t = e->track;
     const qd_trec_t *r = e->rec >= 0 ? &s->rec[e->rec] : 0;
-    const qd_pattern_t *P = &s->proj->pat[r ? r->pat : s->cur_t[t].pat];
+    const qd_pattern_t *P = qd_proj_pat(s->proj, r ? r->pat : s->cur_t[t].pat);
     qd_seq_ev_t o;
     int k;
     off = off > QD_SEQ_BLOCK - 1 ? QD_SEQ_BLOCK - 1 : off;
@@ -909,7 +909,7 @@ void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
         for (;;) {
             qd_tcur_t *c = &s->cur_t[t];
             cur_fix(s, c);
-            if (c->g >= tend + 2 * L_of(&s->proj->pat[c->pat], t) || n++ > 4096)
+            if (c->g >= tend + 2 * L_of(qd_proj_pat(s->proj, c->pat), t) || n++ > 4096)
                 break;
             resolve_one(s, t);
         }
@@ -961,7 +961,7 @@ void qd_seq_midi_stop(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
     all_off(s, out, ctx);
     for (t = 0; t < QD_PAT_NTRACK; t++) {
         qd_tcur_t *c = &s->cur_t[t];
-        const qd_pattern_t *P = &s->proj->pat[c->pat];
+        const qd_pattern_t *P = qd_proj_pat(s->proj, c->pat);
         const int64_t L = L_of(P, t);
         const int len = len_of(P, t);
         while (c->n > 0 && c->g - L >= now) {
@@ -1032,8 +1032,8 @@ const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t)
     if (t < 0 || t >= QD_PAT_NTRACK)
         t = 0;
     if (!s->playing)
-        return &s->proj->pat[s->cur];
-    return &s->proj->pat[s->cur_t[t].origin > s->pos / QD_SUB ? s->cur : s->cur_t[t].pat];
+        return qd_proj_pat(s->proj, s->cur);
+    return qd_proj_pat(s->proj, s->cur_t[t].origin > s->pos / QD_SUB ? s->cur : s->cur_t[t].pat);
 }
 
 double qd_seq_track_pos(const qd_seq_t *s, int t)
@@ -1044,13 +1044,13 @@ double qd_seq_track_pos(const qd_seq_t *s, int t)
     if (t < 0 || t >= QD_PAT_NTRACK || !s->playing)
         return 0.0;
     c = &s->cur_t[t];
-    P = &s->proj->pat[c->pat];
+    P = qd_proj_pat(s->proj, c->pat);
     len = (double)len_of(P, t);
     {
         const double T = (double)s->pos / QD_SUB, L = (double)L_of(P, t);
         if (c->origin > T) {                            /* (the cursor is in the next pattern already: the old one's
                                                          * head, from that pattern's start) */
-            const qd_pattern_t *Q = &s->proj->pat[s->cur];
+            const qd_pattern_t *Q = qd_proj_pat(s->proj, s->cur);
             const double LQ = (double)L_of(Q, t), lq = (double)len_of(Q, t);
             x = (T - (double)s->origin) / LQ;
             x -= lq * (double)(int64_t)(x / lq);
@@ -1097,7 +1097,7 @@ void qd_seq_preview(qd_seq_t *s, int t, const int16_t *patch)
         qd_trec_t *r = &s->rec[i];
         if (!r->used || r->track != t || r->sound)
             continue;
-        memcpy(r->patch, patch ? patch : s->proj->pat[r->pat].snd[t].patch, sizeof r->patch);
+        memcpy(r->patch, patch ? patch : qd_proj_pat(s->proj, r->pat)->snd[t].patch, sizeof r->patch);
         for (k = 0; k < r->nlk; k++)
             if (r->lk_id[k] < QD_QUAD_NP)
                 r->patch[r->lk_id[k]] = r->lk_v[k];
@@ -1112,7 +1112,7 @@ void qd_seq_step_rec(const qd_seq_t *s, int pat, int t, int step, qd_trec_t *r)
     memset(r, 0, sizeof *r);
     if (pat < 0 || pat >= QD_NPAT || t < 0 || t >= QD_PAT_NTRACK || step < 0 || step >= QD_NSTEP)
         return;
-    P = &s->proj->pat[pat];
+    P = qd_proj_pat(s->proj, pat);
     memset(&c, 0, sizeof c);
     c.pat = pat;
     qd_step_resolve(P, t, step, &st);

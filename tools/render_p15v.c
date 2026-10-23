@@ -231,12 +231,12 @@ int render_p15v(const char *out)
     black(9);                                           /* 4 in: a full tray */
     run(1100);
     shot("in", "B10: in the pool (a full tray; B10 breathing: it takes it out)", 1);
-    qd_step_on(&A.proj.pat[A.seq.cur], 3, 2);           /* 5 OUT?: steps use it */
-    qd_step_set_sound(&A.proj.pat[A.seq.cur], 3, 2, qd_br_pool_k(&A));
-    qd_step_on(&A.proj.pat[A.seq.cur], 3, 6);
-    qd_step_set_sound(&A.proj.pat[A.seq.cur], 3, 6, qd_br_pool_k(&A));
-    qd_step_on(&A.proj.pat[A.seq.cur], 1, 4);
-    qd_step_set_sound(&A.proj.pat[A.seq.cur], 1, 4, qd_br_pool_k(&A));
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 3, 2);           /* 5 OUT?: steps use it */
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 3, 2, qd_br_pool_k(&A));
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 3, 6);
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 3, 6, qd_br_pool_k(&A));
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 1, 4);
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 1, 4, qd_br_pool_k(&A));
     run(50);
     black(9);
     run(300);

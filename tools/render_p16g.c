@@ -187,7 +187,7 @@ int render_p16g(const char *out)
     run(300);
     qd_seq_select(&A.seq, 4, 1);
     run(50);
-    A.proj.pat[A.seq.cur].trk[0].mfx = 1;
+    qd_proj_pat(&A.proj, A.seq.cur)->trk[0].mfx = 1;
     G = &A.proj.mfx[0];
     s = &G->slot[0];
     qd_mfx_slot_init(s, QD_MFX_ARP);

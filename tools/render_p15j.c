@@ -156,7 +156,7 @@ static void sheet_as(const char *file, const char *title)
 
 /* ---------------------------------------------------------------- the script */
 static void set(int id, int v) { qd_player_live_edit(&A.player, A.sel, id, v); }
-static void lock(int s, int id, int v) { qd_lock_set(&A.proj.pat[A.seq.cur], A.sel, s, id, v); }
+static void lock(int s, int id, int v) { qd_lock_set(qd_proj_pat(&A.proj, A.seq.cur), A.sel, s, id, v); }
 int render_p15j(const char *out)
 {
     static const int ALG[2] = {1, 7}, MIX[3] = {-64, 0, 63};
@@ -179,7 +179,7 @@ int render_p15j(const char *out)
     qd_app_key(&A, WK(4), 0, 0);
     bup(QD_B_MIX);
     run(100);
-    qd_step_on(&A.proj.pat[A.seq.cur], 0, 0);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, 0);
     btap(QD_B_SOUND);
     /* the owner's screen: algorithm 5, C 11.00 and B 4.00 over 12.00 locked on the step, MIX -40 */
     A.ui.snd_page = qd_snd_page_of("RATIO");

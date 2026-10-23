@@ -252,8 +252,8 @@ int render_p15t(const char *out, const char *mocks)
     for (k = 0; k < 8; k++)
         pool_put(POOL[k]);
     for (k = 0; k < 6; k++) {                           /* six steps lock SOFT KEYS */
-        qd_step_on(&A.proj.pat[A.seq.cur], 3, k * 2);
-        qd_step_set_sound(&A.proj.pat[A.seq.cur], 3, k * 2, pool_num("SOFT KEYS"));
+        qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 3, k * 2);
+        qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 3, k * 2, pool_num("SOFT KEYS"));
     }
     run(30);
     btap(QD_B_HOME);

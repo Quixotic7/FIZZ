@@ -279,6 +279,15 @@ void qd_demo_pattern(qd_pattern_t *p, int k)
 void qd_demo_load(qd_project_t *pr)
 {
     int k;
-    for (k = 0; k < QD_DEMO_N; k++)
-        qd_demo_pattern(&pr->pat[k], k);
+    pr->demo = 1;                                       /* (P2.1: the patterns' defaults are the demos) */
+    for (k = 0; k < QD_DEMO_N; k++) {
+#if QD_PAT_RAM < QD_NPAT
+        if (!qd_proj_resident(pr, k)) {                 /* (out of RAM: its default is the demo now; a record in the
+                                                         * store still wins when it is read in) */
+            pr->pat_used[k] = 1;
+            continue;
+        }
+#endif
+        qd_demo_pattern(qd_proj_pat(pr, k), k);
+    }
 }

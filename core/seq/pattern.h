@@ -34,6 +34,7 @@
 
 #include "../voice/quad/quad_voice.h"
 #include "mfx.h"
+#include "../qd_config.h"                 /* (P2.1: QD_PAT_RAM) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -231,8 +232,30 @@ typedef struct {
     uint8_t chorus, delay, reverb;      /* .. the sends 0..127 (a step's sound lock leaves the track's alone) */
 } qd_sound_t;
 
+/* P2.1 (Phase 2: patterns paged): a project's patterns are read through qd_proj_pat. On the host all 64 are in RAM
+ * (QD_PAT_RAM == QD_NPAT: pattern k is pat[k], as in Phase 1); at the device's sizes QD_PAT_RAM slots hold the
+ * patterns in use (the playing one, the queued one, one more), the rest are their records in the store: a pattern not
+ * in a slot is read in when asked for (its record, else its default: blank, or a demo), the slot it takes given up by
+ * the least recently used pattern not pinned (the owner's io.pinned: the sequencer's, the undo's ..), written back
+ * first if it changed (io.save). A pointer from qd_proj_pat stays good until another pattern is asked for */
 typedef struct {
-    qd_pattern_t pat[QD_NPAT];
+    int (*load)(void *ctx, int k, qd_pattern_t *dst);   /* pattern k from the backing into dst: 1; none there: 0 */
+    void (*save)(void *ctx, int k, const qd_pattern_t *src);   /* written back (if it changed) */
+    int (*pinned)(void *ctx, int k);    /* k must stay in RAM now */
+    void *ctx;
+} qd_pat_io_t;
+
+typedef struct {
+    qd_pattern_t pat[QD_PAT_RAM];       /* (the host: every pattern, pat[k]; the device: the slots) */
+#if QD_PAT_RAM < QD_NPAT
+    int8_t slot_of[QD_NPAT];            /* the slot holding pattern k (-1 none) */
+    int8_t pat_in[QD_PAT_RAM];          /* the pattern in each slot (-1 none) */
+    uint32_t lru[QD_PAT_RAM], lru_clock;
+    uint8_t pat_used[QD_NPAT];          /* each pattern's used flag while it is out of RAM (the overviews) */
+#endif
+    uint8_t demo;                       /* P2.1: the patterns' defaults: the demos (A01..A03), else blank */
+    qd_pat_io_t io;
+    uint32_t pat_loads, pat_saves, pat_forced;   /* (the budget's counters: forced: every slot pinned) */
     qd_sound_t sound[QD_NSOUND];        /* the pool: sound number k is sound[k - 1] */
     uint8_t nsound;                     /* sounds in it (1..QD_NSOUND) */
     uint8_t key_scale, key_root;        /* the global key (the tracks that follow it) */
@@ -262,6 +285,15 @@ void qd_pat_init(qd_pattern_t *p);      /* empty: no trigs, no locks, track defa
 void qd_tset_init(qd_tset_t *s, int track);
 void qd_sdef_init(qd_sdef_t *d);        /* C4, velocity 100, a step, micro 0, x1, 100 %, ALWAYS, NOTE, strum 0 */
 void qd_project_init(qd_project_t *pr); /* empty patterns, the pool's first sounds (sounds.h), the key C chromatic */
+/* P2.1: pattern k (0..63), in RAM (read in if it was not); its used flag (without reading it in); in RAM now; every
+ * slot forgotten (a project read: the backing holds them) or written back; a pattern's default (blank, or a demo) */
+qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k);
+const qd_pattern_t *qd_proj_cpat(const qd_project_t *pr, int k);
+int qd_proj_used(const qd_project_t *pr, int k);
+int qd_proj_resident(const qd_project_t *pr, int k);
+void qd_proj_drop(qd_project_t *pr);
+void qd_proj_save_all(qd_project_t *pr);
+void qd_pat_default(const qd_project_t *pr, int k, qd_pattern_t *dst);
 const char *qd_pat_name(int k, char *buf);   /* 0 -> "A01" .. 63 -> "D16" (buf: 4 bytes) */
 /* the step length of a track in ticks of the sequencer (QD_TPS ticks a 16th, seq.h); a track's loop and the master
  * length likewise */

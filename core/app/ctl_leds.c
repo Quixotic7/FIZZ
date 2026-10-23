@@ -297,13 +297,13 @@ static void leds_pattern(const qd_app_t *a, qd_leds_t *out)
             out->key[k] = QD_LED_LIT;
         else if (pat == q)
             out->key[k] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;
-        else if (a->proj.pat[pat].used)
+        else if (qd_proj_used(&a->proj, pat))
             out->key[k] = QD_LED_DIM;
     }
     for (b = 0; b < QD_NBANK; b++) {
         int used = 0;
         for (i = 0; i < 16; i++)
-            used |= a->proj.pat[b * 16 + i].used;
+            used |= qd_proj_used(&a->proj, b * 16 + i);
         out->key[QD_BLACK_KEY[b]] = b == bank ? QD_LED_LIT : used ? QD_LED_DIM : QD_LED_OFF;
     }
 }

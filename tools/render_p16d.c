@@ -198,7 +198,7 @@ int render_p16d(const char *out)
     run(300);
     qd_seq_select(&A.seq, 4, 1);                        /* (A05) */
     run(50);
-    P = &A.proj.pat[A.seq.cur];
+    P = qd_proj_pat(&A.proj, A.seq.cur);
     for (st = 0; st < 16; st += 4) {
         uint8_t n[1] = {(uint8_t)(48 + st)};
         qd_step_on(P, 0, st), qd_step_set_notes(P, 0, st, n, 1);

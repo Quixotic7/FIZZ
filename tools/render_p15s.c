@@ -173,7 +173,7 @@ int render_p15s(const char *out)
     btap(QD_B_HOME);
     run(400);
     shot("boot", "power-on, a key: EDIT (the default view now)", 0);
-    P = &A.proj.pat[A.seq.cur];
+    P = qd_proj_pat(&A.proj, A.seq.cur);
     key_tap(BK(1));                                     /* VEL */
     run(300);
     btap(QD_B_MUTE);                                    /* the latch on (its step selected) */

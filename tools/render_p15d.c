@@ -182,13 +182,13 @@ int render_p15d(const char *out)
     btap(QD_B_HOME);
     run(100);
     for (k = 0; k < 16; k += 4)
-        qd_step_on(&A.proj.pat[A.seq.cur], 0, k);
+        qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, k);
     black(1);                                           /* VEL */
     {   /* the rider at VEL 10, 40, 70, 100, 127 (a held step) */
         static const int V[5] = {10, 40, 70, 100, 127};
         char nm[32], cap[64];
         for (k = 0; k < 5; k++) {
-            qd_step_set_vel(&A.proj.pat[A.seq.cur], 0, 4, V[k]);
+            qd_step_set_vel(qd_proj_pat(&A.proj, A.seq.cur), 0, 4, V[k]);
             qd_app_key(&A, WK(4), 1, 100);
             run(400);
             snprintf(nm, sizeof nm, "vel-%d", V[k]);
@@ -208,7 +208,7 @@ int render_p15d(const char *out)
     run(30);
     btap(QD_B_PLAY);
     run(100);
-    qd_step_set_vel(&A.proj.pat[A.seq.cur], 0, 4, 100);
+    qd_step_set_vel(qd_proj_pat(&A.proj, A.seq.cur), 0, 4, 100);
     qd_app_key(&A, WK(4), 1, 100);                      /* a step held: framed */
     run(400);
     shot("vel-held", "A step held (VEL): the frame", 0);

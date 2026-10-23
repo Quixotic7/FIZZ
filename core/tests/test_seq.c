@@ -526,7 +526,7 @@ static int apply_def(qd_pattern_t *P, int t, const TD *d)
 /* the test's pattern into the project through the editing API: a step sets only what it overrides */
 static void build(const TP *tp, int k)
 {
-    qd_pattern_t *P = &PROJ.pat[k];
+    qd_pattern_t *P = qd_proj_pat(&PROJ, k);
     int i, t;
     qd_pat_init(P);
     P->bpm = (uint16_t)tp->bpm;
@@ -1376,7 +1376,7 @@ static void run_pattern(double sec, uint64_t seed)
         if (R_DEF_AT >= 0 && (int64_t)SEQ.now == R_DEF_AT)   /* a default changed while playing */
             for (k = 0; k < 8; k++)
                 if (TPAT[0].trk[k].has2)
-                    CHECK(apply_def(&PROJ.pat[0], k, &TPAT[0].trk[k].def2) == QD_OK, "track %d's new defaults", k);
+                    CHECK(apply_def(qd_proj_pat(&PROJ, 0), k, &TPAT[0].trk[k].def2) == QD_OK, "track %d's new defaults", k);
         if (R_FILL_ON >= 0)
             qd_seq_fill(&SEQ, (int64_t)SEQ.now >= R_FILL_ON && (R_FILL_OFF < 0 || (int64_t)SEQ.now < R_FILL_OFF));
         rig_block(m);
@@ -2776,7 +2776,7 @@ static void u_transport(void)
     for (i = 0, held = 0; i < NENG; i++)
         held += ENG[i].kind == QD_LOG_ON && ENG[i].note == 64;
     CHECK(held == 1, "PLAY again: pass 1 again (1ST plays)");
-    PROJ.pat[0].trk[1].mute = 1;
+    qd_proj_pat(&PROJ, 0)->trk[1].mute = 1;
     NENG = 0;
     rig_run_to(SEQ.now + 44100 * 5 / 2);
     for (i = 0, held = 0; i < NENG; i++)
@@ -2784,8 +2784,8 @@ static void u_transport(void)
     CHECK(held == 0, "a muted track plays nothing (%d)", held);
     (void)0;
     /* master INF: a queued pattern waits for ever; immediate still changes at the next 16th */
-    PROJ.pat[0].master = QD_MASTER_INF;
-    qd_pat_init(&PROJ.pat[5]);
+    qd_proj_pat(&PROJ, 0)->master = QD_MASTER_INF;
+    qd_pat_init(qd_proj_pat(&PROJ, 5));
     qd_seq_select(&SEQ, 5, 0);
     rig_run_to(SEQ.now + 44100 * 5);
     CHECK(SEQ.cur == 0 && qd_seq_queued(&SEQ) == 5, "master INF: the queued pattern waits (%d)", SEQ.cur);
@@ -3023,7 +3023,7 @@ static void u_scale(void)
           "C major: up from C4 D4, from E4 F4, down from C#4 C4, none above 127; snap F#4 -> F4; A penta B3 -> A3");
     {
         static qd_project_t *pr = &PROJ;
-        qd_pattern_t *P = &pr->pat[3];
+        qd_pattern_t *P = qd_proj_pat(pr, 3);
         int s2, r2;
         qd_pat_init(P);
         pr->key_scale = QD_SCALE_LYDIAN;

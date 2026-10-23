@@ -193,9 +193,9 @@ int render_p15g(const char *out)
     btap(QD_B_HOME);
     run(100);
     for (k = 0; k < 16; k += 4)
-        qd_step_on(&A.proj.pat[A.seq.cur], 0, k);
+        qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, k);
     black(1);                                           /* VEL */
-    qd_step_set_vel(&A.proj.pat[A.seq.cur], 0, 4, 127);
+    qd_step_set_vel(qd_proj_pat(&A.proj, A.seq.cur), 0, 4, 127);
     qd_app_key(&A, WK(4), 1, 100);
     run(400);
     for (k = 0; k < 5; k++) {
@@ -208,14 +208,14 @@ int render_p15g(const char *out)
     t127 = frame_ms();
     qd_app_key(&A, WK(4), 0, 0);
     run(30);
-    qd_step_set_vel(&A.proj.pat[A.seq.cur], 0, 4, 126);
+    qd_step_set_vel(qd_proj_pat(&A.proj, A.seq.cur), 0, 4, 126);
     qd_app_key(&A, WK(4), 1, 100);
     run(400);
     shot("vel-126", "VEL 126: the wheelie", 0);
     t126 = frame_ms();
     qd_app_key(&A, WK(4), 0, 0);
     run(30);
-    qd_step_set_vel(&A.proj.pat[A.seq.cur], 0, 4, 127);
+    qd_step_set_vel(qd_proj_pat(&A.proj, A.seq.cur), 0, 4, 127);
     qd_app_key(&A, WK(4), 1, 100);
     run(400);
     shot("vel-127", "VEL 127: the show (the same bike)", 0);
@@ -229,7 +229,7 @@ int render_p15g(const char *out)
     run(30);
     btap(QD_B_PLAY);
     run(100);
-    qd_tdef(&A.proj.pat[A.seq.cur], 0)->vel = 127;
+    qd_tdef(qd_proj_pat(&A.proj, A.seq.cur), 0)->vel = 127;
     qd_app_key(&A, BK(1), 1, 100);                      /* the default at 127 */
     run(500);
     shot("default", "The VEL key held: the default at 127", 0);

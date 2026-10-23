@@ -875,8 +875,8 @@ static void four_steps(int t, int note)
     int s;
     for (s = 0; s < 16; s += 4) {
         uint8_t n1 = (uint8_t)note;
-        qd_step_on(&PROJ.pat[0], t, s);
-        qd_step_set_notes(&PROJ.pat[0], t, s, &n1, 1);
+        qd_step_on(qd_proj_pat(&PROJ, 0), t, s);
+        qd_step_set_notes(qd_proj_pat(&PROJ, 0), t, s, &n1, 1);
     }
 }
 
@@ -895,7 +895,7 @@ static void t_player(void)
     memcpy(a, PE, (size_t)na * sizeof a[0]);
     rig();
     four_steps(0, 60);
-    PROJ.pat[0].trk[0].mfx = 1;
+    qd_proj_pat(&PROJ, 0)->trk[0].mfx = 1;
     qd_seq_select(&SEQ, 0, 0);
     qd_seq_play(&SEQ);
     blocks(16 * BLK_16TH * 2);
@@ -905,11 +905,11 @@ static void t_player(void)
     /* TRANSPOSE +12 in group 1 */
     rig();
     four_steps(0, 60);
-    PROJ.pat[0].trk[0].mfx = 1;
+    qd_proj_pat(&PROJ, 0)->trk[0].mfx = 1;
     qd_mfx_slot_init(&PROJ.mfx[0].slot[0], QD_MFX_TRANSPOSE);
     PROJ.mfx[0].slot[0].v[QD_MT_SEMI] = 12, PROJ.mfx[0].slot[0].v[QD_MT_OCT] = 0;
-    PROJ.pat[0].step[0][4].mfx = QD_SMFX_OFF;           /* step 5 straight on */
-    PROJ.pat[0].step[0][8].mfx = QD_SMFX_G1 + 1;        /* step 9: group 2 (empty: straight on) */
+    qd_proj_pat(&PROJ, 0)->step[0][4].mfx = QD_SMFX_OFF;           /* step 5 straight on */
+    qd_proj_pat(&PROJ, 0)->step[0][8].mfx = QD_SMFX_G1 + 1;        /* step 9: group 2 (empty: straight on) */
     qd_mfx_slot_init(&PROJ.mfx[1].slot[0], QD_MFX_TRANSPOSE);
     PROJ.mfx[1].slot[0].v[QD_MT_SEMI] = 24, PROJ.mfx[1].slot[0].v[QD_MT_OCT] = 0;
     qd_seq_select(&SEQ, 0, 0);
@@ -931,14 +931,14 @@ static void t_player(void)
     rig();
     {
         uint8_t ch[2] = {60, 64}, n1 = 48;
-        qd_step_on(&PROJ.pat[0], 0, 0);
-        qd_step_set_notes(&PROJ.pat[0], 0, 0, ch, 2);
-        qd_step_set_len(&PROJ.pat[0], 0, 0, QD_LEN_1 + 6);   /* (8 steps) */
-        qd_step_on(&PROJ.pat[0], 3, 0);
-        qd_step_set_notes(&PROJ.pat[0], 3, 0, &n1, 1);
-        qd_step_set_len(&PROJ.pat[0], 3, 0, QD_LEN_1 + 6);
+        qd_step_on(qd_proj_pat(&PROJ, 0), 0, 0);
+        qd_step_set_notes(qd_proj_pat(&PROJ, 0), 0, 0, ch, 2);
+        qd_step_set_len(qd_proj_pat(&PROJ, 0), 0, 0, QD_LEN_1 + 6);   /* (8 steps) */
+        qd_step_on(qd_proj_pat(&PROJ, 0), 3, 0);
+        qd_step_set_notes(qd_proj_pat(&PROJ, 0), 3, 0, &n1, 1);
+        qd_step_set_len(qd_proj_pat(&PROJ, 0), 3, 0, QD_LEN_1 + 6);
     }
-    PROJ.pat[0].trk[0].mfx = 1, PROJ.pat[0].trk[3].mfx = 1;
+    qd_proj_pat(&PROJ, 0)->trk[0].mfx = 1, qd_proj_pat(&PROJ, 0)->trk[3].mfx = 1;
     qd_mfx_slot_init(&PROJ.mfx[0].slot[0], QD_MFX_ARP);
     PROJ.mfx[0].slot[0].v[QD_MA_RATE] = 9, PROJ.mfx[0].slot[0].v[QD_MA_RANGE] = 1;
     qd_seq_select(&SEQ, 0, 0);
@@ -959,11 +959,11 @@ static void t_player(void)
     rig();
     {
         uint8_t n1 = 60;
-        qd_step_on(&PROJ.pat[0], 1, 0);
-        qd_step_set_notes(&PROJ.pat[0], 1, 0, &n1, 1);
-        qd_step_set_len(&PROJ.pat[0], 1, 0, QD_LEN_1 + 4);
+        qd_step_on(qd_proj_pat(&PROJ, 0), 1, 0);
+        qd_step_set_notes(qd_proj_pat(&PROJ, 0), 1, 0, &n1, 1);
+        qd_step_set_len(qd_proj_pat(&PROJ, 0), 1, 0, QD_LEN_1 + 4);
     }
-    PROJ.pat[0].trk[1].mfx = 2, PROJ.pat[0].trk[1].limit = 2;
+    qd_proj_pat(&PROJ, 0)->trk[1].mfx = 2, qd_proj_pat(&PROJ, 0)->trk[1].limit = 2;
     qd_mfx_slot_init(&PROJ.mfx[1].slot[0], QD_MFX_HARM);
     PROJ.mfx[1].slot[0].v[QD_MH_N4] = 3, PROJ.mfx[1].slot[0].v[QD_MH_N5] = 24;
     qd_seq_select(&SEQ, 0, 0);
@@ -979,12 +979,12 @@ static void t_player(void)
         uint8_t ch[3] = {60, 64, 67};
         int s;
         for (s = 0; s < 16; s += 2) {
-            qd_step_on(&PROJ.pat[0], 0, s);
-            qd_step_set_notes(&PROJ.pat[0], 0, s, ch, 3);
-            qd_step_set_len(&PROJ.pat[0], 0, s, QD_LEN_1 + 2);
+            qd_step_on(qd_proj_pat(&PROJ, 0), 0, s);
+            qd_step_set_notes(qd_proj_pat(&PROJ, 0), 0, s, ch, 3);
+            qd_step_set_len(qd_proj_pat(&PROJ, 0), 0, s, QD_LEN_1 + 2);
         }
-        PROJ.pat[0].trk[0].mfx = 1;
-        qd_step_on(&PROJ.pat[1], 2, 0);                 /* (pattern 2: another track only) */
+        qd_proj_pat(&PROJ, 0)->trk[0].mfx = 1;
+        qd_step_on(qd_proj_pat(&PROJ, 1), 2, 0);                 /* (pattern 2: another track only) */
     }
     qd_mfx_slot_init(&PROJ.mfx[0].slot[0], QD_MFX_HARM);
     qd_mfx_slot_init(&PROJ.mfx[0].slot[1], QD_MFX_ARP);
@@ -1015,7 +1015,7 @@ static void t_player(void)
     qd_player_stop(&PL);
     /* the keys through the group while stopped: the arp runs on the tempo */
     rig();
-    PROJ.pat[0].trk[0].mfx = 1;
+    qd_proj_pat(&PROJ, 0)->trk[0].mfx = 1;
     qd_seq_select(&SEQ, 0, 0);
     qd_mfx_slot_init(&PROJ.mfx[0].slot[0], QD_MFX_ARP);
     PROJ.mfx[0].slot[0].v[QD_MA_RATE] = 9, PROJ.mfx[0].slot[0].v[QD_MA_RANGE] = 1;

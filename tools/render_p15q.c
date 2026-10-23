@@ -201,7 +201,7 @@ int render_p15q(const char *out)
     nshot = 0;
     failed = 0;
     fresh(120);                                         /* VEL: eight steps, varied */
-    P = &A.proj.pat[A.seq.cur];
+    P = qd_proj_pat(&A.proj, A.seq.cur);
     for (i = 0; i < 8; i++) {
         qd_step_set_trig(P, 0, i * 2, QD_TRIG_NOTE);
         qd_step_set_vel(P, 0, i * 2, VEL[i]);
@@ -223,7 +223,7 @@ int render_p15q(const char *out)
     run(100);
     shot("vel-stop", "stopped: the track's default again", 0);
     fresh(100);                                         /* NOTE: four chords, a step 150 ms */
-    P = &A.proj.pat[A.seq.cur];
+    P = qd_proj_pat(&A.proj, A.seq.cur);
     P->trk[0].scale = 1, P->trk[0].root = 0, P->trk[0].key_global = 0;
     for (i = 0; i < 4; i++) {
         qd_step_set_trig(P, 0, i * 4, QD_TRIG_NOTE);
@@ -241,7 +241,7 @@ int render_p15q(const char *out)
     }
     btap(QD_B_PLAY);
     fresh(160);                                         /* the frame time, following at 16ths, 160 BPM */
-    P = &A.proj.pat[A.seq.cur];
+    P = qd_proj_pat(&A.proj, A.seq.cur);
     for (i = 0; i < 16; i++) {
         qd_step_set_trig(P, 0, i, QD_TRIG_NOTE);
         qd_step_set_vel(P, 0, i, 20 + i * 7);

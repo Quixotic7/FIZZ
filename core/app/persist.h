@@ -40,6 +40,7 @@ struct qd_app;
 #define QD_FLASH_LIB_SEC 32            /* (256 presets of about 120 bytes: a quarter of it) */
 #define QD_FLASH_PRJ 0x020000u
 #define QD_FLASH_PRJ_SEC 224
+#define QD_SWAP_SEC 256                /* (P2.1: the host's RAM store for the patterns at the device's sizes) */
 /* the keys: kind << 24 | project << 16 | index */
 enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB, QD_RK_FTAG, QD_RK_MFX };   /* (P1.6c: MIDI FX) */   /* (P1.5v: the factory tags) */
 #define QD_RKEY(kind, p, i) ((uint32_t)(kind) << 24 | (uint32_t)(p) << 16 | (uint32_t)(i))
@@ -69,6 +70,14 @@ typedef struct {
     int job_it;                        /* P2.1: the item the store's source makes (the job's, while it is written) */
     uint32_t written;                  /* records committed (the project page's bubbles) */
     uint32_t written_ms[QD_NPAT];      /* when each pattern was last written (its bubbles) */
+#if QD_PAT_RAM < QD_NPAT && !defined(QD_TARGET_FM1)
+    /* P2.1: with no flash attached, at the device's sizes on the host (the tests, the tools), the patterns out of RAM
+     * go to a RAM store (the device always has its flash: none of this is in its build) */
+    qd_store_t swap_st;
+    qds_ent_t swap_ent[QD_NPAT * 2];
+    uint8_t swap_nor[QD_SWAP_SEC * QDS_SECTOR];
+    int swap_on;
+#endif
 } qd_persist_t;
 
 /* the flash given (the glue's NOR, a test's RAM): mounted, the library, the settings, the project worked on (its
@@ -77,6 +86,8 @@ void qd_persist_attach(struct qd_app *a, const qd_flash_t *fl);
 void qd_persist_ms(struct qd_app *a);  /* each ms: the looks, the writes (by §7's rules) */
 int qd_persist_flush(struct qd_app *a);   /* everything changed written now (a shutdown, a load); 1 done */
 int qd_persist_dirty(const struct qd_app *a);   /* something is not written yet */
+void qd_persist_io(struct qd_app *a);  /* P2.1: the patterns' backing (pattern.h qd_pat_io_t): the store */
+void qd_persist_prefetch(struct qd_app *a);   /* P2.1: the patterns the sequencer will want read in (each ms) */
 void qd_persist_use(const struct qd_app *a, uint32_t *live_pages, uint32_t *total_pages);   /* the flash meter */
 uint32_t qd_persist_proj_pages(const struct qd_app *a, int p);   /* .. project p's part */
 void qd_persist_proj_used(const struct qd_app *a, int p, uint8_t *used);   /* its patterns written (64) */

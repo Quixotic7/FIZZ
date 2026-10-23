@@ -33,6 +33,7 @@ void qd_app_init(qd_app_t *a)
     qd_fx_init();
     qd_fx_master_pot(a->master_pot);
     qd_project_init(&a->proj);
+    qd_persist_io(a);                                   /* P2.1: the patterns' backing (paged at the device's sizes) */
     qd_demo_load(&a->proj);
     qd_seq_init(&a->seq, &a->proj, &a->model);
     qd_player_init(&a->player, &a->seq, &a->pool, &a->model);
@@ -237,7 +238,7 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
  * the model's tracks (what the controller edits and the keys play); an edit of a track's sound goes back into it */
 static void qd_app_sounds(qd_app_t *a)
 {
-    qd_pattern_t *P = &a->proj.pat[a->seq.cur];
+    qd_pattern_t *P = qd_proj_pat(&a->proj, a->seq.cur);
     int t;
     if (a->snd_pat != a->seq.cur) {
         a->snd_pat = a->seq.cur;
@@ -258,6 +259,7 @@ static void qd_app_sounds(qd_app_t *a)
 
 static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
 {
+    qd_persist_prefetch(a);                             /* P2.1: the sequencer's patterns in RAM before it asks */
     qd_app_sounds(a);
     qd_persist_ms(a);                                   /* P1.5a: written by itself */
     qd_sx_ms(a);                                        /* P1.6l: a subscribed page's LABELS, when they change */

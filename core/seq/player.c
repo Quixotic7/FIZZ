@@ -110,7 +110,7 @@ static void apply_locks(qd_player_t *pl, const qd_seq_ev_t *e, int i)
 static void note_on(qd_player_t *pl, const qd_seq_ev_t *e)
 {
     const qd_trec_t *r = e->rec;
-    const qd_tset_t *ts = &pl->seq->proj->pat[r->pat].trk[e->track];
+    const qd_tset_t *ts = &qd_proj_pat(pl->seq->proj, r->pat)->trk[e->track];
     qd_quad_owner_t *o = &pl->model->t[e->track].owner;
     const int held = qd_pool_gated(pl->pool, e->track);   /* (E1: LEGATO's test, before this note takes a voice) */
     int i;
@@ -130,7 +130,7 @@ static int mfx_route(const qd_player_t *pl, int pat, int t, int step)
     int g;
     if (pat < 0 || pat >= QD_NPAT)
         return 0;
-    g = qd_step_mfx(&pr->pat[pat], t, step);
+    g = qd_step_mfx(qd_proj_cpat(pr, pat), t, step);
     return g && qd_mfx_group_active(&pr->mfx[g - 1]) ? g : 0;
 }
 static int64_t mfx_tick_of(const qd_player_t *pl, int64_t seq_tick) { return pl->mfx_base + seq_tick; }
@@ -156,7 +156,7 @@ static void mfx_out_on(void *ctx, int g, const qd_mfx_note_t *n)
     }
     held = qd_pool_gated(pl->pool, t);
     if (r && n->pat >= 0 && n->pat < QD_NPAT) {
-        const qd_tset_t *ts = &pl->seq->proj->pat[n->pat].trk[t];
+        const qd_tset_t *ts = &qd_proj_pat(pl->seq->proj, n->pat)->trk[t];
         qd_pool_set_track(pl->pool, t, ts->limit, ts->reserve);
         i = qd_pool_note_on_at(pl->pool, t, o, n->pitch, n->vel, r->patch, &r->at);
     } else {
@@ -410,7 +410,7 @@ int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes)
     int i, n = 0;
     if (pat < 0 || pat >= QD_NPAT || t < 0 || t >= QD_PAT_NTRACK || s < 0 || s >= QD_NSTEP)
         return 0;
-    P = &pl->seq->proj->pat[pat];
+    P = qd_proj_pat(pl->seq->proj, pat);
     qd_step_resolve(P, t, s, &st);
     if (!st.on || st.type == QD_TRIG_LOCK)
         return 0;
@@ -480,7 +480,7 @@ void qd_player_live_edit(qd_player_t *pl, int t, int id, int value)
         tk->edited = 1;
     }
     {   /* P1.5a: the pattern edited keeps its tracks' sounds (its trigs play them) */
-        qd_tsound_t *ps = &pl->seq->proj->pat[pl->seq->cur].snd[t];
+        qd_tsound_t *ps = &qd_proj_pat(pl->seq->proj, pl->seq->cur)->snd[t];
         if (ps->patch[id] != value) {
             ps->patch[id] = (int16_t)value;
             ps->edited = 1;

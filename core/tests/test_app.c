@@ -254,7 +254,7 @@ static void t_midi(void)
     qd_app_midi(&A, 0x8F, 64, 0);
     run(5, 0);
     CHECK(!sounding(2, 64), "its note off: to the track it struck");
-    A.proj.pat[A.seq.cur].trk[6].chan = 9;              /* track 7 on channel 10 by hand */
+    qd_proj_pat(&A.proj, A.seq.cur)->trk[6].chan = 9;              /* track 7 on channel 10 by hand */
     qd_app_midi(&A, 0x99, 55, 90);
     qd_app_midi(&A, 0x96, 57, 90);
     run(10, 0);
@@ -271,7 +271,7 @@ static void t_mfx(void)
     qd_pattern_t *P;
     fresh();
     run(5, 0);
-    P = &A.proj.pat[A.seq.cur];
+    P = qd_proj_pat(&A.proj, A.seq.cur);
     P->trk[4].mfx = 2;
     qd_mfx_slot_init(&A.proj.mfx[1].slot[0], QD_MFX_TRANSPOSE);
     A.proj.mfx[1].slot[0].v[QD_MT_SEMI] = 7, A.proj.mfx[1].slot[0].v[QD_MT_OCT] = 0;

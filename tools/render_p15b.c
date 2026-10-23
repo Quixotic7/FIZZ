@@ -99,7 +99,7 @@ static void turn(int k, int d)
 }
 static void set_key(int sc, int rt)
 {
-    qd_tset_t *ts = &A.proj.pat[A.seq.cur].trk[A.sel];
+    qd_tset_t *ts = &qd_proj_pat(&A.proj, A.seq.cur)->trk[A.sel];
     ts->scale = (uint8_t)sc;
     ts->root = (uint8_t)rt;
     ts->key_global = 0;
@@ -198,7 +198,7 @@ int render_p15b(const char *out)
     btap(QD_B_HOME);
     run(100);
     for (k = 0; k < 16; k += 4)
-        qd_step_on(&A.proj.pat[A.seq.cur], 0, k);
+        qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, k);
 
     /* 1 .. 3: the keyboard in the editor (SCALE, FULL) and the keyboard's scale */
     btap(QD_B_SOUND);

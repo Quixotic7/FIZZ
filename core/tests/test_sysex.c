@@ -361,7 +361,7 @@ int main(int argc, char **argv)
     CHECK(status() == QD_SX_OK && A.model.t[2].sound == rslot() && !strcmp(A.model.t[2].sound_name, "LOADED") &&
               A.model.t[2].patch[QD_QP_DRIVE] == 20 && A.model.t[2].mix.pan == -24 && A.model.t[2].mix.delay == 70 &&
               A.model.t[2].mix.reverb == 90 && A.model.t[2].mix.chorus == k &&
-              !strcmp(A.proj.pat[A.seq.cur].snd[2].name, "LOADED"),
+              !strcmp(qd_proj_pat(&A.proj, A.seq.cur)->snd[2].name, "LOADED"),
           "LOAD onto track 3: its sound (the pool's), pan -24, delay 70, reverb 90, chorus untouched (not in the mask)");
     {   /* P1.6l: LABELS: asked, its reply (the count, 49 labels); subscribed: a reply by itself when they change, none
          * when they do not; unsubscribed: none */

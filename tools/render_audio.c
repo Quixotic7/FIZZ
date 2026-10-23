@@ -442,8 +442,8 @@ int main(int argc, char **argv)
                                                  "c-hat", "ghost", "kick", "c-hat", "clap", "c-hat", "ghost", "o-hat"};
             fresh();
             for (k = 0; k < 16; k++)
-                if (qd_step_type(&app.proj.pat[0], 0, k))
-                    drum_metrics(dl, &app.proj.pat[0], k, WHAT[k]);
+                if (qd_step_type(qd_proj_pat(&app.proj, 0), 0, k))
+                    drum_metrics(dl, qd_proj_pat(&app.proj, 0), k, WHAT[k]);
         }
         fprintf(dl, "\nthe renders (16 bars from PLAY, the effects on, then 2.5 s of tails):\n");
         for (k = 0; k < 3; k++) {
@@ -454,7 +454,7 @@ int main(int argc, char **argv)
                 return 1;
             fprintf(dl, "  %s: %d BPM, %.1f s; %u steps resolved, %u notes played, the lock pool %d of 1024; pool: %u "
                         "starts, %u struck again in place, steals %u own / %u across, %u dropped, %u legato; peak %d\n",
-                    name, app.bpm, ms / 1000.0, app.seq.resolved, app.seq.played, app.proj.pat[k].nlock,
+                    name, app.bpm, ms / 1000.0, app.seq.resolved, app.seq.played, qd_proj_pat(&app.proj, k)->nlock,
                     app.pool.starts, app.pool.restrikes, app.pool.steals_own, app.pool.steals_cross, app.pool.drops,
                     app.pool.legatos, (int)peak);
         }

@@ -36,8 +36,8 @@ int qd_ctl_black(int key)
 
 static int held(const qd_app_t *a, int b) { return (int)((a->buttons_held >> b) & 1u); }
 int qd_ctl_shift(const qd_app_t *a) { return held(a, QD_B_FUNC); }
-qd_pattern_t *qd_ctl_pat(qd_app_t *a) { return &a->proj.pat[a->seq.cur]; }
-const qd_pattern_t *qd_ctl_cpat(const qd_app_t *a) { return &a->proj.pat[a->seq.cur]; }
+qd_pattern_t *qd_ctl_pat(qd_app_t *a) { return qd_proj_pat(&a->proj, a->seq.cur); }
+const qd_pattern_t *qd_ctl_cpat(const qd_app_t *a) { return qd_proj_cpat(&a->proj, a->seq.cur); }
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 static int steps_held(const qd_app_t *a) { return a->ui.nheld > 0 || a->ui.wk_pending; }

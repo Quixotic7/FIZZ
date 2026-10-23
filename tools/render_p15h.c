@@ -164,7 +164,7 @@ int render_p15h(const char *out)
     qd_app_tick(&A, 0);
     btap(QD_B_HOME);
     run(100);
-    qd_step_on(&A.proj.pat[A.seq.cur], 0, 4);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, 4);
     qd_app_key(&A, WK(4), 1, 100);                      /* (the last step tapped: the latch starts there) */
     run(30);
     qd_app_key(&A, WK(4), 0, 0);

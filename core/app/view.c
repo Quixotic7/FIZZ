@@ -1069,14 +1069,14 @@ static void draw_patterns(const qd_app_t *a)
     v.queued = qd_seq_queued(&a->seq);
     v.bank = a->ui.seq_bank;
     for (k = 0; k < 16; k++)
-        if (a->proj.pat[v.bank * 16 + k].used)
+        if (qd_proj_used(&a->proj, v.bank * 16 + k))
             v.used |= (uint16_t)(1u << k);
     for (k = 0; k < QD_NPAT; k++)
-        if (a->proj.pat[k].used)
+        if (qd_proj_used(&a->proj, k))
             v.bank_used |= (uint8_t)(1u << (k / 16));
     v.playing = a->seq.playing;
     if (v.queued >= 0 && a->seq.playing) {
-        const int64_t m = qd_pat_master_ticks(&a->proj.pat[a->seq.cur]), left = qd_seq_to_change(&a->seq);
+        const int64_t m = qd_pat_master_ticks(qd_proj_cpat(&a->proj, a->seq.cur)), left = qd_seq_to_change(&a->seq);
         v.left = m > 0 ? (float)((double)left / (double)m) : 0.f;
         v.left = v.left < 0.f ? 0.f : v.left > 1.f ? 1.f : v.left;
     }
@@ -1877,7 +1877,7 @@ static void fill_prj(const qd_app_t *a, ui_prj_t *v)
     v->num = ps->proj + 1;
     v->name = ps->pname[ps->proj][0] ? ps->pname[ps->proj] : "PROJECT 1";
     for (i = 0; i < QD_NPAT; i++) {
-        v->used[i] = a->proj.pat[i].used;
+        v->used[i] = qd_proj_used(&a->proj, i);
         v->since[i] = ps->written_ms[i] ? (float)(a->ms - ps->written_ms[i]) / 1000.f : -1.f;
     }
     v->cur = a->seq.cur;

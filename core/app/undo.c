@@ -24,7 +24,7 @@ static void undo_take(qd_app_t *a)                    /* the gesture's "before" 
 {
     qd_hist_t *u = &a->undo;
     u->pat = a->seq.cur;
-    u->pat0 = a->proj.pat[u->pat];
+    u->pat0 = *qd_proj_pat(&a->proj, u->pat);
     memcpy(u->snd0, a->proj.sound, sizeof u->snd0);
     u->nsound0 = a->proj.nsound;
     memcpy(u->lib0, a->per.lib, sizeof u->lib0);
@@ -164,7 +164,7 @@ void qd_undo_close(qd_app_t *a)
         uint32_t sz[4];
         if (!u->open)
             return;
-        now[0] = (const uint8_t *)&a->proj.pat[u->pat], was[0] = (const uint8_t *)&u->pat0, sz[0] = sizeof u->pat0;
+        now[0] = (const uint8_t *)qd_proj_pat(&a->proj, u->pat), was[0] = (const uint8_t *)&u->pat0, sz[0] = sizeof u->pat0;
         now[1] = (const uint8_t *)a->proj.sound, was[1] = (const uint8_t *)u->snd0, sz[1] = sizeof u->snd0;
         now[2] = (const uint8_t *)a->per.lib, was[2] = (const uint8_t *)u->lib0, sz[2] = sizeof u->lib0;
         now[3] = (const uint8_t *)a->proj.mfx, was[3] = (const uint8_t *)u->mfx0, sz[3] = sizeof u->mfx0;
@@ -230,7 +230,7 @@ static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
     uint8_t *mem[4];
     uint32_t sz[4], o = 0;
     int r, t;
-    mem[0] = (uint8_t *)&a->proj.pat[l->pat], sz[0] = sizeof(qd_pattern_t);
+    mem[0] = (uint8_t *)qd_proj_pat(&a->proj, l->pat), sz[0] = sizeof(qd_pattern_t);
     mem[1] = (uint8_t *)a->proj.sound, sz[1] = sizeof a->proj.sound;
     mem[2] = (uint8_t *)a->per.lib, sz[2] = sizeof a->per.lib;
     mem[3] = (uint8_t *)a->proj.mfx, sz[3] = sizeof a->proj.mfx;   /* (P1.6c) */
@@ -246,7 +246,7 @@ static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
         for (i = 0; i + 5u <= len; i += 5u) {
             const uint8_t *e = d + o + 4u + i;
             if (e[0] < QD_NPAT && e[1] < QD_PAT_NTRACK && e[2] < QD_NSTEP) {
-                qd_step_t *st = &a->proj.pat[e[0]].step[e[1]][e[2]];
+                qd_step_t *st = &qd_proj_pat(&a->proj, e[0])->step[e[1]][e[2]];
                 st->sound ^= e[3];
                 if (e[4])
                     st->ovr ^= (uint16_t)QD_OV(QD_PM_SOUND);
@@ -257,7 +257,7 @@ static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
     qd_sound_recount(&a->proj);
     if (l->pat == a->seq.cur)                           /* the tracks' sounds back from the pattern */
         for (t = 0; t < QD_NTRACK; t++)
-            qd_track_from_tsound(&a->model.t[t], &a->proj.pat[l->pat].snd[t]);
+            qd_track_from_tsound(&a->model.t[t], &qd_proj_pat(&a->proj, l->pat)->snd[t]);
 }
 
 int qd_undo_step(qd_app_t *a, int dir)

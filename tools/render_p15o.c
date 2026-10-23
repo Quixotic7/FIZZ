@@ -194,7 +194,7 @@ int render_p15o(const char *out)
     qd_app_key(&A, WK(4), 0, 0);
     bup(QD_B_MIX);
     run(100);
-    P = &A.proj.pat[A.seq.cur];
+    P = qd_proj_pat(&A.proj, A.seq.cur);
     P->trk[0].scale = 1, P->trk[0].root = 0, P->trk[0].key_global = 0;   /* C major */
     wtap(1);
     qd_step_set_notes(P, 0, 1, CH, 3);

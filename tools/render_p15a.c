@@ -188,8 +188,8 @@ int render_p15a(const char *out, const char *mocks)
     qd_pool_add(&A, "TINE", A.proj.sound[pool_of("MARIMBA") - 1].patch);
     qd_pool_add(&A, "GLASS PAD", A.per.lib[2].patch);
     for (k = 0; k < 6; k++) {                           /* six steps lock SOFT KEYS */
-        qd_step_on(&A.proj.pat[A.seq.cur], 3, k * 2);
-        qd_step_set_sound(&A.proj.pat[A.seq.cur], 3, k * 2, 24);
+        qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 3, k * 2);
+        qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 3, k * 2, 24);
     }
     run(30);
     btap(QD_B_HOME);
@@ -201,8 +201,8 @@ int render_p15a(const char *out, const char *mocks)
     /* (P1.5t: the sounds page's twelve screens are gone with it: render_p15t.c draws the library browser and SAVE
      * PRESET beside mockups/fizz-presets.html; the project pages stay, the mock-up's 13 and 14) */
     for (k = 0; k < 12; k++)                            /* 13 the project: patterns in use, one just written */
-        A.proj.pat[k == 9 ? 32 : k].used = 1;
-    A.proj.pat[A.seq.cur].step[0][3].vel = 77;
+        qd_proj_pat(&A.proj, k == 9 ? 32 : k)->used = 1;
+    qd_proj_pat(&A.proj, A.seq.cur)->step[0][3].vel = 77;
     run(1700);
     btap(QD_B_MIX);
     run(250);

@@ -6407,7 +6407,7 @@ static void g_p15q_follow(void)
          * the track's default's ("TRACK DEFAULT · VEL", its value) */
         int st = follow_now();
         CHECK(st >= 1 && fh.step == st && !fh.is_default && !fh.nheld && fh.head && fh.head->is_default &&
-                  fh.head->vel == A.proj.pat[A.seq.cur].trk[0].def.vel,
+                  fh.head->vel == qd_proj_pat(&A.proj, A.seq.cur)->trk[0].def.vel,
               "following: the picture step %d's, the head the track's default's (VEL %d)", st, fh.head ? fh.head->vel : -1);
     }
     btap(LFO);                                          /* the latch: back */
@@ -7368,8 +7368,8 @@ static void g_p15w_refs(void)
     k = qd_pool_add_sound(&A, &A.per.lib[0]);
     qd_step_on(PAT(), 1, 2);
     qd_step_set_sound(PAT(), 1, 2, k);
-    qd_step_on(&A.proj.pat[A.seq.cur == 9 ? 10 : 9], 2, 3);
-    qd_step_set_sound(&A.proj.pat[A.seq.cur == 9 ? 10 : 9], 2, 3, k);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur == 9 ? 10 : 9), 2, 3);
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur == 9 ? 10 : 9), 2, 3, k);
     qd_ctl_select_track(&A, 0);                         /* track 1 plays REF ME (its own copy) */
     turn(QD_K_PRESETS, 1);
     black(B9);
@@ -7406,7 +7406,7 @@ static void g_p15w_refs(void)
     run(600);
     undo_redo(-1);
     CHECK(qd_lib_find(&A, id) == 0 && A.proj.sound[k - 1].preset == id && R(1, 2).sound == k &&
-              A.proj.pat[A.seq.cur == 9 ? 10 : 9].step[2][3].sound == k, "undo: the preset, its reference, the locks "
+              qd_proj_pat(&A.proj, A.seq.cur == 9 ? 10 : 9)->step[2][3].sound == k, "undo: the preset, its reference, the locks "
           "(the other pattern's too)");
 }
 

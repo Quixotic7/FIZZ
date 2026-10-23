@@ -47,11 +47,11 @@ MAIN_STACK = 24320                    # D: the user stack (crt0.S)
 ISR_STACK = 7936                      # D: the system stack (the audio ISR)
 MARGIN_STACK = 2048                   # E: kept free on each
 
-CC_FLAGS = ["-Os", "-ffunction-sections", "-fdata-sections", "-DQD_DEVICE", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
+CC_FLAGS = ["-Os", "-ffunction-sections", "-fdata-sections", "-DQD_DEVICE", "-DQD_TARGET_FM1", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
             "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD"]
 ARM_FLAGS = ["-mcpu=cortex-m4", "-mthumb", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16"]
 PI_FLAGS = ["-target", "pi32v2", "-Os", "-ffunction-sections", "-fno-builtin", "-w", "-mcpu=r3", "-mfprev1",
-            "-ffp-contract=off", "-D__STDC_NO_ATOMICS__", "-DQD_DEVICE", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
+            "-ffp-contract=off", "-D__STDC_NO_ATOMICS__", "-DQD_DEVICE", "-DQD_TARGET_FM1", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
             "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD"]
 
 

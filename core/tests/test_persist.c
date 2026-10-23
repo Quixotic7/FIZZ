@@ -173,7 +173,7 @@ static void pages_test(void)
     knob(QD_K_PRESETS, 1);
     btap(QD_B_OCTUP);
     CHECK(G->model.t[1].preset == G->per.lib[0].preset && G->model.t[1].patch[QD_QP_HARM] == 900 &&
-              G->proj.pat[G->seq.cur].snd[1].preset == G->per.lib[0].preset, "B9, a turn, F2: MY preset loaded on track 2");
+              qd_proj_pat(&G->proj, G->seq.cur)->snd[1].preset == G->per.lib[0].preset, "B9, a turn, F2: MY preset loaded on track 2");
 
     /* the project pages */
     btap(QD_B_MIX);
@@ -239,10 +239,10 @@ static void migration_test(void)
     memcpy(b + 2 + QD_SOUND_NAME, blob, QD_QUAD_BLOB5);
     qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SND, 0, 40), b, 2 + QD_SOUND_NAME + QD_QUAD_BLOB5);
     qd_store_flush(&A.per.prj_st);
-    A.proj.pat[QD_PAT_START].snd[3].sound = 40;         /* (track 4, SQUARE LEAD's place, from pool 40) */
-    A.proj.pat[QD_PAT_START].snd[3].preset = 0;
-    A.proj.pat[QD_PAT_START].used = 1;
-    A.proj.pat[QD_PAT_START].trk[2].mfx = 3;            /* (P1.6c: cut off below: OFF when read) */
+    qd_proj_pat(&A.proj, QD_PAT_START)->snd[3].sound = 40;         /* (track 4, SQUARE LEAD's place, from pool 40) */
+    qd_proj_pat(&A.proj, QD_PAT_START)->snd[3].preset = 0;
+    qd_proj_pat(&A.proj, QD_PAT_START)->used = 1;
+    qd_proj_pat(&A.proj, QD_PAT_START)->trk[2].mfx = 3;            /* (P1.6c: cut off below: OFF when read) */
     qd_persist_flush(&A);
     len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), b, sizeof b);
     {   /* 'P' 3 -> 'P' 1: each track sound a 96-byte blob (E1), without its two preset bytes; the mix's lock ids as
@@ -283,15 +283,15 @@ static void migration_test(void)
     for (n = 0, t = 1; t <= QD_NFACTORY; t++)
         n += qd_sound_used(&B.proj, t) && B.proj.sound[t - 1].preset == t;
     CHECK(n == QD_NFACTORY && !B.proj.pool_empty, "its absent pool records: the old starting pool, as before (%d)", n);
-    CHECK(B.proj.pat[QD_PAT_START].trk[2].mfx == 0 && B.proj.pat[QD_PAT_START].trk[2].limit ==
-              A.proj.pat[QD_PAT_START].trk[2].limit, "P1.6c: an older pattern record (42-byte track settings): its tracks' "
+    CHECK(qd_proj_pat(&B.proj, QD_PAT_START)->trk[2].mfx == 0 && qd_proj_pat(&B.proj, QD_PAT_START)->trk[2].limit ==
+              qd_proj_pat(&A.proj, QD_PAT_START)->trk[2].limit, "P1.6c: an older pattern record (42-byte track settings): its tracks' "
           "MIDI FX OFF, the rest as it was");
-    CHECK(B.proj.pat[QD_PAT_START].snd[3].preset == 2 && B.proj.pat[QD_PAT_START].snd[0].preset > 0,
+    CHECK(qd_proj_pat(&B.proj, QD_PAT_START)->snd[3].preset == 2 && qd_proj_pat(&B.proj, QD_PAT_START)->snd[0].preset > 0,
           "its track sounds: their presets from their pool source (4: EP) or their factory sound (%d)",
-          B.proj.pat[QD_PAT_START].snd[0].preset);
+          qd_proj_pat(&B.proj, QD_PAT_START)->snd[0].preset);
     qd_persist_flush(&B);
     boot(&A);
-    CHECK(A.per.lib[7].preset == QD_PRESET_MINE0 + 7 && A.proj.pat[QD_PAT_START].snd[3].preset == 2,
+    CHECK(A.per.lib[7].preset == QD_PRESET_MINE0 + 7 && qd_proj_pat(&A.proj, QD_PAT_START)->snd[3].preset == 2,
           "written back as 0.7's records: the same after another restart");
 }
 
@@ -303,21 +303,21 @@ static void mfx_test(void)
     memset(FL, 0xFF, sizeof FL);
     boot(&A);
     run(&A, 20);
-    CHECK(!qd_mfx_group_active(&A.proj.mfx[0]) && !A.proj.pat[0].trk[0].mfx && !A.proj.pat[0].step[0][0].mfx,
+    CHECK(!qd_mfx_group_active(&A.proj.mfx[0]) && !qd_proj_pat(&A.proj, 0)->trk[0].mfx && !qd_proj_pat(&A.proj, 0)->step[0][0].mfx,
           "P1.6c: a new project: every group empty, the tracks OFF, the steps TRACK");
     qd_mfx_slot_init(&A.proj.mfx[2].slot[1], QD_MFX_ARP);
     A.proj.mfx[2].slot[1].v[QD_MA_PAT] = QD_AP_CONDIV, A.proj.mfx[2].slot[1].lane[0][3] = QD_AL_TIE;
     A.proj.mfx[2].slot[1].lane[1][15] = -48, A.proj.mfx[2].slot[1].bypass = 1;
     qd_mfx_slot_init(&A.proj.mfx[4].slot[7], QD_MFX_SELECTOR);
-    A.proj.pat[QD_PAT_START].trk[5].mfx = 3;
-    A.proj.pat[QD_PAT_START].step[5][9].mfx = QD_SMFX_G1 + 4;
-    A.proj.pat[QD_PAT_START].used = 1;
+    qd_proj_pat(&A.proj, QD_PAT_START)->trk[5].mfx = 3;
+    qd_proj_pat(&A.proj, QD_PAT_START)->step[5][9].mfx = QD_SMFX_G1 + 4;
+    qd_proj_pat(&A.proj, QD_PAT_START)->used = 1;
     run(&A, 2000);                                      /* (written by itself) */
     qd_persist_flush(&A);
     boot(&B);
     ok = !memcmp(B.proj.mfx, A.proj.mfx, sizeof A.proj.mfx);
-    CHECK(ok && B.proj.mfx[2].slot[1].bypass && B.proj.pat[QD_PAT_START].trk[5].mfx == 3 &&
-              B.proj.pat[QD_PAT_START].step[5][9].mfx == QD_SMFX_G1 + 4,
+    CHECK(ok && B.proj.mfx[2].slot[1].bypass && qd_proj_pat(&B.proj, QD_PAT_START)->trk[5].mfx == 3 &&
+              qd_proj_pat(&B.proj, QD_PAT_START)->step[5][9].mfx == QD_SMFX_G1 + 4,
           "P1.6c: the groups (an ARP with its lanes, bypassed: the bypass saved; a SELECTOR), a track's group, a step's: "
           "the same after a restart");
 }
@@ -394,7 +394,7 @@ static int lock_n(const qd_app_t *a, int k)
     for (p = 0; p < QD_NPAT; p++)
         for (t = 0; t < QD_PAT_NTRACK; t++)
             for (s = 0; s < QD_NSTEP; s++)
-                n += a->proj.pat[p].step[t][s].sound == k && k;
+                n += qd_proj_cpat(&a->proj, p)->step[t][s].sound == k && k;
     return n;
 }
 static void refs_test(void)
@@ -410,10 +410,10 @@ static void refs_test(void)
     qd_lib_store(&A, 0, "LEAD X", p);
     id = A.per.lib[0].preset;
     k0 = qd_pool_add_sound(&A, &A.per.lib[0]);          /* project 1: a reference, two locks (two patterns) */
-    qd_step_on(&A.proj.pat[A.seq.cur], 1, 2);
-    qd_step_set_sound(&A.proj.pat[A.seq.cur], 1, 2, k0);
-    qd_step_on(&A.proj.pat[40], 3, 7);
-    qd_step_set_sound(&A.proj.pat[40], 3, 7, k0);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 1, 2);
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 1, 2, k0);
+    qd_step_on(qd_proj_pat(&A.proj, 40), 3, 7);
+    qd_step_set_sound(qd_proj_pat(&A.proj, 40), 3, 7, k0);
     CHECK(k0 > 0 && A.proj.sound[k0 - 1].preset == id && A.proj.sound[k0 - 1].patch[QD_QP_HARM] == 100,
           "+ POOL: a reference to LEAD X (its id), its sound the preset's");
     {   /* track 3: loaded from it (its own copy, not edited) */
@@ -427,8 +427,8 @@ static void refs_test(void)
     CHECK(qd_persist_flush(&A), "flushed");
     qd_proj_new(&A, 1);                                 /* project 2: a reference too, a lock */
     k1 = qd_pool_add_sound(&A, &A.per.lib[0]);
-    qd_step_on(&A.proj.pat[A.seq.cur], 0, 5);
-    qd_step_set_sound(&A.proj.pat[A.seq.cur], 0, 5, k1);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, 5);
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 0, 5, k1);
     run(&A, 5);
     p[QD_QP_HARM] = 1234;                               /* REPLACE (in project 2) */
     qd_lib_replace(&A, 0, "LEAD X", p);
@@ -436,7 +436,7 @@ static void refs_test(void)
           "REPLACE: project 2's reference (and its locked step) plays the new LEAD X");
     CHECK(qd_persist_flush(&A) && qd_proj_load(&A, 0), "flushed; project 1 loaded");
     CHECK(A.proj.sound[k0 - 1].preset == id && A.proj.sound[k0 - 1].patch[QD_QP_HARM] == 1234 &&
-              A.proj.pat[A.seq.cur].step[1][2].sound == k0,
+              qd_proj_pat(&A.proj, A.seq.cur)->step[1][2].sound == k0,
           "project 1's reference plays the new LEAD X too, its lock as it was");
     run(&A, 5);
     CHECK(A.model.t[2].patch[QD_QP_HARM] == harm0 && A.model.t[2].preset == id && !A.model.t[2].edited,
@@ -456,16 +456,16 @@ static void refs_test(void)
     qd_undo_reset(&B);                                  /* delete, used: the references and the locks; undo; redo */
     qd_undo_input(&B, 0);
     CHECK(qd_preset_delete(&B, 0) && qd_lib_find(&B, id) < 0 && !qd_sound_used(&B.proj, k0) && !lock_n(&B, k0) &&
-              !B.proj.pat[40].step[3][7].sound, "delete (used): the preset, its reference, its locks (both patterns)");
+              !qd_proj_pat(&B.proj, 40)->step[3][7].sound, "delete (used): the preset, its reference, its locks (both patterns)");
     qd_undo_close(&B);
     qd_undo_step(&B, -1);
     CHECK(qd_lib_find(&B, id) == 0 && B.proj.sound[k0 - 1].preset == id && lock_n(&B, k0) == 2 &&
-              (B.proj.pat[40].step[3][7].ovr & QD_OV(QD_PM_SOUND)) && B.proj.sound[k0 - 1].patch[QD_QP_HARM] == 1234,
+              (qd_proj_pat(&B.proj, 40)->step[3][7].ovr & QD_OV(QD_PM_SOUND)) && B.proj.sound[k0 - 1].patch[QD_QP_HARM] == 1234,
           "undo: the preset, its reference, both locks (the other pattern's too) back");
     qd_undo_step(&B, 1);
     CHECK(qd_lib_find(&B, id) < 0 && !qd_sound_used(&B.proj, k0) && !lock_n(&B, k0), "redo: deleted again");
     CHECK(qd_persist_flush(&B) && qd_proj_load(&B, 1), "flushed; project 2 loaded");
-    CHECK(!qd_sound_used(&B.proj, k1) && !lock_n(&B, k1) && !(B.proj.pat[B.seq.cur].step[0][5].ovr & QD_OV(QD_PM_SOUND)),
+    CHECK(!qd_sound_used(&B.proj, k1) && !lock_n(&B, k1) && !(qd_proj_pat(&B.proj, B.seq.cur)->step[0][5].ovr & QD_OV(QD_PM_SOUND)),
           "project 2 as it loads: its reference to the deleted preset dropped, its lock back to TRACK");
     qd_lib_store(&B, 5, "UNUSED", p);
     id = B.per.lib[5].preset;
@@ -514,8 +514,8 @@ static void migrate72_test(void)
     put_copy(&A, 0, 31, "A COPY", A.per.lib[0].patch, A.per.lib[0].preset, QD_PKB(QD_PK_PAD));   /* MINE A's */
     p[QD_QP_HARM] = 777;
     put_copy(&A, 0, 32, "MINE A", p, A.per.lib[0].preset, QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX));   /* an edited copy */
-    qd_step_on(&A.proj.pat[A.seq.cur], 0, 0);
-    qd_step_set_sound(&A.proj.pat[A.seq.cur], 0, 0, 32);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, 0);
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 0, 0, 32);
     qd_persist_flush(&A);
     nlib = count_lib(&A);
     boot(&B);
@@ -526,7 +526,7 @@ static void migrate72_test(void)
     CHECK(B.proj.sound[30].preset == B.per.lib[0].preset, "a MY preset's copy: a reference to it");
     CHECK(m > 0 && !strcmp(B.per.lib[m].name, "MINE A 2") && B.per.lib[m].patch[QD_QP_HARM] == 777 &&
               B.per.lib[m].tags == (QD_PKB(QD_PK_PAD) | QD_PKB(QD_PK_FX)) && count_lib(&B) == nlib + 1 &&
-              B.proj.pat[B.seq.cur].step[0][0].sound == 32,
+              qd_proj_pat(&B.proj, B.seq.cur)->step[0][0].sound == 32,
           "another sound: a new MY preset (%s, its tags kept), referenced; its lock as it was", m > 0 ? B.per.lib[m].name : "-");
     {
         int n, k;
@@ -619,7 +619,7 @@ static void names_test(void)
         run(&A, 20);
         for (t = 0; t < 8; t++) {
             qd_sound_t f;
-            const int pr = A.proj.pat[A.seq.cur].snd[t].preset;
+            const int pr = qd_proj_pat(&A.proj, A.seq.cur)->snd[t].preset;
             if (pr >= 1 && pr <= QD_NFACTORY)
                 qd_factory_preset(pr - 1, &f), ok &= A.model.t[t].kind == qd_tags_first(f.tags);
             ok &= A.model.t[t].name[0] != 0 && !A.model.t[t].named;
@@ -637,16 +637,82 @@ static void names_test(void)
     }
 }
 
+/* P2.1: the patterns paged (at the device's sizes QD_PAT_RAM of them in RAM, the rest in the store; the host: all in
+ * RAM, the same answers): every one of the 64 given its own step and lock through qd_proj_pat (each evicting others,
+ * written back), then read back in another order; after a restart from the flash the same; with no flash attached
+ * (the host's RAM store) the same; a pattern change while playing: the sequencer never left without its patterns */
+static int pat_sig_ok(qd_project_t *pr, int k)
+{
+    const qd_pattern_t *P = qd_proj_cpat(pr, k);
+    int16_t v;
+    return qd_step_is_on(qd_step(P, k % 8, k)) && qd_lock_get(P, k % 8, k, QD_QP_HARM, &v) && v == 100 + k &&
+           P->used;
+}
+static void run_audio(qd_app_t *a, uint32_t ms)       /* (ticks and the sound: the sequencer runs on it) */
+{
+    static int16_t buf[2 * 128];
+    uint32_t i;
+    for (i = 0; i < ms; i++) {
+        qd_app_tick(a, ++now);
+        qd_app_audio(a, buf, i % 10 == 9 ? 45 : 44);
+    }
+}
+static void paging_test(void)
+{
+    int k, ok, res;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    for (k = 0; k < QD_NPAT; k++) {
+        qd_pattern_t *P = qd_proj_pat(&A.proj, k);
+        qd_step_on(P, k % 8, k);
+        qd_lock_set(P, k % 8, k, QD_QP_HARM, 100 + k);
+    }
+    for (ok = 0, k = QD_NPAT - 1; k >= 0; k -= 2)
+        ok += pat_sig_ok(&A.proj, k);
+    for (k = 0; k < QD_NPAT; k += 2)
+        ok += pat_sig_ok(&A.proj, k);
+    for (res = 0, k = 0; k < QD_NPAT; k++)
+        res += qd_proj_resident(&A.proj, k);
+    CHECK(ok == QD_NPAT && res == (QD_PAT_RAM < QD_NPAT ? QD_PAT_RAM : QD_NPAT),
+          "P2.1: 64 patterns edited one after another, read back in another order: all there (%d), %d in RAM", ok, res);
+    qd_persist_flush(&A);
+    boot(&B);
+    for (ok = 0, k = 0; k < QD_NPAT; k++)
+        ok += pat_sig_ok(&B.proj, k);
+    CHECK(ok == QD_NPAT, "P2.1: .. after a restart from the flash: all there (%d)", ok);
+    qd_app_init(&B);                                    /* (no flash: the host's RAM store at the device's sizes) */
+    for (k = 0; k < QD_NPAT; k++) {
+        qd_pattern_t *P = qd_proj_pat(&B.proj, k);
+        qd_step_on(P, k % 8, k);
+        qd_lock_set(P, k % 8, k, QD_QP_HARM, 100 + k);
+    }
+    for (ok = 0, k = QD_NPAT - 1; k >= 0; k--)
+        ok += pat_sig_ok(&B.proj, k);
+    CHECK(ok == QD_NPAT && qd_proj_used(&B.proj, 1) && qd_step_is_on(qd_step(qd_proj_cpat(&B.proj, 0), 0, 0)),
+          "P2.1: no flash attached: the same (%d); A01..A03 the demos still under the edits", ok);
+    boot(&A);                                           /* a change while playing: A01 queued over A02, then A05 */
+    qd_app_play(&A);
+    run_audio(&A, 500);
+    qd_seq_select(&A.seq, 0, 1);                        /* (at the next 16th) */
+    run_audio(&A, 3000);
+    qd_seq_select(&A.seq, 4, 1);
+    run_audio(&A, 3000);
+    CHECK(A.seq.cur == 4 && A.seq.playing && !A.proj.pat_forced, "P2.1: two changes while playing: A05 playing (%d), never every slot pinned "
+          "(forced %u, loads %u, saves %u)", A.seq.cur, (unsigned)A.proj.pat_forced, (unsigned)A.proj.pat_loads,
+          (unsigned)A.proj.pat_saves);
+}
+
 int main(void)
 {
     static qd_project_t keep;
+    static qd_pattern_t keep_pat[QD_NPAT];             /* (P2.1: the 64 patterns, out of RAM or not) */
     int k, ok, t;
 
     /* a fresh flash: the first project, its demos, written */
     memset(FL, 0xFF, sizeof FL);
     boot(&A);
     CHECK(A.per.on && A.per.proj == 0 && A.per.pexists[0] && !strcmp(A.per.pname[0], "PROJECT 1") &&
-              A.proj.pat[0].used && A.seq.cur == QD_PAT_START,
+              qd_proj_pat(&A.proj, 0)->used && A.seq.cur == QD_PAT_START,
           "a fresh flash: PROJECT 1 with the demos, A02");
 
     /* the tracks' sounds are the pattern's */
@@ -654,7 +720,7 @@ int main(void)
     A.model.t[0].patch[QD_QP_HARM] = 777;
     A.model.t[0].edited = 1;
     run(&A, 2);
-    CHECK(A.proj.pat[QD_PAT_START].snd[0].patch[QD_QP_HARM] == 777, "a track's sound edited: its pattern's copy");
+    CHECK(qd_proj_pat(&A.proj, QD_PAT_START)->snd[0].patch[QD_QP_HARM] == 777, "a track's sound edited: its pattern's copy");
     qd_seq_select(&A.seq, 7, 1);
     run(&A, 2);
     CHECK(A.model.t[0].patch[QD_QP_HARM] != 777, "another pattern: its own track sounds");
@@ -665,7 +731,7 @@ int main(void)
     /* written by itself; §7 while playing */
     qd_app_play(&A);
     run(&A, 200);
-    qd_step_on(&A.proj.pat[QD_PAT_START], 5, 3);
+    qd_step_on(qd_proj_pat(&A.proj, QD_PAT_START), 5, 3);
     run(&A, 1000);
     CHECK(qd_persist_dirty(&A), "an edit: not written in the first second");
     run(&A, 4000);
@@ -677,7 +743,7 @@ int main(void)
 
     /* a full project: 64 patterns (two full: 1024 steps, 1024 locks), 128 pool sounds, the mix, the settings */
     for (k = 0; k < QD_NPAT; k++)
-        fill_pattern(&A.proj.pat[k], k == 9 || k == 40 ? 1024 : (int)(10 + rnd() % 60u), k == 9 || k == 40 ? 1000 : (int)(rnd() % 40u));
+        fill_pattern(qd_proj_pat(&A.proj, k), k == 9 || k == 40 ? 1024 : (int)(10 + rnd() % 60u), k == 9 || k == 40 ? 1000 : (int)(rnd() % 40u));
     for (k = 1; k <= QD_NSOUND; k++) {
         int16_t p[QD_QUAD_NP];
         char nm[12];
@@ -703,6 +769,8 @@ int main(void)
     run(&A, 20);
     CHECK(qd_persist_flush(&A), "flushed");
     keep = A.proj;
+    for (k = 0; k < QD_NPAT; k++)
+        keep_pat[k] = *qd_proj_cpat(&A.proj, k);
     {
         uint32_t live, total;
         qd_persist_use(&A, &live, &total);
@@ -713,7 +781,7 @@ int main(void)
     qd_fx_set(QD_FXP_XCR, 0);
     boot(&B);
     for (k = 0, ok = 0; k < QD_NPAT; k++)
-        ok += !memcmp(&keep.pat[k], &B.proj.pat[k], sizeof keep.pat[k]);
+        ok += !memcmp(&keep_pat[k], qd_proj_cpat(&B.proj, k), sizeof keep_pat[k]);
     CHECK(ok == QD_NPAT, "a restart: the 64 patterns as they were (%d same)", ok);
     CHECK(!memcmp(keep.sound, B.proj.sound, sizeof keep.sound) && B.proj.nsound == keep.nsound,
           "the pool's 128 sounds (DRIVE among them)");
@@ -749,26 +817,26 @@ int main(void)
     /* the pool: swap renumbers, delete sends locks back, INIT stays, copy */
     {
         int locks_a = 0, locks_b = 0, src = 0;
-        qd_step_on(&B.proj.pat[3], 2, 4);
-        qd_step_set_sound(&B.proj.pat[3], 2, 4, 30);
-        qd_step_on(&B.proj.pat[50], 7, 100);
-        qd_step_set_sound(&B.proj.pat[50], 7, 100, 31);
-        B.proj.pat[20].snd[1].sound = 30;
+        qd_step_on(qd_proj_pat(&B.proj, 3), 2, 4);
+        qd_step_set_sound(qd_proj_pat(&B.proj, 3), 2, 4, 30);
+        qd_step_on(qd_proj_pat(&B.proj, 50), 7, 100);
+        qd_step_set_sound(qd_proj_pat(&B.proj, 50), 7, 100, 31);
+        qd_proj_pat(&B.proj, 20)->snd[1].sound = 30;
         qd_pool_swap(&B, 30, 31);
         for (k = 0; k < QD_NPAT; k++)
             for (t = 0; t < 8; t++) {
                 int s;
                 for (s = 0; s < QD_NSTEP; s++) {
-                    locks_a += B.proj.pat[k].step[t][s].sound == 31 && k == 3;
-                    locks_b += B.proj.pat[k].step[t][s].sound == 30 && k == 50;
+                    locks_a += qd_proj_pat(&B.proj, k)->step[t][s].sound == 31 && k == 3;
+                    locks_b += qd_proj_pat(&B.proj, k)->step[t][s].sound == 30 && k == 50;
                 }
-                src += B.proj.pat[k].snd[t].sound == 31 && k == 20;
+                src += qd_proj_pat(&B.proj, k)->snd[t].sound == 31 && k == 20;
             }
         CHECK(locks_a == 1 && locks_b == 1 && src == 1 && !strcmp(B.proj.sound[30].name, "S030"),
               "pool move (30 <-> 31): the locks in every pattern and the track source follow");
         CHECK(qd_pool_delete(&B, 1) && !B.proj.sound[0].name[0], "P1.5t: slot 1 as any other: deleted");
-        CHECK(qd_pool_delete(&B, 31) && B.proj.pat[3].step[2][4].sound == 0 && !B.proj.sound[30].name[0] &&
-                  B.proj.pat[20].snd[1].sound == 0,
+        CHECK(qd_pool_delete(&B, 31) && qd_proj_pat(&B.proj, 3)->step[2][4].sound == 0 && !B.proj.sound[30].name[0] &&
+                  qd_proj_pat(&B.proj, 20)->snd[1].sound == 0,
               "pool delete: the locks back to the track's sound, the track keeps its copy");
         CHECK(qd_pool_copy(&B, 5, 31) && !strcmp(B.proj.sound[30].name, B.proj.sound[4].name), "pool copy 5 -> 31");
     }
@@ -798,22 +866,22 @@ int main(void)
     }
     /* the projects */
     A.ui.view = QD_VIEW_ROLL;
-    CHECK(qd_proj_new(&A, 2) && A.ui.view == QD_VIEW_EDIT && A.per.proj == 2 && A.per.pexists[2] && !A.proj.pat[0].used &&
+    CHECK(qd_proj_new(&A, 2) && A.ui.view == QD_VIEW_EDIT && A.per.proj == 2 && A.per.pexists[2] && !qd_proj_pat(&A.proj, 0)->used &&
               !strcmp(A.per.pname[2], "PROJECT 3") && A.proj.nsound == 0 && A.proj.pool_empty,
           "new project 3: blank, its pool empty (P1.5t)");
-    qd_step_on(&A.proj.pat[0], 0, 0);
-    A.proj.pat[0].used = 1;
+    qd_step_on(qd_proj_pat(&A.proj, 0), 0, 0);
+    qd_proj_pat(&A.proj, 0)->used = 1;
     qd_proj_name(&A, 2, "MY SONG");
     CHECK(qd_proj_copy(&A, 2, 4) && A.per.pexists[4] && !strcmp(A.per.pname[4], "MY SONG"), "copy 3 -> 5");
     qd_undo_input(&A, 0);                               /* (P1.5c: an undo level, then a load forgets it) */
-    qd_step_on(&A.proj.pat[A.seq.cur], 0, 5);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, 5);
     qd_undo_close(&A);
     CHECK(qd_undo_count(&A, -1) == 1, "an edit: one undo level");
-    CHECK(qd_proj_load(&A, 4) && A.per.proj == 4 && qd_step_is_on(qd_step(&A.proj.pat[0], 0, 0)) && A.proj.nsound == 0,
+    CHECK(qd_proj_load(&A, 4) && A.per.proj == 4 && qd_step_is_on(qd_step(qd_proj_pat(&A.proj, 0), 0, 0)) && A.proj.nsound == 0,
           "load 5: the copy has the edit (its pool empty still: a copy of a new project)");
     CHECK(qd_undo_count(&A, -1) == 0 && qd_undo_count(&A, 1) == 0, "a project load: undo forgets (P1.5c)");
     CHECK(qd_proj_delete(&A, 2) && !A.per.pexists[2], "delete 3");
-    CHECK(qd_proj_load(&A, 0) && A.per.proj == 0 && !memcmp(&keep.pat[9], &A.proj.pat[9], sizeof keep.pat[9]),
+    CHECK(qd_proj_load(&A, 0) && A.per.proj == 0 && !memcmp(&keep_pat[9], qd_proj_cpat(&A.proj, 9), sizeof keep_pat[9]),
           "load 1 again: as it was");
     {   /* P1.5r: a sound imported over SysEx into LIBRARY 100: autosaved like any other */
         uint8_t f[160], blob[QD_QUAD_BLOB5];
@@ -842,6 +910,7 @@ int main(void)
     CHECK(!strcmp(B.per.lib[99].name, "SX KEEP"), "a restart: the SysEx import kept (P1.5r)");
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
     pages_test();
+    paging_test();
     migration_test();
     mfx_test();
     tags_test();

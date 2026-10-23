@@ -173,7 +173,7 @@ static qd_mfx_slot_t *S(int g, int k, int type)
     qd_mfx_slot_init(&A.proj.mfx[g - 1].slot[k], type);
     return &A.proj.mfx[g - 1].slot[k];
 }
-static void route(int t, int g) { A.proj.pat[A.seq.cur].trk[t].mfx = (uint8_t)g; }
+static void route(int t, int g) { qd_proj_pat(&A.proj, A.seq.cur)->trk[t].mfx = (uint8_t)g; }
 /* the example project (the mock-up's GR) */
 static void groups(void)
 {
@@ -242,7 +242,7 @@ int render_p16c(const char *out)
     /* 2: playing: the notes run along the rail (both tracks into one arp) */
     {
         uint8_t ch[2] = {60, 67}, n1 = 64;
-        qd_pattern_t *P = &A.proj.pat[A.seq.cur];
+        qd_pattern_t *P = qd_proj_pat(&A.proj, A.seq.cur);
         int st;
         for (st = 0; st < 16; st += 4) {
             qd_step_on(P, 0, st), qd_step_set_notes(P, 0, st, ch, 2), qd_step_set_len(P, 0, st, QD_LEN_1 + 4);

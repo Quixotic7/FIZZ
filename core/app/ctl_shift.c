@@ -21,7 +21,7 @@ static void pat_reload(qd_app_t *a)                   /* the tracks' sounds from
 {
     int t;
     for (t = 0; t < QD_NTRACK; t++)
-        qd_track_from_tsound(&a->model.t[t], &a->proj.pat[a->seq.cur].snd[t]);
+        qd_track_from_tsound(&a->model.t[t], &qd_proj_pat(&a->proj, a->seq.cur)->snd[t]);
     a->snd_pat = a->seq.cur;
 }
 
@@ -95,7 +95,7 @@ void qd_shift_black(qd_app_t *a, int b)
         u->clr_armed = 0;
     switch (b) {
     case 0:                                             /* B1: the snapshot stored */
-        h->snap = a->proj.pat[a->seq.cur];
+        h->snap = *qd_proj_pat(&a->proj, a->seq.cur);
         h->snap_ok = 1;
         qd_ctl_confirm(a, "SNAPSHOT", "stored");
         break;
@@ -103,13 +103,13 @@ void qd_shift_black(qd_app_t *a, int b)
         if (!h->snap_ok)
             break;
         qd_undo_hint(a, QD_UK_SNAP);
-        a->proj.pat[a->seq.cur] = h->snap;
-        a->proj.pat[a->seq.cur].used = 1;
+        *qd_proj_pat(&a->proj, a->seq.cur) = h->snap;
+        qd_proj_pat(&a->proj, a->seq.cur)->used = 1;
         pat_reload(a);
         qd_ctl_confirm(a, "SNAPSHOT", "recalled");
         break;
     case 3:                                             /* B4: the pattern copied */
-        h->pclip = a->proj.pat[a->seq.cur];
+        h->pclip = *qd_proj_pat(&a->proj, a->seq.cur);
         h->pclip_ok = 1;
         qd_ctl_confirm(a, "PATTERN", "copied");
         break;
@@ -117,8 +117,8 @@ void qd_shift_black(qd_app_t *a, int b)
         if (!h->pclip_ok)
             break;
         qd_undo_hint(a, QD_UK_PASTE);
-        a->proj.pat[a->seq.cur] = h->pclip;
-        a->proj.pat[a->seq.cur].used = 1;
+        *qd_proj_pat(&a->proj, a->seq.cur) = h->pclip;
+        qd_proj_pat(&a->proj, a->seq.cur)->used = 1;
         pat_reload(a);
         qd_ctl_confirm(a, "PATTERN", "pasted");
         break;

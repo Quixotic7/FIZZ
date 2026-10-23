@@ -198,7 +198,7 @@ int render_p15n(const char *out)
     run(100);
     A.ui.view = QD_VIEW_EDIT;
     wtap(2);
-    qd_step_set_notes(&A.proj.pat[A.seq.cur], 0, 2, CH, 3);
+    qd_step_set_notes(qd_proj_pat(&A.proj, A.seq.cur), 0, 2, CH, 3);
     btap(QD_B_MUTE);                                    /* the latch on, step 3 selected */
     run(200);
     btap(QD_B_OCTUP);
@@ -223,7 +223,7 @@ int render_p15n(const char *out)
     black(0);
     qd_app_button(&A, QD_B_MUTE, 0);
     run(20);
-    A.proj.pat[A.seq.cur].trk[0].scale = 1;             /* (C major) */
+    qd_proj_pat(&A.proj, A.seq.cur)->trk[0].scale = 1;             /* (C major) */
     turn(QD_K_SELECT, 1);                               /* (P1.5o: SELECT moves the chord, no longer ALGORITHM) */
     run(300);
     shot("move-all", "NOTE, the latch's selection, SELECT +1 (P1.5o): C E G -> D F A (in C major)", 1);

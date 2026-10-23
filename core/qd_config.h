@@ -7,6 +7,9 @@
  *              also run built this way (make -C tools test: build/dev/), so every change is checked at the device's
  *              sizes (the owner's rule from P2.0: memory and containers must fit them on every merge).
  *
+ * QD_TARGET_FM1 (with QD_DEVICE): the device's own build (tools/budget's link): what only the host's tests need at the
+ * device's sizes (persist.h's RAM store for the patterns when no flash is attached) is left out.
+ *
  * A container that fills up at the device's sizes counts its overflow (as ChoralRoot's shed) instead of growing; the
  * demos peak far below them (the audit's `bench seqpeak`: 25 events, 13 trig records). Nothing here changes what a
  * project sounds like or how it is stored: the store's format is the same in both profiles. */
@@ -27,6 +30,8 @@
 /* ---- the sequencer */
 #define QD_SEQ_NEV 512                 /* events waiting (the demos peak at 25) */
 #define QD_SEQ_NREC 64                 /* resolved trigs waiting (the demos peak at 13) */
+/* ---- the patterns (P2.1: paged; core/seq/pattern.h) */
+#define QD_PAT_RAM 3                   /* in RAM: the playing one, the queued one, one more (a change's old one) */
 /* ---- the flash store */
 #define QDS_MAXKEY 1024                /* keys a store */
 #define QDS_JOBBUF 512                 /* a record the store copies (longer: streamed from its owner, store.h) */
@@ -38,6 +43,7 @@
 #define QE_NCOMB 64                    /* a line for every voice the pool can have */
 #define QD_SEQ_NEV 4096
 #define QD_SEQ_NREC 512
+#define QD_PAT_RAM 64                  /* (every pattern: QD_NPAT) */
 #define QDS_MAXKEY 2048
 #define QDS_JOBBUF 28800               /* (QDS_MAXREC: every record copied, as in Phase 1) */
 #define QD_LIB_KEYS QDS_MAXKEY

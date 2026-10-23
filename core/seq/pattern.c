@@ -5,6 +5,7 @@
 #include "pattern.h"
 #include "scale.h"
 #include "sounds.h"
+#include "demo.h"
 
 /* ---------------------------------------------------------------- tables --- */
 static const int16_t QD_LEN_E[QD_NLEN] = {1, 2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768,
@@ -164,8 +165,16 @@ void qd_pat_init(qd_pattern_t *p)
 void qd_project_init(qd_project_t *pr)
 {
     int k;
-    for (k = 0; k < QD_NPAT; k++)
+    for (k = 0; k < QD_PAT_RAM; k++)
         qd_pat_init(&pr->pat[k]);
+#if QD_PAT_RAM < QD_NPAT
+    for (k = 0; k < QD_NPAT; k++)
+        pr->slot_of[k] = -1, pr->pat_used[k] = 0;
+    for (k = 0; k < QD_PAT_RAM; k++)
+        pr->pat_in[k] = -1, pr->lru[k] = 0;
+    pr->lru_clock = 0;
+#endif
+    pr->demo = 0;
     qd_sounds_init(pr);
     pr->pool_empty = 0;
     pr->key_scale = QD_SCALE_CHROMATIC;
@@ -178,6 +187,93 @@ void qd_project_init(qd_project_t *pr)
     memset(pr->mfx, 0, sizeof pr->mfx);                 /* P1.6c: the MIDI FX groups empty */
     pr->rec_auto = 1;                                   /* P1.6d: AUTOMATION ON (live recording's knobs, as before) */
 }
+
+/* ---------------------------------------------------------------- P2.1: the patterns paged */
+void qd_pat_default(const qd_project_t *pr, int k, qd_pattern_t *dst)
+{
+    qd_pat_init(dst);
+    if (pr->demo && k >= 0 && k < QD_DEMO_N)
+        qd_demo_pattern(dst, k);
+}
+
+static int pk(int k) { return k < 0 ? 0 : k >= QD_NPAT ? QD_NPAT - 1 : k; }
+
+#if QD_PAT_RAM >= QD_NPAT
+qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k) { return &pr->pat[pk(k)]; }
+int qd_proj_used(const qd_project_t *pr, int k) { return pr->pat[pk(k)].used; }
+int qd_proj_resident(const qd_project_t *pr, int k) { (void)pr, (void)k; return 1; }
+void qd_proj_drop(qd_project_t *pr) { (void)pr; }
+void qd_proj_save_all(qd_project_t *pr) { (void)pr; }
+#else
+static void slot_out(qd_project_t *pr, int sl, int save)
+{
+    const int k = pr->pat_in[sl];
+    if (k < 0)
+        return;
+    if (save && pr->io.save) {
+        pr->io.save(pr->io.ctx, k, &pr->pat[sl]);
+        pr->pat_saves++;
+    }
+    pr->pat_used[k] = pr->pat[sl].used;
+    pr->slot_of[k] = -1;
+    pr->pat_in[sl] = -1;
+}
+
+qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k)
+{
+    int sl = pr->slot_of[k = pk(k)], i;
+    if (sl < 0) {
+        for (i = 0; i < QD_PAT_RAM && sl < 0; i++)      /* a free slot, else the least recently used not pinned */
+            if (pr->pat_in[i] < 0)
+                sl = i;
+        for (i = 0; i < QD_PAT_RAM && sl < 0; i++)
+            ;
+        if (sl < 0) {
+            int best = -1, forced = -1;
+            for (i = 0; i < QD_PAT_RAM; i++) {
+                const int pin = pr->io.pinned && pr->io.pinned(pr->io.ctx, pr->pat_in[i]);
+                if (!pin && (best < 0 || pr->lru[i] < pr->lru[best]))
+                    best = i;
+                if (forced < 0 || pr->lru[i] < pr->lru[forced])
+                    forced = i;
+            }
+            if (best < 0) {                             /* (every slot pinned: the oldest goes all the same) */
+                best = forced;
+                pr->pat_forced++;
+            }
+            sl = best;
+            slot_out(pr, sl, 1);
+        }
+        if (!pr->io.load || !pr->io.load(pr->io.ctx, k, &pr->pat[sl]))
+            qd_pat_default(pr, k, &pr->pat[sl]);
+        pr->pat_loads++;
+        pr->pat_in[sl] = (int8_t)k;
+        pr->slot_of[k] = (int8_t)sl;
+    }
+    pr->lru[sl] = ++pr->lru_clock;
+    return &pr->pat[sl];
+}
+int qd_proj_used(const qd_project_t *pr, int k)
+{
+    const int sl = pr->slot_of[pk(k)];
+    return sl >= 0 ? pr->pat[sl].used : pr->pat_used[pk(k)];
+}
+int qd_proj_resident(const qd_project_t *pr, int k) { return pr->slot_of[pk(k)] >= 0; }
+void qd_proj_drop(qd_project_t *pr)
+{
+    int i;
+    for (i = 0; i < QD_PAT_RAM; i++)
+        slot_out(pr, i, 0);
+}
+void qd_proj_save_all(qd_project_t *pr)
+{
+    int i;
+    for (i = 0; i < QD_PAT_RAM; i++)
+        if (pr->pat_in[i] >= 0 && pr->io.save)
+            pr->io.save(pr->io.ctx, pr->pat_in[i], &pr->pat[i]);
+}
+#endif
+const qd_pattern_t *qd_proj_cpat(const qd_project_t *pr, int k) { return qd_proj_pat((qd_project_t *)pr, k); }
 
 int qd_step_mfx(const qd_pattern_t *p, int t, int s)
 {

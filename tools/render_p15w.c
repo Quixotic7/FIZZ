@@ -210,8 +210,8 @@ int render_p15w(const char *out)
     qd_lib_store(&A, 0, "LEAD X", p);
     qd_proj_new(&A, 1);                                 /* (project 2 first: a reference, a locked step) */
     kp = qd_pool_add_sound(&A, &A.per.lib[0]);
-    qd_step_on(&A.proj.pat[A.seq.cur], 2, 4);
-    qd_step_set_sound(&A.proj.pat[A.seq.cur], 2, 4, kp);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 2, 4);
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 2, 4, kp);
     qd_persist_flush(&A);
     qd_proj_new(&A, 0);                                 /* project 1: its pool, LEAD X locked on two steps */
     for (k = 17; k < 20; k++) {
@@ -220,10 +220,10 @@ int render_p15w(const char *out)
         qd_pool_add_sound(&A, &f);
     }
     kp = qd_pool_add_sound(&A, &A.per.lib[0]);
-    qd_step_on(&A.proj.pat[A.seq.cur], 3, 0);
-    qd_step_set_sound(&A.proj.pat[A.seq.cur], 3, 0, kp);
-    qd_step_on(&A.proj.pat[A.seq.cur], 3, 8);
-    qd_step_set_sound(&A.proj.pat[A.seq.cur], 3, 8, kp);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 3, 0);
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 3, 0, kp);
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 3, 8);
+    qd_step_set_sound(qd_proj_pat(&A.proj, A.seq.cur), 3, 8, kp);
     btap(QD_B_HOME);
     run(300);
     qd_ctl_select_track(&A, 3);
