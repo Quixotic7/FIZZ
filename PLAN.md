@@ -1498,6 +1498,22 @@ two-core voice split, `quad_render` in RAM, the flash store, `malloc` replaced b
 said would not fit. The headless tests of Phase 1 stay the acceptance tests: the device build must produce the same
 event timelines and the same screens.
 
+**Phase 2 started (2026-10-23).** The budget audit: `research/PHASE2-BUDGET.md` (RAM ~10x over as Phase 1 builds it,
+the UI drawing ~6–50x over, flash ~52 KB over; the engine, sequencer and controller port almost as they are). The
+owner's decisions on its §7:
+- **A complete new firmware**, not a guest of ChoralRoot: FIZZ may use **all the FM-1's flash** (the data region
+  0x97000..0xDFFFF for projects; ChoralRoot's data backed up before the first flash). One unit, swapped between FIZZ
+  and RemoteFM1 (standing permission to flash FIZZ builds on it: `--info` first, a full backup, one session).
+- **Drawing**: plutovg in 40-row strips from a fixed arena first, ChoralRoot-style integer primitives where the unit's
+  numbers say. **30 fps** when touched, 15..20 for full-screen motion. **3 font weights** (300, 500, 700). **FPU on**
+  for the UI (Melodee's flags), audio integer.
+- **The TAP ape drawn procedurally** (a cheap skeleton drawing of the poses, not cached layers).
+- **Undo**: a ~16 KB log. **Patterns**: the playing and the queued one in RAM, the rest paged from flash.
+  **16 voices**, 8 + 8, the voice render in fast RAM. **Comb lines**: 16 if RAM allows, else 8. **Delay**: as
+  ChoralRoot's (64 KB). **MY PRESETS**: 256, in flash.
+- **Phase 1 from now on**: memory and containers must fit the device sizes on every merge; screen designs stay free
+  until the drawing is settled on the unit.
+
 **Known budgets to settle on the device** (from Phase 1):
 - **The TAP ape** (0.9.2-tap-ape.1): its pose data is ~17 KB of flash; its speed comes from caching whole poses in
   layers, **~415 KB of RAM** (3 poses × 138 KB: a 175 × 158 RGBA pose and its half-size flash layer). Options measured:
