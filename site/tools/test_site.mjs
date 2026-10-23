@@ -257,12 +257,16 @@ try {
   await shot("labels-midifx.png");
   check(mfx.algo === "GROUP" && mfx.presets === "EFFECT" && mfx.b[0] === "EMPTY" && mfx.b[7] === "SLOT 8",
     `the MIDI FX screen on the panel: ALGORITHM "${mfx.algo}", PRESETS "${mfx.presets}", B1..B8 ${mfx.b.join(" / ")}`);
-  // P1.6e: REC switches the white keys to STEPS: the panel's W keys read STEP n, REC reads KEYS
-  await evaluate("FIZZ.controls.holdBtn(11, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(11, 4, false)");
-  await waitFor("FIZZ.labels.keys[0].firstChild.textContent === 'STEP 1'", 3000);
-  const steps = await evaluate("(() => { const L = FIZZ.labels, t = (d) => d.firstChild.textContent; return { w1: t(L.keys[0]), w16: t(L.keys[26]), rec: t(L.btns[11]) }; })()");
+  // P1.6f: the MIDI FX screen in STEPS: the panel's W keys read STEP n and REC KEYS (what a tap switches to); REC
+  // tapped: the keys play notes, REC reads STEPS; again: back
+  const lbl = "(() => { const L = FIZZ.labels, t = (d) => d.firstChild.textContent; return { w1: t(L.keys[0]), w16: t(L.keys[26]), rec: t(L.btns[11]) }; })()";
+  const steps = await evaluate(lbl);
   await shot("labels-midifx-steps.png");
-  check(steps.w1 === "STEP 1" && steps.w16 === "STEP 16" && steps.rec === "KEYS", `REC on the MIDI FX screen: the panel's white keys "${steps.w1}" .. "${steps.w16}", REC "${steps.rec}"`);
+  await evaluate("FIZZ.controls.holdBtn(11, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(11, 4, false)");
+  await waitFor("FIZZ.labels.btns[11].firstChild.textContent === 'STEPS'", 3000);
+  const keysV = await evaluate(lbl);
+  check(steps.w1 === "STEP 1" && steps.w16 === "STEP 16" && steps.rec === "KEYS" && keysV.rec === "STEPS" && !/^STEP/.test(keysV.w1),
+    `the MIDI FX screen on the panel: the white keys "${steps.w1}" .. "${steps.w16}", REC "${steps.rec}"; REC tapped: the keys "${keysV.w1}" .., REC "${keysV.rec}"`);
   await evaluate("FIZZ.controls.holdBtn(11, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(11, 4, false)"); await sleep(300);
   await evaluate("FIZZ.controls.holdBtn(6, 4, true)"); await sleep(120); await evaluate("FIZZ.controls.holdBtn(6, 4, false)"); await sleep(300);
 
