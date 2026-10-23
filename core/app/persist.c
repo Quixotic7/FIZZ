@@ -761,10 +761,11 @@ static void proj_read(qd_app_t *a, int p)
         rd_t r;
         len = rd_open(&r, &ps->prj_st, QD_RKEY(QD_RK_PAT, p, k));
         if (len > 0 && len != (int)QDS_DELETED) {
-            qd_pattern_t *tmp = qd_pat_scratch();
+            qd_pattern_t *tmp = qd_pat_borrow();
             *tmp = *qd_proj_pat(&a->proj, k);
             if (!de_pat(a, qd_proj_pat(&a->proj, k), &r))
                 *qd_proj_pat(&a->proj, k) = *tmp;                  /* (a record of another layout: the default) */
+            qd_pat_return(tmp);
         }
     }
 #endif
@@ -1593,15 +1594,20 @@ static int pat_rewrite(qd_app_t *a, qd_store_t *st, int p, int k)
     const qd_pattern_t *P;
     pat_src_t c;
     em_t e;
+    qd_pattern_t *S = 0;
     if (p == ps->proj && qd_proj_resident(&a->proj, k)) {
         P = qd_proj_cpat(&a->proj, k);
     } else {
-        qd_pattern_t *S = qd_pat_scratch();
         rd_t r;
+        S = qd_pat_borrow();                            /* (P2.1b: the device: the arena's room; none: not now) */
+        if (!S)
+            return 0;
         qd_pat_default(&a->proj, k, S);
         rd_open(&r, st, key);
-        if (!de_pat(a, S, &r))
+        if (!de_pat(a, S, &r)) {
+            qd_pat_return(S);
             return 0;
+        }
         if (p == ps->proj)
             tsound_fixup(a, S);                         /* (0.6's track sounds: their presets, as a load does) */
         P = S;
@@ -1614,7 +1620,90 @@ static int pat_rewrite(qd_app_t *a, qd_store_t *st, int p, int k)
         qd_store_flush(st);
     if (p == ps->proj)
         ps->saved[QD_PI_PAT + k] = ps->seen[QD_PI_PAT + k] = em_hash(&e);
+    if (S)
+        qd_pat_return(S);
     return 1;
+}
+
+/* P2.1b: a 'P' 5 record written again with each track sound that refers to preset id a copy, streamed from the record
+ * as it is (no pattern held: the rest of its bytes the same; a reference's two bytes become the copy's 145, the preset
+ * as it still is) */
+typedef struct {
+    qd_store_t *st;
+    uint32_t key;
+    const qd_app_t *a;
+    int id;
+} unref_src_t;
+static void unref_emit(const unref_src_t *u, em_t *e)
+{
+    uint8_t h[12], buf[64];
+    uint16_t ref[QD_PAT_NTRACK], nref[QD_PAT_NTRACK];
+    uint32_t len, sec = 0, off;
+    int t;
+    rd_t r;
+    len = (uint32_t)rd_open(&r, u->st, u->key);
+    rd_get(&r, h, 12);
+    rd_get(&r, ref, sizeof ref);
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
+        nref[t] = ref[t] == u->id ? 0 : ref[t];
+        sec += ref[t] ? 2u : 2u + QD_QUAD_BLOB + QD_SOUND_NAME + 2u;
+    }
+    em(e, h, 12);
+    em(e, nref, sizeof nref);
+    for (off = 12u + (uint32_t)sizeof ref; off < len - sec;) {   /* (the body as it is) */
+        const uint32_t n = len - sec - off < sizeof buf ? len - sec - off : (uint32_t)sizeof buf;
+        rd_get(&r, buf, n);
+        em(e, buf, n);
+        off += n;
+    }
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
+        if (!ref[t]) {                                  /* (a copy: as it is) */
+            uint8_t c[QD_QUAD_BLOB + 2 + QD_SOUND_NAME + 2];
+            rd_get(&r, c, sizeof c);
+            em(e, c, sizeof c);
+        } else if (ref[t] != u->id) {                   /* (another reference: as it is) */
+            uint8_t c[2];
+            rd_get(&r, c, 2);
+            em(e, c, 2);
+        } else {                                        /* (this one: the copy of the preset as it still is) */
+            uint8_t c[2], blob[QD_QUAD_BLOB];
+            char nm[QD_SOUND_NAME];
+            const uint16_t pre = ref[t];
+            rd_get(&r, c, 2);
+            if (!preset_rec(u->a, pre, nm, blob)) {
+                int16_t init[QD_QUAD_NP];
+                qd_quad_preset_patch(0, init);
+                qd_quad_pack(init, blob);
+                memset(nm, 0, sizeof nm);
+                strcpy(nm, "?");
+            }
+            em(e, blob, QD_QUAD_BLOB);
+            em(e, c, 2);                                /* (its pool source and edited bytes) */
+            em(e, nm, QD_SOUND_NAME);
+            em(e, &pre, 2);
+        }
+    }
+}
+static int unref_src(void *ctx, uint32_t off, uint8_t *dst, uint32_t n)
+{
+    em_t e;
+    em_init(&e, dst, off, n);
+    unref_emit((const unref_src_t *)ctx, &e);
+    return 0;
+}
+static void pat_unref_stream(qd_app_t *a, qd_store_t *st, int p, int k, int id)
+{
+    qd_persist_t *ps = &a->per;
+    unref_src_t u;
+    em_t e;
+    u.st = st, u.key = QD_RKEY(QD_RK_PAT, p, k), u.a = a, u.id = id;
+    em_init(&e, 0, 0, 0);
+    unref_emit(&u, &e);
+    qd_store_flush(st);
+    if (qd_store_put_src(st, u.key, e.pos, unref_src, 0, &u))
+        qd_store_flush(st);
+    if (p == ps->proj)
+        ps->saved[QD_PI_PAT + k] = ps->seen[QD_PI_PAT + k] = em_hash(&e);
 }
 
 /* a pattern record's version and its track sounds' references ('P' 5's; others: none); 0: no pattern record */
@@ -1654,8 +1743,12 @@ void qd_preset_will_change(qd_app_t *a, int id)
                 continue;
             for (t = 0; t < QD_PAT_NTRACK; t++)
                 hit |= ref[t] == id;
-            if (hit)
-                pat_rewrite(a, st, p, k);
+            if (!hit)
+                continue;
+            if (p == ps->proj && qd_proj_resident(&a->proj, k))
+                pat_rewrite(a, st, p, k);               /* (in RAM: as it is there) */
+            else
+                pat_unref_stream(a, st, p, k, id);      /* (P2.1b: its record, streamed; no pattern held) */
         }
     }
     ser_noref = 0;

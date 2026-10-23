@@ -600,20 +600,23 @@ void qd_step_value_key_default(qd_app_t *a, int b, int down)
         }
         /* fall through */
     default: {
-        qd_pattern_t *sp = qd_pat_scratch();            /* (the value on an empty step, then its parameter the default) */
-        qd_step_t *st;
+        qd_pattern_t *sp = qd_pat_borrow();            /* (the value on an empty step, then its parameter the default) */
+        qd_step_t st;
+        if (!sp)
+            return;                                     /* (P2.1b: no room for a moment's pattern: nothing) */
         *sp = *p;
         qd_step_clear(sp, t, 0);
         value_set_p(a, sp, 0, m, b);
-        st = &sp->step[t][0];
+        st = sp->step[t][0];
+        qd_pat_return(sp);
         switch (m) {
-        case UI_F_VEL: qd_tdef_set(p, t, QD_PM_VEL, st->vel); break;
-        case UI_F_LEN: qd_tdef_set(p, t, QD_PM_LEN, st->len); break;
-        case UI_F_MICRO: qd_tdef_set(p, t, QD_PM_MICRO, st->micro); break;
-        case UI_F_RATCH: qd_tdef_set(p, t, QD_PM_RATCH, st->ratch); break;
-        case UI_F_CHNC: qd_tdef_set(p, t, QD_PM_CHANCE, st->chance); break;
-        case UI_F_COND: qd_tdef_set(p, t, QD_PM_COND, st->cond); break;
-        case UI_F_TRIG: qd_tdef_set(p, t, QD_PM_TRIG, st->type); break;
+        case UI_F_VEL: qd_tdef_set(p, t, QD_PM_VEL, st.vel); break;
+        case UI_F_LEN: qd_tdef_set(p, t, QD_PM_LEN, st.len); break;
+        case UI_F_MICRO: qd_tdef_set(p, t, QD_PM_MICRO, st.micro); break;
+        case UI_F_RATCH: qd_tdef_set(p, t, QD_PM_RATCH, st.ratch); break;
+        case UI_F_CHNC: qd_tdef_set(p, t, QD_PM_CHANCE, st.chance); break;
+        case UI_F_COND: qd_tdef_set(p, t, QD_PM_COND, st.cond); break;
+        case UI_F_TRIG: qd_tdef_set(p, t, QD_PM_TRIG, st.type); break;
         default: return;
         }
         break;

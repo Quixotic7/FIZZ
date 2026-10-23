@@ -124,7 +124,8 @@ $(B)/san/%.o: %.c $(HDRS) Makefile
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -c -o $@ $<
 SEQ_SRC := $(ROOT)/core/seq/pattern.c $(ROOT)/core/seq/seq.c $(ROOT)/core/seq/player.c $(ROOT)/core/seq/model.c \
            $(ROOT)/core/seq/chord.c $(ROOT)/core/seq/scale.c $(ROOT)/core/seq/sounds.c $(ROOT)/core/seq/clip.c $(ROOT)/core/seq/demo.c \
-           $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/mix.c $(ROOT)/core/voice/quad/quad_voice.c
+           $(ROOT)/core/voice/pool.c $(ROOT)/core/voice/mix.c $(ROOT)/core/voice/quad/quad_voice.c \
+           $(if $(findstring QD_DEVICE,$(PROFILE)),$(ROOT)/core/gfx/qd_arena.c)
 $(B)/test_seq: $(T)/test_seq.c $(SEQ_SRC) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(INC) -o $@ $(T)/test_seq.c $(SEQ_SRC) -lm
 $(B)/test_mfx: $(T)/test_mfx.c $(SEQ_SRC) $(HDRS)

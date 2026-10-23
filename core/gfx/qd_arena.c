@@ -10,13 +10,21 @@
 #include <string.h>
 
 #include "qd_arena.h"
+#ifndef QD_GFX_ARENA
+#include "../qd_config.h"                      /* (built by itself: its size) */
+#endif
 
 #ifndef QD_TARGET_FM1
 static int ar_active;
-void qd_arena_use(int on) { ar_active = on; }
+int qd_arena_use(int on)
+{
+    const int was = ar_active;
+    ar_active = on;
+    return was;
+}
 #define AR_LIBC !ar_active
 #else
-void qd_arena_use(int on) { (void)on; }
+int qd_arena_use(int on) { (void)on; return 1; }
 #define AR_LIBC 0
 #endif
 

@@ -28,7 +28,8 @@ size_t qd_arena_peak(void);             /* the most it has held at once (bytes, 
 size_t qd_arena_live(void);
 size_t qd_arena_size(void);
 unsigned qd_arena_fails(void);          /* requests it could not meet (the drawing skips what needed them) */
-void qd_arena_use(int on);              /* (the host's: the core drawing now; else the C library's, a tool's own) */
+int qd_arena_use(int on);               /* (the host's: the core drawing now; else the C library's, a tool's own); the
+                                         * setting before */
 
 #ifdef QD_ARENA_SITES
 void qd_arena_site(const char *file, int line);   /* (the host's debugging: the next allocation's call site) */

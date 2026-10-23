@@ -249,14 +249,18 @@ static void undo_apply_runs(uint8_t *mem, uint32_t n, const uint8_t *d, uint32_t
 /* a level: four regions' differences (the pattern, the pool, the library, P1.6c the MIDI FX groups), each [u32 bytes]
  * then its runs, then the other patterns' locks. P2.1, the device's: the pool's region holds the slots' entries
  * (region, slot, the slot's XOR with what it was), the library's is empty */
+#ifdef QD_UNDO_SLOTS
+static qd_pattern_t *undo_S;                            /* (the gesture's pattern as it was, borrowed while closing) */
+#endif
 static void undo_regions(qd_app_t *a, const uint8_t **now, const uint8_t **was, uint32_t *sz)
 {
     qd_hist_t *u = &a->undo;
 #ifdef QD_UNDO_SLOTS
-    qd_pattern_t *S = qd_pat_scratch();
-    zr_unpack(u->pool + u->top, QD_UNDO_POOL - u->top, (uint8_t *)S, sizeof *S);
+    qd_pattern_t *S = undo_S = qd_pat_borrow();        /* (P2.1b: the arena's room between frames; none: no level) */
+    if (S)
+        zr_unpack(u->pool + u->top, QD_UNDO_POOL - u->top, (uint8_t *)S, sizeof *S);
     u->top = 0;                                         /* (unpacked: its room is the levels' again) */
-    now[0] = (const uint8_t *)qd_proj_cpat(&a->proj, u->pat), was[0] = (const uint8_t *)S, sz[0] = sizeof *S;
+    now[0] = (const uint8_t *)qd_proj_cpat(&a->proj, u->pat), was[0] = (const uint8_t *)S, sz[0] = S ? sizeof *S : 0u;
     now[1] = was[1] = 0, sz[1] = 0;
     now[2] = was[2] = 0, sz[2] = 0;
 #else
@@ -296,7 +300,18 @@ static uint32_t undo_slots(qd_app_t *a, uint8_t *out)
 }
 #endif
 
+static void undo_close(qd_app_t *a);
 void qd_undo_close(qd_app_t *a)
+{
+    undo_close(a);
+#ifdef QD_UNDO_SLOTS
+    if (undo_S) {                                       /* (P2.1b: the borrowed pattern given back) */
+        qd_pat_return(undo_S);
+        undo_S = 0;
+    }
+#endif
+}
+static void undo_close(qd_app_t *a)
 {
     qd_hist_t *u = &a->undo;
     const uint8_t *now[4], *was[4];
@@ -312,6 +327,12 @@ void qd_undo_close(qd_app_t *a)
     }
 #endif
     undo_regions(a, now, was, sz);
+#ifdef QD_UNDO_SLOTS
+    if (!undo_S) {                                      /* (P2.1b: no room to read the before in: no level) */
+        u->open = 0;
+        return;
+    }
+#endif
     for (r = 0; r < 4; r++) {                           /* the level's size: counted first (no copy of it anywhere) */
 #ifdef QD_UNDO_SLOTS
         if (r == 1)

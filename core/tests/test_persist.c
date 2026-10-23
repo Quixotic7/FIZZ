@@ -17,6 +17,9 @@
 #include <string.h>
 
 #include "app.h"
+#ifdef QD_DEVICE
+#include "qd_arena.h"
+#endif
 #include "qd_fx.h"
 #include "sounds.h"
 #include "names.h"
@@ -1162,6 +1165,10 @@ int main(void)
     migrate72_test();
     mix_test();
     names_test();
+#ifdef QD_DEVICE
+    CHECK(qd_arena_fails() == 0, "P2.1b: the drawing's arena never short (it lends its room between frames: %u "
+          "refused)", qd_arena_fails());
+#endif
     printf("test_persist: %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

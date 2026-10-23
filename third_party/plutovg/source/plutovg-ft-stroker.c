@@ -1690,6 +1690,41 @@ void PVG_FT_Stroker_ExportBorder(PVG_FT_Stroker       stroker,
     }
 }
 
+/* FIZZ (P2.1b, a patch of this vendored copy): when the right border adds nothing (open subpaths), the left border's
+ * own arrays handed over as the outline's points and tags (its tags made the outline's in place, its contours into
+ * the outline's): the same outline as PVG_FT_Stroker_Export makes, with no copy of the stroke (the device's fixed
+ * arena holds one). The outline's contours array must hold the counted contours. 1 taken (the caller frees points
+ * and tags), 0 not */
+int PVG_FT_Stroker_TakeLeft(PVG_FT_Stroker stroker, PVG_FT_Outline* outline)
+{
+    PVG_FT_StrokeBorder b0 = stroker->borders, b1 = stroker->borders + 1;
+    PVG_FT_UInt i;
+    if (!b0->valid || (b1->valid && b1->num_points))
+        return 0;
+    outline->n_points = 0;
+    outline->n_contours = 0;
+    for (i = 0; i < b0->num_points; i++) {
+        if (b0->tags[i] & PVG_FT_STROKE_TAG_END) {
+            outline->contours_flag[outline->n_contours] = 0;
+            outline->contours[outline->n_contours++] = (int)i;
+        }
+        if (b0->tags[i] & PVG_FT_STROKE_TAG_ON)
+            b0->tags[i] = PVG_FT_CURVE_TAG_ON;
+        else if (b0->tags[i] & PVG_FT_STROKE_TAG_CUBIC)
+            b0->tags[i] = PVG_FT_CURVE_TAG_CUBIC;
+        else
+            b0->tags[i] = PVG_FT_CURVE_TAG_CONIC;
+    }
+    outline->points = b0->points;
+    outline->tags = (char*)b0->tags;
+    outline->n_points = (int)b0->num_points;
+    b0->points = NULL;
+    b0->tags = NULL;
+    b0->num_points = b0->max_points = 0;
+    b0->valid = FALSE;
+    return 1;
+}
+
 /* documentation is in ftstroke.h */
 
 void PVG_FT_Stroker_Export(PVG_FT_Stroker stroker, PVG_FT_Outline* outline)

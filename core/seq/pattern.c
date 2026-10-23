@@ -1,11 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The pattern model and its editing API (pattern.h). */
+#include <stdlib.h>
 #include <string.h>
 
 #include "pattern.h"
 #include "scale.h"
 #include "sounds.h"
 #include "demo.h"
+#ifdef QD_DEVICE
+#include "../gfx/qd_arena.h"                    /* (P2.1b: qd_tmp_borrow) */
+#endif
 
 /* ---------------------------------------------------------------- tables --- */
 static const int16_t QD_LEN_E[QD_NLEN] = {1, 2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768,
@@ -642,11 +646,27 @@ void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r)
     qd_step_resolve_def(&p->trk[t < 0 || t >= QD_PAT_NTRACK ? 0 : t].def, qd_step(p, t, s), r);
 }
 
-qd_pattern_t *qd_pat_scratch(void)
+#ifdef QD_DEVICE
+void *qd_tmp_borrow(size_t n)
+{
+    const int was = qd_arena_use(1);                    /* (the host at the device's sizes: the arena, as the unit) */
+    void *p = qd_arena_malloc(n);
+    qd_arena_use(was);
+    return p;
+}
+void qd_tmp_return(void *p) { qd_arena_free(p); }
+qd_pattern_t *qd_pat_borrow(void) { return (qd_pattern_t *)qd_tmp_borrow(sizeof(qd_pattern_t)); }
+void qd_pat_return(qd_pattern_t *p) { qd_tmp_return(p); }
+#else
+void *qd_tmp_borrow(size_t n) { return malloc(n); }
+void qd_tmp_return(void *p) { free(p); }
+qd_pattern_t *qd_pat_borrow(void)
 {
     static qd_pattern_t scratch;
     return &scratch;
 }
+void qd_pat_return(qd_pattern_t *p) { (void)p; }
+#endif
 
 void qd_step_resolve_def(const qd_sdef_t *d, const qd_step_t *st, qd_rstep_t *r)
 {

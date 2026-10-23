@@ -41,6 +41,9 @@
 #include <string.h>
 
 #include "app.h"
+#ifdef QD_DEVICE
+#include "qd_arena.h"
+#endif
 #include "qd_gfx.h"
 #include "chord.h"
 #include "scale.h"
@@ -8100,6 +8103,10 @@ int main(void)
     CHECK(h1 == h2, "two runs of one session differ");
     printf("  determinism: a session twice, the same model and samples (%016llx)\n", (unsigned long long)h1);
     qd_shutdown();
+#ifdef QD_DEVICE
+    CHECK(qd_arena_fails() == 0, "P2.1b: the drawing's arena never short (it lends its room between frames: %u "
+          "refused)", qd_arena_fails());
+#endif
     printf("test_ctl: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

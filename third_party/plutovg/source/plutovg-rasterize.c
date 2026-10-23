@@ -597,6 +597,11 @@ static PVG_FT_Outline* ft_outline_convert_cull(const plutovg_path_t* path, const
     return c.o;
 }
 
+#ifdef QD_ARENA_REDIRECT
+int PVG_FT_Stroker_TakeLeft(PVG_FT_Stroker stroker, PVG_FT_Outline* outline);
+static PVG_FT_Vector* taken_points;                     /* (FIZZ P2.1b: a stroke outline's arrays, the stroker's) */
+static char* taken_tags;
+#endif
 static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, const plutovg_matrix_t* matrix, const plutovg_stroke_data_t* stroke_data)
 {
     double scale_x = sqrt(matrix->a * matrix->a + matrix->b * matrix->b);
@@ -665,8 +670,21 @@ static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, con
     PVG_FT_UInt contours;
     PVG_FT_Stroker_GetCounts(stroker, &points, &contours);
 
-    PVG_FT_Outline* stroke_outline = ft_outline_create(points, contours);
+    PVG_FT_Outline* stroke_outline;
+#ifdef QD_ARENA_REDIRECT
+    stroke_outline = ft_outline_create(0, contours);    /* (FIZZ P2.1b: the left border's own arrays, no copy) */
+    if(PVG_FT_Stroker_TakeLeft(stroker, stroke_outline)) {
+        taken_points = stroke_outline->points;
+        taken_tags = stroke_outline->tags;
+    } else {
+        ft_outline_destroy(stroke_outline);
+        stroke_outline = ft_outline_create(points, contours);
+        PVG_FT_Stroker_Export(stroker, stroke_outline);
+    }
+#else
+    stroke_outline = ft_outline_create(points, contours);
     PVG_FT_Stroker_Export(stroker, stroke_outline);
+#endif
 
     PVG_FT_Stroker_Done(stroker);
     ft_outline_destroy(outline);
@@ -734,4 +752,10 @@ void plutovg_rasterize(plutovg_span_buffer_t* span_buffer, const plutovg_path_t*
     plutovg_span_buffer_reset(span_buffer);
     PVG_FT_Raster_Render(&params);
     ft_outline_destroy(outline);
+#ifdef QD_ARENA_REDIRECT
+    free(taken_points);
+    free(taken_tags);
+    taken_points = NULL;
+    taken_tags = NULL;
+#endif
 }

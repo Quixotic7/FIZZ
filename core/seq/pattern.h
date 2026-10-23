@@ -30,6 +30,7 @@
  * QD_QUAD_NP of them), then the voice's mix: QD_LK_PAN (-64..63), QD_LK_DELAY, QD_LK_REVERB, QD_LK_CHORUS (the sends,
  * 0..127), QD_LK_LEVEL (the mix level, 0..127, ChoralRoot's LEVEL_Q12 index). */
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 
 #include "../voice/quad/quad_voice.h"
@@ -351,8 +352,13 @@ void qd_step_resolve(const qd_pattern_t *p, int t, int s, qd_rstep_t *r);
 /* P2.1: a step resolved against a track's defaults (no pattern needed: the clipboard's step, the defaults' picture) */
 void qd_step_resolve_def(const qd_sdef_t *d, const qd_step_t *st, qd_rstep_t *r);
 /* P2.1: the one scratch pattern (the device has room for one, not seven): for a computation that needs a whole
- * pattern for a moment; never held across calls, never by two at once */
-qd_pattern_t *qd_pat_scratch(void);
+ * pattern for a moment; never held across calls, never by two at once. P2.1b: borrowed and given back; at the device's
+ * sizes it is the drawing's arena's room between frames (no RAM of its own), 0 when the arena has none (never in a
+ * drawing). qd_tmp_borrow: the same for any size */
+qd_pattern_t *qd_pat_borrow(void);
+void qd_pat_return(qd_pattern_t *p);
+void *qd_tmp_borrow(size_t n);
+void qd_tmp_return(void *p);
 int qd_step_type(const qd_pattern_t *p, int t, int s);   /* resolved: QD_TRIG_NONE when off */
 int qd_step_notes(const qd_pattern_t *p, int t, int s, uint8_t *notes);   /* resolved: the absolute notes (n) */
 int qd_notes_abs(const uint8_t *note6, uint8_t *notes);   /* the slots' pitches -> ascending (n) */
