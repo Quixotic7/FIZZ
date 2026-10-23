@@ -244,7 +244,9 @@ static void migration_test(void)
     qd_proj_pat(&A.proj, QD_PAT_START)->snd[3].preset = 0;
     qd_proj_pat(&A.proj, QD_PAT_START)->used = 1;
     qd_proj_pat(&A.proj, QD_PAT_START)->trk[2].mfx = 3;            /* (P1.6c: cut off below: OFF when read) */
+    qd_persist_write_v4 = 1;                            /* (P2.1: a 'P' 4 record, made older below) */
     qd_persist_flush(&A);
+    qd_persist_write_v4 = 0;
     len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), b, sizeof b);
     {   /* 'P' 3 -> 'P' 1: each track sound a 96-byte blob (E1), without its two preset bytes; the mix's lock ids as
          * 0.6 had them (74..) */
@@ -769,6 +771,166 @@ static void sound_paging_test(void)
           "P2.1: a restart from the flash: every pool sound and MY preset the same (%d of %d)", ok, QD_NSOUND + QD_NLIB);
 }
 
+/* P2.1: 'P' 5, TRACK SOUNDS BY REFERENCE: a track sound that is its preset (not edited) is written as the preset's id;
+ * read back the same, exactly; one edited stays a copy. A track keeps the sound it loaded: REPLACE, an undo and a
+ * redo of it, a delete leave every pattern's track sound as it was, in this project and another, in RAM or not */
+static uint16_t rec_ref(qd_app_t *a, int p, int k, int t)   /* (a pattern record's reference t; 0xFFFF: not 'P' 5) */
+{
+    uint8_t h[12 + 2 * QD_PAT_NTRACK];
+    uint16_t r;
+    const int len = qd_store_get(&a->per.prj_st, QD_RKEY(QD_RK_PAT, p, k), h, sizeof h);
+    if (len < (int)sizeof h || h[0] != 'P' || h[1] != 5)
+        return 0xFFFFu;
+    memcpy(&r, h + 12 + 2 * t, 2);
+    return r;
+}
+static void tsound_of(qd_tsound_t *ts, const qd_sound_t *s, int edited)
+{
+    memset(ts, 0, sizeof *ts);
+    memcpy(ts->name, s->name, QD_SOUND_NAME);
+    memcpy(ts->patch, s->patch, sizeof ts->patch);
+    ts->preset = s->preset;
+    ts->edited = (uint8_t)edited;
+}
+static void pref_test(void)
+{
+    static qd_tsound_t want[3];
+    int16_t p[QD_QUAD_NP];
+    qd_sound_t f;
+    int id, id2, ok, t, len4, len5, nref;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    qd_quad_preset_patch(5, p);
+    p[QD_QP_HARM] = 321;
+    qd_lib_store(&A, 3, "REF ME", p);
+    p[QD_QP_HARM] = 654;
+    qd_lib_store(&A, 4, "REF TWO", p);
+    id = LIB(&A, 3)->preset, id2 = LIB(&A, 4)->preset;
+    qd_proj_new(&A, 1);                                 /* project 2, pattern 1: MY preset REF ME on track 1 */
+    tsound_of(&qd_proj_pat(&A.proj, 0)->snd[0], LIB(&A, 3), 0);
+    qd_proj_pat(&A.proj, 0)->used = 1;
+    qd_proj_load(&A, 0);                                /* project 1, pattern 11: REF ME, EP, an edited one, REF TWO */
+    tsound_of(&qd_proj_pat(&A.proj, 10)->snd[0], LIB(&A, 3), 0);
+    qd_factory_preset(1, &f);
+    tsound_of(&qd_proj_pat(&A.proj, 10)->snd[1], &f, 0);
+    qd_factory_preset(2, &f);
+    tsound_of(&qd_proj_pat(&A.proj, 10)->snd[2], &f, 1);
+    tsound_of(&qd_proj_pat(&A.proj, 11)->snd[0], LIB(&A, 4), 0);
+    qd_proj_pat(&A.proj, 10)->used = qd_proj_pat(&A.proj, 11)->used = 1;
+    for (t = 0; t < 3; t++)
+        want[t] = qd_proj_cpat(&A.proj, 10)->snd[t];
+    qd_persist_write_v4 = 1;                            /* (the same pattern as 'P' 4: its length) */
+    qd_persist_flush(&A);
+    len4 = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, 10), 0, 0);
+    qd_persist_write_v4 = 0;
+    qd_proj_pat(&A.proj, 10)->swing = 3;                /* (a change: written again, as 'P' 5) */
+    qd_persist_flush(&A);
+    len5 = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, 10), 0, 0);
+    for (nref = 0, t = 0; t < QD_PAT_NTRACK; t++)
+        nref += rec_ref(&A, 0, 10, t) != 0;
+    CHECK(rec_ref(&A, 0, 10, 0) == id && rec_ref(&A, 0, 10, 1) == 2 && !rec_ref(&A, 0, 10, 2) &&
+              rec_ref(&A, 0, 11, 0) == id2 && rec_ref(&A, 1, 0, 0) == id && len5 == len4 + 16 - nref * 143,
+          "P2.1: 'P' 5: MY preset and EP by reference (and the default kit's: %d of 8), the edited one a copy; in the "
+          "other project too; %d bytes, not %d", nref, len5, len4);
+    boot(&B);
+    for (ok = 0, t = 0; t < 3; t++)
+        ok += !memcmp(&qd_proj_cpat(&B.proj, 10)->snd[t], &want[t], sizeof want[t]);
+    CHECK(ok == 3, "P2.1: a restart: the three track sounds exactly as they were (%d)", ok);
+    boot(&A);                                           /* (A again: B may have written) */
+    p[QD_QP_HARM] = 999;
+    qd_lib_replace(&A, 3, "REF ME", p);                /* REPLACE: the references to it copies first */
+    qd_undo_close(&A);
+    CHECK(rec_ref(&A, 0, 10, 0) == 0 && rec_ref(&A, 1, 0, 0) == 0 && rec_ref(&A, 0, 10, 1) == 2,
+          "P2.1: REPLACE: the records referring to it written again as copies, in both projects");
+    qd_undo_step(&A, -1);                               /* UNDO the REPLACE, a write, REDO */
+    qd_proj_pat(&A.proj, 10)->swing = 4;                /* (pattern 11 written again: by reference again) */
+    qd_persist_flush(&A);
+    CHECK(LIB(&A, 3)->patch[QD_QP_HARM] == 321 && rec_ref(&A, 0, 10, 0) == id,
+          "P2.1: UNDO: the preset as it was, the track a reference to it again");
+    qd_undo_step(&A, 1);
+    qd_persist_flush(&A);
+    boot(&B);
+    CHECK(LIB(&B, 3)->patch[QD_QP_HARM] == 999 && qd_proj_cpat(&B.proj, 10)->snd[0].patch[QD_QP_HARM] == 321 &&
+              !memcmp(&qd_proj_cpat(&B.proj, 10)->snd[0], &want[0], sizeof want[0]),
+          "P2.1: REDO, a restart: the preset the new one (999), the track keeps the sound it loaded (321)");
+    qd_proj_load(&B, 1);
+    CHECK(qd_proj_cpat(&B.proj, 0)->snd[0].patch[QD_QP_HARM] == 321, "P2.1: .. in the other project too");
+    boot(&A);
+    qd_preset_delete(&A, 4);                            /* a delete: its references copies first */
+    qd_undo_close(&A);
+    qd_persist_flush(&A);
+    boot(&B);
+    CHECK(!qd_lib_used(&B, 4) && qd_proj_cpat(&B.proj, 11)->snd[0].patch[QD_QP_HARM] == 654 &&
+              !strcmp(qd_proj_cpat(&B.proj, 11)->snd[0].name, "REF TWO") &&
+              qd_proj_cpat(&B.proj, 11)->snd[0].preset == id2,
+          "P2.1: a delete: the track keeps its sound, its name and where it came from");
+}
+
+/* P2.1: a flash of 'P' 4 pattern records (as P1.6h wrote them), two projects, MY presets and factory sounds on their
+ * tracks: read by this core, every pattern the same; qd_persist_migrate: every record 'P' 5, read again after a
+ * restart, every pattern still the same, the records smaller (the owner's own flash: tools/flash_check.py) */
+static void p5_migration_test(void)
+{
+    static qd_pattern_t want[2][4];
+    static const int PK[4] = {0, 1, 7, 40};
+    int16_t p[QD_QUAD_NP];
+    qd_sound_t f;
+    int j, k, ok, n, v4 = 0, v5 = 0, len4 = 0, len5 = 0;
+    memset(FL, 0xFF, sizeof FL);
+    qd_persist_write_v4 = 1;
+    boot(&A);
+    run(&A, 20);
+    qd_quad_preset_patch(9, p);
+    p[QD_QP_HARM] = 444;
+    qd_lib_store(&A, 0, "MIGRATE ME", p);
+    for (j = 0; j < 2; j++) {
+        if (j)
+            qd_proj_new(&A, 1);
+        for (k = 0; k < 4; k++) {
+            qd_pattern_t *P = qd_proj_pat(&A.proj, PK[k]);
+            qd_step_on(P, k, 3 + j);
+            tsound_of(&P->snd[0], LIB(&A, 0), 0);
+            qd_factory_preset(5 + k, &f);
+            tsound_of(&P->snd[1], &f, k == 2);
+            P->used = 1;
+        }
+        qd_persist_flush(&A);
+        for (k = 0; k < 4; k++)
+            want[j][k] = *qd_proj_cpat(&A.proj, PK[k]);
+    }
+    for (j = 0; j < 2; j++)
+        for (k = 0; k < 4; k++) {
+            v4 += rec_ref(&A, j, PK[k], 0) == 0xFFFFu;
+            len4 += qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_PAT, j, PK[k]), 0, 0);
+        }
+    qd_persist_write_v4 = 0;
+    boot(&B);                                           /* (project 2 the one worked on: its settings) */
+    for (ok = 0, j = 1; j >= 0; j--) {
+        qd_proj_load(&B, j);
+        for (k = 0; k < 4; k++)
+            ok += !memcmp(qd_proj_cpat(&B.proj, PK[k]), &want[j][k], sizeof want[j][k]);
+    }
+    CHECK(v4 == 8 && ok == 8, "P2.1: a flash of 'P' 4 records (%d): read by this core, the 8 patterns the same (%d)", v4,
+          ok);
+    n = qd_persist_migrate(&B);
+    qd_persist_flush(&B);
+    boot(&A);
+    for (ok = 0, j = 1; j >= 0; j--) {
+        qd_proj_load(&A, j);
+        for (k = 0; k < 4; k++)
+            ok += !memcmp(qd_proj_cpat(&A.proj, PK[k]), &want[j][k], sizeof want[j][k]);
+    }
+    for (j = 0; j < 2; j++)
+        for (k = 0; k < 4; k++) {
+            v5 += rec_ref(&A, j, PK[k], 0) != 0xFFFFu;
+            len5 += qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_PAT, j, PK[k]), 0, 0);
+        }
+    CHECK(n >= 8 && v5 == 8 && ok == 8 && len5 < len4 && !qd_persist_migrate(&A),
+          "P2.1: migrated (%d records): every one 'P' 5 (%d), a restart: the 8 patterns the same (%d); %d bytes, not %d; "
+          "again: nothing", n, v5, ok, len5, len4);
+}
+
 int main(void)
 {
     static qd_project_t keep;
@@ -991,6 +1153,8 @@ int main(void)
     pages_test();
     paging_test();
     sound_paging_test();
+    pref_test();
+    p5_migration_test();
     migration_test();
     mfx_test();
     tags_test();

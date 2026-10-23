@@ -158,6 +158,14 @@ int qd_preset_delete(struct qd_app *a, int slot);   /* one of MY presets out, wi
                                                    * Other projects drop theirs when they load */
 void qd_lib_unique_name(const struct qd_app *a, const char *name, char *out);   /* a name no MY preset has ("X 2") */
 int qd_preset_get(const struct qd_app *a, int id, qd_sound_t *out);
+/* P2.1 (the 'P' 5 records: track sounds by reference): before MY preset id changes or goes, every pattern record
+ * referring to it (every project's) is written again with the track's own copy. persist.c calls it itself (REPLACE, a
+ * store over one, a delete); undo.c before it changes MY presets back */
+void qd_preset_will_change(struct qd_app *a, int id);
+extern int qd_persist_write_v4;        /* (the tests: pattern records as 'P' 4, by copy) */
+/* P2.1: every pattern record of an older format, of every project, written again as 'P' 5 (each project loaded in
+ * turn; the one worked on again after); the records written. Not called by itself: older records read as they are */
+int qd_persist_migrate(struct qd_app *a);
 
 #ifdef __cplusplus
 }

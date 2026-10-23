@@ -72,6 +72,10 @@ $(B)/render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
+# P2.1: a flash image as the core reads it, a line a project / pattern / pool sound / MY preset (tools/flash_dump.c)
+$(B)/flash_dump: $(B)/flash_dump.o $(CORE_OBJ) $(PVG_OBJ)
+	$(CC) -o $@ $^ -lm
+
 # P2.1: at the device's sizes plutovg's malloc / free are the drawing's fixed arena (core/gfx/qd_arena.h)
 PVG_ARENA := $(if $(findstring QD_DEVICE,$(PROFILE)),$(PROFILE) -DQD_ARENA_REDIRECT -include $(ROOT)/core/gfx/qd_arena.h,)
 PVG_DEPS := $(PVG)/include/plutovg.h $(ROOT)/core/gfx/qd_arena.h $(ROOT)/core/qd_config.h

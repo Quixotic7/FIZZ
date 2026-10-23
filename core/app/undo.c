@@ -154,10 +154,13 @@ static int undo_slot(qd_app_t *a, int region, int slot, qd_sound_t *out)
 }
 static void undo_slot_put(qd_app_t *a, int region, int slot, const qd_sound_t *s)
 {
-    if (region == QD_UNDO_RPOOL)
+    if (region == QD_UNDO_RPOOL) {
         qd_sound_write(&a->proj, slot, s);
-    else if (region == QD_UNDO_RLIB)
+    } else if (region == QD_UNDO_RLIB) {
+        if (qd_lib_used(a, slot))                       /* (the 'P' 5 records' references to it: copies first) */
+            qd_preset_will_change(a, qd_lib_preset(a, slot));
         qd_lib_write(a, slot, s);
+    }
 }
 #endif
 
@@ -256,6 +259,22 @@ static long undo_diff(uint8_t *out, uint32_t room, const uint8_t *now, const uin
     return (long)o;
 }
 
+#ifndef QD_UNDO_SLOTS
+/* the library's runs: each MY preset they touch, before (the 'P' 5 records' references to it made copies) */
+static void undo_lib_unref(qd_app_t *a, const uint8_t *d, uint32_t len)
+{
+    uint32_t o = 0;
+    while (o + 6u <= len) {
+        uint32_t s, l, k;
+        memcpy(&s, d + o, 4);
+        l = (uint32_t)d[o + 4] | (uint32_t)d[o + 5] << 8;
+        for (k = s / sizeof(qd_sound_t); l && k <= (s + l - 1u) / sizeof(qd_sound_t) && k < QD_NLIB; k++)
+            if (qd_lib_used(a, (int)k))
+                qd_preset_will_change(a, qd_lib_preset(a, (int)k));
+        o += 6u + l;
+    }
+}
+#endif
 static void undo_apply_runs(uint8_t *mem, uint32_t n, const uint8_t *d, uint32_t len)
 {
     uint32_t o = 0;
@@ -434,6 +453,11 @@ static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
             o += 4u + len;
             continue;
         }
+#endif
+#ifndef QD_UNDO_SLOTS
+        if (r == 2)                                     /* (P2.1: MY presets it changes: the references to them
+                                                         * copies first) */
+            undo_lib_unref(a, d + o + 4u, len);
 #endif
         undo_apply_runs(mem[r], sz[r], d + o + 4u, len);
         o += 4u + len;
