@@ -87,9 +87,12 @@ static const qd_rgb WD_COL[4] = {UI_K1, UI_K2, UI_K4, 0xff3ca0u};
 static struct {
     int ready, n;
     float lx[4];                                        /* each letter's pen x */
-    float tx[WD_MAXP], ty[WD_MAXP];
+    uint8_t px[WD_MAXP], py[WD_MAXP];                   /* (P2.1c: each point's column and row in the band, bytes:
+                                                         * they are on the sample grid) */
     uint8_t letter[WD_MAXP];
 } wd;
+#define WD_TX(k) ((float)wd.px[k] + 0.5f)
+#define WD_TY(k) ((float)(WD_BAND0 + wd.py[k]) + 0.5f)
 
 static void wd_build(void)
 {
@@ -112,8 +115,8 @@ static void wd_build(void)
             if (qd_text_mask_rows(WD_CH[n], x, WD_BASE - (float)WD_BAND0, &f, mask, 240, j, 1))
                 for (i = 0; i < 240; i += 2)
                     if (mask[i] >= 140 && wd.n < WD_MAXP) {
-                        wd.tx[wd.n] = (float)i + 0.5f;
-                        wd.ty[wd.n] = (float)(WD_BAND0 + j) + 0.5f;
+                        wd.px[wd.n] = (uint8_t)i;
+                        wd.py[wd.n] = (uint8_t)j;
                         wd.letter[wd.n] = (uint8_t)n;
                         wd.n++;
                     }
@@ -168,18 +171,18 @@ static void draw_word_particles(float u, float pa)
             const float sw = (1.f - g) * 12.f * (hash01(q, 8, 9) - 0.5f);
             if (u < d0)
                 continue;
-            x = sx + (wd.tx[k] - sx) * g + sinf((1.f - g) * 6.f + ph) * sw;
-            y = sy + (wd.ty[k] - sy) * g + cosf((1.f - g) * 5.f + ph) * fabsf(sw);
+            x = sx + (WD_TX(k) - sx) * g + sinf((1.f - g) * 6.f + ph) * sw;
+            y = sy + (WD_TY(k) - sy) * g + cosf((1.f - g) * 5.f + ph) * fabsf(sw);
             a = (0.35f + 0.65f * g) * pa;
         } else {                                        /* fizzing apart upward */
             const float v = u - (WD_FIZZ + WD_FSTAG * hash01(q, 10, 9));
             if (v <= 0.f) {
-                x = wd.tx[k];
-                y = wd.ty[k];
+                x = WD_TX(k);
+                y = WD_TY(k);
                 a = pa;
             } else {
-                x = wd.tx[k] + (hash01(q, 11, 9) - 0.5f) * 30.f * v + sinf(v * 4.f + ph) * 2.f;
-                y = wd.ty[k] - (12.f + 30.f * hash01(q, 12, 9)) * v - 10.f * v * v;
+                x = WD_TX(k) + (hash01(q, 11, 9) - 0.5f) * 30.f * v + sinf(v * 4.f + ph) * 2.f;
+                y = WD_TY(k) - (12.f + 30.f * hash01(q, 12, 9)) * v - 10.f * v * v;
                 a = (1.f - ui_ease(v / WD_FADE)) * seg(u, WD_BREAK0, WD_BREAK0 + 0.08f);
             }
         }

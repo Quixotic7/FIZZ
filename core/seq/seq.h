@@ -141,7 +141,10 @@ typedef struct {
     int64_t rg[4];
     int16_t ridx[4];
     int hn, hw;                         /* the history of conditional steps (NEI): count, next write */
-    int64_t hg[QD_SEQ_NHIST];
+    int32_t hg[QD_SEQ_NHIST];           /* P2.1c: their grid ticks less hbase (32 bits; rebased as time goes on, an
+                                         * entry left more than 2^31 behind kept as INT32_MIN, the newest such one's
+                                         * tick exactly in hsat) */
+    int64_t hbase, hsat;
     uint8_t hr[QD_SEQ_NHIST];
 } qd_tcur_t;
 

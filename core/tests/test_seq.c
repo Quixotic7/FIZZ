@@ -3064,6 +3064,43 @@ static void u_longgate(void)
           qd_len_name(len), (long long)gate, (long long)(at - SEQ.flash_tick[0]), found);
 }
 
+/* P2.1c: the conditional steps' history is 32 bits a tick, rebased as time goes on (qd_tcur_t.hg): NEI / NOT NEI
+ * after 2^30 ticks (532 s at 300 BPM) as at the start (the pattern repeats every two loops) */
+static int hist_ons(double s0, double s1, int t)
+{
+    int i, n = 0;
+    rig_run_to((uint64_t)(s0 * 44100.0));
+    NENG = 0;
+    rig_run_to((uint64_t)(s1 * 44100.0));
+    for (i = 0; i < NENG; i++)
+        n += ENG[i].kind == QD_LOG_ON && ENG[i].track == t;
+    return n;
+}
+static void u_hist_long(void)
+{
+    static const uint8_t N1[1] = {60};
+    qd_pattern_t *P;
+    int st, a0, a1, b0, b1;
+    rig_reset();
+    P = qd_proj_pat(&PROJ, 0);
+    P->bpm = 300;
+    for (st = 0; st < 16; st += 4) {
+        qd_step_on(P, 0, st), qd_step_set_notes(P, 0, st, N1, 1);
+        qd_step_set_cond(P, 0, st, qd_cond_ab(1 + (st / 4) % 2, 2 + st / 8));
+        qd_step_on(P, 1, st + 1), qd_step_set_notes(P, 1, st + 1, N1, 1);
+        qd_step_set_cond(P, 1, st + 1, st % 8 ? QD_COND_NNEI : QD_COND_NEI);
+    }
+    P->used = 1;
+    qd_model_tempo(&MODEL, 300);
+    qd_seq_select(&SEQ, 0, 0);
+    qd_seq_play(&SEQ);
+    a0 = hist_ons(9.6, 19.2, 0), a1 = hist_ons(19.2, 28.8, 1);
+    b0 = hist_ons(585.6, 595.2, 0), b1 = hist_ons(595.2, 604.8, 1);
+    CHECK(a1 > 0 && a0 == b0 && a1 == b1 && SEQ.cur_t[0].hbase > 0x40000000LL,
+          "NEI after 2^30 ticks (rebased) as at the start: track 1 %d / %d, track 2 %d / %d notes in 9.6 s (track 1 rebased at %lld)", a0, b0, a1, b1,
+          (long long)SEQ.cur_t[0].hbase);
+}
+
 static void u_worst(void)
 {
     int n0 = fails, e_sane, r_sane, e_long, r_long, e_x, r_x, hung = 0, i, t, st;
@@ -3459,6 +3496,7 @@ int main(int argc, char **argv)
     u_scale();
     u_worst();
     u_longgate();
+    u_hist_long();
     u_sounds();
     u_names();
     p_sixteenths();

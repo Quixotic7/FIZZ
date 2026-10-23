@@ -222,9 +222,29 @@ static void dir_rewind(qd_tcur_t *c, int64_t x)
     }
 }
 
+#define HIST_OLD INT32_MIN                              /* (P2.1c: an entry rebased out of reach) */
+static int64_t hist_g(const qd_tcur_t *c, int i) { return c->hg[i] == HIST_OLD ? c->hsat : c->hbase + c->hg[i]; }
 static void hist_push(qd_tcur_t *c, int64_t g, int r)
 {
-    c->hg[c->hw] = g;
+    if (!c->hn)
+        c->hbase = g;
+    else if (g - c->hbase > 0x40000000LL || g - c->hbase < -0x40000000LL) {   /* (rebased on g) */
+        const int64_t sh = g - c->hbase;
+        int k;
+        for (k = 0; k < c->hn; k++) {                   /* (oldest first: hsat ends the newest put out of reach) */
+            const int i = (c->hw - c->hn + k + 2 * QD_SEQ_NHIST) % QD_SEQ_NHIST;
+            if (c->hg[i] == HIST_OLD)
+                continue;
+            if ((int64_t)c->hg[i] - sh <= (int64_t)HIST_OLD) {
+                c->hsat = c->hbase + c->hg[i];
+                c->hg[i] = HIST_OLD;
+            } else {
+                c->hg[i] = (int32_t)((int64_t)c->hg[i] - sh);
+            }
+        }
+        c->hbase = g;
+    }
+    c->hg[c->hw] = (int32_t)(g - c->hbase);
     c->hr[c->hw] = (uint8_t)r;
     c->hw = (c->hw + 1) % QD_SEQ_NHIST;
     if (c->hn < QD_SEQ_NHIST)
@@ -235,7 +255,7 @@ static void hist_drop_from(qd_tcur_t *c, int64_t x)
 {
     while (c->hn) {
         const int i = (c->hw - 1 + QD_SEQ_NHIST) % QD_SEQ_NHIST;
-        if (c->hg[i] < x)
+        if (hist_g(c, i) < x)
             break;
         c->hw = i;
         c->hn--;
@@ -248,9 +268,9 @@ static int hist_at(const qd_tcur_t *c, int64_t g, int64_t origin)
     int k;
     for (k = 0; k < c->hn; k++) {
         const int i = (c->hw - 1 - k + 2 * QD_SEQ_NHIST) % QD_SEQ_NHIST;
-        if (c->hg[i] > g)
+        if (hist_g(c, i) > g)
             continue;
-        return c->hg[i] < origin ? 0 : c->hr[i];
+        return hist_g(c, i) < origin ? 0 : c->hr[i];
     }
     return 0;
 }
