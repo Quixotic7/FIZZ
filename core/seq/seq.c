@@ -308,7 +308,7 @@ static void cur_fix(qd_seq_t *s, qd_tcur_t *c)
 static void rewind(qd_seq_t *s, int t, int64_t x, int pat)
 {
     qd_tcur_t *c = &s->cur_t[t];
-    drop_from(s, t, x, qd_div64(s->pos, QD_SUB));
+    drop_from(s, t, x, s->tick);
     hist_drop_from(c, x);
     dir_rewind(c, x);
     cur_enter(s, c, pat, x);
@@ -320,7 +320,7 @@ static void rewind(qd_seq_t *s, int t, int64_t x, int pat)
 static void cur_back(qd_seq_t *s, int t, int64_t x)
 {
     qd_tcur_t *c = &s->cur_t[t];
-    drop_from(s, t, x, qd_div64(s->pos, QD_SUB));
+    drop_from(s, t, x, s->tick);
     hist_drop_from(c, x);
     dir_rewind(c, x);
     cur_enter(s, c, s->cur, x);
@@ -665,12 +665,19 @@ int qd_seq_bpm(const qd_seq_t *s)
 
 void qd_seq_fill(qd_seq_t *s, int on) { s->fill = !!on; }
 
+/* P2.4: the position and its tick together (pos / QD_SUB once, not at every look) */
+static void pos_set(qd_seq_t *s, int64_t pos)
+{
+    s->pos = pos;
+    s->tick = qd_divmod64(pos, QD_SUB, &s->tick_rem);
+}
+
 static void start_at(qd_seq_t *s, int pat)
 {
     int t;
     s->cur = pat;
     s->origin = 0;
-    s->pos = 0;
+    pos_set(s, 0);
     s->nev = 0;
     s->nstart = 1;
     s->seed_play = s->seed;
@@ -718,7 +725,7 @@ static void all_off(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
     qd_seq_ev_t o;
     memset(&o, 0, sizeof o);
     o.sample = s->now;
-    o.tick = qd_div64(s->pos, QD_SUB);
+    o.tick = s->tick;
     o.kind = QD_EV_OFF;
     o.gate = 0;
     o.pat = s->cur;
@@ -755,11 +762,11 @@ void qd_seq_stop(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
     s->playing = 0;
     s->ext = 0;
     s->ext_wait = 0;
-    s->pos = 0;
+    pos_set(s, 0);
     s->sw_pat = -1;
 }
 
-int64_t qd_seq_tick(const qd_seq_t *s) { return qd_div64(s->pos, QD_SUB); }
+int64_t qd_seq_tick(const qd_seq_t *s) { return s->tick; }
 
 static int64_t next_boundary(const qd_seq_t *s, int64_t tick)
 {
@@ -794,7 +801,7 @@ void qd_seq_select_at(qd_seq_t *s, int pat, int launch)
         return;
     }
     {
-        const int64_t now = qd_div64(s->pos + QD_SUB - 1, QD_SUB);
+        const int64_t now = (s->tick + (s->tick_rem > 0));
         if (launch == QD_LAUNCH_NOW)
             x = qd_div64(now + QD_TPS - 1, QD_TPS) * QD_TPS;
         else if (launch == QD_LAUNCH_BAR || launch == QD_LAUNCH_BEAT) {   /* from the playing pattern's start */
@@ -831,7 +838,7 @@ void qd_seq_chain(qd_seq_t *s, const int *pats, int n)
         return;
     }
     {   /* playing: the chain's first at the end of the master length */
-        const int64_t now = qd_div64(s->pos + QD_SUB - 1, QD_SUB);
+        const int64_t now = (s->tick + (s->tick_rem > 0));
         const int64_t x = s->sw_pat >= 0 ? s->sw_x : next_boundary(s, now);
         s->nchain = n;
         if (x >= 0)
@@ -845,7 +852,7 @@ int64_t qd_seq_to_change(const qd_seq_t *s)
 {
     if (!s->playing || s->sw_pat < 0 || s->sw_x >= INT64_MAX / 8)
         return 0;
-    return s->sw_x - qd_div64(s->pos, QD_SUB);
+    return s->sw_x - s->tick;
 }
 
 /* the queued pattern starts (its tick has come) */
@@ -982,7 +989,8 @@ static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq
 
 void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
 {
-    int64_t adv, pos0, pos1, tend;
+    int64_t adv, pos0, pos1, tend, t1, t1m;
+    int32_t r1;
     int t, guard = 0;
     s->proj->pat_fb = (int8_t)s->cur;                   /* (P2.4: what a miss plays, playing or not) */
     if (s->ext && s->now - s->clk_last > (uint64_t)QD_CLOCK_TIMEOUT)
@@ -998,14 +1006,22 @@ void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
         const int64_t cap = s->clk_target + (int64_t)QD_CLOCK_TICKS * QD_SUB;
         pos1 = pos1 > cap ? cap : pos1 < pos0 ? pos0 : pos1;
     }
-    while (s->sw_pat >= 0 && s->sw_x <= qd_div64(pos1 - 1, QD_SUB) && guard++ < 64) {   /* (in ticks: a pattern
-                                                                                  * waiting for ever has a huge sw_x) */
+    if (pos1 >= s->pos && pos1 - s->pos < 0x40000000 && s->tick_rem >= 0) {   /* (P2.4: pos1's tick from pos's: 32 bits) */
+        const int32_t u = s->tick_rem + (int32_t)(pos1 - s->pos);
+        t1 = s->tick + u / QD_SUB;
+        r1 = u % QD_SUB;
+    } else {
+        t1 = qd_divmod64(pos1, QD_SUB, &r1);
+    }
+    t1m = pos1 >= 1 ? (r1 ? t1 : t1 - 1) : qd_div64(pos1 - 1, QD_SUB);   /* ((pos1 - 1) / QD_SUB) */
+    while (s->sw_pat >= 0 && s->sw_x <= t1m && guard++ < 64) {   /* (in ticks: a pattern waiting for ever has a huge
+                                                         * sw_x) */
         if (pat_ready(s, s->sw_pat))
             take_switch(s);
         else
             sw_hold(s);
     }
-    tend = qd_div64(pos1 + QD_SUB - 1, QD_SUB);
+    tend = t1 + (r1 > 0);                               /* ((pos1 + QD_SUB - 1) / QD_SUB: pos1 >= 0) */
     for (t = 0; t < QD_PAT_NTRACK; t++) {               /* the steps within two of their own steps */
         int n = 0;
         for (;;) {
@@ -1021,6 +1037,7 @@ void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
         dispatch(s, &e, pos0, adv, out, ctx);
     }
     s->pos = pos1;
+    s->tick = t1, s->tick_rem = r1;
     s->now += QD_SEQ_BLOCK;
 }
 
@@ -1052,7 +1069,7 @@ void qd_seq_midi_continue(qd_seq_t *s)
 /* stopped by the clock: the notes out, the position kept; the cursors wound back to it (CONTINUE resolves again) */
 void qd_seq_midi_stop(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
 {
-    const int64_t now = qd_div64(s->pos + QD_SUB - 1, QD_SUB);
+    const int64_t now = (s->tick + (s->tick_rem > 0));
     int t;
     s->ext = 0;                                         /* P1.3i: stopped, the tempo is the unit's again (CONTINUE
                                                          * makes it the clock's) */
@@ -1106,7 +1123,7 @@ void qd_seq_midi_clock(qd_seq_t *s)
     s->clk_target += pulse;
     s->clk_pulses++;
     if (s->pos < s->clk_target)                         /* behind: to the pulse at once */
-        s->pos = s->clk_target;
+        pos_set(s, s->clk_target);
     for (k = 0; k < s->clk_niv; k++)
         sum += s->clk_iv[k];
     s->clk_adv = sum >> 32 ? 1 : (int64_t)qd_udiv64((uint64_t)(pulse * s->clk_niv + (int64_t)sum / 2), (uint32_t)sum);
@@ -1137,7 +1154,7 @@ const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t)
         t = 0;
     if (!s->playing)
         return qd_proj_pat(s->proj, s->cur);
-    return qd_proj_pat(s->proj, s->cur_t[t].origin > qd_div64(s->pos, QD_SUB) ? s->cur : s->cur_t[t].pat);
+    return qd_proj_pat(s->proj, s->cur_t[t].origin > s->tick ? s->cur : s->cur_t[t].pat);
 }
 
 /* P2.4: the playhead as a fraction of steps num / den (exact: no double on the unit) */
@@ -1152,7 +1169,7 @@ void qd_seq_track_pos_q(const qd_seq_t *s, int t, int64_t *num, int64_t *den)
     c = &s->cur_t[t];
     P = qd_proj_pat(s->proj, c->pat);
     len = len_of(P, t);
-    T = qd_div64(s->pos, QD_SUB);
+    T = s->tick;
     L = L_of(P, t);
     if (c->origin > T) {                                /* (the cursor is in the next pattern already: the old one's
                                                          * head, from that pattern's start, its loop's length wrapped) */

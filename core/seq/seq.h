@@ -157,6 +157,8 @@ typedef struct {
     int playing;
     uint64_t now;                       /* samples run (qd_seq_block's clock: 32 a block, playing or not) */
     int64_t pos;                        /* subticks since PLAY */
+    int64_t tick;                       /* P2.4: pos / QD_SUB, kept with it (no 64-bit division a call) .. */
+    int32_t tick_rem;                   /* .. and its remainder */
     int32_t mbpm;                       /* the tempo, milli-BPM (internal clock) */
     int fill;
     uint8_t mute;                       /* bit t: track t muted (the app's; a pattern's own mute flags too) */

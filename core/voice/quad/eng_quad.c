@@ -744,6 +744,7 @@ static int32_t quad_exp2(int32_t x)
 
 /* LFO k's phase increment per control tick: f = SPEED x MULT / 128 x BPM / 240 Hz (SPEED x MULT = 128: a bar; MULT's
  * fixed set at 120 BPM); negative runs backwards, 0 stops. SPEED in hundredths (-6400..6399), exact in 64 bits */
+typedef char quad_lfo_k_ok[QUAD_LFO_K == 100u * 65536u + 94996u ? 1 : -1];   /* (P2.4: quad_lfo_incv's split) */
 static int32_t quad_lfo_incv(int32_t sp, uint32_t mu)
 {
     int32_t bpm;
@@ -752,7 +753,12 @@ static int32_t quad_lfo_incv(int32_t sp, uint32_t mu)
     bpm = mu < 12u ? clamp(song.g[G_BPM], 20, 300) : 120;
     /* the magnitude (a signed clamp of the quotient made the compiler load a constant tools/build.py takes for a ROM
      * address) */
-    v = qd_udiv64(((uint64_t)(uint32_t)(sp < 0 ? -sp : sp) << (mu % 12u)) * (uint32_t)bpm * QUAD_LFO_K, 100u * 65536u);   /* (P2.4) */
+    {   /* a x K / (100 x 65536), a = |SPEED| << MULT x BPM (< 2^32): with K = 100 x 65536 + 94996 and 100 x 65536 =
+         * 2^18 x 25, it is a + ((a x 94996) >> 18) / 25 exactly (floor divisions nest): one 32-bit division, no 64-bit
+         * one, every block and LFO (P2.4: checked against the 64-bit quotient for every SPEED, MULT and BPM) */
+        const uint64_t a = ((uint64_t)(uint32_t)(sp < 0 ? -sp : sp) << (mu % 12u)) * (uint32_t)bpm;
+        v = !(a >> 32) ? a + (uint32_t)((a * 94996u) >> 18) / 25u : qd_udiv64(a * QUAD_LFO_K, 100u * 65536u);
+    }
     v = v > 0x7FFFFFFFu ? 0x7FFFFFFFu : v;
     return sp < 0 ? -(int32_t)v : (int32_t)v;
 }

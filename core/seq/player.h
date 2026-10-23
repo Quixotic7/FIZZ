@@ -65,6 +65,9 @@ typedef struct {
     uint8_t on_grp[QD_PAT_NTRACK][128]; /* the sequencer's notes .. */
     uint8_t key_grp[QD_PAT_NTRACK][128];   /* .. the keys' */
     int64_t mfx_sub;                    /* the groups' clock (subticks, never back) */
+    int64_t mfx_tk;                     /* P2.4: (mfx_sub + QD_SUB - 1) / QD_SUB, kept with it; .. */
+    int64_t mfx_q;                      /* .. mfx_sub / QD_SUB and its remainder (C's) */
+    int32_t mfx_r;
     int64_t mfx_base;                   /* .. the tick of the transport's 0 */
     int64_t mfx_pos;                    /* .. the transport's position at the last block */
     int mfx_play;                       /* .. it was playing */

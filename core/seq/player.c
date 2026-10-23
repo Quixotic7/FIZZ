@@ -139,7 +139,7 @@ static int mfx_route(const qd_player_t *pl, int pat, int t, int step)
     return g && qd_mfx_group_active(&pr->mfx[g - 1]) ? g : 0;
 }
 static int64_t mfx_tick_of(const qd_player_t *pl, int64_t seq_tick) { return pl->mfx_base + seq_tick; }
-int64_t qd_player_mfx_tick(const qd_player_t *pl) { return qd_div64(pl->mfx_sub + QD_SUB - 1, QD_SUB); }
+int64_t qd_player_mfx_tick(const qd_player_t *pl) { return pl->mfx_tk; }   /* (P2.4: kept with mfx_sub) */
 
 /* a group's note to the voices: its trig's sound and locks (the record while it plays, else resolved again), on its
  * own track */
@@ -318,14 +318,26 @@ void qd_player_block(qd_player_t *pl)
     const int playing = s->playing && !(s->ext && s->ext_wait);
     if (playing && (!pl->mfx_play || s->pos < pl->mfx_pos)) {   /* P1.6c: the transport (re)starts: the groups' clock
                                                          * carries on from where it is, the grid from here */
-        pl->mfx_base = qd_player_mfx_tick(pl) - qd_div64(s->pos, QD_SUB);
+        pl->mfx_base = qd_player_mfx_tick(pl) - s->tick;
         pl->mfx.qref = pl->mfx_base;
     }
     qd_seq_block(s, qd_player_event, pl);
-    if (playing)
+    if (playing) {
         pl->mfx_sub = pl->mfx_base * QD_SUB + s->pos;
-    else
-        pl->mfx_sub += QD_SEQ_BLOCK * 8 * (int64_t)s->mbpm;
+        pl->mfx_q = pl->mfx_base + s->tick, pl->mfx_r = s->tick_rem;   /* (P2.4: its quotient, from the transport's) */
+    } else {
+        const int32_t d = QD_SEQ_BLOCK * 8 * s->mbpm;    /* (< 2^27) */
+        pl->mfx_sub += d;
+        if (pl->mfx_r >= 0 && pl->mfx_q >= 0) {
+            const int32_t u = pl->mfx_r + d;
+            pl->mfx_q += u / QD_SUB, pl->mfx_r = u % QD_SUB;
+        } else {
+            pl->mfx_q = qd_divmod64(pl->mfx_sub, QD_SUB, &pl->mfx_r);
+        }
+    }
+    pl->mfx_tk = pl->mfx_q >= 0 && pl->mfx_r >= 0 ? pl->mfx_q + (pl->mfx_r > 0)   /* (P2.4: once a block, no 64-bit
+                                                         * division: (mfx_sub + QD_SUB - 1) / QD_SUB) */
+                                                  : qd_div64(pl->mfx_sub + QD_SUB - 1, QD_SUB);
     pl->mfx_play = playing;
     pl->mfx_pos = s->pos;
     {   /* a track that falls silent: its sequencer notes out of the groups */

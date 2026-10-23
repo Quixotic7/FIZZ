@@ -297,11 +297,44 @@ static inline __attribute__((always_inline)) void clean_post_loop(int32_t *out, 
 }
 CR_HOT_MASTER static __attribute__((noinline)) void clean_post17(int32_t *out, uint32_t n) { clean_post_loop(out, n, 1); }
 
+/* P2.4: the chain at rest and the block silent: its output is zero and its state as it was (but the delay's write
+ * place, moved on). At rest: both DC blockers at 0 (their fixed point), the delay all zero, the limiter's peaks 0, its
+ * envelope at the threshold with no hold, its gains whole, MASTER's ramp arrived, the DAC word's low bits 0. Then the
+ * block need not run: the same samples, bit for bit (the whole chain on silence costs a look at it) */
+static int out_rest(const int32_t *l, const int32_t *r, const int32_t *w, uint32_t n)
+{
+    uint32_t i;
+    int32_t z = 0;
+#ifdef CLN_GAIN_TAP
+    return 0;
+#endif
+    if (n != CTL || w || fx_dc[0].acc | fx_dc[0].rem | fx_dc[1].acc | fx_dc[1].rem || cln_env != CLN_T4 || cln_hold ||
+        cln_gs != CLN_G1 || cln_wg != 32768 || cln_mq != ((int32_t)song.master_q12 * CLN_MAKEUP >> 12) << 8)
+        return 0;
+    for (i = 0; i < n; i++)
+        z |= l[i] | r[i];
+    for (i = 0; i < 2u * CLN_DLEN; i++)
+        z |= cln_dl[i];
+    for (i = 0; i < CLN_LA_K; i++)
+        z |= cln_pk[i] | (cln_wh[i] ^ 32768);
+    for (i = 0; i < 2u * CTL; i++)
+        z |= out_frac[i];
+    return !z;
+}
+
 /* the mix (l, r and an optional mono return w) through the chain into out */
 static inline __attribute__((always_inline)) void out_master(int32_t *out, const int32_t *l, const int32_t *r,
                                                              const int32_t *w, uint32_t n)
 {
     uint32_t i;
+    if (out_rest(l, r, w, n)) {                         /* (P2.4: silence at rest: zeros, nothing else moves) */
+        for (i = 0; i < 2u * n; i++)
+            out[i] = 0;
+        cln_w = (cln_w + n) & (CLN_DLEN - 1u);
+        cln_wi = (cln_wi + n / CLN_LA_B) % CLN_LA_K;
+        cln_g = cln_gs / (int32_t)CLN_LA_K;
+        return;
+    }
     for (i = 0; i < n; i++) {                           /* (x 3 for the default trim: nothing shifted out) */
         const int32_t ww = w ? w[i] : 0;
         out[2u * i] = ((l[i] + ww) * (CLN_TRIM >> 4)) >> 6;
