@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: MPL-2.0
+# FIZZ in fm1-base's host simulator: firmware/build.py --host, then
+#   firmware/app/build/host/fizz_host firmware/app/tests/boot.txt firmware/app/build/host
+# Boot, the idle screen, a key into the step view, the demo pattern played, the screen read out and the sound's level.
+# The first part follows FIZZ's own render_frames script (tools/render_frames.c: PLAY at 500 ms, frames at 0, 1000,
+# 2200 and 2500 ms), so its frames compare with render_frames' at the device's sizes (fzdraw: a frame at that ms).
+expect fz_up 1
+expect fz_mode 0
+fzdraw
+shot idle-0000.png
+fbdump idle-0000.raw
+wait 500
+press PLAY
+wait 100
+release PLAY
+wait 400
+fzdraw
+shot play-1000.png
+fbdump play-1000.raw
+expect fz_playing 1
+expect fz_mode 1
+wait 1200
+fzdraw
+shot play-2200.png
+fbdump play-2200.raw
+wait 300
+fzdraw
+shot play-2500.png
+fbdump play-2500.raw
+# the sound of the demo (A02 at power-on): four seconds of it
+peakreset
+wav demo.wav
+wait 4000
+wavstop
+expect peak_db_min -30
+expect fz_voices >0
+expect fz_underruns 0
+# stopped: PLAY again; a white key held shows the step view's held step
+tap PLAY
+wait 300
+expect fz_playing 0
+key w2 down
+wait 400
+fzdraw
+shot held.png
+key w2 up
+wait 200
+# HOME, a knob, the LEDs
+tap HOME
+wait 100
+turn K1 3
+wait 300
+fzdraw
+shot after-knob.png
+leds
+# FIZZ's SysEx: IDENTITY (F0 7D 46 5A 01 01 7F F7: the command and its checksum sum to 0 in 7 bits) and its reply
+sysex F0 7D 46 5A 01 01 7F F7
+wait 20
+expect fz_sx_frames 1
+expect fz_sx_out >0
+expect fz_frames >100
+# the port's counters (7D 46 50: firmware/tools/fizz_xdata.py stats) and their reset
+sysex F0 7D 46 50 F7
+sysex F0 7D 46 50 7F F7
+expect fz_frames 0

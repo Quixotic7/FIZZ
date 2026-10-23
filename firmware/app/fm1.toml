@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MPL-2.0
+# FIZZ's build settings (fm1-base tools/build.py, through firmware/build.py: run that, not fm1-base's directly)
+name = "FIZZ"                  # the build's files: build/fizz.fwsc (APP_NAME is in app.h)
+id_prefix = "FM-1_46"          # package identity: dev FM-1_4600, releases FM-1_46XXYYZZ (46: "F", FIZZ's SysEx 7D 46 5A)
+usb_manufacturer = "FIZZ"
+usb_product = "FIZZ FM-1"      # (FM-1 in the name: fm1-base's installers find the unit by it)
+words = "words.tsv"
+# FIZZ's core and plutovg, each a unit of its own (made by tools/gen_units.py from FIZZ's tools/Makefile lists), and
+# the port's side of the seam. "o2" is fm1-base's name for an app's separate units; -Os again here (the budget's)
+o2 = ["fz_port.c", "fz_libc.c", "build/units/*.c"]
+o2_cflags = ["-Os", "-std=gnu11"]
+o2_include = ["fizz_prefix.h"]
+include = ["../../core/app", "../../core/ui", "../../core/gfx", "../../core/seq", "../../core/voice",
+           "../../core/voice/quad", "../../core/voice/fx", "../../core/tests", "../../third_party/plutovg/include"]
+vendored = ["build/"]
+gen = ["tools/gen_units.py {gen}"]
+# USB only (the owner, 2026-10-23): no Bluetooth, no WiFi; no USB audio (the RAM: firmware/BUDGET.md)
+ble = false
+usb_audio_in = false
+usb_audio_out = false
+mirror = false
+backup = false
+# the site
+tagline = "an FM step sequencer"
+repo = "https://github.com/Quixotic7/FIZZ"
+licence = "MPL-2.0"
+credits = "Built on fm1-base and felucca-bsp."

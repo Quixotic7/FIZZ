@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MPL-2.0
+# The screens of fm1-base's host simulator against FIZZ's own render_frames (tools/render_frames.c, built at the
+# device's sizes: make -C tools PROFILE=-DQD_DEVICE B=DIR DIR/render_frames; DIR/render_frames OUT --ms 2600 --at
+# 0,1000,2200,2500). The app run as render_frames runs it: the PIANO ROLL view (fzview 0), the sound made as it falls
+# due and none ahead (fzsync), PLAY given to FIZZ at 500 ms and let go at 600 (a press made at ms N reaches FIZZ at
+# N + 1, before its tick, as render_frames gives it; press and release run 2 ms each), a frame drawn at 0, 1000, 2200
+# and 2500 ms (fzdraw).
+# firmware/tools/compare_frames.py compares the raw dumps with render_frames' PNGs, pixel for pixel.
+fzview 0
+fzsync
+fzdraw
+fbdump cmp-00000.raw
+wait 499
+press PLAY
+wait 98
+release PLAY
+wait 399
+fzdraw
+fbdump cmp-01000.raw
+wait 1200
+fzdraw
+fbdump cmp-02200.raw
+wait 300
+fzdraw
+fbdump cmp-02500.raw

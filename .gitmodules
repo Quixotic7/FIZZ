@@ -1,0 +1,3 @@
+[submodule "firmware/fm1-base"]
+	path = firmware/fm1-base
+	url = https://github.com/charlesvestal/fm1-base
