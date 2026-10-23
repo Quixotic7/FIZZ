@@ -502,6 +502,24 @@ e.dispose();
   check(mf && mf.enc[1] === "GROUP" && mf.enc[6] === "EFFECT" && slots.every((x) => /^(EMPTY|SLOT [1-8]|[A-Z][A-Z0-9 .+-]*)$/.test(x)),
     `the MIDI FX screen, a group: ALGORITHM "${mf && mf.enc[1]}", PRESETS "${mf && mf.enc[6]}", B1..B8 ${slots.join(" / ")}`);
   writePng(path.join(OUT, "midi-fx.png"), e.screen().pixels);
+  // P1.6e: REC on the MIDI FX screen switches the white keys between KEYS and STEPS (REC names what it switches to);
+  // in STEPS the white keys are STEP n, and a step held makes ALGORITHM STEP MFX
+  {
+    const recBefore = mf && mf.buttons[13];
+    tapBtn(e, p, "REC");
+    let lr = pump(e, 300).map(decodeLabels).filter(Boolean);
+    const st = lr[lr.length - 1];
+    p.key(W[2], true);
+    lr = pump(e, 300).map(decodeLabels).filter(Boolean);
+    const held = lr[lr.length - 1];
+    p.key(W[2], false); pump(e, 300);
+    tapBtn(e, p, "REC");
+    lr = pump(e, 300).map(decodeLabels).filter(Boolean);
+    const back = lr[lr.length - 1];
+    check(recBefore === "STEPS" && st && st.buttons[13] === "KEYS" && st.keys[W[0]] === "STEP 1" && st.keys[W[15]] === "STEP 16" &&
+          held && held.enc[1] === "STEP MFX" && back && back.buttons[13] === "STEPS",
+      `P1.6e: REC on the MIDI FX screen reads "${recBefore}"; tapped: the white keys "${st && st.keys[W[0]]}" .. "${st && st.keys[W[15]]}", REC "${st && st.buttons[13]}"; a step held: ALGORITHM "${held && held.enc[1]}"; REC again: "${back && back.buttons[13]}"`);
+  }
   e.dispose();
   // presets: 3 stored, LIST, DUMP everything, restored into a blank unit, dumped again: the same frames
   const DIR3 = "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets";
