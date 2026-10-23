@@ -798,6 +798,8 @@ static void draw_keys(qd_app_t *a)
 
 
 /* P1.5t: a preset for the drawing (its envelope, its kind, its marks) */
+static qd_sound_t br_ent[5];                           /* (P2.1b: the browser's and the picker's five: one screen at a
+                                                         * time) */
 static void pr_fill(const qd_app_t *a, const qd_sound_t *s, int mine, ui_preset_t *p)
 {
     const int16_t *q = s->patch;
@@ -822,8 +824,8 @@ static void pr_fill(const qd_app_t *a, const qd_sound_t *s, int mine, ui_preset_
 /* P1.5t: the library browser's model */
 static void fill_browse(const qd_app_t *a, ui_browse_t *v)
 {
-    static int list[QD_BR_LIST];
-    static qd_sound_t ent[5];
+    int *const list = qd_br_buf;                        /* (P2.1b: ctl_presets.c's one list) */
+    qd_sound_t *const ent = br_ent;
     const qd_brui_t *b = &a->ui.br;
     const int n = qd_br_list(a, b->src, b->kind, list);
     int d;
@@ -897,7 +899,7 @@ static void fill_browse(const qd_app_t *a, ui_browse_t *v)
 /* P1.5t: the step's pool picker (a step held, or the latch's selection, + PRESETS): TRACK, then the pool */
 static void draw_picker(const qd_app_t *a)
 {
-    static qd_sound_t ent[5];
+    qd_sound_t *const ent = br_ent;
     ui_browse_t v;
     qd_rstep_t r;
     int list[QD_NSOUND + 1], n = 0, k, at = 0, d;

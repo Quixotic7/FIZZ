@@ -262,6 +262,7 @@ enum { QD_BRFX_NONE, QD_BRFX_IN, QD_BRFX_THERE, QD_BRFX_FULL, QD_BRFX_OUT, QD_BR
                                                          * preset deleted: it breaks up) */   /* + POOL: in, already there (the tray
                                                          * pulses), full (it flashes orange); - POOL: out */
 #define QD_BR_LIST (QD_NFACTORY + QD_NLIB)               /* the longest list (ALL) */
+extern int qd_br_buf[];                             /* (P2.1b) the one list: filled, used and done (no call that lists between) */
 #define QD_BR_MINE_CODE 1000            /* a list entry: 0.. a factory preset, QD_BR_MINE_CODE + its place a MY preset, */
 #define QD_BR_POOL_CODE 2000            /* .. QD_BR_POOL_CODE + its number a pool sound */
 typedef struct {

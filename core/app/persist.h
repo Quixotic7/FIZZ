@@ -128,6 +128,7 @@ int qd_pool_users(const struct qd_app *a, int k, uint8_t *tracks, int *steps);  
  * QD_SNDF_*), replace one (its id kept), delete; the first free place (-1 none); a place by its preset id (-1 none); a
  * preset by its id (factory or mine: 1 found) */
 int qd_lib_free_slot(const struct qd_app *a);
+int qd_factory_tags(const struct qd_app *a, int k);   /* (P2.1b) its tags alone, as qd_factory_get's */
 void qd_factory_get(const struct qd_app *a, int k, qd_sound_t *out);   /* P1.5v: factory preset k with its tags */
 int qd_tags_set(struct qd_app *a, int code, int tags);   /* P1.5v: an entry's tags (the browser's code: factory k,
                                                            * QD_BR_MINE_CODE + place, QD_BR_POOL_CODE + number); 1 done */

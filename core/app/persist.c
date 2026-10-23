@@ -1195,13 +1195,16 @@ int qd_proj_copy(qd_app_t *a, int from, int to)
 {
     qd_persist_t *ps = &a->per;
     qd_store_t *st = &ps->prj_st;
-    static uint32_t keys[QD_PRJ_KEYS];
+    uint32_t *keys;                                     /* (P2.1b: borrowed for the copy, no 4 KB static) */
     int i, n = 0;
     if (from < 0 || from >= QD_NPROJ || to < 0 || to >= QD_NPROJ || from == to || !ps->on || !ps->pexists[from])
         return 0;
     qd_persist_flush(a);                                /* (the one worked on: all in the flash) */
     if (to == ps->proj)
         return 0;                                       /* (not over the one worked on) */
+    keys = (uint32_t *)qd_tmp_borrow(sizeof(uint32_t) * QD_PRJ_KEYS);
+    if (!keys)
+        return 0;
     if (ps->pexists[to])
         proj_erase_records(a, to);
     for (i = 0; i < st->nkey; i++)                      /* (the keys first: the copies change the index) */
@@ -1214,6 +1217,7 @@ int qd_proj_copy(qd_app_t *a, int from, int to)
             continue;
         copy_now(st, k, (k & 0xFF00FFFFu) | (uint32_t)to << 16);
     }
+    qd_tmp_return(keys);
     {
         const int len = qd_store_get(st, QD_RKEY(QD_RK_HDR, from, 0), pr_buf, sizeof pr_buf);
         if (len > 0 && len != (int)QDS_DELETED)
@@ -1924,6 +1928,13 @@ int qd_preset_get(const qd_app_t *a, int id, qd_sound_t *out)
 }
 
 /* ---------------------------------------------------------------- P1.5v: the tags */
+int qd_factory_tags(const qd_app_t *a, int k)
+{
+    if (k >= 0 && k < QD_NFACTORY && (a->per.ftags[k] & 0x80u))
+        return (int)(a->per.ftags[k] & QD_PK_MASK);
+    return qd_factory_tag(k);
+}
+
 void qd_factory_get(const qd_app_t *a, int k, qd_sound_t *out)
 {
     qd_factory_preset(k, out);

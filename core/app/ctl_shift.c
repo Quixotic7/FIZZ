@@ -43,18 +43,14 @@ static int double_track(qd_app_t *a)
     qd_tset_t *ts = &p->trk[a->sel];
     const int loop = qd_track_loop(ts);
     int pages[QD_NPAGE], n = 0, last = -1, k, mask = loop;
-    static qd_step_t st[QD_PAGE];
-    static qd_lock_t lk[QD_NLOCK];
     for (k = 0; k < QD_NPAGE; k++)
         if ((loop >> k) & 1)
             pages[n++] = k, last = k;
     if (last + n >= QD_NPAGE)
         return 0;
     for (k = 0; k < n; k++) {
-        int nlk = 0;
         const int to = last + 1 + k;
-        qd_steps_get(p, a->sel, pages[k] * QD_PAGE, QD_PAGE, st, lk, &nlk);
-        if (qd_steps_put(p, a->sel, to * QD_PAGE, QD_PAGE, st, lk, nlk) != QD_OK)
+        if (qd_page_copy(p, a->sel, to, p, a->sel, pages[k]) != QD_OK)   /* (P2.1b: no statics of its own) */
             return 0;
         qd_page_set_range(p, a->sel, to, ts->pstart[pages[k]], ts->pend[pages[k]]);
         mask |= 1 << to;

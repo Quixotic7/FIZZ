@@ -23,6 +23,8 @@
  * presets, REPLACE (that one): P1.5v: F2 switches the choice, both shown; HOME cancels. Saved: the track plays that preset (not edited). */
 
 /* ---------------------------------------------------------------- the list */
+int qd_br_buf[QD_BR_LIST];                              /* (P2.1b: one list for all: each is used and done before the
+                                                         * next, none kept across a call that lists) */
 int qd_br_list(const qd_app_t *a, int src, int kind, int *out)
 {
     int n = 0, k;
@@ -34,12 +36,9 @@ int qd_br_list(const qd_app_t *a, int src, int kind, int *out)
         return n;
     }
     if (src == QD_BR_ALL)
-        for (k = 0; k < QD_NFACTORY; k++) {
-            qd_sound_t f;
-            qd_factory_get(a, k, &f);
-            if (!kind || (f.tags & bit))
+        for (k = 0; k < QD_NFACTORY; k++)
+            if (!kind || ((unsigned)qd_factory_tags(a, k) & bit))   /* (P2.1b: the tags alone) */
                 out[n++] = k;
-        }
     for (k = 0; k < QD_NLIB; k++)
         if (qd_lib_used(a, k) && (!kind || (qd_lib_tags(a, k) & bit)))
             out[n++] = QD_BR_MINE_CODE + k;
@@ -68,7 +67,7 @@ int qd_br_entry(const qd_app_t *a, int code, qd_sound_t *s)
 
 int qd_br_chosen(const qd_app_t *a, qd_sound_t *s, int *code, int *n)
 {
-    static int list[QD_BR_LIST];
+    int *const list = qd_br_buf;
     const qd_brui_t *b = &a->ui.br;
     const int m = qd_br_list(a, b->src, b->kind, list);
     if (n)
@@ -136,7 +135,7 @@ static void br_sound(qd_app_t *a)                      /* stopped: a short note 
 /* the list changed (a filter, the source, an entry out): the same entry if it is there, else the place clamped */
 static void br_relist(qd_app_t *a, int keep_code)
 {
-    static int list[QD_BR_LIST];
+    int *const list = qd_br_buf;
     qd_brui_t *b = &a->ui.br;
     const int n = qd_br_list(a, b->src, b->kind, list);
     int i;
@@ -154,7 +153,7 @@ static void br_relist(qd_app_t *a, int keep_code)
 /* ---------------------------------------------------------------- open, move, leave */
 static void br_open(qd_app_t *a)
 {
-    static int list[QD_BR_LIST];
+    int *const list = qd_br_buf;
     qd_ui_t *u = &a->ui;
     qd_brui_t *b = &u->br;
     const qd_track_t *t = &a->model.t[a->sel];
@@ -184,7 +183,7 @@ void qd_br_turn(qd_app_t *a, int d)
 {
     qd_brui_t *b = &a->ui.br;
     int n;
-    static int list[QD_BR_LIST];
+    int *const list = qd_br_buf;
     if (a->ui.latch != QD_LATCH_BROWSE) {
         br_open(a);
         return;
@@ -424,7 +423,7 @@ void qd_br_key(qd_app_t *a, int key, int w, int b, int down, int vel)
             code = -1;
         br->src = (br->src + 1) % QD_NBRSRC;
         {
-            static int list[QD_BR_LIST];
+            int *const list = qd_br_buf;
             const int n = qd_br_list(a, br->src, br->kind, list);
             const int i = code >= 0 ? br_find(a, list, n, s.preset, code >= QD_BR_POOL_CODE ? code - QD_BR_POOL_CODE : 0)
                                     : -1;

@@ -79,6 +79,7 @@ const char *qd_preset_kind_name(int pk);   /* "BASS" .. "FX" */
 #define QD_PK_MASK 0x7Fu
 int qd_preset_tags(const int16_t *patch);   /* the classifier's: one tag */
 int qd_tags_first(int tags);                /* the first tag (its colour: the glyph's), -1 none */
+int qd_factory_tag(int i);   /* (P2.1b) factory preset i's classifier tag alone (no sound made) */
 void qd_factory_preset(int i, qd_sound_t *out);   /* i 0..QD_NFACTORY-1: id i + 1, its classifier tag (persist.h's
                                                    * qd_factory_get: with the owner's tags) */
 int qd_factory_of(const char *name, const int16_t *patch);   /* the factory preset this is (its id), 0 none */

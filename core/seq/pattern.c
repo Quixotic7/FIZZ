@@ -515,7 +515,13 @@ static void pool_remove(qd_pattern_t *p, int t, int at, int n)
 
 /* track t's locks on steps [s0, s1) replaced by add[0..n) (their steps in [s0, s1), any order); QD_EFULL: nothing
  * changed */
+static int replace_range_at(qd_pattern_t *p, int t, int s0, int s1, const qd_lock_t *add, int n, int shift);
 static int replace_range(qd_pattern_t *p, int t, int s0, int s1, const qd_lock_t *add, int n)
+{
+    return replace_range_at(p, t, s0, s1, add, n, 0);
+}
+/* (P2.1b: add's steps moved by shift as they go in: no copy of them first) */
+static int replace_range_at(qd_pattern_t *p, int t, int s0, int s1, const qd_lock_t *add, int n, int shift)
 {
     const int a = lock_pos(p, t, s0, 0), b = lock_pos(p, t, s1, 0);
     int i, j;
@@ -523,11 +529,14 @@ static int replace_range(qd_pattern_t *p, int t, int s0, int s1, const qd_lock_t
         return QD_EFULL;
     pool_remove(p, t, a, b - a);
     for (i = 0; i < n; i++) {                           /* each in its sorted place (an equal one: replaced) */
-        const int at = lock_pos(p, t, add[i].step, add[i].id);
-        if (at < p->lock_start[t] + p->lock_n[t] && p->lock[at].step == add[i].step && p->lock[at].id == add[i].id)
-            p->lock[at].value = add[i].value;
+        qd_lock_t l = add[i];
+        int at;
+        l.step = (uint8_t)(l.step + shift);
+        at = lock_pos(p, t, l.step, l.id);
+        if (at < p->lock_start[t] + p->lock_n[t] && p->lock[at].step == l.step && p->lock[at].id == l.id)
+            p->lock[at].value = l.value;
         else
-            pool_insert(p, t, at, &add[i]);
+            pool_insert(p, t, at, &l);
     }
     for (j = s0; j < s1; j++)
         flag_locks(p, t, j);
@@ -1144,15 +1153,10 @@ int qd_steps_get(const qd_pattern_t *p, int t, int s, int n, qd_step_t *steps, q
 
 int qd_steps_put(qd_pattern_t *p, int t, int s, int n, const qd_step_t *steps, const qd_lock_t *lk, int nlk)
 {
-    static qd_lock_t tmp[QD_NLOCK];                     /* (single-threaded, as the whole core) */
     int i, r;
     if (t < 0 || t >= QD_PAT_NTRACK || n < 1 || s < 0 || s + n > QD_NSTEP || nlk < 0 || nlk > QD_NLOCK)
         return QD_EARG;
-    for (i = 0; i < nlk; i++) {
-        tmp[i] = lk[i];
-        tmp[i].step = (uint8_t)(lk[i].step + s);
-    }
-    r = replace_range(p, t, s, s + n, tmp, nlk);
+    r = replace_range_at(p, t, s, s + n, lk, nlk, s);  /* (P2.1b: moved by s as they go in) */
     if (r != QD_OK)
         return r;
     for (i = 0; i < n; i++) {
@@ -1168,15 +1172,32 @@ int qd_steps_put(qd_pattern_t *p, int t, int s, int n, const qd_step_t *steps, c
 /* steps [ss, ss + n) of src's track st onto [ds, ds + n) of dst's track dt, with their locks */
 static int copy_steps(qd_pattern_t *dst, int dt, int ds, const qd_pattern_t *src, int st, int ss, int n)
 {
-    static qd_lock_t lk[QD_NLOCK];
-    static qd_step_t steps[QD_NSTEP];
+#ifdef QD_DEVICE
+    struct cs_tmp {                                     /* (P2.1b: the arena's room between frames, for a moment) */
+        qd_lock_t lk[QD_NLOCK];
+        qd_step_t steps[QD_NSTEP];
+    } *m;
+#else
+    static struct cs_tmp {
+        qd_lock_t lk[QD_NLOCK];
+        qd_step_t steps[QD_NSTEP];
+    } m0, *m = &m0;
+#endif
     int nl = 0, r;
     if (dt < 0 || dt >= QD_PAT_NTRACK || ds < 0 || ds + n > QD_NSTEP)
         return QD_EARG;
-    r = qd_steps_get(src, st, ss, n, steps, lk, &nl);
-    if (r != QD_OK)
-        return r;
-    return qd_steps_put(dst, dt, ds, n, steps, lk, nl);
+#ifdef QD_DEVICE
+    m = (struct cs_tmp *)qd_tmp_borrow(sizeof *m);
+    if (!m)
+        return QD_EFULL;
+#endif
+    r = qd_steps_get(src, st, ss, n, m->steps, m->lk, &nl);
+    if (r == QD_OK)
+        r = qd_steps_put(dst, dt, ds, n, m->steps, m->lk, nl);
+#ifdef QD_DEVICE
+    qd_tmp_return(m);
+#endif
+    return r;
 }
 
 int qd_step_copy(qd_pattern_t *dst, int dt, int ds, const qd_pattern_t *src, int st, int ss)
