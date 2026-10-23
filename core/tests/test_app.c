@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The app with its sound (P1.1), driven as the glue drives it (core/app/app.h: input events, a tick a millisecond,
  * the audio in 128-frame blocks as they fall due):
  *   keys        the keybed plays the selected track (velocity, OCT- / OCT+ -2..+2), TRACKS + white key 1..8 selects

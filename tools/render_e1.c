@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' E1 part (research/FMTONE-DN2-PLAN.md): the sound editor's new pages: B1 PLAY / MOD's PORT (OFF, ON,
  * LEGATO, RATE; a step's lock), B5 AMP / FX's AMP with its MODE on ALGORITHM (ADSR, AHD timed, AHD NOTE) and LEVEL's
  * ROUTE (DRIVE after the voice, before the filter). Into OUT/e1-*.png and OUT/e1-sheet.png */

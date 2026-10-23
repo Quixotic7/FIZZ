@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3f part: NOTE's knobs as PLAN §8b 2.2's "superseded the same day" has them (each knob moves its
  * own note, ALGORITHM all of them), from a real state reached by panel input only, into OUT/p13f-*.png and
  * OUT/p13f-sheet.png. */

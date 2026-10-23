@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The step view's edits (ctl.h; PLAN §8b): the white keys' tap and hold, the held steps, the hold modes' ten values and
  * CLEAR, ALGORITHM's fine value and the track's defaults, note entry, the sound pool's banks, the p-locks and the sound
  * lock of a held step.

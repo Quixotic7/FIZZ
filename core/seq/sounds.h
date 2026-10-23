@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The project's sound pool (PLAN §8b, decided 2026-10-18): up to QD_NSOUND sounds, each an FM TONE patch with a name.
  * A step's sound lock is a pool number, 1..QD_NSOUND (0: the track's own sound). The pool starts with
  *   1        INIT

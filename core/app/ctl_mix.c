@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The track settings, the mix and the effects (P1.4b; PLAN.md §8b "P1.4b, track settings and the mixer" and the
  * owner's 2.3 additions; ctl.h). Built through ctl_latch.c (it includes this file: three latched pages, the latch rule:
  * OCT- or HOME close them; P1.6h: the mix and the effects HOME only, F1 / F2 there the step view's layers; the core's

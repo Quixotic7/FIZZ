@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5v part: the owner's fixes to the presets and the pool: DELETE? (a red X, the head red) and the
  * cassette breaking up; B10 from ALL: + POOL (an empty tray, +) and - POOL (a full tray), OUT? with its users going to
  * TRACK; tags (SHIFT + B2..B8: a chip, the cassette's dots, the filter); SAVE PRESET's NEW / REPLACE choice; a step's

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """FIZZ's device budget (P2.0; research/PHASE2-BUDGET.md): the core at the device's sizes (core/qd_config.h, QD_DEVICE)
 measured three ways, against the FM-1's resources.
 

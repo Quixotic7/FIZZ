@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // P1.3j: FIZZ (P1.3k: was QUADRILLE) through FM1VST's own processor and Remote FM-1 path, headless: FM1Processor
 // with Remote on, against libremotefm1's in-process fake unit (FM1EMU_REMOTE_FAKE=1: nothing on USB or CoreMIDI is
 // opened). The unit's buttons

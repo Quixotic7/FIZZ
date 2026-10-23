@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5o part: NOTE's knobs (SELECT the chord, its shape kept and stopped at the end; KNOB 1 collapsed
  * into note 1), a step's sound lock under its p-locks in the editor, F2 + a knob's "unlocked", the default's VEL
  * green; into OUT/p15o-*.png and OUT/p15o-sheet.png */

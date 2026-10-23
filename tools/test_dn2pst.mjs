@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // tools/dn2pst.mjs's self-test (research/DN2-FORMAT.md).
 //
 //   node tools/test_dn2pst.mjs [DN1_DIR] [DN2_DIR]

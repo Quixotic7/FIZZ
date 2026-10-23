@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P2.1: the drawing's fixed arena (research/PHASE2-BUDGET.md §5 item 8). The device has no heap: at its sizes
  * (QD_DEVICE) plutovg's allocations (its canvases, paths, span buffers, the stroker's borders, the glyph cache) come
  * out of one static block of QD_GFX_ARENA bytes (small blocks from its bottom, large from its top). This header is force-included

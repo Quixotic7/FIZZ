@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.4a part: the sound editor on EDIT: every page of the track's sound (the TRACK frame), a step held
  * with p-locks (its values, the track's left behind), DRIVE, the eight algorithms; into OUT/p14a-*.png,
  * OUT/p14a-sheet.png and OUT/p14a-algos.png */

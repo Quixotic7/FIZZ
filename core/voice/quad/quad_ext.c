@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* QUADRILLE (e): FM TONE's extensions beside ChoralRoot's code (research/FMTONE-DN2-PLAN.md), FIZZ only. Built only
  * through quad_voice.c, after eng_quad.c (it reads quad_voice_t, the time tables); eng_quad.c calls these at its
  * marked hook points ("QUADRILLE (e)"), each behind its feature's test: with every new value at its default the voice

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* A knob turned (mockups/line.html s21..s25, s16; PLAN.md §9a rule 5): the knob takes the whole screen while it turns.
  * line.html's takeover(): a knob mark and the name in the knob's colour at the top, the context grey at the right, a
  * drawing of what the knob does, the value big at the foot. A p-lock on a held step: a padlock by the name, the

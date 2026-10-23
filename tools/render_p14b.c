@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.4b part: the track settings (SEL tapped), the mix and its sends (ENV), the effects' six pages (FX
  * tapped), playing A02; into OUT/p14b-*.png and OUT/p14b-sheet.png */
 #include <stdio.h>

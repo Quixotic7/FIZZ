@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MPL-2.0
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """P1.3v: before / after sheets per screen family, for the clarity pass (PLAN §9a).
 
     python3 tools/before_after.py OUT BEFORE_DIR

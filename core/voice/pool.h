@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The voice pool (PLAN.md §2): FM TONE voices shared by the tracks. A voice belongs to the track that struck it while it
  * sounds and carries its own patch (PLAN.md §5). Each track has a LIMIT (1..16; 1 is a mono choke) and a RESERVE (0 by
  * default: the voices no other track may take from it).

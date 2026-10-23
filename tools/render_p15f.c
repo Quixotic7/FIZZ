@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5f part: VEL 127's stunt show (the bus jump at 0.3, 0.55, 1.05, 1.35, 1.75 s into its loop), VEL
  * 126 beside it, a burst as the step plays; and a jump frame's cost against the plain rider's (printed); into
  * OUT/p15f-*.png and OUT/p15f-sheet.png */

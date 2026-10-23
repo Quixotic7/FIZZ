@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The project pages (P1.5a; ui.h ui_prj_t; P1.5u: the name editor is the typewriter's, ui_type.c; P1.5t: the sounds page's grid is gone, the
  * library browser is ui_presets.c), drawn as mockups/fizz-save-pool.html draws them: its positions, sizes, colours
  * and motions. Built through ui_layer.c (it

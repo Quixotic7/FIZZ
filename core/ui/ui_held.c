@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.3v (PLAN §9a's clarity rules): no text under 12 px, no explanatory lines, no value strip, no RAMP / STEPS / /24
  * words, the ruler's and the tape's numbers only the held step's, the SOUND bank line and lock count as padlocks; the
  * DEFAULT tag a 12 px word; B11's reset an icon. What follows is the original layout, so amended.

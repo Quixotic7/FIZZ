@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // FIZZ P1.5x: tools/fizz_sysex.mjs's STORE frames as FIZZ reads them (core/tests/test_sysex --feed): a preset's pan
 // and sends kept LOAD or not, E1's STORE6 (the version-6 blob), the optional tags byte (a mask or FIZZ's names; 0 or none: FIZZ's classifier), the
 // library's 256 places, and a frame's bytes where docs/SYSEX.md puts them.

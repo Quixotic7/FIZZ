@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5g part: VEL 127's show under the same bike (the world scrolling under it: 0.9, 1.15, 1.4, 1.65,
  * 1.95 s into its loop), VEL 126 beside it, a burst as the step plays; and a show frame's cost against the plain
  * rider's (printed); into

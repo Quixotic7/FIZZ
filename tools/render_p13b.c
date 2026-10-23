@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3b part: the screens of the sequencer controls v2 (PLAN.md §8b) rendered from a real state reached
  * by panel input only (presses, holds, turns; the demo patterns A01..A03 as the unit has them, and edits made with the
  * gestures of core/app/ctl.h), each from a fresh unit, into OUT/p13b-*.png; then OUT/p13b-sheet.png: each screen at

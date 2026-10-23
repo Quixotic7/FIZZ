@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* Chords for the held step's NOTE field (PLAN §8: "SELECT picks a chord shape"; line.html s4: the chord name big).
  *
  * The shapes, built on note 1 (offsets in semitones, as a step's notes 2..5 are stored):

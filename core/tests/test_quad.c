@@ -1,5 +1,7 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
-/* Acceptance B (P1.1): ChoralRoot's own host checks of FM TONE (tests/cr_quad_test.c at v0.25.1, GPL-3.0-only),
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+/* Acceptance B (P1.1): ChoralRoot's own host checks of FM TONE (the owner's tests/cr_quad_test.c at v0.25.1, relicensed),
  * ported to QUADRILLE's copy of the engine (core/voice/quad). The checks are cr_quad_test.c's, their arithmetic and
  * limits unchanged; what changed is the driver underneath them: ChoralRoot's part (trk[0], quad_vs[0], quad_patch[0])
  * is here an owner, voices of quad_voice.h and a "part patch" every voice takes at its note-on and at every block (as

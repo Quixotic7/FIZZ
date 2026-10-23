@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """P2.1: two render_frames outputs compared pixel by pixel (every PNG under A against the same path under B).
 
   python3 tools/cmp_frames.py A_DIR B_DIR [--list]

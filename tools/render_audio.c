@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_audio: QUADRILLE's sound headless, for listening and for the log. Runs the app (core/app) on the core's clock
  * (a tick a ms, the audio in 128-frame blocks as they fall due, as the glue and FM1VST drive it) with notes played as
  * MIDI on channels 1..8 (tracks 1..8), and writes 16-bit stereo WAVs at 44.1 kHz:

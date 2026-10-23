@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5t: the library browser, the step's pool picker and the LOADED / BACK / SAVED takeovers (ui.h ui_browse_t,
  * ui_pfx_draw; P1.5u: SAVE PRESET is the typewriter's, ui_type.c), drawn as mockups/fizz-presets.html draws them: its positions, sizes, colours
  * and motions (headP, rollo, cassette, trayIcon, the dice, the name cells). Built through ui_layer.c after ui_lib.c

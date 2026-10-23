@@ -1,4 +1,6 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 # P1.3j: builds tools/test_remote.cpp with FM1VST's own compile flags and libraries (those of its remote_test target in
 # an FM1VST build tree: FM1VST's shared code, fm1engine, remotefm1). Nothing in FM1VST is built or changed.
 #     python3 build_remote.py FM1VST_BUILD_DIR SOURCE OUTPUT

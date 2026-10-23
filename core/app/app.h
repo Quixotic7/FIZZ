@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* QUADRILLE's app (PLAN.md §13): the panel's input in as events, the simulated clock, the transport, a frame drawn
  * through the screens (ui/), the LEDs and the audio out. It knows nothing of the core ABI (glue/ translates) and
  * calls nothing of the OS: all time is the milliseconds given to qd_app_tick, so two runs with the same input are

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5u part: typing names on the keybed (SAVE PRESET's name selected, a key typed, SHIFT's signs, PRESETS'
  * ideas, ALGORITHM's cursor, F1's delete, a full name, a project's name), from real states on a RAM flash, in the order
  * of mockups/fizz-names.html's eight screens; into OUT/p15u-*.png and OUT/p15u-sheet.png, each beside the mock-up's

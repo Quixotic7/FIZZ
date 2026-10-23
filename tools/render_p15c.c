@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5c part: randomise's dice and champagne bottle at a few moments, UNDO / REDO's takeovers with
  * their glyphs, SHIFT's map with its key strip and LEDs, the snapshot, tap tempo, the click, double and clear; into
  * OUT/p15c-*.png and OUT/p15c-sheet.png */

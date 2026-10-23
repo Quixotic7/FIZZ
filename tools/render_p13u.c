@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3u part (was render_p13t.c; P1.3u: EDIT's chord name big and centred over the notes, VEL's value
  * big beside the mallet): the NOTE drawing redone (the keybed low, the notes as one line over it in their knobs'
  * colours, the scale's name only, no SELECTED, no "A = ALL"), in EDIT and on the held screen: one note, a chord the

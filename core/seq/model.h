@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The model, its start (PLAN.md §2, §4): eight tracks, each with a name, its sound (an FM TONE patch, the factory
  * sound it came from, whether it has been edited since), its mix, its voice limit and reserve, and FM TONE's owner (its
  * FREE LFOs' phases, the tempo they run at). The sequencer's patterns are pattern.h (P1.2); a pattern's track settings

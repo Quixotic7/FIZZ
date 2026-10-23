@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.6d part: every screen P1.6d made or changed, by the gestures that show them (the step latch's
  * default keys, the dice's hold, TONE's MIX cell, the FILTER machines' popup, the sends' locks on the mix and the
  * effects, automation recording's cue, the record settings' page 2, the track settings' page 3 and the track's name

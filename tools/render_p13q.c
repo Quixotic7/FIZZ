@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' STEPS part (P1.3j, P1.3p, P1.3q; was render_p13j.c): the STEPS view (the page edited unfolded at half
  * height, its notes in its cells; the others folded rows), the steps' kinds in colour (P1.3q: own notes, the track's
  * notes, ghosts), into OUT/p13q-steps-*.png and OUT/p13q-steps-sheet.png. The ghosts and the VEL overrides are set

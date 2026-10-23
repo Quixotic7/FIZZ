@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5w part: the pool holds references: a pool before and after a REPLACE (its reference and the
  * step locking it play the new sound), SAVE PRESET's REPLACE, DELETE? with where the preset is used (the projects,
  * the steps going to TRACK), the pool after; on a RAM flash with two projects. Into OUT/p15w-*.png and

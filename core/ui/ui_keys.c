@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* KEYS (PLAN.md §8 "KEYS mode"; mockups/line.html s18 without the recording roll): the keybed plays the selected track.
  * Top left the track's box and name, top right the pool's sixteen voices as dots (lit: in use; white this track's,
  * grey another's); the sound's name in the middle, medium; the line-drawn keybed of two octaves with the keys

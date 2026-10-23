@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5k part: the LFOs in the sound editor: an LFO page (DEST on KNOB 4, its name and arrow) and its
  * WAVE page, the hold-to-map takeover (a positive depth, a negative one, a value that is no destination), and a page
  * with modulated values marked by their LFOs; into OUT/p15k-*.png and OUT/p15k-sheet.png */

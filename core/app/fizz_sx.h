@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5r: FIZZ's SysEx (docs/SYSEX.md): sounds imported into the LIBRARY or the project's POOL (a web page converting
  * Digitone .dnsnd presets with ChoralRoot's reader hands them over this way), and an identity query. Built through
  * app.c (it includes fizz_sx.c). The glue (core/glue/core_quadrille.c) carries the frames: what the ABI's midi_in

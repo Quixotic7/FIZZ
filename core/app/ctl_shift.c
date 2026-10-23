@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5c (PLAN version 2.6): SHIFT's keyboard and undo / redo. Built through ctl_latch.c (it includes this file).
  *
  *   SHIFT + F1 / F2      undo / redo (undo.h: a gesture a level, eight), a takeover with what it was (a glyph)

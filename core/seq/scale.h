@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* Scales (PLAN §8b question 39: per track, chromatic by default, with a global key the tracks can follow). A scale is
  * a set of pitch classes above its root; the held step's NOTE keys B1..B10 are ten degrees of it from the root at the
  * entry octave (a chromatic track: ten semitones), ALGORITHM moves notes a scale step, and the keyboard snaps its keys

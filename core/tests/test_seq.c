@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The sequencer's tests (core/seq: pattern.h, seq.h, player.h, clip.h, scale.h, sounds.h; PLAN.md §4 .. §6, §8b):
  *
  *   units       the lock pool (sorted, counted, full, copy, clear), the editing API, the conditions' table, the patch

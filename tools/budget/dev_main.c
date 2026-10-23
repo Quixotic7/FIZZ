@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P2.0 (tools/budget): the device link's entry. The core linked for a 32-bit target (arm-none-eabi, Cortex-M4, the
  * pi32v2's stand-in for the linker) from the calls the FM-1's platform will make, as FM1VST's glue makes them: so
  * --gc-sections keeps what the device keeps, and .data + .bss is the core's static RAM. The app is one static

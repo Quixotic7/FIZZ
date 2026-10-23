@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5a: the floating page store (core/store) on a RAM NOR with the NOR's rules (an erase sets a sector to 0xFF, a
  * program only clears bits within one page):
  *   - records in and out, overwritten, deleted, across a remount;

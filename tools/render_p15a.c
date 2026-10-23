@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5a part: the project pages (SEQ tapped), from real states on a RAM flash, mockups/fizz-save-pool.html's
  * screens 13 and 14 (P1.5t: its sounds page, screens 1..12, is gone: render_p15t.c); into OUT/p15a-*.png and
  * OUT/p15a-sheet.png, each beside the mock-up's screen (MOCKS/fizz-save-pool-NN.png, mockups/render_png.py sp-13, 14) */

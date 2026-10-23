@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3y part: the control fixes (ALGORITHM the cursor in every view, LEAP, FX + ALGORITHM the track
  * big, PRESETS' sound picture in EDIT, the TRACK frame on a default) and the owner's additions (the record settings,
  * the global settings' knob layouts, SHIFT's map); into OUT/p13y-*.png, OUT/p13y-sheet.png and the track-vs-step sheet

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5j part: the sound editor's uniform foot (four fixed columns, one chip size, 4 px clear of the
  * frame), the shorter RATIO picture with the mix's own row and the operators fading with the mix: the owner's screen
  * (algorithm 5, C and B locked, MIX -40), algorithms 1 and 7 at MIX -64 / 0 / +63, three other pages with locks; and

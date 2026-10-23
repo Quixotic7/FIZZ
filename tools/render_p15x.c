@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5x part: presets carry their mix (the cassette's three send bars) and the black keys show the
  * chosen preset's tags (the filter's key solid, its tags breathing; SHIFT + a key toggles one). Into OUT/p15x-*.png and
  * OUT/p15x-sheet.png, the keys' LEDs under each */

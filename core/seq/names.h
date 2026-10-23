@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5y: names for sounds and projects, a port of the owner's namesizer (namesizer.lua, written for elasticat), its
  * three generators deterministic from a seed (an xorshift32: the same seed, the same names, on every build):
  *

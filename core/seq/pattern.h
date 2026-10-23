@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The pattern model (PLAN.md §4, §5, §6, §8b): steps, the lock pool, the tracks' settings and defaults, pages, a
  * pattern, a project of 64 with its sound pool and global key; and the editing API the UI and the tests call. Plain C
  * structs, no allocation, nothing of the OS: a pattern can be stored as it is (P1.5).

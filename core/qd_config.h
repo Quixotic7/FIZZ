@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* FIZZ's sizes (Phase 2, P2.0; research/PHASE2-BUDGET.md §5 item 1): every capacity of the core in one place, in two
  * profiles of the same source.
  *

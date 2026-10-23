@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* Screen 1, idle (P1.3p): FIZZ, the logo screen, as mockups/fizz-champagne-particles.html. P1.3o's champagne close-up
  * (after the owner's reference, ReferenceImages/FizzyBubbles/Champagne01) in the app's colours, line work on black:
  *   far     faint double rings, slow

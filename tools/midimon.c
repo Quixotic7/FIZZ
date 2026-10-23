@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.3j, a diagnostic (macOS, CoreMIDI): every MIDI source's messages logged with a millisecond stamp, passively (a
  * second client on the same sources: the Standalone's own connection is untouched). The FM-1 running RemoteFM1 sends
  * its panel as MIDI: buttons as notes on channel 15 (0 OCT-, 1 OCT+, ..), the encoders as CC 16 + matrix encoder on

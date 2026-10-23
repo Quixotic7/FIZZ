@@ -1,7 +1,9 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
-/* The mix (mix.h). A voice's block goes in as ChoralRoot's fx.c took a part's (v0.25.1 mix_part_out, mix_part_loop
- * with sends and no stereo side): the level from LEVEL_Q12, the voice's sample pre-shifted and saturated, the pan's
- * two gains, the three sends each ramped from the gain the last block left to this block's over the 32 samples. */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+/* The mix (mix.h). A voice's block goes in through fz_voice.h fz_mix_voice (L1): the level from LEVEL_Q12, the
+ * voice's sample pre-shifted and saturated, the pan's two gains, the three sends each ramped from the gain the last
+ * block left to this block's over the 32 samples (ChoralRoot's arithmetic for a part, to the bit). */
 #include <string.h>
 
 #include "mix.h"
@@ -73,7 +75,7 @@ int qd_mix_block(qd_mix_t *m, qd_pool_t *pool, qd_quad_owner_t *const *owners, c
             sg[0] = c, sg[1] = d, sg[2] = rv;
             memset(&m->dist[i], 0, sizeof m->dist[i]);  /* (P1.4a: its DRIVE from rest) */
         }
-        {   /* P1.4a: DRIVE (fx.c track_dist with eng_quad.c quad_drive's LFO offset), the voice's own */
+        {   /* P1.4a: DRIVE (qd_quad_dist, with eng_quad.c quad_drive's LFO offset), the voice's own */
             int32_t dr = pv->q.patch[QD_QP_DRIVE];
             if (o && o->quad_fx_off[0])
                 dr = clampi(dr + o->quad_fx_off[0], 0, 127);

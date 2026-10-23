@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The stopped preview (ctl.h; PLAN §8b version 2.2): with the transport stopped, a held step sounds. Its notes at its
  * velocity, with its sound (the pool sound it locks, else the track's), its p-locks and mix locks, the track's limit:
  * the record the sequencer would make for it (qd_seq_step_rec), struck through the player like a key's notes

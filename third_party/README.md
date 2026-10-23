@@ -7,9 +7,24 @@
 - Upstream: https://github.com/sammycage/plutovg
 - Version: tag **v1.3.3**, commit **bbd91f0d06a71491691b36330f29dffa4af87ccf** (2026-05-18, "Release v1.3.3"),
   the latest release tag on 2026-10-18.
-- Copied: `include/`, `source/`, `LICENSE`, `README.md` from a shallow clone of the tag, **unmodified**. What qd_gfx
-  needs beyond plutovg (font weights, letter spacing, the ellipse's arc, RGB565 out) is built in qd_gfx_plutovg.c on
-  top of it. Not copied: the build files, the examples.
+- Copied: `include/`, `source/`, `LICENSE`, `README.md` from a shallow clone of the tag. What qd_gfx needs beyond
+  plutovg (font weights, letter spacing, the ellipse's arc, RGB565 out) is built in qd_gfx_plutovg.c on top of it.
+  Not copied: the build files, the examples.
+- **Changed by FIZZ** (P2.1 .. P2.1c, the device's strips and fixed arena; each change marked "FIZZ" in the file, and
+  most built only with `QD_ARENA_REDIRECT`, the device's sizes). These are modified versions, not plutovg's or
+  FreeType's originals (FTL §2):
+  - `plutovg-rasterize.c`: exact culling of paths outside the strip being drawn (fills by contour, strokes by runs
+    of segments, dashes per dash), the path's memory given back once its outline is made, spans converted to short
+    fields, the stroker's left border used as the outline (no copy);
+  - `plutovg-canvas.c`: `plutovg_canvas_trim` (working arrays above a size freed after a paint),
+    `plutovg_canvas_fill_consume` / `stroke_consume`;
+  - `plutovg-font.c`: a glyph cache capped (`PLUTOVG_GLYPH_CACHE_MAX`), a smaller initial table,
+    `plutovg_font_face_cache_release` (the cache freed on request);
+  - `plutovg-private.h`: spans with 16-bit fields under the arena;
+  - `plutovg-utils.h`: arrays grow by 1.5x under the arena;
+  - FreeType files: `plutovg-ft-types.h` (a 32-bit long under the arena, `PVG_FT_LONG`), `plutovg-ft-raster.c` (its
+    positions and divisions on that type), `plutovg-ft-stroker.c` (`PVG_FT_Stroker_TakeLeft`, the left border's
+    arrays handed over).
 - Built with `PLUTOVG_BUILD PLUTOVG_BUILD_STATIC PLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD` (the last leaves out the font
   cache's file and directory loading: the core never reads a file).
 - Licences:
@@ -35,6 +50,11 @@ commit here.
   core carries OFL.txt in its descriptor credits.
 
 ## ChoralRoot FM-1 v0.25.1 (`core/voice/quad/`, `core/voice/fx/`, `core/tests/quad_goldens/`)
+
+L1 (2026-10-23): the owner relicensed his ChoralRoot code in FIZZ to MPL-2.0, and the Felucca-derived parts (dsp.c,
+cr_core.h, cr_tables.h, fx.c's, master.c, the parts listed in research/PROVENANCE.md) were rewritten clean-room
+(core/voice/quad/fz_*.h, tools/gen_fz_tables.py). The notes below describe the copy as it was made in P1.1; the
+files they name as copied from Felucca's side are gone.
 
 - What: FM TONE (ChoralRoot's QUAD engine), its tables, the DSP helpers it uses, and ChoralRoot's effects and output
   chain (the stereo chorus, the half-rate delay and reverb, the master filter, Options > Output Clean with its

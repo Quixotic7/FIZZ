@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* Acceptance A (P1.1): QUADRILLE's FM TONE (core/voice/quad, through quad_voice.h) against ChoralRoot's own engine
  * compiled from the v0.25.1 tag (ref/cr_quad_ref.c), sample for sample.
  *

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The octave takeover (P1.3c; PLAN.md §8b version 2.1, "octave feedback"): a change of NOTE's entry octave (OCT- /
  * OCT+ with a step held in NOTE), of the keyboard's octave, or of SOUND's bank of ten takes the whole screen for about
  * a second (the takeover's QD_TK_MS, then its 120 ms fade). The LINE look:

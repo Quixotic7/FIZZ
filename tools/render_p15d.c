@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5d part (PLAN version 2.5): VEL as the caped stunt rider (VEL 10, 40, 70, 100, 127, the kick as
  * the step plays, EDIT's), and the frames the other way round (a held step's screen framed, a track default's not;
  * the sound editor dark orange for the track's sound, bright orange for a step's locks); into

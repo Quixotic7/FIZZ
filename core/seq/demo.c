@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The built-in demo patterns (demo.h).
  *
  * P1.3b: the drums are the pool's KICK, SNARE, CLAP, GHOST, HAT and OPEN HAT (sounds.h, where their design is noted):

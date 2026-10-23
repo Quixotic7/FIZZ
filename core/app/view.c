@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The frame (ctl.h): the screens' view records (ui.h) filled from the model and the UI state, then drawn. The screen
  * under everything is the mode's: idle; the step view (the page as the hold mode's lane, PLAN §8b), a held step's
  * screen for the mode (with the ten values at its foot; P-LOCK keeps the lane), a layer's map while F1 / F2 / F3 is

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5b part (PLAN version 2.4, the owner after playing 0.4.1): the sound editor with the keyboard
  * (SCALE, FULL) and the keyboard's scale LEDs (drawn under the screen as the panel's keys), the lock chips (a step held:
  * filled; the track's view: outlined), the editor's head (the page dots first), the effects' OVERVIEW and ROUTING, the

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5p part: the knob band over the held screens' heads (NOTE's scale, VEL's value and ramp left out
  * while it shows, back after); into OUT/p15p-*.png and OUT/p15p-sheet.png */
 #include <stdio.h>

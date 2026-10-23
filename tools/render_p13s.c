@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3s part (was render_p13r.c): the EDIT view (HOME's third view): the hold mode's drawing at full
  * size over the page's row, the value in the head; a step selected by the PRESETS cursor in every mode, the track's
  * default with nothing held, a mode key held, playing; into OUT/p13s-edit-*.png and OUT/p13s-edit-sheet.png, with

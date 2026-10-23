@@ -1,7 +1,9 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
-/* Acceptance C (P1.1), the effects against ChoralRoot: QUADRILLE's copies (core/voice/fx: fx.c's parts, cr_fx.c,
- * master.c, built by qd_fx.c) against ChoralRoot's own code compiled from the v0.25.1 tag (ref/cr_fx_ref.c, through its
- * hostsim.c), sample for sample, at ChoralRoot's defaults:
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+/* Acceptance C (P1.1), the effects against ChoralRoot: FIZZ's (core/voice/fx: fz_out.c, cr_fx.c, built by qd_fx.c;
+ * L1: the Felucca-derived parts written anew) against ChoralRoot's own code compiled from the v0.25.1 tag
+ * (ref/cr_fx_ref.c, through its hostsim.c: GPL-3.0, a test's oracle, not FIZZ), sample for sample, at its defaults:
  *   - an impulse into the chorus (2 s), the delay (3 s, at 120 and at 97 BPM: the synced time follows the tempo) and the
  *     reverb (5 s): the stereo wet;
  *   - Output Clean (the trim, the DC blocker, the look-ahead limiter, the knee, MASTER) on a loud chord-like signal with
@@ -9,7 +11,7 @@
  *   - the whole chain (qd_fx_block: chorus, delay, reverb, the master filter, Output Clean) on noise bursts into every
  *     send and the dry mix, then 5 s of silence (the tails, and their end: exact zeros in the last second).
  * Also: the defaults the copy powers on with are ChoralRoot's (params.c's chorus rate and depth, cr_fx.c's XFP).
- * P1.4a: DRIVE, FIZZ's per-voice copy of ChoralRoot's DIST (quad_voice.c qd_quad_dist) against fx.c's track_dist, on a
+ * P1.4a: DRIVE, FIZZ's per-voice DIST (quad_voice.c qd_quad_dist) against ChoralRoot's fx.c track_dist, on a
  * loud FM-like signal with the drive changing block by block (0 between: the state kept), and its host cost.
  *
  *     test_fx_bitexact        exit 1 on any difference */

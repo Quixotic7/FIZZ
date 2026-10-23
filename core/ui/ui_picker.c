@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The sound picker's takeover (PLAN.md §9a rule 5: a value with steps is a picker, the value big, its neighbours
  * small; §8b: the project's pool of up to 128 sounds): while PRESETS turns, the whole screen. mockups/line.html s10's
  * cassette, simpler: SOUND and the track at the top (a step's sound lock: "STEP 5 · SOUND" and a padlock), the sound as

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5r part: a sound imported over SysEx (docs/SYSEX.md): its takeover, the cassette dropping in
  * with its name and slot, "imported" (the LIBRARY, the POOL); into OUT/p15r-*.png and OUT/p15r-sheet.png */
 #include <stdio.h>

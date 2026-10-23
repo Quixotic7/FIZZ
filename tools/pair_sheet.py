@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """P2.1: the host's screens beside the device's (two render_frames outputs), pair by pair, for the eye.
 
   python3 tools/pair_sheet.py HOST_DIR DEVICE_DIR OUT.png NAME [NAME ..] [--scale 2] [--cols 3]

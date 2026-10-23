@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.6c: the MIDI FX groups' tests (core/seq/mfx.h; research/OMX-MIDIFX.md, the OMX-27 v1.15.4 rules):
  *
  *   the engine alone (a recording output: each note on and off with its tick, the notes sounding counted as a pool

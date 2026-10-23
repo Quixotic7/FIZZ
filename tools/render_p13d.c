@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3d part: the screens of PLAN.md §8b version 2.2, rendered from a real state reached by panel input
  * only (the demo patterns A01..A03 and edits made with the gestures of core/app/ctl.h), each from a fresh unit, into
  * OUT/p13d-*.png; then OUT/p13d-sheet.png, every shot at 2x with its caption.

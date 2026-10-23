@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5y: names (names.h): the owner's namesizer, ported line for line where it decides (namesizer.lua: rnd,
  * phonic_nonsense, new_word), with FIZZ's limits (twelve characters, upper case). Its word lists are names_words.h.
  * phonic_nonsense is namesizer's adaptation of github.com/euangoddard/phonic-nonsense (Euan Goddard; that repository

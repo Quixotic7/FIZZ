@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* FM TONE (ChoralRoot's QUAD, eng_quad.c v0.25.1) as a library: one voice at a time, a patch per voice (PLAN.md §5),
  * an owner per track (PLAN.md §2: the track's FREE / HOLD LFO phases, its tempo). quad_voice.c is the only unit that
  * includes ChoralRoot's code; this header includes none of it.
@@ -41,7 +43,7 @@ enum {
     QD_QP_EATK, QD_QP_EDEC, QD_QP_ESUS, QD_QP_EREL, QD_QP_LEVEL,
     QD_QP_LFO0,
     QD_QP_RB2 = QD_QP_LFO0 + 3 * 8, QD_QP_B2KEY,
-    QD_QP_DRIVE,                        /* P1.4a: ChoralRoot's DIST (fx.c track_dist) as the sound's own value, 0..127, per
+    QD_QP_DRIVE,                        /* P1.4a: ChoralRoot's DIST (qd_quad_dist) as the sound's own value, 0..127, per
                                          * voice (qd_quad_dist; the mix runs it); a preset's is its FX() drive */
     /* E1..E4 (research/FMTONE-DN2-PLAN.md, FIZZ only: quad_ext.c): each one's default is today's sound */
     QD_QP_AMOD,                         /* E1: the amp envelope's mode: 0 ADSR, 1 AHD */
@@ -141,8 +143,8 @@ int qd_quad_voice_render(qd_quad_voice_t *v, int32_t *out);
 int32_t qd_quad_voice_level(const qd_quad_voice_t *v);   /* its last block's amplitude, Q15 (the quietest is stolen) */
 int qd_quad_voice_endless(const qd_quad_voice_t *v);    /* it would sound on after its release (AMP REL INF) */
 
-/* ---- DRIVE (P1.4a): ChoralRoot's DIST (v0.25.1 fx.c track_dist, line for line), on one voice's block; the state is the
- * voice's (track_t dist_* there). drive 0: b untouched (the state kept: turning it up does not click) */
+/* ---- DRIVE (P1.4a): ChoralRoot's DIST (fz_voice.h fz_drive, L1: written anew, the same samples), on one voice's
+ * block; the state is the voice's. drive 0: b untouched (the state kept: turning it up does not click) */
 typedef struct { int32_t hp, lp1, lp2; } qd_dist_t;
 void qd_quad_dist(qd_dist_t *st, int drive, int32_t *b, int n);
 

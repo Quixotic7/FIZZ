@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5e part: the VEL rider in neon (the owner's reference; fizz-vel-rider.html version 2): VEL 10,
  * 40, 70, 100, 127, the kick as the step plays, the track default's; and the neon's cost a frame (printed); into
  * OUT/p15e-*.png and OUT/p15e-sheet.png */

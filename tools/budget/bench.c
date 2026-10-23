@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P2.0 (tools/budget, from the Phase 2 audit's bench): the core built at the device's sizes (QD_DEVICE) for this host,
  * driven as the glue drives it (a tick a ms, 128-frame audio blocks as they fall due, a frame every 15 ms) through the
  * screens that cost the most heap: the idle screen, demo A01 playing in the step view, a held step and a p-lock,

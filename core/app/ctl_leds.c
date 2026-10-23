@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The LEDs (ctl.h; PLAN §8b), five levels: lit, mid, dim, faint, off (RemoteFM1 maps them to the unit's three).
  *
  *   step view       white: trigs lit, LOCK steps dim, empty steps faint, steps outside the page's start..end off;

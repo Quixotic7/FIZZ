@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* Saving (P1.5a; PLAN.md "P1.5a, saving, the library and the pool" and §7): the project written by itself into the
  * flash, eight projects, the user LIBRARY of 128 sounds, the project's POOL of 128. persist.c (built through app.c).
  *

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5z part: the owner's batch: - POOL's animation (the cassette out of the lime tray, the bubbles, the
  * + back) and the outlines (lime in the pool, champagne not); SHIFT + B6's TAP takeover; SHIFT + B8's PAGE FOLLOW; SHIFT's
  * map (SELECT the track, B8); SHIFT + SELECT's track in the sound editor; SHIFT + ALGORITHM's scale over EDIT; EDIT

@@ -1,8 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
-/* ChoralRoot's effects and output chain as a library (qd_fx.h): the copies of fx.c (its parts), cr_fx.c and master.c
- * (v0.25.1) built in this one unit as ChoralRoot's firmware builds them (CR_FX 1: ChoralRoot's delay, reverb and
- * stereo chorus; one core: CR_CPU1 0; no profiling), on the tables, core.h parts and dsp.c of core/voice/quad. Then
- * the block in mix_block's order: xc_block, xf_block, xq_block, out_master (Output Clean). */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+/* ChoralRoot's effects and output chain as a library (qd_fx.h): fz_out.c (Output Clean, the chorus line) and the
+ * owner's cr_fx.c (v0.25.1: delay, reverb, master filter, stereo chorus; one core; no profiling) built in this one
+ * unit on core/voice/quad's fz_core.h, fz_voice.h and fz_tables.h (L1). Then the block in ChoralRoot's order:
+ * xc_block, xf_block, xq_block, out_master (Output Clean). */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -124,7 +126,7 @@ static void qd_xf_routed(const int32_t *dly_in, const int32_t *rev_in, int32_t *
     xf_reverb(rev_in, ml, mr, CTL, (int)(f >> 1 & 1u), 0, 0, xf.t[2], xf.t[3], 1);
 }
 
-/* fx.c mix_block's stages after the parts: the chorus's two taps into the mix, the delay and the reverb into the mix,
+/* ChoralRoot's mix_block stages after the parts: the chorus's two taps into the mix, the delay and the reverb into the mix,
  * the master filter, the output chain. P1.5b: routed (a feed or the filter first), the chorus's return (the mix's
  * change across xc_block) into the delay's and the reverb's sends, the delay's last block into the reverb's */
 void qd_fx_block(const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_t *l, int32_t *r, int32_t *out)

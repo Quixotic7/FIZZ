@@ -1,8 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The mix (PLAN.md §2: "voices are mixed per voice into the stereo bus and the three sends"): each voice of the pool
  * at its track's level, pan and three sends (chorus, delay, reverb), with ChoralRoot's arithmetic for a part
- * (fx.c mix_part_out / mix_part_loop: LEVEL_Q12, the pan law, the sends ramped over the block from the gains the last
- * block left; eng_quad.c's LFO offsets on the pan and the sends, quad_pan / quad_sends), applied per voice. Then the
+ * (fz_voice.h, L1: LEVEL_Q12, the pan law, the sends ramped over the block from the gains the last block left;
+ * eng_quad.c's LFO offsets on the pan and the sends, quad_pan / quad_sends), applied per voice. Then the
  * buses go to qd_fx_block (core/voice/fx). P1.4a: DRIVE, ChoralRoot's DIST (a part insert there), runs per voice before
  * the level: the voice's patch's DRIVE plus its owner's LFO offset (eng_quad.c quad_drive), its own state (a fresh note
  * starts it from 0). */

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' TAP ape part (0.9.2): mockups/fizz-tap-ape.html's fifteen moments drawn by FIZZ's own renderer
  * (ui_ape_draw, the takeover's model filled as view.c fills it from the taps' times), into OUT/tap-ape-*.png and
  * OUT/tap-ape-sheet.png; and the drawing's cost a frame (the busiest moments, on this machine). */

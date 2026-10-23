@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The sequencer (PLAN §4 .. §6): the transport, the tracks' clocks, the trigs resolved ahead, conditions and chance,
  * pattern change and chains, MIDI clock in. It turns the project's patterns into timed events; the player (player.h)
  * gives them to the voice pool. Plain C, no OS, deterministic: the same calls give the same events.

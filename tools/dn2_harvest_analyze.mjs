@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // Reads a Digitone II harvest (the zip site/dn2-wizard.html makes) and reports, for research/DN2-FORMAT.md and
 // tools/dn2pst.mjs, what the device's own answers show. It changes nothing; it prints.
 //

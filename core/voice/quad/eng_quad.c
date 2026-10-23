@@ -1,7 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
-/* QUADRILLE: copied from ChoralRoot v0.25.1 (15ca8d0), firmware/src/eng_quad.c, GPL-3.0-only. Built only through
- * quad_voice.c (which includes it after cr_core.h and dsp.c). The DSP is unchanged: every computation of a sample, the
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+/* FM TONE: ChoralRoot's QUAD engine (the owner's: ChoralRoot v0.25.1 firmware/src/eng_quad.c, relicensed MPL-2.0 by
+ * its author, L1). Built only through quad_voice.c (which includes it after fz_core.h and fz_voice.h: L1, the building
+ * blocks, the envelope tick, the filter's coefficients and sample tick written anew; research/PROVENANCE.md). The
+ * DSP is ChoralRoot's to the bit (test_quad_bitexact): every computation of a sample, the
  * tables, the curves, the envelope times, the presets and the blob format are ChoralRoot's, line for line. Changed
  * (each place marked "QUADRILLE"):
  *   (a) a patch per voice: the voice reads its own patch (voice_t.patch, PLAN.md §5: p = s->patch) where ChoralRoot
@@ -36,7 +39,7 @@
  * saw-like at 37). HARM -26.00..+26.00: the 26-wave additive series (quad_tables.h), interpolated between neighbours;
  * - shapes C, + shapes A and B1 (B2 never). DTUN detunes A up and B2 down. The outputs mixed X .. Y (MIX -64..63), a
  * DC blocker (QUAD_DC_K), the base-width filter (a one-pole high-pass at BASE, a one-pole low-pass at BASE + WIDTH),
- * the multimode filter (OFF, LP12, HP12, LP24: dsp.c's trapezoidal SVF, LP24 two in series) with its own ADSR envelope
+ * the multimode filter (OFF, LP12, HP12, LP24: a trapezoidal SVF, fz_dsp.h, LP24 two in series) with its own ADSR envelope
  * (depth, delay, key track),
  * then QUAD's own amp envelope (engine_t.ownenv / done, as FM6 and the VA) and LEVEL.
  * Operator envelopes A (operator A's level) and B (B1's and B2's, through the B LEV law): ATK to 1, DEC to END, held
@@ -1017,7 +1020,7 @@ static inline int32_t quad_hw(const int16_t *a, const int16_t *b, int32_t f, uin
  * into the carrier at 0 Hz. A DX7 / Digitone AC-couples its output; here every voice does, before the filters */
 #define QUAD_DC_K 75
 
-/* the multimode filter's coefficients (dsp.c tsvf_coef_k's, cut Q8, damping k Q12) with a2 to 1/32 of its Q13 step
+/* the multimode filter's coefficients (fz_dsp.h fz_svf_coef_fine: cut Q8, damping k Q12) with a2 to 1/32 of its Q13 step
  * (f2: the fraction, 0..31): FREQ in hundredths moves g by 0.05 % a hundredth, below a Q13 step where g is small
  * (FREQ 42: a2 ~ 116), so the fine part would not reach the sound; g is interpolated in Q20. (a3 = a2 g, a3's own
  * fraction: not worth its multiply a sample) */

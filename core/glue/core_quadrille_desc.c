@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* FIZZ's descriptor (core-api/fm1core.h, ABI 6): the one exported symbol of fizz.fm1core (P1.3k: QUADRILLE renamed).
  * Its own unit (-Wall -Wextra); the entry points are core_quadrille.c's. The button names are their roles today
  * (P1.5r: PLAYING.md's "Names used here"), in the panel's order: FX = FX (tap: the effects; held: choose the track),

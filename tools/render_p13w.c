@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3w part: FUNC on B9 (the step functions), SOUND on B10: the PIANO ROLL's FUNC lane, the held and
  * EDIT FUNC pictures (a direction, a jump with its target on its page's strip, a random one), STEPS with the functions'
  * dots; into OUT/p13w-*.png and OUT/p13w-func-sheet.png. The functions are set through the pattern API (qd_ctl_pat), the

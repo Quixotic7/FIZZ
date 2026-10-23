@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* qd_gfx on plutovg (third_party/plutovg, MIT; Phase 1). One 240 x 240 ARGB surface and one canvas, the fonts
  * embedded (fonts_gen.h: Inter Tight's static instances, made by tools/make_fonts.py). What plutovg has no call for
  * is built here on top of it, without touching it:

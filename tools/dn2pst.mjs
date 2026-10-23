@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // Elektron Digitone II presets (.dn2pst) read for FM TONE (FIZZ's patch = ChoralRoot's eng_quad.c QP_*, plus DRIVE).
 // A PROTOTYPE: written from other people's reverse engineering (research/DN2-FORMAT.md cites each fact) and checked
 // against a synthetic object, against Digitone 1 sounds put through the DN1 -> DN2 map, and against one real file (the

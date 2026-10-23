@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* Latched menus and confirmations (ctl.h; PLAN §8b version 2.2). A latched menu stays on screen once it is opened,
  * until it is left; a confirmation (later: "clear the track?") stays until it is answered. One rule for every one of
  * them, so the hands learn it once:

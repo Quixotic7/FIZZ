@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.6c part: the MIDI FX screen, mockups/fizz-midifx.html's 23 screens made by the gestures they show
  * (SHIFT + ARP, the slots, PRESETS' rolodex, each effect, the arp's pages and lanes, ALGORITHM's groups, a track OFF,
  * B10, B11 armed, F2 + B, ARP tapped, a held step's MIDI FX). Into OUT/p16c-*.png and OUT/p16c-sheet.png */

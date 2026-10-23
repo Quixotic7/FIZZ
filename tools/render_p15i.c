@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5i part: the sound editor's RATIO page (RATIO B the pair, MIX drawn as the outputs' balance:
  * full X, the centre, full Y; two algorithms; B at two values) and TONE after the move; into
  * OUT/p15i-*.png and OUT/p15i-sheet.png */

@@ -38,12 +38,16 @@ make -C tools abi FM1CORE=path/to/build-fizz/cores/fizz.fm1core   # the module d
 
 ## License
 
-GPL-3.0-only (see [LICENSE](LICENSE)), as ChoralRoot.
+MPL-2.0 (see [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md); `site/` and the bit-exact tests' oracles stay
+GPL-3.0-only). Until L1 (2026-10-23) FIZZ was GPL-3.0-only; Felucca's code was rewritten, not relicensed
+([research/PROVENANCE.md](research/PROVENANCE.md)).
 
 ## Credits
 
-- FM TONE, the effects (chorus, delay, reverb) and the output chain: ChoralRoot FM-1 v0.25.1 (GPL-3.0-only, the
-  ChoralRoot FM-1 contributors), a fork of Felucca (Leo Kuroshita, Hügelton Instruments).
-- Drawn with [plutovg](https://github.com/sammycage/plutovg) (MIT), vendored in `third_party/plutovg`.
+- FM TONE, the effects (chorus, delay, reverb) and the output chain: ChoralRoot FM-1 v0.25.1, the owner's (relicensed
+  MPL-2.0 by him); ChoralRoot began as a fork of Felucca (Leo Kuroshita, Hügelton Instruments), whose code FIZZ no
+  longer holds (L1: rewritten clean-room).
+- Drawn with [plutovg](https://github.com/sammycage/plutovg) (MIT; its FreeType parts FTL, stb MIT OR Unlicense),
+  vendored in `third_party/plutovg` with FIZZ's changes listed in `third_party/README.md`.
 - Type: [Inter Tight](https://github.com/rsms/inter) (SIL Open Font License 1.1).
 - The sequencer's controls owe a lot to the OMX-27 Form sequencer and to Elektron's machines.

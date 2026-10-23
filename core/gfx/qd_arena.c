@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P2.1: the drawing's fixed arena (qd_arena.h): boundary tags, free neighbours merged; small blocks first fit
  * from the bottom, large ones from the top (the long-lived and the short-lived apart: little fragmentation). Built through
  * qd_gfx_plutovg.c at the device's sizes (the core's source lists stay as they are). Single-threaded, as the drawing.

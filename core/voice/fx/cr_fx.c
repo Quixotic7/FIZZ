@@ -1,7 +1,10 @@
-/* QUADRILLE: copied from ChoralRoot v0.25.1 (15ca8d0), firmware/src/cr_fx.c, GPL-3.0-only. Unchanged. Built only
- * through qd_fx.c, which includes it after fx.c (as fx.c includes it, CR_FX 1). */
-/* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+/* ChoralRoot's delay, reverb, master filter and stereo chorus (the owner's: ChoralRoot v0.25.1 firmware/src/cr_fx.c,
+ * relicensed MPL-2.0 by its author, L1). Built only through qd_fx.c, after fz_out.c. L1: the chorus's two taps are
+ * fz_voice.h fz_chorus_block (written anew), the integer square root fz_dsp.h's; the rest as ChoralRoot has it.
+ * The notes below are ChoralRoot's (its fx.c, its Felucca units: the firmware FIZZ came from). */
 /* ChoralRoot's delay and reverb (CR_FX 1; docs/FX.md), included by fx.c in the place of Felucca's mono tempo delay and
  * its ROOM / SPRING reverb, which stay as they are for Felucca's units (CR_FX 0: its goldens). Both take a mono
  * send bus of fx.c and add a stereo wet to the mix. Since 0.19 the chorus's return is here too (xc_block: two taps

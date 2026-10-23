@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5c (PLAN version 2.6): undo / redo (SHIFT + F1 / SHIFT + F2), eight levels; the snapshot of the active pattern;
  * the pattern clipboard (SHIFT + B4 / B5).
  *

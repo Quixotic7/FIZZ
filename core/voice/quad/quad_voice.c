@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
-/* FM TONE as a library (quad_voice.h): ChoralRoot's eng_quad.c (v0.25.1, copied with the changes its header lists) on
- * the parts of core.h it reads (cr_core.h), dsp.c and the generated tables (cr_tables.h), all in this one unit as
- * ChoralRoot's tests/cr_quad_test.c builds them; then the interface. The driver below is cr_quad_test.c's voice
- * driver (drv_on, drv_tick: voice.c's control tick for an ownenv engine, done then render) plus ChoralRoot's fade
- * steal (voice.c voice_kill / env_tick stage 4: a voice given up renders one more block with its amplitude ramped to
- * 0, m.amp1 = 0, then ends). */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+/* FM TONE as a library (quad_voice.h): the owner's eng_quad.c (ChoralRoot v0.25.1 with the changes its header lists)
+ * on fz_core.h, fz_voice.h and fz_tables.h (L1: the declarations, building blocks and tables written anew), all in
+ * this one unit; then the interface and FIZZ's own driver of the engine (a block at a time; a voice given up renders
+ * one more block with its amplitude ramped to 0, then ends: the fade steal). */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>

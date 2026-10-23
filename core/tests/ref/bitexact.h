@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The bit-exact tests' two sides: one scenario, rendered by ChoralRoot's code from the tag (cr_*_ref.c) and by
  * QUADRILLE's copy (test_*_bitexact.c), compared sample for sample. */
 #pragma once

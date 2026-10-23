@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """P2.1: a flash image (the owner's Standalone flash, a saved one) through this core: everything it holds as read,
 then every pattern record migrated to the newest format ('P' 5) and read again after a restart; the two must be the
 same, line for line (tools/flash_dump.c). With --old, a flash_dump built from an older core (the format before) reads

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The keyboard's recording and MIDI notes into a held step (ctl.h; PLAN §8b "Keyboard and recording").
  *
  * THE KEYBOARD (REC tapped: the KEYS screen): the keybed plays the selected track, F3..G5 shifted by OCT- / OCT+; a

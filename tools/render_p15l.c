@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5l part: the sound editor's black keys regrouped, one screen a group key (B1 TRIG / KEYS .. B8
  * LFO 3), the keys' LEDs under each; into OUT/p15l-*.png and OUT/p15l-sheet.png */
 #include <stdio.h>

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.6l (the owner: "update the labels dynamically to show what each knob and button does. Like hold Shift and it
  * should update with labels of available shortcuts"): every control's job now, a short label (ctl.h qd_labels_t: up
  * to ten characters, upper case; no job: empty), for a page that draws the panel (SysEx LABELS, fizz_sx.c). Built

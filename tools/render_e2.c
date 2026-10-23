@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' E2 part: the filter machines on FILTER (MACHINE on ALGORITHM, E4.1: MULTI, LOWPASS 4, LEGACY, COMB-,
  * COMB+, EQ; KNOB 2 / 3 by the machine; the response drawn) and BASE's BWPOST. Into OUT/e2-*.png and OUT/e2-sheet.png */
 #include <stdio.h>

@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // FIZZ presets written as Elektron Digitone files: .dnsnd (Digitone, OS 1.44: a version-5 sound record) and .dn2pst
 // (Digitone II, OS 1.10 and later: a version-2 record, machine FM TONE). Pure JS, no dependencies beyond FIZZ's own
 // dn2pst.mjs (its Digitone II tables). The inverse of the readers: ChoralRoot's fm1dnsnd.js dnsndToQuad (the DN1 laws,

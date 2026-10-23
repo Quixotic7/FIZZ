@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The pages over the step view (P1.5a; P1.5t: the sounds page's grid is gone, PLAN.md "The sound system,
  * redesigned"): the library browser and SAVE PRESET (ctl_presets.c), the name editor (a project's name), the project
  * pages; their keys, knobs, OCT keys and clock (ctl.c's rows call these). Built through ctl_latch.c (it includes this

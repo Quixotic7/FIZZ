@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.3i: FIZZ (P1.3k: was QUADRILLE) driven through the core ABI, as FM1VST's host drives it: the built fizz.fm1core
  * loaded with dlopen, fm1core_get, the panel written between entry points (buttons by their labels' matrix ids, the
  * knobs as detents on enc[enc_id[role]] in enc_dir[role]), tick each millisecond, frame every 15, audio in 128-frame

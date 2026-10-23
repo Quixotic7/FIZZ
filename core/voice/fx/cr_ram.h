@@ -1,7 +1,9 @@
-/* QUADRILLE: copied from ChoralRoot v0.25.1 (15ca8d0), firmware/src/cr_ram.h, GPL-3.0-only. Unchanged (every switch
- * 0: the CR_HOT_* markers expand to nothing). */
-/* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+/* ChoralRoot's code-in-RAM switches (the owner's: ChoralRoot v0.25.1 firmware/src/cr_ram.h, written for ChoralRoot,
+ * relicensed MPL-2.0 by its author, L1; its old header named Felucca's author by mistake: research/PROVENANCE.md).
+ * In FIZZ every switch is 0: the CR_HOT_* markers expand to nothing. */
 /* Code in RAM (docs/FX.md "Code in RAM"): build switches that link the audio path's functions at RAMTEXT
  * (0x01C00000, firmware/app.ld .rhot.*) instead of XIP, so that the unit can say what executing from the flash
  * costs each stage. Device builds only (./build.sh takes them from the environment: CR_RAM_FX=1 ./build.sh); a host

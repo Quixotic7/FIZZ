@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P2.1: the drawing's fixed arena (core/gfx/qd_arena.c): random malloc / calloc / realloc / free, each block filled
  * with its own pattern and checked before it changes (a realloc's moves, in place, up and down, kept the bytes); the
  * blocks' tags walked every 1000; every block back, the arena whole again (one free block: a request of nearly its size

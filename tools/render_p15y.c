@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5y part: names from the owner's namesizer: SAVE PRESET's suggestion on two tracks, PRESETS' ideas
  * (a pair, the sound's own, a phonic word, a cosmic word) and a project's ideas. Into OUT/p15y-*.png and
  * OUT/p15y-sheet.png */

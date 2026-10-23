@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5n part: an OCT tap over the step latch's selection in EDIT (its octave's takeover 5, 500 and
  * 1050 ms after), SOUND's ten the same, a chord moved by ALGORITHM over the latch, and TONE with MIX back (-64, 0,
  * +63); into OUT/p15n-*.png and OUT/p15n-sheet.png */

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5y: the word lists of the owner's namesizer (Quixotic7's namesizer.lua for elasticat: descriptors.txt and
  * things.txt), as they are; names.c strips their punctuation and upper-cases them, as namesizer's gsub does. Built only
  * through names.c */

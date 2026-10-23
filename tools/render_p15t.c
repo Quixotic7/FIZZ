@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.5t part: the sound system (the library browser, the kinds, MY presets, LOAD, CANCEL, + POOL, the
  * POOL and - POOL, a step's pool picker with TRACK, an empty pool, SAVE PRESET, naming, REPLACE, SAVED), from real
  * states on a RAM flash, in the order of mockups/fizz-presets.html's fifteen screens; into OUT/p15t-*.png and

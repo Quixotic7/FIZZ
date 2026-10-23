@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5u: the typewriter, one keyboard for every name (PLAN.md "Typing names on the keybed"; mockups/fizz-names.html).
  * Built through ctl_latch.c (it includes this file after ctl_presets.c and ctl_lib.c, whose SAVE PRESET and name
  * editor open it with qd_type_start).

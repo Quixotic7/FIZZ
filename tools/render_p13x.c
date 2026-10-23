@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3x part: PLAY held opens F3; F3's SELECT (tempo) and ALGORITHM (swing) with the metronome over the
  * map; REC held: live recording armed and waiting, then recording an empty track that grows; into OUT/p13x-*.png and
  * OUT/p13x-sheet.png */

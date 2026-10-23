@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* FIZZ (P1.3k: QUADRILLE renamed; the files keep their names) as an FM1VST core (core-api/fm1core.h, ABI 6): the glue
  * between the ABI's panel and the app (core/app). The only unit, with core_quadrille_desc.c, that knows the ABI. Built
  * by FM1VST's core-glue/fizz/core.cmake (fm1_add_core) from this tree.

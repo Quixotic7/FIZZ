@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.6c: the MIDI FX screen (ui.h ui_mfx_t; mockups/fizz-midifx.html, drawing for drawing). Built through ui_layer.c
  * (the core's source lists stay as they are). */
 #include <math.h>

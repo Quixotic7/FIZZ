@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.6e part: the MIDI FX screen's new states (a slot key held: lifted with its arrows; a knob: the move
  * previewed, the others making room; let go: dropped; F1 held: COPY, its source marked; F2 held: the hand, empty and
  * holding; REC: STEPS, its steps held + ALGORITHM: their MIDI FX lock, the frame; KEYS again). Into OUT/p16e-*.png and

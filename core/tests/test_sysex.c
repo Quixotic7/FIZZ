@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5r: FIZZ's SysEx (core/app/fizz_sx.h, docs/SYSEX.md): the 7-bit packing; the identity; a sound stored into the
  * LIBRARY and the POOL from a known blob and back byte for byte (its DRIVE), a slot given, the first free, the library
  * full, the pool's slot 1 refused; a bad checksum, a bad length, a bad patch, a bad version, an unknown command; the

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The layer maps (PLAN.md §8b, version 2.1; P1.3v: §9a's clarity rules): while F1, F2, F3, SEL or SEQ is held the
  * screen is its map; while SHIFT is held, the controls SHIFT changes. VISUAL maps: the keys drawn where they are on the
  * panel, each with an icon or a number for what it does in this layer (ui_keymap), lit or coloured by its state; no

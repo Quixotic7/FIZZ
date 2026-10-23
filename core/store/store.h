@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The floating page store (P1.5a; PLAN.md §7 "Flash for patterns and sounds", "Saving with no flash writes that could
  * cause drop-outs while playing"): records (a key, up to QDS_MAXREC bytes) kept in NOR flash as runs of 256-byte pages,
  * the commit page last; a newer version of a key makes the older one stale; deleted keys leave a tombstone. Pure C,

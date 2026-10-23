@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3e part: the screens of PLAN.md §8b version 2.2's later bullets (editing a track's default, six
  * notes, the quiet KNOB 4, HOME's STEPS view), from a real state reached by panel input only, each from a fresh unit,
  * into OUT/p13e-*.png; then OUT/p13e-sheet.png, every shot at 2x with its caption. */

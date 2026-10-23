@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The voice pool's rules (core/voice/pool.h, PLAN.md §2), one test each:
  *   limits      a track never sounds more than its limit; at it, a new note takes its oldest held voice
  *   choke       limit 1: every note cuts the last one over one block; the new note starts in that slot the block after

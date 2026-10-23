@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The sound editor's screen (P1.4a; ui.h ui_snd_t). Built through ui_layer.c (it includes this file: its line2 and
  * cat; the core's source lists stay as they are). PLAN §9a's clarity rules: the page's name, the values and their short
  * names are the only text; the rest is drawing, colour and motion. */

@@ -1,11 +1,12 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
-/* ChoralRoot's effects and output chain as a library (qd_fx.c over the copies of fx.c, cr_fx.c, master.c from
- * v0.25.1): the stereo chorus (xc_block), the delay at half rate tempo-synced and the reverb (xf_block), the master
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+/* ChoralRoot's effects and output chain as a library (qd_fx.c over fz_out.c and the owner's cr_fx.c, v0.25.1): the stereo chorus (xc_block), the delay at half rate tempo-synced and the reverb (xf_block), the master
  * filter (xq_block: Off, as ChoralRoot's default), then Options > Output Clean (out_master: the trim, the DC blocker,
  * the look-ahead limiter, the knee, MASTER). DIST / DRIVE is not in P1.1.
  *
  * One instance (ChoralRoot's state is file-static: one per loaded core). One control block (32 frames) a call, in the
- * order ChoralRoot's fx.c mix_block runs them. Integer arithmetic: two runs give the same samples. Nothing calls the
+ * order ChoralRoot's mix_block runs them. Integer arithmetic: two runs give the same samples. Nothing calls the
  * OS. */
 #pragma once
 #include <stdint.h>
@@ -20,7 +21,7 @@ extern "C" {
  * (params.c), Output Clean, the limiter at rest, 120 BPM, MASTER at pot 724: Felucca's 2048 of 4096) */
 void qd_fx_init(void);
 void qd_fx_tempo(int bpm);              /* the tempo the synced delay follows (cr_fx.c xf_bpm, 20..300) */
-void qd_fx_master_pot(int pot);         /* MASTER, the pot 0..1023 (master.c's law: pot^2 / 256, Q12) */
+void qd_fx_master_pot(int pot);         /* MASTER, the pot 0..1023 (pot^2 / 256, Q12: fz_master_of_pot) */
 uint32_t qd_fx_master_q12(void);
 /* P1.4b: the effects' own parameters (global: no sound or pattern load touches them), ChoralRoot's xfp[] (cr_fx.c XP_*,
  * in its order: the delay's nine, the reverb's seven, the chorus's width, the master filter's four) and the chorus's

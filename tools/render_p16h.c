@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.6g part: the ARP picture's seventeen PATTERNs (on C E G over two octaves: the real walk), the arp
  * playing a held chord, its lanes' rests and transposes, a PATTERN turned (the morph); the FILTER page's ALGORITHM
  * popup; recording in the sound editor (its cue). Into OUT/p16h-*.png, OUT/p16h-arp-sheet.png and OUT/p16h-sheet.png */

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.4b: THE MIX and THE EFFECTS (ui.h ui_mix_t, ui_fx_t; mockups/line.html s14, s15). The file keeps its name from
  * P1.3's tracks screen of eight clocks, retired in P1.4b (its LENGTH and RATE are F3's, LIMIT and SWING the track
  * settings', its mutes SEL's). PLAN §9a's clarity rules: the values and the short names over them, the page's name;

@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* The sound editor (P1.4a; PLAN.md §8b "P1.4a, the sound editor on EDIT"; ctl.h). Built through ctl_latch.c (it
  * includes this file: the editor is a latched menu, QD_LATCH_SND, and the core's source lists stay as they are).
  *

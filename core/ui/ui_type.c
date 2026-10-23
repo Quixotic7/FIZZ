@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.5u: the typewriter's screen (ui.h ui_type_t): SAVE PRESET's name and a project's, typed on the keybed, drawn as
  * mockups/fizz-names.html draws them: its positions, sizes, colours and motions (saveHead, nameRow, keybed, the
  * letter's flight, the ideas' rolodex, the SHIFT chip, the full row's flash, the deleted letter dropping away). Built

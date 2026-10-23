@@ -1,4 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_frames' P1.3p part: FIZZ's logo screen, champagne bubbles in the app's colours and the word from particles, at eight moments of its loop
  * (OUT/p13p-fizz-*.png, OUT/p13p-sheet.png) and one whole loop as frames OUT/fizz-logo/f-NNN.png at 15 fps, which
  * `make -C tools frames` turns into OUT/fizz-logo.gif with ffmpeg (2x). */
