@@ -39,6 +39,7 @@
 #define QD_UNDO_XLOCKS 512             /* the other patterns' locks a pool slot's emptying cleared */
 #define QD_UNDO_NSLOT 8                /* pool / library slots a gesture changes (their before: copies) */
 #define QD_SNAP_BYTES 8192u            /* the snapshot and the pattern clipboard, compressed */
+#define QD_CLIP_ZBYTES 8192u           /* the eight tracks' clip undo levels (seq/clip.h), compressed */
 /* ---- the drawing (P2.1: core/gfx) */
 #define QD_STRIP_H 40                  /* the screen drawn in strips of this many rows (a 240 x 40 ARGB surface) */
 #define QD_GFX_ARENA 262144u           /* plutovg's fixed arena (qd_arena.h: no heap; render_frames: peak 240 304) */

@@ -2962,6 +2962,34 @@ static void u_clip(void)
               ".. ends its level: the next edit keeps a new one");
         qd_clip_group(&C, 0);
     }
+    {   /* P2.1: eight tracks' levels at once, each a full track (64 steps, locks): every one kept is exact (the device
+         * keeps them compressed in QD_CLIP_ZBYTES: the oldest give way when there is no room; the last two always) */
+        static qd_pattern_t H, H0;
+        static qd_clip_t D;
+        int t, st, kept = 0, exact = 0, last2 = 1;
+        qd_pat_init(&H);
+        qd_clip_init(&D);
+        for (t = 0; t < QD_PAT_NTRACK; t++)
+            for (st = 0; st < QD_NSTEP; st++) {
+                qd_step_on(&H, t, st);
+                qd_step_set_vel(&H, t, st, 1 + (t * 31 + st * 7) % 127);
+                if (st % 4 == t % 4)
+                    qd_lock_set(&H, t, st, QD_QP_HARM, 100 + t * 64 + st);
+            }
+        memcpy(&H0, &H, sizeof H0);
+        for (t = 0; t < QD_PAT_NTRACK; t++)
+            qd_clip_clear_track(&D, &H, 2, t);
+        for (t = QD_PAT_NTRACK - 1; t >= 0; t--) {
+            const int can = qd_clip_can_undo(&D, 2, t);
+            kept += can;
+            last2 &= t < QD_PAT_NTRACK - 2 || can;
+            if (can && qd_clip_undo(&D, &H, 2, t) == 1)
+                exact += !memcmp(H.step[t], H0.step[t], sizeof H.step[t]);
+        }
+        CHECK(kept >= 2 && exact == kept && last2 && qd_pat_check(&H), "P2.1: eight full tracks cleared: %d levels kept "
+              "(%s), each undone exactly (%d)", kept, QD_PAT_NTRACK == kept ? "all" : "the latest", exact);
+        printf("       clip undo: eight full tracks cleared, %d levels kept, %d undone exactly\n", kept, exact);
+    }
     printf("  %-4s clipboard         step copy / paste (each again) between tracks with locks, page copy / paste "
            "(range, loop), cut, clears, undo / redo per track and pattern, a full pool, groups\n",
            fails == n0 ? "ok" : "FAIL");

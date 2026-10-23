@@ -48,10 +48,19 @@ typedef struct {
     int nlk;
 } qd_undo_t;
 
+/* P2.1: at the device's sizes (QD_CLIP_ZBYTES) the tracks' levels are kept compressed (seq/zr.h), one after another
+ * in QD_CLIP_ZBYTES; a level that finds no room takes it from the oldest of the other tracks' (counted: zdropped) */
 typedef struct {
     qd_clip_step_t st;
     qd_clip_page_t pg;
+#ifdef QD_CLIP_ZBYTES
+    uint8_t z[QD_CLIP_ZBYTES];
+    uint16_t zoff[QD_PAT_NTRACK], zlen[QD_PAT_NTRACK];   /* (zlen 0: no level) */
+    int16_t zpat[QD_PAT_NTRACK];
+    uint32_t zage[QD_PAT_NTRACK], zclock, zdropped;
+#else
     qd_undo_t undo[QD_PAT_NTRACK];
+#endif
     int group;                          /* grouping on (qd_clip_group) */
     int group_t, group_k;               /* .. the track and pattern whose level it kept (group_t -1: none yet) */
 } qd_clip_t;
