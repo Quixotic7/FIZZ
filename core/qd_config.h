@@ -60,9 +60,16 @@
 #define QD_UNDO_NSLOT 8                /* pool / library slots a gesture changes (their before: copies) */
 #define QD_CLIP_ZBYTES 8192u           /* the eight tracks' clip undo levels (seq/clip.h), compressed */
 /* ---- the drawing (P2.1: core/gfx) */
-#define QD_STRIP_H QD_STRIP_DEV        /* the screen drawn in strips of this many rows (a 240 x 40 ARGB surface) */
+#define QD_STRIP_H QD_STRIP_DEV        /* the screen drawn in strips of this many rows (plutovg: a 240 x 40 ARGB surface;
+                                        * the fast drawing: 240 x 40 RGB565) */
+#ifdef QD_GFX_FAST
+#define QD_GFX_ARENA 27136u            /* P2.4: the unit's drawing (qd_gfx_fast.c) takes nothing from the arena: what is
+                                        * left is the borrowers' (pattern.h qd_tmp_borrow; test_ctl's peak 22,776 B),
+                                        * QD_GFX_MARGIN kept */
+#else
 #define QD_GFX_ARENA 46592u            /* plutovg's fixed arena (qd_arena.h: no heap). P2.4: 45.5 KB (at 40-row strips the
                                         * worst paint is test_ctl's 42,248 B, render_frames' 37,376; QD_GFX_MARGIN kept) */
+#endif
 #define QD_GFX_MARGIN 4096u            /* P2.1c: kept free at the worst paint (render_frames, test_ctl fail past it) */
 #define QD_FONTS3 1                    /* Inter Tight in three weights, 300 500 700 (the others: the nearest, upward) */
 #define QD_GLYPH_CACHE 1               /* glyph outlines plutovg keeps a weight (P2.1b: one: each read when drawn) */

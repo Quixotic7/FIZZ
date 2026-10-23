@@ -23,6 +23,10 @@ measured three ways, against the FM-1's resources.
          from qd_app_audio (the audio ISR's stack). Calls through function pointers are not followed (the controller's
          rows, the latches): the figures are lower bounds; the largest frames are listed too.
 
+P2.4: the drawing measured is the unit's, GFX=fast (core/gfx/qd_gfx_fast.c, QD_GFX_FAST: no plutovg in the link);
+GFX=plutovg python3 budget/budget.py (make -C tools budget-pvg) measures plutovg instead, for comparison. The platform's
+numbers are fm1-base's, measured on the port's real build (firmware/BUDGET.md, 2026-10-23).
+
 The budget's numbers are named below (BUDGET_*), each with where it comes from (D: docs and linker scripts, E: an
 estimate, M: measured), as in the audit."""
 import concurrent.futures as cf
@@ -36,32 +40,34 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 TOOLS = HERE.parent
 ROOT = TOOLS.parent
-OUT = TOOLS / "build" / "budget"
+GFX = os.environ.get("GFX", "fast")                 # P2.4: the unit's drawing (tools/Makefile GFX)
+OUT = TOOLS / "build" / ("budget" if GFX == "fast" else "budget-" + GFX)
 ARM = Path(os.environ.get("ARM_GCC_DIR", str(Path.home() / "arm-gnu-toolchain-14.2" / "bin")))
 JIELI = Path(os.environ.get("JIELI_TOOLCHAIN", str(Path.home() / ".jieli" / "toolchain")))
 
-# ---- the FM-1 (research/PHASE2-BUDGET.md §1)
-FM1_RAM = 98304 + 344064 + 15664      # D: RAM (.data + .bss) + POOL + NOINIT (ChoralRoot's app.ld): 458 032 B
-PLATFORM_RAM = 25000                  # E: the platform's own (HAL, ISR state, USB MIDI + UAC, cpu1, the flash driver)
-HEADROOM_RAM = 8000                   # E: kept free (ChoralRoot's build demands >= 8 KiB spare in POOL)
-BUDGET_RAM = FM1_RAM - PLATFORM_RAM - HEADROOM_RAM   # ~425 KB for FIZZ (the audit's "about 425 KiB")
-APP_SLOT = 573440                     # D: the app slot, XIP 0x02001000 (app.ld)
-PLATFORM_FLASH = 55000                # E: HAL, ISR, cpu1, USB MIDI + UAC, the LCD driver, OTA / loader, the stub's glue
+# ---- the FM-1 under fm1-base (P2.4: firmware/BUDGET.md, measured on the port's build; before, TransitFM1's estimates)
+FM1_RAM = 98304 + 344064 + 15212 + 29638   # M: RAM + POOL + NOINIT + the RAM code region's spare: 487 218 B
+PLATFORM_RAM = 34901                  # M: fm1-base 14,701 in RAM, its canvas 11,524, NOINIT 484, the port's ring 8,192
+HEADROOM_RAM = 8192                   # D: fm1-base's build refuses less spare in the pool
+BUDGET_RAM = FM1_RAM - PLATFORM_RAM - HEADROOM_RAM   # 444 125 B for FIZZ
+APP_SLOT = 581564                     # D: fm1-base's XIP region (0x8DFBC)
+PLATFORM_FLASH = 57344                # M: fm1-base + felucca-bsp + the port's app.c, 54,214 + 3,130 RAM code (E: its fonts)
 MARGIN_FLASH = 8192                   # E: kept free in the slot
 # P2.1b: the constants in .qd_xdata.* (core/qd_config.h QD_XDATA: the fonts, the TAP ape's lines) are a blob the
-# installer writes into the data region (0x97000..0xDFFFF, 292 KiB, read through the XIP window), not the slot.
-# Its share of the data region: 24 sectors (E: the rest stays the stores')
-XDATA_BUDGET = 24 * 4096
+# installer writes into flash and the core reads through XIP, not the slot. P2.4: fm1-base's PLAT_XDATA1
+# (0xE5000..0xFBFFF) less the blob's 12-byte trailer (firmware/BUDGET.md)
+XDATA_BUDGET = 94196
 MAIN_STACK = 24320                    # D: the user stack (crt0.S)
 ISR_STACK = 7936                      # D: the system stack (the audio ISR)
 MARGIN_STACK = 2048                   # E: kept free on each
 RATCHET = HERE / "ratchet.txt"        # P2.1: the ceilings so far (budget-ratchet)
 
-CC_FLAGS = ["-Os", "-ffunction-sections", "-fdata-sections", "-DQD_DEVICE", "-DQD_TARGET_FM1", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
+GFX_DEF = ["-DQD_GFX_FAST"] if GFX == "fast" else []
+CC_FLAGS = ["-Os", "-ffunction-sections", "-fdata-sections", "-DQD_DEVICE", "-DQD_TARGET_FM1", *GFX_DEF, "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
             "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD"]
 ARM_FLAGS = ["-mcpu=cortex-m4", "-mthumb", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16"]
 PI_FLAGS = ["-target", "pi32v2", "-Os", "-ffunction-sections", "-fno-builtin", "-w", "-mcpu=r3", "-mfprev1",
-            "-ffp-contract=off", "-D__STDC_NO_ATOMICS__", "-DQD_DEVICE", "-DQD_TARGET_FM1", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
+            "-ffp-contract=off", "-D__STDC_NO_ATOMICS__", "-DQD_DEVICE", "-DQD_TARGET_FM1", *GFX_DEF, "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
             "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD"]
 
 
@@ -79,12 +85,12 @@ def sh(cmd, **kw):
 
 
 def make_var(name):
-    return sh(["make", "-s", "-C", str(TOOLS), f"print-{name}"]).split()
+    return sh(["make", "-s", "-C", str(TOOLS), f"GFX={GFX}", f"print-{name}"]).split()
 
 
 def sources():
     core = [(TOOLS / s).resolve() for s in make_var("CORE_SRC")]
-    pvg = [(TOOLS / s).resolve() for s in make_var("PVG_SRC")]
+    pvg = [(TOOLS / s).resolve() for s in make_var("DEV_PVG_SRC")]   # (P2.4: none with GFX=fast)
     inc = [s[2:] for s in make_var("INC")]
     inc = [str((TOOLS / i).resolve()) for i in inc]
     return core, pvg, inc
@@ -171,7 +177,7 @@ def module_of(f):
     groups = [("voice", ["quad_voice", "pool", "mix", "qd_fx"]), ("seq", ["model", "pattern", "seq", "player", "demo",
               "chord", "scale", "sounds", "clip"]), ("app", ["app", "ctl", "ctl_step", "ctl_rec", "ctl_leds",
               "ctl_latch", "ctl_preview", "view"]), ("ui", ["ui_kit", "ui_idle", "ui_keys", "ui_picker", "ui_tracks",
-              "ui_lane", "ui_held", "ui_turn", "ui_layer", "ui_octave"]), ("gfx + fonts", ["qd_gfx_plutovg"]),
+              "ui_lane", "ui_held", "ui_turn", "ui_layer", "ui_octave"]), ("gfx + fonts", ["qd_gfx_plutovg", "qd_gfx_fast"]),
               ("the app (one qd_app_t)", ["dev_main"])]
     for g, names in groups:
         if n in names:
@@ -276,7 +282,7 @@ def host_bench(core, pvg, inc):
     for s in core:
         o = d / (s.stem + ".o")
         objs.append(o)
-        jobs.append([cc, "-O2", "-g", "-std=c99", "-w", "-DQD_DEVICE", "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
+        jobs.append([cc, "-O2", "-g", "-std=c99", "-w", "-DQD_DEVICE", *GFX_DEF, "-DPLUTOVG_BUILD", "-DPLUTOVG_BUILD_STATIC",
                      "-DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD", "-include", hw, *incf, "-c", "-o", str(o), str(s)])
     for s in pvg:
         o = d / ("pvg-" + s.stem + ".o")
@@ -287,7 +293,7 @@ def host_bench(core, pvg, inc):
     for s in (HERE / "bench.c", HERE / "heapwrap.c"):
         o = d / (s.stem + ".o")
         objs.append(o)
-        jobs.append([cc, "-O2", "-g", "-std=c99", "-w", "-DQD_DEVICE", *incf, "-c", "-o", str(o), str(s)])
+        jobs.append([cc, "-O2", "-g", "-std=c99", "-w", "-DQD_DEVICE", *GFX_DEF, *incf, "-c", "-o", str(o), str(s)])
     compile_all(jobs)
     exe = d / "bench"
     sh([cc, "-o", str(exe), *map(str, objs), "-lm"])
@@ -358,7 +364,7 @@ def main():
         print(f"budget: no arm-none-eabi-gcc in {ARM} (ARM_GCC_DIR): skipped")
         return 0
     core, pvg, inc = sources()
-    print(f"FIZZ's device budget (core/qd_config.h QD_DEVICE), {ROOT.name} {sh(['git', '-C', str(ROOT), 'rev-parse', '--short', 'HEAD']).strip()}")
+    print(f"FIZZ's device budget (core/qd_config.h QD_DEVICE; the drawing: GFX={GFX}), {ROOT.name} {sh(['git', '-C', str(ROOT), 'rev-parse', '--short', 'HEAD']).strip()}")
     d, elf = arm_build(core, pvg, inc)
     by, mods, kept_fn, syms = arm_sizes(d, elf)
     hb = host_bench(core, pvg, inc)
@@ -373,7 +379,7 @@ def main():
     for m in sorted(mods):
         r = mods[m].get(".data", 0) + mods[m].get(".bss", 0) - (lcd if m == "the app (one qd_app_t)" else 0)
         print(f"  static {m:<22} {r:>9} B {kb(r)}")
-    print(f"  static, the core + plutovg   {core_ram:>9} B {kb(core_ram)}")
+    print(f"  static, the core + drawing   {core_ram:>9} B {kb(core_ram)}")
     print(f"  heap peak (bench)            {heap:>9} B {kb(heap)}   (live at the end {int(hb['heap_live'][0])}; plutovg's"
           f" in the arena)")
     ap, asz, af = (int(x) for x in hb["arena"])
@@ -383,7 +389,7 @@ def main():
           f" sent before the next)")
     print(f"  libc / libm's own            {lib_ram:>9} B   (the platform's: not counted)")
     print(f"  FIZZ's RAM                   {ram:>9} B {kb(ram)}   budget {BUDGET_RAM} B {kb(BUDGET_RAM)}"
-          f" = {FM1_RAM} (the FM-1) - {PLATFORM_RAM} (platform, E) - {HEADROOM_RAM} (headroom)")
+          f" = {FM1_RAM} (the FM-1 under fm1-base) - {PLATFORM_RAM} (platform, M) - {HEADROOM_RAM} (headroom)")
     print("  the largest statics:")
     for sz, n in syms[:16]:
         print(f"    {sz:>9} {n}")
@@ -417,9 +423,9 @@ def main():
     print(f"  arm-none-eabi                {arm_flash:>9} B {kb(arm_flash)}")
     print(f"  libc / libm / libgcc (arm)   {lib_flash:>9} B {kb(lib_flash)}")
     print(f"  budget                       {budget_flash:>9} B {kb(budget_flash)} = {APP_SLOT} (the app slot) - "
-          f"{PLATFORM_FLASH} (platform, E) - {lib_flash} (libc, M) - {MARGIN_FLASH} (margin)")
-    print(f"  the data blob (.qd_xdata)    {xdata:>9} B {kb(xdata)}   budget {XDATA_BUDGET} B (24 of the data region's 73"
-          f" sectors): the fonts and the ape's lines, written by the installer, read through XIP; not in the slot")
+          f"{PLATFORM_FLASH} (platform, M) - {lib_flash} (libc, M) - {MARGIN_FLASH} (margin)")
+    print(f"  the data blob (.qd_xdata)    {xdata:>9} B {kb(xdata)}   budget {XDATA_BUDGET} B (fm1-base's PLAT_XDATA1"
+          f" less the trailer): the fonts and the ape's lines, written by the installer, read through XIP; not in the slot")
     for m in sorted(mods):
         x = mods[m].get(".xdata", 0)
         if x:

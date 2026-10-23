@@ -28,6 +28,11 @@ B := build
 # P2.0: the profile (core/qd_config.h): empty = the host's sizes; make PROFILE=-DQD_DEVICE B=build/dev builds the same
 # tools at the FM-1's (make test runs both: test-host, then test-dev)
 PROFILE ?=
+# P2.4: the drawing behind core/gfx/qd_gfx.h: plutovg (qd_gfx_plutovg.c, the host's default) or fast (qd_gfx_fast.c, the
+# unit's: QD_GFX_FAST, no plutovg in the device's link). The tools link plutovg either way (their PNGs); make test-dev-fast
+# runs the device's tests with GFX=fast
+GFX ?= plutovg
+GFX_DEF := $(if $(filter fast,$(GFX)),-DQD_GFX_FAST,)
 CR_REPO ?= $(abspath $(ROOT)/../ChoralRootFM1)
 CR_TAG ?= v0.25.1
 CRB := $(B)/cr-$(CR_TAG)
@@ -41,11 +46,12 @@ APP_SRC := $(ROOT)/core/app/app.c $(ROOT)/core/app/ctl.c $(ROOT)/core/app/ctl_st
 UI_SRC := $(ROOT)/core/ui/ui_kit.c $(ROOT)/core/ui/ui_idle.c $(ROOT)/core/ui/ui_keys.c $(ROOT)/core/ui/ui_picker.c \
           $(ROOT)/core/ui/ui_tracks.c $(ROOT)/core/ui/ui_lane.c $(ROOT)/core/ui/ui_held.c $(ROOT)/core/ui/ui_turn.c \
           $(ROOT)/core/ui/ui_layer.c $(ROOT)/core/ui/ui_octave.c
-CORE_SRC := $(APP_SRC) $(UI_SRC) $(ROOT)/core/gfx/qd_gfx_plutovg.c \
+CORE_SRC := $(APP_SRC) $(UI_SRC) $(ROOT)/core/gfx/qd_gfx_$(GFX).c \
             $(ROOT)/core/seq/model.c $(ROOT)/core/seq/pattern.c $(ROOT)/core/seq/seq.c $(ROOT)/core/seq/player.c \
             $(ROOT)/core/seq/demo.c $(ROOT)/core/seq/chord.c $(ROOT)/core/seq/scale.c $(ROOT)/core/seq/sounds.c \
             $(ROOT)/core/seq/clip.c $(VOICE_SRC)
 PVG_SRC := $(wildcard $(PVG)/source/*.c)
+DEV_PVG_SRC := $(if $(filter fast,$(GFX)),,$(PVG_SRC))     # (what the unit links of plutovg: tools/budget/budget.py)
 INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/seq -I$(ROOT)/core/voice \
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
@@ -55,7 +61,7 @@ HDRS := $(ROOT)/core/qd_config.h $(ROOT)/core/gfx/qd_arena.c $(wildcard $(ROOT)/
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
 PVG_OBJ := $(addprefix $(B)/pvg-,$(notdir $(PVG_SRC:.c=.o)))
 OUT := $(ROOT)/core/tests/out
-WARN := -std=c99 -Wall -Wextra -Wpedantic $(PROFILE)
+WARN := -std=c99 -Wall -Wextra -Wpedantic $(PROFILE) $(GFX_DEF)
 SAN := -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all
 SAN_ENGINE := -O2 -g -fsanitize=address,signed-integer-overflow -fno-sanitize-recover=all
 T := $(ROOT)/core/tests
@@ -85,7 +91,7 @@ $(B)/flash_dump: $(B)/flash_dump.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 # P2.1: at the device's sizes plutovg's malloc / free are the drawing's fixed arena (core/gfx/qd_arena.h)
-PVG_ARENA := $(if $(findstring QD_DEVICE,$(PROFILE)),$(PROFILE) -DQD_ARENA_REDIRECT -include $(ROOT)/core/gfx/qd_arena.h,)
+PVG_ARENA := $(if $(findstring QD_DEVICE,$(PROFILE)),$(PROFILE) $(GFX_DEF) -DQD_ARENA_REDIRECT -include $(ROOT)/core/gfx/qd_arena.h,)
 PVG_DEPS := $(PVG)/include/plutovg.h $(ROOT)/core/gfx/qd_arena.h $(ROOT)/core/qd_config.h
 $(B)/pvg-%.o: $(PVG)/source/%.c $(PVG_DEPS) | $(B)
 	$(CC) $(OPT) -std=c11 -w $(DEFS) $(PVG_ARENA) -I$(PVG)/include -I$(PVG)/source -c -o $@ $<
@@ -180,8 +186,8 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx
-test: test-host test-dev budget-ratchet
-	@echo "make test: all passed (host and device sizes)"
+test: test-host test-dev test-dev-fast test-gfx-fast budget-ratchet
+	@echo "make test: all passed (host and device sizes, the device's drawing too)"
 
 # P2.0: the same tests at the device's sizes (core/qd_config.h QD_DEVICE), built into build/dev; the timelines into
 # core/tests/out/dev (the goldens are the same: the sizes change nothing a pattern sounds like). The bit-exact tests
@@ -190,6 +196,9 @@ DEV_TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_mfx $(B)/test
              $(B)/test_persist $(B)/test_sysex $(B)/test_arena
 test-dev:
 	$(MAKE) PROFILE=-DQD_DEVICE B=build/dev OUT=$(abspath $(OUT))/dev test-dev-run
+# P2.4: the same at the device's sizes with the unit's drawing (GFX=fast), into build/dev-fast
+test-dev-fast:
+	$(MAKE) PROFILE=-DQD_DEVICE GFX=fast B=build/dev-fast OUT=$(abspath $(OUT))/dev-fast test-dev-run
 test-dev-run: $(DEV_TESTS)
 	@echo "---- the device's sizes (QD_DEVICE)"
 	$(B)/test_quad $(T)/quad_goldens
@@ -251,6 +260,9 @@ budget:
 	$(PY) budget/budget.py
 budget-gate:
 	$(PY) budget/budget.py --gate
+# (P2.4: the budget with plutovg on the unit instead of the fast drawing, for comparison: GFX=plutovg)
+budget-pvg:
+	GFX=plutovg $(PY) budget/budget.py
 # P2.1: nothing of the device profile may grow past tools/budget/ratchet.txt (skipped without the arm toolchain)
 budget-ratchet: | $(B)
 	@$(PY) budget/budget.py --ratchet > $(B)/budget-ratchet.log; s=$$?; \
@@ -258,4 +270,6 @@ budget-ratchet: | $(B)
 print-%:
 	@echo $($*)
 
-.PHONY: all frames strips audio test test-host test-dev test-dev-run abi midimon remote budget budget-gate budget-ratchet
+include gfx_fast.mk
+
+.PHONY: all frames strips audio test test-host test-dev test-dev-fast test-dev-run budget-pvg abi midimon remote budget budget-gate budget-ratchet

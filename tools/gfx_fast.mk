@@ -16,10 +16,11 @@ GPROF := -DQD_DEVICE
 GDEFS := $(DEFS) $(GPROF)
 GFX_PVG_OBJ := $(addprefix $(GB)/pvg-,$(notdir $(PVG_SRC:.c=.o)))
 # the core's sources without its drawing, the render scripts (render_frames' own and its parts)
-GFX_CORE := $(filter-out %/qd_gfx_plutovg.c,$(CORE_SRC))
+GFX_CORE := $(filter-out %/qd_gfx_plutovg.c %/qd_gfx_fast.c,$(CORE_SRC))   # (either GFX)
 GFX_CORE_OBJ := $(addprefix $(GB)/,$(notdir $(GFX_CORE:.c=.o)))
 GFX_RENDER_OBJ := $(addprefix $(GB)/,$(filter-out render_audio.o,$(patsubst %.c,%.o,$(wildcard render_*.c))))
 FAST_FONT := $(ROOT)/core/gfx/qd_fast_font.h
+$(GB)/qd_gfx_fast.o: GDEFS += -DQD_GFX_FAST                # (its arena: the unit's size, core/qd_config.h)
 
 $(GB)/pvg-%.o: $(PVG)/source/%.c $(PVG_DEPS)
 	@mkdir -p $(GB)

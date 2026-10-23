@@ -1891,7 +1891,8 @@ float qd_text(const char *utf8, float x, float y, const qd_font *f)
         return 0.f;
     wi = weight_index(f->weight);
     if (utf8[0]) {                                      /* the clarity rules' guard (qd_gfx.h) */
-        const float sz = f->size * qf_sqrt(S.m.c * S.m.c + S.m.d * S.m.d);
+        const float s2 = S.m.c * S.m.c + S.m.d * S.m.d;    /* (unscaled: the size itself; qf_sqrt(1) is 1 - 5e-6) */
+        const float sz = s2 == 1.f ? f->size : f->size * qf_sqrt(s2);
         if (sz < tmin) {
             int i;
             tmin = sz;
