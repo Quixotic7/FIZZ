@@ -249,6 +249,7 @@ void fz_state_line(char *q)
     const qd_app_t *a = &fz_app;
     uint32_t live = 0, total = 0;
     q = st_u(q, "voices=", (uint32_t)qd_pool_in_use(&a->pool));
+    q = st_u(q, "of=", (uint32_t)a->pool.nvoice);         /* (the build's: 8 single-core, 16 Standard) */
     q = st_u(q, "playing=", (uint32_t)a->playing);
     q = st_u(q, "seq_playing=", (uint32_t)a->seq.playing);
     q = st_u(q, "pat_miss=", a->proj.pat_miss);
@@ -319,6 +320,8 @@ int fz_expect(const char *what, int *got)
         *got = a->bpm;
     else if (!strcmp(what, "fz_voices"))               /* voices sounding now */
         *got = qd_pool_in_use(&a->pool);
+    else if (!strcmp(what, "fz_nvoice"))               /* the pool's voices (QD_VOICES_DEV) */
+        *got = (uint32_t)a->pool.nvoice;
     else if (!strcmp(what, "fz_pattern"))
         *got = a->seq.cur;
     else if (!strcmp(what, "fz_sel"))

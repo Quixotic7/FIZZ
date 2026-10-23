@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: MPL-2.0
+# The build's voices (core/qd_config.h QD_VOICES_DEV): 8 in the single-core package, 16 in Standard.
+#   firmware/build.py --single-core --host, then
+#   firmware/app/build/host/fizz-1core_host firmware/app/tests/voices.txt firmware/app/build/host   (8)
+#   firmware/app/build/host/fizz_host ... with "expect fz_nvoice 16" instead                        (Standard)
+# The demo played for 4 s: never more voices sounding than the pool has.
+expect fz_up 1
+expect fz_nvoice 8
+wait 500
+press PLAY
+wait 100
+release PLAY
+wait 1000
+expect fz_voices >0
+expect fz_voices <9
+wait 1500
+expect fz_voices <9
+wait 1500
+expect fz_voices <9
+expect peak_db_min -36

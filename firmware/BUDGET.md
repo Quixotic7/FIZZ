@@ -276,3 +276,17 @@ a voice render split (`qd_mix_block` on a range of the pool's voices into its ow
 effects), and from the platform a working second core: felucca-bsp's `fm1_cpu1.h` says "EXPERIMENTAL: compiles, has
 not run on a device", and fm1-base has no `plat_cpu2_*` yet; ChoralRoot's second core works (DUALCORE.md) but its code
 is ChoralRoot's (GPL), so FIZZ's would be written for fm1-base anew.
+
+## P2.6: 8 voices, the voices' render in RAM (the single-core package)
+
+The owner (2026-10-23): 8 voices on one core (`firmware/build.py --single-core`, `QD_VOICES_DEV=8`, `fizz-1core.fwsc`),
+16 when core 1 renders half (Standard, `QD_VOICES_DEV=16`). Code in RAM is placed by function now (build.py `HOT`:
+the section renamed `.fzrt.*` in the object, fizz.ld's window), not by unit.
+
+| | Standard (16 voices) | single-core (8 voices) |
+| --- | --- | --- |
+| RAM code region: code | 11,620 B (fm1-base 3.1 KB, mix 1.1 KB, the effects' hot seven 7.3 KB) | 31,592 B (+ quad_render 19.4 KB, qd_quad_voice_render, quad_lfo_incb) |
+| RAM code region: data | 16,428 B (the comb lines) | 0 (the comb lines in the pool) |
+| RAM code region free | 4,708 B | 1,176 B |
+| pool | 332,240 B (11,824 spare) | 338,144 B (5,920 spare: 8 voices free ~10.5 KB, the comb lines take 16.4 KB; FM1B_POOL_SPARE=4096 for this build) |
+| RAM .data + .bss | 95,708 B (2,596 free) | same |
