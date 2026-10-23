@@ -214,6 +214,7 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
         const int m = qd_lib_free_slot(a);
         qd_sound_t *s = &a->proj.sound[slot - 1];
         qd_lib_store_ex(a, m, name, patch, QD_SNDF_IMPORTED);
+        qd_undo_snd(a, QD_UNDO_RPOOL, slot);            /* (P2.1: as it was, for the device's undo) */
         memset(s, 0, sizeof *s);
         s->preset = a->per.lib[m].preset;
         strcpy(s->name, "?");

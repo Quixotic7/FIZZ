@@ -32,6 +32,11 @@
 #define QD_SEQ_NREC 64                 /* resolved trigs waiting (the demos peak at 13) */
 /* ---- the patterns (P2.1: paged; core/seq/pattern.h) */
 #define QD_PAT_RAM 3                   /* in RAM: the playing one, the queued one, one more (a change's old one) */
+/* ---- undo (P2.1: a log; app/undo.h) */
+#define QD_UNDO_POOL 16384u            /* the levels and the open gesture's pattern as it was (compressed) */
+#define QD_UNDO_XLOCKS 512             /* the other patterns' locks a pool slot's emptying cleared */
+#define QD_UNDO_NSLOT 8                /* pool / library slots a gesture changes (their before: copies) */
+#define QD_SNAP_BYTES 8192u            /* the snapshot and the pattern clipboard, compressed */
 /* ---- the flash store */
 #define QDS_MAXKEY 1024                /* keys a store */
 #define QDS_JOBBUF 512                 /* a record the store copies (longer: streamed from its owner, store.h) */
@@ -44,6 +49,8 @@
 #define QD_SEQ_NEV 4096
 #define QD_SEQ_NREC 512
 #define QD_PAT_RAM 64                  /* (every pattern: QD_NPAT) */
+#define QD_UNDO_POOL 65536u            /* (the levels' differences; the gesture's before: whole copies) */
+#define QD_UNDO_XLOCKS 2048
 #define QDS_MAXKEY 2048
 #define QDS_JOBBUF 28800               /* (QDS_MAXREC: every record copied, as in Phase 1) */
 #define QD_LIB_KEYS QDS_MAXKEY

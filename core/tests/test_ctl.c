@@ -5978,6 +5978,37 @@ static void undo_redo(int dir)
     bup(SHIFT);
     run(20);
 }
+/* P2.1: undo at the device's sizes (a 16 KB log): a pattern too dense to keep with the levels: its gesture is no
+ * level and its snapshot "too big"; the host keeps both. An ordinary pattern: undo as before at both sizes */
+static void g_p21_undo_log(void)
+{
+    int t, s, n;
+    start();
+    qd_step_on(PAT(), 0, 0);
+    wtap(1);
+    run(QD_UNDO_QUIET_MS + 50);
+    n = qd_undo_count(&A, -1);
+    bdown(SHIFT), black(B1), bup(SHIFT), run(QD_UNDO_QUIET_MS + 50);
+    CHECK(n == 1 && A.undo.snap_ok, "an ordinary pattern: an edit, one level; its snapshot stored");
+    for (t = 0; t < QD_PAT_NTRACK; t++)                 /* (every step of every track, each with its own lock) */
+        for (s = 0; s < QD_NSTEP; s++) {
+            qd_step_on(PAT(), t, s);
+            qd_step_set_vel(PAT(), t, s, 1 + (t * 37 + s * 11) % 126);
+            qd_lock_set(PAT(), t, s, QD_QP_HARM, s * 3 + t);
+        }
+    A.undo.snap_ok = 0;
+    bdown(SHIFT), black(B1), bup(SHIFT), run(10);
+    n = qd_undo_count(&A, -1);
+    wtap(2);
+    run(QD_UNDO_QUIET_MS + 50);
+#ifdef QD_UNDO_SLOTS
+    CHECK(!A.undo.snap_ok && !strcmp(A.ui.cf_small, "too big") && qd_undo_count(&A, -1) == n,
+          "the device's log: a full pattern (1024 steps, 1024 locks): its snapshot too big, its edit no level, the levels before it kept (%d)", qd_undo_count(&A, -1));
+#else
+    CHECK(A.undo.snap_ok && qd_undo_count(&A, -1) == n + 1, "the host: a full pattern: its snapshot, its edit a level");
+#endif
+}
+
 static void g_p15c_undo(void)
 {
     static qd_pattern_t p0, p1;
@@ -7999,6 +8030,7 @@ int main(void)
         {"P1.6g: recording in every view", g_p16g_rec},
         {"P1.6g: FILTER's popup, RATIO B, following, the ARP's walk", g_p16g_misc},
         {"P1.6h: F1 leaves no main page; the pop-ups go back", g_p16h_f1},
+        {"P2.1: the undo log at the device's sizes", g_p21_undo_log},
         {"P1.6h: F1 / F2 + W on every page of steps, whole", g_p16h_copy},
         {"P1.6h: the mix's locks: the selection, the count, the chips", g_p16h_mixlock},
         {"P1.6d: the step latch's SHIFT, defaults, double tap", g_p16d_latch},

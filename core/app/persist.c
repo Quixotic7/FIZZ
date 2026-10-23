@@ -1174,6 +1174,7 @@ int qd_pool_add_sound(qd_app_t *a, const qd_sound_t *s)
     id = preset_of_sound(a, s, 1);                      /* (P1.5w: a reference: the preset it is, or a new MY one) */
     if (!id)
         return 0;
+    qd_undo_snd(a, QD_UNDO_RPOOL, k);                   /* (P2.1: as it was, for the device's undo) */
     memset(&a->proj.sound[k - 1], 0, sizeof a->proj.sound[k - 1]);
     a->proj.sound[k - 1].preset = (uint16_t)id;
     pool_cache(a, &a->proj.sound[k - 1]);
@@ -1240,6 +1241,8 @@ int qd_pool_swap(qd_app_t *a, int x, int y)
     qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (x < 1 || x > QD_NSOUND || y < 1 || y > QD_NSOUND || x == y)
         return 0;
+    qd_undo_snd(a, QD_UNDO_RPOOL, x);
+    qd_undo_snd(a, QD_UNDO_RPOOL, y);
     tmp = a->proj.sound[x - 1];
     a->proj.sound[x - 1] = a->proj.sound[y - 1];
     a->proj.sound[y - 1] = tmp;
@@ -1252,6 +1255,7 @@ int qd_pool_copy(qd_app_t *a, int from, int to)
 {
     if (from < 1 || from > QD_NSOUND || to < 1 || to > QD_NSOUND || from == to || !a->proj.sound[from - 1].name[0])
         return 0;
+    qd_undo_snd(a, QD_UNDO_RPOOL, to);
     a->proj.sound[to - 1] = a->proj.sound[from - 1];
     qd_sound_recount(&a->proj);
     return 1;
@@ -1280,6 +1284,8 @@ static void pool_unref(qd_app_t *a, int k, int rec)
     for (t = 0; t < QD_NTRACK; t++)
         if (a->model.t[t].sound == k)
             a->model.t[t].sound = 0;
+    if (rec)
+        qd_undo_snd(a, QD_UNDO_RPOOL, k);
     memset(&a->proj.sound[k - 1], 0, sizeof a->proj.sound[k - 1]);
     qd_sound_recount(&a->proj);
 }
@@ -1376,6 +1382,7 @@ static int lib_put(qd_app_t *a, int slot, const char *name, const int16_t *patch
         a->per.id_next = (uint16_t)(n.preset + 1u);
     n.tags = (uint8_t)qd_preset_tags(patch);
     n.flags = (uint8_t)flags;
+    qd_undo_snd(a, QD_UNDO_RLIB, slot);
     a->per.lib[slot] = n;
     return 1;
 }
@@ -1404,6 +1411,7 @@ int qd_lib_replace(qd_app_t *a, int slot, const char *name, const int16_t *patch
     if (slot < 0 || slot >= QD_NLIB || !a->per.lib[slot].name[0])
         return 0;
     s = &a->per.lib[slot];
+    qd_undo_snd(a, QD_UNDO_RLIB, slot);
     memset(nm, 0, sizeof nm);
     strncpy(nm, name && name[0] ? name : s->name, QD_SOUND_NAME - 1);
     memcpy(s->name, nm, sizeof nm);
@@ -1418,6 +1426,7 @@ int qd_lib_delete(qd_app_t *a, int slot)
     qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (slot < 0 || slot >= QD_NLIB || !a->per.lib[slot].name[0])
         return 0;
+    qd_undo_snd(a, QD_UNDO_RLIB, slot);
     memset(&a->per.lib[slot], 0, sizeof a->per.lib[slot]);
     return 1;
 }
@@ -1470,6 +1479,7 @@ int qd_tags_set(qd_app_t *a, int code, int tags)
         if (m >= 0)
             return qd_tags_set(a, QD_BR_MINE_CODE + m, tags);
         qd_undo_hint(a, QD_UK_SOUNDS);                  /* (a copy) */
+        qd_undo_snd(a, QD_UNDO_RPOOL, code - QD_BR_POOL_CODE);
         a->proj.sound[code - QD_BR_POOL_CODE - 1].tags = (uint8_t)tags;
         return 1;
     }
@@ -1477,6 +1487,7 @@ int qd_tags_set(qd_app_t *a, int code, int tags)
         if (code - QD_BR_MINE_CODE >= QD_NLIB || !a->per.lib[code - QD_BR_MINE_CODE].name[0])
             return 0;
         qd_undo_hint(a, QD_UK_SOUNDS);
+        qd_undo_snd(a, QD_UNDO_RLIB, code - QD_BR_MINE_CODE);
         a->per.lib[code - QD_BR_MINE_CODE].tags = (uint8_t)tags;
         pool_resolve(a, 0);
         return 1;
@@ -1576,6 +1587,7 @@ int qd_preset_delete(qd_app_t *a, int slot)
     for (k = 1; k <= QD_NSOUND; k++)
         if (qd_sound_used(&a->proj, k) && a->proj.sound[k - 1].preset == id)
             pool_unref(a, k, a->undo.open);
+    qd_undo_snd(a, QD_UNDO_RLIB, slot);
     memset(&a->per.lib[slot], 0, sizeof a->per.lib[slot]);
     return 1;
 }

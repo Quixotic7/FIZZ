@@ -95,30 +95,24 @@ void qd_shift_black(qd_app_t *a, int b)
         u->clr_armed = 0;
     switch (b) {
     case 0:                                             /* B1: the snapshot stored */
-        h->snap = *qd_proj_pat(&a->proj, a->seq.cur);
-        h->snap_ok = 1;
-        qd_ctl_confirm(a, "SNAPSHOT", "stored");
+        qd_ctl_confirm(a, "SNAPSHOT", qd_hist_store(a, 0) ? "stored" : "too big");   /* (P2.1: the device's room) */
         break;
     case 2:                                             /* B3: recalled, at once */
         if (!h->snap_ok)
             break;
         qd_undo_hint(a, QD_UK_SNAP);
-        *qd_proj_pat(&a->proj, a->seq.cur) = h->snap;
-        qd_proj_pat(&a->proj, a->seq.cur)->used = 1;
+        qd_hist_recall(a, 0);
         pat_reload(a);
         qd_ctl_confirm(a, "SNAPSHOT", "recalled");
         break;
     case 3:                                             /* B4: the pattern copied */
-        h->pclip = *qd_proj_pat(&a->proj, a->seq.cur);
-        h->pclip_ok = 1;
-        qd_ctl_confirm(a, "PATTERN", "copied");
+        qd_ctl_confirm(a, "PATTERN", qd_hist_store(a, 1) ? "copied" : "too big");
         break;
     case 4:                                             /* B5: .. pasted onto the active one */
         if (!h->pclip_ok)
             break;
         qd_undo_hint(a, QD_UK_PASTE);
-        *qd_proj_pat(&a->proj, a->seq.cur) = h->pclip;
-        qd_proj_pat(&a->proj, a->seq.cur)->used = 1;
+        qd_hist_recall(a, 1);
         pat_reload(a);
         qd_ctl_confirm(a, "PATTERN", "pasted");
         break;

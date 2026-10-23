@@ -1,8 +1,56 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* P1.5c: undo / redo, the snapshot, the pattern clipboard (undo.h). Built through app.c (it includes this file: the
- * core's source lists stay as they are). */
+ * core's source lists stay as they are). P2.1: at the device's sizes (QD_UNDO_SLOTS) a 16 KB log with no whole copies
+ * (undo.h); the host's as before. */
 
 typedef char qd_undo_lib_ok[QD_NLIB_UNDO == QD_NLIB ? 1 : -1];
+
+#ifdef QD_UNDO_SLOTS
+/* ---------------------------------------------------------------- P2.1: bytes with their zero runs squeezed (exact) */
+/* runs of [u16 zeros][u16 n][n bytes]: a pattern is mostly zeros (its empty steps, its unused locks) */
+static uint32_t zr_pack(const uint8_t *src, uint32_t n, uint8_t *out, uint32_t room)   /* out 0: the size only; 0: no
+                                                                                        * room */
+{
+    uint32_t i = 0, o = 0;
+    while (i < n) {
+        uint32_t z = 0, s, e, k, run;
+        while (i < n && !src[i] && z < 65535u)
+            i++, z++;
+        s = i, e = i, run = 0;
+        while (e < n && e - s < 65535u && run < 8u) {  /* (a literal ends at 8 zeros in a row) */
+            run = src[e] ? 0u : run + 1u;
+            e++;
+        }
+        if (run >= 8u)
+            e -= run;
+        if (out) {
+            if (o + 4u + (e - s) > room)
+                return 0;
+            out[o] = (uint8_t)z, out[o + 1] = (uint8_t)(z >> 8);
+            out[o + 2] = (uint8_t)(e - s), out[o + 3] = (uint8_t)((e - s) >> 8);
+            for (k = s; k < e; k++)
+                out[o + 4u + k - s] = src[k];
+        }
+        o += 4u + (e - s);
+        i = e;
+    }
+    return o ? o : 4u;                                  /* (all zero: one empty run) */
+}
+static void zr_unpack(const uint8_t *in, uint32_t len, uint8_t *dst, uint32_t n)
+{
+    uint32_t o = 0, d = 0;
+    memset(dst, 0, n);
+    while (o + 4u <= len && d <= n) {
+        const uint32_t z = (uint32_t)in[o] | (uint32_t)in[o + 1] << 8, l = (uint32_t)in[o + 2] | (uint32_t)in[o + 3] << 8;
+        o += 4u;
+        d += z;
+        if (d + l > n || o + l > len)
+            return;
+        memcpy(dst + d, in + o, l);
+        d += l, o += l;
+    }
+}
+#endif
 
 void qd_undo_init(qd_app_t *a)
 {
@@ -11,6 +59,10 @@ void qd_undo_init(qd_app_t *a)
     u->n = u->pos = 0;
     u->used = 0;
     u->snap_ok = u->pclip_ok = 0;
+#ifdef QD_UNDO_SLOTS
+    u->top = 0;
+    u->snap_len = u->pclip_len = 0;
+#endif
 }
 
 void qd_undo_reset(qd_app_t *a)
@@ -18,16 +70,51 @@ void qd_undo_reset(qd_app_t *a)
     a->undo.open = 0;
     a->undo.n = a->undo.pos = 0;
     a->undo.used = 0;
+#ifdef QD_UNDO_SLOTS
+    a->undo.top = 0;
+#endif
+}
+
+static void undo_drop_oldest(qd_hist_t *u)
+{
+    int i;
+    const uint32_t cut = u->lvl[0].len;
+    if (!u->n)
+        return;
+    memmove(u->pool, u->pool + cut, u->used - cut);
+    u->used -= cut;
+    for (i = 1; i < u->n; i++) {
+        u->lvl[i - 1] = u->lvl[i];
+        u->lvl[i - 1].off -= cut;
+    }
+    u->n--;
+    if (u->pos > 0)
+        u->pos--;
 }
 
 static void undo_take(qd_app_t *a)                    /* the gesture's "before" */
 {
     qd_hist_t *u = &a->undo;
     u->pat = a->seq.cur;
+#ifdef QD_UNDO_SLOTS
+    {   /* P2.1: the pattern compressed at the log's top (the oldest levels make room) */
+        const uint8_t *P = (const uint8_t *)qd_proj_cpat(&a->proj, u->pat);
+        const uint32_t sz = zr_pack(P, sizeof(qd_pattern_t), 0, 0);
+        while (sz <= QD_UNDO_POOL && u->n && u->used + sz > QD_UNDO_POOL)   /* (one that never fits: the levels
+                                                         * stay) */
+            undo_drop_oldest(u);
+        u->b_ok = u->used + sz <= QD_UNDO_POOL;
+        u->top = u->b_ok ? QD_UNDO_POOL - sz : 0u;
+        if (u->b_ok)
+            zr_pack(P, sizeof(qd_pattern_t), u->pool + u->top, sz);
+        u->nslot = 0;
+    }
+#else
     u->pat0 = *qd_proj_pat(&a->proj, u->pat);
     memcpy(u->snd0, a->proj.sound, sizeof u->snd0);
-    u->nsound0 = a->proj.nsound;
     memcpy(u->lib0, a->per.lib, sizeof u->lib0);
+#endif
+    u->nsound0 = a->proj.nsound;
     memcpy(u->mfx0, a->proj.mfx, sizeof u->mfx0);     /* P1.6c */
     u->xl_n = 0;
     u->xl_over = 0;
@@ -49,6 +136,41 @@ void qd_undo_xlock(qd_app_t *a, int pat, int t, int s, int k, int ovr)
     e = u->xl + u->xl_n * 5u;
     e[0] = (uint8_t)pat, e[1] = (uint8_t)t, e[2] = (uint8_t)s, e[3] = (uint8_t)k, e[4] = (uint8_t)(ovr != 0);
     u->xl_n++;
+}
+
+#ifdef QD_UNDO_SLOTS
+/* P2.1: a pool slot (1..128) or a library slot (0..255) as it is now (0: none such) */
+static qd_sound_t *undo_slot(qd_app_t *a, int region, int slot)
+{
+    if (region == QD_UNDO_RPOOL)
+        return slot >= 1 && slot <= QD_NSOUND ? &a->proj.sound[slot - 1] : 0;
+    if (region == QD_UNDO_RLIB)
+        return slot >= 0 && slot < QD_NLIB ? &a->per.lib[slot] : 0;
+    return 0;
+}
+#endif
+
+void qd_undo_snd(qd_app_t *a, int region, int slot)
+{
+#ifdef QD_UNDO_SLOTS
+    qd_hist_t *u = &a->undo;
+    const qd_sound_t *s = undo_slot(a, region, slot);
+    int i;
+    if (!u->open || !s)
+        return;
+    for (i = 0; i < u->nslot; i++)
+        if (u->slot_r[i] == region && u->slot_k[i] == slot)
+            return;                                     /* (kept already: its first "before" counts) */
+    if (u->nslot >= QD_UNDO_NSLOT) {
+        u->b_ok = 0;                                    /* (more than the log keeps: the gesture is no level) */
+        return;
+    }
+    u->slot_r[u->nslot] = (uint8_t)region, u->slot_k[u->nslot] = (uint8_t)slot;
+    u->slot0[u->nslot] = *s;
+    u->nslot++;
+#else
+    (void)a, (void)region, (void)slot;
+#endif
 }
 
 static void undo_follow(qd_app_t *a)                  /* the active pattern changed under an open gesture: it closes */
@@ -84,8 +206,9 @@ void qd_undo_hint(qd_app_t *a, int kind)
         a->undo.hint = kind;
 }
 
-/* the XOR difference of a region (now ^ before) appended to the pool: runs of (offset u32, length u16, bytes); a run
- * ends at 8 equal bytes in a row. Returns the bytes written (0: no change), -1: no room */
+/* the XOR difference of a region (now ^ before) into out (P2.1: out 0: counted only; no copy of a level is made before
+ * it goes into the pool): runs of (offset u32, length u16, bytes); a run ends at 8 equal bytes in a row. Returns the
+ * bytes (0: no change), -1: no room */
 static long undo_diff(uint8_t *out, uint32_t room, const uint8_t *now, const uint8_t *before, uint32_t n)
 {
     uint32_t i = 0, o = 0;
@@ -107,12 +230,14 @@ static long undo_diff(uint8_t *out, uint32_t room, const uint8_t *now, const uin
         while (s <= e) {                                 /* (a run of at most 65535 bytes) */
             const uint32_t len = e - s + 1u > 65535u ? 65535u : e - s + 1u;
             uint32_t k;
-            if (o + 6u + len > room)
-                return -1;
-            memcpy(out + o, &s, 4);
-            out[o + 4] = (uint8_t)len, out[o + 5] = (uint8_t)(len >> 8);
-            for (k = 0; k < len; k++)
-                out[o + 6u + k] = (uint8_t)(now[s + k] ^ before[s + k]);
+            if (out) {
+                if (o + 6u + len > room)
+                    return -1;
+                memcpy(out + o, &s, 4);
+                out[o + 4] = (uint8_t)len, out[o + 5] = (uint8_t)(len >> 8);
+                for (k = 0; k < len; k++)
+                    out[o + 6u + k] = (uint8_t)(now[s + k] ^ before[s + k]);
+            }
             o += 6u + len;
             s += len;
         }
@@ -133,87 +258,125 @@ static void undo_apply_runs(uint8_t *mem, uint32_t n, const uint8_t *d, uint32_t
     }
 }
 
-static void undo_drop_oldest(qd_hist_t *u)
+/* a level: four regions' differences (the pattern, the pool, the library, P1.6c the MIDI FX groups), each [u32 bytes]
+ * then its runs, then the other patterns' locks. P2.1, the device's: the pool's region holds the slots' entries
+ * (region, slot, the slot's XOR with what it was), the library's is empty */
+static void undo_regions(qd_app_t *a, const uint8_t **now, const uint8_t **was, uint32_t *sz)
 {
-    int i;
-    const uint32_t cut = u->lvl[0].len;
-    if (!u->n)
-        return;
-    memmove(u->pool, u->pool + cut, u->used - cut);
-    u->used -= cut;
-    for (i = 1; i < u->n; i++) {
-        u->lvl[i - 1] = u->lvl[i];
-        u->lvl[i - 1].off -= cut;
-    }
-    u->n--;
-    if (u->pos > 0)
-        u->pos--;
+    qd_hist_t *u = &a->undo;
+#ifdef QD_UNDO_SLOTS
+    qd_pattern_t *S = qd_pat_scratch();
+    zr_unpack(u->pool + u->top, QD_UNDO_POOL - u->top, (uint8_t *)S, sizeof *S);
+    u->top = 0;                                         /* (unpacked: its room is the levels' again) */
+    now[0] = (const uint8_t *)qd_proj_cpat(&a->proj, u->pat), was[0] = (const uint8_t *)S, sz[0] = sizeof *S;
+    now[1] = was[1] = 0, sz[1] = 0;
+    now[2] = was[2] = 0, sz[2] = 0;
+#else
+    now[0] = (const uint8_t *)qd_proj_cpat(&a->proj, u->pat), was[0] = (const uint8_t *)&u->pat0, sz[0] = sizeof u->pat0;
+    now[1] = (const uint8_t *)a->proj.sound, was[1] = (const uint8_t *)u->snd0, sz[1] = sizeof u->snd0;
+    now[2] = (const uint8_t *)a->per.lib, was[2] = (const uint8_t *)u->lib0, sz[2] = sizeof u->lib0;
+#endif
+    now[3] = (const uint8_t *)a->proj.mfx, was[3] = (const uint8_t *)u->mfx0, sz[3] = sizeof u->mfx0;
 }
 
-/* a level: four regions' differences (the pattern, the pool, the library, P1.6c the MIDI FX groups), each [u32 bytes]
- * then its runs */
+#ifdef QD_UNDO_SLOTS
+/* P2.1: the slots' entries (those that changed) into out (0: counted); the bytes */
+static uint32_t undo_slots(qd_app_t *a, uint8_t *out)
+{
+    qd_hist_t *u = &a->undo;
+    uint32_t o = 0;
+    int i;
+    for (i = 0; i < u->nslot; i++) {
+        const uint8_t *now = (const uint8_t *)undo_slot(a, u->slot_r[i], u->slot_k[i]);
+        const uint8_t *was = (const uint8_t *)&u->slot0[i];
+        uint32_t k, d = 0;
+        for (k = 0; k < sizeof(qd_sound_t); k++)
+            d |= (uint32_t)(now[k] ^ was[k]);
+        if (!d)
+            continue;
+        if (out) {
+            out[o] = u->slot_r[i], out[o + 1] = u->slot_k[i];
+            for (k = 0; k < sizeof(qd_sound_t); k++)
+                out[o + 2 + k] = (uint8_t)(now[k] ^ was[k]);
+        }
+        o += 2u + (uint32_t)sizeof(qd_sound_t);
+    }
+    return o;
+}
+#endif
+
 void qd_undo_close(qd_app_t *a)
 {
     qd_hist_t *u = &a->undo;
-    for (;;) {
-        static uint8_t tmp[QD_UNDO_POOL];
-        uint32_t o = 0, z = 0;
-        long d;
-        int r;
-        const uint8_t *now[4], *was[4];
-        uint32_t sz[4];
-        if (!u->open)
-            return;
-        now[0] = (const uint8_t *)qd_proj_pat(&a->proj, u->pat), was[0] = (const uint8_t *)&u->pat0, sz[0] = sizeof u->pat0;
-        now[1] = (const uint8_t *)a->proj.sound, was[1] = (const uint8_t *)u->snd0, sz[1] = sizeof u->snd0;
-        now[2] = (const uint8_t *)a->per.lib, was[2] = (const uint8_t *)u->lib0, sz[2] = sizeof u->lib0;
-        now[3] = (const uint8_t *)a->proj.mfx, was[3] = (const uint8_t *)u->mfx0, sz[3] = sizeof u->mfx0;
-        for (r = 0; r < 4; r++) {
-            if (o + 4u > sizeof tmp)
-                break;
-            d = undo_diff(tmp + o + 4u, (uint32_t)(sizeof tmp - o - 4u), now[r], was[r], sz[r]);
-            if (d < 0) {                                /* (bigger than the pool: not undoable, forgotten) */
-                u->open = 0;
-                return;
-            }
-            memcpy(tmp + o, &d, 4);
-            o += 4u + (uint32_t)d;
-            z += (uint32_t)d;
-        }
-        if (o + 4u + u->xl_n * 5u > sizeof tmp || u->xl_over) {   /* (P1.5w: the other patterns' locks: too many) */
-            u->open = 0;
-            return;
-        }
-        {
-            const uint32_t xb = u->xl_n * 5u;
-            memcpy(tmp + o, &xb, 4);
-            memcpy(tmp + o + 4u, u->xl, xb);
-            o += 4u + xb;
-            z += xb;
-        }
-        if (a->proj.nsound != u->nsound0)
-            z++;
+    const uint8_t *now[4], *was[4];
+    uint32_t sz[4], len[4], o = 0, z = 0, xb;
+    int r;
+    if (!u->open)
+        return;
+#ifdef QD_UNDO_SLOTS
+    if (!u->b_ok || u->xl_over) {                       /* (the gesture's before not kept: no level) */
         u->open = 0;
-        if (!z)
-            return;                                     /* nothing changed: no level */
-        if (u->pos < u->n) {                            /* a new edit after undoing: the redo levels go */
-            u->used = u->pos ? u->lvl[u->pos - 1].off + u->lvl[u->pos - 1].len : 0u;
-            u->n = u->pos;
-        }
-        while (u->n >= QD_UNDO_LEVELS || (u->n && u->used + o > QD_UNDO_POOL))
-            undo_drop_oldest(u);
-        if (u->used + o > QD_UNDO_POOL)
-            return;
-        memcpy(u->pool + u->used, tmp, o);
-        u->lvl[u->n].off = u->used;
-        u->lvl[u->n].len = o;
-        u->lvl[u->n].pat = (uint8_t)u->pat;
-        u->lvl[u->n].kind = (uint8_t)(u->hint >= 0 ? u->hint : u->knob ? QD_UK_KNOB : QD_UK_EDIT);
-        u->used += o;
-        u->n++;
-        u->pos = u->n;
+        u->top = 0;
         return;
     }
+#endif
+    undo_regions(a, now, was, sz);
+    for (r = 0; r < 4; r++) {                           /* the level's size: counted first (no copy of it anywhere) */
+#ifdef QD_UNDO_SLOTS
+        if (r == 1)
+            len[r] = undo_slots(a, 0);                  /* (P2.1: the slots' entries) */
+        else
+#endif
+            len[r] = sz[r] ? (uint32_t)undo_diff(0, 0, now[r], was[r], sz[r]) : 0u;
+        o += 4u + len[r];
+        z += len[r];
+    }
+    if (u->xl_over) {                                   /* (P1.5w: the other patterns' locks: too many) */
+        u->open = 0;
+        return;
+    }
+    xb = u->xl_n * 5u;
+    o += 4u + xb;
+    z += xb;
+    if (a->proj.nsound != u->nsound0)
+        z++;
+    u->open = 0;
+    if (!z)
+        return;                                         /* nothing changed: no level */
+    if (u->pos < u->n) {                                /* a new edit after undoing: the redo levels go */
+        u->used = u->pos ? u->lvl[u->pos - 1].off + u->lvl[u->pos - 1].len : 0u;
+        u->n = u->pos;
+    }
+    while (u->n >= QD_UNDO_LEVELS || (u->n && u->used + o > QD_UNDO_POOL))
+        undo_drop_oldest(u);
+    if (u->used + o > QD_UNDO_POOL)
+        return;                                         /* (bigger than the pool: not undoable, forgotten) */
+    {
+        uint8_t *b = u->pool + u->used;
+        uint32_t w = 0;
+        for (r = 0; r < 4; r++) {
+            memcpy(b + w, &len[r], 4);
+            w += 4u;
+#ifdef QD_UNDO_SLOTS
+            if (r == 1)
+                undo_slots(a, b + w);
+            else
+#endif
+            if (sz[r])
+                undo_diff(b + w, len[r], now[r], was[r], sz[r]);
+            w += len[r];
+        }
+        memcpy(b + w, &xb, 4);
+        memcpy(b + w + 4u, u->xl, xb);
+        w += 4u + xb;
+        u->lvl[u->n].off = u->used;
+        u->lvl[u->n].len = w;
+    }
+    u->lvl[u->n].pat = (uint8_t)u->pat;
+    u->lvl[u->n].kind = (uint8_t)(u->hint >= 0 ? u->hint : u->knob ? QD_UK_KNOB : QD_UK_EDIT);
+    u->used += u->lvl[u->n].len;
+    u->n++;
+    u->pos = u->n;
 }
 
 void qd_undo_ms(qd_app_t *a)
@@ -237,6 +400,20 @@ static void undo_apply(qd_app_t *a, const qd_undo_lvl_t *l)
     for (r = 0; r < 4; r++) {
         uint32_t len;
         memcpy(&len, d + o, 4);
+#ifdef QD_UNDO_SLOTS
+        if (r == 1) {                                   /* (P2.1: the slots' entries: XORed back) */
+            uint32_t i;
+            for (i = 0; i + 2u + sizeof(qd_sound_t) <= len; i += 2u + (uint32_t)sizeof(qd_sound_t)) {
+                const uint8_t *e = d + o + 4u + i;
+                qd_sound_t *s = undo_slot(a, e[0], e[1]);
+                uint32_t k;
+                for (k = 0; s && k < sizeof *s; k++)
+                    ((uint8_t *)s)[k] ^= e[2 + k];
+            }
+            o += 4u + len;
+            continue;
+        }
+#endif
         undo_apply_runs(mem[r], sz[r], d + o + 4u, len);
         o += 4u + len;
     }
@@ -279,3 +456,54 @@ int qd_undo_step(qd_app_t *a, int dir)
 }
 
 int qd_undo_count(const qd_app_t *a, int dir) { return dir < 0 ? a->undo.pos : a->undo.n - a->undo.pos; }
+
+/* ---------------------------------------------------------------- the snapshot, the pattern clipboard */
+int qd_hist_store(qd_app_t *a, int which)
+{
+    qd_hist_t *h = &a->undo;
+    const qd_pattern_t *P = qd_proj_cpat(&a->proj, a->seq.cur);
+#ifdef QD_UNDO_SLOTS
+    {   /* P2.1: compressed; the snapshot's bytes first, the clipboard's after them */
+        const uint32_t sz = zr_pack((const uint8_t *)P, sizeof *P, 0, 0);
+        if (sz + (which ? h->snap_len : h->pclip_len) > QD_SNAP_BYTES)
+            return 0;
+        if (!which) {
+            memmove(h->snapb + sz, h->snapb + h->snap_len, h->pclip_len);
+            zr_pack((const uint8_t *)P, sizeof *P, h->snapb, sz);
+            h->snap_len = sz;
+        } else {
+            zr_pack((const uint8_t *)P, sizeof *P, h->snapb + h->snap_len, sz);
+            h->pclip_len = sz;
+        }
+    }
+#else
+    if (!which)
+        h->snap = *P;
+    else
+        h->pclip = *P;
+#endif
+    if (!which)
+        h->snap_ok = 1;
+    else
+        h->pclip_ok = 1;
+    return 1;
+}
+
+int qd_hist_recall(qd_app_t *a, int which)
+{
+    qd_hist_t *h = &a->undo;
+    qd_pattern_t *P;
+    if (!(which ? h->pclip_ok : h->snap_ok))
+        return 0;
+    P = qd_proj_pat(&a->proj, a->seq.cur);
+#ifdef QD_UNDO_SLOTS
+    if (!which)
+        zr_unpack(h->snapb, h->snap_len, (uint8_t *)P, sizeof *P);
+    else
+        zr_unpack(h->snapb + h->snap_len, h->pclip_len, (uint8_t *)P, sizeof *P);
+#else
+    *P = which ? h->pclip : h->snap;
+#endif
+    P->used = 1;
+    return 1;
+}
