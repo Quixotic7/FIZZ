@@ -18,7 +18,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { createEngine } from "../engine/engine.js";
-import { identity, parseReply, parseDump, restoreFrame } from "../js/fizz_sysex.js";
+import { identity, parseReply, parseDump, restoreFrame, storeSound } from "../js/fizz_sysex.js";
 import { encodeRequest as labelsReq, decodeLabels } from "../js/labels.js";
 import { listRequest, parseList, dumpRequest } from "../js/fizz_sysex.js";
 import { readDnsnd, readFiles, storeFrame } from "../js/digitone.js";
@@ -551,6 +551,86 @@ e.dispose();
     const viaFile = pump(e5, 300).map(parseDump).filter(Boolean);
     e5.dispose();
     check(viaFile.length === 3 && viaFile.every((d, i) => d.frame.join() === dumps[i].frame.join()), "dumps -> .fizzlib -> imported into a blank unit -> dumped again: the same 3 frames");
+  }
+}
+
+// 10. a full project from the previous published FIZZ (git: the last site/fizz.wasm with another version) carried over:
+// patterns with steps, MY PRESETS, pool sounds and a MIDI FX group made there; booted here everything comes back; an
+// edit here, saved (the records rewritten in this version's format) and booted again, keeps it all (P2.1: patterns
+// paged, the pool and MY PRESETS in the store, track sounds by reference). Skipped without the history (CI's clone).
+{
+  let prev = null;
+  try {
+    const git = (...a) => execFileSync("git", ["-C", SITE, ...a], { encoding: "buffer", stdio: ["ignore", "pipe", "ignore"] });
+    for (const h of git("log", "--format=%H", "--", "fizz.json").toString().trim().split("\n")) {
+      const j = JSON.parse(git("show", `${h}:site/fizz.json`).toString());
+      if (j.version !== info.version) { prev = { version: j.version, wasm: git("show", `${h}:site/fizz.wasm`) }; break; }
+    }
+  } catch (_) { prev = null; }
+  if (!prev) note("no earlier site/fizz.wasm in git: the full carry-over skipped");
+  else {
+    const oldMod = await WebAssembly.compile(prev.wasm);
+    const W = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
+    const unit = async (mod, flash) => {
+      const u = await createEngine({ sampleRate: 44100, files: { wasm: mod }, flash, options: {} });
+      const pp = new Panel(u);
+      const fr = () => { const out = [], b = u.midiOut(); let sx = null; for (const x of b) { if (x === 0xf0) sx = [x]; else if (sx) { sx.push(x); if (x === 0xf7) { out.push(Uint8Array.from(sx)); sx = null; } } } return out; };
+      const pump = (ms) => { const got = []; for (let t = 0; t < ms; t += 5) { run(u, 5); got.push(...fr()); } return got; };
+      const turn = (role, n) => { const enc = new Int32Array(7); enc[pp.t.encId[role]] = n * pp.t.encDir[role]; u.setPanel({ keys: pp.keys, buttons: pp.buttons, enc, keyVel: new Uint8Array(27) }); run(u, 60); };
+      const pattern = (k) => { pp.btn("SEQ", true); run(u, 120); tapKey(u, pp, W[k]); pp.btn("SEQ", false); run(u, 300); tapBtn(u, pp, "HOME"); run(u, 300); };
+      const rows = () => u.screen().pixels.slice(180 * 240);
+      run(u, 500); tapBtn(u, pp, "HOME"); run(u, 300); fr();
+      return { u, pp, fr, pump, turn, pattern, rows };
+    };
+    const blob = (k) => { const b = new Uint8Array(96); b[0] = 0x51; b[1] = 5; b[2] = k; b[3] = 2 * k; b[50] = 10 * k; return b; };
+    const mine = ["CARRY A", "CARRY B", "CARRY C"], pool = ["POOL X", "POOL Y"];
+    // made on the previous FIZZ
+    const o = await unit(oldMod, null);
+    mine.forEach((nm, k) => { o.u.midiIn(storeSound({ name: nm, blob: blob(k + 1), drive: 5 * k, pan: k - 1, chorus: 10 * k, tags: k + 1 })); o.pump(60); });
+    pool.forEach((nm, k) => { o.u.midiIn(storeSound({ name: nm, blob: blob(k + 4), pool: true })); o.pump(60); });
+    const stepsOf = [[0, 4], [1, 8, 15], [2, 10]];          // pattern k: its steps (W indices)
+    const oldRows = [];
+    for (let k = 0; k < 3; k++) { o.pattern(k); for (const w of stepsOf[k]) tapKey(o.u, o.pp, W[w]); run(o.u, 200); oldRows.push(o.rows()); }
+    tapBtn(o.u, o.pp, "ARP"); o.turn(1, 1); o.turn(2, 1); run(o.u, 200); tapBtn(o.u, o.pp, "HOME"); run(o.u, 3000);
+    const img = o.u.flash().bytes;
+    o.u.dispose();
+    // a fresh unit here: what the patterns look like without the old project (the comparison's other side)
+    const fresh = await unit(module, null), freshRows = [];
+    for (let k = 0; k < 3; k++) { fresh.pattern(k); freshRows.push(fresh.rows()); }
+    fresh.u.dispose();
+    const look = async (x, label, extraSteps = []) => {
+      x.u.midiIn(listRequest({ pool: true }));
+      const ents = x.pump(300).map(parseList).filter(Boolean).flatMap((p) => p.entries);
+      x.u.midiIn(dumpRequest({ source: "mine", slot: 0 }));
+      const dumps = x.pump(300).map(parseDump).filter(Boolean);
+      const mineOk = mine.every((nm, k) => { const d = dumps.find((q) => q.name === nm); return d && d.blob[2] === k + 1 && d.blob[3] === 2 * (k + 1) && d.blob[50] === 10 * (k + 1) && d.drive === 5 * k && d.pan === k - 1 && d.chorus === 10 * k && d.tags === k + 1; });
+      const poolOk = pool.every((nm) => ents.some((q) => q.source === "pool" && q.name === nm));
+      const pats = [];
+      for (let k = 0; k < 3; k++) { x.pattern(k); const r = x.rows(); pats.push({ old: diffPx(r, oldRows[k]), fresh: diffPx(r, freshRows[k]), r }); }
+      const patsOk = pats.every((q) => q.old < q.fresh);
+      x.u.midiIn(labelsReq(true)); tapBtn(x.u, x.pp, "ARP");
+      const lbl = x.pump(400).map(decodeLabels).filter(Boolean).at(-1);
+      const mfxOk = lbl && lbl.keys[1] === "ARP" && lbl.enc[6] === "EFFECT";
+      tapBtn(x.u, x.pp, "HOME"); run(x.u, 300); x.pump(100);
+      check(mineOk && poolOk && patsOk && mfxOk,
+        `${label}: MY PRESETS ${mine.join(", ")} with their patches, mix and tags ${mineOk ? "kept" : "NOT KEPT"}; the pool's ${pool.join(", ")} ${poolOk ? "there" : "MISSING"}; patterns 1..3's steps (step rows ${pats.map((q) => `${q.old} px from the old, ${q.fresh} from a fresh unit`).join("; ")}); the MIDI FX group's slot 1 "${lbl && lbl.keys[1]}"`);
+      return pats;
+    };
+    const n1 = await unit(module, img);
+    await look(n1, `a ${prev.version} project booted by ${info.version}`);
+    // an edit here (a step on pattern 1), saved in this version's format, booted again
+    n1.pattern(0); tapKey(n1.u, n1.pp, W[12]); run(n1.u, 200);
+    const edited = n1.rows();
+    run(n1.u, 3000);
+    const img2 = n1.u.flash().bytes;
+    n1.u.dispose();
+    const n2 = await unit(module, img2);
+    n2.pattern(0);
+    const editKept = diffPx(n2.rows(), edited) < diffPx(n2.rows(), oldRows[0]);
+    oldRows[0] = edited;
+    await look(n2, `edited here (pattern 1, W13), saved in ${info.version}'s records and booted again`);
+    check(editKept, `the edit survives the rewrite (pattern 1's rows closer to the edited screen than to the old one)`);
+    n2.u.dispose();
   }
 }
 

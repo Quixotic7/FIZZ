@@ -49,7 +49,7 @@ const URL0 = `http://127.0.0.1:${server.address().port}/`;
 const PORT = 9300 + Math.floor(Math.random() * 400);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "fizz-update-"));
 const chrome = spawn(CHROMIUM, ["--headless=new", "--use-mock-keychain", "--password-store=basic", "--no-first-run", "--disable-gpu",
-  `--user-data-dir=${profile}`, `--remote-debugging-port=${PORT}`, "--autoplay-policy=no-user-gesture-required", "--window-size=1280,800", "about:blank"], { stdio: "ignore" });
+  `--user-data-dir=${profile}`, `--remote-debugging-port=${PORT}`, "--autoplay-policy=no-user-gesture-required", "--disable-audio-output" /* (a fake output: not the sound device) */, "--window-size=1280,800", "about:blank"], { stdio: "ignore" });
 process.on("exit", () => { try { chrome.kill("SIGKILL"); } catch (_) {} });
 let ws = null, id = 0;
 const pending = new Map(), errors = [];

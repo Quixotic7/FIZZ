@@ -40,7 +40,7 @@ const URL0 = `http://127.0.0.1:${server.address().port}/dn2-wizard.html?mock=1&f
 // ---- Chromium over the DevTools protocol (as test_site.mjs)
 const PORT = 9700 + Math.floor(Math.random() * 300), profile = fs.mkdtempSync(path.join(os.tmpdir(), "fizz-dn2w-"));
 const chrome = spawn(CHROMIUM, ["--headless=new", "--use-mock-keychain", "--password-store=basic", "--no-first-run", "--no-default-browser-check",
-  "--disable-gpu", `--user-data-dir=${profile}`, `--remote-debugging-port=${PORT}`, "--autoplay-policy=no-user-gesture-required",
+  "--disable-gpu", `--user-data-dir=${profile}`, `--remote-debugging-port=${PORT}`, "--autoplay-policy=no-user-gesture-required", "--disable-audio-output" /* (a fake output: not the sound device) */,
   "--use-fake-ui-for-media-stream", "--window-size=1100,900", "about:blank"], { stdio: "ignore" });
 const done = () => { try { chrome.kill("SIGKILL"); } catch (_) {} server.close(); };
 process.on("exit", done);

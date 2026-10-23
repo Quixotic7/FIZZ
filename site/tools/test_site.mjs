@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The site in headless Chromium, over the DevTools protocol (no Playwright: Node's own WebSocket):
 //
-//   node site/tools/test_site.mjs [--url http://127.0.0.1:8765/] [--chromium path] [--dnsnd dir]
+//   node site/tools/test_site.mjs [--url http://127.0.0.1:8765/] [--chromium path] [--dnsnd dir] [--real-audio]
 //   (serve site/ first, e.g. python3 -m http.server 8765 --bind 127.0.0.1 -d site)
 //
 //   1. the player loads with no console error; FIZZ boots in the AudioWorklet (info, first frames); screenshot
@@ -57,11 +57,12 @@ const note = (what) => console.log(`      ${what}`);
         t([0xf8]) === "248" && t([0xf0, 0x7d, 1, 0xf7]) === "240 125 1 247", "a MIDI keyboard's channel messages go to channel 16 (the selected track), system messages pass");
 }
 
-// ---- Chromium
+// ---- Chromium (its fake audio output: the AudioContext runs on its own clock, not this machine's sound device, which
+// may be busy, asleep or missing; --real-audio uses the device)
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "fizz-site-"));
 const chrome = spawn(CHROMIUM, ["--headless=new", "--use-mock-keychain", "--password-store=basic", "--no-first-run", "--no-default-browser-check",
   "--disable-gpu", `--user-data-dir=${profile}`, `--remote-debugging-port=${PORT}`, "--autoplay-policy=no-user-gesture-required",
-  "--hide-scrollbars", "--window-size=1280,800", "about:blank"], { stdio: "ignore" });
+  "--hide-scrollbars", "--window-size=1280,800", ...(process.argv.includes("--real-audio") ? [] : ["--disable-audio-output"]), "about:blank"], { stdio: "ignore" });
 const killChrome = () => { try { chrome.kill("SIGKILL"); } catch (_) {} };
 process.on("exit", killChrome);
 
