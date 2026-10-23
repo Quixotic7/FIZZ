@@ -26,10 +26,10 @@ const char *qd_len_name(int len) { return len < 0 || len >= QD_NLEN ? "?" : QD_L
  * x 2/3 triplet (all whole: pattern.h) */
 int64_t qd_rate_ticks(int rate)
 {
-    int64_t l;
+    int32_t l;                                          /* (P2.4: 32 bits: at most 1,612,800 x 3 / 2) */
     if (rate < 0 || rate >= QD_NRATE)
         return QD_TPS;
-    l = (int64_t)QD_TPS * 16 >> (rate / 3);
+    l = (int32_t)QD_TPS * 16 >> (rate / 3);
     return rate % 3 == QD_RTYPE_DOTTED ? l * 3 / 2 : rate % 3 == QD_RTYPE_TRIPLET ? l * 2 / 3 : l;
 }
 int qd_rate_make(int base, int type)

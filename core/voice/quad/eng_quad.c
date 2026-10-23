@@ -752,7 +752,7 @@ static int32_t quad_lfo_incv(int32_t sp, uint32_t mu)
     bpm = mu < 12u ? clamp(song.g[G_BPM], 20, 300) : 120;
     /* the magnitude (a signed clamp of the quotient made the compiler load a constant tools/build.py takes for a ROM
      * address) */
-    v = ((uint64_t)(uint32_t)(sp < 0 ? -sp : sp) << (mu % 12u)) * (uint32_t)bpm * QUAD_LFO_K / (100u * 65536u);
+    v = qd_udiv64(((uint64_t)(uint32_t)(sp < 0 ? -sp : sp) << (mu % 12u)) * (uint32_t)bpm * QUAD_LFO_K, 100u * 65536u);   /* (P2.4) */
     v = v > 0x7FFFFFFFu ? 0x7FFFFFFFu : v;
     return sp < 0 ? -(int32_t)v : (int32_t)v;
 }
@@ -1405,13 +1405,13 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
                 y = x - ((d + 2048) >> 12);
                 if (hk) {
                     bh += (int32_t)(((int64_t)((y << 8) - bh) * hk) >> 16);
-                    y -= hpk ? bh >> 8 : (int32_t)(((int64_t)(bh >> 8) * (nf - (int32_t)i)) / nf);
+                    y -= hpk ? bh >> 8 : (int32_t)qd_div64((int64_t)(bh >> 8) * (nf - (int32_t)i), nf);
                 }
                 if (lk) {
                     if (bl == INT32_MIN)
                         bl = y << 8;
                     bl += (int32_t)(((int64_t)((y << 8) - bl) * lk) >> 16);
-                    y = lpk ? bl >> 8 : (bl >> 8) + (int32_t)(((int64_t)(y - (bl >> 8)) * (int32_t)i) / nf);
+                    y = lpk ? bl >> 8 : (bl >> 8) + (int32_t)qd_div64((int64_t)(y - (bl >> 8)) * (int32_t)i, nf);
                 }
                 acc[i] = y;
             }
@@ -1461,7 +1461,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             int32_t nf = n > 1u ? (int32_t)n - 1 : 1;
             for (i = 0; i < n; i++) {
                 int32_t g = svf ? (int32_t)i : nf - (int32_t)i;
-                acc[i] = dry[i] + (int32_t)(((int64_t)(acc[i] - dry[i]) * g) / nf);
+                acc[i] = dry[i] + (int32_t)qd_div64((int64_t)(acc[i] - dry[i]) * g, nf);
             }
         }
         s->f1 = ic1, s->f2 = ic2, s->f3 = ic3, s->f4 = ic4;

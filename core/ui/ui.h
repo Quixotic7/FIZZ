@@ -47,7 +47,8 @@ typedef struct {
     int bpm;                            /* the tempo (the spray's beat; not shown) */
     int playing;                        /* a DAW plays it: a surge of bubbles on each beat */
     float t;                            /* seconds since power-on: the lazy stream's clock */
-    double beats;                       /* beats since PLAY (playing) */
+    long beat;                          /* beats since PLAY (playing): whole beats .. (P2.4: no double) */
+    int32_t beat_num, beat_den;         /* .. and the part of the next, num / den */
 } ui_idle_t;
 void ui_idle_draw(const ui_idle_t *v);
 /* the word at t seconds: the solid word's alpha and the particles' (0..1; either may be NULL) */

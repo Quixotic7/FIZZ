@@ -32,6 +32,7 @@
 #include "fz_core.h"                   /* (L1: the declarations eng_quad.c reads) */
 typedef qd_quad_voice_t voice_t;        /* (eng_quad.c's voice_t and track_t: QUADRILLE's voice and owner) */
 typedef qd_quad_owner_t track_t;
+#include "../../seq/qd_div.h"                  /* (P2.4: 64-bit by 32-bit division without the library routine) */
 #include "fz_voice.h"                   /* (L1: the building blocks, fz_dsp.h, and the envelope, glide, drive) */
 #include "eng_quad.c"
 #include "quad_ext.c"                   /* QUADRILLE (e): FIZZ's extensions (research/FMTONE-DN2-PLAN.md) */
@@ -364,7 +365,17 @@ const char *qd_quad_value_text(int i, int v, char *buf)
             return buf;
         }
         if (i == QD_QP_SRR) {
-            snprintf(buf, 12, "/%.1f", 4294967296.0 / (double)QE_SRR_INC[v & 127]);
+            /* "/%.1f" of 2^32 / inc, in integers (P2.4: no double): tenths rounded half to even, as printf */
+            const uint32_t inc = QE_SRR_INC[v & 127];
+            uint32_t r;
+            uint64_t q = qd_udivmod64((uint64_t)10 << 32, inc, &r);
+            if ((uint64_t)r * 2u > inc || ((uint64_t)r * 2u == inc && (q & 1u)))
+                q++;
+            {
+                uint32_t d;
+                const uint64_t w = qd_udivmod64(q, 10u, &d);
+                snprintf(buf, 12, "/%u.%u", (unsigned)w, (unsigned)d);
+            }
             return buf;
         }
         if (i >= QD_QP_MOD0 && (i - QD_QP_MOD0) % 3 == QD_QM_DST)

@@ -8,6 +8,7 @@
 
 #include "chord.h"
 #include "mfx.h"
+#include "qd_div.h"                             /* (P2.4: no 64-bit division routine in the audio path) */
 #include "scale.h"
 
 /* ---------------------------------------------------------------- the values */
@@ -241,9 +242,9 @@ static int64_t quant(const qd_mfx_t *m, int q)          /* the grid's next tick 
     int64_t Q, d;
     if (q <= 0)
         return m->now;
-    Q = QD_MFX_BAR / qd_mfx_rate_of(q - 1);
+    Q = (int32_t)QD_MFX_BAR / qd_mfx_rate_of(q - 1);   /* (a bar: 1,612,800 ticks) */
     d = m->now - m->qref;
-    d = d < 0 ? -((-d) / Q) * Q : ((d + Q - 1) / Q) * Q;
+    d = d < 0 ? -qd_div64(-d, (int32_t)Q) * Q : qd_div64(d + Q - 1, (int32_t)Q) * Q;
     return m->qref + d;
 }
 
@@ -563,7 +564,7 @@ static void arp_step(qd_mfx_t *m, int g, int k)
     qd_mfx_srt_t *r = srt(m, g, k);
     const int n = r ? held_n(r) : 0, mode = s->v[QD_MA_MODE], mlen = clampi(s->v[QD_MA_MLEN], 1, 16),
               tlen = clampi(s->v[QD_MA_TLEN], 1, 16), range = clampi(s->v[QD_MA_RANGE], 1, 8);
-    const int64_t steplen = QD_MFX_BAR / qd_mfx_rate_of(s->v[QD_MA_RATE]);
+    const int64_t steplen = (int32_t)QD_MFX_BAR / qd_mfx_rate_of(s->v[QD_MA_RATE]);
     int mod, tr, ties = 0, idx, i, np = 0, pitch[QD_MFX_NHOLD], pi[QD_MFX_NHOLD];
     if (!r)
         return;
@@ -635,7 +636,7 @@ static void arp_step(qd_mfx_t *m, int g, int k)
         }
     }
     {
-        const int64_t len = steplen * s->v[QD_MA_GATE] / 100 * (1 + ties);
+        const int64_t len = (int64_t)((int32_t)steplen * s->v[QD_MA_GATE] / 100) * (1 + ties);
         if (mod != QD_AL_REPEAT && np)
             r->last_n = 0;
         for (i = 0; i < np; i++) {
@@ -668,13 +669,13 @@ static void rep_hit(qd_mfx_t *m, int g, int k, int i)
     const qd_mfx_slot_t *s = &m->cfg[g].slot[k];
     qd_mfx_srt_t *r = srt(m, g, k);
     qd_mfx_held_t *h = &r->h[i];                        /* (only called for a slot with its state) */
-    const int64_t iv = QD_MFX_BAR / qd_mfx_rate_of(s->v[QD_MR_RATE]);
+    const int64_t iv = (int32_t)QD_MFX_BAR / qd_mfx_rate_of(s->v[QD_MR_RATE]);
     const int cnt = clampi(s->v[QD_MR_HITS], 1, 64), f = s->v[QD_MR_FADE], mode = s->v[QD_MR_MODE];
     const int kk = h->hits < cnt - 1 ? h->hits : cnt - 1;
     const int a = f < 0 ? 100 : 100 - f, b = f < 0 ? 100 + f : 100;
     const int pct = cnt > 1 ? a + (b - a) * kk / (cnt - 1) : b;
     qd_mfx_note_t o = h->n;
-    int64_t len = iv * s->v[QD_MR_GATE] / 100;
+    int64_t len = (int32_t)iv * s->v[QD_MR_GATE] / 100;
     o.prev = o.pitch;
     o.vel = (uint8_t)clampi(h->n.vel * pct / 100, 1, 127);
     o.len = (int32_t)(len < 1 ? 1 : len);
@@ -882,9 +883,9 @@ static void fx_in(qd_mfx_t *m, int g, int k, int on, const qd_mfx_note_t *nin)
         if (s->v[QD_MD_LEN] > 0) {
             const int32_t add = (int32_t)rnd(m, (uint32_t)s->v[QD_MD_LEN] + 1u);
             if (n.len > 0) {
-                n.len += (int32_t)((int64_t)n.len * add / 100);
+                n.len += (int32_t)qd_div64((int64_t)n.len * add, 100);
             } else if (n.glen > 0 && !n.live) {
-                const int32_t e = (int32_t)((int64_t)n.glen * add / 100);
+                const int32_t e = (int32_t)qd_div64((int64_t)n.glen * add, 100);
                 for (i = 0; e > 0 && i < QD_MFX_NHOLD; i++)
                     if (!r->ext[i]) {
                         r->ext[i] = e, r->ext_t[i] = n.track, r->ext_p[i] = n.prev;
@@ -893,8 +894,8 @@ static void fx_in(qd_mfx_t *m, int g, int k, int on, const qd_mfx_note_t *nin)
             }
         }
         if (s->v[QD_MD_DELAY] > 0) {
-            const int64_t span = QD_MFX_BAR / qd_mfx_rate_of(QD_MFX_NRATE - s->v[QD_MD_DELAY]);
-            const int64_t d = span * (int64_t)rnd(m, 1000) / 1000;
+            const int64_t span = (int32_t)QD_MFX_BAR / qd_mfx_rate_of(QD_MFX_NRATE - s->v[QD_MD_DELAY]);
+            const int64_t d = (int32_t)span * (int32_t)rnd(m, 1000) / 1000;   /* (< 1,612,800 x 1000: 32 bits) */
             for (i = 0; d > 0 && i < QD_MFX_NHOLD && r->h[i].used; i++)
                 ;
             if (d > 0 && i < QD_MFX_NHOLD) {

@@ -4,6 +4,7 @@
 /* The player (player.h). */
 #include <string.h>
 
+#include "qd_div.h"                             /* (P2.4: no 64-bit division routine in the audio path) */
 #include "player.h"
 #include "scale.h"
 
@@ -138,7 +139,7 @@ static int mfx_route(const qd_player_t *pl, int pat, int t, int step)
     return g && qd_mfx_group_active(&pr->mfx[g - 1]) ? g : 0;
 }
 static int64_t mfx_tick_of(const qd_player_t *pl, int64_t seq_tick) { return pl->mfx_base + seq_tick; }
-int64_t qd_player_mfx_tick(const qd_player_t *pl) { return (pl->mfx_sub + QD_SUB - 1) / QD_SUB; }
+int64_t qd_player_mfx_tick(const qd_player_t *pl) { return qd_div64(pl->mfx_sub + QD_SUB - 1, QD_SUB); }
 
 /* a group's note to the voices: its trig's sound and locks (the record while it plays, else resolved again), on its
  * own track */
@@ -317,7 +318,7 @@ void qd_player_block(qd_player_t *pl)
     const int playing = s->playing && !(s->ext && s->ext_wait);
     if (playing && (!pl->mfx_play || s->pos < pl->mfx_pos)) {   /* P1.6c: the transport (re)starts: the groups' clock
                                                          * carries on from where it is, the grid from here */
-        pl->mfx_base = qd_player_mfx_tick(pl) - s->pos / QD_SUB;
+        pl->mfx_base = qd_player_mfx_tick(pl) - qd_div64(s->pos, QD_SUB);
         pl->mfx.qref = pl->mfx_base;
     }
     qd_seq_block(s, qd_player_event, pl);

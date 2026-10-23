@@ -60,10 +60,20 @@ static qd_rgb ap_c(qd_rgb c)
 static float ap_clamp(float x) { return x < 0.f ? 0.f : x > 1.f ? 1.f : x; }
 static float ap_ease(float x) { x = ap_clamp(x); return x * x * (3.f - 2.f * x); }
 static float ap_easeout(float x) { x = 1.f - ap_clamp(x); return 1.f - x * x * x; }
-static float ap_hash(float n)
+static float ap_hash(float n)                           /* 0..1 from n: P2.4, an integer hash of its bits (was a sine
+                                                         * in double: no double on the unit) */
 {
-    const double s = sin((double)n * 127.1 + 311.7) * 43758.5453;
-    return (float)(s - floor(s));
+    union {
+        float f;
+        uint32_t u;
+    } b;
+    uint32_t h;
+    b.f = n;
+    h = b.u * 0x9E3779B1u;
+    h ^= h >> 15;
+    h *= 0x85EBCA77u;
+    h ^= h >> 13;
+    return (float)(h >> 8) * (1.f / 16777216.f);
 }
 
 int ui_ape_pose(int n, int bpm)

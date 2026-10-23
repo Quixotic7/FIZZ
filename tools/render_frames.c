@@ -373,7 +373,8 @@ int main(int argc, char **argv)
                 failed = 1;
             }
             printf("%s (%u ms: %s, %d BPM, beat %.3f)\n", path, (unsigned)frame_ms,
-                   app.playing ? "playing" : "stopped", app.bpm, app.beats);
+                   app.playing ? "playing" : "stopped", app.bpm,
+                   (double)app.beat + (double)app.beat_rem / (double)QD_BEAT_TICKS);
             dump_leds(log, &leds, ms);
             if (ms == 4200 || ms == 7000) {
                 snprintf(path, sizeof path, "%s/leds-%05u.png", out, (unsigned)ms);

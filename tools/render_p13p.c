@@ -171,7 +171,7 @@ int render_p13p(const char *out)
     run(10);
     qd_app_button(&A, QD_B_PLAY, 0);
     A.ui.mode = QD_MODE_IDLE;
-    while ((long)A.beats % 4 != 0 || A.beats - (double)(long)A.beats > 0.1)
+    while (A.beat % 4 != 0 || (double)A.beat_rem / (double)QD_BEAT_TICKS > 0.1)
         run(1);
     shot("fizz-9-playing", "playing: a surge from the bed on each beat, more on the downbeat");
 

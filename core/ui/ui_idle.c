@@ -22,6 +22,7 @@
 #include <math.h>
 
 #include "ui.h"
+#include "../seq/qd_div.h"                    /* (P2.4: qd_ratio_f) */
 
 #define FZ_LOOP 11.f
 #define W 240.f
@@ -282,12 +283,12 @@ void ui_idle_draw(const ui_idle_t *v)
     middle(u);
     bed(u);
     if (v->playing) {                                   /* the beats: a soft surge from the bed on each */
-        const long last = (long)floor(v->beats);
+        const long last = v->beat;
         long b;
         for (b = last - 9; b <= last; b++) {
             const uint32_t s = (uint32_t)b * 2654435761u + 17u;
             const int m = b % 4 == 0 ? 7 : 3;
-            const float age = (float)(v->beats - (double)b) * 60.f / bpm;
+            const float age = qd_ratio_f((int64_t)(last - b) * v->beat_den + v->beat_num, v->beat_den) * 60.f / bpm;
             for (k = 0; k < m; k++) {
                 const float r = 1.5f + 2.5f * hash01(s, (uint32_t)k, 1), sp = 60.f + 40.f * hash01(s, (uint32_t)k, 2);
                 const float y = BED_Y - sp * age, x = 12.f + 216.f * hash01(s, (uint32_t)k, 3);

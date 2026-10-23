@@ -193,14 +193,14 @@ static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int3
     }
     {   /* COMB+ / COMB-: y = x +- g lp(d[n - L]) into the line; out y (1 - g / 2) */
         int16_t *line = qe_comb[v->comb.line - 1];
-        const int32_t g = (int32_t)(((int64_t)clamp(reso, 0, 12700) * 32276) / 12700);   /* (0 .. 0.985, Q15) */
+        const int32_t g = clamp(reso, 0, 12700) * 32276 / 12700;   /* (0 .. 0.985, Q15; < 2^29: 32 bits, P2.4) */
         const int32_t ka = 1024 + shape * 31744 / 127, l0 = v->comb.len, l1 = qe_comb_len(cut);
         const int32_t outk = 32768 - g / 2;
         const int neg = mach == QD_QF_COMBN;
         int32_t lp = v->comb.lp;
         uint32_t w = v->comb.w;
         for (i = 0; i < n; i++) {
-            const int32_t len = l0 + (int32_t)(((int64_t)(l1 - l0) * (int32_t)i) / (int32_t)n);
+            const int32_t len = l0 + (int32_t)qd_div64((int64_t)(l1 - l0) * (int32_t)i, (int32_t)n);
             const int32_t di = len >> 8, fr = len & 255;
             const int32_t a0 = line[(w - (uint32_t)di) & (QE_COMB_N - 1)];
             const int32_t a1 = line[(w - (uint32_t)di - 1u) & (QE_COMB_N - 1)];

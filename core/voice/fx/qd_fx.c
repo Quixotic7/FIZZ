@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "qd_fx.h"
+#include "../../seq/qd_div.h"                  /* (P2.4) */
 
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -148,9 +149,9 @@ void qd_fx_block(const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_
     xc_block(sc, l, r, CTL);
     for (i = 0; i < CTL; i++) {
         const int32_t cw = ((l[i] - l0[i]) + (r[i] - r0[i])) / 2;   /* the chorus's return, mono */
-        d2[i] = sd[i] + (int32_t)(((int64_t)cw * qd_rt[1]) / 127);
-        r2[i] = sr[i] + (int32_t)(((int64_t)cw * qd_rt[2]) / 127) +
-                (qd_dw_live ? (int32_t)(((int64_t)qd_dw[i] * qd_rt[0]) / 127) : 0);
+        d2[i] = sd[i] + (int32_t)qd_div64((int64_t)cw * qd_rt[1], 127);   /* (P2.4: 32-bit divisions) */
+        r2[i] = sr[i] + (int32_t)qd_div64((int64_t)cw * qd_rt[2], 127) +
+                (qd_dw_live ? (int32_t)qd_div64((int64_t)qd_dw[i] * qd_rt[0], 127) : 0);
     }
     qd_xf_routed(d2, r2, l, r);
     if (!qd_rt[3])

@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "seq.h"
+#include "qd_div.h"                             /* (P2.4: no 64-bit division routine in the audio path) */
 #include "sounds.h"
 
 #define QD_TIE_SKIP 8                   /* OFFs held back for a TIE, per track (qd_seq_t.skip_*) */
@@ -19,13 +20,17 @@ static uint64_t splitmix(uint64_t z)
 
 uint32_t qd_seq_roll(uint64_t seed, int track, int64_t n)
 {
-    return (uint32_t)(splitmix(seed ^ ((uint64_t)(track & 255) << 56) ^ (uint64_t)n) % 100u);
+    uint32_t r;
+    qd_udivmod64(splitmix(seed ^ ((uint64_t)(track & 255) << 56) ^ (uint64_t)n), 100u, &r);
+    return r;
 }
 
 uint32_t qd_seq_fn_roll(uint64_t seed, int track, int64_t n, int salt, uint32_t m)
 {
-    return m ? (uint32_t)(splitmix(seed ^ ((uint64_t)(track & 255) << 56) ^ (uint64_t)n ^ ((uint64_t)salt << 40)) % m)
-             : 0u;
+    uint32_t r = 0;
+    if (m)
+        qd_udivmod64(splitmix(seed ^ ((uint64_t)(track & 255) << 56) ^ (uint64_t)n ^ ((uint64_t)salt << 40)), m, &r);
+    return r;
 }
 
 /* a pattern's seed: the run's, mixed with where the pattern started (a chain repeated rolls anew) */
@@ -287,7 +292,7 @@ static void cur_fix(qd_seq_t *s, qd_tcur_t *c)
 static void rewind(qd_seq_t *s, int t, int64_t x, int pat)
 {
     qd_tcur_t *c = &s->cur_t[t];
-    drop_from(s, t, x, s->pos / QD_SUB);
+    drop_from(s, t, x, qd_div64(s->pos, QD_SUB));
     hist_drop_from(c, x);
     dir_rewind(c, x);
     cur_enter(s, c, pat, x);
@@ -353,7 +358,7 @@ static int cond_ok(qd_seq_t *s, int t, const qd_tcur_t *c, int cond)
         return c->pass != 0;
     default:
         if (qd_cond_ab_of(cond, &a, &b))
-            return (int)(c->pass % b) == a - 1;
+            return qd_mod64(c->pass, b) == a - 1;
         return 1;
     }
 }
@@ -432,10 +437,13 @@ static void emit_step(qd_seq_t *s, int t, int step, const qd_tcur_t *c, const qd
 {
     const qd_tset_t *ts = &P->trk[t];
     const int type = st->type, le = qd_len_eighths(st->len);
-    const int64_t sw = ts->swing && (c->idx & 1) ? (int64_t)(P->swing - 50) * L / 50 : 0;
-    const int64_t start = c->g + sw + (int64_t)(c->dir < 0 ? -st->micro : st->micro) * L / 24;   /* (P1.3w: mirrored
-                                                                                              * in reverse) */
-    const int64_t gate_all = le < 0 ? -1 : L * le / 8;
+    /* (P2.4: in 32 bits: L <= 2,419,200 (a dotted 1/1), so (swing - 50) L, micro L and L le / 8 fit; the same
+     * truncated quotients as the 64-bit ones) */
+    const int32_t L32 = (int32_t)L;
+    const int64_t sw = ts->swing && (c->idx & 1) ? (int64_t)((P->swing - 50) * L32 / 50) : 0;
+    const int64_t start = c->g + sw + (int64_t)((c->dir < 0 ? -st->micro : st->micro) * L32 / 24);   /* (P1.3w:
+                                                         * mirrored in reverse) */
+    const int64_t gate_all = le < 0 ? -1 : (int64_t)((uint32_t)L32 * (uint32_t)le / 8u);
     uint8_t notes[QD_NNOTE];
     int nn = st->nn, k, h, ri = rec_alloc(s);
     qd_sev_t e;
@@ -461,7 +469,7 @@ static void emit_step(qd_seq_t *s, int t, int step, const qd_tcur_t *c, const qd
         }
     } else {                                            /* NOTE (and TIE on a POLY track: a NOTE) */
         const int nh = st->ratch, ramp = st->ramp;
-        const int64_t slice = L / nh, strum = (int64_t)st->strum * L / 24;
+        const int64_t slice = L32 / nh, strum = (int64_t)(st->strum * L32 / 24);
         for (h = 0; h < nh; h++) {
             int64_t gate;
             if (nh == 1)
@@ -469,7 +477,7 @@ static void emit_step(qd_seq_t *s, int t, int step, const qd_tcur_t *c, const qd
             else if (gate_all < 0)
                 gate = h < nh - 1 ? slice : -1;         /* INF: the last hit holds */
             else if (gate_all <= L)
-                gate = gate_all / nh;                   /* a step or less: that part of each slice */
+                gate = (int32_t)gate_all / nh;          /* a step or less: that part of each slice */
             else
                 gate = h < nh - 1 ? slice : gate_all - (nh - 1) * slice;   /* the last hit holds to the length */
             for (k = 0; k < nn; k++) {
@@ -603,7 +611,7 @@ int qd_seq_ext_running(const qd_seq_t *s) { return s->ext && s->playing && !s->e
 int qd_seq_bpm(const qd_seq_t *s)
 {
     if (qd_seq_ext_running(s) && s->clk_adv > 0)        /* subticks a sample -> BPM: adv / 8 / 1000 x 1000 */
-        return (int)((s->clk_adv + 4000) / 8000);   /* (8 x milli-BPM subticks a sample) */
+        return (int)qd_div64(s->clk_adv + 4000, 8000);   /* (8 x milli-BPM subticks a sample) */
     return (s->mbpm + 500) / 1000;
 }
 
@@ -661,7 +669,7 @@ static void all_off(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
     qd_seq_ev_t o;
     memset(&o, 0, sizeof o);
     o.sample = s->now;
-    o.tick = s->pos / QD_SUB;
+    o.tick = qd_div64(s->pos, QD_SUB);
     o.kind = QD_EV_OFF;
     o.gate = 0;
     o.pat = s->cur;
@@ -702,14 +710,14 @@ void qd_seq_stop(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
     s->sw_pat = -1;
 }
 
-int64_t qd_seq_tick(const qd_seq_t *s) { return s->pos / QD_SUB; }
+int64_t qd_seq_tick(const qd_seq_t *s) { return qd_div64(s->pos, QD_SUB); }
 
 static int64_t next_boundary(const qd_seq_t *s, int64_t tick)
 {
     const int64_t m = qd_pat_master_ticks(qd_proj_pat(s->proj, s->cur));
     if (m <= 0)
         return -1;
-    return s->origin + ((tick - s->origin) / m + 1) * m;
+    return s->origin + (qd_div64(tick - s->origin, (int32_t)m) + 1) * m;   /* (m: 16 .. 1024 16ths) */
 }
 
 const char *qd_launch_name(int launch)
@@ -737,12 +745,12 @@ void qd_seq_select_at(qd_seq_t *s, int pat, int launch)
         return;
     }
     {
-        const int64_t now = (s->pos + QD_SUB - 1) / QD_SUB;
+        const int64_t now = qd_div64(s->pos + QD_SUB - 1, QD_SUB);
         if (launch == QD_LAUNCH_NOW)
-            x = (now + QD_TPS - 1) / QD_TPS * QD_TPS;
+            x = qd_div64(now + QD_TPS - 1, QD_TPS) * QD_TPS;
         else if (launch == QD_LAUNCH_BAR || launch == QD_LAUNCH_BEAT) {   /* from the playing pattern's start */
             const int64_t u = (launch == QD_LAUNCH_BAR ? 16 : 4) * (int64_t)QD_TPS, d = now - s->origin;
-            x = s->origin + (d <= 0 ? 0 : (d + u - 1) / u * u);
+            x = s->origin + (d <= 0 ? 0 : qd_div64(d + u - 1, (int32_t)u) * u);
         } else if (s->sw_pat >= 0)
             x = s->sw_x;                                /* one already queued: the same change point */
         else
@@ -774,7 +782,7 @@ void qd_seq_chain(qd_seq_t *s, const int *pats, int n)
         return;
     }
     {   /* playing: the chain's first at the end of the master length */
-        const int64_t now = (s->pos + QD_SUB - 1) / QD_SUB;
+        const int64_t now = qd_div64(s->pos + QD_SUB - 1, QD_SUB);
         const int64_t x = s->sw_pat >= 0 ? s->sw_x : next_boundary(s, now);
         s->nchain = n;
         if (x >= 0)
@@ -788,7 +796,7 @@ int64_t qd_seq_to_change(const qd_seq_t *s)
 {
     if (!s->playing || s->sw_pat < 0 || s->sw_x >= INT64_MAX / 8)
         return 0;
-    return s->sw_x - s->pos / QD_SUB;
+    return s->sw_x - qd_div64(s->pos, QD_SUB);
 }
 
 /* the queued pattern starts (its tick has come) */
@@ -822,7 +830,7 @@ static void take_switch(qd_seq_t *s)
 static void dispatch(qd_seq_t *s, qd_sev_t *e, int64_t pos0, int64_t adv, qd_seq_out_fn out, void *ctx)
 {
     const int64_t d = e->tick * QD_SUB - pos0;
-    int64_t off = d <= 0 || adv <= 0 ? 0 : (d + adv - 1) / adv;
+    int64_t off = d <= 0 || adv <= 0 ? 0 : qd_div64(d + adv - 1, (int32_t)adv);   /* (adv: subticks a sample, < 2^31) */
     const int t = e->track;
     const qd_trec_t *r = e->rec >= 0 ? &s->rec[e->rec] : 0;
     const qd_pattern_t *P = qd_proj_pat(s->proj, r ? r->pat : s->cur_t[t].pat);
@@ -926,10 +934,10 @@ void qd_seq_block(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
         const int64_t cap = s->clk_target + (int64_t)QD_CLOCK_TICKS * QD_SUB;
         pos1 = pos1 > cap ? cap : pos1 < pos0 ? pos0 : pos1;
     }
-    while (s->sw_pat >= 0 && s->sw_x <= (pos1 - 1) / QD_SUB && guard++ < 64)   /* (in ticks: a pattern waiting
+    while (s->sw_pat >= 0 && s->sw_x <= qd_div64(pos1 - 1, QD_SUB) && guard++ < 64)   /* (in ticks: a pattern waiting
                                                                                   * for ever has a huge sw_x) */
         take_switch(s);
-    tend = (pos1 + QD_SUB - 1) / QD_SUB;
+    tend = qd_div64(pos1 + QD_SUB - 1, QD_SUB);
     for (t = 0; t < QD_PAT_NTRACK; t++) {               /* the steps within two of their own steps */
         int n = 0;
         for (;;) {
@@ -976,7 +984,7 @@ void qd_seq_midi_continue(qd_seq_t *s)
 /* stopped by the clock: the notes out, the position kept; the cursors wound back to it (CONTINUE resolves again) */
 void qd_seq_midi_stop(qd_seq_t *s, qd_seq_out_fn out, void *ctx)
 {
-    const int64_t now = (s->pos + QD_SUB - 1) / QD_SUB;
+    const int64_t now = qd_div64(s->pos + QD_SUB - 1, QD_SUB);
     int t;
     s->ext = 0;                                         /* P1.3i: stopped, the tempo is the unit's again (CONTINUE
                                                          * makes it the clock's) */
@@ -1033,7 +1041,9 @@ void qd_seq_midi_clock(qd_seq_t *s)
         s->pos = s->clk_target;
     for (k = 0; k < s->clk_niv; k++)
         sum += s->clk_iv[k];
-    s->clk_adv = (pulse * s->clk_niv + (int64_t)sum / 2) / (int64_t)sum;   /* the last intervals' tempo */
+    s->clk_adv = sum >> 32 ? 1 : (int64_t)qd_udiv64((uint64_t)(pulse * s->clk_niv + (int64_t)sum / 2), (uint32_t)sum);
+    /* (the last intervals' tempo. P2.4: 32-bit divisions; intervals summing past 2^32 samples, hours a pulse: a
+     * subtick a sample, as the 64-bit quotient's 1 there) */
 }
 
 /* ---------------------------------------------------------------- the view --- */
@@ -1050,7 +1060,7 @@ int qd_seq_track_step(const qd_seq_t *s, int t)
     if (t < 0 || t >= QD_PAT_NTRACK || !s->playing)
         return -1;
     P = qd_seq_track_pat(s, t);
-    return qd_track_loop_step(&P->trk[t], (int)qd_seq_track_pos(s, t));
+    return qd_track_loop_step(&P->trk[t], qd_seq_track_pos_i(s, t));
 }
 
 const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t)
@@ -1059,46 +1069,63 @@ const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t)
         t = 0;
     if (!s->playing)
         return qd_proj_pat(s->proj, s->cur);
-    return qd_proj_pat(s->proj, s->cur_t[t].origin > s->pos / QD_SUB ? s->cur : s->cur_t[t].pat);
+    return qd_proj_pat(s->proj, s->cur_t[t].origin > qd_div64(s->pos, QD_SUB) ? s->cur : s->cur_t[t].pat);
 }
 
-double qd_seq_track_pos(const qd_seq_t *s, int t)
+/* P2.4: the playhead as a fraction of steps num / den (exact: no double on the unit) */
+void qd_seq_track_pos_q(const qd_seq_t *s, int t, int64_t *num, int64_t *den)
 {
     const qd_tcur_t *c;
     const qd_pattern_t *P;
-    double x, len;
+    int64_t T, L, len, x;
+    *num = 0, *den = 1;
     if (t < 0 || t >= QD_PAT_NTRACK || !s->playing)
-        return 0.0;
+        return;
     c = &s->cur_t[t];
     P = qd_proj_pat(s->proj, c->pat);
-    len = (double)len_of(P, t);
-    {
-        const double T = (double)s->pos / QD_SUB, L = (double)L_of(P, t);
-        if (c->origin > T) {                            /* (the cursor is in the next pattern already: the old one's
-                                                         * head, from that pattern's start) */
-            const qd_pattern_t *Q = qd_proj_pat(s->proj, s->cur);
-            const double LQ = (double)L_of(Q, t), lq = (double)len_of(Q, t);
-            x = (T - (double)s->origin) / LQ;
-            x -= lq * (double)(int64_t)(x / lq);
-            return x < 0 ? 0 : x;
-        }
-        x = (double)c->idx - ((double)c->g - T) / L;
-        {   /* P1.3w: the position resolved last at or before now (reverse, jumps), and how far into its step */
-            int k;
-            for (k = 0; k < c->rn; k++) {
-                const int i = (c->rw - 1 - k + 8) % 4;
-                if (c->rg[i] <= (int64_t)T) {
-                    x = (double)c->ridx[i] + (T - (double)c->rg[i]) / L;
-                    break;
-                }
+    len = len_of(P, t);
+    T = qd_div64(s->pos, QD_SUB);
+    L = L_of(P, t);
+    if (c->origin > T) {                                /* (the cursor is in the next pattern already: the old one's
+                                                         * head, from that pattern's start, its loop's length wrapped) */
+        const qd_pattern_t *Q = qd_proj_pat(s->proj, s->cur);
+        const int64_t LQ = L_of(Q, t), lq = len_of(Q, t);
+        x = qd_mod64(T - s->origin, (int32_t)(lq * LQ));   /* (lq LQ: at most 128 x 2,419,200) */
+        *num = x < 0 ? 0 : x;
+        *den = LQ;
+        return;
+    }
+    x = c->idx * L - (c->g - T);                        /* (in 1 / L steps) */
+    {   /* P1.3w: the position resolved last at or before now (reverse, jumps), and how far into its step */
+        int k;
+        for (k = 0; k < c->rn; k++) {
+            const int i = (c->rw - 1 - k + 8) % 4;
+            if (c->rg[i] <= T) {
+                x = c->ridx[i] * L + (T - c->rg[i]);
+                break;
             }
         }
     }
     while (x < 0)
-        x += len;
-    while (x >= len)
-        x -= len;
-    return x;
+        x += len * L;
+    while (x >= len * L)
+        x -= len * L;
+    *num = x;
+    *den = L;
+}
+
+float qd_seq_track_pos_f(const qd_seq_t *s, int t)
+{
+    int64_t n, d;
+    qd_seq_track_pos_q(s, t, &n, &d);
+    return qd_ratio_f(n, d);
+}
+
+int qd_seq_track_pos_i(const qd_seq_t *s, int t)
+{
+    int64_t n, d;
+    qd_seq_track_pos_q(s, t, &n, &d);
+    return (int)qd_div64(n, (int32_t)d);
 }
 
 void qd_seq_live_patch(qd_seq_t *s, int t, int id, int value)

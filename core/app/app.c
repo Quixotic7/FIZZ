@@ -52,13 +52,13 @@ void qd_app_init(qd_app_t *a)
 static void qd_dance_play(qd_app_t *a)
 {
     a->playing = 1;
-    a->beats = 0.0;                    /* the transport starts at the top of the bar */
+    a->beat = 0, a->beat_rem = 0;                    /* the transport starts at the top of the bar */
 }
 
 static void qd_dance_stop(qd_app_t *a)
 {
     a->playing = 0;
-    a->beats = 0.0;
+    a->beat = 0, a->beat_rem = 0;
 }
 
 void qd_app_play(qd_app_t *a)
@@ -271,8 +271,13 @@ static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
         else
             qd_dance_stop(a);
     }
-    if (a->playing)
-        a->beats = (double)qd_seq_tick(&a->seq) / (4.0 * QD_TPS);   /* the transport's own position */
+    if (a->playing) {                                   /* the transport's own position, in beats (floor) */
+        int32_t r;
+        a->beat = qd_divmod64(qd_seq_tick(&a->seq), QD_BEAT_TICKS, &r);
+        if (r < 0)
+            a->beat--, r += QD_BEAT_TICKS;
+        a->beat_rem = r;
+    }
     qd_ctl_ms(a);
     if (!(a->ui.rec && a->seq.playing))                 /* P1.5c: a gesture closes when quiet (a take: as one) */
         qd_undo_ms(a);
@@ -330,7 +335,7 @@ static void qd_app_block(qd_app_t *a, int16_t *out)
     qd_mix_block(&a->mix, &a->pool, ow, mt, QD_NTRACK, l, r, sc, sd, sr);
     if (a->metro && a->playing) {                       /* P1.5c: the metronome: a click on each beat into the mix
                                                          * (its own level, no track's), accented on the bar's first */
-        const int64_t beat = (int64_t)floor(a->beats);
+        const int64_t beat = a->beat;
         if (beat != a->metro_beat && beat >= 0) {
             a->metro_beat = beat;
             a->metro_left = QD_FS / 40;                 /* (25 ms) */

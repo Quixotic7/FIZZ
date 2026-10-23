@@ -187,6 +187,13 @@ static void empty_pattern(int k)                        /* SEQ held + white key 
     bup(QD_B_MIX);
     run(10);
 }
+/* track 1's playhead in steps (P2.4: the core gives num / den; the test reads it as a double) */
+static double track_pos0(void)
+{
+    int64_t n, d;
+    qd_seq_track_pos_q(&A.seq, 0, &n, &d);
+    return (double)n / (double)d;
+}
 static qd_pattern_t *PAT(void) { return qd_ctl_pat(&A); }
 static const qd_step_t *ST(int t, int s) { return qd_step(PAT(), t, s); }
 static qd_rstep_t R(int t, int s)
@@ -1334,7 +1341,7 @@ static void g_rec(void)
     run(10);
     CHECK(A.seq.playing && A.ui.rec && !A.ui.live_wait && A.ui.mode == QD_MODE_KEYS && leds().button[QD_B_REC] == QD_LED_LIT,
           "then PLAY: playing, recording (REC lit), the keyboard");
-    while (qd_seq_track_pos(&A.seq, 0) < 4.0 + 3.0 / 24.0)   /* step 5 + 3/24 */
+    while (track_pos0() < 4.0 + 3.0 / 24.0)   /* step 5 + 3/24 */
         run(1);
     kdown(16);                                          /* A4 (69), held two steps */
     run(250);
@@ -1343,7 +1350,7 @@ static void g_rec(void)
     micro = R(0, 4).micro;
     CHECK(R(0, 4).on && R(0, 4).notes[0] == 69 && micro >= 2 && micro <= 4 && R(0, 4).len == 6,
           "live: step 5, micro %d (+3 played), length %s (2 held)", micro, qd_len_name(R(0, 4).len));
-    while (qd_seq_track_pos(&A.seq, 0) < 14.5)
+    while (track_pos0() < 14.5)
         run(1);
     turn(QD_K_3, 2);
     CHECK(LK(0, 14, QD_QP_HARM) == 200 && R(0, 14).type == QD_TRIG_LOCK, "a knob turned while recording: a lock on "
@@ -2947,7 +2954,7 @@ static void g_rec_settings(void)
     btap(QD_B_REC);                                     /* (the keyboard) */
     live_arm();
     btap(QD_B_PLAY);                                    /* (P1.6g: armed, PLAY starts it) */
-    while (qd_seq_track_pos(&A.seq, 0) < 4.0 + 6.0 / 24.0)   /* step 5 + 6/24 */
+    while (track_pos0() < 4.0 + 6.0 / 24.0)   /* step 5 + 6/24 */
         run(1);
     kdown(7 + 7);                                       /* G4 onto step 5 */
     run(30);
@@ -2957,7 +2964,7 @@ static void g_rec_settings(void)
     m1 = R(0, 4).nn;
     CHECK(m1 == 2 && R(0, 4).notes[0] == 60 && R(0, 4).notes[1] == 67 && m0 == 0,
           "OVERDUB: G4 joins step 5's C4 (%d notes), its timing kept (micro %d)", m1, m0);
-    while (qd_seq_track_pos(&A.seq, 0) < 8.0 + 6.0 / 24.0)
+    while (track_pos0() < 8.0 + 6.0 / 24.0)
         run(1);
     kdown(7 + 9);                                       /* A4 onto empty step 9, +6/24 played: 50 %: +3 */
     run(30);
@@ -4647,7 +4654,7 @@ static void g_p16d_sends(void)
  * the keyboard armed (ON: knob moves recorded, ghosts; OFF: notes only, the sound edited; REC held: recorded anyway) */
 static int ph(void)                                     /* the step under track 1's playhead */
 {
-    return qd_track_loop_step(&PAT()->trk[0], (int)qd_seq_track_pos(&A.seq, 0) % qd_track_len(&PAT()->trk[0]));
+    return qd_track_loop_step(&PAT()->trk[0], (int)track_pos0() % qd_track_len(&PAT()->trk[0]));
 }
 static void to_step(int s)
 {
@@ -5481,7 +5488,7 @@ static void g_p16g_rec(void)
     btap(QD_B_PLAY);
     CHECK(A.seq.playing && A.ui.rec && !A.ui.live_wait && leds().button[QD_B_REC] == QD_LED_LIT,
           "PLAY: playing, recording (REC lit)");
-    while (qd_seq_track_pos(&A.seq, 0) < 2.1)
+    while (track_pos0() < 2.1)
         run(1);
     kdown(WK(0)), run(60), kup(WK(0)), run(10);
     for (any = 0, s = 1; s <= 3; s++)

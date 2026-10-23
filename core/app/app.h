@@ -48,6 +48,7 @@
 #include "../seq/model.h"
 #include "../seq/pattern.h"
 #include "../seq/player.h"
+#include "../seq/qd_div.h"                    /* (P2.4: 32-bit divisions, qd_ratio_f) */
 #include "../seq/seq.h"
 #include "../voice/mix.h"
 #include "../voice/pool.h"
@@ -63,6 +64,7 @@ extern "C" {
 #define QD_NKEY 27                     /* the note keys: 0 = F3 (MIDI 53) .. 26 = G5 */
 #define QD_NOTE0 53
 #define QD_FS 44100                    /* the audio's sample rate */
+#define QD_BEAT_TICKS (4 * QD_TPS)            /* (P2.4) a beat, a quarter note, in ticks */
 #define QD_BPM_MIN 30
 #define QD_BPM_MAX 300
 #define QD_METRO_LVL 60                /* P1.5c: the click's level, % (SHIFT + B7 held + a knob) */
@@ -108,7 +110,8 @@ typedef struct qd_app {
     /* the transport */
     int playing;                       /* (the sequencer's, as the dance last saw it) */
     int bpm;                           /* the tempo now (the pattern's, or MIDI clock's) */
-    double beats;                      /* beats since PLAY: the sequencer's position */
+    int64_t beat;                      /* whole beats since PLAY: the sequencer's position (P2.4: no double) .. */
+    int32_t beat_rem;                  /* .. and the ticks into the beat (of QD_BEAT_TICKS) */
     /* the panel */
     uint32_t keys_held, buttons_held;  /* bit k: key k; bit b: button QD_B_b */
     uint8_t key_vel[QD_NKEY];

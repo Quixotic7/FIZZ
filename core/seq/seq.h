@@ -249,7 +249,10 @@ int qd_seq_ext_running(const qd_seq_t *s);
 /* the view (the screens): the transport in ticks, a track's play head as a step position in its loop (0..length,
  * fractional), whether the track's step s flashed within the last ticks */
 int64_t qd_seq_tick(const qd_seq_t *s);
-double qd_seq_track_pos(const qd_seq_t *s, int t);
+void qd_seq_track_pos_q(const qd_seq_t *s, int t, int64_t *num, int64_t *den);   /* P2.4: num / den steps (0 / 1
+                                                         * stopped): 0 <= num < the loop's length x den */
+float qd_seq_track_pos_f(const qd_seq_t *s, int t);   /* .. as a float (the nearest) */
+int qd_seq_track_pos_i(const qd_seq_t *s, int t);     /* .. its whole steps */
 int qd_seq_track_step(const qd_seq_t *s, int t);   /* the step (0..127) under the track's play head; -1 stopped */
 int qd_seq_audible(const qd_seq_t *s, const qd_pattern_t *P, int t);   /* not muted, and soloed if any is */
 const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t);   /* the pattern the track plays now */

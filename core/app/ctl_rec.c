@@ -45,17 +45,20 @@ int qd_rec_key_note(const qd_app_t *a, int key)
     return n < 0 ? 0 : n > 127 ? 127 : n;
 }
 
-/* the nearest length of the table to n eighths of a step (never INF) */
-static int len_index(double eighths)
+/* the nearest length of the table to n / d eighths of a step (never INF), nearest as a ratio (in log: the table's
+ * lengths are a ratio apart, so the boundary between two is their geometric mean). P2.4: integer: e^2 against the two
+ * lengths' product, e in Q16 (at least half an eighth, at most 2048 eighths: past the last boundary) */
+static int len_index(int64_t n, int64_t d)
 {
-    int i, best = 0;
-    double bd = 1e30;
-    for (i = 0; i < QD_LEN_INF; i++) {
-        const double d = fabs(log(eighths > 0.5 ? eighths : 0.5) - log((double)qd_len_eighths(i)));
-        if (d < bd)
-            bd = d, best = i;
-    }
-    return best;
+    int64_t eq;
+    int i;
+    if (n >= 2048 * d)
+        return QD_LEN_INF - 1;
+    eq = 2 * n < d ? 32768 : qd_div64(n * 65536, (int32_t)d);
+    for (i = 0; i + 1 < QD_LEN_INF; i++)
+        if (eq * eq < ((int64_t)qd_len_eighths(i) * qd_len_eighths(i + 1)) << 32)
+            return i;
+    return QD_LEN_INF - 1;
 }
 
 /* a live note ends: its length into its step (the chord's longest note wins) */
@@ -64,7 +67,7 @@ static void live_off(qd_app_t *a, int note, int64_t now)
     qd_ui_t *u = &a->ui;
     const int64_t L = qd_rate_ticks(qd_tset_rate(&PAT(a)->trk[a->sel]));
     const int s = u->rec_s[note];
-    const int li = len_index((double)(now - u->rec_t0[note]) * 8.0 / (double)L);
+    const int li = len_index((now - u->rec_t0[note]) * 8, L);
     qd_rstep_t r;
     int i;
     qd_step_resolve(PAT(a), a->sel, s, &r);
@@ -172,6 +175,7 @@ void qd_rec_ms(qd_app_t *a)
     qd_ui_t *u = &a->ui;
     const qd_tset_t *ts = &PAT(a)->trk[a->sel];
     int pp, k;
+    int64_t pn, pd;
     if (!u->rec_grow)
         return;
     if (!u->rec || (!a->seq.playing && !u->live_wait)) {
@@ -185,7 +189,8 @@ void qd_rec_ms(qd_app_t *a)
         u->grow_reached = pp;
     for (k = 0; k < 8 && ((qd_track_loop(ts) >> k) & 1); k++)
         ;
-    if (k < 8 && qd_seq_track_pos(&a->seq, a->sel) >= (double)(qd_track_len(ts) - 4))
+    qd_seq_track_pos_q(&a->seq, a->sel, &pn, &pd);
+    if (k < 8 && pn >= (int64_t)(qd_track_len(ts) - 4) * pd)
         qd_page_set_loop(PAT(a), a->sel, qd_track_loop(ts) | 1 << k);   /* the next page joins before the wrap (the
                                                                         * steps are resolved two ahead) */
 }
@@ -265,14 +270,22 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
         return;
     }
     {   /* live recording: the step nearest the playhead, the micro-timing as played */
-        const double pos = qd_seq_track_pos(&a->seq, t);
         const int n = tlen(a);
         const int64_t now = qd_seq_tick(&a->seq);
-        int lp = (int)floor(pos + 0.5), s, micro = (int)lround((pos - floor(pos + 0.5)) * 24.0);
+        int64_t pn, pd, fm;
+        int lp, s, micro;
+        qd_seq_track_pos_q(&a->seq, t, &pn, &pd);       /* (P2.4: in integers: the nearest step and how far from it in
+                                                         * 24ths, rounded half away from zero) */
+        lp = (int)qd_div64(2 * pn + pd, (int32_t)(2 * pd));
+        fm = (pn - (int64_t)lp * pd) * 24;
+        micro = fm >= 0 ? (int)qd_div64(2 * fm + pd, (int32_t)(2 * pd)) : -(int)qd_div64(-2 * fm + pd, (int32_t)(2 * pd));
         if (lp >= n)
             lp -= n;
         s = loop_step(a, lp);
-        micro = (int)lround(micro * (100 - a->proj.rec_quant) / 100.0);   /* P1.3y: QUANTIZE (100 %: on the step) */
+        {   /* P1.3y: QUANTIZE (100 %: on the step), rounded half away from zero */
+            const int q = micro * (100 - a->proj.rec_quant);
+            micro = q >= 0 ? (2 * q + 100) / 200 : -((-2 * q + 100) / 200);
+        }
         micro = micro < -23 ? -23 : micro > 23 ? 23 : micro;
         if (u->rec_n && s == u->rec_step) {             /* struck while the chord's notes are down: the chord */
             chord_add(u->rec_chord, &u->rec_nchord, note);
@@ -326,7 +339,7 @@ int qd_auto_on(const qd_app_t *a)
 
 static int auto_step_now(qd_app_t *a)                 /* the step under the selected track's playhead */
 {
-    return loop_step(a, (int)qd_seq_track_pos(&a->seq, a->sel) % tlen(a));
+    return loop_step(a, qd_seq_track_pos_i(&a->seq, a->sel) % tlen(a));
 }
 
 int qd_auto_cur(const qd_app_t *a, int id)
@@ -339,7 +352,7 @@ int qd_auto_cur(const qd_app_t *a, int id)
     if (u->auto_take && ((u->auto_has[id >> 5] >> (id & 31)) & 1u))
         return u->auto_v[id];
     s = qd_track_loop_step(&qd_ctl_cpat(a)->trk[a->sel],
-                           (int)qd_seq_track_pos(&a->seq, a->sel) % qd_track_len(&qd_ctl_cpat(a)->trk[a->sel]));
+                           qd_seq_track_pos_i(&a->seq, a->sel) % qd_track_len(&qd_ctl_cpat(a)->trk[a->sel]));
     return qd_lock_get(qd_ctl_cpat(a), a->sel, s, id, &v) ? v : qd_step_base((qd_app_t *)a, a->sel, s, id);
 }
 

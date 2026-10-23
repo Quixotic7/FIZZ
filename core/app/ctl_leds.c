@@ -392,7 +392,8 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_OCTUP] = QD_LED_OFF;
     }
     if (a->playing) {
-        const double into_beat_ms = (a->beats - floor(a->beats)) * 60000.0 / (double)a->bpm;
-        out->play_green = into_beat_ms < (double)QD_BEAT_LED_MS ? QD_LED_LIT : QD_LED_OFF;
+        /* (the ms into the beat under QD_BEAT_LED_MS: rem / BEAT x 60000 / bpm < ms, in integers, P2.4) */
+        out->play_green = (int64_t)a->beat_rem * 60000 < (int64_t)QD_BEAT_LED_MS * a->bpm * QD_BEAT_TICKS ? QD_LED_LIT
+                                                                                                         : QD_LED_OFF;
     }
 }

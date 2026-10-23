@@ -52,6 +52,7 @@ static int fails, checks;
     } while (0)
 
 static qd_app_t A;
+static double app_beats(void) { return (double)A.beat + (double)A.beat_rem / (double)QD_BEAT_TICKS; }   /* (P2.4) */
 static uint32_t now, frames_done;
 static int32_t peak_l, peak_r;
 static uint64_t hash;
@@ -510,7 +511,7 @@ static void t_play(void)
     CHECK(A.seq.playing && A.playing && A.pool.starts > starts + 8 && peak_l > 1000, "PLAY: A02 plays (%u starts)",
           A.pool.starts - starts);
     CHECK(green > 100 && green < 300, "PLAY's green LED on the beat (%d of 1200 ms)", green);
-    CHECK(A.beats > 1.8 && A.beats < 2.2, "the transport moved 2 beats in 1.2 s at 100 BPM (%f)", A.beats);
+    CHECK(app_beats() > 1.8 && app_beats() < 2.2, "the transport moved 2 beats in 1.2 s at 100 BPM (%f)", app_beats());
     qd_app_key(&A, 9, 1, 100);                          /* a key held across the stop */
     run(5, 0);
     tap_button(QD_B_PLAY);
@@ -662,7 +663,7 @@ static void t_clock(void)
     run(5, 0);
     CHECK(A.seq.playing && A.seq.ext && A.playing && A.bpm == 140, "MIDI START + clock at 140: playing at %d BPM",
           A.bpm);
-    CHECK(A.beats > 11.5 && A.beats < 12.5, "the transport followed: %.2f beats after 12 of the clock", A.beats);
+    CHECK(app_beats() > 11.5 && app_beats() < 12.5, "the transport followed: %.2f beats after 12 of the clock", app_beats());
     qd_app_midi(&A, 0xFC, 0, 0);                        /* STOP */
     run(5, 0);
     CHECK(!A.seq.playing && !A.playing && seq_voices() == 0, "MIDI STOP: stopped, released");

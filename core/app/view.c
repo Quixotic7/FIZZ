@@ -148,7 +148,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
             v->play_step = qd_seq_track_step(&a->seq, t);
             if (a->seq.flash_step[t] >= 0 && a->seq.flash_sample[t] <= a->seq.now) {
                 v->flash_step = a->seq.flash_step[t];
-                v->flash_age = (float)((double)(a->seq.now - a->seq.flash_sample[t]) / (double)QD_FS);
+                v->flash_age = qd_ratio_f((int64_t)(a->seq.now - a->seq.flash_sample[t]), QD_FS);
             }
         }
     }
@@ -156,11 +156,12 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
     v->play_page = -1;
     v->pos = -1.f;
     if (a->seq.playing) {
-        const double tp = qd_seq_track_pos(&a->seq, t);
+        int64_t pn, pd;
         const int s = qd_seq_track_step(&a->seq, t);
+        qd_seq_track_pos_q(&a->seq, t, &pn, &pd);
         v->play_page = s / QD_PAGE;
-        if (v->play_page == page)
-            v->pos = (float)(s % QD_PAGE) + (float)(tp - floor(tp));
+        if (v->play_page == page)                       /* (the step and how far into it: P2.4, no double) */
+            v->pos = (float)(s % QD_PAGE) + qd_ratio_f(pn - qd_div64(pn, (int32_t)pd) * pd, pd);
     }
     for (i = 0; i < 16; i++) {
         const int s = page * QD_PAGE + i;
@@ -393,7 +394,7 @@ static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
         v->ab_a = v->ab_b = 0;
     v->pass = -1;
     if (a->seq.playing && v->ab_b)
-        v->pass = (int)(a->seq.cur_t[t].pass % v->ab_b);
+        v->pass = qd_mod64(a->seq.cur_t[t].pass, v->ab_b);
     v->chance = r.chance;
     v->shuffle = (uint32_t)(a->seq.playing ? a->seq.cur_t[t].pass : 0) * 2654435761u + 7919u;
     v->chance_first = m == UI_F_CHNC;
@@ -555,7 +556,8 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
     const int t = a->sel;
     const qd_pattern_t *P = qd_ctl_cpat(a);
     const qd_tset_t *ts = &P->trk[t];
-    double beats;
+    int64_t bq;                                         /* (P2.4: the beats as bq / bd, no double) */
+    int32_t bd;
     char n[12];
     int id = -1, i, s;
     memset(v, 0, sizeof *v);
@@ -565,9 +567,12 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
     v->t = secs(a->ms);
     v->playing = a->seq.playing;
     v->track = t + 1;
-    beats = a->seq.playing ? a->beats : (double)a->ms * (double)a->bpm / 60000.0;
-    v->beat = (float)(beats - floor(beats));
-    v->beats = (int)floor(beats);
+    if (a->seq.playing)
+        bq = a->beat * QD_BEAT_TICKS + a->beat_rem, bd = QD_BEAT_TICKS;
+    else
+        bq = (int64_t)a->ms * a->bpm, bd = 60000;
+    v->beats = (int)qd_div64(bq, bd);
+    v->beat = qd_ratio_f(bq - (int64_t)v->beats * bd, bd);
     v->bpm = a->bpm;
     v->swing = P->swing;
     ctx[0] = 0;
@@ -627,16 +632,21 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         break;
     case UI_TK_RATE: {
         const int k = qd_ctl_rate_index(qd_tset_rate(ts));
-        const double L = (double)qd_rate_ticks(qd_tset_rate(ts));
-        const double tick = a->seq.playing ? (double)qd_seq_tick(&a->seq) : beats * 4.0 * QD_TPS;
+        const int64_t L = qd_rate_ticks(qd_tset_rate(ts));
+        /* the position in ticks as tq / td: playing, the transport's; stopped, the beats' x 403200 (60000 x 25 / 168) */
+        const int64_t tq = a->seq.playing ? qd_seq_tick(&a->seq) : bq * (QD_BEAT_TICKS / 2400), td = a->seq.playing ? 1 : 25;
         v->value = qd_tset_rate(ts);
         v->v = (float)k / (float)(QD_NRATE - 1);
         strcpy(v->val, qd_rate_name(qd_tset_rate(ts)));
         v->prev = k > 0 ? qd_rate_name(qd_ctl_rate_at(k - 1)) : 0;
         v->next = k < QD_NRATE - 1 ? qd_rate_name(qd_ctl_rate_at(k + 1)) : 0;
-        v->rate = (float)(QD_TPS / L);
-        v->pat_pos = (float)fmod(tick / QD_TPS, 16.0);
-        v->track_pos = (float)fmod(tick / L, 16.0);
+        v->rate = qd_ratio_f(QD_TPS, L);
+        v->pat_pos = qd_ratio_f(qd_mod64(tq, (int32_t)(16 * QD_TPS * td)), QD_TPS * td);   /* (mod 16 steps) */
+        {
+            uint32_t r;
+            qd_udivmod64((uint64_t)tq, (uint32_t)(16 * L * td), &r);   /* (mod 16 of the track's steps) */
+            v->track_pos = qd_ratio_f(r, L * td);
+        }
         break;
     }
     case UI_TK_LIMIT:
@@ -777,19 +787,19 @@ static void draw_keys(qd_app_t *a)
         for (i = 0; i < 16; i++)
             v.page_trig[i] = (uint8_t)qd_step_is_on(qd_step(P, a->sel, (cs / QD_PAGE) * QD_PAGE + i));
     } else if (u->rec) {
-        const double L = (double)qd_rate_ticks(qd_tset_rate(ts));
+        const int64_t L = qd_rate_ticks(qd_tset_rate(ts));
         const int64_t now = qd_seq_tick(&a->seq);
         v.rec = 2;
         v.quantize = a->proj.rec_quant > 0;
-        v.pos = (float)qd_seq_track_pos(&a->seq, a->sel);
+        v.pos = qd_seq_track_pos_f(&a->seq, a->sel);
         v.step = qd_seq_track_step(&a->seq, a->sel) + 1;
         for (i = 0; i < u->nroll; i++) {
             const int k = (u->iroll - 1 - i + QD_NROLL) % QD_NROLL;
-            const float st = (float)((double)(now - u->roll[k].t0) / L);
+            const float st = qd_ratio_f(now - u->roll[k].t0, L);
             if (st > 17.f || st < 0.f)
                 continue;
             v.roll[v.nroll].start = st;
-            v.roll[v.nroll].end = u->roll[k].t1 < 0 ? 0.f : (float)((double)(now - u->roll[k].t1) / L);
+            v.roll[v.nroll].end = u->roll[k].t1 < 0 ? 0.f : qd_ratio_f(now - u->roll[k].t1, L);
             v.roll[v.nroll].note = u->roll[k].note;
             v.roll[v.nroll].live = u->roll[k].t1 < 0;
             v.nroll++;
@@ -1081,7 +1091,7 @@ static void draw_patterns(const qd_app_t *a)
     v.playing = a->seq.playing;
     if (v.queued >= 0 && a->seq.playing) {
         const int64_t m = qd_pat_master_ticks(qd_proj_cpat(&a->proj, a->seq.cur)), left = qd_seq_to_change(&a->seq);
-        v.left = m > 0 ? (float)((double)left / (double)m) : 0.f;
+        v.left = m > 0 ? qd_ratio_f(left, m) : 0.f;
         v.left = v.left < 0.f ? 0.f : v.left > 1.f ? 1.f : v.left;
     }
     v.blink = (a->ms / QD_BLINK_MS) % 2u == 0;
@@ -1098,7 +1108,9 @@ static void draw_idle(const qd_app_t *a)
     v.bpm = a->bpm;
     v.playing = a->playing;
     v.t = secs(a->ms);
-    v.beats = a->playing ? a->beats : 0.0;
+    v.beat = a->playing ? a->beat : 0;                 /* (P2.4: whole beats and the ticks into one) */
+    v.beat_num = a->playing ? a->beat_rem : 0;
+    v.beat_den = QD_BEAT_TICKS;
     ui_idle_draw(&v);
 }
 
@@ -1328,7 +1340,7 @@ void qd_view_edit(qd_app_t *a, ui_held_t *h, ui_lane_t *l)
         const qd_pattern_t *P = qd_ctl_cpat(a);
         const qd_tset_t *ts = &P->trk[a->sel];
         const qd_step_t *st = qd_step(P, a->sel, fs);
-        const float step_s = (float)qd_rate_ticks(qd_tset_rate(ts)) / (float)QD_TPS * 15.f /
+        const float step_s = (float)(int32_t)qd_rate_ticks(qd_tset_rate(ts)) / (float)QD_TPS * 15.f /
                              (float)(a->bpm > 0 ? a->bpm : 120);
         const int ph = qd_seq_track_step(&a->seq, a->sel);
         float k;
@@ -1373,6 +1385,30 @@ static int track_locks(const qd_pattern_t *p, int t, int id)
         if (p->lock[p->lock_start[t] + i].id == id)
             return 1;
     return 0;
+}
+
+/* a value's text ("0.25", "16", "1.00") as a number, as atof gives it (P2.4: no double): the digits and the decimals,
+ * divided once (the nearest float) */
+static float ratio_of_text(const char *s)
+{
+    int64_t m = 0, d = 1;
+    int neg = 0, dot = 0;
+    while (*s == ' ')
+        s++;
+    if (*s == '-' || *s == '+')
+        neg = *s++ == '-';
+    for (; (*s >= '0' && *s <= '9') || (*s == '.' && !dot); s++) {
+        if (*s == '.') {
+            dot = 1;
+            continue;
+        }
+        if (m < 100000000) {
+            m = m * 10 + (*s - '0');
+            if (dot)
+                d *= 10;
+        }
+    }
+    return qd_ratio_f(neg ? -m : m, d);
 }
 
 void qd_view_snd(qd_app_t *a, ui_snd_t *v)
@@ -1525,7 +1561,7 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->outx = (uint8_t)ox;
         v->outy = (uint8_t)oy;
         for (k = 0; k < 4; k++)
-            v->ratio[k] = (float)atof(qd_quad_value_text(RID[k], pp[RID[k]], t));
+            v->ratio[k] = ratio_of_text(qd_quad_value_text(RID[k], pp[RID[k]], t));
     } else if (pg->draw == UI_SD_LFO) {
         v->pv[0] = pp[QD_QP_LFO(pg->arg, QD_QL_WAVE)];
         v->pv[1] = pp[QD_QP_LFO(pg->arg, QD_QL_TRIG)];
@@ -1548,7 +1584,14 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         snprintf(v->txt[4], sizeof v->txt[4], "%s", slot);
         v->lab[4] = "SLOT";
     } else if (pg->draw == UI_SD_CRUSH) {              /* E3: the step's width, its height (BITS' bits) */
-        v->pv[0] = pp[QD_QP_SRR] ? (int)(4294967296.0 / (double)qd_quad_srr_inc(pp[QD_QP_SRR]) + 0.5) : 0;
+        if (pp[QD_QP_SRR]) {                            /* (2^32 / inc, rounded: in integers, P2.4) */
+            const uint32_t inc = qd_quad_srr_inc(pp[QD_QP_SRR]);
+            uint32_t r;
+            const uint64_t q = qd_udivmod64((uint64_t)1 << 32, inc, &r);
+            v->pv[0] = (int)(q + ((uint64_t)r * 2u >= inc));
+        } else {
+            v->pv[0] = 0;
+        }
         v->pv[1] = pp[QD_QP_BITS] ? qd_quad_crush_bits(pp[QD_QP_BITS]) : 0;
     } else if (pg->draw == UI_SD_BAND) {               /* E2: BWPOST */
         v->pv[0] = pp[QD_QP_BWPOST];
