@@ -789,7 +789,8 @@ static void t_fuzz(void)
                     printf(" %s%s", qd_mfx_type_name(G[run % 2].slot[kk].type), G[run % 2].slot[kk].bypass ? "(b)" : "");
                 printf(")\n");
                 for (kk = 0; kk < QD_MFX_NSLOT; kk++) {
-                    const qd_mfx_srt_t *r = &M.g[run % 2].s[kk];
+                    static const qd_mfx_srt_t none;
+                    const qd_mfx_srt_t *r = qd_mfx_srt(&M, run % 2, kk) ? qd_mfx_srt(&M, run % 2, kk) : &none;
                     const qd_mfx_slot_t *s = &G[run % 2].slot[kk];
                     int h;
                     printf("   slot %d %s mode %d/%d run %d down %d:", kk, qd_mfx_type_name(s->type), s->v[4], s->v[3], r->run, r->down);
@@ -878,6 +879,53 @@ static void four_steps(int t, int note)
         qd_step_on(qd_proj_pat(&PROJ, 0), t, s);
         qd_step_set_notes(qd_proj_pat(&PROJ, 0), t, s, &n1, 1);
     }
+}
+
+/* P2.1b: the state pool (QD_MFX_NSRT for the five groups): every slot of every group an effect with a state; the
+ * places go to the first QD_MFX_NSRT, the others let their notes by (counted), nothing hangs, and a place freed is
+ * taken by a slot still without one */
+static int places(void)
+{
+    int g, k, n = 0;
+    for (g = 0; g < QD_MFX_NGROUP; g++)
+        for (k = 0; k < QD_MFX_NSLOT; k++)
+            n += qd_mfx_srt(&M, g, k) != 0;
+    return n;
+}
+static void t_pool(void)
+{
+    const int all = QD_MFX_NGROUP * QD_MFX_NSLOT;
+    int g, k, p, i;
+    fresh();
+    for (g = 1; g <= QD_MFX_NGROUP; g++)
+        for (k = 0; k < QD_MFX_NSLOT; k++)
+            slot(g, k, g == QD_MFX_NGROUP ? QD_MFX_ARP : k % 2 ? QD_MFX_REPEAT : QD_MFX_RANDOM);
+    for (g = 1; g <= QD_MFX_NGROUP; g++)
+        for (p = 0; p < 4; p++)
+            note(g, 1, g - 1, 48 + 7 * g + p, 100, (int64_t)p * TPS);
+    CHECK(places() == (all < QD_MFX_NSRT ? all : QD_MFX_NSRT), "pool: %d places of %d", places(), QD_MFX_NSRT);
+    CHECK(QD_MFX_NSRT >= all ? M.starved == 0 : M.starved > 0, "pool: %u notes let by (%d places)", (unsigned)M.starved,
+          QD_MFX_NSRT);
+    CHECK(NEV > 0, "pool: notes out");
+    for (g = 1; g <= QD_MFX_NGROUP; g++)
+        for (p = 0; p < 4; p++)
+            note(g, 0, g - 1, 48 + 7 * g + p, 0, 4 * TPS + (int64_t)p);
+    for (i = 1; i <= 400; i++)
+        qd_mfx_advance(&M, 4 * TPS + i * BAR);
+    CHECK(!sounding(), "pool: %d notes left sounding", sounding());
+    for (k = 0; k < QD_MFX_NSLOT; k++)                  /* group 1 emptied: its places to the others */
+        qd_mfx_slot_init(&G[0].slot[k], QD_MFX_NONE);
+    note(2, 1, 1, 60, 100, 500 * BAR);
+    note(2, 0, 1, 60, 0, 501 * BAR);
+    for (i = 1; i <= 400; i++)
+        qd_mfx_advance(&M, 501 * BAR + i * BAR);
+    CHECK(places() == (all - QD_MFX_NSLOT < QD_MFX_NSRT ? all - QD_MFX_NSLOT : QD_MFX_NSRT), "pool: %d places after",
+          places());
+    for (k = 0; k < QD_MFX_NSLOT; k++)
+        CHECK(!qd_mfx_srt(&M, 0, k), "pool: group 1 slot %d still has a place", k + 1);
+    CHECK(!sounding(), "pool: %d notes left sounding after", sounding());
+    printf("  the state pool: %d places (%d bytes each); every slot with a state: %u notes let by\n", QD_MFX_NSRT,
+           (int)sizeof(qd_mfx_srt_t), (unsigned)M.starved);
 }
 
 static void t_player(void)
@@ -1039,10 +1087,11 @@ int main(void)
     t_repeat();
     t_arp();
     t_fuzz();
+    t_pool();
     t_player();
-    printf("test_mfx: the RAM: a group's settings %d bytes (5: %d), its run-time %d bytes (5: %d)\n",
+    printf("test_mfx: the RAM: a group's settings %d bytes (5: %d), its run-time %d bytes (5: %d), the state pool %d\n",
            (int)sizeof(qd_mfx_group_t), (int)sizeof(qd_mfx_group_t) * 5, (int)sizeof(qd_mfx_grt_t),
-           (int)sizeof(qd_mfx_grt_t) * 5);
+           (int)sizeof(qd_mfx_grt_t) * 5, (int)sizeof(qd_mfx_srt_t) * QD_MFX_NSRT);
     printf("test_mfx: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

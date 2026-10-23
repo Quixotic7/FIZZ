@@ -149,8 +149,9 @@ typedef struct {
     uint16_t hits;
     uint8_t used, released, on;         /* (RANDOM: on 1 a delayed start, 0 a delayed end) */
 } qd_mfx_held_t;
+/* P2.1b: the state of an ARP / REPEAT / RANDOM that is on, from one pool for the five groups (qd_mfx_t.pool, sized
+ * QD_MFX_NSRT); the other effects keep theirs in the slot's header (qd_mfx_shd_t) */
 typedef struct {
-    uint8_t type, bypass;               /* what it was set up for (another: reset) */
     qd_mfx_held_t h[QD_MFX_NHOLD];
     uint8_t order[QD_MFX_NHOLD];        /* ARP: the held notes, by pitch */
     uint8_t seq[QD_MFX_NHOLD * 4];      /* .. the pattern's walk (indices into order) */
@@ -162,11 +163,25 @@ typedef struct {
     int last_idx;                       /* ARP ROTH: the last note's place */
     uint8_t last_n;                     /* ARP's last notes played (REPEAT mod) */
     uint8_t last_p[QD_MFX_NHOLD], last_t[QD_MFX_NHOLD];
-    int cursor;                         /* SELECTOR UP / DOWN */
-    uint8_t mono_on[8], mono_prev[8], mono_gen[8];   /* MONO: each track's sounding note (its prev, gen) */
     int32_t ext[QD_MFX_NHOLD];          /* RANDOM: a held note's later end (by h[] place: track, prev) */
     uint8_t ext_t[QD_MFX_NHOLD], ext_p[QD_MFX_NHOLD];
 } qd_mfx_srt_t;
+typedef struct {                        /* P2.1b: a slot's own (each slot) */
+    uint8_t type, bypass;               /* what it was set up for (another: reset) */
+    uint8_t at;                         /* its state in the pool + 1 (0: none: not one that keeps any, or none free) */
+    uint8_t cursor;                     /* SELECTOR UP / DOWN */
+    uint8_t mono_on[8], mono_prev[8], mono_gen[8];   /* MONO: each track's sounding note (its prev, gen) */
+} qd_mfx_shd_t;
+/* the pool's size: every slot's at the host's sizes (none ever goes without); the device's, P2.1b: 16, twice the
+ * owner's busiest project (8 on); a slot that finds the pool full lets its notes pass (as bypassed), counted
+ * (qd_mfx_t.starved), and takes a place when one is free */
+#ifndef QD_MFX_NSRT
+#ifdef QD_DEVICE
+#define QD_MFX_NSRT 16
+#else
+#define QD_MFX_NSRT (QD_MFX_NGROUP * QD_MFX_NSLOT)
+#endif
+#endif
 typedef struct {
     uint8_t used, track, prev, pitch, live, gen;
 } qd_mfx_out_t;
@@ -175,7 +190,7 @@ typedef struct {
     uint8_t used, track, prev, pitch, live, gen;
 } qd_mfx_pend_t;
 typedef struct {
-    qd_mfx_srt_t s[QD_MFX_NSLOT];
+    qd_mfx_shd_t hd[QD_MFX_NSLOT];
     qd_mfx_out_t out[QD_MFX_NOUT];
     qd_mfx_pend_t pend[QD_MFX_NPEND];
     uint32_t passed[QD_MFX_NSLOT];      /* notes each slot has seen (the screen's activity) */
@@ -187,6 +202,9 @@ typedef struct {
     qd_mfx_group_t *cfg;                /* the project's five */
     qd_mfx_io_t io;
     qd_mfx_grt_t g[QD_MFX_NGROUP];
+    qd_mfx_srt_t pool[QD_MFX_NSRT];     /* (P2.1b) the ARPs', REPEATs' and RANDOMs' state */
+    uint8_t pool_used[QD_MFX_NSRT];
+    uint32_t starved;                   /* notes let by a slot that found no place in the pool */
     int64_t now;                        /* the tick being worked at */
     int64_t qref;                       /* the quantize grid's origin (the transport's 0) */
     uint32_t rng;
@@ -201,7 +219,8 @@ void qd_mfx_reset(qd_mfx_t *m);         /* every group: its notes released, its 
 /* track t's notes out of every group (the sequencer's: live 0; a key's: 1; both: -1), their sounding notes released
  * (a mute, a flush) */
 void qd_mfx_flush_track(qd_mfx_t *m, int t, int live);
-int qd_mfx_busy(const qd_mfx_t *m, int g);   /* the group holds notes or has notes sounding */
+int qd_mfx_busy(const qd_mfx_t *m, int g);
+const qd_mfx_srt_t *qd_mfx_srt(const qd_mfx_t *m, int g, int k);   /* (P2.1b) group g's (0..4) slot k's state, 0 none */   /* the group holds notes or has notes sounding */
 /* ARP tapped: group g's arp on / off (one added in the first empty slot if it has none: -1 full); returns the slot */
 int qd_mfx_arp_toggle(qd_mfx_t *m, int g, int *on);
 int qd_mfx_arp_slot(const qd_mfx_group_t *g);   /* the group's first ARP (-1 none) */

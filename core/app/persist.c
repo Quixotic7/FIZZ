@@ -2213,10 +2213,12 @@ static int pat_pinned(void *ctx, int k)
         if (s->rec[i].used && s->rec[i].pat == k)
             return 1;
     for (g = 0; g < QD_MFX_NGROUP; g++)
-        for (sl = 0; sl < QD_MFX_NSLOT; sl++)
-            for (h = 0; h < QD_MFX_NHOLD; h++)
-                if (a->player.mfx.g[g].s[sl].h[h].used && a->player.mfx.g[g].s[sl].h[h].n.pat == k)
+        for (sl = 0; sl < QD_MFX_NSLOT; sl++) {
+            const qd_mfx_srt_t *r = qd_mfx_srt(&a->player.mfx, g, sl);   /* (P2.1b: the pool's) */
+            for (h = 0; r && h < QD_MFX_NHOLD; h++)
+                if (r->h[h].used && r->h[h].n.pat == k)
                     return 1;
+        }
     return 0;
 }
 

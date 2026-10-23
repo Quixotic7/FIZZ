@@ -211,6 +211,18 @@ static uint32_t rnd(qd_mfx_t *m, uint32_t n)           /* 0 .. n - 1 (xorshift32
 static int rpm(qd_mfx_t *m, int r) { return r > 0 ? (int)rnd(m, (uint32_t)(2 * r + 1)) - r : 0; }   /* -r .. r */
 static int hit(qd_mfx_t *m, int chance) { return chance >= 100 ? 1 : chance <= 0 ? 0 : (int)rnd(m, 100) < chance; }
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+/* P2.1b: slot k's state in the pool (0: none) */
+static qd_mfx_srt_t *srt(qd_mfx_t *m, int g, int k)
+{
+    const int at = m->g[g].hd[k].at;
+    return at ? &m->pool[at - 1] : 0;
+}
+const qd_mfx_srt_t *qd_mfx_srt(const qd_mfx_t *m, int g, int k)
+{
+    if (g < 0 || g >= QD_MFX_NGROUP || k < 0 || k >= QD_MFX_NSLOT)
+        return 0;
+    return m->g[g].hd[k].at ? &m->pool[m->g[g].hd[k].at - 1] : 0;
+}
 
 void qd_mfx_init(qd_mfx_t *m, qd_mfx_group_t *cfg, const qd_mfx_io_t *io)
 {
@@ -306,13 +318,23 @@ static void deliver(qd_mfx_t *m, int g, int k, int on, const qd_mfx_note_t *n)
  * RANDOM's delayed ends go out first, so nothing it held back hangs) */
 static void srt_clear(qd_mfx_t *m, int g, int k)
 {
-    qd_mfx_srt_t *r = &m->g[g].s[k];
+    qd_mfx_shd_t *hd = &m->g[g].hd[k];
+    qd_mfx_srt_t *r = srt(m, g, k);
     int i;
-    if ((r->type & 0x7F) == QD_MFX_RANDOM)
-        for (i = 0; i < QD_MFX_NHOLD; i++)
-            if (r->h[i].used && !r->h[i].on)
-                out_note(m, g, 0, &r->h[i].n);
-    memset(r, 0, sizeof *r);
+    if (r) {
+        if ((hd->type & 0x7F) == QD_MFX_RANDOM)
+            for (i = 0; i < QD_MFX_NHOLD; i++)
+                if (r->h[i].used && !r->h[i].on)
+                    out_note(m, g, 0, &r->h[i].n);
+        memset(r, 0, sizeof *r);
+        m->pool_used[hd->at - 1] = 0;                   /* (P2.1b: its place back to the pool) */
+    }
+    memset(hd, 0, sizeof *hd);
+}
+static int srt_keeps(const qd_mfx_shd_t *hd)           /* (P2.1b) an effect that is on with a state of its own */
+{
+    const int ty = hd->type & 0x7F;
+    return (hd->type & 0x80) && !hd->bypass && (ty == QD_MFX_ARP || ty == QD_MFX_REPEAT || ty == QD_MFX_RANDOM);
 }
 static int srt_mode(const qd_mfx_slot_t *s)
 {
@@ -321,12 +343,22 @@ static int srt_mode(const qd_mfx_slot_t *s)
 static void srt_sync(qd_mfx_t *m, int g, int k)
 {
     const qd_mfx_slot_t *s = &m->cfg[g].slot[k];
-    qd_mfx_srt_t *r = &m->g[g].s[k];
+    qd_mfx_shd_t *hd = &m->g[g].hd[k];
     const uint8_t want = (uint8_t)(s->type | (srt_mode(s) ? 0x80u : 0u));
-    if (r->type != want || r->bypass != s->bypass) {
+    if (hd->type != want || hd->bypass != s->bypass) {
         srt_clear(m, g, k);
-        r->type = want;
-        r->bypass = s->bypass;
+        hd->type = want;
+        hd->bypass = s->bypass;
+    }
+    if (!hd->at && srt_keeps(hd)) {                     /* (P2.1b: a place in the pool, the first free; none: later) */
+        int i;
+        for (i = 0; i < QD_MFX_NSRT && m->pool_used[i]; i++)
+            ;
+        if (i < QD_MFX_NSRT) {
+            m->pool_used[i] = 1;
+            memset(&m->pool[i], 0, sizeof m->pool[i]);
+            hd->at = (uint8_t)(i + 1);
+        }
     }
 }
 static void sync_all(qd_mfx_t *m)
@@ -470,8 +502,10 @@ static void arp_restart(qd_mfx_srt_t *r)
 static void arp_note_on(qd_mfx_t *m, int g, int k, const qd_mfx_note_t *n)
 {
     const qd_mfx_slot_t *s = &m->cfg[g].slot[k];
-    qd_mfx_srt_t *r = &m->g[g].s[k];
+    qd_mfx_srt_t *r = srt(m, g, k);
     const int mode = s->v[QD_MA_MODE];
+    if (!r)
+        return;
     if ((mode == QD_AM_HOLD || mode == QD_AM_1ST) && r->down <= 0 && held_n(r)) {   /* (a latched set: the next
                                                          * note after every key is up starts a new one) */
         memset(r->h, 0, sizeof r->h);
@@ -495,9 +529,11 @@ static void arp_note_on(qd_mfx_t *m, int g, int k, const qd_mfx_note_t *n)
 static int held_release(qd_mfx_t *m, int g, int k, int track, int prev, int gen)
 {
     const qd_mfx_slot_t *s = &m->cfg[g].slot[k];
-    qd_mfx_srt_t *r = &m->g[g].s[k];
+    qd_mfx_srt_t *r = srt(m, g, k);
     const int mode = s->type == QD_MFX_ARP ? s->v[QD_MA_MODE] : s->v[QD_MR_MODE];
     int i, any = 0;
+    if (!r)
+        return 0;
     for (i = held_n(r) - 1; i >= 0; i--) {
         qd_mfx_held_t *h = &r->h[i];
         if (h->n.track != track || h->n.prev != prev || h->n.gen != gen || h->released)
@@ -522,11 +558,13 @@ static int held_release(qd_mfx_t *m, int g, int k, int track, int prev, int gen)
 static void arp_step(qd_mfx_t *m, int g, int k)
 {
     const qd_mfx_slot_t *s = &m->cfg[g].slot[k];
-    qd_mfx_srt_t *r = &m->g[g].s[k];
-    const int n = held_n(r), mode = s->v[QD_MA_MODE], mlen = clampi(s->v[QD_MA_MLEN], 1, 16),
+    qd_mfx_srt_t *r = srt(m, g, k);
+    const int n = r ? held_n(r) : 0, mode = s->v[QD_MA_MODE], mlen = clampi(s->v[QD_MA_MLEN], 1, 16),
               tlen = clampi(s->v[QD_MA_TLEN], 1, 16), range = clampi(s->v[QD_MA_RANGE], 1, 8);
     const int64_t steplen = QD_MFX_BAR / qd_mfx_rate_of(s->v[QD_MA_RATE]);
     int mod, tr, ties = 0, idx, i, np = 0, pitch[QD_MFX_NHOLD], pi[QD_MFX_NHOLD];
+    if (!r)
+        return;
     if (!n || !r->nseq) {
         r->run = 0;
         return;
@@ -626,8 +664,8 @@ static void arp_step(qd_mfx_t *m, int g, int k)
 static void rep_hit(qd_mfx_t *m, int g, int k, int i)
 {
     const qd_mfx_slot_t *s = &m->cfg[g].slot[k];
-    qd_mfx_srt_t *r = &m->g[g].s[k];
-    qd_mfx_held_t *h = &r->h[i];
+    qd_mfx_srt_t *r = srt(m, g, k);
+    qd_mfx_held_t *h = &r->h[i];                        /* (only called for a slot with its state) */
     const int64_t iv = QD_MFX_BAR / qd_mfx_rate_of(s->v[QD_MR_RATE]);
     const int cnt = clampi(s->v[QD_MR_HITS], 1, 64), f = s->v[QD_MR_FADE], mode = s->v[QD_MR_MODE];
     const int kk = h->hits < cnt - 1 ? h->hits : cnt - 1;
@@ -651,13 +689,21 @@ static void rep_hit(qd_mfx_t *m, int g, int k, int i)
 static void fx_in(qd_mfx_t *m, int g, int k, int on, const qd_mfx_note_t *nin)
 {
     const qd_mfx_slot_t *s = &m->cfg[g].slot[k];
-    qd_mfx_srt_t *r = &m->g[g].s[k];
+    qd_mfx_shd_t *hd = &m->g[g].hd[k];
+    qd_mfx_srt_t *r;
     qd_mfx_note_t n = *nin;
     const int chance = s->v[qd_mfx_chance_id(s->type)];
     int i;
     srt_sync(m, g, k);
+    r = srt(m, g, k);
     if (on)
         m->g[g].passed[k]++;
+    if (!r && srt_keeps(hd)) {                          /* (P2.1b: no place in the pool: let by, counted) */
+        if (on)
+            m->starved++;
+        emit(m, g, k, on, &n);
+        return;
+    }
     switch (s->type) {
     case QD_MFX_CHANCE:
         if (on && !hit(m, chance))
@@ -756,15 +802,15 @@ static void fx_in(qd_mfx_t *m, int g, int k, int on, const qd_mfx_note_t *nin)
     case QD_MFX_MONO: {
         const int t = n.track & 7;
         if (on && hit(m, chance)) {
-            if (r->mono_on[t] && (r->mono_prev[t] != n.prev || r->mono_gen[t] != n.gen)) {
+            if (hd->mono_on[t] && (hd->mono_prev[t] != n.prev || hd->mono_gen[t] != n.gen)) {
                 qd_mfx_note_t o = n;
-                o.prev = o.pitch = r->mono_prev[t];
-                o.gen = r->mono_gen[t];
+                o.prev = o.pitch = hd->mono_prev[t];
+                o.gen = hd->mono_gen[t];
                 emit(m, g, k, 0, &o);
             }
-            r->mono_on[t] = 1, r->mono_prev[t] = n.prev, r->mono_gen[t] = n.gen;
-        } else if (!on && r->mono_on[t] && r->mono_prev[t] == n.prev && r->mono_gen[t] == n.gen) {
-            r->mono_on[t] = 0;
+            hd->mono_on[t] = 1, hd->mono_prev[t] = n.prev, hd->mono_gen[t] = n.gen;
+        } else if (!on && hd->mono_on[t] && hd->mono_prev[t] == n.prev && hd->mono_gen[t] == n.gen) {
+            hd->mono_on[t] = 0;
         }
         emit(m, g, k, on, &n);
         return;
@@ -788,9 +834,9 @@ static void fx_in(qd_mfx_t *m, int g, int k, int on, const qd_mfx_note_t *nin)
             return;
         }
         if (s->v[QD_ML_MODE] == QD_SM_UP)               /* (a ring walked: up from the first, down from the last) */
-            r->cursor %= len, i = k + 1 + r->cursor, r->cursor = (r->cursor + 1) % len;
+            hd->cursor %= len, i = k + 1 + hd->cursor, hd->cursor = (hd->cursor + 1) % len;
         else if (s->v[QD_ML_MODE] == QD_SM_DOWN)
-            r->cursor = (r->cursor % len + len - 1) % len, i = k + 1 + r->cursor;
+            hd->cursor = (hd->cursor % len + len - 1) % len, i = k + 1 + hd->cursor;
         else
             i = k + 1 + (int)rnd(m, (uint32_t)len);
         if (i >= QD_MFX_NSLOT)
@@ -932,9 +978,11 @@ static void mark_idle(qd_mfx_t *m)                     /* the groups with nothin
             continue;
         for (i = 0; i < QD_MFX_NPEND && !busy; i++)
             busy = R->pend[i].used;
-        for (k = 0; k < QD_MFX_NSLOT && !busy; k++)
-            for (i = 0; i < QD_MFX_NHOLD && !busy; i++)
-                busy = R->s[k].h[i].used || R->s[k].run;
+        for (k = 0; k < QD_MFX_NSLOT && !busy; k++) {
+            const qd_mfx_srt_t *r = srt(m, g, k);
+            for (i = 0; r && i < QD_MFX_NHOLD && !busy; i++)
+                busy = r->h[i].used || r->run;
+        }
         R->idle = (uint8_t)!busy;
     }
 }
@@ -951,8 +999,10 @@ static int64_t next_due(const qd_mfx_t *m)
             if (R->pend[i].used && R->pend[i].tick < t)
                 t = R->pend[i].tick;
         for (k = 0; k < QD_MFX_NSLOT; k++) {
-            const qd_mfx_srt_t *r = &R->s[k];
-            const int ty = r->type & 0x7F;
+            const qd_mfx_srt_t *r = qd_mfx_srt(m, g, k);
+            const int ty = R->hd[k].type & 0x7F;
+            if (!r)
+                continue;
             if (ty == QD_MFX_ARP && r->run && r->next < t)
                 t = r->next;
             if (ty == QD_MFX_ARP || ty == QD_MFX_REPEAT || ty == QD_MFX_RANDOM)
@@ -995,8 +1045,10 @@ void qd_mfx_advance(qd_mfx_t *m, int64_t tick)
         }
         for (g = 0; g < QD_MFX_NGROUP; g++)
             for (k = 0; k < QD_MFX_NSLOT; k++) {
-                qd_mfx_srt_t *r = &m->g[g].s[k];
-                const int ty = r->type & 0x7F;
+                qd_mfx_srt_t *r = srt(m, g, k);
+                const int ty = m->g[g].hd[k].type & 0x7F;
+                if (!r)
+                    continue;
                 if (ty == QD_MFX_ARP || ty == QD_MFX_REPEAT)   /* the timed inputs' ends: as released */
                     for (i = held_n(r) - 1; i >= 0; i--)
                         if (r->h[i].until && !r->h[i].released && r->h[i].until <= t)
@@ -1051,13 +1103,14 @@ void qd_mfx_flush_track(qd_mfx_t *m, int t, int live)
         return;
     for (g = 0; g < QD_MFX_NGROUP; g++) {
         for (k = 0; k < QD_MFX_NSLOT; k++) {
-            qd_mfx_srt_t *r = &m->g[g].s[k];
-            const int ty = r->type & 0x7F;
-            if (ty == QD_MFX_RANDOM) {
+            qd_mfx_srt_t *r = srt(m, g, k);
+            qd_mfx_shd_t *hd = &m->g[g].hd[k];
+            const int ty = hd->type & 0x7F;
+            if (r && ty == QD_MFX_RANDOM) {
                 for (i = 0; i < QD_MFX_NHOLD; i++)
                     if (r->h[i].used && r->h[i].n.track == t && (live < 0 || r->h[i].n.live == live))
                         r->h[i].used = 0;
-            } else if (ty == QD_MFX_ARP || ty == QD_MFX_REPEAT) {
+            } else if (r && (ty == QD_MFX_ARP || ty == QD_MFX_REPEAT)) {
                 for (i = held_n(r) - 1; i >= 0; i--)
                     if (r->h[i].n.track == t && (live < 0 || r->h[i].n.live == live)) {
                         if (!r->h[i].released && r->down > 0)
@@ -1071,7 +1124,7 @@ void qd_mfx_flush_track(qd_mfx_t *m, int t, int live)
                 }
             }
             if (t >= 0 && t < 8)
-                r->mono_on[t] = 0;
+                hd->mono_on[t] = 0;
         }
         group_release(m, g, t, live);
     }
@@ -1084,10 +1137,13 @@ void qd_mfx_reset(qd_mfx_t *m)
         return;
     for (g = 0; g < QD_MFX_NGROUP; g++) {
         for (k = 0; k < QD_MFX_NSLOT; k++) {
-            qd_mfx_srt_t *r = &m->g[g].s[k];
-            const uint8_t ty = r->type, by = r->bypass;
-            memset(r, 0, sizeof *r);
-            r->type = ty, r->bypass = by;
+            qd_mfx_srt_t *r = srt(m, g, k);
+            qd_mfx_shd_t *hd = &m->g[g].hd[k];
+            if (r)
+                memset(r, 0, sizeof *r);                /* (P2.1b: its place kept) */
+            hd->cursor = 0;
+            memset(hd->mono_on, 0, sizeof hd->mono_on), memset(hd->mono_prev, 0, sizeof hd->mono_prev);
+            memset(hd->mono_gen, 0, sizeof hd->mono_gen);
         }
         group_release(m, g, -1, -1);
     }
@@ -1106,10 +1162,12 @@ int qd_mfx_busy(const qd_mfx_t *m, int g)
     for (i = 0; i < QD_MFX_NPEND; i++)
         if (R->pend[i].used)
             return 1;
-    for (k = 0; k < QD_MFX_NSLOT; k++)
-        for (i = 0; i < QD_MFX_NHOLD; i++)
-            if (R->s[k].h[i].used)
+    for (k = 0; k < QD_MFX_NSLOT; k++) {
+        const qd_mfx_srt_t *r = qd_mfx_srt(m, g - 1, k);
+        for (i = 0; r && i < QD_MFX_NHOLD; i++)
+            if (r->h[i].used)
                 return 1;
+    }
     return 0;
 }
 
@@ -1152,7 +1210,7 @@ int qd_mfx_arp_playing(const qd_mfx_t *m, int g)
     if (g < 1 || g > QD_MFX_NGROUP || !m->cfg)
         return 0;
     for (k = 0; k < QD_MFX_NSLOT; k++)
-        if ((m->g[g - 1].s[k].type & 0x7F) == QD_MFX_ARP && m->g[g - 1].s[k].run)
+        if ((m->g[g - 1].hd[k].type & 0x7F) == QD_MFX_ARP && qd_mfx_srt(m, g - 1, k) && qd_mfx_srt(m, g - 1, k)->run)
             return 1;
     return 0;
 }
