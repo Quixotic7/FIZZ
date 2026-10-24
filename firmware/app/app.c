@@ -162,21 +162,30 @@ static uint32_t clock_boot[6];           /* (main_fm1.c's, later in the unity bu
 #endif
 /* (P2.12) the panel's scan position (ST7789 RDSCL, read back on the data line: build.py's OVERLAY of fm1_lcd_hw.h) and
  * its refresh (FRCTRL2 set to 60 Hz: fm1-base's start leaves the panel's own default, the same 0x0F after SWRESET).
- * The read's 24 bits: a dummy clock, then STS[15:0] (the line in its low 10 bits); the other reading (no dummy clock)
- * kept beside it until the unit says which is right. 7D 46 50 "SCAN" (fizz_xdata.py stats --scan): reads for a second,
+ * The read's 24 bits: a dummy clock, then STS[15:0] (the line in its low 10 bits). The unit (9e65e0ba): 0..333, 60
+ * wraps a second: the panel's 320 lines and its porches (ST7789: 320 + 12 + 12 at the default PORCTRL ~ 334 lines a
+ * refresh, ~50 us a line at 60 Hz); this module's 240 rows are lines 0..239 (no row offset in fm1-base's MADCTL), so
+ * lines 240..333 (~4.7 ms) are the refresh's dark stretch. The other reading (no dummy clock) is half of it: wrong. 7D 46 50 "SCAN" (fizz_xdata.py stats --scan): reads for a second,
  * line 9 */
 #define FZ_FRCTRL2_60HZ 0x0Fu
 static uint32_t fz_scan_n, fz_scan_fail, fz_scan_bad, fz_scan_cost_max, fz_scan_cost_sum, fz_scan_wraps[2],
     fz_scan_min[2] = {0xFFFFu, 0xFFFFu}, fz_scan_max[2], fz_scan_raw[6], fz_scan_ms;
 #ifndef PLAT_HOST
+#define FZ_SCAN_SLOW_US 25u               /* (a read that took longer: an interrupt inside it; read again) */
+static uint32_t fz_scan_rereads;
 static int fz_scanline(uint32_t *line, uint32_t *alt)   /* 0 read (the line, the other reading); -1 failed */
 {
-    uint32_t raw = 0, t0, d;
-    int rc;
+    uint32_t raw = 0, t0, d, k;
+    int rc = -1;
     lcd_sync();
-    t0 = plat_ticks24();
-    rc = fm1_lcd_read_scanline(&raw);
-    d = plat_ticks24() - t0;
+    for (k = 0; k < 3u; k++) {           /* (a line read late is stale by the read's length: at most two more tries) */
+        t0 = plat_ticks24();
+        rc = fm1_lcd_read_scanline(&raw);
+        d = plat_ticks24() - t0;
+        if (d <= FZ_SCAN_SLOW_US * PLAT_TICKS_PER_US)
+            break;
+        fz_scan_rereads++;
+    }
     fz_scan_cost_sum += d;
     if (d > fz_scan_cost_max)
         fz_scan_cost_max = d;
@@ -195,7 +204,7 @@ static void fz_scan_test(void)           /* reads for a second, ~1 ms apart: the
 {
     uint32_t t0 = plat_ms(), prev[2] = {0, 0}, k, l[2];
     int first = 1;
-    fz_scan_n = fz_scan_fail = fz_scan_bad = fz_scan_cost_max = fz_scan_cost_sum = 0;
+    fz_scan_n = fz_scan_fail = fz_scan_bad = fz_scan_cost_max = fz_scan_cost_sum = fz_scan_rereads = 0;
     fz_scan_wraps[0] = fz_scan_wraps[1] = fz_scan_max[0] = fz_scan_max[1] = 0;
     fz_scan_min[0] = fz_scan_min[1] = 0xFFFFu;
     while (plat_ms() - t0 < 1000u) {
@@ -721,6 +730,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "scan_over400=", fz_scan_bad);
     c = fz_put_u(c, "scan_cost_avg_us=", fz_us(fz_scan_n ? (uint64_t)fz_scan_cost_sum / fz_scan_n : 0u));
     c = fz_put_u(c, "scan_cost_max_us=", fz_us(fz_scan_cost_max));
+    c = fz_put_u(c, "scan_rereads=", fz_scan_rereads);
     c = fz_put_u(c, "line_min=", fz_scan_min[0]);
     c = fz_put_u(c, "line_max=", fz_scan_max[0]);
     c = fz_put_u(c, "line_wraps=", fz_scan_wraps[0]);       /* (in scan_ms: refreshes, ~60 a second) */
