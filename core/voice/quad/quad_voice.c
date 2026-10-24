@@ -188,6 +188,7 @@ void qd_quad_voice_start(qd_quad_voice_t *v, const int16_t *patch, qd_quad_owner
     v->gate = v->active = 1;
     v->kill = 0;
     v->nx_ok = 0;                                       /* (P2.6: no offsets of its own until its first block) */
+    v->fq_sm = v->patch[QD_QP_FREQ], v->rs_sm = v->patch[QD_QP_RESO];   /* (P2.6b: from the note's own: no glide) */
     v->pitch16 = v->pitch_cur = (int32_t)note * 16;
     v->gstep = 0;                                       /* (E1: no glide unless qd_quad_voice_glide says so) */
     {   /* E4: RANDOM: a value a note, from the voice's place and the track's count of notes (deterministic) */

@@ -162,6 +162,11 @@ void qd_app_seed(qd_app_t *a, uint32_t seed);
 void qd_app_key(qd_app_t *a, int key, int down, int vel);
 void qd_app_button(qd_app_t *a, int button, int down);
 void qd_app_knob(qd_app_t *a, int knob, int detents);
+/* P2.6b: an input's undo gesture opened now (its snapshot of the pattern: on the device it is compressed into the
+ * undo log, ~330 K host instructions, the gesture's first input only). The port calls it before it takes the audio
+ * lock for qd_app_key / qd_app_button / qd_app_knob / qd_app_midi_ui: it reads the patterns and writes the undo log,
+ * which the audio side never touches; the locked call then finds the gesture open and costs a few thousand */
+void qd_app_input_prepare(qd_app_t *a);
 void qd_app_master(qd_app_t *a, int pot);
 void qd_app_midi(qd_app_t *a, int status, int d1, int d2);   /* status 0xF8 / FA / FB / FC: MIDI clock */
 void qd_app_midi_play(qd_app_t *a, int status, int d1, int d2);   /* P2.4: its audio-safe part (the interrupt's) .. */

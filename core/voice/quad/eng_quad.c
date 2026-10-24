@@ -744,6 +744,13 @@ static int32_t quad_exp2(int32_t x)
 
 /* LFO k's phase increment per control tick: f = SPEED x MULT / 128 x BPM / 240 Hz (SPEED x MULT = 128: a bar; MULT's
  * fixed set at 120 BPM); negative runs backwards, 0 stops. SPEED in hundredths (-6400..6399), exact in 64 bits */
+/* P2.6b: a value gliding to its target: a quarter of the way a block, the last 7 at once */
+static int32_t quad_glide_v(int32_t cur, int32_t tgt)
+{
+    const int32_t d = tgt - cur;
+    return d > -8 && d < 8 ? tgt : cur + d / 4;
+}
+
 typedef char quad_lfo_k_ok[QUAD_LFO_K == 100u * 65536u + 94996u ? 1 : -1];   /* (P2.4: quad_lfo_incv's split) */
 static int32_t quad_lfo_incb(int32_t sp, uint32_t mu, int32_t gbpm)   /* (P2.6: the owner's tempo, no global) */
 {
@@ -1316,9 +1323,15 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     dlb2 = ((tl[2] << 16) - lb2) >> CTL_LOG2;
     /* the multimode filter: FREQ, its envelope by DEPTH, key track, the LFOs */
     fdep = QMV(QP_FDEPTH, QD_FENV, 12700, -6400, 6399);          /* (hundredths: FREQ, RESO, DEPTH, BASE) */
-    cut = (QMV(QP_FREQ, QD_FREQ, 12700, 0, 12700) * 256 + 50) / 100 + (eF * fdep) / 6400 +
+    /* P2.6b: FREQ and RESO as the voice runs them: a live change (a knob, a LOCK on this sounding voice) is reached
+     * over a few blocks (a quarter of the way a block, the last 7 hundredths at once: ~7 ms for a detent), not in one
+     * 32-sample step (a zipper, a click at high resonance); a note starts at its own values, so a note whose FREQ and
+     * RESO stay put is the same, sample for sample */
+    v->fq_sm = (int16_t)quad_glide_v(v->fq_sm, p[QP_FREQ]);
+    v->rs_sm = (int16_t)quad_glide_v(v->rs_sm, p[QP_RESO]);
+    cut = (clamp(v->fq_sm + ((dst[QD_FREQ] * 12700) >> 15), 0, 12700) * 256 + 50) / 100 + (eF * fdep) / 6400 +
           (((m->pitch16 - 60 * 16) * p[QP_FKTRK] * 150) >> 10);
-    reso = QMV(QP_RESO, QD_RESO, 12700, 0, 12700);
+    reso = clamp(v->rs_sm + ((dst[QD_RESO] * 12700) >> 15), 0, 12700);
     fty = p[QP_FTYPE];
     svf = fty != QF_OFF && !(fty != QF_HP12 && cut >= (127 << 8) && !reso);   /* LP wide open, no resonance: none */
     if (fty >= QD_QF_MULTI)                      /* QUADRILLE (e): the machines 4..7 always run */

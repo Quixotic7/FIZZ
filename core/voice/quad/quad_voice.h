@@ -122,7 +122,9 @@ struct qd_quad_voice {
     int16_t mrnd;                       /* E4: the RANDOM source's value for this note (Q15, bipolar) */
     int8_t nx_pan, nx_fx[4];            /* P2.6: as the latest note's voice, the offsets its last block made (the
                                          * owner's quad_pan_off, quad_fx_off) .. */
-    uint8_t nx_ok;                      /* .. made since its start */   /* E2: the filter machines' state (quad_ext.c:
+    uint8_t nx_ok;                      /* .. made since its start */
+    int16_t fq_sm, rs_sm;               /* P2.6b: FREQ and RESO as the filter runs them: they glide to a live change (a
+                                         * knob, a LOCK on a sounding voice) over a few blocks; a note starts at its own */   /* E2: the filter machines' state (quad_ext.c:
                                          * the comb's damping and length (Q8), its write place; the machine last run; a
                                          * fresh start: its line from silence) */
 };

@@ -128,6 +128,8 @@ void qd_app_button(qd_app_t *a, int button, int down)
     qd_ctl_preview_sync(a);
 }
 
+void qd_app_input_prepare(qd_app_t *a) { qd_undo_input(a, 0); }
+
 void qd_app_knob(qd_app_t *a, int knob, int detents)
 {
     if (detents && knob >= 0 && knob < QD_NKNOB) {

@@ -416,14 +416,18 @@ static void rl_release(void)                           /* (the arena wants its r
 int qd_dl_begin(void)
 {
 #if RL_ON
-    static const uint32_t SZ[4] = {24576u, 16384u, 12288u, 8192u};
+    static const uint32_t SZ[5] = {22528u, 20480u, 16384u, 12288u, 8192u};
+    const size_t room = qd_arena_size() - QD_GFX_MARGIN - qd_arena_live();   /* (the margin kept: a list is not the
+                                                         * drawing's to spend it) */
     int k;
 #endif
     qd_dl_drop();
 #if !RL_ON
     return 0;
 #else
-    for (k = 0; k < 4 && !rl_buf; k++) {
+    for (k = 0; k < 5 && !rl_buf; k++) {
+        if (SZ[k] + 64u > room)
+            continue;
         const int was = qd_arena_use(1);                /* (the host at the device's sizes: the arena, as the unit) */
         rl_buf = (uint8_t *)qd_arena_try(SZ[k]);
         qd_arena_use(was);
