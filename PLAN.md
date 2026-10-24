@@ -1549,8 +1549,11 @@ core-1 start waits for felucca-bsp #5 (MPL); ChoralRoot's `cr_cpu1.h` (the owner
 the manager is `firmware/app/fz_dual.c` (`firmware/DUALCORE.md`).
 
 **The second core (2026-10-24):** fm1-base now has it (`cpu2 = true`, felucca-bsp's MPL-2.0 port of Melodee's,
-thanks to keremimo; fm1-base 42dc630). FIZZ moves to that fm1-base with `cpu2_fallback = true` and 16 voices, 8 + 8.
-fm1-base also makes REC held at power-on enter update mode, so FIZZ's safe mode needs another gesture.
+thanks to keremimo; fm1-base 42dc630). FIZZ moves to that fm1-base with `cpu2_fallback = true`.
+fm1-base also makes REC held at power-on enter update mode, so FIZZ's safe mode moves to another gesture.
+**The owner's split (2026-10-24):** polyphony is **capped at 8 voices** for good (the Digitone 1's count; the FM-1 is a
+small machine), on every profile so RemoteFM1 matches. **The second core keeps the UI responsive:** it draws the
+screen, and renders the voices core 0 can't fit (core 0 ~5–6 voices, core 1 the other 2–3), the voice job first.
 
 **The 256-colour frame (the owner, 2026-10-23):** after P2.10 the unit tore on the motorcycle and the ape (their
 frames change more rows than the stash holds). The owner chose the palettised full frame (`research/SMOOTH-DISPLAY.md`
