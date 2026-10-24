@@ -38,7 +38,11 @@ static uint32_t fz_fb_row_hash(const uint8_t *p)
 
 static int fz_fb_line(uint32_t *line)    /* the scan's line now; -1 none */
 {
-#ifdef PLAT_HOST
+#if defined(PLAT_WEB)
+    (void)line;                          /* (the browser's emulator: its clock moves only between its calls, and its
+                                          * canvas does not tear: no scan to wait for) */
+    return -1;
+#elif defined(PLAT_HOST)
     *line = (plat_ticks24() / PLAT_TICKS_PER_US / FZ_FB_LINE_US) % FZ_FB_LINES;   /* (the host: a panel of its own) */
     return 0;
 #else
@@ -109,8 +113,9 @@ static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t b
         const uint32_t smax = FZ_FB_LINES + last > need + first ? FZ_FB_LINES + last - need : first;
         wait0 = plat_ticks24();
         if (!fz_fb_line(&line)) {
+            uint32_t polls = 0;
             while (!(line >= first && line <= smax)) {
-                if ((plat_ticks24() - wait0) / PLAT_TICKS_PER_US > 18000u) {
+                if ((plat_ticks24() - wait0) / PLAT_TICKS_PER_US > 18000u || ++polls > 100000u) {
                     line = 0xFFFFu;
                     break;
                 }
