@@ -100,6 +100,17 @@ if VARIANT and VARIANT not in VARIANTS:
 DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS.get(VARIANT, 0)}u")
 if VARIANT == "o2ram":                           # (the render's 22.6 KB at -O2 fits only with the effects out)
     HOT.pop("build_units_c_qd_fx.o")
+# P2.15: the control block's begin (the sequencer, the player, the voices' starts, the owners' LFOs: branchy code that
+# missed the flash's cache, its spikes ~8x its average on the unit) in RAM too, in the dual build (the single-core
+# build's region is full); FZ_BEGIN_RAM=0 leaves it in the flash (the comparison)
+BEGIN_RAM = not SINGLE and os.environ.get("FZ_BEGIN_RAM", "1") == "1"
+DEFS.append(f"-DFZ_BEGIN_RAM={int(BEGIN_RAM)}")    # (stats line 8: begin_ram=)
+if BEGIN_RAM:
+    HOT.update({"build_units_c_player.o": ["qd_player_block", "fz_real_qd_player_block", "?qd_player_event"],
+                "build_units_c_app.o": ["qd_app_block_begin", "?qd_app_tempo"],
+                "build_units_c_pool.o": ["qd_pool_block_begin"],
+                "build_units_c_seq.o": ["?qd_seq_bpm"],
+                "build_units_c_quad_voice.o": ["qd_quad_owner_block"]})
 if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does not fit the RAM code region: flash)                  # (8 voices: the RAM they free takes the voices' render)
     HOT["build_units_c_quad_voice.o"] = ["quad_render", "qd_quad_voice_render", "?quad_lfo_incb", "?quad_lfo_incb_p",
                                          "?quad_lfo_incv", "?quad_lfo_inc"]   # (?: its helpers, where the core has them)

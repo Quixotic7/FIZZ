@@ -102,6 +102,8 @@ extern int32_t fz_bench_render_sum;
 void fz_fb_attach(uint8_t *const rows[240]);
 const uint16_t *fz_fb_palette(uint32_t *gen);
 int fz_frame_fb(uint32_t *bands);
+int fz_frame_fb_begin(uint32_t *bands);            /* (P2.15: the instant taken; then a few bands a step, input between) */
+int fz_frame_fb_step(int n);                       /* (bands left: 0 the frame is whole) */
 /* (P2.12) the Geek Out pages' figures (the core's qd_app_stats_t, app.h), and the store's sectors in use, in bytes */
 typedef struct {                       /* (the platform's figures, as qd_app_stats_t has them: app.h) */
     uint32_t have;                     /* QD_ST_* bits (1 LOAD0, 2 LOAD1, 4 FPS, 8 ISR, 16 LOCK, 32 RAM, 64 STORE, 128 BOOT) */

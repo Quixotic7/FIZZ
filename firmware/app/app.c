@@ -720,6 +720,9 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "bench_now_us_per_128=", fz_bench_now_us128);   /* (7D 46 50 "BNCH": the bench again, now) */
     c = fz_put_u(c, "bench_now_runs=", fz_bench_now_n);
     c = fz_put_u(c, "build=", FZ_VARIANT_ID);
+#ifdef FZ_BEGIN_RAM
+    c = fz_put_u(c, "begin_ram=", FZ_BEGIN_RAM);   /* (P2.15: the block's begin in RAM code: 1) */
+#endif
     c = fz_put_u(c, "bench_blocks=", FZ_BENCH_BLOCKS);
     c = fz_put_u(c, "bench_sum=", (uint32_t)fz_bench_sum);
     c = fz_put_u(c, "bench_left_shared=", (uint32_t)fz_bench_shared_changed);
@@ -1254,10 +1257,9 @@ static uint32_t fz_pal_gen;
 static uint8_t fz_fb_on;
 static uint32_t fz_fb_n;
 #ifndef FZ_FB_FULL_EVERY
-#define FZ_FB_FULL_EVERY 1u              /* (a frame in this many: every band drawn, not only the changed ones. 1 until
-                                          * the core's band check is fixed: with only the changed bands, the simulator's
-                                          * compare left 332 stale pixels in a playing frame, and every 8th frame in full
-                                          * did not cure it. The send still sends only the rows that changed) */
+#define FZ_FB_STEP 2                     /* (P2.15: bands drawn between two looks at the input: 2 x 16 rows) */
+#define FZ_FB_FULL_EVERY 0u              /* (a frame in this many: every band drawn, not only the changed ones; 0
+                                          * the core's band check alone, P2.15: its stale pixels fixed, 10b8215) */
 #endif
 static void fz_fb_start(void)            /* (once FIZZ is up: the rows attached; every band drawn at the next frame) */
 {
@@ -1278,9 +1280,21 @@ static int fz_draw_fb(int all)           /* a frame: drawn at one instant into t
     fz_in_frame = 1;
     if (FZ_FB_FULL_EVERY && ++fz_fb_n % FZ_FB_FULL_EVERY == 0u)   /* (0: the core's band check alone) */
         fz_fb_attach(fz_rowp);           /* (every band drawn: FZ_FB_FULL_EVERY) */
-    fz_frame_fb(&bands);
-    t1 = plat_ticks24();
-    fz_prof.draw += t1 - t0;
+    {   /* (P2.15) the frame from one instant, drawn FZ_FB_STEP bands at a time with the input (the panel, MIDI, the
+         * clock, the LEDs) between: a heavy frame no longer holds a press back for its whole drawing */
+        uint32_t ti = 0;
+        if (fz_frame_fb_begin(&bands))
+            while (fz_frame_fb_step(FZ_FB_STEP) > 0) {
+                const uint32_t tq = plat_ticks24();
+                fz_input();
+                if (plat_ms() - fz_led_t >= FZ_LED_MS)
+                    fz_lights();
+                ti += plat_ticks24() - tq;
+            }
+        t1 = plat_ticks24();
+        fz_prof.draw += t1 - t0 - ti;
+        fz_prof.input_in_frame += ti;
+    }
     fz_pal = fz_fb_palette(&gen);
     if (gen != fz_pal_gen)
         all = 1, fz_pal_gen = gen;       /* (a new palette: every row again) */
