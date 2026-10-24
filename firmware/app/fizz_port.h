@@ -112,3 +112,4 @@ typedef struct {                       /* (the platform's figures, as qd_app_sta
 uint32_t fz_stats_fill(const fz_plat_stats_t *f);   /* into qd_app_stats; returns the core's reset count */
 void fz_store_use(uint32_t *used, uint32_t *size);
 int fz_screen_index(void);                          /* (the screen being drawn: fz_prof.h fz_screens) */
+void fz_store_region(uint32_t *off, uint32_t *size);   /* (P2.13: the store's region in the data flash) */

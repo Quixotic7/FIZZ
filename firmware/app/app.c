@@ -1688,15 +1688,15 @@ void app_input_only(void) { fz_step(0); }
  * answers 46 "FZOK" or "FZER" + a code. FIZZ then starts (it could not before). Already there: FZOK at once. */
 static uint32_t fz_rd32(const uint8_t *p) { return p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 
-static void fz_usb_reply(const char *tag, uint32_t code)   /* F0 pack7(00 59 46 len 0 0 body ~sum) F7, as ota.c's */
+#define FZ_BK_CHUNK 256u                 /* (P2.13: a backup read's bytes at most) */
+static void fz_usb_frame(const uint8_t *body, uint32_t nbody)   /* F0 pack7(00 59 46 len 0 0 body ~sum) F7, as ota.c's;
+                                                                 * body: a 4-byte tag, then its data */
 {
-    uint8_t m[16], w[24];
+    uint8_t m[8 + 12 + FZ_BK_CHUNK], w[(8 + 12 + FZ_BK_CHUNK) * 8 / 7 + 4];   /* (the stack: RAM is the frame's) */
     uint32_t i, s = 0, n = 0, acc = 0, nb = 0, k;
-    m[n++] = 0, m[n++] = 0x59, m[n++] = 0x46, m[n++] = 8, m[n++] = 0, m[n++] = 0;
-    for (i = 0; i < 4u; i++)
-        m[n++] = (uint8_t)tag[i];
-    for (i = 0; i < 4u; i++)
-        m[n++] = (uint8_t)(code >> (8u * i));
+    m[n++] = 0, m[n++] = 0x59, m[n++] = 0x46, m[n++] = (uint8_t)nbody, m[n++] = (uint8_t)(nbody >> 8), m[n++] = 0;
+    for (i = 0; i < nbody; i++)
+        m[n++] = body[i];
     for (i = 6; i < n; i++)
         s += m[i];
     m[n++] = (uint8_t)~s;
@@ -1716,6 +1716,15 @@ static void fz_usb_reply(const char *tag, uint32_t code)   /* F0 pack7(00 59 46 
     w[k++] = 0xF7;
     plat_sysex_send(w, k);
 }
+static void fz_usb_reply(const char *tag, uint32_t code)
+{
+    uint8_t b[8];
+    uint32_t i;
+    for (i = 0; i < 4u; i++)
+        b[i] = (uint8_t)tag[i], b[4u + i] = (uint8_t)(code >> (8u * i));
+    fz_usb_frame(b, 8u);
+}
+static void fz_wr32(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v, p[1] = (uint8_t)(v >> 8), p[2] = (uint8_t)(v >> 16), p[3] = (uint8_t)(v >> 24); }
 
 static uint32_t fz_xdata_write(uint32_t off, uint32_t len, uint32_t crc)   /* 0 done, else FZER's code */
 {
@@ -1736,9 +1745,111 @@ static uint32_t fz_xdata_write(uint32_t off, uint32_t len, uint32_t crc)   /* 0 
     return fz_xdata_state() == 1 ? 0u : 6u;
 }
 
+/* (P2.13) THE STORE'S BACKUP AND RESTORE over USB (firmware/tools/fizz_xdata.py backup / restore; the install page),
+ * the update's framing as FZXD's. The store's region whole (0x97000..0xDFFFF: FIZZ's projects and MY PRESETS; not the
+ * data blob, which is the build's, not the player's):
+ *   46 "FZBI"              -> "FZBI" off size crc        its offset, size and CRC-32 now
+ *   46 "FZBR" off n        -> "FZBD" off <n bytes>       n <= 256 bytes of it (the host reads it all, checks the CRC)
+ *   46 "FZSR" len crc      restore: refused while playing (FZER 10) or for another size (11); the image pulled once and
+ *                          its CRC checked before anything is erased (12); then the sound off, each sector erased and
+ *                          written from a second pull (13: a write failed), the region read back (14: other than the
+ *                          image), FIZZ started again on it: FZOK. A power loss during the writes leaves the region
+ *                          half written: FIZZ's store then meets it as another's and clears it at the next start */
+static uint32_t fz_crc32(uint32_t c, const uint8_t *p, uint32_t n)
+{
+    uint32_t i, k;
+    c = ~c;
+    for (i = 0; i < n; i++) {
+        c ^= p[i];
+        for (k = 0; k < 8u; k++)
+            c = c >> 1 ^ (0xEDB88320u & (0u - (c & 1u)));
+    }
+    return ~c;
+}
+static uint32_t fz_region_crc(uint32_t lo, uint32_t size)
+{
+    uint32_t a, c = 0;
+    for (a = 0; a < size; a += 4096u) {
+        const uint8_t *p = plat_data(lo + a);
+        if (!p)
+            return 0;
+        c = fz_crc32(c, p, 4096u);
+        fz_watchdog();
+    }
+    return c;
+}
+static uint32_t fz_restore(uint32_t lo, uint32_t size, uint32_t len, uint32_t crc)   /* 0 done, else FZER's code */
+{
+    uint8_t buf[512];                    /* (the stack) */
+    uint32_t a, c = 0;
+    int mode, playing;
+    fz_ui_state(&mode, &playing);
+    if (playing)
+        return 10;
+    if (len != size)
+        return 11;
+    for (a = 0; a < len; a += sizeof buf) {   /* (first the image whole: nothing erased for a bad one) */
+        if (plat_host_read(a, buf, sizeof buf))
+            return 12;
+        c = fz_crc32(c, buf, sizeof buf);
+        fz_watchdog();
+    }
+    if (c != crc)
+        return 12;
+    app_panic();
+    fz_message("FIZZ: RESTORING ITS STORE", "DO NOT UNPLUG");
+    for (a = 0; a < len; a += sizeof buf) {
+        if (!(a & 0xFFFu) && plat_data_erase(lo + a))
+            return 13;
+        if (plat_host_read(a, buf, sizeof buf) || plat_data_write(lo + a, buf, sizeof buf))
+            return 13;
+    }
+    return fz_region_crc(lo, size) == crc ? 0u : 14u;
+}
+
 void app_usb_cmd(const uint8_t *d, uint32_t n)
 {
     uint32_t len, crc, off, rc;
+    if (n >= 7u + 4u && d[2] == 0x46u && (fz_rd32(d + 6) == 0x49425A46u || fz_rd32(d + 6) == 0x52425A46u ||
+                                          fz_rd32(d + 6) == 0x52535A46u)) {   /* "FZBI" "FZBR" "FZSR" */
+        uint8_t b[12 + FZ_BK_CHUNK];
+        uint32_t lo, size;
+        fz_store_region(&lo, &size);
+        if (fz_rd32(d + 6) == 0x49425A46u) {   /* FZBI */
+            memcpy(b, "FZBI", 4);
+            fz_wr32(b + 4, lo), fz_wr32(b + 8, size), fz_wr32(b + 12, fz_region_crc(lo, size));
+            fz_usb_frame(b, 16u);
+        } else if (fz_rd32(d + 6) == 0x52425A46u) {   /* FZBR off n */
+            const uint8_t *p;
+            if (n < 7u + 12u)
+                return;
+            off = fz_rd32(d + 10), len = fz_rd32(d + 14);
+            if (len > FZ_BK_CHUNK || off > size || len > size - off || !(p = plat_data(lo + off))) {
+                fz_usb_reply("FZER", 11);
+                return;
+            }
+            memcpy(b, "FZBD", 4);
+            fz_wr32(b + 4, off);
+            memcpy(b + 8, p, len);
+            fz_usb_frame(b, 8u + len);
+        } else {                             /* FZSR len crc */
+            if (n < 7u + 12u)
+                return;
+            len = fz_rd32(d + 10), crc = fz_rd32(d + 14);
+            rc = fz_restore(lo, size, len, crc);
+            if (rc >= 13u || !rc) {          /* (the region was written: FIZZ again on what it holds) */
+                fz_restart();
+                if (fz_ok && !fz_safe) {
+                    if (fz_store_foreign() > 0)
+                        fz_wiped = fz_store_wipe();   /* (a restore cut short: as another firmware's region) */
+                    fz_store_attach();
+                }
+            }
+            fz_usb_reply(rc ? "FZER" : "FZOK", rc ? rc : 1u);
+            app_ui_init();
+        }
+        return;
+    }
     if (n < 7u + 16u || d[2] != 0x46u || fz_rd32(d + 6) != 0x44585A46u)   /* 46 "FZXD" */
         return;
     len = fz_rd32(d + 10), crc = fz_rd32(d + 14), off = fz_rd32(d + 18);

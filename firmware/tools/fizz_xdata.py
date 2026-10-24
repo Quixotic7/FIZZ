@@ -12,6 +12,11 @@ its blob's length and CRC-32 into the firmware, and the unit takes only its own 
                                                    a frame's time by phase and by screen (firmware/BUDGET.md)
   fizz_xdata.py wipe [--port NAME]                 FIZZ's store (0x97000..0xDFFFF) erased, FIZZ started again on it
   fizz_xdata.py info [--blob FILE]                 the blob's length and CRC-32 (no unit)
+  fizz_xdata.py backup FILE [--port NAME]          FIZZ's store (0x97000..0xDFFFF: projects, MY PRESETS) into FILE
+  fizz_xdata.py restore FILE [--port NAME]         .. back from FILE: stopped only; the image checked before anything
+                                                   is erased; a cable pulled while it writes leaves the store cleared
+                                                   at the next start. FZER 10 playing, 11 another size, 12 the image's
+                                                   CRC, 13 a write, 14 the check after writing
 Safe mode (the store not mounted): hold REC while switching the FM-1 on.
 
 The transfer is the update's own (fm1-base app_usb_cmd, plat_host_read): one command, 46 "FZXD" len crc off, then the
@@ -129,6 +134,100 @@ def stats(a):
         link.close()
 
 
+def _reply(p):
+    """a FIZZ reply in the update's framing -> (tag, payload) or None"""
+    if not p or len(p) < 3 or p[0] != 0xF0 or p[-1] != 0xF7:
+        return None
+    u = fi.unpack7(p[1:-1])
+    if len(u) < 11 or u[:3] != b"\x00\x59\x46":
+        return None
+    n = u[3] | u[4] << 8
+    body = u[6:6 + n]
+    if len(body) < 4 or (~sum(body) & 0xFF) != u[6 + n]:
+        return None
+    return body[:4].decode("latin-1"), body[4:]
+
+
+def _ask(link, payload, want, timeout=5.0):
+    link.send(fi.frame(0x46, payload))
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        r = _reply(link.read(end - time.monotonic()))
+        if r and r[0] in (want, "FZER"):
+            return r
+    return None
+
+
+def backup(a):
+    """FIZZ's store region read out, 256 bytes a request, its CRC-32 checked against the unit's"""
+    dev = find(a.port)
+    link = dev.link
+    link.drain()
+    try:
+        r = _ask(link, b"FZBI", "FZBI", 15.0)
+        if not r or r[0] != "FZBI":
+            print("no answer to FZBI (an older FIZZ?)")
+            return 1
+        lo, size, crc = struct.unpack("<III", r[1][:12])
+        print(f"FIZZ {dev.id.text}: its store at {lo:#x}, {size} B, CRC-32 {crc:08x}")
+        out = bytearray()
+        while len(out) < size:
+            n = min(256, size - len(out))
+            r = _ask(link, b"FZBR" + struct.pack("<II", len(out), n), "FZBD")
+            if not r or r[0] != "FZBD" or struct.unpack("<I", r[1][:4])[0] != len(out) or len(r[1]) != 4 + n:
+                print(f"\nthe read at {len(out):#x} failed")
+                return 1
+            out += r[1][4:]
+            print(f"\r{len(out) * 100 // size:3d}%", end="", flush=True)
+        print()
+        if zlib.crc32(out) & 0xFFFFFFFF != crc:
+            print("the copy's CRC-32 is not the unit's: the store changed while it was read (stop and try again)")
+            return 1
+        Path(a.file).write_bytes(out)
+        print(f"{a.file}: {size} B, CRC-32 {crc:08x}")
+        return 0
+    finally:
+        link.close()
+
+
+def restore(a):
+    img = Path(a.file).read_bytes()
+    crc = zlib.crc32(img) & 0xFFFFFFFF
+    dev = find(a.port)
+    print(f"FIZZ {dev.id.text} on {dev.name}: restoring {len(img)} B, CRC-32 {crc:08x} (stop the unit first)")
+    link = dev.link
+    link.drain()
+    link.send(fi.frame(0x46, b"FZSR" + struct.pack("<II", len(img), crc)))
+    served, last = 0, time.monotonic()
+    try:
+        while time.monotonic() - last < 30.0:
+            p = link.read(1.0)
+            if p is None:
+                continue
+            r = fi.parse_request(p)
+            if r:
+                fl, addr, n = r
+                last = time.monotonic()
+                if n > fi.MAXDATA or addr + n > len(img):
+                    raise SystemExit(f"the unit asked for {addr:#x}+{n}, outside the image")
+                link.send(fi.response(addr, img[addr:addr + n], fl))
+                served += 1
+                print(f"\r{served * 512 * 50 // len(img):3d}%", end="", flush=True)
+                continue
+            r = _reply(p)
+            if r and r[0] in ("FZOK", "FZER"):
+                print()
+                if r[0] == "FZOK":
+                    print("done: FIZZ runs on the restored store")
+                    return 0
+                print(f"the unit refused or failed: FZER {int.from_bytes(r[1][:4], 'little')} (see --help)")
+                return 1
+        print(f"\nno answer from the unit after {served} reads")
+        return 1
+    finally:
+        link.close()
+
+
 def wipe(a):
     dev = find(a.port)
     link = dev.link
@@ -156,8 +255,10 @@ def info(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("push", "stats", "wipe", "info"):
+    for name in ("push", "stats", "wipe", "info", "backup", "restore"):
         p = sub.add_parser(name)
+        if name in ("backup", "restore"):
+            p.add_argument("file")
         if name in ("push", "info"):
             p.add_argument("--blob", default=str(BLOB))
         if name != "info":
@@ -169,7 +270,7 @@ def main():
                                                                 "screen is not drawn meanwhile)")
             p.add_argument("--reset", action="store_true", help="start the counters again")
     a = ap.parse_args()
-    return {"push": push, "stats": stats, "wipe": wipe, "info": info}[a.cmd](a)
+    return {"push": push, "stats": stats, "wipe": wipe, "info": info, "backup": backup, "restore": restore}[a.cmd](a)
 
 
 if __name__ == "__main__":

@@ -529,3 +529,5 @@ void fz_store_use(uint32_t *used, uint32_t *size)
     *used = u * 4096u, *size = n * 4096u;
 }
 int fz_screen_index(void) { return (fz_app.ui.mode & 3) * 4 + (fz_app.ui.view & 3); }   /* (P2.13: fz_screens' slot) */
+/* (P2.13) the store's region, for its backup and restore over USB (app.c): its flash offset and size */
+void fz_store_region(uint32_t *off, uint32_t *size) { *off = PLAT_DATA_LO, *size = FZ_STORE_SECTORS * 4096u; }
