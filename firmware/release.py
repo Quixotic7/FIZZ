@@ -101,9 +101,11 @@ def unreleased(text):
 
 def changelog_released(text, version, date):
     """CHANGELOG.md with its Unreleased section named VERSION (DATE) and a new empty one above"""
-    if text.count(UNRELEASED + "\n") != 1:
+    m = re.search(r"(?ms)^" + re.escape(UNRELEASED) + r"[ \t]*\n(.*?)(?=^## |\Z)", text)
+    if not m or len(re.findall(r"(?m)^" + re.escape(UNRELEASED) + r"[ \t]*$", text)) != 1:
         die(f"CHANGELOG.md needs one '{UNRELEASED}' section")
-    return text.replace(UNRELEASED + "\n", f"{UNRELEASED}\n\n{UNRELEASED_HINT}\n\n## {version} ({date})\n", 1)
+    return (text[:m.start()] + f"{UNRELEASED}\n\n{UNRELEASED_HINT}\n\n## {version} ({date})\n\n{clean_notes(m[1])}\n\n" +
+            text[m.end():]).rstrip("\n") + "\n"
 
 
 def release_body(version, notes):
@@ -208,7 +210,7 @@ def main():
         die("not ready:\n  - " + "\n  - ".join(problems))
     source = git("rev-parse", "HEAD")
     base = git("rev-parse", "HEAD", cwd=REPO / "firmware" / "fm1-base")
-    print(f"release {v}: from {source[:10]} (fm1-base {base[:10]}), {'dry run into ' + str(out) if a.dry_run else 'into this tree'}")
+    print(f"release {v}: from {source[:10]} (fm1-base {base[:10]}), {'dry run into ' + str(out) if a.dry_run else 'into this tree'}", flush=True)
 
     # 2. the builds
     built = []
