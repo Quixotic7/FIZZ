@@ -1548,6 +1548,10 @@ costs ~475 µs a 5.8 ms half, so the owner chose **8 voices now (single core), 1
 core-1 start waits for felucca-bsp #5 (MPL); ChoralRoot's `cr_cpu1.h` (the owner's) is relicensed MPL-2.0 for FIZZ;
 the manager is `firmware/app/fz_dual.c` (`firmware/DUALCORE.md`).
 
+**The second core (2026-10-24):** fm1-base now has it (`cpu2 = true`, felucca-bsp's MPL-2.0 port of Melodee's,
+thanks to keremimo; fm1-base 42dc630). FIZZ moves to that fm1-base with `cpu2_fallback = true` and 16 voices, 8 + 8.
+fm1-base also makes REC held at power-on enter update mode, so FIZZ's safe mode needs another gesture.
+
 **The 256-colour frame (the owner, 2026-10-23):** after P2.10 the unit tore on the motorcycle and the ape (their
 frames change more rows than the stash holds). The owner chose the palettised full frame (`research/SMOOTH-DISPLAY.md`
 §4.8, layout A): the 57.6 KB 8-bit frame, rows 0–99 in RAM and 100–239 in the pool, **the delay line halved,
