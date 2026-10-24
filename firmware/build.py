@@ -137,6 +137,35 @@ OVERLAY = {
          "    while (x >= fm1__mid_n)\n        x -= fm1__mid_n;\n    return x == 0u;\n}\n"),
         ("(!fm1__mid_ph ? fm1_led_mid[c] : 0u))", "(fm1__mid_turn(c) ? fm1_led_mid[c] : 0u))"),
     ],
+    # (P2.12) the panel's scanline read back (ST7789 RDSCL, 0x45) on the one data line: an upstream candidate for
+    # felucca-bsp. The SPI1 bits from JieLi's AC79 SDK (Apache-2.0; its SPI examples): bit 12 receive, bit 14 the
+    # pending flag's clear, bit 15 pending; bits 2, 10, 11 clear: one data line (the controller's DO, PC10)
+    "bsp/boards/fm1/fm1_lcd_hw.h": [
+        ("    FM1_LCD_SPI_CNT = n;\n}\n",
+         "    FM1_LCD_SPI_CNT = n;\n}\n"
+         "\n/* (FIZZ, P2.12) RDSCL: the command, then 24 clocks read on PC10 at ~6 MHz (the panel's read clock: a cycle\n"
+         " * >= 150 ns): one dummy clock, the 16-bit scanline (STS[9:0] in its low bits), 7 clocks to spare. raw gets the\n"
+         " * 24 bits as read. Main loop only, no LCD transfer running (lcd_sync first): the line is an output again, the\n"
+         " * clock and the controller as they were, CS high. 0 read; -1 the controller never finished a byte */\n"
+         "static int fm1_lcd_read_scanline(uint32_t *raw)\n{\n"
+         "    const uint32_t con = FM1_LCD_SPI_CON, baud = FM1_LCD_SPI_BAUD;\n"
+         "    uint32_t i, n, v = 0;\n    int rc = 0;\n"
+         "    FM1_LCD_SPI_BAUD = 9u;\n"
+         "    fm1_lcd_send_cmd(0x45u);\n    fm1_lcd_wait();\n"
+         "    FM1_LCD_PC_OUT |= FM1_LCD_DC;\n"
+         "    FM1_LCD_PC_DIR |= FM1_LCD_DO;                   /* (the data line in) */\n"
+         "    FM1_LCD_SPI_CON = (con & ~((1u << 2) | (1u << 10) | (1u << 11))) | (1u << 12) | (1u << 14);\n"
+         "    for (i = 0; i < 3u; i++) {\n"
+         "        FM1_LCD_SPI_CON |= 1u << 14;\n        FM1_LCD_SPI_BUF = 0xFFu;\n"
+         "        for (n = 0; n < 100000u && !(FM1_LCD_SPI_CON & 0x8000u); n++)\n            ;\n"
+         "        if (n == 100000u)\n            rc = -1;\n"
+         "        v = v << 8 | (FM1_LCD_SPI_BUF & 0xFFu);\n    }\n"
+         "    FM1_LCD_SPI_CON = con | (1u << 14);\n"
+         "    FM1_LCD_PC_DIR &= ~FM1_LCD_DO;                  /* (an output again) */\n"
+         "    FM1_LCD_PC_OUT |= FM1_LCD_CS;\n"
+         "    FM1_LCD_SPI_BAUD = baud;\n"
+         "    *raw = v;\n    return rc;\n}\n"),
+    ],
 }
 
 

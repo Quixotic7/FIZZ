@@ -97,14 +97,14 @@ def stats(a):
     dev = find(a.port)
     link = dev.link
     link.drain()
-    link.send(bytes([0xF0, 0x7D, 0x46, 0x50] + ([0x7F] if a.reset else list(b"BNCH") if a.bench else []) + [0xF7]))
+    link.send(bytes([0xF0, 0x7D, 0x46, 0x50] + ([0x7F] if a.reset else list(b"BNCH") if a.bench else list(b"SCAN") if a.scan else []) + [0xF7]))
     if a.reset:
         print("counters started again")
         link.close()
         return 0
-    end, got = time.monotonic() + 2.5, {}
+    end, got = time.monotonic() + 4.0, {}
     try:
-        while time.monotonic() < end and len(got) < 8:
+        while time.monotonic() < end and len(got) < 9:
             p = link.read(end - time.monotonic())
             if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
                 got[p[4]] = p[5:-1].decode("ascii", "replace")
@@ -117,7 +117,8 @@ def stats(a):
                             (5, "the platform: the guard, MIDI and SysEx in, the scan, the locks"),
                             (6, "core 1 (firmware/DUALCORE.md): state, jobs, failures"),
                             (7, "the screen's bursts and the LEDs (P2.7)"),
-                            (8, "the speed at boot: the voice bench, the clock, the RAM regions")):
+                            (8, "the speed at boot: the voice bench, the clock, the RAM regions"),
+                            (9, "the panel's scanline reads (stats --scan: a second of them)")):
             line = got.get(part, "(no answer)")
             if part == 3:                   # s<mode>.<view>: name them
                 for k, v in SCREENS.items():
@@ -164,6 +165,8 @@ def main():
         if name == "stats":
             p.add_argument("--bench", action="store_true", help="run the voice bench again now (line 8: bench_now; "
                                                                  "interrupts off ~10 ms, one half of the sound late)")
+            p.add_argument("--scan", action="store_true", help="read the panel's scanline for a second (line 9; the "
+                                                                "screen is not drawn meanwhile)")
             p.add_argument("--reset", action="store_true", help="start the counters again")
     a = ap.parse_args()
     return {"push": push, "stats": stats, "wipe": wipe, "info": info}[a.cmd](a)

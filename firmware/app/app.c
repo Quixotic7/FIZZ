@@ -160,6 +160,76 @@ static int32_t fz_bench_sum;
 extern int8_t clock_fix;                 /* (main_fm1.c: 0 the clock was stock, 1 set to it, -1 failed) */
 static uint32_t clock_boot[6];           /* (main_fm1.c's, later in the unity build) */
 #endif
+/* (P2.12) the panel's scan position (ST7789 RDSCL, read back on the data line: build.py's OVERLAY of fm1_lcd_hw.h) and
+ * its refresh (FRCTRL2 set to 60 Hz: fm1-base's start leaves the panel's own default, the same 0x0F after SWRESET).
+ * The read's 24 bits: a dummy clock, then STS[15:0] (the line in its low 10 bits); the other reading (no dummy clock)
+ * kept beside it until the unit says which is right. 7D 46 50 "SCAN" (fizz_xdata.py stats --scan): reads for a second,
+ * line 9 */
+#define FZ_FRCTRL2_60HZ 0x0Fu
+static uint32_t fz_scan_n, fz_scan_fail, fz_scan_bad, fz_scan_cost_max, fz_scan_cost_sum, fz_scan_wraps[2],
+    fz_scan_min[2] = {0xFFFFu, 0xFFFFu}, fz_scan_max[2], fz_scan_raw[6], fz_scan_ms;
+#ifndef PLAT_HOST
+static int fz_scanline(uint32_t *line, uint32_t *alt)   /* 0 read (the line, the other reading); -1 failed */
+{
+    uint32_t raw = 0, t0, d;
+    int rc;
+    lcd_sync();
+    t0 = plat_ticks24();
+    rc = fm1_lcd_read_scanline(&raw);
+    d = plat_ticks24() - t0;
+    fz_scan_cost_sum += d;
+    if (d > fz_scan_cost_max)
+        fz_scan_cost_max = d;
+    if (fz_scan_n < 6u)
+        fz_scan_raw[fz_scan_n] = raw;
+    fz_scan_n++;
+    *line = raw >> 7 & 0x3FFu;
+    *alt = raw >> 8 & 0x3FFu;
+    if (rc) {
+        fz_scan_fail++;
+        return -1;
+    }
+    return 0;
+}
+static void fz_scan_test(void)           /* reads for a second, ~1 ms apart: their range and their wraps (the refreshes) */
+{
+    uint32_t t0 = plat_ms(), prev[2] = {0, 0}, k, l[2];
+    int first = 1;
+    fz_scan_n = fz_scan_fail = fz_scan_bad = fz_scan_cost_max = fz_scan_cost_sum = 0;
+    fz_scan_wraps[0] = fz_scan_wraps[1] = fz_scan_max[0] = fz_scan_max[1] = 0;
+    fz_scan_min[0] = fz_scan_min[1] = 0xFFFFu;
+    while (plat_ms() - t0 < 1000u) {
+        const uint32_t t1 = plat_ms();
+        if (!fz_scanline(&l[0], &l[1])) {
+            for (k = 0; k < 2u; k++) {
+                if (l[k] < fz_scan_min[k])
+                    fz_scan_min[k] = l[k];
+                if (l[k] > fz_scan_max[k])
+                    fz_scan_max[k] = l[k];
+                if (!first && l[k] + 60u < prev[k])
+                    fz_scan_wraps[k]++;          /* (back to the top: a refresh) */
+                prev[k] = l[k];
+            }
+            fz_scan_bad += l[0] > 400u;
+            first = 0;
+        }
+        while (plat_ms() == t1)
+            plat_yield();
+    }
+    fz_scan_ms = plat_ms() - t0;
+}
+#endif
+static void fz_panel_rate(void)          /* FRCTRL2: 60 Hz (the panel's default), set */
+{
+#ifndef PLAT_HOST
+    static uint8_t v = FZ_FRCTRL2_60HZ;  /* (static: the transfer reads it after lcd_data returns) */
+    lcd_cmd(0xC6u);
+    lcd_data(&v, 1u);
+    lcd_sync();
+    fm1_lcd_deselect();
+#endif
+}
+
 /* (P2.7) the screen's and the LEDs' counters (stats line 7) */
 static uint32_t fz_arena_free_min = 0xFFFFFFFFu;
 static uint32_t fz_frame_rows0, fz_st_cap0, fz_span_max, fz_span_n, fz_span_over, fz_frame_rows_max, fz_frames_over_stash;
@@ -643,6 +713,28 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
 #endif
     *c = 0;
     fz_stats_send(8, line);
+    /* 9 (P2.12): the panel's scanline reads (the last SCAN test) */
+    c = line;
+    c = fz_put_u(c, "scan_reads=", fz_scan_n);
+    c = fz_put_u(c, "scan_ms=", fz_scan_ms);
+    c = fz_put_u(c, "scan_fail=", fz_scan_fail);
+    c = fz_put_u(c, "scan_over400=", fz_scan_bad);
+    c = fz_put_u(c, "scan_cost_avg_us=", fz_us(fz_scan_n ? (uint64_t)fz_scan_cost_sum / fz_scan_n : 0u));
+    c = fz_put_u(c, "scan_cost_max_us=", fz_us(fz_scan_cost_max));
+    c = fz_put_u(c, "line_min=", fz_scan_min[0]);
+    c = fz_put_u(c, "line_max=", fz_scan_max[0]);
+    c = fz_put_u(c, "line_wraps=", fz_scan_wraps[0]);       /* (in scan_ms: refreshes, ~60 a second) */
+    c = fz_put_u(c, "alt_min=", fz_scan_min[1]);
+    c = fz_put_u(c, "alt_max=", fz_scan_max[1]);
+    c = fz_put_u(c, "alt_wraps=", fz_scan_wraps[1]);
+    {
+        uint32_t i;
+        for (i = 0; i < 6u; i++)
+            c = fz_put_u(c, i ? "," : "raw=", fz_scan_raw[i]);
+    }
+    c = fz_put_u(c, "frctrl2=", FZ_FRCTRL2_60HZ);
+    *c = 0;
+    fz_stats_send(9, line);
 }
 
 static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region erased, FIZZ started again on it (as at a
@@ -680,6 +772,13 @@ int app_sysex(const uint8_t *p, uint32_t n)
     if (n >= 3u && p[0] == 0x7Du && p[1] == 0x46u && p[2] == 0x50u) {   /* "FP": the port's counters */
         if (n >= 7u && p[3] == 'W' && p[4] == 'I' && p[5] == 'P' && p[6] == 'E') {   /* the store wiped, FIZZ again */
             fz_wipe();
+            return 1;
+        }
+        if (n >= 7u && p[3] == 'S' && p[4] == 'C' && p[5] == 'A' && p[6] == 'N') {   /* (P2.12) the scanline test */
+#ifndef PLAT_HOST
+            fz_scan_test();
+#endif
+            fz_stats_reply();
             return 1;
         }
         if (n >= 7u && p[3] == 'B' && p[4] == 'N' && p[5] == 'C' && p[6] == 'H') {   /* (P2.8) the voice bench now,
@@ -1163,6 +1262,7 @@ void app_init(void)
         *p = 0;
 #endif
     fz_speed();                          /* (before FIZZ starts: the bench's voice is its own, the app's set after) */
+    fz_panel_rate();
     fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
     fz_ticked = 0;
     fz_store_started = 0, fz_safe = 0, fz_wiped = -1;
