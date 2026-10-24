@@ -113,6 +113,15 @@ static void fz_audio_on_again(uint32_t f)
 static uint32_t fz_lock_t0;
 static uint32_t fz_lock_kmax[8];
 static volatile uint32_t fz_g_isr_max, fz_g_lock_max;   /* (P2.12: since the Geek Out pages' reset) */
+/* (P2.16d) an xrun's moment: fm1-base counts one when the DMA moved past the half while it was made (the interrupt
+ * came late, or the half took too long). The late half's entry gap (5,805 us when on time), its time, the longest lock
+ * and the flash's interrupts-off spans in the gap before it, at the ms seen (stats line 5, the last two) */
+static uint32_t fz_lk_win, fz_lk_win_kind, fz_fq_win;   /* (written with the audio interrupt masked or off) */
+typedef struct {
+    uint32_t ms, gap_us, render_us, lock_us, lock_kind, flash;
+} fz_xr_t;
+static fz_xr_t fz_xr[2];
+static uint32_t fz_xr_n, fz_xr0;
 static uint32_t fz_lock(void)
 {
     const uint32_t f = fz_audio_off();
@@ -126,6 +135,8 @@ static void fz_unlock(uint32_t f, uint32_t kind)
         fz_prof.lock_max = d, fz_prof.lock_kind = kind;
     if (d > fz_g_lock_max)
         fz_g_lock_max = d;
+    if (d > fz_lk_win)
+        fz_lk_win = d, fz_lk_win_kind = kind;   /* (P2.16d: the longest since the last half began) */
     if (kind < 8u && d > fz_lock_kmax[kind])
         fz_lock_kmax[kind] = d;          /* (P2.9: the longest by kind) */
     fz_audio_on_again(f);
@@ -231,7 +242,9 @@ static void fz_panel_rate(void)          /* FRCTRL2: 60 Hz (the panel's default)
 /* (P2.12) the 8-bit frame's send counters (fz_fb.c) */
 typedef struct {
     uint32_t frames, rows, passes, synced, unsynced, split, torn, scan_fail, wait_max_us, span_max_us, span_sum_us,
-        wait_sum_us;
+        wait_sum_us, torn_unsynced, torn_split, torn_late, torn_late_isr, late_max_us;   /* (P2.16d: the torn by cause:
+                                          * no scan, too tall for a refresh, out late (with an audio interrupt inside the
+                                          * send: the cause), by how much at most) */
 } fz_fb_stats_t;
 static fz_fb_stats_t fz_fb;
 static struct {
@@ -293,10 +306,28 @@ static int32_t fz_gain;                  /* the last half's gain (Q12) */
 static volatile uint32_t fz_over, fz_over_run, fz_sheds;   /* halves over FZ_OVER_US; halves since the last shed; voices
                                                             * let go */
 
+static uint32_t fz_xr_t_last, fz_xr_gap, fz_xr_d, fz_xr_lk, fz_xr_lkk, fz_xr_fq, fz_xr_seen;
+static void fz_xr_look(uint32_t t0)      /* (P2.16d: at each half's start: did the last one run late? what came before) */
+{
+    const uint32_t xr = plat_xruns();
+    if (xr != fz_xr_seen && fz_xr_t_last) {
+        fz_xr_t *r = &fz_xr[fz_xr_n++ & 1u];
+        r->ms = plat_ms(), r->gap_us = fz_xr_gap / PLAT_TICKS_PER_US, r->render_us = fz_xr_d / PLAT_TICKS_PER_US;
+        r->lock_us = fz_xr_lk / PLAT_TICKS_PER_US, r->lock_kind = fz_xr_lkk, r->flash = fz_xr_fq;
+    }
+    fz_xr_seen = xr;
+    fz_xr_gap = fz_xr_t_last ? t0 - fz_xr_t_last : 0u;   /* (this half's: judged at the next) */
+    fz_xr_t_last = t0;
+    fz_xr_lk = fz_lk_win, fz_xr_lkk = fz_lk_win_kind, fz_xr_fq = fz_fq_win;
+    fz_lk_win = fz_lk_win_kind = fz_fq_win = 0;
+    fz_xr_d = 0;
+}
+
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     const uint32_t t0 = plat_ticks24();
     uint32_t i, d, t_out;
+    fz_xr_look(t0);
     if (!fz_audio_on || n > APP_BLOCK
 #ifdef PLAT_HOST
         || fz_host_sync
@@ -335,6 +366,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     if (d > fz_g_isr_max)
         fz_g_isr_max = d;                /* (P2.12: the Geek Out pages' longest half, since their reset) */
     fz_prof.isr += d;
+    fz_xr_d = d;
     fz_prof.n_isr++;
     if (d > fz_prof.isr_max)
         fz_prof.isr_max = d;
@@ -561,7 +593,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "isr_avg_us=", fz_us(fz_prof.isr / ni));   /* (a half: APP_BLOCK frames, 5805 us) */
     c = fz_put_u(c, "isr_max_us=", fz_us(fz_prof.isr_max));
     c = fz_put_u(c, "cpu_isr=", plat_cpu_pct());
-    c = fz_put_u(c, "xruns=", plat_xruns());
+    c = fz_put_u(c, "xruns=", plat_xruns() - fz_xr0);   /* (P2.16d: since the reset; xruns_boot since the start) */
     c = fz_put_u(c, "lock_max_us=", fz_us(fz_prof.lock_max));
     c = fz_put_u(c, "lock_kind=", fz_prof.lock_kind);   /* (1 a press, 2 the clock, 3 a knob, 4 MIDI, 5 SysEx in, 6 out) */
     c = fz_put_u(c, "lock_press_us=", fz_us(fz_lock_kmax[1]));
@@ -676,6 +708,18 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "sysex_in_bytes=", fz_sx_bytes_in);
     c = fz_put_u(c, "usb_midi_in=", plat_midi_count(PORT_USB, 0));
     c = fz_put_u(c, "trs_midi_in=", plat_midi_count(PORT_TRS, 0));
+    c = fz_put_u(c, "xruns_boot=", plat_xruns());
+    c = fz_put_u(c, "xr_seen=", fz_xr_n);   /* (P2.16d: the last two: the ms seen, the late half's entry gap (5805 on
+                                          * time), its time, the longest lock before it and its kind, flash spans) */
+    for (i = 0; i < 2u && i < fz_xr_n; i++) {
+        const fz_xr_t *r = &fz_xr[(fz_xr_n - 1u - i) & 1u];
+        c = fz_put_u(c, i ? "xr2_ms=" : "xr1_ms=", r->ms);
+        c = fz_put_u(c, i ? "xr2_gap_us=" : "xr1_gap_us=", r->gap_us);
+        c = fz_put_u(c, i ? "xr2_render_us=" : "xr1_render_us=", r->render_us);
+        c = fz_put_u(c, i ? "xr2_lock_us=" : "xr1_lock_us=", r->lock_us);
+        c = fz_put_u(c, i ? "xr2_lock_kind=" : "xr1_lock_kind=", r->lock_kind);
+        c = fz_put_u(c, i ? "xr2_flash=" : "xr1_flash=", r->flash);
+    }
     c = fz_put_u(c, "store_safe_mode=", fz_safe);
     c = fz_put_u(c, "store_wiped=", (uint32_t)fz_wiped);
 #ifndef PLAT_HOST
@@ -749,6 +793,11 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "fb_unsynced=", fz_fb.unsynced);
     c = fz_put_u(c, "fb_split=", fz_fb.split);
     c = fz_put_u(c, "fb_torn_est=", fz_fb.torn);
+    c = fz_put_u(c, "fb_torn_unsynced=", fz_fb.torn_unsynced);
+    c = fz_put_u(c, "fb_torn_split=", fz_fb.torn_split);
+    c = fz_put_u(c, "fb_torn_late=", fz_fb.torn_late);
+    c = fz_put_u(c, "fb_torn_late_isr=", fz_fb.torn_late_isr);
+    c = fz_put_u(c, "fb_late_max_us=", fz_fb.late_max_us);
     c = fz_put_u(c, "fb_scan_fail=", fz_fb.scan_fail);
     c = fz_put_u(c, "fb_wait_max_us=", fz_fb.wait_max_us);
     c = fz_put_u(c, "fb_wait_avg_us=", fz_fb.passes ? fz_fb.wait_sum_us / fz_fb.passes : 0u);
@@ -991,9 +1040,13 @@ int app_sysex(const uint8_t *p, uint32_t n)
             memset(&fz_fbs, 0, sizeof fz_fbs);
             memset(&fz_fp, 0, sizeof fz_fp);
             fz_idle_polls = fz_idle_inputs = 0;
+            fz_xr0 = plat_xruns(), fz_xr_n = 0;   /* (P2.16d: and what was left out before) */
+            fz_over = fz_sheds = 0;
+            fz_midi_pkts = fz_sx_frames_in = fz_sx_bytes_in = 0;
             fz_span_max = fz_span_n = fz_span_over = fz_frame_rows_max = fz_frames_over_stash = 0, fz_span_sum = 0;
 #ifndef PLAT_HOST
             t5_gap_max = t5_late = t5_run_max = 0;
+            lock_max = lock_from = 0;
 #endif
         } else {
             fz_stats_reply();
@@ -1101,6 +1154,7 @@ static void fz_lights(void)              /* (FIZZ's state read, the interrupts o
  * short dark dip, not one column lit bright for all of it while the scan waits */
 void fz_flash_quiet(void)
 {
+    fz_fq_win++;                         /* (P2.16d: an interrupts-off span, for an xrun's record) */
 #ifndef PLAT_HOST
     fm1_irq_off();
     fm1__led_lines(0);

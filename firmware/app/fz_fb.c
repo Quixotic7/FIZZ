@@ -15,6 +15,8 @@
 #endif
 #define FZ_FB_LINES 334u                 /* the panel's lines a refresh (the unit's RDSCL: 0..333) */
 #define FZ_FB_LINE_US 50u                /* ~16.67 ms / 334 */
+#define FZ_FB_MARGIN 24u                 /* (P2.16d: lines kept in hand at the start, was 8: an audio interrupt's ~1 ms
+                                          * of spread inside the send) */
 #define FZ_FB_ROW_US 96u                 /* a row out: 480 B at ~44 MHz and its conversion (the unit: 22.6 ms for 240) */
 
 /* (its counters, fz_fb_stats_t fz_fb: app.c, before its stats lines) */
@@ -86,7 +88,7 @@ static void fz_fb_out(uint8_t *const *rows, const uint16_t *pal, uint32_t y0, ui
 static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t bands, uint32_t band, int all)
 {
     uint8_t ch[240];
-    uint32_t y, first = 240u, last = 0, n = 0, t0, line, wait0;
+    uint32_t y, first = 240u, last = 0, n = 0, t0, line, wait0, isr0, need;
     for (y = 0; y < 240u; y++) {
         ch[y] = 0;
         if (all || (bands >> (y / band) & 1u)) {
@@ -113,7 +115,7 @@ static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t b
      * meanwhile the main loop's input goes on (fz_fb_idle). A change too tall for that (smax < first) starts at
      * first and is counted torn */
     {
-        const uint32_t need = ((last - first + 1u) * FZ_FB_ROW_US + FZ_FB_LINE_US - 1u) / FZ_FB_LINE_US + 8u;
+        need = ((last - first + 1u) * FZ_FB_ROW_US + FZ_FB_LINE_US - 1u) / FZ_FB_LINE_US + FZ_FB_MARGIN;
         const uint32_t smax = FZ_FB_LINES + last > need + first ? FZ_FB_LINES + last - need : first;
         wait0 = plat_ticks24();
         if (!fz_fb_line(&line)) {
@@ -143,6 +145,7 @@ static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t b
         if (line != 0xFFFFu && smax == first && need > FZ_FB_LINES)
             fz_fb.split++;               /* (too tall to be whole in one refresh: counted, sent all the same) */
     }
+    isr0 = (uint32_t)fz_prof.isr_in_frame;
     t0 = plat_ticks24();
     for (y = first; y <= last;) {        /* the runs of changed rows, top to bottom */
         uint32_t e = y;
@@ -160,7 +163,19 @@ static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t b
     fz_fb.span_sum_us += t0;
     if (t0 > fz_fb.span_max_us)
         fz_fb.span_max_us = t0;
-    if (line == 0xFFFFu || t0 >= (FZ_FB_LINES - line + last) * FZ_FB_LINE_US)
+    if (line == 0xFFFFu || t0 >= (FZ_FB_LINES - line + last) * FZ_FB_LINE_US) {
         fz_fb.torn++;                    /* (estimated: unsynced, or the last row out after the scan came round to it) */
+        if (line == 0xFFFFu)
+            fz_fb.torn_unsynced++;
+        else if (need > FZ_FB_LINES)
+            fz_fb.torn_split++;          /* (taller than a refresh can carry: never whole) */
+        else {
+            const uint32_t over = t0 - (FZ_FB_LINES - line + last) * FZ_FB_LINE_US;
+            fz_fb.torn_late++;
+            fz_fb.torn_late_isr += (uint32_t)fz_prof.isr_in_frame != isr0;
+            if (over > fz_fb.late_max_us)
+                fz_fb.late_max_us = over;
+        }
+    }
     return n;
 }
