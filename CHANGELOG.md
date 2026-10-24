@@ -11,6 +11,7 @@ its text becomes the release's notes on the install page and on GitHub.
 
 - The playhead now moves in half steps, and its red arrow over the open page no longer bounces.
 - While playing with the step lock off, the sound editor's values now follow the LFOs too, showing what you hear.
+- The sound browser no longer freezes when you add a sound to the Pool, take one out, or press B9 to switch between Presets, My Presets and the Pool.
 
 ## 0.11.0-beta.2 (2026-10-24)
 

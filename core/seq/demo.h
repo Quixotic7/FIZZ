@@ -23,6 +23,9 @@ extern "C" {
 #define QD_DEMO_N 3                     /* A01..A03 */
 void qd_demo_load(qd_project_t *pr);   /* patterns 0..2 written (the rest untouched) */
 void qd_demo_pattern(qd_pattern_t *p, int k);   /* demo k (0..2) into p */
+/* (2026-10-24) demo k's pool sound locks without making it: track 1's steps 1..16, each its sound (0 none; every one
+ * on, its sound overridden; no other track locks one, no track sound has a source: test_persist checks) */
+extern const uint8_t QD_DEMO_DRUMS[QD_DEMO_N][16];
 
 #ifdef __cplusplus
 }

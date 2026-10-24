@@ -149,6 +149,10 @@ int qd_pool_add(struct qd_app *a, const char *name, const int16_t *patch);
 int qd_pool_add_sound(struct qd_app *a, const qd_sound_t *s);
 int qd_pool_find(const struct qd_app *a, const qd_sound_t *s);   /* P1.5t: the pool sound that is s (its preset, or its
                                                                   * name and patch), 0 none */
+uint64_t qd_pool_unref_pending(const struct qd_app *a);   /* (2026-10-24) the patterns whose records still lock a
+                                         * sound taken out of the pool (bit p; 0 none) */
+void qd_pool_sweep_all(struct qd_app *a);   /* (2026-10-24) every pattern still holding a removed sound's lock: read in
+                                         * and cleared now (an undo, a flush) */
 int qd_pool_users_all(const struct qd_app *a, int k, uint8_t *tracks);   /* steps locking it in all patterns (tracks:
                                                                          * the tracks playing it or locking it) */
 int qd_pool_swap(struct qd_app *a, int x, int y);

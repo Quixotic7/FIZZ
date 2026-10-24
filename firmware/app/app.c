@@ -70,6 +70,7 @@ static uint32_t fz_pace;                 /* the last look's period (ms) */
 /* the profile (fz_prof.h): here, in RAM with the platform's (FIZZ's units' .bss is the pool's, which is full) */
 volatile fz_prof_t fz_prof;
 fz_screen_t fz_screens[FZ_NSCREEN];
+uint16_t fz_in_stat[5];
 void fz_prof_reset(void)
 {
     uint32_t i;

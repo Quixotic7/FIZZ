@@ -53,4 +53,7 @@ typedef struct {
     uint32_t n, max;          /* frames, the longest (ticks) */
 } fz_screen_t;
 extern fz_screen_t fz_screens[FZ_NSCREEN];
+/* (2026-10-24) the longest input (ms), the most patterns it read in and wrote, the most a frame read in, the longest
+ * frame (ms): fz_port.c's, stats line 4 */
+extern uint16_t fz_in_stat[5];
 void fz_prof_reset(void);

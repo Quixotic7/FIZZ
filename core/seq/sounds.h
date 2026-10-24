@@ -53,6 +53,10 @@ void qd_sound_dir(qd_sound_dir_t *d, const qd_sound_t *s);
 /* P1.5a: the pool has holes (a sound deleted, moved): a slot is used when it has a name; nsound is the last used */
 int qd_sound_used(const qd_project_t *pr, int k);
 void qd_sound_recount(qd_project_t *pr);
+#if QD_PAT_RAM < QD_NPAT
+extern uint16_t qd_users_gen;           /* (2026-10-24) bumped as the pool changes (qd_sound_recount): persist.c's count
+                                         * of a slot's users read again */
+#endif
 int qd_sound_step(const qd_project_t *pr, int k, int d, int lo);   /* k moved d used slots (lo 0: 0 the track's sound
                                                                      * counts, 1: from 1), clamped */
 

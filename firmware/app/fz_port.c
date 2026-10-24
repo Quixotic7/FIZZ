@@ -183,9 +183,28 @@ void fz_store_attach(void)
 /* (P2.9) what an input's gesture opens (its undo snapshot: patterns read, the undo log written, nothing the audio side
  * touches), done before the audio lock: the locked call then finds it open (qd_app_input_prepare, core 7984295) */
 void fz_input_prepare(void) { qd_app_input_prepare(&fz_app); }
-void fz_key(int key, int down, int vel) { qd_app_key(&fz_app, key, down, vel); }
-void fz_button(int button, int down) { qd_app_button(&fz_app, button, down); }
-void fz_knob(int role, int detents) { qd_app_knob(&fz_app, role, detents); }
+/* (2026-10-24: the browser's freezes) the longest input call (ms) and the most patterns one read in or wrote; the most
+ * patterns a frame read in, the longest frame (ms): stats line state's in_ms_max .. fr_ms_max */
+#define fz_in_ms_max fz_in_stat[0]          /* (app.c's: this unit's .bss is the pool's, or the RAM code region's) */
+#define fz_in_loads_max fz_in_stat[1]
+#define fz_in_saves_max fz_in_stat[2]
+#define fz_fr_loads_max fz_in_stat[3]
+#define fz_fr_ms_max fz_in_stat[4]
+static void fz_in_done(uint32_t t0, uint32_t l0, uint32_t s0)
+{
+    const uint32_t t = plat_ms() - t0, l = fz_app.proj.pat_loads - l0, w = fz_app.proj.pat_saves - s0;
+    if (t > fz_in_ms_max)
+        fz_in_ms_max = (uint16_t)(t > 0xFFFFu ? 0xFFFFu : t);
+    if (l > fz_in_loads_max)
+        fz_in_loads_max = (uint16_t)(l > 0xFFFFu ? 0xFFFFu : l);
+    if (w > fz_in_saves_max)
+        fz_in_saves_max = (uint16_t)(w > 0xFFFFu ? 0xFFFFu : w);
+}
+#define FZ_IN(call) do { const uint32_t t0_ = plat_ms(), l0_ = fz_app.proj.pat_loads, s0_ = fz_app.proj.pat_saves; \
+                         call; fz_in_done(t0_, l0_, s0_); } while (0)
+void fz_key(int key, int down, int vel) { FZ_IN(qd_app_key(&fz_app, key, down, vel)); }
+void fz_button(int button, int down) { FZ_IN(qd_app_button(&fz_app, button, down)); }
+void fz_knob(int role, int detents) { FZ_IN(qd_app_knob(&fz_app, role, detents)); }
 void fz_master(int pot) { qd_app_master(&fz_app, pot); }
 void fz_midi_play(int status, int d1, int d2) { qd_app_midi_play(&fz_app, status, d1, d2); }
 void fz_midi_ui(int status, int d1, int d2) { qd_app_midi_ui(&fz_app, status, d1, d2); }
@@ -502,6 +521,11 @@ uint32_t fz_state_line(char *q, char *lim)
     q = st_u(q, "pat_loads=", a->proj.pat_loads);
     q = st_u(q, "pat_saves=", a->proj.pat_saves);
 #endif
+    q = st_u(q, "in_ms_max=", fz_in_ms_max);           /* (2026-10-24: the longest input, the patterns it read in, wrote) */
+    q = st_u(q, "in_loads_max=", fz_in_loads_max);
+    q = st_u(q, "in_saves_max=", fz_in_saves_max);
+    q = st_u(q, "fr_loads_max=", fz_fr_loads_max);     /* (the most patterns a frame read in; the longest frame) */
+    q = st_u(q, "fr_ms_max=", fz_fr_ms_max);
     q = st_u(q, "store_on=", (uint32_t)a->per.on);
     if (a->per.on) {
         qd_persist_use(a, &live, &total);
@@ -522,7 +546,7 @@ uint32_t fz_state_line(char *q, char *lim)
 void fz_frame(fz_strip_fn out, void *ctx, int all_strips)
 {
     const int sc = fz_screen_index();
-    const uint32_t t0 = plat_ticks24();
+    const uint32_t t0 = plat_ticks24(), m0 = plat_ms(), l0 = fz_app.proj.pat_loads;
     uint32_t t;
     {   /* (P2.7: the strips that change, from the frame latched by fz_frame_changed; all of them when forced) */
         const uint32_t n = (240u + QD_STRIP_H - 1u) / QD_STRIP_H, all = (1u << n) - 1u, m = all_strips ? all : fz_mask;
@@ -532,6 +556,10 @@ void fz_frame(fz_strip_fn out, void *ctx, int all_strips)
         qd_app_frame_strips_mask(&fz_app, 0, out, ctx, m);
     }
     t = plat_ticks24() - t0;
+    if (fz_app.proj.pat_loads - l0 > fz_fr_loads_max)
+        fz_fr_loads_max = (uint16_t)(fz_app.proj.pat_loads - l0 > 0xFFFFu ? 0xFFFFu : fz_app.proj.pat_loads - l0);
+    if (plat_ms() - m0 > fz_fr_ms_max)
+        fz_fr_ms_max = (uint16_t)(plat_ms() - m0 > 0xFFFFu ? 0xFFFFu : plat_ms() - m0);
     fz_screens[sc].n++;
     fz_screens[sc].sum += t;
     if (t > fz_screens[sc].max)

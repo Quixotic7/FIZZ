@@ -266,6 +266,12 @@ static void demo_a03(qd_pattern_t *p)
     lk(p, 7, 3, QD_LK_REVERB, 60);
 }
 
+const uint8_t QD_DEMO_DRUMS[QD_DEMO_N][16] = {
+    {18, 22, 22, 21, 19, 22, 18, 23, 22, 21, 18, 22, 20, 22, 21, 23},
+    {18, 22, 22, 21, 19, 22, 18, 23, 22, 21, 18, 22, 20, 22, 21, 23},
+    {18, 0, 22, 0, 19, 0, 22, 0, 23, 0, 18, 0, 19, 0, 22, 21},
+};
+
 void qd_demo_pattern(qd_pattern_t *p, int k)
 {
     qd_pat_init(p);

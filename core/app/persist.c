@@ -126,6 +126,27 @@ static uint32_t rd_left(const rd_t *r) { return r->len - r->pos; }
 
 static void pool_cache(const qd_app_t *a, qd_sound_t *s);   /* (P1.5w: the pool's references, below) */
 static void pool_fixup(qd_app_t *a);
+#if QD_PAT_RAM < QD_NPAT
+static void pool_sweep(qd_app_t *a, int all);          /* (2026-10-24: the pool's removed sounds' locks, below) */
+/* (2026-10-24) out of qd_app_t (the single-core build's RAM code region holds the app's .bss to the byte): the pool
+ * slots taken out whose locks some records still hold (not given out again until they are gone), those patterns
+ * (bit p: cleared as each is read in), for one project (a test's other app: none) .. */
+static struct {
+    const qd_project_t *pr;
+    uint64_t need;
+    uint8_t slot[(QD_NSOUND + 7) / 8];
+} pu;
+#define PU_NEED(p) (pu.pr == (p) ? pu.need : 0u)
+#define PU_SLOT(p, k) (pu.pr == (p) && (pu.slot[((k) - 1) >> 3] >> (((k) - 1) & 7) & 1u))
+/* .. and qd_pool_users_all's count from the patterns out of RAM: for slot k, while qd_users_gen and the patterns in
+ * RAM are as they were (the browser's view asks every frame) */
+static struct {
+    const qd_app_t *a;
+    int8_t in[QD_PAT_RAM];
+    uint8_t k, tr;
+    uint16_t gen, n;
+} uc;
+#endif
 
 static int empty_step(const qd_step_t *s)
 {
@@ -1079,6 +1100,10 @@ void qd_persist_ms(qd_app_t *a)
     const int playing = a->seq.playing, sounding = qd_pool_in_use(&a->pool) > 0;
     const int quiet = !playing && !sounding && a->ms - a->ui.touch_ms >= QD_QUIET_MS;
     int it, k;
+#if QD_PAT_RAM < QD_NPAT
+    if (PU_NEED(&a->proj) && !playing && !ps->own_step && a->ms % 15u == 7u)
+        pool_sweep(a, 0);                               /* (2026-10-24: a removed sound's locks, a pattern a frame) */
+#endif
     if (!ps->on)
         return;
     k = (int)(a->ms % QD_SAVE_LOOK_MS);                 /* the looks: every QD_SAVE_LOOK_MS, one item a ms (P2.6c: the
@@ -1136,6 +1161,10 @@ void qd_persist_own_step(qd_app_t *a, int on) { a->per.own_step = on != 0; }
 void qd_persist_step(qd_app_t *a)
 {
     const int playing = a->seq.playing, sounding = qd_pool_in_use(&a->pool) > 0;
+#if QD_PAT_RAM < QD_NPAT
+    if (PU_NEED(&a->proj) && !playing)                  /* (2026-10-24: a removed sound's locks, a pattern a step) */
+        pool_sweep(a, 0);
+#endif
     if (a->per.on)
         persist_writes(a, playing, !playing && !sounding && a->ms - a->ui.touch_ms >= QD_QUIET_MS);
 }
@@ -1144,8 +1173,13 @@ int qd_persist_flush(qd_app_t *a)
 {
     qd_persist_t *ps = &a->per;
     int it;
+    qd_pool_sweep_all(a);                               /* (2026-10-24: no removed sound's lock left in a record) */
     if (!ps->on)
         return 1;
+    if (ps->job < 0) {                                  /* (a sound queued as it left RAM: snd_save) */
+        qd_store_flush(&ps->prj_st);
+        qd_store_flush(&ps->lib_st);
+    }
     if (ps->job >= 0) {
         qd_store_flush(item_store(a, ps->job));
         job_end(a);
@@ -1358,7 +1392,11 @@ int qd_pool_free_slot(const qd_project_t *pr)
 {
     int k;
     for (k = 1; k <= QD_NSOUND; k++)                    /* (P1.5t: slot 1 as any other) */
-        if (!qd_sound_used(pr, k))
+        if (!qd_sound_used(pr, k)
+#if QD_PAT_RAM < QD_NPAT
+            && !PU_SLOT(pr, k)                          /* (2026-10-24: its old locks not all gone yet) */
+#endif
+        )
             return k;
     return 0;
 }
@@ -1597,26 +1635,104 @@ int qd_pool_copy(qd_app_t *a, int from, int to)
     return 1;
 }
 
+/* one pattern's locks of pool slot k back to the track's sound, its track sounds' sources gone (rec: each lock kept for
+ * undo: P1.5w); the locks it had */
+static int pat_unref(qd_app_t *a, qd_pattern_t *P, int p, int k, int rec)
+{
+    int t, s, n = 0;
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
+        for (s = 0; s < QD_NSTEP; s++)
+            if (P->step[t][s].sound == k) {             /* back to the track's sound */
+                const int ov = (P->step[t][s].ovr & QD_OV(QD_PM_SOUND)) != 0;
+                if (rec)
+                    qd_undo_xlock(a, p, t, s, k, ov);
+                P->step[t][s].sound = 0;
+                P->step[t][s].ovr &= (uint16_t)~QD_OV(QD_PM_SOUND);
+                n++;
+            }
+        if (P->snd[t].sound == k)                       /* (the track keeps its copy: no source) */
+            P->snd[t].sound = 0, n++;
+    }
+    return n;
+}
+
+#if QD_PAT_RAM < QD_NPAT
+static int rec_refs(qd_app_t *a, int p, int k, int *on, uint8_t *tracks, int rec);
+/* (2026-10-24: the owner's freeze) a pattern in RAM now; one out of RAM whose record holds a lock of k: its pending
+ * bit (pu.need), its locks gone as it is read in (pat_load) or as qd_persist_step reaches it; nothing read in
+ * or written here. No record to read (its default: a demo): read in now */
+static void pool_unref_pats(qd_app_t *a, int k, int rec)
+{
+    int p;
+    for (p = 0; p < QD_NPAT; p++) {
+        const int r = rec && p != a->undo.pat;
+        int n;
+        if (qd_proj_resident(&a->proj, p)) {
+            pat_unref(a, qd_proj_pat(&a->proj, p), p, k, r);
+            continue;
+        }
+        n = rec_refs(a, p, k, 0, 0, r);                 /* (the locks kept for undo from the record) */
+        if (n < 0)
+            pat_unref(a, qd_proj_pat(&a->proj, p), p, k, r);
+        else if (n > 0) {
+            if (pu.pr != &a->proj)
+                memset(&pu, 0, sizeof pu), pu.pr = &a->proj;
+            pu.slot[(k - 1) >> 3] |= (uint8_t)(1u << ((k - 1) & 7));
+            pu.need |= (uint64_t)1 << p;
+        }
+    }
+    qd_users_gen++;
+}
+/* a pattern just read in: the pending slots' locks gone (after its record's hash: it is written again) */
+static void pat_unref_pending(qd_app_t *a, int p, qd_pattern_t *P)
+{
+    int k;
+    if (!(PU_NEED(&a->proj) >> p & 1u))
+        return;
+    for (k = 1; k <= QD_NSOUND; k++)
+        if (PU_SLOT(&a->proj, k))
+            pat_unref(a, P, p, k, 0);
+    pu.need &= ~((uint64_t)1 << p);
+    if (!pu.need)
+        memset(&pu, 0, sizeof pu);
+    qd_users_gen++;
+}
+/* the main loop's: one pending pattern read in (never a write: qd_proj_fetch); all: every one now (an undo, a flush) */
+static void pool_sweep(qd_app_t *a, int all)
+{
+    int p;
+    for (p = 0; p < QD_NPAT && PU_NEED(&a->proj); p++) {
+        if (!(PU_NEED(&a->proj) >> p & 1u))
+            continue;
+        if (all)
+            qd_proj_pat(&a->proj, p);
+        else if (!qd_proj_fetch(&a->proj, p))
+            return;                                     /* (no clean slot yet: later) */
+        if (qd_proj_resident(&a->proj, p))
+            pat_unref_pending(a, p, qd_proj_pat(&a->proj, p));
+        if (!all)
+            return;
+    }
+}
+void qd_pool_sweep_all(qd_app_t *a) { pool_sweep(a, 1); }
+uint64_t qd_pool_unref_pending(const qd_app_t *a) { return PU_NEED(&a->proj); }
+#else
+static void pool_unref_pats(qd_app_t *a, int k, int rec)
+{
+    int p;
+    for (p = 0; p < QD_NPAT; p++)
+        pat_unref(a, qd_proj_pat(&a->proj, p), p, k, rec && p != a->undo.pat);
+}
+void qd_pool_sweep_all(qd_app_t *a) { (void)a; }
+uint64_t qd_pool_unref_pending(const qd_app_t *a) { (void)a; return 0; }
+#endif
+
 /* pool slot k emptied: its locks in every pattern back to the track's sound (rec: P1.5w, kept for undo outside the
  * gesture's pattern), the tracks' sources gone */
 static void pool_unref(qd_app_t *a, int k, int rec)
 {
-    int p, t, s;
-    for (p = 0; p < QD_NPAT; p++) {
-        qd_pattern_t *P = qd_proj_pat(&a->proj, p);
-        for (t = 0; t < QD_PAT_NTRACK; t++) {
-            for (s = 0; s < QD_NSTEP; s++)
-                if (P->step[t][s].sound == k) {         /* back to the track's sound */
-                    const int ov = (P->step[t][s].ovr & QD_OV(QD_PM_SOUND)) != 0;
-                    if (rec && p != a->undo.pat)
-                        qd_undo_xlock(a, p, t, s, k, ov);
-                    P->step[t][s].sound = 0;
-                    P->step[t][s].ovr &= (uint16_t)~QD_OV(QD_PM_SOUND);
-                }
-            if (P->snd[t].sound == k)                   /* (the track keeps its copy: no source) */
-                P->snd[t].sound = 0;
-        }
-    }
+    int t;
+    pool_unref_pats(a, k, rec);
     for (t = 0; t < QD_NTRACK; t++)
         if (a->model.t[t].sound == k)
             a->model.t[t].sound = 0;
@@ -1654,19 +1770,146 @@ int qd_pool_users(const qd_app_t *a, int k, uint8_t *tracks, int *steps)
     return m || n;
 }
 
+#if QD_PAT_RAM < QD_NPAT
+/* pattern p's references to pool slot k as its record holds it, read a page at a time (no slot taken, nothing
+ * written): the steps locking it (on: those sounding; tracks: theirs), its track sounds' sources; rec: each lock kept
+ * for undo. -1: a record it cannot read (read it in) */
+static qd_store_t *pat_store(qd_app_t *a);
+static int rd_skip(rd_t *r, uint32_t n)
+{
+    if (r->pos + n > r->len)
+        return 0;
+    r->pos += n;
+    return 1;
+}
+static int rec_refs(qd_app_t *a, int p, int k, int *on, uint8_t *tracks, int rec)
+{
+    qd_store_t *st = pat_store(a);
+    const qd_pattern_t *Z = 0;
+    rd_t r;
+    uint8_t h[4];
+    uint16_t ref[QD_PAT_NTRACK], nlock;
+    uint32_t tsz;
+    int t, pg, s, v, n = 0, len;
+    if (!st)
+        return -1;
+    len = rd_open(&r, st, QD_RKEY(QD_RK_PAT, a->per.proj, p));
+    if (len <= 0 || len == (int)QDS_DELETED) {          /* (its default: blank, or a demo: its drums' locks) */
+        if (!a->proj.demo || p >= QD_DEMO_N)
+            return 0;
+        for (s = 0; s < 16; s++)
+            if (QD_DEMO_DRUMS[p][s] == k) {
+                n++;
+                if (rec)
+                    qd_undo_xlock(a, p, 0, s, k, 1);
+                if (on)
+                    ++*on;
+                if (tracks)
+                    *tracks |= 1u;
+            }
+        return n;
+    }
+    if (!rd_get(&r, h, 4) || !(tsz = pat_tset_size(h, r.len)) || !rd_skip(&r, 6) || !rd_get(&r, &nlock, 2))
+        return -1;
+    v = h[1];
+    memset(ref, 0, sizeof ref);
+    if ((v >= 5 && !rd_get(&r, ref, sizeof ref)) || !rd_skip(&r, tsz * QD_PAT_NTRACK) ||
+        !rd_skip(&r, sizeof Z->lock_start + sizeof Z->lock_n))
+        return -1;
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
+        uint8_t mask = 0;
+        rd_u8(&r, &mask);
+        for (pg = 0; pg < QD_NPAGE; pg++) {
+            uint16_t sm = 0;
+            if (!((mask >> pg) & 1u))
+                continue;
+            rd_get(&r, &sm, 2);
+            for (s = 0; s < QD_PAGE; s++)
+                if ((sm >> s) & 1u) {
+                    uint8_t w[QD_STEP_WIRE];
+                    qd_step_t x;
+                    if (!rd_get(&r, w, QD_STEP_WIRE))
+                        return -1;
+                    qd_step_unwire(&x, w);
+                    if (x.sound != k)
+                        continue;
+                    n++;
+                    if (rec)
+                        qd_undo_xlock(a, p, t, pg * QD_PAGE + s, k, (x.ovr & QD_OV(QD_PM_SOUND)) != 0);
+                    if (x.flags & QD_SF_ON) {
+                        if (on)
+                            ++*on;
+                        if (tracks)
+                            *tracks |= (uint8_t)(1u << t);
+                    }
+                }
+        }
+    }
+    if (!rd_skip(&r, (uint32_t)nlock * sizeof(qd_lock_t)))
+        return -1;
+    for (t = 0; t < QD_PAT_NTRACK; t++) {               /* (the track sounds' sources) */
+        uint8_t snd = 0;
+        if (!ref[t] && !rd_skip(&r, v >= 3 ? QD_QUAD_BLOB : QD_QUAD_BLOB5))
+            return -1;
+        if (!rd_u8(&r, &snd) || !rd_skip(&r, 1) || (!ref[t] && !rd_skip(&r, QD_SOUND_NAME + (v >= 2 ? 2u : 0u))))
+            return -1;
+        n += snd == k;
+    }
+    return n;
+}
+#endif
+
+static int pat_users(const qd_pattern_t *P, int k, uint8_t *tracks)
+{
+    int t, s, n = 0;
+    for (t = 0; t < QD_PAT_NTRACK; t++)
+        for (s = 0; s < QD_NSTEP; s++)
+            if (P->step[t][s].sound == k && (P->step[t][s].flags & QD_SF_ON)) {
+                n++;
+                if (tracks)                             /* (P1.5v: the tracks whose steps lock it too) */
+                    *tracks |= (uint8_t)(1u << t);
+            }
+    return n;
+}
+
+/* (2026-10-24) the patterns in RAM from RAM; the others from their records, never read in: on the device, the ones out
+ * of RAM once per change (qd_users_gen, the patterns in RAM), not every frame */
 int qd_pool_users_all(const qd_app_t *a, int k, uint8_t *tracks)
 {
-    int p, t, s, n = 0;
-    if (tracks)
-        qd_pool_users(a, k, tracks, 0);
+    int p, n = 0;
+    uint8_t m = 0;
+    qd_pool_users(a, k, &m, 0);
+#if QD_PAT_RAM < QD_NPAT
+    {
+        qd_app_t *w = (qd_app_t *)a;                    /* (the store's reader: not the model) */
+        int same = uc.a == a && uc.k == k && uc.gen == qd_users_gen;
+        for (p = 0; same && p < QD_PAT_RAM; p++)
+            same = uc.in[p] == a->proj.pat_in[p];
+        if (!same) {
+            uc.n = 0, uc.tr = 0;
+            for (p = 0; p < QD_NPAT; p++) {
+                int on = 0;
+                if (qd_proj_resident(&a->proj, p))
+                    continue;
+                if (rec_refs(w, p, k, &on, &uc.tr, 0) < 0)   /* (a record it cannot read: read in) */
+                    on = pat_users(qd_proj_cpat(&a->proj, p), k, &uc.tr);
+                uc.n = (uint16_t)(uc.n + on);
+            }
+            uc.a = a, uc.k = (uint8_t)k, uc.gen = qd_users_gen;
+            for (p = 0; p < QD_PAT_RAM; p++)
+                uc.in[p] = a->proj.pat_in[p];
+        }
+        n = uc.n, m |= uc.tr;
+        for (p = 0; p < QD_PAT_RAM; p++)
+            if (a->proj.pat_in[p] >= 0)
+                n += pat_users(&a->proj.pat[p], k, &m);
+    }
+#else
     for (p = 0; p < QD_NPAT; p++)
-        for (t = 0; t < QD_PAT_NTRACK; t++)
-            for (s = 0; s < QD_NSTEP; s++)
-                if (qd_proj_cpat(&a->proj, p)->step[t][s].sound == k && (qd_proj_cpat(&a->proj, p)->step[t][s].flags & QD_SF_ON)) {
-                    n++;
-                    if (tracks)                         /* (P1.5v: the tracks whose steps lock it too) */
-                        *tracks |= (uint8_t)(1u << t);
-                }
+        n += pat_users(qd_proj_cpat(&a->proj, p), k, &m);
+#endif
+    if (tracks)
+        *tracks = m;
     return n;
 }
 
@@ -2262,6 +2505,10 @@ static int pat_load(void *ctx, int k, qd_pattern_t *dst)
     tsound_fixup(a, dst);
     a->per.saved[QD_PI_PAT + k] = a->per.seen[QD_PI_PAT + k] = pat_hash(a, dst);
     a->per.changed[QD_PI_PAT + k] = a->ms;
+#if QD_PAT_RAM < QD_NPAT
+    pat_unref_pending(a, k, dst);                       /* (2026-10-24: a removed sound's locks: after the hash, so
+                                                         * written again) */
+#endif
     return 1;
 }
 
@@ -2383,6 +2630,8 @@ static void snd_load(void *ctx, int key, qd_sound_t *dst)
     uint32_t n;
     int len = -1;
     memset(dst, 0, sizeof *dst);
+    if (st && qd_store_busy(st) && st->job_key == item_key(a, it))
+        qd_store_flush(st);                             /* (its record queued as it left RAM: written first) */
     if (st)
         len = qd_store_get(st, item_key(a, it), b, sizeof b);
     if (len > 0 && len != (int)QDS_DELETED)
@@ -2412,6 +2661,11 @@ static void snd_save(void *ctx, int key, const qd_sound_t *src)
     }
     if (h == ps->saved[it])
         return;                                         /* (as the store holds it) */
+    if (ps->on && !qd_store_busy(st) && n <= QDS_JOBBUF && qd_store_put(st, item_key(a, it), b, n)) {
+        ps->saved[it] = ps->seen[it] = h;               /* (2026-10-24: queued, copied; written by qd_persist_step, a
+                                                         * page a step, not here: snd_load waits for it if asked) */
+        return;
+    }
     if (ps->on && ps->job >= 0) {                       /* (the record being written first) */
         qd_store_flush(item_store(a, ps->job));
         job_end(a);

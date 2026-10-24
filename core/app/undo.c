@@ -548,6 +548,7 @@ int qd_undo_step(qd_app_t *a, int dir)
     qd_hist_t *u = &a->undo;
     int k = -1;
     qd_undo_close(a);
+    qd_pool_sweep_all(a);                               /* (2026-10-24: the records' locks as the levels expect) */
     if (dir < 0 && u->pos > 0) {
         u->pos--;
         undo_apply(a, &u->lvl[u->pos]);

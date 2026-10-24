@@ -458,12 +458,18 @@ const int16_t *qd_sound_patch(const qd_project_t *pr, int k)
     return init;                                        /* (P1.5t: no sound there: INIT's patch) */
 }
 
+#if QD_PAT_RAM < QD_NPAT
+uint16_t qd_users_gen;                                  /* (2026-10-24: sounds.h) */
+#endif
 void qd_sound_recount(qd_project_t *pr)
 {
     int k;
     for (k = QD_NSOUND; k > 0 && !POOL_DIR(pr, k)->name[0]; k--)
         ;
     pr->nsound = (uint8_t)k;                            /* (P1.5t: 0: the pool empty) */
+#if QD_PAT_RAM < QD_NPAT
+    qd_users_gen++;                                     /* (persist.c's count of a slot's users: read again) */
+#endif
 }
 
 int qd_sound_step(const qd_project_t *pr, int k, int d, int lo)

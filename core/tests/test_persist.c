@@ -25,6 +25,8 @@
 #include "qd_fx.h"
 #include "sounds.h"
 #include "names.h"
+#include "ui.h"
+#include "demo.h"
 #include "snd_peek.h"                          /* (P2.1: LIB, POOL) */
 
 static int checks, failed;
@@ -1138,6 +1140,116 @@ static void p5_migration_test(void)
           "again: nothing", n, v5, ok, len5, len4);
 }
 
+/* the browser's POOL at the device's sizes (the owner's freeze, 2026-10-24): the view's users of a pool sound read
+ * once, not every frame, and none of it pages a pattern in; - POOL of a sound other patterns lock pages nothing in
+ * and writes no pattern then and there (their locks go as the background reaches them; undo brings them back) */
+static int locks_to(qd_app_t *a, int k)
+{
+    int p, t, s, n = 0;
+    for (p = 0; p < QD_NPAT; p++)
+        for (t = 0; t < QD_PAT_NTRACK; t++)
+            for (s = 0; s < QD_NSTEP; s++)
+                n += qd_proj_cpat(&a->proj, p)->step[t][s].sound == k;
+    return n;
+}
+static void demo_drums_test(void)                      /* demo.h's table: what the demos lock, as they are made */
+{
+    static qd_pattern_t P;
+    int d, t, s, bad = 0;
+    for (d = 0; d < QD_DEMO_N; d++) {
+        qd_demo_pattern(&P, d);
+        for (t = 0; t < QD_PAT_NTRACK; t++) {
+            bad += P.snd[t].sound != 0;
+            for (s = 0; s < QD_NSTEP; s++) {
+                const qd_step_t *x = &P.step[t][s];
+                const int want = t == 0 && s < 16 ? QD_DEMO_DRUMS[d][s] : 0;
+                bad += x->sound != want || (want && (!(x->flags & QD_SF_ON) || !(x->ovr & QD_OV(QD_PM_SOUND))));
+            }
+        }
+    }
+    CHECK(!bad, "demo.h QD_DEMO_DRUMS: the demos' sound locks, as made (%d differ)", bad);
+}
+#if QD_SND_RAM
+#define SC_LOADS(a) ((a)->per.sc.loads)
+#else
+#define SC_LOADS(a) 0u
+#endif
+static void pool_browse_test(void)
+{
+    static const int PATS[] = {10, 20, 30, 40, 50};
+    uint32_t l0, s0, g0, l1;
+    ui_browse_t v;
+    int i, f, snare = 19, n0;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    G = &A;
+    for (i = 0; i < 5; i++) {
+        qd_pattern_t *P = qd_proj_pat(&A.proj, PATS[i]);
+        qd_step_on(P, 1, 3 + i);
+        qd_step_set_sound(P, 1, 3 + i, snare);
+        P->used = 1;
+    }
+    qd_persist_flush(&A);
+    run(&A, 50);
+    n0 = locks_to(&A, snare);                           /* (the demos' own too) */
+    knob(QD_K_PRESETS, 1);
+    black(8), black(8);                                 /* B9 twice: the POOL */
+    knob(QD_K_PRESETS, -200);
+    knob(QD_K_PRESETS, snare - 1);
+    CHECK(A.ui.br.src == QD_BR_POOL && qd_br_pool_k(&A) == snare, "(the POOL, SNARE chosen: %d)", qd_br_pool_k(&A));
+    qd_view_browse(&A, &v);
+    l0 = A.proj.pat_loads;
+    for (f = 0; f < 20; f++)
+        qd_view_browse(&A, &v);
+    CHECK(v.usteps == n0 && A.proj.pat_loads == l0, "the POOL's view: SNARE's users, 20 frames, no pattern read in "
+          "(%d users, %u loads)", v.usteps, (unsigned)(A.proj.pat_loads - l0));
+    l0 = A.proj.pat_loads, s0 = A.proj.pat_saves, g0 = A.per.prj_st.c.progs;
+    bkey(9, 1), bkey(9, 0);                             /* B10: OUT? */
+    bkey(9, 1), bkey(9, 0);                             /* B10: out */
+    l1 = A.proj.pat_loads;
+    CHECK(!qd_sound_used(&A.proj, snare) && l1 == l0 && A.proj.pat_saves == s0,
+          "- POOL of a sound 5 other patterns lock: no pattern read in or written then and there (%u loads, %u saves, "
+          "%u pages)", (unsigned)(l1 - l0), (unsigned)(A.proj.pat_saves - s0), (unsigned)(A.per.prj_st.c.progs - g0));
+#if QD_PAT_RAM < QD_NPAT
+    CHECK(qd_pool_unref_pending(&A) != 0, "(its patterns' locks pending)");
+    CHECK(qd_pool_free_slot(&A.proj) != snare, "its slot not given out while some records lock it (%d)",
+          qd_pool_free_slot(&A.proj));
+#endif
+    run(&A, 3000);
+#if QD_PAT_RAM < QD_NPAT
+    CHECK(!qd_pool_unref_pending(&A), "a few seconds on: the background has been through them (%llx)",
+          (unsigned long long)qd_pool_unref_pending(&A));
+#endif
+    CHECK(locks_to(&A, snare) == 0, "every lock of it gone (%d left)", locks_to(&A, snare));
+    qd_undo_step(&A, -1);
+    CHECK(qd_sound_used(&A.proj, snare) && locks_to(&A, snare) == n0, "undo: SNARE back, its %d locks too (%d)",
+          n0, locks_to(&A, snare));
+    qd_undo_step(&A, 1);
+    CHECK(!qd_sound_used(&A.proj, snare) && locks_to(&A, snare) == 0, "redo: out again (%d)", locks_to(&A, snare));
+    qd_undo_step(&A, -1);
+    bkey(9, 1), bkey(9, 0), bkey(9, 1), bkey(9, 0);    /* out again, undone before the background got to them */
+    qd_undo_step(&A, -1);
+    CHECK(qd_sound_used(&A.proj, snare) && locks_to(&A, snare) == n0, "out and undone at once: the locks (%d)",
+          locks_to(&A, snare));
+    run(&A, 3000);
+    {   /* + POOL from MY PRESETS / ALL: nothing written then and there either */
+        uint32_t pp, pe, lp, le, sl;
+        black(8);                                       /* B9: ALL */
+        knob(QD_K_PRESETS, -200);
+        for (i = 0; i < 30 && qd_br_pool_k(&A); i++)
+            knob(QD_K_PRESETS, 1);
+        pp = A.per.prj_st.c.progs, pe = A.per.prj_st.c.erases, lp = A.per.lib_st.c.progs, le = A.per.lib_st.c.erases;
+        l0 = A.proj.pat_loads, sl = SC_LOADS(&A);
+        bkey(9, 1), bkey(9, 0);
+        CHECK(qd_br_pool_k(&A) && A.proj.pat_loads == l0 && A.per.prj_st.c.progs == pp && A.per.prj_st.c.erases == pe &&
+                  A.per.lib_st.c.progs == lp && A.per.lib_st.c.erases == le,
+              "+ POOL: in, no pattern read in, nothing written then and there (%u loads, %u + %u pages, %u + %u erases, "
+              "%u sounds read)", (unsigned)(A.proj.pat_loads - l0), (unsigned)(A.per.prj_st.c.progs - pp),
+              (unsigned)(A.per.lib_st.c.progs - lp), (unsigned)(A.per.prj_st.c.erases - pe),
+              (unsigned)(A.per.lib_st.c.erases - le), (unsigned)(SC_LOADS(&A) - sl));
+    }
+}
+
 int main(void)
 {
     static qd_project_t keep;
@@ -1364,6 +1476,8 @@ int main(void)
           "a restart: project 1 worked on, 5 kept, 3 gone");
     CHECK(!strcmp(LIB(&B, 99)->name, "SX KEEP"), "a restart: the SysEx import kept (P1.5r)");
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
+    demo_drums_test();
+    pool_browse_test();
     pages_test();
     paging_test();
     sound_paging_test();
