@@ -101,7 +101,7 @@ export function versionOfId(id) {
   return m ? `${+m[1]}.${+m[2]}.${+m[3]}` : "";
 }
 
-// FIZZ's own IDENTITY (7D 46 5A 01 01): "FIZZ <APP_VERSION>"; null when FIZZ does not answer (no data yet, safe mode)
+// FIZZ's own IDENTITY (7D 46 5A 01 01): "FIZZ <APP_VERSION>"; null when FIZZ does not answer (no data yet, safe mode: SAVE held at power-on)
 async function fizzVersion(link) {
   link.drain();
   if (!link.send(Array.from(fizzIdentity()))) return null;
