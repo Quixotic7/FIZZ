@@ -25,6 +25,7 @@
  * writer (APP_USB_CMD, firmware/tools/fizz_xdata.py). */
 #include "fizz_port.h"
 #include "fz_prof.h"
+#include "fz_gfx.h"                      /* (gen_units.py: QD_GFX_FB, the 8-bit frame's build) */
 #ifndef PLAT_HOST
 #include "fm1_debug.h"                   /* (felucca-bsp: the timed empty loop, the boot's speed line) */
 #endif
@@ -240,6 +241,11 @@ static void fz_panel_rate(void)          /* FRCTRL2: 60 Hz (the panel's default)
 #endif
 }
 
+/* (P2.12) the 8-bit frame's send counters (fz_fb.c) */
+typedef struct {
+    uint32_t frames, rows, passes, synced, unsynced, split, torn, scan_fail, wait_max_us, span_max_us, span_sum_us;
+} fz_fb_stats_t;
+static fz_fb_stats_t fz_fb;
 /* (P2.7) the screen's and the LEDs' counters (stats line 7) */
 static uint32_t fz_arena_free_min = 0xFFFFFFFFu;
 static uint32_t fz_frame_rows0, fz_st_cap0, fz_span_max, fz_span_n, fz_span_over, fz_frame_rows_max, fz_frames_over_stash;
@@ -667,6 +673,19 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "no_stash=", fz_st_none);
     c = fz_put_u(c, "stash_rows_min=", fz_st_cap_min);
     c = fz_put_u(c, "arena_free_min_b=", fz_arena_free_min);
+#ifdef QD_GFX_FB
+    c = fz_put_u(c, "fb_frames=", fz_fb.frames);    /* (P2.12: the 8-bit frame's sends) */
+    c = fz_put_u(c, "fb_rows=", fz_fb.rows);
+    c = fz_put_u(c, "fb_passes=", fz_fb.passes);
+    c = fz_put_u(c, "fb_synced=", fz_fb.synced);
+    c = fz_put_u(c, "fb_unsynced=", fz_fb.unsynced);
+    c = fz_put_u(c, "fb_split=", fz_fb.split);
+    c = fz_put_u(c, "fb_torn_est=", fz_fb.torn);
+    c = fz_put_u(c, "fb_scan_fail=", fz_fb.scan_fail);
+    c = fz_put_u(c, "fb_wait_max_us=", fz_fb.wait_max_us);
+    c = fz_put_u(c, "fb_span_avg_us=", fz_fb.passes ? fz_fb.span_sum_us / fz_fb.passes : 0u);
+    c = fz_put_u(c, "fb_span_max_us=", fz_fb.span_max_us);
+#endif
     c = fz_put_u(c, "send_span_avg_us=", fz_us(fz_span_n ? fz_span_sum / fz_span_n : 0u));
     c = fz_put_u(c, "send_span_max_us=", fz_us(fz_span_max));
     c = fz_put_u(c, "frames_span_over_16ms=", fz_span_over);
@@ -820,6 +839,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
             fz_frames_sent = fz_rows_sent = fz_led_looks = fz_led_writes = 0;
             fz_st_cap_min = 240u;
             fz_arena_free_min = 0xFFFFFFFFu;
+            memset(&fz_fb, 0, sizeof fz_fb);
             fz_span_max = fz_span_n = fz_span_over = fz_frame_rows_max = fz_frames_over_stash = 0, fz_span_sum = 0;
 #ifndef PLAT_HOST
             t5_gap_max = t5_late = t5_run_max = 0;
@@ -1119,8 +1139,15 @@ static void fz_stash_take(void)          /* the stash, before the frame is latch
     fz_st_n = 0;
 }
 
+static int fz_draw_fb(int all);
 static void fz_draw(int all)
 {
+#ifdef QD_GFX_FB
+    (void)fz_draw_fb(all);               /* (P2.12: the 8-bit frame; the strips' path below is the RGB565 build's) */
+}
+static void fz_draw_strips(int all)
+{
+#endif
     const uint32_t t0 = plat_ticks24();
     uint32_t d;
     if (!fz_st)
@@ -1183,7 +1210,84 @@ static void fz_draw(int all)
         fz_prof.frame_max = d;
 }
 
-#include "fz_fb.c"                       /* (P2.12: the full frame's send; used once the core draws into it) */
+#include "fz_fb.c"                       /* (P2.12: the full frame's send) */
+#ifdef QD_GFX_FB
+/* (P2.12) the frame's memory: rows 0..99 in main RAM (where the strip surface and its coverage were), 100..239 in the
+ * pool (the delay line's freed half); the host: one block */
+#define FZ_FB_LO 100u                    /* (P2.12: rows 0..99 in main RAM, where the strip surface and coverage were; 100..239 in the pool) */
+#ifdef PLAT_HOST
+static uint8_t fz_fb_lo[FZ_FB_LO][240], fz_fb_hi[240u - FZ_FB_LO][240];
+#else
+static uint8_t fz_fb_lo[FZ_FB_LO][240] __attribute__((aligned(4)));
+static uint8_t fz_fb_hi[240u - FZ_FB_LO][240] __attribute__((section(".pool"), aligned(4)));
+#endif
+static uint8_t *fz_rowp[240];
+static const uint16_t *fz_pal;
+static uint32_t fz_pal_gen;
+static uint8_t fz_fb_on;
+static uint32_t fz_fb_n;
+#define FZ_FB_FULL_EVERY 1u              /* (a frame in this many: every band drawn, not only the changed ones. 1 until
+                                          * the core's band check is fixed: with only the changed bands, the simulator's
+                                          * compare left 332 stale pixels in a playing frame, and every 8th frame in full
+                                          * did not cure it. The send still sends only the rows that changed) */
+static void fz_fb_start(void)            /* (once FIZZ is up: the rows attached; every band drawn at the next frame) */
+{
+    uint32_t y;
+    for (y = 0; y < 240u; y++)
+        fz_rowp[y] = y < FZ_FB_LO ? fz_fb_lo[y] : fz_fb_hi[y - FZ_FB_LO];
+    fz_fb_attach(fz_rowp);
+    fz_pal = fz_fb_palette(&fz_pal_gen);
+    fz_fb_on = 1;
+}
+static int fz_draw_fb(int all)           /* a frame: drawn at one instant into the rows, the changed ones sent; 1 drawn */
+{
+    const uint32_t t0 = plat_ticks24();
+    uint32_t bands = 0, gen = fz_pal_gen, t1, d;
+    if (!fz_fb_on)
+        return 0;
+    fz_in_frame = 1;
+    if (++fz_fb_n % FZ_FB_FULL_EVERY == 0u)
+        fz_fb_attach(fz_rowp);           /* (every band drawn: FZ_FB_FULL_EVERY) */
+    fz_frame_fb(&bands);
+    t1 = plat_ticks24();
+    fz_prof.draw += t1 - t0;
+    fz_pal = fz_fb_palette(&gen);
+    if (gen != fz_pal_gen)
+        all = 1, fz_pal_gen = gen;       /* (a new palette: every row again) */
+    if (bands || all) {
+        const uint32_t n = fz_fb_send(fz_rowp, fz_pal, all ? 0xFFFFFFFFu : bands, 16u, all);   /* (16: QD_FB_BAND) */
+        fz_rows_sent += n;
+        if (!n && !all)
+            bands = 0;                   /* (drawn, nothing changed on the screen: not a frame, not animating) */
+    }
+    fz_prof.lcd += plat_ticks24() - t1;
+    fz_in_frame = 0;
+#ifdef PLAT_HOST
+    {   /* (the host's check: the panel holds every row's colours as sent) */
+        uint32_t y, x, n = 0;
+        for (y = 0; y < 240u; y++)
+            for (x = 0; x < 240u; x++)
+                if (fb[y * 240u + x] != fz_pal[fz_rowp[y][x]]) {
+                    n++;
+                    break;
+                }
+        if (n > fz_host_stale_max)
+            fz_host_stale_max = n;
+    }
+#endif
+    if (!bands && !all)
+        return 0;
+    d = plat_ticks24() - t0;
+    fz_prof.frame += d;
+    fz_prof.n_frame++;
+    if (d > fz_prof.frame_max)
+        fz_prof.frame_max = d;
+    fz_frames_sent++;
+    return 1;
+}
+#else
+static int fz_draw_fb(int all) { (void)all; return 0; }
+#endif
 #ifdef PLAT_HOST
 /* (the host's test of the send: a frame of indices and a palette of its own, a moving band; the panel then holds the
  * palette's colours, row for row) */
@@ -1309,6 +1413,10 @@ void app_init(void)
     fz_panel_rate();
     fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
     fz_init_us = (plat_ticks24() - t_init) / PLAT_TICKS_PER_US;   /* (P2.12: app_init's time; fm1-base starts USB after it) */
+#ifdef QD_GFX_FB
+    if (fz_ok)
+        fz_fb_start();
+#endif
     fz_ticked = 0;
     fz_store_started = 0, fz_safe = 0, fz_wiped = -1;
     /* core 1, before the sound: not after a failed boot (fm1-base's boot guard counted the one before: a crash or the
@@ -1415,6 +1523,22 @@ static void fz_step(int frame)
     if (fz_anim >= 2u)                   /* (P2.7) animating: a steady pace the frames can keep (30, 20 or 15 a second) */
         period = fz_frame_us <= FZ_FIT_30 ? 33u : fz_frame_us <= FZ_FIT_20 ? 50u : 66u;
     fz_pace = period;
+#ifdef QD_GFX_FB
+    if (now - frame_t >= period || fz_redraw) {   /* (P2.12: one call latches, draws the changed bands, and the rows go) */
+        const uint32_t t1 = plat_ticks24();
+        const int all = fz_redraw;
+        frame_t = now - frame_t < 2u * period ? frame_t + period : now;
+        fz_redraw = 0;
+        fz_prof.n_check++;
+        if (fz_draw_fb(all)) {
+            fz_frame_us = (3u * fz_frame_us + (plat_ticks24() - t1) / PLAT_TICKS_PER_US) / 4u;
+            fz_anim = fz_anim < 255u ? (uint8_t)(fz_anim + 1u) : fz_anim;
+        } else {
+            fz_prof.n_skip++;
+            fz_anim = 0;
+        }
+    }
+#else
     if (now - frame_t >= period || fz_redraw) {
         const uint64_t tx = fz_prof.text, sh = fz_prof.shapes;   /* (the check's drawing calls are not the frame's) */
         const uint32_t ntx = fz_prof.n_text, nsh = fz_prof.n_shapes;
@@ -1424,10 +1548,8 @@ static void fz_step(int frame)
          * list is given back down to its length, and the stash takes what is left (a frame never drawn live to make
          * room for the stash) */
         changed = fz_frame_changed() || fz_redraw;
-        if (changed) {
-            fz_dl_shrink();
+        if (changed)
             fz_stash_take();
-        }
         fz_prof.check += plat_ticks24() - t;
         fz_prof.text = tx, fz_prof.shapes = sh, fz_prof.n_text = ntx, fz_prof.n_shapes = nsh;
         fz_prof.n_check++;
@@ -1444,6 +1566,7 @@ static void fz_step(int frame)
             fz_anim = 0;
         }
     }
+#endif
     if (now - store_t >= FZ_STORE_MS) {  /* the store's step: between frames, outside the locks */
         uint32_t t = plat_ticks24(), d;
         store_t = now;

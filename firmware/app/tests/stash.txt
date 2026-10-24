@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
+# (the RGB565 strips' build only, fm1.toml --gfx fast: the 8-bit frame's build has no stash)
 # The screen's stash (P2.7, app.c): a frame's changed rows go out in one burst at its end; an edit's borrow from the
 # drawing's arena between two strips takes the stash back, and the next frame sends what it held. A screen switch on a
 # still screen with the borrow in its frame, then nothing changes: the screen must equal the run without the borrow

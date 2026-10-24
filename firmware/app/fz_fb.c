@@ -11,18 +11,21 @@
  * not is split where it would meet the scan and its rest sent after the scan has passed it again. No scanline (a read
  * failed, or nonsense): sent at once, unsynced, and counted. */
 #ifndef FZ_FB_CHUNK
-#define FZ_FB_CHUNK 4u                   /* rows a transfer (a buffer: 1,920 B) */
+#define FZ_FB_CHUNK 2u                   /* rows a transfer (a buffer: 960 B; the RAM's to spare) */
 #endif
 #define FZ_FB_LINES 334u                 /* the panel's lines a refresh (the unit's RDSCL: 0..333) */
 #define FZ_FB_LINE_US 50u                /* ~16.67 ms / 334 */
 #define FZ_FB_ROW_US 88u                 /* a row's transfer: 480 B at ~44 MHz */
 
-typedef struct {
-    uint32_t frames, rows, passes, synced, unsynced, split, torn, scan_fail, wait_max_us, span_max_us, span_sum_us;
-} fz_fb_stats_t;
-static fz_fb_stats_t fz_fb;
-static uint32_t fz_fb_hash[240];         /* each row's indices as last sent (0: unknown) */
+/* (its counters, fz_fb_stats_t fz_fb: app.c, before its stats lines) */
+#define fz_fb_hash fz_row_hash           /* each row's indices as last sent (0: unknown): the strips' table, not used
+                                          * by this build */
+#ifdef PLAT_HOST
 static uint16_t fz_fb_buf[2][FZ_FB_CHUNK * 240u];
+#else
+static uint16_t fz_fb_buf[2][FZ_FB_CHUNK * 240u] __attribute__((section(".noinit"), aligned(4)));   /* (NOINIT: RAM and
+                                          * the pool are the frame's; not cleared, written before each transfer) */
+#endif
 
 static uint32_t fz_fb_row_hash(const uint8_t *p)
 {

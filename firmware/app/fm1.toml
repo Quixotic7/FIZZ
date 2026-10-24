@@ -13,7 +13,7 @@ o2_include = ["fizz_prefix.h"]
 include = ["../../core/app", "../../core/ui", "../../core/gfx", "../../core/seq", "../../core/voice",
            "../../core/voice/quad", "../../core/voice/fx", "../../core/tests", "../../third_party/plutovg/include"]
 vendored = ["build/"]
-gen = ["tools/gen_units.py {gen} --gfx fast"]   # the drawing: plutovg or fast (core/gfx/qd_gfx_fast.c)
+gen = ["tools/gen_units.py {gen} --gfx fb"]     # the drawing: plutovg, fast (core/gfx/qd_gfx_fast.c) or fb (P2.12: fast, into the 8-bit frame)
 # USB only (the owner, 2026-10-23): no Bluetooth, no WiFi; no USB audio (the RAM: firmware/BUDGET.md)
 ble = false
 usb_audio_in = false

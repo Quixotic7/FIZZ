@@ -479,3 +479,11 @@ uint32_t fz_bench_render(int k, int note, int nblocks)
 }
 int32_t fz_bench_render_sum;
 uintptr_t fz_app_addr(void) { return (uintptr_t)&fz_app; }
+
+#ifdef QD_GFX_FB
+/* (P2.12) the 8-bit frame (core P2.6e): the port's rows attached, the core's palette, a frame drawn into them */
+void fz_fb_attach(uint8_t *const rows[240]) { qd_app_fb_attach(&fz_app, rows); }
+const uint16_t *fz_fb_palette(uint32_t *gen) { return qd_app_palette(&fz_app, gen); }
+int fz_frame_fb(uint32_t *bands) { return qd_app_frame_fb(&fz_app, bands); }
+typedef char fz_fb_band_ok[QD_FB_BAND == 16 ? 1 : -1];   /* (app.c sends bands of 16 rows) */
+#endif

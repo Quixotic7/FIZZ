@@ -90,7 +90,6 @@ int fz_test_lend(uint32_t n);                      /* (the host's test: n bytes 
 extern uint32_t fz_dl_max, fz_dl_over12k, fz_strips_drawn, fz_strips_kept;
 int fz_dl_is_kept(void);
 void fz_dl_drop(void);
-void fz_dl_shrink(void);                           /* (P2.10, gen_units.py: the kept list down to its length) */
 void fz_dl_counts(uint32_t *recorded, uint32_t *outgrown, uint32_t *max_bytes);
 uint32_t fz_arena_free(void);
 int32_t fz_bench(int k, int note, int nblocks);    /* (qd_quad_bench) */
@@ -98,3 +97,8 @@ extern int fz_bench_shared_changed;
 uintptr_t fz_app_addr(void);
 uint32_t fz_bench_render(int k, int note, int nblocks);   /* (P2.10: quad_render alone; ticks) */
 extern int32_t fz_bench_render_sum;
+/* (P2.12, QD_GFX_FB) the 8-bit frame: its rows (the port's), the palette (256 RGB565 big-endian), a frame drawn into it
+ * at one instant (*bands: bit k, band k of QD_FB_BAND rows, may have changed; 0: nothing drawn) */
+void fz_fb_attach(uint8_t *const rows[240]);
+const uint16_t *fz_fb_palette(uint32_t *gen);
+int fz_frame_fb(uint32_t *bands);
