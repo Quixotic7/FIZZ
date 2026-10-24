@@ -529,6 +529,35 @@ int qd_app_frame_fb_step(qd_app_t *a, int n)
         left++;
     return left;
 }
+uint32_t qd_app_frame_fb_latch(qd_app_t *a, uint32_t *changed)
+{
+    uint32_t m = 0;
+    qd_app_frame_fb_begin(a, &m);
+    *changed = m;
+    if (!m)
+        return 0;
+    if (!qd_dl_kept()) {                                /* (no list: drawn here, live, now) */
+        qd_app_frame_fb_step(a, 32);
+        return 0;
+    }
+    qd_dl_pin(1);
+    a->fb_pending = 0;
+    return m;
+}
+int qd_app_frame_fb_band(int k)
+{
+    if (k < 0 || k * QD_STRIP_H >= QD_H || !qd_dl_kept())
+        return 0;
+    qd_begin_strip(k * QD_STRIP_H);
+    qd_dl_play();
+    return 1;
+}
+void qd_app_frame_fb_done(qd_app_t *a)
+{
+    (void)a;
+    qd_dl_pin(0);
+    qd_dl_drop();
+}
 int qd_app_frame_fb(qd_app_t *a, uint32_t *bands)
 {
     if (qd_app_frame_fb_begin(a, bands))

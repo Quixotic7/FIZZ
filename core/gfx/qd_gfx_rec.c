@@ -59,6 +59,8 @@ enum {
     RO_CUBIC, RO_PARC, RO_PCLOSE, RO_PFILL, RO_PSTROKE, RO_PSTROKEK, RO_PPAINT, RO_PCLIP, RO_TEXT, RO_LDRAW
 };
 
+static int rl_pin;                      /* P2.6f: the kept list pinned (bands drawn from it, maybe on another core) */
+void qd_dl_pin(int on) { rl_pin = on; }
 static uint8_t *rl_buf;                 /* the list (in the arena), its room, what it holds */
 static uint32_t rl_cap, rl_len;
 static int rl_on, rl_fail, rl_bypass;   /* recording; it outgrew its block; a layer being drawn (straight through) */
@@ -406,7 +408,7 @@ void qd_layer_draw(int slot, float x, float y, float w, float h)
 #if RL_ON
 static void rl_release(void)                           /* (the arena wants its room: the kept list goes) */
 {
-    if (rl_buf && !rl_on) {
+    if (rl_buf && !rl_on && !rl_pin) {                  /* (P2.6f: not while another core draws from it) */
         qd_arena_free(rl_buf);
         rl_buf = 0;
         rl_len = rl_cap = 0;

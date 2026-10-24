@@ -52,6 +52,7 @@ uint32_t qd_dl_bytes(void);
 void qd_dl_play(void);
 void qd_dl_strip_hashes(uint32_t *h, int n, int rows);
 void qd_dl_drop(void);
+void qd_dl_pin(int on);         /* P2.6f: 1: the kept list stays (the arena's borrowers cannot take it back) */
 void qd_dl_stats(uint32_t *recorded, uint32_t *outgrown, uint32_t *max_bytes);   /* (frames recorded; not: no room or
                                                          * outgrown; the largest list) */
 void qd_hash_begin(void);        /* P2.4: a frame hashed, nothing drawn: the calls up to qd_hash_end go into a hash */

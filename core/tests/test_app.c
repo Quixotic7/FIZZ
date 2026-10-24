@@ -478,6 +478,34 @@ static void t_fb_steps(void)
     qd_app_frame_fb(&A, &bands);
     for (y = 0; y < QD_W * QD_H; y++)
         n += f1[y] != f2[y];
+    {   /* .. and latched, its bands drawn from the pinned list in reverse order (as another core would), the clock
+         * and an arena borrower in between */
+        uint32_t todo, ch;
+        int k, n2 = 0;
+        void *b;
+        static uint8_t f3[QD_W * QD_H];
+        for (y = 0; y < QD_H; y++)
+            rows[y] = f3 + (size_t)y * QD_W;
+        fresh();
+        qd_app_fb_attach(&A, rows);
+        run(700, 1);
+        qd_app_play(&A);
+        run(300, 1);
+        todo = qd_app_frame_fb_latch(&A, &ch);
+        b = qd_pat_borrow();                            /* (the main loop's borrower: it may not take the list) */
+        for (k = 14; k >= 0; k--) {
+            if ((todo >> k) & 1u)
+                qd_app_frame_fb_band(k);
+            qd_app_tick(&A, ++now);
+        }
+        if (b)
+            qd_pat_return(b);
+        qd_app_frame_fb_done(&A);
+        for (y = 0; y < QD_W * QD_H; y++)
+            n2 += f3[y] != f2[y];
+        CHECK(todo && todo == ch && !n2, "P2.6f: latched, its bands drawn in reverse from the pinned list, a borrower "
+              "and the clock between: the same frame (%d pixels differ)", n2);
+    }
     CHECK(bands && steps == 8 && !n, "P2.6f: the frame two bands a step (%d steps), time passing between: the begin's "
           "instant (%d pixels differ from it drawn at once)", steps, n);
 }

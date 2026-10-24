@@ -265,6 +265,16 @@ int qd_app_frame_fb(qd_app_t *a, uint32_t *bands);
  * sends it then). Ticks, keys and MIDI between steps are fine: the frame stays the instant begin took */
 int qd_app_frame_fb_begin(qd_app_t *a, uint32_t *bands);
 int qd_app_frame_fb_step(qd_app_t *a, int n);
+/* P2.6f: THE BANDS ON ANOTHER CORE. qd_app_frame_fb_latch (core 0, main loop): the instant taken (the display list
+ * recorded and pinned: the arena's borrowers cannot take it back; *changed: the bands that changed); returns the bands
+ * to draw (0: none, or no list: then the changed ones were drawn here, now, and only need sending). Then
+ * qd_app_frame_fb_band(k) for each of them, on any core, in any order, one core at a time: it reads only the list,
+ * the fonts and the palette (constants) and writes rows 16 k .. 16 k + 15 of the frame and the drawing's own statics.
+ * Then qd_app_frame_fb_done (core 0) once every band is drawn: the list unpinned and dropped. Between latch and done
+ * core 0 may tick, take input and run the audio; it must not latch, draw or hash another frame */
+uint32_t qd_app_frame_fb_latch(qd_app_t *a, uint32_t *changed);
+int qd_app_frame_fb_band(int k);
+void qd_app_frame_fb_done(qd_app_t *a);
 #endif
 /* the sound: frames of 16-bit stereo, interleaved, at QD_FS (rendered in control blocks of 32 frames) */
 void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames);
