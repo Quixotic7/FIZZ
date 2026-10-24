@@ -38,3 +38,4 @@ release REC
 expect fz_safe 1
 expect fz_store_on 0
 expect fz_up 1
+expect fz_lcd_stale 0

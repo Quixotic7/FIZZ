@@ -53,6 +53,10 @@ void fz_ui_state(int *mode, int *playing);
 int fz_flush(void);
 /* (app.c's, for fz_port.c: the platform's watchdog fed, inside a long flow of flash operations) */
 void fz_watchdog(void);
+/* (P2.7, app.c) around each flash operation: the interrupts off and the LED lines dark until the operation's end
+ * (fm1-base's flash call turns the interrupts on at its end; fz_flash_done does if it returned early) */
+void fz_flash_quiet(void);
+void fz_flash_done(void);
 void fz_persist_step(void);
 /* would the next frame differ from the last drawn? (qd_app_frame_changed: the screen's logic once, nothing drawn) */
 int fz_frame_changed(void);
@@ -70,3 +74,12 @@ int fz_xdata_state(void);
 void fz_show(int mode, int view);
 void fz_seed(uint32_t seed);
 int fz_expect(const char *what, int *got);
+
+/* (P2.7) the screen's stash: room borrowed from FIZZ's drawing arena for the length of a frame (the fast drawing takes
+ * nothing from it during a frame). fz_stash_borrow: up to want bytes, leaving keep bytes free for what a frame's
+ * edits borrow; 0 when there is not that much (*got: its size). release: called when a borrow inside the frame finds
+ * no room (the arena's release hook), the stash then given back by its owner */
+void *fz_stash_borrow(uint32_t want, uint32_t keep, uint32_t *got);
+void fz_stash_return(void *p);
+void fz_stash_on_release(void (*release)(void));
+int fz_test_lend(uint32_t n);                      /* (the host's test: n bytes borrowed as an edit would, given back) */

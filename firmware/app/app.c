@@ -7,7 +7,8 @@
  * the transport, the notes to the player, the controllers). A slow frame can never starve it. Everything else that
  * changes FIZZ runs on the main loop: the panel, MIDI's UI part (qd_app_midi_ui, queued by the interrupt with its
  * time), FIZZ's clock (plat_ms), SysEx; each call
- * with the interrupts off around it (plat_lock), the clock a few ms at a time, so the interrupt never meets an edit
+ * with the audio interrupt masked around it (P2.7: that interrupt alone, fz_lock; the key and LED scan and USB run
+ * on), the clock a few ms at a time, so the interrupt never meets an edit
  * half made and waits at most one call. Those calls are made between frames and between the strips of a frame (a press
  * acts within a strip's time, and FIZZ's clock is given up to each press's own time first, so a hold is a hold). The
  * drawing, which only reads, runs with the interrupts on: what it shows may move between two strips (the playhead).
@@ -16,8 +17,8 @@
  * main loop between frames, outside the locks (the flash driver masks the interrupts a page at a time; it erases only
  * when FIZZ is quiet: stopped, silent, untouched 10 s).
  *
- * A frame is FIZZ's 20-row strips (qd_app_frame_strips), each sent to the LCD from where FIZZ drew it (no second
- * screen buffer), only its rows whose pixels changed (a hash a row). A frame is looked at 30 a second for 1.5 s after a
+ * A frame is FIZZ's 40-row strips (qd_app_frame_strips); only the rows whose pixels changed (a hash a row) go to the
+ * LCD, gathered in a stash borrowed from the drawing's arena and sent in one burst at the frame's end (P2.7). A frame is looked at 30 a second for 1.5 s after a
  * touch, 20 while playing, 15 on the idle screen, 10 otherwise, and drawn only when its picture would change
  * (qd_app_frame_changed: the screen's logic once, nothing drawn). The rest: the LEDs (FIZZ's 0..255 a light onto fm1-base's off / glow / mid / lit), USB SysEx both
  * ways (APP_SYSEX: FIZZ's 7D 46 5A, and 7D 46 50 for this port's counters and profile), the data blob's check and its
@@ -84,10 +85,39 @@ void fz_prof_reset(void)
 }
 
 /* ---------------------------------------------------------------- the locks --- */
+/* (P2.7) FIZZ's state is shared with the audio interrupt only: FIZZ has no APP_TICK, nothing on TIMER5 (the scan,
+ * USB) reads or writes it, and the MIDI queue it takes in the audio interrupt is fm1-base's own. So its locks mask
+ * ALNK0 alone, not every interrupt: the 10 kHz scan (the LEDs, the keys) and USB keep their rhythm through every lock.
+ * The host's (the simulator: one thread) are plat_lock's */
+#ifdef PLAT_HOST
+#define fz_audio_off() plat_lock()
+#define fz_audio_on_again(f) plat_unlock(f)
+#else
+static uint32_t fz_mask_depth;
+static uint32_t fz_audio_off(void)
+{
+    if (!fz_mask_depth++) {              /* (the register's write inside cli .. csync sti: in effect before FIZZ's state
+                                          * is touched, and no interrupt between its read and its write) */
+        fm1_irq_off();
+        fm1_irq_mask(FM1_IRQ_ALNK0);
+        fm1_irq_on();
+    }
+    return 0;
+}
+static void fz_audio_on_again(uint32_t f)
+{
+    (void)f;
+    if (fz_mask_depth && !--fz_mask_depth) {
+        fm1_irq_off();
+        fm1_irq_unmask(FM1_IRQ_ALNK0);
+        fm1_irq_on();
+    }
+}
+#endif
 static uint32_t fz_lock_t0;
 static uint32_t fz_lock(void)
 {
-    const uint32_t f = plat_lock();
+    const uint32_t f = fz_audio_off();
     fz_lock_t0 = plat_ticks24();
     return f;
 }
@@ -96,18 +126,24 @@ static void fz_unlock(uint32_t f, uint32_t kind)
     const uint32_t d = plat_ticks24() - fz_lock_t0;
     if (d > fz_prof.lock_max)
         fz_prof.lock_max = d, fz_prof.lock_kind = kind;
-    plat_unlock(f);
+    fz_audio_on_again(f);
 }
 
 /* ---------------------------------------------------------------- the audio interrupt --- */
 static int16_t fz_abuf[2u * APP_BLOCK];
 static volatile uint8_t fz_audio_on;     /* 0: silence (no FIZZ, a panic, an update) */
 static volatile uint8_t fz_in_frame;     /* (the profile: the interrupt's time inside frames) */
+static volatile uint8_t fz_in_render;    /* (P2.7, the screen's stash: a borrow from the audio interrupt never takes it) */
+/* (P2.7) the screen's and the LEDs' counters (stats line 7) */
+static uint32_t fz_rows_sent, fz_bursts, fz_burst_rows, fz_burst_max, fz_frame_bursts, fz_frame_bursts_max, fz_st_full,
+    fz_st_drops, fz_st_none, fz_st_cap_min = 240u, fz_frames_sent, fz_led_looks, fz_led_writes;
 #define FZ_MQ 128u                       /* MIDI's channel messages' UI part for the main loop, with their time */
 static uint32_t fz_mq_pkt[FZ_MQ], fz_mq_ms[FZ_MQ];
 static volatile uint32_t fz_mq_w, fz_mq_r, fz_mq_drops, fz_midi_pkts, fz_sx_frames_in, fz_sx_bytes_in;
 #ifdef PLAT_HOST
 static uint8_t fz_host_sync;             /* (fzsync: below) */
+static uint32_t fz_host_stale_max;        /* (app_expect fz_lcd_stale) */
+static uint32_t fz_host_lend;             /* (fzlend N: a borrow of N bytes between two strips, once the stash holds rows) */
 #endif
 
 static void fz_midi_isr(void)            /* USB and the TRS jack (fm1-base's queue) */
@@ -157,7 +193,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         return;
     }
     fz_midi_isr();
+    fz_in_render = 1;
     fz_audio(fz_abuf, n);
+    fz_in_render = 0;
     {   /* 16 bits to 24 with ChoralRoot's -6 dBFS ceiling (its OUT_SHIFT 7: Q15 x 128; the codec and the amp ran clean
          * there), times MASTER's gain (Q12: 4096 full) and the start's ramp, the gain glided across the half from the
          * last one's (no step when MASTER moves) */
@@ -464,6 +502,22 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "c1_wait_max_us=", fz_us(fz_dual.wait_max_ticks));
     *c = 0;
     fz_stats_send(6, line);
+    /* 7 (P2.7): the screen's bursts and the LEDs */
+    c = line;
+    c = fz_put_u(c, "frames_sent=", fz_frames_sent);
+    c = fz_put_u(c, "bursts=", fz_bursts);
+    c = fz_put_u(c, "burst_rows=", fz_burst_rows);
+    c = fz_put_u(c, "burst_max_us=", fz_us(fz_burst_max));
+    c = fz_put_u(c, "bursts_a_frame_max=", fz_frame_bursts_max);
+    c = fz_put_u(c, "stash_full=", fz_st_full);
+    c = fz_put_u(c, "stash_taken=", fz_st_drops);
+    c = fz_put_u(c, "no_stash=", fz_st_none);
+    c = fz_put_u(c, "stash_rows_min=", fz_st_cap_min);
+    c = fz_put_u(c, "rows_sent=", fz_rows_sent);
+    c = fz_put_u(c, "led_looks=", fz_led_looks);
+    c = fz_put_u(c, "led_writes=", fz_led_writes);
+    *c = 0;
+    fz_stats_send(7, line);
 }
 
 static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region erased, FIZZ started again on it (as at a
@@ -506,6 +560,12 @@ int app_sysex(const uint8_t *p, uint32_t n)
         if (n >= 4u && p[3] == 0x7Fu) {  /* (7F: and start them again) */
             fz_prof_reset();
             fz_mq_drops = 0;
+            fz_bursts = fz_burst_rows = fz_burst_max = fz_frame_bursts_max = fz_st_full = fz_st_drops = fz_st_none = 0;
+            fz_frames_sent = fz_rows_sent = fz_led_looks = fz_led_writes = 0;
+            fz_st_cap_min = 240u;
+#ifndef PLAT_HOST
+            t5_gap_max = t5_late = t5_run_max = 0;
+#endif
         } else {
             fz_stats_reply();
         }
@@ -523,36 +583,111 @@ int app_sysex(const uint8_t *p, uint32_t n)
 }
 
 /* ---------------------------------------------------------------- the LEDs --- */
+/* (P2.7) FIZZ's 0..255 a light onto fm1-base's levels: >= 128 lit; 64..127 (MID) the mid level, lit 1 scan frame in 8
+ * (~114 Hz; the columns take turns: build.py's OVERLAY), with the glow under it, so it never falls to dark between;
+ * 1..63 (FAINT, DIM) the glow. The glow at its higher strength (fm1_led_dim_level(0): the mid level 1 in 8, not 1 in 12
+ * at ~76 Hz). The picture is computed off-line and written to the scan's arrays in one go (the interrupts off for those
+ * 33 bytes): the scan never sees half of it, and never a dark gap. Looked at every 10 ms, also between the strips of a
+ * long frame */
+#define FZ_LED_LIT 128u
+#define FZ_LED_MIDL 64u
+static uint32_t fz_led_t;                /* (plat_ms of the last look) */
 static void fz_lights(void)              /* (FIZZ's state read, the interrupts on: a light a moment early or late) */
 {
     uint8_t k[NKEYS], b[NB], g;
     uint32_t i, lit_b = 0, lit_k = 0, mid_b = 0, mid_k = 0, dim_b = 0, dim_k = 0;
+    fz_led_t = plat_ms();
+    fz_led_looks++;
     fz_leds(k, b, &g);
-    for (i = 0; i < NB; i++) {           /* >= 128 lit, 25..127 the middle level, 1..24 a glow */
-        lit_b |= (uint32_t)(b[i] >= 128u) << i;
-        mid_b |= (uint32_t)(b[i] >= 25u && b[i] < 128u) << i;
-        dim_b |= (uint32_t)(b[i] && b[i] < 25u) << i;
+    for (i = 0; i < NB; i++) {
+        lit_b |= (uint32_t)(b[i] >= FZ_LED_LIT) << i;
+        mid_b |= (uint32_t)(b[i] >= FZ_LED_MIDL && b[i] < FZ_LED_LIT) << i;
+        dim_b |= (uint32_t)(b[i] && b[i] < FZ_LED_LIT) << i;          /* (the glow under the mid level too) */
     }
     for (i = 0; i < NKEYS; i++) {
-        lit_k |= (uint32_t)(k[i] >= 128u) << i;
-        mid_k |= (uint32_t)(k[i] >= 25u && k[i] < 128u) << i;
-        dim_k |= (uint32_t)(k[i] && k[i] < 25u) << i;
+        lit_k |= (uint32_t)(k[i] >= FZ_LED_LIT) << i;
+        mid_k |= (uint32_t)(k[i] >= FZ_LED_MIDL && k[i] < FZ_LED_LIT) << i;
+        dim_k |= (uint32_t)(k[i] && k[i] < FZ_LED_LIT) << i;
     }
-    if (g >= 128u)                       /* PLAY's green LED (bit NB) */
+    if (g >= FZ_LED_LIT)                 /* PLAY's green LED (bit NB) */
         lit_b |= LED_PLAY_GREEN;
-    else if (g >= 25u)
-        mid_b |= LED_PLAY_GREEN;
-    else if (g)
+    else if (g) {
         dim_b |= LED_PLAY_GREEN;
-    plat_lights(lit_b, lit_k, dim_b, dim_k, 1);
+        if (g >= FZ_LED_MIDL)
+            mid_b |= LED_PLAY_GREEN;
+    }
+#ifdef PLAT_HOST
+    plat_lights(lit_b, lit_k, dim_b, dim_k, 2);
     plat_lights_mid(mid_b, mid_k);
+#else
+    {
+        static uint32_t was[6] = {~0u};
+        static uint8_t level_set;
+        uint8_t nl[FM1_NCOL] = {0}, dl[FM1_NCOL] = {0}, ml[FM1_NCOL] = {0};
+        uint32_t c;
+        if (was[0] == lit_b && was[1] == lit_k && was[2] == mid_b && was[3] == mid_k && was[4] == dim_b &&
+            was[5] == dim_k)
+            return;                      /* (the same picture: nothing written) */
+        was[0] = lit_b, was[1] = lit_k, was[2] = mid_b, was[3] = mid_k, was[4] = dim_b, was[5] = dim_k;
+        if (!level_set) {
+            fm1_led_dim_level(0);
+            level_set = 1;
+        }
+        for (i = 0; i < NB + NKEYS + 1u; i++) {   /* (plat_lights' map: panel.btn, led_pos; the last one PLAY's green) */
+            const uint32_t on = i < NB ? lit_b >> i & 1u : i < NB + NKEYS ? lit_k >> (i - NB) & 1u : lit_b >> NB & 1u;
+            const uint32_t md = i < NB ? mid_b >> i & 1u : i < NB + NKEYS ? mid_k >> (i - NB) & 1u : mid_b >> NB & 1u;
+            const uint32_t dm = i < NB ? dim_b >> i & 1u : i < NB + NKEYS ? dim_k >> (i - NB) & 1u : dim_b >> NB & 1u;
+            uint32_t col, bit;
+            if (i < NB + NKEYS) {
+                const uint8_t q = led_pos[i < NB ? panel.btn[i] : 14u + (i - NB)];
+                if (q == 0xFF)
+                    continue;
+                col = q >> 3, bit = 1u << (q & 7u);
+            } else {
+                col = 8, bit = 1u << 1;  /* (PLAY's green: column 8, row PA5, as plat_lights) */
+            }
+            if (on)
+                nl[col] |= (uint8_t)bit;
+            else {
+                if (dm)
+                    dl[col] |= (uint8_t)bit;
+                if (md)
+                    ml[col] |= (uint8_t)bit;
+            }
+        }
+        fm1_irq_off();                   /* (33 bytes: the scan sees the old picture or the new, never a mix) */
+        for (c = 0; c < FM1_NCOL; c++) {
+            fm1_led_dim[c] = dl[c];
+            fm1_led_mid[c] = ml[c];
+            fm1_led[c] = nl[c];
+        }
+        fm1_irq_on();
+        fz_led_writes++;
+    }
+#endif
+}
+
+/* (P2.7) the flash's work (fz_port.c, before each erase and each page written): the interrupts off and the LED lines
+ * dark until fm1-base's flash call turns them on again at its end, so a page's ~1 ms (an erase's ~18 ms) shows as a
+ * short dark dip, not one column lit bright for all of it while the scan waits */
+void fz_flash_quiet(void)
+{
+#ifndef PLAT_HOST
+    fm1_irq_off();
+    fm1__led_lines(0);
+#endif
+}
+void fz_flash_done(void)
+{
+#ifndef PLAT_HOST
+    fm1_irq_on();
+#endif
 }
 
 /* ---------------------------------------------------------------- the screen --- */
 static uint32_t fz_row_hash[240];        /* each row's pixels as last sent (0: unknown, sent again) */
 static uint8_t fz_redraw = 1;            /* the next frame drawn whatever qd_app_frame_changed says (the screen was
                                           * cleared: the boot, an update's screens) */
-static uint32_t fz_rows_sent;
 
 static uint32_t fz_hash_row(const uint16_t *p)
 {
@@ -563,6 +698,60 @@ static uint32_t fz_hash_row(const uint16_t *p)
     return h | 1u;
 }
 
+/* (P2.7) the burst: a frame's changed rows are copied into a stash borrowed from FIZZ's drawing arena for the frame's
+ * length, and sent together when the frame is drawn: the screen changes inside one or two of the panel's refreshes
+ * (~4-5 ms for 50 rows), not strip by strip over the frame's 30-60 ms. A run of consecutive rows is one window and
+ * one transfer (at most 40 rows a transfer). A frame that changes more rows than the stash holds sends it when full
+ * and goes on (an overflow: two or three bursts on a screen change). The stash takes the whole free arena (56 rows):
+ * an edit applied between two strips that borrows from it (clip.c's undo levels 12,400 B, a pattern 22,768 B, a copy
+ * 6,144 B) takes the stash back (fz_stash_release: the arena's release hook), so the edit always gets its room; the
+ * rows the stash held are marked unknown and the next frame is drawn whatever, so they go out then. Leaving room for
+ * the undo levels instead (FZ_STASH_KEEP 12416) halves the stash to 30 rows and doubles the bursts (the simulator's
+ * boot test: 2.9 bursts a frame against 1.6). No stash at all (the arena busy): the rows go out strip by strip */
+#define FZ_STASH_KEEP 0u
+#define FZ_RUN_MAX 40u                   /* rows a transfer (a 40-row strip's: the size known to work) */
+static uint16_t *fz_st;                  /* the stash, during a frame; 0 none */
+static uint32_t fz_st_cap, fz_st_n;      /* rows it holds, rows in it */
+static uint8_t fz_st_y[240];             /* their screen rows, in order */
+
+static void fz_stash_release(void)       /* (the arena's release hook: a borrow inside a frame found no room) */
+{
+    uint32_t i;
+    if (!fz_st || fz_in_render)
+        return;
+    for (i = 0; i < fz_st_n; i++)
+        fz_row_hash[fz_st_y[i]] = 0;     /* (not sent: unknown, so sent with the next frame, drawn whatever) */
+    fz_redraw = 1;
+    fz_stash_return(fz_st);
+    fz_st = 0, fz_st_n = 0;
+    fz_st_drops++;
+}
+
+static void fz_send_stash(void)               /* the stash's rows to the LCD, in runs; back when they are out */
+{
+    const uint32_t t0 = plat_ticks24();
+    uint32_t i = 0, d;
+    if (!fz_st_n)
+        return;
+    while (i < fz_st_n) {
+        uint32_t k = 1;
+        while (i + k < fz_st_n && k < FZ_RUN_MAX && fz_st_y[i + k] == fz_st_y[i] + k)
+            k++;
+        lcd_blit(0, fz_st_y[i], 240, k, fz_st + 240u * i);
+        i += k;
+    }
+    lcd_sync();
+    fz_rows_sent += fz_st_n;
+    fz_burst_rows += fz_st_n;
+    fz_bursts++;
+    fz_frame_bursts++;
+    fz_st_n = 0;
+    d = plat_ticks24() - t0;
+    if (d > fz_burst_max)
+        fz_burst_max = d;
+    fz_prof.lcd += d;
+}
+
 static void fz_strip_out(void *ctx, int y0, int rows, const uint16_t *px)   /* one of FIZZ's strips, drawn */
 {
     int r, first = -1, last = -1;
@@ -570,14 +759,23 @@ static void fz_strip_out(void *ctx, int y0, int rows, const uint16_t *px)   /* o
     (void)ctx;
     for (r = 0; r < rows; r++) {
         const uint32_t h = fz_hash_row(px + 240 * r);
-        if (h != fz_row_hash[y0 + r]) {
-            fz_row_hash[y0 + r] = h;
+        if (h == fz_row_hash[y0 + r])
+            continue;
+        fz_row_hash[y0 + r] = h;
+        if (fz_st) {                     /* into the stash (full: what it holds sent first) */
+            if (fz_st_n == fz_st_cap) {
+                fz_st_full++;
+                fz_send_stash();
+            }
+            memcpy(fz_st + 240u * fz_st_n, px + 240 * r, 480u);
+            fz_st_y[fz_st_n++] = (uint8_t)(y0 + r);
+        } else {
             if (first < 0)
                 first = r;
             last = r;
         }
     }
-    if (first >= 0) {                    /* the changed rows, from where FIZZ drew them (in RAM: the DMA's source) */
+    if (first >= 0) {                    /* (no stash: the changed rows from where FIZZ drew them, as before P2.7) */
         lcd_blit(0, (uint32_t)(y0 + first), 240, (uint32_t)(last - first + 1), px + 240 * first);
         fz_rows_sent += (uint32_t)(last - first + 1);
     }
@@ -594,7 +792,17 @@ static void fz_strip_out(void *ctx, int y0, int rows, const uint16_t *px)   /* o
 #ifdef PLAT_HOST
     if (!fz_host_sync)                   /* (render_frames gives nothing between strips) */
 #endif
-        fz_input();                      /* while it goes out: the panel, MIDI, the clock */
+    {
+#ifdef PLAT_HOST
+        if (fz_host_lend && fz_st_n) {   /* (the stash given back: an edit's borrow, rows in it) */
+            fz_test_lend(fz_host_lend);
+            fz_host_lend = 0;
+        }
+#endif
+        fz_input();                      /* the panel, MIDI, the clock (a borrow here may take the stash back) */
+        if (plat_ms() - fz_led_t >= FZ_LED_MS)
+            fz_lights();                 /* (a long frame: the LEDs keep their pace) */
+    }
     t = plat_ticks24();
     lcd_sync();                          /* (FIZZ draws its next strip where this one is) */
     fz_prof.lcd += plat_ticks24() - t;
@@ -604,9 +812,38 @@ static void fz_draw(void)
 {
     const uint32_t t0 = plat_ticks24();
     uint32_t d;
+    fz_st = (uint16_t *)fz_stash_borrow(240u * 480u, FZ_STASH_KEEP, &fz_st_cap);
+    fz_st_cap /= 480u;
+    if (fz_st && !fz_st_cap) {
+        fz_stash_return(fz_st);
+        fz_st = 0;
+    }
+    if (!fz_st)
+        fz_st_none++;
+    else if (fz_st_cap < fz_st_cap_min)
+        fz_st_cap_min = fz_st_cap;
+    fz_st_n = 0;
+    fz_frame_bursts = 0;
     fz_in_frame = 1;
     fz_frame(fz_strip_out, 0);
     fz_in_frame = 0;
+    if (fz_st) {
+        fz_send_stash();                      /* the burst */
+        fz_stash_return(fz_st);
+        fz_st = 0;
+    }
+#ifdef PLAT_HOST
+    {   /* (the host's check, each frame: no row on the panel differs from what its hash says was sent) */
+        uint32_t y, n = 0;
+        for (y = 0; y < 240u; y++)
+            n += fz_row_hash[y] && fz_hash_row(fb + 240u * y) != fz_row_hash[y];
+        if (n > fz_host_stale_max)
+            fz_host_stale_max = n;
+    }
+#endif
+    if (fz_frame_bursts > fz_frame_bursts_max)
+        fz_frame_bursts_max = fz_frame_bursts;
+    fz_frames_sent++;
     d = plat_ticks24() - t0;
     fz_prof.frame += d;
     fz_prof.n_frame++;
@@ -653,6 +890,7 @@ void app_init(void)
     fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
     fz_ticked = 0;
     fz_store_started = 0, fz_safe = 0, fz_wiped = -1;
+    fz_stash_on_release(fz_stash_release);   /* (P2.7: a borrow inside a frame takes the screen's stash back) */
     /* core 1, before the sound: not after a failed boot (fm1-base's boot guard counted the one before: a crash or the
      * watchdog within its 30 s), and the record read with this reset's cause (the watchdog's: a hang beside core 1) */
 #ifdef PLAT_HOST
@@ -722,7 +960,7 @@ static void fz_host_sync_audio(void)
 
 static void fz_step(int frame)
 {
-    static uint32_t led_t, frame_t, store_t;
+    static uint32_t frame_t, store_t;
     const uint32_t now = plat_ms();
     uint32_t period;
     int mode, playing;
@@ -741,10 +979,8 @@ static void fz_step(int frame)
         return;
     }
 #endif
-    if (now - led_t >= FZ_LED_MS) {
-        led_t = now;
+    if (now - fz_led_t >= FZ_LED_MS)
         fz_lights();
-    }
     fz_ui_state(&mode, &playing);
     period = now - fz_touch_ms < FZ_TOUCHED_MS ? FZ_FRAME_TOUCHED
              : mode == 0                       ? FZ_FRAME_IDLE
@@ -873,6 +1109,21 @@ int app_expect(const char *what, int *got)
         *got = (int)fz_prof.n_frame;
     else if (!strcmp(what, "fz_isr"))    /* audio interrupts that made FIZZ's sound */
         *got = (int)fz_prof.n_isr;
+    else if (!strcmp(what, "fz_lcd_stale"))   /* the most rows a frame's end left on the panel other than what their
+                                                * hash says was sent (rows a stash given back dropped, not resent) */
+        *got = (int)fz_host_stale_max;
+    else if (!strcmp(what, "fz_bursts"))
+        *got = (int)fz_bursts;
+    else if (!strcmp(what, "fz_bursts_frame_max"))
+        *got = (int)fz_frame_bursts_max;
+    else if (!strcmp(what, "fz_stash_full"))
+        *got = (int)fz_st_full;
+    else if (!strcmp(what, "fz_stash_taken"))
+        *got = (int)fz_st_drops;
+    else if (!strcmp(what, "fz_no_stash"))
+        *got = (int)fz_st_none;
+    else if (!strcmp(what, "fz_stash_rows_min"))
+        *got = (int)fz_st_cap_min;
     else if (!strcmp(what, "fz_rows_sent"))
         *got = (int)fz_rows_sent;
     else if (!strcmp(what, "fz_sx_out"))
@@ -902,6 +1153,11 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "fzsync")) {
         fz_host_sync = 1;
         fz_host_sync_done = (uint64_t)plat_ms() * 44100u / 1000u / 128u * 128u;
+        return 1;
+    }
+    if (!strcmp(cmd, "fzlend")) {        /* fzlend N: in the next frame, between two strips, N bytes borrowed from the
+                                          * drawing's arena and given back (as an edit's undo levels: the stash yields) */
+        fz_host_lend = (uint32_t)atoi(a);
         return 1;
     }
     if (!strcmp(cmd, "fzshow")) {        /* fzshow MODE VIEW: qd_app_show (ctl.h QD_MODE_*, QD_VIEW_*) */

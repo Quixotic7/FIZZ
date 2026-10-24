@@ -105,11 +105,43 @@ def place_hot(obj, names):
     obj.write_bytes(bytes(b))
 
 
+# ---- fm1-base's files with FIZZ's changes (P2.7), made at build time from the submodule's own (which stays as it is):
+# each a copy with the listed replacements, in build/overlay/, found before the original by the unity build. The
+# changes are MPL-2.0 like the files (fm1-base, felucca-bsp); a replacement that no longer matches fails the build
+OVERLAY = {
+    # the steady mid level by column: column c lit on the scan frame where (phase + c) mod N is 0, not every column on
+    # the same frame (all the mid LEDs lit at once: a ~114 Hz pulse of the whole panel, seen and heard)
+    "bsp/boards/fm1/fm1_input.h": [
+        ("static uint8_t fm1__mid_n = FM1_LED_MID_N, fm1__mid_ph;   /* the mid level: 1 frame lit in fm1__mid_n; this frame's */\n",
+         "static uint8_t fm1__mid_n = FM1_LED_MID_N, fm1__mid_ph;   /* the mid level: 1 frame lit in fm1__mid_n; this frame's */\n"
+         "/* (FIZZ, P2.7: the columns take turns on the mid level, (fm1__mid_ph + c) mod fm1__mid_n == 0; no division) */\n"
+         "static inline uint32_t fm1__mid_turn(uint32_t c)\n{\n    uint32_t x = fm1__mid_ph + c;\n"
+         "    while (x >= fm1__mid_n)\n        x -= fm1__mid_n;\n    return x == 0u;\n}\n"),
+        ("(!fm1__mid_ph ? fm1_led_mid[c] : 0u))", "(fm1__mid_turn(c) ? fm1_led_mid[c] : 0u))"),
+    ],
+}
+
+
+def overlay():
+    out = fb.OUT / "overlay"
+    out.mkdir(parents=True, exist_ok=True)
+    for rel, reps in OVERLAY.items():
+        src = (BASE / rel).read_text()
+        for a, b in reps:
+            if src.count(a) != 1:
+                raise SystemExit(f"fizz: fm1-base's {rel} changed: build.py's OVERLAY no longer matches {a[:60]!r}")
+            src = src.replace(a, b)
+        (out / Path(rel).name).write_text(f"/* firmware/build.py: fm1-base's {rel} with FIZZ's changes (OVERLAY) */\n" + src)
+    return out
+
+
 def tc(tool, *args):
     args = list(args)
     if tool == "cc" and "-c" in args and any(isinstance(a, Path) and a.suffix == ".c" for a in args):
         args = ["-idirafter", jieli("pi32v2/include"), *args]
         args = [*DEFS, *args]
+        if any(isinstance(a, Path) and a.name == "unity.c" for a in args):
+            args = [f"-I{overlay().resolve().relative_to(REPO)}", *args]
         if any(isinstance(a, Path) and "o2" in a.parts and a.suffix == ".o" for a in args):
             # (P2.6: FIZZ's units call between the flash and the RAM code region, 4 MiB apart: long calls, as
             # fm1-base's Bluetooth build makes them)

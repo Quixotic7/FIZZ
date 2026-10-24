@@ -7,6 +7,7 @@
 
 #include "../../core/app/app.h"
 #include "../../core/gfx/qd_gfx.h"
+#include "../../core/gfx/qd_arena.h"
 #include "plat.h"
 #include "fizz_port.h"
 #include "fz_prof.h"
@@ -36,15 +37,31 @@ static int fz_fread(void *c, uint32_t off, void *dst, uint32_t n)
 }
 static int fz_ferase(void *c, uint32_t off)
 {
+    int r;
     (void)c;
     fz_watchdog();                       /* (a store's long flow is a loop of these: the watchdog fed at each) */
-    return plat_data_erase(PLAT_DATA_LO + (off & ~0xFFFu));
+    fz_flash_quiet();                    /* (P2.7: the LED lines dark while the flash keeps the interrupts off) */
+    r = plat_data_erase(PLAT_DATA_LO + (off & ~0xFFFu));
+    fz_flash_done();
+    return r;
 }
 static int fz_fprog(void *c, uint32_t off, const void *src, uint32_t n)
 {
     (void)c;
     fz_watchdog();
-    return plat_data_write(PLAT_DATA_LO + off, src, n);
+    while (n) {                          /* (P2.7: a flash page at a time, each with the LED lines dark: fm1-base's
+                                          * write turns the interrupts on between its pages, and the scan lights
+                                          * them again) */
+        const uint32_t k = n < 256u - (off & 255u) ? n : 256u - (off & 255u);
+        int r;
+        fz_flash_quiet();
+        r = plat_data_write(PLAT_DATA_LO + off, src, k);
+        fz_flash_done();
+        if (r)
+            return r;
+        off += k, src = (const uint8_t *)src + k, n -= k;
+    }
+    return 0;
 }
 static const qd_flash_t fz_fl = {fz_fread, fz_ferase, fz_fprog, 0};
 #endif
@@ -142,8 +159,13 @@ int fz_store_wipe(void)                  /* every non-blank sector of the region
         const uint8_t *p = plat_data(PLAT_DATA_LO + k * 4096u);
         for (i = 0; p && i < 4096u && p[i] == 0xFFu; i++)
             ;
-        if (p && i < 4096u && !plat_data_erase(PLAT_DATA_LO + k * 4096u))
-            n++;
+        if (p && i < 4096u) {
+            int r;
+            fz_flash_quiet();
+            r = plat_data_erase(PLAT_DATA_LO + k * 4096u);
+            fz_flash_done();
+            n += !r;
+        }
     }
     return n;
 }
@@ -339,4 +361,39 @@ int fz_expect(const char *what, int *got)
     else
         return 0;
     return 1;
+}
+
+/* ---------------------------------------------------------------- the screen's stash (P2.7) --- */
+void *fz_stash_borrow(uint32_t want, uint32_t keep, uint32_t *got)
+{
+    const uint32_t size = (uint32_t)qd_arena_size(), live = (uint32_t)qd_arena_live(), fails = qd_arena_fails();
+    uint32_t n = size > live + keep + 64u ? size - live - keep - 64u : 0u;   /* (64: the blocks' heads, rounding) */
+    void *p;
+    int was;
+    *got = 0;
+    n = n < want ? n : want;
+    if (!n)
+        return 0;
+    was = qd_arena_use(1);                       /* (the host at the device's sizes: the arena, as the unit) */
+    p = qd_arena_malloc(n);
+    qd_arena_use(was);
+    if (p && qd_arena_fails() != fails) {        /* (the host's: a refusal answered by the C library) */
+        free(p);
+        p = 0;
+    }
+    if (p)
+        *got = n;
+    return p;
+}
+void fz_stash_return(void *p)
+{
+    if (p)
+        qd_arena_free(p);
+}
+void fz_stash_on_release(void (*release)(void)) { qd_arena_set_release(release); }
+int fz_test_lend(uint32_t n)
+{
+    void *p = qd_tmp_borrow(n);
+    qd_tmp_return(p);
+    return p != 0;
 }

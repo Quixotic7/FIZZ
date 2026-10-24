@@ -18,3 +18,4 @@ expect fz_voices <9
 wait 1500
 expect fz_voices <9
 expect peak_db_min -36
+expect fz_lcd_stale 0

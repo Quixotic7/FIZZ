@@ -105,3 +105,4 @@ expect fz_voices >0
 midi 8F 3C 00
 tap PLAY
 wait 300
+expect fz_lcd_stale 0

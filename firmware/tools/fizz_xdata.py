@@ -104,7 +104,7 @@ def stats(a):
         return 0
     end, got = time.monotonic() + 2.5, {}
     try:
-        while time.monotonic() < end and len(got) < 6:
+        while time.monotonic() < end and len(got) < 7:
             p = link.read(end - time.monotonic())
             if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
                 got[p[4]] = p[5:-1].decode("ascii", "replace")
@@ -115,7 +115,8 @@ def stats(a):
                             (3, "by screen: frames/avg us/max us"),
                             (4, "inside the audio interrupt (us a half), FIZZ's state"),
                             (5, "the platform: the guard, MIDI and SysEx in, the scan, the locks"),
-                            (6, "core 1 (firmware/DUALCORE.md): state, jobs, failures")):
+                            (6, "core 1 (firmware/DUALCORE.md): state, jobs, failures"),
+                            (7, "the screen's bursts and the LEDs (P2.7)")):
             line = got.get(part, "(no answer)")
             if part == 3:                   # s<mode>.<view>: name them
                 for k, v in SCREENS.items():

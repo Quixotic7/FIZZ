@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MPL-2.0
+# The screen's stash (P2.7, app.c): a frame's changed rows go out in one burst at its end; an edit's borrow from the
+# drawing's arena between two strips takes the stash back, and the next frame sends what it held. A screen switch on a
+# still screen with the borrow in its frame, then nothing changes: the screen must equal the run without the borrow
+# (stash_ref.txt), or rows the stash dropped stayed stale.
+#   firmware/app/build/host/fizz-1core_host firmware/app/tests/stash.txt OUT
+#   firmware/app/build/host/fizz-1core_host firmware/app/tests/stash_ref.txt REF;  cmp OUT/stash.raw REF/stash.raw
+expect fz_up 1
+fzshow 1 0
+wait 500
+# (no borrow)
+fzshow 3 0
+wait 500
+expect fz_stash_taken 0
+expect fz_no_stash 0
+expect fz_bursts >0
+expect fz_lcd_stale 0
+fzdraw
+fbdump stash.raw
