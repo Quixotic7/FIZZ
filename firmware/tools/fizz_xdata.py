@@ -97,7 +97,7 @@ def stats(a):
     dev = find(a.port)
     link = dev.link
     link.drain()
-    link.send(bytes([0xF0, 0x7D, 0x46, 0x50] + ([0x7F] if a.reset else []) + [0xF7]))
+    link.send(bytes([0xF0, 0x7D, 0x46, 0x50] + ([0x7F] if a.reset else list(b"BNCH") if a.bench else []) + [0xF7]))
     if a.reset:
         print("counters started again")
         link.close()
@@ -162,6 +162,8 @@ def main():
         if name != "info":
             p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
         if name == "stats":
+            p.add_argument("--bench", action="store_true", help="run the voice bench again now (line 8: bench_now; "
+                                                                 "interrupts off ~10 ms, one half of the sound late)")
             p.add_argument("--reset", action="store_true", help="start the counters again")
     a = ap.parse_args()
     return {"push": push, "stats": stats, "wipe": wipe, "info": info}[a.cmd](a)

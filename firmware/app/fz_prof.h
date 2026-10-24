@@ -24,6 +24,12 @@ typedef struct {
     uint64_t a_seq;           /* inside the audio interrupt: qd_player_block (the sequencer, the player, MIDI FX) */
     uint64_t a_voices;        /* .. qd_mix_voices (the voices rendered and mixed) */
     uint64_t a_fx;            /* .. qd_fx_block (chorus, delay, reverb, the output) */
+    uint64_t a_begin;         /* P2.8: .. qd_app_block_begin (the sequencer a_seq inside it, the tempo, the mix's begin) */
+    uint64_t a_vblk;          /* .. qd_app_block_voices, both halves (a_voices inside them) */
+    uint64_t a_end;           /* .. qd_app_block_end (the buses summed, the mix's end, the metronome, a_fx inside it) */
+    uint64_t a_out;           /* .. app.c: MASTER's gain and the 24-bit output */
+    uint64_t a_midi;          /* .. app.c: MIDI in (fm1-base's queue, qd_app_midi_play) */
+    uint64_t a_split_n;       /* halves made by the port's split (else qd_app_audio's) */
     uint64_t check;           /* P2.5: qd_app_frame_changed (the screen's logic once, nothing drawn) */
     uint64_t store;           /* P2.5: qd_persist_step (the store's writes) */
     uint32_t n_raster, n_blend, n_glyph, n_text, n_shapes, n_convert, n_frame, n_isr, n_check, n_skip, n_store;

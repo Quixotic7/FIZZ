@@ -78,7 +78,16 @@ if SINGLE and "FM1B_POOL_SPARE" not in os.environ:
 # the object's section renamed), this code FIZZ's
 HOT = {"build_units_c_qd_fx.o": ["xf_reverb", "xf_delay", "out_master", "xq_block", "xc_block",
                                  "fz_real_qd_fx_block", "qd_fx_block"]}
-if SINGLE:                                       # (8 voices: the RAM they free takes the voices' render)
+# (P2.8) the speed bisect: FZ_VARIANT=xip | o2 | crflags builds the voices' unit (quad_voice.c: the engine) another
+# way, into fizz-1core-VARIANT.fwsc, its id in stats line 8 (build=): xip (1) its render left in the flash, o2 (2) at
+# -O2 (in the flash too), crflags (3) with ChoralRoot's flags (-Os -ffunction-sections -fno-builtin: no -mcpu=r3, -mfprev1,
+# -ffp-contract=off, -std=gnu11). The plain build is id 0
+VARIANT = os.environ.get("FZ_VARIANT", "")
+VARIANTS = {"": 0, "xip": 1, "o2": 2, "crflags": 3}
+if VARIANT not in VARIANTS:
+    raise SystemExit(f"FZ_VARIANT={VARIANT}: one of xip, o2, crflags")
+DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS[VARIANT]}u")
+if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does not fit the RAM code region: flash)                  # (8 voices: the RAM they free takes the voices' render)
     HOT["build_units_c_quad_voice.o"] = ["quad_render", "qd_quad_voice_render", "?quad_lfo_incb", "?quad_lfo_incb_p",
                                          "?quad_lfo_incv", "?quad_lfo_inc"]   # (?: its helpers, where the core has them)
 
@@ -147,6 +156,10 @@ def tc(tool, *args):
             # fm1-base's Bluetooth build makes them)
             args = ["-mllvm", "-pi32v2-large-program=true", *args]
             out = args[args.index("-o") + 1]
+            if out.name == "build_units_c_quad_voice.o" and VARIANT == "o2":
+                args = [a if a != "-Os" else "-O2" for a in args]
+            if out.name == "build_units_c_quad_voice.o" and VARIANT == "crflags":
+                args = [a for a in args if a not in ("-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-std=gnu11")]
             if out.name in HOT:
                 r = _tc(tool, *args)
                 place_hot(out, HOT[out.name])
@@ -325,7 +338,8 @@ fb.subprocess = _Subprocess()
 # ---- the single-core package: its own file names (the name in fm1.toml, -1core), FZ_SINGLE_CORE=1 everywhere
 if SINGLE:
     _read_conf = fb.read_conf
-    fb.read_conf = lambda path: {**_read_conf(path), "name": _read_conf(path).get("name", "fizz") + "-1core"}
+    fb.read_conf = lambda path: {**_read_conf(path), "name": _read_conf(path).get("name", "fizz") + "-1core" +
+                                 (f"-{VARIANT}" if VARIANT else "")}
 
 if __name__ == "__main__":
     sys.argv = [str(BASE / "tools" / "build.py"), str(APP), *[a for a in sys.argv[1:] if a != "--single-core"]]

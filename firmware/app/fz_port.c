@@ -211,10 +211,35 @@ void fz_tick(uint32_t ms) { qd_app_tick(&fz_app, ms); }
 /* (the interrupt's paging: a pattern the sequencer wanted and the main loop's prefetch had not brought, loaded inside
  * the interrupt (a store's read, and a write if one left RAM changed): counted, it should stay 0) */
 static volatile uint32_t fz_isr_loads;
+/* (P2.8) the sound a control block at a time in the core's three parts (qd_app_audio's own qd_app_block, the same
+ * calls and halves: the same samples), each timed: the interrupt's "rest" broken down. A call that is not whole blocks,
+ * or meets the core's own frames made ahead, goes through qd_app_audio */
 void fz_audio(int16_t *stereo, uint32_t frames)
 {
     const uint32_t l = fz_app.proj.pat_loads;
-    qd_app_audio(&fz_app, stereo, frames);
+    if (frames % QD_MIX_CTL == 0u && fz_app.ififo >= fz_app.nfifo) {
+        qd_app_t *a = &fz_app;
+        uint32_t b, t0, t1, t2, t3, sb = 0, sv = 0, se = 0;
+        a->proj.nopage++;
+        for (b = 0; b < frames / QD_MIX_CTL; b++) {
+            qd_bus_t A, B;
+            const int mid = a->pool.nvoice / 2;
+            t0 = plat_ticks24();
+            qd_app_block_begin(a);
+            t1 = plat_ticks24();
+            qd_app_block_voices(a, 0, mid, &A);
+            qd_app_block_voices(a, mid, a->pool.nvoice, &B);
+            t2 = plat_ticks24();
+            qd_app_block_end(a, &A, &B, stereo + 2u * QD_MIX_CTL * b);
+            t3 = plat_ticks24();
+            sb += t1 - t0, sv += t2 - t1, se += t3 - t2;
+        }
+        a->proj.nopage--;
+        fz_prof.a_begin += sb, fz_prof.a_vblk += sv, fz_prof.a_end += se;
+        fz_prof.a_split_n++;
+    } else {
+        qd_app_audio(&fz_app, stereo, frames);
+    }
     if (fz_app.proj.pat_loads != l)
         fz_isr_loads += fz_app.proj.pat_loads - l;
 }
