@@ -9,6 +9,27 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+A smoother screen. Updating from beta.1 keeps your projects and presets.
+
+- **Faster screens while playing**, measured with the demo running:
+  - piano roll: about 90 → 60 ms a frame;
+  - edit: 42 → 35 ms;
+  - Geek Out NUMBERS: 45 → 34 ms;
+  - VOICES: 47 → 39 ms;
+  - step view: 34 → 30 ms.
+- **Almost no tearing.** FIZZ now sends only the parts of the screen that changed and times each send to the
+  display's refresh. A change too tall for one refresh goes in two whole parts instead of tearing.
+- **Closer colours.** Grey and white edges blend smoothly instead of being dithered.
+- **Steadier sound under load.** The work is split more evenly between the two cores, and no screen work holds up
+  the audio for long.
+- **Simpler animations.** The TAP ape is drawn with fewer details, and the MIDI FX glows are gone, so busy screens
+  keep up.
+
+Known in this beta:
+
+- The SCOPE page is the slowest screen (about 90 ms a frame), because its whole waveform changes every frame.
+- There is no backup of FIZZ's own saves from the install page yet. An update from one FIZZ to the next keeps them.
+
 ## 0.11.0-beta.1 (2026-10-24)
 
 The first FIZZ that runs on the FM-1 itself. Until now FIZZ was a preview in the browser (0.10).
