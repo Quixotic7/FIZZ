@@ -1,5 +1,32 @@
 {
   "name": "FIZZ",
-  "latest": null,
-  "releases": []
+  "latest": "0.11.0-beta.1",
+  "releases": [
+    {
+      "version": "0.11.0-beta.1",
+      "date": "2026-10-24",
+      "channel": "beta",
+      "identity": "FM-1_46001100",
+      "source": "3aa166dcef23b0940dfdffead8976c8744943c6f",
+      "fm1base": "42dc6304e8070006c1990d2879c3fe27e1192c91",
+      "notes": "The first FIZZ that runs on the FM-1 itself. Until now FIZZ was a preview in the browser (0.10).\n\n- **It replaces the FM-1's firmware.** Install it from the install page in Chrome or Edge. The same page puts\n  M-VAVE's firmware back when you want it.\n- **8 voices** at once, played across both of the FM-1's cores. If the second core ever misbehaves, FIZZ carries\n  on with one until you switch off.\n- **USB MIDI only:** no Bluetooth MIDI and no USB audio in this build.\n- **Your projects and presets are saved on the FM-1.** The first time FIZZ starts, it clears another firmware's\n  saved data if it finds some, so back that up first.\n- **Safe mode:** hold SAVE while you switch the FM-1 on to start FIZZ without reading or writing its saves.\n  Switch off and on again to leave it. (REC held while switching on is the FM-1's update mode, for installing\n  firmware.)\n- **Geek Out pages:** SHIFT + HOME past EDIT shows the processor load, frame rate, voices and a scope. Please\n  include a photo of METERS or NUMBERS when you report something slow.\n\nKnown in this beta:\n\n- Some screens still redraw more than they need to, so the step view and the idle screen can feel slower than the\n  rest. A fix is on the way.\n- The TAP ape can look choppy while the sequencer plays.\n- There is no backup of FIZZ's own saves from the install page yet. An update from one FIZZ to the next keeps them.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI",
+          "fwsc": {
+            "path": "0.11.0-beta.1/fizz.fwsc",
+            "bytes": 611496,
+            "sha256": "e185d49ceb0c5a383a49499c740c483651b8a5b986afac98c0e4b39a40e10633"
+          },
+          "data": {
+            "path": "0.11.0-beta.1/fizz-xdata.bin",
+            "bytes": 84116,
+            "sha256": "19c068fc6371340499064f5c16e75c376137727bcca3c074057b0826ed25633d",
+            "crc32": 4068757263
+          }
+        }
+      ]
+    }
+  ]
 }

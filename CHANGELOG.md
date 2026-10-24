@@ -7,6 +7,10 @@ its text becomes the release's notes on the install page and on GitHub.
 
 ## Unreleased
 
+<!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
+
+## 0.11.0-beta.1 (2026-10-24)
+
 The first FIZZ that runs on the FM-1 itself. Until now FIZZ was a preview in the browser (0.10).
 
 - **It replaces the FM-1's firmware.** Install it from the install page in Chrome or Edge. The same page puts
