@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.11.0-beta.2 (2026-10-24)
+
 A smoother screen. Updating from beta.1 keeps your projects and presets.
 
 - **Faster screens while playing**, measured with the demo running:

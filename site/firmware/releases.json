@@ -1,7 +1,33 @@
 {
   "name": "FIZZ",
-  "latest": "0.11.0-beta.1",
+  "latest": "0.11.0-beta.2",
   "releases": [
+    {
+      "version": "0.11.0-beta.2",
+      "date": "2026-10-24",
+      "channel": "beta",
+      "identity": "FM-1_46001100",
+      "source": "9f4c398e12fc370cbe8534e850487c5647403391",
+      "fm1base": "42dc6304e8070006c1990d2879c3fe27e1192c91",
+      "notes": "A smoother screen. Updating from beta.1 keeps your projects and presets.\n\n- **Faster screens while playing**, measured with the demo running:\n  - piano roll: about 90 \u2192 60 ms a frame;\n  - edit: 42 \u2192 35 ms;\n  - Geek Out NUMBERS: 45 \u2192 34 ms;\n  - VOICES: 47 \u2192 39 ms;\n  - step view: 34 \u2192 30 ms.\n- **Almost no tearing.** FIZZ now sends only the parts of the screen that changed and times each send to the\n  display's refresh. A change too tall for one refresh goes in two whole parts instead of tearing.\n- **Closer colours.** Grey and white edges blend smoothly instead of being dithered.\n- **Steadier sound under load.** The work is split more evenly between the two cores, and no screen work holds up\n  the audio for long.\n- **Simpler animations.** The TAP ape is drawn with fewer details, and the MIDI FX glows are gone, so busy screens\n  keep up.\n\nKnown in this beta:\n\n- The SCOPE page is the slowest screen (about 90 ms a frame), because its whole waveform changes every frame.\n- There is no backup of FIZZ's own saves from the install page yet. An update from one FIZZ to the next keeps them.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI",
+          "fwsc": {
+            "path": "0.11.0-beta.2/fizz.fwsc",
+            "bytes": 611496,
+            "sha256": "0e57be6826c1c079b81cacfbf207d5f44a39a416792d31fa5fbbf578d384f014"
+          },
+          "data": {
+            "path": "0.11.0-beta.2/fizz-xdata.bin",
+            "bytes": 84116,
+            "sha256": "19c068fc6371340499064f5c16e75c376137727bcca3c074057b0826ed25633d",
+            "crc32": 4068757263
+          }
+        }
+      ]
+    },
     {
       "version": "0.11.0-beta.1",
       "date": "2026-10-24",
