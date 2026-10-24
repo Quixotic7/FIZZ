@@ -470,19 +470,56 @@ int qd_box_visible(float x, float y, float w, float h, float lw)
 #ifdef QD_GFX_FB
 static unsigned f_s, f_h, f_l, f_ramp;                  /* the paint's index, its ramp and level; on a ramp (or black) */
 static uint32_t f_ck[32];                               /* (colour -> index: the last few) */
-static uint8_t f_ci[32], f_cn[32];
+static uint8_t f_ci[32], f_cn[32], f_ca[32];
+#ifndef QF_ALT_NEAR
+#define QF_ALT_NEAR 150u
+#endif
+static unsigned f_alt;                                  /* (fb_index's: the nearest ramp level to the colour) */
+static unsigned fb_near_level(uint16_t v)               /* P2.6h: the ramps' level nearest a colour (RGB565, weighted);
+                                                         * 0: none near enough */
+{
+    unsigned i, best = 1u;
+    uint32_t bd = 0xFFFFFFFFu;
+    for (i = 1u; i < 256u; i++) {
+        const uint16_t q = QF_PAL[i];
+        int dr, dg, db;
+        uint32_t e;
+        if (!(i & 15u))
+            continue;                                   /* (the spares: not a ramp's) */
+        dr = (int)(v >> 11) - (int)(q >> 11), dg = (int)((v >> 5) & 63u) - (int)((q >> 5) & 63u);
+        db = (int)(v & 31u) - (int)(q & 31u);
+        e = (uint32_t)(8 * dr * dr + 4 * dg * dg + 6 * db * db);
+        if (e < bd)
+            bd = e, best = i;
+    }
+    return bd <= QF_ALT_NEAR ? best : 0u;
+}
 static unsigned fb_index(qd_rgb col, uint16_t v565)     /* the palette's entry for a colour: its own, else the nearest */
 {
-    const unsigned k = ((col * 2654435761u) >> 27) & 31u;
+    const unsigned h = ((col * 2654435761u) >> 27) & 31u;
     unsigned i;
-    if (f_cn[k] && f_ck[k] == col)
-        return f_ci[k];
-    for (i = 0; i < 256u && QF_PAL[i] != v565; i++)
-        ;
+    if (f_cn[h] && f_ck[h] == col) {
+        f_alt = f_ca[h];
+        return f_ci[h];
+    }
+    {
+        uint32_t q = (v565 * 40503u) >> 7 & 511u;
+        i = 256u;
+        while (QF_XK[q]) {                              /* (P2.6h: its entry: a ramp's level before a spare, the
+                                                         * table qd_fb_pal.h's) */
+            if (QF_XK[q] == (uint32_t)v565 + 1u) {
+                i = QF_XI[q];
+                break;
+            }
+            q = (q + 1u) & 511u;
+        }
+    }
     if (i == 256u)
         i = QF_NEAR[(((col >> 16) & 255u) * 15u + 127u) / 255u << 8 | (((col >> 8) & 255u) * 15u + 127u) / 255u << 4 |
                     ((col & 255u) * 15u + 127u) / 255u];
-    f_ck[k] = col, f_ci[k] = (uint8_t)i, f_cn[k] = 1;
+    f_alt = !i || (i & 15u) ? i : fb_near_level(QF_PAL[i]);   /* (a spare: its blends along the nearest ramp, if one
+                                                         * is near it) */
+    f_ck[h] = col, f_ci[h] = (uint8_t)i, f_ca[h] = (uint8_t)f_alt, f_cn[h] = 1;
     return i;
 }
 #endif
@@ -496,7 +533,8 @@ static void paint_setup(qd_rgb col, float y0, float y1)
     c565 = (uint16_t)(L5[r] << 11 | L6[g] << 5 | L5[b]);
 #ifdef QD_GFX_FB
     f_s = fb_index(col, c565);                          /* (the blends from the palette's colour of it) */
-    f_h = f_s >> 4, f_l = f_s & 15u, f_ramp = !f_s || f_l;
+    f_h = f_alt >> 4, f_l = f_alt & 15u, f_ramp = !f_s || f_alt;   /* (P2.6h: a spare's edges blend along its nearest ramp:
+                                                         * smooth, not dithered; its full pixels are itself) */
     c565 = QF_PAL[f_s];
 #endif
     c_rb = c565 & 0xF81Fu, c_g = c565 & 0x07E0u;
@@ -546,6 +584,8 @@ QF_INL unsigned f_lerp(unsigned ld, unsigned ls, unsigned a)   /* ld + (ls - ld)
 static uint8_t f_blend(uint8_t d, unsigned a, int x, int y)
 {
     const unsigned dh = (unsigned)d >> 4, dl = d & 15u;
+    if (d == f_s)
+        return d;                                       /* (the paint over itself: itself) */
     if (f_ramp) {
         unsigned l;
         if (!d)                                         /* over black: the paint's ramp */

@@ -50,10 +50,20 @@ def ramp_err(top, c):
     return best
 
 
+# P2.6h: the tops held fixed (the UI's own colours: every one of them is drawn anti-aliased over black, so each must
+# be a ramp's level, not a spare): the warm white K3 (ramp 0: the whites and the neutral greys under it), the cool
+# greys G1 (G2 and G3 are its levels 8 and 4), the tracks' colours, the step views' and the rider's
+FIXED = [(0xf1, 0xf0, 0xea), (0x8d, 0x8d, 0x96), (0x3f, 0x7d, 0xff), (0x1f, 0xd4, 0x7e), (0xff, 0x6a, 0x2c),
+         (0xff, 0x3c, 0xa0), (0xff, 0xd2, 0x3f), (0x96, 0x64, 0xff), (0x28, 0xe1, 0xff), (0xf0, 0x3c, 0xff),
+         (0xff, 0xf0, 0xd2), (0x2f, 0xb4, 0xff), (0xff, 0x3b, 0x4f), (0x63, 0xc4, 0xd6), (0xff, 0x62, 0xd2),
+         (0x5c, 0xf2, 0xc4)]
+
+
 def fit(cols, ntop=15, iters=8):
-    neutral = (255, 255, 255)
-    # seeds: the heaviest colours the ramps so far hold worst, one at a time
-    tops = []
+    neutral = FIXED[0]
+    # seeds: the fixed tops, then the heaviest colours the ramps so far hold worst, one at a time
+    tops = list(FIXED[1:])
+    nfixed = len(tops)
     for c, w in cols:
         if len(tops) >= ntop:
             break
@@ -72,8 +82,8 @@ def fit(cols, ntop=15, iters=8):
             if es[k] < en:
                 groups[k].append((c, w))
         new = []
-        for t, g in zip(tops, groups):
-            if not g:
+        for ti, (t, g) in enumerate(zip(tops, groups)):
+            if ti < nfixed or not g:
                 new.append(t)
                 continue
             cands = {t}
@@ -89,15 +99,18 @@ def fit(cols, ntop=15, iters=8):
 
 def main():
     src, out = sys.argv[1], sys.argv[2]
-    cols = []
+    cols, edges = [], []
     for line in open(src):
         p = line.split()
         if len(p) < 3 or p[0].startswith('#'):
             continue
         v = int(p[0], 16)
         cols.append(((v >> 16 & 255, v >> 8 & 255, v & 255), int(p[1]) + int(p[2])))
+        edges.append(((v >> 16 & 255, v >> 8 & 255, v & 255), int(p[2]) + int(p[1]) // 10))
     cols.sort(key=lambda cw: -cw[1])
-    tops = fit(cols)
+    edges.sort(key=lambda cw: -cw[1])
+    tops = fit(edges)                                   # (P2.6h: the free tops fitted to the edges' pixels: a solid
+                                                        # fill is a spare exactly; a ramp is for what is blended)
     while len(tops) < 16:
         tops.append((255, 255, 255))
     pal = [0] * 256
@@ -143,6 +156,24 @@ def main():
             for i in range(0, 256, 12):
                 f.write('    ' + ', '.join('0x%04x' % v for v in vals[i:i + 12]) + ',\n')
             f.write('};\n')
+        # P2.6h: RGB565 -> its entry (a ramp's level before a spare, the first in the palette's order), an open table
+        xk, xi = [0] * 512, [0] * 512
+        for k in range(256):
+            ramp = k == 0 or (k & 15) != 0
+            q = ((pal[k] * 40503) >> 7) & 511
+            while xk[q] and xk[q] != pal[k] + 1:
+                q = (q + 1) & 511
+            if not xk[q]:
+                xk[q], xi[q] = pal[k] + 1, k
+            elif ramp and xi[q] and not (xi[q] & 15):
+                xi[q] = k
+        f.write('static const uint32_t QF_XK[512] = {   /* (RGB565 + 1; 0: empty) */\n')
+        for i in range(0, 512, 12):
+            f.write('    ' + ', '.join('0x%05x' % v for v in xk[i:i + 12]) + ',\n')
+        f.write('};\nstatic const uint8_t QF_XI[512] = {\n')
+        for i in range(0, 512, 24):
+            f.write('    ' + ', '.join('%d' % v for v in xi[i:i + 24]) + ',\n')
+        f.write('};\n')
         f.write('static const uint8_t QF_NEAR[4096] = {   /* RGB444 (r << 8 | g << 4 | b) -> the nearest entry */\n')
         for i in range(0, 4096, 24):
             f.write('    ' + ', '.join('%d' % v for v in near[i:i + 24]) + ',\n')

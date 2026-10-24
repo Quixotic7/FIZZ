@@ -577,9 +577,20 @@ static void t_fb_bands(void)
     qd_app_fb_attach(&A, rowsB);
     fb_run(1500);                                       /* the idle logo */
     tap_button(QD_B_HOME);
+    qd_app_show(&A, QD_MODE_STEP, QD_VIEW_EDIT);
     fb_run(500);                                        /* EDIT */
     qd_app_play(&A);
     fb_run(3000);                                       /* .. playing the demo */
+    for (k = 1; k < 4; k++) {                           /* .. other tracks (their pictures), a step held there */
+        qd_app_key(&A, QD_WHITE_KEY[k], 1, 100);
+        fb_run(400);
+        qd_app_knob(&A, QD_K_ALGO, 2);
+        fb_run(300);
+        qd_app_key(&A, QD_WHITE_KEY[k], 0, 0);
+        fb_run(600);
+    }
+    qd_app_show(&A, QD_MODE_STEP, QD_VIEW_STEPS);
+    fb_run(1500);                                       /* STEPS */
     qd_app_show(&A, QD_MODE_STEP, QD_VIEW_ROLL);
     fb_run(2000);                                       /* the PIANO ROLL */
     qd_app_key(&A, QD_WHITE_KEY[2], 1, 100);
