@@ -787,6 +787,20 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "bench_now_us_per_128=", fz_bench_now_us128);   /* (7D 46 50 "BNCH": the bench again, now) */
     c = fz_put_u(c, "bench_now_runs=", fz_bench_now_n);
     c = fz_put_u(c, "build=", FZ_VARIANT_ID);
+#ifdef FZ_DEFINES
+    {   /* (P2.15i: build.py --define: the core options this build has) */
+        const char *t = "defines=" FZ_DEFINES " ";
+        uint32_t l = 0;
+        while (t[l])
+            l++;
+        fz_need += l;
+        if (c + l <= fz_lim)
+            while (*t)
+                *c++ = *t++;
+        else
+            fz_line_cut++;
+    }
+#endif
 #ifdef FZ_BEGIN_RAM
     c = fz_put_u(c, "begin_ram=", FZ_BEGIN_RAM);   /* (P2.15: the block's begin in RAM code: 1) */
 #endif

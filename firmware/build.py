@@ -9,7 +9,9 @@
   ... --single-core                         the single-core package (FZ_SINGLE_CORE=1: core 1 never started; 8
                                             voices, QD_VOICES_DEV=8, and the voices' render in RAM), its files
                                             named fizz-1core* (fizz-1core.fwsc, the host's fizz-1core_host).
-                                            Without it: Standard, QD_VOICES_DEV=16
+                                            Without it: the dual build (8 voices, the second core)
+  ... --define NAME[=VALUE]                 a core option for every unit (repeatable), named in stats line 8
+  ... --tag NAME                            the package's name with -NAME (fizz-NAME.fwsc)
 
 What it adds to fm1-base's build (each a small patch of its module, applied here):
   - the toolchain's container sees the whole repository (FIZZ's core/ and third_party/ are above firmware/): its root
@@ -62,6 +64,24 @@ def jieli(rel):
 
 _tc = fb.tc
 SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
+# P2.15i: --define NAME=VALUE (repeatable): a core option for every unit (e.g. the pacing flags, core/qd_config.h), named
+# in stats line 8 (defines=); --tag NAME: the package's name gets -NAME (fizz-NAME.fwsc)
+EXTRA, TAG, _rest = [], "", []
+_a = sys.argv[1:]
+_i = 0
+while _i < len(_a):
+    if _a[_i] == "--define" and _i + 1 < len(_a):
+        if not re.fullmatch(r"[A-Z_][A-Z0-9_]*(=[A-Za-z0-9_.+-]*)?", _a[_i + 1]):
+            raise SystemExit(f"--define {_a[_i + 1]}: NAME or NAME=VALUE")
+        EXTRA.append(_a[_i + 1])
+        _i += 2
+    elif _a[_i] == "--tag" and _i + 1 < len(_a):
+        TAG = _a[_i + 1]
+        _i += 2
+    else:
+        _rest.append(_a[_i])
+        _i += 1
+sys.argv = [sys.argv[0], *_rest]
 # the owner (2026-10-23): 8 voices on one core, 16 when core 1 renders half (core/qd_config.h QD_VOICES_DEV)
 # P2.14b (the owner): 8 voices on every build; the dual build's voices on core 1 first, the rest on core 0. Its main RAM
 # holds core 1's stacks: 12 of the 8-bit frame's rows go to the pool
@@ -104,6 +124,9 @@ if SINGLE and not VARIANT:
 if VARIANT and VARIANT not in VARIANTS:
     raise SystemExit(f"FZ_VARIANT={VARIANT}: one of " + ", ".join(VARIANTS))
 DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS.get(VARIANT, 0)}u")
+DEFS += [f"-D{d}" for d in EXTRA]
+if EXTRA:
+    DEFS.append('-DFZ_DEFINES="' + ",".join(EXTRA) + '"')
 if VARIANT == "o2ram":                           # (the render's 22.6 KB at -O2 fits only with the effects out, and
     HOT.pop("build_units_c_qd_fx.o", None)       # without the drawing's: the single-core build's region is the voices')
     HOT.pop("build_units_c_qd_gfx_fast.o", None)
@@ -404,10 +427,11 @@ class _Subprocess:
 fb.subprocess = _Subprocess()
 
 # ---- the single-core package: its own file names (the name in fm1.toml, -1core), FZ_SINGLE_CORE=1 everywhere
-if SINGLE:
+if SINGLE or TAG:
     _read_conf = fb.read_conf
-    fb.read_conf = lambda path: {**_read_conf(path), "name": _read_conf(path).get("name", "fizz") + "-1core" +
-                                 (f"-{NAMED}" if NAMED else "")}
+    fb.read_conf = lambda path: {**_read_conf(path), "name": _read_conf(path).get("name", "fizz") +
+                                 ("-1core" if SINGLE else "") + (f"-{NAMED}" if SINGLE and NAMED else "") +
+                                 (f"-{TAG}" if TAG else "")}
 
 if __name__ == "__main__":
     sys.argv = [str(BASE / "tools" / "build.py"), str(APP), *[a for a in sys.argv[1:] if a != "--single-core"]]
