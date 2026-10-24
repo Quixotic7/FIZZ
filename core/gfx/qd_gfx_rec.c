@@ -764,10 +764,14 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
             rl_at += 16;
             st.sh = rl_mix(rl_mix(st.sh, st.m, sizeof st.m), rl_buf + at0, rl_at - at0);
             break;
-        case RO_DASH:
-            rl_at += 4u + 4u * rl_gu();
+        case RO_DASH: {                                 /* (P2.6f: the count read first, then skipped past: was
+                                                         * rl_at += 4 + 4 x rl_gu(), unsequenced: the walk could lose
+                                                         * its place after a dash and hash the calls after it wrong) */
+            const uint32_t nd = rl_gu();
+            rl_at += 4u * nd;
             st.sh = rl_mix(st.sh, rl_buf + at0, rl_at - at0);
             break;
+        }
         case RO_LINE:
             for (i = 0; i < 4; i++)
                 v[i] = rl_gf();

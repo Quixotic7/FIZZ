@@ -483,6 +483,109 @@ static void t_fb_steps(void)
 }
 #endif
 
+#ifdef QD_GFX_FB
+/* P2.6f: the changed bands only, frame after frame on the same frame (the port's way), against every band drawn from
+ * the same instant: the same pixels. Screens: the idle logo, EDIT and the PIANO ROLL playing the demo, a held step,
+ * the keyboard, the TAP ape, the Geek Out pages */
+static uint8_t fbA[QD_W * QD_H], fbB[QD_W * QD_H];
+static uint8_t *rowsA[QD_H], *rowsB[QD_H];
+static int fb_bad_frames, fb_frames, fb_first_bad = -1, fb_bad_px, fb_bad_y0 = 999, fb_bad_y1 = -1;
+static void fb_check(void)                              /* (one instant: its list; every band drawn from it into B, the
+                                                         * changed ones also into A, which keeps the others from before) */
+{
+    uint32_t m;
+    int i, k, n = 0;
+    qd_app_frame_fb_begin(&A, &m);
+    A.fb_pending = (1u << ((QD_H + QD_STRIP_H - 1) / QD_STRIP_H)) - 1u;
+    qd_fb_attach(rowsB);
+    qd_app_frame_fb_step(&A, 32);
+    for (k = 0; k < 15; k++)
+        if ((m >> k) & 1u)
+            memcpy(fbA + k * 16 * QD_W, fbB + k * 16 * QD_W, 16 * QD_W);
+    for (i = 0; i < QD_W * QD_H; i++)
+        if (fbA[i] != fbB[i]) {
+            n++;
+            fb_bad_y0 = i / QD_W < fb_bad_y0 ? i / QD_W : fb_bad_y0;
+            fb_bad_y1 = i / QD_W > fb_bad_y1 ? i / QD_W : fb_bad_y1;
+        }
+    fb_frames++;
+    if (n && getenv("FBDBG") && fb_bad_frames < 3) {
+        int b;
+        printf("    frame at %u ms: drawn bands %05x; differing bands:", (unsigned)now, (unsigned)m);
+        for (b = 0; b < 15; b++) {
+            int c = 0, x;
+            for (x = b * 16 * QD_W; x < (b + 1) * 16 * QD_W; x++)
+                c += fbA[x] != fbB[x];
+            if (c)
+                printf(" %d(%d)", b, c);
+        }
+        printf("; screen %d view %d\n", qd_view_screen(&A), A.ui.view);
+    }
+    if (n) {
+        fb_bad_frames++, fb_bad_px += n;
+        if (fb_first_bad < 0)
+            fb_first_bad = (int)now;
+        memcpy(fbA, fbB, sizeof fbA);                   /* (from the truth again: each frame's own error counted) */
+    }
+}
+static void fb_run(uint32_t ms)                         /* ms of the clock and the audio, a checked frame every 33 */
+{
+    while (ms--) {
+        qd_app_tick(&A, ++now);
+        while (frames_done + 128u <= (uint64_t)now * QD_FS / 1000u) {
+            qd_app_audio(&A, last, 128);
+            frames_done += 128u;
+        }
+        if (now % 33u == 0u)
+            fb_check();
+    }
+}
+static void t_fb_bands(void)
+{
+    int y, k;
+    for (y = 0; y < QD_H; y++)
+        rowsA[y] = fbA + (size_t)y * QD_W, rowsB[y] = fbB + (size_t)y * QD_W;
+    fresh();
+    qd_app_fb_attach(&A, rowsB);
+    fb_run(1500);                                       /* the idle logo */
+    tap_button(QD_B_HOME);
+    fb_run(500);                                        /* EDIT */
+    qd_app_play(&A);
+    fb_run(3000);                                       /* .. playing the demo */
+    qd_app_show(&A, QD_MODE_STEP, QD_VIEW_ROLL);
+    fb_run(2000);                                       /* the PIANO ROLL */
+    qd_app_key(&A, QD_WHITE_KEY[2], 1, 100);
+    fb_run(600);                                        /* a step held */
+    qd_app_key(&A, QD_WHITE_KEY[2], 0, 0);
+    fb_run(600);
+    tap_button(QD_B_REC);
+    for (k = 0; k < 6; k++) {                           /* the keyboard played */
+        qd_app_key(&A, QD_WHITE_KEY[k], 1, 100);
+        fb_run(120);
+        qd_app_key(&A, QD_WHITE_KEY[k], 0, 0);
+        fb_run(80);
+    }
+    tap_button(QD_B_HOME);
+    for (k = 0; k < 5; k++) {                           /* SHIFT + B6: the TAP ape */
+        qd_app_button(&A, QD_B_FUNC, 1);
+        fb_run(20);
+        qd_app_key(&A, QD_BLACK_KEY[5], 1, 100);
+        fb_run(20);
+        qd_app_key(&A, QD_BLACK_KEY[5], 0, 0);
+        qd_app_button(&A, QD_B_FUNC, 0);
+        fb_run(460);
+    }
+    fb_run(2500);
+    for (k = QD_VIEW_METERS; k <= QD_VIEW_SCOPE; k++) {   /* the Geek Out pages */
+        qd_app_show(&A, QD_MODE_STEP, k);
+        fb_run(700);
+    }
+    CHECK(fb_frames > 300 && !fb_bad_frames, "P2.6f: the changed bands only, frame after frame (%d frames): the same "
+          "as every band drawn (%d frames differ, %d pixels, rows %d..%d, the first at %d ms)", fb_frames,
+          fb_bad_frames, fb_bad_px, fb_bad_y0, fb_bad_y1, fb_first_bad);
+}
+#endif
+
 /* P2.1b: shapes the strips' culling must leave exact (plutovg-rasterize.c cull_runs): a zigzag across every strip, a
  * closed quad, a square wave whose long lines run straight on through a vertex, a dashed one, curves, a fill, all
  * drawn whole and in the device's strips (the host: its surface can hold the whole screen) */
@@ -1095,6 +1198,7 @@ int main(void)
     t_strips();
 #ifdef QD_GFX_FB
     t_fb_steps();
+    t_fb_bands();
 #endif
     t_strip_shapes();
     t_play();
