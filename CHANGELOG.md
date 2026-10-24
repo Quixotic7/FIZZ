@@ -7,9 +7,6 @@ its text becomes the release's notes on the install page and on GitHub.
 
 ## Unreleased
 
-<!-- The next release's notes, for testers, in plain language. firmware/release.py moves them.
-     Draft for 0.11.0-beta.1 below (the owner reviews it; add the display fix and anything known before releasing). -->
-
 The first FIZZ that runs on the FM-1 itself. Until now FIZZ was a preview in the browser (0.10).
 
 - **It replaces the FM-1's firmware.** Install it from the install page in Chrome or Edge. The same page puts
@@ -22,3 +19,12 @@ The first FIZZ that runs on the FM-1 itself. Until now FIZZ was a preview in the
 - **Safe mode:** hold SAVE while you switch the FM-1 on to start FIZZ without reading or writing its saves.
   Switch off and on again to leave it. (REC held while switching on is the FM-1's update mode, for installing
   firmware.)
+- **Geek Out pages:** SHIFT + HOME past EDIT shows the processor load, frame rate, voices and a scope. Please
+  include a photo of METERS or NUMBERS when you report something slow.
+
+Known in this beta:
+
+- Some screens still redraw more than they need to, so the step view and the idle screen can feel slower than the
+  rest. A fix is on the way.
+- The TAP ape can look choppy while the sequencer plays.
+- There is no backup of FIZZ's own saves from the install page yet. An update from one FIZZ to the next keeps them.
