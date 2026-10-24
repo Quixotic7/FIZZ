@@ -118,7 +118,7 @@ def stats(a):
                             (6, "core 1 (firmware/DUALCORE.md): state, jobs, failures"),
                             (7, "the screen's bursts and the LEDs (P2.7)"),
                             (8, "the speed at boot: the voice bench, the clock, the RAM regions"),
-                            (9, "the panel's scanline reads (stats --scan: a second of them)")):
+                            (10, "the panel's scanline reads (stats --scan: a second of them)")):
             line = got.get(part, "(no answer)")
             if part == 3:                   # s<mode>.<view>: name them
                 for k, v in SCREENS.items():

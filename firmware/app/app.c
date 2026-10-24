@@ -755,7 +755,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
 #endif
     *c = 0;
     fz_stats_send(8, line);
-    /* 9 (P2.12): the panel's scanline reads (the last SCAN test) */
+    /* 10 (P2.12): the panel's scanline reads (the last SCAN test) */
     c = line;
     c = fz_put_u(c, "scan_reads=", fz_scan_n);
     c = fz_put_u(c, "scan_ms=", fz_scan_ms);
@@ -777,28 +777,41 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     }
     c = fz_put_u(c, "frctrl2=", FZ_FRCTRL2_60HZ);
     *c = 0;
-    fz_stats_send(9, line);
+    fz_stats_send(10, line);             /* (10: 9 is WIPE's reply) */
+}
+
+static void fz_fb_start(void);
+static uint8_t fz_redraw;                /* (below) */
+/* FIZZ started again (a wipe, its data blob written, a restore): its data outside .bss and the pool cleared as app_init
+ * does, the core again, and (P2.13) its 8-bit frame attached again: a new qd_app_t has none (before, a blob written
+ * after an install left FIZZ with no frame to draw into) */
+static void fz_restart(void)
+{
+#ifndef PLAT_HOST
+    uint32_t *q;
+    for (q = _fz_rt_start; q < _fz_rt_end; q++)
+        *q = 0;
+    for (q = _fz_ni_start; q < _fz_ni_end; q++)
+        *q = 0;
+#endif
+    fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
+    fz_ticked = 0;
+#ifdef QD_GFX_FB
+    if (fz_ok)
+        fz_fb_start();
+#endif
+    fz_redraw = 1;
 }
 
 static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region erased, FIZZ started again on it (as at a
                                           * power-on with a blank region; nothing restarts but FIZZ) */
 {
-#ifndef PLAT_HOST
-    uint32_t *q;
-#endif
     char line[48], *c = line;
     app_panic();
     fz_message("FIZZ: WIPING ITS STORE", "DO NOT SWITCH OFF");
     fz_wiped = fz_store_wipe();
     if (fz_ok) {
-#ifndef PLAT_HOST
-        for (q = _fz_rt_start; q < _fz_rt_end; q++)   /* (FIZZ's data outside .bss and the pool: as app_init) */
-            *q = 0;
-        for (q = _fz_ni_start; q < _fz_ni_end; q++)
-            *q = 0;
-#endif
-        fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
-        fz_ticked = 0;
+        fz_restart();
         if (fz_ok && !fz_safe)
             fz_store_attach();           /* (no lock: app_panic turned the sound off) */
     }
@@ -1745,10 +1758,8 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
     fz_message("FIZZ: WRITING ITS DATA", "DO NOT UNPLUG");
     rc = fz_xdata_write(off, len, crc);
     fz_usb_reply(rc ? "FZER" : "FZOK", rc ? rc : 1u);
-    if (!rc) {
-        fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
-        fz_ticked = 0;
-    }
+    if (!rc)
+        fz_restart();
     app_ui_init();                       /* (FIZZ's screen, or the message again) */
 }
 
