@@ -51,7 +51,7 @@ it is needed only when RemoteFM1's protocol changes.
 | `tools/assemble.mjs`, `js/build.js` | the published tree with every asset URL versioned (the workflow runs it) |
 | `tools/test_engine.mjs`, `tools/test_site.mjs`, `tools/test_update.mjs` | the checks (Node; headless Chromium over the DevTools protocol; a new deploy over a cached old one) |
 | `install/`, `css/install.css` | the install page (`/install/`, MPL-2.0: fm1-base's web installer for FIZZ): the firmware chosen from `firmware/releases.json`, then FIZZ's data written (`install/fizz_data.js`), going back to the stock firmware, the crash report. `install/fm1lib.js` is generated (`firmware/tools/sync_installer.py`) |
-| `firmware/` | the released packages, `firmware/VERSION/fizz-1core.fwsc` and `fizz-1core-xdata.bin` with `SHA256SUMS`, and `releases.json` (newest first): written by `firmware/release.py`, never by hand. Served from Pages because GitHub's release files can't be fetched by a page (no CORS) |
+| `firmware/` | the released packages, `firmware/VERSION/fizz.fwsc` and `fizz-xdata.bin` (the dual-core build) with `SHA256SUMS`, and `releases.json` (newest first): written by `firmware/release.py`, never by hand. Served from Pages because GitHub's release files can't be fetched by a page (no CORS) |
 | `tools/test_install.mjs` | the install page's checks: `releases.json` and its files, FIZZ's data writer against a simulated FM-1, `fm1lib.js` against fm1-base |
 
 ## A firmware release (the install page)

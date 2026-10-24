@@ -14,8 +14,11 @@ The first FIZZ that runs on the FM-1 itself. Until now FIZZ was a preview in the
 
 - **It replaces the FM-1's firmware.** Install it from the install page in Chrome or Edge. The same page puts
   M-VAVE's firmware back when you want it.
-- **8 voices** at once: this build uses one of the FM-1's two cores.
+- **8 voices** at once, played across both of the FM-1's cores. If the second core ever misbehaves, FIZZ carries
+  on with one until you switch off.
 - **USB MIDI only:** no Bluetooth MIDI and no USB audio in this build.
 - **Your projects and presets are saved on the FM-1.** The first time FIZZ starts, it clears another firmware's
   saved data if it finds some, so back that up first.
-- **Safe mode:** hold REC while you switch the FM-1 on to start FIZZ without reading or writing its saves.
+- **Safe mode:** hold SAVE while you switch the FM-1 on to start FIZZ without reading or writing its saves.
+  Switch off and on again to leave it. (REC held while switching on is the FM-1's update mode, for installing
+  firmware.)

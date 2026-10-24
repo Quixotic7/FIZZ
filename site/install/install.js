@@ -178,7 +178,7 @@ $("checkgo").addEventListener("click", async () => {
     else if (u.kind === "fizz") {
       const v = u.version || u.fromId;
       out.innerHTML = u.version ? `This FM-1 runs <b>FIZZ ${esc(v)}</b>` + (v === latest ? ", the latest." : latest ? `. The latest is ${esc(latest)}.` : ".")
-        : `This FM-1 runs FIZZ ${v ? esc(v) + " " : "(a development build) "}but FIZZ did not answer: its data may be missing (install again) or it is in safe mode.`;
+        : `This FM-1 runs FIZZ ${v ? esc(v) + " " : "(a development build) "}but FIZZ did not answer: its data may be missing (install again), or it is in safe mode (SAVE was held while switching on: switch off and on again without it).`;
     } else if (u.kind === "stock") out.innerHTML = u.open ? `This FM-1 runs M-VAVE's Open firmware (${esc(u.id)}). Put the stock firmware back first (Going back, below).`
       : `This FM-1 runs M-VAVE's firmware (${esc(u.id)}).`;
     else if (u.kind === "update") out.textContent = "This FM-1 is in update mode: an install did not finish. Press Install to finish it.";

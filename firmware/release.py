@@ -51,7 +51,8 @@ INSTALL_URL = "https://quixotic7.github.io/FIZZ/install/"
 DISCORD = "https://discord.gg/emf6DmZ9V"
 REPO_URL = "https://github.com/Quixotic7/FIZZ"
 # the packages a release carries: (file name, firmware/build.py's arguments, what it is, for the page)
-PACKAGES = [("fizz-1core", ["--single-core"], "One core, 8 voices, USB MIDI")]
+# (P2.14: the dual build, fm1.toml cpu2 = true with cpu2_fallback; "--single-core" makes fizz-1core, core 1 off)
+PACKAGES = [("fizz", [], "8 voices across both cores, USB MIDI")]
 UNRELEASED = "## Unreleased"
 UNRELEASED_HINT = "<!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->"
 VERSION_RE = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{1,2})(?:-beta\.(\d{1,3}))?(-[a-z0-9]+)?")
@@ -112,7 +113,7 @@ def release_body(version, notes):
     return (f"{notes}\n\n---\n\n**Install it from the browser** (Chrome or Edge, USB): {INSTALL_URL}?v={version}\n\n"
             f"The page installs FIZZ and then writes FIZZ's data. With the files below instead (a terminal), install "
             f"the `.fwsc`, then write the `-xdata` file: `firmware/tools/fizz_xdata.py push --blob "
-            f"fizz-1core-xdata-{version}.bin`.\n\n"
+            f"{PACKAGES[0][0]}-xdata-{version}.bin`.\n\n"
             f"**Feedback:** FIZZ's Discord, {DISCORD}\n")
 
 
