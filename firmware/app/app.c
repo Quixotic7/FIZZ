@@ -238,6 +238,7 @@ static struct {
     uint64_t latch, paint, input, wait, xfer, isr, tick, total;
     uint32_t n, tick_ms;
 } fz_fp;   /* (P2.15j: a counted frame by phase: fz_draw_fb) */
+static uint32_t fz_idle_polls, fz_idle_inputs;   /* (P2.16a: the scan wait's looks, and the input runs among them) */
 static struct {                          /* (P2.15b: a drawn frame's parts, ticks; counts) */
     uint64_t latch, paint, input, latch_only;
     uint32_t frames, bands, steps, looks_same;
@@ -887,6 +888,8 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
         c = fz_put_u(c, "fp_tick_us=", fz_us(fz_fp.tick / nf));       /* (inside step input and scan wait) */
         c = fz_put_u(c, "fp_tick_ms_x10=", (uint64_t)fz_fp.tick_ms * 10u / nf);
         c = fz_put_u(c, "fp_screen=", (uint32_t)fz_screen_index());
+        c = fz_put_u(c, "fp_idle_polls=", fz_idle_polls);     /* (P2.16a: the scan wait's looks; the input run among them) */
+        c = fz_put_u(c, "fp_idle_inputs=", fz_idle_inputs);
     }
     *c = 0;
     fz_stats_send(15, line);
@@ -987,6 +990,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
             memset(&fz_fb, 0, sizeof fz_fb);
             memset(&fz_fbs, 0, sizeof fz_fbs);
             memset(&fz_fp, 0, sizeof fz_fp);
+            fz_idle_polls = fz_idle_inputs = 0;
             fz_span_max = fz_span_n = fz_span_over = fz_frame_rows_max = fz_frames_over_stash = 0, fz_span_sum = 0;
 #ifndef PLAT_HOST
             t5_gap_max = t5_late = t5_run_max = 0;
@@ -1361,7 +1365,16 @@ static void fz_draw_strips(int all)
 static void fz_input(void);
 static void fz_fb_idle(void)             /* (P2.13: while the send waits for the scan: the panel, MIDI, the clock, LEDs) */
 {
-    fz_input();
+    static uint32_t last;
+    const uint32_t now = plat_ms();
+    fz_idle_polls++;
+    fz_sample();                         /* (P2.16a: the input only with a press or MIDI waiting, or every 2 ms: the
+                                          * clock's catch-up not run on every poll of the scan) */
+    if (fz_ev_r != fz_ev_w || fz_mq_r != fz_mq_w || now - last >= 2u) {
+        last = now;
+        fz_idle_inputs++;
+        fz_input();
+    }
     if (plat_ms() - fz_led_t >= FZ_LED_MS)
         fz_lights();
 }
@@ -1405,6 +1418,7 @@ static void fz_fb_start(void)            /* (once FIZZ is up: the rows attached;
  * sampled alone): the instant (latch), the bands painted, the input between steps, the send's wait for the scan (its
  * own input runs meanwhile), the send's transfer, and inside all of these the audio interrupt's time and the clock's
  * catch-up (fz_tick_to: its ms and time). Stats line 15 */
+static uint32_t fz_fb_work;              /* (P2.16a: the last frame's latch + paint, ticks: the pace's measure) */
 static int fz_draw_fb(int all)           /* a frame: drawn at one instant into the rows, the changed ones sent; 1 drawn */
 {
     const uint32_t t0 = plat_ticks24();
@@ -1435,6 +1449,7 @@ static int fz_draw_fb(int all)           /* a frame: drawn at one instant into t
             }
             fz_fbs.paint += plat_ticks24() - tl - ti;   /* (the bands drawn from the recording) */
             ph_latch = tl - t0, ph_paint = plat_ticks24() - tl - ti, ph_input = ti;
+            fz_fb_work = ph_latch + ph_paint;   /* (P2.16a: not the scan's wait, the input, the send) */
         } else {
             fz_fbs.latch_only += plat_ticks24() - t0;    /* (looked at, nothing changed) */
             fz_fbs.looks_same++;
@@ -1839,8 +1854,9 @@ static void fz_step(int frame)
         frame_t = now - frame_t < 2u * period ? frame_t + period : now;
         fz_redraw = 0;
         fz_prof.n_check++;
-        if (fz_draw_fb(all)) {
-            fz_frame_us = (3u * fz_frame_us + (plat_ticks24() - t1) / PLAT_TICKS_PER_US) / 4u;
+        (void)t1;
+        if (fz_draw_fb(all)) {   /* (P2.16a: the pace from the frame's own work, latch + paint; its waits not counted) */
+            fz_frame_us = (3u * fz_frame_us + fz_fb_work / PLAT_TICKS_PER_US) / 4u;
             fz_anim = fz_anim < 255u ? (uint8_t)(fz_anim + 1u) : fz_anim;
         } else {
             fz_prof.n_skip++;

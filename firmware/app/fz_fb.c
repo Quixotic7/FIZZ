@@ -115,7 +115,7 @@ static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t b
         if (!fz_fb_line(&line)) {
             uint32_t polls = 0;
             while (!(line >= first && line <= smax)) {
-                if ((plat_ticks24() - wait0) / PLAT_TICKS_PER_US > 18000u || ++polls > 100000u) {
+                if ((plat_ticks24() - wait0) / PLAT_TICKS_PER_US > 18000u || ++polls > 10000000u) {   /* (P2.16a: the polls cheap now, the time the bound) */
                     line = 0xFFFFu;
                     break;
                 }

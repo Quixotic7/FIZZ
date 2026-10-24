@@ -223,3 +223,52 @@ test stays, as a record of the protocol).
 - **Stats line 6**: started or not, on, why it gave up, barred, misreads, its stack's depth, jobs, jobs core 0 ran
   instead (busy, fallbacks), each core's voice time a half and core 0's wait. The Geek Out pages' METERS: core 1's load.
 - **The single-core package** (`--single-core`): 8 voices, no second core (FM1B_CPU2=0).
+
+## P2.16: core 1 asynchronous (design note, not built)
+
+Unit, line 15 (6755020a, demo on EDIT/METERS): a 45 ms frame is 22.6 ms of audio interrupt. The lever is core 0's
+interrupt: today begin, core 0's share of the voices, out(n - 1) and the wait for core 1, all inside it.
+
+**The catch: a half is 8 blocks.** fm1-base calls `app_render` every 256 frames (APP_BLOCK, 5.8 ms); a control block
+is 32 frames, so one interrupt runs 8 blocks in a row, and block n + 1's begin needs block n's voices done (publish:
+the voices' LFO offsets to their tracks; begin starts and steals voices whose state the render is writing). "Post
+block n, return, join at the next interrupt" leaves only the last of the 8 blocks in flight: 1/8 of the gain. Three
+ways round it:
+
+| | how | latency added | core 0's interrupt | what it costs |
+|---|---|---|---|---|
+| A | core 1 makes the whole next half (8 x begin, voices, publish, out) as one job; core 0's interrupt reads MIDI, joins, copies the finished half out, posts the next | one half, 5.8 ms | ~0.1 ms | port only; core 1 must carry all the audio (see load) |
+| B | APP_BLOCK 32: one block an interrupt, the coordinator's scheme as written | one block, 0.73 ms | begin + out | an interrupt every 0.73 ms; any lock or interrupts-off span over 0.73 ms (a flash page ~1 ms, the longest locks) is an underrun. Not recommended |
+| C | the core lets begin(n + 1) run before voices(n) (starts and steals deferred into the block, the owners' LFOs snapshotted into it), core 1 trailing core 0 by the half | one half | 8 x (begin + out) | core work, and up to 9 blocks in flight: ~2.5 KB each with two buses (one bus: ~0.7 KB + snapshot); RAM has 764 B, the pool 3.2 KB |
+
+**Recommendation: A**, if the unit says core 1 can carry it, and if the owner takes 5.8 ms more latency (key to sound
+~18 ms instead of ~12: two DMA halves plus the pipeline). Fallback: core 1 off, barred or given up -> today's synchronous pipelined path, chosen per
+interrupt, the half in flight joined first.
+
+**A's hazards and their answers**
+- *Load.* Core 1 alone must make a half (8 voices: begin + all voices + publish + effects/out) in well under 5.8 ms,
+  and fm1-base gives a job up at 8 ms (barred until power-off). To measure first: line 6/12's per-half core 1 render +
+  core 0 render + begin + out. Over ~4.5 ms: A does not fit; core 0 then takes voices back (synchronous again).
+- *The main loop's locks.* Today `fz_lock` masks the audio interrupt, and the interrupt is the only place the audio
+  runs. Under A the audio runs on core 1 while core 0's main loop edits (keys, MIDI UI, `tick_locked`, SysEx). The
+  lock becomes: mask the interrupt, then raise `want`; core 1 checks `want` between blocks (csync each side, one
+  writer per word) and parks until it drops; core 0 waits for "parked" or "job done". Wait <= one block of core 1's
+  render (~0.3-0.5 ms). `tick_locked` takes the lock every main-loop ms today: it moves into the job (each block's
+  begin ticks to `plat_ms`), so the main loop locks only for events. Event order against the clock shifts by up to a
+  block (the core's view: acceptable?).
+- *MIDI heard now.* `fz_midi_isr` plays notes inside the interrupt; under A it only queues them, and the job plays them
+  at the next block's begin (+ up to a half; the same as the latency above).
+- *Flash.* The job runs from the flash; core 0 may turn it off only with no job outstanding. `fz_flash_quiet` (every
+  page and erase of FIZZ's store) joins core 1 after the interrupts go off (<= one half); the half not made meanwhile
+  is silence (as today: interrupts are off). fm1-base's own flash work (update mode, the blob writer) stops FIZZ's
+  audio first (`fz_audio_on = 0`) and joins the outstanding job.
+- *Shed and stats.* The shed judges core 1's job time against the half; core 0's interrupt time and core 1's job time
+  go on a stats line (line 6), as asked.
+- *Stack.* begin and the effects on core 1's 2,816 B stack (the voices need < 1 KB): measured with `plat_cpu2_stack`
+  in the simulator's deepest path before the unit.
+- *Memory.* The finished half: 1 KB (int16 stereo x 256) in the pool (3.2 KB free).
+- *Test.* The simulator runs a job at once; with no input, A's output equals the synchronous path's delayed by one half
+  (256 frames), sample for sample: a host test (the demo, no keys).
+
+**What the core needs for A: nothing new** (the existing `qd_blk_t` x 2, begin_k / voices / publish / out, all on one
+core). C needs the core's deferred starts/steals and snapshot; not proposed.
