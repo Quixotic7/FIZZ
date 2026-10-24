@@ -7,7 +7,7 @@
 //   1. the player loads with no console error; FIZZ boots in the AudioWorklet (info, first frames); screenshot
 //   2. audio through the panel interface: HOME, REC tapped, D4 held: the output (an AnalyserNode) is not silent
 //   3. the flash: two steps added, FIZZ's autosave reaches IndexedDB; after a reload the steps are back
-//   4. the Feedback link: a new issue on FIZZ from feedback.yml, with the version, setup and browser filled in
+//   4. the Feedback link: FIZZ's Discord
 //   5. the guide renders with no console error; a phone-sized screenshot of both pages
 //   6. Digitone sounds: .dnsnd files (--dnsnd, a few of them; never published) read and listed in the panel
 // Screenshots: site/.build/test/*.png
@@ -41,12 +41,7 @@ const note = (what) => console.log(`      ${what}`);
 
 // ---- feedback.js in Node first
 {
-  const u = new URL(feedbackUrl({ meta: { version: "0.6.2-p1.5p", commit: "33054d2e4a6a" }, setup: "fm1",
-    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36" }));
-  const q = u.searchParams;
-  check(u.origin + u.pathname === "https://github.com/Quixotic7/FIZZ/issues/new" && q.get("template") === "feedback.yml" &&
-        q.get("version") === "0.6.2-p1.5p (33054d2)" && q.get("setup") === "FM-1 with RemoteFM1" && q.get("browser") === "Chrome 141 on macOS",
-        `feedbackUrl (Node): ${u.href.slice(0, 120)}...`);
+  check(feedbackUrl({ meta: { version: "0.6.2-p1.5p" }, setup: "fm1" }) === "https://discord.gg/emf6DmZ9V", "feedbackUrl (Node): FIZZ's Discord");
   check(browserName("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0") === "Firefox 131 on Windows", "browserName: Firefox on Windows");
 }
 
@@ -181,9 +176,7 @@ try {
 
   // 4. the Feedback link
   const href = await evaluate("document.querySelector('a[data-feedback]').href");
-  const u = new URL(href), q = u.searchParams;
-  check(u.pathname === "/Quixotic7/FIZZ/issues/new" && q.get("template") === "feedback.yml" && q.get("version").startsWith(meta.version) &&
-        q.get("setup").startsWith("On-screen") && /Chrom/.test(q.get("browser")), `Feedback: ${href}`);
+  check(href === "https://discord.gg/emf6DmZ9V", `Feedback: ${href}`);
 
   // 6. Digitone sounds (local test files only): read, sent to FIZZ's library, kept over a reload
   const files = fs.existsSync(DNSND) ? fs.readdirSync(DNSND).filter((f) => f.endsWith(".dnsnd")).sort().slice(0, 4) : [];
@@ -555,7 +548,7 @@ try {
   await load(new URL("guide.html", URL0).href);
   await sleep(500);
   const gh = await evaluate("({ h1: document.querySelector('h1') && document.querySelector('h1').textContent, sections: document.querySelectorAll('section').length, keys: !!document.getElementById('keys'), fb: document.querySelector('a[data-feedback]') && document.querySelector('a[data-feedback]').href, w: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth })");
-  check(gh.h1 && gh.sections >= 5 && gh.keys && /issues\/new/.test(gh.fb || ""), `the guide: "${gh.h1}", ${gh.sections} sections, the key map, Feedback ${(gh.fb || "").slice(0, 70)}...`);
+  check(gh.h1 && gh.sections >= 5 && gh.keys && /discord\.gg\//.test(gh.fb || ""), `the guide: "${gh.h1}", ${gh.sections} sections, the key map, Feedback ${(gh.fb || "").slice(0, 70)}...`);
   const full = await evaluate("document.documentElement.scrollHeight");
   await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: Math.min(full, 6000), deviceScaleFactor: 1, mobile: false });
   await sleep(300);

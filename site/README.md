@@ -47,7 +47,7 @@ it is needed only when RemoteFM1's protocol changes.
 | `js/rec-ui.js`, `js/recorder.js` | the recorder (RemoteFM1's): the record button, Shift+R, Takes, WAV files |
 | `remote/`, `js/use-fm1.js`, `js/fm1-link.js`, `js/remote-hook.js` | Connect FM-1 (WebUSB / Web MIDI, RemoteFM1) |
 | `js/digitone.js`, `js/digitone-ui.js`, `js/fm1dnsnd.js` | Digitone `.dnsnd` sounds read in the browser (ChoralRoot's reader) and sent to FIZZ over its SysEx (`js/fizz_sysex.js`, FIZZ's `tools/fizz_sysex.mjs` copied) |
-| `js/feedback.js`, `../.github/ISSUE_TEMPLATE/feedback.yml` | the Feedback button's prefilled issue |
+| `js/feedback.js` | the Feedback button: FIZZ's Discord (https://discord.gg/emf6DmZ9V) |
 | `tools/assemble.mjs`, `js/build.js` | the published tree with every asset URL versioned (the workflow runs it) |
 | `tools/test_engine.mjs`, `tools/test_site.mjs`, `tools/test_update.mjs` | the checks (Node; headless Chromium over the DevTools protocol; a new deploy over a cached old one) |
 | `install/`, `css/install.css` | the install page (`/install/`, MPL-2.0: fm1-base's web installer for FIZZ): the firmware chosen from `firmware/releases.json`, then FIZZ's data written (`install/fizz_data.js`), going back to the stock firmware, the crash report. `install/fm1lib.js` is generated (`firmware/tools/sync_installer.py`) |

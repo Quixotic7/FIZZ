@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The Feedback button: a new issue on FIZZ from its feedback form (.github/ISSUE_TEMPLATE/feedback.yml), the
-// fields this page knows filled in (GitHub fills an issue form's fields from query parameters named by their ids).
-// No DOM: site/tools/test_site.mjs checks it in Node.
+// The Feedback button: FIZZ's Discord, where the owner takes feedback (2026-10-23: Discord only; the GitHub issue
+// form, .github/ISSUE_TEMPLATE/feedback.yml, is no longer linked). No DOM: site/tools/test_site.mjs checks it in Node.
 export const REPO = "https://github.com/Quixotic7/FIZZ";
+export const DISCORD = "https://discord.gg/emf6DmZ9V";
 
 // "Chrome 141 on macOS" from a user agent string (and the client hints' platform, where there are some)
 export function browserName(ua = "", platform = "") {
@@ -18,15 +18,7 @@ export function browserName(ua = "", platform = "") {
   return os ? `${b} on ${os}` : b;
 }
 
-// meta: site/fizz.json; setup: "fm1" (an FM-1 running RemoteFM1 connected) or "screen"
-export function feedbackUrl({ meta = null, setup = "screen", ua = "", platform = "" } = {}) {
-  const v = meta ? `${meta.version}${meta.commit ? ` (${meta.commit.slice(0, 7)})` : ""}` : "";
-  const q = new URLSearchParams({
-    template: "feedback.yml",
-    title: `[Feedback] ${meta ? "FIZZ " + meta.version + ": " : ""}`,
-    version: v,
-    setup: setup === "fm1" ? "FM-1 with RemoteFM1" : "On-screen panel (mouse, touch or computer keyboard)",
-    browser: browserName(ua, platform),
-  });
-  return `${REPO}/issues/new?${q}`;
+// the Feedback link (its callers pass what the page knows; Discord takes no prefilled fields)
+export function feedbackUrl() {
+  return DISCORD;
 }
