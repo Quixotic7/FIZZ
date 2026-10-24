@@ -64,6 +64,8 @@ _tc = fb.tc
 SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
 # the owner (2026-10-23): 8 voices on one core, 16 when core 1 renders half (core/qd_config.h QD_VOICES_DEV)
 DEFS = ["-DFZ_SINGLE_CORE=1", "-DQD_VOICES_DEV=8"] if SINGLE else ["-DQD_VOICES_DEV=16"]
+if not SINGLE and "FM1B_POOL_SPARE" not in os.environ:
+    os.environ["FM1B_POOL_SPARE"] = "4096"         # (P2.12: Standard, 16 voices, with the 8-bit frame: 5,152 B left)
 if SINGLE and "FM1B_POOL_SPARE" not in os.environ:
     # the comb lines (16 KB) move from the RAM code region to the pool for quad_render: the pool keeps ~3 KB spare,
     # not fm1-base's 8,192. That spare is the build's margin only (nothing uses the pool past _pool_end: the stacks
@@ -206,6 +208,14 @@ def tc(tool, *args):
         for i, a in enumerate(args):
             if isinstance(a, Path) and a.name in ("app.ld", "app_wifi.ld"):
                 args[i] = APP / "fizz.ld"
+                if not SINGLE:                   # (P2.12: Standard keeps its comb lines in the RAM code region: the
+                    ld = (APP / "fizz.ld").read_text()   # frame's rows and buffers marked for it go to the pool)
+                    if ld.count(" *(.fz_rtdata*)") != 1 or ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1:
+                        raise SystemExit("fizz: fizz.ld's .fz_rt / .pool lines changed: see build.py")
+                    ld = ld.replace(" *(.fz_rtdata*)", "").replace("*/o2/fz_port.o(.bss* .sbss* COMMON)",
+                                                                   "*/o2/fz_port.o(.bss* .sbss* COMMON) *(.fz_rtdata*)")
+                    args[i] = fb.OUT / "fizz-std.ld"
+                    args[i].write_text(ld)
                 if SINGLE:                       # the voices' comb lines leave the RAM code region for the pool
                     ld = (APP / "fizz.ld").read_text()
                     comb = " */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)"

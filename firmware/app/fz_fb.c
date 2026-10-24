@@ -23,8 +23,8 @@
 #ifdef PLAT_HOST
 static uint16_t fz_fb_buf[2][FZ_FB_CHUNK * 240u];
 #else
-static uint16_t fz_fb_buf[2][FZ_FB_CHUNK * 240u] __attribute__((section(".noinit"), aligned(4)));   /* (NOINIT: RAM and
-                                          * the pool are the frame's; not cleared, written before each transfer) */
+static uint16_t fz_fb_buf[2][FZ_FB_CHUNK * 240u] __attribute__((section(".fz_rtdata"), aligned(4)));   /* (the RAM code
+                                          * region's spare: RAM, the pool and NOINIT are full) */
 #endif
 
 static uint32_t fz_fb_row_hash(const uint8_t *p)

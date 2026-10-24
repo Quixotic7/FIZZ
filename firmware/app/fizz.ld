@@ -46,7 +46,7 @@ SECTIONS
     _rt_load = LOADADDR(.ram_text);
     .data : { . = ALIGN(4); _data_start = .; *(.data*) *(.sdata*) *(.*_data) . = ALIGN(4); _data_end = .; } > RAM AT > XIP
     _data_load = LOADADDR(.data);
-    .fz_rt (NOLOAD) : { . = ALIGN(4); _fz_rt_start = .; */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)
+    .fz_rt (NOLOAD) : { . = ALIGN(4); _fz_rt_start = .; *(.fz_rtdata*) */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)
                        . = ALIGN(4); _fz_rt_end = .; } > RAMTEXT
     .noinit (NOLOAD) : { *(.noinit*) } > NOINIT
     .fz_ni (NOLOAD) : { . = ALIGN(4); _fz_ni_start = .; */o2/build_units_c_view.o(.bss* .sbss* COMMON)

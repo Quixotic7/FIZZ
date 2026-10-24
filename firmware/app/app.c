@@ -128,6 +128,7 @@ static void fz_audio_on_again(uint32_t f)
 #endif
 static uint32_t fz_lock_t0;
 static uint32_t fz_lock_kmax[8];
+static volatile uint32_t fz_g_isr_max, fz_g_lock_max;   /* (P2.12: since the Geek Out pages' reset) */
 static uint32_t fz_lock(void)
 {
     const uint32_t f = fz_audio_off();
@@ -139,6 +140,8 @@ static void fz_unlock(uint32_t f, uint32_t kind)
     const uint32_t d = plat_ticks24() - fz_lock_t0;
     if (d > fz_prof.lock_max)
         fz_prof.lock_max = d, fz_prof.lock_kind = kind;
+    if (d > fz_g_lock_max)
+        fz_g_lock_max = d;
     if (kind < 8u && d > fz_lock_kmax[kind])
         fz_lock_kmax[kind] = d;          /* (P2.9: the longest by kind) */
     fz_audio_on_again(f);
@@ -333,6 +336,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     }
     fz_prof.a_out += plat_ticks24() - t_out;
     d = plat_ticks24() - t0;
+    if (d > fz_g_isr_max)
+        fz_g_isr_max = d;                /* (P2.12: the Geek Out pages' longest half, since their reset) */
     fz_prof.isr += d;
     fz_prof.n_isr++;
     if (d > fz_prof.isr_max)
@@ -1140,6 +1145,7 @@ static void fz_stash_take(void)          /* the stash, before the frame is latch
 }
 
 static int fz_draw_fb(int all);
+static void fz_boot_look(void);
 static void fz_draw(int all)
 {
 #ifdef QD_GFX_FB
@@ -1214,12 +1220,15 @@ static void fz_draw_strips(int all)
 #ifdef QD_GFX_FB
 /* (P2.12) the frame's memory: rows 0..99 in main RAM (where the strip surface and its coverage were), 100..239 in the
  * pool (the delay line's freed half); the host: one block */
-#define FZ_FB_LO 100u                    /* (P2.12: rows 0..99 in main RAM, where the strip surface and coverage were; 100..239 in the pool) */
+#define FZ_FB_LO 100u                    /* (P2.12: rows 0..99 in main RAM, where the strip surface and coverage were) */
+#define FZ_FB_MID 12u                    /* (.. the next in the RAM code region's spare (P2.12b: the Geek Out pages took the
+                                          * rest of the room), the others in the pool) */
 #ifdef PLAT_HOST
-static uint8_t fz_fb_lo[FZ_FB_LO][240], fz_fb_hi[240u - FZ_FB_LO][240];
+static uint8_t fz_fb_lo[FZ_FB_LO][240], fz_fb_mid[FZ_FB_MID][240], fz_fb_hi[240u - FZ_FB_LO - FZ_FB_MID][240];
 #else
 static uint8_t fz_fb_lo[FZ_FB_LO][240] __attribute__((aligned(4)));
-static uint8_t fz_fb_hi[240u - FZ_FB_LO][240] __attribute__((section(".pool"), aligned(4)));
+static uint8_t fz_fb_mid[FZ_FB_MID][240] __attribute__((section(".fz_rtdata"), aligned(4)));   /* (the RAM code region) */
+static uint8_t fz_fb_hi[240u - FZ_FB_LO - FZ_FB_MID][240] __attribute__((section(".pool"), aligned(4)));
 #endif
 static uint8_t *fz_rowp[240];
 static const uint16_t *fz_pal;
@@ -1234,7 +1243,8 @@ static void fz_fb_start(void)            /* (once FIZZ is up: the rows attached;
 {
     uint32_t y;
     for (y = 0; y < 240u; y++)
-        fz_rowp[y] = y < FZ_FB_LO ? fz_fb_lo[y] : fz_fb_hi[y - FZ_FB_LO];
+        fz_rowp[y] = y < FZ_FB_LO ? fz_fb_lo[y] : y < FZ_FB_LO + FZ_FB_MID ? fz_fb_mid[y - FZ_FB_LO]
+                                                                       : fz_fb_hi[y - FZ_FB_LO - FZ_FB_MID];
     fz_fb_attach(fz_rowp);
     fz_pal = fz_fb_palette(&fz_pal_gen);
     fz_fb_on = 1;
@@ -1347,9 +1357,6 @@ extern uint32_t _fz_rt_start[], _fz_rt_end[], _fz_ni_start[], _fz_ni_end[];
  * a register loop (the clock: ~3 cycles an iteration); a word read and written 64 times over in each RAM region FIZZ
  * uses (main RAM, the pool, NOINIT): their access time, to see a region slower than the others */
 #ifndef PLAT_HOST
-static uint32_t fz_mb_ram[128];
-static uint32_t fz_mb_pool[128] __attribute__((section(".pool")));
-static uint32_t fz_mb_ni[128] __attribute__((section(".noinit")));
 static uint32_t fz_mem_pass(uint32_t *w)
 {
     uint32_t t0, i, k, acc = 1;
@@ -1391,9 +1398,7 @@ static void fz_speed(void)
     sink = x;
     (void)sink;
     fz_bench_loop_ns100 = (uint32_t)((uint64_t)d * 100000u / PLAT_TICKS_PER_US / 100000u);
-    fz_mem_ns100[0] = fz_mem_pass(fz_mb_ram);
-    fz_mem_ns100[1] = fz_mem_pass(fz_mb_pool);
-    fz_mem_ns100[2] = fz_mem_pass(fz_mb_ni);
+    /* (the RAM regions' word times: P2.7's test, all the same on the unit (0.03 ns x 100); its buffers given back) */
     fm1_irq_on();
 #endif
 }
@@ -1408,6 +1413,7 @@ void app_init(void)
         *p = 0;
 #endif
     const uint32_t t_init = plat_ticks24();
+    fz_boot_look();
     fz_speed();                          /* (before FIZZ starts: the bench's voice is its own, the app's set after) */
     fz_speed_us = (plat_ticks24() - t_init) / PLAT_TICKS_PER_US;
     fz_panel_rate();
@@ -1492,6 +1498,64 @@ static void fz_host_sync_audio(void)
 }
 #endif
 
+/* (P2.12) the Geek Out pages' platform figures (core: qd_app_stats), every 250 ms: core 0's audio load and the frames
+ * a second over the last window, the longest half and lock and the late halves since the pages' reset (SHIFT + B11
+ * bumps the core's count: these start again), the RAM (main RAM and the pool) and the store in use, why the boot was
+ * not clean. Core 1 off: its load not given */
+#ifndef PLAT_HOST
+extern uint32_t _bss_end[], _pool_start[], _pool_end[];
+static uint32_t fz_crash_seen __attribute__((section(".noinit")));
+#endif
+static const char *fz_boot_cause;
+static void fz_boot_look(void)           /* (app_init: the reset's cause) */
+{
+#ifndef PLAT_HOST
+    if (fm1_crash.magic == FM1_CRASH_MAGIC && fm1_crash.count != fz_crash_seen) {
+        fz_crash_seen = fm1_crash.count;
+        fz_boot_cause = "CRASH";
+    } else if (fm1_boot.p3_rst & 4u) {
+        fz_boot_cause = "WATCHDOG";
+    }
+#endif
+}
+static void fz_geek(void)
+{
+    static uint32_t t_last, isr_last, frames_last, reset_last, late0, init;
+    fz_plat_stats_t f;
+    const uint32_t now = plat_ticks24(), dt = now - t_last;
+    uint32_t r;
+    memset(&f, 0, sizeof f);
+    if (!init) {
+        t_last = now, isr_last = (uint32_t)fz_prof.isr, frames_last = fz_prof.n_frame, late0 = plat_xruns(), init = 1;
+        return;
+    }
+    if (dt < 250000u * PLAT_TICKS_PER_US / 1000u)
+        return;
+    f.have = 1u | 4u | 8u | 16u | 64u;   /* LOAD0 FPS ISR LOCK STORE */
+    f.load_pm[0] = (uint16_t)((uint64_t)((uint32_t)fz_prof.isr - isr_last) * 1000u / dt);
+    f.fps10 = (uint16_t)((uint64_t)(fz_prof.n_frame - frames_last) * 10u * PLAT_TICKS_PER_US * 1000000u / dt);
+    f.frame_us = fz_frame_us;
+    f.isr_us = fz_g_isr_max / PLAT_TICKS_PER_US;
+    f.isr_budget_us = (uint32_t)((uint64_t)APP_BLOCK * 1000000u / 44100u);
+    f.late = plat_xruns() - late0;
+    f.lock_us = fz_g_lock_max / PLAT_TICKS_PER_US;
+    fz_store_use(&f.store_used, &f.store_size);
+#ifndef PLAT_HOST
+    f.have |= 32u;
+    f.ram_used = (uint32_t)((uintptr_t)_bss_end - 0x01C08000u) + (uint32_t)((uintptr_t)_pool_end - (uintptr_t)_pool_start);
+    f.ram_size = 98304u + 0x54000u;
+#endif
+    if (fz_boot_cause)
+        f.have |= 128u, f.boot = fz_boot_cause;
+    t_last = now, isr_last = (uint32_t)fz_prof.isr, frames_last = fz_prof.n_frame;
+    r = fz_stats_fill(&f);
+    if (r != reset_last) {               /* (the pages' reset: their counters start again) */
+        reset_last = r;
+        fz_g_isr_max = fz_g_lock_max = 0;
+        late0 = plat_xruns();
+    }
+}
+
 static void fz_step(int frame)
 {
     static uint32_t frame_t, store_t;
@@ -1515,6 +1579,7 @@ static void fz_step(int frame)
 #endif
     if (now - fz_led_t >= FZ_LED_MS)
         fz_lights();
+    fz_geek();
     fz_ui_state(&mode, &playing);
     period = now - fz_touch_ms < FZ_TOUCHED_MS ? FZ_FRAME_TOUCHED
              : mode == 0                       ? FZ_FRAME_IDLE

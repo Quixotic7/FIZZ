@@ -102,3 +102,12 @@ extern int32_t fz_bench_render_sum;
 void fz_fb_attach(uint8_t *const rows[240]);
 const uint16_t *fz_fb_palette(uint32_t *gen);
 int fz_frame_fb(uint32_t *bands);
+/* (P2.12) the Geek Out pages' figures (the core's qd_app_stats_t, app.h), and the store's sectors in use, in bytes */
+typedef struct {                       /* (the platform's figures, as qd_app_stats_t has them: app.h) */
+    uint32_t have;                     /* QD_ST_* bits (1 LOAD0, 2 LOAD1, 4 FPS, 8 ISR, 16 LOCK, 32 RAM, 64 STORE, 128 BOOT) */
+    uint16_t load_pm[2], fps10;
+    uint32_t frame_us, isr_us, isr_budget_us, late, lock_us, ram_used, ram_size, store_used, store_size;
+    const char *boot;
+} fz_plat_stats_t;
+uint32_t fz_stats_fill(const fz_plat_stats_t *f);   /* into qd_app_stats; returns the core's reset count */
+void fz_store_use(uint32_t *used, uint32_t *size);

@@ -487,3 +487,38 @@ const uint16_t *fz_fb_palette(uint32_t *gen) { return qd_app_palette(&fz_app, ge
 int fz_frame_fb(uint32_t *bands) { return qd_app_frame_fb(&fz_app, bands); }
 typedef char fz_fb_band_ok[QD_FB_BAND == 16 ? 1 : -1];   /* (app.c sends bands of 16 rows) */
 #endif
+
+/* (P2.12) the Geek Out pages' platform figures (core 74eb1df: qd_app_stats), filled by app.c; the store's use */
+typedef char fz_st_bits_ok[QD_ST_LOAD0 == 1 && QD_ST_LOAD1 == 2 && QD_ST_FPS == 4 && QD_ST_ISR == 8 &&
+                            QD_ST_LOCK == 16 && QD_ST_RAM == 32 && QD_ST_STORE == 64 && QD_ST_BOOT == 128 ? 1 : -1];
+uint32_t fz_stats_fill(const fz_plat_stats_t *f)
+{
+    qd_app_stats_t *s = qd_app_stats(&fz_app);
+    s->have = f->have;
+    s->load_pm[0] = f->load_pm[0], s->load_pm[1] = f->load_pm[1];
+    s->fps10 = f->fps10;
+    s->frame_us = f->frame_us;
+    s->isr_us = f->isr_us, s->isr_budget_us = f->isr_budget_us;
+    s->late = f->late;
+    s->lock_us = f->lock_us;
+    s->ram_used = f->ram_used, s->ram_size = f->ram_size;
+    s->store_used = f->store_used, s->store_size = f->store_size;
+    s->boot = f->boot;
+    return s->reset;
+}
+static void fz_st_count(const qd_store_t *st, uint32_t *used, uint32_t *n)
+{
+    int k;
+    for (k = 0; k < st->nsec && k < QDS_MAXSEC; k++)
+        *used += st->sseq[k] != 0 && st->sseq[k] != 0xFFFFFFFFu;
+    *n += (uint32_t)st->nsec;
+}
+void fz_store_use(uint32_t *used, uint32_t *size)
+{
+    uint32_t u = 0, n = 0;
+    if (fz_up) {
+        fz_st_count(&fz_app.per.lib_st, &u, &n);
+        fz_st_count(&fz_app.per.prj_st, &u, &n);
+    }
+    *used = u * 4096u, *size = n * 4096u;
+}
