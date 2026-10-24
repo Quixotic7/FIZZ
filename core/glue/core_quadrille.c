@@ -270,7 +270,10 @@ void fm1core_qd_ui_info(char *buf, uint32_t n)
                  qd_track_sound_name(&fm1core_qd_app.model.t[fm1core_qd_app.sel]), fm1core_qd_app.oct,
                  qd_pool_in_use(&fm1core_qd_app.pool), fm1core_qd_app.pool.nvoice, (unsigned)fm1core_qd_app.keys_held,
                  (unsigned)fm1core_qd_app.buttons_held,
-                 fm1core_qd_app.ui.view == QD_VIEW_EDIT ? "EDIT" : fm1core_qd_app.ui.view == QD_VIEW_STEPS ? "STEPS" : "ROLL",
+                 fm1core_qd_app.ui.view == QD_VIEW_EDIT    ? "EDIT"
+                 : fm1core_qd_app.ui.view == QD_VIEW_STEPS ? "STEPS"
+                 : QD_VIEW_GEEK(fm1core_qd_app.ui.view)    ? "GEEK OUT"
+                                                           : "ROLL",
                  qd_view_edit_follows(&fm1core_qd_app) + 1,     /* P1.5s: the step EDIT shows playing (0: none) */
                  qd_type_open(&fm1core_qd_app) ? fm1core_qd_app.ui.ty.name : "");   /* P1.5z: the name typed */
 }

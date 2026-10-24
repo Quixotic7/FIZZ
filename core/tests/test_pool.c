@@ -157,6 +157,7 @@ static void t_released(void)
     printf("  released: at the limit a released voice goes first, the quietest of them\n");
 }
 
+#if QD_POOL_DEFAULT >= 16                               /* (the 16-voice scenes: the knob's build only) */
 static void t_reserve(void)
 {
     int k, s;
@@ -233,6 +234,7 @@ static void t_17th(void)
           "17th across: tracks 0 and 1 tie at 8 over, the oldest held (track 0's 48) should go");
     printf("  17th: on its own full track the oldest held went; across the tracks the furthest over gave its oldest\n");
 }
+#endif
 
 static void t_same_note(void)
 {

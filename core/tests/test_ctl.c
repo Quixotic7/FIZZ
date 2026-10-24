@@ -221,11 +221,33 @@ static qd_leds_t leds(void)
     return l;
 }
 /* a fresh unit on the empty pattern A05, the step view, track 1 */
+static int long_names;                                  /* P2.6h: every name at its longest (start) */
+static void names_long(void)
+{
+    int t, p, k;
+    for (t = 0; t < QD_NTRACK; t++) {
+        memset(A.model.t[t].name, 'W', QD_TRACK_NAME - 1);
+        A.model.t[t].name[QD_TRACK_NAME - 1] = 0;
+        memset(A.model.t[t].sound_name, 'M', QD_SOUND_NAME - 1);
+        A.model.t[t].sound_name[QD_SOUND_NAME - 1] = 0;
+        for (p = 0; p < 64; p++) {
+            qd_pattern_t *P = qd_proj_pat(&A.proj, p);
+            memset(P->snd[t].name, 'W', QD_SOUND_NAME - 1);
+            P->snd[t].name[QD_SOUND_NAME - 1] = 0;
+        }
+    }
+    for (k = 0; k < QD_NPROJ; k++) {
+        memset(A.per.pname[k], 'W', QD_PROJ_NAME - 1);
+        A.per.pname[k][QD_PROJ_NAME - 1] = 0;
+    }
+}
 static void start(void)
 {
     fresh();
     wake();
     empty_pattern(4);
+    if (long_names)
+        names_long();
 }
 
 /* ================================================================ the gesture scenarios === */
@@ -2655,6 +2677,13 @@ static void g_edit(void)
  * size times the transform's scale); every gesture above has drawn its frames since main's reset, and this one visits
  * the rest: every hold mode in the PIANO ROLL, STEPS and EDIT, nothing held and a step held, the layer maps, SHIFT's
  * map in each context, the keyboard, the tracks screen, a confirmation, playing */
+static void g_clarity(void);
+static void g_long_names(void)
+{
+    long_names = 1;
+    g_clarity();
+    long_names = 0;
+}
 static void g_clarity(void)
 {
     static const int MODES[11] = {M_NOTE, M_VEL, M_LEN, M_MICRO, M_RATCH, M_CHNC, M_COND, M_TRIG, M_FUNC, M_SOUND,
@@ -8246,6 +8275,7 @@ int main(void)
         {"P1.5z: SHIFT + SELECT: the track everywhere", g_p15z_shift_select},
         {"P1.6l: the controls' labels", g_p16l_labels},
         {"P1.3v: no text under 11 px on any screen", g_clarity},
+        {"P2.6h: every screen again, every name at its longest (ASan: no buffer overrun)", g_long_names},
     };
     size_t i;
     uint64_t h1, h2;

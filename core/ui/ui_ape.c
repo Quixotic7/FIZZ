@@ -290,11 +290,6 @@ static void ap_pose(int k, const ap_pose_o *o)
     }
     qd_restore();
 }
-static void ap_ghost(int k, float alpha, float lift)    /* the pose it left, faint */
-{
-    ap_pose_o o = {0.f, lift, 1.f, 1.f, 0.f, alpha, 0.f, 0};
-    ap_pose(k, &o);
-}
 static int ap_keep[2] = {-1, -1};
 static int ap_prepare(int k) { (void)k; return 0; }
 void ui_ape_forget(void) {}
@@ -434,14 +429,6 @@ static int ap_prepare(int k)
     const int i = k >= 0 ? ap_entry(k) : -1;
     return i >= 0 && !AP_READY(&ap_cache[i]) && ap_build_chunk(i);
 }
-static int ap_cached(int k)                             /* (ready, not built: the ghost's) */
-{
-    int i;
-    for (i = 0; i < AP_NC; i++)
-        if (ap_cache[i].k == k && AP_READY(&ap_cache[i]))
-            return i;
-    return -1;
-}
 
 void ui_ape_forget(void)                                /* (the renders' measures: from cold) */
 {
@@ -517,20 +504,13 @@ static void ap_pose(int k, const ap_pose_o *o)
         qd_restore();
     }
 }
-static void ap_ghost(int k, float alpha, float lift)    /* the pose it left: its layer, if still kept */
-{
-    const int i = ap_cached(k);
-    ap_pose_o o = {0.f, lift, 1.f, 1.f, 0.f, alpha, 0.f, 0};
-    if (i >= 0)
-        ap_place(i, &o);
-}
 
 #endif
 
 /* ---------------------------------------------------------------- the boombox (the reference's, drawn) */
 static void ap_boombox(float x, float y, float w, float h, float pulse)
 {
-    const float k = w / 68.f, sy = y + h * 0.62f, r = 11.f * k, cx = x + w * 0.5f + 2.5f * k;
+    const float k = w / 68.f, sy = y + h * 0.62f, r = 11.f * k;
     int i;
     {
         const float a[8] = {x + 12.f * k, y, x + 12.f * k, y - 9.f * k, x + w - 12.f * k, y - 9.f * k, x + w - 12.f * k, y};
@@ -538,21 +518,12 @@ static void ap_boombox(float x, float y, float w, float h, float pulse)
         ap_line(a, 4, AP_BOX, 1.3f);                    /* the handle */
         ap_line(b, 4, AP_BOX, 1.1f);
     }
-    ap_rect(x, y, w, h, 3.f, AP_BOX, 1.4f, UI_BG);
-    ap_line2(x + 5.f * k, y + 2.f, x + 5.f * k, y + h - 2.f, AP_BOX, 1.1f);   /* the side panel */
-    ap_rect(x + 17.f * k, y + 5.f * k, w - 30.f * k, 4.6f * k, 1.5f, AP_LEAF, 1.1f, QD_NONE);   /* the tuner */
-    ap_rect(x + 19.f * k, y + 5.8f * k, 3.f * k, 3.f * k, 0.6f, AP_FUR, 0.9f, QD_NONE);
-    ap_circ(x + 11.f * k, y + 7.3f * k, 1.6f * k, AP_FUR, 0.9f);
-    ap_circ(x + w - 7.f * k, y + 7.3f * k, 1.6f * k, AP_GOLD, 0.9f);
+    ap_rect(x, y, w, h, 3.f, AP_BOX, 1.4f, UI_BG);   /* (P2.6h, the owner: no side panel, tuner, cassette or keys) */
     for (i = 0; i < 2; i++) {                           /* the speakers: their rings, the cones pumping */
         const float sx = i ? x + w - 13.5f * k : x + 18.5f * k;
         ap_circ(sx, sy, r * (1.f + 0.06f * pulse), AP_SHIRT, 1.4f + 0.5f * pulse);
         ap_circ(sx, sy, r * (0.36f + 0.22f * pulse), AP_FUR, 1.2f + 0.4f * pulse);
     }
-    ap_rect(cx - 7.f * k, sy - 9.f * k, 14.f * k, 11.f * k, 1.5f, AP_CYAN, 1.1f, QD_NONE);   /* the cassette, the keys */
-    ap_rect(cx - 4.5f * k, sy - 6.5f * k, 9.f * k, 4.5f * k, 1.f, AP_CYAN, 0.9f, QD_NONE);
-    for (i = 0; i < 4; i++)
-        ap_rect(cx - 7.f * k + (float)i * 3.7f * k, sy + 5.f * k, 2.6f * k, 2.6f * k, 0.5f, AP_GOLD, 0.9f, QD_NONE);
 }
 static void ap_box(float pulse, float shake)
 {
@@ -730,8 +701,7 @@ void ui_ape_draw(const ui_turn_t *v)
         sy *= 1.f + 0.06f * s;
         sx *= 1.f - 0.035f * s;
     }
-    if (prevk >= 0 && kind != AP_ENTERS && age < 0.16f)   /* the ghost of the pose it left */
-        ap_ghost(prevk, 0.4f * (1.f - age / 0.16f), 4.f * age / 0.16f);
+    /* (P2.6h, the owner: no ghost of the pose it left) */
     B = ap_posebox(k, 0.f);
     if (flurry)
         ap_rings(&B, t, 0);

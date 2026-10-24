@@ -953,80 +953,142 @@ static void acc_edge(float x0, float y0, float x1, float y1, float ry)
     acc_x(xa, xb, s * (yb - ya));
 }
 
-/* the path filled (non-zero), rows p_r0 .. p_r1. P2.6c: the edges that cross a row found by a scan of them all only
- * where that can change (a row holding an edge's end, or the row after it); between, the same edges in the same order
- * (the cells summed as before: the same coverage to the bit). Where those edges all run straight down through the
- * whole row (a rounded rectangle's sides), every such row's coverage is the same: worked out once, copied */
-#define QF_ACT 32
+/* the path filled (non-zero), rows p_r0 .. p_r1. P2.6h: its edges listed once a fill (a horizontal one: none; each
+ * with the rows it can touch, floor(its top) .. ceil(its bottom) - 1), sorted by their first row; a row takes the
+ * edges that reach it, IN THEIR PATH ORDER (an active list kept in it), each passed through the same test and summed
+ * into the cells as before: the same coverage to the bit. (P2.6c's rows of straight sides that span the whole row,
+ * the same edges as the row before: that row's coverage copied) */
 static uint8_t row_keep[QF_ROW];
-static void fill_path(void)
+/* (the edges' lists borrow the strokes' coverage buffer, idle while a path fills: six int16 an edge, zeroed again
+ * after; a path with more edges than it holds is filled by a scan of them all each row, the same sums) */
+#define QF_ECAP ((int)(sizeof scovw / (6u * sizeof(int16_t))))
+static void fill_path_scan(void)
 {
-    int16_t act[QF_ACT], actj[QF_ACT];
-    int y, nact = 0, until = -1, flat = 0, kept = 0, k_lo = 0, k_xe = 0;
-    if (npt < 3 || p_r1 <= p_r0)
-        return;
+    int y;
     for (y = p_r0; y < p_r1; y++) {
         const float ry = (float)y;
-        int k, n;
+        int k;
         if (by1 <= ry || by0 >= ry + 1.f)
             continue;
-        if (y >= until) {                               /* (the edges scanned: those crossing this row, and the next
-                                                         * row where that may change) */
-            int nx = p_r1;
-            nact = 0, flat = 1, kept = 0;
-            for (k = 0; k < nct; k++) {
-                const int i0 = ct0[k], i1 = ct0[k + 1];
-                int i;
-                if (i1 - i0 < 2)
+        a_lo = QD_W + 1, a_hi = -1;
+        for (k = 0; k < nct; k++) {
+            const int i0 = ct0[k], i1 = ct0[k + 1];
+            int i;
+            if (i1 - i0 < 2)
+                continue;
+            for (i = i0; i < i1; i++) {
+                const int j = i + 1 < i1 ? i + 1 : i0;
+                const float ya = py_[i], yb = py_[j];
+                if ((ya <= ry && yb <= ry) || (ya >= ry + 1.f && yb >= ry + 1.f))
                     continue;
-                for (i = i0; i < i1; i++) {
-                    const int j = i + 1 < i1 ? i + 1 : i0;  /* (each contour closed for the fill) */
-                    const float ya = py_[i], yb = py_[j];
-                    int r;
-                    if (ya == yb)
-                        continue;                       /* (no height: nothing, in any row) */
-                    r = qf_floor(ya);
-                    nx = r > y && r < nx ? r : r + 1 > y && r + 1 < nx ? r + 1 : nx;
-                    r = qf_floor(yb);
-                    nx = r > y && r < nx ? r : r + 1 > y && r + 1 < nx ? r + 1 : nx;
-                    if ((ya <= ry && yb <= ry) || (ya >= ry + 1.f && yb >= ry + 1.f))
-                        continue;
-                    if (nact < QF_ACT)
-                        act[nact] = (int16_t)i, actj[nact] = (int16_t)j;
-                    nact++;
-                    flat &= px_[i] == px_[j] && (ya < yb ? ya <= ry && yb >= ry + 1.f : yb <= ry && ya >= ry + 1.f);
-                }
-            }
-            until = nact <= QF_ACT ? nx : y + 1;        /* (too many to keep: scanned every row) */
-            if (nact > QF_ACT) {                        /* .. this row as before */
-                a_lo = QD_W + 1, a_hi = -1;
-                for (k = 0; k < nct; k++) {
-                    const int i0 = ct0[k], i1 = ct0[k + 1];
-                    int i;
-                    if (i1 - i0 < 2)
-                        continue;
-                    for (i = i0; i < i1; i++) {
-                        const int j = i + 1 < i1 ? i + 1 : i0;
-                        const float ya = py_[i], yb = py_[j];
-                        if ((ya <= ry && yb <= ry) || (ya >= ry + 1.f && yb >= ry + 1.f))
-                            continue;
-                        acc_edge(px_[i], ya, px_[j], yb, ry);
-                    }
-                }
-                goto sum;
+                acc_edge(px_[i], ya, px_[j], yb, ry);
             }
         }
-        if (flat && kept) {                             /* (straight sides through the whole row: as the last) */
-            memcpy(row8 + k_lo, row_keep + k_lo, (size_t)(k_xe - k_lo + 1));
-            put_row(y, k_lo, k_xe, row8);
+        if (a_hi < 0)
+            continue;
+        {
+            float sum = 0.f;
+            int x, xe = a_hi < QD_W ? a_hi : QD_W - 1;
+            for (x = a_lo; x <= xe; x++) {
+                float v;
+                sum += acc[x];
+                acc[x] = 0.f;
+                v = sum < 0.f ? -sum : sum;
+                row8[x] = (uint8_t)(v >= 1.f ? 255 : (int)(v * 255.f + 0.5f));
+            }
+            for (; x <= a_hi && x <= QD_W; x++)
+                acc[x] = 0.f;
+            put_row(y, a_lo, xe, row8);
+        }
+    }
+}
+static void fill_path(void)
+{
+    int16_t *const e_i = (int16_t *)(void *)scovw, *const e_j = e_i + QF_ECAP, *const e_r0 = e_j + QF_ECAP,
+                   *const e_r1 = e_r0 + QF_ECAP, *const e_ord = e_r1 + QF_ECAP, *const e_act = e_ord + QF_ECAP;
+    int y, ne = 0, nact = 0, next = 0, k, kept = 0, k_lo = 0, k_xe = 0, prev_flat = 0;
+    if (npt < 3 || p_r1 <= p_r0)
+        return;
+    if (npt > QF_ECAP) {                                /* (more edges than the borrowed room: the plain scan) */
+        fill_path_scan();
+        return;
+    }
+    for (k = 0; k < nct; k++) {                         /* (the edges, in the path's order) */
+        const int i0 = ct0[k], i1 = ct0[k + 1];
+        int i;
+        if (i1 - i0 < 2)
+            continue;
+        for (i = i0; i < i1; i++) {
+            const int j = i + 1 < i1 ? i + 1 : i0;      /* (each contour closed for the fill) */
+            const float ya = py_[i], yb = py_[j], lo = ya < yb ? ya : yb, hi = ya < yb ? yb : ya;
+            int r0, r1;
+            if (ya == yb)
+                continue;                               /* (no height: nothing, in any row) */
+            r0 = qf_floor(lo), r1 = qf_ceil(hi) - 1;
+            if (r1 < p_r0 || r0 >= p_r1)
+                continue;                               /* (not in these rows) */
+            e_i[ne] = (int16_t)i, e_j[ne] = (int16_t)j, e_r0[ne] = (int16_t)r0, e_r1[ne] = (int16_t)r1;
+            e_ord[ne] = (int16_t)ne;
+            ne++;
+        }
+    }
+    for (k = 1; k < ne; k++) {                          /* (by the first row; a tie: the path's order) */
+        const int16_t v = e_ord[k];
+        int m = k - 1;
+        while (m >= 0 && e_r0[e_ord[m]] > e_r0[v])
+            e_ord[m + 1] = e_ord[m], m--;
+        e_ord[m + 1] = v;
+    }
+    for (y = p_r0; y < p_r1; y++) {
+        const float ry = (float)y;
+        int n, changed = 0, flat = 1;
+        for (n = 0; n < nact;)                          /* (the edges that ended above this row out) */
+            if (e_r1[e_act[n]] < y) {
+                memmove(e_act + n, e_act + n + 1, (size_t)(nact - n - 1) * sizeof e_act[0]);
+                nact--, changed = 1;
+            } else {
+                n++;
+            }
+        while (next < ne && e_r0[e_ord[next]] <= y) {   /* (those that start here in, at their place in the path) */
+            const int16_t v = e_ord[next++];
+            int m = nact;
+            if (e_r1[v] < y)
+                continue;
+            while (m > 0 && e_act[m - 1] > v)
+                e_act[m] = e_act[m - 1], m--;
+            e_act[m] = v;
+            nact++, changed = 1;
+        }
+        if (by1 <= ry || by0 >= ry + 1.f) {
+            prev_flat = 0;
             continue;
         }
+        if (!changed && prev_flat && kept) {            /* (straight sides through the whole row again: as the last) */
+            for (n = 0; n < nact; n++) {
+                const int e = e_act[n];
+                const float ya = py_[e_i[e]], yb = py_[e_j[e]];
+                if (!(ya < yb ? ya <= ry && yb >= ry + 1.f : yb <= ry && ya >= ry + 1.f))
+                    break;
+            }
+            if (n == nact) {
+                memcpy(row8 + k_lo, row_keep + k_lo, (size_t)(k_xe - k_lo + 1));
+                put_row(y, k_lo, k_xe, row8);
+                continue;
+            }
+        }
+        kept = 0;
         a_lo = QD_W + 1, a_hi = -1;
         for (n = 0; n < nact; n++) {
-            const int i = act[n], j = actj[n];
-            acc_edge(px_[i], py_[i], px_[j], py_[j], ry);
+            const int e = e_act[n], i = e_i[e], j = e_j[e];
+            const float ya = py_[i], yb = py_[j];
+            if ((ya <= ry && yb <= ry) || (ya >= ry + 1.f && yb >= ry + 1.f)) {
+                flat = 0;                               /* (not crossing after all: not the same as the next) */
+                continue;
+            }
+            flat &= px_[i] == px_[j] && (ya < yb ? ya <= ry && yb >= ry + 1.f : yb <= ry && ya >= ry + 1.f);
+            acc_edge(px_[i], ya, px_[j], yb, ry);
         }
-    sum:
+        prev_flat = flat;
         if (a_hi < 0)
             continue;
         {   /* the cells summed across the row into coverage */
@@ -1041,13 +1103,15 @@ static void fill_path(void)
             }
             for (; x <= a_hi && x <= QD_W; x++)
                 acc[x] = 0.f;
-            if (flat && nact <= QF_ACT && xe >= a_lo) {
+            if (flat && xe >= a_lo) {
                 memcpy(row_keep + a_lo, row8 + a_lo, (size_t)(xe - a_lo + 1));
                 k_lo = a_lo, k_xe = xe, kept = 1;
             }
             put_row(y, a_lo, xe, row8);
         }
     }
+    for (k = 0; k < 6; k++)                             /* (the strokes' buffer clean again: what was used) */
+        memset(e_i + k * QF_ECAP, 0, sizeof(int16_t) * (size_t)ne);
 }
 
 /* ---------------------------------------------------------------- strokes: coverage into the strip's buffer */
