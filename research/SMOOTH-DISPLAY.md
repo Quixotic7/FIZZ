@@ -15,6 +15,12 @@ are the ones FIZZ may use.
 
 ## 0. In short
 
+> **Owner's decision (2026-10-23): FIZZ's device display becomes a 256-colour (8-bit) palettised full frame**
+> (57,600 B). The fast renderer draws straight into it, the 19.2 KB RGB565 strip goes away, the frame goes to the LCD
+> in one pass of changed rows or regions only, and the conversion to RGB565 happens on the way out. **Section 4.8 is
+> the design for that.** It replaces fix B below (the deferred-send stash); fixes A, C and D still apply. Sections 1–3
+> are unchanged background.
+
 | Symptom | Cause (found in FIZZ's code) | Fix | New RAM |
 | --- | --- | --- | --- |
 | "Each segment lagging behind": the motorcycle is cut into pieces | Each 40-row strip is drawn at a **different moment**. `view_frame` calls `view_draw` once per strip, and `view_draw` fills the view models from `a->ms`. Between strips, `fz_strip_out` calls `fz_input`, which advances FIZZ's clock (`fz_tick_to(plat_ms())`) and applies presses. So strip 5 shows the bike ~45 ms later than strip 0. | **A. One instant per frame:** latch the frame's time and fill the models once, then draw every strip from that snapshot | ~0 |
@@ -383,12 +389,219 @@ Summary of costs: **RAM ≈ +0.5 KB** (A ~0, B ~0.3 KB with the stash borrowed, 
 | Option | Why not |
 | --- | --- |
 | Full RGB565 back buffer | 115,200 B; nowhere near available |
-| 8-bit palettised full frame (57,600 B) | No room either (arena + strip + coverage ≈ 56.6 KB, all needed while drawing); FIZZ's anti-aliasing and alpha blending would need palette lookups for every blend; colour banding |
+| 8-bit palettised full frame (57,600 B) | ~~Rejected~~ **Chosen by the owner, see 4.8.** It needs ~33 KB of RAM found elsewhere (4.8.2) and a palette built for blending (4.8.3) |
 | 4-bit palettised full frame (28,800 B) | Fits only by taking the arena plus ~1.7 KB, and 16 colours cannot show FIZZ's AA text, glows and gradients |
 | TE-synced writes | No TE line on the FM-1; scanline read-back did not work on hardware (fm1-base's note) |
 | Double-buffering inside the panel's own RAM (scroll start address) | The ST7789's frame memory has only 80 spare rows past a 240-row screen: not enough for a second frame; unverified for this module's offsets |
 | Lower SPI clock as in JIANT (12 MHz) | fm1-base's ~44 MHz is already better; transfer time is not FIZZ's bottleneck (~3.5 ms a strip vs ~9 ms drawing it) |
 | JIANT-style 8×4 cell hashes | 1,800 cells × 4 B = 7.2 KB for the whole screen; FIZZ's row hashes plus B and C give most of the benefit for 1 KB |
+
+### 4.8 The owner's choice: an 8-bit palettised full frame
+
+**The design:**
+- One 240×240 frame of palette indices, 57,600 B, kept between frames.
+- The fast renderer draws the whole frame once into it. The 40-row RGB565 strip goes, and so do the six repeats of
+  the screen's logic per frame (P2.4 measured every path being outlined again for each strip).
+- Changed rows are converted to RGB565 through a 256-entry table on the way to the LCD and sent in one pass.
+
+What carries over from section 2 and fm1-base:
+
+| Lesson | Applied here |
+| --- | --- |
+| JIANT composes an animated region whole before sending any of it (2.3) | The whole frame is composed before any of it is sent. A frame cannot shear: draw, then present. |
+| JIANT and fm1-base: DMA only from RAM, non-blocking with a busy flag, sync before touching the source (2.2, fm1-base `lcd.c`) | DMA from a small RGB565 **line buffer** filled from the palette; two of them, ping-pong |
+| One window can be fed by many transfers; the panel keeps writing across chip-select toggles (JIANT's per-row sends; fm1-base's own `lcd_fill` relies on it) | One window per run of changed rows, one transfer per row |
+| Region signatures and cell hashes (2.4) | Bands whose draw calls did not change are not redrawn (fix C) and not sent. Inside redrawn bands, row hashes of the 8-bit rows pick the rows to send. |
+| JIANT's 16-step blend ramp per (ink, background) pair (2.6) | Palette ramps laid out so most anti-aliased blends are index arithmetic (4.8.3) |
+| No TE line on the FM-1 (fm1-base's note; JIANT doesn't sync either) | Keep each send short; what TE would need is in 4.8.5 |
+| fm1-base's SPI at its fastest divisor (~44 MHz effective; the ST7789 tops out near 62 MHz) | No headroom on the clock: send fewer bytes instead |
+
+#### 4.8.1 The output path: palette to line buffer to DMA
+
+```
+present():                                    // after the whole frame is drawn
+  for each run of changed rows [y0, y1):
+      set the window (0, y0) .. (239, y1 − 1); RAM write
+      k = 0; convert(row y0 → line[k]); start DMA(line[k], 480 B)
+      for y in y0 + 1 .. y1 − 1:
+          k ^= 1
+          convert(row y → line[k])            // while the previous row is on the wire
+          wait for the DMA; start DMA(line[k], 480 B)
+      // leave the last DMA running; the next LCD access or conversion syncs first
+convert(row → line):  for x in 0..239: line[x] = LUT565be[row[x]]   // the table already byte-swapped
+```
+
+- **Numbers.** A row is 480 B, ~87 µs on the wire at ~44 MHz. A full frame is ~21 ms, longer than one panel refresh
+  (~16.7 ms), so full-screen changes (screen switches) cannot avoid one tear. Typical animation frames send tens of
+  rows, ~2–5 ms. Conversion is ~3 µs per row at 360 MHz (a byte load, a table load, a store per pixel), well under
+  the row's 87 µs, so the wire is the limit.
+- **RAM.** 2 × 480 B line buffers, plus the 512 B table (`uint16[256]`, kept in big-endian order for the panel).
+- **CPU during a send.** The simple version waits on each row's DMA from the main loop: the send's whole duration,
+  ~2–5 ms typical. If the profile shows it matters, chain the rows from the SPI1 interrupt (`FM1_IRQ_SPI1` in
+  fm1-base's `fm1_irq.h`). Give it a priority below the audio interrupt (a render then only pauses the send) and
+  below the scan. Each interrupt converts the next row and restarts the DMA (~3 µs per 87 µs, ~4 % CPU while
+  sending), and the main loop is free. This is new port code: fm1-base's driver is polled.
+- **Fewer, longer transfers.** If per-transfer overhead shows in the measurements, use 2-row line buffers
+  (2 × 960 B).
+- **Narrower sends (optional).** Two or four hashes per row (left/right halves or quarters, +960/+2,880 B) let a run
+  be sent as a narrower window. Only worth it if wide rows with small changes dominate.
+- **Palette effects.** Changing a palette entry changes nothing on the panel until the pixels using it are resent.
+  A palette fade is a full resend (~21 ms), not free.
+
+#### 4.8.2 Where the 57.6 KB lives
+
+FIZZ's single-core build today (`firmware/app/build/fizz-size.txt`): RAM 2,596 B free; pool 2,880 B free (this build
+lowers fm1-base's spare to 4,096); RAM code region 1,064 B; NOINIT 3,032 B. The fast renderer's unit holds 65,698 B in
+RAM: the strip 19,200, the stroke coverage 10,240, the arena 27,136, and ~9.1 KB of path, row and glyph buffers.
+
+| | Bytes |
+| --- | --- |
+| New: the frame | 57,600 |
+| New: RGB565 table 512, line buffers 960, band hashes 15 × 4 × 2 = 120 | 1,592 |
+| Freed: the RGB565 strip | −19,200 |
+| Freed: stroke coverage cut from 40 rows to a 16-row band (strokes rendered band by band inside the renderer) | −6,144 |
+| **Still to find** | **33,848** |
+
+The frame does not need to be contiguous. Split it into two bands, with the row's base address computed once per row
+in the pixel loops (`y < split ? A + 240·y : B + 240·(y − split)`).
+
+**Where to find it** (bytes; the owner picks):
+
+| Source | Gives | Cost |
+| --- | --- | --- |
+| The delay line 64 → 32 KB (pool, `qd_fx.c`) | 32,768 | Half the longest delay (the owner chose 64 KB earlier) |
+| The delay line 64 → 48 KB | 16,384 | A quarter of it |
+| fm1-base's canvas (240×16 RGB565, 7,680 B in the pool) aliased onto the frame | 7,680 | A small fm1-base change: the app supplies the canvas memory. fm1-base's own screens (boot, crash, update, calibration) never run while FIZZ draws; FIZZ resends everything after them. |
+| The comb lines 8 → 4 (`QE_NCOMB`) | 8,192 | E2's comb on fewer voices |
+| RAM free today | 2,596 | No RAM margin left |
+| The arena trimmed toward its measured peak (22,776 + margin) | ~2,500 | Less room for borrowers |
+| The user stack (24 KB) trimmed after measuring its high-water mark | unknown | Measure first |
+
+- **Layout A (simplest):** halve the delay line.
+  - Rows 0–99 (24,000 B) in RAM, where the strip and coverage were. RAM keeps ~2.3 KB free.
+  - Rows 100–239 (33,600 B) in the pool, from the delay's 32 KB plus 832 B of the pool's free space. The pool keeps
+    ~2 KB free.
+- **Layout B (keeps ¾ of the delay):** delay to 48 KB + canvas aliased + comb lines to 4 + today's free RAM =
+  34,852 B. That fits, with ~1 KB to spare: too tight to recommend without first measuring the arena and the stack.
+- **Standard (two-core) build:** comb lines in the RAM code region, 4.7 KB free there. Same arithmetic, with the
+  comb-line lever replaced by that region's free space.
+- **Both:** the frame is ordinary zeroed memory (pool or `.bss`). Only the line buffers are DMA sources; RAM and the
+  pool are both the chip's SRAM.
+
+#### 4.8.3 The palette: built for the blends the renderer makes
+
+The renderer blends in RGB565 values (gamma-encoded, not linear light): `c = dst + (src − dst)·a`. The palette should
+make the common blends exact index arithmetic and leave a table for the rest.
+
+**Layout: 16 ramps × 16 levels, index = 16·h + l.**
+- Level `l` of ramp `h` is the ramp's top colour × `l/15`, per channel, **in the same RGB space the renderer blends
+  in**. Drawing ramp colour (h, L) at coverage `a` over black is then exactly level `round(L·a)` of the same ramp: the
+  renderer's own result, quantised to 16 steps.
+  - Two colours on one ramp blend to another level of it: `round(Ld + (Ls − Ld)·a)`.
+  - Global alpha (fades, fireworks) and anti-aliased edges over black, which cover most of FIZZ's pixels, never leave
+    their ramp.
+- **Ramp tops:** each hue's *brightest* use, because darker uses (DIM versions, faded trails) are lower levels.
+  Suggested assignment, to be fitted by a tool:
+
+  | Ramps | Tops |
+  | --- | --- |
+  | h = 0 | neutral grey to white |
+  | h = 1–8 | the eight track colours (`UI_TRACK_PAL`) |
+  | the next few | the other UI hues: the rider's red, blue and cream (`RN_*`), the accents |
+  | one | the cool UI greys `UI_G1`–`UI_G3` (`0x8d8d96`, `0x4b4b54`, `0x26262d` sit close to 15/15, 8/15 and 4/15 of one blue-grey ramp; the tool should confirm they land exactly or pick the top so they do) |
+  | the rest | **pair ramps** (below) |
+
+- **Level 0 is black in every ramp.** The renderer always writes index 0 for black, so the 15 slots `16·h + 0` for
+  h ≥ 1 are spare. Use them for solid colours that sit on no ramp: pure white if no ramp tops at it, tints lighter
+  than a hue's top. Ramp arithmetic never produces them; the general path (below) can.
+- **Pair ramps.** Anti-aliasing is dominated by a few (ink, background) pairs (the observation behind JIANT's cached
+  16-step ramps). FIZZ draws mostly on black, which the ramps above cover. For each common non-black pair, e.g. cream
+  or white text on the `UI_G3` panel grey, or a track colour on `UI_G3`, give the pair its own ramp from background
+  (l = 0, here *not* black) to ink (l = 15). Edges of that ink on that background are then exact. Find the pairs by
+  instrumenting the host renderer: count blended pixels by (source, destination) colour over every screen.
+- **Everything else: a nearest-colour table.** Blend the two palette colours in RGB565 exactly as today, then look up
+  the result in a **4,096-entry RGB444 → index table** (4 KB, `const` in flash, generated with the palette by a
+  build-time tool). Use a perceptual distance (green-weighted, or "redmean"). Before taking the top 4 bits of each
+  channel, add a fixed 4×4 ordered-dither offset of ±½ step, chosen by screen position. Translucent glows over
+  coloured areas then dither instead of banding, and a static picture stays static, so row hashes stay stable.
+  Optional refinement: also try the two on-ramp candidates (the source's ramp and the destination's ramp, at the level
+  matching the blend's brightness) and keep the nearest of the three. Edges then tend to stay on one of their two hues.
+- **Zero-byte fallback** (if flash is short): for a mixed-hue edge, take the ramp of the larger contributor (`a ≥ ½`
+  → source, else destination) and the level whose luminance matches the blended luminance. That uses a 16-entry
+  luminance table per ramp, 256 B in all. Brightness at the edge stays right; hue errors stay at sub-pixel edges,
+  where they show least.
+
+**Per-pixel logic in the renderer** (per paint: the source index `s`, its ramp and level, its RGB; per pixel:
+coverage `c`, 0..64, times global alpha):
+```
+if c is full:              dst = s                                   // most pixels
+elif dst == 0 (black):     dst = 16·h_s + round(l_s · c)
+elif ramp(dst) == h_s:     dst = 16·h_s + round(l_d + (l_s − l_d)·c)
+else:                      dst = nearest(blend565(pal[dst], pal[s], c), x, y)   // the table, dithered
+```
+- **Text** from FIZZ's 4-bit atlases: per paint, precompute a 16-entry index ramp (16 B, one entry per atlas
+  alpha). Over black it is the ink's own ramp; over a uniform non-black background it comes from that pair's ramp or
+  from the table. Cache a few (ink, background) ramps. A text pixel is then a nibble read, a table read and a store.
+- **Strokes** keep their "largest coverage of the pieces, blended once" rule, in a 16-row coverage band that the
+  renderer steps through for each stroke.
+
+**Quality gate (host):** palettise every screen `render_frames` makes and compare with today's RGB565 frames
+(`compare_frames.py`). Per screen, report:
+- solid UI colours not exactly in the palette (should be 0);
+- PSNR;
+- the worst pixel error;
+- the share of pixels that took the table path.
+
+Tune ramp tops and pair ramps until the owner can't tell them apart on the unit.
+
+**Theme changes:** FIZZ has one theme today, so there is one palette and one 4 KB table. A runtime theme switch
+would need one table per theme in flash (4 KB each), or a rebuild into RAM, which isn't available.
+
+#### 4.8.4 Dirty regions with a persistent frame
+
+- **Bands (fix C, now cheaper and more useful).** Hash each 16-row band's draw calls in the existing hash pass (15
+  bands). A band whose hash is unchanged is not cleared, not drawn and not sent: the frame still holds it. On the
+  velocity screen only the bike's and the world's bands are redrawn.
+- **Rows.** In a redrawn band, hash each 8-bit row (240 B, half today's 480 B). Send only the rows whose hash changed
+  (`fz_row_hash`, 960 B, already there).
+- **Full sends:** at boot, after fm1-base's own screens, after a palette change, and after a forced redraw.
+- **Consistency (fix A) still applies.** Draw the whole frame from one latched instant and one fill of the models,
+  then present. Input that arrives while drawing is queued, with note-sounding kept immediate. Because nothing is
+  sent until the frame is complete, a frame can no longer mix two moments.
+
+#### 4.8.5 TE sync: not on this board, and what it would take
+
+- The FM-1 has no TE line wired (fm1-base's note). Reading the panel's scanline over SPI and timing writes to it did
+  not stop tearing on hardware. So **no sync**. What keeps it clean instead: complete frames (no shear), short sends
+  (changed rows only, ~2–5 ms), and a steady frame rate. At most one tear line crosses the moving band, for less than
+  one panel refresh.
+- **If a TE pin is ever found on a GPIO** (a board probe), the rule is to write faster than the panel scans.
+  - Today the write is slower than the scan: ~87 µs a row at ~44 MHz, against the panel's ~70 µs a line at ~60 Hz.
+    Started at the TE pulse, the scan would overtake the write.
+  - Set the panel's frame rate to ~40 Hz (FRCTRL2, 0xC6): the scan becomes ~100 µs a line. A send started at the TE
+    pulse then stays ahead of the scan, and any send of up to one frame is tear-free.
+- **12-bit output (experiment only).** The ST7789 accepts 12-bit RGB444 pixels (COLMOD). It has no 8-bit indexed
+  mode. A row becomes 360 B (~65 µs), and a full frame ~16 ms, about one refresh. Palette entries converted to 4:4:4
+  lose the lower ramp levels' precision (16 steps per channel), so judge it on the unit before adopting it.
+
+#### 4.8.6 Costs and order of work
+
+| | RAM | Flash (estimates) | CPU |
+| --- | --- | --- | --- |
+| The frame and its output path | +33.8 KB net, from the levers in 4.8.2 | ~1 KB | Conversion ~0.7 ms for a full frame; the send waits on the DMA unless chained |
+| The 8-bit paths in the fast renderer | (counted above) | ~3–5 KB | About the same per pixel; the screen logic runs **once** a frame instead of six times |
+| Palette, RGB565 table, text ramps | ~0.6 KB | <1 KB + the 4 KB nearest-colour table | — |
+| Band skip and row hashes | 120 B (the row hashes exist) | ~1 KB | Saves whole bands of drawing |
+
+Order of work:
+1. Palette tool and host quality gate.
+2. 8-bit renderer on the host (pixel goldens against the palettised RGB565 renders).
+3. Free the RAM (the owner's pick in 4.8.2).
+4. Output path on the unit, polled.
+5. Band skip.
+6. SPI-interrupt chaining, if the send's wait shows in the profile.
+
+Fixes A and D are independent and can go first.
 
 ---
 
