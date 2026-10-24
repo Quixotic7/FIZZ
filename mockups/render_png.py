@@ -39,6 +39,10 @@ for i in range(1, 16):                         # P1.5t: fizz-presets.html's fift
     SHOTS[f'pr-{i}'] = (f'shot={i}', 240, 240, f'fizz-presets-{i:02d}.png', 'fizz-presets.html')
 for i in range(1, 9):                          # P1.5u: fizz-names.html's eight screens (render_p15u sets FIZZ's beside)
     SHOTS[f'nm-{i}'] = (f'shot={i}', 240, 240, f'fizz-names-{i:02d}.png', 'fizz-names.html')
+GEEK = ['meters', 'numbers', 'voices', 'scope', 'numbers-crash']
+for i, n in enumerate(GEEK, 1):                # fizz-geekout.html: the four Geek Out pages (+ NUMBERS after a crash)
+    SHOTS[f'go-{i}'] = (f'shot={i}', 240, 240, f'fizz-geekout-{i:02d}-{n}.png', 'fizz-geekout.html')
+SHOTS['sheet-go'] = ('sheet=1', 1524, 1140, 'fizz-geekout-sheet.png', 'fizz-geekout.html')
 
 
 def render(key, scratch):

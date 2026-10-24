@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ Geek Out</title>
+<!-- FIZZ: the four Geek Out views (PLAN.md "Geek Out views (2026-10-23)"), a mock-up for the owner's approval.
+     After ChoralRoot's GEEK OUT 1 / 2 and SCOPE; FIZZ's own look (line.html, fizz-midifx.html). All four run on one
+     simulated performance: 8 tracks at 122 BPM through the 8-voice pool, 13 s playing then 5 s stopped, a frame-rate
+     dip at about 6.5 s, steals when the chord, the pad and the arp meet.
+     ?shot=N  one canvas at 1x (&t=seconds)   ?sheet=1  every screen at 2x   no query: the page, live -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f1eee8; --fg:#1b1b1f; --dim:#66625b; --line:#d6d1c7; } }
+:root[data-theme="dark"] { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; --line:#2a2a30; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1900px; margin: 0 auto; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 6px; }
+h3 { font-size: 16px; margin: 28px 0 6px; }
+p, li { color: var(--dim); max-width: 900px; }
+p strong, li strong { color: var(--fg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; }
+body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; color: #ddd; }
+.sheetgrid { display: grid; grid-template-columns: repeat(3, 480px); gap: 22px 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+.sheettitle { font: 700 20px -apple-system, "Helvetica Neue", Arial; margin: 0 0 14px; color: #eee; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: Geek Out (mock-up)</h1>
+<p><strong>SHIFT + HOME</strong> cycles PIANO ROLL → STEPS → EDIT → <strong>METERS → NUMBERS → VOICES → SCOPE</strong>. The four pages
+share one header: the page's name, the transport (a red dot beating while playing, a grey square stopped) and <strong>four little
+pictures of the pages</strong> top right, the one on screen lit. All four run on the same simulated performance: eight tracks at
+122 BPM through the <strong>8-voice pool</strong>, 13 s playing then 5 s stopped; the chord, the pad and the arp meet and steal
+voices; the screen's frame rate dips once (a heavy redraw). <strong>Yellow means trouble</strong> on these pages (a steal, a late
+half, a slow frame, a load over 60 %, a crash), so a glance says whether all is well; orange over 85 %.</p>
+<div class="grid" id="cells"></div>
+<h3>Open questions (for the owner)</h3>
+<ul>
+<li><strong>Yellow for trouble.</strong> The knob colours mean nothing here (no knob edits a value on these pages), so the meters go
+green → yellow → orange with the load, and every warning (steal, late, slow frame, crash) is yellow. Track 6 is yellow too, so a steal is also a <strong>shape</strong>
+(a spark of rays), never only the colour. Recommendation: keep yellow plus the spark, and keep red for the playhead and
+recording only.</li>
+<li><strong>Do the knobs do anything here?</strong> Recommendation: no; SHIFT + B11 (as the clear gesture elsewhere) resets the
+counters (steals, late halves, the longest ISR and lock) so a test can start from zero. Everything else plays as on the step view.</li>
+<li><strong>The scope's window.</strong> Recommendation: about three cycles of the loudest track's lowest note, locked to its
+rising zero crossing so the line stands still on a held note (as ChoralRoot's); the free-running look is the fallback if the
+pitch is not known cheaply.</li>
+</ul>
+</main>
+<script src="font_it.js"></script>
+<script>
+/* ---------------------------------------------------------------- palette (fizz-midifx.html's) */
+const C = { bg: '#000', k1: '#3f7dff', k2: '#1fd47e', k3: '#f1f0ea', k4: '#ff6a2c', sel: '#ffd23f', red: '#ff3448',
+            g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d' };
+const TP = ['#3f7dff', '#1fd47e', '#f1f0ea', '#ff6a2c', '#ff3ca0', '#ffd23f', '#9664ff', '#28e1ff'];
+const WARN = C.sel;                                       /* yellow: trouble, on these pages */
+const F = 'IT', TAU = Math.PI * 2;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const lerp = (a, b, u) => a + (b - a) * u;
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+function mix(a, b, u) { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), A = p(a), B = p(b);
+  return '#' + A.map((v, i) => Math.round(lerp(v, B[i], clamp(u, 0, 1))).toString(16).padStart(2, '0')).join(''); }
+
+/* ---------------------------------------------------------------- drawing helpers (line.html's) */
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = 'alphabetic';
+  if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1);
+  c.fillText(s, x, y); c.restore();
+}
+function TW(c, s, o = {}) { c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; const w = c.measureText(s).width; c.restore(); return w; }
+function P(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1);
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  if (o.close) c.closePath(); if (o.fill) { c.fillStyle = o.fill; c.fill(); } c.stroke(); c.restore();
+}
+function O(c, x, y, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1); if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, TAU);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function RR(c, x, y, w, h, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1); if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.roundRect(x + lw / 2, y + lw / 2, w - lw, h - lw, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function G(c, pts, col, lw = 1.6, o = {}) { const a = o.a == null ? 1 : o.a; P(c, pts, col, lw * 3.4, { ...o, a: a * 0.16 }); P(c, pts, col, lw, o); }
+function dot(c, x, y, r, col, a = 1) { O(c, x, y, r * 2.1, null, 1, col, { a: a * 0.18 }); O(c, x, y, r, null, 1, col, { a }); }
+function bg(c) { c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); }
+function box(c, x, y, n, col, a = 1) {                /* a track's number in its box (fizz-presets.html's) */
+  RR(c, x, y, 16, 16, 2, col, 1.3, null, { a }); T(c, String(n), x + 8, y + 12.5, { s: 12, w: 600, col, al: 'center', a });
+}
+
+/* ---------------------------------------------------------------- the simulated performance */
+const BPM = 122, STEP = 60 / BPM / 4, PLAY = 13, PER = 18, POOL = 8;
+const TRK = [                                          /* pattern, length in steps, voice limit, release s, notes a trig, cost a voice, from step */
+  { pat: 'x...x...x...x...', len: 1, lim: 1, rel: 0.18, n: 1, w: 0.065, from: 0 },     /* 1 kick */
+  { pat: 'x.x..x.xx.x..x.x', len: 2, lim: 1, rel: 0.10, n: 1, w: 0.085, from: 0 },     /* 2 bass */
+  { pat: 'x.......x.......', len: 6, lim: 3, rel: 0.45, n: 3, w: 0.090, from: 16 },    /* 3 chords */
+  { pat: '..x.x..x..x.x..x', len: 1, lim: 1, rel: 0.30, n: 1, w: 0.080, from: 8 },     /* 4 lead */
+  { pat: '.x.x.x.x.x.x.x.x', len: 1, lim: 1, rel: 0.05, n: 1, w: 0.050, from: 0 },     /* 5 hats */
+  { pat: 'x...............', len: 14, lim: 2, rel: 0.80, n: 2, w: 0.110, from: 32 },   /* 6 pad */
+  { pat: '....x.......x..x', len: 1, lim: 1, rel: 0.12, n: 1, w: 0.060, from: 0 },     /* 7 perc */
+  { pat: 'x.xx.xx.x.xx.xx.', len: 2, lim: 2, rel: 0.20, n: 1, w: 0.075, from: 48 },    /* 8 arp */
+];
+const V = [], STEALS = [];
+(function simulate() {
+  const steps = Math.floor(PLAY / STEP);
+  for (let s = 0; s < steps; s++) {
+    const t = s * STEP;
+    TRK.forEach((tr, i) => {
+      if (s < tr.from || tr.pat[s % 16] !== 'x') return;
+      for (let k = 0; k < tr.n; k++) {
+        const act = V.filter(v => v.tEnd > t);
+        const own = act.filter(v => v.tr === i).sort((a, b) => a.t0 - b.t0);
+        let slot;
+        if (own.length >= tr.lim) { own[0].tEnd = t; slot = own[0].slot; }                       /* the track's own limit */
+        else {
+          const used = new Set(act.map(v => v.slot)); slot = [...Array(POOL).keys()].find(q => !used.has(q));
+          if (slot == null) {                                                                    /* a steal */
+            const rel = act.filter(v => v.t1 <= t).sort((a, b) => a.t1 - b.t1);
+            const vic = rel[0] || act.sort((a, b) => a.t0 - b.t0)[0];   /* a releasing voice is recycled quietly; */
+            vic.tEnd = t; slot = vic.slot; if (vic.t1 > t) STEALS.push({ t, tr: vic.tr });   /* a held one is a steal */
+          }
+        }
+        const t1 = Math.min(t + tr.len * STEP * 0.9, PLAY);
+        V.push({ tr: i, t0: t, t1, tEnd: t1 + tr.rel, rel: tr.rel, slot, k, pitch: [1, 2, 0.5, 3, 7, 1.5, 4, 2.5][i] * [1, 1.26, 1.5][k] });
+      }
+    });
+  }
+})();
+const wrap = t => ((t % PER) + PER) % PER;
+const playing = t => wrap(t) < PLAY;
+function lev(v, t) {                                   /* a voice's level: a quick attack, a decay to sustain, a release */
+  if (t < v.t0 || t >= v.tEnd) return 0;
+  const a = Math.min(1, (t - v.t0) / 0.006), s = 0.8 + 0.2 * Math.exp(-(t - v.t0) * 6);
+  if (t < v.t1) return a * s;
+  const cut = v.tEnd < v.t1 + v.rel - 1e-6 ? Math.max(0, 1 - (t - v.t1) / 0.01) : 1;
+  return a * s * Math.exp(-(t - v.t1) / (v.rel / 3)) * cut;
+}
+function sounding(t) { t = wrap(t); return V.filter(v => t >= v.t0 && t < v.tEnd); }
+function load0(t) {                                    /* core 0's audio load, 0..1 */
+  const tt = wrap(t); let l = 0.045 + 0.012 * hash(Math.floor(tt * 25));
+  for (const v of V) if (tt >= v.t0 && tt < v.tEnd) l += TRK[v.tr].w * (0.35 + 0.65 * lev(v, tt));
+  return clamp(l, 0, 1);
+}
+function fps(t) {                                      /* the screen's frame rate: 60, a dip at ~6.5 s */
+  const tt = wrap(t), d = Math.exp(-Math.pow((tt - 6.6) / 0.45, 2));
+  return 60 - 27 * d - (hash(Math.floor(tt * 12)) > 0.93 ? 3 : 0);
+}
+const ram = t => 0.712 + 0.02 * Math.sin(wrap(t) * 0.9) * (playing(t) ? 1 : 0.3);
+const store = () => 0.23;
+const LATE_AT = 6.95;                                  /* one late half, when the dip and a steal meet */
+function glide(fn, t, tau = 0.11) {                    /* the bar as shown: chasing the value (ChoralRoot's d / 4 a frame) */
+  let s = 0, w = 0; for (let k = 0; k < 12; k++) { const q = Math.exp(-k * 0.025 / tau); s += fn(t - k * 0.025) * q; w += q; } return s / w;
+}
+function peak(fn, t, win = 2) { let m = 0; for (let k = 0; k <= win / 0.05; k++) m = Math.max(m, fn(t - k * 0.05)); return m; }
+function since(t) {                                    /* counters since the loop's start (the "reset" of the mock-up) */
+  const tt = wrap(t); return { steals: STEALS.filter(s => s.t <= tt), late: tt >= LATE_AT ? 1 : 0 };
+}
+function lastSteal(t, tr) { const tt = wrap(t); let best = -9; for (const s of STEALS) if (s.t <= tt && (tr == null || s.tr === tr)) best = Math.max(best, s.t); return tt - best; }
+function burst(c, x, y, r, a) {                       /* a steal: a spark of eight rays (a shape, not only a colour) */
+  for (let k = 0; k < 8; k++) { const an = k * TAU / 8 + 0.2, r0 = r * 0.72;
+    P(c, [x + Math.cos(an) * r0, y + Math.sin(an) * r0, x + Math.cos(an) * r, y + Math.sin(an) * r], WARN, 2, { a }); }
+}
+const flash = (dt, k = 3.2) => dt < 0 ? 0 : Math.exp(-dt * k);
+function heat(u) { return u < 0.6 ? C.k2 : u < 0.72 ? mix(C.k2, WARN, (u - 0.6) / 0.12) : u < 0.85 ? WARN : mix(WARN, C.k4, (u - 0.85) / 0.08); }
+
+/* ---------------------------------------------------------------- the shared header */
+const PAGES = ['METERS', 'NUMBERS', 'VOICES', 'SCOPE'];
+function pageIcon(c, i, x, y, on) {                    /* each page as a little picture of itself */
+  const col = on ? C.k3 : C.g2, lw = on ? 1.5 : 1.3;
+  if (i === 0) { [[0, 8], [5, 12], [10, 5]].forEach(([dx, h]) => P(c, [x + 2 + dx, y + 7, x + 2 + dx, y + 7 - h], col, 2.2)); }
+  if (i === 1) { [[12, -4], [8, 0], [11, 4]].forEach(([l, dy]) => P(c, [x + 1, y + 1.5 + dy, x + 1 + l, y + 1.5 + dy], col, 2)); }
+  if (i === 2) { [0, 5, 10].forEach((dx, k) => [0, 4, 8].slice(0, [3, 1, 2][k]).forEach(dy => O(c, x + 2 + dx, y + 5 - dy, 1.6, null, 1, col))); }
+  if (i === 3) { const p = []; for (let u = 0; u <= 1.001; u += 0.1) p.push(x + u * 13, y + 1 - Math.sin(u * TAU) * 4.5); P(c, p, col, lw); }
+  if (on) P(c, [x, y + 11, x + 13, y + 11], C.k3, 1.4);
+}
+function header(c, page, t, o = {}) {
+  T(c, PAGES[page], 8, 18, { s: 12, w: 600, ls: 1, col: C.k3 });
+  if (o.track != null) box(c, 14 + TW(c, PAGES[page], { s: 12, w: 600, ls: 1 }), 5, o.track + 1, TP[o.track]);
+  if (playing(t)) { const b = (wrap(t) / (60 / BPM)) % 1; dot(c, 150, 13, 3.4 + 1.6 * Math.exp(-b * 6), C.red, 0.55 + 0.45 * Math.exp(-b * 5)); }
+  else RR(c, 146, 9, 8, 8, 1.5, null, 1, C.g2);
+  for (let i = 0; i < 4; i++) pageIcon(c, i, 166 + i * 18, 11, i === page);
+}
+
+/* ---------------------------------------------------------------- 1. METERS */
+function meters(c, t) {
+  bg(c); header(c, 0, t);
+  const top = 50, bot = 198, H = bot - top, w = 22;
+  const scale = [0.25, 0.5, 0.75];
+  const bar = (cx, u, pk, col, o = {}) => {
+    RR(c, cx - w / 2, top, w, H, 3, C.g3, 1);
+    scale.forEach(s => P(c, [cx - w / 2 - 4, bot - s * H, cx - w / 2 - 1, bot - s * H], C.g2, 1));
+    const f = clamp(u, 0, 1) * (H - 2);
+    if (f > 0.5) {
+      RR(c, cx - w / 2 - 2, bot - 1 - f - 2, w + 4, f + 3, 4, null, 1, col, { a: 0.14 });
+      RR(c, cx - w / 2 + 2, bot - 1 - f, w - 4, f - 1, 2, null, 1, col, { a: 0.85 });
+      P(c, [cx - w / 2 + 3, bot - 1 - f, cx + w / 2 - 3, bot - 1 - f], mix(col, '#ffffff', 0.5), 1.5);
+    }
+    if (pk != null) { const y = bot - 1 - clamp(pk, 0, 1) * (H - 2); G(c, [cx - w / 2 - 3, y, cx + w / 2 + 3, y], o.pkcol || col, 2); }
+  };
+  const valT = (s, cx, col) => T(c, s, cx, 42, { s: 17, w: 500, col, al: 'center' });
+  /* the two cores, side by side: core 0 live, core 1 dashed and dim ("off") until it runs */
+  const u0 = glide(load0, t), p0 = peak(load0, t);
+  bar(26, u0, p0, heat(u0), { pkcol: heat(p0) }); valT(Math.round(u0 * 100) + '%', 26, heat(u0));
+  RR(c, 68 - w / 2, top, w, H, 3, C.g2, 1, null, { dash: [3, 3] });
+  P(c, [68 - 5, bot - 12, 68 + 5, bot - 22], C.g2, 1.4); P(c, [68 - 5, bot - 22, 68 + 5, bot - 12], C.g2, 1.4);
+  T(c, 'OFF', 68, 42, { s: 12, w: 600, col: C.g2, al: 'center' });
+  P(c, [18, 208, 18, 212, 76, 212, 76, 208], C.g2, 1.2);
+  T(c, 'CORE', 47, 230, { s: 12, w: 600, ls: 1, col: C.g1, al: 'center' });
+  /* the screen's frame rate: full at 60 */
+  const fu = glide(t2 => fps(t2) / 60, t), fv = Math.round(fu * 60), fmin = 1 - peak(t2 => 1 - fps(t2) / 60, t);
+  const fcol = fv >= 50 ? C.k2 : fv >= 36 ? WARN : C.k4;
+  bar(118, fu, fmin, fcol, { pkcol: fmin * 60 < 50 ? WARN : C.k2 }); valT(String(fv), 118, fcol);
+  T(c, 'FPS', 118, 222, { s: 12, w: 600, ls: 1, col: C.g1, al: 'center' });
+  /* RAM and the store: capacities, white (yellow over 90 %) */
+  const ru = glide(ram, t);
+  bar(166, ru, peak(ram, t, 4), ru > 0.9 ? WARN : C.k3); valT(Math.round(ru * 100) + '%', 166, C.k3);
+  T(c, 'RAM', 166, 222, { s: 12, w: 600, ls: 1, col: C.g1, al: 'center' });
+  const su = store();
+  bar(212, su, su, C.k3); valT(Math.round(su * 100) + '%', 212, C.k3);
+  T(c, 'STORE', 212, 222, { s: 12, w: 600, ls: 1, col: C.g1, al: 'center' });
+}
+
+/* ---------------------------------------------------------------- 2. NUMBERS */
+function numbers(c, t, crash = false) {
+  bg(c); header(c, 1, t);
+  const tq = Math.floor(t * 4) / 4;                    /* the numbers step four times a second (readable), the dots live */
+  const grp = (x, y, w, h, col = C.g3) => RR(c, x, y, w, h, 6, col, 1.2);
+  const lab = (s, x, y, col = C.g1) => T(c, s, x, y, { s: 12, w: 600, ls: 1, col });
+  /* voices of 8: the pool's eight slots as dots in their tracks' colours, the count big */
+  grp(4, 28, 150, 78);
+  const sv = sounding(t), nv = sounding(tq).filter(v => lev(v, wrap(tq)) > 0.03).length;
+  lab('VOICES', 14, 46);
+  T(c, String(nv), 14, 94, { s: 46, w: 300, col: C.k3 });
+  T(c, '/8', 16 + TW(c, String(nv), { s: 46, w: 300 }), 94, { s: 18, w: 500, col: C.g1 });
+  for (let q = 0; q < POOL; q++) {
+    const x = 92 + (q % 4) * 16, y = 58 + Math.floor(q / 4) * 18;
+    const v = sv.find(v => v.slot === q), l = v ? lev(v, wrap(t)) : 0;
+    O(c, x, y, 5, C.g2, 1.2);
+    if (l > 0.02) dot(c, x, y, 5, TP[v.tr], clamp(0.25 + l, 0, 1));
+  }
+  /* steals: big, a yellow flash and a ring on each new one */
+  const st = since(t).steals.length, fl = flash(lastSteal(t));
+  grp(158, 28, 78, 78, fl > 0.05 ? mix(C.g3, WARN, fl) : C.g3);
+  lab('STEALS', 168, 46, st ? WARN : C.g1);
+  T(c, String(st), 197, 94, { s: 38, w: 300, col: st ? mix(WARN, '#ffffff', fl * 0.6) : C.g1, al: 'center' });
+  if (fl > 0.02) burst(c, 197, 80, 22 + (1 - fl) * 14, fl);
+  /* the audio interrupt and the locks: the longest half, late halves, the longest lock */
+  grp(4, 110, 232, 56);
+  const isr = Math.round(peak(load0, tq, 1) * 1333 + 38), late = since(tq).late, lock = wrap(tq) > 6.6 ? 118 : 41;
+  const cell = (x, label, val, unit, col, sub) => {
+    lab(label, x, 127, col === WARN ? WARN : C.g1);
+    T(c, val, x, 154, { s: 24, w: 300, col });
+    if (unit) T(c, unit, x + 3 + TW(c, val, { s: 24, w: 300 }), 154, { s: 12, w: 600, col: C.g1 });
+    if (sub != null) { RR(c, x, 158, 56, 4, 2, null, 1, C.g3); RR(c, x, 158, Math.max(4, 56 * clamp(sub, 0, 1)), 4, 2, null, 1, heat(sub)); }
+  };
+  cell(14, 'ISR', String(isr), 'us', C.k3, isr / 1333);
+  const lf = flash(wrap(t) - LATE_AT, 1.5);
+  cell(96, 'LATE', String(late), null, late ? mix(WARN, '#ffffff', lf * 0.6) : C.g1);
+  if (lf > 0.02 && wrap(t) >= LATE_AT) O(c, 104, 145, 12 + (1 - lf) * 22, WARN, 2, null, { a: lf });
+  cell(158, 'LOCK', String(lock), 'us', C.k3);
+  /* the frame time and the tempo */
+  grp(4, 170, 232, 46);
+  const ft = 1000 / glide(fps, tq);
+  lab('FRAME', 14, 186, ft > 20 ? WARN : C.g1);
+  T(c, ft.toFixed(1), 14, 210, { s: 22, w: 300, col: ft > 20 ? WARN : C.k3 });
+  T(c, 'ms', 17 + TW(c, ft.toFixed(1), { s: 22, w: 300 }), 210, { s: 12, w: 600, col: C.g1 });
+  lab('BPM', 140, 186);
+  T(c, String(BPM), 140, 210, { s: 22, w: 300, col: C.k3 });
+  /* the last boot's cause: only after a crash */
+  if (crash) {
+    RR(c, 4, 220, 232, 19, 4, WARN, 1.3, mix(C.bg, WARN, 0.12));
+    P(c, [16, 234, 22, 224, 28, 234], WARN, 1.5, { close: true }); P(c, [22, 228, 22, 230.5], WARN, 1.6);
+    T(c, 'BOOT', 36, 234, { s: 12, w: 600, ls: 1, col: C.g1 });
+    T(c, 'WATCHDOG', 228, 234, { s: 13, w: 600, ls: 0.5, col: WARN, al: 'right' });
+  }
+}
+
+/* ---------------------------------------------------------------- 3. VOICES, per track */
+function voices(c, t) {
+  bg(c); header(c, 2, t);
+  const tt = wrap(t), sv = sounding(t);
+  const share = i => tq => {                           /* the track's share of the voices' cost */
+    const q = wrap(tq); let mine = 0, all = 0;
+    for (const v of V) if (q >= v.t0 && q < v.tEnd) { const k = TRK[v.tr].w * (0.35 + 0.65 * lev(v, q)); all += k; if (v.tr === i) mine += k; }
+    return all > 0 ? mine / all : 0;
+  };
+  for (let i = 0; i < 8; i++) {
+    const cx = 15 + i * 30, col = TP[i], mine = sv.filter(v => v.tr === i).sort((a, b) => a.k - b.k);
+    const on = mine.some(v => lev(v, tt) > 0.03);
+    box(c, cx - 8, 28, i + 1, col, on ? 1 : 0.55);
+    /* its voices: the limit's slots as rings, a lit dot a sounding voice (fading on its release) */
+    const lim = TRK[i].lim, fl = flash(lastSteal(t, i), 2.6);
+    for (let k = 0; k < 3; k++) {
+      const y = 62 + k * 18;
+      if (k >= lim) { O(c, cx, y, 1.5, null, 1, C.g3); continue; }
+      O(c, cx, y, 6, C.g2, 1.2);
+      const v = mine[k], l = v ? lev(v, tt) : 0;
+      if (l > 0.02) dot(c, cx, y, 6, col, clamp(0.2 + l, 0, 1));
+    }
+    if (fl > 0.02) burst(c, cx, 62, 9 + (1 - fl) * 6, fl);
+    /* its steals so far */
+    const n = since(t).steals.filter(s => s.tr === i).length;
+    if (n) T(c, String(n), cx, 128, { s: 13, w: 600, col: mix(WARN, '#ffffff', fl * 0.6), al: 'center' });
+    else P(c, [cx - 3, 124, cx + 3, 124], C.g2, 1.5);
+    /* its share of the audio cost */
+    const top = 140, bot = 230, H = bot - top, u = glide(share(i), t), f = clamp(u / 0.5, 0, 1) * (H - 2);   /* full = half the cost */
+    RR(c, cx - 8, top, 16, H, 3, C.g3, 1);
+    if (f > 0.5) { RR(c, cx - 10, bot - 1 - f - 2, 20, f + 3, 4, null, 1, col, { a: 0.14 });
+      RR(c, cx - 6, bot - 1 - f, 12, f - 1, 2, null, 1, col, { a: 0.85 }); }
+  }
+}
+
+/* ---------------------------------------------------------------- 4. SCOPE */
+function scope(c, t) {
+  const tt = wrap(t), sv = sounding(t).map(v => [v, lev(v, tt)]).filter(([, l]) => l > 0.005);
+  const by = Array(8).fill(0); sv.forEach(([v, l]) => by[v.tr] += l);
+  const loud = by.indexOf(Math.max(...by)), total = by.reduce((a, b) => a + b, 0);
+  bg(c); header(c, 3, t, { track: total > 0.05 ? loud : null });
+  const cy = 132, A = 82;
+  P(c, [8, cy, 232, cy], C.g3, 1);
+  if (total < 0.02) { P(c, [8, cy, 232, cy], C.g2, 2); return; }
+  /* three cycles of the loudest track's lowest note, locked to its zero crossing: that voice an FM sine, the others
+     riding on it at small whole ratios, soft-clipped so the line stays bold and readable */
+  const lead = sv.filter(([v]) => v.tr === loud).sort((a, b) => a[0].pitch - b[0].pitch)[0][0];
+  const RAT = [1, 2, 1.5, 3, 4, 1, 2, 3];
+  const pts = [];
+  for (let x = 8; x <= 232; x += 2) {
+    const u = (x - 8) / 224 * 3; let s = 0;
+    for (const [v, l] of sv) {
+      const me = v === lead, r = me ? 1 : RAT[v.tr] * (v.k + 1), g = me ? 1 : 0.28;
+      const idx = me ? 0.5 + 0.7 * Math.sin(t * 0.6) ** 2 : 0.3;
+      s += g * l * Math.sin(TAU * u * r + idx * Math.sin(TAU * u * r * 2 + (me ? 0 : t * 2)));
+    }
+    pts.push(x, cy - A * Math.tanh(1.3 * s / Math.max(1, by[loud] + 0.28 * (total - by[loud]))));
+  }
+  const col = TP[loud];
+  P(c, pts, col, 9, { a: 0.10 }); P(c, pts, col, 5, { a: 0.22 }); P(c, pts, mix(col, '#ffffff', 0.15), 2.6);
+}
+
+/* ---------------------------------------------------------------- the screens */
+const ST = STEALS.map(s => s.t);
+const near = (t0) => (ST.find(s => s > t0) ?? t0) + 0.12;
+const SCREENS = [
+  { f: meters, t: 6.55, title: 'METERS',
+    text: '<strong>Tall bars that glide</strong> (they chase the value, as ChoralRoot\'s), a <strong>peak tick</strong> held for two seconds, the value on top. <strong>CORE</strong>: core 0 live, core 1 drawn dashed with a cross and <strong>OFF</strong> until the second core runs (then it fills the same way); one CORE label under the pair. The load goes <strong>green → yellow → orange</strong>. <strong>FPS</strong>: full at 60, its tick the slowest frame of the last two seconds (here the dip). <strong>RAM</strong> and <strong>STORE</strong> are capacities, white, yellow over 90 %. Stopped, core 0 falls to its idle few per cent and the ticks follow.' },
+  { f: numbers, t: near(4), title: 'NUMBERS',
+    text: 'The dense page as <strong>four groups in outlined boxes</strong>, each value big with a 12 px label. <strong>VOICES</strong>: the count of 8 big, and the pool\'s <strong>eight slots as dots in their tracks\' colours</strong> (they light and fade). <strong>STEALS</strong>: the count, the box and the number <strong>flash yellow with a spark</strong> on each steal. <strong>ISR</strong> (the longest half, with a bar of the half\'s budget), <strong>LATE</strong> halves (yellow once there is one), the longest <strong>LOCK</strong>. <strong>FRAME</strong> in ms (yellow over 20) and the <strong>BPM</strong>. The numbers step four times a second so they can be read; the dots are live.' },
+  { f: voices, t: near(9.5), title: 'VOICES',
+    text: '<strong>Eight columns, one a track</strong>: its numbered box (lit while it sounds), its <strong>voice limit as rings</strong> with a dot lit for each sounding voice (fading on the release; the chord track lights three at once), a small dot where the limit ends. Under them its <strong>steals</strong> (a dash for none; a yellow spark bursts on the column when one of its voices is taken), and at the foot its <strong>share of the audio cost</strong> as a bar in its colour, gliding. Stopped, the dots fade out and the bars sink.' },
+  { f: scope, t: 3.4, title: 'SCOPE',
+    text: '<strong>The output as one bold line</strong>, glowing, in the colour of the <strong>loudest track</strong>, whose box sits by the name. About three cycles of that track\'s note, locked so a held note stands still; the other tracks ride on it. Silence is a flat grey line.' },
+  { f: (c, t) => numbers(c, t, true), t: near(4), title: 'NUMBERS, after a crash',
+    text: 'The same page after a boot that followed a crash: a <strong>yellow band at the foot</strong>, a warning triangle and the cause (<strong>WATCHDOG</strong>, HARD FAULT, BROWN-OUT ...). It stays until the next clean boot; a normal boot shows nothing there.' },
+];
+
+/* ---------------------------------------------------------------- the page */
+async function main() {
+  const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search), shot = q.get('shot'), sheet = q.get('sheet'), qt = q.get('t');
+  const mk = (cls) => { const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; if (cls) cv.className = cls; return cv; };
+  if (shot) { document.body.className = 'shot'; document.getElementById('page').remove();
+    const s = SCREENS[+shot - 1], cv = mk(); s.f(cv.getContext('2d'), qt != null ? +qt : s.t); document.body.appendChild(cv); return; }
+  if (sheet) {
+    document.body.className = 'sheet'; document.getElementById('page').remove();
+    const h = document.createElement('div'); h.className = 'sheettitle'; h.textContent = 'FIZZ: Geek Out (a mock-up; 2x)'; document.body.appendChild(h);
+    const g = document.createElement('div'); g.className = 'sheetgrid'; document.body.appendChild(g);
+    const extra = [{ i: 0, t: 15.5, title: 'METERS, stopped' }];
+    [...SCREENS.map((s, i) => ({ i, t: s.t, title: s.title })), ...extra].forEach((e, k) => {
+      const f = document.createElement('figure'); f.style.margin = 0;
+      const cv = mk(); SCREENS[e.i].f(cv.getContext('2d'), e.t); f.appendChild(cv);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${k + 1} · ${e.title}`; f.appendChild(cap); g.appendChild(f); });
+    return;
+  }
+  const root = document.getElementById('cells'), live = [];
+  SCREENS.forEach((s, i) => { const d = document.createElement('div'); d.className = 'cell';
+    const h = document.createElement('h2'); h.textContent = `${i + 1}. ${s.title}`; d.appendChild(h);
+    const cv = mk('scr'); d.appendChild(cv); live.push([s, cv.getContext('2d')]);
+    const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); root.appendChild(d); });
+  const t0 = performance.now();
+  const frame = () => { const t = (performance.now() - t0) / 1000; live.forEach(([s, c]) => s.f(c, t)); requestAnimationFrame(frame); };
+  frame();
+}
+main();
+</script>
+</body>
+</html>
