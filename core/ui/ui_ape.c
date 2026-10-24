@@ -17,8 +17,8 @@
  *   - An external clock: the lying freeze on the boombox, dimmed to 45 % and breathing, a clock beside the grey BPM.
  *   - 180 BPM and up: every tap the headstand's flurry: turning twice as fast, rainbow rings (the tracks' colours)
  *     round its legs, a sparkle shower, the boombox shaking.
- * Every line glows as the VEL rider's: each colour one path (quadratics through the midpoints), stroked three times
- * (wide and faint, middling, the line). Built through ui_turn.c (it includes this file). */
+ * Each colour one path (quadratics through the midpoints), its line alone (P2.6d, the owner: no glow on the poses,
+ * the boombox or the other neon lines; the moonwalk without its trails). Built through ui_turn.c (it includes this file). */
 #include "ape_poses.h"
 
 #define AP_S 0.85f                       /* the scene's scale (the poses' px) */
@@ -48,6 +48,8 @@ static const qd_rgb AP_COL[APE_NCOL] = {0x3fe4f2u, 0x4fe08cu, 0xff9440u, 0xffe06
 #define AP_BOX 0xa2a2aeu
 #define AP_CREAM 0xfff1d0u
 static const float AP_GW[3] = {3.4f, 2.f, 1.f}, AP_GA[3] = {0.14f, 0.3f, 1.f};   /* the glow: width, alpha */
+#define AP_G0 2                          /* P2.6d (the owner): the first of those strokes drawn: the line alone (no glow) for
+                                          * the poses, the boombox and every neon line; the flurry's rings keep theirs */
 
 static float ap_dim = 1.f;               /* (the external clock: every colour at 45 %) */
 static qd_rgb ap_c(qd_rgb c)
@@ -89,7 +91,7 @@ int ui_ape_pose(int n, int bpm)
 static void ap_glow_path(qd_rgb col, float lw)    /* the path made: stroked three times, then ended */
 {
     int g;
-    for (g = 0; g < 3; g++) {
+    for (g = AP_G0; g < 3; g++) {
         qd_save();
         qd_alpha(qd_get_alpha() * AP_GA[g]);
         qd_path_stroke_keep(ap_c(col), lw * AP_GW[g]);
@@ -130,7 +132,7 @@ static void ap_rect(float x, float y, float w, float h, float r, qd_rgb col, flo
     int g;
     if (fill != QD_NONE)
         qd_rrect(x, y, w, h, r, QD_NONE, 0.f, fill);
-    for (g = 0; g < 3; g++) {
+    for (g = AP_G0; g < 3; g++) {
         qd_save();
         qd_alpha(qd_get_alpha() * AP_GA[g]);
         qd_rrect(x, y, w, h, r, ap_c(col), lw * AP_GW[g], QD_NONE);
@@ -276,7 +278,7 @@ static void ap_pose(int k, const ap_pose_o *o)
     qd_translate(ap_posex(k) + o->dx, AP_FY);
     qd_scale(AP_S * 0.5f, AP_S * 0.5f);
     for (c = 0; c < APE_NCOL; c++) {
-        const ap_ink_t ink = {ap_c(AP_COL[c]), lw, lw * 2.8f};
+        const ap_ink_t ink = {ap_c(AP_COL[c]), lw, 0.f};   /* (P2.6d: no glow) */
         if (APE_POSES[k].n[c])
             ap_path_lite(k, c, &ink);
     }
@@ -401,7 +403,7 @@ static int ap_build_chunk(int i)
     if (flash) {
         qd_path_stroke(AP_CREAM, lw * 1.1f);
     } else {
-        for (g = 0; g < 3; g++) {
+        for (g = AP_G0; g < 3; g++) {
             qd_save();
             qd_alpha(AP_GA[g]);
             qd_path_stroke_keep(AP_COL[c], lw * AP_GW[g]);
@@ -504,7 +506,7 @@ static void ap_pose(int k, const ap_pose_o *o)
         qd_translate(-ax, -ay);
         qd_translate(ap_posex(k) + o->dx, AP_FY);
         qd_scale(AP_S * 0.5f, AP_S * 0.5f);
-        ap_strokes(k, 0, 2);
+        ap_strokes(k, AP_G0, 2);
         if (o->flash > 0.f) {
             qd_alpha(qd_get_alpha() * o->flash * 0.7f);
             qd_path_begin();
@@ -736,20 +738,7 @@ void ui_ape_draw(const ui_turn_t *v)
     {
         ap_pose_o o = {dx, lift, sx, sy, rot, 1.f,
                        kind != AP_ENTERS ? 1.f - ap_clamp(age / (slow ? 0.3f : 0.12f)) : 0.f, mid};
-        if (slow) {                                     /* P1.6g: the motion trails: where it was a moment ago, fading */
-            const float w = ap_ease((age - 0.3f) / 0.4f);
-            int j;
-            for (j = 3; j >= 1; j--) {
-                const float ph = (age - 0.22f * (float)j) / beat;
-                ap_pose_o tr = o;
-                tr.dx = -14.f * (1.f - cosf(AP_TAU * ph / 4.f)) * w;
-                tr.lift = 2.5f * fabsf(sinf(UI_PI * ph)) * w;
-                tr.alpha = 0.4f / (float)j * w;
-                tr.flash = 0.f;
-                if (tr.alpha > 0.01f)
-                    ap_pose(k, &tr);
-            }
-        }
+        /* (P2.6d, the owner: the moonwalk's three trail copies gone; it glides alone) */
         ap_pose(k, &o);
     }
     if (flurry)

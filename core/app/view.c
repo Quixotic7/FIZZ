@@ -1107,7 +1107,10 @@ static void draw_idle(const qd_app_t *a)
     memset(&v, 0, sizeof v);
     v.bpm = a->bpm;
     v.playing = a->playing;
-    v.t = secs(a->ms);
+    v.t = a->playing ? secs(a->ms) : (float)(a->ms * 2u / 125u) / 16.f;   /* P2.6d (the owner: ~15 fps idle):
+                                                         * stopped, the stream's clock in 1/16 s steps (exact in a
+                                                         * float: its 11 s loop still seamless); between them the same
+                                                         * frame, every strip kept */
     v.beat = a->playing ? a->beat : 0;                 /* (P2.4: whole beats and the ticks into one) */
     v.beat_num = a->playing ? a->beat_rem : 0;
     v.beat_den = QD_BEAT_TICKS;

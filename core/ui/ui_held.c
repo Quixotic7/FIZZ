@@ -237,8 +237,8 @@ static float rd_lw(float lw) { lw *= rd_k; return lw < 1.2f ? 1.2f : lw; }
 
 /* P1.5e (the owner's reference, mockups/png/fizz-vel-rider-reference.png; fizz-vel-rider.html version 2): NEON. P2.6d
  * (the owner, from the unit: "get rid of the glowing outlines maybe and some of the smaller details"): every line is
- * itself only (it was stroked three times, 3.4x and 2x its width faint under it); no sparkles, fins, lamp, boot, visor,
- * inner wheel rings or bus windows. A shape is built
+ * itself only (it was stroked three times, 3.4x and 2x its width faint under it); no fins, lamp, boot, inner wheel
+ * rings or bus windows (the owner then: the cape's stars and the helmet's visor and sparkle back, single strokes). A shape is built
  * into the path by rn_build (a polyline, a curve through midpoints, a circle, an arc; in the rider's frame through
  * rd_pt, or the screen's with rd_screen) and stroked by rn_glow */
 #define RN_BLUE 0x2fb4ffu                               /* the wheels, the frame, the rider's body, arm and helmet */
@@ -323,6 +323,16 @@ static void n_seg(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
     const float p[4] = {x0, y0, x1, y1};
     n_line(p, 2, col, lw);
 }
+static void n_arc(float x, float y, float r, float a0, float a1, qd_rgb col, float lw)
+{
+    const rn_shape_t s = {RN_ARC, 0, 0, 0, x, y, r, a0, a1};
+    rn_glow(&s, col, lw);
+}
+static void n_sparkle(float x, float y, float r, qd_rgb col)   /* a star: two short strokes */
+{
+    n_seg(x - r, y, x + r, y, col, 1.2f);
+    n_seg(x, y - r, x, y + r, col, 1.2f);
+}
 static void n_tube(const float *p, int n, qd_rgb col, float w)   /* a limb: a wide line, a black core (two lines) */
 {
     const rn_shape_t s = {RN_POLY, n, 0, p, 0, 0, 0, 0, 0};
@@ -353,7 +363,9 @@ static void rider(float u, float t)
                                 ex + 4.f, ey - 1.f + w1 * 0.5f, ex - 2.f, ey + 6.f + w1,
                                 sx - L * 0.6f, sy + 5.f + sag * 0.75f + w1, sx - L * 0.25f, sy + 6.f + sag * 0.3f,
                                 sx - 1.f, sy + 5.f};
-        n_curve(cape, 9, rn_red, 1.5f, 1);             /* (P2.6d: its sparkles gone) */
+        n_curve(cape, 9, rn_red, 1.5f, 1);
+        n_sparkle(sx - L * 0.45f, sy + sag * 0.45f + w1 * 0.5f, 2.6f, rn_cream);   /* (P2.6d: back, the owner) */
+        n_sparkle(sx - L * 0.7f, sy - 1.f + sag * 0.7f + w2 * 0.5f, 1.8f, rn_cream);
     }
     /* the bike: wheels, the blue frame, the red tank and seat, the cream exhaust, fork and bars (P2.6d: the fins and
      * the lamp gone) */
@@ -373,14 +385,16 @@ static void rider(float u, float t)
         n_seg(60.f, 0.f, 49.f, -30.f, rn_cream, 1.6f);  /* the fork */
         n_line(bars, 3, rn_cream, 1.4f);
     }
-    {   /* the rider: red legs as tubes, the blue body and arm, the blue helmet (P2.6d: the boot, the helmet's sparkle
-         * and visor gone) */
+    {   /* the rider: red legs as tubes, the blue body and arm, the blue helmet, its sparkle and visor (P2.6d: the boot
+         * gone) */
         static const float leg[6] = {12, -26, 29, -21, 25, -6};
         static const float body[4] = {13, -26, 21, -44}, arm[6] = {22, -42, 33, -37, 43, -35};
         n_tube(leg, 3, rn_red, 5.2f);
         n_tube(body, 2, rn_blue, 6.f);
         n_tube(arm, 3, rn_blue, 4.6f);
         n_circ(26.f, -53.f, 8.5f, rn_blue, 1.6f);
+        n_arc(27.f, -53.f, 6.f, -0.9f, 0.9f, rn_blue, 1.3f);
+        n_sparkle(22.5f, -55.f, 2.2f, rn_cream);
     }
 }
 
