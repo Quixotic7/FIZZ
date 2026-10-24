@@ -142,7 +142,7 @@ dialog h2 { --c: var(--cyan); }
   section { padding: 18px 16px 14px; border-radius: 14px; }
   .lead { font-size: 17px; }
   .pick-ver { width: 100%; }
-  .pick-ver select { flex: 1; }
+  .pick-ver select { flex: 1; min-width: 0; width: 100%; }
   button.primary { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .bubbles circle { animation: none !important; } }
