@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MPL-2.0
+# P2.15j: the view tour as the unit's (the demo playing, a few seconds on a view), a frame's phases on one view: stats
+# line 15 after a reset (7D 46 50 7F) on ROLL, then on EDIT. The simulator's times are the host's; its counts (frames,
+# bands, the clock's ms inside a frame) are the unit's shape.
+#   firmware/app/build/host/fizz_host firmware/app/tests/views.txt OUT
+expect fz_up 1
+wait 500
+tap PLAY
+wait 1000
+expect fz_playing 1
+# ROLL (the step mode's first view)
+fzshow 1 0
+wait 500
+sysex F0 7D 46 50 7F F7
+wait 4000
+sysex F0 7D 46 50 F7
+# EDIT
+fzshow 1 2
+wait 500
+sysex F0 7D 46 50 7F F7
+wait 4000
+sysex F0 7D 46 50 F7
+expect fz_lcd_stale 0
+expect fz_stats_cut 0
+expect fz_stats_worst <1024

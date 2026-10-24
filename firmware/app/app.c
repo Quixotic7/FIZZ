@@ -234,6 +234,10 @@ typedef struct {
         wait_sum_us;
 } fz_fb_stats_t;
 static fz_fb_stats_t fz_fb;
+static struct {
+    uint64_t latch, paint, input, wait, xfer, isr, tick, total;
+    uint32_t n, tick_ms;
+} fz_fp;   /* (P2.15j: a counted frame by phase: fz_draw_fb) */
 static struct {                          /* (P2.15b: a drawn frame's parts, ticks; counts) */
     uint64_t latch, paint, input, latch_only;
     uint32_t frames, bands, steps, looks_same;
@@ -353,6 +357,7 @@ static uint32_t fz_seen_btn, fz_seen_keys;   /* the panel as last sampled */
 static uint16_t fz_evq[FZ_EVQ];          /* presses waiting for FIZZ: bit 15 down, bit 8 a key, the low byte its index */
 static uint32_t fz_evq_ms[FZ_EVQ], fz_ev_w, fz_ev_r;
 static uint32_t fz_ticked;               /* FIZZ's clock as given (ms) */
+static uint32_t fz_tick_ms, fz_tick_ticks;   /* (P2.15j: ms ticked, time in fz_tick_to: the frames' phases take their part) */
 static uint32_t fz_touch_ms;             /* the last press or turn */
 
 static void fz_ev_put(uint32_t e, uint32_t ms)
@@ -386,14 +391,17 @@ static void fz_sample(void)              /* the panel's changes since the last l
 
 static void fz_tick_to(uint32_t ms)      /* FIZZ's clock up to ms (P2.10: the core's two halves) */
 {
-    uint32_t f;
+    uint32_t f, t0;
     if ((int32_t)(ms - fz_ticked) <= 0)
         return;
+    t0 = plat_ticks24();
+    fz_tick_ms += ms - fz_ticked;        /* (P2.15j: the clock's work, for the frames' phases) */
     f = fz_lock();                       /* what the audio side shares: once, over every ms since (coalesced) */
     fz_tick_locked(ms);
     fz_unlock(f, FZ_LOCK_TICK);
     fz_ticked = ms;
     fz_tick_free();                      /* the looks, the store's next job, SysEx's labels: no lock, a ms at a time */
+    fz_tick_ticks += plat_ticks24() - t0;
 }
 
 static uint8_t fz_sx_buf[1024];          /* a reply (fizz_sx.h QD_SX_FRAME_MAX) */
@@ -864,6 +872,24 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_w(c, "drawb_band_us_last=", fz_db_bands ? (uint32_t)fz_us(fz_db_paint[3] / fz_db_bands) : 0u);
     *c = 0;
     fz_stats_send(13, line);
+    /* 15 (P2.15j): a counted frame by phase, us a frame on average since the reset (reset, then one screen) */
+    FZ_LINE_START(c, line);
+    {
+        const uint64_t nf = fz_fp.n ? fz_fp.n : 1u;
+        c = fz_put_u(c, "fp_frames=", fz_fp.n);
+        c = fz_put_u(c, "fp_total_us=", fz_us(fz_fp.total / nf));
+        c = fz_put_u(c, "fp_latch_us=", fz_us(fz_fp.latch / nf));
+        c = fz_put_u(c, "fp_paint_us=", fz_us(fz_fp.paint / nf));
+        c = fz_put_u(c, "fp_step_input_us=", fz_us(fz_fp.input / nf));
+        c = fz_put_u(c, "fp_scan_wait_us=", fz_us(fz_fp.wait / nf));
+        c = fz_put_u(c, "fp_xfer_us=", fz_us(fz_fp.xfer / nf));
+        c = fz_put_u(c, "fp_isr_us=", fz_us(fz_fp.isr / nf));         /* (inside the phases above) */
+        c = fz_put_u(c, "fp_tick_us=", fz_us(fz_fp.tick / nf));       /* (inside step input and scan wait) */
+        c = fz_put_u(c, "fp_tick_ms_x10=", (uint64_t)fz_fp.tick_ms * 10u / nf);
+        c = fz_put_u(c, "fp_screen=", (uint32_t)fz_screen_index());
+    }
+    *c = 0;
+    fz_stats_send(15, line);
 #endif
 }
 
@@ -960,6 +986,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
             fz_arena_free_min = 0xFFFFFFFFu;
             memset(&fz_fb, 0, sizeof fz_fb);
             memset(&fz_fbs, 0, sizeof fz_fbs);
+            memset(&fz_fp, 0, sizeof fz_fp);
             fz_span_max = fz_span_n = fz_span_over = fz_frame_rows_max = fz_frames_over_stash = 0, fz_span_sum = 0;
 #ifndef PLAT_HOST
             t5_gap_max = t5_late = t5_run_max = 0;
@@ -1374,10 +1401,16 @@ static void fz_fb_start(void)            /* (once FIZZ is up: the rows attached;
     fz_pal = fz_fb_palette(&fz_pal_gen);
     fz_fb_on = 1;
 }
+/* (P2.15j) a counted frame's time by phase (ticks, summed since the counters' reset: 7D 46 50 7F, so one screen can be
+ * sampled alone): the instant (latch), the bands painted, the input between steps, the send's wait for the scan (its
+ * own input runs meanwhile), the send's transfer, and inside all of these the audio interrupt's time and the clock's
+ * catch-up (fz_tick_to: its ms and time). Stats line 15 */
 static int fz_draw_fb(int all)           /* a frame: drawn at one instant into the rows, the changed ones sent; 1 drawn */
 {
     const uint32_t t0 = plat_ticks24();
-    uint32_t bands = 0, gen = fz_pal_gen, t1, d;
+    uint32_t bands = 0, gen = fz_pal_gen, t1, d, ph_latch = 0, ph_paint = 0, ph_input = 0;
+    const uint32_t isr0 = (uint32_t)fz_prof.isr_in_frame, tick0 = fz_tick_ticks, tms0 = fz_tick_ms,
+                   wait0 = fz_fb.wait_sum_us, span0 = fz_fb.span_sum_us;
     if (!fz_fb_on)
         return 0;
     fz_in_frame = 1;
@@ -1401,6 +1434,7 @@ static int fz_draw_fb(int all)           /* a frame: drawn at one instant into t
                 fz_fbs.steps++;
             }
             fz_fbs.paint += plat_ticks24() - tl - ti;   /* (the bands drawn from the recording) */
+            ph_latch = tl - t0, ph_paint = plat_ticks24() - tl - ti, ph_input = ti;
         } else {
             fz_fbs.latch_only += plat_ticks24() - t0;    /* (looked at, nothing changed) */
             fz_fbs.looks_same++;
@@ -1442,6 +1476,13 @@ static int fz_draw_fb(int all)           /* a frame: drawn at one instant into t
     if (d > fz_prof.frame_max)
         fz_prof.frame_max = d;
     fz_frames_sent++;
+    fz_fp.n++;
+    fz_fp.total += d, fz_fp.latch += ph_latch, fz_fp.paint += ph_paint, fz_fp.input += ph_input;
+    fz_fp.wait += (uint64_t)(fz_fb.wait_sum_us - wait0) * PLAT_TICKS_PER_US;
+    fz_fp.xfer += (uint64_t)(fz_fb.span_sum_us - span0) * PLAT_TICKS_PER_US;
+    fz_fp.isr += (uint32_t)fz_prof.isr_in_frame - isr0;
+    fz_fp.tick += fz_tick_ticks - tick0;
+    fz_fp.tick_ms += fz_tick_ms - tms0;
     {   /* (P2.13: the frame's time by screen, as the strips' build has it) */
         const int sc = fz_screen_index();
         fz_screens[sc].n++;
