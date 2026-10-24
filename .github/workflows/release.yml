@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: MPL-2.0
+# A tester release on GitHub from a pushed tag vX.Y.Z-beta.N (firmware/release.py prints the commands): a pre-release
+# named after the tag, its text CHANGELOG.md's section for the version (firmware/release.py --notes), the committed
+# packages from site/firmware/X.Y.Z-beta.N/ attached with the version in their names. Nothing is built here: the files
+# are the ones the install page serves (the page cannot fetch from GitHub's release assets: no CORS).
+#
+# Needs only the workflow's own token (contents: write). Settings > Actions > General > Workflow permissions may stay
+# "Read repository contents": the job asks for write itself.
+name: Release
+
+on:
+  push:
+    tags: ["v*-beta.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check the release's files (the tag's commit must hold them)
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "V=$V" >> "$GITHUB_ENV"
+          test -d "site/firmware/$V" || { echo "::error::no site/firmware/$V in the tagged commit (firmware/release.py first)"; exit 1; }
+          V="$V" node -e 'const j=require("./site/firmware/releases.json"); if (!j.releases.some((r) => r.version === process.env.V)) { console.error(`releases.json does not list ${process.env.V}`); process.exit(1); }'
+          (cd "site/firmware/$V" && sha256sum -c SHA256SUMS)
+          node site/tools/test_install.mjs
+
+      - name: The notes and the files
+        run: |
+          python3 firmware/release.py --notes "$V" > notes.md
+          mkdir dist
+          for f in "site/firmware/$V"/*.fwsc "site/firmware/$V"/*.bin; do
+            b="$(basename "$f")"; cp "$f" "dist/${b%.*}-$V.${b##*.}"
+          done
+          (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+
+      - name: The pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease \
+            --title "FIZZ $V" --notes-file notes.md dist/*
+          echo "FIZZ $V: pre-release created" >> "$GITHUB_STEP_SUMMARY"
