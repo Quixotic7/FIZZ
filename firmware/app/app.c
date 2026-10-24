@@ -234,6 +234,10 @@ typedef struct {
         wait_sum_us;
 } fz_fb_stats_t;
 static fz_fb_stats_t fz_fb;
+static struct {                          /* (P2.15b: a drawn frame's parts, ticks; counts) */
+    uint64_t latch, paint, input, latch_only;
+    uint32_t frames, bands, steps, looks_same;
+} fz_fbs;
 /* (P2.7) the screen's and the LEDs' counters (stats line 7) */
 static uint32_t fz_arena_free_min = 0xFFFFFFFFu;
 static uint32_t fz_frame_rows0, fz_st_cap0, fz_span_max, fz_span_n, fz_span_over, fz_frame_rows_max, fz_frames_over_stash;
@@ -673,6 +677,19 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "stash_rows_min=", fz_st_cap_min);
     c = fz_put_u(c, "arena_free_min_b=", fz_arena_free_min);
 #ifdef QD_GFX_FB
+    {   /* (P2.15b) a drawn frame's parts: the instant (latch: the screen's logic, the calls recorded), the bands painted
+         * from it, the input between the steps; and the looks that found nothing changed */
+        const uint64_t nf = fz_fbs.frames ? fz_fbs.frames : 1u, nb = fz_fbs.bands ? fz_fbs.bands : 1u;
+        c = fz_put_u(c, "fb_drawn=", fz_fbs.frames);
+        c = fz_put_u(c, "fb_latch_us=", fz_us(fz_fbs.latch / nf));
+        c = fz_put_u(c, "fb_bands_x10=", (uint64_t)fz_fbs.bands * 10u / nf);
+        c = fz_put_u(c, "fb_band_us=", fz_us(fz_fbs.paint / nb));
+        c = fz_put_u(c, "fb_paint_us=", fz_us(fz_fbs.paint / nf));
+        c = fz_put_u(c, "fb_steps_x10=", (uint64_t)fz_fbs.steps * 10u / nf);
+        c = fz_put_u(c, "fb_step_input_us=", fz_us(fz_fbs.input / (fz_fbs.steps ? fz_fbs.steps : 1u)));
+        c = fz_put_u(c, "fb_looks_same=", fz_fbs.looks_same);
+        c = fz_put_u(c, "fb_look_same_us=", fz_us(fz_fbs.latch_only / (fz_fbs.looks_same ? fz_fbs.looks_same : 1u)));
+    }
     c = fz_put_u(c, "fb_frames=", fz_fb.frames);    /* (P2.12: the 8-bit frame's sends) */
     c = fz_put_u(c, "fb_rows=", fz_fb.rows);
     c = fz_put_u(c, "fb_passes=", fz_fb.passes);
@@ -703,7 +720,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
         c = fz_put_u(c, "strips_drawn=", fz_strips_drawn);
         c = fz_put_u(c, "strips_kept=", fz_strips_kept);
     }
-    c = fz_put_u(c, "frame_avg_us=", fz_frame_us);
+    c = fz_put_u(c, "frame_recent_us=", fz_frame_us);   /* (the pace's: the last few frames, a running average) */
     c = fz_put_u(c, "pace_ms=", fz_pace);
     c = fz_put_u(c, "animating=", fz_anim >= 2u);
     c = fz_put_u(c, "led_looks=", fz_led_looks);
@@ -857,6 +874,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
             fz_st_cap_min = 240u;
             fz_arena_free_min = 0xFFFFFFFFu;
             memset(&fz_fb, 0, sizeof fz_fb);
+            memset(&fz_fbs, 0, sizeof fz_fbs);
             fz_span_max = fz_span_n = fz_span_over = fz_frame_rows_max = fz_frames_over_stash = 0, fz_span_sum = 0;
 #ifndef PLAT_HOST
             t5_gap_max = t5_late = t5_run_max = 0;
@@ -1282,18 +1300,30 @@ static int fz_draw_fb(int all)           /* a frame: drawn at one instant into t
         fz_fb_attach(fz_rowp);           /* (every band drawn: FZ_FB_FULL_EVERY) */
     {   /* (P2.15) the frame from one instant, drawn FZ_FB_STEP bands at a time with the input (the panel, MIDI, the
          * clock, the LEDs) between: a heavy frame no longer holds a press back for its whole drawing */
-        uint32_t ti = 0;
-        if (fz_frame_fb_begin(&bands))
+        uint32_t ti = 0, tl, k;
+        if (fz_frame_fb_begin(&bands)) {
+            tl = plat_ticks24();
+            fz_fbs.latch += tl - t0;     /* (the instant: the screen's logic once, its drawing calls recorded) */
+            for (k = 0; k < 32u; k++)
+                fz_fbs.bands += bands >> k & 1u;
+            fz_fbs.frames++;
             while (fz_frame_fb_step(FZ_FB_STEP) > 0) {
                 const uint32_t tq = plat_ticks24();
                 fz_input();
                 if (plat_ms() - fz_led_t >= FZ_LED_MS)
                     fz_lights();
                 ti += plat_ticks24() - tq;
+                fz_fbs.steps++;
             }
+            fz_fbs.paint += plat_ticks24() - tl - ti;   /* (the bands drawn from the recording) */
+        } else {
+            fz_fbs.latch_only += plat_ticks24() - t0;    /* (looked at, nothing changed) */
+            fz_fbs.looks_same++;
+        }
         t1 = plat_ticks24();
         fz_prof.draw += t1 - t0 - ti;
         fz_prof.input_in_frame += ti;
+        fz_fbs.input += ti;
     }
     fz_pal = fz_fb_palette(&gen);
     if (gen != fz_pal_gen)
