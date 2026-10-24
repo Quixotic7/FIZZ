@@ -98,7 +98,11 @@ static void gk_header(const ui_geek_t *v)
     if (v->page == 3 && v->scope_track >= 0)
         ui_box(14.f + w, 5.f, v->scope_track + 1, UI_TRACK_PAL[v->scope_track]);
     if (v->playing)
+#if QD_GEEK_STEADY_DOT                                  /* (P2.6i: steady: the header's bands not redrawn every frame) */
+        gk_dot(150.f, 13.f, 4.f, UI_RED, 0.85f);
+#else
         gk_dot(150.f, 13.f, 3.4f + 1.6f * expf(-v->beat * 6.f), UI_RED, 0.55f + 0.45f * expf(-v->beat * 5.f));
+#endif
     else
         ui_RR(146.f, 9.f, 8.f, 8.f, 1.5f, QD_NONE, 1.f, UI_G2);
     for (i = 0; i < 4; i++)

@@ -116,6 +116,23 @@
 #define QD_PRJ_KEYS QDS_MAXKEY
 #endif
 
+/* ---- P2.6i: the screens' pacing, build options for the owner to choose from (every default: today's frames) */
+#ifndef QD_PACE_PLAYHEAD
+#define QD_PACE_PLAYHEAD 0             /* the step view's playhead: 0 continuous, 1 a hop a step, 2 a hop a half step */
+#endif
+#ifndef QD_IDLE_FPS
+#define QD_IDLE_FPS 16                 /* the idle logo's clock steps, stopped: 16, 10 or 8 a second */
+#endif
+#ifndef QD_EDIT_ANIM_FPS
+#define QD_EDIT_ANIM_FPS 30            /* EDIT's picture's clock: 30 (every frame's own) or 15 steps a second */
+#endif
+#ifndef QD_SCOPE_FPS
+#define QD_SCOPE_FPS 30                /* the Geek Out scope's line: 30 (every frame) or 15 a second */
+#endif
+#ifndef QD_GEEK_STEADY_DOT
+#define QD_GEEK_STEADY_DOT 0           /* the Geek Out header's transport dot: 0 beating, 1 steady */
+#endif
+
 /* ---- the same in both */
 #ifdef QD_DEVICE
 #define QD_POOL_DEFAULT QD_VOICES_DEV  /* the voices a unit plays with (P2.6f: 8) */

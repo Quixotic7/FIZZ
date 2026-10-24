@@ -161,7 +161,13 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         qd_seq_track_pos_q(&a->seq, t, &pn, &pd);
         v->play_page = s / QD_PAGE;
         if (v->play_page == page)                       /* (the step and how far into it: P2.4, no double) */
+#if QD_PACE_PLAYHEAD                                    /* (P2.6i: the playhead in hops: a step, or half a step) */
+            v->pos = (float)(s % QD_PAGE) +
+                     floorf(qd_ratio_f(pn - qd_div64(pn, (int32_t)pd) * pd, pd) * (float)(QD_PACE_PLAYHEAD == 2 ? 2 : 1)) /
+                         (float)(QD_PACE_PLAYHEAD == 2 ? 2 : 1);
+#else
             v->pos = (float)(s % QD_PAGE) + qd_ratio_f(pn - qd_div64(pn, (int32_t)pd) * pd, pd);
+#endif
     }
     for (i = 0; i < 16; i++) {
         const int s = page * QD_PAGE + i;
@@ -1113,7 +1119,11 @@ static void draw_idle(const qd_app_t *a)
     memset(&v, 0, sizeof v);
     v.bpm = a->bpm;
     v.playing = a->playing;
-    v.t = a->playing ? secs(a->ms) : (float)(a->ms * 2u / 125u) / 16.f;   /* P2.6d (the owner: ~15 fps idle):
+#if QD_IDLE_FPS == 16
+    v.t = a->playing ? secs(a->ms) : (float)(a->ms * 2u / 125u) / 16.f;
+#else                                                   /* (P2.6i: another pace; 10 and 8 a second: their steps) */
+    v.t = a->playing ? secs(a->ms) : (float)((uint64_t)a->ms * QD_IDLE_FPS / 1000u) / (float)QD_IDLE_FPS;
+#endif   /* P2.6d (the owner: ~15 fps idle):
                                                          * stopped, the stream's clock in 1/16 s steps (exact in a
                                                          * float: its 11 s loop still seamless); between them the same
                                                          * frame, every strip kept */
@@ -2295,7 +2305,16 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         ui_lane_draw(&lv);
         break;
     case QD_SCR_EDIT:                                   /* P1.3r: the page's row under the mode's picture */
+#if QD_EDIT_ANIM_FPS < 30
+        {   /* (P2.6i: its models filled at the clock's steps: between them the same frame) */
+            const uint32_t ms0 = a->ms;
+            a->ms = (uint32_t)((uint64_t)ms0 * QD_EDIT_ANIM_FPS / 1000u * 1000u / QD_EDIT_ANIM_FPS);
+            qd_view_edit(a, &hv, &lv);
+            a->ms = ms0;
+        }
+#else
         qd_view_edit(a, &hv, &lv);
+#endif
         ui_edit_draw(&hv, &lv);
         break;
     case QD_SCR_GEEK: {                                 /* P2.11: a Geek Out page */
@@ -2523,6 +2542,14 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
     v->boot = st->have & QD_ST_BOOT ? st->boot : 0;
     /* the scope: ~3 cycles of the loudest track's lowest note, held on a rising zero crossing (none: free-running) */
     v->scope_track = -1;
+#if QD_SCOPE_FPS < 30
+    if (g->scope_step == (now * QD_SCOPE_FPS / 1000u) + 1u) {   /* (P2.6i: the line as it was, until its next step) */
+        v->scope_track = g->scope_trk;
+        memcpy(v->scope, g->scope_pts, sizeof v->scope);
+        g->ms = now ? now : 1u;
+        return;
+    }
+#endif
     {
         int best = -1, low = 128, n, start, k;
         int32_t lmax = 0, amp = 1;
@@ -2562,5 +2589,9 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
             v->scope[i] = v->scope_track >= 0 ? tanhf(1.3f * (float)s / (float)amp) / tanhf(1.3f) : 0.f;
         }
     }
+#if QD_SCOPE_FPS < 30
+    g->scope_step = now * QD_SCOPE_FPS / 1000u + 1u, g->scope_trk = v->scope_track;
+    memcpy(g->scope_pts, v->scope, sizeof v->scope);
+#endif
     g->ms = now ? now : 1u;
 }

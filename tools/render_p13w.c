@@ -239,8 +239,8 @@ int render_p13w(const char *out)
     qd_step_set_func(P, T3, 16 + 2, QD_FN_RESTART);
     run(300);
     shot("steps", "STEPS: the functions as dots (page 2 open, page 1 folded)");
-    vhome();                                    /* EDIT */
-    vhome();                                    /* the PIANO ROLL */
+    while (A.ui.view != QD_VIEW_ROLL)           /* EDIT, (P2.11: the Geek Out pages,) the PIANO ROLL */
+        vhome();
     black(UI_F_FUNC);
     run(300);
     shot("lane", "the PIANO ROLL's FUNC lane: reverse, restart, flip, random, random function");
@@ -261,8 +261,9 @@ int render_p13w(const char *out)
     run(300);
     shot("held-random", "held: RANDOM (a jump to a step at random)");
     wrelease(12);
-    vhome();                                    /* STEPS, then EDIT with the cursor on step 9 */
-    vhome();
+    while (A.ui.view != QD_VIEW_EDIT)           /* on to EDIT (P2.11: the cycle has the Geek Out pages too), the
+                                                 * cursor on step 9 */
+        vhome();
     turn(QD_K_ALGO, 1);
     while (A.ui.nheld && A.ui.held[0] != 16 + 8)
         turn(QD_K_ALGO, A.ui.held[0] < 16 + 8 ? 1 : -1);

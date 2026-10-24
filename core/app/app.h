@@ -136,6 +136,11 @@ typedef struct {                       /* P2.11: the Geek Out pages' own state (
     volatile uint32_t scope_w;         /* .. at this index */
     volatile uint8_t scope_on;         /* (only while the scope is shown) */
     uint8_t scope_half;
+#if QD_SCOPE_FPS < 30
+    uint32_t scope_step;               /* (P2.6i: the scope's line kept between its steps) */
+    int scope_trk;
+    float scope_pts[113];
+#endif
 } qd_geek_t;
 
 typedef struct qd_app {

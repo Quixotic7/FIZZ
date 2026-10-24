@@ -218,6 +218,16 @@ test-dev-fast8:
 test-dev-fb8:
 	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8" GFX=fb B=build/dev-fb8 OUT=$(abspath $(OUT))/dev-fb8 \
 	    SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
+# P2.6i: each pacing option (core/qd_config.h) built at the unit's profile and its screens rendered (the parts that show
+# it), into build/pace-*/ and OUT/pace-*/: it builds, it draws (the defaults are today's frames: make test)
+PACES := PH1:-DQD_PACE_PLAYHEAD=1 PH2:-DQD_PACE_PLAYHEAD=2 IDLE10:-DQD_IDLE_FPS=10 IDLE8:-DQD_IDLE_FPS=8 \
+         EDIT15:-DQD_EDIT_ANIM_FPS=15 SCOPE15:-DQD_SCOPE_FPS=15 DOT:-DQD_GEEK_STEADY_DOT=1
+test-pace:
+	@for p in $(PACES); do n=$${p%%:*}; d=$${p#*:}; \
+	    $(MAKE) -s PROFILE="-DQD_DEVICE $$d" GFX=fb B=build/pace-$$n build/pace-$$n/render_frames > /dev/null || exit 1; \
+	    mkdir -p $(OUT)/pace-$$n; build/pace-$$n/render_frames $(OUT)/pace-$$n > /dev/null || exit 1; \
+	    echo "pace $$n ($$d): built, every screen rendered ($$(find $(OUT)/pace-$$n -name '*.png' | wc -l | tr -d ' ') images)"; done
+
 test-dev-run: $(DEV_TESTS)
 	@echo "---- the device's sizes (QD_DEVICE)"
 	$(B)/test_quad $(T)/quad_goldens
@@ -294,4 +304,4 @@ print-%:
 
 include gfx_fast.mk
 
-.PHONY: all frames strips audio test test-host test-dev test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev16 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet
+.PHONY: all frames strips audio test test-host test-dev test-pace test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev16 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet
