@@ -1533,6 +1533,10 @@ costs ~475 µs a 5.8 ms half, so the owner chose **8 voices now (single core), 1
 core-1 start waits for felucca-bsp #5 (MPL); ChoralRoot's `cr_cpu1.h` (the owner's) is relicensed MPL-2.0 for FIZZ;
 the manager is `firmware/app/fz_dual.c` (`firmware/DUALCORE.md`).
 
+**Clock and rails (the owner, 2026-10-23):** keep fm1-base's setup: the stock 360 MHz clock and M-VAVE's stock rail
+levels, VDC14 1.60 V / SYSVDD 1.38 V (ChoralRoot uses 1.50 V / 1.35 V). The rails don't change speed; the stock levels
+give the most margin for the second core.
+
 **Known budgets to settle on the device** (from Phase 1):
 - **The TAP ape** (0.9.2-tap-ape.1): its pose data is ~17 KB of flash; its speed comes from caching whole poses in
   layers, **~415 KB of RAM** (3 poses × 138 KB: a 175 × 158 RGBA pose and its half-size flash layer). Options measured:
