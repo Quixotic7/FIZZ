@@ -20,6 +20,17 @@ unchanged. `research/PROVENANCE.md` lists where each part came from.
 | ChoralRoot's second-core code (`firmware/src/cr_cpu1.h`, ChoralRoot FM-1), for the port's reuse (P2.6), with a provenance line where it is used | the owner (ChoralRoot's author): relicensed MPL-2.0 for FIZZ on 2026-10-23 | MPL-2.0 |
 | `core/tests/ref/cr_quad_ref.c`, `cr_fx_ref.c`: test oracles that compile ChoralRoot's own tree (Felucca code included), fetched into `tools/build/` at test time | the owner; they build GPL code | GPL-3.0-only (`LICENSES/GPL-3.0.txt`): development only, never part of the firmware |
 | `site/`: the web page, the browser build, and copies from RemoteFM1 | the owner and RemoteFM1's authors | GPL-3.0-only (`LICENSES/GPL-3.0.txt`): not firmware |
+| `site/install/` (`index.html`, `install.js`, `fizz_data.js`, `notes.js`, `fm1lib.js`) and `site/tools/test_install.mjs`: the install page | fm1-base's web installer (Charles Vestal; Leo Kuroshita, Hügelton Instruments), FIZZ's changes by the owner | MPL-2.0, each file's header kept (see below) |
+| `site/firmware/`: the released packages | FIZZ, fm1-base, felucca-bsp | MPL-2.0 (the firmware's licences) |
+| `firmware/release.py`, `firmware/tools/sync_installer.py`, `CHANGELOG.md`, `.github/workflows/release.yml` | the owner | MPL-2.0 |
+
+**The install page beside the GPL site.** `site/install/` is fm1-base's MPL-2.0 installer (`web/installer.html`,
+`fm1ota.js`, `fm1pkg.js`) adapted for FIZZ. Its files stay MPL-2.0 with their copyright lines; `fm1lib.js` is
+generated from the submodule (`firmware/tools/sync_installer.py`) and is fm1-base's code unchanged. MPL-2.0 is
+file-level and GPL-compatible (MPL §3.3), so these files sit in the GPL-3.0-only `site/` as separate files of their own
+licence: the site's pages link to the install page, the install page uses the site's stylesheet (`css/install.css`,
+GPL-3.0-only like the rest of `css/`), its font and FIZZ's SysEx helper (`js/fizz_sysex.js`, MPL-2.0). Nothing GPL is
+copied into the MPL files.
 
 ## Third parties in the firmware
 

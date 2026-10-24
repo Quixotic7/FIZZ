@@ -1,0 +1,147 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     Copyright (C) 2026 Charles Vestal
+     Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+     This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+     distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+     FIZZ's install page: fm1-base's web installer (web/installer.html: Felucca's, by way of X0X and FoMni-1) for FIZZ,
+     its script in install.js, its packages from ../firmware/releases.json. Its style (../css/install.css) is the
+     site's (GPL-3.0-only, like the rest of site/; see LICENSING.md). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="fizz-build" content="dev">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Install FIZZ</title>
+<meta name="description" content="Install FIZZ, an FM TONE step sequencer, on the M-VAVE FM-1 from the browser (Chrome or Edge), and go back to the stock firmware when you want.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Ccircle cx='13' cy='18' r='8' fill='none' stroke='%2328E1FF' stroke-width='2.5'/%3E%3Ccircle cx='23.5' cy='8.5' r='4' fill='none' stroke='%23FF3CA0' stroke-width='2.2'/%3E%3Ccircle cx='24' cy='22' r='2.4' fill='none' stroke='%23FFD23F' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preload" href="../fonts/InterTight-VF-latin.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="../css/install.css">
+</head>
+<body>
+<header class="g-top">
+  <a class="logo" href="../" aria-label="FIZZ, the player">
+    <svg class="bubbles" viewBox="0 0 32 32" aria-hidden="true"><circle cx="13" cy="18" r="8"/><circle cx="23.5" cy="8.5" r="4"/><circle cx="24" cy="22" r="2.4"/></svg>
+    <b class="wordmark">FIZZ</b>
+  </a>
+  <span class="g-crumb">Install</span>
+  <nav>
+    <a href="../" class="nav-link">Play</a>
+    <a href="../guide.html" class="nav-link hide-narrow">Guide</a>
+    <a class="nav-link discord" href="https://discord.gg/emf6DmZ9V" target="_blank" rel="noopener">Discord<span class="sr" > (opens in a new tab)</span></a>
+  </nav>
+</header>
+
+<main class="g-main">
+  <div class="g-hero">
+    <h1>Put FIZZ on your FM-1</h1>
+    <p class="lead">FIZZ is a step sequencer for FM TONE, ChoralRoot's FM voice, running on the M-VAVE FM-1 itself: tracks, per-step locks, chance, conditions, ratchets and chords. <a href="../">Try it in the browser</a> first if you like.</p>
+    <p class="beta-note"><i></i><span><b>Beta, for testers.</b> Installing replaces the FM-1's firmware (M-VAVE's, or whatever it runs now). You can go back: see <a href="#back">Going back</a>.</span></p>
+  </div>
+
+  <section id="needs" style="--c:#3F7DFF">
+    <h2>What you need</h2>
+    <ul>
+      <li><b>Chrome or Edge on a computer</b> (Windows, macOS, Linux or ChromeOS). The page talks to the FM-1 over USB MIDI with SysEx; the browser asks once to allow MIDI: allow it.</li>
+      <li><b>Safari</b> (and every browser on iPhone and iPad) has no Web MIDI: this page can't install from it. <b>Firefox</b> asks for a site-permission add-on first and is not tested here. Phones and tablets are not tested.</li>
+      <li>A USB <b>data</b> cable straight into the computer. No probe or Transporter is needed.</li>
+      <li>Close other apps and tabs that use the FM-1's MIDI (editors, another firmware's page, a DAW).</li>
+    </ul>
+    <p id="nomidi" class="warn" hidden>This browser has no Web MIDI, so it can't install. Open this page in Chrome or Edge on a computer.</p>
+  </section>
+
+  <section id="backup" style="--c:#FFD23F">
+    <h2>Back up first</h2>
+    <p>Installing can lose what the FM-1 has saved. What to do depends on what it runs now:</p>
+    <ul>
+      <li><b>Another firmware built on fm1-base</b> (ChoralRoot and others): use its own backup page or tool first. The first time FIZZ starts, it erases the FM-1's shared save area if it finds another firmware's data there and none of FIZZ's.</li>
+      <li><b>M-VAVE's stock firmware:</b> this page can't back up its saved sounds. If there are any you want to keep, assume they will be lost.</li>
+      <li><b>FIZZ already:</b> an update writes only the program and FIZZ's data, not the save area, so your projects and presets stay in place. But betas can change how FIZZ saves, and FIZZ has no backup of its own yet.<span class="baklink" hidden> <a href="backup/" target="_blank" rel="noopener">Back up FIZZ<span class="sr"> (opens in a new tab)</span></a></span></li>
+    </ul>
+  </section>
+
+  <section id="install" style="--c:#28E1FF">
+    <h2>Install</h2>
+    <div class="pick">
+      <div class="pick-what">
+        <span class="pick-name" id="chosen">Loading…</span>
+        <span class="pick-sub" id="chosenwhat"></span>
+      </div>
+      <label class="pick-ver"><span>Version</span>
+        <select id="version" disabled aria-describedby="vernote"></select></label>
+    </div>
+    <p class="small" id="vernote">The latest beta is chosen. Pick an older one to go back to it; its notes are under <a href="#notes">What's new</a>.</p>
+    <ol class="steps">
+      <li>Connect the FM-1 by USB and switch it on.</li>
+      <li>Press <b>Install</b>, tick that you've backed up, and confirm.</li>
+      <li>Don't unplug the cable until this page says <b>Done</b>. It takes a few minutes: FIZZ first, then its data.</li>
+    </ol>
+    <div class="row">
+      <button type="button" id="go" class="primary" disabled>Install</button>
+      <button type="button" id="checkgo" class="quiet">Check my FM-1</button>
+      <button type="button" id="datago" class="quiet" hidden>Write FIZZ's data</button>
+    </div>
+    <p id="unit" class="unit" role="status"></p>
+    <label class="sr" for="bar">Progress</label>
+    <progress id="bar" max="100" value="0"></progress>
+    <p id="status" role="status"></p>
+    <p id="alert" role="alert"></p>
+    <details id="logbox" hidden><summary>Details</summary><pre id="log"></pre></details>
+  </section>
+
+  <section id="notes" style="--c:#1FD47E">
+    <h2>What's new</h2>
+    <div id="notes-list" class="notes"><p class="dim">Loading…</p></div>
+  </section>
+
+  <section id="back" style="--c:#FF6A2C">
+    <h2>Going back</h2>
+    <h3>To M-VAVE's stock firmware</h3>
+    <p>This writes M-VAVE's own FM-1 firmware back from FIZZ, over the same USB cable, with fm1-base's installer. What FIZZ saved may be lost.</p>
+    <ol>
+      <li>Download M-VAVE's FM-1 firmware: <a href="https://yms-file-store.oss-cn-hongkong.aliyuncs.com/software/firmware/FM-1.fwsc">FM-1.fwsc</a> (or from <a href="https://www.m-vave.com/download" target="_blank" rel="noopener">m-vave.com/download<span class="sr"> (opens in a new tab)</span></a>).</li>
+      <li><label for="stockfile">Choose the file you downloaded:</label><br><input type="file" id="stockfile" accept=".fwsc"></li>
+      <li>Connect the FM-1 by USB and press the button.</li>
+    </ol>
+    <div class="row"><button type="button" id="stockgo" class="quiet" disabled>Install the stock firmware</button></div>
+    <p class="small">M-VAVE's own updater, M-UPGRADE (m-vave.com: Downloads, PC Software), can also put the stock firmware back.</p>
+    <h3>To another firmware</h3>
+    <p>Open that firmware's own install page with FIZZ running and install as usual: FIZZ answers the same update request as the stock firmware and every fm1-base firmware.</p>
+    <h3>If the FM-1 doesn't start</h3>
+    <p>After two failed starts the FM-1 waits in the chip's update mode. On a Mac, felucca-bsp's rescue puts the stock firmware back from there: <a href="https://github.com/hugelton/felucca-bsp/tree/main/tools" target="_blank" rel="noopener">recovering an FM-1 that won't start<span class="sr"> (opens in a new tab)</span></a>. Then install FIZZ again. Ask on Discord if you get stuck.</p>
+  </section>
+
+  <section id="feedback" style="--c:#FF3CA0">
+    <h2>Feedback</h2>
+    <p>Tell us what works and what doesn't on <a href="https://discord.gg/emf6DmZ9V" target="_blank" rel="noopener">FIZZ's Discord<span class="sr"> (opens in a new tab)</span></a>. Say which version you run (<b>Check my FM-1</b> tells you).</p>
+    <h3>If FIZZ crashed</h3>
+    <p>Don't switch the FM-1 off: connect it by USB and press the button. The crash record survives a restart, not switching off. Paste what appears in Discord, with what you were doing.</p>
+    <div class="row"><button type="button" id="reportgo" class="quiet">Read the crash report</button>
+      <button type="button" id="reportcopy" class="quiet" hidden>Copy</button></div>
+    <p id="reportstatus" role="status"></p>
+    <label class="sr" for="report">Crash report</label>
+    <textarea id="report" readonly hidden rows="12"></textarea>
+  </section>
+
+  <footer class="credits">
+    <p><b>FIZZ</b> is MPL-2.0, no warranty: <a href="https://github.com/Quixotic7/FIZZ" target="_blank" rel="noopener">github.com/Quixotic7/FIZZ</a>. It runs on <a href="https://github.com/charlesvestal/fm1-base" target="_blank" rel="noopener">fm1-base</a> by Charles Vestal and <a href="https://github.com/hugelton/felucca-bsp" target="_blank" rel="noopener">felucca-bsp</a>, from Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a> (MPL-2.0). This installer is fm1-base's (MPL-2.0).</p>
+    <p>FM TONE and the effects are ChoralRoot FM-1's. Drawn with plutovg (MIT). Type: Inter Tight and fm1-base's Barlow (SIL OFL 1.1). The site around this page is GPL-3.0-only. M-VAVE and FM-1 are trademarks of their owners; FIZZ is not made or endorsed by M-VAVE.</p>
+  </footer>
+</main>
+
+<dialog id="confirm" aria-labelledby="confirmh">
+  <form method="dialog">
+    <h2 id="confirmh">Before you install</h2>
+    <p class="bak"><b>Back up first.</b> Installing can lose what the FM-1 has saved (<a href="#backup">what to back up</a>).</p>
+    <p class="opt"><input type="checkbox" id="bakok"><label for="bakok">I've backed up, or have nothing to keep.</label></p>
+    <p id="confirmfizz">While it is written, the FM-1's screen shows UPDATING and a bar, or stays dark; then FIZZ starts and says it is writing its data. Don't unplug the cable or switch the FM-1 off until this page says Done. It can take several minutes.</p>
+    <p id="confirmstock" hidden>While it is written, the FM-1's screen shows UPDATING and a bar, or stays dark. Don't unplug the cable or switch the FM-1 off until this page says Done.</p>
+    <div class="row end"><button type="submit" class="quiet" value="cancel">Cancel</button>
+      <button type="submit" id="confirmgo" class="primary" value="go" disabled>Install</button></div>
+  </form>
+</dialog>
+<noscript><p style="padding:16px">This page needs JavaScript.</p></noscript>
+<script type="module" src="install.js"></script>
+</body>
+</html>
