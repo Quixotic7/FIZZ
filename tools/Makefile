@@ -188,7 +188,7 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx
-test: test-host test-dev test-dev8 test-dev-fast test-dev-fast8 test-dev-fb8 test-gfx-fast budget-ratchet
+test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-gfx-fast budget-ratchet
 	@echo "make test: all passed (host and device sizes, the device's drawing too)"
 
 # P2.0: the same tests at the device's sizes (core/qd_config.h QD_DEVICE), built into build/dev; the timelines into
@@ -204,9 +204,13 @@ test-dev-fast:
 # P2.6: the unit's 8 voices (one core, qd_config.h QD_VOICES_DEV), with either drawing. The sequencer's timelines name
 # the voice each note took and show the notes a full pool steals: at 8 voices their own goldens (core/tests/
 # seq_goldens8: blessed from the 16-voice ones' build, the same events but for the voices and the 8-voice steals)
-SEQ_GOLD ?= $(T)/seq_goldens
+# P2.6f (the owner: 8 voices for good, every profile): seq_goldens8 is everyone's; the 16-voice goldens stay for the
+# build knob's run (test-dev16)
+SEQ_GOLD ?= $(T)/seq_goldens8
 test-dev8:
 	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8" B=build/dev8 OUT=$(abspath $(OUT))/dev8 SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
+test-dev16:
+	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=16" B=build/dev16 OUT=$(abspath $(OUT))/dev16 SEQ_GOLD=$(T)/seq_goldens test-dev-run
 test-dev-fast8:
 	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8" GFX=fast B=build/dev-fast8 OUT=$(abspath $(OUT))/dev-fast8 \
 	    SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
@@ -234,7 +238,7 @@ test-host: $(TESTS)
 	$(B)/test_fz_dsp
 	$(B)/test_pool
 	mkdir -p $(OUT)
-	$(B)/test_seq $(T)/seq_goldens $(OUT)
+	$(B)/test_seq $(T)/seq_goldens8 $(OUT)
 	$(B)/test_mfx
 	$(B)/test_app
 	$(B)/test_ctl
@@ -290,4 +294,4 @@ print-%:
 
 include gfx_fast.mk
 
-.PHONY: all frames strips audio test test-host test-dev test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet
+.PHONY: all frames strips audio test test-host test-dev test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev16 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet

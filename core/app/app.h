@@ -187,6 +187,7 @@ typedef struct qd_app {
     int metro_acc;                     /* .. an accent (beat 1) */
     qd_app_stats_t stats;              /* P2.11: the platform's figures (qd_app_stats) */
     qd_geek_t geek;                    /* P2.11: the Geek Out pages' state */
+    uint32_t fb_pending;               /* P2.6f: the bands of the frame being drawn still to draw */
     /* the audio: blocks of 32 frames made ahead of a call that asks for fewer */
     int16_t fifo[2 * QD_MIX_CTL];
     int nfifo, ififo;
@@ -258,6 +259,12 @@ qd_app_stats_t *qd_app_stats(qd_app_t *a);
 void qd_app_fb_attach(qd_app_t *a, uint8_t *const rows[240]);
 const uint16_t *qd_app_palette(const qd_app_t *a, uint32_t *gen);
 int qd_app_frame_fb(qd_app_t *a, uint32_t *bands);
+/* P2.6f: the same in steps, so the main loop can take its input (and MIDI) between bands while the audio is heavy:
+ * qd_app_frame_fb_begin takes the instant (the list recorded, *bands the bands that will be drawn: 0 nothing), then
+ * qd_app_frame_fb_step draws up to n of them (top first) and returns how many are left (0: the frame is whole; the port
+ * sends it then). Ticks, keys and MIDI between steps are fine: the frame stays the instant begin took */
+int qd_app_frame_fb_begin(qd_app_t *a, uint32_t *bands);
+int qd_app_frame_fb_step(qd_app_t *a, int n);
 #endif
 /* the sound: frames of 16-bit stereo, interleaved, at QD_FS (rendered in control blocks of 32 frames) */
 void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames);

@@ -50,11 +50,12 @@
 #ifdef QD_DEVICE
 #define QD_PROFILE_NAME "device"
 /* ---- the sound */
-/* P2.6, the owner's decision (2026-10-23): the unit's voices, a build option. 8 on one core (the port's
- * --single-core: -DQD_VOICES_DEV=8), 16 with the second core (8 + 8). Everything sized by the voices follows it: the
- * pool and its voices' state, the mix's, the MIDI FX's note tables, the tracks' limits and reserves (none above it) */
+/* P2.6f, the owner's decision (2026-10-24): 8 voices for good, on every profile ("which is what the Digitone 1 had").
+ * QD_VOICES_DEV stays a build knob for the tests (-DQD_VOICES_DEV=16: tools/Makefile test-dev16). Everything sized by
+ * the voices follows it: the pool and its voices' state, the mix's, the MIDI FX's note tables, the tracks' limits and
+ * reserves (none above it) */
 #ifndef QD_VOICES_DEV
-#define QD_VOICES_DEV 16
+#define QD_VOICES_DEV 8
 #endif
 #if QD_VOICES_DEV != 8 && QD_VOICES_DEV != 16
 #error "qd_config.h: QD_VOICES_DEV is 8 or 16"
@@ -117,7 +118,7 @@
 
 /* ---- the same in both */
 #ifdef QD_DEVICE
-#define QD_POOL_DEFAULT QD_VOICES_DEV  /* the voices a unit plays with (P2.6: the device's 8 or 16) */
+#define QD_POOL_DEFAULT QD_VOICES_DEV  /* the voices a unit plays with (P2.6f: 8) */
 #else
-#define QD_POOL_DEFAULT 16             /* the voices a unit plays with (the host: FM1VST, the site) */
+#define QD_POOL_DEFAULT 8              /* the voices a unit plays with (the host: FM1VST, the site; P2.6f: 8, as the unit) */
 #endif

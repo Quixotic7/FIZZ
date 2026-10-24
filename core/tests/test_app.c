@@ -442,6 +442,47 @@ static void t_strips(void)
           n);
 }
 
+#ifdef QD_GFX_FB
+/* P2.6f: the 8-bit frame drawn a few bands at a time, the clock and the panel moving between: the frame is the instant
+ * its begin took (the same as drawn at once there) */
+static void t_fb_steps(void)
+{
+    static uint8_t f1[QD_W * QD_H], f2[QD_W * QD_H];
+    static uint8_t *rows[QD_H];
+    uint32_t bands;
+    int y, left, steps = 0, n = 0;
+    for (y = 0; y < QD_H; y++)
+        rows[y] = f1 + (size_t)y * QD_W;
+    fresh();
+    qd_app_fb_attach(&A, rows);
+    run(700, 1);
+    qd_app_play(&A);
+    run(300, 1);
+    qd_app_frame_fb_begin(&A, &bands);
+    do {
+        left = qd_app_frame_fb_step(&A, 2);
+        steps++;
+        for (y = 0; y < 9; y++) {                       /* (time passes, the music moves, between the steps: no
+                                                         * other frame drawn) */
+            qd_app_tick(&A, ++now);
+            qd_app_audio(&A, last, 64);
+        }
+    } while (left);
+    for (y = 0; y < QD_H; y++)
+        rows[y] = f2 + (size_t)y * QD_W;
+    fresh();
+    qd_app_fb_attach(&A, rows);
+    run(700, 1);
+    qd_app_play(&A);
+    run(300, 1);
+    qd_app_frame_fb(&A, &bands);
+    for (y = 0; y < QD_W * QD_H; y++)
+        n += f1[y] != f2[y];
+    CHECK(bands && steps == 8 && !n, "P2.6f: the frame two bands a step (%d steps), time passing between: the begin's "
+          "instant (%d pixels differ from it drawn at once)", steps, n);
+}
+#endif
+
 /* P2.1b: shapes the strips' culling must leave exact (plutovg-rasterize.c cull_runs): a zigzag across every strip, a
  * closed quad, a square wave whose long lines run straight on through a vertex, a dashed one, curves, a fill, all
  * drawn whole and in the device's strips (the host: its surface can hold the whole screen) */
@@ -1052,6 +1093,9 @@ int main(void)
     CHECK(h1 == h2, "two runs of one session differ");
     printf("  determinism: one session twice, the same samples (%016llx)\n", (unsigned long long)h1);
     t_strips();
+#ifdef QD_GFX_FB
+    t_fb_steps();
+#endif
     t_strip_shapes();
     t_play();
     t_patterns();

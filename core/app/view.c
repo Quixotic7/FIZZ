@@ -676,11 +676,17 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         break;
     case UI_TK_TAP: {                                   /* P1.5z: SHIFT + B6's taps */
         const int nt = u->ntap < 8 ? u->ntap : 8;
+        const uint32_t last = nt ? u->tap_ms[(u->ntap - 1) % 8] : 0u;
+        uint32_t qm = a->ms / 50u * 50u;                /* P2.6f: the ape at 20 frames a second, its motion keyed to the
+                                                         * clock (between steps the same frame: its strips kept, the
+                                                         * steps even however heavy the audio); a tap shows at once */
+        qm = nt && qm < last ? last : qm;
+        v->t = secs(qm);
         v->has_col = 1;
         v->col = UI_KSEL;
         v->ntap = nt;
         for (i = 0; i < nt; i++)
-            v->tap_age[i] = secs(a->ms - u->tap_ms[(u->ntap - 1 - i) % 8]);
+            v->tap_age[i] = secs(qm - u->tap_ms[(u->ntap - 1 - i) % 8]);
         v->since = nt ? v->tap_age[0] : 0.f;
         v->ext = qd_seq_ext_running(&a->seq);
         v->value = a->bpm;
@@ -2093,6 +2099,7 @@ void qd_view_frame_strips(qd_app_t *a, uint16_t *rows_be, qd_strip_fn out, void 
     view_frame(a, 0, rows_be, out, ctx, mask);
 }
 
+int qd_view_keep_list;
 static int vf_hash, vf_rec;                             /* (P2.4: the frame's calls hashed, nothing drawn; P2.6: the
                                                          * frame being recorded) */
 /* P2.6: the frame recorded now (its instant: every strip drawn later is this one), its strips' hashes into sh (n of
@@ -2176,7 +2183,9 @@ static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_stri
             qd_end_strip(lcd_be);
         }
     }
-    qd_dl_drop();
+    if (!qd_view_keep_list)                             /* (P2.6f: a frame drawn a few bands at a time keeps its list,
+                                                         * its instant, until its last band) */
+        qd_dl_drop();
 #ifndef QD_TARGET_FM1                                   /* (the host's test only: not on the unit) */
     if (qd_view_strip_check && lcd_be) {                /* (render_frames --strips: the same frame in the device's strips) */
         static uint16_t lcd[QD_W * QD_H];

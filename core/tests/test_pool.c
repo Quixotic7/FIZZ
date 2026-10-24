@@ -522,11 +522,11 @@ int main(void)
     t_limits();
     t_choke();
     t_released();
-#if QD_POOL_MAX >= 16                                   /* (P2.6: these two fill a 16-voice pool; at 8, t_steal8) */
+#if QD_POOL_DEFAULT >= 16                               /* (P2.6: these two fill a 16-voice pool; at 8, t_steal8) */
     t_reserve();
     t_17th();
 #else
-    printf("  reserve, 17th: 16-voice scenes (the pool holds %d here: t_steal8 checks the same rules at 8)\n", QD_POOL_MAX);
+    printf("  reserve, 17th: 16-voice scenes (the pool holds %d here: t_steal8 checks the same rules at 8)\n", QD_POOL_DEFAULT);
 #endif
     t_same_note();
     t_tap();

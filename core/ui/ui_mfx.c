@@ -50,9 +50,9 @@ static void mf_L(float x0, float y0, float x1, float y1, qd_rgb c, float lw, flo
     const float p[4] = {x0, y0, x1, y1};
     mf_P(p, 2, c, lw, a);
 }
-static void mf_G(const float *p, int n, qd_rgb c, float lw, float a)   /* neon: a wide faint stroke under the line */
+static void mf_G(const float *p, int n, qd_rgb c, float lw, float a)   /* neon: P2.6f (the owner: the glows slowed the
+                                                         * unit's frames) the line alone, no wide faint stroke under it */
 {
-    mf_P(p, n, c, lw * 3.4f, a * 0.16f);
     mf_P(p, n, c, lw, a);
 }
 static void mf_O(float x, float y, float r, qd_rgb col, float lw, qd_rgb fill, float a)
@@ -61,9 +61,8 @@ static void mf_O(float x, float y, float r, qd_rgb col, float lw, qd_rgb fill, f
     ui_O(x, y, r < 0.1f ? 0.1f : r, col, lw, fill);
     qd_restore();
 }
-static void mf_dot(float x, float y, float r, qd_rgb c, float a)
+static void mf_dot(float x, float y, float r, qd_rgb c, float a)   /* (P2.6f: no halo) */
 {
-    mf_O(x, y, r * 2.3f, QD_NONE, 1.f, c, a * 0.16f);
     mf_O(x, y, r, QD_NONE, 1.f, c, a);
 }
 static void mf_RR(float x, float y, float w, float h, float r, qd_rgb col, float lw, qd_rgb fill, float a, int dash)
@@ -86,9 +85,9 @@ static void mf_Q(float x0, float y0, float cx, float cy, float x1, float y1, qd_
     }
     mf_P(p, 17, c, lw, a);
 }
-static void mf_GQ(float x0, float y0, float cx, float cy, float x1, float y1, qd_rgb c, float lw, float a)
+static void mf_GQ(float x0, float y0, float cx, float cy, float x1, float y1, qd_rgb c, float lw, float a)   /* (P2.6f: the
+                                                         * curve alone) */
 {
-    mf_Q(x0, y0, cx, cy, x1, y1, c, lw * 3.4f, a * 0.16f);
     mf_Q(x0, y0, cx, cy, x1, y1, c, lw, a);
 }
 static void mf_qpt(float x0, float y0, float cx, float cy, float x1, float y1, float u, float *x, float *y)

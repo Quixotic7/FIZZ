@@ -184,7 +184,7 @@ static void rig_reset(void)
     int t;
     qd_model_init(&MODEL);
     qd_project_init(&PROJ);
-    qd_pool_init(&POOL, 16);
+    qd_pool_init(&POOL, QD_POOL_DEFAULT);                /* (P2.6f: 8, every profile; the knob: 16) */
     for (t = 0; t < QD_NTRACK; t++)
         qd_pool_set_track(&POOL, t, MODEL.t[t].limit, MODEL.t[t].reserve);
     qd_mix_init(&MIX);
@@ -1418,7 +1418,7 @@ static void pattern_test(const char *name, const char *title, double sec, uint64
 {
     int n0 = fails, short_pool;
     run_pattern(sec, seed);                             /* (its pool from rest: its counters this pattern's) */
-    short_pool = QD_POOL_MAX < 16 && POOL.steals_cross + POOL.drops > 0;
+    short_pool = QD_POOL_DEFAULT < 16 && POOL.steals_cross + POOL.drops > 0;
     /* (the events in the last 2 steps before the end may be still to come in one or the other: both stop at sec) */
     ref_single(sec, seed);
     timeline(name, title);

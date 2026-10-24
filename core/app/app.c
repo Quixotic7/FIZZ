@@ -402,11 +402,14 @@ void qd_app_tick_locked(qd_app_t *a, uint32_t ms)
     }
     a->ms = ms;
 }
+#define QD_FREE_CATCHUP_MS 64u
 void qd_app_tick_free(qd_app_t *a)
 {
     const uint32_t ms = a->ms;
-    if (ms - a->free_ms > 60000u)
-        a->free_ms = ms - 60000u;
+    if (ms - a->free_ms > QD_FREE_CATCHUP_MS)           /* (P2.6f: a stalled main loop catches up a bounded slice: the
+                                                         * persist looks and the labels' timers compare times, they
+                                                         * lose nothing but a delay) */
+        a->free_ms = ms - QD_FREE_CATCHUP_MS;
     while (a->free_ms != ms) {
         a->ms = ++a->free_ms;
         ms_free(a);
@@ -500,14 +503,37 @@ const uint16_t *qd_app_palette(const qd_app_t *a, uint32_t *gen)
     (void)a;
     return qd_fb_palette_be(gen);
 }
-int qd_app_frame_fb(qd_app_t *a, uint32_t *bands)
+int qd_app_frame_fb_begin(qd_app_t *a, uint32_t *bands)
 {
     uint32_t m = 0;
     qd_app_frame_strips_changed(a, &m);                 /* (the instant: the list recorded, the bands' hashes) */
-    if (m)
-        qd_view_frame_strips(a, 0, fb_out, 0, m);       /* (the changed bands drawn into the frame, from that list) */
+    a->fb_pending = m;
     *bands = m;
     return m != 0;
+}
+int qd_app_frame_fb_step(qd_app_t *a, int n)
+{
+    uint32_t sub = 0, m = a->fb_pending;
+    int left = 0;
+    while (m && n-- > 0) {
+        const uint32_t low = m & (0u - m);              /* (the topmost band left) */
+        sub |= low, m &= ~low;
+    }
+    a->fb_pending = m;
+    if (sub) {
+        qd_view_keep_list = m != 0;                     /* (more to come: the list, the instant, kept) */
+        qd_view_frame_strips(a, 0, fb_out, 0, sub);
+        qd_view_keep_list = 0;
+    }
+    for (; m; m &= m - 1u)
+        left++;
+    return left;
+}
+int qd_app_frame_fb(qd_app_t *a, uint32_t *bands)
+{
+    if (qd_app_frame_fb_begin(a, bands))
+        qd_app_frame_fb_step(a, 32);                    /* (the changed bands drawn into the frame, from that list) */
+    return *bands != 0;
 }
 #endif
 

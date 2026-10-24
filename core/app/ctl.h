@@ -877,6 +877,7 @@ uint32_t qd_view_frame_hash(struct qd_app *a);   /* P2.4: the frame's calls hash
 void qd_view_frame_strips(struct qd_app *a, uint16_t *rows_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
                           void *ctx, uint32_t mask);
 int qd_view_frame_hashes(struct qd_app *a, uint32_t *sh, int n);   /* P2.6: the frame recorded, its strips' hashes */
+extern int qd_view_keep_list;           /* P2.6f: 1: the strips' call keeps the recorded list (more strips of it to come) */
 /* the screen under the takeovers (what qd_view_frame draws first): QD_SCR_* */
 enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR_KEYS, QD_SCR_TRACKS, QD_SCR_SEL,
        QD_SCR_SEQ, QD_SCR_DEFAULT,     /* (P1.3e: a mode key held: the mode's default, its full picture) */
