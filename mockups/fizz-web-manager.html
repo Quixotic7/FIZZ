@@ -1,0 +1,297 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     FIZZ's web manager, mock-up (docs/WEB-MANAGER-PLAN.md): Backup, Library, Pool, Import on a desktop page, one
+     phone width, and the FM-1's own restore confirmation. Static: nothing connects. The names are invented.
+     ?shot=N  one screen (render_png.py: wm-N)     no query: every screen, one under another -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ Manager mock-up</title>
+<style>
+@font-face { font-family: "Inter Tight"; src: url("../site/fonts/InterTight-VF-latin.woff") format("woff"); font-weight: 100 900; }
+:root {
+  --bg: #000; --panel: #0b0b0e; --raised: #131318; --line: #22222a; --text: #ECECEF; --body: #C9C9D1; --muted: #8D8D96;
+  --cyan: #28E1FF; --blue: #3F7DFF; --green: #1FD47E; --cream: #F1F0EA; --orange: #FF6A2C; --pink: #FF3CA0;
+  --yellow: #FFD23F; --violet: #9664FF; --magenta: #F03CFF; --champagne: #F3D9A4; --red: #FF6464;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #050506; color: var(--body); font: 500 15px/1.4 "Inter Tight", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+body.all .screen { margin: 0 auto 40px; }
+.screen { width: 1280px; height: 800px; background: var(--bg); position: relative; overflow: hidden; display: flex; flex-direction: column; }
+.screen.phone { width: 390px; height: 844px; }
+b { color: var(--text); }
+
+/* top bar */
+.top { height: 64px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 24px; border-bottom: 1px solid var(--line); }
+.bub { width: 32px; height: 32px; fill: none; stroke-width: 2.4; }
+.bub circle:nth-child(1) { stroke: var(--cyan); } .bub circle:nth-child(2) { stroke: var(--pink); } .bub circle:nth-child(3) { stroke: var(--yellow); }
+.word { font-size: 26px; font-weight: 800; letter-spacing: .06em; background: linear-gradient(90deg, #28E1FF, #3F7DFF 30%, #F03CFF 62%, #FF6A2C 85%, #FFD23F); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.crumb { color: var(--text); font-weight: 600; font-size: 17px; }
+.tabs { display: flex; gap: 8px; margin-left: 28px; }
+.tab { height: 40px; padding: 0 18px; border-radius: 20px; display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 14px; letter-spacing: .08em; color: var(--muted); border: 1.5px solid var(--line); }
+.tab i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.tab.on { color: #000; background: var(--c); border-color: var(--c); box-shadow: 0 0 18px color-mix(in srgb, var(--c) 45%, transparent); }
+.tab.on i { background: #000; }
+.unit { margin-left: auto; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px 0 12px; border-radius: 20px; border: 1.5px solid var(--green); color: var(--text); font-weight: 700; font-size: 14px; }
+.unit .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+.unit small { color: var(--muted); font-weight: 600; font-size: 13px; }
+
+.body { flex: 1; display: flex; gap: 20px; padding: 22px 24px; min-height: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px; position: relative; }
+.h { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
+.h .n { color: var(--text); letter-spacing: 0; font-size: 15px; }
+.big { font-size: 44px; font-weight: 800; color: var(--text); line-height: 1; letter-spacing: -.01em; }
+.btn { height: 52px; padding: 0 28px; border-radius: 26px; font: 800 16px "Inter Tight"; letter-spacing: .08em; border: 0; color: #000; background: var(--c, var(--cyan)); display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 0 22px color-mix(in srgb, var(--c, var(--cyan)) 40%, transparent); }
+.btn.ghost { background: transparent; color: var(--text); border: 1.5px solid var(--line); box-shadow: none; }
+.btn.small { height: 38px; padding: 0 18px; font-size: 13px; border-radius: 19px; }
+
+/* tag chips (FIZZ's seven, the site's colours) */
+.tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 800; letter-spacing: .05em; color: #000; }
+.t-BASS { background: var(--blue); color: #fff; } .t-KEYS { background: var(--cream); } .t-PLUCK { background: var(--yellow); }
+.t-PAD { background: var(--violet); color: #fff; } .t-LEAD { background: var(--green); } .t-DRUMS { background: var(--orange); } .t-FX { background: var(--pink); color: #fff; }
+.tag.off { background: transparent; color: var(--muted); border: 1.5px solid var(--line); }
+.tag.web { background: transparent; color: var(--champagne); border: 1.5px dashed color-mix(in srgb, var(--champagne) 60%, transparent); }
+
+/* cassettes (a preset) */
+.cas { height: 56px; border-radius: 10px; background: var(--raised); border: 1.5px solid var(--line); display: flex; align-items: center; gap: 10px; padding: 0 12px; position: relative; }
+.cas .algo { width: 30px; height: 30px; flex: none; }
+.cas .nm { color: var(--text); font-weight: 700; font-size: 15px; letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cas .sl { font-size: 13px; font-weight: 700; color: var(--muted); width: 28px; flex: none; text-align: right; }
+.cas .stripe { position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px; border-radius: 2px; background: var(--c); }
+.cas.sel { border-color: var(--cyan); box-shadow: 0 0 0 2px color-mix(in srgb, var(--cyan) 35%, transparent), 0 0 20px color-mix(in srgb, var(--cyan) 30%, transparent); }
+.cas .mark { margin-left: auto; display: flex; gap: 5px; align-items: center; }
+.cas .imp { color: var(--champagne); font-weight: 800; font-size: 15px; }
+.cas .pl { font-size: 11px; font-weight: 800; color: #000; background: var(--green); border-radius: 5px; padding: 1px 5px; }
+.ghost-drag { position: absolute; transform: rotate(-3deg); box-shadow: 0 18px 40px rgba(0,0,0,.6), 0 0 0 2px var(--yellow); border-color: var(--yellow); z-index: 4; }
+
+/* meters */
+.meter { height: 26px; border-radius: 13px; background: #15151a; display: flex; overflow: hidden; border: 1px solid var(--line); }
+.meter span { display: block; height: 100%; }
+.legend { display: flex; gap: 18px; margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+/* the backups list */
+.bk { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 14px; background: var(--raised); border: 1.5px solid var(--line); margin-bottom: 10px; }
+.bk .when { color: var(--text); font-weight: 800; font-size: 17px; }
+.bk .what { color: var(--muted); font-size: 13px; font-weight: 600; }
+.bk .ic { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, transparent); border: 1.5px solid var(--c); flex: none; }
+.bk .ver { margin-left: auto; font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1.5px solid var(--line); color: var(--body); }
+.bk .ver.old { border-color: var(--orange); color: var(--orange); }
+.drop { border: 2px dashed #34343d; border-radius: 16px; height: 92px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--muted); font-weight: 700; font-size: 15px; }
+
+/* pool grid */
+.pool { display: grid; grid-template-columns: repeat(16, 1fr); gap: 6px; }
+.ps { height: 62px; border-radius: 9px; background: #101014; border: 1.5px solid #1c1c22; position: relative; padding: 6px 6px 0; overflow: hidden; }
+.ps .no { font-size: 11px; font-weight: 800; color: #5d5d66; }
+.ps .pn { font-size: 11px; font-weight: 800; color: #000; line-height: 1.15; margin-top: 3px; word-break: normal; overflow-wrap: normal; overflow: hidden; max-height: 26px; }
+.ps.full { background: var(--c); border-color: var(--c); }
+.ps.full .no { color: rgba(0,0,0,.55); }
+.ps .use { position: absolute; right: 5px; bottom: 5px; display: flex; gap: 2px; }
+.ps .use i { width: 5px; height: 5px; border-radius: 50%; background: rgba(0,0,0,.6); }
+.ps.target { border: 2px solid var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, #101014); box-shadow: 0 0 16px color-mix(in srgb, var(--yellow) 40%, transparent); }
+.ps.lift { opacity: .25; }
+
+/* import */
+.dz { height: 130px; border-radius: 18px; border: 2px dashed var(--violet); background: color-mix(in srgb, var(--violet) 8%, transparent); display: flex; align-items: center; gap: 22px; padding: 0 28px; }
+.dz .files { display: flex; gap: 10px; }
+.ft { width: 64px; height: 78px; border-radius: 10px; border: 2px solid var(--c); display: flex; flex-direction: column; justify-content: flex-end; padding: 6px; font-size: 12px; font-weight: 800; color: var(--c); }
+.ir { display: grid; grid-template-columns: 34px 54px 1fr 230px 190px 120px; align-items: center; gap: 14px; height: 60px; padding: 0 14px; border-radius: 12px; background: var(--raised); border: 1.5px solid var(--line); margin-bottom: 8px; }
+.ir .src { font-size: 12px; font-weight: 800; padding: 3px 0; border-radius: 6px; text-align: center; color: #000; }
+.ir .src.dn1 { background: var(--cyan); } .ir .src.dn2 { background: var(--magenta); }
+.fid { display: flex; gap: 3px; }
+.fid i { flex: 1; height: 14px; border-radius: 3px; background: #24242b; }
+.ir.no { opacity: .45; }
+.chk { width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--violet); display: grid; place-items: center; }
+.chk.on { background: var(--violet); }
+.dest { display: flex; gap: 8px; }
+.seg { display: flex; border: 1.5px solid var(--line); border-radius: 22px; overflow: hidden; }
+.seg span { height: 42px; padding: 0 18px; display: flex; align-items: center; font-weight: 800; font-size: 13px; letter-spacing: .07em; color: var(--muted); }
+.seg span.on { background: var(--c); color: #000; }
+
+/* the FM-1 screen */
+.lcd { width: 240px; height: 240px; background: #000; border-radius: 6px; position: relative; overflow: hidden; box-shadow: 0 0 0 10px #1a1a1f, 0 0 0 11px #2a2a31; }
+.fm1 { width: 420px; border-radius: 26px; background: #1c1c21; padding: 26px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.fm1 .keys { display: flex; gap: 8px; }
+.fm1 .key { width: 46px; height: 34px; border-radius: 7px; background: #2b2b31; border: 1.5px solid #383840; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #6c6c75; }
+.fm1 .key.lit { background: var(--green); border-color: var(--green); color: #000; box-shadow: 0 0 18px var(--green); }
+.fm1 .key.dim { background: color-mix(in srgb, var(--red) 25%, #2b2b31); border-color: color-mix(in srgb, var(--red) 50%, #383840); color: var(--red); }
+
+.scrim { position: absolute; inset: 64px 0 0 0; background: rgba(0,0,0,.72); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; gap: 40px; z-index: 5; }
+.modal { width: 560px; background: var(--panel); border: 1.5px solid var(--yellow); border-radius: 22px; padding: 26px; box-shadow: 0 0 40px color-mix(in srgb, var(--yellow) 25%, transparent); }
+.diff { display: grid; grid-template-columns: 1fr 40px 1fr; gap: 10px; align-items: center; margin: 14px 0 20px; }
+.diff .col { background: var(--raised); border-radius: 14px; padding: 14px; border: 1.5px solid var(--line); }
+.diff .col .big { font-size: 34px; }
+.diff .arrow { color: var(--yellow); font-size: 28px; font-weight: 800; text-align: center; }
+.row { display: flex; gap: 10px; align-items: center; }
+.kv { font-size: 13px; font-weight: 600; color: var(--muted); }
+.kv b { font-size: 15px; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+const $ = (h) => { const d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstElementChild; };
+const TAGC = { BASS: "--blue", KEYS: "--cream", PLUCK: "--yellow", PAD: "--violet", LEAD: "--green", DRUMS: "--orange", FX: "--pink" };
+const tag = (t, cls = "") => `<span class="tag t-${t} ${cls}">${t}</span>`;
+// an algorithm glyph: four operators as dots, the carriers on the bottom row (a stand-in for FIZZ's own drawing)
+const algo = (k, c) => {
+  const P = [[[6,6],[24,6],[6,24],[24,24]], [[15,5],[6,24],[15,15],[24,24]], [[6,6],[15,15],[24,6],[15,26]], [[6,15],[15,6],[24,15],[15,25]]][k % 4];
+  const L = [[0,2],[1,3],[0,1]].map(([a,b]) => `<line x1="${P[a][0]}" y1="${P[a][1]}" x2="${P[b][0]}" y2="${P[b][1]}" stroke="${c}" stroke-width="2" opacity=".55"/>`).join("");
+  return `<svg class="algo" viewBox="0 0 30 30">${L}${P.map(([x,y], i) => `<circle cx="${x}" cy="${y}" r="${i >= 2 ? 4.2 : 3.2}" fill="${i >= 2 ? c : "none"}" stroke="${c}" stroke-width="2"/>`).join("")}</svg>`;
+};
+const MINE = [
+  ["SUB DROP", "BASS"], ["GLASS BELL", "PLUCK"], ["NIGHT PAD", "PAD"], ["WIRE LEAD", "LEAD"], ["TIN KICK", "DRUMS"],
+  ["DUSTY EP", "KEYS"], ["BUBBLE FX", "FX"], ["ROUND BASS", "BASS"], ["SODA PLUCK", "PLUCK"], ["SLOW CLOUD", "PAD"],
+  ["ZAP SNARE", "DRUMS"], ["TOY ORGAN", "KEYS"], ["HOLLOW LD", "LEAD"], ["FIZZ HAT", "DRUMS"], ["DEEP WOB", "BASS"],
+  ["STEEL HARP", "PLUCK"], ["FOG", "PAD"], ["SIREN", "FX"], ["BRASS STAB", "LEAD"], ["MALLET 2", "PLUCK"]];
+const cas = (i, [n, t], o = {}) => `<div class="cas ${o.sel ? "sel" : ""} ${o.cls || ""}" style="--c:var(${TAGC[t]});${o.style || ""}"><span class="stripe"></span><span class="sl">${o.slot ?? i + 1}</span>${algo(i, `var(${TAGC[t]})`)}<span class="nm">${n}</span><span class="mark">${o.imp ? '<span class="imp">↓</span>' : ""}${o.pool ? '<span class="pl">POOL</span>' : ""}${tag(t)}</span></div>`;
+const topBar = (on, phone = false) => phone
+  ? `<div class="top" style="padding:0 16px;gap:10px"><svg class="bub" viewBox="0 0 32 32"><circle cx="11" cy="20" r="7"/><circle cx="22" cy="10" r="5"/><circle cx="23" cy="24" r="3"/></svg><span class="word">FIZZ</span><span class="unit" style="height:34px;padding:0 12px 0 10px"><span class="dot"></span>0.12.0</span></div>`
+  : `<div class="top"><svg class="bub" viewBox="0 0 32 32"><circle cx="11" cy="20" r="7"/><circle cx="22" cy="10" r="5"/><circle cx="23" cy="24" r="3"/></svg><span class="word">FIZZ</span><span class="crumb">Manager</span>
+    <div class="tabs">${[["BACKUP", "--yellow"], ["LIBRARY", "--cream"], ["POOL", "--green"], ["IMPORT", "--violet"]].map(([t, c]) => `<span class="tab ${t === on ? "on" : ""}" style="--c:var(${c})"><i></i>${t}</span>`).join("")}</div>
+    <span class="unit"><span class="dot"></span>FM-1 <small>FIZZ 0.12.0 · 6 tracks</small></span></div>`;
+
+const SCREENS = [];
+
+// 1. BACKUP: the unit, its store, one big button; the backups on this computer
+SCREENS.push(() => `<div class="screen">${topBar("BACKUP")}<div class="body">
+  <div class="card" style="width:560px;display:flex;flex-direction:column;gap:22px">
+    <div><div class="h">THIS FM-1</div><div class="big">FIZZ 0.12.0</div></div>
+    <div class="row" style="gap:28px">
+      <div class="kv"><b style="font-size:30px;font-weight:800">5</b><br>projects</div>
+      <div class="kv"><b style="font-size:30px;font-weight:800">143</b><br>my presets</div>
+      <div class="kv"><b style="font-size:30px;font-weight:800">61 %</b><br>store used</div>
+    </div>
+    <div><div class="meter"><span style="width:21%;background:var(--cream)"></span><span style="width:9%;background:color-mix(in srgb,var(--cream) 25%,#15151a)"></span><span style="width:40%;background:var(--green)"></span><span style="width:30%;background:color-mix(in srgb,var(--green) 18%,#15151a)"></span></div>
+      <div class="legend"><span><i style="background:var(--cream)"></i>MY PRESETS</span><span><i style="background:var(--green)"></i>PROJECTS</span><span style="margin-left:auto">292 KB</span></div></div>
+    <div style="margin-top:auto;display:flex;gap:12px"><button class="btn" style="--c:var(--yellow);height:64px;font-size:19px;padding:0 40px">● BACK UP</button><button class="btn ghost">PRESETS ONLY</button></div>
+  </div>
+  <div class="card" style="flex:1;display:flex;flex-direction:column">
+    <div class="h">BACKUPS <span class="n">on this computer</span></div>
+    ${[["Today 14:02", "5 projects · 143 presets · 292 KB", "0.12.0", "--yellow", ""], ["Yesterday 22:40", "5 projects · 139 presets", "0.12.0", "--yellow", ""],
+       ["24 Oct 09:15", "4 projects · 128 presets · 8 tracks", "0.11.0", "--orange", "old"], ["20 Oct", "presets only · 96", "0.10.4", "--cream", ""]].map(([w, d, v, c, o]) =>
+      `<div class="bk" style="--c:var(${c})"><span class="ic"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="var(${c})" stroke-width="2.2"><rect x="2" y="5" width="18" height="12" rx="3"/><circle cx="8" cy="11" r="2"/><circle cx="14" cy="11" r="2"/></svg></span>
+        <div><div class="when">${w}</div><div class="what">${d}</div></div><span class="ver ${o}">${v}</span><button class="btn small ghost">RESTORE</button></div>`).join("")}
+    <div class="drop" style="margin-top:auto"><svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="#8D8D96" stroke-width="2.2"><path d="M13 4v13M7 11l6 6 6-6M4 21h18"/></svg>.fizzbak · .fizzlib</div>
+  </div></div></div>`);
+
+// 2. BACKUP running: one big number, bubbles rising through the store's sectors
+SCREENS.push(() => {
+  const cells = Array.from({ length: 73 }, (_, i) => `<i style="display:block;height:34px;border-radius:6px;background:${i < 45 ? (i < 22 ? "var(--cream)" : "var(--green)") : "#18181d"};${i === 45 ? "box-shadow:0 0 0 2px var(--yellow),0 0 14px var(--yellow);background:color-mix(in srgb,var(--yellow) 30%,#18181d)" : ""}"></i>`).join("");
+  return `<div class="screen">${topBar("BACKUP")}<div class="body" style="flex-direction:column;align-items:center;justify-content:center;gap:30px">
+    <svg width="220" height="120" viewBox="0 0 220 120" fill="none" stroke-width="3"><circle cx="60" cy="80" r="26" stroke="var(--cyan)"/><circle cx="120" cy="44" r="18" stroke="var(--pink)"/><circle cx="168" cy="78" r="12" stroke="var(--yellow)"/><circle cx="98" cy="102" r="6" stroke="var(--green)"/><circle cx="190" cy="30" r="5" stroke="var(--cream)"/></svg>
+    <div class="big" style="font-size:120px;color:var(--yellow)">62<span style="font-size:60px">%</span></div>
+    <div style="width:880px;display:grid;grid-template-columns:repeat(22,1fr) 14px repeat(51,1fr);gap:4px;grid-auto-flow:row">${cells.replace(/(<i[^>]*><\/i>){22}/, (m) => m + '<span></span>')}</div>
+    <div class="legend" style="width:880px"><span><i style="background:var(--cream)"></i>MY PRESETS</span><span><i style="background:var(--green)"></i>PROJECTS</span><span style="margin-left:auto;color:var(--text);font-size:15px">0:07</span></div>
+    <button class="btn ghost small">CANCEL</button></div></div>`;
+});
+
+// 3. LIBRARY: MY PRESETS, FACTORY, the project's POOL; one preset open on the right
+SCREENS.push(() => `<div class="screen">${topBar("LIBRARY")}<div class="body">
+  <div class="card" style="width:430px;display:flex;flex-direction:column;gap:8px;padding-bottom:0">
+    <div class="h" style="margin:0">MY PRESETS <span class="n">143 / 256</span></div><div style="display:flex;gap:5px;margin-bottom:4px">${Object.keys(TAGC).map((t, i) => tag(t, i === 0 || i === 2 ? "" : "off")).join("")}</div>
+    ${MINE.slice(0, 10).map((m, i) => cas(i, m, { sel: i === 1, imp: i === 4 || i === 9, pool: i === 0 || i === 1 || i === 7 })).join("")}
+  </div>
+  <div style="width:290px;display:flex;flex-direction:column;gap:20px">
+    <div class="card" style="padding:16px;flex:1;display:flex;flex-direction:column;gap:8px">
+      <div class="h">FACTORY <span class="n">23</span></div>
+      ${[["INIT", "KEYS"], ["FM PIANO", "KEYS"], ["BASS 1", "BASS"], ["CHIME", "PLUCK"], ["DRUM KIT", "DRUMS"], ["STRING", "PAD"]].map((m, i) => cas(i, m, { slot: i + 1 })).join("")}
+    </div>
+  </div>
+  <div class="card" style="flex:1;display:flex;flex-direction:column;gap:18px">
+    <div class="row"><svg width="64" height="64" viewBox="0 0 30 30">${algo(1, "var(--yellow)").replace(/<svg[^>]*>|<\/svg>/g, "")}</svg>
+      <div><div class="h" style="margin:0">MY PRESETS 2</div><div class="big" style="font-size:40px">GLASS BELL<span style="display:inline-block;width:3px;height:36px;background:var(--cyan);margin-left:4px;vertical-align:-4px"></span></div></div></div>
+    <div><div class="h">TAGS</div><div class="row" style="flex-wrap:wrap;gap:8px">${Object.keys(TAGC).map((t) => tag(t, t === "PLUCK" || t === "KEYS" ? "" : "off").replace('class="tag', 'style="height:34px;padding:0 14px;font-size:14px" class="tag')).join("")}
+      <span class="tag web" style="height:34px;padding:0 14px;font-size:14px">SHIMMER</span><span class="tag web" style="height:34px;padding:0 14px;font-size:14px">+</span></div></div>
+    <div><div class="h">USED BY</div><div class="row" style="gap:10px">${[["NOIR", 3], ["SUNDAY", 1]].map(([p, n]) => `<span style="height:40px;padding:0 16px;border-radius:12px;background:color-mix(in srgb,var(--green) 16%,transparent);border:1.5px solid var(--green);display:flex;align-items:center;gap:10px;color:var(--text);font-weight:800">${p}<span style="color:var(--green)">${"●".repeat(n)}</span></span>`).join("")}</div></div>
+    <div style="margin-top:auto;display:flex;gap:10px"><button class="btn" style="--c:var(--green)">+ POOL</button><button class="btn ghost">EXPORT</button><button class="btn ghost" style="margin-left:auto;color:var(--red);border-color:color-mix(in srgb,var(--red) 50%,transparent)">DELETE</button></div>
+  </div></div></div>`);
+
+// 4. POOL: the project's 128 places as tiles; a preset dragged in from MY PRESETS
+SCREENS.push(() => {
+  const names = ["INIT", "SUB DROP", "GLASS BELL", "NIGHT PAD", "TIN KICK", "ZAP SNARE", "FIZZ HAT", "DUSTY EP", "", "WIRE LEAD", "ROUND BASS", "", "FOG", "", "", "SIREN",
+    "KICK 2", "SNARE 2", "", "", "CHIME", "", "", "", "", "", "", "", "", "", "", ""];
+  const tg = ["KEYS", "BASS", "PLUCK", "PAD", "DRUMS", "DRUMS", "DRUMS", "KEYS", "", "LEAD", "BASS", "", "PAD", "", "", "FX", "DRUMS", "DRUMS", "", "", "PLUCK"];
+  const uses = [0, 3, 2, 1, 5, 4, 6, 1, 0, 2, 1, 0, 1, 0, 0, 1, 2, 2, 0, 0, 1];
+  const tiles = Array.from({ length: 128 }, (_, i) => {
+    const n = names[i] || "", t = tg[i] || "";
+    if (i === 13) return `<div class="ps target"><div class="no">${i + 1}</div></div>`;
+    if (!n) return `<div class="ps"><div class="no">${i + 1}</div></div>`;
+    return `<div class="ps full ${i === 2 ? "" : ""}" style="--c:var(${TAGC[t]})"><div class="no">${i + 1}</div><div class="pn" style="color:${t === "BASS" || t === "PAD" || t === "FX" ? "#fff" : "#000"}">${n}</div><div class="use">${"<i></i>".repeat(Math.min(uses[i], 4))}</div></div>`;
+  }).join("");
+  return `<div class="screen">${topBar("POOL")}<div class="body">
+    <div class="card" style="flex:1;display:flex;flex-direction:column;gap:14px">
+      <div class="h">PROJECT <span class="seg" style="--c:var(--green);margin-left:6px">${["NOIR", "SUNDAY", "DEMO", "SKETCH", "EMPTY"].map((p, i) => `<span class="${i === 0 ? "on" : ""}" style="height:34px;padding:0 14px">${p}</span>`).join("")}</span><span class="n" style="margin-left:auto">17 / 128</span></div>
+      <div class="pool">${tiles}</div>
+      <div class="row" style="margin-top:auto;gap:10px"><span class="kv">●</span><span class="kv" style="margin-right:auto">steps using it</span><button class="btn small ghost">SORT BY TAG</button><button class="btn small ghost">CLEAR UNUSED</button></div>
+    </div>
+    <div class="card" style="width:300px;display:flex;flex-direction:column;gap:8px">
+      <div class="h">MY PRESETS</div>
+      ${MINE.slice(0, 9).map((m, i) => cas(i, m, { pool: [0, 1, 2, 4].includes(i), cls: i === 3 ? "lift" : "" })).join("")}
+    </div>
+    ${cas(3, MINE[3], { cls: "ghost-drag", style: "left:720px;top:178px;width:260px" })}
+  </div></div>`;
+});
+
+// 5. IMPORT: Digitone 1 / II files read here; how much of each carries over; where they go
+SCREENS.push(() => {
+  const rows = [["dn1", "AIRY KEYS", ["KEYS"], 10, ""], ["dn1", "BROKEN BELL", ["PLUCK"], 9, "LFO 2 MULT"], ["dn2", "WARM SUB", ["BASS"], 10, ""],
+    ["dn2", "COMB TOWER", ["PAD", "FX"], 7, "COMB: filter approx."], ["dn2", "RIDE 909", ["DRUMS"], 8, "KEY TRACK"], ["dn2", "WAVE PAD", [], 0, "WAVETONE"], ["dn1", "ACID LINE", ["BASS", "LEAD"], 10, ""]];
+  return `<div class="screen">${topBar("IMPORT")}<div class="body" style="flex-direction:column;gap:16px">
+    <div class="dz"><div class="files">${[["DN1", "--cyan", ".dnsnd"], ["DN II", "--magenta", ".dn2pst"], ["DN II", "--magenta", ".dn2snd"], ["SYX", "--champagne", ".syx"]].map(([l, c, e]) => `<div class="ft" style="--c:var(${c})">${l}<span style="font-size:11px;opacity:.8">${e}</span></div>`).join("")}</div>
+      <div class="big" style="font-size:34px">7 sounds</div><span class="kv" style="font-size:15px">read on this computer</span>
+      <div class="dest" style="margin-left:auto"><div class="seg" style="--c:var(--cream)"><span class="on">MY PRESETS</span><span>POOL</span><span>TRACK</span></div></div></div>
+    <div class="card" style="flex:1;padding:16px">
+      ${rows.map(([s, n, t, f, note]) => `<div class="ir ${f ? "" : "no"}"><span class="chk ${f ? "on" : ""}">${f ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#000" stroke-width="2.4"><path d="M2 6l3 3 5-6"/></svg>' : ""}</span>
+        <span class="src ${s}">${s === "dn1" ? "DN1" : "DN II"}</span><span class="nm" style="color:var(--text);font-weight:800;font-size:17px;letter-spacing:.03em">${n}</span>
+        <span class="fid">${Array.from({ length: 10 }, (_, k) => `<i style="background:${k < f ? (f >= 10 ? "var(--green)" : f >= 8 ? "var(--yellow)" : "var(--orange)") : "#24242b"}"></i>`).join("")}</span>
+        <span class="kv" style="color:${note ? "var(--champagne)" : "var(--muted)"};font-weight:700">${f ? note || "exact" : note + " · not FM TONE"}</span>
+        <span class="row" style="gap:5px">${t.map((x) => tag(x)).join("")}</span></div>`).join("")}
+      <div class="row" style="margin-top:14px"><span class="kv"><b>6</b> to MY PRESETS 144–149</span><button class="btn" style="--c:var(--violet);margin-left:auto;color:#fff">↓ SEND 6 TO FM-1</button></div>
+    </div></div></div>`;
+});
+
+// 6. RESTORE: what changes, and the FM-1 asks too (SAVE lit: one press)
+SCREENS.push(() => `<div class="screen">${topBar("BACKUP")}<div class="body" style="opacity:.35"><div class="card" style="width:560px"></div><div class="card" style="flex:1"></div></div>
+  <div class="scrim">
+    <div class="modal"><div class="h" style="color:var(--yellow)">RESTORE</div>
+      <div class="diff"><div class="col"><div class="kv">FM-1 now</div><div class="big">5 · 143</div><div class="kv">projects · presets</div></div><div class="arrow">→</div>
+        <div class="col" style="border-color:var(--yellow)"><div class="kv">Yesterday 22:40</div><div class="big" style="color:var(--yellow)">5 · 139</div><div class="kv">projects · presets</div></div></div>
+      <div class="row" style="gap:8px;margin-bottom:22px">${["NOIR", "SUNDAY", "DEMO", "SKETCH", "EMPTY"].map((p) => `<span style="height:34px;padding:0 12px;border-radius:10px;background:var(--raised);border:1.5px solid var(--line);display:flex;align-items:center;font-weight:800;color:var(--text);font-size:13px">${p}</span>`).join("")}<span class="tag" style="background:var(--orange);height:26px;margin-left:6px">−4 PRESETS</span></div>
+      <div class="row"><button class="btn" style="--c:var(--yellow)">RESTORE</button><button class="btn ghost">CANCEL</button></div></div>
+    <div class="fm1"><div class="lcd"><canvas id="lcd6" width="240" height="240"></canvas></div>
+      <div class="keys"><span class="key dim">HOME</span><span class="key lit">SAVE</span></div></div>
+  </div></div>`);
+
+// 7. phone: the library on 390 px
+SCREENS.push(() => `<div class="screen phone">${topBar("", true)}
+  <div style="display:flex;gap:6px;padding:12px 16px;overflow:hidden">${[["BACKUP", "--yellow"], ["LIBRARY", "--cream"], ["POOL", "--green"], ["IMPORT", "--violet"]].map(([t, c]) => `<span class="tab ${t === "LIBRARY" ? "on" : ""}" style="--c:var(${c});height:36px;padding:0 12px;font-size:12px;margin:0">${t}</span>`).join("")}</div>
+  <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px">
+    <div class="h" style="margin:4px 0">MY PRESETS <span class="n">143</span></div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px">${Object.keys(TAGC).map((t, i) => tag(t, i === 0 ? "" : "off")).join("")}</div>
+    ${MINE.slice(0, 10).map((m, i) => cas(i, m, { sel: i === 0, pool: i === 0 || i === 7 })).join("")}
+  </div></div>`);
+
+// the FM-1's restore screen (240 x 240, the clarity rules: one big subject, no hint text)
+function lcd6(cv) {
+  const g = cv.getContext("2d");
+  g.fillStyle = "#000"; g.fillRect(0, 0, 240, 240);
+  // a cassette, champagne, with the USB plug arriving
+  g.lineWidth = 5; g.strokeStyle = "#FFD23F"; g.lineJoin = "round";
+  g.beginPath(); g.roundRect(40, 58, 160, 100, 14); g.stroke();
+  g.lineWidth = 4; [90, 150].forEach((x) => { g.beginPath(); g.arc(x, 104, 17, 0, 7); g.stroke(); });
+  g.beginPath(); g.moveTo(70, 158); g.lineTo(84, 136); g.lineTo(156, 136); g.lineTo(170, 158); g.stroke();
+  g.strokeStyle = "#28E1FF"; g.lineWidth = 4;
+  g.beginPath(); g.moveTo(120, 20); g.lineTo(120, 44); g.stroke(); g.beginPath(); g.moveTo(108, 34); g.lineTo(120, 46); g.lineTo(132, 34); g.stroke();
+  g.fillStyle = "#ECECEF"; g.font = "800 30px 'Inter Tight'"; g.textAlign = "center"; g.fillText("RESTORE?", 120, 212);
+}
+
+const q = new URLSearchParams(location.search), shot = +q.get("shot");
+const out = document.getElementById("out");
+(shot ? [SCREENS[shot - 1]] : SCREENS).forEach((f) => out.appendChild($(f())));
+if (!shot) document.body.className = "all";
+document.fonts.load("800 30px 'Inter Tight'").finally(() => { const c = document.getElementById("lcd6"); if (c) lcd6(c); });
+</script>
+</body>
+</html>
