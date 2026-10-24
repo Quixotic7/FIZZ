@@ -235,13 +235,15 @@ static void rd_pt(float x, float y, float *X, float *Y)
 }
 static float rd_lw(float lw) { lw *= rd_k; return lw < 1.2f ? 1.2f : lw; }
 
-/* P1.5e (the owner's reference, mockups/png/fizz-vel-rider-reference.png; fizz-vel-rider.html version 2): NEON. Every
- * line glows: stroked three times, at 3.4x its width at 0.14 of the alpha, 2x at 0.3, then itself. A shape is built
+/* P1.5e (the owner's reference, mockups/png/fizz-vel-rider-reference.png; fizz-vel-rider.html version 2): NEON. P2.6d
+ * (the owner, from the unit: "get rid of the glowing outlines maybe and some of the smaller details"): every line is
+ * itself only (it was stroked three times, 3.4x and 2x its width faint under it); no sparkles, fins, lamp, boot, visor,
+ * inner wheel rings or bus windows. A shape is built
  * into the path by rn_build (a polyline, a curve through midpoints, a circle, an arc; in the rider's frame through
  * rd_pt, or the screen's with rd_screen) and stroked by rn_glow */
 #define RN_BLUE 0x2fb4ffu                               /* the wheels, the frame, the rider's body, arm and helmet */
 #define RN_RED 0xff3b4fu                                /* the cape, the tank, the seat, the legs, the boot */
-#define RN_CREAM 0xffe7b0u                              /* the fins, the exhaust, the fork, the bars, the lamp, sparkles */
+#define RN_CREAM 0xffe7b0u                              /* the exhaust, the fork, the bars, the wheels' ticks */
 static qd_rgb rn_blue = RN_BLUE, rn_red = RN_RED, rn_cream = RN_CREAM;   /* (an empty step: all grey) */
 enum { RN_POLY, RN_CURVE, RN_CIRC, RN_ARC };
 typedef struct {
@@ -295,16 +297,9 @@ static void rn_build(const rn_shape_t *s)
 }
 static void rn_glow(const rn_shape_t *s, qd_rgb col, float lw)
 {
-    static const float W[3] = {3.4f, 2.f, 1.f}, AL[3] = {0.14f, 0.3f, 1.f};
-    const float a = qd_get_alpha();
-    int i;
-    for (i = 0; i < 3; i++) {
-        qd_save();
-        qd_alpha(a * AL[i]);
-        rn_build(s);
-        qd_path_stroke(col, rd_lw(lw) * W[i]);
-        qd_restore();
-    }
+    rn_build(s);                                        /* P2.6d (the owner: the glow off, it cost the unit's frame
+                                                         * most): the line alone */
+    qd_path_stroke(col, rd_lw(lw));
 }
 static void n_line(const float *p, int n, qd_rgb col, float lw)
 {
@@ -316,15 +311,12 @@ static void n_curve(const float *p, int n, qd_rgb col, float lw, int close)
     const rn_shape_t s = {RN_CURVE, n, close, p, 0, 0, 0, 0, 0};
     rn_glow(&s, col, lw);
 }
-static void n_circ(float x, float y, float r, qd_rgb col, float lw)
+static void n_circ(float x, float y, float r, qd_rgb col, float lw)   /* P2.6d: the drawing's own circle (a ring, no
+                                                         * path) */
 {
-    const rn_shape_t s = {RN_CIRC, 0, 0, 0, x, y, r, 0, 0};
-    rn_glow(&s, col, lw);
-}
-static void n_arc(float x, float y, float r, float a0, float a1, qd_rgb col, float lw)
-{
-    const rn_shape_t s = {RN_ARC, 0, 0, 0, x, y, r, a0, a1};
-    rn_glow(&s, col, lw);
+    float X, Y;
+    rd_pt(x, y, &X, &Y);
+    qd_circle(X, Y, r * rd_k, col, rd_lw(lw), QD_NONE);
 }
 static void n_seg(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
 {
@@ -338,16 +330,11 @@ static void n_tube(const float *p, int n, qd_rgb col, float w)   /* a limb: a wi
     rn_build(&s);
     qd_path_stroke(UI_BG, (w - 2.6f) * rd_k);
 }
-static void n_sparkle(float x, float y, float r, qd_rgb col)
-{
-    n_seg(x - r, y, x + r, y, col, 1.2f);
-    n_seg(x, y - r, x, y + r, col, 1.2f);
-}
 
-static void rd_wheel(float x, float y, float spin)      /* two blue rings, a red hub; a cream tick on the inner ring */
+static void rd_wheel(float x, float y, float spin)      /* a blue ring, a red hub; a cream tick turning inside (P2.6d:
+                                                         * the inner ring gone) */
 {
     n_circ(x, y, 16.f, rn_blue, 1.6f);
-    n_circ(x, y, 11.f, rn_blue, 1.4f);
     n_circ(x, y, 3.6f, rn_red, 1.4f);
     n_seg(x + cosf(spin) * 7.f, y + sinf(spin) * 7.f, x + cosf(spin) * 9.5f, y + sinf(spin) * 9.5f, rn_cream, 1.3f);
 }
@@ -359,19 +346,17 @@ static void rider(float u, float t)
     const float sx = 20.f, sy = -43.f, L = 30.f + 26.f * u, sag = (1.f - u) * 14.f;
     const float w1 = sinf(t * (5.f + 9.f * u)) * (1.f + 2.5f * u), w2 = sinf(t * (5.f + 9.f * u) + 1.7f) * (1.5f + 3.f * u);
     const float ex = sx - L, ey = sy + sag, spin = t * (3.f + 26.f * u);
-    int k;
     {   /* the cape, behind everything: a flag from the shoulders streaming back at shoulder height, its end forked;
-         * slow it hangs a little and is short, fast it is long, flat and waving; two cream sparkles on it */
+         * slow it hangs a little and is short, fast it is long, flat and waving */
         const float cape[18] = {sx + 1.f, sy - 3.f, sx - L * 0.35f, sy - 5.f + sag * 0.3f + w1,
                                 sx - L * 0.7f, sy - 6.f + sag * 0.7f + w2, ex - 4.f, ey - 9.f + w2,
                                 ex + 4.f, ey - 1.f + w1 * 0.5f, ex - 2.f, ey + 6.f + w1,
                                 sx - L * 0.6f, sy + 5.f + sag * 0.75f + w1, sx - L * 0.25f, sy + 6.f + sag * 0.3f,
                                 sx - 1.f, sy + 5.f};
-        n_curve(cape, 9, rn_red, 1.5f, 1);
-        n_sparkle(sx - L * 0.45f, sy + sag * 0.45f + w1 * 0.5f, 2.6f, rn_cream);
-        n_sparkle(sx - L * 0.7f, sy - 1.f + sag * 0.7f + w2 * 0.5f, 1.8f, rn_cream);
+        n_curve(cape, 9, rn_red, 1.5f, 1);             /* (P2.6d: its sparkles gone) */
     }
-    /* the bike: wheels, the blue frame, the red tank and seat, the cream fins, exhaust, fork, bars and lamp */
+    /* the bike: wheels, the blue frame, the red tank and seat, the cream exhaust, fork and bars (P2.6d: the fins and
+     * the lamp gone) */
     rd_wheel(0.f, 0.f, spin);
     rd_wheel(60.f, 0.f, spin);
     {
@@ -380,28 +365,22 @@ static void rider(float u, float t)
         static const float seat[10] = {-4, -18, 0, -22, 16, -22, 18, -19, 4, -17};
         static const float exh[10] = {30, -3, 26, 1, 16, 2, 4, 1, -4, -3};
         static const float bars[6] = {49, -30, 45, -35, 41, -35};
-        static const float lamp[8] = {52, -33, 56, -33, 56, -28, 52, -28};
         n_line(back, 3, rn_blue, 1.5f);                 /* the swingarm and the backbone */
         n_line(down, 3, rn_blue, 1.5f);                 /* the down tube */
         n_curve(tank, 6, rn_red, 1.5f, 1);
         n_curve(seat, 5, rn_red, 1.5f, 1);
-        for (k = 0; k < 3; k++)                         /* the fins */
-            n_seg(22.f + (float)k * 4.f, -13.f, 27.f + (float)k * 4.f, -7.f, rn_cream, 1.2f);
         n_curve(exh, 5, rn_cream, 1.3f, 0);
         n_seg(60.f, 0.f, 49.f, -30.f, rn_cream, 1.6f);  /* the fork */
         n_line(bars, 3, rn_cream, 1.4f);
-        n_curve(lamp, 4, rn_cream, 1.4f, 1);
     }
-    {   /* the rider: red legs as tubes, a red boot, the blue body and arm, the blue helmet, its sparkle and visor */
-        static const float leg[6] = {12, -26, 29, -21, 25, -6}, boot[8] = {22, -6, 30, -6, 30, -3, 22, -3};
+    {   /* the rider: red legs as tubes, the blue body and arm, the blue helmet (P2.6d: the boot, the helmet's sparkle
+         * and visor gone) */
+        static const float leg[6] = {12, -26, 29, -21, 25, -6};
         static const float body[4] = {13, -26, 21, -44}, arm[6] = {22, -42, 33, -37, 43, -35};
         n_tube(leg, 3, rn_red, 5.2f);
-        n_line(boot, 4, rn_red, 1.4f);
         n_tube(body, 2, rn_blue, 6.f);
         n_tube(arm, 3, rn_blue, 4.6f);
         n_circ(26.f, -53.f, 8.5f, rn_blue, 1.6f);
-        n_arc(27.f, -53.f, 6.f, -0.9f, 0.9f, rn_blue, 1.3f);
-        n_sparkle(22.5f, -55.f, 2.2f, rn_cream);
     }
 }
 
@@ -459,8 +438,7 @@ static void rd_show(float t, float rx, float gy, float *lift, float *dp)
         const qd_rgb col = rn_blue == RN_BLUE ? UI_TRACK_PAL[i] : UI_G2;
         if (x > 250.f || x + w < -10.f)
             continue;
-        rn_glow(&sh, col, 1.4f);
-        n_seg(x + 2.5f, gy - h + 1.5f, x + w - 2.5f, gy - h + 1.5f, col, 1.1f);
+        rn_glow(&sh, col, 1.4f);                        /* (P2.6d: the window line gone) */
         n_circ(x + 3.5f, gy - 3.f, 2.f, col, 1.1f);
         n_circ(x + w - 3.5f, gy - 3.f, 2.f, col, 1.1f);
     }
