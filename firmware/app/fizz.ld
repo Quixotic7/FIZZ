@@ -4,7 +4,7 @@
  *      compiler has no -fdata-sections: a unit's .bss is one piece):
  *        the pool          fz_port.c's (the one qd_app_t) and the effects' (qd_fx.c: the delay, the reverb, the chorus)
  *        RAM code region   after the RAM code: the voices' (quad_voice.c: the comb lines)
- *        NOINIT            after fm1-base's records: the view's and two screens' (view.c, ui_idle.c, ui_keys.c)
+ *        NOINIT            after fm1-base's records: the view's and two screens' (view.c, ui_idle.c, ui_keys.c); P2.17: the send's segment hashes (fz_fb.c)
  *        RAM               the rest of FIZZ's, with the platform's
  *      crt0 clears only .bss and the pool: app.c clears the other two before FIZZ starts (_fz_rt_start.._fz_rt_end,
  *      _fz_ni_start.._fz_ni_end). firmware/BUDGET.md has the sizes.
@@ -49,7 +49,7 @@ SECTIONS
     .fz_rt (NOLOAD) : { . = ALIGN(4); _fz_rt_start = .; *(.fz_rtdata*) */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)
                        . = ALIGN(4); _fz_rt_end = .; } > RAMTEXT
     .noinit (NOLOAD) : { *(.noinit*) } > NOINIT
-    .fz_ni (NOLOAD) : { . = ALIGN(4); _fz_ni_start = .; */o2/build_units_c_view.o(.bss* .sbss* COMMON)
+    .fz_ni (NOLOAD) : { . = ALIGN(4); _fz_ni_start = .; *(.fz_nidata*) */o2/build_units_c_view.o(.bss* .sbss* COMMON)
                         */o2/build_units_c_ui_idle.o(.bss* .sbss* COMMON) */o2/build_units_c_ui_keys.o(.bss* .sbss* COMMON)
                         . = ALIGN(4); _fz_ni_end = .; } > NOINIT
     .pool (NOLOAD) : { _pool_start = .; *(.pool*) */o2/fz_port.o(.bss* .sbss* COMMON)

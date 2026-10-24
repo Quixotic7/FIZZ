@@ -242,7 +242,8 @@ static void fz_panel_rate(void)          /* FRCTRL2: 60 Hz (the panel's default)
 /* (P2.12) the 8-bit frame's send counters (fz_fb.c) */
 typedef struct {
     uint32_t frames, rows, passes, synced, unsynced, split, torn, scan_fail, wait_max_us, span_max_us, span_sum_us,
-        wait_sum_us, torn_unsynced, torn_split, torn_late, torn_late_isr, late_max_us;   /* (P2.16d: the torn by cause:
+        wait_sum_us, torn_unsynced, torn_split, torn_late, torn_late_isr, late_max_us, rects, px, rect_rows;   /* (P2.17:
+                                          * the rectangles sent, their pixels and rows) */   /* (P2.16d: the torn by cause:
                                           * no scan, too tall for a refresh, out late (with an audio interrupt inside the
                                           * send: the cause), by how much at most) */
 } fz_fb_stats_t;
@@ -798,6 +799,10 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "fb_torn_late=", fz_fb.torn_late);
     c = fz_put_u(c, "fb_torn_late_isr=", fz_fb.torn_late_isr);
     c = fz_put_u(c, "fb_late_max_us=", fz_fb.late_max_us);
+    c = fz_put_u(c, "fb_rects_x10=", fz_fb.passes ? (uint32_t)((uint64_t)fz_fb.rects * 10u / fz_fb.passes) : 0u);   /* (P2.17:
+                                          * a pass's rectangles, their mean width, the pixels a pass) */
+    c = fz_put_u(c, "fb_rect_w=", fz_fb.rect_rows ? (uint32_t)(fz_fb.px / fz_fb.rect_rows) : 0u);
+    c = fz_put_u(c, "fb_px_pass=", fz_fb.passes ? fz_fb.px / fz_fb.passes : 0u);
     c = fz_put_u(c, "fb_scan_fail=", fz_fb.scan_fail);
     c = fz_put_u(c, "fb_wait_max_us=", fz_fb.wait_max_us);
     c = fz_put_u(c, "fb_wait_avg_us=", fz_fb.passes ? fz_fb.wait_sum_us / fz_fb.passes : 0u);
@@ -1466,6 +1471,7 @@ static void fz_fb_start(void)            /* (once FIZZ is up: the rows attached;
     for (y = 0; y < 240u; y++)
         fz_rowp[y] = y < FZ_FB_LO ? fz_fb_lo[y] : y < FZ_FB_LO + FZ_FB_MID ? fz_fb_mid[y - FZ_FB_LO]
                                                                        : fz_fb_hi[y - FZ_FB_LO - FZ_FB_MID];
+    fz_fb_forget();                      /* (P2.17: every segment unknown) */
     fz_fb_attach(fz_rowp);
     fz_pal = fz_fb_palette(&fz_pal_gen);
     fz_fb_on = 1;
@@ -1827,6 +1833,9 @@ void app_ui_init(void)
     lcd_fill(0, 0, 240, 240, C_BLACK);
     for (i = 0; i < 240u; i++)
         fz_row_hash[i] = 0;              /* (the whole screen sent again) */
+#ifdef QD_GFX_FB
+    fz_fb_forget();
+#endif
     fz_redraw = 1;
     if (!fz_audio_on)
         fz_ramp = 0, fz_gain = 0;        /* (the sound starts from silence) */
