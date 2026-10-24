@@ -1433,6 +1433,9 @@ static float ratio_of_text(const char *s)
 void qd_view_snd(qd_app_t *a, ui_snd_t *v)
 {
     static qd_trec_t r;
+    static int16_t lfo_w[3];                            /* (the selected track's latest voice's LFOs, as last read) */
+    static uint8_t lfo_d[3];
+    static int lfo_on;
     const qd_ui_t *u = &a->ui;
     const qd_sndpage_t *pg = &QD_SND_PAGES[u->snd_page];
     const int8_t *ids = qd_snd_ids(a, u->snd_page);   /* (E1: AMP in AHD its alt) */
@@ -1459,13 +1462,25 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         pp = r.patch;
         v->follow = 1;
     }
+    {   /* the owner: following, the values as heard: the LFOs' too, read at EDIT's clock (one reading a step of it:
+         * every pass of a frame the same, no faster than its pictures) */
+        static uint32_t lq = ~0u;
+        static int8_t lt = -1;
+        const uint32_t q = (uint32_t)((uint64_t)a->ms * QD_EDIT_ANIM_FPS / 1000u);
+        if (!v->follow)
+            lt = -1, lfo_on = 0;
+        else if (q != lq || lt != a->sel) {
+            lq = q, lt = (int8_t)a->sel;
+            lfo_on = qd_quad_owner_lfos(&a->model.t[a->sel].owner, lfo_w, lfo_d);
+        }
+    }
     for (k = 0; k < 5; k++) {
         const int id = ids[k];
         int16_t x;
         if (id < 0)
             continue;
         v->has[k] = 1;
-        v->v[k] = pp[id];
+        v->v[k] = lfo_on ? qd_quad_lfo_value(id, pp[id], lfo_w, lfo_d) : pp[id];
         v->tv[k] = tp[id];
         qd_quad_value_text(id, v->v[k], v->txt[k]);
         v->lab[k] = qd_snd_label(a, u->snd_page, k);  /* (E2: the FILTER's by its machine) */

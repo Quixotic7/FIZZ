@@ -1207,6 +1207,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
                 s->lsl[k] = r;
             }
         }
+        if (v == t->m_v)                         /* (the editor's shown values: 0 unless it moves its destination) */
+            v->nx_lw[k] = 0;
         if (!d || d >= QD_N || !dep)
             continue;
         w = quad_lfo_wave(wv, ph, s->lsl[k]);
@@ -1218,6 +1220,8 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             w = (w * (fd < 0 ? g : 32767 - g)) >> 15;
         }
         dst[d] += w;
+        if (v == t->m_v)                         /* (the editor shows the value as heard: the latest voice's LFOs) */
+            v->nx_lw[k] = (int16_t)clamp(w, -32767, 32767);
     }
     if (s->ticks < 0xFFFFFFFFu)
         s->ticks++;

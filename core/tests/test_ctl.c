@@ -5639,6 +5639,26 @@ static void g_p16g_misc(void)
         run(1);
     }
     CHECK(ok, "the latch on, nothing selected: the track's values, still");
+    {   /* the latch off again, an LFO on FREQ: the editor shows FREQ as heard, moving (and only following) */
+        int seen[8], ns = 0, j, moved = 0;
+        btap(QD_B_HOME);
+        btap(QD_B_SOUND);
+        qd_player_live_edit(&A.player, 0, QD_QP_LFO(0, QD_QL_DEST), (int16_t)qd_quad_dest_of(QD_QP_FREQ, 0));
+        qd_player_live_edit(&A.player, 0, QD_QP_LFO(0, QD_QL_DEPTH), 3200);
+        qd_player_live_edit(&A.player, 0, QD_QP_LFO(0, QD_QL_SPEED), 6000);
+        for (i = 0; i < 2000; i++) {
+            qd_view_snd(&A, &sv);
+            if (sv.follow && !sv.locked[0] && sv.v[0] != pt[QD_QP_FREQ])
+                moved = 1;
+            for (j = 0; j < ns && seen[j] != sv.v[0]; j++)
+                ;
+            if (j == ns && ns < 8)
+                seen[ns++] = sv.v[0];
+            run(1);
+        }
+        CHECK(moved && ns >= 4, "playing, following, an LFO on FREQ: the shown FREQ moves with it (%d values)", ns);
+        qd_player_live_edit(&A.player, 0, QD_QP_LFO(0, QD_QL_DEST), 0);
+    }
     btap(QD_B_PLAY);
     btap(QD_B_HOME);                                    /* (HOME: the latch off too) */
     /* the ARP's walk */

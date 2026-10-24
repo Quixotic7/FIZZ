@@ -10,6 +10,7 @@ its text becomes the release's notes on the install page and on GitHub.
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
 - The playhead now moves in half steps, and its red arrow over the open page no longer bounces.
+- While playing with the step lock off, the sound editor's values now follow the LFOs too, showing what you hear.
 
 ## 0.11.0-beta.2 (2026-10-24)
 

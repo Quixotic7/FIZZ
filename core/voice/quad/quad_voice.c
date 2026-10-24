@@ -637,6 +637,34 @@ int qd_quad_dest_of(int id, int lfo)
     return -1;
 }
 int qd_quad_ndest(void) { return (int)QD_N; }
+int qd_quad_owner_lfos(const qd_quad_owner_t *o, int16_t *w, uint8_t *dest)
+{
+    const qd_quad_voice_t *v = o ? o->m_v : 0;
+    int k;
+    if (!v || !v->active || v->owner != o || !v->nx_ok)
+        return 0;
+    for (k = 0; k < 3; k++) {
+        w[k] = v->nx_lw[k];
+        dest[k] = (uint8_t)v->patch[QP_LFO(k, QL_DEST)];
+    }
+    return 1;
+}
+int qd_quad_lfo_value(int id, int v, const int16_t *w, const uint8_t *dest)
+{
+    int16_t lo, hi;
+    int32_t sum = 0, sc;
+    int k;
+    if (id == QP_RB1 || id == QP_RB2 || id == QP_LFO(0, QL_MULT) || !qd_quad_value_range(id, &lo, &hi, 0))
+        return v;
+    for (k = 0; k < 3; k++)
+        if (w[k] && dest[k] && qd_quad_dest_of(id, k) == dest[k])
+            sum += w[k];
+    if (!sum)
+        return v;
+    sc = lo < 0 && lo == -hi ? hi : hi - lo;            /* (the engine's scales: HARM, OFS +-; the rest the range) */
+    v += (int)((sum * sc) >> 15);
+    return v < lo ? lo : v > hi ? hi : v;
+}
 const char *qd_quad_dest_name(int dest) { return dest >= 0 && dest < (int)QD_N ? N_QUAD_DEST[dest] : "?"; }
 int qd_quad_dest_step(int dest, int d)                   /* (ChoralRoot's editor order, the Digitone's) */
 {

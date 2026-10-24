@@ -130,6 +130,8 @@ struct qd_quad_voice {
     int8_t nx_pan, nx_fx[4];            /* P2.6: as the latest note's voice, the offsets its last block made (the
                                          * owner's quad_pan_off, quad_fx_off) .. */
     uint8_t nx_ok;                      /* .. made since its start */
+    int16_t nx_lw[3];                   /* as the latest note's voice: each LFO's last output (Q15, its DEPTH and FADE
+                                         * in; 0 none): the sound editor shows the values as heard */
     qd_lfo_cache_t lfc[4];              /* P2.6c: its LFOs' steps (and LFO 1's as LFOs 2, 3 move it), on a change */
     int16_t fq_sm, rs_sm;               /* P2.6b: FREQ and RESO as the filter runs them: they glide to a live change (a
                                          * knob, a LOCK on a sounding voice) over a few blocks; a note starts at its own */   /* E2: the filter machines' state (quad_ext.c:
@@ -201,6 +203,10 @@ const char *qd_quad_value_name(int i);  /* its label on FM TONE's pages ("FREQ",
 int qd_quad_dest_id(int dest);
 int qd_quad_dest_of(int id, int lfo);
 int qd_quad_ndest(void);
+/* the sound editor's values as heard: owner o's latest voice's LFOs (sounding: 1, w their outputs Q15, dest their
+ * destinations), and value id's v moved by them (as the engine moves it; RATIO B and LFO 1's MULT: as stored) */
+int qd_quad_owner_lfos(const qd_quad_owner_t *o, int16_t *w, uint8_t *dest);
+int qd_quad_lfo_value(int id, int v, const int16_t *w, const uint8_t *dest);
 const char *qd_quad_dest_name(int dest);
 int qd_quad_dest_step(int dest, int d);
 
