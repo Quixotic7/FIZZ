@@ -82,14 +82,15 @@ HOT = {"build_units_c_qd_fx.o": ["xf_reverb", "xf_delay", "out_master", "xq_bloc
 # way, into fizz-1core-VARIANT.fwsc, its id in stats line 8 (build=): xip (1) its render left in the flash, o2 (2) at
 # -O2 (in the flash too), crflags (3) with ChoralRoot's flags (-Os -ffunction-sections -fno-builtin: no -mcpu=r3, -mfprev1,
 # -ffp-contract=off, -std=gnu11). The plain build is id 0
-# P2.9: the unit measured o2 fastest (240 us a 128 frames against 259 at -Os in RAM; crflags 260): the single-core
-# package's default (FZ_VARIANT=o2, id 2); os (0) is P2.7's (-Os, the render in RAM); o2ram (4) -O2 with the render in
-# RAM and the effects' hot functions back in the flash (to measure)
+# P2.9: the unit's bench (us a 128 frames): o2ram 223 (218 warm), o2 240, os 259, crflags 260. The single-core
+# package's default is o2ram (id 4): the voices' unit at -O2 with its render in RAM, the effects' hot functions back in
+# the flash (their time 114 us a half stopped against 104); os (0) is P2.7's (-Os, the render in RAM), o2 (2) -O2 in
+# the flash
 VARIANT = os.environ.get("FZ_VARIANT", "")
 VARIANTS = {"os": 0, "xip": 1, "o2": 2, "crflags": 3, "o2ram": 4}
 NAMED = VARIANT
 if SINGLE and not VARIANT:
-    VARIANT = "o2"
+    VARIANT = "o2ram"                            # (P2.9b: the unit's best: 223 us a 128 frames, 218 warm)
 if VARIANT and VARIANT not in VARIANTS:
     raise SystemExit(f"FZ_VARIANT={VARIANT}: one of " + ", ".join(VARIANTS))
 DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS.get(VARIANT, 0)}u")
