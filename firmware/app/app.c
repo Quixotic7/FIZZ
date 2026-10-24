@@ -70,6 +70,14 @@ extern uint32_t _fz_rt_start[], _fz_rt_end[], _fz_ni_start[], _fz_ni_end[];   /*
 #define FZ_FRAME_IDLE 66u                /* the idle screen's animation */
 #define FZ_FRAME_QUIET 100u
 #define FZ_STORE_MS 15u                  /* the store's step (qd_persist_step) */
+/* (P2.7) the pace while a screen animates (a frame drawn at each of the last two looks): 30 a second when its frames
+ * take up to FZ_FIT_30 us (drawing and burst: room left for input, the store and the audio's share), 20 up to
+ * FZ_FIT_20, else 15; even spacing, the next frame due one period after the last was due */
+#define FZ_FIT_30 24000u
+#define FZ_FIT_20 38000u
+static uint32_t fz_frame_us = 30000u;    /* the frames' time, a running average */
+static uint8_t fz_anim;                  /* frames drawn in a row (changed at each look) */
+static uint32_t fz_pace;                 /* the last look's period (ms) */
 
 /* the profile (fz_prof.h): here, in RAM with the platform's (FIZZ's units' .bss is the pool's, which is full) */
 volatile fz_prof_t fz_prof;
@@ -514,6 +522,9 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "no_stash=", fz_st_none);
     c = fz_put_u(c, "stash_rows_min=", fz_st_cap_min);
     c = fz_put_u(c, "rows_sent=", fz_rows_sent);
+    c = fz_put_u(c, "frame_avg_us=", fz_frame_us);
+    c = fz_put_u(c, "pace_ms=", fz_pace);
+    c = fz_put_u(c, "animating=", fz_anim >= 2u);
     c = fz_put_u(c, "led_looks=", fz_led_looks);
     c = fz_put_u(c, "led_writes=", fz_led_writes);
     *c = 0;
@@ -986,6 +997,9 @@ static void fz_step(int frame)
              : mode == 0                       ? FZ_FRAME_IDLE
              : playing                         ? FZ_FRAME_PLAYING
                                                : FZ_FRAME_QUIET;
+    if (fz_anim >= 2u)                   /* (P2.7) animating: a steady pace the frames can keep (30, 20 or 15 a second) */
+        period = fz_frame_us <= FZ_FIT_30 ? 33u : fz_frame_us <= FZ_FIT_20 ? 50u : 66u;
+    fz_pace = period;
     if (now - frame_t >= period || fz_redraw) {
         const uint64_t tx = fz_prof.text, sh = fz_prof.shapes;   /* (the check's drawing calls are not the frame's) */
         const uint32_t ntx = fz_prof.n_text, nsh = fz_prof.n_shapes;
@@ -994,12 +1008,16 @@ static void fz_step(int frame)
         fz_prof.check += plat_ticks24() - t;
         fz_prof.text = tx, fz_prof.shapes = sh, fz_prof.n_text = ntx, fz_prof.n_shapes = nsh;
         fz_prof.n_check++;
-        frame_t = now;
+        frame_t = now - frame_t < 2u * period ? frame_t + period : now;   /* (on the beat; a late one starts it again) */
         if (changed) {
+            const uint32_t t1 = plat_ticks24();
             fz_redraw = 0;
             fz_draw();
+            fz_frame_us = (3u * fz_frame_us + (plat_ticks24() - t1) / PLAT_TICKS_PER_US) / 4u;
+            fz_anim = fz_anim < 255u ? (uint8_t)(fz_anim + 1u) : fz_anim;
         } else {
             fz_prof.n_skip++;
+            fz_anim = 0;
         }
     }
     if (now - store_t >= FZ_STORE_MS) {  /* the store's step: between frames, outside the locks */
