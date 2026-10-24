@@ -1548,6 +1548,11 @@ costs ~475 µs a 5.8 ms half, so the owner chose **8 voices now (single core), 1
 core-1 start waits for felucca-bsp #5 (MPL); ChoralRoot's `cr_cpu1.h` (the owner's) is relicensed MPL-2.0 for FIZZ;
 the manager is `firmware/app/fz_dual.c` (`firmware/DUALCORE.md`).
 
+**The 256-colour frame (the owner, 2026-10-23):** after P2.10 the unit tore on the motorcycle and the ape (their
+frames change more rows than the stash holds). The owner chose the palettised full frame (`research/SMOOTH-DISPLAY.md`
+§4.8, layout A): the 57.6 KB 8-bit frame, rows 0–99 in RAM and 100–239 in the pool, **the delay line halved,
+64 → 32 KB**, the same maximum delay on every profile so sounds match; a scan-timed send through the panel's RDSCL.
+
 **Clock and rails (the owner, 2026-10-23):** keep fm1-base's setup: the stock 360 MHz clock and M-VAVE's stock rail
 levels, VDC14 1.60 V / SYSVDD 1.38 V (ChoralRoot uses 1.50 V / 1.35 V). The rails don't change speed; the stock levels
 give the most margin for the second core.
