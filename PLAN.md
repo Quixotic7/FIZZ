@@ -1292,6 +1292,19 @@ kept with the project.
 - The owner's pattern of the day is backed up: `FIZZ-saves/2026-10-22-owner-pattern-flash.bin` (the Standalone's
   flash, next to the repos).
 
+### Geek Out views (2026-10-23, the owner: "ChoralRoot had several 'Geek out' home menus which were useful")
+
+In the **SHIFT + HOME cycle** after the sequencer's views: PIANO ROLL → STEPS → EDIT → the Geek Out views. Four
+pages, all chosen by the owner:
+- **Meters** (ChoralRoot's Geek Out 2): tall bars for the audio load (core 0; core 1 once it runs), the screen's
+  frame rate, RAM and the store's space, each with a peak tick.
+- **Numbers** (ChoralRoot's Geek Out 1): voices in use of 8, steals, the audio interrupt's longest half and late
+  halves, the longest lock, the frame time, the BPM, the last boot's cause after a crash.
+- **Per-track voices**: 8 columns, each track's sounding voices, its steals, its share of the audio.
+- **Scope**: the output's waveform.
+The clarity rules still apply: big numbers and short labels at 12 px or more, bars and shapes for the rest. A
+mock-up comes first for the owner's approval.
+
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
 These override anything above that conflicts with them.
