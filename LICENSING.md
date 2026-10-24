@@ -17,6 +17,7 @@ unchanged. `research/PROVENANCE.md` lists where each part came from.
 | Everything in `core/` and `tools/` not named below | FIZZ, written for the owner (Michael P Jones, Quixotic7) | MPL-2.0 |
 | FM TONE and the effects (`core/voice/quad/eng_quad.c`, `quad_tables.h`, `quad_times.h`; `core/voice/fx/cr_fx.c`, `cr_ram.h`, `fz_out.c`), from ChoralRoot FM-1 v0.25.1 | the owner (ChoralRoot's author) | MPL-2.0 |
 | The building blocks, tables and voice parts that replace Felucca's (`core/voice/quad/fz_*.h`, `tools/gen_fz_tables.py`) | FIZZ (L1, clean-room from `research/L1-CLEANROOM-SPEC.md`) | MPL-2.0 |
+| ChoralRoot's second-core code (`firmware/src/cr_cpu1.h`, ChoralRoot FM-1), for the port's reuse (P2.6), with a provenance line where it is used | the owner (ChoralRoot's author): relicensed MPL-2.0 for FIZZ on 2026-10-23 | MPL-2.0 |
 | `core/tests/ref/cr_quad_ref.c`, `cr_fx_ref.c`: test oracles that compile ChoralRoot's own tree (Felucca code included), fetched into `tools/build/` at test time | the owner; they build GPL code | GPL-3.0-only (`LICENSES/GPL-3.0.txt`): development only, never part of the firmware |
 | `site/`: the web page, the browser build, and copies from RemoteFM1 | the owner and RemoteFM1's authors | GPL-3.0-only (`LICENSES/GPL-3.0.txt`): not firmware |
 

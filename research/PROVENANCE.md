@@ -24,6 +24,7 @@ code and the data it generates came from.
 | `core/voice/pool.c`, `core/voice/quad/quad_ext.c`, `qd_fx.c/.h`, `quad_voice.h` | FIZZ's own | MPL-2.0 |
 | `core/voice/quad/eng_quad.c`, `quad_tables.h`, `quad_times.h`; `core/voice/fx/cr_fx.c`, `cr_ram.h`, `fz_out.c` (the Clean chain); `core/tests/quad_goldens/` | **The owner's ChoralRoot code** (ChoralRoot v0.25.1). Felucca-derived parts are rewritten, see below | MPL-2.0 (the owner's relicence) |
 | `core/voice/quad/fz_*.h`, `tools/gen_fz_tables.py`, `core/tests/test_fz_dsp.c` | **New in L1**, written clean-room from `research/L1-CLEANROOM-SPEC.md` | MPL-2.0 |
+| ChoralRoot's `firmware/src/cr_cpu1.h` (the second core's start and jobs), for the port's dual core (P2.6, `firmware/DUALCORE.md`) | **The owner's ChoralRoot code**: he relicensed it MPL-2.0 for FIZZ on 2026-10-23. Code reused from it carries a provenance line | MPL-2.0 (the owner's relicence) |
 | `core/tests/ref/cr_quad_ref.c`, `cr_fx_ref.c` | Test oracles that compile ChoralRoot's own tree, Felucca's code included (`tools/build/cr-v0.25.1`, not in FIZZ) | GPL-3.0-only (development only; never in the firmware) |
 | `third_party/plutovg` | plutovg v1.3.3 (Samuel Ugochukwu); FreeType files; stb | MIT; FTL; MIT OR Unlicense (patched by FIZZ, see `third_party/README.md`) |
 | `assets/fonts`, `core/gfx/fonts_gen.h` | Inter Tight (The Inter Project Authors) | OFL-1.1 (no Reserved Font Name) |
