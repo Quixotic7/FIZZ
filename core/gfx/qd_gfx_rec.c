@@ -59,7 +59,9 @@ enum {
     RO_CUBIC, RO_PARC, RO_PCLOSE, RO_PFILL, RO_PSTROKE, RO_PSTROKEK, RO_PPAINT, RO_PCLIP, RO_TEXT, RO_LDRAW
 };
 
-static int rl_pin;                      /* P2.6f: the kept list pinned (bands drawn from it, maybe on another core) */
+static int rl_pin;
+static int rl_indexed;                  /* P2.6h: the path groups' rows written (the hashes' walk does it) */
+void qd_dl_strip_hashes(uint32_t *h, int n, int rows);                      /* P2.6f: the kept list pinned (bands drawn from it, maybe on another core) */
 void qd_dl_pin(int on) { rl_pin = on; }
 static uint8_t *rl_buf;                 /* the list (in the arena), its room, what it holds */
 static uint32_t rl_cap, rl_len;
@@ -465,7 +467,8 @@ int qd_dl_end(void)
             qd_arena_use(was);
         }
 #endif
-        qd_dl_strip_hashes(0, 0, 0);                    /* (P2.6e: each path group's rows, for the strips' play) */
+        rl_indexed = 0;                                 /* (P2.6e: each path group's rows, for the strips' play: by
+                                                         * the hashes' walk, or before the first play) */
     }
     return rl_buf != 0;
 }
@@ -510,6 +513,8 @@ void qd_dl_play(void)
     float v[8];
     uint32_t u0, u1, u2;
     int i, skip = 0;
+    if (rl_buf && !rl_indexed)
+        qd_dl_strip_hashes(0, 0, 0);
     rl_at = 0;
     while (rl_buf && rl_at < rl_len) {
         const int op = (int)rl_gu();
@@ -654,12 +659,18 @@ void qd_dl_play(void)
 typedef struct {
     float m[6];                         /* x' = m0 x + m2 y + m4, y' = m1 x + m3 y + m5 */
     uint32_t sh;                        /* the alpha, width, caps, joins, dash and clip, hashed */
+    uint32_t mh;                        /* P2.6h: the transform, hashed (when it changes) */
 } rl_st_t;
-static uint32_t rl_mix(uint32_t h, const void *p, uint32_t n)
+static uint32_t rl_mix(uint32_t h, const void *p, uint32_t n)   /* (P2.6h: a word at a time: the list is words) */
 {
     const uint8_t *b = (const uint8_t *)p;
-    uint32_t i;
-    for (i = 0; i < n; i++)
+    uint32_t i = 0, w;
+    for (; i + 4u <= n; i += 4u) {
+        memcpy(&w, b + i, 4);
+        h = (h ^ w) * 0x01000193u;
+        h ^= h >> 15;
+    }
+    for (; i < n; i++)
         h = (h ^ b[i]) * 0x01000193u;
     return h;
 }
@@ -717,12 +728,13 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
     memset(&st, 0, sizeof st);
     st.m[0] = st.m[3] = 1.f;
     st.sh = 2166136261u;
+    st.mh = rl_mix(2166136261u, st.m, sizeof st.m);
     rl_at = 0;
     while (rl_buf && rl_at < rl_len) {
         const uint32_t at0 = rl_at;
         const int op = (int)rl_gu();
         uint32_t ch;                                    /* (this call's bytes and the state) */
-#define CALLH() (ch = rl_mix(rl_mix(st.sh, st.m, sizeof st.m), rl_buf + at0, rl_at - at0))
+#define CALLH() (ch = h ? rl_mix(rl_mix(st.sh, &st.mh, 4), rl_buf + at0, rl_at - at0) : 0u)
 #define PT(x, y)                                                                                                       \
     do {                                                                                                               \
         rl_box(&st, (x), (y), (x), (y), 0.f, &ya, &yb);                                                                \
@@ -741,17 +753,20 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
         case RO_TRANSLATE: {
             const float x = rl_gf(), y = rl_gf();
             st.m[4] += st.m[0] * x + st.m[2] * y, st.m[5] += st.m[1] * x + st.m[3] * y;
+            st.mh = h ? rl_mix(2166136261u, st.m, sizeof st.m) : 0u;
             break;
         }
         case RO_SCALE: {
             const float sx = rl_gf(), sy = rl_gf();
             st.m[0] *= sx, st.m[1] *= sx, st.m[2] *= sy, st.m[3] *= sy;
+            st.mh = h ? rl_mix(2166136261u, st.m, sizeof st.m) : 0u;
             break;
         }
         case RO_ROTATE: {
             const float a = rl_gf(), c = cosf(a), s = sinf(a), m0 = st.m[0], m1 = st.m[1];
             st.m[0] = m0 * c + st.m[2] * s, st.m[1] = m1 * c + st.m[3] * s;
             st.m[2] = st.m[2] * c - m0 * s, st.m[3] = st.m[3] * c - m1 * s;
+            st.mh = h ? rl_mix(2166136261u, st.m, sizeof st.m) : 0u;
             break;
         }
         case RO_LW:
@@ -764,7 +779,7 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
             break;
         case RO_CLIP:
             rl_at += 16;
-            st.sh = rl_mix(rl_mix(st.sh, st.m, sizeof st.m), rl_buf + at0, rl_at - at0);
+            st.sh = rl_mix(rl_mix(st.sh, &st.mh, 4), rl_buf + at0, rl_at - at0);
             break;
         case RO_DASH: {                                 /* (P2.6f: the count read first, then skipped past: was
                                                          * rl_at += 4 + 4 x rl_gu(), unsequenced: the walk could lose
@@ -846,10 +861,8 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
             break;
         }
         case RO_PBEGIN:
-            if (!h) {
-                g_close();
-                g_open = 1, g_ok = 1, g_at = rl_at, g_ya = 1e30f, g_yb = -1e30f;
-            }
+            g_close();                                  /* (P2.6h: the index in every walk: one walk a frame) */
+            g_open = 1, g_ok = 1, g_at = rl_at, g_ya = 1e30f, g_yb = -1e30f;
             rl_at += 8u;
             ph = 2166136261u, path_any = 0, pya = 1e9f, pyb = -1e9f;
             break;
@@ -859,7 +872,7 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
                 const float x = rl_gf(), y = rl_gf();
                 PT(x, y);
             }
-            ph = rl_mix(rl_mix(ph, st.m, sizeof st.m), rl_buf + at0, rl_at - at0);
+            ph = rl_mix(rl_mix(ph, &st.mh, 4), rl_buf + at0, rl_at - at0);
             break;
         }
         case RO_PARC: {
@@ -869,7 +882,7 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
             PT(cx + r, cy + r);
             PT(cx - r, cy + r);
             PT(cx + r, cy - r);
-            ph = rl_mix(rl_mix(ph, st.m, sizeof st.m), rl_buf + at0, rl_at - at0);
+            ph = rl_mix(rl_mix(ph, &st.mh, 4), rl_buf + at0, rl_at - at0);
             break;
         }
         case RO_PCLOSE:
@@ -890,7 +903,7 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
             ch = rl_mix(rl_mix(st.sh, &ph, 4), rl_buf + at0, rl_at - at0);
             if (path_any)
                 rl_into(h, n, rows, pya - w * 0.5f * s - 2.f, pyb + w * 0.5f * s + 2.f, ch);
-            if (path_any && !h) {
+            if (path_any) {
                 g_ya = pya - w * 0.5f * s - 2.f < g_ya ? pya - w * 0.5f * s - 2.f : g_ya;
                 g_yb = pyb + w * 0.5f * s + 2.f > g_yb ? pyb + w * 0.5f * s + 2.f : g_yb;
             }
@@ -938,6 +951,6 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
 #undef CALLH
 #undef PT
     }
-    if (!h)
-        g_close();
+    g_close();
+    rl_indexed = 1;
 }

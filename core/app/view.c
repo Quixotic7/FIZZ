@@ -2466,10 +2466,13 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
                 g->pk[i] = val[i], g->pk_ms[i] = now ? now : 1u;
         }
     }
-    v->load = g->bar[0], v->load_pk = g->pk[0];
+#define GK_PX(u) (floorf((u) * 146.f + 0.5f) / 146.f)    /* (P2.6h: a bar in whole pixels: a frame with nothing moved
+                                                         * a pixel is the frame before, its bands kept) */
+#define GK_LV(u) (floorf((u) * 8.f + 0.5f) / 8.f)       /* (.. a dot's level in eighths) */
+    v->load = GK_PX(g->bar[0]), v->load_pk = GK_PX(g->pk[0]);
     v->load1 = v->core1_on ? (float)st->load_pm[1] / 1000.f : 0.f;
-    v->fps = g->bar[1] / 60.f, v->fps_min = g->pk[1] / 60.f;
-    v->ram = g->bar[2], v->ram_pk = g->pk[2], v->store = g->bar[3];
+    v->fps = GK_PX(g->bar[1] / 60.f), v->fps_min = GK_PX(g->pk[1] / 60.f);
+    v->ram = GK_PX(g->bar[2]), v->ram_pk = GK_PX(g->pk[2]), v->store = GK_PX(g->bar[3]);
     /* the voices: the pool's slots, each track's */
     v->nvoice = a->pool.nvoice > 16 ? 16 : a->pool.nvoice;
     for (i = 0; i < a->pool.nvoice; i++) {
@@ -2477,7 +2480,7 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
         float l;
         if (!qd_pool_sounding(&a->pool, i) || pv->track >= 8)
             continue;
-        l = sqrtf((float)qd_quad_voice_level(&pv->q) / 32767.f);
+        l = GK_LV(sqrtf((float)qd_quad_voice_level(&pv->q) / 32767.f));
         nsound++;
         if (i < 16)
             v->slot_col[i] = UI_TRACK_PAL[pv->track], v->slot_lvl[i] = l < 0.08f ? 0.08f : l;
@@ -2498,7 +2501,7 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
         v->lim[t] = a->pool.limit[t] < 3 ? a->pool.limit[t] : 3;
         if (dt || !g->ms)
             g->share[t] = gk_chase(g->share[t], nsound ? (float)v->on[t] / (float)nsound : 0.f, dt);
-        v->share[t] = g->share[t];
+        v->share[t] = floorf(g->share[t] * 176.f + 0.5f) / 176.f;   /* (whole pixels: full is half, 88 px) */
     }
     v->steals = steals;
     if (st->late != g->late_seen)
