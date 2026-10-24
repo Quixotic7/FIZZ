@@ -289,9 +289,9 @@ static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t b
                 fz_fb_plan(ch, y0, y1, &pl);
                 if (!split)
                     (void)fz_fb_window(&pl, &lo, &hi);
-                fz_fb_win_min = 0;
                 else
                     lo = y0, hi = y0 + 8u;   /* (just after the scan passed the first row: the most time) */
+                fz_fb_win_min = 0;
             }
             fz_fb.parts++;
             fz_fb.rects += pl.rects, fz_fb.px += pl.px, fz_fb.rect_rows += pl.rows;
