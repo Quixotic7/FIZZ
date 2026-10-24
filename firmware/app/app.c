@@ -496,7 +496,9 @@ static char *fz_put_u(char *q, const char *label, uint64_t v)
 {
     char t[24];
     int n = 0;
-    const uint32_t l = (uint32_t)strlen(label);
+    uint32_t l = 0;
+    while (label[l])
+        l++;
     fz_need += l + 21u;
     if (!fz_lim || q + l + 21u > fz_lim) {
         fz_line_cut++;
@@ -690,6 +692,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
         c = fz_put_u(c, "c1_voices_us=", fz_us(fz_c1s.c1_ticks / nh));
         c = fz_put_u(c, "c0_wait_us=", fz_us(fz_c1s.wait_ticks / nh));
         c = fz_put_u(c, "c0_wait_max_us=", fz_us(fz_c1s.wait_max));
+        c = fz_put_u(c, "c0_saved_us=", fz_us(fz_c1s.overlap_ticks / nh));   /* (P2.15d: the effects run beside core 1) */
     }
     *c = 0;
     fz_stats_send(6, line);

@@ -120,6 +120,6 @@ void fz_store_region(uint32_t *off, uint32_t *size);   /* (P2.13: the store's re
  * given up: fallbacks), core 0's and core 1's voice time and core 0's wait (ticks) */
 typedef struct {
     uint32_t jobs, inline_jobs, fallbacks, wait_max, c0_voices, c1_voices;   /* (voices: summed over the blocks) */
-    uint64_t c0_ticks, c1_ticks, wait_ticks;
+    uint64_t c0_ticks, c1_ticks, wait_ticks, overlap_ticks;   /* (overlap: the effects core 0 ran while core 1 rendered) */
 } fz_c1_stats_t;
 extern fz_c1_stats_t fz_c1s;

@@ -241,9 +241,99 @@ static void fz_c1_job(uint32_t arg)
     fz_c1j.t = plat_ticks24() - t0;
 }
 #endif
+#if FM1B_CPU2
+/* (P2.15d, core 6c729a3) THE PIPELINE: each block, core 1 renders its share of block n's voices while core 0 renders
+ * the rest and then the previous block's effects and output (qd_app_block_out of n - 1): the effects no longer wait
+ * for the voices. One block (32 frames, 0.73 ms) more latency; the samples are qd_app_block_end's, one block later.
+ * Two blocks in turn (fz_blk: the pool's, with this unit's .bss). With core 1 off or given up, the same order on core 0
+ * alone. The split: as P2.14b, core 1 the larger half of the sounding voices */
+static qd_blk_t fz_blk[2];
+static uint8_t fz_blk_cur, fz_blk_have;          /* (the block to fill; a previous one to put out) */
+static void fz_audio_piped(qd_app_t *a, int16_t *stereo, uint32_t nblk)
+{
+    uint32_t b, t0, t1, t2, t3, sb = 0, sv = 0, se = 0;
+    for (b = 0; b < nblk; b++) {
+        qd_blk_t *k = &fz_blk[fz_blk_cur], *prev = &fz_blk[fz_blk_cur ^ 1u];
+        int16_t *out = stereo + 2u * QD_MIX_CTL * b;
+        const int nv = a->pool.nvoice;
+        int posted = 0, i, act = 0, n1 = 0, sp = nv;
+        uint32_t to = 0;
+        t0 = plat_ticks24();
+        qd_app_block_begin_k(a, k);
+        t1 = plat_ticks24();
+        for (i = 0; i < nv; i++)
+            act += a->pool.v[i].q.active != 0;
+        for (i = nv - 1; i >= 0 && n1 < (act + 1) / 2; i--) {
+            n1 += a->pool.v[i].q.active != 0;
+            sp = i;
+        }
+        if (plat_cpu2_on()) {
+            fz_c1j.bus = &k->y, fz_c1j.v0 = sp, fz_c1j.v1 = nv;
+            posted = plat_cpu2_run(fz_c1_job, 0);
+        }
+        qd_app_block_voices(a, 0, sp, &k->x);
+        fz_c1s.c0_ticks += plat_ticks24() - t1;
+        {   /* the previous block's effects and output, while core 1 renders */
+            const uint32_t tq = plat_ticks24();
+            if (fz_blk_have)
+                qd_app_block_out(a, prev, out);
+            else
+                memset(out, 0, sizeof(int16_t) * 2u * QD_MIX_CTL);   /* (the very first: nothing yet) */
+            to = plat_ticks24() - tq;
+            se += to;
+        }
+        if (posted) {
+            const uint32_t tw = plat_ticks24();
+            const int rc = plat_cpu2_wait();
+            const uint32_t w = plat_ticks24() - tw;
+            if (w > fz_c1s.wait_max)
+                fz_c1s.wait_max = w;
+            fz_c1s.wait_ticks += w;
+            fz_c1s.overlap_ticks += to;  /* (the effects' time core 0 spent while core 1 rendered: saved) */
+            fz_c1s.c1_voices += (uint32_t)n1, fz_c1s.c0_voices += (uint32_t)(act - n1);
+            if (rc) {
+                qd_app_block_voices(a, sp, nv, &k->y);
+                fz_c1s.fallbacks++;
+            } else {
+                fz_c1s.jobs++;
+                fz_c1s.c1_ticks += fz_c1j.t;
+            }
+        } else {
+            qd_app_block_voices(a, sp, nv, &k->y);
+            if (plat_cpu2_on())
+                fz_c1s.inline_jobs++;
+        }
+        t2 = plat_ticks24();
+        qd_app_block_publish(a, k);
+        t3 = plat_ticks24();
+        sb += t1 - t0, sv += (t2 - t1) - to, se += t3 - t2;
+        fz_blk_cur ^= 1u, fz_blk_have = 1;
+    }
+    fz_prof.a_begin += sb, fz_prof.a_vblk += sv, fz_prof.a_end += se;
+    if (sb > fz_prof.a_begin_max)
+        fz_prof.a_begin_max = sb;
+    if (sv > fz_prof.a_vblk_max)
+        fz_prof.a_vblk_max = sv;
+    if (se > fz_prof.a_end_max)
+        fz_prof.a_end_max = se;
+    fz_prof.a_split_n++;
+}
+#endif
 void fz_audio(int16_t *stereo, uint32_t frames)
 {
     const uint32_t l = fz_app.proj.pat_loads;
+#if FM1B_CPU2
+    if (frames % QD_MIX_CTL == 0u && fz_app.ififo >= fz_app.nfifo) {
+        fz_app.proj.nopage++;
+        fz_audio_piped(&fz_app, stereo, frames / QD_MIX_CTL);
+        fz_app.proj.nopage--;
+    } else {
+        qd_app_audio(&fz_app, stereo, frames);
+    }
+    if (fz_app.proj.pat_loads != l)
+        fz_isr_loads += fz_app.proj.pat_loads - l;
+    return;
+#endif
     if (frames % QD_MIX_CTL == 0u && fz_app.ififo >= fz_app.nfifo) {
         qd_app_t *a = &fz_app;
         uint32_t b, t0, t1, t2, t3, sb = 0, sv = 0, se = 0;
