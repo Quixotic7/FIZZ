@@ -75,7 +75,7 @@ static qf_st S, STK[24];
 static int depth;
 
 /* the target: the strip (rows y0 .. y0 + sh of the screen) or a text mask */
-static uint16_t qf_px[QD_W * QD_STRIP_H];
+static uint16_t qf_px[QD_W * QD_STRIP_H] __attribute__((aligned(4)));
 static int y0s, sh = QD_STRIP_H, inited;
 static uint8_t *mk;                             /* (a text mask's bytes: mk_w wide, its rows from mk_r0) */
 static int mk_w, mk_r0, mk_rows;
@@ -242,8 +242,16 @@ void qd_end(uint16_t *lcd_be) { qd_end_strip(lcd_be); }
 static void strip_out(uint16_t *to)
 {
     const int n = QD_W * (t_r1 - t_r0);
-    int i;
-    for (i = 0; i < n; i++) {
+    int i = 0;
+    if (!((uintptr_t)to & 3u)) {                        /* (P2.6c: two pixels a word; QD_W even, qf_px aligned) */
+        const uint32_t *s = (const uint32_t *)(const void *)qf_px;
+        uint32_t *d = (uint32_t *)(void *)to;
+        for (; i + 1 < n; i += 2) {
+            const uint32_t w = s[i >> 1];
+            d[i >> 1] = ((w >> 8) & 0x00FF00FFu) | ((w << 8) & 0xFF00FF00u);
+        }
+    }
+    for (; i < n; i++) {
         const uint16_t c = qf_px[i];
         to[i] = (uint16_t)((c >> 8) | (c << 8));
     }
@@ -1012,6 +1020,9 @@ static void capsule(float ax, float ay, float bx, float by)
     const float dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy, ro = s_ro, ri = s_ri;
     float L, ux, uy, iux, iuy;
     int y, r0, r1;
+    rows_of((ay < by ? ay : by) - ro, (ay > by ? ay : by) + ro, &r0, &r1);
+    if (r0 >= r1)
+        return;                                         /* (P2.6c: not in this strip's rows: nothing worked out) */
     if (L2 < 1e-6f) {
         dot(ax, ay);
         return;
@@ -1027,7 +1038,6 @@ static void capsule(float ax, float ay, float bx, float by)
     L = qf_sqrt(L2);
     ux = dx / L, uy = dy / L;
     iux = 1.f / ux, iuy = 1.f / uy;
-    rows_of((ay < by ? ay : by) - ro, (ay > by ? ay : by) + ro, &r0, &r1);
     for (y = r0; y < r1; y++) {
         const float yc = (float)y + 0.5f, wy = yc - ay, ey = yc - by;
         float lo, hi, il = 1.f, ir = 0.f, p, q, t, cr, xc;
@@ -1070,6 +1080,9 @@ static void capsule(float ax, float ay, float bx, float by)
         t = (xc - ax) * ux + wy * uy;                   /* (along the segment, and across it: by x, increments) */
         cr = (xc - ax) * uy - wy * ux;
         for (x = x0; x <= x1; x++, xc += 1.f, t += ux, cr += uy) {
+            if (cv[x] >= s_cfull)
+                continue;                               /* (P2.6c: full already: nothing can raise it; a polyline's
+                                                         * joints are mostly this, a neighbour's cap or body) */
             if (xc >= il && xc <= ir) {
                 if (s_cfull > cv[x])
                     cv[x] = (uint8_t)s_cfull;

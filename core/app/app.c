@@ -358,15 +358,22 @@ static void ms_lock2(qd_app_t *a)
         a->beat_rem = r;
     }
     qd_ctl_ms(a);
-    if (!(a->ui.rec && a->seq.playing))                 /* P1.5c: a gesture closes when quiet (a take: as one) */
-        qd_undo_ms(a);
     qd_ctl_preview_sync(a);                             /* (a step held at 250 ms, the transport moved) */
+}
+/* P2.10: a gesture closes when quiet (a take: as one). Its level is the pattern's (and the MIDI FX's, the slots')
+ * difference from the gesture's before: it reads the model and writes only the undo log, which the audio side never
+ * reads, so no lock (on the unit ~2.5 ms: the pattern unpacked and compared twice). After ms_lock2, as it was */
+static void ms_free2(qd_app_t *a)
+{
+    if (!(a->ui.rec && a->seq.playing))
+        qd_undo_ms(a);
 }
 static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
 {
     ms_lock1(a);
     ms_free(a);
     ms_lock2(a);
+    ms_free2(a);
 }
 
 /* P2.6c: the port's two halves of qd_app_tick: the locked part once up to ms now (coalesced: its timers compare
@@ -405,6 +412,8 @@ void qd_app_tick_free(qd_app_t *a)
         ms_free(a);
     }
     a->ms = ms;
+    ms_free2(a);                                        /* (P2.10: once, at the locked part's ms: its quiet compares
+                                                         * times) */
 }
 
 void qd_app_tick(qd_app_t *a, uint32_t ms)

@@ -179,8 +179,9 @@ void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2);     /* .. and its 
 void qd_app_tick(qd_app_t *a, uint32_t ms);
 /* P2.6c: qd_app_tick in two, for the port's audio lock: qd_app_tick_locked(a, ms) under it (each ms: the patterns
  * and sounds the sequencer will want, the tracks' sounds into the pattern, the transport, the controller's timers,
- * the undo, the preview), then qd_app_tick_free(a) without it (each of those ms again: the persist looks, which hash
- * what is in RAM and read nothing in; the store's next job; SysEx's labels; with a->ms as it was then). qd_app_tick
+ * the preview), then qd_app_tick_free(a) without it (each of those ms again: the persist looks, which hash what is in
+ * RAM and read nothing in; the store's next job; SysEx's labels; with a->ms as it was then; P2.10: then, once, the
+ * undo's gesture closed when quiet, which reads the model and writes only the undo log). qd_app_tick
  * is the two a ms at a time, as before */
 void qd_app_tick_locked(qd_app_t *a, uint32_t ms);
 void qd_app_tick_free(qd_app_t *a);
