@@ -1302,8 +1302,10 @@ pages, all chosen by the owner:
   halves, the longest lock, the frame time, the BPM, the last boot's cause after a crash.
 - **Per-track voices**: 8 columns, each track's sounding voices, its steals, its share of the audio.
 - **Scope**: the output's waveform.
-The clarity rules still apply: big numbers and short labels at 12 px or more, bars and shapes for the rest. A
-mock-up comes first for the owner's approval.
+The clarity rules still apply: big numbers and short labels at 12 px or more, bars and shapes for the rest.
+**Approved as mocked up** (`mockups/fizz-geekout.html`, `png/fizz-geekout-sheet.png`): yellow plus a ray burst marks
+trouble (red stays the playhead and recording); the knobs do nothing here and **SHIFT + B11 resets the counters**; the
+scope shows ~3 cycles of the loudest track, held on its rising zero crossing. Built after the screen-speed fixes.
 
 ### The clarity rules (the owner, 2026-10-19: "strong visually, powerful gesture based, and not require the user to be squinting all the time")
 
