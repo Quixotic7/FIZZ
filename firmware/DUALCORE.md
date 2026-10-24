@@ -224,7 +224,21 @@ test stays, as a record of the protocol).
   instead (busy, fallbacks), each core's voice time a half and core 0's wait. The Geek Out pages' METERS: core 1's load.
 - **The single-core package** (`--single-core`): 8 voices, no second core (FM1B_CPU2=0).
 
-## P2.16: core 1 asynchronous (design note, not built)
+## P2.16: core 1 asynchronous (design note, not built: A does not fit)
+
+**Decided (2026-10-24), from the unit (ac3f1dc, the owner's pattern, 7 voices, per half):** c0 voices 1,678 us (3.2
+voices), c1 voices 1,836 us (3.9), isr_seq 283, isr_fx 713, begin 168 avg / 1,226 max, end 99, isr 3,011 avg / 4,104
+max, core 0's wait 3 us, saved by the overlap 793, xruns 0, lock_max 436 (the clock). One core would carry ~3.5 ms of
+voices + ~1 ms of sequencer and effects + begin/end, ~4.7 ms a half at 7 voices (over 5 at 8 heavy ones): past A's
+~4.5 ms and near the 5.8 ms deadline. A, B and C are not built; the synchronous pipelined path stays. The levers left:
+cheaper voices (the core) and fewer bands a frame (the pace).
+
+**P2.16b, the split:** core 0 waits 3 us, so core 0 is the longer side: its voices plus the previous block's out
+(~793 us, ~1.6 voices' time at ~470 us a voice). Core 1 now takes act / 2 + 1 of the sounding voices (was
+ceil(act / 2)): odd counts unchanged (7: 4/3, the reading above), even counts one more on core 1 (8: 5/3, 6: 4/2,
+4: 3/1), an estimated ~300 us less core 0 interrupt a half there (~600 us of core 1 idle at 4/4 shared). The samples
+are the same (integer sums).
+
 
 Unit, line 15 (6755020a, demo on EDIT/METERS): a 45 ms frame is 22.6 ms of audio interrupt. The lever is core 0's
 interrupt: today begin, core 0's share of the voices, out(n - 1) and the wait for core 1, all inside it.

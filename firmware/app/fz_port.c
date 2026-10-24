@@ -263,7 +263,10 @@ static void fz_audio_piped(qd_app_t *a, int16_t *stereo, uint32_t nblk)
         t1 = plat_ticks24();
         for (i = 0; i < nv; i++)
             act += a->pool.v[i].q.active != 0;
-        for (i = nv - 1; i >= 0 && n1 < (act + 1) / 2; i--) {
+        /* (P2.16b) core 1 one sounding voice more than half (act / 2 + 1): core 0 also runs the previous block's out
+         * (~1.6 voices' time on the unit: 793 us a half against ~470 a voice), so 4/4 of 8 left core 1 idle ~600 us and
+         * core 0 the longer; 5/3 is the even pair. Odd counts unchanged (7: 4/3) */
+        for (i = nv - 1; i >= 0 && n1 < (act ? (act / 2 + 1 < act ? act / 2 + 1 : act) : 0); i--) {
             n1 += a->pool.v[i].q.active != 0;
             sp = i;
         }
