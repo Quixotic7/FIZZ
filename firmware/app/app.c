@@ -1122,8 +1122,10 @@ static uint32_t fz_hash_row(const uint16_t *p)
 {
     const uint32_t *w = (const uint32_t *)(const void *)p;
     uint32_t h = 2166136261u, i;
-    for (i = 0; i < 120u; i++)
+    for (i = 0; i < 120u; i++) {         /* (P2.16c: the shift down, as fz_fb_row_hash: a top half's change mixed) */
         h = (h ^ w[i]) * 16777619u;
+        h ^= h >> 15;
+    }
     return h | 1u;
 }
 
@@ -1551,6 +1553,54 @@ static void fz_draw_bench(void)
 static int fz_draw_fb(int all) { (void)all; return 0; }
 #endif
 #ifdef PLAT_HOST
+/* (P2.16c) the rows' hashes: every single pixel's every one-bit change changes its row's hash (8-bit and RGB565 rows),
+ * and 200,000 random changes of 2..6 pixels all in words' top bytes (halves) never match: fzhashtest */
+static uint32_t fz_ht_single, fz_ht_multi;
+static void fz_hash_test(void)
+{
+    static uint8_t r8[240] __attribute__((aligned(4)));
+    static uint16_t r16[240] __attribute__((aligned(4)));
+    uint32_t seed = 12345u, x, b, t, h0, k;
+#define FZ_HT_RND() (seed = seed * 1664525u + 1013904223u, seed >> 8)
+    fz_ht_single = fz_ht_multi = 0;
+    for (x = 0; x < 240u; x++)
+        r8[x] = (uint8_t)FZ_HT_RND(), r16[x] = (uint16_t)FZ_HT_RND();
+    h0 = fz_fb_row_hash(r8);
+    for (x = 0; x < 240u; x++)
+        for (b = 0; b < 8u; b++) {
+            r8[x] ^= (uint8_t)(1u << b);
+            fz_ht_single += fz_fb_row_hash(r8) == h0;
+            r8[x] ^= (uint8_t)(1u << b);
+        }
+    __asm__ volatile("" ::: "memory");
+    h0 = fz_hash_row(r16);
+    for (x = 0; x < 240u; x++)
+        for (b = 0; b < 16u; b++) {
+            r16[x] ^= (uint16_t)(1u << b);
+            __asm__ volatile("" ::: "memory");   /* (the hash reads the halves as words: the compiler told) */
+            fz_ht_single += fz_hash_row(r16) == h0;
+            r16[x] ^= (uint16_t)(1u << b);
+        }
+    for (t = 0; t < 200000u; t++) {
+        uint8_t c8[240] __attribute__((aligned(4)));
+        uint16_t c16[240] __attribute__((aligned(4)));
+        const uint32_t n = 2u + FZ_HT_RND() % 5u;
+        int d8 = 0, d16 = 0;
+        memcpy(c8, r8, sizeof c8);
+        memcpy(c16, r16, sizeof c16);
+        for (k = 0; k < n; k++) {
+            const uint32_t q = FZ_HT_RND() % 60u, v = FZ_HT_RND();
+            c8[4u * q + 3u] = (uint8_t)v;
+            c16[2u * (q * 2u % 120u) + 1u] = (uint16_t)(v >> 8);
+        }
+        for (x = 0; x < 240u; x++)
+            d8 |= c8[x] != r8[x], d16 |= c16[x] != r16[x];
+        __asm__ volatile("" ::: "memory");
+        fz_ht_multi += d8 && fz_fb_row_hash(c8) == fz_fb_row_hash(r8);
+        fz_ht_multi += d16 && fz_hash_row(c16) == fz_hash_row(r16);
+    }
+#undef FZ_HT_RND
+}
 /* (the host's test of the send: a frame of indices and a palette of its own, a moving band; the panel then holds the
  * palette's colours, row for row) */
 static uint8_t fz_tf[240][240];
@@ -2129,6 +2179,10 @@ int app_expect(const char *what, int *got)
         *got = k >= 0 && k < 16 ? (int)fz_line_need[k] : -1;
     } else if (!strcmp(what, "fz_stats_cut"))   /* (fields left out for want of room) */
         *got = (int)fz_line_cut;
+    else if (!strcmp(what, "fz_hash_single"))   /* (fzhashtest: one-bit changes the hash missed) */
+        *got = (int)fz_ht_single;
+    else if (!strcmp(what, "fz_hash_multi"))   /* (.. top-byte changes it matched) */
+        *got = (int)fz_ht_multi;
     else if (!strcmp(what, "fz_fbtest_bad"))   /* (fzfbtest: pixels the panel holds other than the palette's) */
         *got = (int)fz_tf_bad;
     else if (!strcmp(what, "fz_fb_rows"))
@@ -2181,6 +2235,12 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "fzdrawbench")) {   /* (the drawing bench, as DRWB) */
 #ifdef QD_GFX_FB
         fz_draw_bench();
+#endif
+        return 1;
+    }
+    if (!strcmp(cmd, "fzhashtest")) {    /* (P2.16c) the rows' hashes: fz_hash_single, fz_hash_multi */
+#ifdef PLAT_HOST
+        fz_hash_test();
 #endif
         return 1;
     }

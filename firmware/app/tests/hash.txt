@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MPL-2.0
+# P2.16c: the rows' hashes (fz_fb_row_hash, fz_hash_row): any one-bit change of any pixel changes its row's hash, and
+# changes all in the words' top bytes (halves) are mixed down (the stale row of QD_EDIT_ANIM_FPS=15: 1 in 256 before)
+expect fz_up 1
+fzhashtest
+expect fz_hash_single 0
+expect fz_hash_multi 0

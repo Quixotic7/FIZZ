@@ -31,8 +31,12 @@ static uint32_t fz_fb_row_hash(const uint8_t *p)
 {
     const uint32_t *w = (const uint32_t *)(const void *)p;   /* (rows are 4-byte aligned: 240 bytes) */
     uint32_t h = 2166136261u, i;
-    for (i = 0; i < 60u; i++)
+    for (i = 0; i < 60u; i++) {          /* (P2.16c: FNV-1a over words with a shift down each word, as the FIZZ agent
+                                          * found: without it a word's top byte only reached the hash's top 8 bits, and
+                                          * a row whose changes were all in top bytes (x % 4 == 3) matched 1 in 256) */
         h = (h ^ w[i]) * 16777619u;
+        h ^= h >> 15;
+    }
     return h | 1u;
 }
 
