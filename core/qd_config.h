@@ -118,7 +118,7 @@
 
 /* ---- P2.6i: the screens' pacing, build options for the owner to choose from (every default: today's frames) */
 #ifndef QD_PACE_PLAYHEAD
-#define QD_PACE_PLAYHEAD 0             /* the step view's playhead: 0 continuous, 1 a hop a step, 2 a hop a half step */
+#define QD_PACE_PLAYHEAD 2             /* the step view's playhead: 0 continuous, 1 a hop a step, 2 a hop a half step */
 #endif
 #ifndef QD_IDLE_FPS
 #define QD_IDLE_FPS 16                 /* the idle logo's clock steps, stopped: 16, 10 or 8 a second */

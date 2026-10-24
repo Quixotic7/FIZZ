@@ -511,7 +511,7 @@ static void lane(const ui_lane_t *v)
  *            row its length as a line under the cells (from its micro offset; INF or past the page: an arrow). On the
  *            open row a fill's height is the velocity (from the bottom), a ghost's velocity a tick. The pages out of
  *            the loop dim
- *   motion   the playhead: a red marker over the unfolded row that hops from step to step (a little bounce at each),
+ *   motion   the playhead: a red marker over the unfolded row that hops from step to step,
  *            a red tick under a folded row's cell (P1.3s: no outline: only the selection is outlined); a trig pops
  *            as it plays (its fill white, fading) and its notes light red while it sounds; stopped, the unfolded row's
  *            outlines breathe (slowly) */
@@ -656,16 +656,11 @@ static float steps_row(const ui_lane_t *v, int p, float y, float g, float open)
             if (c & UI_C_HELD)
                 ui_RR(x - 2.f, cy - 2.f, OV_W + 4.f, ch + 4.f, r + 1.5f, UI_K3, 1.3f, QD_NONE);
         }
-        if (g >= 0.5f && ph >= p * 16 && ph < p * 16 + 16 && v->pos >= 0.f) {   /* the marker: hops step to step */
-            const float fr = v->pos - floorf(v->pos);
-            const float hx = ov_x(ph % 16) + OV_W / 2.f, hop = 4.f * sinf(UI_PI * (fr < 0.35f ? fr / 0.35f : 1.f));
-            const float my = cy - 5.f - (fr < 0.35f ? hop : 0.f);
-            const float tri[6] = {hx - 3.5f, my - 3.f, hx + 3.5f, my - 3.f, hx, my + 2.f};
-            ui_P(tri, 3, UI_RED, 1.f, 1, UI_RED);
-            line2(hx, cy + ch + 1.f, hx, cy + ch + 5.f, UI_RED, 1.f);
-        } else if (g >= 0.5f && ph >= p * 16 && ph < p * 16 + 16) {
+        if (g >= 0.5f && ph >= p * 16 && ph < p * 16 + 16) {   /* the marker: hops step to step (no bounce) */
             const float hx = ov_x(ph % 16) + OV_W / 2.f, tri[6] = {hx - 3.5f, cy - 8.f, hx + 3.5f, cy - 8.f, hx, cy - 3.f};
             ui_P(tri, 3, UI_RED, 1.f, 1, UI_RED);
+            if (v->pos >= 0.f)
+                line2(hx, cy + ch + 1.f, hx, cy + ch + 5.f, UI_RED, 1.f);
         }
         qd_restore();
         return rowh;
