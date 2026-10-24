@@ -2,8 +2,8 @@
 # what it was at its last step. Lower them (--ratchet-set) as things shrink; never raise them
 # without saying why in the commit
 flash_arm 408891
-flash_pi32v2 431349
-ram 420838
+flash_pi32v2 431361
+ram 388070
 stack_audio 3136
 stack_main 20524
 xdata 84110

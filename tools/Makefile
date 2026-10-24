@@ -168,7 +168,7 @@ CR_INC := -I$(CRB)/firmware/src -I$(CRB)/build/gen -I$(CRB)/tests -I$(T)
 $(B)/cr_quad_ref.o: $(T)/ref/cr_quad_ref.c $(T)/ref/bitexact.h $(CRB)/.ready
 	$(CC) -std=c99 -O2 -w $(CR_INC) -c -o $@ $<
 $(B)/cr_fx_ref.o: $(T)/ref/cr_fx_ref.c $(T)/ref/bitexact.h $(CRB)/.ready
-	$(CC) -std=gnu11 -O2 -w $(CR_INC) -c -o $@ $<
+	$(CC) -std=gnu11 -O2 -w -DXD_N=8192u $(CR_INC) -c -o $@ $<   # (P2.6e: FIZZ's delay line, core/voice/fx/qd_fx.c)
 $(B)/test_quad_bitexact: $(T)/test_quad_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_quad_ref.o $(HDRS)
 	$(CC) -O2 $(WARN) $(INC) -o $@ $(T)/test_quad_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_quad_ref.o
 $(B)/test_fx_bitexact: $(T)/test_fx_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_fx_ref.o $(HDRS)
