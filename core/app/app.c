@@ -78,6 +78,7 @@ void qd_app_stop(qd_app_t *a)
 /* ---------------------------------------------------------------- the keybed's notes --- */
 void qd_app_note_on(qd_app_t *a, int key, int note, int vel)
 {
+    a->edit_gen++;                                      /* (P2.6c: the patterns may change: persist.c looks) */
     if (key < 0 || key >= QD_NKEY || note < 0 || note > 127)
         return;
     if ((a->keys_struck >> key) & 1u)                   /* (struck already: its note released first) */
@@ -90,6 +91,7 @@ void qd_app_note_on(qd_app_t *a, int key, int note, int vel)
 
 void qd_app_note_off(qd_app_t *a, int key)
 {
+    a->edit_gen++;                                      /* (P2.6c: the patterns may change: persist.c looks) */
     if (key < 0 || key >= QD_NKEY || !((a->keys_struck >> key) & 1u))
         return;
     a->keys_struck &= ~(1u << key);                     /* the note it struck (the octave or the track may have
@@ -100,6 +102,7 @@ void qd_app_note_off(qd_app_t *a, int key)
 /* ---------------------------------------------------------------- input: the controller's --- */
 void qd_app_key(qd_app_t *a, int key, int down, int vel)
 {
+    a->edit_gen++;                                      /* (P2.6c: the patterns may change: persist.c looks) */
     if (key < 0 || key >= QD_NKEY)
         return;
     if (down) {
@@ -117,6 +120,7 @@ void qd_app_key(qd_app_t *a, int key, int down, int vel)
 
 void qd_app_button(qd_app_t *a, int button, int down)
 {
+    a->edit_gen++;                                      /* (P2.6c: the patterns may change: persist.c looks) */
     if (button < 0 || button >= QD_NBTN)
         return;
     if (down)
@@ -132,6 +136,7 @@ void qd_app_input_prepare(qd_app_t *a) { qd_undo_input(a, 0); }
 
 void qd_app_knob(qd_app_t *a, int knob, int detents)
 {
+    a->edit_gen++;                                      /* (P2.6c: the patterns may change: persist.c looks) */
     if (detents && knob >= 0 && knob < QD_NKNOB) {
         qd_undo_input(a, 1);
         qd_ctl_knob(a, knob, detents);
@@ -261,6 +266,7 @@ void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2)
 {
     const int ch = status & 15, kind = status & 0xF0;
     int mine;
+    a->edit_gen++;                                      /* (P2.6c) */
     if (status >= 0xF0)
         return;
     qd_undo_input(a, 0);                                /* (P1.5c: notes into a held step or a take: a gesture) */
@@ -300,8 +306,9 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
  * the model's tracks (what the controller edits and the keys play); an edit of a track's sound goes back into it */
 static void qd_app_sounds(qd_app_t *a)
 {
-    qd_pattern_t *P = qd_proj_pat(&a->proj, a->seq.cur);
+    qd_pattern_t *P;
     int t;
+    P = qd_proj_pat(&a->proj, a->seq.cur);
     if (a->snd_pat != a->seq.cur) {
         a->snd_pat = a->seq.cur;
         for (t = 0; t < QD_NTRACK; t++)
@@ -315,16 +322,28 @@ static void qd_app_sounds(qd_app_t *a)
             continue;                                   /* (P1.5t: the browser's preview is not the pattern's) */
         qd_track_to_tsound(&a->model.t[t], &s);
         if (memcmp(&s, &P->snd[t], sizeof s))
-            P->snd[t] = s;
+            P->snd[t] = s, a->edit_gen++;
     }
 }
 
-static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
+/* P2.6c: a millisecond in three parts. ms_lock1 and ms_lock2 touch what the audio side reads (the patterns' slots and
+ * the sound cache, the patterns' track sounds, the transport, the voices through the controller and the preview): the
+ * audio lock. ms_free touches what only the main loop uses (the persist looks: hashes of what is in RAM, never reading
+ * anything in; the store's job queue; SysEx's labels): no lock */
+static void ms_lock1(qd_app_t *a)
 {
     qd_persist_prefetch(a);                             /* P2.1: the sequencer's patterns in RAM before it asks */
     qd_app_sounds(a);
+}
+static void ms_free(qd_app_t *a)
+{
     qd_persist_ms(a);                                   /* P1.5a: written by itself */
     qd_sx_ms(a);                                        /* P1.6l: a subscribed page's LABELS, when they change */
+}
+static void ms_lock2(qd_app_t *a)
+{
+    if (a->ui.rec)
+        a->edit_gen++;                                  /* (P2.6c: a take writes as time goes) */
     if (a->seq.playing != a->playing) {                 /* (MIDI START / STOP moved the transport) */
         if (a->seq.playing)
             qd_dance_play(a);
@@ -343,13 +362,57 @@ static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
         qd_undo_ms(a);
     qd_ctl_preview_sync(a);                             /* (a step held at 250 ms, the transport moved) */
 }
+static void qd_app_ms(qd_app_t *a)     /* one device millisecond */
+{
+    ms_lock1(a);
+    ms_free(a);
+    ms_lock2(a);
+}
+
+/* P2.6c: the port's two halves of qd_app_tick: the locked part once up to ms now (coalesced: its timers compare
+ * times), then (the lock released) the free part a ms at a time for the same ms, each with a->ms as it was then (the
+ * persist looks' schedule is by the ms) */
+void qd_app_tick_locked(qd_app_t *a, uint32_t ms)
+{
+    uint32_t n;
+    if (!a->started || ms < a->ms) {
+        a->started = 1;
+        a->ms = a->free_ms = ms;
+        a->ui.touch_ms = ms;
+        return;
+    }
+    n = ms - a->ms;
+    if (n > 60000u)
+        n = 60000u;
+    a->ms = ms - n;
+    if (a->free_ms < a->ms)
+        a->free_ms = a->ms;
+    if (n) {                                            /* (P2.6c: once for every ms since: its timers compare times,
+                                                         * none counts calls; a timer fires up to n ms late) */
+        a->ms = ms;
+        ms_lock1(a);
+        ms_lock2(a);
+    }
+    a->ms = ms;
+}
+void qd_app_tick_free(qd_app_t *a)
+{
+    const uint32_t ms = a->ms;
+    if (ms - a->free_ms > 60000u)
+        a->free_ms = ms - 60000u;
+    while (a->free_ms != ms) {
+        a->ms = ++a->free_ms;
+        ms_free(a);
+    }
+    a->ms = ms;
+}
 
 void qd_app_tick(qd_app_t *a, uint32_t ms)
 {
     uint32_t n;
     if (!a->started || ms < a->ms) {   /* the first tick (or a clock that restarted): the time starts here */
         a->started = 1;
-        a->ms = ms;
+        a->ms = a->free_ms = ms;
         a->ui.touch_ms = ms;
         return;
     }
@@ -361,7 +424,7 @@ void qd_app_tick(qd_app_t *a, uint32_t ms)
         a->ms++;
         qd_app_ms(a);
     }
-    a->ms = ms;
+    a->ms = a->free_ms = ms;
 }
 
 /* ---------------------------------------------------------------- out --- */

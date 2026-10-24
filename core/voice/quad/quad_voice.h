@@ -73,6 +73,12 @@ enum { QD_QL_SPEED, QD_QL_MULT, QD_QL_FADE, QD_QL_DEST, QD_QL_WAVE, QD_QL_PHASE,
 enum { QD_QF_OFF, QD_QF_LP12, QD_QF_HP12, QD_QF_LP24 };   /* FTYPE */
 
 typedef struct qd_quad_voice qd_quad_voice_t;
+/* P2.6c: an LFO's phase step as last worked out, and what it was worked out from (SPEED, MULT, the tempo) */
+typedef struct {
+    int16_t sp, bpm;
+    uint8_t mu, ok;
+    int32_t inc;
+} qd_lfo_cache_t;
 
 /* A track as FM TONE's owner. Field names are eng_quad.c's (it reads this as its track_t) */
 typedef struct qd_quad_owner {
@@ -94,6 +100,7 @@ typedef struct qd_quad_owner {
     uint8_t mw, at, br;                 /* E4: the track's MIDI state: CC 1, channel pressure, CC 2 (0..127) .. */
     int16_t pb;                         /* .. the pitch bend (-8192..8191) */
     uint32_t nserial;                   /* .. the notes struck (the RANDOM source's seed) */
+    qd_lfo_cache_t lfc[3];              /* P2.6c: the FREE LFOs' steps (quad_block), worked out again on a change */
     uint8_t defer_off;                  /* P2.6: the split block (app.h qd_app_block_voices): a voice's render writes
                                          * nothing of the owner's: the latest note's voice keeps the LFOs' offsets in
                                          * itself (nx_*), qd_quad_owner_publish puts them here after the block, and a
@@ -123,6 +130,7 @@ struct qd_quad_voice {
     int8_t nx_pan, nx_fx[4];            /* P2.6: as the latest note's voice, the offsets its last block made (the
                                          * owner's quad_pan_off, quad_fx_off) .. */
     uint8_t nx_ok;                      /* .. made since its start */
+    qd_lfo_cache_t lfc[4];              /* P2.6c: its LFOs' steps (and LFO 1's as LFOs 2, 3 move it), on a change */
     int16_t fq_sm, rs_sm;               /* P2.6b: FREQ and RESO as the filter runs them: they glide to a live change (a
                                          * knob, a LOCK on a sounding voice) over a few blocks; a note starts at its own */   /* E2: the filter machines' state (quad_ext.c:
                                          * the comb's damping and length (Q8), its write place; the machine last run; a
@@ -137,6 +145,8 @@ void qd_quad_owner_publish(qd_quad_owner_t *o);
 /* P2.6 (defer_off): before the block's voices, what a voice's render would claim of the shared (a comb line) */
 void qd_quad_voice_prepare(qd_quad_voice_t *v);
 int32_t qd_quad_bench(int k, int note, int nblocks);   /* P2.6: a preset's voice alone, n blocks: the unit's timing */
+void qd_quad_bench_start(int k, int note);             /* P2.6c: .. in parts: the voice struck, then a block a call: */
+int32_t qd_quad_bench_block(int what);                 /* what 0 the owner and qd_quad_voice_render, 1 quad_render alone */
 uint32_t qd_quad_shared_sig(void);              /* P2.6 (tests): what the voices share outside themselves, hashed */
 
 /* ---- a voice */

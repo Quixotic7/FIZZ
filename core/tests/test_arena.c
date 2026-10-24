@@ -112,6 +112,17 @@ int main(void)
     }
     printf("  the arena: %u KB, peak %lu bytes, %d requests refused (full) on the way\n", QD_GFX_ARENA / 1024u,
            (unsigned long)qd_arena_peak(), refused);
+    {   /* P2.6c: a block cut down in place: the rest free again (a block that size fits beside it) */
+        const size_t live0 = qd_arena_live();
+        uint8_t *a = (uint8_t *)qd_arena_malloc(100000u), *b;
+        memset(a, 7, 1000);
+        a = (uint8_t *)qd_arena_shrink(a, 1000u);
+        b = (uint8_t *)qd_arena_malloc(QD_GFX_ARENA - 2000u - live0 - 64u);
+        CHECK(a && b && a[999] == 7 && qd_arena_live() < live0 + 1100u + (b ? QD_GFX_ARENA : 0),
+              "qd_arena_shrink: the block cut to 1000 B, its first bytes kept, the rest given back (%p)", (void *)b);
+        qd_arena_free(b);
+        qd_arena_free(a);
+    }
     printf("test_arena: %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

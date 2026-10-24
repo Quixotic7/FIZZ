@@ -465,6 +465,7 @@ static void sx_dump(qd_app_t *a, const uint8_t *b, uint32_t n)
 void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
 {
     uint32_t i, sum = 0;
+    a->edit_gen++;                                      /* (P2.6c: the patterns may change: persist.c looks) */
     if (n < 5u || f[0] != QD_SX_ID0 || f[1] != QD_SX_ID1 || f[2] != QD_SX_ID2)
         return;                                         /* (not FIZZ's) */
     a->sx.frames++;

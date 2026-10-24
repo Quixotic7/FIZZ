@@ -121,6 +121,10 @@ typedef struct qd_app {
     uint8_t midi_sel[16][16];          /* P2.4: .. a bit a note: it went to the selected track (its OFF: recorded too) */
     int master_pot;                    /* MASTER, 0..1023 */
     uint32_t seed_fix;                 /* P2.4: qd_app_seed's (0: the clock's) */
+    uint32_t free_ms;                  /* P2.6c: qd_app_tick_free's ms so far */
+    uint32_t snd_gen, snd_ms;          /* P2.6c: qd_app_sounds' last edit_gen and ms */
+    uint32_t edit_gen;                 /* P2.6c: bumped by every input (and a take, the tracks' sounds into the pattern):
+                                        * persist.c's looks hash a pattern again only after it moved */
     uint32_t frame_hash;               /* P2.4: qd_app_frame_changed's last frame .. */
     int frame_hash_ok;
     uint32_t strip_hash[240 / QD_STRIP_DEV + 1];   /* P2.6: .. its strips' (240: the screen's rows) */
@@ -173,6 +177,13 @@ void qd_app_midi_play(qd_app_t *a, int status, int d1, int d2);   /* P2.4: its a
 void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2);     /* .. and its UI part, after it (the main loop's) */
 /* the clock: ms counts up from 0, one call per device millisecond (a gap is run through ms by ms) */
 void qd_app_tick(qd_app_t *a, uint32_t ms);
+/* P2.6c: qd_app_tick in two, for the port's audio lock: qd_app_tick_locked(a, ms) under it (each ms: the patterns
+ * and sounds the sequencer will want, the tracks' sounds into the pattern, the transport, the controller's timers,
+ * the undo, the preview), then qd_app_tick_free(a) without it (each of those ms again: the persist looks, which hash
+ * what is in RAM and read nothing in; the store's next job; SysEx's labels; with a->ms as it was then). qd_app_tick
+ * is the two a ms at a time, as before */
+void qd_app_tick_locked(qd_app_t *a, uint32_t ms);
+void qd_app_tick_free(qd_app_t *a);
 /* the screen: one frame drawn (qd_gfx), written as RGB565 big-endian (240 x 240) */
 void qd_app_frame(qd_app_t *a, uint16_t *lcd_be);
 /* P2.4: would the frame now differ from the last one this said? The screen's logic runs once with nothing drawn and

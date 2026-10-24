@@ -934,7 +934,8 @@ void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
     qd_ctl_select_track(a, sel);
     mark_all_saved(a);
-    ps->saved[QD_PI_SET] ^= 1u;                         /* (the settings written once: the project's in them) */
+    ps->saved[QD_PI_SET] ^= 1u;
+    ps->maybe_dirty = 1;                         /* (the settings written once: the project's in them) */
     pool_fixup(a);                                      /* (P1.5w: after: what it changes is written) */
 }
 
@@ -971,8 +972,26 @@ static void look(qd_app_t *a, int it)
     uint32_t h;
     if (!item_here(a, it))
         return;
+    if (it == QD_PI_SET || it == QD_PI_HDR || it == QD_PI_FTAG || it == QD_PI_MFX) {   /* (P2.6c: the settings, the
+                                                         * header, the tags, the MIDI FX: hashed again only after an
+                                                         * input; every 11th all the same) */
+        const int j = it == QD_PI_SET ? 0 : it == QD_PI_HDR ? 1 : it == QD_PI_FTAG ? 2 : 3;
+        if (ps->it_gen[j] == (uint16_t)a->edit_gen && ps->it_wr[j] == (uint16_t)ps->written && ps->it_skip[j] < 10u) {
+            ps->it_skip[j]++;
+            return;
+        }
+        ps->it_gen[j] = (uint16_t)a->edit_gen, ps->it_wr[j] = (uint16_t)ps->written, ps->it_skip[j] = 0;
+    }
     if (it >= QD_PI_PAT && it < QD_PI_SND) {
-        const uint32_t r = pat_raw_hash(a, it - QD_PI_PAT);
+        const int k = it - QD_PI_PAT;
+        uint32_t r;
+        if (ps->pat_gen[k] == (uint16_t)a->edit_gen && ps->pat_wr[k] == (uint16_t)ps->written && ps->pat_skip[k] < 10u) {
+            ps->pat_skip[k]++;                          /* (P2.6c: no input since its last look: not hashed again; a
+                                                         * real look at least every 11th, for a change by other ways) */
+            return;
+        }
+        ps->pat_gen[k] = (uint16_t)a->edit_gen, ps->pat_wr[k] = (uint16_t)ps->written, ps->pat_skip[k] = 0;
+        r = pat_raw_hash(a, k);
         if (r == ps->pat_raw[it - QD_PI_PAT])
             return;
         ps->pat_raw[it - QD_PI_PAT] = r;
@@ -981,6 +1000,7 @@ static void look(qd_app_t *a, int it)
     if (h != ps->seen[it]) {
         ps->seen[it] = h;
         ps->changed[it] = a->ms;
+        ps->maybe_dirty = 1;
     }
 }
 
@@ -996,6 +1016,7 @@ static void job_end(qd_app_t *a)
             ps->written_ms[ps->job - QD_PI_PAT] = a->ms ? a->ms : 1u;
     }
     ps->job = -1;
+    ps->maybe_dirty = 1;                                /* (a dropped record is still to write) */
 }
 
 /* P2.1: the record the store is writing, made again page by page from the item (its bytes never held whole); before
@@ -1060,18 +1081,27 @@ void qd_persist_ms(qd_app_t *a)
     int it, k;
     if (!ps->on)
         return;
-    if (a->ms % QD_SAVE_LOOK_MS == 0) {                 /* the looks */
+    k = (int)(a->ms % QD_SAVE_LOOK_MS);                 /* the looks: every QD_SAVE_LOOK_MS, one item a ms (P2.6c: the
+                                                         * 14 of them spread, not in one ms: the longest ms ~1 item) */
+    if (k == 0)
         look(a, QD_PI_SET);
+    else if (k == 1)
         look(a, QD_PI_HDR);
+    else if (k == 2)
         look(a, QD_PI_FTAG);
+    else if (k == 3)
         look(a, QD_PI_MFX);                             /* P1.6c */
+    else if (k == 4)
         look(a, QD_PI_PAT + a->seq.cur);
+    else if (k == 5) {
         ps->scan = (ps->scan + 1) % QD_NPAT;
         look(a, QD_PI_PAT + ps->scan);
-        for (k = 0; k < 4; k++) {
-            look(a, QD_PI_SND + (ps->scan * 2 + k) % QD_NSOUND);
-            look(a, QD_PI_LIB + (ps->scan * 4 + k) % QD_NLIB);   /* (P1.5t: 256: four new ones a look) */
-        }
+    } else if (k >= 6 && k < 14) {
+        const int j = (k - 6) / 2;
+        if (!(k & 1))
+            look(a, QD_PI_SND + (ps->scan * 2 + j) % QD_NSOUND);
+        else
+            look(a, QD_PI_LIB + (ps->scan * 4 + j) % QD_NLIB);   /* (P1.5t: 256: four new ones a look) */
     }
     if (ps->job < 0 && ps->urgent) {                    /* P2.4: the one a prefetch waits on: now, no debounce */
         it = ps->urgent - 1;
@@ -1083,12 +1113,19 @@ void qd_persist_ms(qd_app_t *a)
                 ps->urgent = 0;
         }
     }
-    if (ps->job < 0 && a->ms % 15u == 0) {              /* the next record due */
+    if (ps->job < 0 && a->ms % 15u == 0 && ps->maybe_dirty) {   /* the next record due (P2.6c: none dirty: no scan) */
+        int dirty = 0;
         for (it = 0; it < QD_PI_N; it++)
-            if (ps->seen[it] != ps->saved[it] && a->ms - ps->changed[it] >= QD_SAVE_DEBOUNCE_MS) {
-                job_start(a, it);
-                break;
+            if (ps->seen[it] != ps->saved[it]) {
+                dirty = 1;
+                if (a->ms - ps->changed[it] >= QD_SAVE_DEBOUNCE_MS && item_here(a, it)) {   /* (P2.6c: in RAM: a
+                                                         * sound's job never reads one in) */
+                    job_start(a, it);
+                    break;
+                }
             }
+        if (!dirty)
+            ps->maybe_dirty = 0;
     }
     if (a->ms % 15u == 0 && !ps->own_step)              /* a UI frame: §7's writes (P2.4: or the port's own call) */
         persist_writes(a, playing, quiet);
@@ -1119,6 +1156,7 @@ int qd_persist_flush(qd_app_t *a)
             continue;
         h = item_hash(a, it, 0);
         ps->seen[it] = h;
+        ps->maybe_dirty = 1;
         if (h == ps->saved[it])
             continue;
         if (job_start(a, it)) {
@@ -1195,6 +1233,7 @@ int qd_proj_load(qd_app_t *a, int p)
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
     mark_all_saved(a);
     ps->saved[QD_PI_SET] ^= 1u;
+    ps->maybe_dirty = 1;
     pool_fixup(a);                                      /* (P1.5w) */
     return 1;
 }
@@ -1245,6 +1284,7 @@ int qd_proj_new(qd_app_t *a, int p)
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
     mark_all_saved(a);
     ps->saved[QD_PI_SET] ^= 1u;
+    ps->maybe_dirty = 1;
     return 1;
 }
 
@@ -2271,6 +2311,7 @@ static int pat_clean(void *ctx, int k, const qd_pattern_t *P)
         if (h != ps->seen[it]) {
             ps->seen[it] = h;
             ps->changed[it] = a->ms;
+            ps->maybe_dirty = 1;
         }
     }
     return ps->seen[it] == ps->saved[it];
@@ -2441,18 +2482,21 @@ static int pf_add(int *keys, int n, int k)
 static int pf_sounds(qd_app_t *a, int *keys)
 {
     const qd_seq_t *s = &a->seq;
-    int n = 0, j, t, q;
+    const qd_pattern_t *PT[3][QD_PAT_NTRACK];
+    int LEN[3][QD_PAT_NTRACK], n = 0, j, t, q;
+    for (q = 0; q < 3; q++)                             /* (P2.6c: each track's pattern and loop once a scan) */
+        for (t = 0; t < QD_PAT_NTRACK; t++) {
+            const int pat = q != 1 ? s->sw_pat : s->playing ? s->cur_t[t].pat : s->cur;
+            PT[q][t] = pat >= 0 && qd_proj_resident(&a->proj, pat) ? qd_proj_cpat(&a->proj, pat) : 0;
+            LEN[q][t] = PT[q][t] ? qd_track_len(&PT[q][t]->trk[t]) : 0;
+        }
     for (q = 0; q < 3 && n < PF_SND; q++)
         for (j = q == 2 ? 2 : 0; j < (q == 0 ? 2 : PF_AHEAD) && n < PF_SND; j++)
             for (t = 0; t < QD_PAT_NTRACK && n < PF_SND; t++) {
-                const int pat = q != 1 ? s->sw_pat : s->playing ? s->cur_t[t].pat : s->cur;
-                const qd_pattern_t *P;
-                int len, idx, st;
-                if (pat < 0 || !qd_proj_resident(&a->proj, pat))
-                    continue;
-                P = qd_proj_cpat(&a->proj, pat);
-                len = qd_track_len(&P->trk[t]);
-                if (j >= len)
+                const qd_pattern_t *P = PT[q][t];
+                const int len = LEN[q][t];
+                int idx, st;
+                if (!P || j >= len)
                     continue;
                 idx = q == 1 && s->playing ? (s->cur_t[t].idx + j) % len : j;
                 st = qd_track_loop_step(&P->trk[t], idx < 0 ? 0 : idx);
@@ -2484,11 +2528,25 @@ void qd_persist_prefetch(qd_app_t *a)
         a->per.fetch_ms = wait ? (a->ms ? a->ms : 1u) : 0u;
     }
 #if QD_SND_RAM
-    if (a->proj.sc && a->ms % 8u == 4u) {
-        int keys[PF_SND];
-        const int nk = pf_sounds(a, keys);
-        for (i = 0; i < nk; i++)
-            qd_sndc_fetch(a->proj.sc, keys[i], keys, nk);
+    if (a->proj.sc && a->ms - a->per.snd_pf_ms >= 8u) {   /* (P2.6c: every 8 ms by the clock: a coalesced tick too) */
+        uint32_t key = 2166136261u;                     /* (P2.6c: what the scan reads: the same, no scan) */
+        int keys[PF_SND], t;
+        a->per.snd_pf_ms = a->ms;
+        key = (key ^ (uint32_t)s->cur) * 16777619u;
+        key = (key ^ (uint32_t)s->sw_pat) * 16777619u;
+        key = (key ^ (uint32_t)s->playing) * 16777619u;
+        key = (key ^ a->edit_gen) * 16777619u;
+        for (t = 0; s->playing && t < QD_PAT_NTRACK; t++)
+            key = (key ^ ((uint32_t)s->cur_t[t].idx << 8 ^ (uint32_t)s->cur_t[t].pat)) * 16777619u;
+        if (key != a->per.snd_pf_key || a->per.snd_pf_left) {
+            int nk;
+            a->per.snd_pf_key = key;
+            nk = pf_sounds(a, keys);
+            a->per.snd_pf_left = 0;
+            for (i = 0; i < nk; i++)
+                if (!qd_sndc_fetch(a->proj.sc, keys[i], keys, nk))
+                    a->per.snd_pf_left = 1;     /* (one waits for a place: scanned again) */
+        }
     }
 #endif
 }

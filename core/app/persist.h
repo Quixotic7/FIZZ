@@ -93,6 +93,13 @@ typedef struct {
     uint32_t written;                  /* records committed (the project page's bubbles) */
     int own_step;                      /* P2.4: the port calls qd_persist_step itself */
     uint32_t pat_raw[QD_NPAT];         /* P2.4: each pattern's bytes' fast hash at its last look (0: none) */
+    uint16_t pat_gen[QD_NPAT], pat_wr[QD_NPAT];   /* P2.6c: each pattern's last look: edit_gen, written (low bits) .. */
+    uint8_t pat_skip[QD_NPAT];         /* .. and the looks skipped since (a real one at least every 11th) */
+    uint32_t snd_pf_ms, snd_pf_key;    /* P2.6c: the sound prefetch's last scan, what it read .. */
+    int snd_pf_left;                   /* .. a sound it could not fetch yet */
+    uint16_t it_gen[4], it_wr[4];      /* P2.6c: SET, HDR, FTAG, MFX's last looks (as pat_gen) */
+    uint8_t it_skip[4];
+    int maybe_dirty;                   /* P2.6c: an item's seen or saved hash set since a scan found all clean */
     int urgent;                        /* P2.4: 1 + the item a prefetch waits on to leave RAM (0 none): written next,
                                         * with no debounce */
     uint32_t fetch_ms;                 /* P2.4: the prefetch's last wait (it tries again 8 ms on) */

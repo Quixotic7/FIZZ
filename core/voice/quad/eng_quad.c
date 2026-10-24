@@ -415,7 +415,7 @@ static int32_t quad_ext_ahd(quad_voice_t *s, int32_t atk, int32_t hold, int32_t 
 static void quad_ext_adsr_back(quad_voice_t *s);
 static void quad_ext_drive_pre(track_t *t, voice_t *v, int32_t *b, uint32_t n);
 typedef struct { int32_t a1, a2, a3, f2; } quad_svf_t;   /* (the multimode's coefficients: quad_svf_coef, below) */
-static void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k);
+static inline __attribute__((always_inline)) void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k);
 static void quad_ext_machine(voice_t *v, quad_voice_t *s, const int16_t *p, int32_t *acc, uint32_t n,
                              const quad_svf_t *c, int32_t kd, int32_t cut, int32_t reso, int32_t shape, int32_t gain,
                              int32_t *ic1, int32_t *ic2);
@@ -774,6 +774,15 @@ static int32_t quad_lfo_incb_p(const int16_t *p, uint32_t k, int32_t gbpm)
 {
     return quad_lfo_incb(p[QP_LFO(k, QL_SPEED)], (uint32_t)p[QP_LFO(k, QL_MULT)], gbpm);
 }
+/* P2.6c: the same through a cache: worked out again only when SPEED, MULT or the tempo changed (the same value) */
+static int32_t quad_lfo_cached(qd_lfo_cache_t *c, int32_t sp, uint32_t mu, int32_t gbpm)
+{
+    if (!c->ok || c->sp != sp || c->mu != (uint8_t)mu || c->bpm != gbpm || (uint32_t)c->mu != mu) {
+        c->inc = quad_lfo_incb(sp, mu, gbpm);
+        c->sp = (int16_t)sp, c->mu = (uint8_t)mu, c->bpm = (int16_t)gbpm, c->ok = 1;
+    }
+    return c->inc;
+}
 
 /* LFO wave w at phase ph (r: the random value, Q15): Q15 */
 static int32_t quad_lfo_wave(uint32_t w, uint32_t ph, int32_t r)
@@ -803,7 +812,7 @@ static void quad_block(track_t *t)
         return;
     for (k = 0; k < 3u; k++) {
         uint32_t old = t->quad_lfo.ph[k];
-        int32_t inc = quad_lfo_incb_p(p, k, t->bpm);
+        int32_t inc = quad_lfo_cached(&t->lfc[k], p[QP_LFO(k, QL_SPEED)], (uint32_t)p[QP_LFO(k, QL_MULT)], t->bpm);
         t->quad_lfo.ph[k] = old + (uint32_t)inc;
         if (inc > 0 ? t->quad_lfo.ph[k] < old : inc < 0 && t->quad_lfo.ph[k] > old)
             t->quad_lfo.rnd[k] = quad_xs(t->quad_lfo.rnd[k] + k);
@@ -1004,7 +1013,7 @@ static void quad_blev(int32_t v, int32_t *u1, int32_t *u2)
 static int32_t quad_lev(int32_t u) { return u >= 4096 ? 32767 : (u * u) >> 9; }   /* a share (Q12) squared, Q15 */
 
 /* QUAD_BW_K at x hundredths (0..12699), interpolated */
-static int32_t quad_bwk(int32_t x)
+static inline __attribute__((always_inline)) int32_t quad_bwk(int32_t x)   /* (P2.6c: inlined, as ChoralRoot's) */
 {
     int32_t i = x / 100, k0 = QUAD_BW_K[i];
     if (!(x % 100))                              /* QUADRILLE (d): BASE at 12700 (an LFO on BASE takes it there) read
@@ -1043,7 +1052,8 @@ static inline int32_t quad_hw(const int16_t *a, const int16_t *b, int32_t f, uin
  * (f2: the fraction, 0..31): FREQ in hundredths moves g by 0.05 % a hundredth, below a Q13 step where g is small
  * (FREQ 42: a2 ~ 116), so the fine part would not reach the sound; g is interpolated in Q20. (a3 = a2 g, a3's own
  * fraction: not worth its multiply a sample) */
-static void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k)   /* (QUADRILLE (e): its type declared above) */
+static inline __attribute__((always_inline)) void quad_svf_coef(quad_svf_t *c, int32_t cut, int32_t k)   /* (P2.6c: inlined
+                                                         * as ChoralRoot's is; QUADRILLE (e): its type declared above) */
 {
     fz_svf_coef_fine(cut, k, &c->a1, &c->a2, &c->a3, &c->f2);   /* (L1: fz_dsp.h) */
 }
@@ -1148,9 +1158,10 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         if (!k && (dst[QD_L1SPD] | dst[QD_L1MUL] | dst[QD_L1FAD] | dst[QD_L1WAV] | dst[QD_L1SPH] | dst[QD_L1MOD] |
                    dst[QD_L1DEP])) {            /* LFO 1's own parameters, moved by LFO 2 / 3 (none: as stored) */
             int32_t sp = clamp(p[QP_LFO(0, QL_SPEED)] + ((dst[QD_L1SPD] * 12700) >> 15), -6400, 6399);
-            int32_t mu = p[QP_LFO(0, QL_MULT)], ms = mu < 12 ? 0 : 12, ib = quad_lfo_incb_p(p, 0, t->bpm);
+            int32_t mu = p[QP_LFO(0, QL_MULT)], ms = mu < 12 ? 0 : 12,
+                    ib = quad_lfo_cached(&v->lfc[0], p[QP_LFO(0, QL_SPEED)], (uint32_t)mu, t->bpm);
             mu = ms + clamp(mu - ms + ((dst[QD_L1MUL] * 11) >> 15), 0, 11);   /* (within its set: BPM or fixed) */
-            inc0 = quad_lfo_incb(sp, (uint32_t)mu, t->bpm);
+            inc0 = quad_lfo_cached(&v->lfc[3], sp, (uint32_t)mu, t->bpm);
             tm = (uint32_t)clamp((int32_t)tm + ((dst[QD_L1MOD] * (QT_N - 1)) >> 15), 0, QT_N - 1);
             if (tm == QT_FREE)                   /* the part's phase runs at the stored rate: the voice's lead */
                 s->lof += (uint32_t)inc0 - (uint32_t)ib;
@@ -1159,7 +1170,7 @@ static void quad_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             sph = clamp(sph + ((dst[QD_L1SPH] * 127) >> 15), 0, 127);
             dep = clamp(dep + ((dst[QD_L1DEP] * 12700) >> 15), -6400, 6399);
         } else {
-            inc0 = quad_lfo_incb_p(p, k, t->bpm);
+            inc0 = quad_lfo_cached(&v->lfc[k], p[QP_LFO(k, QL_SPEED)], (uint32_t)p[QP_LFO(k, QL_MULT)], t->bpm);
         }
         if (tm == QT_FREE) {
             ph = t->quad_lfo.ph[k] + (wv == QW_RAND ? 0u : (uint32_t)sph << 25) + (k ? 0u : s->lof);   /* QUADRILLE

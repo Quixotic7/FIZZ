@@ -454,6 +454,15 @@ int qd_dl_end(void)
     } else {
         rl_nrec++;
         rl_maxb = rl_len > rl_maxb ? rl_len : rl_maxb;
+#if RL_ON
+        {   /* P2.6c: the list cut to what it holds (+ 64): the rest of its block back to the arena (the port's own
+             * borrowers too, while the frame is drawn) */
+            const int was = qd_arena_use(1);
+            rl_buf = (uint8_t *)qd_arena_shrink(rl_buf, rl_len + 64u);
+            rl_cap = rl_len + 64u;
+            qd_arena_use(was);
+        }
+#endif
     }
     return rl_buf != 0;
 }

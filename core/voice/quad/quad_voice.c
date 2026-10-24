@@ -126,27 +126,52 @@ void qd_quad_owner_publish(qd_quad_owner_t *o)
 
 /* P2.6: a voice of factory preset k (0 INIT .. 16), note held, rendered nblocks control blocks into a scratch block
  * of its own; the samples' sum (so nothing is left out). For the port to time on the unit, with nothing else
- * running: the engine's own cost there, against ChoralRoot's figures for the same preset (WOBBLE: 10). Its own
- * owner and voice: the app's are not touched */
+ * running: the engine's own cost there. Its own owner and voice: the app's are not touched. P2.6c: in parts, so the
+ * timed span can be ChoralRoot's: qd_quad_bench_start (the voice struck), then qd_quad_bench_block(what) a block:
+ * what 0 the owner's block and qd_quad_voice_render (the voice's wrapper: its end test, glide, pitch, ramps) and
+ * quad_render; what 1 quad_render alone (the engine's block, as ChoralRoot's track_render_x calls it a voice, the
+ * pitch and amplitudes made once at the start) */
+static qd_quad_owner_t qb_o;
+static qd_quad_voice_t qb_v;
+static int16_t qb_p[QD_QUAD_NP];
+static vmod_t qb_m;
+static int32_t qb_out[QD_QUAD_CTL];
+void qd_quad_bench_start(int k, int note)
+{
+    qd_quad_preset_patch(k, qb_p);
+    qd_quad_owner_init(&qb_o);
+    qb_o.quad_patch = qb_p;
+    qd_quad_voice_init(&qb_v, 0);
+    qd_quad_voice_start(&qb_v, qb_p, &qb_o, note, 100);
+    memset(&qb_m, 0, sizeof qb_m);
+    qb_m.pitch16 = qb_v.pitch_cur;
+    qb_m.inc = pitch_inc((uint32_t)qb_v.pitch_cur);
+    qb_m.shape = 64 << 8;
+    qb_m.amp0 = qb_m.amp1 = 32767;
+    qb_v.env_out = 32767, qb_v.env = 1 << 24;
+}
+int32_t qd_quad_bench_block(int what)
+{
+    int32_t sum = 0;
+    int i;
+    memset(qb_out, 0, sizeof qb_out);
+    if (what == 1) {
+        quad_render(&qb_o, &qb_v, qb_out, CTL, &qb_m);
+    } else {
+        qd_quad_owner_block(&qb_o);
+        qd_quad_voice_render(&qb_v, qb_out);
+    }
+    for (i = 0; i < QD_QUAD_CTL; i++)
+        sum += qb_out[i];
+    return sum;
+}
 int32_t qd_quad_bench(int k, int note, int nblocks)
 {
-    static qd_quad_owner_t o;
-    static qd_quad_voice_t v;
-    static int16_t p[QD_QUAD_NP];
-    int32_t out[QD_QUAD_CTL], sum = 0;
-    int b, i;
-    qd_quad_preset_patch(k, p);
-    qd_quad_owner_init(&o);
-    o.quad_patch = p;
-    qd_quad_voice_init(&v, 0);
-    qd_quad_voice_start(&v, p, &o, note, 100);
-    for (b = 0; b < nblocks; b++) {
-        memset(out, 0, sizeof out);
-        qd_quad_owner_block(&o);
-        qd_quad_voice_render(&v, out);
-        for (i = 0; i < QD_QUAD_CTL; i++)
-            sum += out[i];
-    }
+    int32_t sum = 0;
+    int b;
+    qd_quad_bench_start(k, note);
+    for (b = 0; b < nblocks; b++)
+        sum += qd_quad_bench_block(0);
     return sum;
 }
 

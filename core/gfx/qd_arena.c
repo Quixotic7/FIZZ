@@ -287,6 +287,33 @@ size_t qd_arena_live(void) { return ar_live; }
 size_t qd_arena_size(void) { return sizeof ar_mem; }
 unsigned qd_arena_fails(void) { return ar_fails; }
 void qd_arena_set_release(void (*fn)(void)) { ar_rel = fn; }
+/* P2.6c: a block of the arena cut down to n bytes, the rest freed (merged with a free neighbour). A large one (at the
+ * arena's top, AR_BIG) keeps its top end: its first n bytes moved up, the free room below in one piece. Returns the
+ * block (0: p as it was, not the arena's) */
+void *qd_arena_shrink(void *p, size_t n)
+{
+    uint32_t at, sz, need;
+    if (!p || !ar_in(p))
+        return p;
+    at = (uint32_t)((uint8_t *)p - (uint8_t *)ar_mem) - 4u;
+    sz = ar_size(at);
+    need = ((uint32_t)n + 8u + AR_ALIGN - 1u) & ~(AR_ALIGN - 1u);
+    need = need < AR_MIN ? AR_MIN : need;
+    if (need >= sz || sz - need < AR_MIN)
+        return p;
+    if (need >= AR_BIG) {                               /* (the top end kept) */
+        const uint32_t to = at + sz - need;
+        memmove((uint8_t *)ar_mem + to + 4u, p, n);
+        ar_set(to, need, 1);
+        ar_set(at, sz - need, 1);
+        qd_arena_free((uint8_t *)ar_mem + at + 4u);
+        return (uint8_t *)ar_mem + to + 4u;
+    }
+    ar_set(at, need, 1);
+    ar_set(at + need, sz - need, 1);                    /* (the rest, a block of its own, freed: merged, counted) */
+    qd_arena_free((uint8_t *)ar_mem + at + need + 4u);
+    return p;
+}
 void *qd_arena_try(size_t n)
 {
     const uint32_t f = ar_fails;
