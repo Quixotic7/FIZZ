@@ -484,10 +484,24 @@ static uint8_t fz_host_nowipe;           /* (the simulator's fznowipe: no erase 
 static int fz_wiped = -1;                /* sectors the store's region had erased at the boot or by the wipe (-1 none) */
 static uint64_t fz_us(uint64_t ticks) { return ticks / PLAT_TICKS_PER_US; }
 
+/* (P2.15c) the stats lines' formatter, bounded: FZ_LINE_START sets the line's buffer; a field that would not fit is
+ * left out and counted (fz_line_cut), never written past the buffer (P2.15b's line 7 outgrew its 640 bytes and broke
+ * the stack: the unit restarted on its watchdog). fz_need: the line's worst-case length, every number at its widest
+ * (20 digits); the host test checks it against FZ_LINE for every line */
+#define FZ_LINE 1024u
+#define FZ_LINE_START(c, buf) ((c) = (buf), fz_lim = (buf) + sizeof(buf) - 1u, fz_need = 0u)
+static char *fz_lim;
+static uint32_t fz_need, fz_line_cut, fz_line_need[16];
 static char *fz_put_u(char *q, const char *label, uint64_t v)
 {
     char t[24];
     int n = 0;
+    const uint32_t l = (uint32_t)strlen(label);
+    fz_need += l + 21u;
+    if (!fz_lim || q + l + 21u > fz_lim) {
+        fz_line_cut++;
+        return q;
+    }
     while (*label)
         *q++ = *label++;
     do
@@ -499,9 +513,17 @@ static char *fz_put_u(char *q, const char *label, uint64_t v)
     return q;
 }
 
+static char *fz_put_w(char *q, const char *label, uint32_t v)   /* (a 32-bit number: its widest is 10 digits) */
+{
+    char *r = fz_put_u(q, label, v);
+    fz_need -= 10u;                      /* (fz_put_u counted 20) */
+    return r;
+}
 static void fz_stats_send(int part, const char *line)   /* F0 7D 46 50 part ASCII F7 */
 {
-    uint8_t f[680], *q = f;
+    uint8_t f[FZ_LINE + 8u], *q = f;
+    if (part >= 0 && part < 16)
+        fz_line_need[part] = fz_need;    /* (the host test: every line's worst case within FZ_LINE) */
     *q++ = 0xF0, *q++ = 0x7D, *q++ = 0x46, *q++ = 0x50, *q++ = (uint8_t)part;
     for (; *line && q < f + sizeof f - 1u; line++)
         *q++ = (uint8_t)(*line & 0x7F);
@@ -514,11 +536,12 @@ static void fz_stats_send(int part, const char *line)   /* F0 7D 46 50 part ASCI
 
 static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, three lines (fizz_xdata.py stats) */
 {
-    char line[640], *c = line;
+    char line[FZ_LINE], *c;
     const uint64_t fr = fz_prof.n_frame ? fz_prof.n_frame : 1u, ni = fz_prof.n_isr ? fz_prof.n_isr : 1u;
     uint64_t parts;
     uint32_t i;
     /* 1: the sound, the locks, the frames */
+    FZ_LINE_START(c, line);
     c = fz_put_u(c, "up=", fz_ok);
     c = fz_put_u(c, "xdata=", (uint32_t)(fz_xdata_state() + 1));   /* (0 another's, 1 none, 2 this build's) */
     c = fz_put_u(c, "isr_n=", fz_prof.n_isr);
@@ -550,7 +573,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     /* 2: a frame's time by phase (us a frame, averages), and the calls a frame */
     parts = fz_prof.draw + fz_prof.lcd + fz_prof.input_in_frame;   /* (P2.10: a frame = its strips drawn, the LCD, the
                                                                   * input between strips; the interrupt inside all) */
-    c = line;
+    FZ_LINE_START(c, line);
     c = fz_put_u(c, "text_us=", fz_us(fz_prof.text / fr));       /* (the fast drawing's) */
     c = fz_put_u(c, "shapes_us=", fz_us(fz_prof.shapes / fr));
     c = fz_put_u(c, "raster_us=", fz_us(fz_prof.raster / fr));   /* (plutovg's) */
@@ -575,15 +598,17 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     *c = 0;
     fz_stats_send(2, line);
     /* 3: by screen (FIZZ's mode.view): frames, average, longest (us) */
-    c = line;
+    FZ_LINE_START(c, line);
     for (i = 0; i < FZ_NSCREEN; i++)
-        if (fz_screens[i].n && c < line + sizeof line - 48u) {
+        if (!fz_screens[i].n)
+            fz_need += 5u + 3u * 11u;    /* (its worst all the same: every screen can be in the line) */
+        else {
             const char sc[] = {'s', (char)('0' + i / 4u), '.', (char)('0' + i % 4u), '=', 0};
-            c = fz_put_u(c, sc, fz_screens[i].n);
+            c = fz_put_w(c, sc, fz_screens[i].n);
             c[-1] = '/';
-            c = fz_put_u(c, "", fz_us(fz_screens[i].sum / fz_screens[i].n));
+            c = fz_put_w(c, "", (uint32_t)fz_us(fz_screens[i].sum / fz_screens[i].n));
             c[-1] = '/';
-            c = fz_put_u(c, "", fz_us(fz_screens[i].max));
+            c = fz_put_w(c, "", (uint32_t)fz_us(fz_screens[i].max));
         }
     *c = 0;
     fz_stats_send(3, line);
@@ -592,7 +617,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     {
         const uint64_t rest = fz_prof.isr > fz_prof.a_seq + fz_prof.a_voices + fz_prof.a_fx
                                   ? fz_prof.isr - fz_prof.a_seq - fz_prof.a_voices - fz_prof.a_fx : 0u;
-        c = line;
+        FZ_LINE_START(c, line);
         c = fz_put_u(c, "isr_seq_us=", fz_us(fz_prof.a_seq / ni));
         c = fz_put_u(c, "isr_voices_us=", fz_us(fz_prof.a_voices / ni));
         c = fz_put_u(c, "isr_fx_us=", fz_us(fz_prof.a_fx / ni));
@@ -613,11 +638,15 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
             c = fz_put_u(c, "max_voices_us=", fz_us(fz_prof.a_vblk_max));
             c = fz_put_u(c, "max_end_us=", fz_us(fz_prof.a_end_max));
         }
-        fz_state_line(c);
+        {
+            const uint32_t w = fz_state_line(c, fz_lim);   /* (bounded the same: its worst case added) */
+            fz_need += w & 0x7FFFFFFFu;
+            fz_line_cut += w >> 31;
+        }
         fz_stats_send(4, line);
     }
     /* 5: the platform: the guard, MIDI and SysEx in, the TIMER5 scan's delays, fm1-base's own longest lock */
-    c = line;
+    FZ_LINE_START(c, line);
     c = fz_put_u(c, "over_halves=", fz_over);
     c = fz_put_u(c, "sheds=", fz_sheds);
     c = fz_put_u(c, "ramp=", fz_ramp);
@@ -641,7 +670,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     fz_stats_send(5, line);
     /* 6 (P2.14): core 1 (fm1-base's cpu2): started or not, why it is off, the jobs it took and those core 0 ran
      * instead, its misreads, its stack, each core's voice time (us a half) and core 0's wait for it */
-    c = line;
+    FZ_LINE_START(c, line);
     {
         const uint64_t nh = fz_prof.a_split_n ? fz_prof.a_split_n : 1u;
         c = fz_put_u(c, "c1_start=", (uint32_t)(int32_t)fz_c1_start);
@@ -665,7 +694,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     *c = 0;
     fz_stats_send(6, line);
     /* 7 (P2.7): the screen's bursts and the LEDs */
-    c = line;
+    FZ_LINE_START(c, line);
     c = fz_put_u(c, "frames_sent=", fz_frames_sent);
     c = fz_put_u(c, "bursts=", fz_bursts);
     c = fz_put_u(c, "burst_rows=", fz_burst_rows);
@@ -677,6 +706,9 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "stash_rows_min=", fz_st_cap_min);
     c = fz_put_u(c, "arena_free_min_b=", fz_arena_free_min);
 #ifdef QD_GFX_FB
+    *c = 0;                              /* (P2.15c: line 7 split: the 8-bit frame's own counters are line 11) */
+    fz_stats_send(7, line);
+    FZ_LINE_START(c, line);
     {   /* (P2.15b) a drawn frame's parts: the instant (latch: the screen's logic, the calls recorded), the bands painted
          * from it, the input between the steps; and the looks that found nothing changed */
         const uint64_t nf = fz_fbs.frames ? fz_fbs.frames : 1u, nb = fz_fbs.bands ? fz_fbs.bands : 1u;
@@ -702,6 +734,9 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "fb_wait_avg_us=", fz_fb.passes ? fz_fb.wait_sum_us / fz_fb.passes : 0u);
     c = fz_put_u(c, "fb_span_avg_us=", fz_fb.passes ? fz_fb.span_sum_us / fz_fb.passes : 0u);
     c = fz_put_u(c, "fb_span_max_us=", fz_fb.span_max_us);
+    *c = 0;
+    fz_stats_send(11, line);
+    FZ_LINE_START(c, line);
 #endif
     c = fz_put_u(c, "send_span_avg_us=", fz_us(fz_span_n ? fz_span_sum / fz_span_n : 0u));
     c = fz_put_u(c, "send_span_max_us=", fz_us(fz_span_max));
@@ -726,9 +761,13 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "led_looks=", fz_led_looks);
     c = fz_put_u(c, "led_writes=", fz_led_writes);
     *c = 0;
+#ifdef QD_GFX_FB
+    fz_stats_send(12, line);             /* (P2.15c: line 7's rest) */
+#else
     fz_stats_send(7, line);
+#endif
     /* 8 (P2.7): the speed, measured at boot */
-    c = line;
+    FZ_LINE_START(c, line);
     c = fz_put_u(c, "bench_wobble_us_per_128=", fz_bench_us128);
     c = fz_put_u(c, "app_init_us=", fz_init_us);    /* (before USB starts: fm1-base runs app_init, then usb_start) */
     c = fz_put_u(c, "boot_bench_us=", fz_speed_us);
@@ -766,7 +805,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     *c = 0;
     fz_stats_send(8, line);
     /* 10 (P2.12): the panel's scanline reads (the last SCAN test) */
-    c = line;
+    FZ_LINE_START(c, line);
     c = fz_put_u(c, "scan_reads=", fz_scan_n);
     c = fz_put_u(c, "scan_ms=", fz_scan_ms);
     c = fz_put_u(c, "scan_fail=", fz_scan_fail);
@@ -816,7 +855,7 @@ static void fz_restart(void)
 static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region erased, FIZZ started again on it (as at a
                                           * power-on with a blank region; nothing restarts but FIZZ) */
 {
-    char line[48], *c = line;
+    char line[48], *c;
     app_panic();
     fz_message("FIZZ: WIPING ITS STORE", "DO NOT SWITCH OFF");
     fz_wiped = fz_store_wipe();
@@ -825,6 +864,7 @@ static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region 
         if (fz_ok && !fz_safe)
             fz_store_attach();           /* (no lock: app_panic turned the sound off) */
     }
+    FZ_LINE_START(c, line);
     c = fz_put_u(c, "wiped=", (uint32_t)fz_wiped);
     *c = 0;
     fz_stats_send(9, line);
@@ -1937,7 +1977,17 @@ int app_expect(const char *what, int *got)
         uint32_t rec, outg, mx;
         fz_dl_counts(&rec, &outg, &mx);
         *got = (int)rec;
-    } else if (!strcmp(what, "fz_fbtest_bad"))   /* (fzfbtest: pixels the panel holds other than the palette's) */
+    } else if (!strcmp(what, "fz_stats_worst")) {   /* (P2.15c: the longest a stats line can be, numbers at their widest) */
+        uint32_t k, w = 0;
+        for (k = 0; k < 16u; k++)
+            w = fz_line_need[k] > w ? fz_line_need[k] : w;
+        *got = (int)w;
+    } else if (!strncmp(what, "fz_stats_need", 13u)) {   /* (fz_stats_needN: line N's worst case) */
+        const int k = atoi(what + 13);
+        *got = k >= 0 && k < 16 ? (int)fz_line_need[k] : -1;
+    } else if (!strcmp(what, "fz_stats_cut"))   /* (fields left out for want of room) */
+        *got = (int)fz_line_cut;
+    else if (!strcmp(what, "fz_fbtest_bad"))   /* (fzfbtest: pixels the panel holds other than the palette's) */
         *got = (int)fz_tf_bad;
     else if (!strcmp(what, "fz_fb_rows"))
         *got = (int)fz_fb.rows;

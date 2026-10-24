@@ -73,6 +73,9 @@ expect fz_sx_out >0
 expect fz_frames >100
 # the port's counters (7D 46 50: firmware/tools/fizz_xdata.py stats) and their reset
 sysex F0 7D 46 50 F7
+# (P2.15c) every stats line within its buffer, every number at its widest, and nothing left out
+expect fz_stats_cut 0
+expect fz_stats_worst <1024
 sysex F0 7D 46 50 7F F7
 expect fz_frames 0
 # the store (P2.5): the selected track (SEL + B3: track 3) written by itself, and back after a restart

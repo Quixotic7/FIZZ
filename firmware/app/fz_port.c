@@ -340,10 +340,20 @@ int fz_shed_one(void)
 }
 
 /* P2.5: FIZZ's state for the stats (7D 46 50, line 4): what may make the sound or the store busy */
+/* (P2.15c) bounded: a field that would not fit before st_lim is left out (st_cut), never written past it; st_need
+ * counts what the line would take with every number at its widest (10 digits) */
+static char *st_lim;
+static uint32_t st_need, st_cut;
 static char *st_u(char *q, const char *label, uint32_t v)
 {
     char t[12];
     int n = 0;
+    const uint32_t l = (uint32_t)strlen(label);
+    st_need += l + 11u;
+    if (q + l + 11u > st_lim) {
+        st_cut = 1;
+        return q;
+    }
     while (*label)
         *q++ = *label++;
     do
@@ -365,8 +375,13 @@ static char *st_store(char *q, const char *name, const qd_store_t *st)
         else
             used++;
     }
-    while (*name)
-        *q++ = *name++;
+    {   /* (its name as the next field's prefix, bounded as the fields are) */
+        const uint32_t l = (uint32_t)strlen(name);
+        st_need += l;
+        if (q + l + 11u <= st_lim)
+            while (*name)
+                *q++ = *name++;
+    }
     q = st_u(q, "_sec=", (uint32_t)st->nsec);
     q = st_u(q, "used=", (uint32_t)used);
     q = st_u(q, "blank=", (uint32_t)blank);
@@ -375,10 +390,11 @@ static char *st_store(char *q, const char *name, const qd_store_t *st)
     q = st_u(q, "busy=", (uint32_t)st->busy);
     return q;
 }
-void fz_state_line(char *q)
+uint32_t fz_state_line(char *q, char *lim)
 {
     const qd_app_t *a = &fz_app;
     uint32_t live = 0, total = 0;
+    st_lim = lim, st_need = 0, st_cut = 0;
     q = st_u(q, "voices=", (uint32_t)qd_pool_in_use(&a->pool));
     q = st_u(q, "of=", (uint32_t)a->pool.nvoice);         /* (the build's: 8 single-core, 16 Standard) */
     q = st_u(q, "playing=", (uint32_t)a->playing);
@@ -403,8 +419,11 @@ void fz_state_line(char *q)
         q = st_u(q, "job=", (uint32_t)(a->per.job + 1));
         q = st_store(q, "lib", &a->per.lib_st);
         q = st_store(q, "prj", &a->per.prj_st);
+    } else {                             /* (the widest line has them: counted all the same) */
+        st_need += 5u * 21u + 2u * (3u + 6u * 21u);
     }
     *q = 0;
+    return st_need + (st_cut ? 0x80000000u : 0u);
 }
 /* P2.4: a frame's time by its screen (fz_prof.h; the counters are app.c's, in RAM: this unit's .bss is the pool's) */
 void fz_frame(fz_strip_fn out, void *ctx, int all_strips)

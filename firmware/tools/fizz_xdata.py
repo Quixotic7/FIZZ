@@ -109,7 +109,7 @@ def stats(a):
         return 0
     end, got = time.monotonic() + 4.0, {}
     try:
-        while time.monotonic() < end and len(got) < 9:
+        while time.monotonic() < end and len(got) < 11:
             p = link.read(end - time.monotonic())
             if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
                 got[p[4]] = p[5:-1].decode("ascii", "replace")
@@ -123,7 +123,9 @@ def stats(a):
                             (6, "core 1 (firmware/DUALCORE.md): state, jobs, failures"),
                             (7, "the screen's bursts and the LEDs (P2.7)"),
                             (8, "the speed at boot: the voice bench, the clock, the RAM regions"),
-                            (10, "the panel's scanline reads (stats --scan: a second of them)")):
+                            (10, "the panel's scanline reads (stats --scan: a second of them)"),
+                            (11, "the 8-bit frame: its parts, its sends to the panel"),
+                            (12, "the screen's sends, the display list, the pace, the LEDs")):
             line = got.get(part, "(no answer)")
             if part == 3:                   # s<mode>.<view>: name them
                 for k, v in SCREENS.items():
