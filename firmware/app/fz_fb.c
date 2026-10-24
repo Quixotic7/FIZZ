@@ -203,6 +203,9 @@ static void fz_fb_plan(const uint8_t *ch, uint32_t y0, uint32_t y1, fz_fb_plan_t
     p->rects = p->px = p->rows = 0;
     fz_fb_rects(ch, y0, y1, p, 0, 0);
 }
+#define FZ_FB_WIN_MIN 80u                /* (P2.17c: a part's window at least a stall wide: one missed under an audio
+                                          * interrupt was a lap's wait, past the time limit: unsynced) */
+static uint32_t fz_fb_win_min;           /* (0 for a whole frame's send, FZ_FB_WIN_MIN for a part's) */
 static int fz_fb_window(const fz_fb_plan_t *p, uint32_t *lo, uint32_t *hi)   /* 1: a start window [lo, hi] */
 {
     const uint32_t stalls = 1u + p->t_us / 5805u;   /* (one, and one more every half the send lasts) */
@@ -210,7 +213,7 @@ static int fz_fb_window(const fz_fb_plan_t *p, uint32_t *lo, uint32_t *hi)   /* 
     const int32_t h = p->smax_us / (int32_t)FZ_FB_LINE_US - m;
     uint32_t l = p->smin_us < 0 ? FZ_FB_A_MARGIN
                                 : (uint32_t)(p->smin_us + (int32_t)FZ_FB_LINE_US - 1) / FZ_FB_LINE_US + FZ_FB_A_MARGIN;
-    if (h < (int32_t)l || l >= FZ_FB_LINES)
+    if (h < (int32_t)(l + fz_fb_win_min) || l >= FZ_FB_LINES)
         return 0;
     *lo = l;
     *hi = (uint32_t)h >= FZ_FB_LINES ? FZ_FB_LINES - 1u : (uint32_t)h;
@@ -265,6 +268,7 @@ static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t b
             fz_fb_plan(ch, y0, y1, &pl);
             if (!fz_fb_window(&pl, &lo, &hi)) {   /* (the longest part from y0 that fits: binary search on its end) */
                 uint32_t a = y0, b = last;   /* (a: fits or y0; b: does not) */
+                fz_fb_win_min = FZ_FB_WIN_MIN;   /* (a part: a window it cannot miss) */
                 fz_fb_plan(ch, y0, y0, &pl);
                 if (!FZ_FB_PARTS || !fz_fb_window(&pl, &lo, &hi)) {
                     split = 1;           /* (not even a row: never, but sent all the same) */
@@ -285,6 +289,7 @@ static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t b
                 fz_fb_plan(ch, y0, y1, &pl);
                 if (!split)
                     (void)fz_fb_window(&pl, &lo, &hi);
+                fz_fb_win_min = 0;
                 else
                     lo = y0, hi = y0 + 8u;   /* (just after the scan passed the first row: the most time) */
             }
@@ -294,7 +299,8 @@ static uint32_t fz_fb_send(uint8_t *const *rows, const uint16_t *pal, uint32_t b
             if (!fz_fb_line(&line)) {
                 uint32_t polls = 0;
                 while (!(line >= lo && line <= hi)) {
-                    if ((plat_ticks24() - wait0) / PLAT_TICKS_PER_US > 18000u || ++polls > 10000000u) {
+                    if ((plat_ticks24() - wait0) / PLAT_TICKS_PER_US > 34000u || ++polls > 10000000u) {   /* (P2.17c:
+                                          * two laps: a window missed under an interrupt is met on the next) */
                         line = 0xFFFFu;
                         break;
                     }
