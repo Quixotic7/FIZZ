@@ -5,4 +5,4 @@ expect fz_up 1
 fzfbtest 30
 expect fz_fbtest_bad 0
 expect fz_fb_rows >1000
-expect fz_fb_synced 30
+expect fz_fb_synced >29   # (P2.17b: a pass may go in parts, each synced)
