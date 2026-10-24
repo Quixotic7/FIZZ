@@ -168,11 +168,11 @@ static uint32_t clock_boot[6];           /* (main_fm1.c's, later in the unity bu
  * lines 240..333 (~4.7 ms) are the refresh's dark stretch. The other reading (no dummy clock) is half of it: wrong. 7D 46 50 "SCAN" (fizz_xdata.py stats --scan): reads for a second,
  * line 9 */
 #define FZ_FRCTRL2_60HZ 0x0Fu
+static uint32_t fz_scan_rereads;
 static uint32_t fz_scan_n, fz_scan_fail, fz_scan_bad, fz_scan_cost_max, fz_scan_cost_sum, fz_scan_wraps[2],
     fz_scan_min[2] = {0xFFFFu, 0xFFFFu}, fz_scan_max[2], fz_scan_raw[6], fz_scan_ms;
 #ifndef PLAT_HOST
 #define FZ_SCAN_SLOW_US 25u               /* (a read that took longer: an interrupt inside it; read again) */
-static uint32_t fz_scan_rereads;
 static int fz_scanline(uint32_t *line, uint32_t *alt)   /* 0 read (the line, the other reading); -1 failed */
 {
     uint32_t raw = 0, t0, d, k;
@@ -1179,6 +1179,34 @@ static void fz_draw(int all)
         fz_prof.frame_max = d;
 }
 
+#include "fz_fb.c"                       /* (P2.12: the full frame's send; used once the core draws into it) */
+#ifdef PLAT_HOST
+/* (the host's test of the send: a frame of indices and a palette of its own, a moving band; the panel then holds the
+ * palette's colours, row for row) */
+static uint8_t fz_tf[240][240];
+static uint16_t fz_tpal[256];
+static uint32_t fz_tf_bad;
+static void fz_fb_test(int frames)
+{
+    uint8_t *rows[240];
+    uint32_t y, x, f;
+    for (y = 0; y < 256u; y++)
+        fz_tpal[y] = (uint16_t)(y * 0x0101u ^ 0x5A5Au);
+    for (y = 0; y < 240u; y++)
+        rows[y] = fz_tf[y];
+    for (f = 0; f < (uint32_t)frames; f++) {
+        for (y = 0; y < 240u; y++)
+            for (x = 0; x < 240u; x++)
+                fz_tf[y][x] = (uint8_t)(y >= (f * 7u) % 200u && y < (f * 7u) % 200u + 40u ? x + f : y / 16u);
+        fz_fb_send(rows, fz_tpal, 0xFFFFFFFFu, 16u, f == 0);
+    }
+    fz_tf_bad = 0;
+    for (y = 0; y < 240u; y++)
+        for (x = 0; x < 240u; x++)
+            fz_tf_bad += fb[y * 240u + x] != fz_tpal[fz_tf[y][x]];
+}
+#endif
+
 static void fz_hold_ms(uint32_t ms)      /* a message left on the screen a moment (the main loop's own wait) */
 {
 #ifdef PLAT_HOST
@@ -1521,7 +1549,13 @@ int app_expect(const char *what, int *got)
         uint32_t rec, outg, mx;
         fz_dl_counts(&rec, &outg, &mx);
         *got = (int)rec;
-    } else if (!strcmp(what, "fz_bursts"))
+    } else if (!strcmp(what, "fz_fbtest_bad"))   /* (fzfbtest: pixels the panel holds other than the palette's) */
+        *got = (int)fz_tf_bad;
+    else if (!strcmp(what, "fz_fb_rows"))
+        *got = (int)fz_fb.rows;
+    else if (!strcmp(what, "fz_fb_synced"))
+        *got = (int)fz_fb.synced;
+    else if (!strcmp(what, "fz_bursts"))
         *got = (int)fz_bursts;
     else if (!strcmp(what, "fz_bursts_frame_max"))
         *got = (int)fz_frame_bursts_max;
@@ -1562,6 +1596,12 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "fzsync")) {
         fz_host_sync = 1;
         fz_host_sync_done = (uint64_t)plat_ms() * 44100u / 1000u / 128u * 128u;
+        return 1;
+    }
+    if (!strcmp(cmd, "fzfbtest")) {      /* fzfbtest N: N frames of a test picture through the full frame's send */
+#ifdef PLAT_HOST
+        fz_fb_test(atoi(a));
+#endif
         return 1;
     }
     if (!strcmp(cmd, "fzlend")) {        /* fzlend N: in the next frame, between two strips, N bytes borrowed from the

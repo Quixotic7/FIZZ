@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MPL-2.0
+# P2.12: the full frame's send (app/fz_fb.c) on a test picture: 30 frames of a moving band of changed rows, each pass
+# synced to the (host's own) scanline; the panel then holds the palette's colour of every index, row for row.
+expect fz_up 1
+fzfbtest 30
+expect fz_fbtest_bad 0
+expect fz_fb_rows >1000
+expect fz_fb_synced 30
