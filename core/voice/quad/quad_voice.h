@@ -134,6 +134,7 @@ void qd_quad_owner_block(qd_quad_owner_t *o);   /* a control block: the FREE LFO
 void qd_quad_owner_publish(qd_quad_owner_t *o);
 /* P2.6 (defer_off): before the block's voices, what a voice's render would claim of the shared (a comb line) */
 void qd_quad_voice_prepare(qd_quad_voice_t *v);
+int32_t qd_quad_bench(int k, int note, int nblocks);   /* P2.6: a preset's voice alone, n blocks: the unit's timing */
 uint32_t qd_quad_shared_sig(void);              /* P2.6 (tests): what the voices share outside themselves, hashed */
 
 /* ---- a voice */

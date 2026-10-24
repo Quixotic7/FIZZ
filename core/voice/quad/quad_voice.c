@@ -124,6 +124,32 @@ void qd_quad_owner_publish(qd_quad_owner_t *o)
         o->quad_fx_off[k] = v->nx_fx[k];
 }
 
+/* P2.6: a voice of factory preset k (0 INIT .. 16), note held, rendered nblocks control blocks into a scratch block
+ * of its own; the samples' sum (so nothing is left out). For the port to time on the unit, with nothing else
+ * running: the engine's own cost there, against ChoralRoot's figures for the same preset (WOBBLE: 10). Its own
+ * owner and voice: the app's are not touched */
+int32_t qd_quad_bench(int k, int note, int nblocks)
+{
+    static qd_quad_owner_t o;
+    static qd_quad_voice_t v;
+    static int16_t p[QD_QUAD_NP];
+    int32_t out[QD_QUAD_CTL], sum = 0;
+    int b, i;
+    qd_quad_preset_patch(k, p);
+    qd_quad_owner_init(&o);
+    o.quad_patch = p;
+    qd_quad_voice_init(&v, 0);
+    qd_quad_voice_start(&v, p, &o, note, 100);
+    for (b = 0; b < nblocks; b++) {
+        memset(out, 0, sizeof out);
+        qd_quad_owner_block(&o);
+        qd_quad_voice_render(&v, out);
+        for (i = 0; i < QD_QUAD_CTL; i++)
+            sum += out[i];
+    }
+    return sum;
+}
+
 /* P2.6 (tests): a hash of what the voices share outside themselves (the song stub, who holds each comb line) */
 uint32_t qd_quad_shared_sig(void)
 {

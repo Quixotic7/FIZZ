@@ -233,12 +233,38 @@ static inline void fz_mix_voice(const int32_t *b, int32_t lvl, int32_t gl, int32
     int32_t gk[3], dk[3];
     int i, k;
 
+    int act[3], na = 0;
+
     send[0] = s0;
     send[1] = s1;
     send[2] = s2;
     for (k = 0; k < 3; k++) {
         gk[k] = was[k];
         dk[k] = (now[k] - was[k]) >> CTL_LOG2;
+        if (was[k] | now[k])                /* (P2.6: a send at 0 the whole block adds nothing: not stepped) */
+            act[na++] = k;
+    }
+
+    if (na == 0) {                          /* (P2.6: the dry mix alone, the same sums) */
+        for (i = 0; i < CTL; i++) {
+            const int32_t x = clamp(((clamp(b[i], -884000, 884000) >> 2) * lvl) >> 10, -524287, 524287);
+            l[i] += (x * gl) >> 12;
+            r[i] += (x * gr) >> 12;
+        }
+        return;
+    }
+    if (na == 1) {                          /* (P2.6: one send, the usual: the reverb's) */
+        int32_t *sd = send[act[0]], g = gk[act[0]];
+        const int32_t d = dk[act[0]];
+        for (i = 0; i < CTL; i++) {
+            const int32_t x = clamp(((clamp(b[i], -884000, 884000) >> 2) * lvl) >> 10, -524287, 524287);
+            g += d;
+            if (g != 0)
+                sd[i] += (clamp(x, -xmax, xmax) * g) >> 15;
+            l[i] += (x * gl) >> 12;
+            r[i] += (x * gr) >> 12;
+        }
+        return;
     }
 
     for (i = 0; i < CTL; i++) {

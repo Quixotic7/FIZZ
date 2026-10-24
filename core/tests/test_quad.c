@@ -1250,6 +1250,10 @@ int main(int argc, char **argv)
 {
     if (argc > 1)
         goldens = argv[1];
+    {   /* P2.6: the unit's timing bench: a preset's voice alone, the same sum each time, sounding */
+        const int32_t s1 = qd_quad_bench(10, 48, 200), s2 = qd_quad_bench(10, 48, 200);
+        CHECK(s1 == s2 && s1 != 0, "qd_quad_bench: WOBBLE 200 blocks, the same each time (%d, %d)", (int)s1, (int)s2);
+    }
     t_blob();
     t_golden();
     t_env();
