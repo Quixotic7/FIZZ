@@ -15,11 +15,11 @@ are the ones FIZZ may use.
 
 ## 0. In short
 
-> **Owner's decision (2026-10-23): FIZZ's device display becomes a 256-colour (8-bit) palettised full frame**
-> (57,600 B). The fast renderer draws straight into it, the 19.2 KB RGB565 strip goes away, the frame goes to the LCD
-> in one pass of changed rows or regions only, and the conversion to RGB565 happens on the way out. **Section 4.8 is
-> the design for that.** It replaces fix B below (the deferred-send stash); fixes A, C and D still apply. Sections 1–3
-> are unchanged background.
+> **Owner's decision (2026-10-23, final): fixes A, B, C and D first** (one instant per frame, the deferred-send
+> stash, skipping unchanged strips, the LED fixes), keeping full colour and anti-aliasing. The owner first picked a
+> 256-colour palettised full frame, then, once this study showed the tearing is FIZZ's own bug, chose these fixes
+> instead. **Section 4.8 (the palettised frame) is the fallback**, to build only if the unit still isn't smooth after
+> A–D. Sections 1–3 are unchanged background.
 
 | Symptom | Cause (found in FIZZ's code) | Fix | New RAM |
 | --- | --- | --- | --- |
@@ -389,14 +389,14 @@ Summary of costs: **RAM ≈ +0.5 KB** (A ~0, B ~0.3 KB with the stash borrowed, 
 | Option | Why not |
 | --- | --- |
 | Full RGB565 back buffer | 115,200 B; nowhere near available |
-| 8-bit palettised full frame (57,600 B) | ~~Rejected~~ **Chosen by the owner, see 4.8.** It needs ~33 KB of RAM found elsewhere (4.8.2) and a palette built for blending (4.8.3) |
+| 8-bit palettised full frame (57,600 B) | **The fallback (4.8)**, if A–D aren't enough on the unit. It needs ~33 KB of RAM found elsewhere (4.8.2) and a palette built for blending (4.8.3) |
 | 4-bit palettised full frame (28,800 B) | Fits only by taking the arena plus ~1.7 KB, and 16 colours cannot show FIZZ's AA text, glows and gradients |
 | TE-synced writes | No TE line on the FM-1; scanline read-back did not work on hardware (fm1-base's note) |
 | Double-buffering inside the panel's own RAM (scroll start address) | The ST7789's frame memory has only 80 spare rows past a 240-row screen: not enough for a second frame; unverified for this module's offsets |
 | Lower SPI clock as in JIANT (12 MHz) | fm1-base's ~44 MHz is already better; transfer time is not FIZZ's bottleneck (~3.5 ms a strip vs ~9 ms drawing it) |
 | JIANT-style 8×4 cell hashes | 1,800 cells × 4 B = 7.2 KB for the whole screen; FIZZ's row hashes plus B and C give most of the benefit for 1 KB |
 
-### 4.8 The owner's choice: an 8-bit palettised full frame
+### 4.8 The fallback: an 8-bit palettised full frame
 
 **The design:**
 - One 240×240 frame of palette indices, 57,600 B, kept between frames.
