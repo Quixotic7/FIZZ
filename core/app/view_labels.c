@@ -189,7 +189,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     if (lb_held(a, QD_B_PATTERN)) {                        /* SEL held: mute, solo, the track */
-        for (i = 0; i < 8; i++) {
+        for (i = 0; i < QD_NTRACK; i++) {
             lb_setn(o, LB_W(i), "MUTE ", i + 1);
             lb_setn(o, LB_W(8 + i), "SOLO ", i + 1);
             lb_setn(o, LB_B(i), "TRACK ", i + 1);
@@ -282,7 +282,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), r[k]);
         if (u->latch == QD_LATCH_TRK) {
-            for (i = 0; i < 8; i++)
+            for (i = 0; i < QD_NTRACK; i++)
                 lb_setn(o, LB_B(i), "TRACK ", i + 1);
             lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
             lb_set(o, LB_BTN(QD_B_PATTERN), "PAGE");
@@ -303,7 +303,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             lb_set(o, LB_KNOB(QD_K_1 + k), MIXK[u->mix_page & 1][k]);
         lb_set(o, LB_KNOB(QD_K_SELECT), "TRACK");
         lb_set(o, LB_KNOB(QD_K_ALGO), "TRACK");
-        for (i = 0; i < 8; i++)
+        for (i = 0; i < QD_NTRACK; i++)
             lb_setn(o, LB_B(i), "TRACK ", i + 1);
         lb_set(o, LB_BTN(QD_B_PAGE), (u->mix_page & 1) ? "FADERS" : "SENDS");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");

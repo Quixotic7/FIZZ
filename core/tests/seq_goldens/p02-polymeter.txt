@@ -1,4 +1,4 @@
-# p02-polymeter: 8 tracks: rates 1, 3/2, 1/2, 2/3, 4/3, 2, 1/4, 1/8 x, lengths 16 12 7 5 9 3 4 2
+# p02-polymeter: 6 tracks: rates 1, 3/2, 1/2, 2/3, 2, 1/8 x, lengths 16 12 7 5 3 2
 # sample track kind note vel patch-hash own-mask mix-locks voice step hit [id=value]
         0 T1 on     n40  v100 c3a86941 own=- mix=- vx0 s0 h0
         0 T2 on     n45  v100 7d871d06 own=- mix=- vx1 s0 h0
@@ -6,429 +6,338 @@
         0 T4 on     n55  v100 bd14e1f8 own=- mix=- vx3 s0 h0
         0 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
         0 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-        0 T7 on     n70  v100 1d35c7f1 own=- mix=- vx6 s0 h0
-        0 T8 on     n75  v100 630421c2 own=- mix=- vx7 s0 h0
-     2256 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+     2256 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
      3007 T2 off    n45  v0   - own=- mix=- vx-1 s0 h0
-     3383 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+     3007 T5 on     n61  v100 6c879971 own=- mix=- vx6 s1 h0
      4010 T2 on     n46  v100 7d871d06 own=- mix=- vx1 s1 h0
      4511 T1 off    n40  v0   - own=- mix=- vx-1 s0 h0
-     4511 T5 on     n61  v100 6c879971 own=- mix=- vx8 s1 h0
-     6014 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+     5262 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
      6766 T4 off    n55  v0   - own=- mix=- vx-1 s0 h0
      7016 T2 off    n46  v0   - own=- mix=- vx-1 s1 h0
-     7893 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
-     8269 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
      9021 T3 off    n50  v0   - own=- mix=- vx-1 s0 h0
-     9021 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-    11276 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-    15035 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+     9021 T5 on     n60  v100 6c879971 own=- mix=- vx1 s0 h0
+    11276 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    12028 T5 on     n61  v100 6c879971 own=- mix=- vx3 s1 h0
+    14283 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
     16037 T2 on     n49  v100 7d871d06 own=- mix=- vx0 s4 h0
-    17290 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-    18041 T7 off    n70  v0   - own=- mix=- vx-1 s0 h0
     18041 T1 on     n43  v100 c3a86941 own=- mix=- vx1 s3 h0
-    18041 T5 on     n64  v100 6c879971 own=- mix=- vx2 s4 h0
-    18041 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+    18041 T5 on     n60  v100 6c879971 own=- mix=- vx2 s0 h0
     19044 T2 off    n49  v0   - own=- mix=- vx-1 s4 h0
-    20297 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-    21424 T5 off    n64  v0   - own=- mix=- vx-1 s4 h0
+    20297 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    21048 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
     22552 T1 off    n43  v0   - own=- mix=- vx-1 s3 h0
-    24055 T3 on     n52  v100 1e56c054 own=- mix=- vx0 s2 h0
-    24055 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-    26310 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
+    23303 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+    24055 T3 on     n52  v100 1e56c054 own=- mix=- vx3 s2 h0
     27062 T4 on     n58  v100 bd14e1f8 own=- mix=- vx2 s3 h0
-    27062 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-    28063 T2 on     n52  v100 7d871d06 own=- mix=- vx3 s7 h0
-    29317 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+    27062 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+    28063 T2 on     n52  v100 7d871d06 own=- mix=- vx6 s7 h0
+    29317 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    30069 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
     31071 T2 off    n52  v0   - own=- mix=- vx-1 s7 h0
-    31572 T5 on     n67  v100 6c879971 own=- mix=- vx4 s7 h0
+    32324 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
     33075 T3 off    n52  v0   - own=- mix=- vx-1 s2 h0
-    33075 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
     33827 T4 off    n58  v0   - own=- mix=- vx-1 s3 h0
-    34955 T5 off    n67  v0   - own=- mix=- vx-1 s7 h0
-    35331 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-    36082 T8 off    n75  v0   - own=- mix=- vx-1 s0 h0
+    36082 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
     36082 T1 on     n46  v100 c3a86941 own=- mix=- vx1 s6 h0
-    36082 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-    38337 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+    36082 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+    38337 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    39089 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
     40091 T2 on     n55  v100 7d871d06 own=- mix=- vx2 s10 h0
     40593 T1 off    n46  v0   - own=- mix=- vx-1 s6 h0
-    40593 T5 on     n60  v100 6c879971 own=- mix=- vx0 s0 h0
-    42096 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+    41343 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
     43098 T2 off    n55  v0   - own=- mix=- vx-1 s10 h0
-    43975 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
-    44351 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
     45103 T4 on     n55  v100 bd14e1f8 own=- mix=- vx2 s0 h0
-    45103 T5 on     n61  v100 6c879971 own=- mix=- vx3 s1 h0
-    45103 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-    47358 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-    48110 T2 on     n45  v100 7d871d06 own=- mix=- vx4 s0 h0
-    48110 T8 on     n76  v100 630421c2 own=- mix=- vx8 s1 h0
-    48485 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+    45103 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
+    47358 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    48110 T2 on     n45  v100 7d871d06 own=- mix=- vx0 s0 h0
+    48110 T5 on     n61  v100 6c879971 own=- mix=- vx4 s1 h0
+    50365 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
     51116 T2 off    n45  v0   - own=- mix=- vx-1 s0 h0
-    51116 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
     51868 T4 off    n55  v0   - own=- mix=- vx-1 s0 h0
     52119 T2 on     n46  v100 7d871d06 own=- mix=- vx0 s1 h0
-    53372 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
     54123 T1 on     n49  v100 c3a86941 own=- mix=- vx1 s9 h0
-    54123 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+    54123 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
     55125 T2 off    n46  v0   - own=- mix=- vx-1 s1 h0
-    56378 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+    56378 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    57130 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
     58633 T1 off    n49  v0   - own=- mix=- vx-1 s9 h0
-    58633 T5 on     n64  v100 6c879971 own=- mix=- vx0 s4 h0
+    59385 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
     60137 T3 on     n55  v100 1e56c054 own=- mix=- vx2 s5 h0
-    60137 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-    62015 T5 off    n64  v0   - own=- mix=- vx-1 s4 h0
-    62392 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-    63144 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-    64146 T2 on     n49  v100 7d871d06 own=- mix=- vx3 s4 h0
-    65399 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+    63144 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
+    64146 T2 on     n49  v100 7d871d06 own=- mix=- vx4 s4 h0
+    65399 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    66150 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
     67153 T2 off    n49  v0   - own=- mix=- vx-1 s4 h0
+    68406 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
     69157 T3 off    n55  v0   - own=- mix=- vx-1 s5 h0
-    69157 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-    71412 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-    72164 T1 on     n52  v100 c3a86941 own=- mix=- vx0 s12 h0
-    72164 T4 on     n58  v100 bd14e1f8 own=- mix=- vx1 s3 h0
-    72164 T5 on     n67  v100 6c879971 own=- mix=- vx3 s7 h0
-    72164 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-    72164 T7 on     n73  v100 1d35c7f1 own=- mix=- vx4 s3 h0
-    74419 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-    75547 T5 off    n67  v0   - own=- mix=- vx-1 s7 h0
-    76173 T2 on     n52  v100 7d871d06 own=- mix=- vx7 s7 h0
+    72164 T1 on     n52  v100 c3a86941 own=- mix=- vx1 s12 h0
+    72164 T4 on     n58  v100 bd14e1f8 own=- mix=- vx3 s3 h0
+    72164 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+    74419 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    75171 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
+    76173 T2 on     n52  v100 7d871d06 own=- mix=- vx6 s7 h0
     76674 T1 off    n52  v0   - own=- mix=- vx-1 s12 h0
-    78178 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+    77426 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
     78929 T4 off    n58  v0   - own=- mix=- vx-1 s3 h0
     79180 T2 off    n52  v0   - own=- mix=- vx-1 s7 h0
-    80433 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
     81185 T5 on     n60  v100 6c879971 own=- mix=- vx2 s0 h0
-    81185 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-    83440 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-    84191 T8 off    n76  v0   - own=- mix=- vx-1 s1 h0
-    84191 T3 on     n50  v100 1e56c054 own=- mix=- vx1 s0 h0
-    84567 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
-    85695 T5 on     n61  v100 6c879971 own=- mix=- vx3 s1 h0
-    87198 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-    88200 T2 on     n55  v100 7d871d06 own=- mix=- vx0 s10 h0
-    89077 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
-    89453 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-    90205 T7 off    n73  v0   - own=- mix=- vx-1 s3 h0
+    83440 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+    84191 T3 on     n50  v100 1e56c054 own=- mix=- vx0 s0 h0
+    84191 T5 on     n61  v100 6c879971 own=- mix=- vx3 s1 h0
+    86447 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+    88200 T2 on     n55  v100 7d871d06 own=- mix=- vx1 s10 h0
     90205 T1 on     n55  v100 c3a86941 own=- mix=- vx2 s15 h0
-    90205 T4 on     n55  v100 bd14e1f8 own=- mix=- vx7 s0 h0
-    90205 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+    90205 T4 on     n55  v100 bd14e1f8 own=- mix=- vx4 s0 h0
+    90205 T5 on     n60  v100 6c879971 own=- mix=- vx6 s0 h0
     91207 T2 off    n55  v0   - own=- mix=- vx-1 s10 h0
-    92460 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+    92460 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
     93212 T3 off    n50  v0   - own=- mix=- vx-1 s0 h0
+    93212 T5 on     n61  v100 6c879971 own=- mix=- vx1 s1 h0
     94715 T1 off    n55  v0   - own=- mix=- vx-1 s15 h0
-    96219 T1 on     n40  v100 c3a86941 own=- mix=- vx0 s0 h0
-    96219 T2 on     n45  v100 7d871d06 own=- mix=- vx3 s0 h0
-    96219 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-    96219 T7 on     n70  v100 1d35c7f1 own=- mix=- vx6 s0 h0
-    96219 T8 on     n75  v100 630421c2 own=- mix=- vx10 s0 h0
+    95467 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+    96219 T1 on     n40  v100 c3a86941 own=- mix=- vx3 s0 h0
+    96219 T2 on     n45  v100 7d871d06 own=- mix=- vx7 s0 h0
+    96219 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
     96970 T4 off    n55  v0   - own=- mix=- vx-1 s0 h0
-    98474 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
     99225 T2 off    n45  v0   - own=- mix=- vx-1 s0 h0
-    99225 T5 on     n64  v100 6c879971 own=- mix=- vx11 s4 h0
-    99225 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   100228 T2 on     n46  v100 7d871d06 own=- mix=- vx3 s1 h0
+    99225 T5 on     n60  v100 6c879971 own=- mix=- vx6 s0 h0
+   100228 T2 on     n46  v100 7d871d06 own=- mix=- vx4 s1 h0
    100729 T1 off    n40  v0   - own=- mix=- vx-1 s0 h0
-   101481 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   102608 T5 off    n64  v0   - own=- mix=- vx-1 s4 h0
+   101481 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   102232 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
    103235 T2 off    n46  v0   - own=- mix=- vx-1 s1 h0
-   105239 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-   107494 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
+   104487 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    108246 T3 on     n52  v100 1e56c054 own=- mix=- vx1 s2 h0
-   108246 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   110501 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   112255 T2 on     n49  v100 7d871d06 own=- mix=- vx0 s4 h0
-   112756 T5 on     n67  v100 6c879971 own=- mix=- vx2 s7 h0
-   114260 T7 off    n70  v0   - own=- mix=- vx-1 s0 h0
-   114260 T1 on     n43  v100 c3a86941 own=- mix=- vx3 s3 h0
-   114260 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   108246 T5 on     n60  v100 6c879971 own=- mix=- vx2 s0 h0
+   110501 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   111253 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
+   112255 T2 on     n49  v100 7d871d06 own=- mix=- vx3 s4 h0
+   113508 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   114260 T1 on     n43  v100 c3a86941 own=- mix=- vx4 s3 h0
    115262 T2 off    n49  v0   - own=- mix=- vx-1 s4 h0
-   116139 T5 off    n67  v0   - own=- mix=- vx-1 s7 h0
-   116515 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
    117266 T3 off    n52  v0   - own=- mix=- vx-1 s2 h0
-   117266 T4 on     n58  v100 bd14e1f8 own=- mix=- vx0 s3 h0
-   117266 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   117266 T4 on     n58  v100 bd14e1f8 own=- mix=- vx2 s3 h0
+   117266 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
    118770 T1 off    n43  v0   - own=- mix=- vx-1 s3 h0
-   119522 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   121777 T5 on     n60  v100 6c879971 own=- mix=- vx2 s0 h0
-   123280 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   119522 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   120273 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
+   122527 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    124031 T4 off    n58  v0   - own=- mix=- vx-1 s3 h0
-   124282 T2 on     n52  v100 7d871d06 own=- mix=- vx7 s7 h0
-   125159 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
-   125535 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   126287 T5 on     n61  v100 6c879971 own=- mix=- vx1 s1 h0
-   126287 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   124282 T2 on     n52  v100 7d871d06 own=- mix=- vx6 s7 h0
+   126287 T5 on     n60  v100 6c879971 own=- mix=- vx1 s0 h0
    127289 T2 off    n52  v0   - own=- mix=- vx-1 s7 h0
-   128542 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   129670 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
-   132300 T8 off    n75  v0   - own=- mix=- vx-1 s0 h0
-   132300 T1 on     n46  v100 c3a86941 own=- mix=- vx0 s6 h0
-   132300 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-   134556 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
+   128542 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   129294 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
+   131549 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   132300 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   132300 T1 on     n46  v100 c3a86941 own=- mix=- vx2 s6 h0
    135307 T4 on     n55  v100 bd14e1f8 own=- mix=- vx1 s0 h0
-   135307 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   136310 T2 on     n55  v100 7d871d06 own=- mix=- vx2 s10 h0
+   135307 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
+   136310 T2 on     n55  v100 7d871d06 own=- mix=- vx4 s10 h0
    136811 T1 off    n46  v0   - own=- mix=- vx-1 s6 h0
-   137562 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   137562 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   138314 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
    139316 T2 off    n55  v0   - own=- mix=- vx-1 s10 h0
-   139818 T5 on     n64  v100 6c879971 own=- mix=- vx3 s4 h0
-   141321 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   140569 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    142073 T4 off    n55  v0   - own=- mix=- vx-1 s0 h0
-   143199 T5 off    n64  v0   - own=- mix=- vx-1 s4 h0
-   143576 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   144328 T2 on     n45  v100 7d871d06 own=- mix=- vx2 s0 h0
-   144328 T3 on     n55  v100 1e56c054 own=- mix=- vx7 s5 h0
-   144328 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   144328 T8 on     n76  v100 630421c2 own=- mix=- vx8 s1 h0
-   146583 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   144328 T2 on     n45  v100 7d871d06 own=- mix=- vx3 s0 h0
+   144328 T3 on     n55  v100 1e56c054 own=- mix=- vx4 s5 h0
+   144328 T5 on     n60  v100 6c879971 own=- mix=- vx6 s0 h0
+   146583 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
    147335 T2 off    n45  v0   - own=- mix=- vx-1 s0 h0
-   148337 T2 on     n46  v100 7d871d06 own=- mix=- vx0 s1 h0
-   150341 T1 on     n49  v100 c3a86941 own=- mix=- vx1 s9 h0
-   150341 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   147335 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
+   148337 T2 on     n46  v100 7d871d06 own=- mix=- vx1 s1 h0
+   149590 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   150341 T1 on     n49  v100 c3a86941 own=- mix=- vx2 s9 h0
    151344 T2 off    n46  v0   - own=- mix=- vx-1 s1 h0
-   152597 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
    153348 T3 off    n55  v0   - own=- mix=- vx-1 s5 h0
-   153348 T5 on     n67  v100 6c879971 own=- mix=- vx0 s7 h0
-   153348 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   153348 T5 on     n60  v100 6c879971 own=- mix=- vx1 s0 h0
    154852 T1 off    n49  v0   - own=- mix=- vx-1 s9 h0
-   155603 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   156731 T5 off    n67  v0   - own=- mix=- vx-1 s7 h0
-   159362 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-   160364 T2 on     n49  v100 7d871d06 own=- mix=- vx2 s4 h0
-   161617 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   162369 T4 on     n58  v100 bd14e1f8 own=- mix=- vx0 s3 h0
-   162369 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
-   162369 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   155603 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   156355 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
+   158610 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   160364 T2 on     n49  v100 7d871d06 own=- mix=- vx3 s4 h0
+   162369 T4 on     n58  v100 bd14e1f8 own=- mix=- vx1 s3 h0
+   162369 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
    163371 T2 off    n49  v0   - own=- mix=- vx-1 s4 h0
-   164624 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   165751 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
-   166879 T5 on     n61  v100 6c879971 own=- mix=- vx1 s1 h0
+   164624 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   165375 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
+   167631 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    168382 T1 on     n52  v100 c3a86941 own=- mix=- vx2 s12 h0
-   168382 T3 on     n50  v100 1e56c054 own=- mix=- vx7 s0 h0
-   168382 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-   168382 T7 on     n73  v100 1d35c7f1 own=- mix=- vx4 s3 h0
+   168382 T3 on     n50  v100 1e56c054 own=- mix=- vx3 s0 h0
    169134 T4 off    n58  v0   - own=- mix=- vx-1 s3 h0
-   170262 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
-   170637 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   171389 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   172391 T2 on     n52  v100 7d871d06 own=- mix=- vx0 s7 h0
+   171389 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+   172391 T2 on     n52  v100 7d871d06 own=- mix=- vx1 s7 h0
    172893 T1 off    n52  v0   - own=- mix=- vx-1 s12 h0
-   173644 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   173644 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   174396 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
    175398 T2 off    n52  v0   - own=- mix=- vx-1 s7 h0
+   176651 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    177403 T3 off    n50  v0   - own=- mix=- vx-1 s0 h0
-   177403 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-   179658 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   180410 T8 off    n76  v0   - own=- mix=- vx-1 s1 h0
-   180410 T4 on     n55  v100 bd14e1f8 own=- mix=- vx0 s0 h0
-   180410 T5 on     n64  v100 6c879971 own=- mix=- vx1 s4 h0
-   180410 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   182665 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   183792 T5 off    n64  v0   - own=- mix=- vx-1 s4 h0
+   180410 T4 on     n55  v100 bd14e1f8 own=- mix=- vx1 s0 h0
+   180410 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+   182665 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   183416 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
    184419 T2 on     n55  v100 7d871d06 own=- mix=- vx2 s10 h0
-   186423 T7 off    n73  v0   - own=- mix=- vx-1 s3 h0
+   185672 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    186423 T1 on     n55  v100 c3a86941 own=- mix=- vx3 s15 h0
-   186423 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
    187175 T4 off    n55  v0   - own=- mix=- vx-1 s0 h0
    187425 T2 off    n55  v0   - own=- mix=- vx-1 s10 h0
-   188678 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   189430 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   189430 T5 on     n60  v100 6c879971 own=- mix=- vx2 s0 h0
    190933 T1 off    n55  v0   - own=- mix=- vx-1 s15 h0
-   191685 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   191685 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
    192437 T1 on     n40  v100 c3a86941 own=- mix=- vx0 s0 h0
    192437 T2 on     n45  v100 7d871d06 own=- mix=- vx1 s0 h0
-   192437 T3 on     n52  v100 1e56c054 own=- mix=- vx2 s2 h0
-   192437 T7 on     n70  v100 1d35c7f1 own=- mix=- vx6 s0 h0
-   192437 T8 on     n75  v100 630421c2 own=- mix=- vx7 s0 h0
-   193940 T5 on     n67  v100 6c879971 own=- mix=- vx10 s7 h0
+   192437 T3 on     n52  v100 1e56c054 own=- mix=- vx4 s2 h0
+   192437 T5 on     n61  v100 6c879971 own=- mix=- vx6 s1 h0
+   192437 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   194692 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    195444 T2 off    n45  v0   - own=- mix=- vx-1 s0 h0
-   195444 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
    196446 T2 on     n46  v100 7d871d06 own=- mix=- vx1 s1 h0
    196947 T1 off    n40  v0   - own=- mix=- vx-1 s0 h0
-   197323 T5 off    n67  v0   - own=- mix=- vx-1 s7 h0
-   197699 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   198450 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   198450 T5 on     n60  v100 6c879971 own=- mix=- vx2 s0 h0
    199453 T2 off    n46  v0   - own=- mix=- vx-1 s1 h0
-   200706 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   200706 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
    201457 T3 off    n52  v0   - own=- mix=- vx-1 s2 h0
-   202961 T5 on     n60  v100 6c879971 own=- mix=- vx1 s0 h0
-   204464 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-   206343 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
-   206719 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   207471 T4 on     n58  v100 bd14e1f8 own=- mix=- vx3 s3 h0
-   207471 T5 on     n61  v100 6c879971 own=- mix=- vx8 s1 h0
-   207471 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   201457 T5 on     n61  v100 6c879971 own=- mix=- vx1 s1 h0
+   203711 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   207471 T4 on     n58  v100 bd14e1f8 own=- mix=- vx2 s3 h0
+   207471 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
    208473 T2 on     n49  v100 7d871d06 own=- mix=- vx0 s4 h0
-   209726 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   210478 T7 off    n70  v0   - own=- mix=- vx-1 s0 h0
-   210478 T1 on     n43  v100 c3a86941 own=- mix=- vx2 s3 h0
-   210854 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   209726 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   210478 T1 on     n43  v100 c3a86941 own=- mix=- vx1 s3 h0
+   210478 T5 on     n61  v100 6c879971 own=- mix=- vx4 s1 h0
    211480 T2 off    n49  v0   - own=- mix=- vx-1 s4 h0
-   213485 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   212733 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    214236 T4 off    n58  v0   - own=- mix=- vx-1 s3 h0
    214988 T1 off    n43  v0   - own=- mix=- vx-1 s3 h0
-   215740 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   216491 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   218747 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   220500 T2 on     n52  v100 7d871d06 own=- mix=- vx0 s7 h0
-   221002 T5 on     n64  v100 6c879971 own=- mix=- vx1 s4 h0
-   222505 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   216491 T5 on     n60  v100 6c879971 own=- mix=- vx0 s0 h0
+   218747 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   219498 T5 on     n61  v100 6c879971 own=- mix=- vx2 s1 h0
+   220500 T2 on     n52  v100 7d871d06 own=- mix=- vx3 s7 h0
+   221753 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    223507 T2 off    n52  v0   - own=- mix=- vx-1 s7 h0
-   224383 T5 off    n64  v0   - own=- mix=- vx-1 s4 h0
-   224760 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
    225512 T4 on     n55  v100 bd14e1f8 own=- mix=- vx0 s0 h0
-   225512 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   227767 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   228519 T8 off    n75  v0   - own=- mix=- vx-1 s0 h0
-   228519 T1 on     n46  v100 c3a86941 own=- mix=- vx2 s6 h0
-   228519 T3 on     n55  v100 1e56c054 own=- mix=- vx3 s5 h0
-   231525 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   225512 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
+   227767 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   228519 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   228519 T1 on     n46  v100 c3a86941 own=- mix=- vx1 s6 h0
+   228519 T3 on     n55  v100 1e56c054 own=- mix=- vx2 s5 h0
+   228519 T5 on     n61  v100 6c879971 own=- mix=- vx4 s1 h0
+   230774 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    232277 T4 off    n55  v0   - own=- mix=- vx-1 s0 h0
-   232528 T2 on     n55  v100 7d871d06 own=- mix=- vx1 s10 h0
+   232528 T2 on     n55  v100 7d871d06 own=- mix=- vx6 s10 h0
    233029 T1 off    n46  v0   - own=- mix=- vx-1 s6 h0
-   233781 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   234532 T5 on     n67  v100 6c879971 own=- mix=- vx8 s7 h0
-   234532 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   234532 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
    235535 T2 off    n55  v0   - own=- mix=- vx-1 s10 h0
-   236787 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   236787 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
    237539 T3 off    n55  v0   - own=- mix=- vx-1 s5 h0
-   237915 T5 off    n67  v0   - own=- mix=- vx-1 s7 h0
-   240546 T2 on     n45  v100 7d871d06 own=- mix=- vx0 s0 h0
-   240546 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-   240546 T8 on     n76  v100 630421c2 own=- mix=- vx1 s1 h0
-   242801 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
+   237539 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
+   239794 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   240546 T2 on     n45  v100 7d871d06 own=- mix=- vx4 s0 h0
    243553 T2 off    n45  v0   - own=- mix=- vx-1 s0 h0
-   243553 T5 on     n60  v100 6c879971 own=- mix=- vx8 s0 h0
-   243553 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   244555 T2 on     n46  v100 7d871d06 own=- mix=- vx0 s1 h0
-   245808 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   246559 T1 on     n49  v100 c3a86941 own=- mix=- vx2 s9 h0
-   246935 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   243553 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
+   244555 T2 on     n46  v100 7d871d06 own=- mix=- vx1 s1 h0
+   245808 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   246559 T1 on     n49  v100 c3a86941 own=- mix=- vx0 s9 h0
+   246559 T5 on     n61  v100 6c879971 own=- mix=- vx2 s1 h0
    247562 T2 off    n46  v0   - own=- mix=- vx-1 s1 h0
-   248063 T5 on     n61  v100 6c879971 own=- mix=- vx3 s1 h0
-   249566 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   248815 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    251070 T1 off    n49  v0   - own=- mix=- vx-1 s9 h0
-   251446 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
-   251822 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   252573 T3 on     n50  v100 1e56c054 own=- mix=- vx0 s0 h0
-   252573 T4 on     n58  v100 bd14e1f8 own=- mix=- vx8 s3 h0
-   252573 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   254828 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   256582 T2 on     n49  v100 7d871d06 own=- mix=- vx7 s4 h0
-   258587 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   252573 T3 on     n50  v100 1e56c054 own=- mix=- vx1 s0 h0
+   252573 T4 on     n58  v100 bd14e1f8 own=- mix=- vx3 s3 h0
+   252573 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+   254828 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   255580 T5 on     n61  v100 6c879971 own=- mix=- vx2 s1 h0
+   256582 T2 on     n49  v100 7d871d06 own=- mix=- vx6 s4 h0
+   257835 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    259339 T4 off    n58  v0   - own=- mix=- vx-1 s3 h0
    259589 T2 off    n49  v0   - own=- mix=- vx-1 s4 h0
-   260842 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
    261594 T3 off    n50  v0   - own=- mix=- vx-1 s0 h0
-   261594 T5 on     n64  v100 6c879971 own=- mix=- vx3 s4 h0
-   261594 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   263849 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   264600 T1 on     n52  v100 c3a86941 own=- mix=- vx2 s12 h0
-   264600 T7 on     n73  v100 1d35c7f1 own=- mix=- vx4 s3 h0
-   264976 T5 off    n64  v0   - own=- mix=- vx-1 s4 h0
-   267607 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-   268610 T2 on     n52  v100 7d871d06 own=- mix=- vx7 s7 h0
+   261594 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+   263849 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   264600 T1 on     n52  v100 c3a86941 own=- mix=- vx0 s12 h0
+   264600 T5 on     n61  v100 6c879971 own=- mix=- vx2 s1 h0
+   266856 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   268610 T2 on     n52  v100 7d871d06 own=- mix=- vx3 s7 h0
    269111 T1 off    n52  v0   - own=- mix=- vx-1 s12 h0
-   269862 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   270614 T4 on     n55  v100 bd14e1f8 own=- mix=- vx0 s0 h0
-   270614 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   270614 T4 on     n55  v100 bd14e1f8 own=- mix=- vx1 s0 h0
+   270614 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
    271615 T2 off    n52  v0   - own=- mix=- vx-1 s7 h0
-   272869 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   275124 T5 on     n67  v100 6c879971 own=- mix=- vx3 s7 h0
-   276628 T8 off    n76  v0   - own=- mix=- vx-1 s1 h0
-   276628 T3 on     n52  v100 1e56c054 own=- mix=- vx7 s2 h0
-   276628 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   272869 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   273621 T5 on     n61  v100 6c879971 own=- mix=- vx2 s1 h0
+   275876 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   276628 T3 on     n52  v100 1e56c054 own=- mix=- vx3 s2 h0
    277379 T4 off    n55  v0   - own=- mix=- vx-1 s0 h0
-   278507 T5 off    n67  v0   - own=- mix=- vx-1 s7 h0
-   278883 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   279635 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   279635 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
    280637 T2 on     n55  v100 7d871d06 own=- mix=- vx0 s10 h0
-   281890 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   282641 T7 off    n73  v0   - own=- mix=- vx-1 s3 h0
-   282641 T1 on     n55  v100 c3a86941 own=- mix=- vx2 s15 h0
+   281890 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   282641 T1 on     n55  v100 c3a86941 own=- mix=- vx1 s15 h0
+   282641 T5 on     n61  v100 6c879971 own=- mix=- vx2 s1 h0
    283644 T2 off    n55  v0   - own=- mix=- vx-1 s10 h0
-   284145 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
+   284897 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    285648 T3 off    n52  v0   - own=- mix=- vx-1 s2 h0
-   285648 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
    287152 T1 off    n55  v0   - own=- mix=- vx-1 s15 h0
-   287527 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
-   287903 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
    288655 T1 on     n40  v100 c3a86941 own=- mix=- vx0 s0 h0
-   288655 T2 on     n45  v100 7d871d06 own=- mix=- vx8 s0 h0
-   288655 T5 on     n61  v100 6c879971 own=- mix=- vx10 s1 h0
+   288655 T2 on     n45  v100 7d871d06 own=- mix=- vx4 s0 h0
+   288655 T5 on     n60  v100 6c879971 own=- mix=- vx6 s0 h0
    288655 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   288655 T7 on     n70  v100 1d35c7f1 own=- mix=- vx6 s0 h0
-   288655 T8 on     n75  v100 630421c2 own=- mix=- vx11 s0 h0
-   290910 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   290910 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
    291662 T2 off    n45  v0   - own=- mix=- vx-1 s0 h0
-   292038 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
-   292664 T2 on     n46  v100 7d871d06 own=- mix=- vx8 s1 h0
+   291662 T5 on     n61  v100 6c879971 own=- mix=- vx2 s1 h0
+   292664 T2 on     n46  v100 7d871d06 own=- mix=- vx4 s1 h0
    293165 T1 off    n40  v0   - own=- mix=- vx-1 s0 h0
-   294669 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   293917 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    295671 T2 off    n46  v0   - own=- mix=- vx-1 s1 h0
-   296924 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
    297675 T4 on     n58  v100 bd14e1f8 own=- mix=- vx3 s3 h0
-   297675 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   299931 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   302186 T5 on     n64  v100 6c879971 own=- mix=- vx1 s4 h0
-   303689 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   297675 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+   299931 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   300682 T5 on     n61  v100 6c879971 own=- mix=- vx1 s1 h0
+   302937 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    304441 T4 off    n58  v0   - own=- mix=- vx-1 s3 h0
    304691 T2 on     n49  v100 7d871d06 own=- mix=- vx0 s4 h0
-   305567 T5 off    n64  v0   - own=- mix=- vx-1 s4 h0
-   305944 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   306696 T7 off    n70  v0   - own=- mix=- vx-1 s0 h0
    306696 T1 on     n43  v100 c3a86941 own=- mix=- vx2 s3 h0
-   306696 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   306696 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
    307698 T2 off    n49  v0   - own=- mix=- vx-1 s4 h0
-   308951 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   308951 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   309703 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
    311206 T1 off    n43  v0   - own=- mix=- vx-1 s3 h0
-   312710 T3 on     n55  v100 1e56c054 own=- mix=- vx0 s5 h0
-   312710 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
-   314965 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   315716 T4 on     n55  v100 bd14e1f8 own=- mix=- vx1 s0 h0
-   315716 T5 on     n67  v100 6c879971 own=- mix=- vx3 s7 h0
-   315716 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   316719 T2 on     n52  v100 7d871d06 own=- mix=- vx7 s7 h0
-   317972 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   319099 T5 off    n67  v0   - own=- mix=- vx-1 s7 h0
+   311958 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
+   312710 T3 on     n55  v100 1e56c054 own=- mix=- vx1 s5 h0
+   315716 T4 on     n55  v100 bd14e1f8 own=- mix=- vx3 s0 h0
+   315716 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+   316719 T2 on     n52  v100 7d871d06 own=- mix=- vx6 s7 h0
+   317972 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   318723 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
    319725 T2 off    n52  v0   - own=- mix=- vx-1 s7 h0
+   320978 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    321730 T3 off    n55  v0   - own=- mix=- vx-1 s5 h0
-   321730 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
    322482 T4 off    n55  v0   - own=- mix=- vx-1 s0 h0
-   323985 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   324737 T8 off    n75  v0   - own=- mix=- vx-1 s0 h0
+   324737 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
    324737 T1 on     n46  v100 c3a86941 own=- mix=- vx2 s6 h0
-   324737 T5 on     n60  v100 6c879971 own=- mix=- vx3 s0 h0
-   324737 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   326992 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   328120 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
-   328746 T2 on     n55  v100 7d871d06 own=- mix=- vx1 s10 h0
+   324737 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0
+   326992 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   327743 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
+   328746 T2 on     n55  v100 7d871d06 own=- mix=- vx3 s10 h0
    329247 T1 off    n46  v0   - own=- mix=- vx-1 s6 h0
-   329247 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
-   330750 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   329999 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    331753 T2 off    n55  v0   - own=- mix=- vx-1 s10 h0
-   332630 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
-   333006 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   333757 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
-   336012 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
-   336764 T2 on     n45  v100 7d871d06 own=- mix=- vx1 s0 h0
+   333757 T5 on     n60  v100 6c879971 own=- mix=- vx1 s0 h0
+   336012 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
+   336764 T2 on     n45  v100 7d871d06 own=- mix=- vx0 s0 h0
    336764 T3 on     n50  v100 1e56c054 own=- mix=- vx3 s0 h0
-   336764 T8 on     n76  v100 630421c2 own=- mix=- vx7 s1 h0
+   336764 T5 on     n61  v100 6c879971 own=- mix=- vx4 s1 h0
+   339019 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    339771 T2 off    n45  v0   - own=- mix=- vx-1 s0 h0
-   339771 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
    340773 T2 on     n46  v100 7d871d06 own=- mix=- vx0 s1 h0
-   342026 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
    342778 T1 on     n49  v100 c3a86941 own=- mix=- vx1 s9 h0
    342778 T4 on     n58  v100 bd14e1f8 own=- mix=- vx2 s3 h0
-   342778 T5 on     n64  v100 6c879971 own=- mix=- vx8 s4 h0
-   342778 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   342778 T5 on     n60  v100 6c879971 own=- mix=- vx6 s0 h0
    343780 T2 off    n46  v0   - own=- mix=- vx-1 s1 h0
-   345033 T6 off    n65  v0   - own=- mix=- vx-1 s0 h0
+   345033 T5 off    n60  v0   - own=- mix=- vx-1 s0 h0
    345785 T3 off    n50  v0   - own=- mix=- vx-1 s0 h0
-   346160 T5 off    n64  v0   - own=- mix=- vx-1 s4 h0
+   345785 T5 on     n61  v100 6c879971 own=- mix=- vx0 s1 h0
    347288 T1 off    n49  v0   - own=- mix=- vx-1 s9 h0
-   348791 T6 on     n67  v100 23a33d22 own=- mix=- vx9 s2 h0
+   348040 T5 off    n61  v0   - own=- mix=- vx-1 s1 h0
    349543 T4 off    n58  v0   - own=- mix=- vx-1 s3 h0
-   351047 T6 off    n67  v0   - own=- mix=- vx-1 s2 h0
-   351798 T6 on     n65  v100 23a33d22 own=- mix=- vx5 s0 h0
+   351798 T5 on     n60  v100 6c879971 own=- mix=- vx4 s0 h0

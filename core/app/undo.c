@@ -573,7 +573,15 @@ int qd_hist_store(qd_app_t *a, int which)
     {   /* P2.1: compressed. P2.1c: at the log's top (the clipboard's bytes last, the snapshot's under them, the open
          * gesture's region under those, moved with them); the oldest levels make room; none: not taken */
         const uint32_t sz = zr_pack((const uint8_t *)P, sizeof *P, 0, 0);
-        const uint32_t keep = sz + (which ? h->snap_len : h->pclip_len), g = GEND(h) - h->glo;
+        const uint32_t keep = sz + (which ? h->snap_len : h->pclip_len);
+        uint32_t g;
+        if (keep + (GEND(h) - h->glo) > QD_UNDO_POOL && keep <= QD_UNDO_POOL && h->glo < GEND(h)) {
+            g_free(h);                                  /* (2026-10-24, six tracks: a big pattern's gesture copy now
+                                                         * fits the log; the snapshot or the copy comes first: the
+                                                         * open gesture gives its copy up and is no level) */
+            h->b_ok = 0;
+        }
+        g = GEND(h) - h->glo;
         const uint32_t snap0 = QD_UNDO_POOL - h->keep, snap1 = QD_UNDO_POOL - keep;   /* (the snapshot: from, to) */
         uint8_t *const pool = h->pool;
         while (keep + g <= QD_UNDO_POOL && h->n && h->used + g + keep > QD_UNDO_POOL)

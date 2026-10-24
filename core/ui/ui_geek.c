@@ -279,8 +279,8 @@ static void gk_voices(const ui_geek_t *v)
 {
     char s[12];
     int i, k;
-    for (i = 0; i < 8; i++) {
-        const float cx = 15.f + (float)i * 30.f, top = 140.f, bot = 230.f, H = bot - top;
+    for (i = 0; i < UI_NTRACK; i++) {                   /* (six tracks: 40 px a column) */
+        const float cx = 20.f + (float)i * 40.f, top = 140.f, bot = 230.f, H = bot - top;
         const qd_rgb col = UI_TRACK_PAL[i];
         const float fl = v->tflash[i];
         float u, f;
@@ -293,9 +293,9 @@ static void gk_voices(const ui_geek_t *v)
                 ui_O(cx, y, 1.5f, QD_NONE, 1.f, UI_G3);
                 continue;
             }
-            ui_O(cx, y, 6.f, UI_G2, 1.2f, QD_NONE);
+            ui_O(cx, y, 7.f, UI_G2, 1.2f, QD_NONE);
             if (k < v->on[i] && v->lvl[i][k] > 0.02f)
-                gk_dot(cx, y, 6.f, col, 0.2f + v->lvl[i][k]);
+                gk_dot(cx, y, 7.f, col, 0.2f + v->lvl[i][k]);
         }
         if (fl > 0.02f)
             gk_burst(cx, 62.f, 9.f + (1.f - fl) * 6.f, fl);
@@ -305,10 +305,10 @@ static void gk_voices(const ui_geek_t *v)
             gk_line(cx - 3.f, 124.f, cx + 3.f, 124.f, UI_G2, 1.5f);
         u = v->share[i];                                /* its share of the audio (full: half of it) */
         f = (u / 0.5f > 1.f ? 1.f : u / 0.5f) * (H - 2.f);
-        ui_RR(cx - 8.f, top, 16.f, H, 3.f, UI_G3, 1.f, QD_NONE);
+        ui_RR(cx - 10.f, top, 20.f, H, 3.f, UI_G3, 1.f, QD_NONE);
         if (f > 0.5f) {
-            gk_rr(cx - 10.f, bot - 1.f - f - 2.f, 20.f, f + 3.f, 4.f, QD_NONE, 1.f, col, 0.14f);
-            gk_rr(cx - 6.f, bot - 1.f - f, 12.f, f - 1.f, 2.f, QD_NONE, 1.f, col, 0.85f);
+            gk_rr(cx - 12.f, bot - 1.f - f - 2.f, 24.f, f + 3.f, 4.f, QD_NONE, 1.f, col, 0.14f);
+            gk_rr(cx - 8.f, bot - 1.f - f, 16.f, f - 1.f, 2.f, QD_NONE, 1.f, col, 0.85f);
         }
     }
 }

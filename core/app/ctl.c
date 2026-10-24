@@ -167,10 +167,10 @@ void qd_ctl_init(qd_app_t *a)
     u->pv_note = -1;
     u->mkey = -1;
     u->seq_bank = QD_PAT_START / 16;
-    for (i = 0; i < 8; i++)
+    for (i = 0; i < QD_PAT_NTRACK; i++)
         u->last_step[i] = -1;
     qd_clip_init(&u->clip);
-    for (i = 0; i < 8; i++)
+    for (i = 0; i < QD_PAT_NTRACK; i++)
         u->play_page[i] = -1;
     for (i = 0; i < 128; i++)
         u->rec_t0[i] = -1;

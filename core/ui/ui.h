@@ -9,6 +9,9 @@
  * qd_restore, as the helpers' own save / restore do. */
 #pragma once
 #include "qd_gfx.h"
+#include "../qd_config.h"
+
+#define UI_NTRACK QD_TRACKS              /* the tracks the screens show (qd_config.h) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,9 +65,9 @@ float ui_head_x(int n);                 /* P1.6d: where ui_head's left text star
 /* P1.6d: the tracks' kinds (sounds.h QD_PK_*: BASS .. FX; 255 none), set by the view each frame: their icons beside
  * the tracks' names (the headers, the track picker, the mix, the track takeovers); a kind's icon centred at cx, cy,
  * 12 px at s 1 */
-extern uint8_t UI_TRACK_KIND[8];
+extern uint8_t UI_TRACK_KIND[UI_NTRACK];
 void ui_kind_icon(int kind, float cx, float cy, float s, qd_rgb col);
-int ui_track_kind(int n);               /* track n's (1..8) kind, -1 none */
+int ui_track_kind(int n);               /* track n's (1..UI_NTRACK) kind, -1 none */
 /* a line-drawn keybed of two octaves (14 white keys) from note lo (a C) at x0, y0, w x h; fill[note] (128 entries, or
  * 0) is the colour a key is filled with, QD_NONE: outlined only */
 void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fill);
@@ -142,7 +145,7 @@ typedef struct {
         int level, pan, chorus, delay, reverb;   /* 0..127, -64..63 */
         int mute;                       /* not heard (muted, or another soloed) */
         float meter;                    /* its voices' level now, 0..1 */
-    } tr[8];
+    } tr[UI_NTRACK];
     int last;                           /* the knob turned last (0..3, -1) */
     int step;                           /* P1.6d: a step held (or the latch's selection): its locks (the frame) */
     int nsel;                           /* P1.6h: .. how many (the head's magenta count; 0 none) */
@@ -170,7 +173,7 @@ typedef struct {
     float flow, fhigh;                  /* MASTER: the cuts 0..1 (0 / 1: off), */
     int fslope, fon;
     int last;                           /* the knob turned last (0..3, -1) */
-    int sends[8][3];                    /* P1.5b, OVERVIEW: each track's CHORUS, DELAY, REVERB sends 0..127 */
+    int sends[UI_NTRACK][3];                    /* P1.5b, OVERVIEW: each track's CHORUS, DELAY, REVERB sends 0..127 */
     uint8_t mute;                       /* .. the tracks not heard */
     float rt[4];                        /* P1.5b, ROUTING: DELAY > REVERB, CHORUS > DELAY, CHORUS > REVERB 0..1, the
                                          * filter BEFORE (1) */
@@ -550,8 +553,8 @@ typedef struct {
      * clip_step, drawn as a card) */
     int sel;
     uint8_t mute, solo;
-    const char *tname[8];
-    uint8_t flash[8];                   /* a trig just now */
+    const char *tname[UI_NTRACK];
+    uint8_t flash[UI_NTRACK];                   /* a trig just now */
     int held_track;                     /* (unused since P1.3c) */
     int page_clip;                      /* a page in the clipboard */
     int hand;                           /* F2: holding a step (Form's "holding"), else empty-handed */
@@ -771,10 +774,10 @@ typedef struct {
     int has_col;
     qd_rgb col;
     /* TRACK (P-LOCK + ALGORITHM): the eight tracks as rows: number, name, the loop's trigs (up to 32), muted grey */
-    const char *tname[8];
+    const char *tname[UI_NTRACK];
     uint8_t tmute;
-    uint8_t tlen[8];
-    uint8_t ttrig[8][32];
+    uint8_t tlen[UI_NTRACK];
+    uint8_t ttrig[UI_NTRACK][32];
     /* P1.5z, TAP (SHIFT + B6): the taps' ages (s, the newest first; up to 8), the count, the clock external (dimmed) */
     int ntap;
     float tap_age[8];
@@ -820,7 +823,7 @@ typedef struct ui_mfx {
     int g;                              /* the group shown (1..5); 0: the selected track is OFF */
     int track;                          /* the selected track (1..8) */
     int ntr;                            /* the tracks routed to the group (1-based) .. */
-    uint8_t tr[8];
+    uint8_t tr[UI_NTRACK];
     uint8_t type[8], byp[8];            /* the rail: each slot's effect (QD_MFX_*), bypassed */
     float glow[8];                      /* .. a note passing it (0..1, decaying) */
     int flow;                           /* notes are passing (the dots run) */
@@ -865,7 +868,7 @@ typedef struct ui_mfx {
     int gsel;                           /* ALGORITHM turned: the five groups' choice up .. */
     float gsel_pos;                     /* .. the track's square at (0 OFF .. 5) */
     uint8_t gtype[5][8];                /* .. each group's slots' effects */
-    uint8_t gtr[5][8];                  /* .. the tracks on it (but the selected), how many */
+    uint8_t gtr[5][UI_NTRACK];                  /* .. the tracks on it (but the selected), how many */
     int gtrn[5];
     float t;                            /* seconds (motion) */
 } ui_mfx_t;
@@ -901,9 +904,9 @@ typedef struct {
     float isr_frac, late_flash;
     const char *boot;                   /* after a crash: its cause (0: none) */
     /* VOICES, a column a track */
-    int lim[8], tsteals[8];
-    float lvl[8][3], tflash[8], share[8];
-    int on[8];
+    int lim[UI_NTRACK], tsteals[UI_NTRACK];
+    float lvl[UI_NTRACK][3], tflash[UI_NTRACK], share[UI_NTRACK];
+    int on[UI_NTRACK];
     /* SCOPE: the loudest track (-1: silence), the line's heights (-1 .. 1) */
     int scope_track;
     float scope[UI_GEEK_SCOPE];

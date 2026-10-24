@@ -37,6 +37,11 @@
 #define QD_HOST 1
 #endif
 
+/* the tracks a project has (2026-10-24: 8 -> 6, the owner's choice, for RAM; model.h QD_NTRACK, pattern.h QD_PAT_NTRACK,
+ * pool.h QD_POOL_NTRACK and the screens' UI_NTRACK are this). The white keys W1..W6 are the tracks; W7 / W8 are dark
+ * where they chose a track. The store's format changed with it (persist.h QD_STORE_VER): an older store starts fresh. */
+#define QD_TRACKS 6
+
 /* P2.1b: the constant data that leaves the app slot for the data region (the fonts, the TAP ape's lines): the device's
  * build puts each in its own section .qd_xdata.<name>; its link script gathers them at the data region's XIP address
  * (FM1_XIP(off) = 0x02000000 + off - 0x4000, research/PHASE2-BUDGET.md §1.4), objcopy -j makes the blob, and the

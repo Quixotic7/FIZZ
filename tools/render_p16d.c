@@ -306,7 +306,7 @@ int render_p16d(const char *out)
     turn(QD_K_1, 1);
     home();
     /* 14, 15: the track settings' page 3; the name typed */
-    qd_ctl_select_track(&A, 6);
+    qd_ctl_select_track(&A, 4);                         /* (PLUCK: six tracks) */
     btap(QD_B_PATTERN), btap(QD_B_PATTERN), btap(QD_B_PATTERN);
     turn(QD_K_1, 2);
     run(300);

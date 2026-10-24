@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#define QD_NTRACK 8
+#define QD_NTRACK QD_TRACKS
 #define QD_TRACK_NAME 13               /* (P1.6d: twelve characters, as every name typed) */
 #define QD_TKIND_NONE 255               /* P1.6d: a track of no kind */
 

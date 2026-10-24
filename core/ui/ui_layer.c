@@ -286,23 +286,23 @@ static void tracks(const ui_layer_t *v)
     ui_kkey_t k[11];
     int i;
 
-    for (i = 0; i < 8; i++) {
-        const float x = 34.f + (float)(i % 4) * 57.f, y = 56.f + (float)(i / 4) * 72.f;
+    for (i = 0; i < UI_NTRACK; i++) {                   /* (six tracks: three a row, 80 px each) */
+        const float x = 40.f + (float)(i % 3) * 80.f, y = 56.f + (float)(i / 3) * 72.f;
         const int mute = (v->mute >> i) & 1, solo = (v->solo >> i) & 1, sel = i == v->sel;
         if (sel)
-            ui_RR(x - 27.f, y - 24.f, 54.f, 70.f, 6.f, UI_K3, 1.5f, QD_NONE);
+            ui_RR(x - 36.f, y - 24.f, 72.f, 70.f, 6.f, UI_K3, 1.5f, QD_NONE);
         speaker(x - 2.f, y, mute ? UI_G2 : UI_K3, v->flash[i] != 0, mute);
         ui_T(NUM[i], x, y + 28.f, 12.f, 600, 0.f, mute ? UI_G2 : UI_K3, QD_CENTER);
-        name_fit(v->tname[i] ? v->tname[i] : "", x, y + 42.f, 50.f, mute ? UI_G2 : sel ? UI_K3 : UI_G1);
+        name_fit(v->tname[i] ? v->tname[i] : "", x, y + 42.f, 68.f, mute ? UI_G2 : sel ? UI_K3 : UI_G1);
         if (ui_track_kind(i + 1) >= 0)                  /* P1.6d: its kind */
-            ui_kind_icon(ui_track_kind(i + 1), x - 17.f, y - 13.f, 1.f, mute ? UI_G2 : UI_PK_COL[ui_track_kind(i + 1)]);
+            ui_kind_icon(ui_track_kind(i + 1), x - 24.f, y - 13.f, 1.f, mute ? UI_G2 : UI_PK_COL[ui_track_kind(i + 1)]);
         if (solo) {                                     /* soloed: an S in a ring, blinking */
-            ui_O(x + 19.f, y - 14.f, 8.f, SOLO_COL, 1.2f, v->blink ? SOLO_COL : QD_NONE);
-            ui_T("S", x + 19.f, y - 9.5f, 12.f, 700, 0.f, v->blink ? UI_BG : SOLO_COL, QD_CENTER);
+            ui_O(x + 24.f, y - 14.f, 8.f, SOLO_COL, 1.2f, v->blink ? SOLO_COL : QD_NONE);
+            ui_T("S", x + 24.f, y - 9.5f, 12.f, 700, 0.f, v->blink ? UI_BG : SOLO_COL, QD_CENTER);
         }
     }
     keys_clear(k);
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < UI_NTRACK; i++) {
         k[i].num = i + 1;
         k[i].lit = i == v->sel;
         k[i].col = (v->mute >> i) & 1 ? UI_G2 : UI_K3;

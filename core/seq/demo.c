@@ -198,18 +198,17 @@ static void demo_a02(qd_pattern_t *p)
 
 static void demo_a03(qd_pattern_t *p)
 {
-    static const int RATE[8] = {QD_RATE_1, QD_RATE_1, QD_RATE_1_2, QD_RATE_3_2, QD_RATE_2, QD_RATE_1_4, QD_RATE_4_3,
-                                QD_RATE_2_3};
-    static const int LEN[8] = {16, 12, 7, 10, 9, 5, 11, 6};
+    static const int RATE[QD_PAT_NTRACK] = {QD_RATE_1, QD_RATE_1, QD_RATE_1_2, QD_RATE_3_2, QD_RATE_2, QD_RATE_1_4};
+    static const int LEN[QD_PAT_NTRACK] = {16, 12, 7, 10, 9, 5};
     int t;
     p->bpm = 118;
-    for (t = 0; t < 8; t++) {
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
         qd_tset_set_rate(&p->trk[t], RATE[t]);
         qd_track_set_length(p, t, LEN[t]);               /* page 1, 1..LEN */
     }
     {   /* the limits: each track takes its own voices before another's (16 in all, about) */
-        static const uint8_t LIM[8] = {3, 1, 3, 2, 3, 3, 2, 2};
-        for (t = 0; t < 8; t++)
+        static const uint8_t LIM[QD_PAT_NTRACK] = {3, 1, 3, 2, 3, 3};
+        for (t = 0; t < QD_PAT_NTRACK; t++)
             p->trk[t].limit = LIM[t];
     }
     /* DRUMS 16 */
@@ -254,16 +253,7 @@ static void demo_a03(qd_pattern_t *p)
     /* PAD 5 at 1/4x: a step is a bar's quarter .. four 16ths */
     chord(p, 5, 0, 50, 57, 64, 0, 70, LS2, 0);          /* D A E: Dm(add9) without its third */
     chord(p, 5, 2, 55, 59, 62, 0, 66, LS2, 0);          /* G */
-    /* BELL 11 at 4/3x */
-    note(p, 6, 0, 81, 70, L2);
-    note(p, 6, 3, 86, 60, L2);
-    note(p, 6, 5, 88, 64, L2);
-    note(p, 6, 8, 84, 58, L2);
-    /* NOISE 6 at 2/3x */
-    note(p, 7, 0, 60, 70, L4);
-    note(p, 7, 2, 72, 50, L4);
-    note(p, 7, 3, 67, 60, L4);
-    lk(p, 7, 3, QD_LK_REVERB, 60);
+    /* (BELL and NOISE were tracks 7 and 8: six tracks since 2026-10-24) */
 }
 
 const uint8_t QD_DEMO_DRUMS[QD_DEMO_N][16] = {

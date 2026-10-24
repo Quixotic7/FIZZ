@@ -75,7 +75,7 @@ static void fill_pattern(qd_pattern_t *P, int nsteps, int nlocks)
 {
     int i;
     for (i = 0; i < nsteps; i++) {
-        const int t = (int)(rnd() % 8u), s = nsteps >= 1024 ? i % 128 + (i / 128) * 0 : (int)(rnd() % 128u);
+        const int t = (int)(rnd() % (uint32_t)QD_PAT_NTRACK), s = nsteps >= 1024 ? i % 128 + (i / 128) * 0 : (int)(rnd() % 128u);
         const int tt = nsteps >= 1024 ? i / 128 : t;
         uint8_t n[1] = {(uint8_t)(36 + rnd() % 48u)};
         qd_step_on(P, tt, s);
@@ -83,7 +83,7 @@ static void fill_pattern(qd_pattern_t *P, int nsteps, int nlocks)
         qd_step_set_vel(P, tt, s, (int)(1 + rnd() % 127u));
     }
     for (i = 0; i < nlocks; i++)
-        qd_lock_set(P, (int)(rnd() % 8u), (int)(rnd() % 128u), (int)(rnd() % QD_QP_LEVEL), (int16_t)(rnd() % 50u));
+        qd_lock_set(P, (int)(rnd() % (uint32_t)QD_PAT_NTRACK), (int)(rnd() % 128u), (int)(rnd() % QD_QP_LEVEL), (int16_t)(rnd() % 50u));
     P->used = 1;
 }
 
@@ -258,10 +258,10 @@ static void migration_test(void)
     {   /* 'P' 3 -> 'P' 1: each track sound a 96-byte blob (E1), without its two preset bytes; the mix's lock ids as
          * 0.6 had them (74..) */
         const uint32_t one3 = QD_QUAD_BLOB + 2 + QD_SOUND_NAME + 2u, one1 = QD_QUAD_BLOB5 + 2 + QD_SOUND_NAME;
-        const uint32_t start = (uint32_t)len - 8u * one3;
+        const uint32_t start = (uint32_t)len - (uint32_t)QD_PAT_NTRACK * one3;
         static uint8_t c[QDS_MAXREC * 256];
         memcpy(c, b, start);
-        for (t = 0; t < 8; t++) {
+        for (t = 0; t < QD_PAT_NTRACK; t++) {
             int16_t q[QD_QUAD_NP];
             qd_quad_unpack(b + start + (uint32_t)t * one3, QD_QUAD_BLOB, q);
             qd_quad_pack5(q, c + start + (uint32_t)t * one1);
@@ -271,11 +271,11 @@ static void migration_test(void)
         c[1] = 1;
         {   /* (P1.6c: and its track settings 42 bytes, without the MIDI FX field) */
             const uint32_t hd = 12u, ts = (uint32_t)sizeof(qd_tset_t), cut = ts - QD_TSET_SIZE_OLD;
-            uint32_t k, total = start + 8u * one1;
-            for (k = 0; k < 8u; k++)
+            uint32_t k, total = start + (uint32_t)QD_PAT_NTRACK * one1;
+            for (k = 0; k < (uint32_t)QD_PAT_NTRACK; k++)
                 memmove(c + hd + k * QD_TSET_SIZE_OLD, c + hd + k * ts, QD_TSET_SIZE_OLD);
-            memmove(c + hd + 8u * QD_TSET_SIZE_OLD, c + hd + 8u * ts, total - (hd + 8u * ts));
-            total -= 8u * cut;
+            memmove(c + hd + (uint32_t)QD_PAT_NTRACK * QD_TSET_SIZE_OLD, c + hd + (uint32_t)QD_PAT_NTRACK * ts, total - (hd + (uint32_t)QD_PAT_NTRACK * ts));
+            total -= (uint32_t)QD_PAT_NTRACK * cut;
             c[3] = QD_TSET_SIZE_OLD;
             qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_PAT, 0, QD_PAT_START), c, total);
         }
@@ -592,6 +592,46 @@ static void mix_test(void)
 
 /* P1.6d: the tracks' kinds and names, AUTOMATION, kept across a restart; a 0.9.0 header (none of them): the default
  * kit's names and kinds, AUTOMATION ON, the pool byte still read */
+/* 2026-10-24, six tracks: a store an eight-track FIZZ left (its settings record 'G' 1) with MY PRESETS and a project
+ * of its own. The six-track build erases the projects' store at the mount (a fresh start: the demo project) and keeps
+ * the library's (MY PRESETS, their ids) as it was */
+static void old_format_test(void)
+{
+    static uint8_t b[QDS_MAXREC];
+    int16_t p[QD_QUAD_NP];
+    int len, id, ok_lib;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    qd_quad_preset_patch(3, p);
+    p[QD_QP_HARM] = 321;
+    qd_lib_store(&A, 7, "OLD MINE", p);
+    id = LIB(&A, 7)->preset;
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 2, 9);  /* the project's own content */
+    strcpy(A.per.pname[0], "OLD SONG");
+    run(&A, 20);
+    CHECK(qd_persist_flush(&A), "flushed");
+    len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, sizeof b);
+    b[1] = 1;                                           /* (the settings as 0.11 wrote them: 'G' 1, eight tracks) */
+    qd_store_put(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
+    qd_store_flush(&A.per.prj_st);
+    boot(&B);
+    ok_lib = !strcmp(LIB(&B, 7)->name, "OLD MINE") && LIB(&B, 7)->preset == id && LIB(&B, 7)->patch[QD_QP_HARM] == 321;
+    CHECK(len > 2 && B.per.on && B.per.prj_wiped == 1 && ok_lib,
+          "an eight-track store ('G' 1): the projects' store erased once at the mount, MY PRESETS kept (%s, id %d)",
+          LIB(&B, 7)->name, LIB(&B, 7)->preset);
+    CHECK(!qd_step_is_on(qd_step(qd_proj_cpat(&B.proj, B.seq.cur), 2, 9)) && strcmp(B.per.pname[0], "OLD SONG") &&
+              B.per.pexists[0] && !B.per.pexists[1] && B.per.proj == 0,
+          "its projects fresh: the first project, a blank flash's (%s)", B.per.pname[0]);
+    run(&B, 20);
+    qd_persist_flush(&B);
+    boot(&A);
+    CHECK(A.per.prj_wiped == 0 && !strcmp(LIB(&A, 7)->name, "OLD MINE"), "the restart after it: nothing erased again, "
+          "MY PRESETS still there");
+    printf("  old format: an eight-track store's projects erased at the mount, MY PRESETS kept\n");
+}
+
 static void names_test(void)
 {
     static uint8_t b[QDS_MAXREC];
@@ -600,11 +640,11 @@ static void names_test(void)
     memset(FL, 0xFF, sizeof FL);
     boot(&A);
     run(&A, 20);
-    CHECK(!strcmp(A.model.t[0].name, "DRUMS") && A.model.t[0].kind == QD_PK_DRUMS && !strcmp(A.model.t[6].name, "BELL") &&
-              A.model.t[6].kind == QD_PK_KEYS && A.model.t[7].kind == QD_PK_FX && !A.model.t[6].named && A.proj.rec_auto,
-          "the default kit: DRUMS .. NOISE, their kinds (BELL KEYS, NOISE FX), none typed; AUTOMATION ON");
-    qd_track_set_kind(&A.model.t[6], QD_PK_PAD);
-    CHECK(!strcmp(A.model.t[6].name, "PAD") && A.model.t[6].kind == QD_PK_PAD, "a kind chosen: the name its own (PAD)");
+    CHECK(!strcmp(A.model.t[0].name, "DRUMS") && A.model.t[0].kind == QD_PK_DRUMS && !strcmp(A.model.t[4].name, "PLUCK") &&
+              A.model.t[4].kind == QD_PK_PLUCK && A.model.t[5].kind == QD_PK_PAD && !A.model.t[4].named && A.proj.rec_auto,
+          "the default kit: DRUMS .. PAD, their kinds (PLUCK PLUCK, PAD PAD), none typed; AUTOMATION ON");
+    qd_track_set_kind(&A.model.t[4], QD_PK_PAD);
+    CHECK(!strcmp(A.model.t[4].name, "PAD") && A.model.t[4].kind == QD_PK_PAD, "a kind chosen: the name its own (PAD)");
     qd_track_set_name(&A.model.t[2], "GLASSY KEYS!");
     qd_track_set_kind(&A.model.t[2], QD_PK_LEAD);
     CHECK(!strcmp(A.model.t[2].name, "GLASSY KEYS!") && A.model.t[2].named && A.model.t[2].kind == QD_PK_LEAD,
@@ -617,7 +657,7 @@ static void names_test(void)
     CHECK(qd_persist_flush(&A), "flushed");
     boot(&B);
     CHECK(!strcmp(B.model.t[2].name, "GLASSY KEYS!") && B.model.t[2].named && B.model.t[2].kind == QD_PK_LEAD &&
-              !strcmp(B.model.t[6].name, "PAD") && B.model.t[6].kind == QD_PK_PAD && !B.model.t[6].named &&
+              !strcmp(B.model.t[4].name, "PAD") && B.model.t[4].kind == QD_PK_PAD && !B.model.t[4].named &&
               !strcmp(B.model.t[1].name, "BASS") && !B.proj.rec_auto,
           "a restart: the names, the kinds, typed or not, AUTOMATION OFF");
     len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, sizeof b);
@@ -626,15 +666,15 @@ static void names_test(void)
     qd_store_flush(&B.per.prj_st);
     boot(&A);
     CHECK(!strcmp(A.model.t[2].name, "KEYS") && A.model.t[2].kind == QD_PK_KEYS && !A.model.t[2].named &&
-              !strcmp(A.model.t[6].name, "BELL") && A.proj.rec_auto,
+              !strcmp(A.model.t[4].name, "PLUCK") && A.proj.rec_auto,
           "a 0.9.0 header: the names it had (the default kit's), their kinds; AUTOMATION ON");
     {   /* P1.6g: a new project: its tracks named from their sounds (the kind from the preset's tags), kept */
-        static const char *const KIT[8] = {"DRUMS", "BASS", "KEYS", "LEAD", "PLUCK", "PAD", "BELL", "NOISE"};
+        static const char *const KIT[QD_NTRACK] = {"DRUMS", "BASS", "KEYS", "LEAD", "PLUCK", "PAD"};
         int t, ok = 1, kit = 0;
         run(&A, 300);
         qd_proj_new(&A, 2);
         run(&A, 20);
-        for (t = 0; t < 8; t++) {
+        for (t = 0; t < QD_NTRACK; t++) {
             qd_sound_t f;
             const int pr = qd_proj_pat(&A.proj, A.seq.cur)->snd[t].preset;
             if (pr >= 1 && pr <= QD_NFACTORY)
@@ -642,7 +682,7 @@ static void names_test(void)
             ok &= A.model.t[t].name[0] != 0 && !A.model.t[t].named;
             kit += !strcmp(A.model.t[t].name, KIT[t]);
         }
-        CHECK(ok && kit < 8, "a new project: each track's kind from its preset's tags, its name from its sound (%s, %s, "
+        CHECK(ok && kit < QD_NTRACK, "a new project: each track's kind from its preset's tags, its name from its sound (%s, %s, "
               "%s ..)", A.model.t[0].name, A.model.t[1].name, A.model.t[2].name);
         qd_persist_flush(&A);
         {
@@ -662,7 +702,7 @@ static int pat_sig_ok(qd_project_t *pr, int k)
 {
     const qd_pattern_t *P = qd_proj_cpat(pr, k);
     int16_t v;
-    return qd_step_is_on(qd_step(P, k % 8, k)) && qd_lock_get(P, k % 8, k, QD_QP_HARM, &v) && v == 100 + k &&
+    return qd_step_is_on(qd_step(P, k % QD_PAT_NTRACK, k)) && qd_lock_get(P, k % QD_PAT_NTRACK, k, QD_QP_HARM, &v) && v == 100 + k &&
            P->used;
 }
 static void run_audio(qd_app_t *a, uint32_t ms)       /* (ticks and the sound: the sequencer runs on it) */
@@ -681,8 +721,8 @@ static void paging_test(void)
     boot(&A);
     for (k = 0; k < QD_NPAT; k++) {
         qd_pattern_t *P = qd_proj_pat(&A.proj, k);
-        qd_step_on(P, k % 8, k);
-        qd_lock_set(P, k % 8, k, QD_QP_HARM, 100 + k);
+        qd_step_on(P, k % QD_PAT_NTRACK, k);
+        qd_lock_set(P, k % QD_PAT_NTRACK, k, QD_QP_HARM, 100 + k);
     }
     for (ok = 0, k = QD_NPAT - 1; k >= 0; k -= 2)
         ok += pat_sig_ok(&A.proj, k);
@@ -700,8 +740,8 @@ static void paging_test(void)
     qd_app_init(&B);                                    /* (no flash: the host's RAM store at the device's sizes) */
     for (k = 0; k < QD_NPAT; k++) {
         qd_pattern_t *P = qd_proj_pat(&B.proj, k);
-        qd_step_on(P, k % 8, k);
-        qd_lock_set(P, k % 8, k, QD_QP_HARM, 100 + k);
+        qd_step_on(P, k % QD_PAT_NTRACK, k);
+        qd_lock_set(P, k % QD_PAT_NTRACK, k, QD_QP_HARM, 100 + k);
     }
     for (ok = 0, k = QD_NPAT - 1; k >= 0; k--)
         ok += pat_sig_ok(&B.proj, k);
@@ -854,8 +894,8 @@ static void isr_paging_test(void)
     qd_seq_select(&A.seq, 1, 1);
     qd_app_play(&A);
     isr_ms(&A, 600, 1);
-    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 7, 5);  /* the playing one edited (the UI: main loop) .. */
-    qd_step_on(qd_proj_pat(&A.proj, 2), 6, 9);          /* .. and A03 (the other slot: neither can be given up yet) */
+    qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 5, 5);  /* the playing one edited (the UI: main loop) .. */
+    qd_step_on(qd_proj_pat(&A.proj, 2), 4, 9);          /* .. and A03 (the other slot: neither can be given up yet) */
     late0 = A.seq.sw_late;
     qd_seq_select(&A.seq, 3, 1);                        /* A04 at the next 16th .. */
     isr_ms(&A, 400, 0);                                 /* .. the main loop stalled: no prefetch */
@@ -887,8 +927,8 @@ static void isr_paging_test(void)
     qd_app_stop(&A);
     qd_persist_flush(&A);
     boot(&B);
-    edit_ok = qd_step_is_on(qd_step(qd_proj_cpat(&B.proj, 1), 7, 5)) && qd_step_is_on(qd_step(qd_proj_cpat(&B.proj,
-                                                                                                         2), 6, 9));
+    edit_ok = qd_step_is_on(qd_step(qd_proj_cpat(&B.proj, 1), 5, 5)) && qd_step_is_on(qd_step(qd_proj_cpat(&B.proj,
+                                                                                                         2), 4, 9));
     CHECK(edit_ok, "P2.4: the edits to the playing A02 and to A03 (given up for A04) kept across a restart");
 }
 
@@ -1039,8 +1079,8 @@ static void pref_test(void)
     for (nref = 0, t = 0; t < QD_PAT_NTRACK; t++)
         nref += rec_ref(&A, 0, 10, t) != 0;
     CHECK(rec_ref(&A, 0, 10, 0) == id && rec_ref(&A, 0, 10, 1) == 2 && !rec_ref(&A, 0, 10, 2) &&
-              rec_ref(&A, 0, 11, 0) == id2 && rec_ref(&A, 1, 0, 0) == id && len5 == len4 + 16 - nref * 143,
-          "P2.1: 'P' 5: MY preset and EP by reference (and the default kit's: %d of 8), the edited one a copy; in the "
+              rec_ref(&A, 0, 11, 0) == id2 && rec_ref(&A, 1, 0, 0) == id && len5 == len4 + 2 * QD_PAT_NTRACK - nref * 143,
+          "P2.1: 'P' 5: MY preset and EP by reference (and the default kit's: %d of 6), the edited one a copy; in the "
           "other project too; %d bytes, not %d", nref, len5, len4);
     boot(&B);
     for (ok = 0, t = 0; t < 3; t++)
@@ -1383,12 +1423,12 @@ int main(void)
         int locks_a = 0, locks_b = 0, src = 0;
         qd_step_on(qd_proj_pat(&B.proj, 3), 2, 4);
         qd_step_set_sound(qd_proj_pat(&B.proj, 3), 2, 4, 30);
-        qd_step_on(qd_proj_pat(&B.proj, 50), 7, 100);
-        qd_step_set_sound(qd_proj_pat(&B.proj, 50), 7, 100, 31);
+        qd_step_on(qd_proj_pat(&B.proj, 50), 5, 100);
+        qd_step_set_sound(qd_proj_pat(&B.proj, 50), 5, 100, 31);
         qd_proj_pat(&B.proj, 20)->snd[1].sound = 30;
         qd_pool_swap(&B, 30, 31);
         for (k = 0; k < QD_NPAT; k++)
-            for (t = 0; t < 8; t++) {
+            for (t = 0; t < QD_PAT_NTRACK; t++) {
                 int s;
                 for (s = 0; s < QD_NSTEP; s++) {
                     locks_a += qd_proj_pat(&B.proj, k)->step[t][s].sound == 31 && k == 3;
@@ -1492,6 +1532,7 @@ int main(void)
     migrate72_test();
     mix_test();
     names_test();
+    old_format_test();
 #ifdef QD_DEVICE
     CHECK(qd_arena_fails() == 0, "P2.1b: the drawing's arena never short (it lends its room between frames: %u "
           "refused)", qd_arena_fails());

@@ -5,7 +5,7 @@
  * (it includes this file and core/store/store.c: the core's source lists stay as they are).
  *
  * The records' bytes (version 1; the host's byte order and struct layouts: a Phase 2 format would spell them out):
- *   SET  'G' 1, project, pattern, track, knob layout, view, page follow, the effects' parameters (QD_NFXP int16),
+ *   SET  'G' 2 (1: eight tracks; 2026-10-24), project, pattern, track, knob layout, view, page follow, the effects' parameters (QD_NFXP int16),
  *        the latch mode (P1.5b), 1 (P1.5s: the view is the user's; a record without it powers on in EDIT)
  *   HDR  'H' 1, name (QD_PROJ_NAME), demo, global key scale and root, launch, record mode, quantize, overdub, each
  *        track's mix (level, pan, chorus, delay, reverb) and voice limit and reserve
@@ -544,7 +544,7 @@ static uint32_t ser_set(const qd_app_t *a, uint8_t *b)
 {
     uint32_t o = 0;
     int i;
-    b[o++] = 'G', b[o++] = 1;
+    b[o++] = 'G', b[o++] = QD_PRJ_FORMAT;               /* (2026-10-24: 'G' 2, six tracks; 'G' 1 eight) */
     b[o++] = (uint8_t)a->per.proj, b[o++] = (uint8_t)a->seq.cur, b[o++] = (uint8_t)a->sel;
     b[o++] = (uint8_t)a->ui.knobs, b[o++] = (uint8_t)a->ui.view, b[o++] = (uint8_t)a->ui.follow;
     b[o++] = QD_NFXP;
@@ -562,7 +562,7 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
     int i;
     const uint32_t nf = len >= 9 ? b[8] : 0;            /* (P1.5b: an older record has fewer effects' values, no latch
                                                          * mode: the rest stay at their defaults) */
-    if (len < 9 || b[0] != 'G' || b[1] != 1 || nf > QD_NFXP ||
+    if (len < 9 || b[0] != 'G' || b[1] != QD_PRJ_FORMAT || nf > QD_NFXP ||
         (len != 9u + 2u * nf && len != 10u + 2u * nf && len != 11u + 2u * nf))
         return 0;
     *proj = b[2] % QD_NPROJ, *pat = b[3] % QD_NPAT, *sel = b[4] % QD_NTRACK;
@@ -921,6 +921,26 @@ static void names_read(qd_app_t *a)
     }
 }
 
+/* 2026-10-24 (six tracks, the owner: a fresh start for the PROJECTS only): the projects' format is the settings
+ * record's version ('G' QD_PRJ_FORMAT, written at every attach). A projects' store with records whose settings record
+ * is missing or of another version holds projects of another format (eight tracks, 'G' 1: 0.11 and before): its
+ * sectors are erased at the mount (before any sound: the port attaches before the audio starts) and it is mounted
+ * again, empty: a blank flash's start. The library's store (MY PRESETS, the factory tags, the preset ids) is a region
+ * of its own and is never touched. 0: the region is bad */
+static int prj_format_ok(qd_persist_t *ps, const qd_flash_t *fl)
+{
+    uint8_t g[2] = {0};
+    const int len = qd_store_get(&ps->prj_st, QD_RKEY(QD_RK_SET, 0, 0), g, sizeof g);
+    int k;
+    if (!ps->prj_st.nkey || (len >= 2 && len != (int)QDS_DELETED && g[0] == 'G' && g[1] == QD_PRJ_FORMAT))
+        return 1;
+    for (k = 0; k < ps->prj_st.nsec; k++)               /* (projects of another format: the region erased) */
+        if (ps->prj_st.sseq[k])
+            fl->erase(fl->ctx, QD_FLASH_PRJ + (uint32_t)k * QDS_SECTOR);
+    ps->prj_wiped++;
+    return qd_store_mount(&ps->prj_st, fl, QD_FLASH_PRJ, QD_FLASH_PRJ_SEC, ps->prj_ent, QD_PRJ_KEYS);
+}
+
 void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)
 {
     qd_persist_t *ps = &a->per;
@@ -928,6 +948,8 @@ void qd_persist_attach(qd_app_t *a, const qd_flash_t *fl)
     ps->fl = *fl;
     if (!qd_store_mount(&ps->lib_st, fl, QD_FLASH_LIB, QD_FLASH_LIB_SEC, ps->lib_ent, QD_LIB_KEYS) ||
         !qd_store_mount(&ps->prj_st, fl, QD_FLASH_PRJ, QD_FLASH_PRJ_SEC, ps->prj_ent, QD_PRJ_KEYS))
+        return;
+    if (!prj_format_ok(ps, fl))                         /* 2026-10-24: projects of another format: a fresh start */
         return;
     qd_store_set_reserve(&ps->prj_st, 10);              /* (a full pattern record: 8 sectors) */
     qd_store_set_reserve(&ps->lib_st, QD_FLASH_LIB_RESERVE);   /* (P2.4: a record a page) */
@@ -976,10 +998,12 @@ int qd_persist_dirty(const qd_app_t *a)
  * the record's own hash (the serialisation, the presets read) is not worked out again */
 static uint32_t pat_raw_of(const qd_app_t *a, const qd_pattern_t *P)
 {
-    const uint32_t *w = (const uint32_t *)(const void *)P;
+    const uint8_t *w = (const uint8_t *)(const void *)P;   /* (a pattern is 2-byte aligned: words through memcpy) */
     uint32_t h = 0x9E3779B9u ^ a->per.written, i;
     for (i = 0; i < sizeof *P / 4u; i++) {
-        h ^= w[i];
+        uint32_t x;
+        memcpy(&x, w + 4u * i, 4);
+        h ^= x;
         h *= 0x85EBCA6Bu;
         h ^= h >> 15;
     }

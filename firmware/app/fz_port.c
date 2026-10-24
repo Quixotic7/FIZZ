@@ -607,6 +607,12 @@ int fz_expect(const char *what, int *got)
         *got = (int)qd_seq_tick(&a->seq);
     else if (!strcmp(what, "fz_store_on"))             /* the flash attached and mounted */
         *got = a->per.on;
+    else if (!strcmp(what, "fz_prj_wiped"))            /* 2026-10-24: the projects' store erased for its format */
+        *got = (int)a->per.prj_wiped;
+    else if (!strcmp(what, "fz_lib_keys"))             /* the library's records (MY PRESETS, the factory tags) */
+        *got = a->per.lib_st.nkey;
+    else if (!strcmp(what, "fz_prj_keys"))             /* the projects' records */
+        *got = a->per.prj_st.nkey;
     else if (!strcmp(what, "fz_store_written"))        /* records the store committed */
         *got = (int)a->per.written;
     else if (!strcmp(what, "fz_store_dirty"))          /* something not written yet */

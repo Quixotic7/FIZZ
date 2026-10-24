@@ -393,7 +393,7 @@ static TP *tp_new(int k, int bpm)
     memset(p, 0, sizeof *p);
     p->bpm = bpm;
     p->swing = 50;
-    for (t = 0; t < 8; t++) {
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
         p->trk[t].rate = QD_RATE_1;
         p->trk[t].length = 16;
         p->trk[t].limit = 6;
@@ -536,7 +536,7 @@ static void build(const TP *tp, int k)
     P->master = (uint16_t)tp->master;
     PROJ.key_scale = (uint8_t)tp->key_scale;
     PROJ.key_root = (uint8_t)tp->key_root;
-    for (t = 0; t < 8; t++) {
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
         const TT *tt = &tp->trk[t];
         int r = 0, pg;
         qd_tset_set_rate(&P->trk[t], tt->rate);
@@ -928,14 +928,14 @@ static void r_generate(const rseg_t *seg, int nseg, int64_t end)
     int si, t, rdir[8];
     NRAW_ = 0;
     NRSTEP = 0;
-    for (t = 0; t < 8; t++)                             /* P1.3w: forward from PLAY, kept through pattern changes */
+    for (t = 0; t < QD_PAT_NTRACK; t++)                 /* P1.3w: forward from PLAY, kept through pattern changes */
         rdir[t] = 1;
     for (si = 0; si < nseg; si++) {
         const TP *tp = seg[si].tp;
         int64_t hg[8][2048];                            /* the conditional steps' grids and results, per track */
         int hr[8][2048], hn[8];
         memset(hn, 0, sizeof hn);
-        for (t = 0; t < 8; t++) {
+        for (t = 0; t < QD_PAT_NTRACK; t++) {
             const TT *tt = &tp->trk[t];
             const int64_t L = R_STEP_T(tt->rate);
             int walk[128];
@@ -1447,19 +1447,18 @@ static void p_sixteenths(void)
 
 static void p_polymeter(void)
 {
-    static const int RATE[8] = {QD_RATE_1, QD_RATE_3_2, QD_RATE_1_2, QD_RATE_2_3, QD_RATE_4_3, QD_RATE_2,
-                                QD_RATE_1_4, QD_RATE_1_8};
-    static const int LEN[8] = {16, 12, 7, 5, 9, 3, 4, 2};
+    static const int RATE[QD_PAT_NTRACK] = {QD_RATE_1, QD_RATE_3_2, QD_RATE_1_2, QD_RATE_2_3, QD_RATE_2, QD_RATE_1_8};
+    static const int LEN[QD_PAT_NTRACK] = {16, 12, 7, 5, 3, 2};
     TP *p = tp_new(0, 110);
     int t, s;
-    for (t = 0; t < 8; t++) {
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
         p->trk[t].rate = RATE[t];
         p->trk[t].length = LEN[t];
         for (s = 0; s < LEN[t]; s++)
             if (s == 0 || (s * 5 + t) % 3 == 0)
                 S(p, t, s, QD_TRIG_NOTE, 40 + t * 5 + s, 0, 0, 0)->len = 3;
     }
-    pattern_test("p02-polymeter", "8 tracks: rates 1, 3/2, 1/2, 2/3, 4/3, 2, 1/4, 1/8 x, lengths 16 12 7 5 9 3 4 2",
+    pattern_test("p02-polymeter", "6 tracks: rates 1, 3/2, 1/2, 2/3, 2, 1/8 x, lengths 16 12 7 5 3 2",
                  8.0, 1);
 }
 
@@ -1601,25 +1600,25 @@ static void p_conditions(void)
     S(p, 1, 3, QD_TRIG_NOTE, 62, 0, 0, 0)->cond = QD_COND_NNEI;
     S(p, 1, 5, QD_TRIG_NOTE, 64, 0, 0, 0)->cond = QD_COND_NEI;
     S(p, 1, 7, QD_TRIG_NOTE, 65, 0, 0, 0)->cond = QD_COND_NNEI;
-    /* tracks 3..7: every A:B, B = 2..8 (35), on short loops so the passes come fast */
+    /* tracks 3..5: every A:B, B = 2..8 (35), on short loops so the passes come fast (six tracks: twelve a track) */
     for (b = 2; b <= 8; b++)
         for (a = 1; a <= b; a++) {
-            const int t = 2 + s / 8, idx = s % 8;
-            p->trk[t].length = 8;
+            const int t = 2 + s / 12, idx = s % 12;
+            p->trk[t].length = 12;
             st = S(p, t, idx, QD_TRIG_NOTE, 48 + b * 4 + a, 0, 0, 0);
             st->cond = qd_cond_ab(a, b);
             st->len = 2;
             s++;
         }
-    /* track 8: NEI of track 7 */
-    p->trk[7].length = 4;
-    S(p, 7, 0, QD_TRIG_NOTE, 90, 0, 0, 0)->cond = QD_COND_NEI;
-    S(p, 7, 2, QD_TRIG_NOTE, 91, 0, 0, 0)->cond = QD_COND_NNEI;
+    /* track 6: NEI of track 5 */
+    p->trk[5].length = 4;
+    S(p, 5, 0, QD_TRIG_NOTE, 90, 0, 0, 0)->cond = QD_COND_NEI;
+    S(p, 5, 2, QD_TRIG_NOTE, 91, 0, 0, 0)->cond = QD_COND_NNEI;
     /* FILL held from step 36.5 to step 68.5 (between the steps' resolutions) */
     R_FILL_ON = (int64_t)(36.5 * 15.0 / 150.0 * 44100.0) / 32 * 32;
     R_FILL_OFF = (int64_t)(68.5 * 15.0 / 150.0 * 44100.0) / 32 * 32;
     pattern_test("p08-conditions", "FILL / NOT FILL (FILL held bars 3..5), 1ST / NOT 1ST, A:B, PRE / NOT PRE, NEI / "
-                 "NOT NEI (track 2 on track 1 at 1/2x, track 8 on track 7), every A:B for B = 2..8", 16.0, 1);
+                 "NOT NEI (track 2 on track 1 at 1/2x, track 6 on track 5), every A:B for B = 2..8", 16.0, 1);
     R_FILL_ON = R_FILL_OFF = -1;
 }
 
@@ -2169,19 +2168,16 @@ static void p_scales(void)
     for (s = 0; s < 16; s++)
         DEG(D(p, 4, s), 5, 1, s - 8, 0, 0, 0);
     p->trk[4].def.len = 1;
-    p->trk[5].scale = QD_SCALE_CHROMATIC;               /* track 6 at 1/2x: chromatic, -12..3 */
-    p->trk[5].rate = QD_RATE_1_2;
-    for (s = 0; s < 16; s++)
-        DEG(D(p, 5, s), 4, 1, s - 12, 0, 0, 0);
-    p->trk[6].scale = QD_SCALE_LOCRIAN;                 /* track 7: B locrian at the edges: octave -1 below its root */
-    p->trk[6].root = 11;                                /* (note 2), octave 8 (125, and 134 clamped to 127), a chord */
-    DEG(D(p, 6, 0), -1, 1, -5, 0, 0, 0);
-    DEG(D(p, 6, 4), 8, 1, 4, 0, 0, 0);
-    DEG(D(p, 6, 8), 1, 2, -3, 3, 0, 0);
-    DEG(D(p, 6, 12), 8, 1, 9, 0, 0, 0);
+    p->trk[5].scale = QD_SCALE_LOCRIAN;                 /* track 6 at 1/2x: B locrian at the edges: octave -1 below its */
+    p->trk[5].root = 11;                                /* root (note 2), octave 8 (125, and 134 clamped to 127), a */
+    p->trk[5].rate = QD_RATE_1_2;                       /* chord (six tracks: chromatic, was track 6, left out) */
+    DEG(D(p, 5, 0), -1, 1, -5, 0, 0, 0);
+    DEG(D(p, 5, 4), 8, 1, 4, 0, 0, 0);
+    DEG(D(p, 5, 8), 1, 2, -3, 3, 0, 0);
+    DEG(D(p, 5, 12), 8, 1, 9, 0, 0, 0);
     pattern_test("p21-scales", "notes from scale degrees: C major -4..11; A minor pentatonic and a chord; the global "
-                 "key (D dorian) followed, a seventh chord; E harmonic minor at 2x; G blues; chromatic at 1/2x; B "
-                 "locrian low and high", 4.0, 1);
+                 "key (D dorian) followed, a seventh chord; E harmonic minor at 2x; G blues; B locrian low and high "
+                 "at 1/2x", 4.0, 1);
 }
 
 /* p22: solo: one track soloed, two, a soloed track that is also muted, the solo cleared */
@@ -2220,12 +2216,12 @@ static void u_lockpool(void)
     CHECK(qd_pat_check(&P), "empty pattern consistent");
     /* locks in random order on several tracks: sorted by track, step, id */
     for (k = 0; k < 600; k++) {
-        t = (k * 7) % 8, s = (k * 13) % 128;
+        t = (k * 7) % QD_PAT_NTRACK, s = (k * 13) % 128;
         r = qd_lock_set(&P, t, s, (k * 31) % QD_LK_N, k);
         CHECK(r == QD_OK, "lock_set %d: %d", k, r);
     }
     CHECK(qd_pat_check(&P), "600 locks: sorted, counted, flags right");
-    CHECK(qd_lock_get(&P, (599 * 7) % 8, (599 * 13) % 128, (599 * 31) % QD_LK_N, &v) && v == 599,
+    CHECK(qd_lock_get(&P, (599 * 7) % QD_PAT_NTRACK, (599 * 13) % 128, (599 * 31) % QD_LK_N, &v) && v == 599,
           "lock_get finds the last");
     /* the same lock again: replaced, not added */
     {
@@ -2238,11 +2234,11 @@ static void u_lockpool(void)
     }
     /* fill the pool: one more is refused, nothing changes */
     for (t = 0; P.nlock < QD_NLOCK; t++)
-        qd_lock_set(&P, t % 8, (t / 8) % 128, 72 - (t / 1024) % 70, t);
+        qd_lock_set(&P, t % QD_PAT_NTRACK, (t / QD_PAT_NTRACK) % 128, 72 - (t / 1024) % 70, t);
     CHECK(P.nlock == QD_NLOCK, "the pool full: %d", P.nlock);
     {
         int id = 0, tt = 0, ss = 0, found = 0;
-        for (tt = 0; tt < 8 && !found; tt++)
+        for (tt = 0; tt < QD_PAT_NTRACK && !found; tt++)
             for (ss = 0; ss < 128 && !found; ss++)
                 for (id = 0; id < QD_LK_N && !found; id++)
                     if (!qd_lock_get(&P, tt, ss, id, 0))
@@ -2280,10 +2276,10 @@ static void u_lockpool(void)
     qd_lock_set(&P, 0, 9, QD_QP_ALGO, 3);
     r = qd_step_copy(&Q, 4, 100, &P, 0, 3);
     CHECK(r == QD_OK && qd_lock_count(&Q, 4, 100) == 2 && qd_pat_check(&Q), "step copy with its two locks");
-    r = qd_page_copy(&Q, 6, 7, &P, 0, 0);
-    CHECK(r == QD_OK && qd_lock_count(&Q, 6, 115) == 2 && qd_lock_count(&Q, 6, 121) == 1 && qd_pat_check(&Q),
+    r = qd_page_copy(&Q, 5, 7, &P, 0, 0);
+    CHECK(r == QD_OK && qd_lock_count(&Q, 5, 115) == 2 && qd_lock_count(&Q, 5, 121) == 1 && qd_pat_check(&Q),
           "page copy: steps 3 and 9 of page 1 onto page 8");
-    CHECK(qd_step_type(&Q, 6, 121) == QD_TRIG_LOCK, "page copy keeps the trig type");
+    CHECK(qd_step_type(&Q, 5, 121) == QD_TRIG_LOCK, "page copy keeps the trig type");
     r = qd_track_copy(&Q, 1, &P, 0);
     CHECK(r == QD_OK && Q.lock_n[1] == 3 && qd_pat_check(&Q), "track copy: 3 locks");
     r = qd_page_copy(&P, 0, 0, &P, 0, 0);                /* onto itself */
@@ -2856,22 +2852,22 @@ static void u_clip(void)
     r = qd_clip_copy_page(&C, &P, 0, 0);
     CHECK(r == QD_OK && C.pg.valid && C.pg.start == 2 && C.pg.end == 9 && C.pg.nlk == 3, "copy a page: 3 locks, "
           "start 3, end 10");
-    snap(&P, 6, &A);
-    r = qd_clip_paste_page(&C, &P, 0, 6, 3);
-    CHECK(r == QD_OK && P.trk[6].pstart[3] == 2 && P.trk[6].pend[3] == 9 && qd_track_loop(&P.trk[6]) == (1 | 8) &&
-              !memcmp(&P.step[6][48], &P.step[0][0], 16 * sizeof(qd_step_t)) && qd_lock_count(&P, 6, 51) == 2 &&
-              qd_lock_count(&P, 6, 60) == 1 && qd_step_type(&P, 6, 60) == QD_TRIG_LOCK && qd_pat_check(&P),
-          "paste a page onto track 7 page 4: steps, locks, start 3 end 10, the page in the loop (pages 1 and 4)");
-    CHECK(qd_track_len(&P.trk[6]) == 16 + 8, "track 7's loop: 16 + 8 steps (%d)", qd_track_len(&P.trk[6]));
-    snap(&P, 6, &B);
-    r = qd_clip_undo(&C, &P, 0, 6);
+    snap(&P, 4, &A);
+    r = qd_clip_paste_page(&C, &P, 0, 4, 3);
+    CHECK(r == QD_OK && P.trk[4].pstart[3] == 2 && P.trk[4].pend[3] == 9 && qd_track_loop(&P.trk[4]) == (1 | 8) &&
+              !memcmp(&P.step[4][48], &P.step[0][0], 16 * sizeof(qd_step_t)) && qd_lock_count(&P, 4, 51) == 2 &&
+              qd_lock_count(&P, 4, 60) == 1 && qd_step_type(&P, 4, 60) == QD_TRIG_LOCK && qd_pat_check(&P),
+          "paste a page onto track 5 page 4: steps, locks, start 3 end 10, the page in the loop (pages 1 and 4)");
+    CHECK(qd_track_len(&P.trk[4]) == 16 + 8, "track 5's loop: 16 + 8 steps (%d)", qd_track_len(&P.trk[4]));
+    snap(&P, 4, &B);
+    r = qd_clip_undo(&C, &P, 0, 4);
     {
         static snap_t X;
-        snap(&P, 6, &X);
-        CHECK(r == 1 && snap_eq(&X, &A) && qd_track_loop(&P.trk[6]) == 1 && qd_pat_check(&P),
+        snap(&P, 4, &X);
+        CHECK(r == 1 && snap_eq(&X, &A) && qd_track_loop(&P.trk[4]) == 1 && qd_pat_check(&P),
               "undo the page paste: the page empty, the loop page 1 again");
-        r = qd_clip_undo(&C, &P, 0, 6);
-        snap(&P, 6, &X);
+        r = qd_clip_undo(&C, &P, 0, 4);
+        snap(&P, 4, &X);
         CHECK(r == 1 && snap_eq(&X, &B) && qd_pat_check(&P), "undo again: the paste again (redo)");
     }
     /* cut: copied, then cleared; undo restores it; undo again cuts it again */
@@ -3400,9 +3396,10 @@ static void p_rates_type(int type, const char *name, const char *title)
     TP *p = tp_new(0, 132);
     TS *st;
     int t, s;
-    for (t = 0; t < 7; t++) {
+    static const int BASE[QD_PAT_NTRACK] = {0, 1, 2, 3, 4, 6};   /* (six tracks: 1/1 .. 1/16 and 1/64; 1/32 left out) */
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
         const int len = t < 2 ? 4 : t < 4 ? 8 : 16;
-        p->trk[t].rate = QD_RATE_CODE(t, type);
+        p->trk[t].rate = QD_RATE_CODE(BASE[t], type);
         p->trk[t].length = len;
         p->trk[t].limit = 8;
         p->trk[t].swing = t >= 4;
@@ -3473,10 +3470,10 @@ static void p_six(void)
 
 static void p_rates(void)
 {
-    p_rates_type(QD_RTYPE_NORMAL, "p25-rates-normal", "the seven bases 1/1 .. 1/64, normal: micro, ratchet x8, strum, "
+    p_rates_type(QD_RTYPE_NORMAL, "p25-rates-normal", "six bases 1/1 .. 1/16 and 1/64, normal: micro, ratchet x8, strum, "
                  "1/8-step lengths, swing");
-    p_rates_type(QD_RTYPE_DOTTED, "p26-rates-dotted", "the seven bases dotted (1/1. .. 1/64.): the same steps");
-    p_rates_type(QD_RTYPE_TRIPLET, "p27-rates-triplet", "the seven bases triplet (1/1T .. 1/64T): the same steps");
+    p_rates_type(QD_RTYPE_DOTTED, "p26-rates-dotted", "six bases dotted (1/1. .. 1/16., 1/64.): the same steps");
+    p_rates_type(QD_RTYPE_TRIPLET, "p27-rates-triplet", "six bases triplet (1/1T .. 1/16T, 1/64T): the same steps");
 }
 
 int main(int argc, char **argv)
@@ -3572,18 +3569,16 @@ static void p_func(void)
     st->func = QD_FN_JUMP + 25;
     st = S(p, 3, 29, QD_TRIG_NOTE, 91, 0, 0, 0);
     st->func = QD_FN_JUMP + 40;
-    for (k = 0; k < 16; k++) {                          /* track 5: RANDOM JUMP at 7 */
+    for (k = 0; k < 16; k++) {                          /* track 5: RANDOM JUMP at 7, RANDOM FUNCTION at 3 and 11 */
         st = S(p, 4, k, QD_TRIG_NOTE, 40 + k, 0, 0, 0);
         if (k == 7)
             st->func = QD_FN_RJUMP;
-    }
-    for (k = 0; k < 16; k++) {                          /* track 6: RANDOM FUNCTION at 3 and 11 */
-        st = S(p, 5, k, QD_TRIG_NOTE, 84 + (k % 12), 0, 0, 0);
         if (k == 3 || k == 11)
             st->func = QD_FN_RFUNC;
     }
-    for (k = 0; k < 16; k++) {                          /* track 7: REVERSE at 6 gated by 1:2; FORWARD at 1 with 50 % */
-        st = S(p, 6, k, QD_TRIG_NOTE, 50 + k, 0, 0, 0);
+    p->trk[5].length = 8;                               /* track 6: 8 steps (a short loop's wraps): REVERSE at 6 gated */
+    for (k = 0; k < 8; k++) {                           /* by 1:2, FORWARD at 1 with 50 %, FLIP at 4 (six tracks: */
+        st = S(p, 5, k, QD_TRIG_NOTE, 50 + k, 0, 0, 0); /* tracks 6..8's functions on 5 and 6) */
         if (k == 6) {
             st->func = QD_FN_REVERSE;
             st->cond = QD_COND_AB;
@@ -3592,11 +3587,9 @@ static void p_func(void)
             st->func = QD_FN_FORWARD;
             st->chance = 50;
         }
+        if (k == 4)
+            st->func = QD_FN_FLIP;
     }
-    p->trk[7].length = 8;                               /* track 8: 8 steps, FLIP at 6 (a short loop's wraps) */
-    for (k = 0; k < 8; k++)
-        S(p, 7, k, QD_TRIG_NOTE, 64 + k, 0, 0, 0);
-    p->st[p->n - 2].func = QD_FN_FLIP;                  /* (step 6) */
     pattern_test("p29-func", "the step functions: RESTART, REVERSE / FORWARD with micro mirrored, FLIP twice, JUMP in "
                  "and out of the loop, RANDOM JUMP, RANDOM FUNCTION (seed 7), functions gated by 1:2 and 50 %, FLIP in an "
                  "8-step loop", 8.0, 7);

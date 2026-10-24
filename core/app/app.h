@@ -127,10 +127,10 @@ typedef struct {                       /* P2.11: the Geek Out pages' own state (
     float bar[4];                      /* the meters as shown (they chase the values): load 0, FPS, RAM, STORE */
     float pk[4];                       /* .. their peaks (FPS: its lowest), held QD_GEEK_PEAK_MS from pk_ms */
     uint32_t pk_ms[4];
-    float share[8];                    /* the tracks' shares as shown */
+    float share[QD_NTRACK];                    /* the tracks' shares as shown */
     uint32_t num_ms;                   /* the numbers' last step (four a second) .. */
     int num[6];                        /* .. voices, ISR us, late, lock us, frame (0.1 ms), BPM */
-    uint32_t steal0[8], steal_seen[8], steal_ms[8];   /* the tracks' steals at the reset, last seen, when */
+    uint32_t steal0[QD_NTRACK], steal_seen[QD_NTRACK], steal_ms[QD_NTRACK];   /* the tracks' steals at the reset, last seen, when */
     uint32_t late_seen, late_ms;
     int16_t scope[QD_SCOPE_N];         /* the output (L + R) / 2, every other sample: the audio side writes it .. */
     volatile uint32_t scope_w;         /* .. at this index */

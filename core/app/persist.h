@@ -61,6 +61,10 @@ struct qd_app;
 /* the keys: kind << 24 | project << 16 | index */
 enum { QD_RK_SET = 1, QD_RK_HDR, QD_RK_PAT, QD_RK_SND, QD_RK_LIB, QD_RK_FTAG, QD_RK_MFX };   /* (P1.6c: MIDI FX) */   /* (P1.5v: the factory tags) */
 #define QD_RKEY(kind, p, i) ((uint32_t)(kind) << 24 | (uint32_t)(p) << 16 | (uint32_t)(i))
+/* 2026-10-24: the projects' format, the settings record's version (persist.c prj_format_ok): 2 since six tracks (1:
+ * eight); another one at the mount: the projects' store erased, a fresh start (MY PRESETS, in the library's store,
+ * stay) */
+#define QD_PRJ_FORMAT 2
 
 /* the things the app writes, each with a hash of its record as last written and as last seen, and when it changed */
 enum { QD_PI_SET, QD_PI_HDR, QD_PI_PAT, QD_PI_SND = QD_PI_PAT + QD_NPAT, QD_PI_LIB = QD_PI_SND + QD_NSOUND,
@@ -69,6 +73,7 @@ enum { QD_PI_SET, QD_PI_HDR, QD_PI_PAT, QD_PI_SND = QD_PI_PAT + QD_NPAT, QD_PI_L
 typedef struct {
     int on;                            /* a flash attached */
     qd_store_t lib_st, prj_st;
+    uint32_t prj_wiped;                 /* 2026-10-24: the projects' store erased for its format (the mounts) */
     qds_ent_t lib_ent[QD_LIB_KEYS], prj_ent[QD_PRJ_KEYS];   /* P2.1: their indexes, each sized to what it keeps */
     qd_flash_t fl;
 #if QD_SND_RAM

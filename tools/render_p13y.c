@@ -260,9 +260,9 @@ int render_p13y(const char *out)
     turn(QD_K_ALGO, 1);
     run(100);
     shot("fx-track", "FX held + ALGORITHM: track 4 big, in its colour");
-    turn(QD_K_ALGO, 3);
+    turn(QD_K_ALGO, 2);
     run(100);
-    shot("fx-track7", ".. + 3: track 7");
+    shot("fx-track6", ".. + 2: track 6, the last");
     bup(QD_B_TRACKS);
     run(1300);
     /* the record settings */

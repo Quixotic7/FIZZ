@@ -528,18 +528,18 @@ static void d_scale(const ui_turn_t *v, qd_rgb col)
     }
 }
 
-/* ---------------------------------------------------------------- TRACK (P1.3d): the eight tracks as rows */
+/* ---------------------------------------------------------------- TRACK (P1.3d): the six tracks as rows */
 static void d_track(const ui_turn_t *v, qd_rgb col)
 {
-    static const char *const NUM[8] = {"1", "2", "3", "4", "5", "6", "7", "8"};
+    static const char *const NUM[UI_NTRACK] = {"1", "2", "3", "4", "5", "6"};
     int i, k;
-    for (i = 0; i < 8; i++) {
-        const float y = 44.f + (float)i * 21.f;
+    for (i = 0; i < UI_NTRACK; i++) {                   /* (six: 28 px a row) */
+        const float y = 48.f + (float)i * 28.f;
         const int sel = i == v->track - 1, mute = (v->tmute >> i) & 1u;
         const int n = v->tlen[i] > 32 ? 32 : v->tlen[i];
         const qd_rgb tc = sel ? col : mute ? UI_G2 : UI_G1;
         if (sel)
-            ui_RR(8.f, y - 11.f, 224.f, 18.f, 5.f, col, 1.2f, QD_NONE);
+            ui_RR(8.f, y - 13.f, 224.f, 22.f, 5.f, col, 1.2f, QD_NONE);
         ui_T(NUM[i], 20.f, y + 3.5f, 12.f, 600, 0.f, tc, QD_CENTER);
         if (ui_track_kind(i + 1) >= 0)                  /* P1.6d: its kind */
             ui_kind_icon(ui_track_kind(i + 1), 37.f, y - 1.f, 0.85f, sel ? UI_PK_COL[ui_track_kind(i + 1)] : tc);
@@ -564,7 +564,7 @@ static void d_track(const ui_turn_t *v, qd_rgb col)
 static void d_trackbig(const ui_turn_t *v)
 {
     char n[12];
-    const int t = v->value - 1 < 0 ? 0 : v->value - 1 > 7 ? 7 : v->value - 1;
+    const int t = v->value - 1 < 0 ? 0 : v->value - 1 > UI_NTRACK - 1 ? UI_NTRACK - 1 : v->value - 1;
     const qd_rgb col = UI_TRACK_PAL[t];
     int i;
     ui_T(ui_itoa(n, t + 1), 120.f, 142.f, 110.f, 200, 0.f, col, QD_CENTER);
@@ -574,10 +574,10 @@ static void d_trackbig(const ui_turn_t *v)
         if (ui_track_kind(t + 1) >= 0)                  /* P1.6d: its kind, above the name's start */
             ui_kind_icon(ui_track_kind(t + 1), 200.f, 40.f, 2.f, UI_PK_COL[ui_track_kind(t + 1)]);
     }
-    for (i = 0; i < 8; i++) {                           /* the eight tracks, the one chosen lit in its colour */
-        const float x = 26.f + (float)i * 26.f;
-        ui_RR(x - 10.f, 204.f, 20.f, 20.f, 4.f, i == t ? QD_NONE : UI_TRACK_PAL[i], 1.2f, i == t ? UI_TRACK_PAL[i] : QD_NONE);
-        ui_T(ui_itoa(n, i + 1), x, 218.5f, 12.f, 600, 0.f, i == t ? UI_BG : UI_TRACK_PAL[i], QD_CENTER);
+    for (i = 0; i < UI_NTRACK; i++) {                   /* the six tracks, the one chosen lit in its colour */
+        const float x = 30.f + (float)i * 36.f;
+        ui_RR(x - 13.f, 201.f, 26.f, 26.f, 5.f, i == t ? QD_NONE : UI_TRACK_PAL[i], 1.4f, i == t ? UI_TRACK_PAL[i] : QD_NONE);
+        ui_T(ui_itoa(n, i + 1), x, 219.5f, 15.f, 600, 0.f, i == t ? UI_BG : UI_TRACK_PAL[i], QD_CENTER);
     }
 }
 

@@ -259,13 +259,14 @@ def tc(tool, *args):
                                                                    "*/o2/fz_port.o(.bss* .sbss* COMMON) *(.fz_rtdata*)")
                     args[i] = fb.OUT / "fizz-std.ld"
                     args[i].write_text(ld)
-                if SINGLE:                       # the voices' comb lines leave the RAM code region for the pool
-                    ld = (APP / "fizz.ld").read_text()
-                    comb = " */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)"
-                    if ld.count(comb) != 1 or ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1:
+                if SINGLE:                       # the voices' comb lines leave the RAM code region for the pool;
+                    ld = (APP / "fizz.ld").read_text()   # 2026-10-24: the frame's rows and buffers marked for it too
+                    comb = " */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)"   # (as Standard: six tracks gave
+                    if (ld.count(comb) != 1 or ld.count(" *(.fz_rtdata*)") != 1 or   # the pool 14 KB; the render
+                            ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1):   # at -O2 outgrew the region)
                         raise SystemExit("fizz: fizz.ld's .fz_rt / .pool lines changed: see build.py")
-                    ld = ld.replace(comb, "").replace("*/o2/fz_port.o(.bss* .sbss* COMMON)",
-                                                      "*/o2/fz_port.o(.bss* .sbss* COMMON)" + comb)
+                    ld = ld.replace(comb, "").replace(" *(.fz_rtdata*)", "").replace(
+                        "*/o2/fz_port.o(.bss* .sbss* COMMON)", "*/o2/fz_port.o(.bss* .sbss* COMMON) *(.fz_rtdata*)" + comb)
                     args[i] = fb.OUT / "fizz-1core.ld"
                     args[i].write_text(ld)
         o = args.index("-o")

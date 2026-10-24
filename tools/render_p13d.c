@@ -245,7 +245,7 @@ int render_p13d(const char *out)
     run(600);
     turn(K_ALG, 3);
     run(250);
-    shot("plock-track", "P-LOCK, nothing held, ALGORITHM: the track (4), the eight tracks");
+    shot("plock-track", "P-LOCK, nothing held, ALGORITHM: the track (4), the six tracks");
     btap(QD_B_PLAY);
 
     /* SEQ: bank B shown, B03 chosen; A02 playing */

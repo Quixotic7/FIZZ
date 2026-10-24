@@ -18,8 +18,6 @@ static const struct {
     {"LEAD", 8, 6, 4},                  /* SQUARE LEAD */
     {"PLUCK", 4, 6, 2},                 /* PLUCK */
     {"PAD", 6, 6, 3},                   /* GLASS PAD */
-    {"BELL", 2, 6, 1},                  /* BELL (KEYS) */
-    {"NOISE", 16, 6, 6},                /* NOISE-ISH (FX) */
 };
 
 const char *qd_track_kind_name(int kind)

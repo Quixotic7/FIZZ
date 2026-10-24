@@ -716,7 +716,7 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         v->has_col = 1;
         v->col = UI_TRACK_PAL[t & 7];
         v->value = t + 1;
-        v->v = (float)t / 7.f;
+        v->v = (float)t / (float)(QD_NTRACK - 1);
         for (i = 0; i < QD_NTRACK; i++)
             v->tname[i] = a->model.t[i].name;
         break;
@@ -724,7 +724,7 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         v->has_col = 1;
         v->col = UI_MODE_COL[UI_F_PLOCK];
         v->value = t + 1;
-        v->v = (float)t / 7.f;
+        v->v = (float)t / (float)(QD_NTRACK - 1);
         for (i = 0; i < QD_NTRACK; i++) {
             const qd_pattern_t *TP = qd_seq_track_pat(&a->seq, i);
             const qd_tset_t *tt = &TP->trk[i];
@@ -1687,7 +1687,7 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
             for (k = 0; k < QD_MFX_NSLOT; k++)
                 v->gtype[gi][k] = a->proj.mfx[gi].slot[k].type;
             for (t = 0; t < QD_PAT_NTRACK; t++)
-                if (t != a->sel && P->trk[t].mfx == gi + 1 && v->gtrn[gi] < 8)
+                if (t != a->sel && P->trk[t].mfx == gi + 1 && v->gtrn[gi] < UI_NTRACK)
                     v->gtr[gi][v->gtrn[gi]++] = (uint8_t)(t + 1);
         }
     }
@@ -2462,7 +2462,7 @@ void qd_view_geek_reset(qd_app_t *a)
 {
     qd_geek_t *g = &a->geek;
     int t;
-    for (t = 0; t < 8; t++)
+    for (t = 0; t < QD_NTRACK; t++)
         g->steal0[t] = g->steal_seen[t] = a->pool.stolen[t], g->steal_ms[t] = 0;
     g->late_seen = 0, g->late_ms = 0;
     g->num_ms = 0;
@@ -2476,7 +2476,7 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
     const uint32_t now = a->ms, dt = now - g->ms;
     float val[4];
     int i, t, nsound = 0, steals = 0;
-    int32_t tl[8] = {0};
+    int32_t tl[QD_NTRACK] = {0};
     memset(v, 0, sizeof *v);
     v->page = a->ui.view - QD_VIEW_METERS;
     v->page = v->page < 0 ? 0 : v->page > 3 ? 3 : v->page;
@@ -2512,7 +2512,7 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
     for (i = 0; i < a->pool.nvoice; i++) {
         const qd_pool_voice_t *pv = &a->pool.v[i];
         float l;
-        if (!qd_pool_sounding(&a->pool, i) || pv->track >= 8)
+        if (!qd_pool_sounding(&a->pool, i) || pv->track >= QD_NTRACK)
             continue;
         l = GK_LV(sqrtf((float)qd_quad_voice_level(&pv->q) / 32767.f));
         nsound++;
@@ -2524,7 +2524,7 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
             v->lvl[t][v->on[t]] = l < 0.08f ? 0.08f : l;
         v->on[t]++;
     }
-    for (t = 0; t < 8; t++) {
+    for (t = 0; t < QD_NTRACK; t++) {
         const uint32_t s = a->pool.stolen[t];
         if (s != g->steal_seen[t])
             g->steal_seen[t] = s, g->steal_ms[t] = now ? now : 1u;
@@ -2569,7 +2569,7 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
         int best = -1, low = 128, n, start, k;
         int32_t lmax = 0, amp = 1;
         const uint32_t w = g->scope_w;
-        for (t = 0; t < 8; t++)
+        for (t = 0; t < QD_NTRACK; t++)
             if (tl[t] > lmax)
                 lmax = tl[t], best = t;
         if (best >= 0 && lmax > 64) {

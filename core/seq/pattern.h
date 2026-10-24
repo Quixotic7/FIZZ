@@ -43,7 +43,7 @@
 extern "C" {
 #endif
 
-#define QD_PAT_NTRACK 8
+#define QD_PAT_NTRACK QD_TRACKS
 #define QD_NSTEP 128                    /* steps a track at most (8 pages of 16) */
 #define QD_PAGE 16
 #define QD_NPAGE (QD_NSTEP / QD_PAGE)

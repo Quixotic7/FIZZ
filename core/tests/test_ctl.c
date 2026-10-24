@@ -30,7 +30,7 @@
  *   beat         "program a beat": from the empty A05, panel presses and turns only build a pattern with a page that
  *                has its own start and end, a two-page loop, a pool sound lock, a velocity override, a ratchet, a
  *                condition (moved by F2's cut / drop), a chord, a five-note chord (keys, then KNOB 4), a P-LOCK lock, a
- *                12-step track, two default changes and SEL's mute of track 8; it equals the same pattern built
+ *                12-step track, two default changes and SEL's mute of track 6; it equals the same pattern built
  *                through the API byte for byte (steps, locks, track settings) and in its timeline
  *   leds         the levels per situation (§8b's LEDs)
  *   determinism  one gesture session twice: the same model, the same samples
@@ -926,11 +926,15 @@ static void g_sel(void)
     ktap(WK(15), 500);
     CHECK(A.seq.solo == 0x10 && !A.seq.mute, "W10, W16: nothing");
     ktap(WK(6), 30);
+    ktap(WK(7), 500);
+    CHECK(A.seq.solo == 0x10 && !A.seq.mute, "W7, W8 (six tracks): nothing");
+    ktap(WK(5), 30);
     run(10);
     l = leds();
-    CHECK(l.key[BK(B3)] == QD_LED_LIT && l.key[BK(B1)] == QD_LED_DIM && l.key[WK(6)] == QD_LED_OFF &&
-              l.key[WK(0)] == QD_LED_OFF && l.key[BK(B11)] == QD_LED_LIT,
-          "LEDs: the selected track lit, the others dim; W7 muted off, W1 off (track 5 soloed); B11 lit");
+    CHECK(l.key[BK(B3)] == QD_LED_LIT && l.key[BK(B1)] == QD_LED_DIM && l.key[WK(5)] == QD_LED_OFF &&
+              l.key[WK(0)] == QD_LED_OFF && l.key[BK(B11)] == QD_LED_LIT && l.key[BK(B7)] == QD_LED_OFF,
+          "LEDs: the selected track lit, the others dim (B7: no track, dark); W6 muted off, W1 off (track 5 soloed); "
+          "B11 lit");
     for (k = 0; k < 500; k++) {
         run(1);
         on += leds().key[WK(4)] == QD_LED_LIT;
@@ -938,9 +942,9 @@ static void g_sel(void)
     CHECK(on > 150 && on < 350, "the soloed track's W blinks (%d of 500 ms)", on);
     black(B11);
     l = leds();
-    CHECK(!A.seq.mute && !A.seq.solo && l.key[BK(B11)] == QD_LED_OFF && l.key[WK(6)] == QD_LED_LIT &&
-              l.key[WK(0)] == QD_LED_LIT,
-          "B11: every mute and solo off; all heard, lit; B11 off");
+    CHECK(!A.seq.mute && !A.seq.solo && l.key[BK(B11)] == QD_LED_OFF && l.key[WK(5)] == QD_LED_LIT &&
+              l.key[WK(0)] == QD_LED_LIT && l.key[WK(6)] == QD_LED_OFF && l.key[WK(7)] == QD_LED_OFF,
+          "B11: every mute and solo off; all heard, lit; W7, W8 dark (six tracks); B11 off");
     bup(QD_B_PATTERN);
     run(10);
     CHECK(qd_view_screen(&A) == QD_SCR_LANE, "SEL let go: the step view");
@@ -1965,7 +1969,7 @@ static void g_plock_track(void)
     turn(QD_K_ALGO, -9);
     CHECK(A.sel == 0, "ALGORITHM down: track 1 (the first)");
     turn(QD_K_ALGO, 20);
-    CHECK(A.sel == 7, "ALGORITHM up: track 8 (the last)");
+    CHECK(A.sel == QD_NTRACK - 1, "ALGORITHM up: track 6 (the last)");
     turn(QD_K_ALGO, -7);
     bup(QD_B_TRACKS);
     run(10);
@@ -3424,8 +3428,8 @@ static void beat_by_panel(void)
     run(10);
     mode(M_VEL);
     turn(QD_K_4, -5);
-    bdown(QD_B_PATTERN);                                /* P1.3c: SEL + W8 tapped: track 8 muted */
-    wtap(7);
+    bdown(QD_B_PATTERN);                                /* P1.3c: SEL + W6 tapped: track 6 muted */
+    wtap(5);
     bup(QD_B_PATTERN);
     run(10);
 }
@@ -3476,7 +3480,7 @@ static void beat_by_api(void)
     qd_step_on(p, 2, 11);                               /* P1.3y: the cursor's LEAP +2 */
     qd_step_set_func(p, 2, 11, QD_FN_MAKE_LEAP(2));
     qd_tdef_set(p, 2, QD_PM_VEL, 95);                   /* P1.3e: the default velocity 95 */
-    A.seq.mute = 0x80;
+    A.seq.mute = 0x20;
 }
 
 static void t_beat(void)
@@ -3510,7 +3514,7 @@ static void t_beat(void)
     CHECK(panel.trk[0].loop == 3 && panel.trk[0].pstart[1] == 2 && panel.trk[0].pend[1] == 11 &&
               qd_track_len(&panel.trk[0]) == 26 && qd_track_len(&panel.trk[1]) == 12,
           "drums: pages 1 and 2 looped, page 2 3..12 (26 steps); bass: 12 steps");
-    CHECK(panel_mute == 0x80 && A.seq.mute == panel_mute, "the beat: SEL's mute of track 8 (%#x)", panel_mute);
+    CHECK(panel_mute == 0x20 && A.seq.mute == panel_mute, "the beat: SEL's mute of track 6 (%#x)", panel_mute);
     timeline(1);
     CHECK(nev[0] > 100 && nev[0] == nev[1], "the beat's timeline: %d events by hand, %d by the API", nev[0], nev[1]);
     for (i = 0; i < nev[0] && i < nev[1]; i++)
@@ -4806,37 +4810,37 @@ static void g_p16d_kinds(void)
     char was[QD_TRACK_NAME];
     int k, ok;
     start();
-    qd_ctl_select_track(&A, 6);                         /* BELL (KEYS) */
+    qd_ctl_select_track(&A, 2);                         /* KEYS */
     btap(QD_B_PATTERN);
     btap(QD_B_PATTERN);
     btap(QD_B_PATTERN);
     CHECK(A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2, "SEL three times: the track settings' page 3");
     turn(QD_K_1, 2);
-    CHECK(A.model.t[6].kind == QD_PK_PAD && !strcmp(A.model.t[6].name, "PAD"), "KNOB 1 +2: KIND PAD, the name PAD");
+    CHECK(A.model.t[2].kind == QD_PK_PAD && !strcmp(A.model.t[2].name, "PAD"), "KNOB 1 +2: KIND PAD, the name PAD");
     qd_view_menu(&A, &mv);
     CHECK(mv.page == 2 && mv.tkind == QD_PK_PAD && !strcmp(mv.tname, "PAD") && !mv.named, "its picture: PAD, not typed");
     turn(QD_K_2, 1);
     qd_view_type(&A, &tv);
-    CHECK(qd_type_open(&A) && qd_view_screen(&A) == QD_SCR_NAME && !strcmp(tv.title, "TRACK NAME") && tv.track == 7 &&
+    CHECK(qd_type_open(&A) && qd_view_screen(&A) == QD_SCR_NAME && !strcmp(tv.title, "TRACK NAME") && tv.track == 3 &&
               !strcmp(A.ui.ty.name, "PAD"),
-          "KNOB 2: the name keyboard, TRACK NAME, track 7's name selected");
+          "KNOB 2: the name keyboard, TRACK NAME, track 3's name selected");
     black(B1);                                          /* A (it replaces the selection) */
     wtap(6);                                            /* R */
     wtap(4);                                            /* P */
     btap(QD_B_SAVE);
-    CHECK(!strcmp(A.model.t[6].name, "ARP") && A.model.t[6].named && A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2,
-          "A R P, SAVE: named ARP (typed), back on page 3 (%s)", A.model.t[6].name);
+    CHECK(!strcmp(A.model.t[2].name, "ARP") && A.model.t[2].named && A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2,
+          "A R P, SAVE: named ARP (typed), back on page 3 (%s)", A.model.t[2].name);
     turn(QD_K_1, -1);
-    CHECK(A.model.t[6].kind == QD_PK_PLUCK && !strcmp(A.model.t[6].name, "ARP"), "a kind chosen: the typed name stays");
+    CHECK(A.model.t[2].kind == QD_PK_PLUCK && !strcmp(A.model.t[2].name, "ARP"), "a kind chosen: the typed name stays");
     turn(QD_K_2, 1);
     for (ok = 0, k = 0; k < 6; k++) {
         turn(QD_K_PRESETS, 1);
         ok += A.ui.ty.name[0] != 0 && strlen(A.ui.ty.name) <= 12;
     }
     CHECK(ok == 6, "PRESETS: names rolled (%s)", A.ui.ty.name);
-    strcpy(was, A.model.t[6].name);
+    strcpy(was, A.model.t[2].name);
     btap(QD_B_HOME);
-    CHECK(!strcmp(A.model.t[6].name, was) && A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2, "HOME: cancelled, page 3");
+    CHECK(!strcmp(A.model.t[2].name, was) && A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2, "HOME: cancelled, page 3");
     btap(QD_B_PATTERN);
     CHECK(A.ui.trk_page == 0, "SEL again: round to page 1");
     btap(QD_B_HOME);
@@ -4844,7 +4848,7 @@ static void g_p16d_kinds(void)
         static uint16_t lcd[QD_W * QD_H];
         qd_view_frame(&A, lcd);
     }
-    CHECK(UI_TRACK_KIND[6] == QD_PK_PLUCK && UI_TRACK_KIND[0] == QD_PK_DRUMS, "the view: the kinds for the icons");
+    CHECK(UI_TRACK_KIND[2] == QD_PK_PLUCK && UI_TRACK_KIND[0] == QD_PK_DRUMS, "the view: the kinds for the icons");
 }
 
 /* P1.6d, the step latch: SHIFT + ALGORITHM the scale, SHIFT + PRESETS the root in every latch state (VALUES and
@@ -6113,8 +6117,8 @@ static void g_p21c_one_log(void)
 #endif
                left, before);
 #ifdef QD_UNDO_SLOTS
-        CHECK(left < before && left >= 1 && ok2, "its room from the oldest levels (%d of %d left), those undone exactly",
-              left, before);
+        CHECK(left <= before && left >= 1 && ok2, "its room from the oldest levels if it needs it (six tracks: %d of %d "
+              "left), those undone exactly", left, before);
 #else
         CHECK(left == before && ok2, "the host: every level kept (%d), undone exactly", left);
 #endif
@@ -6142,6 +6146,9 @@ static void g_p21_undo_log(void)
             qd_step_on(PAT(), t, s);
             qd_step_set_vel(PAT(), t, s, 1 + (t * 37 + s * 11) % 126);
             qd_lock_set(PAT(), t, s, QD_QP_HARM, s * 3 + t);
+            if (t < (QD_NLOCK - QD_PAT_NTRACK * QD_NSTEP) / QD_NSTEP)   /* (six tracks: a second lock on the first
+                                                         * tracks' steps, the pool's 1024 locks full again) */
+                qd_lock_set(PAT(), t, s, QD_QP_FREQ, 1000 + s * 5 + t);
         }
     A.undo.snap_ok = 0;
     bdown(SHIFT), black(B1), bup(SHIFT), run(10);
@@ -6150,7 +6157,7 @@ static void g_p21_undo_log(void)
     run(QD_UNDO_QUIET_MS + 50);
 #ifdef QD_UNDO_SLOTS
     CHECK(A.undo.snap_ok && qd_undo_count(&A, -1) == n,
-          "the device's log: a full pattern (1024 steps, 1024 locks): its snapshot stored (P2.1c: 16-byte steps), its "
+          "the device's log: a full pattern (768 steps, 1024 locks): its snapshot stored (P2.1c: 16-byte steps), its "
           "edit no level (the log holds the snapshot), the levels before it kept (%d of %d)", qd_undo_count(&A, -1), n);
 #else
     CHECK(A.undo.snap_ok && qd_undo_count(&A, -1) == n + 1, "the host: a full pattern: its snapshot, its edit a level");
@@ -8030,7 +8037,7 @@ static void g_p15z_shift_select(void)
     }
     CHECK(ok, "the PIANO ROLL, STEPS, EDIT: SHIFT + SELECT the next track, the big track takeover (%d)", A.sel + 1);
     shift_sel(-5);
-    CHECK(A.sel == 6, "round: track 3 - 5 = track 7 (%d)", A.sel + 1);
+    CHECK(A.sel == 4, "round: track 4 - 5 = track 5 (six tracks) (%d)", A.sel + 1);
     shift_sel(2);
     CHECK(A.sel == 0, "and on round: track 1 (%d)", A.sel + 1);
     btap(QD_B_REC);                                     /* the keyboard */

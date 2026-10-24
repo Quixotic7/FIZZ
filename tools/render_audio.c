@@ -3,13 +3,13 @@
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* render_audio: QUADRILLE's sound headless, for listening and for the log. Runs the app (core/app) on the core's clock
  * (a tick a ms, the audio in 128-frame blocks as they fall due, as the glue and FM1VST drive it) with notes played as
- * MIDI on channels 1..8 (tracks 1..8), and writes 16-bit stereo WAVs at 44.1 kHz:
+ * MIDI on channels 1..6 (tracks 1..6), and writes 16-bit stereo WAVs at 44.1 kHz:
  *
  *   presets.wav       every sound in turn on track 3 (KEYS): INIT, then the 16 factory sounds, each a 1 s chord (C4 E4
  *                     G4 C5) and 0.5 s of its release, with the track's default sends (reverb 20)
- *   tracks.wav        the 8 default tracks, each playing a short phrase (two bars at 122 BPM) alone, then all 8 together
+ *   tracks.wav        the 6 default tracks, each playing a short phrase (two bars at 122 BPM) alone, then all 6 together
  *                     (two bars), then the tails
- *   pool-stress.wav   32 notes at once across the 8 tracks (4 each) on the 16-voice pool, held 2 s, released
+ *   pool-stress.wav   24 notes at once across the 6 tracks (4 each) on the 16-voice pool, held 2 s, released
  *   demo-A01.wav ..   the built-in demo patterns (seq/demo.c), each played from PLAY for 16 bars at its tempo, with
  *   demo-A03.wav      the effects, then 2.5 s of tails; and demo.txt: the drums of A01 measured one by one (each step's
  *                     sound lock and p-locks rendered alone on one voice: the attack, the decay to -20 and -40 dB, the
@@ -18,7 +18,7 @@
  *                     starting the voices)
  *
  * and audio.txt: the pool's counters for each, the peaks, and the host's CPU for a 128-frame block (2902 us of
- * audio): 16 voices with the effects on (8 tracks x 2 notes, every send at 40), the same with WOBBLE (ChoralRoot's
+ * audio): 16 voices with the effects on (6 tracks x 2 notes and 4 more, every send at 40), the same with WOBBLE (ChoralRoot's
  * heaviest), the effects alone (noise into all three sends and the mix: everything running), silence. The CPU is the
  * host's (Apple silicon here), not the unit's. The peaks: MASTER at its default (pot 724: 2047 of 4096) puts Output
  * Clean's ceiling at 26000 x 2047 / 4096 = 12994.
@@ -121,11 +121,7 @@ static const ev_t PH_PLUCK[] = {{0, 60, 1, 100}, {1, 67, 1, 80}, {2, 72, 1, 90},
     {30, 67, 1, 90}, {31, 62, 1, 80}, {255, 0, 0, 0}};
 static const ev_t PH_PAD[] = {{0, 48, 15, 80}, {0, 55, 15, 70}, {0, 64, 15, 70}, {0, 71, 15, 70}, {16, 53, 15, 80},
     {16, 60, 15, 70}, {16, 64, 15, 70}, {16, 69, 15, 70}, {255, 0, 0, 0}};
-static const ev_t PH_BELL[] = {{0, 84, 2, 90}, {6, 91, 2, 80}, {12, 88, 2, 90}, {16, 84, 2, 90}, {22, 79, 2, 80},
-    {28, 83, 2, 90}, {255, 0, 0, 0}};
-static const ev_t PH_NOISE[] = {{4, 60, 1, 100}, {12, 67, 1, 110}, {20, 60, 1, 100}, {28, 72, 2, 120}, {30, 64, 1, 70},
-    {255, 0, 0, 0}};
-static const ev_t *const PHRASE[QD_NTRACK] = {PH_DRUMS, PH_BASS, PH_KEYS, PH_LEAD, PH_PLUCK, PH_PAD, PH_BELL, PH_NOISE};
+static const ev_t *const PHRASE[QD_NTRACK] = {PH_DRUMS, PH_BASS, PH_KEYS, PH_LEAD, PH_PLUCK, PH_PAD};
 
 /* the phrases of the tracks in mask, two bars from now */
 static void play(uint32_t mask)
@@ -403,24 +399,24 @@ int main(int argc, char **argv)
         play(1u << t);
         run(400);
     }
-    play(0xFFu);
+    play((1u << QD_NTRACK) - 1u);
     run(3000);
     if (!wav(argv[1], "tracks.wav"))
         return 1;
-    counters(log, "tracks.wav (each track's phrase alone, then all 8 together)");
+    counters(log, "tracks.wav (each track's phrase alone, then all six together)");
     for (t = 0; t < QD_NTRACK; t++)
         fprintf(log, "  track %d %-6s %-12s limit %d, level %d, pan %d, sends chorus %d delay %d reverb %d\n", t + 1,
                 app.model.t[t].name, qd_track_sound_name(&app.model.t[t]), app.model.t[t].limit, app.model.t[t].mix.level,
                 app.model.t[t].mix.pan, app.model.t[t].mix.chorus, app.model.t[t].mix.delay, app.model.t[t].mix.reverb);
 
-    /* pool-stress.wav: 32 notes at once */
+    /* pool-stress.wav: 24 notes at once */
     fresh();
     run(100);
     for (t = 0; t < QD_NTRACK; t++)
         for (k = 0; k < 4; k++)
             midi(0x90 | t, 48 + t * 3 + k * 7, 100);
     run(2000);
-    fprintf(log, "pool-stress: %d of %d voices in use after 32 notes on 8 tracks (limits 4 1 6 6 6 6 6 6)\n",
+    fprintf(log, "pool-stress: %d of %d voices in use after 24 notes on 6 tracks (limits 4 1 6 6 6 6)\n",
             qd_pool_in_use(&app.pool), app.pool.nvoice);
     for (t = 0; t < QD_NTRACK; t++)
         fprintf(log, "  track %d: %d voices\n", t + 1, qd_pool_count(&app.pool, t));
@@ -429,7 +425,7 @@ int main(int argc, char **argv)
     run(3000);
     if (!wav(argv[1], "pool-stress.wav"))
         return 1;
-    counters(log, "pool-stress.wav (32 notes at once, 4 a track)");
+    counters(log, "pool-stress.wav (24 notes at once, 4 a track)");
 
     /* the demos */
     {
@@ -480,6 +476,8 @@ int main(int argc, char **argv)
         for (t = 0; t < QD_NTRACK; t++) {
             midi(0x90 | t, 48 + t * 2, 100);
             midi(0x90 | t, 55 + t * 2, 100);
+            if (t < 16 - 2 * QD_NTRACK)                  /* (six tracks: a third note on the first four: 16) */
+                midi(0x90 | t, 62 + t * 2, 100);
         }
         run(500);
         cpu(log, k ? "16 voices of WOBBLE, the effects on" : "16 voices (the default sounds), the effects on", 4000);

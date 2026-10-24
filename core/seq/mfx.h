@@ -177,7 +177,7 @@ typedef struct {                        /* P2.1b: a slot's own (each slot) */
     uint8_t type, bypass;               /* what it was set up for (another: reset) */
     uint8_t at;                         /* its state in the pool + 1 (0: none: not one that keeps any, or none free) */
     uint8_t cursor;                     /* SELECTOR UP / DOWN */
-    uint8_t mono_on[8], mono_prev[8], mono_gen[8];   /* MONO: each track's sounding note (its prev, gen) */
+    uint8_t mono_on[QD_TRACKS], mono_prev[QD_TRACKS], mono_gen[QD_TRACKS];   /* MONO: each track's sounding note (its prev, gen) */
 } qd_mfx_shd_t;
 /* the pool's size: every slot's at the host's sizes (none ever goes without); the device's, P2.1b: 16, twice the
  * owner's busiest project (8 on); a slot that finds the pool full lets its notes pass (as bypassed), counted

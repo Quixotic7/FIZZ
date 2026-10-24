@@ -11,6 +11,7 @@ its text becomes the release's notes on the install page and on GitHub.
 
 - The playhead now moves in half steps, and its red arrow over the open page no longer bounces.
 - While playing with the step lock off, the sound editor's values now follow the LFOs too, showing what you hear.
+- FIZZ now has six tracks instead of eight, which frees memory for new features. W7 and W8 no longer pick a track and stay dark. **Your projects start fresh:** the first boot of this version clears the old eight-track projects. My Presets are kept.
 - The sound browser no longer freezes when you add a sound to the Pool, take one out, or press B9 to switch between Presets, My Presets and the Pool.
 
 ## 0.11.0-beta.2 (2026-10-24)

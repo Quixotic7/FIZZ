@@ -237,15 +237,18 @@ static void t_midi(void)
 {
     fresh();
     qd_app_midi(&A, 0x94, 60, 90);                      /* channel 5: track 5 */
-    qd_app_midi(&A, 0x97, 72, 90);                      /* channel 8: track 8 */
-    qd_app_midi(&A, 0x98, 50, 90);                      /* channel 9: none */
+    qd_app_midi(&A, 0x95, 72, 90);                      /* channel 6: track 6 */
+    qd_app_midi(&A, 0x96, 50, 90);                      /* channel 7: none (six tracks) */
+    qd_app_midi(&A, 0x98, 51, 90);                      /* channel 9: none */
     run(10, 0);
-    CHECK(sounding(4, 60) && sounding(7, 72) && qd_pool_in_use(&A.pool) == 2, "MIDI channels 5 and 8 -> tracks 5 and 8, 9 "
-          "ignored (%d voices)", qd_pool_in_use(&A.pool));
+    CHECK(sounding(4, 60) && sounding(5, 72) && qd_pool_in_use(&A.pool) == 2, "MIDI channels 5 and 6 -> tracks 5 and 6, "
+          "7 and 9 ignored (%d voices)", qd_pool_in_use(&A.pool));
     qd_app_midi(&A, 0x84, 60, 0);
-    qd_app_midi(&A, 0x97, 72, 0);                       /* velocity 0: off */
+    qd_app_midi(&A, 0x95, 72, 0);                       /* velocity 0: off */
+    qd_app_midi(&A, 0x86, 50, 0);
+    qd_app_midi(&A, 0x88, 51, 0);
     run(5, 0);
-    CHECK(!sounding(4, 60) && !sounding(7, 72), "note off and velocity 0 release");
+    CHECK(!sounding(4, 60) && !sounding(5, 72), "note off and velocity 0 release");
     /* P1.6g: channel 16 the selected track (notes and controllers); a track's MIDI CH set by hand: that channel */
     qd_ctl_select_track(&A, 2);
     qd_app_midi(&A, 0x9F, 64, 90);
@@ -258,14 +261,14 @@ static void t_midi(void)
     qd_app_midi(&A, 0x8F, 64, 0);
     run(5, 0);
     CHECK(!sounding(2, 64), "its note off: to the track it struck");
-    qd_proj_pat(&A.proj, A.seq.cur)->trk[6].chan = 9;              /* track 7 on channel 10 by hand */
+    qd_proj_pat(&A.proj, A.seq.cur)->trk[4].chan = 9;              /* track 5 on channel 10 by hand */
     qd_app_midi(&A, 0x99, 55, 90);
-    qd_app_midi(&A, 0x96, 57, 90);
+    qd_app_midi(&A, 0x94, 57, 90);
     run(10, 0);
-    CHECK(sounding(6, 55) && !sounding(6, 57), "track 7 set to channel 10: channel 10 plays it, channel 7 no more");
+    CHECK(sounding(4, 55) && !sounding(4, 57), "track 5 set to channel 10: channel 10 plays it, channel 5 no more");
     qd_app_midi(&A, 0x89, 55, 0);
-    qd_app_midi(&A, 0x86, 57, 0);
-    printf("  midi: channels 1..8 play tracks 1..8 (their MIDI CH), channel 16 the selected track\n");
+    qd_app_midi(&A, 0x84, 57, 0);
+    printf("  midi: channels 1..6 play tracks 1..6 (their MIDI CH), channel 16 the selected track\n");
 }
 
 /* P1.6c: MIDI in through the track's group, CC 123 its notes off, recording pre-FX by design (ctl_rec takes the
@@ -332,7 +335,8 @@ static void t_mix(void)
 
 static void t_limiter(void)
 {
-    static const int CH[8][2] = {{36, 48}, {40, 52}, {55, 59}, {62, 66}, {69, 72}, {76, 79}, {83, 86}, {88, 91}};
+    static const int CH[QD_NTRACK][3] = {{36, 48, 43}, {40, 52, 47}, {55, 59, 57}, {62, 66, 64}, {69, 72, 74},
+                                         {76, 79, 83}};   /* (six tracks: three notes each, 18 on 16 voices) */
     int t, k, zero_tail;
     uint32_t n_over;
     fresh();
@@ -344,7 +348,7 @@ static void t_limiter(void)
         qd_pool_set_track(&A.pool, t, 16, 0);
     }
     for (t = 0; t < QD_NTRACK; t++)
-        for (k = 0; k < 2; k++)
+        for (k = 0; k < 3; k++)
             qd_app_midi(&A, 0x90 | t, CH[t][k], 127);
     peaks0();
     run(3000, 26000);

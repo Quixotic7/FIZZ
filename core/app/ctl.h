@@ -345,9 +345,9 @@ typedef struct {
     uint32_t touch_ms;                 /* the last input (the idle screen's clock) */
     /* the step view */
     int hmode;                         /* the hold mode, UI_F_* (NOTE at power-on) */
-    int page[8];                       /* the page edited, per track */
+    int page[QD_PAT_NTRACK];           /* the page edited, per track */
     int follow;                        /* page follow (on at power-on) */
-    int play_page[8];                  /* the playing page each track was last seen on (follow moves on its edges) */
+    int play_page[QD_PAT_NTRACK];                  /* the playing page each track was last seen on (follow moves on its edges) */
     uint32_t slide_ms;                 /* the last page change .. */
     int slide_dir;                     /* .. +1: to a later page */
     int slide_from;
@@ -374,7 +374,7 @@ typedef struct {
     uint32_t dt_ms;                    /* .. its release */
     int gest_n, gest_sole;             /* P1.3f: the latch's gesture (every W from the first down to all up): its key
                                         * presses, and the step that was the whole selection before it (-1) */
-    int last_step[8];                  /* the last step held or tapped, per track (-1 none): the latch starts there */
+    int last_step[QD_PAT_NTRACK];                  /* the last step held or tapped, per track (-1 none): the latch starts there */
     uint32_t chord_ms;                 /* NOTE: the chord changed (the name squeezes in) */
     uint32_t roll_ms;                  /* SOUND / LOCKS: the last roll .. */
     int roll_dir;

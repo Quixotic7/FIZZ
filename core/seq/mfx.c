@@ -803,7 +803,7 @@ static void fx_in(qd_mfx_t *m, int g, int k, int on, const qd_mfx_note_t *nin)
         }
         return;
     case QD_MFX_MONO: {
-        const int t = n.track & 7;
+        const int t = n.track < QD_TRACKS ? n.track : 0;
         if (on && hit(m, chance)) {
             if (hd->mono_on[t] && (hd->mono_prev[t] != n.prev || hd->mono_gen[t] != n.gen)) {
                 qd_mfx_note_t o = n;
@@ -1126,7 +1126,7 @@ void qd_mfx_flush_track(qd_mfx_t *m, int t, int live)
                         r->run = 0;
                 }
             }
-            if (t >= 0 && t < 8)
+            if (t >= 0 && t < QD_PAT_NTRACK)
                 hd->mono_on[t] = 0;
         }
         group_release(m, g, t, live);

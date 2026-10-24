@@ -80,8 +80,8 @@ void ui_box(float x, float y, int n, qd_rgb col)
 }
 
 /* head(c, left, right, { n, lcol, rcol }) */
-uint8_t UI_TRACK_KIND[8] = {255, 255, 255, 255, 255, 255, 255, 255};
-int ui_track_kind(int n) { return n >= 1 && n <= 8 && UI_TRACK_KIND[n - 1] < 7 ? UI_TRACK_KIND[n - 1] : -1; }
+uint8_t UI_TRACK_KIND[UI_NTRACK] = {255, 255, 255, 255, 255, 255};
+int ui_track_kind(int n) { return n >= 1 && n <= UI_NTRACK && UI_TRACK_KIND[n - 1] < 7 ? UI_TRACK_KIND[n - 1] : -1; }
 
 /* P1.6d: the kinds' icons. BASS a long low wave, KEYS three keys and two black ones, PLUCK a spike decaying, PAD a
  * slow swell, LEAD a square wave, DRUMS a drum and its sticks, FX a sparkle */

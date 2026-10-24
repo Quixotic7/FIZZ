@@ -185,24 +185,24 @@ static void t_reserve(void)
     s = on(2, 60);
     CHECK(s < 0 && P.drops == 1 && qd_pool_count(&P, 0) == 2 && qd_pool_count(&P, 1) == 2, "reserve: a note should be "
           "dropped when no track is over its reserve (slot %d, drops %u)", s, P.drops);
-    /* furthest over its reserve: track 4 holds 10, track 5 holds 6: track 4's oldest held goes */
+    /* furthest over its reserve: track 3 holds 10, track 4 holds 6: track 3's oldest held goes */
     reset(16);
-    qd_pool_set_track(&P, 6, 6, 0);
+    qd_pool_set_track(&P, 5, 6, 0);
     for (k = 0; k < 10; k++)
-        on(4, 40 + k);
+        on(3, 40 + k);
     blocks(1);
     for (k = 0; k < 6; k++)
-        on(5, 60 + k);
+        on(4, 60 + k);
     blocks(2);
-    on(6, 80);
+    on(5, 80);
     blocks(3);
-    CHECK(sounding_note(4, 40) < 0 && qd_pool_count(&P, 4) == 9 && qd_pool_count(&P, 5) == 6 && sounding_note(6, 80) >= 0,
-          "reserve: the furthest over (track 4) should give its oldest held note");
+    CHECK(sounding_note(3, 40) < 0 && qd_pool_count(&P, 3) == 9 && qd_pool_count(&P, 4) == 6 && sounding_note(5, 80) >= 0,
+          "reserve: the furthest over (track 3) should give its oldest held note");
     /* a released voice of any track over its reserve goes before a held one */
-    qd_pool_note_off(&P, 5, 63);
+    qd_pool_note_off(&P, 4, 63);
     blocks(5);
-    k = sounding_note(5, 63);
-    s = on(6, 81);
+    k = sounding_note(4, 63);
+    s = on(5, 81);
     CHECK(s == k && k >= 0, "reserve: the released voice (slot %d) should go first, %d went", k, s);
     printf("  reserve: a track at its reserve kept its voices; the steal took from the furthest over, released first\n");
 }
@@ -381,7 +381,7 @@ static void t_free(void)
     reset(QD_POOL_MAX);
     CHECK(P.nvoice == QD_POOL_MAX, "%d voices as a setting", QD_POOL_MAX);
     for (k = 0; k < nn; k++)
-        qd_pool_note_on(&P, k % 8, &O[k % 8], 40 + k, 90, PB);
+        qd_pool_note_on(&P, k % QD_POOL_NTRACK, &O[k % QD_POOL_NTRACK], 40 + k, 90, PB);
     blocks(10);
     CHECK(qd_pool_in_use(&P) == nn && !P.steals_own && !P.steals_cross, "%d voices: %d notes on %d voices (%d)",
           QD_POOL_MAX, nn, nn, qd_pool_in_use(&P));

@@ -264,7 +264,7 @@ void ui_browse_draw(const ui_browse_t *v)
         const qd_rgb uc = v->out_armed ? UI_RED : UI_G1;
         float x = v->out_armed ? 14.f : 60.f;
         int t;
-        for (t = 0; t < 8; t++)
+        for (t = 0; t < UI_NTRACK; t++)
             if ((v->users >> t) & 1u) {
                 ui_box(x, 204.f, t + 1, v->out_armed ? UI_RED : UI_TRACK_PAL[t]);
                 x += 22.f;

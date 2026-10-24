@@ -46,69 +46,69 @@ void ui_mix_draw(const ui_mix_t *v)
     static const float DASH[2] = {2.f, 3.f};
     int i;
     panel_head(v->page ? "SENDS" : "MIX", 2, v->page ? 1 : 0, v->nsel);
-    for (i = 0; i < 8; i++) {
-        const float x = 22.f + (float)i * 28.f;
+    for (i = 0; i < UI_NTRACK; i++) {                   /* (six tracks: 40 px a column) */
+        const float x = 20.f + (float)i * 40.f;
         const int sel = i == v->sel, mute = v->tr[i].mute;
         const qd_rgb col = mute ? UI_G3 : sel ? UI_K3 : UI_G1;
         char n[4] = {(char)('1' + i), 0};
         if (!v->page) {
             const float a = -UI_PI * 0.5f + (float)v->tr[i].pan / 64.f * 2.2f;
             const float top = 64.f, bot = 176.f, fy = bot - (bot - top) * (float)v->tr[i].level / 127.f;
-            ui_O(x, 44.f, 7.5f, sel ? UI_K2 : col, 1.2f, QD_NONE);   /* PAN */
-            ln(x, 44.f, x + cosf(a) * 6.5f, 44.f + sinf(a) * 6.5f, sel ? UI_K2 : col, 1.4f);
+            ui_O(x, 44.f, 9.f, sel ? UI_K2 : col, 1.2f, QD_NONE);   /* PAN */
+            ln(x, 44.f, x + cosf(a) * 8.f, 44.f + sinf(a) * 8.f, sel ? UI_K2 : col, 1.4f);
             if (mute)
                 qd_dash(DASH, 2);
             ln(x, top, x, bot, UI_G3, 1.f);
             if (mute)
                 qd_dash(0, 0);
             if (!mute && v->tr[i].meter > 0.f)          /* the meter */
-                ln(x + 5.f, bot, x + 5.f, bot - (bot - top) * clampf(v->tr[i].meter, 0.f, 1.f), UI_G2, 2.f);
+                ln(x + 7.f, bot, x + 7.f, bot - (bot - top) * clampf(v->tr[i].meter, 0.f, 1.f), UI_G2, 2.f);
             ln(x, bot, x, fy, sel ? UI_K1 : col, 1.6f);   /* LEVEL */
-            ui_RR(x - 7.f, fy - 3.f, 14.f, 6.f, 2.f, sel ? UI_K1 : col, 1.2f, UI_BG);
+            ui_RR(x - 9.f, fy - 3.5f, 18.f, 7.f, 2.f, sel ? UI_K1 : col, 1.2f, UI_BG);
             {   /* the sends: DELAY, REVERB */
                 int j;
                 for (j = 0; j < 2; j++) {
                     const float yy = 216.f + (float)j * 8.f, f = (float)(j ? v->tr[i].reverb : v->tr[i].delay) / 127.f;
-                    ln(x - 9.f, yy, x + 9.f, yy, UI_G3, 2.f);
+                    ln(x - 12.f, yy, x + 12.f, yy, UI_G3, 2.f);
                     if (f > 0.f)
-                        ln(x - 9.f, yy, x - 9.f + 18.f * f, yy, mute ? UI_G3 : sel ? (j ? UI_K4 : UI_K3) : UI_G2, 2.f);
+                        ln(x - 12.f, yy, x - 12.f + 24.f * f, yy, mute ? UI_G3 : sel ? (j ? UI_K4 : UI_K3) : UI_G2, 2.f);
                 }
             }
             if (sel && v->last >= 0)                    /* the knob turned last: its part brightened */
-                ln(x - 9.f, 234.f, x + 9.f, 234.f, FK[v->last], 2.f);
+                ln(x - 12.f, 234.f, x + 12.f, 234.f, FK[v->last], 2.f);
             if (sel) {                                  /* P1.6h: the parts locked on the held step: a chip on each */
                 if (v->locked[0])
                     lock_chip(x, fy, FK[0]);
                 if (v->locked[1])
                     lock_chip(x, 44.f, FK[1]);
                 if (v->locked[2])
-                    lock_chip(x + 13.f, 216.f, FK[2]);
+                    lock_chip(x + 16.f, 216.f, FK[2]);
                 if (v->locked[3])
-                    lock_chip(x + 13.f, 224.f, FK[3]);
+                    lock_chip(x + 16.f, 224.f, FK[3]);
             }
         } else {
             int j;
             for (j = 0; j < 3; j++) {                   /* CHORUS, DELAY, REVERB: three bars a track */
-                const float bx = x - 9.f + (float)j * 7.f, top = 46.f, bot = 176.f;
+                const float bx = x - 11.f + (float)j * 11.f, top = 46.f, bot = 176.f;
                 const int val = j == 0 ? v->tr[i].chorus : j == 1 ? v->tr[i].delay : v->tr[i].reverb;
                 const float h = (bot - top) * (float)val / 127.f;
-                ui_RR(bx - 2.5f, top, 5.f, bot - top, 2.f, UI_G3, 1.f, QD_NONE);
+                ui_RR(bx - 3.5f, top, 7.f, bot - top, 2.f, UI_G3, 1.f, QD_NONE);
                 if (h > 0.f)
-                    ui_RR(bx - 2.5f, bot - h, 5.f, h, 2.f, QD_NONE, 1.f, mute ? UI_G3 : sel ? FK[j] : UI_G1);
+                    ui_RR(bx - 3.5f, bot - h, 7.f, h, 2.f, QD_NONE, 1.f, mute ? UI_G3 : sel ? FK[j] : UI_G1);
                 if (sel && v->locked[j])                /* P1.6h: locked on the held step: a chip on the bar */
                     lock_chip(bx, bot - h, FK[j]);
             }
         }
         if (ui_track_kind(i + 1) >= 0)                  /* P1.6d: its kind, over the faders */
-            ui_kind_icon(ui_track_kind(i + 1), x, 31.f, 0.75f, mute ? UI_G3 : UI_PK_COL[ui_track_kind(i + 1)]);
+            ui_kind_icon(ui_track_kind(i + 1), x, 30.f, 0.9f, mute ? UI_G3 : UI_PK_COL[ui_track_kind(i + 1)]);
         if (mute) {
-            ln(x - 4.f, 190.f, x + 4.f, 198.f, UI_K4, 1.4f);
-            ln(x + 4.f, 190.f, x - 4.f, 198.f, UI_K4, 1.4f);
+            ln(x - 5.f, 189.f, x + 5.f, 199.f, UI_K4, 1.6f);
+            ln(x + 5.f, 189.f, x - 5.f, 199.f, UI_K4, 1.6f);
         } else {
-            ui_T(n, x, 200.f, 12.f, sel ? 700 : 500, 0.f, sel ? UI_K3 : UI_G1, QD_CENTER);
+            ui_T(n, x, 201.f, 15.f, sel ? 700 : 500, 0.f, sel ? UI_K3 : UI_G1, QD_CENTER);
         }
         if (sel)
-            ui_RR(x - 11.f, 186.f, 22.f, 19.f, 4.f, UI_K3, 1.2f, QD_NONE);
+            ui_RR(x - 13.f, 184.f, 26.f, 22.f, 4.f, UI_K3, 1.2f, QD_NONE);
     }
     if (v->page) {                                      /* the sends' names, once, under the selected track's bars */
         static const char *const S[3] = {"CHORUS", "DELAY", "REVERB"};
@@ -303,7 +303,7 @@ static void fx_master(const ui_fx_t *v)
         ui_O(hi, 60.f, 3.4f, QD_NONE, 1.f, UI_K2);
 }
 
-/* P1.5b, OVERVIEW: three columns, CHORUS, DELAY, REVERB (a line on top in KNOB 1..3's colours), each the eight tracks'
+/* P1.5b, OVERVIEW: three columns, CHORUS, DELAY, REVERB (a line on top in KNOB 1..3's colours), each the six tracks'
  * sends as bars in the tracks' colours: the selected track's bright (its column's top), the others dim, unheard grey */
 static void fx_over(const ui_fx_t *v)
 {
@@ -312,22 +312,22 @@ static void fx_over(const ui_fx_t *v)
         const float x0 = 10.f + (float)c * 76.f, top = 50.f, bot = 176.f;
         const int fx = c == 0 ? 0 : c == 1 ? 1 : 2;     /* (sends[t]: CHORUS, DELAY, REVERB) */
         ln(x0 + 2.f, 40.f, x0 + 66.f, 40.f, FK[c], 2.f);
-        for (t = 0; t < 8; t++) {
-            const float x = x0 + 3.f + (float)t * 8.f, h = (bot - top) * (float)v->sends[t][fx] / 127.f;
+        for (t = 0; t < UI_NTRACK; t++) {              /* (six tracks: 8 px bars, 10.6 apart) */
+            const float x = x0 + 3.f + (float)t * 10.6f, h = (bot - top) * (float)v->sends[t][fx] / 127.f;
             const int sel = t + 1 == v->track, mute = (v->mute >> t) & 1u;
             const qd_rgb col = mute ? UI_G3 : UI_TRACK_PAL[t];
-            ui_RR(x, top, 6.f, bot - top, 2.f, sel ? UI_G2 : UI_G3, 1.f, QD_NONE);
+            ui_RR(x, top, 8.f, bot - top, 2.f, sel ? UI_G2 : UI_G3, 1.f, QD_NONE);
             if (h > 0.f) {
                 if (!sel)
                     qd_save(), qd_alpha(0.4f);
-                ui_RR(x, bot - h, 6.f, h, 2.f, QD_NONE, 1.f, col);
+                ui_RR(x, bot - h, 8.f, h, 2.f, QD_NONE, 1.f, col);
                 if (!sel)
                     qd_restore();
             }
             if (sel)
-                ui_O(x + 3.f, bot + 6.f, 2.f, QD_NONE, 1.f, col);
+                ui_O(x + 4.f, bot + 6.f, 2.f, QD_NONE, 1.f, col);
             if (sel && v->locked[c])                    /* P1.6h: locked on the held step: a chip on its bar */
-                lock_chip(x + 3.f, bot - h, FK[c]);
+                lock_chip(x + 4.f, bot - h, FK[c]);
         }
     }
 }
@@ -430,7 +430,7 @@ void ui_fx_draw(const ui_fx_t *v)
 {
     int k;
     panel_head(v->name ? v->name : "", v->npg, v->ipg, v->nsel);
-    if (v->track >= 1 && v->track <= 8)                 /* the track whose SEND the page shows */
+    if (v->track >= 1 && v->track <= UI_NTRACK)         /* the track whose SEND the page shows */
         ui_box(184.f, 5.f, v->track, UI_K4);
     switch (v->draw) {
     case UI_FXD_DELAY: fx_delay(v); break;
