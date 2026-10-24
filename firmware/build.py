@@ -80,14 +80,14 @@ if SINGLE and "FM1B_POOL_SPARE" not in os.environ:
 # its own (inlined) fails the build, unless its name starts with ? (a helper the core may not have). Calls in and
 # out are long calls already (FIZZ's units: -pi32v2-large-program). The design is ChoralRoot's (cr_ram.h: markers,
 # the object's section renamed), this code FIZZ's
-# P2.15f: the drawing's busiest code, not the effects' (the unit: the drawing ~71 instructions a us, the frame's work its
-# cost; the effects run beside core 1's voices since the pipeline, their flash time mostly inside core 0's wait). A
-# FZ_HOT_FX=1 build puts the effects back
-HOT = {"build_units_c_qd_gfx_fast.o": ["qd_dl_play", "text_draw", "fill_path", "paint_setup", "acc_edge",
-                                       "qd_text_mask_rows", "quad_dev", "rect_dev"]}   # (qdb_rrect, qdb_circle: no room)
-if os.environ.get("FZ_HOT_FX") == "1":
-    HOT = {"build_units_c_qd_fx.o": ["xf_reverb", "xf_delay", "out_master", "xq_block", "xc_block",
-                                     "fz_real_qd_fx_block", "qd_fx_block"]}
+# P2.15g (the unit): the effects' seven hot functions in RAM (the drawing's set in their place gained the drawing ~3 %
+# and cost the interrupt more than the pipeline hides: cpu_isr 45-51 -> 61). FZ_HOT_DRAW=1 builds the drawing's set
+# instead (P2.15f)
+HOT = {"build_units_c_qd_fx.o": ["xf_reverb", "xf_delay", "out_master", "xq_block", "xc_block",
+                                 "fz_real_qd_fx_block", "qd_fx_block"]}
+if os.environ.get("FZ_HOT_DRAW") == "1":
+    HOT = {"build_units_c_qd_gfx_fast.o": ["qd_dl_play", "text_draw", "fill_path", "paint_setup", "acc_edge",
+                                           "qd_text_mask_rows", "quad_dev", "rect_dev"]}
 # (P2.8) the speed bisect: FZ_VARIANT=xip | o2 | crflags builds the voices' unit (quad_voice.c: the engine) another
 # way, into fizz-1core-VARIANT.fwsc, its id in stats line 8 (build=): xip (1) its render left in the flash, o2 (2) at
 # -O2 (in the flash too), crflags (3) with ChoralRoot's flags (-Os -ffunction-sections -fno-builtin: no -mcpu=r3, -mfprev1,
