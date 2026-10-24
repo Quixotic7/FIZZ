@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ Track Tools</title>
+<!-- FIZZ: TOOLS, the track tools (docs/TRACK-TOOLS-PLAN.md), a mock-up for the owner's approval. After the OMX-27
+     Form sequencer's TOOLS view and OMX's Euclidean / Grids modes; FIZZ's own look (fizz-geekout.html, line.html).
+     ?shot=N  one canvas at 1x (&t=seconds)   ?sheet=1  every screen at 2x   no query: the page, live -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f1eee8; --fg:#1b1b1f; --dim:#66625b; } }
+:root[data-theme="dark"] { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1900px; margin: 0 auto; }
+h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 17px; margin: 0 0 6px; }
+p { color: var(--dim); max-width: 900px; } p strong { color: var(--fg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; color: #ddd; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+.sheettitle { font: 700 20px -apple-system, "Helvetica Neue", Arial; margin: 0 0 14px; color: #eee; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: TOOLS (mock-up)</h1>
+<p><strong>ARP held</strong> opens TOOLS (latched; HOME closes). <strong>B1..B7</strong> pick the tool, B8..B10 copy / paste / clear, <strong>B11</strong> the scope
+(PAGE → TRACK → PATTERN), <strong>W1..W8</strong> the track, the knobs the tool's values in their colours, every change is <strong>heard and seen live</strong>; <strong>OCT+</strong> keeps it, <strong>OCT−</strong> reverts.
+The lane at the foot is the page as it will be: solid = kept, ring = new, faded = going.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const C = { bg: '#000', k1: '#3f7dff', k2: '#1fd47e', k3: '#f1f0ea', k4: '#ff6a2c', sel: '#ffd23f', red: '#ff3448',
+            g1: '#8d8d96', g2: '#4b4b54', g3: '#26262d' };
+const TP = ['#3f7dff', '#1fd47e', '#f1f0ea', '#ff6a2c', '#ff3ca0', '#ffd23f', '#9664ff', '#28e1ff'];
+const F = 'IT', TAU = Math.PI * 2;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const lerp = (a, b, u) => a + (b - a) * u;
+const ease = u => u < 0 ? 0 : u > 1 ? 1 : u * u * (3 - 2 * u);
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = 'alphabetic';
+  if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1); c.fillText(s, x, y); c.restore();
+}
+function P(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1);
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  if (o.close) c.closePath(); if (o.fill) { c.fillStyle = o.fill; c.fill(); } c.stroke(); c.restore();
+}
+function O(c, x, y, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1); if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, TAU);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function RR(c, x, y, w, h, r, col, lw = 1.5, fill, o = {}) {
+  c.save(); if (o.a != null) c.globalAlpha = clamp(o.a, 0, 1); if (o.dash) c.setLineDash(o.dash);
+  c.beginPath(); c.roundRect(x + lw / 2, y + lw / 2, w - lw, h - lw, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (col) { c.strokeStyle = col; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function G(c, pts, col, lw = 1.6, o = {}) { const a = o.a == null ? 1 : o.a; P(c, pts, col, lw * 3.4, { ...o, a: a * 0.16 }); P(c, pts, col, lw, o); }
+function bg(c) { c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); }
+function box(c, x, y, n, col, a = 1) { RR(c, x, y, 18, 18, 2, col, 1.4, null, { a }); T(c, String(n), x + 9, y + 14, { s: 13, w: 600, col, al: 'center', a }); }
+
+/* ---------------------------------------------------------------- the material: track 2 (bass), its page 1 */
+const TRK = 1, TCOL = TP[TRK];
+const BASE = 'x..x..x.x.x..x..'.split('').map(ch => ch === 'x');
+const NOTE = [0, 0, 0, 3, 0, 0, 7, 0, 5, 0, 3, 0, 0, 10, 0, 0];
+
+/* ---------------------------------------------------------------- the header: six tool pictures + track + scope */
+const TOOLS = ['ROTATE', 'REVERSE', 'RANDOM', 'EUCLID', 'GRIDS', 'HUMANIZE', 'LENGTH'];
+function toolIcon(c, i, x, y, on, s = 1) {            /* each tool as a little picture; x, y its centre */
+  const col = on ? C.k3 : C.g2, lw = (on ? 1.8 : 1.5) * s;
+  c.save(); c.translate(x, y); c.scale(s, s); c.translate(-x, -y);
+  if (i === 0) { const p = []; for (let a = -2.6; a <= 1.9; a += 0.2) p.push(x + Math.cos(a) * 6, y + Math.sin(a) * 6); P(c, p, col, lw);
+    const ex = x + Math.cos(1.9) * 6, ey = y + Math.sin(1.9) * 6; P(c, [ex + 3.5, ey - 1, ex, ey, ex + 0.5, ey - 4], col, lw); }
+  if (i === 1) { P(c, [x - 7, y - 3, x + 5, y - 3], col, lw); P(c, [x + 2, y - 6, x + 5, y - 3, x + 2, y], col, lw);
+                 P(c, [x + 7, y + 3, x - 5, y + 3], col, lw); P(c, [x - 2, y, x - 5, y + 3, x - 2, y + 6], col, lw); }
+  if (i === 2) { RR(c, x - 7, y - 7, 14, 14, 3, col, lw); [[-3, -3], [3, 3], [0, 0]].forEach(([dx, dy]) => O(c, x + dx, y + dy, 1.4, null, 1, col)); }
+  if (i === 3) { O(c, x, y, 6.5, col, lw * 0.8); for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + k * TAU / 3; O(c, x + Math.cos(a) * 6.5, y + Math.sin(a) * 6.5, 2, null, 1, col); } }
+  if (i === 4) { RR(c, x - 7, y - 7, 14, 14, 2, col, lw * 0.8); P(c, [x, y - 7, x, y + 7], col, 1); P(c, [x - 7, y, x + 7, y], col, 1); O(c, x + 3, y - 3, 2.2, null, 1, col); }
+  if (i === 5) { const p = []; for (let u = -7; u <= 7; u += 1) p.push(x + u, y + Math.sin(u * 1.3) * 2.5 + (u % 3 ? 0 : 1.5)); P(c, p, col, lw); P(c, [x - 7, y + 6, x + 7, y + 6], col, 1, { dash: [2, 2] }); }
+  if (i === 6) { RR(c, x - 8, y - 4, 7, 8, 1.5, col, lw * 0.8); RR(c, x + 1, y - 4, 7, 8, 1.5, col, lw * 0.8, null, { dash: [2, 2] }); }
+  c.restore();
+}
+function scopeIcon(c, sc, x, y, col = C.k3, s = 1) {     /* PAGE one block, TRACK a long lane, PATTERN eight lanes */
+  c.save(); c.translate(x, y); c.scale(s, s);
+  if (sc === 0) { RR(c, -5, -6, 10, 12, 1.5, col, 1.6, col); P(c, [-11, 0, -7, 0], C.g2, 1.4); P(c, [7, 0, 11, 0], C.g2, 1.4); }
+  if (sc === 1) { RR(c, -11, -4, 22, 8, 1.5, col, 1.6, col); }
+  if (sc === 2) { for (let k = 0; k < 4; k++) RR(c, -11, -7 + k * 4, 22, 3, 1, null, 1, k === 1 ? col : TP[[0, 1, 3, 4][k]]); }
+  c.restore();
+}
+function header(c, tool, sc, o = {}) {
+  for (let i = 0; i < 7; i++) { toolIcon(c, i, 13 + i * 21, 14, i === tool); if (i === tool) P(c, [4 + i * 21, 27, 22 + i * 21, 27], C.k3, 2); }
+  if (o.pend) O(c, 160, 14, 3, null, 1, C.k4, { a: 0.6 + 0.4 * Math.sin((o.t || 0) * 8) });
+  if (sc !== 2) box(c, 172, 5, TRK + 1, TCOL); else RR(c, 172, 5, 18, 18, 2, C.g1, 1.4, null, { dash: [2, 2] });
+  scopeIcon(c, sc, 216, 14);
+}
+/* the lane at the foot: 16 steps; st[i]: 0 empty, 1 kept, 2 new, 3 going; pitches optional */
+function lane(c, st, o = {}) {
+  const y = o.y || 206, w = 13, gap = 1, x0 = 8, col = o.col || TCOL;
+  for (let i = 0; i < 16; i++) {
+    const x = x0 + i * (w + gap) + (i >> 2) * 0;
+    const h = o.h ? o.h[i] : 18;
+    if (st[i] === 0) RR(c, x, y + 14, w, 4, 1, null, 1, i % 4 ? C.g3 : C.g2);
+    if (st[i] === 1) RR(c, x, y + 18 - h, w, h, 2, null, 1, col);
+    if (st[i] === 2) { RR(c, x, y + 18 - h, w, h, 2, C.k3, 1.8, null, { a: o.pulse == null ? 1 : o.pulse }); }
+    if (st[i] === 3) RR(c, x, y + 18 - h, w, h, 2, null, 1, col, { a: 0.22 });
+  }
+  if (o.play != null) P(c, [x0 + o.play * 14 + 6, y + 22, x0 + o.play * 14 + 6, y + 26], C.red, 2.4);
+}
+function diff(before, after) { return after.map((v, i) => v && before[i] ? 1 : v ? 2 : before[i] ? 3 : 0); }
+function big(c, s, x, y, col, sz = 44) { T(c, s, x, y, { s: sz, w: 700, col, al: 'center' }); }
+
+/* ---------------------------------------------------------------- 1. ROTATE: the page as a ring of steps that turns */
+function rotate(c, t, sc = 1) {
+  bg(c); header(c, 0, sc);
+  const k = 2, u = ease((t % 3) / 1.1), off = k * u;            /* turning two steps right, then held */
+  const cx = 120, cy = 108, R = 66;
+  O(c, cx, cy, R, C.g3, 1.5);
+  for (let i = 0; i < 16; i++) {
+    const a = -Math.PI / 2 + (i + off) * TAU / 16, x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
+    if (BASE[i]) { O(c, x, y, 7.5, null, 1, TCOL); O(c, x, y, 13, null, 1, TCOL, { a: 0.12 }); }
+    else O(c, x, y, 2.4, null, 1, C.g2);
+  }
+  const a0 = -Math.PI / 2, a1 = a0 + off * TAU / 16, p = [];          /* the sweep the steps travelled, in KNOB 1's blue */
+  for (let a = a0; a <= a1 + 1e-6; a += 0.05) p.push(cx + Math.cos(a) * (R - 22), cy + Math.sin(a) * (R - 22));
+  if (p.length > 3) G(c, p, C.k1, 3);
+  big(c, (u > 0.02 ? '+' : '') + Math.round(off), cx, cy + 15, C.k1, 40);
+  const after = BASE.map((_, i) => BASE[(i - k + 16) % 16]);
+  lane(c, u < 1 ? diff(BASE, BASE) : after.map(v => v ? 1 : 0));
+}
+/* ---------------------------------------------------------------- 2. REVERSE: the page flips over a mirror line */
+function reverse(c, t) {
+  bg(c); header(c, 1, 0);
+  const u = ease(((t % 3) - 0.3) / 1.0), cy = 108;
+  P(c, [120, 40, 120, 176], C.k3, 1.4, { dash: [3, 4] });
+  for (let i = 0; i < 16; i++) {
+    const x0 = 14 + i * 13.6, x1 = 240 - x0, x = lerp(x0, x1, u), lift = Math.sin(u * Math.PI) * (20 + (i % 4) * 6);
+    const h = 18 + NOTE[i] * 5;
+    if (BASE[i]) { RR(c, x - 6, cy - h / 2 - lift, 12, h, 3, null, 1, TCOL); RR(c, x - 9, cy - h / 2 - lift - 3, 18, h + 6, 4, null, 1, TCOL, { a: 0.12 }); }
+    else O(c, x, cy - lift, 2.2, null, 1, C.g2);
+  }
+  const after = BASE.slice().reverse();
+  lane(c, u < 1 ? diff(BASE, BASE) : after.map(v => v ? 1 : 0), { h: (u < 1 ? NOTE : NOTE.slice().reverse()).map(n => 8 + n) });
+}
+/* ---------------------------------------------------------------- 3. RANDOM: a die that rolls; ghosts of the new steps */
+const DENS = 0.45;
+function rolled(seed, dens) { return BASE.map((_, i) => hash(i * 7.3 + seed * 31.1) < dens); }
+function die(c, x, y, s, face, rot, col) {
+  c.save(); c.translate(x, y); c.rotate(rot);
+  RR(c, -s / 2, -s / 2, s, s, s * 0.2, col, 3, '#111'); const q = s * 0.26;
+  const pips = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+    5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] }[face];
+  pips.forEach(([a, b]) => O(c, a * q, b * q, s * 0.08, null, 1, col)); c.restore();
+}
+function random(c, t, o = {}) {
+  bg(c); header(c, 2, 0, { pend: 1, t });
+  const rollT = (t % 3), rolling = rollT < 0.7, seed = rolling ? Math.floor(t * 12) : 5;
+  const face = rolling ? 1 + Math.floor(hash(seed) * 6) : 5;
+  die(c, 62, 100, 52, face, rolling ? Math.sin(t * 20) * 0.5 : -0.12, C.k3);
+  /* the three amounts as stripe meters in their knobs' colours: KNOB 1 how many, KNOB 2 notes, KNOB 3 velocity */
+  [[C.k1, DENS], [C.k2, 0.6], [C.k3, 0.3], [C.k4, 0.5]].forEach(([col, v], k) => {
+    const x = 124 + k * 28, top = 58, H = 88;
+    RR(c, x, top, 20, H, 3, C.g3, 1.4);
+    RR(c, x + 3, top + H - 3 - (H - 6) * v, 14, (H - 6) * v, 2, null, 1, col);
+  });
+  if (o.turn) { RR(c, 0, 30, 240, 156, 0, null, 1, '#000', { a: 0.86 }); big(c, '45%', 120, 118, C.k1, 56);
+    RR(c, 40, 140, 160, 10, 4, C.g3, 1.4); RR(c, 42, 142, 156 * DENS, 6, 3, null, 1, C.k1); }
+  const after = rolled(seed, DENS);
+  lane(c, diff(BASE, after), { pulse: 0.55 + 0.45 * Math.sin(t * 6), h: after.map((v, i) => v ? 8 + Math.floor(hash(i + seed) * 10) : 18) });
+}
+/* ---------------------------------------------------------------- 4. EUCLID: hits spread round a ring */
+function eucl(i, k, n, r) { return i < n && (((i + r) * k) % n) < k; }
+function euclid(c, t, o = {}) {
+  bg(c); header(c, 3, o.sc ?? 0, { pend: !o.done, t });
+  const k = o.k ?? 5, n = o.n ?? 16, r = o.r ?? 0, cx = 120, cy = 106, R = 64;
+  const play = Math.floor(t * 8) % n, bt = (t * 8) % 1;
+  O(c, cx, cy, R, C.g3, 1.5);
+  const hits = []; for (let i = 0; i < n; i++) if (eucl(i, k, n, r)) hits.push(i);
+  const poly = []; hits.forEach(i => { const a = -Math.PI / 2 + i * TAU / n; poly.push(cx + Math.cos(a) * R, cy + Math.sin(a) * R); });
+  if (hits.length > 2) P(c, poly, C.k1, 2, { close: true, fill: 'rgba(63,125,255,0.10)' });
+  for (let i = 0; i < 16; i++) {
+    const a = -Math.PI / 2 + i * TAU / n, x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
+    if (i >= n) continue;
+    const on = eucl(i, k, n, r), here = i === play;
+    if (on) { O(c, x, y, here ? 9.5 - bt * 2 : 7, null, 1, C.k1); O(c, x, y, 13, null, 1, C.k1, { a: here ? 0.35 : 0.12 }); }
+    else O(c, x, y, 2.6, null, 1, i === 0 ? C.k3 : C.g2);
+  }
+  { const a = -Math.PI / 2 + play * TAU / n; P(c, [cx, cy, cx + Math.cos(a) * (R - 14), cy + Math.sin(a) * (R - 14)], C.red, 2); }
+  if (r) { const a = -Math.PI / 2 - r * TAU / n; O(c, cx + Math.cos(a) * (R + 12), cy + Math.sin(a) * (R + 12), 3, null, 1, C.k3); }
+  /* the values in the middle: hits big (KNOB 1), the length under it (KNOB 2); rotation is the white tick (KNOB 3) */
+  big(c, String(k), cx, cy + 6, C.k1, o.turn ? 54 : 40);
+  T(c, String(n), cx, cy + 30, { s: 18, w: 600, col: C.k2, al: 'center' });
+  /* KNOB 4: how it lands, three little pictures: NEW (replace), ADD (or), MASK (and) */
+  const mode = o.mode ?? 0;
+  [0, 1, 2].forEach(m => { const x = 196 + 0, y = 50 + m * 22, on = m === mode, col = on ? C.k4 : C.g2;
+    if (m === 0) RR(c, x, y, 14, 14, 2, col, 1.6, on ? col : null);
+    if (m === 1) { RR(c, x, y, 14, 14, 2, col, 1.6); P(c, [x + 7, y + 3, x + 7, y + 11], col, 1.8); P(c, [x + 3, y + 7, x + 11, y + 7], col, 1.8); }
+    if (m === 2) { RR(c, x, y, 14, 14, 2, col, 1.6); RR(c, x + 4, y + 4, 6, 6, 1, null, 1, col); } });
+  const after = BASE.map((b, i) => { const e = eucl(i, k, n, r); return mode === 0 ? e : mode === 1 ? e || b : e && b; });
+  lane(c, diff(BASE, after), { pulse: 0.6 + 0.4 * Math.sin(t * 6) });
+}
+/* ---------------------------------------------------------------- 5. GRIDS: the map pad and its dot */
+/* FIZZ's own map (clean-room, 3 x 3 nodes; the mock-up computes a stand-in): a step's level at (x, y) for a part */
+const MW = [255, 40, 110, 50, 180, 40, 120, 60, 220, 40, 110, 50, 170, 50, 130, 90];   /* the metric weight */
+function glevel(i, x, y, part) {
+  const sync = (i % 4 === 3 || i % 4 === 1) ? 150 : 0, off = i % 2 ? 70 : 0;
+  const base = part === 0 ? MW[i] : part === 1 ? (i % 8 === 4 ? 255 : MW[(i + 4) % 16] * 0.6) : 120 + 90 * (i % 2 === 0) ;
+  return clamp(lerp(base, base * 0.5 + sync * 0.9, x) + lerp(0, off + hash(i * 3 + part) * 90 - 30, y), 0, 255);
+}
+function gpat(x, y, part, dens) { return BASE.map((_, i) => glevel(i, x, y, part) > 255 - dens * 255); }
+function grids(c, t, o = {}) {
+  bg(c); header(c, 4, o.sc ?? 0, { pend: 1, t });
+  const gx = o.x ?? 0.32 + 0.12 * Math.sin(t * 0.7), gy = o.y ?? 0.62 + 0.1 * Math.cos(t * 0.5), dens = o.d ?? 0.55, part = o.part ?? 0;
+  const X = 14, Y = 38, S = 132;
+  RR(c, X, Y, S, S, 6, C.g2, 1.4);
+  for (let a = 1; a < 3; a++) { P(c, [X + a * S / 3, Y + 4, X + a * S / 3, Y + S - 4], C.g3, 1); P(c, [X + 4, Y + a * S / 3, X + S - 4, Y + a * S / 3], C.g3, 1); }
+  for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) O(c, X + S / 6 + a * S / 3, Y + S / 6 + b * S / 3, 2, null, 1, C.g2);
+  const dx = X + gx * S, dy = Y + (1 - gy) * S;
+  P(c, [dx, Y + 4, dx, Y + S - 4], C.k1, 1.2, { a: 0.6 }); P(c, [X + 4, dy, X + S - 4, dy], C.k2, 1.2, { a: 0.6 });
+  const ch = o.chaos ?? 0.35; for (let b = 0; b < 14; b++) { const an = hash(b) * TAU + t * (0.6 + hash(b + 9)), rr = ch * 26 * hash(b * 5 + 1);
+    O(c, dx + Math.cos(an) * rr, dy + Math.sin(an) * rr, 1.5, null, 1, C.sel, { a: 0.8 }); }
+  O(c, dx, dy, 16, null, 1, C.k3, { a: 0.12 }); O(c, dx, dy, 7, null, 1, C.k3);
+  /* density (KNOB 3) as the tall stripe meter; the part (KNOB 4) as LOW / MID / HIGH drawn as three drum sizes */
+  RR(c, 160, 38, 22, 132, 3, C.g3, 1.4); RR(c, 163, 41 + 126 * (1 - dens), 16, 126 * dens, 2, null, 1, C.k3);
+  [0, 1, 2].forEach(p => { const r = [11, 8, 5][p], y = 56 + p * 46, on = p === part, col = on ? C.k4 : C.g2;
+    O(c, 210, y, r, col, 2, on ? col : null); if (p === 2) P(c, [210 - 9, y - 7, 210 + 9, y - 7], col, 2); });
+  const after = gpat(gx, gy, part, dens);
+  lane(c, diff(BASE, after), { pulse: 0.6 + 0.4 * Math.sin(t * 6), h: after.map((v, i) => v ? 6 + glevel(i, gx, gy, part) / 255 * 12 : 18) });
+}
+/* GRIDS over the PATTERN: three tracks take the three parts at once */
+function gridsPattern(c, t) {
+  bg(c); header(c, 4, 2);
+  const gx = 0.4, gy = 0.55, dens = 0.3;
+  const X = 14, Y = 38, S = 80;
+  RR(c, X, Y, S, S, 5, C.g2, 1.4); O(c, X + gx * S, Y + (1 - gy) * S, 6, null, 1, C.k3); O(c, X + gx * S, Y + (1 - gy) * S, 13, null, 1, C.k3, { a: 0.12 });
+  RR(c, 104, Y, 14, S, 3, C.g3, 1.4); RR(c, 106, Y + 2 + (S - 4) * (1 - dens), 10, (S - 4) * dens, 2, null, 1, C.k3);
+  [0, 1, 2].forEach(p => { const tr = [0, 4, 6][p]; box(c, 132 + p * 34, 40 + 0, tr + 1, TP[tr]);
+    const r = [9, 7, 4][p]; O(c, 141 + p * 34, 84, r, C.k4, 2, C.k4); if (p === 2) P(c, [141 + p * 34 - 8, 77, 141 + p * 34 + 8, 77], C.k4, 2); });
+  [0, 1, 2].forEach(p => { const tr = [0, 4, 6][p], pat = gpat(gx, gy, p, dens);
+    const y = 134 + p * 26; for (let i = 0; i < 16; i++) { const x = 8 + i * 14;
+      if (pat[i]) RR(c, x, y, 13, 18, 2, C.k3, 1.6, null, { a: 0.6 + 0.4 * Math.sin(t * 6 + p) }); else RR(c, x, y + 14, 13, 4, 1, null, 1, C.g3); }
+    RR(c, 0, y, 4, 18, 1, null, 1, TP[tr]); });
+}
+/* ---------------------------------------------------------------- 6. LENGTH: the pages, x2 and /2 */
+function length(c, t) {
+  bg(c); header(c, 6, 1);
+  const u = ease(((t % 3) - 0.4) / 0.9), n0 = 2, n1 = 4;
+  for (let p = 0; p < 8; p++) {
+    const x = 12 + p * 27, y = 70, on = p < n0, grow = p >= n0 && p < n1;
+    if (on) RR(c, x, y, 23, 60, 3, null, 1, TCOL);
+    else if (grow) { const h = 60 * u; RR(c, x, y + 60 - h, 23, h, 3, C.k3, 1.8); }
+    else RR(c, x, y, 23, 60, 3, C.g3, 1.4);
+    if (on || grow) for (let s = 0; s < 4; s++) if (BASE[s * 4 + (p % 2) * 1]) RR(c, x + 4, y + 8 + s * 12, 15, 6, 1, null, 1, '#000', { a: on ? 0.5 : 0.25 * u });
+  }
+  big(c, u > 0.5 ? '64' : '32', 120, 182, C.k3, 40);
+  /* F1 halves, F2 doubles: drawn as the two OCT buttons' arrows beside the number */
+  P(c, [40, 168, 32, 174, 40, 180], C.g1, 2.4); P(c, [200, 168, 208, 174, 200, 180], C.k3, 2.4);
+  T(c, '÷2', 52, 180, { s: 14, w: 600, col: C.g1 }); T(c, '×2', 188, 180, { s: 14, w: 600, col: C.k3, al: 'right' });
+}
+/* ---------------------------------------------------------------- HUMANIZE: the steps wobble off the grid */
+function humanize(c, t) {
+  bg(c); header(c, 5, 0, { pend: 1, t });
+  const mi = 0.6, ve = 0.4, top = 44;
+  for (let i = 0; i < 16; i++) { const x = 16 + i * 13.6; P(c, [x, top, x, 176], i % 4 ? C.g3 : C.g2, 1); }
+  for (let i = 0; i < 16; i++) if (BASE[i]) {
+    const x = 16 + i * 13.6, dx = (hash(i * 3.1) - 0.5) * 2 * mi * 10 + Math.sin(t * 5 + i) * 0.6, h = 70 + (hash(i * 7.7) - 0.5) * 2 * ve * 50;
+    RR(c, x - 5, 176 - h, 10, h, 3, null, 1, TCOL, { a: 0.22 }); RR(c, x + dx - 5, 176 - h, 10, h, 3, null, 1, TCOL);
+    P(c, [x, 182, x + dx, 182], C.k1, 2.4); }
+  [[C.k1, mi], [C.k3, ve]].forEach(([col, v], k) => { RR(c, 40 + k * 90, 196, 70, 10, 4, C.g3, 1.4); RR(c, 42 + k * 90, 198, 66 * v, 6, 3, null, 1, col); });
+}
+/* ---------------------------------------------------------------- OCT-: the change rewinds to the original */
+function revert(c, t) {
+  const u = ease((t % 2) / 0.8), k = Math.round(lerp(5, 0, u));
+  euclid(c, 0.4, { k: Math.max(k, 0), n: 16, r: 0, done: u >= 1 });
+  if (u < 1) { const p = []; for (let a = 0; a <= 4.4; a += 0.2) p.push(120 + Math.cos(-a) * 28, 106 + Math.sin(-a) * 28);
+    RR(c, 0, 30, 240, 160, 0, null, 1, '#000', { a: 0.55 }); G(c, p, C.k4, 3); const e = p.length - 2; P(c, [p[e] - 6, p[e + 1] - 2, p[e], p[e + 1], p[e] - 1, p[e + 1] + 6], C.k4, 3); }
+  else lane(c, BASE.map(v => v ? 1 : 0));
+}
+/* ---------------------------------------------------------------- the tool's name, popped on a switch (fades in ~0.8 s) */
+function popup(c, t) {
+  euclid(c, 0.5, { k: 5, n: 16, r: 0, done: 1 });
+  const a = t < 0.5 ? 1 : clamp(1 - (t - 0.5) / 0.3, 0, 1), sc = 1 + 0.06 * Math.exp(-t * 10);
+  RR(c, 20, 84, 200, 56, 10, C.k3, 2, '#000', { a: 0.94 * a });
+  c.save(); c.translate(120, 112); c.scale(sc, sc); c.translate(-120, -112);
+  T(c, 'EUCLID', 120, 126, { s: 34, w: 700, col: C.k3, al: 'center', ls: 2, a }); c.restore();
+}
+/* ---------------------------------------------------------------- 7. the scope takeover (B11 pressed) */
+function scopeTake(c, t, sc = 1) {
+  bg(c); header(c, 3, sc);
+  RR(c, 0, 30, 240, 210, 0, null, 1, '#000');
+  ['PAGE', 'TRACK', 'PATTERN'].forEach((nm, k) => { const on = k === sc, y = 70 + k * 52;
+    scopeIcon(c, k, 52, y - 6, on ? C.k3 : C.g2, 1.8);
+    T(c, nm, 96, y + 2, { s: on ? 26 : 16, w: on ? 700 : 500, col: on ? C.k3 : C.g2 }); });
+}
+/* ---------------------------------------------------------------- 8. applied: the new steps fizz in */
+function applied(c, t) {
+  euclid(c, 0.2, { k: 5, n: 16, r: 0, done: 1 });
+  const u = (t % 2) / 0.9;
+  for (let i = 0; i < 16; i++) if (eucl(i, 5, 16, 0)) for (let b = 0; b < 4; b++) {
+    const x = 8 + i * 14 + 6 + (hash(i * 9 + b) - 0.5) * 10, y = 210 - u * (30 + hash(i + b * 3) * 40);
+    O(c, x, y, 1.6 + hash(b + i) * 2, C.k3, 1.2, null, { a: 1 - u });
+  }
+  RR(c, 4, 200, 232, 36, 6, C.k3, 2, null, { a: 1 - u });
+}
+
+/* ---------------------------------------------------------------- the screens */
+const SCREENS = [
+  { f: (c, t) => rotate(c, t, 1), t: 2, title: 'ROTATE (B1), TRACK',
+    text: 'The page as a <strong>ring of steps</strong>. <strong>SELECT</strong> (or KNOB 1) turns the ring a step a detent, heard at once; the blue sweep and <strong>+2</strong> show how far from the original. <strong>OCT+</strong> keeps it, OCT\u2212 turns it back. Scope TRACK: every looped step of the track turns; PAGE: only the page\'s start..end.' },
+  { f: reverse, t: 2.2, title: 'REVERSE (B2), PAGE',
+    text: '<strong>OCT+</strong> flips the steps over the mirror line (they arc across); micro-timing mirrors with them. Pressed again: back.' },
+  { f: random, t: 2, title: 'RANDOM (B3)',
+    text: '<strong>B3 again rolls the die</strong> (a new seed). Three stripe meters: <strong>KNOB 1</strong> how many trigs, <strong>KNOB 2</strong> the notes\' spread in the scale (0 = keep the notes), <strong>KNOB 3</strong> the velocity spread, <strong>KNOB 4</strong> the chance spread (orange). Heard as it changes. The lane shows the roll: rings = new steps, faded = going. <strong>OCT+</strong> keeps it.' },
+  { f: (c, t) => random(c, t, { turn: 1 }), t: 2, title: 'RANDOM, KNOB 1 turning',
+    text: 'A knob whose value isn\'t written takes the screen while it turns: the value big in its colour, back after a second.' },
+  { f: euclid, t: 1.3, title: 'EUCLID (B4)',
+    text: 'The ring and its <strong>polygon of hits</strong>. <strong>KNOB 1</strong> hits (big, blue), <strong>KNOB 2</strong> the length (green; 1..16 for PAGE, up to the track\'s length for TRACK), <strong>KNOB 3</strong> the rotation (the white tick walks), <strong>KNOB 4</strong> how it lands: NEW / ADD / MASK (the orange pictures). The red hand plays it as a preview. OCT+ applies.' },
+  { f: (c, t) => euclid(c, t, { k: 3, n: 8, r: 2, mode: 1 }), t: 0.5, title: 'EUCLID 3 of 8, rotated, ADD',
+    text: 'Eight long, turned by two, ADDed over the bass: its own trigs stay solid, the new ones are rings.' },
+  { f: grids, t: 1, title: 'GRIDS (B5)',
+    text: 'FIZZ\'s own map (not Mutable\'s data): <strong>KNOB 1</strong> X (blue line), <strong>KNOB 2</strong> Y (green line), the dot glides between nine styles; <strong>KNOB 3</strong> the density (tall stripe); <strong>KNOB 4</strong> the part LOW / MID / HIGH (drum sizes); <strong>SELECT</strong> the chaos (the yellow cloud round the dot; B5 again rerolls it). Each new step gets its level as velocity (the lane\'s heights).' },
+  { f: gridsPattern, t: 0.5, title: 'GRIDS, PATTERN scope',
+    text: 'Scope PATTERN: the three parts go to three tracks at once (here 1, 5, 7: <strong>W1..W8 tap a track</strong> to give it the next part, again to take it off). One OCT+ writes all three, one undo.' },
+  { f: length, t: 2, title: 'LENGTH (B7)',
+    text: '<strong>OCT+ doubles</strong> (the pages copied after themselves, as SHIFT + B9), <strong>OCT− halves</strong> (the later pages leave the loop; their steps are kept). The step count big.' },
+  { f: humanize, t: 1, title: 'HUMANIZE (B6)',
+    text: '<strong>KNOB 1</strong> the timing jitter (the steps slide off their grid lines, the blue ticks under them), <strong>KNOB 2</strong> the velocity jitter (their heights; the faded bars are the original). Heard while turning.' },
+  { f: revert, t: 0.4, title: 'OCT\u2212: back to the original',
+    text: 'The orange dot by the tools means a change is live (heard and seen). <strong>OCT\u2212</strong> winds it back to the original (the arrow); OCT\u2212 again with nothing pending closes TOOLS. OCT+ keeps it.' },
+  { f: popup, t: 0.2, title: 'A tool chosen: its name',
+    text: 'B4 pressed: <strong>EUCLID</strong> pops big over the screen and fades after ~0.8 s (the owner\'s exception to the values-only rule), then the tool\'s picture alone.' },
+  { f: (c, t) => scopeTake(c, t, 1), t: 0, title: 'B11: the scope',
+    text: 'Each press of <strong>B11</strong> steps PAGE → TRACK → PATTERN; the takeover for a second, then the icon top right keeps it. Every tool remembers nothing but the scope and its knobs.' },
+  { f: applied, t: 0.35, title: 'Applied',
+    text: 'OCT+: the new steps fizz up out of the lane, and it is one undo level (SHIFT + F1 brings the page back).' },
+];
+
+async function main() {
+  const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
+  await ff.load(); document.fonts.add(ff);
+  const q = new URLSearchParams(location.search), shot = q.get('shot'), sheet = q.get('sheet'), qt = q.get('t');
+  const mk = (cls) => { const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; if (cls) cv.className = cls; return cv; };
+  if (shot) { document.body.className = 'shot'; document.getElementById('page').remove();
+    const s = SCREENS[+shot - 1], cv = mk(); s.f(cv.getContext('2d'), qt != null ? +qt : s.t); document.body.appendChild(cv); return; }
+  if (sheet) {
+    document.body.className = 'sheet'; document.getElementById('page').remove();
+    const h = document.createElement('div'); h.className = 'sheettitle'; h.textContent = 'FIZZ: TOOLS (a mock-up; 2x)'; document.body.appendChild(h);
+    const g = document.createElement('div'); g.className = 'sheetgrid'; document.body.appendChild(g);
+    SCREENS.forEach((s, k) => { const f = document.createElement('figure'); f.style.margin = 0;
+      const cv = mk(); s.f(cv.getContext('2d'), s.t); f.appendChild(cv);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${k + 1} · ${s.title}`; f.appendChild(cap); g.appendChild(f); });
+    return;
+  }
+  const root = document.getElementById('cells'), live = [];
+  SCREENS.forEach((s, i) => { const d = document.createElement('div'); d.className = 'cell';
+    const h = document.createElement('h2'); h.textContent = `${i + 1}. ${s.title}`; d.appendChild(h);
+    const cv = mk('scr'); d.appendChild(cv); live.push([s, cv.getContext('2d')]);
+    const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); root.appendChild(d); });
+  const t0 = performance.now();
+  const frame = () => { const t = (performance.now() - t0) / 1000; live.forEach(([s, c]) => s.f(c, t)); requestAnimationFrame(frame); };
+  frame();
+}
+main();
+</script>
+</body>
+</html>

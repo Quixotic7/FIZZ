@@ -43,6 +43,11 @@ GEEK = ['meters', 'numbers', 'voices', 'scope', 'numbers-crash']
 for i, n in enumerate(GEEK, 1):                # fizz-geekout.html: the four Geek Out pages (+ NUMBERS after a crash)
     SHOTS[f'go-{i}'] = (f'shot={i}', 240, 240, f'fizz-geekout-{i:02d}-{n}.png', 'fizz-geekout.html')
 SHOTS['sheet-go'] = ('sheet=1', 1524, 1140, 'fizz-geekout-sheet.png', 'fizz-geekout.html')
+TOOLS = ['rotate', 'reverse', 'random', 'random-turn', 'euclid', 'euclid-3-8-add', 'grids', 'grids-pattern', 'length', 'humanize',
+         'revert', 'popup', 'scope', 'applied']
+for i, n in enumerate(TOOLS, 1):               # fizz-tools.html: the track tools (docs/TRACK-TOOLS-PLAN.md)
+    SHOTS[f'tl-{i}'] = (f'shot={i}', 240, 240, f'fizz-tools-{i:02d}-{n}.png', 'fizz-tools.html')
+SHOTS['sheet-tl'] = ('sheet=1', 2030, 2140, 'fizz-tools-sheet.png', 'fizz-tools.html')
 
 
 def render(key, scratch):
