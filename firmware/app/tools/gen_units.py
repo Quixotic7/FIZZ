@@ -63,9 +63,9 @@ PROF = {
     "qd_fx": [("qd_fx_block", "void", "const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_t *l, int32_t *r, "
                "int32_t *out", "sc, sd, sr, l, r, out", "a_fx")],
     "qd_gfx_plutovg": [("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert")],
-    "qd_gfx_fast": [("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert"),
-                    ("qd_text", "float", "const char *u, float x, float y, const qd_font *f", "u, x, y, f", "text")] +
-                   [(n, "void", p, a, "shapes") for n, p, a in SHAPES],
+    # (P2.7: since the core's display list, df6e60f, the drawing calls are qd_gfx_rec.c's in the same unit, in front of
+    # the backend's qdb_*: a wrapper by name can no longer sit between them; text and shapes are not timed)
+    "qd_gfx_fast": [("qd_end_strip_rows", "const uint16_t *", "uint16_t *a", "a", "convert")],
 }
 
 

@@ -8,6 +8,7 @@
 #include "../../core/app/app.h"
 #include "../../core/gfx/qd_gfx.h"
 #include "../../core/gfx/qd_arena.h"
+#include "../../core/voice/quad/quad_voice.h"
 #include "plat.h"
 #include "fizz_port.h"
 #include "fz_prof.h"
@@ -185,7 +186,17 @@ void fz_knob(int role, int detents) { qd_app_knob(&fz_app, role, detents); }
 void fz_master(int pot) { qd_app_master(&fz_app, pot); }
 void fz_midi_play(int status, int d1, int d2) { qd_app_midi_play(&fz_app, status, d1, d2); }
 void fz_midi_ui(int status, int d1, int d2) { qd_app_midi_ui(&fz_app, status, d1, d2); }
-int fz_frame_changed(void) { return qd_app_frame_changed(&fz_app); }
+/* (P2.7) the frame latched now (one instant: the strips drawn next are this one), the strips that would change */
+static uint32_t fz_mask;
+int fz_frame_changed(void)
+{
+    const int r = qd_app_frame_strips_changed(&fz_app, &fz_mask);
+    const uint32_t b = qd_dl_kept() ? qd_dl_bytes() : 0u;
+    if (b > fz_dl_max)
+        fz_dl_max = b;
+    fz_dl_over12k += b > 12288u - 64u;
+    return r;
+}
 void fz_persist_step(void)
 {
     if (fz_up)
@@ -298,12 +309,18 @@ void fz_state_line(char *q)
     *q = 0;
 }
 /* P2.4: a frame's time by its screen (fz_prof.h; the counters are app.c's, in RAM: this unit's .bss is the pool's) */
-void fz_frame(fz_strip_fn out, void *ctx)
+void fz_frame(fz_strip_fn out, void *ctx, int all_strips)
 {
     const int sc = (fz_app.ui.mode & 3) * 4 + (fz_app.ui.view & 3);
     const uint32_t t0 = plat_ticks24();
     uint32_t t;
-    qd_app_frame_strips(&fz_app, 0, out, ctx);
+    {   /* (P2.7: the strips that change, from the frame latched by fz_frame_changed; all of them when forced) */
+        const uint32_t n = (240u + QD_STRIP_H - 1u) / QD_STRIP_H, all = (1u << n) - 1u, m = all_strips ? all : fz_mask;
+        uint32_t k;
+        for (k = 0; k < n; k++)
+            fz_strips_drawn += m >> k & 1u, fz_strips_kept += !(m >> k & 1u);
+        qd_app_frame_strips_mask(&fz_app, 0, out, ctx, m);
+    }
     t = plat_ticks24() - t0;
     fz_screens[sc].n++;
     fz_screens[sc].sum += t;
@@ -397,3 +414,22 @@ int fz_test_lend(uint32_t n)
     qd_tmp_return(p);
     return p != 0;
 }
+
+/* (P2.7) the display list (core qd_gfx_rec.c): kept, dropped (an arena borrow in a frame), its counters */
+uint32_t fz_dl_max, fz_dl_over12k, fz_strips_drawn, fz_strips_kept;
+int fz_dl_is_kept(void) { return qd_dl_kept(); }
+void fz_dl_drop(void) { qd_dl_drop(); }
+void fz_dl_counts(uint32_t *recorded, uint32_t *outgrown, uint32_t *max_bytes) { qd_dl_stats(recorded, outgrown, max_bytes); }
+uint32_t fz_arena_free(void) { return (uint32_t)(qd_arena_size() - qd_arena_live()); }
+
+/* (P2.7) the core's own timing (qd_quad_bench: one preset's voice alone, n control blocks), at boot, nothing else
+ * running; and its statics' address (the pool or RAM: where the voices' data live) */
+int fz_bench_shared_changed;             /* (the bench left something shared changed: a comb line held) */
+int32_t fz_bench(int k, int note, int nblocks)
+{
+    const uint32_t h = qd_quad_shared_sig();
+    const int32_t r = qd_quad_bench(k, note, nblocks);
+    fz_bench_shared_changed = qd_quad_shared_sig() != h;
+    return r;
+}
+uintptr_t fz_app_addr(void) { return (uintptr_t)&fz_app; }

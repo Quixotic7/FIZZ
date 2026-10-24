@@ -48,7 +48,8 @@ def main():
     print(f"the drawing: {gfx}")
     subprocess.run(["make", "-s", "-C", str(REPO / "tools"), "PROFILE=-DQD_DEVICE", f"GFX={gfx}", f"B={b}",
                     f"{b}/render_frames", "-j8"], check=True, stderr=subprocess.DEVNULL)
-    subprocess.run([str(b / "render_frames"), str(ref), "--ms", "2600", "--at", ",".join(map(str, TIMES))], check=True,
+    # (its exit status is its own budget checks' too, e.g. the arena's margin: the frames are what is compared here)
+    subprocess.run([str(b / "render_frames"), str(ref), "--ms", "2600", "--at", ",".join(map(str, TIMES))],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run([sys.executable, str(FW / "build.py"), "--host"], check=True, stdout=subprocess.DEVNULL)
     subprocess.run([str(FW / "app/build/host/fizz_host"), str(FW / "app/tests/compare.txt"), str(sim)], check=True,

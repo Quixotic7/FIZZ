@@ -25,6 +25,9 @@
  * writer (APP_USB_CMD, firmware/tools/fizz_xdata.py). */
 #include "fizz_port.h"
 #include "fz_prof.h"
+#ifndef PLAT_HOST
+#include "fm1_debug.h"                   /* (felucca-bsp: the timed empty loop, the boot's speed line) */
+#endif
 #include "fz_dual.c"                     /* the second core's manager (firmware/DUALCORE.md): until FIZZ's core has its
                                           * split render and felucca-bsp its core-1 start (issue #5), it boots the
                                           * simulated core and no block hands it anything */
@@ -142,9 +145,17 @@ static int16_t fz_abuf[2u * APP_BLOCK];
 static volatile uint8_t fz_audio_on;     /* 0: silence (no FIZZ, a panic, an update) */
 static volatile uint8_t fz_in_frame;     /* (the profile: the interrupt's time inside frames) */
 static volatile uint8_t fz_in_render;    /* (P2.7, the screen's stash: a borrow from the audio interrupt never takes it) */
+/* (P2.7) the speed at boot (stats line 8: fz_speed) */
+#define FZ_BENCH_BLOCKS 40
+static uint32_t fz_bench_us128, fz_bench_loop_ns100, fz_mem_ns100[3], fz_loop_per_us100, fz_cpu_mhz;
+static int32_t fz_bench_sum;
+#ifndef PLAT_HOST
+extern int8_t clock_fix;                 /* (main_fm1.c: 0 the clock was stock, 1 set to it, -1 failed) */
+static uint32_t clock_boot[6];           /* (main_fm1.c's, later in the unity build) */
+#endif
 /* (P2.7) the screen's and the LEDs' counters (stats line 7) */
 static uint32_t fz_rows_sent, fz_bursts, fz_burst_rows, fz_burst_max, fz_frame_bursts, fz_frame_bursts_max, fz_st_full,
-    fz_st_drops, fz_st_none, fz_st_cap_min = 240u, fz_frames_sent, fz_led_looks, fz_led_writes;
+    fz_st_drops, fz_st_none, fz_st_cap_min = 240u, fz_frames_sent, fz_led_looks, fz_led_writes, fz_dl_drops;
 #define FZ_MQ 128u                       /* MIDI's channel messages' UI part for the main loop, with their time */
 static uint32_t fz_mq_pkt[FZ_MQ], fz_mq_ms[FZ_MQ];
 static volatile uint32_t fz_mq_w, fz_mq_r, fz_mq_drops, fz_midi_pkts, fz_sx_frames_in, fz_sx_bytes_in;
@@ -522,6 +533,17 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "no_stash=", fz_st_none);
     c = fz_put_u(c, "stash_rows_min=", fz_st_cap_min);
     c = fz_put_u(c, "rows_sent=", fz_rows_sent);
+    {
+        uint32_t rec, outg, mx;
+        fz_dl_counts(&rec, &outg, &mx);
+        c = fz_put_u(c, "dl_recorded=", rec);
+        c = fz_put_u(c, "dl_outgrown=", outg);
+        c = fz_put_u(c, "dl_max_b=", mx);
+        c = fz_put_u(c, "dl_block_max_b=", fz_dl_max);
+        c = fz_put_u(c, "dl_dropped=", fz_dl_drops);
+        c = fz_put_u(c, "strips_drawn=", fz_strips_drawn);
+        c = fz_put_u(c, "strips_kept=", fz_strips_kept);
+    }
     c = fz_put_u(c, "frame_avg_us=", fz_frame_us);
     c = fz_put_u(c, "pace_ms=", fz_pace);
     c = fz_put_u(c, "animating=", fz_anim >= 2u);
@@ -529,6 +551,34 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "led_writes=", fz_led_writes);
     *c = 0;
     fz_stats_send(7, line);
+    /* 8 (P2.7): the speed, measured at boot */
+    c = line;
+    c = fz_put_u(c, "bench_wobble_us_per_128=", fz_bench_us128);
+    c = fz_put_u(c, "bench_blocks=", FZ_BENCH_BLOCKS);
+    c = fz_put_u(c, "bench_sum=", (uint32_t)fz_bench_sum);
+    c = fz_put_u(c, "bench_left_shared=", (uint32_t)fz_bench_shared_changed);
+    c = fz_put_u(c, "loop_ns_x100=", fz_bench_loop_ns100);
+    c = fz_put_u(c, "ram_word_ns_x100=", fz_mem_ns100[0]);
+    c = fz_put_u(c, "pool_word_ns_x100=", fz_mem_ns100[1]);
+    c = fz_put_u(c, "noinit_word_ns_x100=", fz_mem_ns100[2]);
+    c = fz_put_u(c, "app_at=", (uint32_t)fz_app_addr());
+#ifndef PLAT_HOST
+    {
+        uint32_t r[6], i;
+        fm1_clock_read(r);
+        c = fz_put_u(c, "loops_per_us_x100=", fz_loop_per_us100);
+        c = fz_put_u(c, "cycles_mhz=", fz_cpu_mhz);
+        c = fz_put_u(c, "vdc14_level=", fm1_vdc14());     /* (fm1_sys.h: 1.25 V + 50 mV a level) */
+        c = fz_put_u(c, "sysvdd_level=", fm1_sysvdd());   /* (0.93 V + 30 mV a level) */
+        c = fz_put_u(c, "clock_fix=", (uint32_t)(int32_t)clock_fix);
+        for (i = 0; i < 6u; i++)
+            c = fz_put_u(c, i == 0 ? "clk_now=" : ",", r[i]);
+        for (i = 0; i < 6u; i++)
+            c = fz_put_u(c, i == 0 ? "clk_boot=" : ",", clock_boot[i]);
+    }
+#endif
+    *c = 0;
+    fz_stats_send(8, line);
 }
 
 static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region erased, FIZZ started again on it (as at a
@@ -713,29 +763,41 @@ static uint32_t fz_hash_row(const uint16_t *p)
  * length, and sent together when the frame is drawn: the screen changes inside one or two of the panel's refreshes
  * (~4-5 ms for 50 rows), not strip by strip over the frame's 30-60 ms. A run of consecutive rows is one window and
  * one transfer (at most 40 rows a transfer). A frame that changes more rows than the stash holds sends it when full
- * and goes on (an overflow: two or three bursts on a screen change). The stash takes the whole free arena (56 rows):
- * an edit applied between two strips that borrows from it (clip.c's undo levels 12,400 B, a pattern 22,768 B, a copy
- * 6,144 B) takes the stash back (fz_stash_release: the arena's release hook), so the edit always gets its room; the
- * rows the stash held are marked unknown and the next frame is drawn whatever, so they go out then. Leaving room for
- * the undo levels instead (FZ_STASH_KEEP 12416) halves the stash to 30 rows and doubles the bursts (the simulator's
- * boot test: 2.9 bursts a frame against 1.6). No stash at all (the arena busy): the rows go out strip by strip */
-#define FZ_STASH_KEEP 0u
+ * and goes on (an overflow: two or three bursts on a screen change). The arena is shared with the core's display list
+ * (one instant a frame, qd_gfx_rec.c), which takes the biggest of 24 / 16 / 12 / 8 KB it finds when the frame is
+ * latched: so the stash is taken just before the latch and leaves FZ_STASH_KEEP for the list's 12 KB block (30 rows;
+ * the simulator's lists reach 7.1 KB, render_frames' 24 KB in 0.3 % of frames, which are then drawn live). A list
+ * shrunk to its length after recording would let the stash take the rest (~40-50 rows). An edit applied between two
+ * strips that borrows from the arena (clip.c's undo levels 12,400 B, a pattern 22,768 B, a copy 6,144 B) takes the
+ * stash back (fz_stash_release, the arena's release hook; the list too when still short), so the edit always gets
+ * its room; the rows the stash held are marked unknown and the next frame is drawn whatever, so they go out then. No
+ * stash at all (the arena busy): the rows go out strip by strip */
+#define FZ_STASH_KEEP 12352u             /* (the core's display list: its 12 KB block, qd_gfx_rec.c, and heads) */
 #define FZ_RUN_MAX 40u                   /* rows a transfer (a 40-row strip's: the size known to work) */
 static uint16_t *fz_st;                  /* the stash, during a frame; 0 none */
 static uint32_t fz_st_cap, fz_st_n;      /* rows it holds, rows in it */
 static uint8_t fz_st_y[240];             /* their screen rows, in order */
 
-static void fz_stash_release(void)       /* (the arena's release hook: a borrow inside a frame found no room) */
+#define FZ_BIG_BORROW 22848u              /* (the biggest borrow: a whole pattern, 22,768 B, and its block's head) */
+static void fz_stash_release(void)       /* (the arena's release hook: a borrow found no room) */
 {
     uint32_t i;
-    if (!fz_st || fz_in_render)
+    if (fz_in_render)
         return;
+    if (!fz_st) {                        /* (the core's own rule, as its hook has it: the kept display list goes) */
+        if (fz_dl_is_kept())
+            fz_dl_drop(), fz_dl_drops++;
+        return;
+    }
     for (i = 0; i < fz_st_n; i++)
         fz_row_hash[fz_st_y[i]] = 0;     /* (not sent: unknown, so sent with the next frame, drawn whatever) */
     fz_redraw = 1;
     fz_stash_return(fz_st);
     fz_st = 0, fz_st_n = 0;
     fz_st_drops++;
+    if (fz_arena_free() < FZ_BIG_BORROW && fz_dl_is_kept())   /* (still short, maybe: the list too; the frame's
+                                                                * strips left are drawn live) */
+        fz_dl_drop(), fz_dl_drops++;
 }
 
 static void fz_send_stash(void)               /* the stash's rows to the LCD, in runs; back when they are out */
@@ -819,16 +881,25 @@ static void fz_strip_out(void *ctx, int y0, int rows, const uint16_t *px)   /* o
     fz_prof.lcd += plat_ticks24() - t;
 }
 
-static void fz_draw(void)
+static void fz_stash_take(void)          /* the stash, before the frame is latched (the list then takes its block) */
 {
-    const uint32_t t0 = plat_ticks24();
-    uint32_t d;
     fz_st = (uint16_t *)fz_stash_borrow(240u * 480u, FZ_STASH_KEEP, &fz_st_cap);
     fz_st_cap /= 480u;
     if (fz_st && !fz_st_cap) {
         fz_stash_return(fz_st);
         fz_st = 0;
     }
+    fz_st_n = 0;
+}
+
+static void fz_draw(int all)
+{
+    const uint32_t t0 = plat_ticks24();
+    uint32_t d;
+    if (!fz_st)
+        fz_stash_take();                 /* (a frame not latched by fz_step's look: the room the latch left) */
+    fz_stash_on_release(fz_stash_release);   /* (after the latch, whose display list set the core's hook: this one
+                                              * gives the stash back first, then the list, as the core's would) */
     if (!fz_st)
         fz_st_none++;
     else if (fz_st_cap < fz_st_cap_min)
@@ -836,7 +907,7 @@ static void fz_draw(void)
     fz_st_n = 0;
     fz_frame_bursts = 0;
     fz_in_frame = 1;
-    fz_frame(fz_strip_out, 0);
+    fz_frame(fz_strip_out, 0, all);
     fz_in_frame = 0;
     if (fz_st) {
         fz_send_stash();                      /* the burst */
@@ -889,6 +960,60 @@ static void fz_message(const char *a, const char *b)   /* fm1-base's face on bla
 #ifndef PLAT_HOST
 extern uint32_t _fz_rt_start[], _fz_rt_end[], _fz_ni_start[], _fz_ni_end[];
 #endif
+/* (P2.7) the speed at boot (stats line 8): the core's voice bench (qd_quad_bench: WOBBLE, preset 10, note 48, alone,
+ * FZ_BENCH_BLOCKS blocks of 32 frames, interrupts off: nothing else running; ChoralRoot's figure 176 us a 128 frames);
+ * a register loop (the clock: ~3 cycles an iteration); a word read and written 64 times over in each RAM region FIZZ
+ * uses (main RAM, the pool, NOINIT): their access time, to see a region slower than the others */
+#ifndef PLAT_HOST
+static uint32_t fz_mb_ram[128];
+static uint32_t fz_mb_pool[128] __attribute__((section(".pool")));
+static uint32_t fz_mb_ni[128] __attribute__((section(".noinit")));
+static uint32_t fz_mem_pass(uint32_t *w)
+{
+    uint32_t t0, i, k, acc = 1;
+    t0 = plat_ticks24();
+    for (k = 0; k < 64u; k++)
+        for (i = 0; i < 128u; i++) {
+            acc += w[i];
+            w[i] = acc;
+        }
+    t0 = plat_ticks24() - t0;
+    return (uint32_t)((uint64_t)t0 * 100000u / PLAT_TICKS_PER_US / (64u * 128u)) / 1000u;   /* (ns x 100 a word) */
+}
+#endif
+static void fz_speed(void)
+{
+#ifdef PLAT_HOST
+    fz_bench_sum = fz_bench(10, 48, FZ_BENCH_BLOCKS);   /* (the host: no timing; the sum and the shared state's check) */
+#else
+    volatile uint32_t sink;
+    uint32_t t0, d, x = 1, i;
+    fm1_irq_off();
+    t0 = plat_ticks24();
+    fz_bench_sum = fz_bench(10, 48, FZ_BENCH_BLOCKS);
+    d = plat_ticks24() - t0;
+    fz_bench_us128 = (uint32_t)((uint64_t)d * 128u / PLAT_TICKS_PER_US / (FZ_BENCH_BLOCKS * 32u));
+    {   /* felucca-bsp's timed empty loop (fm1_debug.h): loops a us (~51.4 at 360 MHz), and the cycle counter's MHz */
+        uint32_t c0, c1;
+        d = fm1_dbg_clock(200000u, &c0, &c1);
+        fm1_irq_off();                   /* (fm1_dbg_clock turns the interrupts on at its end) */
+        fz_loop_per_us100 = d ? (uint32_t)(200000ull * 100u * PLAT_TICKS_PER_US / d) : 0u;
+        fz_cpu_mhz = d ? (uint32_t)((uint64_t)(c1 - c0) * PLAT_TICKS_PER_US / d) : 0u;
+    }
+    t0 = plat_ticks24();
+    for (i = 0; i < 100000u; i++)
+        x = x * 1664525u + 1013904223u;
+    d = plat_ticks24() - t0;
+    sink = x;
+    (void)sink;
+    fz_bench_loop_ns100 = (uint32_t)((uint64_t)d * 100000u / PLAT_TICKS_PER_US / 100000u);
+    fz_mem_ns100[0] = fz_mem_pass(fz_mb_ram);
+    fz_mem_ns100[1] = fz_mem_pass(fz_mb_pool);
+    fz_mem_ns100[2] = fz_mem_pass(fz_mb_ni);
+    fm1_irq_on();
+#endif
+}
+
 void app_init(void)
 {
 #ifndef PLAT_HOST
@@ -898,10 +1023,10 @@ void app_init(void)
     for (p = _fz_ni_start; p < _fz_ni_end; p++)
         *p = 0;
 #endif
+    fz_speed();                          /* (before FIZZ starts: the bench's voice is its own, the app's set after) */
     fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
     fz_ticked = 0;
     fz_store_started = 0, fz_safe = 0, fz_wiped = -1;
-    fz_stash_on_release(fz_stash_release);   /* (P2.7: a borrow inside a frame takes the screen's stash back) */
     /* core 1, before the sound: not after a failed boot (fm1-base's boot guard counted the one before: a crash or the
      * watchdog within its 30 s), and the record read with this reset's cause (the watchdog's: a hang beside core 1) */
 #ifdef PLAT_HOST
@@ -983,7 +1108,7 @@ static void fz_step(int frame)
     if (fz_host_sync) {                  /* (render_frames' order and cadence: a frame every 15 ms, then the sound) */
         if (now - frame_t >= 15u) {
             frame_t = now;
-            fz_draw();
+            fz_draw(1);
         }
         fz_host_sync_audio();
         fz_lights();
@@ -1004,15 +1129,22 @@ static void fz_step(int frame)
         const uint64_t tx = fz_prof.text, sh = fz_prof.shapes;   /* (the check's drawing calls are not the frame's) */
         const uint32_t ntx = fz_prof.n_text, nsh = fz_prof.n_shapes;
         uint32_t t = plat_ticks24();
-        const int changed = fz_frame_changed() || fz_redraw;
+        int changed;
+        fz_stash_take();                 /* (P2.7: before the latch: the list takes its 12 KB block from what is left) */
+        changed = fz_frame_changed() || fz_redraw;
+        if (!changed && fz_st) {
+            fz_stash_return(fz_st);
+            fz_st = 0;
+        }
         fz_prof.check += plat_ticks24() - t;
         fz_prof.text = tx, fz_prof.shapes = sh, fz_prof.n_text = ntx, fz_prof.n_shapes = nsh;
         fz_prof.n_check++;
         frame_t = now - frame_t < 2u * period ? frame_t + period : now;   /* (on the beat; a late one starts it again) */
         if (changed) {
             const uint32_t t1 = plat_ticks24();
+            const int all = fz_redraw;
             fz_redraw = 0;
-            fz_draw();
+            fz_draw(all);
             fz_frame_us = (3u * fz_frame_us + (plat_ticks24() - t1) / PLAT_TICKS_PER_US) / 4u;
             fz_anim = fz_anim < 255u ? (uint8_t)(fz_anim + 1u) : fz_anim;
         } else {
@@ -1220,7 +1352,7 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     }
     if (!strcmp(cmd, "fzdraw")) {
         if (fz_ok)
-            fz_draw();
+            fz_draw(1);
         return 1;
     }
     if (strcmp(cmd, "sysex"))

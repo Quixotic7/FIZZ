@@ -44,7 +44,7 @@ void fz_leds(uint8_t *key, uint8_t *button, uint8_t *play_green);
 /* a frame, drawn in FIZZ's strips (core/qd_config.h QD_STRIP_H rows): out gets each one's first row, its rows and
  * its pixels (RGB565, high byte first, 240 a row), valid until out returns */
 typedef void (*fz_strip_fn)(void *ctx, int y0, int rows, const uint16_t *px);
-void fz_frame(fz_strip_fn out, void *ctx);
+void fz_frame(fz_strip_fn out, void *ctx, int all_strips);   /* (P2.7: the strips fz_frame_changed found changed, or all) */
 /* what the frame rate follows: FIZZ's mode (ctl.h QD_MODE_*: 0 the idle screen) and its transport */
 void fz_ui_state(int *mode, int *playing);
 /* the store: written now (before an update rewrites the flash); 1 done. fz_persist_step: a step of its writes (a page
@@ -83,3 +83,12 @@ void *fz_stash_borrow(uint32_t want, uint32_t keep, uint32_t *got);
 void fz_stash_return(void *p);
 void fz_stash_on_release(void (*release)(void));
 int fz_test_lend(uint32_t n);                      /* (the host's test: n bytes borrowed as an edit would, given back) */
+/* (P2.7) the core's display list (one instant a frame: qd_gfx_rec.c) and the arena: for the screen's stash */
+extern uint32_t fz_dl_max, fz_dl_over12k, fz_strips_drawn, fz_strips_kept;
+int fz_dl_is_kept(void);
+void fz_dl_drop(void);
+void fz_dl_counts(uint32_t *recorded, uint32_t *outgrown, uint32_t *max_bytes);
+uint32_t fz_arena_free(void);
+int32_t fz_bench(int k, int note, int nblocks);    /* (qd_quad_bench) */
+extern int fz_bench_shared_changed;
+uintptr_t fz_app_addr(void);
