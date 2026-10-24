@@ -46,7 +46,8 @@ enum { FZ_LOCK_EVENT = 1, FZ_LOCK_TICK, FZ_LOCK_KNOB, FZ_LOCK_MIDI, FZ_LOCK_SYSE
 
 /* a frame's time by screen: FIZZ's mode (ctl.h QD_MODE_*: 0 idle, 1 step, 2 keys, 3 tracks) x 4 + its sequencer view
  * (QD_VIEW_*: 0 PIANO ROLL, 1 STEPS, 2 EDIT) */
-#define FZ_NSCREEN 16
+#define FZ_NVIEW 8                       /* (P2.15h: the core's views, the Geek Out pages too: QD_NVIEW 7, room for 8) */
+#define FZ_NSCREEN (4 * FZ_NVIEW)
 typedef struct {
     uint64_t sum;             /* ticks */
     uint32_t n, max;          /* frames, the longest (ticks) */

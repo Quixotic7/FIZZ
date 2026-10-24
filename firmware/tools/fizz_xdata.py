@@ -43,8 +43,8 @@ BLOB = HERE.parent / "app" / "build" / "fizz-xdata.bin"
 
 
 MODES = ["idle", "step", "keys", "tracks"]
-VIEWS = ["roll", "steps", "edit", "view3"]
-SCREENS = {f"s{m}.{v}": f"{MODES[m]}/{VIEWS[v]}" for m in range(4) for v in range(4)}
+VIEWS = ["roll", "steps", "edit", "meters", "numbers", "voices", "scope", "view7"]   # (core ctl.h QD_VIEW_*)
+SCREENS = {f"s{m}.{v}": f"{MODES[m]}/{VIEWS[v]}" for m in range(4) for v in range(8)}
 
 
 def is_fizz(ident):
@@ -109,7 +109,7 @@ def stats(a):
         return 0
     end, got = time.monotonic() + 4.0, {}
     try:
-        while time.monotonic() < end and len(got) < 12:
+        while time.monotonic() < end and len(got) < 13:
             p = link.read(end - time.monotonic())
             if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
                 got[p[4]] = p[5:-1].decode("ascii", "replace")
@@ -117,7 +117,8 @@ def stats(a):
             print("no answer")
             return 1
         for part, title in ((1, "sound, locks, frames"), (2, "a frame by phase (us, averages)"),
-                            (3, "by screen: frames/avg us/max us"),
+                            (3, "by screen (idle, step): frames/avg us/max us"),
+                            (14, "by screen (keys, tracks): frames/avg us/max us"),
                             (4, "inside the audio interrupt (us a half), FIZZ's state"),
                             (5, "the platform: the guard, MIDI and SysEx in, the scan, the locks"),
                             (6, "core 1 (firmware/DUALCORE.md): state, jobs, failures"),
@@ -128,7 +129,7 @@ def stats(a):
                             (12, "the screen's sends, the display list, the pace, the LEDs"),
                             (13, "the drawing bench (stats --drawbench: the screen whole x 4, interrupts off)")):
             line = got.get(part, "(no answer)")
-            if part == 3:                   # s<mode>.<view>: name them
+            if part in (3, 14):             # s<mode>.<view>: name them
                 for k, v in SCREENS.items():
                     line = line.replace(k + "=", v + "=")
             print(f"{title}:\n  {line}")

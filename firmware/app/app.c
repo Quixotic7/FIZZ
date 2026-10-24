@@ -601,21 +601,27 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "glyphs=", fz_prof.n_glyph / fr);
     *c = 0;
     fz_stats_send(2, line);
-    /* 3: by screen (FIZZ's mode.view): frames, average, longest (us) */
-    FZ_LINE_START(c, line);
-    for (i = 0; i < FZ_NSCREEN; i++)
-        if (!fz_screens[i].n)
-            fz_need += 5u + 3u * 11u;    /* (its worst all the same: every screen can be in the line) */
-        else {
-            const char sc[] = {'s', (char)('0' + i / 4u), '.', (char)('0' + i % 4u), '=', 0};
-            c = fz_put_w(c, sc, fz_screens[i].n);
-            c[-1] = '/';
-            c = fz_put_w(c, "", (uint32_t)fz_us(fz_screens[i].sum / fz_screens[i].n));
-            c[-1] = '/';
-            c = fz_put_w(c, "", (uint32_t)fz_us(fz_screens[i].max));
+    /* 3 and 14: by screen (FIZZ's mode.view: modes idle and step on 3, keys and tracks on 14): frames, average,
+     * longest (us). P2.15h: the views 0..6 (QD_VIEW_*: the Geek Out pages 3..6), not folded */
+    {
+        int part;
+        for (part = 0; part < 2; part++) {
+            FZ_LINE_START(c, line);
+            for (i = (uint32_t)part * 2u * FZ_NVIEW; i < (uint32_t)(part + 1) * 2u * FZ_NVIEW; i++)
+                if (!fz_screens[i].n)
+                    fz_need += 5u + 3u * 11u;    /* (its worst all the same: every screen can be in the line) */
+                else {
+                    const char sc[] = {'s', (char)('0' + i / FZ_NVIEW), '.', (char)('0' + i % FZ_NVIEW), '=', 0};
+                    c = fz_put_w(c, sc, fz_screens[i].n);
+                    c[-1] = '/';
+                    c = fz_put_w(c, "", (uint32_t)fz_us(fz_screens[i].sum / fz_screens[i].n));
+                    c[-1] = '/';
+                    c = fz_put_w(c, "", (uint32_t)fz_us(fz_screens[i].max));
+                }
+            *c = 0;
+            fz_stats_send(part ? 14 : 3, line);
         }
-    *c = 0;
-    fz_stats_send(3, line);
+    }
     /* 4: inside the audio interrupt by part (us a half, averages: the sequencer, the voices, the effects, the rest);
      * FIZZ's state (the voices, the misses, the store) */
     {

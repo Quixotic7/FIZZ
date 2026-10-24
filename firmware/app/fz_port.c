@@ -518,7 +518,7 @@ uint32_t fz_state_line(char *q, char *lim)
 /* P2.4: a frame's time by its screen (fz_prof.h; the counters are app.c's, in RAM: this unit's .bss is the pool's) */
 void fz_frame(fz_strip_fn out, void *ctx, int all_strips)
 {
-    const int sc = (fz_app.ui.mode & 3) * 4 + (fz_app.ui.view & 3);
+    const int sc = fz_screen_index();
     const uint32_t t0 = plat_ticks24();
     uint32_t t;
     {   /* (P2.7: the strips that change, from the frame latched by fz_frame_changed; all of them when forced) */
@@ -699,6 +699,11 @@ void fz_store_use(uint32_t *used, uint32_t *size)
     }
     *used = u * 4096u, *size = n * 4096u;
 }
-int fz_screen_index(void) { return (fz_app.ui.mode & 3) * 4 + (fz_app.ui.view & 3); }   /* (P2.13: fz_screens' slot) */
+int fz_screen_index(void)               /* (fz_screens' slot: mode x FZ_NVIEW + view; P2.15h: the Geek Out pages were
+                                         * folded onto the first four views by "& 3") */
+{
+    return (fz_app.ui.mode & 3) * FZ_NVIEW + (fz_app.ui.view < FZ_NVIEW ? fz_app.ui.view : FZ_NVIEW - 1);
+}
+typedef char fz_nview_ok[QD_NVIEW <= FZ_NVIEW ? 1 : -1];
 /* (P2.13) the store's region, for its backup and restore over USB (app.c): its flash offset and size */
 void fz_store_region(uint32_t *off, uint32_t *size) { *off = PLAT_DATA_LO, *size = FZ_STORE_SECTORS * 4096u; }
