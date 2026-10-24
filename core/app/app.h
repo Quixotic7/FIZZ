@@ -296,6 +296,25 @@ typedef struct {
 void qd_app_block_begin(qd_app_t *a);
 void qd_app_block_voices(qd_app_t *a, int v0, int v1, qd_bus_t *bus);
 void qd_app_block_end(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int16_t *out);
+/* P2.6g: PIPELINED, one block (QD_MIX_CTL frames, 0.73 ms) of latency more: a block's effects and output run while the
+ * next block's voices render (core 0 the effects, core 1 the voices). A block is a qd_blk_t (its two buses and what its
+ * end needs from its begin's moment):
+ *   qd_app_block_begin_k(a, k)        qd_app_block_begin, and k's moment kept (the beat, the metronome, the tempo)
+ *   qd_app_block_voices(a, v0, v1, &k->x / &k->y)   as before
+ *   qd_app_block_publish(a, k)        once both halves are rendered: the latest voices' offsets to their tracks (was
+ *                                     in qd_app_block_end; before the next block's begin)
+ *   qd_app_block_out(a, k, out)       k's sum, metronome, effects and output, any time before the next block's out:
+ *                                     it touches only k, the effects, the metronome's and the scope's own state
+ * The order: begin_k(n), voices(n) .. [and meanwhile out(n - 1)], publish(n), begin_k(n + 1) .. out(n) .. The samples
+ * are qd_app_block_end's, one block later (test_app) */
+typedef struct {
+    qd_bus_t x, y;                     /* the two halves' buses */
+    int64_t beat;                      /* (its begin's moment: the transport's beat, the metronome on, the tempo) */
+    int metro, bpm;
+} qd_blk_t;
+void qd_app_block_begin_k(qd_app_t *a, qd_blk_t *k);
+void qd_app_block_publish(qd_app_t *a, const qd_blk_t *k);
+void qd_app_block_out(qd_app_t *a, const qd_blk_t *k, int16_t *out);
 
 /* for the controller (ctl*.c): the transport, the sound's tempo, a note key played on the selected track */
 void qd_app_play(qd_app_t *a);

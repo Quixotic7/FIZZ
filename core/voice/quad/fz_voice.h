@@ -253,6 +253,17 @@ static inline void fz_mix_voice(const int32_t *b, int32_t lvl, int32_t gl, int32
         }
         return;
     }
+    if (na == 1 && !dk[act[0]]) {           /* (P2.6g: one send, steady: its gain never 0 here, nothing to step) */
+        int32_t *sd = send[act[0]];
+        const int32_t g = gk[act[0]];
+        for (i = 0; i < CTL; i++) {
+            const int32_t x = clamp(((clamp(b[i], -884000, 884000) >> 2) * lvl) >> 10, -524287, 524287);
+            sd[i] += (clamp(x, -xmax, xmax) * g) >> 15;
+            l[i] += (x * gl) >> 12;
+            r[i] += (x * gr) >> 12;
+        }
+        return;
+    }
     if (na == 1) {                          /* (P2.6: one send, the usual: the reverb's) */
         int32_t *sd = send[act[0]], g = gk[act[0]];
         const int32_t d = dk[act[0]];
@@ -267,6 +278,22 @@ static inline void fz_mix_voice(const int32_t *b, int32_t lvl, int32_t gl, int32
         return;
     }
 
+    if (!(dk[0] | dk[1] | dk[2])) {         /* (P2.6g: the sends steady: each active one's gain is its own, never 0;
+                                             * the idle ones (0 throughout) skipped) */
+        int32_t *sa = send[act[0]], *sb = send[act[1]], *sx = na == 3 ? send[act[2]] : 0;
+        const int32_t ga = gk[act[0]], gb = gk[act[1]], gx = na == 3 ? gk[act[2]] : 0;
+        for (i = 0; i < CTL; i++) {
+            const int32_t x = clamp(((clamp(b[i], -884000, 884000) >> 2) * lvl) >> 10, -524287, 524287);
+            const int32_t xs = clamp(x, -xmax, xmax);
+            sa[i] += (xs * ga) >> 15;
+            sb[i] += (xs * gb) >> 15;
+            if (sx)
+                sx[i] += (xs * gx) >> 15;
+            l[i] += (x * gl) >> 12;
+            r[i] += (x * gr) >> 12;
+        }
+        return;
+    }
     for (i = 0; i < CTL; i++) {
         int32_t x = clamp(((clamp(b[i], -884000, 884000) >> 2) * lvl) >> 10, -524287, 524287);
         int32_t xs = clamp(x, -xmax, xmax);

@@ -614,6 +614,58 @@ static void t_fb_bands(void)
 }
 #endif
 
+/* P2.6g: the pipelined block (a block's effects and output while the next block's voices render): the same samples
+ * as qd_app_block_end's, one block later, over the demo playing with the metronome on and a tempo change */
+#define PIPE_N 6000
+static int16_t pipe_a[PIPE_N * 2 * QD_MIX_CTL], pipe_b[PIPE_N * 2 * QD_MIX_CTL];
+static void pipe_run(int pipelined)
+{
+    static qd_blk_t K[2];
+    int n, i;
+    fresh();
+    run(300, 0);
+    A.metro = 1, A.metro_lvl = 80;
+    qd_app_play(&A);
+    for (n = 0; n <= PIPE_N; n++) {
+        if (n % 3 == 0)
+            qd_app_tick(&A, ++now);
+        if (n == PIPE_N / 2)
+            qd_app_tempo(&A, 97);
+        if (!pipelined) {
+            qd_bus_t x, y;
+            if (n == PIPE_N)
+                break;
+            qd_app_block_begin(&A);
+            qd_app_block_voices(&A, A.pool.nvoice / 2, A.pool.nvoice, &y);
+            qd_app_block_voices(&A, 0, A.pool.nvoice / 2, &x);
+            qd_app_block_end(&A, &x, &y, pipe_a + n * 2 * QD_MIX_CTL);
+        } else {
+            qd_blk_t *k = &K[n & 1];
+            if (n < PIPE_N) {
+                qd_app_block_begin_k(&A, k);
+                qd_app_block_voices(&A, A.pool.nvoice / 2, A.pool.nvoice, &k->y);
+            }
+            if (n > 0)                                  /* (the last block's effects between this one's halves) */
+                qd_app_block_out(&A, &K[(n - 1) & 1], pipe_b + (n - 1) * 2 * QD_MIX_CTL);
+            if (n < PIPE_N) {
+                qd_app_block_voices(&A, 0, A.pool.nvoice / 2, &k->x);
+                qd_app_block_publish(&A, k);
+            }
+        }
+    }
+    (void)i;
+}
+static void t_pipe(void)
+{
+    int i, diff = 0, nz = 0;
+    pipe_run(0);
+    pipe_run(1);
+    for (i = 0; i < PIPE_N * 2 * QD_MIX_CTL; i++)
+        diff += pipe_a[i] != pipe_b[i], nz += pipe_a[i] != 0;
+    CHECK(!diff && nz > 1000, "P2.6g: pipelined, the effects of a block during the next one's voices: qd_app_block_end's "
+          "samples one block later (%d of %d differ)", diff, PIPE_N * 2 * QD_MIX_CTL);
+}
+
 /* P2.1b: shapes the strips' culling must leave exact (plutovg-rasterize.c cull_runs): a zigzag across every strip, a
  * closed quad, a square wave whose long lines run straight on through a vertex, a dashed one, curves, a fill, all
  * drawn whole and in the device's strips (the host: its surface can hold the whole screen) */
@@ -1224,6 +1276,7 @@ int main(void)
     CHECK(h1 == h2, "two runs of one session differ");
     printf("  determinism: one session twice, the same samples (%016llx)\n", (unsigned long long)h1);
     t_strips();
+    t_pipe();
 #ifdef QD_GFX_FB
     t_fb_steps();
     t_fb_bands();

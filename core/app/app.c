@@ -601,9 +601,10 @@ void qd_app_block_voices(qd_app_t *a, int v0, int v1, qd_bus_t *bus)
     bus->n = qd_mix_voices(&a->mix, &a->pool, a->blk_mt, QD_NTRACK, v0, v1, bus->l, bus->r, bus->sc, bus->sd, bus->sr);
 }
 
-void qd_app_block_end(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int16_t *out)
+/* the end's own part (P2.6g: a pipelined block's too): the sum, the metronome at its block's beat, the effects at its
+ * block's tempo, the output, the scope */
+static void block_out(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int64_t beat, int metro, int16_t *out)
 {
-    qd_quad_owner_t *ow[QD_NTRACK];
     int32_t l[QD_MIX_CTL], r[QD_MIX_CTL], sc[QD_MIX_CTL], sd[QD_MIX_CTL], sr[QD_MIX_CTL], o[2 * QD_MIX_CTL];
     int i;
     for (i = 0; i < QD_MIX_CTL; i++) {                  /* A then B (integer sums: either order the same) */
@@ -613,11 +614,8 @@ void qd_app_block_end(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int16_t
         sd[i] = A->sd[i] + B->sd[i];
         sr[i] = A->sr[i] + B->sr[i];
     }
-    owners_of(a, ow);
-    qd_mix_end(&a->mix, ow, QD_NTRACK, A->n + B->n);
-    if (a->metro && a->playing) {                       /* P1.5c: the metronome: a click on each beat into the mix
+    if (metro) {                                        /* P1.5c: the metronome: a click on each beat into the mix
                                                          * (its own level, no track's), accented on the bar's first */
-        const int64_t beat = a->beat;
         if (beat != a->metro_beat && beat >= 0) {
             a->metro_beat = beat;
             a->metro_left = QD_FS / 40;                 /* (25 ms) */
@@ -644,6 +642,34 @@ void qd_app_block_end(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int16_t
             a->geek.scope[w++ & (QD_SCOPE_N - 1u)] = (int16_t)((out[2 * i] + out[2 * i + 1]) / 2);
         a->geek.scope_w = w;
     }
+}
+void qd_app_block_end(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int16_t *out)
+{
+    qd_quad_owner_t *ow[QD_NTRACK];
+    owners_of(a, ow);
+    qd_mix_end(&a->mix, ow, QD_NTRACK, A->n + B->n);
+    block_out(a, A, B, a->beat, a->metro && a->playing, out);
+}
+
+/* P2.6g: the pipelined block (app.h qd_blk_t) */
+void qd_app_block_begin_k(qd_app_t *a, qd_blk_t *k)
+{
+    qd_app_block_begin(a);
+    k->beat = a->beat;
+    k->metro = a->metro && a->playing;
+    k->bpm = a->bpm;
+}
+void qd_app_block_publish(qd_app_t *a, const qd_blk_t *k)
+{
+    qd_quad_owner_t *ow[QD_NTRACK];
+    owners_of(a, ow);
+    qd_mix_end(&a->mix, ow, QD_NTRACK, k->x.n + k->y.n);
+}
+void qd_app_block_out(qd_app_t *a, const qd_blk_t *k, int16_t *out)
+{
+    qd_fx_tempo_fx(k->bpm);                             /* (the effects at the tempo its begin knew: the next begin may
+                                                         * have moved a->bpm) */
+    block_out(a, &k->x, &k->y, k->beat, k->metro, out);
 }
 
 static void qd_app_block(qd_app_t *a, int16_t *out)

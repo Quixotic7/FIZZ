@@ -93,6 +93,12 @@ void qd_fx_tempo(int bpm)
     song.g[G_BPM] = (int16_t)bpm;
 }
 
+void qd_fx_tempo_fx(int bpm)            /* P2.6g: the effects' tempo alone (the voices' song.g untouched) */
+{
+    bpm = bpm < 20 ? 20 : bpm > 300 ? 300 : bpm;
+    xf_bpm = (uint16_t)bpm;
+}
+
 void qd_fx_master_pot(int pot)
 {
     pot = pot < 0 ? 0 : pot > 1023 ? 1023 : pot;

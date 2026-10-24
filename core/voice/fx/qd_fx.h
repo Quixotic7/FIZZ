@@ -20,6 +20,7 @@ extern "C" {
 /* power-on: ChoralRoot's defaults (the delay's and the reverb's xf_defaults, the chorus's rate 40 and depth 60
  * (params.c), Output Clean, the limiter at rest, 120 BPM, MASTER at pot 724: Felucca's 2048 of 4096) */
 void qd_fx_init(void);
+void qd_fx_tempo_fx(int bpm);           /* P2.6g: the effects' alone (a pipelined block's end on its own bpm) */
 void qd_fx_tempo(int bpm);              /* the tempo the synced delay follows (cr_fx.c xf_bpm, 20..300) */
 void qd_fx_master_pot(int pot);         /* MASTER, the pot 0..1023 (pot^2 / 256, Q12: fz_master_of_pot) */
 uint32_t qd_fx_master_q12(void);
