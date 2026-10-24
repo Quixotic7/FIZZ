@@ -211,6 +211,10 @@ void fz_sysex(const uint8_t *f, uint32_t n) { qd_app_sysex(&fz_app, f, n); }
 int fz_sysex_peek(void) { return qd_app_sysex_peek(&fz_app); }
 int fz_sysex_take(uint8_t *out, uint32_t max) { return qd_app_sysex_take(&fz_app, out, max); }
 void fz_tick(uint32_t ms) { qd_app_tick(&fz_app, ms); }
+/* (P2.10, core 7fe3ea0) the clock in its two halves: what the audio side shares, under the lock, coalesced over the ms
+ * since; then without the lock, the persist looks, the store's next job, SysEx's labels, a ms at a time */
+void fz_tick_locked(uint32_t ms) { qd_app_tick_locked(&fz_app, ms); }
+void fz_tick_free(void) { qd_app_tick_free(&fz_app); }
 /* (the interrupt's paging: a pattern the sequencer wanted and the main loop's prefetch had not brought, loaded inside
  * the interrupt (a store's read, and a write if one left RAM changed): counted, it should stay 0) */
 static volatile uint32_t fz_isr_loads;
@@ -460,4 +464,18 @@ int32_t fz_bench(int k, int note, int nblocks)
     fz_bench_shared_changed = qd_quad_shared_sig() != h;
     return r;
 }
+/* (P2.10) quad_render alone, n blocks after the voice is struck (ChoralRoot's track_render_x span): ticks */
+uint32_t fz_bench_render(int k, int note, int nblocks)
+{
+    uint32_t t0, i;
+    int32_t sum = 0;
+    qd_quad_bench_start(k, note);
+    t0 = plat_ticks24();
+    for (i = 0; i < (uint32_t)nblocks; i++)
+        sum += qd_quad_bench_block(1);
+    t0 = plat_ticks24() - t0;
+    fz_bench_render_sum = sum;
+    return t0;
+}
+int32_t fz_bench_render_sum;
 uintptr_t fz_app_addr(void) { return (uintptr_t)&fz_app; }

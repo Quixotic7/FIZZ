@@ -58,7 +58,9 @@ void fz_watchdog(void);
 void fz_flash_quiet(void);
 void fz_flash_done(void);
 void fz_persist_step(void);
-void fz_input_prepare(void);   /* (P2.9: before the lock of fz_key / fz_button / fz_knob / fz_midi_ui) */
+void fz_input_prepare(void);
+void fz_tick_locked(uint32_t ms);                  /* (P2.10: qd_app_tick_locked, under the audio lock) */
+void fz_tick_free(void);                           /* (.. qd_app_tick_free, without it) */   /* (P2.9: before the lock of fz_key / fz_button / fz_knob / fz_midi_ui) */
 /* would the next frame differ from the last drawn? (qd_app_frame_changed: the screen's logic once, nothing drawn) */
 int fz_frame_changed(void);
 
@@ -94,3 +96,5 @@ uint32_t fz_arena_free(void);
 int32_t fz_bench(int k, int note, int nblocks);    /* (qd_quad_bench) */
 extern int fz_bench_shared_changed;
 uintptr_t fz_app_addr(void);
+uint32_t fz_bench_render(int k, int note, int nblocks);   /* (P2.10: quad_render alone; ticks) */
+extern int32_t fz_bench_render_sum;

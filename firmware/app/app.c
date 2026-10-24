@@ -66,10 +66,7 @@ extern uint32_t _fz_rt_start[], _fz_rt_end[], _fz_ni_start[], _fz_ni_end[];   /*
 #define FZ_BARRIER() __asm__ volatile("" ::: "memory")
 #define FZ_LED_MS 10u                    /* the LEDs looked at every 10 ms */
 #define FZ_VEL 100                       /* the keys' velocity (no APP_TOUCH yet: FM1VST's default) */
-#define FZ_TICK_PASS 8u                  /* P2.10: FIZZ's clock: at most this many ms a pass of fz_input */
 static uint32_t fz_tick_lag_max;         /* (the most the clock was behind plat_ms) */
-#define FZ_TICK_CHUNK 1u                 /* FIZZ's clock: at most this many ms a lock (P2.9: one; the audio waits for one
-                                          * millisecond's work at most) */
 #define FZ_TOUCHED_MS 1500u              /* a frame every FZ_FRAME_TOUCHED for this long after a press or a turn */
 #define FZ_FRAME_TOUCHED 33u             /* how often a frame is looked at (drawn if it changed) */
 #define FZ_FRAME_PLAYING 50u
@@ -156,7 +153,7 @@ static volatile uint8_t fz_in_render;    /* (P2.7, the screen's stash: a borrow 
 #ifndef FZ_VARIANT_ID
 #define FZ_VARIANT_ID 0u                 /* (build.py FZ_VARIANT: which of the speed bisect's builds this is) */
 #endif
-static uint32_t fz_bench_us128, fz_bench_loop_ns100, fz_mem_ns100[3], fz_loop_per_us100, fz_cpu_mhz, fz_bench_now_us128,
+static uint32_t fz_bench_render_us128, fz_bench_us128, fz_bench_loop_ns100, fz_mem_ns100[3], fz_loop_per_us100, fz_cpu_mhz, fz_bench_now_us128,
     fz_bench_now_n;
 static int32_t fz_bench_sum;
 #ifndef PLAT_HOST
@@ -303,14 +300,16 @@ static void fz_sample(void)              /* the panel's changes since the last l
     fz_seen_keys = k;
 }
 
-static void fz_tick_to(uint32_t ms)      /* FIZZ's clock up to ms, a few ms a lock */
+static void fz_tick_to(uint32_t ms)      /* FIZZ's clock up to ms (P2.10: the core's two halves) */
 {
-    while ((int32_t)(ms - fz_ticked) > 0) {
-        const uint32_t n = ms - fz_ticked > FZ_TICK_CHUNK ? FZ_TICK_CHUNK : ms - fz_ticked, f = fz_lock();
-        fz_ticked += n;
-        fz_tick(fz_ticked);
-        fz_unlock(f, FZ_LOCK_TICK);
-    }
+    uint32_t f;
+    if ((int32_t)(ms - fz_ticked) <= 0)
+        return;
+    f = fz_lock();                       /* what the audio side shares: once, over every ms since (coalesced) */
+    fz_tick_locked(ms);
+    fz_unlock(f, FZ_LOCK_TICK);
+    fz_ticked = ms;
+    fz_tick_free();                      /* the looks, the store's next job, SysEx's labels: no lock, a ms at a time */
 }
 
 static uint8_t fz_sx_buf[1024];          /* a reply (fizz_sx.h QD_SX_FRAME_MAX) */
@@ -367,13 +366,12 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
             fz_mq_r++;
         }
     }
-    {   /* (P2.10) the clock's catch-up bounded a pass: at most FZ_TICK_PASS ms here (fz_input runs between every strip
-         * and frame), so a slow frame does not make the next one slower; the clock lags meanwhile (the sound does not:
-         * it runs from the audio interrupt) */
+    {   /* (P2.10) the clock to now: its locked half coalesced (one call whatever the gap), its free half the core's
+         * cheap looks a ms each: a slow frame no longer costs the next one a catch-up under the lock */
         const uint32_t now = plat_ms(), lag = now - fz_ticked;
         if ((int32_t)lag > 0 && lag > fz_tick_lag_max)
             fz_tick_lag_max = lag;
-        fz_tick_to((int32_t)lag > (int32_t)FZ_TICK_PASS ? fz_ticked + FZ_TICK_PASS : now);
+        fz_tick_to(now);
     }
     for (r = 0; r < NE; r++) {
         const int32_t d = plat_enc(r);
@@ -609,6 +607,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     /* 8 (P2.7): the speed, measured at boot */
     c = line;
     c = fz_put_u(c, "bench_wobble_us_per_128=", fz_bench_us128);
+    c = fz_put_u(c, "bench_render_us_per_128=", fz_bench_render_us128);   /* (quad_render alone: ChoralRoot's span) */
     c = fz_put_u(c, "bench_now_us_per_128=", fz_bench_now_us128);   /* (7D 46 50 "BNCH": the bench again, now) */
     c = fz_put_u(c, "bench_now_runs=", fz_bench_now_n);
     c = fz_put_u(c, "build=", FZ_VARIANT_ID);
@@ -1102,6 +1101,8 @@ static void fz_speed(void)
     fz_bench_sum = fz_bench(10, 48, FZ_BENCH_BLOCKS);
     d = plat_ticks24() - t0;
     fz_bench_us128 = (uint32_t)((uint64_t)d * 128u / PLAT_TICKS_PER_US / (FZ_BENCH_BLOCKS * 32u));
+    d = fz_bench_render(10, 48, FZ_BENCH_BLOCKS);
+    fz_bench_render_us128 = (uint32_t)((uint64_t)d * 128u / PLAT_TICKS_PER_US / (FZ_BENCH_BLOCKS * 32u));
     {   /* felucca-bsp's timed empty loop (fm1_debug.h): loops a us (~51.4 at 360 MHz), and the cycle counter's MHz */
         uint32_t c0, c1;
         d = fm1_dbg_clock(200000u, &c0, &c1);

@@ -65,10 +65,10 @@ SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmw
 # the owner (2026-10-23): 8 voices on one core, 16 when core 1 renders half (core/qd_config.h QD_VOICES_DEV)
 DEFS = ["-DFZ_SINGLE_CORE=1", "-DQD_VOICES_DEV=8"] if SINGLE else ["-DQD_VOICES_DEV=16"]
 if SINGLE and "FM1B_POOL_SPARE" not in os.environ:
-    # the comb lines (16 KB) move from the RAM code region to the pool for quad_render: the pool keeps 5,920 B spare,
+    # the comb lines (16 KB) move from the RAM code region to the pool for quad_render: the pool keeps ~3 KB spare,
     # not fm1-base's 8,192. That spare is the build's margin only (nothing uses the pool past _pool_end: the stacks
     # are above it, at 0x01C74000); fm1-base's own override (FM1B_POOL_SPARE, "an app's own build") sets it
-    os.environ["FM1B_POOL_SPARE"] = "4096"
+    os.environ["FM1B_POOL_SPARE"] = "2048"         # (P2.10: the core's LFO caches and looks' state, +1,080 B: 3,120 left)
 
 # ---- audio code in RAM, by function (fizz.ld: .fzrt.* in the RAM code region's window). The compiler is not told:
 # the function's section in the compiled object is renamed from .text.NAME to .fzrt.NAME (five bytes of the section
