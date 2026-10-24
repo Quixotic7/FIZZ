@@ -29,6 +29,7 @@ import { fizzValues } from "../js/fizz2dn.js";
 import { dnReadZip } from "../js/fm1dnsnd.js";
 import { execFileSync } from "node:child_process";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
+import { readRegion } from "../manager/fizzstore.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SITE = path.resolve(HERE, "..");
@@ -452,7 +453,13 @@ e.dispose();
     const blankShot = blankE.screen().pixels.slice(180 * 240);
     blankE.dispose();
     const dOld = diffPx(newShot, oldShot), dBlank = diffPx(newShot, blankShot);
-    check(dOld < dBlank && used(after) >= used(img) / 2,
+    // 2026-10-24: an eight-track save (its projects' format 1) meets the six-track FIZZ: the projects start fresh,
+    // MY PRESETS stay (persist.c prj_format_ok; the owner's decision)
+    const was = readRegion(img), now = readRegion(after);
+    if (was.tracks === 8 && now.tracks === 6) {
+      check(dBlank <= dOld && now.presets.map((x) => x.name).join() === was.presets.map((x) => x.name).join(),
+        `a ${prev.version} save (8 tracks) booted by ${info.version} (6): the projects start fresh (the step rows ${dBlank} px from a blank one, ${dOld} from the old screen), MY PRESETS kept (${now.presets.length})`);
+    } else check(dOld < dBlank && used(after) >= used(img) / 2,
       `a ${prev.version} save booted by ${info.version}: the steps are there (the step rows ${dOld} px from the old screen, ${dBlank} from a blank one), the flash kept (${used(img)} -> ${used(after)} bytes in use)`);
   } else note("no earlier site/fizz.wasm in git: the older-save check skipped");
 }
@@ -597,6 +604,8 @@ e.dispose();
     // a fresh unit here: what the patterns look like without the old project (the comparison's other side)
     const fresh = await unit(module, null), freshRows = [];
     for (let k = 0; k < 3; k++) { fresh.pattern(k); freshRows.push(fresh.rows()); }
+    run(fresh.u, 3000);
+    const fresh0 = fresh.u.flash().bytes;
     fresh.u.dispose();
     const look = async (x, label, extraSteps = []) => {
       x.u.midiIn(listRequest({ pool: true }));
@@ -612,10 +621,17 @@ e.dispose();
       const lbl = x.pump(400).map(decodeLabels).filter(Boolean).at(-1);
       const mfxOk = lbl && lbl.keys[1] === "ARP" && lbl.enc[6] === "EFFECT";
       tapBtn(x.u, x.pp, "HOME"); run(x.u, 300); x.pump(100);
+      if (fresh8) {                                     // (eight tracks -> six: MY PRESETS kept, the projects fresh)
+        const freshOk = !poolOk && pats.every((q) => q.fresh <= q.old);
+        check(mineOk && (label.startsWith("edited") ? true : freshOk),
+          `${label}: MY PRESETS ${mine.join(", ")} ${mineOk ? "kept" : "NOT KEPT"}${label.startsWith("edited") ? "" : `; the eight-track project ${freshOk ? "gone (a fresh start)" : "STILL THERE"}`} (pool ${poolOk ? "there" : "empty"}; step rows ${pats.map((q) => `${q.old} px from the old, ${q.fresh} from a fresh unit`).join("; ")})`);
+        return pats;
+      }
       check(mineOk && poolOk && patsOk && mfxOk,
         `${label}: MY PRESETS ${mine.join(", ")} with their patches, mix and tags ${mineOk ? "kept" : "NOT KEPT"}; the pool's ${pool.join(", ")} ${poolOk ? "there" : "MISSING"}; patterns 1..3's steps (step rows ${pats.map((q) => `${q.old} px from the old, ${q.fresh} from a fresh unit`).join("; ")}); the MIDI FX group's slot 1 "${lbl && lbl.keys[1]}"`);
       return pats;
     };
+    const fresh8 = readRegion(img).tracks === 8 && readRegion(fresh0).tracks === 6;
     const n1 = await unit(module, img);
     await look(n1, `a ${prev.version} project booted by ${info.version}`);
     // an edit here (a step on pattern 1), saved in this version's format, booted again

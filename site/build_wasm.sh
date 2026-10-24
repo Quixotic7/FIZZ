@@ -14,6 +14,7 @@
 #   FM1VST_DIR   an FM1VST tree with core-glue/fizz (read only; default: the quadrille worktree, branch core-quadrille)
 #   EMSDK        Emscripten's SDK (default ~/emsdk)
 #   FM1WEB_OPT   the optimisation level (default -Os)
+#   FIZZ_VERSION the version the wasm reports (default: git describe of FIZZ_DIR)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -39,6 +40,13 @@ mkdir -p "$SRC" "$BLD"
 echo "== mirror of $FM1VST_DIR (cmake, core-api, core-glue)"
 git -C "$FM1VST_DIR" ls-files -z cmake core-api core-glue | rsync -a --from0 --files-from=- "$FM1VST_DIR/" "$SRC/"
 cp "$HERE/engine/CMakeLists.txt" "$SRC/CMakeLists.txt"
+# the version FIZZ says (IDENTITY, info()): FIZZ_VERSION, else this checkout's `git describe` ("0.11.0-beta.2-7-gb4ac93d").
+# The fizz glue's VERSION line in FM1VST lags behind FIZZ (it is FM1VST's, read only): only the mirror's copy changes
+FIZZ_VERSION="${FIZZ_VERSION:-$(git -C "$FIZZ_DIR" describe --tags --match 'v*' 2>/dev/null | sed 's/^v//')}"
+if [ -n "$FIZZ_VERSION" ]; then
+    sed -E -i.orig "s/^([[:space:]]*VERSION )[^)[:space:]]+/\1$FIZZ_VERSION/" "$SRC/core-glue/fizz/core.cmake"
+    rm -f "$SRC/core-glue/fizz/core.cmake.orig"
+fi
 
 # ---- 2. the core's static library under Emscripten
 echo "== configure (emcmake, $FM1WEB_OPT, FIZZ_DIR=$FIZZ_DIR)"

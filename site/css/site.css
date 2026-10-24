@@ -460,6 +460,7 @@ body { background: #000; }
 .lib-mark { color: var(--fz-yellow); font-size: 13px; }
 .lib-panel .dn-row .text { width: 100%; }
 @media (max-width: 480px) { #lib-btn { display: none; } }
+@media (max-width: 640px) { #mgr-link { display: none; } }   /* (the manager: a computer's page, Web MIDI with SysEx) */
 /* Digitone export (js/dnexport.js): experimental */
 .dnx-exp { font-size: 9px; font-weight: 800; letter-spacing: .04em; color: var(--fz-orange); margin-left: 3px; text-transform: uppercase; }
 .dnx-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }

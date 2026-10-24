@@ -154,8 +154,8 @@ window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault
   if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
 })();
 
-/* the backup page: only where fm1-base's is built for FIZZ (firmware/tools/sync_installer.py, fm1.toml backup = true) */
-fetch("backup/", { method: "HEAD" }).then((r) => {
+/* the backup page: FIZZ's own, the manager (site/manager/: its store backed up over USB, docs/WEB-MANAGER-PLAN.md) */
+fetch("../manager/", { method: "HEAD" }).then((r) => {
   if (!r.ok) return;
   document.querySelectorAll(".baklink").forEach((a) => { a.hidden = false; });
   document.querySelectorAll(".nobak").forEach((a) => { a.hidden = true; });

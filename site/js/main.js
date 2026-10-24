@@ -22,6 +22,7 @@ import { toSelectedTrack } from "./midimap.js";
 import { mountLibrary } from "./library-ui.js";
 import { createPresetLink } from "./library.js";
 import { BUILD, ver } from "./build.js";
+import { readRegion } from "../manager/fizzstore.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -179,7 +180,11 @@ async function boot(fromSave = null, { blank = false } = {}) {
         rec = await carry.answer(o, true);
         carried = { from: o.from, used: usedBytes(rec.bytes), until: performance.now() + 12000 };
         await refreshSaves();
-        toast(`Your FIZZ ${o.from} projects came along to ${o.to}. The ${o.from} save is kept as it was.`, "ok", 7000);
+        if (!storeReadable(rec.bytes)) { carried.until = 0; toastUnreadable(o.from); }   // (no FIZZ store in it at all)
+        else if (readRegion(rec.bytes).tracks === 8) {   // (2026-10-24: six tracks; eight-track projects start fresh)
+          carried.until = 0;
+          toast(`Your FIZZ ${o.from} presets came along to ${o.to}. FIZZ has six tracks now, so the projects start fresh. The ${o.from} save is kept as it was.`, "ok", 12000);
+        } else toast(`Your FIZZ ${o.from} projects came along to ${o.to}. The ${o.from} save is kept as it was.`, "ok", 7000);
       }
     }
     await player.load(wasmUrl(), rec ? rec.bytes : null);
@@ -195,9 +200,15 @@ function checkCarried(bytes) {
   if (!carried) return;
   if (performance.now() > carried.until) { carried = null; return; }
   if (usedBytes(bytes) < carried.used / 2) {
-    toast(`This FIZZ could not read your ${carried.from} projects and started blank. The ${carried.from} save is kept: export it from the settings (⋯, Saves) to keep it safe.`, "bad", 15000);
+    toastUnreadable(carried.from);
     carried = null;
   }
+}
+// a flash with no sector of FIZZ's store in it (site/manager/fizzstore.js reads the store as FIZZ mounts it): FIZZ
+// erases such sectors later, one at a time while quiet (P2.4), so the image does not shrink at once
+function storeReadable(bytes) { try { return !readRegion(bytes).blank; } catch (_) { return false; } }
+function toastUnreadable(from) {
+  toast(`This FIZZ could not read your ${from} projects and started blank. The ${from} save is kept: export it from the settings (⋯, Saves) to keep it safe.`, "bad", 15000);
 }
 
 // a newer FIZZ version than the save's: its projects are carried over by itself (saves.js Carry; a copy)

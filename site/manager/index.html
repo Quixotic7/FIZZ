@@ -1,0 +1,105 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="fizz-build" content="dev">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FIZZ Manager</title>
+<meta name="description" content="Back up and restore the FM-1 running FIZZ, and look through its presets: Chrome or Edge on a computer, over USB.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Ccircle cx='13' cy='18' r='8' fill='none' stroke='%2328E1FF' stroke-width='2.5'/%3E%3Ccircle cx='23.5' cy='8.5' r='4' fill='none' stroke='%23FF3CA0' stroke-width='2.2'/%3E%3Ccircle cx='24' cy='22' r='2.4' fill='none' stroke='%23FFD23F' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preload" href="../fonts/InterTight-VF-latin.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="manager.css">
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="../" aria-label="FIZZ, the preview">
+    <svg class="bub" viewBox="0 0 32 32" aria-hidden="true"><circle cx="11" cy="20" r="7"/><circle cx="22" cy="10" r="5"/><circle cx="23" cy="24" r="3"/></svg>
+    <span class="word">FIZZ</span>
+  </a>
+  <span class="crumb">Manager</span>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" id="t-backup" aria-controls="tab-backup" aria-selected="true" style="--c:var(--yellow)"><i></i>BACKUP</button>
+    <button class="tab" role="tab" id="t-library" aria-controls="tab-library" aria-selected="false" style="--c:var(--cream)"><i></i>LIBRARY</button>
+  </nav>
+  <button id="unit" class="unit" data-state="off"><span class="dot"></span><span id="unit-label">CONNECT</span><small id="unit-sub"></small></button>
+</header>
+<p id="say" class="say" role="status"></p>
+
+<main>
+  <section id="tab-backup" class="body" role="tabpanel" aria-labelledby="t-backup">
+    <div class="card this">
+      <div><div class="h">THIS FM-1</div><div class="big" id="u-ver">FM-1</div></div>
+      <div class="stats">
+        <div class="kv"><b id="u-prj">–</b>projects</div>
+        <div class="kv"><b id="u-pre">–</b>my presets</div>
+        <div class="kv"><b id="u-use">–</b>store used</div>
+      </div>
+      <div><div class="meter" id="u-meter"><span style="width:0;background:var(--cream)"></span><span style="width:0;background:color-mix(in srgb,var(--cream) 25%,#15151a)"></span><span style="width:0;background:var(--green)"></span><span style="width:0;background:color-mix(in srgb,var(--green) 18%,#15151a)"></span></div>
+        <div class="legend"><span><i style="background:var(--cream)"></i>MY PRESETS</span><span><i style="background:var(--green)"></i>PROJECTS</span><span class="r" id="u-kb"></span></div></div>
+      <div class="speed" id="speed" hidden></div>
+      <div class="actions">
+        <button id="go-backup" class="btn huge" style="--c:var(--yellow)" disabled>● BACK UP</button>
+        <button id="go-presets" class="btn ghost" disabled>PRESETS ONLY</button>
+      </div>
+    </div>
+    <div class="card list">
+      <div class="h">BACKUPS <span class="n">on this computer</span></div>
+      <div class="baks" id="baks"></div>
+      <label class="drop" id="drop"><input type="file" id="file" accept=".fizzbak,.fizzlib,.bin" hidden>
+        <svg viewBox="0 0 26 26" aria-hidden="true"><path d="M13 4v13M7 11l6 6 6-6M4 21h18"/></svg>.fizzbak · .fizzlib</label>
+    </div>
+  </section>
+
+  <section id="tab-library" class="body" role="tabpanel" aria-labelledby="t-library" hidden>
+    <div class="card mine">
+      <div class="h">MY PRESETS <span class="n" id="l-count"></span><button id="l-export-all" class="btn small ghost" style="margin-left:auto" disabled>EXPORT ALL</button></div>
+      <div class="chips" id="l-filter"></div>
+      <div class="cases" id="l-mine"></div>
+    </div>
+    <div class="card fac">
+      <div class="h">FACTORY <span class="n" id="l-fcount"></span></div>
+      <div class="cases" id="l-fac"></div>
+    </div>
+    <div class="card sel" id="l-sel"></div>
+  </section>
+</main>
+
+<div class="scrim solid" id="prog" hidden>
+  <svg class="risers" viewBox="0 0 220 120" aria-hidden="true"><circle cx="60" cy="80" r="26" stroke="var(--cyan)"/><circle cx="120" cy="44" r="18" stroke="var(--pink)"/><circle cx="168" cy="78" r="12" stroke="var(--yellow)"/><circle cx="98" cy="102" r="6" stroke="var(--green)"/><circle cx="190" cy="30" r="5" stroke="var(--cream)"/></svg>
+  <div class="plabel" id="p-label"></div>
+  <div class="pct" id="p-pct">0<small>%</small></div>
+  <div class="sectors" id="p-sec"></div>
+  <div class="legend" style="width:min(880px,100%)"><span><i style="background:var(--cream)"></i>MY PRESETS</span><span><i style="background:var(--green)"></i>PROJECTS</span><span class="r" id="p-time" style="color:var(--text);font-size:15px">0:00</span></div>
+  <button id="p-cancel" class="btn small ghost">CANCEL</button>
+</div>
+
+<div class="scrim" id="rs" hidden>
+  <div class="modal" id="rs-modal">
+    <div class="h" id="rs-title">RESTORE</div>
+    <div class="diff">
+      <div class="col"><div class="kv">FM-1 now</div><div class="big" id="rs-now">–</div><div class="kv">projects · presets</div></div>
+      <div class="arrow">→</div>
+      <div class="col to"><div class="kv" id="rs-when"></div><div class="big" id="rs-then">–</div><div class="kv">projects · presets</div></div>
+    </div>
+    <div class="pchips" id="rs-chips"></div>
+    <div class="warnbox" id="rs-warn">
+      <div class="big">EVERYTHING ON THE FM-1 IS REPLACED</div>
+      <div>Stop the FM-1 first. Keep the cable in until it is done.</div>
+      <label class="sr" for="rs-type">Type RESTORE to go ahead</label>
+      <input id="rs-type" class="typed" autocomplete="off" spellcheck="false" placeholder="TYPE RESTORE">
+    </div>
+    <div class="safe" id="rs-safe"></div>
+    <div class="row"><button id="rs-go" class="btn" style="--c:var(--yellow)" disabled>RESTORE</button><button id="rs-cancel" class="btn ghost">CANCEL</button></div>
+  </div>
+  <div class="fm1" aria-hidden="true"><canvas class="lcd" id="rs-lcd" width="240" height="240"></canvas>
+    <div class="keys"><span class="key" id="rs-key">PLAY</span></div></div>
+</div>
+
+<details class="logbox" id="logbox"><summary>LOG</summary><pre id="log"></pre></details>
+<div class="toast" id="toast" role="alert" hidden></div>
+
+<script type="module" src="manager.js"></script>
+</body>
+</html>

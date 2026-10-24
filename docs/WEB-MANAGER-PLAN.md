@@ -515,3 +515,21 @@ site/tools/test_engine.mjs` must pass after every core change in Phases 1..2, an
 - A web restore needs a press on the unit: RESTORE?, SAVE goes ahead, HOME cancels.
 - Tags: the device's 7 tags, plus free-form tags kept only in the browser and backup files.
 - Digitone `.syx` dumps are skipped for now; only the formats that already convert are supported.
+
+## Phase 0 built (2026-10-24, no device change)
+
+- `site/manager/` (`index.html`, `manager.js`, `manager.css`), `fizzlink.js` (both channels, one queue), `fizzbak.js`
+  (.fizzbak: manifest, `store.bin`, `presets/*.fizzsnd` with `web.tags`, and a `library.json` so the preview's Import
+  reads it as a .fizzlib), `fizzstore.js` (the offline store reader: device and host layouts), `simfizz.js` (the
+  simulated unit: the wasm for the semantic channel, a model of FZBI / FZBR / FZSR). Tests: `site/tools/test_manager.mjs`.
+  The install page's "Back up FIZZ" links to `../manager/#backup`; the player's header has "Backup".
+- Restore: the page first saves the unit (a "before restore" .fizzbak), then needs RESTORE typed; the unit itself
+  refuses while playing (FZER 10). A cancel is honoured only while the unit still checks the image (the remaining
+  reads are answered with zeros: its CRC check fails, FZER 12, nothing erased). The press on the unit (owner decision)
+  is a later firmware phase.
+- **Pipelining:** fm1-base holds one inbound SysEx frame and *drops* a frame that arrives while one waits
+  (`bsp/chip/usb.c` `sysex_byte`: `sx_collect = !sx_ready`; the NAK in `ep1_rx` is for the MIDI ring only), so §3.1's
+  "nothing is lost" does not hold. The page defaults to one FZBR at a time; `?depth=2&gap=MS` sends the next request
+  `gap` ms after the last (a dropped one is sent again, replies matched by offset, the CRC-32 checks the whole) for
+  measuring on the unit. Every backup logs its timing (KB/s, ms a read, round trips, resends) in the page's LOG and
+  the console, and writes it into the manifest (`transfer`).

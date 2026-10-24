@@ -11,6 +11,7 @@
 //   install page's own too: "install.js", "../css/install.css");
 // - the modules (js/ and install/): every relative import ("./x.js") ?v=<build> (one URL per module, the same from
 //   every importer);
+// - manager/ (the backup and library page) as install/: its own script and style ?v=<build>, its modules' imports too;
 // - install/ (the install page, MPL-2.0) and firmware/ (its packages and releases.json, which the page fetches
 //   uncached) are published as they are;
 //   js/build.js gives the rest of the page the build for the URLs it makes itself (the worklet, the engine, Connect
@@ -30,7 +31,7 @@ const opt = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.a
 const SALT = opt("--salt"), FIZZ_VERSION = opt("--fizz-version");
 
 const ENTRIES = ["index.html", "guide.html", "dn2-wizard.html", "fizz.wasm", "fizz.json", "css", "js", "worklet", "fonts", "remote", "engine/engine.js",
-  "install", "firmware"];
+  "install", "firmware", "manager"];
 const files = [];
 const walk = (rel) => {
   const p = path.join(SITE, rel);
@@ -54,10 +55,10 @@ for (const f of files) {
     let s = fs.readFileSync(src, "utf8");
     s = count(/<meta name="fizz-build" content="[^"]*">/, s, () => `<meta name="fizz-build" content="${BUILD}">`);
     s = count(/((?:src|href)=")((?:js|css)\/[^"?#]+\.(?:js|css))"/g, s, (_, a, u) => `${a}${v(u)}"`);
-    if (f.startsWith("install/")) s = count(/((?:src|href)=")((?:\.\.\/css\/)?[\w.-]+\.(?:js|css))"/g, s, (_, a, u) => `${a}${v(u)}"`);
+    if (f.startsWith("install/") || f.startsWith("manager/")) s = count(/((?:src|href)=")((?:\.\.\/css\/)?[\w.-]+\.(?:js|css))"/g, s, (_, a, u) => `${a}${v(u)}"`);
     s = count(/(from\s+")(\.\/js\/[^"?#]+\.js)"/g, s, (_, a, u) => `${a}${v(u)}"`);
     fs.writeFileSync(dst, s);
-  } else if (/^(js|install)\/.*\.js$/.test(f)) {
+  } else if (/^(js|install|manager)\/.*\.js$/.test(f)) {
     let s = fs.readFileSync(src, "utf8");
     s = count(/((?:^|\n)\s*(?:import|export)\b[^;"]*?\bfrom\s+"|(?:^|\n)\s*import\s+")(\.\.?\/[^"?#]+\.m?js)"/g, s, (_, a, u) => `${a}${v(u)}"`);
     fs.writeFileSync(dst, s);
@@ -73,7 +74,7 @@ fs.writeFileSync(path.join(OUT, ".nojekyll"), "");
 
 // every relative import of every published module now carries the build (none left bare)
 const bare = [];
-for (const f of files.filter((x) => /^(js|install)\/.*\.js$/.test(x))) {
+for (const f of files.filter((x) => /^(js|install|manager)\/.*\.js$/.test(x))) {
   const s = fs.readFileSync(path.join(OUT, f), "utf8");
   for (const m of s.matchAll(/\bfrom\s+"(\.\.?\/[^"]+)"/g)) if (!m[1].includes(`?v=${BUILD}`)) bare.push(`${f}: ${m[1]}`);
 }
