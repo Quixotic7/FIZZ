@@ -1550,7 +1550,7 @@ the manager is `firmware/app/fz_dual.c` (`firmware/DUALCORE.md`).
 
 **The second core (2026-10-24):** fm1-base now has it (`cpu2 = true`, felucca-bsp's MPL-2.0 port of Melodee's,
 thanks to keremimo; fm1-base 42dc630). FIZZ moves to that fm1-base with `cpu2_fallback = true`.
-fm1-base also makes REC held at power-on enter update mode, so FIZZ's safe mode moves to another gesture.
+fm1-base also makes REC held at power-on enter update mode, so FIZZ's safe mode is now **SAVE held at power-on** (the owner, 2026-10-24).
 **The owner's split (2026-10-24):** polyphony is **capped at 8 voices** for good (the Digitone 1's count; the FM-1 is a
 small machine), on every profile so RemoteFM1 matches. **Revised the same day:** the UI stays on core 0; **voices
 start on core 1 and carry over to core 0 only when core 1 is full**, so core 0 keeps its time for the sequencer, the
