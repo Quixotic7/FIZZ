@@ -939,13 +939,13 @@ static void t_fizz(void)
     fresh();
     run(2000, 0);
     a1 = frame_hash();
-    run(100, 0);
+    run(100u > 1000u / QD_IDLE_FPS ? 100u : 1000u / QD_IDLE_FPS + 10u, 0);   /* (P2.6i: a step of its pace on) */
     b1 = frame_hash();
     fresh();
     run(2000, 0);
     a2 = frame_hash();
     CHECK(A.ui.mode == QD_MODE_IDLE && a1 == a2 && a1 != b1, "the idle screen: the same at the same time after "
-          "power-on, moving 0.1 s later");
+          "power-on, moving a step of its pace later");
     fresh();                                            /* P1.3o: seamless, 11 s a loop */
     run(1500, 0);
     a1 = frame_hash();
