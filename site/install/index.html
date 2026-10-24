@@ -57,7 +57,8 @@
     <ul>
       <li><b>Another firmware built on fm1-base</b> (ChoralRoot and others): use its own backup page or tool first. The first time FIZZ starts, it erases the FM-1's shared save area if it finds another firmware's data there and none of FIZZ's.</li>
       <li><b>M-VAVE's stock firmware:</b> this page can't back up its saved sounds. If there are any you want to keep, assume they will be lost.</li>
-      <li><b>FIZZ already:</b> an update writes only the program and FIZZ's data, not the save area, so your projects and presets stay in place. But betas can change how FIZZ saves, and FIZZ has no backup of its own yet.<span class="baklink" hidden> <a href="backup/" target="_blank" rel="noopener">Back up FIZZ<span class="sr"> (opens in a new tab)</span></a></span></li>
+      <li><b>FIZZ already:</b> an update writes only the program and FIZZ's data, not the save area, so your projects and presets stay in place. But betas can change how FIZZ saves,
+        <span class="nobak">and FIZZ has no backup of its own yet.</span><span class="baklink" hidden>so save a backup first: <a href="backup/" target="_blank" rel="noopener">back up FIZZ<span class="sr"> (opens in a new tab)</span></a> to a file on this computer (Chrome or Edge, the same cable). The same page puts it back later.</span></li>
     </ul>
   </section>
 
@@ -133,7 +134,7 @@
 <dialog id="confirm" aria-labelledby="confirmh">
   <form method="dialog">
     <h2 id="confirmh">Before you install</h2>
-    <p class="bak"><b>Back up first.</b> Installing can lose what the FM-1 has saved (<a href="#backup">what to back up</a>).</p>
+    <p class="bak"><b>Back up first.</b> Installing can lose what the FM-1 has saved (<a href="#backup">what to back up</a>).<span class="baklink" hidden> Running FIZZ? <a href="backup/" target="_blank" rel="noopener">Back up FIZZ<span class="sr"> (opens in a new tab)</span></a>.</span></p>
     <p class="opt"><input type="checkbox" id="bakok"><label for="bakok">I've backed up, or have nothing to keep.</label></p>
     <p id="confirmfizz">While it is written, the FM-1's screen shows UPDATING and a bar, or stays dark; then FIZZ starts and says it is writing its data. Don't unplug the cable or switch the FM-1 off until this page says Done. It can take several minutes.</p>
     <p id="confirmstock" hidden>While it is written, the FM-1's screen shows UPDATING and a bar, or stays dark. Don't unplug the cable or switch the FM-1 off until this page says Done.</p>

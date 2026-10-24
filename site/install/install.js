@@ -155,7 +155,11 @@ window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault
 })();
 
 /* the backup page: only where fm1-base's is built for FIZZ (firmware/tools/sync_installer.py, fm1.toml backup = true) */
-fetch("backup/", { method: "HEAD" }).then((r) => { if (r.ok) document.querySelectorAll(".baklink").forEach((a) => { a.hidden = false; }); }).catch(() => {});
+fetch("backup/", { method: "HEAD" }).then((r) => {
+  if (!r.ok) return;
+  document.querySelectorAll(".baklink").forEach((a) => { a.hidden = false; });
+  document.querySelectorAll(".nobak").forEach((a) => { a.hidden = true; });
+}).catch(() => {});
 
 /* ---- check my FM-1: what it runs, FIZZ's version from FIZZ itself */
 $("checkgo").addEventListener("click", async () => {
