@@ -63,8 +63,9 @@ h1 { margin: 0 0 12px; font-size: clamp(30px, 6vw, 46px); line-height: 1.1; colo
 .beta-note { display: flex; gap: 10px; align-items: baseline; color: var(--champagne); font-weight: 600; margin: 0; max-width: 760px; }
 .beta-note b { color: var(--champagne); }
 .beta-note i { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 calc(8px * var(--glow)) var(--yellow); transform: translateY(-1px); }
-section { --c: var(--cyan); margin: 28px 0 0; padding: 22px 24px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; position: relative; overflow: hidden; }
-section::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); box-shadow: 0 0 calc(14px * var(--glow)) var(--c); }
+/* a box: FIZZ's outlined panel (the screens' rounded rectangles, mockups/fizz-midifx.html): a solid ring in its colour */
+section { --c: var(--cyan); margin: 28px 0 0; padding: 22px 24px 18px; background: var(--panel); border: 2px solid var(--c); border-radius: 18px;
+  box-shadow: 0 0 calc(16px * var(--glow)) color-mix(in srgb, var(--c) 30%, transparent), inset 0 0 calc(18px * var(--glow)) color-mix(in srgb, var(--c) 8%, transparent); }
 h2 { margin: 0 0 12px; font-size: 24px; color: var(--c); letter-spacing: .01em; text-shadow: 0 0 calc(18px * var(--glow)) color-mix(in srgb, var(--c) 45%, transparent); }
 h3 { margin: 20px 0 6px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 p { margin: 0 0 12px; }

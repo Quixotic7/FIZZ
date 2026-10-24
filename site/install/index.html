@@ -40,7 +40,7 @@
     <p class="beta-note"><i></i><span><b>Beta, for testers.</b> Installing replaces the FM-1's firmware (M-VAVE's, or whatever it runs now). You can go back: see <a href="#back">Going back</a>.</span></p>
   </div>
 
-  <section id="needs" style="--c:#3F7DFF">
+  <section id="needs" style="--c:var(--blue)">
     <h2>What you need</h2>
     <ul>
       <li><b>Chrome or Edge on a computer</b> (Windows, macOS, Linux or ChromeOS). The page talks to the FM-1 over USB MIDI with SysEx; the browser asks once to allow MIDI: allow it.</li>
@@ -51,7 +51,7 @@
     <p id="nomidi" class="warn" hidden>This browser has no Web MIDI, so it can't install. Open this page in Chrome or Edge on a computer.</p>
   </section>
 
-  <section id="backup" style="--c:#FFD23F">
+  <section id="backup" style="--c:var(--yellow)">
     <h2>Back up first</h2>
     <p>Installing can lose what the FM-1 has saved. What to do depends on what it runs now:</p>
     <ul>
@@ -62,7 +62,7 @@
     </ul>
   </section>
 
-  <section id="install" style="--c:#28E1FF">
+  <section id="install" style="--c:var(--cyan)">
     <h2>Install</h2>
     <div class="pick">
       <div class="pick-what">
@@ -91,12 +91,12 @@
     <details id="logbox" hidden><summary>Details</summary><pre id="log"></pre></details>
   </section>
 
-  <section id="notes" style="--c:#1FD47E">
+  <section id="notes" style="--c:var(--green)">
     <h2>What's new</h2>
     <div id="notes-list" class="notes"><p class="dim">Loading…</p></div>
   </section>
 
-  <section id="back" style="--c:#FF6A2C">
+  <section id="back" style="--c:var(--orange)">
     <h2>Going back</h2>
     <h3>To M-VAVE's stock firmware</h3>
     <p>This writes M-VAVE's own FM-1 firmware back from FIZZ, over the same USB cable, with fm1-base's installer. What FIZZ saved may be lost.</p>
@@ -113,7 +113,7 @@
     <p>After two failed starts the FM-1 waits in the chip's update mode. On a Mac, felucca-bsp's rescue puts the stock firmware back from there: <a href="https://github.com/hugelton/felucca-bsp/tree/main/tools" target="_blank" rel="noopener">recovering an FM-1 that won't start<span class="sr"> (opens in a new tab)</span></a>. Then install FIZZ again. Ask on Discord if you get stuck.</p>
   </section>
 
-  <section id="feedback" style="--c:#FF3CA0">
+  <section id="feedback" style="--c:var(--pink)">
     <h2>Feedback</h2>
     <p>Tell us what works and what doesn't on <a href="https://discord.gg/emf6DmZ9V" target="_blank" rel="noopener">FIZZ's Discord<span class="sr"> (opens in a new tab)</span></a>. Say which version you run (<b>Check my FM-1</b> tells you).</p>
     <h3>If FIZZ crashed</h3>
