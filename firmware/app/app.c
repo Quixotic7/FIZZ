@@ -66,7 +66,8 @@ extern uint32_t _fz_rt_start[], _fz_rt_end[], _fz_ni_start[], _fz_ni_end[];   /*
 #define FZ_BARRIER() __asm__ volatile("" ::: "memory")
 #define FZ_LED_MS 10u                    /* the LEDs looked at every 10 ms */
 #define FZ_VEL 100                       /* the keys' velocity (no APP_TOUCH yet: FM1VST's default) */
-#define FZ_TICK_CHUNK 4u                 /* FIZZ's clock: at most this many ms a lock */
+#define FZ_TICK_CHUNK 1u                 /* FIZZ's clock: at most this many ms a lock (P2.9: one; the audio waits for one
+                                          * millisecond's work at most) */
 #define FZ_TOUCHED_MS 1500u              /* a frame every FZ_FRAME_TOUCHED for this long after a press or a turn */
 #define FZ_FRAME_TOUCHED 33u             /* how often a frame is looked at (drawn if it changed) */
 #define FZ_FRAME_PLAYING 50u
@@ -126,6 +127,7 @@ static void fz_audio_on_again(uint32_t f)
 }
 #endif
 static uint32_t fz_lock_t0;
+static uint32_t fz_lock_kmax[8];
 static uint32_t fz_lock(void)
 {
     const uint32_t f = fz_audio_off();
@@ -137,6 +139,8 @@ static void fz_unlock(uint32_t f, uint32_t kind)
     const uint32_t d = plat_ticks24() - fz_lock_t0;
     if (d > fz_prof.lock_max)
         fz_prof.lock_max = d, fz_prof.lock_kind = kind;
+    if (kind < 8u && d > fz_lock_kmax[kind])
+        fz_lock_kmax[kind] = d;          /* (P2.9: the longest by kind) */
     fz_audio_on_again(f);
 }
 
@@ -341,6 +345,7 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
         if (ev && (!mi || (int32_t)(fz_evq_ms[fz_ev_r % FZ_EVQ] - fz_mq_ms[fz_mq_r % FZ_MQ]) <= 0)) {
             const uint32_t e = fz_evq[fz_ev_r % FZ_EVQ], i = e & 0xFFu, down = e >> 15;
             fz_tick_to(fz_evq_ms[fz_ev_r % FZ_EVQ]);
+            fz_input_prepare();
             f = fz_lock();
             if (e & 0x100u)
                 fz_key((int)i, (int)down, down ? FZ_VEL : 0);
@@ -352,6 +357,7 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
         } else {
             const uint32_t p = fz_mq_pkt[fz_mq_r % FZ_MQ];
             fz_tick_to(fz_mq_ms[fz_mq_r % FZ_MQ]);
+            fz_input_prepare();
             f = fz_lock();
             fz_midi_ui((int)(p >> 8 & 0xFFu), (int)(p >> 16 & 0x7Fu), (int)(p >> 24 & 0x7Fu));
             fz_unlock(f, FZ_LOCK_MIDI);
@@ -363,7 +369,9 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
     for (r = 0; r < NE; r++) {
         const int32_t d = plat_enc(r);
         if (d) {
-            const uint32_t f = fz_lock();
+            uint32_t f;
+            fz_input_prepare();
+            f = fz_lock();
             fz_knob(r, (int)d);
             fz_unlock(f, FZ_LOCK_KNOB);
             fz_touch_ms = plat_ms();
@@ -430,6 +438,12 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "xruns=", plat_xruns());
     c = fz_put_u(c, "lock_max_us=", fz_us(fz_prof.lock_max));
     c = fz_put_u(c, "lock_kind=", fz_prof.lock_kind);   /* (1 a press, 2 the clock, 3 a knob, 4 MIDI, 5 SysEx in, 6 out) */
+    c = fz_put_u(c, "lock_press_us=", fz_us(fz_lock_kmax[1]));
+    c = fz_put_u(c, "lock_clock_us=", fz_us(fz_lock_kmax[2]));
+    c = fz_put_u(c, "lock_knob_us=", fz_us(fz_lock_kmax[3]));
+    c = fz_put_u(c, "lock_midi_us=", fz_us(fz_lock_kmax[4]));
+    c = fz_put_u(c, "lock_sysex_us=", fz_us(fz_lock_kmax[5]));
+    c = fz_put_u(c, "lock_take_us=", fz_us(fz_lock_kmax[6]));
     c = fz_put_u(c, "midi_drops=", fz_mq_drops);
     c = fz_put_u(c, "isr_loads=", fz_audio_loads());   /* (patterns loaded inside the interrupt: should stay 0) */
     c = fz_put_u(c, "frames=", fz_prof.n_frame);
@@ -667,6 +681,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
         if (n >= 4u && p[3] == 0x7Fu) {  /* (7F: and start them again) */
             fz_prof_reset();
             fz_mq_drops = 0;
+            memset(fz_lock_kmax, 0, sizeof fz_lock_kmax);
             fz_bursts = fz_burst_rows = fz_burst_max = fz_frame_bursts_max = fz_st_full = fz_st_drops = fz_st_none = 0;
             fz_frames_sent = fz_rows_sent = fz_led_looks = fz_led_writes = 0;
             fz_st_cap_min = 240u;

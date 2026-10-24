@@ -180,6 +180,9 @@ void fz_store_attach(void)
 #endif
 }
 
+/* (P2.9) what an input's gesture opens (its undo snapshot: patterns read, the undo log written, nothing the audio side
+ * touches), done before the audio lock: the locked call then finds it open (qd_app_input_prepare, core 7984295) */
+void fz_input_prepare(void) { qd_app_input_prepare(&fz_app); }
 void fz_key(int key, int down, int vel) { qd_app_key(&fz_app, key, down, vel); }
 void fz_button(int button, int down) { qd_app_button(&fz_app, button, down); }
 void fz_knob(int role, int detents) { qd_app_knob(&fz_app, role, detents); }

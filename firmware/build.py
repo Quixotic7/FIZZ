@@ -82,11 +82,19 @@ HOT = {"build_units_c_qd_fx.o": ["xf_reverb", "xf_delay", "out_master", "xq_bloc
 # way, into fizz-1core-VARIANT.fwsc, its id in stats line 8 (build=): xip (1) its render left in the flash, o2 (2) at
 # -O2 (in the flash too), crflags (3) with ChoralRoot's flags (-Os -ffunction-sections -fno-builtin: no -mcpu=r3, -mfprev1,
 # -ffp-contract=off, -std=gnu11). The plain build is id 0
+# P2.9: the unit measured o2 fastest (240 us a 128 frames against 259 at -Os in RAM; crflags 260): the single-core
+# package's default (FZ_VARIANT=o2, id 2); os (0) is P2.7's (-Os, the render in RAM); o2ram (4) -O2 with the render in
+# RAM and the effects' hot functions back in the flash (to measure)
 VARIANT = os.environ.get("FZ_VARIANT", "")
-VARIANTS = {"": 0, "xip": 1, "o2": 2, "crflags": 3}
-if VARIANT not in VARIANTS:
-    raise SystemExit(f"FZ_VARIANT={VARIANT}: one of xip, o2, crflags")
-DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS[VARIANT]}u")
+VARIANTS = {"os": 0, "xip": 1, "o2": 2, "crflags": 3, "o2ram": 4}
+NAMED = VARIANT
+if SINGLE and not VARIANT:
+    VARIANT = "o2"
+if VARIANT and VARIANT not in VARIANTS:
+    raise SystemExit(f"FZ_VARIANT={VARIANT}: one of " + ", ".join(VARIANTS))
+DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS.get(VARIANT, 0)}u")
+if VARIANT == "o2ram":                           # (the render's 22.6 KB at -O2 fits only with the effects out)
+    HOT.pop("build_units_c_qd_fx.o")
 if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does not fit the RAM code region: flash)                  # (8 voices: the RAM they free takes the voices' render)
     HOT["build_units_c_quad_voice.o"] = ["quad_render", "qd_quad_voice_render", "?quad_lfo_incb", "?quad_lfo_incb_p",
                                          "?quad_lfo_incv", "?quad_lfo_inc"]   # (?: its helpers, where the core has them)
@@ -156,7 +164,7 @@ def tc(tool, *args):
             # fm1-base's Bluetooth build makes them)
             args = ["-mllvm", "-pi32v2-large-program=true", *args]
             out = args[args.index("-o") + 1]
-            if out.name == "build_units_c_quad_voice.o" and VARIANT == "o2":
+            if out.name == "build_units_c_quad_voice.o" and VARIANT in ("o2", "o2ram"):
                 args = [a if a != "-Os" else "-O2" for a in args]
             if out.name == "build_units_c_quad_voice.o" and VARIANT == "crflags":
                 args = [a for a in args if a not in ("-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-std=gnu11")]
@@ -339,7 +347,7 @@ fb.subprocess = _Subprocess()
 if SINGLE:
     _read_conf = fb.read_conf
     fb.read_conf = lambda path: {**_read_conf(path), "name": _read_conf(path).get("name", "fizz") + "-1core" +
-                                 (f"-{VARIANT}" if VARIANT else "")}
+                                 (f"-{NAMED}" if NAMED else "")}
 
 if __name__ == "__main__":
     sys.argv = [str(BASE / "tools" / "build.py"), str(APP), *[a for a in sys.argv[1:] if a != "--single-core"]]

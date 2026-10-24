@@ -58,6 +58,7 @@ void fz_watchdog(void);
 void fz_flash_quiet(void);
 void fz_flash_done(void);
 void fz_persist_step(void);
+void fz_input_prepare(void);   /* (P2.9: before the lock of fz_key / fz_button / fz_knob / fz_midi_ui) */
 /* would the next frame differ from the last drawn? (qd_app_frame_changed: the screen's logic once, nothing drawn) */
 int fz_frame_changed(void);
 
