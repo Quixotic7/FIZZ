@@ -29,26 +29,10 @@
 #ifndef PLAT_HOST
 #include "fm1_debug.h"                   /* (felucca-bsp: the timed empty loop, the boot's speed line) */
 #endif
-#include "fz_dual.c"                     /* the second core's manager (firmware/DUALCORE.md): until FIZZ's core has its
-                                          * split render and felucca-bsp its core-1 start (issue #5), it boots the
-                                          * simulated core and no block hands it anything */
-
-/* the core 1 to start: felucca-bsp's chip/fm1_cpu1.* behind an fz_c1_backend_t once issue #5 lands (FZ_C1_BACKEND
- * set by build.py then); until then core 0 itself, through the mailbox. FZ_SINGLE_CORE 1 (build.py --single-core): none */
-#ifndef FZ_C1_BACKEND
-#define FZ_C1_BACKEND (&fz_c1_simulated)
-#endif
-#ifdef PLAT_HOST
-static fz_c1_bar_t fz_c1_bar;
-#else
-static fz_c1_bar_t fz_c1_bar __attribute__((section(".noinit")));   /* "core 1 off": kept across a reset */
-void app_fault(const fm1_crash_t *c)     /* (APP_FAULT) a crash: with a real core 1 running, the next boot keeps it off */
-{
-    (void)c;
-    if (FZ_C1_BACKEND != &fz_c1_simulated)
-        fz_dual_crashed(&fz_c1_bar);
-}
-#endif
+/* (P2.14) the second core is fm1-base's (cpu2 = true, cpu2_fallback = true: felucca-bsp's, Melodee's, with its own
+ * checked jobs, give-up and bar); the port hands it the voices' second half (fz_port.c fz_audio). firmware/app/fz_dual.c
+ * (P2.6's own manager, tested on the host) is no longer built in */
+static int fz_c1_start = -2;             /* plat_cpu2_set(1) at app_init: 0 it runs, -1 one core; -2 not this build */
 
 static void fz_message(const char *a, const char *b);
 #ifndef PLAT_HOST
@@ -487,7 +471,8 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
 static uint32_t t5_gap_max, t5_late, t5_run_max;   /* (main_fm1.c's, defined after this file in the unity build) */
 extern uint32_t lock_max, lock_from;     /* (plat_fm1.c's: the longest any code kept the interrupts off, and where) */
 #endif
-static uint8_t fz_safe;                  /* safe mode: the store not attached (REC held at power-on) */
+static uint8_t fz_safe;                  /* safe mode: the store not attached (SAVE held at power-on; P2.14: REC is
+                                          * fm1-base's update mode now) */
 static uint8_t fz_store_started;         /* the store looked at (fz_store_start; app_init clears it: a reboot) */
 #ifdef PLAT_HOST
 static uint8_t fz_host_nowipe;           /* (the simulator's fznowipe: no erase of a foreign region) */
@@ -650,24 +635,27 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
 #endif
     *c = 0;
     fz_stats_send(5, line);
-    /* 6: core 1 (fz_dual.c): its state and back end, why it is off, the jobs handed over and run by core 0 instead,
-     * the failures, the longest wait */
+    /* 6 (P2.14): core 1 (fm1-base's cpu2): started or not, why it is off, the jobs it took and those core 0 ran
+     * instead, its misreads, its stack, each core's voice time (us a half) and core 0's wait for it */
     c = line;
     {
-        const char *const w[] = {"c1=", fz_dual_state_name(), " c1_backend=", FZ_C1_BACKEND->name, " "};
-        unsigned i;
-        for (i = 0; i < sizeof w / sizeof w[0]; i++)
-            for (const char *t = w[i]; *t;)
-                *c++ = *t++;
+        const uint64_t nh = fz_prof.a_split_n ? fz_prof.a_split_n : 1u;
+        c = fz_put_u(c, "c1_start=", (uint32_t)(int32_t)fz_c1_start);
+#if FM1B_CPU2
+        c = fz_put_u(c, "c1_on=", (uint32_t)plat_cpu2_on());
+        c = fz_put_u(c, "c1_gave_up=", (uint32_t)plat_cpu2_gave_up());   /* (1 misread, 2 late, 3 barred, 4 fault, 5 silent) */
+        c = fz_put_u(c, "c1_barred=", (uint32_t)plat_cpu2_barred());
+        c = fz_put_u(c, "c1_bad=", plat_cpu2_bad());
+        c = fz_put_u(c, "c1_stack_b=", plat_cpu2_stack());
+#endif
+        c = fz_put_u(c, "c1_jobs=", fz_c1s.jobs);
+        c = fz_put_u(c, "c1_inline=", fz_c1s.inline_jobs);
+        c = fz_put_u(c, "c1_fallbacks=", fz_c1s.fallbacks);
+        c = fz_put_u(c, "c0_voices_us=", fz_us(fz_c1s.c0_ticks / nh));
+        c = fz_put_u(c, "c1_voices_us=", fz_us(fz_c1s.c1_ticks / nh));
+        c = fz_put_u(c, "c0_wait_us=", fz_us(fz_c1s.wait_ticks / nh));
+        c = fz_put_u(c, "c0_wait_max_us=", fz_us(fz_c1s.wait_max));
     }
-    c = fz_put_u(c, "c1_barred=", fz_dual.barred);
-    c = fz_put_u(c, "c1_start_us=", fz_us(fz_dual.start_ticks));
-    c = fz_put_u(c, "c1_posts=", fz_dual.posts);
-    c = fz_put_u(c, "c1_inline=", fz_dual.inline_jobs);
-    c = fz_put_u(c, "c1_stalls=", fz_dual.stalls);
-    c = fz_put_u(c, "c1_refusals=", fz_dual.refusals);
-    c = fz_put_u(c, "c1_misreads=", fz_dual.misreads);
-    c = fz_put_u(c, "c1_wait_max_us=", fz_us(fz_dual.wait_max_ticks));
     *c = 0;
     fz_stats_send(6, line);
     /* 7 (P2.7): the screen's bursts and the LEDs */
@@ -857,6 +845,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
             fz_prof_reset();
             fz_mq_drops = 0;
             memset(fz_lock_kmax, 0, sizeof fz_lock_kmax);
+            memset(&fz_c1s, 0, sizeof fz_c1s);
             fz_tick_lag_max = 0;
             fz_bursts = fz_burst_rows = fz_burst_max = fz_frame_bursts_max = fz_st_full = fz_st_drops = fz_st_none = 0;
             fz_frames_sent = fz_rows_sent = fz_led_looks = fz_led_writes = 0;
@@ -1245,7 +1234,9 @@ static void fz_fb_idle(void)             /* (P2.13: while the send waits for the
 #ifdef QD_GFX_FB
 /* (P2.12) the frame's memory: rows 0..99 in main RAM (where the strip surface and its coverage were), 100..239 in the
  * pool (the delay line's freed half); the host: one block */
+#ifndef FZ_FB_LO
 #define FZ_FB_LO 100u                    /* (P2.12: rows 0..99 in main RAM, where the strip surface and coverage were) */
+#endif
 #define FZ_FB_MID 12u                    /* (.. the next in the RAM code region's spare (P2.12b: the Geek Out pages took the
                                           * rest of the room), the others in the pool) */
 #ifdef PLAT_HOST
@@ -1459,12 +1450,9 @@ void app_init(void)
 #endif
     fz_ticked = 0;
     fz_store_started = 0, fz_safe = 0, fz_wiped = -1;
-    /* core 1, before the sound: not after a failed boot (fm1-base's boot guard counted the one before: a crash or the
-     * watchdog within its 30 s), and the record read with this reset's cause (the watchdog's: a hang beside core 1) */
-#ifdef PLAT_HOST
-    fz_dual_boot(&fz_c1_bar, FZ_C1_BACKEND, 0, 0, 0, 1);
-#else
-    fz_dual_boot(&fz_c1_bar, FZ_C1_BACKEND, 0, bootguard.failed != 0, (fm1_boot.p3_rst & 4u) != 0, 1);
+#if FM1B_CPU2
+    fz_c1_start = plat_cpu2_set(1);      /* (P2.14: here or never, before the sound: fm1-base's rule; one core after a
+                                          * failed start or while barred) */
 #endif
 }
 static void fz_store_start(void)         /* the store, once, at the first screen (the panel is read by then) */
@@ -1472,7 +1460,7 @@ static void fz_store_start(void)         /* the store, once, at the first screen
     if (fz_store_started || !fz_ok)
         return;
     fz_store_started = 1;
-    if (plat_buttons() >> B_REC & 1u) {  /* REC held at power-on: safe mode, no store (nothing read or written) */
+    if (plat_buttons() >> B_SAVE & 1u) { /* SAVE held at power-on: safe mode, no store (nothing read or written) */
         fz_safe = 1;
         fz_message("FIZZ: SAFE MODE", "THE STORE IS NOT USED");
         fz_hold_ms(1500u);
@@ -1555,6 +1543,9 @@ static void fz_boot_look(void)           /* (app_init: the reset's cause) */
 static void fz_geek(void)
 {
     static uint32_t t_last, isr_last, frames_last, reset_last, late0, init;
+#if FM1B_CPU2
+    static uint32_t c1_last;
+#endif
     fz_plat_stats_t f;
     const uint32_t now = plat_ticks24(), dt = now - t_last;
     uint32_t r;
@@ -1566,6 +1557,13 @@ static void fz_geek(void)
     if (dt < 250000u * PLAT_TICKS_PER_US / 1000u)
         return;
     f.have = 1u | 4u | 8u | 16u | 64u;   /* LOAD0 FPS ISR LOCK STORE */
+#if FM1B_CPU2
+    if (plat_cpu2_on()) {                /* (core 1's load: its jobs' time over the window) */
+        f.have |= 2u;
+        f.load_pm[1] = (uint16_t)((uint64_t)((uint32_t)fz_c1s.c1_ticks - c1_last) * 1000u / dt);
+    }
+    c1_last = (uint32_t)fz_c1s.c1_ticks;
+#endif
     f.load_pm[0] = (uint16_t)((uint64_t)((uint32_t)fz_prof.isr - isr_last) * 1000u / dt);
     f.fps10 = (uint16_t)((uint64_t)(fz_prof.n_frame - frames_last) * 10u * PLAT_TICKS_PER_US * 1000000u / dt);
     f.frame_us = fz_frame_us;

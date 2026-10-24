@@ -17,7 +17,7 @@ its blob's length and CRC-32 into the firmware, and the unit takes only its own 
                                                    is erased; a cable pulled while it writes leaves the store cleared
                                                    at the next start. FZER 10 playing, 11 another size, 12 the image's
                                                    CRC, 13 a write, 14 the check after writing
-Safe mode (the store not mounted): hold REC while switching the FM-1 on.
+Safe mode (the store not mounted): hold SAVE while switching the FM-1 on (P2.14: REC held is fm1-base's update mode).
 
 The transfer is the update's own (fm1-base app_usb_cmd, plat_host_read): one command, 46 "FZXD" len crc off, then the
 unit asks for the blob in 512-byte reads and this answers them. Needs mido with python-rtmidi, as fm1_install.py.

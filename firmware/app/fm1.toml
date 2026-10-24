@@ -19,7 +19,11 @@ ble = false
 usb_audio_in = false
 usb_audio_out = false
 mirror = false
-backup = false
+backup = false                 # (fm1-base's backup carries Felucca's storage objects; FIZZ's store is its own: fizz_xdata.py backup)
+# P2.14: the second core (fm1-base's cpu2, felucca-bsp's, Melodee's): the dual build's voices 8..15 (build.py
+# --single-core turns it off); a unit whose second core fails plays on with one, until power-off
+cpu2 = true
+cpu2_fallback = true
 # the site
 tagline = "an FM step sequencer"
 repo = "https://github.com/Quixotic7/FIZZ"

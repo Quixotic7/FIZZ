@@ -221,6 +221,26 @@ static volatile uint32_t fz_isr_loads;
 /* (P2.8) the sound a control block at a time in the core's three parts (qd_app_audio's own qd_app_block, the same
  * calls and halves: the same samples), each timed: the interrupt's "rest" broken down. A call that is not whole blocks,
  * or meets the core's own frames made ahead, goes through qd_app_audio */
+/* (P2.14) the second core (fm1-base's cpu2: plat_cpu2_*): each control block, voices 8..15 (the pool's second half) as
+ * its job into bus B while core 0 renders 0..7 into bus A, then the join; a job it cannot take, or one dropped when it
+ * was given up (cpu2_fallback), core 0 renders itself. The job writes only its voices' own state and its bus
+ * (qd_app_block_voices) and its time; it runs from the flash, as fm1-base allows (core 0 never turns the flash off with
+ * a job outstanding: the render waits for it) */
+fz_c1_stats_t fz_c1s;
+#if FM1B_CPU2
+static struct {
+    qd_bus_t *bus;
+    int v0, v1;
+    uint32_t t;                          /* (core 1's: the job's time) */
+} fz_c1j;
+static void fz_c1_job(uint32_t arg)
+{
+    const uint32_t t0 = plat_ticks24();
+    (void)arg;
+    qd_app_block_voices(&fz_app, fz_c1j.v0, fz_c1j.v1, fz_c1j.bus);
+    fz_c1j.t = plat_ticks24() - t0;
+}
+#endif
 void fz_audio(int16_t *stereo, uint32_t frames)
 {
     const uint32_t l = fz_app.proj.pat_loads;
@@ -234,8 +254,37 @@ void fz_audio(int16_t *stereo, uint32_t frames)
             t0 = plat_ticks24();
             qd_app_block_begin(a);
             t1 = plat_ticks24();
-            qd_app_block_voices(a, 0, mid, &A);
-            qd_app_block_voices(a, mid, a->pool.nvoice, &B);
+#if FM1B_CPU2
+            if (plat_cpu2_on()) {
+                int posted;
+                fz_c1j.bus = &B, fz_c1j.v0 = mid, fz_c1j.v1 = a->pool.nvoice;
+                posted = plat_cpu2_run(fz_c1_job, 0);
+                qd_app_block_voices(a, 0, mid, &A);
+                fz_c1s.c0_ticks += plat_ticks24() - t1;
+                if (posted) {
+                    const uint32_t tw = plat_ticks24();
+                    const int rc = plat_cpu2_wait();
+                    const uint32_t w = plat_ticks24() - tw;
+                    if (w > fz_c1s.wait_max)
+                        fz_c1s.wait_max = w;
+                    fz_c1s.wait_ticks += w;
+                    if (rc) {            /* (given up meanwhile: the job dropped, core 0's now) */
+                        qd_app_block_voices(a, mid, a->pool.nvoice, &B);
+                        fz_c1s.fallbacks++;
+                    } else {
+                        fz_c1s.jobs++;
+                        fz_c1s.c1_ticks += fz_c1j.t;
+                    }
+                } else {
+                    qd_app_block_voices(a, mid, a->pool.nvoice, &B);
+                    fz_c1s.inline_jobs++;
+                }
+            } else
+#endif
+            {
+                qd_app_block_voices(a, 0, mid, &A);
+                qd_app_block_voices(a, mid, a->pool.nvoice, &B);
+            }
             t2 = plat_ticks24();
             qd_app_block_end(a, &A, &B, stereo + 2u * QD_MIX_CTL * b);
             t3 = plat_ticks24();

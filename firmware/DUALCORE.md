@@ -200,3 +200,23 @@ Nothing is handed over yet: no block calls `fz_dual_post` until FIZZ's core has 
    DESIGN.md), which would replace the back end's direct calls.
 3. **The supplies**: whether fm1-base's VDC14 / SYSVDD levels are the dual-core-safe ones (above), before core 1 runs
    on the owner's unit.
+
+## P2.14: the second core on fm1-base's cpu2
+
+fm1-base 42dc630 (felucca-bsp b413cd8) has the second core: `cpu2 = true` (felucca-bsp's `chip/fm1_cpu1.*`, Melodee's
+under MPL-2.0 by keremimo's agreement), every job checked, and `cpu2_fallback = true`: a unit whose second core misreads,
+faults, is late or does not answer plays on with one core, barred until power-off. That carries everything P2.6's own
+manager (`app/fz_dual.c`) was for, so the port uses fm1-base's directly and `fz_dual.c` is no longer built in (its host
+test stays, as a record of the protocol).
+
+- **The dual build** (`firmware/build.py`, fm1.toml `cpu2 = true`, `cpu2_fallback = true`): 16 voices. Each control
+  block: `qd_app_block_begin`; voices 8..15 handed to core 1 (`plat_cpu2_run`: `qd_app_block_voices` into bus B);
+  voices 0..7 on core 0 into bus A; `plat_cpu2_wait`; a job core 1 could not take, or dropped when it was given up,
+  rendered by core 0 then; `qd_app_block_end`. Started in `app_init` (fm1-base's rule: there or never, before the
+  sound). The simulator runs the job at once: the sound is the same, sample for sample, with core 1 and without.
+- **What core 1 may do** (fm1-base's `fm1_cpu1.h`): one job at a time, from the flash (core 0 never turns the flash
+  off with a job outstanding: the render waits for its job, and FIZZ's store writes only on the main loop); its stack
+  2,816 B; the job writes only its voices' state and its bus.
+- **Stats line 6**: started or not, on, why it gave up, barred, misreads, its stack's depth, jobs, jobs core 0 ran
+  instead (busy, fallbacks), each core's voice time a half and core 0's wait. The Geek Out pages' METERS: core 1's load.
+- **The single-core package** (`--single-core`): 8 voices, no second core (FM1B_CPU2=0).

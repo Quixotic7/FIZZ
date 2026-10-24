@@ -63,9 +63,13 @@ def jieli(rel):
 _tc = fb.tc
 SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
 # the owner (2026-10-23): 8 voices on one core, 16 when core 1 renders half (core/qd_config.h QD_VOICES_DEV)
-DEFS = ["-DFZ_SINGLE_CORE=1", "-DQD_VOICES_DEV=8"] if SINGLE else ["-DQD_VOICES_DEV=16"]
+DEFS = ["-DFZ_SINGLE_CORE=1", "-DQD_VOICES_DEV=8"] if SINGLE else ["-DQD_VOICES_DEV=16", "-DFZ_FB_LO=88u",
+                                                                                   "-DFM1B_CPU2=1"]   # (P2.14:
+# the dual build's main RAM holds core 1's stacks: 12 of the 8-bit frame's rows go to the pool)
 if not SINGLE and "FM1B_POOL_SPARE" not in os.environ:
-    os.environ["FM1B_POOL_SPARE"] = "4096"         # (P2.12: Standard, 16 voices, with the 8-bit frame: 5,152 B left)
+    os.environ["FM1B_POOL_SPARE"] = "2048"         # (P2.14: the dual build, 16 voices, the 8-bit frame, Geek Out, core 1: 2,176 B left)
+if SINGLE:
+    os.environ["FM1B_CPU2"] = "0"                  # (P2.14: the single-core package never starts the second core)
 if SINGLE and "FM1B_POOL_SPARE" not in os.environ:
     # the comb lines (16 KB) move from the RAM code region to the pool for quad_render: the pool keeps ~3 KB spare,
     # not fm1-base's 8,192. That spare is the build's margin only (nothing uses the pool past _pool_end: the stacks

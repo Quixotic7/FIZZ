@@ -902,6 +902,16 @@ They stay open (OCT− or HOME back). For now:
 - Eight projects, each with its 64 patterns and its own pool of 128 sounds; **MY PRESETS** (256) are yours, shared
   by every project.
 
+## Keys held while switching on (the FM-1, P2.14)
+
+- **SAVE held**: FIZZ's **safe mode**. FIZZ starts without its store: nothing is read from it or written to it, so a
+  store that keeps FIZZ from starting can be wiped or restored over USB (`firmware/tools/fizz_xdata.py wipe`,
+  `restore`). Switch off and on again to leave it.
+- **REC held**: the FM-1's **update mode** (fm1-base's, the same key as m-bootloader's): for installing a firmware.
+- **OCT- and OCT+ held**: the panel's own setup (fm1-base's).
+
+A back-up of your projects and MY PRESETS: `fizz_xdata.py backup FILE` (and `restore FILE`, stopped).
+
 ## How do I keep a sound? (SAVE: SAVE PRESET)
 
 - **SAVE** (from anywhere) opens **SAVE PRESET** for the selected track's sound, with a **suggested name** (a sparkle

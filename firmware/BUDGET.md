@@ -234,7 +234,7 @@ What the port now does against it:
 - **A guard**: 8 halves in a row over 80 % of their time (4.6 ms of 5.8) let every voice go (all sound off on the 16
   channels); `over_halves` and `sheds` count it.
 - **The store's recovery**: a region with nothing of FIZZ's in it and something else written is erased at the first
-  screen before the store is mounted ("FIZZ: CLEARING ITS STORE", ~1.3 s, once); **REC held at power-on is safe mode**
+  screen before the store is mounted ("FIZZ: CLEARING ITS STORE", ~1.3 s, once); **SAVE held at power-on is safe mode** (P2.14; REC held is now fm1-base's update mode)
   (the store not mounted: nothing read or written); `F0 7D 46 50 57 49 50 45 F7` ("WIPE",
   `fizz_xdata.py wipe`) erases the region and starts FIZZ again on it without a restart. The watchdog is fed at each
   flash operation of the store's long flows (project load / new / copy, migrate).
