@@ -1552,8 +1552,9 @@ the manager is `firmware/app/fz_dual.c` (`firmware/DUALCORE.md`).
 thanks to keremimo; fm1-base 42dc630). FIZZ moves to that fm1-base with `cpu2_fallback = true`.
 fm1-base also makes REC held at power-on enter update mode, so FIZZ's safe mode moves to another gesture.
 **The owner's split (2026-10-24):** polyphony is **capped at 8 voices** for good (the Digitone 1's count; the FM-1 is a
-small machine), on every profile so RemoteFM1 matches. **The second core keeps the UI responsive:** it draws the
-screen, and renders the voices core 0 can't fit (core 0 ~5–6 voices, core 1 the other 2–3), the voice job first.
+small machine), on every profile so RemoteFM1 matches. **Revised the same day:** the UI stays on core 0; **voices
+start on core 1 and carry over to core 0 only when core 1 is full**, so core 0 keeps its time for the sequencer, the
+effects and the UI.
 
 **The 256-colour frame (the owner, 2026-10-23):** after P2.10 the unit tore on the motorcycle and the ape (their
 frames change more rows than the stash holds). The owner chose the palettised full frame (`research/SMOOTH-DISPLAY.md`
