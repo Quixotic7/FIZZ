@@ -243,6 +243,12 @@ void fz_audio(int16_t *stereo, uint32_t frames)
         }
         a->proj.nopage--;
         fz_prof.a_begin += sb, fz_prof.a_vblk += sv, fz_prof.a_end += se;
+        if (sb > fz_prof.a_begin_max)    /* (P2.13: the longest half of each part: where a long interrupt went) */
+            fz_prof.a_begin_max = sb;
+        if (sv > fz_prof.a_vblk_max)
+            fz_prof.a_vblk_max = sv;
+        if (se > fz_prof.a_end_max)
+            fz_prof.a_end_max = se;
         fz_prof.a_split_n++;
     } else {
         qd_app_audio(&fz_app, stereo, frames);
@@ -522,3 +528,4 @@ void fz_store_use(uint32_t *used, uint32_t *size)
     }
     *used = u * 4096u, *size = n * 4096u;
 }
+int fz_screen_index(void) { return (fz_app.ui.mode & 3) * 4 + (fz_app.ui.view & 3); }   /* (P2.13: fz_screens' slot) */

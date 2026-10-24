@@ -246,7 +246,8 @@ static void fz_panel_rate(void)          /* FRCTRL2: 60 Hz (the panel's default)
 
 /* (P2.12) the 8-bit frame's send counters (fz_fb.c) */
 typedef struct {
-    uint32_t frames, rows, passes, synced, unsynced, split, torn, scan_fail, wait_max_us, span_max_us, span_sum_us;
+    uint32_t frames, rows, passes, synced, unsynced, split, torn, scan_fail, wait_max_us, span_max_us, span_sum_us,
+        wait_sum_us;
 } fz_fb_stats_t;
 static fz_fb_stats_t fz_fb;
 /* (P2.7) the screen's and the LEDs' counters (stats line 7) */
@@ -619,6 +620,9 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
             c = fz_put_u(c, "rest_midi_us=", fz_us(fz_prof.a_midi / ni));
             c = fz_put_u(c, "rest_other_us=", fz_us((fz_prof.isr > parts ? fz_prof.isr - parts : 0u) / ni));
             c = fz_put_u(c, "split_halves=", fz_prof.a_split_n);
+            c = fz_put_u(c, "max_begin_us=", fz_us(fz_prof.a_begin_max));
+            c = fz_put_u(c, "max_voices_us=", fz_us(fz_prof.a_vblk_max));
+            c = fz_put_u(c, "max_end_us=", fz_us(fz_prof.a_end_max));
         }
         fz_state_line(c);
         fz_stats_send(4, line);
@@ -688,6 +692,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "fb_torn_est=", fz_fb.torn);
     c = fz_put_u(c, "fb_scan_fail=", fz_fb.scan_fail);
     c = fz_put_u(c, "fb_wait_max_us=", fz_fb.wait_max_us);
+    c = fz_put_u(c, "fb_wait_avg_us=", fz_fb.passes ? fz_fb.wait_sum_us / fz_fb.passes : 0u);
     c = fz_put_u(c, "fb_span_avg_us=", fz_fb.passes ? fz_fb.span_sum_us / fz_fb.passes : 0u);
     c = fz_put_u(c, "fb_span_max_us=", fz_fb.span_max_us);
 #endif
@@ -1216,6 +1221,13 @@ static void fz_draw_strips(int all)
         fz_prof.frame_max = d;
 }
 
+static void fz_input(void);
+static void fz_fb_idle(void)             /* (P2.13: while the send waits for the scan: the panel, MIDI, the clock, LEDs) */
+{
+    fz_input();
+    if (plat_ms() - fz_led_t >= FZ_LED_MS)
+        fz_lights();
+}
 #include "fz_fb.c"                       /* (P2.12: the full frame's send) */
 #ifdef QD_GFX_FB
 /* (P2.12) the frame's memory: rows 0..99 in main RAM (where the strip surface and its coverage were), 100..239 in the
@@ -1235,10 +1247,12 @@ static const uint16_t *fz_pal;
 static uint32_t fz_pal_gen;
 static uint8_t fz_fb_on;
 static uint32_t fz_fb_n;
+#ifndef FZ_FB_FULL_EVERY
 #define FZ_FB_FULL_EVERY 1u              /* (a frame in this many: every band drawn, not only the changed ones. 1 until
                                           * the core's band check is fixed: with only the changed bands, the simulator's
                                           * compare left 332 stale pixels in a playing frame, and every 8th frame in full
                                           * did not cure it. The send still sends only the rows that changed) */
+#endif
 static void fz_fb_start(void)            /* (once FIZZ is up: the rows attached; every band drawn at the next frame) */
 {
     uint32_t y;
@@ -1256,7 +1270,7 @@ static int fz_draw_fb(int all)           /* a frame: drawn at one instant into t
     if (!fz_fb_on)
         return 0;
     fz_in_frame = 1;
-    if (++fz_fb_n % FZ_FB_FULL_EVERY == 0u)
+    if (FZ_FB_FULL_EVERY && ++fz_fb_n % FZ_FB_FULL_EVERY == 0u)   /* (0: the core's band check alone) */
         fz_fb_attach(fz_rowp);           /* (every band drawn: FZ_FB_FULL_EVERY) */
     fz_frame_fb(&bands);
     t1 = plat_ticks24();
@@ -1293,6 +1307,13 @@ static int fz_draw_fb(int all)           /* a frame: drawn at one instant into t
     if (d > fz_prof.frame_max)
         fz_prof.frame_max = d;
     fz_frames_sent++;
+    {   /* (P2.13: the frame's time by screen, as the strips' build has it) */
+        const int sc = fz_screen_index();
+        fz_screens[sc].n++;
+        fz_screens[sc].sum += d;
+        if (d > fz_screens[sc].max)
+            fz_screens[sc].max = d;
+    }
     return 1;
 }
 #else
