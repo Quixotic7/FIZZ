@@ -26,6 +26,10 @@
 #include <time.h>
 
 #define NMAX (6u * 44100u)
+/* P2.6e: FIZZ's own goldens where its delay sounds (compare_close) */
+#define GOLD_D120 0x336cdd13882e390full
+#define GOLD_D97 0xf00341906fd487e5ull
+#define GOLD_CHAIN 0x86764a39b18ac451ull
 
 static void qd_reset(int bpm, uint32_t master_q12)
 {
@@ -111,6 +115,35 @@ static void compare(const char *what, const int32_t *a, const int32_t *b, uint32
     bad += diff != 0;
 }
 
+/* P2.6e: the delay's lines stored compactly (cr_fx.c XD_SN: half its rate, 12 bits) are no longer ChoralRoot's bit
+ * for bit: where the delay sounds, FIZZ's own output is checked against FIZZ's golden (its hash, blessed on purpose when
+ * the delay changes: run with BLESS=1 to print the new ones) and still against ChoralRoot's, by ear's measures: the
+ * same echoes (correlation >= 0.85 over the whole render) at the same level (RMS within 3 dB). (A lone impulse is all
+ * treble, the line's low-pass takes the most from it: 0.89 and -2.1 dB; the chain's noise bursts 0.99 and +0.05 dB) */
+static uint64_t out_hash(const int32_t *a, uint32_t frames)
+{
+    uint64_t h = 1469598103934665603ull;
+    uint32_t i;
+    for (i = 0; i < 2u * frames; i++)
+        h = (h ^ (uint32_t)a[i]) * 1099511628211ull;
+    return h;
+}
+static void compare_close(const char *what, const int32_t *a, const int32_t *b, uint32_t frames, uint64_t gold)
+{
+    double sab = 0, saa = 0, sbb = 0, c, db;
+    uint32_t i;
+    const uint64_t h = out_hash(a, frames);
+    int ok;
+    for (i = 0; i < 2u * frames; i++)
+        sab += (double)a[i] * b[i], saa += (double)a[i] * a[i], sbb += (double)b[i] * b[i];
+    c = saa > 0 && sbb > 0 ? sab / sqrt(saa * sbb) : 0;
+    db = saa > 0 && sbb > 0 ? 10.0 * log10(saa / sbb) : 99;
+    ok = c >= 0.85 && db < 3.0 && db > -3.0 && (getenv("BLESS") || h == gold);
+    printf("  %s %-46s against ChoralRoot: correlation %.4f, level %+.2f dB; golden %016llx%s\n", ok ? "ok  " : "FAIL",
+           what, c, db, (unsigned long long)h, h == gold ? "" : getenv("BLESS") ? " (BLESS: new)" : " (NOT the golden)");
+    bad += !ok;
+}
+
 static uint32_t ns = 0x2545F491u;              /* (L1: a linear congruential noise, both sides fed the same) */
 static int32_t noise(int32_t amp)
 {
@@ -121,11 +154,11 @@ static int32_t noise(int32_t amp)
 int main(void)
 {
     static int32_t in[5u * NMAX], a[2u * NMAX], b[2u * NMAX];
-    static const struct { int which; const char *name; double secs; int bpm; } IMP[] = {
-        {BE_FX_CHORUS, "impulse -> chorus (stereo, rate 40, depth 60)", 2.0, 120},
-        {BE_FX_DELAY, "impulse -> delay (half rate, 1/8 synced, 120 BPM)", 3.0, 120},
-        {BE_FX_DELAY, "impulse -> delay (97 BPM)", 3.0, 97},
-        {BE_FX_REVERB, "impulse -> reverb (half rate)", 5.0, 120},
+    static const struct { int which; const char *name; double secs; int bpm; uint64_t gold; } IMP[] = {
+        {BE_FX_CHORUS, "impulse -> chorus (stereo, rate 40, depth 60)", 2.0, 120, 0},
+        {BE_FX_DELAY, "impulse -> delay (half rate, 1/8 synced, 120 BPM)", 3.0, 120, GOLD_D120},
+        {BE_FX_DELAY, "impulse -> delay (97 BPM)", 3.0, 97, GOLD_D97},
+        {BE_FX_REVERB, "impulse -> reverb (half rate)", 5.0, 120, 0},
     };
     uint32_t k, i, n;
     /* the defaults */
@@ -140,7 +173,24 @@ int main(void)
         in[0] = 30000;
         qd_run(IMP[k].which, in, a, n, IMP[k].bpm, 4096);
         cr_fx_ref_run(IMP[k].which, in, b, n, IMP[k].bpm, 4096);
-        compare(IMP[k].name, a, b, n);
+        if (IMP[k].which == BE_FX_DELAY)
+            compare_close(IMP[k].name, a, b, n, IMP[k].gold);
+        else
+            compare(IMP[k].name, a, b, n);
+    }
+    {   /* P2.6e: the line's length: a synced dotted quarter (750 ms) at 120 BPM at its true length; a half note (1 s,
+         * past the longest) at half; the longest free time */
+        uint32_t l, r, l2;
+        qd_reset(120, 4096);
+        qd_fx_set(QD_FXP_DSYNC, 1);
+        qd_fx_set(QD_FXP_DDIV, 11);
+        xf_delay_times(&l, &r);
+        qd_fx_set(QD_FXP_DDIV, 12);
+        xf_delay_times(&l2, &r);
+        printf("  %s the line: %u samples a side (%u ms at 22.05 kHz, longest free time %u ms); 1/4. at 120 BPM %u "
+               "(750 ms), 1/2 %u (half: past it)\n", l == 16538u && l2 == 11025u ? "ok  " : "FAIL", (unsigned)XD_N,
+               (unsigned)(XD_MAX * 1000u / XD_FS), (unsigned)XD_MS_MAX, (unsigned)l, (unsigned)l2);
+        bad += !(l == 16538u && l2 == 11025u);
     }
     /* Output Clean: a loud chord-like sum (over the limiter's threshold) with a hit at 0.5 s, then silence */
     for (k = 0; k < 2u; k++) {
@@ -176,7 +226,7 @@ int main(void)
     }
     qd_chain(in, a, n, 120, 3000);
     cr_fx_ref_chain(in, b, n, 120, 3000);
-    compare("the chain: bursts into every send and the mix", a, b, n);
+    compare_close("the chain: bursts into every send and the mix", a, b, n, GOLD_CHAIN);
     for (i = n - 44100u; i < n; i++)
         if (a[2u * i] || a[2u * i + 1u])
             break;
@@ -225,6 +275,6 @@ int main(void)
         printf("       DRIVE's host cost: %.0f ns a 32-sample block (%.3f %% of one core a driven voice)\n", ns,
                ns / (32.0 / 44100.0 * 1e9) * 100.0);
     }
-    printf("test_fx_bitexact: %s\n", bad ? "DIFFERENCES" : "all identical");
+    printf("test_fx_bitexact: %s\n", bad ? "DIFFERENCES" : "all identical (the delay: close to ChoralRoot, FIZZ's goldens)");
     return bad ? 1 : 0;
 }

@@ -151,15 +151,19 @@ _Static_assert(CTL == 32, "cr_fx.c: a block is 32 samples (the ramps' shifts)");
 #define XF_NH (CTL / 2u)                  /* a block at the half rate */
 #define XF_IN 1u                          /* the lines' scale: the send >> 1 (xd_sat's comment) */
 
-#ifndef XD_N
-#define XD_N (32768u / CR_FX_DELAY_DS)    /* a delay line, samples (int16): 0.743 s at 44.1 kHz; at the half rate
-                                           * (CR_FX_DELAY_DS 2) half the samples for the same 0.743 s, 65 KB of POOL
-                                           * back (XD_N=32768 with it: 1.49 s in the same memory) */
-#endif
-#define XD_M (XD_N - 1u)
+/* FIZZ P2.6e (the owner: 32 KB, and the longest time near a second): THE LINES STORED COMPACTLY. Each line keeps
+ * one sample for every two of the delay's (their mean: a gentle low-pass in), as 12 bits (two samples in three bytes,
+ * rounded), and its reads interpolate between them (linear: a low-pass out). XD_SN stored samples a line, a multiple
+ * of a block's eight (a block's writes never wrap); 2 x XD_SN of the delay's samples: 0.99 s at 22.05 kHz in 2 x 16380
+ * bytes. Repeats a shade darker (the line's band ~5.5 kHz) and 12-bit (-72 dB) on every pass: as an analogue delay.
+ * Not ChoralRoot's bit for bit any more (its 16-bit line, 0.74 s in 64 KB) */
+#define XD_SN 10920u
+#define XD_BYTES (XD_SN * 3u / 2u)
+#define XD_N (2u * XD_SN)                 /* (the delay's samples a line holds) */
 #define XD_MAX (XD_N - 128u / CR_FX_DELAY_DS)   /* the longest time: the wow's swing (<= 89 samples at 44.1 kHz: a
                                            * time, so half as many at the half rate) and the interpolator's points
                                            * above it */
+_Static_assert(CR_FX_DELAY_DS == 2 && XD_SN % 8u == 0u, "the compact lines: the half rate, a block's eight stored");
 #define XD_MS_MAX (XD_MAX * 1000u / XD_FS > 1000u ? 1000u : XD_MAX * 1000u / XD_FS)   /* 740 ms (half rate: 1000) */
 
 static void xf_defaults(void)
@@ -201,7 +205,7 @@ static uint32_t xq_high_hz(uint32_t p)    /* XP_FHIGH 0..126 -> Hz: 200 .. 16640
 }
 
 /* ------------------------------------------------------------------ the state --- */
-static int16_t xd_buf[2][XD_N] __attribute__((section(".pool")));
+static uint8_t xd_buf[2][XD_BYTES] __attribute__((section(".pool")));
 
 /* the reverb's eight lines at SIZE 127, in samples at 22.05 kHz (57 .. 125 ms; primes, a ratio of ~1.12 from one to
  * the next; x XR_X at the full rate), in ONE ring: line i writes at w + base[i] and reads up to its length and
@@ -245,6 +249,7 @@ static struct {
                                                          * RAM: the loops read no constant from the flash) */
     /* the delay */
     uint32_t d_w, d_live;                 /* the write index; samples until the lines are known silent */
+    uint32_t d_ws;                        /* (P2.6e) the stored write index, 0 .. XD_SN - 1 */
     int32_t d_cur[2], d_wv, d_wt;         /* the gliding times (Q8); the wow now, its target */
     int32_t d_lp[2], d_hp[2], d_e[2][3];  /* the filters; the three products' remainders a side */
     int32_t d_fbc, d_kc, d_pm;            /* the feedback and the tone's k in use (eased a block at a time);
@@ -450,6 +455,40 @@ XF_AI uint32_t xf_seg(uint32_t p, uint32_t m, uint32_t left)
     uint32_t k = m + 1u - (p & m);
     return k < left ? k : left;
 }
+/* (P2.6e) stored sample i of line b (12 bits, two in three bytes), at the line's scale */
+XF_AI int32_t xd_get(const uint8_t *b, uint32_t i)
+{
+    const uint8_t *q = b + (i >> 1) * 3u;
+    const int32_t v = i & 1u ? (q[1] >> 4 | q[2] << 4) : (q[0] | (q[1] & 15) << 8);
+    return ((v ^ 2048) - 2048) * 16;
+}
+XF_AI void xd_put(uint8_t *b, uint32_t i, int32_t two)  /* the mean of two of the delay's samples (their sum), stored */
+{
+    uint8_t *q = b + (i >> 1) * 3u;
+    int32_t v = (two + 16) >> 5;
+    v = v > 2047 ? 2047 : v < -2048 ? -2048 : v;
+    if (i & 1u) {
+        q[1] = (uint8_t)((q[1] & 15) | (v & 15) << 4);
+        q[2] = (uint8_t)(v >> 4);
+    } else {
+        q[0] = (uint8_t)v;
+        q[1] = (uint8_t)((q[1] & 0xF0) | (v >> 8 & 15));
+    }
+}
+/* the line read d (Q8, the delay's samples) behind sample j of this block: the stored samples either side of it */
+XF_AI int32_t xd_read(const uint8_t *b, uint32_t ws, uint32_t j, int32_t d)
+{
+    const int32_t x = ((int32_t)(j << 8) - d - 128) >> 1;   /* (stored sample m is the mean of the delay's 2m, 2m + 1:
+                                                              * centred at 2m + 1/2) */
+    int32_t i = (int32_t)ws + (x >> 8), a, c;
+    uint32_t i1;
+    if (i < 0)
+        i += (int32_t)XD_SN;
+    i1 = (uint32_t)i + 1u == XD_SN ? 0u : (uint32_t)i + 1u;
+    a = xd_get(b, (uint32_t)i);
+    c = xd_get(b, i1);
+    return a + xf_tz8((c - a) * (x & 255));
+}
 /* n samples of the send (>> sh: XF_IN, or 0 behind the down-sampler) -> the stereo wet, added to ol, orr. n is a
  * block of the delay (XD_NB = 1 << XD_SH), and the write index a multiple of it: a block's writes never wrap.
  * THE SHAPE OF THE LOOPS (0.18's third build. The unit runs ~200 instructions a microsecond, and the first builds'
@@ -471,9 +510,10 @@ CR_HOT_FX XF_HOT void xd_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
     xf.d_wv = xf.d_wt;
     in = xf_reg(in);
     for (k = 0; k < 2u; k++) {
-        const int16_t *b = xf_reg(xd_buf[k]);
+        const uint8_t *b = xf_reg(xd_buf[k]);
         int32_t *f = xf_reg(xf.tf[k]), lp = xf.d_lp[k], hp = xf.d_hp[k], e0 = xf.d_e[k][0], e1 = xf.d_e[k][1];
-        int32_t cur = xf.d_cur[k], d = xf.d_tgt[k] - cur, s, t, a;
+        int32_t cur = xf.d_cur[k], d = xf.d_tgt[k] - cur, s, t, a, acc;
+        const uint32_t ws = xf.d_ws;
         if (d) {                                        /* the glide: a lag of 46 ms, at most half a sample a sample
                                                          * (the last 8 samples of the way: 1 / 256 a sample) */
             s = d >> (6 + XD_SH);
@@ -483,64 +523,21 @@ CR_HOT_FX XF_HOT void xd_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
         }
         s = d + dw;                                     /* the read's whole move over this block, Q8 */
         cur += wv;
-        if (!s && !(cur & 255) && cur >= XD_DMIN) {     /* at rest */
-            uint32_t p = w - ((uint32_t)cur >> 8);
-            for (j = 0; j < n;) {
-                const int16_t *bp = b + ((p + j) & XD_M) - j;
-                e = j + xf_seg(p + j, XD_M, n - j);
-                for (; j < e; j++) {
-                    a = bp[j];
-                    t = (a - lp) * kc + e0;             /* the tone's low-pass, its remainder kept (xf_lp) */
-                    e0 = t & 32767;
-                    lp += t >> 15;
-                    t = (lp - hp) * kh + e1;            /* the low cut */
-                    e1 = t & 32767;
-                    hp += t >> 15;
-                    f[j] = lp - hp;
-                }
-            }
-        } else if (((uint32_t)(cur + (s >> XD_SH)) >> 8) == ((uint32_t)(cur + s) >> 8) && cur + s >= XD_DMIN &&
-                   cur + (s >> XD_SH) >= XD_DMIN) {
-            /* drifting (the wow: an eighth of a sample a block at its most): between the same two samples all
-             * block, the fraction a ramp */
-            int32_t acc = cur << XD_SH;                 /* (< 2^23 << 5) */
-            uint32_t p = w - ((uint32_t)(cur + s) >> 8);
-            for (j = 0; j < n;) {
-                const int16_t *bp = b + ((p + j) & XD_M) - j, *bq = b + ((p + j - 1u) & XD_M) - j;
-                e = (p + j) & XD_M ? j + xf_seg(p + j, XD_M, n - j) : j + 1u;   /* (the ring's first sample: its
-                                                         * neighbour is the last) */
-                for (; j < e; j++) {
-                    acc += s;
-                    a = bp[j];
-                    a += xf_tz8((bq[j] - a) * ((acc >> XD_SH) & 255));
-                    t = (a - lp) * kc + e0;
-                    e0 = t & 32767;
-                    lp += t >> 15;
-                    t = (lp - hp) * kh + e1;
-                    e1 = t & 32767;
-                    hp += t >> 15;
-                    f[j] = lp - hp;
-                }
-            }
-        } else {                                        /* gliding (TIME, a division, the tempo): anywhere */
-            int32_t acc = cur << XD_SH;
-            for (j = 0; j < n; j++) {
-                uint32_t p;
-                acc += s;
-                d = acc >> XD_SH;
-                if (d < XD_DMIN)
-                    d = XD_DMIN;
-                p = w + j - ((uint32_t)d >> 8);
-                a = b[p & XD_M];
-                a += xf_tz8((b[(p - 1u) & XD_M] - a) * (d & 255));
-                t = (a - lp) * kc + e0;
-                e0 = t & 32767;
-                lp += t >> 15;
-                t = (lp - hp) * kh + e1;
-                e1 = t & 32767;
-                hp += t >> 15;
-                f[j] = lp - hp;
-            }
+        acc = cur << XD_SH;                             /* (P2.6e: one read for every case: between two stored
+                                                         * samples, the time a ramp over the block) */
+        for (j = 0; j < n; j++) {
+            acc += s;
+            d = acc >> XD_SH;
+            if (d < XD_DMIN)
+                d = XD_DMIN;
+            a = xd_read(b, ws, j, d);
+            t = (a - lp) * kc + e0;                     /* the tone's low-pass, its remainder kept (xf_lp) */
+            e0 = t & 32767;
+            lp += t >> 15;
+            t = (lp - hp) * kh + e1;                    /* the low cut */
+            e1 = t & 32767;
+            hp += t >> 15;
+            f[j] = lp - hp;
         }
         xf.d_lp[k] = lp;
         xf.d_hp[k] = hp;
@@ -550,8 +547,9 @@ CR_HOT_FX XF_HOT void xd_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
     }
     {
         const int32_t *f0 = xf_reg(xf.tf[0]), *f1 = f0 + CTL;
-        int16_t *b0 = xf_reg(&xd_buf[0][w & XD_M]), *b1 = b0 + XD_N;
-        int32_t e0 = xf.d_e[0][2], e1 = xf.d_e[1][2], x, t, wl, wr;
+        uint8_t *b0 = xf_reg(xd_buf[0]), *b1 = b0 + XD_BYTES;
+        const uint32_t ws = xf.d_ws;
+        int32_t e0 = xf.d_e[0][2], e1 = xf.d_e[1][2], x, t, wl, wr, hl = 0, hr = 0;
         if (pm == pt && !q) {                           /* the mode at rest: stereo (each side its own return) .. */
             int32_t g = XD_WET + pm * XD_WPP;           /* (65534 x 8680 < 2^31) */
             int32_t xm = pm ? 0 : -1;                   /* (R takes the input in stereo only) */
@@ -569,8 +567,10 @@ CR_HOT_FX XF_HOT void xd_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
                 t = f1[j] * fb + e1;
                 e1 = t & 32767;
                 wr = xd_sat((x & xm) + (t >> 15));
-                b0[j] = (int16_t)wl;
-                b1[j] = (int16_t)wr;
+                if (j & 1u)                             /* (P2.6e: a pair's mean stored) */
+                    xd_put(b0, ws + (j >> 1), hl + wl), xd_put(b1, ws + (j >> 1), hr + wr);
+                else
+                    hl = wl, hr = wr;
                 pk |= (wl ^ (wl >> 31)) | (wr ^ (wr >> 31));
                 ol[j] += (f0[j] * g) >> 12;
                 orr[j] += (f1[j] * g) >> 12;
@@ -586,8 +586,10 @@ CR_HOT_FX XF_HOT void xd_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
                 wr = a + c - wl;
                 wl = xd_sat(x + (q ? xf_tz15(wl * fb) : xf_rs(wl * fb, &e0, 15)));
                 wr = xd_sat(x - xf_tz8(x * pm) + (q ? xf_tz15(wr * fb) : xf_rs(wr * fb, &e1, 15)));
-                b0[j] = (int16_t)wl;
-                b1[j] = (int16_t)wr;
+                if (j & 1u)
+                    xd_put(b0, ws + (j >> 1), hl + wl), xd_put(b1, ws + (j >> 1), hr + wr);
+                else
+                    hl = wl, hr = wr;
                 pk |= (wl ^ (wl >> 31)) | (wr ^ (wr >> 31));
                 g = XD_WET + pm * XD_WPP;
                 ol[j] += (a * g) >> 12;
@@ -599,6 +601,7 @@ CR_HOT_FX XF_HOT void xd_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
         xf.d_e[1][2] = e1;
     }
     xf.d_w = w + n;
+    xf.d_ws = xf.d_ws + n / 2u >= XD_SN ? xf.d_ws + n / 2u - XD_SN : xf.d_ws + n / 2u;
     xf.d_q = pk < 2;
     if (pk | st)
         xf.d_live = XD_N + 2u * XD_NB;

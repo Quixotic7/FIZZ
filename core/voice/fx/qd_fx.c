@@ -40,10 +40,6 @@
 #include "cr_ram.h"                     /* (the CR_HOT_* markers: nothing on the host) */
 #include "fz_voice.h"                   /* (fz_dsp.h, fz_chorus_block) */
 #include "fz_out.c"
-#define XD_N 8192u                      /* P2.6e: the delay's two lines at 8192 samples each (32 KB, was 64 KB), on every
-                                         * profile (the host's sounds as the unit's): at the half rate 368 ms the longest
-                                         * time (was 1000); a free time past it is clamped (xf_ms), a synced division
-                                         * past it plays at half (cr_fx.c) */
 #include "cr_fx.c"
 #undef __attribute__
 #if defined(__clang__)
