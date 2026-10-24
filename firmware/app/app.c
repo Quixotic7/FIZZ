@@ -161,7 +161,9 @@ extern int8_t clock_fix;                 /* (main_fm1.c: 0 the clock was stock, 
 static uint32_t clock_boot[6];           /* (main_fm1.c's, later in the unity build) */
 #endif
 /* (P2.7) the screen's and the LEDs' counters (stats line 7) */
-static uint32_t fz_arena_free_min = 0xFFFFFFFFu;   /* (P2.8: the arena's free room when a frame began, the least) */
+static uint32_t fz_arena_free_min = 0xFFFFFFFFu;
+static uint32_t fz_frame_rows0, fz_st_cap0, fz_span_max, fz_span_n, fz_span_over, fz_frame_rows_max, fz_frames_over_stash;
+static uint64_t fz_span_sum;             /* (P2.11: the frames' send spans) */   /* (P2.8: the arena's free room when a frame began, the least) */
 static uint32_t fz_rows_sent, fz_bursts, fz_burst_rows, fz_burst_max, fz_frame_bursts, fz_frame_bursts_max, fz_st_full,
     fz_st_drops, fz_st_none, fz_st_cap_min = 240u, fz_frames_sent, fz_led_looks, fz_led_writes, fz_dl_drops;
 #define FZ_MQ 128u                       /* MIDI's channel messages' UI part for the main loop, with their time */
@@ -585,6 +587,11 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "no_stash=", fz_st_none);
     c = fz_put_u(c, "stash_rows_min=", fz_st_cap_min);
     c = fz_put_u(c, "arena_free_min_b=", fz_arena_free_min);
+    c = fz_put_u(c, "send_span_avg_us=", fz_us(fz_span_n ? fz_span_sum / fz_span_n : 0u));
+    c = fz_put_u(c, "send_span_max_us=", fz_us(fz_span_max));
+    c = fz_put_u(c, "frames_span_over_16ms=", fz_span_over);
+    c = fz_put_u(c, "frame_rows_max=", fz_frame_rows_max);
+    c = fz_put_u(c, "frames_over_stash=", fz_frames_over_stash);
     c = fz_put_u(c, "rows_sent=", fz_rows_sent);
     {
         uint32_t rec, outg, mx;
@@ -700,6 +707,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
             fz_frames_sent = fz_rows_sent = fz_led_looks = fz_led_writes = 0;
             fz_st_cap_min = 240u;
             fz_arena_free_min = 0xFFFFFFFFu;
+            fz_span_max = fz_span_n = fz_span_over = fz_frame_rows_max = fz_frames_over_stash = 0, fz_span_sum = 0;
 #ifndef PLAT_HOST
             t5_gap_max = t5_late = t5_run_max = 0;
 #endif
@@ -884,9 +892,12 @@ static void fz_stash_release(void)       /* (the arena's release hook: a borrow 
  * fz_st_busy is where it starts, and a row written there first waits for it (fz_stash_row); the frame's end, and
  * anything else that touches the LCD, waits too (lcd.c). A frame that overflows the stash so keeps drawing while its
  * rows go out, instead of waiting for each burst */
+static uint32_t fz_send_t0;              /* (P2.11: when the frame's first row went out; 0: none yet) */
 static void fz_send_stash(void)
 {
     const uint32_t t0 = plat_ticks24();
+    if (!fz_send_t0 && fz_st_n)
+        fz_send_t0 = t0 | 1u;
     uint32_t i = 0, d;
     if (!fz_st_n)
         return;
@@ -940,6 +951,8 @@ static void fz_strip_out(void *ctx, int y0, int rows, const uint16_t *px)   /* o
             last = r;
         }
     }
+    if (first >= 0 && !fz_send_t0)
+        fz_send_t0 = plat_ticks24() | 1u;
     if (first >= 0) {                    /* (no stash: the changed rows from where FIZZ drew them, as before P2.7) */
         lcd_blit(0, (uint32_t)(y0 + first), 240, (uint32_t)(last - first + 1), px + 240 * first);
         fz_rows_sent += (uint32_t)(last - first + 1);
@@ -1007,6 +1020,7 @@ static void fz_draw(int all)
         fz_st_cap_min = fz_st_cap;
     fz_st_n = 0;
     fz_frame_bursts = 0;
+    fz_frame_rows0 = fz_rows_sent, fz_send_t0 = 0, fz_st_cap0 = fz_st ? fz_st_cap : 0u;
     fz_in_frame = 1;
     fz_strip_t = plat_ticks24();
     fz_frame(fz_strip_out, 0, all);
@@ -1033,6 +1047,21 @@ static void fz_draw(int all)
 #endif
     if (fz_frame_bursts > fz_frame_bursts_max)
         fz_frame_bursts_max = fz_frame_bursts;
+    {   /* (P2.11) the frame's send span: its first row out to its last (the window a panel refresh can cut: a tear),
+         * and its rows; frames whose span passes a 60 Hz refresh (16.7 ms) */
+        const uint32_t rows = fz_rows_sent - fz_frame_rows0;
+        if (fz_send_t0) {
+            const uint32_t sp = plat_ticks24() - fz_send_t0;
+            fz_span_sum += sp, fz_span_n++;
+            if (sp > fz_span_max)
+                fz_span_max = sp;
+            fz_span_over += sp > 16700u * PLAT_TICKS_PER_US;
+        }
+        if (rows > fz_frame_rows_max)
+            fz_frame_rows_max = rows;
+        fz_frames_over_stash += fz_st_cap && rows > fz_st_cap0;
+        fz_send_t0 = 0;
+    }
     fz_frames_sent++;
     d = plat_ticks24() - t0;
     fz_prof.frame += d;
