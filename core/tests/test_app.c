@@ -951,6 +951,80 @@ static void t_busy(void)
            A.pool.nvoice, own, cross, drops, A.pool.starts);
 }
 
+/* P2.6: ONE INSTANT A FRAME (the device's strips, the fast drawing: the frame recorded once, every strip from it). A
+ * frame drawn while, between its strips, the clock runs on (9 ms a strip) and PLAY is pressed: the same pixels as that
+ * frame drawn with nothing in between (the same session again). And the strips' hashes: a strip the mask says is
+ * unchanged draws the last frame's very pixels */
+static uint16_t LA[QD_W * QD_H], LB[QD_W * QD_H], LP[QD_W * QD_H];
+static int inj_on, inj_k;
+static void cap(void *ctx, int y0, int rows, const uint16_t *px)
+{
+    uint16_t *to = (uint16_t *)ctx;
+    int k;
+    memcpy(to + (size_t)y0 * QD_W, px, (size_t)rows * QD_W * sizeof *px);
+    if (!inj_on)
+        return;
+    for (k = 0; k < 9; k++)                             /* (the platform between two strips: the clock, a press) */
+        qd_app_tick(&A, ++now);
+    if (inj_k++ == 1) {
+        qd_app_button(&A, QD_B_PLAY, 1);
+        qd_app_tick(&A, ++now);
+        qd_app_button(&A, QD_B_PLAY, 0);
+    }
+}
+static void t_instant(void)
+{
+    uint32_t nr0, nr1, nl, mb, m, f, unchanged = 0, bad = 0, drawn = 0;
+    int k;
+    if (QD_STRIP_H >= QD_H) {
+        printf("  one instant a frame: (the host draws the whole screen at once)\n");
+        return;
+    }
+    fresh();
+    run(2500, 0);
+    qd_dl_stats(&nr0, &nl, &mb);
+    inj_on = 1, inj_k = 0;
+    qd_app_frame_strips(&A, 0, cap, LA);                /* the clock and PLAY between its strips */
+    inj_on = 0;
+    qd_dl_stats(&nr1, &nl, &mb);
+    if (nr1 == nr0) {
+        printf("  one instant a frame: (this drawing draws its strips live: plutovg)\n");
+        return;
+    }
+    qd_app_frame_strips(&A, 0, cap, LP);                /* (the next frame: the press and the 45 ms shown) */
+    fresh();
+    run(2500, 0);
+    qd_app_frame_strips(&A, 0, cap, LB);                /* the same instant, nothing in between */
+    CHECK(!memcmp(LA, LB, sizeof LA) && memcmp(LP, LB, sizeof LP),
+          "P2.6: a frame drawn while the clock ran 45 ms and PLAY was pressed between its strips: the latched instant's "
+          "pixels (%s), the next frame the new ones (%s)", memcmp(LA, LB, sizeof LA) ? "differ" : "the same",
+          memcmp(LP, LB, sizeof LP) ? "moved" : "not moved");
+    fresh();                                            /* the strips' hashes: the step view playing */
+    qd_app_show(&A, QD_MODE_STEP, QD_VIEW_EDIT);
+    qd_app_play(&A);
+    run(500, 0);
+    for (f = 0; f < 150u; f++) {
+        run(33, 0);
+        qd_app_frame_strips_changed(&A, &m);
+        qd_app_frame_strips(&A, 0, cap, LB);
+        for (k = 0; f && k < QD_H / QD_STRIP_H; k++) {
+            if ((m >> k) & 1u) {
+                drawn++;
+                continue;
+            }
+            unchanged++;
+            bad += memcmp(LB + (size_t)k * QD_STRIP_H * QD_W, LP + (size_t)k * QD_STRIP_H * QD_W,
+                          (size_t)QD_STRIP_H * QD_W * sizeof LB[0]) != 0;
+        }
+        memcpy(LP, LB, sizeof LP);
+    }
+    CHECK(!bad && unchanged > 0, "P2.6: the strips' hashes: %u strips said unchanged, %u of them not the last frame's "
+          "pixels (%u changed)", unchanged, bad, drawn);
+    qd_dl_stats(&nr1, &nl, &mb);
+    printf("  one instant a frame: strips drawn from one instant whatever comes between them; the step view playing: "
+           "%u of %u strips unchanged (the largest list %u B)\n", unchanged, unchanged + drawn, mb);
+}
+
 int main(void)
 {
     uint64_t h1, h2;
@@ -981,6 +1055,7 @@ int main(void)
     t_fizz();
     t_split();
     t_busy();
+    t_instant();
     h1 = session_seq();
     h2 = session_seq();
     CHECK(h1 == h2, "two runs of the sequencer's session differ");

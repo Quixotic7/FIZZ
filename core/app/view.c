@@ -2080,26 +2080,46 @@ extern int qd_view_strip_check;
 extern uint32_t qd_view_strip_frames, qd_view_strip_bad, qd_view_strip_px;
 
 typedef void (*qd_strip_fn)(void *ctx, int y0, int rows, const uint16_t *px);
-static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_strip_fn out, void *ctx);
-void qd_view_frame(qd_app_t *a, uint16_t *lcd_be) { view_frame(a, lcd_be, 0, 0, 0); }
+static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_strip_fn out, void *ctx, uint32_t mask);
+void qd_view_frame(qd_app_t *a, uint16_t *lcd_be) { view_frame(a, lcd_be, 0, 0, 0, 0xFFFFFFFFu); }
 /* P2.1: the frame strip by strip into one strip's rows, out after each (the device's LCD: no whole frame in RAM);
- * P2.1b: rows_be 0: each strip in place, in the core's own strip surface */
-void qd_view_frame_strips(qd_app_t *a, uint16_t *rows_be, qd_strip_fn out, void *ctx)
+ * P2.1b: rows_be 0: each strip in place, in the core's own strip surface. P2.6: only the strips in mask (bit k: rows
+ * k x QD_STRIP_H ..), all of them from one instant (the frame recorded once: qd_gfx_rec.c) */
+void qd_view_frame_strips(qd_app_t *a, uint16_t *rows_be, qd_strip_fn out, void *ctx, uint32_t mask)
 {
-    view_frame(a, 0, rows_be, out, ctx);
+    view_frame(a, 0, rows_be, out, ctx, mask);
 }
 
-static int vf_hash;                                     /* (P2.4: the frame's calls hashed, nothing drawn) */
+static int vf_hash, vf_rec;                             /* (P2.4: the frame's calls hashed, nothing drawn; P2.6: the
+                                                         * frame being recorded) */
+/* P2.6: the frame recorded now (its instant: every strip drawn later is this one), its strips' hashes into sh (n of
+ * them): 1; no list (no room, or not the device's fast drawing): 0, the frame's hash (P2.4's way) in sh[0] */
+int qd_view_frame_hashes(qd_app_t *a, uint32_t *sh, int n)
+{
+    vf_rec = 1;
+    view_frame(a, 0, 0, 0, 0, 0);
+    vf_rec = 0;
+    if (qd_dl_kept()) {
+        qd_dl_strip_hashes(sh, n, qd_strip_rows());
+        return 1;
+    }
+    qd_hash_begin();
+    vf_hash = 1;
+    view_frame(a, 0, 0, 0, 0, 0);
+    vf_hash = 0;
+    sh[0] = qd_hash_end();
+    return 0;
+}
 uint32_t qd_view_frame_hash(qd_app_t *a)
 {
     qd_hash_begin();
     vf_hash = 1;
-    view_frame(a, 0, 0, 0, 0);
+    view_frame(a, 0, 0, 0, 0, 0);
     vf_hash = 0;
     return qd_hash_end();
 }
 
-static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_strip_fn out, void *ctx)
+static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_strip_fn out, void *ctx, uint32_t mask)
 {
     static ui_lane_t lv;
     static ui_held_t hv;
@@ -2126,9 +2146,25 @@ static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_stri
     }
     if (qd_ctl_shift(a) && u->tk != UI_TK_TAP && !qd_type_open(a))
         ui_ape_prewarm(qd_seq_ext_running(&a->seq));                               /* 0.9.2.1: SHIFT held (B6 may come): the TAP ape's first poses */
-    for (y0 = 0; y0 < QD_H; y0 += qd_strip_rows()) {    /* P2.1: the screen in strips (the host: one, the whole) */
-        qd_begin_strip(y0);
+    if (!out && !vf_rec)
+        qd_dl_drop();                                   /* (a whole frame (qd_app_frame): its own instant, now; a list
+                                                         * kept is for the strips' call after qd_app_frame_strips_changed) */
+    if ((vf_rec || !qd_dl_kept()) && qd_strip_rows() < QD_H && qd_dl_begin()) {   /* P2.6: ONE INSTANT A FRAME: its
+                                                         * drawing calls recorded once (a list kept from
+                                                         * qd_view_frame_hashes: that instant), every strip from them */
         view_draw(a, &lv, &hv, &tv, &yv, &sv, &bv, &mv, &sv5, &xv, &brv, &tyv, &pjv, &fv, &mfv);
+        qd_dl_end();
+    }
+    if (vf_rec)
+        return;
+    for (y0 = 0; y0 < QD_H; y0 += qd_strip_rows()) {    /* P2.1: the screen in strips (the host: one, the whole) */
+        if (!((mask >> (y0 / qd_strip_rows())) & 1u))
+            continue;                                   /* (P2.6: the caller keeps this strip as it is) */
+        qd_begin_strip(y0);
+        if (qd_dl_kept())
+            qd_dl_play();
+        else                                            /* (no list: drawn live, as before) */
+            view_draw(a, &lv, &hv, &tv, &yv, &sv, &bv, &mv, &sv5, &xv, &brv, &tyv, &pjv, &fv, &mfv);
         if (out) {
             const int rows = QD_H - y0 < qd_strip_rows() ? QD_H - y0 : qd_strip_rows();
             const uint16_t *px = qd_end_strip_rows(rows_be);
@@ -2137,6 +2173,7 @@ static void view_frame(qd_app_t *a, uint16_t *lcd_be, uint16_t *rows_be, qd_stri
             qd_end_strip(lcd_be);
         }
     }
+    qd_dl_drop();
 #ifndef QD_TARGET_FM1                                   /* (the host's test only: not on the unit) */
     if (qd_view_strip_check && lcd_be) {                /* (render_frames --strips: the same frame in the device's strips) */
         static uint16_t lcd[QD_W * QD_H];

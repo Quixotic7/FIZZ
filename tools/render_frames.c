@@ -211,6 +211,12 @@ static int strips_report(void)
 #ifdef QD_DEVICE
     printf("render_frames: the drawing's arena: peak %lu of %lu bytes, %u failed; the glyph cache emptied %u times\n",
            (unsigned long)qd_arena_peak(), (unsigned long)qd_arena_size(), qd_arena_fails(), plutovg_glyph_cache_clears);
+    {   /* P2.6: the frames recorded once, every strip from them (the fast drawing; plutovg draws them live) */
+        uint32_t nr, nl, mb;
+        qd_dl_stats(&nr, &nl, &mb);
+        printf("render_frames: one instant a frame: %u frames recorded, %u drawn live (no room), the largest list %u B\n",
+               nr, nl, mb);
+    }
 #ifdef QD_ARENA_SITES
     qd_arena_sites();
 #endif

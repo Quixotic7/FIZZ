@@ -41,6 +41,19 @@ enum { QD_LEFT, QD_CENTER, QD_RIGHT };
 /* ---- the frame */
 int qd_init(void);              /* once (idempotent): the surface, the fonts; 0 on failure */
 void qd_shutdown(void);
+/* P2.6: one instant a frame (qd_gfx_rec.c): the screen's drawing calls recorded once into a display list, every
+ * strip drawn from it (qd_dl_play after qd_begin_strip). qd_dl_begin: 0 no list (no room; the host, plutovg: the
+ * frame drawn live); qd_dl_end: 1 the list is whole (else dropped). The list's hash, one a strip (the calls that touch
+ * strip k: rows k x rows ..); qd_dl_kept: a list there (until qd_dl_drop, or the arena wants its room back) */
+int qd_dl_begin(void);
+int qd_dl_end(void);
+int qd_dl_kept(void);
+uint32_t qd_dl_bytes(void);
+void qd_dl_play(void);
+void qd_dl_strip_hashes(uint32_t *h, int n, int rows);
+void qd_dl_drop(void);
+void qd_dl_stats(uint32_t *recorded, uint32_t *outgrown, uint32_t *max_bytes);   /* (frames recorded; not: no room or
+                                                         * outgrown; the largest list) */
 void qd_hash_begin(void);        /* P2.4: a frame hashed, nothing drawn: the calls up to qd_hash_end go into a hash */
 uint32_t qd_hash_end(void);     /* .. its value (the same hash: the same pixels) */
 void qd_begin(void);            /* clear to black, reset the state (identity, alpha 1, no clip, width 1, round, no dash) */

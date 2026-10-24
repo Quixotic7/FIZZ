@@ -34,6 +34,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "qd_gfx_be.h"                         /* (P2.6: the drawing calls as qdb_*: qd_gfx_rec.c in front) */
 #include "qd_gfx.h"
 #include "../qd_config.h"
 #include "qd_fast_font.h"
@@ -1957,3 +1958,6 @@ int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *
             return 0;
     return h > 0;
 }
+
+/* P2.6: the public calls, and the frame recorded once, every strip drawn from it */
+#include "qd_gfx_rec.c"

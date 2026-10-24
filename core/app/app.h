@@ -123,6 +123,7 @@ typedef struct qd_app {
     uint32_t seed_fix;                 /* P2.4: qd_app_seed's (0: the clock's) */
     uint32_t frame_hash;               /* P2.4: qd_app_frame_changed's last frame .. */
     int frame_hash_ok;
+    uint32_t strip_hash[240 / QD_STRIP_DEV + 1];   /* P2.6: .. its strips' (240: the screen's rows) */
     /* the sound */
     qd_model_t model;
     qd_pool_t pool;
@@ -173,6 +174,13 @@ void qd_app_frame(qd_app_t *a, uint16_t *lcd_be);
  * every call that would draw hashed (the paths, the transforms, the alpha, the colours, the texts): 1 changed (or the
  * first), 0 the same pixels as before, the frame can be skipped. Call it once a frame, before drawing (the host: 1) */
 int qd_app_frame_changed(qd_app_t *a);
+/* P2.6: the same, a strip at a time: the frame is taken now (its instant: the qd_app_frame_strips* call after this
+ * draws this very frame, whatever the clock and the input do meanwhile), *mask gets bit k for strip k (rows k x
+ * QD_STRIP_H ..) when it would draw other pixels than the last frame's; returns *mask != 0 (the host: every strip) */
+int qd_app_frame_strips_changed(qd_app_t *a, uint32_t *mask);
+/* P2.6: qd_app_frame_strips for the strips in mask only (the others are not drawn, not given to out) */
+void qd_app_frame_strips_mask(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
+                              void *ctx, uint32_t mask);
 /* P2.1: .. or strip by strip (QD_STRIP_H rows: the device's 20; the host's one strip, the whole), each written into
  * strip_be (240 x QD_STRIP_H) and then given to out (its first row, its rows, its pixels): no whole frame in RAM.
  * P2.1b: strip_be 0: each strip written in place, in the core's own strip surface (px), good until out returns (the

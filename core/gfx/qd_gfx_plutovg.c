@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "plutovg.h"
+#include "qd_gfx_be.h"                         /* (P2.6: the drawing calls as qdb_*: qd_gfx_rec.c in front) */
 #include "qd_gfx.h"
 #include "../qd_config.h"                 /* (P2.1: before the fonts: QD_FONTS3) */
 #include "fonts_gen.h"
@@ -783,3 +784,6 @@ float qd_text(const char *utf8, float x, float y, const qd_font *f)
     qd_paint(QD_NONE, 0.f, f->col);
     return w;
 }
+
+/* P2.6: the public calls, and the frame recorded once, every strip drawn from it */
+#include "qd_gfx_rec.c"

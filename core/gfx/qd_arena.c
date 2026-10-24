@@ -287,6 +287,13 @@ size_t qd_arena_live(void) { return ar_live; }
 size_t qd_arena_size(void) { return sizeof ar_mem; }
 unsigned qd_arena_fails(void) { return ar_fails; }
 void qd_arena_set_release(void (*fn)(void)) { ar_rel = fn; }
+void *qd_arena_try(size_t n)
+{
+    const uint32_t f = ar_fails;
+    void *p = qd_arena_malloc(n);
+    ar_fails = f;
+    return p;
+}
 void *qd_arena_lend(size_t n)
 {
     void *p;

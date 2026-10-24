@@ -365,24 +365,49 @@ void qd_app_tick(qd_app_t *a, uint32_t ms)
 /* ---------------------------------------------------------------- out --- */
 void qd_app_frame(qd_app_t *a, uint16_t *lcd_be) { qd_view_frame(a, lcd_be); }
 
-int qd_app_frame_changed(qd_app_t *a)
+int qd_app_frame_strips_changed(qd_app_t *a, uint32_t *mask)
 {
+    const int n = (QD_H + QD_STRIP_H - 1) / QD_STRIP_H;
+    const uint32_t all = n >= 32 ? 0xFFFFFFFFu : (1u << n) - 1u;
 #ifdef QD_DEVICE
-    const uint32_t h = qd_view_frame_hash(a);           /* (the screen's calls once, nothing drawn: gfx qd_hash_*) */
-    const int changed = !a->frame_hash_ok || h != a->frame_hash;
-    a->frame_hash = h;
+    uint32_t sh[QD_H / QD_STRIP_DEV + 1];
+    uint32_t m = 0;
+    int k;
+    if (qd_view_frame_hashes(a, sh, n)) {               /* (P2.6: the frame recorded: its strips' hashes) */
+        for (k = 0; k < n; k++)
+            if (!a->frame_hash_ok || sh[k] != a->strip_hash[k])
+                m |= 1u << k;
+        memcpy(a->strip_hash, sh, (size_t)n * sizeof sh[0]);
+        a->frame_hash = sh[0] ^ (uint32_t)n;
+    } else {                                            /* (no list: the whole frame's hash, P2.4's) */
+        m = !a->frame_hash_ok || sh[0] != a->frame_hash ? all : 0u;
+        a->frame_hash = sh[0];
+        memset(a->strip_hash, 0, sizeof a->strip_hash);
+    }
     a->frame_hash_ok = 1;
-    return changed;
+    *mask = m;
+    return m != 0;
 #else
     (void)a;
-    return 1;                                           /* (the host's cached layers (the TAP ape) are built while
+    *mask = all;                                        /* (the host's cached layers (the TAP ape) are built while
                                                          * drawing: every frame drawn) */
+    return 1;
 #endif
+}
+int qd_app_frame_changed(qd_app_t *a)
+{
+    uint32_t m;
+    return qd_app_frame_strips_changed(a, &m);
+}
+void qd_app_frame_strips_mask(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
+                              void *ctx, uint32_t mask)
+{
+    qd_view_frame_strips(a, strip_be, out, ctx, mask);
 }
 void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
                          void *ctx)
 {
-    qd_view_frame_strips(a, strip_be, out, ctx);
+    qd_view_frame_strips(a, strip_be, out, ctx, 0xFFFFFFFFu);
 }
 
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out) { qd_ctl_leds(a, out); }
