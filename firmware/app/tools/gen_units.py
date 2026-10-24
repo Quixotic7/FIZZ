@@ -69,6 +69,26 @@ PROF = {
 }
 
 
+# P2.10: the display list given back down to its length once recorded (until the core does it in qd_dl_end: asked of
+# the FIZZ agent): in the drawing's own unit, after its source (qd_gfx_rec.c's list, rl_*), so the screen's stash gets
+# the rest of the arena and the list never has to be small
+DL_SHRINK = [
+    "#if defined(QD_DEVICE) && defined(QD_GFX_FAST)",
+    "void fz_dl_shrink(void);",
+    "void fz_dl_shrink(void)",
+    "{",
+    "    if (rl_buf && !rl_on && rl_len + 64u < rl_cap) {",
+    "        const int was = qd_arena_use(1);",
+    "        uint8_t *q = (uint8_t *)qd_arena_realloc(rl_buf, rl_len ? rl_len : 8u);",
+    "        qd_arena_use(was);",
+    "        if (q)",
+    "            rl_buf = q, rl_cap = rl_len ? rl_len : 8u;",
+    "    }",
+    "}",
+    "#endif",
+]
+
+
 def prof_wrap(stem):
     """the lines before and after the source's include: the functions renamed, then their timed stand-ins"""
     if stem not in PROF:
@@ -110,6 +130,8 @@ def main():
             lines += pre
             lines.append(f'#include "{rel.as_posix()}"')
             lines += post
+            if src.stem == "qd_gfx_fast":
+                lines += DL_SHRINK
             want[stem + ".c"] = "\n".join(lines) + "\n"
     for f in out.glob("*.c"):
         if f.name not in want:

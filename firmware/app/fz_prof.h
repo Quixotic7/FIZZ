@@ -30,6 +30,9 @@ typedef struct {
     uint64_t a_out;           /* .. app.c: MASTER's gain and the 24-bit output */
     uint64_t a_midi;          /* .. app.c: MIDI in (fm1-base's queue, qd_app_midi_play) */
     uint64_t a_split_n;       /* halves made by the port's split (else qd_app_audio's) */
+    uint64_t draw;            /* P2.10: a frame's strips drawn (the list replayed, or drawn live), between the strips' outs */
+    uint64_t lcd_wait;        /* P2.10: waits for the LCD (a transfer still reading what is written next) */
+    uint64_t input_in_frame;  /* P2.10: the input between a frame's strips (the clock, the panel, MIDI, the LEDs) */
     uint64_t check;           /* P2.5: qd_app_frame_changed (the screen's logic once, nothing drawn) */
     uint64_t store;           /* P2.5: qd_persist_step (the store's writes) */
     uint32_t n_raster, n_blend, n_glyph, n_text, n_shapes, n_convert, n_frame, n_isr, n_check, n_skip, n_store;

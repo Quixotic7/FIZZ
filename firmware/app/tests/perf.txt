@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: MPL-2.0
+# P2.10: the owner's two slow screens, playing: a held step (the outline around the screen) and VEL's rider (a step
+# held after B2, VEL: the simulator's black key b1). Every frame from one instant (no list outgrown: drawn live) and the screen's bursts. Its counters:
+# fzstats (lines 1, 2 and 7). The simulator's times are the host's; the counts are the unit's.
+#   firmware/app/build/host/fizz-1core_host firmware/app/tests/perf.txt OUT
+expect fz_up 1
+wait 500
+tap PLAY
+wait 1500
+expect fz_playing 1
+sysex F0 7D 46 50 7F F7
+# a step held, playing (the outline)
+key w2 down
+wait 1500
+fzdraw
+shot perf-held.png
+# VEL: the rider
+key w2 up
+wait 200
+key b1 down
+wait 100
+key b1 up
+wait 200
+key w2 down
+wait 2500
+fzdraw
+shot perf-vel.png
+key w2 up
+wait 500
+expect fz_dl_outgrown 0
+expect fz_dl_recorded >50
+expect fz_lcd_stale 0
+expect fz_no_stash 0
+sysex F0 7D 46 50 F7

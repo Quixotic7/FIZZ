@@ -88,6 +88,7 @@ int fz_test_lend(uint32_t n);                      /* (the host's test: n bytes 
 extern uint32_t fz_dl_max, fz_dl_over12k, fz_strips_drawn, fz_strips_kept;
 int fz_dl_is_kept(void);
 void fz_dl_drop(void);
+void fz_dl_shrink(void);                           /* (P2.10, gen_units.py: the kept list down to its length) */
 void fz_dl_counts(uint32_t *recorded, uint32_t *outgrown, uint32_t *max_bytes);
 uint32_t fz_arena_free(void);
 int32_t fz_bench(int k, int note, int nblocks);    /* (qd_quad_bench) */
