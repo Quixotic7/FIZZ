@@ -153,6 +153,7 @@ static volatile uint8_t fz_in_render;    /* (P2.7, the screen's stash: a borrow 
 #ifndef FZ_VARIANT_ID
 #define FZ_VARIANT_ID 0u                 /* (build.py FZ_VARIANT: which of the speed bisect's builds this is) */
 #endif
+static uint32_t fz_speed_us, fz_init_us, fz_store_us;   /* (P2.12: the boot's parts, us) */
 static uint32_t fz_bench_render_us128, fz_bench_us128, fz_bench_loop_ns100, fz_mem_ns100[3], fz_loop_per_us100, fz_cpu_mhz, fz_bench_now_us128,
     fz_bench_now_n;
 static int32_t fz_bench_sum;
@@ -693,6 +694,9 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     /* 8 (P2.7): the speed, measured at boot */
     c = line;
     c = fz_put_u(c, "bench_wobble_us_per_128=", fz_bench_us128);
+    c = fz_put_u(c, "app_init_us=", fz_init_us);    /* (before USB starts: fm1-base runs app_init, then usb_start) */
+    c = fz_put_u(c, "boot_bench_us=", fz_speed_us);
+    c = fz_put_u(c, "store_start_us=", fz_store_us);
     c = fz_put_u(c, "bench_render_us_per_128=", fz_bench_render_us128);   /* (quad_render alone: ChoralRoot's span) */
     c = fz_put_u(c, "bench_now_us_per_128=", fz_bench_now_us128);   /* (7D 46 50 "BNCH": the bench again, now) */
     c = fz_put_u(c, "bench_now_runs=", fz_bench_now_n);
@@ -1299,9 +1303,12 @@ void app_init(void)
     for (p = _fz_ni_start; p < _fz_ni_end; p++)
         *p = 0;
 #endif
+    const uint32_t t_init = plat_ticks24();
     fz_speed();                          /* (before FIZZ starts: the bench's voice is its own, the app's set after) */
+    fz_speed_us = (plat_ticks24() - t_init) / PLAT_TICKS_PER_US;
     fz_panel_rate();
     fz_ok = (uint8_t)fz_init(APP_NAME " " APP_VERSION);
+    fz_init_us = (plat_ticks24() - t_init) / PLAT_TICKS_PER_US;   /* (P2.12: app_init's time; fm1-base starts USB after it) */
     fz_ticked = 0;
     fz_store_started = 0, fz_safe = 0, fz_wiped = -1;
     /* core 1, before the sound: not after a failed boot (fm1-base's boot guard counted the one before: a crash or the
@@ -1338,7 +1345,13 @@ static void fz_store_start(void)         /* the store, once, at the first screen
 void app_ui_init(void)
 {
     uint32_t i;
-    fz_store_start();
+    {
+        const uint32_t t = plat_ticks24();
+        const int was = fz_store_started;
+        fz_store_start();
+        if (!was)
+            fz_store_us = (plat_ticks24() - t) / PLAT_TICKS_PER_US;   /* (the store's start: after USB is up) */
+    }
     if (!fz_ok) {
         fz_message(fz_xdata_state() < 0 ? "FIZZ: ITS DATA IS ANOTHER BUILD'S" : "FIZZ NEEDS ITS DATA",
                    "RUN FIZZ_XDATA.PY OVER USB");
