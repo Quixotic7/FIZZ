@@ -80,8 +80,14 @@ if SINGLE and "FM1B_POOL_SPARE" not in os.environ:
 # its own (inlined) fails the build, unless its name starts with ? (a helper the core may not have). Calls in and
 # out are long calls already (FIZZ's units: -pi32v2-large-program). The design is ChoralRoot's (cr_ram.h: markers,
 # the object's section renamed), this code FIZZ's
-HOT = {"build_units_c_qd_fx.o": ["xf_reverb", "xf_delay", "out_master", "xq_block", "xc_block",
-                                 "fz_real_qd_fx_block", "qd_fx_block"]}
+# P2.15f: the drawing's busiest code, not the effects' (the unit: the drawing ~71 instructions a us, the frame's work its
+# cost; the effects run beside core 1's voices since the pipeline, their flash time mostly inside core 0's wait). A
+# FZ_HOT_FX=1 build puts the effects back
+HOT = {"build_units_c_qd_gfx_fast.o": ["qd_dl_play", "text_draw", "fill_path", "paint_setup", "acc_edge",
+                                       "qd_text_mask_rows", "quad_dev", "rect_dev"]}   # (qdb_rrect, qdb_circle: no room)
+if os.environ.get("FZ_HOT_FX") == "1":
+    HOT = {"build_units_c_qd_fx.o": ["xf_reverb", "xf_delay", "out_master", "xq_block", "xc_block",
+                                     "fz_real_qd_fx_block", "qd_fx_block"]}
 # (P2.8) the speed bisect: FZ_VARIANT=xip | o2 | crflags builds the voices' unit (quad_voice.c: the engine) another
 # way, into fizz-1core-VARIANT.fwsc, its id in stats line 8 (build=): xip (1) its render left in the flash, o2 (2) at
 # -O2 (in the flash too), crflags (3) with ChoralRoot's flags (-Os -ffunction-sections -fno-builtin: no -mcpu=r3, -mfprev1,
@@ -98,8 +104,9 @@ if SINGLE and not VARIANT:
 if VARIANT and VARIANT not in VARIANTS:
     raise SystemExit(f"FZ_VARIANT={VARIANT}: one of " + ", ".join(VARIANTS))
 DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS.get(VARIANT, 0)}u")
-if VARIANT == "o2ram":                           # (the render's 22.6 KB at -O2 fits only with the effects out)
-    HOT.pop("build_units_c_qd_fx.o")
+if VARIANT == "o2ram":                           # (the render's 22.6 KB at -O2 fits only with the effects out, and
+    HOT.pop("build_units_c_qd_fx.o", None)       # without the drawing's: the single-core build's region is the voices')
+    HOT.pop("build_units_c_qd_gfx_fast.o", None)
 # P2.15: the control block's begin (the sequencer, the player, the voices' starts, the owners' LFOs: branchy code that
 # missed the flash's cache, its spikes ~8x its average on the unit) in RAM too, in the dual build (the single-core
 # build's region is full); FZ_BEGIN_RAM=0 leaves it in the flash (the comparison)
