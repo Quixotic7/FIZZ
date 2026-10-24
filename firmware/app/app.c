@@ -649,6 +649,8 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
         c = fz_put_u(c, "c1_stack_b=", plat_cpu2_stack());
 #endif
         c = fz_put_u(c, "c1_jobs=", fz_c1s.jobs);
+        c = fz_put_u(c, "c1_voices_x10=", fz_c1s.jobs ? fz_c1s.c1_voices * 10u / (fz_c1s.jobs + fz_c1s.inline_jobs + fz_c1s.fallbacks) : 0u);
+        c = fz_put_u(c, "c0_voices_x10=", fz_c1s.jobs ? fz_c1s.c0_voices * 10u / (fz_c1s.jobs + fz_c1s.inline_jobs + fz_c1s.fallbacks) : 0u);
         c = fz_put_u(c, "c1_inline=", fz_c1s.inline_jobs);
         c = fz_put_u(c, "c1_fallbacks=", fz_c1s.fallbacks);
         c = fz_put_u(c, "c0_voices_us=", fz_us(fz_c1s.c0_ticks / nh));

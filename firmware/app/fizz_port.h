@@ -116,7 +116,7 @@ void fz_store_region(uint32_t *off, uint32_t *size);   /* (P2.13: the store's re
 /* (P2.14) the second core's work (fz_port.c fz_audio): jobs taken, run by core 0 instead (it was busy: inline; it was
  * given up: fallbacks), core 0's and core 1's voice time and core 0's wait (ticks) */
 typedef struct {
-    uint32_t jobs, inline_jobs, fallbacks, wait_max;
+    uint32_t jobs, inline_jobs, fallbacks, wait_max, c0_voices, c1_voices;   /* (voices: summed over the blocks) */
     uint64_t c0_ticks, c1_ticks, wait_ticks;
 } fz_c1_stats_t;
 extern fz_c1_stats_t fz_c1s;

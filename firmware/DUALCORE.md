@@ -209,10 +209,13 @@ faults, is late or does not answer plays on with one core, barred until power-of
 manager (`app/fz_dual.c`) was for, so the port uses fm1-base's directly and `fz_dual.c` is no longer built in (its host
 test stays, as a record of the protocol).
 
-- **The dual build** (`firmware/build.py`, fm1.toml `cpu2 = true`, `cpu2_fallback = true`): 16 voices. Each control
-  block: `qd_app_block_begin`; voices 8..15 handed to core 1 (`plat_cpu2_run`: `qd_app_block_voices` into bus B);
-  voices 0..7 on core 0 into bus A; `plat_cpu2_wait`; a job core 1 could not take, or dropped when it was given up,
-  rendered by core 0 then; `qd_app_block_end`. Started in `app_init` (fm1-base's rule: there or never, before the
+- **The dual build** (`firmware/build.py`, fm1.toml `cpu2 = true`, `cpu2_fallback = true`): 8 voices, as every build
+  (the owner, P2.14b: the voices on core 1 first, carried by core 0 once needed). Each control block:
+  `qd_app_block_begin`; the sounding voices split so core 1 has the larger half (the top of the pool's order down to
+  ceil(n / 2) sounding ones: `qd_app_block_voices` into bus B as its job, `plat_cpu2_run`); the rest on core 0 into bus
+  A; `plat_cpu2_wait`; a job core 1 could not take, or dropped when it was given up, rendered by core 0 then;
+  `qd_app_block_end`. The interrupt waits for the longer of the two halves, so an even split is its shortest. Any split
+  gives the same samples (the simulator: the dual and single-core builds sound alike, byte for byte). Started in `app_init` (fm1-base's rule: there or never, before the
   sound). The simulator runs the job at once: the sound is the same, sample for sample, with core 1 and without.
 - **What core 1 may do** (fm1-base's `fm1_cpu1.h`): one job at a time, from the flash (core 0 never turns the flash
   off with a job outstanding: the render waits for its job, and FIZZ's store writes only on the main loop); its stack

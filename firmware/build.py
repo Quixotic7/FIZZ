@@ -63,11 +63,9 @@ def jieli(rel):
 _tc = fb.tc
 SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
 # the owner (2026-10-23): 8 voices on one core, 16 when core 1 renders half (core/qd_config.h QD_VOICES_DEV)
-DEFS = ["-DFZ_SINGLE_CORE=1", "-DQD_VOICES_DEV=8"] if SINGLE else ["-DQD_VOICES_DEV=16", "-DFZ_FB_LO=88u",
-                                                                                   "-DFM1B_CPU2=1"]   # (P2.14:
-# the dual build's main RAM holds core 1's stacks: 12 of the 8-bit frame's rows go to the pool)
-if not SINGLE and "FM1B_POOL_SPARE" not in os.environ:
-    os.environ["FM1B_POOL_SPARE"] = "2048"         # (P2.14: the dual build, 16 voices, the 8-bit frame, Geek Out, core 1: 2,176 B left)
+# P2.14b (the owner): 8 voices on every build; the dual build's voices on core 1 first, the rest on core 0. Its main RAM
+# holds core 1's stacks: 12 of the 8-bit frame's rows go to the pool
+DEFS = ["-DFZ_SINGLE_CORE=1", "-DQD_VOICES_DEV=8"] if SINGLE else ["-DQD_VOICES_DEV=8", "-DFZ_FB_LO=88u", "-DFM1B_CPU2=1"]
 if SINGLE:
     os.environ["FM1B_CPU2"] = "0"                  # (P2.14: the single-core package never starts the second core)
 if SINGLE and "FM1B_POOL_SPARE" not in os.environ:

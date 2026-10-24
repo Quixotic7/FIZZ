@@ -256,10 +256,21 @@ void fz_audio(int16_t *stereo, uint32_t frames)
             t1 = plat_ticks24();
 #if FM1B_CPU2
             if (plat_cpu2_on()) {
-                int posted;
-                fz_c1j.bus = &B, fz_c1j.v0 = mid, fz_c1j.v1 = a->pool.nvoice;
+                /* (P2.14b, the owner: the voices on core 1 first, the rest carried by core 0) the sounding voices split
+                 * so core 1 has the larger half: it renders while core 0 renders the rest, so the interrupt waits for
+                 * the longer of the two. Any split gives the same samples (integer sums) */
+                const int nv = a->pool.nvoice;
+                int posted, i, act = 0, k = 0, sp = nv;
+                for (i = 0; i < nv; i++)
+                    act += a->pool.v[i].q.active != 0;
+                for (i = nv - 1; i >= 0 && k < (act + 1) / 2; i--) {
+                    k += a->pool.v[i].q.active != 0;
+                    sp = i;
+                }
+                fz_c1s.c1_voices += (uint32_t)k, fz_c1s.c0_voices += (uint32_t)(act - k);
+                fz_c1j.bus = &B, fz_c1j.v0 = sp, fz_c1j.v1 = nv;
                 posted = plat_cpu2_run(fz_c1_job, 0);
-                qd_app_block_voices(a, 0, mid, &A);
+                qd_app_block_voices(a, 0, sp, &A);
                 fz_c1s.c0_ticks += plat_ticks24() - t1;
                 if (posted) {
                     const uint32_t tw = plat_ticks24();
@@ -269,14 +280,14 @@ void fz_audio(int16_t *stereo, uint32_t frames)
                         fz_c1s.wait_max = w;
                     fz_c1s.wait_ticks += w;
                     if (rc) {            /* (given up meanwhile: the job dropped, core 0's now) */
-                        qd_app_block_voices(a, mid, a->pool.nvoice, &B);
+                        qd_app_block_voices(a, sp, nv, &B);
                         fz_c1s.fallbacks++;
                     } else {
                         fz_c1s.jobs++;
                         fz_c1s.c1_ticks += fz_c1j.t;
                     }
                 } else {
-                    qd_app_block_voices(a, mid, a->pool.nvoice, &B);
+                    qd_app_block_voices(a, sp, nv, &B);
                     fz_c1s.inline_jobs++;
                 }
             } else
