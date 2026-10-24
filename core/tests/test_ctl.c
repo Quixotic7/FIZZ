@@ -180,6 +180,12 @@ static void shome(void)                                 /* P1.3y: SHIFT + HOME: 
     bup(SHIFT);
     run(10);
 }
+static void shome_wrap(void)                            /* P2.11: from EDIT past the four Geek Out pages: the PIANO ROLL */
+{
+    int i;
+    for (i = 0; i < 5; i++)
+        shome();
+}
 static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once) */
 {
     bdown(QD_B_MIX);
@@ -2425,8 +2431,8 @@ static void g_home(void)
     turn(QD_K_SELECT, -2);
     shome();
     CHECK(A.ui.view == QD_VIEW_EDIT && qd_view_screen(&A) == QD_SCR_EDIT, "SHIFT + HOME again: EDIT");
-    shome();
-    CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME again: the PIANO ROLL (three views round)");
+    shome_wrap();
+    CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME again (P2.11: past the Geek Out pages): the PIANO ROLL");
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "the PIANO ROLL, SELECT: page 2 with its picker");
     turn(QD_K_SELECT, -1);
@@ -2579,8 +2585,8 @@ static void g_cursor(void)
     btap(QD_B_HOME);
     CHECK(!A.ui.slatch && A.ui.view == QD_VIEW_STEPS, "HOME ends the latch");
     shome();
-    shome();
-    CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME twice: the PIANO ROLL");
+    shome_wrap();
+    CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME on (P2.11: past the Geek Out pages): the PIANO ROLL");
     turn(QD_K_PRESETS, 1);
     CHECK(!A.ui.slatch && A.ui.latch == QD_LATCH_BROWSE, "the PIANO ROLL: PRESETS is the browser too");
     btap(QD_B_HOME);
@@ -2640,7 +2646,7 @@ static void g_edit(void)
           "ALGORITHM: the cursor's step in EDIT (step %d)", h.step);
     btap(QD_B_HOME);
     CHECK(!A.ui.slatch && A.ui.view == QD_VIEW_EDIT, "HOME: the latch ended, EDIT still");
-    shome();
+    shome_wrap();
     turn(QD_K_1, 2);
     CHECK(A.ui.view == QD_VIEW_ROLL && qd_view_overlay(&A), "the PIANO ROLL: the takeover as before");
 }
@@ -7884,6 +7890,73 @@ static void g_p15z_follow(void)
     run(20);
 }
 
+/* - P2.11: the Geek Out pages: SHIFT + HOME's cycle after EDIT (and back to the PIANO ROLL), the knobs do nothing
+ *   there, the platform's figures dim until given, a steal counted on its track and flashing, SHIFT + B11 the counters
+ *   from zero (the track not cleared), the scope on the loudest track held on a rising zero crossing */
+static void g_p211_geek(void)
+{
+    static const int V[5] = {QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE, QD_VIEW_ROLL};
+    ui_geek_t gv;
+    int i, ok = 1, bpm0, sel0, on0, flat = 1;
+    uint32_t r0;
+    float mx = 0.f;
+    start();
+    A.ui.view = QD_VIEW_EDIT;
+    for (i = 0; i < 5; i++) {
+        shome();
+        ok &= A.ui.view == V[i] && (i == 4 || qd_view_screen(&A) == QD_SCR_GEEK);
+    }
+    CHECK(ok, "SHIFT + HOME: EDIT -> METERS -> NUMBERS -> VOICES -> SCOPE -> PIANO ROLL (each a Geek Out page)");
+    A.ui.view = QD_VIEW_METERS;
+    bpm0 = A.bpm, sel0 = A.sel;
+    turn(QD_K_ALGO, 3);
+    turn(QD_K_SELECT, 1);
+    turn(QD_K_PRESETS, 2);
+    turn(QD_K_1, 2);
+    CHECK(A.bpm == bpm0 && A.sel == sel0 && A.ui.view == QD_VIEW_METERS && A.ui.tk == QD_TK_NONE,
+          "the knobs do nothing there (tempo %d, track %d)", A.bpm, A.sel + 1);
+    qd_view_geek(&A, &gv);
+    CHECK(!gv.load_on && !gv.isr_on && !gv.ram_on && gv.page == 0, "no figures from the platform: dim");
+    A.stats.have = QD_ST_LOAD0 | QD_ST_ISR | QD_ST_FPS;
+    A.stats.load_pm[0] = 650, A.stats.isr_us = 1027, A.stats.isr_budget_us = 2902, A.stats.fps10 = 600;
+    run(600);
+    qd_view_geek(&A, &gv);
+    CHECK(gv.load_on && gv.load > 0.63f && gv.load < 0.67f && gv.load_pct == 65 && gv.isr_us == 1027 && gv.fps_n == 60,
+          "the platform's figures: the bars chase them, the numbers read them (load %.3f, ISR %d, FPS %d)", gv.load,
+          gv.isr_us, gv.fps_n);
+    A.pool.stolen[2] += 1;                              /* (a held note of track 3 taken) */
+    run(30);
+    qd_view_geek(&A, &gv);
+    CHECK(gv.tsteals[2] == 1 && gv.steals == 1 && gv.tflash[2] > 0.5f && gv.steal_flash > 0.5f,
+          "a steal: on its track, counted, flashing (%.2f)", gv.tflash[2]);
+    on0 = R(0, 0).on;
+    r0 = A.stats.reset;
+    A.ui.view = QD_VIEW_NUMBERS;
+    bdown(SHIFT);
+    run(10);
+    black(B11);
+    bup(SHIFT);
+    run(300);
+    qd_view_geek(&A, &gv);
+    CHECK(A.stats.reset == r0 + 1 && gv.steals == 0 && R(0, 0).on == on0 && !A.ui.clr_armed,
+          "SHIFT + B11 there: the counters from zero (the platform told), the track not cleared");
+    A.ui.view = QD_VIEW_SCOPE;
+    qd_app_midi(&A, 0x90, 57, 110);                     /* (A3, track 1, held) */
+    run(400);
+    qd_view_geek(&A, &gv);
+    for (i = 0; i < UI_GEEK_SCOPE; i++) {
+        mx = fabsf(gv.scope[i]) > mx ? fabsf(gv.scope[i]) : mx;
+        flat &= fabsf(gv.scope[i]) < 0.02f;
+    }
+    CHECK(gv.scope_track == 0 && !flat && mx > 0.5f && fabsf(gv.scope[0]) < 0.25f && gv.scope[2] >= gv.scope[0],
+          "the scope: track 1 (the loudest), its wave from a rising zero crossing (%.2f, %.2f; peak %.2f)",
+          gv.scope[0], gv.scope[2], mx);
+    qd_app_midi(&A, 0x80, 57, 0);
+    run(2000);
+    qd_view_geek(&A, &gv);
+    CHECK(gv.scope_track < 0, "silence: the flat line");
+}
+
 /* - SHIFT + SELECT: the track in every view; the browser's preview put back first; not in the typewriter */
 static void shift_sel(int d)
 {
@@ -8169,6 +8242,7 @@ int main(void)
         {"P1.5z: SHIFT's shortcuts in the sound editor, no map", g_p15z_editor_shift},
         {"P1.5z: SHIFT + B6: the TAP takeover", g_p15z_tap},
         {"P1.5z: SHIFT + B8: page follow; SHIFT's map", g_p15z_follow},
+        {"P2.11: the Geek Out pages", g_p211_geek},
         {"P1.5z: SHIFT + SELECT: the track everywhere", g_p15z_shift_select},
         {"P1.6l: the controls' labels", g_p16l_labels},
         {"P1.3v: no text under 11 px on any screen", g_clarity},

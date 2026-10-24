@@ -160,8 +160,11 @@ struct qd_app;
 
 enum { QD_MODE_IDLE, QD_MODE_STEP, QD_MODE_KEYS, QD_MODE_TRACKS };
 enum { QD_REC_OFF, QD_REC_STEP, QD_REC_LIVE };
-enum { QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT, QD_NVIEW };   /* P1.3e: the sequencer's views, HOME cycles them
-                                                                * (P1.3r: EDIT, the page's row under the mode's picture) */
+enum { QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT,     /* P1.3e: the sequencer's views, SHIFT + HOME cycles them (P1.3r:
+                                                    * EDIT, the page's row under the mode's picture) .. */
+       QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE,   /* .. P2.11: then the Geek Out pages */
+       QD_NVIEW };
+#define QD_VIEW_GEEK(v) ((v) >= QD_VIEW_METERS)
 #define QD_VIEW_ROWS(v) ((v) == QD_VIEW_STEPS || (v) == QD_VIEW_EDIT)   /* P1.3r: the views drawing the pages' rows */
 /* the hold modes (B1..B10): UI_F_* (ui.h) */
 enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
@@ -883,7 +886,8 @@ enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR
        QD_SCR_MIX, QD_SCR_FX,          /* P1.4b: the mix, the effects */
        QD_SCR_BROWSE, QD_SCR_NAME, QD_SCR_PRJ,   /* P1.5t: the library browser; P1.5a: the name editor, the projects */
        QD_SCR_SAVE,                    /* P1.5t: SAVE PRESET */
-       QD_SCR_MFX };                   /* P1.6c: the MIDI FX screen */
+       QD_SCR_MFX,                     /* P1.6c: the MIDI FX screen */
+       QD_SCR_GEEK };                  /* P2.11: a Geek Out page (the view's) */
 /* P1.3r: a knob's takeover (band, picture, picker) drawn over the screen now: never over EDIT, whose top is the pop-up */
 int qd_view_overlay(const struct qd_app *a);
 struct ui_snd;

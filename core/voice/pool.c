@@ -241,6 +241,8 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
             return -1;
         }
         p->steals_cross++;
+        if (p->v[best].q.gate && p->v[best].track < QD_POOL_NTRACK)
+            p->stolen[p->v[best].track]++;              /* P2.11: a held note taken (a released one recycled: not) */
         return take(p, best, track, o, note, vel, patch, at);
     }
 }

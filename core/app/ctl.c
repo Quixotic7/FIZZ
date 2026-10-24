@@ -1673,6 +1673,17 @@ const char *qd_ctl_role_name(int role)
     static const char *const N[QD_NKR] = {"", "PAGE", "CURSOR", "PRESET", "VALUE"};
     return role > 0 && role < QD_NKR ? N[role] : "";
 }
+static int when_geek(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    return u->mode == QD_MODE_STEP && QD_VIEW_GEEK(u->view) && !u->latch && !u->slatch && !u->nheld && !u->wk_down &&
+           qd_ctl_mkey(a) < 0 && !qd_ctl_shift(a);
+}
+static int k_geek(qd_app_t *a, int knob, int d)
+{
+    (void)a, (void)knob, (void)d;
+    return 1;
+}
 static int when_cursor(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
@@ -1910,6 +1921,7 @@ static const struct {
     {when_seq, k_seq},                 /* SEQ held: ALGORITHM the launch mode */
     {when_f3, k_f3},                   /* F3: SELECT page, ALGO tempo (SHIFT: swing), KNOB 1..4 value, type, start, end */
     {when_auto, k_live},               /* P1.6d: automation recording: the quick page as locks on the step playing */
+    {when_geek, k_geek},               /* P2.11: a Geek Out page, nothing held: the knobs do nothing */
     {when_cursor, k_steps_cursor},     /* P1.3y: no finger on a step: ALGORITHM cursor, PRESETS preset, SELECT page */
     {when_steps_held, k_held},         /* a step held: SELECT page, ALGORITHM value, PRESETS sound lock, p-locks */
     {when_mkey, k_mkey_knob},          /* a mode key held (P1.3e): its default */

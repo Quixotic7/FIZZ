@@ -135,6 +135,13 @@ void qd_shift_black(qd_app_t *a, int b)
             qd_ctl_confirm(a, "FULL", 0);
         break;
     case 10:                                            /* B11: the track cleared, pressed twice */
+        if (u->mode == QD_MODE_STEP && QD_VIEW_GEEK(u->view) && !u->latch) {   /* P2.11: on a Geek Out page: the
+                                                         * counters from zero (steals, late halves, the longest ISR
+                                                         * and lock) */
+            qd_view_geek_reset(a);
+            qd_ctl_confirm(a, "RESET", 0);
+            break;
+        }
         if (u->clr_armed && a->ms - u->clr_ms < QD_ARM_MS) {
             u->clr_armed = 0;
             qd_undo_hint(a, QD_UK_CLEAR);

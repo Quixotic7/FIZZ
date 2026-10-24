@@ -876,8 +876,44 @@ void ui_mfx_arp_draw(int g, int on, const uint8_t type[8], int k_new, int track,
 /* a held step's MIDI FX (TRIG's KNOB 2, B4..B10): its group's hexagon big (TRACK: the track's, OFF: none) and rail */
 void ui_mfx_step_draw(int step, int m, int g, const uint8_t type[8], const char *trig, float t);
 
+/* ================================================================ P2.11: the Geek Out pages (ui_geek.c) ===
+ * mockups/fizz-geekout.html, approved: four pages after EDIT in SHIFT + HOME's cycle, one header (the page's name, the
+ * transport, the four pages as little pictures). Yellow (UI_KSEL) and a spark of rays mark trouble. A figure the
+ * platform does not give is drawn dim (its *_on 0) */
+#define UI_GEEK_SCOPE 113                               /* the scope's points (x 8 .. 232, 2 px apart) */
+typedef struct {
+    int page;                           /* 0 METERS, 1 NUMBERS, 2 VOICES, 3 SCOPE */
+    int playing;                        /* the transport .. */
+    float beat;                         /* .. the beat's phase (0..1) */
+    /* METERS: core 0's load (core 1 off until it runs), the frame rate, RAM, the store: the bars as shown, their peaks
+     * (the frame rate's: its lowest), the values (0..1; the frame rate in frames a second) */
+    float load, load_pk, fps, fps_min, ram, ram_pk, store;
+    int load_on, core1_on, fps_on, ram_on, store_on;
+    float load1;
+    int load_pct, load1_pct, fps_n, ram_pct, store_pct;   /* (the numbers on top: four a second) */
+    /* NUMBERS */
+    int voices, nvoice;                 /* sounding of the pool's */
+    qd_rgb slot_col[16];
+    float slot_lvl[16];                 /* each slot's level (0: silent) */
+    int steals;                         /* since the reset .. */
+    float steal_flash;                  /* .. the last one's flash (1 .. 0) */
+    int isr_us, isr_on, late, late_on, lock_us, lock_on, frame10, frame_on, bpm;
+    float isr_frac, late_flash;
+    const char *boot;                   /* after a crash: its cause (0: none) */
+    /* VOICES, a column a track */
+    int lim[8], tsteals[8];
+    float lvl[8][3], tflash[8], share[8];
+    int on[8];
+    /* SCOPE: the loudest track (-1: silence), the line's heights (-1 .. 1) */
+    int scope_track;
+    float scope[UI_GEEK_SCOPE];
+} ui_geek_t;
+void ui_geek_draw(const ui_geek_t *v);
+
 /* P1.5z: the models the frame fills (view.c), for the tests */
 struct qd_app;
+void qd_view_geek(struct qd_app *a, ui_geek_t *v);              /* P2.11: a Geek Out page's (its state moved on) */
+void qd_view_geek_reset(struct qd_app *a);                      /* P2.11: SHIFT + B11 there: the counters from zero */
 void qd_view_browse(const struct qd_app *a, ui_browse_t *v);   /* the library browser's */
 void qd_view_mix(const struct qd_app *a, ui_mix_t *v);         /* P1.6d: the mix's */
 void qd_view_fx(const struct qd_app *a, ui_fx_t *v);           /* P1.6d: the effects' */

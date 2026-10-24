@@ -77,6 +77,7 @@ typedef struct {
     uint32_t clock;
     /* counters (tests, the budget meter) */
     uint32_t starts, restrikes, frees, steals_own, steals_cross, drops;   /* frees: notes that took a free voice */
+    uint32_t stolen[QD_POOL_NTRACK];   /* P2.11: each track's held notes taken by another track */
     uint32_t dips, writes, legatos;
     int dip_on;                         /* 1 (the default): routing changes dip; 0: they land at once (tests) */
     int halves;                         /* P2.6: a free voice from the half (0 .. n/2 - 1, n/2 .. n - 1) with fewer

@@ -522,7 +522,7 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
         ROW(UI_SC_ALGO, u->hmode == UI_F_RATCH ? UI_IC_RAMP : UI_IC_STRUM, 0);
     } else {
         static char knobs[4];
-        static const char *const VIEW[QD_NVIEW] = {"ROLL", "STEPS", "EDIT"};
+        static const char *const VIEW[QD_NVIEW] = {"ROLL", "STEPS", "EDIT", "METERS", "NUMBERS", "VOICES", "SCOPE"};
         knobs[0] = (char)('A' + u->knobs);
         knobs[1] = 0;
         ROW(UI_SC_SELECT, UI_IC_TRACK, trk);            /* P1.5z: the track */
@@ -1309,7 +1309,7 @@ int qd_view_screen(const qd_app_t *a)
             return QD_SCR_LAYER;
         if (qd_ctl_shift(a) && !u->shift_used)
             return QD_SCR_SHIFT;
-        return QD_SCR_LANE;
+        return QD_VIEW_GEEK(u->view) ? QD_SCR_GEEK : QD_SCR_LANE;   /* (P2.11: a Geek Out page in the lane's place) */
     default:
         return QD_SCR_IDLE;
     }
@@ -2219,6 +2219,7 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
 #define mfv (*mfvp)
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
+    a->geek.scope_on = 0;                               /* (P2.11: the scope's samples only while it shows) */
     switch (qd_view_screen(a)) {
     case QD_SCR_MENU:                                   /* P1.3y: a settings menu */
         fill_menu(a, &mv);
@@ -2288,6 +2289,12 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         qd_view_edit(a, &hv, &lv);
         ui_edit_draw(&hv, &lv);
         break;
+    case QD_SCR_GEEK: {                                 /* P2.11: a Geek Out page */
+        static ui_geek_t gv;
+        qd_view_geek(a, &gv);
+        ui_geek_draw(&gv);
+        break;
+    }
     default:
         draw_idle(a);
         break;
@@ -2394,3 +2401,154 @@ int qd_view_strip_check;
 uint32_t qd_view_strip_frames, qd_view_strip_bad, qd_view_strip_px;
 
 #include "view_labels.c"                /* P1.6l: the controls' labels (built here: the source lists stay) */
+
+/* ================================================================ P2.11: the Geek Out pages' models === */
+#define QD_GEEK_PEAK_MS 2000u                           /* a meter's peak tick held this long */
+#define QD_GEEK_NUM_MS 250u                             /* the numbers step four times a second (readable) */
+static float gk_chase(float shown, float v, uint32_t dt)   /* a bar chasing its value (ChoralRoot's: a quarter of the
+                                                         * way every 25 ms) */
+{
+    const float k = dt >= 200u ? 1.f : 1.f - powf(0.75f, (float)dt / 25.f), n = shown + (v - shown) * k;
+    return fabsf(v - n) < 0.002f ? v : n;               /* (there: the same frame again, its strips kept) */
+}
+static float gk_flash(uint32_t since_ms, float rate)
+{
+    return since_ms > 3000u ? 0.f : expf(-(float)since_ms / 1000.f * rate);
+}
+void qd_view_geek_reset(qd_app_t *a)
+{
+    qd_geek_t *g = &a->geek;
+    int t;
+    for (t = 0; t < 8; t++)
+        g->steal0[t] = g->steal_seen[t] = a->pool.stolen[t], g->steal_ms[t] = 0;
+    g->late_seen = 0, g->late_ms = 0;
+    g->num_ms = 0;
+    g->pk_ms[0] = g->pk_ms[1] = g->pk_ms[2] = g->pk_ms[3] = 0;
+    a->stats.reset++;                                   /* (the platform zeroes its own) */
+}
+void qd_view_geek(qd_app_t *a, ui_geek_t *v)
+{
+    qd_geek_t *g = &a->geek;
+    const qd_app_stats_t *st = &a->stats;
+    const uint32_t now = a->ms, dt = now - g->ms;
+    float val[4];
+    int i, t, nsound = 0, steals = 0;
+    int32_t tl[8] = {0};
+    memset(v, 0, sizeof *v);
+    v->page = a->ui.view - QD_VIEW_METERS;
+    v->page = v->page < 0 ? 0 : v->page > 3 ? 3 : v->page;
+    v->playing = a->seq.playing;
+    v->beat = a->playing ? (float)a->beat_rem / (float)QD_BEAT_TICKS : 0.f;
+    g->scope_on = v->page == 3;
+    /* the platform's figures */
+    v->load_on = !!(st->have & QD_ST_LOAD0), v->core1_on = !!(st->have & QD_ST_LOAD1);
+    v->fps_on = !!(st->have & QD_ST_FPS), v->ram_on = !!(st->have & QD_ST_RAM), v->store_on = !!(st->have & QD_ST_STORE);
+    v->isr_on = !!(st->have & QD_ST_ISR), v->late_on = v->isr_on, v->lock_on = !!(st->have & QD_ST_LOCK);
+    v->frame_on = v->fps_on;
+    val[0] = v->load_on ? (float)st->load_pm[0] / 1000.f : 0.f;
+    val[1] = v->fps_on ? (float)st->fps10 / 10.f : 0.f;
+    val[2] = v->ram_on && st->ram_size ? (float)st->ram_used / (float)st->ram_size : 0.f;
+    val[3] = v->store_on && st->store_size ? (float)st->store_used / (float)st->store_size : 0.f;
+    if (dt || !g->ms) {                                 /* (once an instant: a frame drawn strip by strip moves once) */
+        for (i = 0; i < 4; i++) {
+            const int low = i == 1;                     /* (the frame rate's tick: its lowest) */
+            g->bar[i] = g->ms ? gk_chase(g->bar[i], val[i], dt) : val[i];
+            if (!g->pk_ms[i] || now - g->pk_ms[i] >= QD_GEEK_PEAK_MS || (low ? val[i] <= g->pk[i] : val[i] >= g->pk[i]))
+                g->pk[i] = val[i], g->pk_ms[i] = now ? now : 1u;
+        }
+    }
+    v->load = g->bar[0], v->load_pk = g->pk[0];
+    v->load1 = v->core1_on ? (float)st->load_pm[1] / 1000.f : 0.f;
+    v->fps = g->bar[1] / 60.f, v->fps_min = g->pk[1] / 60.f;
+    v->ram = g->bar[2], v->ram_pk = g->pk[2], v->store = g->bar[3];
+    /* the voices: the pool's slots, each track's */
+    v->nvoice = a->pool.nvoice > 16 ? 16 : a->pool.nvoice;
+    for (i = 0; i < a->pool.nvoice; i++) {
+        const qd_pool_voice_t *pv = &a->pool.v[i];
+        float l;
+        if (!qd_pool_sounding(&a->pool, i) || pv->track >= 8)
+            continue;
+        l = sqrtf((float)qd_quad_voice_level(&pv->q) / 32767.f);
+        nsound++;
+        if (i < 16)
+            v->slot_col[i] = UI_TRACK_PAL[pv->track], v->slot_lvl[i] = l < 0.08f ? 0.08f : l;
+        t = pv->track;
+        tl[t] += qd_quad_voice_level(&pv->q);
+        if (v->on[t] < 3)
+            v->lvl[t][v->on[t]] = l < 0.08f ? 0.08f : l;
+        v->on[t]++;
+    }
+    for (t = 0; t < 8; t++) {
+        const uint32_t s = a->pool.stolen[t];
+        if (s != g->steal_seen[t])
+            g->steal_seen[t] = s, g->steal_ms[t] = now ? now : 1u;
+        v->tsteals[t] = (int)(s - g->steal0[t]);
+        v->tflash[t] = g->steal_ms[t] ? gk_flash(now - g->steal_ms[t], 2.6f) : 0.f;
+        steals += v->tsteals[t];
+        v->steal_flash = v->tflash[t] > v->steal_flash ? v->tflash[t] : v->steal_flash;
+        v->lim[t] = a->pool.limit[t] < 3 ? a->pool.limit[t] : 3;
+        if (dt || !g->ms)
+            g->share[t] = gk_chase(g->share[t], nsound ? (float)v->on[t] / (float)nsound : 0.f, dt);
+        v->share[t] = g->share[t];
+    }
+    v->steals = steals;
+    if (st->late != g->late_seen)
+        g->late_seen = st->late, g->late_ms = now ? now : 1u;
+    v->late_flash = g->late_ms && st->late ? gk_flash(now - g->late_ms, 1.5f) : 0.f;
+    /* the numbers: four a second */
+    if (!g->num_ms || now - g->num_ms >= QD_GEEK_NUM_MS || now < g->num_ms) {
+        g->num_ms = now ? now : 1u;
+        g->num[0] = nsound;
+        g->num[1] = (int)st->isr_us, g->num[2] = (int)st->late, g->num[3] = (int)st->lock_us;
+        g->num[4] = (int)((st->frame_us + 50u) / 100u), g->num[5] = a->bpm;
+    }
+    v->voices = g->num[0];
+    v->isr_us = g->num[1], v->late = g->num[2], v->lock_us = g->num[3], v->frame10 = g->num[4], v->bpm = g->num[5];
+    v->isr_frac = st->isr_budget_us ? (float)v->isr_us / (float)st->isr_budget_us : 0.f;
+    v->load_pct = (int)(v->load * 100.f + 0.5f), v->load1_pct = (int)(v->load1 * 100.f + 0.5f);
+    v->fps_n = (int)(g->bar[1] + 0.5f), v->ram_pct = (int)(v->ram * 100.f + 0.5f);
+    v->store_pct = (int)(v->store * 100.f + 0.5f);
+    v->boot = st->have & QD_ST_BOOT ? st->boot : 0;
+    /* the scope: ~3 cycles of the loudest track's lowest note, held on a rising zero crossing (none: free-running) */
+    v->scope_track = -1;
+    {
+        int best = -1, low = 128, n, start, k;
+        int32_t lmax = 0, amp = 1;
+        const uint32_t w = g->scope_w;
+        for (t = 0; t < 8; t++)
+            if (tl[t] > lmax)
+                lmax = tl[t], best = t;
+        if (best >= 0 && lmax > 64) {
+            v->scope_track = best;
+            for (i = 0; i < a->pool.nvoice; i++)
+                if (qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == best && a->pool.v[i].q.note < low)
+                    low = a->pool.v[i].q.note;
+        }
+        n = 600;                                        /* (no note: 27 ms) */
+        if (low < 128) {
+            const float f = 440.f * powf(2.f, (float)(low - 69) / 12.f);
+            n = (int)(3.f * 22050.f / f + 0.5f);
+        }
+        n = n < 64 ? 64 : n > QD_SCOPE_N / 2 ? QD_SCOPE_N / 2 : n;
+        start = (int)(w - (uint32_t)n) - 1;             /* (the newest n samples' start; a rising crossing before it) */
+        if (low < 128)
+            for (k = 0; k < QD_SCOPE_N / 2 - 2; k++) {
+                const int16_t s0 = g->scope[(uint32_t)(start - k - 1) & (QD_SCOPE_N - 1u)],
+                              s1 = g->scope[(uint32_t)(start - k) & (QD_SCOPE_N - 1u)];
+                if (s0 < 0 && s1 >= 0) {
+                    start -= k;
+                    break;
+                }
+            }
+        for (k = 0; k < n; k++) {
+            const int s = g->scope[(uint32_t)(start + k) & (QD_SCOPE_N - 1u)];
+            amp = abs(s) > amp ? abs(s) : amp;
+        }
+        amp = amp < 256 ? 256 : amp;                    /* (the line's height: the window's own peak) */
+        for (i = 0; i < UI_GEEK_SCOPE; i++) {
+            const int s = g->scope[(uint32_t)(start + i * (n - 1) / (UI_GEEK_SCOPE - 1)) & (QD_SCOPE_N - 1u)];
+            v->scope[i] = v->scope_track >= 0 ? tanhf(1.3f * (float)s / (float)amp) / tanhf(1.3f) : 0.f;
+        }
+    }
+    g->ms = now ? now : 1u;
+}

@@ -485,6 +485,7 @@ void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx,
 }
 
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out) { qd_ctl_leds(a, out); }
+qd_app_stats_t *qd_app_stats(qd_app_t *a) { return &a->stats; }
 
 #ifdef QD_GFX_FB
 typedef char qd_fb_band_ok[QD_FB_BAND == QD_STRIP_H ? 1 : -1];
@@ -582,6 +583,12 @@ void qd_app_block_end(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int16_t
     qd_fx_block(sc, sd, sr, l, r, o);
     for (i = 0; i < 2 * QD_MIX_CTL; i++)
         out[i] = (int16_t)(o[i] > 32767 ? 32767 : o[i] < -32768 ? -32768 : o[i]);
+    if (a->geek.scope_on) {                             /* P2.11: the scope's samples, every other one (L + R) / 2 */
+        uint32_t w = a->geek.scope_w;
+        for (i = 0; i < QD_MIX_CTL; i += 2)
+            a->geek.scope[w++ & (QD_SCOPE_N - 1u)] = (int16_t)((out[2 * i] + out[2 * i + 1]) / 2);
+        a->geek.scope_w = w;
+    }
 }
 
 static void qd_app_block(qd_app_t *a, int16_t *out)

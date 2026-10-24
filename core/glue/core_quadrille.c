@@ -178,10 +178,32 @@ void fm1core_qd_tick(uint32_t ms)
     fm1core_qd_drain();
 }
 
+/* P2.11: the Geek Out pages' platform figures this host has: the frame rate and the frame's interval (the app's
+ * clock: no host clock read), the store's use; the audio load, the interrupt, the locks and RAM stay dim */
+static void fm1core_qd_geek_stats(void)
+{
+    static uint32_t last;
+    qd_app_stats_t *st = qd_app_stats(&fm1core_qd_app);
+    const uint32_t now = fm1core_qd_app.ms, d = now - last;
+    uint32_t live = 0, total = 0;
+    if (last && d && d < 10000u) {
+        st->fps10 = (uint16_t)(10000u / d);
+        st->frame_us = d * 1000u;
+        st->have |= QD_ST_FPS;
+    }
+    last = now;
+    qd_persist_use(&fm1core_qd_app, &live, &total);
+    if (total) {
+        st->store_used = live, st->store_size = total;
+        st->have |= QD_ST_STORE;
+    }
+}
+
 void fm1core_qd_frame(void)
 {
     if (!fm1core_qd_up)
         return;
+    fm1core_qd_geek_stats();
     fm1core_qd_in();
     fm1core_qd_lcd_out();
     fm1core_qd_leds_out();

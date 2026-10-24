@@ -103,6 +103,41 @@ typedef struct qd_leds {
     uint8_t play_green;
 } qd_leds_t;
 
+/* P2.11: THE GEEK OUT PAGES' FIGURES. The platform's own (qd_app_stats: the port fills them as it measures them,
+ * whenever it likes; the host and FM1VST what they have): a field whose QD_ST_* bit is not in have is drawn dim. The
+ * counters run from the last reset: SHIFT + B11 on a Geek Out page bumps reset (the platform then zeroes its own) */
+enum { QD_ST_LOAD0 = 1, QD_ST_LOAD1 = 2, QD_ST_FPS = 4, QD_ST_ISR = 8, QD_ST_LOCK = 16, QD_ST_RAM = 32,
+       QD_ST_STORE = 64, QD_ST_BOOT = 128 };
+typedef struct {
+    uint32_t have;                     /* QD_ST_*: the fields filled */
+    uint16_t load_pm[2];               /* the audio's load of core 0 and core 1, per mille */
+    uint16_t fps10;                    /* frames a second x 10 .. */
+    uint32_t frame_us;                 /* .. and the last frame's time (drawn and sent) */
+    uint32_t isr_us, isr_budget_us;    /* the audio interrupt's longest half since the reset; a half's time */
+    uint32_t late;                     /* halves late since the reset */
+    uint32_t lock_us;                  /* the longest audio lock since the reset */
+    uint32_t ram_used, ram_size;       /* bytes */
+    uint32_t store_used, store_size;   /* the store's bytes */
+    const char *boot;                  /* the last boot's cause after a crash ("WATCHDOG", "HARD FAULT" ..); 0 clean */
+    uint32_t reset;                    /* the core's: bumped at each reset of the counters */
+} qd_app_stats_t;
+#define QD_SCOPE_N 1024                /* P2.11: the scope's samples (the output at 22.05 kHz: 46 ms) */
+typedef struct {                       /* P2.11: the Geek Out pages' own state (view.c's) */
+    uint32_t ms;                       /* the last fill's */
+    float bar[4];                      /* the meters as shown (they chase the values): load 0, FPS, RAM, STORE */
+    float pk[4];                       /* .. their peaks (FPS: its lowest), held QD_GEEK_PEAK_MS from pk_ms */
+    uint32_t pk_ms[4];
+    float share[8];                    /* the tracks' shares as shown */
+    uint32_t num_ms;                   /* the numbers' last step (four a second) .. */
+    int num[6];                        /* .. voices, ISR us, late, lock us, frame (0.1 ms), BPM */
+    uint32_t steal0[8], steal_seen[8], steal_ms[8];   /* the tracks' steals at the reset, last seen, when */
+    uint32_t late_seen, late_ms;
+    int16_t scope[QD_SCOPE_N];         /* the output (L + R) / 2, every other sample: the audio side writes it .. */
+    volatile uint32_t scope_w;         /* .. at this index */
+    volatile uint8_t scope_on;         /* (only while the scope is shown) */
+    uint8_t scope_half;
+} qd_geek_t;
+
 typedef struct qd_app {
     /* the clock */
     uint32_t ms;                       /* the last tick's ms */
@@ -150,6 +185,8 @@ typedef struct qd_app {
     int64_t metro_beat;                /* .. the last beat it clicked (-1) .. */
     uint32_t metro_ph, metro_left;     /* .. its click's phase and samples left */
     int metro_acc;                     /* .. an accent (beat 1) */
+    qd_app_stats_t stats;              /* P2.11: the platform's figures (qd_app_stats) */
+    qd_geek_t geek;                    /* P2.11: the Geek Out pages' state */
     /* the audio: blocks of 32 frames made ahead of a call that asks for fewer */
     int16_t fifo[2 * QD_MIX_CTL];
     int nfifo, ififo;
@@ -205,6 +242,8 @@ void qd_app_frame_strips_mask(qd_app_t *a, uint16_t *strip_be, void (*out)(void 
 void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
                          void *ctx);
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out);
+/* P2.11: the platform's figures for the Geek Out pages (qd_app_stats_t above): filled in place, any time (the main loop) */
+qd_app_stats_t *qd_app_stats(qd_app_t *a);
 #ifdef QD_GFX_FB
 /* P2.6e: THE 8-BIT FRAME (the unit's QD_GFX_FB build; research/SMOOTH-DISPLAY.md 4.8). The port owns the frame (240 x 240
  * palette indices, row y at rows[y]: any two blocks of memory), the line buffers and the send; the core draws into it,
