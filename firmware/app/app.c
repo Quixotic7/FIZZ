@@ -240,6 +240,8 @@ static struct {                          /* (P2.15b: a drawn frame's parts, tick
 } fz_fbs;
 /* (P2.7) the screen's and the LEDs' counters (stats line 7) */
 static uint32_t fz_arena_free_min = 0xFFFFFFFFu;
+static uint32_t fz_db_latch[4], fz_db_paint[4], fz_db_bands, fz_db_runs;   /* (P2.15e: the drawing bench) */
+static void fz_draw_bench(void);
 static uint32_t fz_frame_rows0, fz_st_cap0, fz_span_max, fz_span_n, fz_span_over, fz_frame_rows_max, fz_frames_over_stash;
 static uint64_t fz_span_sum;             /* (P2.11: the frames' send spans) */   /* (P2.8: the arena's free room when a frame began, the least) */
 static uint32_t fz_rows_sent, fz_bursts, fz_burst_rows, fz_burst_max, fz_frame_bursts, fz_frame_bursts_max, fz_st_full,
@@ -830,6 +832,19 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, "frctrl2=", FZ_FRCTRL2_60HZ);
     *c = 0;
     fz_stats_send(10, line);             /* (10: 9 is WIPE's reply) */
+#ifdef QD_GFX_FB
+    /* 13 (P2.15e): the drawing bench (DRWB): four whole frames in a row, interrupts off */
+    FZ_LINE_START(c, line);
+    c = fz_put_u(c, "drawb_runs=", fz_db_runs);
+    c = fz_put_u(c, "drawb_bands=", fz_db_bands);
+    for (i = 0; i < 4u; i++)
+        c = fz_put_w(c, i ? "," : "drawb_latch_us=", (uint32_t)fz_us(fz_db_latch[i]));
+    for (i = 0; i < 4u; i++)
+        c = fz_put_w(c, i ? "," : "drawb_paint_us=", (uint32_t)fz_us(fz_db_paint[i]));
+    c = fz_put_w(c, "drawb_band_us_last=", fz_db_bands ? (uint32_t)fz_us(fz_db_paint[3] / fz_db_bands) : 0u);
+    *c = 0;
+    fz_stats_send(13, line);
+#endif
 }
 
 static void fz_fb_start(void);
@@ -881,6 +896,13 @@ int app_sysex(const uint8_t *p, uint32_t n)
     if (n >= 3u && p[0] == 0x7Du && p[1] == 0x46u && p[2] == 0x50u) {   /* "FP": the port's counters */
         if (n >= 7u && p[3] == 'W' && p[4] == 'I' && p[5] == 'P' && p[6] == 'E') {   /* the store wiped, FIZZ again */
             fz_wipe();
+            return 1;
+        }
+        if (n >= 7u && p[3] == 'D' && p[4] == 'R' && p[5] == 'W' && p[6] == 'B') {   /* (P2.15e) the drawing bench */
+#ifdef QD_GFX_FB
+            fz_draw_bench();
+#endif
+            fz_stats_reply();
             return 1;
         }
         if (n >= 7u && p[3] == 'S' && p[4] == 'C' && p[5] == 'A' && p[6] == 'N') {   /* (P2.12) the scanline test */
@@ -1339,7 +1361,7 @@ static int fz_draw_fb(int all)           /* a frame: drawn at one instant into t
     if (!fz_fb_on)
         return 0;
     fz_in_frame = 1;
-    if (FZ_FB_FULL_EVERY && ++fz_fb_n % FZ_FB_FULL_EVERY == 0u)   /* (0: the core's band check alone) */
+    if (FZ_FB_FULL_EVERY && ++fz_fb_n % (FZ_FB_FULL_EVERY ? FZ_FB_FULL_EVERY : 1u) == 0u)   /* (0: the core's band check alone) */
         fz_fb_attach(fz_rowp);           /* (every band drawn: FZ_FB_FULL_EVERY) */
     {   /* (P2.15) the frame from one instant, drawn FZ_FB_STEP bands at a time with the input (the panel, MIDI, the
          * clock, the LEDs) between: a heavy frame no longer holds a press back for its whole drawing */
@@ -1408,6 +1430,46 @@ static int fz_draw_fb(int all)           /* a frame: drawn at one instant into t
             fz_screens[sc].max = d;
     }
     return 1;
+}
+/* (P2.15e) the drawing's own speed: the screen now drawn whole four times in a row, interrupts off (the sound silenced
+ * first), each time's instant (latch) and bands painted timed: the drawing's code and data alone in the caches.
+ * Against a frame's bands in play (line 11: fb_band_us), the cost of sharing the caches with the audio's code; against
+ * the host's instruction count for the same frame, the drawing's instructions a us. 7D 46 50 "DRWB" (stats --drawbench) */
+static void fz_draw_bench(void)
+{
+    uint32_t i, bands, t0, t1, k;
+    if (!fz_fb_on)
+        return;
+    fz_audio_on = 0;                     /* (the halves silent before the interrupts stop: no stale buffer looping) */
+#ifndef PLAT_HOST
+    {
+        const uint32_t m0 = plat_ms();
+        while (plat_ms() - m0 < 15u)
+            plat_yield();
+    }
+    fm1_irq_off();
+#endif
+    for (i = 0; i < 4u; i++) {
+        fz_fb_attach(fz_rowp);           /* (every band) */
+        t0 = plat_ticks24();
+        bands = 0;
+        if (fz_frame_fb_begin(&bands)) {
+            t1 = plat_ticks24();
+            while (fz_frame_fb_step(16) > 0)
+                ;
+            fz_db_latch[i] = t1 - t0;
+            fz_db_paint[i] = plat_ticks24() - t1;
+        }
+        for (k = 0, fz_db_bands = 0; k < 32u; k++)
+            fz_db_bands += bands >> k & 1u;
+        fz_watchdog();
+    }
+#ifndef PLAT_HOST
+    fm1_irq_on();
+#endif
+    fz_db_runs++;
+    fz_audio_on = 1;
+    fz_redraw = 1;                       /* (the panel again from the frame) */
 }
 #else
 static int fz_draw_fb(int all) { (void)all; return 0; }
@@ -2037,6 +2099,12 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "fzsync")) {
         fz_host_sync = 1;
         fz_host_sync_done = (uint64_t)plat_ms() * 44100u / 1000u / 128u * 128u;
+        return 1;
+    }
+    if (!strcmp(cmd, "fzdrawbench")) {   /* (the drawing bench, as DRWB) */
+#ifdef QD_GFX_FB
+        fz_draw_bench();
+#endif
         return 1;
     }
     if (!strcmp(cmd, "fzfbtest")) {      /* fzfbtest N: N frames of a test picture through the full frame's send */

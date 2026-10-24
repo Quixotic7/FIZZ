@@ -102,14 +102,14 @@ def stats(a):
     dev = find(a.port)
     link = dev.link
     link.drain()
-    link.send(bytes([0xF0, 0x7D, 0x46, 0x50] + ([0x7F] if a.reset else list(b"BNCH") if a.bench else list(b"SCAN") if a.scan else []) + [0xF7]))
+    link.send(bytes([0xF0, 0x7D, 0x46, 0x50] + ([0x7F] if a.reset else list(b"BNCH") if a.bench else list(b"SCAN") if a.scan else list(b"DRWB") if a.drawbench else []) + [0xF7]))
     if a.reset:
         print("counters started again")
         link.close()
         return 0
     end, got = time.monotonic() + 4.0, {}
     try:
-        while time.monotonic() < end and len(got) < 11:
+        while time.monotonic() < end and len(got) < 12:
             p = link.read(end - time.monotonic())
             if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
                 got[p[4]] = p[5:-1].decode("ascii", "replace")
@@ -125,7 +125,8 @@ def stats(a):
                             (8, "the speed at boot: the voice bench, the clock, the RAM regions"),
                             (10, "the panel's scanline reads (stats --scan: a second of them)"),
                             (11, "the 8-bit frame: its parts, its sends to the panel"),
-                            (12, "the screen's sends, the display list, the pace, the LEDs")):
+                            (12, "the screen's sends, the display list, the pace, the LEDs"),
+                            (13, "the drawing bench (stats --drawbench: the screen whole x 4, interrupts off)")):
             line = got.get(part, "(no answer)")
             if part == 3:                   # s<mode>.<view>: name them
                 for k, v in SCREENS.items():
@@ -270,6 +271,8 @@ def main():
                                                                  "interrupts off ~10 ms, one half of the sound late)")
             p.add_argument("--scan", action="store_true", help="read the panel's scanline for a second (line 9; the "
                                                                 "screen is not drawn meanwhile)")
+            p.add_argument("--drawbench", action="store_true", help="draw the screen whole four times, interrupts off "
+                                                                     "(line 13; the sound stops ~0.3 s)")
             p.add_argument("--reset", action="store_true", help="start the counters again")
     a = ap.parse_args()
     return {"push": push, "stats": stats, "wipe": wipe, "info": info, "backup": backup, "restore": restore}[a.cmd](a)
