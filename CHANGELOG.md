@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.1 (2026-10-24)
+
 Six tracks, and no more sound-browser freezes. **This update clears your projects** (My Presets are kept), so write down or record anything you want to keep first.
 
 - The playhead now moves in half steps, and its red arrow over the open page no longer bounces.

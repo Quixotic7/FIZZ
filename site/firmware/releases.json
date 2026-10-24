@@ -1,7 +1,33 @@
 {
   "name": "FIZZ",
-  "latest": "0.11.0-beta.2",
+  "latest": "0.12.0-beta.1",
   "releases": [
+    {
+      "version": "0.12.0-beta.1",
+      "date": "2026-10-24",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "2bff14736294892ebe005dde7ebb36dd2bf8e7ad",
+      "fm1base": "42dc6304e8070006c1990d2879c3fe27e1192c91",
+      "notes": "Six tracks, and no more sound-browser freezes. **This update clears your projects** (My Presets are kept), so write down or record anything you want to keep first.\n\n- The playhead now moves in half steps, and its red arrow over the open page no longer bounces.\n- While playing with the step lock off, the sound editor's values now follow the LFOs too, showing what you hear.\n- FIZZ now has six tracks instead of eight, which frees memory for new features. W7 and W8 no longer pick a track and stay dark. **Your projects start fresh:** the first boot of this version clears the old eight-track projects. My Presets are kept.\n- The sound browser no longer freezes when you add a sound to the Pool, take one out, or press B9 to switch between Presets, My Presets and the Pool.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI",
+          "fwsc": {
+            "path": "0.12.0-beta.1/fizz.fwsc",
+            "bytes": 611496,
+            "sha256": "d80165a2649f64025ca67d60edbcbf62dd20e5dd6e56f0c35ae272863357ec5a"
+          },
+          "data": {
+            "path": "0.12.0-beta.1/fizz-xdata.bin",
+            "bytes": 84116,
+            "sha256": "19c068fc6371340499064f5c16e75c376137727bcca3c074057b0826ed25633d",
+            "crc32": 4068757263
+          }
+        }
+      ]
+    },
     {
       "version": "0.11.0-beta.2",
       "date": "2026-10-24",
