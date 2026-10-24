@@ -1,9 +1,9 @@
 # P2.1: the device profile's ceilings (tools/budget/budget.py --ratchet fails above any of them):
 # what it was at its last step. Lower them (--ratchet-set) as things shrink; never raise them
 # without saying why in the commit
-flash_arm 408863
-flash_pi32v2 431337
-ram 388070
+flash_arm 412309
+flash_pi32v2 435075
+ram 388090
 stack_audio 3136
 stack_main 20524
 xdata 84110

@@ -75,7 +75,19 @@ static qf_st S, STK[24];
 static int depth;
 
 /* the target: the strip (rows y0 .. y0 + sh of the screen) or a text mask */
+#ifdef QD_GFX_FB
+/* P2.6e: THE 8-BIT FRAME (research/SMOOTH-DISPLAY.md 4.8): every pixel a palette index (qd_fb_pal.h), drawn straight into
+ * the port's frame, its rows anywhere (fb_row[y]: two bands of memory, RAM and the pool), a band of QD_STRIP_H (16)
+ * rows at a time: the band cleared to black (index 0), the display list played into it, the strokes' coverage a band
+ * at a time. No RGB565 strip. The host's builds without a frame attached draw into one of their own */
+#include "qd_fb_pal.h"
+static uint8_t *fb_row[QD_H];
+#ifndef QD_TARGET_FM1
+static uint8_t fb_own[QD_W * QD_H];
+#endif
+#else
 static uint16_t qf_px[QD_W * QD_STRIP_H] __attribute__((aligned(4)));
+#endif
 static int y0s, sh = QD_STRIP_H, inited;
 static uint8_t *mk;                             /* (a text mask's bytes: mk_w wide, its rows from mk_r0) */
 static int mk_w, mk_r0, mk_rows;
@@ -226,21 +238,54 @@ static void hcall(uint32_t tag, const float *v, int n, qd_rgb c0, qd_rgb c1)   /
 }
 
 void qd_begin(void) { qd_begin_strip(0); }
-void qd_begin_strip(int y0)
+static void begin_at(int y0, int clear)
 {
     int r;
     qd_init();
     y0s = y0;
     st_reset();
     tgt_strip();
-    memset(qf_px, 0, sizeof(uint16_t) * (size_t)QD_W * (size_t)sh);   /* black */
+#ifdef QD_GFX_FB
+    if (!fb_row[0])
+        qd_fb_attach(0);
+    for (r = t_r0; r < t_r1 && clear; r++)
+        memset(fb_row[r], 0, QD_W);                     /* black */
+#else
+    if (clear)
+        memset(qf_px, 0, sizeof(uint16_t) * (size_t)QD_W * (size_t)sh);   /* black */
+#endif
     for (r = 0; r < QD_STRIP_H; r++)
         slo[r] = QD_W, shi[r] = -1;
 }
+void qd_begin_strip(int y0) { begin_at(y0, 1); }
+#ifdef QD_GFX_FB
+void qd_fb_attach(uint8_t *const *rows)
+{
+    int y;
+    for (y = 0; y < QD_H; y++)
+#ifdef QD_TARGET_FM1
+        fb_row[y] = rows ? rows[y] : 0;
+#else
+        fb_row[y] = rows ? rows[y] : fb_own + (size_t)y * QD_W;
+#endif
+}
+const uint16_t *qd_fb_palette_be(uint32_t *gen)
+{
+    if (gen)
+        *gen = QF_PAL_GEN;
+    return QF_PAL_BE;
+}
+#endif
 
 void qd_end(uint16_t *lcd_be) { qd_end_strip(lcd_be); }
 static void strip_out(uint16_t *to)
 {
+#ifdef QD_GFX_FB
+    int y, x;                                           /* (the band's rows through the palette: the host's PNGs) */
+    for (y = t_r0; y < t_r1; y++, to += QD_W)
+        for (x = 0; x < QD_W; x++)
+            to[x] = QF_PAL_BE[fb_row[y][x]];
+#else
     const int n = QD_W * (t_r1 - t_r0);
     int i = 0;
     if (!((uintptr_t)to & 3u)) {                        /* (P2.6c: two pixels a word; QD_W even, qf_px aligned) */
@@ -255,6 +300,7 @@ static void strip_out(uint16_t *to)
         const uint16_t c = qf_px[i];
         to[i] = (uint16_t)((c >> 8) | (c << 8));
     }
+#endif
 }
 void qd_end_strip(uint16_t *lcd_be)
 {
@@ -263,7 +309,11 @@ void qd_end_strip(uint16_t *lcd_be)
 }
 void qd_hash_begin(void)
 {
-    qd_begin_strip(0);
+#ifdef QD_GFX_FB
+    begin_at(0, 0);                                     /* (nothing drawn: the frame not cleared either) */
+#else
+    begin_at(0, 1);
+#endif
     hashing = 1;
     hsh = 2166136261u;
 }
@@ -274,9 +324,20 @@ uint32_t qd_hash_end(void)
 }
 const uint16_t *qd_end_strip_rows(uint16_t *rows_be)
 {
+#ifdef QD_GFX_FB
+#ifndef QD_TARGET_FM1
+    static uint16_t own[QD_W * QD_STRIP_H];             /* (the host's tests' strips in place: through the palette) */
+    if (!rows_be)
+        rows_be = own;
+#endif
+    if (rows_be)                                        /* (the frame is the result: rows only if asked for) */
+        strip_out(rows_be);
+    return rows_be;
+#else
     uint16_t *to = rows_be ? rows_be : qf_px;           /* (none: in place) */
     strip_out(to);
     return to;
+#endif
 }
 
 /* ---------------------------------------------------------------- the state calls */
@@ -406,6 +467,25 @@ int qd_box_visible(float x, float y, float w, float h, float lw)
 }
 
 /* ---------------------------------------------------------------- the paint's setup and the row composer */
+#ifdef QD_GFX_FB
+static unsigned f_s, f_h, f_l, f_ramp;                  /* the paint's index, its ramp and level; on a ramp (or black) */
+static uint32_t f_ck[32];                               /* (colour -> index: the last few) */
+static uint8_t f_ci[32], f_cn[32];
+static unsigned fb_index(qd_rgb col, uint16_t v565)     /* the palette's entry for a colour: its own, else the nearest */
+{
+    const unsigned k = ((col * 2654435761u) >> 27) & 31u;
+    unsigned i;
+    if (f_cn[k] && f_ck[k] == col)
+        return f_ci[k];
+    for (i = 0; i < 256u && QF_PAL[i] != v565; i++)
+        ;
+    if (i == 256u)
+        i = QF_NEAR[(((col >> 16) & 255u) * 15u + 127u) / 255u << 8 | (((col >> 8) & 255u) * 15u + 127u) / 255u << 4 |
+                    ((col & 255u) * 15u + 127u) / 255u];
+    f_ck[k] = col, f_ci[k] = (uint8_t)i, f_cn[k] = 1;
+    return i;
+}
+#endif
 static void paint_setup(qd_rgb col, float y0, float y1)
 {
     const unsigned r = (col >> 16) & 255u, g = (col >> 8) & 255u, b = col & 255u;
@@ -414,6 +494,11 @@ static void paint_setup(qd_rgb col, float y0, float y1)
     int i0, i1;
     cr8 = r, cg8 = g, cb8 = b;
     c565 = (uint16_t)(L5[r] << 11 | L6[g] << 5 | L5[b]);
+#ifdef QD_GFX_FB
+    f_s = fb_index(col, c565);                          /* (the blends from the palette's colour of it) */
+    f_h = f_s >> 4, f_l = f_s & 15u, f_ramp = !f_s || f_l;
+    c565 = QF_PAL[f_s];
+#endif
     c_rb = c565 & 0xF81Fu, c_g = c565 & 0x07E0u;
     ga = (unsigned)(S.alpha * 255.f + 0.5f);
     /* rows: the shape's, the target's, the clip's */
@@ -449,6 +534,37 @@ QF_INL uint16_t mix(uint16_t d, unsigned a)
     return (uint16_t)(rb | g);
 }
 
+#ifdef QD_GFX_FB
+/* P2.6e: the paint at a (1..254 of 255) over index d at (x, y): on one ramp (black is every ramp's level 0) the
+ * level in between; else the colours blended as the RGB565 drawing blends them and the nearest entry taken through
+ * the RGB444 table, a 4 x 4 ordered dither in front of it (a still picture stays still) */
+static const uint8_t F_BAYER[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
+QF_INL unsigned f_lerp(unsigned ld, unsigned ls, unsigned a)   /* ld + (ls - ld) a / 255, rounded */
+{
+    return ls >= ld ? ld + (((ls - ld) * a * 257u + 32768u) >> 16) : ld - (((ld - ls) * a * 257u + 32768u) >> 16);
+}
+static uint8_t f_blend(uint8_t d, unsigned a, int x, int y)
+{
+    const unsigned dh = (unsigned)d >> 4, dl = d & 15u;
+    if (f_ramp) {
+        unsigned l;
+        if (!d)                                         /* over black: the paint's ramp */
+            l = f_lerp(0u, f_l, a);
+        else if (dl && (dh == f_h || !f_s))             /* (black paint: down the background's ramp) */
+            l = f_lerp(dl, f_l, a);
+        else
+            goto general;
+        return (uint8_t)(l ? ((f_s ? f_h : dh) << 4 | l) : 0u);
+    }
+general: {
+        const uint16_t v = mix(QF_PAL[d], a);
+        const unsigned t = 17u * F_BAYER[(y & 3) << 2 | (x & 3)];
+        const unsigned r = (E5[v >> 11] * 15u + t) * 257u >> 16, g = (E6[(v >> 5) & 63u] * 15u + t) * 257u >> 16,
+                       b = (E5[v & 31u] * 15u + t) * 257u >> 16;
+        return QF_NEAR[(r > 15u ? 15u : r) << 8 | (g > 15u ? 15u : g) << 4 | (b > 15u ? 15u : b)];
+    }
+}
+#endif
 /* row y's coverage cov[x0 .. x1] (0..255) blended in the paint's colour (or written to the text mask), the clip's
  * edges and the global alpha applied; cov is cleared */
 static void put_row(int y, int x0, int x1, uint8_t *cov)
@@ -481,6 +597,32 @@ static void put_row(int y, int x0, int x1, uint8_t *cov)
         cov[x0] = (uint8_t)((cov[x0] * (unsigned)p_fl + 128u) >> 8);
     if (p_fr < 256 && x1 == p_c1 - 1)
         cov[x1] = (uint8_t)((cov[x1] * (unsigned)p_fr + 128u) >> 8);
+#ifdef QD_GFX_FB
+    {
+        uint8_t *p = fb_row[y];
+        if (ar) {
+            for (x = x0; x <= x1; x++) {
+                unsigned c = cov[x], a;
+                if (!c) {
+                    if (!(x & 3))
+                        while (x + 3 <= x1 && !*(const uint32_t *)(const void *)(cov + x))
+                            x += 4;
+                    c = x <= x1 ? cov[x] : 0u;
+                    if (!c)
+                        continue;
+                }
+                cov[x] = 0;
+                a = ar >= 255u ? c : (c * ar + 128u) >> 8;
+                if (a >= 255u)
+                    p[x] = (uint8_t)f_s;
+                else if (a)
+                    p[x] = f_blend(p[x], a, x, y);
+            }
+        } else {
+            memset(cov + x0, 0, (size_t)(x1 - x0 + 1));
+        }
+    }
+#else
     {
         uint16_t *p = qf_px + (size_t)(y - y0s) * QD_W;
         if (ar >= 255u) {
@@ -520,6 +662,7 @@ static void put_row(int y, int x0, int x1, uint8_t *cov)
             memset(cov + x0, 0, (size_t)(x1 - x0 + 1));
         }
     }
+#endif
 }
 
 /* ---------------------------------------------------------------- the path */
@@ -2026,4 +2169,6 @@ int qd_text_mask(const char *utf8, float x, float y, const qd_font *f, uint8_t *
 }
 
 /* P2.6: the public calls, and the frame recorded once, every strip drawn from it */
+#define QDB_ROW0 t_r0                           /* (P2.6e: the strip's rows, for the list's path groups) */
+#define QDB_ROW1 t_r1
 #include "qd_gfx_rec.c"

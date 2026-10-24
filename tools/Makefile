@@ -32,7 +32,9 @@ PROFILE ?=
 # unit's: QD_GFX_FAST, no plutovg in the device's link). The tools link plutovg either way (their PNGs); make test-dev-fast
 # runs the device's tests with GFX=fast
 GFX ?= plutovg
-GFX_DEF := $(if $(filter fast,$(GFX)),-DQD_GFX_FAST,)
+GFX_DEF := $(if $(filter fast,$(GFX)),-DQD_GFX_FAST,)$(if $(filter fb,$(GFX)),-DQD_GFX_FAST -DQD_GFX_FB,)
+# (P2.6e: GFX=fb, the fast drawing into the 8-bit frame)
+GFX_FILE := $(if $(filter fb,$(GFX)),fast,$(GFX))
 CR_REPO ?= $(abspath $(ROOT)/../ChoralRootFM1)
 CR_TAG ?= v0.25.1
 CRB := $(B)/cr-$(CR_TAG)
@@ -46,16 +48,16 @@ APP_SRC := $(ROOT)/core/app/app.c $(ROOT)/core/app/ctl.c $(ROOT)/core/app/ctl_st
 UI_SRC := $(ROOT)/core/ui/ui_kit.c $(ROOT)/core/ui/ui_idle.c $(ROOT)/core/ui/ui_keys.c $(ROOT)/core/ui/ui_picker.c \
           $(ROOT)/core/ui/ui_tracks.c $(ROOT)/core/ui/ui_lane.c $(ROOT)/core/ui/ui_held.c $(ROOT)/core/ui/ui_turn.c \
           $(ROOT)/core/ui/ui_layer.c $(ROOT)/core/ui/ui_octave.c
-CORE_SRC := $(APP_SRC) $(UI_SRC) $(ROOT)/core/gfx/qd_gfx_$(GFX).c \
+CORE_SRC := $(APP_SRC) $(UI_SRC) $(ROOT)/core/gfx/qd_gfx_$(GFX_FILE).c \
             $(ROOT)/core/seq/model.c $(ROOT)/core/seq/pattern.c $(ROOT)/core/seq/seq.c $(ROOT)/core/seq/player.c \
             $(ROOT)/core/seq/demo.c $(ROOT)/core/seq/chord.c $(ROOT)/core/seq/scale.c $(ROOT)/core/seq/sounds.c \
             $(ROOT)/core/seq/clip.c $(VOICE_SRC)
 PVG_SRC := $(wildcard $(PVG)/source/*.c)
-DEV_PVG_SRC := $(if $(filter fast,$(GFX)),,$(PVG_SRC))     # (what the unit links of plutovg: tools/budget/budget.py)
+DEV_PVG_SRC := $(if $(filter fast fb,$(GFX)),,$(PVG_SRC))     # (what the unit links of plutovg: tools/budget/budget.py)
 INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/seq -I$(ROOT)/core/voice \
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
-HDRS := $(ROOT)/core/qd_config.h $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/qd_gfx_rec.c $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
+HDRS := $(ROOT)/core/gfx/qd_fb_pal.h $(ROOT)/core/qd_config.h $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/qd_gfx_rec.c $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
         $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/seq/names.c $(ROOT)/core/seq/mfx.c $(ROOT)/core/app/view_labels.c $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/ctl_presets.c $(ROOT)/core/app/ctl_type.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_presets.c $(ROOT)/core/ui/ui_type.c $(ROOT)/core/ui/ui_snd.c $(ROOT)/core/ui/ui_mfx.c $(ROOT)/core/app/ctl_mfx.c $(ROOT)/core/ui/ui_ape.c \
         $(PVG)/include/plutovg.h
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
@@ -186,7 +188,7 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx
-test: test-host test-dev test-dev8 test-dev-fast test-dev-fast8 test-gfx-fast budget-ratchet
+test: test-host test-dev test-dev8 test-dev-fast test-dev-fast8 test-dev-fb8 test-gfx-fast budget-ratchet
 	@echo "make test: all passed (host and device sizes, the device's drawing too)"
 
 # P2.0: the same tests at the device's sizes (core/qd_config.h QD_DEVICE), built into build/dev; the timelines into
@@ -207,6 +209,10 @@ test-dev8:
 	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8" B=build/dev8 OUT=$(abspath $(OUT))/dev8 SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
 test-dev-fast8:
 	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8" GFX=fast B=build/dev-fast8 OUT=$(abspath $(OUT))/dev-fast8 \
+	    SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
+# P2.6e: the unit's 8-bit frame (GFX=fb: QD_GFX_FB, 16-row bands), 8 voices
+test-dev-fb8:
+	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8" GFX=fb B=build/dev-fb8 OUT=$(abspath $(OUT))/dev-fb8 \
 	    SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
 test-dev-run: $(DEV_TESTS)
 	@echo "---- the device's sizes (QD_DEVICE)"
@@ -284,4 +290,4 @@ print-%:
 
 include gfx_fast.mk
 
-.PHONY: all frames strips audio test test-host test-dev test-dev-fast test-dev8 test-dev-fast8 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet
+.PHONY: all frames strips audio test test-host test-dev test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet

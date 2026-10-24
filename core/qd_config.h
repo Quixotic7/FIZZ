@@ -20,7 +20,15 @@
 /* the device's strip: P2.1c 20 rows (19 KB less RAM); P2.4 40 again (the unit: every strip runs the screen's logic
  * and outlines every path again, so half the strips is half that work; the port has the RAM); the host draws the
  * whole screen and its strip tests draw it in these too */
+#if defined(QD_GFX_FB) && !defined(QD_GFX_FAST)
+#define QD_GFX_FAST 1                  /* (P2.6e: the 8-bit frame is the fast drawing's) */
+#endif
+#ifdef QD_GFX_FB
+#define QD_STRIP_DEV 16                /* P2.6e: the 8-bit frame's bands (the strokes' coverage a band at a time; the
+                                        * list played once a band, each band only its calls) */
+#else
 #define QD_STRIP_DEV 40
+#endif
 
 #if defined(QD_DEVICE) && defined(QD_HOST)
 #error "qd_config.h: one profile, QD_DEVICE or QD_HOST"

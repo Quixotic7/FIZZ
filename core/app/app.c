@@ -486,6 +486,30 @@ void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx,
 
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out) { qd_ctl_leds(a, out); }
 
+#ifdef QD_GFX_FB
+typedef char qd_fb_band_ok[QD_FB_BAND == QD_STRIP_H ? 1 : -1];
+static void fb_out(void *ctx, int y0, int rows, const uint16_t *px) { (void)ctx, (void)y0, (void)rows, (void)px; }
+void qd_app_fb_attach(qd_app_t *a, uint8_t *const rows[240])
+{
+    qd_fb_attach(rows);
+    a->frame_hash_ok = 0;                               /* (a new frame: every band) */
+}
+const uint16_t *qd_app_palette(const qd_app_t *a, uint32_t *gen)
+{
+    (void)a;
+    return qd_fb_palette_be(gen);
+}
+int qd_app_frame_fb(qd_app_t *a, uint32_t *bands)
+{
+    uint32_t m = 0;
+    qd_app_frame_strips_changed(a, &m);                 /* (the instant: the list recorded, the bands' hashes) */
+    if (m)
+        qd_view_frame_strips(a, 0, fb_out, 0, m);       /* (the changed bands drawn into the frame, from that list) */
+    *bands = m;
+    return m != 0;
+}
+#endif
+
 /* one control block: the sequencer's events of this block into the pool, the voices (per voice into the mix and the
  * sends), then ChoralRoot's effects and Output Clean, as 16-bit stereo. P2.6: in three (app.h qd_app_block_*) */
 static void owners_of(qd_app_t *a, qd_quad_owner_t **ow)

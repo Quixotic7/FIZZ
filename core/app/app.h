@@ -205,6 +205,21 @@ void qd_app_frame_strips_mask(qd_app_t *a, uint16_t *strip_be, void (*out)(void 
 void qd_app_frame_strips(qd_app_t *a, uint16_t *strip_be, void (*out)(void *ctx, int y0, int rows, const uint16_t *px),
                          void *ctx);
 void qd_app_leds(const qd_app_t *a, qd_leds_t *out);
+#ifdef QD_GFX_FB
+/* P2.6e: THE 8-BIT FRAME (the unit's QD_GFX_FB build; research/SMOOTH-DISPLAY.md 4.8). The port owns the frame (240 x 240
+ * palette indices, row y at rows[y]: any two blocks of memory), the line buffers and the send; the core draws into it,
+ * owns the palette and says which bands changed. Main loop only, no audio lock.
+ *   qd_app_fb_attach   the frame's rows (kept; every band drawn at the next qd_app_frame_fb)
+ *   qd_app_palette     the 256 entries as the panel takes them (RGB565, big-endian); *gen changes when they do (the
+ *                      port then sends the whole frame again). One theme: it never changes while running
+ *   qd_app_frame_fb    one frame from one instant: the bands (QD_FB_BAND rows each) whose drawing changed are drawn
+ *                      into the frame (the others are left as they are); *bands bit k: band k (rows 16 k ..) may have
+ *                      changed (the port compares its rows); 0: nothing drawn. Returns *bands != 0 */
+#define QD_FB_BAND 16
+void qd_app_fb_attach(qd_app_t *a, uint8_t *const rows[240]);
+const uint16_t *qd_app_palette(const qd_app_t *a, uint32_t *gen);
+int qd_app_frame_fb(qd_app_t *a, uint32_t *bands);
+#endif
 /* the sound: frames of 16-bit stereo, interleaved, at QD_FS (rendered in control blocks of 32 frames) */
 void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames);
 /* P2.6: one control block (QD_MIX_CTL frames) in three, for the two cores (qd_app_audio is the three in a row, the voices

@@ -68,6 +68,14 @@ const uint16_t *qd_end_strip_rows(uint16_t *rows_be);   /* .. or into a strip's 
                                                          * (good until the next strip begins); where they are */
 int qd_strip_rows(void);
 void qd_set_strip_rows(int h);
+#ifdef QD_GFX_FB
+/* P2.6e: the 8-bit frame (qd_gfx_fast.c built with QD_GFX_FB): the strips are its bands (QD_STRIP_H rows), drawn
+ * straight into the frame's rows (rows[y]: row y's 240 palette indices; 0: the host's own frame); the palette as the
+ * panel takes it (256 RGB565, big-endian). qd_end_strip / qd_end_strip_rows give the band's rows as RGB565 (the
+ * host's PNGs) */
+void qd_fb_attach(uint8_t *const *rows);
+const uint16_t *qd_fb_palette_be(uint32_t *gen);   /* (gen: the palette's generation; the same: unchanged) */
+#endif
 int qd_box_visible(float x, float y, float w, float h, float lw);   /* P2.1b: a box (and a stroke's width) may touch
                                                                      * the strip: 0 when it cannot */
 

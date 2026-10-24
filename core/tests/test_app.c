@@ -733,7 +733,13 @@ static void t_fizz(void)
     n_hold = word_px();
     run(2900, 0);
     n_fizz = word_px();
-    CHECK(n_hold >= 40 && n_gather <= 3 && n_fizz <= 3, "on the screen: the solid F at the hold (%d px in its blue), "
+#ifdef QD_GFX_FB
+#define WORD_STRAY 8                                    /* (P2.6e: the 8-bit frame: a nearly opaque particle is the
+                                                         * ramp's top, the blue itself, more often) */
+#else
+#define WORD_STRAY 3
+#endif
+    CHECK(n_hold >= 40 && n_gather <= WORD_STRAY && n_fizz <= WORD_STRAY, "on the screen: the solid F at the hold (%d px in its blue), "
           "not while gathering (%d) or dissolving (%d)", n_hold, n_gather, n_fizz);
     fresh();
     run(3000, 0);

@@ -252,7 +252,7 @@ void qd_path_begin(void)
         qdb_path_begin();
         return;
     }
-    rl_op(RO_PBEGIN);
+    rl_op(RO_PBEGIN), rl_f(-1e30f), rl_f(1e30f);       /* (P2.6e: the rows its paths paint, rl_index's) */
 }
 void qd_move_to(float x, float y)
 {
@@ -463,6 +463,7 @@ int qd_dl_end(void)
             qd_arena_use(was);
         }
 #endif
+        qd_dl_strip_hashes(0, 0, 0);                    /* (P2.6e: each path group's rows, for the strips' play) */
     }
     return rl_buf != 0;
 }
@@ -500,15 +501,21 @@ static uint32_t rl_gu(void)
     return u;
 }
 
-/* the list into the backend: the strip begun (qd_begin_strip) */
+/* the list into the backend: the strip begun (qd_begin_strip). P2.6e: a path group (from a path's begin to the next)
+ * whose rows miss the strip's: its path calls and paints left out (the state calls between played) */
 void qd_dl_play(void)
 {
     float v[8];
     uint32_t u0, u1, u2;
-    int i;
+    int i, skip = 0;
     rl_at = 0;
     while (rl_buf && rl_at < rl_len) {
         const int op = (int)rl_gu();
+        if (skip && op >= RO_MOVE && op <= RO_PPAINT) {
+            static const uint8_t W[RO_PPAINT - RO_MOVE + 1] = {8, 8, 16, 24, 20, 0, 4, 8, 8, 12};   /* (their bytes) */
+            rl_at += W[op - RO_MOVE];
+            continue;
+        }
         switch (op) {
         case RO_SAVE: qdb_save(); break;
         case RO_RESTORE: qdb_restore(); break;
@@ -580,7 +587,13 @@ void qd_dl_play(void)
                 v[i] = rl_gf();
             qdb_fill_rect(v[0], v[1], v[2], v[3], rl_gu());
             break;
-        case RO_PBEGIN: qdb_path_begin(); break;
+        case RO_PBEGIN:
+            v[0] = rl_gf(), v[1] = rl_gf();
+#ifdef QDB_ROW0
+            skip = v[1] < (float)QDB_ROW0 || v[0] >= (float)QDB_ROW1;   /* (the backend's strip rows) */
+#endif
+            qdb_path_begin();
+            break;
         case RO_MOVE: v[0] = rl_gf(), v[1] = rl_gf(); qdb_move_to(v[0], v[1]); break;
         case RO_LINETO: v[0] = rl_gf(), v[1] = rl_gf(); qdb_line_to(v[0], v[1]); break;
         case RO_QUAD:
@@ -666,11 +679,29 @@ static void rl_box(const rl_st_t *st, float x0, float y0, float x1, float y1, fl
 }
 static void rl_into(uint32_t *h, int n, int rows, float ya, float yb, uint32_t v)
 {
+    if (!h)
+        return;                                         /* (rl_index: no hashes) */
+    {
     int s0 = ya <= 0.f ? 0 : (int)(ya / (float)rows), s1 = yb <= 0.f ? -1 : (int)(yb / (float)rows), s;
     s0 = s0 < 0 ? 0 : s0;
     s1 = s1 >= n ? n - 1 : s1;
     for (s = s0; s <= s1; s++)
         h[s] = rl_mix(h[s], &v, 4) * 0x9E3779B1u + 1u;
+    }
+}
+/* (h 0: rl_index: each path group's rows (the union of its paints' boxes) written into its begin; a group that clips
+ * by its path: every row) */
+static uint32_t g_at;
+static float g_ya, g_yb;
+static int g_ok, g_open;
+static void g_close(void)
+{
+    if (g_open) {
+        const float a = g_ok ? g_ya : -1e30f, b = g_ok ? g_yb : 1e30f;
+        memcpy(rl_buf + g_at, &a, 4);
+        memcpy(rl_buf + g_at + 4, &b, 4);
+    }
+    g_open = 0;
 }
 void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
 {
@@ -678,8 +709,9 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
     int depth = 0, i, path_any = 0;
     float pya = 1e9f, pyb = -1e9f, ya, yb, v[8], lw = 1.f;
     uint32_t ph = 2166136261u, o0;
-    for (i = 0; i < n; i++)
+    for (i = 0; h && i < n; i++)
         h[i] = 2166136261u;
+    g_open = 0;
     memset(&st, 0, sizeof st);
     st.m[0] = st.m[3] = 1.f;
     st.sh = 2166136261u;
@@ -808,6 +840,11 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
             break;
         }
         case RO_PBEGIN:
+            if (!h) {
+                g_close();
+                g_open = 1, g_ok = 1, g_at = rl_at, g_ya = 1e30f, g_yb = -1e30f;
+            }
+            rl_at += 8u;
             ph = 2166136261u, path_any = 0, pya = 1e9f, pyb = -1e9f;
             break;
         case RO_MOVE: case RO_LINETO: case RO_QUAD: case RO_CUBIC: {
@@ -847,11 +884,16 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
             ch = rl_mix(rl_mix(st.sh, &ph, 4), rl_buf + at0, rl_at - at0);
             if (path_any)
                 rl_into(h, n, rows, pya - w * 0.5f * s - 2.f, pyb + w * 0.5f * s + 2.f, ch);
+            if (path_any && !h) {
+                g_ya = pya - w * 0.5f * s - 2.f < g_ya ? pya - w * 0.5f * s - 2.f : g_ya;
+                g_yb = pyb + w * 0.5f * s + 2.f > g_yb ? pyb + w * 0.5f * s + 2.f : g_yb;
+            }
             if (op != RO_PSTROKEK)
                 ph = 2166136261u, path_any = 0, pya = 1e9f, pyb = -1e9f;
             break;
         }
         case RO_PCLIP:
+            g_ok = 0;
             st.sh = rl_mix(st.sh, &ph, 4);              /* (the clip's path: in the state of what follows) */
             ph = 2166136261u, path_any = 0, pya = 1e9f, pyb = -1e9f;
             break;
@@ -882,11 +924,14 @@ void qd_dl_strip_hashes(uint32_t *h, int n, int rows)
             break;
         }
         default:
-            for (i = 0; i < n; i++)                     /* (never: unknown: every strip) */
+            for (i = 0; h && i < n; i++)                /* (never: unknown: every strip) */
                 h[i] ^= 0xFFFFFFFFu;
+            g_ok = 0, g_close();
             return;
         }
 #undef CALLH
 #undef PT
     }
+    if (!h)
+        g_close();
 }
