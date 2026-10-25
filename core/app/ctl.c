@@ -167,8 +167,7 @@ void qd_ctl_init(qd_app_t *a)
     u->pv_note = -1;
     u->mkey = -1;
     u->seq_bank = QD_PAT_START / 16;
-    u->tl.scope = QD_TS_TRACK;                          /* T1: TOOLS starts on ROTATE, the track; EUCLID 4 of 16 */
-    u->tl.ehits = 4, u->tl.elen = 16;
+    u->tl.scope = QD_TS_TRACK;                          /* T1: TOOLS starts on ROTATE, the track */
     u->tl.opage = 0xFF;
     for (i = 0; i < QD_PAT_NTRACK; i++)
         u->last_step[i] = -1;
@@ -2013,8 +2012,8 @@ void qd_ctl_ms(qd_app_t *a)
     } else if (u->tk == QD_TK_MFX_STEP && u->tk_hold) {   /* P1.6e: STEPS' steps held: up while they are */
         if (!u->mfx_wheld)
             u->tk = QD_TK_NONE, u->tk_hold = 0;
-    } else if (u->tk == UI_TK_TOOL && !u->tk_knob && a->ms - u->tk_ms >= QD_TOOL_POP_MS) {
-        u->tk = QD_TK_NONE;                             /* (T1: a tool's name, ~0.8 s) */
+    } else if (u->tk == UI_TK_TOOL && u->tk_knob != 1 && a->ms - u->tk_ms >= QD_TOOL_POP_MS) {
+        u->tk = QD_TK_NONE;                             /* (T1: a tool's name, a message: ~0.8 s) */
     } else if (u->tk != QD_TK_NONE &&
                a->ms - u->tk_ms >= (u->tk == UI_TK_TAP ? QD_TAP_TK_MS : QD_TK_MS) + QD_TK_FADE_MS) {
         u->tk = QD_TK_NONE;                             /* (P1.5z: TAP's stays 2 s after the last tap) */

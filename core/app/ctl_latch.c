@@ -29,7 +29,7 @@ static void br_closed(qd_app_t *a);                     /* (ctl_presets.c) */
 static void snd_close(qd_app_t *a) { a->ui.ekeys = 0, a->ui.snd_lk = 0; }   /* (P1.5b: the editor's keyboard ends with it) */
 static void mf_closed(qd_app_t *a);                     /* (ctl_mfx.c) */
 static void tl_revert(qd_app_t *a);                     /* (ctl_tools.c) */
-static void tl_keep(qd_app_t *a);
+static void tl_confirm(qd_app_t *a);
 static void tl_closed(qd_app_t *a);
 
 static const qd_latch_t LATCHES[QD_NLATCH] = {
@@ -45,7 +45,7 @@ static const qd_latch_t LATCHES[QD_NLATCH] = {
     [QD_LATCH_PRJ] = {"PROJECT", "BACK", 0, 0, 0, 0}, /* P1.5a: the project pages */
     [QD_LATCH_SAVE] = {"SAVE PRESET", "CANCEL", "REPLACE", 0, 0, 0},   /* P1.5t: SAVE PRESET */
     [QD_LATCH_MFX] = {"MIDI FX", "BACK", 0, 0, 0, mf_closed},   /* P1.6c: the MIDI FX screen (ctl_mfx.c) */
-    [QD_LATCH_TOOLS] = {"TOOLS", "REVERT", "KEEP", tl_revert, tl_keep, tl_closed},   /* T1: the track tools */
+    [QD_LATCH_TOOLS] = {"TOOLS", "REVERT", "KEEP", tl_revert, tl_confirm, tl_closed},   /* T1: the track tools */
 };
 
 const qd_latch_t *qd_latch_cur(const qd_app_t *a)

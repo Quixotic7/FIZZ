@@ -883,6 +883,7 @@ void ui_mfx_step_draw(int step, int m, int g, const uint8_t type[8], const char 
  * lane at the foot (the edited page as it will be: solid kept, ring new, faded going) */
 typedef struct {
     int tool, scope, track;             /* QD_TL_*, QD_TS_*, 1..6 */
+    uint16_t sel;                       /* the page's selected steps (SELECTED STEPS: bit w) */
     int pending, nolive;
     qd_rgb tcol;                        /* the track's colour */
     uint8_t on[16], was[16];            /* the lane: each step as it will be, as it was */
@@ -896,7 +897,7 @@ typedef struct {
     float t;                            /* seconds (motion) */
 } ui_tools_t;
 void ui_tools_draw(const ui_tools_t *v);
-void ui_tools_pop(int scope_take, int tool, int scope, float u);   /* a tool's name (u: seconds since), the scope */
+void ui_tools_pop(int kind, int msg, int tool, int scope);   /* kind 0: the tool's name, 1: the scope, 2: message msg */
 void ui_tools_icon(int tool, float x, float y, int on);
 void ui_tools_scope_icon(int scope, float x, float y, qd_rgb col, float s);
 

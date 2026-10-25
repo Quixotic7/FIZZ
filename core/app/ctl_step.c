@@ -111,7 +111,6 @@ static void held_add(qd_app_t *a, int s, int key)
     if (!u->nheld) {                                    /* a new hold */
         qd_rstep_t r;
         resolve(a, s, &r);
-        u->held_empty = !r.on;
         u->chord_ms = a->ms - 10000u;
         u->held_played = 0;
         u->note_keys = 0;
@@ -133,6 +132,17 @@ static void held_remove(qd_ui_t *u, int i)
         u->held_key[i] = u->held_key[i + 1];
     }
     u->nheld--;
+}
+
+/* T1 (TOOLS' SELECTED STEPS): step s in / out of the step latch's selection, the latch on */
+void qd_step_select_toggle(qd_app_t *a, int s)
+{
+    const int i = held_find(&a->ui, s);
+    a->ui.slatch = 1;
+    if (i >= 0)
+        held_remove(&a->ui, i);
+    else
+        held_add(a, s, -1);
 }
 
 void qd_step_release_all(qd_app_t *a)

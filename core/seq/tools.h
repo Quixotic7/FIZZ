@@ -4,6 +4,7 @@
 /* T1 (docs/TRACK-TOOLS-PLAN.md §3, §4): the track tools' operations on a pattern, pure functions (built through
  * pattern.c). Every op walks a POSITION LIST, pos[i] -> the physical step (0..127) of track t, n of them, whatever the
  * scope:
+ *   SELECTED the step latch's selection (the caller makes that list: ctl_tools.c)
  *   PAGE     the page's start..end
  *   TRACK    the track's looped steps in play order (each looped page's start..end; steps outside the loop untouched)
  *   PATTERN  every track on its own loop (the caller walks the tracks)
@@ -24,12 +25,12 @@ extern "C" {
 #endif
 
 enum { QD_TL_ROTATE, QD_TL_REVERSE, QD_TL_RANDOM, QD_TL_EUCLID, QD_TL_GRIDS, QD_TL_HUMANIZE, QD_TL_LENGTH, QD_TL_N };
-enum { QD_TS_PAGE, QD_TS_TRACK, QD_TS_PATTERN, QD_TS_N };
+enum { QD_TS_SEL, QD_TS_PAGE, QD_TS_TRACK, QD_TS_PATTERN, QD_TS_N };   /* (SEL: the selected steps, the caller's list) */
 enum { QD_EU_NEW, QD_EU_ADD, QD_EU_MASK, QD_EU_N };    /* EUCLID's landing: replace, OR, AND */
 #define QD_TL_BUILT(tool) ((tool) == QD_TL_ROTATE || (tool) == QD_TL_REVERSE || (tool) == QD_TL_EUCLID || \
                            (tool) == QD_TL_LENGTH)       /* (T1's; RANDOM, GRIDS, HUMANIZE are T2's) */
 
-/* the scope's positions of track t (PAGE: page `page`'s start..end; TRACK / PATTERN: the loop): n (1..128) */
+/* the scope's positions of track t (PAGE: page `page`'s start..end; TRACK / PATTERN: the loop): n (1..128); not SEL */
 int qd_tl_positions(const qd_pattern_t *p, int t, int scope, int page, uint8_t *pos);
 /* the position of step s in a list (-1: not in it) */
 int qd_tl_pos_of(const uint8_t *pos, int n, int s);

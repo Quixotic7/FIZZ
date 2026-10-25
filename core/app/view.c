@@ -1091,7 +1091,6 @@ static void __attribute__((noinline)) draw_tools(const qd_app_t *a)
 {
     ui_tools_t v;
     const qd_tools_t *T = &a->ui.tl;
-    const qd_pattern_t *p = qd_ctl_cpat(a);
     const int page = a->ui.page[a->sel] & 7;
     int w, ps;
     memset(&v, 0, sizeof v);
@@ -1109,13 +1108,10 @@ static void __attribute__((noinline)) draw_tools(const qd_app_t *a)
     ps = a->seq.playing ? qd_seq_track_step(&a->seq, a->sel) : -1;
     v.play = ps >= 0 && ps / QD_PAGE == page ? ps % QD_PAGE : -1;
     v.rot = T->rot, v.flip = (T->flags & QD_TLF_FLIP) != 0;
-    v.hits = T->ehits, v.len = T->elen ? T->elen : 1, v.erot = T->erot, v.emode = T->emode;
-    v.epos = -1;
-    if (ps >= 0) {                                      /* (the playing step's position in EUCLID's length) */
-        uint8_t pos[QD_NSTEP];
-        const int n = qd_tl_positions(p, a->sel, T->scope, page, pos), i = qd_tl_pos_of(pos, n, ps);
-        v.epos = i >= 0 ? i % v.len : -1;
-    }
+    v.hits = T->v.eu.hits, v.len = T->v.eu.len ? T->v.eu.len : 1, v.erot = T->v.eu.rot, v.emode = T->v.eu.mode;
+    v.epos = qd_tools_play_pos(a);
+    v.epos = v.epos >= 0 ? v.epos % v.len : -1;
+    v.sel = qd_tools_sel_mask(a);
     v.count = qd_tools_result_len(a, &v.loop);
     v.loop0 = v.pending && T->tool == QD_TL_LENGTH ? (uint8_t)T->orig : v.loop;
     v.lpow = T->lpow;
@@ -2398,12 +2394,12 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         /* (none; P1.3r: EDIT's top is the pop-up: no takeover band, picture or picker over it) */
     } else if (u->tk == UI_TK_TOOL) {                   /* T1: a tool's name over its picture (~0.8 s), the scope */
         const uint32_t d = a->ms - u->tk_ms;
-        const float al = u->tk_knob ? (d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS)
-                                    : d < QD_TOOL_POP_MS - 300u ? 1.f : (float)(QD_TOOL_POP_MS - d) / 300.f;
+        const float al = u->tk_knob == 1 ? (d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS)
+                                         : d < QD_TOOL_POP_MS - 300u ? 1.f : (float)(QD_TOOL_POP_MS - d) / 300.f;
         if (al > 0.f && qd_tools_open(a)) {
             qd_save();
             qd_alpha(al);
-            ui_tools_pop(u->tk_knob, u->tl.tool, u->tl.scope, secs(d));
+            ui_tools_pop(u->tk_knob, u->tk_step, u->tl.tool, u->tl.scope);
             qd_restore();
         }
     } else if (u->tk == QD_TK_HELDKNOB) {                      /* P1.3d: a held step's knob: the band over its screen */

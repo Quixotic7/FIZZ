@@ -340,18 +340,21 @@ typedef struct {
     int oct_used;
 } qd_prjui_t;
 
-/* T1 (docs/TRACK-TOOLS-PLAN.md; ctl_tools.c): TOOLS' state, packed (12 bytes; only one tool is live at a time) */
+/* T1 (docs/TRACK-TOOLS-PLAN.md; ctl_tools.c): TOOLS' state, packed (only one tool is live at a time: its values are
+ * a union, a tool chosen starts from its defaults) */
 #define QD_TLF_PEND 0x01u              /* a change is pending (the orange dot): live in the pattern, or drawn only */
 #define QD_TLF_NOLIVE 0x02u            /* .. drawn only (the log could not keep the original: OCT+ applies, no undo) */
 #define QD_TLF_FLIP 0x04u              /* REVERSE: the pending result flipped */
 #define QD_TLF_DIRTY 0x08u             /* a value changed: rewritten at the next millisecond (detents combined) */
 typedef struct {
     uint8_t tool, scope, flags;        /* QD_TL_*, QD_TS_*, QD_TLF_* */
-    uint8_t emode;                     /* EUCLID's landing (QD_EU_*) */
+    uint8_t otrack;                    /* the track the change began on */
     int8_t rot, lpow;                  /* ROTATE's offset from the original; LENGTH's doublings (< 0: halvings) */
-    uint8_t ehits, elen, erot;         /* EUCLID: hits, length, rotation */
-    uint8_t opage;                     /* the lane's page (of the selected track) .. */
+    uint8_t opage, pad;                /* the page the change began on (the lane's diff, PAGE's scope) */
     uint16_t orig;                     /* .. its steps' trigs before the change (LENGTH: the loop mask before) */
+    union {
+        struct { uint8_t hits, len, rot, mode; } eu;   /* EUCLID: hits, length, rotation, landing (QD_EU_*) */
+    } v;
 } qd_tools_t;
 
 typedef struct {
@@ -378,7 +381,6 @@ typedef struct {
     int held[16];
     int8_t held_key[16];               /* the white key holding it */
     int nheld;
-    int held_empty;
     /* P1.3e: a mode key (B1..B9) held with nothing else held: "the track" for that mode (its default) */
     int mkey;                          /* the mode held (-1 none) */
     uint32_t mkey_t0;                  /* when it went down .. */
@@ -460,7 +462,6 @@ typedef struct {
     uint32_t lfo_ms;                   /* P1.5b: LFO went down (held QD_LFO_HOLD_MS alone: the latch mode) */
     int lmode;                         /* P1.5b: the latch mode (QD_LMODE_*; a global setting, saved) */
     int lmode_open;                    /* P1.5h: LFO held alone: the latch mode's screen is up (SELECT turns it) */
-    int pick_lib, pick_t;              /* P1.5s: PRESETS walked into the LIBRARY: its slot + 1 (0: the pool), the track */
     char imp_name[13];                 /* P1.5r: the sound imported last (SysEx), LIBRARY / POOL, its slot */
     int imp_pool, imp_slot;
     int undo_dir, undo_kind;           /* P1.5c: the last undo (-1) / redo (+1), its level's kind (QD_UK_*; -1 none) */
@@ -609,6 +610,7 @@ int qd_ctl_main_steps(const struct qd_app *a);      /* P1.6h: a main page whose 
 int qd_ctl_main_layer(const struct qd_app *a);      /* .. there, F1 / F2 held: QD_LAYER_F1 / F2 (their W, their picture) */
 int qd_ctl_playing_page(const struct qd_app *a, int t);   /* the page under the track's play head, -1 stopped */
 void qd_ctl_set_page(struct qd_app *a, int p);      /* the page edited on the selected track (slides) */
+void qd_step_select_toggle(struct qd_app *a, int s);   /* T1: step s in / out of the latch's selection (latch on) */
 void qd_ctl_takeover(struct qd_app *a, int tk, int knob, int dir, int lock, int step);
 void qd_ctl_confirm(struct qd_app *a, const char *big, const char *small);
 void qd_ctl_imported(struct qd_app *a, const char *name, int pool, int slot);   /* P1.5r: its takeover */
@@ -727,6 +729,8 @@ int qd_tools_pending(struct qd_app *a);         /* a change pending (live or dra
 /* the lane's step w (0..15 of the selected track's edited page) as the change makes it (on), as it was (was), its
  * first note (0: none) */
 void qd_tools_lane(const struct qd_app *a, int w, int *on, int *was, int *note);
+uint16_t qd_tools_sel_mask(const struct qd_app *a);       /* the page's selected steps (bit w) */
+int qd_tools_play_pos(const struct qd_app *a);            /* the playing step's position in the scope (-1) */
 int qd_tools_result_len(const struct qd_app *a, uint8_t *loop);   /* LENGTH: the selected track's length after, loop */
 
 /* ---- ctl_mix.c (P1.4b, built through ctl_latch.c): the track settings, the mix, the effects. The effects' pages: a

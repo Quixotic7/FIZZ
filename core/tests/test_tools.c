@@ -9,9 +9,9 @@
  *             counted; euclid's hits equal `hits` for every (hits, len) and E(3, 8) is x..x..x. up to rotation; NEW /
  *             ADD / MASK; length's x2 / /2 on a track, on one page, on a page's end
  *   TOOLS     (the app, driven as the glue drives it) ARP held opens it, a tap is the MIDI FX screen, SHIFT + ARP FILL
- *             at once; ROTATE / REVERSE / EUCLID / LENGTH live (the pattern rewritten at each change, heard), OCT+ one
- *             undo level that restores the original byte for byte, OCT- the original back and no level, OCT- again
- *             closes; switching the tool / the scope / the track keeps a pending change; HOME keeps it; scope PAGE /
+ *             at once; SELECT the page, PRESETS the tool, KNOB 4 / B11 the four scopes, the step lock's SELECTED
+ *             STEPS (W toggles); ROTATE / REVERSE / EUCLID / LENGTH live (the pattern rewritten at each change, heard), OCT+ one
+ *             undo level that restores the original byte for byte, OCT- the original back and no level (never leaving); switching the tool / the scope / the track keeps a pending change; HOME keeps it; scope PAGE /
  *             TRACK / PATTERN; the name popup (~0.8 s) and the scope's takeover; the LEDs (ARP's rule, the keys);
  *             the device's drawn-only fallback (the log too full to keep the original: nothing written until OCT+,
  *             then no undo level); every screen drawn under the sanitizers
@@ -356,7 +356,7 @@ static void t_rotate_live(void)
 {
     qd_pattern_t *before = malloc(sizeof *before);
     qd_leds_t l;
-    int n0, m;
+    int n0, m, w, ok = 1;
     start();
     bass(0);
     run(600);                                           /* (the edits' gesture closed) */
@@ -365,15 +365,19 @@ static void t_rotate_live(void)
     tools_open();
     l = leds();
     CHECK(A.ui.tl.tool == QD_TL_ROTATE && A.ui.tl.scope == QD_TS_TRACK && l.key[BK(0)] == QD_LED_LIT &&
-              l.key[BK(1)] == QD_LED_DIM && l.key[BK(2)] == QD_LED_OFF && l.key[WK(0)] == QD_LED_LIT &&
-              l.key[WK(5)] == QD_LED_DIM && l.key[WK(6)] == QD_LED_OFF && l.key[BK(10)] == QD_LED_LIT &&
-              l.button[F2] == QD_LED_OFF, "ROTATE, TRACK; B1 lit, B2 dim, B3 (T2) dark, W1 lit, W6 dim, W7 dark, OCT+ dark");
-    turn(QD_K_SELECT, 2);
+              l.key[BK(1)] == QD_LED_DIM && l.key[BK(2)] == QD_LED_OFF && l.key[BK(10)] == QD_LED_LIT &&
+              l.key[WK(0)] == QD_LED_LIT && l.key[WK(1)] == QD_LED_OFF && l.key[WK(3)] == QD_LED_LIT &&
+              l.button[F2] == QD_LED_OFF, "ROTATE, TRACK; B1 lit, B2 dim, B3 (T2) dark; W: the page's steps; OCT+ dark");
+    turn(QD_K_1, 2);
     CHECK(A.ui.tl.rot == 2 && qd_tools_pending(&A) && A.undo.hold && leds().button[F2] == QD_LED_LIT,
-          "SELECT +2: pending, the gesture held open, OCT+ lit");
+          "KNOB 1 +2: pending, the gesture held open, OCT+ lit");
     CHECK(!memcmp(&PAT()->step[0][2], &before->step[0][0], sizeof(qd_step_t)) &&
               !memcmp(&PAT()->step[0][1], &before->step[0][31], sizeof(qd_step_t)) && qd_pat_check(PAT()),
           "written live: step 1 now at 3, step 32 at 2 (TRACK: the 32-step loop)");
+    l = leds();
+    for (w = 0; w < 16; w++)
+        ok &= (l.key[WK(w)] == QD_LED_LIT) == qd_step_is_on(&PAT()->step[0][w]);
+    CHECK(ok, "the W LEDs: the page as the change makes it");
     run(QD_UNDO_QUIET_MS + 200);
     CHECK(A.undo.open && A.undo.hold, "quiet for 700 ms: the gesture still open");
     turn(QD_K_1, -1);
@@ -382,82 +386,148 @@ static void t_rotate_live(void)
           "KNOB 1 -1: from the original again (offset 1)");
     btap(F2);
     CHECK(!qd_tools_pending(&A) && !A.undo.hold && qd_undo_count(&A, -1) == n0 + 1 && A.ui.tl.rot == 0 &&
-              qd_tools_open(&A), "OCT+: kept, one undo level; the offset 0 again; TOOLS stays");
+              qd_tools_open(&A) && A.ui.tk == UI_TK_TOOL && A.ui.tk_knob == 2 && A.ui.tk_step == 0,
+          "OCT+: kept, one undo level, KEPT popped; the offset 0 again; TOOLS stays");
     m = ons(0, 0, 16);
     btap(F1);
-    CHECK(!qd_tools_open(&A) && ons(0, 0, 16) == m, "OCT- with nothing pending: TOOLS closes, nothing changed");
+    CHECK(qd_tools_open(&A) && ons(0, 0, 16) == m, "OCT- with nothing pending: nothing (TOOLS stays: HOME leaves)");
     bdown(QD_B_FUNC);
     btap(F1);
     bup(QD_B_FUNC);
     run(10);
     CHECK(!memcmp(PAT()->step, before->step, sizeof before->step) && !memcmp(PAT()->lock, before->lock, sizeof before->lock) &&
               PAT()->nlock == before->nlock, "SHIFT + F1: undone, the original byte for byte");
-    /* OCT-: the original back, no level */
-    tools_open();
-    turn(QD_K_SELECT, 5);
+    turn(QD_K_1, 5);
     n0 = qd_undo_count(&A, -1);
     btap(F1);
     CHECK(!memcmp(PAT()->step, before->step, sizeof before->step) && !qd_tools_pending(&A) && qd_tools_open(&A) &&
-              qd_undo_count(&A, -1) == n0 && A.ui.tl.rot == 0, "OCT-: reverted byte for byte, no level, TOOLS open");
+              qd_undo_count(&A, -1) == n0 && A.ui.tl.rot == 0 && A.ui.tk_knob == 2 && A.ui.tk_step == 1,
+          "OCT-: reverted byte for byte, no level, REVERTED popped, TOOLS open");
     btap(F1);
-    CHECK(!qd_tools_open(&A), "OCT- again: closed");
-    /* B1 again: back to 0 */
-    tools_open();
-    turn(QD_K_SELECT, 3);
+    CHECK(qd_tools_open(&A), "OCT- again: still open");
+    turn(QD_K_1, 3);
     black(0);
     CHECK(A.ui.tl.rot == 0 && !memcmp(PAT()->step, before->step, sizeof before->step) && qd_tools_pending(&A),
           "B1 again: the offset back to 0 (the original heard), still pending");
     btap(F1);
+    btap(QD_B_HOME);
+    CHECK(!qd_tools_open(&A), "HOME: closed");
+    free(before);
+}
+
+static void t_knobs(void)                               /* SELECT the page, PRESETS the tool, KNOB 4 the scope */
+{
+    int m;
+    start();
+    bass(0);
+    run(600);
+    tools_open();
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.page[0] == 1 && qd_tools_open(&A), "SELECT: page 2 shown");
+    turn(QD_K_SELECT, -2);
+    CHECK(A.ui.page[0] == 7, "SELECT -2: round to page 8");
+    turn(QD_K_SELECT, 1);
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.tl.tool == QD_TL_REVERSE && A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob, "PRESETS: the next tool, its name");
+    turn(QD_K_PRESETS, 1);
+    CHECK(A.ui.tl.tool == QD_TL_EUCLID, "PRESETS: RANDOM (T2) skipped");
+    turn(QD_K_PRESETS, -3);
+    CHECK(A.ui.tl.tool == QD_TL_LENGTH, "PRESETS back: round to LENGTH");
+    turn(QD_K_4, -1);
+    CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tk_knob == 1, "KNOB 4: the scope (PAGE), its takeover");
+    turn(QD_K_4, -5);
+    CHECK(A.ui.tl.scope == QD_TS_SEL, "KNOB 4 down: SELECTED (the end)");
+    black(10);
+    CHECK(A.ui.tl.scope == QD_TS_PAGE, "B11: PAGE");
+    black(10), black(10), black(10);
+    CHECK(A.ui.tl.scope == QD_TS_SEL, "B11: TRACK, PATTERN, round to SELECTED");
+    black(0);
+    black(10);                                          /* PAGE */
+    turn(QD_K_1, 1);
+    m = ons(0, 0, 16);
+    turn(QD_K_SELECT, 1);
+    CHECK(!qd_tools_pending(&A) && ons(0, 0, 16) == m && A.ui.page[0] == 1,
+          "PAGE scope, a page change: the pending change kept first");
+    btap(QD_B_HOME);
+}
+
+static void t_selected(void)                            /* the step lock: SELECTED STEPS; W toggles the selection */
+{
+    qd_pattern_t *before = malloc(sizeof *before);
+    int i, ok;
+    start();
+    bass(0);
+    run(600);
+    *before = *PAT();
+    btap(QD_B_MUTE);                                    /* LFO: the step lock on (its selection: one step) */
+    CHECK(A.ui.slatch, "the step lock on");
+    tools_open();
+    CHECK(A.ui.tl.scope == QD_TS_SEL, "TOOLS with the lock on: SELECTED STEPS");
+    for (i = 0; i < A.ui.nheld; i++)                    /* (an empty selection to start from) */
+        ;
+    while (A.ui.nheld)
+        qd_step_select_toggle(&A, A.ui.held[0]);
+    white(0), white(3), white(5);                       /* steps 1 (on), 4 (on), 6 (off) */
+    CHECK(A.ui.nheld == 3 && qd_tools_sel_mask(&A) == 0x29, "W1, W4, W6: selected (the mask 1, 4, 6)");
+    white(5);
+    CHECK(A.ui.nheld == 2, "W6 again: out");
+    white(5);
+    black(1);                                           /* REVERSE */
+    black(1);                                           /* flip */
+    ok = qd_step_is_on(&PAT()->step[0][0]) == qd_step_is_on(&before->step[0][5]) &&
+         qd_step_is_on(&PAT()->step[0][5]) == qd_step_is_on(&before->step[0][0]) &&
+         !memcmp(&PAT()->step[0][3], &before->step[0][3], sizeof(qd_step_t));
+    for (i = 6; i < 32; i++)
+        ok &= !memcmp(&PAT()->step[0][i], &before->step[0][i], sizeof(qd_step_t));
+    CHECK(ok && qd_tools_pending(&A), "REVERSE on the selection: 1 <-> 6, 4 stays, nothing else");
+    white(8);                                           /* step 9 (on) joins: live */
+    CHECK(qd_tools_pending(&A) && qd_step_is_on(&PAT()->step[0][0]) == qd_step_is_on(&before->step[0][8]) &&
+              qd_step_is_on(&PAT()->step[0][8]) == qd_step_is_on(&before->step[0][0]),
+          "W9 while pending: the selection follows, live (1 <-> 9)");
+    btap(F1);
+    CHECK(!memcmp(PAT()->step, before->step, sizeof before->step), "OCT-: back");
+    black(10);
+    white(2);
+    CHECK(A.ui.tl.scope == QD_TS_SEL && A.ui.tk_knob == 1, "PAGE scope, a W: SELECTED again");
     btap(QD_B_HOME);
     free(before);
 }
 
 static void t_switch_home(void)
 {
-    qd_pattern_t *before = malloc(sizeof *before);
     int n0, m;
     start();
     bass(0);
+    bass(2);
     run(600);
-    *before = *PAT();
     n0 = qd_undo_count(&A, -1);
     tools_open();
-    turn(QD_K_SELECT, 1);
+    turn(QD_K_1, 1);
     m = ons(0, 0, 16);
     black(1);                                           /* REVERSE: the rotation kept, a level */
     CHECK(A.ui.tl.tool == QD_TL_REVERSE && !qd_tools_pending(&A) && ons(0, 0, 16) == m &&
               qd_undo_count(&A, -1) == n0 + 1 && A.ui.tk == UI_TK_TOOL, "B2: the pending ROTATE kept (a level), REVERSE "
           "(its name)");
     black(1);
-    CHECK(qd_tools_pending(&A) && (A.ui.tl.flags & QD_TLF_FLIP) && qd_step_is_on(&PAT()->step[0][31]) ==
-              ((m >> 0) & 1), "B2 again: flipped (live): step 1 at 32");
+    CHECK(qd_tools_pending(&A) && (A.ui.tl.flags & QD_TLF_FLIP) && qd_step_is_on(&PAT()->step[0][31]) == (m & 1),
+          "B2 again: flipped (live): step 1 at 32");
     black(1);
     CHECK(qd_tools_pending(&A) && ons(0, 0, 16) == m, "B2 again: flipped back");
     black(1);
     m = ons(0, 0, 16);
-    white(2);                                           /* another track: kept */
+    bdown(QD_B_FUNC);                                   /* SHIFT + SELECT: another track; the flip kept */
+    turn(QD_K_SELECT, 2);
+    bup(QD_B_FUNC);
+    run(10);
     CHECK(A.sel == 2 && !qd_tools_pending(&A) && ons(0, 0, 16) == m && qd_undo_count(&A, -1) == n0 + 2,
-          "W3: track 3, the flip kept first (a level)");
-    white(7);
-    CHECK(A.sel == 2, "W8: no track (six)");
-    white(0);
-    black(10);
-    CHECK(A.ui.tl.scope == QD_TS_PATTERN && A.ui.tk == UI_TK_TOOL && A.ui.tk_knob == 1, "B11: PATTERN, its takeover");
-    run(QD_TOOL_POP_MS + 100);
-    CHECK(A.ui.tk == UI_TK_TOOL, "the scope's takeover stays a second (not the name's 0.8 s)");
-    black(10);
-    CHECK(A.ui.tl.scope == QD_TS_PAGE, "B11 again: PAGE (round)");
-    black(10);
-    CHECK(A.ui.tl.scope == QD_TS_TRACK, ".. TRACK");
+          "SHIFT + SELECT: track 3, the flip kept first (a level)");
     black(2);
     CHECK(A.ui.tl.tool == QD_TL_REVERSE, "B3 (RANDOM, T2): nothing");
     black(0);
-    turn(QD_K_SELECT, 4);
-    m = ons(0, 0, 16);
+    turn(QD_K_1, 4);
     btap(QD_B_HOME);
-    CHECK(!qd_tools_open(&A) && ons(0, 0, 16) == m && !A.undo.hold && qd_undo_count(&A, -1) == n0 + 3,
+    CHECK(!qd_tools_open(&A) && !A.undo.hold && qd_undo_count(&A, -1) == n0 + 3,
           "HOME: closed, the pending change kept (a level)");
-    free(before);
 }
 
 static void t_euclid_pattern(void)
@@ -476,7 +546,7 @@ static void t_euclid_pattern(void)
     CHECK(A.ui.tl.tool == QD_TL_EUCLID && A.ui.tl.scope == QD_TS_PATTERN, "EUCLID, PATTERN");
     turn(QD_K_1, -1);                                   /* 3 of 16 */
     turn(QD_K_2, -8);                                   /* 3 of 8 */
-    CHECK(A.ui.tl.ehits == 3 && A.ui.tl.elen == 8, "KNOB 1 the hits, KNOB 2 the length (3 of 8)");
+    CHECK(A.ui.tl.v.eu.hits == 3 && A.ui.tl.v.eu.len == 8, "KNOB 1 the hits, KNOB 2 the length (3 of 8)");
     {
         int m = 0, i, o = 0;
         for (i = 0; i < 16; i++)
@@ -484,10 +554,11 @@ static void t_euclid_pattern(void)
         for (t = 0; t < QD_PAT_NTRACK; t++)
             ok &= ons(t, 0, 16) == m;
         CHECK(ok, "every track: E(3, 8) on page 1 (its loop), heard at once");
-        turn(QD_K_4, 1);                                /* ADD */
+        turn(QD_K_ALGO, 1);                             /* ADD */
         for (i = 0; i < 16; i++)
             o |= qd_step_is_on(&before->step[0][i]) << i;
-        CHECK(A.ui.tl.emode == QD_EU_ADD && ons(0, 0, 16) == (m | o), "KNOB 4: ADD (from the original: its trigs back)");
+        CHECK(A.ui.tl.v.eu.mode == QD_EU_ADD && ons(0, 0, 16) == (m | o),
+              "ALGORITHM: ADD (from the original: its trigs back)");
     }
     btap(F2);
     CHECK(qd_undo_count(&A, -1) == n0 + 1, "OCT+: one level for the six tracks");
@@ -511,10 +582,10 @@ static void t_length_live(void)
     n0 = qd_undo_count(&A, -1);
     tools_open();
     black(6);
-    turn(QD_K_SELECT, 1);
-    CHECK(qd_track_len(&PAT()->trk[1]) == 64 && qd_step_is_on(&PAT()->step[1][32]), "LENGTH, SELECT +1: x2 live (64)");
-    turn(QD_K_SELECT, -1);
-    turn(QD_K_SELECT, -1);
+    turn(QD_K_1, 1);
+    CHECK(qd_track_len(&PAT()->trk[1]) == 64 && qd_step_is_on(&PAT()->step[1][32]), "LENGTH, KNOB 1 +1: x2 live (64)");
+    turn(QD_K_1, -1);
+    turn(QD_K_1, -1);
     CHECK(qd_track_len(&PAT()->trk[1]) == 16 && A.ui.tl.lpow == -1, "-2: /2 from the original (16)");
     btap(F2);
     CHECK(qd_track_len(&PAT()->trk[1]) == 16 && qd_undo_count(&A, -1) == n0 + 1, "OCT+: kept, a level");
@@ -550,7 +621,7 @@ static void t_drawn_only(void)
     n0 = qd_undo_count(&A, -1);
     on0 = ons(0, 0, 16);
     tools_open();
-    turn(QD_K_SELECT, 1);
+    turn(QD_K_1, 1);
     CHECK(qd_tools_pending(&A) && (A.ui.tl.flags & QD_TLF_NOLIVE) && ons(0, 0, 16) == on0,
           "no room for the original: drawn only (nothing written)");
     for (w = 0; w < 16; w++) {
@@ -580,7 +651,7 @@ static void t_screens(void)                             /* every tool's screen, 
             continue;
         black(tool);
         for (sc = 0; sc < QD_TS_N; sc++) {
-            turn(QD_K_SELECT, 1);
+            turn(QD_K_ALGO, 1);
             turn(QD_K_1, 2);
             turn(QD_K_2, 3);
             turn(QD_K_3, 1);
@@ -608,7 +679,9 @@ int main(void)
         {"ops: length (x2, /2, a page's end)", t_length},
         {"ARP: tapped MIDI FX, held TOOLS, SHIFT + ARP FILL; the LED", t_arp},
         {"ROTATE live: heard, OCT+ a level, OCT- back, undo", t_rotate_live},
-        {"switching tool / track / scope keeps; HOME keeps", t_switch_home},
+        {"SELECT the page, PRESETS the tool, KNOB 4 / B11 the scope", t_knobs},
+        {"the step lock: SELECTED STEPS, W toggles, live", t_selected},
+        {"switching tool / track keeps; HOME keeps", t_switch_home},
         {"EUCLID, PATTERN scope: every track, one level", t_euclid_pattern},
         {"LENGTH live: x2, /2, kept", t_length_live},
 #ifdef QD_UNDO_SLOTS

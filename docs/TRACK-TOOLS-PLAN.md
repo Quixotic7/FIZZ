@@ -227,3 +227,22 @@ TOOLS uses no pool, no RAM code and no NOINIT. All of its code runs from flash o
     blink or breath).
   - Flash: about 9 KB (ui 4.7, app 2.7, seq 1.2), against the 4.5 KB estimated.
 
+### 10.1 The owner's revision after trying T1 on the unit (2026-10-24)
+
+| control | in TOOLS now |
+| --- | --- |
+| W1..W16 | the visible page's steps. Their LEDs show the steps as the pending change makes them (selected ones blink). A press puts a step in or out of the selection and turns the scope to SELECTED STEPS (another scope's pending change is kept first; SELECTED's own follows the selection live). The selection is the step lock's (LFO): no RAM of its own |
+| B11, KNOB 4 | the scope, four now: SELECTED STEPS, PAGE, TRACK, PATTERN. With the step lock on, TOOLS opens on SELECTED STEPS |
+| SELECT | the page shown and edited, round all eight (PAGE scope: a pending change is kept first) |
+| PRESETS | the tools, round the built ones |
+| KNOB 1..3, ALGORITHM | the tool's values. KNOB 4's old job moved to ALGORITHM (EUCLID's landing; RANDOM's chance spread, GRIDS' part in T2) |
+| OCT+ / OCT- | keep / revert, each with a popup (the tool's name and KEPT / REVERTED). OCT- never leaves |
+| HOME | the only way out |
+
+- The track: the one selected when TOOLS opened. SHIFT + SELECT (FIZZ's track change everywhere) still works inside
+  TOOLS; a pending change is kept first.
+- No glows in the TOOLS screens: the ROTATE sweep, the ring's dots and the REVERSE bars lost theirs. One ring drawing
+  serves ROTATE and EUCLID; the popups have no frame (a dark band under the words).
+- The tools' values are a union (a tool chosen starts from its defaults: EUCLID 4 of 16).
+- LENGTH in SELECTED STEPS works as PAGE (on the page the change began on).
+

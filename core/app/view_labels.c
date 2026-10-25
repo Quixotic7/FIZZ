@@ -340,17 +340,17 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         for (i = 0; i < 11; i++)
             lb_set(o, LB_B(i), i < QD_TL_N ? TN[i] : i == 10 ? "SCOPE" : "");
         for (i = 0; i < 16; i++)
-            lb_set(o, LB_W(i), "");
-        for (i = 0; i < QD_PAT_NTRACK; i++)
-            lb_setn(o, LB_W(i), "TRACK ", i + 1);
-        for (k = 0; k < 4; k++)
+            lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
+        for (k = 0; k < 3; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), tool == QD_TL_EUCLID ? EK[k] : "");
-        if (tool == QD_TL_ROTATE || tool == QD_TL_LENGTH) {
-            lb_set(o, LB_KNOB(QD_K_SELECT), tool == QD_TL_ROTATE ? "OFFSET" : "LENGTH");
+        if (tool == QD_TL_ROTATE || tool == QD_TL_LENGTH)
             lb_set(o, LB_KNOB(QD_K_1), tool == QD_TL_ROTATE ? "OFFSET" : "LENGTH");
-        }
+        lb_set(o, LB_KNOB(QD_K_ALGO), tool == QD_TL_EUCLID ? EK[3] : "");
+        lb_set(o, LB_KNOB(QD_K_4), "SCOPE");
+        lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
+        lb_set(o, LB_KNOB(QD_K_PRESETS), "TOOL");
         lb_set(o, LB_BTN(QD_B_OCTUP), "KEEP");
-        lb_set(o, LB_BTN(QD_B_OCTDN), u->tl.flags & QD_TLF_PEND ? "REVERT" : "CLOSE");
+        lb_set(o, LB_BTN(QD_B_OCTDN), "REVERT");
         lb_set(o, LB_BTN(QD_B_HOME), "CLOSE");
         return;
     }
