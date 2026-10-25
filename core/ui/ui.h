@@ -907,6 +907,12 @@ typedef struct {
     uint8_t page;                       /* the page shown (0..7: the page strip over the lane) */
     uint16_t inr;                       /* .. its steps that play (bit w: within its start..end) */
     float t;                            /* seconds (motion) */
+    /* STRETCH (2026-10-25): the track's 128 steps now and before (bit s: a trig; in, in0: the loop's steps); the pages
+     * it fits onto (KNOB 2: 0 off); CLIP: the action (KNOB 1), which can be done (bit QD_CL_*), CLEAR armed, a page or a
+     * pattern to paste */
+    uint8_t ton[16], tin[16], ton0[16], tin0[16];
+    int fit;
+    int act, act_ok, armed, has;
 } ui_tools_t;
 void ui_tools_draw(const ui_tools_t *v);
 /* kind 0: the tool's name (the scope's under it), 1: the scope, 2: message msg, 3: RANDOM's knob msg (0..3) named */

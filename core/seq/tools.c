@@ -179,6 +179,126 @@ int qd_tl_double(qd_pattern_t *p, int t, qd_tset_t *only)
     return 1;
 }
 
+/* ---------------------------------------------------------------- STRETCH (2026-10-25) */
+static int tl_fdiv(int a, int b) { return a >= 0 ? a / b : -((b - 1 - a) / b); }   /* (floor; b > 0) */
+static int tl_clampi(int v, int lo, int hi);
+static int tl_abs(int v) { return v < 0 ? -v : v; }
+void qd_tl_stretch_to(int i, int mic, int num, int den, int m, int *j, int *mo)
+{
+    const int tt = tl_fdiv(2 * (i * 24 + mic) * num + den, 2 * den);   /* (the new time in 24ths, rounded) */
+    const int k = tl_clampi(tl_fdiv(tt + 12, 24), 0, m - 1);
+    *j = k;
+    *mo = tl_clampi(tt - k * 24, -23, 23);
+}
+
+static int tl_bit(const uint8_t *b, int i) { return b[i >> 3] >> (i & 7) & 1; }
+static void tl_set(uint8_t *b, int i) { b[i >> 3] |= (uint8_t)(1u << (i & 7)); }
+
+void qd_tl_stretch(qd_pattern_t *p, int t, const uint8_t *pos, int n, int base, int m, int num, int den)
+{
+    qd_step_t *S = p->step[t];
+    const qd_sdef_t *d = &p->trk[t].def;
+    uint8_t from[QD_NSTEP], id[QD_NSTEP], inv[QD_NSTEP / 8], used[QD_NSTEP / 8];
+    int8_t mo[QD_NSTEP];                                /* (a step's new micro; -128: it takes no trig) */
+    int i, s, k = 0;
+    memset(from, 0xFF, sizeof from);
+    memset(inv, 0, sizeof inv);
+    memset(used, 0, sizeof used);
+    memset(mo, 0x80, sizeof mo);
+    for (i = 0; i < n; i++)
+        tl_set(inv, pos[i]);
+    for (i = 0; i < m && base + i < QD_NSTEP; i++)
+        tl_set(inv, base + i);
+    for (i = 0; i < n; i++) {                           /* (each trig to its new step: two there, the nearer kept) */
+        const qd_step_t *st = &S[pos[i]];
+        int j, o;
+        if (!(st->flags & QD_SF_ON))
+            continue;
+        qd_tl_stretch_to(i, (st->ovr & QD_OV(QD_PM_MICRO) ? st->micro : d->micro) - d->micro, num, den, m, &j, &o);
+        j += base;
+        if (j >= QD_NSTEP || (mo[j] != -128 && tl_abs(o) >= tl_abs(mo[j])))
+            continue;
+        from[j] = pos[i], mo[j] = (int8_t)o;
+    }
+    for (s = 0; s < QD_NSTEP; s++) {                    /* (the others stay; the steps left over fill the rest) */
+        id[s] = (uint8_t)s;
+        if (!tl_bit(inv, s))
+            from[s] = (uint8_t)s;
+        if (from[s] != 0xFF)
+            tl_set(used, from[s]);
+    }
+    for (s = 0; s < QD_NSTEP; s++)
+        if (from[s] == 0xFF) {
+            while (tl_bit(used, k))
+                k++;
+            from[s] = (uint8_t)k;
+            tl_set(used, k);
+        }
+    tl_permute(p, t, id, QD_NSTEP, from);
+    for (s = 0; s < QD_NSTEP; s++) {
+        if (!tl_bit(inv, s))
+            continue;
+        if (mo[s] == -128) {                            /* (no trig here now: cleared, its locks with it) */
+            if (S[s].flags)
+                qd_step_clear(p, t, s);
+            continue;
+        }
+        k = tl_clampi(mo[s] + d->micro, -23, 23);       /* (the track's nudge back on) */
+        if (k == d->micro)
+            qd_step_reset(p, t, s, QD_PM_MICRO);
+        else
+            qd_step_set_micro(p, t, s, k);
+        if ((S[s].ovr & QD_OV(QD_PM_LEN)) && S[s].len != QD_LEN_INF) {   /* (its own length scaled: the nearest) */
+            const int e = qd_len_eighths(S[s].len) * num / den;
+            int b = 0, l;
+            for (l = 1; l < QD_LEN_INF; l++)
+                if (tl_abs(qd_len_eighths(l) - e) < tl_abs(qd_len_eighths(b) - e))
+                    b = l;
+            S[s].len = (uint16_t)b;
+        }
+    }
+}
+
+int qd_tl_stretch_track(qd_pattern_t *p, int t, int page, int *pwp, int fit, qd_tset_t *only)
+{
+    qd_tset_t *ts = only ? only : &p->trk[t];
+    uint8_t pos[QD_NSTEP];
+    int n, m, cap, base = 0, num, den, k, p0 = 0, pw = *pwp;
+    n = qd_tl_positions(p, t, page >= 0 ? QD_TS_PAGE : QD_TS_TRACK, page, pos);   /* (ts: the track's own, so far) */
+    if (page >= 0) {                                    /* (a page: its start..end; fit: 2 x fit steps) */
+        cap = QD_PAGE - pos[0] % QD_PAGE, base = pos[0];
+    } else {
+        p0 = pos[0] / QD_PAGE;
+        cap = QD_NSTEP;
+    }
+    if (fit) {
+        m = page >= 0 ? 2 * fit : fit * QD_PAGE;
+        m = m > cap ? cap : m;
+        num = m, den = n;
+    } else {
+        while (pw > 0 && n << pw > cap)                 /* (as far as it fits) */
+            pw--;
+        *pwp = pw;
+        num = pw > 0 ? 1 << pw : 1, den = pw < 0 ? 1 << -pw : 1;
+        m = (n * num + den - 1) / den;
+    }
+    if (m == n && num == den)
+        return n;
+    if (page >= 0) {
+        ts->pend[page & 7] = (uint8_t)((ts->pstart[page & 7] & 15) + m - 1);
+    } else {
+        const int np = (m + QD_PAGE - 1) / QD_PAGE;
+        p0 = p0 + np > QD_NPAGE ? QD_NPAGE - np : p0;
+        base = p0 * QD_PAGE;
+        for (k = 0; k < np; k++)
+            ts->pstart[p0 + k] = 0, ts->pend[p0 + k] = (uint8_t)(k == np - 1 ? (m - 1) % QD_PAGE : 15);
+        ts->loop = (uint8_t)(((1u << np) - 1u) << p0);
+    }
+    if (!only)
+        qd_tl_stretch(p, t, pos, n, base, m, num, den);
+    return m;
+}
+
 static void tl_halve_page(qd_tset_t *ts, int page)
 {
     const int a = ts->pstart[page] & 15, b = ts->pend[page] & 15, m = b >= a ? b - a + 1 : 1;

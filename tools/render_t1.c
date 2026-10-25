@@ -18,7 +18,7 @@
 #include "sounds.h"
 #include "ui.h"
 
-#define NSHOT 36
+#define NSHOT 48
 static qd_app_t A;
 static uint32_t now;
 static uint64_t frames_done;
@@ -277,7 +277,7 @@ int render_t1(const char *out)
     btap(QD_B_OCTDN);
     run(QD_TOOL_POP_MS);
     turn(QD_K_ALGO, 2);                                    /* SELECTED -> TRACK */
-    black(6);
+    black(7);                                           /* (B8: LENGTH, 2026-10-25) */
     run(QD_TK_MS + 200);
     turn(QD_K_1, 1);
     run(300);
@@ -324,16 +324,29 @@ int render_t1(const char *out)
     run(300);
     shot("grids-pattern", "GRIDS over the PATTERN: LOW, MID, HIGH to tracks 1, 2, 3 (DRUMS first)", 1);
     btap(QD_B_OCTDN);
-    /* T3 */
+    /* CLIP (2026-10-25: COPY / PASTE / CLEAR off the B keys, a page of their own past STRETCH on PRESETS) */
     run(QD_TOOL_POP_MS);
-    black(7);
+    while (A.ui.tl.tool != QD_TL_CLIP)
+        turn(QD_K_PRESETS, 1);
+    run(QD_TOOL_POP_MS);
+    shot("clip", "CLIP (PRESETS, the tenth): KNOB 1 picks COPY / PASTE / CLEAR, OCT+ does it (lit: it can)", 1);
+    btap(QD_B_OCTUP);
     run(150);
-    shot("copied", "T3: PATTERN, B8: the pattern copied (B9 pastes it, B10 twice clears it)", 1);
+    shot("copied", "CLIP, PATTERN: OCT+ on COPY, the pattern copied", 1);
     run(QD_TOOL_POP_MS);
-    black(9);
+    turn(QD_K_1, 1);
     run(150);
-    shot("clearq", "B10 on PATTERN: CLEAR? (B10 blinking: again to clear)", 1);
-    run(QD_TOOL_POP_MS);
+    shot("clip-paste", "KNOB 1: PASTE (something copied: filled)", 1);
+    turn(QD_K_1, 1);
+    btap(QD_B_OCTUP);
+    run(150);
+    shot("clearq", "CLEAR on PATTERN: CLEAR? (the cross blinking red, OCT+ blinking: again to clear)", 1);
+    run(QD_TOOL_POP_MS + 2000);
+    turn(QD_K_ALGO, -1);                                /* (TRACK: COPY grey) */
+    turn(QD_K_1, -2);
+    run(QD_TK_MS + 400);
+    shot("clip-track", "CLIP in TRACK: COPY grey (no whole-track copy), OCT+ dark", 1);
+    turn(QD_K_ALGO, 1);
     /* the owner's findings (2026-10-24): the page shown, the ghosts on every page, the selected step rotated, RANDOM's
      * names, a short loop */
     btap(QD_B_HOME);
@@ -431,8 +444,35 @@ int render_t1(const char *out)
     btap(QD_B_OCTUP);
     run(150);
     shot("quantize-kept", "OCT+: kept (one undo level), KEPT; the ghosts gone", 1);
+    /* STRETCH (2026-10-25): track 2's two pages squeezed and spread */
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_PRESETS, 2);
+    run(QD_TOOL_POP_MS);
+    shot("stretch-open", "STRETCH (PRESETS, the ninth): the loop as it is (32 steps), nothing pending", 1);
+    turn(QD_K_1, 1);
+    turn(QD_K_1, 1);
+    run(300);
+    shot("stretch-x2", "STRETCH, KNOB 1 twice: x2 (x4 has no room past the 8 pages: it stays x2), heard at once", 1);
+    btap(QD_B_OCTDN);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_1, -1);
+    run(300);
+    shot("stretch-half", "/2: squeezed onto 1 page (the trigs on the half-steps between take their micro)", 1);
+    btap(QD_B_OCTDN);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_2, 1), turn(QD_K_2, 1), turn(QD_K_2, 1);
+    run(300);
+    shot("stretch-fit3", "KNOB 2: fit onto 3 pages (x 3/2), the count in green", 1);
+    btap(QD_B_OCTDN);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_ALGO, -1);
+    run(QD_TK_MS + 200);
+    turn(QD_K_1, -1);
+    run(300);
+    shot("stretch-page", "PAGE scope: the page's 16 steps across, /2 onto its first 8", 1);
+    btap(QD_B_OCTDN);
     btap(QD_B_HOME);
     qd_app_stop(&A);
-    sheet_as("t1-sheet.png", "TOOLS: T1 (ROTATE, REVERSE, EUCLID, LENGTH), T2 (RANDOM, HUMANIZE, GRIDS), T3 (COPY, PASTE, CLEAR), QUANTIZE");
+    sheet_as("t1-sheet.png", "TOOLS: ROTATE, REVERSE, RANDOM, EUCLID, GRIDS, HUMANIZE, QUANTIZE, LENGTH (B1..B8), STRETCH, CLIP (PRESETS)");
     return failed;
 }

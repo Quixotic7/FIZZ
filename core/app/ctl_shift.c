@@ -14,7 +14,6 @@
  * While SHIFT is held only these keys light (and SHIFT's map draws them). B2, B10 free; the W keys unchanged. P1.5z: in
  * the sound editor too (its map not shown there). SHIFT + B6's taps show the TAP takeover (QD_TAP_TK_MS). */
 
-#define QD_ARM_MS 2000u                /* B11's second press within this */
 #define QD_TAP_RESET_MS 2000u          /* a tap this long after the last starts a new count */
 
 const uint8_t QD_SHIFT_KEYS[11] = {1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1};   /* B1..B11: a shortcut there (P1.5z: B8) */

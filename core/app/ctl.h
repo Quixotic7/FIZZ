@@ -134,6 +134,7 @@ struct qd_app;
 
 #define QD_TAP_MS 250u                 /* a white key held this long is held, not tapped */
 #define QD_CLICK_MS 200u               /* Form's tap (a page key) and its double tap */
+#define QD_ARM_MS 2000u                /* SHIFT + B11's (CLEAR's) second press within this */
 #define QD_CHORD_MS 60u                /* F1 / F2 alone this long before its map shows (both within: F3) */
 #define QD_IDLE_MS 120000u             /* untouched this long, stopped: the idle screen */
 #define QD_TK_MS 1000u                 /* a takeover stays this long after the last detent .. */
@@ -360,6 +361,8 @@ typedef struct {
         struct { uint8_t micro, vel, pad[2]; uint16_t seed; } hu;          /* T2 HUMANIZE: the jitters */
         struct { uint8_t x, y, dens, chaos, part, pad; uint16_t seed; } gr;   /* T2 GRIDS (part 0..2) */
         struct { uint8_t amt, grid, vel; } qu;   /* QUANTIZE: the timing's amount %, the grid (QD_QG_*), the velocity's % */
+        struct { uint8_t fit; } st;    /* STRETCH: onto this many pages (0: by 2^lpow) */
+        struct { uint8_t act; } cl;    /* CLIP: the action OCT+ does (QD_CL_*) */
     } v;
 } qd_tools_t;
 
@@ -742,6 +745,10 @@ int qd_tools_result_len(const struct qd_app *a, uint8_t *loop);   /* LENGTH: the
 /* HUMANIZE / QUANTIZE: the page's 16 steps' micro and velocity as the change makes them (mi, ve) and as they were (mi0,
  * ve0: the ghosts) */
 void qd_tools_timing(const struct qd_app *a, int8_t *mi, uint8_t *ve, int8_t *mi0, uint8_t *ve0);
+/* STRETCH: the selected track's 128 steps (bit s) as they are (on, in: its trigs, its looped steps) and as they were
+ * (on0, in0: the original; drawn only: no trigs after) */
+void qd_tools_stretch(const struct qd_app *a, uint8_t *on, uint8_t *in, uint8_t *on0, uint8_t *in0);
+int qd_tools_clip_ok(const struct qd_app *a, int act);   /* CLIP: the action can be done in this scope (PASTE: a paste) */
 
 /* ---- ctl_mix.c (P1.4b, built through ctl_latch.c): the track settings, the mix, the effects. The effects' pages: a
  * cell is a qd_fx.h parameter, QD_FXC_SEND (the selected track's send into the page's effect), QD_FXC_TIME /

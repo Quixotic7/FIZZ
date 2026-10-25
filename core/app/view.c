@@ -1124,6 +1124,16 @@ static void __attribute__((noinline)) draw_tools(const qd_app_t *a)
         v.part = T->v.gr.part;
     qd_tools_grids_tracks(a, v.gtr);
     qd_tools_timing(a, v.micro, v.vel, v.micro0, v.vel0);   /* (HUMANIZE, QUANTIZE: the timing, velocities, ghosts) */
+    if (T->tool == QD_TL_STRETCH) {                     /* (2026-10-25) */
+        qd_tools_stretch(a, v.ton, v.tin, v.ton0, v.tin0);
+        v.fit = T->v.st.fit;
+    } else if (T->tool == QD_TL_CLIP) {
+        v.act = T->v.cl.act;
+        for (w = 0; w < QD_CL_N; w++)
+            v.act_ok |= qd_tools_clip_ok(a, w) << w;
+        v.armed = a->ui.clr_armed && a->ms - a->ui.clr_ms < QD_ARM_MS;
+        v.has = T->scope == QD_TS_PAGE ? a->ui.clip.pg.valid : T->scope == QD_TS_PATTERN && a->undo.pclip_ok;
+    }
     v.t = secs(a->ms);
     ui_tools_draw(&v);
 }

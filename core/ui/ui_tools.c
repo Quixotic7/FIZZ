@@ -7,8 +7,8 @@
  * (EUCLID), the pages (LENGTH), the lane at the foot (solid kept, ring new, faded going). */
 #include "../seq/tools.h"
 
-static const char *const TL_NAME[QD_TL_N] = {"ROTATE", "REVERSE", "RANDOM", "EUCLID", "GRIDS", "HUMANIZE", "LENGTH",
-                                                "QUANTIZE"};
+static const char *const TL_NAME[QD_TL_N] = {"ROTATE", "REVERSE", "RANDOM", "EUCLID", "GRIDS", "HUMANIZE", "QUANTIZE",
+                                                "LENGTH", "STRETCH", "CLIP"};
 static const char *const TL_SCOPE[QD_TS_N] = {"SELECTED", "PAGE", "TRACK", "PATTERN"};
 
 static void tl_alpha(float a)                           /* (a part of the alpha now; qd_restore after) */
@@ -25,7 +25,7 @@ static void tl_line(float x0, float y0, float x1, float y1, qd_rgb c, float lw)
 /* each tool as a little picture, centred at x, y */
 void ui_tools_icon(int i, float x, float y, int on)
 {
-    const qd_rgb col = on ? UI_K3 : QD_TL_BUILT(i) ? UI_G2 : UI_G3;
+    const qd_rgb col = on ? UI_K3 : UI_G2;
     const float lw = on ? 1.8f : 1.5f;
     switch (i) {
     case QD_TL_ROTATE: {                                /* a turning arrow */
@@ -80,6 +80,17 @@ void ui_tools_icon(int i, float x, float y, int on)
         ui_RR(x - 1.5f, y - 6.f, 3.f, 11.f, 1.f, QD_NONE, 1.f, col);
         ui_RR(x + 4.f, y - 2.f, 3.f, 7.f, 1.f, QD_NONE, 1.f, col);
         break;
+    case QD_TL_STRETCH:                                 /* 2026-10-25: a span pulled out between two bars */
+        tl_line(x - 8.f, y - 6.f, x - 8.f, y + 6.f, col, lw);
+        tl_line(x + 8.f, y - 6.f, x + 8.f, y + 6.f, col, lw);
+        ui_RR(x - 5.f, y - 2.f, 10.f, 4.f, 2.f, QD_NONE, 1.f, col);
+        break;
+    case QD_TL_CLIP:                                    /* a clipboard */
+        ui_RR(x - 6.f, y - 6.f, 12.f, 14.f, 2.f, col, lw * 0.8f, QD_NONE);
+        ui_RR(x - 3.f, y - 8.5f, 6.f, 4.f, 1.f, QD_NONE, 1.f, col);
+        tl_line(x - 3.f, y + 1.f, x + 3.f, y + 1.f, col, 1.f);
+        tl_line(x - 3.f, y + 4.f, x + 2.f, y + 4.f, col, 1.f);
+        break;
     default: {                                          /* LENGTH: a page, and a dashed one after it */
         static const float D[2] = {2.f, 2.f};
         ui_RR(x - 8.f, y - 4.f, 7.f, 8.f, 1.5f, col, lw * 0.8f, QD_NONE);
@@ -120,31 +131,36 @@ void ui_tools_scope_icon(int sc, float x, float y, qd_rgb col, float s)
 static void tl_head(const ui_tools_t *v)
 {
     int i;
-    for (i = 0; i < QD_TL_N; i++) {
-        ui_tools_icon(i, 12.f + (float)i * 19.f, 14.f, i == v->tool);   /* (eight: 19 px apart) */
+    for (i = 0; i < QD_TL_N; i++) {                     /* (ten: 16 px apart, at 80 %) */
+        const float x = 9.f + (float)i * 16.f;
+        qd_save();
+        qd_translate(x, 14.f);
+        qd_scale(0.8f, 0.8f);
+        ui_tools_icon(i, 0.f, 0.f, i == v->tool);
+        qd_restore();
         if (i == v->tool)
-            tl_line(4.f + (float)i * 19.f, 27.f, 20.f + (float)i * 19.f, 27.f, UI_K3, 2.f);
+            tl_line(x - 6.5f, 27.f, x + 6.5f, 27.f, UI_K3, 2.f);
     }
     if (v->nolive) {                                    /* drawn only: no undo (the arrow crossed out) */
-        ui_icon(UI_IC_UNDO, 160.f, 14.f, 1.f, UI_KSEL);
-        tl_line(154.f, 20.f, 166.f, 8.f, UI_KSEL, 1.6f);
+        ui_icon(UI_IC_UNDO, 167.f, 14.f, 1.f, UI_KSEL);
+        tl_line(161.f, 20.f, 173.f, 8.f, UI_KSEL, 1.6f);
     } else if (v->pending) {                            /* a change pending (heard and seen) */
         tl_alpha(0.6f + 0.4f * sinf(v->t * 8.f));
-        ui_O(160.f, 14.f, 3.f, QD_NONE, 1.f, UI_K4);
+        ui_O(167.f, 14.f, 3.f, QD_NONE, 1.f, UI_K4);
         qd_restore();
     }
     if (v->scope != QD_TS_PATTERN) {
         char n[12];
-        ui_RR(172.f, 5.f, 18.f, 18.f, 2.f, v->tcol, 1.4f, QD_NONE);
-        ui_T(ui_itoa(n, v->track), 181.f, 19.f, 13.f, 600, 0.f, v->tcol, QD_CENTER);
+        ui_RR(177.f, 5.f, 18.f, 18.f, 2.f, v->tcol, 1.4f, QD_NONE);
+        ui_T(ui_itoa(n, v->track), 186.f, 19.f, 13.f, 600, 0.f, v->tcol, QD_CENTER);
     } else {
         static const float D[2] = {2.f, 2.f};
         qd_save();
         qd_dash(D, 2);
-        ui_RR(172.f, 5.f, 18.f, 18.f, 2.f, UI_G1, 1.4f, QD_NONE);
+        ui_RR(177.f, 5.f, 18.f, 18.f, 2.f, UI_G1, 1.4f, QD_NONE);
         qd_restore();
     }
-    ui_tools_scope_icon(v->scope, 216.f, 14.f, UI_K3, 1.f);
+    ui_tools_scope_icon(v->scope, 219.f, 14.f, UI_K3, 1.f);
 }
 
 static float tl_noteh(const ui_tools_t *v, int i, float span)   /* a step's note as a height 0..span */
@@ -286,6 +302,13 @@ static void tl_euclid(const ui_tools_t *v)
     tl_lane(v, 0);
 }
 
+static void tl_div(float x, float y, float s, qd_rgb col)   /* a division sign, drawn (the font has none) */
+{
+    tl_line(x - 4.f * s, y, x + 4.f * s, y, col, 1.6f * s);
+    ui_O(x, y - 4.f * s, 1.2f * s, QD_NONE, 1.f, col);
+    ui_O(x, y + 4.f * s, 1.2f * s, QD_NONE, 1.f, col);
+}
+
 /* LENGTH: the eight pages (looped filled, a new one outlined, one leaving faded), the steps big, x2 / /2 */
 static void tl_length(const ui_tools_t *v)
 {
@@ -312,9 +335,7 @@ static void tl_length(const ui_tools_t *v)
         const float a[6] = {40.f, 168.f, 32.f, 174.f, 40.f, 180.f}, b[6] = {200.f, 168.f, 208.f, 174.f, 200.f, 180.f};
         ui_P(a, 3, l, 2.4f, 0, QD_NONE);
         ui_P(b, 3, r, 2.4f, 0, QD_NONE);
-        tl_line(50.f, 174.f, 58.f, 174.f, l, 1.6f);     /* (a division sign, drawn) */
-        ui_O(54.f, 170.f, 1.2f, QD_NONE, 1.f, l);
-        ui_O(54.f, 178.f, 1.2f, QD_NONE, 1.f, l);
+        tl_div(54.f, 174.f, 1.f, l);
         ui_T("2", 61.f, 180.f, 14.f, 600, 0.f, l, QD_LEFT);
         ui_T("\xc3\x97" "2", 188.f, 180.f, 14.f, 600, 0.f, r, QD_RIGHT);
     }
@@ -450,6 +471,104 @@ static void tl_grids(const ui_tools_t *v)
     tl_lane(v, 0);
 }
 
+/* STRETCH (2026-10-25): the loop as it was (grey ticks, its trigs) over the loop as it is (the track's colour), one time
+ * line (TRACK and PATTERN: the eight pages across; PAGE and SELECTED: the page's sixteen steps), the fan between them
+ * the squeeze or the spread; the factor big in KNOB 1's blue (x2 .. /8), or the pages it fits onto in KNOB 2's green */
+static float tl_tape(const uint8_t *on, const uint8_t *in, float y, float h, int page, qd_rgb col, float *x1)
+{
+    const int s0 = page >= 0 ? page * 16 : 0, n = page >= 0 ? 16 : 128;
+    const float sw = 224.f / (float)n;
+    int s, first = -1, last = 0;
+    for (s = 0; s < n; s++) {
+        const int k = s0 + s;
+        if (!(in[k >> 3] >> (k & 7) & 1))
+            continue;
+        first = first < 0 ? s : first, last = s;
+        if (on[k >> 3] >> (k & 7) & 1)
+            ui_RR(8.f + (float)s * sw, y, sw > 3.f ? sw - 2.f : 1.3f, h, 0.6f, QD_NONE, 1.f, col);
+    }
+    first = first < 0 ? 0 : first;
+    ui_RR(8.f + (float)first * sw, y + h + 3.f, (float)(last - first + 1) * sw, 3.f, 1.5f, QD_NONE, 1.f, col);
+    *x1 = 8.f + (float)(last + 1) * sw;
+    return 8.f + (float)first * sw;
+}
+static void tl_stretch(const ui_tools_t *v)
+{
+    const int page = v->scope <= QD_TS_PAGE ? v->page : -1, f = v->fit;
+    const qd_rgb kc = f ? UI_K2 : UI_K1;
+    float b0, b1, a0, a1;
+    char s[12];
+    int k;
+    for (k = 1; page < 0 && k < 8; k++) {               /* (the pages' bounds: notches by the tapes) */
+        tl_line(8.f + (float)k * 28.f, 36.f, 8.f + (float)k * 28.f, 40.f, UI_G2, 1.f);
+        tl_line(8.f + (float)k * 28.f, 160.f, 8.f + (float)k * 28.f, 164.f, UI_G2, 1.f);
+    }
+    b0 = tl_tape(v->ton0, v->tin0, 42.f, 14.f, page, UI_G1, &b1);
+    a0 = tl_tape(v->ton, v->tin, 132.f, 22.f, page, v->tcol, &a1);
+    {
+        const float fan[8] = {b0, 62.f, b1, 62.f, a1, 128.f, a0, 128.f};
+        tl_alpha(0.14f);
+        ui_P(fan, 4, QD_NONE, 1.f, 1, kc);
+        qd_restore();
+        tl_line(b0, 62.f, a0, 128.f, kc, 1.4f);
+        tl_line(b1, 62.f, a1, 128.f, kc, 1.4f);
+    }
+    if (f) {                                            /* (onto f pages: the number, a page beside it) */
+        ui_T(ui_itoa(s, f), 112.f, 110.f, 36.f, 700, 0.f, UI_K2, QD_CENTER);
+        ui_RR(132.f, 86.f, 14.f, 18.f, 2.f, UI_K2, 1.6f, QD_NONE);
+    } else if (v->lpow < 0) {
+        tl_div(100.f, 98.f, 2.f, UI_K1);
+        ui_T(ui_itoa(s, 1 << -v->lpow), 116.f, 110.f, 36.f, 700, 0.f, UI_K1, QD_LEFT);
+    } else {
+        s[0] = (char)0xc3, s[1] = (char)0x97;
+        ui_itoa(s + 2, 1 << v->lpow);
+        ui_T(s, 120.f, 110.f, 36.f, 700, 0.f, v->lpow ? UI_K1 : UI_G2, QD_CENTER);
+    }
+    tl_lane(v, 0);
+}
+
+/* CLIP (2026-10-25): COPY, PASTE, CLEAR, the one KNOB 1 picked big (what OCT+ does), its neighbours small; one that
+ * cannot be done here grey (COPY / PASTE: PAGE and PATTERN only; PASTE: something copied); CLEAR waiting for its second
+ * press red, blinking */
+static void tl_clip_icon(int k, float x, float y, float sc, qd_rgb col)
+{
+    qd_save();
+    qd_translate(x, y);
+    qd_scale(sc, sc);
+    if (k == QD_CL_COPY) {                              /* two pages */
+        ui_RR(-9.f, -11.f, 13.f, 16.f, 2.f, col, 1.4f, QD_NONE);
+        ui_RR(-4.f, -6.f, 13.f, 16.f, 2.f, QD_NONE, 1.f, col);
+    } else if (k == QD_CL_PASTE) {                      /* the clipboard, a page going onto it */
+        const float h[6] = {-3.5f, 1.f, 0.f, 4.5f, 3.5f, 1.f};
+        ui_RR(-8.f, -9.f, 16.f, 20.f, 2.f, col, 1.4f, QD_NONE);
+        ui_RR(-4.f, -12.f, 8.f, 5.f, 1.5f, QD_NONE, 1.f, col);
+        tl_line(0.f, -4.f, 0.f, 4.f, col, 1.4f);
+        ui_P(h, 3, col, 1.4f, 0, QD_NONE);
+    } else {                                            /* a cross */
+        tl_line(-8.f, -8.f, 8.f, 8.f, col, 2.2f);
+        tl_line(8.f, -8.f, -8.f, 8.f, col, 2.2f);
+    }
+    qd_restore();
+}
+static void tl_clip(const ui_tools_t *v)
+{
+    int k;
+    for (k = 0; k < QD_CL_N; k++) {
+        const int ok = (v->act_ok >> k) & 1, on = k == v->act;
+        const qd_rgb col = !ok ? UI_G3 : on ? (k == QD_CL_CLEAR ? UI_RED : UI_K3) : UI_G2;
+        if (k < v->act - 1 || k > v->act + 1)
+            continue;
+        if (on && v->armed)                             /* (CLEAR? the second press) */
+            tl_alpha(0.35f + 0.65f * (sinf(v->t * 18.f) > 0.f));
+        tl_clip_icon(k, on ? 120.f : k < v->act ? 36.f : 204.f, 100.f, on ? 3.4f : 1.6f, col);
+        if (on && v->armed)
+            qd_restore();
+    }
+    for (k = 0; k < QD_CL_N; k++)                       /* (KNOB 1's place among the three) */
+        ui_O(108.f + (float)k * 12.f, 160.f, 3.f, k == v->act ? QD_NONE : UI_G2, 1.2f, k == v->act ? UI_K1 : QD_NONE);
+    tl_lane(v, 0);
+}
+
 /* the eight pages over the lane: the one shown big in the track's colour, the looped ones grey, the others dark */
 static void tl_pages(const ui_tools_t *v)
 {
@@ -473,6 +592,8 @@ void ui_tools_draw(const ui_tools_t *v)
     case QD_TL_REVERSE: tl_reverse(v); break;
     case QD_TL_EUCLID: tl_euclid(v); break;
     case QD_TL_LENGTH: tl_length(v); break;
+    case QD_TL_STRETCH: tl_stretch(v); break;
+    case QD_TL_CLIP: tl_clip(v); break;
     case QD_TL_RANDOM: tl_random(v); break;
     case QD_TL_HUMANIZE:
     case QD_TL_QUANTIZE: tl_timing(v); break;

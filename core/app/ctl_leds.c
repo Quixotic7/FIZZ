@@ -368,8 +368,13 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_OCTDN] = QD_LED_LIT;
         out->button[QD_B_OCTUP] = qd_latch_cur(a)->confirm ? QD_LED_LIT : QD_LED_OFF;
     }
-    if (qd_tools_open(a))                               /* T1: OCT+ lit with a change to keep */
-        out->button[QD_B_OCTUP] = a->ui.tl.flags & QD_TLF_PEND ? QD_LED_LIT : QD_LED_OFF;
+    if (qd_tools_open(a)) {                             /* T1: OCT+ lit with a change to keep (CLIP: its action there,
+                                                         * blinking for CLEAR's second press) */
+        const int clip = a->ui.tl.tool == QD_TL_CLIP;
+        out->button[QD_B_OCTUP] = (clip ? qd_tools_clip_ok(a, a->ui.tl.v.cl.act) : a->ui.tl.flags & QD_TLF_PEND) &&
+                                          !(clip && u->clr_armed && a->ms - u->clr_ms < QD_ARM_MS && blink(a, QD_FAST_MS))
+                                      ? QD_LED_LIT : QD_LED_OFF;
+    }
     if (u->latch == QD_LATCH_BROWSE) {                  /* P1.5t: F1 (cancel) and F2 (load) lit */
         out->button[QD_B_OCTDN] = QD_LED_LIT;
         out->button[QD_B_OCTUP] = QD_LED_LIT;
