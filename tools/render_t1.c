@@ -248,15 +248,15 @@ int render_t1(const char *out)
     turn(QD_K_1, -2);
     turn(QD_K_2, -8);
     turn(QD_K_3, 2);
-    turn(QD_K_ALGO, 1);
+    turn(QD_K_4, 1);
     run(300);
-    shot("euclid-3-8-add", "EUCLID 3 of 8, rotated 2, ALGORITHM: ADD (the bass's trigs stay, rings new)", 1);
+    shot("euclid-3-8-add", "EUCLID 3 of 8, rotated 2, KNOB 4: ADD (the bass's trigs stay, rings new)", 1);
     btap(QD_B_OCTDN);
     run(QD_TOOL_POP_MS);
-    turn(QD_K_4, 1);
+    turn(QD_K_ALGO, 1);
     run(200);
-    shot("scope", "KNOB 4 (or B11): the scope's takeover (TRACK of four)", 1);
-    turn(QD_K_4, 1);
+    shot("scope", "ALGORITHM (or B11): the scope's takeover (TRACK of four)", 1);
+    turn(QD_K_ALGO, 1);
     run(QD_TK_MS + 200);
     turn(QD_K_1, 2);
     turn(QD_K_2, 8);
@@ -276,7 +276,7 @@ int render_t1(const char *out)
     shot("selected", "W1, W4, W7, W11: SELECTED STEPS (marked, the W LEDs blinking); REVERSE on them alone", 1);
     btap(QD_B_OCTDN);
     run(QD_TOOL_POP_MS);
-    turn(QD_K_4, 2);                                    /* SELECTED -> TRACK */
+    turn(QD_K_ALGO, 2);                                    /* SELECTED -> TRACK */
     black(6);
     run(QD_TK_MS + 200);
     turn(QD_K_1, 1);
@@ -299,9 +299,9 @@ int render_t1(const char *out)
     turn(QD_K_1, 5);
     turn(QD_K_2, 3);
     turn(QD_K_3, 20);
-    turn(QD_K_ALGO, 40);
+    turn(QD_K_4, 40);
     run(300);
-    shot("random", "RANDOM: the die (B3 again rolls), KNOB 1 density, 2 notes, 3 velocity, ALGORITHM chance", 1);
+    shot("random", "RANDOM: the die (B3 again rolls), KNOB 1 density, 2 notes, 3 velocity, 4 chance", 1);
     btap(QD_B_OCTDN);
     black(5);
     run(QD_TOOL_POP_MS);
@@ -315,10 +315,10 @@ int render_t1(const char *out)
     turn(QD_K_1, 5);
     turn(QD_K_2, 3);
     turn(QD_K_3, 6);
-    turn(QD_K_ALGO, 12);
+    turn(QD_K_4, 12);
     run(300);
-    shot("grids", "GRIDS: X (KNOB 1), Y (KNOB 2), density (KNOB 3), chaos (ALGORITHM, the cloud); B5 again: the part", 1);
-    turn(QD_K_4, 1);                                    /* PATTERN */
+    shot("grids", "GRIDS: X (KNOB 1), Y (KNOB 2), density (KNOB 3), chaos (KNOB 4, the cloud); B5 again: the part", 1);
+    turn(QD_K_ALGO, 1);                                    /* PATTERN */
     run(QD_TK_MS + 200);
     turn(QD_K_3, 4);
     run(300);

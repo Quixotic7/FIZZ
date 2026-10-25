@@ -347,8 +347,8 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
             lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
         for (k = 0; k < 3; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), KL[tool][k]);
-        lb_set(o, LB_KNOB(QD_K_ALGO), KL[tool][3]);
-        lb_set(o, LB_KNOB(QD_K_4), "SCOPE");
+        lb_set(o, LB_KNOB(QD_K_4), KL[tool][3]);
+        lb_set(o, LB_KNOB(QD_K_ALGO), "SCOPE");
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_PRESETS), "TOOL");
         lb_set(o, LB_BTN(QD_B_OCTUP), "KEEP");

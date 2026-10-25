@@ -4,9 +4,9 @@
 /* T1: TOOLS, the track tools (ctl.h; docs/TRACK-TOOLS-PLAN.md §2, the owner's decisions §8, his revision §10). Built
  * through ctl_latch.c (it includes this file). The operations are seq/tools.c's.
  *
- * THE CONTROLS: B1..B7 or PRESETS the tool; B11 or KNOB 4 the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
- * page shown; W1..W16 the page's steps (a press: in / out of the selection, the scope SELECTED); KNOB 1..3 and
- * ALGORITHM the tool's values. OCT+ keeps, OCT- reverts (it never leaves); HOME is the only way out. TOOLS works on
+ * THE CONTROLS: B1..B7 or PRESETS the tool; B11 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
+ * page shown; W1..W16 the page's steps (a press: in / out of the selection, the scope SELECTED); KNOB 1..4 the
+ * tool's values. OCT+ keeps, OCT- reverts (it never leaves); HOME is the only way out. TOOLS works on
  * the track selected when it opened (SHIFT + SELECT still changes it: a pending change is kept first).
  *
  * LIVE PREVIEW, SEEN AND HEARD (§2): the first change of a tool opens an undo gesture of its own and HOLDS it open
@@ -422,7 +422,7 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
         tl_tool(a, b);
         return 1;
     }
-    if (knob == QD_K_4) {                               /* the scope */
+    if (knob == QD_K_ALGO) {                               /* the scope */
         const int sc = tl_clamp(T->scope + d, 0, QD_TS_N - 1);
         if (sc != T->scope)
             tl_scope(a, sc);
@@ -442,15 +442,15 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
             tl_norm(a);
         } else if (knob == QD_K_3) {
             T->v.eu.rot = (uint8_t)(((T->v.eu.rot + d) % T->v.eu.len + T->v.eu.len) % T->v.eu.len), ch = 1;
-        } else if (knob == QD_K_ALGO) {                 /* (the landing: was KNOB 4) */
+        } else if (knob == QD_K_4) {                 /* (the landing) */
             const int m = tl_clamp(T->v.eu.mode + (d > 0 ? 1 : -1), 0, QD_EU_N - 1);
             ch = m != T->v.eu.mode;
             T->v.eu.mode = (uint8_t)m;
         }
         break;
-    case QD_TL_RANDOM: {                                /* KNOB 1 density, 2 notes, 3 velocity, ALGORITHM chance */
+    case QD_TL_RANDOM: {                                /* KNOB 1 density, 2 notes, 3 velocity, KNOB 4 chance */
         uint8_t *v = knob == QD_K_1 ? &T->v.rn.dens : knob == QD_K_2 ? &T->v.rn.notes : knob == QD_K_3 ? &T->v.rn.vel
-                   : knob == QD_K_ALGO ? &T->v.rn.chance : 0;
+                   : knob == QD_K_4 ? &T->v.rn.chance : 0;
         const int mx = knob == QD_K_2 ? 12 : knob == QD_K_3 ? 64 : 100;
         if (v) {
             const int n = tl_clamp(*v + qd_ctl_acc(a, d, mx + 1), 0, mx);
@@ -468,9 +468,9 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
         }
         break;
     }
-    case QD_TL_GRIDS: {                                 /* KNOB 1 X, 2 Y, 3 density, ALGORITHM chaos (0..255) */
+    case QD_TL_GRIDS: {                                 /* KNOB 1 X, 2 Y, 3 density, KNOB 4 chaos (0..255) */
         uint8_t *v = knob == QD_K_1 ? &T->v.gr.x : knob == QD_K_2 ? &T->v.gr.y : knob == QD_K_3 ? &T->v.gr.dens
-                   : knob == QD_K_ALGO ? &T->v.gr.chaos : 0;
+                   : knob == QD_K_4 ? &T->v.gr.chaos : 0;
         if (v) {
             const int n = tl_clamp(*v + 4 * qd_ctl_acc(a, d, 64), 0, 255);
             ch = n != *v;

@@ -231,7 +231,7 @@ static void tl_reverse(const ui_tools_t *v)
 }
 
 /* EUCLID: the ring and its polygon of hits; hits big (KNOB 1), the length (KNOB 2), the rotation's tick (KNOB 3), the
- * landing's three pictures (ALGORITHM) */
+ * landing's three pictures (KNOB 4) */
 static void tl_euclid(const ui_tools_t *v)
 {
     const int n = v->len < 1 ? 1 : v->len > QD_NSTEP ? QD_NSTEP : v->len;
@@ -321,7 +321,7 @@ static void tl_meter(float x, float y, float w, float h, float u, qd_rgb col)
 }
 
 /* RANDOM: the die (its face the seed's), the four amounts as stripe meters in their knobs' colours (KNOB 1 how many,
- * KNOB 2 the notes, KNOB 3 the velocity, ALGORITHM the chance) */
+ * KNOB 2 the notes, KNOB 3 the velocity, KNOB 4 the chance) */
 static void tl_random(const ui_tools_t *v)
 {
     static const int8_t PIP[6][6][2] = {{{0, 0}}, {{-1, -1}, {1, 1}}, {{-1, -1}, {0, 0}, {1, 1}},
@@ -361,7 +361,7 @@ static void tl_humanize(const ui_tools_t *v)
     }
 }
 
-/* GRIDS: the map's pad (its nine nodes), the dot at X (KNOB 1, blue) and Y (KNOB 2, green), chaos (ALGORITHM) as a
+/* GRIDS: the map's pad (its nine nodes), the dot at X (KNOB 1, blue) and Y (KNOB 2, green), chaos (KNOB 4) as a
  * yellow cloud round it; the density (KNOB 3) a tall stripe; the part LOW / MID / HIGH as three drums (B5 again: the
  * next). PATTERN: each drum under the track it goes to */
 static void tl_grids(const ui_tools_t *v)

@@ -275,3 +275,9 @@ TOOLS uses no pool, no RAM code and no NOINIT. All of its code runs from flash o
 - Not built from T3's list: the LINE-style animations (the dice roll, the fizz-in, the growing pages). The flash went
   to the tools instead.
 
+### 10.4 The owner's swap (after T3)
+
+ALGORITHM sets the scope (SELECTED / PAGE / TRACK / PATTERN; B11 still cycles it) and KNOB 4 is the tool's fourth
+value again: EUCLID's landing, RANDOM's chance spread, GRIDS' chaos (the orange meter and pictures: KNOB 4's colour).
+Where §10.1 and §10.2 say "ALGORITHM" for those values or "KNOB 4" for the scope, read it the other way round.
+

@@ -9,7 +9,7 @@
  *             counted; euclid's hits equal `hits` for every (hits, len) and E(3, 8) is x..x..x. up to rotation; NEW /
  *             ADD / MASK; length's x2 / /2 on a track, on one page, on a page's end
  *   TOOLS     (the app, driven as the glue drives it) ARP held opens it, a tap is the MIDI FX screen, SHIFT + ARP FILL
- *             at once; SELECT the page, PRESETS the tool, KNOB 4 / B11 the four scopes, the step lock's SELECTED
+ *             at once; SELECT the page, PRESETS the tool, ALGORITHM / B11 the four scopes, the step lock's SELECTED
  *             STEPS (W toggles); ROTATE / REVERSE / EUCLID / LENGTH live (the pattern rewritten at each change, heard), OCT+ one
  *             undo level that restores the original byte for byte, OCT- the original back and no level (never leaving); switching the tool / the scope / the track keeps a pending change; HOME keeps it; scope PAGE /
  *             TRACK / PATTERN; the name popup (~0.8 s) and the scope's takeover; the LEDs (ARP's rule, the keys);
@@ -476,7 +476,7 @@ static void t_rotate_live(void)
     free(before);
 }
 
-static void t_knobs(void)                               /* SELECT the page, PRESETS the tool, KNOB 4 the scope */
+static void t_knobs(void)                               /* SELECT the page, PRESETS the tool, ALGORITHM the scope */
 {
     int m;
     start();
@@ -494,10 +494,10 @@ static void t_knobs(void)                               /* SELECT the page, PRES
     CHECK(A.ui.tl.tool == QD_TL_EUCLID, "PRESETS +2: RANDOM, EUCLID");
     turn(QD_K_PRESETS, -4);
     CHECK(A.ui.tl.tool == QD_TL_LENGTH, "PRESETS back: round to LENGTH");
-    turn(QD_K_4, -1);
-    CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tk_knob == 1, "KNOB 4: the scope (PAGE), its takeover");
-    turn(QD_K_4, -5);
-    CHECK(A.ui.tl.scope == QD_TS_SEL, "KNOB 4 down: SELECTED (the end)");
+    turn(QD_K_ALGO, -1);
+    CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tk_knob == 1, "ALGORITHM: the scope (PAGE), its takeover");
+    turn(QD_K_ALGO, -5);
+    CHECK(A.ui.tl.scope == QD_TS_SEL, "ALGORITHM down: SELECTED (the end)");
     black(10);
     CHECK(A.ui.tl.scope == QD_TS_PAGE, "B11: PAGE");
     black(10), black(10), black(10);
@@ -609,8 +609,8 @@ static void t_t2_live(void)                             /* RANDOM, HUMANIZE, GRI
     CHECK(qd_tools_pending(&A) && A.ui.tl.v.rn.dens == 60, "KNOB 1: the density (60 %%), rolled live");
     black(2);
     CHECK(qd_tools_pending(&A) && ons(0, 0, 16) != m, "B3 again: a new seed, another roll (heard)");
-    turn(QD_K_ALGO, 30);
-    CHECK(A.ui.tl.v.rn.chance == 30, "ALGORITHM: the chance spread (was KNOB 4)");
+    turn(QD_K_4, 30);
+    CHECK(A.ui.tl.v.rn.chance == 30, "KNOB 4: the chance spread");
     btap(F1);
     CHECK(!memcmp(PAT()->step, before->step, sizeof before->step), "OCT-: the original back");
     black(5);
@@ -622,7 +622,7 @@ static void t_t2_live(void)                             /* RANDOM, HUMANIZE, GRI
     CHECK(qd_undo_count(&A, -1) == n0 + 1, "OCT+: a level");
     btap(F1);
     black(4);
-    turn(QD_K_4, 1);                                    /* PATTERN */
+    turn(QD_K_ALGO, 1);                                    /* PATTERN */
     turn(QD_K_3, 20);
     qd_tools_grids_tracks(&A, tr);
     CHECK(A.ui.tl.tool == QD_TL_GRIDS && A.ui.tl.scope == QD_TS_PATTERN && tr[0] == 0 && tr[1] == 1 && tr[2] == 2,
@@ -655,7 +655,7 @@ static void t_clip(void)
     run(600);
     *before = *PAT();
     tools_open();
-    turn(QD_K_4, -1);                                   /* PAGE */
+    turn(QD_K_ALGO, -1);                                   /* PAGE */
     CHECK(A.ui.tl.scope == QD_TS_PAGE && leds().key[BK(7)] == QD_LED_LIT && leds().key[BK(8)] == QD_LED_DIM,
           "PAGE: COPY lit, PASTE dim (nothing copied)");
     black(7);
@@ -672,13 +672,13 @@ static void t_clip(void)
     black(9);
     run(QD_UNDO_QUIET_MS + 50);
     CHECK(ons(0, 32, 16) == 0 && qd_undo_count(&A, -1) == n0 + 2, "B10 on PAGE: cleared at once, a level");
-    turn(QD_K_4, 1);                                    /* TRACK */
+    turn(QD_K_ALGO, 1);                                    /* TRACK */
     CHECK(leds().key[BK(7)] == QD_LED_OFF, "TRACK: no COPY");
     black(9);
     CHECK(ons(0, 0, 16) && A.ui.tk_step == 5, "B10 on TRACK: CLEAR? (nothing yet)");
     black(9);
     CHECK(!ons(0, 0, 16) && !ons(0, 16, 16) && ons(3, 0, 16), "B10 again: track 1 cleared, track 4 not");
-    turn(QD_K_4, 1);                                    /* PATTERN */
+    turn(QD_K_ALGO, 1);                                    /* PATTERN */
     bdown(QD_B_FUNC);
     btap(F1), btap(F1);                                 /* (SHIFT + F1 twice: both clears undone) */
     bup(QD_B_FUNC);
@@ -732,7 +732,7 @@ static void t_noroom(void)
     n0 = qd_undo_count(&A, -1);
     tools_open();
     black(3);
-    turn(QD_K_4, 1);                                    /* PATTERN */
+    turn(QD_K_ALGO, 1);                                    /* PATTERN */
     turn(QD_K_1, -4);                                   /* 0 hits: every trig goes */
     CHECK(qd_tools_pending(&A) && !(A.ui.tl.flags & QD_TLF_NOLIVE) && (A.ui.tl.flags & QD_TLF_NOROOM) && !ons(0, 0, 16),
           "a change too big for an undo level: live, marked (the crossed-out arrow)");
@@ -769,11 +769,11 @@ static void t_euclid_pattern(void)
         for (t = 0; t < QD_PAT_NTRACK; t++)
             ok &= ons(t, 0, 16) == m;
         CHECK(ok, "every track: E(3, 8) on page 1 (its loop), heard at once");
-        turn(QD_K_ALGO, 1);                             /* ADD */
+        turn(QD_K_4, 1);                             /* ADD */
         for (i = 0; i < 16; i++)
             o |= qd_step_is_on(&before->step[0][i]) << i;
         CHECK(A.ui.tl.v.eu.mode == QD_EU_ADD && ons(0, 0, 16) == (m | o),
-              "ALGORITHM: ADD (from the original: its trigs back)");
+              "KNOB 4: ADD (from the original: its trigs back)");
     }
     btap(F2);
     CHECK(qd_undo_count(&A, -1) == n0 + 1, "OCT+: one level for the six tracks");
@@ -866,7 +866,7 @@ static void t_screens(void)                             /* every tool's screen, 
             continue;
         black(tool);
         for (sc = 0; sc < QD_TS_N; sc++) {
-            turn(QD_K_ALGO, 1);
+            turn(QD_K_4, 1);
             turn(QD_K_1, 2);
             turn(QD_K_2, 3);
             turn(QD_K_3, 1);
@@ -895,7 +895,7 @@ int main(void)
         {"ops: RANDOM, HUMANIZE, GRIDS (seeded, ranges, the map)", t_generators},
         {"ARP: tapped MIDI FX, held TOOLS, SHIFT + ARP FILL; the LED", t_arp},
         {"ROTATE live: heard, OCT+ a level, OCT- back, undo", t_rotate_live},
-        {"SELECT the page, PRESETS the tool, KNOB 4 / B11 the scope", t_knobs},
+        {"SELECT the page, PRESETS the tool, ALGORITHM / B11 the scope", t_knobs},
         {"the step lock: SELECTED STEPS, W toggles, live", t_selected},
         {"switching tool / track keeps; HOME keeps", t_switch_home},
         {"EUCLID, PATTERN scope: every track, one level", t_euclid_pattern},
