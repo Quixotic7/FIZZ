@@ -667,59 +667,25 @@ void ui_lmode_draw(int mode, float t)
     ui_T("LATCH", 120.f, 218.f, 20.f, 300, 1.f, UI_K3, QD_CENTER);
 }
 
-/* the views' little pictures (a line of the KNOBS roles): the PIANO ROLL's bars, STEPS' rows */
-static void view_pic(int rows, float x, float y)
-{
-    if (rows) {
-        int i;
-        for (i = 0; i < 4; i++)
-            ui_RR(x + (float)i * 5.f, y - 6.f, 4.f, 5.f, 1.f, QD_NONE, 1.f, UI_G1);
-        for (i = 0; i < 4; i++)
-            ui_RR(x + (float)i * 5.f, y + 1.f, 4.f, 5.f, 1.f, QD_NONE, 1.f, UI_G2);
-    } else {
-        ui_RR(x, y - 6.f, 8.f, 3.f, 1.f, QD_NONE, 1.f, UI_G1);
-        ui_RR(x + 6.f, y - 1.f, 9.f, 3.f, 1.f, QD_NONE, 1.f, UI_G1);
-        ui_RR(x + 11.f, y + 4.f, 8.f, 3.f, 1.f, QD_NONE, 1.f, UI_G1);
-    }
-}
-
 static void menu_set(const ui_menu_t *v)
 {
-    static const char *const BADGE[3] = {"S", "A", "P"};
-    static const float EX[3] = {70.f, 136.f, 202.f};
-    char lay[2] = {(char)('A' + (v->layout < 0 ? 0 : v->layout > 3 ? 3 : v->layout)), 0};
-    const int two = v->role[0][0] != v->role[1][0] || v->role[0][1] != v->role[1][1] || v->role[0][2] != v->role[1][2];
-    int k, r;
+    int k;
     menu_head("SETTINGS");
-    /* KNOB 1: KNOBS, the encoders and their roles (no finger on a step) */
-    menu_row(0, 44.f, "KNOBS", lay);
-    for (k = 0; k < 3; k++) {
-        const qd_rgb bc = k == 0 ? UI_KSEL : UI_K3;
-        ui_O(EX[k], 92.f, 12.f, QD_NONE, 1.f, bc);
-        ui_T(BADGE[k], EX[k], 96.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
-    }
-    for (r = 0; r < (two ? 2 : 1); r++) {
-        const float y = 124.f + (float)r * 20.f;
-        if (two)
-            view_pic(r, 14.f, y - 4.5f);
-        for (k = 0; k < 3; k++)
-            ui_T(v->role[two ? r : 1][k], EX[k], y, 12.f, 600, 0.5f, UI_K1, QD_CENTER);
-    }
-    /* KNOB 2: PAGE FOLLOW */
-    menu_row(1, 172.f, "PAGE FOLLOW", v->follow ? "ON" : "OFF");
+    /* KNOB 1: PAGE FOLLOW (2026-10-25: KNOBS gone) */
+    menu_row(0, 44.f, "PAGE FOLLOW", v->follow ? "ON" : "OFF");
     {
         const float px = 34.f + fmodf(v->t * 22.f, 88.f);
         for (k = 0; k < 4; k++)
-            ui_RR(34.f + (float)k * 22.f, 192.f, 20.f, 22.f, 3.f, v->follow && (int)((px - 34.f) / 22.f) == k
-                  ? UI_K2 : UI_G2, 1.2f, QD_NONE);
-        line2(px, 188.f, px, 218.f, UI_RED, 1.4f);
-        line2(34.f, 226.f, 120.f, 226.f, v->follow ? UI_K2 : UI_G2, 1.2f);
+            ui_RR(34.f + (float)k * 22.f, 64.f, 20.f, 22.f, 3.f, v->follow && (int)((px - 34.f) / 22.f) == k
+                  ? UI_K1 : UI_G2, 1.2f, QD_NONE);
+        line2(px, 60.f, px, 90.f, UI_RED, 1.4f);
+        line2(34.f, 98.f, 120.f, 98.f, v->follow ? UI_K1 : UI_G2, 1.2f);
         {
-            const float a[6] = {114.f, 222.f, 120.f, 226.f, 114.f, 230.f};
-            ui_P(a, 3, v->follow ? UI_K2 : UI_G2, 1.2f, 0, QD_NONE);
+            const float a[6] = {114.f, 94.f, 120.f, 98.f, 114.f, 102.f};
+            ui_P(a, 3, v->follow ? UI_K1 : UI_G2, 1.2f, 0, QD_NONE);
         }
         if (!v->follow)
-            line2(70.f, 220.f, 84.f, 232.f, UI_RED, 1.4f);
+            line2(70.f, 92.f, 84.f, 104.f, UI_RED, 1.4f);
     }
 }
 

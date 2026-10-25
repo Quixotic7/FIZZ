@@ -97,13 +97,13 @@
  *   HOME comes back to the view in use from anywhere (a latch closed in the same press), never cycles; SHIFT + HOME
  *   cycles PIANO ROLL / STEPS / EDIT.
  *   ONE MEANING A KNOB: no finger on a step (nothing held, or the step latch's selection), every view, the encoders do
- *   their role in the KNOBS layout (QD_KNOBS_*, the table KNOB_ROLES in ctl.c; A: SELECT the page (the cursor to the
+ *   their role (the table KNOB_ROLES in ctl.c: SELECT the page (the cursor to the
  *   page's first step), ALGORITHM the step cursor, PRESETS the track's preset); a mode key held: its default; with a
  *   finger on a step as before (KNOB_JOB, PRESETS the sound lock). FX held + ALGORITHM: the track (UI_TK_TRACKBIG).
  *   LFO held + a black key: the hold mode (the latch untouched); LFO tapped: the latch.
  *   FUNC: KNOB 1 the kind, KNOB 2 LEAP's n, KNOB 3 JUMP's target; B8 LEAP, B9 JUMP; B9 held + W: the target.
  *   SHIFT + REC: the record settings (QD_LATCH_REC: MODE, QUANTIZE, OVERDUB / REPLACE, the project's); REC held arms in
- *   that MODE. SHIFT + SEL: the global settings (QD_LATCH_SET: KNOBS, PAGE FOLLOW). SEL tapped: nothing (P1.4b).
+ *   that MODE. SHIFT + SEL: the global settings (QD_LATCH_SET: PAGE FOLLOW). SEL tapped: nothing (P1.4b).
  *   The value keys light the nearest value (qd_step_value_keys).
  *
  * P1.5b (PLAN version 2.4, the owner after 0.4.1):
@@ -117,8 +117,9 @@
  *   CHORUS, B5 MASTER, B6 ROUTING (qd_fx.h QD_FXP_XDR .. XPOS, all 0: ChoralRoot's chain).
  *   ACCELERATION: qd_ctl_acc (every wide value; 24 steps or fewer never; SHIFT never).
  *   LATCH MODES (P1.5h): LFO held alone QD_LFO_HOLD_MS opens the latch-mode screen while held (lmode_open), SELECT
- *   turns VALUES / MODES there (set at once), the release closes it (no toggle); in MODES, no finger on a
- *   step, the black keys choose the hold mode (the knobs set the selection's values as ever). */
+ *   turns VALUES / MODES there (set at once), the release closes it (no toggle); MODES the default (qd_ctl_init;
+ *   the owner, 2026-10-25): no finger on a step, the black keys choose the hold mode (the knobs set the selection's
+ *   values as ever); VALUES: the black keys set the selection's values. */
 #pragma once
 #include <stdint.h>
 
@@ -185,7 +186,8 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TOOL_POP_MS 800u            /* T1: a tool's name pops up this long (its last 300 ms a fade) */
 #define QD_TK_MFX_STEP 110             /* P1.6c: a held step's MIDI FX (TRIG's KNOB 2, B4..B10) */
 #define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
-enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes */
+enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes
+                                              * (MODES the default since 2026-10-25; the saved byte keeps this order) */
 
 /* P1.3d (§8b 2.2): the knobs' jobs in the hold modes (qd_ctl_knob_job: one table, [mode][SELECT, KNOB 1..4]); with a
  * step held they edit the held steps, with nothing held KNOB 1..4 the track's defaults (SELECT is then the page) */
@@ -202,7 +204,7 @@ enum { QD_KJ_NONE, QD_KJ_MAIN, QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE
  * OCT+ = yes / confirm / enter; HOME closes any */
 enum { QD_LATCH_NONE, QD_LATCH_F3,
        QD_LATCH_REC,                    /* P1.3y: SHIFT + REC: the record settings (MODE, QUANTIZE, OVERDUB) */
-       QD_LATCH_SET,                    /* P1.3y: SHIFT + SEL: the global settings (KNOBS, PAGE FOLLOW) */
+       QD_LATCH_SET,                    /* P1.3y: SHIFT + SEL: the global settings (PAGE FOLLOW) */
        QD_LATCH_SND,                    /* P1.4a: EDIT (printed): the sound editor (ctl_snd.c) */
        QD_LATCH_TRK,                    /* P1.4b: SEL tapped: the track settings (ctl_mix.c) */
        QD_LATCH_MIX,                    /* P1.4b: ENV (printed) = MIX: the faders, again the sends */
@@ -224,16 +226,11 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
  * F1 = back */
 #define QD_LATCH_MAIN(l) ((l) == QD_LATCH_MIX || (l) == QD_LATCH_FX || (l) == QD_LATCH_SND || (l) == QD_LATCH_MFX)
 
-/* P1.3y (the owner's addition): the encoders' layouts (the global settings' KNOBS), one table of roles: what SELECT,
- * ALGORITHM and PRESETS do with no finger on a step (nothing held, or the step latch's selection), in the PIANO ROLL
- * and in STEPS / EDIT. With a finger on a step every layout is the same (KNOB_JOB, the sound lock on PRESETS).
- *   A  SELECT page    ALGORITHM cursor  PRESETS preset                 (P1.3y)
- *   B  SELECT page    ALGORITHM value   PRESETS preset (ROLL) / cursor (STEPS, EDIT)   (P1.3q)
- *   C  SELECT cursor  ALGORITHM page    PRESETS preset
- *   D  SELECT cursor  ALGORITHM value   PRESETS preset                 (the cursor carries the page)
- * value: the mode's value, the latch's selection's (as a finger) or else the track's default (P-LOCK: the track) */
-enum { QD_KR_NONE, QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET, QD_KR_VALUE, QD_NKR };
-enum { QD_KNOBS_A, QD_KNOBS_B, QD_KNOBS_C, QD_KNOBS_D, QD_NKNOBS };
+/* P1.3y: the encoders' roles, one table (KNOB_ROLES in ctl.c): what SELECT, ALGORITHM and PRESETS do with no finger
+ * on a step (nothing held, or the step latch's selection), every view: SELECT the page, ALGORITHM the step cursor,
+ * PRESETS the track's preset (layout A, hard-wired 2026-10-25: the B..D experiments are gone). With a finger on a
+ * step: KNOB_JOB, the sound lock on PRESETS. */
+enum { QD_KR_NONE, QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET, QD_NKR };
 int qd_ctl_sel_map(const struct qd_app *a);
 int qd_ctl_seq_map(const struct qd_app *a);
 int qd_ctl_latch_modes(const struct qd_app *a);
@@ -251,8 +248,7 @@ int qd_shift_metro_knob(struct qd_app *a, int knob, int d);   /* SHIFT + B7 held
 void qd_snd_rnd_ms(struct qd_app *a);
 void qd_snd_randomise(struct qd_app *a, int page);   /* page: this page's values, -1: the whole sound */   /* P1.5b: the latch's selection in MODES: the black keys the modes */       /* P1.5a: SEQ's pattern map is up (held a moment, or used) */       /* P1.3y: SEL's track map is up (held a moment, or a key used) */
 int qd_ctl_knob_role(const struct qd_app *a, int knob);           /* the encoder's role now (QD_KR_*; KNOB 1..4: NONE) */
-int qd_ctl_layout_role(int layout, int rows, int knob);          /* .. in a layout (rows: STEPS / EDIT) */
-const char *qd_ctl_role_name(int role);                           /* "PAGE", "CURSOR", "PRESET", "VALUE" */
+int qd_ctl_layout_role(int knob);                                 /* .. its role in the table */
 typedef struct qd_latch {
     const char *name;                  /* "F3" */
     const char *back, *confirm;        /* what OCT- and OCT+ say on screen ("EXIT"; confirm 0: OCT+ does nothing) */
@@ -486,7 +482,6 @@ typedef struct {
     uint32_t name_seed;                /* P1.5y: the namesizer's seeds come from it (qd_type_seed) */
     int fn_leap, fn_target;            /* P1.3y, FUNC: the last LEAP's n (2) and JUMP's target (-1: the step's page start) */
     int fn_b9;                         /* .. B9 (JUMP) is down: a W pressed now is the target */
-    int knobs;                         /* P1.3y: the encoders' layout (QD_KNOBS_*; the global settings) */
     int ekeys;                         /* P1.5b: the keyboard on in the sound editor (REC tapped there) */
     int mod_slot, mod_src;             /* E4: the MOD page's chosen slot (0..7); hold-to-map's source (QD_MS_*) */
     /* P1.6c: the MIDI FX screen (ctl_mfx.c) */

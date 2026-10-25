@@ -7,7 +7,7 @@
  * THE FLASH (1 MiB, the core's image: FM1VST keeps it between launches): two floating page stores (core/store):
  *   0x000000 .. 0x01FFFF   the LIBRARY's (32 sectors): a record a sound
  *   0x020000 .. 0x0FFFFF   the projects' (224 sectors): the global settings (the current project, its pattern, the
- *                          selected track, the knob layout, the effects' parameters ..), each project's header (its
+ *                          selected track, a reserved byte, the effects' parameters ..), each project's header (its
  *                          name, its mix, its record settings, the global key), its patterns (sparse, each with its
  *                          eight track sounds) and its pool's sounds
  * A record absent is its default: a pattern as a new project has it (blank, or the demos for the first project), a

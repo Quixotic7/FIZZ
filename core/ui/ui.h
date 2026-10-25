@@ -636,18 +636,14 @@ void ui_shift_draw(const ui_shift_t *v);
  *                          lit); KNOB 2 QUANTIZE 0..100 %: four notes pulled onto their grid lines by that much;
  *                          KNOB 3 TAKE: CAPTURE (a track of steps cut at a red end mark), REPLACE (the step's notes
  *                          go, crossed) / OVERDUB (they stay, the new one joins)
- *   SETTINGS (SHIFT + SEL) KNOB 1 KNOBS A..D: the three encoders as SHIFT's badges with each one's role under it (a
- *                          second line when STEPS / EDIT differ from the PIANO ROLL, each line marked by its view's
- *                          little picture); KNOB 2 PAGE FOLLOW ON / OFF: pages with the playhead and an arrow */
+ *   SETTINGS (SHIFT + SEL) KNOB 1 PAGE FOLLOW ON / OFF: pages with the playhead and an arrow */
 enum { UI_MENU_REC, UI_MENU_SET, UI_MENU_TRK };   /* (P1.4b: the track settings) */
 typedef struct {
     int kind;                           /* UI_MENU_* */
     int rec_step, quant, dub;           /* REC: MODE STEP (else LIVE), QUANTIZE 0..100, TAKE (pattern.h QD_TAKE_*) */
     int ekeys;                          /* .. P1.5b: EDIT KEYS FULL (else SCALE) */
     int rec_page, rec_auto;             /* .. P1.6d: the page (2: AUTOMATION), AUTOMATION ON */
-    int layout;                         /* SETTINGS: KNOBS (0 A .. 3 D) */
-    const char *role[2][3];             /* .. its roles: [PIANO ROLL, STEPS / EDIT][SELECT, ALGORITHM, PRESETS] */
-    int follow;                         /* .. PAGE FOLLOW */
+    int follow;                         /* SETTINGS: PAGE FOLLOW */
     float t;                            /* seconds (the playhead moves) */
     /* P1.4b, the track settings: the track (its number, name, colour), the page; page 1: the scale's name, its root,
      * its notes (bit k: pitch class k), FOLLOW KEY, the MIDI channel (1..16); page 2: VOICES, SWING, PAGE FOLLOW */
