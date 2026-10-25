@@ -66,7 +66,8 @@ static uint32_t fz_tick_lag_max;         /* (the most the clock was behind plat_
  * fz_step), the frames drawn then, FIZZ frames taken (in a frame's band gaps too), the gap between two of them (the
  * round trip as the unit sees it: the host's turn and the unit's wait); T_* the last pass's / frame's ticks */
 enum { FZ_XS_PASSES, FZ_XS_PASS_MAX, FZ_XS_PASS_SUM, FZ_XS_DRAWS, FZ_XS_DRAW_MAX, FZ_XS_DRAW_SUM, FZ_XS_RX,
-       FZ_XS_RX_INFRAME, FZ_XS_GAP_MAX, FZ_XS_GAP_SUM, FZ_XS_T_PASS, FZ_XS_T_RX };
+       FZ_XS_RX_INFRAME, FZ_XS_GAP_MAX, FZ_XS_GAP_SUM, FZ_XS_T_PASS, FZ_XS_T_RX, FZ_XS_RUN };   /* RUN: FIZZ frames in a row, each within
+       * FZ_XFER_HOLD_MS of the last: 3 or more (or a bulk job on the unit) is a transfer; a lone STATUS / PARAM / DUMP is not */
 /* (P2.7) the pace while a screen animates (a frame drawn at each of the last two looks): 30 a second when its frames
  * take up to FZ_FIT_30 us (drawing and burst: room left for input, the store and the audio's share), 20 up to
  * FZ_FIT_20, else 15; even spacing, the next frame due one period after the last was due */
@@ -453,7 +454,8 @@ static void fz_xfer_rx(int inframe)      /* a FIZZ frame came (the pacing's wind
 {
     uint32_t *x = fz_sx_xs();
     const uint32_t t = plat_ticks24(), d = (t - x[FZ_XS_T_RX]) / PLAT_TICKS_PER_US;
-    if (fz_sx_last() && plat_ms() - fz_sx_last() < FZ_XFER_HOLD_MS && x[FZ_XS_T_RX]) {
+    x[FZ_XS_RUN] = fz_sx_last() && plat_ms() - fz_sx_last() < FZ_XFER_HOLD_MS ? x[FZ_XS_RUN] + 1u : 1u;
+    if ((x[FZ_XS_RUN] >= 3u || fz_sx_bulk()) && x[FZ_XS_T_RX]) {
         x[FZ_XS_RX]++;
         x[FZ_XS_GAP_SUM] += d;
         if (d > x[FZ_XS_GAP_MAX])
@@ -1021,6 +1023,7 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
         c = fz_put_u(c, "xfer_rx_inframe=", x[FZ_XS_RX_INFRAME]);
         c = fz_put_u(c, "xfer_gap_avg_us=", x[FZ_XS_GAP_SUM] / nr);
         c = fz_put_u(c, "xfer_gap_max_us=", x[FZ_XS_GAP_MAX]);
+        c = fz_put_u(c, "xfer_run=", x[FZ_XS_RUN]);
     }
     {   /* (2026-10-25) HOME a moment inside a menu: how often, the last one (fizz_port.h fz_blips) */
         uint32_t n, w;
@@ -1131,7 +1134,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
             memset(&fz_fbs, 0, sizeof fz_fbs);
             memset(&fz_fp, 0, sizeof fz_fp);
             fz_idle_polls = fz_idle_inputs = 0;
-            memset(fz_sx_xs(), 0, 12u * sizeof(uint32_t));   /* (line 16) */
+            memset(fz_sx_xs(), 0, 13u * sizeof(uint32_t));   /* (line 16) */
             fz_xr0 = plat_xruns(), fz_xr_n = 0;   /* (P2.16d: and what was left out before) */
             fz_over = fz_sheds = 0;
             fz_midi_pkts = fz_sx_frames_in = fz_sx_bytes_in = 0;
@@ -2050,7 +2053,7 @@ static void fz_step(int frame)
     {   /* (a transfer: the passes short, a round trip ~ the host's latency; the passes counted, fz_step to fz_step) */
         uint32_t *x = fz_sx_xs();
         const uint32_t t = plat_ticks24();
-        xfer = fz_sx_last() && now - fz_sx_last() < FZ_XFER_HOLD_MS;
+        xfer = fz_sx_last() && now - fz_sx_last() < FZ_XFER_HOLD_MS && (x[FZ_XS_RUN] >= 3u || fz_sx_bulk());
         if (xfer) {
             period = FZ_XFER_FRAME_MS;
             if (x[FZ_XS_T_PASS]) {
