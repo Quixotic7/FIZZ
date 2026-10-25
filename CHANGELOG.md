@@ -9,6 +9,14 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+Fixes from a first-session test of beta.5.
+
+- **A new project starts on pattern A01**, track 1 (it used to open on the demo's A02, so your first beats went into A02).
+- **GEEK OUT is one view:** SHIFT + HOME cycles PIANO ROLL, STEPS, EDIT and GEEK OUT; in GEEK OUT, SELECT turns its pages (METERS, NUMBERS, VOICES, SCOPE). HOME always comes back to the step view.
+- **SAVED means saved:** a preset is written to flash at once, so switching off right after SAVE keeps it.
+- **MIDI FX:** with the track's group OFF, the page shows that ALGORITHM picks a group.
+- **The page lights:** the button of the page you are on is lit: HOME on the step view, EDIT, ENV, FX, SEL, SEQ (TOOLS), ARP (MIDI FX), SAVE and REC (the keyboard). ARP is dim, not lit, while the arp plays with its page closed.
+
 ## 0.12.0-beta.5 (2026-10-25)
 
 The owner's beta.4 round: TOOLS on a tap of SEQ, mute and solo in the mixer, finer knobs, and a Manager that no longer slows the FM-1 down. Updating keeps your projects and presets.
