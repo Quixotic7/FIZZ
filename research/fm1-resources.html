@@ -1,0 +1,259 @@
+<title>FIZZ on the FM-1: Resources</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one column of "regions", each a to-scale bar of what holds it, then the trade-offs as a ranked list.
+   FIZZ's own look: neon role colours on black, one theme by choice. */
+:root {
+  color-scheme: dark;
+  --bg: #07080a;
+  --panel: #101216;
+  --line: #262a31;
+  --fg: #eceef2;
+  --dim: #9097a3;
+  --faint: #5d6470;
+  --blue: #3d8bff;   /* platform */
+  --cyan: #28e1ff;   /* screen / drawing */
+  --green: #3ddc84;  /* sound */
+  --yellow: #ffd23f; /* sequencer */
+  --pink: #ff3ca0;   /* UI / controls */
+  --orange: #ff8a3d; /* saving */
+  --violet: #a77bff; /* undo / clipboard */
+  --free: #2b3038;
+  --display: "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--display); }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 44px; }
+h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.05; margin: 0 0 10px; letter-spacing: -0.02em; text-wrap: balance; }
+h2 { font-size: 22px; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h3 { font-size: 16px; margin: 0; }
+p { margin: 0; max-width: 68ch; color: var(--dim); }
+p strong, li strong { color: var(--fg); font-weight: 600; }
+.lede { font-size: 17px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.region { border: 2px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; background: var(--panel); min-width: 0; }
+.rhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px; }
+.rhead .num { color: var(--dim); font-size: 13px; }
+.bar { display: flex; height: 30px; border-radius: 8px; overflow: hidden; gap: 2px; background: var(--bg); }
+.seg { min-width: 3px; position: relative; }
+.legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 22px; }
+.li { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: baseline; font-size: 14px; min-width: 0; }
+.sw { width: 12px; height: 12px; border-radius: 3px; transform: translateY(1px); }
+.li .num { color: var(--dim); font-size: 13px; }
+.li span:nth-child(2) { min-width: 0; }
+.sub { color: var(--faint); font-size: 12.5px; display: block; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kpi { border: 2px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--panel); }
+.kpi b { display: block; font: 600 24px var(--mono); }
+.kpi span { color: var(--dim); font-size: 13px; }
+.kpi.warn { border-color: color-mix(in srgb, var(--yellow) 60%, transparent); }
+.kpi.warn b { color: var(--yellow); }
+.cpu { display: grid; gap: 10px; }
+.crow { display: grid; grid-template-columns: minmax(120px, 210px) 1fr 70px; gap: 12px; align-items: center; font-size: 14px; }
+.crow .track { height: 18px; background: var(--bg); border-radius: 6px; overflow: hidden; display: flex; gap: 2px; position: relative; }
+.crow .num { text-align: right; color: var(--dim); font-size: 13px; }
+.budget { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--fg); opacity: .6; }
+.tbl { overflow-x: auto; border: 2px solid var(--line); border-radius: 14px; }
+table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); font-weight: 600; background: var(--panel); }
+tr:last-child td { border-bottom: 0; }
+td.num { white-space: nowrap; color: var(--green); font-weight: 600; }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; padding: 2px 8px; border-radius: 99px; border: 1.5px solid; white-space: nowrap; }
+.p-easy { color: var(--green); }
+.p-med { color: var(--yellow); }
+.p-hard { color: var(--pink); }
+.p-done { color: var(--cyan); }
+.note { font-size: 13px; color: var(--faint); max-width: 80ch; }
+@media (max-width: 560px) { .crow { grid-template-columns: 1fr 60px; } .crow .track { grid-column: 1 / -1; grid-row: 2; } }
+</style>
+
+<div class="wrap">
+
+<header>
+  <h1>Where the FM-1's resources go</h1>
+  <p class="lede">FIZZ's build of 2026-10-24 (aa1b0d8: one core, 8 voices, the 256-colour screen, Geek Out), with the unit's own measurements. Every bar is drawn to scale. The trade-offs at the bottom are what could give room back, with what each would cost.</p>
+</header>
+
+<section>
+  <h2>At a glance</h2>
+  <div class="kpis">
+    <div class="kpi warn"><b>988 B</b><span>main RAM free of 96 KB</span></div>
+    <div class="kpi warn"><b>3.3 KB</b><span>pool free of 336 KB (fm1-base asks for 8)</span></div>
+    <div class="kpi"><b>50 KB</b><span>program flash free of 568 KB</span></div>
+    <div class="kpi"><b>8 %</b><span>audio core used, stopped</span></div>
+    <div class="kpi warn"><b>43–75 %</b><span>audio core used, playing (75 % with 3 MIDI FX)</span></div>
+    <div class="kpi"><b>0 %</b><span>core 1 used today (voices move there next)</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Memory (RAM)</h2>
+  <p>The FM-1 has about <strong>458 KB</strong> of data memory in four regions, with no external RAM. Nearly all of it is in use, so any new feature has to take room from something else.</p>
+  <div id="ram"></div>
+  <h3 style="margin-top:6px">Inside FIZZ's app state (199 KB, the largest single block)</h3>
+  <div id="app"></div>
+</section>
+
+<section>
+  <h2>Flash (1 MB)</h2>
+  <p>Flash holds the program, FIZZ's saved projects and sounds, and its fonts and ape drawings. The program area has room left; the save area is set by how many projects and sounds you can keep.</p>
+  <div id="flash"></div>
+  <div id="code"></div>
+</section>
+
+<section>
+  <h2>Processor time</h2>
+  <p>Two cores at 360 MHz. Core 0 does everything today: the sound in a 5.8 ms window (256 samples at 44.1 kHz), and the screen and controls in whatever time is left. Core 1 sits idle until the dual-core build.</p>
+  <div class="region">
+    <div class="rhead"><h3>Audio, per 5.8 ms window (core 0)</h3><span class="num">white line = the deadline</span></div>
+    <div class="cpu" id="cpu"></div>
+    <p class="note">One FM TONE voice (WOBBLE) takes about 364 µs per window, the same as ChoralRoot's engine, so 8 voices alone are about half the window. "Platform and mixing" is the block setup, the per-track mix and the output stage.</p>
+  </div>
+  <div class="region">
+    <div class="rhead"><h3>Screen and controls, per frame (core 0, between audio windows)</h3><span class="num">white line = 33 ms (30 fps)</span></div>
+    <div class="cpu" id="ui"></div>
+    <p class="note">Drawing depends on the screen: a held step redraws only the band that changes (about 3 ms), the idle bubbles redraw everything. Sending a full screen to the panel takes about 21 ms over SPI; a partial change takes less.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Trade-offs</h2>
+  <p>Ranked by how much each gives back for what it costs. None of these is done yet except where marked; each would be your call.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Change</th><th>Gives back</th><th>What it costs</th><th>Effort</th></tr></thead>
+    <tbody id="trade"></tbody>
+  </table></div>
+  <p class="note">Sources: the firmware's size report and link map (fizz-size.txt, aa1b0d8), the app state's layout measured at the unit's sizes, the unit's stats (fizz_xdata.py stats, 2026-10-24) and the core agent's host profiles. RAM figures are exact; processor figures are averages from the unit, rounded.</p>
+</section>
+
+</div>
+
+<script>
+const C = n => `var(--${n})`;
+const kb = b => b >= 1024 ? (b / 1024).toFixed(b >= 10240 ? 0 : 1) + ' KB' : b + ' B';
+
+function region(el, title, total, parts, unit) {
+  const box = document.createElement('div');
+  box.className = 'region';
+  const used = parts.filter(p => !p.free).reduce((a, p) => a + p.b, 0);
+  box.innerHTML = `<div class="rhead"><h3>${title}</h3><span class="num">${kb(used)} used of ${kb(total)}</span></div>`;
+  const bar = document.createElement('div'); bar.className = 'bar';
+  const leg = document.createElement('div'); leg.className = 'legend';
+  parts.forEach(p => {
+    const s = document.createElement('div'); s.className = 'seg';
+    s.style.flex = `${p.b} 0 0`; s.style.background = p.free ? 'var(--free)' : C(p.c);
+    s.title = `${p.n}: ${kb(p.b)}`; bar.appendChild(s);
+    const li = document.createElement('div'); li.className = 'li';
+    li.innerHTML = `<span class="sw" style="background:${p.free ? 'var(--free)' : C(p.c)}"></span><span>${p.n}${p.d ? `<span class="sub">${p.d}</span>` : ''}</span><span class="num">${kb(p.b)}</span>`;
+    leg.appendChild(li);
+  });
+  box.append(bar, leg); el.appendChild(box);
+}
+
+const ram = document.getElementById('ram');
+region(ram, 'Main RAM', 98304, [
+  {n: 'fm1-base (USB, input, LEDs, audio driver)', b: 45114, c: 'blue'},
+  {n: 'Drawing: display list, coverage, screen rows 0–99', b: 41986, c: 'cyan', d: 'the 8-bit frame is split across three regions'},
+  {n: 'App glue', b: 8252, c: 'pink'},
+  {n: 'Controls and small tables', b: 1964, c: 'pink'},
+  {n: 'Free', b: 988, free: true}]);
+region(ram, 'Pool', 344064, [
+  {n: 'FIZZ app state', b: 203756, c: 'yellow', d: 'patterns, sequencer, saving, undo… (broken down below)'},
+  {n: 'Reverb and chorus', b: 48248, c: 'green'},
+  {n: 'Delay (987 ms, compact)', b: 32760, c: 'green'},
+  {n: 'Screen rows 112–239', b: 30720, c: 'cyan'},
+  {n: 'Voice engine: comb lines, tables', b: 17580, c: 'green'},
+  {n: 'fm1-base canvas', b: 7684, c: 'blue'},
+  {n: 'Free', b: 3312, free: true}]);
+region(ram, 'Fast code region', 32768, [
+  {n: 'Hot code (voice render, mixing)', b: 24342, c: 'green'},
+  {n: 'fm1-base fast code', b: 3134, c: 'blue'},
+  {n: 'Screen rows 100–111, send buffers', b: 4800, c: 'cyan'},
+  {n: 'Free', b: 492, free: true}]);
+region(ram, 'Kept across restarts (NOINIT)', 15696, [
+  {n: 'Screen and view state', b: 13132, c: 'pink'},
+  {n: 'fm1-base crash record', b: 500, c: 'blue'},
+  {n: 'Free', b: 2064, free: true}]);
+
+region(document.getElementById('app'), 'FIZZ app state (qd_app_t)', 204192, [
+  {n: 'The playing pattern and the queued one', b: 45536, c: 'yellow', d: '22.8 KB each: 8 tracks × 128 steps, 1,024 locks, 8 sounds'},
+  {n: 'Sequencer: note records', b: 17920, c: 'yellow', d: '64 records'},
+  {n: 'Sequencer: event queue', b: 16384, c: 'yellow', d: '512 events'},
+  {n: 'Sequencer: track cursors and the rest', b: 9912, c: 'yellow'},
+  {n: 'Undo history', b: 16580, c: 'violet', d: '16 KB pool, up to 8 steps'},
+  {n: 'Clipboard', b: 13140, c: 'violet'},
+  {n: 'MIDI FX state', b: 13176, c: 'pink'},
+  {n: 'Saving: project index', b: 12288, c: 'orange', d: '1,024 entries'},
+  {n: 'Saving: library, caches, change maps', b: 21560, c: 'orange'},
+  {n: 'Project: MIDI FX groups, sound list', b: 4836, c: 'yellow'},
+  {n: '8 voices', b: 7848, c: 'green'},
+  {n: 'Note-off memory (players)', b: 6536, c: 'pink'},
+  {n: 'SysEx reply buffer', b: 4152, c: 'blue'},
+  {n: 'Tracks and their sounds', b: 3328, c: 'green'},
+  {n: 'Geek Out (scope 2 KB)', b: 2272, c: 'cyan'},
+  {n: 'MIDI-in note map', b: 2048, c: 'pink'},
+  {n: 'UI state and the rest', b: 6156, c: 'pink'}]);
+
+const fl = document.getElementById('flash');
+region(fl, 'Flash map', 1048576, [
+  {n: 'Boot loader and directory', b: 20480, c: 'blue'},
+  {n: 'FIZZ program', b: 530192, c: 'pink'},
+  {n: 'Program area free', b: 51372, free: true},
+  {n: 'Saved projects and sounds', b: 299008, c: 'orange', d: '73 sectors: 51 projects, 22 library'},
+  {n: 'Update loader', b: 20480, c: 'blue'},
+  {n: 'Fonts and the ape (data)', b: 84116, c: 'cyan'},
+  {n: 'Data area free', b: 10092, free: true},
+  {n: 'Settings, other', b: 32836, c: 'blue'}]);
+region(document.getElementById('code'), 'The program, by part', 581564, [
+  {n: 'Screens', b: 189900, c: 'pink', d: 'pages, editors, the ape, idle, Geek Out'},
+  {n: 'Sequencer and patterns', b: 60800, c: 'yellow'},
+  {n: 'Controls (keys, knobs, LEDs)', b: 58600, c: 'pink'},
+  {n: 'Sound engine and effects', b: 57700, c: 'green'},
+  {n: 'fm1-base', b: 55900, c: 'blue'},
+  {n: 'Drawing', b: 38000, c: 'cyan'},
+  {n: 'App glue', b: 33700, c: 'pink'},
+  {n: 'C library and maths', b: 13700, c: 'blue'},
+  {n: 'Tables and the rest', b: 21900, c: 'faint'},
+  {n: 'Free', b: 51364, free: true}]);
+
+function bars(el, rows, max, line) {
+  rows.forEach(r => {
+    const d = document.createElement('div'); d.className = 'crow';
+    const tot = r.parts.reduce((a, p) => a + p[1], 0);
+    d.innerHTML = `<span>${r.n}</span><div class="track">${r.parts.map(p => `<div title="${p[0]}: ${p[1]}" style="width:${p[1] / max * 100}%;background:${C(p[2])};flex:none"></div>`).join('')}<div class="budget" style="left:${line / max * 100}%"></div></div><span class="num">${r.v || tot}</span>`;
+    el.appendChild(d);
+  });
+}
+bars(document.getElementById('cpu'), [
+  {n: 'Stopped', parts: [['sequencer', 66, 'yellow'], ['voices', 34, 'green'], ['effects', 109, 'green'], ['platform and mixing', 234, 'blue']], v: '444 µs'},
+  {n: 'Playing the demo', parts: [['sequencer', 95, 'yellow'], ['voices', 179, 'green'], ['effects', 289, 'green'], ['platform and mixing', 330, 'blue']], v: '893 µs'},
+  {n: 'Busiest window, playing', parts: [['peak', 3095, 'yellow']], v: '3.1 ms'},
+  {n: '8 voices sounding (estimate)', parts: [['voices', 2912, 'green'], ['effects', 290, 'green'], ['rest', 430, 'blue']], v: '~3.6 ms'},
+  {n: '3 MIDI FX stacked (your test)', parts: [['measured in Geek Out', 4350, 'pink']], v: '~75 %'}], 5805, 5805);
+bars(document.getElementById('ui'), [
+  {n: 'Held step (estimate)', parts: [['drawing', 3, 'cyan'], ['send', 4, 'pink']], v: '~7 ms'},
+  {n: 'Motorcycle, playing (estimate)', parts: [['drawing', 20, 'cyan'], ['send', 10, 'pink'], ['audio interrupts', 8, 'faint']], v: '~38 ms'},
+  {n: 'Idle bubbles (measured)', parts: [['drawing', 46, 'cyan'], ['send', 21, 'pink'], ['audio interrupts', 5, 'faint']], v: '72 ms'}], 80, 33);
+
+const T = [
+  ['Move voices to core 1', 'Up to ~2.9 ms of each 5.8 ms window on core 0 (half the audio core)', 'Nothing audible; a unit whose second core fails falls back to one core', 'In progress', 'p-done'],
+  ['Make stacked MIDI FX cheap', 'Most of the 75 % you saw', 'Nothing; same notes out', 'In progress', 'p-done'],
+  ['Load the queued pattern from flash just before it plays', '22.8 KB RAM', 'A pattern change needs a few ms of flash read at the right moment; very fast chained changes are riskier', 'Medium', 'p-med'],
+  ['Clipboard shares the undo memory', '~13 KB RAM', 'A big copy can push out older undo steps', 'Medium', 'p-med'],
+  ['Display list 27 KB → 16 KB', '~11 KB RAM', 'Lists peak at 14.2 KB on the unit today; busier future screens would draw slower', 'Easy', 'p-easy'],
+  ['Sequencer queues sized to measured peaks (512 → 256 events, 64 → 32 note records)', '~17 KB RAM', 'Very dense stacks (ratchets × arp × harmonize) could drop notes; needs a stress test first', 'Medium', 'p-med'],
+  ['Smaller reverb', '8–16 KB RAM', 'Shorter, smaller rooms at the largest size settings', 'Easy', 'p-easy'],
+  ['Undo memory 16 KB → 8 KB', '8 KB RAM', 'Fewer undo steps after big edits (8 steps kept for small ones)', 'Easy', 'p-easy'],
+  ['Project index 1,024 → 512 entries', '6 KB RAM', 'A project holds fewer saved items before it is full; needs checking against the 51 project sectors', 'Medium', 'p-med'],
+  ['Reverb on core 1 too (as ChoralRoot does)', '~0.2 ms per window on core 0', 'More cross-core traffic; only worth it after voices move', 'Medium', 'p-med'],
+  ['Heavy screens paced at 20 fps', 'A third of their drawing time', 'Those animations move less smoothly', 'Easy', 'p-easy'],
+  ['Back to 16-bit colour strips (drop the 8-bit frame)', '~31 KB RAM net', 'The tearing returns on the busiest animations', 'Easy', 'p-hard'],
+  ['Replace the C maths library with tables', '~5.6 KB flash', 'None audible; small code change', 'Easy', 'p-easy']];
+document.getElementById('trade').innerHTML = T.map(r => `<tr><td><strong>${r[0]}</strong></td><td class="num">${r[1]}</td><td>${r[2]}</td><td><span class="pill ${r[4]}">${r[3]}</span></td></tr>`).join('');
+</script>

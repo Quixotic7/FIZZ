@@ -84,9 +84,11 @@ void qd_tl_grids(qd_pattern_t *p, int t, const uint8_t *pos, int n, int x, int y
 void qd_tl_stretch_to(int i, int mic, int num, int den, int m, int *j, int *mo);
 void qd_tl_stretch(qd_pattern_t *p, int t, const uint8_t *pos, int n, int base, int m, int num, int den);
 /* .. a track's loop (page -1; ts: its settings, into which the new loop goes: pages from its first looped one, whole
- * but the last) or page `page`'s start..end (its end moved) by 2^*pw (*pw -3..3; out: as far as it fits) or, fit 1..8,
- * onto fit pages (a page: fit x 2 steps); only: the settings alone (nothing written); returns the steps after */
-int qd_tl_stretch_track(qd_pattern_t *p, int t, int page, int *pw, int fit, qd_tset_t *only);
+ * but the last) or page `page`'s start..end (its end moved) by rung *r of the ladder (-6..6: /4 /3 /2 /1.5 /1.33 /1.25
+ * x1 x1.25 x1.33 x1.5 x2 x3 x4; out: as far as it fits) or, fit 1..8, onto fit pages (a page: fit x 2 steps); only: the
+ * settings alone (nothing written); returns the steps after. qd_tl_rung: rung r as num / den */
+void qd_tl_rung(int r, int *num, int *den);
+int qd_tl_stretch_track(qd_pattern_t *p, int t, int page, int *r, int fit, qd_tset_t *only);
 
 /* the track doubled (SHIFT + B9's): 0 no room (8 pages); only != 0: its settings only, into *only (nothing copied) */
 int qd_tl_double(qd_pattern_t *p, int t, qd_tset_t *only);

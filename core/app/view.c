@@ -1126,13 +1126,12 @@ static void __attribute__((noinline)) draw_tools(const qd_app_t *a)
     qd_tools_timing(a, v.micro, v.vel, v.micro0, v.vel0);   /* (HUMANIZE, QUANTIZE: the timing, velocities, ghosts) */
     if (T->tool == QD_TL_STRETCH) {                     /* (2026-10-25) */
         qd_tools_stretch(a, v.ton, v.tin, v.ton0, v.tin0);
-        v.fit = T->v.st.fit;
+        v.fit = T->v.st.fit, v.lpow = T->v.st.rung;
     } else if (T->tool == QD_TL_CLIP) {
         v.act = T->v.cl.act;
         for (w = 0; w < QD_CL_N; w++)
             v.act_ok |= qd_tools_clip_ok(a, w) << w;
         v.armed = a->ui.clr_armed && a->ms - a->ui.clr_ms < QD_ARM_MS;
-        v.has = T->scope == QD_TS_PAGE ? a->ui.clip.pg.valid : T->scope == QD_TS_PATTERN && a->undo.pclip_ok;
     }
     v.t = secs(a->ms);
     ui_tools_draw(&v);
@@ -2418,7 +2417,7 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         if (al > 0.f && qd_tools_open(a)) {
             qd_save();
             qd_alpha(al);
-            ui_tools_pop(u->tk_knob, u->tk_step, u->tl.tool, u->tl.scope);
+            ui_tools_pop(u->tk_knob, u->tk_step, u->tl.tool, u->tl.scope, u->page[a->sel]);
             qd_restore();
         }
     } else if (u->tk == QD_TK_HELDKNOB) {                      /* P1.3d: a held step's knob: the band over its screen */

@@ -361,7 +361,7 @@ typedef struct {
         struct { uint8_t micro, vel, pad[2]; uint16_t seed; } hu;          /* T2 HUMANIZE: the jitters */
         struct { uint8_t x, y, dens, chaos, part, pad; uint16_t seed; } gr;   /* T2 GRIDS (part 0..2) */
         struct { uint8_t amt, grid, vel; } qu;   /* QUANTIZE: the timing's amount %, the grid (QD_QG_*), the velocity's % */
-        struct { uint8_t fit; } st;    /* STRETCH: onto this many pages (0: by 2^lpow) */
+        struct { uint8_t fit; int8_t rung; } st;   /* STRETCH: onto this many pages (0: by the ladder's rung, -6..6) */
         struct { uint8_t act; } cl;    /* CLIP: the action OCT+ does (QD_CL_*) */
     } v;
 } qd_tools_t;
