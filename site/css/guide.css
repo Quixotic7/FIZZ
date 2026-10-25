@@ -115,4 +115,5 @@ li::marker { color: var(--c); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
 @media (max-width: 420px) { .g-crumb .ver { display: none; } }   /* (narrow: room for the Manager link) */
-@media (max-width: 420px) { .g-top nav a.nav-link[href="install/"] { display: none; } }   /* (narrow: a phone, which cannot install) */
+@media (max-width: 540px) { .g-top nav a.nav-link[href="install/"] { display: none; } }   /* (narrow: a phone, which cannot install) */
+@media (max-width: 420px) { .g-top nav { gap: 4px; } .g-top .nav-link { padding: 0 9px; } }   /* (narrow: Play, Manager and Feedback fit) */
