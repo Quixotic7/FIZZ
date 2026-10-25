@@ -101,7 +101,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
 - Pop-ups (the held-step and default pictures, the knob takeovers, the octave and sound pickers) no longer show the
   track's box and name: only what is being edited.
 - In the PIANO ROLL the small dots over the columns mark the beats (steps 1, 5, 9, 13; the first a little brighter).
-- **FX held + ALGORITHM** chooses the track: the track's number big in its colour with its name, the eight below.
+- **FX held + ALGORITHM** chooses the track: the track's number big in its colour with its name, the six below.
 - After two minutes untouched with nothing playing, it goes back to the FIZZ screen.
 - **PLAY** tapped plays and stops (on the release: about a tenth of a second after the press). **Hold PLAY** to open
   the **F3** menu (the same as both OCT keys).
@@ -350,24 +350,24 @@ Undo and redo of everything (P1.5c):
 
 ## How do I choose, mute and solo tracks?
 
-- Hold **SEL**: the screen shows the eight tracks (after a quarter second, or at once when you press a key with it;
+- Hold **SEL**: the screen shows the six tracks (after a quarter second, or at once when you press a key with it;
   a quick tap shows and does nothing).
-  - **SEL + B1..B8**: select that track.
-  - **SEL + tap W1..W8**: mute / unmute that track. **SEL + hold W1..W8**: solo / unsolo it. When any track is
+  - **SEL + B1..B6**: select that track.
+  - **SEL + tap W1..W6**: mute / unmute that track. **SEL + hold W1..W6**: solo / unsolo it. When any track is
     soloed, only soloed tracks play.
   - **SEL + B11**: unmute and unsolo every track.
-  - Lights: W1..W8 lit = you hear it, off = muted (or another track is soloed), blinking = soloed; B11 lit while any
+  - Lights: W1..W6 lit = you hear it, off = muted (or another track is soloed), blinking = soloed; B11 lit while any
     track is muted or soloed.
-- **FX held + ALGORITHM** (or FX held + W1..W8): choose the track, with the big track picture.
+- **FX held + ALGORITHM** (or FX held + W1..W6): choose the track, with the big track picture.
 - The old tracks screen of eight clocks is gone: a track's length and speed are F3's, its voice limit and swing the
   track settings', mutes SEL's.
 
 ## How do I change a track's settings? (SEL tapped)
 
 - **Tap SEL**: the selected track's settings in this pattern (its number, kind and name in its colour at the top).
-  **SEL again** (or SELECT) for the next page (three, round). **OCT− or HOME** closes it. **B1..B8** switch to another track's.
+  **SEL again** (or SELECT) for the next page (three, round). **OCT− or HOME** closes it. **B1..B6** switch to another track's.
 - Page 1: **KNOB 1 SCALE** (its twelve notes shown as dots, the root ringed), **KNOB 2 ROOT**, **KNOB 3 FOLLOW KEY**
-  (the project's global key instead of its own), **KNOB 4 MIDI CH** (the channel that plays the track, 1..8 by
+  (the project's global key instead of its own), **KNOB 4 MIDI CH** (the channel that plays the track, 1..6 by
   default; channel 16 always plays the selected track).
 - Page 2: **KNOB 1 VOICES** (the voice limit, 1 = mono; the voices sounding white), **KNOB 2 SWING** on / off,
   **KNOB 3 PAGE FOLLOW**, **KNOB 4 MIDI FX**.
@@ -386,7 +386,7 @@ Undo and redo of everything (P1.5c):
 
 ## How do I mix? (ENV = MIX)
 
-- **Tap ENV**: the mixer, eight faders, each with its pan dial on top, a level meter beside it, its number (a muted
+- **Tap ENV**: the mixer, six faders, each with its pan dial on top, a level meter beside it, its number (a muted
   track crossed), its delay and reverb sends as two little bars under it. **B1..B8** (or SELECT, ALGORITHM) choose the
   track; its parts take the knobs' colours: **KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4 REVERB**.
 - **ENV again**: the **sends**, every track's chorus, delay and reverb as three bars; **KNOB 1 CHORUS, KNOB 2 DELAY,
@@ -412,7 +412,7 @@ Undo and redo of everything (P1.5c):
 - **Tap FX**: the effects, ChoralRoot's (global: no sound or pattern changes them). It opens on the **OVERVIEW**.
   **FX again** (or SELECT) for the next page; **B1 OVERVIEW, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING**
   (a key again: the effect's second page). **HOME** closes it (0.9.6: F1 no longer does).
-- **OVERVIEW** (P1.5b): three columns, CHORUS, DELAY, REVERB, each with the eight tracks' send bars in the tracks'
+- **OVERVIEW** (P1.5b): three columns, CHORUS, DELAY, REVERB, each with the six tracks' send bars in the tracks'
   colours (the selected track's bright, an unheard track grey). **W1..W8 choose the track** (lit: the selected one
   bright); **KNOB 1..3 its CHORUS, DELAY, REVERB sends**. FX held + ALGORITHM still chooses the track too.
 - **ROUTING** (P1.5b): the chain drawn: the tracks' bus sending into CHORUS, DELAY and REVERB, their returns into the
@@ -493,7 +493,7 @@ shortcuts act; SHIFT + a knob stays the editor's fine step).
 | **B9** | **double the track**: its looped pages copied after themselves, the loop twice as long ("FULL": no room) |
 | **B11** | **clear the track**: press twice within two seconds ("CLEAR?", B11 blinks; then "CLEARED"): its steps and locks, and its pages reset (page 1 only, each 16 steps); its sound and speed stay |
 | **F1 / F2** | **undo / redo** |
-| **SELECT** | **the track** (P1.5z): a track a detent, round 1..8, the big track picture (as FX + ALGORITHM). In every view, the sound editor (it shows the new track's sound), the browser (the preview is put back first, then you browse the new track), the mix and the effects; not while typing a name (there SELECT turns the letter). It was the keyboard's swing: the swing is F3 + ALGORITHM |
+| **SELECT** | **the track** (P1.5z): a track a detent, round 1..6, the big track picture (as FX + ALGORITHM). In every view, the sound editor (it shows the new track's sound), the browser (the preview is put back first, then you browse the new track), the mix and the effects; not while typing a name (there SELECT turns the letter). It was the keyboard's swing: the swing is F3 + ALGORITHM |
 
 - The snapshot and the copied pattern stay until the unit is switched off; they are not saved with the project. One
   snapshot (the last stored), from whichever pattern; recalling puts it on the pattern you are on.
@@ -567,8 +567,8 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
     take.**
 - **FILL is SHIFT + ARP held** (0.9.1; it was ARP held): FILL while both are down (ARP blinks). ARP alone: MIDI FX,
   below.
-- **MIDI in** (0.9.5): a channel plays **the tracks set to it** (the track settings' MIDI CH: tracks 1..8 on channels
-  1..8 by default, as they always were; set by hand, that channel), and **channel 16 always plays the selected track**,
+- **MIDI in** (0.9.5): a channel plays **the tracks set to it** (the track settings' MIDI CH: tracks 1..6 on channels
+  1..6 by default, as they always were; set by hand, that channel), and **channel 16 always plays the selected track**,
   notes and controllers (MOD WHEEL, BREATH, AFTERTOUCH, PITCH BEND into its modulation slots). On the selected track
   the notes also record, or set the notes of a held step (up to five). (Before 0.9.5 a channel always played the
   track with its number, whatever MIDI CH said; nothing in a project changes.)
@@ -788,6 +788,19 @@ DECAY, HARM and FDBK.
   key is down, then DEC is the release. DEC INF holds for ever. Switching the MODE while a note plays carries on from
   where the envelope is. In AHD, SUS and REL are not used (KNOB 4 is empty).
 
+## TOOLS: change a whole page, track or pattern (ARP held, 0.12.0)
+
+- **Hold ARP** (400 ms): TOOLS opens on the selected track (SHIFT + SELECT still changes it). **HOME** is the only way out.
+- **B1..B8**: ROTATE (the steps round the loop), REVERSE, RANDOM (new steps: density, notes, velocity, chance),
+  EUCLID (N hits spread evenly), GRIDS (a drum part from a map: X, Y, density, chaos), HUMANIZE (timing and velocity
+  jitter), QUANTIZE (the timing pulled back to the grid), LENGTH (the loop x2 / /2). **B9 STRETCH** squeezes or
+  spreads the track in time (x2..x8, /2../8, or onto 1..8 pages). **B10 CLIP**: COPY, PASTE or CLEAR (KNOB 1 picks,
+  OCT+ does it; CLEAR on a track or the pattern wants OCT+ twice). **PRESETS** steps through them all.
+- **B11 or ALGORITHM**: the scope, SELECTED STEPS, PAGE, TRACK or PATTERN. **W1..W16** put steps in or out of the
+  selection (the scope turns SELECTED); **SELECT** the page shown. **KNOB 1..4** the tool's values.
+- Every change plays at once; the white keys and the screen show the result, the steps it removes as ghosts.
+  **OCT+ keeps it** (one undo level), **OCT− puts it back**; **SHIFT + F1** undoes a kept change later.
+
 ## MIDI FX: the arpeggiator and friends (ARP, 0.9.0; 0.9.1's gestures)
 
 - **Five groups of eight slots**, kept with the project. A slot holds one of ten effects or nothing; a track's notes
@@ -831,10 +844,8 @@ DECAY, HARM and FDBK.
     step's frame; several held: all of them; the step latch's selection counts too. Nothing held: ALGORITHM is the
     track's group again. On the arp's lanes (pages 3, 4) the white keys stay the lane's steps.
   - **The white keys** play the track through the group (its scale, as the sound editor's keyboard).
-- **ARP held** (400 ms, anywhere; 0.9.1, it was the tap): the track's group's arp **on / off**, big. A group with no
-  arp gets one in its first empty slot; a track with no group is put on the first group no track uses (an empty one
-  first) with an arp in it. **ARP is lit steady** while the selected track's group has an arp ON (off otherwise); FILL
-  (SHIFT + ARP held) blinks it.
+- **The arp on / off** (0.12.0-beta.2): on the MIDI FX screen: put an ARP in a slot (PRESETS) and B10 bypasses or plays
+  it. **ARP held** (400 ms) opens TOOLS (below); FILL is SHIFT + ARP.
 - **The stopped preview** (0.9.3): a step held while stopped plays **through its MIDI FX group** (its own, else the
   track's): you hear the arp, the chord, the harmony; letting go ends every note (a HOLD arp's too).
 - **A step's own group**: hold the step in **TRIG** (B8): **KNOB 2** is its MIDI FX (TRACK: the track's, the default;
@@ -909,7 +920,7 @@ They stay open (OCT− or HOME back). For now:
 ## Saving (P1.5a)
 
 - **Nothing to save by hand**: the project is written by itself, a moment (1.5 s) after your last change, while you
-  play too (never in a way you could hear). Every pattern keeps its eight tracks' sounds as you edited them:
+  play too (never in a way you could hear). Every pattern keeps its six tracks' sounds as you edited them:
   switching patterns switches the sounds.
 - Switching the unit off and on (in FM1VST: quitting and starting the Standalone) brings back the project you worked
   on, its pattern and the selected track, the effects and the knob layout.
