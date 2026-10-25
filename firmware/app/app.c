@@ -450,9 +450,12 @@ static void fz_tick_to(uint32_t ms)      /* FIZZ's clock up to ms (P2.10: the co
 }
 
 static uint8_t fz_sx_buf[1024];          /* a reply (fizz_sx.h QD_SX_FRAME_MAX) */
-static void fz_xfer_rx(int inframe)      /* a FIZZ frame came (the pacing's window; the counters) */
+static void fz_xfer_rx(int inframe, int bulk)   /* a FIZZ frame came (the pacing's window; the counters); only one
+                                          * that can be bulk (FZBR, STORE / STORE6, LIST, DUMP) counts: a PARAM never */
 {
     uint32_t *x = fz_sx_xs();
+    if (!bulk)
+        return;
     const uint32_t t = plat_ticks24(), d = (t - x[FZ_XS_T_RX]) / PLAT_TICKS_PER_US;
     x[FZ_XS_RUN] = fz_sx_last() && plat_ms() - fz_sx_last() < FZ_XFER_HOLD_MS ? x[FZ_XS_RUN] + 1u : 1u;
     if ((x[FZ_XS_RUN] >= 3u || fz_sx_bulk()) && x[FZ_XS_T_RX]) {
@@ -1150,7 +1153,8 @@ int app_sysex(const uint8_t *p, uint32_t n)
     }
     if (n < 3u || p[0] != 0x7Du || p[1] != 0x46u || p[2] != 0x5Au)
         return 0;                        /* (not FIZZ's: the platform drops it) */
-    fz_xfer_rx(fz_in_frame);
+    fz_xfer_rx(fz_in_frame, n > 4u && (p[4] == 0x10u || p[4] == 0x11u || p[4] == 0x21u ||
+                                       p[4] == 0x22u));   /* (fizz_sx.h: STORE, STORE6, LIST, DUMP) */
     if (fz_ok) {
         const uint32_t f = fz_lock();
         fz_sysex(p, n);
@@ -2269,7 +2273,7 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
                                           fz_rd32(d + 6) == 0x52535A46u)) {   /* "FZBI" "FZBR" "FZSR" */
         uint8_t b[12 + FZ_BK_CHUNK];
         uint32_t lo, size;
-        fz_xfer_rx(fz_in_frame);
+        fz_xfer_rx(fz_in_frame, 1);
         fz_store_region(&lo, &size);
         if (fz_rd32(d + 6) == 0x49425A46u) {   /* FZBI */
             memcpy(b, "FZBI", 4);
