@@ -303,3 +303,36 @@ Where §10.1 and §10.2 say "ALGORITHM" for those values or "KNOB 4" for the sco
 - **Cost:** RAM +0 (dual 1,148 B free, single-core 540 B); flash about +1.8 KB (budget model 465,925 -> 467,709 B;
   dual 18,956 B free in the app slot).
 
+
+### 10.6 QUANTIZE (2026-10-25, the owner's request)
+
+HUMANIZE's opposite, the eighth tool, on every scope with the same live preview, ghosts, LEDs, OCT+ keep / OCT− revert,
+popups and undo as the others (`qd_tl_quantize`, `tools.c`).
+
+- **What it moves:** the only off-grid timing FIZZ stores per step is `micro` (−23..+23 24ths of a step, an override).
+  Ratchets are evenly spaced counts, strum is a chord's spread, swing is the track's on / off with the pattern's amount
+  (the player adds it on top of micro): none is off-grid feel, so none is touched. The track's default micro is the
+  track's nudge (a setting), left alone: QUANTIZE works on the steps' own micro only. A value that lands on the track's
+  default drops its override.
+- **KNOB 1, the amount** 0..100 % (5 % a detent; it starts at 0, so nothing moves until it is turned): each trig's micro
+  goes that far to its line, rounded toward the line (50 % halves it, 100 % puts it on the line).
+- **KNOB 2, the grid:** a step, 1/2, 1/3, 1/4 of one (24ths 24, 12, 8, 6). The lines are the step's own (|line| <= 23,
+  a tie goes to the step's side), so a note never changes step: no collisions, no locks to move.
+- **KNOB 3, the velocity** 0..100 %: "humanize off" for HUMANIZE's other half: the steps' own velocities that far back
+  to the track's default.
+- **KNOB 4:** nothing. No swing knob: swing is already the track's and the player's, applied on top of a quantized step.
+- **Where it sits: PRESETS only** (round past LENGTH; the eighth icon in the head, which now spaces eight at 19 px).
+  Every B key is taken (B1..B7 the tools, B8..B10 the clipboard, B11 the scope), "B6 again" is HUMANIZE's new seed, and
+  SHIFT + B is kept for snapshots, so no single click was free. With QUANTIZE chosen B1..B7 are all dim.
+- **The screen** is HUMANIZE's, shared (`tl_timing`): the steps as bars off their lines, heights the velocities; a
+  moved step's ghost (as it was) outlined behind it (HUMANIZE gets the ghosts too; its bars are 7 px wide now, were 10);
+  KNOB 2's grid as green ticks in each step and as a step cut in its parts at the foot, KNOB 1 and KNOB 3 as bars. No new
+  words: the name popup only. `qd_tools_timing` gives the bars and ghosts: live from the gesture's before
+  (`qd_undo_before`), drawn only worked out through the ops' own per-step functions (`qd_tl_quantize_one`,
+  `qd_tl_humanize_one`).
+- **Cost:** RAM +0 (the values in the tools' union: 3 B of its 8); flash dual +1,888 B (17,068 free), single-core
+  +1,872 B (13,276 free); budget model 467,709 -> 469,481 B (the ratchet raised for it).
+- **Tests:** `test_tools` t_quantize (the lines, 100 % zeroes the micro, 50 % halves it, the velocity) and t_quant_live
+  (PRESETS, each scope, the ghosts, OCT− byte for byte, OCT+ one level, undo byte for byte, drawn only) at host and
+  device sizes; `firmware/app/tests/tools.txt` (HUMANIZE kept, then 50 %, 100 %, OCT−, OCT+, undo: the host-only probe
+  `fz_micabs_T`); renders `render_frames --only t1` (`t1-quantize-*.png`).

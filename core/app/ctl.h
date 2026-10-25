@@ -359,6 +359,7 @@ typedef struct {
         struct { uint8_t dens, notes, vel, chance; uint16_t seed; } rn;   /* T2 RANDOM: density %, the spreads */
         struct { uint8_t micro, vel, pad[2]; uint16_t seed; } hu;          /* T2 HUMANIZE: the jitters */
         struct { uint8_t x, y, dens, chaos, part, pad; uint16_t seed; } gr;   /* T2 GRIDS (part 0..2) */
+        struct { uint8_t amt, grid, vel; } qu;   /* QUANTIZE: the timing's amount %, the grid (QD_QG_*), the velocity's % */
     } v;
 } qd_tools_t;
 
@@ -738,6 +739,9 @@ uint16_t qd_tools_sel_mask(const struct qd_app *a);       /* the page's selected
 int qd_tools_play_pos(const struct qd_app *a);            /* the playing step's position in the scope (-1) */
 void qd_tools_grids_tracks(const struct qd_app *a, int8_t *tr);   /* T2: GRIDS / PATTERN: the parts' tracks (3, -1) */
 int qd_tools_result_len(const struct qd_app *a, uint8_t *loop);   /* LENGTH: the selected track's length after, loop */
+/* HUMANIZE / QUANTIZE: the page's 16 steps' micro and velocity as the change makes them (mi, ve) and as they were (mi0,
+ * ve0: the ghosts) */
+void qd_tools_timing(const struct qd_app *a, int8_t *mi, uint8_t *ve, int8_t *mi0, uint8_t *ve0);
 
 /* ---- ctl_mix.c (P1.4b, built through ctl_latch.c): the track settings, the mix, the effects. The effects' pages: a
  * cell is a qd_fx.h parameter, QD_FXC_SEND (the selected track's send into the page's effect), QD_FXC_TIME /

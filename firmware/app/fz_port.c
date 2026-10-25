@@ -622,6 +622,15 @@ int fz_expect(const char *what, int *got)
         *got = 0;
         for (i = 0; i < 16; i++)
             *got |= qd_step_is_on(qd_step(qd_ctl_cpat(a), t, pg * 16 + i)) << i;
+    } else if (!strncmp(what, "fz_micabs_", 10)) {     /* fz_micabs_T: track T's trigs' micro-timing, |24ths| summed */
+        const int t = (what[10] - '1') & 7;
+        int i;
+        *got = 0;
+        for (i = 0; i < QD_NSTEP; i++) {
+            qd_rstep_t r;
+            qd_step_resolve(qd_ctl_cpat(a), t, i, &r);
+            *got += r.on ? (r.micro < 0 ? -r.micro : r.micro) : 0;
+        }
     } else if (!strncmp(what, "fz_tlen_", 8))          /* fz_tlen_T: track T's loop length */
         *got = qd_track_len(&qd_ctl_cpat(a)->trk[(what[8] - '1') & 7]);
     else if (!strcmp(what, "fz_fill"))                 /* FILL on (SHIFT + ARP) */

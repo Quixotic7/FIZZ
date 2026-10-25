@@ -188,6 +188,8 @@ static void tl_apply(qd_app_t *a)
             qd_tl_random(p, t, pos, n, T->v.rn.seed, T->v.rn.dens, T->v.rn.notes, T->v.rn.vel, T->v.rn.chance, sc, rt);
         } else if (T->tool == QD_TL_HUMANIZE)
             qd_tl_humanize(p, t, pos, n, T->v.hu.seed, T->v.hu.micro, T->v.hu.vel);
+        else if (T->tool == QD_TL_QUANTIZE)
+            qd_tl_quantize(p, t, pos, n, T->v.qu.grid, T->v.qu.amt, T->v.qu.vel);
         else if (T->tool == QD_TL_GRIDS)
             qd_tl_grids(p, t, pos, n, T->v.gr.x, T->v.gr.y, T->v.gr.dens, T->v.gr.part, T->v.gr.chaos, T->v.gr.seed);
     }
@@ -382,7 +384,7 @@ void qd_tools_black(qd_app_t *a, int b, int down)
     qd_tools_t *T = &a->ui.tl;
     if (!down)
         return;
-    if (b < QD_TL_N) {
+    if (b < QD_TL_NKEY) {
         if (!QD_TL_BUILT(b))
             return;
         if (b != T->tool) {
@@ -502,6 +504,15 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
                    : knob == QD_K_4 ? &T->v.gr.chaos : 0;
         if (v) {
             const int n = tl_clamp(*v + 4 * qd_ctl_acc(a, d, 64), 0, 255);
+            ch = n != *v;
+            *v = (uint8_t)n;
+        }
+        break;
+    }
+    case QD_TL_QUANTIZE: {                              /* KNOB 1 the timing's amount, 2 the grid, 3 the velocity's */
+        uint8_t *v = knob == QD_K_1 ? &T->v.qu.amt : knob == QD_K_2 ? &T->v.qu.grid : knob == QD_K_3 ? &T->v.qu.vel : 0;
+        if (v) {                                        /* (5 % a detent; the grid one a detent) */
+            const int n = knob == QD_K_2 ? tl_clamp(*v + (d > 0 ? 1 : -1), 0, QD_QG_N - 1) : tl_clamp(*v + 5 * d, 0, 100);
             ch = n != *v;
             *v = (uint8_t)n;
         }
@@ -650,7 +661,7 @@ void qd_tools_leds(const qd_app_t *a, uint8_t *key)
                                                          * the steps that do not play dark), the selected blinking */
         key[QD_WHITE_KEY[i]] = (sel >> i) & 1u ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT)
                              : !((inr >> i) & 1u) ? QD_LED_OFF : on[i] ? QD_LED_LIT : was[i] ? QD_LED_DIM : QD_LED_OFF;
-    for (i = 0; i < QD_TL_N; i++)                       /* B1..B7 the tools, B11 the scope */
+    for (i = 0; i < QD_TL_NKEY; i++)                    /* B1..B7 the tools (QUANTIZE: none lit), B11 the scope */
         key[QD_BLACK_KEY[i]] = i == T->tool ? QD_LED_LIT : QD_LED_DIM;
     key[QD_BLACK_KEY[10]] = QD_LED_LIT;
     {   /* T3: B8 COPY (PAGE, PATTERN), B9 PASTE (lit with something to paste), B10 CLEAR (blinking when armed) */
@@ -679,4 +690,48 @@ int qd_tools_result_len(const qd_app_t *a, uint8_t *loop)
         qd_tl_length((qd_pattern_t *)p, a->sel, T->scope <= QD_TS_PAGE ? T->opage & 7 : -1, T->lpow, &ts);
     *loop = (uint8_t)qd_track_loop(&ts);
     return qd_track_len(&ts);
+}
+
+/* HUMANIZE / QUANTIZE: the page's timing and velocities, now and as they were. Live: the pattern is the result, the
+ * ghosts from the gesture's before (the track's defaults for a value it did not override); drawn only: the pattern is
+ * the original, the result worked out through the ops' own per-step functions */
+void qd_tools_timing(const qd_app_t *a, int8_t *mi, uint8_t *ve, int8_t *mi0, uint8_t *ve0)
+{
+    const qd_tools_t *T = &a->ui.tl;
+    const qd_pattern_t *p = qd_ctl_cpat(a);
+    const int t = a->sel, page = tl_page(a);
+    const qd_sdef_t *d = &p->trk[t].def;
+    uint8_t pos[QD_NSTEP];
+    int w, n;
+    for (w = 0; w < 16; w++) {
+        qd_rstep_t r;
+        qd_step_resolve(p, t, page * QD_PAGE + w, &r);
+        mi[w] = mi0[w] = (int8_t)r.micro, ve[w] = ve0[w] = (uint8_t)r.vel;
+    }
+    if (!(T->flags & QD_TLF_PEND) || (T->tool != QD_TL_HUMANIZE && T->tool != QD_TL_QUANTIZE) || t != T->otrack)
+        return;
+    if (!(T->flags & QD_TLF_NOLIVE)) {
+        qd_step_t b[QD_PAGE];
+        if (qd_undo_before(a, (uint32_t)((const uint8_t *)&p->step[t][page * QD_PAGE] - (const uint8_t *)p), sizeof b,
+                           (uint8_t *)b))
+            for (w = 0; w < 16; w++) {
+                mi0[w] = (int8_t)(b[w].ovr & QD_OV(QD_PM_MICRO) ? b[w].micro : d->micro);
+                ve0[w] = b[w].ovr & QD_OV(QD_PM_VEL) ? b[w].vel : d->vel;
+            }
+        return;
+    }
+    if (T->scope == QD_TS_PAGE && page != T->opage)
+        return;
+    n = tl_pos(a, p, t, T->opage & 7, pos);
+    for (w = 0; w < 16; w++) {
+        const int s = page * QD_PAGE + w, i = qd_tl_pos_of(pos, n, s);
+        int m = mi0[w], v = ve0[w];
+        if (i < 0 || !(p->step[t][s].flags & QD_SF_ON))
+            continue;
+        if (T->tool == QD_TL_HUMANIZE)
+            qd_tl_humanize_one(qd_tl_hash(T->v.hu.seed, t, i), T->v.hu.micro, T->v.hu.vel, &m, &v);
+        else
+            qd_tl_quantize_one(&p->step[t][s], d, T->v.qu.grid, T->v.qu.amt, T->v.qu.vel, &m, &v);
+        mi[w] = (int8_t)m, ve[w] = (uint8_t)v;
+    }
 }

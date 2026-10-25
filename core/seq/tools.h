@@ -24,7 +24,10 @@
 extern "C" {
 #endif
 
-enum { QD_TL_ROTATE, QD_TL_REVERSE, QD_TL_RANDOM, QD_TL_EUCLID, QD_TL_GRIDS, QD_TL_HUMANIZE, QD_TL_LENGTH, QD_TL_N };
+enum { QD_TL_ROTATE, QD_TL_REVERSE, QD_TL_RANDOM, QD_TL_EUCLID, QD_TL_GRIDS, QD_TL_HUMANIZE, QD_TL_LENGTH, QD_TL_QUANTIZE,
+       QD_TL_N };
+#define QD_TL_NKEY 7                    /* the tools on B1..B7 (QUANTIZE: PRESETS only, every B key is taken) */
+enum { QD_QG_1, QD_QG_2, QD_QG_3, QD_QG_4, QD_QG_N };  /* QUANTIZE's grid: a step, 1/2, 1/3, 1/4 of one */
 enum { QD_TS_SEL, QD_TS_PAGE, QD_TS_TRACK, QD_TS_PATTERN, QD_TS_N };   /* (SEL: the selected steps, the caller's list) */
 enum { QD_EU_NEW, QD_EU_ADD, QD_EU_MASK, QD_EU_N };    /* EUCLID's landing: replace, OR, AND */
 #define QD_TL_BUILT(tool) ((tool) >= 0 && (tool) < QD_TL_N)   /* (T2: every one) */
@@ -54,6 +57,15 @@ void qd_tl_random(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t se
                   int chance, int scale, int root);
 /* HUMANIZE: every trig's micro +- micro 24ths and velocity +- vel (0: kept), from what they are */
 void qd_tl_humanize(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int micro, int vel);
+/* .. one trig's (h: qd_tl_hash(seed, t, i); *m, *v its micro and velocity now, in and out) */
+void qd_tl_humanize_one(uint32_t h, int micro, int vel, int *m, int *v);
+/* QUANTIZE (HUMANIZE's opposite): every trig's own micro (an override; the track's default micro is the track's nudge,
+ * left alone) amt % of the way to the nearest line of the grid (QD_QG_*: 24ths 24, 12, 8, 6; the step's own lines
+ * only, |line| <= 23, so a note never changes step; a tie to the step's), and its own velocity vamt % of the way to the
+ * track's default; a value that lands on the track's default drops its override. Pure: qd_tl_quant_to is the micro's */
+int qd_tl_quant_to(int m, int grid, int amt);
+void qd_tl_quantize_one(const qd_step_t *st, const qd_sdef_t *d, int grid, int amt, int vamt, int *m, int *v);
+void qd_tl_quantize(qd_pattern_t *p, int t, const uint8_t *pos, int n, int grid, int amt, int vamt);
 /* GRIDS: FIZZ's own map (grids_map.h, tools/grids_map.py): step i's level 0..255 at x, y (0..255) for part 0 LOW, 1
  * MID, 2 HIGH, the bilinear blend of the four nodes round it; plus chaos (0..255) x a seeded offset; a trig when the
  * level > 255 - dens, its velocity 40 + level x 87 / 255 */
