@@ -20,8 +20,17 @@
 //   link.backup({depth, onProgress, signal, onRead}) -> {image, lo, size, crc, stats}       (throws {code})
 //   link.restore(image, {onProgress, onPhase, signal}) -> {ok: true} | throws {code: "fzer", fzer, detail}
 //   link.close(); link.onLost = () => {}; link.log = (line) => {}
+// Phase 1 (docs/SYSEX.md; an older FIZZ answers BAD COMMAND: status() gives null, the others {status: 7}):
+//   link.status() -> parseStatus's {tracks, playing, project, projects, mine, pool, lib, prj, ..} | null
+//   link.flush() -> a STATUS once everything is written | {status: 8} (playing)
+//   link.tags(source, slot, tags), link.rename(source, slot, name), link.remove(source, slot, {confirm}),
+//   link.swap(source, a, b), link.poolRef(slot, id), link.project(op, p, q) -> {status, statusName, a, b}
+//     (status 0 OK, 8 BUSY: playing or a job running, 9 NOT FOUND, 10 IN USE: a = projects, b = steps)
+//   link.users(source, slot) -> {projects: [{project, steps}], tracks} | {status}
+//   link.projects() -> {current, list: [{slot, there, current, demo, name, pages}]} | null
 import { Updater, IS_OTA, frame, response, parseRequest, unpack7 } from "../install/fm1lib.js";
-import { identity, listRequest, parseList, dumpRequest, parseDump, parseReply, SOURCES } from "../js/fizz_sysex.js";
+import { identity, listRequest, parseList, dumpRequest, parseDump, parseReply, SOURCES, CMD1, statusRequest, flushRequest,
+  tagsRequest, renameRequest, deleteRequest, swapRequest, poolRefRequest, usersRequest, projectsRequest, projectRequest } from "../js/fizz_sysex.js";
 import { crc32, hex8 } from "./fizzbak.js";
 
 export const FIZZ_PREFIX = "FM-1_46";            // firmware/app/fm1.toml id_prefix
@@ -149,7 +158,7 @@ export class FizzLink {
   dump(source, slot) {
     return this.op(() => this.send(dumpRequest({ source, slot })), (p) => {
       const d = parseDump(p);
-      if (d && d.slot === slot) return d.frame;
+      if (d && (d.slot === slot || (source === "factory" && d.slot === 0))) return d.frame;   // (a factory one: slot 0)
       const r = parseReply(p);
       return r && r.kind === "error" && r.command === 0x22 ? null : undefined;
     });
@@ -173,6 +182,35 @@ export class FizzLink {
       return r && r.kind === "error" && (r.command === 0x10 || r.command === 0x11) ? r : undefined;
     });
   }
+
+  // ---- Phase 1: the library, the pool, the projects edited. One command, the reply `want` gives (its ACK, or
+  // another kind), or FIZZ's error reply for that command (an older FIZZ: BAD COMMAND). A job (a pool swap, a delete,
+  // a project) answers when it is done: the wait is long, and restarts on any of its frames
+  ask1(f, cmd, want = (r) => r.kind === "ack" && r.command === cmd, timeout = 15000) {
+    return this.op(() => this.send(f), (p) => {
+      const r = parseReply(p);
+      if (!r) return undefined;
+      if (want(r)) return r;
+      if (r.kind === "ack" && r.command === cmd) return r;
+      return r.kind === "error" && r.command === cmd ? { status: r.status, statusName: r.statusName, old: r.status === 7 } : undefined;
+    }, { timeout });
+  }
+  async status() {
+    const r = await this.ask1(statusRequest(), CMD1.STATUS, (x) => x.kind === "status", 3000).catch(() => null);
+    return r && r.kind === "status" ? r : null;
+  }
+  flush() { return this.ask1(flushRequest(), CMD1.FLUSH, (x) => x.kind === "status"); }
+  tags(source, slot, tags) { return this.ask1(tagsRequest({ source, slot, tags }), CMD1.TAGS); }
+  rename(source, slot, name) { return this.ask1(renameRequest({ source, slot, name }), CMD1.RENAME); }
+  remove(source, slot, { confirm = false } = {}) { return this.ask1(deleteRequest({ source, slot, confirm }), CMD1.DELETE); }
+  swap(source, a, b) { return this.ask1(swapRequest({ source, a, b }), CMD1.SWAP); }
+  poolRef(slot, id) { return this.ask1(poolRefRequest({ slot, id }), CMD1.POOLREF); }
+  users(source, slot) { return this.ask1(usersRequest({ source, slot }), CMD1.USERS, (x) => x.kind === "users"); }
+  async projects() {
+    const r = await this.ask1(projectsRequest(), CMD1.PROJECTS, (x) => x.kind === "projects", 3000).catch(() => null);
+    return r && r.kind === "projects" ? r : null;
+  }
+  project(op, p, q = 0) { return this.ask1(projectRequest({ op, p, q }), CMD1.PROJECT, undefined, 30000); }
 
   // ---- the bulk channel
   bulk(tag, words, want, timeout) {
