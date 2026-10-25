@@ -42,5 +42,17 @@ sysex F0 7D 46 5A 01 03 7D F7
 wait 1000
 expect fz_sx_kind 66
 expect fz_store_dirty 0
+# Manager P2-B: PARAM with ACK (track 1's FREQ 50.00): in the handler, OK; onto track 7: BAD TRACK
+sysex F0 7D 46 5A 01 30 00 22 40 27 08 01 3E F7
+wait 20
+expect fz_sx_kind 82
+expect fz_sx_status 0
+sysex F0 7D 46 5A 01 30 06 22 40 27 08 00 39 F7
+wait 20
+expect fz_sx_status 11
+# .. DUMP of track 1: a STORE frame (16) with its extras
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
+wait 20
+expect fz_sx_kind 16
 # the port's counters: lock_sysex_us in line 1 (read by eye: fzstats)
 fzstats

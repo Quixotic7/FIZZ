@@ -40,13 +40,16 @@ enum { QD_SX_STATUS = 0x02, QD_SX_FLUSH = 0x03, QD_SX_TAGS = 0x12, QD_SX_RENAME 
        QD_SX_SWAP = 0x15, QD_SX_POOLREF = 0x16, QD_SX_USERS = 0x17, QD_SX_PROJECTS = 0x23, QD_SX_PROJECT = 0x24,
        QD_SX_R_STATUS = 0x42, QD_SX_R_ACK = 0x52, QD_SX_R_USERS = 0x57, QD_SX_R_PROJECTS = 0x63 };
 #define QD_SXS_PROJECT 3               /* RENAME's source: a project (slot 1..8); MY PRESETS the other */
+#define QD_SXS_TRACK 4                 /* Manager P2-B: DUMP's source: a track's sound (slot 1..6; 0 the selected one) */
 #define QD_SXD_CONFIRM 0x01u           /* DELETE's flags: delete even if used (else IN USE and the users) */
 enum { QD_SXP_LOAD = 1, QD_SXP_NEW, QD_SXP_COPY, QD_SXP_DELETE };   /* PROJECT's ops */
 #define QD_SXT_PLAYING 0x01u           /* STATUS's flags: playing, .. */
 #define QD_SXT_NOSTORE 0x02u           /* .. no store attached (safe mode on the unit), .. */
 #define QD_SXT_DIRTY 0x04u             /* .. something not written yet, .. */
 #define QD_SXT_JOB 0x08u               /* .. a job running (BUSY for another), .. */
-#define QD_SXT_DEMO 0x10u              /* .. the project worked on started with the demos */
+#define QD_SXT_DEMO 0x10u              /* .. the project worked on started with the demos, .. */
+#define QD_SXT_REC 0x20u               /* .. (Manager P2-B) recording, or armed (a page's notes are recorded); then the
+                                        * selected track (a byte after the job's command) */
 #define QD_SXF_DUMP 0x08u              /* P1.6m: a STORE that is a DUMP's reply: FIZZ ignores it (clear it to restore) */
 #define QD_SXS_MINE 0                  /* P1.6m: LIST / DUMP's sources: MY PRESETS (slot 1..256) .. */
 #define QD_SXS_FACTORY 1               /* .. the factory presets (1..23) .. */
@@ -62,6 +65,26 @@ enum { QD_SXP_LOAD = 1, QD_SXP_NEW, QD_SXP_COPY, QD_SXP_DELETE };   /* PROJECT's
 #define QD_SXF_POOL 0x01u              /* into the project's POOL (else the LIBRARY) */
 #define QD_SXF_BATCH 0x02u             /* joins the previous import's undo level (a batch: one undo) */
 #define QD_SXF_LOAD 0x04u              /* also onto track <track> of the pattern playing (its sound, and its mix by mixmask) */
+/* Manager P2-B (docs/MANAGER-P2-PLAN.md §1.3): AUDITION (with LOAD): the sound onto the track only, nothing stored, no
+ * undo level; the body may end with the track's extras (8 bytes after the tags byte: a track DUMP's), its preset id,
+ * pool sound and edited mark set as given (a page's CANCEL puts a track back exactly). OWN: the preset is the owner's
+ * (not marked imported: the editor's SAVE) */
+#define QD_SXF_AUDITION 0x10u
+#define QD_SXF_OWN 0x20u
+#define QD_SX_XTRA 8                   /* the track's extras: preset id (3 x 7 bits), pool sound (2 x 7), flags (01 edited,
+                                        * 02 the selected track, 04 recording, 08 playing), its MIDI channel, the selected
+                                        * track */
+#define QD_SXX_EDITED 0x01u
+#define QD_SXX_SELECTED 0x02u
+#define QD_SXX_REC 0x04u
+#define QD_SXX_PLAYING 0x08u
+/* Manager P2-B: PARAM: one value of a track's sound, as a knob turned on the unit (qd_player_live_edit: the voices
+ * sounding follow). Body: track (0..5; 127 the selected one), id (0..109), value + 2^20 (3 x 7 bits), flags (01 ACK);
+ * no reply but with ACK or on an error (ACK 52: a = the track + 1, b = the id) */
+#define QD_SX_PARAM 0x30
+#define QD_SXP_ACK 0x01u
+#define QD_SXP_SELECTED 127
+#define QD_SXP_OFS (1 << 20)
 /* STORE's mixmask (with LOAD): which of pan, chorus, delay, reverb the track takes */
 #define QD_SXM_PAN 0x01u
 #define QD_SXM_CHORUS 0x02u
@@ -84,6 +107,16 @@ enum { QD_SX_OK, QD_SX_FULL, QD_SX_BAD_LENGTH, QD_SX_BAD_CHECKSUM, QD_SX_BAD_PAT
 #define QD_SX_RING 4096                /* P1.6l: the replies waiting, a ring of bytes (each one: 2 bytes its length, then
                                         * it) */
 
+/* Manager P2-B: a STORE over a used MY PRESETS place waiting for its job (the other projects' records that load the
+ * preset keep their own copies first, a project a step, outside the handler): the frame as read */
+typedef struct {
+    int16_t patch[110];                /* (QD_QUAD_NP) */
+    char name[QD_SX_NAME + 1];
+    uint8_t flags, track, mix[5];      /* STORE's flags, track, pan + 64, chorus, delay, reverb, mixmask */
+    uint8_t tags, has_x, x_sound, x_flags;   /* the tags byte (0 none); the extras: given, pool sound, flags */
+    uint16_t slot, x_id;               /* the place (1-based); the extras' preset id */
+} qd_sx_pend_t;
+
 /* (Phase 1) the job a command left (cmd 0: none): its arguments and its cursor; in qd_app_t (the pool on the unit) */
 typedef struct {
     uint8_t cmd, src, flags, step;     /* the command, its source, its flags, the cursor (a project, a pattern) .. */
@@ -103,6 +136,8 @@ typedef struct {
     const char *version;               /* the identity's version ("FIZZ 0.6.4-p1.5r"; the glue sets it) */
     uint32_t frames, errors;           /* (counters) */
     qd_sx_work_t wk;                   /* (Phase 1) the job running */
+    qd_sx_pend_t pend;                 /* (Manager P2-B) a STORE's frame while its job runs */
+    uint8_t dump[1 + QD_SX_STORE6_BODY + 1 + QD_SX_XTRA];   /* (P2-B) a DUMP reply being made (was a static in RAM) */
     uint32_t rx_ms;                    /* the port's: when its last FIZZ frame came (its clock | 1; 0 none): the frames'
                                         * pacing during a transfer (firmware/app/app.c fz_step) */
     uint32_t xs[12];                   /* the port's transfer counters (app.c FZ_XS_*: stats line 16), here not in the

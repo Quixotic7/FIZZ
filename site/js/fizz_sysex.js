@@ -49,18 +49,31 @@
 //                                                   name, pages}]}
 //   projectRequest({op, p, q})                   PROJECT (24): op "load" | "new" | "copy" (p onto q) | "delete"
 //   parseAck(bytes)                              -> {command, status, statusName, a, b} (52) | null
+// Manager P2-B (docs/MANAGER-P2-PLAN.md §1.3; an older FIZZ: PARAM BAD COMMAND, a track's DUMP BAD SLOT):
+//   paramRequest({track, id, value, ack})        PARAM (30): one value of a track's sound, as a knob on the unit
+//                                                   (track 0..5, "selected" the selected one; no reply but with ack)
+//   dumpRequest({source: "track", slot})         DUMP of a track's sound (slot 1..6, 0 the selected one): parseDump
+//                                                   gives {track, extras: {id, sound, edited, selected, rec, playing,
+//                                                   chan, sel}} too
+//   storeSound({.., audition, own, extras})      AUDITION (with track): the sound onto the track only, nothing
+//                                                   stored; extras (8 bytes, a track DUMP's): its id, pool sound and
+//                                                   edited mark as given. own: the owner's preset (not imported)
+//   trackFrame(dumpBytes)                        a track's DUMP as an AUDITION back onto it (a page's CANCEL)
 
 export const FIZZ_HEADER = [0x7d, 0x46, 0x5a];
 export const FIZZ_PROTOCOL = 1;
-export const CMD = { IDENTITY: 0x01, STORE: 0x10, STORE6: 0x11, LABELS: 0x20, LIST: 0x21, DUMP: 0x22 };   // (E1, P1.6l, P1.6m)
+export const CMD = { IDENTITY: 0x01, STORE: 0x10, STORE6: 0x11, LABELS: 0x20, LIST: 0x21, DUMP: 0x22, PARAM: 0x30 };   // (E1, P1.6l, P1.6m, P2-B)
 export const REPLY = { IDENTITY: 0x41, STORE: 0x50, LABELS: 0x60, LIST: 0x61, ERROR: 0x7f };
 export const SOURCES = ["mine", "factory", "pool"];    // P1.6m: LIST / DUMP's sources
+export const SOURCE_TRACK = 4;                           // Manager P2-B: DUMP's source: a track's sound
+export const XTRA_LEN = 8;                               // .. its extras' bytes (after the tags byte)
 // P1.6l: the labels' order (docs/SYSEX.md): the knobs, the 14 buttons (the FM-1's panel labels), W1..W16, B1..B11
 export const LABEL_KNOBS = ["SELECT", "ALGORITHM", "PRESETS", "K1", "K2", "K3", "K4", "MASTER"];
 export const LABEL_BUTTONS = ["FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "HOME", "SOUNDS", "FILL", "PATTERNS", "PLAY",
   "REC", "F1", "F2"];
 export const LABELS_N = LABEL_KNOBS.length + LABEL_BUTTONS.length + 16 + 11;   // 49
-export const FLAGS = { POOL: 0x01, BATCH: 0x02, LOAD: 0x04, DUMP: 0x08 };   // (P1.6m: DUMP: a dump's reply, ignored as it is)
+export const FLAGS = { POOL: 0x01, BATCH: 0x02, LOAD: 0x04, DUMP: 0x08, AUDITION: 0x10, OWN: 0x20 };   // (P1.6m: DUMP: a dump's
+// reply, ignored as it is; P2-B: AUDITION onto the track only, OWN the owner's preset)
 export const MIX = { PAN: 0x01, CHORUS: 0x02, DELAY: 0x04, REVERB: 0x08 };
 export const STATUS = ["OK", "FULL", "BAD LENGTH", "BAD CHECKSUM", "BAD PATCH", "BAD SLOT", "BAD VERSION", "BAD COMMAND",
   "BUSY", "NOT FOUND", "IN USE", "BAD TRACK"];   // (8..11: the web manager's Phase 1)
@@ -111,7 +124,7 @@ export const identity = () => frame(CMD.IDENTITY, []);
 // the preset (P1.5x; the rest: none, pan centre), and with track 0..7 (LOAD) onto that track of the pattern playing
 // too. tags (P1.5x): FIZZ's tags for the preset (a mask, or names of FIZZ_TAGS); none or 0: FIZZ's classifier decides.
 export function storeSound({ name = "", blob, drive = 0, pool = false, slot = 0, batch = false, track = -1, pan, chorus,
-                             delay, reverb, tags } = {}) {
+                             delay, reverb, tags, audition = false, own = false, extras = null } = {}) {
   if (!(blob instanceof Uint8Array) || (blob.length !== BLOB_LEN && blob.length !== BLOB6_LEN))
     throw new Error("blob: a 96-byte FM TONE patch (version 5), or a 128-byte one (version 6: STORE6)");
   if (!(slot >= 0 && slot <= (pool ? 128 : 256))) throw new Error(`slot: 0 (the first free) .. ${pool ? 128 : 256}`);
@@ -124,10 +137,19 @@ export function storeSound({ name = "", blob, drive = 0, pool = false, slot = 0,
                (delay !== undefined ? MIX.DELAY : 0) | (reverb !== undefined ? MIX.REVERB : 0);   // (P1.5x: LOAD or not)
   const tm = fizzTagMask(tags);
   const c7 = (v) => Math.max(0, Math.min(127, Math.round(v || 0)));
-  const flags = (pool ? FLAGS.POOL : 0) | (batch ? FLAGS.BATCH : 0) | (load ? FLAGS.LOAD : 0);
+  const flags = (pool ? FLAGS.POOL : 0) | (batch ? FLAGS.BATCH : 0) | (load ? FLAGS.LOAD : 0) | (audition && load ? FLAGS.AUDITION : 0) |
+    (own ? FLAGS.OWN : 0);
+  const xt = audition && load && extras ? extrasBytes(extras) : null;   // (P2-B: the tags byte then the track's extras)
   return frame(blob.length === BLOB6_LEN ? CMD.STORE6 : CMD.STORE, [flags, (slot >> 7) & 0x7f, slot & 0x7f, ...nm, c7(drive), load ? track : 0,
                            c7((pan === undefined ? 0 : pan) + 64), c7(chorus), c7(delay), c7(reverb), mask,
-                           ...pack7(blob), ...(tm ? [tm] : [])]);
+                           ...pack7(blob), ...(tm || xt ? [tm] : []), ...(xt || [])]);
+}
+
+// P2-B: a track's extras as bytes ({id, sound, edited}), and PARAM
+const extrasBytes = (x) => [(x.id >> 14) & 0x7f, (x.id >> 7) & 0x7f, x.id & 0x7f, (x.sound >> 7) & 0x7f, x.sound & 0x7f, x.edited ? 1 : 0, 0, 0];
+export function paramRequest({ track = "selected", id, value, ack = false }) {
+  const t = track === "selected" ? 127 : track, v = (Math.round(value) + (1 << 20)) >>> 0;
+  return frame(CMD.PARAM, [t & 0x7f, id & 0x7f, (v >> 14) & 0x7f, (v >> 7) & 0x7f, v & 0x7f, ack ? 1 : 0]);
 }
 
 export const labelsRequest = ({ subscribe = false } = {}) => frame(CMD.LABELS, [subscribe ? 1 : 0]);
@@ -157,7 +179,7 @@ export function parseLabels(bytes) {
 // ---- P1.6m: LIST, DUMP
 export const listRequest = ({ factory = false, pool = false } = {}) => frame(CMD.LIST, [(factory ? 1 : 0) | (pool ? 2 : 0)]);
 export const dumpRequest = ({ source = "mine", slot = 0 } = {}) => {
-  const src = SOURCES.indexOf(source);
+  const src = source === "track" ? SOURCE_TRACK : SOURCES.indexOf(source);
   if (src < 0) throw new Error(`source: one of ${SOURCES.join(", ")}`);
   return frame(CMD.DUMP, [src, (slot >> 7) & 0x7f, slot & 0x7f]);
 };
@@ -178,9 +200,20 @@ export function parseDump(bytes) {
   if (!isFizz(b) || (b[5] !== CMD.STORE && b[5] !== CMD.STORE6) || !sumOk(b) || !(b[6] & FLAGS.DUMP)) return null;
   const six = b[5] === CMD.STORE6, n7 = six ? 147 : 110, body = b.slice(6, -2);
   const blob = unpack7(body.slice(22, 22 + n7));
-  return { source: body[0] & FLAGS.POOL ? "pool" : "mine", slot: (body[1] << 7) | body[2],
+  const x = body.length >= 22 + n7 + 1 + XTRA_LEN ? body.slice(22 + n7 + 1) : null, load = !!(body[0] & FLAGS.LOAD);
+  return { source: load ? "track" : body[0] & FLAGS.POOL ? "pool" : "mine", slot: load ? body[16] + 1 : (body[1] << 7) | body[2],
     name: String.fromCharCode(...body.slice(3, 15)).trimEnd(), drive: body[15], pan: body[17] - 64, chorus: body[18],
-    delay: body[19], reverb: body[20], tags: body.length > 22 + n7 ? body[22 + n7] : 0, blob, six, frame: Uint8Array.from(b) };
+    delay: body[19], reverb: body[20], tags: body.length > 22 + n7 ? body[22 + n7] : 0, blob, six, frame: Uint8Array.from(b),
+    ...(load ? { track: body[16] } : {}),
+    ...(x ? { extras: { id: (x[0] << 14) | (x[1] << 7) | x[2], sound: (x[3] << 7) | x[4], edited: !!(x[5] & 1), selected: !!(x[5] & 2),
+      rec: !!(x[5] & 4), playing: !!(x[5] & 8), chan: x[6], sel: x[7] } } : {}) };
+}
+// P2-B: a track's DUMP as an AUDITION back onto that track: the track exactly as it was (its extras)
+export function trackFrame(bytes) {
+  const b = Array.from(bytes);
+  b[6] = (b[6] & ~FLAGS.DUMP & 0x7f) | FLAGS.AUDITION | FLAGS.LOAD;
+  b[b.length - 2] = (0x80 - (b.slice(5, -2).reduce((s, x) => s + x, 0) & 0x7f)) & 0x7f;
+  return Uint8Array.from(b);
 }
 export function restoreFrame(bytes, { slot } = {}) {
   const b = Array.from(bytes);
@@ -226,8 +259,9 @@ export function parseStatus(bytes) {
   if (!b || b.length < 30) return null;
   const f = b[8];
   return { protocol: b[6], tracks: b[7], playing: !!(f & 1), noStore: !!(f & 2), dirty: !!(f & 4), job: !!(f & 8), demo: !!(f & 16),
-    project: b[9] + 1, pattern: b[10], projects: b[11], mine: r14(b, 12), pool: r14(b, 14),
-    written: (b[16] << 14) | r14(b, 17), lib: [r14(b, 19), r14(b, 21)], prj: [r14(b, 23), r14(b, 25)], jobCommand: b[27] };
+    rec: !!(f & 32), project: b[9] + 1, pattern: b[10], projects: b[11], mine: r14(b, 12), pool: r14(b, 14),
+    written: (b[16] << 14) | r14(b, 17), lib: [r14(b, 19), r14(b, 21)], prj: [r14(b, 23), r14(b, 25)], jobCommand: b[27],
+    ...(b.length >= 31 ? { sel: b[28] } : {}) };
 }
 export function parseUsers(bytes) {
   const b = body1(bytes, REPLY1.USERS);

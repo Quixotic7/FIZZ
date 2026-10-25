@@ -2119,8 +2119,8 @@ static void will_change(qd_app_t *a, int id, int p0, int p1)
     qd_persist_t *ps = &a->per;
     qd_store_t *st = pat_backing(a);
     int p, k, t;
-    if (!st || id < QD_PRESET_MINE0)
-        return;
+    if (!st || id < QD_PRESET_MINE0 || (id == ps->wc_done && p1 - p0 > 1))
+        return;                                         /* (P2-B: a STORE job's: each project done already) */
     if (ps->on && ps->job >= 0) {                       /* (the record being written: finished first) */
         qd_store_flush(item_store(a, ps->job));
         job_end(a);

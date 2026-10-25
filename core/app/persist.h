@@ -109,6 +109,7 @@ typedef struct {
                                         * with no debounce */
     uint32_t fetch_ms;                 /* P2.4: the prefetch's last wait (it tries again 8 ms on) */
     uint32_t written_ms[QD_NPAT];      /* when each pattern was last written (its bubbles) */
+    uint16_t wc_done;                  /* (Manager P2-B) a STORE job's preset: its records already keep their copies */
 #if QD_PAT_RAM < QD_NPAT && !defined(QD_TARGET_FM1)
     /* P2.1: with no flash attached, at the device's sizes on the host (the tests, the tools), the patterns out of RAM
      * go to a RAM store (the device always has its flash: none of this is in its build) */

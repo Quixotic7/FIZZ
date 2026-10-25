@@ -272,6 +272,28 @@ A job that needs FIZZ stopped waits while PLAY is on. Its reply comes when it is
 `projectRequest`; `parseStatus`, `parseAck`, `parseUsers`, `parseProjects`; `parseReply` gives `{kind: "status" |
 "ack" | "users" | "projects"}`. `site/manager/fizzlink.js` wraps them (`link.status()`, `link.swap(..)` ..).
 
+### The sound editor's commands (Manager P2-B, docs/MANAGER-P2-PLAN.md §1.3)
+
+The web manager's EDIT edits the sound on a track of the open project live, and LIBRARY loads a preset onto a track
+with a CANCEL, as the unit's sound browser does. An older FIZZ answers PARAM `7F 07 30` (BAD COMMAND) and a track's
+DUMP `7F 05 22` (BAD SLOT): the page then edits in the browser only.
+
+| cmd | name | body | reply | runs |
+| --- | --- | --- | --- | --- |
+| `30` | PARAM | track (0..5; `7F` the selected one), id (0..109), value + 2^20 (3 x 7 bits, high first), flags (`01` ACK) | none; with ACK, or on an error: ACK (a = the track + 1, b = the id): BAD TRACK, NOT FOUND (id 110..), BAD LENGTH | handler: `qd_player_live_edit`, exactly a knob turned on the unit (the value clamped to its range; the sounding voices follow; the track's sound marked edited, the pattern's copy too). No undo level. While playing too |
+| `22` | DUMP, source `4`: a track | slot 1..6 (0: the selected track) | a STORE / STORE6 frame with DUMP and LOAD, its track, the track's sound's name, DRIVE, patch, the track's pan and sends (mixmask 0F), the tags of the preset it came from, then 8 bytes of **extras**: the preset id (3 x 7 bits), the pool sound (2 x 7), flags (`01` edited, `02` the selected track, `04` recording or armed, `08` playing), the track's MIDI channel (0..15), the selected track (0..5) | handler |
+| `10` / `11` | STORE flag `10` **AUDITION** (with LOAD) | as STORE, optionally followed (after the tags byte) by the 8 extras | STORE's reply, slot 0 | handler: the sound onto the track only (and the pattern's copy), its mix by mixmask; nothing stored, no undo level, no cassette. With the extras the track's preset id, pool sound and edited mark are set as given: **a track's DUMP sent back with DUMP cleared and AUDITION set puts the track back exactly** (a page's CANCEL; `trackFrame` in fizz_sysex.js). The extras without AUDITION + LOAD: BAD LENGTH |
+| `10` / `11` | STORE flag `20` **OWN** | as STORE | as STORE | the preset is the owner's: not marked imported (the editor's SAVE) |
+| `10` / `11` | STORE over a used MY PRESETS place | as STORE (a slot given, used) | STORE's reply **when done**; BUSY while playing or another job runs | a **job**, stopped only (paused if PLAY comes): each project's pattern records that load the preset keep their own copy of the sound it was (`qd_preset_will_change_proj`, a project a step, the open one last), then the preset is stored (its id kept). Nothing is read or written inside the handler (before 0.13 this ran in the handler, under the audio lock) |
+
+STATUS (`42`) has two more things: flag `20` recording (or armed: notes a page sends are recorded), and a byte after the
+job's command: the selected track (0..5).
+
+`tools/fizz_sysex.mjs` (and `site/js/fizz_sysex.js`): `paramRequest({track, id, value, ack})`, `dumpRequest({source:
+"track", slot})` (parseDump gives `track` and `extras`), `storeSound({.., audition, own, extras})`, `trackFrame(dump)`;
+parseStatus gives `rec` and `sel`. `site/manager/fizzlink.js`: `link.dumpTrack(slot)`, `link.param(track, id, value)`,
+`link.note(ch, n, vel)`.
+
 ## What FIZZ does with a sound
 
 - **Stores it** in the LIBRARY slot or POOL number, with its name. A LIBRARY import becomes one of MY presets: its own

@@ -269,7 +269,7 @@ static void phase1_tests(void)
     /* STATUS, PROJECTS */
     cmd(QD_SX_STATUS, 0, 0);
     CHECK(reply_ok() && R[5] == QD_SX_R_STATUS && R[6] == 1 && R[7] == QD_NTRACK && !(R[8] & QD_SXT_NOSTORE) &&
-              !(R[8] & QD_SXT_PLAYING) && R[9] == 0 && R[11] == 1 && rn == 7 + 23,
+              !(R[8] & QD_SXT_PLAYING) && R[9] == 0 && R[11] == 1 && rn == 7 + 24,
           "STATUS: 42, protocol 1, 6 tracks, the store attached, stopped, project 1 worked on, one project (%d bytes)", rn);
     {
         const int lt = R[21] << 7 | R[22], pt = R[25] << 7 | R[26];
@@ -533,6 +533,216 @@ static void phase1_tests(void)
     b[0] = QD_SXP_NEW, b[1] = 2;
     cmd(QD_SX_PROJECT, b, 3);
     CHECK(ack(QD_SX_PROJECT) == QD_SX_NOT_FOUND, "PROJECT with no store: NOT FOUND");
+}
+
+/* ---------------------------------------------------------------- Manager P2-B (docs/MANAGER-P2-PLAN.md §1.3, the
+ * owner's decisions): PARAM (a track's sound edited live), DUMP of a track (with its extras), STORE6 AUDITION (onto a
+ * track only, its extras put it back exactly: a page's CANCEL), OWN, a STORE over a used MY PRESETS place as a job
+ * (BUSY while playing, paused by PLAY; the other projects' records that loaded it keep the sound they had) */
+static uint32_t store6_msg(uint8_t *f, int flags, int slot, const char *name, const int16_t *patch, int track, int pan,
+                           int ch, int dl, int rv, int mask, int tags, const uint8_t *xtra)
+{
+    uint8_t b[QD_SX_STORE6_BODY + 1 + QD_SX_XTRA], blob[QD_QUAD_BLOB];
+    uint32_t o = 0, i;
+    qd_quad_pack(patch, blob);
+    b[o++] = (uint8_t)flags, b[o++] = (uint8_t)(slot >> 7), b[o++] = (uint8_t)(slot & 0x7F);
+    for (i = 0; i < QD_SX_NAME; i++)
+        b[o++] = (uint8_t)(i < strlen(name) ? name[i] : ' ');
+    b[o++] = (uint8_t)(patch[QD_QP_DRIVE] & 0x7F), b[o++] = (uint8_t)track, b[o++] = (uint8_t)pan, b[o++] = (uint8_t)ch;
+    b[o++] = (uint8_t)dl, b[o++] = (uint8_t)rv, b[o++] = (uint8_t)mask;
+    o += qd_sx_pack7(blob, QD_SX_BLOB6, b + o);
+    b[o++] = (uint8_t)tags;
+    if (xtra)
+        for (i = 0; i < QD_SX_XTRA; i++)
+            b[o++] = xtra[i];
+    return frame(f, QD_SX_STORE6, b, o);
+}
+static int param(int t, int id, int v, int flags)       /* PARAM: its reply's length (0: none) */
+{
+    const uint32_t x = (uint32_t)(v + QD_SXP_OFS);
+    const uint8_t b[6] = {(uint8_t)t, (uint8_t)id, (uint8_t)((x >> 14) & 0x7F), (uint8_t)((x >> 7) & 0x7F), (uint8_t)(x & 0x7F),
+                          (uint8_t)flags};
+    return cmd(QD_SX_PARAM, b, 6);
+}
+static int dump_track(int slot)                         /* DUMP of a track: its reply's length */
+{
+    const uint8_t b[3] = {QD_SXS_TRACK, (uint8_t)(slot >> 7), (uint8_t)(slot & 0x7F)};
+    return cmd(QD_SX_DUMP, b, 3);
+}
+static int same_track(const qd_track_t *t, const qd_track_t *u)
+{
+    return !memcmp(t->patch, u->patch, sizeof t->patch) && t->sound == u->sound && t->edited == u->edited &&
+           t->preset == u->preset && !strcmp(t->sound_name, u->sound_name) && t->mix.pan == u->mix.pan &&
+           t->mix.chorus == u->mix.chorus && t->mix.delay == u->mix.delay && t->mix.reverb == u->mix.reverb;
+}
+static void p2b_tests(void)
+{
+    static uint8_t f[320], back[320];
+    static int16_t p0[QD_QUAD_NP], p1[QD_QUAD_NP], p2[QD_QUAD_NP];
+    qd_track_t before;
+    qd_sound_t ls;
+    uint8_t xt[QD_SX_XTRA];
+    int m, id, n, nlib, u0, k, ok, bn, pat1, pat2;
+    uint32_t io0;
+    memset(FL, 0xFF, sizeof FL);
+    boot_flash();
+    run(3000);
+    cmd_io = 0;
+    /* PARAM */
+    u0 = qd_undo_count(&A, -1);
+    n = param(2, QD_QP_FREQ, 5000, 0);
+    CHECK(n == 0 && A.model.t[2].patch[QD_QP_FREQ] == 5000 && A.model.t[2].edited &&
+              qd_proj_pat(&A.proj, A.seq.cur)->snd[2].patch[QD_QP_FREQ] == 5000,
+          "PARAM: track 3's FREQ 50.00 (no reply): the track's sound and the pattern's copy, marked edited");
+    param(2, QD_QP_FREQ, 99999, QD_SXP_ACK);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_OK && ack_v1() == 3 && ack_v2() == QD_QP_FREQ && A.model.t[2].patch[QD_QP_FREQ] == 12700,
+          "PARAM with ACK: OK (track 3, FREQ); a value past the range clamped as a knob's (127.00)");
+    param(0, QD_QP_HARM, -2601, 0);
+    param(0, QD_QP_BITS, 40, 0);
+    CHECK(A.model.t[0].patch[QD_QP_HARM] == -2600 && A.model.t[0].patch[QD_QP_BITS] == 40,
+          "PARAM: a negative value (HARM -26.01 -> -26.00), a value 74.. (BITS 40)");
+    param(6, QD_QP_FREQ, 100, 0);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_BAD_TRACK, "PARAM onto track 7: BAD TRACK (answered without ACK)");
+    param(1, 110, 0, 0);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_NOT_FOUND, "PARAM of value 110: NOT FOUND");
+    A.sel = 4;
+    param(QD_SXP_SELECTED, QD_QP_RESO, 3000, QD_SXP_ACK);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_OK && ack_v1() == 5 && A.model.t[4].patch[QD_QP_RESO] == 3000, "PARAM onto track 127: the selected one (5)");
+    qd_app_play(&A);
+    run(200);
+    n = param(1, QD_QP_FREQ, 4000, 0);
+    CHECK(n == 0 && A.model.t[1].patch[QD_QP_FREQ] == 4000, "PARAM while playing: taken at once (a knob's edit)");
+    qd_app_stop(&A);
+    run(800);
+    CHECK(qd_undo_count(&A, -1) == u0, "PARAM: no undo level (%d -> %d)", u0, qd_undo_count(&A, -1));
+    /* DUMP of a track */
+    A.sel = 2;
+    A.model.t[2].mix.pan = -10, A.model.t[2].mix.reverb = 33;
+    dump_track(3);
+    bn = rn;
+    memcpy(back, R, (size_t)rn);
+    {
+        const int six = R[5] == QD_SX_STORE6, n7 = six ? QD_SX_BLOB6_7 : QD_SX_BLOB7;
+        const uint8_t *body = R + 6, *x = body + 22 + n7 + 1;
+        uint8_t blob[QD_QUAD_BLOB];
+        qd_sx_unpack7(body + 22, (uint32_t)n7, blob);
+        blob[87] = body[15];
+        ok = qd_quad_unpack(blob, six ? QD_QUAD_BLOB : QD_QUAD_BLOB5, p0) && !memcmp(p0, A.model.t[2].patch, sizeof p0);
+        CHECK(reply_ok() && (R[6] & QD_SXF_DUMP) && (R[6] & QD_SXF_LOAD) && body[16] == 2 && ok && body[17] == 64 - 10 &&
+                  body[20] == 33 && !memcmp(body + 3, A.model.t[2].sound_name, strlen(A.model.t[2].sound_name)) &&
+                  rn == 5 + 1 + (six ? QD_SX_STORE6_BODY : QD_SX_STORE_BODY) + 1 + QD_SX_XTRA + 2,
+              "DUMP of track 3: a STORE frame with DUMP and LOAD, track 3, its name, patch, pan and sends, then its extras");
+        CHECK((x[0] << 14 | x[1] << 7 | x[2]) == A.model.t[2].preset && (x[3] << 7 | x[4]) == A.model.t[2].sound &&
+                  (x[5] & QD_SXX_EDITED) && (x[5] & QD_SXX_SELECTED) && x[7] == 2 &&
+                  x[6] == (qd_seq_track_pat(&A.seq, 2)->trk[2].chan & 0x0F),
+              "DUMP of track 3: its preset id, pool sound, edited, selected, its MIDI channel, the selected track");
+    }
+    dump_track(0);
+    CHECK(reply_ok() && R[6 + 16] == 2, "DUMP of track 0: the selected track (3)");
+    dump_track(7);
+    CHECK(reply_ok() && R[5] == QD_SX_R_ERROR && R[6] == QD_SX_BAD_SLOT, "DUMP of track 7: BAD SLOT");
+    /* AUDITION: onto track 3 only (nothing stored, no undo), then the DUMP sent back: the track exactly as it was */
+    before = A.model.t[2];
+    for (nlib = 0, k = 0; k < QD_NLIB; k++)
+        nlib += qd_lib_used(&A, k);
+    u0 = qd_undo_count(&A, -1);
+    qd_quad_preset_patch(5, p1);
+    memset(xt, 0, sizeof xt);
+    xt[2] = 6;                                          /* (preset id 6: factory 6) */
+    send(f, store6_msg(f, QD_SXF_LOAD | QD_SXF_AUDITION, 0, "AUDITION", p1, 2, 64 + 20, 1, 2, 3, 0x0F, 0, xt));
+    for (n = 0, k = 0; k < QD_NLIB; k++)
+        n += qd_lib_used(&A, k);
+    run(800);
+    CHECK(status() == QD_SX_OK && rslot() == 0 && n == nlib && !memcmp(A.model.t[2].patch, p1, sizeof p1) &&
+              !strcmp(A.model.t[2].sound_name, "AUDITION") && A.model.t[2].preset == 6 && !A.model.t[2].edited &&
+              A.model.t[2].mix.pan == 20 && A.model.t[2].mix.reverb == 3 && qd_undo_count(&A, -1) == u0,
+          "AUDITION: the sound on track 3 (its preset id, its mix): nothing stored, no undo level");
+    back[6] &= (uint8_t)~QD_SXF_DUMP;
+    back[6] |= QD_SXF_AUDITION;
+    {
+        int j, sum = 0;
+        for (j = 5; j < bn - 2; j++)
+            sum += back[j];
+        back[bn - 2] = (uint8_t)((0x80 - (sum & 0x7F)) & 0x7F);
+    }
+    send(back + 1, (uint32_t)bn - 2u);
+    CHECK(status() == QD_SX_OK && same_track(&A.model.t[2], &before),
+          "AUDITION of the track's own DUMP (its extras): the track exactly as it was (CANCEL)");
+    send(f, store6_msg(f, QD_SXF_AUDITION, 0, "NO LOAD", p1, 2, 64, 0, 0, 0, 0, 0, xt));
+    CHECK(status() == QD_SX_BAD_LENGTH, "AUDITION without LOAD with the extras: BAD LENGTH (the extras are the track's)");
+    /* OWN */
+    send(f, store6_msg(f, QD_SXF_OWN, 0, "MINE OWN", p1, 0, 64, 0, 0, 0, 0x0F, QD_PKB(QD_PK_PAD), 0));
+    m = rslot();
+    CHECK(status() == QD_SX_OK && !(qd_lib_flags(&A, m - 1) & QD_SNDF_IMPORTED) && qd_lib_tags(&A, m - 1) == QD_PKB(QD_PK_PAD),
+          "STORE6 OWN: the owner's preset (not imported), its tags as given");
+    send(f, store6_msg(f, 0, 0, "IMPORTED", p1, 0, 64, 0, 0, 0, 0x0F, 0, 0));
+    CHECK(status() == QD_SX_OK && (qd_lib_flags(&A, rslot() - 1) & QD_SNDF_IMPORTED), "STORE6 without OWN: imported, as before");
+    /* a STORE over a used place: a job. Tracks of project 1 and of project 2 load preset m (AUDITION with its id, as
+     * a page's LIBRARY load), their records written; the preset saved over; each kept the sound it had */
+    id = qd_lib_preset(&A, m - 1);
+    qd_lib_read(&A, m - 1, &ls);
+    memcpy(p0, ls.patch, sizeof p0);
+    memset(xt, 0, sizeof xt);
+    xt[0] = (uint8_t)((id >> 14) & 0x7F), xt[1] = (uint8_t)((id >> 7) & 0x7F), xt[2] = (uint8_t)(id & 0x7F);
+    send(f, store6_msg(f, QD_SXF_LOAD | QD_SXF_AUDITION, 0, "MINE OWN", p0, 0, 64, 0, 0, 0, 0x0F, 0, xt));
+    pat1 = A.seq.cur;
+    CHECK(status() == QD_SX_OK && A.model.t[0].preset == id && !A.model.t[0].edited, "(track 1 of project 1 loads MY preset %d)", m);
+    run(2500);
+    {
+        const uint8_t pb[3] = {QD_SXP_NEW, 2, 0};
+        cmd(QD_SX_PROJECT, pb, 3);
+        CHECK(wait_reply(3000) && ack(QD_SX_PROJECT) == QD_SX_OK && A.per.proj == 1, "(project 2 made)");
+    }
+    send(f, store6_msg(f, QD_SXF_LOAD | QD_SXF_AUDITION, 0, "MINE OWN", p0, 1, 64, 0, 0, 0, 0x0F, 0, xt));
+    pat2 = A.seq.cur;
+    qd_step_on(qd_proj_pat(&A.proj, pat2), 1, 0);      /* (a pattern with a trig: written) */
+    qd_proj_pat(&A.proj, pat2)->used = 1;
+    A.edit_gen++;
+    run(2500);
+    {
+        const uint8_t pb[3] = {QD_SXP_LOAD, 1, 0};
+        cmd(QD_SX_PROJECT, pb, 3);
+        CHECK(wait_reply(3000) && ack(QD_SX_PROJECT) == QD_SX_OK && A.per.proj == 0 && qd_proj_pat(&A.proj, pat1)->snd[0].preset == id,
+              "(project 1 again; its pattern %d's track 1 still MY preset %d)", pat1 + 1, m);
+    }
+    memcpy(p2, p0, sizeof p2);
+    p2[QD_QP_FREQ] = (int16_t)(p0[QD_QP_FREQ] > 6000 ? 1000 : 9000), p2[QD_QP_FDBK] = 99;
+    qd_app_play(&A);
+    send(f, store6_msg(f, QD_SXF_OWN, m, "SAVED OVER", p2, 0, 64, 0, 0, 0, 0x0F, 0, 0));
+    CHECK(status() == QD_SX_BUSY && !strcmp(qd_lib_name(&A, m - 1), "MINE OWN"), "STORE over a used MY place while playing: BUSY, nothing changed");
+    qd_app_stop(&A);
+    run(50);
+    io0 = cmd_io;
+    send(f, store6_msg(f, QD_SXF_OWN, m, "SAVED OVER", p2, 0, 64, 0, 0, 0, 0x0F, 0, 0));
+    CHECK(rn == 0 && A.sx.wk.cmd == QD_SX_STORE6 && !strcmp(qd_lib_name(&A, m - 1), "MINE OWN"),
+          "STORE over a used MY place: a job (no reply yet, the preset not changed yet)");
+    run(16);
+    qd_app_play(&A);                                    /* (PLAY meanwhile: the job waits) */
+    k = A.sx.wk.step;
+    run(300);
+    CHECK(A.sx.wk.cmd == QD_SX_STORE6 && A.sx.wk.step == k, "the STORE job waits while playing (at step %d)", k);
+    qd_app_stop(&A);
+    CHECK(wait_reply(3000) && status() == QD_SX_OK && rslot() == m, "the STORE job: its reply when done (MY PRESETS %d)", m);
+    qd_lib_read(&A, m - 1, &ls);
+    CHECK(!strcmp(ls.name, "SAVED OVER") && !memcmp(ls.patch, p2, sizeof p2) && qd_lib_preset(&A, m - 1) == id &&
+              !(ls.flags & QD_SNDF_IMPORTED),
+          "the STORE job: MY preset %d is the new sound, its id kept", m);
+    run(2500);
+    qd_persist_flush(&A);
+    boot_flash();                                       /* (after a restart: the projects' records as written) */
+    CHECK(A.per.proj == 0 && !memcmp(qd_proj_pat(&A.proj, pat1)->snd[0].patch, p0, sizeof p0),
+          "project 1's track 1 (it loaded the preset) kept the sound it had, from its record");
+    {
+        const uint8_t pb[3] = {QD_SXP_LOAD, 2, 0};
+        cmd(QD_SX_PROJECT, pb, 3);
+        CHECK(wait_reply(3000) && ack(QD_SX_PROJECT) == QD_SX_OK && !memcmp(qd_proj_pat(&A.proj, pat2)->snd[1].patch, p0, sizeof p0),
+              "project 2's track 2 (another project's record) kept the sound it had too");
+    }
+    CHECK(cmd_io == io0, "the STORE over a used place read and wrote nothing inside the handler (the job did)");
+    /* STATUS: the selected track, REC */
+    A.sel = 3;
+    cmd(QD_SX_STATUS, 0, 0);
+    CHECK(reply_ok() && R[28] == 3 && !(R[8] & QD_SXT_REC), "STATUS: the selected track (4) after the job's byte; not recording");
 }
 
 int main(int argc, char **argv)
@@ -952,6 +1162,7 @@ int main(int argc, char **argv)
         CHECK(ok3, "the 256 stored back into an empty library: every one the same (name, patch, tags, pan, sends)");
     }
     phase1_tests();
+    p2b_tests();
     qd_shutdown();
     printf("test_sysex: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

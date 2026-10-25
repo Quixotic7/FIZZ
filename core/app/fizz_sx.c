@@ -160,15 +160,92 @@ static void sx_store_reply(qd_app_t *a, int status, int pool, int slot)
     sx_reply(a, b, 5);
 }
 
-/* STORE: body[0..n) after the command byte, its checksum included */
+typedef char qd_sx_pend_np_ok[sizeof(((qd_sx_pend_t *)0)->patch) == QD_QUAD_NP * sizeof(int16_t) ? 1 : -1];
+static int sx_job_begin(qd_app_t *a, int cmd, int src, int x, int y, int flags, int stopped);
+
+/* the sound read (q): stored, loaded, auditioned (the handler, or the STORE job's end) */
+static void sx_store_apply(qd_app_t *a, const qd_sx_pend_t *q)
+{
+    const int flags = q->flags, pool = (flags & QD_SXF_POOL) != 0, track = q->track;
+    const int mask = q->mix[4];
+    int slot = q->slot, lib_slot = 0;
+    if ((flags & QD_SXF_AUDITION) && (flags & QD_SXF_LOAD) && track < QD_NTRACK) {   /* (P2-B: the track only) */
+        qd_track_t *t = &a->model.t[track];
+        qd_track_load_sound(t, q->has_x ? q->x_sound : 0, q->name, q->patch);
+        t->preset = q->has_x ? q->x_id : 0;
+        t->edited = (uint8_t)(q->has_x && (q->x_flags & QD_SXX_EDITED));
+        if (mask & QD_SXM_PAN)
+            t->mix.pan = (int8_t)((int)q->mix[0] - 64);
+        if (mask & QD_SXM_CHORUS)
+            t->mix.chorus = q->mix[1];
+        if (mask & QD_SXM_DELAY)
+            t->mix.delay = q->mix[2];
+        if (mask & QD_SXM_REVERB)
+            t->mix.reverb = q->mix[3];
+        qd_track_to_tsound(t, &qd_ctl_pat(a)->snd[track]);   /* (the pattern's copy now: a pattern change not yet
+                                                         * brought into the tracks would put the old one back) */
+        sx_store_reply(a, QD_SX_OK, 0, 0);
+        return;
+    }
+    qd_undo_input(a, 0);                                /* (an input: the batch's gesture stays open while they come) */
+    a->undo.join = (flags & QD_SXF_BATCH) != 0;         /* (a batch: the previous import's level goes on) */
+    if (pool) {                                         /* P1.5w: a MY preset (imported), referenced at that number */
+        const int m = qd_lib_free_slot(a);
+        qd_sound_t s;
+        qd_lib_store_ex(a, m, q->name, q->patch, QD_SNDF_IMPORTED);
+        qd_undo_snd(a, QD_UNDO_RPOOL, slot);            /* (P2.1: as it was, for the device's undo) */
+        memset(&s, 0, sizeof s);
+        s.preset = qd_lib_preset(a, m);
+        strcpy(s.name, "?");
+        qd_sound_write(&a->proj, slot, &s);
+        qd_pool_resolve(a);
+        lib_slot = m;
+    } else {                                            /* (P1.5t: one of MY presets, imported; P2-B OWN: the owner's) */
+        qd_lib_store_ex(a, slot - 1, q->name, q->patch, flags & QD_SXF_OWN ? 0 : QD_SNDF_IMPORTED);
+        lib_slot = slot - 1;
+    }
+    {   /* P1.5x: the preset keeps the mix the frame gives (mixmask), LOAD or not; the tags byte (nonzero) its tags */
+        qd_sound_t ls;
+        qd_lib_read(a, lib_slot, &ls);
+        ls.pan = mask & QD_SXM_PAN ? (int8_t)((int)q->mix[0] - 64) : 0;
+        ls.chorus = mask & QD_SXM_CHORUS ? q->mix[1] : 0;
+        ls.delay = mask & QD_SXM_DELAY ? q->mix[2] : 0;
+        ls.reverb = mask & QD_SXM_REVERB ? q->mix[3] : 0;
+        if (q->tags & QD_PK_MASK)
+            ls.tags = (uint8_t)(q->tags & QD_PK_MASK);
+        qd_lib_write(a, lib_slot, &ls);
+        qd_pool_resolve(a);
+    }
+    a->undo.join = 0;
+    if ((flags & QD_SXF_LOAD) && track < QD_NTRACK) {   /* onto a track: its sound (a pool sound: its source), its mix */
+        qd_track_t *t = &a->model.t[track];
+        qd_track_load_sound(t, pool ? slot : 0, q->name, q->patch);
+        t->preset = qd_lib_preset(a, lib_slot);
+        if (mask & QD_SXM_PAN)
+            t->mix.pan = (int8_t)((int)q->mix[0] - 64);
+        if (mask & QD_SXM_CHORUS)
+            t->mix.chorus = q->mix[1];
+        if (mask & QD_SXM_DELAY)
+            t->mix.delay = q->mix[2];
+        if (mask & QD_SXM_REVERB)
+            t->mix.reverb = q->mix[3];
+        qd_track_to_tsound(t, &qd_ctl_pat(a)->snd[track]);
+    }
+    qd_ctl_imported(a, q->name, pool, slot);            /* the panel: its cassette, "imported" */
+    sx_store_reply(a, QD_SX_OK, pool, slot);
+}
+
+/* STORE: body[0..n) after the command byte, its checksum included. P2-B: over a used MY PRESETS place a job (the
+ * other projects' records that load the preset keep their own copies first, a project a step: never inside the
+ * handler), stopped only (BUSY while playing, as the other jobs); its reply when done */
 static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
 {
     uint8_t blob[QD_SX_BLOB6 + 8];
-    char name[QD_SX_NAME + 1];
-    int16_t patch[QD_QUAD_NP];
-    int flags, pool, slot, track, lib_slot = 0;
+    qd_sx_pend_t q;
+    int flags, pool, slot;
     const uint32_t body = six ? QD_SX_STORE6_BODY : QD_SX_STORE_BODY;   /* (E1: STORE6: the 128-byte blob) */
-    if (n != body + 1u && n != body + 2u) {             /* (P1.5x: + the tags byte) */
+    const int xtra = n == body + 2u + QD_SX_XTRA && (b[0] & QD_SXF_AUDITION) && (b[0] & QD_SXF_LOAD);   /* (P2-B: the track's extras) */
+    if (n != body + 1u && n != body + 2u && !xtra) {    /* (P1.5x: + the tags byte) */
         sx_store_reply(a, QD_SX_BAD_LENGTH, n ? (b[0] & QD_SXF_POOL) != 0 : 0, 0);
         return;
     }
@@ -181,19 +258,34 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
         sx_store_reply(a, QD_SX_BAD_TRACK, pool, slot);
         return;
     }
-    if (!sx_name(b + 3, name))                          /* the name: printable ASCII, the trailing spaces off */
-        strcpy(name, "IMPORTED");
+    memset(&q, 0, sizeof q);
+    if (!sx_name(b + 3, q.name))                        /* the name: printable ASCII, the trailing spaces off */
+        strcpy(q.name, "IMPORTED");
     if (qd_sx_unpack7(b + 22, six ? QD_SX_BLOB6_7 : QD_SX_BLOB7, blob) != (six ? QD_SX_BLOB6 : QD_SX_BLOB)) {
         sx_store_reply(a, QD_SX_BAD_LENGTH, pool, slot);
         return;
     }
     if (blob[1] == 5 || blob[1] == 6)                   /* (version 5 / 6: DRIVE after its values, as FIZZ packs it) */
         blob[87] = b[15] & 0x7F;
-    if ((!six && blob[1] == 6) || !qd_quad_unpack(blob, six ? QD_SX_BLOB6 : QD_SX_BLOB, patch)) {
+    if ((!six && blob[1] == 6) || !qd_quad_unpack(blob, six ? QD_SX_BLOB6 : QD_SX_BLOB, q.patch)) {
         sx_store_reply(a, QD_SX_BAD_PATCH, pool, slot);
         return;
     }
-    patch[QD_QP_DRIVE] = (int16_t)(b[15] & 0x7F);
+    q.patch[QD_QP_DRIVE] = (int16_t)(b[15] & 0x7F);
+    q.flags = (uint8_t)flags, q.track = b[16];
+    memcpy(q.mix, b + 17, 5);
+    q.tags = n >= body + 2u ? b[body] : 0;
+    if (xtra) {
+        const uint8_t *x = b + body + 1u;
+        q.has_x = 1;
+        q.x_id = (uint16_t)((x[0] & 0x7F) << 14 | (x[1] & 0x7F) << 7 | (x[2] & 0x7F));
+        q.x_sound = (uint8_t)((x[3] & 0x7F) << 7 | (x[4] & 0x7F));
+        q.x_flags = x[5];
+    }
+    if ((flags & QD_SXF_AUDITION) && (flags & QD_SXF_LOAD)) {
+        sx_store_apply(a, &q);                          /* (P2-B: the track only, nothing stored) */
+        return;
+    }
     if (pool) {                                         /* POOL: 1..128 (P1.5t: slot 1 as any), 0 the first free */
         if (slot == 0)
             slot = qd_pool_free_slot(&a->proj);
@@ -221,54 +313,16 @@ static void sx_store(qd_app_t *a, const uint8_t *b, uint32_t n, int six)
             return;
         }
     }
-    qd_undo_input(a, 0);                                /* (an input: the batch's gesture stays open while they come) */
-    a->undo.join = (flags & QD_SXF_BATCH) != 0;         /* (a batch: the previous import's level goes on) */
-    if (pool) {                                         /* P1.5w: a MY preset (imported), referenced at that number */
-        const int m = qd_lib_free_slot(a);
-        qd_sound_t s;
-        qd_lib_store_ex(a, m, name, patch, QD_SNDF_IMPORTED);
-        qd_undo_snd(a, QD_UNDO_RPOOL, slot);            /* (P2.1: as it was, for the device's undo) */
-        memset(&s, 0, sizeof s);
-        s.preset = qd_lib_preset(a, m);
-        strcpy(s.name, "?");
-        qd_sound_write(&a->proj, slot, &s);
-        qd_pool_resolve(a);
-        lib_slot = m;
-    } else {
-        qd_lib_store_ex(a, slot - 1, name, patch, QD_SNDF_IMPORTED);   /* (P1.5t: one of MY presets, imported) */
-        lib_slot = slot - 1;
+    q.slot = (uint16_t)slot;
+    if (!pool && qd_lib_used(a, slot - 1) && qd_lib_preset(a, slot - 1) >= QD_PRESET_MINE0) {
+        if (!sx_job_begin(a, six ? QD_SX_STORE6 : QD_SX_STORE, QD_SXS_MINE, slot - 1, 0, 0, 1)) {
+            sx_store_reply(a, QD_SX_BUSY, pool, slot);
+            return;
+        }
+        a->sx.pend = q;                                 /* (P2-B: stored by the job, after the other projects' records) */
+        return;
     }
-    {   /* P1.5x: the preset keeps the mix the frame gives (mixmask), LOAD or not; the tags byte (nonzero) its tags */
-        qd_sound_t ls;
-        const int mask = b[21];
-        qd_lib_read(a, lib_slot, &ls);
-        ls.pan = mask & QD_SXM_PAN ? (int8_t)((int)b[17] - 64) : 0;
-        ls.chorus = mask & QD_SXM_CHORUS ? b[18] : 0;
-        ls.delay = mask & QD_SXM_DELAY ? b[19] : 0;
-        ls.reverb = mask & QD_SXM_REVERB ? b[20] : 0;
-        if (n == body + 2u && (b[body] & QD_PK_MASK))
-            ls.tags = (uint8_t)(b[body] & QD_PK_MASK);
-        qd_lib_write(a, lib_slot, &ls);
-        qd_pool_resolve(a);
-    }
-    a->undo.join = 0;
-    track = b[16];
-    if ((flags & QD_SXF_LOAD) && track < QD_NTRACK) {   /* onto a track: its sound (a pool sound: its source), its mix */
-        qd_track_t *t = &a->model.t[track];
-        const int mask = b[21];
-        qd_track_load_sound(t, pool ? slot : 0, name, patch);
-        t->preset = pool ? qd_lib_preset(a, lib_slot) : qd_lib_preset(a, slot - 1);
-        if (mask & QD_SXM_PAN)
-            t->mix.pan = (int8_t)((int)b[17] - 64);
-        if (mask & QD_SXM_CHORUS)
-            t->mix.chorus = b[18];
-        if (mask & QD_SXM_DELAY)
-            t->mix.delay = b[19];
-        if (mask & QD_SXM_REVERB)
-            t->mix.reverb = b[20];
-    }
-    qd_ctl_imported(a, name, pool, slot);               /* the panel: its cassette, "imported" */
-    sx_store_reply(a, QD_SX_OK, pool, slot);
+    sx_store_apply(a, &q);
 }
 
 /* ---------------------------------------------------------------- P1.6m: LIST, DUMP */
@@ -339,37 +393,68 @@ static int sx_count(const qd_app_t *a, int src)
 
 /* DUMP's reply: a STORE (STORE6 when the sound uses a value 74..) frame of it, the DUMP flag set: its slot, name,
  * DRIVE, pan, the sends (mixmask 0F), its patch, its tags; FIZZ ignores it as it is (sent back with the flag cleared:
- * the preset made again) */
-static int sx_dump_one(qd_app_t *a, int src, int k)
+ * the preset made again). P2-B: a track's (tr 0..5; -1 none) with LOAD and its track, then the track's extras
+ * (QD_SX_XTRA: its preset id, pool sound, flags, MIDI channel, the selected track). (P2-B: built in qd_sx_t, the pool,
+ * not in RAM) */
+static int sx_dump_sound(qd_app_t *a, const qd_sound_t *s, int flags, int slot, int tr)
 {
-    static uint8_t b[QD_SX_STORE6_BODY + 4];
+    uint8_t *const b = a->sx.dump;
     uint8_t blob[QD_SX_BLOB6];
-    qd_sound_t s;
     uint32_t o = 0;
-    int i, six;
-    if (!sx_entry(a, src, k, &s))
-        return -1;
-    six = qd_quad_ext_used(s.patch);
+    int i;
+    const int six = qd_quad_ext_used(s->patch);
     if (six)
-        qd_quad_pack(s.patch, blob);
+        qd_quad_pack(s->patch, blob);
     else
-        qd_quad_pack5(s.patch, blob);
+        qd_quad_pack5(s->patch, blob);
     b[o++] = six ? QD_SX_STORE6 : QD_SX_STORE;
-    b[o++] = (uint8_t)(QD_SXF_DUMP | (src == QD_SXS_POOL ? QD_SXF_POOL : 0));
-    {
-        const int slot = src == QD_SXS_FACTORY ? 0 : k + 1;   /* (a factory preset: back as a new MY preset) */
-        b[o++] = (uint8_t)((slot >> 7) & 0x7F), b[o++] = (uint8_t)(slot & 0x7F);
-    }
+    b[o++] = (uint8_t)(QD_SXF_DUMP | flags | (tr >= 0 ? QD_SXF_LOAD : 0));
+    b[o++] = (uint8_t)((slot >> 7) & 0x7F), b[o++] = (uint8_t)(slot & 0x7F);
     for (i = 0; i < QD_SX_NAME; i++)
-        b[o++] = (uint8_t)(s.name[i] && i < (int)strlen(s.name) ? s.name[i] & 0x7F : ' ');
-    b[o++] = (uint8_t)(s.patch[QD_QP_DRIVE] & 0x7F);
-    b[o++] = 0;                                         /* (no LOAD) */
-    b[o++] = (uint8_t)(s.pan + 64 < 0 ? 0 : s.pan + 64 > 127 ? 127 : s.pan + 64);
-    b[o++] = s.chorus & 0x7F, b[o++] = s.delay & 0x7F, b[o++] = s.reverb & 0x7F;
+        b[o++] = (uint8_t)(s->name[i] && i < (int)strlen(s->name) ? s->name[i] & 0x7F : ' ');
+    b[o++] = (uint8_t)(s->patch[QD_QP_DRIVE] & 0x7F);
+    b[o++] = (uint8_t)(tr >= 0 ? tr : 0);               /* (the track: a track's) */
+    b[o++] = (uint8_t)(s->pan + 64 < 0 ? 0 : s->pan + 64 > 127 ? 127 : s->pan + 64);
+    b[o++] = s->chorus & 0x7F, b[o++] = s->delay & 0x7F, b[o++] = s->reverb & 0x7F;
     b[o++] = QD_SXM_PAN | QD_SXM_CHORUS | QD_SXM_DELAY | QD_SXM_REVERB;
     o += qd_sx_pack7(blob, six ? QD_SX_BLOB6 : QD_SX_BLOB, b + o);
-    b[o++] = (uint8_t)(s.tags & QD_PK_MASK);
+    b[o++] = (uint8_t)(s->tags & QD_PK_MASK);
+    if (tr >= 0) {                                      /* (P2-B: the track's extras) */
+        const qd_track_t *t = &a->model.t[tr];
+        b[o++] = (uint8_t)((t->preset >> 14) & 0x7F), b[o++] = (uint8_t)((t->preset >> 7) & 0x7F);
+        b[o++] = (uint8_t)(t->preset & 0x7F);
+        b[o++] = (uint8_t)((t->sound >> 7) & 0x7F), b[o++] = (uint8_t)(t->sound & 0x7F);
+        b[o++] = (uint8_t)((t->edited ? QD_SXX_EDITED : 0) | (tr == a->sel ? QD_SXX_SELECTED : 0) |
+                           (a->ui.rec ? QD_SXX_REC : 0) | (a->seq.playing ? QD_SXX_PLAYING : 0));
+        b[o++] = (uint8_t)(qd_seq_track_pat(&a->seq, tr)->trk[tr].chan & 0x0F);
+        b[o++] = (uint8_t)a->sel;
+    }
     return sx_reply(a, b, o) ? 1 : 0;
+}
+static int sx_dump_one(qd_app_t *a, int src, int k)
+{
+    qd_sound_t s;
+    if (!sx_entry(a, src, k, &s))
+        return -1;
+    return sx_dump_sound(a, &s, src == QD_SXS_POOL ? QD_SXF_POOL : 0, src == QD_SXS_FACTORY ? 0 : k + 1, -1);
+}
+/* P2-B: track t's sound (slot 1..6; 0 the selected one) as the editor sees it: its name, patch, mix, its preset's tags */
+static int sx_dump_track(qd_app_t *a, int slot)
+{
+    qd_sound_t s;
+    const int t = slot ? slot - 1 : a->sel, m = t < QD_NTRACK ? qd_lib_find(a, a->model.t[t].preset) : -1;
+    const qd_track_t *tk;
+    if (t >= QD_NTRACK)
+        return -1;
+    tk = &a->model.t[t];
+    memset(&s, 0, sizeof s);
+    memcpy(s.name, tk->sound_name, sizeof s.name < sizeof tk->sound_name ? sizeof s.name : sizeof tk->sound_name);
+    s.name[sizeof s.name - 1] = 0;
+    memcpy(s.patch, tk->patch, sizeof s.patch);
+    s.pan = tk->mix.pan, s.chorus = tk->mix.chorus, s.delay = tk->mix.delay, s.reverb = tk->mix.reverb;
+    s.tags = (uint8_t)(m >= 0 ? qd_lib_tags(a, m) : tk->preset >= 1 && tk->preset <= QD_NFACTORY
+                                                     ? qd_factory_tags(a, tk->preset - 1) : qd_preset_tags(tk->patch));
+    return sx_dump_sound(a, &s, 0, 0, t);
 }
 
 /* LIST's reply: part, last (1: the listing's end), the total (2 x 7 bits), how many here, the entries: source, slot
@@ -460,13 +545,13 @@ static void sx_dump(qd_app_t *a, const uint8_t *b, uint32_t n)
         return;
     }
     src = b[0], slot = b[1] << 7 | b[2];
-    if (src > QD_SXS_POOL || (slot && sx_dump_one(a, src, slot - 1) < 0)) {
+    if (src == QD_SXS_TRACK ? sx_dump_track(a, slot) < 0 : src > QD_SXS_POOL || (slot && sx_dump_one(a, src, slot - 1) < 0)) {
         const uint8_t e[3] = {QD_SX_R_ERROR, QD_SX_BAD_SLOT, QD_SX_DUMP};
         a->sx.errors++;
         sx_reply(a, e, 3);
         return;
     }
-    if (!slot) {
+    if (!slot && src != QD_SXS_TRACK) {
         a->sx.job = QD_SX_DUMP;
         a->sx.job_src = src, a->sx.job_at = 0;
         sx_job(a);
@@ -498,7 +583,7 @@ static uint32_t sx_put14(uint8_t *b, uint32_t o, uint32_t v)
 static void sx_status(qd_app_t *a)
 {
     const qd_persist_t *ps = &a->per;
-    uint8_t b[24];
+    uint8_t b[25];
     uint32_t u[6] = {0, 0, 0, 0, 0, 0}, o = 0;
     int k, np = 0;
     for (k = 0; k < QD_NLIB; k++)
@@ -516,7 +601,7 @@ static void sx_status(qd_app_t *a)
     b[o++] = QD_NTRACK;
     b[o++] = (uint8_t)((a->seq.playing ? QD_SXT_PLAYING : 0) | (ps->on ? 0 : QD_SXT_NOSTORE) |
                        (qd_persist_dirty(a) ? QD_SXT_DIRTY : 0) | (a->sx.wk.cmd ? QD_SXT_JOB : 0) |
-                       (ps->pdemo ? QD_SXT_DEMO : 0));
+                       (ps->pdemo ? QD_SXT_DEMO : 0) | (a->ui.rec ? QD_SXT_REC : 0));
     b[o++] = (uint8_t)ps->proj;
     b[o++] = (uint8_t)(a->seq.cur & 0x7F);
     b[o++] = (uint8_t)np;
@@ -527,6 +612,7 @@ static void sx_status(qd_app_t *a)
     for (k = 2; k < 6; k++)
         o = sx_put14(b, o, u[k]);
     b[o++] = a->sx.wk.cmd;
+    b[o++] = (uint8_t)a->sel;                           /* (P2-B: the selected track) */
     sx_reply(a, b, o);
 }
 
@@ -758,6 +844,23 @@ void qd_sx_work(qd_app_t *a)
     if (!cmd || (a->seq.playing && cmd != QD_SX_USERS))
         return;
     switch (cmd) {
+    case QD_SX_STORE:                                   /* (P2-B: a STORE over a used MY PRESETS place) */
+    case QD_SX_STORE6: {
+        const int id = qd_lib_used(a, w->x) ? qd_lib_preset(a, w->x) : 0;
+        if (id && w->step < QD_NPROJ) {                 /* (the other projects' records that load it: their copies) */
+            if (w->step != a->per.proj)
+                qd_preset_will_change_proj(a, id, w->step);
+            w->step++;
+            return;
+        }
+        if (id)                                         /* (this one's last: as it is now) */
+            qd_preset_will_change_proj(a, id, a->per.proj);
+        w->cmd = 0;
+        a->per.wc_done = (uint16_t)id;                  /* (lib_put: no will_change again) */
+        sx_store_apply(a, &a->sx.pend);
+        a->per.wc_done = 0;
+        return;
+    }
     case QD_SX_FLUSH:
         qd_persist_flush(a);
         w->cmd = 0;
@@ -841,6 +944,27 @@ void qd_sx_work(qd_app_t *a)
     sx_ack(a, cmd, st, v1, v2);
 }
 
+/* P2-B: PARAM: track (0..5, 127 the selected), id, value + 2^20 (3 x 7 bits), flags (01 ACK): the track's sound as a knob
+ * turned on the unit (qd_player_live_edit: clamped, the voices sounding follow; no undo level) */
+static void sx_param(qd_app_t *a, const uint8_t *b, uint32_t n)
+{
+    int t, id, st = QD_SX_OK;
+    if (n < 7u) {
+        sx_ack(a, QD_SX_PARAM, QD_SX_BAD_LENGTH, 0, 0);
+        return;
+    }
+    t = b[0] == QD_SXP_SELECTED ? a->sel : b[0];
+    id = b[1];
+    if (t >= QD_NTRACK)
+        st = QD_SX_BAD_TRACK;
+    else if (id >= QD_QUAD_NP)
+        st = QD_SX_NOT_FOUND;
+    else
+        qd_player_live_edit(&a->player, t, id, (int)((uint32_t)b[2] << 14 | (uint32_t)b[3] << 7 | b[4]) - QD_SXP_OFS);
+    if (st || (b[5] & QD_SXP_ACK))
+        sx_ack(a, QD_SX_PARAM, st, t + 1, id);
+}
+
 void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
 {
     uint32_t i, sum = 0;
@@ -892,6 +1016,9 @@ void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
         break;
     case QD_SX_DUMP:
         sx_dump(a, f + 5, n - 5u);
+        break;
+    case QD_SX_PARAM:                                   /* (Manager P2-B) */
+        sx_param(a, f + 5, n - 5u);
         break;
     case QD_SX_STATUS:                                  /* (the web manager's Phase 1) */
         sx_status(a);
