@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.4 (2026-10-25)
+
 Three ways to record (CAPTURE for quick takes, REPLACE and OVERDUB), STRETCH and CLIP in TOOLS, and a FIZZ Manager that edits the sound on your track. Updating from beta.3 keeps your projects and presets.
 
 - **FIZZ Manager: the sound editor (EDIT).** Pick a preset in LIBRARY and press EDIT (or drop a .fizzsnd or a Digitone sound on the page): every value of the sound is on one page, like a synth's front panel (OPERATORS with the algorithm, OP ENV, PLAY, FILTER with its curve, AMP, DRIVE and CRUSH, the three LFOs, the eight MOD slots; on a phone they stack and scroll), and every value is something you drag, scroll or click; SHIFT drags finely. A keyboard like the FM-1's plays it in the page itself (FIZZ running in your browser, no FM-1 needed; the computer's A..' row plays too, Z and X change the octave). REVERT puts it back, SAVE writes it over the MY preset it came from, SAVE AS NEW into a free place.
