@@ -34,6 +34,11 @@ export function text(id, v) {
 // a hi-res value (hundredths) steps by 1.00, SHIFT by 0.01; the rest by 1
 export const isHi = (id) => VALUES[id][2] - VALUES[id][1] >= 1000;
 export const stepOf = (id, fine = false) => (isHi(id) && !fine ? 100 : 1);
+// a wheel tick / an arrow press: the hi-res LFO values (fix2s) step 0.01, accelerated by n quick ticks in a row
+// (x1.6 a tick, at most 1.00 a tick); SHIFT exactly 1.00. Everything else: stepOf (SHIFT fine).
+export const isFix2s = (id) => VALUES[id][4] === "fix2s";
+export const tickStep = (id, shift = false, n = 0) =>
+  isFix2s(id) ? (shift ? 100 : Math.min(100, Math.round(1.6 ** Math.max(0, n)))) : stepOf(id, shift);
 // how far through its range (0..1), and back
 export const frac = (id, v) => { const r = VALUES[id]; return (v - r[1]) / Math.max(1, r[2] - r[1]); };
 export const fromFrac = (id, f) => { const r = VALUES[id]; return clampV(id, r[1] + f * (r[2] - r[1])); };

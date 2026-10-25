@@ -39,7 +39,7 @@ import { makeFizzbak, readBackup, crc32, soundKey } from "../manager/fizzbak.js"
 import { readRegion, layoutOf, LAYOUTS } from "../manager/fizzstore.js";
 import { poolPlaces, shownRows, newFilter } from "../manager/presets.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
-import { soundFromFrame, storeFrameOf, blob6, libSound, text, info as vinfo, VALUES, Q, lfo, LF, copySound } from "../manager/sound.js";
+import { soundFromFrame, storeFrameOf, blob6, libSound, text, info as vinfo, VALUES, Q, lfo, LF, copySound, tickStep, stepOf } from "../manager/sound.js";
 import { exportFiles, carryOf, noteRow } from "../manager/exporter.js";
 import { readImport, markDuplicates } from "../manager/importer.js";
 import { fizzToDn2pst } from "../js/fizz2dn.js";
@@ -334,6 +334,11 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
 }
 
 // ---- Phase 2-A: the sound editor's model and EXPORT
+{
+  const hi = VALUES.findIndex((r) => r[4] === "fix2s"), lo = VALUES.findIndex((r) => r[2] - r[1] < 1000);
+  check(hi >= 0 && tickStep(hi) === 1 && tickStep(hi, true) === 100 && tickStep(hi, false, 5) > 1 && tickStep(hi, false, 10) === 100 && tickStep(hi, false, 40) === 100 && tickStep(hi, true, 10) === 100 && tickStep(lo, false, 10) === stepOf(lo) && tickStep(lo, true) === stepOf(lo, true),
+    `EDIT steps: LFO DEPTH / SPEED 0.01 a tick, quick ticks up to 1.00, SHIFT 1.00; the rest as before`);
+}
 {
   const u = await sim();
   const lk = await findFizz(u.access);

@@ -3,8 +3,8 @@
 // one page, a synth's whole front panel: OPERATORS, OP ENV, FILTER, AMP, DRIVE · CRUSH, LFO, MOD, PLAY side by side
 // (a column on a phone), each value a part of a drawing that is dragged, in its knob's colour. Every one of FIZZ's
 // 110 values is on the panel once (sound.js's table, the core's names and texts); a section is drawn again only when
-// its drawing changed. Drag (SHIFT: fine, the hundredths of the hi-res values),
-// the wheel or the arrow keys over a value; a double click its default; a long list (a destination, a source) a
+// its drawing changed. Drag (SHIFT: fine; the LFO's DEPTH / SPEED 0.01 a pixel), the wheel or the arrow keys over a
+// value (the LFO's DEPTH / SPEED 0.01 a tick, quick ticks speed up to 1.00, SHIFT 1.00); a double click its default; a long list (a destination, a source) a
 // picker. The keybed under it plays the sound (the FM-1's 27 keys from F, the computer's A..' row, Z / X the octave).
 //
 // Where the sound plays: the target (setTarget). By default the browser's own FIZZ (browserfizz.js: the same core in
@@ -12,7 +12,7 @@
 // a track of the FM-1. A target: { name, ready(), start(), audition(sound), param(id, v), note(n, vel), locked()? }:
 // locked (an FM-1 track shown with TRACK off) the values are not changed: ctx.onLocked() (the switch nudged).
 //   mountEditor(ctx) -> { open(sound, place), show(), sound(), setTarget(t), render() }
-import { VALUES, ALGOS, DEST_ORDER, Q, lfo, mod, LF, info, text, clampV, stepOf, isHi, frac, defaults, copySound, sameValues, tagNames } from "./sound.js";
+import { VALUES, ALGOS, DEST_ORDER, Q, lfo, mod, LF, info, text, clampV, stepOf, tickStep, isFix2s, isHi, frac, defaults, copySound, sameValues, tagNames } from "./sound.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
 import { esc } from "./ui.js";
 
@@ -421,7 +421,7 @@ export function mountEditor(ctx) {
       if (!a) return;
       // a drawing's handle follows the pointer (its pixels for the range); a chip: a range a 240 px drag, at least 12 px a step
       const px = a.px || Math.max(240, Math.min(a.span * 12, 600));
-      set(a.id, a.v0 + Math.round(delta / px * a.span * fine));
+      set(a.id, a.v0 + (ev.shiftKey && isFix2s(a.id) ? Math.round(delta) : Math.round(delta / px * a.span * fine)));
     };
     move(d.x, dx);
     move(d.y, -dy);
@@ -456,11 +456,14 @@ export function mountEditor(ctx) {
     if (!el) return;
     for (const k of ["x", "y"]) if (el.dataset[k] !== undefined) set(+el.dataset[k], info(+el.dataset[k]).def);
   });
+  // acceleration: ticks / key repeats on one value within 120 ms of each other count up (tickStep grows the step)
+  const acc = { id: -1, t: 0, n: 0 };
+  const accel = (id) => { const t = performance.now(); acc.n = id === acc.id && t - acc.t < 120 ? acc.n + 1 : 0; acc.id = id; acc.t = t; return acc.n; };
   stage.addEventListener("wheel", (ev) => {
     const el = ev.target.closest("[data-id]");
     if (!el || !E.s) return;
     ev.preventDefault();
-    const id = primary(el), st = stepOf(id, ev.shiftKey) * (isDest(id) ? 0 : 1);
+    const id = primary(el), st = tickStep(id, ev.shiftKey, accel(id)) * (isDest(id) ? 0 : 1);
     if (isDest(id)) set(id, destStep(v(id), ev.deltaY < 0 ? 1 : -1));
     else set(id, v(id) + (ev.deltaY < 0 ? st : -st));
   }, { passive: false });
@@ -472,7 +475,7 @@ export function mountEditor(ctx) {
     ev.preventDefault();
     const id = primary(el);
     if (isDest(id)) set(id, destStep(v(id), up ? 1 : -1));
-    else set(id, v(id) + (up ? 1 : -1) * stepOf(id, ev.shiftKey));
+    else set(id, v(id) + (up ? 1 : -1) * tickStep(id, ev.shiftKey, accel(id)));
   });
   // a destination steps in the editor's order (the device's)
   const destStep = (x, d) => { const o = DEST_ORDER, i = o.indexOf(x); return o[Math.max(0, Math.min(o.length - 1, (i < 0 ? 0 : i) + d))]; };
