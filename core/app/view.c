@@ -1964,7 +1964,7 @@ static void fill_mix(const qd_app_t *a, ui_mix_t *v)
         v->tr[t].chorus = m->chorus;
         v->tr[t].delay = m->delay;
         v->tr[t].reverb = m->reverb;
-        v->tr[t].mute = !qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, t), t);
+        v->tr[t].mute = !qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, t), t) ? 1 : (a->seq.solo >> t) & 1 ? 2 : 0;
         for (i = 0; i < a->pool.nvoice; i++)
             if (qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == t) {
                 const int32_t l = qd_quad_voice_level(&a->pool.v[i].q);

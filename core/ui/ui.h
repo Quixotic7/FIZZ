@@ -145,7 +145,7 @@ typedef struct {
     struct {
         const char *name;
         int level, pan, chorus, delay, reverb;   /* 0..127, -64..63 */
-        int mute;                       /* not heard (muted, or another soloed) */
+        int mute;                       /* 1 not heard (muted, or another soloed), 2 soloed */
         float meter;                    /* its voices' level now, 0..1 */
     } tr[UI_NTRACK];
     int last;                           /* the knob turned last (0..3, -1) */

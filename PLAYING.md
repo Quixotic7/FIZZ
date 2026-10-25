@@ -387,12 +387,15 @@ Undo and redo of everything (P1.5c):
 ## How do I mix? (ENV = MIX)
 
 - **Tap ENV**: the mixer, eight faders, each with its pan dial on top, a level meter beside it, its number (a muted
-  track crossed), its delay and reverb sends as two little bars under it. **B1..B8** (or SELECT, ALGORITHM) choose the
-  track; its parts take the knobs' colours: **KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4 REVERB**.
+  track crossed, a soloed one yellow), its delay and reverb sends as two little bars under it. **ALGORITHM** chooses
+  the track; its parts take the knobs' colours: **KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4 REVERB**.
+- **Black keys, on both pages**: **tap B1..B6** to select the track, **hold** one to mute / unmute it (at the hold),
+  **double-tap** to solo it; **B11** clears every mute and solo. **PRESETS** left mutes the selected track, right
+  unmutes it. The keys' lights: playing, dim muted, blinking soloed. **SELECT** turns the page (faders / sends).
 - **ENV again**: the **sends**, every track's chorus, delay and reverb as three bars; **KNOB 1 CHORUS, KNOB 2 DELAY,
   KNOB 3 REVERB**. ENV again goes back to the faders. **HOME** closes it (0.9.6: F1 no longer does: F1 / F2 + W copy
   and move steps here, see copy and paste).
-- Mute and solo stay on **SEL held** (it works over the mixer too).
+- Mute and solo also stay on **SEL held** (it works over the mixer too).
 - **Locks on a step** (0.9.1): **hold a W** (or have the latch's selection) and turn a knob: LEVEL, PAN, DELAY, REVERB
   (and CHORUS on the sends' page) become **locks of that step** (its voices play them; the track's values stay). The
   screen gets the step's magenta frame, the locked values as chips in the head and the faders at the step's values;

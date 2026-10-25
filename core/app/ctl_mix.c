@@ -10,9 +10,11 @@
  *        KNOB 2 ROOT, KNOB 3 FOLLOW KEY (the project's global key), KNOB 4 MIDI CHANNEL; SEL again (or SELECT): the
  *        second page, KNOB 1 VOICES (the limit), KNOB 2 SWING on / off, KNOB 3 PAGE FOLLOW (the global setting's);
  *        B1..B8 the track
- *   ENV (printed) = MIX  eight faders with their pan dials and sends; B1..B8 (or SELECT) the track, KNOB 1 LEVEL,
- *        KNOB 2 PAN, KNOB 3 DELAY, KNOB 4 REVERB of it; MIX again: the SENDS, every track's three (KNOB 1 CHORUS,
- *        KNOB 2 DELAY, KNOB 3 REVERB); again: the faders
+ *   ENV (printed) = MIX  six faders with their pan dials and sends; KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4
+ *        REVERB of the selected track; MIX again (or SELECT): the SENDS, every track's three (KNOB 1 CHORUS, KNOB 2
+ *        DELAY, KNOB 3 REVERB); again: the faders. On both pages: B1..B6 tapped the track, held QD_SEL_HOLD_MS its
+ *        mute (at the hold), double-tapped (the second press within QD_CLICK_MS) its solo; B11 every mute and solo
+ *        off; ALGORITHM the track; PRESETS left mutes the selected track, right unmutes it
  *   FX (printed) tapped  THE EFFECTS (global, ChoralRoot's: no sound load touches them): DELAY (TIME, SPREAD,
  *        FEEDBACK, SEND), DELAY 2 (SYNC, MODE, TONE, WOW), REVERB (SIZE, DAMP, DECAY, SEND), REVERB 2 (PRE-DELAY, MOD,
  *        LOW CUT, WIDTH), CHORUS (RATE, DEPTH, WIDTH, SEND), MASTER (the master filter: LOW CUT, HIGH CUT, SLOPE, ON);
@@ -62,6 +64,7 @@ static void panel_open(qd_app_t *a, int kind)
                                                          * select here); one made on the mix or the effects stays */
     }
     u->tk = QD_TK_NONE;
+    u->sel_down &= 0xFFu;                               /* (the mix's black keys: none down) */
     qd_latch_open(a, kind);
     u->menu_knob = -1;
 }
@@ -98,10 +101,61 @@ void qd_fx_button(qd_app_t *a)
     a->ui.fx_page = 0;                                  /* (P1.5b: FX opens on the overview) */
 }
 
-/* the black keys: B1..B8 the track (settings, mix); B1..B4 the effect (again: its next page) */
-void qd_panel_black(qd_app_t *a, int b)
+/* the mix's black keys: sel_down / sel_done's bits 8..13 (SEL + W keeps 0..7), sel_t0 the press, dt_w -1 - b the
+ * last tap (dt_ms its release) */
+#define MIXB(b) ((uint16_t)(0x100u << (b)))
+static void mix_black(qd_app_t *a, int b, int down)
 {
     qd_ui_t *u = &a->ui;
+    const uint16_t bit = MIXB(b);
+    if (b == 10 && down)
+        a->seq.mute = a->seq.solo = 0;
+    if (b >= QD_NTRACK)
+        return;
+    if (down) {
+        u->sel_down |= bit;
+        u->sel_done &= (uint16_t)~bit;
+        u->sel_t0[b] = a->ms;
+        if (u->dt_w == -1 - b && a->ms - u->dt_ms < QD_CLICK_MS) {   /* a double tap: solo */
+            a->seq.solo ^= (uint8_t)(1u << b);
+            u->sel_done |= bit;
+            u->dt_w = 0;
+        }
+        return;
+    }
+    if (!(u->sel_down & bit))
+        return;
+    u->sel_down &= (uint16_t)~bit;
+    if (!(u->sel_done & bit)) {                         /* a tap: the track */
+        qd_ctl_select_track(a, b);
+        u->dt_w = -1 - b;
+        u->dt_ms = a->ms;
+    }
+}
+/* the mix's black keys held: the mute at the hold */
+void qd_mix_ms(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    int b;
+    if (u->latch != QD_LATCH_MIX)
+        return;
+    for (b = 0; b < QD_NTRACK; b++)
+        if ((u->sel_down & MIXB(b)) && !(u->sel_done & MIXB(b)) && a->ms - u->sel_t0[b] >= QD_SEL_HOLD_MS) {
+            a->seq.mute ^= (uint8_t)(1u << b);
+            u->sel_done |= MIXB(b);
+        }
+}
+
+/* the black keys: B1..B8 the track (settings); the mix: mix_black; B1..B4 the effect (again: its next page) */
+void qd_panel_black(qd_app_t *a, int b, int down)
+{
+    qd_ui_t *u = &a->ui;
+    if (u->latch == QD_LATCH_MIX) {
+        mix_black(a, b, down);
+        return;
+    }
+    if (!down)
+        return;
     if (u->latch == QD_LATCH_FX) {
         int p, first = -1, next = -1, g;
         if (b >= QD_FX_NKEY)
@@ -178,8 +232,17 @@ int qd_mix_knob(qd_app_t *a, int knob, int d)
     qd_ui_t *u = &a->ui;
     const qd_mix_track_t *m = &a->model.t[a->sel].mix;
     int id, v;
-    if (knob == QD_K_SELECT || knob == QD_K_ALGO) {     /* the track */
+    if (knob == QD_K_SELECT) {                          /* the page */
+        u->mix_page = cl(u->mix_page + d, 0, 1);
+        u->menu_knob = -1;
+        return 1;
+    }
+    if (knob == QD_K_ALGO) {                            /* the track */
         qd_ctl_select_track(a, cl(a->sel + d, 0, QD_NTRACK - 1));
+        return 1;
+    }
+    if (knob == QD_K_PRESETS) {                         /* left: muted, right: heard */
+        a->seq.mute = (uint8_t)(d < 0 ? a->seq.mute | (1u << a->sel) : a->seq.mute & ~(1u << a->sel));
         return 1;
     }
     if (knob < QD_K_1)
@@ -275,6 +338,13 @@ void qd_panel_leds(const qd_app_t *a, uint8_t *black)
     if (u->latch == QD_LATCH_FX) {
         for (i = 0; i < QD_FX_NKEY; i++)
             black[i] = QD_FX_KEY[i] == QD_FX_PAGES[u->fx_page].fx ? QD_LED_LIT : QD_LED_DIM;
+        return;
+    }
+    if (u->latch == QD_LATCH_MIX) {                     /* playing, the selected brightest, muted dim, soloed blinking */
+        for (i = 0; i < QD_NTRACK; i++)
+            black[i] = (a->seq.solo >> i) & 1 ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT)
+                     : (a->seq.mute >> i) & 1 ? QD_LED_DIM : i == a->sel ? QD_LED_LIT : QD_LED_MID;
+        black[10] = a->seq.mute || a->seq.solo ? QD_LED_LIT : QD_LED_OFF;
         return;
     }
     for (i = 0; i < QD_NTRACK; i++)

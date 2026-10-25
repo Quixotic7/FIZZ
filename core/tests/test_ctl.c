@@ -1873,6 +1873,54 @@ static void g_tracks_screen(void)
     turn(QD_K_1, 9);
     CHECK(A.sel == 1 && A.ui.mix_page == 1 && A.model.t[1].mix.chorus == v0 + 9,
           "B2, ENV again: the sends; KNOB 1 track 2's CHORUS +9");
+    {   /* the mix's mutes and solos: B1..B6 tap the track, held the mute, double-tap the solo; the knobs */
+        qd_leds_t l;
+        A.seq.mute = A.seq.solo = 0;
+        turn(QD_K_SELECT, -1);
+        CHECK(A.ui.mix_page == 0 && A.sel == 1, "the mix: SELECT the page (the faders), the track kept");
+        turn(QD_K_ALGO, 2);
+        CHECK(A.sel == 3 && !A.ui.mix_page, "the mix: ALGORITHM the track");
+        black(B3);
+        run(300);
+        CHECK(A.sel == 2 && !A.seq.mute && !A.seq.solo, "the mix: B3 tapped, track 3");
+        kdown(BK(B5));
+        run(300);
+        CHECK(!A.seq.mute, "the mix: B5 down 300 ms, not muted yet");
+        run(150);
+        CHECK(A.seq.mute == 0x10u && A.sel == 2, "the mix: B5 held, track 5 muted at the hold, the selection kept");
+        kup(BK(B5));
+        run(300);
+        CHECK(A.seq.mute == 0x10u && A.sel == 2, "the mix: B5 let go, still muted");
+        black(B2);
+        black(B2);
+        run(300);
+        CHECK(A.seq.solo == 0x02u && A.sel == 1, "the mix: B2 double-tapped, track 2 soloed (%x)", A.seq.solo);
+        l = leds();
+        CHECK(l.key[BK(B5)] == QD_LED_DIM && l.key[BK(B3)] == QD_LED_MID && l.key[BK(B11)] == QD_LED_LIT &&
+                  l.key[BK(B7)] == QD_LED_OFF,
+              "the mix's LEDs: muted dim, playing mid, B11 lit");
+        {
+            int on = 0, off = 0, k;
+            for (k = 0; k < 4; k++, run(QD_FAST_MS)) {
+                l = leds();
+                on += l.key[BK(B2)] == QD_LED_LIT, off += l.key[BK(B2)] == QD_LED_OFF;
+            }
+            CHECK(on && off, "the mix's LEDs: the soloed blinks");
+        }
+        A.seq.solo = 0;
+        l = leds();
+        CHECK(l.key[BK(B2)] == QD_LED_LIT, "the mix's LEDs: the selected brightest");
+        turn(QD_K_PRESETS, -1);
+        CHECK(A.seq.mute == 0x12u, "the mix: PRESETS left mutes the selected track");
+        turn(QD_K_PRESETS, 1);
+        CHECK(A.seq.mute == 0x10u, "the mix: PRESETS right unmutes it");
+        A.seq.solo = 4;
+        black(B11);
+        l = leds();
+        CHECK(!A.seq.mute && !A.seq.solo && l.key[BK(B11)] == QD_LED_OFF, "the mix: B11 every mute and solo off");
+        turn(QD_K_SELECT, 1);
+        CHECK(A.ui.mix_page == 1, "the mix: SELECT, the sends");
+    }
     btap(QD_B_HOME);
     /* the effects */
     btap(QD_B_TRACKS);
