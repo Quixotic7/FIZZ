@@ -460,7 +460,6 @@ body { background: #000; }
 .lib-mark { color: var(--fz-yellow); font-size: 13px; }
 .lib-panel .dn-row .text { width: 100%; }
 @media (max-width: 480px) { #lib-btn { display: none; } }
-@media (max-width: 640px) { #mgr-link { display: none; } }   /* (the manager: a computer's page, Web MIDI with SysEx) */
 /* Digitone export (js/dnexport.js): experimental */
 .dnx-exp { font-size: 9px; font-weight: 800; letter-spacing: .04em; color: var(--fz-orange); margin-left: 3px; text-transform: uppercase; }
 .dnx-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
@@ -533,3 +532,6 @@ body { background: #000; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 @media (max-width: 640px) { .rec { gap: 4px; } .takes-btn { padding: 0 6px; } .takes-btn .takes-label { display: none; } .rec-meter { width: 24px; } }
 @media (prefers-reduced-motion: reduce) { .rec-btn .rec-dot { animation: none !important; } }
+
+@media (max-width: 640px) { #top nav a.nav-link[href="install/"] { display: none; } }   /* (narrow: a phone cannot install; the Manager link takes its room) */
+@media (max-width: 420px) { #top nav a.nav-link[href="guide.html"] { display: none; } }   /* (the guide stays linked under the panel) */
