@@ -572,7 +572,15 @@ frame's time in `qd_sx_t.rx_ms`, set by `app_sysex` and the store's FZB* command
 FIZZ's semantic frames (not STORE / STORE6 / POOL REF) with `fz_sysex_out` sending only what the USB queue takes at once
 there (no 200 ms wait inside a frame). Flash +176 B, RAM +0 (the 4 B are in `qd_app_t`). The simulator's
 `tests/xfer.txt`: 30 frames looked at in 1 s normally, 4 during a transfer, 30 again 400 ms after it. Not measured on
-the unit yet. The analysis as proposed:
+the unit yet.
+
+**Measured on the unit (dfd7207, stopped):** the backup 57.4 s (5.1 KB/s), round trip median 77 / avg 49 / p95 112 ms:
+better than 102 s, far from the estimate. The likely cause: the backup's reads are the bulk framing's FZBR, which Fix 2
+did not take between bands, and the idle screen's frame (drawn every 250 ms) takes most of the 250 ms, so most reads
+waited a frame. **sysex-speed2:** a frame every 1000 ms during a transfer, FZBR (only it: FZBI's CRC and FZSR's session
+wait for the pass) taken between a frame's bands too, and stats line 16 (`fizz_xdata.py stats`) to confirm: passes
+during transfers (avg / max us, fz_step to fz_step), frames drawn then (avg / max us), FIZZ frames taken (and how many
+inside a frame), the gap between two of them (the unit's view of a round trip). The analysis as proposed:
 
 Phase 0 measured ~87 ms a round trip on the unit. The cause is fm1-base's loop: it holds **one** inbound SysEx frame
 (`bsp/chip/usb.c`: `sx_collect = !sx_ready`, a second frame arriving while one waits is dropped) and hands it over

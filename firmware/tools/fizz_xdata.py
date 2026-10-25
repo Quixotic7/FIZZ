@@ -109,7 +109,7 @@ def stats(a):
         return 0
     end, got = time.monotonic() + 4.0, {}
     try:
-        while time.monotonic() < end and len(got) < 14:
+        while time.monotonic() < end and len(got) < 15:
             p = link.read(end - time.monotonic())
             if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
                 got[p[4]] = p[5:-1].decode("ascii", "replace")
@@ -128,7 +128,8 @@ def stats(a):
                             (11, "the 8-bit frame: its parts, its sends to the panel"),
                             (12, "the screen's sends, the display list, the pace, the LEDs"),
                             (13, "the drawing bench (stats --drawbench: the screen whole x 4, interrupts off)"),
-                            (15, "a frame by phase (us a frame since the reset: --reset, then one screen)")):
+                            (15, "a frame by phase (us a frame since the reset: --reset, then one screen)"),
+                            (16, "transfers (SysEx pacing): passes, frames drawn, frames taken, the gap between them")):
             line = got.get(part, "(no answer)")
             if part in (3, 14):             # s<mode>.<view>: name them
                 for k, v in SCREENS.items():

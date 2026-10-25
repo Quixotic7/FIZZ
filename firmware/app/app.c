@@ -59,8 +59,14 @@ static uint32_t fz_tick_lag_max;         /* (the most the clock was behind plat_
 #define FZ_FRAME_QUIET 100u
 #define FZ_STORE_MS 15u                  /* the store's step (qd_persist_step) */
 #define FZ_XFER_HOLD_MS 300u             /* a transfer: FIZZ frames (SysEx) came in the last this many ms .. */
-#define FZ_XFER_FRAME_MS 250u            /* .. then a frame only every this many ms (fm1-base takes one inbound frame a
-                                          * main-loop pass, and a drawn frame is 30..90 ms of the pass) */
+#define FZ_XFER_FRAME_MS 1000u           /* .. then a frame only every this many ms (fm1-base takes one inbound frame a
+                                          * main-loop pass, and a drawn frame is 30..90 ms of the pass; 250 measured a
+                                          * median round trip of 77 ms: the idle screen's frames take most of it) */
+/* the transfer counters (stats line 16; in qd_app_t: fz_sx_xs): main-loop passes during a transfer (fz_step to
+ * fz_step), the frames drawn then, FIZZ frames taken (in a frame's band gaps too), the gap between two of them (the
+ * round trip as the unit sees it: the host's turn and the unit's wait); T_* the last pass's / frame's ticks */
+enum { FZ_XS_PASSES, FZ_XS_PASS_MAX, FZ_XS_PASS_SUM, FZ_XS_DRAWS, FZ_XS_DRAW_MAX, FZ_XS_DRAW_SUM, FZ_XS_RX,
+       FZ_XS_RX_INFRAME, FZ_XS_GAP_MAX, FZ_XS_GAP_SUM, FZ_XS_T_PASS, FZ_XS_T_RX };
 /* (P2.7) the pace while a screen animates (a frame drawn at each of the last two looks): 30 a second when its frames
  * take up to FZ_FIT_30 us (drawing and burst: room left for input, the store and the audio's share), 20 up to
  * FZ_FIT_20, else 15; even spacing, the next frame due one period after the last was due */
@@ -443,6 +449,20 @@ static void fz_tick_to(uint32_t ms)      /* FIZZ's clock up to ms (P2.10: the co
 }
 
 static uint8_t fz_sx_buf[1024];          /* a reply (fizz_sx.h QD_SX_FRAME_MAX) */
+static void fz_xfer_rx(int inframe)      /* a FIZZ frame came (the pacing's window; the counters) */
+{
+    uint32_t *x = fz_sx_xs();
+    const uint32_t t = plat_ticks24(), d = (t - x[FZ_XS_T_RX]) / PLAT_TICKS_PER_US;
+    if (fz_sx_last() && plat_ms() - fz_sx_last() < FZ_XFER_HOLD_MS && x[FZ_XS_T_RX]) {
+        x[FZ_XS_RX]++;
+        x[FZ_XS_GAP_SUM] += d;
+        if (d > x[FZ_XS_GAP_MAX])
+            x[FZ_XS_GAP_MAX] = d;
+    }
+    x[FZ_XS_RX_INFRAME] += inframe != 0;
+    x[FZ_XS_T_RX] = t | 1u;
+    fz_sx_mark(plat_ms());
+}
 #ifdef PLAT_HOST
 static uint32_t fz_host_sx_out;          /* replies made (the simulator has no USB) */
 static int fz_host_sx_kind = -1, fz_host_sx_st = -1;   /* (the last FIZZ reply's kind byte, and an ACK's / STORE's
@@ -486,6 +506,17 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
         if (ota_frame_get(&p, &k) && k >= 5u && p[0] == 0x7Du && p[1] == 0x46u && p[2] == 0x5Au && p[4] != 0x10u &&
             p[4] != 0x11u && p[4] != 0x16u && app_sysex(p, k))
             ota_frame_done();
+        else if (ota_frame_get(&p, &k) && k <= 32u && p[0] == 0 && p[1] == 0x32u && p[2] == 0x19u) {   /* (the
+                                          * update framing, cmd 46: the store's; only FZBR, a 256-byte copy, here:
+                                          * FZBI's CRC and FZSR's session wait for the pass) */
+            uint8_t t[28];
+            const uint32_t d = ota_unpack7(p, k, t, sizeof t);
+            if (d == 19u && t[6] == 'F' && t[7] == 'Z' && t[8] == 'B' && t[9] == 'R') {
+                const uint32_t dd = ota_take();
+                if (dd)
+                    app_usb_cmd(ota_dec, dd);
+            }
+        }
     }
 #endif
     for (;;) {
@@ -975,6 +1006,24 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     *c = 0;
     fz_stats_send(15, line);
 #endif
+    /* 16: the transfer pacing (FZ_XFER_*, since the reset): passes, frames drawn, FIZZ frames taken during transfers */
+    FZ_LINE_START(c, line);
+    {
+        const uint32_t *x = fz_sx_xs(), np = x[FZ_XS_PASSES] ? x[FZ_XS_PASSES] : 1u, nd = x[FZ_XS_DRAWS] ? x[FZ_XS_DRAWS] : 1u,
+                       nr = x[FZ_XS_RX] ? x[FZ_XS_RX] : 1u;
+        c = fz_put_u(c, "xfer_passes=", x[FZ_XS_PASSES]);
+        c = fz_put_u(c, "xfer_pass_avg_us=", x[FZ_XS_PASS_SUM] / np);
+        c = fz_put_u(c, "xfer_pass_max_us=", x[FZ_XS_PASS_MAX]);
+        c = fz_put_u(c, "xfer_draws=", x[FZ_XS_DRAWS]);
+        c = fz_put_u(c, "xfer_draw_avg_us=", x[FZ_XS_DRAW_SUM] / nd);
+        c = fz_put_u(c, "xfer_draw_max_us=", x[FZ_XS_DRAW_MAX]);
+        c = fz_put_u(c, "xfer_rx=", x[FZ_XS_RX]);
+        c = fz_put_u(c, "xfer_rx_inframe=", x[FZ_XS_RX_INFRAME]);
+        c = fz_put_u(c, "xfer_gap_avg_us=", x[FZ_XS_GAP_SUM] / nr);
+        c = fz_put_u(c, "xfer_gap_max_us=", x[FZ_XS_GAP_MAX]);
+    }
+    *c = 0;
+    fz_stats_send(16, line);
 }
 
 static void fz_fb_start(void);
@@ -1072,6 +1121,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
             memset(&fz_fbs, 0, sizeof fz_fbs);
             memset(&fz_fp, 0, sizeof fz_fp);
             fz_idle_polls = fz_idle_inputs = 0;
+            memset(fz_sx_xs(), 0, 12u * sizeof(uint32_t));   /* (line 16) */
             fz_xr0 = plat_xruns(), fz_xr_n = 0;   /* (P2.16d: and what was left out before) */
             fz_over = fz_sheds = 0;
             fz_midi_pkts = fz_sx_frames_in = fz_sx_bytes_in = 0;
@@ -1087,7 +1137,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
     }
     if (n < 3u || p[0] != 0x7Du || p[1] != 0x46u || p[2] != 0x5Au)
         return 0;                        /* (not FIZZ's: the platform drops it) */
-    fz_sx_mark(plat_ms());
+    fz_xfer_rx(fz_in_frame);
     if (fz_ok) {
         const uint32_t f = fz_lock();
         fz_sysex(p, n);
@@ -1961,7 +2011,7 @@ static void fz_step(int frame)
     static uint32_t frame_t, store_t;
     const uint32_t now = plat_ms();
     uint32_t period;
-    int mode, playing;
+    int mode, playing, xfer;
     (void)frame;                         /* (fm1-base's ~60 a second: the frame rate is decided here) */
     if (!fz_ok)
         return;
@@ -1987,18 +2037,41 @@ static void fz_step(int frame)
                                                : FZ_FRAME_QUIET;
     if (fz_anim >= 2u)                   /* (P2.7) animating: a steady pace the frames can keep (30, 20 or 15 a second) */
         period = fz_frame_us <= FZ_FIT_30 ? 33u : fz_frame_us <= FZ_FIT_20 ? 50u : 66u;
-    if (fz_sx_last() && now - fz_sx_last() < FZ_XFER_HOLD_MS)
-        period = FZ_XFER_FRAME_MS;       /* (a transfer: the passes short, a round trip ~ the host's latency) */
+    {   /* (a transfer: the passes short, a round trip ~ the host's latency; the passes counted, fz_step to fz_step) */
+        uint32_t *x = fz_sx_xs();
+        const uint32_t t = plat_ticks24();
+        xfer = fz_sx_last() && now - fz_sx_last() < FZ_XFER_HOLD_MS;
+        if (xfer) {
+            period = FZ_XFER_FRAME_MS;
+            if (x[FZ_XS_T_PASS]) {
+                const uint32_t d = (t - x[FZ_XS_T_PASS]) / PLAT_TICKS_PER_US;
+                x[FZ_XS_PASSES]++;
+                x[FZ_XS_PASS_SUM] += d;
+                if (d > x[FZ_XS_PASS_MAX])
+                    x[FZ_XS_PASS_MAX] = d;
+            }
+        }
+        x[FZ_XS_T_PASS] = xfer ? t | 1u : 0u;
+    }
     fz_pace = period;
 #ifdef QD_GFX_FB
     if (now - frame_t >= period || fz_redraw) {   /* (P2.12: one call latches, draws the changed bands, and the rows go) */
         const uint32_t t1 = plat_ticks24();
         const int all = fz_redraw;
+        int drawn;
         frame_t = now - frame_t < 2u * period ? frame_t + period : now;
         fz_redraw = 0;
         fz_prof.n_check++;
-        (void)t1;
-        if (fz_draw_fb(all)) {   /* (P2.16a: the pace from the frame's own work, latch + paint; its waits not counted) */
+        drawn = fz_draw_fb(all);
+        if (xfer && drawn) {             /* (a frame drawn during a transfer: what it cost the round trip) */
+            uint32_t *x = fz_sx_xs();
+            const uint32_t d = (plat_ticks24() - t1) / PLAT_TICKS_PER_US;
+            x[FZ_XS_DRAWS]++;
+            x[FZ_XS_DRAW_SUM] += d;
+            if (d > x[FZ_XS_DRAW_MAX])
+                x[FZ_XS_DRAW_MAX] = d;
+        }
+        if (drawn) {   /* (P2.16a: the pace from the frame's own work, latch + paint; its waits not counted) */
             fz_frame_us = (3u * fz_frame_us + fz_fb_work / PLAT_TICKS_PER_US) / 4u;
             fz_anim = fz_anim < 255u ? (uint8_t)(fz_anim + 1u) : fz_anim;
         } else {
@@ -2183,7 +2256,7 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
                                           fz_rd32(d + 6) == 0x52535A46u)) {   /* "FZBI" "FZBR" "FZSR" */
         uint8_t b[12 + FZ_BK_CHUNK];
         uint32_t lo, size;
-        fz_sx_mark(plat_ms());
+        fz_xfer_rx(fz_in_frame);
         fz_store_region(&lo, &size);
         if (fz_rd32(d + 6) == 0x49425A46u) {   /* FZBI */
             memcpy(b, "FZBI", 4);
@@ -2301,6 +2374,12 @@ int app_expect(const char *what, int *got)
         *got = (int)fz_host_sx_out;
     else if (!strcmp(what, "fz_checks"))      /* (frames looked at: drawn or found the same) */
         *got = (int)fz_prof.n_check;
+    else if (!strcmp(what, "fz_xfer_passes"))   /* (stats line 16: passes, frames drawn, FIZZ frames during transfers) */
+        *got = (int)fz_sx_xs()[FZ_XS_PASSES];
+    else if (!strcmp(what, "fz_xfer_draws"))
+        *got = (int)fz_sx_xs()[FZ_XS_DRAWS];
+    else if (!strcmp(what, "fz_xfer_rx"))
+        *got = (int)fz_sx_xs()[FZ_XS_RX];
     else if (!strcmp(what, "fz_sx_kind"))     /* (the last FIZZ reply's kind: 42 STATUS, 52 ACK, 63 PROJECTS ..) */
         *got = fz_host_sx_kind;
     else if (!strcmp(what, "fz_sx_status"))   /* (.. an ACK's or a STORE's status) */

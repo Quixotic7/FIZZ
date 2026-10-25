@@ -105,6 +105,8 @@ typedef struct {
     qd_sx_work_t wk;                   /* (Phase 1) the job running */
     uint32_t rx_ms;                    /* the port's: when its last FIZZ frame came (its clock | 1; 0 none): the frames'
                                         * pacing during a transfer (firmware/app/app.c fz_step) */
+    uint32_t xs[12];                   /* the port's transfer counters (app.c FZ_XS_*: stats line 16), here not in the
+                                        * port's RAM */
 } qd_sx_t;
 
 struct qd_app;
