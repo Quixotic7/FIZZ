@@ -146,7 +146,8 @@ void ui_step_card(float x, float y, float w, float h, int full, int type, int nn
             fill[note[i] & 127] = UI_K3;
             lo = note[i] < lo ? note[i] : lo;
         }
-        ui_keyboard(x + 8.f, y + 10.f, w - 16.f, h - 20.f, lo / 12 * 12, fill);
+        ui_keyboard(x + 8.f, y + 10.f, w - 16.f, h - 20.f, lo >= 5 ? lo - (lo + 7) % 12 : 0, fill);   /* from the F at
+                                                         * or below (the FM-1's keys start on F; under F0, C0) */
     }
 }
 static void hand_card(const ui_layer_t *v, float x, float y, float w, float h)
