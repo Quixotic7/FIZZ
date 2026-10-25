@@ -287,12 +287,42 @@ DUMP `7F 05 22` (BAD SLOT): the page then edits in the browser only.
 | `10` / `11` | STORE over a used MY PRESETS place | as STORE (a slot given, used) | STORE's reply **when done**; BUSY while playing or another job runs | a **job**, stopped only (paused if PLAY comes): each project's pattern records that load the preset keep their own copy of the sound it was (`qd_preset_will_change_proj`, a project a step, the open one last), then the preset is stored (its id kept). Nothing is read or written inside the handler (before 0.13 this ran in the handler, under the audio lock) |
 
 STATUS (`42`) has two more things: flag `20` recording (or armed: notes a page sends are recorded), and a byte after the
-job's command: the selected track (0..5).
+job's command: the selected track (0..5) (a page's editor follows the unit's selected track with it, or with a DUMP of
+track slot 0). Manager fixes: flag `40` the unit's sound browser open (BROWSE below, or PRESETS on the panel).
 
 `tools/fizz_sysex.mjs` (and `site/js/fizz_sysex.js`): `paramRequest({track, id, value, ack})`, `dumpRequest({source:
 "track", slot})` (parseDump gives `track` and `extras`), `storeSound({.., audition, own, extras})`, `trackFrame(dump)`;
 parseStatus gives `rec` and `sel`. `site/manager/fizzlink.js`: `link.dumpTrack(slot)`, `link.param(track, id, value)`,
 `link.note(ch, n, vel)`.
+
+### `31` BROWSE: the unit's sound browser opened on a preset (Manager fixes)
+
+The web manager's LIBRARY **LOAD ON FM-1**: the unit's own sound browser opens on a track at a preset, exactly as if
+PRESETS had been turned to it. The track previews it (the model's track sound and the sequencer's preview, never the
+pattern's copy: no undo level, nothing saved); stopped, a short note sounds. The owner decides on the unit: **OCT−
+cancels** (the track's own sound back, its mix too), **OCT+ loads** it (the pattern's track sound: one undo level), as
+with the browser opened from the panel. An older FIZZ answers `7F 07 31` (BAD COMMAND).
+
+Request: `F0 7D 46 5A 01 31 <track> <id hi> <id mid> <id lo> <chk> F7`
+
+| field | |
+| --- | --- |
+| track | 0..5; `7F` the selected track. Another track than the selected one is selected first (a browser already open on another track puts that track's own sound back first, as SHIFT + SELECT in the browser does) |
+| id | the preset id, 3 x 7 bits: a factory preset 1..23, one of MY presets (LIST's id). A pool sound: its preset's id |
+
+Reply: ACK (`52`) with a = the track + 1, b = the browser's place + 1 (its list ALL, no kind filter). Statuses: OK;
+NOT FOUND (no preset with that id: nothing opened); BAD TRACK (6 or 7); BUSY (a name is being typed on the unit,
+SAVE PRESET or the name editor: the typing is kept); BAD LENGTH. It runs in the handler (the browser's state and the
+track's sound, as a knob turn; nothing read in or written), while playing too, and wakes the screen.
+
+The page follows it with STATUS (`42`): its flags byte has `40` while the unit's browser is open. A track's DUMP
+(source 4) has extras flag `10` while the browser previews on that track; once the browser closed, the track's preset
+id in the DUMP says whether the owner loaded the preset (OCT+) or not.
+
+`tools/fizz_sysex.mjs` (and `site/js/fizz_sysex.js`): `browseRequest({track, id})`; parseStatus gives `browse`, a
+track's DUMP's extras `browse`. `site/manager/fizzlink.js`: `link.browse(track, id)`. Code: `core/app/fizz_sx.c`
+`sx_browse`, `core/app/ctl_presets.c` `qd_br_goto`; tests: `core/tests/test_sysex.c` `browse_tests`,
+`site/tools/test_manager.mjs` (the simulated unit's OCT keys).
 
 ## What FIZZ does with a sound
 

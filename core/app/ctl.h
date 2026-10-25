@@ -806,6 +806,7 @@ void qd_br_track(struct qd_app *a, int t);   /* P1.5z: SHIFT + SELECT: the previ
 void qd_br_cancel(struct qd_app *a);             /* the track's own sound back, the browser closed */
 void qd_br_home(struct qd_app *a);               /* .. by HOME (to the view) */
 void qd_br_load(struct qd_app *a);               /* the chosen onto the track, the browser closed */
+int qd_br_goto(struct qd_app *a, int t, int preset);   /* Manager: browsing track t at preset id `preset` (1; 0 none) */
 void qd_br_sync(struct qd_app *a);               /* (the pattern's sounds reloaded under it: its preview again) */
 int qd_br_list(const struct qd_app *a, int src, int kind, int *out);   /* the list's entries (QD_BR_*_CODE), count */
 int qd_br_entry(const struct qd_app *a, int code, qd_sound_t *s);   /* an entry's sound (with its preset id); 1 ok */

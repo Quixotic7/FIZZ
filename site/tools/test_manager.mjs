@@ -20,6 +20,9 @@
 //   - Phase 2-B: a track's DUMP (its extras), PARAM (ACK, clamped, BAD TRACK, while playing), AUDITION (nothing
 //     stored) and the track's own DUMP sent back (the same DUMP again, byte for byte), OWN, a STORE over a used place
 //     (BUSY while playing; a job, its reply when done);
+//   - the owner's fixes (2026-10-25): the unit's panel selects a track (a track's DUMP and STATUS follow), BROWSE (the
+//     unit's browser on a preset: OCT- cancels, OCT+ loads, NOT FOUND, BAD TRACK), POOL REF in the next LIST, IMPORT of
+//     FIZZ's .fizzlib / .fizzsnd / .fizzbak with the duplicates flagged and only the new ones sent;
 //   - the owner's saved images (../FIZZ-saves, outside the repo; skipped when absent) read offline.
 //   node site/tools/test_manager.mjs
 import fs from "node:fs";
@@ -38,6 +41,7 @@ import { poolPlaces, shownRows, newFilter } from "../manager/presets.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
 import { soundFromFrame, storeFrameOf, blob6, libSound, text, info as vinfo, VALUES, Q, lfo, LF, copySound } from "../manager/sound.js";
 import { exportFiles, carryOf, noteRow } from "../manager/exporter.js";
+import { readImport, markDuplicates } from "../manager/importer.js";
 import { fizzToDn2pst } from "../js/fizz2dn.js";
 import { parseFizzsnd } from "../js/library.js";
 
@@ -427,6 +431,61 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   rows = await lk.list();
   check(busy.status === 8 && over.status === 0 && over.slot === own.slot && rows.find((q) => q.source === "mine" && q.slot === own.slot).name === "OVER" &&
     rows.find((q) => q.source === "mine" && q.slot === own.slot).id === ownRow.id, `a STORE over a used place: BUSY while playing; stopped: the job, OK, the id kept (${ownRow.id})`);
+  lk.close(); u.dispose();
+}
+
+// ---- the owner's fixes (2026-10-25): BROWSE (LIBRARY's LOAD ON FM-1), the selected track followed, POOL REF read
+// back at once, IMPORT of FIZZ's own files with their duplicates
+{
+  const u = await sim();
+  for (let k = 0; k < 3; k++) { u.engine.midiIn(storeSound({ name: NAMES[k], blob: blob(k + 1), tags: 1 << k })); u.run(80); }
+  settle(u);
+  const lk = await findFizz(u.access);
+  const trackOf = async (slot) => soundFromFrame(await lk.dumpTrack(slot));
+  // the unit's own panel: TRACKS + a white key selects a track; a track's DUMP (slot 0) and STATUS follow
+  u.selectTrack(2);
+  const s2 = await trackOf(0), st2 = await lk.status();
+  check(s2.track === 2 && s2.extras.sel === 2 && st2.sel === 2, `the unit selects track 3 on its panel: the selected track's DUMP is track ${s2.track + 1}, STATUS sel ${st2.sel + 1} (EDIT follows it)`);
+  u.selectTrack(0);
+  check((await trackOf(0)).track === 0, "and back to track 1");
+  // BROWSE: the unit's browser on track 4 at MY PRESETS 2 (its id); OCT- cancels, OCT+ loads
+  const rows0 = await lk.list({ factory: true });
+  const p2 = rows0.find((q) => q.source === "mine" && q.slot === 2), f5 = rows0.find((q) => q.source === "factory" && q.slot === 5);
+  const own4 = await lk.dumpTrack(4);
+  const b1 = await lk.browse(3, p2.id), st = await lk.status(), t4 = await trackOf(4);
+  check(b1.status === 0 && b1.a === 4 && st.browse && st.sel === 3 && t4.extras.browse && t4.extras.id === p2.id && t4.name === p2.name,
+    `BROWSE track 4, ${p2.name} (id ${p2.id}): ACK OK, the unit's browser open (STATUS), track 4 selected and previewing it`);
+  u.press("OCT-");
+  const st3 = await lk.status(), back4 = await lk.dumpTrack(4);
+  check(!st3.browse && same(Array.from(back4).slice(0, -10), Array.from(own4).slice(0, -10)),
+    "OCT- on the unit: the browser closed, track 4 its own sound again (its DUMP the same, the selection apart)");
+  const b2 = await lk.browse("selected", f5.id);
+  u.press("OCT+");
+  const st4 = await lk.status(), t4b = await trackOf(4);
+  check(b2.status === 0 && b2.a === 4 && !st4.browse && t4b.extras.id === f5.id && t4b.name === f5.name && !t4b.extras.browse,
+    `BROWSE the selected track (4), FACTORY 5 ${f5.name}; OCT+ on the unit: loaded (the track plays preset ${t4b.extras.id})`);
+  const nf = await lk.browse(0, 4000), bt = await lk.browse(6, f5.id);
+  check(nf.status === 9 && bt.status === 11 && !(await lk.status()).browse, "BROWSE: NOT FOUND for no such preset, BAD TRACK for track 7; nothing opened");
+  // POOL REF: the next LIST has it (the page shows it at once, then reads back until the unit agrees)
+  const pr = await lk.poolRef(0, p2.id), afterRef = await lk.list({ pool: true });
+  check(pr.status === 0 && afterRef.some((q) => q.source === "pool" && q.slot === pr.a && q.id === p2.id), `POOL REF: pool ${pr.a} in the very next LIST`);
+  // IMPORT: a .fizzlib of MY PRESETS (as EXPORT ALL writes it), a .fizzsnd twice, a .fizzbak's presets
+  const mineSnd = (await lk.dumpAll("mine", 3)).map((f) => ({ ...soundFromStoreFrame(f), source: { fizz: ver } }));
+  const lib = exportFiles(mineSnd, "fizz");
+  const extra = { ...mineSnd[0], name: "NEW ONE", blob: blob(6) };
+  const one = exportFiles([extra], "fizz");
+  const bak = makeFizzbak({ kind: "presets", presets: [mineSnd[1], { ...extra, name: "FROM BAK", blob: blob(7) }], fizz: ver, web: { tags: { [soundKey({ ...extra, name: "FROM BAK", blob: blob(7) })]: ["DUSTY"] } } });
+  const items = await readImport([{ name: lib.name, bytes: lib.bytes }, { name: one.name, bytes: one.bytes }, { name: "again.fizzsnd", bytes: one.bytes }, { name: "old.fizzbak", bytes: bak }]);
+  markDuplicates(items, mineSnd);
+  const dups = items.map((x) => `${x.sound ? x.sound.name : x.file}:${x.dup || "new"}`);
+  check(/\.fizzlib$/.test(lib.name) && items.length === 7 && items.every((x) => x.ok) && dups.join() ===
+    "GLASS BELL:mine,SUB DROP:mine,NIGHT PAD:mine,NEW ONE:new,NEW ONE:list,SUB DROP:mine,FROM BAK:new" && items[6].web && items[6].web[0] === "DUSTY",
+    `IMPORT reads FIZZ's files: ${lib.name} (3, all already in MY PRESETS), a .fizzsnd twice (the second flagged), a .fizzbak's presets (its web tags): ${dups.join(", ")}`);
+  const sent = [];
+  for (const it of items.filter((x) => !x.dup)) sent.push(await lk.store(storeFrame(it.sound, { batch: sent.length > 0 })));
+  const rowsI = await lk.list();
+  check(sent.every((r) => r.status === 0) && ["NEW ONE", "FROM BAK"].every((n) => mine(rowsI).filter((q) => q.name === n).length === 1) && mine(rowsI).length === 5,
+    "IMPORT: only the new ones sent: MY PRESETS 5, each once");
   lk.close(); u.dispose();
 }
 

@@ -1,27 +1,39 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The live editor (docs/MANAGER-P2-PLAN.md §1, P2-B, the owner's decisions of 2026-10-25): the Manager edits and loads
-// sounds the way the unit's sound browser does. One clear switch in the header (TRACK): off, the Manager only manages
-// presets and never touches the open project's tracks (safe while playing); on:
-//   - EDIT syncs with the sound on the track (the selected one, or one chosen) and edits it live: each change a PARAM
-//     (qd_player_live_edit, as a knob turned on the unit), one at a time with its ACK (the unit holds one SysEx frame);
-//     the track read back twice a second (a track DUMP), so the unit's own knob turns show; REVERT puts the track back
-//     exactly as it was when the editor took it (its DUMP sent back as an AUDITION);
-//   - a preset picked in LIBRARY plays on that track at once (AUDITION: nothing stored, no undo level); the bar under
-//     the header keeps the track's own sound: KEEP, or CANCEL puts it back (as OCT- on the unit's browser).
+// The live editor (docs/MANAGER-P2-PLAN.md §1, P2-B, the owner's decisions of 2026-10-25 and their fixes): the Manager
+// edits and loads sounds the way the unit's sound browser does. One clear switch in the header (TRACK, its number the
+// track it follows): off, the Manager never changes the open project's tracks (safe while playing); on, it does.
+//   - EDIT follows the FM-1's track: the selected one (it follows the unit's SELECT: the track read back twice a
+//     second, a track DUMP), or one picked on the editor's track strip (SELECTED, 1..6). The tracked track is big in
+//     the editor's header. TRACK on: each change a PARAM (qd_player_live_edit, as a knob turned on the unit), one at a
+//     time with its ACK (the unit holds one SysEx frame); the read-back waits 0.7 s after the last PARAM, so a drag is
+//     not pulled back; REVERT puts the track back exactly (its DUMP sent back as an AUDITION). TRACK off: the track's
+//     sound is shown and follows the unit, but not changed (a drag nudges the switch);
+//   - a preset picked in LIBRARY with TRACK on plays on that track at once (AUDITION: nothing stored, no undo level);
+//     the bar under the header keeps the track's own sound: KEEP, or CANCEL puts it back (as OCT- on the unit);
+//   - LOAD ON FM-1 (LIBRARY, either way: the owner decides on the unit): BROWSE opens the unit's own sound browser on
+//     the preset, as PRESETS turned to it (OCT- cancels, OCT+ loads); STATUS read until the browser closes, then the
+//     track's DUMP says which.
 // An older FIZZ (no track DUMP) leaves the switch off: the editor plays in this browser only.
-//   mountLive(ctx) -> { target, on(), probe(), lost(), pick(row), show(), tracksMenu(anchor), saveOpts() }
+//   mountLive(ctx) -> { target, on(), probe(), lost(), pick(row), show(), hide(), strip(E), stripClick(b), nudge(),
+//                       loadOnUnit(row), browsing(), saveOpts(), afterSave(), detach() }
 import { soundFromFrame, storeFrameOf } from "./sound.js";
 import { parseDump, storeSound, trackFrame } from "../js/fizz_sysex.js";
 import { esc, refusal } from "./ui.js";
 
+const HINT_KEY = "fizz-manager-track-seen";
+const seenHint = () => { try { return localStorage.getItem(HINT_KEY) === "1"; } catch (_) { return true; } };
+const markHint = () => { try { localStorage.setItem(HINT_KEY, "1"); } catch (_) { /* (no storage: the hint again) */ } };
+
 export function mountLive(ctx) {
   const { S, $, log, say, toast, editor, browserTarget } = ctx;
-  const L = { on: false, cap: false, track: "selected", t: -1, base: null, ext: null, pending: null, q: new Map(), pumping: false,
-    lastParam: 0, timer: null, attaching: false, menu: null };
+  const L = { on: false, cap: false, follow: false, track: "selected", t: -1, usel: -1, base: null, ext: null, pending: null,
+    q: new Map(), pumping: false, lastParam: 0, timer: null, attaching: false, nudgeT: 0, browse: null, browseT: null, hint: !seenHint() };
   const sw = $("live"), bar = $("loadbar");
   const slot = () => (L.track === "selected" ? 0 : L.track + 1);
   const link = () => S.link;
-  const ok = () => L.on && L.cap && !!S.link && !S.busy;
+  const canRead = () => L.cap && !!S.link && !S.busy;
+  const ok = () => L.on && canRead();
+  const editShown = () => !$("tab-edit").hidden;
   const tn = (t) => `TRACK ${t + 1}`;
 
   // ---------------------------------------------------------------- the switch, the bar
@@ -29,68 +41,104 @@ export function mountLive(ctx) {
     sw.hidden = !S.link || !S.unit || !S.unit.status;
     sw.setAttribute("aria-pressed", String(L.on));
     sw.classList.toggle("on", L.on);
+    sw.classList.toggle("hint", L.hint && L.cap && !L.on);
     sw.disabled = !L.cap;
+    const n = L.t >= 0 ? L.t : L.usel;
     sw.title = L.cap ? (L.on ? "Edit and load onto the FM-1's track: on" : "Edit and load onto the FM-1's track: off (the tracks are left alone)")
       : "This FIZZ cannot edit a track live yet: update FIZZ";
-    $("live-label").textContent = L.on && L.t >= 0 ? tn(L.t) : "TRACK";
+    sw.setAttribute("aria-label", `TRACK ${n >= 0 ? n + 1 : ""}: ${L.on ? "on" : "off"}`);
+    $("live-n").textContent = n >= 0 ? String(n + 1) : "–";
     bar.hidden = !(L.on && L.pending);
     if (L.on && L.pending) {
-      bar.innerHTML = `<button class="lbt" id="lb-track" aria-label="Which track">${tn(L.pending.t)}</button><span class="arr">←</span><b>${esc(L.pending.name)}</b>` +
+      bar.innerHTML = `<span class="lbt">${tn(L.pending.t)}</span><span class="arr">←</span><b>${esc(L.pending.name)}</b>` +
         `<button class="btn small" id="lb-keep" style="--c:var(--pink);color:#fff">KEEP</button><button class="btn small ghost" id="lb-cancel">CANCEL</button>`;
       $("lb-keep").onclick = keep;
       $("lb-cancel").onclick = cancel;
-      $("lb-track").onclick = (ev) => tracksMenu(ev.currentTarget);
     }
   }
   sw.addEventListener("click", () => setOn(!L.on));
   async function setOn(on) {
     if (on && !L.cap) { say('This FIZZ cannot edit a track live yet: <a href="../install/">update FIZZ</a>.', "--orange"); return; }
+    if (L.hint) { L.hint = false; markHint(); }
     L.on = on;
-    if (!on) { L.pending = null; L.q.clear(); stopPoll(); editor.setTarget(browserTarget); log("TRACK off: the Manager leaves the tracks alone"); }
-    else { log("TRACK on: EDIT edits the track, LIBRARY loads onto it"); editor.setTarget(target); if (!$("tab-edit").hidden) await attach(); else await readTrack(); }
+    if (!on) { L.pending = null; L.q.clear(); log("TRACK off: the Manager leaves the tracks alone"); }
+    else {
+      log("TRACK on: EDIT edits the track, LIBRARY loads onto it");
+      if (editShown()) await attach(); else await readTrack();
+    }
     render();
+    editor.render();
     if (ctx.changed) ctx.changed();
   }
+  // a change refused while TRACK is off: the switch (and the strip's LIVE) pulse
+  function nudge() {
+    const now = performance.now();
+    if (now - L.nudgeT < 900) return;
+    L.nudgeT = now;
+    for (const el of [sw, document.getElementById("trk-live")]) {
+      if (!el) continue;
+      el.classList.remove("nudge");
+      void el.offsetWidth;
+      el.classList.add("nudge");
+      setTimeout(() => el.classList.remove("nudge"), 900);
+    }
+  }
 
-  // ---------------------------------------------------------------- the track: read, taken into the editor
+  // ---------------------------------------------------------------- the track: read, followed by the editor
   async function readTrack() {
     if (!S.link) return null;
     const f = await link().dumpTrack(slot()).catch(() => null);
     if (!f) return null;
     const s = soundFromFrame(f);
     L.t = s.track; L.ext = s.extras;
+    if (s.extras) L.usel = s.extras.sel;
     editor.setRec(!!(s.extras && s.extras.rec));
     return { f, s };
   }
   const presetRow = (id) => (S.unit && id >= 0x100 ? S.unit.rows.find((r) => r.source === "mine" && r.id === id) : null);
   function placeOf(s) {
     const id = s.extras ? s.extras.id : 0, row = presetRow(id), fac = id >= 1 && id <= 23;
-    return { label: `${tn(s.track)} · ${row ? `MY PRESETS ${row.slot}` : fac ? `FACTORY ${id}` : "ITS OWN SOUND"}`, source: row ? "mine" : "track",
-      slot: row ? row.slot : 0, id, track: s.track, fromTarget: true };
+    return { label: `${tn(s.track)} · ${row ? `MY PRESETS ${row.slot}` : fac ? `FACTORY ${id}` : "ITS OWN SOUND"}${s.extras && s.extras.edited ? " · EDITED ON THE FM-1" : ""}`,
+      source: row ? "mine" : "track", slot: row ? row.slot : 0, id, track: s.track, fromTarget: true };
   }
+  // the editor on the track: read, opened, followed (TRACK on or off: off, only shown)
   async function attach() {
-    if (!ok() || L.attaching) return false;
+    if (!canRead() || L.attaching) return false;
     L.attaching = true;
     try {
       const r = await readTrack();
       if (!r) return false;
       L.base = r.f;
+      L.follow = true;
+      editor.setTarget(target, false);
       editor.open(r.s, placeOf(r.s));
       startPoll();
       render();
+      if (ctx.changed) ctx.changed();
       return true;
     } finally { L.attaching = false; }
   }
-  // twice a second while EDIT shows: the track read back (the unit's knobs), another track selected: taken
+  // the editor off the track (a preset opened in this browser): the poll stops
+  function detach() {
+    if (!L.follow) return;
+    L.follow = false;
+    stopPoll();
+    L.q.clear();
+    editor.setTarget(browserTarget);
+  }
+  // twice a second while EDIT shows: the track read back (the unit's knobs), another track selected on the unit: taken
   function startPoll() {
     stopPoll();
     L.timer = setInterval(async () => {
-      if (!ok() || $("tab-edit").hidden || L.attaching || L.q.size || L.pumping || performance.now() - L.lastParam < 700 || S.editing) return;
-      const t0 = L.t, r = await readTrack();
-      if (!r || !L.on) return;
-      if (r.s.track !== t0) { L.base = r.f; editor.open(r.s, placeOf(r.s)); render(); return; }
+      if (!canRead() || !L.follow || !editShown() || L.attaching || L.q.size || L.pumping || performance.now() - L.lastParam < 700 || S.editing) return;
+      const t0 = L.t, u0 = L.usel, r = await readTrack();
+      if (!r || !L.follow) return;
+      if (r.s.track !== t0) { L.base = r.f; editor.open(r.s, placeOf(r.s)); render(); log(`EDIT follows ${tn(r.s.track)} (selected on the FM-1)`); return; }
+      if (L.usel !== u0) render();
       if (L.q.size || performance.now() - L.lastParam < 700) return;   // (an edit went out meanwhile: not the read's)
-      editor.follow(r.s);
+      if (editor.follow(r.s, { rebase: !L.on }) && !L.on) L.base = r.f;   // (only shown: the unit's own sound is the one to go back to)
+      const p = editor.place();
+      if (p.fromTarget && r.s.extras && p.id !== r.s.extras.id) { editor.setPlace(placeOf(r.s)); L.base = r.f; }   // (loaded on the unit)
     }, 500);
   }
   function stopPoll() { clearInterval(L.timer); L.timer = null; }
@@ -117,11 +165,12 @@ export function mountLive(ctx) {
     return link().store(storeFrameOf(s, { track: t, audition: true, extras: { id: x.id || 0, sound: x.sound || 0, edited: !!x.edited } }));
   }
 
-  // the editor's target: the FM-1's track
+  // the editor's target: the FM-1's track (locked while TRACK is off: shown, not changed)
   const target = {
     live: true,
-    label: () => (L.t >= 0 ? `${tn(L.t)} · LIVE` : "TRACK · LIVE"),
-    ready: () => ok() && L.t >= 0,
+    locked: () => !L.on,
+    label: () => (L.t >= 0 ? `${tn(L.t)} · ${L.on ? "LIVE" : "SHOWN"}` : "TRACK"),
+    ready: () => canRead() && L.t >= 0,
     start: () => attach(),
     audition: (s) => audition(s),
     param: (id, v) => { if (!ok()) return; L.q.set(id, v); L.lastParam = performance.now(); pump(); },
@@ -129,39 +178,33 @@ export function mountLive(ctx) {
     // REVERT: the sound the editor took from the track, put back exactly (its DUMP); a preset opened: that preset again
     revert: async (s, E) => {
       L.q.clear();
+      if (!L.on) return;
       if (E.place && E.place.fromTarget && L.base) await link().store(trackFrame(L.base)).catch(() => null);
       else await audition(s);
       L.lastParam = performance.now();
     },
-    click: (E, el) => tracksMenu(el),
   };
 
-  // the track chooser: the selected one, or one of the six
-  function tracksMenu(anchor) {
-    closeMenu();
-    const m = document.createElement("div");
-    m.className = "picker tracks";
-    m.setAttribute("role", "listbox");
-    m.innerHTML = [["selected", "SELECTED"], ...[0, 1, 2, 3, 4, 5].map((t) => [t, String(t + 1)])].map(([k, l]) =>
-      `<button role="option" data-t="${k}" class="${L.track === k ? "on" : ""}" aria-selected="${L.track === k}">${l}</button>`).join("");
-    document.body.appendChild(m);
-    const b = anchor.getBoundingClientRect();
-    m.style.left = `${Math.max(12, Math.min(window.innerWidth - 340, b.left))}px`;
-    m.style.top = `${b.bottom + 8 + window.scrollY}px`;
-    L.menu = m;
-    m.addEventListener("click", async (ev) => {
-      const o = ev.target.closest("[data-t]");
-      if (!o) return;
-      L.track = o.dataset.t === "selected" ? "selected" : +o.dataset.t;
-      closeMenu();
-      if (L.pending) { await cancel(); }
-      if (!$("tab-edit").hidden) await attach(); else await readTrack();
-      render();
-    });
-    setTimeout(() => document.addEventListener("pointerdown", outside, true), 0);
+  // ---------------------------------------------------------------- the editor's track strip
+  // SELECTED (follow the unit's selection), 1..6 (the unit's selected one dotted, the followed one lit), LIVE (the
+  // header's switch, the same state)
+  function strip() {
+    if (!L.cap || !S.link) return "";
+    const cur = L.follow ? L.t : -1;
+    const btn = (k, label, cls, aria) => `<button class="trk ${cls}" data-trk="${k}" aria-pressed="${cls.includes(" on")}" aria-label="${aria}">${label}</button>`;
+    return `<div class="trks" role="group" aria-label="The FM-1's track">` +
+      btn("selected", '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.2"/><path d="M10 1.5v3.5M10 15v3.5M1.5 10h3.5M15 10h3.5"/></svg>SELECTED',
+        `sel${L.follow && L.track === "selected" ? " on" : ""}`, "Follow the FM-1's selected track") +
+      [0, 1, 2, 3, 4, 5].map((t) => btn(t, String(t + 1), `n${t === cur ? " on" : ""}${t === L.usel ? " usel" : ""}`, `Track ${t + 1}`)).join("") +
+      `<button class="trk live ${L.on ? "on" : ""}" id="trk-live" data-trk="live" aria-pressed="${L.on}" aria-label="Live: edit the FM-1's track"><span class="sw" aria-hidden="true"><i></i></span>LIVE</button></div>`;
   }
-  const outside = (ev) => { if (L.menu && !L.menu.contains(ev.target)) closeMenu(); };
-  function closeMenu() { if (L.menu) { L.menu.remove(); L.menu = null; } document.removeEventListener("pointerdown", outside, true); }
+  async function stripClick(b) {
+    const k = b.dataset.trk;
+    if (k === "live") { await setOn(!L.on); return; }
+    L.track = k === "selected" ? "selected" : +k;
+    if (L.pending) await cancel();
+    await attach();
+  }
 
   // ---------------------------------------------------------------- LIBRARY: a preset picked plays on the track
   async function pick(row, frame) {
@@ -188,26 +231,75 @@ export function mountLive(ctx) {
     if (!p || !S.link) return;
     const x = await link().store(trackFrame(p.frame)).catch(() => null);
     if (x && x.status === 0) toast(`${tn(p.t)}: its own sound again`, "--muted");
-    if (!$("tab-edit").hidden && L.on) await attach();
+    if (editShown() && L.follow) await attach();
+  }
+
+  // ---------------------------------------------------------------- LOAD ON FM-1: the unit's own sound browser
+  async function loadOnUnit(row) {
+    if (!S.link || S.busy || !row || !row.id) return null;
+    if (L.pending) await cancel();                      // (the track's own sound back first: the browser starts from it)
+    const tr = L.track === "selected" ? "selected" : L.track;
+    const x = await S.link.browse(tr, row.id).catch(() => null);
+    if (!x || x.status) {
+      say(x && x.old ? 'This FIZZ cannot open its browser from here yet: <a href="../install/">update FIZZ</a>.'
+        : x && x.status === 8 ? "A name is being typed on the FM-1: finish it there, then LOAD ON FM-1 again." : refusal(x, "LOAD ON FM-1 again"), "--orange");
+      return x;
+    }
+    L.browse = { id: row.id, name: row.name, t: x.a - 1, t0: Date.now() };
+    L.usel = x.a - 1;
+    log(`LOAD ON FM-1: ${row.name} in the FM-1's browser on ${tn(x.a - 1)} (OCT- cancels, OCT+ loads)`);
+    render();
+    if (ctx.changed) ctx.changed();
+    watchBrowse();
+    return x;
+  }
+  // the unit's browser open: STATUS until it closes (OCT+ / OCT- on the unit, or anything else), then the track says
+  function watchBrowse() {
+    clearTimeout(L.browseT);
+    L.browseT = setTimeout(async () => {
+      const b = L.browse;
+      if (!b) return;
+      if (!S.link || Date.now() - b.t0 > 180000) { L.browse = null; if (ctx.changed) ctx.changed(); return; }
+      if (S.busy || S.editing) { watchBrowse(); return; }
+      const st = await S.link.status().catch(() => null);
+      if (L.browse !== b) return;
+      if (!st || st.browse) { watchBrowse(); return; }
+      const f = await S.link.dumpTrack(b.t + 1).catch(() => null), s = f && soundFromFrame(f);
+      L.browse = null;
+      if (s && s.extras && s.extras.id === b.id) toast(`${tn(b.t)} · ${b.name}`, "--pink");
+      else toast(`${tn(b.t)}: its own sound`, "--muted");
+      if (ctx.changed) ctx.changed();
+    }, 600);
   }
 
   return {
-    target, render, attach, pick, keep, cancel, tracksMenu,
+    target, render, attach, detach, pick, keep, cancel, strip, stripClick, nudge, loadOnUnit,
     on: () => L.on && L.cap,
+    following: () => L.follow,
+    browsing: () => L.browse,
     state: L,
     // a FIZZ that can: its track DUMP answers (connect, REFRESH)
     async probe() {
-      L.cap = !!(S.link && S.unit && S.unit.status && (await S.link.dumpTrack(0).catch(() => null)));
+      const f = S.link && S.unit && S.unit.status ? await S.link.dumpTrack(0).catch(() => null) : null;
+      L.cap = !!f;
+      if (f) { const s = soundFromFrame(f); if (s && s.extras) L.usel = s.extras.sel; if (L.t < 0 && s) L.t = s.track; }
       if (!L.cap && L.on) setOn(false);
       render();
       return L.cap;
     },
-    lost() { stopPoll(); L.pending = null; L.q.clear(); if (L.on) { L.on = false; editor.setTarget(browserTarget); } L.cap = false; render(); if (ctx.changed) ctx.changed(); },
-    // EDIT shown: take the track (on), else nothing
-    show() { if (ok()) attach(); },
+    lost() {
+      stopPoll(); L.pending = null; L.q.clear(); clearTimeout(L.browseT); L.browse = null;
+      if (L.follow) { L.follow = false; editor.setTarget(browserTarget); }
+      L.on = false; L.cap = false; render(); if (ctx.changed) ctx.changed();
+    },
+    // EDIT shown: the editor follows the FM-1's track, unless it holds a preset or a file opened in this browser
+    show() {
+      const p = editor.place();
+      if (canRead() && (L.follow || L.on || !p.source || p.source === "new")) attach();
+    },
     hide() { stopPoll(); },
     // SAVE's frame options: on, the track plays the saved preset (LOAD, not edited)
-    saveOpts: () => (ok() && L.t >= 0 ? { track: L.t } : {}),
-    afterSave: async () => { if (ok() && !$("tab-edit").hidden) await attach(); },
+    saveOpts: () => (ok() && L.t >= 0 && L.follow ? { track: L.t } : {}),
+    afterSave: async () => { if (ok() && editShown() && L.follow) await attach(); },
   };
 }

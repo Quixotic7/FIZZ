@@ -745,6 +745,91 @@ static void p2b_tests(void)
     CHECK(reply_ok() && R[28] == 3 && !(R[8] & QD_SXT_REC), "STATUS: the selected track (4) after the job's byte; not recording");
 }
 
+/* ---------------------------------------------------------------- Manager fixes: BROWSE (LIBRARY's LOAD ON FM-1): the
+ * unit's sound browser opened on a track at a preset, as PRESETS turned to it: the track previews it (the pattern's
+ * copy untouched), STATUS and the track's DUMP say so; OCT- on the unit cancels (the track exactly as it was), OCT+
+ * loads it (the pattern's track sound); another track given: selected; refused: no such preset, track 7, a name being
+ * typed, a short body */
+static int browse(int t, int id)
+{
+    const uint8_t b[4] = {(uint8_t)t, (uint8_t)((id >> 14) & 0x7F), (uint8_t)((id >> 7) & 0x7F), (uint8_t)(id & 0x7F)};
+    return cmd(QD_SX_BROWSE, b, 4);
+}
+static void tap(int button)
+{
+    qd_app_button(&A, button, 1);
+    run(20);
+    qd_app_button(&A, button, 0);
+    run(20);
+}
+static int xflags(void)                                 /* a track DUMP reply's extras' flags */
+{
+    const int n7 = R[5] == QD_SX_STORE6 ? QD_SX_BLOB6_7 : QD_SX_BLOB7;
+    return R[6 + 22 + n7 + 1 + 5];
+}
+static void browse_tests(void)
+{
+    qd_track_t before;
+    qd_sound_t fs;
+    int m, id, pre;
+    memset(FL, 0xFF, sizeof FL);
+    boot_flash();
+    run(3000);
+    cmd_io = 0;
+    A.sel = 0;
+    before = A.model.t[3];
+    pre = qd_proj_pat(&A.proj, A.seq.cur)->snd[3].preset;
+    qd_factory_get(&A, 6, &fs);                         /* (FACTORY 7: preset id 7) */
+    browse(3, 7);
+    CHECK(ack(QD_SX_BROWSE) == QD_SX_OK && ack_v1() == 4 && ack_v2() >= 1 && A.sel == 3 && A.ui.latch == QD_LATCH_BROWSE &&
+              A.ui.br.t == 3 && A.model.t[3].preset == 7 && !strcmp(A.model.t[3].sound_name, fs.name) &&
+              !memcmp(A.model.t[3].patch, fs.patch, sizeof fs.patch) && qd_proj_pat(&A.proj, A.seq.cur)->snd[3].preset == pre,
+          "BROWSE track 4, preset 7: the browser open on track 4 (selected) at FACTORY 7 %s, the track previews it, the "
+          "pattern's copy untouched", fs.name);
+    cmd(QD_SX_STATUS, 0, 0);
+    CHECK(reply_ok() && R[5] == QD_SX_R_STATUS && (R[8] & QD_SXT_BROWSE), "BROWSE: STATUS's flag 40 (the browser open)");
+    dump_track(4);
+    CHECK(reply_ok() && (xflags() & QD_SXX_BROWSE), "BROWSE: track 4's DUMP: its extras' flag 10 (previewing)");
+    dump_track(1);
+    CHECK(reply_ok() && !(xflags() & QD_SXX_BROWSE), "BROWSE: track 1's DUMP: not previewing");
+    tap(QD_B_OCTDN);
+    CHECK(A.ui.latch != QD_LATCH_BROWSE && same_track(&A.model.t[3], &before), "BROWSE then OCT- on the unit: cancelled, track 4 exactly as it was");
+    cmd(QD_SX_STATUS, 0, 0);
+    CHECK(reply_ok() && !(R[8] & QD_SXT_BROWSE), "BROWSE cancelled: STATUS's flag 40 off");
+    /* a MY preset, onto the selected track (127), then OCT+ */
+    m = mine_store("BROWSED", QD_PKB(QD_PK_LEAD));
+    id = qd_lib_preset(&A, m - 1);
+    run(100);
+    browse(QD_SXP_SELECTED, id);
+    CHECK(ack(QD_SX_BROWSE) == QD_SX_OK && ack_v1() == 4 && A.ui.latch == QD_LATCH_BROWSE && A.model.t[3].preset == id &&
+              !strcmp(A.model.t[3].sound_name, "BROWSED"),
+          "BROWSE the selected track (4), MY PRESETS %d (id %d): previewed", m, id);
+    browse(1, 7);
+    CHECK(ack(QD_SX_BROWSE) == QD_SX_OK && A.sel == 1 && A.ui.br.t == 1 && A.model.t[1].preset == 7 &&
+              same_track(&A.model.t[3], &before),
+          "BROWSE another track (2) while browsing track 4: track 4 put back, track 2 selected and previewing");
+    browse(1, id);
+    tap(QD_B_OCTUP);
+    CHECK(A.ui.latch != QD_LATCH_BROWSE && A.model.t[1].preset == id && qd_proj_pat(&A.proj, A.seq.cur)->snd[1].preset == id,
+          "BROWSE then OCT+ on the unit: loaded, track 2 plays MY PRESETS %d (the pattern's track sound)", m);
+    /* refused */
+    browse(0, 9999);
+    CHECK(ack(QD_SX_BROWSE) == QD_SX_NOT_FOUND && A.ui.latch != QD_LATCH_BROWSE && A.sel == 1, "BROWSE of no such preset: NOT FOUND, nothing opened");
+    browse(6, 7);
+    CHECK(ack(QD_SX_BROWSE) == QD_SX_BAD_TRACK, "BROWSE onto track 7: BAD TRACK");
+    {
+        const uint8_t b[2] = {0, 0};
+        cmd(QD_SX_BROWSE, b, 2);
+        CHECK(ack(QD_SX_BROWSE) == QD_SX_BAD_LENGTH, "BROWSE with a short body: BAD LENGTH");
+    }
+    qd_ctl_set_mode(&A, QD_MODE_STEP);
+    qd_latch_open(&A, QD_LATCH_SAVE);                   /* (SAVE PRESET: a name being typed) */
+    browse(0, 7);
+    CHECK(ack(QD_SX_BROWSE) == QD_SX_BUSY && A.ui.latch == QD_LATCH_SAVE, "BROWSE while a name is typed on the unit: BUSY, the typing kept");
+    qd_latch_close(&A);
+    CHECK(cmd_io == 0, "BROWSE: nothing read in or written inside the handler (%u)", cmd_io);
+}
+
 int main(int argc, char **argv)
 {
     static uint8_t f[256], in[256], pk[300], un[300], blob[QD_QUAD_BLOB5], blob2[QD_QUAD_BLOB5];
@@ -1163,6 +1248,7 @@ int main(int argc, char **argv)
     }
     phase1_tests();
     p2b_tests();
+    browse_tests();
     qd_shutdown();
     printf("test_sysex: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

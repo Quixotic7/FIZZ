@@ -22,7 +22,12 @@
 //     plays on the track (the bar: KEEP / CANCEL puts the track's own sound back, its DUMP the same); EDIT takes the
 //     track, a drag is a PARAM on the unit, a value turned on the unit (a PARAM from elsewhere) shows in the editor,
 //     REVERT puts the track back, the keybed plays the unit, SAVE over the preset (BUSY while playing; stopped, the
-//     track then plays it, not edited); the header, the bar and EDIT at 1280 and 390.
+//     track then plays it, not edited); the header, the bar and EDIT at 1280 and 390;
+//   - the owner's fixes (2026-10-25): the TRACK switch's first-use ring; EXPORT ALL (a .fizzlib); + POOL shown before
+//     the unit's lists come back (LIST held 1.5 s); EDIT one panel with all 110 values (no groups), following the unit's
+//     selected track (its panel's TRACKS + a key) with TRACK off: shown, a drag refused and the switch nudged; LOAD ON
+//     FM-1 (the unit's browser: OCT+ on its panel loads, the page says so); IMPORT of a .fizzlib (all already there,
+//     flagged, none ticked) and a new .fizzsnd.
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -89,6 +94,11 @@ async function shot(file) {
   const r = await send("Page.captureScreenshot", { format: "png" });
   fs.writeFileSync(path.join(OUT, file), Buffer.from(r.data, "base64"));
 }
+async function fullShot(file) {
+  const m = await evaluate("({ w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight })");
+  const r = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width: m.w, height: m.h, scale: 1 } });
+  fs.writeFileSync(path.join(OUT, file), Buffer.from(r.data, "base64"));
+}
 const size = (w, h, mobile = false) => send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile });
 const noScroll = () => evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1");
 const click = (sel) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.click(); return true; })()`);
@@ -115,6 +125,8 @@ try {
   const up = await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 30000);
   const st = await evaluate("__mgr.S.unit && { status: __mgr.S.unit.status, n: __mgr.S.unit.rows.filter((r) => r.source === 'mine').length }");
   check(up && st.status.tracks === 6, `?sim: connected, STATUS ${st && JSON.stringify({ tracks: st.status.tracks, projects: st.status.projects, mine: st.status.mine })}`);
+  check(await waitFor("document.getElementById('live').classList.contains('hint') && !document.getElementById('live').hidden", 8000),
+    "TRACK: the switch shown with its first-use ring (never used in this browser)");
   await sleep(400);
   const nums = await evaluate("[$('u-prj'), $('u-pre'), $('u-use')].map((e) => e.textContent)".replace(/\$\(/g, "document.getElementById("));
   check(nums[0] === "1" && +nums[1] > 0 && /%$/.test(nums[2]), `BACKUP: projects ${nums[0]}, my presets ${nums[1]}, store used ${nums[2]} (STATUS, no backup taken)`);
@@ -208,9 +220,14 @@ try {
   const outOfPool = () => waitFor(`!__mgr.S.unit.rows.some((x) => x.source === 'pool' && x.id === ${bellId})`);
   if (p0.length) { await click("#l-pool"); await outOfPool(); await idle(); }          // (the demo's pool may hold it: out first)
   check(!(await inPool()).length && (await evaluate("document.getElementById('l-pool').textContent")) === "+ POOL", "LIBRARY: not in the pool: the big + POOL");
+  await evaluate("(() => { const l = __mgr.S.link, o = l.list.bind(l); window.__slowList = 0; l.list = async (a) => { window.__slowList++; await new Promise((r) => setTimeout(r, 1500)); return o(a); }; window.__unslow = () => { l.list = o; }; })()");
+  const tPool = Date.now();
   await click("#l-pool");
+  const fast = await waitFor(`!!document.querySelector("${MINE(3)} .pbadge") && window.__slowList > 0`, 1400);
+  check(fast && Date.now() - tPool < 1450, `+ POOL: the badge shows at once (${Date.now() - tPool} ms), before the unit's lists come back (LIST held 1.5 s)`);
   await waitFor(`__mgr.S.unit.rows.some((x) => x.source === 'pool' && x.id === ${bellId})`);   // (+ POOL's edit, then its lists read again)
   await idle();
+  await evaluate("window.__unslow()");
   const p1 = await inPool();
   const mark = await evaluate(`(() => { const c = document.querySelector("${MINE(3)}"); const b = c && c.querySelector('.pbadge'); return { ring: !!(c && c.classList.contains('inpool')), badge: b ? b.textContent : '', tog: document.getElementById('l-pool').textContent, big: (document.querySelector('#l-sel .pbadge.big') || {}).textContent || '' }; })()`);
   check(p1.length === 1 && mark.ring && mark.badge === String(p1[0]) && mark.tog === "− POOL" && mark.big === String(p1[0]),
@@ -313,34 +330,31 @@ try {
   await waitFor("!document.getElementById('tab-edit').hidden && document.querySelector('#ed-stage .algosvg')");
   const ename = await evaluate("__mgr.editor.sound().name");
   check(!!ename && (await evaluate("document.querySelector('#ed-head .h').textContent")).startsWith("FACTORY 4"), `EDIT: LIBRARY's EDIT opened FACTORY 4 ${ename}`);
-  const GR = ["ops", "openv", "filter", "amp", "lfo", "mod", "play"], SHOT = { ops: "01-edit-operators", filter: "02-edit-filter-amp", lfo: "03-edit-lfo-mod" };
   const seen = new Set();
   const collect = () => evaluate(`[...document.querySelectorAll('#ed-stage [data-id], #ed-stage [data-x], #ed-stage [data-y], #ed-stage [data-pick], #ed-stage [data-set]')]
     .flatMap((e) => [e.dataset.id, e.dataset.x, e.dataset.y, e.dataset.pick, e.dataset.set && e.dataset.set.split(':')[0]]).filter((x) => x !== undefined).map(Number)`);
-  for (const g of GR) {
-    await click(`#ed-groups [data-g='${g}']`);
-    await sleep(250);
-    if (g === "mod") await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 1 + k % 8))");   // (every slot on: its cables)
-    if (g === "filter") for (const ft of [0, 3, 4, 5, 6, 7]) { await evaluate(`__mgr.editor.set(36, ${ft})`); await sleep(120); (await collect()).forEach((i) => seen.add(i)); }
-    if (g === "amp") for (const m of [1, 0]) { await evaluate(`__mgr.editor.set(74, ${m})`); await sleep(120); (await collect()).forEach((i) => seen.add(i)); }
-    await sleep(200);
-    (await collect()).forEach((i) => seen.add(i));
-    check(await noScroll(), `EDIT ${g.toUpperCase()} at 1280: drawn, no horizontal scroll`);
-    if (SHOT[g]) await shot(`manager-p2-${SHOT[g]}.png`);
-  }
+  const secs = await evaluate("[...document.querySelectorAll('#ed-stage .pn')].map((e) => e.dataset.sec).join()");
+  check(secs === "ops,openv,play,filter,amp,drive,lfo,mod", `EDIT: one panel, every section at once (${secs}), no groups to switch`);
+  (await collect()).forEach((i) => seen.add(i));
+  await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 1 + k % 8))");   // (every slot on: its cables)
+  await sleep(150);
+  (await collect()).forEach((i) => seen.add(i));
+  for (const ft of [0, 3, 4, 5, 6, 7]) { await evaluate(`__mgr.editor.set(36, ${ft})`); await sleep(120); (await collect()).forEach((i) => seen.add(i)); }
+  for (const m of [1, 0]) { await evaluate(`__mgr.editor.set(74, ${m})`); await sleep(120); (await collect()).forEach((i) => seen.add(i)); }
   const missing = Array.from({ length: 110 }, (_, i) => i).filter((i) => !seen.has(i));
-  check(!missing.length, `EDIT: every one of FIZZ's 110 values is on a group${missing.length ? `: missing ${missing.join(", ")}` : ""}`);
+  check(!missing.length, `EDIT: every one of FIZZ's 110 values is on the one panel${missing.length ? `: missing ${missing.join(", ")}` : ""}`);
+  const dupIds = await evaluate(`(() => { const n = new Map(); document.querySelectorAll('#ed-stage .vc[data-id], #ed-stage .dial[data-id], #ed-stage .vbar[data-id]').forEach((e) => n.set(e.dataset.id, (n.get(e.dataset.id) || 0) + 1)); return [...n].filter(([, c]) => c > 1).map(([k]) => k); })()`);
+  check(!dupIds.length, `EDIT: each value's chip, dial or bar once on the panel${dupIds.length ? ` (twice: ${dupIds.join(", ")})` : ""}`);
+  check(await noScroll(), "EDIT at 1280: the panel drawn, no horizontal scroll");
+  await fullShot("manager-p2-01-edit-panel.png");
   await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 0)); __mgr.editor.set(36, 3)");
+  await sleep(250);                                    // (drawn again: the curve's handle RESO's, not the EQ's GAIN)
   // a handle dragged (the filter's FREQ / RESO), the wheel over a value, ALGO clicked, REVERT
-  await click("#ed-groups [data-g='filter']");
-  await sleep(200);
   const f0 = await evaluate("[__mgr.editor.value(34), __mgr.editor.value(35)]");
   await drag("#ed-stage .curve .hd", -80, -40);
   await sleep(200);
   const f1 = await evaluate("[__mgr.editor.value(34), __mgr.editor.value(35)]");
   check(f1[0] < f0[0] && f1[1] > f0[1], `EDIT: the filter's handle dragged left and up: FREQ ${f0[0]} -> ${f1[0]}, RESO ${f0[1]} -> ${f1[1]}`);
-  await click("#ed-groups [data-g='ops']");
-  await sleep(200);
   const fb0 = await evaluate("__mgr.editor.value(6)"), wc = await centre("#ed-stage .dial[data-id='6']");
   await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: wc.x, y: wc.y, deltaX: 0, deltaY: -100 });
   await sleep(150);
@@ -389,8 +403,15 @@ try {
   check((await evaluate("window.__dl")) === dl0 + 1 && (await evaluate("document.getElementById('ex').hidden")), "EXPORT: DOWNLOAD: one file, the dialog closed");
   await click("#t-library");
   await click("#l-export");
-  check(await waitFor("!document.getElementById('ex').hidden"), "EXPORT from LIBRARY opens the same dialog");
+  check(await waitFor("!document.getElementById('ex').hidden"), "EXPORT from LIBRARY (the selected preset's) opens the same dialog");
   await click("#ex-no");
+  await click("#l-export-all");
+  await waitFor("!document.getElementById('ex').hidden");
+  const exa = await evaluate("({ t: document.querySelector('#ex .big').textContent, n: document.querySelector('#ex .exname').textContent, on: document.querySelector('#ex .fmt.on').dataset.k })");
+  const dlA = await evaluate("window.__dl");
+  await click("#ex-go");
+  await sleep(200);
+  check(exa.t === "MY PRESETS" && exa.on === "fizz" && /\.fizzlib$/.test(exa.n) && (await evaluate("window.__dl")) === dlA + 1, `EXPORT ALL: MY PRESETS as ${exa.n} (downloaded)`);
 
   // TRACK (P2-B): the live editor
   await click("#t-library");
@@ -424,10 +445,10 @@ try {
   // EDIT takes the track; a drag is a PARAM; the unit's own change shows; REVERT
   await click("#t-edit");
   await waitFor(`__mgr.editor.place().track === ${t0.t} && __mgr.editor.sound().name === ${JSON.stringify(t0.name)}`, 5000);
-  check((await evaluate("document.getElementById('ed-target').textContent")).includes("LIVE") && (await evaluate("__mgr.editor.place().label")).startsWith(`TRACK ${t0.t + 1}`),
-    `EDIT takes track ${t0.t + 1}: ${await evaluate("__mgr.editor.place().label")}`);
-  await click("#ed-groups [data-g='filter']");
-  await sleep(200);
+  check((await evaluate("!!document.querySelector('#ed-head .trkbig.live') && document.querySelector('#ed-head .trkbig b').textContent")) === String(t0.t + 1) &&
+    (await evaluate(`!!document.querySelector('#ed-head .trk.live.on') && !!document.querySelector("#ed-head .trk[data-trk='${t0.t}'].on")`)) &&
+    (await evaluate("__mgr.editor.place().label")).startsWith(`TRACK ${t0.t + 1}`),
+    `EDIT takes track ${t0.t + 1} (big and pink in its header, LIVE on its strip): ${await evaluate("__mgr.editor.place().label")}`);
   await evaluate("__mgr.editor.set(36, 3)");
   await sleep(300);
   await drag("#ed-stage .curve .hd", -60, -30);
@@ -481,13 +502,69 @@ try {
   check(await waitFor("!__mgr.live.on() && document.getElementById('loadbar').hidden"), "TRACK off again");
   check(await evaluate("document.querySelector('#i-dest [data-d=track]').disabled && __mgr.importer.state.dest !== 'track'"), "TRACK off: IMPORT's TRACK destination off too (the tracks left alone)");
 
+  // EDIT follows the unit's selected track, TRACK off: shown, not changed
+  await click("#t-edit");
+  await sleep(300);
+  await click("#ed-head [data-trk='selected']");
+  await waitFor("__mgr.live.following() && __mgr.editor.place().fromTarget", 5000);
+  await evaluate("window.__sim.selectTrack(2)");
+  const fol = await waitFor("__mgr.editor.place().track === 2 && document.querySelector('#ed-head .trkbig b').textContent === '3'", 6000);
+  const t3s = await trk();
+  check(fol && t3s.t === 2 && (await evaluate("__mgr.editor.sound().name")) === t3s.name && (await evaluate("document.getElementById('live-n').textContent")) === "3",
+    `EDIT follows the FM-1: track 3 selected on the unit's panel: the editor on it (${t3s.name}), TRACK 3 big in its header and on the switch`);
+  await fullShot("manager-fix-edit-follows-1280.png");
+  const fdk = await evaluate("__mgr.editor.value(6)");
+  await evaluate("__mgr.editor.set(6, (__mgr.editor.value(6) + 20) % 127)");
+  await sleep(100);
+  const t3b = await trk();
+  check((await evaluate("__mgr.editor.value(6)")) === fdk && t3b.v[6] === t3s.v[6] && (await evaluate("document.getElementById('live').classList.contains('nudge')")),
+    "TRACK off: a change in EDIT refused (FDBK kept, the unit's track untouched), the TRACK switch nudged");
+  await evaluate(`(async () => { const { paramRequest } = await import('../js/fizz_sysex.js'); window.__sim.engine.midiIn(paramRequest({ track: 2, id: 6, value: 99 })); window.__sim.run(20); })()`);
+  check(await waitFor("__mgr.editor.value(6) === 99 && document.getElementById('ed-revert').disabled", 4000), "TRACK off: FDBK turned on the unit (99) shows in the editor (nothing to revert)");
+  await evaluate("window.__sim.selectTrack(0)");
+  await waitFor("__mgr.editor.place().track === 0", 6000);
+
+  // LOAD ON FM-1: the unit's own browser on the preset; OCT+ on its panel loads it
+  await click("#t-library");
+  await click("#l-filter [data-src='all']");
+  await click("#l-list .cas[data-src='factory'][data-slot='6']");
+  await waitFor("!document.getElementById('l-unit').disabled");
+  const f6 = await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'factory' && r.slot === 6)");
+  await click("#l-unit");
+  const opened = await waitFor(`!!__mgr.live.browsing() && document.getElementById('l-unit').classList.contains('on')`, 5000);
+  const tb = await trk();
+  check(opened && tb.id === f6.id && tb.name === f6.name, `LOAD ON FM-1: ${f6.name} in the unit's browser on track ${tb.t + 1} (previewing); the button lit with OCT- / OCT+`);
+  await shot("manager-fix-load-on-fm1.png");
+  await evaluate("window.__sim.press('OCT+')");
+  const done = await waitFor(`!__mgr.live.browsing() && document.getElementById('toast').textContent.includes(${JSON.stringify(f6.name)})`, 6000);
+  const tl = await trk();
+  check(done && tl.id === f6.id && !tl.edited, `LOAD ON FM-1: OCT+ on the unit: loaded (track ${tl.t + 1} plays ${tl.name}); the page says so`);
+
+  // IMPORT: a .fizzlib of MY PRESETS (all there already: flagged, none ticked) and a new .fizzsnd
+  await click("#t-import");
+  await click("#i-clear");
+  await evaluate(`(async () => { const { exportFiles } = await import('./exporter.js'); const { soundFromStoreFrame } = await import('../js/library.js');
+    const s = [...__mgr.S.unit.dumps.values()].map(soundFromStoreFrame); const lib = exportFiles(s, 'fizz');
+    const n = { ...s[0], name: 'FRESH ONE', blob: s[0].blob.slice() }; n.blob[3] = (n.blob[3] + 5) & 15; const one = exportFiles([n], 'fizz');
+    window.__nlib = s.length;
+    await __mgr.importer.add([new File([lib.bytes], lib.name), new File([one.bytes], one.name)]); })()`);
+  await waitFor("document.querySelectorAll('#i-rows .ir').length === window.__nlib + 1");
+  const imp = await evaluate("({ rows: document.querySelectorAll('#i-rows .ir').length, dup: [...document.querySelectorAll('#i-rows .note.dup')].length, send: document.getElementById('i-send').textContent, fz: document.querySelectorAll('#i-rows .src.fz').length })");
+  check(imp.dup === imp.rows - 1 && imp.fz === imp.rows && /SEND 1 /.test(imp.send), `IMPORT: a .fizzlib (${imp.rows - 1}, every one "already in MY PRESETS", not ticked) and a new .fizzsnd: ${imp.send}`);
+  await shot("manager-fix-import-fizzlib.png");
+  const nb = await evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine').length");
+  await click("#i-send");
+  await waitFor(`__mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${nb + 1}`, 15000);
+  await idle();
+  check(await evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine' && r.name === 'FRESH ONE').length === 1"), "IMPORT: only the new one sent (FRESH ONE in MY PRESETS)");
+
   // the phone
   await size(390, 844, true);
   for (const t of ["backup", "library", "edit", "pool", "import"]) {
     await click(`#t-${t}`);
     await sleep(500);
     check(await noScroll(), `${t.toUpperCase()} at 390: no horizontal scroll`);
-    await shot(`manager-phone-${t}.png`);
+    await (t === "edit" ? fullShot : shot)(`manager-phone-${t}.png`);
   }
   // the phone with TRACK on: a preset picked plays on the track (the bar), EDIT on the track
   await click("#t-library");

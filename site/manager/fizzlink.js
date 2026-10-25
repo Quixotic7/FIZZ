@@ -28,10 +28,12 @@
 //     (status 0 OK, 8 BUSY: playing or a job running, 9 NOT FOUND, 10 IN USE: a = projects, b = steps)
 //   link.users(source, slot) -> {projects: [{project, steps}], tracks} | {status}
 //   link.projects() -> {current, list: [{slot, there, current, demo, name, pages}]} | null
+// Manager P2-B and fixes: link.dumpTrack(slot), link.param(track, id, value), link.note(ch, n, vel),
+//   link.browse(track, id) (BROWSE: the unit's sound browser opened on a preset)
 import { Updater, IS_OTA, frame, response, parseRequest, unpack7 } from "../install/fm1lib.js";
 import { identity, listRequest, parseList, dumpRequest, parseDump, parseReply, SOURCES, CMD1, statusRequest, flushRequest,
   tagsRequest, renameRequest, deleteRequest, swapRequest, poolRefRequest, usersRequest, projectsRequest, projectRequest,
-  paramRequest, CMD } from "../js/fizz_sysex.js";
+  paramRequest, browseRequest, CMD } from "../js/fizz_sysex.js";
 import { crc32, hex8 } from "./fizzbak.js";
 
 export const FIZZ_PREFIX = "FM-1_46";            // firmware/app/fm1.toml id_prefix
@@ -224,6 +226,9 @@ export class FizzLink {
     }, { timeout: 1500, partial: () => null });
   }
   param(track, id, value) { return this.ask1(paramRequest({ track, id, value, ack: true }), CMD.PARAM, undefined, 2000); }
+  // Manager fixes: the unit's sound browser on a track ("selected", 0..5) at preset id, as PRESETS turned to it (the
+  // owner's OCT- cancels, OCT+ loads) -> ACK {status, a: track + 1, b: the browser's place} | {old} (an older FIZZ)
+  browse(track, id) { return this.ask1(browseRequest({ track, id }), CMD.BROWSE, undefined, 3000); }
   // a note to the FM-1 (no reply; a short message, not held as a SysEx frame is)
   note(ch, n, vel) { this.send(vel ? [0x90 | (ch & 15), n & 127, vel & 127] : [0x80 | (ch & 15), n & 127, 0]); }
 

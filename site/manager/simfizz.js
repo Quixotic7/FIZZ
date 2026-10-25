@@ -18,10 +18,12 @@
 // to the engine at once (sim.counts.notes).
 // No DOM: Node runs it as it is.
 //   new SimFizz({createEngine, module, id, playing, frameMs, tryMs, bulk, answers}); await sim.boot()
-//   sim.access (navigator.requestMIDIAccess's shape), sim.unplug(), sim.engine, sim.flash(), sim.counts, sim.tapPlay()
+//   sim.access (navigator.requestMIDIAccess's shape), sim.unplug(), sim.engine, sim.flash(), sim.counts, sim.tapPlay(),
+//   sim.press(label) / sim.selectTrack(t) / sim.panel(buttons, keys) (the unit's own panel: OCT- / OCT+ in its browser)
 import { pack7, unpack7 } from "../install/fm1lib.js";
 
 const HS = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
+const PANEL_BUTTONS = ["FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC", "OCT-", "OCT+"];
 const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 const crc32 = (b) => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
 const le32 = (v) => [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF];
@@ -107,6 +109,21 @@ export class SimFizz {
     this.run(80);
     this.playing = !this.playing;
   }
+
+  // the unit's own panel (the owner's hands): buttons held by their FM-1 labels (FX SEL ENV LFO EDIT GLO HOME SAVE ARP
+  // SEQ PLAY REC OCT- OCT+: FIZZ's FX, TRACKS, MIX, LATCH, EDIT, SHIFT, HOME, SOUNDS, FILL, PATTERNS, PLAY, REC, F1, F2)
+  // and keys (0..26: the panel's key bits) for a moment, then let go; press(label) one button; selectTrack(t) TRACKS + white key t
+  panel(buttons = [], keys = [], ms = 40) {
+    if (!this.engine) return;
+    const t = this.engine.info().panelTable;
+    let b = 0, k = 0;
+    for (const l of buttons) { const i = PANEL_BUTTONS.indexOf(l); if (i < 0) throw new Error(`no button ${l}`); b |= 1 << t.btnId[i]; }
+    for (const x of keys) k |= 1 << x;
+    this.engine.setPanel({ buttons: b, keys: k });
+    this.run(ms);
+  }
+  press(label) { this.panel([label]); this.panel([]); }
+  selectTrack(t) { this.panel(["SEL"]); this.panel(["SEL"], [[1, 3, 5, 8, 10, 13][t]]); this.panel(["SEL"]); this.panel([]); }   // (white keys 1..6's bits)
 
   // ---- inbound: one frame held (sysex_byte: sx_collect = !sx_ready), taken by the main loop's next pass
   rx(d) {

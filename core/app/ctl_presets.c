@@ -260,6 +260,36 @@ void qd_br_track(qd_app_t *a, int t)
 }
 void qd_br_home(qd_app_t *a) { br_cancel(a, 0); }
 
+/* Manager (docs/SYSEX.md BROWSE): the browser opened on track t (selected first) at the preset with id `preset`, as
+ * if PRESETS had turned to it: the track previews it, OCT- cancels, OCT+ loads. Open already (another track: that
+ * one's preview put back first, as SHIFT + SELECT does): moved there; the list ALL, no kind. 0: not in the list */
+int qd_br_goto(qd_app_t *a, int t, int preset)
+{
+    int *const list = qd_br_buf;
+    qd_brui_t *b = &a->ui.br;
+    int n = qd_br_list(a, QD_BR_ALL, 0, list), i;
+    if (!preset || br_find(a, list, n, preset, 0) < 0)
+        return 0;
+    if (a->ui.latch == QD_LATCH_BROWSE) {
+        if (b->t != t)
+            qd_br_track(a, t);
+    } else {
+        qd_ctl_select_track(a, t);
+        br_open(a);
+    }
+    b->src = QD_BR_ALL, b->kind = 0;
+    n = qd_br_list(a, b->src, b->kind, list);
+    i = br_find(a, list, n, preset, 0);
+    b->move_dir = i < b->pos ? -1 : 1;
+    b->pos = i;
+    b->moved = 1;
+    b->move_ms = a->ms ? a->ms : 1u;
+    b->del_armed = b->out_armed = 0;
+    br_apply(a);
+    br_sound(a);
+    return 1;
+}
+
 void qd_br_load(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
