@@ -48,7 +48,7 @@ void ui_mix_draw(const ui_mix_t *v)
     panel_head(v->page ? "SENDS" : "MIX", 2, v->page ? 1 : 0, v->nsel);
     for (i = 0; i < UI_NTRACK; i++) {                   /* (six tracks: 40 px a column) */
         const float x = 20.f + (float)i * 40.f;
-        const int sel = i == v->sel, mute = v->tr[i].mute;
+        const int sel = i == v->sel, mute = v->tr[i].mute == 1, solo = v->tr[i].mute == 2;
         const qd_rgb col = mute ? UI_G3 : sel ? UI_K3 : UI_G1;
         char n[4] = {(char)('1' + i), 0};
         if (!v->page) {
@@ -105,10 +105,10 @@ void ui_mix_draw(const ui_mix_t *v)
             ln(x - 5.f, 189.f, x + 5.f, 199.f, UI_K4, 1.6f);
             ln(x + 5.f, 189.f, x - 5.f, 199.f, UI_K4, 1.6f);
         } else {
-            ui_T(n, x, 201.f, 15.f, sel ? 700 : 500, 0.f, sel ? UI_K3 : UI_G1, QD_CENTER);
+            ui_T(n, x, 201.f, 15.f, sel ? 700 : 500, 0.f, solo ? 0xffd23fu : sel ? UI_K3 : UI_G1, QD_CENTER);
         }
-        if (sel)
-            ui_RR(x - 13.f, 184.f, 26.f, 22.f, 4.f, UI_K3, 1.2f, QD_NONE);
+        if (sel || solo)                                /* (soloed: the number and its box yellow, SEL's solo's) */
+            ui_RR(x - 13.f, 184.f, 26.f, 22.f, 4.f, solo ? 0xffd23fu : UI_K3, 1.2f, QD_NONE);
     }
     if (v->page) {                                      /* the sends' names, once, under the selected track's bars */
         static const char *const S[3] = {"CHORUS", "DELAY", "REVERB"};

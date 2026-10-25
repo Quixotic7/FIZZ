@@ -776,7 +776,8 @@ int qd_fx_send_id(int fx);              /* the mix lock id of a track's send int
 void qd_trk_button(struct qd_app *a);   /* SEL tapped: open / the next page */
 void qd_mix_button(struct qd_app *a);   /* ENV (MIX): open / the sends / the faders */
 void qd_fx_button(struct qd_app *a);    /* FX tapped: open / the next page */
-void qd_panel_black(struct qd_app *a, int b);
+void qd_panel_black(struct qd_app *a, int b, int down);
+void qd_mix_ms(struct qd_app *a);       /* the mix's black keys held: the mute */
 void qd_panel_white(struct qd_app *a, int w);     /* P1.5b: the effects' overview: W1..W8 the track */
 int qd_panel_lock_id(const struct qd_app *a, int knob);   /* P1.6d: the send / mix lock a knob turns there (-1) */
 int qd_panel_steps(const struct qd_app *a, int w);        /* P1.6d: W w holds a step there (the sends' locks) */

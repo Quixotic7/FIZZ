@@ -385,8 +385,7 @@ static int w_panel(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_
 static void k_panel_black(qd_app_t *a, int key, int b, int down, int vel)
 {
     (void)key, (void)vel;
-    if (down)
-        qd_panel_black(a, b);
+    qd_panel_black(a, b, down);
 }
 /* P1.5b: the sound editor with the keyboard on: SCALE, the W keys the track's scale (the black keys stay its pages);
  * FULL, every key as the keyboard (k_note's notes; the pages on SELECT). Played, not recorded */
@@ -2005,6 +2004,7 @@ void qd_ctl_ms(qd_app_t *a)
     qd_step_promote_due(a);                             /* a white key down 250 ms: held */
     f1_timers(a);                                       /* F1: a page key held 400 ms, B9 held 600 ms */
     sel_seq_timers(a);                                  /* SEL + W held: solo; SEQ + W held: at once */
+    qd_mix_ms(a);                                       /* the mix: B1..B6 held, the mute */
     if (u->pv_note >= 0 && a->ms - u->pv_ms >= QD_PREVIEW_MS)
         qd_ctl_preview(a, -1, 0);                       /* a knob's note: its moment is over */
     if (u->tk == QD_TK_PRESET && u->tk_hold) {         /* P1.5v: the step's pool picker: up while the step is held */

@@ -301,10 +301,12 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         static const char *const MIXK[2][4] = {{"LEVEL", "PAN", "DELAY", "REVERB"}, {"CHORUS", "DELAY", "REVERB", ""}};
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), MIXK[u->mix_page & 1][k]);
-        lb_set(o, LB_KNOB(QD_K_SELECT), "TRACK");
+        lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_ALGO), "TRACK");
+        lb_set(o, LB_KNOB(QD_K_PRESETS), "MUTE");
         for (i = 0; i < QD_NTRACK; i++)
             lb_setn(o, LB_B(i), "TRACK ", i + 1);
+        lb_set(o, LB_B(10), "CLEAR M/S");
         lb_set(o, LB_BTN(QD_B_PAGE), (u->mix_page & 1) ? "FADERS" : "SENDS");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
