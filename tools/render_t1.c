@@ -18,7 +18,7 @@
 #include "sounds.h"
 #include "ui.h"
 
-#define NSHOT 24
+#define NSHOT 36
 static qd_app_t A;
 static uint32_t now;
 static uint64_t frames_done;
@@ -397,8 +397,42 @@ int render_t1(const char *out)
     run(300);
     shot("short-loop", "Track 5, a 5-step loop: EUCLID works on its 5 steps; the steps that don't play are dots, dark keys", 1);
     btap(QD_B_OCTDN);
+    /* QUANTIZE (HUMANIZE's opposite): track 2's page 1 off its grid, then pulled back */
+    bdown(QD_B_FUNC);
+    turn(QD_K_SELECT, -3);
+    bup(QD_B_FUNC);
+    run(QD_TK_MS + 200);
+    {
+        qd_pattern_t *p = qd_ctl_pat(&A);
+        int s;
+        for (s = 0; s < 16; s++)
+            if (qd_step_is_on(&p->step[1][s])) {
+                qd_step_set_micro(p, 1, s, (s * 7) % 19 - 9);
+                qd_step_set_vel(p, 1, s, 50 + (s * 23) % 70);
+            }
+    }
+    run(600);
+    while (A.ui.tl.tool != QD_TL_QUANTIZE)
+        turn(QD_K_PRESETS, 1);
+    run(150);
+    shot("quantize-popup", "PRESETS: QUANTIZE, the eighth tool (every B key is taken), its name pops", 1);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_1, 10);
+    run(300);
+    shot("quantize-50", "QUANTIZE 50 % (KNOB 1): each step halfway back to its line, its ghost where it was", 1);
+    turn(QD_K_1, 10);
+    turn(QD_K_2, 1);
+    turn(QD_K_3, 20);
+    run(300);
+    shot("quantize-full", "100 %, the grid 1/2 step (KNOB 2: the green ticks), the velocity 100 % (KNOB 3): the track's", 1);
+    turn(QD_K_2, -1);
+    run(300);
+    shot("quantize-step", "The grid a whole step (KNOB 2): every trig on its step", 1);
+    btap(QD_B_OCTUP);
+    run(150);
+    shot("quantize-kept", "OCT+: kept (one undo level), KEPT; the ghosts gone", 1);
     btap(QD_B_HOME);
     qd_app_stop(&A);
-    sheet_as("t1-sheet.png", "TOOLS: T1 (ROTATE, REVERSE, EUCLID, LENGTH), T2 (RANDOM, HUMANIZE, GRIDS), T3 (COPY, PASTE, CLEAR)");
+    sheet_as("t1-sheet.png", "TOOLS: T1 (ROTATE, REVERSE, EUCLID, LENGTH), T2 (RANDOM, HUMANIZE, GRIDS), T3 (COPY, PASTE, CLEAR), QUANTIZE");
     return failed;
 }

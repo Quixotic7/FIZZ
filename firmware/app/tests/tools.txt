@@ -125,3 +125,54 @@ expect fz_fill 0
 expect fz_tools 0
 wait 400
 expect fz_lcd_stale 0
+# QUANTIZE (2026-10-25): HUMANIZE's jitter kept, then pulled back to the grid; PRESETS reaches it (no B key is free),
+# 50 % halves the timing, 100 % puts it on the steps, OCT- gives the jitter back, OCT+ keeps it as one undo level
+expect fz_micabs_1 2
+press ARP
+wait 420
+release ARP
+wait 900
+expect fz_tools 1
+turn ALGO -3
+turn ALGO 2
+wait 1200
+expect fz_tl_scope 2
+tapkey b5
+wait 900
+turn K1 6
+wait 100
+tap OCT+
+wait 100
+expect fz_tools_pend 0
+expect fz_micabs_1 45
+turn PRESET 2
+wait 900
+expect fz_tl_tool 7
+turn K1 10
+wait 100
+expect fz_tools_pend 1
+expect fz_micabs_1 18
+shot tools-quantize-50.png
+turn K1 10
+wait 100
+expect fz_micabs_1 0
+shot tools-quantize-100.png
+tap OCT-
+wait 100
+expect fz_tools_pend 0
+expect fz_micabs_1 45
+turn K1 -1
+wait 100
+turn K1 1
+wait 100
+tap OCT+
+wait 100
+expect fz_micabs_1 0
+press GLO
+tap OCT-
+release GLO
+wait 100
+expect fz_micabs_1 45
+tap HOME
+wait 300
+expect fz_tools 0

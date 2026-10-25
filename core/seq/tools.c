@@ -274,19 +274,73 @@ void qd_tl_random(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t se
     }
 }
 
+void qd_tl_humanize_one(uint32_t h, int micro, int vel, int *m, int *v)
+{
+    if (micro)
+        *m = tl_clampi(*m + tl_spread(h, micro), -23, 23);
+    if (vel)
+        *v = tl_clampi(*v + tl_spread(h >> 12, vel), 1, 127);
+}
+
 void qd_tl_humanize(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int micro, int vel)
 {
     int i;
     for (i = 0; i < n; i++) {
-        const uint32_t h = qd_tl_hash(seed, t, i);
         qd_rstep_t r;
         if (!(p->step[t][pos[i]].flags & QD_SF_ON))
             continue;
         qd_step_resolve(p, t, pos[i], &r);
+        qd_tl_humanize_one(qd_tl_hash(seed, t, i), micro, vel, &r.micro, &r.vel);
         if (micro)
-            qd_step_set_micro(p, t, pos[i], tl_clampi(r.micro + tl_spread(h, micro), -23, 23));
+            qd_step_set_micro(p, t, pos[i], r.micro);
         if (vel)
-            qd_step_set_vel(p, t, pos[i], tl_clampi(r.vel + tl_spread(h >> 12, vel), 1, 127));
+            qd_step_set_vel(p, t, pos[i], r.vel);
+    }
+}
+
+int qd_tl_quant_to(int m, int grid, int amt)
+{
+    static const uint8_t Q[QD_QG_N] = {24, 12, 8, 6};
+    const int q = Q[grid & 3], h = (q - 1) / 2;
+    int g = m >= 0 ? (m + h) / q * q : -((-m + h) / q * q);   /* (the nearest line; a tie: the step's side) */
+    if (g > 23)
+        g -= q;
+    else if (g < -23)
+        g += q;
+    return g + (m - g) * (100 - tl_clampi(amt, 0, 100)) / 100;   /* (rounded toward the line) */
+}
+
+void qd_tl_quantize_one(const qd_step_t *st, const qd_sdef_t *d, int grid, int amt, int vamt, int *m, int *v)
+{
+    if (amt && (st->ovr & QD_OV(QD_PM_MICRO)))
+        *m = qd_tl_quant_to(st->micro, grid, amt);
+    if (vamt && (st->ovr & QD_OV(QD_PM_VEL)))
+        *v = d->vel + (st->vel - d->vel) * (100 - tl_clampi(vamt, 0, 100)) / 100;
+}
+
+void qd_tl_quantize(qd_pattern_t *p, int t, const uint8_t *pos, int n, int grid, int amt, int vamt)
+{
+    const qd_sdef_t *d = &p->trk[t].def;
+    int i;
+    for (i = 0; i < n; i++) {
+        const qd_step_t *st = &p->step[t][pos[i]];
+        const int om = st->ovr & QD_OV(QD_PM_MICRO), ov = st->ovr & QD_OV(QD_PM_VEL);
+        int m = st->micro, v = st->vel;
+        if (!(st->flags & QD_SF_ON))
+            continue;
+        qd_tl_quantize_one(st, d, grid, amt, vamt, &m, &v);
+        if (om && amt) {
+            if (m == d->micro)
+                qd_step_reset(p, t, pos[i], QD_PM_MICRO);
+            else
+                qd_step_set_micro(p, t, pos[i], m);
+        }
+        if (ov && vamt) {
+            if (v == d->vel)
+                qd_step_reset(p, t, pos[i], QD_PM_VEL);
+            else
+                qd_step_set_vel(p, t, pos[i], v);
+        }
     }
 }
 

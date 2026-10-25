@@ -7,7 +7,8 @@
  * (EUCLID), the pages (LENGTH), the lane at the foot (solid kept, ring new, faded going). */
 #include "../seq/tools.h"
 
-static const char *const TL_NAME[QD_TL_N] = {"ROTATE", "REVERSE", "RANDOM", "EUCLID", "GRIDS", "HUMANIZE", "LENGTH"};
+static const char *const TL_NAME[QD_TL_N] = {"ROTATE", "REVERSE", "RANDOM", "EUCLID", "GRIDS", "HUMANIZE", "LENGTH",
+                                                "QUANTIZE"};
 static const char *const TL_SCOPE[QD_TS_N] = {"SELECTED", "PAGE", "TRACK", "PATTERN"};
 
 static void tl_alpha(float a)                           /* (a part of the alpha now; qd_restore after) */
@@ -73,6 +74,12 @@ void ui_tools_icon(int i, float x, float y, int on)
         tl_line(x - 7.f, y + 6.f, x + 7.f, y + 6.f, col, 1.f);
         break;
     }
+    case QD_TL_QUANTIZE:                                /* HUMANIZE's opposite: three bars standing on their lines */
+        tl_line(x - 7.f, y + 6.f, x + 7.f, y + 6.f, col, 1.f);
+        ui_RR(x - 7.f, y - 4.f, 3.f, 9.f, 1.f, QD_NONE, 1.f, col);
+        ui_RR(x - 1.5f, y - 6.f, 3.f, 11.f, 1.f, QD_NONE, 1.f, col);
+        ui_RR(x + 4.f, y - 2.f, 3.f, 7.f, 1.f, QD_NONE, 1.f, col);
+        break;
     default: {                                          /* LENGTH: a page, and a dashed one after it */
         static const float D[2] = {2.f, 2.f};
         ui_RR(x - 8.f, y - 4.f, 7.f, 8.f, 1.5f, col, lw * 0.8f, QD_NONE);
@@ -114,9 +121,9 @@ static void tl_head(const ui_tools_t *v)
 {
     int i;
     for (i = 0; i < QD_TL_N; i++) {
-        ui_tools_icon(i, 13.f + (float)i * 21.f, 14.f, i == v->tool);
+        ui_tools_icon(i, 12.f + (float)i * 19.f, 14.f, i == v->tool);   /* (eight: 19 px apart) */
         if (i == v->tool)
-            tl_line(4.f + (float)i * 21.f, 27.f, 22.f + (float)i * 21.f, 27.f, UI_K3, 2.f);
+            tl_line(4.f + (float)i * 19.f, 27.f, 20.f + (float)i * 19.f, 27.f, UI_K3, 2.f);
     }
     if (v->nolive) {                                    /* drawn only: no undo (the arrow crossed out) */
         ui_icon(UI_IC_UNDO, 160.f, 14.f, 1.f, UI_KSEL);
@@ -359,26 +366,53 @@ static void tl_random(const ui_tools_t *v)
     tl_lane(v, 0);
 }
 
-/* HUMANIZE: the steps off their grid lines (each its micro-timing), their heights the velocities; the two jitters
- * (KNOB 1 timing, KNOB 2 velocity) as bars under them */
-static void tl_humanize(const ui_tools_t *v)
+/* HUMANIZE and QUANTIZE: the steps off their grid lines (each its micro-timing), their heights the velocities; where a
+ * change moves one, its ghost (as it was) faded behind it. HUMANIZE: the two jitters (KNOB 1 timing, KNOB 2 velocity)
+ * as bars under them. QUANTIZE: the grid's lines (KNOB 2, in its green: ticks in each step) at the foot, the amount
+ * (KNOB 1) and the velocity's (KNOB 3) as bars, the grid as a step cut in its parts between them */
+static void tl_hbar(float x, float y, float u, qd_rgb col)
 {
+    ui_RR(x, y, 70.f, 10.f, 4.f, UI_G3, 1.4f, QD_NONE);
+    if (u > 0.f)
+        ui_RR(x + 2.f, y + 2.f, 66.f * (u > 1.f ? 1.f : u), 6.f, 3.f, QD_NONE, 1.f, col);
+}
+static void tl_timing(const ui_tools_t *v)
+{
+    const int q = v->tool == QD_TL_QUANTIZE;
     int i, k;
-    for (i = 0; i < 16; i++)
-        tl_line(16.f + (float)i * 13.6f, 44.f, 16.f + (float)i * 13.6f, 176.f, i % 4 ? UI_G3 : UI_G2, 1.f);
+    for (i = 0; i < 16; i++) {
+        const float x = 16.f + (float)i * 13.6f;
+        tl_line(x, 44.f, x, 176.f, i % 4 ? UI_G3 : UI_G2, 1.f);
+        for (k = 1; q && k <= v->r[1]; k++) {           /* (the grid's lines within the step: ticks) */
+            const float gx = x + 13.6f * (float)k / (float)(v->r[1] + 1);
+            tl_line(gx, 176.f, gx, 171.f, UI_K2, 1.f);
+        }
+    }
     for (i = 0; i < 16; i++)
         if (v->on[i]) {
             const float x = 16.f + (float)i * 13.6f, dx = (float)v->micro[i] * 0.55f, h = 10.f + (float)v->vel[i];
-            ui_RR(x + dx - 5.f, 176.f - h, 10.f, h, 3.f, QD_NONE, 1.f, v->tcol);
+            ui_RR(x + dx - 3.5f, 176.f - h, 7.f, h, 2.5f, QD_NONE, 1.f, v->tcol);
+            if (v->micro0[i] != v->micro[i] || v->vel0[i] != v->vel[i]) {   /* (the ghost: as it was, outlined) */
+                const float h0 = 10.f + (float)v->vel0[i];
+                tl_alpha(0.7f);
+                ui_RR(x + (float)v->micro0[i] * 0.55f - 3.5f, 176.f - h0, 7.f, h0, 2.5f, UI_G1, 1.4f, QD_NONE);
+                qd_restore();
+            }
             if (v->micro[i])
                 tl_line(x, 182.f, x + dx, 182.f, UI_K1, 2.4f);
         }
-    for (k = 0; k < 2; k++) {
-        const float u = (float)v->r[k] / (k ? 40.f : 12.f);
-        ui_RR(40.f + (float)k * 90.f, 196.f, 70.f, 10.f, 4.f, UI_G3, 1.4f, QD_NONE);
-        if (u > 0.f)
-            ui_RR(42.f + (float)k * 90.f, 198.f, 66.f * (u > 1.f ? 1.f : u), 6.f, 3.f, QD_NONE, 1.f, k ? UI_K2 : UI_K1);
+    if (!q) {
+        tl_hbar(40.f, 196.f, (float)v->r[0] / 12.f, UI_K1);
+        tl_hbar(130.f, 196.f, (float)v->r[1] / 40.f, UI_K2);
+        return;
     }
+    tl_hbar(8.f, 198.f, (float)v->r[0] / 100.f, UI_K1);
+    ui_RR(94.f, 196.f, 52.f, 14.f, 3.f, UI_K2, 1.6f, QD_NONE);   /* (a step, cut in its grid's parts) */
+    for (k = 1; k <= v->r[1]; k++) {
+        const float gx = 94.f + 52.f * (float)k / (float)(v->r[1] + 1);
+        tl_line(gx, 196.f, gx, 210.f, UI_K2, 1.6f);
+    }
+    tl_hbar(162.f, 198.f, (float)v->r[2] / 100.f, UI_K3);
 }
 
 /* GRIDS: the map's pad (its nine nodes), the dot at X (KNOB 1, blue) and Y (KNOB 2, green), chaos (KNOB 4) as a
@@ -440,7 +474,8 @@ void ui_tools_draw(const ui_tools_t *v)
     case QD_TL_EUCLID: tl_euclid(v); break;
     case QD_TL_LENGTH: tl_length(v); break;
     case QD_TL_RANDOM: tl_random(v); break;
-    case QD_TL_HUMANIZE: tl_humanize(v); break;
+    case QD_TL_HUMANIZE:
+    case QD_TL_QUANTIZE: tl_timing(v); break;
     default: tl_grids(v); break;
     }
 }

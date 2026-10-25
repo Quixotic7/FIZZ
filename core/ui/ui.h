@@ -878,7 +878,7 @@ void ui_mfx_draw(const ui_mfx_t *v);
 void ui_mfx_step_draw(int step, int m, int g, const uint8_t type[8], const char *trig, float t);
 
 /* ================================================================ T1: TOOLS (ui_tools.c) ===
- * mockups/fizz-tools.html: the head (the seven tools as pictures, the chosen underlined; the orange dot: a change
+ * mockups/fizz-tools.html: the head (the eight tools as pictures, the chosen underlined; the orange dot: a change
  * pending; the crossed-out arrow: drawn only, no undo; the track's box; the scope's picture), the tool's picture, the
  * lane at the foot (the edited page as it will be: solid kept, ring new, faded going) */
 typedef struct {
@@ -894,11 +894,13 @@ typedef struct {
     int hits, len, erot, emode, epos;   /* EUCLID; epos: the playing position in its length (-1) */
     int count, lpow;                    /* LENGTH: the track's steps after, the doublings */
     int r[4];                           /* T2: RANDOM's density %, notes, velocity, chance spreads; HUMANIZE's micro and
-                                         * velocity jitters (r[0], r[1]); GRIDS' x, y, density, chaos (0..255) */
+                                         * velocity jitters (r[0], r[1]); GRIDS' x, y, density, chaos (0..255);
+                                         * QUANTIZE's amount %, grid (QD_QG_*), velocity % */
     int seed, part;                     /* .. the seed (the die's face); GRIDS' part (0 LOW, 1 MID, 2 HIGH) */
     int8_t gtr[3];                      /* .. PATTERN: the tracks the parts go to (-1 none) */
-    int8_t micro[16];                   /* .. HUMANIZE: the lane's micro-timing (24ths), its velocities */
-    uint8_t vel[16];
+    int8_t micro[16], micro0[16];       /* .. HUMANIZE, QUANTIZE: the lane's micro-timing (24ths), its velocities, as the
+                                         * change makes them and as they were (the ghosts) */
+    uint8_t vel[16], vel0[16];
     uint8_t loop, loop0;                /* .. the loop's pages after, before */
     uint8_t page;                       /* the page shown (0..7: the page strip over the lane) */
     uint16_t inr;                       /* .. its steps that play (bit w: within its start..end) */

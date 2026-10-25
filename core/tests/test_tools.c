@@ -493,7 +493,7 @@ static void t_knobs(void)                               /* SELECT the page, PRES
     turn(QD_K_PRESETS, 2);
     CHECK(A.ui.tl.tool == QD_TL_EUCLID, "PRESETS +2: RANDOM, EUCLID");
     turn(QD_K_PRESETS, -4);
-    CHECK(A.ui.tl.tool == QD_TL_LENGTH, "PRESETS back: round to LENGTH");
+    CHECK(A.ui.tl.tool == QD_TL_QUANTIZE, "PRESETS back: round to QUANTIZE (the eighth, after LENGTH)");
     turn(QD_K_ALGO, -1);
     CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tk_knob == 1, "ALGORITHM: the scope (PAGE), its takeover");
     turn(QD_K_ALGO, -5);
@@ -960,6 +960,163 @@ static void t_random_names(void)                        /* RANDOM's knobs: their
     btap(QD_B_HOME);
 }
 
+/* QUANTIZE (HUMANIZE's opposite): the steps' own micro toward the grid, their own velocities toward the default */
+static void t_quantize(void)
+{
+    uint8_t pos[QD_NSTEP];
+    int n, i, ok = 1, ok2 = 1, ok3 = 1;
+    CHECK(qd_tl_quant_to(9, QD_QG_1, 100) == 0 && qd_tl_quant_to(-23, QD_QG_1, 100) == 0 &&
+              qd_tl_quant_to(9, QD_QG_2, 100) == 12 && qd_tl_quant_to(6, QD_QG_2, 100) == 0 &&
+              qd_tl_quant_to(20, QD_QG_2, 100) == 12 && qd_tl_quant_to(-18, QD_QG_2, 100) == -12 &&
+              qd_tl_quant_to(-5, QD_QG_3, 100) == -8 && qd_tl_quant_to(4, QD_QG_3, 100) == 0 &&
+              qd_tl_quant_to(22, QD_QG_4, 100) == 18 && qd_tl_quant_to(10, QD_QG_1, 50) == 5 &&
+              qd_tl_quant_to(-7, QD_QG_1, 50) == -3 && qd_tl_quant_to(9, QD_QG_2, 50) == 11 &&
+              qd_tl_quant_to(13, QD_QG_1, 0) == 13,
+          "the grid's lines (a step, 1/2, 1/3, 1/4; the step's own, a tie to the step's), 50 %% halfway (toward the line)");
+    fill(&P0);
+    P1 = P0;
+    n = qd_tl_positions(&P1, 0, QD_TS_TRACK, 0, pos);
+    qd_tl_quantize(&P1, 0, pos, n, QD_QG_1, 100, 0);
+    for (i = 0; i < QD_NSTEP; i++) {
+        const qd_step_t *a = &P0.step[0][i], *b = &P1.step[0][i];
+        qd_rstep_t r;
+        qd_step_resolve(&P1, 0, i, &r);
+        if (qd_tl_pos_of(pos, n, i) >= 0 && qd_step_is_on(a) && (a->ovr & QD_OV(QD_PM_MICRO)))
+            ok &= r.micro == 0 && !(b->ovr & QD_OV(QD_PM_MICRO)) && b->vel == a->vel && !memcmp(b->note, a->note, QD_NNOTE);
+        else
+            ok &= !memcmp(a, b, sizeof *a);
+    }
+    CHECK(ok && qd_pat_check(&P1) && !memcmp(P0.step[1], P1.step[1], sizeof P0.step[1]) &&
+              !memcmp(P0.lock, P1.lock, sizeof P0.lock),
+          "100 %%: every trig's own micro on its step (0, the override gone), nothing else, no other track, the locks kept");
+    P1 = P0;
+    qd_tl_quantize(&P1, 0, pos, n, QD_QG_1, 50, 0);
+    for (i = 0; i < n; i++) {
+        const qd_step_t *a = &P0.step[0][pos[i]], *b = &P1.step[0][pos[i]];
+        qd_rstep_t r;
+        qd_step_resolve(&P1, 0, pos[i], &r);
+        if (qd_step_is_on(a) && (a->ovr & QD_OV(QD_PM_MICRO)))
+            ok2 &= r.micro == a->micro / 2;
+        else
+            ok2 &= !memcmp(a, b, sizeof *a);
+    }
+    CHECK(ok2, "50 %%: every own micro halved (toward the step)");
+    P1 = P0;
+    qd_tl_quantize(&P1, 0, pos, n, QD_QG_1, 0, 100);
+    for (i = 0; i < n; i++) {
+        const qd_step_t *a = &P0.step[0][pos[i]], *b = &P1.step[0][pos[i]];
+        qd_rstep_t r;
+        qd_step_resolve(&P1, 0, pos[i], &r);
+        if (qd_step_is_on(a) && (a->ovr & QD_OV(QD_PM_VEL)))
+            ok3 &= r.vel == P1.trk[0].def.vel && !(b->ovr & QD_OV(QD_PM_VEL)) && b->micro == a->micro;
+        else
+            ok3 &= !memcmp(a, b, sizeof *a);
+    }
+    CHECK(ok3, "the velocity's 100 %%: every own velocity back to the track's (the override gone), the timing kept");
+}
+
+/* QUANTIZE live in TOOLS: PRESETS reaches it (no B key), each scope, ghosts, OCT- byte-exact, OCT+ a level, undo */
+static int micro_of(int t, int s)
+{
+    qd_rstep_t r;
+    qd_step_resolve(PAT(), t, s, &r);
+    return r.micro;
+}
+static int vel_of(int t, int s)
+{
+    qd_rstep_t r;
+    qd_step_resolve(PAT(), t, s, &r);
+    return r.vel;
+}
+static int same_pat(const qd_pattern_t *b)
+{
+    return !memcmp(PAT()->step, b->step, sizeof b->step) && !memcmp(PAT()->lock, b->lock, sizeof b->lock) &&
+           PAT()->nlock == b->nlock && !memcmp(PAT()->trk, b->trk, sizeof b->trk);
+}
+static void t_quant_live(void)
+{
+    qd_pattern_t *before = malloc(sizeof *before);
+    int8_t mi[16], mi0[16];
+    uint8_t ve[16], ve0[16];
+    qd_leds_t l;
+    int n0, t, i, ok = 1;
+    start();
+    bass(0);
+    bass(1);
+    for (t = 0; t < 2; t++)                             /* (off the grid: page 1's trigs +9 / -10, page 2's +7) */
+        for (i = 0; i < 32; i++)
+            if (qd_step_is_on(&PAT()->step[t][i])) {
+                qd_step_set_micro(PAT(), t, i, i >= 16 ? 7 : i & 1 ? -10 : 9);
+                qd_step_set_vel(PAT(), t, i, 60 + i);
+            }
+    run(600);
+    *before = *PAT();
+    n0 = qd_undo_count(&A, -1);
+    tools_open();
+    turn(QD_K_PRESETS, -1);                             /* (ROTATE back round: the eighth) */
+    l = leds();
+    for (i = 0; i < QD_TL_NKEY; i++)
+        ok &= l.key[BK(i)] == QD_LED_DIM;
+    CHECK(A.ui.tl.tool == QD_TL_QUANTIZE && A.ui.tl.scope == QD_TS_TRACK && !qd_tools_pending(&A) && ok &&
+              l.key[BK(7)] == QD_LED_OFF && A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob,
+          "PRESETS -1: QUANTIZE (its name pops; B1..B7 dim, B8 COPY dark in TRACK); nothing yet");
+    turn(QD_K_1, 10);
+    CHECK(qd_tools_pending(&A) && A.ui.tl.v.qu.amt == 50 && micro_of(0, 0) == 4 && micro_of(0, 3) == -5 &&
+              micro_of(0, 18) == 3 && !memcmp(PAT()->step[1], before->step[1], sizeof before->step[1]),
+          "KNOB 1 +10: 50 %% live, TRACK: both pages' micro halved, track 2 untouched");
+    qd_tools_timing(&A, mi, ve, mi0, ve0);
+    CHECK(mi[0] == 4 && mi0[0] == 9 && mi[3] == -5 && mi0[3] == -10 && ve[0] == ve0[0], "the ghosts: as they were");
+    btap(F1);
+    CHECK(same_pat(before) && !qd_tools_pending(&A) && qd_undo_count(&A, -1) == n0, "OCT-: byte for byte, no level");
+    turn(QD_K_1, 20);
+    CHECK(A.ui.tl.v.qu.amt == 100 && micro_of(0, 0) == 0 && micro_of(0, 3) == 0 && micro_of(0, 18) == 0 &&
+              PAT()->step[0][0].vel == before->step[0][0].vel, "100 %%: on the grid, the velocities kept");
+    turn(QD_K_3, 20);
+    CHECK(A.ui.tl.v.qu.vel == 100 && vel_of(0, 0) == PAT()->trk[0].def.vel &&
+              !(PAT()->step[0][0].ovr & QD_OV(QD_PM_VEL)), "KNOB 3 100 %%: the velocities back to the track's");
+    turn(QD_K_3, -20);
+    turn(QD_K_2, 1);
+    CHECK(A.ui.tl.v.qu.grid == QD_QG_2 && micro_of(0, 0) == 12 && micro_of(0, 3) == -12 && micro_of(0, 18) == 12,
+          "KNOB 2: the half-step grid (+9 -> +12, -10 -> -12, +7 -> +12)");
+    turn(QD_K_2, -1);
+    btap(F2);
+    CHECK(!qd_tools_pending(&A) && qd_undo_count(&A, -1) == n0 + 1 && micro_of(0, 0) == 0, "OCT+: kept, one level");
+    bdown(QD_B_FUNC);
+    btap(F1);
+    bup(QD_B_FUNC);
+    run(10);
+    CHECK(same_pat(before), "SHIFT + F1: undone byte for byte");
+    turn(QD_K_ALGO, -1);                                /* PAGE */
+    turn(QD_K_1, -1);                                   /* (100 % kept from before: a change again) */
+    turn(QD_K_1, 20);
+    CHECK(A.ui.tl.scope == QD_TS_PAGE && micro_of(0, 0) == 0 && micro_of(0, 18) == 7, "PAGE: page 1 only");
+    btap(F1);
+    CHECK(same_pat(before), "OCT-: byte for byte");
+    turn(QD_K_ALGO, 2);                                 /* PATTERN */
+    turn(QD_K_1, -1);                                   /* (100 % kept from before: a change again) */
+    turn(QD_K_1, 20);
+    CHECK(A.ui.tl.scope == QD_TS_PATTERN && micro_of(0, 3) == 0 && micro_of(1, 3) == 0 && micro_of(1, 18) == 0,
+          "PATTERN: every track");
+    btap(F1);
+    CHECK(same_pat(before), "OCT-: byte for byte");
+    while (A.ui.nheld)                                  /* (W1 and W4 selected) */
+        qd_step_select_toggle(&A, A.ui.held[0]);
+    white(0), white(3);
+    turn(QD_K_1, -1);                                   /* (100 % kept from before: a change again) */
+    turn(QD_K_1, 20);
+    CHECK(A.ui.tl.scope == QD_TS_SEL && micro_of(0, 0) == 0 && micro_of(0, 3) == 0 && micro_of(0, 6) == 9 &&
+              micro_of(0, 18) == 7, "SELECTED: steps 1 and 4 only");
+    btap(F1);
+    CHECK(same_pat(before), "OCT-: byte for byte");
+    A.ui.tl.flags = QD_TLF_PEND | QD_TLF_NOLIVE, A.ui.tl.otrack = 0, A.ui.tl.opage = 0;   /* (drawn only: worked out) */
+    A.ui.tl.scope = QD_TS_TRACK, A.ui.tl.v.qu.amt = 100;
+    qd_tools_timing(&A, mi, ve, mi0, ve0);
+    CHECK(mi[0] == 0 && mi0[0] == 9 && mi[6] == 0 && same_pat(before), "drawn only: the result worked out, nothing written");
+    A.ui.tl.flags = 0;
+    btap(QD_B_HOME);
+    free(before);
+}
+
 static void t_screens(void)                             /* every tool's screen, every scope, drawn (sanitizers) */
 {
     static uint16_t lcd[QD_W * QD_H];
@@ -972,7 +1129,11 @@ static void t_screens(void)                             /* every tool's screen, 
     for (tool = 0; tool < QD_TL_N; tool++) {
         if (!QD_TL_BUILT(tool))
             continue;
-        black(tool);
+        if (tool < QD_TL_NKEY)
+            black(tool);
+        else                                            /* (QUANTIZE: PRESETS only) */
+            while (A.ui.tl.tool != tool)
+                turn(QD_K_PRESETS, 1);
         for (sc = 0; sc < QD_TS_N; sc++) {
             turn(QD_K_4, 1);
             turn(QD_K_1, 2);
@@ -1019,6 +1180,8 @@ int main(void)
         {"the owner's: 64 steps, SELECT's page kept, ghosts, LEDs, a short loop", t_owner},
         {"SELECTED + ROTATE: the selected step moves", t_sel_rotate},
         {"RANDOM: the knobs' names pop", t_random_names},
+        {"ops: QUANTIZE (the grid's lines, 100 %, 50 %, the velocity)", t_quantize},
+        {"QUANTIZE live: PRESETS, each scope, ghosts, OCT- exact, undo", t_quant_live},
         {"every screen drawn", t_screens},
     };
     size_t i;
