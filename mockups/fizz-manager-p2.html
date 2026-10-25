@@ -1,0 +1,411 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     FIZZ's web manager, Phase 2 mock-up (docs/MANAGER-P2-PLAN.md): the sound editor, export, projects and patterns,
+     and the project library kept in the browser. Static: nothing connects. The
+     names and values are invented.
+     ?shot=N  one screen (render_png.py: p2-N)   ?sheet=1  every screen at half size   no query: all, one under another -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ Manager P2 mock-up</title>
+<style>
+@font-face { font-family: "Inter Tight"; src: url("../site/fonts/InterTight-VF-latin.woff") format("woff"); font-weight: 100 900; }
+:root {
+  --bg: #000; --panel: #0b0b0e; --raised: #131318; --line: #22222a; --text: #ECECEF; --body: #C9C9D1; --muted: #8D8D96;
+  --cyan: #28E1FF; --blue: #3F7DFF; --green: #1FD47E; --cream: #F1F0EA; --orange: #FF6A2C; --pink: #FF3CA0;
+  --yellow: #FFD23F; --violet: #9664FF; --magenta: #F03CFF; --champagne: #F3D9A4; --red: #FF6464; --rose: #FF8FC8;
+  /* the knobs' colours (core/ui/ui.h UI_K1..UI_K4, UI_KALG); the operators C A B1 B2 take them in order */
+  --k1: #3F7DFF; --k2: #1FD47E; --k3: #F1F0EA; --k4: #FF6A2C; --kalg: #FF8FC8;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #050506; color: var(--body); font: 500 15px/1.4 "Inter Tight", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+body.all .screen { margin: 0 auto 40px; }
+.screen { width: 1280px; height: 800px; background: var(--bg); position: relative; overflow: hidden; display: flex; flex-direction: column; }
+b { color: var(--text); }
+.top { height: 64px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 24px; border-bottom: 1px solid var(--line); }
+.bub { width: 32px; height: 32px; fill: none; stroke-width: 2.4; }
+.bub circle:nth-child(1) { stroke: var(--cyan); } .bub circle:nth-child(2) { stroke: var(--pink); } .bub circle:nth-child(3) { stroke: var(--yellow); }
+.word { font-size: 26px; font-weight: 800; letter-spacing: .06em; background: linear-gradient(90deg, #28E1FF, #3F7DFF 30%, #F03CFF 62%, #FF6A2C 85%, #FFD23F); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.crumb { color: var(--text); font-weight: 600; font-size: 17px; }
+.tabs { display: flex; gap: 8px; margin-left: 20px; }
+.tab { height: 40px; padding: 0 16px; border-radius: 20px; display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 13px; letter-spacing: .08em; color: var(--muted); border: 1.5px solid var(--line); }
+.tab i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.tab.on { color: #000; background: var(--c); border-color: var(--c); box-shadow: 0 0 18px color-mix(in srgb, var(--c) 45%, transparent); }
+.tab.on i { background: #000; }
+.unit { margin-left: auto; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px 0 12px; border-radius: 20px; border: 1.5px solid var(--green); color: var(--text); font-weight: 700; font-size: 14px; white-space: nowrap; }
+.unit .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+.unit small { color: var(--muted); font-weight: 600; font-size: 13px; }
+.body { flex: 1; display: flex; gap: 20px; padding: 22px 24px; min-height: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px; position: relative; }
+.h { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
+.h .n { color: var(--text); letter-spacing: 0; font-size: 15px; }
+.big { font-size: 44px; font-weight: 800; color: var(--text); line-height: 1; letter-spacing: -.01em; }
+.btn { height: 52px; padding: 0 26px; border-radius: 26px; font: 800 16px "Inter Tight"; letter-spacing: .08em; border: 0; color: #000; background: var(--c, var(--cyan)); display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 0 22px color-mix(in srgb, var(--c, var(--cyan)) 40%, transparent); white-space: nowrap; }
+.btn.ghost { background: transparent; color: var(--text); border: 1.5px solid var(--line); box-shadow: none; }
+.btn.small { height: 38px; padding: 0 16px; font-size: 13px; border-radius: 19px; }
+.row { display: flex; gap: 10px; align-items: center; }
+.kv { font-size: 13px; font-weight: 600; color: var(--muted); }
+.tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 800; letter-spacing: .05em; color: #000; }
+.t-BASS { background: var(--blue); color: #fff; } .t-KEYS { background: var(--cream); } .t-PLUCK { background: var(--yellow); }
+.t-PAD { background: var(--violet); color: #fff; } .t-LEAD { background: var(--green); } .t-DRUMS { background: var(--orange); } .t-FX { background: var(--pink); color: #fff; }
+.seg { display: flex; border: 1.5px solid var(--line); border-radius: 22px; overflow: hidden; }
+.seg span { height: 40px; padding: 0 16px; display: flex; align-items: center; font-weight: 800; font-size: 13px; letter-spacing: .07em; color: var(--muted); white-space: nowrap; }
+.seg span.on { background: var(--c); color: #000; }
+
+/* the editor */
+.grp { display: flex; flex-direction: column; gap: 8px; width: 156px; flex: none; }
+.gk { height: 54px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--raised); display: flex; align-items: center; gap: 12px; padding: 0 14px; font-weight: 800; font-size: 14px; letter-spacing: .07em; color: var(--muted); }
+.gk svg { flex: none; }
+.gk.on { border-color: var(--c); color: var(--text); background: color-mix(in srgb, var(--c) 14%, var(--raised)); box-shadow: 0 0 16px color-mix(in srgb, var(--c) 30%, transparent); }
+.aud { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-radius: 20px; background: color-mix(in srgb, var(--pink) 16%, transparent); border: 1.5px solid var(--pink); color: var(--text); font-weight: 800; font-size: 13px; letter-spacing: .06em; white-space: nowrap; }
+.aud .live { width: 9px; height: 9px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 10px var(--pink); }
+.op { border-radius: 16px; background: var(--raised); border: 2px solid var(--c); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+.op .nm { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--c); }
+.op .v { font-size: 40px; font-weight: 800; color: var(--text); line-height: 1; }
+.op .v small { font-size: 18px; color: var(--muted); font-weight: 700; }
+.lev { height: 10px; border-radius: 5px; background: #1d1d23; overflow: hidden; }
+.lev span { display: block; height: 100%; background: var(--c); border-radius: 5px; }
+.dial { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dial .lb { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--muted); }
+.dial .vv { font-size: 22px; font-weight: 800; color: var(--text); }
+.drag { position: absolute; border-radius: 50%; border: 3px solid var(--yellow); box-shadow: 0 0 18px var(--yellow); }
+
+/* export */
+.fmt { border-radius: 18px; border: 2px solid var(--line); background: var(--raised); padding: 18px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.fmt.on { border-color: var(--c); box-shadow: 0 0 22px color-mix(in srgb, var(--c) 30%, transparent); background: color-mix(in srgb, var(--c) 8%, var(--raised)); }
+.fmt .ext { font-size: 13px; font-weight: 800; color: var(--c); letter-spacing: .06em; }
+.fmt .t { font-size: 26px; font-weight: 800; color: var(--text); }
+.fid { display: flex; gap: 3px; }
+.fid i { flex: 1; height: 14px; border-radius: 3px; background: #24242b; }
+.lost { display: flex; align-items: center; gap: 14px; height: 50px; padding: 0 16px; border-radius: 12px; background: var(--raised); border: 1.5px solid var(--line); margin-bottom: 8px; }
+.lost .what { color: var(--text); font-weight: 800; font-size: 16px; width: 200px; }
+.lost .how { font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 8px; color: #000; background: var(--c); }
+.lost .val { color: var(--muted); font-weight: 700; font-size: 14px; margin-left: auto; }
+
+/* projects */
+.slot { height: 72px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--raised); display: flex; align-items: center; gap: 14px; padding: 0 16px; position: relative; }
+.slot .no { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #000; background: var(--green); flex: none; }
+.slot .pn { font-size: 20px; font-weight: 800; color: var(--text); letter-spacing: .03em; }
+.slot .meta { font-size: 13px; font-weight: 700; color: var(--muted); }
+.slot.empty { border-style: dashed; background: transparent; }
+.slot.empty .no { background: #24242b; color: var(--muted); }
+.slot.cur { border-color: var(--green); box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 30%, transparent), 0 0 20px color-mix(in srgb, var(--green) 25%, transparent); }
+.slot.target { border: 2px solid var(--yellow); background: color-mix(in srgb, var(--yellow) 10%, transparent); box-shadow: 0 0 18px color-mix(in srgb, var(--yellow) 40%, transparent); }
+.mini { display: grid; grid-template-columns: repeat(16, 4px); gap: 2px; margin-left: auto; }
+.mini i { width: 4px; height: 4px; border-radius: 1px; background: #2a2a31; }
+.bp { border-radius: 16px; background: var(--raised); border: 1.5px solid var(--line); padding: 14px; display: flex; flex-direction: column; gap: 8px; position: relative; }
+.bp .pn { font-size: 19px; font-weight: 800; color: var(--text); }
+.bp .meta { font-size: 13px; font-weight: 700; color: var(--muted); }
+.bp .snd { display: flex; gap: 4px; flex-wrap: wrap; }
+.bp .snd i { width: 12px; height: 12px; border-radius: 3px; }
+.ghost-drag { position: absolute; transform: rotate(-3deg); box-shadow: 0 18px 40px rgba(0,0,0,.6), 0 0 0 2px var(--yellow); border-color: var(--yellow) !important; z-index: 4; }
+.stored { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 6px; color: #000; background: var(--champagne); }
+
+/* patterns */
+.pgrid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 7px; }
+.pt { border-radius: 10px; background: #101014; border: 1.5px solid #1c1c22; padding: 6px 6px 7px; display: flex; flex-direction: column; gap: 3px; position: relative; }
+.pt .no { font-size: 11px; font-weight: 800; color: #6a6a74; margin-bottom: 2px; }
+.pt .tr { display: grid; grid-template-columns: repeat(16, 1fr); gap: 1px; height: 4px; }
+.pt .tr i { border-radius: 1px; background: #1f1f25; }
+.pt.used { border-color: #2c2c34; background: #131318; }
+.pt.cur { border-color: var(--cyan); box-shadow: 0 0 12px color-mix(in srgb, var(--cyan) 40%, transparent); }
+.pt.sel { border: 2px solid var(--yellow); box-shadow: 0 0 16px color-mix(in srgb, var(--yellow) 45%, transparent); }
+.pt.tgt { border: 2px dashed var(--yellow); background: color-mix(in srgb, var(--yellow) 10%, #101014); }
+.bank { font-size: 15px; font-weight: 800; color: var(--text); width: 22px; display: grid; place-items: center; }
+
+/* the FM-1 */
+.lcd { width: 240px; height: 240px; background: #000; border-radius: 6px; position: relative; overflow: hidden; box-shadow: 0 0 0 10px #1a1a1f, 0 0 0 11px #2a2a31; }
+.fm1 { width: 320px; border-radius: 26px; background: #1c1c21; padding: 26px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.fm1 .keys { display: flex; gap: 8px; }
+.fm1 .key { width: 52px; height: 34px; border-radius: 7px; background: #2b2b31; border: 1.5px solid #383840; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #6c6c75; }
+.fm1 .key.lit { background: var(--green); border-color: var(--green); color: #000; box-shadow: 0 0 18px var(--green); }
+.fm1 .key.dim { background: color-mix(in srgb, var(--red) 25%, #2b2b31); border-color: color-mix(in srgb, var(--red) 50%, #383840); color: var(--red); }
+.scrim { position: absolute; inset: 64px 0 0 0; background: rgba(0,0,0,.72); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; gap: 40px; z-index: 5; }
+.modal { width: 640px; background: var(--panel); border: 1.5px solid var(--yellow); border-radius: 22px; padding: 24px; box-shadow: 0 0 40px color-mix(in srgb, var(--yellow) 25%, transparent); }
+.cf { display: grid; grid-template-columns: 26px 1fr 210px; gap: 12px; align-items: center; height: 52px; padding: 0 14px; border-radius: 12px; background: var(--raised); border: 1.5px solid var(--line); margin-bottom: 8px; }
+.cf .nm { color: var(--text); font-weight: 800; font-size: 16px; }
+.st { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; }
+
+/* the player as the big screen */
+.pkey { height: 40px; border-radius: 10px; background: #1b1b21; border: 1.5px solid #2c2c34; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--muted); letter-spacing: .06em; }
+.pkey.lit { background: color-mix(in srgb, var(--c) 30%, #1b1b21); border-color: var(--c); color: var(--text); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 45%, transparent); }
+.knob { width: 62px; height: 62px; border-radius: 50%; background: #18181d; border: 2px solid #2c2c34; position: relative; }
+.knob::after { content: ""; position: absolute; left: 28px; top: 6px; width: 4px; height: 18px; border-radius: 2px; background: var(--c); transform-origin: 2px 23px; transform: rotate(var(--a, 0deg)); }
+.knob.ring { box-shadow: 0 0 0 3px var(--c); }
+
+/* the sheet */
+body.sheet { padding: 24px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(3, 640px); gap: 26px 22px; }
+.sheetgrid .cell { width: 640px; }
+.sheetgrid .frame { width: 640px; height: 400px; overflow: hidden; border-radius: 8px; }
+.sheetgrid .frame .screen { transform: scale(.5); transform-origin: 0 0; }
+.sheetgrid .cap { color: #c8c8cf; font: 700 15px "Inter Tight", sans-serif; margin: 8px 0 0; }
+.sheettitle { font: 800 24px "Inter Tight", sans-serif; margin: 0 0 18px; color: #eee; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+const $ = (h) => { const d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstElementChild; };
+const TAGC = { BASS: "--blue", KEYS: "--cream", PLUCK: "--yellow", PAD: "--violet", LEAD: "--green", DRUMS: "--orange", FX: "--pink" };
+const tag = (t) => `<span class="tag t-${t}">${t}</span>`;
+const TABS = [["BACKUP", "--yellow"], ["LIBRARY", "--cream"], ["EDIT", "--pink"], ["POOL", "--green"], ["PROJECTS", "--cyan"], ["IMPORT", "--violet"]];
+const topBar = (on, unit = `FM-1 <small>FIZZ 0.13.0 · 6 tracks</small>`) => `<div class="top"><svg class="bub" viewBox="0 0 32 32"><circle cx="11" cy="20" r="7"/><circle cx="22" cy="10" r="5"/><circle cx="23" cy="24" r="3"/></svg><span class="word">FIZZ</span><span class="crumb">Manager</span>
+  <div class="tabs">${TABS.map(([t, c]) => `<span class="tab ${t === on ? "on" : ""}" style="--c:var(${c})"><i></i>${t}</span>`).join("")}</div>
+  <span class="unit"><span class="dot"></span>${unit}</span></div>`;
+
+// the editor's group keys (the device's B1..B8 groups: TRIG/KEYS, OPERATORS, OP ENVELOPES, FILTER, AMP, LFO 1..3), each an icon
+const GROUPS = [["OPERATORS", "--k1", "M4 18a5 5 0 1 0 10 0 5 5 0 1 0-10 0M15 7a4 4 0 1 0 8 0 4 4 0 1 0-8 0M12 14l5-4"],
+  ["OP ENV", "--k2", "M2 20 L7 4 L13 12 L22 12 L22 20"], ["FILTER", "--k4", "M2 8 H12 Q16 8 18 4 Q19 14 24 20"],
+  ["AMP", "--k3", "M2 20 L5 5 L10 10 L18 10 L23 20"], ["LFO", "--cyan", "M2 12 Q6 2 10 12 T18 12 T26 12"],
+  ["MOD", "--kalg", "M4 6 h6 M4 12 h6 M4 18 h6 M14 6 L22 18 M14 18 L22 6"], ["PLAY", "--yellow", "M6 4 L20 12 L6 20 Z"]];
+const groupCol = (on) => `<div class="grp">${GROUPS.map(([n, c, d]) => `<div class="gk ${n === on ? "on" : ""}" style="--c:var(${c})"><svg width="26" height="24" viewBox="0 0 26 24" fill="none" stroke="var(${c})" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>${n}</div>`).join("")}</div>`;
+const edHead = (name, slot, t) => `<div class="row" style="gap:16px">
+    <div><div class="h" style="margin:0">${slot}</div><div class="big" style="font-size:38px">${name}</div></div>${tag(t)}
+    <span class="aud" style="margin-left:auto"><span class="live"></span>TRACK 3 · LIVE</span>
+    <button class="btn small ghost">↺ REVERT</button><button class="btn small" style="--c:var(--pink);color:#fff">SAVE</button><button class="btn small ghost">SAVE AS NEW</button></div>`;
+
+const SCREENS = [];
+const CAPS = [];
+
+// 1. EDIT: OPERATORS. The algorithm drawn big, each operator its own card in its knob's colour
+CAPS.push("1 EDIT · OPERATORS: the algorithm big, a card an operator (ratio, level), TRACK 3 plays it live");
+SCREENS.push(() => {
+  // operators: C (k1) A (k2) B1 (k3) B2 (k4); algorithm 5: B2 -> B1 -> A, A -> C; C and A? carriers C only, B2 feedback
+  const P = { C: [330, 330], A: [330, 210], B1: [470, 210], B2: [470, 90] };
+  const col = { C: "var(--k1)", A: "var(--k2)", B1: "var(--k3)", B2: "var(--k4)" };
+  const ar = (a, b) => { const [x1, y1] = P[a], [x2, y2] = P[b]; const dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l;
+    const sx = x1 + ux * 40, sy = y1 + uy * 40, ex = x2 - ux * 44, ey = y2 - uy * 44;
+    return `<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="#8D8D96" stroke-width="4" stroke-linecap="round"/><path d="M${ex} ${ey} l${-ux * 14 - uy * 9} ${-uy * 14 + ux * 9} l${uy * 18} ${-ux * 18} z" fill="#8D8D96"/><circle cx="${sx + (ex - sx) * .55}" cy="${sy + (ey - sy) * .55}" r="5" fill="var(--cream)"/>`; };
+  const ops = Object.entries(P).map(([k, [x, y]]) => `<circle cx="${x}" cy="${y}" r="38" fill="color-mix(in srgb, ${col[k]} 22%, #0b0b0e)" stroke="${col[k]}" stroke-width="5"/><text x="${x}" y="${y + 10}" text-anchor="middle" font-size="28" font-weight="800" fill="${col[k]}">${k}</text>`).join("");
+  const svg = `<svg width="600" height="430" viewBox="0 0 600 430">
+    <line x1="120" y1="400" x2="520" y2="400" stroke="#3a3a44" stroke-width="3"/>
+    <line x1="330" y1="368" x2="330" y2="400" stroke="var(--cream)" stroke-width="6"/>
+    <path d="M520 388h12v24h-12zM532 388l16-14v52l-16-14" fill="none" stroke="#8D8D96" stroke-width="3"/>
+    <path d="M556 384a22 22 0 0 1 0 32" fill="none" stroke="var(--cream)" stroke-width="3" opacity=".7"/>
+    ${ar("B2", "B1")}${ar("B1", "A")}${ar("A", "C")}
+    <path d="M500 64 a30 30 0 1 1 8 40" fill="none" stroke="var(--k4)" stroke-width="4" stroke-dasharray="8 6"/>
+    ${ops}
+    <text x="40" y="70" font-size="18" font-weight="800" fill="var(--kalg)" letter-spacing="2">ALGO</text><text x="40" y="150" font-size="100" font-weight="800" fill="var(--kalg)">5</text>
+  </svg>`;
+  const op = (n, c, ratio, frac, lev, extra = "") => `<div class="op" style="--c:var(${c})"><div class="nm">${n}</div><div class="v">${ratio}<small>${frac}</small></div><div class="lev"><span style="width:${lev}%"></span></div>${extra}</div>`;
+  return `<div class="screen">${topBar("EDIT")}<div class="body">
+    ${groupCol("OPERATORS")}
+    <div class="card" style="flex:1;display:flex;flex-direction:column;gap:14px">
+      ${edHead("ROUND BASS", "MY PRESETS 8", "BASS")}
+      <div class="row" style="align-items:flex-start;gap:18px;flex:1">
+        <div style="position:relative">${svg}<span class="drag" style="left:428px;top:168px;width:84px;height:84px"></span></div>
+        <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          ${op("C", "--k1", "1", ".00", 100)}${op("A", "--k2", "2", ".00", 72)}
+          ${op("B1", "--k3", "3", ".50", 58)}${op("B2", "--k4", "0", ".50", 40)}
+        </div>
+      </div>
+      <div class="row" style="gap:34px;justify-content:center">
+        ${[["HARM", "+0.40", "--k1"], ["DTUN", "0.12", "--k2"], ["FDBK", "48", "--k4"], ["MIX X·Y", "−20", "--k3"], ["DRIVE", "22", "--orange"]].map(([l, v, c]) =>
+          `<div class="dial"><svg width="70" height="44" viewBox="0 0 70 44"><path d="M8 40 A28 28 0 0 1 62 40" fill="none" stroke="#24242b" stroke-width="7" stroke-linecap="round"/><path d="M8 40 A28 28 0 0 1 ${l === "FDBK" ? 46 : l === "DRIVE" ? 22 : 40} ${l === "FDBK" ? 16 : l === "DRIVE" ? 18 : 12}" fill="none" stroke="var(${c})" stroke-width="7" stroke-linecap="round"/></svg><span class="vv">${v}</span><span class="lb">${l}</span></div>`).join("")}
+      </div>
+    </div></div></div>`;
+});
+
+// 2. EDIT: FILTER + AMP. The filter's curve big; the amp envelope a shape with handles
+CAPS.push("2 EDIT · FILTER + AMP: the curve and the envelope are the controls; drag a handle, TRACK 3 follows");
+SCREENS.push(() => {
+  const curve = `<svg width="560" height="300" viewBox="0 0 560 300">
+    ${[1, 2, 3, 4, 5].map((i) => `<line x1="${i * 100}" y1="20" x2="${i * 100}" y2="280" stroke="#18181d" stroke-width="2"/>`).join("")}
+    <path d="M10 150 H300 Q360 150 380 70 Q392 40 404 120 Q430 230 550 285 L550 290 L10 290 Z" fill="color-mix(in srgb, var(--k4) 20%, transparent)"/>
+    <path d="M10 150 H300 Q360 150 380 70 Q392 40 404 120 Q430 230 550 285" fill="none" stroke="var(--k4)" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="384" cy="62" r="14" fill="#000" stroke="var(--yellow)" stroke-width="4"/>
+    <text x="20" y="44" font-size="15" font-weight="800" fill="#8D8D96" letter-spacing="2">LOWPASS 4</text>
+    <text x="400" y="34" font-size="22" font-weight="800" fill="var(--text)">1.8 kHz</text><text x="400" y="56" font-size="15" font-weight="800" fill="var(--k2)">RESO 74</text>
+  </svg>`;
+  const env = (pts, c, lab) => `<svg width="380" height="170" viewBox="0 0 380 170"><path d="M10 160 ${pts.map(([x, y]) => `L${x} ${y}`).join(" ")}" fill="color-mix(in srgb, ${c} 18%, transparent)" stroke="${c}" stroke-width="5" stroke-linejoin="round"/>
+    ${pts.slice(0, -1).map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="9" fill="#000" stroke="${i === 1 ? "var(--yellow)" : c}" stroke-width="4"/>`).join("")}<text x="10" y="22" font-size="15" font-weight="800" fill="#8D8D96" letter-spacing="2">${lab}</text></svg>`;
+  return `<div class="screen">${topBar("EDIT")}<div class="body">
+    ${groupCol("FILTER")}
+    <div class="card" style="flex:1;display:flex;flex-direction:column;gap:14px">
+      ${edHead("ROUND BASS", "MY PRESETS 8", "BASS")}
+      <div class="row" style="align-items:flex-start;gap:22px">
+        <div>${curve}
+          <div class="row" style="gap:8px;margin-top:6px">${["LEGACY", "LP4", "MULTI", "COMB+", "COMB−", "EQ"].map((m) => `<span class="tag" style="height:34px;padding:0 14px;font-size:13px;${m === "LP4" ? "background:var(--k4)" : "background:transparent;color:var(--muted);border:1.5px solid var(--line)"}">${m}</span>`).join("")}</div></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${env([[60, 40], [120, 90], [270, 90], [370, 160]], "var(--k3)", "AMP · ADSR")}
+          ${env([[30, 30], [110, 120], [240, 120], [330, 160]], "var(--k4)", "FILTER ENV · DEPTH +38")}
+        </div>
+      </div>
+      <div class="row" style="gap:12px;margin-top:auto">${[["BASE", "0", "--k1"], ["WIDTH", "127", "--k2"], ["KEY TRK", "40", "--k3"], ["LEVEL", "110", "--k3"], ["CRUSH", "OFF", "--muted"]].map(([l, v, c]) =>
+        `<span style="height:44px;padding:0 16px;border-radius:12px;background:var(--raised);border:1.5px solid var(--line);display:flex;align-items:center;gap:10px;font-weight:800;font-size:13px;letter-spacing:.08em;color:var(--muted)">${l}<b style="color:var(${c});font-size:18px">${v}</b></span>`).join("")}</div>
+    </div></div></div>`;
+});
+
+// 3. EDIT: LFO + MOD. Three waves, each moving the thing it points at; the eight mod slots as cables
+CAPS.push("3 EDIT · LFO + MOD: three LFO waves with their targets, the eight modulation slots as cables");
+SCREENS.push(() => {
+  const wave = (k, d, c, name, dest, depth) => `<div class="op" style="--c:var(${c});padding:12px 16px"><div class="row"><span class="nm">LFO ${k}</span><span class="tag" style="margin-left:auto;background:var(${c});${c === "--k1" ? "color:#fff" : ""}">${dest}</span></div>
+    <svg width="400" height="80" viewBox="0 0 400 80"><path d="${d}" fill="none" stroke="var(${c})" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="row" style="gap:18px"><span class="kv">SPEED <b>${name}</b></span><span class="kv">DEPTH <b>${depth}</b></span></div></div>`;
+  const sine = Array.from({ length: 41 }, (_, i) => `${i ? "L" : "M"}${i * 10} ${40 - 32 * Math.sin(i / 40 * Math.PI * 4)}`).join(" ");
+  const MODS = [["VEL", "LEVEL", 64, "--k3"], ["MW", "FREQ", 90, "--k4"], ["AT", "FDBK", -40, "--k4"], ["KEY", "DTUN", 20, "--k2"], ["BR", "LFO 2 DEP", 50, "--cyan"], ["RAND", "PAN", 30, "--pink"], ["", "", 0, ""], ["", "", 0, ""]];
+  return `<div class="screen">${topBar("EDIT")}<div class="body">
+    ${groupCol("LFO")}
+    <div class="card" style="flex:1;display:flex;flex-direction:column;gap:14px">
+      ${edHead("ROUND BASS", "MY PRESETS 8", "BASS")}
+      <div class="row" style="align-items:flex-start;gap:18px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${wave(1, sine, "--cyan", "1/8 · x2", "FREQ", "+44")}
+          ${wave(2, "M0 70 L100 10 L100 70 L200 10 L200 70 L300 10 L300 70 L400 10", "--k2", "1/4", "PITCH", "+6")}
+          ${wave(3, "M0 60 L40 20 L80 50 L120 15 L160 64 L200 30 L240 44 L280 12 L320 58 L360 26 L400 40", "--pink", "FREE 22", "PAN", "−30")}
+        </div>
+        <div class="card" style="flex:1;background:var(--raised);padding:16px">
+          <div class="h">MOD</div>
+          ${MODS.map(([s, d, v, c], i) => s ? `<div class="row" style="height:46px;gap:12px"><span style="width:58px;height:34px;border-radius:10px;border:2px solid var(--kalg);display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--kalg)">${s}</span>
+            <svg width="120" height="30" viewBox="0 0 120 30"><path d="M0 15 C40 ${v > 0 ? 0 : 30} 80 ${v > 0 ? 30 : 0} 120 15" fill="none" stroke="var(${c})" stroke-width="${2 + Math.abs(v) / 18}" stroke-linecap="round"/></svg>
+            <span style="font-weight:800;color:var(--text);font-size:15px;flex:1">${d}</span><b style="font-size:18px;color:var(${c})">${v > 0 ? "+" : "−"}${Math.abs(v)}</b></div>`
+            : `<div class="row" style="height:46px;gap:12px"><span style="width:58px;height:34px;border-radius:10px;border:2px dashed #34343d;display:grid;place-items:center;color:#55555e;font-weight:800">+</span></div>`).join("")}
+        </div>
+      </div>
+    </div></div></div>`;
+});
+
+// 4. EXPORT one preset: three homes, how much carries, what does not
+CAPS.push("4 EXPORT: FIZZ / Digitone / Digitone II, the carry bar and the values each format drops");
+SCREENS.push(() => {
+  const F = [["FIZZ", ".fizzsnd", "--cream", 10, "everything"], ["DIGITONE", ".dnsnd", "--cyan", 7, "4 values lost"], ["DIGITONE II", ".dn2pst · .dn2snd", "--magenta", 9, "1 value lost"]];
+  const LOST = [["LFO 3", "dropped", "--red", "PAN −30"], ["CRUSH", "dropped", "--red", "BITS 40"], ["AMP AHD", "as ADSR", "--orange", "HOLD 60"], ["VEL", "dropped", "--red", "88"], ["MOD 1..6", "not written", "--yellow", "6 slots"], ["RATIO B1 3.50", "nearest step", "--yellow", "3.50"]];
+  return `<div class="screen">${topBar("LIBRARY")}<div class="body" style="opacity:.3"><div class="card" style="width:430px"></div><div class="card" style="flex:1"></div></div>
+    <div class="scrim"><div class="modal" style="width:980px;border-color:var(--cream);box-shadow:0 0 40px color-mix(in srgb,var(--cream) 18%,transparent)">
+      <div class="row"><div><div class="h" style="margin:0;color:var(--cream)">EXPORT</div><div class="big" style="font-size:36px">ROUND BASS</div></div>${tag("BASS")}</div>
+      <div class="row" style="gap:14px;margin:18px 0;align-items:stretch">
+        ${F.map(([t, e, c, f, s], i) => `<div class="fmt ${i === 1 ? "on" : ""}" style="--c:var(${c})"><div class="ext">${e}</div><div class="t">${t}</div>
+          <div class="fid">${Array.from({ length: 10 }, (_, k) => `<i style="background:${k < f ? (f >= 10 ? "var(--green)" : f >= 8 ? "var(--yellow)" : "var(--orange)") : "#24242b"}"></i>`).join("")}</div>
+          <div class="kv" style="font-weight:800;color:${f >= 10 ? "var(--green)" : "var(--champagne)"}">${s}</div></div>`).join("")}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+        ${LOST.map(([w, h, c, v]) => `<div class="lost" style="--c:var(${c})"><span class="what">${w}</span><span class="how">${h}</span><span class="val">${v}</span></div>`).join("")}
+      </div>
+      <div class="row" style="margin-top:12px"><span class="kv">ROUND BASS.dnsnd</span><button class="btn" style="--c:var(--cyan);margin-left:auto">↓ DOWNLOAD</button><button class="btn ghost">CANCEL</button></div>
+    </div></div></div>`;
+});
+
+// 5. PROJECTS: the FM-1's eight slots, the browser's library beside; one stored project dragged into an empty slot
+const PROJ = [["NOIR", 18, "cur", 51], ["SUNDAY", 9, "", 22], ["DEMO", 16, "", 40], ["SKETCH", 3, "", 6], ["", 0, "empty"], ["ACID 3", 12, "", 30], ["", 0, "target"], ["", 0, "empty"]];
+const mini = (n) => `<span class="mini">${Array.from({ length: 64 }, (_, i) => `<i style="${i < n ? "background:var(--green)" : ""}"></i>`).join("")}</span>`;
+CAPS.push("5 PROJECTS: 8 slots on the FM-1, more kept in this browser; drag in to load, ⇥ to unload (kept here first)");
+SCREENS.push(() => {
+  const BROW = [["WINTER LP", "11 patterns · 24 sounds", "today", ["--blue", "--violet", "--yellow", "--orange", "--orange", "--green"]], ["JUNGLE 2", "20 patterns · 31 sounds", "2 days", ["--orange", "--orange", "--blue", "--pink", "--cream"]],
+    ["SKETCH OLD", "4 patterns · 6 sounds", "1 week", ["--cream", "--violet"]], ["LIVE SET A", "32 patterns · 40 sounds", "2 weeks", ["--blue", "--green", "--orange", "--violet", "--pink", "--yellow", "--cream"]], ["DRONES", "6 patterns · 9 sounds", "1 month", ["--violet", "--violet", "--pink"]], ["NOIR", "18 patterns · 22 sounds", "yesterday", ["--blue", "--yellow", "--violet"]]];
+  return `<div class="screen">${topBar("PROJECTS")}<div class="body">
+    <div class="card" style="width:560px;display:flex;flex-direction:column;gap:8px">
+      <div class="h">ON THE FM-1 <span class="n">6 / 8</span><span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span style="width:150px;height:12px;border-radius:6px;background:#1d1d23;overflow:hidden;display:flex"><span style="width:49%;background:var(--green)"></span><span style="width:8%;background:var(--yellow)"></span></span><span class="n">49 %</span></span></div>
+      ${PROJ.map(([n, pats, cls, pages], i) => cls === "empty" ? `<div class="slot empty"><span class="no">${i + 1}</span><span class="meta">empty</span></div>`
+        : cls === "target" ? `<div class="slot target"><span class="no" style="background:var(--yellow)">${i + 1}</span><span class="pn" style="color:var(--yellow)">WINTER LP</span><span class="meta" style="margin-left:auto">+ 24 KB</span></div>`
+        : `<div class="slot ${cls}"><span class="no">${i + 1}</span><div><div class="pn">${n}</div><div class="meta">${pats} patterns${cls === "cur" ? " · playing here" : ""}</div></div>${mini(pats)}
+           <span style="width:34px;height:34px;border-radius:10px;border:1.5px solid ${i === 3 ? "var(--champagne)" : "var(--line)"};display:grid;place-items:center;color:${i === 3 ? "var(--champagne)" : "var(--muted)"};font-weight:800;margin-left:10px">⇥</span></div>`).join("")}
+    </div>
+    <div class="card" style="flex:1;display:flex;flex-direction:column;gap:12px">
+      <div class="h">IN THIS BROWSER <span class="n">6</span><span class="stored" style="margin-left:auto">1.2 MB</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${BROW.map(([n, m, w, cs], i) => `<div class="bp" style="${i === 0 ? "opacity:.3;border-style:dashed" : ""}"><div class="row"><span class="pn">${n}</span><span class="kv" style="margin-left:auto">${w}</span></div><div class="meta">${m}</div><div class="snd">${cs.map((c) => `<i style="background:var(${c})"></i>`).join("")}</div></div>`).join("")}
+      </div>
+      <div class="row" style="margin-top:auto;gap:10px"><button class="btn small ghost">↓ .fizzprj</button><button class="btn small ghost">ADD FILE</button></div>
+    </div>
+    <div class="bp ghost-drag" style="left:640px;top:520px;width:300px"><div class="row"><span class="pn">WINTER LP</span><span class="kv" style="margin-left:auto">today</span></div><div class="meta">11 patterns · 24 sounds</div><div class="snd">${["--blue", "--violet", "--yellow", "--orange", "--orange", "--green"].map((c) => `<i style="background:var(${c})"></i>`).join("")}</div></div>
+  </div></div>`;
+});
+
+// 6. PATTERNS: a project's 64 patterns (4 banks x 16), six track rows each; one dragged into another project
+CAPS.push("6 PATTERNS: NOIR's 64 patterns, a mini step row a track; A05 copied onto SUNDAY's B03 (MOVE beside)");
+SCREENS.push(() => {
+  const TC = ["--blue", "--green", "--cream", "--orange", "--pink", "--violet"];
+  const rnd = (s) => () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const r = rnd(7);
+  const tile = (b, k, used, cls = "") => {
+    const rows = TC.map((c, t) => `<div class="tr">${Array.from({ length: 16 }, (_, s) => `<i style="${used && r() < (t < 2 ? .45 : t === 2 ? .25 : .18) ? `background:var(${c})` : ""}"></i>`).join("")}</div>`).join("");
+    return `<div class="pt ${used ? "used" : ""} ${cls}"><span class="no">${"ABCD"[b]}${String(k + 1).padStart(2, "0")}</span>${rows}</div>`;
+  };
+  const used = (b, k) => b === 0 ? k < 12 : b === 1 ? k < 6 : b === 2 ? k === 0 : false;
+  const grid = [0, 1, 2, 3].map((b) => `<div class="row" style="gap:8px"><span class="bank">${"ABCD"[b]}</span><div class="pgrid" style="flex:1">${Array.from({ length: 16 }, (_, k) => tile(b, k, used(b, k), b === 0 && k === 4 ? "sel" : b === 0 && k === 0 ? "cur" : "")).join("")}</div></div>`).join("");
+  return `<div class="screen">${topBar("PROJECTS")}<div class="body" style="flex-direction:column;gap:14px">
+    <div class="row" style="gap:12px"><div class="h" style="margin:0">PROJECT</div><div class="seg" style="--c:var(--cyan)">${["NOIR", "SUNDAY", "DEMO", "SKETCH", "ACID 3"].map((p, i) => `<span class="${i === 0 ? "on" : ""}">${p}</span>`).join("")}</div>
+      <span class="kv" style="margin-left:auto"><b style="font-size:18px">19</b> / 64 used</span></div>
+    <div class="card" style="display:flex;flex-direction:column;gap:9px;padding:16px">${grid}</div>
+    <div class="row" style="gap:16px;align-items:stretch;flex:1">
+      <div class="card" style="flex:1;display:flex;align-items:center;gap:22px;padding:16px 22px">
+        ${tile(0, 4, true, "sel").replace('class="pt', 'style="width:150px;transform:scale(1.25);transform-origin:left center" class="pt')}
+        <svg width="110" height="40" viewBox="0 0 110 40" style="margin-left:40px"><path d="M4 20 H92 M80 8 L96 20 L80 32" fill="none" stroke="var(--yellow)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div><div class="h" style="margin:0">SUNDAY</div><div class="big" style="font-size:52px;color:var(--yellow)">B03</div></div>
+        <div style="margin-left:auto;display:flex;flex-direction:column;gap:10px;align-items:flex-end">
+          <div class="seg" style="--c:var(--yellow)"><span class="on">COPY</span><span>MOVE</span></div>
+          <span class="kv">sounds <b>+3</b> to SUNDAY's pool · <b>5</b> shared</span></div>
+      </div>
+      <button class="btn" style="--c:var(--yellow);height:auto;align-self:stretch;padding:0 40px;font-size:19px">COPY</button>
+    </div></div></div>`;
+});
+
+// 7. LOAD a stored project: its sounds come home (linked, new, or a choice), and the FM-1 asks
+CAPS.push("7 LOAD: WINTER LP's 24 sounds re-linked or brought back; the FM-1 asks (SAVE goes, HOME cancels)");
+SCREENS.push(() => {
+  const ROWS = [["SUB DROP", "linked", "--green", "same sound on the FM-1"], ["GLASS BELL", "linked", "--green", "same sound, slot 2"], ["FOG", "new", "--cyan", "→ MY PRESETS 151"],
+    ["TIN KICK", "choose", "--orange", "edited since: ⟲ project's · FM-1's"], ["FM PIANO", "factory", "--cream", "built in"]];
+  return `<div class="screen">${topBar("PROJECTS")}<div class="body" style="opacity:.3"><div class="card" style="width:560px"></div><div class="card" style="flex:1"></div></div>
+    <div class="scrim"><div class="modal">
+      <div class="row"><div><div class="h" style="margin:0;color:var(--yellow)">LOAD INTO SLOT 7</div><div class="big" style="font-size:38px">WINTER LP</div></div><span class="kv" style="margin-left:auto">24 KB · ~1 s</span></div>
+      <div class="row" style="gap:10px;margin:16px 0">${[["18", "linked", "--green"], ["4", "new", "--cyan"], ["1", "choose", "--orange"], ["1", "factory", "--cream"]].map(([n, l, c]) => `<span style="height:44px;padding:0 14px;border-radius:12px;border:1.5px solid var(${c});display:flex;align-items:center;gap:10px;font-weight:800;color:var(--text)"><b style="font-size:22px;color:var(${c})">${n}</b>${l}</span>`).join("")}</div>
+      ${ROWS.map(([n, s, c, w]) => `<div class="cf"><span class="st" style="background:var(${c})"></span><span class="nm">${n}</span><span class="kv" style="color:${s === "choose" ? "var(--orange)" : "var(--muted)"};font-weight:700">${w}</span></div>`).join("")}
+      <div class="row" style="margin-top:14px"><button class="btn" style="--c:var(--yellow)">LOAD</button><button class="btn ghost">CANCEL</button><span class="kv" style="margin-left:auto">MY PRESETS 147 → 151 / 256</span></div>
+    </div>
+    <div class="fm1"><div class="lcd"><canvas id="lcd-load" width="240" height="240"></canvas></div><div class="keys"><span class="key dim">HOME</span><span class="key lit">SAVE</span></div></div>
+  </div></div>`;
+});
+
+// 8. UNLOAD: the project read back, checked, kept here; then its slot freed on the FM-1
+CAPS.push("8 UNLOAD: SKETCH read, checked (CRC), kept in this browser, then slot 4 freed; its own presets may go too");
+SCREENS.push(() => {
+  const blocks = Array.from({ length: 26 }, (_, i) => `<i style="display:block;height:30px;border-radius:6px;background:${i < 26 ? "var(--champagne)" : "#18181d"}"></i>`).join("");
+  return `<div class="screen">${topBar("PROJECTS")}<div class="body" style="flex-direction:column;align-items:center;justify-content:center;gap:26px">
+    <div class="row" style="gap:40px">
+      <div class="slot cur" style="width:330px;border-color:var(--line);box-shadow:none;opacity:.5"><span class="no" style="background:#24242b;color:var(--muted)">4</span><div><div class="pn" style="text-decoration:line-through;text-decoration-color:var(--red)">SKETCH</div><div class="meta">3 patterns</div></div></div>
+      <svg width="140" height="60" viewBox="0 0 140 60"><circle cx="20" cy="40" r="10" fill="none" stroke="var(--champagne)" stroke-width="4"/><circle cx="60" cy="22" r="7" fill="none" stroke="var(--cyan)" stroke-width="4"/><circle cx="96" cy="38" r="5" fill="none" stroke="var(--pink)" stroke-width="4"/><path d="M110 30 H134 M124 20 L136 30 L124 40" fill="none" stroke="var(--champagne)" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="bp" style="width:330px;border-color:var(--champagne);box-shadow:0 0 22px color-mix(in srgb,var(--champagne) 30%,transparent)"><div class="row"><span class="pn">SKETCH</span><span class="stored" style="margin-left:auto">KEPT</span></div><div class="meta">3 patterns · 6 sounds · 6 KB</div><div class="snd">${["--cream", "--violet", "--blue"].map((c) => `<i style="background:var(${c})"></i>`).join("")}</div></div>
+    </div>
+    <div class="big" style="font-size:110px;color:var(--champagne)">✓</div>
+    <div style="width:760px;display:grid;grid-template-columns:repeat(26,1fr);gap:4px">${blocks}</div>
+    <div class="row" style="width:760px"><span class="kv">read <b>26</b> blocks · CRC <b>a91f04c2</b> = FM-1's</span><span class="kv" style="margin-left:auto">0.2 s</span></div>
+    <div class="row" style="gap:12px;margin-top:6px"><div class="seg" style="--c:var(--red)"><span class="on">FREE SLOT 4</span><span>+ ITS 2 OWN PRESETS</span></div><button class="btn ghost small">KEEP ON FM-1</button></div>
+  </div></div>`;
+});
+
+// ---- the FM-1 screens (240 x 240, the clarity rules: one subject, big, no hint text)
+function lcdLoad(cv) {
+  const g = cv.getContext("2d");
+  g.fillStyle = "#000"; g.fillRect(0, 0, 240, 240);
+  // the eight slots as a 4 x 2 grid of small cassettes, slot 7 lit yellow with the cassette dropping in
+  for (let i = 0; i < 8; i++) {
+    const x = 24 + (i % 4) * 50, y = 120 + Math.floor(i / 4) * 40, on = [0, 1, 2, 3, 5].includes(i);
+    g.lineWidth = 3; g.strokeStyle = i === 6 ? "#FFD23F" : on ? "#1FD47E" : "#34343d"; g.fillStyle = on ? "rgba(31,212,126,.25)" : "#000";
+    g.beginPath(); g.roundRect(x, y, 42, 30, 6); g.fill(); g.stroke();
+  }
+  g.lineWidth = 5; g.strokeStyle = "#FFD23F"; g.lineJoin = "round";
+  g.beginPath(); g.roundRect(70, 22, 100, 62, 10); g.stroke();
+  g.lineWidth = 4; [100, 140].forEach((x) => { g.beginPath(); g.arc(x, 50, 11, 0, 7); g.stroke(); });
+  g.beginPath(); g.moveTo(120, 90); g.lineTo(120, 108); g.moveTo(110, 98); g.lineTo(120, 110); g.lineTo(130, 98); g.stroke();
+  g.fillStyle = "#ECECEF"; g.font = "800 26px 'Inter Tight'"; g.textAlign = "center"; g.fillText("WINTER LP", 120, 222);
+}
+const paint = () => { const a = document.getElementById("lcd-load"); if (a) lcdLoad(a); };
+
+const q = new URLSearchParams(location.search), shot = +q.get("shot"), sheet = q.get("sheet");
+const out = document.getElementById("out");
+if (sheet) {
+  document.body.className = "sheet";
+  out.appendChild($(`<div class="sheettitle">FIZZ Manager, Phase 2: editor, export, projects and patterns, the browser's project library (mock-up, half size)</div>`));
+  const grid = $(`<div class="sheetgrid"></div>`);
+  SCREENS.forEach((f, i) => { const c = $(`<div class="cell"><div class="frame"></div><div class="cap">${CAPS[i]}</div></div>`); c.firstElementChild.appendChild($(f())); grid.appendChild(c); });
+  out.appendChild(grid);
+} else {
+  (shot ? [SCREENS[shot - 1]] : SCREENS).forEach((f) => out.appendChild($(f())));
+  if (!shot) document.body.className = "all";
+}
+document.fonts.load("800 30px 'Inter Tight'").finally(paint);
+</script>
+</body>
+</html>

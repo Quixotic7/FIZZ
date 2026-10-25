@@ -53,6 +53,10 @@ for i, n in enumerate(WM, 1):                  # fizz-web-manager.html: the web 
     w, h = (390, 844) if n.startswith('phone') else (1280, 800)
     SHOTS[f'wm-{i}'] = (f'shot={i}', w, h, f'fizz-web-manager-{i:02d}-{n}.png', 'fizz-web-manager.html')
 
+P2 = ['edit-operators', 'edit-filter-amp', 'edit-lfo-mod', 'export', 'projects', 'patterns', 'load-project', 'unload']
+for i, n in enumerate(P2, 1):                  # fizz-manager-p2.html: the manager's Phase 2 (docs/MANAGER-P2-PLAN.md)
+    SHOTS[f'p2-{i}'] = (f'shot={i}', 1280, 800, f'fizz-manager-p2-{i:02d}-{n}.png', 'fizz-manager-p2.html')
+SHOTS['sheet-p2'] = ('sheet=1', 2016, 1500, 'fizz-manager-p2-sheet.png', 'fizz-manager-p2.html')
 
 def render(key, scratch):
     query, w, h, name = SHOTS[key][:4]
