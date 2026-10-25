@@ -1,4 +1,4 @@
-# FIZZ handoff (2026-10-25, after 0.12.0-beta.4)
+# FIZZ handoff (2026-10-25, after 0.12.0-beta.4 and the owner's feedback round)
 
 This is for a new Claude session picking up FIZZ. Read this first, then:
 - `CHANGELOG.md`;
@@ -9,6 +9,20 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 - the memory files (`fmtoneseq-quadrille-plan.md`, `choralroot-fm1-device-build.md` and the FIZZ rules).
 
 ## Where things stand
+
+- **2026-10-25, after beta.4: the owner's feedback round is on master (cd09554 + CHANGELOG) and on the unit**, unreleased.
+  Everything in CHANGELOG's `## Unreleased`: SEQ tapped = TOOLS, ARP held = arp on/off, SHIFT + SAVE = the project
+  page; B9/B10 STRETCH/CLIP, STRETCH's 13-rung ratio ladder, CLIP labels + scope line + always-on COPY/PASTE + B10
+  again; the mixer's black keys (tap select, hold mute, double-tap solo, B11 clear; SELECT page, ALGORITHM track,
+  PRESETS mute); hundredth-steps with acceleration on every hi-res value (unit + Manager); the NOTE hold / layer
+  keybeds on F; MODES the default latch mode; the KNOBS layouts removed (A only, PAGE FOLLOW on KNOB 1); the pacing
+  fix (only bulk transfers slow the frames; PARAM never counts; `xfer_run` on stats line 16); the Manager's LIBRARY
+  button widths; the guide and PLAYING.md updated. Flash after it: fizz.bin 572,720 B (8.8 KB free). Store backup:
+  `../FIZZ-saves/2026-10-25-before-b5-store.bin`. The unit booted with 0 xruns.
+- **Deferred ideas from the owner (not built):** synced delay times in between the divisions (Digitone-like) via
+  SHIFT on the delay TIME knob; it touches the stored FX settings (`XP_DDIV` is an index into XF_DIV).
+- **Decided, not to build:** delay TIME direction stays as the Digitone's (CW longer); the arp's downward range is
+  already OCT DIST negative.
 
 - **Released: FIZZ 0.12.0-beta.4.** It's tag `v0.12.0-beta.4` on master ea351a1, pushed.
   - It's a GitHub pre-release, and it's on https://quixotic7.github.io/FIZZ/install/.
