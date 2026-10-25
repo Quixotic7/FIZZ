@@ -260,6 +260,7 @@ test-host: $(TESTS)
 	$(B)/test_app
 	$(B)/test_ctl
 	$(B)/test_tools
+	$(PY) grids_map.py --check
 	$(B)/test_store
 	$(B)/test_persist
 	$(B)/test_sysex

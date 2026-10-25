@@ -24,6 +24,7 @@
 #include "app.h"
 #include "ui.h"
 #include "tools.h"
+#include "grids_map.h"
 
 static int fails, checks;
 #define CHECK(c, ...)                                     \
@@ -214,6 +215,66 @@ static void t_length(void)
     CHECK(!qd_tl_double(&P1, 0, 0) && P1.trk[0].loop == 0x7F, "x2 with 7 pages looped: no room, nothing");
 }
 
+/* T2: the generators */
+static void t_generators(void)
+{
+    uint8_t pos[QD_NSTEP];
+    int n, i, ok = 1, c = 0, x, y, p, d, mono = 1, prev;
+    qd_pat_init(&P0);
+    qd_track_set_length(&P0, 0, 128);
+    n = qd_tl_positions(&P0, 0, QD_TS_TRACK, 0, pos);
+    P1 = P0;
+    qd_tl_random(&P1, 0, pos, n, 777u, 40, 3, 20, 50, 0, 0);
+    for (i = 0; i < n; i++)
+        c += qd_step_is_on(&P1.step[0][i]);
+    CHECK(c >= 128 * 30 / 100 && c <= 128 * 50 / 100, "RANDOM 40 %% over 128 steps: %d trigs (within +-10 %%)", c);
+    P0 = P1;
+    qd_pat_init(&P1);
+    qd_track_set_length(&P1, 0, 128);
+    qd_tl_random(&P1, 0, pos, n, 777u, 40, 3, 20, 50, 0, 0);
+    CHECK(!memcmp(&P0, &P1, sizeof P0), "RANDOM: a pure function of the seed (the same pattern again)");
+    for (i = 0; i < n; i++) {
+        const qd_step_t *st = &P1.step[0][i];
+        if (!qd_step_is_on(st))
+            continue;
+        ok &= st->note[0] >= 60 - 3 && st->note[0] <= 60 + 3 && st->vel >= 80 && st->vel <= 120 && st->chance >= 50;
+    }
+    CHECK(ok, "its notes within 3 degrees (chromatic) of C4, velocities 100 +- 20, chances 50..100");
+    P0 = P1;
+    qd_tl_humanize(&P1, 0, pos, n, 5u, 6, 10);
+    ok = qd_pat_check(&P1);
+    for (i = 0; i < n; i++)
+        if (qd_step_is_on(&P1.step[0][i]))
+            ok &= P1.step[0][i].micro >= -6 && P1.step[0][i].micro <= 6 && P1.step[0][i].vel >= P0.step[0][i].vel - 10 &&
+                  P1.step[0][i].vel <= P0.step[0][i].vel + 10 && qd_step_is_on(&P0.step[0][i]);
+        else
+            ok &= !memcmp(&P1.step[0][i], &P0.step[0][i], sizeof(qd_step_t));
+    CHECK(ok, "HUMANIZE: the trigs' micro within +-6, velocity +-10; the empty steps untouched");
+    ok = 1;
+    for (x = 0; x < 3; x++)
+        for (y = 0; y < 3; y++)
+            for (p = 0; p < 3; p++)
+                for (i = 0; i < 32; i++)
+                    ok &= qd_tl_grids_level(i, x * 255 / 2 + (x == 1), y * 255 / 2 + (y == 1), p) ==
+                          QD_GRIDS_MAP[x][y][p][i] || x == 1 || y == 1;
+    for (p = 0; p < 3; p++)                             /* (the corners exactly) */
+        for (i = 0; i < 32; i++)
+            ok &= qd_tl_grids_level(i, 0, 0, p) == QD_GRIDS_MAP[0][0][p][i] &&
+                  qd_tl_grids_level(i, 255, 255, p) == QD_GRIDS_MAP[2][2][p][i] &&
+                  qd_tl_grids_level(i, 255, 0, p) == QD_GRIDS_MAP[2][0][p][i];
+    CHECK(ok, "GRIDS: the map's corners are its nodes");
+    for (d = 0, prev = 0; d <= 255; d += 15) {          /* (more density: a superset) */
+        int m = 0;
+        P1 = P0;
+        qd_tl_grids(&P1, 0, pos, 32, 100, 160, d, 0, 0, 9u);
+        for (i = 0; i < 32; i++)
+            m += qd_step_is_on(&P1.step[0][i]);
+        mono &= m >= prev;
+        prev = m;
+    }
+    CHECK(mono && prev > 16, "GRIDS: the trigs grow with the density (%d at full)", prev);
+}
+
 /* ================================================================ TOOLS in the app */
 static qd_app_t A;
 static uint32_t now;
@@ -365,9 +426,9 @@ static void t_rotate_live(void)
     tools_open();
     l = leds();
     CHECK(A.ui.tl.tool == QD_TL_ROTATE && A.ui.tl.scope == QD_TS_TRACK && l.key[BK(0)] == QD_LED_LIT &&
-              l.key[BK(1)] == QD_LED_DIM && l.key[BK(2)] == QD_LED_OFF && l.key[BK(10)] == QD_LED_LIT &&
+              l.key[BK(1)] == QD_LED_DIM && l.key[BK(2)] == QD_LED_DIM && l.key[BK(10)] == QD_LED_LIT &&
               l.key[WK(0)] == QD_LED_LIT && l.key[WK(1)] == QD_LED_OFF && l.key[WK(3)] == QD_LED_LIT &&
-              l.button[F2] == QD_LED_OFF, "ROTATE, TRACK; B1 lit, B2 dim, B3 (T2) dark; W: the page's steps; OCT+ dark");
+              l.button[F2] == QD_LED_OFF, "ROTATE, TRACK; B1 lit, B2 dim, B3 dim; W: the page's steps; OCT+ dark");
     turn(QD_K_1, 2);
     CHECK(A.ui.tl.rot == 2 && qd_tools_pending(&A) && A.undo.hold && leds().button[F2] == QD_LED_LIT,
           "KNOB 1 +2: pending, the gesture held open, OCT+ lit");
@@ -429,9 +490,9 @@ static void t_knobs(void)                               /* SELECT the page, PRES
     turn(QD_K_SELECT, 1);
     turn(QD_K_PRESETS, 1);
     CHECK(A.ui.tl.tool == QD_TL_REVERSE && A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob, "PRESETS: the next tool, its name");
-    turn(QD_K_PRESETS, 1);
-    CHECK(A.ui.tl.tool == QD_TL_EUCLID, "PRESETS: RANDOM (T2) skipped");
-    turn(QD_K_PRESETS, -3);
+    turn(QD_K_PRESETS, 2);
+    CHECK(A.ui.tl.tool == QD_TL_EUCLID, "PRESETS +2: RANDOM, EUCLID");
+    turn(QD_K_PRESETS, -4);
     CHECK(A.ui.tl.tool == QD_TL_LENGTH, "PRESETS back: round to LENGTH");
     turn(QD_K_4, -1);
     CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tk_knob == 1, "KNOB 4: the scope (PAGE), its takeover");
@@ -521,13 +582,66 @@ static void t_switch_home(void)
     run(10);
     CHECK(A.sel == 2 && !qd_tools_pending(&A) && ons(0, 0, 16) == m && qd_undo_count(&A, -1) == n0 + 2,
           "SHIFT + SELECT: track 3, the flip kept first (a level)");
-    black(2);
-    CHECK(A.ui.tl.tool == QD_TL_REVERSE, "B3 (RANDOM, T2): nothing");
     black(0);
     turn(QD_K_1, 4);
     btap(QD_B_HOME);
     CHECK(!qd_tools_open(&A) && !A.undo.hold && qd_undo_count(&A, -1) == n0 + 3,
           "HOME: closed, the pending change kept (a level)");
+}
+
+static void t_t2_live(void)                             /* RANDOM, HUMANIZE, GRIDS live; GRIDS over the PATTERN */
+{
+    qd_pattern_t *before = malloc(sizeof *before);
+    int m, n0, k;
+    int8_t tr[3];
+    start();
+    bass(0);
+    bass(1);
+    run(600);
+    *before = *PAT();
+    n0 = qd_undo_count(&A, -1);
+    tools_open();
+    black(2);
+    CHECK(A.ui.tl.tool == QD_TL_RANDOM && A.ui.tl.v.rn.dens == 50 && !qd_tools_pending(&A), "B3: RANDOM (50 %%), "
+          "nothing yet");
+    turn(QD_K_1, 10);
+    m = ons(0, 0, 16);
+    CHECK(qd_tools_pending(&A) && A.ui.tl.v.rn.dens == 60, "KNOB 1: the density (60 %%), rolled live");
+    black(2);
+    CHECK(qd_tools_pending(&A) && ons(0, 0, 16) != m, "B3 again: a new seed, another roll (heard)");
+    turn(QD_K_ALGO, 30);
+    CHECK(A.ui.tl.v.rn.chance == 30, "ALGORITHM: the chance spread (was KNOB 4)");
+    btap(F1);
+    CHECK(!memcmp(PAT()->step, before->step, sizeof before->step), "OCT-: the original back");
+    black(5);
+    turn(QD_K_1, 4);
+    turn(QD_K_2, 10);
+    CHECK(qd_tools_pending(&A) && A.ui.tl.v.hu.micro == 4 && A.ui.tl.v.hu.vel == 10, "HUMANIZE: KNOB 1 timing, KNOB 2 "
+          "velocity, live");
+    btap(F2);
+    CHECK(qd_undo_count(&A, -1) == n0 + 1, "OCT+: a level");
+    btap(F1);
+    black(4);
+    turn(QD_K_4, 1);                                    /* PATTERN */
+    turn(QD_K_3, 20);
+    qd_tools_grids_tracks(&A, tr);
+    CHECK(A.ui.tl.tool == QD_TL_GRIDS && A.ui.tl.scope == QD_TS_PATTERN && tr[0] == 0 && tr[1] == 1 && tr[2] == 2,
+          "GRIDS, PATTERN: the parts LOW / MID / HIGH to tracks 1 (DRUMS), 2, 3");
+    {
+        int ok = 1, t, i;
+        for (k = 0; k < 3; k++)
+            for (i = 0; i < 16; i++)
+                ok &= qd_step_is_on(&PAT()->step[k][i]) ==
+                      (qd_tl_grids_at(A.ui.tl.v.gr.seed, k, i, 64, 128, k, 0) > 255 - A.ui.tl.v.gr.dens);
+        for (t = 3; t < QD_PAT_NTRACK; t++)
+            ok &= !memcmp(PAT()->step[t], before->step[t], sizeof before->step[t]);
+        CHECK(ok, "each part on its track (its level over 255 - density), the others untouched");
+    }
+    black(4);
+    CHECK(A.ui.tl.v.gr.part == 1, "B5 again: the next part (for one track)");
+    btap(F1);
+    btap(QD_B_HOME);
+    free(before);
 }
 
 static void t_euclid_pattern(void)
@@ -677,12 +791,14 @@ int main(void)
         {"ops: reverse (twice, micro mirrored)", t_reverse},
         {"ops: euclid (counts, E(3,8), NEW / ADD / MASK)", t_euclid},
         {"ops: length (x2, /2, a page's end)", t_length},
+        {"ops: RANDOM, HUMANIZE, GRIDS (seeded, ranges, the map)", t_generators},
         {"ARP: tapped MIDI FX, held TOOLS, SHIFT + ARP FILL; the LED", t_arp},
         {"ROTATE live: heard, OCT+ a level, OCT- back, undo", t_rotate_live},
         {"SELECT the page, PRESETS the tool, KNOB 4 / B11 the scope", t_knobs},
         {"the step lock: SELECTED STEPS, W toggles, live", t_selected},
         {"switching tool / track keeps; HOME keeps", t_switch_home},
         {"EUCLID, PATTERN scope: every track, one level", t_euclid_pattern},
+        {"T2 live: RANDOM, HUMANIZE, GRIDS (PATTERN: the parts)", t_t2_live},
         {"LENGTH live: x2, /2, kept", t_length_live},
 #ifdef QD_UNDO_SLOTS
         {"the device's drawn-only fallback (no room)", t_drawn_only},

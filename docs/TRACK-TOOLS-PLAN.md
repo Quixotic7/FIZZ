@@ -246,3 +246,19 @@ TOOLS uses no pool, no RAM code and no NOINIT. All of its code runs from flash o
 - The tools' values are a union (a tool chosen starts from its defaults: EUCLID 4 of 16).
 - LENGTH in SELECTED STEPS works as PAGE (on the page the change began on).
 
+### 10.2 T2 as built
+
+- **RANDOM (B3):** KNOB 1 the density (0..100 %), KNOB 2 the notes' spread (0..12 degrees of the track's scale round
+  its default note), KNOB 3 the velocity spread (0..64), **ALGORITHM the chance spread** (0..100: was KNOB 4). B3 again
+  rolls a new seed. Every value a pure function of the seed (`qd_tl_hash`), so the preview needs no buffer.
+- **HUMANIZE (B6):** KNOB 1 the timing jitter (+-0..12 24ths), KNOB 2 the velocity jitter (+-0..40), from the original
+  each time; B6 again a new seed.
+- **GRIDS (B5):** KNOB 1 X, KNOB 2 Y, KNOB 3 the density, **ALGORITHM the chaos** (was SELECT: SELECT turns the pages
+  now). **B5 again: the next part** (LOW -> MID -> HIGH) with a new chaos seed (KNOB 4 is the scope, ALGORITHM chaos,
+  so the part went on the key). New trigs take the level as a velocity override.
+- **GRIDS over the PATTERN:** the parts LOW, MID, HIGH go to the DRUMS tracks first, then the other tracks in order
+  (the default kit: tracks 1, 2, 3). The plan's "W taps a track for the next part" is gone: W are the steps now.
+- **The map:** `tools/grids_map.py` (MPL-2.0, its rules in its header) writes `core/seq/grids_map.h`, 3 x 3 nodes x 3
+  parts x 32 steps (864 B const); `make test` checks the header is what the rules make. Nothing of Mutable's read.
+- **The values** share the union (RANDOM 6 B, GRIDS 8 B): qd_ui_t is still smaller than before TOOLS.
+

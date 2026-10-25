@@ -334,18 +334,19 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     if (qd_tools_open(a)) {                             /* T1: TOOLS (ctl_tools.c) */
-        static const char *const TN[QD_TL_N] = {"ROTATE", "REVERSE", "", "EUCLID", "", "", "LENGTH"};
-        static const char *const EK[4] = {"HITS", "LENGTH", "ROTATION", "LANDING"};
-        const int tool = u->tl.tool;
+        static const char *const TN[QD_TL_N] = {"ROTATE", "REVERSE", "RANDOM", "EUCLID", "GRIDS", "HUMANIZE", "LENGTH"};
+        static const char *const KL[QD_TL_N][4] = {{"OFFSET", "", "", ""}, {"", "", "", ""},
+                                                   {"DENSITY", "NOTES", "VELOCITY", "CHANCE"},
+                                                   {"HITS", "LENGTH", "ROTATION", "LANDING"}, {"X", "Y", "DENSITY", "CHAOS"},
+                                                   {"TIMING", "VELOCITY", "", ""}, {"LENGTH", "", "", ""}};
+        const int tool = u->tl.tool % QD_TL_N;
         for (i = 0; i < 11; i++)
             lb_set(o, LB_B(i), i < QD_TL_N ? TN[i] : i == 10 ? "SCOPE" : "");
         for (i = 0; i < 16; i++)
             lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
         for (k = 0; k < 3; k++)
-            lb_set(o, LB_KNOB(QD_K_1 + k), tool == QD_TL_EUCLID ? EK[k] : "");
-        if (tool == QD_TL_ROTATE || tool == QD_TL_LENGTH)
-            lb_set(o, LB_KNOB(QD_K_1), tool == QD_TL_ROTATE ? "OFFSET" : "LENGTH");
-        lb_set(o, LB_KNOB(QD_K_ALGO), tool == QD_TL_EUCLID ? EK[3] : "");
+            lb_set(o, LB_KNOB(QD_K_1 + k), KL[tool][k]);
+        lb_set(o, LB_KNOB(QD_K_ALGO), KL[tool][3]);
         lb_set(o, LB_KNOB(QD_K_4), "SCOPE");
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_PRESETS), "TOOL");

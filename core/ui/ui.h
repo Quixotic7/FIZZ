@@ -893,6 +893,12 @@ typedef struct {
     int rot, flip;                      /* ROTATE's offset; REVERSE flipped */
     int hits, len, erot, emode, epos;   /* EUCLID; epos: the playing position in its length (-1) */
     int count, lpow;                    /* LENGTH: the track's steps after, the doublings */
+    int r[4];                           /* T2: RANDOM's density %, notes, velocity, chance spreads; HUMANIZE's micro and
+                                         * velocity jitters (r[0], r[1]); GRIDS' x, y, density, chaos (0..255) */
+    int seed, part;                     /* .. the seed (the die's face); GRIDS' part (0 LOW, 1 MID, 2 HIGH) */
+    int8_t gtr[3];                      /* .. PATTERN: the tracks the parts go to (-1 none) */
+    int8_t micro[16];                   /* .. HUMANIZE: the lane's micro-timing (24ths), its velocities */
+    uint8_t vel[16];
     uint8_t loop, loop0;                /* .. the loop's pages after, before */
     float t;                            /* seconds (motion) */
 } ui_tools_t;

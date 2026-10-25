@@ -311,6 +311,91 @@ static void tl_length(const ui_tools_t *v)
     }
 }
 
+/* T2: a stripe meter (vertical, u 0..1 filled from the foot), shared by RANDOM and GRIDS */
+static void tl_meter(float x, float y, float w, float h, float u, qd_rgb col)
+{
+    u = u < 0.f ? 0.f : u > 1.f ? 1.f : u;
+    ui_RR(x, y, w, h, 3.f, UI_G3, 1.4f, QD_NONE);
+    if (u > 0.f)
+        ui_RR(x + 3.f, y + h - 3.f - (h - 6.f) * u, w - 6.f, (h - 6.f) * u, 2.f, QD_NONE, 1.f, col);
+}
+
+/* RANDOM: the die (its face the seed's), the four amounts as stripe meters in their knobs' colours (KNOB 1 how many,
+ * KNOB 2 the notes, KNOB 3 the velocity, ALGORITHM the chance) */
+static void tl_random(const ui_tools_t *v)
+{
+    static const int8_t PIP[6][6][2] = {{{0, 0}}, {{-1, -1}, {1, 1}}, {{-1, -1}, {0, 0}, {1, 1}},
+                                        {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}}, {{-1, -1}, {1, -1}, {0, 0}, {-1, 1}, {1, 1}},
+                                        {{-1, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {1, 1}}};
+    static const qd_rgb COL[4] = {UI_K1, UI_K2, UI_K3, UI_K4};
+    static const float MAX[4] = {100.f, 12.f, 64.f, 100.f};
+    const int face = (v->seed >> 3) % 6;
+    int k;
+    ui_RR(36.f, 74.f, 52.f, 52.f, 10.f, UI_K3, 3.f, QD_NONE);
+    for (k = 0; k <= face; k++)
+        ui_O(62.f + 13.5f * (float)PIP[face][k][0], 100.f + 13.5f * (float)PIP[face][k][1], 4.2f, QD_NONE, 1.f, UI_K3);
+    for (k = 0; k < 4; k++)
+        tl_meter(124.f + (float)k * 28.f, 58.f, 20.f, 88.f, (float)v->r[k] / MAX[k], COL[k]);
+    tl_lane(v, 0);
+}
+
+/* HUMANIZE: the steps off their grid lines (each its micro-timing), their heights the velocities; the two jitters
+ * (KNOB 1 timing, KNOB 2 velocity) as bars under them */
+static void tl_humanize(const ui_tools_t *v)
+{
+    int i, k;
+    for (i = 0; i < 16; i++)
+        tl_line(16.f + (float)i * 13.6f, 44.f, 16.f + (float)i * 13.6f, 176.f, i % 4 ? UI_G3 : UI_G2, 1.f);
+    for (i = 0; i < 16; i++)
+        if (v->on[i]) {
+            const float x = 16.f + (float)i * 13.6f, dx = (float)v->micro[i] * 0.55f, h = 10.f + (float)v->vel[i];
+            ui_RR(x + dx - 5.f, 176.f - h, 10.f, h, 3.f, QD_NONE, 1.f, v->tcol);
+            if (v->micro[i])
+                tl_line(x, 182.f, x + dx, 182.f, UI_K1, 2.4f);
+        }
+    for (k = 0; k < 2; k++) {
+        const float u = (float)v->r[k] / (k ? 40.f : 12.f);
+        ui_RR(40.f + (float)k * 90.f, 196.f, 70.f, 10.f, 4.f, UI_G3, 1.4f, QD_NONE);
+        if (u > 0.f)
+            ui_RR(42.f + (float)k * 90.f, 198.f, 66.f * (u > 1.f ? 1.f : u), 6.f, 3.f, QD_NONE, 1.f, k ? UI_K2 : UI_K1);
+    }
+}
+
+/* GRIDS: the map's pad (its nine nodes), the dot at X (KNOB 1, blue) and Y (KNOB 2, green), chaos (ALGORITHM) as a
+ * yellow cloud round it; the density (KNOB 3) a tall stripe; the part LOW / MID / HIGH as three drums (B5 again: the
+ * next). PATTERN: each drum under the track it goes to */
+static void tl_grids(const ui_tools_t *v)
+{
+    const float X = 14.f, Y = 38.f, S = 132.f, dx = X + S * (float)v->r[0] / 255.f, dy = Y + S * (1.f - (float)v->r[1] / 255.f);
+    int a, b, p;
+    ui_RR(X, Y, S, S, 6.f, UI_G2, 1.4f, QD_NONE);
+    for (a = 0; a < 3; a++)
+        for (b = 0; b < 3; b++)
+            ui_O(X + 8.f + (float)a * (S - 16.f) / 2.f, Y + 8.f + (float)b * (S - 16.f) / 2.f, 2.f, QD_NONE, 1.f, UI_G2);
+    tl_line(dx, Y + 4.f, dx, Y + S - 4.f, UI_K1, 1.2f);
+    tl_line(X + 4.f, dy, X + S - 4.f, dy, UI_K2, 1.2f);
+    for (b = 0; b < 12 && v->r[3]; b++) {               /* (the cloud: fixed points, its size the chaos) */
+        const float an = (float)b * 2.39996f, rr = 9.f + (float)v->r[3] / 255.f * 34.f * (0.3f + 0.7f * (float)((b * 7) % 12) / 11.f);
+        ui_O(dx + cosf(an) * rr, dy + sinf(an) * rr, 1.5f, QD_NONE, 1.f, UI_KSEL);
+    }
+    ui_O(dx, dy, 7.f, QD_NONE, 1.f, UI_K3);
+    tl_meter(160.f, 38.f, 22.f, 132.f, (float)v->r[2] / 255.f, UI_K3);
+    for (p = 0; p < 3; p++) {
+        static const float R[3] = {11.f, 8.f, 5.f};
+        const float y = 56.f + (float)p * 46.f;
+        const int on = v->scope == QD_TS_PATTERN ? v->gtr[p] >= 0 : p == v->part;
+        const qd_rgb col = on ? UI_K4 : UI_G2;
+        ui_O(210.f, y, R[p], col, 2.f, on ? col : QD_NONE);
+        if (p == 2)
+            tl_line(201.f, y - 7.f, 219.f, y - 7.f, col, 2.f);
+        if (v->scope == QD_TS_PATTERN && v->gtr[p] >= 0) {   /* (the track it goes to) */
+            char n[12];
+            ui_T(ui_itoa(n, v->gtr[p] + 1), 210.f, y + 26.f, 13.f, 600, 0.f, UI_TRACK_PAL[v->gtr[p] & 7], QD_CENTER);
+        }
+    }
+    tl_lane(v, 0);
+}
+
 void ui_tools_draw(const ui_tools_t *v)
 {
     tl_head(v);
@@ -319,7 +404,9 @@ void ui_tools_draw(const ui_tools_t *v)
     case QD_TL_REVERSE: tl_reverse(v); break;
     case QD_TL_EUCLID: tl_euclid(v); break;
     case QD_TL_LENGTH: tl_length(v); break;
-    default: tl_lane(v, 0); break;
+    case QD_TL_RANDOM: tl_random(v); break;
+    case QD_TL_HUMANIZE: tl_humanize(v); break;
+    default: tl_grids(v); break;
     }
 }
 

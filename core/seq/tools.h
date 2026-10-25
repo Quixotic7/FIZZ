@@ -27,8 +27,7 @@ extern "C" {
 enum { QD_TL_ROTATE, QD_TL_REVERSE, QD_TL_RANDOM, QD_TL_EUCLID, QD_TL_GRIDS, QD_TL_HUMANIZE, QD_TL_LENGTH, QD_TL_N };
 enum { QD_TS_SEL, QD_TS_PAGE, QD_TS_TRACK, QD_TS_PATTERN, QD_TS_N };   /* (SEL: the selected steps, the caller's list) */
 enum { QD_EU_NEW, QD_EU_ADD, QD_EU_MASK, QD_EU_N };    /* EUCLID's landing: replace, OR, AND */
-#define QD_TL_BUILT(tool) ((tool) == QD_TL_ROTATE || (tool) == QD_TL_REVERSE || (tool) == QD_TL_EUCLID || \
-                           (tool) == QD_TL_LENGTH)       /* (T1's; RANDOM, GRIDS, HUMANIZE are T2's) */
+#define QD_TL_BUILT(tool) ((tool) >= 0 && (tool) < QD_TL_N)   /* (T2: every one) */
 
 /* the scope's positions of track t (PAGE: page `page`'s start..end; TRACK / PATTERN: the loop): n (1..128); not SEL */
 int qd_tl_positions(const qd_pattern_t *p, int t, int scope, int page, uint8_t *pos);
@@ -40,6 +39,24 @@ void qd_tl_rotate(qd_pattern_t *p, int t, const uint8_t *pos, int n, int k);
 void qd_tl_reverse(qd_pattern_t *p, int t, const uint8_t *pos, int n);
 int qd_tl_euclid_hit(int i, int hits, int len, int rot);   /* position i a hit (the pattern repeating after len) */
 void qd_tl_euclid(qd_pattern_t *p, int t, const uint8_t *pos, int n, int hits, int len, int rot, int mode);
+/* T2 (§4.3, §4.5, §4.6): the generators, pure functions of a seed: h = qd_tl_hash(seed, track, position) */
+uint32_t qd_tl_hash(uint32_t seed, int t, int i);
+/* RANDOM: position i a trig when (h & 0xFF) < dens % of 256 (dens 0..100); the trigs' note 1 the track's default moved
+ * by -notes..notes degrees of (scale, root) (0: kept), the velocity the default's +- vel (0: kept), the chance 100 -
+ * chance x (h >> 24) / 255 % (0: kept) */
+int qd_tl_random_on(uint32_t seed, int t, int i, int dens);
+void qd_tl_random(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int dens, int notes, int vel,
+                  int chance, int scale, int root);
+/* HUMANIZE: every trig's micro +- micro 24ths and velocity +- vel (0: kept), from what they are */
+void qd_tl_humanize(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int micro, int vel);
+/* GRIDS: FIZZ's own map (grids_map.h, tools/grids_map.py): step i's level 0..255 at x, y (0..255) for part 0 LOW, 1
+ * MID, 2 HIGH, the bilinear blend of the four nodes round it; plus chaos (0..255) x a seeded offset; a trig when the
+ * level > 255 - dens, its velocity 40 + level x 87 / 255 */
+int qd_tl_grids_level(int i, int x, int y, int part);
+int qd_tl_grids_at(uint32_t seed, int t, int i, int x, int y, int part, int chaos);
+void qd_tl_grids(qd_pattern_t *p, int t, const uint8_t *pos, int n, int x, int y, int dens, int part, int chaos,
+                 uint32_t seed);
+
 /* the track doubled (SHIFT + B9's): 0 no room (8 pages); only != 0: its settings only, into *only (nothing copied) */
 int qd_tl_double(qd_pattern_t *p, int t, qd_tset_t *only);
 /* LENGTH: pw doublings (> 0) or halvings (< 0) of track t (page -1) or of page `page`'s end; only: as qd_tl_double */

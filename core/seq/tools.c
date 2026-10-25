@@ -5,6 +5,8 @@
  * they are; copy_steps and the pool's helpers are its own). Nothing here keeps state; the temporaries are on the stack
  * (a step, a 128-byte map), never a buffer. */
 #include "tools.h"
+#include "grids_map.h"
+#include "scale.h"
 
 int qd_tl_positions(const qd_pattern_t *p, int t, int scope, int page, uint8_t *pos)
 {
@@ -195,3 +197,107 @@ void qd_tl_length(qd_pattern_t *p, int t, int page, int pw, qd_tset_t *only)
         }
     }
 }
+
+/* ---------------------------------------------------------------- T2: the generators */
+uint32_t qd_tl_hash(uint32_t seed, int t, int i)       /* (an integer mix: xorshift-multiply) */
+{
+    uint32_t h = seed * 0x9E3779B1u + (uint32_t)t * 0x85EBCA77u + (uint32_t)i * 0xC2B2AE3Du;
+    h ^= h >> 15;
+    h *= 0x2C1B3C6Du;
+    h ^= h >> 12;
+    h *= 0x297A2D39u;
+    h ^= h >> 15;
+    return h;
+}
+
+static int tl_clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+static int tl_spread(uint32_t h, int k) { return k ? (int)(h % (uint32_t)(2 * k + 1)) - k : 0; }   /* -k..k */
+
+int qd_tl_random_on(uint32_t seed, int t, int i, int dens)
+{
+    return (int)(qd_tl_hash(seed, t, i) & 0xFFu) * 100 < dens * 256;
+}
+
+void qd_tl_random(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int dens, int notes, int vel,
+                  int chance, int scale, int root)
+{
+    const qd_sdef_t *d = &p->trk[t].def;
+    int i;
+    for (i = 0; i < n; i++) {
+        const uint32_t h = qd_tl_hash(seed, t, i);
+        const int s = pos[i], on = (p->step[t][s].flags & QD_SF_ON) != 0;
+        if (!qd_tl_random_on(seed, t, i, dens)) {
+            if (on)
+                qd_step_clear(p, t, s);
+            continue;
+        }
+        if (!on)
+            qd_step_on(p, t, s);
+        if (notes) {                                    /* (degrees of the track's scale round its default note) */
+            int k = tl_spread(h >> 8, notes), nt = d->note[0] ? d->note[0] : 60;
+            for (; k > 0; k--)
+                nt = qd_scale_step(scale, root, nt, 1);
+            for (; k < 0; k++)
+                nt = qd_scale_step(scale, root, nt, -1);
+            qd_step_set_note(p, t, s, 0, tl_clampi(nt, 1, 127));
+        }
+        if (vel)
+            qd_step_set_vel(p, t, s, tl_clampi(d->vel + tl_spread(h >> 16, vel), 1, 127));
+        if (chance)
+            qd_step_set_chance(p, t, s, tl_clampi(100 - chance * (int)(h >> 24) / 255, 1, 100));
+    }
+}
+
+void qd_tl_humanize(qd_pattern_t *p, int t, const uint8_t *pos, int n, uint32_t seed, int micro, int vel)
+{
+    int i;
+    for (i = 0; i < n; i++) {
+        const uint32_t h = qd_tl_hash(seed, t, i);
+        qd_rstep_t r;
+        if (!(p->step[t][pos[i]].flags & QD_SF_ON))
+            continue;
+        qd_step_resolve(p, t, pos[i], &r);
+        if (micro)
+            qd_step_set_micro(p, t, pos[i], tl_clampi(r.micro + tl_spread(h, micro), -23, 23));
+        if (vel)
+            qd_step_set_vel(p, t, pos[i], tl_clampi(r.vel + tl_spread(h >> 12, vel), 1, 127));
+    }
+}
+
+int qd_tl_grids_level(int i, int x, int y, int part)
+{
+    const int fx = tl_clampi(x, 0, 255) * 512 / 255, fy = tl_clampi(y, 0, 255) * 512 / 255;
+    int ix = fx >> 8, iy = fy >> 8, ux = fx & 255, uy = fy & 255, a, b, c, d, top, bot;
+    if (ix > 1)
+        ix = 1, ux = 256;
+    if (iy > 1)
+        iy = 1, uy = 256;
+    i &= 31, part %= 3;
+    a = QD_GRIDS_MAP[ix][iy][part][i], b = QD_GRIDS_MAP[ix + 1][iy][part][i];
+    c = QD_GRIDS_MAP[ix][iy + 1][part][i], d = QD_GRIDS_MAP[ix + 1][iy + 1][part][i];
+    top = a + (b - a) * ux / 256, bot = c + (d - c) * ux / 256;
+    return top + (bot - top) * uy / 256;
+}
+
+int qd_tl_grids_at(uint32_t seed, int t, int i, int x, int y, int part, int chaos)
+{
+    const int l = qd_tl_grids_level(i, x, y, part);
+    return chaos ? tl_clampi(l + ((int)(qd_tl_hash(seed, t, i) & 0xFFu) - 128) * chaos / 128, 0, 255) : l;
+}
+
+void qd_tl_grids(qd_pattern_t *p, int t, const uint8_t *pos, int n, int x, int y, int dens, int part, int chaos,
+                 uint32_t seed)
+{
+    int i;
+    for (i = 0; i < n; i++) {
+        const int l = qd_tl_grids_at(seed, t, i, x, y, part, chaos), s = pos[i];
+        if (l > 255 - dens) {
+            if (!(p->step[t][s].flags & QD_SF_ON))
+                qd_step_on(p, t, s);
+            qd_step_set_vel(p, t, s, 40 + l * 87 / 255);
+        } else if (p->step[t][s].flags & QD_SF_ON) {
+            qd_step_clear(p, t, s);
+        }
+    }
+}
+

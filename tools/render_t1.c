@@ -18,7 +18,7 @@
 #include "sounds.h"
 #include "ui.h"
 
-#define NSHOT 16
+#define NSHOT 24
 static qd_app_t A;
 static uint32_t now;
 static uint64_t frames_done;
@@ -293,8 +293,39 @@ int render_t1(const char *out)
     run(300);
     shot("drawn-only", "The device's fallback: drawn only (nothing written), the undo arrow crossed out", 1);
     A.ui.tl.flags = 0, A.ui.tl.rot = 0;
+    /* T2 */
+    black(2);                                           /* (TRACK) */
+    run(QD_TK_MS + 200);
+    turn(QD_K_1, 5);
+    turn(QD_K_2, 3);
+    turn(QD_K_3, 20);
+    turn(QD_K_ALGO, 40);
+    run(300);
+    shot("random", "RANDOM: the die (B3 again rolls), KNOB 1 density, 2 notes, 3 velocity, ALGORITHM chance", 1);
+    btap(QD_B_OCTDN);
+    black(5);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_1, 6);
+    turn(QD_K_2, 25);
+    run(300);
+    shot("humanize", "HUMANIZE: KNOB 1 the timing jitter (the steps off their lines), KNOB 2 the velocity", 1);
+    btap(QD_B_OCTDN);
+    black(4);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_1, 5);
+    turn(QD_K_2, 3);
+    turn(QD_K_3, 6);
+    turn(QD_K_ALGO, 12);
+    run(300);
+    shot("grids", "GRIDS: X (KNOB 1), Y (KNOB 2), density (KNOB 3), chaos (ALGORITHM, the cloud); B5 again: the part", 1);
+    turn(QD_K_4, 1);                                    /* PATTERN */
+    run(QD_TK_MS + 200);
+    turn(QD_K_3, 4);
+    run(300);
+    shot("grids-pattern", "GRIDS over the PATTERN: LOW, MID, HIGH to tracks 1, 2, 3 (DRUMS first)", 1);
+    btap(QD_B_OCTDN);
     btap(QD_B_HOME);
     qd_app_stop(&A);
-    sheet_as("t1-sheet.png", "T1: TOOLS (ROTATE, REVERSE, EUCLID, LENGTH)");
+    sheet_as("t1-sheet.png", "TOOLS: T1 (ROTATE, REVERSE, EUCLID, LENGTH) and T2 (RANDOM, HUMANIZE, GRIDS)");
     return failed;
 }

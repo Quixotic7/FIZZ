@@ -354,6 +354,9 @@ typedef struct {
     uint16_t orig;                     /* .. its steps' trigs before the change (LENGTH: the loop mask before) */
     union {
         struct { uint8_t hits, len, rot, mode; } eu;   /* EUCLID: hits, length, rotation, landing (QD_EU_*) */
+        struct { uint8_t dens, notes, vel, chance; uint16_t seed; } rn;   /* T2 RANDOM: density %, the spreads */
+        struct { uint8_t micro, vel, pad[2]; uint16_t seed; } hu;          /* T2 HUMANIZE: the jitters */
+        struct { uint8_t x, y, dens, chaos, part, pad; uint16_t seed; } gr;   /* T2 GRIDS (part 0..2) */
     } v;
 } qd_tools_t;
 
@@ -731,6 +734,7 @@ int qd_tools_pending(struct qd_app *a);         /* a change pending (live or dra
 void qd_tools_lane(const struct qd_app *a, int w, int *on, int *was, int *note);
 uint16_t qd_tools_sel_mask(const struct qd_app *a);       /* the page's selected steps (bit w) */
 int qd_tools_play_pos(const struct qd_app *a);            /* the playing step's position in the scope (-1) */
+void qd_tools_grids_tracks(const struct qd_app *a, int8_t *tr);   /* T2: GRIDS / PATTERN: the parts' tracks (3, -1) */
 int qd_tools_result_len(const struct qd_app *a, uint8_t *loop);   /* LENGTH: the selected track's length after, loop */
 
 /* ---- ctl_mix.c (P1.4b, built through ctl_latch.c): the track settings, the mix, the effects. The effects' pages: a

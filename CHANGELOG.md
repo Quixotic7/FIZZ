@@ -9,7 +9,7 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
-- **New: TOOLS.** Hold ARP to open it; it works on the selected track. B1 ROTATE, B2 REVERSE, B4 EUCLID and B7 LENGTH (or turn PRESETS) change the selected steps, the page, the track or the whole pattern: B11 or KNOB 4 picks which. SELECT turns the pages, and the white keys show the page's steps as the change will make them; pressing one selects it (with the step lock on, TOOLS starts on the selected steps). You hear every change at once. OCT+ keeps it (one undo), OCT− puts it back, and a big word says which. HOME closes TOOLS. Turning the arp on and off has moved to the MIDI FX screen (tap ARP). SHIFT + ARP is still FILL, and ARP's light is on while FILL is held or TOOLS or MIDI FX is open.
+- **New: TOOLS.** Hold ARP to open it; it works on the selected track. B1..B7 (or PRESETS) pick ROTATE, REVERSE, RANDOM, EUCLID, GRIDS, HUMANIZE or LENGTH; they change the selected steps, the page, the track or the whole pattern: B11 or KNOB 4 picks which. SELECT turns the pages, and the white keys show the page's steps as the change will make them; pressing one selects it (with the step lock on, TOOLS starts on the selected steps). You hear every change at once. OCT+ keeps it (one undo), OCT− puts it back, and a big word says which. HOME closes TOOLS. Turning the arp on and off has moved to the MIDI FX screen (tap ARP). SHIFT + ARP is still FILL, and ARP's light is on while FILL is held or TOOLS or MIDI FX is open.
 - **New: the FIZZ Manager** web page backs up your FM-1's whole store to a file and restores it, and shows your library.
 
 ## 0.12.0-beta.1 (2026-10-24)

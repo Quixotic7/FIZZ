@@ -69,11 +69,41 @@ static void tl_norm(qd_app_t *a)                      /* EUCLID's values within 
         T->v.eu.rot = 0;
 }
 
-static void tl_defaults(qd_tools_t *T)                /* a tool chosen: its values from their defaults */
+static uint16_t tl_seed(const qd_app_t *a, uint16_t was)   /* a new seed (the die rolled) */
 {
+    return (uint16_t)((was * 40503u + 1u + (a->ms * 2654435761u >> 16)) | 1u);
+}
+
+static void tl_defaults(qd_app_t *a)                  /* a tool chosen: its values from their defaults */
+{
+    qd_tools_t *T = &a->ui.tl;
     memset(&T->v, 0, sizeof T->v);
     if (T->tool == QD_TL_EUCLID)
         T->v.eu.hits = 4, T->v.eu.len = 16;
+    else if (T->tool == QD_TL_RANDOM)
+        T->v.rn.dens = 50, T->v.rn.seed = tl_seed(a, 1);
+    else if (T->tool == QD_TL_HUMANIZE)
+        T->v.hu.seed = tl_seed(a, 7);
+    else if (T->tool == QD_TL_GRIDS)
+        T->v.gr.x = 64, T->v.gr.y = 128, T->v.gr.dens = 128, T->v.gr.seed = tl_seed(a, 3);
+}
+
+/* GRIDS over the PATTERN: the tracks the parts LOW, MID, HIGH go to (the DRUMS tracks first, then the others in
+ * order) */
+void qd_tools_grids_tracks(const qd_app_t *a, int8_t *tr)
+{
+    int t, k, n = 0;
+    for (t = 0; t < QD_PAT_NTRACK && n < 3; t++)
+        if (a->model.t[t].kind == QD_PK_DRUMS)
+            tr[n++] = (int8_t)t;
+    for (t = 0; t < QD_PAT_NTRACK && n < 3; t++) {
+        for (k = 0; k < n && tr[k] != t; k++)
+            ;
+        if (k == n)
+            tr[n++] = (int8_t)t;
+    }
+    for (; n < 3; n++)
+        tr[n] = -1;
 }
 
 static void tl_settle(qd_tools_t *T)                  /* nothing pending: the result is the new original */
@@ -105,6 +135,16 @@ static void tl_apply(qd_app_t *a)
     const int all = T->scope == QD_TS_PATTERN, t0 = all ? 0 : a->sel, t1 = all ? QD_PAT_NTRACK : a->sel + 1;
     const int page = T->opage & 7;
     int t;
+    if (T->tool == QD_TL_GRIDS && all) {               /* (the three parts to three tracks) */
+        int8_t tr[3];
+        int k;
+        qd_tools_grids_tracks(a, tr);
+        for (k = 0; k < 3; k++)
+            if (tr[k] >= 0)
+                qd_tl_grids(p, tr[k], pos, qd_tl_positions(p, tr[k], QD_TS_TRACK, page, pos), T->v.gr.x, T->v.gr.y,
+                            T->v.gr.dens, k, T->v.gr.chaos, T->v.gr.seed);
+        return;
+    }
     for (t = t0; t < t1; t++) {
         int n;
         if (T->tool == QD_TL_LENGTH) {                  /* (SELECTED: its page's end, as PAGE) */
@@ -118,6 +158,14 @@ static void tl_apply(qd_app_t *a)
             qd_tl_reverse(p, t, pos, n);
         else if (T->tool == QD_TL_EUCLID)
             qd_tl_euclid(p, t, pos, n, T->v.eu.hits, T->v.eu.len, T->v.eu.rot, T->v.eu.mode);
+        else if (T->tool == QD_TL_RANDOM) {
+            int sc, rt;
+            qd_track_key(&a->proj, p, t, &sc, &rt);
+            qd_tl_random(p, t, pos, n, T->v.rn.seed, T->v.rn.dens, T->v.rn.notes, T->v.rn.vel, T->v.rn.chance, sc, rt);
+        } else if (T->tool == QD_TL_HUMANIZE)
+            qd_tl_humanize(p, t, pos, n, T->v.hu.seed, T->v.hu.micro, T->v.hu.vel);
+        else if (T->tool == QD_TL_GRIDS)
+            qd_tl_grids(p, t, pos, n, T->v.gr.x, T->v.gr.y, T->v.gr.dens, T->v.gr.part, T->v.gr.chaos, T->v.gr.seed);
     }
 }
 
@@ -226,7 +274,7 @@ static void tl_tool(qd_app_t *a, int b)               /* tool b chosen (the pend
     qd_tools_t *T = &a->ui.tl;
     tl_keep(a);
     T->tool = (uint8_t)b;
-    tl_defaults(T);
+    tl_defaults(a);
     tl_norm(a);
     tl_pop(a, 0, 0);
 }
@@ -255,6 +303,14 @@ void qd_tools_black(qd_app_t *a, int b, int down)
             T->flags |= QD_TLF_DIRTY;
         } else if (b == QD_TL_REVERSE) {               /* again: REVERSE flips the result */
             T->flags ^= QD_TLF_FLIP;
+            T->flags |= QD_TLF_DIRTY;
+        } else if (b == QD_TL_RANDOM || b == QD_TL_HUMANIZE) {   /* again: the die rolled (a new seed) */
+            uint16_t *sd = b == QD_TL_RANDOM ? &T->v.rn.seed : &T->v.hu.seed;
+            *sd = tl_seed(a, *sd);
+            T->flags |= QD_TLF_DIRTY;
+        } else if (b == QD_TL_GRIDS) {                 /* again: the next part (LOW, MID, HIGH), chaos rerolled */
+            T->v.gr.part = (uint8_t)((T->v.gr.part + 1) % 3);
+            T->v.gr.seed = tl_seed(a, T->v.gr.seed);
             T->flags |= QD_TLF_DIRTY;
         }
         return;
@@ -328,6 +384,36 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
             T->v.eu.mode = (uint8_t)m;
         }
         break;
+    case QD_TL_RANDOM: {                                /* KNOB 1 density, 2 notes, 3 velocity, ALGORITHM chance */
+        uint8_t *v = knob == QD_K_1 ? &T->v.rn.dens : knob == QD_K_2 ? &T->v.rn.notes : knob == QD_K_3 ? &T->v.rn.vel
+                   : knob == QD_K_ALGO ? &T->v.rn.chance : 0;
+        const int mx = knob == QD_K_2 ? 12 : knob == QD_K_3 ? 64 : 100;
+        if (v) {
+            const int n = tl_clamp(*v + qd_ctl_acc(a, d, mx + 1), 0, mx);
+            ch = n != *v;
+            *v = (uint8_t)n;
+        }
+        break;
+    }
+    case QD_TL_HUMANIZE: {                              /* KNOB 1 the micro jitter (24ths), 2 the velocity jitter */
+        uint8_t *v = knob == QD_K_1 ? &T->v.hu.micro : knob == QD_K_2 ? &T->v.hu.vel : 0;
+        if (v) {
+            const int n = tl_clamp(*v + d, 0, knob == QD_K_1 ? 12 : 40);
+            ch = n != *v;
+            *v = (uint8_t)n;
+        }
+        break;
+    }
+    case QD_TL_GRIDS: {                                 /* KNOB 1 X, 2 Y, 3 density, ALGORITHM chaos (0..255) */
+        uint8_t *v = knob == QD_K_1 ? &T->v.gr.x : knob == QD_K_2 ? &T->v.gr.y : knob == QD_K_3 ? &T->v.gr.dens
+                   : knob == QD_K_ALGO ? &T->v.gr.chaos : 0;
+        if (v) {
+            const int n = tl_clamp(*v + 4 * qd_ctl_acc(a, d, 64), 0, 255);
+            ch = n != *v;
+            *v = (uint8_t)n;
+        }
+        break;
+    }
     case QD_TL_LENGTH:                                  /* KNOB 1: x2 / /2 a detent */
         if (knob == QD_K_1) {
             const int l = tl_clamp(T->lpow + d, -3, 3);
@@ -435,6 +521,11 @@ void qd_tools_lane(const qd_app_t *a, int w, int *on, int *was, int *note)
         src = pos[n - 1 - i];
     if (src != s) {
         tl_step_view(p, t, src, on, note);
+    } else if (T->tool == QD_TL_RANDOM) {
+        *on = qd_tl_random_on(T->v.rn.seed, t, i, T->v.rn.dens);
+    } else if (T->tool == QD_TL_GRIDS) {
+        *on = T->scope == QD_TS_PATTERN ? *was           /* (PATTERN: the parts' tracks; the lane as it is) */
+            : qd_tl_grids_at(T->v.gr.seed, t, i, T->v.gr.x, T->v.gr.y, T->v.gr.part, T->v.gr.chaos) > 255 - T->v.gr.dens;
     } else if (T->tool == QD_TL_EUCLID) {
         const int hit = qd_tl_euclid_hit(i, T->v.eu.hits, T->v.eu.len, T->v.eu.rot);
         *on = T->v.eu.mode == QD_EU_NEW ? hit : T->v.eu.mode == QD_EU_ADD ? hit || *was : hit && *was;

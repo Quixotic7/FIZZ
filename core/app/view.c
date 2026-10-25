@@ -1115,6 +1115,19 @@ static void __attribute__((noinline)) draw_tools(const qd_app_t *a)
     v.count = qd_tools_result_len(a, &v.loop);
     v.loop0 = v.pending && T->tool == QD_TL_LENGTH ? (uint8_t)T->orig : v.loop;
     v.lpow = T->lpow;
+    if (T->tool == QD_TL_RANDOM)                        /* T2 */
+        v.r[0] = T->v.rn.dens, v.r[1] = T->v.rn.notes, v.r[2] = T->v.rn.vel, v.r[3] = T->v.rn.chance, v.seed = T->v.rn.seed;
+    else if (T->tool == QD_TL_HUMANIZE)
+        v.r[0] = T->v.hu.micro, v.r[1] = T->v.hu.vel, v.seed = T->v.hu.seed;
+    else if (T->tool == QD_TL_GRIDS)
+        v.r[0] = T->v.gr.x, v.r[1] = T->v.gr.y, v.r[2] = T->v.gr.dens, v.r[3] = T->v.gr.chaos, v.seed = T->v.gr.seed,
+        v.part = T->v.gr.part;
+    qd_tools_grids_tracks(a, v.gtr);
+    for (w = 0; w < 16; w++) {                          /* (HUMANIZE: the lane's timing and velocities) */
+        qd_rstep_t r;
+        qd_step_resolve(qd_ctl_cpat(a), a->sel, page * QD_PAGE + w, &r);
+        v.micro[w] = (int8_t)r.micro, v.vel[w] = (uint8_t)r.vel;
+    }
     v.t = secs(a->ms);
     ui_tools_draw(&v);
 }
