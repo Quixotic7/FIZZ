@@ -10,7 +10,7 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
-- **2026-10-25, after beta.4: the owner's feedback round is on master (cd09554 + CHANGELOG) and on the unit**, unreleased.
+- **Released: FIZZ 0.12.0-beta.5** (tag `v0.12.0-beta.5` on master 9878bff, pushed; GitHub pre-release and the install page, both workflows green). The unit runs exactly that package (0 xruns at boot). It holds the owner's feedback round after beta.4:
   Everything in CHANGELOG's `## Unreleased`: SEQ tapped = TOOLS, ARP held = arp on/off, SHIFT + SAVE = the project
   page; B9/B10 STRETCH/CLIP, STRETCH's 13-rung ratio ladder, CLIP labels + scope line + always-on COPY/PASTE + B10
   again; the mixer's black keys (tap select, hold mute, double-tap solo, B11 clear; SELECT page, ALGORITHM track,
