@@ -50,3 +50,22 @@ static inline void zr_unpack(const uint8_t *in, uint32_t len, uint8_t *dst, uint
         d += l, o += l;
     }
 }
+/* T1: the same, written over dst in place (no clearing first: each byte goes straight to its value; the device's live
+ * preview reverts the playing pattern this way) */
+static inline void zr_unpack_over(const uint8_t *in, uint32_t len, uint8_t *dst, uint32_t n)
+{
+    uint32_t o = 0, d = 0;
+    while (o + 4u <= len && d <= n) {
+        const uint32_t z = (uint32_t)in[o] | (uint32_t)in[o + 1] << 8, l = (uint32_t)in[o + 2] | (uint32_t)in[o + 3] << 8;
+        o += 4u;
+        if (d + z > n)
+            return;
+        memset(dst + d, 0, z);
+        d += z;
+        if (d + l > n || o + l > len)
+            return;
+        memcpy(dst + d, in + o, l);
+        d += l, o += l;
+    }
+}
+

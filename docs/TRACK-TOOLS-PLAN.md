@@ -1,4 +1,4 @@
-# TOOLS: the track tools (plan, 2026-10-24; mock-up only, nothing built)
+# TOOLS: the track tools (plan, 2026-10-24; T1 built the same day, §10)
 
 Mock-up: `mockups/fizz-tools.html` (11 screens), PNGs `mockups/png/fizz-tools-01..11-*.png` and
 `mockups/png/fizz-tools-sheet.png` (`python3 mockups/render_png.py tl-1 .. tl-11 sheet-tl`).
@@ -206,3 +206,24 @@ TOOLS uses no pool, no RAM code and no NOINIT. All of its code runs from flash o
   - single-core RAM free stays at least 0.6 KB;
   - the pool margin is unchanged.
 - **If single-core RAM is the limit,** pack the tool values into a union: only one tool is live at a time, which brings ~32 B down to ~12 B.
+
+## 10. T1 as built (2026-10-24)
+
+- **Code:** `core/seq/tools.c` (the ops, built through `pattern.c`), `core/app/ctl_tools.c` (the latch, built through
+  `ctl_latch.c`), `core/ui/ui_tools.c` (the screens, built through `ui_layer.c`), `undo.c`'s `hold` and
+  `qd_undo_revert_open`. Tests: `core/tests/test_tools.c` (host and device sizes). Renders: `render_frames --only t1`
+  (`core/tests/out/.../t1-*.png`, `t1-sheet.png`).
+- **Where it differs from the plan above:**
+  - LENGTH follows the latch's one OCT rule (§2): SELECT / KNOB 1 is ×2 / ÷2 a detent, live; OCT+ keeps it and OCT−
+    reverts it. §4.7's "OCT+ ×2, OCT− ÷2" would have clashed with keep / revert.
+  - Switching the tool, the scope or the track keeps a pending change as its own undo level, then switches. The orange
+    dot is the current tool's live change.
+  - EUCLID changes nothing until a knob is turned.
+  - The drawn-only fallback applies whenever the log can't keep the gesture's compressed copy, in any scope (it's the
+    whole pattern's copy whatever the scope).
+  - The tool's name also pops when TOOLS opens. The scope's takeover stays the usual second.
+  - The arp on / off takeover (`qd_mfx_arp_tap`, `QD_TK_MFX_ARP`, `ui_mfx_arp_draw`) is gone. Its three `qd_ui_t` ints
+    pay for TOOLS' 12-byte state, so the RAM delta is 0. ARP's LED is steady lit for FILL and the MIDI FX screen (no
+    blink or breath).
+  - Flash: about 9 KB (ui 4.7, app 2.7, seq 1.2), against the 4.5 KB estimated.
+

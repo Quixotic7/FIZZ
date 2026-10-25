@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: MPL-2.0
+# T1: TOOLS on the unit's build (docs/TRACK-TOOLS-PLAN.md): ARP held opens it at 400 ms, SELECT rotates the demo's
+# track live while it plays, OCT+ keeps it (one undo level), OCT- with nothing pending closes it; SHIFT + ARP is FILL
+# at once and never TOOLS; a tap is the MIDI FX screen.
+#   firmware/build.py --host, then firmware/app/build/host/fizz_host firmware/app/tests/tools.txt OUT
+expect fz_up 1
+tap HOME
+wait 300
+tap PLAY
+wait 600
+expect fz_playing 1
+press ARP
+wait 380
+expect fz_tools 0
+wait 40
+expect fz_tools 1
+release ARP
+wait 900
+turn SELECT 2
+wait 50
+expect fz_tools_pend 1
+shot tools-rotate.png
+wait 800
+expect fz_tools_pend 1
+tap OCT+
+expect fz_tools_pend 0
+expect fz_undo 1
+expect fz_tools 1
+turn SELECT -1
+wait 50
+expect fz_tools_pend 1
+tap OCT-
+expect fz_tools_pend 0
+expect fz_undo 1
+tap OCT-
+expect fz_tools 0
+press GLO
+press ARP
+wait 5
+expect fz_fill 1
+wait 600
+expect fz_tools 0
+expect fz_fill 1
+release ARP
+release GLO
+wait 20
+expect fz_fill 0
+expect fz_tools 0
+wait 400
+expect fz_lcd_stale 0

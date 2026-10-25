@@ -83,6 +83,8 @@ typedef struct {
     qd_sound_t lib0[QD_NLIB_UNDO];
 #endif
     uint8_t nsound0;
+    uint8_t hold;                      /* T1: the gesture is held open (TOOLS' live change: QD_UNDO_QUIET_MS does not
+                                        * close it; closing it lets go) */
 #ifndef QD_UNDO_SLOTS
     qd_mfx_group_t mfx0[QD_MFX_NGROUP];   /* P1.6c: the MIDI FX groups (a fourth region) */
     uint8_t xl[QD_UNDO_XLOCKS * 5];    /* P1.5w: the other patterns' locks cleared (pattern, track, step, number, ovr) */
@@ -121,6 +123,11 @@ void qd_undo_snd(struct qd_app *a, int region, int slot);
  * onto the active pattern (0: none) */
 int qd_hist_store(struct qd_app *a, int which);
 int qd_hist_recall(struct qd_app *a, int which);
+/* T1 (docs/TRACK-TOOLS-PLAN.md §2): the open gesture's pattern back as it was (its "before": the host's copy, the
+ * device's compressed one in the log): 1; 0: no gesture, or its before not kept (the device's log too small: then a
+ * change cannot be previewed live). qd_undo_can_revert: the same test, nothing changed */
+int qd_undo_revert_open(struct qd_app *a);
+int qd_undo_can_revert(const struct qd_app *a);
 
 #ifdef __cplusplus
 }

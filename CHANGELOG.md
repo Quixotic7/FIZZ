@@ -13,6 +13,7 @@ its text becomes the release's notes on the install page and on GitHub.
 - While playing with the step lock off, the sound editor's values now follow the LFOs too, showing what you hear.
 - FIZZ now has six tracks instead of eight, which frees memory for new features. W7 and W8 no longer pick a track and stay dark. **Your projects start fresh:** the first boot of this version clears the old eight-track projects. My Presets are kept.
 - The sound browser no longer freezes when you add a sound to the Pool, take one out, or press B9 to switch between Presets, My Presets and the Pool.
+- **New: TOOLS.** Hold ARP to open it. B1 ROTATE, B2 REVERSE, B4 EUCLID and B7 LENGTH change the page, the track or the whole pattern (B11 picks which), and W1..W6 pick the track. You hear every change at once. OCT+ keeps it (one undo), OCT− puts it back, and HOME closes TOOLS. Turning the arp on and off has moved to the MIDI FX screen (tap ARP). SHIFT + ARP is still FILL, and ARP's light is on while FILL is held or TOOLS or MIDI FX is open.
 
 ## 0.11.0-beta.2 (2026-10-24)
 

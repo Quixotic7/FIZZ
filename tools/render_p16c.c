@@ -340,13 +340,13 @@ int render_p16c(const char *out)
     run(900);
     btap(QD_B_HOME);
     run(200);
-    /* 22: ARP tapped (track 5, group 4: no arp yet) */
+    /* 22: ARP held (T1: TOOLS now; the arp's on / off is the MIDI FX screen's) */
     qd_ctl_select_track(&A, 4);
     run(50);
     bdown(QD_B_KEYS);                                   /* (P1.6d: ARP held) */
     run(QD_ARP_HOLD_MS + 250);
     bup(QD_B_KEYS);
-    shot("arpon", "ARP held, anywhere: ARP ON (added in slot 3)", 1);
+    shot("arpon", "ARP held: TOOLS (T1; was the arp ON / OFF)", 1);
     run(1400);
     /* 23: a held step in TRIG, KNOB 2: its MIDI FX */
     qd_ctl_select_track(&A, 0);

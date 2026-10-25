@@ -58,7 +58,7 @@ INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/se
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
 HDRS := $(ROOT)/core/gfx/qd_fb_pal.h $(ROOT)/core/qd_config.h $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/qd_gfx_rec.c $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
-        $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/seq/names.c $(ROOT)/core/seq/mfx.c $(ROOT)/core/app/view_labels.c $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/ctl_presets.c $(ROOT)/core/app/ctl_type.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_presets.c $(ROOT)/core/ui/ui_type.c $(ROOT)/core/ui/ui_snd.c $(ROOT)/core/ui/ui_mfx.c $(ROOT)/core/app/ctl_mfx.c $(ROOT)/core/ui/ui_ape.c $(ROOT)/core/ui/ui_geek.c \
+        $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/seq/names.c $(ROOT)/core/seq/mfx.c $(ROOT)/core/app/view_labels.c $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/ctl_presets.c $(ROOT)/core/app/ctl_type.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_presets.c $(ROOT)/core/ui/ui_type.c $(ROOT)/core/ui/ui_snd.c $(ROOT)/core/ui/ui_mfx.c $(ROOT)/core/app/ctl_mfx.c $(ROOT)/core/ui/ui_ape.c $(ROOT)/core/ui/ui_geek.c $(ROOT)/core/ui/ui_tools.c $(ROOT)/core/app/ctl_tools.c $(ROOT)/core/seq/tools.c \
         $(PVG)/include/plutovg.h
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
 PVG_OBJ := $(addprefix $(B)/pvg-,$(notdir $(PVG_SRC:.c=.o)))
@@ -73,11 +73,11 @@ vpath %.c $(ROOT)/core/app $(ROOT)/core/ui $(ROOT)/core/gfx $(ROOT)/core/seq $(R
 
 all: render_frames render_audio
 
-render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p14a.o $(B)/render_p14b.o $(B)/render_p15a.o $(B)/render_p15b.o $(B)/render_p15d.o $(B)/render_p15e.o $(B)/render_p15f.o $(B)/render_p15g.o $(B)/render_p15h.o $(B)/render_p15i.o $(B)/render_p15j.o $(B)/render_p15k.o $(B)/render_p15l.o $(B)/render_p15n.o $(B)/render_p15o.o $(B)/render_p15c.o $(B)/render_p15p.o $(B)/render_p15q.o $(B)/render_p15r.o $(B)/render_p15s.o $(B)/render_p15t.o $(B)/render_p15u.o $(B)/render_p15v.o $(B)/render_p15w.o $(B)/render_p15x.o $(B)/render_e1.o $(B)/render_p15y.o $(B)/render_p15z.o $(B)/render_e2.o $(B)/render_e3.o $(B)/render_e4.o $(B)/render_p16c.o $(B)/render_p16d.o $(B)/render_tapape.o $(B)/render_p16e.o $(B)/render_p16g.o $(B)/render_p16h.o $(B)/render_p211.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
+render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p14a.o $(B)/render_p14b.o $(B)/render_p15a.o $(B)/render_p15b.o $(B)/render_p15d.o $(B)/render_p15e.o $(B)/render_p15f.o $(B)/render_p15g.o $(B)/render_p15h.o $(B)/render_p15i.o $(B)/render_p15j.o $(B)/render_p15k.o $(B)/render_p15l.o $(B)/render_p15n.o $(B)/render_p15o.o $(B)/render_p15c.o $(B)/render_p15p.o $(B)/render_p15q.o $(B)/render_p15r.o $(B)/render_p15s.o $(B)/render_p15t.o $(B)/render_p15u.o $(B)/render_p15v.o $(B)/render_p15w.o $(B)/render_p15x.o $(B)/render_e1.o $(B)/render_p15y.o $(B)/render_p15z.o $(B)/render_e2.o $(B)/render_e3.o $(B)/render_e4.o $(B)/render_p16c.o $(B)/render_p16d.o $(B)/render_tapape.o $(B)/render_p16e.o $(B)/render_p16g.o $(B)/render_p16h.o $(B)/render_p211.o $(B)/render_t1.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 # P2.0: the same at the device's sizes (make PROFILE=-DQD_DEVICE B=build/dev build/dev/render_frames)
-$(B)/render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p14a.o $(B)/render_p14b.o $(B)/render_p15a.o $(B)/render_p15b.o $(B)/render_p15d.o $(B)/render_p15e.o $(B)/render_p15f.o $(B)/render_p15g.o $(B)/render_p15h.o $(B)/render_p15i.o $(B)/render_p15j.o $(B)/render_p15k.o $(B)/render_p15l.o $(B)/render_p15n.o $(B)/render_p15o.o $(B)/render_p15c.o $(B)/render_p15p.o $(B)/render_p15q.o $(B)/render_p15r.o $(B)/render_p15s.o $(B)/render_p15t.o $(B)/render_p15u.o $(B)/render_p15v.o $(B)/render_p15w.o $(B)/render_p15x.o $(B)/render_e1.o $(B)/render_p15y.o $(B)/render_p15z.o $(B)/render_e2.o $(B)/render_e3.o $(B)/render_e4.o $(B)/render_p16c.o $(B)/render_p16d.o $(B)/render_tapape.o $(B)/render_p16e.o $(B)/render_p16g.o $(B)/render_p16h.o $(B)/render_p211.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
+$(B)/render_frames: $(B)/render_frames.o $(B)/render_p13b.o $(B)/render_p13c.o $(B)/render_p13d.o $(B)/render_p13e.o $(B)/render_p13f.o $(B)/render_p13q.o $(B)/render_p13s.o $(B)/render_p13u.o $(B)/render_p13w.o $(B)/render_p13x.o $(B)/render_p13y.o $(B)/render_p14a.o $(B)/render_p14b.o $(B)/render_p15a.o $(B)/render_p15b.o $(B)/render_p15d.o $(B)/render_p15e.o $(B)/render_p15f.o $(B)/render_p15g.o $(B)/render_p15h.o $(B)/render_p15i.o $(B)/render_p15j.o $(B)/render_p15k.o $(B)/render_p15l.o $(B)/render_p15n.o $(B)/render_p15o.o $(B)/render_p15c.o $(B)/render_p15p.o $(B)/render_p15q.o $(B)/render_p15r.o $(B)/render_p15s.o $(B)/render_p15t.o $(B)/render_p15u.o $(B)/render_p15v.o $(B)/render_p15w.o $(B)/render_p15x.o $(B)/render_e1.o $(B)/render_p15y.o $(B)/render_p15z.o $(B)/render_e2.o $(B)/render_e3.o $(B)/render_e4.o $(B)/render_p16c.o $(B)/render_p16d.o $(B)/render_tapape.o $(B)/render_p16e.o $(B)/render_p16g.o $(B)/render_p16h.o $(B)/render_p211.o $(B)/render_t1.o $(B)/render_p13p.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
 render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
@@ -153,6 +153,9 @@ $(B)/test_app: $(T)/test_app.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_app.c $(SAN_OBJ) -lm
 $(B)/test_ctl: $(T)/test_ctl.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_ctl.c $(SAN_OBJ) -lm
+# T1: the track tools (docs/TRACK-TOOLS-PLAN.md §6)
+$(B)/test_tools: $(T)/test_tools.c $(SAN_OBJ) $(HDRS)
+	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_tools.c $(SAN_OBJ) -lm
 
 # the ChoralRoot tag, its generated headers (the tag's own generators)
 $(CRB)/.ready: | $(B)
@@ -187,7 +190,7 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
-         $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx
+         $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx $(B)/test_tools
 test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-gfx-fast budget-ratchet
 	@echo "make test: all passed (host and device sizes, the device's drawing too)"
 
@@ -195,7 +198,7 @@ test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-gfx-fast bud
 # core/tests/out/dev (the goldens are the same: the sizes change nothing a pattern sounds like). The bit-exact tests
 # compare the voice and the effects with ChoralRoot's code: no size of theirs differs, they run once (test-host)
 DEV_TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_mfx $(B)/test_app $(B)/test_ctl $(B)/test_store \
-             $(B)/test_persist $(B)/test_sysex $(B)/test_arena
+             $(B)/test_persist $(B)/test_sysex $(B)/test_arena $(B)/test_tools
 test-dev:
 	$(MAKE) PROFILE=-DQD_DEVICE B=build/dev OUT=$(abspath $(OUT))/dev test-dev-run
 # P2.4: the same at the device's sizes with the unit's drawing (GFX=fast), into build/dev-fast
@@ -244,6 +247,7 @@ test-dev-run: $(DEV_TESTS)
 	$(B)/test_persist
 	$(B)/test_sysex
 	$(B)/test_arena
+	$(B)/test_tools
 	@echo "make test-dev: all passed (device sizes)"
 
 test-host: $(TESTS)
@@ -255,6 +259,7 @@ test-host: $(TESTS)
 	$(B)/test_mfx
 	$(B)/test_app
 	$(B)/test_ctl
+	$(B)/test_tools
 	$(B)/test_store
 	$(B)/test_persist
 	$(B)/test_sysex

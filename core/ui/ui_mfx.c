@@ -1187,36 +1187,6 @@ void ui_mfx_draw(const ui_mfx_t *v)
         ui_RR(0.f, 0.f, 240.f, 240.f, 8.f, UI_STEP_FRAME, 3.f, QD_NONE);
 }
 
-/* ARP tapped: the arp's staircase, ON / OFF big, the group's slots (the new arp popping in) */
-void ui_mfx_arp_draw(int g, int on, const uint8_t type[8], int k_new, int track, float u, float t)
-{
-    const qd_rgb col = UI_MFX_COL[QD_MFX_ARP];
-    const float s = 44.f, cx = 120.f, cy = 108.f, U = s / 8.f;
-    uint8_t tr[1];
-    int i;
-    tr[0] = (uint8_t)track;
-    mf_head(0, 0, "ARP", col, g, tr, track > 0, track);
-#define X_(v) (cx + (v) * U)
-#define Y_(v) (cy + (v) * U)
-    mf_G((const float[]){X_(-7), Y_(6), X_(-3), Y_(6), X_(-3), Y_(1), X_(1), Y_(1), X_(1), Y_(-4), X_(6), Y_(-4)}, 6,
-         on ? col : UI_G2, 3.6f, 1.f);
-    if (on) {
-        static const float PT[3][2] = {{-5, 6}, {-1, 1}, {3.5f, -4}};
-        const int st = (int)(t * 3.f) % 3;
-        mf_dot(X_(PT[st][0]), Y_(PT[st][1]) - 7.f, 6.5f, UI_K3, 1.f);
-    }
-#undef X_
-#undef Y_
-    ui_T(on ? "ON" : "OFF", 120.f, 196.f, 44.f, 300, 0.f, on ? col : UI_G1, QD_CENTER);
-    for (i = 0; i < 8; i++) {
-        const float x = 40.f + (float)i * 20.f;
-        const float pop = i == k_new ? 1.f + 0.35f * (u < 0.25f ? sinf(u / 0.25f * UI_PI) : 0.f) : 1.f, w = 15.f * pop;
-        mf_tile(x + 7.5f - w / 2.f, 220.f - w / 2.f, w, type[i], 0, 0, 0.f, 1.f);
-    }
-    mf_L(34.f, 220.f, 37.f, 220.f, UI_G2, 1.f, 1.f);
-    mf_L(198.f, 220.f, 206.f, 220.f, UI_G2, 1.f, 1.f);
-}
-
 /* a held step's MIDI FX: m 0 TRACK (the track's group g), 1 OFF, 2.. a group */
 void ui_mfx_step_draw(int step, int m, int g, const uint8_t type[8], const char *trig, float t)
 {

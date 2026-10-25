@@ -1086,6 +1086,43 @@ static void draw_octave(const qd_app_t *a)
 }
 
 /* P1.3c: SEQ held, the patterns */
+/* T1: TOOLS' model (on the stack: a frame's moment) and its drawing */
+static void __attribute__((noinline)) draw_tools(const qd_app_t *a)
+{
+    ui_tools_t v;
+    const qd_tools_t *T = &a->ui.tl;
+    const qd_pattern_t *p = qd_ctl_cpat(a);
+    const int page = a->ui.page[a->sel] & 7;
+    int w, ps;
+    memset(&v, 0, sizeof v);
+    v.tool = T->tool, v.scope = T->scope, v.track = a->sel + 1;
+    v.pending = (T->flags & QD_TLF_PEND) != 0, v.nolive = v.pending && (T->flags & QD_TLF_NOLIVE);
+    v.tcol = UI_TRACK_PAL[a->sel & 7];
+    v.lo = 127, v.hi = 0;
+    for (w = 0; w < 16; w++) {
+        int on, was, note;
+        qd_tools_lane(a, w, &on, &was, &note);
+        v.on[w] = (uint8_t)on, v.was[w] = (uint8_t)was, v.note[w] = (uint8_t)note;
+        if (note && on)
+            v.lo = note < v.lo ? note : v.lo, v.hi = note > v.hi ? note : v.hi;
+    }
+    ps = a->seq.playing ? qd_seq_track_step(&a->seq, a->sel) : -1;
+    v.play = ps >= 0 && ps / QD_PAGE == page ? ps % QD_PAGE : -1;
+    v.rot = T->rot, v.flip = (T->flags & QD_TLF_FLIP) != 0;
+    v.hits = T->ehits, v.len = T->elen ? T->elen : 1, v.erot = T->erot, v.emode = T->emode;
+    v.epos = -1;
+    if (ps >= 0) {                                      /* (the playing step's position in EUCLID's length) */
+        uint8_t pos[QD_NSTEP];
+        const int n = qd_tl_positions(p, a->sel, T->scope, page, pos), i = qd_tl_pos_of(pos, n, ps);
+        v.epos = i >= 0 ? i % v.len : -1;
+    }
+    v.count = qd_tools_result_len(a, &v.loop);
+    v.loop0 = v.pending && T->tool == QD_TL_LENGTH ? (uint8_t)T->orig : v.loop;
+    v.lpow = T->lpow;
+    v.t = secs(a->ms);
+    ui_tools_draw(&v);
+}
+
 static void draw_patterns(const qd_app_t *a)
 {
     ui_patterns_t v;
@@ -1290,6 +1327,8 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_SOUND;                            /* P1.4a: the sound editor */
     if (qd_mfx_open(a))
         return QD_SCR_MFX;                              /* P1.6c: the MIDI FX screen */
+    if (qd_tools_open(a))
+        return QD_SCR_TOOLS;                            /* T1: the track tools */
     if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_BROWSE)
         return QD_SCR_BROWSE;                           /* P1.5t: the library browser */
     if (u->mode == QD_MODE_STEP && u->latch == QD_LATCH_SAVE)
@@ -2094,7 +2133,7 @@ int qd_view_overlay(const qd_app_t *a)
                                       a->ui.tk == UI_TK_TAP || a->ui.tk == UI_TK_FOLLOW || a->ui.tk == UI_TK_TRACKBIG ||
                                       a->ui.tk == QD_TK_UNDO || a->ui.tk == QD_TK_IMPORT || a->ui.tk == QD_TK_LOADED ||
                                       a->ui.tk == QD_TK_BACK || a->ui.tk == QD_TK_SAVED ||
-                                      a->ui.tk == QD_TK_MFX_ARP || a->ui.tk == QD_TK_MFX_STEP ||   /* (P1.6c) */
+                                      a->ui.tk == QD_TK_MFX_STEP ||   /* (P1.6c) */
                                       (a->ui.tk == QD_TK_PRESET && a->ui.tk_lock));   /* (P1.5t: the step's pool
                                                          * picker takes the screen in EDIT too) */
 }
@@ -2291,6 +2330,9 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
     case QD_SCR_SEQ:                                    /* printed SEQ held: the patterns */
         draw_patterns(a);
         break;
+    case QD_SCR_TOOLS:                                  /* T1: the track tools */
+        draw_tools(a);
+        break;
     case QD_SCR_SEL:                                    /* printed SEL held: the tracks */
         fill_layer(a, &yv, 4);
         ui_layer_draw(&yv);
@@ -2354,6 +2396,16 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         }
     } else if (!qd_view_overlay(a)) {
         /* (none; P1.3r: EDIT's top is the pop-up: no takeover band, picture or picker over it) */
+    } else if (u->tk == UI_TK_TOOL) {                   /* T1: a tool's name over its picture (~0.8 s), the scope */
+        const uint32_t d = a->ms - u->tk_ms;
+        const float al = u->tk_knob ? (d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS)
+                                    : d < QD_TOOL_POP_MS - 300u ? 1.f : (float)(QD_TOOL_POP_MS - d) / 300.f;
+        if (al > 0.f && qd_tools_open(a)) {
+            qd_save();
+            qd_alpha(al);
+            ui_tools_pop(u->tk_knob, u->tl.tool, u->tl.scope, secs(d));
+            qd_restore();
+        }
     } else if (u->tk == QD_TK_HELDKNOB) {                      /* P1.3d: a held step's knob: the band over its screen */
         const uint32_t d = a->ms - u->tk_ms;
         const float al = d < QD_TK_MS ? 1.f : 1.f - (float)(d - QD_TK_MS) / (float)QD_TK_FADE_MS;
@@ -2375,12 +2427,6 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
                 draw_pfx(a);                            /* P1.5t: LOADED, BACK, SAVED */
             } else if (u->tk == QD_TK_IMPORT) {         /* P1.5r: a sound imported (SysEx) */
                 ui_import_draw(u->imp_name, u->imp_pool, u->imp_slot, secs(a->ms - u->tk_ms));
-            } else if (u->tk == QD_TK_MFX_ARP) {        /* P1.6c: ARP tapped: the arp ON / OFF */
-                uint8_t ty[8];
-                int k;
-                for (k = 0; k < 8; k++)
-                    ty[k] = u->tk_g ? a->proj.mfx[u->tk_g - 1].slot[k].type : 0;
-                ui_mfx_arp_draw(u->tk_g, u->tk_on, ty, u->tk_new, a->sel + 1, secs(a->ms - u->tk_ms), secs(a->ms));
             } else if (u->tk == QD_TK_MFX_STEP) {       /* P1.6c: a held step's MIDI FX */
                 static const char *const TRIG[4] = {"NOTE", "NOTE", "LOCK", "TIE"};
                 uint8_t ty[8];

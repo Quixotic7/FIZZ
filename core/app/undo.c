@@ -24,6 +24,7 @@ void qd_undo_init(qd_app_t *a)
 {
     qd_hist_t *u = &a->undo;
     u->open = 0;
+    u->hold = 0;
     u->n = u->pos = 0;
     u->used = 0;
     u->snap_ok = u->pclip_ok = 0;
@@ -37,6 +38,7 @@ void qd_undo_init(qd_app_t *a)
 void qd_undo_reset(qd_app_t *a)
 {
     a->undo.open = 0;
+    a->undo.hold = 0;
     a->undo.n = a->undo.pos = 0;
     a->undo.used = 0;
 #ifdef QD_UNDO_SLOTS
@@ -104,6 +106,7 @@ static void undo_take(qd_app_t *a)                    /* the gesture's "before" 
     u->xl_over = 0;
     u->hint = -1;
     u->knob = 0;
+    u->hold = 0;
     u->open = 1;
 }
 
@@ -371,6 +374,7 @@ static void undo_close(qd_app_t *a)
     int r;
     if (!u->open)
         return;
+    u->hold = 0;                                        /* (T1: a held gesture let go) */
 #ifdef QD_UNDO_SLOTS
     if (!u->b_ok || u->xl_over) {                       /* (the gesture's before not kept: no level) */
         u->open = 0;
@@ -477,7 +481,7 @@ void qd_undo_ms(qd_app_t *a)
 {
     qd_hist_t *u = &a->undo;
     undo_follow(a);
-    if (u->open && a->ms - u->last_ms >= QD_UNDO_QUIET_MS && !a->keys_held && !a->buttons_held)
+    if (u->open && !u->hold && a->ms - u->last_ms >= QD_UNDO_QUIET_MS && !a->keys_held && !a->buttons_held)
         qd_undo_close(a);
 }
 
@@ -560,6 +564,28 @@ int qd_undo_step(qd_app_t *a, int dir)
     }
     u->open = 0;                                        /* (the undo itself is no edit) */
     return k;
+}
+
+int qd_undo_can_revert(const qd_app_t *a)
+{
+#ifdef QD_UNDO_SLOTS
+    return a->undo.open && a->undo.b_ok;
+#else
+    return a->undo.open;
+#endif
+}
+
+int qd_undo_revert_open(qd_app_t *a)
+{
+    qd_hist_t *u = &a->undo;
+    if (!qd_undo_can_revert(a))
+        return 0;
+#ifdef QD_UNDO_SLOTS
+    zr_unpack_over(u->pool + GEND(u) - u->gpz, u->gpz, (uint8_t *)qd_proj_pat(&a->proj, u->pat), sizeof(qd_pattern_t));
+#else
+    *qd_proj_pat(&a->proj, u->pat) = u->pat0;
+#endif
+    return 1;
 }
 
 int qd_undo_count(const qd_app_t *a, int dir) { return dir < 0 ? a->undo.pos : a->undo.n - a->undo.pos; }

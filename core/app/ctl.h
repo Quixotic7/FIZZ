@@ -124,6 +124,7 @@
 
 #include "../seq/clip.h"
 #include "../seq/pattern.h"
+#include "../seq/tools.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -179,8 +180,8 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TK_BACK 107                 /* .. its F1 / HOME: the track's own sound back, "BACK" */
 #define QD_TK_SAVED 108                /* .. SAVE PRESET done: into MY presets, "SAVED" */
 #define QD_TK_LMODE 103                /* P1.5b: the latch mode's screen (P1.5h: only while LFO is held: lmode_open) */
-#define QD_TK_MFX_ARP 109              /* P1.6c: ARP (P1.6d: held) the group's arp ON / OFF */
-#define QD_ARP_HOLD_MS 400u            /* P1.6d: ARP held this long: the arp on / off (a tap: the MIDI FX screen) */
+#define QD_ARP_HOLD_MS 400u            /* P1.6d: ARP held this long (T1: TOOLS opens; a tap: the MIDI FX screen) */
+#define QD_TOOL_POP_MS 800u            /* T1: a tool's name pops up this long (its last 300 ms a fade) */
 #define QD_TK_MFX_STEP 110             /* P1.6c: a held step's MIDI FX (TRIG's KNOB 2, B4..B10) */
 #define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
 enum { QD_LMODE_VALUES, QD_LMODE_MODES };   /* P1.5b: with the step latch on, the black keys: the values / the hold modes */
@@ -210,6 +211,7 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
        QD_LATCH_PRJ,                    /* P1.5a: SEQ tapped: the project, the projects */
        QD_LATCH_SAVE,                   /* P1.5t: SAVE: SAVE PRESET, the track's sound into MY presets */
        QD_LATCH_MFX,                    /* P1.6c: SHIFT + ARP: the MIDI FX screen (ctl_mfx.c) */
+       QD_LATCH_TOOLS,                  /* T1: ARP held: the track tools (ctl_tools.c) */
        QD_NLATCH };
 #define QD_LATCH_MENU(l) ((l) == QD_LATCH_REC || (l) == QD_LATCH_SET || (l) == QD_LATCH_TRK)   /* a settings menu:
                                                          * its own screen, KNOB 1..4 */
@@ -337,6 +339,20 @@ typedef struct {
     int b11_down, b11_used;
     int oct_used;
 } qd_prjui_t;
+
+/* T1 (docs/TRACK-TOOLS-PLAN.md; ctl_tools.c): TOOLS' state, packed (12 bytes; only one tool is live at a time) */
+#define QD_TLF_PEND 0x01u              /* a change is pending (the orange dot): live in the pattern, or drawn only */
+#define QD_TLF_NOLIVE 0x02u            /* .. drawn only (the log could not keep the original: OCT+ applies, no undo) */
+#define QD_TLF_FLIP 0x04u              /* REVERSE: the pending result flipped */
+#define QD_TLF_DIRTY 0x08u             /* a value changed: rewritten at the next millisecond (detents combined) */
+typedef struct {
+    uint8_t tool, scope, flags;        /* QD_TL_*, QD_TS_*, QD_TLF_* */
+    uint8_t emode;                     /* EUCLID's landing (QD_EU_*) */
+    int8_t rot, lpow;                  /* ROTATE's offset from the original; LENGTH's doublings (< 0: halvings) */
+    uint8_t ehits, elen, erot;         /* EUCLID: hits, length, rotation */
+    uint8_t opage;                     /* the lane's page (of the selected track) .. */
+    uint16_t orig;                     /* .. its steps' trigs before the change (LENGTH: the loop mask before) */
+} qd_tools_t;
 
 typedef struct {
     int mode;                          /* QD_MODE_* */
@@ -498,7 +514,6 @@ typedef struct {
     uint32_t arp_ms;                   /* ARP went down (P1.6d: a tap the MIDI FX screen, held the arp on / off) .. */
     int arp_used;                      /* .. SHIFT + ARP, or held: no tap */
     int arp_fill;                      /* P1.6d: SHIFT + ARP: FILL on (while both are down) */
-    int tk_g, tk_on, tk_new;           /* the ARP takeover: the group, on, the slot an arp was added in (-1) */
     int snd_lk, snd_lk_used, snd_lk_k, snd_lk_id;   /* P1.5k: an LFO key held in the editor (1..3; E4: 4 B1, the MOD
                                          * slots), a knob used with it,
                                         * the knob slot and the value it mapped .. */
@@ -574,6 +589,7 @@ typedef struct {
     uint32_t pvs_until[16];            /* P1.5s: a once-preview (the step cursor) ends then; 0: a finger's */
     int pvs_grp;                       /* P1.6e: the preview went through a MIDI FX group on this track (+ 1): at its end
                                         * the group's notes of it end (qd_player_preview_end) */
+    qd_tools_t tl;                     /* T1: the track tools (ctl_tools.c) */
 } qd_ui_t;
 
 /* ---- ctl.c */
@@ -676,7 +692,7 @@ const qd_lockscreen_t *qd_snd_lock_screen(const struct qd_app *a, int page);
  * selected track's group: B1..B8 the slots (again: the next page), PRESETS the slot's effect, KNOB 1..4 its page's
  * values, SELECT the page, ALGORITHM the track's group, B10 bypass, B11 remove (twice), F1 + B copy, F2 + B move, the
  * white keys play the track through the group (the arp's lanes: the steps; SHIFT + W a random value); F1 tapped or
- * HOME close it. ARP tapped anywhere: the group's arp on / off (qd_mfx_arp_tap) */
+ * HOME close it. (T1: ARP held is TOOLS now; the arp on / off is its slot here: added / removed, B10 bypass) */
 int qd_mfx_open(const struct qd_app *a);
 int qd_mfx_tgroup(const struct qd_app *a);        /* the selected track's group (0 OFF, 1..5) */
 void qd_mfx_screen(struct qd_app *a);             /* SHIFT + ARP: opened */
@@ -685,7 +701,6 @@ void qd_mfx_white(struct qd_app *a, int key, int w, int down, int vel);
 int qd_mfx_knob(struct qd_app *a, int knob, int d);
 int qd_mfx_oct(struct qd_app *a, int d, int down);   /* F1 / F2 there; 1 taken */
 void qd_mfx_leds(const struct qd_app *a, uint8_t *key);
-void qd_mfx_arp_tap(struct qd_app *a);            /* ARP tapped: the arp on / off (a group made for it if none) */
 int qd_mfx_lane_page(const struct qd_app *a);     /* the arp's lane on screen: 0 none, 1 MOD, 2 TRANSPOSE */
 void qd_mfx_ms(struct qd_app *a);                 /* P1.6e: a slot key let go however: its move dropped */
 void qd_mfx_rec(struct qd_app *a);                /* P1.6e: REC tapped there: STEPS / KEYS */
@@ -693,6 +708,26 @@ int qd_mfx_steps_held(const struct qd_app *a, int *first);   /* P1.6e: STEPS: th
 #define QD_MFX_GLIDE_MS 260u
 int qd_mfx_glide(const struct qd_app *a, int from, int to, uint32_t t0);   /* P1.6d: a glide's place now (x100) */
 const char *qd_mfx_knob_name(const struct qd_app *a, int k, char *val);   /* KNOB k's (0..3) name, value (12) */
+
+/* ---- ctl_tools.c (T1, built through ctl_latch.c; docs/TRACK-TOOLS-PLAN.md): TOOLS, latched. ARP held 400 ms opens
+ * it, HOME closes it (a pending change kept). B1..B7 the tool (ROTATE, REVERSE, RANDOM, EUCLID, GRIDS, HUMANIZE, LENGTH;
+ * T1 builds ROTATE, REVERSE, EUCLID, LENGTH), B11 the scope (PAGE -> TRACK -> PATTERN), W1..W6 the track, the knobs the
+ * tool's values. Every change is rewritten into the pattern at once, heard and seen (the undo gesture held open: its
+ * "before" is the original); OCT+ keeps it (one undo level), OCT- reverts it (again, nothing pending: closes). Switching
+ * the tool, the scope or the track keeps a pending change. When the log cannot keep the original the change is drawn
+ * only, and OCT+ writes it without an undo level */
+int qd_tools_open(const struct qd_app *a);
+void qd_tools_screen(struct qd_app *a);          /* opened (ARP held) */
+void qd_tools_black(struct qd_app *a, int b, int down);
+void qd_tools_white(struct qd_app *a, int w, int down);
+int qd_tools_knob(struct qd_app *a, int knob, int d);
+void qd_tools_ms(struct qd_app *a);
+void qd_tools_leds(const struct qd_app *a, uint8_t *key);
+int qd_tools_pending(struct qd_app *a);         /* a change pending (live or drawn only) */
+/* the lane's step w (0..15 of the selected track's edited page) as the change makes it (on), as it was (was), its
+ * first note (0: none) */
+void qd_tools_lane(const struct qd_app *a, int w, int *on, int *was, int *note);
+int qd_tools_result_len(const struct qd_app *a, uint8_t *loop);   /* LENGTH: the selected track's length after, loop */
 
 /* ---- ctl_mix.c (P1.4b, built through ctl_latch.c): the track settings, the mix, the effects. The effects' pages: a
  * cell is a qd_fx.h parameter, QD_FXC_SEND (the selected track's send into the page's effect), QD_FXC_TIME /
@@ -868,7 +903,6 @@ void qd_ctl_sounding(const struct qd_app *a, uint8_t *notes);   /* the selected 
 int qd_ctl_trig_flash(const struct qd_app *a, int t);          /* track t's trig flash (80 ms) */
 #define QD_LED_BREATH_MS 1500u
 uint8_t qd_led_breath(uint32_t ms);
-uint8_t qd_led_breath_dim(uint32_t ms);  /* P1.6f: 5 % .. 25 %, breathing (ARP in the MIDI FX screen, the arp off) */
 uint8_t qd_led_breath_lo(uint32_t ms);   /* P1.5x: 30 % .. full, breathing (the chosen preset's tags on B2..B8) */    /* P1.5n: LFO's LED in MODES: 60 % .. full, breathing */
 
 /* ---- view.c */
@@ -888,7 +922,8 @@ enum { QD_SCR_IDLE, QD_SCR_LANE, QD_SCR_HELD, QD_SCR_LAYER, QD_SCR_SHIFT, QD_SCR
        QD_SCR_BROWSE, QD_SCR_NAME, QD_SCR_PRJ,   /* P1.5t: the library browser; P1.5a: the name editor, the projects */
        QD_SCR_SAVE,                    /* P1.5t: SAVE PRESET */
        QD_SCR_MFX,                     /* P1.6c: the MIDI FX screen */
-       QD_SCR_GEEK };                  /* P2.11: a Geek Out page (the view's) */
+       QD_SCR_GEEK,                    /* P2.11: a Geek Out page (the view's) */
+       QD_SCR_TOOLS };                 /* T1: the track tools */                  /* P2.11: a Geek Out page (the view's) */
 /* P1.3r: a knob's takeover (band, picture, picker) drawn over the screen now: never over EDIT, whose top is the pop-up */
 int qd_view_overlay(const struct qd_app *a);
 struct ui_snd;

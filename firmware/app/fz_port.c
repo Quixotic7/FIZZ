@@ -603,6 +603,14 @@ int fz_expect(const char *what, int *got)
         *got = a->seq.cur;
     else if (!strcmp(what, "fz_sel"))
         *got = a->sel;
+    else if (!strcmp(what, "fz_tools"))                /* T1: TOOLS open */
+        *got = qd_tools_open(a);
+    else if (!strcmp(what, "fz_tools_pend"))           /* .. a change pending (live, or drawn only: 2) */
+        *got = a->ui.tl.flags & QD_TLF_PEND ? (a->ui.tl.flags & QD_TLF_NOLIVE ? 2 : 1) : 0;
+    else if (!strcmp(what, "fz_fill"))                 /* FILL on (SHIFT + ARP) */
+        *got = a->seq.fill;
+    else if (!strcmp(what, "fz_undo"))                 /* the undo levels there to undo */
+        *got = qd_undo_count(a, -1);
     else if (!strcmp(what, "fz_seqtick"))              /* the transport's position (seq.h, ticks) */
         *got = (int)qd_seq_tick(&a->seq);
     else if (!strcmp(what, "fz_store_on"))             /* the flash attached and mounted */

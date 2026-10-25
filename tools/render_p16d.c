@@ -344,12 +344,12 @@ int render_p16d(const char *out)
     bup(QD_B_TRACKS);
     run(100);
     home();
-    /* 20: ARP held: the arp ON */
+    /* 20: ARP held: TOOLS (T1; was the arp ON) */
     qd_ctl_select_track(&A, 0);
     bdown(QD_B_KEYS);
     run(QD_ARP_HOLD_MS + 250);
     bup(QD_B_KEYS);
-    shot("arphold", "ARP held: the arp ON (big); a tap opens the MIDI FX screen", 1);
+    shot("arphold", "ARP held: TOOLS (T1); a tap opens the MIDI FX screen", 1);
     home();
     /* 21..24: the MIDI FX screen */
     qd_mfx_slot_init(&A.proj.mfx[0].slot[1], QD_MFX_CHANCE);

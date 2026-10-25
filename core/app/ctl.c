@@ -167,6 +167,9 @@ void qd_ctl_init(qd_app_t *a)
     u->pv_note = -1;
     u->mkey = -1;
     u->seq_bank = QD_PAT_START / 16;
+    u->tl.scope = QD_TS_TRACK;                          /* T1: TOOLS starts on ROTATE, the track; EUCLID 4 of 16 */
+    u->tl.ehits = 4, u->tl.elen = 16;
+    u->tl.opage = 0xFF;
     for (i = 0; i < QD_PAT_NTRACK; i++)
         u->last_step[i] = -1;
     qd_clip_init(&u->clip);
@@ -409,6 +412,18 @@ static void k_snd_note(qd_app_t *a, int key, int idx, int down, int vel)
     }
 }
 static int w_step_view(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP; }
+/* T1: TOOLS: B1..B7 the tool, B11 the scope, W1..W6 the track (ctl_tools.c) */
+static int w_tools(const qd_app_t *a) { return qd_tools_open(a); }
+static void k_tools_black(qd_app_t *a, int key, int b, int down, int vel)
+{
+    (void)key, (void)vel;
+    qd_tools_black(a, b, down);
+}
+static void k_tools_white(qd_app_t *a, int key, int w, int down, int vel)
+{
+    (void)key, (void)vel;
+    qd_tools_white(a, w, down);
+}
 /* P1.6c: the MIDI FX screen: B1..B8 the slots, B10 bypass, B11 remove; the W keys the track through the group (the
  * arp's lanes: their steps) */
 static int w_mfx(const qd_app_t *a) { return qd_mfx_open(a) && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN); }
@@ -910,6 +925,7 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_type, k_type_white},            /* P1.5u: a name typed: L..Z, SPACE (SHIFT: the signs) */
     {w_seq_held, k_pattern},           /* SEQ held: A01 .. A16 (SHIFT: at once) */
     {w_sel_held, k_sel_white},         /* SEL held: W1..W8 mute, W9..W16 solo */
+    {w_tools, k_tools_white},          /* T1: TOOLS: W1..W6 the track */
     {w_tracks_held, k_track_select},   /* FX (TRACKS) held: tracks 1..8 (over the pages too) */
     {w_lib, k_lib_white},              /* P1.5a: the sounds page's slots, the projects */
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
@@ -932,6 +948,7 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_seq_held, k_bank},              /* SEQ held: B1..B4 the bank (P1.3d) */
     {w_sel_held, k_sel_black},         /* SEL held: B1..B8 select the track */
     {w_shift_keys, k_shift_black},     /* P1.5c: SHIFT's shortcuts (snapshot, copy / paste, tap, click, double, clear) */
+    {w_tools, k_tools_black},          /* T1: TOOLS: B1..B7 the tool, B11 the scope */
     {w_lib, k_lib_black},              /* P1.5a: the banks, LIBRARY / POOL, NAME, delete */
     {w_main_layer, k_main_black},      /* P1.6h: .. F1 held: its pages, CLEAR, COPY, UNDO (MIDI FX: B9, B11; B1..B8 stay
                                         * the slots); F2: nothing */
@@ -1124,8 +1141,9 @@ static void b_lfo(qd_app_t *a, int down)
 }
 
 /* P1.6d (the owner's batch): ARP tapped (released under QD_ARP_HOLD_MS, nothing with it) opens the MIDI FX screen
- * (tapped again, or HOME, closes it); ARP held QD_ARP_HOLD_MS is the track's group's arp on / off (ctl_mfx.c, big; at
- * the moment it is reached, qd_ctl_ms); SHIFT + ARP held is FILL (the FILL / NOT FILL conditions), while both are down */
+ * (tapped again, or HOME, closes it); SHIFT + ARP held is FILL (the FILL / NOT FILL conditions), at once, while both
+ * are down. T1 (the owner, 2026-10-24): ARP held QD_ARP_HOLD_MS opens TOOLS (ctl_tools.c), the moment the hold is
+ * reached (qd_ctl_ms); the arp's on / off is the MIDI FX screen's (its slot added / removed, B10 bypass) */
 static void b_fill(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -1431,7 +1449,7 @@ static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_FUNC] = b_shift,             /* SHIFT, held */
     [QD_B_HOME] = b_home,              /* the step view */
     [QD_B_SAVE] = b_save,              /* P1.5a: the sounds page: the track's sound into the LIBRARY */
-    [QD_B_KEYS] = b_fill,              /* ARP held: FILL */
+    [QD_B_KEYS] = b_fill,              /* ARP: tapped MIDI FX, held TOOLS (T1), SHIFT + ARP FILL */
     [QD_B_MIX] = b_seq,                /* printed SEQ, held: the patterns (W: the keys' table); P1.5a: tapped, the
                                         * project */
     [QD_B_PLAY] = b_play,              /* play / stop; REC + PLAY: play, recording armed */
@@ -1899,6 +1917,7 @@ static int k_lmode(qd_app_t *a, int knob, int d)
     }
     return 1;
 }
+static int when_tools(const qd_app_t *a) { return qd_tools_open(a) && !held(a, QD_B_MIX) && !held(a, QD_B_PATTERN); }
 static const struct {
     qd_when_fn when;
     int (*fn)(qd_app_t *a, int knob, int d);           /* 1: taken (else the next row) */
@@ -1909,6 +1928,7 @@ static const struct {
     {when_lmode, k_lmode},             /* P1.5h: LFO held, its screen up: SELECT the latch mode */
     {when_unlock, k_unlock},           /* P1.5o: F2 held (the editor, P-LOCK) + a knob: that value unlocked */
     {when_fx_held, k_fx_track},        /* P1.3y: FX held: ALGORITHM the track (over every page) */
+    {when_tools, qd_tools_knob},       /* T1: TOOLS: the tool's values */
     {when_keys_shift, scale_root},     /* P1.5b: the keyboard on (the editor's too), SHIFT: ALGORITHM the scale, PRESETS
                                         * the root, recording or not */
     {when_latch_shift, scale_root},    /* P1.6d: the step latch on, SHIFT: the scale, the root */
@@ -1971,9 +1991,10 @@ void qd_ctl_ms(qd_app_t *a)
     qd_snd_rnd_ms(a);                                   /* P1.5c: the editor's dice, its bottle */
     qd_snd_fkey_ms(a);                                  /* P1.6d: the FILTER key held: the machines' popup */
     if (held(a, QD_B_KEYS) && !u->arp_used && a->ms - u->arp_ms >= QD_ARP_HOLD_MS && u->mode != QD_MODE_IDLE) {
-        u->arp_used = 1;                                /* P1.6d: ARP held: the arp on / off, big */
-        qd_mfx_arp_tap(a);
+        u->arp_used = 1;                                /* T1: ARP held: TOOLS */
+        qd_tools_screen(a);
     }
+    qd_tools_ms(a);                                     /* T1: TOOLS' detents written (combined) */
     if (u->arp_fill && !(held(a, QD_B_KEYS) && qd_ctl_shift(a))) {   /* (FILL while SHIFT and ARP are both down) */
         u->arp_fill = 0;
         qd_seq_fill(&a->seq, 0);
@@ -1992,6 +2013,8 @@ void qd_ctl_ms(qd_app_t *a)
     } else if (u->tk == QD_TK_MFX_STEP && u->tk_hold) {   /* P1.6e: STEPS' steps held: up while they are */
         if (!u->mfx_wheld)
             u->tk = QD_TK_NONE, u->tk_hold = 0;
+    } else if (u->tk == UI_TK_TOOL && !u->tk_knob && a->ms - u->tk_ms >= QD_TOOL_POP_MS) {
+        u->tk = QD_TK_NONE;                             /* (T1: a tool's name, ~0.8 s) */
     } else if (u->tk != QD_TK_NONE &&
                a->ms - u->tk_ms >= (u->tk == UI_TK_TAP ? QD_TAP_TK_MS : QD_TK_MS) + QD_TK_FADE_MS) {
         u->tk = QD_TK_NONE;                             /* (P1.5z: TAP's stays 2 s after the last tap) */

@@ -38,28 +38,9 @@ void qd_shift_undo(qd_app_t *a, int dir)
     qd_ctl_takeover(a, QD_TK_UNDO, 0, dir, 0, -1);
 }
 
-/* the track doubled: its looped pages copied after the last of them (the loop twice as long); 0: no room */
-static int double_track(qd_app_t *a)
-{
-    qd_pattern_t *p = qd_ctl_pat(a);
-    qd_tset_t *ts = &p->trk[a->sel];
-    const int loop = qd_track_loop(ts);
-    int pages[QD_NPAGE], n = 0, last = -1, k, mask = loop;
-    for (k = 0; k < QD_NPAGE; k++)
-        if ((loop >> k) & 1)
-            pages[n++] = k, last = k;
-    if (last + n >= QD_NPAGE)
-        return 0;
-    for (k = 0; k < n; k++) {
-        const int to = last + 1 + k;
-        if (qd_page_copy(p, a->sel, to, p, a->sel, pages[k]) != QD_OK)   /* (P2.1b: no statics of its own) */
-            return 0;
-        qd_page_set_range(p, a->sel, to, ts->pstart[pages[k]], ts->pend[pages[k]]);
-        mask |= 1 << to;
-    }
-    qd_page_set_loop(p, a->sel, mask);
-    return 1;
-}
+/* the track doubled: its looped pages copied after the last of them (the loop twice as long); 0: no room (T1: the
+ * track tools' op, tools.c) */
+static int double_track(qd_app_t *a) { return qd_tl_double(qd_ctl_pat(a), a->sel, 0); }
 
 static void tap_tempo(qd_app_t *a)
 {

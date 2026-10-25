@@ -1373,3 +1373,5 @@ int qd_track_copy(qd_pattern_t *dst, int dt, const qd_pattern_t *src, int st)
         dst->trk[dt] = ts;
     return r;
 }
+
+#include "tools.c"                                     /* T1: the track tools' operations (tools.h) */

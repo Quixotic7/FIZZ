@@ -735,6 +735,7 @@ enum { UI_TK_FREQ, UI_TK_DECAY, UI_TK_HARM, UI_TK_FDBK, UI_TK_ALGO, UI_TK_TEMPO,
        UI_TK_TRACKBIG,                  /* P1.3y: FX held + ALGORITHM: the track big (number, name, its colour) */
        UI_TK_TAP,                       /* P1.5z: SHIFT + B6: the taps (the BPM big, the taps' dots, a pulse) */
        UI_TK_FOLLOW,                    /* P1.5z: SHIFT + B8: PAGE FOLLOW on / off (the pages, the playhead's arrow) */
+       UI_TK_TOOL,                      /* T1: TOOLS: a tool's name popped (tk_knob 0), the scope (tk_knob 1) */
        UI_NTK };
 /* (OCTAVE: ui_octave. P1.3d: TRACK, ALGORITHM in P-LOCK with nothing held: the eight tracks, the one chosen boxed) */
 typedef struct {
@@ -873,11 +874,31 @@ typedef struct ui_mfx {
     float t;                            /* seconds (motion) */
 } ui_mfx_t;
 void ui_mfx_draw(const ui_mfx_t *v);
-/* ARP tapped (anywhere): the arp's staircase, ON / OFF big, the group's hexagon and its slots (a new one popping in at
- * slot k_new, -1 none) */
-void ui_mfx_arp_draw(int g, int on, const uint8_t type[8], int k_new, int track, float u, float t);
 /* a held step's MIDI FX (TRIG's KNOB 2, B4..B10): its group's hexagon big (TRACK: the track's, OFF: none) and rail */
 void ui_mfx_step_draw(int step, int m, int g, const uint8_t type[8], const char *trig, float t);
+
+/* ================================================================ T1: TOOLS (ui_tools.c) ===
+ * mockups/fizz-tools.html: the head (the seven tools as pictures, the chosen underlined; the orange dot: a change
+ * pending; the crossed-out arrow: drawn only, no undo; the track's box; the scope's picture), the tool's picture, the
+ * lane at the foot (the edited page as it will be: solid kept, ring new, faded going) */
+typedef struct {
+    int tool, scope, track;             /* QD_TL_*, QD_TS_*, 1..6 */
+    int pending, nolive;
+    qd_rgb tcol;                        /* the track's colour */
+    uint8_t on[16], was[16];            /* the lane: each step as it will be, as it was */
+    uint8_t note[16];                   /* .. their first notes (0: none): REVERSE's bar heights */
+    int lo, hi;                         /* .. the notes' range */
+    int play;                           /* the playing step in the page (-1) */
+    int rot, flip;                      /* ROTATE's offset; REVERSE flipped */
+    int hits, len, erot, emode, epos;   /* EUCLID; epos: the playing position in its length (-1) */
+    int count, lpow;                    /* LENGTH: the track's steps after, the doublings */
+    uint8_t loop, loop0;                /* .. the loop's pages after, before */
+    float t;                            /* seconds (motion) */
+} ui_tools_t;
+void ui_tools_draw(const ui_tools_t *v);
+void ui_tools_pop(int scope_take, int tool, int scope, float u);   /* a tool's name (u: seconds since), the scope */
+void ui_tools_icon(int tool, float x, float y, int on);
+void ui_tools_scope_icon(int scope, float x, float y, qd_rgb col, float s);
 
 /* ================================================================ P2.11: the Geek Out pages (ui_geek.c) ===
  * mockups/fizz-geekout.html, approved: four pages after EDIT in SHIFT + HOME's cycle, one header (the page's name, the

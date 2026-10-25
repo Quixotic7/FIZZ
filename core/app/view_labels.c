@@ -50,7 +50,7 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
     lb_set(o, LB_BTN(QD_B_FUNC), "SHIFT");
     lb_set(o, LB_BTN(QD_B_HOME), "HOME");
     lb_set(o, LB_BTN(QD_B_SAVE), "SAVE");
-    lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");       /* (P1.6d: a tap the MIDI FX screen, held the arp on / off;
+    lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");       /* (P1.6d: a tap the MIDI FX screen; T1: held TOOLS;
                                                          * SHIFT + ARP: FILL) */
     lb_set(o, LB_BTN(QD_B_MIX), "PATTERNS");
     lb_set(o, LB_BTN(QD_B_PLAY), a->seq.playing ? "STOP" : "PLAY");
@@ -331,6 +331,27 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_BTN(QD_B_OCTUP), "LOAD");
         lb_set(o, LB_BTN(QD_B_OCTDN), "BACK");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
+        return;
+    }
+    if (qd_tools_open(a)) {                             /* T1: TOOLS (ctl_tools.c) */
+        static const char *const TN[QD_TL_N] = {"ROTATE", "REVERSE", "", "EUCLID", "", "", "LENGTH"};
+        static const char *const EK[4] = {"HITS", "LENGTH", "ROTATION", "LANDING"};
+        const int tool = u->tl.tool;
+        for (i = 0; i < 11; i++)
+            lb_set(o, LB_B(i), i < QD_TL_N ? TN[i] : i == 10 ? "SCOPE" : "");
+        for (i = 0; i < 16; i++)
+            lb_set(o, LB_W(i), "");
+        for (i = 0; i < QD_PAT_NTRACK; i++)
+            lb_setn(o, LB_W(i), "TRACK ", i + 1);
+        for (k = 0; k < 4; k++)
+            lb_set(o, LB_KNOB(QD_K_1 + k), tool == QD_TL_EUCLID ? EK[k] : "");
+        if (tool == QD_TL_ROTATE || tool == QD_TL_LENGTH) {
+            lb_set(o, LB_KNOB(QD_K_SELECT), tool == QD_TL_ROTATE ? "OFFSET" : "LENGTH");
+            lb_set(o, LB_KNOB(QD_K_1), tool == QD_TL_ROTATE ? "OFFSET" : "LENGTH");
+        }
+        lb_set(o, LB_BTN(QD_B_OCTUP), "KEEP");
+        lb_set(o, LB_BTN(QD_B_OCTDN), u->tl.flags & QD_TLF_PEND ? "REVERT" : "CLOSE");
+        lb_set(o, LB_BTN(QD_B_HOME), "CLOSE");
         return;
     }
     if (qd_mfx_open(a)) {                               /* P1.6c: the MIDI FX screen */

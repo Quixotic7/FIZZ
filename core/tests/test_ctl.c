@@ -4539,9 +4539,9 @@ static void g_p16c_screen(void)
     btap(QD_B_HOME);
 }
 
-/* P1.6c: ARP tapped: a track with no group: the first unused, empty group, an arp in it, ON (big); again: OFF, its mode
- * kept; held: FILL, no toggle */
-static void arp_hold(void)                              /* P1.6d: ARP held: the arp on / off */
+/* T1 (the owner, 2026-10-24): ARP held opens TOOLS (the arp on / off toggle is gone: no group made, no arp added); a tap
+ * the MIDI FX screen; SHIFT + ARP is FILL at once, and stays FILL however long it is held */
+static void arp_hold(void)
 {
     bdown(QD_B_KEYS);
     run(QD_ARP_HOLD_MS + 20);
@@ -4551,35 +4551,30 @@ static void arp_hold(void)                              /* P1.6d: ARP held: the 
 static void g_p16c_arp(void)
 {
     start();
-    PAT()->trk[3].mfx = 1;                              /* (group 1 used by track 4) */
-    qd_mfx_slot_init(&A.proj.mfx[1].slot[0], QD_MFX_CHANCE);   /* (group 2 not empty) */
     qd_ctl_select_track(&A, 2);
+    bdown(QD_B_KEYS);
+    run(QD_ARP_HOLD_MS - 20);
+    CHECK(!qd_tools_open(&A), "ARP held 380 ms: not yet");
+    run(30);
+    CHECK(qd_tools_open(&A) && qd_view_screen(&A) == QD_SCR_TOOLS, "held 400 ms: TOOLS at once (before the release)");
+    bup(QD_B_KEYS);
+    run(20);
+    CHECK(qd_tools_open(&A) && PAT()->trk[2].mfx == 0 && A.proj.mfx[2].slot[0].type == QD_MFX_NONE &&
+              qd_view_screen(&A) != QD_SCR_MFX, "let go: TOOLS stays; no group, no arp made");
+    btap(QD_B_HOME);
+    CHECK(!qd_tools_open(&A), "HOME: closed");
+    btap(QD_B_KEYS);
+    CHECK(qd_view_screen(&A) == QD_SCR_MFX, "ARP tapped: the MIDI FX screen (unchanged)");
     arp_hold();
-    CHECK(PAT()->trk[2].mfx == 3 && A.proj.mfx[2].slot[0].type == QD_MFX_ARP && A.ui.tk == QD_TK_MFX_ARP && A.ui.tk_on &&
-              A.ui.tk_new == 0 && !A.seq.fill, "ARP tapped, track 3 OFF: group 3 (the first unused and empty), an ARP in "
-          "slot 1, ON");
-    A.proj.mfx[2].slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
-    run(QD_TK_MS + 200);
-    arp_hold();
-    CHECK(A.proj.mfx[2].slot[0].v[QD_MA_MODE] == QD_AM_OFF && !A.ui.tk_on, "tapped again: OFF");
-    arp_hold();
-    CHECK(A.proj.mfx[2].slot[0].v[QD_MA_MODE] == QD_AM_HOLD && A.ui.tk_on, "again: ON, its mode back (HOLD)");
+    CHECK(qd_tools_open(&A) && !qd_mfx_open(&A), "ARP held over the MIDI FX screen: TOOLS instead");
+    btap(QD_B_HOME);
     bdown(SHIFT), bdown(QD_B_KEYS);
+    CHECK(A.seq.fill, "SHIFT + ARP: FILL at once (the press)");
     run(600);
-    CHECK(A.seq.fill, "SHIFT + ARP held: FILL");
+    CHECK(A.seq.fill && !qd_tools_open(&A), "held 600 ms: still FILL, no TOOLS");
     bup(QD_B_KEYS), bup(SHIFT);
     run(10);
-    CHECK(!A.seq.fill && A.proj.mfx[2].slot[0].v[QD_MA_MODE] == QD_AM_HOLD, "let go: no FILL, no toggle");
-    qd_ctl_select_track(&A, 0);
-    PAT()->trk[0].mfx = 2;                              /* (group 2: a CHANCE, no arp) */
-    run(QD_TK_MS + 200);
-    arp_hold();
-    CHECK(PAT()->trk[0].mfx == 2 && A.proj.mfx[1].slot[1].type == QD_MFX_ARP && A.ui.tk_new == 1 && A.ui.tk_g == 2,
-          "track 1 on group 2 (a CHANCE, no arp): an arp in its first empty slot (2)");
-    qd_ctl_select_track(&A, 5);
-    run(QD_TK_MS + 200);
-    arp_hold();
-    CHECK(PAT()->trk[5].mfx == 4, "track 6 OFF: group 4 (groups 1..3 in use)");
+    CHECK(!A.seq.fill && !qd_tools_open(&A) && qd_view_screen(&A) != QD_SCR_MFX, "let go: no FILL, nothing opened");
     btap(QD_B_HOME);
 }
 
@@ -4961,19 +4956,20 @@ static void g_p16d_mfx(void)
     float p1;
     start();
     CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "no group: ARP dark");
-    arp_hold();
+    PAT()->trk[0].mfx = 1;                              /* (T1: ARP held is TOOLS: the arp made here) */
     G = &A.proj.mfx[0];
-    CHECK(PAT()->trk[0].mfx == 1 && G->slot[0].type == QD_MFX_ARP && qd_view_screen(&A) != QD_SCR_MFX,
-          "ARP held: an arp ON in group 1, the screen not opened");
-    run(QD_TK_MS + 200);
+    qd_mfx_slot_init(&G->slot[0], QD_MFX_ARP);
+    G->slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
+    run(20);
     CHECK(leds().button[QD_B_KEYS] == QD_LED_LIT && !half_period(QD_B_KEYS), "the arp ON: ARP lit, steady");
-    arp_hold();
-    run(QD_TK_MS + 200);
-    CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "ARP held again: OFF, ARP dark");
-    arp_hold();
+    G->slot[0].v[QD_MA_MODE] = QD_AM_OFF;
+    run(20);
+    CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "the arp OFF: ARP dark");
     bdown(SHIFT), bdown(QD_B_KEYS), run(10);
-    CHECK(A.seq.fill && half_period(QD_B_KEYS) > 0, "SHIFT + ARP held: FILL, ARP blinking");
+    CHECK(A.seq.fill && leds().button[QD_B_KEYS] == QD_LED_LIT && !half_period(QD_B_KEYS),
+          "SHIFT + ARP held: FILL, ARP lit (T1: steady)");
     bup(QD_B_KEYS), bup(SHIFT), run(10);
+    G->slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
     /* the screen */
     btap(QD_B_KEYS);
     qd_mfx_slot_init(&G->slot[1], QD_MFX_CHANCE);
@@ -5237,11 +5233,11 @@ static void g_p16f_keys(void)
     btap(QD_B_KEYS);
     turn(QD_K_ALGO, 1);                                 /* (group 1, no arp) */
     arp_led_range();
-    CHECK(arp_led_min >= 10 && arp_led_max <= 66 && arp_led_max - arp_led_min > 30, "the screen, no arp: ARP breathing "
-          "low (%d .. %d)", arp_led_min, arp_led_max);
+    CHECK(arp_led_min == QD_LED_LIT && arp_led_max == QD_LED_LIT, "the screen, no arp: ARP lit (T1: the screen open; "
+          "%d .. %d)", arp_led_min, arp_led_max);
     qd_mfx_slot_init(&A.proj.mfx[0].slot[0], QD_MFX_ARP);
     arp_led_range();
-    CHECK(arp_led_min >= 150 && arp_led_max >= 250, "the arp on: breathing high (%d .. %d)", arp_led_min, arp_led_max);
+    CHECK(arp_led_min == QD_LED_LIT && arp_led_max == QD_LED_LIT, "the arp on: lit (%d .. %d)", arp_led_min, arp_led_max);
     btap(QD_B_HOME);
     arp_led_range();
     CHECK(arp_led_min == QD_LED_LIT && arp_led_max == QD_LED_LIT, "closed: steady lit");

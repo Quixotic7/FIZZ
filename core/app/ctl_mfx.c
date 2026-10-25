@@ -484,48 +484,6 @@ void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
     }
 }
 
-/* ARP tapped: the track's group's arp on / off. No group: the first one no track of the pattern uses (an empty one
- * first), the track routed to it, an arp added; a group with no arp: one added in its first empty slot */
-void qd_mfx_arp_tap(qd_app_t *a)
-{
-    qd_ui_t *u = &a->ui;
-    qd_pattern_t *P = qd_ctl_pat(a);
-    int g = qd_mfx_tgroup(a), on = 0, k;
-    qd_undo_hint(a, QD_UK_EDIT);
-    if (!g) {                                           /* (unused and empty, else unused, else empty) */
-        int pass, t;
-        for (pass = 0; pass < 3 && !g; pass++)
-            for (k = 1; k <= QD_MFX_NGROUP && !g; k++) {
-                int used = 0, empty = 1, j;
-                for (t = 0; t < QD_PAT_NTRACK; t++)
-                    used |= P->trk[t].mfx == k;
-                for (j = 0; j < QD_MFX_NSLOT; j++)
-                    empty &= a->proj.mfx[k - 1].slot[j].type == QD_MFX_NONE;
-                if ((pass == 0 && !used && empty) || (pass == 1 && !used) || (pass == 2 && empty))
-                    g = k;
-            }
-        if (!g) {
-            qd_ctl_confirm(a, "NO GROUP", "");
-            return;
-        }
-        P->trk[a->sel].mfx = (uint8_t)g;
-    }
-    k = qd_mfx_arp_slot(&a->proj.mfx[g - 1]);
-    u->tk_new = -1;
-    if (k < 0) {
-        k = qd_mfx_arp_toggle(&a->player.mfx, g, &on);
-        if (k < 0) {
-            qd_ctl_confirm(a, "GROUP FULL", "");
-            return;
-        }
-        u->tk_new = k;
-    } else {
-        qd_mfx_arp_toggle(&a->player.mfx, g, &on);
-    }
-    u->tk_g = g, u->tk_on = on;
-    qd_ctl_takeover(a, QD_TK_MFX_ARP, 0, 0, 0, -1);
-}
-
 const char *qd_mfx_knob_name(const qd_app_t *a, int k, char *val)
 {
     const int g = qd_mfx_tgroup(a);
