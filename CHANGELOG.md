@@ -9,6 +9,17 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+The owner's beta.4 round: TOOLS on a tap of SEQ, mute and solo in the mixer, finer knobs, and a Manager that no longer slows the FM-1 down. Updating keeps your projects and presets.
+
+- **TOOLS opens with a tap of SEQ** (SEQ again or HOME closes it). Holding SEQ is still the patterns map. **Holding ARP** turns the track's arp on and off. **SHIFT + SAVE** opens the project page (SHIFT + SAVE again or SELECT: the projects).
+- **TOOLS:** B9 opens STRETCH and B10 CLIP. STRETCH's KNOB 1 is a ladder of ratios (÷4 ÷3 ÷2 ÷1.5 ÷1.33 ÷1.25 ×1 ×1.25 ×1.33 ×1.5 ×2 ×3 ×4). CLIP labels COPY, PASTE and CLEAR, shows what they act on (PAGE n or PATTERN), COPY and PASTE work in every scope (on the shown page outside PATTERN), and B10 again does the picked action, like OCT+.
+- **The mixer (ENV):** tap a black key to select its track, hold it to mute or unmute, double-tap to solo; B11 clears every mute and solo. SELECT turns the page, ALGORITHM picks the track, PRESETS mutes (left) or unmutes (right) the selected track. The keys' lights show it: dim muted, blinking soloed.
+- **Finer knobs:** every value kept in hundredths (the LFOs' SPEED and DEPTH, the filter's FREQ, RESO and ENV DEPTH, DTUNE, BASE) moves 0.01 a detent, speeds up when you turn fast (the whole range in about two turns), and SHIFT + knob moves 1.00. The Manager's EDIT page does the same on the wheel and the arrow keys (SHIFT + drag: hundredths).
+- **The NOTE hold screen's keybed** (and a layer's little keybed) starts on F, like the keys.
+- **Holding LFO:** MODES is now the default latch mode. **The settings page** (SHIFT + SEL) lost the KNOBS layouts: layout A is the only one, PAGE FOLLOW is on KNOB 1.
+- **FIZZ Manager:** the FM-1's screen no longer crawls while the Manager is connected (only real transfers slow its frames). LIBRARY's EDIT, LOAD ON FM-1 and EXPORT buttons are their own width.
+- **The guide** covers six tracks, TOOLS, the record modes, the Manager and the new SEQ / ARP keys.
+
 ## 0.12.0-beta.4 (2026-10-25)
 
 Three ways to record (CAPTURE for quick takes, REPLACE and OVERDUB), STRETCH and CLIP in TOOLS, and a FIZZ Manager that edits the sound on your track. Updating from beta.3 keeps your projects and presets.
