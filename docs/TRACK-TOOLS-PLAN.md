@@ -281,3 +281,25 @@ ALGORITHM sets the scope (SELECTED / PAGE / TRACK / PATTERN; B11 still cycles it
 value again: EUCLID's landing, RANDOM's chance spread, GRIDS' chaos (the orange meter and pictures: KNOB 4's colour).
 Where §10.1 and §10.2 say "ALGORITHM" for those values or "KNOB 4" for the scope, read it the other way round.
 
+### 10.5 The owner's findings on the unit (0.12.0-beta.2, 2026-10-24) and the fixes
+
+- **What was found (reproduced at the device's sizes, `test_tools` t_owner / t_sel_rotate, `firmware/app/tests/tools.txt`):**
+  the ops write every position of their scope (a 64-step TRACK: all four pages; a pattern read back in from the store:
+  the same). What went wrong was what the panel showed. (1) **Page follow ran inside TOOLS**: playing, the page shown
+  jumped to the playhead's, so SELECT's page did not stay, a PAGE change went on writing the page it began on while
+  another was shown, and the ghosts (kept for that one page only) vanished. (2) The W LEDs lit every trig of the page,
+  the steps **outside the loop / the page's start..end** too (a 5-step track: 11 keys the tools never touch), so "only
+  some steps change". (3) **SELECTED + ROTATE** turned the selected steps round among themselves: one step (or steps
+  alike) cannot move, so nothing happened. (4) EUCLID kept a length clamped to the selection's few steps after
+  leaving SELECTED.
+- **Fixes:** no page follow while TOOLS is open; SELECT pops the step view's PAGE takeover (the eight pages, "PAGE 3");
+  a page strip over the lane (the page shown in the track's colour, looped pages grey). The lane and the W LEDs come
+  from `qd_tools_page`: now (lit), the ghosts (dim keys, faded bars) read from the held gesture's "before"
+  (`qd_undo_before`, the compressed copy read in place: any page, no RAM), steps that do not play dark (dots on the
+  lane). SELECTED + ROTATE moves the selected steps k places along the track's loop, the others filling the places
+  left in order (`qd_tl_move`; one permutation helper now serves ROTATE, REVERSE and the move), the selection follows
+  on OCT+. RANDOM: an icon under each meter (trigs, a note, a wedge, a pie) and KNOB 1..4 pop DENSITY / NOTES /
+  VELOCITY / CHANCE (20 px, the owner's words). The tool's popup names the scope under it.
+- **Cost:** RAM +0 (dual 1,148 B free, single-core 540 B); flash about +1.8 KB (budget model 465,925 -> 467,709 B;
+  dual 18,956 B free in the app slot).
+

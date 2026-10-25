@@ -1098,13 +1098,11 @@ static void __attribute__((noinline)) draw_tools(const qd_app_t *a)
     v.pending = (T->flags & QD_TLF_PEND) != 0, v.nolive = v.pending && (T->flags & (QD_TLF_NOLIVE | QD_TLF_NOROOM));
     v.tcol = UI_TRACK_PAL[a->sel & 7];
     v.lo = 127, v.hi = 0;
-    for (w = 0; w < 16; w++) {
-        int on, was, note;
-        qd_tools_lane(a, w, &on, &was, &note);
-        v.on[w] = (uint8_t)on, v.was[w] = (uint8_t)was, v.note[w] = (uint8_t)note;
-        if (note && on)
-            v.lo = note < v.lo ? note : v.lo, v.hi = note > v.hi ? note : v.hi;
-    }
+    v.inr = qd_tools_page(a, v.on, v.was, v.note);
+    v.page = (uint8_t)page;
+    for (w = 0; w < 16; w++)
+        if (v.note[w] && v.on[w])
+            v.lo = v.note[w] < v.lo ? v.note[w] : v.lo, v.hi = v.note[w] > v.hi ? v.note[w] : v.hi;
     ps = a->seq.playing ? qd_seq_track_step(&a->seq, a->sel) : -1;
     v.play = ps >= 0 && ps / QD_PAGE == page ? ps % QD_PAGE : -1;
     v.rot = T->rot, v.flip = (T->flags & QD_TLF_FLIP) != 0;

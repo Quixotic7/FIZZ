@@ -731,9 +731,9 @@ int qd_tools_knob(struct qd_app *a, int knob, int d);
 void qd_tools_ms(struct qd_app *a);
 void qd_tools_leds(const struct qd_app *a, uint8_t *key);
 int qd_tools_pending(struct qd_app *a);         /* a change pending (live or drawn only) */
-/* the lane's step w (0..15 of the selected track's edited page) as the change makes it (on), as it was (was), its
- * first note (0: none) */
-void qd_tools_lane(const struct qd_app *a, int w, int *on, int *was, int *note);
+/* the selected track's page shown, its 16 steps: as the change makes them (on), as they were (was: the ghosts while a
+ * change is pending), their first notes (0: none); returns the steps that play (bit w: within the page's start..end) */
+uint16_t qd_tools_page(const struct qd_app *a, uint8_t *on, uint8_t *was, uint8_t *note);
 uint16_t qd_tools_sel_mask(const struct qd_app *a);       /* the page's selected steps (bit w) */
 int qd_tools_play_pos(const struct qd_app *a);            /* the playing step's position in the scope (-1) */
 void qd_tools_grids_tracks(const struct qd_app *a, int8_t *tr);   /* T2: GRIDS / PATTERN: the parts' tracks (3, -1) */

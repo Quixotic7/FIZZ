@@ -153,14 +153,16 @@ static void tl_lane(const ui_tools_t *v, int heights)
     int i;
     for (i = 0; i < 16; i++) {
         const float x = 8.f + (float)i * 14.f, h = heights ? 8.f + tl_noteh(v, i, 10.f) : 18.f;
-        if (v->on[i] && v->was[i]) {
+        if (!((v->inr >> i) & 1u)) {                    /* (a step that does not play: a dot) */
+            ui_O(x + 6.5f, y + 16.f, 1.2f, QD_NONE, 1.f, UI_G3);
+        } else if (v->on[i] && v->was[i]) {
             ui_RR(x, y + 18.f - h, 13.f, h, 2.f, QD_NONE, 1.f, v->tcol);
         } else if (v->on[i]) {
             tl_alpha(pulse);
             ui_RR(x, y + 18.f - h, 13.f, h, 2.f, UI_K3, 1.8f, QD_NONE);
             qd_restore();
-        } else if (v->was[i]) {
-            tl_alpha(0.22f);
+        } else if (v->was[i]) {                         /* (a ghost: what it was) */
+            tl_alpha(0.32f);
             ui_RR(x, y + 18.f - h, 13.f, h, 2.f, QD_NONE, 1.f, v->tcol);
             qd_restore();
         } else {
@@ -334,8 +336,26 @@ static void tl_random(const ui_tools_t *v)
     ui_RR(36.f, 74.f, 52.f, 52.f, 10.f, UI_K3, 3.f, QD_NONE);
     for (k = 0; k <= face; k++)
         ui_O(62.f + 13.5f * (float)PIP[face][k][0], 100.f + 13.5f * (float)PIP[face][k][1], 4.2f, QD_NONE, 1.f, UI_K3);
-    for (k = 0; k < 4; k++)
+    for (k = 0; k < 4; k++) {                           /* (under each, what it sets: trigs, a note, a wedge, a pie) */
+        const float x = 134.f + (float)k * 28.f, y = 160.f;
         tl_meter(124.f + (float)k * 28.f, 58.f, 20.f, 88.f, (float)v->r[k] / MAX[k], COL[k]);
+        if (k == 0) {
+            ui_RR(x - 8.f, y - 3.f, 4.f, 6.f, 1.f, QD_NONE, 1.f, COL[0]);
+            ui_RR(x - 2.f, y - 3.f, 4.f, 6.f, 1.f, UI_G3, 1.f, QD_NONE);
+            ui_RR(x + 4.f, y - 3.f, 4.f, 6.f, 1.f, QD_NONE, 1.f, COL[0]);
+        } else if (k == 1) {
+            ui_O(x - 2.f, y + 4.f, 3.f, QD_NONE, 1.f, COL[1]);
+            tl_line(x + 0.8f, y + 4.f, x + 0.8f, y - 7.f, COL[1], 1.6f);
+            tl_line(x + 0.8f, y - 7.f, x + 4.5f, y - 4.f, COL[1], 1.6f);
+        } else if (k == 2) {
+            const float w[6] = {x - 8.f, y + 5.f, x + 8.f, y + 5.f, x + 8.f, y - 6.f};
+            ui_P(w, 3, QD_NONE, 1.f, 1, COL[2]);
+        } else {
+            const float pie[8] = {x, y, x, y - 6.f, x + 6.f, y, x, y + 6.f};
+            ui_O(x, y, 6.f, COL[3], 1.4f, QD_NONE);
+            ui_P(pie, 4, QD_NONE, 1.f, 1, COL[3]);
+        }
+    }
     tl_lane(v, 0);
 }
 
@@ -396,9 +416,24 @@ static void tl_grids(const ui_tools_t *v)
     tl_lane(v, 0);
 }
 
+/* the eight pages over the lane: the one shown big in the track's colour, the looped ones grey, the others dark */
+static void tl_pages(const ui_tools_t *v)
+{
+    int p;
+    for (p = 0; p < 8; p++) {
+        const float x = 8.f + (float)p * 28.f;
+        if (p == v->page)
+            ui_RR(x, 186.f, 26.f, 8.f, 2.f, QD_NONE, 1.f, v->tcol);
+        else
+            ui_RR(x, 188.5f, 26.f, 3.f, 1.5f, QD_NONE, 1.f, (v->loop >> p) & 1 ? UI_G2 : UI_G3);
+    }
+}
+
 void ui_tools_draw(const ui_tools_t *v)
 {
     tl_head(v);
+    if (v->tool != QD_TL_LENGTH)                        /* (LENGTH draws the pages itself) */
+        tl_pages(v);
     switch (v->tool) {
     case QD_TL_ROTATE: tl_rotate(v); break;
     case QD_TL_REVERSE: tl_reverse(v); break;
@@ -418,13 +453,21 @@ static const qd_rgb TL_MSGC[9] = {UI_K2, UI_K4, UI_KSEL, UI_K2, UI_K2, UI_RED, U
 void ui_tools_pop(int kind, int msg, int tool, int scope)
 {
     int k;
+    if (kind == 3) {                                    /* RANDOM's knob turned: what it sets, in its colour, over the
+                                                         * meters (owner-approved words) */
+        static const char *const RN[4] = {"DENSITY", "NOTES", "VELOCITY", "CHANCE"};
+        static const qd_rgb RC[4] = {UI_K1, UI_K2, UI_K3, UI_K4};
+        qd_fill_rect(0.f, 30.f, 240.f, 26.f, UI_BG);
+        ui_T(RN[msg & 3], 120.f, 50.f, 20.f, 700, 1.f, RC[msg & 3], QD_CENTER);
+        return;
+    }
     if (kind != 1) {                                    /* (the messages after NO UNDO: under the scope's name) */
         msg = msg < 0 || msg > 8 ? 0 : msg;
-        qd_fill_rect(0.f, 84.f, 240.f, kind ? 72.f : 56.f, UI_BG);
+        qd_fill_rect(0.f, 84.f, 240.f, 72.f, UI_BG);
         ui_T(kind && msg > 2 ? TL_SCOPE[scope % QD_TS_N] : TL_NAME[tool % QD_TL_N], 120.f, 126.f, 34.f, 700, 2.f, UI_K3,
              QD_CENTER);
-        if (kind)
-            ui_T(TL_MSG[msg], 120.f, 150.f, 20.f, 700, 1.f, TL_MSGC[msg], QD_CENTER);
+        ui_T(kind ? TL_MSG[msg] : TL_SCOPE[scope % QD_TS_N], 120.f, 150.f, 20.f, 700, 1.f, kind ? TL_MSGC[msg] : UI_G1,
+             QD_CENTER);                                /* (the name alone: the scope it works on under it) */
         return;
     }
     qd_fill_rect(0.f, 30.f, 240.f, 210.f, UI_BG);

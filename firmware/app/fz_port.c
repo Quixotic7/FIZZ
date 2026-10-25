@@ -610,6 +610,20 @@ int fz_expect(const char *what, int *got)
         *got = qd_tools_open(a);
     else if (!strcmp(what, "fz_tools_pend"))           /* .. a change pending (live, or drawn only: 2) */
         *got = a->ui.tl.flags & QD_TLF_PEND ? (a->ui.tl.flags & QD_TLF_NOLIVE ? 2 : 1) : 0;
+    else if (!strcmp(what, "fz_tl_tool"))              /* .. the tool (tools.h QD_TL_*), the scope (QD_TS_*) */
+        *got = a->ui.tl.tool;
+    else if (!strcmp(what, "fz_tl_scope"))
+        *got = a->ui.tl.scope;
+    else if (!strcmp(what, "fz_page"))                 /* the selected track's page shown (0..7) */
+        *got = a->ui.page[a->sel & 7];
+    else if (!strncmp(what, "fz_ons_", 7)) {           /* fz_ons_T_P: track T's page P's trigs as bits (W1 = 1) */
+        const int t = (what[7] - '1') & 7, pg = (what[9] - '1') & 7;
+        int i;
+        *got = 0;
+        for (i = 0; i < 16; i++)
+            *got |= qd_step_is_on(qd_step(qd_ctl_cpat(a), t, pg * 16 + i)) << i;
+    } else if (!strncmp(what, "fz_tlen_", 8))          /* fz_tlen_T: track T's loop length */
+        *got = qd_track_len(&qd_ctl_cpat(a)->trk[(what[8] - '1') & 7]);
     else if (!strcmp(what, "fz_fill"))                 /* FILL on (SHIFT + ARP) */
         *got = a->seq.fill;
     else if (!strcmp(what, "fz_undo"))                 /* the undo levels there to undo */

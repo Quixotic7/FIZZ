@@ -128,6 +128,9 @@ int qd_hist_recall(struct qd_app *a, int which);
  * change cannot be previewed live). qd_undo_can_revert: the same test, nothing changed */
 int qd_undo_revert_open(struct qd_app *a);
 int qd_undo_can_revert(const struct qd_app *a);
+/* the open gesture's pattern as it was, read: its n bytes from off into out: 1; 0: none kept (TOOLS' ghosts: the steps
+ * as they were) */
+int qd_undo_before(const struct qd_app *a, uint32_t off, uint32_t n, uint8_t *out);
 /* T3: the open gesture's change would be kept as a level (its difference fits the log, the older levels given up): 1;
  * 0: no room (or its before not kept). The device: its before read in for the count (no copy kept) */
 int qd_undo_room(struct qd_app *a);

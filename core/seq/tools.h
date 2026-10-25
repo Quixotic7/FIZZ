@@ -37,6 +37,11 @@ int qd_tl_pos_of(const uint8_t *pos, int n, int s);
 void qd_tl_rotate(qd_pattern_t *p, int t, const uint8_t *pos, int n, int k);
 /* step pos[i] takes pos[n - 1 - i]'s; an overridden micro is negated */
 void qd_tl_reverse(qd_pattern_t *p, int t, const uint8_t *pos, int n);
+/* ROTATE over SELECTED STEPS (the owner, 2026-10-24: a step selected and rotated moves): the selected steps sel[0..ns)
+ * go k places on round the list pos (the track's loop), the others fill the places left in their order, their locks
+ * with them. qd_tl_move_map: where each position's step comes from (from[0..n)), 0 if none of sel is in the list */
+int qd_tl_move_map(const uint8_t *pos, int n, const uint8_t *sel, int ns, int k, uint8_t *from);
+void qd_tl_move(qd_pattern_t *p, int t, const uint8_t *pos, int n, const uint8_t *sel, int ns, int k);
 int qd_tl_euclid_hit(int i, int hits, int len, int rot);   /* position i a hit (the pattern repeating after len) */
 void qd_tl_euclid(qd_pattern_t *p, int t, const uint8_t *pos, int n, int hits, int len, int rot, int mode);
 /* T2 (§4.3, §4.5, §4.6): the generators, pure functions of a seed: h = qd_tl_hash(seed, track, position) */
