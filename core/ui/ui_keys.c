@@ -4,8 +4,9 @@
 /* KEYS (PLAN.md §8 "KEYS mode"; mockups/line.html s18 without the recording roll): the keybed plays the selected track.
  * Top left the track's box and name, top right the pool's sixteen voices as dots (lit: in use; white this track's,
  * grey another's); the sound's name in the middle, medium; the line-drawn keybed of two octaves with the keys
- * sounding filled white; OCT at the foot. The keybed shows the two octaves from the C the keys' range starts in
- * (C4 at OCT 0), one lower when the notes sounding are all below it.
+ * sounding filled white; OCT at the foot. The keybed is the FM-1's own: its 27 keys from F (F3 .. G5 at OCT 0,
+ * QD_NOTE0), so each drawn key is the one pressed (2026-10-25: it started on C), one octave lower when the notes
+ * sounding are all below it.
  * Recording (P1.3): rec 1, STEP recording, adds the cursor's page as sixteen little squares under the sound (trigs
  * filled grey, the cursor's square outlined red in the blink's lit half), STEP REC in red and the cursor's step at the
  * foot. rec 2, LIVE recording, is line.html s18: the RECORDING badge blinking (a Q by it with quantize on), the notes
@@ -93,7 +94,7 @@ void ui_keys_draw(const ui_keys_t *v)
 {
     static qd_rgb fill[128];
     char num[24], step[12];
-    int i, lo = 60 + 12 * v->octave, below = 0, above = 0;
+    int i, lo = 53 + 12 * v->octave, below = 0, above = 0;   /* (QD_NOTE0, as live()) */
     float x;
 
     if (v->rec == 2) {
@@ -126,7 +127,7 @@ void ui_keys_draw(const ui_keys_t *v)
     }
     if (below && !above && lo >= 12)
         lo -= 12;
-    ui_keyboard(14.f, 118.f, 212.f, 78.f, lo, fill);
+    ui_keybed(14.f, 118.f, 212.f, 78.f, lo, 16, fill);
 
     num[0] = 0;                                         /* the octave; a track in a scale: the scale */
     cat(num, oct_name(v->octave));
