@@ -11,118 +11,164 @@ sysex F0 7D 46 50 7F F7
 wait 1000
 expect fz_checks >20
 expect fz_xfer_passes 0
-# a transfer: STATUS every 20 ms for 1 s, a press in it too
+# a transfer: a track's DUMP every 20 ms (a frame that can be bulk; 3 in a row) for 1 s, a press in it too
 tap HOME
 sysex F0 7D 46 50 7F F7
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
-sysex F0 7D 46 5A 01 02 7E F7
+sysex F0 7D 46 5A 01 22 04 00 01 59 F7
 wait 20
 expect fz_checks <3
 expect fz_xfer_draws <3
-expect fz_xfer_rx 49
+expect fz_xfer_rx 48
 expect fz_xfer_passes >200
-expect fz_sx_kind 66
+expect fz_sx_kind 16
 # 300 ms after the last frame: the normal pace again
 wait 400
 tap HOME
 sysex F0 7D 46 50 7F F7
 wait 1000
+expect fz_checks >20
+# PARAMs every 20 ms (a drag in the Manager's editor): never a transfer, the normal pace
+wait 400
+tap HOME
+sysex F0 7D 46 50 7F F7
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+sysex F0 7D 46 5A 01 30 7F 00 40 00 00 00 11 F7
+wait 20
+wait 400
 expect fz_checks >20
 fzstats
