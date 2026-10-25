@@ -72,6 +72,17 @@ For a new Claude session picking up FIZZ. Read this, then `PLAN.md` (§13 "Phase
     commands.
   - **zsh gotcha:** `X="python3 path"; $X` doesn't word-split in zsh. Write `python3 $T` with `T` = the path.
 
+## Manager Phase 2 (2026-10-25, unreleased, on master)
+
+- **P2-A** (site only): EDIT (`site/manager/editor.js`), EXPORT (`exporter.js`), the browser's FIZZ as the editor's
+  sound (`browserfizz.js`); the values' table generated from the core (`tools/gen_values.c`, `make -C tools values`).
+- **P2-B**: firmware PARAM / track DUMP / AUDITION / OWN / the STORE-over job (docs/SYSEX.md), the page's TRACK switch
+  and live editor (`live.js`). Not tried on a unit yet: the steps are in the session's report (and below in short).
+  On the unit: stopped and playing, PARAM drags, a knob turned on the FM-1 showing in the page, LIBRARY + CANCEL,
+  SAVE over (stopped), `fizz_xdata.py stats` after (0 xruns, `lock_sysex_us` < 1 ms).
+- The site's wasm is on this core again (`site/build_wasm.sh`).
+- Next by the plan: P2-C (projects tab, PATTERNS, PATCOPY), P2-D (the browser's project library).
+
 ## Open items, in order
 
 1. **The owner's pacing choices** (asked, not answered). Each is one `--define`:

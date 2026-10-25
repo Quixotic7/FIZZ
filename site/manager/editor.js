@@ -498,7 +498,7 @@ export function mountEditor(ctx) {
     if (!b || !E.s) return;
     if (b.dataset.tag !== undefined) { E.s.tags ^= 1 << +b.dataset.tag; renderHead(); return; }
     if (b.id === "ed-revert") { revert(); return; }
-    if (b.id === "ed-target") { if (E.target && E.target.click) await E.target.click(E); else if (E.target && !E.target.ready()) await startTarget(); renderHead(); return; }
+    if (b.id === "ed-target") { if (E.target && E.target.click) await E.target.click(E, b); else if (E.target && !E.target.ready()) await startTarget(); renderHead(); return; }
     if (b.id === "ed-export" && ctx.exportSound) { ctx.exportSound(E.s); return; }
     if ((b.id === "ed-save" || b.id === "ed-savenew") && ctx.save) {
       const ok = await ctx.save(E, b.id === "ed-savenew");
@@ -586,10 +586,11 @@ export function mountEditor(ctx) {
     renderHead();
     return ok;
   }
-  function setTarget(t) {
+  // (the browser's FIZZ takes the editor's sound at once; a track keeps its own until the editor takes it)
+  function setTarget(t, push = !(t && t.live)) {
     for (const n of [...E.held.keys()]) noteOff(n);
     E.target = t;
-    if (t && t.ready() && E.s) t.audition(E.s);
+    if (push && t && t.ready() && E.s) t.audition(E.s);
     renderHead();
   }
 
@@ -599,7 +600,8 @@ export function mountEditor(ctx) {
     E.base = copySound(sound);
     E.place = { label: place.label || "", ...place };
     closePicker();
-    if (E.target && E.target.ready() && !place.fromTarget) E.target.audition(E.s);
+    if (E.target && !E.target.live && E.target.ready()) E.target.audition(E.s);   // (a track: live.js loads it, then the
+                                                    // editor takes the track)
     log(`edit: ${E.s.name} (${E.place.label})`);
     render();
   }

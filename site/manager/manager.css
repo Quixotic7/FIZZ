@@ -34,6 +34,19 @@ b { color: var(--text); }
 .tab[aria-selected="true"] i { background: #000; }
 /* the FM-1 pill: a solid tint and a whole 2 px border (a 1.5 px hairline broke up on the round ends) */
 .unit { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px 0 12px; border-radius: 999px; border: 2px solid var(--c, var(--cyan)); background: color-mix(in srgb, var(--c, var(--cyan)) 16%, var(--bg)); background-clip: padding-box; color: var(--text); font-weight: 800; font-size: 14px; letter-spacing: .04em; white-space: nowrap; }
+/* the live switch (P2-B): edit / load onto the FM-1's track, on or off */
+.livesw { margin-left: auto; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px 0 10px; border-radius: 999px; border: 2px solid var(--line); background: transparent; color: var(--muted); font-weight: 800; font-size: 13px; letter-spacing: .08em; white-space: nowrap; }
+.livesw .sw { width: 34px; height: 20px; border-radius: 10px; background: #24242b; position: relative; flex: none; transition: background .2s; }
+.livesw .sw i { position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: left .2s, background .2s; }
+.livesw.on { border-color: var(--pink); color: var(--text); background: color-mix(in srgb, var(--pink) 14%, transparent); box-shadow: 0 0 16px color-mix(in srgb, var(--pink) 30%, transparent); }
+.livesw.on .sw { background: var(--pink); }
+.livesw.on .sw i { left: 17px; background: #fff; }
+.livesw:not([hidden]) + .refresh { margin-left: 0; }
+.loadbar { display: flex; align-items: center; gap: 12px; padding: 10px 24px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--pink) 12%, var(--bg)); color: var(--text); font-weight: 800; flex-wrap: wrap; position: sticky; top: 64px; z-index: 5; }
+.loadbar b { font-size: 18px; letter-spacing: .03em; margin-right: auto; }
+.loadbar .arr { color: var(--pink); font-size: 20px; }
+.loadbar .lbt { height: 34px; padding: 0 14px; border-radius: 10px; border: 1.5px solid var(--pink); background: var(--pink); color: #fff; font-weight: 800; letter-spacing: .06em; }
+.picker.tracks { width: 330px; }
 .refresh { margin-left: auto; width: 40px; height: 40px; border-radius: 999px; border: 2px solid var(--line); }
 .refresh[hidden] + .unit { margin-left: auto; }
 .refresh svg { width: 20px; height: 20px; stroke: var(--text); }
@@ -286,8 +299,9 @@ button.tag { cursor: pointer; }
 .logbox summary::-webkit-details-marker { display: none; }
 .logbox[open] summary { color: var(--text); }
 .logbox pre { clear: both; width: 640px; max-width: 100%; max-height: 40vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 44px 0 0; font: 500 12px/1.5 ui-monospace, Menlo, monospace; color: var(--body); white-space: pre-wrap; }
-.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 8; background: var(--panel); border: 1.5px solid var(--c, var(--green)); color: var(--text); font-weight: 800; padding: 14px 22px; border-radius: 16px; box-shadow: 0 0 30px color-mix(in srgb, var(--c, var(--green)) 25%, transparent); max-width: calc(100vw - 32px); animation: slidein .3s both; }
+.toast { pointer-events: none; position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 8; background: var(--panel); border: 1.5px solid var(--c, var(--green)); color: var(--text); font-weight: 800; padding: 14px 22px; border-radius: 16px; box-shadow: 0 0 30px color-mix(in srgb, var(--c, var(--green)) 25%, transparent); max-width: calc(100vw - 32px); animation: slidein .3s both; }
 
+@media (max-width: 1380px) { .unit small { display: none; } }
 /* ---- phone */
 @media (max-width: 900px) {
   .top { padding: 0 16px; gap: 10px; }
@@ -295,6 +309,9 @@ button.tag { cursor: pointer; }
   .tabs { position: fixed; top: 64px; left: 0; right: 0; margin: 0; padding: 12px 16px; background: var(--bg); z-index: 6; gap: 6px; }
   .tab { height: 36px; padding: 0 12px; font-size: 12px; }
   .unit small { display: none; }
+  .livesw { padding: 0 10px; gap: 6px; }
+  .livesw #live-label { display: none; }
+  .loadbar { padding: 8px 16px; top: 124px; }
   .unit { padding: 0 14px 0 12px; }
   main { padding-top: 60px; }
   .body { flex-direction: column; padding: 12px 16px 70px; min-height: 0; }

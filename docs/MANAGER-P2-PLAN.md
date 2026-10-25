@@ -3,7 +3,26 @@
 Status: plan and mock-ups 2026-10-24 (branch `manager-p2-plan`); the owner's decisions at the end (2026-10-25).
 **P2-A built** (2026-10-25): `site/manager/editor.js` (EDIT), `exporter.js` (EXPORT), `sound.js` (the editor's model),
 `browserfizz.js` (the browser's FIZZ as the editor's sound), `fizzvalues.js` (the 110 values' names, ranges and texts,
-generated from the core by `tools/gen_values.c`: `make -C tools values`, checked by `values-check` in `make test`). It builds on `docs/WEB-MANAGER-PLAN.md` (Phases 0 and 1 are built: the manager page, the Phase 1 SysEx
+generated from the core by `tools/gen_values.c`: `make -C tools values`, checked by `values-check` in `make test`).
+**P2-B built** (2026-10-25): the firmware's PARAM, a track's DUMP, STORE6 AUDITION / OWN and the STORE-over job
+(`core/app/fizz_sx.c`, docs/SYSEX.md "The sound editor's commands"), the page's TRACK switch and live editor
+(`site/manager/live.js`). What differs from the plan below, by the owner's decisions and in the building:
+- The editor follows the unit's **selected track** by default (Q1.2), or one chosen from the target chip; the header's
+  **TRACK** switch (off at start) is the owner's "edit / load to track" mode: off, nothing touches the tracks (IMPORT's
+  TRACK destination is off too).
+- LIBRARY with TRACK on loads the picked preset onto the track (AUDITION with its preset id) and keeps the track's own
+  sound for CANCEL (its DUMP sent back, byte for byte), as OCT- on the unit's browser; KEEP drops it.
+- PARAM goes **with its ACK, one at a time** (the latest value of each value waiting): the unit holds one SysEx frame,
+  and a second one sent while it waits is dropped. The read-back (a track DUMP twice a second) waits 0.7 s after the
+  last PARAM, so a drag is not pulled back.
+- A track's DUMP carries 8 bytes of extras (preset id, pool sound, edited / selected / recording / playing, the MIDI
+  channel, the selected track), and AUDITION takes them: REVERT and CANCEL put a track back exactly.
+- The STORE-over job runs for every STORE over a used MY PRESETS place (not only when other projects use it: that is
+  not known without reading them) and is **refused while playing** (BUSY), as the other jobs: SAVE over a preset needs
+  the FM-1 stopped; SAVE AS NEW does not.
+- STATUS gained a REC flag and the selected track; the page's keybed turns red while recording.
+- The page's notes go on channel 16 (the selected track) or the chosen track's own channel.
+- Not built: the hidden preview voice (option D). It builds on `docs/WEB-MANAGER-PLAN.md` (Phases 0 and 1 are built: the manager page, the Phase 1 SysEx
 commands STATUS .. PROJECT, the SysEx speed fixes) and `docs/SYSEX.md`.
 
 Mock-ups: `mockups/fizz-manager-p2.html` (`?shot=1..8`, `?sheet=1`), rendered by

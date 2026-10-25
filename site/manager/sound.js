@@ -73,9 +73,11 @@ export const blob6 = (s) => quadPack6(s.values.slice(0, 73), s.values[Q.DRIVE], 
 export const libSound = (s, source = {}) => ({ fizz: true, name: s.name, blob: blob6(s), drive: s.values[Q.DRIVE], pan: s.pan,
   sends: { ...s.sends }, fizzTags: tagNames(s.tags), favourite: false, source, notes: [], origin: [], mark: "", tags: [] });
 // a STORE6 frame of the sound: slot (MY PRESETS 1..256, 0 the first free), track (LOAD), its mix and tags
-export function storeFrameOf(s, { slot = 0, track = -1, batch = false } = {}) {
+// P2-B: own (the owner's preset), audition (with track: onto the track only), extras (the track's preset id, pool
+// sound, edited mark)
+export function storeFrameOf(s, { slot = 0, track = -1, batch = false, own = false, audition = false, extras = null } = {}) {
   return storeSound({ name: s.name, blob: blob6(s), drive: s.values[Q.DRIVE], slot, batch, track, pan: s.pan,
-    chorus: s.sends.chorus, delay: s.sends.delay, reverb: s.sends.reverb, tags: s.tags });
+    chorus: s.sends.chorus, delay: s.sends.delay, reverb: s.sends.reverb, tags: s.tags, own, audition, extras });
 }
 // the same sound? (the values, the name)
 export const sameValues = (a, b) => a && b && a.values.length === b.values.length && a.values.every((v, i) => v === b.values[i]);

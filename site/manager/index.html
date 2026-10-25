@@ -26,10 +26,12 @@
     <button class="tab" role="tab" id="t-pool" aria-controls="tab-pool" aria-selected="false" style="--c:var(--green)"><i></i>POOL</button>
     <button class="tab" role="tab" id="t-import" aria-controls="tab-import" aria-selected="false" style="--c:var(--violet)"><i></i>IMPORT</button>
   </nav>
+  <button id="live" class="livesw" aria-pressed="false" hidden><span class="sw" aria-hidden="true"><i></i></span><span id="live-label">TRACK</span></button>
   <button id="refresh" class="icon refresh" aria-label="Read the FM-1 again" title="Read the FM-1 again" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16.5 3.5v3.6h-3.6"/></svg></button>
   <button id="unit" class="unit" data-state="off"><span class="dot"></span><span id="unit-label">CONNECT</span><small id="unit-sub"></small></button>
 </header>
 <p id="say" class="say" role="status"></p>
+<div id="loadbar" class="loadbar" role="status" hidden></div>
 
 <main>
   <section id="tab-backup" class="body" role="tabpanel" aria-labelledby="t-backup">

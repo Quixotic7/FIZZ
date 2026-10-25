@@ -30,7 +30,8 @@
 //   link.projects() -> {current, list: [{slot, there, current, demo, name, pages}]} | null
 import { Updater, IS_OTA, frame, response, parseRequest, unpack7 } from "../install/fm1lib.js";
 import { identity, listRequest, parseList, dumpRequest, parseDump, parseReply, SOURCES, CMD1, statusRequest, flushRequest,
-  tagsRequest, renameRequest, deleteRequest, swapRequest, poolRefRequest, usersRequest, projectsRequest, projectRequest } from "../js/fizz_sysex.js";
+  tagsRequest, renameRequest, deleteRequest, swapRequest, poolRefRequest, usersRequest, projectsRequest, projectRequest,
+  paramRequest, CMD } from "../js/fizz_sysex.js";
 import { crc32, hex8 } from "./fizzbak.js";
 
 export const FIZZ_PREFIX = "FM-1_46";            // firmware/app/fm1.toml id_prefix
@@ -211,6 +212,20 @@ export class FizzLink {
     return r && r.kind === "projects" ? r : null;
   }
   project(op, p, q = 0) { return this.ask1(projectRequest({ op, p, q }), CMD1.PROJECT, undefined, 30000); }
+  // Manager P2-B: a track's sound (slot 1..6, 0 the selected one): its DUMP frame (with its extras), null when this
+  // FIZZ has none (BAD SLOT: older); PARAM with its ACK (one at a time: the unit holds one frame, a second one sent
+  // while it waits would be dropped); a STORE6 AUDITION / OWN is store()
+  dumpTrack(slot = 0) {
+    return this.op(() => this.send(dumpRequest({ source: "track", slot })), (p) => {
+      const d = parseDump(p);
+      if (d && d.source === "track" && (!slot || d.track === slot - 1)) return d.frame;
+      const r = parseReply(p);
+      return r && r.kind === "error" && r.command === 0x22 ? null : undefined;
+    }, { timeout: 1500, partial: () => null });
+  }
+  param(track, id, value) { return this.ask1(paramRequest({ track, id, value, ack: true }), CMD.PARAM, undefined, 2000); }
+  // a note to the FM-1 (no reply; a short message, not held as a SysEx frame is)
+  note(ch, n, vel) { this.send(vel ? [0x90 | (ch & 15), n & 127, vel & 127] : [0x80 | (ch & 15), n & 127, 0]); }
 
   // ---- the bulk channel
   bulk(tag, words, want, timeout) {

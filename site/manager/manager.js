@@ -4,7 +4,8 @@
 // project's pool (pool.js) and import Digitone sounds into it (importer.js) (Phase 1: FIZZ's STATUS .. PROJECT
 // commands, docs/SYSEX.md); edit a preset's sound (editor.js: in the browser's own FIZZ, browserfizz.js) and export
 // it for FIZZ, the Digitone or the Digitone II (exporter.js) (Phase 2-A, docs/MANAGER-P2-PLAN.md). The protocol is
-// fizzlink.js's; the files fizzbak.js's; the offline store reader fizzstore.js's.
+// fizzlink.js's; the files fizzbak.js's; the offline store reader fizzstore.js's. P2-B (live.js): with TRACK on, EDIT
+// edits the FM-1's track live and LIBRARY loads onto it (KEEP / CANCEL); off, the tracks are left alone.
 //   ?sim        a simulated FM-1 (simfizz.js: the browser FIZZ for its SysEx) instead of Web MIDI: headless checks
 //   ?depth=N    the backup's requests outstanding (1, the default: one at a time); &gap=MS their spacing
 import { findFizz, FZER } from "./fizzlink.js";
@@ -20,6 +21,7 @@ import { mountImport } from "./importer.js";
 import { mountEditor } from "./editor.js";
 import { mountExport } from "./exporter.js";
 import { BrowserFizz } from "./browserfizz.js";
+import { mountLive } from "./live.js";
 import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames } from "./sound.js";
 import { parseFizzsnd } from "../js/library.js";
 import { readFiles } from "../js/digitone.js";
@@ -212,6 +214,7 @@ async function attach() {
     else if (version && !status) say(`This FIZZ shows its library but cannot edit it yet: <a href="../install/">update FIZZ</a>.`, "--orange");
     else if (status && status.noStore) say("FIZZ runs without its store (safe mode): back up and restore still work.", "--orange");
     if ($("tab-backup").hidden) loadDumps();
+    if (status) live.probe().then(() => { if (!$("tab-edit").hidden) live.show(); });
   } catch (e) {
     S.link = null;
     const m = {
@@ -230,6 +233,7 @@ async function attach() {
 function lost() {
   if (!S.link) return;
   S.link = null;
+  live.lost();
   setUnit("bad", "UNPLUGGED");
   log("the FM-1 was disconnected");
   renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render();
@@ -632,6 +636,7 @@ async function reread({ quick = false } = {}) {
     await refreshRows({ projects: true });
     if (S.sel && !u.rows.some((r) => r.source === S.sel.source && r.slot === S.sel.slot)) S.sel = null;
     if ($("tab-backup").hidden) await loadDumps();
+    await live.probe();
     return true;
   } catch (e) { log(`refresh: ${e.code || ""} ${e.message}`); return false; }
   finally {
@@ -814,6 +819,10 @@ list.addEventListener("click", (ev) => {
   if (!b) return;
   S.sel = { source: b.dataset.src, slot: +b.dataset.slot };
   renderLibrary();
+  if (live.on()) {                                      // (P2-B: TRACK on: it plays on the track, KEEP / CANCEL)
+    const r = S.unit.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot);
+    if (r) live.pick(r, frameOf(r));
+  }
   if (matchMedia("(max-width: 900px)").matches) $("l-sel").scrollIntoView({ behavior: "smooth", block: "start" });   // (a phone: the panel is below the list)
 });
 // reorder MY PRESETS: a cassette dropped on another swaps their places (the ids go with them: nothing else changes);
@@ -891,7 +900,9 @@ $("l-export-all").addEventListener("click", () => {
 });
 
 // ---------------------------------------------------------------- the pool, the import (their own files)
-const ctx = { S, $, log, say, toast, edit, refreshRows, loadDumps, frameOf, projectName, saveWeb, render: () => { renderUnit(); renderLibrary(); } };
+let live = null;                                        // (live.js, mounted with the editor below)
+const ctx = { S, $, log, say, toast, edit, refreshRows, loadDumps, frameOf, projectName, saveWeb, render: () => { renderUnit(); renderLibrary(); },
+  trackOn: () => !!(live && live.on()) };
 const pool = mountPool(ctx);
 const importer = mountImport(ctx);
 
@@ -930,9 +941,14 @@ const editor = mountEditor({
   exportSound: (s) => exporter.open([libSound(s, { fizz: (S.unit && S.unit.version) || "", from: editor.place().label || "" })], { title: s.name, tags: tagNames(s.tags) }),
 });
 editor.setTarget(browserTarget);
-function openInEditor(r) {
+live = mountLive({ S, $, log, say, toast, editor, browserTarget, changed: () => importer.render() });
+async function openInEditor(r) {
   const f = frameOf(r), snd = f && soundFromFrame(f);
   if (!snd) return;
+  if (live.on()) {                                      // (P2-B: onto the track (KEEP / CANCEL), the editor takes the track)
+    if (await live.pick(r, f)) { tab("edit"); return; }
+  }
+  snd.extras = { id: r.id, sound: 0, edited: false };
   editor.open(snd, { label: `${r.source === "mine" ? "MY PRESETS" : "FACTORY"} ${r.slot}`, source: r.source, slot: r.slot, id: r.id });
   tab("edit");
 }
@@ -944,12 +960,15 @@ async function saveSound(E, asNew) {
       sub: "The tracks that loaded it keep their own copies." });
     if (!ok) return null;
   }
-  const x = await edit("SAVE", (l) => l.store(storeFrameOf(E.s, { slot })));
+  // (P2-B: the owner's preset, OWN; TRACK on: the track then plays it, LOAD. Over a used place FIZZ runs a job: the
+  // other projects' tracks that loaded it keep the sound they had; refused while the FM-1 plays)
+  const x = await edit("SAVE", (l) => l.store(storeFrameOf(E.s, { slot, own: true, ...live.saveOpts() })));
   if (!x || x.kind !== "store" || x.status !== 0) return null;
   toast(`${E.s.name} → MY PRESETS ${x.slot}`, "--pink");
   if (S.unit.dumps) await redump(x.slot);
   await refreshRows();
   const row = S.unit.rows.find((q) => q.source === "mine" && q.slot === x.slot);
+  if (live.on()) { await live.afterSave(); return { place: editor.place() }; }
   return { place: { label: `MY PRESETS ${x.slot}`, source: "mine", slot: x.slot, id: row ? row.id : 0 } };
 }
 // a sound file dropped on the editor: opened in it (.fizzsnd, or a Digitone sound converted as IMPORT does)
@@ -978,7 +997,7 @@ function tab(name) {
   if (name !== "backup") loadDumps();
   if (name === "pool") pool.show();
   if (name === "import") importer.render();
-  if (name === "edit") editor.show();
+  if (name === "edit") { editor.show(); live.show(); } else live.hide();
   if (location.hash !== `#${name}`) history.replaceState(null, "", `${location.search}#${name}`);
 }
 for (const t of TABS) $(`t-${t}`).addEventListener("click", () => tab(t));
@@ -1011,4 +1030,4 @@ if (SIM) connect();
 else if (navigator.permissions && navigator.requestMIDIAccess) {
   navigator.permissions.query({ name: "midi", sysex: true }).then((p) => { if (p.state === "granted") connect(); }).catch(() => {});
 }
-window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor };
+window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor, live };

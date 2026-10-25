@@ -14,7 +14,8 @@
 // The web manager's Phase 1 commands (STATUS .. PROJECT: docs/SYSEX.md) are the wasm's too: its jobs (a pool swap,
 // a delete, a project load) step with the store's step as the unit's do, so the main loop runs on for a while after
 // each semantic frame (3 s); sim.tapPlay() starts or stops FIZZ's transport (MIDI START / STOP: the
-// commands that need it stopped answer BUSY), sim.counts.cmds[cmd] counts the semantic commands.
+// commands that need it stopped answer BUSY), sim.counts.cmds[cmd] counts the semantic commands; notes and controllers go
+// to the engine at once (sim.counts.notes).
 // No DOM: Node runs it as it is.
 //   new SimFizz({createEngine, module, id, playing, frameMs, tryMs, bulk, answers}); await sim.boot()
 //   sim.access (navigator.requestMIDIAccess's shape), sim.unplug(), sim.engine, sim.flash(), sim.counts, sim.tapPlay()
@@ -110,6 +111,11 @@ export class SimFizz {
   // ---- inbound: one frame held (sysex_byte: sx_collect = !sx_ready), taken by the main loop's next pass
   rx(d) {
     if (this.gone) return;
+    if (d[0] !== 0xF0 && d[0] >= 0x80 && this.engine && !this.restoring) {   // (a note, a controller: the USB-MIDI parser's, not
+      this.engine.midiIn(d);                          // the one SysEx frame held; P2-B: the editor's keybed)
+      this.counts.notes = (this.counts.notes || 0) + 1;
+      return;
+    }
     if (this.restoring) { this.restoring.frame(d); return; }   // (inside ota_read: it takes each frame at once)
     if (this.slot) { this.counts.dropped++; return; }
     this.slot = d;

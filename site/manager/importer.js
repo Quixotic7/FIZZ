@@ -4,7 +4,7 @@
 // uploaded), each sound with a 10-segment bar of how much carried over (green exact, yellow small losses, orange
 // approximations), its tags; a sound that is not FM TONE greyed. SEND stores the ticked ones on the FM-1 with STORE /
 // STORE6 into MY PRESETS (POOL: also referenced in the project's pool; TRACK: the first also loaded onto that track).
-// The Digitone tags FIZZ has no tag for are kept as web tags (on this computer and in backups). .syx is not read (the
+// TRACK only with the header's TRACK switch on (P2-B). The Digitone tags FIZZ has no tag for are kept as web tags (on this computer and in backups). .syx is not read (the
 // owner's decision: only the formats that already convert).
 import { readFiles, storeFrame } from "../js/digitone.js";
 import { sameSound, soundFromStoreFrame } from "../js/library.js";
@@ -61,7 +61,13 @@ export function mountImport(ctx) {
     $("i-send").textContent = `↓ SEND ${n} TO FM-1`;
     $("i-send").disabled = !n || !can();
     $("i-clear").hidden = !I.items.length;
-    $("i-dest").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.d === I.dest));
+    // (P2-B: TRACK only with the header's TRACK switch on: off, the Manager leaves the open project's tracks alone)
+    const trk = !ctx.trackOn || ctx.trackOn();
+    if (!trk && I.dest === "track") I.dest = "mine";
+    $("i-dest").querySelectorAll("button").forEach((b) => {
+      b.classList.toggle("on", b.dataset.d === I.dest);
+      if (b.dataset.d === "track") { b.disabled = !trk; b.title = trk ? "" : "Turn TRACK on (in the header) to load onto a track"; }
+    });
     $("i-track").hidden = I.dest !== "track";
   }
   async function send() {

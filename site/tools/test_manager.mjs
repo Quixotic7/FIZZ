@@ -17,13 +17,16 @@
 //   - Phase 2-A (docs/MANAGER-P2-PLAN.md): the sound editor's model (sound.js) through the real FIZZ: every factory
 //     preset and random sounds DUMPed, edited, stored with STORE6 and DUMPed back the same; the values' texts the
 //     core's; EXPORT's files (.fizzsnd read back, .dnsnd / .dn2pst ZIPs, .dn2snd the payload) and their carry rows;
+//   - Phase 2-B: a track's DUMP (its extras), PARAM (ACK, clamped, BAD TRACK, while playing), AUDITION (nothing
+//     stored) and the track's own DUMP sent back (the same DUMP again, byte for byte), OWN, a STORE over a used place
+//     (BUSY while playing; a job, its reply when done);
 //   - the owner's saved images (../FIZZ-saves, outside the repo; skipped when absent) read offline.
 //   node site/tools/test_manager.mjs
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createEngine } from "../engine/engine.js";
-import { storeSound, parseDump, parseReply } from "../js/fizz_sysex.js";
+import { storeSound, parseDump, parseReply, trackFrame } from "../js/fizz_sysex.js";
 import { readFiles, storeFrame } from "../js/digitone.js";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 import { soundFromStoreFrame, parseFizzlib } from "../js/library.js";
@@ -379,6 +382,51 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
     "EXPORT: the notes' verdicts (nearest step, written as ..)");
   const many = exportFiles([lib, { ...lib, name: "EXPORT ME" }], "dnsnd");
   check(/\.zip$/.test(many.name) && many.notes.length === 2, `EXPORT: several: one ZIP (${many.name})`);
+  lk.close(); u.dispose();
+}
+
+// ---- Phase 2-B: the live editor's commands
+{
+  const u = await sim();
+  const lk = await findFizz(u.access);
+  const f0 = await lk.dumpTrack(3), t3 = soundFromFrame(f0);
+  check(t3 && t3.track === 2 && t3.extras && typeof t3.extras.chan === "number" && t3.extras.sel === 0 && !t3.extras.selected,
+    `a track's DUMP: track 3 "${t3 && t3.name}", preset ${t3 && t3.extras.id}, channel ${t3 && t3.extras.chan + 1}, the selected track ${t3 && t3.extras.sel + 1}`);
+  const fs0 = await lk.dumpTrack(0);
+  check(soundFromFrame(fs0).track === 0 && soundFromFrame(fs0).extras.selected, "a track's DUMP, slot 0: the selected one (track 1)");
+  let r = await lk.param(2, Q.FREQ, 4321);
+  const t3b = soundFromFrame(await lk.dumpTrack(3));
+  check(r.status === 0 && r.a === 3 && r.b === Q.FREQ && t3b.values[Q.FREQ] === 4321 && t3b.extras.edited, "PARAM with its ACK: track 3's FREQ 43.21, the track marked edited");
+  r = await lk.param(2, Q.FDBK, 500);
+  check(r.status === 0 && soundFromFrame(await lk.dumpTrack(3)).values[Q.FDBK] === 127, "PARAM: a value past its range clamped (FDBK 127)");
+  r = await lk.param(6, Q.FREQ, 1);
+  check(r.status === 11, `PARAM onto track 7: ${r.statusName}`);
+  u.tapPlay();
+  r = await lk.param(2, Q.RESO, 2000);
+  check(r.status === 0 && soundFromFrame(await lk.dumpTrack(3)).values[Q.RESO] === 2000, "PARAM while playing: taken");
+  u.tapPlay();
+  // AUDITION: nothing stored; then the track's own DUMP back: the same DUMP again
+  const before = await lk.dumpTrack(3), n0 = (await lk.list()).length;
+  const other = soundFromFrame(await lk.dump("factory", 7));
+  const x = await lk.store(storeFrameOf(other, { track: 2, audition: true, extras: { id: 7, sound: 0, edited: false } }));
+  const aud = soundFromFrame(await lk.dumpTrack(3));
+  check(x.status === 0 && x.slot === 0 && (await lk.list()).length === n0 && aud.name === other.name && aud.extras.id === 7 && !aud.extras.edited &&
+    aud.values.every((v, i) => v === other.values[i]), `AUDITION: track 3 plays ${other.name} (preset 7), nothing stored (${n0} presets)`);
+  const y = await lk.store(trackFrame(before));
+  const after = await lk.dumpTrack(3);
+  check(y.status === 0 && same(Array.from(after), Array.from(before)), "AUDITION of the track's own DUMP: its DUMP the same again, byte for byte (CANCEL)");
+  // OWN; a STORE over a used place: BUSY while playing, else a job (its reply when done)
+  const own = await lk.store(storeFrameOf({ ...other, name: "OWN ONE" }, { own: true }));
+  let rows = await lk.list();
+  const ownRow = rows.find((q) => q.source === "mine" && q.slot === own.slot);
+  check(own.status === 0 && ownRow && !ownRow.imported, `STORE6 OWN: MY PRESETS ${own.slot} not marked imported`);
+  u.tapPlay();
+  const busy = await lk.store(storeFrameOf({ ...other, name: "OVER" }, { slot: own.slot, own: true }));
+  u.tapPlay();
+  const over = await lk.store(storeFrameOf({ ...other, name: "OVER" }, { slot: own.slot, own: true }));
+  rows = await lk.list();
+  check(busy.status === 8 && over.status === 0 && over.slot === own.slot && rows.find((q) => q.source === "mine" && q.slot === own.slot).name === "OVER" &&
+    rows.find((q) => q.source === "mine" && q.slot === own.slot).id === ownRow.id, `a STORE over a used place: BUSY while playing; stopped: the job, OK, the id kept (${ownRow.id})`);
   lk.close(); u.dispose();
 }
 
