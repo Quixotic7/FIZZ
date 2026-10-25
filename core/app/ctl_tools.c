@@ -5,8 +5,9 @@
  * through ctl_latch.c (it includes this file). The operations are seq/tools.c's.
  *
  * THE CONTROLS: B1..B7 or PRESETS the tool; B11 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
- * page shown; W1..W16 the page's steps (a press: in / out of the selection, the scope SELECTED); KNOB 1..4 the
- * tool's values. OCT+ keeps, OCT- reverts (it never leaves); HOME is the only way out. TOOLS works on
+ * page shown (it stays: no page follow in TOOLS); W1..W16 the page's steps (a press: in / out of the selection, the
+ * scope SELECTED; lit as the change makes them, the ghosts dim, the steps that do not play dark); KNOB 1..4 the
+ * tool's values. SELECTED + ROTATE moves the selected steps along the track's loop (qd_tl_move). OCT+ keeps, OCT- reverts (it never leaves); HOME is the only way out. TOOLS works on
  * the track selected when it opened (SHIFT + SELECT still changes it: a pending change is kept first).
  *
  * LIVE PREVIEW, SEEN AND HEARD (§2): the first change of a tool opens an undo gesture of its own and HOLDS it open
@@ -41,6 +42,21 @@ static int tl_pos(const qd_app_t *a, const qd_pattern_t *p, int t, int page, uin
         pos[j] = s;
         n++;
     }
+    return n;
+}
+
+/* SELECTED + ROTATE: the list the selected steps move round (the track's loop; one of them outside it: the whole
+ * track), and the selection (sel: 16) */
+static int tl_frame(const qd_app_t *a, const qd_pattern_t *p, int t, uint8_t *pos, uint8_t *sel, int *ns)
+{
+    int n = qd_tl_positions(p, t, QD_TS_TRACK, 0, pos), i;
+    *ns = tl_pos(a, p, t, 0, sel);
+    for (i = 0; i < *ns; i++)
+        if (qd_tl_pos_of(pos, n, sel[i]) < 0) {
+            for (n = 0; n < QD_NSTEP; n++)
+                pos[n] = (uint8_t)n;
+            break;
+        }
     return n;
 }
 
@@ -152,6 +168,13 @@ static void tl_apply(qd_app_t *a)
             qd_tl_length(p, t, T->scope <= QD_TS_PAGE ? page : -1, T->lpow, 0);
             continue;
         }
+        if (T->tool == QD_TL_ROTATE && T->scope == QD_TS_SEL) {   /* (the selected steps move along the track) */
+            uint8_t sel[16];
+            int ns;
+            n = tl_frame(a, p, t, pos, sel, &ns);
+            qd_tl_move(p, t, pos, n, sel, ns, T->rot);
+            continue;
+        }
         n = tl_pos(a, p, t, page, pos);
         if (T->tool == QD_TL_ROTATE)
             qd_tl_rotate(p, t, pos, n, T->rot);
@@ -170,21 +193,13 @@ static void tl_apply(qd_app_t *a)
     }
 }
 
-static void tl_capture(qd_app_t *a)                   /* the lane as it was (its diff: kept, new, going) */
+static void tl_capture(qd_app_t *a)                   /* where the change began; LENGTH: the loop as it was (the
+                                                         * steps' ghosts: the gesture's before, qd_tools_page) */
 {
     qd_tools_t *T = &a->ui.tl;
-    const qd_pattern_t *p = qd_ctl_cpat(a);
-    int w;
     T->opage = (uint8_t)tl_page(a);
     T->otrack = (uint8_t)a->sel;
-    T->orig = 0;
-    if (T->tool == QD_TL_LENGTH) {
-        T->orig = (uint16_t)qd_track_loop(&p->trk[a->sel]);
-        return;
-    }
-    for (w = 0; w < QD_PAGE; w++)
-        if (p->step[a->sel][T->opage * QD_PAGE + w].flags & QD_SF_ON)
-            T->orig |= (uint16_t)(1u << w);
+    T->orig = (uint16_t)qd_track_loop(&qd_ctl_cpat(a)->trk[a->sel]);
 }
 
 /* a value changed: the change written (live), or only drawn */
@@ -228,6 +243,15 @@ static int tl_keep_q(qd_app_t *a)                     /* kept (one undo level): 
     if (T->flags & QD_TLF_NOLIVE)
         tl_apply(a);                                    /* (written now; the gesture keeps no level: no room) */
     qd_undo_close(a);
+    if (T->tool == QD_TL_ROTATE && T->scope == QD_TS_SEL && T->rot && a->sel == T->otrack) {
+        uint8_t pos[QD_NSTEP], sel[16];                 /* (the selection goes with its steps) */
+        int ns, i, n = tl_frame(a, qd_ctl_cpat(a), a->sel, pos, sel, &ns);
+        for (i = 0; i < a->ui.nheld; i++) {
+            const int j = qd_tl_pos_of(pos, n, a->ui.held[i] & 127);
+            if (j >= 0)
+                a->ui.held[i] = pos[((j + T->rot) % n + n) % n];
+        }
+    }
     tl_settle(T);
     return 1;
 }
@@ -345,6 +369,9 @@ static void tl_scope(qd_app_t *a, int sc)
 {
     qd_tools_t *T = &a->ui.tl;
     tl_keep(a);
+    if (T->scope == QD_TS_SEL && T->tool == QD_TL_EUCLID)   /* (out of SELECTED: its length from 16 again, not the
+                                                         * selection's few steps) */
+        T->v.eu.len = 16;
     T->scope = (uint8_t)sc;
     tl_norm(a);
     tl_pop(a, 1, 0);
@@ -409,6 +436,7 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
             tl_keep(a);
         qd_ctl_set_page(a, (tl_page(a) + d % QD_NPAGE + QD_NPAGE) % QD_NPAGE);
         tl_norm(a);
+        qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);   /* (the eight pages, "PAGE 3": the step view's) */
         return 1;
     }
     if (knob == QD_K_PRESETS) {                         /* the tools, round (the built ones) */
@@ -456,6 +484,7 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
             const int n = tl_clamp(*v + qd_ctl_acc(a, d, mx + 1), 0, mx);
             ch = n != *v;
             *v = (uint8_t)n;
+            tl_pop(a, 3, knob == QD_K_1 ? 0 : knob == QD_K_2 ? 1 : knob == QD_K_3 ? 2 : 3);   /* (what it sets) */
         }
         break;
     }
@@ -509,40 +538,7 @@ void qd_tools_ms(qd_app_t *a)
         tl_change(a);
 }
 
-static int tl_selected(const qd_app_t *a, int s)
-{
-    int i;
-    for (i = 0; a->ui.slatch && i < a->ui.nheld; i++)
-        if (a->ui.held[i] == s)
-            return 1;
-    return 0;
-}
-
-void qd_tools_leds(const qd_app_t *a, uint8_t *key)
-{
-    const qd_tools_t *T = &a->ui.tl;
-    const int page = tl_page(a);
-    int i;
-    for (i = 0; i < 16; i++) {                          /* W: the page's steps as the change makes them, the selected
-                                                         * blinking */
-        int on, was, note;
-        qd_tools_lane(a, i, &on, &was, &note);
-        key[QD_WHITE_KEY[i]] = tl_selected(a, page * QD_PAGE + i) ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_DIM : QD_LED_LIT)
-                             : on ? QD_LED_LIT : QD_LED_OFF;
-    }
-    for (i = 0; i < QD_TL_N; i++)                       /* B1..B7 the tools, B11 the scope */
-        key[QD_BLACK_KEY[i]] = i == T->tool ? QD_LED_LIT : QD_LED_DIM;
-    key[QD_BLACK_KEY[10]] = QD_LED_LIT;
-    {   /* T3: B8 COPY (PAGE, PATTERN), B9 PASTE (lit with something to paste), B10 CLEAR (blinking when armed) */
-        const int pp = T->scope == QD_TS_PAGE || T->scope == QD_TS_PATTERN;
-        const int has = T->scope == QD_TS_PAGE ? a->ui.clip.pg.valid : a->undo.pclip_ok;
-        key[QD_BLACK_KEY[7]] = pp ? QD_LED_LIT : QD_LED_OFF;
-        key[QD_BLACK_KEY[8]] = pp ? (has ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
-        key[QD_BLACK_KEY[9]] = tl_armed(a) && (a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT;
-    }
-}
-
-/* ---------------------------------------------------------------- what the screen shows */
+/* ---------------------------------------------------------------- what the screen and the keys show */
 static int tl_drawn_only(const qd_app_t *a)
 {
     return (a->ui.tl.flags & QD_TLF_PEND) && (a->ui.tl.flags & QD_TLF_NOLIVE);
@@ -556,52 +552,113 @@ static void tl_step_view(const qd_pattern_t *p, int t, int s, int *on, int *note
     *note = r.on && r.nn ? r.notes[0] : 0;
 }
 
-uint16_t qd_tools_sel_mask(const qd_app_t *a)         /* the page's selected steps */
+/* the page's selected steps (bit w); a pending ROTATE of the selection: where they are now */
+uint16_t qd_tools_sel_mask(const qd_app_t *a)
 {
+    const qd_tools_t *T = &a->ui.tl;
+    const int page = tl_page(a), mv = (T->flags & QD_TLF_PEND) && T->tool == QD_TL_ROTATE && T->scope == QD_TS_SEL;
+    uint8_t pos[QD_NSTEP], sel[16];
     uint16_t m = 0;
-    int w;
-    for (w = 0; w < 16; w++)
-        if (tl_selected(a, tl_page(a) * QD_PAGE + w))
-            m |= (uint16_t)(1u << w);
+    int i, n = 0, ns;
+    if (!a->ui.slatch)
+        return 0;
+    if (mv)
+        n = tl_frame(a, qd_ctl_cpat(a), a->sel, pos, sel, &ns);
+    for (i = 0; i < a->ui.nheld; i++) {
+        int s = a->ui.held[i] & 127;
+        const int j = mv ? qd_tl_pos_of(pos, n, s) : -1;
+        if (j >= 0)
+            s = pos[((j + T->rot) % n + n) % n];
+        if (s / QD_PAGE == page)
+            m |= (uint16_t)(1u << (s % QD_PAGE));
+    }
     return m;
 }
 
-void qd_tools_lane(const qd_app_t *a, int w, int *on, int *was, int *note)
+/* the page shown, its 16 steps: on[w] as the change makes them, was[w] as they were (the ghosts: while a change is
+ * pending; live, from the gesture's before), note[w] the first notes; returns the steps that play (bit w: within the
+ * page's start..end) */
+uint16_t qd_tools_page(const qd_app_t *a, uint8_t *on, uint8_t *was, uint8_t *note)
 {
     const qd_tools_t *T = &a->ui.tl;
     const qd_pattern_t *p = qd_ctl_cpat(a);
-    const int t = a->sel, page = tl_page(a), s = page * QD_PAGE + (w & 15);
-    uint8_t pos[QD_NSTEP];
-    int n, i, src = s;
-    tl_step_view(p, t, s, on, note);
-    if (!tl_drawn_only(a)) {                            /* the pattern is the result (or nothing is pending) */
-        const int live = (T->flags & QD_TLF_PEND) && TL_PEND_LIVE(a) && T->tool != QD_TL_LENGTH;
-        *was = live && T->opage == page ? (T->orig >> (w & 15)) & 1 : *on;
-        return;
+    const int t = a->sel, page = tl_page(a);
+    uint8_t pos[QD_NSTEP], from[QD_NSTEP];
+    uint16_t inr = 0;
+    int w, n, mv = 0;
+    for (w = 0; w < 16; w++) {
+        int o, nt;
+        tl_step_view(p, t, page * QD_PAGE + w, &o, &nt);
+        on[w] = was[w] = (uint8_t)o, note[w] = (uint8_t)nt;
+        inr |= (uint16_t)(qd_page_in_range(&p->trk[t], page * QD_PAGE + w) << w);
     }
-    *was = *on;                                         /* (drawn only: the pattern is the original) */
-    if (T->tool == QD_TL_LENGTH || (T->scope == QD_TS_PAGE && page != T->opage))
-        return;
-    n = tl_pos(a, p, t, T->opage & 7, pos);
-    i = qd_tl_pos_of(pos, n, s);
-    if (i < 0)
-        return;
-    if (T->tool == QD_TL_ROTATE)
-        src = pos[(((i - T->rot) % n) + n) % n];
-    else if (T->tool == QD_TL_REVERSE && (T->flags & QD_TLF_FLIP))
-        src = pos[n - 1 - i];
-    if (src != s) {
-        tl_step_view(p, t, src, on, note);
-    } else if (T->tool == QD_TL_RANDOM) {
-        *on = qd_tl_random_on(T->v.rn.seed, t, i, T->v.rn.dens);
-    } else if (T->tool == QD_TL_GRIDS) {
-        *on = T->scope == QD_TS_PATTERN ? *was           /* (PATTERN: the parts' tracks; the lane as it is) */
-            : qd_tl_grids_at(T->v.gr.seed, t, i, T->v.gr.x, T->v.gr.y, T->v.gr.part, T->v.gr.chaos) > 255 - T->v.gr.dens;
-    } else if (T->tool == QD_TL_EUCLID) {
-        const int hit = qd_tl_euclid_hit(i, T->v.eu.hits, T->v.eu.len, T->v.eu.rot);
-        *on = T->v.eu.mode == QD_EU_NEW ? hit : T->v.eu.mode == QD_EU_ADD ? hit || *was : hit && *was;
-        if (*on && !*was)
-            *note = p->trk[t].def.note[0];
+    if (!(T->flags & QD_TLF_PEND) || T->tool == QD_TL_LENGTH || t != T->otrack)
+        return inr;
+    if (!(T->flags & QD_TLF_NOLIVE)) {                  /* live: the pattern is the result; the ghosts from its before */
+        qd_step_t b[QD_PAGE];
+        if (qd_undo_before(a, (uint32_t)((const uint8_t *)&p->step[t][page * QD_PAGE] - (const uint8_t *)p), sizeof b,
+                           (uint8_t *)b))
+            for (w = 0; w < 16; w++)
+                was[w] = (uint8_t)qd_step_is_on(&b[w]);
+        return inr;
+    }
+    if (T->scope == QD_TS_PAGE && page != T->opage)    /* drawn only: the pattern is the original, the result worked out */
+        return inr;
+    if (T->tool == QD_TL_ROTATE && T->scope == QD_TS_SEL) {
+        uint8_t sel[16];
+        int ns;
+        n = tl_frame(a, p, t, pos, sel, &ns);
+        mv = qd_tl_move_map(pos, n, sel, ns, T->rot, from);
+    } else {
+        n = tl_pos(a, p, t, T->opage & 7, pos);
+    }
+    for (w = 0; w < 16; w++) {
+        const int s = page * QD_PAGE + w, i = qd_tl_pos_of(pos, n, s);
+        int src = s, o, nt;
+        if (i < 0)
+            continue;
+        if (T->tool == QD_TL_ROTATE)
+            src = T->scope != QD_TS_SEL ? pos[(((i - T->rot) % n) + n) % n] : mv ? pos[from[i]] : s;
+        else if (T->tool == QD_TL_REVERSE && (T->flags & QD_TLF_FLIP))
+            src = pos[n - 1 - i];
+        if (src != s) {
+            tl_step_view(p, t, src, &o, &nt);
+            on[w] = (uint8_t)o, note[w] = (uint8_t)nt;
+        } else if (T->tool == QD_TL_RANDOM) {
+            on[w] = (uint8_t)qd_tl_random_on(T->v.rn.seed, t, i, T->v.rn.dens);
+        } else if (T->tool == QD_TL_GRIDS) {
+            if (T->scope != QD_TS_PATTERN)              /* (PATTERN: the parts' tracks; the lane as it is) */
+                on[w] = qd_tl_grids_at(T->v.gr.seed, t, i, T->v.gr.x, T->v.gr.y, T->v.gr.part, T->v.gr.chaos) >
+                        255 - T->v.gr.dens;
+        } else if (T->tool == QD_TL_EUCLID) {
+            const int hit = qd_tl_euclid_hit(i, T->v.eu.hits, T->v.eu.len, T->v.eu.rot);
+            on[w] = (uint8_t)(T->v.eu.mode == QD_EU_NEW ? hit : T->v.eu.mode == QD_EU_ADD ? hit || was[w] : hit && was[w]);
+            if (on[w] && !was[w])
+                note[w] = p->trk[t].def.note[0];
+        }
+    }
+    return inr;
+}
+
+void qd_tools_leds(const qd_app_t *a, uint8_t *key)
+{
+    const qd_tools_t *T = &a->ui.tl;
+    uint8_t on[16], was[16], note[16];
+    const uint16_t inr = qd_tools_page(a, on, was, note), sel = qd_tools_sel_mask(a);
+    int i;
+    for (i = 0; i < 16; i++)                            /* W: the page's steps as the change makes them (the ghosts dim,
+                                                         * the steps that do not play dark), the selected blinking */
+        key[QD_WHITE_KEY[i]] = (sel >> i) & 1u ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT)
+                             : !((inr >> i) & 1u) ? QD_LED_OFF : on[i] ? QD_LED_LIT : was[i] ? QD_LED_DIM : QD_LED_OFF;
+    for (i = 0; i < QD_TL_N; i++)                       /* B1..B7 the tools, B11 the scope */
+        key[QD_BLACK_KEY[i]] = i == T->tool ? QD_LED_LIT : QD_LED_DIM;
+    key[QD_BLACK_KEY[10]] = QD_LED_LIT;
+    {   /* T3: B8 COPY (PAGE, PATTERN), B9 PASTE (lit with something to paste), B10 CLEAR (blinking when armed) */
+        const int pp = T->scope == QD_TS_PAGE || T->scope == QD_TS_PATTERN;
+        const int has = T->scope == QD_TS_PAGE ? a->ui.clip.pg.valid : a->undo.pclip_ok;
+        key[QD_BLACK_KEY[7]] = pp ? QD_LED_LIT : QD_LED_OFF;
+        key[QD_BLACK_KEY[8]] = pp ? (has ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
+        key[QD_BLACK_KEY[9]] = tl_armed(a) && (a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT;
     }
 }
 

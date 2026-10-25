@@ -15,6 +15,7 @@ its text becomes the release's notes on the install page and on GitHub.
 - **FIZZ Manager asks once** before SORT BY TAG, CLEAR UNUSED, swapping pool places, CLEAR, DELETE and loading a project, and says whether SHIFT + F1 can undo it.
 - **FIZZ Manager: Digitone sounds saved on OS 1.42** (such as F186 KICK01) import now; they were refused as "a newer Digitone format (version 4)".
 - The FM-1 pill in the Manager's header is cleaner.
+- **TOOLS fixes.** The page SELECT picks now stays while the pattern plays (it used to follow the playhead, so a PAGE change went to a page you were no longer looking at), and SELECT pops the pages with "PAGE 3"; a strip over the steps shows the page all the time. The white keys show the page as the change makes it, with the steps it removes dimmed (the ghosts, on the screen faded too, on every page) until OCT+ keeps or OCT− reverts; steps outside a track's loop stay dark, since tools never change them. A selected step rotated now moves along the track (the steps it passes each step back one), and the selection goes with it. RANDOM's four meters have icons, and turning a knob names it (DENSITY, NOTES, VELOCITY, CHANCE). The tool's popup also says which scope it works on, and EUCLID's length goes back to 16 when you leave SELECTED.
 
 ## 0.12.0-beta.2 (2026-10-24)
 

@@ -2070,7 +2070,8 @@ void qd_ctl_ms(qd_app_t *a)
         } else if (pp != u->play_page[a->sel]) {
             u->play_page[a->sel] = pp;
             if (u->follow && u->nheld == 0 && !u->wk_down && qd_ctl_layer(a) == QD_LAYER_NONE &&
-                !(u->mode == QD_MODE_KEYS && u->rec))
+                !(u->mode == QD_MODE_KEYS && u->rec) && !qd_tools_open(a))   /* (TOOLS: the page SELECT chose stays,
+                                                         * the one its W keys and a PAGE change work on) */
                 qd_ctl_set_page(a, pp);
         }
     }

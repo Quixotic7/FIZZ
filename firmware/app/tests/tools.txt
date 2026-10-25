@@ -3,7 +3,82 @@
 # track live while it plays, OCT+ keeps it (one undo level), OCT- reverts and never leaves, HOME does; SHIFT + ARP is
 # FILL at once and never TOOLS.
 #   firmware/build.py --host, then firmware/app/build/host/fizz_host firmware/app/tests/tools.txt OUT
+# 2026-10-24, the owner's findings on the unit first: on the demo's A02, track 2 (the bass, 32 steps over two pages),
+# SELECT's page stays while playing (no page follow in TOOLS), EUCLID over the TRACK writes both pages, the selected
+# step rotated moves, RANDOM's knobs name themselves.
 expect fz_up 1
+tap HOME
+wait 300
+expect fz_pattern 1
+press GLO
+turn SELECT 1
+release GLO
+wait 100
+expect fz_sel 1
+expect fz_ons_2_1 23773
+expect fz_ons_2_2 56525
+press ARP
+wait 420
+release ARP
+wait 900
+expect fz_tools 1
+expect fz_page 0
+turn SELECT 1
+wait 100
+expect fz_page 1
+shot tools-page.png
+tap PLAY
+wait 4000
+expect fz_playing 1
+expect fz_page 1
+tapkey b3
+wait 900
+expect fz_tl_tool 3
+expect fz_tl_scope 2
+turn K1 1
+wait 100
+expect fz_tools_pend 1
+expect fz_ons_2_1 9361
+expect fz_ons_2_2 9361
+shot tools-euclid-ghosts.png
+leds
+tap OCT-
+wait 100
+expect fz_tools_pend 0
+expect fz_ons_2_1 23773
+expect fz_ons_2_2 56525
+tapkey w0
+wait 100
+expect fz_tl_scope 0
+tapkey b0
+wait 900
+turn K1 1
+wait 100
+expect fz_ons_2_2 56526
+shot tools-sel-rotate.png
+tap OCT+
+wait 100
+expect fz_tools_pend 0
+expect fz_ons_2_2 56526
+tapkey b2
+wait 900
+turn K2 1
+wait 50
+shot tools-random-notes.png
+tap OCT-
+wait 100
+expect fz_ons_2_2 56526
+tap PLAY
+wait 300
+expect fz_playing 0
+tap HOME
+wait 300
+press GLO
+turn SELECT -1
+release GLO
+wait 100
+expect fz_sel 0
+# T1's sequence
 tap HOME
 wait 300
 tap PLAY

@@ -812,7 +812,8 @@ static void t_length_live(void)
 static void t_drawn_only(void)
 {
     qd_pattern_t *p;
-    int t, s, n0, on0, w, on, was, note, ok = 1;
+    int t, s, n0, on0, w, ok = 1;
+    uint8_t on[16], was[16], note[16];
     start();
     p = PAT();
     for (t = 0; t < QD_PAT_NTRACK; t++)
@@ -839,10 +840,9 @@ static void t_drawn_only(void)
     turn(QD_K_1, 1);
     CHECK(qd_tools_pending(&A) && (A.ui.tl.flags & QD_TLF_NOLIVE) && ons(0, 0, 16) == on0,
           "no room for the original: drawn only (nothing written)");
-    for (w = 0; w < 16; w++) {
-        qd_tools_lane(&A, w, &on, &was, &note);
-        ok &= on == !!(w & 1) && was == !(w & 1);
-    }
+    qd_tools_page(&A, on, was, note);
+    for (w = 0; w < 16; w++)
+        ok &= on[w] == !!(w & 1) && was[w] == !(w & 1);
     CHECK(ok, "the lane computed: each trig one on (rings new, the old ones going)");
     run(QD_UNDO_QUIET_MS + 100);
     btap(F2);
@@ -851,6 +851,114 @@ static void t_drawn_only(void)
     btap(QD_B_HOME);
 }
 #endif
+
+/* the owner's findings on the unit (2026-10-24, 0.12.0-beta.2): a 64-step track playing, the page shown by SELECT,
+ * EUCLID over the TRACK, the ghosts and the LEDs on every page, the selected step rotated, a short loop, RANDOM's names */
+static void t_owner(void)
+{
+    uint8_t on[16], was[16], note[16];
+    uint16_t inr;
+    qd_leds_t l;
+    int s, pg, ok = 1, m = 0, i, w;
+    start();
+    for (s = 0; s < 64; s++)                            /* track 1: 64 steps, every other one on (x.x.) */
+        if (!(s & 1))
+            qd_step_on(PAT(), 0, s);
+    qd_track_set_length(PAT(), 0, 64);
+    qd_step_on(PAT(), 1, 7);                            /* track 2: a 5-step loop (1..5), a trig at 8 outside it */
+    qd_step_on(PAT(), 1, 1);
+    qd_track_set_length(PAT(), 1, 5);
+    run(600);
+    qd_app_play(&A);
+    run(300);
+    tools_open();
+    qd_ctl_set_page(&A, 0);
+    turn(QD_K_SELECT, 2);
+    CHECK(A.ui.page[0] == 2 && A.ui.tk == UI_TK_PAGE, "SELECT: page 3 shown, the pages' takeover (PAGE 3)");
+    for (i = 0; i < 200; i++) {                         /* (the playhead crosses every page) */
+        run(50);
+        ok &= A.ui.page[0] == 2;
+        m |= 1 << qd_ctl_playing_page(&A, 0);
+    }
+    CHECK(ok && m == 0x0F, "playing: TOOLS keeps the page SELECT chose (no page follow)");
+    ok = 1, m = 0;
+    black(3);                                           /* EUCLID, TRACK */
+    turn(QD_K_1, 1);                                    /* E(5, 16) */
+    for (i = 0; i < 16; i++)
+        m |= qd_tl_euclid_hit(i, 5, 16, 0) << i;
+    for (pg = 0; pg < 4; pg++)
+        ok &= ons(0, pg * 16, 16) == m;
+    CHECK(A.ui.tl.scope == QD_TS_TRACK && ok, "EUCLID over the TRACK: all four pages E(5, 16), live");
+    inr = qd_tools_page(&A, on, was, note);
+    l = leds();
+    ok = inr == 0xFFFF;
+    for (w = 0; w < 16; w++) {
+        ok &= on[w] == ((m >> w) & 1) && was[w] == !(w & 1);
+        ok &= l.key[WK(w)] == (on[w] ? QD_LED_LIT : was[w] ? QD_LED_DIM : QD_LED_OFF);
+    }
+    CHECK(ok, "page 3: the steps as they are now, the ghosts as they were; W lit now, dim the ghosts");
+    btap(F2);
+    qd_tools_page(&A, on, was, note);
+    CHECK(!memcmp(on, was, 16) && leds().key[WK(1)] == QD_LED_OFF, "OCT+: kept, the ghosts gone");
+    bdown(QD_B_FUNC);                                   /* track 2: the 5-step loop */
+    turn(QD_K_SELECT, 1);
+    bup(QD_B_FUNC);
+    run(10);
+    inr = qd_tools_page(&A, on, was, note);
+    l = leds();
+    CHECK(A.sel == 1 && inr == 0x1F && on[7] && l.key[WK(7)] == QD_LED_OFF,
+          "a 5-step loop: its steps 1..5 play; step 8 (on, outside) dark on its key");
+    turn(QD_K_1, 1);
+    CHECK(A.ui.tl.v.eu.len == 5 && ons(1, 0, 5) == 0x1F && qd_step_is_on(&PAT()->step[1][7]),
+          "EUCLID on it: the loop's 5 steps, step 8 as it was");
+    btap(F2);
+    qd_app_stop(&A);
+    btap(QD_B_HOME);
+}
+
+static void t_sel_rotate(void)                          /* one step selected and rotated: it moves */
+{
+    int n0;
+    start();
+    bass(0);                                            /* x..x..x.x.x..x.. | page 2 */
+    run(600);
+    n0 = qd_undo_count(&A, -1);
+    tools_open();
+    white(3);                                           /* step 4 (on) selected: SELECTED */
+    CHECK(A.ui.tl.scope == QD_TS_SEL && A.ui.nheld == 1 && A.ui.held[0] == 3, "W4: SELECTED, step 4");
+    turn(QD_K_1, 1);
+    CHECK(qd_tools_pending(&A) && qd_step_is_on(&PAT()->step[0][4]) && !qd_step_is_on(&PAT()->step[0][3]) &&
+              PAT()->step[0][4].note[0] == 36 + 15 % 12 && qd_pat_check(PAT()) && qd_tools_sel_mask(&A) == 0x10,
+          "KNOB 1 +1: the step one on (its note, its lock), the selection with it");
+    turn(QD_K_1, 2);
+    CHECK(qd_step_is_on(&PAT()->step[0][6]) && PAT()->step[0][6].note[0] == 36 + 15 % 12 &&
+              qd_step_is_on(&PAT()->step[0][5]) && !qd_step_is_on(&PAT()->step[0][3]) && qd_tools_sel_mask(&A) == 0x40,
+          "+2 more: at step 7, the steps it passed each one back (7's trig at 6)");
+    btap(F2);
+    CHECK(!qd_tools_pending(&A) && A.ui.held[0] == 6 && qd_undo_count(&A, -1) == n0 + 1 && qd_tools_sel_mask(&A) == 0x40,
+          "OCT+: kept (a level), the selection now step 7");
+    black(3);                                           /* EUCLID: the selection's 1 step */
+    CHECK(A.ui.tl.v.eu.len == 1, "EUCLID in SELECTED: its length the selection's");
+    black(10);
+    CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tl.v.eu.len == 16, "out to PAGE (B11): the length 16 again");
+    btap(QD_B_HOME);
+}
+
+static void t_random_names(void)                        /* RANDOM's knobs: their names pop while turning */
+{
+    start();
+    bass(0);
+    run(600);
+    tools_open();
+    black(2);
+    run(QD_TOOL_POP_MS + 10);
+    turn(QD_K_2, 1);
+    CHECK(A.ui.tk == UI_TK_TOOL && A.ui.tk_knob == 3 && A.ui.tk_step == 1, "KNOB 2: NOTES pops");
+    turn(QD_K_4, 1);
+    CHECK(A.ui.tk_knob == 3 && A.ui.tk_step == 3, "KNOB 4: CHANCE");
+    btap(F1);
+    btap(QD_B_HOME);
+}
 
 static void t_screens(void)                             /* every tool's screen, every scope, drawn (sanitizers) */
 {
@@ -908,6 +1016,9 @@ int main(void)
 #ifdef QD_UNDO_SLOTS
         {"the device's drawn-only fallback (no room)", t_drawn_only},
 #endif
+        {"the owner's: 64 steps, SELECT's page kept, ghosts, LEDs, a short loop", t_owner},
+        {"SELECTED + ROTATE: the selected step moves", t_sel_rotate},
+        {"RANDOM: the knobs' names pop", t_random_names},
         {"every screen drawn", t_screens},
     };
     size_t i;

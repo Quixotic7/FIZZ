@@ -588,6 +588,32 @@ int qd_undo_revert_open(qd_app_t *a)
     return 1;
 }
 
+int qd_undo_before(const qd_app_t *a, uint32_t off, uint32_t n, uint8_t *out)
+{
+    const qd_hist_t *u = &a->undo;
+#ifdef QD_UNDO_SLOTS
+    const uint8_t *in = u->pool + GEND(u) - u->gpz;
+    uint32_t o = 0, d = 0;
+    if (!qd_undo_can_revert(a))
+        return 0;
+    memset(out, 0, n);
+    while (o + 4u <= u->gpz && d < off + n) {          /* (its runs: zeros, then bytes; those over off .. off + n) */
+        const uint32_t z = (uint32_t)in[o] | (uint32_t)in[o + 1] << 8, l = (uint32_t)in[o + 2] | (uint32_t)in[o + 3] << 8;
+        uint32_t lo, hi;
+        d += z, o += 4u;
+        lo = d > off ? d : off, hi = d + l < off + n ? d + l : off + n;
+        if (lo < hi)
+            memcpy(out + lo - off, in + o + lo - d, hi - lo);
+        d += l, o += l;
+    }
+#else
+    if (!qd_undo_can_revert(a))
+        return 0;
+    memcpy(out, (const uint8_t *)&u->pat0 + off, n);
+#endif
+    return 1;
+}
+
 int qd_undo_room(qd_app_t *a)
 {
     qd_hist_t *u = &a->undo;

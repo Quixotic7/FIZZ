@@ -34,21 +34,34 @@ int qd_tl_pos_of(const uint8_t *pos, int n, int s)
     return -1;
 }
 
-/* the track's locks on the list's steps renumbered (position j -> map(j)), its range sorted again */
-static void tl_locks(qd_pattern_t *p, int t, const uint8_t *pos, int n, int k, int rev)
+/* the steps permuted: position d takes what was at position from[d] (from: a permutation of 0..n-1), the track's locks
+ * renumbered the same way and its range sorted again (cycle-following, one step's temporary, 16 bytes of marks) */
+static void tl_permute(qd_pattern_t *p, int t, const uint8_t *pos, int n, const uint8_t *from)
 {
-    uint8_t inv[QD_NSTEP];
+    qd_step_t *S = p->step[t];
+    uint8_t to[QD_NSTEP], seen[QD_NSTEP / 8];
     qd_lock_t *L = &p->lock[p->lock_start[t]];
     const int m = p->lock_n[t];
-    int i;
-    memset(inv, 0xFF, sizeof inv);
-    for (i = 0; i < n; i++)
-        inv[pos[i]] = (uint8_t)i;
-    for (i = 0; i < m; i++) {
-        const int j = inv[L[i].step];
-        if (j != 0xFF)
-            L[i].step = pos[rev ? n - 1 - j : (j + k) % n];
+    int i, c;
+    memset(seen, 0, sizeof seen);
+    memset(to, 0xFF, sizeof to);
+    for (c = 0; c < n; c++) {
+        to[pos[from[c]]] = pos[c];                      /* (the physical step each one goes to: the locks') */
+        if (!(seen[c >> 3] >> (c & 7) & 1)) {
+            const qd_step_t tmp = S[pos[c]];
+            int d = c;
+            while (from[d] != c) {
+                S[pos[d]] = S[pos[from[d]]];
+                seen[d >> 3] |= (uint8_t)(1u << (d & 7));
+                d = from[d];
+            }
+            S[pos[d]] = tmp;
+            seen[d >> 3] |= (uint8_t)(1u << (d & 7));
+        }
     }
+    for (i = 0; i < m; i++)
+        if (to[L[i].step] != 0xFF)
+            L[i].step = to[L[i].step];
     for (i = 1; i < m; i++) {                           /* (insertion: few move far) */
         const qd_lock_t x = L[i];
         int j = i - 1;
@@ -60,19 +73,10 @@ static void tl_locks(qd_pattern_t *p, int t, const uint8_t *pos, int n, int k, i
     }
 }
 
-static int tl_gcd(int a, int b)
-{
-    while (b) {
-        const int r = a % b;
-        a = b, b = r;
-    }
-    return a;
-}
-
 void qd_tl_rotate(qd_pattern_t *p, int t, const uint8_t *pos, int n, int k)
 {
-    qd_step_t *S = p->step[t];
-    int c, g;
+    uint8_t from[QD_NSTEP];
+    int d;
     if (n < 2)
         return;
     k %= n;
@@ -80,36 +84,58 @@ void qd_tl_rotate(qd_pattern_t *p, int t, const uint8_t *pos, int n, int k)
         k += n;
     if (!k)
         return;
-    g = tl_gcd(n, k);
-    for (c = 0; c < g; c++) {                           /* (gcd(n, k) cycles, one step held) */
-        const qd_step_t tmp = S[pos[c]];
-        int j = c;
-        for (;;) {
-            const int src = (j - k + n) % n;
-            if (src == c)
-                break;
-            S[pos[j]] = S[pos[src]];
-            j = src;
-        }
-        S[pos[j]] = tmp;
-    }
-    tl_locks(p, t, pos, n, k, 0);
+    for (d = 0; d < n; d++)
+        from[d] = (uint8_t)((d - k + n) % n);
+    tl_permute(p, t, pos, n, from);
 }
 
 void qd_tl_reverse(qd_pattern_t *p, int t, const uint8_t *pos, int n)
 {
     qd_step_t *S = p->step[t];
+    uint8_t from[QD_NSTEP];
     int i;
-    for (i = 0; i < n / 2; i++) {
-        const qd_step_t tmp = S[pos[i]];
-        S[pos[i]] = S[pos[n - 1 - i]];
-        S[pos[n - 1 - i]] = tmp;
-    }
+    for (i = 0; i < n; i++)
+        from[i] = (uint8_t)(n - 1 - i);
+    if (n > 1)
+        tl_permute(p, t, pos, n, from);
     for (i = 0; i < n; i++)                             /* (the timing mirrors) */
         if (S[pos[i]].ovr & QD_OV(QD_PM_MICRO))
             S[pos[i]].micro = -S[pos[i]].micro;
-    if (n > 1)
-        tl_locks(p, t, pos, n, 0, 1);
+}
+
+int qd_tl_move_map(const uint8_t *pos, int n, const uint8_t *sel, int ns, int k, uint8_t *from)
+{
+    uint8_t in[QD_NSTEP / 8];
+    int i, d = 0, moved = 0;
+    if (n < 1)
+        return 0;
+    k %= n;
+    if (k < 0)
+        k += n;
+    memset(in, 0, sizeof in);
+    memset(from, 0xFF, (size_t)n);
+    for (i = 0; i < ns; i++) {                          /* the selected: k on, round the list */
+        const int j = qd_tl_pos_of(pos, n, sel[i]);
+        if (j >= 0 && !(in[j >> 3] >> (j & 7) & 1)) {
+            in[j >> 3] |= (uint8_t)(1u << (j & 7));
+            from[(j + k) % n] = (uint8_t)j;
+            moved = 1;
+        }
+    }
+    for (i = 0; i < n; i++)                             /* the others into the places left, in their order */
+        if (!(in[i >> 3] >> (i & 7) & 1)) {
+            while (from[d] != 0xFF)
+                d++;
+            from[d] = (uint8_t)i;
+        }
+    return moved;
+}
+
+void qd_tl_move(qd_pattern_t *p, int t, const uint8_t *pos, int n, const uint8_t *sel, int ns, int k)
+{
+    uint8_t from[QD_NSTEP];
+    if (qd_tl_move_map(pos, n, sel, ns, k, from))
+        tl_permute(p, t, pos, n, from);
 }
 
 int qd_tl_euclid_hit(int i, int hits, int len, int rot)

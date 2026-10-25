@@ -900,10 +900,13 @@ typedef struct {
     int8_t micro[16];                   /* .. HUMANIZE: the lane's micro-timing (24ths), its velocities */
     uint8_t vel[16];
     uint8_t loop, loop0;                /* .. the loop's pages after, before */
+    uint8_t page;                       /* the page shown (0..7: the page strip over the lane) */
+    uint16_t inr;                       /* .. its steps that play (bit w: within its start..end) */
     float t;                            /* seconds (motion) */
 } ui_tools_t;
 void ui_tools_draw(const ui_tools_t *v);
-void ui_tools_pop(int kind, int msg, int tool, int scope);   /* kind 0: the tool's name, 1: the scope, 2: message msg */
+/* kind 0: the tool's name (the scope's under it), 1: the scope, 2: message msg, 3: RANDOM's knob msg (0..3) named */
+void ui_tools_pop(int kind, int msg, int tool, int scope);
 void ui_tools_icon(int tool, float x, float y, int on);
 void ui_tools_scope_icon(int scope, float x, float y, qd_rgb col, float s);
 

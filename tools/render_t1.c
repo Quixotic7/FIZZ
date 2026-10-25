@@ -334,6 +334,69 @@ int render_t1(const char *out)
     run(150);
     shot("clearq", "B10 on PATTERN: CLEAR? (B10 blinking: again to clear)", 1);
     run(QD_TOOL_POP_MS);
+    /* the owner's findings (2026-10-24): the page shown, the ghosts on every page, the selected step rotated, RANDOM's
+     * names, a short loop */
+    btap(QD_B_HOME);
+    {
+        qd_pattern_t *p = qd_ctl_pat(&A);
+        int s;
+        for (s = 0; s < 64; s++)
+            if (s % 3 != 1)
+                qd_step_set_note(p, 1, s, 0, 40 + (s * 7) % 12);
+        qd_track_set_length(p, 1, 64);
+    }
+    run(600);
+    tools_open();
+    black(10), black(10);                               /* (SELECTED -> PAGE -> TRACK) */
+    run(QD_TK_MS + 200);
+    turn(QD_K_SELECT, 2);
+    run(200);
+    shot("page", "SELECT: the page shown (3), the pages' takeover; it stays while playing (no page follow)", 1);
+    run(QD_TK_MS + 200);
+    shot("page-strip", "The page strip over the lane: the page shown in the track's colour, the looped ones grey", 1);
+    black(3);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_1, 1);
+    run(300);
+    shot("ghosts", "EUCLID over a 64-step TRACK, page 3: now solid / new rings, the ghosts faded; W lit now, dim ghosts", 1);
+    btap(QD_B_OCTUP);
+    run(QD_TOOL_POP_MS);
+    shot("ghosts-kept", "OCT+: kept, the ghosts gone", 1);
+    turn(QD_K_SELECT, -2);
+    run(QD_TK_MS + 200);
+    white(3);
+    black(0);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_1, 2);
+    run(300);
+    shot("sel-rotate", "W4 selected, ROTATE +2: the step moves two on (the ones it passes step back), the mark with it", 1);
+    btap(QD_B_OCTDN);
+    black(2);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_1, -10);
+    run(100);
+    shot("random-density", "RANDOM, KNOB 1: DENSITY pops (each meter's icon under it: trigs, a note, a wedge, a pie)", 1);
+    run(QD_TOOL_POP_MS);
+    turn(QD_K_4, 30);
+    run(100);
+    shot("random-chance", "RANDOM, KNOB 4: CHANCE", 1);
+    btap(QD_B_OCTDN);
+    {
+        qd_pattern_t *p = qd_ctl_pat(&A);
+        qd_track_set_length(p, 4, 5);
+        qd_step_set_note(p, 4, 9, 0, 50);
+    }
+    bdown(QD_B_FUNC);
+    turn(QD_K_SELECT, 3);
+    bup(QD_B_FUNC);
+    run(QD_TK_MS + 200);
+    black(10), black(10);                               /* (SELECTED -> PAGE -> TRACK) */
+    black(3);
+    run(QD_TK_MS + 200);
+    turn(QD_K_1, -1);
+    run(300);
+    shot("short-loop", "Track 5, a 5-step loop: EUCLID works on its 5 steps; the steps that don't play are dots, dark keys", 1);
+    btap(QD_B_OCTDN);
     btap(QD_B_HOME);
     qd_app_stop(&A);
     sheet_as("t1-sheet.png", "TOOLS: T1 (ROTATE, REVERSE, EUCLID, LENGTH), T2 (RANDOM, HUMANIZE, GRIDS), T3 (COPY, PASTE, CLEAR)");
