@@ -32,6 +32,8 @@ void fz_midi_ui(int status, int d1, int d2);
 /* SysEx in: one frame's bytes between F0 and F7 (FIZZ's 7D 46 5A ..); its replies, whole frames F0 .. F7 */
 void fz_sysex(const uint8_t *f, uint32_t n);
 int fz_sysex_peek(void);
+void fz_sx_mark(uint32_t ms);          /* a FIZZ frame (semantic or the store's bulk) came now (qd_sx_t.rx_ms) */
+uint32_t fz_sx_last(void);             /* .. when the last one did (0 none) */
 int fz_sysex_take(uint8_t *out, uint32_t max);
 /* the clock (plat_ms), the sound (16-bit stereo, interleaved, 44.1 kHz, any count of frames) */
 void fz_tick(uint32_t ms);

@@ -1,0 +1,124 @@
+# SPDX-License-Identifier: MPL-2.0
+# The frames' pacing during a transfer (app.c fz_step, FZ_XFER_*): while FIZZ SysEx keeps coming, a frame only every
+# 250 ms (fz_checks: frames looked at); 300 ms after the last one the normal pace again
+fzdata zero
+reboot
+wait 600
+expect fz_store_on 1
+# the normal pace: 1 s after a press, a look every 33 ms
+tap HOME
+sysex F0 7D 46 50 7F F7
+wait 1000
+expect fz_checks >20
+# a transfer: STATUS every 20 ms for 1 s, a press in it too
+tap HOME
+sysex F0 7D 46 50 7F F7
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+expect fz_checks <8
+expect fz_sx_kind 66
+# 300 ms after the last frame: the normal pace again
+wait 400
+tap HOME
+sysex F0 7D 46 50 7F F7
+wait 1000
+expect fz_checks >20
+fzstats

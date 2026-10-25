@@ -58,6 +58,9 @@ static uint32_t fz_tick_lag_max;         /* (the most the clock was behind plat_
 #define FZ_FRAME_IDLE 66u                /* the idle screen's animation */
 #define FZ_FRAME_QUIET 100u
 #define FZ_STORE_MS 15u                  /* the store's step (qd_persist_step) */
+#define FZ_XFER_HOLD_MS 300u             /* a transfer: FIZZ frames (SysEx) came in the last this many ms .. */
+#define FZ_XFER_FRAME_MS 250u            /* .. then a frame only every this many ms (fm1-base takes one inbound frame a
+                                          * main-loop pass, and a drawn frame is 30..90 ms of the pass) */
 /* (P2.7) the pace while a screen animates (a frame drawn at each of the last two looks): 30 a second when its frames
  * take up to FZ_FIT_30 us (drawing and burst: room left for input, the store and the audio's share), 20 up to
  * FZ_FIT_20, else 15; even spacing, the next frame due one period after the last was due */
@@ -450,6 +453,10 @@ static void fz_sysex_out(void)           /* FIZZ's replies, taken under the lock
     for (;;) {
         const uint32_t f = fz_lock();
         int k = fz_sysex_peek();
+#if !defined(PLAT_HOST) && defined(FELUCCA_OTA) && FELUCCA_OTA
+        if (fz_in_frame && k > 0 && SXQ - (so_w - so_r) < ((uint32_t)k + 2u) / 3u)
+            k = 0;                       /* (inside a frame: only what the USB queue takes now; never a wait there) */
+#endif
         k = k > 0 && k <= (int)sizeof fz_sx_buf ? fz_sysex_take(fz_sx_buf, sizeof fz_sx_buf) : 0;
         fz_unlock(f, FZ_LOCK_TAKE);
         if (k <= 0)
@@ -470,6 +477,17 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
     const uint32_t t0 = plat_ticks24();
     int r;
     fz_sample();
+#ifndef PLAT_HOST
+    if (fz_in_frame) {                   /* FIZZ's own SysEx taken between a frame's bands too (fm1-base holds one
+                                          * inbound frame and hands it over once a main-loop pass); not STORE / STORE6
+                                          * / POOL REF, whose sound-cache work waits for the pass */
+        const uint8_t *p;
+        uint32_t k;
+        if (ota_frame_get(&p, &k) && k >= 5u && p[0] == 0x7Du && p[1] == 0x46u && p[2] == 0x5Au && p[4] != 0x10u &&
+            p[4] != 0x11u && p[4] != 0x16u && app_sysex(p, k))
+            ota_frame_done();
+    }
+#endif
     for (;;) {
         const int ev = fz_ev_r != fz_ev_w, mi = fz_mq_r != fz_mq_w;
         uint32_t f;
@@ -1069,6 +1087,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
     }
     if (n < 3u || p[0] != 0x7Du || p[1] != 0x46u || p[2] != 0x5Au)
         return 0;                        /* (not FIZZ's: the platform drops it) */
+    fz_sx_mark(plat_ms());
     if (fz_ok) {
         const uint32_t f = fz_lock();
         fz_sysex(p, n);
@@ -1968,6 +1987,8 @@ static void fz_step(int frame)
                                                : FZ_FRAME_QUIET;
     if (fz_anim >= 2u)                   /* (P2.7) animating: a steady pace the frames can keep (30, 20 or 15 a second) */
         period = fz_frame_us <= FZ_FIT_30 ? 33u : fz_frame_us <= FZ_FIT_20 ? 50u : 66u;
+    if (fz_sx_last() && now - fz_sx_last() < FZ_XFER_HOLD_MS)
+        period = FZ_XFER_FRAME_MS;       /* (a transfer: the passes short, a round trip ~ the host's latency) */
     fz_pace = period;
 #ifdef QD_GFX_FB
     if (now - frame_t >= period || fz_redraw) {   /* (P2.12: one call latches, draws the changed bands, and the rows go) */
@@ -2162,6 +2183,7 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
                                           fz_rd32(d + 6) == 0x52535A46u)) {   /* "FZBI" "FZBR" "FZSR" */
         uint8_t b[12 + FZ_BK_CHUNK];
         uint32_t lo, size;
+        fz_sx_mark(plat_ms());
         fz_store_region(&lo, &size);
         if (fz_rd32(d + 6) == 0x49425A46u) {   /* FZBI */
             memcpy(b, "FZBI", 4);
@@ -2277,6 +2299,8 @@ int app_expect(const char *what, int *got)
         *got = (int)fz_rows_sent;
     else if (!strcmp(what, "fz_sx_out"))
         *got = (int)fz_host_sx_out;
+    else if (!strcmp(what, "fz_checks"))      /* (frames looked at: drawn or found the same) */
+        *got = (int)fz_prof.n_check;
     else if (!strcmp(what, "fz_sx_kind"))     /* (the last FIZZ reply's kind: 42 STATUS, 52 ACK, 63 PROJECTS ..) */
         *got = fz_host_sx_kind;
     else if (!strcmp(what, "fz_sx_status"))   /* (.. an ACK's or a STORE's status) */

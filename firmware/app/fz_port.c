@@ -228,6 +228,8 @@ void fz_show(int mode, int view) { qd_app_show(&fz_app, mode, view); }
 void fz_seed(uint32_t seed) { qd_app_seed(&fz_app, seed); }
 void fz_sysex(const uint8_t *f, uint32_t n) { qd_app_sysex(&fz_app, f, n); }
 int fz_sysex_peek(void) { return qd_app_sysex_peek(&fz_app); }
+void fz_sx_mark(uint32_t ms) { fz_app.sx.rx_ms = ms | 1u; }
+uint32_t fz_sx_last(void) { return fz_app.sx.rx_ms; }
 int fz_sysex_take(uint8_t *out, uint32_t max) { return qd_app_sysex_take(&fz_app, out, max); }
 void fz_tick(uint32_t ms) { qd_app_tick(&fz_app, ms); }
 /* (P2.10, core 7fe3ea0) the clock in its two halves: what the audio side shares, under the lock, coalesced over the ms

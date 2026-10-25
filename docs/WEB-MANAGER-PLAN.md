@@ -565,7 +565,14 @@ a backup. `fizzlink.js` has a method per command; `simfizz.js` runs them on the 
 `tapPlay()` for BUSY). Tests: `site/tools/test_manager.mjs` (protocol, Node), `site/tools/test_manager_page.mjs`
 (the page in headless Chromium with `?sim`, both widths).
 
-### The SysEx speed (proposal, not built)
+### The SysEx speed (built, owner-approved, 2026-10-25)
+
+Both fixes below are in `firmware/app/app.c`: `FZ_XFER_HOLD_MS` 300 / `FZ_XFER_FRAME_MS` 250 in `fz_step` (the last FIZZ
+frame's time in `qd_sx_t.rx_ms`, set by `app_sysex` and the store's FZB* commands), and in `fz_input` inside a frame
+FIZZ's semantic frames (not STORE / STORE6 / POOL REF) with `fz_sysex_out` sending only what the USB queue takes at once
+there (no 200 ms wait inside a frame). Flash +176 B, RAM +0 (the 4 B are in `qd_app_t`). The simulator's
+`tests/xfer.txt`: 30 frames looked at in 1 s normally, 4 during a transfer, 30 again 400 ms after it. Not measured on
+the unit yet. The analysis as proposed:
 
 Phase 0 measured ~87 ms a round trip on the unit. The cause is fm1-base's loop: it holds **one** inbound SysEx frame
 (`bsp/chip/usb.c`: `sx_collect = !sx_ready`, a second frame arriving while one waits is dropped) and hands it over

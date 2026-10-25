@@ -103,6 +103,8 @@ typedef struct {
     const char *version;               /* the identity's version ("FIZZ 0.6.4-p1.5r"; the glue sets it) */
     uint32_t frames, errors;           /* (counters) */
     qd_sx_work_t wk;                   /* (Phase 1) the job running */
+    uint32_t rx_ms;                    /* the port's: when its last FIZZ frame came (its clock | 1; 0 none): the frames'
+                                        * pacing during a transfer (firmware/app/app.c fz_step) */
 } qd_sx_t;
 
 struct qd_app;
