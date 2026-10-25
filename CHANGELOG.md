@@ -9,6 +9,13 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **FIZZ Manager: backups stay in your browser.** BACK UP no longer asks where to save: the backup is kept in the page's list, and its save button writes it to a folder you pick. A backup not saved to a file yet shows a yellow save button. The list shows how much space the backups use.
+- **FIZZ Manager: a refresh button** next to the FM-1 reads the FM-1 again, so presets you saved on it show up. Coming back to the tab does it by itself when something changed.
+- **FIZZ Manager: LIBRARY is one list** with ALL, FACTORY and MY PRESETS filters plus the tags, and a big + POOL / − POOL button for the selected sound. Sounds in the pool have a green ring and a badge with their pool number, in LIBRARY and in POOL. POOL's list has the same filters and takes factory presets too.
+- **FIZZ Manager asks once** before SORT BY TAG, CLEAR UNUSED, swapping pool places, CLEAR, DELETE and loading a project, and says whether SHIFT + F1 can undo it.
+- **FIZZ Manager: Digitone sounds saved on OS 1.42** (such as F186 KICK01) import now; they were refused as "a newer Digitone format (version 4)".
+- The FM-1 pill in the Manager's header is cleaner.
+
 ## 0.12.0-beta.2 (2026-10-24)
 
 TOOLS for your patterns, and the FIZZ Manager for backups and your library. Updating from beta.1 keeps your projects and presets.

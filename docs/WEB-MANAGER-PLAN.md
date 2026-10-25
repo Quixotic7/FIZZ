@@ -565,6 +565,30 @@ a backup. `fizzlink.js` has a method per command; `simfizz.js` runs them on the 
 `tapPlay()` for BUSY). Tests: `site/tools/test_manager.mjs` (protocol, Node), `site/tools/test_manager_page.mjs`
 (the page in headless Chromium with `?sim`, both widths).
 
+### The owner's first round on the unit (2026-10-24, website only)
+
+- **BACKUP** keeps each backup in the browser (IndexedDB, `navigator.storage.persist()` asked once; none is dropped by
+  the page any more: the 16-backup limit is gone) instead of downloading it. Each one's save button writes it to a
+  file (`showSaveFilePicker`, the folder remembered by its `id`; else a download) and turns green; one never saved
+  shows yellow, and its DELETE says it is the only copy. The list's header shows the count, the bytes and the quota.
+- **REFRESH** (the header, by the FM-1 pill): IDENTITY, FZBI, LIST, STATUS, PROJECTS and the DUMPs again. The tab
+  coming back (focus / visibility, 2 s apart) sends one STATUS and reads everything again only when it differs
+  (records committed, MY PRESETS' and the pool's counts, the project).
+- **LIBRARY** is one list (`presets.js`, shared with POOL): ALL / FACTORY / MY PRESETS and the tag filters; the
+  selected sound has a big + POOL / − POOL toggle (− POOL clears every place that references it; a used one asks).
+  The pool's mark, the same in both tabs: a green ring and a green badge with the place number (+n for more places).
+- **POOL**'s sounds beside take LIBRARY's filters and the factory's presets too (POOL REF accepts a factory id,
+  `fizz_sx.c`: `id <= QD_NFACTORY`); a picked sound's places are ringed in the grid.
+- **One confirm** (`ui.js confirmBox`, a small modal; Enter / Escape) for SORT BY TAG, CLEAR UNUSED, a pool swap or
+  move, CLEAR, − POOL of a used sound, DELETE, LOAD PROJECT and a backup's DELETE; it says what happens to the
+  FM-1's undo ("UNDO ON THE FM-1 IS CLEARED" for swaps, sorts and loads; "SHIFT + F1 ON THE FM-1 UNDOES IT"
+  otherwise). RESTORE keeps its typed confirm, with the undo line added.
+- **The import** reads a Digitone sound of record version 4 (OS 1.42, payload header "0095": the owner's F186
+  KICK01) with version 5's layout (`fm1dnsnd.js DN_LAYOUT`, FIZZ's one change to ChoralRoot's reader); its mark says
+  "record 4". `site/tools/dnsnd_fixture.mjs` builds a synthetic one for the tests.
+- Not done: the player's LIVE-recording keyboard starting on F is the firmware's screen (`core/ui/ui_keys.c live()`:
+  the keybed drawn from the octave's C, `lo = 60 + 12 * octave`), not the site's: a core change for its own task.
+
 ### The SysEx speed (built, owner-approved, 2026-10-25)
 
 Both fixes below are in `firmware/app/app.c`: `FZ_XFER_HOLD_MS` 300 / `FZ_XFER_FRAME_MS` 250 in `fz_step` (the last FIZZ
