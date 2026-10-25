@@ -9,6 +9,10 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.1 (2026-10-24)
+
+Six tracks, and no more sound-browser freezes. **This update clears your projects** (My Presets are kept), so write down or record anything you want to keep first.
+
 - The playhead now moves in half steps, and its red arrow over the open page no longer bounces.
 - While playing with the step lock off, the sound editor's values now follow the LFOs too, showing what you hear.
 - FIZZ now has six tracks instead of eight, which frees memory for new features. W7 and W8 no longer pick a track and stay dark. **Your projects start fresh:** the first boot of this version clears the old eight-track projects. My Presets are kept.
