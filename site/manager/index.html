@@ -26,7 +26,7 @@
     <button class="tab" role="tab" id="t-pool" aria-controls="tab-pool" aria-selected="false" style="--c:var(--green)"><i></i>POOL</button>
     <button class="tab" role="tab" id="t-import" aria-controls="tab-import" aria-selected="false" style="--c:var(--violet)"><i></i>IMPORT</button>
   </nav>
-  <button id="live" class="livesw" aria-pressed="false" hidden><span class="sw" aria-hidden="true"><i></i></span><span id="live-label">TRACK</span></button>
+  <button id="live" class="livesw" aria-pressed="false" hidden><span class="sw" aria-hidden="true"><i></i></span><span class="lw">TRACK</span><b id="live-n">–</b></button>
   <button id="refresh" class="icon refresh" aria-label="Read the FM-1 again" title="Read the FM-1 again" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16.5 3.5v3.6h-3.6"/></svg></button>
   <button id="unit" class="unit" data-state="off"><span class="dot"></span><span id="unit-label">CONNECT</span><small id="unit-sub"></small></button>
 </header>
@@ -60,7 +60,7 @@
 
   <section id="tab-library" class="body" role="tabpanel" aria-labelledby="t-library" hidden>
     <div class="card lib">
-      <div class="h">LIBRARY <span class="n" id="l-count"></span><button id="l-export-all" class="btn small ghost" style="margin-left:auto" disabled>EXPORT MY PRESETS</button></div>
+      <div class="h">LIBRARY <span class="n" id="l-count"></span><button id="l-export-all" class="btn small exall" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10M5 9l5 5 5-5M3 17h14"/></svg>EXPORT ALL</button></div>
       <div class="filters" id="l-filter"></div>
       <div class="cases" id="l-list"></div>
     </div>
@@ -68,7 +68,6 @@
   </section>
 
   <section id="tab-edit" class="body edit" role="tabpanel" aria-labelledby="t-edit" hidden>
-    <nav class="groups" id="ed-groups" aria-label="Groups"></nav>
     <div class="card edcard" id="ed-card">
       <div class="edhead" id="ed-head"></div>
       <div class="stage" id="ed-stage"></div>
@@ -91,7 +90,8 @@
 
   <section id="tab-import" class="body col" role="tabpanel" aria-labelledby="t-import" hidden>
     <div class="dz" id="i-drop">
-      <label class="files" for="i-file" aria-label="Choose Digitone sounds"><input type="file" id="i-file" accept=".dnsnd,.dn2pst,.dn2snd" multiple hidden>
+      <label class="files" for="i-file" aria-label="Choose sounds: FIZZ or Digitone"><input type="file" id="i-file" accept=".fizzlib,.fizzsnd,.fizzbak,.dnsnd,.dn2pst,.dn2snd" multiple hidden>
+        <span class="ft" style="--c:var(--cream)">FIZZ<small>.fizzlib</small></span><span class="ft" style="--c:var(--cream)">FIZZ<small>.fizzsnd</small></span><span class="ft" style="--c:var(--yellow)">FIZZ<small>.fizzbak</small></span>
         <span class="ft" style="--c:var(--cyan)">DN1<small>.dnsnd</small></span><span class="ft" style="--c:var(--magenta)">DN II<small>.dn2pst</small></span><span class="ft" style="--c:var(--magenta)">DN II<small>.dn2snd</small></span></label>
       <div class="big" id="i-count">0 sounds</div>
       <div class="dest"><div class="seg" id="i-dest" role="group" aria-label="Where they go" style="--c:var(--cream)"><button data-d="mine" class="on">MY PRESETS</button><button data-d="pool">POOL</button><button data-d="track">TRACK</button></div>

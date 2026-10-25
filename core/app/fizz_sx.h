@@ -50,6 +50,7 @@ enum { QD_SXP_LOAD = 1, QD_SXP_NEW, QD_SXP_COPY, QD_SXP_DELETE };   /* PROJECT's
 #define QD_SXT_DEMO 0x10u              /* .. the project worked on started with the demos, .. */
 #define QD_SXT_REC 0x20u               /* .. (Manager P2-B) recording, or armed (a page's notes are recorded); then the
                                         * selected track (a byte after the job's command) */
+#define QD_SXT_BROWSE 0x40u            /* .. (Manager fixes) the unit's sound browser open (its preview on a track) */
 #define QD_SXF_DUMP 0x08u              /* P1.6m: a STORE that is a DUMP's reply: FIZZ ignores it (clear it to restore) */
 #define QD_SXS_MINE 0                  /* P1.6m: LIST / DUMP's sources: MY PRESETS (slot 1..256) .. */
 #define QD_SXS_FACTORY 1               /* .. the factory presets (1..23) .. */
@@ -78,6 +79,7 @@ enum { QD_SXP_LOAD = 1, QD_SXP_NEW, QD_SXP_COPY, QD_SXP_DELETE };   /* PROJECT's
 #define QD_SXX_SELECTED 0x02u
 #define QD_SXX_REC 0x04u
 #define QD_SXX_PLAYING 0x08u
+#define QD_SXX_BROWSE 0x10u            /* (Manager fixes) the unit's sound browser previews on this track */
 /* Manager P2-B: PARAM: one value of a track's sound, as a knob turned on the unit (qd_player_live_edit: the voices
  * sounding follow). Body: track (0..5; 127 the selected one), id (0..109), value + 2^20 (3 x 7 bits), flags (01 ACK);
  * no reply but with ACK or on an error (ACK 52: a = the track + 1, b = the id) */
@@ -85,6 +87,11 @@ enum { QD_SXP_LOAD = 1, QD_SXP_NEW, QD_SXP_COPY, QD_SXP_DELETE };   /* PROJECT's
 #define QD_SXP_ACK 0x01u
 #define QD_SXP_SELECTED 127
 #define QD_SXP_OFS (1 << 20)
+/* Manager fixes: BROWSE: the unit's sound browser opened on a track at a preset, as PRESETS turned to it (the track
+ * previews it; OCT- on the unit cancels, OCT+ loads it). Body: track (0..5; 127 the selected one), preset id (3 x 7
+ * bits). ACK (a = the track + 1, b = the browser's place + 1): BAD TRACK, NOT FOUND (no such preset), BUSY (a name
+ * being typed on the unit), BAD LENGTH */
+#define QD_SX_BROWSE 0x31
 /* STORE's mixmask (with LOAD): which of pan, chorus, delay, reverb the track takes */
 #define QD_SXM_PAN 0x01u
 #define QD_SXM_CHORUS 0x02u

@@ -4,8 +4,10 @@
 // project's pool (pool.js) and import Digitone sounds into it (importer.js) (Phase 1: FIZZ's STATUS .. PROJECT
 // commands, docs/SYSEX.md); edit a preset's sound (editor.js: in the browser's own FIZZ, browserfizz.js) and export
 // it for FIZZ, the Digitone or the Digitone II (exporter.js) (Phase 2-A, docs/MANAGER-P2-PLAN.md). The protocol is
-// fizzlink.js's; the files fizzbak.js's; the offline store reader fizzstore.js's. P2-B (live.js): with TRACK on, EDIT
-// edits the FM-1's track live and LIBRARY loads onto it (KEEP / CANCEL); off, the tracks are left alone.
+// fizzlink.js's; the files fizzbak.js's; the offline store reader fizzstore.js's. P2-B (live.js): EDIT follows the
+// FM-1's track; with TRACK on it edits it live and LIBRARY loads onto it (KEEP / CANCEL); off, the tracks are left
+// alone. The owner's fixes (2026-10-25): LIBRARY's EXPORT and EXPORT ALL, LOAD ON FM-1 (the unit's own browser), the
+// pool's changes shown at once (then read back until the unit agrees), IMPORT takes FIZZ's own files.
 //   ?sim        a simulated FM-1 (simfizz.js: the browser FIZZ for its SysEx) instead of Web MIDI: headless checks
 //   ?depth=N    the backup's requests outstanding (1, the default: one at a time); &gap=MS their spacing
 import { findFizz, FZER } from "./fizzlink.js";
@@ -170,7 +172,7 @@ function renderUnit() {
   $("u-kb").textContent = u && u.info ? kb(u.info.size) : "";
   $("go-backup").disabled = !on || S.busy || !u.info;
   $("go-presets").disabled = !on || S.busy || !u.version;
-  $("l-export-all").disabled = !on || S.busy || !u.dumps;
+  $("l-export-all").disabled = !on || S.busy || !u.version;
   $("refresh").hidden = !on;
   $("refresh").disabled = S.busy || S.refreshing;
 }
@@ -511,7 +513,7 @@ async function refresh() {
   S.unit.rows = S.unit.version ? await link.list({ factory: true, pool: true }) : [];
   S.unit.status = S.unit.version ? await link.status() : null;
   S.unit.projects = S.unit.status ? await link.projects() : null;
-  S.unit.dumps = null; S.unit.fdumps = null; S.sel = null;
+  S.unit.dumps = null; S.unit.fdumps = null; S.unit.one = null; S.sel = null;
   pool.forget();
 }
 async function restoreFull() {
@@ -601,17 +603,38 @@ async function edit(what, fn) {
     S.editing--;
   }
 }
-// the unit's lists again: LIST (MY PRESETS, the factory's, the pool), STATUS, PROJECTS
-async function refreshRows({ projects = false } = {}) {
+// the unit's lists again: LIST (MY PRESETS, the factory's, the pool), STATUS, PROJECTS. until(rows): what an edit just
+// made shows in them (the page showed it already): read again (up to 4 times, 0.3 s apart) until it does; a LIST that
+// failed keeps the rows the page has
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function refreshRows({ projects = false, until = null } = {}) {
   const u = S.unit, link = S.link;
   if (!u || !link || !u.version) return;
   try {
-    u.rows = await link.list({ factory: true, pool: true });
+    for (let k = 0; k < 4; k++) {
+      const rows = await link.list({ factory: true, pool: true }).catch((e) => { log(`refresh: LIST ${e.code || ""} ${e.message}`); return null; });
+      if (rows && (!until || until(rows) || k === 3)) {
+        if (until && !until(rows)) log("refresh: the FM-1's lists still differ from the edit: the FM-1's kept");
+        u.rows = rows;
+        break;
+      }
+      await sleep(300);
+    }
     u.status = await link.status();
     if (projects || !u.projects) u.projects = await link.projects();
   } catch (e) { log(`refresh: ${e.code || ""} ${e.message}`); }
   S.users.clear();
+  u.one = null;                                        // (a preset read by itself: again, as it is now)
   renderUnit(); renderLibrary(); pool.render();
+}
+// a pool place changed by an edit the unit acknowledged: shown at once (row: the preset now there, null: empty)
+function poolSet(slot, row) {
+  const u = S.unit;
+  if (!u) return;
+  u.rows = u.rows.filter((x) => !(x.source === "pool" && x.slot === slot));
+  if (row) u.rows.push({ source: "pool", slot, id: row.id, name: row.name, tags: row.tags, imported: false, inPool: true });
+  pool.forget();
+  renderLibrary(); pool.render();
 }
 // REFRESH (the header's button, and the tab coming back into view): everything read again, so presets saved and pool
 // changes made on the unit show here. quick (the focus): only when STATUS says the unit changed (its records committed,
@@ -667,7 +690,18 @@ const projectName = (p) => {
 };
 
 // ---------------------------------------------------------------- the library
-const frameOf = (r) => (r.source === "mine" ? S.unit.dumps && S.unit.dumps.get(r.slot) : S.unit.fdumps && S.unit.fdumps[r.slot - 1]);
+const frameOf = (r) => (r.source === "mine" ? S.unit.dumps && S.unit.dumps.get(r.slot) : S.unit.fdumps && S.unit.fdumps[r.slot - 1]) ||
+  (S.unit.one && S.unit.one.get(`${r.source}:${r.slot}:${r.id}`)) || null;
+// a selected preset's DUMP read by itself when the whole library's is not here yet (EXPORT, EDIT need it)
+function fetchOne(r) {
+  const u = S.unit, k = `${r.source}:${r.slot}:${r.id}`;
+  if (!S.link || !u.version || S.busy || (u.one && u.one.has(k)) || (S.fetching && S.fetching.has(k))) return;
+  (S.fetching || (S.fetching = new Set())).add(k);
+  S.link.dump(r.source, r.slot).then((f) => {
+    (u.one || (u.one = new Map())).set(k, f || null);    // (none: not asked again until the lists are read again)
+    if (S.sel && S.sel.source === r.source && S.sel.slot === r.slot) renderSel();
+  }).catch(() => {}).finally(() => S.fetching.delete(k));
+}
 const places = () => poolPlaces(S.unit ? S.unit.rows : []);
 function renderLibrary() {
   const u = S.unit;
@@ -697,6 +731,8 @@ function renderSel() {
     return;
   }
   const f = frameOf(r), d = f && parseDump(f), c = colOf(r.tags);
+  if (!f) fetchOne(r);
+  const br = live && live.browsing(), onUnit = br && br.id === r.id;
   const snd = f && soundFromStoreFrame(f), key = snd && soundKey(snd), web = (key && S.web.tags[key]) || [];
   const can = !!(S.link && !S.busy && u.status), mineSel = r.source === "mine";
   const users = mineSel ? S.users.get(`mine:${r.id}`) : null;
@@ -704,6 +740,12 @@ function renderSel() {
   el.innerHTML = `<div class="selhead">${algo(d ? d.blob[2] : r.slot, c)}<div style="min-width:0;flex:1"><div class="h" style="margin:0">${mineSel ? "MY PRESETS" : "FACTORY"} ${r.slot}</div>
       ${mineSel && can ? `<input class="bigname" id="l-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(r.name)}" aria-label="Name">` : `<div class="big">${esc(r.name)}</div>`}</div>
       ${poolBadge(pl, "pbadge big")}</div>
+    <div class="row selgo">
+      <button class="btn" id="l-edit" style="--c:var(--pink);color:#fff" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15l9-9 3 3-9 9H3zM13 5l2-2 3 3-2 2"/></svg>EDIT</button>
+      <button class="btn onunit ${onUnit ? "on" : ""}" id="l-unit" ${S.link && !S.busy && u.status && r.id ? "" : "disabled"} aria-pressed="${!!onUnit}" aria-label="${onUnit ? `On the FM-1, track ${br.t + 1}: OCT minus cancels, OCT plus loads` : "Load on the FM-1"}">${onUnit
+        ? `<span class="okeys" aria-hidden="true"><i class="no">OCT−</i><i class="yes">OCT+</i></span>TRACK ${br.t + 1}`
+        : '<svg viewBox="0 0 22 20" aria-hidden="true"><rect x="1.5" y="3" width="19" height="13" rx="3"/><path d="M6 19h10M9 7.5l4 2.5-4 2.5z"/></svg>LOAD ON FM-1'}</button>
+      <button class="btn" id="l-export" style="--c:var(--cream)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10M5 9l5 5 5-5M3 17h14"/></svg>EXPORT</button></div>
     <div class="row selpool"><button class="btn pooltog ${pl.length ? "out" : ""}" id="l-pool" ${can && r.id ? "" : "disabled"} aria-pressed="${!!pl.length}">${pl.length ? "− POOL" : "+ POOL"}</button></div>
     <div><div class="h">TAGS</div><div class="row tags" style="flex-wrap:wrap;gap:8px">
       ${FIZZ_TAGS.map((t, k) => `<button class="tag t-${t} ${(r.tags >> k) & 1 ? "" : "off"}" data-dtag="${k}" aria-pressed="${!!((r.tags >> k) & 1)}" ${can ? "" : "disabled"}>${t}</button>`).join("")}
@@ -713,8 +755,6 @@ function renderSel() {
       : users && users.projects ? (users.projects.length ? users.projects.map((p) => `<span class="uchip">${esc(projectName(p.project))}${p.steps ? DOTS(p.steps) : ""}</span>`).join("") : '<span class="pchip ghost">—</span>') : ""}</div></div>` : ""}
     ${d ? `<div class="row" style="gap:22px;flex-wrap:wrap"><div class="kv"><b>${d.pan > 0 ? "R" + d.pan : d.pan < 0 ? "L" + -d.pan : "C"}</b>pan</div><div class="kv"><b>${d.chorus}</b>chorus</div><div class="kv"><b>${d.delay}</b>delay</div><div class="kv"><b>${d.reverb}</b>reverb</div><div class="kv"><b>${d.drive}</b>drive</div></div>` : ""}
     <div class="row selacts">${r.imported ? '<span class="tag web" style="height:34px;padding:0 12px">↓ IMPORTED</span>' : ""}
-      <button class="btn" id="l-edit" style="--c:var(--pink);color:#fff" ${f ? "" : "disabled"}>EDIT</button>
-      <button class="btn ghost" id="l-export" ${f ? "" : "disabled"}>EXPORT</button>
       ${mineSel ? `<button class="btn ghost redline" id="l-del" style="margin-left:auto" ${can ? "" : "disabled"}>DELETE</button>` : ""}</div>`;
   if (mineSel && users === undefined && can) {          // (who uses it: a job on the unit, a moment)
     S.users.set(`mine:${r.id}`, null);
@@ -774,12 +814,18 @@ function renderSel() {
   });
   const ed = $("l-edit");
   if (ed && f) ed.addEventListener("click", () => openInEditor(r));
+  const lu = $("l-unit");                                // (the unit's own browser on it: OCT- cancels, OCT+ loads)
+  if (lu) lu.addEventListener("click", async () => { if (live) { await live.loadOnUnit(r); renderSel(); } });
   // + POOL: the first free place references it; − POOL: every place that does is cleared (a used one asks first)
   const tog = $("l-pool");
   if (tog) tog.addEventListener("click", async () => {
     if (!pl.length) {
       const x = await edit("+ POOL", (l) => l.poolRef(0, r.id));
-      if (x && x.status === 0) { toast(`${r.name} → POOL ${x.a}`); pool.fizz(x.a); await refreshRows(); }
+      if (x && x.status === 0) {
+        poolSet(x.a, r);
+        toast(`${r.name} → POOL ${x.a}`); pool.fizz(x.a);
+        await refreshRows({ until: (rows) => rows.some((q) => q.source === "pool" && q.slot === x.a && q.id === r.id) });
+      }
       return;
     }
     let n = 0;
@@ -791,11 +837,11 @@ function renderSel() {
         if (!ok) break;
         x = await edit("− POOL", (l) => l.remove("pool", k, { confirm: true }));
       }
-      if (x && x.status === 0) n++; else break;
+      if (x && x.status === 0) { n++; poolSet(k, null); } else break;
     }
     pool.forget();
     if (n) toast(`${r.name} out of the pool`, "--muted");
-    await refreshRows();
+    await refreshRows({ until: (rows) => !rows.some((q) => q.source === "pool" && q.id === r.id && pl.includes(q.slot)) });
   });
   const del = $("l-del");
   if (del) del.addEventListener("click", async () => {
@@ -892,16 +938,18 @@ async function loadDumps() {
     }
   } catch (e) { log(`library: ${e.message}`); } finally { dumping = false; }
 }
-$("l-export-all").addEventListener("click", () => {
+$("l-export-all").addEventListener("click", async () => {
   const u = S.unit;
-  if (!u || !u.dumps) return;
+  if (!u || !S.link) return;
+  if (!u.dumps) { $("l-export-all").classList.add("spin"); await loadDumps(); $("l-export-all").classList.remove("spin"); }
+  if (!u.dumps) { say("The FM-1's presets could not be read: try again.", "--orange"); return; }
   const sounds = [...u.dumps.entries()].sort((a, b) => a[0] - b[0]).map(([slot, f]) => ({ ...soundFromStoreFrame(f), source: { fizz: u.version || "", from: `MY PRESETS ${slot}` } }));
   exporter.open(sounds, { title: "MY PRESETS", pick: "fizz" });
 });
 
 // ---------------------------------------------------------------- the pool, the import (their own files)
 let live = null;                                        // (live.js, mounted with the editor below)
-const ctx = { S, $, log, say, toast, edit, refreshRows, loadDumps, frameOf, projectName, saveWeb, render: () => { renderUnit(); renderLibrary(); },
+const ctx = { S, $, log, say, toast, edit, refreshRows, loadDumps, frameOf, projectName, saveWeb, poolSet, render: () => { renderUnit(); renderLibrary(); },
   trackOn: () => !!(live && live.on()) };
 const pool = mountPool(ctx);
 const importer = mountImport(ctx);
@@ -939,15 +987,19 @@ const editor = mountEditor({
   canSave: () => { const on = !!(S.link && !S.busy && S.unit && S.unit.status); const p = editor ? editor.place() : {}; return { save: on && p.source === "mine" && p.slot > 0, saveNew: on }; },
   save: (E, asNew) => saveSound(E, asNew),
   exportSound: (s) => exporter.open([libSound(s, { fizz: (S.unit && S.unit.version) || "", from: editor.place().label || "" })], { title: s.name, tags: tagNames(s.tags) }),
+  strip: () => (live ? live.strip() : ""),
+  stripClick: (b) => (live ? live.stripClick(b) : null),
+  onLocked: () => { if (live) live.nudge(); },
 });
 editor.setTarget(browserTarget);
-live = mountLive({ S, $, log, say, toast, editor, browserTarget, changed: () => importer.render() });
+live = mountLive({ S, $, log, say, toast, editor, browserTarget, changed: () => { importer.render(); if (!$("tab-library").hidden) renderSel(); } });
 async function openInEditor(r) {
   const f = frameOf(r), snd = f && soundFromFrame(f);
   if (!snd) return;
   if (live.on()) {                                      // (P2-B: onto the track (KEEP / CANCEL), the editor takes the track)
     if (await live.pick(r, f)) { tab("edit"); return; }
   }
+  live.detach();
   snd.extras = { id: r.id, sound: 0, edited: false };
   editor.open(snd, { label: `${r.source === "mine" ? "MY PRESETS" : "FACTORY"} ${r.slot}`, source: r.source, slot: r.slot, id: r.id });
   tab("edit");
@@ -983,6 +1035,7 @@ edTab.addEventListener("drop", async (ev) => {
     let snd;
     if (/\.fizzsnd$/i.test(f.name)) snd = parseFizzsnd(bytes, f.name);
     else { const got = await readFiles([{ name: f.name, bytes }]); if (!got[0] || !got[0].ok) throw new Error((got[0] && got[0].error) || "not a sound"); snd = got[0].sound; }
+    live.detach();
     editor.open(soundFromLib(snd), { label: f.name.replace(/\.[^.]+$/, "").toUpperCase().slice(0, 24), source: "file" });
   } catch (e) { say(`${esc(f.name)}: ${esc(e.message)}`, "--orange"); }
 });

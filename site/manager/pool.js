@@ -13,7 +13,7 @@ import { esc, tagsOf, colOf, DARK_TEXT_TAGS, refusal, confirmBox } from "./ui.js
 import { newFilter, filterHtml, filterClick, listHtml, poolPlaces } from "./presets.js";
 
 export function mountPool(ctx) {
-  const { S, $, say, toast, edit, refreshRows, frameOf, projectName } = ctx;
+  const { S, $, say, toast, edit, refreshRows, frameOf, projectName, poolSet } = ctx;
   const P = { sel: 0, pick: null, users: new Map(), gen: 0, filling: false, run: false, fizz: new Map(), dragFrom: null, filter: newFilter() };
   const grid = $("p-grid"), mine = $("p-list"), proj = $("p-proj");
   const rows = () => (S.unit ? S.unit.rows : []);
@@ -78,11 +78,14 @@ export function mountPool(ctx) {
     } catch (_) { /* (the next render tries again) */ } finally { P.filling = false; }
   }
   function forget() { P.gen++; P.users.clear(); }
-  async function after(x, msg) {
+  // after an edit: the lists read again (until: what the edit made shows in them; the page shows it at once)
+  async function after(x, msg, until = null) {
     forget();
-    await refreshRows();
     if (x && x.status === 0 && msg) toast(msg);
+    await refreshRows({ until: x && x.status === 0 ? until : null });
   }
+  const at = (rows, k) => rows.find((r) => r.source === "pool" && r.slot === k);
+  const presetOf = (id) => rows().find((r) => r.source !== "pool" && r.id === id);
   function bubble(k) {
     P.fizz.set(k, setTimeout(() => { P.fizz.delete(k); const el = grid.querySelector(`[data-k="${k}"]`); if (el) el.classList.remove("fizz"); }, 1100));
     const el = grid.querySelector(`[data-k="${k}"]`);
@@ -92,8 +95,8 @@ export function mountPool(ctx) {
     const x = await edit("POOL", (l) => l.poolRef(k, id));
     P.pick = null;
     grid.classList.remove("picking");
-    await after(x);
-    if (x && x.status === 0) bubble(x.a);
+    if (x && x.status === 0) { const p = presetOf(id); poolSet(x.a, p || { id, name: "?", tags: 0 }); bubble(x.a); }
+    await after(x, "", (rs) => { const e = at(rs, x.a); return !!e && e.id === id; });
   }
   async function swap(a, b) {
     if (a === b) return null;
@@ -103,9 +106,8 @@ export function mountPool(ctx) {
     if (!ok) return null;
     say("");
     const x = await edit("SWAP", (l) => l.swap("pool", a, b));
-    if (x && x.status === 0) { P.sel = b; }
-    await after(x);
-    if (x && x.status === 0) bubble(b);
+    if (x && x.status === 0) { P.sel = b; poolSet(a, eb || null); poolSet(b, ea || null); bubble(b); }
+    await after(x, "", (rs) => { const na = at(rs, a), nb = at(rs, b); return (na ? na.id : 0) === (eb ? eb.id : 0) && (nb ? nb.id : 0) === (ea ? ea.id : 0); });
     return x;
   }
 
@@ -203,8 +205,8 @@ export function mountPool(ctx) {
       sub: u && u.steps ? `${u.steps} step${u.steps === 1 ? "" : "s"} use it: they go back to their track's sound.` : "Its steps go back to their track's sound." });
     if (!ok) return;
     const x = await edit("CLEAR", (l) => l.remove("pool", k, { confirm: true }));
-    if (x && x.status === 0) P.sel = 0;
-    await after(x, x && x.status === 0 ? `POOL ${k} cleared` : "");
+    if (x && x.status === 0) { P.sel = 0; poolSet(k, null); }
+    await after(x, `POOL ${k} cleared`, (rs) => !at(rs, k));
   });
   // SORT BY TAG: the sounds to the front, in FIZZ's tag order then by name: a swap each that is out of place
   $("p-sort").addEventListener("click", async () => {

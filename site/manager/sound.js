@@ -43,12 +43,13 @@ const tagMask = (tags) => (Array.isArray(tags) ? tags.reduce((m, t) => m | (FIZZ
 export const tagNames = (mask) => FIZZ_TAGS.filter((_, k) => (mask >> k) & 1);
 
 // the extras a track's DUMP carries after its tags byte (Manager P2-B): the preset id (3 x 7 bits), the pool sound it
-// came from (2 x 7), flags (01 edited, 02 the selected track, 04 recording, 08 playing), its MIDI channel, the
-// selected track
+// came from (2 x 7), flags (01 edited, 02 the selected track, 04 recording, 08 playing, 10 the unit's browser previews
+// on it), its MIDI channel, the selected track
 function extrasOf(b, at) {
   if (b.length < at + 8) return null;
   return { id: (b[at] << 14) | (b[at + 1] << 7) | b[at + 2], sound: (b[at + 3] << 7) | b[at + 4], edited: !!(b[at + 5] & 1),
-    selected: !!(b[at + 5] & 2), rec: !!(b[at + 5] & 4), playing: !!(b[at + 5] & 8), chan: b[at + 6], sel: b[at + 7] };
+    selected: !!(b[at + 5] & 2), rec: !!(b[at + 5] & 4), playing: !!(b[at + 5] & 8), browse: !!(b[at + 5] & 16), chan: b[at + 6],
+    sel: b[at + 7] };
 }
 
 // a DUMP reply (or any STORE / STORE6 frame) -> the editor's sound

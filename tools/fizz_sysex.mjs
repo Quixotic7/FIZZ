@@ -58,10 +58,17 @@
 //                                                   stored; extras (8 bytes, a track DUMP's): its id, pool sound and
 //                                                   edited mark as given. own: the owner's preset (not imported)
 //   trackFrame(dumpBytes)                        a track's DUMP as an AUDITION back onto it (a page's CANCEL)
+// Manager fixes (an older FIZZ: BAD COMMAND):
+//   browseRequest({track, id})                   BROWSE (31): the unit's sound browser opened on a track ("selected":
+//                                                   the selected one) at preset id, as PRESETS turned to it (the track
+//                                                   previews it; OCT- on the unit cancels, OCT+ loads). ACK: a = the
+//                                                   track + 1, b = the browser's place; NOT FOUND, BAD TRACK, BUSY (a
+//                                                   name typed on the unit). parseStatus gives browse, a track's DUMP's
+//                                                   extras browse (the browser previews on that track)
 
 export const FIZZ_HEADER = [0x7d, 0x46, 0x5a];
 export const FIZZ_PROTOCOL = 1;
-export const CMD = { IDENTITY: 0x01, STORE: 0x10, STORE6: 0x11, LABELS: 0x20, LIST: 0x21, DUMP: 0x22, PARAM: 0x30 };   // (E1, P1.6l, P1.6m, P2-B)
+export const CMD = { IDENTITY: 0x01, STORE: 0x10, STORE6: 0x11, LABELS: 0x20, LIST: 0x21, DUMP: 0x22, PARAM: 0x30, BROWSE: 0x31 };   // (E1, P1.6l, P1.6m, P2-B, fixes)
 export const REPLY = { IDENTITY: 0x41, STORE: 0x50, LABELS: 0x60, LIST: 0x61, ERROR: 0x7f };
 export const SOURCES = ["mine", "factory", "pool"];    // P1.6m: LIST / DUMP's sources
 export const SOURCE_TRACK = 4;                           // Manager P2-B: DUMP's source: a track's sound
@@ -151,6 +158,12 @@ export function paramRequest({ track = "selected", id, value, ack = false }) {
   return frame(CMD.PARAM, [t & 0x7f, id & 0x7f, (v >> 14) & 0x7f, (v >> 7) & 0x7f, v & 0x7f, ack ? 1 : 0]);
 }
 
+// Manager fixes: BROWSE: the unit's browser on track (0..5, "selected") at preset id (3 x 7 bits)
+export function browseRequest({ track = "selected", id }) {
+  const t = track === "selected" ? 127 : track;
+  return frame(CMD.BROWSE, [t & 0x7f, (id >> 14) & 0x7f, (id >> 7) & 0x7f, id & 0x7f]);
+}
+
 export const labelsRequest = ({ subscribe = false } = {}) => frame(CMD.LABELS, [subscribe ? 1 : 0]);
 
 export function parseLabels(bytes) {
@@ -205,7 +218,7 @@ export function parseDump(bytes) {
     delay: body[19], reverb: body[20], tags: body.length > 22 + n7 ? body[22 + n7] : 0, blob, six, frame: Uint8Array.from(b),
     ...(load ? { track: body[16] } : {}),
     ...(x ? { extras: { id: (x[0] << 14) | (x[1] << 7) | x[2], sound: (x[3] << 7) | x[4], edited: !!(x[5] & 1), selected: !!(x[5] & 2),
-      rec: !!(x[5] & 4), playing: !!(x[5] & 8), chan: x[6], sel: x[7] } } : {}) };
+      rec: !!(x[5] & 4), playing: !!(x[5] & 8), browse: !!(x[5] & 16), chan: x[6], sel: x[7] } } : {}) };
 }
 // P2-B: a track's DUMP as an AUDITION back onto that track: the track exactly as it was (its extras)
 export function trackFrame(bytes) {
@@ -258,7 +271,7 @@ export function parseStatus(bytes) {
   if (!b || b.length < 30) return null;
   const f = b[8];
   return { protocol: b[6], tracks: b[7], playing: !!(f & 1), noStore: !!(f & 2), dirty: !!(f & 4), job: !!(f & 8), demo: !!(f & 16),
-    rec: !!(f & 32), project: b[9] + 1, pattern: b[10], projects: b[11], mine: r14(b, 12), pool: r14(b, 14),
+    rec: !!(f & 32), browse: !!(f & 64), project: b[9] + 1, pattern: b[10], projects: b[11], mine: r14(b, 12), pool: r14(b, 14),
     written: (b[16] << 14) | r14(b, 17), lib: [r14(b, 19), r14(b, 21)], prj: [r14(b, 23), r14(b, 25)], jobCommand: b[27],
     ...(b.length >= 31 ? { sel: b[28] } : {}) };
 }

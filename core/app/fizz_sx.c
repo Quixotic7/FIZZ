@@ -425,7 +425,8 @@ static int sx_dump_sound(qd_app_t *a, const qd_sound_t *s, int flags, int slot, 
         b[o++] = (uint8_t)(t->preset & 0x7F);
         b[o++] = (uint8_t)((t->sound >> 7) & 0x7F), b[o++] = (uint8_t)(t->sound & 0x7F);
         b[o++] = (uint8_t)((t->edited ? QD_SXX_EDITED : 0) | (tr == a->sel ? QD_SXX_SELECTED : 0) |
-                           (a->ui.rec ? QD_SXX_REC : 0) | (a->seq.playing ? QD_SXX_PLAYING : 0));
+                           (a->ui.rec ? QD_SXX_REC : 0) | (a->seq.playing ? QD_SXX_PLAYING : 0) |
+                           (a->ui.latch == QD_LATCH_BROWSE && a->ui.br.t == tr ? QD_SXX_BROWSE : 0));
         b[o++] = (uint8_t)(qd_seq_track_pat(&a->seq, tr)->trk[tr].chan & 0x0F);
         b[o++] = (uint8_t)a->sel;
     }
@@ -601,7 +602,8 @@ static void sx_status(qd_app_t *a)
     b[o++] = QD_NTRACK;
     b[o++] = (uint8_t)((a->seq.playing ? QD_SXT_PLAYING : 0) | (ps->on ? 0 : QD_SXT_NOSTORE) |
                        (qd_persist_dirty(a) ? QD_SXT_DIRTY : 0) | (a->sx.wk.cmd ? QD_SXT_JOB : 0) |
-                       (ps->pdemo ? QD_SXT_DEMO : 0) | (a->ui.rec ? QD_SXT_REC : 0));
+                       (ps->pdemo ? QD_SXT_DEMO : 0) | (a->ui.rec ? QD_SXT_REC : 0) |
+                       (a->ui.latch == QD_LATCH_BROWSE ? QD_SXT_BROWSE : 0));
     b[o++] = (uint8_t)ps->proj;
     b[o++] = (uint8_t)(a->seq.cur & 0x7F);
     b[o++] = (uint8_t)np;
@@ -965,6 +967,31 @@ static void sx_param(qd_app_t *a, const uint8_t *b, uint32_t n)
         sx_ack(a, QD_SX_PARAM, st, t + 1, id);
 }
 
+/* Manager fixes: BROWSE: track (0..5, 127 the selected), preset id (3 x 7 bits): the unit's sound browser opened on
+ * that track at that preset (qd_br_goto: the track previews it; the owner's OCT- cancels, OCT+ loads), the screen
+ * woken; refused while a name is typed on the unit (BUSY: the typing would be lost) */
+static void sx_browse(qd_app_t *a, const uint8_t *b, uint32_t n)
+{
+    int t, id, st = QD_SX_OK;
+    if (n < 5u) {
+        sx_ack(a, QD_SX_BROWSE, QD_SX_BAD_LENGTH, 0, 0);
+        return;
+    }
+    t = b[0] == QD_SXP_SELECTED ? a->sel : b[0];
+    id = (b[1] & 0x7F) << 14 | (b[2] & 0x7F) << 7 | (b[3] & 0x7F);
+    if (t >= QD_NTRACK)
+        st = QD_SX_BAD_TRACK;
+    else if (qd_type_open(a))
+        st = QD_SX_BUSY;
+    else {
+        qd_undo_input(a, 1);
+        a->ui.touch_ms = a->ms;                         /* (as a knob turned: the idle clock from now) */
+        st = qd_br_goto(a, t, id) ? QD_SX_OK : QD_SX_NOT_FOUND;
+        qd_ctl_preview_sync(a);
+    }
+    sx_ack(a, QD_SX_BROWSE, st, t + 1, st ? 0 : a->ui.br.pos + 1);
+}
+
 void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
 {
     uint32_t i, sum = 0;
@@ -1019,6 +1046,9 @@ void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
         break;
     case QD_SX_PARAM:                                   /* (Manager P2-B) */
         sx_param(a, f + 5, n - 5u);
+        break;
+    case QD_SX_BROWSE:                                  /* (Manager fixes) */
+        sx_browse(a, f + 5, n - 5u);
         break;
     case QD_SX_STATUS:                                  /* (the web manager's Phase 1) */
         sx_status(a);
