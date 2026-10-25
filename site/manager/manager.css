@@ -171,7 +171,7 @@ button.tag { cursor: pointer; }
 .btn.exall svg { width: 16px; height: 16px; }
 .btn.exall.spin svg { animation: blink .5s infinite alternate; }
 .selgo { gap: 12px; flex-wrap: wrap; }
-.selgo .btn { flex: 1 1 150px; }
+.selgo .btn { flex: 0 0 auto; }
 .btn.onunit { --c: var(--green); }
 .btn.onunit.on { animation: pulse-g 1s ease-in-out infinite alternate; }
 @keyframes pulse-g { to { box-shadow: 0 0 34px color-mix(in srgb, var(--green) 75%, transparent); } }
@@ -330,7 +330,6 @@ button.tag { cursor: pointer; }
   .unit small { display: none; }
   .livesw { padding: 0 5px 0 8px; gap: 6px; height: 42px; }
   .livesw .lw { display: none; }
-  .selgo .btn { flex-basis: 100%; }
   .loadbar { padding: 8px 16px; top: 124px; }
   .unit { padding: 0 14px 0 12px; }
   main { padding-top: 60px; }
