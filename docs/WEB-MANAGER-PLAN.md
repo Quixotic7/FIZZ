@@ -1,6 +1,6 @@
 # FIZZ web manager: project backup, sound library, pool, Digitone import (plan)
 
-Status: **plan and mock-ups only** (2026-10-24). Nothing in `core/` or `firmware/` is changed by this document. The
+Status: Phase 0 and Phase 1 built (below, 2026-10-24); Phase 2 not started. The original plan follows. The
 six-track change is being made right now by another agent; everything below assumes **6 tracks** (`QD_TRACKS 6`,
 store magic `Z3FS`).
 
@@ -533,3 +533,56 @@ site/tools/test_engine.mjs` must pass after every core change in Phases 1..2, an
   `gap` ms after the last (a dropped one is sent again, replies matched by offset, the CRC-32 checks the whole) for
   measuring on the unit. Every backup logs its timing (KB/s, ms a read, round trips, resends) in the page's LOG and
   the console, and writes it into the manifest (`transfer`).
+
+## Phase 1 built (2026-10-24, branch web-manager-p1)
+
+**Firmware (core):** the ten commands of §5 (STATUS 02, FLUSH 03, TAGS 12, RENAME 13, DELETE 14, SWAP 15, POOL REF 16,
+USERS 17, PROJECTS 23, PROJECT 24) and STORE's BAD TRACK, in `core/app/fizz_sx.c` (`sx_edit`: the handlers; `qd_sx_work`:
+the jobs), documented in `docs/SYSEX.md` ("The web manager's commands"). The quick ones run in the handler (a directory
+entry, a sound-cache entry, a record left for the autosave); everything that pages patterns, reads other projects'
+records or writes flash is a job (`qd_sx_t.wk`, 20 B in `qd_app_t`: the pool on the unit) stepped by the store's own
+step (`qd_persist_step`, between frames, outside the locks; the same place f53f9fa's pool sweep runs), refused while
+playing (BUSY) and paused if PLAY comes meanwhile. `persist.c` gained the per-step pieces: `qd_pool_swap_slots` +
+`qd_pool_renumber_pat` (a pattern out of RAM renumbered through its record in the arena's room, written again only
+if it changed), `qd_preset_will_change_proj`, `qd_preset_usage_proj`.
+
+Not done from §5: LIST's favourite bit (owner question Q5 open); RENAME of a pool slot (the page renames its MY preset
+instead); FLUSH writes everything in one step (`qd_persist_flush`, stopped only).
+
+**Memory:** main RAM (.data + .bss) +0 B on both builds (dual 1,148 B free, single-core 540 B); the pool −32 B (dual
+22,896 free) / −16 B (single-core 12,768 free); flash +4,032 B on both (dual 21,676 B free, single-core 17,868 B):
+about twice §9's estimate, the handlers at -O2. Ratchet raised: flash_arm 440,129 → 444,169, flash_pi32v2
+462,169 → 465,981, ram 376,816 → 376,832 (the job's state in `qd_app_t`).
+
+**Web:** `site/manager/` LIBRARY (rename in place, the 7 device tags as toggles, the web tags, USED BY with dots,
++ POOL, EXPORT, DELETE with IN USE asked once more, a cassette dropped on another or ALT + ↑ / ↓ to reorder), POOL
+(`pool.js`: the project picker that loads another project with a second press, 128 tiles with the steps using each
+filled in the background, a MY preset dropped or picked then a tile clicked = POOL REF, a tile dropped on another =
+SWAP, CLEAR, SORT BY TAG, CLEAR UNUSED), IMPORT (`importer.js`: `.dnsnd` / `.dn2pst` / `.dn2snd` read with
+`js/digitone.js`, the 10-segment fidelity bar, non-FM-TONE greyed, duplicates unticked, MY PRESETS / POOL / TRACK,
+Digitone tags FIZZ lacks kept as web tags; `.syx` not read: owner decision), and BACKUP's numbers from STATUS without
+a backup. `fizzlink.js` has a method per command; `simfizz.js` runs them on the wasm (its jobs step as the unit's;
+`tapPlay()` for BUSY). Tests: `site/tools/test_manager.mjs` (protocol, Node), `site/tools/test_manager_page.mjs`
+(the page in headless Chromium with `?sim`, both widths).
+
+### The SysEx speed (proposal, not built)
+
+Phase 0 measured ~87 ms a round trip on the unit. The cause is fm1-base's loop: it holds **one** inbound SysEx frame
+(`bsp/chip/usb.c`: `sx_collect = !sx_ready`, a second frame arriving while one waits is dropped) and hands it over
+once a pass (`device/main_fm1.c`: `ota_frame_get` → `app_sysex`, then `usb_cmd(ota_service())`), and a pass includes
+`app_frame()`: FIZZ's drawing, 30..93 ms while anything animates. Two cheap changes in FIZZ's port, cheapest first:
+
+1. **Transfer pacing** (`firmware/app/app.c` `fz_step`): while FIZZ SysEx frames keep coming (one in the last
+   ~300 ms: `qd_sx_t` gets the time of the last one, 4 B in `qd_app_t`, i.e. the pool, 0 B main RAM), skip drawing
+   except every 250 ms (a 4 fps screen during a transfer). A pass is then ~1 ms, so the round trip becomes the
+   host's MIDI latency plus a ms: estimated 3..6 ms instead of 87 (the 300 KB backup ~5 s instead of ~100 s; a
+   DUMP of 256 presets ~1.5 s). Cost ≈ 60 B flash. The screen pauses during a transfer (the bubbles slow down); the
+   sound is untouched (it is the interrupt's).
+2. **Frames between strips** (`app.c` already takes fm1-base's remote frames, 7D 4C 43, between strips: P2.6): take
+   FIZZ's own frames there too (`app_sysex` for 7D 46 5A, and the bulk framing's FZBR through `app_usb_cmd`), and
+   send the replies that fit without waiting (`plat_sysex_send` may wait up to 200 ms for USB room: a non-waiting
+   variant between strips). While playing (when 1 cannot skip frames) that is a frame per strip, 6..12 a frame
+   instead of one. Cost ≈ 120 B flash, 0 RAM; each strip gap grows by one handler (≤ 0.1 ms).
+
+Not recommended: a second inbound frame buffer in fm1-base (2 x 640 B of main RAM, which FIZZ does not have) to let
+the page pipeline requests; with 1 the round trip is small enough that depth 1 is fine.

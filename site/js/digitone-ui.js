@@ -23,7 +23,7 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
   const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Where the sounds go" });
   const trackSel = h("select", { class: "select", "aria-label": "Also load the first sound onto a track",
     onchange: (ev) => { track = +ev.target.value; render(); } },
-    h("option", { value: "-1" }, "No"), [1, 2, 3, 4, 5, 6, 7, 8].map((n) => h("option", { value: String(n - 1) }, `Track ${n}`)));
+    h("option", { value: "-1" }, "No"), [1, 2, 3, 4, 5, 6].map((n) => h("option", { value: String(n - 1) }, `Track ${n}`)));
   const dupSeg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Sounds already in MY PRESETS" });
   const dupRow = h("div", { class: "dn-row", hidden: true }, h("span", { class: "row-label" }, "Already in MY PRESETS"), dupSeg);
   const send = h("button", { class: "pill primary dn-send", onclick: () => go() });
