@@ -181,7 +181,7 @@ void ui_keybed(float x0, float y0, float w, float h, int lo, int nw, const qd_rg
 #undef UI_BLACK
 }
 
-/* keyboard(c, x0, y0, w, h, lo, held): 14 white keys from lo (a C), the black keys over them */
+/* keyboard(c, x0, y0, w, h, lo, held): 14 white keys from the white note lo (a C, or the FM-1's F), the black keys over them */
 void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fill)
 {
     ui_keybed(x0, y0, w, h, lo, 14, fill);
@@ -483,10 +483,11 @@ void ui_knob_mark(float x, float y, float v, qd_rgb col)
 /* keyboard's pos(n): a white key's centre, or a black key's (the boundary of the white keys it sits on) */
 float ui_keyboard_x(float x0, float w, int lo, int n, int *black)
 {
-    static const int WI[12] = {0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6};
-    static const int ISB[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
+    static const unsigned char WI[12] = {0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6};
+    static const unsigned char ISB[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
     const float kw = w / 14.f;
-    const int d = n - lo, o = d >= 0 ? d / 12 : -((11 - d) / 12), s = d - o * 12, wi = WI[s] + o * 7;
+    const unsigned s = (unsigned)n % 12u, l = (unsigned)lo;  /* (n, lo 0..127; lo any white note, a C or an F) */
+    const int wi = WI[s] - WI[l % 12u] + (int)((unsigned)n / 12u - l / 12u) * 7;
     if (black)
         *black = ISB[s];
     return ISB[s] ? x0 + (float)wi * kw + kw : x0 + (float)wi * kw + kw / 2.f;
