@@ -115,7 +115,8 @@
  *   LOCK CHIPS (the screens): no padlock; filled = locked on the held step, outlined = locked on some step.
  *   FX: B1 OVERVIEW (where it opens: the sends; W1..W8 the track, KNOB 1..3 its sends), B2 DELAY, B3 REVERB, B4
  *   CHORUS, B5 MASTER, B6 ROUTING (qd_fx.h QD_FXP_XDR .. XPOS, all 0: ChoralRoot's chain).
- *   ACCELERATION: qd_ctl_acc (every wide value; 24 steps or fewer never; SHIFT never).
+ *   ACCELERATION: qd_ctl_acc (every wide value; 24 steps or fewer never; SHIFT never). Hi-res values (hundredths):
+ *   qd_step_id_turn, 0.01 a slow detent accelerated to a 48th of the range, SHIFT 1.00 never accelerated.
  *   LATCH MODES (P1.5h): LFO held alone QD_LFO_HOLD_MS opens the latch-mode screen while held (lmode_open), SELECT
  *   turns VALUES / MODES there (set at once), the release closes it (no toggle); in MODES, no finger on a
  *   step, the black keys choose the hold mode (the knobs set the selection's values as ever). */
@@ -890,7 +891,8 @@ void qd_step_latch_seed(struct qd_app *a);      /* .. its selection started (the
 void qd_step_cursor(struct qd_app *a, int d);   /* P1.3q: PRESETS in STEPS: the latch's one selection moved d steps */
 void qd_step_cursor_page(struct qd_app *a);     /* P1.3y: the selection to the page's first step (a page change) */
 int qd_step_quick_id(int k);           /* the quick page's lock id of KNOB k (FREQ, DECAY, HARM, FDBK) */
-int qd_step_id_detent(int id);         /* a detent's size for a value (hundredths for the hi-res ones) */
+int qd_step_id_detent(int id);         /* a SHIFT detent's size for a value (100 for the hi-res ones) */
+int qd_step_id_turn(const struct qd_app *a, int id, int d);   /* a turn's change: hi-res 0.01 accelerated, SHIFT 1.00 */
 int qd_step_id_steps(int id);          /* P1.5b: its range in detents (acceleration) */
 int qd_step_base(struct qd_app *a, int t, int s, int id);   /* the value a lock on step s starts from */
 unsigned qd_step_modes_set(const struct qd_app *a, int t, int page);   /* bit m: a step of the page overrides mode m */
