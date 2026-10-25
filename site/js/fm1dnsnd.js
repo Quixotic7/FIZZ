@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// From ChoralRoot FM-1 web/fm1dnsnd.js at 9b69580 (GPL-3.0-only, github.com/Quixotic7/ChoralRootFM1), copied unchanged for FIZZ's preview site.
+// From ChoralRoot FM-1 web/fm1dnsnd.js at 9b69580 (GPL-3.0-only, github.com/Quixotic7/ChoralRootFM1), copied for FIZZ's preview site.
+// FIZZ's one change (2026-10-24): a version-4 record (a sound saved on Digitone OS 1.42, payload header "0095") is read
+// with version 5's layout (DN_LAYOUT): its tail sits where version 5's does (the end marker at 298, not 280) and the
+// fields version 5 added hold their defaults; it was refused as "a newer Digitone format (version 4)".
 // Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
 // Elektron Digitone sound files (.dnsnd) read for FM TONE (engine 15, eng_quad.c), docs/SOUNDS.md ".dnsnd import".
 // Clean-room: the container was decoded from files, no Elektron code or data is used. Pure: no DOM; the files are read
@@ -53,7 +56,10 @@ const dnV5OfV4 = (i, v) => {
   return Math.max(DN_QUAD_RANGES[i][0], Math.min(DN_QUAD_RANGES[i][1], w));
 };
 const DN_QF = { OFF: 0, LP12: 1, HP12: 2, LP24: 3 };
-export const DN_VERSIONS = [1, 5];                // the record versions read (others: "not supported")
+export const DN_VERSIONS = [1, 4, 5];             // the record versions read (others: "not supported")
+// the layout each is read with: version 4 has version 5's (FIZZ: one OS 1.42 file, F186 KICK01, compared with version-5
+// files byte by byte: the tail at version 5's offsets, the end marker ba ce f0 0c at 298, OFS / filter DELAY in place)
+export const DN_LAYOUT = { 1: 1, 4: 5, 5: 5 };
 
 // ---- the Digitone's tables (the manual OS 1.44 and the owner's controlled exports, 2026-10-14)
 // RATIO C, B1, B2: 19 steps (= FM TONE's QUAD_RCB); exports: C 0 = 0.25, 3 = 1, 4 = 2, 18 = 16; B 0.25 0.5 1 16
@@ -291,6 +297,8 @@ export async function parseDnsnd(bytes) {
   if (!(d[0] === 0xbe && d[1] === 0xef && d[2] === 0xba && d[3] === 0xce)) throw new Error(`${DN_NOT} (the sound's magic)`);
   const version = (d[4] << 24 | d[5] << 16 | d[6] << 8 | d[7]) >>> 0;
   if (!DN_VERSIONS.includes(version)) throw new Error(`a newer Digitone format (version ${version}): not supported`);
+  const layout = DN_LAYOUT[version];
+  if (layout !== version) warnings.push(`a version-${version} sound: read as version ${layout} (the same layout)`);
   const tail = pl.subarray(end);
   if (tail.length < 4 || dnU32(tail, tail.length - 4) !== 0xaadaa1aa) warnings.push("the payload's trailer is not the usual one");
   if (man.FirmwareVersion !== "1.42A") warnings.push(`made on Digitone firmware ${man.FirmwareVersion}: read as 1.42A`);
@@ -298,9 +306,10 @@ export async function parseDnsnd(bytes) {
   let name = "";
   for (let i = 12; i < 28 && d[i]; i++) name += String.fromCharCode(d[i]);
   const params = {}, confidence = {};
-  for (const [k, o, , c, dec, , since = 1] of DNSND_FIELDS) if (version >= since) { params[k] = +dec(d, o).toFixed(2); confidence[k] = c; }
+  for (const [k, o, , c, dec, , since = 1] of DNSND_FIELDS) if (layout >= since) { params[k] = +dec(d, o).toFixed(2); confidence[k] = c; }
   const tags = Array.isArray(man.MetaInfo && man.MetaInfo.Tags) ? man.MetaInfo.Tags.map(String) : [];
-  return { name, tags, firmware: man.FirmwareVersion ?? null, product: man.ProductType ?? null, version, params, confidence, warnings, record: d };
+  // version: the layout's (dnsndToQuad's laws by version); fileVersion: the record's own
+  return { name, tags, firmware: man.FirmwareVersion ?? null, product: man.ProductType ?? null, version: layout, fileVersion: version, params, confidence, warnings, record: d };
 }
 
 // the sound's OCTAVE (semitones, a multiple of 12) into FM TONE values p: each operator's ratio (its table step + OFS

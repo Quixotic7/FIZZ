@@ -28,6 +28,7 @@ import { SimFizz } from "../manager/simfizz.js";
 import { findFizz, parseBulk, bulkFrame } from "../manager/fizzlink.js";
 import { makeFizzbak, readBackup, crc32, soundKey } from "../manager/fizzbak.js";
 import { readRegion, layoutOf, LAYOUTS } from "../manager/fizzstore.js";
+import { dnsndV4 } from "./dnsnd_fixture.mjs";
 
 const SITE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const module = await WebAssembly.compile(fs.readFileSync(path.join(SITE, "fizz.wasm")));
@@ -260,6 +261,13 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   rows = mine(await l.list());
   check(ok && rows.length === before + 2 && rows.some((x) => x.name === "SYNTH TEST") && rows.some((x) => x.name === "RAW TEST"),
     `IMPORT: a synthetic .dn2pst and .dn2snd read and stored into MY PRESETS (${rows.length} now)`);
+  {   // a Digitone 1 sound saved on OS 1.42 with record version 4 (the shape of the owner's F186 KICK01, synthetic): it
+      // was refused as "a newer Digitone format (version 4)"; read with version 5's layout
+    const [v4] = await readFiles([{ name: "SYNTH KICK.dnsnd", bytes: dnsndV4() }]);
+    const s4 = v4.ok && await l.store(storeFrame(v4.sound));
+    check(v4.ok && v4.sound.name === "SYNTH KICK" && v4.sound.blob[2] === 2 && v4.sound.fizzTags.join() === "DRUMS" && /record 4/.test(v4.sound.mark) && s4 && s4.status === 0,
+      `IMPORT: a synthetic version-4 .dnsnd (OS 1.42) read (${v4.ok ? `${v4.sound.name}, ${v4.sound.mark}` : v4.error}) and stored`);
+  }
   {   // an older FIZZ answers a new command 7F 07 <cmd> (BAD COMMAND): read as such (the page says: update FIZZ)
     const e = [0x7F, 0x07, 0x12], f = Uint8Array.from([0xF0, 0x7D, 0x46, 0x5A, 0x01, ...e, (0x80 - (e.reduce((a, b) => a + b) & 0x7F)) & 0x7F, 0xF7]);
     const pr2 = parseReply(f);

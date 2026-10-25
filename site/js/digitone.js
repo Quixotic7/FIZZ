@@ -51,14 +51,15 @@ export function soundName(raw, fallback = "DIGITONE") {
 }
 
 // the reader's container / version warnings (fm1dnsnd.js parseDnsnd, by their known starts): nothing is lost by them
-const ORIGIN = [/^the payload header is not the 0097 kind/, /^made on Digitone firmware /, /^product /];
+const ORIGIN = [/^the payload header is not the 0097 kind/, /^made on Digitone firmware /, /^product /, /^a version-\d+ sound: read as version \d+/];
 export const isOrigin = (w) => ORIGIN.some((re) => re.test(w));
 export function originMark(origin) {
   if (!origin.length) return "";
   const os = origin.map((w) => (w.match(/^made on Digitone firmware (\S+):/) || [])[1]).find(Boolean);
   const prod = origin.map((w) => (w.match(/^product (.*): read as a Digitone$/) || [])[1]).find(Boolean);
   const older = origin.some((w) => /^the payload header/.test(w));
-  const bits = [os ? `OS ${os}` : "", prod ? `product ${prod}` : ""].filter(Boolean).join(", ");
+  const rec = origin.map((w) => (w.match(/^a version-(\d+) sound: read as/) || [])[1]).find(Boolean);
+  const bits = [os ? `OS ${os}` : "", rec ? `record ${rec}` : "", prod ? `product ${prod}` : ""].filter(Boolean).join(", ");
   return `${older ? "older Digitone file" : "Digitone file"}${bits ? ` (${bits})` : ""}`;
 }
 
