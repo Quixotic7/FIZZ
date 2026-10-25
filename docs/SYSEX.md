@@ -73,7 +73,7 @@ The body is 132 bytes, or 133 with the optional **tags** byte (P1.5x), then `chk
 | 1 | 2 | **slot**, 14-bit: high 7 bits, then low 7 bits. LIBRARY (MY presets) 1..256, POOL 1..128. **0 = the first free slot.** A slot given is overwritten. (0.6.x: LIBRARY 1..128, POOL 2..128.) |
 | 3 | 12 | **name**, ASCII 0x20..0x7E, padded with spaces (or 0). Trailing spaces are dropped, other bytes become `?`, and an empty name becomes `IMPORTED`. |
 | 15 | 1 | **drive**: FIZZ's DRIVE, 0..127. This is the `drive` of ChoralRoot's `dnsndToQuad`. |
-| 16 | 1 | **track** 0..7, with LOAD; otherwise 0 |
+| 16 | 1 | **track** 0..5, with LOAD (6 tracks since 0.12; 6 or 7: BAD TRACK, nothing stored); otherwise 0 |
 | 17 | 1 | **pan** + 64 (0..127, 64 = centre), with mixmask `01` |
 | 18 | 1 | **chorus** send 0..127, with mixmask `02` |
 | 19 | 1 | **delay** send 0..127, with mixmask `04` |
@@ -207,6 +207,71 @@ ring (4 KiB) has room for it, and its glue moves replies into the ABI's packet r
 chorus, delay, reverb, tags, blob, six, frame}`, `restoreFrame(bytes, {slot})`; `parseReply` gives `{kind: "list"}`
 and `{kind: "dump"}`.
 
+### The web manager's commands (0.12.x, docs/WEB-MANAGER-PLAN.md §5)
+
+The library, the pool and the projects edited from a page (`site/manager/`). Protocol 1 still: an older FIZZ answers
+each of them `7F 07 <cmd>` (BAD COMMAND), which a page reads as "update FIZZ". Code: `core/app/fizz_sx.c` (`sx_edit`,
+`qd_sx_work`), tests: `core/tests/test_sysex.c` (`phase1_tests`), `firmware/app/tests/web.txt`,
+`site/tools/test_manager.mjs`.
+
+**New statuses**: `8` BUSY (playing, for the commands that need it stopped, or another job running), `9` NOT FOUND
+(nothing there), `10` IN USE (DELETE without CONFIRM of something used), `11` BAD TRACK (STORE's LOAD onto track 7 or
+8: FIZZ has 6; nothing stored).
+
+**Slots** are 1-based, two 7-bit bytes (high, low), as in STORE. **Sources**: `0` MY PRESETS (1..256), `1` factory
+(1..23), `2` the pool (1..128), `3` a project (1..8, RENAME only).
+
+**ACK** (most commands' reply): `F0 7D 46 5A 01 52 <cmd> <status> <a hi> <a lo> <b hi> <b lo> <chk> F7`; a and b are
+the command's slots (or, for IN USE, the projects and the steps using it).
+
+**Where they run.** The quick ones in the SysEx handler (on the unit under the port's audio lock: a directory entry, a
+sound cache entry, a record queued for the autosave; nothing read in, nothing written to flash: `test_sysex` checks
+that no handler pages a pattern or commits a record). The others leave a **job** (`qd_sx_t.wk`, 20 bytes in
+`qd_app_t`) that the store's step runs (`qd_persist_step`: on the unit every 15 ms between frames, outside the locks;
+on the host and in the wasm from `qd_persist_ms`): a pattern or a project's records a step, never inside the handler.
+A job that needs FIZZ stopped waits while PLAY is on. Its reply comes when it is done (a pool swap: ~0.3 s).
+
+| cmd | name | body | reply | runs |
+| --- | --- | --- | --- | --- |
+| `02` | STATUS | — | `42` (below) | handler |
+| `03` | FLUSH | — | `42` STATUS once everything is written | job, stopped only |
+| `12` | TAGS | source, slot, tags (FIZZ's 7 bits) | ACK (a = slot, b = tags) | handler (a factory preset's tags are the owner's, as on the panel) |
+| `13` | RENAME | source (0 or 3), slot, name[12] | ACK | handler; another project's header: a job |
+| `14` | DELETE | source (0 or 2), slot, flags (`01` CONFIRM) | ACK; IN USE (a = projects, b = steps) | job, stopped only |
+| `15` | SWAP | source (0 or 2), a, b | ACK | MY PRESETS: handler (the ids go with the presets: no reference changes); the pool: job, stopped only |
+| `16` | POOL REF | pool slot (0: the first free), preset id (3 x 7 bits) | ACK (a = the pool slot, b = the id) | handler; id 0: the slot cleared (DELETE's job, CONFIRM) |
+| `17` | USERS | source (0 or 2), slot | `57` (below) | job, while playing too |
+| `23` | PROJECTS | — | `63` (below) | handler |
+| `24` | PROJECT | op (`1` LOAD, `2` NEW, `3` COPY p onto q, `4` DELETE), p, q (1..8) | ACK (a = p, b = q) | job, stopped only |
+
+- **STATUS** (`42`): protocol, tracks (6), flags (`01` playing, `02` no store attached: safe mode on the unit, `04`
+  something not written yet, `08` a job running, `10` the project worked on started with the demos), the project
+  worked on (0..7), its pattern, the projects there, MY PRESETS used (2), the pool's sounds (2), records committed (3
+  bytes: it changes when the store does, so a page can tell whether a backup it read is still current), the library
+  store's pages used / all (2 + 2), the projects' (2 + 2), the job's command (0: none).
+- **USERS** (`57`): source, slot (2), how many projects, each `<project 0..7> <steps hi> <steps lo>`, then this
+  project's tracks playing or locking it (bit t). A MY preset: the projects whose pools reference it (this one's
+  from RAM, the others' from their records, a project a step); a pool sound: this project.
+- **PROJECTS** (`63`): the one worked on (0..7), 8, then 8 entries of `<flags: 01 there, 02 worked on, 04 the demos>
+  <name[12]> <store pages hi> <lo>`.
+- **DELETE** without CONFIRM of something used answers IN USE and changes nothing; the page asks, then sends CONFIRM.
+  With CONFIRM (or unused): a MY preset: every other project's records that load it keep their own copy (a project a
+  step), then `qd_preset_delete` (its pool references go, their steps back to their track's sound: the panel's
+  fallback); a pool sound: `qd_pool_delete` (the same for its steps, patterns out of RAM swept a frame at a time). One
+  undo level.
+- **SWAP** of the pool swaps the two slots and every step lock and track source of the two numbers in all 64 patterns
+  (those out of RAM through their records: read into the drawing's arena, renumbered, written again if they changed).
+  The undo levels before it are forgotten (their bytes would no longer match). Into an empty place: a move. A power cut
+  in the middle leaves the store mountable (each record is committed whole) with the patterns not yet renumbered
+  still pointing at the old numbers (`test_sysex` checks the mount).
+- **Undo**: TAGS, RENAME, SWAP of MY PRESETS, POOL REF and DELETE are undone by SHIFT + F1 (commands less than half a
+  second apart join one level, as a gesture's edits do). PROJECT loads forget the levels, as on the panel.
+
+`tools/fizz_sysex.mjs` (and `site/js/fizz_sysex.js`): `statusRequest`, `flushRequest`, `tagsRequest`,
+`renameRequest`, `deleteRequest`, `swapRequest`, `poolRefRequest`, `usersRequest`, `projectsRequest`,
+`projectRequest`; `parseStatus`, `parseAck`, `parseUsers`, `parseProjects`; `parseReply` gives `{kind: "status" |
+"ack" | "users" | "projects"}`. `site/manager/fizzlink.js` wraps them (`link.status()`, `link.swap(..)` ..).
+
 ## What FIZZ does with a sound
 
 - **Stores it** in the LIBRARY slot or POOL number, with its name. A LIBRARY import becomes one of MY presets: its own
@@ -223,7 +288,7 @@ and `{kind: "dump"}`.
   - A batch is the messages after the first, sent with BATCH (`02`) and arriving less than half a second apart. Each joins the first message's level.
   - A track's pan and sends set with LOAD are the project's track settings, which undo does not cover: undo takes the sound back, not the mix.
 - **Keeps its mix** (P1.5x): a preset carries its pan and its chorus / delay / reverb sends (the fields mixmask gives). Loading it later from the browser (PRESETS, F2) sets the track's pan and sends to them; a step's sound lock does not.
-- **LOAD** (`04`, track 0..7) also puts the sound on that track in the pattern playing, the same as choosing it on the sounds page.
+- **LOAD** (`04`, track 0..5) also puts the sound on that track in the pattern playing, the same as choosing it on the sounds page.
   - A POOL import becomes the track's source (its number); a LIBRARY import is loaded as a copy.
   - mixmask picks which of pan / chorus / delay / reverb the track also takes. The rest stay as they are.
 

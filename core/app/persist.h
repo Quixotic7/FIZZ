@@ -204,6 +204,13 @@ int qd_preset_get(const struct qd_app *a, int id, qd_sound_t *out);
  * referring to it (every project's) is written again with the track's own copy. persist.c calls it itself (REPLACE, a
  * store over one, a delete); undo.c before it changes MY presets back */
 void qd_preset_will_change(struct qd_app *a, int id);
+/* (web manager P1, fizz_sx.c's jobs: a step each, between frames) project p's part of qd_preset_will_change and of
+ * qd_preset_usage (1 its pool references id: its steps; this project's tracks); a pool swap's slots and tracks now
+ * (the undo levels forgotten), then each pattern's references (1 done, 0 not now) */
+void qd_preset_will_change_proj(struct qd_app *a, int id, int p);
+int qd_preset_usage_proj(const struct qd_app *a, int id, int p, int *steps, uint8_t *tracks);
+void qd_pool_swap_slots(struct qd_app *a, int x, int y);
+int qd_pool_renumber_pat(struct qd_app *a, int k, int x, int y);
 extern int qd_persist_write_v4;        /* (the tests: pattern records as 'P' 4, by copy) */
 /* P2.1: every pattern record of an older format, of every project, written again as 'P' 5 (each project loaded in
  * turn; the one worked on again after); the records written. Not called by itself: older records read as they are */

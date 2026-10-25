@@ -31,6 +31,22 @@ extern "C" {
 enum { QD_SX_IDENTITY = 0x01, QD_SX_STORE = 0x10, QD_SX_STORE6 = 0x11, QD_SX_LABELS = 0x20, QD_SX_LIST = 0x21,
        QD_SX_DUMP = 0x22, QD_SX_R_IDENTITY = 0x41, QD_SX_R_STORE = 0x50, QD_SX_R_LABELS = 0x60, QD_SX_R_LIST = 0x61,
        QD_SX_R_ERROR = 0x7F };          /* (P1.6l: LABELS; P1.6m: LIST, DUMP: its replies STORE / STORE6 frames) */
+/* the web manager's Phase 1 (docs/WEB-MANAGER-PLAN.md §5, docs/SYSEX.md): the library, the pool and the projects
+ * edited from a page. The quick ones run in the handler (the lock: a directory entry, a record queued); the ones that
+ * touch patterns or other projects' records are a job (qd_sx_t.wk) stepped by the store's step (qd_persist_step:
+ * between frames, outside the locks), refused while playing (BUSY), paused if PLAY comes meanwhile; their reply comes
+ * when they are done */
+enum { QD_SX_STATUS = 0x02, QD_SX_FLUSH = 0x03, QD_SX_TAGS = 0x12, QD_SX_RENAME = 0x13, QD_SX_DELETE = 0x14,
+       QD_SX_SWAP = 0x15, QD_SX_POOLREF = 0x16, QD_SX_USERS = 0x17, QD_SX_PROJECTS = 0x23, QD_SX_PROJECT = 0x24,
+       QD_SX_R_STATUS = 0x42, QD_SX_R_ACK = 0x52, QD_SX_R_USERS = 0x57, QD_SX_R_PROJECTS = 0x63 };
+#define QD_SXS_PROJECT 3               /* RENAME's source: a project (slot 1..8); MY PRESETS the other */
+#define QD_SXD_CONFIRM 0x01u           /* DELETE's flags: delete even if used (else IN USE and the users) */
+enum { QD_SXP_LOAD = 1, QD_SXP_NEW, QD_SXP_COPY, QD_SXP_DELETE };   /* PROJECT's ops */
+#define QD_SXT_PLAYING 0x01u           /* STATUS's flags: playing, .. */
+#define QD_SXT_NOSTORE 0x02u           /* .. no store attached (safe mode on the unit), .. */
+#define QD_SXT_DIRTY 0x04u             /* .. something not written yet, .. */
+#define QD_SXT_JOB 0x08u               /* .. a job running (BUSY for another), .. */
+#define QD_SXT_DEMO 0x10u              /* .. the project worked on started with the demos */
 #define QD_SXF_DUMP 0x08u              /* P1.6m: a STORE that is a DUMP's reply: FIZZ ignores it (clear it to restore) */
 #define QD_SXS_MINE 0                  /* P1.6m: LIST / DUMP's sources: MY PRESETS (slot 1..256) .. */
 #define QD_SXS_FACTORY 1               /* .. the factory presets (1..23) .. */
@@ -54,7 +70,7 @@ enum { QD_SX_IDENTITY = 0x01, QD_SX_STORE = 0x10, QD_SX_STORE6 = 0x11, QD_SX_LAB
 
 /* the statuses */
 enum { QD_SX_OK, QD_SX_FULL, QD_SX_BAD_LENGTH, QD_SX_BAD_CHECKSUM, QD_SX_BAD_PATCH, QD_SX_BAD_SLOT, QD_SX_BAD_VERSION,
-       QD_SX_BAD_COMMAND };
+       QD_SX_BAD_COMMAND, QD_SX_BUSY, QD_SX_NOT_FOUND, QD_SX_IN_USE, QD_SX_BAD_TRACK };   /* (8..11: Phase 1) */
 
 #define QD_SX_NAME 12
 #define QD_SX_BLOB 96
@@ -68,6 +84,16 @@ enum { QD_SX_OK, QD_SX_FULL, QD_SX_BAD_LENGTH, QD_SX_BAD_CHECKSUM, QD_SX_BAD_PAT
 #define QD_SX_RING 4096                /* P1.6l: the replies waiting, a ring of bytes (each one: 2 bytes its length, then
                                         * it) */
 
+/* (Phase 1) the job a command left (cmd 0: none): its arguments and its cursor; in qd_app_t (the pool on the unit) */
+typedef struct {
+    uint8_t cmd, src, flags, step;     /* the command, its source, its flags, the cursor (a project, a pattern) .. */
+    uint8_t x, y;                      /* .. its slots (SWAP: the pool numbers; PROJECT: p, q; DELETE / USERS: the place) */
+    uint16_t id;                       /* .. the preset (DELETE / USERS of MY presets) */
+    uint16_t steps;                    /* USERS: the steps counted so far (all projects) .. */
+    uint8_t np, tracks;                /* .. the projects using it, the tracks here */
+    uint8_t pst[8];                    /* .. each project's steps (255: more), 0 not used (the reply lists the others) */
+} qd_sx_work_t;
+
 typedef struct {
     uint8_t ring[QD_SX_RING];
     uint32_t r, w;
@@ -76,6 +102,7 @@ typedef struct {
     uint32_t lbl_count, lbl_hash, lbl_ms;   /* .. the set's change count, its hash, when last looked at */
     const char *version;               /* the identity's version ("FIZZ 0.6.4-p1.5r"; the glue sets it) */
     uint32_t frames, errors;           /* (counters) */
+    qd_sx_work_t wk;                   /* (Phase 1) the job running */
 } qd_sx_t;
 
 struct qd_app;
@@ -85,6 +112,7 @@ int qd_app_sysex_peek(const struct qd_app *a);   /* P1.6l: the next reply's leng
 int qd_app_sysex_busy(const struct qd_app *a);   /* P1.6m: replies still to be made (an export going out) */
 void qd_sx_ms(struct qd_app *a);       /* P1.6l: each ms: a subscribed page's LABELS when they change */
 void qd_app_sysex_version(struct qd_app *a, const char *version);
+void qd_sx_work(struct qd_app *a);     /* (Phase 1) the job's next step: the store's step calls it (persist.c) */
 
 /* the 7-bit packing: groups of seven bytes as eight, the first holding their top bits (bit k: byte k's); n bytes ->
  * returns the packed length */
