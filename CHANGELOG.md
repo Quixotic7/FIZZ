@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+TOOLS fixed after testing on the FM-1, and a friendlier FIZZ Manager. Updating from beta.2 keeps your projects and presets.
+
 - **FIZZ Manager: backups stay in your browser.** BACK UP no longer asks where to save: the backup is kept in the page's list, and its save button writes it to a folder you pick. A backup not saved to a file yet shows a yellow save button. The list shows how much space the backups use.
 - **FIZZ Manager: a refresh button** next to the FM-1 reads the FM-1 again, so presets you saved on it show up. Coming back to the tab does it by itself when something changed.
 - **FIZZ Manager: LIBRARY is one list** with ALL, FACTORY and MY PRESETS filters plus the tags, and a big + POOL / − POOL button for the selected sound. Sounds in the pool have a green ring and a badge with their pool number, in LIBRARY and in POOL. POOL's list has the same filters and takes factory presets too.
