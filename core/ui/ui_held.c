@@ -181,7 +181,7 @@ static void chord_name(const ui_held_t *v, const pal_t *p, float cx, float y, fl
 
 static void f_note(const ui_held_t *v, const pal_t *p)
 {
-    int i, lo = 48, mn = 127;
+    int i, lo = 53, mn = 127;
 
     if (p->nobig) {
         /* (P1.3r: EDIT puts the chord's name in its head, the scale under it) */
@@ -192,11 +192,11 @@ static void f_note(const ui_held_t *v, const pal_t *p)
     }
     note_line(v, p, KB_Y - 9.f);
 
-    for (i = 0; i < v->nnote && i < 6; i++)             /* the keybed from the C at or below the lowest note */
+    for (i = 0; i < v->nnote && i < 6; i++)             /* the keybed from the F at or below the lowest note (the FM-1's keys start on F) */
         if (v->note[i] < mn)
             mn = v->note[i];
-    if (v->nnote > 0)
-        lo = mn / 12 * 12;
+    if (v->nnote > 0 && mn >= 5)                        /* (no F under C0..E0: those stay off the keybed) */
+        lo = mn - (mn + 7) % 12;
     ui_keyboard(14.f, KB_Y, 212.f, 70.f, lo, 0);
     for (i = 0; i < v->nnote && i < 6; i++) {
         int b, k;
