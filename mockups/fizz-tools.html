@@ -6,7 +6,7 @@
 <title>FIZZ Track Tools</title>
 <!-- FIZZ: TOOLS, the track tools (docs/TRACK-TOOLS-PLAN.md), a mock-up for the owner's approval. After the OMX-27
      Form sequencer's TOOLS view and OMX's Euclidean / Grids modes; FIZZ's own look (fizz-geekout.html, line.html).
-     ?shot=N  one canvas at 1x (&t=seconds)   ?sheet=1  every screen at 2x   no query: the page, live -->
+     ?shot=N  one canvas at 1x (&t=seconds)   ?sheet=1  every screen at 2x   ?shot=rN / ?sheet=rev  the 2026-10-25 revisions at 2x   no query: the page, live -->
 <style>
 :root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f1eee8; --fg:#1b1b1f; --dim:#66625b; } }
@@ -345,11 +345,143 @@ const SCREENS = [
     text: 'OCT+: the new steps fizz up out of the lane, and it is one undo level (SHIFT + F1 brings the page back).' },
 ];
 
+/* ================================================================ 2026-10-25 revisions: STRETCH ratios, CLIP labels
+ * drawn as built (core/ui/ui_tools.c tl_head / tl_pages / tl_lane / tl_stretch / tl_clip / ui_tools_pop) */
+const SCN = ['SELECTED', 'PAGE', 'TRACK', 'PATTERN'];
+function rIcon(c, i, x, y, on) {                        /* the ten header icons (old ones reused, three new) */
+  const col = on ? C.k3 : C.g2, lw = on ? 1.8 : 1.5;
+  if (i < 6) return toolIcon(c, i, x, y, on);
+  if (i === 7) return toolIcon(c, 6, x, y, on);
+  if (i === 6) { P(c, [x - 7, y + 6, x + 7, y + 6], col, 1); RR(c, x - 7, y - 4, 3, 9, 1, null, 1, col); RR(c, x - 1.5, y - 6, 3, 11, 1, null, 1, col); RR(c, x + 4, y - 2, 3, 7, 1, null, 1, col); }
+  if (i === 8) { P(c, [x - 8, y - 6, x - 8, y + 6], col, lw); P(c, [x + 8, y - 6, x + 8, y + 6], col, lw); RR(c, x - 5, y - 2, 10, 4, 2, null, 1, col); }
+  if (i === 9) { RR(c, x - 6, y - 6, 12, 14, 2, col, lw * 0.8); RR(c, x - 3, y - 8.5, 6, 4, 1, null, 1, col); P(c, [x - 3, y + 1, x + 3, y + 1], col, 1); P(c, [x - 3, y + 4, x + 2, y + 4], col, 1); }
+}
+function rScope(c, sc, x, y, col = C.k3, s = 1) {       /* SELECTED, PAGE, TRACK, PATTERN */
+  if (sc === 0) { c.save(); c.translate(x, y); c.scale(s, s); RR(c, -11, -3, 6, 6, 1, null, 1, col); RR(c, -3, -3, 6, 6, 1, C.g2, 1.2); RR(c, 5, -3, 6, 6, 1, null, 1, col); c.restore(); }
+  else scopeIcon(c, sc - 1, x, y, col, s);
+}
+function rHead(c, tool, sc, o = {}) {
+  for (let i = 0; i < 10; i++) { const x = 9 + i * 16; c.save(); c.translate(x, 14); c.scale(0.8, 0.8); c.translate(-x, -14); rIcon(c, i, x, 14, i === tool); c.restore();
+    if (i === tool) P(c, [x - 6.5, 27, x + 6.5, 27], C.k3, 2); }
+  if (o.pend) O(c, 167, 14, 3, null, 1, C.k4);
+  if (sc !== 3) { RR(c, 177, 5, 18, 18, 2, TCOL, 1.4); T(c, String(TRK + 1), 186, 19, { s: 13, w: 600, col: TCOL, al: 'center' }); }
+  else RR(c, 177, 5, 18, 18, 2, C.g1, 1.4, null, { dash: [2, 2] });
+  rScope(c, sc, 219, 14);
+}
+function rPages(c, page = 2, loop = 1) { for (let p = 0; p < 8; p++) { const x = 8 + p * 28;
+  if (p === page) RR(c, x, 186, 26, 8, 2, null, 1, TCOL); else RR(c, x, 188.5, 26, 3, 1.5, null, 1, (loop >> p) & 1 ? C.g2 : C.g3); } }
+function rLane(c, on, was) {
+  for (let i = 0; i < 16; i++) { const x = 8 + i * 14, y = 206;
+    if (on[i] && was[i]) RR(c, x, y, 13, 18, 2, null, 1, TCOL);
+    else if (on[i]) RR(c, x, y, 13, 18, 2, C.k3, 1.8, null, { a: 0.85 });
+    else if (was[i]) RR(c, x, y, 13, 18, 2, null, 1, TCOL, { a: 0.32 });
+    else RR(c, x, y + 14, 13, 4, 1, null, 1, i % 4 ? C.g3 : C.g2); }
+}
+function rDiv(c, x, y, s, col) { P(c, [x - 4 * s, y, x + 4 * s, y], col, 1.6 * s); O(c, x, y - 4 * s, 1.2 * s, null, 1, col); O(c, x, y + 4 * s, 1.2 * s, null, 1, col); }
+
+/* ---------------------------------------------------------------- STRETCH: the factor as a ladder of ratios */
+const LAD1 = [[1, 4], [1, 3], [1, 2], [2, 3], [1, 1], [3, 2], [2, 1], [3, 1], [4, 1]];
+const LAD2 = [[1, 4], [1, 3], [1, 2], [2, 3], [3, 4], [4, 5], [1, 1], [5, 4], [4, 3], [3, 2], [2, 1], [3, 1], [4, 1]];
+const NAMEF = { '5/4': '1.25', '4/3': '1.33', '3/2': '1.5' };
+function ratioLabel(n, d) { const up = n >= d, a = up ? n : d, b = up ? d : n, key = a + '/' + b;
+  return { up, s: b === 1 ? String(a) : NAMEF[key], frac: key }; }
+const BTRIG = BASE.map((v, i) => v ? i : -1).filter(i => i >= 0);
+/* the tape drawn as built (tl_tape), zoomed to 32 steps across so a 16-step loop and its stretch both read */
+function rTape(c, trigs, len, y, h, col) {
+  const sw = 7; trigs.forEach(s => { if (s < len) RR(c, 8 + s * sw, y, sw - 2, h, 0.6, null, 1, col); });
+  RR(c, 8, y + h + 3, len * sw, 3, 1.5, null, 1, col); return [8, 8 + len * sw];
+}
+function bigFactor(c, n, d, col, frac) {             /* "×1.5" / "÷1.5" (÷ drawn: the font has none) / "×3/2" */
+  const L = ratioLabel(n, d), str = frac && L.s.includes('.') ? L.frac : L.s, sz = 36;
+  if (n === d) { T(c, '×1', 120, 110, { s: sz, w: 700, col: C.g2, al: 'center' }); return; }
+  c.save(); c.font = `700 ${sz}px ${F}`; const wNum = c.measureText(str).width, wX = c.measureText('×').width; c.restore();
+  const signW = L.up ? wX : 18, x0 = 120 - (signW + 2 + wNum) / 2;
+  if (L.up) T(c, '×', x0, 110, { s: sz, w: 700, col }); else rDiv(c, x0 + 8, 98, 2, col);
+  T(c, str, x0 + signW + 2, 110, { s: sz, w: 700, col });
+}
+function rungs(c, lad, at) {                          /* KNOB 1's place on the ladder: a dot a rung, x1 a taller tick */
+  const sp = lad.length > 9 ? 9 : 11, x0 = 120 - (lad.length - 1) * sp / 2;
+  lad.forEach(([n, d], k) => { const x = x0 + k * sp, y = 174;
+    if (n === d) RR(c, x - 1, y - 5, 2, 10, 1, null, 1, k === at ? C.k1 : C.g2);
+    else if (k === at) O(c, x, y, 3.4, null, 1, C.k1); else O(c, x, y, 2.2, null, 1, C.g2); });
+}
+function stretchR(c, lad, at, o = {}) {
+  bg(c); rHead(c, 8, 2, { pend: 1 });
+  const [n, d] = lad[at], len = Math.round(16 * n / d);
+  const after = BTRIG.map(s => Math.floor(s * n / d));
+  for (let k = 1; k < 2; k++) { P(c, [8 + k * 112, 36, 8 + k * 112, 40], C.g2, 1); P(c, [8 + k * 112, 160, 8 + k * 112, 164], C.g2, 1); }
+  const [b0, b1] = rTape(c, BTRIG, 16, 42, 14, C.g1), [a0, a1] = rTape(c, after, len, 132, 22, TCOL);
+  P(c, [b0, 62, b1, 62, a1, 128, a0, 128], 'rgba(0,0,0,0)', 0.1, { close: 1, fill: 'rgba(63,125,255,0.14)' });
+  P(c, [b0, 62, a0, 128], C.k1, 1.4); P(c, [b1, 62, a1, 128], C.k1, 1.4);
+  bigFactor(c, n, d, C.k1, o.frac);
+  rungs(c, lad, at); rPages(c, 0, 0b11);
+  const on = Array(16).fill(0), was = BASE.map(v => v ? 1 : 0); after.forEach(s => { if (s < 16) on[s] = 1; });
+  rLane(c, on, was);
+}
+
+/* ---------------------------------------------------------------- CLIP: labels, the scope it works on, nothing grey */
+function clipIcon(c, k, x, y, sc, col) {
+  c.save(); c.translate(x, y); c.scale(sc, sc);
+  if (k === 0) { RR(c, -9, -11, 13, 16, 2, col, 1.4); RR(c, -4, -6, 13, 16, 2, null, 1, col); }
+  else if (k === 1) { RR(c, -8, -9, 16, 20, 2, col, 1.4); RR(c, -4, -12, 8, 5, 1.5, null, 1, col); P(c, [0, -4, 0, 4], col, 1.4); P(c, [-3.5, 1, 0, 4.5, 3.5, 1], col, 1.4); }
+  else { P(c, [-8, -8, 8, 8], col, 2.2); P(c, [8, -8, -8, 8], col, 2.2); }
+  c.restore();
+}
+const CLN = ['COPY', 'PASTE', 'CLEAR'];
+function clipR(c, act, sc, o = {}) {
+  bg(c); rHead(c, 9, sc);
+  const acol = act === 2 ? C.red : C.k3;
+  for (let k = 0; k < 3; k++) { const on = k === act; if (k < act - 1 || k > act + 1) continue;
+    const x = on ? 120 : k < act ? 36 : 204, y = 82, col = on ? acol : C.g1;
+    clipIcon(c, k, x, y, on ? 3.0 : 1.6, on ? acol : C.g2);
+    T(c, CLN[k], x, on ? 138 : 116, { s: 13, w: 600, col, al: 'center', ls: 1 }); }
+  const ssc = o.as != null ? o.as : sc, nm = SCN[ssc] + (ssc === 1 ? ' ' + (o.page || 3) : '');
+  c.save(); c.font = `600 15px ${F}`; c.letterSpacing = '1px'; const w = c.measureText(nm).width; c.restore();
+  const x0 = 120 - (30 + w) / 2;
+  rScope(c, ssc, x0 + 11, 156, acol); T(c, nm, x0 + 30, 161, { s: 15, w: 600, col: acol, ls: 1 });
+  for (let k = 0; k < 3; k++) O(c, 108 + k * 12, 176, 3, k === act ? null : C.g2, 1.2, k === act ? C.k1 : null);
+  rPages(c, (o.page || 3) - 1, 0b1111);
+  const on = BASE.map(v => v ? 1 : 0); rLane(c, on, on);
+  if (o.pop) {                                         /* ui_tools_pop kind 2: the scope big, the message under it */
+    c.fillStyle = '#000'; c.fillRect(0, 84, 240, 98);   /* (to 182: over the new scope line and dots) */
+    T(c, o.pop[0], 120, 126, { s: 34, w: 700, col: C.k3, al: 'center', ls: 2 });
+    T(c, o.pop[1], 120, 150, { s: 20, w: 700, col: C.k2, al: 'center', ls: 1 });
+  }
+}
+
+const REV = [
+  { f: c => stretchR(c, LAD1, 5), title: 'STRETCH A1: ×1.5 (nine rungs)',
+    text: '<strong>KNOB 1</strong> climbs a ladder of nine ratios, one a detent: ÷4 ÷3 ÷2 ÷1.5 <strong>×1</strong> ×1.5 ×2 ×3 ×4. A 16-step loop stretched to 24: the grey tape over, the coloured one under, the fan between. The dots under the factor are the rungs (×1 the tall tick).' },
+  { f: c => stretchR(c, LAD2, 8), title: 'STRETCH A2: ×1.33 (thirteen rungs)',
+    text: 'A2 adds ×1.25 and ×1.33 and their reciprocals (÷1.25, ÷1.33): thirteen rungs. Here ×1.33: 16 steps → 21.' },
+  { f: c => stretchR(c, LAD2, 3), title: 'STRETCH A2: ÷1.5',
+    text: 'Below ×1 the factor squeezes: ÷1.5 puts the 16 steps into 11 (the fan narrows). The ÷ is drawn, as the firmware does.' },
+  { f: c => stretchR(c, LAD1, 5, { frac: 1 }), title: 'STRETCH: the fraction form ×3/2',
+    text: 'The same rung written as a fraction, <strong>×3/2</strong> (×4/3, ×5/4 in A2): exact, but wider than ×1.5. One or the other.' },
+  { f: c => clipR(c, 0, 1), title: 'CLIP B1: labels + the scope',
+    text: 'Each action has its word under it (the picked in white, CLEAR in red), and the scope it works on under the big icon: <strong>COPY — PAGE 3</strong>. <strong>OCT+</strong> does it. Gesture to consider: <strong>B10 pressed again</strong> also does the picked action.' },
+  { f: c => clipR(c, 1, 0, { as: 1 }), title: 'CLIP B2 option 1: always works',
+    text: 'Option 1: COPY and PASTE always work. In SELECTED (and TRACK) scope they act on the shown page, so the line reads <strong>PAGE 3</strong> while the header keeps SELECTED. Nothing is ever grey.' },
+  { f: c => clipR(c, 1, 3), title: 'CLIP B2 option 2: PAGE / PATTERN only',
+    text: 'Option 2: entering CLIP switches the scope to PAGE; <strong>B11</strong> toggles PAGE ↔ PATTERN only. Here PASTE — PATTERN.' },
+  { f: c => clipR(c, 0, 1, { pop: ['PAGE 3', 'COPIED'] }), title: 'CLIP B3: after OCT+',
+    text: 'Pick COPY → <strong>OCT+</strong> → the popup: the scope big, <strong>COPIED</strong> under it in green (PASTED the same), fading after ~0.8 s.' },
+];
+
 async function main() {
   const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' });
   await ff.load(); document.fonts.add(ff);
   const q = new URLSearchParams(location.search), shot = q.get('shot'), sheet = q.get('sheet'), qt = q.get('t');
   const mk = (cls) => { const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; if (cls) cv.className = cls; return cv; };
+  if (shot && shot[0] === 'r') { document.body.className = 'shot'; document.getElementById('page').remove();   /* ?shot=rN: a revision at 2x */
+    const cv = document.createElement('canvas'); cv.width = 480; cv.height = 480; const c = cv.getContext('2d'); c.scale(2, 2);
+    REV[+shot.slice(1) - 1].f(c); document.body.appendChild(cv); return; }
+  if (sheet === 'rev') { document.body.className = 'sheet'; document.getElementById('page').remove();
+    const h = document.createElement('div'); h.className = 'sheettitle'; h.textContent = 'FIZZ: TOOLS, 2026-10-25 revisions: STRETCH ratios, CLIP labels (2x)'; document.body.appendChild(h);
+    const g = document.createElement('div'); g.className = 'sheetgrid'; document.body.appendChild(g);
+    REV.forEach((s, k) => { const f = document.createElement('figure'); f.style.margin = 0; const cv = mk(); s.f(cv.getContext('2d')); f.appendChild(cv);
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `r${k + 1} · ${s.title}`; f.appendChild(cap); g.appendChild(f); });
+    return; }
   if (shot) { document.body.className = 'shot'; document.getElementById('page').remove();
     const s = SCREENS[+shot - 1], cv = mk(); s.f(cv.getContext('2d'), qt != null ? +qt : s.t); document.body.appendChild(cv); return; }
   if (sheet) {
@@ -366,6 +498,12 @@ async function main() {
     const h = document.createElement('h2'); h.textContent = `${i + 1}. ${s.title}`; d.appendChild(h);
     const cv = mk('scr'); d.appendChild(cv); live.push([s, cv.getContext('2d')]);
     const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); root.appendChild(d); });
+  const rh = document.createElement('h1'); rh.textContent = '2026-10-25 revisions: STRETCH ratios, CLIP labels'; rh.style.marginTop = '48px';
+  const rg = document.createElement('div'); rg.className = 'grid'; root.after(rh); rh.after(rg);
+  REV.forEach((s, i) => { const d = document.createElement('div'); d.className = 'cell';
+    const h = document.createElement('h2'); h.textContent = `r${i + 1}. ${s.title}`; d.appendChild(h);
+    const cv = mk('scr'); s.f(cv.getContext('2d')); d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = s.text; d.appendChild(p); rg.appendChild(d); });
   const t0 = performance.now();
   const frame = () => { const t = (performance.now() - t0) / 1000; live.forEach(([s, c]) => s.f(c, t)); requestAnimationFrame(frame); };
   frame();

@@ -48,6 +48,10 @@ TOOLS = ['rotate', 'reverse', 'random', 'random-turn', 'euclid', 'euclid-3-8-add
 for i, n in enumerate(TOOLS, 1):               # fizz-tools.html: the track tools (docs/TRACK-TOOLS-PLAN.md)
     SHOTS[f'tl-{i}'] = (f'shot={i}', 240, 240, f'fizz-tools-{i:02d}-{n}.png', 'fizz-tools.html')
 SHOTS['sheet-tl'] = ('sheet=1', 2030, 2140, 'fizz-tools-sheet.png', 'fizz-tools.html')
+REV = ['stretch-a1', 'stretch-a2', 'stretch-a2-div', 'stretch-frac', 'clip-labels', 'clip-always', 'clip-page-pattern', 'clip-copied']
+for i, n in enumerate(REV, 1):                 # fizz-tools.html: the 2026-10-25 revisions, at 2x
+    SHOTS[f'tr-{i}'] = (f'shot=r{i}', 480, 480, f'tools-rev-{n}.png', 'fizz-tools.html')
+SHOTS['sheet-tr'] = ('sheet=rev', 2030, 1100, 'tools-rev-sheet.png', 'fizz-tools.html')
 WM = ['backup', 'backing-up', 'library', 'pool', 'import', 'restore', 'phone-library']
 for i, n in enumerate(WM, 1):                  # fizz-web-manager.html: the web manager (docs/WEB-MANAGER-PLAN.md)
     w, h = (390, 844) if n.startswith('phone') else (1280, 800)
