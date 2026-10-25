@@ -208,11 +208,36 @@ void fz_knob(int role, int detents) { FZ_IN(qd_app_knob(&fz_app, role, detents))
 void fz_master(int pot) { qd_app_master(&fz_app, pot); }
 void fz_midi_play(int status, int d1, int d2) { qd_app_midi_play(&fz_app, status, d1, d2); }
 void fz_midi_ui(int status, int d1, int d2) { qd_app_midi_ui(&fz_app, status, d1, d2); }
+/* (2026-10-25, the owner: "the HOME screen flashes for a moment while in other menus"; not seen on the host) each frame
+ * latched, its screen: a menu's (MENU .. TOOLS: above EDIT), then EDIT (HOME's), then that menu again within 400 ms is
+ * a blip: counted, the last one's screens, latch, mode, takeover and length kept (stats line 16, fz_blips) */
+static struct { uint32_t n, t0; uint16_t ms; uint8_t prev, from, latch, mode, tk, seen; } fz_bl;
+static void fz_blip_look(void)
+{
+    const qd_app_t *a = &fz_app;
+    const int s = qd_view_screen(a);
+    if (fz_bl.seen && s == fz_bl.prev)
+        return;
+    if (s == QD_SCR_EDIT && fz_bl.seen && fz_bl.prev > QD_SCR_EDIT)
+        fz_bl.from = fz_bl.prev, fz_bl.t0 = a->ms, fz_bl.latch = (uint8_t)a->ui.latch, fz_bl.mode = (uint8_t)a->ui.mode,
+        fz_bl.tk = (uint8_t)a->ui.tk;
+    else if (fz_bl.prev == QD_SCR_EDIT && s == fz_bl.from && a->ms - fz_bl.t0 < 400u)
+        fz_bl.n++, fz_bl.ms = (uint16_t)(a->ms - fz_bl.t0);
+    fz_bl.prev = (uint8_t)s, fz_bl.seen = 1;
+}
+void fz_blips(uint32_t *n, uint32_t *what)
+{
+    *n = fz_bl.n;
+    *what = (uint32_t)fz_bl.from | (uint32_t)fz_bl.latch << 8 | (uint32_t)(fz_bl.mode & 15u) << 16 |
+            (uint32_t)(fz_bl.tk & 15u) << 20 | (uint32_t)(fz_bl.ms > 255u ? 255u : fz_bl.ms) << 24;
+}
+
 /* (P2.7) the frame latched now (one instant: the strips drawn next are this one), the strips that would change */
 static uint32_t fz_mask;
 int fz_frame_changed(void)
 {
     const int r = qd_app_frame_strips_changed(&fz_app, &fz_mask);
+    fz_blip_look();
     const uint32_t b = qd_dl_kept() ? qd_dl_bytes() : 0u;
     if (b > fz_dl_max)
         fz_dl_max = b;
@@ -606,6 +631,8 @@ int fz_expect(const char *what, int *got)
         *got = a->seq.cur;
     else if (!strcmp(what, "fz_sel"))
         *got = a->sel;
+    else if (!strcmp(what, "fz_blips"))                /* 2026-10-25: a menu, HOME, the menu again (fz_blip_look) */
+        *got = (int)fz_bl.n;
     else if (!strcmp(what, "fz_tools"))                /* T1: TOOLS open */
         *got = qd_tools_open(a);
     else if (!strcmp(what, "fz_tools_pend"))           /* .. a change pending (live, or drawn only: 2) */
@@ -731,7 +758,11 @@ uintptr_t fz_app_addr(void) { return (uintptr_t)&fz_app; }
 void fz_fb_attach(uint8_t *const rows[240]) { qd_app_fb_attach(&fz_app, rows); }
 const uint16_t *fz_fb_palette(uint32_t *gen) { return qd_app_palette(&fz_app, gen); }
 int fz_frame_fb(uint32_t *bands) { return qd_app_frame_fb(&fz_app, bands); }
-int fz_frame_fb_begin(uint32_t *bands) { return qd_app_frame_fb_begin(&fz_app, bands); }   /* (P2.15: in steps) */
+int fz_frame_fb_begin(uint32_t *bands)                 /* (P2.15: in steps) */
+{
+    fz_blip_look();
+    return qd_app_frame_fb_begin(&fz_app, bands);
+}
 int fz_frame_fb_step(int n) { return qd_app_frame_fb_step(&fz_app, n); }
 typedef char fz_fb_band_ok[QD_FB_BAND == 16 ? 1 : -1];   /* (app.c sends bands of 16 rows) */
 #endif

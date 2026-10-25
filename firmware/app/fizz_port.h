@@ -67,6 +67,9 @@ void fz_tick_locked(uint32_t ms);                  /* (P2.10: qd_app_tick_locked
 void fz_tick_free(void);                           /* (.. qd_app_tick_free, without it) */   /* (P2.9: before the lock of fz_key / fz_button / fz_knob / fz_midi_ui) */
 /* would the next frame differ from the last drawn? (qd_app_frame_changed: the screen's logic once, nothing drawn) */
 int fz_frame_changed(void);
+void fz_blips(uint32_t *n, uint32_t *what);         /* (2026-10-25) a menu, HOME a moment, the menu again: how often; the
+                                                     * last's menu screen | latch << 8 | mode << 16 | takeover << 20 |
+                                                     * its ms (to 255) << 24 */
 
 /* the data blob (the fonts and the TAP ape's lines: core/qd_config.h QD_XDATA) in the data flash, at the XIP address
  * the link gave it: its size, and whether the flash holds this build's (1), none (0) or another's (-1). Unit only;
