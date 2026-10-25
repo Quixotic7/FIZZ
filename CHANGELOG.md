@@ -23,6 +23,7 @@ its text becomes the release's notes on the install page and on GitHub.
 - **New in TOOLS: STRETCH** (PRESETS, after LENGTH) squeezes or spreads a track in time: KNOB 1 doubles or halves it (x2, x4, x8, /2, /4, /8: an 8-page track onto 1 page, or 1 page over 8), KNOB 2 fits it onto 1..8 pages. Each note lands on the nearest new step, its timing kept as micro-timing (a note between two steps keeps its offset), its p-locks and its own length go with it, and where two notes would meet the one nearer its step stays. On a page or the selected steps it works within the page. The screen shows the loop as it was over the loop as it will be; you hear it at once, OCT+ keeps it (one undo), OCT− puts it back.
 - **F1's page map: a double tap on a page loops it alone again.** The second tap now only has to start within 0.2 s of the first one's end; it used to have to end within 0.2 s, which a normal press on the FM-1's keys often missed, so the double tap came out as two taps.
 - **F3 (hold PLAY): turning SELECT or ALGORITHM for the tempo or the swing shows the TAP ape** dancing to the new tempo (a new move every two beats, swung with the swing), where the metronome was.
+
 ## 0.12.0-beta.3 (2026-10-25)
 
 TOOLS fixed after testing on the FM-1, and a friendlier FIZZ Manager. Updating from beta.2 keeps your projects and presets.
