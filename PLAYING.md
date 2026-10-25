@@ -327,7 +327,8 @@ Steps:
 
 Pages and tracks (hold **F1**):
 
-- **F1 + tap B9**: clear the page. **F1 + hold B9** (600 ms): clear the whole track (every page).
+- **F1 + tap B9**: clear the page. **F1 + hold B9** (600 ms): clear the whole track (every page; it is reset too:
+  page 1 only, every page 16 steps; its sound and speed stay).
 - **F1 + B10**: copy the page you're editing. Then **B1..B8** paste it onto that page (press again to paste again;
   the page joins the loop). The copied page's key blinks.
 - **F1 + B11**: undo. Everything you did during one F1 or F2 hold is undone together. Press it again to redo.
@@ -490,7 +491,7 @@ shortcuts act; SHIFT + a knob stays the editor's fine step).
 | **B7** | tap: the **metronome** (CLICK on / off). Hold B7 and turn any knob: its level (0..100, 60 at first) |
 | **B8** | **PAGE FOLLOW** on / off (P1.5z), its picture (the pages, the playhead, the arrow; OFF crossed) and ON / OFF big. It is the same switch as the global settings' KNOB 2 and the track settings' PAGE FOLLOW: one for all tracks |
 | **B9** | **double the track**: its looped pages copied after themselves, the loop twice as long ("FULL": no room) |
-| **B11** | **clear the track**: press twice within two seconds ("CLEAR?", B11 blinks; then "CLEARED") |
+| **B11** | **clear the track**: press twice within two seconds ("CLEAR?", B11 blinks; then "CLEARED"): its steps and locks, and its pages reset (page 1 only, each 16 steps); its sound and speed stay |
 | **F1 / F2** | **undo / redo** |
 | **SELECT** | **the track** (P1.5z): a track a detent, round 1..8, the big track picture (as FX + ALGORITHM). In every view, the sound editor (it shows the new track's sound), the browser (the preview is put back first, then you browse the new track), the mix and the effects; not while typing a name (there SELECT turns the letter). It was the keyboard's swing: the swing is F3 + ALGORITHM |
 

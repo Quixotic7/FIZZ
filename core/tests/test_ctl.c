@@ -214,6 +214,13 @@ static int LK(int t, int s, int id)                     /* the lock's value, or 
     int16_t v;
     return qd_lock_get(PAT(), t, s, id, &v) ? v : -99999;
 }
+static int pages_full(int t, int from)                  /* pages from..8 each 0..15 */
+{
+    int pg, ok = 1;
+    for (pg = from; pg < QD_NPAGE; pg++)
+        ok &= PAT()->trk[t].pstart[pg] == 0 && PAT()->trk[t].pend[pg] == QD_PAGE - 1;
+    return ok;
+}
 static qd_leds_t leds(void)
 {
     qd_leds_t l;
@@ -729,11 +736,16 @@ static void g_f1_pages(void)
     black(B11);
     bup(F1);
     CHECK(R(0, 0).on && R(0, 5).on, "F1 + B11: the page back");
+    PAT()->trk[0].rbase = 3;                            /* (2026-10-25: the clear resets the pages, the rate stays) */
+    PAT()->trk[0].pend[1] = 9;
     bdown(F1);
     run(70);
     kdown(BK(B9));
     run(610);
     CHECK(!R(0, 0).on && !R(0, 18).on, "F1 + B9 held 600 ms: the track cleared (at the mark, still down)");
+    CHECK(qd_track_loop(&PAT()->trk[0]) == 1 && pages_full(0, 0) && PAT()->trk[0].rbase == 3,
+          "the clear resets the track: page 1 only, every page 16 (loop %02x), the rate kept",
+          qd_track_loop(&PAT()->trk[0]));
     kup(BK(B9));
     bup(F1);
     run(10);
@@ -741,7 +753,9 @@ static void g_f1_pages(void)
     bdown(F1);
     black(B11);
     bup(F1);
-    CHECK(R(0, 0).on && R(0, 18).on && R(0, 5).on, "F1 + B11: the track back");
+    CHECK(R(0, 0).on && R(0, 18).on && R(0, 5).on && PAT()->trk[0].loop == 0x0F && PAT()->trk[0].pend[1] == 9,
+          "F1 + B11: the track back, its pages too");
+    PAT()->trk[0].rbase = 4;
     /* B10: copy page 1, paste onto pages 3 and 6 (B3 twice), undo as one */
     bdown(F1);
     run(70);
@@ -6342,7 +6356,8 @@ static void g_p15c_shift(void)
     black(B11);
     CHECK(R(0, 0).on && A.ui.clr_armed, "two seconds late: armed again, nothing cleared");
     black(B11);
-    CHECK(!R(0, 0).on && !R(0, 16).on && !A.ui.clr_armed, "the second press in time: cleared");
+    CHECK(!R(0, 0).on && !R(0, 16).on && !A.ui.clr_armed && qd_track_loop(&PAT()->trk[0]) == 1 && pages_full(0, 0),
+          "the second press in time: cleared, the track reset (page 1 only)");
     btap(F1);
     ok = A.ui.undo_kind == QD_UK_CLEAR && R(0, 48).on;
     btap(F1);

@@ -1358,6 +1358,9 @@ int qd_track_clear(qd_pattern_t *p, int t)
         return QD_EARG;
     replace_range(p, t, 0, QD_NSTEP, 0, 0);
     memset(p->step[t], 0, sizeof p->step[t]);
+    qd_track_set_length(p, t, QD_NSTEP);                /* (the owner: a full reset: every page 16 steps, page 1 the
+                                                         * loop; the rate, the sound, the key stay) */
+    p->trk[t].loop = 1;
     return QD_OK;
 }
 

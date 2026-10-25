@@ -14,6 +14,7 @@ its text becomes the release's notes on the install page and on GitHub.
 - **FIZZ Manager: EXPORT** a preset (or all of MY PRESETS) as a FIZZ .fizzsnd, a Digitone .dnsnd, or a Digitone II .dn2pst or .dn2snd. Each format shows a bar of how much of the sound carries over and lists what it drops or changes (LFO 3, CRUSH, AHD as ADSR ..). The Digitone files are marked EXPERIMENTAL until Digitone owners confirm they load.
 - **Saving over a preset from the FIZZ Manager no longer stalls the sound.** Storing over one of MY PRESETS from a page (the Manager's SAVE, a restore of a preset) used to rewrite the other projects' patterns that use it while the FM-1 was making sound; it now does that in the background, a project at a time, and waits while the FM-1 plays (stop it to save over a preset, or save as a new one).
 - **The live-recording keyboard starts on F**, like the FM-1's own keys: the 27 keys drawn are the 27 you play (F3 to G5 at OCT 0), so the key lit is the key you press. The plain keyboard (REC tapped) now starts on F too.
+- **CLEAR TRACK resets the track**: besides its steps and locks, its pages go back to page 1 only, each 16 steps long (as a new track). Its sound and speed stay. (The same for TOOLS' CLEAR on a track or the pattern.)
 ## 0.12.0-beta.3 (2026-10-25)
 
 TOOLS fixed after testing on the FM-1, and a friendlier FIZZ Manager. Updating from beta.2 keeps your projects and presets.

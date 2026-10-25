@@ -440,7 +440,7 @@ int qd_step_clear(qd_pattern_t *p, int t, int s);
 int qd_step_copy(qd_pattern_t *dst, int dt, int ds, const qd_pattern_t *src, int st, int ss);
 int qd_page_clear(qd_pattern_t *p, int t, int page);
 int qd_page_copy(qd_pattern_t *dst, int dt, int dpage, const qd_pattern_t *src, int st, int spage);
-int qd_track_clear(qd_pattern_t *p, int t);   /* steps and locks; the settings stay */
+int qd_track_clear(qd_pattern_t *p, int t);   /* steps, locks, pages (page 1 only, each 16 long); the rest stays */
 int qd_track_copy(qd_pattern_t *dst, int dt, const qd_pattern_t *src, int st);
 /* raw: steps [s, s + n) of track t out (their locks with steps relative to s: lk[] room for QD_NLOCK), and back in
  * (QD_EFULL: nothing changed). clip.c's clipboards and undo are built on these */
