@@ -25,6 +25,7 @@
     <button class="tab" role="tab" id="t-pool" aria-controls="tab-pool" aria-selected="false" style="--c:var(--green)"><i></i>POOL</button>
     <button class="tab" role="tab" id="t-import" aria-controls="tab-import" aria-selected="false" style="--c:var(--violet)"><i></i>IMPORT</button>
   </nav>
+  <button id="refresh" class="icon refresh" aria-label="Read the FM-1 again" title="Read the FM-1 again" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16.5 3.5v3.6h-3.6"/></svg></button>
   <button id="unit" class="unit" data-state="off"><span class="dot"></span><span id="unit-label">CONNECT</span><small id="unit-sub"></small></button>
 </header>
 <p id="say" class="say" role="status"></p>
@@ -47,7 +48,7 @@
       </div>
     </div>
     <div class="card list">
-      <div class="h">BACKUPS <span class="n">on this computer</span></div>
+      <div class="h">BACKUPS <span class="n">in this browser</span><span class="use" id="b-use"></span></div>
       <div class="baks" id="baks"></div>
       <label class="drop" id="drop"><input type="file" id="file" accept=".fizzbak,.fizzlib,.bin" hidden>
         <svg viewBox="0 0 26 26" aria-hidden="true"><path d="M13 4v13M7 11l6 6 6-6M4 21h18"/></svg>.fizzbak · .fizzlib</label>
@@ -55,14 +56,10 @@
   </section>
 
   <section id="tab-library" class="body" role="tabpanel" aria-labelledby="t-library" hidden>
-    <div class="card mine">
-      <div class="h">MY PRESETS <span class="n" id="l-count"></span><button id="l-export-all" class="btn small ghost" style="margin-left:auto" disabled>EXPORT ALL</button></div>
-      <div class="chips" id="l-filter"></div>
-      <div class="cases" id="l-mine"></div>
-    </div>
-    <div class="card fac">
-      <div class="h">FACTORY <span class="n" id="l-fcount"></span></div>
-      <div class="cases" id="l-fac"></div>
+    <div class="card lib">
+      <div class="h">LIBRARY <span class="n" id="l-count"></span><button id="l-export-all" class="btn small ghost" style="margin-left:auto" disabled>EXPORT MY PRESETS</button></div>
+      <div class="filters" id="l-filter"></div>
+      <div class="cases" id="l-list"></div>
     </div>
     <div class="card sel" id="l-sel"></div>
   </section>
@@ -77,7 +74,7 @@
         <button id="p-sort" class="btn small ghost" disabled>SORT BY TAG</button>
         <button id="p-unused" class="btn small ghost" disabled>CLEAR UNUSED</button></div>
     </div>
-    <div class="card pmine"><div class="h">MY PRESETS</div><div class="cases" id="p-mine"></div></div>
+    <div class="card pmine"><div class="h">SOUNDS</div><div class="filters" id="p-filter"></div><div class="cases" id="p-list"></div></div>
   </section>
 
   <section id="tab-import" class="body col" role="tabpanel" aria-labelledby="t-import" hidden>
@@ -118,12 +115,23 @@
       <div>Stop the FM-1 first. Keep the cable in until it is done.</div>
       <label class="sr" for="rs-type">Type RESTORE to go ahead</label>
       <input id="rs-type" class="typed" autocomplete="off" spellcheck="false" placeholder="TYPE RESTORE">
+      <div class="undo cleared">UNDO ON THE FM-1 IS CLEARED</div>
     </div>
     <div class="safe" id="rs-safe"></div>
     <div class="row"><button id="rs-go" class="btn" style="--c:var(--yellow)" disabled>RESTORE</button><button id="rs-cancel" class="btn ghost">CANCEL</button></div>
   </div>
   <div class="fm1" aria-hidden="true"><canvas class="lcd" id="rs-lcd" width="240" height="240"></canvas>
     <div class="keys"><span class="key" id="rs-key">PLAY</span></div></div>
+</div>
+
+<div class="scrim" id="cf" hidden>
+  <div class="modal cf" id="cf-modal" role="alertdialog" aria-labelledby="cf-title" aria-describedby="cf-what">
+    <div class="h" id="cf-title"></div>
+    <div class="big" id="cf-what"></div>
+    <div class="cfsub" id="cf-sub"></div>
+    <div class="undo" id="cf-undo"></div>
+    <div class="row"><button id="cf-go" class="btn">OK</button><button id="cf-no" class="btn ghost">CANCEL</button></div>
+  </div>
 </div>
 
 <details class="logbox" id="logbox"><summary>LOG</summary><pre id="log"></pre></details>

@@ -28,6 +28,7 @@ import { SimFizz } from "../manager/simfizz.js";
 import { findFizz, parseBulk, bulkFrame } from "../manager/fizzlink.js";
 import { makeFizzbak, readBackup, crc32, soundKey } from "../manager/fizzbak.js";
 import { readRegion, layoutOf, LAYOUTS } from "../manager/fizzstore.js";
+import { poolPlaces, shownRows, newFilter } from "../manager/presets.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
 
 const SITE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -267,6 +268,17 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
     const s4 = v4.ok && await l.store(storeFrame(v4.sound));
     check(v4.ok && v4.sound.name === "SYNTH KICK" && v4.sound.blob[2] === 2 && v4.sound.fizzTags.join() === "DRUMS" && /record 4/.test(v4.sound.mark) && s4 && s4.status === 0,
       `IMPORT: a synthetic version-4 .dnsnd (OS 1.42) read (${v4.ok ? `${v4.sound.name}, ${v4.sound.mark}` : v4.error}) and stored`);
+  }
+  {   // the page's lists: the pool's places by preset id (a factory id too: POOL REF takes one), the filters
+    const fac1 = (await l.list({ factory: true })).find((x) => x.source === "factory");
+    const pf = await l.poolRef(0, fac1.id);
+    const all = await l.list({ factory: true, pool: true }), pp = poolPlaces(all);
+    check(pf.status === 0 && (pp.get(fac1.id) || []).includes(pf.a) && !mine(all).some((x) => x.id === fac1.id),
+      `POOL REF of a factory preset (id ${fac1.id}, ${fac1.name}): pool ${pf.a}; its id no MY preset's`);
+    const f = newFilter();
+    const a0 = shownRows(all, f); f.src = "factory"; const a1 = shownRows(all, f); f.src = "mine"; f.tags.add("BASS"); const a2 = shownRows(all, f);
+    check(a0.mine.length === mine(all).length && a0.fac.length > 0 && !a1.mine.length && a1.fac.length === a0.fac.length && !a2.fac.length && a2.mine.every((x) => x.tags & 1),
+      `the lists' filters: ALL ${a0.mine.length} + ${a0.fac.length}, FACTORY ${a1.fac.length}, MY PRESETS + BASS ${a2.mine.length}`);
   }
   {   // an older FIZZ answers a new command 7F 07 <cmd> (BAD COMMAND): read as such (the page says: update FIZZ)
     const e = [0x7F, 0x07, 0x12], f = Uint8Array.from([0xF0, 0x7D, 0x46, 0x5A, 0x01, ...e, (0x80 - (e.reduce((a, b) => a + b) & 0x7F)) & 0x7F, 0xF7]);

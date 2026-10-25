@@ -12,7 +12,8 @@ import { readRegion, layoutOf } from "./fizzstore.js";
 import { parseDump, FIZZ_TAGS } from "../js/fizz_sysex.js";
 import { soundFromStoreFrame, soundToFizzsnd, soundFileName, makeFizzlib, libraryFileName, sameSound } from "../js/library.js";
 import { storeFrame } from "../js/digitone.js";
-import { $, esc, tagsOf, colOf, algo, emptyArt, refusal } from "./ui.js";
+import { $, esc, tagsOf, colOf, algo, emptyArt, refusal, confirmBox } from "./ui.js";
+import { newFilter, filterHtml, filterClick, listHtml, poolPlaces, poolBadge } from "./presets.js";
 import { mountPool } from "./pool.js";
 import { mountImport } from "./importer.js";
 
@@ -22,8 +23,8 @@ const DEPTH = Math.max(1, Math.min(4, +Q.get("depth") || 1)), GAP = Math.max(0, 
 const kb = (n) => `${Math.round(n / 1024)} KB`;
 const mmss = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
-const S = { access: null, link: null, unit: null, busy: false, baks: [], web: { tags: {} }, sel: null, filter: new Set(), abort: null,
-  editing: 0, armed: null, users: new Map() };
+const S = { access: null, link: null, unit: null, busy: false, baks: [], web: { tags: {} }, sel: null, filter: newFilter(), abort: null,
+  editing: 0, users: new Map(), refreshing: false };
 
 // ---------------------------------------------------------------- the log, what the page says
 const logLines = [];
@@ -54,6 +55,26 @@ function download(bytes, name, type = "application/octet-stream") {
   log(`saved ${name} (${bytes.length} B)`);
 }
 
+// a file saved where the user picks (the File System Access API: Chrome, Edge), else an ordinary download.
+// -> the name saved under, or null (cancelled)
+async function saveFile(bytes, name, { what = "FIZZ backup", ext = ".fizzbak" } = {}) {
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const h = await window.showSaveFilePicker({ id: "fizz-backups", suggestedName: name, types: [{ description: what, accept: { "application/octet-stream": [ext] } }] });
+      const w = await h.createWritable();
+      await w.write(bytes);
+      await w.close();
+      log(`saved ${h.name} (${bytes.length} B)`);
+      return h.name;
+    } catch (e) {
+      if (e && e.name === "AbortError") return null;
+      log(`save: ${e && e.message}: as a download instead`);
+    }
+  }
+  download(bytes, name);
+  return name;
+}
+
 // ---------------------------------------------------------------- the backups kept in this browser (IndexedDB)
 const DB = (() => {
   let db = null;
@@ -79,23 +100,36 @@ const DB = (() => {
   return {
     all: () => tx("backups", "readonly", (s) => s.getAll()),
     add: (rec) => tx("backups", "readwrite", (s) => s.add(rec)),
+    set: (rec) => tx("backups", "readwrite", (s) => s.put(rec)),
     del: (id) => tx("backups", "readwrite", (s) => s.delete(id)),
     get: (k) => tx("kv", "readonly", (s) => s.get(k)),
     put: (k, v) => tx("kv", "readwrite", (s) => s.put(v, k)),
   };
 })();
-const KEEP = 16;
+// (a backup is kept here only, until its save button writes it to a file: none is ever dropped by the page; the
+// browser is asked to keep the site's storage, persist(), so it is not evicted under pressure either)
 async function loadBaks() {
   S.baks = ((await DB.all()) || []).sort((a, b) => b.date - a.date);
   S.web = (await DB.get("web")) || { tags: {} };
   renderBaks();
 }
+let persisted = false;
 async function keepBak(rec) {
+  if (!persisted && navigator.storage && navigator.storage.persist) { persisted = true; navigator.storage.persist().then((ok) => log(`storage kept: ${ok}`)).catch(() => {}); }
   const id = await DB.add(rec);
   rec.id = id ?? `mem-${Date.now()}`;
   S.baks.unshift(rec);
-  for (const old of S.baks.splice(KEEP)) if (typeof old.id === "number") await DB.del(old.id);
   renderBaks();
+}
+// saved to a file: the records from before the page kept them here (it downloaded every backup then) count as saved
+const isSaved = (b) => b.saved !== false;
+async function saveBak(b) {
+  const name = await saveFile(b.bytes, b.name);
+  if (!name) return;
+  b.saved = true;
+  if (typeof b.id === "number") await DB.set(b);
+  renderBaks();
+  toast(`Saved ${name}`);
 }
 const saveWeb = () => DB.put("web", S.web);
 
@@ -128,6 +162,8 @@ function renderUnit() {
   $("go-backup").disabled = !on || S.busy || !u.info;
   $("go-presets").disabled = !on || S.busy || !u.version;
   $("l-export-all").disabled = !on || S.busy || !u.dumps;
+  $("refresh").hidden = !on;
+  $("refresh").disabled = S.busy || S.refreshing;
 }
 
 async function connect() {
@@ -279,12 +315,12 @@ async function backup(kind, { safety = false } = {}) {
     const file = makeFizzbak({ kind, image: r.image, crc: r.crc, region: u.info ? [u.info.lo, u.info.size] : null, summary: r.summary,
       presets: r.presets, fizz: u.version || "", unit: { identity: u.id, port: u.port }, web: webFor(r.presets), transfer, date });
     const name = safety ? backupFileName(date, kind).replace("FIZZ backup", "FIZZ before restore") : backupFileName(date, kind);
-    download(file, name);
-    await keepBak({ date: +date, name, kind, safety, fizz: u.version || "", identity: u.id, bytes: file, size: file.length,
+    await keepBak({ date: +date, name, kind, safety, saved: false, fizz: u.version || "", identity: u.id, bytes: file, size: file.length,
       tracks: r.summary ? r.summary.tracks : null, layout: r.summary ? r.summary.layout : null,
       projects: r.summary ? r.summary.projects.map((p) => p.name) : null, presets: r.presets.length });
     if (r.stats) showSpeed(r.stats);
-    if (!safety) toast(`Saved ${name}`);
+    log(`kept ${name} in this browser (${file.length} B)`);
+    if (!safety) toast("Backed up · kept in this browser");
     return { file, ...r };
   } catch (e) {
     log(`backup: ${e.code || ""} ${e.message}`);
@@ -328,18 +364,31 @@ function renderBaks() {
     return `<div class="bk ${b.kind === "presets" ? "presets" : old ? "old" : b.safety ? "safety" : ""}" data-i="${i}">
       <span class="ic">${ICON}</span><div class="txt"><div class="when">${esc(whenText(b.date))}</div><div class="what">${esc(what)}</div></div>
       ${b.fizz ? `<span class="ver ${old ? "old" : ""}">${esc(b.fizz.replace(/-\d+-g[0-9a-f]+$/, ""))}</span>` : ""}
-      <button class="icon" data-act="save" aria-label="Save ${esc(b.name)} again">${SAVE_I}</button>
-      <button class="icon" data-act="del" aria-label="Remove from this list">${DEL_I}</button>
+      <button class="icon ${isSaved(b) ? "saved" : "unsaved"}" data-act="save" aria-label="Save ${esc(b.name)} to a file${isSaved(b) ? " (saved before)" : " (not saved to a file yet)"}" title="${isSaved(b) ? "Save to a file again" : "Save to a file"}">${SAVE_I}</button>
+      <button class="icon" data-act="del" aria-label="Delete from this browser" title="Delete from this browser">${DEL_I}</button>
       <button class="btn small ghost" data-act="restore" ${S.link && !S.busy ? "" : "disabled"}>RESTORE</button></div>`;
   }).join("");
+  renderUse();
+}
+const mb = (n) => (n >= 1073741824 ? `${+(n / 1073741824).toFixed(1)} GB` : n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : kb(n));
+let quota = null;
+function renderUse() {
+  const n = S.baks.length, sum = S.baks.reduce((a, b) => a + (b.size || 0), 0);
+  $("b-use").innerHTML = n ? `${n} · ${mb(sum)}${quota ? `<small>${esc(quota)}</small>` : ""}` : "";
+}
+if (navigator.storage && navigator.storage.estimate) {
+  navigator.storage.estimate().then((e) => { if (e && e.quota) { quota = `of ${mb(e.quota)}`; renderUse(); } }).catch(() => {});
 }
 $("baks").addEventListener("click", async (ev) => {
   const btn = ev.target.closest("button[data-act]");
   if (!btn) return;
   const b = S.baks[+btn.closest(".bk").dataset.i];
   if (!b) return;
-  if (btn.dataset.act === "save") download(b.bytes, b.name);
+  if (btn.dataset.act === "save") saveBak(b);
   else if (btn.dataset.act === "del") {
+    const ok = await confirmBox({ title: "DELETE BACKUP", what: whenText(b.date), go: "DELETE",
+      sub: isSaved(b) ? "From this browser. Its saved file stays." : "<b style='color:var(--yellow)'>Not saved to a file: this is its only copy.</b>" });
+    if (!ok) return;
     if (typeof b.id === "number") await DB.del(b.id);
     S.baks.splice(S.baks.indexOf(b), 1);
     renderBaks();
@@ -355,7 +404,7 @@ async function openFile(bytes, name, rec = null) {
     const m = parsed.manifest || {};
     rec = { date: m.date ? Date.parse(m.date) : Date.now(), name, kind: parsed.image ? "full" : "presets", fizz: m.fizz || "", identity: (m.unit && m.unit.identity) || "",
       bytes, size: bytes.length, tracks: parsed.summary ? parsed.summary.tracks : null, layout: parsed.summary ? parsed.summary.layout : null,
-      projects: parsed.summary ? parsed.summary.projects.map((p) => p.name) : null, presets: parsed.presets.length, file: true };
+      projects: parsed.summary ? parsed.summary.projects.map((p) => p.name) : null, presets: parsed.presets.length, file: true, saved: true };
     await keepBak(rec);
   }
   if (S.link) openRestore(parsed, rec);
@@ -553,6 +602,46 @@ async function refreshRows({ projects = false } = {}) {
   S.users.clear();
   renderUnit(); renderLibrary(); pool.render();
 }
+// REFRESH (the header's button, and the tab coming back into view): everything read again, so presets saved and pool
+// changes made on the unit show here. quick (the focus): only when STATUS says the unit changed (its records committed,
+// MY PRESETS' and the pool's counts, the project): a STATUS when nothing did
+const unitSig = (st) => (st ? [st.written, st.mine, st.pool, st.project, st.projects, st.dirty, st.noStore].join(".") : "");
+async function reread({ quick = false } = {}) {
+  const u = S.unit, link = S.link;
+  if (!u || !link || S.busy || S.refreshing || attaching) return false;
+  if (quick && (S.editing || !u.version)) return false;
+  S.refreshing = true; renderUnit();
+  $("refresh").classList.add("spin");
+  try {
+    if (quick) {
+      const st = await link.status().catch(() => null);
+      if (!st || unitSig(st) === unitSig(u.status)) { if (st) u.status = st; return false; }
+      log("the FM-1 changed: read again");
+    }
+    if (!u.version) u.version = await link.identity();
+    u.info = await link.storeInfo();
+    u.dumps = null;                                    // (MY PRESETS' DUMPs again: names, tags, sounds saved on the unit)
+    pool.forget();
+    await refreshRows({ projects: true });
+    if (S.sel && !u.rows.some((r) => r.source === S.sel.source && r.slot === S.sel.slot)) S.sel = null;
+    if ($("tab-backup").hidden) await loadDumps();
+    return true;
+  } catch (e) { log(`refresh: ${e.code || ""} ${e.message}`); return false; }
+  finally {
+    S.refreshing = false;
+    $("refresh").classList.remove("spin");
+    renderUnit(); renderLibrary(); pool.render(); importer.render();
+  }
+}
+$("refresh").addEventListener("click", async () => { if (await reread()) toast("Read the FM-1 again", "--green"); });
+let focusT = 0;
+function onFocus() {
+  if (document.visibilityState !== "visible" || Date.now() - focusT < 2000) return;
+  focusT = Date.now();
+  reread({ quick: true });
+}
+document.addEventListener("visibilitychange", onFocus);
+window.addEventListener("focus", onFocus);
 // a MY preset's DUMP again (its name, tags or place changed)
 async function redump(slot) {
   const u = S.unit;
@@ -567,31 +656,28 @@ const projectName = (p) => {
 
 // ---------------------------------------------------------------- the library
 const frameOf = (r) => (r.source === "mine" ? S.unit.dumps && S.unit.dumps.get(r.slot) : S.unit.fdumps && S.unit.fdumps[r.slot - 1]);
-function cas(r) {
-  const f = frameOf(r), d = f && parseDump(f), tg = tagsOf(r.tags), c = colOf(r.tags);
-  const on = S.sel && S.sel.source === r.source && S.sel.slot === r.slot;
-  const drag = r.source === "mine" && S.unit.status ? ' draggable="true"' : "";
-  return `<button class="cas" style="--c:${c}" data-src="${r.source}" data-slot="${r.slot}" aria-pressed="${on}"${drag}><span class="stripe"></span><span class="sl">${r.slot}</span>${algo(d ? d.blob[2] : r.slot, c)}` +
-    `<span class="nm">${esc(r.name)}</span><span class="mark">${r.imported ? '<span class="imp" title="imported">↓</span>' : ""}${r.inPool && r.source === "mine" ? '<span class="pl">POOL</span>' : ""}${tg[0] ? `<span class="tag t-${tg[0]}">${tg[0]}</span>` : ""}</span></button>`;
-}
+const places = () => poolPlaces(S.unit ? S.unit.rows : []);
 function renderLibrary() {
   const u = S.unit;
   const rows = u ? u.rows : [];
-  const mine = rows.filter((r) => r.source === "mine"), fac = rows.filter((r) => r.source === "factory");
+  const mine = rows.filter((r) => r.source === "mine");
   $("l-count").textContent = u ? `${mine.length} / 256` : "";
-  $("l-fcount").textContent = u ? fac.length : "";
-  $("l-filter").innerHTML = FIZZ_TAGS.map((t) => `<button class="tag t-${t} ${S.filter.size && !S.filter.has(t) ? "off" : ""}" data-tag="${t}" aria-pressed="${S.filter.has(t)}">${t}</button>`).join("");
-  const shown = mine.filter((r) => !S.filter.size || tagsOf(r.tags).some((t) => S.filter.has(t)));
-  $("l-mine").innerHTML = shown.map(cas).join("") || (u ? "" : `<div class="empty">${emptyArt()}</div>`);
-  $("l-fac").innerHTML = fac.map(cas).join("");
+  $("l-filter").innerHTML = filterHtml(S.filter);
+  const html = u ? listHtml(rows, S.filter, { frameOf, places: places(), on: (r) => S.sel && S.sel.source === r.source && S.sel.slot === r.slot,
+    drag: (r) => r.source === "mine" && !!u.status }) : "";
+  $("l-list").innerHTML = html || (u ? "" : `<div class="empty">${emptyArt()}</div>`);
   renderSel();
 }
 const DOTS = (n) => `<span class="dots">${"●".repeat(Math.min(6, n))}${n > 6 ? "+" : ""}</span>`;
+function usedText(x) {
+  if (!x || !x.projects || !x.projects.length) return "";
+  const steps = x.projects.reduce((a, p) => a + (p.steps || 0), 0);
+  return `Used in ${x.projects.length} project${x.projects.length === 1 ? "" : "s"}${steps ? ` · ${steps} step${steps === 1 ? "" : "s"}` : ""}: those steps go back to their track's sound.`;
+}
 function renderSel() {
   const el = $("l-sel"), u = S.unit;
   const r = S.sel && u && u.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot);
   if (!r) {
-    S.armed = null;
     el.innerHTML = u ? `<div class="empty">${emptyArt()}</div>`
       : `<div class="empty"><div style="display:grid;gap:22px;justify-items:center">${emptyArt()}<button class="btn huge" id="l-connect">CONNECT</button></div></div>`;
     const b = $("l-connect");
@@ -602,9 +688,11 @@ function renderSel() {
   const snd = f && soundFromStoreFrame(f), key = snd && soundKey(snd), web = (key && S.web.tags[key]) || [];
   const can = !!(S.link && !S.busy && u.status), mineSel = r.source === "mine";
   const users = mineSel ? S.users.get(`mine:${r.id}`) : null;
-  const armed = S.armed && S.armed.slot === r.slot && S.armed.source === r.source ? S.armed : null;
+  const pl = places().get(r.id) || [];
   el.innerHTML = `<div class="selhead">${algo(d ? d.blob[2] : r.slot, c)}<div style="min-width:0;flex:1"><div class="h" style="margin:0">${mineSel ? "MY PRESETS" : "FACTORY"} ${r.slot}</div>
-      ${mineSel && can ? `<input class="bigname" id="l-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(r.name)}" aria-label="Name">` : `<div class="big">${esc(r.name)}</div>`}</div></div>
+      ${mineSel && can ? `<input class="bigname" id="l-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(r.name)}" aria-label="Name">` : `<div class="big">${esc(r.name)}</div>`}</div>
+      ${poolBadge(pl, "pbadge big")}</div>
+    <div class="row selpool"><button class="btn pooltog ${pl.length ? "out" : ""}" id="l-pool" ${can && r.id ? "" : "disabled"} aria-pressed="${!!pl.length}">${pl.length ? "− POOL" : "+ POOL"}</button></div>
     <div><div class="h">TAGS</div><div class="row tags" style="flex-wrap:wrap;gap:8px">
       ${FIZZ_TAGS.map((t, k) => `<button class="tag t-${t} ${(r.tags >> k) & 1 ? "" : "off"}" data-dtag="${k}" aria-pressed="${!!((r.tags >> k) & 1)}" ${can ? "" : "disabled"}>${t}</button>`).join("")}
       ${web.map((t) => `<button class="tag web" data-web="${esc(t)}" aria-label="${esc(t)}, remove">${esc(t)}</button>`).join("")}
@@ -613,9 +701,8 @@ function renderSel() {
       : users && users.projects ? (users.projects.length ? users.projects.map((p) => `<span class="uchip">${esc(projectName(p.project))}${p.steps ? DOTS(p.steps) : ""}</span>`).join("") : '<span class="pchip ghost">—</span>') : ""}</div></div>` : ""}
     ${d ? `<div class="row" style="gap:22px;flex-wrap:wrap"><div class="kv"><b>${d.pan > 0 ? "R" + d.pan : d.pan < 0 ? "L" + -d.pan : "C"}</b>pan</div><div class="kv"><b>${d.chorus}</b>chorus</div><div class="kv"><b>${d.delay}</b>delay</div><div class="kv"><b>${d.reverb}</b>reverb</div><div class="kv"><b>${d.drive}</b>drive</div></div>` : ""}
     <div class="row selacts">${r.imported ? '<span class="tag web" style="height:34px;padding:0 12px">↓ IMPORTED</span>' : ""}
-      <button class="btn" id="l-pool" style="--c:var(--green)" ${can && r.id ? "" : "disabled"}>+ POOL</button>
       <button class="btn ghost" id="l-export" ${f ? "" : "disabled"}>EXPORT</button>
-      ${mineSel ? `<button class="btn ${armed ? "danger" : "ghost redline"}" id="l-del" style="margin-left:auto" ${can ? "" : "disabled"}>${armed ? `DELETE? ${armed.projects ? `${armed.projects} ▣` : ""}${armed.steps ? ` ${armed.steps} ●` : ""}` : "DELETE"}</button>` : ""}</div>`;
+      ${mineSel ? `<button class="btn ghost redline" id="l-del" style="margin-left:auto" ${can ? "" : "disabled"}>DELETE</button>` : ""}</div>`;
   if (mineSel && users === undefined && can) {          // (who uses it: a job on the unit, a moment)
     S.users.set(`mine:${r.id}`, null);
     S.link.users("mine", r.slot).then((x) => { S.users.set(`mine:${r.id}`, x && x.projects ? x : null); if (S.sel && S.sel.slot === r.slot) renderSel(); }).catch(() => {});
@@ -674,40 +761,53 @@ function renderSel() {
     if (web.length) j.web = { tags: web };
     download(new TextEncoder().encode(JSON.stringify(j, null, 2) + "\n"), soundFileName(r.name), "application/json");
   });
-  const pl = $("l-pool");
-  if (pl) pl.addEventListener("click", async () => {
-    const x = await edit("+ POOL", (l) => l.poolRef(0, r.id));
-    if (x && x.status === 0) { toast(`${r.name} → POOL ${x.a}`); pool.fizz(x.a); await refreshRows(); }
+  // + POOL: the first free place references it; − POOL: every place that does is cleared (a used one asks first)
+  const tog = $("l-pool");
+  if (tog) tog.addEventListener("click", async () => {
+    if (!pl.length) {
+      const x = await edit("+ POOL", (l) => l.poolRef(0, r.id));
+      if (x && x.status === 0) { toast(`${r.name} → POOL ${x.a}`); pool.fizz(x.a); await refreshRows(); }
+      return;
+    }
+    let n = 0;
+    for (const k of pl) {
+      let x = await edit("− POOL", (l) => l.remove("pool", k));
+      if (x && x.status === 10) {
+        const ok = await confirmBox({ title: `CLEAR POOL ${k}`, what: r.name, go: "CLEAR", color: "--red", undo: "kept",
+          sub: `${x.b || 0} step${x.b === 1 ? "" : "s"} use it: they go back to their track's sound.` });
+        if (!ok) break;
+        x = await edit("− POOL", (l) => l.remove("pool", k, { confirm: true }));
+      }
+      if (x && x.status === 0) n++; else break;
+    }
+    pool.forget();
+    if (n) toast(`${r.name} out of the pool`, "--muted");
+    await refreshRows();
   });
   const del = $("l-del");
   if (del) del.addEventListener("click", async () => {
-    const confirm = !!armed;
-    const x = await edit("DELETE", (l) => l.remove("mine", r.slot, { confirm }));
-    if (x && x.status === 10) { S.armed = { source: r.source, slot: r.slot, projects: x.a, steps: x.b }; renderSel(); return; }
-    S.armed = null;
+    const ok = await confirmBox({ title: `DELETE · MY PRESETS ${r.slot}`, what: r.name, go: "DELETE", undo: "kept",
+      sub: usedText(users) || (pl.length ? `In the pool at ${pl.join(", ")}: it comes out of it.` : "") });
+    if (!ok) return;
+    const x = await edit("DELETE", (l) => l.remove("mine", r.slot, { confirm: true }));
     if (x && x.status === 0) {
       toast(`Deleted ${r.name}`, "--red");
       if (u.dumps) u.dumps.delete(r.slot);
       S.sel = null;
+      pool.forget();
       await refreshRows();
     } else renderSel();
   });
 }
-$("l-filter").addEventListener("click", (ev) => {
-  const b = ev.target.closest("[data-tag]");
-  if (!b) return;
-  if (S.filter.has(b.dataset.tag)) S.filter.delete(b.dataset.tag); else S.filter.add(b.dataset.tag);
-  renderLibrary();
-});
-function pick(ev) {
+$("l-filter").addEventListener("click", (ev) => { if (filterClick(S.filter, ev)) renderLibrary(); });
+const list = $("l-list");
+list.addEventListener("click", (ev) => {
   const b = ev.target.closest(".cas");
   if (!b) return;
-  if (!S.sel || S.sel.source !== b.dataset.src || S.sel.slot !== +b.dataset.slot) S.armed = null;
   S.sel = { source: b.dataset.src, slot: +b.dataset.slot };
   renderLibrary();
-}
-$("l-mine").addEventListener("click", pick);
-$("l-fac").addEventListener("click", pick);
+  if (matchMedia("(max-width: 900px)").matches) $("l-sel").scrollIntoView({ behavior: "smooth", block: "start" });   // (a phone: the panel is below the list)
+});
 // reorder MY PRESETS: a cassette dropped on another swaps their places (the ids go with them: nothing else changes);
 // ALT + up / down moves the selected one a place (into an empty place too)
 async function swapMine(a, b) {
@@ -718,40 +818,41 @@ async function swapMine(a, b) {
   await redump(b);
   if (S.sel && S.sel.source === "mine") S.sel.slot = S.sel.slot === a ? b : S.sel.slot === b ? a : S.sel.slot;
   await refreshRows();
-  for (const s of [a, b]) { const el = $("l-mine").querySelector(`.cas[data-slot="${s}"]`); if (el) el.classList.add("moved"); }   // (slid in)
+  for (const s of [a, b]) { const el = list.querySelector(`.cas[data-src="mine"][data-slot="${s}"]`); if (el) el.classList.add("moved"); }   // (slid in)
 }
+const mineCas = (ev) => { const b = ev.target.closest(".cas"); return b && b.dataset.src === "mine" ? b : null; };
 let dragSlot = 0;
-$("l-mine").addEventListener("dragstart", (ev) => {
-  const b = ev.target.closest(".cas");
+list.addEventListener("dragstart", (ev) => {
+  const b = mineCas(ev);
   if (!b) return;
   dragSlot = +b.dataset.slot;
   ev.dataTransfer.effectAllowed = "move";
-  ev.dataTransfer.setData("application/x-fizz-preset", JSON.stringify({ slot: dragSlot, id: (S.unit.rows.find((r) => r.source === "mine" && r.slot === dragSlot) || {}).id }));
+  ev.dataTransfer.setData("application/x-fizz-preset", JSON.stringify({ slot: dragSlot, id: +b.dataset.id }));
   b.classList.add("lift");
 });
-$("l-mine").addEventListener("dragend", (ev) => { const b = ev.target.closest(".cas"); if (b) b.classList.remove("lift"); dragSlot = 0; });
-$("l-mine").addEventListener("dragover", (ev) => {
-  const b = ev.target.closest(".cas");
+list.addEventListener("dragend", (ev) => { const b = ev.target.closest(".cas"); if (b) b.classList.remove("lift"); dragSlot = 0; });
+list.addEventListener("dragover", (ev) => {
+  const b = mineCas(ev);
   if (!dragSlot || !b) return;
   ev.preventDefault();
-  $("l-mine").querySelectorAll(".cas.target").forEach((x) => x !== b && x.classList.remove("target"));
+  list.querySelectorAll(".cas.target").forEach((x) => x !== b && x.classList.remove("target"));
   b.classList.toggle("target", +b.dataset.slot !== dragSlot);
 });
-$("l-mine").addEventListener("dragleave", (ev) => { const b = ev.target.closest(".cas"); if (b) b.classList.remove("target"); });
-$("l-mine").addEventListener("drop", (ev) => {
-  const b = ev.target.closest(".cas");
+list.addEventListener("dragleave", (ev) => { const b = ev.target.closest(".cas"); if (b) b.classList.remove("target"); });
+list.addEventListener("drop", (ev) => {
+  const b = mineCas(ev);
   if (!dragSlot || !b) return;
   ev.preventDefault();
   b.classList.remove("target");
   swapMine(dragSlot, +b.dataset.slot);
 });
-$("l-mine").addEventListener("keydown", (ev) => {
-  const b = ev.target.closest(".cas");
+list.addEventListener("keydown", (ev) => {
+  const b = mineCas(ev);
   if (!b || !ev.altKey || (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") || !S.unit || !S.unit.status) return;
   ev.preventDefault();
   const a = +b.dataset.slot;
   S.sel = { source: "mine", slot: a };
-  swapMine(a, a + (ev.key === "ArrowUp" ? -1 : 1)).then(() => { const n = $("l-mine").querySelector(`.cas[data-slot="${S.sel.slot}"]`); if (n) n.focus(); });
+  swapMine(a, a + (ev.key === "ArrowUp" ? -1 : 1)).then(() => { const n = list.querySelector(`.cas[data-src="mine"][data-slot="${S.sel.slot}"]`); if (n) n.focus(); });
 });
 let dumping = false;
 async function loadDumps() {

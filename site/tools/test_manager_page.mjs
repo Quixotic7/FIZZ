@@ -4,10 +4,18 @@
 // Web MIDI mangles SysEx, so the unit is never reached from here):
 //   - every tab at 1280 x 800 and 390 x 844: no console error, no horizontal scroll; the screenshots beside the
 //     mock-ups' (mockups/png/fizz-web-manager-0N-*.png) for the eye;
-//   - LIBRARY: a tag toggled, a preset renamed, moved (dropped on another place), + POOL, DELETE (once, then again
-//     when it is used); the STATUS numbers on BACKUP without a backup;
-//   - POOL: a MY preset picked and put on an empty place, CLEAR;
-//   - IMPORT: two synthetic Digitone II files (never real presets) read, one refused (not FM TONE), sent.
+//   - BACKUP: the STATUS numbers without a backup; BACK UP keeps the backup in this browser (no download), its save
+//     button writes it to a file (showSaveFilePicker, stubbed here), DELETE asks first; a stored backup and a dropped
+//     file open the restore;
+//   - REFRESH: a preset saved on the unit shows after the header's button, and after the tab comes back (focus);
+//   - LIBRARY: one list, the filters ALL / FACTORY / MY PRESETS and the tags; a tag toggled, a preset renamed, moved,
+//     + POOL then − POOL (the pool's badge with its place), DELETE (a confirm, then gone);
+//   - POOL: the sounds beside with the same filters, a MY preset and a factory one put on empty places, a swap (its
+//     confirm says the undo is cleared), CLEAR (a confirm), SORT BY TAG cancelled;
+//   - IMPORT: synthetic Digitone files (never real presets): two Digitone II read, one refused (not FM TONE), a
+//     Digitone 1 version-4 sound (OS 1.42) read, sent.
+// Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
+// cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
 // (a static server on the site folder: python3 -m http.server 8765 --bind 127.0.0.1, from site/)
 import fs from "node:fs";
@@ -16,11 +24,12 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
+import { dnsndV4 } from "./dnsnd_fixture.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, "../.build/test");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
-const URL0 = new URL("manager/?sim", arg("--url", "http://127.0.0.1:8765/")).href;
+const URL0 = new URL(`manager/?sim&v=${Date.now()}`, arg("--url", "http://127.0.0.1:8765/")).href;
 const CHROMIUM = arg("--chromium", "/Applications/Chromium.app/Contents/MacOS/Chromium");
 const PORT = 9700 + Math.floor(Math.random() * 200);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -77,6 +86,7 @@ const idle = () => waitFor("window.__mgr && !__mgr.S.editing && !__mgr.S.busy", 
 try {
   await connect();
   await send("Page.enable"); await send("Runtime.enable"); await send("Log.enable");
+  await send("Network.enable"); await send("Network.setCacheDisabled", { cacheDisabled: true });
   await size(1280, 800);
   await send("Page.navigate", { url: URL0 });
   const up = await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 30000);
@@ -85,16 +95,76 @@ try {
   await sleep(400);
   const nums = await evaluate("[$('u-prj'), $('u-pre'), $('u-use')].map((e) => e.textContent)".replace(/\$\(/g, "document.getElementById("));
   check(nums[0] === "1" && +nums[1] > 0 && /%$/.test(nums[2]), `BACKUP: projects ${nums[0]}, my presets ${nums[1]}, store used ${nums[2]} (STATUS, no backup taken)`);
+  // BACKUP: kept in this browser, no download; saved to a file by its button; DELETE asks
+  await evaluate(`(() => { window.__dl = 0; const o = URL.createObjectURL; URL.createObjectURL = (b) => { window.__dl++; return o(b); };
+    window.__saved = []; window.showSaveFilePicker = async (opt) => ({ name: opt.suggestedName, createWritable: async () => { const parts = [];
+      return { write: async (x) => parts.push(x), close: async () => window.__saved.push({ name: opt.suggestedName, bytes: parts.reduce((a, p) => a + p.length, 0) }) }; } }); })()`);
+  const nb0 = await evaluate("__mgr.S.baks.length");
+  await click("#go-backup");
+  await waitFor(`__mgr.S.baks.length === ${nb0 + 1} && !__mgr.S.busy`, 60000);
+  const bk = await evaluate("({ dl: window.__dl, saved: __mgr.S.baks[0].saved, size: __mgr.S.baks[0].size, use: document.getElementById('b-use').textContent, unsaved: !!document.querySelector('#baks .bk .icon.unsaved') })");
+  check(bk.dl === 0 && bk.saved === false && bk.size > 0 && bk.unsaved && /1 · /.test(bk.use), `BACK UP: kept in this browser, nothing downloaded (${bk.size} B; "${bk.use}")`);
+  await sleep(300);
   await shot("manager-01-backup.png");
+  await click("#baks .bk [data-act='save']");
+  await waitFor("window.__saved.length === 1 && __mgr.S.baks[0].saved === true");
+  const sv = await evaluate("({ s: window.__saved[0], icon: !!document.querySelector('#baks .bk .icon.saved') })");
+  check(sv.s && /\.fizzbak$/.test(sv.s.name) && sv.s.bytes === bk.size && sv.icon, `BACKUP: its save button wrote ${sv.s && sv.s.name} (${sv.s && sv.s.bytes} B) to the folder picked; marked saved`);
+  // a dropped file (here: the same bytes) is kept too, and a stored one opens the restore
+  await evaluate("(async () => { const b = __mgr.S.baks[0]; await __mgr.openFile(b.bytes.slice(), 'DROPPED.fizzbak'); })()");
+  await waitFor(`__mgr.S.baks.length === ${nb0 + 2}`);
+  check(await evaluate("__mgr.S.baks.some((b) => b.name === 'DROPPED.fizzbak' && b.saved === true)"), "BACKUP: a dropped .fizzbak kept in the list (a file already)");
+  await waitFor("!document.getElementById('rs').hidden && document.getElementById('rs-go').textContent === 'RESTORE'", 60000);
+  await waitFor("document.getElementById('rs-safe').textContent.includes('saved first')", 60000);
+  check(await evaluate("!document.getElementById('rs').hidden && !!document.querySelector('#rs-warn .undo.cleared')"), "RESTORE: opened from the dropped file, the FM-1 saved first, \"UNDO ON THE FM-1 IS CLEARED\" shown");
+  await shot("manager-02-restore.png");
+  await click("#rs-cancel");
+  await idle();
+  const nb1 = await evaluate("__mgr.S.baks.length");
+  await click("#baks .bk [data-act='del']");
+  await waitFor("!document.getElementById('cf').hidden");
+  const cf = await evaluate("document.getElementById('cf-title').textContent");
+  await click("#cf-no");
+  check(cf === "DELETE BACKUP" && (await evaluate("__mgr.S.baks.length")) === nb1, "BACKUP: DELETE asks first; CANCEL keeps it");
+  await click("#baks .bk [data-act='del']");
+  await waitFor("!document.getElementById('cf').hidden");
+  await click("#cf-go");
+  await waitFor(`__mgr.S.baks.length === ${nb1 - 1}`);
+  check((await evaluate("__mgr.S.baks.length")) === nb1 - 1, "BACKUP: DELETE confirmed: gone from the list");
 
-  // LIBRARY
+  // REFRESH: a preset saved on the unit (straight into the simulated FIZZ) shows after the button, then after a focus
+  const saveOnUnit = (name) => evaluate(`(async () => { const { storeSound } = await import('../js/fizz_sysex.js'); const b = new Uint8Array(96); b[0] = 0x51; b[1] = 5; b[2] = 6;
+    window.__sim.engine.midiIn(storeSound({ name: ${JSON.stringify(name)}, blob: b, tags: 1 })); })()`);
+  await saveOnUnit("ON THE UNIT");
+  await sleep(600);
+  check(await evaluate("!document.getElementById('refresh').hidden && !__mgr.S.unit.rows.some((r) => r.name === 'ON THE UNIT')"), "REFRESH: the button shown; a preset saved on the unit not listed yet");
+  await click("#refresh");
+  await waitFor("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'ON THE UNIT') && !__mgr.S.refreshing");
+  check(await evaluate("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'ON THE UNIT')"), "REFRESH: pressed: the unit's new preset listed");
+  await saveOnUnit("FOCUS TEST");
+  await sleep(2500);                                   // (FIZZ's autosave: its STATUS changes; the focus refresh is 2 s apart)
+  await evaluate("window.dispatchEvent(new Event('focus'))");
+  await waitFor("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'FOCUS TEST')", 10000);
+  check(await evaluate("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'FOCUS TEST')"), "REFRESH: the tab focused again: read again by itself (STATUS changed)");
+  await idle();
+
+  // LIBRARY: one list and its filters
+  const MINE = (s) => `#l-list .cas[data-src='mine'][data-slot='${s}']`;
   await click("#t-library");
-  await waitFor("__mgr.S.unit.dumps && document.querySelectorAll('#l-mine .cas').length > 0");
-  await click("#l-mine .cas[data-slot='2']");
+  await waitFor("__mgr.S.unit.dumps && document.querySelectorAll('#l-list .cas').length > 0");
+  const counts = async () => evaluate("({ m: document.querySelectorAll('#l-list .cas[data-src=mine]').length, f: document.querySelectorAll('#l-list .cas[data-src=factory]').length, g: document.querySelectorAll('#l-list .grp').length })");
+  const c0 = await counts();
+  await click("#l-filter [data-src='factory']"); const c1 = await counts();
+  await click("#l-filter [data-src='mine']"); const c2 = await counts();
+  await click("#l-filter [data-src='all']");
+  check(c0.m > 0 && c0.f > 0 && c0.g === 2 && !c1.m && c1.f === c0.f && c2.m === c0.m && !c2.f, `LIBRARY: one list, ALL ${c0.m} + ${c0.f}, FACTORY ${c1.f}, MY PRESETS ${c2.m}`);
+  await click("#l-filter [data-tag='BASS']");
+  const cb = await evaluate("[...document.querySelectorAll('#l-list .cas')].every((e) => e.querySelector('.tag.t-BASS'))");
+  await click("#l-filter [data-tag='BASS']");
+  check(cb, "LIBRARY: the BASS tag filter shows only BASS sounds");
+  await click(MINE(2));
   await waitFor("document.querySelector('#l-users .uchip, #l-users .pchip')");
   await idle();
-  await shot("manager-03-library.png");
-  check(await noScroll(), "LIBRARY at 1280: no horizontal scroll");
   const tag0 = await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.slot === 2).tags");
   await click("#l-sel [data-dtag='6']");
   await idle();
@@ -105,54 +175,106 @@ try {
   await idle();
   check(await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.slot === 2).name === 'BELL TOWER'"), "LIBRARY: renamed in place (RENAME): BELL TOWER");
   // a move: the drop handler's own call (HTML5 drag events are not synthesised headless)
-  await evaluate("(async () => { const ev = new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true }); document.querySelector(\"#l-mine .cas[data-slot='2']\").dispatchEvent(ev); })()");
+  await evaluate(`(async () => { const ev = new KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true }); document.querySelector("${MINE(2)}").dispatchEvent(ev); })()`);
   await waitFor("__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.name === 'BELL TOWER').slot === 3");
   await idle();
   check(await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.name === 'BELL TOWER').slot === 3"), "LIBRARY: ALT + down moved it a place (SWAP)");
+  const bellId = await evaluate("__mgr.S.unit.rows.find((x) => x.source === 'mine' && x.name === 'BELL TOWER').id");
+  const inPool = () => evaluate(`__mgr.S.unit.rows.filter((x) => x.source === 'pool' && x.id === ${bellId}).map((x) => x.slot)`);
+  const p0 = await inPool();
+  if (p0.length) { await click("#l-pool"); await idle(); }          // (the demo's pool may hold it: out first)
+  check(!(await inPool()).length && (await evaluate("document.getElementById('l-pool').textContent")) === "+ POOL", "LIBRARY: not in the pool: the big + POOL");
   await click("#l-pool");
   await idle();
-  const inPool = await evaluate("(() => { const r = __mgr.S.unit.rows.find((x) => x.source === 'mine' && x.name === 'BELL TOWER'); return __mgr.S.unit.rows.some((x) => x.source === 'pool' && x.id === r.id); })()");
-  check(inPool, "LIBRARY: + POOL: the pool references it");
-  await click("#l-del");
+  const p1 = await inPool();
+  const mark = await evaluate(`(() => { const c = document.querySelector("${MINE(3)}"); const b = c && c.querySelector('.pbadge'); return { ring: !!(c && c.classList.contains('inpool')), badge: b ? b.textContent : '', tog: document.getElementById('l-pool').textContent, big: (document.querySelector('#l-sel .pbadge.big') || {}).textContent || '' }; })()`);
+  check(p1.length === 1 && mark.ring && mark.badge === String(p1[0]) && mark.tog === "− POOL" && mark.big === String(p1[0]),
+    `LIBRARY: + POOL: pool ${p1[0]}; the list's ring and badge "${mark.badge}", the panel's badge, the button now − POOL`);
+  await shot("manager-03-library.png");
+  check(await noScroll(), "LIBRARY at 1280: no horizontal scroll");
+  await click("#l-pool");
   await idle();
-  const armed = await evaluate("!!__mgr.S.armed && document.getElementById('l-del').textContent");
-  check(armed && /DELETE\?/.test(armed), `LIBRARY: DELETE of a used preset asks again: "${armed}"`);
-  await click("#l-del");
+  check(!(await inPool()).length && !(await evaluate(`!!document.querySelector("${MINE(3)} .pbadge")`)), "LIBRARY: − POOL: out of the pool, the badge gone");
+  await click("#l-pool");                                // (in again: DELETE then says it is used)
   await idle();
-  check(await evaluate("!__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'BELL TOWER')"), "LIBRARY: DELETE pressed again: gone");
+  await click("#l-del");
+  await waitFor("!document.getElementById('cf').hidden");
+  const cfd = await evaluate("({ t: document.getElementById('cf-title').textContent, w: document.getElementById('cf-what').textContent, u: document.getElementById('cf-undo').textContent })");
+  check(/^DELETE/.test(cfd.t) && cfd.w === "BELL TOWER" && /SHIFT \+ F1/.test(cfd.u), `LIBRARY: DELETE asks once: "${cfd.t}" ${cfd.w} · ${cfd.u}`);
+  await shot("manager-06-confirm.png");
+  await click("#cf-go");
+  await waitFor("!__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'BELL TOWER')");
+  await idle();
+  check(await evaluate("!__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'BELL TOWER')"), "LIBRARY: DELETE confirmed: gone");
 
   // POOL
   await click("#t-pool");
   await waitFor("document.querySelectorAll('#p-grid .ps').length === 128");
   await idle();
   await sleep(800);
-  await shot("manager-04-pool.png");
-  check(await noScroll(), "POOL at 1280: no horizontal scroll");
-  const free = await evaluate("[...document.querySelectorAll('#p-grid .ps:not(.full)')].map((e) => +e.dataset.k)[0]");
-  await click("#p-mine .cas");
+  const pc = await evaluate("({ m: document.querySelectorAll('#p-list .cas[data-src=mine]').length, f: document.querySelectorAll('#p-list .cas[data-src=factory]').length, seg: document.querySelectorAll('#p-filter [data-src]').length, tags: document.querySelectorAll('#p-filter [data-tag]').length })");
+  check(pc.m > 0 && pc.f > 0 && pc.seg === 3 && pc.tags === 7, `POOL: the sounds beside with LIBRARY's filters (${pc.m} mine + ${pc.f} factory)`);
+  const freeK = () => evaluate("[...document.querySelectorAll('#p-grid .ps:not(.full)')].map((e) => +e.dataset.k)[0]");
+  const free = await freeK();
+  await click("#p-list .cas[data-src='mine']");
   await click(`#p-grid .ps[data-k='${free}']`);
   await idle();
   check(await evaluate(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${free})`), `POOL: a MY preset picked, then put on place ${free} (POOL REF)`);
+  await click("#p-filter [data-src='factory']");
+  const free2 = await freeK();
+  const facId = await evaluate("+document.querySelector('#p-list .cas[data-src=factory]').dataset.id");
+  await click("#p-list .cas[data-src='factory']");
+  const here = await evaluate("document.querySelectorAll('#p-grid .ps.here').length");
+  await click(`#p-grid .ps[data-k='${free2}']`);
+  await idle();
+  check(await evaluate(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${free2} && r.id === ${facId})`), `POOL: a factory preset put on place ${free2} (POOL REF takes factory ids)`);
+  await click("#p-filter [data-src='all']");
+  await click(`#p-list .cas[data-id='${facId}']`);
+  check((await evaluate("document.querySelectorAll('#p-grid .ps.here').length")) === here + 1 && (await evaluate(`!!document.querySelector("#p-list .cas[data-id='${facId}'].inpool .pbadge")`)),
+    "POOL: a picked sound's places ringed in the grid; the list's badge as in LIBRARY");
+  await click(`#p-list .cas[data-id='${facId}']`);
+  await shot("manager-04-pool.png");
+  check(await noScroll(), "POOL at 1280: no horizontal scroll");
+  // a swap (ALT + right onto the next place): it asks, saying the undo is cleared
+  await evaluate(`document.querySelector("#p-grid .ps[data-k='${free2}']").dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true }))`);
+  await waitFor("!document.getElementById('cf').hidden");
+  const cfs = await evaluate("({ t: document.getElementById('cf-title').textContent, u: document.getElementById('cf-undo').textContent })");
+  await click("#cf-go");
+  await waitFor(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${free2 + 1} && r.id === ${facId})`, 20000);
+  await idle();
+  check(/^(SWAP|MOVE) POOL/.test(cfs.t) && cfs.u === "UNDO ON THE FM-1 IS CLEARED" && await evaluate(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${free2 + 1} && r.id === ${facId})`),
+    `POOL: ALT + right: "${cfs.t}" · ${cfs.u}; confirmed: moved to ${free2 + 1}`);
+  // SORT BY TAG asks; cancelled: nothing moves
+  const before0 = await evaluate("JSON.stringify(__mgr.S.unit.rows.filter((r) => r.source === 'pool').map((r) => [r.slot, r.id]))");
+  await click("#p-sort");
+  const sortAsk = await waitFor("!document.getElementById('cf').hidden && document.getElementById('cf-title').textContent === 'SORT BY TAG'", 3000);
+  if (sortAsk) await click("#cf-no");
+  await sleep(300);
+  check((!sortAsk && (await evaluate("document.getElementById('toast').textContent")) === "Sorted already") ||
+    (sortAsk && before0 === await evaluate("JSON.stringify(__mgr.S.unit.rows.filter((r) => r.source === 'pool').map((r) => [r.slot, r.id]))")), `POOL: SORT BY TAG asks first; cancelled: nothing moved`);
   await click(`#p-grid .ps[data-k='${free}']`);
   await click("#p-clear");
+  await waitFor("!document.getElementById('cf').hidden");
+  check(await evaluate("document.getElementById('cf-title').textContent.startsWith('CLEAR POOL')"), "POOL: CLEAR asks first");
+  await click("#cf-go");
   await idle();
-  check(await evaluate(`!__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${free})`), `POOL: CLEAR took it out again (${free})`);
+  check(await evaluate(`!__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${free})`), `POOL: CLEAR confirmed: place ${free} empty again`);
 
-  // IMPORT: synthetic Digitone II files
+  // IMPORT: synthetic Digitone files
   await click("#t-import");
   const a = dn2pstZip(wrapDn2Record(dn2RecordFromParams({ algo: 2 }, { name: "SYNTH BASS", tagBits: (1 << 10) | (1 << 24) })), { FormatVersion: 1, ProductType: ["24", "38"], Payload: "SYNTH BASS.dn2snd", FileType: "Sound", FirmwareVersion: "1.10D", MetaInfo: { Tags: ["BASS", "DARK"] } });
   const b = wrapDn2Record(dn2RecordFromParams({}, { name: "SYNTH PAD" }));
   const w = dn2RecordFromParams({}, { name: "WAVE TEST" }); w[244] = 1;
-  const files = [["SYNTH BASS.dn2pst", a], ["SYNTH PAD.dn2snd", b], ["WAVE TEST.dn2snd", wrapDn2Record(w)]].map(([n, x]) => ({ n, b64: Buffer.from(x).toString("base64") }));
+  const files = [["SYNTH BASS.dn2pst", a], ["SYNTH PAD.dn2snd", b], ["WAVE TEST.dn2snd", wrapDn2Record(w)], ["SYNTH KICK.dnsnd", dnsndV4()]].map(([n, x]) => ({ n, b64: Buffer.from(x).toString("base64") }));
   await evaluate(`__mgr.importer.add(${JSON.stringify(files)}.map((f) => new File([Uint8Array.from(atob(f.b64), (c) => c.charCodeAt(0))], f.n)))`);
-  await waitFor("document.querySelectorAll('#i-rows .ir').length === 3");
+  await waitFor("document.querySelectorAll('#i-rows .ir').length === 4");
   await shot("manager-05-import.png");
-  check(await evaluate("document.querySelectorAll('#i-rows .ir.no').length === 1 && document.getElementById('i-send').textContent.includes('2')"), "IMPORT: three files, the WAVETONE one greyed, SEND 2");
+  check(await evaluate("document.querySelectorAll('#i-rows .ir.no').length === 1 && document.getElementById('i-send').textContent.includes('3')"), "IMPORT: four files, the WAVETONE one greyed, the version-4 Digitone 1 sound read: SEND 3");
   const before = await evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine').length");
   await click("#i-send");
-  await waitFor(`__mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${before + 2}`, 20000);
+  await waitFor(`__mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${before + 3}`, 20000);
   await idle();
-  check(await evaluate("['SYNTH BASS', 'SYNTH PAD'].every((n) => __mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === n))"), "IMPORT: sent: both in MY PRESETS");
+  check(await evaluate("['SYNTH BASS', 'SYNTH PAD', 'SYNTH KICK'].every((n) => __mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === n))"), "IMPORT: sent: all three in MY PRESETS");
   check(await evaluate("Object.values(__mgr.S.web.tags).some((t) => t.includes('DARK'))"), "IMPORT: the Digitone tag FIZZ has no tag for (DARK) kept as a web tag");
   check(await noScroll(), "IMPORT at 1280: no horizontal scroll");
 

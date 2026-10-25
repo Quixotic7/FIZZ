@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The manager's POOL tab (docs/WEB-MANAGER-PLAN.md §8 shot 4): the project's 128 pool places as tiles (16 x 8, the
-// keybed's rows), each the preset it references in its tag's colour, dots for the steps that lock it. MY PRESETS
-// beside: one dropped (or picked, then a tile clicked) onto a place references it there (POOL REF: no copy); a tile
-// dropped onto another swaps the two numbers in every pattern (SWAP: a job on the unit, stopped only); CLEAR takes a
-// sound out (its steps go back to their track's sound, as on the panel; used ones ask once more). The project picker
-// loads another project on the unit (a second press: LOAD?). SORT BY TAG and CLEAR UNUSED are runs of the same
-// commands. Each change is one undo level on the unit (SHIFT + F1), the pool's swaps excepted (they forget the levels).
-import { FIZZ_TAGS, parseDump } from "../js/fizz_sysex.js";
-import { esc, tagsOf, colOf, algo, DARK_TEXT_TAGS, refusal } from "./ui.js";
+// keybed's rows), each the preset it references in its tag's colour, dots for the steps that lock it. The sounds
+// beside (MY PRESETS and the factory's, LIBRARY's filters; FIZZ's POOL REF takes a factory id as well as a MY
+// preset's): one dropped (or picked, then a tile clicked) onto a place references it there (no copy); a picked one's
+// places ringed. A tile dropped onto another swaps the two numbers in every pattern (SWAP: a job on the unit, stopped
+// only); CLEAR takes a sound out (its steps go back to their track's sound, as on the panel). The project picker loads
+// another project on the unit. SORT BY TAG and CLEAR UNUSED are runs of the same commands. Each destructive or slow
+// one asks once (ui.js confirmBox), saying what it does to the unit's undo: each change is one undo level (SHIFT +
+// F1), the pool's swaps and a project load excepted (they forget the levels).
+import { FIZZ_TAGS } from "../js/fizz_sysex.js";
+import { esc, tagsOf, colOf, DARK_TEXT_TAGS, refusal, confirmBox } from "./ui.js";
+import { newFilter, filterHtml, filterClick, listHtml, poolPlaces } from "./presets.js";
 
 export function mountPool(ctx) {
   const { S, $, say, toast, edit, refreshRows, frameOf, projectName } = ctx;
-  const P = { sel: 0, pick: null, armed: null, armProj: 0, users: new Map(), gen: 0, filling: false, run: false, fizz: new Map(), dragFrom: null };
-  const grid = $("p-grid"), mine = $("p-mine"), proj = $("p-proj");
+  const P = { sel: 0, pick: null, users: new Map(), gen: 0, filling: false, run: false, fizz: new Map(), dragFrom: null, filter: newFilter() };
+  const grid = $("p-grid"), mine = $("p-list"), proj = $("p-proj");
   const rows = () => (S.unit ? S.unit.rows : []);
   const pool = () => new Map(rows().filter((r) => r.source === "pool").map((r) => [r.slot, r]));
   const can = () => !!(S.link && !S.busy && S.unit && S.unit.status && !P.run);
@@ -22,6 +25,7 @@ export function mountPool(ctx) {
     const u = P.users.get(k), cls = ["ps"];
     if (P.sel === k) cls.push("sel");
     if (P.fizz.has(k)) cls.push("fizz");
+    if (e && P.pick && e.id === P.pick) cls.push("here");
     if (!e) return `<button class="${cls.join(" ")}" data-k="${k}" aria-label="Pool ${k}, empty"><span class="no">${k}</span></button>`;
     const t = tagsOf(e.tags)[0];
     cls.push("full");
@@ -33,27 +37,24 @@ export function mountPool(ctx) {
     const u = S.unit, pm = pool(), st = u && u.status;
     $("p-count").textContent = u ? `${pm.size} / 128` : "";
     const list = u && u.projects ? u.projects.list.filter((p) => p.there) : [];
-    proj.innerHTML = list.map((p) => `<button class="${p.current ? "on" : ""} ${P.armProj === p.slot ? "arm" : ""}" data-p="${p.slot}" ${can() || p.current ? "" : "disabled"}>${P.armProj === p.slot ? "LOAD?" : esc(p.name || `PROJECT ${p.slot}`)}</button>`).join("");
+    proj.innerHTML = list.map((p) => `<button class="${p.current ? "on" : ""}" data-p="${p.slot}" ${can() || p.current ? "" : "disabled"}>${esc(p.name || `PROJECT ${p.slot}`)}</button>`).join("");
     let html = "";
     for (let k = 1; k <= 128; k++) html += tile(k, pm.get(k));
     grid.innerHTML = html;
     grid.classList.toggle("off", !st);
-    const ms = rows().filter((r) => r.source === "mine");
-    mine.innerHTML = ms.map((r) => {
-      const f = frameOf(r), d = f && parseDump(f), c = colOf(r.tags), tg = tagsOf(r.tags)[0];
-      return `<button class="cas" style="--c:${c}" data-slot="${r.slot}" data-id="${r.id}" draggable="${can()}" aria-pressed="${P.pick === r.id}"><span class="stripe"></span><span class="sl">${r.slot}</span>${algo(d ? d.blob[2] : r.slot, c)}` +
-        `<span class="nm">${esc(r.name)}</span><span class="mark">${r.inPool ? '<span class="pl">POOL</span>' : ""}${tg ? `<span class="tag t-${tg}">${tg}</span>` : ""}</span></button>`;
-    }).join("");
+    $("p-filter").innerHTML = filterHtml(P.filter);
+    const rs = rows();
+    mine.innerHTML = u ? listHtml(rs, P.filter, { frameOf, places: poolPlaces(rs), on: (r) => P.pick === r.id, drag: () => can() }) : "";
     renderBar();
     if (shown()) fill();
   }
   function renderBar() {
-    const e = P.sel && pool().get(P.sel), u = e && P.users.get(P.sel), armed = !!(e && P.armed === P.sel);
+    const e = P.sel && pool().get(P.sel), u = e && P.users.get(P.sel);
     $("p-selname").innerHTML = e ? `<b>${P.sel}</b> ${esc(e.name)}${u ? ` <span class="dots">${"●".repeat(Math.min(6, u.steps))}</span>` : ""}` : "";
     $("p-clear").hidden = !e;
     $("p-clear").disabled = !can();
-    $("p-clear").className = `btn small ${armed ? "danger" : "ghost redline"}`;
-    $("p-clear").textContent = armed ? `CLEAR?${u && u.steps ? ` ${u.steps} ●` : ""}` : "CLEAR";
+    $("p-clear").className = "btn small ghost redline";
+    $("p-clear").textContent = "CLEAR";
     $("p-sort").disabled = $("p-unused").disabled = !can() || !pool().size;
   }
   // the steps using each sound: USERS, one after another in the background (a job each on the unit, a moment)
@@ -76,7 +77,7 @@ export function mountPool(ctx) {
       }
     } catch (_) { /* (the next render tries again) */ } finally { P.filling = false; }
   }
-  function forget() { P.gen++; P.users.clear(); P.armed = null; }
+  function forget() { P.gen++; P.users.clear(); }
   async function after(x, msg) {
     forget();
     await refreshRows();
@@ -95,7 +96,11 @@ export function mountPool(ctx) {
     if (x && x.status === 0) bubble(x.a);
   }
   async function swap(a, b) {
-    if (a === b) return;
+    if (a === b) return null;
+    const pm = pool(), ea = pm.get(a), eb = pm.get(b);
+    const ok = await confirmBox({ title: eb ? `SWAP POOL ${a} ↔ ${b}` : `MOVE POOL ${a} → ${b}`, what: eb ? `${ea ? ea.name : "—"} ↔ ${eb.name}` : ea ? ea.name : "",
+      sub: "Every pattern's steps follow (the FM-1 stopped).", go: eb ? "SWAP" : "MOVE", color: "--yellow", undo: "cleared" });
+    if (!ok) return null;
     say("");
     const x = await edit("SWAP", (l) => l.swap("pool", a, b));
     if (x && x.status === 0) { P.sel = b; }
@@ -109,7 +114,6 @@ export function mountPool(ctx) {
     if (!b || !can()) return;
     const k = +b.dataset.k;
     if (P.pick) { place(k, P.pick); return; }
-    P.armed = P.sel === k ? P.armed : null;
     P.sel = P.sel === k ? 0 : k;
     grid.querySelectorAll(".ps.sel").forEach((x) => x.classList.remove("sel"));
     if (P.sel) b.classList.add("sel");
@@ -130,6 +134,7 @@ export function mountPool(ctx) {
   });
   // drag: a MY preset onto a tile (a reference), a tile onto a tile (a swap)
   const drop = (ev) => ev.target.closest(".ps");
+  $("p-filter").addEventListener("click", (ev) => { if (filterClick(P.filter, ev)) render(); });
   grid.addEventListener("dragstart", (ev) => {
     const b = drop(ev);
     if (!b) return;
@@ -173,14 +178,17 @@ export function mountPool(ctx) {
     P.pick = P.pick === id ? null : id;
     mine.querySelectorAll(".cas").forEach((x) => x.setAttribute("aria-pressed", String(+x.dataset.id === P.pick)));
     grid.classList.toggle("picking", !!P.pick);
+    const pm = pool();
+    grid.querySelectorAll(".ps").forEach((x) => { const e = pm.get(+x.dataset.k); x.classList.toggle("here", !!(P.pick && e && e.id === P.pick)); });
   });
   proj.addEventListener("click", async (ev) => {
     const b = ev.target.closest("[data-p]");
     if (!b || !can()) return;
     const p = +b.dataset.p, cur = S.unit.projects && S.unit.projects.current;
-    if (p === cur) { P.armProj = 0; render(); return; }
-    if (P.armProj !== p) { P.armProj = p; render(); return; }
-    P.armProj = 0;
+    if (p === cur) return;
+    const ok = await confirmBox({ title: "LOAD PROJECT", what: projectName(p), go: "LOAD", color: "--green", undo: "cleared",
+      sub: `The FM-1 switches from ${esc(projectName(cur))}.` });
+    if (!ok) return;
     const x = await edit("LOAD", (l) => l.project("load", p));
     P.sel = 0;
     forget();
@@ -188,12 +196,13 @@ export function mountPool(ctx) {
     if (x && x.status === 0) toast(`${projectName(p)} on the FM-1`);
   });
   $("p-clear").addEventListener("click", async () => {
-    const k = P.sel;
-    if (!k || !can()) return;
-    const confirm = P.armed === k;
-    const x = await edit("CLEAR", (l) => l.remove("pool", k, { confirm }));
-    if (x && x.status === 10) { P.armed = k; P.users.set(k, { steps: x.b, tracks: 0 }); renderBar(); return; }
-    P.armed = null;
+    const k = P.sel, e = k && pool().get(k);
+    if (!k || !e || !can()) return;
+    const u = P.users.get(k);
+    const ok = await confirmBox({ title: `CLEAR POOL ${k}`, what: e.name, go: "CLEAR", undo: "kept",
+      sub: u && u.steps ? `${u.steps} step${u.steps === 1 ? "" : "s"} use it: they go back to their track's sound.` : "Its steps go back to their track's sound." });
+    if (!ok) return;
+    const x = await edit("CLEAR", (l) => l.remove("pool", k, { confirm: true }));
     if (x && x.status === 0) P.sel = 0;
     await after(x, x && x.status === 0 ? `POOL ${k} cleared` : "");
   });
@@ -205,6 +214,11 @@ export function mountPool(ctx) {
       const ia = ta ? FIZZ_TAGS.indexOf(ta) : 9, ib = tb ? FIZZ_TAGS.indexOf(tb) : 9;
       return ia - ib || a.name.localeCompare(b.name) || a.slot - b.slot;
     }).map((e) => e.slot);
+    const moves = want.filter((s, i) => s !== i + 1).length;
+    if (!moves) { toast("Sorted already"); return; }
+    const go = await confirmBox({ title: "SORT BY TAG", what: `${want.length} sounds`, go: "SORT", color: "--yellow", undo: "cleared",
+      sub: `Up to ${moves} swaps, a moment each; every pattern's steps follow (the FM-1 stopped).` });
+    if (!go || !can()) return;
     const at = new Map(want.map((s) => [s, s])), who = new Map([...pm.keys()].map((s) => [s, s]));   // (sound -> place, place -> sound)
     P.run = true; render();
     let n = 0, ok = true;
@@ -229,6 +243,9 @@ export function mountPool(ctx) {
   // CLEAR UNUSED: every sound no step locks and no track plays (DELETE without confirm: the unit says IN USE otherwise)
   $("p-unused").addEventListener("click", async () => {
     if (!can()) return;
+    const ok = await confirmBox({ title: "CLEAR UNUSED", what: `${pool().size} sounds looked at`, go: "CLEAR UNUSED", undo: "kept",
+      sub: "Every pool sound no step locks and no track plays comes out of the pool." });
+    if (!ok || !can()) return;
     P.run = true; render();
     let n = 0;
     try {

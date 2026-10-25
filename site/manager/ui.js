@@ -30,3 +30,37 @@ export function refusal(r, what = "") {
   if (r.status === 5) return "Not there: read only.";
   return `The FM-1 refused it (${esc(r.statusName || r.status)}).`;
 }
+
+// the one confirm step of a destructive or slow change (the page's small modal, #cf): what it does, to what, and what
+// it does to the FM-1's undo. -> Promise<boolean>. undo: "cleared" (the unit forgets its undo levels: a pool swap, a
+// project load, a restore), "kept" (SHIFT + F1 on the FM-1 undoes it), or nothing said
+let cfDone = null;
+export function confirmBox({ title, what = "", sub = "", go = "OK", color = "--red", undo = "" }) {
+  const box = $("cf");
+  if (cfDone) cfDone(false);
+  $("cf-modal").style.setProperty("--c", `var(${color})`);
+  $("cf-title").textContent = title;
+  $("cf-what").textContent = what;
+  $("cf-what").hidden = !what;
+  $("cf-sub").innerHTML = sub;
+  $("cf-sub").hidden = !sub;
+  const u = $("cf-undo");
+  u.className = `undo ${undo}`;
+  u.textContent = undo === "cleared" ? "UNDO ON THE FM-1 IS CLEARED" : undo === "kept" ? "SHIFT + F1 ON THE FM-1 UNDOES IT" : "";
+  u.hidden = !undo;
+  $("cf-go").textContent = go;
+  box.hidden = false;
+  $("cf-go").focus();
+  return new Promise((res) => {
+    const end = (v) => { cfDone = null; box.hidden = true; document.removeEventListener("keydown", key, true); res(v); };
+    const key = (ev) => {
+      if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); end(false); }
+      else if (ev.key === "Enter" && document.activeElement !== $("cf-no")) { ev.preventDefault(); ev.stopPropagation(); end(true); }
+    };
+    cfDone = end;
+    document.addEventListener("keydown", key, true);
+    $("cf-go").onclick = () => end(true);
+    $("cf-no").onclick = () => end(false);
+    box.onclick = (ev) => { if (ev.target === box) end(false); };
+  });
+}
