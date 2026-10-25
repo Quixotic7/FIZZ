@@ -17,7 +17,7 @@
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
-// (a static server on the site folder: python3 -m http.server 8765 --bind 127.0.0.1, from site/)
+// (no --url: the test serves site/ itself, site/tools/serve.mjs: python's http.server resets connections under load)
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -25,11 +25,13 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
+import { serveSite } from "./serve.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, "../.build/test");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
-const URL0 = new URL(`manager/?sim&v=${Date.now()}`, arg("--url", "http://127.0.0.1:8765/")).href;
+const served = process.argv.includes("--url") ? null : await serveSite(path.resolve(HERE, ".."));
+const URL0 = new URL(`manager/?sim&v=${Date.now()}`, arg("--url", served && served.url)).href;
 const CHROMIUM = arg("--chromium", "/Applications/Chromium.app/Contents/MacOS/Chromium");
 const PORT = 9700 + Math.floor(Math.random() * 200);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

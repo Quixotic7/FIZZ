@@ -2,7 +2,7 @@
 // The site in headless Chromium, over the DevTools protocol (no Playwright: Node's own WebSocket):
 //
 //   node site/tools/test_site.mjs [--url http://127.0.0.1:8765/] [--chromium path] [--dnsnd dir] [--real-audio]
-//   (serve site/ first, e.g. python3 -m http.server 8765 --bind 127.0.0.1 -d site)
+//   (no --url: the test serves site/ itself, site/tools/serve.mjs)
 //
 //   1. the player loads with no console error; FIZZ boots in the AudioWorklet (info, first frames); screenshot
 //   2. audio through the panel interface: HOME, REC tapped, D4 held: the output (an AnalyserNode) is not silent
@@ -11,6 +11,11 @@
 //   5. the guide renders with no console error; a phone-sized screenshot of both pages
 //   6. Digitone sounds: .dnsnd files (--dnsnd, a few of them; never published) read and listed in the panel
 // Screenshots: site/.build/test/*.png
+// Chromium's cache is off (Network.setCacheDisabled), every page load's URL carries a fresh v= stamp and the profile is
+// a new one each run (as test_manager_page.mjs): a static server sends no cache headers, and a module cached from
+// another checkout once gave "FIZZ is not defined". So did `python3 -m http.server` resetting connections when ~40
+// modules come at once (its listen backlog is 5): the test serves the site itself, and a page whose resources were
+// cut off (ERR_CONNECTION_RESET) is loaded again.
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -24,11 +29,13 @@ import { soundFromStoreFrame } from "../js/library.js";
 import { restoreFrame } from "../js/fizz_sysex.js";
 import { fizzValues } from "../js/fizz2dn.js";
 import { toSelectedTrack } from "../js/midimap.js";
+import { serveSite } from "./serve.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, "../.build/test");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
-const URL0 = arg("--url", "http://127.0.0.1:8765/");
+const served = process.argv.includes("--url") ? null : await serveSite(path.resolve(HERE, ".."));
+const URL0 = arg("--url", served && served.url);
 const CHROMIUM = arg("--chromium", "/Applications/Chromium.app/Contents/MacOS/Chromium");
 const DNSND = arg("--dnsnd", "/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/DigitonePresets");
 const PORT = 9300 + Math.floor(Math.random() * 400);
@@ -104,16 +111,22 @@ listeners.push((m) => {
     errors.push(`console.${m.params.type}: ${m.params.args.map((a) => a.value ?? a.description).join(" ")}`);
   if (m.method === "Log.entryAdded" && m.params.entry.level === "error") errors.push(`log: ${m.params.entry.text} ${m.params.entry.url || ""}`);
 });
+const stamped = (url) => { const u = new URL(url); u.searchParams.set("v", String(Date.now())); return u.href; };
 async function load(url) {
-  errors.length = 0;
-  try { await evaluate("window.__leaving = 1"); } catch (_) { /* (no page yet) */ }
-  await send("Page.navigate", { url });
-  await waitFor("!window.__leaving && document.readyState === 'complete'", 15000);   // (the new document, not the old one)
+  for (let tries = 1; ; tries++) {
+    errors.length = 0;
+    try { await evaluate("window.__leaving = 1"); } catch (_) { /* (no page yet) */ }
+    await send("Page.navigate", { url: stamped(url) });
+    await waitFor("!window.__leaving && document.readyState === 'complete'", 15000);   // (the new document, not the old one)
+    if (tries >= 3 || !errors.some((e) => /ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE|ERR_CONNECTION_REFUSED/.test(e))) return;
+    note(`the server cut the page's loads off (${errors.length} errors): loaded again`);
+  }
 }
 
 try {
   await connect();
   await send("Page.enable"); await send("Runtime.enable"); await send("Log.enable");
+  await send("Network.enable"); await send("Network.setCacheDisabled", { cacheDisabled: true });
 
   // 1. the player
   await load(URL0);
