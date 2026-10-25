@@ -93,6 +93,8 @@ static void fresh(void)
 {
     qd_app_init(&A);
     A.ui.view = QD_VIEW_ROLL;   /* (P1.5s: EDIT is the power-on view; made on the PIANO ROLL) */
+    A.ui.lmode = QD_LMODE_VALUES;   /* (the scenarios were written for VALUES, the old default; MODES is the default
+                                     * since 2026-10-25: g_knob_layouts checks it) */
     now = 0;
     frames_done = 0;
     hash = 14695981039346656037ull;
@@ -3279,17 +3281,13 @@ static void g_rec_settings(void)
     run(10);
 }
 
-/* P1.3y: SHIFT + SEL: the global settings: KNOB 1 the encoders' layout A..D (one table of roles), KNOB 2 page follow;
- * each layout's roles with no finger on a step, in the PIANO ROLL and in STEPS */
+/* P1.3y: SHIFT + SEL: the global settings: KNOB 1 page follow (2026-10-25: the layouts B..D gone, A hard-wired);
+ * the roles with no finger on a step; a fresh app's latch mode is MODES */
 static void g_knob_layouts(void)
 {
-    static const int WANT[4][2][3] = {
-        {{QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET}, {QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET}},
-        {{QD_KR_PAGE, QD_KR_VALUE, QD_KR_PRESET}, {QD_KR_PAGE, QD_KR_VALUE, QD_KR_CURSOR}},
-        {{QD_KR_CURSOR, QD_KR_PAGE, QD_KR_PRESET}, {QD_KR_CURSOR, QD_KR_PAGE, QD_KR_PRESET}},
-        {{QD_KR_CURSOR, QD_KR_VALUE, QD_KR_PRESET}, {QD_KR_CURSOR, QD_KR_VALUE, QD_KR_PRESET}},
-    };
-    int L, v, k, ok = 0;
+    int k;
+    qd_app_init(&A);
+    CHECK(A.ui.lmode == QD_LMODE_MODES, "a fresh app: the latch mode MODES (the owner, 2026-10-25)");
     start();
     bdown(SHIFT);
     bdown(QD_B_PATTERN);
@@ -3297,41 +3295,22 @@ static void g_knob_layouts(void)
     bup(QD_B_PATTERN);
     bup(SHIFT);
     run(10);
-    CHECK(qd_view_screen(&A) == QD_SCR_MENU && A.ui.latch == QD_LATCH_SET && A.ui.knobs == QD_KNOBS_A,
-          "SHIFT + SEL: the global settings (KNOBS A)");
-    turn(QD_K_2, -1);
-    CHECK(!A.ui.follow, "KNOB 2: PAGE FOLLOW off");
-    turn(QD_K_2, 1);
-    for (L = 0; L < QD_NKNOBS; L++)
-        for (v = 0; v < 2; v++)
-            for (k = 0; k < 3; k++)
-                ok += qd_ctl_layout_role(L, v, QD_K_SELECT + k) == WANT[L][v][k];
-    CHECK(ok == 24, "the table: A, B, C, D as documented (%d of 24)", ok);
-    turn(QD_K_1, 2);
-    CHECK(A.ui.knobs == QD_KNOBS_C, "KNOB 1 +2: C");
+    CHECK(qd_view_screen(&A) == QD_SCR_MENU && A.ui.latch == QD_LATCH_SET, "SHIFT + SEL: the global settings");
+    turn(QD_K_1, -1);
+    CHECK(!A.ui.follow, "KNOB 1: PAGE FOLLOW off");
+    turn(QD_K_1, 1);
+    CHECK(A.ui.follow, "KNOB 1: PAGE FOLLOW on");
+    CHECK(qd_ctl_layout_role(QD_K_SELECT) == QD_KR_PAGE && qd_ctl_layout_role(QD_K_ALGO) == QD_KR_CURSOR &&
+          qd_ctl_layout_role(QD_K_PRESETS) == QD_KR_PRESET && qd_ctl_layout_role(QD_K_1) == QD_KR_NONE,
+          "the roles: SELECT the page, ALGORITHM the cursor, PRESETS the preset");
     btap(QD_B_HOME);
     CHECK(!A.ui.latch && qd_view_screen(&A) == QD_SCR_LANE, "HOME: back");
-    /* C in the PIANO ROLL: SELECT the cursor, ALGORITHM the page */
+    k = A.ui.page[0];
     turn(QD_K_SELECT, 1);
-    turn(QD_K_SELECT, 2);
-    CHECK(A.ui.slatch && A.ui.nheld == 1, "C: SELECT the cursor (the latch on)");
-    k = A.ui.held[0];
+    CHECK(A.ui.page[0] == k + 1 && !A.ui.slatch, "SELECT: the page (page %d, was %d)", A.ui.page[0] + 1, k + 1);
     turn(QD_K_ALGO, 1);
-    CHECK(A.ui.page[0] == 1 && A.ui.held[0] == 16, "C: ALGORITHM the page: page 2, the selection on its step 1 (%d)",
-          A.ui.held[0] + 1);
+    CHECK(A.ui.slatch && A.ui.nheld == 1, "ALGORITHM: the cursor (the latch on)");
     btap(QD_B_HOME);
-    turn(QD_K_ALGO, -1);
-    /* B in STEPS: PRESETS the cursor, ALGORITHM the mode's default (VEL) */
-    A.ui.knobs = QD_KNOBS_B;
-    mode(M_VEL);
-    shome();
-    turn(QD_K_ALGO, -20);
-    CHECK(PAT()->trk[0].def.vel == 80 && !A.ui.slatch, "B, STEPS: ALGORITHM the track's VEL (80)");
-    turn(QD_K_PRESETS, 1);
-    CHECK(A.ui.slatch && A.ui.nheld == 1, "B, STEPS: PRESETS the cursor");
-    btap(QD_B_HOME);
-    A.ui.knobs = QD_KNOBS_A;
-    (void)k;
 }
 
 /* P1.3y: HOME from SHIFT's map; SEL tapped shows and does nothing; the track colour frame on a default */
@@ -6151,12 +6130,11 @@ static void g_p15n(void)
         CHECK(ok, "view %d: SOUND, an OCT tap: the next ten, its takeover its whole time", v);
         btap(QD_B_HOME);
     }
-    for (lay = 0; lay < 2; lay++)                       /* (2) layouts A, B; PIANO ROLL, EDIT; a finger, the latch */
+    for (lay = 0; lay < 1; lay++)                       /* (2) layout A; PIANO ROLL, EDIT; a finger, the latch */
         for (v = 0; v < 3; v += 2)
             for (f = 0; f < 2; f++) {
                 start();
                 A.ui.view = v;
-                A.ui.knobs = lay;
                 PAT()->trk[0].scale = QD_SCALE_MAJOR, PAT()->trk[0].root = 0, PAT()->trk[0].key_global = 0;
                 wtap(1);
                 qd_step_set_notes(PAT(), 0, 1, CH, 3);
@@ -8496,7 +8474,7 @@ int main(void)
         {"P1.3e: a mode key held edits the default; B11", g_mkey},
         {"P1.3y: the value keys light the nearest value", g_nearest},
         {"P1.3y: SHIFT + REC: the record settings; quantize, overdub", g_rec_settings},
-        {"P1.3y: SHIFT + SEL: the knob layouts A..D, page follow", g_knob_layouts},
+        {"P1.3y: SHIFT + SEL: page follow; layout A; lmode MODES", g_knob_layouts},
         {"P1.3y: SEL tapped: nothing", g_sel_tap},
         {"P1.4a: the sound editor on EDIT", g_snd},
         {"P1.3e: six notes; the default chord moves together", g_six},

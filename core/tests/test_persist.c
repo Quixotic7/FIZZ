@@ -1362,9 +1362,8 @@ int main(void)
     A.proj.rec_dub = QD_TAKE_REPLACE;                   /* (2026-10-25: the TAKE's third value) */
     qd_fx_set(QD_FXP_RSIZE, 33);
     qd_fx_set(QD_FXP_XCR, 41);                          /* P1.5b: a route, the latch mode, the editor's keys */
-    A.ui.lmode = QD_LMODE_MODES;
+    A.ui.lmode = QD_LMODE_VALUES;                       /* (not the default: it must come back) */
     A.proj.rec_ekeys = 1;
-    A.ui.knobs = QD_KNOBS_C;
     qd_seq_select(&A.seq, 12, 1);
     qd_ctl_select_track(&A, 5);
     run(&A, 20);
@@ -1391,9 +1390,9 @@ int main(void)
     CHECK(ok == QD_NSOUND && B.proj.nsound == keep.nsound,
           "the pool's 128 sounds (DRIVE among them)");
     CHECK(B.model.t[3].mix.level == 77 && B.model.t[3].mix.pan == -20 && B.proj.rec_quant == 35 &&
-              B.proj.rec_dub == QD_TAKE_REPLACE && qd_fx_get(QD_FXP_RSIZE) == 33 && B.ui.knobs == QD_KNOBS_C,
-          "the mix, the record settings, the effects, the knob layout");
-    CHECK(qd_fx_get(QD_FXP_XCR) == 41 && B.ui.lmode == QD_LMODE_MODES && B.proj.rec_ekeys == 1,
+              B.proj.rec_dub == QD_TAKE_REPLACE && qd_fx_get(QD_FXP_RSIZE) == 33,
+          "the mix, the record settings, the effects");
+    CHECK(qd_fx_get(QD_FXP_XCR) == 41 && B.ui.lmode == QD_LMODE_VALUES && B.proj.rec_ekeys == 1,
           "P1.5b: the routing, the latch mode, EDIT KEYS");
     CHECK(B.per.proj == 0 && B.seq.cur == 12 && B.sel == 5, "the restart check: the project, its pattern (A13) and "
           "the selected track (6)");
@@ -1411,7 +1410,7 @@ int main(void)
         qd_store_flush(&B.per.prj_st);
         qd_fx_set(QD_FXP_RSIZE, 88);
         boot(&A);
-        CHECK(qd_fx_get(QD_FXP_RSIZE) == 33 && qd_fx_get(QD_FXP_XCR) == 0 && A.ui.lmode == QD_LMODE_VALUES &&
+        CHECK(qd_fx_get(QD_FXP_RSIZE) == 33 && qd_fx_get(QD_FXP_XCR) == 0 && A.ui.lmode == QD_LMODE_MODES &&
                   !A.proj.rec_ekeys && A.model.t[3].mix.level == 77 && A.seq.cur == 12,
               "a 0.4 flash boots: its effects and mix, the routing / latch mode / EDIT KEYS at their defaults (%d %d %d %d %d %d)",
               qd_fx_get(QD_FXP_RSIZE), qd_fx_get(QD_FXP_XCR), A.ui.lmode, A.proj.rec_ekeys, A.model.t[3].mix.level,

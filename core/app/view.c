@@ -527,10 +527,7 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
     } else if (u->mode == QD_MODE_STEP && u->nheld) {
         ROW(UI_SC_ALGO, u->hmode == UI_F_RATCH ? UI_IC_RAMP : UI_IC_STRUM, 0);
     } else {
-        static char knobs[4];
         static const char *const VIEW[QD_NVIEW] = {"ROLL", "STEPS", "EDIT", "METERS", "NUMBERS", "VOICES", "SCOPE"};
-        knobs[0] = (char)('A' + u->knobs);
-        knobs[1] = 0;
         ROW(UI_SC_SELECT, UI_IC_TRACK, trk);            /* P1.5z: the track */
         ROW(UI_SC_ALGO, UI_IC_SCALE, scale);
         ROW(UI_SC_PRESETS, UI_IC_KEY, root);
@@ -538,7 +535,7 @@ static void fill_shift(const qd_app_t *a, ui_shift_t *v)
         ROW(UI_SC_SEQ_W, UI_IC_NOW, 0);
         ROW(UI_SC_HOME, UI_IC_VIEWS, VIEW[(u->view + 1) % QD_NVIEW]);   /* P1.3y: the next view */
         ROW(UI_SC_REC, UI_IC_GEAR, a->proj.rec_mode ? "STEP" : "LIVE");   /* .. the record settings */
-        ROW(UI_SC_SEL, UI_IC_GEAR, knobs);              /* .. the global settings (the knobs' layout) */
+        ROW(UI_SC_SEL, UI_IC_GEAR, 0);                  /* .. the global settings */
         ROW(UI_SC_ARP, UI_IC_NONE, "FILL");             /* P1.6d: SHIFT + ARP held: FILL */
     }
     if (u->mode == QD_MODE_STEP && (!u->latch || u->latch == QD_LATCH_F3)) {   /* P1.5c: the black keys' shortcuts */
@@ -1906,7 +1903,6 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
 static void fill_menu(const qd_app_t *a, ui_menu_t *v)
 {
     const qd_ui_t *u = &a->ui;
-    int r, k;
     memset(v, 0, sizeof *v);
     v->kind = u->latch == QD_LATCH_REC ? UI_MENU_REC : u->latch == QD_LATCH_TRK ? UI_MENU_TRK : UI_MENU_SET;
     v->rec_step = a->proj.rec_mode;
@@ -1915,10 +1911,6 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
     v->ekeys = a->proj.rec_ekeys;
     v->rec_page = u->rec_page;
     v->rec_auto = a->proj.rec_auto;
-    v->layout = u->knobs;
-    for (r = 0; r < 2; r++)
-        for (k = 0; k < 3; k++)
-            v->role[r][k] = qd_ctl_role_name(qd_ctl_layout_role(u->knobs, r, QD_K_SELECT + k));
     v->follow = u->follow;
     v->t = secs(a->ms);
     if (v->kind == UI_MENU_TRK) {                      /* P1.4b: the track settings of the selected track */

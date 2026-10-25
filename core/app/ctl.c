@@ -152,6 +152,7 @@ void qd_ctl_init(qd_app_t *a)
     u->fol_g = -1;
     u->view = QD_VIEW_EDIT;            /* P1.5s (the owner: "this home screen should be the default one") */
     u->follow = 1;
+    u->lmode = QD_LMODE_MODES;         /* (the owner, 2026-10-25: MODES the default; a saved setting overrides) */
     u->hmode = UI_F_NOTE;
     u->tk = QD_TK_NONE;
     u->rec_step = -1;
@@ -1683,31 +1684,20 @@ static int k_cursor(qd_app_t *a, int knob, int d)
     return 1;
 }
 
-/* P1.3y (one meaning a knob; the owner's addition: the layouts as one table of roles, ctl.h QD_KNOBS_*): no finger
- * on a step (nothing held, or the step latch's selection), every view: SELECT, ALGORITHM and PRESETS do their role in
- * the layout chosen (A: SELECT the page, ALGORITHM the step cursor, PRESETS the track's preset). SHIFT + ALGORITHM /
- * PRESETS stay the scale / root; a mode key held its default. KNOB 1..4 go on to the selection's values or the
- * track's defaults */
-static const uint8_t KNOB_ROLES[QD_NKNOBS][2][3] = {   /* [layout][PIANO ROLL, STEPS / EDIT][SELECT, ALGO, PRESETS] */
-    [QD_KNOBS_A] = {{QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET}, {QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET}},
-    [QD_KNOBS_B] = {{QD_KR_PAGE, QD_KR_VALUE, QD_KR_PRESET}, {QD_KR_PAGE, QD_KR_VALUE, QD_KR_CURSOR}},
-    [QD_KNOBS_C] = {{QD_KR_CURSOR, QD_KR_PAGE, QD_KR_PRESET}, {QD_KR_CURSOR, QD_KR_PAGE, QD_KR_PRESET}},
-    [QD_KNOBS_D] = {{QD_KR_CURSOR, QD_KR_VALUE, QD_KR_PRESET}, {QD_KR_CURSOR, QD_KR_VALUE, QD_KR_PRESET}},
-};
-int qd_ctl_layout_role(int layout, int rows, int knob)
+/* P1.3y (one meaning a knob): no finger on a step (nothing held, or the step latch's selection), every view: SELECT
+ * the page, ALGORITHM the step cursor, PRESETS the track's preset (ctl.h QD_KR_*). SHIFT + ALGORITHM / PRESETS stay
+ * the scale / root; a mode key held its default. KNOB 1..4 go on to the selection's values or the track's defaults */
+int qd_ctl_layout_role(int knob)
 {
-    if (layout < 0 || layout >= QD_NKNOBS || knob < QD_K_SELECT || knob > QD_K_PRESETS)
+    static const uint8_t KNOB_ROLES[3] = {QD_KR_PAGE, QD_KR_CURSOR, QD_KR_PRESET};   /* [SELECT, ALGO, PRESETS] */
+    if (knob < QD_K_SELECT || knob > QD_K_PRESETS)
         return QD_KR_NONE;
-    return KNOB_ROLES[layout][rows ? 1 : 0][knob == QD_K_SELECT ? 0 : knob == QD_K_ALGO ? 1 : 2];
+    return KNOB_ROLES[knob == QD_K_SELECT ? 0 : knob == QD_K_ALGO ? 1 : 2];
 }
 int qd_ctl_knob_role(const qd_app_t *a, int knob)
 {
-    return qd_ctl_layout_role(a->ui.knobs, QD_VIEW_ROWS(a->ui.view), knob);
-}
-const char *qd_ctl_role_name(int role)
-{
-    static const char *const N[QD_NKR] = {"", "PAGE", "CURSOR", "PRESET", "VALUE"};
-    return role > 0 && role < QD_NKR ? N[role] : "";
+    (void)a;
+    return qd_ctl_layout_role(knob);
 }
 static int when_geek(const qd_app_t *a)
 {
@@ -1730,8 +1720,8 @@ static int k_steps_cursor(qd_app_t *a, int knob, int d)
 {
     if (knob == QD_K_SELECT && a->ui.nheld && a->ui.hmode == UI_F_NOTE)
         return 0;                                       /* P1.5o (the owner): NOTE, the latch's selection: SELECT moves
-                                                         * its chord (k_held, QD_KJ_CHORD) in every layout; ALGORITHM
-                                                         * keeps its layout role (A the cursor) */
+                                                         * its chord (k_held, QD_KJ_CHORD) ; ALGORITHM
+                                                         * keeps its role (the cursor) */
     switch (qd_ctl_knob_role(a, knob)) {
     case QD_KR_CURSOR:
         qd_step_cursor(a, d);
@@ -1746,15 +1736,6 @@ static int k_steps_cursor(qd_app_t *a, int knob, int d)
         page_knob(a, d);
         qd_step_cursor_page(a);
         return 1;
-    case QD_KR_VALUE:
-        if (a->ui.nheld)
-            return 0;                                   /* (the latch's selection: its value, as a finger: k_held) */
-        if (a->ui.hmode == UI_F_PLOCK) {                /* P-LOCK: the track (P1.3d) */
-            qd_ctl_select_track(a, clampi(a->sel + d, 0, QD_NTRACK - 1));
-            qd_ctl_takeover(a, UI_TK_TRACK, 0, d, 0, -1);
-            return 1;
-        }
-        return qd_step_default_knob(a, d);
     default:
         return 0;
     }
@@ -1818,8 +1799,7 @@ static int k_menu(qd_app_t *a, int knob, int d)
         }
     } else {
         switch (knob) {
-        case QD_K_1: u->knobs = clampi(u->knobs + d, 0, QD_NKNOBS - 1); break;
-        case QD_K_2: u->follow = d > 0; break;
+        case QD_K_1: u->follow = d > 0; break;      /* (2026-10-25: KNOBS gone, PAGE FOLLOW moved to KNOB 1) */
         default: break;
         }
     }

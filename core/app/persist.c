@@ -5,7 +5,7 @@
  * (it includes this file and core/store/store.c: the core's source lists stay as they are).
  *
  * The records' bytes (version 1; the host's byte order and struct layouts: a Phase 2 format would spell them out):
- *   SET  'G' 2 (1: eight tracks; 2026-10-24), project, pattern, track, knob layout, view, page follow, the effects' parameters (QD_NFXP int16),
+ *   SET  'G' 2 (1: eight tracks; 2026-10-24), project, pattern, track, reserved (0; was the knob layout), view, page follow, the effects' parameters (QD_NFXP int16),
  *        the latch mode (P1.5b), 1 (P1.5s: the view is the user's; a record without it powers on in EDIT)
  *   HDR  'H' 1, name (QD_PROJ_NAME), demo, global key scale and root, launch, record mode, quantize, overdub, each
  *        track's mix (level, pan, chorus, delay, reverb) and voice limit and reserve
@@ -548,7 +548,7 @@ static uint32_t ser_set(const qd_app_t *a, uint8_t *b)
     int i;
     b[o++] = 'G', b[o++] = QD_PRJ_FORMAT;               /* (2026-10-24: 'G' 2, six tracks; 'G' 1 eight) */
     b[o++] = (uint8_t)a->per.proj, b[o++] = (uint8_t)a->seq.cur, b[o++] = (uint8_t)a->sel;
-    b[o++] = (uint8_t)a->ui.knobs, b[o++] = (uint8_t)a->ui.view, b[o++] = (uint8_t)a->ui.follow;
+    b[o++] = 0, b[o++] = (uint8_t)a->ui.view, b[o++] = (uint8_t)a->ui.follow;
     b[o++] = QD_NFXP;
     for (i = 0; i < QD_NFXP; i++) {
         const int16_t v = (int16_t)qd_fx_get(i);
@@ -568,7 +568,7 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
         (len != 9u + 2u * nf && len != 10u + 2u * nf && len != 11u + 2u * nf))
         return 0;
     *proj = b[2] % QD_NPROJ, *pat = b[3] % QD_NPAT, *sel = b[4] % QD_NTRACK;
-    a->ui.knobs = b[5] % QD_NKNOBS;
+    /* b[5]: reserved (was the knob layout A..D; written 0, ignored since 2026-10-25) */
     a->ui.view = len == 11u + 2u * nf ? b[6] % QD_NVIEW : QD_VIEW_EDIT;   /* (P1.5s: a record from before EDIT was
                                                          * the default view: EDIT) */
     a->ui.follow = b[7] != 0;
@@ -577,7 +577,7 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
         memcpy(&v, b + 9 + 2 * i, 2);
         qd_fx_set(i, v);
     }
-    a->ui.lmode = len >= 10u + 2u * nf ? b[9 + 2 * nf] % 2 : QD_LMODE_VALUES;
+    a->ui.lmode = len >= 10u + 2u * nf ? b[9 + 2 * nf] % 2 : QD_LMODE_MODES;
     return 1;
 }
 
