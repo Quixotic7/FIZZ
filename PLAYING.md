@@ -295,7 +295,7 @@ A step has up to **six notes**.
   twice, KNOB 3) and the global settings (SHIFT + SEL, KNOB 2). (ENV is MIX now: PAGE + W is gone.)
 - Hold **F1** to see the pages:
   - **F1 + tap B1..B8**: edit that page.
-  - **F1 + double-tap B1..B8** (quickly): loop that page alone.
+  - **F1 + double-tap B1..B8** (the second tap starting within 0.2 s of the first): loop that page alone and edit it.
   - **F1 + hold B1..B8**: that page goes into the loop, or out of it (the loop always keeps one page).
   - **F1 + hold one page key, press another**: loop all the pages between them.
   - Lights: the page you edit lit, the loop's pages dim, the playing page flashing.

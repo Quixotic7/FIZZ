@@ -214,3 +214,28 @@ expect fz_tl_tool 9
 tap HOME
 wait 300
 expect fz_tools 0
+# F1 (OCT- held), 2026-10-25: hold B1 + press B2 loops pages 1..2; then B2 double-tapped at the unit's pace (110 ms
+# presses, 150 ms apart: the releases 260 ms apart) loops page 2 alone and edits it
+press OCT-
+wait 100
+key b0 down
+wait 60
+key b1 down
+wait 60
+key b1 up
+key b0 up
+wait 100
+expect fz_tlen_1 32
+wait 300
+key b1 down
+wait 110
+key b1 up
+wait 150
+key b1 down
+wait 110
+key b1 up
+wait 50
+expect fz_tlen_1 16
+expect fz_page 1
+release OCT-
+wait 100

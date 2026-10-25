@@ -427,7 +427,7 @@ typedef struct {
     uint32_t pg_t0[8];                 /* F1: a page key's press */
     uint16_t pg_done;                  /* F1: bit p: page key p's press is used (held: toggled; a paste; a range) */
     uint32_t pg_up[8];                 /* F1: a page key's last tap's release (a double tap within QD_CLICK_MS) .. */
-    int pg_taps[8];                    /* .. it was a tap */
+    int pg_taps[8];                    /* .. it was a tap (2: and this press came within QD_CLICK_MS: a double) */
     int pg_range;                      /* F1: a range was made: no taps until the page keys are up */
     int pg_copied;                     /* F1: the page copied this hold (-1 none): B1..B8 paste it */
     uint32_t b9_t0;                    /* F1: B9's press .. */

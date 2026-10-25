@@ -682,8 +682,9 @@ static void k_value(qd_app_t *a, int key, int b, int down, int vel)
     qd_step_value_key(a, b, down);
 }
 
-/* F1 + B1..B8 (§8b 2.1's page layer): tap = edit that page; a double tap (the second release within QD_CLICK_MS of
- * the first) = loop it alone; held QD_PAGE_HOLD_MS = the page in / out of the loop
+/* F1 + B1..B8 (§8b 2.1's page layer): tap = edit that page; a double tap (2026-10-25: the second PRESS within
+ * QD_CLICK_MS of the first tap's release; it was the second release, and a press on the unit's keys is ~80..120 ms,
+ * so most double taps there came out as two taps) = loop it alone; held QD_PAGE_HOLD_MS = the page in / out of the loop
  * (never empty: qd_ctl_ms does it at the time); hold A + press B = the loop A..B (edit A); after B10's copy, a press
  * pastes the page there (and edits it). B9 tap = clear the page; held QD_CLEAR_HOLD_MS = clear the track (qd_ctl_ms).
  * B10 = copy the page edited. B11 = undo / redo */
@@ -719,6 +720,8 @@ static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
                 return;
             }
             pages = u->lk_down & 0xFFu;
+            if (u->pg_taps[b] == 1 && a->ms - u->pg_up[b] < QD_CLICK_MS)
+                u->pg_taps[b] = 2;                      /* (the second press of a double tap: decided at its release) */
             if (pages & ~bit) {                         /* another page key is down: the loop A..B, edit A */
                 int lo = 8, hi = -1, k;
                 for (k = 0; k < QD_NPAGE; k++)
@@ -744,7 +747,7 @@ static void k_f1_black(qd_app_t *a, int key, int b, int down, int vel)
         if (a->ms - u->pg_t0[b] >= QD_PAGE_HOLD_MS) {   /* (held, and the timer did not see it: toggle now) */
             page_toggle(a, b);
             u->pg_taps[b] = 0;
-        } else if (u->pg_taps[b] && a->ms - u->pg_up[b] < QD_CLICK_MS) {   /* the double tap: loop it alone */
+        } else if (u->pg_taps[b] == 2) {                /* the double tap: loop it alone, edit it */
             qd_page_set_loop(p, a->sel, 1 << b);
             qd_ctl_set_page(a, b);
             u->pg_taps[b] = 0;
