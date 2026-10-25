@@ -22,6 +22,8 @@ Mock-up: `mockups/fizz-tools.html` (11 screens), PNGs `mockups/png/fizz-tools-01
 
 **ARP held 400 ms opens TOOLS**, latched. **HOME closes it.** (Owner's final map, 2026-10-24.)
 
+> **Superseded (T1b, 2026-10-25, the owner):** **SEQ tapped** opens TOOLS (SEQ tapped again or HOME closes it; SEQ lit while open); SEQ held stays the patterns; ARP held toggles the track's arp bypass; the project page moved to **SHIFT + SAVE**.
+
 | gesture | does |
 | --- | --- |
 | ARP tapped (under `QD_ARP_HOLD_MS`) | the MIDI FX screen (unchanged) |

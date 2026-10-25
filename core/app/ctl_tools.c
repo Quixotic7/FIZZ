@@ -8,7 +8,7 @@
  * STRETCH, CLIP (COPY / PASTE / CLEAR: KNOB 1 picks, OCT+ or B10 does it); PRESETS every tool; B11 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
  * page shown (it stays: no page follow in TOOLS); W1..W16 the page's steps (a press: in / out of the selection, the
  * scope SELECTED; lit as the change makes them, the ghosts dim, the steps that do not play dark); KNOB 1..4 the
- * tool's values. SELECTED + ROTATE moves the selected steps along the track's loop (qd_tl_move). OCT+ keeps, OCT- reverts (it never leaves); HOME is the only way out. TOOLS works on
+ * tool's values. SELECTED + ROTATE moves the selected steps along the track's loop (qd_tl_move). OCT+ keeps, OCT- reverts (it never leaves); HOME (or SEQ tapped, which opens it: T1b) is the way out. TOOLS works on
  * the track selected when it opened (SHIFT + SELECT still changes it: a pending change is kept first).
  *
  * LIVE PREVIEW, SEEN AND HEARD (§2): the first change of a tool opens an undo gesture of its own and HOLDS it open

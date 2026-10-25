@@ -93,6 +93,7 @@ static qd_app_t *G;
 static void p_run(uint32_t n) { run(G, n); }
 static void bt(int b, int down) { qd_app_button(G, b, down); }
 static void btap(int b) { bt(b, 1); p_run(20); bt(b, 0); p_run(20); }
+static void prj_tap(void) { bt(QD_B_FUNC, 1); btap(QD_B_SAVE); bt(QD_B_FUNC, 0); p_run(20); }   /* T1b: SHIFT + SAVE */
 static void wkey(int w, int down) { qd_app_key(G, QD_WHITE_KEY[w], down, 100); }
 static void wtap(int w) { wkey(w, 1); p_run(30); wkey(w, 0); p_run(20); }
 static void bkey(int b, int down) { qd_app_key(G, QD_BLACK_KEY[b], down, 100); }
@@ -184,14 +185,14 @@ static void pages_test(void)
               qd_proj_pat(&G->proj, G->seq.cur)->snd[1].preset == LIB(G, 0)->preset, "B9, a turn, F2: MY preset loaded on track 2");
 
     /* the project pages */
-    btap(QD_B_MIX);
-    CHECK(qd_view_screen(G) == QD_SCR_PRJ && G->ui.pj.page == 0, "SEQ tapped: the project page");
-    btap(QD_B_MIX);
-    CHECK(G->ui.pj.page == 1, "SEQ again: the projects");
+    prj_tap();
+    CHECK(qd_view_screen(G) == QD_SCR_PRJ && G->ui.pj.page == 0, "SHIFT + SAVE: the project page");
+    prj_tap();
+    CHECK(G->ui.pj.page == 1, "SHIFT + SAVE again: the projects");
     wtap(2);
     btap(QD_B_OCTUP);
     CHECK(G->per.proj == 2 && G->per.pexists[2] && G->ui.pj.page == 0, "W3, F2: a new project 3, its page");
-    btap(QD_B_MIX);
+    prj_tap();
     bt(QD_B_OCTDN, 1);
     p_run(20);
     wtap(2);
