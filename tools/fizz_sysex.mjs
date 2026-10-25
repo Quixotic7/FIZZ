@@ -33,6 +33,23 @@
 //                                                   FIZZ stores it again; {slot} to put it elsewhere, 0 the first free)
 //   usbPackets(frame)                            -> [u32]: the frame as USB-MIDI packets (cable 0, CIN 4 / 5 / 6 / 7)
 //   pack7(bytes), unpack7(bytes)                 the 7-bit packing (groups of 7 -> 8, the first byte their top bits)
+// The web manager's Phase 1 (docs/WEB-MANAGER-PLAN.md §5; FIZZ 0.12.1-: an older FIZZ answers BAD COMMAND):
+//   statusRequest(), parseStatus(bytes)          STATUS (02 -> 42): {tracks, playing, noStore, dirty, job, demo,
+//                                                   project, pattern, projects, mine, pool, written, lib: [used, all],
+//                                                   prj: [used, all]} (store pages)
+//   flushRequest()                               FLUSH (03): everything written (stopped only), then a STATUS
+//   tagsRequest({source, slot, tags})            TAGS (12): a preset's tags (FIZZ's seven: a mask or names)
+//   renameRequest({source, slot, name})          RENAME (13): source "mine" or "project"
+//   deleteRequest({source, slot, confirm})       DELETE (14): "mine" or "pool"; without confirm a used one: IN USE
+//   swapRequest({source, a, b})                  SWAP (15): two places ("mine": their ids go with them; "pool": every
+//                                                   pattern's locks too, a job, stopped only); into an empty one: a move
+//   poolRefRequest({slot, id})                   POOL REF (16): pool slot (0 the first free) references preset id;
+//                                                   id 0: the slot cleared
+//   usersRequest({source, slot}), parseUsers()   USERS (17 -> 57): {source, slot, projects: [{project, steps}], tracks}
+//   projectsRequest(), parseProjects()           PROJECTS (23 -> 63): {current, list: [{slot, there, current, demo,
+//                                                   name, pages}]}
+//   projectRequest({op, p, q})                   PROJECT (24): op "load" | "new" | "copy" (p onto q) | "delete"
+//   parseAck(bytes)                              -> {command, status, statusName, a, b} (52) | null
 
 export const FIZZ_HEADER = [0x7d, 0x46, 0x5a];
 export const FIZZ_PROTOCOL = 1;
@@ -46,7 +63,15 @@ export const LABEL_BUTTONS = ["FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "
 export const LABELS_N = LABEL_KNOBS.length + LABEL_BUTTONS.length + 16 + 11;   // 49
 export const FLAGS = { POOL: 0x01, BATCH: 0x02, LOAD: 0x04, DUMP: 0x08 };   // (P1.6m: DUMP: a dump's reply, ignored as it is)
 export const MIX = { PAN: 0x01, CHORUS: 0x02, DELAY: 0x04, REVERB: 0x08 };
-export const STATUS = ["OK", "FULL", "BAD LENGTH", "BAD CHECKSUM", "BAD PATCH", "BAD SLOT", "BAD VERSION", "BAD COMMAND"];
+export const STATUS = ["OK", "FULL", "BAD LENGTH", "BAD CHECKSUM", "BAD PATCH", "BAD SLOT", "BAD VERSION", "BAD COMMAND",
+  "BUSY", "NOT FOUND", "IN USE", "BAD TRACK"];   // (8..11: the web manager's Phase 1)
+// the web manager's Phase 1 (docs/SYSEX.md): its commands, replies, sources, PROJECT's ops, STATUS's flags
+export const CMD1 = { STATUS: 0x02, FLUSH: 0x03, TAGS: 0x12, RENAME: 0x13, DELETE: 0x14, SWAP: 0x15, POOLREF: 0x16,
+  USERS: 0x17, PROJECTS: 0x23, PROJECT: 0x24 };
+export const REPLY1 = { STATUS: 0x42, ACK: 0x52, USERS: 0x57, PROJECTS: 0x63 };
+export const ST = { OK: 0, FULL: 1, BAD_LENGTH: 2, BAD_SLOT: 5, BAD_COMMAND: 7, BUSY: 8, NOT_FOUND: 9, IN_USE: 10, BAD_TRACK: 11 };
+export const PROJECT_OPS = ["", "load", "new", "copy", "delete"];
+export const SOURCE_PROJECT = 3;
 export const NAME_LEN = 12, BLOB_LEN = 96, BLOB6_LEN = 128;
 // P1.5x: FIZZ's tags (core/seq/sounds.h QD_PK_*), bit k: the STORE's optional tags byte
 export const FIZZ_TAGS = ["BASS", "KEYS", "PLUCK", "PAD", "LEAD", "DRUMS", "FX"];
@@ -166,6 +191,62 @@ export function restoreFrame(bytes, { slot } = {}) {
   return Uint8Array.from(b);
 }
 
+// ---- the web manager's Phase 1
+const u14 = (v) => [(v >> 7) & 0x7f, v & 0x7f];
+const srcOf = (source) => {
+  const k = source === "project" ? SOURCE_PROJECT : SOURCES.indexOf(source);
+  if (k < 0) throw new Error(`source: one of ${SOURCES.join(", ")}, project`);
+  return k;
+};
+const r14 = (b, o) => (b[o] << 7) | b[o + 1];
+export const statusRequest = () => frame(CMD1.STATUS, []);
+export const flushRequest = () => frame(CMD1.FLUSH, []);
+export const projectsRequest = () => frame(CMD1.PROJECTS, []);
+export const tagsRequest = ({ source = "mine", slot, tags = 0 }) => frame(CMD1.TAGS, [srcOf(source), ...u14(slot), fizzTagMask(tags)]);
+export const renameRequest = ({ source = "mine", slot, name = "" }) => frame(CMD1.RENAME, [srcOf(source), ...u14(slot),
+  ...Array.from({ length: NAME_LEN }, (_, i) => { const c = i < name.length ? name.charCodeAt(i) : 0x20; return c >= 0x20 && c <= 0x7e ? c : 0x3f; })]);
+export const deleteRequest = ({ source = "mine", slot, confirm = false }) => frame(CMD1.DELETE, [srcOf(source), ...u14(slot), confirm ? 1 : 0]);
+export const swapRequest = ({ source = "mine", a, b }) => frame(CMD1.SWAP, [srcOf(source), ...u14(a), ...u14(b)]);
+export const poolRefRequest = ({ slot = 0, id = 0 }) => frame(CMD1.POOLREF, [...u14(slot), (id >> 14) & 0x7f, (id >> 7) & 0x7f, id & 0x7f]);
+export const usersRequest = ({ source = "mine", slot }) => frame(CMD1.USERS, [srcOf(source), ...u14(slot)]);
+export function projectRequest({ op, p, q = 0 }) {
+  const k = PROJECT_OPS.indexOf(op);
+  if (k < 1) throw new Error("op: load, new, copy or delete");
+  return frame(CMD1.PROJECT, [k, p, q]);
+}
+const body1 = (bytes, kind) => {
+  const b = Array.from(bytes);
+  return isFizz(b) && b[5] === kind && sumOk(b) ? b : null;
+};
+export function parseAck(bytes) {
+  const b = body1(bytes, REPLY1.ACK);
+  return b && b.length >= 14 ? { command: b[6], status: b[7], statusName: STATUS[b[7]], a: r14(b, 8), b: r14(b, 10) } : null;
+}
+export function parseStatus(bytes) {
+  const b = body1(bytes, REPLY1.STATUS);
+  if (!b || b.length < 30) return null;
+  const f = b[8];
+  return { protocol: b[6], tracks: b[7], playing: !!(f & 1), noStore: !!(f & 2), dirty: !!(f & 4), job: !!(f & 8), demo: !!(f & 16),
+    project: b[9] + 1, pattern: b[10], projects: b[11], mine: r14(b, 12), pool: r14(b, 14),
+    written: (b[16] << 14) | r14(b, 17), lib: [r14(b, 19), r14(b, 21)], prj: [r14(b, 23), r14(b, 25)], jobCommand: b[27] };
+}
+export function parseUsers(bytes) {
+  const b = body1(bytes, REPLY1.USERS);
+  if (!b || b.length < 12) return null;
+  const n = b[9], projects = [];
+  for (let i = 0, o = 10; i < n && o + 3 <= b.length - 2; i++, o += 3) projects.push({ project: b[o] + 1, steps: r14(b, o + 1) });
+  return { source: SOURCES[b[6]] || String(b[6]), slot: r14(b, 7), projects, tracks: b[10 + 3 * n] || 0 };
+}
+export function parseProjects(bytes) {
+  const b = body1(bytes, REPLY1.PROJECTS);
+  if (!b || b.length < 10) return null;
+  const list = [];
+  for (let p = 0, o = 8; p < b[7] && o + 15 <= b.length - 2; p++, o += 15)
+    list.push({ slot: p + 1, there: !!(b[o] & 1), current: !!(b[o] & 2), demo: !!(b[o] & 4),
+      name: String.fromCharCode(...b.slice(o + 1, o + 13)).trimEnd(), pages: r14(b, o + 13) });
+  return { current: b[6] + 1, list };
+}
+
 export function parseReply(bytes) {
   const b = Array.from(bytes);
   if (b.length < 8 || b[0] !== 0xf0 || b[b.length - 1] !== 0xf7 || b[1] !== 0x7d || b[2] !== 0x46 || b[3] !== 0x5a)
@@ -180,6 +261,10 @@ export function parseReply(bytes) {
   if (kind === REPLY.LABELS) return { kind: "labels", ...parseLabels(bytes) };
   if (kind === REPLY.LIST) return { kind: "list", ...parseList(bytes) };
   if ((kind === CMD.STORE || kind === CMD.STORE6) && (rest[0] & FLAGS.DUMP)) return { kind: "dump", ...parseDump(bytes) };
+  if (kind === REPLY1.ACK) return { kind: "ack", ...parseAck(bytes) };
+  if (kind === REPLY1.STATUS) return { kind: "status", ...parseStatus(bytes) };
+  if (kind === REPLY1.USERS) return { kind: "users", ...parseUsers(bytes) };
+  if (kind === REPLY1.PROJECTS) return { kind: "projects", ...parseProjects(bytes) };
   return null;
 }
 

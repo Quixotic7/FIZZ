@@ -442,6 +442,8 @@ static void fz_tick_to(uint32_t ms)      /* FIZZ's clock up to ms (P2.10: the co
 static uint8_t fz_sx_buf[1024];          /* a reply (fizz_sx.h QD_SX_FRAME_MAX) */
 #ifdef PLAT_HOST
 static uint32_t fz_host_sx_out;          /* replies made (the simulator has no USB) */
+static int fz_host_sx_kind = -1, fz_host_sx_st = -1;   /* (the last FIZZ reply's kind byte, and an ACK's / STORE's
+                                          * status: the web manager's commands in tests/web.txt) */
 #endif
 static void fz_sysex_out(void)           /* FIZZ's replies, taken under the lock, sent outside it (a send may wait) */
 {
@@ -454,6 +456,10 @@ static void fz_sysex_out(void)           /* FIZZ's replies, taken under the lock
             break;
 #ifdef PLAT_HOST
         fz_host_sx_out++;
+        if (k >= 8 && fz_sx_buf[1] == 0x7Du && fz_sx_buf[2] == 0x46u && fz_sx_buf[3] == 0x5Au) {
+            fz_host_sx_kind = fz_sx_buf[5];
+            fz_host_sx_st = fz_sx_buf[5] == 0x52u && k >= 9 ? fz_sx_buf[7] : fz_sx_buf[5] == 0x50u ? fz_sx_buf[6] : -1;
+        }
 #endif
         plat_sysex_send(fz_sx_buf, (uint32_t)k);
     }
@@ -2271,6 +2277,10 @@ int app_expect(const char *what, int *got)
         *got = (int)fz_rows_sent;
     else if (!strcmp(what, "fz_sx_out"))
         *got = (int)fz_host_sx_out;
+    else if (!strcmp(what, "fz_sx_kind"))     /* (the last FIZZ reply's kind: 42 STATUS, 52 ACK, 63 PROJECTS ..) */
+        *got = fz_host_sx_kind;
+    else if (!strcmp(what, "fz_sx_status"))   /* (.. an ACK's or a STORE's status) */
+        *got = fz_host_sx_st;
     else if (!strcmp(what, "fz_isr_loads"))  /* patterns loaded inside the audio interrupt (the prefetch's misses) */
         *got = (int)fz_audio_loads();
     else if (!strcmp(what, "fz_store_wiped"))   /* sectors erased at the boot or by the wipe (-1: none) */

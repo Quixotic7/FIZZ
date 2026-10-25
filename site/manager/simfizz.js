@@ -11,9 +11,13 @@
 //     size; the image pulled twice with 0x30 read requests, 3 tries of `tryMs` each; 12 a bad or missing image,
 //     nothing changed; 13 cut off while writing: the store cleared at the restart, as the unit's foreign-store wipe;
 //     FZOK: FIZZ started again on the restored flash).
+// The web manager's Phase 1 commands (STATUS .. PROJECT: docs/SYSEX.md) are the wasm's too: its jobs (a pool swap,
+// a delete, a project load) step with the store's step as the unit's do, so the main loop runs on for a while after
+// each semantic frame (3 s); sim.tapPlay() starts or stops FIZZ's transport (MIDI START / STOP: the
+// commands that need it stopped answer BUSY), sim.counts.cmds[cmd] counts the semantic commands.
 // No DOM: Node runs it as it is.
 //   new SimFizz({createEngine, module, id, playing, frameMs, tryMs, bulk, answers}); await sim.boot()
-//   sim.access (navigator.requestMIDIAccess's shape), sim.unplug(), sim.engine, sim.flash(), sim.counts
+//   sim.access (navigator.requestMIDIAccess's shape), sim.unplug(), sim.engine, sim.flash(), sim.counts, sim.tapPlay()
 import { pack7, unpack7 } from "../install/fm1lib.js";
 
 const HS = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
@@ -36,7 +40,7 @@ export class SimFizz {
                 frameMs = 1, tryMs = 300, bulk = true, answers = true, sampleRate = 44100 } = {}) {
     Object.assign(this, { createEngine, module, id, playing, frameMs, tryMs, bulk, answers, sampleRate, initFlash: flash });
     this.engine = null; this.slot = null; this.restoring = null; this.gone = false; this.hooks = {};
-    this.counts = { frames: 0, dropped: 0, fzbr: 0, fzsrReads: 0, sent: 0 };
+    this.counts = { frames: 0, dropped: 0, fzbr: 0, fzsrReads: 0, sent: 0, cmds: {} };
     this.L = new Float32Array(128); this.R = new Float32Array(128);
     this.input = { name, state: "connected", open: async () => {}, onmidimessage: null };
     this.output = { name, state: "connected", open: async () => {}, send: (b) => this.rx(Array.from(b)) };
@@ -95,6 +99,13 @@ export class SimFizz {
     if (this.access.onstatechange) this.access.onstatechange({ port: this.input });
   }
   dispose() { this.unplug(); if (this.engine) this.engine.dispose(); this.engine = null; }
+  // FIZZ's transport started or stopped (MIDI START / STOP into the engine, as a clock source would)
+  tapPlay() {
+    if (!this.engine) return;
+    this.engine.midiIn([this.playing ? 0xFC : 0xFA]);
+    this.run(80);
+    this.playing = !this.playing;
+  }
 
   // ---- inbound: one frame held (sysex_byte: sx_collect = !sx_ready), taken by the main loop's next pass
   rx(d) {
@@ -122,8 +133,9 @@ export class SimFizz {
     if (d[1] === 0x7D && d[2] === 0x46 && d[3] === 0x5A) {   // FIZZ's own SysEx: the wasm
       if (!this.engine || !this.answers) return;
       if (this.hooks.semantic) this.hooks.semantic(d);
+      this.counts.cmds[d[5]] = (this.counts.cmds[d[5]] || 0) + 1;
       this.engine.midiIn(d);
-      this.busyUntil = Date.now() + 1500;
+      this.busyUntil = Date.now() + 3000;                // (a job: its steps, a store step every 15 ms of device time)
       return;
     }
     const u = unpack7(d.slice(1, -1));

@@ -118,12 +118,12 @@ export async function readFiles(files) {
 export const notesWithLoad = (sound) => sound.notes.filter((n) => !SEND_LOST.test(n));
 
 // the STORE SOUND frame of one sound: into the LIBRARY (pool false) or the project's POOL, the first free slot; batch:
-// one undo level with the previous message; track 0..7: also loaded onto it, with its pan and sends
+// one undo level with the previous message; track 0..5: also loaded onto it, with its pan and sends
 // MIX_WITH_EVERY_STORE: FIZZ's presets keep their pan and sends (P1.5x): every STORE carries them, LOAD or not
 export const MIX_WITH_EVERY_STORE = true;
 export const mixOf = (sound) => ({ pan: sound.pan, chorus: sound.sends.chorus, delay: sound.sends.delay, reverb: sound.sends.reverb });
 export function storeFrame(sound, { pool = false, batch = false, track = -1 } = {}) {
-  const load = track >= 0 && track <= 7;
+  const load = track >= 0 && track <= 5;
   return storeSound({ name: sound.name, blob: sound.blob, drive: sound.drive, pool, slot: 0, batch,
     ...(load ? { track } : {}), ...(load || MIX_WITH_EVERY_STORE ? mixOf(sound) : {}),
     tags: fizzTagMask(sound.fizzTags || []) });

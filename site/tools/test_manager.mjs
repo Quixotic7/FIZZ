@@ -12,13 +12,17 @@
 //   - the restore: the unit changed, the backup put back (FZSR): FZOK and the unit's presets as backed up; refused
 //     while playing (FZER 10) and for another size (11); cut off: cancelled before anything is erased (12, nothing
 //     changed), unplugged while it writes (lost; the unit's store cleared when plugged in again);
+//   - Phase 1: STATUS, PROJECTS, TAGS, RENAME, SWAP (MY PRESETS now, the pool a job), POOL REF, USERS, DELETE (IN USE
+//     first, then with confirm), PROJECT, FLUSH; BUSY while playing; the import of synthetic Digitone II files;
 //   - the owner's saved images (../FIZZ-saves, outside the repo; skipped when absent) read offline.
 //   node site/tools/test_manager.mjs
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createEngine } from "../engine/engine.js";
-import { storeSound, parseDump } from "../js/fizz_sysex.js";
+import { storeSound, parseDump, parseReply } from "../js/fizz_sysex.js";
+import { readFiles, storeFrame } from "../js/digitone.js";
+import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 import { soundFromStoreFrame, parseFizzlib } from "../js/library.js";
 import { SimFizz } from "../manager/simfizz.js";
 import { findFizz, parseBulk, bulkFrame } from "../manager/fizzlink.js";
@@ -188,6 +192,81 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   const r = await l2.restore(bk.image);
   check(r.ok && mine(await l2.list()).length === 4, "restored from the file afterwards: the four presets back");
   l2.close(); u.dispose();
+}
+
+// ---- Phase 1: the library, the pool, the projects edited (the wasm's commands, its jobs stepped by its store)
+{
+  const u = await sim();
+  for (const [k, n] of ["ALPHA", "BETA", "GAMMA"].entries()) { u.engine.midiIn(storeSound({ name: n, blob: blob(k + 2), tags: 1 << k })); u.run(80); }
+  settle(u);
+  const l = await findFizz(u.access);
+  const st = await l.status();
+  check(st && st.tracks === 6 && !st.playing && !st.noStore && st.project === 1 && st.projects === 1 && st.mine === 3 && st.lib[1] > 0 && st.prj[1] > st.lib[1],
+    `STATUS: ${st && `${st.tracks} tracks, project ${st.project} of ${st.projects}, ${st.mine} my presets, ${st.pool} pool sounds, store pages ${st.lib.join("/")} + ${st.prj.join("/")}`}`);
+  const pj = await l.projects();
+  check(pj && pj.current === 1 && pj.list.length === 8 && pj.list[0].there && pj.list[0].current && !pj.list[1].there,
+    `PROJECTS: ${pj && pj.list.filter((p) => p.there).map((p) => `${p.slot} ${p.name} (${p.pages} pages)`).join(", ")}`);
+  let rows = mine(await l.list({ pool: true }));
+  const A = rows.find((r) => r.name === "ALPHA"), B = rows.find((r) => r.name === "BETA");
+  let r = await l.tags("mine", A.slot, ["KEYS", "FX"]);
+  rows = mine(await l.list());
+  check(r.status === 0 && rows.find((x) => x.slot === A.slot).tags === ((1 << 1) | (1 << 6)), `TAGS: ALPHA -> KEYS + FX (${r.statusName})`);
+  r = await l.rename("mine", A.slot, "ALPHA PRIME");
+  rows = mine(await l.list());
+  check(r.status === 0 && rows.find((x) => x.slot === A.slot).name === "ALPHA PRIME" && rows.find((x) => x.slot === A.slot).id === A.id, "RENAME: ALPHA PRIME, its id kept");
+  r = await l.swap("mine", A.slot, B.slot);
+  rows = mine(await l.list());
+  check(r.status === 0 && rows.find((x) => x.slot === A.slot).id === B.id && rows.find((x) => x.slot === B.slot).id === A.id, "SWAP MY PRESETS: the places swapped, the ids with them");
+  r = await l.swap("mine", B.slot, 200);
+  rows = mine(await l.list());
+  check(r.status === 0 && rows.find((x) => x.slot === 200) && rows.find((x) => x.slot === 200).id === A.id, "SWAP into an empty place: a move (to 200)");
+  const pr = await l.poolRef(0, A.id);
+  const pool = (await l.list({ pool: true })).filter((x) => x.source === "pool");
+  check(pr.status === 0 && pool.some((x) => x.slot === pr.a && x.id === A.id && x.name === "ALPHA PRIME"), `POOL REF: pool ${pr.a} references ALPHA PRIME (no copy)`);
+  const users = await l.users("mine", 200);
+  check(users.projects && users.projects.length === 1 && users.projects[0].project === 1, `USERS: ${JSON.stringify(users.projects)}`);
+  u.tapPlay();
+  const st2 = await l.status();
+  r = await l.swap("pool", pr.a, 100);
+  check(st2.playing && r.status === 8, `while playing: STATUS says so, a pool SWAP answers BUSY (${r.statusName})`);
+  u.tapPlay();
+  r = await l.swap("pool", pr.a, 100);
+  const pool2 = (await l.list({ pool: true })).filter((x) => x.source === "pool");
+  check(r.status === 0 && pool2.some((x) => x.slot === 100 && x.id === A.id), `SWAP the pool (a job): pool ${pr.a} moved to 100`);
+  r = await l.remove("mine", 200);
+  check(r.status === 10 && r.a === 1, `DELETE a MY preset the pool uses, no confirm: IN USE (${r.a} project, ${r.b} steps)`);
+  r = await l.remove("mine", 200, { confirm: true });
+  rows = mine(await l.list({ pool: true }));
+  check(r.status === 0 && !rows.some((x) => x.slot === 200), "DELETE with confirm: gone");
+  r = await l.remove("mine", 77);
+  check(r.status === 9, `DELETE of an empty place: ${r.statusName}`);
+  r = await l.project("new", 2);
+  const st3 = await l.status();
+  check(r.status === 0 && st3.project === 2 && st3.projects === 2, `PROJECT NEW 2: worked on now (${st3.projects} projects)`);
+  r = await l.rename("project", 2, "SUNDAY");
+  r = await l.project("load", 1);
+  const pj2 = await l.projects();
+  check(r.status === 0 && pj2.current === 1 && pj2.list[1].name === "SUNDAY", `PROJECT LOAD 1, project 2 named ${pj2.list[1].name}`);
+  const fl = await l.flush();
+  check(fl.kind === "status" && !fl.dirty, "FLUSH: a STATUS when everything is written");
+  // IMPORT: synthetic Digitone II sounds (.dn2pst, .dn2snd: never real files), into MY PRESETS by STORE
+  const rec = dn2RecordFromParams({ algo: 3 }, { name: "SYNTH TEST" });
+  const files = [{ name: "SYNTH TEST.dn2pst", bytes: dn2pstZip(wrapDn2Record(rec), { FormatVersion: 1, ProductType: ["24", "38"], Payload: "SYNTH TEST.dn2snd", FileType: "Sound", FirmwareVersion: "1.10D", MetaInfo: { Tags: ["BASS", "SHIMMER"] } }) },
+    { name: "RAW TEST.dn2snd", bytes: wrapDn2Record(dn2RecordFromParams({}, { name: "RAW TEST" })) }];
+  const items = await readFiles(files);
+  const before = mine(await l.list()).length;
+  let ok = items.length === 2 && items.every((x) => x.ok);
+  for (const it of items) { const s = await l.store(storeFrame(it.sound)); ok = ok && s.status === 0; }
+  rows = mine(await l.list());
+  check(ok && rows.length === before + 2 && rows.some((x) => x.name === "SYNTH TEST") && rows.some((x) => x.name === "RAW TEST"),
+    `IMPORT: a synthetic .dn2pst and .dn2snd read and stored into MY PRESETS (${rows.length} now)`);
+  {   // an older FIZZ answers a new command 7F 07 <cmd> (BAD COMMAND): read as such (the page says: update FIZZ)
+    const e = [0x7F, 0x07, 0x12], f = Uint8Array.from([0xF0, 0x7D, 0x46, 0x5A, 0x01, ...e, (0x80 - (e.reduce((a, b) => a + b) & 0x7F)) & 0x7F, 0xF7]);
+    const pr2 = parseReply(f);
+    check(pr2 && pr2.kind === "error" && pr2.status === 7 && pr2.command === 0x12, "an older FIZZ's BAD COMMAND for TAGS read as such");
+  }
+  check(u.counts.dropped === 0, `no frame dropped (one request at a time): ${JSON.stringify(u.counts.cmds)}`);
+  l.close(); u.dispose();
 }
 
 // ---- the wrong device

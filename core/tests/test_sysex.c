@@ -181,6 +181,360 @@ static void feed(const char *path)
     }
 }
 
+/* ---------------------------------------------------------------- the web manager, Phase 1 (docs/WEB-MANAGER-PLAN.md
+ * §5): STATUS, FLUSH, TAGS, RENAME, DELETE, SWAP, POOL REF, USERS, PROJECTS, PROJECT on a RAM NOR (the store attached,
+ * as on the unit): every status (BUSY while playing or a job running, NOT FOUND, IN USE, BAD SLOT, BAD LENGTH, BAD
+ * TRACK), the jobs stepped to their end, undo, and a power cut in the middle of a pool swap */
+#define FSIZE 0x100000u
+static uint8_t FL[FSIZE], FL2[FSIZE];
+static int f_read(void *c, uint32_t off, void *d, uint32_t n) { (void)c; memcpy(d, FL + off, n); return off + n <= FSIZE ? 0 : -8; }
+static int f_erase(void *c, uint32_t off) { (void)c; memset(FL + off / 4096u * 4096u, 0xFF, 4096u); return 0; }
+static int f_prog(void *c, uint32_t off, const void *src, uint32_t n)
+{
+    uint32_t i;
+    (void)c;
+    if (off / 256u != (off + n - 1u) / 256u)
+        return -8;
+    for (i = 0; i < n; i++)
+        FL[off + i] &= ((const uint8_t *)src)[i];
+    return 0;
+}
+static const qd_flash_t FLASH = {f_read, f_erase, f_prog, 0};
+static void boot_flash(void)                            /* a power-on on the flash as it is */
+{
+    qd_app_init(&A);
+    now = 0;
+    qd_app_tick(&A, 0);
+    qd_persist_attach(&A, &FLASH);
+    qd_app_sysex_version(&A, "FIZZ test");
+    run(10);
+}
+static uint32_t cmd_io;                                 /* patterns read in or written inside the handler (all cmd()s) */
+static int cmd(int c, const uint8_t *body, uint32_t n)  /* a command, its reply now (0: none yet) */
+{
+    uint8_t f[64];
+    const uint32_t l0 = A.proj.pat_loads, s0 = A.proj.pat_saves, w0 = A.per.written;
+    const int r = send(f, frame(f, c, body, n));
+    cmd_io += (A.proj.pat_loads - l0) + (A.proj.pat_saves - s0) + (A.per.written - w0);
+    return r;
+}
+static int wait_reply(uint32_t ms)                      /* the job's reply (time going on, the store's steps) */
+{
+    rn = 0;
+    while (ms-- && !(rn = qd_app_sysex_take(&A, R, sizeof R)))
+        run(1);
+    return rn;
+}
+static int ack(int c) { return reply_ok() && R[5] == QD_SX_R_ACK && R[6] == c ? R[7] : -1; }
+static int ack_v1(void) { return R[8] << 7 | R[9]; }
+static int ack_v2(void) { return R[10] << 7 | R[11]; }
+static int mine_store(const char *name, int tags)       /* a MY preset (STORE, the first free): its place (1-based) */
+{
+    uint8_t f[200], blob[QD_QUAD_BLOB5];
+    int16_t p[QD_QUAD_NP];
+    qd_quad_preset_patch(2, p);
+    qd_quad_pack5(p, blob);
+    send(f, store_msg_tags(f, 0, 0, name, blob, 0, 64, 0, 0, 0, 0, tags));
+    return status() == QD_SX_OK ? rslot() : -1;
+}
+static void lock_steps(int p, int k, int n)             /* n steps of pattern p (track 1) lock pool number k */
+{
+    qd_pattern_t *P = qd_proj_pat(&A.proj, p);
+    int s;
+    for (s = 0; s < n; s++) {
+        qd_step_on(P, 1, s * 3);
+        P->step[1][s * 3].sound = (uint8_t)k;
+        P->step[1][s * 3].ovr |= QD_OV(QD_PM_SOUND);
+    }
+    P->used = 1;
+    A.edit_gen++;
+}
+static int locks_of(int p, int k)                       /* the steps of pattern p that lock k */
+{
+    const qd_pattern_t *P = qd_proj_cpat(&A.proj, p);
+    int t, s, n = 0;
+    for (t = 0; t < QD_PAT_NTRACK; t++)
+        for (s = 0; s < QD_NSTEP; s++)
+            n += P->step[t][s].sound == k;
+    return n;
+}
+
+static void phase1_tests(void)
+{
+    uint8_t b[32];
+    int k, m1, m2, m3, id1, id2, ok, g, x = 0, y = 0;
+    memset(FL, 0xFF, sizeof FL);
+    boot_flash();
+    run(3000);
+    /* STATUS, PROJECTS */
+    cmd(QD_SX_STATUS, 0, 0);
+    CHECK(reply_ok() && R[5] == QD_SX_R_STATUS && R[6] == 1 && R[7] == QD_NTRACK && !(R[8] & QD_SXT_NOSTORE) &&
+              !(R[8] & QD_SXT_PLAYING) && R[9] == 0 && R[11] == 1 && rn == 7 + 23,
+          "STATUS: 42, protocol 1, 6 tracks, the store attached, stopped, project 1 worked on, one project (%d bytes)", rn);
+    {
+        const int lt = R[21] << 7 | R[22], pt = R[25] << 7 | R[26];
+        CHECK(lt > 0 && pt > lt && (R[16] << 14 | R[17] << 7 | R[18]) == (int)A.per.written,
+              "STATUS: the stores' pages (%d, %d), the records committed (%u)", lt, pt, A.per.written);
+    }
+    cmd(QD_SX_PROJECTS, 0, 0);
+    CHECK(reply_ok() && R[5] == QD_SX_R_PROJECTS && R[6] == 0 && R[7] == QD_NPROJ && R[8] == (1 | 2 | 4) &&
+              !memcmp(R + 9, A.per.pname[0], strlen(A.per.pname[0])) && R[8 + 15] == 0 && rn == 7 + 3 + 8 * 15,
+          "PROJECTS: 63, the one worked on (there, worked on, the demos), its name; project 2 not there");
+    /* TAGS */
+    m1 = mine_store("ALPHA", QD_PKB(QD_PK_BASS));
+    m2 = mine_store("BETA", QD_PKB(QD_PK_PAD));
+    m3 = mine_store("GAMMA", QD_PKB(QD_PK_LEAD));
+    id1 = qd_lib_preset(&A, m1 - 1), id2 = qd_lib_preset(&A, m2 - 1);
+    run(600);
+    b[0] = QD_SXS_MINE, b[1] = 0, b[2] = (uint8_t)m1, b[3] = QD_PKB(QD_PK_KEYS) | QD_PKB(QD_PK_FX);
+    cmd(QD_SX_TAGS, b, 4);
+    CHECK(ack(QD_SX_TAGS) == QD_SX_OK && qd_lib_tags(&A, m1 - 1) == (QD_PKB(QD_PK_KEYS) | QD_PKB(QD_PK_FX)),
+          "TAGS: MY preset %d's tags set (KEYS + FX)", m1);
+    run(600);
+    qd_undo_step(&A, -1);
+    CHECK(qd_lib_tags(&A, m1 - 1) == QD_PKB(QD_PK_BASS), "TAGS: SHIFT + F1 undoes it (BASS again)");
+    b[0] = QD_SXS_FACTORY, b[2] = 3, b[3] = QD_PKB(QD_PK_DRUMS);
+    cmd(QD_SX_TAGS, b, 4);
+    CHECK(ack(QD_SX_TAGS) == QD_SX_OK && qd_factory_tags(&A, 2) == QD_PKB(QD_PK_DRUMS), "TAGS: a factory preset's (the owner's)");
+    b[0] = QD_SXS_MINE, b[2] = 200;
+    cmd(QD_SX_TAGS, b, 4);
+    CHECK(ack(QD_SX_TAGS) == QD_SX_NOT_FOUND, "TAGS: an empty place: NOT FOUND");
+    b[0] = 7, b[2] = 1;
+    cmd(QD_SX_TAGS, b, 4);
+    CHECK(ack(QD_SX_TAGS) == QD_SX_BAD_SLOT, "TAGS: no such source: BAD SLOT");
+    cmd(QD_SX_TAGS, b, 2);
+    CHECK(ack(QD_SX_TAGS) == QD_SX_BAD_LENGTH, "TAGS: too short: BAD LENGTH");
+    /* POOL REF */
+    b[0] = 0, b[1] = 0, b[2] = (uint8_t)(id1 >> 14), b[3] = (uint8_t)((id1 >> 7) & 0x7F), b[4] = (uint8_t)(id1 & 0x7F);
+    k = qd_pool_free_slot(&A.proj);
+    cmd(QD_SX_POOLREF, b, 5);
+    CHECK(ack(QD_SX_POOLREF) == QD_SX_OK && ack_v1() == k && qd_sound_preset(&A.proj, k) == id1 &&
+              !strcmp(qd_sound_name(&A.proj, k), "ALPHA"),
+          "POOL REF: the first free pool slot (%d) references ALPHA (no copy: its id, its name)", k);
+    b[2] = 0x7F, b[3] = 0x7F, b[4] = 0x70;
+    cmd(QD_SX_POOLREF, b, 5);
+    CHECK(ack(QD_SX_POOLREF) == QD_SX_NOT_FOUND, "POOL REF: an id no preset has: NOT FOUND");
+    b[0] = 1, b[1] = 10, b[2] = 0, b[3] = 0, b[4] = 5;
+    cmd(QD_SX_POOLREF, b, 5);
+    CHECK(ack(QD_SX_POOLREF) == QD_SX_BAD_SLOT, "POOL REF: slot 138: BAD SLOT");
+    /* RENAME */
+    b[0] = QD_SXS_MINE, b[1] = 0, b[2] = (uint8_t)m1;
+    memcpy(b + 3, "ALPHA PRIME ", 12);
+    cmd(QD_SX_RENAME, b, 15);
+    CHECK(ack(QD_SX_RENAME) == QD_SX_OK && !strcmp(qd_lib_name(&A, m1 - 1), "ALPHA PRIME") &&
+              qd_lib_preset(&A, m1 - 1) == id1 && !strcmp(qd_sound_name(&A.proj, k), "ALPHA PRIME"),
+          "RENAME: MY preset (its id kept), and the pool slot referencing it follows");
+    b[0] = QD_SXS_FACTORY, b[1] = 0, b[2] = 1;
+    cmd(QD_SX_RENAME, b, 15);
+    CHECK(ack(QD_SX_RENAME) == QD_SX_BAD_SLOT, "RENAME: a factory preset: BAD SLOT (read only)");
+    b[0] = QD_SXS_PROJECT, b[2] = 1;
+    memcpy(b + 3, "NOIR        ", 12);
+    cmd(QD_SX_RENAME, b, 15);
+    CHECK(ack(QD_SX_RENAME) == QD_SX_OK && !strcmp(A.per.pname[0], "NOIR"), "RENAME: the project worked on");
+    b[2] = 5;
+    cmd(QD_SX_RENAME, b, 15);
+    CHECK(ack(QD_SX_RENAME) == QD_SX_NOT_FOUND, "RENAME: a project that is not there: NOT FOUND");
+    cmd(QD_SX_RENAME, b, 6);
+    CHECK(ack(QD_SX_RENAME) == QD_SX_BAD_LENGTH, "RENAME: no name: BAD LENGTH");
+    /* SWAP, MY PRESETS */
+    b[0] = QD_SXS_MINE, b[1] = 0, b[2] = (uint8_t)m1, b[3] = 0, b[4] = (uint8_t)m2;
+    cmd(QD_SX_SWAP, b, 5);
+    CHECK(ack(QD_SX_SWAP) == QD_SX_OK && qd_lib_preset(&A, m1 - 1) == id2 && qd_lib_preset(&A, m2 - 1) == id1 &&
+              !strcmp(qd_lib_name(&A, m2 - 1), "ALPHA PRIME") && !strcmp(qd_sound_name(&A.proj, k), "ALPHA PRIME"),
+          "SWAP MY PRESETS: the places swapped, the ids with them (the pool's reference unchanged)");
+    b[2] = (uint8_t)m3, b[4] = 100;
+    cmd(QD_SX_SWAP, b, 5);
+    CHECK(ack(QD_SX_SWAP) == QD_SX_OK && !qd_lib_used(&A, m3 - 1) && !strcmp(qd_lib_name(&A, 99), "GAMMA"),
+          "SWAP with an empty place: a move (GAMMA to 100)");
+    b[2] = 101, b[4] = 102;
+    cmd(QD_SX_SWAP, b, 5);
+    CHECK(ack(QD_SX_SWAP) == QD_SX_NOT_FOUND, "SWAP of two empty places: NOT FOUND");
+    b[2] = 3, b[4] = 3;
+    cmd(QD_SX_SWAP, b, 5);
+    CHECK(ack(QD_SX_SWAP) == QD_SX_BAD_SLOT, "SWAP of a place with itself: BAD SLOT");
+    /* SWAP, the pool: every pattern's locks follow (the patterns out of RAM through their records) */
+    x = k, y = qd_pool_free_slot(&A.proj);
+    {
+        int before[QD_NPAT][2], p;
+        b[0] = 0, b[1] = 0, b[2] = (uint8_t)(id2 >> 14), b[3] = (uint8_t)((id2 >> 7) & 0x7F), b[4] = (uint8_t)(id2 & 0x7F);
+        cmd(QD_SX_POOLREF, b, 5);
+        CHECK(ack(QD_SX_POOLREF) == QD_SX_OK && ack_v1() == y, "(BETA in the pool at %d)", y);
+        for (p = 0; p < QD_NPAT; p += 7)
+            lock_steps(p, p % 2 ? x : y, 1 + p % 3);
+        qd_persist_flush(&A);
+        for (p = 0; p < QD_NPAT; p++)
+            before[p][0] = locks_of(p, x), before[p][1] = locks_of(p, y);
+        qd_app_play(&A);
+        b[0] = QD_SXS_POOL, b[1] = 0, b[2] = (uint8_t)x, b[3] = 0, b[4] = (uint8_t)y;
+        cmd(QD_SX_SWAP, b, 5);
+        CHECK(ack(QD_SX_SWAP) == QD_SX_BUSY, "SWAP the pool while playing: BUSY");
+        qd_app_stop(&A);
+        run(50);
+        cmd(QD_SX_SWAP, b, 5);
+        CHECK(rn == 0 && A.sx.wk.cmd == QD_SX_SWAP, "SWAP the pool: a job (no reply yet)");
+        cmd(QD_SX_STATUS, 0, 0);
+        CHECK(reply_ok() && (R[8] & QD_SXT_JOB) && R[27] == QD_SX_SWAP, "STATUS: the job shows");
+        {
+            const uint8_t d[3] = {QD_SXS_MINE, 0, 1};
+            uint8_t dd[4] = {QD_SXS_MINE, 0, 1, 0};
+            (void)d;
+            cmd(QD_SX_DELETE, dd, 4);
+            CHECK(ack(QD_SX_DELETE) == QD_SX_BUSY, "another job while one runs: BUSY");
+        }
+        run(20);
+        qd_app_play(&A);                                /* (PLAY meanwhile: the job waits) */
+        g = A.sx.wk.step;
+        run(300);
+        CHECK(A.sx.wk.cmd == QD_SX_SWAP && A.sx.wk.step == g, "the job waits while playing (at step %d)", g);
+        qd_app_stop(&A);
+        memcpy(FL2, FL, sizeof FL);                     /* (the flash as it is mid-swap: a power cut, below) */
+        CHECK(wait_reply(5000) && ack(QD_SX_SWAP) == QD_SX_OK, "SWAP the pool: OK when done");
+        for (ok = 1, p = 0; p < QD_NPAT; p++)
+            ok &= locks_of(p, x) == before[p][1] && locks_of(p, y) == before[p][0];
+        CHECK(ok && qd_sound_preset(&A.proj, x) == id2 && qd_sound_preset(&A.proj, y) == id1,
+              "SWAP the pool: the slots swapped and every pattern's locks of %d and %d swapped too", x, y);
+        CHECK(qd_undo_count(&A, -1) == 0, "SWAP the pool: the undo levels forgotten (their bytes would not match)");
+        qd_persist_flush(&A);
+        boot_flash();                                   /* (after a restart: the same) */
+        for (ok = 1, p = 0; p < QD_NPAT; p++)
+            ok &= locks_of(p, x) == before[p][1] && locks_of(p, y) == before[p][0];
+        CHECK(ok && qd_sound_preset(&A.proj, x) == id2, "SWAP the pool: kept after a restart");
+        {                                               /* a power cut in the middle of it: the store mounts, FIZZ runs */
+            static uint8_t keep[FSIZE];
+            memcpy(keep, FL, sizeof FL);
+            memcpy(FL, FL2, sizeof FL);
+            boot_flash();
+            run(200);
+            cmd(QD_SX_STATUS, 0, 0);
+            CHECK(reply_ok() && !(R[8] & QD_SXT_NOSTORE) && qd_sound_used(&A.proj, x) && qd_sound_used(&A.proj, y) &&
+                      A.per.proj == 0, "a power cut mid-swap: the store mounts, the pool's two sounds there, STATUS answers");
+            memcpy(FL, keep, sizeof FL);
+            boot_flash();
+        }
+        /* USERS, DELETE (the pool) */
+        b[0] = QD_SXS_POOL, b[1] = 0, b[2] = (uint8_t)x;
+        cmd(QD_SX_USERS, b, 3);
+        CHECK(wait_reply(500) && reply_ok() && R[5] == QD_SX_R_USERS && R[9] == 1 && R[10] == 0 &&
+                  (R[11] << 7 | R[12]) == qd_pool_users_all(&A, x, 0),
+              "USERS of pool %d: this project, its steps (%d)", x, R[11] << 7 | R[12]);
+        b[3] = 0;
+        cmd(QD_SX_DELETE, b, 4);
+        CHECK(wait_reply(500) && ack(QD_SX_DELETE) == QD_SX_IN_USE && ack_v2() > 0 && qd_sound_used(&A.proj, x),
+              "DELETE a pool sound steps use, no CONFIRM: IN USE (%d steps), nothing deleted", ack_v2());
+        qd_app_play(&A);
+        b[3] = QD_SXD_CONFIRM;
+        cmd(QD_SX_DELETE, b, 4);
+        CHECK(ack(QD_SX_DELETE) == QD_SX_BUSY, "DELETE while playing: BUSY");
+        qd_app_stop(&A);
+        run(50);
+        cmd(QD_SX_DELETE, b, 4);
+        CHECK(wait_reply(500) && ack(QD_SX_DELETE) == QD_SX_OK && !qd_sound_used(&A.proj, x),
+              "DELETE with CONFIRM: the pool sound gone");
+        run(3000);
+        for (ok = 1, p = 0; p < QD_NPAT; p++)
+            ok &= locks_of(p, x) == 0;
+        CHECK(ok, "DELETE: every step locking it back to the track's sound (the panel's fallback)");
+        qd_undo_step(&A, -1);
+        CHECK(qd_sound_used(&A.proj, x) && qd_sound_preset(&A.proj, x) == id2 && locks_of(14, x) == before[14][1],
+              "DELETE: SHIFT + F1 undoes it (the slot and its locks back)");
+    }
+    /* PROJECT: new, copy, load, delete; RENAME of another project; USERS across projects; DELETE of MY presets */
+    {
+        int p2;
+        b[0] = QD_SXP_NEW, b[1] = 2, b[2] = 0;
+        qd_app_play(&A);
+        cmd(QD_SX_PROJECT, b, 3);
+        CHECK(ack(QD_SX_PROJECT) == QD_SX_BUSY, "PROJECT while playing: BUSY");
+        qd_app_stop(&A);
+        cmd(QD_SX_PROJECT, b, 3);
+        CHECK(wait_reply(2000) && ack(QD_SX_PROJECT) == QD_SX_OK && A.per.proj == 1, "PROJECT NEW 2: worked on now");
+        b[0] = 0, b[1] = 0, b[2] = (uint8_t)(id1 >> 14), b[3] = (uint8_t)((id1 >> 7) & 0x7F), b[4] = (uint8_t)(id1 & 0x7F);
+        cmd(QD_SX_POOLREF, b, 5);
+        p2 = ack_v1();
+        lock_steps(0, p2, 4);
+        run(2000);
+        b[0] = QD_SXP_LOAD, b[1] = 1;
+        cmd(QD_SX_PROJECT, b, 3);
+        CHECK(wait_reply(2000) && ack(QD_SX_PROJECT) == QD_SX_OK && A.per.proj == 0 && A.per.pexists[1],
+              "PROJECT LOAD 1: back, project 2 kept");
+        b[0] = QD_SXS_PROJECT, b[1] = 0, b[2] = 2;
+        memcpy(b + 3, "SUNDAY      ", 12);
+        cmd(QD_SX_RENAME, b, 15);
+        CHECK(rn == 0 && wait_reply(500) && ack(QD_SX_RENAME) == QD_SX_OK && !strcmp(A.per.pname[1], "SUNDAY"),
+              "RENAME another project: a job (its header written), OK");
+        b[0] = QD_SXP_COPY, b[1] = 2, b[2] = 4;
+        cmd(QD_SX_PROJECT, b, 3);
+        CHECK(wait_reply(2000) && ack(QD_SX_PROJECT) == QD_SX_OK && A.per.pexists[3] && !strcmp(A.per.pname[3], "SUNDAY"),
+              "PROJECT COPY 2 onto 4");
+        b[2] = 1;
+        cmd(QD_SX_PROJECT, b, 3);
+        CHECK(ack(QD_SX_PROJECT) == QD_SX_BAD_SLOT, "PROJECT COPY onto the one worked on: BAD SLOT");
+        b[0] = 9;
+        cmd(QD_SX_PROJECT, b, 3);
+        CHECK(ack(QD_SX_PROJECT) == QD_SX_BAD_SLOT, "PROJECT, an op it does not know: BAD SLOT");
+        b[0] = QD_SXP_DELETE, b[1] = 4;
+        cmd(QD_SX_PROJECT, b, 3);
+        CHECK(wait_reply(2000) && ack(QD_SX_PROJECT) == QD_SX_OK && !A.per.pexists[3], "PROJECT DELETE 4");
+        cmd(QD_SX_PROJECT, b, 3);
+        CHECK(ack(QD_SX_PROJECT) == QD_SX_NOT_FOUND, "PROJECT DELETE of one not there: NOT FOUND");
+        boot_flash();
+        CHECK(!strcmp(A.per.pname[1], "SUNDAY") && !strcmp(A.per.pname[0], "NOIR"), "the projects' names after a restart");
+        /* USERS of MY preset ALPHA PRIME (now at m2): this project's pool and project 2's */
+        b[0] = QD_SXS_MINE, b[1] = 0, b[2] = (uint8_t)m2;
+        cmd(QD_SX_USERS, b, 3);
+        CHECK(wait_reply(1000) && reply_ok() && R[5] == QD_SX_R_USERS && R[9] == 2 && R[13] == 1 && (R[14] << 7 | R[15]) == 4,
+              "USERS of a MY preset: two projects, project 2's 4 steps");
+        b[3] = 0;
+        cmd(QD_SX_DELETE, b, 4);
+        CHECK(wait_reply(1000) && ack(QD_SX_DELETE) == QD_SX_IN_USE && ack_v1() == 2, "DELETE it, no CONFIRM: IN USE, 2 projects");
+        b[3] = QD_SXD_CONFIRM;
+        cmd(QD_SX_DELETE, b, 4);
+        wait_reply(1000);
+        CHECK(rn && ack(QD_SX_DELETE) == QD_SX_OK && !qd_lib_used(&A, m2 - 1) && !qd_sound_used(&A.proj, y),
+              "DELETE with CONFIRM: MY preset gone, this pool's reference too");
+        b[2] = (uint8_t)m1;                             /* (BETA: not used by any project now) */
+        b[3] = 0;
+        for (k = 1; k <= QD_NSOUND; k++)
+            if (qd_sound_used(&A.proj, k) && qd_sound_preset(&A.proj, k) == id2) {
+                const uint8_t c[5] = {0, (uint8_t)k, 0, 0, 0};
+                cmd(QD_SX_POOLREF, c, 5);
+                wait_reply(500);
+            }
+        cmd(QD_SX_DELETE, b, 4);
+        CHECK(wait_reply(1000) && ack(QD_SX_DELETE) == QD_SX_OK && !qd_lib_used(&A, m1 - 1),
+              "DELETE an unused MY preset, no CONFIRM: deleted");
+    }
+    /* FLUSH */
+    m1 = mine_store("DELTA", 0);
+    cmd(QD_SX_STATUS, 0, 0);
+    ok = reply_ok() && (R[8] & QD_SXT_DIRTY);
+    qd_app_play(&A);
+    cmd(QD_SX_FLUSH, 0, 0);
+    CHECK(ack(QD_SX_FLUSH) == QD_SX_BUSY, "FLUSH while playing: BUSY");
+    qd_app_stop(&A);
+    cmd(QD_SX_FLUSH, 0, 0);
+    CHECK(ok && wait_reply(500) && R[5] == QD_SX_R_STATUS && !(R[8] & QD_SXT_DIRTY),
+          "FLUSH: a STATUS when everything is written (dirty before, not after)");
+    /* STORE onto track 7: BAD TRACK, nothing stored */
+    {
+        uint8_t f[200], blob[QD_QUAD_BLOB5];
+        int16_t p[QD_QUAD_NP];
+        const int fr = qd_lib_free_slot(&A);
+        qd_quad_preset_patch(2, p);
+        qd_quad_pack5(p, blob);
+        send(f, store_msg(f, QD_SXF_LOAD, 0, "TRACK7", blob, 0, 6, 64, 0, 0, 0, 0));
+        CHECK(status() == QD_SX_BAD_TRACK && qd_lib_free_slot(&A) == fr, "STORE with LOAD onto track 7: BAD TRACK, nothing stored");
+    }
+    CHECK(cmd_io == 0, "no handler read a pattern in, wrote one or committed a record (%u): the jobs did", cmd_io);
+    /* without a store (safe mode): STATUS says so; PROJECT NOT FOUND */
+    fresh();
+    cmd(QD_SX_STATUS, 0, 0);
+    CHECK(reply_ok() && (R[8] & QD_SXT_NOSTORE), "STATUS with no store attached (safe mode): flagged");
+    b[0] = QD_SXP_NEW, b[1] = 2;
+    cmd(QD_SX_PROJECT, b, 3);
+    CHECK(ack(QD_SX_PROJECT) == QD_SX_NOT_FOUND, "PROJECT with no store: NOT FOUND");
+}
+
 int main(int argc, char **argv)
 {
     static uint8_t f[256], in[256], pk[300], un[300], blob[QD_QUAD_BLOB5], blob2[QD_QUAD_BLOB5];
@@ -597,6 +951,7 @@ int main(int argc, char **argv)
         }
         CHECK(ok3, "the 256 stored back into an empty library: every one the same (name, patch, tags, pan, sends)");
     }
+    phase1_tests();
     qd_shutdown();
     printf("test_sysex: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

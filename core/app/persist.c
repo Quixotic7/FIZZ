@@ -1128,6 +1128,8 @@ void qd_persist_ms(qd_app_t *a)
     if (PU_NEED(&a->proj) && !playing && !ps->own_step && a->ms % 15u == 7u)
         pool_sweep(a, 0);                               /* (2026-10-24: a removed sound's locks, a pattern a frame) */
 #endif
+    if (a->sx.wk.cmd && !ps->own_step && a->ms % 15u == 11u)
+        qd_sx_work(a);                                  /* (web manager P1: a SysEx command's job, a step a frame) */
     if (!ps->on)
         return;
     k = (int)(a->ms % QD_SAVE_LOOK_MS);                 /* the looks: every QD_SAVE_LOOK_MS, one item a ms (P2.6c: the
@@ -1189,6 +1191,8 @@ void qd_persist_step(qd_app_t *a)
     if (PU_NEED(&a->proj) && !playing)                  /* (2026-10-24: a removed sound's locks, a pattern a step) */
         pool_sweep(a, 0);
 #endif
+    if (a->sx.wk.cmd)                                   /* (web manager P1: a SysEx command's job, a step a step) */
+        qd_sx_work(a);
     if (a->per.on)
         persist_writes(a, playing, !playing && !sounding && a->ms - a->ui.touch_ms >= QD_QUIET_MS);
 }
@@ -1599,26 +1603,30 @@ int qd_pool_find(const qd_app_t *a, const qd_sound_t *s)
     return 0;
 }
 
-/* every sound lock and track source of pool number x made y (and y x: a swap) in all the project's patterns */
-static void renumber(qd_app_t *a, int x, int y, int swap)
+/* every sound lock and track source of pool number x made y (and y x: a swap): one pattern's (the references it
+ * changed) */
+static int pat_renum(qd_pattern_t *P, int x, int y, int swap)
 {
-    int p, t, s;
-    for (p = 0; p < QD_NPAT; p++) {
-        qd_pattern_t *P = qd_proj_pat(&a->proj, p);
-        for (t = 0; t < QD_PAT_NTRACK; t++) {
-            for (s = 0; s < QD_NSTEP; s++) {
-                qd_step_t *st = &P->step[t][s];
-                if (st->sound == x)
-                    st->sound = (uint8_t)y;
-                else if (swap && st->sound == y)
-                    st->sound = (uint8_t)x;
-            }
-            if (P->snd[t].sound == x)
-                P->snd[t].sound = (uint8_t)y;
-            else if (swap && P->snd[t].sound == y)
-                P->snd[t].sound = (uint8_t)x;
+    int t, s, n = 0;
+    for (t = 0; t < QD_PAT_NTRACK; t++) {
+        for (s = 0; s < QD_NSTEP; s++) {
+            qd_step_t *st = &P->step[t][s];
+            if (st->sound == x)
+                st->sound = (uint8_t)y, n++;
+            else if (swap && st->sound == y)
+                st->sound = (uint8_t)x, n++;
         }
+        if (P->snd[t].sound == x)
+            P->snd[t].sound = (uint8_t)y, n++;
+        else if (swap && P->snd[t].sound == y)
+            P->snd[t].sound = (uint8_t)x, n++;
     }
+    return n;
+}
+/* (every pattern: qd_pool_swap's loop; the pool swap's job: qd_pool_renumber_pat) the tracks' sources */
+static void renumber_tracks(qd_app_t *a, int x, int y, int swap)
+{
+    int t;
     for (t = 0; t < QD_NTRACK; t++) {                   /* (the tracks' mirror of the edited pattern) */
         if (a->model.t[t].sound == x)
             a->model.t[t].sound = (uint8_t)y;
@@ -1627,24 +1635,41 @@ static void renumber(qd_app_t *a, int x, int y, int swap)
     }
 }
 
+/* the two slots' sounds swapped, and the tracks' sources (the patterns: the callers') */
+static void slots_swap(qd_app_t *a, int x, int y)
+{
+    qd_sound_t sx, sy;
+    qd_sound_read(&a->proj, x, &sx);
+    qd_sound_read(&a->proj, y, &sy);
+    qd_sound_write(&a->proj, x, &sy);
+    qd_sound_write(&a->proj, y, &sx);
+    renumber_tracks(a, x, y, 1);
+}
+
 int qd_pool_swap(qd_app_t *a, int x, int y)
 {
-    qd_sound_t tmp;
+    int p;
     qd_undo_hint(a, QD_UK_SOUNDS);                      /* (P1.5c: one undo level) */
     if (x < 1 || x > QD_NSOUND || y < 1 || y > QD_NSOUND || x == y)
         return 0;
     qd_undo_snd(a, QD_UNDO_RPOOL, x);
     qd_undo_snd(a, QD_UNDO_RPOOL, y);
-    {
-        qd_sound_t sy;
-        qd_sound_read(&a->proj, x, &tmp);
-        qd_sound_read(&a->proj, y, &sy);
-        qd_sound_write(&a->proj, x, &sy);
-        qd_sound_write(&a->proj, y, &tmp);
-    }
-    renumber(a, x, y, 1);
+    slots_swap(a, x, y);
+    for (p = 0; p < QD_NPAT; p++)
+        pat_renum(qd_proj_pat(&a->proj, p), x, y, 1);
     qd_sound_recount(&a->proj);
     return 1;
+}
+
+/* (web manager P1) the pool swap in parts, for a job outside the locks (fizz_sx.c): the two slots and the tracks'
+ * sources now (no undo level: the levels before are forgotten, their bytes would not match); then each pattern by
+ * qd_pool_renumber_pat */
+void qd_pool_swap_slots(qd_app_t *a, int x, int y)
+{
+    qd_undo_reset(a);
+    slots_swap(a, x, y);
+    qd_sound_recount(&a->proj);
+    a->edit_gen++;
 }
 
 int qd_pool_copy(qd_app_t *a, int from, int to)
@@ -2089,7 +2114,7 @@ static int pat_rec_refs(qd_store_t *st, int p, int k, uint16_t *ref)
 
 /* before MY preset id changes or goes: every pattern record that refers to it (every project's) written again with
  * the track's own copy */
-void qd_preset_will_change(qd_app_t *a, int id)
+static void will_change(qd_app_t *a, int id, int p0, int p1)
 {
     qd_persist_t *ps = &a->per;
     qd_store_t *st = pat_backing(a);
@@ -2101,7 +2126,7 @@ void qd_preset_will_change(qd_app_t *a, int id)
         job_end(a);
     }
     ser_noref = id;
-    for (p = 0; p < QD_NPROJ; p++) {
+    for (p = p0; p < p1; p++) {
         if (p != ps->proj && (!ps->on || !ps->pexists[p]))
             continue;
         for (k = 0; k < QD_NPAT; k++) {
@@ -2120,6 +2145,69 @@ void qd_preset_will_change(qd_app_t *a, int id)
         }
     }
     ser_noref = 0;
+}
+void qd_preset_will_change(qd_app_t *a, int id) { will_change(a, id, 0, QD_NPROJ); }
+/* (web manager P1) the same for project p alone (a job's step: one project's records at a time) */
+void qd_preset_will_change_proj(qd_app_t *a, int id, int p) { will_change(a, id, p, p + 1); }
+
+/* (web manager P1) a pool swap's pattern k (the project worked on): in RAM if it is there; else its record read into
+ * the arena's room (qd_pat_borrow: between frames only), renumbered, and written again if it changed (nothing to read:
+ * its default, a demo's, written if it changed). 1 done; 0 not now (no room: again later) */
+int qd_pool_renumber_pat(qd_app_t *a, int k, int x, int y)
+{
+#if QD_PAT_RAM < QD_NPAT
+    qd_persist_t *ps = &a->per;
+    qd_store_t *st;
+    qd_pattern_t *S;
+    rd_t r;
+    int len;
+#endif
+    if (k < 0 || k >= QD_NPAT)
+        return 1;
+#if QD_PAT_RAM < QD_NPAT
+    if (!qd_proj_resident(&a->proj, k)) {
+        st = pat_backing(a);
+        if (!st)
+            return 1;
+        S = qd_pat_borrow();
+        if (!S)
+            return 0;
+        qd_pat_default(&a->proj, k, S);
+        len = rd_open(&r, st, QD_RKEY(QD_RK_PAT, ps->proj, k));
+        if (len > 0 && len != (int)QDS_DELETED) {
+            if (!de_pat(a, S, &r)) {
+                qd_pat_return(S);
+                return 1;                               /* (a record it cannot read: as it is) */
+            }
+            tsound_fixup(a, S);
+        }
+        if (pat_renum(S, x, y, 1)) {
+            em_t e;
+            pat_src_t c;
+            if (ps->on && ps->job >= 0) {               /* (the record being written: finished first) */
+                qd_store_flush(item_store(a, ps->job));
+                job_end(a);
+            }
+            em_init(&e, 0, 0, 0);
+            ser_pat(a, S, &e);
+            c.a = a, c.P = S;
+            qd_store_flush(st);
+            if (qd_store_put_src(st, QD_RKEY(QD_RK_PAT, ps->proj, k), e.pos, pat_src, 0, &c))
+                qd_store_flush(st);
+            ps->saved[QD_PI_PAT + k] = ps->seen[QD_PI_PAT + k] = em_hash(&e);
+            qd_users_gen++;
+        }
+        qd_pat_return(S);
+        return 1;
+    }
+#endif
+    if (pat_renum(qd_proj_pat(&a->proj, k), x, y, 1)) {
+        a->edit_gen++;
+#if QD_PAT_RAM < QD_NPAT
+        qd_users_gen++;
+#endif
+    }
+    return 1;
 }
 
 /* every pattern record of an older format, of every project, written again in the newest ('P' 5: track sounds by
@@ -2385,44 +2473,62 @@ static int rec_pat_steps(rd_t *r, const uint8_t *mask)
     return n;
 }
 
-void qd_preset_usage(const qd_app_t *a, int id, int *projects, int *steps)
+/* (web manager P1) one project's part of qd_preset_usage: 1 its pool references id (steps: the steps locking it;
+ * tracks: this project's tracks playing or locking it) */
+int qd_preset_usage_proj(const qd_app_t *a, int id, int p, int *steps, uint8_t *tracks)
 {
     const qd_persist_t *ps = &a->per;
-    int p, k, np = 0, ns = 0;
-    {   /* this project: its pool in RAM */
-        int used = 0;
+    int k, ns = 0;
+    uint8_t mask[(QD_NSOUND + 8) / 8];
+    int used = 0;
+    if (p == ps->proj) {                                /* this project: its pool in RAM */
         for (k = 1; k <= QD_NSOUND; k++)
             if (qd_sound_used(&a->proj, k) && qd_sound_preset(&a->proj, k) == id) {
+                uint8_t m = 0;
                 used = 1;
-                ns += qd_pool_users_all(a, k, 0);
+                ns += qd_pool_users_all(a, k, &m);
+                if (tracks)
+                    *tracks |= m;
             }
-        np += used;
+        if (steps)
+            *steps = ns;
+        return used;
     }
-    for (p = 0; ps->on && p < QD_NPROJ; p++) {          /* the others: their records */
-        uint8_t mask[(QD_NSOUND + 8) / 8];
-        int used = 0;
-        if (p == ps->proj || !ps->pexists[p])
+    if (steps)
+        *steps = 0;
+    if (!ps->on || p < 0 || p >= QD_NPROJ || !ps->pexists[p])
+        return 0;
+    memset(mask, 0, sizeof mask);
+    for (k = 1; k <= QD_NSOUND; k++) {
+        uint8_t b[8];
+        const int len = qd_store_get((qd_store_t *)&ps->prj_st, QD_RKEY(QD_RK_SND, p, k), b, sizeof b);
+        uint16_t r;
+        if (len != 4 || b[0] != 'R' || b[1] != 1)
             continue;
-        memset(mask, 0, sizeof mask);
-        for (k = 1; k <= QD_NSOUND; k++) {
-            uint8_t b[8];
-            const int len = qd_store_get((qd_store_t *)&ps->prj_st, QD_RKEY(QD_RK_SND, p, k), b, sizeof b);
-            uint16_t r;
-            if (len != 4 || b[0] != 'R' || b[1] != 1)
-                continue;
-            memcpy(&r, b + 2, 2);
-            if (r == id)
-                mask[k >> 3] |= (uint8_t)(1u << (k & 7)), used = 1;
-        }
-        if (!used)
-            continue;
-        np++;
-        for (k = 0; k < QD_NPAT; k++) {
-            rd_t r;
-            const int len = rd_open(&r, (qd_store_t *)&ps->prj_st, QD_RKEY(QD_RK_PAT, p, k));
-            if (len > 0 && len != (int)QDS_DELETED)
-                ns += rec_pat_steps(&r, mask);
-        }
+        memcpy(&r, b + 2, 2);
+        if (r == id)
+            mask[k >> 3] |= (uint8_t)(1u << (k & 7)), used = 1;
+    }
+    if (!used)
+        return 0;
+    for (k = 0; k < QD_NPAT; k++) {
+        rd_t r;
+        const int len = rd_open(&r, (qd_store_t *)&ps->prj_st, QD_RKEY(QD_RK_PAT, p, k));
+        if (len > 0 && len != (int)QDS_DELETED)
+            ns += rec_pat_steps(&r, mask);
+    }
+    if (steps)
+        *steps = ns;
+    return 1;
+}
+
+void qd_preset_usage(const qd_app_t *a, int id, int *projects, int *steps)
+{
+    int p, np = 0, ns = 0;
+    for (p = 0; p < QD_NPROJ; p++) {                    /* (this project from RAM, the others from their records) */
+        int s = 0;
+        if (qd_preset_usage_proj(a, id, p, &s, 0))
+            np++, ns += s;
     }
     if (projects)
         *projects = np;

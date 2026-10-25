@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: MPL-2.0
+# The web manager's Phase 1 commands (docs/SYSEX.md, docs/WEB-MANAGER-PLAN.md §5) as the unit runs them: through
+# app_sysex (under the port's lock), their jobs stepped by the store's step (fz_persist_step: between frames, outside
+# the locks). fz_sx_kind is the last FIZZ reply's kind byte (decimal: 66 STATUS, 82 ACK, 99 PROJECTS), fz_sx_status
+# an ACK's status (0 OK, 8 BUSY, 9 NOT FOUND)
+fzdata zero
+reboot
+wait 600
+expect fz_store_on 1
+# STATUS (02), PROJECTS (23)
+sysex F0 7D 46 5A 01 02 7E F7
+wait 20
+expect fz_sx_kind 66
+sysex F0 7D 46 5A 01 23 5D F7
+wait 20
+expect fz_sx_kind 99
+# TAGS of factory preset 3 (DRUMS): in the handler, OK
+sysex F0 7D 46 5A 01 12 01 00 03 20 4A F7
+wait 20
+expect fz_sx_kind 82
+expect fz_sx_status 0
+# SWAP pool 1 and 2 while playing: BUSY
+tap PLAY
+wait 500
+sysex F0 7D 46 5A 01 15 02 00 01 00 02 66 F7
+wait 20
+expect fz_sx_status 8
+tap PLAY
+wait 500
+# .. stopped: a job, its OK when the 64 patterns are done (no pattern loaded inside the audio interrupt)
+sysex F0 7D 46 5A 01 15 02 00 01 00 02 66 F7
+wait 3000
+expect fz_sx_kind 82
+expect fz_sx_status 0
+expect fz_isr_loads 0
+# DELETE MY preset 1 (none there): NOT FOUND
+sysex F0 7D 46 5A 01 14 00 00 01 00 6B F7
+wait 20
+expect fz_sx_status 9
+# FLUSH (03): a STATUS when everything is written
+sysex F0 7D 46 5A 01 03 7D F7
+wait 1000
+expect fz_sx_kind 66
+expect fz_store_dirty 0
+# the port's counters: lock_sysex_us in line 1 (read by eye: fzstats)
+fzstats
