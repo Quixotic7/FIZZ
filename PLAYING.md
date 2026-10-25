@@ -51,7 +51,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   (ENV, both pages), the **effects** (FX), the **sound editor** (EDIT) and the **MIDI FX** screen (ARP). **F1 never
   leaves them**: they close with **HOME** or their own key (EDIT, ARP; ENV and FX turn their pages), or by opening
   another page. **LFO** keeps them open too. The **pop-ups** keep F1 = back: F3, the track settings (SEL tapped),
-  the record settings (SHIFT + REC), the global settings (SHIFT + SEL), the project pages (SEQ tapped), the browser
+  the record settings (SHIFT + REC), the global settings (SHIFT + SEL), the project pages (SHIFT + SAVE), the browser
   (F1 cancels) and the questions; SAVE PRESET and the name editor are the typewriter (F1 deletes, HOME cancels).
 - **SHIFT + HOME** cycles the views: **PIANO ROLL** (the mode's lane), **STEPS** and **EDIT**. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
@@ -831,9 +831,8 @@ DECAY, HARM and FDBK.
     step's frame; several held: all of them; the step latch's selection counts too. Nothing held: ALGORITHM is the
     track's group again. On the arp's lanes (pages 3, 4) the white keys stay the lane's steps.
   - **The white keys** play the track through the group (its scale, as the sound editor's keyboard).
-- **ARP held** (400 ms, anywhere; 0.9.1, it was the tap): the track's group's arp **on / off**, big. A group with no
-  arp gets one in its first empty slot; a track with no group is put on the first group no track uses (an empty one
-  first) with an arp in it. **ARP is lit steady** while the selected track's group has an arp ON (off otherwise); FILL
+- **ARP held** (400 ms, anywhere): the track's group's arp **on / off** (its bypass, B10's on its slot; a group with
+  no arp: nothing). **SEQ tapped** opens **TOOLS** (SEQ again or HOME closes it, SEQ lit while open). **ARP is lit steady** while the selected track's group has an arp ON (off otherwise); FILL
   (SHIFT + ARP held) blinks it.
 - **The stopped preview** (0.9.3): a step held while stopped plays **through its MIDI FX group** (its own, else the
   track's): you hear the arp, the chord, the harmony; letting go ends every note (a HOLD arp's too).
@@ -988,11 +987,11 @@ bright).
   destinations each) comes into the eight slots, the first eight that FIZZ has a destination for; how the Digitone
   II stores the depth is still a guess, the note over the screen says so.
 
-## How do I manage projects? (SEQ tapped)
+## How do I manage projects? (SHIFT + SAVE)
 
-- **SEQ tapped** (SEQ held is still the patterns) shows the **project**: its number and name, its 64 patterns (a
+- **SHIFT + SAVE** (it was SEQ tapped; SEQ tapped is TOOLS now) shows the **project**: its number and name, its 64 patterns (a
   bubble for each one written, the playing one bright), the flash in use and the pool's count.
-- **SELECT** or **SEQ again**: the **projects**, W1..W8 (the current one champagne). A W chooses one; **F2** loads it
+- **SELECT** or **SHIFT + SAVE again**: the **projects**, W1..W8 (the current one champagne). A W chooses one; **F2** loads it
   (an empty one starts a new project). **F1 + W** picks a project, **another W** copies it there (onto a project: that
   W turns orange, the same W again replaces it). **B11 + W** deletes one (the one you work on: a blank project in
   its place). **B10** names the current project (on the keybed, as above: SAVE keeps it, HOME the old one).

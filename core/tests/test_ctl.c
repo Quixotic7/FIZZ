@@ -983,7 +983,7 @@ static void g_seq(void)
     run(700);
     bdown(QD_B_MIX);
     run(30);
-    CHECK(qd_view_screen(&A) != QD_SCR_SEQ, "P1.5a: SEQ down 30 ms: no map yet (a tap is the project page)");
+    CHECK(qd_view_screen(&A) != QD_SCR_SEQ, "P1.5a: SEQ down 30 ms: no map yet (a tap is TOOLS)");
     run(250);
     CHECK(qd_view_screen(&A) == QD_SCR_SEQ, "SEQ held: the pattern map");
     ktap(WK(0), 30);
@@ -3026,9 +3026,9 @@ static void g_clarity(void)
     kup(BK(B11));
     run(200);
     btap(QD_B_OCTDN);
-    btap(QD_B_MIX);
+    bdown(SHIFT), btap(QD_B_SAVE), bup(SHIFT);          /* (T1b: SHIFT + SAVE the project, again the projects) */
     run(150);
-    btap(QD_B_MIX);
+    bdown(SHIFT), btap(QD_B_SAVE), bup(SHIFT);
     run(150);
     btap(QD_B_HOME);
     btap(QD_B_PAGE);
@@ -4802,34 +4802,20 @@ static void g_p16c_screen(void)
     btap(QD_B_HOME);
 }
 
-/* T1 (the owner, 2026-10-24): ARP held opens TOOLS (the arp on / off toggle is gone: no group made, no arp added); a tap
- * the MIDI FX screen; SHIFT + ARP is FILL at once, and stays FILL however long it is held */
-static void arp_hold(void)
-{
-    bdown(QD_B_KEYS);
-    run(QD_ARP_HOLD_MS + 20);
-    bup(QD_B_KEYS);
-    run(20);
-}
+/* T1b (the owner): ARP held does nothing (TOOLS is SEQ tapped; no group made, no arp added); a tap the MIDI FX screen;
+ * SHIFT + ARP is FILL at once, and stays FILL however long it is held */
 static void g_p16c_arp(void)
 {
     start();
     qd_ctl_select_track(&A, 2);
     bdown(QD_B_KEYS);
-    run(QD_ARP_HOLD_MS - 20);
-    CHECK(!qd_tools_open(&A), "ARP held 380 ms: not yet");
-    run(30);
-    CHECK(qd_tools_open(&A) && qd_view_screen(&A) == QD_SCR_TOOLS, "held 400 ms: TOOLS at once (before the release)");
+    run(QD_ARP_HOLD_MS + 30);
     bup(QD_B_KEYS);
     run(20);
-    CHECK(qd_tools_open(&A) && PAT()->trk[2].mfx == 0 && A.proj.mfx[2].slot[0].type == QD_MFX_NONE &&
-              qd_view_screen(&A) != QD_SCR_MFX, "let go: TOOLS stays; no group, no arp made");
-    btap(QD_B_HOME);
-    CHECK(!qd_tools_open(&A), "HOME: closed");
+    CHECK(!qd_tools_open(&A) && PAT()->trk[2].mfx == 0 && A.proj.mfx[2].slot[0].type == QD_MFX_NONE &&
+              qd_view_screen(&A) != QD_SCR_MFX, "ARP held: nothing; no group, no arp made");
     btap(QD_B_KEYS);
     CHECK(qd_view_screen(&A) == QD_SCR_MFX, "ARP tapped: the MIDI FX screen (unchanged)");
-    arp_hold();
-    CHECK(qd_tools_open(&A) && !qd_mfx_open(&A), "ARP held over the MIDI FX screen: TOOLS instead");
     btap(QD_B_HOME);
     bdown(SHIFT), bdown(QD_B_KEYS);
     CHECK(A.seq.fill, "SHIFT + ARP: FILL at once (the press)");
@@ -5603,10 +5589,13 @@ static void g_p16h_f1(void)
     CHECK(A.ui.latch == QD_LATCH_SET, "SHIFT + SEL: the global settings");
     btap(F1);
     CHECK(!A.ui.latch, "the global settings: F1 back");
-    btap(QD_B_MIX);
-    CHECK(A.ui.latch == QD_LATCH_PRJ, "SEQ tapped: the project");
-    btap(F1);
-    CHECK(!A.ui.latch, "the project: F1 back");
+    bdown(SHIFT), btap(QD_B_SAVE), bup(SHIFT), run(10);
+    CHECK(A.ui.latch == QD_LATCH_PRJ && A.ui.pj.page == 0 && leds().button[QD_B_SAVE] == QD_LED_LIT,
+          "SHIFT + SAVE: the project, SAVE lit");
+    bdown(SHIFT), btap(QD_B_SAVE), bup(SHIFT), run(10);
+    CHECK(A.ui.latch == QD_LATCH_PRJ && A.ui.pj.page == 1, "SHIFT + SAVE again: the projects");
+    btap(QD_B_HOME);
+    CHECK(!A.ui.latch, "the projects: HOME back");
     turn(QD_K_PRESETS, 1);
     CHECK(A.ui.latch == QD_LATCH_BROWSE, "PRESETS: the browser");
     btap(F1);
@@ -7598,9 +7587,7 @@ static void g_p15u_leds(void)
     run(10);
     CHECK(ok && !strcmp(A.ui.ty.name, "CU"), "the key pressed bright (C, U typed)");
     btap(QD_B_HOME);
-    bdown(QD_B_MIX);                                    /* the project's name: the same keyboard */
-    run(10);
-    bup(QD_B_MIX);
+    bdown(SHIFT), btap(QD_B_SAVE), bup(SHIFT);          /* the project's name: the same keyboard (T1b) */
     run(10);
     black(B10);
     l = leds();

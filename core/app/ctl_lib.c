@@ -5,14 +5,14 @@
  * redesigned"): the library browser and SAVE PRESET (ctl_presets.c), the name editor (a project's name), the project
  * pages; their keys, knobs, OCT keys and clock (ctl.c's rows call these). Built through ctl_latch.c (it includes this
  * file). Single clicks: a press again confirms, nothing is held to confirm; SHIFT + a button stays free (P1.5b's
- * snapshots).
+ * snapshots; T1b: SHIFT + SAVE is the project).
  *
  *   PRESETS (nothing held)   THE LIBRARY BROWSER (ctl_presets.c)
  *   SAVE (anywhere)          SAVE PRESET (ctl_presets.c)
  *   THE NAME EDITOR (B10 on the project page): P1.5u: the typewriter (ctl_type.c): the project's name selected, the
  *        keys type; SAVE keeps it, HOME leaves the old name (both back to the project page).
- *   SEQ tapped (SEQ held stays the patterns)  THE PROJECT: its number and name, its 64 patterns, the flash and the pool
- *        in use. SELECT or SEQ again: THE PROJECTS, eight on W1..W8: W chooses (it blinks with F2), F2 loads (an empty
+ *   SHIFT + SAVE (T1b; it was SEQ tapped)  THE PROJECT: its number and name, its 64 patterns, the flash and the pool
+ *        in use. SELECT or SHIFT + SAVE again: THE PROJECTS, eight on W1..W8: W chooses (it blinks with F2), F2 loads (an empty
  *        one: a new project), F1 + W copies one onto another (onto one that exists: armed, that W again), B11 + W
  *        deletes one, B10 names the one worked on. */
 

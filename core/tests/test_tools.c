@@ -429,9 +429,7 @@ static void start(void)
 }
 static void tools_open(void)
 {
-    bdown(QD_B_KEYS);
-    run(QD_ARP_HOLD_MS + 10);
-    bup(QD_B_KEYS);
+    btap(QD_B_MIX);                                     /* (T1b: SEQ tapped) */
     run(20);
 }
 /* track t: a bass line on page 1 (x..x..x.x.x..x..) with notes, a lock, page 2 a few trigs, loop 1..2 */
@@ -460,17 +458,32 @@ static void t_arp(void)
 {
     start();
     bdown(QD_B_KEYS);
-    run(QD_ARP_HOLD_MS - 10);
-    CHECK(!qd_tools_open(&A), "ARP held 390 ms: nothing yet");
-    run(15);
-    CHECK(qd_tools_open(&A) && qd_view_screen(&A) == QD_SCR_TOOLS && leds().button[QD_B_KEYS] == QD_LED_LIT,
-          "ARP held 400 ms: TOOLS at once, ARP lit");
-    CHECK(A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob, "its tool's name pops up");
+    run(QD_ARP_HOLD_MS + 200);
     bup(QD_B_KEYS);
+    run(20);
+    CHECK(!qd_tools_open(&A) && !qd_mfx_open(&A), "T1b: ARP held: no TOOLS, no MIDI FX");
+    btap(QD_B_MIX);
+    CHECK(qd_tools_open(&A) && qd_view_screen(&A) == QD_SCR_TOOLS && leds().button[QD_B_MIX] == QD_LED_LIT &&
+              leds().button[QD_B_KEYS] == QD_LED_OFF, "SEQ tapped: TOOLS, SEQ lit (ARP dark)");
+    CHECK(A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob, "its tool's name pops up");
     run(QD_TOOL_POP_MS);
-    CHECK(qd_tools_open(&A) && A.ui.tk == QD_TK_NONE, "let go: TOOLS stays (latched), the name gone after ~0.8 s");
+    CHECK(qd_tools_open(&A) && A.ui.tk == QD_TK_NONE, "TOOLS stays (latched), the name gone after ~0.8 s");
+    bdown(QD_B_MIX);
+    run(QD_TAP_MS + 20);
+    CHECK(qd_ctl_seq_map(&A), "SEQ held over TOOLS: the patterns map");
+    bup(QD_B_MIX);
+    run(10);
+    CHECK(qd_tools_open(&A) && !qd_ctl_seq_map(&A), "let go: TOOLS still, nothing latched");
+    btap(QD_B_MIX);
+    CHECK(!qd_tools_open(&A) && leds().button[QD_B_MIX] == QD_LED_OFF, "SEQ tapped again: closed, SEQ dark");
+    btap(QD_B_MIX);
     btap(QD_B_HOME);
     CHECK(!qd_tools_open(&A) && leds().button[QD_B_KEYS] == QD_LED_OFF, "HOME: closed, ARP dark (no arp on)");
+    bdown(QD_B_MIX);
+    run(QD_TAP_MS + 20);
+    bup(QD_B_MIX);
+    run(10);
+    CHECK(!qd_tools_open(&A) && !qd_lib_open(&A), "SEQ held, let go: nothing latched");
     btap(QD_B_KEYS);
     CHECK(qd_mfx_open(&A) && leds().button[QD_B_KEYS] == QD_LED_LIT, "ARP tapped: the MIDI FX screen, ARP lit");
     btap(QD_B_HOME);
@@ -491,6 +504,19 @@ static void t_arp(void)
     A.proj.mfx[0].slot[0].v[QD_MA_MODE] = QD_AM_OFF;
     run(10);
     CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "off: dark");
+    A.proj.mfx[0].slot[0].v[QD_MA_MODE] = QD_AM_ON;
+    bdown(QD_B_KEYS);
+    run(QD_ARP_HOLD_MS + 10);
+    CHECK(A.proj.mfx[0].slot[0].bypass && leds().button[QD_B_KEYS] == QD_LED_OFF && !qd_mfx_open(&A),
+          "T1b: ARP held: the arp bypassed at once, ARP dark");
+    bup(QD_B_KEYS);
+    run(10);
+    CHECK(!qd_mfx_open(&A) && !qd_tools_open(&A), "let go: nothing opened");
+    bdown(QD_B_KEYS);
+    run(QD_ARP_HOLD_MS + 10);
+    bup(QD_B_KEYS);
+    run(10);
+    CHECK(!A.proj.mfx[0].slot[0].bypass && leds().button[QD_B_KEYS] == QD_LED_LIT, "held again: playing, ARP lit");
 }
 
 static void t_rotate_live(void)

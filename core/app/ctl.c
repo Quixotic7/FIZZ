@@ -1144,8 +1144,8 @@ static void b_lfo(qd_app_t *a, int down)
 
 /* P1.6d (the owner's batch): ARP tapped (released under QD_ARP_HOLD_MS, nothing with it) opens the MIDI FX screen
  * (tapped again, or HOME, closes it); SHIFT + ARP held is FILL (the FILL / NOT FILL conditions), at once, while both
- * are down. T1 (the owner, 2026-10-24): ARP held QD_ARP_HOLD_MS opens TOOLS (ctl_tools.c), the moment the hold is
- * reached (qd_ctl_ms); the arp's on / off is the MIDI FX screen's (its slot added / removed, B10 bypass) */
+ * are down; T1b: ARP held QD_ARP_HOLD_MS bypasses / plays the track's arp at once (qd_ctl_ms; B10's on its slot, a
+ * group with no arp: nothing); TOOLS is SEQ tapped */
 static void b_fill(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -1413,16 +1413,22 @@ static void b_octdn(qd_app_t *a, int down) { b_oct(a, -1, down); }
 static void b_octup(qd_app_t *a, int down) { b_oct(a, 1, down); }
 void qd_ctl_set_mode(qd_app_t *a, int mode) { set_mode(a, mode); }
 
-/* P1.5a: SAVE: the sounds page, storing the selected track's sound (SAVE again stores; SHIFT + SAVE is P1.5b's) */
+/* P1.5a: SAVE: the sounds page, storing the selected track's sound (SAVE again stores); T1b: SHIFT + SAVE the
+ * project page (again: the projects) */
 static void b_save(qd_app_t *a, int down)
 {
-    if (!down || a->ui.mode == QD_MODE_IDLE || qd_ctl_shift(a))
+    if (!down || a->ui.mode == QD_MODE_IDLE)
         return;
+    if (qd_ctl_shift(a)) {
+        a->ui.shift_used = 1;
+        qd_prj_button(a);
+        return;
+    }
     qd_lib_save(a);
 }
 
-/* P1.5a: SEQ (printed): held, the patterns (their map after QD_TAP_MS, or at once with a key or a knob); tapped, the
- * project page (again: the projects) */
+/* P1.5a: SEQ (printed): held, the patterns (their map after QD_TAP_MS, or at once with a key or a knob); T1b (the
+ * owner): tapped, TOOLS (latched; tapped again or HOME: closed) */
 static void b_seq(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -1432,7 +1438,7 @@ static void b_seq(qd_app_t *a, int down)
         return;
     }
     if (!u->seq_used && a->ms - u->seq_ms < QD_TAP_MS && u->mode != QD_MODE_IDLE && !qd_ctl_shift(a))
-        qd_prj_button(a);
+        qd_tools_open(a) ? qd_latch_close(a) : qd_tools_screen(a);
 }
 int qd_ctl_seq_map(const qd_app_t *a)
 {
@@ -1466,10 +1472,10 @@ static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_SOUND] = b_snd,              /* printed EDIT: the sound editor (P1.4a) */
     [QD_B_FUNC] = b_shift,             /* SHIFT, held */
     [QD_B_HOME] = b_home,              /* the step view */
-    [QD_B_SAVE] = b_save,              /* P1.5a: the sounds page: the track's sound into the LIBRARY */
-    [QD_B_KEYS] = b_fill,              /* ARP: tapped MIDI FX, held TOOLS (T1), SHIFT + ARP FILL */
-    [QD_B_MIX] = b_seq,                /* printed SEQ, held: the patterns (W: the keys' table); P1.5a: tapped, the
-                                        * project */
+    [QD_B_SAVE] = b_save,              /* P1.5a: the sounds page: the track's sound into the LIBRARY; SHIFT: the
+                                        * project (T1b) */
+    [QD_B_KEYS] = b_fill,              /* ARP: tapped MIDI FX, held the arp on / off, SHIFT + ARP FILL */
+    [QD_B_MIX] = b_seq,                /* printed SEQ, held: the patterns (W: the keys' table); tapped: TOOLS (T1b) */
     [QD_B_PLAY] = b_play,              /* play / stop; REC + PLAY: play, recording armed */
     [QD_B_REC] = b_rec,                /* tap: the keyboard <-> the sequencer; SHIFT: armed */
     [QD_B_OCTDN] = b_octdn,            /* F1 */
@@ -2011,8 +2017,11 @@ void qd_ctl_ms(qd_app_t *a)
     qd_snd_rnd_ms(a);                                   /* P1.5c: the editor's dice, its bottle */
     qd_snd_fkey_ms(a);                                  /* P1.6d: the FILTER key held: the machines' popup */
     if (held(a, QD_B_KEYS) && !u->arp_used && a->ms - u->arp_ms >= QD_ARP_HOLD_MS && u->mode != QD_MODE_IDLE) {
-        u->arp_used = 1;                                /* T1: ARP held: TOOLS */
-        qd_tools_screen(a);
+        const int g = qd_mfx_tgroup(a);                 /* T1b: ARP held: the track's arp bypassed / playing (B10's) */
+        const int k = g ? qd_mfx_arp_slot(&a->proj.mfx[g - 1]) : -1;
+        u->arp_used = 1;
+        if (k >= 0)
+            a->proj.mfx[g - 1].slot[k].bypass ^= 1u;
     }
     qd_tools_ms(a);                                     /* T1: TOOLS' detents written (combined) */
     if (u->arp_fill && !(held(a, QD_B_KEYS) && qd_ctl_shift(a))) {   /* (FILL while SHIFT and ARP are both down) */

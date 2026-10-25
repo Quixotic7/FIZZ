@@ -50,9 +50,8 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
     lb_set(o, LB_BTN(QD_B_FUNC), "SHIFT");
     lb_set(o, LB_BTN(QD_B_HOME), "HOME");
     lb_set(o, LB_BTN(QD_B_SAVE), "SAVE");
-    lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");       /* (P1.6d: a tap the MIDI FX screen; T1: held TOOLS;
-                                                         * SHIFT + ARP: FILL) */
-    lb_set(o, LB_BTN(QD_B_MIX), "PATTERNS");
+    lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");       /* (P1.6d: a tap the MIDI FX screen; held the arp on / off; SHIFT + ARP: FILL) */
+    lb_set(o, LB_BTN(QD_B_MIX), "PATTERNS");          /* (held; T1b: tapped TOOLS) */
     lb_set(o, LB_BTN(QD_B_PLAY), a->seq.playing ? "STOP" : "PLAY");
     lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : keys ? "STEPS" : "KEYS");   /* (P1.6f: what a tap switches to;
                                                          * P1.6g: armed or recording, a tap stops it, in any view) */
@@ -233,6 +232,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         for (k = QD_K_SELECT; k <= QD_K_4; k++)
             lb_set(o, LB_KNOB(k), "");
         lb_set(o, LB_KNOB(QD_K_SELECT), "TRACK");
+        lb_set(o, LB_BTN(QD_B_SAVE), "PROJECT");      /* (T1b: SHIFT + SAVE) */
         if (u->latch == QD_LATCH_MFX) {                 /* (P1.6c: the MIDI FX screen: a lane's W a random value) */
             if (qd_mfx_lane_page(a))
                 for (i = 0; i < 16; i++)

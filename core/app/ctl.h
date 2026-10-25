@@ -54,7 +54,7 @@
  * SEQ held: W1..W16 tap = A01..A16 queued by the launch mode (the project's: END, BAR, BEAT, NOW; ALGORITHM turned
  * while SEQ is held), held 400 ms = at once; the pattern map on screen.
  * BUTTONS: REC tap = the keyboard <-> the sequencer; REC + PLAY = play with recording armed (in the keyboard); SHIFT + REC
- * in the keyboard = armed / not (stopped: step recording, playing: live); ARP held = FILL; PAGE tap = page follow on /
+ * in the keyboard = armed / not (stopped: step recording, playing: live); SHIFT + ARP held = FILL; SEQ tapped = TOOLS; SHIFT + SAVE = the project; PAGE tap = page follow on /
  * off, PAGE held + W1..W8 = edit that page; TRACKS, HOME, PLAY as P1.3. The keyboard's OCT- / OCT+: its octave (the
  * octave takeover, the OCT LEDs).
  *
@@ -181,7 +181,7 @@ enum { QD_LAYER_NONE, QD_LAYER_F1, QD_LAYER_F2, QD_LAYER_F3 };
 #define QD_TK_BACK 107                 /* .. its F1 / HOME: the track's own sound back, "BACK" */
 #define QD_TK_SAVED 108                /* .. SAVE PRESET done: into MY presets, "SAVED" */
 #define QD_TK_LMODE 103                /* P1.5b: the latch mode's screen (P1.5h: only while LFO is held: lmode_open) */
-#define QD_ARP_HOLD_MS 400u            /* P1.6d: ARP held this long (T1: TOOLS opens; a tap: the MIDI FX screen) */
+#define QD_ARP_HOLD_MS 400u            /* P1.6d: ARP held this long (T1b: the arp on / off; a tap: the MIDI FX screen) */
 #define QD_TOOL_POP_MS 800u            /* T1: a tool's name pops up this long (its last 300 ms a fade) */
 #define QD_TK_MFX_STEP 110             /* P1.6c: a held step's MIDI FX (TRIG's KNOB 2, B4..B10) */
 #define QD_LFO_HOLD_MS 400u            /* P1.5b: LFO held this long alone: the latch mode's screen (P1.5h: while held) */
@@ -209,10 +209,10 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
        QD_LATCH_FX,                     /* P1.4b: FX (printed) tapped: the effects */
        QD_LATCH_BROWSE,                 /* P1.5t: PRESETS, nothing held: the library browser (ctl_presets.c) */
        QD_LATCH_NAME,                   /* P1.5a: the name editor (a project's name) */
-       QD_LATCH_PRJ,                    /* P1.5a: SEQ tapped: the project, the projects */
+       QD_LATCH_PRJ,                    /* P1.5a: SHIFT + SAVE (T1b): the project, the projects */
        QD_LATCH_SAVE,                   /* P1.5t: SAVE: SAVE PRESET, the track's sound into MY presets */
        QD_LATCH_MFX,                    /* P1.6c: SHIFT + ARP: the MIDI FX screen (ctl_mfx.c) */
-       QD_LATCH_TOOLS,                  /* T1: ARP held: the track tools (ctl_tools.c) */
+       QD_LATCH_TOOLS,                  /* T1: SEQ tapped (T1b): the track tools (ctl_tools.c) */
        QD_NLATCH };
 #define QD_LATCH_MENU(l) ((l) == QD_LATCH_REC || (l) == QD_LATCH_SET || (l) == QD_LATCH_TRK)   /* a settings menu:
                                                          * its own screen, KNOB 1..4 */
@@ -709,7 +709,7 @@ const qd_lockscreen_t *qd_snd_lock_screen(const struct qd_app *a, int page);
  * selected track's group: B1..B8 the slots (again: the next page), PRESETS the slot's effect, KNOB 1..4 its page's
  * values, SELECT the page, ALGORITHM the track's group, B10 bypass, B11 remove (twice), F1 + B copy, F2 + B move, the
  * white keys play the track through the group (the arp's lanes: the steps; SHIFT + W a random value); F1 tapped or
- * HOME close it. (T1: ARP held is TOOLS now; the arp on / off is its slot here: added / removed, B10 bypass) */
+ * HOME close it. (T1b: ARP held: the arp bypassed / playing, TOOLS is SEQ tapped; the arp on / off is its slot here: added / removed, B10 bypass) */
 int qd_mfx_open(const struct qd_app *a);
 int qd_mfx_tgroup(const struct qd_app *a);        /* the selected track's group (0 OFF, 1..5) */
 void qd_mfx_screen(struct qd_app *a);             /* SHIFT + ARP: opened */
@@ -726,15 +726,15 @@ int qd_mfx_steps_held(const struct qd_app *a, int *first);   /* P1.6e: STEPS: th
 int qd_mfx_glide(const struct qd_app *a, int from, int to, uint32_t t0);   /* P1.6d: a glide's place now (x100) */
 const char *qd_mfx_knob_name(const struct qd_app *a, int k, char *val);   /* KNOB k's (0..3) name, value (12) */
 
-/* ---- ctl_tools.c (T1, built through ctl_latch.c; docs/TRACK-TOOLS-PLAN.md): TOOLS, latched. ARP held 400 ms opens
- * it, HOME closes it (a pending change kept). B1..B7 the tool (ROTATE, REVERSE, RANDOM, EUCLID, GRIDS, HUMANIZE, LENGTH;
+/* ---- ctl_tools.c (T1, built through ctl_latch.c; docs/TRACK-TOOLS-PLAN.md): TOOLS, latched. SEQ tapped opens
+ * it (T1b), SEQ again or HOME closes it (a pending change kept). B1..B7 the tool (ROTATE, REVERSE, RANDOM, EUCLID, GRIDS, HUMANIZE, LENGTH;
  * T1 builds ROTATE, REVERSE, EUCLID, LENGTH), B11 the scope (PAGE -> TRACK -> PATTERN), W1..W6 the track, the knobs the
  * tool's values. Every change is rewritten into the pattern at once, heard and seen (the undo gesture held open: its
  * "before" is the original); OCT+ keeps it (one undo level), OCT- reverts it (again, nothing pending: closes). Switching
  * the tool, the scope or the track keeps a pending change. When the log cannot keep the original the change is drawn
  * only, and OCT+ writes it without an undo level */
 int qd_tools_open(const struct qd_app *a);
-void qd_tools_screen(struct qd_app *a);          /* opened (ARP held) */
+void qd_tools_screen(struct qd_app *a);          /* opened (SEQ tapped) */
 void qd_tools_black(struct qd_app *a, int b, int down);
 void qd_tools_white(struct qd_app *a, int w, int down);
 int qd_tools_knob(struct qd_app *a, int knob, int d);
@@ -793,7 +793,7 @@ void qd_panel_leds(const struct qd_app *a, uint8_t *black);
  * PRESET (P1.5t, ctl_presets.c), the name editor, the project pages; their keys, knobs, OCT keys and clock */
 int qd_lib_open(const struct qd_app *a);         /* one of them open */
 void qd_lib_save(struct qd_app *a);              /* SAVE */
-void qd_prj_button(struct qd_app *a);            /* SEQ tapped */
+void qd_prj_button(struct qd_app *a);            /* SHIFT + SAVE (T1b) */
 void qd_lib_back(struct qd_app *a);
 void qd_name_open(struct qd_app *a, int target, int proj);
 void qd_lib_key(struct qd_app *a, int key, int w, int b, int down, int vel);
