@@ -315,6 +315,24 @@ static void rewind(qd_seq_t *s, int t, int64_t x, int pat)
     s->rewinds++;
 }
 
+/* (the capture's: ctl_rec.c) track t's loop starts again `steps` of its steps after its start: the cursor rewound
+ * there (what was resolved from there on dropped); skip: that step not played (its notes sound already) */
+void qd_seq_track_from(qd_seq_t *s, int t, int steps, int skip)
+{
+    qd_tcur_t *c;
+    const qd_pattern_t *P;
+    if (t < 0 || t >= QD_PAT_NTRACK || !s->playing || s->cur_t[t].origin > s->tick)
+        return;
+    c = &s->cur_t[t];
+    P = qd_proj_pat(s->proj, c->pat);
+    rewind(s, t, c->origin + steps * L_of(P, t), c->pat);
+    if (skip) {
+        c->g += L_of(P, t);
+        c->idx = len_of(P, t) > 1;
+        c->n = 1;
+    }
+}
+
 /* P2.4: track t's cursor back from a queued pattern it entered at x into the playing one, from x on (its loop from the
  * start: what it resolved from x on dropped) */
 static void cur_back(qd_seq_t *s, int t, int64_t x)

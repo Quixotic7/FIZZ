@@ -522,32 +522,44 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
   - **KNOB 1 MODE**: LIVE or STEP, what holding REC arms;
   - **KNOB 2 QUANTIZE**: 0..100 % (5 % a click): how much of the played timing is pulled onto the step (0 % as
     played, 100 % exactly on the step);
-  - **KNOB 3 TAKE**: **REPLACE** (a step you record into is cleared first) or **OVERDUB** (your notes join the step's;
-    its velocity, timing and length stay);
+  - **KNOB 3 TAKE**: **CAPTURE** (the default, below), **REPLACE** (a step you record into is cleared first) or
+    **OVERDUB** (your notes join the step's; its velocity, timing and length stay). Step recording treats CAPTURE as
+    REPLACE;
   - **KNOB 4 EDIT KEYS** (P1.5b): **SCALE** or **FULL**, the keyboard in the sound editor (below).
 - **SHIFT + REC again** (or SELECT): the settings' **page 2**: **KNOB 1 AUTOMATION** ON (the default) / OFF: armed live
   recording also records knob moves (ON) or only notes (OFF).
 - **Recording (0.9.5), in every view** (the keyboard, the step view, the sound editor, the MIDI FX screen): notes from
   the keys that play there (the keyboard, the editor's keys, the MIDI FX screen's KEYS) and from MIDI, knobs when
   AUTOMATION is ON.
-  - **Stopped: hold REC** (a second): **armed**, and it stays armed when you let go (REC blinking). Then **press PLAY**:
-    playback starts and the recording runs (REC lit). Two gestures, one after the other (REC + PLAY together is gone;
-    a key played while armed and stopped is not recorded).
-  - **Playing: hold REC and let go without turning a knob**: the recording starts and **latches** (REC lit).
+  - **Stopped: hold REC** (about half a second): **armed**, and it stays armed when you let go (REC blinking).
+    **The first note you play starts it**: playback and the recording at once, that note on the first step. **PLAY**
+    starts it too (from the top, the first step perhaps a rest), and so does **REC + PLAY** (PLAY pressed while REC is
+    held).
+  - **CAPTURE** (TAKE, the default) is for quick takes: armed, nothing changes until the first note (or PLAY). Then the
+    track is **cleared** (its steps and locks; page 1 only, every page 16 steps long; its speed stays, so a slower
+    speed fits a longer take in 128 steps) and the take runs from the top, the loop growing a page at a time as you
+    play. **PLAY or REC ends the take** (where you press it): the track becomes exactly as long as you played, to the
+    nearest step (36 steps: pages 1 to 3, page 3 four steps long), and it loops from there while playback goes on.
+    Past page 8 it goes round and the track stays 128 steps. **Playing, hold REC** (and let go) arms the next take:
+    its first note starts the transport again from the top with it, so takes follow one another without stopping.
+  - **Playing: hold REC and let go without turning a knob**: the recording starts and **latches** (REC lit; CAPTURE:
+    armed, waiting for the first note).
   - **A tap of REC while armed or recording stops it**; playback goes on. Otherwise a tap is the view's own job, as
     before: the keyboard / the steps, the editor's keys, the MIDI FX screen's STEPS / KEYS. (So a tap never switches
     the view while recording: it stops the recording first; the next tap switches.)
   - **Playing: hold REC and turn knobs**: an **automation punch-in**, recording the knobs only while REC is held;
     letting go ends it, nothing latches. While a recording is latched, REC held + a knob records the knob and the
     recording goes on.
-  - **PLAY while recording** stops the transport and the recording.
+  - **PLAY while recording** stops the transport and the recording (REPLACE, OVERDUB); in a CAPTURE take it ends the
+    take and playback goes on (PLAY again stops).
   - REC's light: **off** (the steps), **dim** (the keyboard / the editor's keys: what a tap switched), **blinking**
     (armed), **lit** (recording). While it records the screen is framed in red, a red dot on the band under a knob as
     it writes.
   - The record settings' **MODE**: **LIVE** as above (notes to the nearest step at the track's speed, micro-timing
-    kept, the length from the hold; an **empty track grows** a page as the playhead reaches it, the loop the pages
-    reached when it ends); **STEP**: step recording, armed by the hold, playing or not: each note or chord into the
-    cursor's step (in the keyboard F2 a rest, F1 a step back, PRESETS the cursor). SHIFT + REC opens the settings.
+    kept, the length from the hold; with REPLACE or OVERDUB an **empty track grows** a page as the playhead reaches
+    it, the loop the pages reached when it ends); **STEP**: step recording, armed by the hold, playing or not: each
+    note or chord into the cursor's step (in the keyboard F2 a rest, F1 a step back, PRESETS the cursor). SHIFT + REC
+    opens the settings.
   - **Automation** (0.9.1): each knob move is a lock in the step the selected track's playhead is on (the sound
     editor's values, the mix's, the sends'; in the step view and the keyboard KNOB 1..4's quick page). A step with a
     note gets the lock; **an empty step becomes a ghost** (a LOCK trig). Several moves within one step keep the last;

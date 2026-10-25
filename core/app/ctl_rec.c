@@ -12,6 +12,13 @@
  * nears the loop's end; at the recording's end the loop is the pages reached; past page 8 it loops and records over
  * what is there. REC or PLAY while recording ends it; playback goes on. Notes land on the nearest step at the track's
  * rate (base and type), their offset as micro-timing (24ths of that step), their length from the hold.
+ * THE TAKE (the record settings' KNOB 3; 2026-10-25, the owner): CAPTURE (the default): armed, nothing changes until
+ * the first note (or PLAY): then the track is cleared (steps, locks, pages: page 1, every page 16 long; its rate
+ * stays) and the take runs from the top (playing: the transport starts again with it), the loop growing as above; PLAY
+ * or REC ends it: the track's length is the take's, to the nearest step's edge (36 steps: pages 1..3, page 3 4 long)
+ * and its loop starts again there, playback going on. REPLACE: a note replaces the notes of the step it lands on;
+ * OVERDUB: it joins them. Stopped and armed, the first note starts playback (REPLACE / OVERDUB too), on the loop's
+ * first step; so does PLAY, or PLAY pressed while REC is held (REC + PLAY).
  *
  * STEP RECORDING (armed, the transport stopped): a chord played goes into the cursor's step (the notes struck while
  * any is still down are one chord, the step cleared first, the first note's velocity, the track's default length);
@@ -106,6 +113,7 @@ void qd_rec_toggle(qd_app_t *a)
         return;
     }
     u->rec = 1;
+    u->cap = 0;
     u->rec_kind = QD_REC_LIVE;
     u->rec_n = 0;
     u->rec_step = -1;
@@ -131,13 +139,39 @@ void qd_rec_arm_live(qd_app_t *a)
     if (!u->rec)
         qd_rec_toggle(a);
     u->live_wait = !a->seq.playing;
-    if (track_empty(a)) {                               /* an empty track: page 1, growing */
+    u->cap = a->proj.rec_dub == QD_TAKE_CAPTURE;        /* (CAPTURE: nothing changes until the first note) */
+    if (!u->cap && track_empty(a)) {                    /* an empty track: page 1, growing */
         qd_page_set_loop(PAT(a), a->sel, 1);
         u->rec_grow = 1;
         u->grow_reached = 0;
     }
     u->rec_kind = QD_REC_LIVE;
-    qd_ctl_confirm(a, "LIVE REC", 0);
+    qd_ctl_confirm(a, u->cap ? "CAPTURE" : "LIVE REC", 0);
+}
+
+/* armed (stopped, or CAPTURE waiting): the recording starts now. CAPTURE: the track cleared and growing from page 1,
+ * the transport from the top (playing: started again, every track from its first step with the take). skip: a key
+ * started it, on the first step: the sequencer does not play that step again (the key sounds it) */
+void qd_rec_go(qd_app_t *a, int skip)
+{
+    qd_ui_t *u = &a->ui;
+    u->live_wait = 0;
+    if (u->cap) {
+        qd_undo_hint(a, QD_UK_REC);
+        qd_track_clear(PAT(a), a->sel);
+        u->rec_grow = 1;
+        u->grow_reached = 0;
+        u->cap = 2;
+        u->cap_full = 0;
+        u->cap_hi = -1;
+        if (a->seq.playing)                             /* (the sequencer's notes end; the keys' sound on) */
+            qd_seq_stop(&a->seq, qd_player_event, &a->player);
+    } else if (a->seq.playing) {
+        return;
+    }
+    qd_app_play(a);
+    if (skip)
+        qd_seq_track_from(&a->seq, a->sel, 0, 1);
 }
 
 /* P1.3y: REC held with the record settings' STEP: step recording armed (the cursor; playing or not) */
@@ -148,6 +182,7 @@ void qd_rec_arm_step(qd_app_t *a)
         qd_rec_toggle(a);
     u->rec_kind = QD_REC_STEP;
     u->live_wait = 0;
+    u->cap = 0;
     qd_ctl_confirm(a, "STEP REC", 0);
 }
 
@@ -161,12 +196,33 @@ static void grow_trim(qd_app_t *a)
     u->rec_grow = 0;
 }
 
+/* CAPTURE's end: the track as long as the take, to the nearest step's edge and at least to its last note (pages 1..k,
+ * the last one cut); its loop from its start again there (the steps past it, resolved already, dropped) */
+static void cap_end(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    int64_t pn, pd;
+    int n;
+    if (u->cap_full || !a->seq.playing)
+        return;                                         /* (past page 8: all 128; stopped: the pages reached) */
+    qd_seq_track_pos_q(&a->seq, a->sel, &pn, &pd);
+    pn -= qd_seq_tick(&a->seq) - u->cap_press;          /* (where REC or PLAY went down: in ticks, pd a step's) */
+    n = pn > 0 ? (int)qd_div64(2 * pn + pd, (int32_t)(2 * pd)) : 0;
+    n = n <= u->cap_hi ? u->cap_hi + 1 : n < 1 ? 1 : n;
+    qd_track_set_length(PAT(a), a->sel, n);
+    u->rec_grow = 0;
+    qd_seq_track_from(&a->seq, a->sel, n, 0);
+}
+
 void qd_rec_end(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
     if (u->rec)
         qd_rec_toggle(a);
     u->live_wait = 0;
+    if (u->cap == 2)
+        cap_end(a);
+    u->cap = 0;
     grow_trim(a);
 }
 
@@ -176,6 +232,8 @@ void qd_rec_ms(qd_app_t *a)
     const qd_tset_t *ts = &PAT(a)->trk[a->sel];
     int pp, k;
     int64_t pn, pd;
+    if (u->cap == 2 && (!u->rec || !a->seq.playing))
+        u->cap = 0;                                     /* (a take ended another way: the pages reached) */
     if (!u->rec_grow)
         return;
     if (!u->rec || (!a->seq.playing && !u->live_wait)) {
@@ -185,6 +243,8 @@ void qd_rec_ms(qd_app_t *a)
     if (!a->seq.playing)
         return;
     pp = qd_ctl_playing_page(a, a->sel);
+    if (pp < u->grow_reached)
+        u->cap_full = 1;                                /* (round from page 8: a take of 128) */
     if (pp > u->grow_reached)
         u->grow_reached = pp;
     for (k = 0; k < 8 && ((qd_track_loop(ts) >> k) & 1); k++)
@@ -228,7 +288,12 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
         u->rec_live = 0;
         return;
     }
-    if (!u->rec || (!a->seq.playing && u->live_wait))   /* (P1.6g: any view's notes; armed, waiting: PLAY starts it) */
+    if (!u->rec)
+        return;
+    if (down && (u->cap == 1 || (u->live_wait && !a->seq.playing)))
+        qd_rec_go(a, 1);                                /* armed: this note starts it, on the first step (P1.6g: any
+                                                         * view's notes) */
+    if (!a->seq.playing && u->live_wait)
         return;
     qd_undo_hint(a, QD_UK_REC);                         /* (P1.5c: a recorded take: one undo level) */
     note &= 127;
@@ -248,7 +313,7 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
     if (qd_rec_stepping(a)) {                           /* step recording */
         const int cs = loop_step(a, u->cursor);
         const int first = !u->rec_n;
-        const int dub = first && a->proj.rec_dub && qd_step_is_on(qd_step(p, t, cs));
+        const int dub = first && a->proj.rec_dub == QD_TAKE_OVERDUB && qd_step_is_on(qd_step(p, t, cs));
         if (first) {
             u->rec_nchord = 0;
             if (dub) {                                  /* P1.3y: OVERDUB: the step's notes (and values) stay */
@@ -287,11 +352,14 @@ void qd_rec_key(qd_app_t *a, int note, int down, int vel)
             micro = q >= 0 ? (2 * q + 100) / 200 : -((-2 * q + 100) / 200);
         }
         micro = micro < -23 ? -23 : micro > 23 ? 23 : micro;
+        if (u->cap == 2 && lp > u->cap_hi)
+            u->cap_hi = (int16_t)lp;
         if (u->rec_n && s == u->rec_step) {             /* struck while the chord's notes are down: the chord */
             chord_add(u->rec_chord, &u->rec_nchord, note);
             qd_step_set_notes(p, t, s, u->rec_chord, u->rec_nchord);
-        } else if (a->proj.rec_dub && qd_step_is_on(qd_step(p, t, s))) {   /* P1.3y: OVERDUB: the note joins the
-                                                         * step's (its velocity, timing and length stay) */
+        } else if (a->proj.rec_dub == QD_TAKE_OVERDUB && qd_step_is_on(qd_step(p, t, s))) {   /* P1.3y: OVERDUB: the
+                                                         * note joins the step's (its velocity, timing and length
+                                                         * stay) */
             qd_rstep_t r;
             int k;
             qd_step_resolve(p, t, s, &r);
@@ -333,8 +401,8 @@ int qd_auto_on(const qd_app_t *a)
         return 0;
     if (((a->buttons_held >> QD_B_REC) & 1u) && !qd_ctl_shift(a) && u->latch != QD_LATCH_REC)
         return 1;                                       /* REC held: any view */
-    return u->rec && !u->live_wait && !qd_rec_stepping(a) && a->proj.rec_auto;   /* recording (P1.6g: any view),
-                                                                                * AUTOMATION ON */
+    return u->rec && !u->live_wait && u->cap != 1 && !qd_rec_stepping(a) && a->proj.rec_auto;   /* recording (P1.6g:
+                                                         * any view), AUTOMATION ON (not a CAPTURE armed) */
 }
 
 static int auto_step_now(qd_app_t *a)                 /* the step under the selected track's playhead */

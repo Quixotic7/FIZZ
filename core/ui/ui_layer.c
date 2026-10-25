@@ -575,21 +575,28 @@ static void menu_rec(const ui_menu_t *v)
             ui_O(gx + OFF[i], 113.f, 3.5f, UI_G2, 1.f, QD_NONE);
         ui_O(nx, 113.f, 3.5f, QD_NONE, 1.f, UI_K2);
     }
-    /* KNOB 3: OVERDUB / REPLACE */
-    menu_row(2, 146.f, "TAKE", v->dub ? "OVERDUB" : "REPLACE");
-    ui_RR(34.f, 158.f, 40.f, 24.f, 4.f, UI_G2, 1.2f, QD_NONE);   /* a step: its notes, the new one */
-    for (i = 0; i < 2; i++) {
-        const float y = 174.f - (float)i * 7.f;
-        ui_RR(39.f, y, 30.f, 5.f, 2.f, QD_NONE, 1.f, v->dub ? UI_G1 : UI_G3);
-        if (!v->dub)
-            line2(37.f, y + 6.f, 71.f, y - 1.f, UI_RED, 1.4f);
-    }
-    ui_RR(39.f, 160.f, 30.f, 5.f, 2.f, QD_NONE, 1.f, UI_K3);
-    ui_RR(84.f, 167.f, 10.f, 6.f, 2.f, QD_NONE, 1.f, UI_K3);   /* the note coming in */
-    {
-        const float a[6] = {102.f, 167.f, 96.f, 170.f, 102.f, 173.f};
-        line2(96.f, 170.f, 114.f, 170.f, UI_K3, 1.2f);
-        ui_P(a, 3, UI_K3, 1.2f, 0, QD_NONE);
+    /* KNOB 3: the TAKE: CAPTURE / REPLACE / OVERDUB */
+    menu_row(2, 146.f, "TAKE", v->dub == 0 ? "CAPTURE" : v->dub == 1 ? "OVERDUB" : "REPLACE");
+    if (v->dub == 0) {                                  /* CAPTURE: the steps played, cut at the take's end (red) */
+        for (i = 0; i < 6; i++)
+            ui_RR(34.f + (float)i * 14.f, 160.f, 10.f, 20.f, 2.f, i < 4 ? UI_G1 : UI_G3, 1.2f,
+                  i < 4 && i != 2 ? UI_K3 : QD_NONE);
+        line2(88.f, 154.f, 88.f, 186.f, UI_RED, 2.f);
+    } else {
+        ui_RR(34.f, 158.f, 40.f, 24.f, 4.f, UI_G2, 1.2f, QD_NONE);   /* a step: its notes, the new one */
+        for (i = 0; i < 2; i++) {
+            const float y = 174.f - (float)i * 7.f;
+            ui_RR(39.f, y, 30.f, 5.f, 2.f, QD_NONE, 1.f, v->dub == 1 ? UI_G1 : UI_G3);
+            if (v->dub != 1)
+                line2(37.f, y + 6.f, 71.f, y - 1.f, UI_RED, 1.4f);
+        }
+        ui_RR(39.f, 160.f, 30.f, 5.f, 2.f, QD_NONE, 1.f, UI_K3);
+        ui_RR(84.f, 167.f, 10.f, 6.f, 2.f, QD_NONE, 1.f, UI_K3);   /* the note coming in */
+        {
+            const float a[6] = {102.f, 167.f, 96.f, 170.f, 102.f, 173.f};
+            line2(96.f, 170.f, 114.f, 170.f, UI_K3, 1.2f);
+            ui_P(a, 3, UI_K3, 1.2f, 0, QD_NONE);
+        }
     }
     /* KNOB 4 (P1.5b): EDIT KEYS: the sound editor's keyboard, SCALE (eight keys, all in the scale, the root brighter;
      * the black ones its pages) or FULL (the keybed) */

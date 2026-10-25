@@ -1170,24 +1170,44 @@ static void b_fill(qd_app_t *a, int down)
     u->arp_used = 1;
 }
 
-/* PLAY (P1.3x): a tap plays / stops on its RELEASE (held QD_PLAY_HOLD_MS it opens F3 instead: qd_ctl_ms); while
- * recording (live, or armed and waiting) the tap ends the recording and playback goes on (waiting: it starts playback
- * with the recording); REC + PLAY: play with recording armed, in the keyboard (on the press) */
+/* REC held or tapped while held: arming in the record settings' MODE (P1.3y: LIVE as P1.3x; STEP: the cursor) */
+static void rec_arm(qd_app_t *a)
+{
+    if (a->ui.rec)
+        return;
+    if (a->proj.rec_mode)
+        qd_rec_arm_step(a);
+    else
+        qd_rec_arm_live(a);
+}
+
+/* PLAY (P1.3x): a tap plays / stops on its RELEASE (held QD_PLAY_HOLD_MS it opens F3 instead: qd_ctl_ms); armed and
+ * waiting, the tap starts playback with the recording (CAPTURE: the take, from the top); in a CAPTURE take its press
+ * marks the end, playback going on; in another live recording it stops both. REC + PLAY (PLAY pressed while REC is
+ * held, stopped): armed in the MODE and started at once, on the press (REC's release then no tap) */
 static void b_play(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
     if (down) {
         u->play_down_ms = a->ms;
         u->play_used = 0;
+        u->cap_press = qd_seq_tick(&a->seq);
+        if (u->cap == 2) {                              /* CAPTURE: the take's end, on the press */
+            u->play_used = 1;
+            qd_rec_end(a);
+        } else if (held(a, QD_B_REC) && !a->seq.playing && !qd_ctl_shift(a)) {
+            u->play_used = 1;
+            u->rec_down_used = 1;
+            rec_arm(a);
+            qd_rec_go(a, 0);
+        }
         return;
     }
     if (u->play_used)
         return;
     u->play_used = 1;
-    if (u->rec && u->live_wait) {                       /* P1.6g: armed, stopped: playback and the recording now (any
-                                                         * view) */
-        u->live_wait = 0;
-        qd_app_play(a);
+    if (u->rec && (u->live_wait || u->cap == 1)) {      /* P1.6g: armed: playback and the recording now (any view) */
+        qd_rec_go(a, 0);
         return;
     }
     if (a->seq.playing) {
@@ -1210,6 +1230,7 @@ static void b_rec(qd_app_t *a, int down)
         u->rec_down_used = 0;
         u->rec_auto_used = 0;
         u->rec_down_ms = a->ms;
+        u->cap_press = qd_seq_tick(&a->seq);            /* (a CAPTURE ended by this tap: here) */
         if (qd_ctl_shift(a)) {
             u->rec_down_used = 1;
             u->shift_used = 1;
@@ -1234,12 +1255,7 @@ static void b_rec(qd_app_t *a, int down)
     if (u->rec_down_used || u->rec_auto_used)           /* (shifted; armed at the hold; a punch-in) */
         return;
     if (a->ms - u->rec_down_ms >= QD_REC_HOLD_MS) {     /* held, no knob: playing, the recording latches */
-        if (!u->rec) {
-            if (a->proj.rec_mode)
-                qd_rec_arm_step(a);
-            else
-                qd_rec_arm_live(a);
-        }
+        rec_arm(a);
         return;
     }
     if (u->rec) {                                       /* a tap while armed or recording: it stops */
@@ -1791,7 +1807,9 @@ static int k_menu(qd_app_t *a, int knob, int d)
         switch (knob) {
         case QD_K_1: pr->rec_mode = d > 0; break;
         case QD_K_2: pr->rec_quant = (uint8_t)clampi(pr->rec_quant + d * 5, 0, 100); break;
-        case QD_K_3: pr->rec_dub = d > 0; break;
+        case QD_K_3:                                    /* the TAKE: CAPTURE, REPLACE, OVERDUB (stored 0, 2, 1) */
+            pr->rec_dub = (uint8_t)((3 - clampi((3 - pr->rec_dub) % 3 + (d > 0 ? 1 : -1), 0, 2)) % 3);
+            break;
         case QD_K_4: pr->rec_ekeys = d > 0; break;      /* P1.5b: EDIT KEYS: SCALE / FULL */
         default: break;
         }
@@ -2051,13 +2069,9 @@ void qd_ctl_ms(qd_app_t *a)
     if (held(a, QD_B_REC) && !u->rec_down_used && !u->rec_auto_used && a->ms - u->rec_down_ms >= QD_REC_HOLD_MS &&
         !a->seq.playing && u->mode != QD_MODE_IDLE) {
         u->rec_down_used = 1;                           /* P1.6g: stopped, REC held: armed, latched, in any view (the
-                                                         * record settings' MODE: LIVE waits for PLAY; STEP the cursor) */
-        if (!u->rec) {
-            if (a->proj.rec_mode)
-                qd_rec_arm_step(a);
-            else
-                qd_rec_arm_live(a);
-        }
+                                                         * record settings' MODE: LIVE waits for the first note or PLAY;
+                                                         * STEP the cursor) */
+        rec_arm(a);
     }
     qd_rec_ms(a);
     qd_auto_ms(a);                                      /* P1.6d: an automation take ends */

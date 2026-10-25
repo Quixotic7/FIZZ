@@ -562,6 +562,12 @@ typedef struct {
     int live_wait;                     /* P1.3x: live recording armed, stopped: the first note starts it all */
     int rec_grow;                      /* P1.3x: an empty track recorded: its loop grows a page as it is reached .. */
     int grow_reached;                  /* .. the last page reached (the loop at the stop) */
+    int8_t cap;                        /* the TAKE CAPTURE (live): 1 armed (the first note or PLAY starts the take), 2
+                                        * the take running (PLAY or REC ends it: the track's length is the take's) */
+    int8_t cap_full;                   /* .. it ran past page 8 (its length stays 128) */
+    int16_t cap_hi;                    /* .. the furthest loop position a note went to (-1 none) */
+    int64_t cap_press;                 /* .. the tick REC or PLAY went down (the end it marks; a tap's release is
+                                        * later) */
     int metro_held, metro_turned;      /* P1.5c: SHIFT + B7 held, a knob turned with it */
     int shift_used;                    /* SHIFT did something while down (its map then stops) */
     /* the keyboard (ctl_rec.c) */
@@ -894,6 +900,7 @@ void qd_rec_toggle(struct qd_app *a);  /* armed / not */
 void qd_rec_arm_live(struct qd_app *a);         /* P1.3x: REC held: the keyboard, live recording armed */
 void qd_rec_end(struct qd_app *a);              /* P1.3x: the recording ends (REC / PLAY), playback goes on */
 void qd_rec_arm_step(struct qd_app *a);         /* P1.3y: REC held, the settings' STEP: step recording armed */
+void qd_rec_go(struct qd_app *a, int skip);     /* armed: the recording starts now (skip: a key started it) */
 int qd_rec_stepping(const struct qd_app *a);    /* P1.3y: step recording (the cursor) is what the keys do now */
 void qd_rec_ms(struct qd_app *a);               /* P1.3x: an empty track's loop growing as it is recorded */
 void qd_rec_rest(struct qd_app *a);

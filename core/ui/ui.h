@@ -634,14 +634,15 @@ void ui_shift_draw(const ui_shift_t *v);
  * big in the knob's colour) and a drawing of the value.
  *   REC (SHIFT + REC)      KNOB 1 MODE: LIVE (notes on a line, off the grid) / STEP (a row of cells, the cursor's
  *                          lit); KNOB 2 QUANTIZE 0..100 %: four notes pulled onto their grid lines by that much;
- *                          KNOB 3 OVERDUB (the step's notes stay, the new one joins) / REPLACE (they go, crossed)
+ *                          KNOB 3 TAKE: CAPTURE (a track of steps cut at a red end mark), REPLACE (the step's notes
+ *                          go, crossed) / OVERDUB (they stay, the new one joins)
  *   SETTINGS (SHIFT + SEL) KNOB 1 KNOBS A..D: the three encoders as SHIFT's badges with each one's role under it (a
  *                          second line when STEPS / EDIT differ from the PIANO ROLL, each line marked by its view's
  *                          little picture); KNOB 2 PAGE FOLLOW ON / OFF: pages with the playhead and an arrow */
 enum { UI_MENU_REC, UI_MENU_SET, UI_MENU_TRK };   /* (P1.4b: the track settings) */
 typedef struct {
     int kind;                           /* UI_MENU_* */
-    int rec_step, quant, dub;           /* REC: MODE STEP (else LIVE), QUANTIZE 0..100, OVERDUB (else REPLACE) */
+    int rec_step, quant, dub;           /* REC: MODE STEP (else LIVE), QUANTIZE 0..100, TAKE (pattern.h QD_TAKE_*) */
     int ekeys;                          /* .. P1.5b: EDIT KEYS FULL (else SCALE) */
     int rec_page, rec_auto;             /* .. P1.6d: the page (2: AUTOMATION), AUTOMATION ON */
     int layout;                         /* SETTINGS: KNOBS (0 A .. 3 D) */

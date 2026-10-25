@@ -262,6 +262,10 @@ int qd_seq_track_step(const qd_seq_t *s, int t);   /* the step (0..127) under th
 int qd_seq_audible(const qd_seq_t *s, const qd_pattern_t *P, int t);   /* not muted, and soloed if any is */
 const qd_pattern_t *qd_seq_track_pat(const qd_seq_t *s, int t);   /* the pattern the track plays now */
 
+/* track t's loop from `steps` of its steps after its start (the cursor rewound there); skip: that step not played
+ * (a capture's end and start: ctl_rec.c) */
+void qd_seq_track_from(qd_seq_t *s, int t, int steps, int skip);
+
 /* a live edit of track t's sound reaches the trigs resolved and waiting too (their values not their own) */
 void qd_seq_live_patch(qd_seq_t *s, int t, int id, int value);
 /* P1.5t: track t's trigs (those with no sound lock) play patch instead of the pattern's track sound (0: back to it);

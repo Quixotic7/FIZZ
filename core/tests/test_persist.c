@@ -1359,6 +1359,7 @@ int main(void)
     A.model.t[3].mix.level = 77;
     A.model.t[3].mix.pan = -20;
     A.proj.rec_quant = 35;
+    A.proj.rec_dub = QD_TAKE_REPLACE;                   /* (2026-10-25: the TAKE's third value) */
     qd_fx_set(QD_FXP_RSIZE, 33);
     qd_fx_set(QD_FXP_XCR, 41);                          /* P1.5b: a route, the latch mode, the editor's keys */
     A.ui.lmode = QD_LMODE_MODES;
@@ -1390,7 +1391,7 @@ int main(void)
     CHECK(ok == QD_NSOUND && B.proj.nsound == keep.nsound,
           "the pool's 128 sounds (DRIVE among them)");
     CHECK(B.model.t[3].mix.level == 77 && B.model.t[3].mix.pan == -20 && B.proj.rec_quant == 35 &&
-              qd_fx_get(QD_FXP_RSIZE) == 33 && B.ui.knobs == QD_KNOBS_C,
+              B.proj.rec_dub == QD_TAKE_REPLACE && qd_fx_get(QD_FXP_RSIZE) == 33 && B.ui.knobs == QD_KNOBS_C,
           "the mix, the record settings, the effects, the knob layout");
     CHECK(qd_fx_get(QD_FXP_XCR) == 41 && B.ui.lmode == QD_LMODE_MODES && B.proj.rec_ekeys == 1,
           "P1.5b: the routing, the latch mode, EDIT KEYS");

@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: MPL-2.0
+# 2026-10-25, the owner's recording on the unit's build: the TAKE CAPTURE (the default) and REC / PLAY. On the demo's
+# A02, track 1 (16 steps, all on; 100 BPM: a 16th is 150 ms). The plain keyboard from F; REC held (stopped) arms a
+# CAPTURE and nothing changes; the first note clears the track and starts the take on step 1; PLAY ends it at 36
+# steps (pages 1..3, page 3 four long), playing on; playing, REC held arms the next take, its first note starts the
+# transport from the top; REC ends that one; stopped, REC + PLAY in the step view records with playback (no cancel, no
+# jump); the record settings' TAKE.
+#   firmware/build.py --host, then firmware/app/build/host/fizz_host firmware/app/tests/rec.txt OUT
+expect fz_up 1
+tap HOME
+wait 300
+expect fz_ons_1_1 65535
+expect fz_tlen_1 16
+# the plain keyboard (REC tapped): F3 .. G5
+tap REC
+wait 300
+expect fz_mode 2
+shot rec-keys.png
+# REC held, stopped: CAPTURE armed; nothing changes, nothing plays
+press REC
+wait 500
+release REC
+wait 100
+expect fz_playing 0
+expect fz_ons_1_1 65535
+shot rec-capture-armed.png
+# the first note: the track cleared, the note on step 1, playing
+key w2 down 100
+wait 300
+key w2 up
+wait 20
+expect fz_playing 1
+expect fz_ons_1_1 1
+expect fz_tlen_1 16
+wait 1500
+key w4 down 100
+wait 100
+key w4 up
+wait 1200
+expect fz_tlen_1 32
+shot rec-capture-take.png
+# PLAY at 36 steps (5.4 s from the first note): the track 36 long, playing on
+wait 2272
+tap PLAY
+wait 20
+expect fz_playing 1
+expect fz_tlen_1 36
+expect fz_ons_1_3 0
+wait 600
+shot rec-capture-end.png
+# playing: REC held arms the next take; its first note starts everything from the top (within a 16th: 100800 ticks)
+press REC
+wait 500
+release REC
+wait 300
+expect fz_tlen_1 36
+key w6 down 100
+wait 40
+key w6 up
+wait 20
+expect fz_seqtick <100800
+expect fz_tlen_1 16
+expect fz_ons_1_1 1
+wait 1500
+press REC
+wait 40
+release REC
+wait 40
+expect fz_playing 1
+expect fz_tlen_1 10
+# stopped, the step view: REC held + PLAY records with playback, the step view stays
+tap PLAY
+wait 100
+expect fz_playing 0
+tap REC
+wait 100
+expect fz_mode 1
+press REC
+wait 100
+press PLAY
+wait 40
+release PLAY
+wait 40
+release REC
+wait 200
+expect fz_playing 1
+expect fz_mode 1
+expect fz_tlen_1 16
+expect fz_ons_1_1 0
+tap PLAY
+wait 100
+expect fz_playing 1
+tap PLAY
+wait 100
+expect fz_playing 0
+# the record settings (SHIFT + REC): KNOB 3 TAKE: CAPTURE, REPLACE, OVERDUB
+wait 1500
+press GLO
+tap REC
+release GLO
+wait 300
+shot rec-menu-capture.png
+turn K3 1
+wait 300
+shot rec-menu-replace.png
+turn K3 1
+wait 300
+shot rec-menu-overdub.png
+tap HOME
+wait 100

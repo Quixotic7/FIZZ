@@ -340,9 +340,11 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
             out->button[off < 0 ? QD_B_OCTDN : QD_B_OCTUP] =
                 blink(a, qd_ctl_oct_blink_ms(off)) ? QD_LED_LIT : QD_LED_OFF;
     }
-    if (!held(a, QD_B_REC))                             /* P1.6g, REC: recording full, armed (waiting for PLAY)
-                                                         * blinking, else the keys it switches: KEYS dim, STEPS off */
-        out->button[QD_B_REC] = u->rec ? (!u->live_wait || blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF)
+    if (!held(a, QD_B_REC))                             /* P1.6g, REC: recording full, armed (waiting for a note or
+                                                         * PLAY) blinking, else the keys it switches: KEYS dim, STEPS
+                                                         * off */
+        out->button[QD_B_REC] = u->rec ? (!(u->live_wait || u->cap == 1) || blink(a, QD_BLINK_MS) ? QD_LED_LIT
+                                                                                                   : QD_LED_OFF)
                               : u->mode == QD_MODE_KEYS || (qd_snd_open(a) && u->ekeys) ? QD_LED_DIM : QD_LED_OFF;
     {   /* T1 (the owner, 2026-10-24): ARP lit while FILL is held and while TOOLS or the MIDI FX screen is open;
          * otherwise the arp's state (P1.6d: lit while the track's group has an arp ON, off otherwise) */

@@ -271,7 +271,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     if (step && QD_LATCH_MENU(u->latch)) {              /* the settings menus */
-        static const char *const REC[4] = {"MODE", "QUANTIZE", "OVERDUB", "EDIT KEYS"};
+        static const char *const REC[4] = {"MODE", "QUANTIZE", "TAKE", "EDIT KEYS"};
         static const char *const SET[4] = {"KNOBS", "FOLLOW", "", ""};
         static const char *const TRK[3][4] = {{"SCALE", "ROOT", "FOLLOW KEY", "MIDI CH"},
                                               {"VOICES", "SWING", "FOLLOW", "MIDI FX"},

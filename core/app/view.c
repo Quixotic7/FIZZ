@@ -2459,8 +2459,9 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
             qd_restore();
         }
     }
-    if (qd_auto_on(a) || (u->rec && a->seq.playing && !u->live_wait && !qd_rec_stepping(a)))   /* P1.6d: automation
-                                                         * recording: the cue (P1.6g: a live recording too) */
+    if (qd_auto_on(a) || (u->rec && a->seq.playing && !u->live_wait && u->cap != 1 && !qd_rec_stepping(a)))   /* P1.6d:
+                                                         * automation recording: the cue (P1.6g: a live recording too;
+                                                         * not a CAPTURE waiting for its first note) */
         ui_auto_cue(u->auto_take ? u->auto_knob - QD_K_1 : -1,
                     u->auto_take ? (float)(a->ms - u->auto_ms) / 1000.f : -1.f, secs(a->ms));
     if (u->cf_on) {                                     /* a confirmation word */

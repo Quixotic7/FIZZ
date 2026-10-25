@@ -517,6 +517,8 @@ static int de_hdr(qd_app_t *a, int p, const uint8_t *b, uint32_t len, int apply)
     ps->pdemo = b[o++];
     pr->key_scale = b[o++], pr->key_root = b[o++], pr->launch = b[o++];
     pr->rec_mode = b[o++], pr->rec_quant = b[o++], pr->rec_dub = b[o++];
+    if (pr->rec_dub > QD_TAKE_REPLACE)
+        pr->rec_dub = QD_TAKE_CAPTURE;
     for (t = 0; t < QD_NTRACK; t++) {
         qd_track_t *k = &a->model.t[t];
         k->mix.level = b[o++], k->mix.pan = (int8_t)b[o++], k->mix.chorus = b[o++], k->mix.delay = b[o++];

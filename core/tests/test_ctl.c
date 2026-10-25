@@ -1379,7 +1379,9 @@ static void g_rec(void)
     turn(QD_K_1, -1);
     btap(QD_B_HOME);
     CHECK(A.proj.rec_mode == 0 && !A.ui.latch && A.ui.mode == QD_MODE_STEP, "MODE back to LIVE; HOME: back");
-    /* P1.6g: REC held (stopped): armed; PLAY: playing and recording (the keyboard) */
+    /* P1.6g: REC held (stopped): armed; PLAY: playing and recording (the keyboard); REPLACE (PLAY ends it with the
+     * transport) */
+    A.proj.rec_dub = QD_TAKE_REPLACE;
     btap(QD_B_REC);
     live_arm();
     CHECK(A.ui.rec && A.ui.live_wait && !A.seq.playing, "REC held (stopped): armed, waiting");
@@ -1467,21 +1469,16 @@ static void g_live(void)
     btap(QD_B_PLAY);
     CHECK(!A.seq.playing, "tapped again: stopped");
 
+    A.proj.rec_dub = QD_TAKE_REPLACE;                   /* (the growing loop: REPLACE on an empty track) */
     btap(QD_B_REC);                                     /* (the keyboard) */
     live_arm();                                         /* REC held: live armed, waiting */
     CHECK(A.ui.mode == QD_MODE_KEYS && A.ui.rec && A.ui.live_wait && !A.seq.playing && A.ui.rec_grow &&
               qd_track_loop(&PAT()->trk[0]) == 1, "REC held: live recording armed, stopped, the empty track on page 1");
-    kdown(9);
-    run(40);
-    kup(9);
-    run(300);
-    CHECK(!A.seq.playing && !R(0, 0).on, "P1.6g: nothing moves (a key: not recorded) until PLAY");
-    btap(QD_B_PLAY);
     kdown(7);
     run(40);
     kup(7);
-    CHECK(A.seq.playing && R(0, 0).on && R(0, 0).notes[0] == 60 && R(0, 0).micro <= 5,
-          "PLAY: playing and recording, a key: C4 on step 1 (micro %d)", R(0, 0).micro);
+    CHECK(A.seq.playing && R(0, 0).on && R(0, 0).notes[0] == 60 && R(0, 0).micro == 0,
+          "2026-10-25: the first key starts playing and recording: C4 on step 1 (micro %d)", R(0, 0).micro);
     while (qd_ctl_playing_page(&A, 0) < 2)              /* into page 3: pages 2 and 3 joined as they came */
         run(1);
     run(200);
@@ -1497,6 +1494,7 @@ static void g_live(void)
     CHECK(!A.seq.playing, "PLAY: stopped");
 
     start();                                            /* to 8 pages, then it wraps and records on */
+    A.proj.rec_dub = QD_TAKE_REPLACE;
     btap(QD_B_REC);
     live_arm();
     btap(QD_B_PLAY);
@@ -1527,6 +1525,243 @@ static void g_live(void)
     place_at(3, QD_RTYPE_DOTTED, 3.0 + 5.0 / 24.0, "dotted 1/8");   /* the placement at the track's rate */
     place_at(4, QD_RTYPE_TRIPLET, 6.0 - 4.0 / 24.0, "triplet 1/16");
     place_at(4, QD_RTYPE_NORMAL, 9.0 + 7.0 / 24.0, "1/16");
+}
+
+/* 2026-10-25 (the owner): the TAKE. CAPTURE: armed, nothing changes until the first note; then the track cleared
+ * (steps, locks, page 1 only, every page 16), its rate kept, the take with its micro-timing from step 1; PLAY or REC
+ * ends it: the track exactly the take's length (36 steps: pages 1..3, page 3 four long), looping from there, playback
+ * going on; past page 8: 128. Playing, REC held arms the next take: its first note starts the transport again */
+static void run_to(double pos)                          /* playing until track 1's playhead passes pos */
+{
+    int k;
+    for (k = 0; k < 200000 && track_pos0() < pos; k++)
+        run(1);
+}
+static void g_capture(void)
+{
+    int k, ok, m;
+    start();
+    PAT()->trk[0].rbase = 3;                            /* 1/8: a step is 250 ms at 120 BPM */
+    qd_step_on(PAT(), 0, 2);                            /* a track to be replaced: steps on pages 1..3, a lock, page 2
+                                                         * cut */
+    qd_step_on(PAT(), 0, 20);
+    qd_step_on(PAT(), 0, 40);
+    qd_lock_set(PAT(), 0, 2, QD_QP_HARM, 300);
+    qd_track_set_length(PAT(), 0, 48);
+    PAT()->trk[0].pend[1] = 9;
+    CHECK(A.proj.rec_dub == QD_TAKE_CAPTURE, "CAPTURE is the take at first");
+    btap(QD_B_REC);                                     /* (the keyboard) */
+    live_arm();
+    CHECK(A.ui.rec && A.ui.live_wait && A.ui.cap == 1 && !A.seq.playing && R(0, 20).on &&
+              qd_track_loop(&PAT()->trk[0]) == 7, "REC held: CAPTURE armed, nothing changed yet");
+    k = leds().button[QD_B_REC];
+    run(QD_BLINK_MS);
+    CHECK(k != leds().button[QD_B_REC], "REC blinking while armed");
+    kdown(16);                                          /* A4: the take starts */
+    run(40);
+    kup(16);
+    run(5);
+    CHECK(A.seq.playing && A.ui.cap == 2 && R(0, 0).on && R(0, 0).notes[0] == 69 && R(0, 0).micro == 0 &&
+              !R(0, 2).on && !R(0, 20).on && !R(0, 40).on && LK(0, 2, QD_QP_HARM) == -99999,
+          "the first note: playing, on step 1 (micro %d), the old steps and locks gone", R(0, 0).micro);
+    CHECK(qd_track_loop(&PAT()->trk[0]) == 1 && pages_full(0, 0) && PAT()->trk[0].rbase == 3,
+          "the track reset: page 1 only, every page 16, its rate (1/8) kept");
+    for (k = 0; k < 200 && A.seq.heard_step[0] != 0; k++)
+        run(1);
+    CHECK(k == 200 || A.seq.heard_step[0] < 0, "the first step not played again by the sequencer (the key sounds it)");
+    run_to(5.0 + 4.0 / 24.0);                           /* step 6, 4/24 late */
+    kdown(11);
+    run(100);
+    kup(11);
+    run(5);
+    m = R(0, 5).micro;
+    CHECK(R(0, 5).on && R(0, 5).notes[0] == 64 && m >= 3 && m <= 5, "step 6: E4, micro %d (+4 played)", m);
+    run_to(17.0 - 3.0 / 24.0);                          /* step 18, 3/24 early (page 2 joined) */
+    kdown(14);
+    run(60);
+    kup(14);
+    run(5);
+    m = R(0, 17).micro;
+    CHECK(R(0, 17).on && R(0, 17).notes[0] == 67 && m >= -4 && m <= -2 && (qd_track_loop(&PAT()->trk[0]) & 2),
+          "step 18 on page 2: G4, micro %d (-3)", m);
+    run_to(35.9);                                       /* 36 steps played: PLAY ends the take */
+    bdown(QD_B_PLAY);
+    run(20);
+    bup(QD_B_PLAY);
+    run(5);
+    CHECK(!A.ui.rec && !A.ui.cap && A.seq.playing && qd_track_len(&PAT()->trk[0]) == 36 &&
+              qd_track_loop(&PAT()->trk[0]) == 7 && PAT()->trk[0].pend[0] == 15 && PAT()->trk[0].pend[1] == 15 &&
+              PAT()->trk[0].pend[2] == 3 && PAT()->trk[0].rbase == 3,
+          "PLAY: the take's end, playing on; 36 steps: pages 1..3, page 3 four long (len %d, loop %02x, pend %d)",
+          qd_track_len(&PAT()->trk[0]), qd_track_loop(&PAT()->trk[0]), PAT()->trk[0].pend[2]);
+    CHECK(R(0, 0).on && R(0, 5).on && R(0, 17).on && R(0, 5).micro >= 3 && R(0, 17).micro <= -2, "the notes and their "
+          "micro-timing kept");
+    run(400);                                           /* (1.6 steps on) */
+    CHECK(track_pos0() > 0.5 && track_pos0() < 2.5, "it loops from there: the playhead at %.2f", track_pos0());
+    for (k = 0; k < 9000 && A.seq.heard_step[0] != 17; k++)   /* the next pass: step 1 at 36 steps' time */
+        run(1);
+    for (k = 0, ok = 0; k < 9000 && !ok; k++) {
+        run(1);
+        ok = A.seq.heard_step[0] == 0;
+    }
+    CHECK(ok && fabs((double)qd_seq_tick(&A.seq) / (double)qd_rate_ticks(qd_tset_rate(&PAT()->trk[0])) - 72.0) < 0.5,
+          "step 1 heard again at the loop's start (%.2f steps from the top)",
+          (double)qd_seq_tick(&A.seq) / (double)qd_rate_ticks(qd_tset_rate(&PAT()->trk[0])));
+
+    bdown(QD_B_REC);                                    /* playing: REC held arms the next take */
+    run(QD_REC_HOLD_MS + 50);
+    bup(QD_B_REC);
+    run(10);
+    CHECK(A.ui.rec && A.ui.cap == 1 && A.seq.playing && R(0, 17).on && !qd_auto_on(&A), "playing, REC held: the next "
+          "take armed, nothing changed, no automation yet");
+    run(700);
+    kdown(9);                                           /* D4: the take starts, the transport from the top */
+    run(30);
+    kup(9);
+    run(5);
+    CHECK(A.ui.cap == 2 && R(0, 0).notes[0] == 62 && !R(0, 17).on && !R(0, 5).on &&
+              qd_track_loop(&PAT()->trk[0]) == 1 && qd_seq_tick(&A.seq) < qd_rate_ticks(qd_tset_rate(&PAT()->trk[0])),
+          "its first note: the track cleared, D4 on step 1, the transport from the top");
+    run_to(20.1);
+    btap(QD_B_REC);                                     /* REC ends it */
+    CHECK(!A.ui.rec && A.seq.playing && qd_track_len(&PAT()->trk[0]) == 20 && qd_track_loop(&PAT()->trk[0]) == 3 &&
+              PAT()->trk[0].pend[1] == 3, "REC: the take's end, 20 steps (pages 1, 2: 16 + 4), playing on (len %d)",
+          qd_track_len(&PAT()->trk[0]));
+    btap(QD_B_PLAY);
+    run(QD_UNDO_QUIET_MS + 50);
+    bdown(SHIFT);
+    btap(F1);
+    bup(SHIFT);
+    run(10);
+    CHECK(qd_track_len(&PAT()->trk[0]) == 36 && R(0, 17).on && R(0, 5).on && !R(0, 9).on,
+          "SHIFT + F1: the take undone as one level (the first take back: len %d)", qd_track_len(&PAT()->trk[0]));
+    CHECK(!A.seq.playing, "PLAY: stopped");
+
+    live_arm();                                         /* REC tapped while armed: nothing changed */
+    btap(QD_B_REC);
+    CHECK(!A.ui.rec && !A.ui.cap && R(0, 0).on && qd_track_len(&PAT()->trk[0]) == 36,
+          "armed, REC tapped: disarmed, the track as it was");
+
+    start();                                            /* past page 8: 128 steps */
+    PAT()->trk[0].rbase = 6;                            /* 1/64: 128 steps in 4 s */
+    btap(QD_B_REC);
+    live_arm();
+    kdown(7);
+    run(20);
+    kup(7);
+    for (k = 0; k < 20000 && !(qd_ctl_playing_page(&A, 0) == 0 && A.ui.cap_full); k++)
+        run(1);
+    run(200);
+    btap(QD_B_PLAY);
+    CHECK(A.seq.playing && qd_track_loop(&PAT()->trk[0]) == 0xff && qd_track_len(&PAT()->trk[0]) == 128 &&
+              R(0, 0).on && PAT()->trk[0].rbase == 6, "round past page 8, PLAY: 128 steps (loop %02x)",
+          qd_track_loop(&PAT()->trk[0]));
+    btap(QD_B_PLAY);
+}
+
+/* REPLACE / OVERDUB on a track with steps: stopped and armed, the first note starts playback and the recording (on
+ * step 1); the loop stays; REPLACE: a note replaces the step's notes; OVERDUB: joins them; PLAY stops both */
+static void g_take_replace(void)
+{
+    start();
+    A.proj.rec_dub = QD_TAKE_REPLACE;
+    {
+        const uint8_t ch[2] = {60, 64};
+        qd_step_on(PAT(), 0, 4);
+        qd_step_set_notes(PAT(), 0, 4, ch, 2);
+        qd_step_on(PAT(), 0, 8);
+        qd_step_on(PAT(), 0, 12);
+    }
+    btap(QD_B_REC);
+    live_arm();
+    CHECK(A.ui.rec && A.ui.live_wait && !A.ui.cap && !A.seq.playing, "REPLACE, REC held: armed, waiting");
+    kdown(14);                                          /* G4: starts it, on step 1 */
+    run(30);
+    kup(14);
+    run(5);
+    CHECK(A.seq.playing && A.ui.rec && !A.ui.live_wait && R(0, 0).notes[0] == 67 && R(0, 4).nn == 2 &&
+              R(0, 12).on && qd_track_loop(&PAT()->trk[0]) == 1, "stopped, the first note: playing and recording, G4 "
+          "on step 1, the other steps stay");
+    run_to(4.0 + 2.0 / 24.0);
+    kdown(16);
+    run(30);
+    kup(16);
+    run(5);
+    CHECK(R(0, 4).nn == 1 && R(0, 4).notes[0] == 69, "REPLACE: A4 replaces step 5's chord");
+    A.proj.rec_dub = QD_TAKE_OVERDUB;
+    run_to(8.0 + 1.0 / 24.0);
+    kdown(11);
+    run(30);
+    kup(11);
+    run(5);
+    CHECK(R(0, 8).nn == 2 && R(0, 8).notes[1] == 64, "OVERDUB: E4 joins step 9's note (%d notes)", R(0, 8).nn);
+    btap(QD_B_PLAY);
+    CHECK(!A.seq.playing && !A.ui.rec && qd_track_len(&PAT()->trk[0]) == 16, "PLAY: stopped, the recording ended, the "
+          "loop as it was");
+}
+
+/* the owner's REC / PLAY bugs: REC held (stopped) + PLAY: recording with playback, never a cancel or the step view;
+ * armed + PLAY (CAPTURE): the take from the top, the track cleared */
+static void g_rec_play(void)
+{
+    start();
+    A.proj.rec_dub = QD_TAKE_REPLACE;
+    qd_step_on(PAT(), 0, 6);
+    btap(QD_B_REC);                                     /* the keyboard */
+    bdown(QD_B_REC);
+    run(150);                                           /* (before the hold arms) */
+    bdown(QD_B_PLAY);
+    run(10);
+    CHECK(A.seq.playing && A.ui.rec && !A.ui.live_wait && A.ui.mode == QD_MODE_KEYS,
+          "REC held, PLAY pressed (stopped): playing and recording at once, the keyboard stays");
+    bup(QD_B_PLAY);
+    run(30);
+    bup(QD_B_REC);
+    run(10);
+    CHECK(A.seq.playing && A.ui.rec && A.ui.mode == QD_MODE_KEYS && R(0, 6).on, "let go of both: still recording, "
+          "still the keyboard (REC's release no tap)");
+    btap(QD_B_PLAY);
+    CHECK(!A.seq.playing && !A.ui.rec, "PLAY: stopped");
+
+    btap(QD_B_REC);                                     /* the step view: REC held past the hold, then PLAY */
+    CHECK(A.ui.mode == QD_MODE_STEP, "(the step view)");
+    bdown(QD_B_REC);
+    run(QD_REC_HOLD_MS + 50);
+    CHECK(A.ui.rec && A.ui.live_wait, "REC held: armed");
+    bdown(QD_B_PLAY);
+    run(20);
+    bup(QD_B_PLAY);
+    run(20);
+    bup(QD_B_REC);
+    run(10);
+    CHECK(A.seq.playing && A.ui.rec && !A.ui.live_wait && A.ui.mode == QD_MODE_STEP && !A.ui.latch,
+          "armed, REC still held, PLAY: playing and recording, the step view stays (no F3)");
+    btap(QD_B_PLAY);
+
+    A.proj.rec_dub = QD_TAKE_CAPTURE;                   /* CAPTURE: REC + PLAY, armed + PLAY: the take from the top */
+    bdown(QD_B_REC);
+    run(100);
+    bdown(QD_B_PLAY);
+    run(20);
+    bup(QD_B_PLAY);
+    bup(QD_B_REC);
+    run(10);
+    CHECK(A.seq.playing && A.ui.cap == 2 && !R(0, 6).on && qd_track_loop(&PAT()->trk[0]) == 1,
+          "CAPTURE, REC + PLAY: the take runs, the track cleared");
+    run_to(7.4);
+    btap(QD_B_REC);
+    CHECK(A.seq.playing && !A.ui.rec && qd_track_len(&PAT()->trk[0]) == 7,
+          "REC: its end, 7 steps (a take of rests: %d)", qd_track_len(&PAT()->trk[0]));
+    btap(QD_B_PLAY);
+    qd_step_on(PAT(), 0, 3);
+    live_arm();
+    btap(QD_B_PLAY);
+    CHECK(A.seq.playing && A.ui.cap == 2 && !R(0, 3).on && qd_track_len(&PAT()->trk[0]) == 16,
+          "CAPTURE armed, PLAY: the take from the top, the track cleared (16 again)");
+    btap(QD_B_PLAY);
+    CHECK(A.seq.playing && !A.ui.rec, "PLAY: its end, playing on");
+    btap(QD_B_PLAY);
+    CHECK(!A.seq.playing, "PLAY again: stopped");
 }
 
 /* the keyboard in a scale: the keys snap down onto it */
@@ -2996,8 +3231,13 @@ static void g_rec_settings(void)
     bup(SHIFT);
     CHECK(qd_view_screen(&A) == QD_SCR_MENU && A.ui.latch == QD_LATCH_REC, "SHIFT + REC: the record settings");
     turn(QD_K_2, 10);
+    CHECK(A.proj.rec_dub == QD_TAKE_CAPTURE, "the TAKE: CAPTURE at first");
     turn(QD_K_3, 1);
-    CHECK(A.proj.rec_quant == 50 && A.proj.rec_dub == 1, "KNOB 2: QUANTIZE 50 %%; KNOB 3: OVERDUB");
+    CHECK(A.proj.rec_dub == QD_TAKE_REPLACE, "KNOB 3 right: REPLACE");
+    turn(QD_K_3, 1);
+    turn(QD_K_3, 1);
+    CHECK(A.proj.rec_quant == 50 && A.proj.rec_dub == QD_TAKE_OVERDUB, "KNOB 2: QUANTIZE 50 %%; KNOB 3: OVERDUB (the "
+          "last)");
     wtap(3);
     black(B2);
     CHECK(!R(0, 3).on && A.ui.hmode == UI_F_NOTE, "open: a W or a black key does nothing");
@@ -4717,6 +4957,7 @@ static void g_p16d_auto(void)
     int f0, u0, v2, i, got = 0, s;
     int16_t vp[QD_QUAD_NP];
     start();
+    A.proj.rec_dub = QD_TAKE_REPLACE;                   /* (armed playing: recording at once, knobs included) */
     wtap(4);                                            /* a note on step 5 */
     run(QD_UNDO_QUIET_MS + 50);
     f0 = A.model.t[0].patch[id];
@@ -5525,6 +5766,8 @@ static void g_p16g_rec(void)
     const int id = qd_step_quick_id(0);
     int s, k, any;
     start();
+    A.proj.rec_dub = QD_TAKE_REPLACE;                   /* (2026-10-25: into the steps as they are; CAPTURE:
+                                                         * g_capture) */
     btap(QD_B_SOUND);                                   /* the sound editor, its keyboard */
     btap(QD_B_REC);
     CHECK(qd_snd_open(&A) && qd_snd_keys(&A) && !A.ui.rec, "the editor: REC tapped: its keys (not recording)");
@@ -8239,6 +8482,9 @@ int main(void)
         {"P1.3r: the EDIT view", g_edit},
         {"P1.3w: FUNC on B9: the functions, the jump's target, SOUND on B10", g_func},
         {"P1.3x: PLAY held F3; REC held live recording, growing", g_live},
+        {"the TAKE CAPTURE: cleared, the take's length, micro kept", g_capture},
+        {"the TAKE REPLACE / OVERDUB: the first note starts it", g_take_replace},
+        {"REC + PLAY, armed + PLAY: recording with playback", g_rec_play},
         {"P1.5b: the editor's keyboard SCALE / FULL, the scale", g_p15b_keys},
         {"P1.5b: the lock chips", g_p15b_chips},
         {"P1.5b: FX overview, routing", g_p15b_fx},
@@ -8325,8 +8571,14 @@ int main(void)
     qd_text_stats_reset();                              /* P1.3v: the clarity guard over every gesture's frames */
     for (i = 0; i < sizeof G / sizeof G[0]; i++) {
         const int f0 = fails, c0 = checks;
+        if (getenv("QD_ONLY") && !strstr(G[i].name, getenv("QD_ONLY")))   /* (QD_ONLY=text: those gestures alone) */
+            continue;
         G[i].fn();
         printf("  gesture: %-55s %d checks%s\n", G[i].name, checks - c0, fails > f0 ? "  FAILED" : "");
+    }
+    if (getenv("QD_ONLY")) {
+        printf("test_ctl: %d checks, %d failed (QD_ONLY)\n", checks, fails);
+        return fails != 0;
     }
     t_beat();
     t_leds();

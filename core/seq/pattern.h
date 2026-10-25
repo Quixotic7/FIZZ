@@ -322,7 +322,9 @@ typedef struct {
     /* P1.3y: the record settings (SHIFT + REC), the project's */
     uint8_t rec_mode;                   /* what holding REC arms: 0 LIVE, 1 STEP */
     uint8_t rec_quant;                  /* live recording's quantize, 0..100 % (100: on the step, the micro-timing gone) */
-    uint8_t rec_dub;                    /* 0 REPLACE (a step recorded into is cleared first), 1 OVERDUB (the notes join) */
+    uint8_t rec_dub;                    /* the TAKE (QD_TAKE_*): 0 CAPTURE (live: the first note clears the track, the
+                                         * end sets its length), 1 OVERDUB (the notes join), 2 REPLACE (a step recorded
+                                         * into is cleared first); 0.12's records: 0 was REPLACE (now CAPTURE) */
     uint8_t pool_empty;                 /* P1.5t: its pool started empty (a new project's; 0.6's and the demo's: the old
                                          * starting pool) */
     uint8_t rec_ekeys;                  /* P1.5b: the keyboard in the sound editor: 0 SCALE (W the scale, B the pages), 1
@@ -330,6 +332,7 @@ typedef struct {
     qd_mfx_group_t mfx[QD_MFX_NGROUP];  /* P1.6c: the MIDI FX groups (mfx.h) */
     uint8_t rec_auto;                   /* P1.6d: AUTOMATION: armed live recording records knob moves too (1 ON) */
 } qd_project_t;
+enum { QD_TAKE_CAPTURE, QD_TAKE_OVERDUB, QD_TAKE_REPLACE };   /* qd_project_t.rec_dub */
 /* the MIDI FX group a step of track t plays through: 0 none, 1..5 (the step's, else the track's) */
 int qd_step_mfx(const qd_pattern_t *p, int t, int s);
 
