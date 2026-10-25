@@ -4,7 +4,8 @@
 /* T1: TOOLS, the track tools (ctl.h; docs/TRACK-TOOLS-PLAN.md §2, the owner's decisions §8, his revision §10). Built
  * through ctl_latch.c (it includes this file). The operations are seq/tools.c's.
  *
- * THE CONTROLS: B1..B7 or PRESETS the tool; B11 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
+ * THE CONTROLS (the owner's layout, 2026-10-25): B1..B8 ROTATE, REVERSE, RANDOM, EUCLID, GRIDS, HUMANIZE, QUANTIZE, LENGTH;
+ * PRESETS every tool, STRETCH and CLIP (COPY / PASTE / CLEAR: KNOB 1 picks, OCT+ does it) after them; B11 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
  * page shown (it stays: no page follow in TOOLS); W1..W16 the page's steps (a press: in / out of the selection, the
  * scope SELECTED; lit as the change makes them, the ghosts dim, the steps that do not play dark); KNOB 1..4 the
  * tool's values. SELECTED + ROTATE moves the selected steps along the track's loop (qd_tl_move). OCT+ keeps, OCT- reverts (it never leaves); HOME is the only way out. TOOLS works on
@@ -168,6 +169,14 @@ static void tl_apply(qd_app_t *a)
             qd_tl_length(p, t, T->scope <= QD_TS_PAGE ? page : -1, T->lpow, 0);
             continue;
         }
+        if (T->tool == QD_TL_STRETCH) {                 /* (SELECTED: its page, as PAGE; the factor as far as the
+                                                         * selected track has room) */
+            int pw = T->lpow;
+            qd_tl_stretch_track(p, t, T->scope <= QD_TS_PAGE ? page : -1, &pw, T->v.st.fit, 0);
+            if (t == a->sel)
+                a->ui.tl.lpow = (int8_t)pw;
+            continue;
+        }
         if (T->tool == QD_TL_ROTATE && T->scope == QD_TS_SEL) {   /* (the selected steps move along the track) */
             uint8_t sel[16];
             int ns;
@@ -258,9 +267,15 @@ static int tl_keep_q(qd_app_t *a)                     /* kept (one undo level): 
     return 1;
 }
 static void tl_keep(qd_app_t *a) { tl_keep_q(a); }   /* (HOME, a switch: kept quietly) */
-static void tl_confirm(qd_app_t *a)                   /* OCT+: kept, "KEPT"; too big for undo: twice ("NO UNDO") */
+static void tl_clip(qd_app_t *a, int act);
+static void tl_confirm(qd_app_t *a)                   /* OCT+: kept, "KEPT"; too big for undo: twice ("NO UNDO");
+                                                         * CLIP: its action */
 {
     qd_tools_t *T = &a->ui.tl;
+    if (T->tool == QD_TL_CLIP) {
+        tl_clip(a, T->v.cl.act);
+        return;
+    }
     if ((T->flags & (QD_TLF_NOROOM | QD_TLF_ARMED)) == QD_TLF_NOROOM && qd_tools_pending(a)) {
         T->flags |= QD_TLF_ARMED;
         tl_pop(a, 2, TLM_NOUNDO);
@@ -270,9 +285,18 @@ static void tl_confirm(qd_app_t *a)                   /* OCT+: kept, "KEPT"; too
         tl_pop(a, 2, TLM_KEPT);
 }
 
-/* T3, B8..B10: COPY / PASTE (PAGE: the F1 + B10 page clipboard; PATTERN: SHIFT + B4 / B5's) and CLEAR (SELECTED and
- * PAGE at once, TRACK and PATTERN pressed twice); each a level of its own, the pending change kept first */
+/* T3, CLIP (2026-10-25: a page of its own, was B8..B10): COPY / PASTE (PAGE: the F1 + B10 page clipboard; PATTERN:
+ * SHIFT + B4 / B5's) and CLEAR (SELECTED and PAGE at once, TRACK and PATTERN twice); each a level of its own */
 static int tl_armed(const qd_app_t *a) { return a->ui.clr_armed && a->ms - a->ui.clr_ms < QD_ARM_MS; }
+int qd_tools_clip_ok(const qd_app_t *a, int act)
+{
+    const int sc = a->ui.tl.scope;
+    if (act == QD_CL_CLEAR)
+        return 1;
+    if (sc != QD_TS_PAGE && sc != QD_TS_PATTERN)
+        return 0;
+    return act == QD_CL_COPY || (sc == QD_TS_PAGE ? a->ui.clip.pg.valid : a->undo.pclip_ok);
+}
 static void tl_clip(qd_app_t *a, int b)
 {
     qd_ui_t *u = &a->ui;
@@ -280,16 +304,16 @@ static void tl_clip(qd_app_t *a, int b)
     const int sc = u->tl.scope, pg = tl_page(a);
     int msg = TLM_CLEARED, t;
     tl_keep(a);
-    if (b != 9)
+    if (b != QD_CL_CLEAR)
         u->clr_armed = 0;
-    if (b == 7) {                                       /* COPY */
+    if (b == QD_CL_COPY) {
         if (sc == QD_TS_PAGE)
             qd_clip_copy_page(&u->clip, p, a->sel, pg), msg = TLM_COPIED;
         else if (sc == QD_TS_PATTERN)
             msg = qd_hist_store(a, 1) ? TLM_COPIED : TLM_TOOBIG;
         else
             return;
-    } else if (b == 8) {                                /* PASTE */
+    } else if (b == QD_CL_PASTE) {
         if (sc == QD_TS_PAGE && u->clip.pg.valid) {
             qd_undo_hint(a, QD_UK_PASTE);
             msg = qd_clip_paste_page(&u->clip, p, a->seq.cur, a->sel, pg) == QD_EFULL ? TLM_FULL : TLM_PASTED;
@@ -385,8 +409,6 @@ void qd_tools_black(qd_app_t *a, int b, int down)
     if (!down)
         return;
     if (b < QD_TL_NKEY) {
-        if (!QD_TL_BUILT(b))
-            return;
         if (b != T->tool) {
             tl_tool(a, b);
         } else if (b == QD_TL_ROTATE && T->rot) {      /* again: ROTATE back to 0 */
@@ -406,10 +428,8 @@ void qd_tools_black(qd_app_t *a, int b, int down)
         }
         return;
     }
-    if (b == 10)                                        /* B11: the scope, round */
+    if (b == 10)                                        /* B11: the scope, round (B9, B10: nothing) */
         tl_scope(a, (T->scope + 1) % QD_TS_N);
-    else if (b >= 7)                                    /* T3: B8 COPY, B9 PASTE, B10 CLEAR */
-        tl_clip(a, b);
 }
 
 /* W: the page's step in / out of the selection (the scope SELECTED: another scope's change kept first; SELECTED's
@@ -441,15 +461,8 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
         qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);   /* (the eight pages, "PAGE 3": the step view's) */
         return 1;
     }
-    if (knob == QD_K_PRESETS) {                         /* the tools, round (the built ones) */
-        int b = T->tool, k, n = tl_clamp(d < 0 ? -d : d, 1, QD_TL_N);
-        while (n--)                                     /* (a detent a tool) */
-            for (k = 0; k < QD_TL_N; k++) {
-                b = (b + (d > 0 ? 1 : QD_TL_N - 1)) % QD_TL_N;
-                if (QD_TL_BUILT(b))
-                    break;
-            }
-        tl_tool(a, b);
+    if (knob == QD_K_PRESETS) {                         /* the tools, round (a detent a tool) */
+        tl_tool(a, ((T->tool + d) % QD_TL_N + QD_TL_N) % QD_TL_N);
         return 1;
     }
     if (knob == QD_K_ALGO) {                               /* the scope */
@@ -518,11 +531,27 @@ int qd_tools_knob(qd_app_t *a, int knob, int d)
         }
         break;
     }
+    case QD_TL_STRETCH:                                 /* KNOB 2: onto 1..8 pages (0: off); KNOB 1 as LENGTH's */
+        if (knob == QD_K_2) {
+            const int f = tl_clamp(T->v.st.fit + (d > 0 ? 1 : -1), 0, 8);
+            ch = f != T->v.st.fit;
+            T->v.st.fit = (uint8_t)f;
+            break;
+        }
+        if (knob == QD_K_1 && T->v.st.fit)              /* (the factor again: from x1) */
+            T->v.st.fit = 0, T->lpow = 0, ch = 1;
+        /* fall through */
     case QD_TL_LENGTH:                                  /* KNOB 1: x2 / /2 a detent */
         if (knob == QD_K_1) {
-            const int l = tl_clamp(T->lpow + d, -3, 3);
-            ch = l != T->lpow;
+            const int l = tl_clamp(T->lpow + (d > 0 ? 1 : -1), -3, 3);
+            ch |= l != T->lpow;
             T->lpow = (int8_t)l;
+        }
+        break;
+    case QD_TL_CLIP:                                    /* KNOB 1: COPY, PASTE, CLEAR */
+        if (knob == QD_K_1) {
+            T->v.cl.act = (uint8_t)tl_clamp(T->v.cl.act + d, 0, QD_CL_N - 1);
+            a->ui.clr_armed = 0;
         }
         break;
     default:
@@ -661,16 +690,10 @@ void qd_tools_leds(const qd_app_t *a, uint8_t *key)
                                                          * the steps that do not play dark), the selected blinking */
         key[QD_WHITE_KEY[i]] = (sel >> i) & 1u ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT)
                              : !((inr >> i) & 1u) ? QD_LED_OFF : on[i] ? QD_LED_LIT : was[i] ? QD_LED_DIM : QD_LED_OFF;
-    for (i = 0; i < QD_TL_NKEY; i++)                    /* B1..B7 the tools (QUANTIZE: none lit), B11 the scope */
+    for (i = 0; i < QD_TL_NKEY; i++)                    /* B1..B8 the tools (STRETCH, CLIP: none lit), B11 the scope */
         key[QD_BLACK_KEY[i]] = i == T->tool ? QD_LED_LIT : QD_LED_DIM;
+    key[QD_BLACK_KEY[8]] = key[QD_BLACK_KEY[9]] = QD_LED_OFF;
     key[QD_BLACK_KEY[10]] = QD_LED_LIT;
-    {   /* T3: B8 COPY (PAGE, PATTERN), B9 PASTE (lit with something to paste), B10 CLEAR (blinking when armed) */
-        const int pp = T->scope == QD_TS_PAGE || T->scope == QD_TS_PATTERN;
-        const int has = T->scope == QD_TS_PAGE ? a->ui.clip.pg.valid : a->undo.pclip_ok;
-        key[QD_BLACK_KEY[7]] = pp ? QD_LED_LIT : QD_LED_OFF;
-        key[QD_BLACK_KEY[8]] = pp ? (has ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
-        key[QD_BLACK_KEY[9]] = tl_armed(a) && (a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT;
-    }
 }
 
 /* the playing step's position in the scope (-1: none) */
@@ -688,6 +711,10 @@ int qd_tools_result_len(const qd_app_t *a, uint8_t *loop)
     qd_tset_t ts = p->trk[a->sel];
     if (tl_drawn_only(a) && T->tool == QD_TL_LENGTH)
         qd_tl_length((qd_pattern_t *)p, a->sel, T->scope <= QD_TS_PAGE ? T->opage & 7 : -1, T->lpow, &ts);
+    else if (tl_drawn_only(a) && T->tool == QD_TL_STRETCH) {
+        int pw = T->lpow;
+        qd_tl_stretch_track((qd_pattern_t *)p, a->sel, T->scope <= QD_TS_PAGE ? T->opage & 7 : -1, &pw, T->v.st.fit, &ts);
+    }
     *loop = (uint8_t)qd_track_loop(&ts);
     return qd_track_len(&ts);
 }
@@ -733,5 +760,42 @@ void qd_tools_timing(const qd_app_t *a, int8_t *mi, uint8_t *ve, int8_t *mi0, ui
         else
             qd_tl_quantize_one(&p->step[t][s], d, T->v.qu.grid, T->v.qu.amt, T->v.qu.vel, &m, &v);
         mi[w] = (int8_t)m, ve[w] = (uint8_t)v;
+    }
+}
+
+/* STRETCH: the track's steps now and before (live: the gesture's before, read a page at a time; drawn only: the result's
+ * loop worked out, no trigs) */
+static void tl_bits(const qd_tset_t *ts, const qd_step_t *st, int page, uint8_t *on, uint8_t *in)
+{
+    int w;
+    for (w = 0; w < QD_PAGE; w++) {
+        const int s = page * QD_PAGE + w;
+        if (st && qd_step_is_on(&st[w]))
+            on[s >> 3] |= (uint8_t)(1u << (s & 7));
+        if ((qd_track_loop(ts) >> page & 1) && qd_page_in_range(ts, s))
+            in[s >> 3] |= (uint8_t)(1u << (s & 7));
+    }
+}
+void qd_tools_stretch(const qd_app_t *a, uint8_t *on, uint8_t *in, uint8_t *on0, uint8_t *in0)
+{
+    const qd_tools_t *T = &a->ui.tl;
+    const qd_pattern_t *p = qd_ctl_cpat(a);
+    const int t = a->sel, pend = (T->flags & QD_TLF_PEND) && t == T->otrack, live = pend && !tl_drawn_only(a);
+    qd_tset_t ts = p->trk[t], ts0 = ts;
+    qd_step_t b[QD_PAGE];
+    int k;
+    memset(on, 0, 16), memset(in, 0, 16), memset(on0, 0, 16), memset(in0, 0, 16);
+    if (pend && !live) {
+        int pw = T->lpow;
+        qd_tl_stretch_track((qd_pattern_t *)p, t, T->scope <= QD_TS_PAGE ? T->opage & 7 : -1, &pw, T->v.st.fit, &ts);
+    } else if (live) {
+        qd_undo_before(a, (uint32_t)((const uint8_t *)&p->trk[t] - (const uint8_t *)p), sizeof ts0, (uint8_t *)&ts0);
+    }
+    for (k = 0; k < QD_NPAGE; k++) {
+        tl_bits(&ts, pend && !live ? 0 : &p->step[t][k * QD_PAGE], k, on, in);
+        if (!live || !qd_undo_before(a, (uint32_t)((const uint8_t *)&p->step[t][k * QD_PAGE] - (const uint8_t *)p),
+                                     sizeof b, (uint8_t *)b))
+            memcpy(b, &p->step[t][k * QD_PAGE], sizeof b);
+        tl_bits(&ts0, b, k, on0, in0);
     }
 }

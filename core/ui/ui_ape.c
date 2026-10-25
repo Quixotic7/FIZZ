@@ -612,11 +612,12 @@ static void ap_rings(const ap_box_t *B, float t, int front)
     }
 }
 
-void ui_ape_draw(const ui_turn_t *v)
+/* the scene: tap n of a count (2026-10-25: or the tempo's beats, ui_ape_tempo), since its time; b0, b1 the BPM of the
+ * last two, value the BPM shown in bc; tap: the TAP takeover's head and dots */
+static void ap_draw(const ui_turn_t *v, int n, float since, int b0, int b1, int value, qd_rgb bc, int tap)
 {
-    const int n = v->ntotal;
-    const float t = v->t, since = v->since;
-    const int bpm = n >= 2 ? v->tap_bpm[0] : 0;
+    const float t = v->t;
+    const int bpm = n >= 2 ? b0 : 0;
     const float beat = bpm ? 60.f / (float)bpm : 0.5f;
     int kind, k, prevk, en, i;
     float age, pulse, lift, dx = 0.f, sx = 1.f, sy = 1.f, rot = 0.f, st;
@@ -631,16 +632,17 @@ void ui_ape_draw(const ui_turn_t *v)
     /* the event now: the last tap (the first of a count bouncing in), or the finale 2 s on */
     if (since >= AP_TADA) {
         kind = AP_TADAS, k = AP_FINALE, age = since - AP_TADA;
-        prevk = ui_ape_pose(n, v->tap_bpm[0]);
+        prevk = ui_ape_pose(n, b0);
     } else {
-        kind = n == 1 && !v->tap_cont ? AP_ENTERS : AP_TAP, k = ui_ape_pose(n, v->tap_bpm[0]), age = since;
-        prevk = n >= 2 ? ui_ape_pose(n - 1, v->tap_bpm[1]) : -1;
+        kind = n == 1 && !v->tap_cont ? AP_ENTERS : AP_TAP, k = ui_ape_pose(n, b0), age = since;
+        prevk = n >= 2 ? ui_ape_pose(n - 1, b1) : -1;
     }
     en = n;
-    flurry = kind == AP_TAP && n >= 2 && v->tap_bpm[0] >= 180;
+    flurry = kind == AP_TAP && n >= 2 && b0 >= 180;
     slow = kind == AP_TAP && n >= 2 && bpm > 0 && bpm <= 70;   /* P1.6g: 70 BPM and under: the slow-motion moonwalk */
     ap_keep[0] = k, ap_keep[1] = kind != AP_ENTERS && age < 0.16f ? prevk : -1;   /* (the poses cached: kept now) */
-    ap_head(n, UI_KSEL);
+    if (tap)
+        ap_head(n, UI_KSEL);
     ap_floor();
     /* the boombox: its speakers pump on each tap (lightly on the beat while the ape grooves); its sound arcs */
     {
@@ -652,7 +654,7 @@ void ui_ape_draw(const ui_turn_t *v)
         pulse = tp > bp ? tp : bp;
         pulse = pulse > fp ? pulse : fp;
     }
-    for (i = 0; i < 3; i++) {
+    for (i = 0; tap && i < 3; i++) {                  /* (the sound arcs: a tap's; the tempo's swing sits there) */
         const float a = age - (float)i * 0.07f;
         if (a < 0.f || a > 0.6f)
             continue;
@@ -664,7 +666,7 @@ void ui_ape_draw(const ui_turn_t *v)
     }
     ap_box(pulse, flurry ? sinf(t * 50.f) * 1.2f : 0.f);
     if (n >= 2)                                         /* the BPM, from two taps; it pops on each */
-        ap_bpm(bpm ? v->value : 0, UI_KSEL, since < 0.15f ? 1.f + 0.08f * (1.f - since / 0.15f) : 1.f, UI_G1);
+        ap_bpm(bpm ? value : 0, bc, tap && since < 0.15f ? 1.f + 0.08f * (1.f - since / 0.15f) : 1.f, UI_G1);
     /* the groove: the whole drawing on the beat (it ramps in after the snap) */
     lift = 0.f;
     if (slow) {                                         /* P1.6g: gliding back and forth over four beats, a soft step
@@ -744,7 +746,7 @@ void ui_ape_draw(const ui_turn_t *v)
     /* the tap dots under the floor: the last four bright; they slide off as the count closes */
     {
         const float clr = since > AP_CLEAR0 ? ap_ease((since - AP_CLEAR0) / (AP_TADA - AP_CLEAR0)) : 0.f;
-        for (i = v->ntap - 1; i >= 0; i--) {
+        for (i = tap ? v->ntap - 1 : -1; i >= 0; i--) {
             const float ag = v->tap_age[i], x = 204.f - ag * 72.f - clr * 220.f;
             const float a = (i < 4 ? 1.f : 0.45f - 0.1f * (float)(i - 4)) * (1.f - clr);
             const float r = ag < 0.25f ? 4.5f + 4.f * (1.f - ag / 0.25f) : 4.5f;
@@ -762,7 +764,7 @@ void ui_ape_draw(const ui_turn_t *v)
          * tempo: 180 and up, the flurry's headstand) */
         static float last_t = -1.f;
         const float dt = last_t < 0.f || t < last_t ? 0.015f : t - last_t > 0.1f ? 0.1f : t - last_t;
-        const int guess = n >= 2 ? v->tap_bpm[0] : 0;   /* (after one tap: the step; a flurry from the 2nd tap is
+        const int guess = n >= 2 ? b0 : 0;   /* (after one tap: the step; a flurry from the 2nd tap is
                                                          * rare, its headstand then made at once) */
         const int next = kind == AP_TADAS ? 0 : since < 1.4f ? ui_ape_pose(n + 1, guess) : AP_FINALE;
         const int next2 = n == 1 && kind != AP_TADAS ? AP_FLURRY : -1;   /* (after one tap: the flurry's too) */
@@ -772,4 +774,32 @@ void ui_ape_draw(const ui_turn_t *v)
             if (!ap_prepare(next) && next2 >= 0)
                 ap_prepare(next2);
     }
+}
+void ui_ape_draw(const ui_turn_t *v)
+{
+    ap_draw(v, v->ntotal, v->since, v->tap_bpm[0], v->tap_bpm[1], v->value, UI_KSEL, 1);
+}
+
+/* 2026-10-25 (the owner: the ape for F3's tempo and swing, the metronome gone): the TAP ape grooving to the tempo, a new
+ * pose (its hop, flash, streaks and sparkles) every two beats (one under 64 BPM), the bob on each beat, swing's
+ * pairs of beats unequal; the BPM big (the knob's colour turning TEMPO), the swing under it in green (big turning SWING) */
+void ui_ape_tempo(const ui_turn_t *v, qd_rgb col)
+{
+    const int bpm = v->bpm > 0 ? v->bpm : 120, sw = v->kind == UI_TK_SWING, pair = bpm >= 64;
+    const float sf = (float)(v->swing < 50 ? 50 : v->swing > 80 ? 80 : v->swing) / 100.f;
+    const float pr = ((float)(v->beats & 1) + v->beat) / 2.f;   /* (the pair of beats' progress) */
+    const float ph = pair ? (pr < sf ? pr / sf : 1.f + (pr - sf) / (1.f - sf)) : v->beat;
+    const float since = ph * 60.f / (float)bpm;
+    char s[16];
+    int k;
+    ap_draw(v, 2 + (pair ? v->beats >> 1 : v->beats), since < AP_TADA - 0.05f ? since : AP_TADA - 0.05f, bpm, bpm, bpm,
+            sw ? UI_G1 : col, 0);
+    if (v->ext)
+        return;
+    ui_itoa(s, v->swing);
+    for (k = 0; s[k]; k++)
+        ;
+    s[k] = '%', s[k + 1] = 0;
+    ui_T(s, 6.f, 126.f, sw ? 36.f : 26.f, 200, 0.f, UI_K2, QD_LEFT);
+    ui_lab("SWING", 8.f, 142.f, sw ? UI_K2 : UI_G1, QD_LEFT);
 }

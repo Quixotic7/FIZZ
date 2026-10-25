@@ -24,9 +24,11 @@
 extern "C" {
 #endif
 
-enum { QD_TL_ROTATE, QD_TL_REVERSE, QD_TL_RANDOM, QD_TL_EUCLID, QD_TL_GRIDS, QD_TL_HUMANIZE, QD_TL_LENGTH, QD_TL_QUANTIZE,
-       QD_TL_N };
-#define QD_TL_NKEY 7                    /* the tools on B1..B7 (QUANTIZE: PRESETS only, every B key is taken) */
+/* (2026-10-25, the owner's layout: B1..B8 the eight tools below, STRETCH and CLIP after them on PRESETS only) */
+enum { QD_TL_ROTATE, QD_TL_REVERSE, QD_TL_RANDOM, QD_TL_EUCLID, QD_TL_GRIDS, QD_TL_HUMANIZE, QD_TL_QUANTIZE, QD_TL_LENGTH,
+       QD_TL_STRETCH, QD_TL_CLIP, QD_TL_N };
+#define QD_TL_NKEY 8                    /* the tools on B1..B8 */
+enum { QD_CL_COPY, QD_CL_PASTE, QD_CL_CLEAR, QD_CL_N };   /* CLIP's actions (KNOB 1 picks, OCT+ does it) */
 enum { QD_QG_1, QD_QG_2, QD_QG_3, QD_QG_4, QD_QG_N };  /* QUANTIZE's grid: a step, 1/2, 1/3, 1/4 of one */
 enum { QD_TS_SEL, QD_TS_PAGE, QD_TS_TRACK, QD_TS_PATTERN, QD_TS_N };   /* (SEL: the selected steps, the caller's list) */
 enum { QD_EU_NEW, QD_EU_ADD, QD_EU_MASK, QD_EU_N };    /* EUCLID's landing: replace, OR, AND */
@@ -73,6 +75,18 @@ int qd_tl_grids_level(int i, int x, int y, int part);
 int qd_tl_grids_at(uint32_t seed, int t, int i, int x, int y, int part, int chaos);
 void qd_tl_grids(qd_pattern_t *p, int t, const uint8_t *pos, int n, int x, int y, int dens, int part, int chaos,
                  uint32_t seed);
+
+/* STRETCH (2026-10-25): the trigs of the n positions pos[] (play order) laid onto the m steps base.. (physical, in order),
+ * the time scaled by num / den: a trig at i + micro / 24 steps (the track's nudge, its default micro, taken off) lands on
+ * the nearest new step, the rest its micro (|micro| <= 12 but at the ends); two on one step: the nearer to its line
+ * kept; a step's own length scaled too (the nearest of the table); the steps of pos and base.. that take no trig
+ * cleared, locks and all; the steps outside them untouched. qd_tl_stretch_to: where trig i (micro mic) goes */
+void qd_tl_stretch_to(int i, int mic, int num, int den, int m, int *j, int *mo);
+void qd_tl_stretch(qd_pattern_t *p, int t, const uint8_t *pos, int n, int base, int m, int num, int den);
+/* .. a track's loop (page -1; ts: its settings, into which the new loop goes: pages from its first looped one, whole
+ * but the last) or page `page`'s start..end (its end moved) by 2^*pw (*pw -3..3; out: as far as it fits) or, fit 1..8,
+ * onto fit pages (a page: fit x 2 steps); only: the settings alone (nothing written); returns the steps after */
+int qd_tl_stretch_track(qd_pattern_t *p, int t, int page, int *pw, int fit, qd_tset_t *only);
 
 /* the track doubled (SHIFT + B9's): 0 no room (8 pages); only != 0: its settings only, into *only (nothing copied) */
 int qd_tl_double(qd_pattern_t *p, int t, qd_tset_t *only);

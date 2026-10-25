@@ -701,11 +701,12 @@ static void g_f1_pages(void)
     run(10);
     CHECK(PAT()->trk[0].loop == 2 && A.ui.page[0] == 1, "B2 twice within 200 ms: page 2 looped alone");
     run(300);
-    ktap(BK(B4), 30);                                   /* two taps 210 ms apart: two taps */
-    run(180);
+    ktap(BK(B4), 30);                                   /* the second press 210 ms after the first release: two taps */
+    run(210);
     ktap(BK(B4), 30);
     run(10);
-    CHECK(PAT()->trk[0].loop == 2 && A.ui.page[0] == 3, "B4 twice 210 ms apart: just edit page 4");
+    CHECK(PAT()->trk[0].loop == 2 && A.ui.page[0] == 3, "B4, the second press 210 ms after: just edit page 4");
+
     run(300);
     ktap(BK(B5), 30);                                   /* a tap then a hold: the tap edits, the hold toggles */
     run(100);
@@ -713,6 +714,14 @@ static void g_f1_pages(void)
     run(10);
     CHECK(PAT()->trk[0].loop == 0x12 && A.ui.page[0] == 4, "B5 tapped then held: edited, then into the loop (no "
           "double tap)");
+    run(300);
+    ktap(BK(B6), 110);                                  /* (2026-10-25, the unit's: presses of 110 ms, 150 ms between:
+                                                         * the releases 260 ms apart) */
+    run(150);
+    ktap(BK(B6), 110);
+    run(10);
+    CHECK(PAT()->trk[0].loop == 0x20 && A.ui.page[0] == 5,
+          "B6 double-tapped at the unit's pace (110 ms presses, 150 ms apart): page 6 looped alone, edited");
     run(300);
     kdown(BK(B1));
     run(500);                                           /* (B1 held alone 400 ms first: it toggled; the range wins) */

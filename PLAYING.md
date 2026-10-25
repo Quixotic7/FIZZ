@@ -295,7 +295,7 @@ A step has up to **six notes**.
   twice, KNOB 3) and the global settings (SHIFT + SEL, KNOB 2). (ENV is MIX now: PAGE + W is gone.)
 - Hold **F1** to see the pages:
   - **F1 + tap B1..B8**: edit that page.
-  - **F1 + double-tap B1..B8** (quickly): loop that page alone.
+  - **F1 + double-tap B1..B8** (the second tap starting within 0.2 s of the first): loop that page alone and edit it.
   - **F1 + hold B1..B8**: that page goes into the loop, or out of it (the loop always keeps one page).
   - **F1 + hold one page key, press another**: loop all the pages between them.
   - Lights: the page you edit lit, the loop's pages dim, the playing page flashing.
@@ -468,7 +468,7 @@ A track's speed is a **note value** and a **type**, each kept when you change th
   So a dotted track stays dotted when you press F3 + the 1/8 key: dotted 1/8.
 - **F3 + KNOB 1**: the note value; **KNOB 2**: the type. The screen shows it as 1/8 with a dot (dotted) or a T
   (triplet); the black keys at the foot of the F3 screen are drawn as the note values, a dot and a triplet.
-- **F3 + SELECT**: the tempo; **F3 + ALGORITHM**: the swing. Each turn shows the big metronome picture for a second,
+- **F3 + SELECT**: the tempo; **F3 + ALGORITHM**: the swing. Each turn shows the TAP ape dancing to it for a second,
   then the F3 screen again (which also shows both).
 - The page whose range you set is the one you edit (F3 + W sets its end, W + W its start..end; KNOB 3 / 4 too).
 - **EXT CLOCK**: while a MIDI clock (a DAW) is running the unit, the tempo is the clock's: the F3 screen says EXT CLOCK

@@ -336,3 +336,53 @@ popups and undo as the others (`qd_tl_quantize`, `tools.c`).
   (PRESETS, each scope, the ghosts, OCT− byte for byte, OCT+ one level, undo byte for byte, drawn only) at host and
   device sizes; `firmware/app/tests/tools.txt` (HUMANIZE kept, then 50 %, 100 %, OCT−, OCT+, undo: the host-only probe
   `fz_micabs_T`); renders `render_frames --only t1` (`t1-quantize-*.png`).
+
+### 10.7 The owner's layout, CLIP, STRETCH (2026-10-25, branch tools-layout)
+
+- **The keys:** B1 ROTATE, B2 REVERSE, B3 RANDOM, B4 EUCLID, B5 GRIDS, B6 HUMANIZE, **B7 QUANTIZE**, **B8 LENGTH** (the enum
+  reordered, `QD_TL_NKEY` 8); B9 and B10 do nothing (dark); B11 and ALGORITHM the scope as before. PRESETS rounds all ten:
+  the eight, then STRETCH, then CLIP. The head draws ten icons, 16 px apart at 80 % (the dot, the track's box and the
+  scope moved right).
+- **CLIP** (COPY / PASTE / CLEAR off the B keys, a page of their own): KNOB 1 picks the action (the one picked big in the
+  middle, its neighbours small at the sides, three dots for KNOB 1's place), **OCT+ does it** (the latch's confirm, as
+  KEEP is for the others; its LED lit when the action can be done here, blinking while CLEAR waits for its second
+  press). COPY / PASTE: PAGE and PATTERN only (grey elsewhere, PASTE grey with nothing copied); CLEAR: SELECTED and PAGE
+  at once, TRACK and PATTERN twice (the red cross blinking, "CLEAR?"). The functions, popups and undo are T3's.
+- **STRETCH** (`qd_tl_stretch`, `qd_tl_stretch_track`, tools.c): remaps the track's loop (TRACK; PATTERN: each track;
+  PAGE / SELECTED: the page's start..end) in time. KNOB 1 doubles / halves (x2..x8, /2../8; as far as there is room:
+  128 steps, or the page's end; the factor shown is the one done), KNOB 2 fits it onto 1..8 pages (a page: 2..16 steps;
+  turning KNOB 1 again leaves fit). Each trig at i + micro / 24 (the track's nudge off) goes to the nearest step of the
+  new time t x num / den, the rest its micro (|micro| <= 12 inside, up to 23 at the ends); two trigs on one step: the
+  nearer to its line kept; a step's own length scaled to the nearest of the table; locks move with their steps (one
+  permutation of the 128 steps through the tools' `tl_permute`, then the steps that took no trig cleared with their
+  locks). The new loop: whole pages from the first looped one (moved down if it would pass page 8), the last page's
+  end the rest. x8 then /8 is the identity (steps, micro, locks); `test_tools` t_stretch, t_stretch_live (KNOB 1 live,
+  the clamp, OCT- byte for byte, fit 1 page, OCT+ one level, undo byte for byte, drawn only worked out) at host and
+  device sizes; `firmware/app/tests/tools.txt` (x2 live, OCT-, CLIP's COPY / PASTE).
+- **Its screen:** the loop as it was (grey ticks, its trigs) over the loop as it is (the track's colour), on one time line
+  (the eight pages across; PAGE: the page's sixteen steps), a fan between them (KNOB 1's blue, KNOB 2's green when
+  fitting), the factor big (x2 / a drawn division sign and 4) or the pages it fits onto. `qd_tools_stretch` gives the
+  128 steps now and before (live: the gesture's before, a page at a time; drawn only: the result's loop, no trigs).
+- **Cost:** RAM +0 (the values in the tools' union: `st.fit`, `cl.act`; `lpow` is STRETCH's factor too); the pool +32 B
+  dual / +48 B single-core (the HOME-flash counter, fz_port.c); flash dual 15,788 -> 10,860 B free (-4,928, with the F3
+  ape and the counter), single-core 11,980 -> 7,052; budget model 470,827 -> 474,842 B (the ratchet raised for it).
+
+**The same batch (not TOOLS):**
+- **F1's page map, the double tap** (`k_f1_black`, ctl.c): the code had not changed since P1.5c and passes on the host;
+  the window was the second RELEASE within 200 ms of the first release, so it included the second press's length. At the
+  unit's pace (a press ~80..120 ms on its keys, input sampled between the frame's bands) a natural double tap's releases
+  are ~250 ms apart: two taps. Now the second PRESS within 200 ms of the first release marks it (`pg_taps` 2), decided at
+  its release (a hold still toggles). `test_ctl` g_f1_pages (110 ms presses, 150 ms apart; the second press 210 ms after:
+  two taps) and `tools.txt`'s F1 part (fails on master's build, passes here).
+- **F3's tempo / swing takeover: the TAP ape** (`ui_ape_tempo`, ui_ape.c): the TAP screen's scene (`ap_draw`, shared)
+  grooving to the tempo, a new pose every two beats (one under 64 BPM) with its hop and sparkles, the bob on each beat,
+  the pairs of beats swung by the swing; the BPM big (the knob's colour turning TEMPO), the swing under it (big, green,
+  turning SWING); no sound arcs (the swing sits there). The metronome stays for TSWING only. Renders `p13x-f3-tempo*.png`,
+  `p13x-f3-swing.png`.
+- **The HOME screen flashing in menus:** not reproduced. 35,000 random presses, holds and turns on the host (stopped and
+  playing) never showed a menu's screen going to EDIT and back on the clock alone; every knob in MIX, FX, SOUND, MIDI FX,
+  TOOLS, F3, REC, SETTINGS and SAVE raises no takeover that draws the step view; every simulator script runs with no
+  blip. So it is the unit's alone (the frame's path, the panel). A counter now watches every latched frame
+  (`fz_blip_look`, fz_port.c): a menu's screen, then EDIT, then the same menu within 400 ms is counted with the menu, the
+  latch, the mode, the takeover and its length: stats line 16 `blips= blip_scr= blip_latch= blip_mode= blip_tk=
+  blip_ms=` (`fizz_xdata.py stats`), the host's `expect fz_blips`.

@@ -215,6 +215,86 @@ static void t_length(void)
     CHECK(!qd_tl_double(&P1, 0, 0) && P1.trk[0].loop == 0x7F, "x2 with 7 pages looped: no room, nothing");
 }
 
+/* STRETCH (2026-10-25): x8 then /8 the identity (trigs, micro, locks, a length); /2 of every step keeps the ones on
+ * the beat; fit onto a page; a page's range; the pool sorted, the locks with their steps, the rest untouched */
+static int micro_at(const qd_pattern_t *p, int t, int s)
+{
+    qd_rstep_t r;
+    qd_step_resolve(p, t, s, &r);
+    return r.micro;
+}
+#define PW(k) (pw = (k), &pw)
+static void t_stretch(void)
+{
+    int pw;
+    int16_t v;
+    int i, ok = 1, n;
+    qd_pat_init(&P0);
+    qd_track_set_length(&P0, 0, 16);                    /* one page: trigs 0, 4, 8, 12 and 3 (+6), a lock on 4 */
+    for (i = 0; i < 16; i += 4)
+        qd_step_set_vel(&P0, 0, i, 40 + i);
+    qd_step_set_vel(&P0, 0, 3, 90);
+    qd_step_set_micro(&P0, 0, 3, 6);
+    qd_step_set_len(&P0, 0, 8, QD_LEN_1);
+    qd_lock_set(&P0, 0, 4, QD_LK_PAN, -30);
+    qd_lock_set(&P0, 1, 5, QD_LK_PAN, 20);              /* (track 2: untouched) */
+    qd_step_set_vel(&P0, 0, 40, 77);                    /* (a step outside the loop: cleared, it is in the result) */
+    P1 = P0;
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(3), 0, 0);
+    CHECK(n == 128 && P1.trk[0].loop == 0xFF && qd_track_len(&P1.trk[0]) == 128 && qd_pat_check(&P1),
+          "x8: 128 steps, all eight pages looped, the pool sorted");
+    for (i = 0; i < 128; i++)
+        ok &= qd_step_is_on(&P1.step[0][i]) == (i % 32 == 0 || i == 26);
+    CHECK(ok && micro_at(&P1, 0, 26) == 0 && P1.step[0][32].vel == 44 && qd_lock_get(&P1, 0, 32, QD_LK_PAN, &v) && v == -30 &&
+              qd_len_eighths(P1.step[0][64].len) == 64 && !memcmp(P1.step[1], P0.step[1], sizeof P0.step[1]),
+          "x8: 0, 4, 8, 12 on 0, 32, 64, 96; 3 + 6/24 on 26 exactly; the lock with its step; the length x8; track 2 kept");
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(-3), 0, 0);
+    ok = n == 16 && P1.trk[0].loop == 0x01;
+    for (i = 0; i < 16; i++)
+        ok &= !memcmp(&P1.step[0][i], &P0.step[0][i], sizeof(qd_step_t));
+    for (i = 16; i < 128; i++)
+        ok &= !qd_step_is_on(&P1.step[0][i]);
+    CHECK(ok && P1.nlock == P0.nlock - 0 && qd_lock_get(&P1, 0, 4, QD_LK_PAN, &v) && v == -30 && qd_pat_check(&P1),
+          "/8 back: page 1 byte for byte (3's +6 again), the other pages empty, the locks back");
+    qd_pat_init(&P0);
+    qd_track_set_length(&P0, 0, 16);
+    for (i = 0; i < 16; i++)
+        qd_step_set_vel(&P0, 0, i, 10 + i);
+    P1 = P0;
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(-1), 0, 0);
+    ok = n == 8 && qd_track_len(&P1.trk[0]) == 8;
+    for (i = 0; i < 8; i++)
+        ok &= qd_step_is_on(&P1.step[0][i]) && P1.step[0][i].vel == 10 + 2 * i && micro_at(&P1, 0, i) == 0;
+    CHECK(ok, "/2 of sixteen trigs: eight, the ones on the beat kept (no micro)");
+    qd_pat_init(&P0);
+    qd_track_set_length(&P0, 0, 48);                    /* three pages onto one: x 1/3 */
+    for (i = 0; i < 48; i += 6)
+        qd_step_set_vel(&P0, 0, i, 50);
+    P1 = P0;
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(0), 1, 0);
+    ok = n == 16 && P1.trk[0].loop == 0x01;
+    for (i = 0; i < 16; i++)
+        ok &= qd_step_is_on(&P1.step[0][i]) == (i % 2 == 0);
+    CHECK(ok && micro_at(&P1, 0, 0) == 0 && micro_at(&P1, 0, 2) == 0, "fit 1 page: 48 steps squeezed, a trig every 2nd");
+    P1 = P0;
+    {
+        qd_tset_t ts = P1.trk[0];
+        n = qd_tl_stretch_track(&P1, 0, -1, PW(0), 4, &ts);
+        CHECK(n == 64 && ts.loop == 0x0F && !memcmp(&P0, &P1, sizeof P0), "fit 4 pages predicted: nothing written");
+    }
+    qd_pat_init(&P0);
+    qd_page_set_range(&P0, 0, 0, 0, 7);                 /* PAGE: 0..7 x2 -> 0..15 */
+    qd_step_set_vel(&P0, 0, 3, 60);
+    P1 = P0;
+    n = qd_tl_stretch_track(&P1, 0, 0, PW(1), 0, 0);
+    CHECK(n == 16 && P1.trk[0].pend[0] == 15 && qd_step_is_on(&P1.step[0][6]) && !qd_step_is_on(&P1.step[0][3]),
+          "PAGE x2 of 0..7: 0..15, step 4 now 7");
+    qd_page_set_range(&P0, 0, 0, 2, 9);
+    P1 = P0;
+    n = qd_tl_stretch_track(&P1, 0, 0, PW(1), 0, 0);
+    CHECK(n == 8 && !memcmp(&P0, &P1, sizeof P0), "PAGE x2 of 2..9: no room on the page, nothing");
+}
+
 /* T2: the generators */
 static void t_generators(void)
 {
@@ -493,7 +573,9 @@ static void t_knobs(void)                               /* SELECT the page, PRES
     turn(QD_K_PRESETS, 2);
     CHECK(A.ui.tl.tool == QD_TL_EUCLID, "PRESETS +2: RANDOM, EUCLID");
     turn(QD_K_PRESETS, -4);
-    CHECK(A.ui.tl.tool == QD_TL_QUANTIZE, "PRESETS back: round to QUANTIZE (the eighth, after LENGTH)");
+    CHECK(A.ui.tl.tool == QD_TL_CLIP, "PRESETS back: round to CLIP (the tenth, after STRETCH)");
+    turn(QD_K_PRESETS, -1);
+    CHECK(A.ui.tl.tool == QD_TL_STRETCH, "PRESETS -1: STRETCH");
     turn(QD_K_ALGO, -1);
     CHECK(A.ui.tl.scope == QD_TS_PAGE && A.ui.tk_knob == 1, "ALGORITHM: the scope (PAGE), its takeover");
     turn(QD_K_ALGO, -5);
@@ -644,7 +726,14 @@ static void t_t2_live(void)                             /* RANDOM, HUMANIZE, GRI
     free(before);
 }
 
-/* T3: B8 COPY / B9 PASTE (PAGE, PATTERN), B10 CLEAR (SELECTED, PAGE at once; TRACK, PATTERN twice) */
+/* T3, CLIP (2026-10-25: a page of its own, PRESETS past STRETCH): KNOB 1 COPY / PASTE / CLEAR, OCT+ does it; COPY and
+ * PASTE PAGE and PATTERN only (OCT+ dark elsewhere), CLEAR at once for SELECTED and PAGE, twice for TRACK and PATTERN;
+ * B9 and B10 nothing now */
+static void clip_do(int act)                            /* KNOB 1 to the action, OCT+ */
+{
+    turn(QD_K_1, act - A.ui.tl.v.cl.act);
+    btap(F2);
+}
 static void t_clip(void)
 {
     qd_pattern_t *before = malloc(sizeof *before);
@@ -655,45 +744,54 @@ static void t_clip(void)
     run(600);
     *before = *PAT();
     tools_open();
-    turn(QD_K_ALGO, -1);                                   /* PAGE */
-    CHECK(A.ui.tl.scope == QD_TS_PAGE && leds().key[BK(7)] == QD_LED_LIT && leds().key[BK(8)] == QD_LED_DIM,
-          "PAGE: COPY lit, PASTE dim (nothing copied)");
-    black(7);
-    CHECK(A.ui.clip.pg.valid && A.ui.tk_knob == 2 && A.ui.tk_step == 3 && leds().key[BK(8)] == QD_LED_LIT,
-          "B8: the page copied (COPIED), PASTE lit");
+    black(8), black(9);
+    CHECK(A.ui.tl.tool == QD_TL_ROTATE && !A.ui.clip.pg.valid && leds().key[BK(8)] == QD_LED_OFF &&
+              leds().key[BK(9)] == QD_LED_OFF, "B9, B10: nothing (dark)");
+    turn(QD_K_PRESETS, -1);
+    turn(QD_K_ALGO, -1);                                /* PAGE */
+    CHECK(A.ui.tl.tool == QD_TL_CLIP && A.ui.tl.scope == QD_TS_PAGE && A.ui.tl.v.cl.act == QD_CL_COPY &&
+              leds().button[F2] == QD_LED_LIT, "PRESETS -1: CLIP, on COPY (OCT+ lit)");
+    turn(QD_K_1, 1);
+    CHECK(A.ui.tl.v.cl.act == QD_CL_PASTE && leds().button[F2] == QD_LED_OFF, "KNOB 1: PASTE, nothing copied (OCT+ dark)");
+    clip_do(QD_CL_COPY);
+    CHECK(A.ui.clip.pg.valid && A.ui.tk_knob == 2 && A.ui.tk_step == 3, "COPY, OCT+: the page copied (COPIED)");
     turn(QD_K_SELECT, 2);                               /* page 3 */
     n0 = qd_undo_count(&A, -1);
-    black(8);
+    clip_do(QD_CL_PASTE);
     run(QD_UNDO_QUIET_MS + 50);
     ok = 1;
     for (i = 0; i < 16; i++)
         ok &= !memcmp(&PAT()->step[0][32 + i], &before->step[0][i], sizeof(qd_step_t));
-    CHECK(ok && qd_undo_count(&A, -1) == n0 + 1 && A.ui.tk_step == 4, "B9 on page 3: page 1 pasted there, a level");
-    black(9);
+    CHECK(ok && qd_undo_count(&A, -1) == n0 + 1 && A.ui.tk_step == 4, "PASTE on page 3: page 1 pasted there, a level");
+    clip_do(QD_CL_CLEAR);
     run(QD_UNDO_QUIET_MS + 50);
-    CHECK(ons(0, 32, 16) == 0 && qd_undo_count(&A, -1) == n0 + 2, "B10 on PAGE: cleared at once, a level");
-    turn(QD_K_ALGO, 1);                                    /* TRACK */
-    CHECK(leds().key[BK(7)] == QD_LED_OFF, "TRACK: no COPY");
-    black(9);
-    CHECK(ons(0, 0, 16) && A.ui.tk_step == 5, "B10 on TRACK: CLEAR? (nothing yet)");
-    black(9);
-    CHECK(!ons(0, 0, 16) && !ons(0, 16, 16) && ons(3, 0, 16), "B10 again: track 1 cleared, track 4 not");
-    turn(QD_K_ALGO, 1);                                    /* PATTERN */
+    CHECK(ons(0, 32, 16) == 0 && qd_undo_count(&A, -1) == n0 + 2, "CLEAR on PAGE: cleared at once, a level");
+    turn(QD_K_ALGO, 1);                                 /* TRACK */
+    CHECK(leds().button[F2] == QD_LED_LIT, "TRACK: CLEAR can (OCT+ lit)");
+    turn(QD_K_1, -2);
+    CHECK(A.ui.tl.v.cl.act == QD_CL_COPY && leds().button[F2] == QD_LED_OFF, "TRACK: no COPY (OCT+ dark)");
+    btap(F2);
+    CHECK(ons(0, 0, 16) == ons(0, 0, 16) && A.ui.tk_step != 3, "OCT+ on COPY in TRACK: nothing");
+    clip_do(QD_CL_CLEAR);
+    CHECK(ons(0, 0, 16) && A.ui.tk_step == 5, "CLEAR on TRACK: CLEAR? (nothing yet)");
+    btap(F2);
+    CHECK(!ons(0, 0, 16) && !ons(0, 16, 16) && ons(3, 0, 16), "OCT+ again: track 1 cleared, track 4 not");
+    turn(QD_K_ALGO, 1);                                 /* PATTERN */
     bdown(QD_B_FUNC);
     btap(F1), btap(F1);                                 /* (SHIFT + F1 twice: both clears undone) */
     bup(QD_B_FUNC);
     run(10);
     CHECK(!memcmp(PAT()->step[0], before->step[0], 32 * sizeof(qd_step_t)), "undone twice: track 1 back");
-    black(7);
-    CHECK(A.undo.pclip_ok, "PATTERN, B8: the pattern copied");
-    black(9), black(9);
+    clip_do(QD_CL_COPY);
+    CHECK(A.undo.pclip_ok, "PATTERN, COPY: the pattern copied");
+    clip_do(QD_CL_CLEAR);
+    btap(F2);
     ok = 1;
     for (i = 0; i < QD_PAT_NTRACK; i++)
         ok &= !ons(i, 0, 16);
-    CHECK(ok, "B10 twice: every track cleared");
-    black(8);
-    CHECK(ons(0, 0, 16) == ons(0, 0, 16) && !memcmp(PAT()->step, before->step, 32 * sizeof(qd_step_t)) &&
-              ons(3, 0, 16), "B9: the pattern pasted back");
+    CHECK(ok, "CLEAR twice: every track cleared");
+    clip_do(QD_CL_PASTE);
+    CHECK(!memcmp(PAT()->step, before->step, 32 * sizeof(qd_step_t)) && ons(3, 0, 16), "PASTE: the pattern pasted back");
     btap(QD_B_HOME);
     btap(QD_B_MUTE);                                    /* the lock: SELECTED */
     tools_open();
@@ -701,9 +799,10 @@ static void t_clip(void)
         qd_step_select_toggle(&A, A.ui.held[0]);
     qd_ctl_set_page(&A, 0);
     white(0), white(6);
-    black(9);
+    CHECK(A.ui.tl.tool == QD_TL_CLIP && A.ui.tl.scope == QD_TS_SEL, "TOOLS again: CLIP as it was left, SELECTED");
+    clip_do(QD_CL_CLEAR);
     CHECK(!qd_step_is_on(&PAT()->step[0][0]) && !qd_step_is_on(&PAT()->step[0][6]) && qd_step_is_on(&PAT()->step[0][3]),
-          "SELECTED, B10: the selected steps cleared at once, the others kept");
+          "SELECTED, CLEAR: the selected steps cleared at once, the others kept");
     btap(QD_B_HOME);
     free(before);
 }
@@ -796,7 +895,7 @@ static void t_length_live(void)
     run(600);
     n0 = qd_undo_count(&A, -1);
     tools_open();
-    black(6);
+    black(7);                                           /* (B8: LENGTH, 2026-10-25) */
     turn(QD_K_1, 1);
     CHECK(qd_track_len(&PAT()->trk[1]) == 64 && qd_step_is_on(&PAT()->step[1][32]), "LENGTH, KNOB 1 +1: x2 live (64)");
     turn(QD_K_1, -1);
@@ -1053,13 +1152,13 @@ static void t_quant_live(void)
     *before = *PAT();
     n0 = qd_undo_count(&A, -1);
     tools_open();
-    turn(QD_K_PRESETS, -1);                             /* (ROTATE back round: the eighth) */
+    black(6);                                           /* (B7: QUANTIZE, 2026-10-25) */
     l = leds();
     for (i = 0; i < QD_TL_NKEY; i++)
-        ok &= l.key[BK(i)] == QD_LED_DIM;
+        ok &= l.key[BK(i)] == (i == 6 ? QD_LED_LIT : QD_LED_DIM);
     CHECK(A.ui.tl.tool == QD_TL_QUANTIZE && A.ui.tl.scope == QD_TS_TRACK && !qd_tools_pending(&A) && ok &&
-              l.key[BK(7)] == QD_LED_OFF && A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob,
-          "PRESETS -1: QUANTIZE (its name pops; B1..B7 dim, B8 COPY dark in TRACK); nothing yet");
+              l.key[BK(8)] == QD_LED_OFF && l.key[BK(9)] == QD_LED_OFF && A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob,
+          "B7: QUANTIZE (its name pops; B7 lit, the other tools dim, B9 B10 dark); nothing yet");
     turn(QD_K_1, 10);
     CHECK(qd_tools_pending(&A) && A.ui.tl.v.qu.amt == 50 && micro_of(0, 0) == 4 && micro_of(0, 3) == -5 &&
               micro_of(0, 18) == 3 && !memcmp(PAT()->step[1], before->step[1], sizeof before->step[1]),
@@ -1117,6 +1216,66 @@ static void t_quant_live(void)
     free(before);
 }
 
+/* STRETCH live (2026-10-25): PRESETS reaches it; x2 heard at once, OCT- back byte for byte, fit 1 page, OCT+ one level,
+ * undo byte for byte; its screen's before and after */
+static void t_stretch_live(void)
+{
+    qd_pattern_t *before = malloc(sizeof *before);
+    uint8_t on[16], in[16], on0[16], in0[16];
+    int n0, ok, i;
+    start();
+    bass(1);                                            /* (track 2: 32 steps, pages 1 and 2) */
+    qd_ctl_select_track(&A, 1);
+    run(600);
+    *before = *PAT();
+    n0 = qd_undo_count(&A, -1);
+    tools_open();
+    turn(QD_K_PRESETS, -2);
+    CHECK(A.ui.tl.tool == QD_TL_STRETCH && A.ui.tl.scope == QD_TS_TRACK && !qd_tools_pending(&A), "PRESETS -2: STRETCH");
+    turn(QD_K_1, 1);
+    CHECK(qd_tools_pending(&A) && qd_track_len(&PAT()->trk[1]) == 64 && qd_step_is_on(&PAT()->step[1][6]) &&
+              !qd_step_is_on(&PAT()->step[1][3]) && qd_lock_get(PAT(), 1, 6, QD_LK_PAN, 0),
+          "KNOB 1: x2 live (64 steps; step 4's trig and its lock on step 7)");
+    qd_tools_stretch(&A, on, in, on0, in0);
+    CHECK((on[0] >> 6 & 1) && !(on[0] >> 3 & 1) && (on0[0] >> 3 & 1) && in[7] && !in0[7] && in0[3],
+          "its screen: the trigs now and before, the loop now (64) and before (32)");
+    turn(QD_K_1, 1), turn(QD_K_1, 1), turn(QD_K_1, 1);
+    CHECK(qd_track_len(&PAT()->trk[1]) == 128 && A.ui.tl.lpow == 2, "KNOB 1 up three more: x4 at most (128 steps)");
+    btap(F1);
+    CHECK(!qd_tools_pending(&A) && !memcmp(PAT(), before, sizeof *before), "OCT-: back byte for byte");
+    turn(QD_K_2, 1);
+    {
+        int want = 0, got = 0, j, o;
+        for (i = 0; i < 32; i++)                        /* (where each trig goes: the op's own mapping) */
+            if (qd_step_is_on(&before->step[1][i]))
+                qd_tl_stretch_to(i, 0, 16, 32, 16, &j, &o), want |= 1 << j;
+        for (i = 0; i < 16; i++)
+            got |= qd_step_is_on(&PAT()->step[1][i]) << i;
+        ok = qd_track_len(&PAT()->trk[1]) == 16 && got == want && want;
+    }
+    CHECK(ok && A.ui.tl.v.st.fit == 1, "KNOB 2: onto 1 page (32 -> 16), the trigs halved in time");
+    btap(F2);
+    run(QD_UNDO_QUIET_MS + 50);
+    CHECK(!qd_tools_pending(&A) && qd_undo_count(&A, -1) == n0 + 1, "OCT+: kept, one level");
+    bdown(QD_B_FUNC);
+    btap(F1);
+    bup(QD_B_FUNC);
+    run(10);
+    CHECK(!memcmp(PAT(), before, sizeof *before), "SHIFT + F1: undone byte for byte");
+    A.ui.tl.flags = QD_TLF_PEND | QD_TLF_NOLIVE, A.ui.tl.otrack = 1, A.ui.tl.opage = 0;   /* (drawn only: worked out) */
+    A.ui.tl.scope = QD_TS_TRACK, A.ui.tl.lpow = 1, A.ui.tl.v.st.fit = 0;
+    {
+        uint8_t lp;
+        const int len = qd_tools_result_len(&A, &lp);
+        qd_tools_stretch(&A, on, in, on0, in0);
+        CHECK(len == 64 && lp == 0x0F && in[7] && !on[0] && (on0[0] >> 3 & 1) && !memcmp(PAT(), before, sizeof *before),
+              "drawn only: the loop after worked out (64), the trigs before, nothing written");
+    }
+    A.ui.tl.flags = 0, A.ui.tl.lpow = 0;
+    btap(QD_B_HOME);
+    free(before);
+}
+
 static void t_screens(void)                             /* every tool's screen, every scope, drawn (sanitizers) */
 {
     static uint16_t lcd[QD_W * QD_H];
@@ -1161,6 +1320,7 @@ int main(void)
         {"ops: reverse (twice, micro mirrored)", t_reverse},
         {"ops: euclid (counts, E(3,8), NEW / ADD / MASK)", t_euclid},
         {"ops: length (x2, /2, a page's end)", t_length},
+        {"ops: STRETCH (x8 / 8 the identity, /2, fit, a page)", t_stretch},
         {"ops: RANDOM, HUMANIZE, GRIDS (seeded, ranges, the map)", t_generators},
         {"ARP: tapped MIDI FX, held TOOLS, SHIFT + ARP FILL; the LED", t_arp},
         {"ROTATE live: heard, OCT+ a level, OCT- back, undo", t_rotate_live},
@@ -1169,7 +1329,7 @@ int main(void)
         {"switching tool / track keeps; HOME keeps", t_switch_home},
         {"EUCLID, PATTERN scope: every track, one level", t_euclid_pattern},
         {"T2 live: RANDOM, HUMANIZE, GRIDS (PATTERN: the parts)", t_t2_live},
-        {"T3: COPY / PASTE / CLEAR by scope", t_clip},
+        {"CLIP: COPY / PASTE / CLEAR by scope (KNOB 1, OCT+)", t_clip},
 #ifdef QD_UNDO_SLOTS
         {"T3: no room for undo: OCT+ twice, no level", t_noroom},
 #endif
@@ -1182,6 +1342,7 @@ int main(void)
         {"RANDOM: the knobs' names pop", t_random_names},
         {"ops: QUANTIZE (the grid's lines, 100 %, 50 %, the velocity)", t_quantize},
         {"QUANTIZE live: PRESETS, each scope, ghosts, OCT- exact, undo", t_quant_live},
+        {"STRETCH live: x2, OCT- exact, fit a page, OCT+ a level, undo", t_stretch_live},
         {"every screen drawn", t_screens},
     };
     size_t i;

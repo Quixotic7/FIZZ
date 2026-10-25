@@ -125,7 +125,7 @@ expect fz_fill 0
 expect fz_tools 0
 wait 400
 expect fz_lcd_stale 0
-# QUANTIZE (2026-10-25): HUMANIZE's jitter kept, then pulled back to the grid; PRESETS reaches it (no B key is free),
+# QUANTIZE (2026-10-25): HUMANIZE's jitter kept, then pulled back to the grid; B7 (the owner's layout, was PRESETS only),
 # 50 % halves the timing, 100 % puts it on the steps, OCT- gives the jitter back, OCT+ keeps it as one undo level
 expect fz_micabs_1 2
 press ARP
@@ -145,9 +145,9 @@ tap OCT+
 wait 100
 expect fz_tools_pend 0
 expect fz_micabs_1 45
-turn PRESET 2
+tapkey b6
 wait 900
-expect fz_tl_tool 7
+expect fz_tl_tool 6
 turn K1 10
 wait 100
 expect fz_tools_pend 1
@@ -173,6 +173,69 @@ tap OCT-
 release GLO
 wait 100
 expect fz_micabs_1 45
+# STRETCH and CLIP (2026-10-25): PRESETS past LENGTH (B8). Track 1's 16 steps x2 live (32), OCT- back; then onto 1 page
+# again from 2 (fit); CLIP on PAGE: COPY page 1, PASTE it on page 2; B9 / B10 do nothing now
+expect fz_tlen_1 16
+turn PRESET 2
+wait 900
+expect fz_tl_tool 8
+turn K1 1
+wait 100
+expect fz_tools_pend 1
+expect fz_tlen_1 32
+shot tools-stretch.png
+tap OCT-
+wait 100
+expect fz_tools_pend 0
+expect fz_tlen_1 16
+expect fz_ons_1_2 0
+expect fz_ons_1_1 65535
+turn PRESET 1
+wait 900
+expect fz_tl_tool 9
+turn ALGO -1
+wait 1200
+expect fz_tl_scope 1
+tap OCT+
+wait 100
+turn SELECT 1
+wait 100
+expect fz_page 1
+turn K1 1
+wait 100
+tap OCT+
+wait 900
+expect fz_ons_1_2 65535
+shot tools-clip-paste.png
+tapkey b8
+tapkey b9
+wait 100
+expect fz_tl_tool 9
 tap HOME
 wait 300
 expect fz_tools 0
+# F1 (OCT- held), 2026-10-25: hold B1 + press B2 loops pages 1..2; then B2 double-tapped at the unit's pace (110 ms
+# presses, 150 ms apart: the releases 260 ms apart) loops page 2 alone and edits it
+press OCT-
+wait 100
+key b0 down
+wait 60
+key b1 down
+wait 60
+key b1 up
+key b0 up
+wait 100
+expect fz_tlen_1 32
+wait 300
+key b1 down
+wait 110
+key b1 up
+wait 150
+key b1 down
+wait 110
+key b1 up
+wait 50
+expect fz_tlen_1 16
+expect fz_page 1
+release OCT-
+wait 100

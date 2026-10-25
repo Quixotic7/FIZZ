@@ -1022,6 +1022,16 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
         c = fz_put_u(c, "xfer_gap_avg_us=", x[FZ_XS_GAP_SUM] / nr);
         c = fz_put_u(c, "xfer_gap_max_us=", x[FZ_XS_GAP_MAX]);
     }
+    {   /* (2026-10-25) HOME a moment inside a menu: how often, the last one (fizz_port.h fz_blips) */
+        uint32_t n, w;
+        fz_blips(&n, &w);
+        c = fz_put_u(c, "blips=", n);
+        c = fz_put_u(c, "blip_scr=", w & 0xFFu);
+        c = fz_put_u(c, "blip_latch=", w >> 8 & 0xFFu);
+        c = fz_put_u(c, "blip_mode=", w >> 16 & 15u);
+        c = fz_put_u(c, "blip_tk=", w >> 20 & 15u);
+        c = fz_put_u(c, "blip_ms=", w >> 24);
+    }
     *c = 0;
     fz_stats_send(16, line);
 }

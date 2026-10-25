@@ -334,17 +334,18 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     if (qd_tools_open(a)) {                             /* T1: TOOLS (ctl_tools.c) */
-        static const char *const TN[QD_TL_N] = {"ROTATE", "REVERSE", "RANDOM", "EUCLID", "GRIDS", "HUMANIZE", "LENGTH",
-                                                "QUANTIZE"};
+        static const char *const TN[QD_TL_N] = {"ROTATE", "REVERSE", "RANDOM", "EUCLID", "GRIDS", "HUMANIZE", "QUANTIZE",
+                                                "LENGTH", "STRETCH", "CLIP"};
         static const char *const KL[QD_TL_N][4] = {{"OFFSET", "", "", ""}, {"", "", "", ""},
                                                    {"DENSITY", "NOTES", "VELOCITY", "CHANCE"},
                                                    {"HITS", "LENGTH", "ROTATION", "LANDING"}, {"X", "Y", "DENSITY", "CHAOS"},
-                                                   {"TIMING", "VELOCITY", "", ""}, {"LENGTH", "", "", ""},
-                                                   {"AMOUNT", "GRID", "VELOCITY", ""}};
+                                                   {"TIMING", "VELOCITY", "", ""}, {"AMOUNT", "GRID", "VELOCITY", ""},
+                                                   {"LENGTH", "", "", ""}, {"FACTOR", "PAGES", "", ""},
+                                                   {"ACTION", "", "", ""}};
+        static const char *const CA[QD_CL_N] = {"COPY", "PASTE", "CLEAR"};
         const int tool = u->tl.tool % QD_TL_N;
-        static const char *const CB[3] = {"COPY", "PASTE", "CLEAR"};
         for (i = 0; i < 11; i++)
-            lb_set(o, LB_B(i), i < QD_TL_NKEY ? TN[i] : i == 10 ? "SCOPE" : CB[i - QD_TL_NKEY]);
+            lb_set(o, LB_B(i), i < QD_TL_NKEY ? TN[i] : i == 10 ? "SCOPE" : "");
         for (i = 0; i < 16; i++)
             lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
         for (k = 0; k < 3; k++)
@@ -353,7 +354,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_KNOB(QD_K_ALGO), "SCOPE");
         lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
         lb_set(o, LB_KNOB(QD_K_PRESETS), "TOOL");
-        lb_set(o, LB_BTN(QD_B_OCTUP), "KEEP");
+        lb_set(o, LB_BTN(QD_B_OCTUP), tool == QD_TL_CLIP ? CA[u->tl.v.cl.act % QD_CL_N] : "KEEP");
         lb_set(o, LB_BTN(QD_B_OCTDN), "REVERT");
         lb_set(o, LB_BTN(QD_B_HOME), "CLOSE");
         return;
