@@ -173,8 +173,8 @@ tap OCT-
 release GLO
 wait 100
 expect fz_micabs_1 45
-# STRETCH and CLIP (2026-10-25): PRESETS past LENGTH (B8). Track 1's 16 steps x2 live (32), OCT- back; then onto 1 page
-# again from 2 (fit); CLIP on PAGE: COPY page 1, PASTE it on page 2; B9 / B10 do nothing now
+# STRETCH and CLIP (2026-10-25): PRESETS past LENGTH (B8). Track 1's 16 steps x1.25 live (20: one rung), OCT- back; then onto 1 page
+# again from 2 (fit); CLIP on PAGE: COPY page 1, PASTE it on page 2; B9 nothing, B10 PASTE again
 expect fz_tlen_1 16
 turn PRESET 2
 wait 900

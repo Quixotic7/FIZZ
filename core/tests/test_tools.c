@@ -240,28 +240,28 @@ static void t_stretch(void)
     qd_lock_set(&P0, 1, 5, QD_LK_PAN, 20);              /* (track 2: untouched) */
     qd_step_set_vel(&P0, 0, 40, 77);                    /* (a step outside the loop: cleared, it is in the result) */
     P1 = P0;
-    n = qd_tl_stretch_track(&P1, 0, -1, PW(3), 0, 0);
-    CHECK(n == 128 && P1.trk[0].loop == 0xFF && qd_track_len(&P1.trk[0]) == 128 && qd_pat_check(&P1),
-          "x8: 128 steps, all eight pages looped, the pool sorted");
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(6), 0, 0);
+    CHECK(n == 64 && P1.trk[0].loop == 0x0F && qd_track_len(&P1.trk[0]) == 64 && qd_pat_check(&P1),
+          "x4: 64 steps, four pages looped, the pool sorted");
     for (i = 0; i < 128; i++)
-        ok &= qd_step_is_on(&P1.step[0][i]) == (i % 32 == 0 || i == 26);
-    CHECK(ok && micro_at(&P1, 0, 26) == 0 && P1.step[0][32].vel == 44 && qd_lock_get(&P1, 0, 32, QD_LK_PAN, &v) && v == -30 &&
-              qd_len_eighths(P1.step[0][64].len) == 64 && !memcmp(P1.step[1], P0.step[1], sizeof P0.step[1]),
-          "x8: 0, 4, 8, 12 on 0, 32, 64, 96; 3 + 6/24 on 26 exactly; the lock with its step; the length x8; track 2 kept");
-    n = qd_tl_stretch_track(&P1, 0, -1, PW(-3), 0, 0);
+        ok &= qd_step_is_on(&P1.step[0][i]) == ((i < 64 && i % 16 == 0) || i == 13);
+    CHECK(ok && micro_at(&P1, 0, 13) == 0 && P1.step[0][16].vel == 44 && qd_lock_get(&P1, 0, 16, QD_LK_PAN, &v) && v == -30 &&
+              qd_len_eighths(P1.step[0][32].len) == 32 && !memcmp(P1.step[1], P0.step[1], sizeof P0.step[1]),
+          "x4: 0, 4, 8, 12 on 0, 16, 32, 48; 3 + 6/24 on 13 exactly; the lock with its step; the length x4; track 2 kept");
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(-6), 0, 0);
     ok = n == 16 && P1.trk[0].loop == 0x01;
     for (i = 0; i < 16; i++)
         ok &= !memcmp(&P1.step[0][i], &P0.step[0][i], sizeof(qd_step_t));
     for (i = 16; i < 128; i++)
         ok &= !qd_step_is_on(&P1.step[0][i]);
     CHECK(ok && P1.nlock == P0.nlock - 0 && qd_lock_get(&P1, 0, 4, QD_LK_PAN, &v) && v == -30 && qd_pat_check(&P1),
-          "/8 back: page 1 byte for byte (3's +6 again), the other pages empty, the locks back");
+          "/4 back: page 1 byte for byte (3's +6 again), the other pages empty, the locks back");
     qd_pat_init(&P0);
     qd_track_set_length(&P0, 0, 16);
     for (i = 0; i < 16; i++)
         qd_step_set_vel(&P0, 0, i, 10 + i);
     P1 = P0;
-    n = qd_tl_stretch_track(&P1, 0, -1, PW(-1), 0, 0);
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(-4), 0, 0);
     ok = n == 8 && qd_track_len(&P1.trk[0]) == 8;
     for (i = 0; i < 8; i++)
         ok &= qd_step_is_on(&P1.step[0][i]) && P1.step[0][i].vel == 10 + 2 * i && micro_at(&P1, 0, i) == 0;
@@ -286,13 +286,39 @@ static void t_stretch(void)
     qd_page_set_range(&P0, 0, 0, 0, 7);                 /* PAGE: 0..7 x2 -> 0..15 */
     qd_step_set_vel(&P0, 0, 3, 60);
     P1 = P0;
-    n = qd_tl_stretch_track(&P1, 0, 0, PW(1), 0, 0);
+    n = qd_tl_stretch_track(&P1, 0, 0, PW(4), 0, 0);
     CHECK(n == 16 && P1.trk[0].pend[0] == 15 && qd_step_is_on(&P1.step[0][6]) && !qd_step_is_on(&P1.step[0][3]),
           "PAGE x2 of 0..7: 0..15, step 4 now 7");
     qd_page_set_range(&P0, 0, 0, 2, 9);
     P1 = P0;
-    n = qd_tl_stretch_track(&P1, 0, 0, PW(1), 0, 0);
-    CHECK(n == 8 && !memcmp(&P0, &P1, sizeof P0), "PAGE x2 of 2..9: no room on the page, nothing");
+    n = qd_tl_stretch_track(&P1, 0, 0, PW(4), 0, 0);
+    CHECK(n == 12 && pw == 3, "PAGE x2 of 2..9: no room for x2 on the page, x1.5 (12 steps)");
+    P1 = P0;
+    n = qd_tl_stretch_track(&P1, 0, 0, PW(6), 0, 0);    /* (8 steps from 2: room for 14; x4 x3 x2 too big, x1.5 fits) */
+    CHECK(n == 12 && pw == 3 && P1.trk[0].pend[0] == 13, "PAGE x4 of 2..9: as far as it fits, x1.5 (12 steps)");
+    qd_pat_init(&P0);                                   /* the mock-up's loop: x..x..x.x.x..x.. */
+    qd_track_set_length(&P0, 0, 16);
+    for (i = 0; i < 16; i++)
+        if ((0x2549 >> i) & 1)
+            qd_step_set_vel(&P0, 0, i, 70);
+    P1 = P0;
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(3), 0, 0);
+    ok = n == 24 && qd_track_len(&P1.trk[0]) == 24;
+    for (i = 0; i < 32; i++)                            /* (0 3 6 8 10 13 -> 0 4.5 9 12 15 19.5: 4.5 on 5 at -12/24) */
+        ok &= qd_step_is_on(&P1.step[0][i]) == (i == 0 || i == 5 || i == 9 || i == 12 || i == 15 || i == 20);
+    CHECK(ok && micro_at(&P1, 0, 5) == -12 && micro_at(&P1, 0, 20) == -12 && micro_at(&P1, 0, 9) == 0,
+          "x1.5 of 16: 24 steps, 4.5 and 19.5 a half step early on 5 and 20");
+    P1 = P0;
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(-3), 0, 0);
+    ok = n == 11 && qd_track_len(&P1.trk[0]) == 11 && pw == -3;
+    for (i = 11; i < 16; i++)
+        ok &= !qd_step_is_on(&P1.step[0][i]);
+    CHECK(ok && qd_step_is_on(&P1.step[0][0]) && qd_step_is_on(&P1.step[0][2]) && qd_step_is_on(&P1.step[0][4]),
+          "/1.5 of 16: 11 steps (0, 3, 6 on 0, 2, 4)");
+    P1 = P0;
+    qd_track_set_length(&P1, 0, 96);
+    n = qd_tl_stretch_track(&P1, 0, -1, PW(5), 0, 0);   /* (96 steps: x3, x2 too big; x1.33 fits) */
+    CHECK(n == 128 && pw == 2, "TRACK x3 of 96: as far as it fits, x1.33 (128 steps)");
 }
 
 /* T2: the generators */
@@ -768,17 +794,28 @@ static void t_clip(void)
     CHECK(ons(0, 32, 16) == 0 && qd_undo_count(&A, -1) == n0 + 2, "CLEAR on PAGE: cleared at once, a level");
     turn(QD_K_ALGO, 1);                                 /* TRACK */
     CHECK(leds().button[F2] == QD_LED_LIT, "TRACK: CLEAR can (OCT+ lit)");
-    turn(QD_K_1, -2);
-    CHECK(A.ui.tl.v.cl.act == QD_CL_COPY && leds().button[F2] == QD_LED_OFF, "TRACK: no COPY (OCT+ dark)");
-    btap(F2);
-    CHECK(ons(0, 0, 16) == ons(0, 0, 16) && A.ui.tk_step != 3, "OCT+ on COPY in TRACK: nothing");
-    clip_do(QD_CL_CLEAR);
-    CHECK(ons(0, 0, 16) && A.ui.tk_step == 5, "CLEAR on TRACK: CLEAR? (nothing yet)");
-    btap(F2);
-    CHECK(!ons(0, 0, 16) && !ons(0, 16, 16) && ons(3, 0, 16), "OCT+ again: track 1 cleared, track 4 not");
+    qd_ctl_set_page(&A, 3);                             /* (page 4: track 1's bass is on 1 and 2; 4 empty) */
+    clip_do(QD_CL_PASTE);
+    run(QD_UNDO_QUIET_MS + 50);
+    ok = 1;
+    for (i = 0; i < 16; i++)
+        ok &= !memcmp(&PAT()->step[0][48 + i], &before->step[0][i], sizeof(qd_step_t));
+    CHECK(ok && A.ui.tk_step == 4, "TRACK, PASTE: on the page shown, as PAGE (page 1 on page 4)");
+    qd_ctl_set_page(&A, 0);
+    turn(QD_K_1, -1);
+    CHECK(A.ui.tl.v.cl.act == QD_CL_COPY && leds().button[F2] == QD_LED_LIT, "TRACK: COPY can (OCT+ lit)");
+    turn(QD_K_1, 2);
+    black(9);
+    CHECK(ons(0, 0, 16) && A.ui.tk_step == 5, "CLEAR on TRACK by B10: CLEAR? (nothing yet)");
+    black(9);
+    CHECK(!ons(0, 0, 16) && !ons(0, 16, 16) && ons(3, 0, 16), "B10 again: track 1 cleared, track 4 not");
+    bdown(QD_B_FUNC);
+    btap(F1);                                           /* (SHIFT + F1: the paste on page 4 undone too, below) */
+    bup(QD_B_FUNC);
+    run(10);
     turn(QD_K_ALGO, 1);                                 /* PATTERN */
     bdown(QD_B_FUNC);
-    btap(F1), btap(F1);                                 /* (SHIFT + F1 twice: both clears undone) */
+    btap(F1), btap(F1);                                 /* (SHIFT + F1 twice more: the paste, the page's clear) */
     bup(QD_B_FUNC);
     run(10);
     CHECK(!memcmp(PAT()->step[0], before->step[0], 32 * sizeof(qd_step_t)), "undone twice: track 1 back");
@@ -803,6 +840,11 @@ static void t_clip(void)
     clip_do(QD_CL_CLEAR);
     CHECK(!qd_step_is_on(&PAT()->step[0][0]) && !qd_step_is_on(&PAT()->step[0][6]) && qd_step_is_on(&PAT()->step[0][3]),
           "SELECTED, CLEAR: the selected steps cleared at once, the others kept");
+    A.ui.clip.pg.valid = 0;
+    turn(QD_K_1, -2);
+    black(9);                                           /* B10 again: COPY, SELECTED: the page */
+    CHECK(A.ui.tl.scope == QD_TS_SEL && A.ui.clip.pg.valid && A.ui.tk_step == 3 &&
+              qd_tools_clip_ok(&A, QD_CL_PASTE), "SELECTED, COPY by B10: the page shown copied (COPIED)");
     btap(QD_B_HOME);
     free(before);
 }
@@ -1232,15 +1274,16 @@ static void t_stretch_live(void)
     tools_open();
     turn(QD_K_PRESETS, -2);
     CHECK(A.ui.tl.tool == QD_TL_STRETCH && A.ui.tl.scope == QD_TS_TRACK && !qd_tools_pending(&A), "PRESETS -2: STRETCH");
-    turn(QD_K_1, 1);
+    for (i = 0; i < 4; i++)                             /* (four rungs: x1.25 x1.33 x1.5 x2) */
+        turn(QD_K_1, 1);
     CHECK(qd_tools_pending(&A) && qd_track_len(&PAT()->trk[1]) == 64 && qd_step_is_on(&PAT()->step[1][6]) &&
               !qd_step_is_on(&PAT()->step[1][3]) && qd_lock_get(PAT(), 1, 6, QD_LK_PAN, 0),
-          "KNOB 1: x2 live (64 steps; step 4's trig and its lock on step 7)");
+          "KNOB 1, four detents: x2 live (64 steps; step 4's trig and its lock on step 7)");
     qd_tools_stretch(&A, on, in, on0, in0);
     CHECK((on[0] >> 6 & 1) && !(on[0] >> 3 & 1) && (on0[0] >> 3 & 1) && in[7] && !in0[7] && in0[3],
           "its screen: the trigs now and before, the loop now (64) and before (32)");
     turn(QD_K_1, 1), turn(QD_K_1, 1), turn(QD_K_1, 1);
-    CHECK(qd_track_len(&PAT()->trk[1]) == 128 && A.ui.tl.lpow == 2, "KNOB 1 up three more: x4 at most (128 steps)");
+    CHECK(qd_track_len(&PAT()->trk[1]) == 128 && A.ui.tl.v.st.rung == 6, "KNOB 1 up three more: x4 at most (128 steps)");
     btap(F1);
     CHECK(!qd_tools_pending(&A) && !memcmp(PAT(), before, sizeof *before), "OCT-: back byte for byte");
     turn(QD_K_2, 1);
@@ -1263,7 +1306,7 @@ static void t_stretch_live(void)
     run(10);
     CHECK(!memcmp(PAT(), before, sizeof *before), "SHIFT + F1: undone byte for byte");
     A.ui.tl.flags = QD_TLF_PEND | QD_TLF_NOLIVE, A.ui.tl.otrack = 1, A.ui.tl.opage = 0;   /* (drawn only: worked out) */
-    A.ui.tl.scope = QD_TS_TRACK, A.ui.tl.lpow = 1, A.ui.tl.v.st.fit = 0;
+    A.ui.tl.scope = QD_TS_TRACK, A.ui.tl.v.st.rung = 4, A.ui.tl.v.st.fit = 0;
     {
         uint8_t lp;
         const int len = qd_tools_result_len(&A, &lp);
@@ -1271,7 +1314,7 @@ static void t_stretch_live(void)
         CHECK(len == 64 && lp == 0x0F && in[7] && !on[0] && (on0[0] >> 3 & 1) && !memcmp(PAT(), before, sizeof *before),
               "drawn only: the loop after worked out (64), the trigs before, nothing written");
     }
-    A.ui.tl.flags = 0, A.ui.tl.lpow = 0;
+    A.ui.tl.flags = 0, A.ui.tl.v.st.rung = 0;
     btap(QD_B_HOME);
     free(before);
 }
@@ -1320,7 +1363,7 @@ int main(void)
         {"ops: reverse (twice, micro mirrored)", t_reverse},
         {"ops: euclid (counts, E(3,8), NEW / ADD / MASK)", t_euclid},
         {"ops: length (x2, /2, a page's end)", t_length},
-        {"ops: STRETCH (x8 / 8 the identity, /2, fit, a page)", t_stretch},
+        {"ops: STRETCH (x4 / 4 the identity, /2, x1.5, /1.5, fit, a page, the clamp)", t_stretch},
         {"ops: RANDOM, HUMANIZE, GRIDS (seeded, ranges, the map)", t_generators},
         {"ARP: tapped MIDI FX, held TOOLS, SHIFT + ARP FILL; the LED", t_arp},
         {"ROTATE live: heard, OCT+ a level, OCT- back, undo", t_rotate_live},

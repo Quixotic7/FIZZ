@@ -238,6 +238,8 @@ TOOLS uses no pool, no RAM code and no NOINIT. All of its code runs from flash o
 | KNOB 1..3, ALGORITHM | the tool's values. KNOB 4's old job moved to ALGORITHM (EUCLID's landing; RANDOM's chance spread, GRIDS' part in T2) |
 | OCT+ / OCT- | keep / revert, each with a popup (the tool's name and KEPT / REVERTED). OCT- never leaves |
 | HOME | the only way out |
+| STRETCH, KNOB 1 (2026-10-25) | a ladder of thirteen ratios, one a detent: /4 /3 /2 /1.5 /1.33 /1.25 x1 x1.25 x1.33 x1.5 x2 x3 x4 (`v.st.rung` -6..6; x8 and /8 gone); the factor as a decimal over a row of thirteen dots (x1 a tall tick). As far as it fits: down toward x1. KNOB 2's fit unchanged |
+| CLIP, KNOB 1 + OCT+ or B10 (2026-10-25) | COPY / PASTE / CLEAR, each its word under its icon; under the big one what it acts on (the scope's picture, PAGE n or PATTERN). COPY and PASTE always work: SELECTED, PAGE and TRACK act on the page shown, PATTERN on the pattern; PASTE grey only with nothing copied. CLEAR keeps its four scopes (TRACK, PATTERN twice). B10 again does the picked action, as OCT+; B9 nothing |
 
 - The track: the one selected when TOOLS opened. SHIFT + SELECT (FIZZ's track change everywhere) still works inside
   TOOLS; a pending change is kept first.
@@ -346,17 +348,17 @@ popups and undo as the others (`qd_tl_quantize`, `tools.c`).
 - **CLIP** (COPY / PASTE / CLEAR off the B keys, a page of their own): KNOB 1 picks the action (the one picked big in the
   middle, its neighbours small at the sides, three dots for KNOB 1's place), **OCT+ does it** (the latch's confirm, as
   KEEP is for the others; its LED lit when the action can be done here, blinking while CLEAR waits for its second
-  press). COPY / PASTE: PAGE and PATTERN only (grey elsewhere, PASTE grey with nothing copied); CLEAR: SELECTED and PAGE
+  press). COPY / PASTE: every scope (§10.1: SELECTED / TRACK act on the page shown; PASTE grey with nothing copied); CLEAR: SELECTED and PAGE
   at once, TRACK and PATTERN twice (the red cross blinking, "CLEAR?"). The functions, popups and undo are T3's.
 - **STRETCH** (`qd_tl_stretch`, `qd_tl_stretch_track`, tools.c): remaps the track's loop (TRACK; PATTERN: each track;
-  PAGE / SELECTED: the page's start..end) in time. KNOB 1 doubles / halves (x2..x8, /2../8; as far as there is room:
+  PAGE / SELECTED: the page's start..end) in time. KNOB 1 climbs the ratio ladder (§10.1: /4 .. x1.25 .. x4; as far as there is room:
   128 steps, or the page's end; the factor shown is the one done), KNOB 2 fits it onto 1..8 pages (a page: 2..16 steps;
   turning KNOB 1 again leaves fit). Each trig at i + micro / 24 (the track's nudge off) goes to the nearest step of the
   new time t x num / den, the rest its micro (|micro| <= 12 inside, up to 23 at the ends); two trigs on one step: the
   nearer to its line kept; a step's own length scaled to the nearest of the table; locks move with their steps (one
   permutation of the 128 steps through the tools' `tl_permute`, then the steps that took no trig cleared with their
   locks). The new loop: whole pages from the first looped one (moved down if it would pass page 8), the last page's
-  end the rest. x8 then /8 is the identity (steps, micro, locks); `test_tools` t_stretch, t_stretch_live (KNOB 1 live,
+  end the rest. x4 then /4 is the identity (steps, micro, locks); `test_tools` t_stretch, t_stretch_live (KNOB 1 live,
   the clamp, OCT- byte for byte, fit 1 page, OCT+ one level, undo byte for byte, drawn only worked out) at host and
   device sizes; `firmware/app/tests/tools.txt` (x2 live, OCT-, CLIP's COPY / PASTE).
 - **Its screen:** the loop as it was (grey ticks, its trigs) over the loop as it is (the track's colour), on one time line

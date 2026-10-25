@@ -345,7 +345,11 @@ int render_t1(const char *out)
     turn(QD_K_ALGO, -1);                                /* (TRACK: COPY grey) */
     turn(QD_K_1, -2);
     run(QD_TK_MS + 400);
-    shot("clip-track", "CLIP in TRACK: COPY grey (no whole-track copy), OCT+ dark", 1);
+    shot("clip-track", "CLIP in TRACK: COPY acts on the page shown (PAGE n), OCT+ lit", 1);
+    black(9);                                           /* (B10 again: COPY, the page) */
+    run(150);
+    shot("clip-copied-page", "B10 again: COPY on the page shown, PAGE n / COPIED", 1);
+    run(QD_TOOL_POP_MS);
     turn(QD_K_ALGO, 1);
     /* the owner's findings (2026-10-24): the page shown, the ghosts on every page, the selected step rotated, RANDOM's
      * names, a short loop */
@@ -452,9 +456,15 @@ int render_t1(const char *out)
     turn(QD_K_1, 1);
     turn(QD_K_1, 1);
     run(300);
-    shot("stretch-x2", "STRETCH, KNOB 1 twice: x2 (x4 has no room past the 8 pages: it stays x2), heard at once", 1);
+    shot("stretch-x133", "STRETCH, KNOB 1 two rungs: x1.33 (the rung dots under it), heard at once", 1);
+    turn(QD_K_1, 1), turn(QD_K_1, 1), turn(QD_K_1, 1), turn(QD_K_1, 1);
+    run(300);
+    shot("stretch-x4", "KNOB 1 up to x4: 128 steps, all eight pages (the top rung)", 1);
     btap(QD_B_OCTDN);
     run(QD_TOOL_POP_MS);
+    turn(QD_K_1, -1), turn(QD_K_1, -1), turn(QD_K_1, -1);
+    run(300);
+    shot("stretch-div15", "/1.5: 32 steps into 22 (the division sign drawn)", 1);
     turn(QD_K_1, -1);
     run(300);
     shot("stretch-half", "/2: squeezed onto 1 page (the trigs on the half-steps between take their micro)", 1);
@@ -467,7 +477,7 @@ int render_t1(const char *out)
     run(QD_TOOL_POP_MS);
     turn(QD_K_ALGO, -1);
     run(QD_TK_MS + 200);
-    turn(QD_K_1, -1);
+    turn(QD_K_1, -1), turn(QD_K_1, -1), turn(QD_K_1, -1), turn(QD_K_1, -1);
     run(300);
     shot("stretch-page", "PAGE scope: the page's 16 steps across, /2 onto its first 8", 1);
     btap(QD_B_OCTDN);

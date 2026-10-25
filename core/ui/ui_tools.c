@@ -473,7 +473,8 @@ static void tl_grids(const ui_tools_t *v)
 
 /* STRETCH (2026-10-25): the loop as it was (grey ticks, its trigs) over the loop as it is (the track's colour), one time
  * line (TRACK and PATTERN: the eight pages across; PAGE and SELECTED: the page's sixteen steps), the fan between them
- * the squeeze or the spread; the factor big in KNOB 1's blue (x2 .. /8), or the pages it fits onto in KNOB 2's green */
+ * the squeeze or the spread; the factor big in KNOB 1's blue (/4 .. x1.5 .. x4) over its ladder's thirteen rungs, or the
+ * pages it fits onto in KNOB 2's green */
 static float tl_tape(const uint8_t *on, const uint8_t *in, float y, float h, int page, qd_rgb col, float *x1)
 {
     const int s0 = page >= 0 ? page * 16 : 0, n = page >= 0 ? 16 : 128;
@@ -516,20 +517,40 @@ static void tl_stretch(const ui_tools_t *v)
     if (f) {                                            /* (onto f pages: the number, a page beside it) */
         ui_T(ui_itoa(s, f), 112.f, 110.f, 36.f, 700, 0.f, UI_K2, QD_CENTER);
         ui_RR(132.f, 86.f, 14.f, 18.f, 2.f, UI_K2, 1.6f, QD_NONE);
-    } else if (v->lpow < 0) {
-        tl_div(100.f, 98.f, 2.f, UI_K1);
-        ui_T(ui_itoa(s, 1 << -v->lpow), 116.f, 110.f, 36.f, 700, 0.f, UI_K1, QD_LEFT);
-    } else {
-        s[0] = (char)0xc3, s[1] = (char)0x97;
-        ui_itoa(s + 2, 1 << v->lpow);
-        ui_T(s, 120.f, 110.f, 36.f, 700, 0.f, v->lpow ? UI_K1 : UI_G2, QD_CENTER);
+    } else if (!v->lpow) {
+        ui_T("\xc3\x97" "1", 120.f, 110.f, 36.f, 700, 0.f, UI_G2, QD_CENTER);
+    } else {                                            /* (the sign and the number centred together) */
+        static const char *const RN[7] = {"", "1.25", "1.33", "1.5", "2", "3", "4"};
+        const char *n = RN[v->lpow < 0 ? -v->lpow : v->lpow];
+        const float sw = v->lpow > 0 ? ui_TW("\xc3\x97", 36.f, 700, 0.f) : 18.f;
+        const float x0 = 120.f - (sw + 2.f + ui_TW(n, 36.f, 700, 0.f)) / 2.f;
+        if (v->lpow > 0)
+            ui_T("\xc3\x97", x0, 110.f, 36.f, 700, 0.f, UI_K1, QD_LEFT);
+        else
+            tl_div(x0 + 8.f, 98.f, 2.f, UI_K1);
+        ui_T(n, x0 + sw + 2.f, 110.f, 36.f, 700, 0.f, UI_K1, QD_LEFT);
+    }
+    for (k = -6; !f && k <= 6; k++) {                   /* (KNOB 1's rung: a dot each, x1 a tall tick) */
+        const float x = 120.f + (float)k * 9.f;
+        const qd_rgb c = k == v->lpow ? UI_K1 : UI_G2;
+        if (!k)
+            ui_RR(x - 1.f, 169.f, 2.f, 10.f, 1.f, QD_NONE, 1.f, c);
+        else
+            ui_O(x, 174.f, k == v->lpow ? 3.4f : 2.2f, QD_NONE, 1.f, c);
     }
     tl_lane(v, 0);
 }
 
-/* CLIP (2026-10-25): COPY, PASTE, CLEAR, the one KNOB 1 picked big (what OCT+ does), its neighbours small; one that
- * cannot be done here grey (COPY / PASTE: PAGE and PATTERN only; PASTE: something copied); CLEAR waiting for its second
- * press red, blinking */
+/* CLIP (2026-10-25): COPY, PASTE, CLEAR, the one KNOB 1 picked big (what OCT+ or B10 does), its neighbours small, each
+ * its word under it; under the big one what it acts on (the scope's picture, PAGE n or PATTERN; CLEAR: its scope).
+ * PASTE with nothing copied grey; CLEAR waiting for its second press red, blinking */
+static const char *tl_clip_on(char *s, int sc, int act, int page)   /* what the action acts on */
+{
+    if (sc == QD_TS_PATTERN || (act == QD_CL_CLEAR && sc != QD_TS_PAGE))
+        return TL_SCOPE[sc];
+    s[0] = 'P', s[1] = 'A', s[2] = 'G', s[3] = 'E', s[4] = ' ', s[5] = (char)('1' + (page & 7)), s[6] = 0;
+    return s;
+}
 static void tl_clip_icon(int k, float x, float y, float sc, qd_rgb col)
 {
     qd_save();
@@ -552,20 +573,32 @@ static void tl_clip_icon(int k, float x, float y, float sc, qd_rgb col)
 }
 static void tl_clip(const ui_tools_t *v)
 {
+    static const char *const CN[QD_CL_N] = {"COPY", "PASTE", "CLEAR"};
+    const int sc = v->act == QD_CL_CLEAR || v->scope == QD_TS_PATTERN ? v->scope : QD_TS_PAGE;
+    qd_rgb ac = UI_K3;
+    char s[8];
+    const char *nm = tl_clip_on(s, v->scope, v->act, v->page);
+    float x0;
     int k;
     for (k = 0; k < QD_CL_N; k++) {
         const int ok = (v->act_ok >> k) & 1, on = k == v->act;
         const qd_rgb col = !ok ? UI_G3 : on ? (k == QD_CL_CLEAR ? UI_RED : UI_K3) : UI_G2;
+        const float x = on ? 120.f : k < v->act ? 36.f : 204.f;
         if (k < v->act - 1 || k > v->act + 1)
             continue;
+        ac = on ? col : ac;
         if (on && v->armed)                             /* (CLEAR? the second press) */
             tl_alpha(0.35f + 0.65f * (sinf(v->t * 18.f) > 0.f));
-        tl_clip_icon(k, on ? 120.f : k < v->act ? 36.f : 204.f, 100.f, on ? 3.4f : 1.6f, col);
+        tl_clip_icon(k, x, 82.f, on ? 3.f : 1.6f, col);
         if (on && v->armed)
             qd_restore();
+        ui_T(CN[k], x, on ? 138.f : 116.f, 13.f, 600, 1.f, col, QD_CENTER);
     }
+    x0 = 120.f - (30.f + ui_TW(nm, 15.f, 600, 1.f)) / 2.f;
+    ui_tools_scope_icon(sc, x0 + 11.f, 156.f, ac, 1.f);
+    ui_T(nm, x0 + 30.f, 161.f, 15.f, 600, 1.f, ac, QD_LEFT);
     for (k = 0; k < QD_CL_N; k++)                       /* (KNOB 1's place among the three) */
-        ui_O(108.f + (float)k * 12.f, 160.f, 3.f, k == v->act ? QD_NONE : UI_G2, 1.2f, k == v->act ? UI_K1 : QD_NONE);
+        ui_O(108.f + (float)k * 12.f, 176.f, 3.f, k == v->act ? QD_NONE : UI_G2, 1.2f, k == v->act ? UI_K1 : QD_NONE);
     tl_lane(v, 0);
 }
 
@@ -606,7 +639,7 @@ void ui_tools_draw(const ui_tools_t *v)
 static const char *const TL_MSG[9] = {"KEPT", "REVERTED", "NO UNDO", "COPIED", "PASTED", "CLEAR?", "CLEARED",
                                        "TOO BIG", "FULL"};
 static const qd_rgb TL_MSGC[9] = {UI_K2, UI_K4, UI_KSEL, UI_K2, UI_K2, UI_RED, UI_K4, UI_KSEL, UI_KSEL};
-void ui_tools_pop(int kind, int msg, int tool, int scope)
+void ui_tools_pop(int kind, int msg, int tool, int scope, int page)
 {
     int k;
     if (kind == 3) {                                    /* RANDOM's knob turned: what it sets, in its colour, over the
@@ -618,10 +651,12 @@ void ui_tools_pop(int kind, int msg, int tool, int scope)
         return;
     }
     if (kind != 1) {                                    /* (the messages after NO UNDO: under the scope's name) */
+        char s[8];
+        const int cl = kind && msg > 2;                 /* (CLIP's: what it acted on, the band over its scope line) */
         msg = msg < 0 || msg > 8 ? 0 : msg;
-        qd_fill_rect(0.f, 84.f, 240.f, 72.f, UI_BG);
-        ui_T(kind && msg > 2 ? TL_SCOPE[scope % QD_TS_N] : TL_NAME[tool % QD_TL_N], 120.f, 126.f, 34.f, 700, 2.f, UI_K3,
-             QD_CENTER);
+        qd_fill_rect(0.f, 84.f, 240.f, cl ? 98.f : 72.f, UI_BG);
+        ui_T(cl ? tl_clip_on(s, scope % QD_TS_N, msg == 5 || msg == 6 ? QD_CL_CLEAR : 0, page) : TL_NAME[tool % QD_TL_N],
+             120.f, 126.f, 34.f, 700, 2.f, UI_K3, QD_CENTER);
         ui_T(kind ? TL_MSG[msg] : TL_SCOPE[scope % QD_TS_N], 120.f, 150.f, 20.f, 700, 1.f, kind ? TL_MSGC[msg] : UI_G1,
              QD_CENTER);                                /* (the name alone: the scope it works on under it) */
         return;

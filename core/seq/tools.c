@@ -259,11 +259,19 @@ void qd_tl_stretch(qd_pattern_t *p, int t, const uint8_t *pos, int n, int base, 
     }
 }
 
-int qd_tl_stretch_track(qd_pattern_t *p, int t, int page, int *pwp, int fit, qd_tset_t *only)
+/* the ladder's rungs 0..6 up: x1, x1.25, x1.33, x1.5, x2, x3, x4 (num, den; < 0 the reciprocals) */
+static const uint8_t TL_RUNG[7][2] = {{1, 1}, {5, 4}, {4, 3}, {3, 2}, {2, 1}, {3, 1}, {4, 1}};
+void qd_tl_rung(int r, int *num, int *den)
+{
+    const int k = r < 0 ? -r : r;
+    *num = TL_RUNG[k][r < 0], *den = TL_RUNG[k][r >= 0];
+}
+
+int qd_tl_stretch_track(qd_pattern_t *p, int t, int page, int *rp, int fit, qd_tset_t *only)
 {
     qd_tset_t *ts = only ? only : &p->trk[t];
     uint8_t pos[QD_NSTEP];
-    int n, m, cap, base = 0, num, den, k, p0 = 0, pw = *pwp;
+    int n, m, cap, base = 0, num, den, k, p0 = 0, r = *rp;
     n = qd_tl_positions(p, t, page >= 0 ? QD_TS_PAGE : QD_TS_TRACK, page, pos);   /* (ts: the track's own, so far) */
     if (page >= 0) {                                    /* (a page: its start..end; fit: 2 x fit steps) */
         cap = QD_PAGE - pos[0] % QD_PAGE, base = pos[0];
@@ -276,11 +284,13 @@ int qd_tl_stretch_track(qd_pattern_t *p, int t, int page, int *pwp, int fit, qd_
         m = m > cap ? cap : m;
         num = m, den = n;
     } else {
-        while (pw > 0 && n << pw > cap)                 /* (as far as it fits) */
-            pw--;
-        *pwp = pw;
-        num = pw > 0 ? 1 << pw : 1, den = pw < 0 ? 1 << -pw : 1;
-        m = (n * num + den - 1) / den;
+        for (;; r--) {                                  /* (as far as it fits: down toward x1) */
+            qd_tl_rung(r, &num, &den);
+            m = (n * num + den - 1) / den;
+            if (r <= 0 || m <= cap)
+                break;
+        }
+        *rp = r;
     }
     if (m == n && num == den)
         return n;

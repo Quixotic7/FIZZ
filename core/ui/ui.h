@@ -914,11 +914,11 @@ typedef struct {
      * pattern to paste */
     uint8_t ton[16], tin[16], ton0[16], tin0[16];
     int fit;
-    int act, act_ok, armed, has;
+    int act, act_ok, armed;
 } ui_tools_t;
 void ui_tools_draw(const ui_tools_t *v);
 /* kind 0: the tool's name (the scope's under it), 1: the scope, 2: message msg, 3: RANDOM's knob msg (0..3) named */
-void ui_tools_pop(int kind, int msg, int tool, int scope);
+void ui_tools_pop(int kind, int msg, int tool, int scope, int page);   /* (page: CLIP's PAGE n) */
 void ui_tools_icon(int tool, float x, float y, int on);
 void ui_tools_scope_icon(int scope, float x, float y, qd_rgb col, float s);
 
