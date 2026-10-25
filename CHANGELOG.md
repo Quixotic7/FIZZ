@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.5 (2026-10-25)
+
 The owner's beta.4 round: TOOLS on a tap of SEQ, mute and solo in the mixer, finer knobs, and a Manager that no longer slows the FM-1 down. Updating keeps your projects and presets.
 
 - **TOOLS opens with a tap of SEQ** (SEQ again or HOME closes it). Holding SEQ is still the patterns map. **Holding ARP** turns the track's arp on and off. **SHIFT + SAVE** opens the project page (SHIFT + SAVE again or SELECT: the projects).
