@@ -467,7 +467,7 @@ A track's speed is a **note value** and a **type**, each kept when you change th
   So a dotted track stays dotted when you press F3 + the 1/8 key: dotted 1/8.
 - **F3 + KNOB 1**: the note value; **KNOB 2**: the type. The screen shows it as 1/8 with a dot (dotted) or a T
   (triplet); the black keys at the foot of the F3 screen are drawn as the note values, a dot and a triplet.
-- **F3 + SELECT**: the tempo; **F3 + ALGORITHM**: the swing. Each turn shows the big metronome picture for a second,
+- **F3 + SELECT**: the tempo; **F3 + ALGORITHM**: the swing. Each turn shows the TAP ape dancing to it for a second,
   then the F3 screen again (which also shows both).
 - The page whose range you set is the one you edit (F3 + W sets its end, W + W its start..end; KNOB 3 / 4 too).
 - **EXT CLOCK**: while a MIDI clock (a DAW) is running the unit, the tempo is the clock's: the F3 screen says EXT CLOCK

@@ -333,15 +333,14 @@ static void d_algo(const ui_turn_t *v)
     }
 }
 
-/* ---------------------------------------------------------------- TEMPO / SWING / TSWING (s16's metronome) */
+/* ---------------------------------------------------------------- TSWING (s16's metronome; TEMPO / SWING: the ape) */
 /* the metronome as s16 draws it, moved so its pendulum's pivot (190, 180) sits at (px, py), at scale s; the pendulum
  * swings once a beat; with swing over 50 the two swings of a pair of beats take swing % and the rest */
-static void metronome(float px, float py, float s, int beats, float beat, int swing, int dots)
+static void metronome(float px, float py, float s, int beats, float beat, int swing)
 {
     const float sf = (float)(swing < 50 ? 50 : swing > 80 ? 80 : swing) / 100.f;
     const float pr = ((float)(beats & 1) + beat) / 2.f;
     float f, side, ang, L = 116.f, tx, ty, wx, wy;
-    int i;
     if (pr < sf)
         f = pr / sf, side = -1.f;
     else
@@ -360,29 +359,9 @@ static void metronome(float px, float py, float s, int beats, float beat, int sw
     wx = 190.f + sinf(ang) * L * 0.62f, wy = 180.f - cosf(ang) * L * 0.62f;
     ui_RR(wx - 6.f, wy - 4.f, 12.f, 8.f, 2.f, UI_K3, 1.2f, UI_BG);
     ui_O(190.f, 180.f, 2.5f, QD_NONE, 1.f, UI_G1);
-    if (dots)                                           /* the bar's beats */
-        for (i = 0; i < 4; i++) {
-            const int on = i == ((beats % 4) + 4) % 4;
-            ui_O(172.f + (float)i * 12.f, 205.f, 2.5f, on ? QD_NONE : UI_G2, 1.f, on ? UI_K4 : QD_NONE);
-        }
     qd_restore();
 }
 
-static void d_tempo(const ui_turn_t *v, qd_rgb col)
-{
-    char s[16];
-    const int sw = v->kind == UI_TK_SWING;
-    int n;
-    ui_T(ui_itoa(s, v->bpm), 10.f, 110.f, 66.f, 200, 0.f, sw ? UI_G1 : col, QD_LEFT);
-    ui_lab("BPM", 12.f, 130.f, UI_G1, QD_LEFT);
-    ui_itoa(s, v->swing);
-    for (n = 0; s[n]; n++)
-        ;
-    s[n] = '%', s[n + 1] = 0;
-    ui_T(s, 10.f, 190.f, sw ? 40.f : 32.f, 200, 0.f, UI_K2, QD_LEFT);
-    ui_lab("SWING", 12.f, 206.f, sw ? UI_K2 : UI_G1, QD_LEFT);
-    metronome(190.f, 180.f, 1.f, v->beats, v->beat, v->swing, 1);
-}
 
 /* ---------------------------------------------------------------- RATE (s25) */
 static void d_rate(const ui_turn_t *v, qd_rgb col)
@@ -671,8 +650,8 @@ void ui_turn_draw(const ui_turn_t *v)
     case UI_TK_HARM: d_harm(v, col); break;
     case UI_TK_FDBK: d_fdbk(v, col); break;
     case UI_TK_ALGO: d_algo(v); break;
-    case UI_TK_TEMPO:
-    case UI_TK_SWING: d_tempo(v, col); val = 0; break;
+    case UI_TK_TEMPO:                                   /* (2026-10-25: the TAP ape, ui_ape.c) */
+    case UI_TK_SWING: ui_ape_tempo(v, col); val = 0; break;
     case UI_TK_RATE: d_rate(v, col); val = 0; break;
     case UI_TK_LEN: d_len(v, col); break;
     case UI_TK_LIMIT: d_limit(v, col); break;
@@ -689,7 +668,7 @@ void ui_turn_draw(const ui_turn_t *v)
     case UI_TK_TRACKBIG: d_trackbig(v); val = 0; break;
     case UI_TK_FOLLOW: d_follow(v, col); break;
     case UI_TK_TSWING:
-        metronome(120.f, 128.f, 0.62f, v->beats, v->beat, v->value ? (v->swing > 50 ? v->swing : 62) : 50, 0);
+        metronome(120.f, 128.f, 0.62f, v->beats, v->beat, v->value ? (v->swing > 50 ? v->swing : 62) : 50);
         if (!val[0])
             val = v->value ? "ON" : "OFF";
         break;

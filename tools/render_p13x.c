@@ -193,10 +193,13 @@ int render_p13x(const char *out)
     shot("f3-play", "PLAY held: F3, latched");
     turn(QD_K_SELECT, 4);
     run(80);
-    shot("f3-tempo", "F3 + SELECT: the tempo, the metronome over the map");
+    shot("f3-tempo", "F3 + SELECT: the tempo, the TAP ape grooving to it (2026-10-25: was the metronome)");
+    turn(QD_K_SELECT, 1);
+    run(420);
+    shot("f3-tempo-2", "turned again a moment later: the next pose every two beats, the bob on each");
     turn(QD_K_ALGO, 6);
     run(80);
-    shot("f3-swing", "F3 + ALGORITHM: the swing");
+    shot("f3-swing", "F3 + ALGORITHM: the swing big in green, the ape's pairs of beats unequal");
     run(1300);
     shot("f3-after", "a second later: the map again");
     btap(QD_B_OCTDN);
