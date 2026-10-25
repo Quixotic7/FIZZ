@@ -450,3 +450,14 @@ release; on the unit (main session only): the commands once by hand stopped and 
 - **The player as the unit's big screen** (screen mirroring or a state-synced wasm): `docs/WEB-MIRROR-PLAN.md`.
 - Digitone `.syx` and Digitone project import: WEB-MANAGER-PLAN Phase 3 (the owner skipped `.syx` for now).
 - Carrying 8-track projects into the 6-track store: decided against (WEB-MANAGER-PLAN owner decisions).
+
+## Owner decisions (2026-10-25)
+
+- **Editing and loading sounds works like the unit's sound browser.**
+  - The editor syncs with the sound on the current track and edits it live.
+  - Choosing a sound in LIBRARY loads it onto the active track, or onto a chosen track.
+  - As on the unit, a load or an edit can be cancelled (the OCT− idea: back to the track's sound as it was).
+  - A clear switch turns this "edit / load to track" mode on or off. With it off, the Manager only manages presets and never touches the tracks of the open project, for example while playing.
+- **Unloading a project:** list the MY presets only that project uses and ask each time whether to remove them from the FM-1. They travel in the .fizzprj either way.
+- **A sound edited on the FM-1 after its project was unloaded:** ask, showing both, per sound.
+- **Order:** phase A (export + the offline editor), then B (live editor).
