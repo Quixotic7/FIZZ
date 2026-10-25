@@ -588,6 +588,36 @@ int qd_undo_revert_open(qd_app_t *a)
     return 1;
 }
 
+int qd_undo_room(qd_app_t *a)
+{
+    qd_hist_t *u = &a->undo;
+    const uint8_t *now[4], *was[4];
+    uint32_t sz[4], o = 4u * 5u;
+    int r, ok;
+    if (!u->open)
+        return 1;
+#ifdef QD_UNDO_SLOTS
+    if (!u->b_ok)
+        return 0;
+#endif
+    undo_regions(a, now, was, sz);
+#ifdef QD_UNDO_SLOTS
+    if (!undo_S)
+        return 1;                                       /* (no room to look: not said "no room") */
+#endif
+    for (r = 0; r < 4; r++)
+        if (sz[r] && r != 1)                            /* (the pattern, the MIDI FX groups: what TOOLS changes) */
+            o += (uint32_t)undo_diff(0, 0, now[r], was[r], sz[r]);
+#ifdef QD_UNDO_SLOTS
+    ok = o <= u->glo;
+    qd_pat_return(undo_S);
+    undo_S = 0;
+#else
+    ok = o <= QD_UNDO_POOL;
+#endif
+    return ok;
+}
+
 int qd_undo_count(const qd_app_t *a, int dir) { return dir < 0 ? a->undo.pos : a->undo.n - a->undo.pos; }
 
 /* ---------------------------------------------------------------- the snapshot, the pattern clipboard */

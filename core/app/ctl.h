@@ -346,6 +346,8 @@ typedef struct {
 #define QD_TLF_NOLIVE 0x02u            /* .. drawn only (the log could not keep the original: OCT+ applies, no undo) */
 #define QD_TLF_FLIP 0x04u              /* REVERSE: the pending result flipped */
 #define QD_TLF_DIRTY 0x08u             /* a value changed: rewritten at the next millisecond (detents combined) */
+#define QD_TLF_NOROOM 0x10u            /* T3: the change too big for an undo level (OCT+ twice: the crossed-out arrow) */
+#define QD_TLF_ARMED 0x20u             /* .. OCT+ pressed once ("NO UNDO") */
 typedef struct {
     uint8_t tool, scope, flags;        /* QD_TL_*, QD_TS_*, QD_TLF_* */
     uint8_t otrack;                    /* the track the change began on */

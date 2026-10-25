@@ -1095,7 +1095,7 @@ static void __attribute__((noinline)) draw_tools(const qd_app_t *a)
     int w, ps;
     memset(&v, 0, sizeof v);
     v.tool = T->tool, v.scope = T->scope, v.track = a->sel + 1;
-    v.pending = (T->flags & QD_TLF_PEND) != 0, v.nolive = v.pending && (T->flags & QD_TLF_NOLIVE);
+    v.pending = (T->flags & QD_TLF_PEND) != 0, v.nolive = v.pending && (T->flags & (QD_TLF_NOLIVE | QD_TLF_NOROOM));
     v.tcol = UI_TRACK_PAL[a->sel & 7];
     v.lo = 127, v.hi = 0;
     for (w = 0; w < 16; w++) {

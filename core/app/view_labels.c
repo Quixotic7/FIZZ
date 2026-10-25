@@ -340,8 +340,9 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
                                                    {"HITS", "LENGTH", "ROTATION", "LANDING"}, {"X", "Y", "DENSITY", "CHAOS"},
                                                    {"TIMING", "VELOCITY", "", ""}, {"LENGTH", "", "", ""}};
         const int tool = u->tl.tool % QD_TL_N;
+        static const char *const CB[3] = {"COPY", "PASTE", "CLEAR"};
         for (i = 0; i < 11; i++)
-            lb_set(o, LB_B(i), i < QD_TL_N ? TN[i] : i == 10 ? "SCOPE" : "");
+            lb_set(o, LB_B(i), i < QD_TL_N ? TN[i] : i == 10 ? "SCOPE" : CB[i - QD_TL_N]);
         for (i = 0; i < 16; i++)
             lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
         for (k = 0; k < 3; k++)

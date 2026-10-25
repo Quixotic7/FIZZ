@@ -644,6 +644,107 @@ static void t_t2_live(void)                             /* RANDOM, HUMANIZE, GRI
     free(before);
 }
 
+/* T3: B8 COPY / B9 PASTE (PAGE, PATTERN), B10 CLEAR (SELECTED, PAGE at once; TRACK, PATTERN twice) */
+static void t_clip(void)
+{
+    qd_pattern_t *before = malloc(sizeof *before);
+    int n0, ok, i;
+    start();
+    bass(0);
+    bass(3);
+    run(600);
+    *before = *PAT();
+    tools_open();
+    turn(QD_K_4, -1);                                   /* PAGE */
+    CHECK(A.ui.tl.scope == QD_TS_PAGE && leds().key[BK(7)] == QD_LED_LIT && leds().key[BK(8)] == QD_LED_DIM,
+          "PAGE: COPY lit, PASTE dim (nothing copied)");
+    black(7);
+    CHECK(A.ui.clip.pg.valid && A.ui.tk_knob == 2 && A.ui.tk_step == 3 && leds().key[BK(8)] == QD_LED_LIT,
+          "B8: the page copied (COPIED), PASTE lit");
+    turn(QD_K_SELECT, 2);                               /* page 3 */
+    n0 = qd_undo_count(&A, -1);
+    black(8);
+    run(QD_UNDO_QUIET_MS + 50);
+    ok = 1;
+    for (i = 0; i < 16; i++)
+        ok &= !memcmp(&PAT()->step[0][32 + i], &before->step[0][i], sizeof(qd_step_t));
+    CHECK(ok && qd_undo_count(&A, -1) == n0 + 1 && A.ui.tk_step == 4, "B9 on page 3: page 1 pasted there, a level");
+    black(9);
+    run(QD_UNDO_QUIET_MS + 50);
+    CHECK(ons(0, 32, 16) == 0 && qd_undo_count(&A, -1) == n0 + 2, "B10 on PAGE: cleared at once, a level");
+    turn(QD_K_4, 1);                                    /* TRACK */
+    CHECK(leds().key[BK(7)] == QD_LED_OFF, "TRACK: no COPY");
+    black(9);
+    CHECK(ons(0, 0, 16) && A.ui.tk_step == 5, "B10 on TRACK: CLEAR? (nothing yet)");
+    black(9);
+    CHECK(!ons(0, 0, 16) && !ons(0, 16, 16) && ons(3, 0, 16), "B10 again: track 1 cleared, track 4 not");
+    turn(QD_K_4, 1);                                    /* PATTERN */
+    bdown(QD_B_FUNC);
+    btap(F1), btap(F1);                                 /* (SHIFT + F1 twice: both clears undone) */
+    bup(QD_B_FUNC);
+    run(10);
+    CHECK(!memcmp(PAT()->step[0], before->step[0], 32 * sizeof(qd_step_t)), "undone twice: track 1 back");
+    black(7);
+    CHECK(A.undo.pclip_ok, "PATTERN, B8: the pattern copied");
+    black(9), black(9);
+    ok = 1;
+    for (i = 0; i < QD_PAT_NTRACK; i++)
+        ok &= !ons(i, 0, 16);
+    CHECK(ok, "B10 twice: every track cleared");
+    black(8);
+    CHECK(ons(0, 0, 16) == ons(0, 0, 16) && !memcmp(PAT()->step, before->step, 32 * sizeof(qd_step_t)) &&
+              ons(3, 0, 16), "B9: the pattern pasted back");
+    btap(QD_B_HOME);
+    btap(QD_B_MUTE);                                    /* the lock: SELECTED */
+    tools_open();
+    while (A.ui.nheld)
+        qd_step_select_toggle(&A, A.ui.held[0]);
+    qd_ctl_set_page(&A, 0);
+    white(0), white(6);
+    black(9);
+    CHECK(!qd_step_is_on(&PAT()->step[0][0]) && !qd_step_is_on(&PAT()->step[0][6]) && qd_step_is_on(&PAT()->step[0][3]),
+          "SELECTED, B10: the selected steps cleared at once, the others kept");
+    btap(QD_B_HOME);
+    free(before);
+}
+
+#ifdef QD_UNDO_SLOTS
+/* T3: a change too big for the undo log: the crossed-out arrow, OCT+ twice, no level */
+static void t_noroom(void)
+{
+    qd_pattern_t *p;
+    int t, s, n0;
+    start();
+    p = PAT();
+    for (t = 0; t < 2; t++)
+        for (s = 0; s < QD_NSTEP; s++) {
+            qd_step_set_vel(p, t, s, 1 + (int)(rnd() % 127));
+            qd_step_set_note(p, t, s, 0, 30 + (int)(rnd() % 60));
+            qd_step_set_micro(p, t, s, 1 + (int)(rnd() % 20));
+        }
+    for (t = 0; t < 2; t++)
+        qd_track_set_length(p, t, 128);
+    run(600);
+    bdown(QD_B_FUNC);
+    black(0);                                           /* (a snapshot: the log's room halved) */
+    bup(QD_B_FUNC);
+    run(600);
+    n0 = qd_undo_count(&A, -1);
+    tools_open();
+    black(3);
+    turn(QD_K_4, 1);                                    /* PATTERN */
+    turn(QD_K_1, -4);                                   /* 0 hits: every trig goes */
+    CHECK(qd_tools_pending(&A) && !(A.ui.tl.flags & QD_TLF_NOLIVE) && (A.ui.tl.flags & QD_TLF_NOROOM) && !ons(0, 0, 16),
+          "a change too big for an undo level: live, marked (the crossed-out arrow)");
+    btap(F2);
+    CHECK(qd_tools_pending(&A) && (A.ui.tl.flags & QD_TLF_ARMED) && A.ui.tk_step == 2, "OCT+ once: NO UNDO, still "
+          "pending");
+    btap(F2);
+    CHECK(!qd_tools_pending(&A) && !ons(0, 0, 16) && qd_undo_count(&A, -1) == n0, "OCT+ again: kept, no level");
+    btap(QD_B_HOME);
+}
+#endif
+
 static void t_euclid_pattern(void)
 {
     qd_pattern_t *before = malloc(sizeof *before);
@@ -799,6 +900,10 @@ int main(void)
         {"switching tool / track keeps; HOME keeps", t_switch_home},
         {"EUCLID, PATTERN scope: every track, one level", t_euclid_pattern},
         {"T2 live: RANDOM, HUMANIZE, GRIDS (PATTERN: the parts)", t_t2_live},
+        {"T3: COPY / PASTE / CLEAR by scope", t_clip},
+#ifdef QD_UNDO_SLOTS
+        {"T3: no room for undo: OCT+ twice, no level", t_noroom},
+#endif
         {"LENGTH live: x2, /2, kept", t_length_live},
 #ifdef QD_UNDO_SLOTS
         {"the device's drawn-only fallback (no room)", t_drawn_only},

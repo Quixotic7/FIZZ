@@ -412,15 +412,19 @@ void ui_tools_draw(const ui_tools_t *v)
 
 /* the popup: a tool's name (kind 0), the scope's takeover (1: SELECTED / PAGE / TRACK / PATTERN, the chosen big), a
  * message (2: the tool's name and what happened). No frame: a dark band under the words (the caller's alpha fades it) */
-static const char *const TL_MSG[] = {"KEPT", "REVERTED"};
+static const char *const TL_MSG[9] = {"KEPT", "REVERTED", "NO UNDO", "COPIED", "PASTED", "CLEAR?", "CLEARED",
+                                       "TOO BIG", "FULL"};
+static const qd_rgb TL_MSGC[9] = {UI_K2, UI_K4, UI_KSEL, UI_K2, UI_K2, UI_RED, UI_K4, UI_KSEL, UI_KSEL};
 void ui_tools_pop(int kind, int msg, int tool, int scope)
 {
     int k;
-    if (kind != 1) {
+    if (kind != 1) {                                    /* (the messages after NO UNDO: under the scope's name) */
+        msg = msg < 0 || msg > 8 ? 0 : msg;
         qd_fill_rect(0.f, 84.f, 240.f, kind ? 72.f : 56.f, UI_BG);
-        ui_T(TL_NAME[tool % QD_TL_N], 120.f, 126.f, 34.f, 700, 2.f, UI_K3, QD_CENTER);
+        ui_T(kind && msg > 2 ? TL_SCOPE[scope % QD_TS_N] : TL_NAME[tool % QD_TL_N], 120.f, 126.f, 34.f, 700, 2.f, UI_K3,
+             QD_CENTER);
         if (kind)
-            ui_T(TL_MSG[msg & 1], 120.f, 150.f, 20.f, 700, 1.f, msg ? UI_K4 : UI_K2, QD_CENTER);
+            ui_T(TL_MSG[msg], 120.f, 150.f, 20.f, 700, 1.f, TL_MSGC[msg], QD_CENTER);
         return;
     }
     qd_fill_rect(0.f, 30.f, 240.f, 210.f, UI_BG);

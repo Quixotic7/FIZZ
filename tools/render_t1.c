@@ -238,9 +238,9 @@ int render_t1(const char *out)
     run(150);
     shot("reverted", "OCT-: REVERTED (TOOLS stays; HOME is the way out)", 1);
     run(QD_TOOL_POP_MS);
-    turn(QD_K_PRESETS, 1);
+    turn(QD_K_PRESETS, 2);
     run(150);
-    shot("popup", "PRESETS: the next tool, EUCLID's name pops (no frame; ~0.8 s)", 1);
+    shot("popup", "PRESETS +2: EUCLID, its name pops (no frame; ~0.8 s)", 1);
     run(QD_TOOL_POP_MS);
     turn(QD_K_1, 1);
     run(300);
@@ -324,8 +324,18 @@ int render_t1(const char *out)
     run(300);
     shot("grids-pattern", "GRIDS over the PATTERN: LOW, MID, HIGH to tracks 1, 2, 3 (DRUMS first)", 1);
     btap(QD_B_OCTDN);
+    /* T3 */
+    run(QD_TOOL_POP_MS);
+    black(7);
+    run(150);
+    shot("copied", "T3: PATTERN, B8: the pattern copied (B9 pastes it, B10 twice clears it)", 1);
+    run(QD_TOOL_POP_MS);
+    black(9);
+    run(150);
+    shot("clearq", "B10 on PATTERN: CLEAR? (B10 blinking: again to clear)", 1);
+    run(QD_TOOL_POP_MS);
     btap(QD_B_HOME);
     qd_app_stop(&A);
-    sheet_as("t1-sheet.png", "TOOLS: T1 (ROTATE, REVERSE, EUCLID, LENGTH) and T2 (RANDOM, HUMANIZE, GRIDS)");
+    sheet_as("t1-sheet.png", "TOOLS: T1 (ROTATE, REVERSE, EUCLID, LENGTH), T2 (RANDOM, HUMANIZE, GRIDS), T3 (COPY, PASTE, CLEAR)");
     return failed;
 }

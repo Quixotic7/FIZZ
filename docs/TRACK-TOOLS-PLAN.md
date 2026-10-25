@@ -262,3 +262,16 @@ TOOLS uses no pool, no RAM code and no NOINIT. All of its code runs from flash o
   parts x 32 steps (864 B const); `make test` checks the header is what the rules make. Nothing of Mutable's read.
 - **The values** share the union (RANDOM 6 B, GRIDS 8 B): qd_ui_t is still smaller than before TOOLS.
 
+### 10.3 T3 as built
+
+- **B8 COPY, B9 PASTE** for PAGE (the F1 + B10 page clipboard: copied from the page shown, pasted onto the page
+  shown) and PATTERN (SHIFT + B4 / B5's pattern clipboard). Dark in SELECTED and TRACK (no whole-track copy, the
+  owner's choice); PASTE dim with nothing to paste.
+- **B10 CLEAR:** SELECTED STEPS and PAGE at once; TRACK and PATTERN pressed twice ("CLEAR?", B10 blinking, 2 s).
+- Each is an undo level of its own, a pending change kept first, and pops the scope's name with COPIED / PASTED /
+  CLEAR? / CLEARED (TOO BIG, FULL when the clipboard or the lock pool has no room).
+- **The undo-room check** (`qd_undo_room`): after every live change the level's size is counted against the log. Too
+  big: the crossed-out arrow; OCT+ once says NO UNDO, OCT+ again keeps it without a level.
+- Not built from T3's list: the LINE-style animations (the dice roll, the fizz-in, the growing pages). The flash went
+  to the tools instead.
+

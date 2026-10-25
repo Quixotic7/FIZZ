@@ -19,7 +19,8 @@
  * crossed-out arrow says so). */
 
 #define TL_PEND_LIVE(a) (!((a)->ui.tl.flags & QD_TLF_NOLIVE) && (a)->undo.open && (a)->undo.hold)
-enum { TLM_KEPT, TLM_REVERTED };                        /* (the popup's messages: tk_step) */
+/* (the popup's messages: tk_step; KEPT .. NO UNDO under the tool's name, the rest under the scope's) */
+enum { TLM_KEPT, TLM_REVERTED, TLM_NOUNDO, TLM_COPIED, TLM_PASTED, TLM_CLEARQ, TLM_CLEARED, TLM_TOOBIG, TLM_FULL };
 
 int qd_tools_open(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_TOOLS; }
 
@@ -108,7 +109,7 @@ void qd_tools_grids_tracks(const qd_app_t *a, int8_t *tr)
 
 static void tl_settle(qd_tools_t *T)                  /* nothing pending: the result is the new original */
 {
-    T->flags &= (uint8_t)~(QD_TLF_PEND | QD_TLF_NOLIVE | QD_TLF_FLIP | QD_TLF_DIRTY);
+    T->flags = 0;
     T->rot = 0;
     T->lpow = 0;
 }
@@ -199,17 +200,17 @@ static void tl_change(qd_app_t *a)
             return;
         }
         a->undo.hold = 1;
-        tl_apply(a);
+    } else if (T->flags & QD_TLF_NOLIVE) {
         return;
-    }
-    if (T->flags & QD_TLF_NOLIVE)
-        return;
-    if (!qd_undo_revert_open(a)) {                      /* (its copy gone meanwhile: what is there is kept) */
+    } else if (!qd_undo_revert_open(a)) {               /* (its copy gone meanwhile: what is there is kept) */
         a->undo.hold = 0;
         tl_settle(T);
         return;
     }
     tl_apply(a);
+    T->flags &= (uint8_t)~(QD_TLF_NOROOM | QD_TLF_ARMED);   /* T3: the undo log's room for it, again */
+    if (!qd_undo_room(a))
+        T->flags |= QD_TLF_NOROOM;
 }
 
 static void tl_pop(qd_app_t *a, int kind, int msg)    /* the popup: 0 the tool's name, 1 the scope, 2 a message */
@@ -231,10 +232,71 @@ static int tl_keep_q(qd_app_t *a)                     /* kept (one undo level): 
     return 1;
 }
 static void tl_keep(qd_app_t *a) { tl_keep_q(a); }   /* (HOME, a switch: kept quietly) */
-static void tl_confirm(qd_app_t *a)                   /* OCT+: kept, "KEPT" */
+static void tl_confirm(qd_app_t *a)                   /* OCT+: kept, "KEPT"; too big for undo: twice ("NO UNDO") */
 {
+    qd_tools_t *T = &a->ui.tl;
+    if ((T->flags & (QD_TLF_NOROOM | QD_TLF_ARMED)) == QD_TLF_NOROOM && qd_tools_pending(a)) {
+        T->flags |= QD_TLF_ARMED;
+        tl_pop(a, 2, TLM_NOUNDO);
+        return;
+    }
     if (tl_keep_q(a))
         tl_pop(a, 2, TLM_KEPT);
+}
+
+/* T3, B8..B10: COPY / PASTE (PAGE: the F1 + B10 page clipboard; PATTERN: SHIFT + B4 / B5's) and CLEAR (SELECTED and
+ * PAGE at once, TRACK and PATTERN pressed twice); each a level of its own, the pending change kept first */
+static int tl_armed(const qd_app_t *a) { return a->ui.clr_armed && a->ms - a->ui.clr_ms < QD_ARM_MS; }
+static void tl_clip(qd_app_t *a, int b)
+{
+    qd_ui_t *u = &a->ui;
+    qd_pattern_t *p = qd_ctl_pat(a);
+    const int sc = u->tl.scope, pg = tl_page(a);
+    int msg = TLM_CLEARED, t;
+    tl_keep(a);
+    if (b != 9)
+        u->clr_armed = 0;
+    if (b == 7) {                                       /* COPY */
+        if (sc == QD_TS_PAGE)
+            qd_clip_copy_page(&u->clip, p, a->sel, pg), msg = TLM_COPIED;
+        else if (sc == QD_TS_PATTERN)
+            msg = qd_hist_store(a, 1) ? TLM_COPIED : TLM_TOOBIG;
+        else
+            return;
+    } else if (b == 8) {                                /* PASTE */
+        if (sc == QD_TS_PAGE && u->clip.pg.valid) {
+            qd_undo_hint(a, QD_UK_PASTE);
+            msg = qd_clip_paste_page(&u->clip, p, a->seq.cur, a->sel, pg) == QD_EFULL ? TLM_FULL : TLM_PASTED;
+        } else if (sc == QD_TS_PATTERN && a->undo.pclip_ok) {
+            qd_undo_hint(a, QD_UK_PASTE);
+            qd_hist_recall(a, 1);
+            pat_reload(a);
+            msg = TLM_PASTED;
+        } else {
+            return;
+        }
+    } else {                                            /* CLEAR */
+        if (sc >= QD_TS_TRACK && !tl_armed(a)) {
+            u->clr_armed = 1, u->clr_ms = a->ms;
+            tl_pop(a, 2, TLM_CLEARQ);
+            return;
+        }
+        u->clr_armed = 0;
+        qd_undo_hint(a, QD_UK_CLEAR);
+        if (sc == QD_TS_SEL) {
+            uint8_t pos[QD_NSTEP];
+            int st[16], n = tl_pos(a, p, a->sel, pg, pos), i;
+            for (i = 0; i < n && i < 16; i++)
+                st[i] = pos[i];
+            qd_clip_clear_steps(&u->clip, p, a->seq.cur, a->sel, st, i);
+        } else if (sc == QD_TS_PAGE) {
+            qd_clip_clear_page(&u->clip, p, a->seq.cur, a->sel, pg);
+        } else {
+            for (t = sc == QD_TS_TRACK ? a->sel : 0; t < (sc == QD_TS_TRACK ? a->sel + 1 : QD_PAT_NTRACK); t++)
+                qd_clip_clear_track(&u->clip, p, a->seq.cur, t);
+        }
+    }
+    tl_pop(a, 2, msg);
 }
 
 static void tl_revert(qd_app_t *a)                    /* OCT-: back to the original (TOOLS stays: HOME leaves) */
@@ -317,6 +379,8 @@ void qd_tools_black(qd_app_t *a, int b, int down)
     }
     if (b == 10)                                        /* B11: the scope, round */
         tl_scope(a, (T->scope + 1) % QD_TS_N);
+    else if (b >= 7)                                    /* T3: B8 COPY, B9 PASTE, B10 CLEAR */
+        tl_clip(a, b);
 }
 
 /* W: the page's step in / out of the selection (the scope SELECTED: another scope's change kept first; SELECTED's
@@ -466,9 +530,16 @@ void qd_tools_leds(const qd_app_t *a, uint8_t *key)
         key[QD_WHITE_KEY[i]] = tl_selected(a, page * QD_PAGE + i) ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_DIM : QD_LED_LIT)
                              : on ? QD_LED_LIT : QD_LED_OFF;
     }
-    for (i = 0; i < 11; i++)                            /* B1..B7 the tools built, B11 the scope */
-        key[QD_BLACK_KEY[i]] = i < QD_TL_N ? (!QD_TL_BUILT(i) ? QD_LED_OFF : i == T->tool ? QD_LED_LIT : QD_LED_DIM)
-                             : i == 10 ? QD_LED_LIT : QD_LED_OFF;
+    for (i = 0; i < QD_TL_N; i++)                       /* B1..B7 the tools, B11 the scope */
+        key[QD_BLACK_KEY[i]] = i == T->tool ? QD_LED_LIT : QD_LED_DIM;
+    key[QD_BLACK_KEY[10]] = QD_LED_LIT;
+    {   /* T3: B8 COPY (PAGE, PATTERN), B9 PASTE (lit with something to paste), B10 CLEAR (blinking when armed) */
+        const int pp = T->scope == QD_TS_PAGE || T->scope == QD_TS_PATTERN;
+        const int has = T->scope == QD_TS_PAGE ? a->ui.clip.pg.valid : a->undo.pclip_ok;
+        key[QD_BLACK_KEY[7]] = pp ? QD_LED_LIT : QD_LED_OFF;
+        key[QD_BLACK_KEY[8]] = pp ? (has ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
+        key[QD_BLACK_KEY[9]] = tl_armed(a) && (a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT;
+    }
 }
 
 /* ---------------------------------------------------------------- what the screen shows */
