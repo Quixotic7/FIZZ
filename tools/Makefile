@@ -88,6 +88,15 @@ render_audio: $(B)/render_audio.o $(CORE_OBJ) $(PVG_OBJ)
 $(B)/tick_bench: $(B)/tick_bench.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
 
+# Manager P2: FIZZ's 110 sound values for the web manager's sound editor, from the core (tools/gen_values.c):
+# make values writes site/manager/fizzvalues.js; values-check (in make test) fails when it is not the core's
+$(B)/gen_values: $(B)/gen_values.o $(CORE_OBJ) $(PVG_OBJ)
+	$(CC) -o $@ $^ -lm
+values: $(B)/gen_values
+	$(B)/gen_values > $(ROOT)/site/manager/fizzvalues.js
+values-check: $(B)/gen_values
+	@$(B)/gen_values | cmp -s - $(ROOT)/site/manager/fizzvalues.js || { echo "site/manager/fizzvalues.js is not the core's: make -C tools values"; exit 1; }
+	@echo "values-check: site/manager/fizzvalues.js is the core's"
 # P2.1: a flash image as the core reads it, a line a project / pattern / pool sound / MY preset (tools/flash_dump.c)
 $(B)/flash_dump: $(B)/flash_dump.o $(CORE_OBJ) $(PVG_OBJ)
 	$(CC) -o $@ $^ -lm
@@ -191,7 +200,7 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx $(B)/test_tools
-test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-gfx-fast budget-ratchet
+test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-gfx-fast budget-ratchet values-check
 	@echo "make test: all passed (host and device sizes, the device's drawing too)"
 
 # P2.0: the same tests at the device's sizes (core/qd_config.h QD_DEVICE), built into build/dev; the timelines into
@@ -313,4 +322,4 @@ print-%:
 
 include gfx_fast.mk
 
-.PHONY: all frames strips audio test test-host test-dev test-pace test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev16 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet
+.PHONY: all frames strips audio values values-check test test-host test-dev test-pace test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev16 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet

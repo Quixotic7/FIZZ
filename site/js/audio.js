@@ -3,7 +3,8 @@
 // added to its worklet. From RemoteFM1's web/site/js/audio.js, cut to one engine (the native one, engine/engine.js)
 // and one firmware (fizz.wasm, fetched here: an engine can't fetch inside the worklet).
 //
-//   const p = new Player(events);            events: { frame, leds, info, flash, halted, midiOut, error }
+//   const p = new Player(events, { root });   events: { frame, leds, info, flash, halted, midiOut, error }; root: the
+//                                            site's folder from the page ("../" from manager/: the worklet, the engine)
 //   await p.start();                         // in a user gesture (the autoplay policy)
 //   await p.load(wasmUrl, flashBytes | null)
 //   p.panel(msg); p.midi(bytes); p.flashReq(); p.setVolume(0..1)
@@ -22,8 +23,9 @@ async function fetchBytes(url, what) {
 }
 
 export class Player {
-  constructor(events = {}) {
+  constructor(events = {}, { root = "" } = {}) {
     this.ev = events;
+    this.root = root;
     this.ctx = null; this.node = null; this.out = null; this.volume = 1;
     this.engineAdded = null;
     this.wasm = null;            // { url, bytes } the last fetched module
@@ -38,7 +40,7 @@ export class Player {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC || !("audioWorklet" in AC.prototype)) throw new Error("This browser has no AudioWorklet: use a current Chrome, Edge, Firefox or Safari.");
       this.ctx = new AC({ latencyHint: "interactive" });
-      await this.ctx.audioWorklet.addModule(abs(ver("worklet/host.js")));
+      await this.ctx.audioWorklet.addModule(abs(this.root + ver("worklet/host.js")));
       this.node = new AudioWorkletNode(this.ctx, "fm1-host", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
       this.node.port.onmessage = (e) => this.onMessage(e.data);
       this.out = this.ctx.createGain();
@@ -76,7 +78,7 @@ export class Player {
   // the engine's module in the worklet: a shim that imports it statically and registers it with host.js
   addEngine() {
     if (this.engineAdded) return this.engineAdded;
-    const src = `import * as E from ${JSON.stringify(abs(ver("engine/engine.js")))};\n(globalThis.FM1_ENGINES = globalThis.FM1_ENGINES || {}).native = E;\n`;
+    const src = `import * as E from ${JSON.stringify(abs(this.root + ver("engine/engine.js")))};\n(globalThis.FM1_ENGINES = globalThis.FM1_ENGINES || {}).native = E;\n`;
     const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
     const p = this.ctx.audioWorklet.addModule(url).finally(() => URL.revokeObjectURL(url));
     this.engineAdded = p;

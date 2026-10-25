@@ -15,6 +15,8 @@ its text becomes the release's notes on the install page and on GitHub.
 - **FIZZ Manager asks once** before SORT BY TAG, CLEAR UNUSED, swapping pool places, CLEAR, DELETE and loading a project, and says whether SHIFT + F1 can undo it.
 - **FIZZ Manager: Digitone sounds saved on OS 1.42** (such as F186 KICK01) import now; they were refused as "a newer Digitone format (version 4)".
 - The FM-1 pill in the Manager's header is cleaner.
+- **FIZZ Manager: the sound editor (EDIT).** Pick a preset in LIBRARY and press EDIT (or drop a .fizzsnd or a Digitone sound on the page): its sound is drawn big, a group at a time (OPERATORS with the algorithm, OP ENV, FILTER with its curve, AMP, the three LFOs, the eight MOD slots, PLAY), and every value is something you drag, scroll or click; SHIFT drags finely. A keyboard like the FM-1's plays it in the page itself (FIZZ running in your browser, no FM-1 needed; the computer's A..' row plays too, Z and X change the octave). REVERT puts it back, SAVE writes it over the MY preset it came from, SAVE AS NEW into a free place.
+- **FIZZ Manager: EXPORT** a preset (or all of MY PRESETS) as a FIZZ .fizzsnd, a Digitone .dnsnd, or a Digitone II .dn2pst or .dn2snd. Each format shows a bar of how much of the sound carries over and lists what it drops or changes (LFO 3, CRUSH, AHD as ADSR ..). The Digitone files are marked EXPERIMENTAL until Digitone owners confirm they load.
 - **The live-recording keyboard starts on F**, like the FM-1's own keys: the 27 keys drawn are the 27 you play (F3 to G5 at OCT 0), so the key lit is the key you press.
 
 ## 0.12.0-beta.2 (2026-10-24)

@@ -13,7 +13,11 @@
 //   - POOL: the sounds beside with the same filters, a MY preset and a factory one put on empty places, a swap (its
 //     confirm says the undo is cleared), CLEAR (a confirm), SORT BY TAG cancelled;
 //   - IMPORT: synthetic Digitone files (never real presets): two Digitone II read, one refused (not FM TONE), a
-//     Digitone 1 version-4 sound (OS 1.42) read, sent.
+//     Digitone 1 version-4 sound (OS 1.42) read, sent;
+//   - EDIT (Manager P2-A): a preset opened from LIBRARY's EDIT, every group drawn (the screenshots beside the mock-ups'
+//     mockups/png/fizz-manager-p2-0N-*.png), every one of the 110 values on a group, a handle dragged, the wheel, ALGO
+//     clicked, REVERT; the browser's own FIZZ plays it (a key of the keybed: sound out); SAVE AS NEW stores it on the
+//     unit as edited; EXPORT: three homes, EXPERIMENTAL on the Digitone's, the carry rows, .dn2snd, the download.
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -84,6 +88,18 @@ const size = (w, h, mobile = false) => send("Emulation.setDeviceMetricsOverride"
 const noScroll = () => evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1");
 const click = (sel) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.click(); return true; })()`);
 const idle = () => waitFor("window.__mgr && !__mgr.S.editing && !__mgr.S.busy", 20000);
+// the mouse as a person's (a user gesture: the AudioContext may start), at an element's centre
+const centre = (sel) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+const mouse = (type, x, y, extra = {}) => send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1, ...extra });
+async function realClick(sel) { const c = await centre(sel); if (!c) return false; await mouse("mousePressed", c.x, c.y); await mouse("mouseReleased", c.x, c.y); return true; }
+async function drag(sel, dx, dy) {
+  const c = await centre(sel);
+  if (!c) return false;
+  await mouse("mousePressed", c.x, c.y);
+  for (let k = 1; k <= 6; k++) { await mouse("mouseMoved", c.x + dx * k / 6, c.y + dy * k / 6, { buttons: 1 }); await sleep(20); }
+  await mouse("mouseReleased", c.x + dx, c.y + dy);
+  return true;
+}
 
 try {
   await connect();
@@ -280,9 +296,97 @@ try {
   check(await evaluate("Object.values(__mgr.S.web.tags).some((t) => t.includes('DARK'))"), "IMPORT: the Digitone tag FIZZ has no tag for (DARK) kept as a web tag");
   check(await noScroll(), "IMPORT at 1280: no horizontal scroll");
 
+  // EDIT (Manager P2-A): opened from LIBRARY, every group, every value; edits; the browser's FIZZ; SAVE AS NEW; EXPORT
+  await click("#t-library");
+  await click("#l-filter [data-src='factory']");
+  await click("#l-list .cas[data-src='factory'][data-slot='4']");
+  await waitFor("document.getElementById('l-edit') && !document.getElementById('l-edit').disabled");
+  await click("#l-edit");
+  await waitFor("!document.getElementById('tab-edit').hidden && document.querySelector('#ed-stage .algosvg')");
+  const ename = await evaluate("__mgr.editor.sound().name");
+  check(!!ename && (await evaluate("document.querySelector('#ed-head .h').textContent")).startsWith("FACTORY 4"), `EDIT: LIBRARY's EDIT opened FACTORY 4 ${ename}`);
+  const GR = ["ops", "openv", "filter", "amp", "lfo", "mod", "play"], SHOT = { ops: "01-edit-operators", filter: "02-edit-filter-amp", lfo: "03-edit-lfo-mod" };
+  const seen = new Set();
+  const collect = () => evaluate(`[...document.querySelectorAll('#ed-stage [data-id], #ed-stage [data-x], #ed-stage [data-y], #ed-stage [data-pick], #ed-stage [data-set]')]
+    .flatMap((e) => [e.dataset.id, e.dataset.x, e.dataset.y, e.dataset.pick, e.dataset.set && e.dataset.set.split(':')[0]]).filter((x) => x !== undefined).map(Number)`);
+  for (const g of GR) {
+    await click(`#ed-groups [data-g='${g}']`);
+    await sleep(250);
+    if (g === "mod") await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 1 + k % 8))");   // (every slot on: its cables)
+    if (g === "filter") for (const ft of [0, 3, 4, 5, 6, 7]) { await evaluate(`__mgr.editor.set(36, ${ft})`); await sleep(120); (await collect()).forEach((i) => seen.add(i)); }
+    if (g === "amp") for (const m of [1, 0]) { await evaluate(`__mgr.editor.set(74, ${m})`); await sleep(120); (await collect()).forEach((i) => seen.add(i)); }
+    await sleep(200);
+    (await collect()).forEach((i) => seen.add(i));
+    check(await noScroll(), `EDIT ${g.toUpperCase()} at 1280: drawn, no horizontal scroll`);
+    if (SHOT[g]) await shot(`manager-p2-${SHOT[g]}.png`);
+  }
+  const missing = Array.from({ length: 110 }, (_, i) => i).filter((i) => !seen.has(i));
+  check(!missing.length, `EDIT: every one of FIZZ's 110 values is on a group${missing.length ? `: missing ${missing.join(", ")}` : ""}`);
+  await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 0)); __mgr.editor.set(36, 3)");
+  // a handle dragged (the filter's FREQ / RESO), the wheel over a value, ALGO clicked, REVERT
+  await click("#ed-groups [data-g='filter']");
+  await sleep(200);
+  const f0 = await evaluate("[__mgr.editor.value(34), __mgr.editor.value(35)]");
+  await drag("#ed-stage .curve .hd", -80, -40);
+  await sleep(200);
+  const f1 = await evaluate("[__mgr.editor.value(34), __mgr.editor.value(35)]");
+  check(f1[0] < f0[0] && f1[1] > f0[1], `EDIT: the filter's handle dragged left and up: FREQ ${f0[0]} -> ${f1[0]}, RESO ${f0[1]} -> ${f1[1]}`);
+  await click("#ed-groups [data-g='ops']");
+  await sleep(200);
+  const fb0 = await evaluate("__mgr.editor.value(6)"), wc = await centre("#ed-stage .dial[data-id='6']");
+  await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: wc.x, y: wc.y, deltaX: 0, deltaY: -100 });
+  await sleep(150);
+  const a0 = await evaluate("__mgr.editor.value(0)");
+  await realClick("#ed-stage .algo");
+  await sleep(150);
+  check((await evaluate("__mgr.editor.value(6)")) === fb0 + 1 && (await evaluate("__mgr.editor.value(0)")) === a0 % 8 + 1, `EDIT: the wheel over FDBK (${fb0} -> ${fb0 + 1}); a click on ALGO: ${a0} -> ${a0 % 8 + 1}`);
+  check(await evaluate("!document.getElementById('ed-revert').disabled && !!document.querySelector('#ed-head .edited')"), "EDIT: EDITED shown, REVERT on");
+  await click("#ed-revert");
+  await sleep(200);
+  check(await evaluate("__mgr.editor.base().values.every((x, i) => x === __mgr.editor.sound().values[i]) && document.getElementById('ed-revert').disabled"), "EDIT: REVERT: the sound as it was opened");
+  // the browser's FIZZ: started by the target's chip (a click), a key of the keybed sounds
+  await realClick("#ed-target");
+  const bf = await waitFor("__mgr.bfizz.ready", 20000);
+  await evaluate(`(() => { const p = __mgr.bfizz.player, an = p.ctx.createAnalyser(); an.fftSize = 2048; p.out.connect(an); const b = new Float32Array(2048);
+    window.__peak = () => { an.getFloatTimeDomainData(b); let m = 0; for (const x of b) m = Math.max(m, Math.abs(x)); return m; }; })()`);
+  const kc = await centre("#ed-keys .wk[data-n='60']");
+  await mouse("mousePressed", kc.x, kc.y + 20);
+  let pk = 0; for (let i = 0; i < 12; i++) { await sleep(40); pk = Math.max(pk, await evaluate("window.__peak()")); }
+  const lit = await evaluate("document.querySelector('#ed-keys .wk[data-n=\"60\"]').classList.contains('down')");
+  await mouse("mouseReleased", kc.x, kc.y + 20);
+  check(bf && pk > 0.005 && lit, `EDIT: the browser's FIZZ ${await evaluate("__mgr.bfizz.version")} plays it: C4 on the keybed (lit), output peak ${pk.toFixed(3)}`);
+  // SAVE AS NEW: on the unit, as edited
+  await evaluate("(() => { const i = document.getElementById('ed-name'); i.value = 'EDIT TEST'; i.dispatchEvent(new Event('input', { bubbles: true })); __mgr.editor.set(6, 77); __mgr.editor.set(83, 30); })()");
+  await click("#ed-savenew");
+  await waitFor("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'EDIT TEST')", 15000);
+  await idle();
+  const sv2 = await evaluate(`(async () => { const { soundFromFrame } = await import('./sound.js'); const r = __mgr.S.unit.rows.find((x) => x.source === 'mine' && x.name === 'EDIT TEST');
+    const s = soundFromFrame(await __mgr.S.link.dump('mine', r.slot)); return { slot: r.slot, same: s.values.every((x, i) => x === __mgr.editor.sound().values[i]), fb: s.values[6], place: __mgr.editor.place().label }; })()`);
+  check(sv2.same && sv2.fb === 77 && sv2.place === `MY PRESETS ${sv2.slot}`, `EDIT: SAVE AS NEW: MY PRESETS ${sv2.slot} EDIT TEST on the unit, its values the editor's (FDBK ${sv2.fb}); the editor now on it`);
+  // EXPORT: the three homes, the carry rows, the download
+  await evaluate("(() => { const e = __mgr.editor; e.set(66, 33); e.set(70, -3000); e.set(83, 40); })()");
+  await click("#ed-export");
+  await waitFor("!document.getElementById('ex').hidden");
+  await click("#ex [data-k='dnsnd']");
+  const ex = await evaluate(`({ n: document.querySelectorAll('#ex .fmt').length, exp: document.querySelectorAll('#ex .fmt .expmark').length, rows: [...document.querySelectorAll('#ex .lost')].map((e) => e.textContent.trim()),
+    name: document.querySelector('#ex .exname').textContent })`);
+  await shot("manager-p2-04-export.png");
+  check(ex.n === 3 && ex.exp === 2 && ex.rows.some((r) => /LFO 3/.test(r) && /dropped/.test(r)) && ex.name === "EDIT TEST.dnsnd", `EXPORT: FIZZ / DIGITONE / DIGITONE II, EXPERIMENTAL twice; Digitone: ${ex.rows.join("; ")}`);
+  await click("#ex [data-k='dn2']");
+  await click("#ex [data-dn2='dn2snd']");
+  const dl0 = await evaluate("window.__dl");
+  check((await evaluate("document.querySelector('#ex .exname').textContent")) === "EDIT TEST.dn2snd", "EXPORT: Digitone II as .dn2snd");
+  await click("#ex-go");
+  await sleep(200);
+  check((await evaluate("window.__dl")) === dl0 + 1 && (await evaluate("document.getElementById('ex').hidden")), "EXPORT: DOWNLOAD: one file, the dialog closed");
+  await click("#t-library");
+  await click("#l-export");
+  check(await waitFor("!document.getElementById('ex').hidden"), "EXPORT from LIBRARY opens the same dialog");
+  await click("#ex-no");
+
   // the phone
   await size(390, 844, true);
-  for (const t of ["backup", "library", "pool", "import"]) {
+  for (const t of ["backup", "library", "edit", "pool", "import"]) {
     await click(`#t-${t}`);
     await sleep(500);
     check(await noScroll(), `${t.toUpperCase()} at 390: no horizontal scroll`);

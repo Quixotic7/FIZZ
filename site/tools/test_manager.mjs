@@ -14,6 +14,9 @@
 //     changed), unplugged while it writes (lost; the unit's store cleared when plugged in again);
 //   - Phase 1: STATUS, PROJECTS, TAGS, RENAME, SWAP (MY PRESETS now, the pool a job), POOL REF, USERS, DELETE (IN USE
 //     first, then with confirm), PROJECT, FLUSH; BUSY while playing; the import of synthetic Digitone II files;
+//   - Phase 2-A (docs/MANAGER-P2-PLAN.md): the sound editor's model (sound.js) through the real FIZZ: every factory
+//     preset and random sounds DUMPed, edited, stored with STORE6 and DUMPed back the same; the values' texts the
+//     core's; EXPORT's files (.fizzsnd read back, .dnsnd / .dn2pst ZIPs, .dn2snd the payload) and their carry rows;
 //   - the owner's saved images (../FIZZ-saves, outside the repo; skipped when absent) read offline.
 //   node site/tools/test_manager.mjs
 import fs from "node:fs";
@@ -30,6 +33,10 @@ import { makeFizzbak, readBackup, crc32, soundKey } from "../manager/fizzbak.js"
 import { readRegion, layoutOf, LAYOUTS } from "../manager/fizzstore.js";
 import { poolPlaces, shownRows, newFilter } from "../manager/presets.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
+import { soundFromFrame, storeFrameOf, blob6, libSound, text, info as vinfo, VALUES, Q, lfo, LF, copySound } from "../manager/sound.js";
+import { exportFiles, carryOf, noteRow } from "../manager/exporter.js";
+import { fizzToDn2pst } from "../js/fizz2dn.js";
+import { parseFizzsnd } from "../js/library.js";
 
 const SITE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const module = await WebAssembly.compile(fs.readFileSync(path.join(SITE, "fizz.wasm")));
@@ -317,6 +324,62 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   const ls = await findFizz(safe.access);
   check((await ls.identity()) === null && (await ls.storeInfo()) !== null, "FIZZ not answering (safe mode, no data): IDENTITY none, the store's backup still there");
   ls.close(); safe.dispose();
+}
+
+// ---- Phase 2-A: the sound editor's model and EXPORT
+{
+  const u = await sim();
+  const lk = await findFizz(u.access);
+  const rows = await lk.list({ factory: true });
+  const fac = rows.filter((r) => r.source === "factory");
+  let ok = 0, bad = [];
+  for (const r of fac) {
+    const f = await lk.dump("factory", r.slot);
+    const s = soundFromFrame(f);
+    const st = await lk.store(storeFrameOf(s, { slot: 0 }));
+    const back = st && st.status === 0 ? soundFromFrame(await lk.dump("mine", st.slot)) : null;
+    if (back && back.values.every((x, i) => x === s.values[i]) && back.name === s.name && back.pan === s.pan && back.sends.reverb === s.sends.reverb) ok++;
+    else bad.push(r.name);
+  }
+  check(ok === fac.length, `EDIT: every factory preset (${fac.length}) DUMPed into the editor's 110 values, stored back (STORE6), DUMPed the same${bad.length ? `: not ${bad.join(", ")}` : ""}`);
+  // random sounds: each value anywhere in its range
+  let seed = 12345;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  let rok = 0;
+  const base = soundFromFrame(await lk.dump("factory", 1));
+  for (let t = 0; t < 24; t++) {
+    const s = copySound(base);
+    s.values = VALUES.map((r) => r[1] + Math.floor(rnd() * (r[2] - r[1] + 1)));
+    s.name = `RAND ${t}`;
+    const st = await lk.store(storeFrameOf(s, { slot: 200 }));
+    const back = st && st.status === 0 ? soundFromFrame(await lk.dump("mine", 200)) : null;
+    if (back && back.values.every((x, i) => x === s.values[i])) rok++;
+  }
+  check(rok === 24, `EDIT: 24 random sounds (every value anywhere in its range) through STORE6 and DUMP unchanged (${rok})`);
+  check(VALUES.length === 110 && text(Q.FREQ, 12700) === "127.00" && text(Q.HARM, -150) === "-1.50" && text(Q.MIX, 5) === "+5" && text(33, 127) === "INF" &&
+    text(lfo(0, LF.WAVE), 1) === "SINE" && text(Q.FTYPE, 7) === "EQ" && text(Q.HOLD, 127) === "NOTE" && vinfo(Q.ALGO).max === 8,
+    "EDIT: the values' names, ranges and texts are the core's (fizzvalues.js: make -C tools values-check)");
+  // EXPORT
+  const s = copySound(base);
+  s.name = "EXPORT ME";
+  s.values[lfo(2, LF.DEST)] = 33; s.values[lfo(2, LF.DEPTH)] = -3000; s.values[Q.BITS] = 40; s.values[Q.AMOD] = 1; s.values[Q.HOLD] = 60;
+  const lib = libSound(s, { fizz: "test" });
+  const fz = exportFiles([lib], "fizz"), back = parseFizzsnd(fz.bytes, fz.name);
+  check(fz.name === "EXPORT ME.fizzsnd" && same(back.blob, blob6(s)) && back.name === "EXPORT ME", `EXPORT .fizzsnd: ${fz.name}, its blob the editor's`);
+  const d1 = exportFiles([lib], "dnsnd"), d2 = exportFiles([lib], "dn2pst"), d3 = exportFiles([lib], "dn2snd");
+  const pay = fizzToDn2pst({ blob: lib.blob, name: lib.name, tags: lib.fizzTags, pan: lib.pan, sends: lib.sends, drive: lib.drive }).payload;
+  check(d1.name === "EXPORT ME.dnsnd" && d1.bytes[0] === 0x50 && d1.bytes[1] === 0x4b && d2.name === "EXPORT ME.dn2pst" && d2.bytes[0] === 0x50 &&
+    d3.name === "EXPORT ME.dn2snd" && same(d3.bytes, pay) && d3.bytes[0] === 0xac,
+    `EXPORT: .dnsnd and .dn2pst ZIPs, .dn2snd the stored container (${d3.bytes.length} B: fizzToDn2pst's payload)`);
+  const c1 = carryOf(d1.notes[0]), c2 = carryOf(d2.notes[0]);
+  const has = (c, what, how) => c.rows.some((r) => r.what.startsWith(what) && r.how === how);
+  check(has(c1, "LFO 3", "dropped") && has(c1, "BIT REDUCTION", "dropped") && has(c1, "AMP AHD", "as ADSR") && c1.bar < 10 && c1.lost >= 2 &&
+    !has(c2, "LFO 3", "dropped") && c2.bar > c1.bar, `EXPORT's carry rows: Digitone ${c1.bar}/10 (${c1.rows.map((r) => `${r.what} ${r.how}`).join("; ")}), Digitone II ${c2.bar}/10`);
+  check(noteRow("RATIO A 3.75: the Digitone has no such step: 3.5").how === "nearest step" && noteRow("filter DEC 127: the Digitone's 127 is INF: written as 126").how === "written as 126",
+    "EXPORT: the notes' verdicts (nearest step, written as ..)");
+  const many = exportFiles([lib, { ...lib, name: "EXPORT ME" }], "dnsnd");
+  check(/\.zip$/.test(many.name) && many.notes.length === 2, `EXPORT: several: one ZIP (${many.name})`);
+  lk.close(); u.dispose();
 }
 
 // ---- the owner's saved images (outside the repo), read offline

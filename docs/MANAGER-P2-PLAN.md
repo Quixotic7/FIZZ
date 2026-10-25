@@ -1,7 +1,9 @@
 # FIZZ web manager, Phase 2: sound editor, export, projects and patterns, the browser's project library (plan)
 
-Status: **plan and mock-ups only** (2026-10-24, branch `manager-p2-plan`). Nothing in `core/`, `firmware/` or `site/` is
-changed. It builds on `docs/WEB-MANAGER-PLAN.md` (Phases 0 and 1 are built: the manager page, the Phase 1 SysEx
+Status: plan and mock-ups 2026-10-24 (branch `manager-p2-plan`); the owner's decisions at the end (2026-10-25).
+**P2-A built** (2026-10-25): `site/manager/editor.js` (EDIT), `exporter.js` (EXPORT), `sound.js` (the editor's model),
+`browserfizz.js` (the browser's FIZZ as the editor's sound), `fizzvalues.js` (the 110 values' names, ranges and texts,
+generated from the core by `tools/gen_values.c`: `make -C tools values`, checked by `values-check` in `make test`). It builds on `docs/WEB-MANAGER-PLAN.md` (Phases 0 and 1 are built: the manager page, the Phase 1 SysEx
 commands STATUS .. PROJECT, the SysEx speed fixes) and `docs/SYSEX.md`.
 
 Mock-ups: `mockups/fizz-manager-p2.html` (`?shot=1..8`, `?sheet=1`), rendered by

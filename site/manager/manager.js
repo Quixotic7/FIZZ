@@ -2,8 +2,9 @@
 // FIZZ Manager (docs/WEB-MANAGER-PLAN.md §9): connect to an FM-1 running FIZZ over Web MIDI (Chrome, Edge), back up
 // its whole store to a .fizzbak and put one back (Phase 0); edit its library (tags, rename, delete, reorder), its
 // project's pool (pool.js) and import Digitone sounds into it (importer.js) (Phase 1: FIZZ's STATUS .. PROJECT
-// commands, docs/SYSEX.md). The protocol is fizzlink.js's; the files fizzbak.js's; the offline store reader
-// fizzstore.js's.
+// commands, docs/SYSEX.md); edit a preset's sound (editor.js: in the browser's own FIZZ, browserfizz.js) and export
+// it for FIZZ, the Digitone or the Digitone II (exporter.js) (Phase 2-A, docs/MANAGER-P2-PLAN.md). The protocol is
+// fizzlink.js's; the files fizzbak.js's; the offline store reader fizzstore.js's.
 //   ?sim        a simulated FM-1 (simfizz.js: the browser FIZZ for its SysEx) instead of Web MIDI: headless checks
 //   ?depth=N    the backup's requests outstanding (1, the default: one at a time); &gap=MS their spacing
 import { findFizz, FZER } from "./fizzlink.js";
@@ -16,6 +17,12 @@ import { $, esc, tagsOf, colOf, algo, emptyArt, refusal, confirmBox } from "./ui
 import { newFilter, filterHtml, filterClick, listHtml, poolPlaces, poolBadge } from "./presets.js";
 import { mountPool } from "./pool.js";
 import { mountImport } from "./importer.js";
+import { mountEditor } from "./editor.js";
+import { mountExport } from "./exporter.js";
+import { BrowserFizz } from "./browserfizz.js";
+import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames } from "./sound.js";
+import { parseFizzsnd } from "../js/library.js";
+import { readFiles } from "../js/digitone.js";
 
 const Q = new URLSearchParams(location.search);
 const SIM = Q.has("sim");
@@ -701,6 +708,7 @@ function renderSel() {
       : users && users.projects ? (users.projects.length ? users.projects.map((p) => `<span class="uchip">${esc(projectName(p.project))}${p.steps ? DOTS(p.steps) : ""}</span>`).join("") : '<span class="pchip ghost">—</span>') : ""}</div></div>` : ""}
     ${d ? `<div class="row" style="gap:22px;flex-wrap:wrap"><div class="kv"><b>${d.pan > 0 ? "R" + d.pan : d.pan < 0 ? "L" + -d.pan : "C"}</b>pan</div><div class="kv"><b>${d.chorus}</b>chorus</div><div class="kv"><b>${d.delay}</b>delay</div><div class="kv"><b>${d.reverb}</b>reverb</div><div class="kv"><b>${d.drive}</b>drive</div></div>` : ""}
     <div class="row selacts">${r.imported ? '<span class="tag web" style="height:34px;padding:0 12px">↓ IMPORTED</span>' : ""}
+      <button class="btn" id="l-edit" style="--c:var(--pink);color:#fff" ${f ? "" : "disabled"}>EDIT</button>
       <button class="btn ghost" id="l-export" ${f ? "" : "disabled"}>EXPORT</button>
       ${mineSel ? `<button class="btn ghost redline" id="l-del" style="margin-left:auto" ${can ? "" : "disabled"}>DELETE</button>` : ""}</div>`;
   if (mineSel && users === undefined && can) {          // (who uses it: a job on the unit, a moment)
@@ -756,11 +764,11 @@ function renderSel() {
   });
   const ex = $("l-export");
   if (ex && f) ex.addEventListener("click", () => {
-    const s = { ...snd, source: { fizz: u.version || "", from: `${r.source === "mine" ? "MY PRESETS" : "FACTORY"} ${r.slot}` } };
-    const j = JSON.parse(soundToFizzsnd(s));
-    if (web.length) j.web = { tags: web };
-    download(new TextEncoder().encode(JSON.stringify(j, null, 2) + "\n"), soundFileName(r.name), "application/json");
+    const s = { ...snd, source: { fizz: u.version || "", from: `${r.source === "mine" ? "MY PRESETS" : "FACTORY"} ${r.slot}` }, ...(web.length ? { web: { tags: web } } : {}) };
+    exporter.open([s], { title: r.name, tags: tagsOf(r.tags) });
   });
+  const ed = $("l-edit");
+  if (ed && f) ed.addEventListener("click", () => openInEditor(r));
   // + POOL: the first free place references it; − POOL: every place that does is cleared (a used one asks first)
   const tog = $("l-pool");
   if (tog) tog.addEventListener("click", async () => {
@@ -879,7 +887,7 @@ $("l-export-all").addEventListener("click", () => {
   const u = S.unit;
   if (!u || !u.dumps) return;
   const sounds = [...u.dumps.entries()].sort((a, b) => a[0] - b[0]).map(([slot, f]) => ({ ...soundFromStoreFrame(f), source: { fizz: u.version || "", from: `MY PRESETS ${slot}` } }));
-  download(makeFizzlib(sounds, { fizz: u.version || "" }), libraryFileName(), "application/zip");
+  exporter.open(sounds, { title: "MY PRESETS", pick: "fizz" });
 });
 
 // ---------------------------------------------------------------- the pool, the import (their own files)
@@ -887,8 +895,81 @@ const ctx = { S, $, log, say, toast, edit, refreshRows, loadDumps, frameOf, proj
 const pool = mountPool(ctx);
 const importer = mountImport(ctx);
 
+// ---------------------------------------------------------------- export, the sound editor (Phase 2-A)
+const exporter = mountExport({ download, log });
+const bfizz = new BrowserFizz({ log });
+// the browser's FIZZ as the editor's target: the sound loaded onto its track 1 (STORE6 with LOAD into its MY PRESETS
+// 256, a scratch place of this page's own FIZZ), again after each change (the latest one, as fast as it answers)
+const browserTarget = (() => {
+  let want = null, going = false;
+  async function flush() {
+    if (going) return;
+    going = true;
+    while (want) {
+      const s = want;
+      want = null;
+      await bfizz.ask(storeFrameOf(s, { slot: 256, track: 0 }), (x) => x.kind === "store", 2000);
+    }
+    going = false;
+  }
+  const push = (s) => { if (!bfizz.ready) return; want = { ...s, values: s.values.slice() }; flush(); };
+  return {
+    live: false,
+    label: () => (bfizz.ready ? "THIS BROWSER · TRACK 1" : "▶ PLAY IN THIS BROWSER"),
+    ready: () => bfizz.ready,
+    start: () => bfizz.start(),
+    audition: (s) => push(s),
+    param: (id, v, s) => push(s),
+    note: (n, vel) => bfizz.note(n, vel),
+  };
+})();
+const editor = mountEditor({
+  $, log,
+  canSave: () => { const on = !!(S.link && !S.busy && S.unit && S.unit.status); const p = editor ? editor.place() : {}; return { save: on && p.source === "mine" && p.slot > 0, saveNew: on }; },
+  save: (E, asNew) => saveSound(E, asNew),
+  exportSound: (s) => exporter.open([libSound(s, { fizz: (S.unit && S.unit.version) || "", from: editor.place().label || "" })], { title: s.name, tags: tagNames(s.tags) }),
+});
+editor.setTarget(browserTarget);
+function openInEditor(r) {
+  const f = frameOf(r), snd = f && soundFromFrame(f);
+  if (!snd) return;
+  editor.open(snd, { label: `${r.source === "mine" ? "MY PRESETS" : "FACTORY"} ${r.slot}`, source: r.source, slot: r.slot, id: r.id });
+  tab("edit");
+}
+// SAVE: over the MY preset it came from (asked first), SAVE AS NEW: the first free place
+async function saveSound(E, asNew) {
+  const p = E.place, slot = asNew ? 0 : p.slot;
+  if (!asNew) {
+    const ok = await confirmBox({ title: `SAVE · MY PRESETS ${slot}`, what: E.s.name, go: "SAVE", color: "--pink", undo: "kept",
+      sub: "The tracks that loaded it keep their own copies." });
+    if (!ok) return null;
+  }
+  const x = await edit("SAVE", (l) => l.store(storeFrameOf(E.s, { slot })));
+  if (!x || x.kind !== "store" || x.status !== 0) return null;
+  toast(`${E.s.name} → MY PRESETS ${x.slot}`, "--pink");
+  if (S.unit.dumps) await redump(x.slot);
+  await refreshRows();
+  const row = S.unit.rows.find((q) => q.source === "mine" && q.slot === x.slot);
+  return { place: { label: `MY PRESETS ${x.slot}`, source: "mine", slot: x.slot, id: row ? row.id : 0 } };
+}
+// a sound file dropped on the editor: opened in it (.fizzsnd, or a Digitone sound converted as IMPORT does)
+const edTab = $("tab-edit");
+edTab.addEventListener("dragover", (ev) => ev.preventDefault());
+edTab.addEventListener("drop", async (ev) => {
+  ev.preventDefault();
+  const f = ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if (!f) return;
+  const bytes = new Uint8Array(await f.arrayBuffer());
+  try {
+    let snd;
+    if (/\.fizzsnd$/i.test(f.name)) snd = parseFizzsnd(bytes, f.name);
+    else { const got = await readFiles([{ name: f.name, bytes }]); if (!got[0] || !got[0].ok) throw new Error((got[0] && got[0].error) || "not a sound"); snd = got[0].sound; }
+    editor.open(soundFromLib(snd), { label: f.name.replace(/\.[^.]+$/, "").toUpperCase().slice(0, 24), source: "file" });
+  } catch (e) { say(`${esc(f.name)}: ${esc(e.message)}`, "--orange"); }
+});
+
 // ---------------------------------------------------------------- tabs
-const TABS = ["backup", "library", "pool", "import"];
+const TABS = ["backup", "library", "edit", "pool", "import"];
 function tab(name) {
   for (const t of TABS) {
     $(`t-${t}`).setAttribute("aria-selected", String(t === name));
@@ -897,6 +978,7 @@ function tab(name) {
   if (name !== "backup") loadDumps();
   if (name === "pool") pool.show();
   if (name === "import") importer.render();
+  if (name === "edit") editor.show();
   if (location.hash !== `#${name}`) history.replaceState(null, "", `${location.search}#${name}`);
 }
 for (const t of TABS) $(`t-${t}`).addEventListener("click", () => tab(t));
@@ -929,4 +1011,4 @@ if (SIM) connect();
 else if (navigator.permissions && navigator.requestMIDIAccess) {
   navigator.permissions.query({ name: "midi", sysex: true }).then((p) => { if (p.state === "granted") connect(); }).catch(() => {});
 }
-window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows };
+window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor };
