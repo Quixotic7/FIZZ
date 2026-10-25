@@ -728,7 +728,7 @@ static void t_t2_live(void)                             /* RANDOM, HUMANIZE, GRI
 
 /* T3, CLIP (2026-10-25: a page of its own, PRESETS past STRETCH): KNOB 1 COPY / PASTE / CLEAR, OCT+ does it; COPY and
  * PASTE PAGE and PATTERN only (OCT+ dark elsewhere), CLEAR at once for SELECTED and PAGE, twice for TRACK and PATTERN;
- * B9 and B10 nothing now */
+ * B9 STRETCH, B10 CLIP (2026-10-25) */
 static void clip_do(int act)                            /* KNOB 1 to the action, OCT+ */
 {
     turn(QD_K_1, act - A.ui.tl.v.cl.act);
@@ -744,9 +744,15 @@ static void t_clip(void)
     run(600);
     *before = *PAT();
     tools_open();
-    black(8), black(9);
-    CHECK(A.ui.tl.tool == QD_TL_ROTATE && !A.ui.clip.pg.valid && leds().key[BK(8)] == QD_LED_OFF &&
-              leds().key[BK(9)] == QD_LED_OFF, "B9, B10: nothing (dark)");
+    black(8);
+    ok = A.ui.tl.tool == QD_TL_STRETCH && leds().key[BK(8)] == QD_LED_LIT && leds().key[BK(9)] == QD_LED_DIM;
+    black(9);
+    n0 = A.ui.tl.scope;
+    black(10);
+    CHECK(ok && A.ui.tl.tool == QD_TL_CLIP && !A.ui.clip.pg.valid && leds().key[BK(9)] == QD_LED_LIT &&
+              leds().key[BK(8)] == QD_LED_DIM && A.ui.tl.scope != n0, "B9: STRETCH, B10: CLIP (lit), B11 the scope");
+    black(10), black(10), black(10);                   /* the scope round, back */
+    black(0);
     turn(QD_K_PRESETS, -1);
     turn(QD_K_ALGO, -1);                                /* PAGE */
     CHECK(A.ui.tl.tool == QD_TL_CLIP && A.ui.tl.scope == QD_TS_PAGE && A.ui.tl.v.cl.act == QD_CL_COPY &&
@@ -1157,8 +1163,8 @@ static void t_quant_live(void)
     for (i = 0; i < QD_TL_NKEY; i++)
         ok &= l.key[BK(i)] == (i == 6 ? QD_LED_LIT : QD_LED_DIM);
     CHECK(A.ui.tl.tool == QD_TL_QUANTIZE && A.ui.tl.scope == QD_TS_TRACK && !qd_tools_pending(&A) && ok &&
-              l.key[BK(8)] == QD_LED_OFF && l.key[BK(9)] == QD_LED_OFF && A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob,
-          "B7: QUANTIZE (its name pops; B7 lit, the other tools dim, B9 B10 dark); nothing yet");
+              l.key[BK(8)] == QD_LED_DIM && l.key[BK(9)] == QD_LED_DIM && A.ui.tk == UI_TK_TOOL && !A.ui.tk_knob,
+          "B7: QUANTIZE (its name pops; B7 lit, the other tools dim); nothing yet");
     turn(QD_K_1, 10);
     CHECK(qd_tools_pending(&A) && A.ui.tl.v.qu.amt == 50 && micro_of(0, 0) == 4 && micro_of(0, 3) == -5 &&
               micro_of(0, 18) == 3 && !memcmp(PAT()->step[1], before->step[1], sizeof before->step[1]),

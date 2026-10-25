@@ -235,6 +235,7 @@ TOOLS uses no pool, no RAM code and no NOINIT. All of its code runs from flash o
 | B11, KNOB 4 | the scope, four now: SELECTED STEPS, PAGE, TRACK, PATTERN. With the step lock on, TOOLS opens on SELECTED STEPS |
 | SELECT | the page shown and edited, round all eight (PAGE scope: a pending change is kept first) |
 | PRESETS | the tools, round the built ones |
+| B9 / B10 | STRETCH / CLIP (2026-10-25; B1..B8 the other tools; lit when open, dim otherwise) |
 | KNOB 1..3, ALGORITHM | the tool's values. KNOB 4's old job moved to ALGORITHM (EUCLID's landing; RANDOM's chance spread, GRIDS' part in T2) |
 | OCT+ / OCT- | keep / revert, each with a popup (the tool's name and KEPT / REVERTED). OCT- never leaves |
 | HOME | the only way out |

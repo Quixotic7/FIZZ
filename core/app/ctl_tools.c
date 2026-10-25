@@ -4,8 +4,8 @@
 /* T1: TOOLS, the track tools (ctl.h; docs/TRACK-TOOLS-PLAN.md §2, the owner's decisions §8, his revision §10). Built
  * through ctl_latch.c (it includes this file). The operations are seq/tools.c's.
  *
- * THE CONTROLS (the owner's layout, 2026-10-25): B1..B8 ROTATE, REVERSE, RANDOM, EUCLID, GRIDS, HUMANIZE, QUANTIZE, LENGTH;
- * PRESETS every tool, STRETCH and CLIP (COPY / PASTE / CLEAR: KNOB 1 picks, OCT+ does it) after them; B11 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
+ * THE CONTROLS (the owner's layout, 2026-10-25): B1..B10 ROTATE, REVERSE, RANDOM, EUCLID, GRIDS, HUMANIZE, QUANTIZE, LENGTH,
+ * STRETCH, CLIP (COPY / PASTE / CLEAR: KNOB 1 picks, OCT+ does it); PRESETS every tool; B11 or ALGORITHM the scope (SELECTED STEPS, PAGE, TRACK, PATTERN); SELECT the
  * page shown (it stays: no page follow in TOOLS); W1..W16 the page's steps (a press: in / out of the selection, the
  * scope SELECTED; lit as the change makes them, the ghosts dim, the steps that do not play dark); KNOB 1..4 the
  * tool's values. SELECTED + ROTATE moves the selected steps along the track's loop (qd_tl_move). OCT+ keeps, OCT- reverts (it never leaves); HOME is the only way out. TOOLS works on
@@ -408,7 +408,7 @@ void qd_tools_black(qd_app_t *a, int b, int down)
     qd_tools_t *T = &a->ui.tl;
     if (!down)
         return;
-    if (b < QD_TL_NKEY) {
+    if (b < QD_TL_N) {                                 /* B1..B10 the tools (B9 STRETCH, B10 CLIP: no again) */
         if (b != T->tool) {
             tl_tool(a, b);
         } else if (b == QD_TL_ROTATE && T->rot) {      /* again: ROTATE back to 0 */
@@ -428,7 +428,7 @@ void qd_tools_black(qd_app_t *a, int b, int down)
         }
         return;
     }
-    if (b == 10)                                        /* B11: the scope, round (B9, B10: nothing) */
+    if (b == 10)                                        /* B11: the scope, round */
         tl_scope(a, (T->scope + 1) % QD_TS_N);
 }
 
@@ -690,9 +690,8 @@ void qd_tools_leds(const qd_app_t *a, uint8_t *key)
                                                          * the steps that do not play dark), the selected blinking */
         key[QD_WHITE_KEY[i]] = (sel >> i) & 1u ? ((a->ms / QD_FAST_MS) & 1u ? QD_LED_OFF : QD_LED_LIT)
                              : !((inr >> i) & 1u) ? QD_LED_OFF : on[i] ? QD_LED_LIT : was[i] ? QD_LED_DIM : QD_LED_OFF;
-    for (i = 0; i < QD_TL_NKEY; i++)                    /* B1..B8 the tools (STRETCH, CLIP: none lit), B11 the scope */
+    for (i = 0; i < QD_TL_N; i++)                       /* B1..B10 the tools, B11 the scope */
         key[QD_BLACK_KEY[i]] = i == T->tool ? QD_LED_LIT : QD_LED_DIM;
-    key[QD_BLACK_KEY[8]] = key[QD_BLACK_KEY[9]] = QD_LED_OFF;
     key[QD_BLACK_KEY[10]] = QD_LED_LIT;
 }
 
