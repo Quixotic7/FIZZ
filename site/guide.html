@@ -30,12 +30,12 @@
 <main class="g-main">
   <div class="g-hero">
     <h1>Get playing FIZZ</h1>
-    <p class="lead">FIZZ is a step sequencer for FM TONE, ChoralRoot's FM voice, made for the M-VAVE FM-1: eight tracks sharing 16 voices, per-step locks, chance, conditions, ratchets and chords of up to six notes. This page is the short version; the <a href="https://github.com/Quixotic7/FIZZ/blob/master/PLAYING.md" target="_blank" rel="noopener">full player's guide</a> has every detail.</p>
+    <p class="lead">FIZZ is a step sequencer for FM TONE, ChoralRoot's FM voice, made for the M-VAVE FM-1: six tracks sharing 8 voices, per-step locks, chance, conditions, ratchets and chords of up to six notes. This page is the short version; the <a href="https://github.com/Quixotic7/FIZZ/blob/master/PLAYING.md" target="_blank" rel="noopener">full player's guide</a> has every detail.</p>
     <p class="preview-note"><i></i>A preview: the controls still change. Tell us what felt good and what didn't with <a data-feedback href="https://discord.gg/emf6DmZ9V" target="_blank" rel="noopener">Feedback</a>.</p>
     <nav class="toc" aria-label="On this page">
       <a href="#start" style="--c:#28E1FF">Start</a><a href="#steps" style="--c:#3F7DFF">Steps</a><a href="#hold" style="--c:#1FD47E">Hold a step</a>
-      <a href="#knobs" style="--c:#FFD23F">The knobs</a><a href="#editor" style="--c:#FF6A2C">Sound editor</a><a href="#more" style="--c:#9664FF">Tracks and patterns</a>
-      <a href="#saving" style="--c:#F3D9A4">Saving</a><a href="#keys" style="--c:#FF3CA0">Key map</a>
+      <a href="#knobs" style="--c:#FFD23F">The knobs</a><a href="#editor" style="--c:#FF6A2C">Sound editor</a><a href="#more" style="--c:#9664FF">Tracks and patterns</a><a href="#tools" style="--c:#FF4D6D">Tools</a>
+      <a href="#saving" style="--c:#F3D9A4">Saving</a><a href="#manager" style="--c:#7FD8FF">Manager</a><a href="#keys" style="--c:#FF3CA0">Key map</a>
     </nav>
   </div>
 
@@ -44,6 +44,7 @@
     <ul>
       <li><b>On screen:</b> click <b>Play FIZZ</b>. The FM-1 is drawn on the page: click or touch its keys and buttons, drag a knob up or down (or use the wheel). The computer keyboard plays it too (the <a href="#keys">key map</a>).</li>
       <li><b>With your FM-1:</b> it needs <a href="https://quixotic7.github.io/RemoteFM1/installer/" target="_blank" rel="noopener">RemoteFM1</a>, installed from the browser in about a minute (any other firmware can go back on later). Then <b>Connect FM-1</b> in Chrome or Edge: its keys, knobs and screen become FIZZ's, and the sound comes from the computer.</li>
+      <li><b>On the FM-1 itself:</b> FIZZ is also firmware for the FM-1, playing on its own with no computer; put it on from <a href="install/">Install</a>.</li>
       <li><b>A MIDI keyboard</b> (settings ⋯, Playing: Enable MIDI) plays the selected track: the page sends it to FIZZ on channel 16, whatever channel it sends on.</li>
       <li><b>Live labels:</b> on the drawn panel, every knob, button and key is named with what it does right now, as FIZZ tells it; hold SHIFT and they flip to its shortcuts. The settings (⋯, View) turn them off.</li>
       <li>FIZZ wakes on its bubbles screen. <b>Press anything</b> to get to the step view. <b>PLAY</b> starts and stops.</li>
@@ -53,7 +54,7 @@
       <dl>
         <dt>F1 / F2</dt><dd>OCT− / OCT+</dd>
         <dt>F3</dt><dd>OCT− and OCT+ together (or hold PLAY): tempo, speed, the page's start and end</dd>
-        <dt>SHIFT</dt><dd>GLO (the panel here shows FIZZ's names: TRACKS is SEL, MIX is ENV, LATCH is LFO, SOUNDS is SAVE, MIDI FX is ARP (its printed FILL is SHIFT + ARP held), PATTERNS is SEQ)</dd>
+        <dt>SHIFT</dt><dd>GLO (the panel here shows FIZZ's names: TRACKS is SEL, MIX is ENV, LATCH is LFO, SOUNDS is SAVE, MIDI FX is ARP (held: TOOLS; its printed FILL is SHIFT + ARP), PATTERNS is SEQ)</dd>
         <dt>W1 … W16</dt><dd>the white keys: the 16 steps of the page</dd>
         <dt>B1 … B11</dt><dd>the black keys, left to right</dd>
         <dt>held</dt><dd>down for 400 ms (a white key: 250 ms); shorter is a tap</dd>
@@ -129,16 +130,30 @@
   <section id="more" style="--c:#9664FF">
     <h2>Tracks, patterns, tempo, the keyboard</h2>
     <ul>
-      <li><b>Hold SEL (TRACKS)</b>: the eight tracks. SEL + B1 … B8 selects one; SEL + tap W1 … W8 mutes, hold solos.</li>
+      <li><b>Hold SEL (TRACKS)</b>: the six tracks. SEL + B1 … B6 selects one; SEL + tap W1 … W6 mutes, hold solos.</li>
       <li><b>Hold SEQ (PATTERNS)</b>: the patterns. SEQ + B1 … B4 the bank, SEQ + W the pattern (it comes in at the end of the playing one).</li>
-      <li><b>F3</b> (both OCT keys, or hold PLAY): SELECT the tempo, ALGORITHM the swing, B1 … B7 the track's note value. OCT− closes it.</li>
+      <li><b>F3</b> (both OCT keys, or hold PLAY): SELECT the tempo, ALGORITHM the swing (the tap-tempo ape dances to it), B1 … B7 the track's note value. OCT− closes it.</li>
       <li><b>ENV (MIX)</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter). Hold a step there and turn: its level, pan and sends become locks of that step (F2 + the knob clears one). The magenta frame and the count in the corner say steps are held or selected; the locked fader or bar gets a chip. A latch selection from the step view is let go there: select steps in the mixer itself. HOME closes them.</li>
       <li><b>Tap SEL</b>: the track's settings; page 3 gives it a <b>KIND</b> (its icon everywhere its name shows) and a <b>NAME</b> typed on the keybed.</li>
-      <li><b>REC</b> makes the keybed a keyboard for the track. <b>Recording works in every view:</b> stopped, <b>hold REC</b> to arm it (it blinks), then press <b>PLAY</b>; playing, hold REC and let go to start recording; a tap of REC stops it. <b>SHIFT + F1 / F2</b> undo and redo.</li>
-      <li><b>Automation:</b> playing, <b>hold REC and turn knobs</b> in any view: the moves become locks on the steps the playhead passes (empty steps become ghost steps), only while REC is held. The screen is framed red while it records. SHIFT + REC twice: AUTOMATION on or off for a latched recording.</li>
-      <li><b>MIDI:</b> channels 1 … 8 play tracks 1 … 8 (each track's MIDI CH); channel 16 always plays the selected track, its controllers too.</li>
+      <li><b>REC</b> makes the keybed a keyboard for the track, from F like the keybed. <b>Recording works in every view:</b> stopped, <b>hold REC</b> to arm it (it blinks); the first note you play (or PLAY) starts it. Playing, hold REC and let go to start recording; a tap of REC stops it. <b>SHIFT + F1 / F2</b> undo and redo.</li>
+      <li><b>Takes</b> (SHIFT + REC, KNOB 3 TAKE): <b>CAPTURE</b>, the default, for quick takes: armed, nothing changes until your first note; then the track is cleared to one page of 16 and the take runs from the top. PLAY or REC ends it, and the track becomes as long as you played. <b>REPLACE</b> (a note replaces the step's) and <b>OVERDUB</b> (it joins them) record into the sequence as it is.</li>
+      <li><b>Clear the track:</b> F1 + hold B9 (or SHIFT + B11 twice) clears it to a new track: page 1 only, every page 16 steps. Its sound and speed stay.</li>
+      <li><b>Automation:</b> playing, <b>hold REC and turn knobs</b> in any view: the moves become locks on the steps the playhead passes (empty steps become ghost steps), only while REC is held. The screen is framed red while it records. The record settings' page 2 (SHIFT + REC twice): AUTOMATION on or off for a latched recording.</li>
+      <li><b>MIDI:</b> channels 1 … 6 play tracks 1 … 6 (each track's MIDI CH); channel 16 always plays the selected track, its controllers too.</li>
       <li><b>F1 + W</b> copies a step (whole: its locks, its sound, its MIDI FX), then other steps pressed with F1 get it pasted; <b>F2 + W</b> picks up and drops. They work wherever the white keys are steps: the step view, the mixer, the effects, the sound editor and MIDI FX on STEPS, with the same pictures.</li>
       <li><b>F1 never closes a main page</b> (the step view, the mixer, the effects, the sound editor, MIDI FX): HOME or the page's own key does. Pop-ups (F3, the settings, the projects, the browser) still go back on F1.</li>
+    </ul>
+  </section>
+
+  <section id="tools" style="--c:#FF4D6D">
+    <h2>Tools</h2>
+    <ul>
+      <li><b>Hold ARP</b> to open TOOLS on the selected track; <b>HOME</b> leaves.</li>
+      <li>The tools on the black keys (PRESETS steps through them all):
+        <ul><li><b>B1 ROTATE</b>: shifts the steps round</li><li><b>B2 REVERSE</b>: plays them backwards</li><li><b>B3 RANDOM</b>: rolls new steps</li><li><b>B4 EUCLID</b>: spreads N hits evenly</li><li><b>B5 GRIDS</b>: a drum pattern from a map</li><li><b>B6 HUMANIZE</b>: loosens timing and velocity</li><li><b>B7 QUANTIZE</b>: pulls them back to the grid</li><li><b>B8 LENGTH</b>: doubles or halves the loop</li><li><b>B9 STRETCH</b>: squeezes or spreads in time</li><li><b>B10 CLIP</b>: COPY, PASTE, CLEAR (KNOB 1 picks, OCT+ does it)</li></ul></li>
+      <li><b>B11</b> or <b>ALGORITHM</b>: what it works on, SELECTED STEPS, PAGE, TRACK or PATTERN. <b>W1 … W16</b> select steps; <b>SELECT</b> the page.</li>
+      <li><b>KNOB 1 … 4</b> the tool's values. You hear the change at once; the white keys show the result, the steps it removes as ghosts.</li>
+      <li><b>OCT+</b> keeps it, <b>OCT−</b> puts it back; <b>SHIFT + F1</b> undoes it later.</li>
     </ul>
   </section>
 
@@ -146,9 +161,9 @@
     <h2>MIDI FX</h2>
     <ul>
       <li><b>Five groups of eight slots</b> (kept with the project): ARP, CHANCE, REPEAT, HARM, TRANSPOSE, SCALER, RANDOM, CHORD, MONO, SELECTOR. A track plays through one group or none; two tracks can share one arp.</li>
-      <li><b>Tap ARP</b> to open the track's group: B1 … B8 the slots (again: the next page; hold one, it lifts, turn a knob to slide it and let go to drop it there), PRESETS the effect, KNOB 1 … 4 its values (KNOB 4 its CHANCE), ALGORITHM the track's group, B10 bypass, B11 twice remove, F1 + B copy then paste, F2 + B pick up and drop (held, F1 and F2 show the copy and the hand). The white keys play through it; <b>REC</b> turns them into the track's steps (it is the main REC keyboard switch: from the step view the screen opens on the steps, from the keyboard on the keys, and you leave the way it is): hold steps and turn ALGORITHM to give them their own group. ARP's light breathes while it is open (bright: the arp is on). On STEPS, F1 + W and F2 + W copy and move steps. ARP again or HOME close it.</li>
+      <li><b>Tap ARP</b> to open the track's group: B1 … B8 the slots (again: the next page; hold one, it lifts, turn a knob to slide it and let go to drop it there), PRESETS the effect, KNOB 1 … 4 its values (KNOB 4 its CHANCE), ALGORITHM the track's group, B10 bypass (the arp on / off: add one with PRESETS, B10 bypasses it), B11 twice remove, F1 + B copy then paste, F2 + B pick up and drop (held, F1 and F2 show the copy and the hand). The white keys play through it; <b>REC</b> turns them into the track's steps (it is the main REC keyboard switch: from the step view the screen opens on the steps, from the keyboard on the keys, and you leave the way it is): hold steps and turn ALGORITHM to give them their own group. ARP's light breathes while it is open (bright: the arp is on). On STEPS, F1 + W and F2 + W copy and move steps. ARP again or HOME close it.</li>
       <li>A step held while stopped plays through its MIDI FX group.</li>
-      <li><b>Hold ARP</b> anywhere: the arp on / off (one is added if the track has none); ARP stays lit while it is on. <b>SHIFT + ARP held</b>: FILL.</li>
+      <li><b>Hold ARP</b> anywhere: <a href="#tools">TOOLS</a>. <b>SHIFT + ARP</b>: FILL, while both are down.</li>
       <li>The arp's pages 3 and 4: the MOD and TRANSPOSE lanes on the white keys (SHIFT + W a random step).</li>
       <li>A step's own group: hold it in <b>TRIG</b>, KNOB 2 (or B4 TRACK, B5 OFF, B6 … B10 groups 1 … 5).</li>
     </ul>
@@ -166,6 +181,15 @@
       <li>In the page's settings (<b>⋯</b>): named saves of the whole flash, export and import, and <b>Start blank</b>.</li>
       <li><b>Digitone sounds:</b> drop Elektron Digitone (<code>.dnsnd</code>) and Digitone II (<code>.dn2pst</code>) FM TONE sounds on the player (or use its <b>Import sounds</b> button). They are converted in your browser (nothing is uploaded), the page lists what could not come across exactly, and <b>Send</b> puts them in MY PRESETS (or the project's pool), where PRESETS finds them. Each keeps its pan, its reverb, delay and chorus sends, and its tags (the Digitone's mapped onto FIZZ's BASS, KEYS, PLUCK, PAD, LEAD, DRUMS and FX). A Digitone sound with drive keeps it before the filter, where the Digitone has it. The first can also go straight onto a track. <b>SHIFT + F1</b> on FIZZ undoes the whole import.</li>
       <li><b>My presets:</b> export MY PRESETS from the player as files to keep or share (one as a <code>.fizzsnd</code>, several as a <code>.fizzlib</code> library), and load them back with <b>Import sounds</b>; a preset already in MY PRESETS can be skipped or kept twice. They can also go out as Digitone (<code>.dnsnd</code>) and Digitone II (<code>.dn2pst</code>) files, experimental for now, with what does not fit listed first.</li>
+    </ul>
+  </section>
+
+  <section id="manager" style="--c:#7FD8FF">
+    <h2>The FIZZ Manager</h2>
+    <ul>
+      <li>The <a href="manager/">FIZZ Manager</a> talks to an FM-1 running FIZZ, in Chrome, Edge or Brave (Web MIDI).</li>
+      <li><b>BACKUP</b>: the whole unit, kept in the page and saved to a file. <b>LIBRARY</b>: tags, rename, delete, reorder, add to the pool, EDIT, LOAD ON FM-1, EXPORT. <b>POOL</b>: the project's 128 places. <b>IMPORT</b>: Digitone sounds (<code>.dnsnd</code>, <code>.dn2pst</code>, <code>.dn2snd</code>) and FIZZ's own (<code>.fizzsnd</code>, <code>.fizzlib</code>, <code>.fizzbak</code>).</li>
+      <li><b>EDIT</b>: all 110 values of a sound on one page. It follows the track selected on the FM-1; the <b>TRACK</b> switch turns live editing of it on.</li>
     </ul>
   </section>
 
