@@ -1184,6 +1184,12 @@ void qd_persist_ms(qd_app_t *a)
         persist_writes(a, playing, quiet);
 }
 
+void qd_persist_soon(qd_app_t *a, int it)
+{
+    if (!a->per.urgent)
+        a->per.urgent = it + 1;
+}
+
 void qd_persist_own_step(qd_app_t *a, int on) { a->per.own_step = on != 0; }
 
 void qd_persist_step(qd_app_t *a)
@@ -1293,7 +1299,8 @@ int qd_proj_load(qd_app_t *a, int p)
         return qd_proj_new(a, p);
     proj_switch_prep(a);
     proj_read(a, p);
-    qd_seq_select(&a->seq, QD_PAT_START, 1);
+    qd_seq_select(&a->seq, 0, 1);              /* (a project opens on A01) */
+    qd_ctl_select_track(a, 0);
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
     mark_all_saved(a);
     ps->saved[QD_PI_SET] ^= 1u;
@@ -1344,7 +1351,8 @@ int qd_proj_new(qd_app_t *a, int p)
     snprintf(ps->pname[p], QD_PROJ_NAME, "PROJECT %d", p + 1);
     write_header(a);
     a->snd_pat = -1;
-    qd_seq_select(&a->seq, QD_PAT_START, 1);
+    qd_seq_select(&a->seq, 0, 1);              /* (a project opens on A01) */
+    qd_ctl_select_track(a, 0);
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
     mark_all_saved(a);
     ps->saved[QD_PI_SET] ^= 1u;
@@ -2695,12 +2703,7 @@ static int pat_clean(void *ctx, int k, const qd_pattern_t *P)
     }
     return ps->seen[it] == ps->saved[it];
 }
-static void item_soon(qd_app_t *a, int it)
-{
-    if (!a->per.urgent)
-        a->per.urgent = it + 1;
-}
-static void pat_save_soon(void *ctx, int k) { item_soon((qd_app_t *)ctx, QD_PI_PAT + k); }
+static void pat_save_soon(void *ctx, int k) { qd_persist_soon((qd_app_t *)ctx, QD_PI_PAT + k); }
 
 /* the patterns that must stay in RAM now: the sequencer's (playing, queued, the tracks', the chain's next, the trigs
  * and the MIDI FX notes waiting), the open undo gesture's, the record being written */
@@ -2818,7 +2821,7 @@ static int snd_clean(void *ctx, int key, const qd_sound_t *s)
         return 1;
     return a->per.job != it && snd_hash(s, key < QD_SK_LIB, b, &n) == a->per.saved[it];
 }
-static void snd_save_soon(void *ctx, int key) { item_soon((qd_app_t *)ctx, snd_item(key)); }
+static void snd_save_soon(void *ctx, int key) { qd_persist_soon((qd_app_t *)ctx, snd_item(key)); }
 #endif
 
 void qd_persist_io(qd_app_t *a)

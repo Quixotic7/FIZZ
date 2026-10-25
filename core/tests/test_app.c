@@ -214,7 +214,7 @@ static void t_screens(void)
     fresh();
     tap_button(QD_B_REC);
     qd_app_leds(&A, &l);
-    CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_REC] == QD_LED_DIM, "REC: the keyboard, REC's LED dim (P1.6g: lit "
+    CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_REC] == QD_LED_LIT, "REC: the keyboard, REC's LED lit (its page; 2026-10-25) (P1.6g: lit "
           "while recording)");
     CHECK(l.key[7] == QD_LED_80 && l.key[19] == QD_LED_80 && l.key[8] == QD_LED_HALF,
           "the keyboard: the scale lit (chromatic on C: the C keys 80 %%, the rest 50 %%; P1.5b)");

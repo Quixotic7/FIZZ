@@ -632,6 +632,11 @@ int fz_expect(const char *what, int *got)
         *got = a->seq.cur;
     else if (!strcmp(what, "fz_sel"))
         *got = a->sel;
+    else if (!strcmp(what, "fz_mine")) {             /* MY presets saved */
+        int i;
+        for (*got = 0, i = 0; i < QD_NLIB; i++)
+            *got += qd_lib_used(a, i) != 0;
+    }
     else if (!strcmp(what, "fz_blips"))                /* 2026-10-25: a menu, HOME, the menu again (fz_blip_look) */
         *got = (int)fz_bl.n;
     else if (!strcmp(what, "fz_tools"))                /* T1: TOOLS open */

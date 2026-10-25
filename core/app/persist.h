@@ -130,6 +130,7 @@ void qd_persist_own_step(struct qd_app *a, int on);
 void qd_persist_step(struct qd_app *a);
 int qd_persist_flush(struct qd_app *a);   /* everything changed written now (a shutdown, a load); 1 done */
 int qd_persist_dirty(const struct qd_app *a);   /* something is not written yet */
+void qd_persist_soon(struct qd_app *a, int it);   /* item it (QD_PI_..) written next, no debounce */
 void qd_persist_io(struct qd_app *a);  /* P2.1: the patterns' and sounds' backing (pattern.h qd_pat_io_t, qd_snd_io_t):
                                         * the store */
 void qd_persist_prefetch(struct qd_app *a);   /* P2.1: the patterns the sequencer will want read in (each ms) */

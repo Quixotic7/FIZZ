@@ -558,6 +558,7 @@ static void sv_done(qd_app_t *a, int slot)
     qd_track_t *t = &a->model.t[a->sel];
     qd_sound_t s;
     qd_lib_read(a, slot, &s);
+    qd_persist_soon(a, QD_PI_LIB + slot);              /* (written now: SAVED means saved) */
     memcpy(t->sound_name, s.name, QD_SOUND_NAME);
     t->preset = s.preset;
     t->sound = 0;

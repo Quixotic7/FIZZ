@@ -366,6 +366,7 @@ typedef struct {
 typedef struct {
     int mode;                          /* QD_MODE_* */
     int view;                          /* P1.3e: the sequencer's view (QD_VIEW_*): kept for the session */
+    uint8_t geek;                      /* the Geek Out page last shown (0: METERS ..): SHIFT + HOME from EDIT goes there */
     int home_woke;                     /* (the HOME press that woke the unit: it switches nothing) */
     uint32_t touch_ms;                 /* the last input (the idle screen's clock) */
     /* the step view */

@@ -182,10 +182,10 @@ static void shome(void)                                 /* P1.3y: SHIFT + HOME: 
     bup(SHIFT);
     run(10);
 }
-static void shome_wrap(void)                            /* P2.11: from EDIT past the four Geek Out pages: the PIANO ROLL */
+static void shome_wrap(void)                            /* P2.11: from EDIT past the GEEK OUT view: the PIANO ROLL */
 {
     int i;
-    for (i = 0; i < 5; i++)
+    for (i = 0; i < 2; i++)
         shome();
 }
 static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once) */
@@ -1345,7 +1345,7 @@ static void g_rec(void)
     int micro;
     start();
     btap(QD_B_REC);
-    CHECK(A.ui.mode == QD_MODE_KEYS && leds().button[QD_B_REC] == QD_LED_DIM, "REC: the keyboard, REC dim (P1.6g)");
+    CHECK(A.ui.mode == QD_MODE_KEYS && leds().button[QD_B_REC] == QD_LED_LIT, "REC: the keyboard, REC lit (its page)");
     btap(QD_B_REC);
     CHECK(A.ui.mode == QD_MODE_STEP && leds().button[QD_B_REC] == QD_LED_OFF, "REC again: the sequencer");
     btap(QD_B_REC);
@@ -2765,6 +2765,16 @@ static void g_home(void)
     turn(QD_K_SELECT, -2);
     shome();
     CHECK(A.ui.view == QD_VIEW_EDIT && qd_view_screen(&A) == QD_SCR_EDIT, "SHIFT + HOME again: EDIT");
+    shome();
+    CHECK(QD_VIEW_GEEK(A.ui.view), "SHIFT + HOME from EDIT: a Geek Out page");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.view == QD_VIEW_NUMBERS, "GEEK OUT: SELECT turns its pages");
+    btap(QD_B_HOME);
+    run(10);
+    CHECK(A.ui.view == QD_VIEW_EDIT, "HOME on a Geek Out page: back to the step view");
+    btap(QD_B_HOME);
+    run(10);
+    CHECK(A.ui.view == QD_VIEW_EDIT, "HOME again: still the step view");
     shome_wrap();
     CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME again (P2.11: past the Geek Out pages): the PIANO ROLL");
     turn(QD_K_SELECT, 1);
@@ -3944,7 +3954,7 @@ static void t_leds(void)
     wrel(0);
     btap(QD_B_REC);
     l = leds();
-    CHECK(l.button[QD_B_REC] == QD_LED_DIM && l.key[7] == QD_LED_80 && l.key[8] == QD_LED_HALF,
+    CHECK(l.button[QD_B_REC] == QD_LED_LIT && l.key[7] == QD_LED_80 && l.key[8] == QD_LED_HALF,
           "the keyboard: REC dim (P1.6g), the scale lit (P1.5b: chromatic on C, C 80 %%, the rest 50 %%)");
     btap(QD_B_REC);
     btap(QD_B_PLAY);                                    /* F1: the playing page flashes */
@@ -5256,7 +5266,7 @@ static void g_p16d_mfx(void)
     qd_mfx_slot_init(&G->slot[0], QD_MFX_ARP);
     G->slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
     run(20);
-    CHECK(leds().button[QD_B_KEYS] == QD_LED_LIT && !half_period(QD_B_KEYS), "the arp ON: ARP lit, steady");
+    CHECK(leds().button[QD_B_KEYS] == QD_LED_DIM, "the arp ON: ARP dim (lit: its page open)");
     G->slot[0].v[QD_MA_MODE] = QD_AM_OFF;
     run(20);
     CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "the arp OFF: ARP dark");
@@ -5535,7 +5545,7 @@ static void g_p16f_keys(void)
     CHECK(arp_led_min == QD_LED_LIT && arp_led_max == QD_LED_LIT, "the arp on: lit (%d .. %d)", arp_led_min, arp_led_max);
     btap(QD_B_HOME);
     arp_led_range();
-    CHECK(arp_led_min == QD_LED_LIT && arp_led_max == QD_LED_LIT, "closed: steady lit");
+    CHECK(arp_led_min == QD_LED_DIM && arp_led_max == QD_LED_DIM, "closed: steady dim (2026-10-25: lit is the page open)");
     /* STEPS / KEYS */
     btap(QD_B_KEYS);
     qd_ctl_labels(&A, &lb);
@@ -5548,7 +5558,7 @@ static void g_p16f_keys(void)
     btap(QD_B_KEYS);
     CHECK(!qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS && qd_view_screen(&A) == QD_SCR_KEYS, "left on KEYS: the keyboard");
     qd_ctl_labels(&A, &lb);
-    CHECK(leds().button[QD_B_REC] == QD_LED_DIM && !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "STEPS"), "the keyboard: REC dim, "
+    CHECK(leds().button[QD_B_REC] == QD_LED_LIT && !strcmp(lb.s[QD_LBL_BTN0 + QD_B_REC], "STEPS"), "the keyboard: REC lit, "
           "its label STEPS (the same)");
     btap(QD_B_KEYS);
     CHECK(qd_mfx_open(&A) && A.ui.mode == QD_MODE_KEYS, "opened from the keyboard: KEYS");
@@ -8243,24 +8253,57 @@ static void g_p15z_follow(void)
 /* - P2.11: the Geek Out pages: SHIFT + HOME's cycle after EDIT (and back to the PIANO ROLL), the knobs do nothing
  *   there, the platform's figures dim until given, a steal counted on its track and flashing, SHIFT + B11 the counters
  *   from zero (the track not cleared), the scope on the loudest track held on a rising zero crossing */
+/* 2026-10-25 (the owner): one page button lit, the page's; HOME on the step view */
+static int page_lit(int b)
+{
+    static const int P[9] = {QD_B_TRACKS, QD_B_PATTERN, QD_B_PAGE, QD_B_SOUND, QD_B_HOME, QD_B_SAVE, QD_B_KEYS, QD_B_MIX,
+                             QD_B_REC};
+    const qd_leds_t l = leds();
+    int i, ok = 1;
+    for (i = 0; i < 9; i++)
+        ok &= (l.button[P[i]] == QD_LED_LIT) == (P[i] == b);
+    return ok;
+}
+static void g_page_leds(void)
+{
+    static const int W[9] = {QD_B_HOME, QD_B_SOUND, QD_B_HOME, QD_B_PAGE, QD_B_HOME, QD_B_MIX, QD_B_HOME, QD_B_KEYS,
+                             QD_B_HOME};
+    int i, ok = 1;
+    start();
+    for (i = 0; i < 9; i++) {
+        if (W[i] != QD_B_HOME || i)
+            btap(W[i]);
+        run(20);
+        ok &= page_lit(W[i]);
+        if (!ok) {
+            printf("    (step %d)\n", i);
+            break;
+        }
+    }
+    btap(QD_B_REC);
+    run(20);
+    CHECK(ok && page_lit(QD_B_REC), "the page LEDs: HOME, EDIT, HOME, ENV, HOME, SEQ, HOME, ARP, HOME, REC: one lit, the page's");
+}
+
 static void g_p211_geek(void)
 {
-    static const int V[5] = {QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE, QD_VIEW_ROLL};
+    static const int V[5] = {QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE, QD_VIEW_METERS};
     ui_geek_t gv;
     int i, ok = 1, bpm0, sel0, on0, flat = 1;
     uint32_t r0;
     float mx = 0.f;
     start();
     A.ui.view = QD_VIEW_EDIT;
+    shome();
     for (i = 0; i < 5; i++) {
-        shome();
-        ok &= A.ui.view == V[i] && (i == 4 || qd_view_screen(&A) == QD_SCR_GEEK);
+        ok &= A.ui.view == V[i] && qd_view_screen(&A) == QD_SCR_GEEK;
+        turn(QD_K_SELECT, 1);
     }
-    CHECK(ok, "SHIFT + HOME: EDIT -> METERS -> NUMBERS -> VOICES -> SCOPE -> PIANO ROLL (each a Geek Out page)");
+    shome();
+    CHECK(ok && A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME: EDIT -> GEEK OUT (SELECT: METERS, NUMBERS, VOICES, SCOPE, round) -> PIANO ROLL");
     A.ui.view = QD_VIEW_METERS;
     bpm0 = A.bpm, sel0 = A.sel;
     turn(QD_K_ALGO, 3);
-    turn(QD_K_SELECT, 1);
     turn(QD_K_PRESETS, 2);
     turn(QD_K_1, 2);
     CHECK(A.bpm == bpm0 && A.sel == sel0 && A.ui.view == QD_VIEW_METERS && A.ui.tk == QD_TK_NONE,
@@ -8596,6 +8639,7 @@ int main(void)
         {"P1.5z: SHIFT + B6: the TAP takeover", g_p15z_tap},
         {"P1.5z: SHIFT + B8: page follow; SHIFT's map", g_p15z_follow},
         {"P2.11: the Geek Out pages", g_p211_geek},
+        {"the page LEDs", g_page_leds},
         {"P1.5z: SHIFT + SELECT: the track everywhere", g_p15z_shift_select},
         {"P1.6l: the controls' labels", g_p16l_labels},
         {"P1.3v: no text under 11 px on any screen", g_clarity},

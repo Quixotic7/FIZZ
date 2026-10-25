@@ -53,7 +53,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   another page. **LFO** keeps them open too. The **pop-ups** keep F1 = back: F3, the track settings (SEL tapped),
   the record settings (SHIFT + REC), the global settings (SHIFT + SEL), the project pages (SHIFT + SAVE), the browser
   (F1 cancels) and the questions; SAVE PRESET and the name editor are the typewriter (F1 deletes, HOME cancels).
-- **SHIFT + HOME** cycles the views: **PIANO ROLL** (the mode's lane), **STEPS** and **EDIT**. STEPS shows all eight
+- **SHIFT + HOME** cycles **PIANO ROLL** (the mode's lane), **STEPS**, **EDIT** and **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE); **HOME** comes back. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
   drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
   dim. A step's colour says what it plays: **warm white** its own notes, **cyan** the track's notes (a plain trig),
@@ -554,7 +554,9 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
     recording goes on.
   - **PLAY while recording** stops the transport and the recording (REPLACE, OVERDUB); in a CAPTURE take it ends the
     take and playback goes on (PLAY again stops).
-  - REC's light: **off** (the steps), **dim** (the keyboard / the editor's keys: what a tap switched), **blinking**
+  - The page buttons: one is lit, the page you are on (EDIT, ENV, FX, SEL, SEQ, ARP, SAVE, REC); **HOME** is lit on the
+    step view with no page open.
+  - REC's light: **off** (the steps), **lit** (the keyboard page), **dim** (the editor's keys, the keyboard under MIDI FX), **blinking**
     (armed), **lit** (recording). While it records the screen is framed in red, a red dot on the band under a knob as
     it writes.
   - The record settings' **MODE**: **LIVE** as above (notes to the nearest step at the track's speed, micro-timing
@@ -847,7 +849,7 @@ DECAY, HARM and FDBK.
     track's group again. On the arp's lanes (pages 3, 4) the white keys stay the lane's steps.
   - **The white keys** play the track through the group (its scale, as the sound editor's keyboard).
 - **ARP held** (400 ms, anywhere): the track's group's arp **on / off** (its bypass, B10's on its slot; a group with
-  no arp: nothing). **SEQ tapped** opens **TOOLS** (SEQ again or HOME closes it, SEQ lit while open). **ARP is lit steady** while the selected track's group has an arp ON (off otherwise); FILL
+  no arp: nothing). **SEQ tapped** opens **TOOLS** (SEQ again or HOME closes it, SEQ lit while open). **ARP is dim** while the selected track's group has an arp ON (off otherwise; lit while its page is open); FILL
   (SHIFT + ARP held) blinks it.
 - **The stopped preview** (0.9.3): a step held while stopped plays **through its MIDI FX group** (its own, else the
   track's): you hear the arp, the chord, the harmony; letting go ends every note (a HOLD arp's too).

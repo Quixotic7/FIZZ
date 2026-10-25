@@ -449,6 +449,7 @@ static void refs_test(void)
     CHECK(POOL(&A.proj, k1)->patch[QD_QP_HARM] == 1234 && qd_sound_patch(&A.proj, k1)[QD_QP_HARM] == 1234,
           "REPLACE: project 2's reference (and its locked step) plays the new LEAD X");
     CHECK(qd_persist_flush(&A) && qd_proj_load(&A, 0), "flushed; project 1 loaded");
+    qd_seq_select(&A.seq, QD_PAT_START, 1);              /* (a load opens on A01: back to A02, where the edits are) */
     CHECK(POOL(&A.proj, k0)->preset == id && POOL(&A.proj, k0)->patch[QD_QP_HARM] == 1234 &&
               qd_proj_pat(&A.proj, A.seq.cur)->step[1][2].sound == k0,
           "project 1's reference plays the new LEAD X too, its lock as it was");
@@ -1473,6 +1474,14 @@ int main(void)
               "a restart: MY presets (their ids, kinds; replace kept the id; place 256) and the pool's changes kept");
     }
     /* the projects */
+    qd_seq_select(&A.seq, 1, 1);
+    A.ui.view = QD_VIEW_ROLL;
+    CHECK(qd_proj_new(&A, 2) && A.seq.cur == 0 && A.sel == 0, "a new project on A01, track 1 (not the last one's A02)");
+    qd_persist_flush(&A);
+    boot(&A);
+    CHECK(A.per.proj == 2 && A.seq.cur == 0, "a restart: the new project on A01 still");
+    qd_proj_load(&A, 0);
+    qd_seq_select(&A.seq, 1, 1);
     A.ui.view = QD_VIEW_ROLL;
     CHECK(qd_proj_new(&A, 2) && A.ui.view == QD_VIEW_EDIT && A.per.proj == 2 && A.per.pexists[2] && !qd_proj_pat(&A.proj, 0)->used &&
               !strcmp(A.per.pname[2], "PROJECT 3") && A.proj.nsound == 0 && A.proj.pool_empty,

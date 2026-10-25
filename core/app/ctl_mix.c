@@ -18,7 +18,7 @@
  *   FX (printed) tapped  THE EFFECTS (global, ChoralRoot's: no sound load touches them): DELAY (TIME, SPREAD,
  *        FEEDBACK, SEND), DELAY 2 (SYNC, MODE, TONE, WOW), REVERB (SIZE, DAMP, DECAY, SEND), REVERB 2 (PRE-DELAY, MOD,
  *        LOW CUT, WIDTH), CHORUS (RATE, DEPTH, WIDTH, SEND), MASTER (the master filter: LOW CUT, HIGH CUT, SLOPE, ON);
- *        B1 DELAY, B2 REVERB, B3 CHORUS, B4 MASTER (again: an effect's second page), FX again or SELECT the next page.
+ *        B1 OVERVIEW, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING (again: an effect's second page), FX again or SELECT the next page.
  *        SEND is the selected track's send into that effect; TIME / SPREAD are the free or the synced value by SYNC
  *        (ChoralRoot's FC_TIME, FC_SPREAD). FX held + ALGORITHM still chooses the track. */
 

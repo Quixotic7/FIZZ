@@ -1,0 +1,14 @@
+# SAVE PRESET: SAVED means in the flash (a reboot 1.2 s after it keeps the preset)
+wait 500
+tap HOME
+wait 200
+expect fz_mine 0
+tap SAVE
+wait 300
+tapkey w3
+wait 200
+tap SAVE
+wait 1200
+reboot
+wait 500
+expect fz_mine 1

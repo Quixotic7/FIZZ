@@ -1082,7 +1082,7 @@ static void b_shift(qd_app_t *a, int down)
  * switches its view (PIANO ROLL -> STEPS -> EDIT (P1.3r) -> PIANO ROLL); from any other screen it comes back to the
  * sequencer in its last view */
 /* P1.3y: HOME always comes back to the view in use (PIANO ROLL, STEPS or EDIT) and never cycles: from any screen, a
- * latch closed (and the view in the same press), a pop-up gone; SHIFT + HOME cycles the three views */
+ * latch closed (and the view in the same press), a pop-up gone, a GEEK OUT page left for EDIT; SHIFT + HOME cycles ROLL, STEPS, EDIT, GEEK OUT */
 static void b_home(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -1102,9 +1102,10 @@ static void b_home(qd_app_t *a, int down)
     u->tk = QD_TK_NONE;
     u->cf_on = 0;
     if (qd_ctl_shift(a) && !u->home_woke) {
-        u->view = (u->view + 1) % QD_NVIEW;
+        u->view = QD_VIEW_GEEK(u->view) ? QD_VIEW_ROLL : u->view == QD_VIEW_EDIT ? QD_VIEW_METERS + u->geek : u->view + 1;
         u->shift_used = 1;
-    }
+    } else if (QD_VIEW_GEEK(u->view))
+        u->view = QD_VIEW_EDIT;                         /* (a plain HOME leaves the Geek Out pages) */
     u->home_woke = 0;
     set_mode(a, QD_MODE_STEP);
 }
@@ -1710,9 +1711,13 @@ static int when_geek(const qd_app_t *a)
     return u->mode == QD_MODE_STEP && QD_VIEW_GEEK(u->view) && !u->latch && !u->slatch && !u->nheld && !u->wk_down &&
            qd_ctl_mkey(a) < 0 && !qd_ctl_shift(a);
 }
-static int k_geek(qd_app_t *a, int knob, int d)
+static int k_geek(qd_app_t *a, int knob, int d)   /* SELECT turns the Geek Out pages (round) */
 {
-    (void)a, (void)knob, (void)d;
+    qd_ui_t *u = &a->ui;
+    if (knob == QD_K_SELECT && d) {
+        u->geek = (uint8_t)((u->geek + (d > 0 ? 1 : 3)) % 4);
+        u->view = QD_VIEW_METERS + u->geek;
+    }
     return 1;
 }
 static int when_cursor(const qd_app_t *a)

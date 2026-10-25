@@ -526,7 +526,7 @@ static void t_arp(void)
     qd_mfx_slot_init(&A.proj.mfx[0].slot[0], QD_MFX_ARP);
     A.proj.mfx[0].slot[0].v[QD_MA_MODE] = QD_AM_ON;
     run(10);
-    CHECK(leds().button[QD_B_KEYS] == QD_LED_LIT, "the track's arp on: ARP lit");
+    CHECK(leds().button[QD_B_KEYS] == QD_LED_DIM, "the track's arp on: ARP dim");
     A.proj.mfx[0].slot[0].v[QD_MA_MODE] = QD_AM_OFF;
     run(10);
     CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "off: dark");
@@ -542,7 +542,7 @@ static void t_arp(void)
     run(QD_ARP_HOLD_MS + 10);
     bup(QD_B_KEYS);
     run(10);
-    CHECK(!A.proj.mfx[0].slot[0].bypass && leds().button[QD_B_KEYS] == QD_LED_LIT, "held again: playing, ARP lit");
+    CHECK(!A.proj.mfx[0].slot[0].bypass && leds().button[QD_B_KEYS] == QD_LED_DIM, "held again: playing, ARP dim");
 }
 
 static void t_rotate_live(void)

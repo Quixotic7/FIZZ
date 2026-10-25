@@ -345,13 +345,14 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
                                                          * off */
         out->button[QD_B_REC] = u->rec ? (!(u->live_wait || u->cap == 1) || blink(a, QD_BLINK_MS) ? QD_LED_LIT
                                                                                                    : QD_LED_OFF)
+                              : u->mode == QD_MODE_KEYS && !qd_mfx_open(a) ? QD_LED_LIT   /* (2026-10-25: its page) */
                               : u->mode == QD_MODE_KEYS || (qd_snd_open(a) && u->ekeys) ? QD_LED_DIM : QD_LED_OFF;
     {   /* T1 (the owner, 2026-10-24): ARP lit while FILL is held and while the MIDI FX screen is open (T1b: TOOLS lights SEQ);
          * otherwise the arp's state (P1.6d: lit while the track's group has an arp ON, off otherwise) */
         const int g = qd_mfx_tgroup(a);
         const int k = g ? qd_mfx_arp_slot(&a->proj.mfx[g - 1]) : -1;
         const int on = k >= 0 && a->proj.mfx[g - 1].slot[k].v[QD_MA_MODE] != QD_AM_OFF && !a->proj.mfx[g - 1].slot[k].bypass;
-        out->button[QD_B_KEYS] = a->seq.fill || qd_mfx_open(a) || on ? QD_LED_LIT : QD_LED_OFF;
+        out->button[QD_B_KEYS] = a->seq.fill || qd_mfx_open(a) ? QD_LED_LIT : on ? QD_LED_DIM : QD_LED_OFF;   /* (2026-10-25: the arp on dim) */
     }
     if (u->latch == QD_LATCH_MIX)                       /* P1.4b: ENV (MIX), FX, SEL lit while their pages are open */
         out->button[QD_B_PAGE] = QD_LED_LIT;
@@ -395,6 +396,11 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
         out->button[QD_B_OCTDN] = QD_LED_LIT;
         out->button[QD_B_OCTUP] = QD_LED_OFF;
     }
+    if (u->mode == QD_MODE_STEP && !qd_snd_open(a) && !qd_tools_open(a) && !qd_mfx_open(a) &&   /* (2026-10-25: one page
+                                                         * button lit: HOME on the step view, no page open) */
+        u->latch != QD_LATCH_MIX && u->latch != QD_LATCH_FX && u->latch != QD_LATCH_TRK && u->latch != QD_LATCH_SAVE &&
+        u->latch != QD_LATCH_PRJ && u->latch != QD_LATCH_NAME)
+        out->button[QD_B_HOME] = QD_LED_LIT;
     if (a->playing) {
         /* (the ms into the beat under QD_BEAT_LED_MS: rem / BEAT x 60000 / bpm < ms, in integers, P2.4) */
         out->play_green = (int64_t)a->beat_rem * 60000 < (int64_t)QD_BEAT_LED_MS * a->bpm * QD_BEAT_TICKS ? QD_LED_LIT

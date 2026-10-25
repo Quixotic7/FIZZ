@@ -1070,6 +1070,9 @@ static void mf_off(const ui_mfx_t *v)
         mf_dot(36.f + fmodf(v->t * 60.f + (float)k * 30.f, 160.f), y, 3.f, MF_TP[(v->track - 1) & 7], 1.f);
     for (gi = 1; gi <= 5; gi++)
         ui_mfx_hex(60.f + (float)(gi - 1) * 30.f, 216.f, 10.f, gi, UI_G2, 1.5f, 1);
+    ui_O(30.f, 216.f, 7.f, QD_NONE, 1.f, UI_KALG);        /* ALGORITHM picks the group: its badge, its word */
+    ui_T("A", 30.f, 220.f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+    ui_T("ALGORITHM", 120.f, 199.f, 12.f, 600, 0.f, UI_KALG, QD_CENTER);
 }
 
 void ui_mfx_draw(const ui_mfx_t *v)
