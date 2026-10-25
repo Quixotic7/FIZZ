@@ -154,26 +154,37 @@ void ui_head(const char *left, const char *right, int n, qd_rgb lcol, qd_rgb rco
         ui_T(right, 232.f, 18.f, 12.f, 500, 0.8f, rcol, QD_RIGHT);
 }
 
-/* keyboard(c, x0, y0, w, h, lo, held): 14 white keys from lo, the black keys over them */
+/* keybed(x0, y0, w, h, lo, nw, fill): nw white keys from the white note lo, the black keys over them (P2.x: a keybed
+ * may start on any white note, as the FM-1's does on F) */
+void ui_keybed(float x0, float y0, float w, float h, int lo, int nw, const qd_rgb *fill)
+{
+    const float kw = w / (float)nw, bw = kw * 0.62f, bh = h * 0.6f;
+    int i, n;
+#define UI_BLACK(n) ((0x54au >> ((n) % 12)) & 1u)   /* C# D# F# G# A# */
+    for (i = 0, n = lo; i < nw; n++) {
+        qd_rgb f;
+        if (UI_BLACK(n))
+            continue;
+        f = fill && n >= 0 && n < 128 ? fill[n] : QD_NONE;
+        ui_RR(x0 + (float)i * kw, y0, kw + 1.f, h, 2.f, UI_G2, 1.f, f);
+        i++;
+    }
+    for (i = 0, n = lo; i < nw; n++) {                  /* a black key between white keys i - 1 and i */
+        qd_rgb f;
+        if (!UI_BLACK(n)) {
+            i++;
+            continue;
+        }
+        f = fill && n >= 0 && n < 128 && fill[n] != QD_NONE ? fill[n] : UI_BG;
+        ui_RR(x0 + (float)i * kw - bw / 2.f, y0 - 1.f, bw, bh, 2.f, UI_G2, 1.f, f);
+    }
+#undef UI_BLACK
+}
+
+/* keyboard(c, x0, y0, w, h, lo, held): 14 white keys from lo (a C), the black keys over them */
 void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fill)
 {
-    static const int WHITE[7] = {0, 2, 4, 5, 7, 9, 11}, BLACK[7] = {1, 3, -1, 6, 8, 10, -1};
-    const float kw = w / 14.f, bw = kw * 0.62f, bh = h * 0.6f;
-    int i;
-    for (i = 0; i < 14; i++) {
-        const int n = lo + (i / 7) * 12 + WHITE[i % 7];
-        const qd_rgb f = fill && n >= 0 && n < 128 ? fill[n] : QD_NONE;
-        ui_RR(x0 + (float)i * kw, y0, kw + 1.f, h, 2.f, UI_G2, 1.f, f);
-    }
-    for (i = 0; i < 14; i++) {
-        int n;
-        qd_rgb f;
-        if (i % 7 == 2 || i % 7 == 6 || i == 13)
-            continue;
-        n = lo + (i / 7) * 12 + BLACK[i % 7];
-        f = fill && n >= 0 && n < 128 && fill[n] != QD_NONE ? fill[n] : UI_BG;
-        ui_RR(x0 + (float)(i + 1) * kw - bw / 2.f, y0 - 1.f, bw, bh, 2.f, UI_G2, 1.f, f);
-    }
+    ui_keybed(x0, y0, w, h, lo, 14, fill);
 }
 
 /* ---- P1.3b: the hold modes, line.html's headTrack, lock, knobMark and keyboard's pos, the black keys' strip */

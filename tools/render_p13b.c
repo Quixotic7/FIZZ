@@ -446,12 +446,14 @@ int render_p13b(const char *out, const char *mocks)
     shot("keys-step-rec", "SHIFT + REC stopped: step recording", 0);
     qd_app_key(&A, 14, 0, 0);
 
-    at(A02, T4, UI_F_NOTE);                             /* REC + PLAY: live recording */
-    bdown(QD_B_REC);
+    at(A02, T4, UI_F_NOTE);                             /* the keyboard, PLAY, REC held: live recording (P1.6g) */
+    btap(QD_B_REC);
     btap(QD_B_PLAY);
+    bdown(QD_B_REC);
+    run(QD_REC_HOLD_MS + 40);
     bup(QD_B_REC);
-    {
-        static const uint8_t KEYS[8] = {7, 11, 14, 11, 16, 14, 12, 9};
+    {   /* (P2.x: F3, the keybed's first key, then up to D4: the drawn keybed starts on F as the FM-1's) */
+        static const uint8_t KEYS[8] = {0, 7, 14, 11, 16, 14, 12, 9};
         for (k = 0; k < 8; k++) {
             run(k % 3 ? 140 : 90);
             qd_app_key(&A, KEYS[k], 1, 100);

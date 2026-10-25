@@ -71,6 +71,8 @@ int ui_track_kind(int n);               /* track n's (1..UI_NTRACK) kind, -1 non
 /* a line-drawn keybed of two octaves (14 white keys) from note lo (a C) at x0, y0, w x h; fill[note] (128 entries, or
  * 0) is the colour a key is filled with, QD_NONE: outlined only */
 void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fill);
+/* the same with nw white keys from any white note lo (the FM-1's keybed: 16 from F) */
+void ui_keybed(float x0, float y0, float w, float h, int lo, int nw, const qd_rgb *fill);
 
 /* ---- KEYS (line.html s18 without the recording roll): the keybed plays the selected track */
 #define UI_NVOICE_DOTS 16

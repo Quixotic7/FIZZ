@@ -10,7 +10,8 @@
  * filled grey, the cursor's square outlined red in the blink's lit half), STEP REC in red and the cursor's step at the
  * foot. rec 2, LIVE recording, is line.html s18: the RECORDING badge blinking (a Q by it with quantize on), the notes
  * scrolling in from the red line (11 px a step, the grid's beats darker), the keybed small at the foot with the keys
- * held white, OCT and the step under the playhead.
+ * held white, OCT and the step under the playhead. The live keybed is the FM-1's own: 27 keys from F (F3 .. G5 at OCT
+ * 0), so each drawn key is the one pressed.
  * P1.3b: the sound's pool number has three digits; a track in a scale shows the scale's name by the octave. */
 #include <math.h>
 
@@ -36,7 +37,7 @@ static void live(const ui_keys_t *v)
     static qd_rgb fill[128];
     const float now = 186.f, pxs = 11.f;
     char s[64], n[12];
-    int i, lo = 60 + 12 * v->octave, mn = 128, rl;
+    int i, lo = 53 + 12 * v->octave, mn = 128, rl;   /* the FM-1's keybed: F3 .. G5 at OCT 0 (QD_NOTE0) */
     float st;
 
     ui_head(v->name, 0, v->track, UI_K3, UI_G1);
@@ -45,7 +46,8 @@ static void live(const ui_keys_t *v)
     if (v->quantize)
         ui_T("Q", 134.f, 18.f, 12.f, 700, 0.f, UI_G1, QD_RIGHT);
 
-    /* the keybed from the octave's C, one lower when the roll has notes below it; the roll two semitones under it */
+    /* the keybed as the FM-1's (27 keys from the octave's F), one lower when the roll has notes below it; the roll two
+     * semitones under it */
     for (i = 0; i < 128; i++)
         fill[i] = v->sounding[i] ? UI_K3 : QD_NONE;
     for (i = 0; i < v->nroll && i < 32; i++) {
@@ -78,7 +80,7 @@ static void live(const ui_keys_t *v)
         ui_RR(xa, y - 2.5f, w > 3.f ? w : 3.f, 5.f, 2.5f, QD_NONE, 1.f, v->roll[i].live ? UI_K3 : UI_G1);
     }
     qd_restore();
-    ui_keyboard(22.f, 170.f, 196.f, 48.f, lo, fill);
+    ui_keybed(22.f, 170.f, 196.f, 48.f, lo, 16, fill);
     s[0] = 0;
     cat(s, oct_name(v->octave));
     if (v->scale && v->scale_name && v->scale_name[0])

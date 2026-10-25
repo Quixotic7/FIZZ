@@ -15,6 +15,7 @@ its text becomes the release's notes on the install page and on GitHub.
 - **FIZZ Manager asks once** before SORT BY TAG, CLEAR UNUSED, swapping pool places, CLEAR, DELETE and loading a project, and says whether SHIFT + F1 can undo it.
 - **FIZZ Manager: Digitone sounds saved on OS 1.42** (such as F186 KICK01) import now; they were refused as "a newer Digitone format (version 4)".
 - The FM-1 pill in the Manager's header is cleaner.
+- **The live-recording keyboard starts on F**, like the FM-1's own keys: the 27 keys drawn are the 27 you play (F3 to G5 at OCT 0), so the key lit is the key you press.
 
 ## 0.12.0-beta.2 (2026-10-24)
 
