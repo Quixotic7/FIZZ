@@ -645,13 +645,13 @@ static void g_plocks(void)
     turn(QD_K_1, -10);
     turn(QD_K_2, 2);
     wrel(5);
-    CHECK(LK(0, 5, QD_QP_HARM) == 300 && LK(0, 5, QD_QP_FDBK) == 0 && LK(0, 5, QD_QP_FREQ) == 12700 - 1000 &&
+    CHECK(LK(0, 5, QD_QP_HARM) == 3 && LK(0, 5, QD_QP_FDBK) == 0 && LK(0, 5, QD_QP_FREQ) == 12700 - 10 &&
               LK(0, 5, QD_QP_EDEC) == A.model.t[0].patch[QD_QP_EDEC] + 2 && A.model.t[0].patch[QD_QP_HARM] == 0,
           "P-LOCK, a step held: KNOB 1..4 = FREQ, DECAY, HARM, FDBK p-locks; the track untouched");
     CHECK(A.ui.tk == UI_TK_DECAY && A.ui.tk_lock && A.ui.tk_step == 5, "the takeover marked as a lock on step 6");
     turn(QD_K_1, -10);
     turn(QD_K_3, 4);
-    CHECK(A.model.t[0].patch[QD_QP_FREQ] == 12700 - 1000 && A.model.t[0].patch[QD_QP_HARM] == 400 &&
+    CHECK(A.model.t[0].patch[QD_QP_FREQ] == 12700 - 10 && A.model.t[0].patch[QD_QP_HARM] == 4 &&
               A.ui.tk == UI_TK_HARM && !A.ui.tk_lock,
           "P-LOCK, nothing held: KNOB 1..4 the track's sound, live");
 }
@@ -1235,7 +1235,7 @@ static void g_plock(void)
           "view");
     turn(QD_K_1, -10);
     turn(QD_K_3, 3);
-    CHECK(LK(0, 5, QD_QP_FREQ) == 12700 - 1000 && LK(0, 5, QD_QP_HARM) == 300 && A.model.t[0].patch[QD_QP_HARM] == 0,
+    CHECK(LK(0, 5, QD_QP_FREQ) == 12700 - 10 && LK(0, 5, QD_QP_HARM) == 3 && A.model.t[0].patch[QD_QP_HARM] == 0,
           "KNOB 1, KNOB 3: FREQ and HARM p-locked on the step, the track untouched");
     CHECK(A.ui.tk == UI_TK_HARM && A.ui.tk_lock && A.ui.tk_step == 5, "the lock's takeover");
     turn(QD_K_PRESETS, 2);
@@ -1256,7 +1256,7 @@ static void g_plock(void)
     bdown(F1);
     black(B11);
     bup(F1);
-    CHECK(LK(0, 5, QD_QP_FREQ) == 12700 - 1000 && qd_lock_count(PAT(), 0, 5) == 2, "F1 + B11: the locks back");
+    CHECK(LK(0, 5, QD_QP_FREQ) == 12700 - 10 && qd_lock_count(PAT(), 0, 5) == 2, "F1 + B11: the locks back");
     mode(M_VEL);
     whold(5);
     turn(QD_K_2, 2);
@@ -1410,7 +1410,7 @@ static void g_rec(void)
     while (track_pos0() < 14.5)
         run(1);
     turn(QD_K_3, 2);
-    CHECK(LK(0, 14, QD_QP_HARM) == 200 && R(0, 14).type == QD_TRIG_LOCK, "a knob turned while recording: a lock on "
+    CHECK(LK(0, 14, QD_QP_HARM) == 2 && R(0, 14).type == QD_TRIG_LOCK, "a knob turned while recording: a lock on "
           "the step playing (step 15)");
     btap(QD_B_PLAY);
     run(10);
@@ -3408,13 +3408,13 @@ static void g_snd(void)
               sv.v[1] == 60 && sv.tv[1] == 40 && qd_view_screen(&A) == QD_SCR_SOUND,
           "step 1 held, KNOB 2: DRIVE locked at 60 on it (the track's 40 stays), marked locked, the editor stays");
     black(B4);
-    bdown(SHIFT);
     turn(QD_K_1, -3);
-    bup(SHIFT);
-    CHECK(LK(0, 0, QD_QP_FREQ) == A.model.t[0].patch[QD_QP_FREQ] - 3, "FILTER, SHIFT + KNOB 1: FREQ locked 0.03 down "
-          "(the finest step)");
+    CHECK(LK(0, 0, QD_QP_FREQ) == A.model.t[0].patch[QD_QP_FREQ] - 3, "FILTER, KNOB 1: FREQ locked 0.03 down "
+          "(a hundredth a detent)");
+    bdown(SHIFT);
     turn(QD_K_1, -2);
-    CHECK(LK(0, 0, QD_QP_FREQ) == A.model.t[0].patch[QD_QP_FREQ] - 203, ".. KNOB 1 -2: two whole units more");
+    bup(SHIFT);
+    CHECK(LK(0, 0, QD_QP_FREQ) == A.model.t[0].patch[QD_QP_FREQ] - 203, ".. SHIFT + KNOB 1 -2: two whole units more");
     CHECK(leds().key[BK(B11)] == QD_LED_LIT, "B11 lit: the step has locks on this page");
     black(B11);
     CHECK(LK(0, 0, QD_QP_FREQ) == -99999 && LK(0, 0, QD_QP_DRIVE) == 60, "B11: FILTER's locks cleared, DRIVE's kept");
@@ -3714,7 +3714,7 @@ static void beat_by_api(void)
     qd_step_set_sound(p, 0, 12, QD_SND_SNARE);
     qd_step_set_vel(p, 0, 8, 127);
     qd_step_set_cond(p, 0, 15, qd_cond_ab(1, 2));
-    qd_lock_set(p, 0, 0, QD_QP_HARM, A.model.t[0].patch[QD_QP_HARM] + 200);   /* P-LOCK's KNOB 3 */
+    qd_lock_set(p, 0, 0, QD_QP_HARM, A.model.t[0].patch[QD_QP_HARM] + 2);   /* P-LOCK's KNOB 3 (0.01 a detent) */
     qd_tdef_set(p, 0, QD_PM_VEL, 80);
     qd_page_set_loop(p, 0, 3);
     qd_page_set_range(p, 0, 1, 2, 11);
@@ -4211,8 +4211,26 @@ static void g_p15b_accel(void)
         qd_app_knob(&A, QD_K_1, -1);
         run(8);
     }
-    CHECK(A.model.t[0].patch[QD_QP_FREQ] < v0 - 1000, "the editor's FREQ spun: whole units, accelerated (%d -> %d)", v0,
+    CHECK(A.model.t[0].patch[QD_QP_FREQ] < v0 - 500, "the editor's FREQ spun: accelerated hundredths (%d -> %d)", v0,
           A.model.t[0].patch[QD_QP_FREQ]);
+    A.ui.snd_page = qd_snd_page_of("LFO 1");           /* hi-res: 0.01 slow, 1.00 with SHIFT, spun far */
+    run(300);
+    v0 = A.model.t[0].patch[QD_QP_LFO(0, QD_QL_SPEED)];
+    qd_app_knob(&A, QD_K_1, 1);
+    CHECK(A.model.t[0].patch[QD_QP_LFO(0, QD_QL_SPEED)] == v0 + 1, "LFO 1 SPEED, a slow detent: 0.01");
+    run(300);
+    bdown(SHIFT);
+    qd_app_knob(&A, QD_K_1, 1);
+    bup(SHIFT);
+    CHECK(A.model.t[0].patch[QD_QP_LFO(0, QD_QL_SPEED)] == v0 + 101, "SHIFT + a detent: 1.00");
+    run(300);
+    v0 = A.model.t[0].patch[QD_QP_LFO(0, QD_QL_SPEED)];
+    for (i = 0; i < 6; i++) {
+        qd_app_knob(&A, QD_K_1, -1);
+        run(8);
+    }
+    CHECK(A.model.t[0].patch[QD_QP_LFO(0, QD_QL_SPEED)] < v0 - 1000, "LFO 1 SPEED spun: far further (%d -> %d)", v0,
+          A.model.t[0].patch[QD_QP_LFO(0, QD_QL_SPEED)]);
     v0 = A.model.t[0].patch[QD_QP_FTYPE];
     for (i = 0; i < 3; i++) {
         qd_app_knob(&A, QD_K_3, 1);
@@ -4528,15 +4546,15 @@ static void g_p15k_lfo(void)
     run(300);
     turn(QD_K_1, 3);
     qd_view_snd(&A, &sv);
-    CHECK(fr > 0 && pt[did2] == fr && pt[pid2] == 300 && sv.lk == 2 && sv.lk_ok && sv.lk_k == 0,
-          "B7 held + KNOB 1 (FREQ): LFO 2 -> FREQ, depth +3.00 (the takeover)");
+    CHECK(fr > 0 && pt[did2] == fr && pt[pid2] == 3 && sv.lk == 2 && sv.lk_ok && sv.lk_k == 0,
+          "B7 held + KNOB 1 (FREQ): LFO 2 -> FREQ, depth +0.03 (the takeover)");
     turn(QD_K_1, -1);
-    CHECK(pt[pid2] == 200, "the same destination turned on: the depth from where it was (+2.00)");
+    CHECK(pt[pid2] == 2, "the same destination turned on: the depth from where it was (+0.02)");
     turn(QD_K_2, -2);
-    CHECK(pt[did2] == rs && pt[pid2] == -200, "KNOB 2 (RESO): LFO 2 -> RESO, the depth from 0 (-2.00)");
+    CHECK(pt[did2] == rs && pt[pid2] == -2, "KNOB 2 (RESO): LFO 2 -> RESO, the depth from 0 (-0.02)");
     turn(QD_K_3, 1);
     qd_view_snd(&A, &sv);
-    CHECK(pt[did2] == rs && pt[pid2] == -200 && !sv.lk_ok && qd_quad_dest_of(QD_QP_FTYPE, 1) < 0,
+    CHECK(pt[did2] == rs && pt[pid2] == -2 && !sv.lk_ok && qd_quad_dest_of(QD_QP_FTYPE, 1) < 0,
           "KNOB 3 (TYPE, no destination): nothing changes, the takeover refuses");
     kup(BK(B7));
     run(20);
@@ -4552,7 +4570,7 @@ static void g_p15k_lfo(void)
     kup(BK(B6));
     run(20);
     CHECK(LK(0, 2, QD_QP_LFO(0, QD_QL_DEST)) == qd_quad_dest_of(QD_QP_FREQ, 0) &&
-              LK(0, 2, QD_QP_LFO(0, QD_QL_DEPTH)) == 200 && pt[QD_QP_LFO(0, QD_QL_DEST)] != qd_quad_dest_of(QD_QP_FREQ, 0),
+              LK(0, 2, QD_QP_LFO(0, QD_QL_DEPTH)) == 2 && pt[QD_QP_LFO(0, QD_QL_DEST)] != qd_quad_dest_of(QD_QP_FREQ, 0),
           "a step held, B6 + KNOB 1: LFO 1 -> FREQ and its depth locked on the step, the track's sound untouched");
     wrel(2);
     btap(QD_B_HOME);
@@ -6245,10 +6263,10 @@ static void g_p15o_locks(void)
           "sound's FREQ shown (%d), the track's behind it", sv.v[0]);
     turn(QD_K_1, -3);
     qd_view_snd(&A, &sv);
-    CHECK(LK(0, 2, QD_QP_FREQ) == f0 - 300 && sv.v[0] == f0 - 300 && sv.locked[0] && pool[QD_QP_FREQ] == f0,
-          "KNOB 1: a p-lock on the step from the locked sound's FREQ (-3.00), the pool's sound untouched");
+    CHECK(LK(0, 2, QD_QP_FREQ) == f0 - 3 && sv.v[0] == f0 - 3 && sv.locked[0] && pool[QD_QP_FREQ] == f0,
+          "KNOB 1: a p-lock on the step from the locked sound's FREQ (-0.03), the pool's sound untouched");
     qd_step_set_sound(PAT(), 0, 2, 13);
-    CHECK(LK(0, 2, QD_QP_FREQ) == f0 - 300, "a new sound lock: the p-lock kept");
+    CHECK(LK(0, 2, QD_QP_FREQ) == f0 - 3, "a new sound lock: the p-lock kept");
     bdown(F2);
     run(20);
     turn(QD_K_1, 1);
@@ -6273,7 +6291,7 @@ static void g_p15o_locks(void)
     mode(M_PLOCK);                                      /* P-LOCK: the same */
     whold(5);
     turn(QD_K_3, 4);
-    CHECK(LK(0, 5, QD_QP_HARM) == A.model.t[0].patch[QD_QP_HARM] + 400, "P-LOCK, step 6 held: HARM locked");
+    CHECK(LK(0, 5, QD_QP_HARM) == A.model.t[0].patch[QD_QP_HARM] + 4, "P-LOCK, step 6 held: HARM locked");
     bdown(F2);
     run(20);
     CHECK(qd_ctl_layer(&A) == QD_LAYER_NONE, "P-LOCK: F2 held is no layer");

@@ -53,7 +53,17 @@ int qd_step_id_detent(int id)
 {
     int16_t lo = 0, hi = 0;
     qd_lock_range(id, &lo, &hi);
-    return hi - lo > 1000 ? 100 : 1;   /* the hi-res values (hundredths) move a whole unit a detent */
+    return hi - lo > 1000 ? 100 : 1;   /* the hi-res values (hundredths): SHIFT moves a whole unit a detent */
+}
+/* a turn of d detents on a value: the hi-res ones 0.01 a slow detent, accelerated up to a 48th of the range (two
+ * turns of 24 detents cross it), SHIFT 1.00 exactly; the others as qd_ctl_acc (SHIFT: x1) */
+int qd_step_id_turn(const qd_app_t *a, int id, int d)
+{
+    int16_t lo = 0, hi = 0;
+    if (qd_step_id_detent(id) == 1)
+        return qd_ctl_acc(a, d, qd_step_id_steps(id));
+    qd_lock_range(id, &lo, &hi);
+    return qd_ctl_shift(a) ? d * 100 : qd_knob_accel(d, a->ui.knob_dt, (hi - lo + 1) / 3, 0);
 }
 int qd_step_id_steps(int id)
 {
@@ -680,7 +690,7 @@ static int lock_all(qd_app_t *a, int id, int d)
         int16_t v;
         const int s = u->held[i];
         const int base = qd_lock_get(CPAT(a), a->sel, s, id, &v) ? v : qd_step_base(a, a->sel, s, id);
-        if (qd_lock_set(PAT(a), a->sel, s, id, base + qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)) ==
+        if (qd_lock_set(PAT(a), a->sel, s, id, base + qd_step_id_turn(a, id, d)) ==
             QD_EFULL)
             ok = 0;
     }

@@ -8,8 +8,9 @@
  * values and DRIVE are on QD_SND_NPAGE pages in five groups, one a black key: B1 OPERATORS, B2 OP ENVELOPES, B3 FILTERS,
  * B4 ENVELOPES (the amp's, LEVEL, DRIVE), B5 MODULATION (the three LFOs); a group's key again shows its next page
  * (round). SELECT steps through every page. KNOB 1..4 are the page's values (their colours), ALGORITHM a fifth where
- * the page has one (OPERATORS' first page: the algorithm). SHIFT + a knob: the finest step (a hundredth of a hi-res
- * value). PRESETS: the track's preset (a step held: its sound lock).
+ * the page has one (OPERATORS' first page: the algorithm). A hi-res value (hundredths: LFO SPEED,
+ * DEPTH) moves 0.01 a slow detent, accelerated to ~2.67 a detent spun fast (two turns cross -64..64); SHIFT + a knob:
+ * 1.00 a detent, never accelerated (qd_step_id_turn). PRESETS: the track's preset (a step held: its sound lock).
  *
  * Nothing held, a turn edits the track's sound live (qd_player_live_edit: the sounding voices follow, their own locks
  * stay). A finger on a step (held, or the step latch's selection), every turn is a p-lock on the held steps
@@ -429,7 +430,7 @@ static void snd_map(qd_app_t *a, int n, int id, int d)
         const int dep = same ? snd_cur(a, pid) : 0;
         if (!same)
             snd_put(a, did, dest);
-        snd_put(a, pid, dep + qd_ctl_acc(a, d, qd_step_id_steps(pid)) * qd_step_id_detent(pid));
+        snd_put(a, pid, dep + qd_step_id_turn(a, pid, d));
     }
 }
 
@@ -629,17 +630,17 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     if (u->nheld) {                                     /* a finger on a step: a p-lock */
         if (!fine)
             return qd_step_lock_knob(a, knob, d);
-        qd_step_lock_fine(a, id, d);
+        qd_step_lock_fine(a, id, d * qd_step_id_detent(id));   /* (SHIFT: a hi-res value 1.00) */
         return 1;
     }
     if (qd_auto_on(a)) {                                /* P1.6d: automation recording */
-        qd_auto_put(a, id, qd_auto_cur(a, id) + (fine ? d : qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)));
+        qd_auto_put(a, id, qd_auto_cur(a, id) + qd_step_id_turn(a, id, d));
         return 1;
     }
     {
         const qd_track_t *t = &a->model.t[a->sel];
         qd_player_live_edit(&a->player, a->sel, id,
-                            t->patch[id] + (fine ? d : qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)));
+                            t->patch[id] + qd_step_id_turn(a, id, d));
     }
     return 1;
 }

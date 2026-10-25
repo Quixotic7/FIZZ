@@ -1496,7 +1496,7 @@ void qd_ctl_button(qd_app_t *a, int button, int down)
 static void live_edit(qd_app_t *a, int id, int d, int tk, int knob)
 {
     const qd_track_t *t = &a->model.t[a->sel];
-    qd_player_live_edit(&a->player, a->sel, id, t->patch[id] + qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id));
+    qd_player_live_edit(&a->player, a->sel, id, t->patch[id] + qd_step_id_turn(a, id, d));
     qd_ctl_takeover(a, tk, knob, d, 0, -1);
 }
 

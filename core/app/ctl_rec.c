@@ -473,7 +473,7 @@ int qd_rec_knob(qd_app_t *a, int knob, int d)
     if (knob < QD_K_1)
         return 0;
     id = qd_step_quick_id(knob - QD_K_1);
-    if (!qd_auto_put(a, id, qd_auto_cur(a, id) + qd_ctl_acc(a, d, qd_step_id_steps(id)) * qd_step_id_detent(id)))
+    if (!qd_auto_put(a, id, qd_auto_cur(a, id) + qd_step_id_turn(a, id, d)))
         return 0;
     qd_ctl_takeover(a, UI_TK_FREQ + (knob - QD_K_1), knob - QD_K_1, d, 1, a->ui.auto_step);
     return 1;
