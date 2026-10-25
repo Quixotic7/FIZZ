@@ -255,6 +255,7 @@ void fz_sysex(const uint8_t *f, uint32_t n) { qd_app_sysex(&fz_app, f, n); }
 int fz_sysex_peek(void) { return qd_app_sysex_peek(&fz_app); }
 void fz_sx_mark(uint32_t ms) { fz_app.sx.rx_ms = ms | 1u; }
 uint32_t fz_sx_last(void) { return fz_app.sx.rx_ms; }
+int fz_sx_bulk(void) { return fz_app.sx.job || fz_app.sx.wk.cmd; }
 uint32_t *fz_sx_xs(void) { return fz_app.sx.xs; }
 int fz_sysex_take(uint8_t *out, uint32_t max) { return qd_app_sysex_take(&fz_app, out, max); }
 void fz_tick(uint32_t ms) { qd_app_tick(&fz_app, ms); }

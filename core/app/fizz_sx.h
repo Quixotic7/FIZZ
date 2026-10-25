@@ -147,7 +147,7 @@ typedef struct {
     uint8_t dump[1 + QD_SX_STORE6_BODY + 1 + QD_SX_XTRA];   /* (P2-B) a DUMP reply being made (was a static in RAM) */
     uint32_t rx_ms;                    /* the port's: when its last FIZZ frame came (its clock | 1; 0 none): the frames'
                                         * pacing during a transfer (firmware/app/app.c fz_step) */
-    uint32_t xs[12];                   /* the port's transfer counters (app.c FZ_XS_*: stats line 16), here not in the
+    uint32_t xs[13];                   /* the port's transfer counters (app.c FZ_XS_*: stats line 16), here not in the
                                         * port's RAM */
 } qd_sx_t;
 
