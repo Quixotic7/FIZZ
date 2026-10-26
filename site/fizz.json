@@ -1,10 +1,10 @@
 {
   "name": "FIZZ",
-  "version": "0.12.0-beta.6-1-g19cdaf7",
-  "commit": "19cdaf7f53d9e34eb4c31704397768dbb232e484",
-  "dirty": true,
+  "version": "0.12.0-beta.6-4-ga3710ac",
+  "commit": "a3710ac76abd53d61d55249d8e1de699f754557a",
+  "dirty": false,
   "fm1vst": "6794093e51da922930ff34795f2ec1e0e37ff28f",
-  "bytes": 784496,
-  "built": "2026-10-26T07:15:44Z",
+  "bytes": 786536,
+  "built": "2026-10-26T08:01:39Z",
   "opt": "-Os"
 }
