@@ -690,8 +690,8 @@ static void menu_set(const ui_menu_t *v)
     }
 }
 
-/* P1.4b: the track settings: the track's number and name in its colour; page 1 SCALE (its twelve pitch classes as
- * dots, the scale's filled, the root ringed), ROOT, FOLLOW KEY, MIDI CH; page 2 VOICES (sixteen dots: the limit lit,
+/* P1.4b: the track settings: the track's number and name in its colour; page 1 MODE (GLOBAL / LOCAL), SCALE (its twelve
+ * pitch classes as dots, the scale's filled, the root ringed), ROOT, MIDI CH; page 2 VOICES (sixteen dots: the limit lit,
  * the ones sounding white), SWING, PAGE FOLLOW */
 static const char *const KIND_NAME[7] = {"BASS", "KEYS", "PLUCK", "PAD", "LEAD", "DRUMS", "FX"};
 static void menu_trk(const ui_menu_t *v)
@@ -709,19 +709,17 @@ static void menu_trk(const ui_menu_t *v)
     ui_icon(UI_IC_BACK, 220.f, 12.5f, 1.f, UI_K3);
     line2(8.f, 27.f, 232.f, 27.f, UI_G3, 1.f);
     if (!v->page) {
-        menu_row(0, 44.f, "SCALE", v->scale);
-        if (v->follow_key)                              /* (the global key's values) */
-            ui_T("GLOBAL", 232.f, 48.5f, 12.f, 700, 1.f, UI_G1, QD_RIGHT);
-        for (k = 0; k < 12; k++) {                      /* C .. B: the scale's notes */
-            const float x = 38.f + (float)k * 9.f, y = 88.f;
+        menu_row(0, 36.f, "MODE", v->follow_key ? "GLOBAL" : "LOCAL");
+        menu_row(1, 84.f, "SCALE", v->scale);
+        for (k = 0; k < 12; k++) {                      /* C .. B: the scale's notes (beside its name) */
+            const float x = 130.f + (float)k * 9.f, y = 86.f;
             const int in = (v->scale_mask >> k) & 1;
-            ui_O(x, y, 3.f, in ? UI_K1 : UI_G3, 1.f, in ? UI_K1 : QD_NONE);
+            ui_O(x, y, 3.f, in ? UI_K2 : UI_G3, 1.f, in ? UI_K2 : QD_NONE);
             if (k == v->root_pc)
-                ui_O(x, y, 5.5f, UI_K2, 1.3f, QD_NONE);
+                ui_O(x, y, 5.5f, UI_K3, 1.3f, QD_NONE);
         }
-        menu_row(1, 106.f, "ROOT", v->root);
-        menu_row(2, 152.f, "FOLLOW KEY", v->follow_key ? "ON" : "OFF");
-        menu_row(3, 198.f, "MIDI CH", ui_itoa(n, v->chan));
+        menu_row(2, 136.f, "ROOT", v->root);
+        menu_row(3, 186.f, "MIDI CH", ui_itoa(n, v->chan));
     } else if (v->page == 2) {                          /* P1.6d: KIND (the seven icons, its own lit), NAME */
         menu_row(0, 44.f, "KIND", v->tkind >= 0 ? KIND_NAME[v->tkind] : "NONE");
         for (k = 0; k < 7; k++) {

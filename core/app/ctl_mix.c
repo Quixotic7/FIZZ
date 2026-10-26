@@ -6,9 +6,10 @@
  * OCT- or HOME close them; P1.6h: the mix and the effects HOME only, F1 / F2 there the step view's layers; the core's
  * source lists stay as they are).
  *
- *   SEL tapped (held: the track map, as before)  THE TRACK SETTINGS of the selected track in the pattern: KNOB 1 SCALE,
- *        KNOB 2 ROOT (either: the track's own key, from the global one), KNOB 3 FOLLOW KEY (the project's global key;
- *        a new track's default), KNOB 4 MIDI CHANNEL; W the steps (a tap makes, removes; the keyboard on: notes); SEL again (or SELECT): the
+ *   SEL tapped (held: the track map, as before)  THE TRACK SETTINGS of the selected track in the pattern: KNOB 1 MODE
+ *        (GLOBAL, a new track's default: it follows the project's key and SCALE / ROOT edit that one; LOCAL: its own,
+ *        kept while GLOBAL; never set, a copy of the global one at the switch), KNOB 2 SCALE, KNOB 3 ROOT, KNOB 4 MIDI CHANNEL; W the steps (a tap
+ *        makes, removes); REC tapped: the keyboard on / off, the page stays (W then notes); SEL again (or SELECT): the
  *        second page, KNOB 1 VOICES (the limit), KNOB 2 SWING on / off, KNOB 3 PAGE FOLLOW (the global setting's);
  *        B1..B8 the track
  *   ENV (printed) = MIX  six faders with their pan dials and sends; KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4
@@ -208,12 +209,17 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
         return 1;
     }
     if (!u->trk_page) {
-        if (knob <= QD_K_2 && ts->key_global)           /* (an override starts from the global key) */
-            ts->scale = a->proj.key_scale, ts->root = a->proj.key_root;
+        uint8_t *sc = ts->key_global ? &a->proj.key_scale : &ts->scale;   /* GLOBAL: the project's key */
+        uint8_t *rt = ts->key_global ? &a->proj.key_root : &ts->root;
         switch (knob) {
-        case QD_K_1: ts->scale = (uint8_t)cl(ts->scale + d, 0, QD_NSCALE - 1), ts->key_global = 0; break;
-        case QD_K_2: ts->root = (uint8_t)(((ts->root + d) % 12 + 12) % 12), ts->key_global = 0; break;
-        case QD_K_3: ts->key_global = d > 0; break;
+        case QD_K_1:                                    /* MODE: right GLOBAL, left LOCAL (its own key back; never set,
+                                                         * CHROMATIC C: a copy of the global one) */
+            if (d < 0 && ts->key_global && ts->scale == QD_SCALE_CHROMATIC && !ts->root)
+                ts->scale = a->proj.key_scale, ts->root = a->proj.key_root;
+            ts->key_global = d > 0;
+            break;
+        case QD_K_2: *sc = (uint8_t)cl(*sc + d, 0, QD_NSCALE - 1); break;
+        case QD_K_3: *rt = (uint8_t)(((*rt + d) % 12 + 12) % 12); break;
         default: ts->chan = (uint8_t)cl(ts->chan + d, 0, 15); break;
         }
     } else {
