@@ -18,7 +18,9 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
   view.c, ctl_leds.c, both app.c; the stats reply sends `<id>:<value>` with the names generated into
   firmware/app/fz_stats_names.h and firmware/tools/fizz_stats_names.py by tools/gen_stats_names.py
   (`stats-names-check` in make test). Tier 2 candidates the owner has not chosen: the Geek Out pages (6.6 KB), the
-  light font weight out of the blob so HARM (13.9 KB) can move in.
+  light font weight out of the blob so HARM (13.9 KB) can move in. The owner keeps Geek Out ("I like them") and
+  wants a **SCOPE view with a scope per track, pre-FX** (not built; a Geek Out page or a view of its own).
+  Stripping glyphs is not worth it: only `$;@[]^`{|}` (10 of 95 ASCII) are unused, ~4 KB of blob, nothing of the slot.
 
 - **Released: FIZZ 0.12.0-beta.7** (2026-10-26, tag `v0.12.0-beta.7`, pushed; the unit runs that package): **the FX ROUTING redone as ChoralRoot 0.27's**
   (built by the main session by hand, mockups/fizz-routing.html approved): `QD_FXP_RMODE` (PARALLEL / CHAIN),
