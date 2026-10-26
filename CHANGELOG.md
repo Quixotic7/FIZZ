@@ -9,7 +9,14 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
-Fixes from a first-session test of beta.5.
+Fixes from a first-session test of beta.5, and the owner's next round: a global scale, the patterns map that stays, MIDI FX on and off from ARP.
+
+- **A global scale.** SHIFT + ALGORITHM (scale) and SHIFT + PRESETS (root) set the project's global key when the selected track follows it, and the popup says GLOBAL; it stays up while SHIFT is held. New tracks follow the global key; a track overrides it on its settings page (KNOB 1 SCALE, KNOB 2 ROOT) and KNOB 3 FOLLOW KEY puts it back.
+- **The track settings page:** the white keys are the steps, or the keyboard when REC's keyboard is on. In the name editor KNOB 2 rolls names like PRESETS.
+- **Holding SEQ** opens the patterns map and it stays; SEQ again or HOME closes it. A SEQ tap with no map open is still TOOLS.
+- **Holding ARP** turns the track's whole MIDI FX group off and on (MIDI FX OFF / ON), and ARP's light is full while MIDI FX is on.
+- **HOME keeps the view** you chose with SHIFT + HOME, and GEEK OUT remembers its page.
+- **Saving a new preset no longer stalls the sound:** the save was reading all 64 patterns from flash to pick an id.
 
 - **A new project starts on pattern A01**, track 1 (it used to open on the demo's A02, so your first beats went into A02).
 - **GEEK OUT is one view:** SHIFT + HOME cycles PIANO ROLL, STEPS, EDIT and GEEK OUT; in GEEK OUT, SELECT turns its pages (METERS, NUMBERS, VOICES, SCOPE). HOME always comes back to the step view.
