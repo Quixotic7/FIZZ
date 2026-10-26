@@ -1117,6 +1117,39 @@ static void pref_test(void)
           "P2.1: a delete: the track keeps its sound, its name and where it came from");
 }
 
+/* the owner's rule (2026-10-25): a pattern's track holds its own version of a preset. P on track 1 of A01 and A02; in
+ * A02 edited and saved over P (REPLACE): A01's track 1 keeps the old values, in RAM and after a restart; the pool's
+ * reference to P plays the new one */
+static void replace_rule_test(void)
+{
+    int16_t p[QD_QUAD_NP];
+    int k, slot = 7;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    qd_quad_preset_patch(5, p);
+    p[QD_QP_HARM] = 111;
+    qd_lib_store(&A, slot, "KICK", p);
+    k = qd_pool_add_sound(&A, LIB(&A, slot));
+    tsound_of(&qd_proj_pat(&A.proj, 0)->snd[0], LIB(&A, slot), 0);
+    tsound_of(&qd_proj_pat(&A.proj, 1)->snd[0], LIB(&A, slot), 0);
+    qd_proj_pat(&A.proj, 0)->used = qd_proj_pat(&A.proj, 1)->used = 1;
+    qd_persist_flush(&A);
+    qd_proj_pat(&A.proj, 1)->snd[0].patch[QD_QP_HARM] = 222;   /* A02: edited, REPLACE */
+    qd_proj_pat(&A.proj, 1)->snd[0].edited = 1;
+    qd_lib_replace(&A, slot, "KICK", qd_proj_cpat(&A.proj, 1)->snd[0].patch);
+    qd_undo_close(&A);
+    CHECK(qd_proj_cpat(&A.proj, 0)->snd[0].patch[QD_QP_HARM] == 111 && k > 0 &&
+              qd_sound_patch(&A.proj, k)[QD_QP_HARM] == 222,
+          "REPLACE: A01's track keeps the old version (in RAM), the pool's reference plays the new one");
+    qd_persist_flush(&A);
+    boot(&B);
+    CHECK(qd_proj_cpat(&B.proj, 0)->snd[0].patch[QD_QP_HARM] == 111 &&
+              qd_proj_cpat(&B.proj, 1)->snd[0].patch[QD_QP_HARM] == 222 &&
+              qd_sound_patch(&B.proj, k)[QD_QP_HARM] == 222 && LIB(&B, slot)->patch[QD_QP_HARM] == 222,
+          "REPLACE, a restart: A01 the old version, A02 and the pool the new one");
+}
+
 /* P2.1: a flash of 'P' 4 pattern records (as P1.6h wrote them), two projects, MY presets and factory sounds on their
  * tracks: read by this core, every pattern the same; qd_persist_migrate: every record 'P' 5, read again after a
  * restart, every pattern still the same, the records smaller (the owner's own flash: tools/flash_check.py) */
@@ -1525,6 +1558,7 @@ int main(void)
     isr_paging_test();
     foreign_test();
     pref_test();
+    replace_rule_test();
     p5_migration_test();
     migration_test();
     mfx_test();
