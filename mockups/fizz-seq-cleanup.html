@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ sequencer clean-up</title>
+<!-- FIZZ: the owner's 2026-10-26 sequencer clean-up, three new screens for approval: the FX layer's first page as a
+     steps page (the current track's sends, the steps on the lane and the LEDs, REC the keyboard), a held step's TRIG
+     screen with its MIDI FX group under the trig picture, and B10 SLIDE (a step's portamento).
+     ?shot=N  one canvas at 1x   ?sheet=1  every screen at 2x   no query: the page -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(3, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: the sequencer clean-up (mock-up, 2026-10-26)</h1>
+<p>Three screens. <strong>SENDS</strong> is the FX layer's first page redone as a steps page: the current track's three sends as the picture and the values,
+the steps on the lane and the white keys, a held step's send a lock (the chip), REC the keyboard. <strong>TRIG</strong> held now shows the step's
+MIDI FX group under the trig picture (KNOB 2 turns it). <strong>SLIDE</strong> is B10: a step's portamento, PORT on the black key, TIME on KNOB 2.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const C = { bg:'#000', k1:'#3f7dff', k2:'#1fd47e', k3:'#f1f0ea', k4:'#ff6a2c', sel:'#ffd23f', red:'#ff3448', mag:'#ff3ca0', g1:'#8d8d96', g2:'#4b4b54', g3:'#26262d', cream:'#fff0d2', cyan:'#63c4d6', lime:'#b5e853', purple:'#a57cff' };
+const F = 'IT';
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = 'alphabetic';
+  if (o.a != null) c.globalAlpha = o.a; c.fillText(s, x, y); c.restore();
+}
+function L(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = o.a;
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  if (o.fill) { c.closePath(); c.fillStyle = o.fill; c.fill(); } c.stroke(); c.restore();
+}
+function RR(c, x, y, w, h, r, stroke, lw, fill, a) {
+  c.save(); if (a != null) c.globalAlpha = a; c.beginPath(); c.roundRect(x, y, w, h, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function O(c, x, y, r, stroke, lw, fill) {
+  c.save(); c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+// the lane along the foot, as the EDIT home draws it: 16 outlined steps, the trigs filled (own notes warm white, the
+// track's cyan), the held one outlined bright, a page number left
+const TRIGS = [1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0], OWN = [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0];
+function lane(c, held = -1, keys = false) {
+  const y = 190;
+  T(c, '1', 6, y + 18, { s: 12, w: 700, col: C.g1 });
+  for (let i = 0; i < 16; i++) {
+    const x = 18 + i * 13.5;
+    if (keys) { RR(c, x, y, 11, 42, 3, i === held ? C.k3 : C.g2, 1, i === held ? C.k3 : null); continue; }
+    RR(c, x, y, 11, 42, 3, i === held ? C.k3 : C.g3, i === held ? 1.6 : 1, TRIGS[i] ? (OWN[i] ? C.cream : C.cyan) : null);
+    if (TRIGS[i]) L(c, [x + 3, y + 22, x + 8, y + 22], C.bg, 1.2);
+  }
+}
+function head(c, left, right, col = C.k3) {
+  T(c, left, 8, 18, { s: 12, w: 600, col, ls: 0.8 });
+  if (right) { RR(c, 212, 5, 20, 18, 3, C.k4, 1.4, null); T(c, right, 222, 19, { s: 13, w: 600, col: C.k4, al: 'center' }); }
+}
+function foot(c, names, vals, cols, chip = -1) {
+  for (let k = 0; k < names.length; k++) {
+    const x = 30 + k * 60;
+    T(c, names[k], x, 204, { s: 12, w: 600, col: C.g1, al: 'center', ls: 0.3 });
+    if (k === chip) { RR(c, x - 27, 214, 54, 18, 9, cols[k], 1.2, cols[k]); T(c, vals[k], x, 228, { s: 15, w: 600, col: C.bg, al: 'center' }); }
+    else T(c, vals[k], x, 228, { s: 16, w: 500, col: cols[k], al: 'center' });
+  }
+}
+// SENDS: the current track's three sends as bars (the effects' colours), the chip where a step locks one
+function sends(c, o) {
+  head(c, 'SENDS', '3');
+  const names = ['CHORUS', 'DELAY', 'REVERB'], cols = [C.k1, C.k2, C.k3], v = o.v;
+  for (let k = 0; k < 3; k++) {
+    const x = 48 + k * 72, h = 96 * v[k] / 100;
+    RR(c, x - 16, 40, 32, 96, 5, C.g3, 1.2, null);
+    RR(c, x - 16, 136 - h, 32, h, 5, null, 0, cols[k], o.lock === k ? 1 : 0.85);
+    if (o.lock === k) RR(c, x - 20, 36, 40, 104, 7, cols[k], 1.4, null);
+    T(c, names[k], x, 154, { s: 12, w: 600, col: C.g1, al: 'center', ls: 0.3 });
+    if (o.lock === k) { RR(c, x - 24, 160, 48, 18, 9, cols[k], 1.2, cols[k]); T(c, v[k] + '%', x, 174, { s: 15, w: 600, col: C.bg, al: 'center' }); }
+    else T(c, v[k] + '%', x, 175, { s: 17, w: 500, col: cols[k], al: 'center' });
+  }
+  if (o.held >= 0) { RR(c, 1.5, 1.5, 237, 237, 8, C.mag, 3, null); T(c, 'STEP ' + (o.held + 1), 120, 18, { s: 12, w: 600, col: C.mag, al: 'center', ls: 0.8 }); }
+  lane(c, o.held ?? -1, !!o.keys);
+}
+// TRIG held: the three trig values as today, the MIDI FX group under them
+function trig(c, o) {
+  head(c, 'STEP 5 · TRIG', null, C.k3);
+  T(c, o.def ? 'DEFAULT' : '', 110, 18, { s: 12, w: 600, col: C.g1, ls: 0.8 });
+  const its = [['NOTE', C.k1], ['LOCK', C.g2], ['TIE', C.g2]];
+  for (let k = 0; k < 3; k++) {
+    const x = 52 + k * 68;
+    if (k === 0) O(c, x, 74, 13, its[k][1], 1.6, null);
+    if (k === 1) RR(c, x - 10, 66, 20, 16, 4, null, 0, its[k][1]);
+    if (k === 2) { c.save(); c.strokeStyle = its[k][1]; c.lineWidth = 1.6; c.beginPath(); c.arc(x, 82, 12, Math.PI, 0); c.stroke(); c.restore(); }
+    T(c, its[k][0], x, 108, { s: 12, w: 600, col: k === 0 ? C.k1 : C.g1, al: 'center', ls: 0.5 });
+  }
+  L(c, [24, 124, 216, 124], C.g3, 1);
+  // the group: the hexagon in KNOB 2's green, its number, or OFF / TRACK
+  const hx = 60, hy = 152, pts = []; for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i - Math.PI / 2; pts.push(hx + Math.cos(a) * 14, hy + Math.sin(a) * 14); }
+  L(c, pts, o.grp ? C.k2 : C.g2, 1.6, { close: true });
+  T(c, o.grp ? String(o.grp) : '', hx, hy + 5, { s: 14, w: 700, col: C.k2, al: 'center' });
+  T(c, o.grp ? 'MIDI FX' : 'MIDI FX', 84, 148, { s: 12, w: 600, col: C.g1, ls: 0.6 });
+  T(c, o.grp ? 'GROUP ' + o.grp : o.track ? 'TRACK' : 'OFF', 84, 164, { s: 15, w: 500, col: o.grp ? C.k2 : C.g1, ls: 0.3 });
+  // the group's slots as small icons: arp, chord
+  if (o.grp) { for (let i = 0; i < 4; i++) RR(c, 168 + i * 14, 140, 10, 18, 2, i < 2 ? C.k2 : C.g3, 1, i < 2 ? C.k2 : null); }
+  RR(c, 1.5, 1.5, 237, 237, 8, C.mag, 3, null);
+  lane(c, 4);
+}
+// SLIDE held (B10): the step's note sliding into the next's, PORT and TIME
+function slide(c, o) {
+  head(c, 'STEP 5 · SLIDE', null, C.k3);
+  const y0 = 136, y1 = 84, x0 = 40, x1 = 120, x2 = 200;
+  L(c, [24, 158, 216, 158], C.g2, 1);
+  for (let i = 0; i < 8; i++) L(c, [24 + i * 27.4, 158, 24 + i * 27.4, 162], C.g2, 1);
+  RR(c, x0, y0 - 6, 70, 12, 4, null, 0, C.k1);
+  RR(c, x2 - 8, y1 - 6, 36, 12, 4, null, 0, C.g2);
+  if (o.port) {
+    const t = x1 + 70 * o.time;
+    L(c, [x1 - 10, y0, t, y1, x2 - 8, y1], C.k2, 2.4);
+    RR(c, x1 - 10, y0 - 6, t - x1 + 10, 12, 4, null, 0, C.k2, 0.35);
+    T(c, Math.round(o.time * 127) + '', t + 4, y1 - 12, { s: 13, w: 600, col: C.k2 });   // TIME, KNOB 2
+  } else {
+    L(c, [x1 - 10, y0, x1 - 10, y1, x2 - 8, y1], C.g2, 1.4, { dash: [3, 3] });
+  }
+  T(c, o.port === 2 ? 'LEGATO' : o.port ? 'ON' : 'OFF', 120, 56, { s: 28, w: 300, col: o.port ? C.k2 : C.g1, al: 'center' });
+  T(c, o.rate ? 'RATE' : 'TIME', 216, 176, { s: 12, w: 600, col: C.g2, al: 'right', ls: 0.5 });   // SLOPE, KNOB 3
+  RR(c, 1.5, 1.5, 237, 237, 8, C.mag, 3, null);
+  lane(c, 4);
+}
+const SCREENS = [
+  { title: 'SENDS, the FX layer\'s first page', draw: c => sends(c, { v: [0, 32, 16], held: -1 }),
+    text: 'The current track (the badge, SHIFT + SELECT changes it) with its three sends as bars; KNOB 1 … 3 turn them. The steps on the lane and on the white keys, as the EDIT home. No W-key track picking.' },
+  { title: 'SENDS, a step held', draw: c => sends(c, { v: [0, 70, 16], held: 7, lock: 1 }),
+    text: 'W8 held: the frame, the DELAY send locked on that step (the chip, the bar framed). The same with the latch\'s selection.' },
+  { title: 'SENDS, REC: the keyboard', draw: c => sends(c, { v: [0, 32, 16], held: -1, keys: true }),
+    text: 'REC tapped: the white keys play the track (the lane shows keys, not steps), as the sound editor does; REC again: the steps.' },
+  { title: 'TRIG held, with the MIDI FX group', draw: c => trig(c, { grp: 2 }),
+    text: 'The trig values as today (NOTE / LOCK / TIE); under the line the step\'s MIDI FX: the group hexagon in KNOB 2\'s green with its slots, KNOB 2 turns it (TRACK, OFF, 1 … 5).' },
+  { title: 'TRIG held, the track\'s group', draw: c => trig(c, { track: true, def: true }),
+    text: 'A step with no group of its own: TRACK, grey.' },
+  { title: 'SLIDE (B10), ON', draw: c => slide(c, { port: 1, time: 0.45 }),
+    text: 'B10 held with a step: PORT. The step\'s note (blue) glides into the next step\'s pitch (grey) along the green ramp; B10 again cycles OFF / ON / LEGATO, KNOB 2 TIME (the figure by the ramp), KNOB 3 SLOPE (TIME or RATE, small right). The 303 slide in one key.' },
+  { title: 'SLIDE, OFF', draw: c => slide(c, { port: 0, time: 0.45 }),
+    text: 'PORT off: a dashed step up, no glide.' },
+];
+const q = new URLSearchParams(location.search);
+const fontReady = (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })();
+function draw(i, cv, scale) { const c = cv.getContext('2d'); c.setTransform(scale, 0, 0, scale, 0, 0); c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); SCREENS[i].draw(c); }
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  fontReady.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  fontReady.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  fontReady.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong> ${s.text}`; d.appendChild(p);
+    document.getElementById('cells').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>
