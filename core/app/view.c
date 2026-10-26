@@ -99,7 +99,9 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
     const qd_tset_t *ts = &P->trk[t];
     const qd_sdef_t *df = &ts->def;
     int i, j, lo = 128, hi = -1;
+    const int cells = v->cells;                         /* (a caller asking for the cells in any view) */
     memset(v, 0, sizeof *v);
+    v->cells = cells;
     v->mode = u->hmode;
     v->track = t + 1;
     v->name = a->model.t[t].name;
@@ -121,7 +123,7 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
             v->grow[u->slide_from] = 1.f - k;
     }
     v->play_step = v->flash_step = -1;
-    if (v->steps) {
+    if (v->steps || v->cells) {                          /* (2026-10-26: cells asked for: the SENDS page's row) */
         int pg, k;
         for (pg = 0; pg < QD_NPAGE; pg++)
             for (k = 0; k < QD_PAGE; k++) {
@@ -2141,21 +2143,12 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
         }
     }
     v->t = secs(a->ms);
-    if (pg->fx == QD_FXG_OVER) {                        /* P1.5b: every track's sends */
-        int t;
-        for (t = 0; t < QD_NTRACK; t++) {
-            v->sends[t][0] = qd_fx_send(a, t, 2);
-            v->sends[t][1] = qd_fx_send(a, t, 0);
-            v->sends[t][2] = qd_fx_send(a, t, 1);
-            if (!qd_seq_audible(&a->seq, qd_seq_track_pat(&a->seq, t), t))
-                v->mute |= (uint8_t)(1u << t);
-        }
-        for (k = 0; k < 3; k++) {                       /* P1.6d: the selected track's bars: the held step's locks */
-            int16_t x;
-            if (u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], qd_fx_send_id(k == 0 ? 2 : k - 1), &x))
-                v->sends[a->sel][k] = x;
-        }
+    if (pg->fx == QD_FXG_OVER) {                        /* SENDS (2026-10-26): the current track, its keyboard (REC) */
         v->track = a->sel + 1;
+        v->keys = qd_snd_keys(a);
+        for (k = 0; k < 16; k++)
+            if ((a->keys_held >> QD_WHITE_KEY[k]) & 1u)
+                v->keys_down |= (uint16_t)(1u << k);
     }
     {   /* the routing: the mode, the order, a block's key held (its lift over 120 ms), the chain amounts dim in PARALLEL */
         static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_DELAY, QD_RT_REVERB, QD_RT_CHORUS, QD_RT_FILTER, -1};
@@ -2400,6 +2393,11 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
         break;
     case QD_SCR_FX:                                     /* P1.4b: the effects */
         fill_fx(a, &fv);
+        if (QD_FX_PAGES[a->ui.fx_page].fx == QD_FXG_OVER && !fv.keys) {   /* (2026-10-26: SENDS: the page's row) */
+            lv.cells = 1;
+            fill_lane(a, &lv, pat);
+            fv.lane = &lv;
+        }
         ui_fx_draw(&fv);
         break;
     case QD_SCR_SOUND:                                  /* P1.4a: the sound editor */

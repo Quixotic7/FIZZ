@@ -2547,7 +2547,8 @@ static void u_names(void)
 }
 
 /* E1: a step locking PORT ON slides (a MONO bass, its last note held into it: the 303's slide); a step without the
- * lock does not; a chord's notes glide by rank */
+ * lock does not; a chord's notes glide by rank. 2026-10-26 (SLIDE, B10): the lock is on the step that slides INTO
+ * the next note (the 303's way), not on the note slid into: player.c slide_arm / slide_take */
 static int u_voice_of(int t, int note)
 {
     int i;
@@ -2563,26 +2564,26 @@ static void u_port(void)
     TP *p = tp_new(0, 120);
     TS *st;
     p->trk[0].limit = 1;
-    S(p, 0, 0, QD_TRIG_NOTE, 36, 0, 0, 0)->len = 2;     /* held into step 2 */
-    st = S(p, 0, 1, QD_TRIG_NOTE, 48, 0, 0, 0);         /* the slide */
+    st = S(p, 0, 0, QD_TRIG_NOTE, 36, 0, 0, 0);         /* held into step 2; the slide (2026-10-26: the lock on the
+                                                         * step that slides into the next) */
     st->len = 2;
     LK(st, QD_QP_PORT, QD_PORT_ON);
     LK(st, QD_QP_PTIM, 30);
+    S(p, 0, 1, QD_TRIG_NOTE, 48, 0, 0, 0)->len = 2;
     S(p, 0, 4, QD_TRIG_NOTE, 36, 0, 0, 0)->len = 2;
     S(p, 0, 5, QD_TRIG_NOTE, 48, 0, 0, 0)->len = 1;     /* no lock: no slide */
-    p->trk[2].limit = 6;                                /* chords: 48 52 55 then 50 53 57 60, PORT ON (locked) */
+    p->trk[2].limit = 6;                                /* chords: 48 52 55 (PORT ON locked: it slides) then 50 53 57 60 */
     st = S(p, 2, 8, QD_TRIG_NOTE, 48, 52, 55, 0);
     st->len = 1;
     LK(st, QD_QP_PORT, QD_PORT_ON);
+    LK(st, QD_QP_PTIM, 40);
     st = S(p, 2, 9, QD_TRIG_NOTE, 50, 53, 57, 60);
     st->len = 1;
-    LK(st, QD_QP_PORT, QD_PORT_ON);
-    LK(st, QD_QP_PTIM, 40);
     run_pattern(0.05, 1);
     rig_run_to((uint64_t)(s16 * 1.0) + 1200);
     v = u_voice_of(0, 48);
     CHECK(v >= 0 && POOL.v[v].q.pitch_cur > 36 * 16 && POOL.v[v].q.pitch_cur < 48 * 16,
-          "PORT ON locked on step 2: 36 slides to 48 (at %d / 16, 1200 samples in)", v >= 0 ? POOL.v[v].q.pitch_cur : -1);
+          "PORT ON locked on step 1: its 36 slides into step 2's 48 (at %d / 16, 1200 samples in)", v >= 0 ? POOL.v[v].q.pitch_cur : -1);
     rig_run_to((uint64_t)(s16 * 5.0) + 1200);
     v = u_voice_of(0, 48);
     CHECK(v >= 0 && POOL.v[v].q.pitch_cur == 48 * 16 && !POOL.v[v].q.gstep, "no lock on step 6: 48 at once");

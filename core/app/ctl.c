@@ -78,8 +78,8 @@ int qd_ctl_main_steps(const qd_app_t *a)
     if (u->mode != QD_MODE_STEP)
         return 0;
     switch (u->latch) {
-    case QD_LATCH_MIX:
-    case QD_LATCH_FX: return 1;
+    case QD_LATCH_MIX: return 1;
+    case QD_LATCH_FX: return !qd_snd_keys(a);           /* (2026-10-26: SENDS' keyboard: F1 / F2 the octave) */
     case QD_LATCH_SND: return !u->ekeys;                /* (its keyboard: F1 / F2 the octave) */
     case QD_LATCH_MFX: return !qd_mfx_lane_page(a);     /* (STEPS; an arp lane's W keys are its steps) */
     default: return 0;
@@ -465,18 +465,15 @@ static void k_shift_black(qd_app_t *a, int key, int b, int down, int vel)
 static void k_panel_white(qd_app_t *a, int key, int w, int down, int vel)
 {
     (void)key, (void)vel;
-    if (qd_panel_steps(a, w)) {                         /* P1.6d: the mix, the effects: held, the steps their sends
-                                                         * lock on */
-        if (down)
-            qd_step_white_down(a, w);
-        else if (a->ui.latch == QD_LATCH_TRK)
-            qd_step_white_up(a, w);                     /* (the track settings: a tap makes, removes) */
-        else
-            qd_step_white_up_hold(a, w);
+    if (!qd_panel_steps(a, w))
         return;
-    }
+    /* P1.6d: the mix, the effects: held, the steps their sends lock on (2026-10-26: SENDS too) */
     if (down)
-        qd_panel_white(a, w);
+        qd_step_white_down(a, w);
+    else if (a->ui.latch == QD_LATCH_TRK)
+        qd_step_white_up(a, w);                         /* (the track settings: a tap makes, removes) */
+    else
+        qd_step_white_up_hold(a, w);
 }
 static int w_steps_held(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && steps_held(a); }
 static int w_f1(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F1; }
@@ -941,11 +938,10 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_lib, k_lib_white},              /* P1.5a: the sounds page's slots, the projects */
     {w_menu_w, k_none},                /* P1.3y: a settings menu: nothing (the track settings: the steps, below) */
     {w_main_layer, k_flayer_white},    /* P1.6h: a main page's steps, F1 / F2 held: the step view's copy, pick-up / drop */
-    {w_panel, k_panel_white},          /* P1.4b: the track settings, the mix, the effects: the steps (P1.5b: the
-                                        * overview's W1..W8 the track) */
+    {w_snd_keys, k_snd_note},          /* P1.5b: the sound editor's keyboard (2026-10-26: SENDS' too, before its steps) */
+    {w_panel, k_panel_white},          /* P1.4b: the track settings, the mix, the effects: the steps */
     {w_mfx, k_mfx_white},              /* P1.6c: the MIDI FX screen: the track through the group (the lanes' steps) */
     {w_snd_mk, k_snd_mk},              /* E4: the editor, B1 held: W1..W8 the modulation source */
-    {w_snd_keys, k_snd_note},          /* P1.5b: the sound editor's keyboard */
     {w_keys_mode, k_note},             /* the keyboard */
     {w_flayer_latch, k_flayer_white},  /* P1.5m: the latch's selection, F1 / F2 / F3 down: the layer's W */
     {w_steps_held, k_step},            /* steps held: more held steps */
@@ -963,10 +959,10 @@ static const qd_key_row_t BLACK_ROWS[] = {
     {w_lib, k_lib_black},              /* P1.5a: the banks, LIBRARY / POOL, NAME, delete */
     {w_main_layer, k_main_black},      /* P1.6h: .. F1 held: its pages, CLEAR, COPY, UNDO (MIDI FX: B9, B11; B1..B8 stay
                                         * the slots); F2: nothing */
-    {w_panel, k_panel_black},          /* P1.4b: the track settings, the mix: the track; the effects: B1..B4 */
+    {w_snd_full, k_snd_note},          /* P1.5b: the editor's keyboard, FULL: the black keys play too (SENDS' too) */
+    {w_panel, k_panel_black},          /* P1.4b: the track settings, the mix: the track; the effects: B1..B6 */
     {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
     {w_mfx, k_mfx_black},              /* P1.6c: the MIDI FX screen: the slots, bypass, remove */
-    {w_snd_full, k_snd_note},          /* P1.5b: the editor's keyboard, FULL: the black keys play too */
     {w_snd, k_snd_black},              /* P1.4a: the sound editor: B1..B5 its groups, B11 the page's locks */
     {w_keys_mode, k_note},             /* the keyboard */
     {w_lfo_held, k_lfo_mode},          /* P1.3y: LFO held: the hold mode, the latch untouched */
@@ -1299,7 +1295,8 @@ static void b_rec(qd_app_t *a, int down)
         qd_mfx_rec(a);
         return;
     }
-    if (qd_snd_open(a)) {                               /* P1.5b: the sound editor stays: its keyboard on / off */
+    if (qd_snd_open(a) || qd_fx_sends_open(a)) {        /* P1.5b: the sound editor stays: its keyboard on / off
+                                                         * (2026-10-26: the effects' SENDS page the same) */
         u->ekeys = !u->ekeys;
         qd_step_release_all(a);
         u->slatch = 0;

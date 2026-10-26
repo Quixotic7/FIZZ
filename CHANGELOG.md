@@ -9,6 +9,16 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+The sequencer clean-up (2026-10-26; docs/SEQ-CLEANUP-PLAN.md, the mock-ups in mockups/fizz-seq-cleanup.html), and the flash diet.
+
+- **One knob table, held or not.** **KNOB 1 is the mode's main value** everywhere: in NOTE the root with nothing held (the whole default chord) and the whole chord with a step held (SELECT did that; B1 held + SELECT still moves the root). **KNOB 2 … 4 are notes 2 … 4**, and **note 5 is on ALGORITHM only while you physically hold the step** (or B1 for the default); in the latch's selection ALGORITHM stays the step cursor. **SELECT is the page** in every mode, held or not. The held NOTE screen draws each note in its knob's colour (1 … 4 blue, green, white, orange; note 5 pink).
+- **OCT− / OCT+ tapped with nothing held** move the entry octave (held longer than a tap they are the F1 / F2 layers, whose map waits a tap's time now).
+- **The step latch (LFO) starts with nothing selected**: tap a step, or turn ALGORITHM (it lands on the step you last edited). **MODES** is drawn first, on the left, of the latch-mode screen; SELECT turns toward it.
+- **B10 is SLIDE, B11 is SOUND; P-LOCK is gone.** SLIDE is the 303's slide on one key: hold a step, **B2 ON** (B1 OFF, B3 LEGATO, or **B10 again** cycles), and the step's note slides into the track's next note; **KNOB 2 TIME, KNOB 3 SLOPE** (TIME / RATE), B11 clears it. ON strikes the next note gliding from this one; **LEGATO** holds this note until the next and moves it without a new attack. The lane shows the slides as ramps; the held screen the note gliding into the next. A slide is the step's PORT / TIME / SLOPE locks (the sound editor shows them; a PORT lock made there is a slide too). For a sound lock on a step hold the step in the sound editor (that is unchanged).
+- **TRIG held shows the step's MIDI FX group** under the trig picture (a hexagon with the group's number, GROUP n or TRACK / OFF, the group's eight slots lit where an effect plays). KNOB 2 turns it as before.
+- **The effects open on SENDS** (the OVERVIEW is gone): the current track's CHORUS, DELAY and REVERB as three bars (KNOB 1 … 3), the page's steps along the foot and on the white keys as the EDIT home (hold a step: the send is its lock, the bar framed, the value a chip), **REC** the keyboard on / off as the sound editor's. SHIFT + SELECT (or FX held + ALGORITHM) picks the track; W1 … W8 no longer do. On every other effects page and in the mixer the white keys' LEDs show the steps, as the step view lights them.
+- **The flash diet:** fonts in two weights (300 and 700: 400 and 500 read light), the drawing's own small sin / cos / exp / log / pow, the editor's and MIDI FX tables and the sound's harmonic table in the data blob, the stats reply by id. fizz.bin 543,568 B (38 KB free) before the clean-up.
+
 ## 0.12.0-beta.7 (2026-10-26)
 
 The FX routing redone the way ChoralRoot 0.27 does it.

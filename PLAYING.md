@@ -335,8 +335,8 @@ Steps:
   - then an **empty step** always gets what's in your hand **pasted**;
   - a **full step** alternates: paste over it, then the next full step is cut into your hand, and so on;
   - letting go of F2 empties your hand. The screen shows the page and what's in your hand.
-- **Everywhere the white keys are steps (0.9.6)**: the mixer and its sends, the effects (the OVERVIEW's W1..W8 too,
-  while F1 or F2 is held), the sound editor (its keyboard off) and the MIDI FX screen on STEPS. F1 + W and F2 + W
+- **Everywhere the white keys are steps (0.9.6)**: the mixer and its sends, the effects (every page, SENDS too since
+  2026-10-26), the sound editor (its keyboard off) and the MIDI FX screen on STEPS. F1 + W and F2 + W
   work there exactly as here, and **F1 / F2 held show the same pictures** (the pages and the copy, ringed where it came
   from; the page and the hand). F1 + B1..B8 / B9 / B10 / B11 are the pages, clear, copy, undo there too (MIDI FX: B9
   and B11; its B1..B8 stay the slots' copy and move). The page stays open when you let go. In the sound editor with
@@ -427,8 +427,8 @@ Undo and redo of everything (P1.5c):
   nothing (no trig).
 - **What a knob writes, at a glance (0.9.6)**: the magenta frame comes as soon as a W goes down; the head's top right
   shows **how many steps** are held or selected (magenta, e.g. 3); the fader, pan dial or send bar a knob locks gets
-  a **chip in the knob's colour** on it (the effects: on the OVERVIEW's bar, the SEND cell's chip). No frame and no
-  count: the knobs move the track.
+  a **chip in the knob's colour** on it (the effects: SENDS' bar framed and its value a chip, the SEND cell's chip).
+  No frame and no count: the knobs move the track.
 - **The step latch here (0.9.6)**: a selection made in the step view **is let go** when you open the mixer or the
   effects (the latch stays on), so LEVEL moves the track, not some step you can't see. Select steps **in** the mixer
   (W keys, the latch on) and they stay, into the effects and back. **LFO** in the mixer or the effects turns the latch
@@ -436,12 +436,17 @@ Undo and redo of everything (P1.5c):
 
 ## How do I change the effects? (FX tapped)
 
-- **Tap FX**: the effects, ChoralRoot's (global: no sound or pattern changes them). It opens on the **OVERVIEW**.
-  **FX again** (or SELECT) for the next page; **B1 OVERVIEW, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING**
+- **Tap FX**: the effects, ChoralRoot's (global: no sound or pattern changes them). It opens on **SENDS**.
+  **FX again** (or SELECT) for the next page; **B1 SENDS, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING**
   (a key again: the effect's second page). **HOME** closes it (0.9.6: F1 no longer does).
-- **OVERVIEW** (P1.5b): three columns, CHORUS, DELAY, REVERB, each with the six tracks' send bars in the tracks'
-  colours (the selected track's bright, an unheard track grey). **W1..W8 choose the track** (lit: the selected one
-  bright); **KNOB 1..3 its CHORUS, DELAY, REVERB sends**. FX held + ALGORITHM still chooses the track too.
+- **SENDS** (2026-10-26; it was the OVERVIEW): the current track (its number top right; **SHIFT + SELECT** or **FX
+  held + ALGORITHM** changes it) with its **CHORUS, DELAY and REVERB sends as three bars**, their values under them;
+  **KNOB 1..3** turn them. Along the foot the page's steps, as the EDIT home's row, and **the white keys are the
+  steps** (the LEDs too): hold one and KNOB 1..3 lock that send on it (the bar framed, the value a chip); the latch's
+  selection the same. **REC** turns the white keys into the keyboard (the row shows the keys) and back, as the sound
+  editor does. The old overview's every-track bars and W1..W8 track picking are gone.
+- On **every other effects page** (and the mixer) the white keys are the steps too, lit as in the step view, so a send
+  lock is never blind.
 - **ROUTING** (2026-10-26, as ChoralRoot 0.27's): the signal flow as boxes on a wire. **KNOB 1 MODE**: **PARALLEL**
   (where every unit starts, the sound as it always was: the tracks' sends fan into CHORUS, DELAY and REVERB side by
   side, their returns sum, the FILTER after) or **CHAIN** (one path, the OEM way: IN, then the four blocks in the order
@@ -455,7 +460,7 @@ Undo and redo of everything (P1.5c):
 
   | page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
   | --- | --- | --- | --- | --- |
-  | OVERVIEW | CHORUS send | DELAY send | REVERB send | |
+  | SENDS | CHORUS send | DELAY send | REVERB send | |
   | DELAY | TIME (ms, or the note value when synced) | SPREAD (R's time against L's; synced: 1:1 3:4 2:3 1:2) | FEEDBACK | SEND |
   | DELAY 2 | SYNC (FREE / TEMPO) | MODE (STEREO / PING-PONG) | TONE | WOW |
   | REVERB | SIZE | DAMP | DECAY (s, INF) | SEND |
@@ -466,8 +471,8 @@ Undo and redo of everything (P1.5c):
 
   **SEND** is the selected track's send into that effect (its number at the top right; the same value as the
   mixer's).
-- **Send locks** (0.9.1): with a step held (a W on any page but the OVERVIEW, whose W1..W8 choose the track) or the
-  latch's selection, the OVERVIEW's KNOB 1..3 and each effect's **SEND** write a **lock on the step** instead of the
+- **Send locks** (0.9.1): with a step held (a W on any page) or the latch's selection, SENDS' KNOB 1..3 and each
+  effect's **SEND** write a **lock on the step** instead of the
   track's send: the step's voices send that much (per trig, as Elektron's; a step without the lock keeps the track's).
   The magenta frame, the cell's value as a filled chip (outlined: some step of the track locks it); **F2 + the knob**
   clears it.

@@ -316,7 +316,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
     }
     if (step && u->latch == QD_LATCH_FX) {              /* the effects: the page's cells */
         static ui_fx_t fv;
-        static const char *const FXB[QD_FX_NKEY] = {"OVERVIEW", "DELAY", "REVERB", "CHORUS", "MASTER", "ROUTING"};
+        static const char *const FXB[QD_FX_NKEY] = {"SENDS", "DELAY", "REVERB", "CHORUS", "MASTER", "ROUTING"};
         fill_fx(a, &fv);
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), fv.has[k] && fv.lab[k] ? fv.lab[k] : "");
@@ -324,6 +324,14 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         for (i = 0; i < QD_FX_NKEY; i++)
             lb_set(o, LB_B(i), FXB[i]);
         lb_set(o, LB_BTN(QD_B_TRACKS), "NEXT PAGE");
+        if (qd_fx_sends_open(a)) {                      /* 2026-10-26: SENDS: the steps, or REC's keyboard */
+            if (qd_snd_keys(a))
+                lb_notes(a, o, !a->proj.rec_ekeys);
+            else
+                for (i = 0; i < 16; i++)
+                    lb_setn(o, LB_W(i), "STEP ", u->page[a->sel] * 16 + i + 1);
+            lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : qd_snd_keys(a) ? "STEPS" : "KEYS");
+        }
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
     }

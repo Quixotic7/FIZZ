@@ -172,11 +172,17 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         qd_panel_leds(a, bk);
         for (i = 0; i < 11; i++)
             out->key[QD_BLACK_KEY[i]] = bk[i];
-        for (i = 0; i < 16 && u->latch != QD_LATCH_TRK; i++)   /* (P1.5b: the effects' overview: W1..W8 the tracks;
-                                                         * the track settings: the steps) */
-            out->key[QD_WHITE_KEY[i]] = u->latch == QD_LATCH_FX && QD_FX_PAGES[u->fx_page].fx == QD_FXG_OVER &&
-                                        i < QD_NTRACK ? (i == a->sel ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
-        return;
+        if (qd_snd_keys(a)) {                           /* 2026-10-26: SENDS' keyboard (REC): the keys by the scale */
+            uint8_t k[QD_NKEY];
+            memset(k, 0, sizeof k);
+            qd_keys_leds(a, k);
+            for (i = 0; i < QD_NKEY; i++)
+                if (qd_ctl_white(i) >= 0 || a->proj.rec_ekeys)
+                    out->key[i] = k[i];
+        }
+        return;                                         /* (2026-10-26: else the W keys stay the steps, as the step
+                                                         * view lights them: the mix, every effects page, the track
+                                                         * settings) */
     } else if (qd_mfx_open(a)) {                        /* P1.6c: the MIDI FX screen (ctl_mfx.c) */
         qd_mfx_leds(a, out->key);
         return;

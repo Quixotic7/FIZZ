@@ -20,14 +20,17 @@
  *   FX (printed) tapped  THE EFFECTS (global, ChoralRoot's: no sound load touches them): DELAY (TIME, SPREAD,
  *        FEEDBACK, SEND), DELAY 2 (SYNC, MODE, TONE, WOW), REVERB (SIZE, DAMP, DECAY, SEND), REVERB 2 (PRE-DELAY, MOD,
  *        LOW CUT, WIDTH), CHORUS (RATE, DEPTH, WIDTH, SEND), MASTER (the master filter: LOW CUT, HIGH CUT, SLOPE, ON);
- *        B1 OVERVIEW, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING (again: an effect's second page), FX again or SELECT the next page.
+ *        B1 SENDS, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING (again: an effect's second page), FX again or SELECT the next page.
+ *        SENDS (2026-10-26, the sequencer clean-up; was the OVERVIEW): the current track's three sends as bars (KNOB
+ *        1..3; SHIFT + SELECT or FX + ALGORITHM the track), the page's steps on the lane and the white keys as the
+ *        EDIT home (held: a send is the step's lock), REC the keyboard on / off as the sound editor's.
  *        ROUTING (2026-10-26, ChoralRoot 0.27's): KNOB 1 the mode (PARALLEL / CHAIN), KNOB 2..4 the chain amounts; a
  *        block's page key held (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER) lifts it and KNOB 1 moves it (qd_fx_route_move).
  *        SEND is the selected track's send into that effect; TIME / SPREAD are the free or the synced value by SYNC
  *        (ChoralRoot's FC_TIME, FC_SPREAD). FX held + ALGORITHM still chooses the track. */
 
 const qd_fxpage_t QD_FX_PAGES[QD_FX_NPAGE] = {
-    {"OVERVIEW", QD_FXG_OVER, UI_FXD_OVER, {QD_FXC_SENDX(2), QD_FXC_SENDX(0), QD_FXC_SENDX(1), QD_FXC_NONE}},
+    {"SENDS", QD_FXG_OVER, UI_FXD_OVER, {QD_FXC_SENDX(2), QD_FXC_SENDX(0), QD_FXC_SENDX(1), QD_FXC_NONE}},
     {"DELAY", QD_FXG_DELAY, UI_FXD_DELAY, {QD_FXC_TIME, QD_FXC_SPREAD, QD_FXP_DFDBK, QD_FXC_SEND}},
     {"DELAY 2", QD_FXG_DELAY, UI_FXD_DELAY2, {QD_FXP_DSYNC, QD_FXP_DMODE, QD_FXP_DTONE, QD_FXP_DWOW}},
     {"REVERB", QD_FXG_REVERB, UI_FXD_REVERB, {QD_FXP_RSIZE, QD_FXP_RDAMP, QD_FXP_RDECAY, QD_FXC_SEND}},
@@ -36,7 +39,7 @@ const qd_fxpage_t QD_FX_PAGES[QD_FX_NPAGE] = {
     {"MASTER", QD_FXG_MASTER, UI_FXD_MASTER, {QD_FXP_FLOW, QD_FXP_FHIGH, QD_FXP_FSLOPE, QD_FXP_FON}},
     {"ROUTING", QD_FXG_ROUTE, UI_FXD_ROUTE, {QD_FXP_RMODE, QD_FXP_CAMT_C, QD_FXP_CAMT_D, QD_FXP_CAMT_R}},
 };
-const char *const QD_FX_NAME[QD_NFXG] = {"DELAY", "REVERB", "CHORUS", "MASTER", "OVERVIEW", "ROUTING"};
+const char *const QD_FX_NAME[QD_NFXG] = {"DELAY", "REVERB", "CHORUS", "MASTER", "SENDS", "ROUTING"};
 const uint8_t QD_FX_KEY[QD_FX_NKEY] = {QD_FXG_OVER, QD_FXG_DELAY, QD_FXG_REVERB, QD_FXG_CHORUS, QD_FXG_MASTER,
                                        QD_FXG_ROUTE};
 
@@ -102,7 +105,12 @@ void qd_fx_button(qd_app_t *a)
         return;
     }
     panel_open(a, QD_LATCH_FX);
-    a->ui.fx_page = 0;                                  /* (P1.5b: FX opens on the overview) */
+    a->ui.fx_page = 0;                                  /* (P1.5b: FX opens on the first page: SENDS) */
+    a->ui.ekeys = 0;                                    /* (2026-10-26: on the steps; REC the keyboard) */
+}
+int qd_fx_sends_open(const qd_app_t *a)
+{
+    return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_FX && QD_FX_PAGES[a->ui.fx_page].fx == QD_FXG_OVER;
 }
 
 /* the mix's black keys: sel_down / sel_done's bits 8..13 (SEL + W keeps 0..7), sel_t0 the press, dt_w -1 - b the
@@ -194,13 +202,6 @@ void qd_panel_black(qd_app_t *a, int b, int down)
         return;
     if (b < QD_NTRACK)
         qd_ctl_select_track(a, b);
-}
-
-/* P1.5b: W1..W8 on the effects' overview: the track (the other pages: nothing) */
-void qd_panel_white(qd_app_t *a, int w)
-{
-    if (a->ui.latch == QD_LATCH_FX && QD_FX_PAGES[a->ui.fx_page].fx == QD_FXG_OVER && w < QD_NTRACK)
-        qd_ctl_select_track(a, w);
 }
 
 static int cl(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -307,12 +308,12 @@ int qd_panel_lock_id(const qd_app_t *a, int knob)
     }
     return -1;
 }
-/* P1.6d: the W keys on the mix and the effects' pages (the overview's W1..W8 the tracks): held, the steps the sends
- * lock on (a tap does nothing here); 1 taken */
+/* P1.6d: the W keys on the mix and the effects' pages: held, the steps the sends lock on (a tap does nothing here;
+ * 2026-10-26: on every effects page, SENDS included: its W1..W8 no longer pick the track); 1 taken */
 int qd_panel_steps(const qd_app_t *a, int w)
 {
-    return a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_TRK ||
-           (a->ui.latch == QD_LATCH_FX && !(QD_FX_PAGES[a->ui.fx_page].fx == QD_FXG_OVER && w < QD_NTRACK));
+    (void)w;
+    return a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_TRK || a->ui.latch == QD_LATCH_FX;
 }
 
 int qd_fx_knob(qd_app_t *a, int knob, int d)

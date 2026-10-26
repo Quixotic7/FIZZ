@@ -2091,8 +2091,8 @@ static void g_tracks_screen(void)
     btap(QD_B_HOME);
     /* the effects */
     btap(QD_B_TRACKS);
-    CHECK(A.ui.latch == QD_LATCH_FX && A.ui.fx_page == 0 && !strcmp(QD_FX_PAGES[0].name, "OVERVIEW"),
-          "FX tapped: the effects, the OVERVIEW (P1.5b)");
+    CHECK(A.ui.latch == QD_LATCH_FX && A.ui.fx_page == 0 && !strcmp(QD_FX_PAGES[0].name, "SENDS"),
+          "FX tapped: the effects, SENDS first (2026-10-26; P1.5b's OVERVIEW)");
     black(B2);
     CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"), "B2: DELAY");
     v0 = qd_fx_get(QD_FXP_DDIV);
@@ -2117,7 +2117,7 @@ static void g_tracks_screen(void)
     black(B6);
     CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "ROUTING"), "B6: ROUTING");
     btap(QD_B_TRACKS);
-    CHECK(A.ui.fx_page == 0, "FX again on the last page: round to the OVERVIEW");
+    CHECK(A.ui.fx_page == 0, "FX again on the last page: round to SENDS");
     bdown(QD_B_TRACKS);
     run(10);
     turn(QD_K_ALGO, 3);
@@ -4323,18 +4323,39 @@ static void g_p15b_chips(void)
     btap(QD_B_HOME);
 }
 
-/* 5, 6: FX opens on the OVERVIEW (W1..W8 the track, KNOB 1..3 its sends); B6 the ROUTING (PARALLEL / CHAIN, the blocks) */
+/* 5, 6: FX opens on SENDS (2026-10-26: the current track's three sends, KNOB 1..3; the W keys its steps, SHIFT +
+ * SELECT the track, REC the keyboard); B6 the ROUTING (PARALLEL / CHAIN, the blocks) */
 static void g_p15b_fx(void)
 {
     int c0, d0, r0;
     qd_leds_t l;
     start();
+    wtap(0);
     btap(QD_B_TRACKS);
-    CHECK(QD_FX_PAGES[A.ui.fx_page].fx == QD_FXG_OVER, "FX: the OVERVIEW");
-    wtap(2);
+    CHECK(QD_FX_PAGES[A.ui.fx_page].fx == QD_FXG_OVER, "FX: SENDS");
     l = leds();
-    CHECK(A.sel == 2 && l.key[WK(2)] == QD_LED_LIT && l.key[WK(0)] == QD_LED_DIM && l.key[BK(B1)] == QD_LED_LIT,
-          "W3: track 3 (W1..W8 lit by the tracks, B1 OVERVIEW lit)");
+    CHECK(l.key[WK(0)] == QD_LED_LIT && l.key[WK(1)] == QD_LED_FAINT && l.key[BK(B1)] == QD_LED_LIT,
+          "SENDS: the W keys the steps (W1 a trig lit, W2 empty faint), B1 lit");
+    wtap(2);
+    CHECK(A.sel == 0 && !A.ui.nheld && !R(0, 2).on, "W3 tapped: no track picked, no step made (a tap does nothing here)");
+    bdown(SHIFT);
+    turn(QD_K_SELECT, 2);
+    bup(SHIFT);
+    run(10);
+    CHECK(A.sel == 2 && A.ui.latch == QD_LATCH_FX, "SHIFT + SELECT +2: track 3, SENDS stays");
+    btap(QD_B_REC);
+    CHECK(qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "REC: the keyboard on SENDS (as the sound editor's)");
+    kdown(WK(0));
+    run(30);
+    CHECK(sounding(48), "W1: C3 plays (the scale's root at octave 3)");
+    kup(WK(0));
+    run(30);
+    btap(QD_B_REC);
+    CHECK(!qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "REC again: the steps");
+    whold(4);
+    turn(QD_K_2, 5);
+    wrel(4);
+    CHECK(LK(2, 4, QD_LK_DELAY) == A.model.t[2].mix.delay + 5, "W5 held + KNOB 2: track 3's step 5 DELAY send lock");
     c0 = A.model.t[2].mix.chorus, d0 = A.model.t[2].mix.delay, r0 = A.model.t[2].mix.reverb;
     turn(QD_K_1, 4);
     turn(QD_K_2, 3);
@@ -5200,7 +5221,7 @@ static void g_p16d_sends(void)
     CHECK(!A.ui.slatch, "HOME: the latch off");
     btap(QD_B_TRACKS);
     wtap(3);
-    CHECK(A.sel == 3 && !A.ui.nheld, "nothing held: the OVERVIEW's W4 picks track 4");
+    CHECK(A.sel == 0 && !A.ui.nheld, "nothing held: SENDS' W4 is a step (2026-10-26: it picks no track)");
     btap(QD_B_HOME);
 }
 

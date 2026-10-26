@@ -10,6 +10,27 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
+- **2026-10-26, the sequencer clean-up, on master (unreleased):** docs/SEQ-CLEANUP-PLAN.md, the owner's approved
+  mock-ups mockups/fizz-seq-cleanup.html (mockups/png/fizz-seq-cleanup-sheet.png), built by the main session by hand
+  in three commits (stage A knobs / latch / OCT, stage B SLIDE / SOUND / TRIG, stage C SENDS); CHANGELOG `## Unreleased`
+  has the testers' notes. Code: `KNOB_JOB` in ctl.c (SELECT column 0 everywhere, KNOB 1 the main value, NOTE 1..4 on
+  KNOB 1..4, ALGORITHM note 5 only with `held_key[i] >= 0`: ctl_step.c qd_step_knob); `qd_step_latch` no longer seeds
+  (qd_step_cursor seeds on its first turn); b_oct arms `oct_tap` with nothing held too (a quick release is the entry
+  octave; qd_ctl_layer_shown waits QD_TAP_MS for the map whenever a tap is armed). **SLIDE** (`UI_F_SLIDE`, B10): a
+  step's `QD_QP_PORT` / `PTIM` / `PSLOPE` locks (pattern.c `qd_step_slide`), read by the player as the 303's slide:
+  seq.c fill_rec keeps them out of the record's patch (`slide_m` / `slide_v`), player.c `slide_arm` / `slide_take`
+  arm the track's next note (`slide_arm[t]`, `slide_cur[t]`; ON: `slide_write` PORT ON + TIME / SLOPE onto the new
+  voice before `qd_pool_glide_note`; LEGATO: the sliding note's OFF is kept back (`slide_hold`) and the next note
+  moves that voice with `qd_pool_legato`); notes through a MIDI FX group do not slide (mfx_seq_note's path is
+  untouched). The held screen `ui_held.c f_slide`, the lane `ui_lane.c l_slide`, the EDIT head "ON / OFF / LEGATO".
+  P-LOCK is gone (`UI_F_PLOCK`, its knob paths in ctl.c / ctl_step.c, `qd_panel_white`); `UI_LOCK_COL` keeps the
+  padlock's sand. TRIG's held screen draws the group (`ui_held_t.mfx_*`, view.c fill_held_at). **SENDS**: QD_FX_PAGES[0]
+  renamed, `ui_tracks.c fx_sends` (the EDIT home's row via `ui_steps_row`, `ui_lane_t.cells` asks fill_lane for the
+  cells in any view), `qd_fx_sends_open`, `qd_snd_keys` is true there too with `ekeys` (REC toggles it, the keys rows
+  moved before the panel rows in ctl.c, ctl_leds.c lights them), `qd_panel_steps` true on every panel. Tests: test_ctl
+  updated throughout (g_slide, g_mkey's SOUND-on-B11 case, the beat's bass slide). Not done: a Geek Out SCOPE page per
+  track (the owner's wish), synced delay in-between times, the REPLACE stall.
+
 - **2026-10-26 night, the flash diet (tier 1), on master and the unit, unreleased:** 575,344 -> 557,472 B (24 KB free).
   One definition of fz_tables.h's tables (`FZ_TABLES_DEFINE` in quad_voice.c; a test that links no voice unit
   defines it itself); `QUAD_PAGES`, `QUAD_MAP`, `N_QUAD_OFS`, the MIDI FX `PAR` table and the glyph metrics `QF_ADV`

@@ -304,32 +304,40 @@ static void fx_master(const ui_fx_t *v)
         ui_O(hi, 60.f, 3.4f, QD_NONE, 1.f, UI_K2);
 }
 
-/* P1.5b, OVERVIEW: three columns, CHORUS, DELAY, REVERB (a line on top in KNOB 1..3's colours), each the six tracks'
- * sends as bars in the tracks' colours: the selected track's bright (its column's top), the others dim, unheard grey */
-static void fx_over(const ui_fx_t *v)
+/* SENDS (2026-10-26, the sequencer clean-up, mockups/fizz-seq-cleanup.html 1..3; P1.5b's OVERVIEW before it): the
+ * current track's CHORUS, DELAY and REVERB sends as three bars in KNOB 1..3's colours, their names and values under
+ * them (a held step's lock: the bar framed, the value a filled chip; a lock on some step: outlined); along the foot
+ * the page's steps as the EDIT home's row, or, the keyboard on (REC), the keys as plain cells, the ones down lit */
+static void fx_sends(const ui_fx_t *v)
 {
-    int c, t;
-    for (c = 0; c < 3; c++) {
-        const float x0 = 10.f + (float)c * 76.f, top = 50.f, bot = 176.f;
-        const int fx = c == 0 ? 0 : c == 1 ? 1 : 2;     /* (sends[t]: CHORUS, DELAY, REVERB) */
-        ln(x0 + 2.f, 40.f, x0 + 66.f, 40.f, FK[c], 2.f);
-        for (t = 0; t < UI_NTRACK; t++) {              /* (six tracks: 8 px bars, 10.6 apart) */
-            const float x = x0 + 3.f + (float)t * 10.6f, h = (bot - top) * (float)v->sends[t][fx] / 127.f;
-            const int sel = t + 1 == v->track, mute = (v->mute >> t) & 1u;
-            const qd_rgb col = mute ? UI_G3 : UI_TRACK_PAL[t];
-            ui_RR(x, top, 8.f, bot - top, 2.f, sel ? UI_G2 : UI_G3, 1.f, QD_NONE);
-            if (h > 0.f) {
-                if (!sel)
-                    qd_save(), qd_alpha(0.4f);
-                ui_RR(x, bot - h, 8.f, h, 2.f, QD_NONE, 1.f, col);
-                if (!sel)
-                    qd_restore();
-            }
-            if (sel)
-                ui_O(x + 4.f, bot + 6.f, 2.f, QD_NONE, 1.f, col);
-            if (sel && v->locked[c])                    /* P1.6h: locked on the held step: a chip on its bar */
-                lock_chip(x + 4.f, bot - h, FK[c]);
+    int k, i;
+    for (k = 0; k < 3; k++) {
+        const float x = 48.f + (float)k * 72.f, h = 90.f * clampf(v->x[k], 0.f, 1.f);
+        const int lk = v->locked[k];
+        ui_RR(x - 16.f, 34.f, 32.f, 90.f, 5.f, UI_G3, 1.2f, QD_NONE);
+        if (h > 0.f) {
+            if (!lk)
+                qd_save(), qd_alpha(0.85f);
+            ui_RR(x - 16.f, 124.f - h, 32.f, h, 5.f, QD_NONE, 1.f, FK[k]);
+            if (!lk)
+                qd_restore();
         }
+        if (lk)
+            ui_RR(x - 20.f, 30.f, 40.f, 98.f, 7.f, FK[k], 1.4f, QD_NONE);
+        ui_T(v->lab[k] ? v->lab[k] : "", x, 141.f, 12.f, 600, 0.3f, UI_G1, QD_CENTER);
+        if (lk || v->lockany[k])
+            ui_chip(v->txt[k], x, 162.f, 15.f, 54.f, FK[k], lk);
+        else
+            ui_T(v->txt[k], x, 163.f, 17.f, 500, 0.f, FK[k], QD_CENTER);
+    }
+    if (v->keys) {
+        for (i = 0; i < 16; i++) {
+            const float x = 18.f + (float)i * 13.5f;
+            const int dn = (v->keys_down >> i) & 1;
+            ui_RR(x, 184.f, 11.f, 42.f, 3.f, dn ? UI_K3 : UI_G2, 1.f, dn ? UI_K3 : QD_NONE);
+        }
+    } else if (v->lane) {
+        ui_steps_row((const ui_lane_t *)v->lane, 180.f, 58.f);
     }
 }
 
@@ -462,11 +470,11 @@ void ui_fx_draw(const ui_fx_t *v)
     case UI_FXD_REVERB: fx_reverb(v); break;
     case UI_FXD_REVERB2: fx_reverb2(v); break;
     case UI_FXD_CHORUS: fx_chorus(v); break;
-    case UI_FXD_OVER: fx_over(v); break;
+    case UI_FXD_OVER: fx_sends(v); break;
     case UI_FXD_ROUTE: fx_route(v); break;
     default: fx_master(v); break;
     }
-    for (k = 0; k < 4; k++) {                           /* KNOB 1..4 along the foot */
+    for (k = 0; k < 4 && v->draw != UI_FXD_OVER; k++) {   /* KNOB 1..4 along the foot (SENDS: its bars say it) */
         const float cx = 30.f + (float)k * 60.f;
         float w;
         if (!v->has[k])

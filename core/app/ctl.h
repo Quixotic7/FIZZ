@@ -696,7 +696,8 @@ typedef struct {
 extern const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE];
 extern const char *const QD_SND_GROUP_NAME[QD_NSG];
 int qd_snd_open(const struct qd_app *a);
-int qd_snd_keys(const struct qd_app *a);        /* P1.5b: the editor open with the keyboard on */
+int qd_snd_keys(const struct qd_app *a);        /* P1.5b: the editor open with the keyboard on (2026-10-26: or the
+                                                 * effects' SENDS page: REC turns it on there too) */
 int qd_snd_scale_note(const struct qd_app *a, int w);   /* .. SCALE: W w's note (the scale's degree w from the root) */
 int qd_keys_on(const struct qd_app *a);         /* P1.5b: the keyboard (the keyboard mode, or the editor's) */
 void qd_keys_leds(const struct qd_app *a, uint8_t *key);   /* P1.5b: the keys lit by the scale (27 levels) */
@@ -786,7 +787,7 @@ void qd_mix_button(struct qd_app *a);   /* ENV (MIX): open / the sends / the fad
 void qd_fx_button(struct qd_app *a);    /* FX tapped: open / the next page */
 void qd_panel_black(struct qd_app *a, int b, int down);
 void qd_mix_ms(struct qd_app *a);       /* the mix's black keys held: the mute */
-void qd_panel_white(struct qd_app *a, int w);     /* P1.5b: the effects' overview: W1..W8 the track */
+int qd_fx_sends_open(const struct qd_app *a);     /* 2026-10-26: the effects open on SENDS (its keyboard: ekeys) */
 int qd_panel_lock_id(const struct qd_app *a, int knob);   /* P1.6d: the send / mix lock a knob turns there (-1) */
 int qd_panel_steps(const struct qd_app *a, int w);        /* P1.6d: W w holds a step there (the sends' locks) */
 int qd_trk_knob(struct qd_app *a, int knob, int d);

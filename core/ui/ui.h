@@ -156,7 +156,8 @@ typedef struct {
 } ui_mix_t;
 void ui_mix_draw(const ui_mix_t *v);
 enum { UI_FXD_DELAY, UI_FXD_DELAY2, UI_FXD_REVERB, UI_FXD_REVERB2, UI_FXD_CHORUS, UI_FXD_MASTER,
-       UI_FXD_OVER,                     /* P1.5b: the sends: CHORUS, DELAY, REVERB, eight tracks' bars each */
+       UI_FXD_OVER,                     /* SENDS (2026-10-26; P1.5b's OVERVIEW): the current track's CHORUS, DELAY, REVERB
+                                         * as three bars, the page's steps as a row at the foot (or the keyboard's keys) */
        UI_FXD_ROUTE };                  /* P1.5b: the chain (the bus, CHORUS, DELAY, REVERB, the filter, out), the feeds */
 typedef struct {
     const char *name;                   /* the page's */
@@ -175,8 +176,9 @@ typedef struct {
     float flow, fhigh;                  /* MASTER: the cuts 0..1 (0 / 1: off), */
     int fslope, fon;
     int last;                           /* the knob turned last (0..3, -1) */
-    int sends[UI_NTRACK][3];                    /* P1.5b, OVERVIEW: each track's CHORUS, DELAY, REVERB sends 0..127 */
-    uint8_t mute;                       /* .. the tracks not heard */
+    const void *lane;                   /* SENDS (2026-10-26): the page's row at the foot (a ui_lane_t; 0: none) .. */
+    int keys;                           /* .. the keyboard on (REC): the keys as plain cells instead .. */
+    uint16_t keys_down;                 /* .. the W keys down (bit w) */
     int rt_mode, rt_order[4], rt_held;  /* ROUTING (2026-10-26): CHAIN (1) / PARALLEL, the block at each place, the block
                                          * held (-1 none) .. */
     float rt_lift;                      /* .. how far it has lifted, 0..1 */
@@ -422,6 +424,8 @@ typedef struct {
     /* P1.3e/f: the STEPS view (HOME): P1.3f, an overview of the track's eight pages as rows of sixteen cells (in
      * fours), the page edited outlined, the pages out of the loop dim; cell[p][s] UI_C_* bits */
     int steps;
+    int cells;                          /* 2026-10-26: the cells wanted whatever the view (set before the fill: the
+                                         * effects' SENDS page draws the page's row) */
     uint8_t cell[8][16];
     int play_step;                      /* the step (0..127) under the playhead (-1 stopped) */
     int flash_step;                     /* the step whose trig played last (-1 none) .. */
