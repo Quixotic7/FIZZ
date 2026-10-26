@@ -64,8 +64,6 @@ int qd_ctl_layer(const qd_app_t *a)
         return QD_LAYER_NONE;
     if (finger_held(a) || (!dn && !up))                 /* (P1.5m: was steps_held: the latch's selection blocked them) */
         return QD_LAYER_NONE;
-    if (up && !dn && a->ui.hmode == UI_F_PLOCK && !a->ui.latch)
-        return QD_LAYER_NONE;                           /* (P1.5o: P-LOCK: F2 held is the unlock, no layer) */
     if (dn && up)                                       /* (P1.6h: on a main page both together are nothing) */
         return QD_LATCH_MAIN(a->ui.latch) ? QD_LAYER_NONE : QD_LAYER_F3;
     return dn ? QD_LAYER_F1 : QD_LAYER_F2;
@@ -95,8 +93,8 @@ int qd_ctl_main_layer(const qd_app_t *a)
 
 /* P1.3d (§8b 2.2): the knobs' jobs in the hold modes, [mode][SELECT, KNOB 1..4]. With a step held SELECT and KNOB 1
  * are the main value (NOTE: SELECT note 1, KNOB 1..4 notes 2..5), KNOB 2 the mode's extra; with nothing held KNOB 1..4
- * the same on the track's defaults (SELECT the page). A knob without a job does nothing. P-LOCK has no row: its knobs
- * are the screen's p-locks (held) and the track's sound (nothing held) */
+ * the same on the track's defaults (SELECT the page). A knob without a job does nothing. 2026-10-26: SLIDE (B10) KNOB
+ * 1 PORT, 2 TIME, 3 SLOPE (no defaults: a step's own); SOUND on B11; P-LOCK is gone */
 static const uint8_t KNOB_JOB[UI_NFIELD][5] = {         /* P1.3e: KNOB 4 the quiet main value where it is free.
                                                          * 2026-10-26 (the owner): SELECT is the page everywhere, held or
                                                          * not; KNOB 1 the main value (NOTE: the chord / the root), KNOB
@@ -112,6 +110,7 @@ static const uint8_t KNOB_JOB[UI_NFIELD][5] = {         /* P1.3e: KNOB 4 the qui
     [UI_F_TRIG] = {0, QD_KJ_MAIN, QD_KJ_MFX, 0, QD_KJ_QUIET},   /* (P1.6c: KNOB 2 the MIDI FX) */
     [UI_F_FUNC] = {0, QD_KJ_FTYPE, QD_KJ_LEAP, QD_KJ_JTGT, QD_KJ_QUIET},   /* P1.3y: KNOB 1 the kind, 2 LEAP's n,
                                                          * 3 JUMP's target */
+    [UI_F_SLIDE] = {0, QD_KJ_MAIN, QD_KJ_PTIME, QD_KJ_PSLOPE, QD_KJ_QUIET},
     [UI_F_SOUND] = {0, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
 };
 /* P1.3e: a mode key held with nothing else held edits the track's default of that mode */
@@ -877,7 +876,8 @@ static void k_mode(qd_app_t *a, int key, int b, int down, int vel)
     }
     if (b < UI_NFIELD)
         u->hmode = b;
-    if (b < UI_F_PLOCK) {                               /* P1.3e: held, it holds the track's default (B1..B10) */
+    if (b < UI_NFIELD) {                                /* P1.3e: held, it holds the track's default (B1..B11; FUNC
+                                                         * and SLIDE have none: the picture) */
         u->mkey = b;
         u->mkey_t0 = a->ms;
         u->mkey_used = 0;
@@ -1590,26 +1590,18 @@ static int k_stepview(qd_app_t *a, int knob, int d)
     case QD_K_ALGO:
         if (qd_ctl_shift(a))                            /* the track's scale */
             return scale_root(a, knob, d);
-        if (a->ui.hmode == UI_F_PLOCK) {                /* P-LOCK: the track */
-            qd_ctl_select_track(a, clampi(a->sel + d, 0, QD_NTRACK - 1));
-            qd_ctl_takeover(a, UI_TK_TRACK, 0, d, 0, -1);
-            return 1;
-        }
         return qd_step_default_knob(a, d);
     case QD_K_PRESETS:
         if (qd_ctl_shift(a))                            /* the track's root */
             return scale_root(a, knob, d);
         track_sound(a, d);
         return 1;
-    default:
-        if (a->ui.hmode == UI_F_PLOCK) {
-            live_edit(a, qd_step_quick_id(knob - QD_K_1), d, UI_TK_FREQ + (knob - QD_K_1), knob - QD_K_1);
-        } else {
-            const int job = qd_ctl_knob_job(a->ui.hmode, knob);
-            if (job != QD_KJ_NONE)
-                qd_step_job_default(a, job, knob, d);
-        }
+    default: {
+        const int job = qd_ctl_knob_job(a->ui.hmode, knob);
+        if (job != QD_KJ_NONE)
+            qd_step_job_default(a, job, knob, d);
         return 1;
+    }
     }
 }
 
@@ -1904,8 +1896,8 @@ static int k_shift_track(qd_app_t *a, int knob, int d)
 static int when_unlock(const qd_app_t *a)
 {
     return a->ui.mode == QD_MODE_STEP && held(a, QD_B_OCTUP) && !held(a, QD_B_OCTDN) &&
-           (qd_snd_open(a) || (a->ui.hmode == UI_F_PLOCK && !a->ui.latch) ||
-            a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_FX);   /* (P1.6d: the sends' locks) */
+           (qd_snd_open(a) || a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_FX);   /* (P1.6d: the sends'
+                                                         * locks; 2026-10-26: P-LOCK is gone) */
 }
 static int k_unlock(qd_app_t *a, int knob, int d)
 {

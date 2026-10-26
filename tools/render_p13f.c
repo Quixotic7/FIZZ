@@ -274,7 +274,7 @@ int render_p13f(const char *out)
     btap(QD_B_OCTDN);
     run(200);
     shot("steps-range", "STEPS: page 2 at 4..12 (outside: dark)");
-    black(UI_F_PLOCK);                                  /* P-LOCK (holding keeps the screen), then the latch: */
+    black(UI_F_SOUND);                                  /* P-LOCK (holding keeps the screen), then the latch: */
     btap(QD_B_MUTE);                                    /* W4 + W7 held together select steps 20 and 23 */
     qd_app_key(&A, WK(3), 1, 100);
     run(20);

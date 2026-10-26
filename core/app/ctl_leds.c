@@ -5,8 +5,8 @@
  *
  *   step view       white: trigs lit, LOCK steps dim, empty steps faint, steps outside the page's start..end off;
  *                   playing, the playhead's key inverts for its step; a key going down shows at once what its tap
- *                   makes. black, nothing held: B1..B11 the hold modes (B11 P-LOCK), the current one lit, the modes
- *                   some step of the page overrides dim (P-LOCK: a step with p-locks), the others faint
+ *                   makes. black, nothing held: B1..B11 the hold modes (B10 SLIDE, B11 SOUND), the current one lit,
+ *                   the modes some step of the page overrides dim, the others faint
  *   a step held     the held steps blink fast; B1..B10 the mode's value keys: the step's value lit, the track's
  *                   default dim, the others faint (keys that do nothing off); B11 lit when the step overrides the mode
  *   F1 held         (§8b 2.1) B1..B8 the pages: the one edited lit, the others in the loop dim, out of it off, the
@@ -257,7 +257,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
     }
     {   /* the hold modes */
         const unsigned set = qd_step_modes_set(a, a->sel, page);
-        for (i = 0; i < UI_NFIELD; i++)                 /* (B11: P-LOCK, P1.3c; P1.3w: B9 FUNC, B10 SOUND) */
+        for (i = 0; i < UI_NFIELD; i++)                 /* (P1.3w: B9 FUNC; 2026-10-26: B10 SLIDE, B11 SOUND) */
             out->key[QD_BLACK_KEY[i]] = i == u->hmode ? QD_LED_LIT : ((set >> i) & 1u) ? QD_LED_DIM : QD_LED_FAINT;
     }
 }

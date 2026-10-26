@@ -474,9 +474,17 @@ static void fill_rec(const qd_seq_t *s, qd_trec_t *r, int t, int step, const qd_
                                                          * pattern's track sound; P1.5t: the browser's preview) */
     }
     r->nlk = 0;
+    r->slide_m = 0;
     memset(r->lkm, 0, sizeof r->lkm);
     for (k = 0; k < n; k++) {
         const int id = lk[k].id;
+        if (id == QD_QP_PORT || id == QD_QP_PTIM || id == QD_QP_PSLOPE) {   /* (2026-10-26: the SLIDE, for the next
+                                                         * note: not this one's patch) */
+            const int j = id == QD_QP_PORT ? 0 : id == QD_QP_PTIM ? 1 : 2;
+            r->slide_m |= (uint8_t)(1u << j);
+            r->slide_v[j] = lk[k].value;
+            continue;
+        }
         if (id < QD_LK_N)
             r->lkm[id >> 5] |= 1u << (id & 31), r->nlk++;
         if (id < QD_QUAD_NP) {

@@ -436,6 +436,10 @@ int qd_lock_set(qd_pattern_t *p, int t, int s, int id, int value);   /* QD_EFULL
 int qd_lock_get(const qd_pattern_t *p, int t, int s, int id, int16_t *value);   /* 1: found */
 int qd_lock_clear(qd_pattern_t *p, int t, int s, int id);   /* QD_OK (none there: also QD_OK) */
 int qd_lock_count(const qd_pattern_t *p, int t, int s);
+/* 2026-10-26, SLIDE (B10): a step's portamento is its three locks QD_QP_PORT / PTIM / PSLOPE, which the player reads as
+ * the 303's slide: FROM this step INTO the track's next note (seq.c fill_rec keeps them out of the patch, player.c
+ * note_on arms the next note with them). The PORT lock (QD_PORT_*), -1 none; *time / *slope the other two, -1 none */
+int qd_step_slide(const qd_pattern_t *p, int t, int s, int *time, int *slope);
 const qd_lock_t *qd_locks(const qd_pattern_t *p, int t, int s, int *n);   /* the step's locks (sorted by id) */
 
 /* ---- clear and copy (a step, a page of 16, a track: its steps and their locks; a track copy also its settings).

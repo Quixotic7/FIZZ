@@ -191,12 +191,12 @@ void ui_keyboard(float x0, float y0, float w, float h, int lo, const qd_rgb *fil
 
 /* ---- P1.3b: the hold modes, line.html's headTrack, lock, knobMark and keyboard's pos, the black keys' strip */
 const char *const UI_FIELD_NAME[UI_NFIELD] = {"NOTE", "VEL", "LEN", "MICRO", "RATCH", "CHNC", "COND", "TRIG",
-                                              "FUNC", "SOUND", "P-LOCK"};
-/* a colour a mode, all bright on black and none of them red (red is the playhead); P-LOCK (P1.3c) takes LOCKS' sand:
- * the padlock's colour everywhere (P1.3d: LOCKS is gone, B10 reserved; its slot keeps the sand) */
+                                              "FUNC", "SLIDE", "SOUND"};
+/* a colour a mode, all bright on black and none of them red (red is the playhead); 2026-10-26: SLIDE (B10) takes the
+ * sand that was P-LOCK's (the padlock keeps it too: UI_LOCK_COL), SOUND's lime moves to B11 */
 const qd_rgb UI_MODE_COL[UI_NFIELD] = {0x3f7dffu, 0x1fd47eu, 0x36d6e7u, 0xa879ffu, 0xff6a2cu,
-                                       0xffd23fu, 0xff52c0u, 0xf1f0eau, 0x9fe6ffu, 0xb5e853u, 0xd8c39au};   /* (P1.3w:
-                                                         * FUNC ice blue at B9, SOUND's lime at B10) */
+                                       0xffd23fu, 0xff52c0u, 0xf1f0eau, 0x9fe6ffu, UI_LOCK_COL, 0xb5e853u};   /* (P1.3w:
+                                                         * FUNC ice blue at B9) */
 
 /* headTrack(c, left, n, name, lcol): a held step: STEP 5 · FIELD left, [n] the track right */
 void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol)

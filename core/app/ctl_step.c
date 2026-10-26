@@ -77,8 +77,22 @@ static const uint8_t VK_VEL[10] = {13, 25, 38, 51, 64, 76, 89, 102, 114, 127};
 static const uint8_t VK_LEN[10] = {1, 2, 3, 4, 5, 6, 8, 10, 12, QD_LEN_INF};   /* 1/4 1/2 3/4 1 1.5 2 4 8 16 INF */
 static const int8_t VK_MICRO[10] = {-20, -15, -10, -5, -2, 2, 5, 10, 15, 20};
 static const uint8_t MODE_PM[UI_NFIELD] = {QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
-                                           QD_PM_COND, QD_PM_TRIG, QD_NPM, QD_PM_SOUND, QD_NPM};   /* (FUNC: no
-                                                         * override bit, P1.3w) */
+                                           QD_PM_COND, QD_PM_TRIG, QD_NPM, QD_NPM, QD_PM_SOUND};   /* (FUNC, SLIDE: no
+                                                         * override bit: a step's own) */
+static const char *const PORT_NAME[3] = {"OFF", "ON", "LEGATO"};
+
+/* 2026-10-26, SLIDE (B10): the step's PORT lock (pattern.h qd_step_slide); set: the lock (QD_PORT_*; its TIME and SLOPE
+ * locks stay); clear: the three locks */
+static void slide_set(qd_pattern_t *p, int t, int s, int port)
+{
+    qd_lock_set(p, t, s, QD_QP_PORT, port < 0 ? 0 : port > QD_PORT_LEGATO ? QD_PORT_LEGATO : port);
+}
+static void slide_clear(qd_pattern_t *p, int t, int s)
+{
+    qd_lock_clear(p, t, s, QD_QP_PORT);
+    qd_lock_clear(p, t, s, QD_QP_PTIM);
+    qd_lock_clear(p, t, s, QD_QP_PSLOPE);
+}
 
 /* ---- P1.3y: FUNC's kinds (KNOB 1): none, RESTART, REVERSE, FORWARD, FLIP, RANDOM JUMP, RANDOM FUNCTION, LEAP, JUMP */
 static int fn_kind(int f) { return QD_FN_IS_LEAP(f) ? 7 : f >= QD_FN_JUMP && f < QD_FN_LEAP ? 8 : f < 7 ? f : 0; }
@@ -483,6 +497,12 @@ static void value_set_p(qd_app_t *a, qd_pattern_t *p, int s, int m, int b)
             qd_step_set_sound(p, t, s, k);
         break;
     }
+    case UI_F_SLIDE:                                    /* 2026-10-26: B1 OFF, B2 ON, B3 LEGATO; B10 cycles them */
+        if (b < 3)
+            slide_set(p, t, s, b);
+        else if (b == 9)
+            slide_set(p, t, s, (qd_step_slide(p, t, s, 0, 0) + 1) % 3);
+        break;
     default:
         break;
     }
@@ -525,15 +545,14 @@ void qd_step_value_key(qd_app_t *a, int b, int down)
         return;
     if (m == UI_F_FUNC && b == 8)
         u->fn_b9 = 1;                                   /* P1.3y: B9 down: a W pressed now is the jump's target */
-    if (m == UI_F_PLOCK) {                              /* P-LOCK: B11 clears the p-locks; B1..B10 nothing */
-        if (b == 10)
-            qd_step_clear_locks(a);
-        return;
-    }
     if (b == 10) {                                      /* B11: the mode back to the track's */
         for (i = 0; i < u->nheld; i++) {
             if (m == UI_F_FUNC) {                       /* (P1.3w: no default: none) */
                 qd_step_set_func(PAT(a), a->sel, u->held[i], QD_FN_NONE);
+                continue;
+            }
+            if (m == UI_F_SLIDE) {                      /* (2026-10-26: no default: the three locks go) */
+                slide_clear(PAT(a), a->sel, u->held[i]);
                 continue;
             }
             qd_step_reset(PAT(a), a->sel, u->held[i], MODE_PM[m]);
@@ -571,7 +590,7 @@ int qd_step_latch_default(const qd_app_t *a)
 {
     const qd_ui_t *u = &a->ui;
     return u->mode == QD_MODE_STEP && u->slatch && u->lmode == QD_LMODE_VALUES && !u->nheld && !u->wk_down &&
-           !u->wk_pending && u->hmode != UI_F_PLOCK && qd_ctl_layer(a) == QD_LAYER_NONE &&
+           !u->wk_pending && qd_ctl_layer(a) == QD_LAYER_NONE &&
            (!u->latch || u->latch == QD_LATCH_F3);
 }
 void qd_step_value_key_default(qd_app_t *a, int b, int down)
@@ -841,6 +860,11 @@ static void fine(qd_app_t *a, int s, int m, int d, int shift)
                                           : QD_FN_MAKE_JUMP(a->ui.fn_target >= 0 ? a->ui.fn_target : s / QD_PAGE * QD_PAGE));
         break;
     }
+    case UI_F_SLIDE: {                                  /* 2026-10-26: PORT OFF / ON / LEGATO (none counts as OFF) */
+        const int pt = qd_step_slide(p, t, s, 0, 0);
+        slide_set(p, t, s, clampi((pt < 0 ? 0 : pt) + d, 0, QD_PORT_LEGATO));
+        break;
+    }
     default: break;
     }
 }
@@ -988,6 +1012,19 @@ void qd_step_job_held(qd_app_t *a, int job, int knob, int d)
         for (i = 0; i < u->nheld; i++)
             fine(a, u->held[i], UI_F_FUNC, d, 0);
         break;
+    case QD_KJ_PTIME:                                   /* 2026-10-26: SLIDE's TIME (from the lock, else the sound's) */
+        for (i = 0; i < u->nheld; i++) {
+            int tm;
+            qd_step_slide(p, t, u->held[i], &tm, 0);
+            if (tm < 0)
+                tm = a->model.t[t].patch[QD_QP_PTIM];
+            qd_lock_set(p, t, u->held[i], QD_QP_PTIM, clampi(tm + qd_ctl_acc(a, d, 128), 0, 127));
+        }
+        break;
+    case QD_KJ_PSLOPE:                                  /* .. its SLOPE: TIME (0) / RATE (1) */
+        for (i = 0; i < u->nheld; i++)
+            qd_lock_set(p, t, u->held[i], QD_QP_PSLOPE, d > 0 ? 1 : 0);
+        break;
     case QD_KJ_LEAP: {                                  /* LEAP's n (-15..-1, 1..15): the function a LEAP */
         qd_rstep_t r;
         int n;
@@ -1062,6 +1099,7 @@ void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
             a->ui.chord_ms = a->ms;
             break;
         }
+        case UI_F_SLIDE: return;                        /* (2026-10-26: no default: a step's own) */
         case UI_F_VEL: qd_tdef_set(p, t, QD_PM_VEL, clampi(df->vel + qd_ctl_acc(a, d, 127), 1, 127)); break;
         case UI_F_LEN: qd_tdef_set(p, t, QD_PM_LEN, clampi(df->len + d, 0, QD_LEN_INF)); break;
         case UI_F_MICRO: qd_tdef_set(p, t, QD_PM_MICRO, clampi(df->micro + d, -23, 23)); break;
@@ -1146,14 +1184,10 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
     qd_step_promote_all(a);
     if (!u->nheld)
         return 0;
-    if (m == UI_F_PLOCK || knob == QD_K_SELECT) {       /* (2026-10-26: SELECT is the page in every mode, held or not) */
-        if (knob == QD_K_SELECT) {
-            qd_ctl_set_page(a, u->page[a->sel] + d);
-            if (!QD_VIEW_ROWS(u->view))                 /* (P1.3g: STEPS / EDIT show the pages: no picker) */
-                qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
-        } else if (knob != QD_K_ALGO) {
-            qd_step_lock_knob(a, knob, d);
-        }
+    if (knob == QD_K_SELECT) {                          /* (2026-10-26: SELECT is the page in every mode, held or not) */
+        qd_ctl_set_page(a, u->page[a->sel] + d);
+        if (!QD_VIEW_ROWS(u->view))                     /* (P1.3g: STEPS / EDIT show the pages: no picker) */
+            qd_ctl_takeover(a, UI_TK_PAGE, 0, d, 0, -1);
         return 1;
     }
     switch (knob) {
@@ -1280,12 +1314,11 @@ unsigned qd_step_modes_set(const qd_app_t *a, int t, int page)
         const qd_step_t *st = qd_step(p, t, s);
         if (!qd_step_is_on(st) || !qd_page_in_range(&p->trk[t], s))
             continue;
-        for (k = 0; k < UI_F_PLOCK; k++)
+        for (k = 0; k < UI_NFIELD; k++)
             if (k == UI_F_FUNC ? st->func != 0
+                               : k == UI_F_SLIDE ? qd_step_slide(p, t, s, 0, 0) >= 0
                                : qd_step_overrides(st, MODE_PM[k]) || (k == UI_F_MICRO && qd_step_overrides(st, QD_PM_STRUM)))
                 m |= 1u << k;
-        if (st->flags & QD_SF_LOCKS)
-            m |= 1u << UI_F_PLOCK;
     }
     return m;
 }
@@ -1348,16 +1381,9 @@ void qd_step_value_keys(const qd_app_t *a, char lab[10][6], uint16_t *lit, uint1
         goto keys;
     }
     resolve(a, u->held[0], &r);
-    if (m == UI_F_PLOCK) {                              /* P-LOCK: B1..B10 nothing, B11 the p-locks to clear */
-        int i, n = 0;
-        for (i = 0; i < u->nheld; i++)
-            n += qd_lock_count(p, a->sel, u->held[i]);
-        *none = 0x3ffu;
-        *clr = n > 0;
-        return;
-    }
     *clr = m == UI_F_MICRO ? (qd_step_overrides(qd_step(p, a->sel, u->held[0]), QD_PM_MICRO) ||
                               qd_step_overrides(qd_step(p, a->sel, u->held[0]), QD_PM_STRUM))
+         : m == UI_F_SLIDE ? qd_step_slide(p, a->sel, u->held[0], 0, 0) >= 0
                            : qd_step_overrides(qd_step(p, a->sel, u->held[0]), MODE_PM[m]);
 keys:
     if (!u->nheld)
@@ -1460,6 +1486,16 @@ keys:
                 *lit |= r.on && fn_kind(r.func) == b ? bit : 0;
             else
                 *none |= bit;
+            break;
+        case UI_F_SLIDE:                                /* 2026-10-26: B1..B3 OFF / ON / LEGATO, B10 cycles */
+            if (b < 3) {
+                strncpy(lab[b], b == 2 ? "LEG" : PORT_NAME[b], 5);
+                *lit |= u->nheld && qd_step_slide(p, a->sel, u->held[0], 0, 0) == b ? bit : 0;
+            } else if (b == 9) {
+                strncpy(lab[b], "CYCLE", 5);
+            } else {
+                *none |= bit;
+            }
             break;
         case UI_F_SOUND: {
             const int k = u->sound_bank * 10 + b + 1;

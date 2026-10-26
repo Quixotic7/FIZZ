@@ -64,7 +64,7 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
 static const char *lb_job(int job, int mode)
 {
     static const char *const MAIN[UI_NFIELD] = {"NOTES", "VELOCITY", "LENGTH", "MICRO", "RATCHET", "CHANCE",
-                                                "CONDITION", "TRIG", "FUNCTION", "SOUND", ""};
+                                                "CONDITION", "TRIG", "FUNCTION", "SLIDE", "SOUND"};
     static const char *const NOTEN[5] = {"NOTE 1", "NOTE 2", "NOTE 3", "NOTE 4", "NOTE 5"};
     switch (job) {
     case QD_KJ_MAIN:
@@ -81,6 +81,8 @@ static const char *lb_job(int job, int mode)
     case QD_KJ_JTGT: return "TARGET";
     case QD_KJ_CHORD: return "CHORD";
     case QD_KJ_MFX: return "MIDI FX";
+    case QD_KJ_PTIME: return "TIME";
+    case QD_KJ_PSLOPE: return "SLOPE";
     default: return "";
     }
 }
@@ -471,7 +473,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         qd_step_value_keys(a, lab, &lit, &def, &none, &clr);
         for (i = 0; i < 10; i++)
             lb_set(o, LB_B(i), lab[i]);
-        lb_set(o, LB_B(10), u->hmode == UI_F_PLOCK ? "CLR LOCKS" : "RESET");
+        lb_set(o, LB_B(10), "RESET");
         if (u->slatch && u->lmode == QD_LMODE_MODES && !lb_finger(a))   /* (the latch in MODES: the hold modes) */
             for (i = 0; i < 11; i++)
                 lb_set(o, LB_B(i), UI_FIELD_NAME[i < UI_NFIELD ? i : 0]);
@@ -479,19 +481,14 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_KNOB(QD_K_PRESETS), "SOUND LOCK");
         lb_set(o, LB_KNOB(QD_K_ALGO), lb_job(QD_KJ_MAIN, u->hmode));
         for (k = QD_K_1; k <= QD_K_4; k++)
-            lb_set(o, LB_KNOB(k), u->hmode == UI_F_PLOCK ? qd_quad_value_name(qd_step_quick_id(k - QD_K_1))
-                                                          : lb_job(qd_ctl_knob_job(u->hmode, k), u->hmode));
+            lb_set(o, LB_KNOB(k), lb_job(qd_ctl_knob_job(u->hmode, k), u->hmode));
         return;
     }
     for (i = 0; i < 11; i++)                            /* nothing held: the black keys the hold modes */
         lb_set(o, LB_B(i), UI_FIELD_NAME[i < UI_NFIELD ? i : 0]);
     lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
     lb_set(o, LB_KNOB(QD_K_PRESETS), "PRESETS");
-    if (u->hmode == UI_F_PLOCK) {
-        lb_set(o, LB_KNOB(QD_K_ALGO), "TRACK");
-        for (k = QD_K_1; k <= QD_K_4; k++)
-            lb_set(o, LB_KNOB(k), qd_quad_value_name(qd_step_quick_id(k - QD_K_1)));
-    } else {
+    {
         char b[24];
         snprintf(b, sizeof b, "%s DEF", UI_FIELD_NAME[u->hmode >= 0 && u->hmode < UI_NFIELD ? u->hmode : 0]);
         lb_set(o, LB_KNOB(QD_K_ALGO), b);

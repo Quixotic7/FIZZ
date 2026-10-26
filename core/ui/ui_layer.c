@@ -137,7 +137,7 @@ void ui_step_card(float x, float y, float w, float h, int full, int type, int nn
         ui_icon(UI_IC_KEY, x + w / 2.f, y + h / 2.f, 2.4f * (w < 100.f ? w / 120.f : 1.f), UI_G1);
     } else if (type == 2) {                             /* a LOCK step: a padlock */
         const float s = w < 100.f ? 3.f * w / 120.f : 3.f;
-        ui_lock(x + w / 2.f - 3.5f * s, y + h / 2.f - 4.f * s, UI_MODE_COL[UI_F_PLOCK], s);
+        ui_lock(x + w / 2.f - 3.5f * s, y + h / 2.f - 4.f * s, UI_LOCK_COL, s);
     } else {                                            /* its notes on a little keybed */
         qd_rgb fill[128];
         int i, lo = 127;

@@ -112,19 +112,116 @@ static void apply_locks(qd_player_t *pl, const qd_seq_ev_t *e, int i)
     }
 }
 
+/* ---------------------------------------------------------------- 2026-10-26: SLIDE (player.h) */
+static void slide_write(qd_player_t *pl, int i, int port, int time, int slope)   /* the glide's values onto voice i */
+{
+    qd_pool_write(pl->pool, i, QD_QP_PORT, port, 1);
+    if (time >= 0)
+        qd_pool_write(pl->pool, i, QD_QP_PTIM, time, 1);
+    if (slope >= 0)
+        qd_pool_write(pl->pool, i, QD_QP_PSLOPE, slope, 1);
+}
+static int slide_held(const qd_player_t *pl, int t, uint32_t serial)   /* an OFF of a note a LEGATO slide holds */
+{
+    int k;
+    for (k = 0; k < QD_NNOTE; k++)
+        if (serial && pl->slide_hold[t][k] == serial)
+            return 1;
+    return 0;
+}
+static void slide_unhold(qd_player_t *pl, int t)       /* the held notes let go (the one moved legato is gone already) */
+{
+    int k;
+    for (k = 0; k < QD_NNOTE; k++) {
+        const uint32_t sr = pl->slide_hold[t][k];
+        const int note = pl->slide_hold_note[t][k];
+        if (sr && pl->last_on[t][note] == sr) {
+            qd_pool_note_off(pl->pool, t, note);
+            pl->last_on[t][note] = 0;
+            pl->offs++;
+        }
+        pl->slide_hold[t][k] = 0;
+    }
+}
+/* the arm for e's track: the next note after the arming step takes it (cur), for every note at its tick */
+static int slide_take(qd_player_t *pl, const qd_seq_ev_t *e)
+{
+    const int t = e->track;
+    if (pl->slide_arm[t].on && e->tick > pl->slide_arm[t].tick) {
+        pl->slide_cur[t] = pl->slide_arm[t];
+        pl->slide_cur[t].tick = e->tick;
+        pl->slide_arm[t].on = 0;
+    } else if (pl->slide_cur[t].on && pl->slide_cur[t].tick != e->tick) {
+        pl->slide_cur[t].on = 0;                        /* (a later note: the slide is over) */
+    }
+    return pl->slide_cur[t].on;
+}
+/* after e played: its own SLIDE lock arms the track's next note (LEGATO: this note kept in gate until then) */
+static void slide_arm(qd_player_t *pl, const qd_seq_ev_t *e)
+{
+    const qd_trec_t *r = e->rec;
+    const int t = e->track;
+    if (!(r->slide_m & 1u) || r->slide_v[0] == QD_PORT_OFF) {
+        if (r->slide_m & 1u)
+            pl->slide_arm[t].on = 0;                    /* (an OFF lock: no slide, whatever the sound's PORT) */
+        return;
+    }
+    pl->slide_arm[t].on = 1;
+    pl->slide_arm[t].port = (int8_t)r->slide_v[0];
+    pl->slide_arm[t].time = (int8_t)(r->slide_m & 2u ? r->slide_v[1] : -1);
+    pl->slide_arm[t].slope = (int8_t)(r->slide_m & 4u ? r->slide_v[2] : -1);
+    pl->slide_arm[t].tick = e->tick;
+    if (r->slide_v[0] == QD_PORT_LEGATO) {
+        int k;
+        for (k = 0; k < QD_NNOTE; k++)
+            if (!pl->slide_hold[t][k] || pl->slide_hold_note[t][k] == (e->note & 127)) {
+                pl->slide_hold[t][k] = e->serial;
+                pl->slide_hold_note[t][k] = (uint8_t)(e->note & 127);
+                break;
+            }
+    }
+}
+
 static void note_on(qd_player_t *pl, const qd_seq_ev_t *e)
 {
     const qd_trec_t *r = e->rec;
-    const qd_tset_t *ts = &qd_proj_pat(pl->seq->proj, r->pat)->trk[e->track];
-    qd_quad_owner_t *o = &pl->model->t[e->track].owner;
-    const int held = qd_pool_gated(pl->pool, e->track);   /* (E1: LEGATO's test, before this note takes a voice) */
-    int i;
-    qd_pool_set_track(pl->pool, e->track, ts->limit, ts->reserve);
-    i = qd_pool_note_on_at(pl->pool, e->track, o, e->note, e->vel, r->patch, &r->at);
+    const int t = e->track;
+    const qd_tset_t *ts = &qd_proj_pat(pl->seq->proj, r->pat)->trk[t];
+    qd_quad_owner_t *o = &pl->model->t[t].owner;
+    const int held = qd_pool_gated(pl->pool, t);        /* (E1: LEGATO's test, before this note takes a voice) */
+    const int sl = slide_take(pl, e);
+    int i = -1;
+    qd_pool_set_track(pl->pool, t, ts->limit, ts->reserve);
+    if (sl && pl->slide_cur[t].port == QD_PORT_LEGATO) {   /* the note before, kept in gate: moved, no new attack */
+        int k;
+        for (k = 0; k < pl->pool->nvoice && i < 0; k++)
+            if (qd_pool_sounding(pl->pool, k) && pl->pool->v[k].track == t && pl->pool->v[k].q.gate &&
+                slide_held(pl, t, pl->last_on[t][pl->pool->v[k].q.note & 127]))
+                i = k;
+        if (i >= 0) {
+            slide_write(pl, i, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
+            pl->last_on[t][pl->pool->v[i].q.note & 127] = 0;
+            qd_pool_legato(pl->pool, i, e->note, e->vel);
+            qd_pool_glide_tie(pl->pool, o, e->note);
+            apply_locks(pl, e, i);
+            pl->last_on[t][e->note & 127] = e->serial;
+            slide_unhold(pl, t);
+            pl->legatos++;
+            plog(pl, e, QD_LOG_LEGATO, i, -1, 0);
+            slide_arm(pl, e);
+            return;
+        }
+    }
+    i = qd_pool_note_on_at(pl->pool, t, o, e->note, e->vel, r->patch, &r->at);
+    if (sl)
+        slide_write(pl, i, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
     qd_pool_glide_note(pl->pool, i, o, r, e->tick, held);   /* E1: portamento's start (the chord: the trig's notes) */
-    pl->last_on[e->track][e->note & 127] = e->serial;
+    pl->last_on[t][e->note & 127] = e->serial;
     pl->ons++;
     plog(pl, e, QD_LOG_ON, i, -1, 0);
+    if (sl)
+        slide_unhold(pl, t);
+    slide_arm(pl, e);
 }
 
 /* ---------------------------------------------------------------- P1.6c: the MIDI FX groups */
@@ -258,6 +355,11 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
         note_on(pl, e);
         break;
     case QD_EV_OFF:
+        if (slide_held(pl, t, e->serial)) {             /* (2026-10-26: a LEGATO slide: in gate until the next note) */
+            pl->offs_kept++;
+            plog(pl, e, QD_LOG_OFF_KEPT, -1, -1, 0);
+            break;
+        }
         if (e->serial && pl->last_on[t][e->note & 127] == e->serial && pl->on_grp[t][e->note & 127]) {
             mfx_seq_note(pl, e, pl->on_grp[t][e->note & 127], 0);   /* P1.6c: to the group its ON went to */
             pl->on_grp[t][e->note & 127] = 0;
@@ -299,12 +401,16 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
             break;
         }
         pl->last_on[t][pl->pool->v[held].q.note & 127] = 0;
+        if (slide_take(pl, e))                          /* (2026-10-26: a slide armed: the tie glides with it) */
+            slide_write(pl, held, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
         qd_pool_legato(pl->pool, held, e->note, e->vel);
         qd_pool_glide_tie(pl->pool, &pl->model->t[t].owner, e->note);   /* (E1: the track's last note) */
         apply_locks(pl, e, held);
         pl->last_on[t][e->note & 127] = e->serial;
         pl->legatos++;
         plog(pl, e, QD_LOG_LEGATO, held, -1, 0);
+        slide_unhold(pl, t);
+        slide_arm(pl, e);
         break;
     }
     default:
@@ -362,6 +468,9 @@ void qd_player_stop(qd_player_t *pl)
     qd_mfx_reset(&pl->mfx);                             /* P1.6c: every group's notes end, its arps and repeats stop */
     memset(pl->on_grp, 0, sizeof pl->on_grp);
     memset(pl->key_grp, 0, sizeof pl->key_grp);
+    memset(pl->slide_arm, 0, sizeof pl->slide_arm);     /* (2026-10-26: no slide waits) */
+    memset(pl->slide_cur, 0, sizeof pl->slide_cur);
+    memset(pl->slide_hold, 0, sizeof pl->slide_hold);
 }
 
 void qd_player_flush_track(qd_player_t *pl, int t)
@@ -371,6 +480,8 @@ void qd_player_flush_track(qd_player_t *pl, int t)
     qd_mfx_flush_track(&pl->mfx, t, -1);
     memset(pl->on_grp[t], 0, sizeof pl->on_grp[t]);
     memset(pl->key_grp[t], 0, sizeof pl->key_grp[t]);
+    pl->slide_arm[t].on = pl->slide_cur[t].on = 0;
+    memset(pl->slide_hold[t], 0, sizeof pl->slide_hold[t]);
     qd_pool_release_all(pl->pool, t);
 }
 

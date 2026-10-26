@@ -199,6 +199,7 @@ enum { QD_KJ_NONE, QD_KJ_MAIN, QD_KJ_NOTE1, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE
        QD_KJ_FTYPE, QD_KJ_LEAP, QD_KJ_JTGT,   /* P1.3y, FUNC: the function's kind, LEAP's n, JUMP's target */
        QD_KJ_CHORD,                    /* P1.5o: NOTE's SELECT: the whole chord a scale step, its shape kept */
        QD_KJ_MFX,                      /* P1.6c: TRIG's KNOB 2: the step's MIDI FX (the default: the track's group) */
+       QD_KJ_PTIME, QD_KJ_PSLOPE,      /* 2026-10-26: SLIDE's KNOB 2 / 3: the slide's TIME, its SLOPE (TIME / RATE) */
        QD_NKJ };
 
 /* P1.3d (§8b 2.2): latched menus and confirmations (ctl_latch.c). One rule for all: OCT- = back / exit / cancel,

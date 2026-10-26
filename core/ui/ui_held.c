@@ -827,24 +827,27 @@ static void f_sound(const ui_held_t *v, const pal_t *p)
          * LEDs show the bank) */
         int k;
         for (k = 0; k < v->nlocks && k < 4; k++)
-            ui_lock(222.f - (float)k * 12.f, 212.f, UI_MODE_COL[UI_F_PLOCK], 1.2f);
+            ui_lock(222.f - (float)k * 12.f, 212.f, UI_LOCK_COL, 1.2f);
     }
 }
 
 /* ---------------------------------------------------------------- TRIG (s19) */
+/* 2026-10-26 (the sequencer clean-up, mock-up 4 / 5): the three trig pictures as before, a little higher, and under a
+ * rule the step's MIDI FX group (KNOB 2): a hexagon in KNOB 2's green with the group's number, GROUP n beside it and
+ * the group's eight slots as little bars (lit where an effect plays); the track's group dim with TRACK; none: OFF */
 static void f_trig(const ui_held_t *v, const pal_t *p)
 {
     static const char *const NAMES[3] = {"NOTE", "LOCK", "TIE"};
-    static const char *const TXT[4] = {"an empty step: plays nothing", "strikes its notes",
-                                       "changes the sound, no new note", "slides the held note, legato"};
     const int cur = v->type >= 1 && v->type <= 3 ? v->type - 1 : -1;
-    const float y = 100.f;
+    const float y = 92.f, hy = 160.f;
+    const qd_rgb gc = v->mfx_grp ? (v->mfx_track ? UI_G1 : UI_K2) : UI_G2;
+    char n[12], gl[16];
     int i;
     for (i = 0; i < 3; i++) {
         const float x = 44.f + (float)i * 76.f;
         const qd_rgb col = i == cur ? p->k[0] : UI_G2;
         if (i == cur)
-            ui_RR(x - 34.f, y - 46.f, 68.f, 84.f, 8.f, p->k[0], 1.2f, QD_NONE);
+            ui_RR(x - 34.f, y - 40.f, 68.f, 74.f, 8.f, p->k[0], 1.2f, QD_NONE);
         if (i == 0)
             ui_O(x, y - 4.f, 13.f, col, 1.5f, i == cur ? p->k[0] : QD_NONE);
         if (i == 1)
@@ -857,9 +860,79 @@ static void f_trig(const ui_held_t *v, const pal_t *p)
             qd_quad_to(x, y - 26.f, x + 14.f, y - 2.f);
             qd_path_stroke(col, 1.5f);
         }
-        ui_T(NAMES[i], x, y + 31.f, 12.f, 600, 0.8f, i == cur ? p->k[0] : UI_G2, QD_CENTER);
+        ui_T(NAMES[i], x, y + 28.f, 12.f, 600, 0.8f, i == cur ? p->k[0] : UI_G2, QD_CENTER);
     }
-    (void)TXT;                                          /* (P1.3v: no sentence under them) */
+    line2(24.f, hy - 26.f, 216.f, hy - 26.f, UI_G3, 1.f);
+    {   /* the hexagon */
+        const float hx = 44.f, r = 13.f;
+        qd_path_begin();
+        for (i = 0; i < 6; i++) {
+            const float a = 1.0471976f * (float)i - 1.5707963f;
+            if (i)
+                qd_line_to(hx + cosf(a) * r, hy + sinf(a) * r);
+            else
+                qd_move_to(hx + cosf(a) * r, hy + sinf(a) * r);
+        }
+        qd_path_close();
+        qd_path_stroke(gc, 1.6f);
+        if (v->mfx_grp)
+            ui_T(ui_itoa(n, v->mfx_grp), hx, hy + 5.f, 14.f, 700, 0.f, gc, QD_CENTER);
+    }
+    ui_T("MIDI FX", 66.f, hy - 4.f, 12.f, 600, 0.6f, UI_G1, QD_LEFT);
+    gl[0] = 0;
+    if (v->mfx_grp)
+        cat(cat(gl, v->mfx_track ? "TRACK " : "GROUP "), ui_itoa(n, v->mfx_grp));
+    else
+        cat(gl, v->mfx_track ? "TRACK OFF" : "OFF");
+    ui_T(gl, 66.f, hy + 12.f, 14.f, 500, 0.3f, gc, QD_LEFT);
+    if (v->mfx_grp)                                     /* the slots: a bar each, lit where an effect plays */
+        for (i = 0; i < 8; i++) {
+            const int on = (v->mfx_lit >> i) & 1;
+            ui_RR(160.f + (float)i * 9.f, hy - 9.f, 6.f, 18.f, 2.f, on ? gc : v->mfx_slot[i] ? UI_G2 : UI_G3, 1.f,
+                  on ? gc : QD_NONE);
+        }
+}
+
+/* ---------------------------------------------------------------- SLIDE (2026-10-26, mock-up 6 / 7) */
+/* the step's note as a bar on a ruler of the next steps, the track's next note as a grey bar (higher or lower as its
+ * pitch), the slide a ramp in KNOB 2's green from the note's end up (or down) into it, as long as the TIME (its number
+ * at the knee); LEGATO: the bar runs on under the ramp (no new attack); OFF: a dashed step. TIME / RATE (KNOB 3) small
+ * at the right */
+static void f_slide(const ui_held_t *v, const pal_t *p)
+{
+    const float x0 = 40.f, x1 = 118.f, x2 = 194.f, y0 = 128.f, ry = 152.f;
+    const int on = v->port > 0;
+    const int d = v->next_note && v->slide_note ? v->next_note - v->slide_note : 0;
+    const float dy = (float)(d < -12 ? -12 : d > 12 ? 12 : d) * 3.f, y1 = y0 - dy;
+    const qd_rgb rc = on ? UI_K2 : UI_G2;
+    char n[12];
+    int i;
+    line2(24.f, ry, 216.f, ry, UI_G2, 1.f);
+    for (i = 0; i < 8; i++)
+        line2(24.f + (float)i * 27.4f, ry, 24.f + (float)i * 27.4f, ry + 4.f, UI_G2, 1.f);
+    ui_RR(x0, y0 - 6.f, x1 - x0 - 8.f, 12.f, 4.f, QD_NONE, 1.f, p->empty ? UI_G2 : p->k[0]);
+    if (v->next_note)
+        ui_RR(x2, y1 - 6.f, 36.f, 12.f, 4.f, QD_NONE, 1.f, UI_G2);
+    else
+        ui_RR(x2, y1 - 6.f, 36.f, 12.f, 4.f, UI_G3, 1.f, QD_NONE);
+    if (on) {
+        const float t = x1 + (x2 - x1 - 6.f) * (float)v->ptime / 127.f;
+        if (v->port == 2)                               /* LEGATO (QD_PORT_LEGATO): the note held on to the slide's end */
+            ui_RR(x1 - 8.f, y0 - 6.f, t - x1 + 8.f, 12.f, 4.f, QD_NONE, 1.f, p->empty ? UI_G2 : p->k[0]);
+        line2(x1 - 8.f, y0, t, y1, rc, 2.4f);
+        line2(t, y1, x2, y1, rc, 2.4f);
+        ui_T(ui_itoa(n, v->ptime), t + 4.f, (y1 < y0 ? y1 : y0) - 10.f, 13.f, 600, 0.f, rc, QD_LEFT);
+    } else {
+        qd_save();
+        {
+            static const float DSH[2] = {3.f, 3.f};
+            qd_dash(DSH, 2);
+            line2(x1 - 8.f, y0, x1 - 8.f, y1, UI_G2, 1.4f);
+            line2(x1 - 8.f, y1, x2, y1, UI_G2, 1.4f);
+        }
+        qd_restore();
+    }
+    ui_T(v->pslope ? "RATE" : "TIME", 216.f, ry + 20.f, 12.f, 600, 0.5f, UI_G2, QD_RIGHT);
 }
 
 /* ---------------------------------------------------------------- FUNC (P1.3w) */
@@ -942,7 +1015,7 @@ static int held_head(const ui_held_t *v, pal_t *p)
     cat(cat(left, " \xc2\xb7 "), UI_FIELD_NAME[field]);
     ui_T(left, 8.f, 18.f, 12.f, 600, 0.8f, v->is_default ? UI_TRACK_COL : UI_K3, QD_LEFT);
     /* (P1.3t: no SELECTED: the row and the LFO light say it) */
-    if (field != UI_F_PLOCK && ((!lit && !p->empty) || (p->empty && (field == UI_F_COND || field == UI_F_CHNC)))) {
+    if ((!lit && !p->empty) || (p->empty && (field == UI_F_COND || field == UI_F_CHNC))) {
         /* a tag top right: the step plays the track's value (COND / CHNC, which draw no EMPTY STEP: an empty step) */
         const char *tag = p->empty ? "EMPTY" : "DEFAULT";   /* (P1.3v: a 12 px word, no 7 px box) */
         const float w = ui_TW(tag, 12.f, 600, 0.5f);
@@ -972,6 +1045,7 @@ static void held_body(const ui_held_t *v, const pal_t *p, int field)
     case UI_F_SOUND: f_sound(v, p); break;
     case UI_F_TRIG: f_trig(v, p); break;
     case UI_F_FUNC: f_func(v, p); break;
+    case UI_F_SLIDE: f_slide(v, p); break;
     default: break;
     }
 }
@@ -1035,27 +1109,15 @@ static void head_value(const ui_held_t *v, const pal_t *p, const char *val)
     ui_T(val, 232.f, 21.f, size, 200, 0.f, p->empty ? UI_G1 : p->k[0], QD_RIGHT);
 }
 
-static void ed_plock(const ui_held_t *v, const ui_lane_t *lane, char *val)
-{
-    const qd_rgb col = UI_MODE_COL[UI_F_PLOCK];
-    char n[12];
-    val[0] = 0;
-    if (v->is_default) {                                /* (P1.3v: the padlock alone, no sentences) */
-        ui_lock(99.f, 58.f, UI_G2, 6.f);
-    } else {
-        const int c = (v->step - 1) % 16, nl = lane->col[c < 0 ? 0 : c].nlock;
-        cat(cat(val, ui_itoa(n, nl)), nl == 1 ? " LOCK" : " LOCKS");
-        ui_lock(99.f, 58.f, nl ? col : UI_G2, 6.f);
-    }
-}
-
 /* P1.5z: the head's value of v as the EDIT view's switch below makes it (for the head of another model than the
  * picture's: EDIT following shows the track's default's) */
+static const char *const PORT_NAMES[3] = {"OFF", "ON", "LEGATO"};   /* (2026-10-26: SLIDE's PORT) */
 static void ed_head_val(const ui_held_t *v, const ui_lane_t *lane, int field, char *val)
 {
     static const char *const TRIGS[4] = {"", "NOTE", "LOCK", "TIE"};
     char n[12];
     val[0] = 0;
+    (void)lane;                                         /* (2026-10-26: P-LOCK's lock count was its only reader) */
     switch (field) {
     case UI_F_VEL: cat(val, ui_itoa(n, v->vel)); break;
     case UI_F_LEN: cat(val, v->len_name ? v->len_name : ""); break;
@@ -1064,12 +1126,7 @@ static void ed_head_val(const ui_held_t *v, const ui_lane_t *lane, int field, ch
     case UI_F_TRIG: cat(val, TRIGS[v->type >= 1 && v->type <= 3 ? v->type : 0]); break;
     case UI_F_SOUND: cat(val, v->sound_cur ? v->sound_cur : "TRACK SOUND"); break;
     case UI_F_FUNC: cat(val, v->func_name); break;
-    case UI_F_PLOCK:
-        if (!v->is_default) {
-            const int c = (v->step - 1) % 16, nl = lane->col[c < 0 ? 0 : c].nlock;
-            cat(cat(val, ui_itoa(n, nl)), nl == 1 ? " LOCK" : " LOCKS");
-        }
-        break;
+    case UI_F_SLIDE: cat(val, PORT_NAMES[v->port < 0 ? 0 : v->port > 2 ? 2 : v->port]); break;
     default: break;
     }
 }
@@ -1151,8 +1208,9 @@ void ui_edit_draw(const ui_held_t *v, const ui_lane_t *lane)
         cat(val, v->func_name);
         moved(v, &p, field, -36.f);                     /* (the icon 96 -> 60, the jump strip 194 .. 210 -> 158 .. 174) */
         break;
-    case UI_F_PLOCK:
-        ed_plock(v, lane, val);
+    case UI_F_SLIDE:                                    /* 2026-10-26: the ramp; PORT in the head */
+        cat(val, PORT_NAMES[v->port < 0 ? 0 : v->port > 2 ? 2 : v->port]);
+        moved(v, &p, field, -14.f);                     /* (the ruler 152 -> 138, TIME / RATE 172 -> 158) */
         break;
     default:
         break;

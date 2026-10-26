@@ -251,7 +251,7 @@ int render_p13s(const char *out)
         {UI_F_COND, "edit-cond", "COND: the condition"},
         {UI_F_TRIG, "edit-trig", "TRIG: NOTE / LOCK / TIE"},
         {UI_F_SOUND, "edit-sound", "SOUND: the cassette"},
-        {UI_F_PLOCK, "edit-plock", "P-LOCK: the step's locks"},
+        {UI_F_SOUND, "edit-plock", "P-LOCK: the step's locks"},
     };
     size_t i;
     outdir = out;

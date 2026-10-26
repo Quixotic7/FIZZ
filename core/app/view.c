@@ -86,9 +86,9 @@ static int len_steps_x8(int len) { return qd_len_eighths(len); }
 /* ---------------------------------------------------------------- the step view's lane --- */
 static int mode_pm(int m)                               /* the step parameter a hold mode edits */
 {
-    static const int PM[UI_F_PLOCK] = {QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
-                                       QD_PM_COND, QD_PM_TRIG, QD_NPM, QD_PM_SOUND};
-    return m >= 0 && m < UI_F_PLOCK ? PM[m] : QD_PM_NOTE;
+    static const int PM[UI_NFIELD] = {QD_PM_NOTE, QD_PM_VEL, QD_PM_LEN, QD_PM_MICRO, QD_PM_RATCH, QD_PM_CHANCE,
+                                      QD_PM_COND, QD_PM_TRIG, QD_NPM, QD_NPM, QD_PM_SOUND};
+    return m >= 0 && m < UI_NFIELD ? PM[m] : QD_PM_NOTE;
 }
 
 static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
@@ -136,10 +136,10 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
                 c |= r.on && r.type == QD_TRIG_TIE ? UI_C_TIE : 0;
                 c |= r.on && qd_step_overrides(st, QD_PM_NOTE) ? UI_C_OWN : 0;   /* P1.3q: its own notes */
                 c |= r.on && st->func ? UI_C_FUNC : 0;   /* P1.3w: a step function */
-                if (r.on && (u->hmode == UI_F_PLOCK ? (st->flags & QD_SF_LOCKS) != 0
+                if (r.on && (u->hmode == UI_F_SLIDE ? qd_step_slide(P, t, s, 0, 0) >= 0
                                                     : u->hmode == UI_F_FUNC ? st->func != 0
-                                                    : u->hmode < UI_F_PLOCK && (qd_step_overrides(st, mode_pm(u->hmode)) ||
-                                                      (u->hmode == UI_F_MICRO && qd_step_overrides(st, QD_PM_STRUM)))))
+                                                    : qd_step_overrides(st, mode_pm(u->hmode)) ||
+                                                      (u->hmode == UI_F_MICRO && qd_step_overrides(st, QD_PM_STRUM))))
                     c |= UI_C_OVR;
                 for (j = 0; j < u->nheld; j++)
                     c |= u->held[j] == s ? UI_C_HELD : 0;
@@ -195,7 +195,8 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         case UI_F_TRIG: c->ovr = qd_step_overrides(st, QD_PM_TRIG); break;
         case UI_F_SOUND: c->ovr = qd_step_overrides(st, QD_PM_SOUND); break;
         case UI_F_FUNC: c->ovr = st->func != 0; break;
-        default: c->ovr = (st->flags & QD_SF_LOCKS) != 0; break;
+        case UI_F_SLIDE: c->ovr = qd_step_slide(P, t, s, 0, 0) >= 0; break;
+        default: c->ovr = 0; break;
         }
         if (r.type != QD_TRIG_LOCK) {
             c->nnote = (uint8_t)r.nn;
@@ -214,6 +215,12 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         c->nlock = (uint8_t)qd_lock_count(P, t, s);
         c->strum = (uint8_t)r.strum;
         c->func = (uint8_t)r.func;
+        {   /* 2026-10-26: its SLIDE (the lock; TIME the lock, else the sound's) */
+            int tm;
+            const int pt = qd_step_slide(P, t, s, &tm, 0);
+            c->port = (uint8_t)(pt < 0 ? 0 : pt + 1);
+            c->ptime = (uint8_t)(tm >= 0 ? tm : a->model.t[t].patch[QD_QP_PTIM]);
+        }
         if (v->pos >= 0.f) {
             const float x0 = (float)i + (float)r.micro / 24.f;
             c->lit = v->pos >= x0 && v->pos < x0 + (c->len > 0.3f ? c->len : 0.3f);
@@ -256,7 +263,8 @@ static void fill_lane(qd_app_t *a, ui_lane_t *v, char *pat)
         case UI_F_TRIG: cat(cat(v->def_label, "DEFAULT "), TY[df->type & 3]); break;
         case UI_F_SOUND: cat(cat(v->def_label, "TRACK SOUND "), qd_track_sound_label(&a->model.t[t])); break;
         case UI_F_FUNC: break;                          /* (P1.3w: no default: none) */
-        default: cat(v->def_label, "P-LOCKS"); break;
+        case UI_F_SLIDE: break;                         /* (2026-10-26: none either) */
+        default: break;
         }
     }
     if (hi < 0) {                                       /* no notes: a span round C4 */
@@ -433,7 +441,41 @@ static void fill_held_at(qd_app_t *a, ui_held_t *v, int is_default, int s_at)
         v->held_col = s % QD_PAGE;
         v->nlocks = qd_lock_count(P, t, s);
     }
-    (void)st;
+    {   /* TRIG (2026-10-26): the step's MIDI FX group (the default: the track's) under the trig picture */
+        const int sm = is_default ? 0 : st->mfx;        /* 0 TRACK, 1 OFF, 2..6 group 1..5 */
+        const int g = sm == 0 ? (P->trk[t].mfx & ~QD_TMFX_OFF) : sm == 1 ? 0 : sm - 1;
+        v->mfx_track = sm == 0;
+        v->mfx_grp = g >= 1 && g <= QD_MFX_NGROUP ? g : 0;
+        if (v->mfx_grp) {
+            const qd_mfx_group_t *gr = &a->proj.mfx[v->mfx_grp - 1];
+            for (k = 0; k < QD_MFX_NSLOT && k < 8; k++) {
+                v->mfx_slot[k] = gr->slot[k].type;
+                v->mfx_lit |= gr->slot[k].type && !gr->slot[k].bypass ? (uint8_t)(1u << k) : 0;
+            }
+        }
+    }
+    {   /* SLIDE (2026-10-26): the PORT lock, TIME / SLOPE (the lock, else the sound's), note 1 and the track's next
+         * note (the slide's end) */
+        v->port = is_default ? -1 : qd_step_slide(P, t, s, &v->ptime, &v->pslope);
+        if (is_default)
+            v->ptime = v->pslope = -1;
+        if (v->ptime < 0)
+            v->ptime = a->model.t[t].patch[QD_QP_PTIM];
+        if (v->pslope < 0)
+            v->pslope = a->model.t[t].patch[QD_QP_PSLOPE];
+        v->slide_note = r.nn ? r.notes[0] : 0;
+        if (!is_default) {
+            const int pos = qd_track_step_pos(ts, s), nn = qd_track_len(ts);
+            for (k = 1; k <= 16 && pos >= 0 && k < nn; k++) {
+                qd_rstep_t rq;
+                qd_step_resolve(P, t, qd_track_loop_step(ts, pos + k), &rq);
+                if (rq.on && rq.nn) {
+                    v->next_note = rq.notes[0];
+                    break;
+                }
+            }
+        }
+    }
 }
 static void fill_held(qd_app_t *a, ui_held_t *v, int is_default) { fill_held_at(a, v, is_default, a->ui.held[0]); }
 
@@ -718,9 +760,10 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         for (i = 0; i < QD_NTRACK; i++)
             v->tname[i] = a->model.t[i].name;
         break;
-    case UI_TK_TRACK:                                   /* P1.3d: P-LOCK's ALGORITHM, the eight tracks */
+    case UI_TK_TRACK:                                   /* P1.3d: the eight tracks (P-LOCK's ALGORITHM; unused since
+                                                         * 2026-10-26, kept) */
         v->has_col = 1;
-        v->col = UI_MODE_COL[UI_F_PLOCK];
+        v->col = UI_LOCK_COL;
         v->value = t + 1;
         v->v = (float)t / (float)(QD_NTRACK - 1);
         for (i = 0; i < QD_NTRACK; i++) {
@@ -1196,7 +1239,8 @@ static void overlay_begin(float al)
 static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
 {
     static const char *const MAIN[UI_NFIELD] = {"NOTES", "VELOCITY", "LENGTH", "MICRO", "RATCHET", "CHANCE",
-                                                "CONDITION", "TRIG", "FUNCTION", "SOUND", ""};
+                                                "CONDITION", "TRIG", "FUNCTION", "SLIDE", "SOUND"};
+    static const char *const PORTN[3] = {"OFF", "ON", "LEGATO"};
     static const char *const TYPE[4] = {"", "NOTE", "LOCK", "TIE"};
     static const char *const RAMP[4] = {"FLAT", "UP", "DOWN", "ACCENT"};
     static const char *const NOTEN[5] = {"NOTE 1", "NOTE 2", "NOTE 3", "NOTE 4", "NOTE 5"};
@@ -1245,6 +1289,11 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
         case UI_F_COND: qd_cond_name(r.cond, v->val); break;
         case UI_F_TRIG: cat(v->val, TYPE[r.type & 3][0] ? TYPE[r.type & 3] : "EMPTY"); break;
         case UI_F_FUNC: qd_fn_name(is_default || !u->nheld ? 0 : r.func, v->val); break;
+        case UI_F_SLIDE: {                              /* 2026-10-26: the PORT lock (none: OFF) */
+            const int pt = u->nheld ? qd_step_slide(qd_ctl_cpat(a), t, u->held[0], 0, 0) : -1;
+            cat(v->val, PORTN[pt < 0 ? 0 : pt]);
+            break;
+        }
         case UI_F_SOUND: {
             const int k = is_default || !u->nheld ? a->model.t[t].sound : r.sound;
             if (k > 0) {
@@ -1315,6 +1364,22 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
             cat(v->val, "OFF");
         break;
     }
+    case QD_KJ_PTIME: {                                 /* 2026-10-26: SLIDE's TIME, its SLOPE */
+        int tm = -1;
+        if (u->nheld)
+            qd_step_slide(qd_ctl_cpat(a), t, u->held[0], &tm, 0);
+        v->name = "TIME";
+        ui_itoa(v->val, tm >= 0 ? tm : a->model.t[t].patch[QD_QP_PTIM]);
+        break;
+    }
+    case QD_KJ_PSLOPE: {
+        int sl = -1;
+        if (u->nheld)
+            qd_step_slide(qd_ctl_cpat(a), t, u->held[0], 0, &sl);
+        v->name = "SLOPE";
+        cat(v->val, (sl >= 0 ? sl : a->model.t[t].patch[QD_QP_PSLOPE]) ? "RATE" : "TIME");
+        break;
+    }
     default:
         break;
     }
@@ -1368,8 +1433,8 @@ int qd_view_screen(const qd_app_t *a)
         }
         if (u->slatch && qd_ctl_layer_shown(a) != QD_LAYER_NONE)   /* P1.5m: the latch's selection, an F layer: its map */
             return QD_SCR_LAYER;
-        if (u->nheld && u->hmode != UI_F_PLOCK &&      /* (P-LOCK: holding keeps the screen; so does the step */
-            !u->scursor)                                /* cursor, P1.3q, in every view since P1.3y) */
+        if (u->nheld && !u->scursor)                    /* (the step cursor keeps the screen, P1.3q, in every view
+                                                         * since P1.3y) */
             return QD_SCR_HELD;
         if (qd_ctl_mkey_shown(a))                       /* P1.3e: a mode key held: the track's default */
             return QD_SCR_DEFAULT;
@@ -1426,7 +1491,8 @@ void qd_view_edit(qd_app_t *a, ui_held_t *h, ui_lane_t *l)
         h->walk = (float)h->micro + k * 24.f;           /* (MICRO's playhead from the flag on, at the step's pace) */
         h->ovr = u->hmode == UI_F_FUNC ? st->func != 0
                : u->hmode == UI_F_MICRO ? qd_step_overrides(st, QD_PM_MICRO) || qd_step_overrides(st, QD_PM_STRUM)
-               : u->hmode == UI_F_PLOCK ? (st->flags & QD_SF_LOCKS) != 0 : qd_step_overrides(st, mode_pm(u->hmode));
+               : u->hmode == UI_F_SLIDE ? qd_step_slide(P, a->sel, fs, 0, 0) >= 0
+               : qd_step_overrides(st, mode_pm(u->hmode));
         if (ph >= 0 && ph != fs) {
             qd_step_resolve(P, a->sel, ph, &r);
             h->dim = !r.on;                             /* (the playhead on an empty step: the last step, dimmed) */

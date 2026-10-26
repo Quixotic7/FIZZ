@@ -667,6 +667,16 @@ const qd_lock_t *qd_locks(const qd_pattern_t *p, int t, int s, int *n)
     return &p->lock[a];
 }
 
+int qd_step_slide(const qd_pattern_t *p, int t, int s, int *time, int *slope)
+{
+    int16_t v;
+    if (time)
+        *time = qd_lock_get(p, t, s, QD_QP_PTIM, &v) ? v : -1;
+    if (slope)
+        *slope = qd_lock_get(p, t, s, QD_QP_PSLOPE, &v) ? v : -1;
+    return qd_lock_get(p, t, s, QD_QP_PORT, &v) ? v : -1;
+}
+
 int qd_lock_count(const qd_pattern_t *p, int t, int s)
 {
     int n;

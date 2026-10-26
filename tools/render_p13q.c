@@ -280,7 +280,7 @@ int render_p13q(const char *out)
     run(100);
     shot("steps-unfold", "SELECT to page 2, mid-way (folding / unfolding)");
     run(300);
-    black(UI_F_PLOCK);                                  /* the latch in P-LOCK: two steps selected, the view stays */
+    black(UI_F_SOUND);                                  /* the latch in P-LOCK: two steps selected, the view stays */
     btap(QD_B_MUTE);
     qd_app_key(&A, WK(4), 1, 100);
     run(20);

@@ -74,6 +74,14 @@ typedef struct {
     uint8_t mfx_audible;                /* the tracks heard at the last block (bit t) */
     qd_trec_t mrec;                     /* (a trig resolved again for a group's note) */
     uint32_t mfx_ons, mfx_offs;
+    /* 2026-10-26, SLIDE (the 303's: the slide is on the note that slides INTO the next): a step's PORT lock arms its
+     * track's next note (arm, from the arming step's tick); the first note of that next step takes it (cur, for every
+     * note of its chord: ON a fresh voice gliding from the track's last note, LEGATO the note before moved without a
+     * new attack). LEGATO's notes are kept in gate until then (hold: their serials and notes: their OFFs are kept
+     * back). TIME / SLOPE: the step's locks, -1 the sound's own */
+    struct { int8_t on, port, time, slope; int64_t tick; } slide_arm[QD_PAT_NTRACK], slide_cur[QD_PAT_NTRACK];
+    uint32_t slide_hold[QD_PAT_NTRACK][QD_NNOTE];
+    uint8_t slide_hold_note[QD_PAT_NTRACK][QD_NNOTE];
 } qd_player_t;
 
 void qd_player_init(qd_player_t *pl, qd_seq_t *s, qd_pool_t *pool, qd_model_t *m);

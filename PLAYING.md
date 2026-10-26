@@ -93,7 +93,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   - With a finger on a step: KNOB 1 = the main value (NOTE: the whole chord), ALGORITHM = the value finely (NOTE:
     note 5), SELECT = the page still, PRESETS = the step's sound lock. One table, held or not (2026-10-26).
   - What moved: the cursor was PRESETS (in STEPS / EDIT), now ALGORITHM everywhere; ALGORITHM no longer edits a
-    track default unless you hold the mode's key; P-LOCK's track chooser is now FX + ALGORITHM.
+    track default unless you hold the mode's key; the track chooser is FX + ALGORITHM.
 - **Track or step at a glance** (P1.5d: the frames the other way round): **a held step's screen has a magenta frame**
   round the whole screen (every hold mode, and the step latch's selection, which stands for a held step); its drawing
   keeps the mode's colours. Whenever the screen shows the **track's default** (a mode key held, the default's picture
@@ -116,7 +116,8 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
 ## How do I change one step's note, velocity, length …?
 
 1. Pick what to edit with a black key, **nothing held**: **B1 NOTE, B2 VEL, B3 LEN, B4 MICRO, B5 RATCH, B6 CHNC
-   (chance), B7 COND (condition), B8 TRIG, B9 FUNC (the step functions), B10 SOUND, B11 P-LOCK**. The screen draws the page
+   (chance), B7 COND (condition), B8 TRIG, B9 FUNC (the step functions), B10 SLIDE (a slide into the next note), B11
+   SOUND**. The screen draws the page
    for that choice; steps that have their own value are in colour, steps on the track's default are grey, and the
    default is a dashed line or a grey label.
 2. **Hold** the step's white key. The screen shows that step (the black keys' ten values are in the table below; the
@@ -173,6 +174,7 @@ the lower key; MICRO 0, on the step, lights none; a sound in another group of te
 | COND | B1 FILL, B2 NOT FILL, B3..B6 "A" = 1..4, B7..B10 "B" = 1..4 (plays on pass A of every B) | every condition |
 | TRIG | B1 NOTE, B2 LOCK (changes the sound, no note), B3 TIE (slides a mono note) | the same |
 | FUNC | B1 none, B2 RESTART, B3 REVERSE, B4 FORWARD, B5 FLIP, B6 RANDOM (jump), B7 RANDOM FUNCTION, B8 LEAP, B9 JUMP | the nine kinds |
+| SLIDE | B1 OFF, B2 ON, B3 LEGATO; B10 cycles them (KNOB 2 TIME, KNOB 3 SLOPE) | the same |
 | SOUND | ten sounds of the pool (see below) | any sound |
 
 **FUNC (B9), the step functions** (as the OMX-27's Form): a function runs when its step plays (after its condition
@@ -254,7 +256,8 @@ A step has up to **six notes**.
     the step cursor.
   - A sixth note (grey) comes only from the black keys.
   - Each note plays as you turn it.
-  - **SELECT is the page**, here as everywhere; KNOB 1..4 don't lock the sound: use P-LOCK for that.
+  - **SELECT is the page**, here as everywhere; KNOB 1..4 don't lock the sound: hold the step in the sound editor
+    for that.
 - Or press black keys: they are ten notes of the track's scale from its root (a chromatic track: ten semitones from
   C). The first key replaces the step's notes; keys pressed **while another is still down** add to the chord (up to
   6). Each key plays its note.
@@ -264,28 +267,40 @@ A step has up to **six notes**.
 - The notes are kept in the order you entered them: the first key pressed is note 1 (KNOB 1's), the second note 2
   (KNOB 2's), and so on.
 
-## How do I lock a sound setting on a step? (P-LOCK)
+## How do I make a note slide into the next? (SLIDE, B10)
 
-- Press **B11** with nothing held: the **P-LOCK** mode. The page shows the notes, with a lock chip and the number of
-  locks under each step as dots. (P1.5b: no padlocks anywhere; a lock is a chip: **filled = locked on this step,
-  outlined = locked on some step of the track**.)
-- **Hold a step**: the screen stays as it is. Turn a knob of the screen and it is **locked on the held steps**: KNOB
-  1..4 = FREQ, DECAY, HARM, FDBK; PRESETS = the step's sound; SELECT = the page. The knob's picture shows the lock.
-- **B11 with a step held** clears that step's locks (the sound stays: clear it in SOUND). **F1 + B11** undoes it.
-- The black keys B1..B10 do nothing here. Only P-LOCK locks the sound.
-- **Nothing held** in P-LOCK: KNOB 1..4 turn the track's own FREQ, DECAY, HARM, FDBK; PRESETS its sound; SELECT the
-  page; ALGORITHM the cursor (choose the track with **FX + ALGORITHM**).
+- The 303's slide on one key (2026-10-26). Press **B10** with nothing held: the **SLIDE** mode. The page shows each
+  step's slide as a ramp from the step towards the next column, as long as its TIME (LEGATO adds a slur under it);
+  a dot alone: no slide.
+- **Hold a step**: the screen shows its note sliding into the track's next note along a ramp (the next note's bar
+  higher or lower as its pitch). **B1 OFF, B2 ON, B3 LEGATO**, or **B10 again** cycles them; **KNOB 1** is PORT too,
+  **KNOB 2 TIME**, **KNOB 3 SLOPE** (TIME: the same time whatever the interval; RATE: a fixed speed); **B11** clears
+  the slide.
+- **ON**: the next note is struck and its pitch glides from this one over TIME. **LEGATO**: this note is held until
+  the next one, which moves it without a new attack (the real 303 slide). A TIE after a slide glides too.
+- A slide is the step's PORT, TIME and SLOPE locks: the sound editor shows them on the step, and a PORT lock made
+  there is a slide too. The sound's own PORT (the editor's page, not a lock) stays what it is: a glide into every
+  note.
+
+## How do I lock a sound setting on a step?
+
+- Open the **sound editor**, **hold the step** and turn a knob of the page: the value is locked on that step (a lock
+  is a chip: **filled = locked on this step, outlined = locked on some step of the track**). **B11** there clears the
+  page's locks on the held steps; **F2 held + a knob** unlocks that value (with nothing held: on every step of the
+  track). In the step view, a step held + **PRESETS** is its sound lock. (P-LOCK, the old B11 mode, is gone:
+  2026-10-26; B11 is SOUND.)
 
 ## How do I change the track's defaults?
 
-- **Hold the mode's black key** (B1..B10): the screen shows the mode's picture marked **TRACK DEFAULT** (NOTE: the
+- **Hold the mode's black key** (B1..B11): the screen shows the mode's picture marked **TRACK DEFAULT** (NOTE: the
   chord name and the keybed). While you hold it:
   - the knobs edit the default, in the same layout as with a step held (NOTE: KNOB 1 = the whole chord, its root,
     KNOB 2..4 = notes 2..4, each alone, ALGORITHM = note 5; B1 + SELECT moves the chord too); in the other modes
     ALGORITHM turns the main default;
   - **B11 (F#5) resets** that default to the track's starting value: NOTE back to a single C4 (clears a chord), VEL 100,
     LEN one step, MICRO 0 (and no strum), RATCH x1 flat, CHNC 100 %, COND always, TRIG NOTE, SOUND the track's
-    starting sound. B11 is lit while there is something to reset;
+    starting sound (B11 is SOUND's own key: no reset there). FUNC and SLIDE have no default. B11 is lit while there is
+    something to reset;
   - the other black keys do nothing. Let go to get the page back.
 - With **nothing held at all**, KNOB 1..4 still edit the defaults; the TRACK DEFAULT picture shows for a second.
   KNOB 4 does it quietly (no picture). ALGORITHM is the cursor now: hold the mode's key to turn the main default.
@@ -385,7 +400,7 @@ Undo and redo of everything (P1.5c):
   keeps it (a typed name stays when the kind changes; typing the kind's own name lets it follow again), HOME cancels;
   both come back to page 3.
 - **The kind's icon** shows wherever the track's name does: the track picker (SEL held), the mixer (over the faders),
-  the headers (the keyboard, the lanes, the track settings), the track takeovers (FX + ALGORITHM, P-LOCK's ALGORITHM).
+  the headers (the keyboard, the lanes, the track settings), the track takeover (FX + ALGORITHM).
 - Names and kinds are **saved with the project** (its header). A project from before 0.9.1 keeps the names it had
   (the default kit's: DRUMS, BASS, KEYS, LEAD, PLUCK, PAD, BELL, NOISE), with the kinds DRUMS, BASS, KEYS, LEAD,
   PLUCK, PAD, KEYS, FX. **A new project** (0.9.5) names its tracks from their sounds: each track's kind from its
@@ -656,8 +671,7 @@ lock), in any mode: the first entry is **TRACK** (no lock: the step plays the tr
 the step plays each one. **The picker stays up as long as the step is held** (or the latch's selection lasts; P1.5v:
 no time-out), and letting go closes it, keeping the sound. An empty pool offers TRACK only (an empty tray, 0/128). In
 **SOUND** mode the ten black keys are still ten sounds of the pool (the group of ten that holds the step's sound);
-F1 / F2 show the ten before / after; B11 removes the sound lock. In **P-LOCK**, KNOB 1..4 turn the track's FREQ,
-DECAY, HARM and FDBK.
+F1 / F2 show the ten before / after; B11 removes the sound lock.
 
 **What happens to the steps** (P1.5w, shown on the screens):
 - **Taking a sound out of the pool** (B10) sends the steps that lock it back to their track's sound (OUT? shows them
@@ -727,7 +741,7 @@ DECAY, HARM and FDBK.
 - **A step with a sound lock** (P1.5o): its values are the locked pool sound's, its p-locks on top (the track's sound
   < the step's sound lock < its p-locks); a turn p-locks the step, never the pool's sound; a new sound lock keeps the
   p-locks. **F2 held + a knob unlocks that value**: on the held or selected steps, with nothing held on every step of
-  the track ("FREQ unlocked" a moment, in the knob's colour). The same in P-LOCK (F2 is then no layer there).
+  the track ("FREQ unlocked" a moment, in the knob's colour).
 - The top line: the group's page dots first (always in the same place), then the page's name.
 - **Live play in the editor** (P1.5b): **tap REC** with the editor open and its keyboard is on (EDIT opened from the
   keyboard keeps it on too). A strip under the top shows the keys, the roots brighter, the ones playing in the track's
@@ -873,7 +887,9 @@ DECAY, HARM and FDBK.
 - **The stopped preview** (0.9.3): a step held while stopped plays **through its MIDI FX group** (its own, else the
   track's): you hear the arp, the chord, the harmony; letting go ends every note (a HOLD arp's too).
 - **A step's own group**: hold the step in **TRIG** (B8): **KNOB 2** is its MIDI FX (TRACK: the track's, the default;
-  OFF; group 1 .. 5), or **B4 TRACK, B5 OFF, B6 .. B10 groups 1 .. 5**. With nothing held KNOB 2 is the track's group.
+  OFF; group 1 .. 5), or **B4 TRACK, B5 OFF, B6 .. B10 groups 1 .. 5**. The group is drawn under the trig picture
+  (2026-10-26): a hexagon with its number, GROUP n (the track's own dim, with TRACK) and the group's eight slots, lit
+  where an effect plays. With nothing held KNOB 2 is the track's group.
   The track settings' page 2, **KNOB 4**, is the track's group too.
 - **The effects** (page by page, KNOB 1 .. 4):
   - **ARP**: PATTERN (UP, DOWN, UP DN, DN UP, U+D, D+U, CONV, DIV, CON DIV, HI UP, HI UPDN, LO UP, LO UPDN, RAND,

@@ -161,16 +161,6 @@ static void l_note(const ui_lane_t *v)
         float y = 215.f;
         if (!c->in_range || !c->on)
             continue;
-        if (v->mode == UI_F_PLOCK) {                    /* P-LOCK: a padlock and the count */
-            char n[12];
-            const qd_rgb col = c->nlock ? UI_MODE_COL[UI_F_PLOCK] : UI_G3;
-            int k;
-            ui_lock(mx - 3.5f, 210.5f, col, 1.f);
-            for (k = 0; k < c->nlock && k < 4; k++)     /* P1.3v: the locks as dots (was a 7 px count) */
-                ui_O(mx, 223.f + (float)k * 4.5f, 1.3f, QD_NONE, 1.f, col);
-            (void)n;
-            continue;
-        }
         if (c->chance != v->def_chance)
             ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_MODE_COL[UI_F_CHNC]), y += 4.5f;
         if (strcmp(c->cond, v->def_cond) != 0)
@@ -178,7 +168,37 @@ static void l_note(const ui_lane_t *v)
         if (c->sound)
             ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_MODE_COL[UI_F_SOUND]), y += 4.5f;
         if (c->nlock)
-            ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_MODE_COL[UI_F_PLOCK]);
+            ui_O(mx, y, 1.6f, QD_NONE, 1.f, UI_LOCK_COL);
+    }
+}
+
+/* ---------------------------------------------------------------- SLIDE (2026-10-26): a ramp from the step to the next
+ * column (ON: a line; LEGATO: the line and a slur under it, the note going on), as long as the TIME; a dot alone: no
+ * slide (an OFF lock: the dot outlined in the mode's colour) */
+static void l_slide(const ui_lane_t *v)
+{
+    const float y = 123.f;
+    int i;
+    for (i = 0; i < 16; i++) {
+        const ui_lcol_t *c = &v->col[i];
+        const float cx = col_x(i) + 6.f;
+        const qd_rgb col = ccol(v, c);
+        if (!c->in_range || !c->on)
+            continue;
+        if (c->port >= 2) {
+            const float gap = 13.5f + (i % 4 == 3 ? 2.f : 0.f), w = 4.f + 9.f * (float)c->ptime / 127.f;
+            const float x1 = cx + (w < gap ? w : gap);
+            line2(cx, y + 5.f, x1, y - 9.f, col, 1.8f);
+            if (c->port == 3) {                         /* LEGATO: the note held on under the ramp */
+                qd_path_begin();
+                qd_move_to(cx - 2.f, y + 8.f);
+                qd_quad_to((cx + x1) / 2.f, y + 15.f, x1 + 1.f, y + 8.f);
+                qd_path_stroke(col, 1.2f);
+            }
+            ui_O(cx, y + 5.f, 2.6f, QD_NONE, 1.f, col);
+        } else {
+            ui_O(cx, y + 5.f, 2.6f, c->port == 1 ? col : QD_NONE, 1.f, c->port == 1 ? QD_NONE : col);
+        }
     }
 }
 
@@ -488,6 +508,7 @@ static void lane(const ui_lane_t *v)
     case UI_F_TRIG: l_trig(v); break;
     case UI_F_SOUND: l_sound(v); break;
     case UI_F_FUNC: l_func(v); break;
+    case UI_F_SLIDE: l_slide(v); break;
     default: l_note(v); break;
     }
     if (ph >= 0 && ph < 16) {                           /* the playhead */
@@ -690,7 +711,7 @@ static void def_name(const ui_lane_t *v)
     const int sw = v->mode == UI_F_VEL || v->mode == UI_F_LEN || v->mode == UI_F_MICRO || v->mode == UI_F_RATCH ||
                    v->mode == UI_F_CHNC;
     float x = col_x(0);
-    if (v->mode == UI_F_NOTE || v->mode == UI_F_PLOCK || !v->def_label[0])
+    if (v->mode == UI_F_NOTE || !v->def_label[0])
         return;
     if (sw) {
         dashed(x, 219.f, x + 10.f, 219.f, def_col);

@@ -289,7 +289,7 @@ int render_p13b(const char *out, const char *mocks)
     play(700);
     shot("02-lane-sound", "SOUND lane: A01 DRUMS (a sound lock on every step)", 0);
 
-    at(A01, T1, UI_F_PLOCK);                            /* (P1.3d: LOCKS is dropped; P-LOCK lists the locks) */
+    at(A01, T1, UI_F_SOUND);                            /* (P1.3d: LOCKS is dropped; P-LOCK lists the locks) */
     play(700);
     shot("02-lane-locks", "P-LOCK lane: A01 DRUMS (the kit's mix as p-locks)", 0);
 
@@ -357,7 +357,7 @@ int render_p13b(const char *out, const char *mocks)
     held(A02, T2, 4, UI_F_TRIG, 0);
     shot("19-held-trig", "19 TRIG: A02 BASS step 5", "line-19-held-trig.png");
 
-    held(A01, T1, 0, UI_F_PLOCK, 0);                    /* (P1.3d: LOCKS is dropped: P-LOCK keeps the lane) */
+    held(A01, T1, 0, UI_F_SOUND, 0);                    /* (P1.3d: LOCKS is dropped: P-LOCK keeps the lane) */
     run(300);
     shot("20-held-locks", "20 P-LOCK: A01 step 1 held (LOCKS is gone)", "line-20-held-locks.png");
 

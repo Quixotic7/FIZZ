@@ -97,6 +97,9 @@ typedef struct {
     int16_t patch[QD_QUAD_NP];
     qd_vattr_t at;
     uint8_t nlk;
+    uint8_t slide_m;                    /* 2026-10-26: the step's SLIDE locks (bit 0 PORT, 1 TIME, 2 SLOPE: slide_v[k]),
+                                         * kept out of the patch: the player arms the track's next note with them */
+    int16_t slide_v[3];
     uint32_t lkm[(QD_LK_N + 31) / 32];  /* P2.1b: bit id: the step locks it; its value is patch[id] (a sound value: a
                                          * live edit passes an own value by) or at.mixv (a mix value). Was the locks'
                                          * copies (345 B a record) */

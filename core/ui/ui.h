@@ -302,12 +302,14 @@ void ui_prj_draw(const ui_prj_t *v);
 
 /* ---- the hold modes (B1..B10): their names and colours. A step that overrides the mode is drawn in the mode's colour,
  * a step on the track's default grey */
-enum { UI_F_NOTE, UI_F_VEL, UI_F_LEN, UI_F_MICRO, UI_F_RATCH, UI_F_CHNC, UI_F_COND, UI_F_TRIG, UI_F_FUNC, UI_F_SOUND,
-       UI_F_PLOCK, UI_NFIELD };         /* P1.3c: B11 = P-LOCK (holding a step keeps the screen; its knobs p-lock).
-                                         * P1.3w (§8b "FUNC on B9"): B9 FUNC, the step functions; SOUND moved to
-                                         * B10 (it was B9; B10 was empty since LOCKS was dropped, P1.3d) */
-extern const char *const UI_FIELD_NAME[UI_NFIELD];   /* "NOTE" .. "FUNC", "SOUND", "P-LOCK" */
+enum { UI_F_NOTE, UI_F_VEL, UI_F_LEN, UI_F_MICRO, UI_F_RATCH, UI_F_CHNC, UI_F_COND, UI_F_TRIG, UI_F_FUNC, UI_F_SLIDE,
+       UI_F_SOUND, UI_NFIELD };         /* 2026-10-26 (the sequencer clean-up): B10 SLIDE (a step's portamento into
+                                         * the next note: its PORT / TIME / SLOPE locks), B11 SOUND (was B10). P-LOCK
+                                         * (P1.3c's B11) is gone: the sound editor's hold-a-step lock is the way.
+                                         * P1.3w (§8b "FUNC on B9"): B9 FUNC, the step functions */
+extern const char *const UI_FIELD_NAME[UI_NFIELD];   /* "NOTE" .. "FUNC", "SLIDE", "SOUND" */
 extern const qd_rgb UI_MODE_COL[UI_NFIELD];
+#define UI_LOCK_COL 0xd8c39au           /* the padlock's sand (P-LOCK's colour, kept for the locks' icons) */
 
 /* ---- the kit's helpers (line.html's headTrack, lock, knobMark, keyboard's pos) */
 void ui_head_track(const char *left, int n, const char *name, qd_rgb lcol);   /* left; [n] name at the right */
@@ -389,6 +391,8 @@ typedef struct {
     uint8_t nlock;                      /* p-locks */
     uint8_t strum;
     uint8_t func;                       /* P1.3w: the step function (QD_FN_*) */
+    uint8_t port;                       /* 2026-10-26: its SLIDE: 0 none, 1 + QD_PORT_* (OFF / ON / LEGATO locked) */
+    uint8_t ptime;                      /* .. its TIME (the lock, else the sound's) */
 } ui_lcol_t;
 typedef struct {
     int mode;                           /* UI_F_* */
@@ -512,6 +516,13 @@ typedef struct ui_held {
     int jump_page, jump_step;
     uint8_t jump_trig[16];
     int bank;                           /* the bank of ten on the keys (0: 1..10) */
+    /* TRIG (2026-10-26): the step's MIDI FX group under the trig picture: 1..5 (mfx_track: the track's), 0 OFF; its
+     * slots' types (0 none) and which play (bit k of mfx_lit) */
+    int mfx_grp, mfx_track;
+    uint8_t mfx_slot[8], mfx_lit;
+    /* SLIDE (2026-10-26, B10): the step's PORT lock (-1 none, else QD_PORT_*), its TIME / SLOPE (the lock, else the
+     * sound's), note 1 and the track's next note (next_note 0: none) */
+    int port, ptime, pslope, slide_note, next_note;
     int follow;                         /* P1.5q: EDIT follows the step playing (nothing held, the latch off) .. */
     int dim;                            /* .. the playhead on an empty step: the last step played, dimmed a little */
     int band;                           /* P1.5p: the knob band is over the head (y 0..41): what the body draws there
