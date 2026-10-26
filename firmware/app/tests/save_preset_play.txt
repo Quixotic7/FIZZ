@@ -1,0 +1,19 @@
+# SAVE PRESET while the demo plays: the sound goes on, no pattern paged in by the save (2026-10-25: lib_new_id
+# read all 64 patterns under the lock, ~1 s of silence on the unit)
+wait 500
+tap PLAY
+wait 1000
+tap HOME
+wait 200
+wav save_play.wav
+tap SAVE
+wait 300
+tapkey w3
+wait 200
+tap SAVE
+wait 1500
+wavstop
+expect fz_mine 1
+expect fz_isr_loads 0
+expect fz_isr >500
+expect peak_db_min -36
