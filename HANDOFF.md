@@ -10,6 +10,19 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
+- **2026-10-25 evening, unreleased on master (775a02f) and on the FIZZ unit:** CHANGELOG `## Unreleased` lists it all:
+  the beta.5 test fixes (A01, GEEK OUT one view, SAVED at once, the MIDI FX OFF hint, the page LEDs) and the owner's
+  next round (global scale via SHIFT + ALGORITHM / PRESETS on a following track, the popup held while SHIFT is down;
+  the white keys on the track settings page; KNOB 2 rolls names; SEQ held latches the patterns map; ARP held toggles
+  the whole MIDI FX group with a message, ARP lit while MIDI FX is on; HOME keeps the view; the new-preset save no
+  longer scans 64 patterns from flash). Still open from the owner: REPLACE of a used preset rewrites patterns under
+  the lock (`qd_preset_will_change`) and may stall the same way.
+- **Two FM-1s are on USB at times** (the other is the owner's ChoralRoot dev unit, FM-1_920, port "FM-1"). CoreMIDI
+  keeps old port names: the FIZZ unit's port is named "ChoralRoot FM-1". Always pass `--port` (fm1_install.py and
+  fizz_xdata.py) and check `--info` reports FM-1_46.. before a flash; the loader's port is "Felucca Update"; after
+  the write the installer's final check may read the other unit (FM-1_920 "expected FM-1_4600"): confirm with
+  `--info --port "ChoralRoot FM-1"`. Never run the CoreMIDI rescan while a unit is in the loader.
+
 - **Released: FIZZ 0.12.0-beta.5** (tag `v0.12.0-beta.5` on master 9878bff, pushed; GitHub pre-release and the install page, both workflows green). The unit runs exactly that package (0 xruns at boot). It holds the owner's feedback round after beta.4:
   Everything in CHANGELOG's `## Unreleased`: SEQ tapped = TOOLS, ARP held = arp on/off, SHIFT + SAVE = the project
   page; B9/B10 STRETCH/CLIP, STRETCH's 13-rung ratio ladder, CLIP labels + scope line + always-on COPY/PASTE + B10
