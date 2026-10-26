@@ -88,8 +88,9 @@ int qd_mix_voices(qd_mix_t *m, qd_pool_t *pool, const qd_mix_track_t *tracks, in
                 d = fz_send_gain(clampi(td + fo[2], 0, 127));
                 c = fz_send_gain(clampi(tc + fo[3], 0, 127));
             }
-            lvl = lvl * tk->g_lvl >> 12;                /* 2026-10-26: the track's DRY / WET and, in CHAIN, its sends
-                                                         * as serial shares (app.c mix_gains, Q12; 4096: as before) */
+            gl = gl * tk->g_lvl >> 12, gr = gr * tk->g_lvl >> 12;   /* 2026-10-26: the track's DRY / WET on the dry
+                                                         * alone (the pan gains: the sends are after the level) and, in
+                                                         * CHAIN, its sends as serial shares (app.c, Q12; 4096: as before) */
             c = c * tk->g_send[0] >> 12, d = d * tk->g_send[1] >> 12, rv = rv * tk->g_send[2] >> 12;
         }
         if (m->serial[i] != pv->serial) {               /* a fresh note in this slot: its sends from where they are */
