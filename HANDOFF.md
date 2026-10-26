@@ -10,6 +10,16 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
+- **2026-10-26 night, the flash diet (tier 1), on master and the unit, unreleased:** 575,344 -> 557,472 B (24 KB free).
+  One definition of fz_tables.h's tables (`FZ_TABLES_DEFINE` in quad_voice.c; a test that links no voice unit
+  defines it itself); `QUAD_PAGES`, `QUAD_MAP`, `N_QUAD_OFS`, the MIDI FX `PAR` table and the glyph metrics `QF_ADV`
+  / `QF_OOFF` in the data blob (`QD_XDATA`; the blob 89.5 of 94 KB); core/ui/fz_math.h: the drawing's own sinf ..
+  atan2f (defined in ui_kit.c; test_gfx_fast defines its own copy), included after <math.h> in every drawing unit,
+  view.c, ctl_leds.c, both app.c; the stats reply sends `<id>:<value>` with the names generated into
+  firmware/app/fz_stats_names.h and firmware/tools/fizz_stats_names.py by tools/gen_stats_names.py
+  (`stats-names-check` in make test). Tier 2 candidates the owner has not chosen: the Geek Out pages (6.6 KB), the
+  light font weight out of the blob so HARM (13.9 KB) can move in.
+
 - **Released: FIZZ 0.12.0-beta.7** (2026-10-26, tag `v0.12.0-beta.7`, pushed; the unit runs that package): **the FX ROUTING redone as ChoralRoot 0.27's**
   (built by the main session by hand, mockups/fizz-routing.html approved): `QD_FXP_RMODE` (PARALLEL / CHAIN),
   `QD_FXP_ORDER` (0..23 into `QD_RT_ORD`), `QD_FXP_CAMT_C/D/R` (the chain amounts) replace the four cross-feeds
@@ -176,6 +186,10 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
      `python3 firmware/tools/fizz_xdata.py backup ../FIZZ-saves/DATE-before-X-store.bin`.
      Never pipe it into the flash: a pipe once hid a failed backup.
   3. Run `fm1_install.py --info`, then `fm1_install.py PACKAGE --yes`.
+  3b. **Then write the data blob** `python3 firmware/tools/fizz_xdata.py push --blob firmware/app/build/fizz-xdata.bin`
+     whenever the blob changed (it holds the fonts, the ape and, since the 2026-10-26 diet, the editor's and MIDI FX
+     tables): until it is written the unit shows FIZZ NEEDS ITS DATA and stats read `up=0 xdata=1`. A release's
+     install page writes it by itself.
   4. Check `fizz_xdata.py stats`: up, xruns, store_wiped.
 - **Stats:** `fizz_xdata.py stats [--reset]`.
   - Line 16 holds the transfer counters and the blip counter.

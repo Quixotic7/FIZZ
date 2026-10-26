@@ -28,6 +28,7 @@
  *   SHIFT             a row per control SHIFT changes here: the control (a knob's badge, REC, F3, SEQ + a key), an
  *                     arrow, the job's icon and its value now (the scale, the root, the swing) */
 #include <math.h>
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 #include <string.h>
 
 #include "ui.h"

@@ -24,6 +24,7 @@
  * And (P1.3d) the knob band, ui_band_draw: a turn in a hold mode, over the screen's top (ui.h)
  * Every motion comes from the record (t, beat, beats, the clocks' positions). */
 #include <math.h>
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 #include <string.h>
 
 #include "ui.h"

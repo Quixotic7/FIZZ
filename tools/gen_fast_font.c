@@ -156,13 +156,13 @@ int main(int argc, char **argv)
             printf("outlines %d: %lu B\n", qd_fonts_gen[w].weight, (unsigned long)on);
         }
         fprintf(out, "static const uint16_t QF_UPEM[QF_NW] = {%d, %d, %d};\n", upem[0], upem[1], upem[2]);
-        fprintf(out, "static const int16_t QF_ADV[QF_NW][QF_NG] = {");
+        fprintf(out, "static const int16_t QF_ADV[QF_NW][QF_NG] QD_XDATA(QF_ADV) = {");
         for (w = 0; w < 3; w++) {
             fprintf(out, "\n    {");
             for (i = 0; i < NG; i++)
                 fprintf(out, "%d%s", adv[w][i], i + 1 < NG ? "," : "},");
         }
-        fprintf(out, "\n};\nstatic const uint16_t QF_OOFF[QF_NW][QF_NG + 1] = {");
+        fprintf(out, "\n};\nstatic const uint16_t QF_OOFF[QF_NW][QF_NG + 1] QD_XDATA(QF_OOFF) = {");
         for (w = 0; w < 3; w++) {
             fprintf(out, "\n    {");
             for (i = 0; i <= NG; i++) {

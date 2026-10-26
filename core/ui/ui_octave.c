@@ -14,6 +14,7 @@
  *     one dot slow, two faster, three or more fastest), the line under the number in grey
  * Nothing here reads a clock: the view gives the slide's progress (k) and the seconds since the change (t). */
 #include <math.h>
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 
 #include "ui.h"
 

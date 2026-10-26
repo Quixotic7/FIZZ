@@ -17,7 +17,8 @@
 #endif
 
 /* one sine cycle in 1024 steps plus a guard point, Q15 */
-static const int16_t SINE[1025] = {
+#ifdef FZ_TABLES_DEFINE
+const int16_t SINE[1025] = {
     0, 201, 402, 603, 804, 1005, 1206, 1407, 1608, 1809, 2009, 2210,
     2410, 2611, 2811, 3012, 3212, 3412, 3612, 3811, 4011, 4210, 4410, 4609,
     4808, 5007, 5205, 5404, 5602, 5800, 5998, 6195, 6393, 6590, 6786, 6983,
@@ -105,9 +106,13 @@ static const int16_t SINE[1025] = {
     -3212, -3012, -2811, -2611, -2410, -2210, -2009, -1809, -1608, -1407, -1206, -1005,
     -804, -603, -402, -201, 0,
 };
+#else
+extern const int16_t SINE[1025];
+#endif
 
 /* LFO phase increment per control block (CTL samples), 0.05 Hz .. 40 Hz exponential */
-static const uint32_t LFO_INC[128] = {
+#ifdef FZ_TABLES_DEFINE
+const uint32_t LFO_INC[128] = {
     155826, 164248, 173124, 182481, 192343, 202738, 213695, 225244,
     237417, 250248, 263773, 278028, 293054, 308892, 325586, 343183,
     361730, 381279, 401885, 423605, 446499, 470630, 496065, 522874,
@@ -125,9 +130,13 @@ static const uint32_t LFO_INC[128] = {
     56603931, 59663066, 62887531, 66286261, 69868674, 73644696, 77624792, 81819991,
     86241918, 90902825, 95815630, 100993944, 106452119, 112205278, 118269365, 124661182,
 };
+#else
+extern const uint32_t LFO_INC[128];
+#endif
 
 /* state-variable filter g = tan(pi fc / FS) in Q12, fc 30 Hz .. 16 kHz exponential */
-static const uint16_t SVF_G[128] = {
+#ifdef FZ_TABLES_DEFINE
+const uint16_t SVF_G[128] = {
     8, 9, 9, 10, 10, 11, 11, 12, 13, 13, 14, 15,
     15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27,
     28, 30, 31, 33, 34, 36, 38, 40, 42, 44, 47, 49,
@@ -140,9 +149,13 @@ static const uint16_t SVF_G[128] = {
     1955, 2070, 2194, 2327, 2471, 2628, 2798, 2984, 3189, 3416, 3668, 3951,
     4271, 4636, 5058, 5553, 6142, 6859, 7754, 8907,
 };
+#else
+extern const uint16_t SVF_G[128];
+#endif
 
 /* level in Q12: 0 is silence, 112 is unity, 0.5 dB per step */
-static const uint16_t LEVEL_Q12[128] = {
+#ifdef FZ_TABLES_DEFINE
+const uint16_t LEVEL_Q12[128] = {
     0, 7, 7, 8, 8, 9, 9, 10, 10, 11, 12, 12,
     13, 14, 15, 15, 16, 17, 18, 19, 21, 22, 23, 24,
     26, 27, 29, 31, 33, 34, 37, 39, 41, 43, 46, 49,
@@ -155,9 +168,13 @@ static const uint16_t LEVEL_Q12[128] = {
     3254, 3446, 3651, 3867, 4096, 4339, 4596, 4868, 5157, 5462, 5786, 6129,
     6492, 6876, 7284, 7715, 8173, 8657, 9170, 9713,
 };
+#else
+extern const uint16_t LEVEL_Q12[128];
+#endif
 
 /* tanh(i / 128) in Q15, i = 0..256 */
-static const int16_t TANH_Q15[257] = {
+#ifdef FZ_TABLES_DEFINE
+const int16_t TANH_Q15[257] = {
     0, 255, 511, 767, 1023, 1279, 1534, 1790, 2045, 2300, 2554, 2809,
     3062, 3316, 3569, 3822, 4074, 4326, 4577, 4828, 5078, 5328, 5577, 5825,
     6072, 6319, 6565, 6811, 7055, 7299, 7542, 7784, 8025, 8265, 8504, 8742,
@@ -181,9 +198,13 @@ static const int16_t TANH_Q15[257] = {
     31261, 31284, 31306, 31328, 31350, 31371, 31393, 31413, 31434, 31454, 31474, 31494,
     31513, 31532, 31551, 31570, 31588,
 };
+#else
+extern const int16_t TANH_Q15[257];
+#endif
 
 /* glide rate per control block, 1 ms .. 10 s exponential */
-static const uint16_t QE_GLRATE[128] = {
+#ifdef FZ_TABLES_DEFINE
+const uint16_t QE_GLRATE[128] = {
     743, 691, 642, 597, 555, 517, 480, 447, 415, 386, 359, 334,
     311, 289, 269, 250, 232, 216, 201, 187, 174, 162, 150, 140,
     130, 121, 112, 104, 97, 90, 84, 78, 72, 67, 63, 58,
@@ -196,9 +217,13 @@ static const uint16_t QE_GLRATE[128] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
 };
+#else
+extern const uint16_t QE_GLRATE[128];
+#endif
 
 /* phase increments of the top octave, p = 1856..2047 (1/16 semitones) */
-static const uint32_t FZ_PITCH_OCT[192] = {
+#ifdef FZ_TABLES_DEFINE
+const uint32_t FZ_PITCH_OCT[192] = {
     647154682, 649495224, 651844232, 654201735, 656567764, 658942350, 661325524, 663717318,
     666117762, 668526887, 670944726, 673371309, 675806668, 678250835, 680703841, 683165720,
     685636502, 688116220, 690604907, 693102594, 695609315, 698125101, 700649987, 703184003,
@@ -224,6 +249,9 @@ static const uint32_t FZ_PITCH_OCT[192] = {
     1221665362, 1226083718, 1230518053, 1234968426, 1239434894, 1243917516, 1248416350, 1252931455,
     1257462890, 1262010713, 1266574984, 1271155763, 1275753108, 1280367081, 1284997741, 1289645149,
 };
+#else
+extern const uint32_t FZ_PITCH_OCT[192];
+#endif
 
 /* phase increment (Q32 of FS) of pitch p in 1/16 semitones, MIDI note n at 16 n; p above 2047 counts as 2047.
  * Equal to int(440 * 2^((p/16 - 69)/12) / FS * 2^32) for every p (checked by the generator). */

@@ -31,6 +31,7 @@
  * qd_layer_begin returns 0 and the caller draws directly); text outside the charset (ASCII and . x +- deg - -- ... ->,
  * qd_fast_font.h) is .notdef. A non-uniform scale strokes with the mean width. */
 #include <math.h>
+#include "../ui/fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 #include <stddef.h>
 #include <string.h>
 

@@ -3,6 +3,7 @@
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P1.6c: MIDI FX groups (mfx.h). Built through player.c (it includes this file: the core's source lists stay as they
  * are). */
+#include "../qd_config.h"   /* (QD_XDATA: the data blob) */
 #include <stdio.h>
 #include <string.h>
 
@@ -22,7 +23,7 @@ const char *qd_mfx_type_name(int type) { return type >= 0 && type < QD_MFX_NTYPE
 #define P_(n, lo, hi, def, k, st) {n, lo, hi, def, QD_MFX_##k, st}
 #define CHC P_("CHANCE", 0, 100, 100, KPCT, 5)
 #define NOP {0, 0, 0, 0, 0, 0}
-static const qd_mfx_par_t PAR[QD_MFX_NTYPE][QD_MFX_NV] = {
+static const qd_mfx_par_t PAR[QD_MFX_NTYPE][QD_MFX_NV] QD_XDATA(mfx_par) = {   /* (the data blob: read when edited) */
     {NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP},
     {P_("PATTERN", 0, QD_NAP - 1, QD_AP_UP, KENUM, 1), P_("RATE", 0, 15, 6, KRATE, 1), P_("RANGE", 1, 8, 2, KNUM, 1), CHC,
      P_("MODE", 0, QD_NAM - 1, QD_AM_ON, KENUM, 1), P_("GATE", 2, 200, 90, KPCT, 5), P_("OCT DIST", -24, 24, 12, KSIGN, 1),

@@ -15,6 +15,7 @@
  * 0), so each drawn key is the one pressed.
  * P1.3b: the sound's pool number has three digits; a track in a scale shows the scale's name by the octave. */
 #include <math.h>
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 
 #include "ui.h"
 

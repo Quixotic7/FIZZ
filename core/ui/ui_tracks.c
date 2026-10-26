@@ -6,6 +6,7 @@
  * settings', its mutes SEL's). PLAN §9a's clarity rules: the values and the short names over them, the page's name;
  * the rest is drawing, colour and motion. */
 #include <math.h>
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 #include <string.h>
 
 #include "ui.h"

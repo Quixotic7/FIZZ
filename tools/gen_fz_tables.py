@@ -119,10 +119,15 @@ def check_range(name, values, lo, hi):
 
 
 def emit_table(ctype, name, values, per_line=12):
-    lines = ["static const %s %s[%d] = {" % (ctype, name, len(values))]
+    # one definition (the unit that defines FZ_TABLES_DEFINE: quad_voice.c), externs everywhere else: 2026-10-26, the flash
+    # diet (a static const table included twice was in the slot twice)
+    lines = ["#ifdef FZ_TABLES_DEFINE", "const %s %s[%d] = {" % (ctype, name, len(values))]
     for k in range(0, len(values), per_line):
         lines.append("    " + ", ".join(str(v) for v in values[k:k + per_line]) + ",")
     lines.append("};")
+    lines.append("#else")
+    lines.append("extern const %s %s[%d];" % (ctype, name, len(values)))
+    lines.append("#endif")
     return "\n".join(lines)
 
 

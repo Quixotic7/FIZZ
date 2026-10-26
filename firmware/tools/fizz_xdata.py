@@ -28,6 +28,7 @@ To drive the unit from here while measuring, fm1-base's own remote works with FI
   python3 firmware/fm1-base/tools/fm1_remote.py tap HOME wait 2000 tap PLAY wait 5000 tap PLAY
 then `fizz_xdata.py stats`. (fm1-base takes these between frames: a press waits for the frame being drawn.)"""
 import argparse
+import re
 import struct
 import sys
 import time
@@ -37,6 +38,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "fm1-base" / "tools"))
 import fm1_install as fi  # noqa: E402
+from fizz_stats_names import NAMES  # noqa: E402  (the stats fields' names: tools/gen_stats_names.py)
 
 XDATA_OFF = 0xE5000                             # plat.h PLAT_XDATA1_LO (fizz.ld)
 BLOB = HERE.parent / "app" / "build" / "fizz-xdata.bin"
@@ -131,6 +133,7 @@ def stats(a):
                             (15, "a frame by phase (us a frame since the reset: --reset, then one screen)"),
                             (16, "transfers (SysEx pacing): passes, frames drawn, frames taken, the gap between them")):
             line = got.get(part, "(no answer)")
+            line = re.sub(r"(?<![\w.])(\d+):", lambda m: NAMES[int(m.group(1))] + "=" if int(m.group(1)) < len(NAMES) else m.group(0), line)   # the ids -> the names (fizz_stats_names.py)
             if part in (3, 14):             # s<mode>.<view>: name them
                 for k, v in SCREENS.items():
                     line = line.replace(k + "=", v + "=")

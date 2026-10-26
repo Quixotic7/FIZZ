@@ -5,6 +5,7 @@
  * into the tracks' FM TONE voices, the mix, ChoralRoot's effects), MIDI in. The panel's input, the frame and the LEDs
  * are the controller's (ctl.h). Deterministic: time is the ticks' milliseconds and the audio's samples only. */
 #include <math.h>
+#include "../ui/fz_math.h"           /* (the drawing's own sinf / expf: the flash diet) */
 #include <stdio.h>
 #include <string.h>
 

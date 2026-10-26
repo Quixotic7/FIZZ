@@ -28,6 +28,7 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif
+#define FZ_TABLES_DEFINE                /* (2026-10-26: this unit holds the tables; the others see externs) */
 #include "fz_tables.h"                 /* (L1: the tables, tools/gen_fz_tables.py) */
 #include "fz_core.h"                   /* (L1: the declarations eng_quad.c reads) */
 typedef qd_quad_voice_t voice_t;        /* (eng_quad.c's voice_t and track_t: QUADRILLE's voice and owner) */

@@ -32,6 +32,7 @@
  *   buttons         held: lit; REC lit in the keyboard (blinking while armed); FX lit while FILL is on; PAGE lit
  *                   while follow is on; TRACKS lit on its screen; PLAY's green LED on each beat while playing */
 #include <math.h>
+#include "../ui/fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 #include <string.h>
 
 #include "app.h"

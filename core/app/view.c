@@ -9,6 +9,7 @@
  * detent, 1 s after the last one it fades back over 120 ms) and a confirmation word. Nothing here changes the model or
  * the UI state; the motion is the app's milliseconds and the transport's position. */
 #include <math.h>
+#include "../ui/fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 #include <stdlib.h>
 #include <string.h>
 

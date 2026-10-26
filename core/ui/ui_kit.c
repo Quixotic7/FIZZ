@@ -3,6 +3,8 @@
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* mockups/line.html's drawing helpers over qd_gfx (ui.h): the screens port from the mock-ups call for call. */
 #include <math.h>
+#define FZ_MATH_IMPL                    /* (this unit holds the drawing's own math) */
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 
 #include "ui.h"
 

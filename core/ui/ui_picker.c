@@ -10,6 +10,7 @@
  * as dashes, the banks that hold sounds grey, the sound's bank white with a tick at its place in it, the bank's
  * numbers under it. */
 #include <math.h>
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 
 #include "ui.h"
 

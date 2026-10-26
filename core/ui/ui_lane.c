@@ -34,6 +34,7 @@
  *          with its lock count (a held step's column outlined white: holding keeps this screen, the knobs lock it)
  * A LOCK step (trigless) in NOTE, VEL, LEN, MICRO and RATCH is a small ring: it plays no note. */
 #include <math.h>
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 #include <string.h>
 
 #include "ui.h"

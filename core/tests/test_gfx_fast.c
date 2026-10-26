@@ -17,6 +17,8 @@
 #include <string.h>
 
 #include "qd_gfx.h"
+#define FZ_MATH_IMPL
+#include "../ui/fz_math.h"           /* (qd_gfx_fast.c's sinf .. atan2f, defined here: no ui_kit in this link) */
 
 unsigned qd_fast_overflows(void);
 void qd_fast_peak(int *points, int *contours);

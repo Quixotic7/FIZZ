@@ -20,6 +20,7 @@
  * Deterministic (seeded hashes of the loop time and the beats). The letters' points are sampled once (qd_text_mask)
  * and kept: a pure function of the font, so every instance computes the same. No footer. */
 #include <math.h>
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 
 #include "ui.h"
 #include "../seq/qd_div.h"                    /* (P2.4: qd_ratio_f) */

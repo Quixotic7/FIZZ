@@ -9,6 +9,7 @@
  *      -fno-sanitize-recover=all -I core/voice/quad core/tests/test_fz_dsp.c -lm -o test_fz_dsp
  *   ./test_fz_dsp          (add --full for an exhaustive fz_isqrt over all 2^32 inputs) */
 
+#define FZ_TABLES_DEFINE                /* (this test links no quad_voice.c: the tables defined here) */
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

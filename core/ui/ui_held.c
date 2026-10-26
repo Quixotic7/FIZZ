@@ -36,6 +36,7 @@
  * An empty step (type 0; TRIG aside) draws its mode grey with EMPTY STEP in place of the big value. Positions,
  * sizes and widths as line.html's screens. */
 #include <math.h>
+#include "fz_math.h"                   /* (the drawing's own sinf .. atan2f: the flash diet) */
 
 #include "ui.h"
 

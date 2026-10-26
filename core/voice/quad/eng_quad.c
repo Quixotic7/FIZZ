@@ -65,6 +65,7 @@
  * State: the patch, the macros as last seen, the part's LFO phases (the pool, as the VA's); per voice a quad_voice_t
  * (the pool: QUAD_NPART x QUAD_POLY). voice_t.s / .ph are not used (engine_t.keep 0): voice.c's retrigger restore of
  * ph[0..2] does not touch QUAD's own phases. */
+#include "../../qd_config.h"   /* (QD_XDATA: the data blob) */
 #include "quad_tables.h"
 #include "quad_times.h"          /* the Digitone's envelope and LFO fade times (tools/digitone/make_quad_times.py) */
 #ifndef ENGI_QUAD
@@ -233,7 +234,7 @@ static const quad_algo_t QUAD_ALGO[8] = {
 /* the columns' defaults are the init patch: since 2026-10-14 the Digitone's init sound (the owner's export, decoded by
  * web/fm1dnsnd.js: MIX -64, A / B DEC 32 END 127, A LEV 0, the filter REL 64, AMP ATK 8 DEC 32 SUS 96 REL 24, LFO
  * SPEED 32.00 MULT 32; its times are FM TONE's 1:1, docs/QUAD.md "Times"); LFO 3 (the Digitone has two) as 1 and 2 */
-static const eng_page_t QUAD_PAGES[] = {
+static const eng_page_t QUAD_PAGES[] QD_XDATA(quad_pages) = {   /* (the data blob: the editor's) */
     {"SYN 1", {QC_ALGO, QC_RC, QC_RA, QC_RB}},                              /* 0  OSC */
     {"SYN 1+", {QC_HARM, QC_DTUN, QC_FDBK, QC_MIX}},
     {"SYN 2", {QC_OFS("OFS C"), QC_OFS("OFS A"), QC_OFS("OFS B1"), QC_OFS("OFS B2")}},
@@ -263,7 +264,7 @@ static const eng_page_t QUAD_PAGES[] = {
 _Static_assert(NELEM(QUAD_PAGES) == 20, "QUAD pages");
 #define QUAD_LPG(k) {QP_LFO(k, QL_SPEED), QP_LFO(k, QL_MULT), QP_LFO(k, QL_FADE), QP_LFO(k, QL_DEST)}, \
                     {QP_LFO(k, QL_WAVE), QP_LFO(k, QL_PHASE), QP_LFO(k, QL_TRIG), QP_LFO(k, QL_DEPTH)}
-static const uint8_t QUAD_MAP[NELEM(QUAD_PAGES)][4] = {
+static const uint8_t QUAD_MAP[NELEM(QUAD_PAGES)][4] QD_XDATA(quad_map) = {
     {QP_ALGO, QP_RC, QP_RA, QP_RB1},             /* (RATIO B: the pair, QP_RB1 and QP_RB2: quad_get / quad_set) */
     {QP_HARM, QP_DTUN, QP_FDBK, QP_MIX},
     {QP_OFSC, QP_OFSA, QP_OFSB1, QP_OFSB2},
