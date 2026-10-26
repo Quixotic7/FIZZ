@@ -10,6 +10,13 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
+- **Released: FIZZ 0.12.0-beta.8** (2026-10-26 evening, tag `v0.12.0-beta.8` on master 39d4703, pushed; the GitHub
+  pre-release and the install page both deployed green). It holds the sequencer clean-up, the flash diet and the
+  owner's rounds of the day (CHANGELOG `## 0.12.0-beta.8`). The owner's unit runs the build just before the release
+  package (same code, a dev package); flash the release package next time. Open from the day: the two-heads MASTER
+  picture (mocked up, skipped for now), a Geek Out SCOPE page per track, synced delay in-between times, the REPLACE
+  stall.
+
 - **2026-10-26 evening, the owner's first rounds on the clean-up build (on master and the unit, unreleased):** CHANGELOG
   `## Unreleased` lists them. Of note for the code: **DRY / WET is per track** (`qd_mix_track_t.dry`, the header
   record's tail: persist.c), applied as Q12 gains `g_lvl` / `g_send[3]` computed at the control rate (app.c
