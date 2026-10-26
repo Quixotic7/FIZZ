@@ -2159,7 +2159,7 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
                 v->keys_down |= (uint16_t)(1u << k);
     }
     {   /* the routing: the mode, the order, a block's key held (its lift over 120 ms), the chain amounts dim in PARALLEL */
-        static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_DELAY, QD_RT_REVERB, QD_RT_CHORUS, QD_RT_FILTER, -1};
+        static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_CHORUS, QD_RT_DELAY, QD_RT_REVERB, QD_RT_FILTER, -1};
         v->rt_mode = qd_fx_get(QD_FXP_RMODE);
         for (i = 0; i < 4; i++)
             v->rt_order[i] = qd_fx_route_block(i);

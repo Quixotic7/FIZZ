@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ MASTER: two heads</title>
+<!-- FIZZ: the MASTER filter page as two head silhouettes (the owner, 2026-10-26, after the "face book" reference: two
+     profiles face to face, one solid, one striped). The left head is the LOW CUT, the right the HIGH CUT; each slides
+     along the frequency axis with its knob, its nose at its cutoff. ?shot=N one canvas at 1x, ?sheet=1 every screen at 2x -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(3, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: MASTER as two heads (mock-up, 2026-10-26)</h1>
+<p>The master filter as two profiles face to face. The <strong>left head is the LOW CUT</strong> (KNOB 1, blue, solid), the
+<strong>right head the HIGH CUT</strong> (KNOB 2, green, striped); each slides along the frequency axis as its knob turns, its nose at its
+cutoff, so the gap between the faces is what passes. The filter off: both grey. SLOPE: the stripes closer (12 dB).</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const C = { bg:'#000', k1:'#3f7dff', k2:'#1fd47e', k3:'#f1f0ea', k4:'#ff6a2c', g1:'#8d8d96', g2:'#4b4b54', g3:'#26262d' };
+const F = 'IT';
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = 'alphabetic';
+  if (o.a != null) c.globalAlpha = o.a; c.fillText(s, x, y); c.restore();
+}
+function L(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = o.a;
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  c.stroke(); c.restore();
+}
+// the profile, traced from the owner's sketch (a head facing LEFT): x 0 the nose tip .. 1 the back of the head, y 0 the
+// crown .. 1 the neck's foot. The crown round, the forehead high, a pointed nose, small lips, the chin, a straight jaw
+// back to a short neck
+const PROF = [                       // traced from the sketch: a big round cranium, a flat face, a small nose, a short neck
+  [0.55, 0.00], [0.85, 0.09], [0.97, 0.28], [1.00, 0.50], [0.90, 0.72],   // the crown, the back of the head
+  [0.77, 0.83], [0.74, 1.00], [0.42, 1.00],                               // the neck
+  [0.29, 0.83], [0.10, 0.76], [0.08, 0.64], [0.13, 0.58], [0.08, 0.51],   // the chin, the lips, under the nose
+  [0.00, 0.44], [0.10, 0.31], [0.13, 0.13], [0.29, 0.02],                 // the nose, the brow, the forehead
+];
+// a closed curve through the points (Catmull-Rom as cubic Beziers): the sketch's soft outline
+function headPath(c, x0, y0, w, h, faceRight) {   /* x0: the nose's x; the head extends away from the face */
+  const P = PROF.map(p => [x0 + (faceRight ? -p[0] : p[0]) * w, y0 + p[1] * h]), n = P.length;
+  c.beginPath(); c.moveTo(P[0][0], P[0][1]);
+  for (let i = 0; i < n; i++) {
+    const p0 = P[(i - 1 + n) % n], p1 = P[i], p2 = P[(i + 1) % n], p3 = P[(i + 2) % n];
+    c.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6, p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6, p2[0], p2[1]);
+  }
+  c.closePath();
+}
+// the head: solid, or striped (horizontal lines, the reference's), in col; its nose at nx (the cutoff on the axis)
+function head(c, nx, y0, h, faceRight, col, striped, on, dense) {
+  const w = h * 0.86;
+  c.save();
+  if (!on) { headPath(c, nx, y0, w, h, faceRight); c.strokeStyle = C.g2; c.lineWidth = 1.4; c.stroke(); c.restore(); return; }
+  if (!striped) { headPath(c, nx, y0, w, h, faceRight); c.fillStyle = col; c.fill(); }
+  else {
+    headPath(c, nx, y0, w, h, faceRight); c.clip();
+    c.strokeStyle = col; c.lineWidth = 1.6;
+    for (let y = y0 + 2; y < y0 + h; y += dense ? 3.4 : 5) { c.beginPath(); c.moveTo(nx - w - 2, y); c.lineTo(nx + w + 2, y); c.stroke(); }
+  }
+  c.restore();
+  headPath(c, nx, y0, w, h, faceRight); c.strokeStyle = col; c.lineWidth = 1.2; c.stroke();
+}
+function master(c, o) {
+  const ax0 = 18, ax1 = 222, y0 = 42, h = 118, ay = 172;
+  T(c, 'MASTER', 8, 18, { s: 12, w: 600, col: C.k3, ls: 0.8 });
+  const lo = ax0 + o.low * (ax1 - ax0), hi = ax0 + o.high * (ax1 - ax0);
+  // the axis: the band that passes bright between the noses
+  L(c, [ax0, ay, ax1, ay], C.g2, 1.2);
+  if (o.on) L(c, [lo, ay, hi, ay], C.k3, 2.2);
+  for (let k = 0; k < 4; k++) L(c, [ax0 + k * (ax1 - ax0) / 3, ay, ax0 + k * (ax1 - ax0) / 3, ay + 4], C.g2, 1);
+  // the right head first (striped), then the left (solid) over it where they meet, as the reference
+  head(c, hi, y0, h, false, C.k2, true, o.on, o.slope);   // the right head faces left (the owner's sketch)
+  head(c, lo, y0, h, true, C.k1, false, o.on, o.slope);   // the left head faces right
+  // KNOB 1..4 along the foot as the page has them
+  const names = ['LOW', 'HIGH', 'SLOPE', 'FILTER'], vals = [o.lowtxt, o.hightxt, o.slope ? '12 dB' : '6 dB', o.on ? 'ON' : 'OFF'];
+  const cols = [C.k1, C.k2, C.k3, C.k4];
+  for (let k = 0; k < 4; k++) {
+    const x = 30 + k * 60;
+    T(c, names[k], x, 204, { s: 12, w: 600, col: C.g1, al: 'center', ls: 0.3 });
+    T(c, vals[k], x, 228, { s: 16, w: 500, col: cols[k], al: 'center' });
+  }
+}
+const SCREENS = [
+  { title: 'LOW 80 Hz, HIGH 8 kHz, 6 dB', draw: c => master(c, { on: 1, low: 0.18, high: 0.82, lowtxt: '80 Hz', hightxt: '8.0 kHz', slope: 0 }),
+    text: 'The left head (LOW CUT, blue, solid) and the right head (HIGH CUT, green, striped) face each other across the frequency axis; each sits with its nose at its cutoff. The bright part of the axis between the noses is what passes.' },
+  { title: 'the cuts close in: a narrow band', draw: c => master(c, { on: 1, low: 0.42, high: 0.58, lowtxt: '600 Hz', hightxt: '1.6 kHz', slope: 1 }),
+    text: 'Turn LOW up and the blue head slides right; HIGH down and the green one slides left: the faces meet, the heads overlap as in the reference. SLOPE 12 dB: the stripes closer.' },
+  { title: 'wide open', draw: c => master(c, { on: 1, low: 0.0, high: 1.0, lowtxt: 'OFF', hightxt: 'OFF', slope: 0 }),
+    text: 'Both cuts at their ends: the heads at the edges of the screen, the whole axis bright.' },
+  { title: 'the filter OFF', draw: c => master(c, { on: 0, low: 0.18, high: 0.82, lowtxt: '80 Hz', hightxt: '8.0 kHz', slope: 0 }),
+    text: 'FILTER off: both heads grey outlines where they stand, the axis dim.' },
+];
+const q = new URLSearchParams(location.search);
+const fontReady = (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })();
+function draw(i, cv, scale) { const c = cv.getContext('2d'); c.setTransform(scale, 0, 0, scale, 0, 0); c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); SCREENS[i].draw(c); }
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  fontReady.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  fontReady.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  fontReady.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong> ${s.text}`; d.appendChild(p);
+    document.getElementById('cells').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>

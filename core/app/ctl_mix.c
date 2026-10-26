@@ -20,29 +20,30 @@
  *   FX (printed) tapped  THE EFFECTS (global, ChoralRoot's: no sound load touches them): DELAY (TIME, SPREAD,
  *        FEEDBACK, SEND), DELAY 2 (SYNC, MODE, TONE, WOW), REVERB (SIZE, DAMP, DECAY, SEND), REVERB 2 (PRE-DELAY, MOD,
  *        LOW CUT, WIDTH), CHORUS (RATE, DEPTH, WIDTH, SEND), MASTER (the master filter: LOW CUT, HIGH CUT, SLOPE, ON);
- *        B1 SENDS, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING (again: an effect's second page), FX again or SELECT the next page.
+ *        B1 SENDS, B2 CHORUS, B3 DELAY, B4 REVERB, B5 MASTER, B6 ROUTING (again: an effect's second page), FX again or SELECT the next page.
  *        SENDS (2026-10-26, the sequencer clean-up; was the OVERVIEW): the current track's three sends as bars (KNOB
  *        1..3; SHIFT + SELECT or FX + ALGORITHM the track), the page's steps on the lane and the white keys as the
  *        EDIT home (held: a send is the step's lock), REC the keyboard on / off as the sound editor's.
  *        ROUTING (2026-10-26, ChoralRoot 0.27's): KNOB 1 the mode (PARALLEL / CHAIN), ALGORITHM (and KNOB 2, and
  *        SENDS' KNOB 4) the selected track's DRY / WET (mix.h dry: both modes; CHAIN runs the effects in series with
  *        each track's sends as the wet / dry of each); a
- *        block's page key held (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER) lifts it and KNOB 1 moves it (qd_fx_route_move).
+ *        block's page key held (B2 CHORUS, B3 DELAY, B4 REVERB, B5 FILTER) lifts it and KNOB 1 moves it (qd_fx_route_move).
  *        SEND is the selected track's send into that effect; TIME / SPREAD are the free or the synced value by SYNC
  *        (ChoralRoot's FC_TIME, FC_SPREAD). FX held + ALGORITHM still chooses the track. */
 
 const qd_fxpage_t QD_FX_PAGES[QD_FX_NPAGE] = {
     {"SENDS", QD_FXG_OVER, UI_FXD_OVER, {QD_FXC_SENDX(2), QD_FXC_SENDX(0), QD_FXC_SENDX(1), QD_FXC_DRY}},
+    {"CHORUS", QD_FXG_CHORUS, UI_FXD_CHORUS, {QD_FXP_CRATE, QD_FXP_CDEPTH, QD_FXP_CWIDTH, QD_FXC_SEND}},   /* (2026-10-26:
+                                                         * the owner: the pages and B2..B4 in SENDS' order, C D R) */
     {"DELAY", QD_FXG_DELAY, UI_FXD_DELAY, {QD_FXC_TIME, QD_FXC_SPREAD, QD_FXP_DFDBK, QD_FXC_SEND}},
     {"DELAY 2", QD_FXG_DELAY, UI_FXD_DELAY2, {QD_FXP_DSYNC, QD_FXP_DMODE, QD_FXP_DTONE, QD_FXP_DWOW}},
     {"REVERB", QD_FXG_REVERB, UI_FXD_REVERB, {QD_FXP_RSIZE, QD_FXP_RDAMP, QD_FXP_RDECAY, QD_FXC_SEND}},
     {"REVERB 2", QD_FXG_REVERB, UI_FXD_REVERB2, {QD_FXP_RPRE, QD_FXP_RMOD, QD_FXP_RLOW, QD_FXP_RWIDTH}},
-    {"CHORUS", QD_FXG_CHORUS, UI_FXD_CHORUS, {QD_FXP_CRATE, QD_FXP_CDEPTH, QD_FXP_CWIDTH, QD_FXC_SEND}},
     {"MASTER", QD_FXG_MASTER, UI_FXD_MASTER, {QD_FXP_FLOW, QD_FXP_FHIGH, QD_FXP_FSLOPE, QD_FXP_FON}},
     {"ROUTING", QD_FXG_ROUTE, UI_FXD_ROUTE, {QD_FXP_RMODE, QD_FXC_DRY, QD_FXC_NONE, QD_FXC_NONE}},
 };
 const char *const QD_FX_NAME[QD_NFXG] = {"DELAY", "REVERB", "CHORUS", "MASTER", "SENDS", "ROUTING"};
-const uint8_t QD_FX_KEY[QD_FX_NKEY] = {QD_FXG_OVER, QD_FXG_DELAY, QD_FXG_REVERB, QD_FXG_CHORUS, QD_FXG_MASTER,
+const uint8_t QD_FX_KEY[QD_FX_NKEY] = {QD_FXG_OVER, QD_FXG_CHORUS, QD_FXG_DELAY, QD_FXG_REVERB, QD_FXG_MASTER,
                                        QD_FXG_ROUTE};
 
 int qd_fx_cell_id(int c)
@@ -164,7 +165,7 @@ void qd_panel_black(qd_app_t *a, int b, int down)
         return;
     }
     if (u->latch == QD_LATCH_FX) {
-        static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_DELAY, QD_RT_REVERB, QD_RT_CHORUS, QD_RT_FILTER, -1};
+        static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_CHORUS, QD_RT_DELAY, QD_RT_REVERB, QD_RT_FILTER, -1};
         int p, first = -1, next = -1, g;
         if (b >= QD_FX_NKEY)
             return;
@@ -336,7 +337,7 @@ int qd_fx_knob(qd_app_t *a, int knob, int d)
     if (knob < QD_K_1)
         return 1;
     if (u->fx_bheld && pg->fx == QD_FXG_ROUTE) {        /* ROUTING, a block held: KNOB 1 moves it a place a detent */
-        static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_DELAY, QD_RT_REVERB, QD_RT_CHORUS, QD_RT_FILTER, -1};
+        static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_CHORUS, QD_RT_DELAY, QD_RT_REVERB, QD_RT_FILTER, -1};
         if (knob == QD_K_1)
             qd_fx_route_move(BLK[(u->fx_bheld - 1) % QD_FX_NKEY], d);
         u->fx_bused = 1;

@@ -316,7 +316,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
     }
     if (step && u->latch == QD_LATCH_FX) {              /* the effects: the page's cells */
         static ui_fx_t fv;
-        static const char *const FXB[QD_FX_NKEY] = {"SENDS", "DELAY", "REVERB", "CHORUS", "MASTER", "ROUTING"};
+        static const char *const FXB[QD_FX_NKEY] = {"SENDS", "CHORUS", "DELAY", "REVERB", "MASTER", "ROUTING"};
         fill_fx(a, &fv);
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), fv.has[k] && fv.lab[k] ? fv.lab[k] : "");

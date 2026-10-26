@@ -438,7 +438,7 @@ Undo and redo of everything (P1.5c):
 ## How do I change the effects? (FX tapped)
 
 - **Tap FX**: the effects, ChoralRoot's (global: no sound or pattern changes them). It opens on **SENDS**.
-  **FX again** (or SELECT) for the next page; **B1 SENDS, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING**
+  **FX again** (or SELECT) for the next page; **B1 SENDS, B2 CHORUS, B3 DELAY, B4 REVERB, B5 MASTER, B6 ROUTING** (2026-10-26: SENDS' order)
   (a key again: the effect's second page). **HOME** closes it (0.9.6: F1 no longer does).
 - **SENDS** (2026-10-26; it was the OVERVIEW): the current track (its number top right; **SHIFT + SELECT** or **FX
   held + ALGORITHM** changes it) with its **CHORUS, DELAY and REVERB sends as three bars**, their values under them;
@@ -457,7 +457,7 @@ Undo and redo of everything (P1.5c):
   (SENDS' KNOB 4, ROUTING's ALGORITHM or KNOB 2): 100 % the dry alone, 0 % the effects alone, the middle both full
   in PARALLEL (as always) and half and half in CHAIN; the green wire under the chain shows it. **Hold a block's own
   page key**
-  (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER): its box lifts, with white arrows where it can still go; **turn KNOB 1**
+  (B2 CHORUS, B3 DELAY, B4 REVERB, B5 FILTER): its box lifts, with white arrows where it can still go; **turn KNOB 1**
   a click a place, the others slide over; let go and it lands (a tap of the key still opens that page). In PARALLEL
   only the FILTER moves, before the buses (KNOB 1 anticlockwise: the dry and the sends are filtered before the
   effects, so a high cut keeps the fizz out of the reverb) or after them; an effect held there lifts but stays. The
@@ -466,11 +466,11 @@ Undo and redo of everything (P1.5c):
   | page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
   | --- | --- | --- | --- | --- |
   | SENDS | CHORUS send | DELAY send | REVERB send | DRY (the track's dry / wet) |
+  | CHORUS | RATE (Hz) | DEPTH | WIDTH | SEND |
   | DELAY | TIME (ms, or the note value when synced) | SPREAD (R's time against L's; synced: 1:1 3:4 2:3 1:2) | FEEDBACK | SEND |
   | DELAY 2 | SYNC (FREE / TEMPO) | MODE (STEREO / PING-PONG) | TONE | WOW |
   | REVERB | SIZE | DAMP | DECAY (s, INF) | SEND |
   | REVERB 2 | PRE-DELAY | MOD | LOW CUT | WIDTH |
-  | CHORUS | RATE (Hz) | DEPTH | WIDTH | SEND |
   | MASTER | LOW CUT (OFF ..) | HIGH CUT (.. OFF) | SLOPE (6 / 12 dB) | FILTER ON / OFF |
   (MASTER's picture, 2026-10-26: two heads face to face, the left the low cut, dark from the chin up to it; the right
   the high cut, dark from the crown down; grey with the filter off.)

@@ -2093,23 +2093,23 @@ static void g_tracks_screen(void)
     btap(QD_B_TRACKS);
     CHECK(A.ui.latch == QD_LATCH_FX && A.ui.fx_page == 0 && !strcmp(QD_FX_PAGES[0].name, "SENDS"),
           "FX tapped: the effects, SENDS first (2026-10-26; P1.5b's OVERVIEW)");
-    black(B2);
-    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"), "B2: DELAY");
+    black(B3);                                          /* (2026-10-26: B2 CHORUS, B3 DELAY, B4 REVERB) */
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"), "B3: DELAY");
     v0 = qd_fx_get(QD_FXP_DDIV);
     turn(QD_K_1, 1);
     CHECK(qd_fx_get(QD_FXP_DSYNC) && qd_fx_get(QD_FXP_DDIV) == v0 + 1, "DELAY, KNOB 1: TIME (synced: the division) +1");
     v0 = A.model.t[1].mix.delay;
     turn(QD_K_4, 4);
     CHECK(A.model.t[1].mix.delay == v0 + 4, "KNOB 4: SEND, track 2's delay send +4");
-    black(B3), black(B3);
-    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "REVERB 2"), "B3 twice: REVERB 2");
+    black(B4), black(B4);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "REVERB 2"), "B4 twice: REVERB 2");
     v0 = qd_fx_get(QD_FXP_RLOW);
     turn(QD_K_3, 5);
     CHECK(qd_fx_get(QD_FXP_RLOW) == v0 + 5, "KNOB 3: LOW CUT +5");
-    black(B4);
+    black(B2);
     v0 = qd_fx_get(QD_FXP_CRATE);
     turn(QD_K_1, -3);
-    CHECK(qd_fx_get(QD_FXP_CRATE) == v0 - 3, "B4 CHORUS, KNOB 1: RATE -3");
+    CHECK(qd_fx_get(QD_FXP_CRATE) == v0 - 3, "B2 CHORUS, KNOB 1: RATE -3");
     black(B5);
     turn(QD_K_4, 1);
     CHECK(qd_fx_get(QD_FXP_FON) == 1 && !strcmp(QD_FX_PAGES[A.ui.fx_page].name, "MASTER"), "B5 MASTER, KNOB 4: ON");
@@ -4358,7 +4358,7 @@ static void g_p15b_fx(void)
     run(30);
     btap(QD_B_REC);
     CHECK(!qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "REC again: the steps");
-    black(B2);
+    black(B3);
     btap(QD_B_REC);
     CHECK(qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX && !strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"),
           "DELAY page, REC: the keyboard there too, the effects stay (the owner, 2026-10-26)");
@@ -4391,27 +4391,27 @@ static void g_p15b_fx(void)
     CHECK(A.model.t[2].mix.dry == 50, "KNOB 2 -7: DRY 50 too");
     turn(QD_K_ALGO, 14);
     CHECK(A.model.t[2].mix.dry == 64, "back to the middle");
-    kdown(BK(B2));
+    kdown(BK(B3));
     run(50);
-    CHECK(A.ui.fx_bheld == 2 && leds().key[BK(B2)] == QD_LED_LIT, "B2 (DELAY's page key) held: its block lifts, the key lit");
+    CHECK(A.ui.fx_bheld == 3 && leds().key[BK(B3)] == QD_LED_LIT, "B3 (DELAY's page key) held: its block lifts, the key lit");
     turn(QD_K_1, 1);
     CHECK(qd_fx_route_block(1) == QD_RT_REVERB && qd_fx_route_block(2) == QD_RT_DELAY && qd_fx_get(QD_FXP_RMODE) == 1,
           "KNOB 1 while held: DELAY one place on, after REVERB (the mode untouched)");
     run(500);
-    kup(BK(B2));
+    kup(BK(B3));
     run(10);
     CHECK(!A.ui.fx_bheld && !strcmp(QD_FX_PAGES[A.ui.fx_page].name, "ROUTING"), "let go: it lands, still ROUTING");
-    kdown(BK(B4));
-    run(50);
-    turn(QD_K_1, -1);
-    kup(BK(B4));
-    run(10);
-    CHECK(qd_fx_route_block(0) == QD_RT_CHORUS, "CHORUS at the front: KNOB 1 left clamps");
     kdown(BK(B2));
     run(50);
+    turn(QD_K_1, -1);
     kup(BK(B2));
     run(10);
-    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"), "B2 tapped: the DELAY page");
+    CHECK(qd_fx_route_block(0) == QD_RT_CHORUS, "CHORUS at the front: KNOB 1 left clamps");
+    kdown(BK(B3));
+    run(50);
+    kup(BK(B3));
+    run(10);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"), "B3 tapped: the DELAY page");
     black(B6);
     turn(QD_K_1, -1);
     kdown(BK(B5));
@@ -4427,10 +4427,10 @@ static void g_p15b_fx(void)
     run(10);
     CHECK(qd_fx_route_block(3) == QD_RT_FILTER && qd_fx_route_block(0) == QD_RT_CHORUS && qd_fx_route_block(1) == QD_RT_REVERB,
           "KNOB 1 right: after the buses again, the effects' order kept");
-    kdown(BK(B2));
+    kdown(BK(B3));
     run(50);
     turn(QD_K_1, 1);
-    kup(BK(B2));
+    kup(BK(B3));
     run(10);
     CHECK(qd_fx_route_block(2) == QD_RT_DELAY, "PARALLEL: an effect held does not move");
     btap(QD_B_HOME);
@@ -5227,7 +5227,7 @@ static void g_p16d_sends(void)
     qd_view_fx(&A, &fv);
     CHECK(LK(0, 4, QD_LK_CHORUS) == A.model.t[0].mix.chorus + 7 && fv.step && fv.locked[0] && !fv.locked[2],
           "OVERVIEW KNOB 1 (CHORUS): the lock, its chip, the frame");
-    black(B2);
+    black(B3);
     turn(QD_K_4, -4);
     qd_view_fx(&A, &fv);
     CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY") && LK(0, 4, QD_LK_DELAY) == A.model.t[0].mix.delay + 6 &&
