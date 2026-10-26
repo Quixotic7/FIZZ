@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.6 (2026-10-26)
+
 Fixes from a first-session test of beta.5, and the owner's next round: a global scale, the patterns map that stays, MIDI FX on and off from ARP.
 
 - **A global scale.** SHIFT + ALGORITHM (scale) and SHIFT + PRESETS (root) set the project's global key when the selected track follows it, and the popup says GLOBAL; it stays up while SHIFT is held. New tracks follow the global key; a track overrides it on its settings page (KNOB 1 SCALE, KNOB 2 ROOT) and KNOB 3 FOLLOW KEY puts it back.

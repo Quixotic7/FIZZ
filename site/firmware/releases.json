@@ -1,7 +1,33 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.5",
+  "latest": "0.12.0-beta.6",
   "releases": [
+    {
+      "version": "0.12.0-beta.6",
+      "date": "2026-10-26",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "7dc0983c1aeb78d81932dc6761ed08c3c4ffb85f",
+      "fm1base": "42dc6304e8070006c1990d2879c3fe27e1192c91",
+      "notes": "Fixes from a first-session test of beta.5, and the owner's next round: a global scale, the patterns map that stays, MIDI FX on and off from ARP.\n\n- **A global scale.** SHIFT + ALGORITHM (scale) and SHIFT + PRESETS (root) set the project's global key when the selected track follows it, and the popup says GLOBAL; it stays up while SHIFT is held. New tracks follow the global key; a track overrides it on its settings page (KNOB 1 SCALE, KNOB 2 ROOT) and KNOB 3 FOLLOW KEY puts it back.\n- **The track settings page:** the white keys are the steps, or the keyboard when REC's keyboard is on. In the name editor KNOB 2 rolls names like PRESETS.\n- **Holding SEQ** opens the patterns map and it stays; SEQ again or HOME closes it. A SEQ tap with no map open is still TOOLS.\n- **Holding ARP** turns the track's whole MIDI FX group off and on (MIDI FX OFF / ON), and ARP's light is full while MIDI FX is on.\n- **HOME keeps the view** you chose with SHIFT + HOME, and GEEK OUT remembers its page.\n- **Saving a new preset no longer stalls the sound:** the save was reading all 64 patterns from flash to pick an id.\n- **Track settings, page 1:** KNOB 1 MODE (GLOBAL or LOCAL), KNOB 2 SCALE, KNOB 3 ROOT, KNOB 4 MIDI CH. On GLOBAL the scale and root you turn are the project's, for every track that follows it; on LOCAL they are this track's alone. REC on the page switches the white keys between the steps and the keyboard without leaving it.\n- **The SHIFT scale / root popup** goes away a quarter second after SHIFT is released.\n- **MIDI FX on / off** (hold ARP, or SHIFT + ARP at once) is a bypass: the group stays and can still be edited, the page says OFF, and the sound skips it. **FILL is SHIFT + FX held.**\n- **Any page key leaves the latched patterns map** (SEQ held) and opens its page, as from anywhere else. **MIDI FX off** stops the whole group at once: the track's notes leave the group, so a running arp stops too.\n- **Track settings:** MODE reads GLOBAL on the left, every scale name is one size, the scale's notes sit under its name, and the ring marks the knob you turned. **The keyboard's lights:** the root at 75 %, the scale's notes at 40 %, a played note full.\n- **REPLACE never changes a pattern's tracks:** every track holds its own copy of a sound, so overwriting a preset from A02 leaves A01 as it was (a test proves it; the pool's entries follow the preset as before).\n\n- **A new project starts on pattern A01**, track 1 (it used to open on the demo's A02, so your first beats went into A02).\n- **GEEK OUT is one view:** SHIFT + HOME cycles PIANO ROLL, STEPS, EDIT and GEEK OUT; in GEEK OUT, SELECT turns its pages (METERS, NUMBERS, VOICES, SCOPE). HOME always comes back to the step view.\n- **SAVED means saved:** a preset is written to flash at once, so switching off right after SAVE keeps it.\n- **MIDI FX:** with the track's group OFF, the page shows that ALGORITHM picks a group.\n- **The page lights:** the button of the page you are on is lit: HOME on the step view, EDIT, ENV, FX, SEL, SEQ (TOOLS), ARP (MIDI FX), SAVE and REC (the keyboard). ARP is dim, not lit, while the arp plays with its page closed.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI",
+          "fwsc": {
+            "path": "0.12.0-beta.6/fizz.fwsc",
+            "bytes": 611496,
+            "sha256": "1a16bbf7f8d0b71e592fb791ad5d7aec9d911f11069098846a5bebacc0b3efd3"
+          },
+          "data": {
+            "path": "0.12.0-beta.6/fizz-xdata.bin",
+            "bytes": 84116,
+            "sha256": "19c068fc6371340499064f5c16e75c376137727bcca3c074057b0826ed25633d",
+            "crc32": 4068757263
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.5",
       "date": "2026-10-25",
