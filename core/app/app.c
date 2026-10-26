@@ -634,6 +634,19 @@ static void block_out(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int64_t
         a->metro_left = 0;
         a->metro_beat = -1;
     }
+    if (qd_fx_get(QD_FXP_RMODE)) {                      /* 2026-10-26, CHAIN: each effect's share of the wet before it:
+                                                         * the tracks' sends, weighted by their level into the chain */
+        int32_t g[3] = {0, 0, 0}, wsum = 0, k;
+        for (i = 0; i < QD_NTRACK; i++) {
+            const qd_mix_track_t *mt = &a->blk_mt[i];
+            const int32_t w = (int32_t)mt->level * (127 - mt->dry);
+            g[0] += w * mt->chorus, g[1] += w * mt->delay, g[2] += w * mt->reverb;
+            wsum += w;
+        }
+        for (k = 0; k < 3; k++)
+            g[k] = wsum ? (int32_t)(((int64_t)g[k] * 4096) / ((int64_t)wsum * 127)) : 0;
+        qd_fx_chain_g(g);
+    }
     qd_fx_block(sc, sd, sr, l, r, o);
     for (i = 0; i < 2 * QD_MIX_CTL; i++)
         out[i] = (int16_t)(o[i] > 32767 ? 32767 : o[i] < -32768 ? -32768 : o[i]);

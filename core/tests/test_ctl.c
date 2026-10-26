@@ -4375,8 +4375,8 @@ static void g_p15b_fx(void)
     turn(QD_K_3, -2);
     CHECK(A.model.t[2].mix.chorus == c0 + 4 && A.model.t[2].mix.delay == d0 + 3 && A.model.t[2].mix.reverb == r0 - 2,
           "KNOB 1..3: track 3's CHORUS +4, DELAY +3, REVERB -2");
-    CHECK(qd_fx_get(QD_FXP_RMODE) == 0 && qd_fx_get(QD_FXP_ORDER) == 0 && qd_fx_get(QD_FXP_RDRY) == 127,
-          "the routing at power-on: PARALLEL, CHORUS DELAY REVERB FILTER, DRY full");
+    CHECK(qd_fx_get(QD_FXP_RMODE) == 0 && qd_fx_get(QD_FXP_ORDER) == 0 && A.model.t[2].mix.dry == QD_MIX_DRY_DEFAULT,
+          "the routing at power-on: PARALLEL, CHORUS DELAY REVERB FILTER, the track's DRY at the middle");
     black(B6);
     l = leds();
     CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "ROUTING") && l.key[BK(B6)] == QD_LED_LIT && l.key[BK(B2)] == QD_LED_MID &&
@@ -4384,12 +4384,13 @@ static void g_p15b_fx(void)
     turn(QD_K_1, 1);
     CHECK(qd_fx_get(QD_FXP_RMODE) == 1, "KNOB 1: CHAIN");
     turn(QD_K_2, 3);
-    CHECK(qd_fx_get(QD_FXP_RDRY) == 127, "KNOB 2 up: DRY stays at full");
+    CHECK(A.model.t[2].mix.dry == 67 && A.model.t[0].mix.dry == 64, "KNOB 2 +3: track 3's DRY 67 (per track)");
     turn(QD_K_ALGO, -10);
-    CHECK(qd_fx_get(QD_FXP_RDRY) == 117, "ALGORITHM -10: DRY 117 (the owner: the dry straight to the output)");
+    CHECK(A.model.t[2].mix.dry == 57, "ALGORITHM -10: DRY 57 (the owner: the track's dry / wet)");
     turn(QD_K_2, -7);
-    CHECK(qd_fx_get(QD_FXP_RDRY) == 110, "KNOB 2 -7: DRY 110 too");
-    turn(QD_K_ALGO, 20);
+    CHECK(A.model.t[2].mix.dry == 50, "KNOB 2 -7: DRY 50 too");
+    turn(QD_K_ALGO, 14);
+    CHECK(A.model.t[2].mix.dry == 64, "back to the middle");
     kdown(BK(B2));
     run(50);
     CHECK(A.ui.fx_bheld == 2 && leds().key[BK(B2)] == QD_LED_LIT, "B2 (DELAY's page key) held: its block lifts, the key lit");
@@ -4446,7 +4447,6 @@ static void g_p15b_fx(void)
             qd_fx_init();
             if (r == 1) {
                 qd_fx_set(QD_FXP_RMODE, 1);
-                qd_fx_set(QD_FXP_RDRY, 127);
             }
             e[r] = 0.;
             for (pass = 0; pass < 1400; pass++) {       /* 1 s */

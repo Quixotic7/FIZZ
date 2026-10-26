@@ -151,6 +151,7 @@ void qd_model_init(qd_model_t *m)
         t->mix.pan = 0;
         t->mix.reverb = QD_MIX_REVERB_DEFAULT;
         t->mix.delay = t->mix.chorus = 0;
+        t->mix.dry = QD_MIX_DRY_DEFAULT;
         t->limit = QD_TRACK_DEF[i].limit;
         t->reserve = 0;
         qd_quad_owner_init(&t->owner);

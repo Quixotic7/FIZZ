@@ -56,12 +56,16 @@ typedef char qd_fx_ctl_ok[QD_FX_CTL == CTL ? 1 : -1];
  * chain amounts (QD_FXP_RMODE ..). PARALLEL (0, the default) is the block as it always was, bit for bit: the chorus's,
  * the delay's and the reverb's buses fed by the tracks' sends, their returns into the mix, the master filter after
  * (or, the FILTER first in the order, before: on the dry mix, so the effects hear the cut signal). CHAIN (1, the owner's
- * rule of 2026-10-26, later the same day): the dry mix goes straight to the output at the DRY level (qd_rt[2]); the
- * chain carries the wet: each effect in the order is fed by its own send bus (the tracks' sends, the SENDS page) plus
- * mono of the wet made before it, and adds its wet; the FILTER filters the wet at its place, or, last in the order,
- * everything (the dry folded in first: the master filter). Sequential within the block (no previous-block snapshot:
- * one core). The delay's half-rate wet has its own up-sampler (qd_ud) so the reverb's (xf.up) keeps its history */
+ * rule of 2026-10-26, the evening's): the effects in series, each track's sends its wet / dry at each effect (mix.c
+ * chain_gains: send k's share of what the track feeds the chain goes into effect k, the rest passes it by; what passes
+ * them all by is heard dry in l / r, with the track's DRY part). Here: the wet W starts empty; effect k takes its bus
+ * and its share qd_cg[k] of W (the tracks' sends, level-weighted: app.c), leaves the rest of W and adds its wet; the
+ * FILTER filters W at its place, or, last, everything (l / r folded in first: the master filter). Sequential within
+ * the block (no previous-block snapshot: one core). The delay's half-rate wet has its own up-sampler (qd_ud) so the
+ * reverb's (xf.up) keeps its history */
 static int16_t qd_rt[5];
+static int32_t qd_cg[3] = {4096, 4096, 4096};           /* (CHAIN: each effect's share of the wet before it) */
+void qd_fx_chain_g(const int32_t g[3]) { qd_cg[0] = g[0], qd_cg[1] = g[1], qd_cg[2] = g[2]; }
 static const uint8_t QD_RT_ORD[24][4] = {              /* QD_FXP_ORDER -> the block at position 0..3, lexicographic */
     {0, 1, 2, 3}, {0, 1, 3, 2}, {0, 2, 1, 3}, {0, 2, 3, 1}, {0, 3, 1, 2}, {0, 3, 2, 1},
     {1, 0, 2, 3}, {1, 0, 3, 2}, {1, 2, 0, 3}, {1, 2, 3, 0}, {1, 3, 0, 2}, {1, 3, 2, 0},
@@ -181,37 +185,40 @@ void qd_fx_block(const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_
         return;
     }
     {                                                   /* CHAIN */
-        int32_t dl[CTL], dr[CTL], in[CTL];
+        int32_t wl[CTL], wr[CTL], in[CTL];
         int folded = 0;
-        for (i = 0; i < CTL; i++) {                     /* the dry at its level, kept apart; l / r carry the wet */
-            dl[i] = (int32_t)qd_div64((int64_t)l[i] * qd_rt[2], 127);
-            dr[i] = (int32_t)qd_div64((int64_t)r[i] * qd_rt[2], 127);
-            l[i] = r[i] = 0;
-        }
+        for (i = 0; i < CTL; i++)
+            wl[i] = wr[i] = 0;
         for (k = 0; k < 4; k++) {
             const int b = o[k];
             const int32_t *bus = b == QD_RT_CHORUS ? sc : b == QD_RT_DELAY ? sd : sr;
+            const int32_t g = b >= 0 && b < 3 ? qd_cg[b] : 0;
             if (b == QD_RT_FILTER) {
                 if (k == 3) {                           /* last: the master filter on everything */
                     for (i = 0; i < CTL; i++)
-                        l[i] += dl[i], r[i] += dr[i];
+                        l[i] += wl[i], r[i] += wr[i];
                     folded = 1;
+                    xq_block(l, r, CTL);
+                } else {
+                    xq_block(wl, wr, CTL);
                 }
-                xq_block(l, r, CTL);
                 continue;
             }
-            for (i = 0; i < CTL; i++)                   /* its send, and the wet so far (mono) */
-                in[i] = bus[i] + (l[i] + r[i]) / 2;
+            for (i = 0; i < CTL; i++) {                 /* its bus and its share of the wet so far; the rest stays */
+                in[i] = bus[i] + (int32_t)(((int64_t)(wl[i] + wr[i]) / 2 * g) >> 12);
+                wl[i] = (int32_t)(((int64_t)wl[i] * (4096 - g)) >> 12);
+                wr[i] = (int32_t)(((int64_t)wr[i] * (4096 - g)) >> 12);
+            }
             if (b == QD_RT_CHORUS)
-                xc_block(in, l, r, CTL);
+                xc_block(in, wl, wr, CTL);
             else if (b == QD_RT_DELAY)
-                qd_chain_delay(in, l, r);
+                qd_chain_delay(in, wl, wr);
             else
-                qd_chain_reverb(in, l, r);
+                qd_chain_reverb(in, wl, wr);
         }
         if (!folded)
             for (i = 0; i < CTL; i++)
-                l[i] += dl[i], r[i] += dr[i];
+                l[i] += wl[i], r[i] += wr[i];
     }
     out_master(out, l, r, (const int32_t *)0, CTL);
 }

@@ -281,27 +281,53 @@ static void fx_chorus(const ui_fx_t *v)
     }
 }
 
+/* MASTER (2026-10-26, the owner: two simplified head silhouettes in place of the slope curves, facing each other as a
+ * pair): the left head is the LOW CUT, the right the HIGH CUT. Each is lit (KNOB 1's blue, KNOB 2's green) where the
+ * sound passes and dark where it is cut: the low cut darkens the left head from the chin up to its frequency, the high
+ * cut the right head from the crown down. The filter off: both grey. SLOPE: a second, fainter edge inside the cut */
+static void head_path(float cx, float y0, float h, int flip)
+{
+    static const float P[] = {0.44f, 0.00f, 0.70f, 0.03f, 0.88f, 0.16f, 0.92f, 0.36f, 0.86f, 0.56f, 0.76f, 0.72f,
+                              0.70f, 0.86f, 0.74f, 1.00f, 0.30f, 1.00f, 0.34f, 0.88f, 0.26f, 0.84f, 0.30f, 0.76f,
+                              0.22f, 0.72f, 0.26f, 0.64f, 0.18f, 0.58f, 0.24f, 0.50f, 0.14f, 0.48f, 0.22f, 0.40f,
+                              0.20f, 0.30f, 0.26f, 0.14f, 0.44f, 0.00f};   /* a profile, the face at x 0.14 .. 0.3 */
+    const float w = h * 0.62f, x0 = cx - w / 2.f;
+    int k;
+    qd_path_begin();
+    for (k = 0; k < (int)(sizeof P / sizeof P[0]); k += 2) {
+        const float x = x0 + (flip ? 1.f - P[k] : P[k]) * w, y = y0 + P[k + 1] * h;
+        if (k)
+            qd_line_to(x, y);
+        else
+            qd_move_to(x, y);
+    }
+    qd_path_close();
+}
+static void head(float cx, float y0, float h, int flip, qd_rgb col, int on, float cut, int from_top, int slope2)
+{
+    const float yc = y0 + h * cut;
+    head_path(cx, y0, h, flip);
+    qd_path_stroke(on ? col : UI_G2, 1.4f);
+    if (!on)
+        return;
+    qd_save();                                          /* the lit part */
+    if (from_top)
+        qd_clip_rect(cx - h, yc, 2.f * h, y0 + h - yc + 2.f);
+    else
+        qd_clip_rect(cx - h, y0 - 2.f, 2.f * h, yc - y0 + 2.f);
+    head_path(cx, y0, h, flip);
+    qd_path_fill(col);
+    qd_restore();
+    if (slope2) {                                       /* a steeper slope: a second edge just inside the cut */
+        const float y2 = from_top ? yc - 5.f : yc + 5.f;
+        ln(cx - h * 0.31f, y2, cx + h * 0.31f, y2, col, 1.f);
+    }
+}
 static void fx_master(const ui_fx_t *v)
 {
-    float p[2 * 61];
-    const float lo = 20.f + v->flow * 200.f, hi = 20.f + v->fhigh * 200.f, sl = v->fslope ? 2.f : 1.f;
-    int i;
-    for (i = 0; i <= 60; i++) {
-        const float x = 20.f + (float)i / 60.f * 200.f;
-        float g = 1.f;
-        if (v->flow > 0.f && x < lo)
-            g *= powf(clampf(1.f - (lo - x) / 70.f, 0.f, 1.f), sl);
-        if (v->fhigh < 1.f && x > hi)
-            g *= powf(clampf(1.f - (x - hi) / 70.f, 0.f, 1.f), sl);
-        p[2 * i] = x;
-        p[2 * i + 1] = 170.f - (v->fon ? g : 1.f) * 110.f;
-    }
-    ln(20.f, 170.f, 220.f, 170.f, UI_G3, 1.f);
-    ui_P(p, 61, v->fon ? UI_K3 : UI_G2, 1.6f, 0, QD_NONE);
-    if (v->flow > 0.f)
-        ui_O(lo, 60.f, 3.4f, QD_NONE, 1.f, UI_K1);
-    if (v->fhigh < 1.f)
-        ui_O(hi, 60.f, 3.4f, QD_NONE, 1.f, UI_K2);
+    const float h = 118.f, y0 = 40.f;
+    head(76.f, y0, h, 1, UI_K1, v->fon, 1.f - v->flow, 0, v->fslope);   /* LOW CUT: dark from the chin up */
+    head(164.f, y0, h, 0, UI_K2, v->fon, v->fhigh, 1, v->fslope);       /* HIGH CUT: dark from the crown down */
 }
 
 /* SENDS (2026-10-26, the sequencer clean-up, mockups/fizz-seq-cleanup.html 1..3; P1.5b's OVERVIEW before it): the
@@ -311,9 +337,11 @@ static void fx_master(const ui_fx_t *v)
 static void fx_sends(const ui_fx_t *v)
 {
     int k, i;
-    for (k = 0; k < 3; k++) {
-        const float x = 48.f + (float)k * 72.f, h = 90.f * clampf(v->x[k], 0.f, 1.f);
+    for (k = 0; k < 4; k++) {
+        const float x = 36.f + (float)k * 56.f, h = 90.f * clampf(v->x[k], 0.f, 1.f);
         const int lk = v->locked[k];
+        if (!v->has[k])
+            continue;
         ui_RR(x - 16.f, 34.f, 32.f, 90.f, 5.f, UI_G3, 1.2f, QD_NONE);
         if (h > 0.f) {
             if (!lk)

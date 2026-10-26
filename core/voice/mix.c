@@ -18,6 +18,33 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 #include "quad/fz_voice.h"             /* (L1: LEVEL_Q12, fz_mix_voice, the gains) */
+#include "fx/qd_fx.h"                   /* (2026-10-26: the routing's mode and order: CHAIN's serial sends) */
+
+/* 2026-10-26 (the owner): a track's DRY (qd_mix_track_t.dry) and, in CHAIN, its sends as the wet / dry of each effect
+ * in the order, in series: of what the track feeds the chain, send k's share goes into effect k and the rest passes
+ * it by to the next; what passes every effect by is heard dry (into l / r with the DRY part). The gains, Q12 */
+static void chain_gains(const qd_mix_track_t *tk, int32_t td, int32_t *lvl, int32_t *c, int32_t *d, int32_t *rv)
+{
+    int32_t sv[3] = {*c, *d, *rv};                      /* the sends' gains (Q15) in, their chain shares out */
+    const int32_t send[3] = {tk->chorus, tk->delay, tk->reverb};
+    const int32_t feed = 127 - td;                      /* (what goes into the chain, /127) */
+    int32_t r = 4096, k;
+    for (k = 0; k < 4; k++) {
+        const int b = qd_fx_route_block(k);
+        if (b < 0 || b > 2)
+            continue;
+        sv[b] = (int32_t)(((int64_t)sv[b] * feed / 127 * r) >> 12);
+        r = (int32_t)((int64_t)r * (127 - send[b]) / 127);
+    }
+    *c = sv[0], *d = sv[1], *rv = sv[2];
+    *lvl = (int32_t)(((int64_t)*lvl * (td * 4096 + feed * r) / 127) >> 12);
+}
+static void parallel_gains(int32_t td, int32_t *lvl, int32_t *c, int32_t *d, int32_t *rv)
+{
+    const int32_t gd = td >= 64 ? 4096 : 4096 * td / 64, gw = td <= 64 ? 4096 : 4096 * (127 - td) / 63;
+    *lvl = (int32_t)(((int64_t)*lvl * gd) >> 12);       /* (64: both full, bit for bit the block as it was) */
+    *c = (int32_t)(((int64_t)*c * gw) >> 12), *d = (int32_t)(((int64_t)*d * gw) >> 12), *rv = (int32_t)(((int64_t)*rv * gw) >> 12);
+}
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #elif defined(__GNUC__)
@@ -88,6 +115,10 @@ int qd_mix_voices(qd_mix_t *m, qd_pool_t *pool, const qd_mix_track_t *tracks, in
                 d = fz_send_gain(clampi(td + fo[2], 0, 127));
                 c = fz_send_gain(clampi(tc + fo[3], 0, 127));
             }
+            if (qd_fx_get(QD_FXP_RMODE))                /* 2026-10-26: the track's DRY, CHAIN's serial sends */
+                chain_gains(tk, tk->dry, &lvl, &c, &d, &rv);
+            else if (tk->dry != QD_MIX_DRY_DEFAULT)
+                parallel_gains(tk->dry, &lvl, &c, &d, &rv);
         }
         if (m->serial[i] != pv->serial) {               /* a fresh note in this slot: its sends from where they are */
             m->serial[i] = pv->serial;

@@ -451,10 +451,12 @@ Undo and redo of everything (P1.5c):
 - **ROUTING** (2026-10-26, as ChoralRoot 0.27's): the signal flow as boxes on a wire. **KNOB 1 MODE**: **PARALLEL**
   (where every unit starts, the sound as it always was: the tracks' sends fan into CHORUS, DELAY and REVERB side by
   side, their returns sum, the FILTER after) or **CHAIN** (one path, the OEM way: IN, then the four blocks in the order
-  on the screen, numbered, OUT; each effect is fed by **its own send from the SENDS page** plus the wet of the effects
-  before it, and passes its wet on; the **dry goes straight to the output at the DRY level, ALGORITHM** (or KNOB 2),
-  the green wire under the chain; the FILTER filters the chain at its place, or everything when it is last). **Hold a
-  block's own page key**
+  on the screen, numbered, OUT; **each track's sends are its wet / dry at each effect**: at 0 the track passes that
+  effect by, at 100 all of it goes through, 50 half and half, and what passes every effect by is heard dry; the FILTER
+  filters the chain at its place, or everything when it is last). **DRY** is **each track's dry / wet** in both modes
+  (SENDS' KNOB 4, ROUTING's ALGORITHM or KNOB 2): 100 % the dry alone, 0 % the effects alone, the middle both full
+  in PARALLEL (as always) and half and half in CHAIN; the green wire under the chain shows it. **Hold a block's own
+  page key**
   (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER): its box lifts, with white arrows where it can still go; **turn KNOB 1**
   a click a place, the others slide over; let go and it lands (a tap of the key still opens that page). In PARALLEL
   only the FILTER moves, before the buses (KNOB 1 anticlockwise: the dry and the sends are filtered before the
@@ -463,14 +465,16 @@ Undo and redo of everything (P1.5c):
 
   | page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
   | --- | --- | --- | --- | --- |
-  | SENDS | CHORUS send | DELAY send | REVERB send | |
+  | SENDS | CHORUS send | DELAY send | REVERB send | DRY (the track's dry / wet) |
   | DELAY | TIME (ms, or the note value when synced) | SPREAD (R's time against L's; synced: 1:1 3:4 2:3 1:2) | FEEDBACK | SEND |
   | DELAY 2 | SYNC (FREE / TEMPO) | MODE (STEREO / PING-PONG) | TONE | WOW |
   | REVERB | SIZE | DAMP | DECAY (s, INF) | SEND |
   | REVERB 2 | PRE-DELAY | MOD | LOW CUT | WIDTH |
   | CHORUS | RATE (Hz) | DEPTH | WIDTH | SEND |
   | MASTER | LOW CUT (OFF ..) | HIGH CUT (.. OFF) | SLOPE (6 / 12 dB) | FILTER ON / OFF |
-  | ROUTING | MODE (PARALLEL / CHAIN); a block held: its place | DRY level (CHAIN; ALGORITHM too) | | |
+  (MASTER's picture, 2026-10-26: two heads face to face, the left the low cut, dark from the chin up to it; the right
+  the high cut, dark from the crown down; grey with the filter off.)
+  | ROUTING | MODE (PARALLEL / CHAIN); a block held: its place | DRY (the track's; ALGORITHM too) | | |
 
   **SEND** is the selected track's send into that effect (its number at the top right; the same value as the
   mixer's).

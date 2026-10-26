@@ -663,7 +663,7 @@ static void names_test(void)
               !strcmp(B.model.t[1].name, "BASS") && !B.proj.rec_auto,
           "a restart: the names, the kinds, typed or not, AUTOMATION OFF");
     len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, sizeof b);
-    CHECK(len == (int)(base + 3u + QD_NTRACK * (QD_TRACK_NAME + 1)), "the header: %d bytes", len);
+    CHECK(len == (int)(base + 3u + QD_NTRACK * (QD_TRACK_NAME + 1) + QD_NTRACK), "the header: %d bytes (2026-10-26: + the tracks' DRY)", len);
     qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_HDR, 0, 0), b, base + 2u);   /* (0.9.0's) */
     qd_store_flush(&B.per.prj_st);
     boot(&A);

@@ -23,7 +23,12 @@ typedef struct {                        /* a track's mix (the model's; a voice c
     uint8_t level;                      /* 0..127, ChoralRoot's part LEVEL (LEVEL_Q12; 104 its default) */
     int8_t pan;                         /* -64..63 */
     uint8_t chorus, delay, reverb;      /* the sends, 0..127 */
+    uint8_t dry;                        /* 2026-10-26 (the owner): the track's DRY / WET, 0..127: 127 the dry alone, 0
+                                         * the effects alone (PARALLEL: the returns; CHAIN: the chain's output), 64
+                                         * (QD_MIX_DRY_DEFAULT) both full in PARALLEL (as every unit sounded) and half
+                                         * and half in CHAIN (unity with the sends at 0) */
 } qd_mix_track_t;
+#define QD_MIX_DRY_DEFAULT 64
 
 typedef struct {
     int32_t sg[QD_POOL_MAX][3];         /* each voice's chorus, delay, reverb gains as the last block left them */

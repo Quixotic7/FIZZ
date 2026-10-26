@@ -498,6 +498,8 @@ static uint32_t ser_hdr(const qd_app_t *a, uint8_t *b)
         b[o++] = k->kind, b[o++] = k->named;
         memcpy(b + o, k->name, QD_TRACK_NAME - 1), o += QD_TRACK_NAME - 1;
     }
+    for (t = 0; t < QD_NTRACK; t++)                     /* 2026-10-26: the tracks' DRY (older records: the default) */
+        b[o++] = a->model.t[t].mix.dry;
     return o;
 }
 
@@ -507,7 +509,8 @@ static int de_hdr(qd_app_t *a, int p, const uint8_t *b, uint32_t len, int apply)
     qd_project_t *pr = &a->proj;
     uint32_t o = 2;
     int t;
-    if (len < 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK || len > 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK + 3 + QD_NTRACK * (QD_TRACK_NAME + 1) || b[0] != 'H' ||
+    if (len < 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK ||
+        len > 2 + QD_PROJ_NAME + 7 + 7 * QD_NTRACK + 3 + QD_NTRACK * (QD_TRACK_NAME + 1) + QD_NTRACK || b[0] != 'H' ||
         b[1] != 1)
         return 0;
     memcpy(ps->pname[p], b + o, QD_PROJ_NAME), o += QD_PROJ_NAME;
@@ -539,6 +542,8 @@ static int de_hdr(qd_app_t *a, int p, const uint8_t *b, uint32_t len, int apply)
                 memcpy(k->name, nm, sizeof nm);
             o += QD_TRACK_NAME + 1;
         }
+    for (t = 0; t < QD_NTRACK; t++)                     /* 2026-10-26: the tracks' DRY */
+        a->model.t[t].mix.dry = o + (uint32_t)t < len ? (uint8_t)(b[o + t] & 127) : QD_MIX_DRY_DEFAULT;
     return 1;
 }
 

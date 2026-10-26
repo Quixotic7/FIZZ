@@ -2120,6 +2120,14 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
         if (c == QD_FXC_NONE)
             continue;
         v->has[k] = 1;
+        if (c == QD_FXC_DRY) {                          /* 2026-10-26: the selected track's DRY / WET */
+            const int dv = a->model.t[a->sel].mix.dry;
+            v->lab[k] = "DRY";
+            snprintf(v->txt[k], sizeof v->txt[k], "%d%%", (dv * 100 + 63) / 127);
+            v->x[k] = (float)dv / 127.f;
+            v->track = a->sel + 1;
+            continue;
+        }
         if (c == QD_FXC_SEND || c <= QD_FXC_SENDX(0)) {   /* (P1.5b: the overview's cells: their effect's) */
             const int fx = c == QD_FXC_SEND ? pg->fx : QD_FXC_SENDX(0) - c;
             int s = qd_fx_send(a, a->sel, fx);
@@ -2157,9 +2165,7 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
             v->rt_order[i] = qd_fx_route_block(i);
         v->rt_held = u->fx_bheld ? BLK[(u->fx_bheld - 1) % QD_FX_NKEY] : -1;
         v->rt_lift = u->fx_bheld ? (a->ms - u->fx_bms >= 120u ? 1.f : (float)(a->ms - u->fx_bms) / 120.f) : 0.f;
-        if (pg->fx == QD_FXG_ROUTE && !v->rt_mode)
-            v->dim[1] = 1;                              /* (PARALLEL: the dry is always full) */
-        v->rt_dry = (float)qd_fx_get(QD_FXP_RDRY) / 127.f;
+        v->rt_dry = (float)a->model.t[a->sel].mix.dry / 127.f;   /* (the selected track's) */
     }
     v->delay_s = (float)qd_fx_delay_ms() / 1000.f;
     v->chorus_hz = (float)qd_fx_chorus_hz100() / 100.f;

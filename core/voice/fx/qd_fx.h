@@ -43,6 +43,8 @@ enum { QD_FXP_DTIME, QD_FXP_DDIV, QD_FXP_DSPREAD, QD_FXP_DRATIO, QD_FXP_DFDBK, Q
        QD_NFXP };
 enum { QD_RT_CHORUS, QD_RT_DELAY, QD_RT_REVERB, QD_RT_FILTER, QD_RT_N };   /* the chain's blocks */
 int qd_fx_route_block(int pos);         /* the block at position 0..3 of the order */
+void qd_fx_chain_g(const int32_t g[3]);   /* 2026-10-26, CHAIN: how much of the wet made before it each effect takes
+                                         * (CHORUS, DELAY, REVERB; Q12: the tracks' sends, level-weighted) */
 int qd_fx_route_move(int block, int dir);   /* the block one place along (CHAIN; PARALLEL: the filter between its two
                                          * places, before (dir < 0) or after (dir > 0) the buses); 1 moved */
 int qd_fx_get(int id);
