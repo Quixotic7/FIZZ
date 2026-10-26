@@ -67,7 +67,7 @@ export function keymapSvg() {
     o.push(cap(x + KW / 2, 538, WHITE_PC[i]));
   }
   o.push(t(500, 610, "W1-W16: the page's 16 steps (tap: on / off, hold: edit) · B1-B11, nothing held: what you edit; a step held: its values", "km-note"));
-  o.push(t(870, 352, "FILL: SHIFT + ARP held ( , + 9 )", "km-job"));
+  o.push(t(870, 352, "FILL: SHIFT + FX held ( , + C )", "km-job"));
   o.push(`<rect x="420" y="620" width="22" height="15" rx="4" class="km-cap"/>`, `<text x="450" y="632" class="km-job">= the computer key</text>`);
   o.push("</svg>");
   return o.join("");

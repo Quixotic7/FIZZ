@@ -50,7 +50,7 @@ static void lb_buttons(const qd_app_t *a, qd_labels_t *o)
     lb_set(o, LB_BTN(QD_B_FUNC), "SHIFT");
     lb_set(o, LB_BTN(QD_B_HOME), "HOME");
     lb_set(o, LB_BTN(QD_B_SAVE), "SAVE");
-    lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");       /* (P1.6d: a tap the MIDI FX screen; held the arp on / off; SHIFT + ARP: FILL) */
+    lb_set(o, LB_BTN(QD_B_KEYS), "MIDI FX");       /* (a tap the MIDI FX screen; held or SHIFT + ARP the MIDI FX on / off) */
     lb_set(o, LB_BTN(QD_B_MIX), "PATTERNS");          /* (held; T1b: tapped TOOLS) */
     lb_set(o, LB_BTN(QD_B_PLAY), a->seq.playing ? "STOP" : "PLAY");
     lb_set(o, LB_BTN(QD_B_REC), u->rec ? "REC OFF" : keys ? "STEPS" : "KEYS");   /* (P1.6f: what a tap switches to;
@@ -257,7 +257,8 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, LB_BTN(QD_B_REC), "REC SET");
         lb_set(o, LB_BTN(QD_B_PATTERN), "SETTINGS");
         lb_set(o, LB_BTN(QD_B_MIX), "AT ONCE");
-        lb_set(o, LB_BTN(QD_B_KEYS), "FILL");          /* (P1.6d) */
+        lb_set(o, LB_BTN(QD_B_KEYS), "MFX ON/OFF");    /* (2026-10-25: SHIFT + ARP the MIDI FX bypass ..) */
+        lb_set(o, LB_BTN(QD_B_TRACKS), "FILL");        /* (.. SHIFT + FX held FILL) */
         return;
     }
     if (shift && u->mode == QD_MODE_KEYS) {             /* the keyboard, SHIFT: the scale, the root, the track */

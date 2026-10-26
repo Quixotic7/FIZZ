@@ -316,19 +316,19 @@ try {
     const st3 = await evaluate("({ any: FIZZ.controls.anyLatched(), keys: window.__panel.keys })");
     check(!st2.glo && st2.b6 && !(st2.buttons & (1 << 7)) && !st3.any && !(st3.keys & (1 << 13)),
       `a plain click lets GLO go (B6 still held); Shift-click on an empty spot lets the rest go (FIZZ's keys ${st3.keys})`);
-    // P1.6d: FILL is SHIFT + ARP held: Shift-click GLO, then ARP: FILL while both are latched (TOOLS T1: ARP's LED lit, steady)
-    const arp = await at(626, 249);
+    // FILL is SHIFT + FX held (2026-10-25; was SHIFT + ARP): Shift-click GLO, then FX: FILL while both are latched (FX's LED lit, steady)
+    const fx = await at(521, 195);
     await click(glo, true);
-    await waitFor("FIZZ.labels.btns[8].firstChild.textContent === 'FILL'", 3000);
-    await click(arp, true);
-    const arpLed = await evaluate("(() => { const km = FIZZ.state.info.keymap; for (let r = 1; r <= 4; r++) for (let c = 0; c < 11; c++) if (km[r][c] === 10) return c * 4 + (r - 1); return -1; })()");
+    await waitFor("FIZZ.labels.btns[0].firstChild.textContent === 'FILL'", 3000);
+    await click(fx, true);
+    const fxLed = await evaluate("(() => { const km = FIZZ.state.info.keymap; for (let r = 1; r <= 4; r++) for (let c = 0; c < 11; c++) if (km[r][c] === 2) return c * 4 + (r - 1); return -1; })()");
     const lvs = new Set();
-    for (let i = 0; i < 30; i++) { await sleep(40); lvs.add(await evaluate(`FIZZ.state.levels[${arpLed}]`)); }
-    const both = await evaluate("({ glo: FIZZ.controls.btnLatched(5), arp: FIZZ.controls.btnLatched(8), buttons: window.__panel.buttons })");
+    for (let i = 0; i < 30; i++) { await sleep(40); lvs.add(await evaluate(`FIZZ.state.levels[${fxLed}]`)); }
+    const both = await evaluate("({ glo: FIZZ.controls.btnLatched(5), fx: FIZZ.controls.btnLatched(0), buttons: window.__panel.buttons })");
     await shot("latch-fill.png");
     await click(empty, true);
-    check(both.glo && both.arp && (both.buttons & (1 << 7)) && (both.buttons & (1 << 10)) && lvs.size >= 1 && [...lvs].every((v) => v >= 128),
-      `Shift-click GLO then ARP: FILL (SHIFT + ARP held; FIZZ gets both, ARP's LED lit: ${[...lvs].join(" / ")})`);
+    check(both.glo && both.fx && (both.buttons & (1 << 7)) && (both.buttons & (1 << 2)) && lvs.size >= 1 && [...lvs].every((v) => v >= 128),
+      `Shift-click GLO then FX: FILL (SHIFT + FX held; FIZZ gets both, FX's LED lit: ${[...lvs].join(" / ")})`);
   }
 
   // 7d. P1.6d's automation recording: REC held from the computer key (=) while a knob turns (the arrows): the panel

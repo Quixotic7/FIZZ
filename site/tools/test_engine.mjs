@@ -484,17 +484,17 @@ e.dispose();
   p.btn("GLO", false);
   ls = pump(e, 300).map(decodeLabels).filter(Boolean);
   check(ls.length >= 1 && ls[ls.length - 1].keys[W[0]] === base.keys[W[0]], "SHIFT let go: the step view's labels again");
-  // P1.6d: FILL is SHIFT + ARP held (TOOLS T1: ARP's LED lit, steady, while it is); ARP's label under SHIFT says so
+  // FILL is SHIFT + FX held (2026-10-25, was SHIFT + ARP: FX's LED lit, steady, while it is); FX's label under SHIFT says so
   {
-    const km = info.keymap, arpLed = (() => { for (let r = 1; r <= 4; r++) for (let c = 0; c < 11; c++) if (km[r][c] === 10) return c * 4 + (r - 1); return -1; })();
+    const km = info.keymap, fxLed = (() => { for (let r = 1; r <= 4; r++) for (let c = 0; c < 11; c++) if (km[r][c] === 2) return c * 4 + (r - 1); return -1; })();
     p.btn("GLO", true);
     let lf = pump(e, 200).map(decodeLabels).filter(Boolean);
-    const arpLabel = lf.length ? lf[lf.length - 1].buttons[10] : "";
-    p.btn("ARP", true);
+    const fxLabel = lf.length ? lf[lf.length - 1].buttons[2] : "";
+    p.btn("FX", true);
     const lv = new Set();
-    for (let t = 0; t < 1200; t += 20) { run(e, 20); if (t > 450) lv.add(e.leds().levels[arpLed]); }
-    p.btn("ARP", false); p.btn("GLO", false); pump(e, 300);
-    check(arpLabel === "FILL" && lv.size >= 1 && [...lv].every((v) => v >= 128), `SHIFT held: ARP reads "${arpLabel}"; SHIFT + ARP held: FILL, ARP's LED lit (${[...lv].join(" / ")})`);
+    for (let t = 0; t < 1200; t += 20) { run(e, 20); if (t > 450) lv.add(e.leds().levels[fxLed]); }
+    p.btn("FX", false); p.btn("GLO", false); pump(e, 300);
+    check(fxLabel === "FILL" && lv.size >= 1 && [...lv].every((v) => v >= 128), `SHIFT held: FX reads "${fxLabel}"; SHIFT + FX held: FILL, FX's LED lit (${[...lv].join(" / ")})`);
   }
   // P1.6c / P1.6d: ARP tapped opens the MIDI FX screen (ALGORITHM GROUP); a group chosen (ALGORITHM a click): B1..B8
   // the slots, PRESETS EFFECT
