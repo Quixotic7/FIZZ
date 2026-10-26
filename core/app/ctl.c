@@ -1273,7 +1273,8 @@ static void b_rec(qd_app_t *a, int down)
         qd_rec_end(a);
         return;
     }
-    if (qd_mfx_open(a)) {                               /* P1.6e: the MIDI FX screen stays: its white keys STEPS / KEYS */
+    if (qd_mfx_open(a) || u->latch == QD_LATCH_TRK) {   /* P1.6e: the MIDI FX screen stays: its white keys STEPS / KEYS
+                                                         * (2026-10-25: the track settings too) */
         qd_mfx_rec(a);
         return;
     }
@@ -1293,7 +1294,7 @@ static void b_sel(qd_app_t *a, int down)
     qd_ui_t *u = &a->ui;
     if (!down) {
         if (!u->sel_used && a->ms - u->sel_ms < QD_TAP_MS && u->mode != QD_MODE_IDLE) {
-            if (u->mode != QD_MODE_STEP)
+            if (u->mode != QD_MODE_STEP && u->latch != QD_LATCH_TRK)
                 set_mode(a, QD_MODE_STEP);
             qd_trk_button(a);
         }
@@ -1787,7 +1788,7 @@ static int when_mfx(const qd_app_t *a) { return qd_mfx_open(a) && !held(a, QD_B_
 static int k_mfx(qd_app_t *a, int knob, int d) { return qd_mfx_knob(a, knob, d); }
 
 /* P1.3y: the settings menus' knobs (KNOB 1..4 their rows; the encoders nothing) */
-static int when_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
+static int when_menu(const qd_app_t *a) { return QD_MENU_UP(&a->ui); }
 static int when_lib(const qd_app_t *a) { return qd_lib_open(a); }
 static int when_type(const qd_app_t *a) { return qd_type_open(a); }   /* P1.5u: a name typed: its knobs only */
 static int k_libk(qd_app_t *a, int knob, int d) { return qd_lib_knob(a, knob, d); }
@@ -2047,7 +2048,11 @@ void qd_ctl_ms(qd_app_t *a)
     } else if (u->tk == UI_TK_TOOL && u->tk_knob != 1 && a->ms - u->tk_ms >= QD_TOOL_POP_MS) {
         u->tk = QD_TK_NONE;                             /* (T1: a tool's name, a message: ~0.8 s) */
     } else if ((u->tk == UI_TK_SCALE || u->tk == UI_TK_ROOT) && qd_ctl_shift(a)) {
-        u->tk_ms = a->ms;                               /* (the key's popup: up while SHIFT is held) */
+        u->tk_ms = a->ms;                               /* (the key's popup: up while SHIFT is held, .. */
+        u->tk_hold = 1;
+    } else if ((u->tk == UI_TK_SCALE || u->tk == UI_TK_ROOT) && u->tk_hold) {
+        u->tk_ms = a->ms - (QD_TK_MS + QD_TK_FADE_MS - 250u);   /* .. gone 250 ms after its release) */
+        u->tk_hold = 0;
     } else if (u->tk != QD_TK_NONE &&
                a->ms - u->tk_ms >= (u->tk == UI_TK_TAP ? QD_TAP_TK_MS : QD_TK_MS) + QD_TK_FADE_MS) {
         u->tk = QD_TK_NONE;                             /* (P1.5z: TAP's stays 2 s after the last tap) */

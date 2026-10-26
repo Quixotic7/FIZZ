@@ -1326,7 +1326,7 @@ int qd_view_screen(const qd_app_t *a)
         return QD_SCR_SEQ;
     if (u->mode != QD_MODE_IDLE && qd_ctl_sel_map(a))   /* (P1.3y: after a hold, or a key: a tap shows nothing) */
         return QD_SCR_SEL;
-    if (u->mode == QD_MODE_STEP && QD_LATCH_MENU(u->latch))
+    if (QD_MENU_UP(u))
         return QD_SCR_MENU;                             /* P1.3y: a settings menu */
     if (u->latch != QD_LATCH_MFX && qd_ctl_main_layer(a) != QD_LAYER_NONE) {   /* P1.6h: the mix, the effects, the
                                                          * editor: F1 / F2 held, the step view's picture (F2 after a

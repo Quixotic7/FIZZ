@@ -207,7 +207,8 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
        QD_LATCH_REC,                    /* P1.3y: SHIFT + REC: the record settings (MODE, QUANTIZE, OVERDUB) */
        QD_LATCH_SET,                    /* P1.3y: SHIFT + SEL: the global settings (PAGE FOLLOW) */
        QD_LATCH_SND,                    /* P1.4a: EDIT (printed): the sound editor (ctl_snd.c) */
-       QD_LATCH_TRK,                    /* P1.4b: SEL tapped: the track settings (ctl_mix.c; W its steps) */
+       QD_LATCH_TRK,                    /* P1.4b: SEL tapped: the track settings (ctl_mix.c: MODE GLOBAL / LOCAL,
+                                         * SCALE, ROOT, MIDI CH; W its steps, REC: notes) */
        QD_LATCH_MIX,                    /* P1.4b: ENV (printed) = MIX: the faders, again the sends */
        QD_LATCH_FX,                     /* P1.4b: FX (printed) tapped: the effects */
        QD_LATCH_BROWSE,                 /* P1.5t: PRESETS, nothing held: the library browser (ctl_presets.c) */
@@ -219,6 +220,9 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
        QD_NLATCH };
 #define QD_LATCH_MENU(l) ((l) == QD_LATCH_REC || (l) == QD_LATCH_SET || (l) == QD_LATCH_TRK)   /* a settings menu:
                                                          * its own screen, KNOB 1..4 */
+#define QD_MENU_UP(u) (((u)->mode == QD_MODE_STEP && QD_LATCH_MENU((u)->latch)) || \
+                       ((u)->mode == QD_MODE_KEYS && (u)->latch == QD_LATCH_TRK))   /* (2026-10-25: the track settings
+                                                         * stay over the keyboard, REC there) */
 #define QD_LATCH_PANEL(l) ((l) == QD_LATCH_TRK || (l) == QD_LATCH_MIX || (l) == QD_LATCH_FX)   /* (P1.4b: B1..B8 the
                                                          * track, B1..B4 the effect; the W keys nothing) */
 /* P1.6h (the owner: "None of these should exit with F1, only the pop-up menus"): the main pages over the step view, F1

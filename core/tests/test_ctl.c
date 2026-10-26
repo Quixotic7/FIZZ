@@ -1851,10 +1851,30 @@ static void g_track_keys(void)
     A.keys_struck = 0;
     kdown(WK(3));
     run(5);
-    CHECK(A.ui.mode == QD_MODE_KEYS && (A.keys_struck >> WK(3)) & 1u && !R(0, 3).on, "the keyboard on: W4 plays a note");
+    CHECK(A.ui.mode == QD_MODE_KEYS && A.ui.latch == QD_LATCH_TRK && qd_view_screen(&A) == QD_SCR_MENU &&
+              (A.keys_struck >> WK(3)) & 1u && !R(0, 3).on, "REC: the keyboard on, the page stays, W4 plays a note");
     kup(WK(3));
     run(5);
     btap(QD_B_REC);
+    wtap(3);
+    CHECK(A.ui.mode == QD_MODE_STEP && A.ui.latch == QD_LATCH_TRK && R(0, 3).on, "REC again: W4 a step again");
+    wtap(3);
+    turn(QD_K_2, 1);
+    CHECK(ts->key_global && A.proj.key_scale == QD_SCALE_CHROMATIC + 1 && ts->scale == QD_SCALE_CHROMATIC,
+          "GLOBAL: KNOB 2 the global scale, MODE stays GLOBAL");
+    turn(QD_K_1, -1);
+    turn(QD_K_2, 1);
+    turn(QD_K_3, 2);
+    CHECK(!ts->key_global && ts->scale == QD_SCALE_CHROMATIC + 2 && ts->root == 2 &&
+              A.proj.key_scale == QD_SCALE_CHROMATIC + 1 && !A.proj.key_root,
+          "LOCAL: a copy of the global key, KNOB 2 / 3 the track's only");
+    turn(QD_K_1, 1);
+    CHECK(ts->key_global && A.proj.key_scale == QD_SCALE_CHROMATIC + 1, "LOCAL -> GLOBAL: the global key");
+    turn(QD_K_1, -1);
+    CHECK(!ts->key_global && ts->scale == QD_SCALE_CHROMATIC + 2 && ts->root == 2,
+          "GLOBAL -> LOCAL again: its own key kept (%d %d)", ts->scale, ts->root);
+    turn(QD_K_1, 1);
+    A.proj.key_scale = QD_SCALE_CHROMATIC;
     btap(QD_B_HOME);
     bdown(SHIFT);
     run(10);
@@ -1865,8 +1885,8 @@ static void g_track_keys(void)
     run(1500);
     CHECK(A.ui.tk == UI_TK_ROOT, "SHIFT held: the popup still up 1.5 s later");
     bup(SHIFT);
-    run(1500);
-    CHECK(A.ui.tk != UI_TK_ROOT, "SHIFT let go: gone 1.5 s later");
+    run(400);
+    CHECK(A.ui.tk != UI_TK_ROOT, "SHIFT let go: gone 0.4 s later");
     ts->key_global = 0;
     bdown(SHIFT);
     run(10);
@@ -1889,13 +1909,14 @@ static void g_tracks_screen(void)
     btap(QD_B_PATTERN);
     CHECK(A.ui.latch == QD_LATCH_TRK && qd_view_screen(&A) == QD_SCR_MENU && !A.ui.trk_page,
           "SEL tapped: the track settings");
-    turn(QD_K_1, 2);
-    turn(QD_K_2, 3);
+    turn(QD_K_1, -1);
+    turn(QD_K_2, 2);
+    turn(QD_K_3, 3);
     turn(QD_K_4, 2);
     CHECK(ts->scale == 2 && ts->root == 3 && !ts->key_global && ts->chan == 2,
-          "KNOB 1 SCALE +2, KNOB 2 ROOT +3, KNOB 4 MIDI CH 3 (%d %d %d)", ts->scale, ts->root, ts->chan + 1);
-    turn(QD_K_3, 1);
-    CHECK(ts->key_global == 1, "KNOB 3: FOLLOW KEY on");
+          "LOCAL: KNOB 2 SCALE +2, KNOB 3 ROOT +3, KNOB 4 MIDI CH 3 (%d %d %d)", ts->scale, ts->root, ts->chan + 1);
+    turn(QD_K_1, 1);
+    CHECK(ts->key_global == 1, "KNOB 1: MODE GLOBAL");
     btap(QD_B_PATTERN);
     v0 = ts->limit;
     turn(QD_K_1, 2);

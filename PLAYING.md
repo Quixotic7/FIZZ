@@ -365,11 +365,13 @@ Undo and redo of everything (P1.5c):
 
 - **Tap SEL**: the selected track's settings in this pattern (its number, kind and name in its colour at the top).
   **SEL again** (or SELECT) for the next page (three, round). **OCT− or HOME** closes it. **B1..B6** switch to another track's.
-- Page 1: **KNOB 1 SCALE** (its twelve notes shown as dots, the root ringed), **KNOB 2 ROOT**, **KNOB 3 FOLLOW KEY**
-  (the project's global key instead of its own; **a new track follows it**, the global key starts CHROMATIC C;
-  following, SCALE and ROOT show the global key's values, tagged GLOBAL; turning KNOB 1 or 2 gives the track its
-  own key, starting from the global one), **KNOB 4 MIDI CH** (the channel that plays the track, 1..6 by
-  default; channel 16 always plays the selected track).
+- Page 1: **KNOB 1 MODE** **GLOBAL** (the track follows the project's global key; **a new track does**, the global
+  key starts CHROMATIC C) or **LOCAL** (its own key, starting as a copy of the global one; back to GLOBAL its own is
+  kept for the next switch), **KNOB 2 SCALE** (its twelve notes shown as dots, the root ringed), **KNOB 3 ROOT**:
+  on GLOBAL they set the global key (every GLOBAL track changes), on LOCAL only this track's; **KNOB 4 MIDI CH**
+  (the channel that plays the track, 1..6 by default; channel 16 always plays the selected track).
+- The white keys are the track's steps (a tap makes, removes). **REC** tapped turns the keyboard on (they play notes)
+  or off again; the page stays open.
 - Page 2: **KNOB 1 VOICES** (the voice limit, 1 = mono; the voices sounding white), **KNOB 2 SWING** on / off,
   **KNOB 3 PAGE FOLLOW**, **KNOB 4 MIDI FX**.
 - Page 3 (0.9.1): **KNOB 1 KIND**: BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX (the presets' seven tags), each with its
@@ -894,8 +896,9 @@ DECAY, HARM and FDBK.
 
 - **SHIFT + ALGORITHM** sets the track's scale (chromatic, major, minor, the modes, harmonic and melodic minor,
   pentatonics, blues, whole tone). **SHIFT + PRESETS** sets its root. Its picture (the scale's name, its keys) shows
-  over the PIANO ROLL, STEPS and EDIT alike (P1.5z), and **stays while SHIFT is held** (it fades once you let go).
-- A track that **follows the global key** (FOLLOW KEY, the default): SHIFT + ALGORITHM / PRESETS set the
+  over the PIANO ROLL, STEPS and EDIT alike (P1.5z), and **stays while SHIFT is held** (gone a quarter second after
+  you let go).
+- A track that **follows the global key** (MODE GLOBAL, the default): SHIFT + ALGORITHM / PRESETS set the
   **project's global key** (every following track plays it); the picture says **GLOBAL** under the name.
 - This is temporary until the track settings page exists.
 

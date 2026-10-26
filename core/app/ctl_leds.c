@@ -346,7 +346,7 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
                                                          * off */
         out->button[QD_B_REC] = u->rec ? (!(u->live_wait || u->cap == 1) || blink(a, QD_BLINK_MS) ? QD_LED_LIT
                                                                                                    : QD_LED_OFF)
-                              : u->mode == QD_MODE_KEYS && !qd_mfx_open(a) ? QD_LED_LIT   /* (2026-10-25: its page) */
+                              : u->mode == QD_MODE_KEYS && !qd_mfx_open(a) && u->latch != QD_LATCH_TRK ? QD_LED_LIT   /* (2026-10-25: its page) */
                               : u->mode == QD_MODE_KEYS || (qd_snd_open(a) && u->ekeys) ? QD_LED_DIM : QD_LED_OFF;
     /* T1 (the owner, 2026-10-24): ARP lit while FILL is held and while the MIDI FX screen is open (T1b: TOOLS lights
      * SEQ); 2026-10-25: else lit while the track's MIDI FX is on (a group, not turned off by a held ARP), no dim */
