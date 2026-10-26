@@ -188,11 +188,13 @@ static void shome_wrap(void)                            /* P2.11: from EDIT past
     for (i = 0; i < 2; i++)
         shome();
 }
-static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once) */
+static void empty_pattern(int k)                        /* SEQ held + white key k + 1 (stopped: at once); the map
+                                                         * latched on release (2026-10-25): a SEQ tap closes it */
 {
     bdown(QD_B_MIX);
     wtap(k);
     bup(QD_B_MIX);
+    btap(QD_B_MIX);
     run(10);
 }
 /* track 1's playhead in steps (P2.4: the core gives num / den; the test reads it as a double) */
@@ -2317,6 +2319,7 @@ static void g_banks(void)
     black(B5);
     CHECK(A.ui.seq_bank == 1, "SEQ + B5: nothing");
     bup(QD_B_MIX);
+    btap(QD_B_MIX);                                     /* (2026-10-25: the latched map closed) */
     run(10);
     wtap(0);
     CHECK(R(0, 0).on && A.seq.cur == 18, "B03 is edited (W1 a trig on it)");
@@ -2771,11 +2774,11 @@ static void g_home(void)
     CHECK(A.ui.view == QD_VIEW_NUMBERS, "GEEK OUT: SELECT turns its pages");
     btap(QD_B_HOME);
     run(10);
-    CHECK(A.ui.view == QD_VIEW_EDIT, "HOME on a Geek Out page: back to the step view");
+    CHECK(A.ui.view == QD_VIEW_NUMBERS, "HOME on a Geek Out page: the page kept (2026-10-25)");
     btap(QD_B_HOME);
     run(10);
-    CHECK(A.ui.view == QD_VIEW_EDIT, "HOME again: still the step view");
-    shome_wrap();
+    CHECK(A.ui.view == QD_VIEW_NUMBERS, "HOME again: still there");
+    shome();
     CHECK(A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME again (P2.11: past the Geek Out pages): the PIANO ROLL");
     turn(QD_K_SELECT, 1);
     CHECK(A.ui.page[0] == 1 && A.ui.tk == UI_TK_PAGE, "the PIANO ROLL, SELECT: page 2 with its picker");
@@ -5266,10 +5269,13 @@ static void g_p16d_mfx(void)
     qd_mfx_slot_init(&G->slot[0], QD_MFX_ARP);
     G->slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
     run(20);
-    CHECK(leds().button[QD_B_KEYS] == QD_LED_DIM, "the arp ON: ARP dim (lit: its page open)");
+    CHECK(leds().button[QD_B_KEYS] == QD_LED_LIT, "a group: ARP lit (2026-10-25: the MIDI FX on, no dim)");
     G->slot[0].v[QD_MA_MODE] = QD_AM_OFF;
     run(20);
-    CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "the arp OFF: ARP dark");
+    PAT()->trk[0].mfx = 1 | QD_TMFX_OFF;
+    run(20);
+    CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "the MIDI FX turned off: ARP dark");
+    PAT()->trk[0].mfx = 1;
     bdown(SHIFT), bdown(QD_B_KEYS), run(10);
     CHECK(A.seq.fill && leds().button[QD_B_KEYS] == QD_LED_LIT && !half_period(QD_B_KEYS),
           "SHIFT + ARP held: FILL, ARP lit (T1: steady)");
@@ -5545,7 +5551,7 @@ static void g_p16f_keys(void)
     CHECK(arp_led_min == QD_LED_LIT && arp_led_max == QD_LED_LIT, "the arp on: lit (%d .. %d)", arp_led_min, arp_led_max);
     btap(QD_B_HOME);
     arp_led_range();
-    CHECK(arp_led_min == QD_LED_DIM && arp_led_max == QD_LED_DIM, "closed: steady dim (2026-10-25: lit is the page open)");
+    CHECK(arp_led_min == QD_LED_LIT && arp_led_max == QD_LED_LIT, "closed: steady lit (2026-10-25: the MIDI FX on)");
     /* STEPS / KEYS */
     btap(QD_B_KEYS);
     qd_ctl_labels(&A, &lb);
@@ -8285,6 +8291,57 @@ static void g_page_leds(void)
     CHECK(ok && page_lit(QD_B_REC), "the page LEDs: HOME, EDIT, HOME, ENV, HOME, SEQ, HOME, ARP, HOME, REC: one lit, the page's");
 }
 
+/* the owner, 2026-10-25: HOME keeps the view (ROLL, STEPS, EDIT, a GEEK OUT page) from EDIT and ENV; SEQ held latches
+ * the patterns map (W3 queues, SEQ tapped or HOME closes; a tap with no map: TOOLS) */
+static void g_home_keeps_seq_latch(void)
+{
+    static const int V[5] = {QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT, QD_VIEW_VOICES, QD_VIEW_SCOPE};
+    int i, ok = 1;
+    start();
+    for (i = 0; i < 5; i++) {
+        A.ui.view = V[i];
+        btap(QD_B_SOUND);
+        btap(QD_B_HOME);
+        ok &= A.ui.view == V[i] && A.ui.mode == QD_MODE_STEP;
+        btap(QD_B_PAGE);
+        btap(QD_B_HOME);
+        ok &= A.ui.view == V[i] && !A.ui.latch;
+    }
+    CHECK(ok, "EDIT -> HOME, ENV -> HOME: the view kept (ROLL, STEPS, EDIT, VOICES, SCOPE)");
+    A.ui.view = QD_VIEW_EDIT;
+    shome();
+    turn(QD_K_SELECT, 1);
+    turn(QD_K_SELECT, 1);
+    shome();
+    shome();
+    shome();
+    shome();
+    CHECK(A.ui.view == QD_VIEW_VOICES, "GEEK OUT comes back on its page (VOICES)");
+    btap(QD_B_PLAY);
+    run(300);
+    bdown(QD_B_MIX);
+    run(QD_TAP_MS + 20);
+    bup(QD_B_MIX);
+    run(10);
+    CHECK(qd_ctl_seq_map(&A) && qd_view_screen(&A) == QD_SCR_SEQ && leds().button[QD_B_MIX] == QD_LED_LIT,
+          "SEQ held, let go: the map latched, SEQ lit");
+    ktap(WK(2), 30);
+    CHECK(qd_seq_queued(&A.seq) == 2 && qd_ctl_seq_map(&A), "W3: A03 queued, the map stays");
+    btap(QD_B_MIX);
+    CHECK(!qd_ctl_seq_map(&A) && !qd_tools_open(&A), "SEQ tapped: closed (no TOOLS)");
+    bdown(QD_B_MIX);
+    ktap(WK(3), 30);
+    bup(QD_B_MIX);
+    run(10);
+    CHECK(qd_ctl_seq_map(&A), "SEQ held with a key: latched too");
+    btap(QD_B_HOME);
+    CHECK(!qd_ctl_seq_map(&A) && leds().button[QD_B_MIX] == QD_LED_OFF, "HOME: closed");
+    btap(QD_B_MIX);
+    CHECK(qd_tools_open(&A) && !qd_ctl_seq_map(&A), "SEQ tapped, no map: TOOLS");
+    btap(QD_B_HOME);
+    btap(QD_B_PLAY);
+}
+
 static void g_p211_geek(void)
 {
     static const int V[5] = {QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE, QD_VIEW_METERS};
@@ -8639,6 +8696,7 @@ int main(void)
         {"P1.5z: SHIFT + B6: the TAP takeover", g_p15z_tap},
         {"P1.5z: SHIFT + B8: page follow; SHIFT's map", g_p15z_follow},
         {"P2.11: the Geek Out pages", g_p211_geek},
+        {"2026-10-25: HOME keeps the view, SEQ held latches", g_home_keeps_seq_latch},
         {"the page LEDs", g_page_leds},
         {"P1.5z: SHIFT + SELECT: the track everywhere", g_p15z_shift_select},
         {"P1.6l: the controls' labels", g_p16l_labels},

@@ -196,8 +196,9 @@ typedef struct {
     uint8_t key_global;                 /* 1: the track follows the project's global key */
     uint8_t rtype;                      /* .. and its type (QD_RTYPE_*), kept apart (P1.3c; was padding) */
     uint8_t mfx;                        /* P1.6c: its MIDI FX group, 0 OFF, 1..5 (appended: a record of an older layout
-                                         * reads 0) */
+                                         * reads 0); | QD_TMFX_OFF: held ARP turned it off, the group kept */
 } qd_tset_t;
+#define QD_TMFX_OFF 0x80u               /* (qd_step_mfx and qd_mfx_tgroup read a group above QD_MFX_NGROUP as none) */
 #define QD_TSET_SIZE_OLD 42             /* (the record's track settings before P1.6c) */
 int qd_tset_rate(const qd_tset_t *ts);  /* the track's rate code */
 void qd_tset_set_rate(qd_tset_t *ts, int rate);   /* base and type from a code */

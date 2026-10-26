@@ -342,7 +342,8 @@ static int touch(qd_app_t *a)
 typedef int (*qd_when_fn)(const qd_app_t *a);
 typedef void (*qd_key_fn)(qd_app_t *a, int key, int idx, int down, int vel);   /* idx: white 0..15 / black 0..10 */
 
-static int w_seq_held(const qd_app_t *a) { return held(a, QD_B_MIX); }        /* printed SEQ: the patterns */
+/* printed SEQ: the patterns, held or latched (after a hold: seq_used bit 1) */
+static int w_seq_held(const qd_app_t *a) { return held(a, QD_B_MIX) || (a->ui.seq_used & 2); }
 static int w_sel_held(const qd_app_t *a) { return held(a, QD_B_PATTERN) && a->ui.latch != QD_LATCH_SET; }   /* printed SEL: the
                                                          * tracks (P1.3y: not SHIFT + SEL's settings) */
 /* P1.4a: the sound editor open: the black keys are its pages (ctl_snd.c); the W keys stay the steps */
@@ -559,7 +560,7 @@ static void sel_seq_timers(qd_app_t *a)
             a->seq.solo ^= (uint8_t)bit;
             u->sel_done |= bit;
         }
-        if ((u->seq_down & bit) && !(u->seq_done & bit) && held(a, QD_B_MIX) &&
+        if ((u->seq_down & bit) && !(u->seq_done & bit) && w_seq_held(a) &&
             a->ms - u->seq_t0[w] >= QD_SEQ_HOLD_MS) {
             qd_seq_select_at(&a->seq, u->seq_pat[w], QD_LAUNCH_NOW);
             u->seq_done |= bit;
@@ -1024,7 +1025,7 @@ void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
         if (held(a, QD_B_PATTERN))
             a->ui.sel_used = 1;                         /* (P1.3y: SEL's map at once) */
         if (held(a, QD_B_MIX))
-            a->ui.seq_used = 1;                         /* (P1.5a: SEQ's map at once, its release no tap) */
+            a->ui.seq_used |= 1;                        /* (P1.5a: SEQ's map at once, its release no tap) */
         if (held(a, QD_B_MUTE)) {
             a->ui.lfo_used = 1;                         /* (P1.5b: LFO with a key is no latch-mode switch; P1.5h: a key
                                                          * closes its screen) */
@@ -1082,7 +1083,8 @@ static void b_shift(qd_app_t *a, int down)
  * switches its view (PIANO ROLL -> STEPS -> EDIT (P1.3r) -> PIANO ROLL); from any other screen it comes back to the
  * sequencer in its last view */
 /* P1.3y: HOME always comes back to the view in use (PIANO ROLL, STEPS or EDIT) and never cycles: from any screen, a
- * latch closed (and the view in the same press), a pop-up gone, a GEEK OUT page left for EDIT; SHIFT + HOME cycles ROLL, STEPS, EDIT, GEEK OUT */
+ * latch closed (and the view in the same press), a pop-up gone; SHIFT + HOME cycles ROLL, STEPS, EDIT, GEEK OUT (the owner,
+ * 2026-10-25: HOME keeps the view, a GEEK OUT page too, and GEEK OUT comes back on the page last shown) */
 static void b_home(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -1097,15 +1099,17 @@ static void b_home(qd_app_t *a, int down)
         return;
     }
     qd_latch_close(a);
+    u->seq_used = 0;                                    /* the latched patterns closed */
     u->slatch = 0;
     qd_step_release_all(a);
     u->tk = QD_TK_NONE;
     u->cf_on = 0;
     if (qd_ctl_shift(a) && !u->home_woke) {
+        if (QD_VIEW_GEEK(u->view))
+            u->geek = (uint8_t)(u->view - QD_VIEW_METERS);   /* (the page kept, a restored one too) */
         u->view = QD_VIEW_GEEK(u->view) ? QD_VIEW_ROLL : u->view == QD_VIEW_EDIT ? QD_VIEW_METERS + u->geek : u->view + 1;
         u->shift_used = 1;
-    } else if (QD_VIEW_GEEK(u->view))
-        u->view = QD_VIEW_EDIT;                         /* (a plain HOME leaves the Geek Out pages) */
+    }
     u->home_woke = 0;
     set_mode(a, QD_MODE_STEP);
 }
@@ -1145,8 +1149,8 @@ static void b_lfo(qd_app_t *a, int down)
 
 /* P1.6d (the owner's batch): ARP tapped (released under QD_ARP_HOLD_MS, nothing with it) opens the MIDI FX screen
  * (tapped again, or HOME, closes it); SHIFT + ARP held is FILL (the FILL / NOT FILL conditions), at once, while both
- * are down; T1b: ARP held QD_ARP_HOLD_MS bypasses / plays the track's arp at once (qd_ctl_ms; B10's on its slot, a
- * group with no arp: nothing); TOOLS is SEQ tapped */
+ * are down; ARP held QD_ARP_HOLD_MS alone turns the track's MIDI FX off / back on at once (qd_ctl_ms; the owner,
+ * 2026-10-25: as the group OFF, the group kept, a popup); TOOLS is SEQ tapped */
 static void b_fill(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
@@ -1428,22 +1432,31 @@ static void b_save(qd_app_t *a, int down)
     qd_lib_save(a);
 }
 
-/* P1.5a: SEQ (printed): held, the patterns (their map after QD_TAP_MS, or at once with a key or a knob); T1b (the
- * owner): tapped, TOOLS (latched; tapped again or HOME: closed) */
+/* P1.5a: SEQ (printed): held, the patterns (their map after QD_TAP_MS, or at once with a key or a knob); the owner,
+ * 2026-10-25: a hold latches the map on release (the same keys; SEQ tapped or HOME: closed); T1b: tapped with no map
+ * latched, TOOLS (latched; tapped again or HOME: closed). seq_used: bit 0 used while held, bit 1 latched. */
 static void b_seq(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
     if (down) {
         u->seq_ms = a->ms;
-        u->seq_used = 0;
+        u->seq_used &= 2;
         return;
     }
-    if (!u->seq_used && a->ms - u->seq_ms < QD_TAP_MS && u->mode != QD_MODE_IDLE && !qd_ctl_shift(a))
-        qd_tools_open(a) ? qd_latch_close(a) : qd_tools_screen(a);
+    if (u->mode == QD_MODE_IDLE || qd_ctl_shift(a))
+        return;
+    if (!(u->seq_used & 1) && a->ms - u->seq_ms < QD_TAP_MS) {   /* a tap: the latched map closed, else TOOLS */
+        if (u->seq_used & 2)
+            u->seq_used = 0;
+        else
+            qd_tools_open(a) ? qd_latch_close(a) : qd_tools_screen(a);
+        return;
+    }
+    u->seq_used = 2;                                    /* a hold (a key or a knob in it too): the map latched */
 }
 int qd_ctl_seq_map(const qd_app_t *a)
 {
-    return held(a, QD_B_MIX) && (a->ui.seq_used || a->ms - a->ui.seq_ms >= QD_TAP_MS);
+    return (a->ui.seq_used & 2) || (held(a, QD_B_MIX) && (a->ui.seq_used || a->ms - a->ui.seq_ms >= QD_TAP_MS));
 }
 
 /* P1.4a: EDIT (printed): the sound editor for the selected track, latched (EDIT again or HOME: closed; P1.6h: F1 no
@@ -1475,8 +1488,9 @@ static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_HOME] = b_home,              /* the step view */
     [QD_B_SAVE] = b_save,              /* P1.5a: the sounds page: the track's sound into the LIBRARY; SHIFT: the
                                         * project (T1b) */
-    [QD_B_KEYS] = b_fill,              /* ARP: tapped MIDI FX, held the arp on / off, SHIFT + ARP FILL */
-    [QD_B_MIX] = b_seq,                /* printed SEQ, held: the patterns (W: the keys' table); tapped: TOOLS (T1b) */
+    [QD_B_KEYS] = b_fill,              /* ARP: tapped MIDI FX, held the MIDI FX on / off, SHIFT + ARP FILL */
+    [QD_B_MIX] = b_seq,                /* printed SEQ, held: the patterns, latched on release (W: the keys' table);
+                                        * tapped: TOOLS (T1b) */
     [QD_B_PLAY] = b_play,              /* play / stop; REC + PLAY: play, recording armed */
     [QD_B_REC] = b_rec,                /* tap: the keyboard <-> the sequencer; SHIFT: armed */
     [QD_B_OCTDN] = b_octdn,            /* F1 */
@@ -1651,11 +1665,12 @@ static int k_f3(qd_app_t *a, int knob, int d)
 }
 
 static int when_f3(const qd_app_t *a) { return qd_ctl_layer(a) == QD_LAYER_F3; }
-static int when_seq(const qd_app_t *a) { return a->ui.mode != QD_MODE_IDLE && held(a, QD_B_MIX); }
+static int when_seq(const qd_app_t *a) { return a->ui.mode != QD_MODE_IDLE && w_seq_held(a); }
 /* SEQ held + ALGORITHM: the launch mode (END BAR BEAT NOW), a project setting */
 static int k_seq(qd_app_t *a, int knob, int d)
 {
-    a->ui.seq_used = 1;
+    if (held(a, QD_B_MIX))
+        a->ui.seq_used |= 1;
     if (knob != QD_K_ALGO)
         return 0;
     a->proj.launch = (uint8_t)clampi(a->proj.launch + d, 0, QD_NLAUNCH - 1);
@@ -1715,7 +1730,7 @@ static int k_geek(qd_app_t *a, int knob, int d)   /* SELECT turns the Geek Out p
 {
     qd_ui_t *u = &a->ui;
     if (knob == QD_K_SELECT && d) {
-        u->geek = (uint8_t)((u->geek + (d > 0 ? 1 : 3)) % 4);
+        u->geek = (uint8_t)((u->view - QD_VIEW_METERS + (d > 0 ? 1 : 3)) % 4);
         u->view = QD_VIEW_METERS + u->geek;
     }
     return 1;
@@ -2000,12 +2015,14 @@ void qd_ctl_ms(qd_app_t *a)
     qd_lib_ms(a);                                       /* P1.5a: the sounds page's sound heard */
     qd_snd_rnd_ms(a);                                   /* P1.5c: the editor's dice, its bottle */
     qd_snd_fkey_ms(a);                                  /* P1.6d: the FILTER key held: the machines' popup */
-    if (held(a, QD_B_KEYS) && !u->arp_used && a->ms - u->arp_ms >= QD_ARP_HOLD_MS && u->mode != QD_MODE_IDLE) {
-        const int g = qd_mfx_tgroup(a);                 /* T1b: ARP held: the track's arp bypassed / playing (B10's) */
-        const int k = g ? qd_mfx_arp_slot(&a->proj.mfx[g - 1]) : -1;
+    if (a->buttons_held == 1u << QD_B_KEYS && !u->arp_used && a->ms - u->arp_ms >= QD_ARP_HOLD_MS &&
+        u->mode != QD_MODE_IDLE) {
+        qd_tset_t *ts = &qd_ctl_pat(a)->trk[a->sel];   /* the owner, 2026-10-25: ARP held: the track's MIDI FX off
+                                                         * (as the group OFF, the group kept), again: back on */
         u->arp_used = 1;
-        if (k >= 0)
-            a->proj.mfx[g - 1].slot[k].bypass ^= 1u;
+        if (ts->mfx & 0x7fu)
+            ts->mfx ^= QD_TMFX_OFF;
+        qd_ctl_confirm(a, qd_mfx_tgroup(a) ? "MIDI FX ON" : "MIDI FX OFF", 0);
     }
     qd_tools_ms(a);                                     /* T1: TOOLS' detents written (combined) */
     if (u->arp_fill && !(held(a, QD_B_KEYS) && qd_ctl_shift(a))) {   /* (FILL while SHIFT and ARP are both down) */

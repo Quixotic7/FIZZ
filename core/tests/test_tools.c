@@ -451,6 +451,7 @@ static void start(void)
     bdown(QD_B_MIX);                                    /* the empty A05 */
     white(4);
     bup(QD_B_MIX);
+    btap(QD_B_MIX);                                     /* (the latched map closed) */
     run(10);
 }
 static void tools_open(void)
@@ -499,17 +500,20 @@ static void t_arp(void)
     CHECK(qd_ctl_seq_map(&A), "SEQ held over TOOLS: the patterns map");
     bup(QD_B_MIX);
     run(10);
-    CHECK(qd_tools_open(&A) && !qd_ctl_seq_map(&A), "let go: TOOLS still, nothing latched");
+    CHECK(qd_tools_open(&A) && qd_ctl_seq_map(&A), "let go: the map latched over TOOLS (2026-10-25)");
+    btap(QD_B_MIX);
+    CHECK(qd_tools_open(&A) && !qd_ctl_seq_map(&A), "SEQ tapped: the map closed, TOOLS still");
     btap(QD_B_MIX);
     CHECK(!qd_tools_open(&A) && leds().button[QD_B_MIX] == QD_LED_OFF, "SEQ tapped again: closed, SEQ dark");
     btap(QD_B_MIX);
     btap(QD_B_HOME);
-    CHECK(!qd_tools_open(&A) && leds().button[QD_B_KEYS] == QD_LED_OFF, "HOME: closed, ARP dark (no arp on)");
+    CHECK(!qd_tools_open(&A) && leds().button[QD_B_KEYS] == QD_LED_OFF, "HOME: closed, ARP dark (no group)");
     bdown(QD_B_MIX);
     run(QD_TAP_MS + 20);
     bup(QD_B_MIX);
     run(10);
-    CHECK(!qd_tools_open(&A) && !qd_lib_open(&A), "SEQ held, let go: nothing latched");
+    CHECK(!qd_tools_open(&A) && !qd_lib_open(&A) && qd_ctl_seq_map(&A), "SEQ held, let go: the map latched, no TOOLS");
+    btap(QD_B_HOME);
     btap(QD_B_KEYS);
     CHECK(qd_mfx_open(&A) && leds().button[QD_B_KEYS] == QD_LED_LIT, "ARP tapped: the MIDI FX screen, ARP lit");
     btap(QD_B_HOME);
@@ -526,15 +530,12 @@ static void t_arp(void)
     qd_mfx_slot_init(&A.proj.mfx[0].slot[0], QD_MFX_ARP);
     A.proj.mfx[0].slot[0].v[QD_MA_MODE] = QD_AM_ON;
     run(10);
-    CHECK(leds().button[QD_B_KEYS] == QD_LED_DIM, "the track's arp on: ARP dim");
-    A.proj.mfx[0].slot[0].v[QD_MA_MODE] = QD_AM_OFF;
-    run(10);
-    CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "off: dark");
-    A.proj.mfx[0].slot[0].v[QD_MA_MODE] = QD_AM_ON;
+    CHECK(leds().button[QD_B_KEYS] == QD_LED_LIT, "the track's MIDI FX on: ARP lit (no dim)");
     bdown(QD_B_KEYS);
     run(QD_ARP_HOLD_MS + 10);
-    CHECK(A.proj.mfx[0].slot[0].bypass && leds().button[QD_B_KEYS] == QD_LED_OFF && !qd_mfx_open(&A),
-          "T1b: ARP held: the arp bypassed at once, ARP dark");
+    CHECK(qd_mfx_tgroup(&A) == 0 && PAT()->trk[0].mfx == (1 | QD_TMFX_OFF) && qd_step_mfx(PAT(), 0, 0) == 0 &&
+              leds().button[QD_B_KEYS] == QD_LED_OFF && !qd_mfx_open(&A) && !strcmp(A.ui.cf_big, "MIDI FX OFF"),
+          "2026-10-25: ARP held: the track's MIDI FX off at once (the group kept), ARP dark, MIDI FX OFF");
     bup(QD_B_KEYS);
     run(10);
     CHECK(!qd_mfx_open(&A) && !qd_tools_open(&A), "let go: nothing opened");
@@ -542,7 +543,8 @@ static void t_arp(void)
     run(QD_ARP_HOLD_MS + 10);
     bup(QD_B_KEYS);
     run(10);
-    CHECK(!A.proj.mfx[0].slot[0].bypass && leds().button[QD_B_KEYS] == QD_LED_DIM, "held again: playing, ARP dim");
+    CHECK(qd_mfx_tgroup(&A) == 1 && qd_step_mfx(PAT(), 0, 0) == 1 && leds().button[QD_B_KEYS] == QD_LED_LIT &&
+              !strcmp(A.ui.cf_big, "MIDI FX ON"), "held again: the group back, ARP lit, MIDI FX ON");
 }
 
 static void t_rotate_live(void)

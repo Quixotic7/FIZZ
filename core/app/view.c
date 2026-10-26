@@ -1305,7 +1305,7 @@ static void fill_band(const qd_app_t *a, ui_band_t *v, int is_default)
         cat(ui_itoa(v->val, r.chance), "%");
         break;
     case QD_KJ_MFX: {                                   /* P1.6c: the track's MIDI FX group (the default) */
-        const int g = qd_ctl_cpat(a)->trk[t].mfx;
+        const int g = qd_ctl_cpat(a)->trk[t].mfx <= QD_MFX_NGROUP ? qd_ctl_cpat(a)->trk[t].mfx : 0;
         v->name = "MIDI FX";
         if (g)
             ui_itoa(v->val, g);
