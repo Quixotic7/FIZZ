@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ FX Routing</title>
+<!-- FIZZ: the FX layer's ROUTING page redone as ChoralRoot 0.27's (issue 21): CHAIN or PARALLEL, four blocks
+     (CHORUS, DELAY, REVERB, FILTER) in an order, a block's own page key held lifts it and KNOB 1 moves it.
+     ?shot=N  one canvas at 1x   ?sheet=1  every screen at 2x   no query: the page -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(3, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: FX ROUTING (mock-up, 2026-10-26)</h1>
+<p>After ChoralRoot 0.27's Routing page. <strong>KNOB 1</strong> the mode, PARALLEL (today's buses) or CHAIN (one path, the OEM way).
+<strong>Hold a block's own page key</strong> (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER) and it lifts; <strong>KNOB 1</strong> then moves it a place a detent;
+let go and it lands. In PARALLEL the filter alone moves, before or after the buses. In CHAIN <strong>KNOB 2 .. 4</strong> are each effect's amount
+(the tracks' sends rest); in PARALLEL they are dim (the sends rule). No hint text: the four keys' LEDs glow, the held one lit.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const C = { bg:'#000', k1:'#3f7dff', k2:'#1fd47e', k3:'#f1f0ea', k4:'#ff6a2c', g1:'#8d8d96', g2:'#4b4b54', g3:'#26262d', red:'#ff3448' };
+const F = 'IT';
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 300} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px';
+  c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'left'; c.textBaseline = 'alphabetic';
+  if (o.a != null) c.globalAlpha = o.a; c.fillText(s, x, y); c.restore();
+}
+function L(c, pts, col, lw = 1.5, o = {}) {
+  c.save(); c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.dash) c.setLineDash(o.dash); if (o.a != null) c.globalAlpha = o.a;
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  if (o.fill) { c.closePath(); c.fillStyle = o.fill; c.fill(); } c.stroke(); c.restore();
+}
+function RR(c, x, y, w, h, r, stroke, lw, fill, a) {
+  c.save(); if (a != null) c.globalAlpha = a; c.beginPath(); c.roundRect(x, y, w, h, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function O(c, x, y, r, stroke, lw, fill) {
+  c.save(); c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore();
+}
+function arrow(c, x, y, dir, col) { L(c, [x - 4 * dir, y - 4, x, y, x - 4 * dir, y + 4], col, 1.6); }
+
+// the four blocks: colour, icon
+const BLK = [
+  { n: 'CHORUS', col: C.k1, icon: (c, x, y, col) => { for (let i = 0; i < 2; i++) { const p = []; for (let k = 0; k <= 12; k++) p.push(x - 12 + k * 2, y - 3 + i * 6 + Math.sin(k * 0.9 + i) * 2.2); L(c, p, col, 1.2); } } },
+  { n: 'DELAY',  col: C.k2, icon: (c, x, y, col) => { for (let i = 0; i < 4; i++) O(c, x - 9 + i * 6, y, 2.4 - i * 0.4, null, 0, col); } },
+  { n: 'REVERB', col: C.k3, icon: (c, x, y, col) => { for (let i = 0; i < 3; i++) { c.save(); c.strokeStyle = col; c.lineWidth = 1.2; c.beginPath(); c.arc(x - 8, y + 4, 4 + i * 5, -1.2, 0.35); c.stroke(); c.restore(); } } },
+  { n: 'FILTER', col: C.k4, icon: (c, x, y, col) => { L(c, [x - 12, y - 2, x - 2, y - 2, x + 3, y + 1, x + 7, y + 8], col, 1.4); } },
+];
+function box(c, b, x, y, w, h, num, lift, dim, named = true) {
+  const k = BLK[b], col = dim ? C.g2 : k.col;
+  if (lift) RR(c, x + 3, y + h + 5, w - 6, 3, 1.5, null, 0, C.g3);
+  RR(c, x, y, w, h, 6, col, lift ? 2 : 1.4, C.bg);
+  k.icon(c, x + w / 2 + 2, y + h / 2 - 2, col);
+  if (named) T(c, k.n, x + w / 2, y + h + 14, { s: 12, w: 600, col: dim ? C.g2 : C.g1, al: 'center', ls: 0.6 });
+  if (num) { O(c, x, y, 8, null, 0, col); T(c, String(num), x, y + 4.5, { s: 12, w: 700, col: C.bg, al: 'center' }); }
+}
+function head(c, mode, on) {
+  T(c, 'ROUTING', 8, 18, { s: 12, w: 600, col: C.k3, ls: 0.8 });
+  T(c, mode, 232, 19, { s: 13, w: 600, col: C.k1, al: 'right', ls: 0.6 });
+  L(c, [8, 27, 232, 27], C.g3, 1);
+}
+function amounts(c, v, dim) {
+  const names = ['MODE', 'CHORUS', 'DELAY', 'REVERB'], cols = [C.k1, C.k2, C.k3, C.k4];
+  // KNOB 1 .. 4 as the FX pages draw them: the name small, the value big, in the knob's colour
+  for (let k = 0; k < 4; k++) {
+    const x = 8 + k * 56 + 28, col = cols[k], d = dim && k > 0;
+    T(c, names[k], x, 198, { s: 11, w: 600, col: d ? C.g3 : C.g1, al: 'center', ls: 0.6 });
+    T(c, v[k], x, 224, { s: k ? 20 : 15, w: k ? 400 : 600, col: d ? C.g3 : col, al: 'center' });
+  }
+}
+// CHAIN: in, the four across, out; held: that block lifted with arrows, the others slid
+function chain(c, order, held, amt, lifting = 1) {
+  const y = 96, w = 42, h = 32, x0 = 22, gap = 10;
+  L(c, [4, y + h / 2, 236, y + h / 2], C.g2, 1.4);
+  T(c, 'IN', 4, y + h / 2 + 16, { s: 11, w: 600, col: C.g1 });
+  T(c, 'OUT', 236, y + h / 2 + 16, { s: 11, w: 600, col: C.g1, al: 'right' });
+  for (let p = 0; p < 4; p++) {
+    const x = x0 + p * (w + gap), b = order[p];
+    if (b === held) continue;
+    if (p > 0) arrow(c, x - 1, y + h / 2, 1, C.g2);
+    box(c, b, x, y, w, h, p + 1, false);
+  }
+  arrow(c, 235, y + h / 2, 1, C.g2);
+  if (held >= 0) {
+    const p = order.indexOf(held), x = x0 + p * (w + gap), ly = y - 22 * lifting;
+    box(c, held, x, ly, w, h, p + 1, true);
+    if (p > 0) arrow(c, x - 7, ly + h / 2, -1, C.k3);
+    if (p < 3) arrow(c, x + w + 7, ly + h / 2, 1, C.k3);
+  }
+  amounts(c, amt, false);
+}
+// PARALLEL: the fan, the three buses stacked, the sum, the filter after (or first)
+function parallel(c, filterFirst, held, amt) {
+  const ly = 106, pp = 30, bw = 42, bh = 24, sh = filterFirst ? 46 : 0;
+  const fan = 14 + sh, px = 60 + sh, rx = px + bw + 20, sx = rx + 12;
+  L(c, [4, ly, 236, ly], C.g2, 1.4);
+  T(c, 'IN', 3, ly - 6, { s: 11, w: 600, col: C.g1 });
+  T(c, 'OUT', 237, ly - 6, { s: 11, w: 600, col: C.g1, al: 'right' });
+  L(c, [fan, ly - pp, fan, ly + pp], C.g2, 1.4);
+  L(c, [rx, ly - pp, rx, ly + pp], C.g2, 1.4);
+  for (let k = 0; k < 3; k++) {
+    const my = ly + (k - 1) * pp;
+    L(c, [fan, my, px, my], C.g2, 1.4); arrow(c, px - 1, my, 1, C.g2);
+    L(c, [px + bw, my, rx, my], C.g2, 1.4);
+    box(c, k, px, my - bh / 2, bw, bh, 0, false, false, false);
+  }
+  O(c, sx, ly, 8, C.g2, 1.4, C.bg); L(c, [sx - 4, ly, sx + 4, ly], C.g1, 1.4); L(c, [sx, ly - 4, sx, ly + 4], C.g1, 1.4);
+  arrow(c, 235, ly, 1, C.g2);
+  const fx = filterFirst ? 10 : sx + 24, lift = held === 3 ? 22 : 0;
+  box(c, 3, fx, ly - bh / 2 - lift, bw, bh, 0, held === 3);
+  if (held === 3) arrow(c, filterFirst ? fx + bw + 8 : fx - 8, ly - lift, filterFirst ? 1 : -1, C.k3);
+  amounts(c, amt, true);
+}
+const SCREENS = [
+  { title: 'CHAIN', draw: c => { head(c, 'CHAIN'); chain(c, [0, 1, 2, 3], -1, ['CHAIN', '40%', '25%', '30%']); },
+    text: 'KNOB 1 turned to CHAIN: in → 1 CHORUS → 2 DELAY → 3 REVERB → 4 FILTER → out, one path. KNOB 2 .. 4 each effect\'s amount (the tracks\' sends rest). The four keys B4 B2 B3 B5 glow.' },
+  { title: 'CHAIN, DELAY held', draw: c => { head(c, 'CHAIN'); chain(c, [0, 1, 2, 3], 1, ['CHAIN', '40%', '25%', '30%']); },
+    text: 'B2 (DELAY\'s own key) held: its block lifts with a shadow, white arrows where it can still go; KNOB 1 moves it a place a detent, the others slide over. Let go: it lands. B2 tapped instead still opens the DELAY page.' },
+  { title: 'CHAIN, moved', draw: c => { head(c, 'CHAIN'); chain(c, [1, 0, 3, 2], -1, ['CHAIN', '40%', '25%', '30%']); },
+    text: 'After: DELAY first, the FILTER before the REVERB. The numbers follow the places.' },
+  { title: 'PARALLEL', draw: c => { head(c, 'PARALLEL'); parallel(c, false, -1, ['PARALLEL', '', '', '']); },
+    text: 'KNOB 1 at PARALLEL (where every unit starts, today\'s sound): the tracks\' sends fan into CHORUS, DELAY and REVERB side by side, the returns sum, the FILTER after. KNOB 2 .. 4 dim: the sends page rules here.' },
+  { title: 'PARALLEL, FILTER held', draw: c => { head(c, 'PARALLEL'); parallel(c, false, 3, ['PARALLEL', '', '', '']); },
+    text: 'B5 (FILTER) held: it lifts, one arrow: KNOB 1 anticlockwise puts it before the buses. An effect held in PARALLEL lifts but does not move (the order is not heard).' },
+  { title: 'PARALLEL, FILTER first', draw: c => { head(c, 'PARALLEL'); parallel(c, true, -1, ['PARALLEL', '', '', '']); },
+    text: 'The FILTER before the fan: the dry and the sends are filtered before the effects (a high cut keeps the fizz out of the reverb).' },
+];
+const q = new URLSearchParams(location.search);
+const fontReady = (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })();
+function draw(i, cv, scale) {
+  const c = cv.getContext('2d'); c.setTransform(scale, 0, 0, scale, 0, 0);
+  c.fillStyle = C.bg; c.fillRect(0, 0, 240, 240); SCREENS[i].draw(c);
+}
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  fontReady.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  fontReady.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  fontReady.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong> ${s.text}`; d.appendChild(p);
+    document.getElementById('cells').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>
