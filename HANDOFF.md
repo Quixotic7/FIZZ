@@ -10,6 +10,14 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
+- **2026-10-26, after beta.6, unreleased on master and on the unit: the FX ROUTING redone as ChoralRoot 0.27's**
+  (built by the main session by hand, mockups/fizz-routing.html approved): `QD_FXP_RMODE` (PARALLEL / CHAIN),
+  `QD_FXP_ORDER` (0..23 into `QD_RT_ORD`), `QD_FXP_CAMT_C/D/R` (the chain amounts) replace the four cross-feeds
+  (XDR..XPOS; an old SET record with fewer values gets the routing's defaults). PARALLEL is bit for bit the old block
+  (test_fx_bitexact); CHAIN runs the four in order on core 0 within the block (the delay's wet through its own
+  up-sampler `qd_ud`). The page: `ui_tracks.c fx_route`; a block's page key held (`ui.fx_bheld`) lifts it, KNOB 1
+  `qd_fx_route_move`; the keys' LEDs glow. Flash after it: fizz.bin 575,344 B (~6.2 KB free).
+
 - **Released: FIZZ 0.12.0-beta.6** (2026-10-26, tag `v0.12.0-beta.6` on master 8ae2dad, pushed; the unit runs that exact
   package, 0 xruns). It holds everything below plus the owner's 2026-10-25 night round (track settings MODE GLOBAL/LOCAL on
   KNOB 1, REC toggles the keyboard on that page, the SHIFT popup gone in 250 ms, MIDI FX bypass keeps the group and flushes
