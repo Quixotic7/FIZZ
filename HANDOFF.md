@@ -1,4 +1,4 @@
-# FIZZ handoff (2026-10-25, after 0.12.0-beta.4 and the owner's feedback round)
+# FIZZ handoff (2026-10-26, after 0.12.0-beta.6)
 
 This is for a new Claude session picking up FIZZ. Read this first, then:
 - `CHANGELOG.md`;
@@ -10,7 +10,11 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
-- **2026-10-25 evening, unreleased on master (775a02f) and on the FIZZ unit:** CHANGELOG `## Unreleased` lists it all:
+- **Released: FIZZ 0.12.0-beta.6** (2026-10-26, tag `v0.12.0-beta.6` on master 8ae2dad, pushed; the unit runs that exact
+  package, 0 xruns). It holds everything below plus the owner's 2026-10-25 night round (track settings MODE GLOBAL/LOCAL on
+  KNOB 1, REC toggles the keyboard on that page, the SHIFT popup gone in 250 ms, MIDI FX bypass keeps the group and flushes
+  it, SHIFT + ARP, FILL on SHIFT + FX, page keys close the latched patterns map, scale LEDs 75/40 %). CHANGELOG has the notes.
+- **2026-10-25 evening** (now in beta.6): CHANGELOG `## 0.12.0-beta.6` lists it all:
   the beta.5 test fixes (A01, GEEK OUT one view, SAVED at once, the MIDI FX OFF hint, the page LEDs) and the owner's
   next round (global scale via SHIFT + ALGORITHM / PRESETS on a following track, the popup held while SHIFT is down;
   the white keys on the track settings page; KNOB 2 rolls names; SEQ held latches the patterns map; ARP held toggles
