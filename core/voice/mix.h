@@ -27,6 +27,9 @@ typedef struct {                        /* a track's mix (the model's; a voice c
                                          * the effects alone (PARALLEL: the returns; CHAIN: the chain's output), 64
                                          * (QD_MIX_DRY_DEFAULT) both full in PARALLEL (as every unit sounded) and half
                                          * and half in CHAIN (unity with the sends at 0) */
+    int32_t g_lvl, g_send[3];           /* .. as gains (Q12) on the level and the chorus, delay, reverb sends, made at
+                                         * the control rate (app.c mix_gains: the audio path's RAM code has no room):
+                                         * PARALLEL the dry / wet law, CHAIN the serial shares; 4096: as before */
 } qd_mix_track_t;
 #define QD_MIX_DRY_DEFAULT 64
 

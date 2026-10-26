@@ -204,10 +204,11 @@ void qd_fx_block(const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_
                 }
                 continue;
             }
-            for (i = 0; i < CTL; i++) {                 /* its bus and its share of the wet so far; the rest stays */
-                in[i] = bus[i] + (int32_t)(((int64_t)(wl[i] + wr[i]) / 2 * g) >> 12);
-                wl[i] = (int32_t)(((int64_t)wl[i] * (4096 - g)) >> 12);
-                wr[i] = (int32_t)(((int64_t)wr[i] * (4096 - g)) >> 12);
+            for (i = 0; i < CTL; i++) {                 /* its bus and its share of the wet so far; the rest stays
+                                                         * (the gains Q12 on samples >> 12 first: 32-bit) */
+                in[i] = bus[i] + ((wl[i] + wr[i]) / 2 >> 12) * g;
+                wl[i] = (wl[i] >> 12) * (4096 - g);
+                wr[i] = (wr[i] >> 12) * (4096 - g);
             }
             if (b == QD_RT_CHORUS)
                 xc_block(in, wl, wr, CTL);

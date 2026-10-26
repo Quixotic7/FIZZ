@@ -10,6 +10,14 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
+- **2026-10-26 evening, the owner's first rounds on the clean-up build (on master and the unit, unreleased):** CHANGELOG
+  `## Unreleased` lists them. Of note for the code: **DRY / WET is per track** (`qd_mix_track_t.dry`, the header
+  record's tail: persist.c), applied as Q12 gains `g_lvl` / `g_send[3]` computed at the control rate (app.c
+  chain_shares, called from qd_app_tick_locked) because **the RAM code region is full** (148 B free after this: mix.c's
+  whole .text lives there, fizz.ld `.ram_text`; a 64-bit division or a few more lines there fail the link with
+  "RAMTEXT overflowed"); CHAIN (qd_fx.c qd_fx_block) runs the effects in series on a wet accumulator with each effect's
+  share of the earlier wet `qd_cg[]` (the tracks' sends level-weighted). `QD_FXP_RDRY` / `RSPARE1/2` are the old
+  chain amounts' slots, stored but unused. The MASTER page draws two head silhouettes (ui_tracks.c head_path).
 - **2026-10-26, the sequencer clean-up, on master (unreleased):** docs/SEQ-CLEANUP-PLAN.md, the owner's approved
   mock-ups mockups/fizz-seq-cleanup.html (mockups/png/fizz-seq-cleanup-sheet.png), built by the main session by hand
   in three commits (stage A knobs / latch / OCT, stage B SLIDE / SOUND / TRIG, stage C SENDS); CHANGELOG `## Unreleased`
