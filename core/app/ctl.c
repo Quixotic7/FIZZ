@@ -1051,10 +1051,19 @@ void qd_ctl_key(qd_app_t *a, int key, int down, int vel)
 /* P1.4b: FX (printed; TRACKS): a tap opens the effects (again: the next page); held + W1..W8 or ALGORITHM: the track.
  * (The tracks screen of the clocks is retired: its LENGTH and RATE are F3's, LIMIT and SWING the track settings',
  * its mutes SEL's) */
+/* 2026-10-25: SHIFT + FX held is FILL (the FILL / NOT FILL conditions), at once, while both are down */
 static void b_tracks(qd_app_t *a, int down)
 {
     if (down) {
-        a->ui.tracks_tap = 1;
+        a->ui.tracks_tap = !qd_ctl_shift(a);
+        if (!a->ui.tracks_tap) {
+            a->ui.shift_used = 1;
+            a->ui.arp_fill = 1;
+            qd_seq_fill(&a->seq, 1);
+        }
+    } else if (a->ui.arp_fill) {
+        a->ui.arp_fill = 0;
+        qd_seq_fill(&a->seq, 0);
     } else if (a->ui.tracks_tap) {
         a->ui.tracks_tap = 0;
         if (a->ui.mode == QD_MODE_IDLE)
@@ -1150,27 +1159,31 @@ static void b_lfo(qd_app_t *a, int down)
                                                          * W keys select) */
 }
 
+/* the owner, 2026-10-25: the track's MIDI FX routing bypassed / back (QD_TMFX_OFF: the group kept and still edited;
+ * only the player skips it), a popup */
+static void mfx_toggle(qd_app_t *a)
+{
+    qd_tset_t *ts = &qd_ctl_pat(a)->trk[a->sel];
+    a->ui.arp_used = 1;
+    if (ts->mfx & 0x7fu)
+        ts->mfx ^= QD_TMFX_OFF;
+    qd_ctl_confirm(a, qd_mfx_tgroup(a) && !(ts->mfx & QD_TMFX_OFF) ? "MIDI FX ON" : "MIDI FX OFF", 0);
+}
+
 /* P1.6d (the owner's batch): ARP tapped (released under QD_ARP_HOLD_MS, nothing with it) opens the MIDI FX screen
- * (tapped again, or HOME, closes it); SHIFT + ARP held is FILL (the FILL / NOT FILL conditions), at once, while both
- * are down; ARP held QD_ARP_HOLD_MS alone turns the track's MIDI FX off / back on at once (qd_ctl_ms; the owner,
- * 2026-10-25: as the group OFF, the group kept, a popup); TOOLS is SEQ tapped */
+ * (tapped again, or HOME, closes it); ARP held QD_ARP_HOLD_MS alone (qd_ctl_ms), or SHIFT + ARP at once, bypasses the
+ * track's MIDI FX / brings it back (2026-10-25; FILL is SHIFT + FX now); TOOLS is SEQ tapped */
 static void b_fill(qd_app_t *a, int down)
 {
     qd_ui_t *u = &a->ui;
     if (down) {
         u->arp_ms = a->ms;
         u->arp_used = 0;
-        if (qd_ctl_shift(a)) {                          /* SHIFT + ARP: FILL */
-            u->arp_used = 1;
+        if (qd_ctl_shift(a)) {                          /* SHIFT + ARP: the bypass, at once */
             u->shift_used = 1;
-            u->arp_fill = 1;
-            qd_seq_fill(&a->seq, 1);
+            mfx_toggle(a);
         }
         return;
-    }
-    if (u->arp_fill) {
-        u->arp_fill = 0;
-        qd_seq_fill(&a->seq, 0);
     }
     if (!u->arp_used && a->ms - u->arp_ms < QD_ARP_HOLD_MS && u->mode != QD_MODE_IDLE) {
         if (qd_mfx_open(a))
@@ -1492,7 +1505,7 @@ static void (*const BUTTONS[QD_NBTN])(qd_app_t *a, int down) = {
     [QD_B_HOME] = b_home,              /* the step view */
     [QD_B_SAVE] = b_save,              /* P1.5a: the sounds page: the track's sound into the LIBRARY; SHIFT: the
                                         * project (T1b) */
-    [QD_B_KEYS] = b_fill,              /* ARP: tapped MIDI FX, held the MIDI FX on / off, SHIFT + ARP FILL */
+    [QD_B_KEYS] = b_fill,              /* ARP: tapped MIDI FX, held or SHIFT + ARP the MIDI FX on / off */
     [QD_B_MIX] = b_seq,                /* printed SEQ, held: the patterns, latched on release (W: the keys' table);
                                         * tapped: TOOLS (T1b) */
     [QD_B_PLAY] = b_play,              /* play / stop; REC + PLAY: play, recording armed */
@@ -2018,15 +2031,10 @@ void qd_ctl_ms(qd_app_t *a)
     qd_snd_fkey_ms(a);                                  /* P1.6d: the FILTER key held: the machines' popup */
     if (a->buttons_held == 1u << QD_B_KEYS && !u->arp_used && a->ms - u->arp_ms >= QD_ARP_HOLD_MS &&
         u->mode != QD_MODE_IDLE) {
-        qd_tset_t *ts = &qd_ctl_pat(a)->trk[a->sel];   /* the owner, 2026-10-25: ARP held: the track's MIDI FX off
-                                                         * (as the group OFF, the group kept), again: back on */
-        u->arp_used = 1;
-        if (ts->mfx & 0x7fu)
-            ts->mfx ^= QD_TMFX_OFF;
-        qd_ctl_confirm(a, qd_mfx_tgroup(a) ? "MIDI FX ON" : "MIDI FX OFF", 0);
+        mfx_toggle(a);                                  /* the owner, 2026-10-25: ARP held: the bypass */
     }
     qd_tools_ms(a);                                     /* T1: TOOLS' detents written (combined) */
-    if (u->arp_fill && !(held(a, QD_B_KEYS) && qd_ctl_shift(a))) {   /* (FILL while SHIFT and ARP are both down) */
+    if (u->arp_fill && !(held(a, QD_B_TRACKS) && qd_ctl_shift(a))) {   /* (FILL while SHIFT and FX are both down) */
         u->arp_fill = 0;
         qd_seq_fill(&a->seq, 0);
     }

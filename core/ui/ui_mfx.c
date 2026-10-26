@@ -271,7 +271,7 @@ static void mf_tile(float x, float y, float w, int ty, int sel, int byp, float g
 #define MF_RX(i) (10.f + (float)(i) * 28.f)
 #define MF_RY 44.f
 #define MF_RW 22.f
-static void mf_head(int npg, int pg, const char *title, qd_rgb tcol, int g, const uint8_t *tr, int ntr, int track)
+static float mf_head(int npg, int pg, const char *title, qd_rgb tcol, int g, const uint8_t *tr, int ntr, int track)
 {
     float x = 8.f;
     int i;
@@ -291,6 +291,7 @@ static void mf_head(int npg, int pg, const char *title, qd_rgb tcol, int g, cons
         mf_sq(222.f - (float)i * 17.f, 7.5f, n, 10.f, n == track);
     }
     mf_L(8.f, 25.f, 232.f, 25.f, UI_G3, 1.f, 1.f);
+    return x;                                           /* (the hexagon's centre) */
 }
 
 /* notes running along the rail: a dot stream; an ARP or REPEAT starts a faster stream, CHANCE drops some, HARM / CHORD
@@ -1084,7 +1085,11 @@ void ui_mfx_draw(const ui_mfx_t *v)
         mf_gsel(v);
         return;
     }
-    mf_head(npg, v->page, "MIDI FX", MF_MINT, v->g, v->tr, v->ntr, v->track);
+    {
+        const float hx = mf_head(npg, v->page, "MIDI FX", MF_MINT, v->g, v->tr, v->ntr, v->track);
+        if (v->route_off)                               /* 2026-10-25: the routing bypassed (ARP held / SHIFT + ARP) */
+            ui_T("OFF", hx + 14.f, 17.f, 12.f, 700, 1.f, UI_RED, QD_LEFT);
+    }
     if (!v->g && !((v->f1 || v->f2) && v->fstep)) {
         mf_off(v);
         if (v->steps_frame)

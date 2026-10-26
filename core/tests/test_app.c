@@ -808,12 +808,12 @@ static void t_patterns(void)
     tap_key(WK[1]);
     qd_app_button(&A, QD_B_MIX, 0);
     CHECK(A.seq.cur == 1 && qd_seq_queued(&A.seq) < 0 && A.bpm == 100, "stopped: A02 at once, its tempo");
-    qd_app_button(&A, QD_B_FUNC, 1);                    /* (P1.6d: FILL is SHIFT + ARP held) */
-    qd_app_button(&A, QD_B_KEYS, 1);
-    CHECK(A.seq.fill, "SHIFT + ARP held: FILL");
-    qd_app_button(&A, QD_B_KEYS, 0);
+    qd_app_button(&A, QD_B_FUNC, 1);                    /* (2026-10-25: FILL is SHIFT + FX held) */
+    qd_app_button(&A, QD_B_TRACKS, 1);
+    CHECK(A.seq.fill, "SHIFT + FX held: FILL");
+    qd_app_button(&A, QD_B_TRACKS, 0);
     qd_app_button(&A, QD_B_FUNC, 0);
-    CHECK(!A.seq.fill, "ARP released: no FILL");
+    CHECK(!A.seq.fill, "FX released: no FILL");
     printf("  patterns: queued to the end of the master length (the name blinks), FUNC: the next 16th, stopped: at "
            "once; the LEDs\n");
 }

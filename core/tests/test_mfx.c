@@ -982,6 +982,25 @@ static void t_player(void)
     qd_player_stop(&PL);
     blocks(4);
     CHECK(!gated(), "STOP: nothing held");
+    /* 2026-10-25: QD_TMFX_OFF bypasses the routing (the group kept and read) */
+    rig();
+    four_steps(0, 60);
+    qd_proj_pat(&PROJ, 0)->trk[0].mfx = 1 | QD_TMFX_OFF;
+    qd_mfx_slot_init(&PROJ.mfx[0].slot[0], QD_MFX_TRANSPOSE);
+    PROJ.mfx[0].slot[0].v[QD_MT_SEMI] = 12, PROJ.mfx[0].slot[0].v[QD_MT_OCT] = 0;
+    qd_seq_select(&SEQ, 0, 0);
+    qd_seq_play(&SEQ);
+    blocks(16 * BLK_16TH + 4);
+    for (n = 0, i = 0; i < NPE; i++)
+        n += PE[i].kind == QD_LOG_ON && PE[i].note != 60;
+    CHECK(n == 0 && qd_step_mfx(qd_proj_pat(&PROJ, 0), 0, 0) == 1, "bypassed: straight on (60), the group still read");
+    qd_proj_pat(&PROJ, 0)->trk[0].mfx = 1;
+    blocks(16 * BLK_16TH + 4);
+    for (n = 0, i = 0; i < NPE; i++)
+        n += PE[i].kind == QD_LOG_ON && PE[i].note == 72;
+    CHECK(n > 0, "back on: through the group (72)");
+    qd_player_stop(&PL);
+    blocks(4);
     /* two tracks in one arp, each note on its own track */
     rig();
     {

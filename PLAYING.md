@@ -574,8 +574,8 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
     note gets the lock; **an empty step becomes a ghost** (a LOCK trig). Several moves within one step keep the last;
     the next goes on from that value. Heard at once; the track's own sound does not change. **One undo level per
     take.**
-- **FILL is SHIFT + ARP held** (0.9.1; it was ARP held): FILL while both are down (ARP blinks). ARP alone: MIDI FX,
-  below.
+- **FILL is SHIFT + FX held** (0.12; it was SHIFT + ARP, before 0.9.1 ARP held): FILL while both are down (FX lit).
+  ARP alone: MIDI FX, below.
 - **MIDI in** (0.9.5): a channel plays **the tracks set to it** (the track settings' MIDI CH: tracks 1..6 on channels
   1..6 by default, as they always were; set by hand, that channel), and **channel 16 always plays the selected track**,
   notes and controllers (MOD WHEEL, BREATH, AFTERTOUCH, PITCH BEND into its modulation slots). On the selected track
@@ -854,10 +854,13 @@ DECAY, HARM and FDBK.
     step's frame; several held: all of them; the step latch's selection counts too. Nothing held: ALGORITHM is the
     track's group again. On the arp's lanes (pages 3, 4) the white keys stay the lane's steps.
   - **The white keys** play the track through the group (its scale, as the sound editor's keyboard).
-- **ARP held** (400 ms alone, anywhere): the track's **MIDI FX off** (as the group OFF; a popup says MIDI FX OFF), held
-  again: **back on** with the group it had (MIDI FX ON). **SEQ tapped** opens **TOOLS** (SEQ again or HOME closes it, SEQ
-  lit while open). **ARP is lit** while the selected track's MIDI FX is on (a group, not turned off), while its page is
-  open and while FILL (SHIFT + ARP held) is down; off otherwise.
+- **ARP held** (400 ms alone, anywhere) or **SHIFT + ARP** (at once): the track's **MIDI FX off**, a bypass: the group
+  is kept and its page still edits it (OFF in red by the hexagon; a popup says MIDI FX OFF); again: **back on** (MIDI FX
+  ON). Program a chain while the pattern plays dry, then bring it in on the drop. **SEQ tapped** opens **TOOLS** (SEQ
+  again or HOME closes it, SEQ lit while open). **ARP is lit** while the selected track's MIDI FX is on (a group, not
+  bypassed) and while its page is open; off otherwise.
+- **From a latched F3** (PLAY held, or F1 + F2), the record settings or the settings, the page keys (EDIT, SEL, ENV,
+  FX, ARP, SEQ, SAVE, SHIFT + SAVE) close it and open their page in one press.
 - **The stopped preview** (0.9.3): a step held while stopped plays **through its MIDI FX group** (its own, else the
   track's): you hear the arp, the chord, the harmony; letting go ends every note (a HOLD arp's too).
 - **A step's own group**: hold the step in **TRIG** (B8): **KNOB 2** is its MIDI FX (TRACK: the track's, the default;

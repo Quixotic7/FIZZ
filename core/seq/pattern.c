@@ -415,7 +415,7 @@ int qd_step_mfx(const qd_pattern_t *p, int t, int s)
         return 0;
     if (m >= QD_SMFX_G1 && m < QD_SMFX_G1 + QD_MFX_NGROUP)
         return m - QD_SMFX_G1 + 1;
-    return p->trk[t].mfx <= QD_MFX_NGROUP ? p->trk[t].mfx : 0;
+    return (p->trk[t].mfx & 0x7f) <= QD_MFX_NGROUP ? p->trk[t].mfx & 0x7f : 0;
 }
 
 const char *qd_pat_name(int k, char *buf)
