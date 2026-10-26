@@ -1167,6 +1167,9 @@ static void mfx_toggle(qd_app_t *a)
     a->ui.arp_used = 1;
     if (ts->mfx & 0x7fu)
         ts->mfx ^= QD_TMFX_OFF;
+    if (ts->mfx & QD_TMFX_OFF)                          /* off: the track's notes out of every group (a running arp
+                                                         * stops at once, nothing of the chain keeps firing) */
+        qd_player_flush_track(&a->player, a->sel);
     qd_ctl_confirm(a, qd_mfx_tgroup(a) && !(ts->mfx & QD_TMFX_OFF) ? "MIDI FX ON" : "MIDI FX OFF", 0);
 }
 

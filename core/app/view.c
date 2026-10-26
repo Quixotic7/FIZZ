@@ -1583,7 +1583,7 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         v->keys = a->proj.rec_ekeys ? 2 : 1;
         for (i = 0; i < (v->keys == 1 ? 16 : QD_NKEY); i++) {
             const uint8_t l = lv[v->keys == 1 ? QD_WHITE_KEY[i] : i];
-            v->kst[i] = (uint8_t)(l == QD_LED_LIT ? 4 : l == QD_LED_80 ? 2 : l == QD_LED_HALF ? 1 : 0);
+            v->kst[i] = (uint8_t)(l == QD_LED_LIT ? 4 : l == QD_LED_ROOT ? 2 : l == QD_LED_SCALE ? 1 : 0);
         }
     }
     v->last = u->snd_knob;

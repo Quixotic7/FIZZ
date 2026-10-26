@@ -20,6 +20,8 @@ Fixes from a first-session test of beta.5, and the owner's next round: a global 
 - **Track settings, page 1:** KNOB 1 MODE (GLOBAL or LOCAL), KNOB 2 SCALE, KNOB 3 ROOT, KNOB 4 MIDI CH. On GLOBAL the scale and root you turn are the project's, for every track that follows it; on LOCAL they are this track's alone. REC on the page switches the white keys between the steps and the keyboard without leaving it.
 - **The SHIFT scale / root popup** goes away a quarter second after SHIFT is released.
 - **MIDI FX on / off** (hold ARP, or SHIFT + ARP at once) is a bypass: the group stays and can still be edited, the page says OFF, and the sound skips it. **FILL is SHIFT + FX held.**
+- **Any page key leaves the latched patterns map** (SEQ held) and opens its page, as from anywhere else. **MIDI FX off** stops the whole group at once: the track's notes leave the group, so a running arp stops too.
+- **Track settings:** MODE reads GLOBAL on the left, every scale name is one size, the scale's notes sit under its name, and the ring marks the knob you turned. **The keyboard's lights:** the root at 75 %, the scale's notes at 40 %, a played note full.
 - **REPLACE never changes a pattern's tracks:** every track holds its own copy of a sound, so overwriting a preset from A02 leaves A01 as it was (a test proves it; the pool's entries follow the preset as before).
 
 - **A new project starts on pattern A01**, track 1 (it used to open on the demo's A02, so your first beats went into A02).

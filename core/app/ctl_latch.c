@@ -60,6 +60,7 @@ void qd_latch_open(qd_app_t *a, int kind)
         return;
     if (a->ui.latch && a->ui.latch != kind)
         qd_latch_close(a);
+    a->ui.seq_used &= ~2;                               /* (2026-10-25: the latched patterns map closed by any page) */
     a->ui.latch = kind;
 }
 

@@ -216,7 +216,7 @@ static void t_screens(void)
     qd_app_leds(&A, &l);
     CHECK(A.ui.mode == QD_MODE_KEYS && l.button[QD_B_REC] == QD_LED_LIT, "REC: the keyboard, REC's LED lit (its page; 2026-10-25) (P1.6g: lit "
           "while recording)");
-    CHECK(l.key[7] == QD_LED_80 && l.key[19] == QD_LED_80 && l.key[8] == QD_LED_HALF,
+    CHECK(l.key[7] == QD_LED_ROOT && l.key[19] == QD_LED_ROOT && l.key[8] == QD_LED_SCALE,
           "the keyboard: the scale lit (chromatic on C: the C keys 80 %%, the rest 50 %%; P1.5b)");
     qd_app_midi(&A, 0x90, 64, 100);                     /* E4 from MIDI on track 1 (selected): its key lit */
     run(10, 0);

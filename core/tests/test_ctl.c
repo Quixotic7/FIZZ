@@ -1905,18 +1905,18 @@ static void g_track_keys(void)
     turn(QD_K_2, 1);
     CHECK(ts->key_global && A.proj.key_scale == QD_SCALE_CHROMATIC + 1 && ts->scale == QD_SCALE_CHROMATIC,
           "GLOBAL: KNOB 2 the global scale, MODE stays GLOBAL");
-    turn(QD_K_1, -1);
+    turn(QD_K_1, 1);
     turn(QD_K_2, 1);
     turn(QD_K_3, 2);
     CHECK(!ts->key_global && ts->scale == QD_SCALE_CHROMATIC + 2 && ts->root == 2 &&
               A.proj.key_scale == QD_SCALE_CHROMATIC + 1 && !A.proj.key_root,
           "LOCAL: a copy of the global key, KNOB 2 / 3 the track's only");
-    turn(QD_K_1, 1);
-    CHECK(ts->key_global && A.proj.key_scale == QD_SCALE_CHROMATIC + 1, "LOCAL -> GLOBAL: the global key");
     turn(QD_K_1, -1);
+    CHECK(ts->key_global && A.proj.key_scale == QD_SCALE_CHROMATIC + 1, "LOCAL -> GLOBAL: the global key");
+    turn(QD_K_1, 1);
     CHECK(!ts->key_global && ts->scale == QD_SCALE_CHROMATIC + 2 && ts->root == 2,
           "GLOBAL -> LOCAL again: its own key kept (%d %d)", ts->scale, ts->root);
-    turn(QD_K_1, 1);
+    turn(QD_K_1, -1);
     A.proj.key_scale = QD_SCALE_CHROMATIC;
     btap(QD_B_HOME);
     bdown(SHIFT);
@@ -1952,14 +1952,14 @@ static void g_tracks_screen(void)
     btap(QD_B_PATTERN);
     CHECK(A.ui.latch == QD_LATCH_TRK && qd_view_screen(&A) == QD_SCR_MENU && !A.ui.trk_page,
           "SEL tapped: the track settings");
-    turn(QD_K_1, -1);
+    turn(QD_K_1, 1);
     turn(QD_K_2, 2);
     turn(QD_K_3, 3);
     turn(QD_K_4, 2);
     CHECK(ts->scale == 2 && ts->root == 3 && !ts->key_global && ts->chan == 2,
           "LOCAL: KNOB 2 SCALE +2, KNOB 3 ROOT +3, KNOB 4 MIDI CH 3 (%d %d %d)", ts->scale, ts->root, ts->chan + 1);
-    turn(QD_K_1, 1);
-    CHECK(ts->key_global == 1, "KNOB 1: MODE GLOBAL");
+    turn(QD_K_1, -1);
+    CHECK(ts->key_global == 1, "KNOB 1: MODE GLOBAL (left)");
     btap(QD_B_PATTERN);
     v0 = ts->limit;
     turn(QD_K_1, 2);
@@ -4068,7 +4068,7 @@ static void t_leds(void)
     wrel(0);
     btap(QD_B_REC);
     l = leds();
-    CHECK(l.button[QD_B_REC] == QD_LED_LIT && l.key[7] == QD_LED_80 && l.key[8] == QD_LED_HALF,
+    CHECK(l.button[QD_B_REC] == QD_LED_LIT && l.key[7] == QD_LED_ROOT && l.key[8] == QD_LED_SCALE,
           "the keyboard: REC dim (P1.6g), the scale lit (P1.5b: chromatic on C, C 80 %%, the rest 50 %%)");
     btap(QD_B_REC);
     btap(QD_B_PLAY);                                    /* F1: the playing page flashes */
@@ -4166,7 +4166,7 @@ static void g_p15b_keys(void)
     l = leds();
     set_key(QD_SCALE_MAJOR, 0);
     l = leds();
-    CHECK(l.key[WK(0)] == QD_LED_80 && l.key[WK(1)] == QD_LED_HALF && l.key[WK(7)] == QD_LED_80 &&
+    CHECK(l.key[WK(0)] == QD_LED_ROOT && l.key[WK(1)] == QD_LED_SCALE && l.key[WK(7)] == QD_LED_ROOT &&
               l.key[BK(B4)] == QD_LED_LIT,
           "SCALE's LEDs: the roots 80 %%, the other degrees 50 %%; the black keys the pages (FILTERS lit)");
     kdown(WK(2));
@@ -4184,7 +4184,7 @@ static void g_p15b_keys(void)
     CHECK(A.ui.snd_page == (p0 + 1) % QD_SND_NPAGE, "FULL: the pages on SELECT");
     set_key(QD_SCALE_MAJOR, 2);
     l = leds();
-    CHECK(l.key[9] == QD_LED_80 && l.key[11] == QD_LED_HALF && l.key[10] == QD_LED_OFF && l.key[BK(B1)] == QD_LED_HALF,
+    CHECK(l.key[9] == QD_LED_ROOT && l.key[11] == QD_LED_SCALE && l.key[10] == QD_LED_OFF && l.key[BK(B1)] == QD_LED_SCALE,
           "FULL's LEDs, D major: D4 80 %%, E4 50 %%, D#4 dark, F#3 (B1) in the scale 50 %%");
     /* SHIFT + ALGORITHM / PRESETS: the scale / root; SHIFT + KNOB: the fine step */
     bdown(SHIFT);
@@ -4210,7 +4210,7 @@ static void g_p15b_keys(void)
     run(5);
     CHECK(PAT()->trk[0].scale == QD_SCALE_MAJOR && PAT()->trk[0].root == 4, "the keyboard: SHIFT + ALGORITHM / PRESETS too");
     l = leds();
-    CHECK(l.key[11] == QD_LED_80 && l.key[12] == QD_LED_OFF && l.key[13] == QD_LED_HALF,
+    CHECK(l.key[11] == QD_LED_ROOT && l.key[12] == QD_LED_OFF && l.key[13] == QD_LED_SCALE,
           "the keyboard's LEDs, E major: E4 80 %%, F4 dark, F#4 50 %%");
     btap(QD_B_SOUND);
     CHECK(qd_snd_keys(&A), "EDIT from the keyboard: the editor, its keyboard on");

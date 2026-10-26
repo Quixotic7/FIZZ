@@ -26,7 +26,7 @@
  *   OCT- / OCT+     (P1.3c) where they are an octave (NOTE with a step held: octave 4 the centre; the keyboard: 0;
  *                   SOUND with a step held: the first bank): none blinks at the centre; below it OCT- blinks, above it
  *                   OCT+, a half period of 500 ms one away, 250 two, 125 three or more
- *   keyboard        (P1.5b) the scale: its roots 80 %, its other notes 50 %, the notes sounding lit; step recording:
+ *   keyboard        (P1.5b) the scale: its roots 75 %, its other notes 40 %, the notes sounding lit; step recording:
  *                   the cursor's white key blinks. The sound editor's keyboard the same (SCALE: the W keys)
  *   tracks screen   white 1..8 flash with the tracks' trigs (the selected dim), 9..16 lit for the tracks heard
  *   buttons         held: lit; REC lit in the keyboard (blinking while armed); FX lit while FILL is on; PAGE lit
@@ -263,7 +263,7 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
 
 static void leds_keys(const qd_app_t *a, qd_leds_t *out)
 {
-    qd_keys_leds(a, out->key);                          /* P1.5b: the scale (roots 80 %, its notes 50 %, sounding full) */
+    qd_keys_leds(a, out->key);                          /* P1.5b: the scale (roots 75 %, its notes 40 %, sounding full) */
     if (qd_rec_stepping(a)) {                           /* step recording: the cursor's place blinks */
         const int s = qd_track_loop_step(&qd_ctl_cpat(a)->trk[a->sel], a->ui.cursor);
         out->key[QD_WHITE_KEY[s % QD_PAGE]] = blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF;

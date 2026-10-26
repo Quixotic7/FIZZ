@@ -493,7 +493,7 @@ void ui_shift_draw(const ui_shift_t *v)
 static const qd_rgb KCOL[4] = {UI_K1, UI_K2, UI_K3, UI_K4};
 
 /* a row's head: the knob's badge, the row's name; its value big at the right, in the knob's colour */
-static void menu_row(int k, float y, const char *name, const char *val)
+static void menu_row_sz(int k, float y, const char *name, const char *val, float sz)   /* (sz 0: fitted to 110 px) */
 {
     char n[4] = {(char)('1' + k), 0};
     ui_O(18.f, y, 9.f, QD_NONE, 1.f, KCOL[k]);
@@ -501,10 +501,12 @@ static void menu_row(int k, float y, const char *name, const char *val)
     ui_lab(name, 34.f, y + 4.5f, UI_G1, QD_LEFT);
     if (val) {
         const float w = ui_TW(val, 30.f, 300, 0.f);
-        const float sz = w > 110.f ? 30.f * 110.f / w : 30.f;
+        if (sz <= 0.f)
+            sz = w > 110.f ? 30.f * 110.f / w : 30.f;
         ui_T(val, 232.f, y + 30.f, sz, 300, 0.f, KCOL[k], QD_RIGHT);
     }
 }
+static void menu_row(int k, float y, const char *name, const char *val) { menu_row_sz(k, y, name, val, 0.f); }
 
 static void menu_head(const char *title)
 {
@@ -709,16 +711,17 @@ static void menu_trk(const ui_menu_t *v)
     ui_icon(UI_IC_BACK, 220.f, 12.5f, 1.f, UI_K3);
     line2(8.f, 27.f, 232.f, 27.f, UI_G3, 1.f);
     if (!v->page) {
-        menu_row(0, 36.f, "MODE", v->follow_key ? "GLOBAL" : "LOCAL");
-        menu_row(1, 84.f, "SCALE", v->scale);
-        for (k = 0; k < 12; k++) {                      /* C .. B: the scale's notes (beside its name) */
-            const float x = 130.f + (float)k * 9.f, y = 86.f;
+        const float pw = ui_TW("PHRYGIAN", 30.f, 300, 0.f);   /* (every scale name at PHRYGIAN's size) */
+        menu_row(0, 34.f, "MODE", v->follow_key ? "GLOBAL" : "LOCAL");
+        menu_row_sz(1, 78.f, "SCALE", v->scale, pw > 110.f ? 30.f * 110.f / pw : 30.f);
+        for (k = 0; k < 12; k++) {                      /* C .. B: the scale's notes, under its name */
+            const float x = 133.f + (float)k * 9.f, y = 120.f;
             const int in = (v->scale_mask >> k) & 1;
             ui_O(x, y, 3.f, in ? UI_K2 : UI_G3, 1.f, in ? UI_K2 : QD_NONE);
             if (k == v->root_pc)
                 ui_O(x, y, 5.5f, UI_K3, 1.3f, QD_NONE);
         }
-        menu_row(2, 136.f, "ROOT", v->root);
+        menu_row(2, 134.f, "ROOT", v->root);
         menu_row(3, 186.f, "MIDI CH", ui_itoa(n, v->chan));
     } else if (v->page == 2) {                          /* P1.6d: KIND (the seven icons, its own lit), NAME */
         menu_row(0, 44.f, "KIND", v->tkind >= 0 ? KIND_NAME[v->tkind] : "NONE");
@@ -750,7 +753,7 @@ static void menu_trk(const ui_menu_t *v)
             ui_mfx_hex(46.f, 222.f, 9.f, 0, UI_G2, 1.2f, 1);
     }
     if (v->last >= 0 && v->last < 4) {                  /* the row turned last: its badge ringed */
-        static const float Y0[3][4] = {{44.f, 106.f, 152.f, 198.f}, {44.f, 98.f, 152.f, 198.f},
+        static const float Y0[3][4] = {{34.f, 78.f, 134.f, 186.f}, {44.f, 98.f, 152.f, 198.f},
                                        {44.f, 124.f, -40.f, -40.f}};
         ui_O(18.f, Y0[v->page < 0 || v->page > 2 ? 0 : v->page][v->last], 12.f, KCOL[v->last], 1.2f, QD_NONE);
     }

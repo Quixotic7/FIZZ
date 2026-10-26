@@ -221,9 +221,9 @@ void qd_keys_leds(const qd_app_t *a, uint8_t *key)
         if (((a->keys_held >> i) & 1u) || (nn >= 0 && nn < 128 && notes[nn]))
             key[i] = QD_LED_LIT;
         else if (n >= 0 && n < 128 && ((n % 12) + 12) % 12 == rt)
-            key[i] = QD_LED_80;
+            key[i] = QD_LED_ROOT;
         else if (n >= 0 && n < 128 && qd_scale_has(sc, rt, n))
-            key[i] = QD_LED_HALF;
+            key[i] = QD_LED_SCALE;
         else
             key[i] = QD_LED_OFF;
     }

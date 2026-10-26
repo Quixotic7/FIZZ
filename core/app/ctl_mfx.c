@@ -478,8 +478,8 @@ void qd_mfx_leds(const qd_app_t *a, uint8_t *key)
         qd_track_key(&a->proj, qd_ctl_cpat(a), a->sel, &sc, &rt);
         for (k = 0; k < 16; k++) {
             const int n = qd_snd_scale_note(a, k);
-            key[QD_WHITE_KEY[k]] = n >= 0 && n < 128 && notes[n] ? QD_LED_LIT : ((n % 12) + 12) % 12 == rt ? QD_LED_80
-                                                                                                    : QD_LED_HALF;
+            key[QD_WHITE_KEY[k]] = n >= 0 && n < 128 && notes[n] ? QD_LED_LIT : ((n % 12) + 12) % 12 == rt ? QD_LED_ROOT
+                                                                                                    : QD_LED_SCALE;
         }
     }
 }

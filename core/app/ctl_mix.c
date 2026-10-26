@@ -212,11 +212,11 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
         uint8_t *sc = ts->key_global ? &a->proj.key_scale : &ts->scale;   /* GLOBAL: the project's key */
         uint8_t *rt = ts->key_global ? &a->proj.key_root : &ts->root;
         switch (knob) {
-        case QD_K_1:                                    /* MODE: right GLOBAL, left LOCAL (its own key back; never set,
+        case QD_K_1:                                    /* MODE: left GLOBAL, right LOCAL (its own key back; never set,
                                                          * CHROMATIC C: a copy of the global one) */
-            if (d < 0 && ts->key_global && ts->scale == QD_SCALE_CHROMATIC && !ts->root)
+            if (d > 0 && ts->key_global && ts->scale == QD_SCALE_CHROMATIC && !ts->root)
                 ts->scale = a->proj.key_scale, ts->root = a->proj.key_root;
-            ts->key_global = d > 0;
+            ts->key_global = d < 0;
             break;
         case QD_K_2: *sc = (uint8_t)cl(*sc + d, 0, QD_NSCALE - 1); break;
         case QD_K_3: *rt = (uint8_t)(((*rt + d) % 12 + 12) % 12); break;

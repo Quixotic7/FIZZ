@@ -521,7 +521,7 @@ Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SO
 - **REC tapped**: the keybed becomes a keyboard for the selected track (REC lit). REC again: back to the steps. The
   keyboard drawn is the FM-1's own, its 27 keys from F (F3 to G5 at OCT 0).
 - In a scale, keys outside the scale play the scale note just below.
-- **The keys light the scale** (P1.5b): the root's keys at 80 %, the scale's other notes at 50 %, the rest dark, a
+- **The keys light the scale** (P1.5b): the root's keys at 75 %, the scale's other notes at 40 %, the rest dark, a
   key playing full.
 - **SHIFT + ALGORITHM** the track's scale, **SHIFT + PRESETS** its root, while you play (stopped or playing).
 - **F1 / F2** move the keyboard an octave (−2..+2).
