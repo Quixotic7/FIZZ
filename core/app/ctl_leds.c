@@ -313,7 +313,7 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
     const qd_ui_t *u = &a->ui;
     int i;
     memset(out, 0, sizeof *out);
-    if (held(a, QD_B_MIX) && u->mode != QD_MODE_IDLE)  /* printed SEQ: the patterns */
+    if ((held(a, QD_B_MIX) || (u->seq_used & 2)) && u->mode != QD_MODE_IDLE)  /* printed SEQ: the patterns */
         leds_pattern(a, out);
     else if (held(a, QD_B_PATTERN) && u->mode != QD_MODE_IDLE)   /* printed SEL: the tracks */
         leds_sel(a, out);
@@ -348,13 +348,11 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
                                                                                                    : QD_LED_OFF)
                               : u->mode == QD_MODE_KEYS && !qd_mfx_open(a) ? QD_LED_LIT   /* (2026-10-25: its page) */
                               : u->mode == QD_MODE_KEYS || (qd_snd_open(a) && u->ekeys) ? QD_LED_DIM : QD_LED_OFF;
-    {   /* T1 (the owner, 2026-10-24): ARP lit while FILL is held and while the MIDI FX screen is open (T1b: TOOLS lights SEQ);
-         * otherwise the arp's state (P1.6d: lit while the track's group has an arp ON, off otherwise) */
-        const int g = qd_mfx_tgroup(a);
-        const int k = g ? qd_mfx_arp_slot(&a->proj.mfx[g - 1]) : -1;
-        const int on = k >= 0 && a->proj.mfx[g - 1].slot[k].v[QD_MA_MODE] != QD_AM_OFF && !a->proj.mfx[g - 1].slot[k].bypass;
-        out->button[QD_B_KEYS] = a->seq.fill || qd_mfx_open(a) ? QD_LED_LIT : on ? QD_LED_DIM : QD_LED_OFF;   /* (2026-10-25: the arp on dim) */
-    }
+    /* T1 (the owner, 2026-10-24): ARP lit while FILL is held and while the MIDI FX screen is open (T1b: TOOLS lights
+     * SEQ); 2026-10-25: else lit while the track's MIDI FX is on (a group, not turned off by a held ARP), no dim */
+    out->button[QD_B_KEYS] = a->seq.fill || qd_mfx_open(a) || qd_mfx_tgroup(a) ? QD_LED_LIT : QD_LED_OFF;
+    if (u->seq_used & 2)                                /* SEQ lit while its patterns are latched */
+        out->button[QD_B_MIX] = QD_LED_LIT;
     if (u->latch == QD_LATCH_MIX)                       /* P1.4b: ENV (MIX), FX, SEL lit while their pages are open */
         out->button[QD_B_PAGE] = QD_LED_LIT;
     if (u->latch == QD_LATCH_FX)

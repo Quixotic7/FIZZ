@@ -15,7 +15,7 @@ scale; everything else is drawing, colour and the LEDs. The gestures are in this
 | OCT− and OCT+ together | **F3** (it stays open; OCT− closes it) |
 | GLO | **SHIFT** |
 | SEL (printed) | **SEL**: hold it for the tracks; tap it for the track settings |
-| SEQ (printed) | **SEQ**: hold it for the patterns; tap it for the project |
+| SEQ (printed) | **SEQ**: hold it for the patterns (they stay open on release; SEQ tapped or HOME closes them); tap it for TOOLS |
 | SAVE (printed) | **SAVE**: SAVE PRESET, the selected track's sound into MY PRESETS |
 | LFO (printed) | **LATCH**: the step latch, on / off |
 | FX (printed) | **FX**: tap it for the effects; hold it to choose the track |
@@ -53,7 +53,7 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
   another page. **LFO** keeps them open too. The **pop-ups** keep F1 = back: F3, the track settings (SEL tapped),
   the record settings (SHIFT + REC), the global settings (SHIFT + SEL), the project pages (SHIFT + SAVE), the browser
   (F1 cancels) and the questions; SAVE PRESET and the name editor are the typewriter (F1 deletes, HOME cancels).
-- **SHIFT + HOME** cycles **PIANO ROLL** (the mode's lane), **STEPS**, **EDIT** and **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE); **HOME** comes back. STEPS shows all eight
+- **SHIFT + HOME** cycles **PIANO ROLL** (the mode's lane), **STEPS**, **EDIT** and **GEEK OUT** (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE); **HOME** comes back. HOME keeps the view: whatever page you come back from, the step view is the one you chose, and GEEK OUT returns on its last page. STEPS shows all eight
   pages as rows of 16 steps in groups of four; the page you edit is unfolded into taller cells with each step's notes
   drawn inside at their pitch, the other pages are rows above and below. Pages in the loop are bright, the others
   dim. A step's colour says what it plays: **warm white** its own notes, **cyan** the track's notes (a plain trig),
@@ -451,7 +451,7 @@ Undo and redo of everything (P1.5c):
 
 ## How do I change patterns?
 
-- Hold **SEQ**: the screen shows one bank's 16 patterns (the playing one white, the queued one blinking orange).
+- Hold **SEQ**: the screen shows one bank's 16 patterns; let go and they stay open (SEQ lit) until a SEQ tap or HOME (the playing one white, the queued one blinking orange).
 - **SEQ + B1..B4**: bank A..D (64 patterns). The current bank's key is lit, banks with patterns in them dim.
 - **SEQ + tap W1..W16**: that pattern of the bank comes in at the next change point. **SEQ + hold W**: it comes in now.
 - **SEQ + ALGORITHM**: when a tapped pattern comes in: **END** (the end of the playing pattern, the default), **BAR**
@@ -851,9 +851,10 @@ DECAY, HARM and FDBK.
     step's frame; several held: all of them; the step latch's selection counts too. Nothing held: ALGORITHM is the
     track's group again. On the arp's lanes (pages 3, 4) the white keys stay the lane's steps.
   - **The white keys** play the track through the group (its scale, as the sound editor's keyboard).
-- **ARP held** (400 ms, anywhere): the track's group's arp **on / off** (its bypass, B10's on its slot; a group with
-  no arp: nothing). **SEQ tapped** opens **TOOLS** (SEQ again or HOME closes it, SEQ lit while open). **ARP is dim** while the selected track's group has an arp ON (off otherwise; lit while its page is open); FILL
-  (SHIFT + ARP held) blinks it.
+- **ARP held** (400 ms alone, anywhere): the track's **MIDI FX off** (as the group OFF; a popup says MIDI FX OFF), held
+  again: **back on** with the group it had (MIDI FX ON). **SEQ tapped** opens **TOOLS** (SEQ again or HOME closes it, SEQ
+  lit while open). **ARP is lit** while the selected track's MIDI FX is on (a group, not turned off), while its page is
+  open and while FILL (SHIFT + ARP held) is down; off otherwise.
 - **The stopped preview** (0.9.3): a step held while stopped plays **through its MIDI FX group** (its own, else the
   track's): you hear the arp, the chord, the harmony; letting go ends every note (a HOLD arp's too).
 - **A step's own group**: hold the step in **TRIG** (B8): **KNOB 2** is its MIDI FX (TRACK: the track's, the default;

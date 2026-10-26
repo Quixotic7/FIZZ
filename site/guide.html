@@ -68,7 +68,7 @@
       <li><b>Tap a white key</b>: that step plays the track's note. Tap it again to remove it.</li>
       <li>A new step plays the <b>track's defaults</b> (its notes, velocity, length…). Change a default and every step still using it follows.</li>
       <li><b>SELECT</b> turns the page: a track has 8 pages of 16 steps.</li>
-      <li><b>HOME</b> always brings you back here, from anywhere. <b>SHIFT + HOME</b> cycles PIANO ROLL, STEPS, EDIT and GEEK OUT (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE); <b>HOME</b> comes back.</li>
+      <li><b>HOME</b> always brings you back here, from anywhere. <b>SHIFT + HOME</b> cycles PIANO ROLL, STEPS, EDIT and GEEK OUT (SELECT turns its pages: METERS, NUMBERS, VOICES, SCOPE); <b>HOME</b> comes back. HOME keeps the view: you always return to the one you chose, GEEK OUT on its last page.</li>
       <li>Colours tell you what a step plays: <span class="sw" style="--s:#FFF0D2">warm white</span> its own notes, <span class="sw" style="--s:#63C4D6">cyan</span> the track's, <span class="sw" style="--s:#A57CFF">violet</span> a lock with no note. While playing, a red marker walks the steps.</li>
     </ul>
   </section>
@@ -131,7 +131,7 @@
     <h2>Tracks, patterns, tempo, the keyboard</h2>
     <ul>
       <li><b>Hold SEL (TRACKS)</b>: the six tracks. SEL + B1 … B6 selects one; SEL + tap W1 … W6 mutes, hold solos.</li>
-      <li><b>Hold SEQ (PATTERNS)</b>: the patterns. SEQ + B1 … B4 the bank, SEQ + W the pattern (it comes in at the end of the playing one).</li>
+      <li><b>Hold SEQ (PATTERNS)</b>: the patterns, and they stay open when you let go (SEQ lit; tap SEQ or HOME to close). B1 … B4 the bank, W the pattern (it comes in at the end of the playing one).</li>
       <li><b>F3</b> (both OCT keys, or hold PLAY): SELECT the tempo, ALGORITHM the swing (the tap-tempo ape dances to it), B1 … B7 the track's note value. OCT− closes it.</li>
       <li><b>ENV (MIX)</b> is the mixer, <b>FX</b> the effects (ChoralRoot's chorus, delay, reverb and master filter). In the mixer, tap a black key to select its track, hold it to mute, double-tap it to solo (B11 clears them); SELECT turns the page, ALGORITHM the track, PRESETS mutes (left) or unmutes (right). Hold a step there and turn: its level, pan and sends become locks of that step (F2 + the knob clears one). The magenta frame and the count in the corner say steps are held or selected; the locked fader or bar gets a chip. A latch selection from the step view is let go there: select steps in the mixer itself. HOME closes them.</li>
       <li><b>Tap SEL</b>: the track's settings (its key: its own, or FOLLOW KEY, the project's global key, which new tracks follow; the white keys are its steps, or notes with the keyboard on); page 3 gives it a <b>KIND</b> (its icon everywhere its name shows) and a <b>NAME</b> typed on the keybed.</li>
@@ -163,7 +163,7 @@
       <li><b>Five groups of eight slots</b> (kept with the project): ARP, CHANCE, REPEAT, HARM, TRANSPOSE, SCALER, RANDOM, CHORD, MONO, SELECTOR. A track plays through one group or none; two tracks can share one arp.</li>
       <li><b>Tap ARP</b> to open the track's group: B1 … B8 the slots (again: the next page; hold one, it lifts, turn a knob to slide it and let go to drop it there), PRESETS the effect, KNOB 1 … 4 its values (KNOB 4 its CHANCE), ALGORITHM the track's group, B10 bypass (the arp on / off), B11 twice remove, F1 + B copy then paste, F2 + B pick up and drop (held, F1 and F2 show the copy and the hand). The white keys play through it; <b>REC</b> turns them into the track's steps (it is the main REC keyboard switch: from the step view the screen opens on the steps, from the keyboard on the keys, and you leave the way it is): hold steps and turn ALGORITHM to give them their own group. ARP's light breathes while it is open (bright: the arp is on). On STEPS, F1 + W and F2 + W copy and move steps. ARP again or HOME close it.</li>
       <li>A step held while stopped plays through its MIDI FX group.</li>
-      <li><b>Hold ARP</b> anywhere: the track's arp on / off (its bypass); ARP is lit while it plays. <b>Tap SEQ</b> anywhere: TOOLS (SEQ again or HOME closes it). <b>SHIFT + ARP held</b>: FILL.</li>
+      <li><b>Hold ARP</b> anywhere: the track's MIDI FX off (as the group OFF), hold again: back on with its group; a popup says which. ARP is lit while the track's MIDI FX is on. <b>Tap SEQ</b> anywhere: TOOLS (SEQ again or HOME closes it). <b>SHIFT + ARP held</b>: FILL.</li>
       <li>The arp's pages 3 and 4: the MOD and TRANSPOSE lanes on the white keys (SHIFT + W a random step).</li>
       <li>A step's own group: hold it in <b>TRIG</b>, KNOB 2 (or B4 TRACK, B5 OFF, B6 … B10 groups 1 … 5).</li>
     </ul>

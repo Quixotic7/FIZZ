@@ -172,7 +172,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         lb_set(o, QD_LBL_MASTER, "VOLUME");
         return;
     }
-    if (lb_held(a, QD_B_MIX)) {                            /* SEQ held: the patterns, the banks */
+    if (lb_held(a, QD_B_MIX) || (u->seq_used & 2)) {       /* SEQ held or latched: the patterns, the banks */
         const int bank = u->seq_bank;
         for (i = 0; i < 16; i++) {
             char b[8];
