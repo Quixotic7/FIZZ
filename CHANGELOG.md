@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.7 (2026-10-26)
+
 The FX routing redone the way ChoralRoot 0.27 does it.
 
 - **ROUTING** (FX, B6) is now a signal flow of four blocks, CHORUS, DELAY, REVERB and the FILTER. **KNOB 1 MODE:** PARALLEL (the sends into three buses, as every unit has always sounded) or CHAIN (one path through the four in the order on the screen; KNOB 2 … 4 are each effect's amount in the chain, and the tracks' sends rest). **Hold a block's page key** (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER): it lifts, and KNOB 1 moves it a place a click; let go and it lands. In PARALLEL the FILTER can go before the buses (hold B5, KNOB 1 anticlockwise). The old cross-feeds (DELAY > REVERB and the like) are gone. Updating keeps your projects; the routing starts at PARALLEL.

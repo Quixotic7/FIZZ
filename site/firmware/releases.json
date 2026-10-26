@@ -1,7 +1,33 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.6",
+  "latest": "0.12.0-beta.7",
   "releases": [
+    {
+      "version": "0.12.0-beta.7",
+      "date": "2026-10-26",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "914c6295ad73e0b502dbd2d7e23a45f82c9869c4",
+      "fm1base": "42dc6304e8070006c1990d2879c3fe27e1192c91",
+      "notes": "The FX routing redone the way ChoralRoot 0.27 does it.\n\n- **ROUTING** (FX, B6) is now a signal flow of four blocks, CHORUS, DELAY, REVERB and the FILTER. **KNOB 1 MODE:** PARALLEL (the sends into three buses, as every unit has always sounded) or CHAIN (one path through the four in the order on the screen; KNOB 2 \u2026 4 are each effect's amount in the chain, and the tracks' sends rest). **Hold a block's page key** (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER): it lifts, and KNOB 1 moves it a place a click; let go and it lands. In PARALLEL the FILTER can go before the buses (hold B5, KNOB 1 anticlockwise). The old cross-feeds (DELAY > REVERB and the like) are gone. Updating keeps your projects; the routing starts at PARALLEL.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI",
+          "fwsc": {
+            "path": "0.12.0-beta.7/fizz.fwsc",
+            "bytes": 611496,
+            "sha256": "460de03a0d27ec1e3476a0e9e1c6891cfda000e7c38ef6d7ebb968cd60a7e710"
+          },
+          "data": {
+            "path": "0.12.0-beta.7/fizz-xdata.bin",
+            "bytes": 84116,
+            "sha256": "19c068fc6371340499064f5c16e75c376137727bcca3c074057b0826ed25633d",
+            "crc32": 4068757263
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.6",
       "date": "2026-10-26",
