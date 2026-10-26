@@ -429,10 +429,11 @@ Undo and redo of everything (P1.5c):
   shows **how many steps** are held or selected (magenta, e.g. 3); the fader, pan dial or send bar a knob locks gets
   a **chip in the knob's colour** on it (the effects: SENDS' bar framed and its value a chip, the SEND cell's chip).
   No frame and no count: the knobs move the track.
-- **The step latch here (0.9.6)**: a selection made in the step view **is let go** when you open the mixer or the
-  effects (the latch stays on), so LEVEL moves the track, not some step you can't see. Select steps **in** the mixer
-  (W keys, the latch on) and they stay, into the effects and back. **LFO** in the mixer or the effects turns the latch
-  on with nothing selected (the page stays open).
+- **The step latch here** (2026-10-26): the latch and its selection work on every page exactly as on EDIT. A selection
+  made in the step view stays into the mixer, the effects, the track settings, the sound editor and the MIDI FX screen;
+  there the W keys select as on EDIT (a tap one step, several together many) and the knobs lock on the selection,
+  with the white keys' LEDs showing the steps. **LFO** on a page turns the latch on with nothing selected (the page
+  stays open).
 
 ## How do I change the effects? (FX tapped)
 
@@ -897,7 +898,10 @@ F1 / F2 show the ten before / after; B11 removes the sound lock.
   OFF; group 1 .. 5), or **B4 TRACK, B5 OFF, B6 .. B10 groups 1 .. 5**. The group is drawn under the trig picture
   (2026-10-26): a hexagon with its number, GROUP n (the track's own dim, with TRACK) and the group's eight slots, lit
   where an effect plays. With nothing held KNOB 2 is the track's group.
-  The track settings' page 2, **KNOB 4**, is the track's group too.
+  The track settings' page 2, **KNOB 4**, is the track's group too. Changing the track's group **while playing** takes
+  effect at once: the track's notes leave the old group (a HOLD arp there stops; 2026-10-26).
+- **On the MIDI FX screen** (STEPS; 2026-10-26): hold a step, or select it with the latch, and its group popup shows
+  at once; the black keys set it: **B1 OFF, B2 .. B6 groups 1 .. 5, B11 back to the track's**; ALGORITHM turns it too.
 - **The effects** (page by page, KNOB 1 .. 4):
   - **ARP**: PATTERN (UP, DOWN, UP DN, DN UP, U+D, D+U, CONV, DIV, CON DIV, HI UP, HI UPDN, LO UP, LO UPDN, RAND,
     RAND OTH, SHUFFLE, AS PLAYED), RATE (1/1 .. 1/64 of a bar), RANGE (octaves), CHANCE; MODE (OFF, ON while held,

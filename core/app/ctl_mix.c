@@ -62,15 +62,9 @@ int qd_fx_send(const qd_app_t *a, int t, int fx)
 static void panel_open(qd_app_t *a, int kind)
 {
     qd_ui_t *u = &a->ui;
-    if (kind == QD_LATCH_TRK) {                         /* (P1.6d: the mix and the effects keep the held steps and the
-                                                         * latch's selection: their sends lock on them) */
-        u->slatch = 0;
-        qd_step_release_all(a);
-    } else if (u->slatch && u->nheld && !u->sel_panel && !u->wk_down && !u->wk_pending) {
-        qd_step_release_all(a);                         /* P1.6h (the owner: "the level kept reverting"): a selection
-                                                         * made elsewhere is let go (the latch stays on: W keys
-                                                         * select here); one made on the mix or the effects stays */
-    }
+    /* (2026-10-26, the owner: the latch and its selection stay on every page, as on EDIT: the W keys there select, the
+     * knobs lock on the selection; the white keys' LEDs show the steps everywhere now, so nothing locks unseen. P1.6h
+     * let a selection go on opening the mix; P1.6d the track settings) */
     u->tk = QD_TK_NONE;
     u->sel_down &= 0xFFu;                               /* (the mix's black keys: none down) */
     qd_latch_open(a, kind);
@@ -248,7 +242,10 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
                                              QD_POOL_LIMIT_MAX); break;   /* (P2.6: up to the unit's voices) */
         case QD_K_2: ts->swing = d > 0; break;
         case QD_K_3: u->follow = d > 0, u->play_page[a->sel] = -1; break;
-        default: ts->mfx = (uint8_t)cl(ts->mfx + d, 0, QD_MFX_NGROUP); break;   /* P1.6c: KNOB 4 MIDI FX */
+        default:                                        /* P1.6c: KNOB 4 MIDI FX */
+            ts->mfx = (uint8_t)cl(ts->mfx + d, 0, QD_MFX_NGROUP);
+            qd_mfx_track_changed(a, a->sel);
+            break;
         }
     }
     return 1;

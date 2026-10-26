@@ -717,6 +717,10 @@ const qd_lockscreen_t *qd_snd_lock_screen(const struct qd_app *a, int page);
  * HOME close it. (T1b: ARP held: the arp bypassed / playing, TOOLS is SEQ tapped; the arp on / off is its slot here: added / removed, B10 bypass) */
 int qd_mfx_open(const struct qd_app *a);
 int qd_mfx_tgroup(const struct qd_app *a);        /* the selected track's group (0 OFF, 1..5) */
+void qd_mfx_track_changed(struct qd_app *a, int t);   /* 2026-10-26: track t's group changed: its notes leave the old
+                                                 * group now (a HOLD arp there kept playing until stop / start) */
+void qd_mfx_step_popup(struct qd_app *a);       /* 2026-10-26: the MIDI FX screen: the held or selected step's group
+                                                 * popup, up while it is held / selected */
 void qd_mfx_screen(struct qd_app *a);             /* SHIFT + ARP: opened */
 void qd_mfx_black(struct qd_app *a, int b, int down);
 void qd_mfx_white(struct qd_app *a, int key, int w, int down, int vel);

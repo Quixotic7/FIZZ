@@ -5212,12 +5212,11 @@ static void g_p16d_sends(void)
     btap(LFO);
     wtap(4);
     btap(QD_B_PAGE);
-    CHECK(A.ui.slatch && A.ui.nheld == 0 && A.ui.latch == QD_LATCH_MIX, "P1.6h: the step view's selection let go "
-          "(the latch on)");
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && A.ui.held[0] == 4 && A.ui.latch == QD_LATCH_MIX,
+          "2026-10-26 (the owner): the step view's selection stays into the mix (the latch on)");
     turn(QD_K_2, 3);
-    CHECK(LK(0, 4, QD_LK_PAN) == -99999, "KNOB 2: the track's PAN, no lock");
-    wtap(4);
-    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 4, "W5 in the mix: selected there");
+    CHECK(LK(0, 4, QD_LK_PAN) == A.model.t[0].mix.pan + 3, "KNOB 2: step 5's PAN lock");
+    CHECK(A.ui.nheld == 1 && A.ui.held[0] == 4, "W5 still selected in the mix");
     turn(QD_K_3, 10);
     CHECK(LK(0, 4, QD_LK_DELAY) == A.model.t[0].mix.delay + 10, "KNOB 3: step 5's DELAY lock");
     btap(QD_B_OCTDN);
@@ -5726,6 +5725,60 @@ static void g_p16e_mfx(void)
 
 /* P1.6e (the owner): a step held, stopped, sounds through its group (the arp's notes, not the dry chord); its release:
  * every note ends, a HOLD arp's too */
+/* 2026-10-26 (the owner): the track's group changed while playing takes effect at the next trig (it kept routing into
+ * the old one until stop / start); on the MIDI FX screen a held step (or the latch's selection) shows its group popup
+ * at once, and the black keys set it: B1 OFF, B2..B6 groups 1..5, B11 back to the track's */
+static void g_mfx_live(void)
+{
+    qd_mfx_group_t *G;
+    uint32_t m0;
+    int w;
+    start();
+    for (w = 0; w < 16; w += 2)
+        wtap(w);
+    btap(QD_B_KEYS);                                    /* the MIDI FX screen: the track's group 1 with an ARP */
+    turn(QD_K_ALGO, 1);
+    G = &A.proj.mfx[0];
+    qd_mfx_slot_init(&G->slot[0], QD_MFX_ARP);
+    G->slot[0].v[QD_MA_MODE] = QD_AM_HOLD;              /* (a HOLD arp: it kept going in the old group) */
+    run(QD_TK_MS + 100);
+    btap(QD_B_PLAY);
+    run(1200);
+    m0 = A.player.mfx_ons;
+    CHECK(PAT()->trk[0].mfx == 1 && m0 > 0, "playing through group 1: its notes come from the group (%u)", (unsigned)m0);
+    turn(QD_K_ALGO, 1);                                 /* group 2: empty, so the notes go straight */
+    run(400);
+    m0 = A.player.mfx_ons;
+    run(1500);
+    CHECK(PAT()->trk[0].mfx == 2 && A.player.mfx_ons == m0, "group 2 (empty) while playing: no more notes through a "
+          "group (%u -> %u)", (unsigned)m0, (unsigned)A.player.mfx_ons);
+    btap(QD_B_PLAY);
+    turn(QD_K_ALGO, -1);
+    kdown(WK(4));
+    run(30);
+    CHECK(A.ui.tk == QD_TK_MFX_STEP && A.ui.tk_step == 4 && A.ui.tk_hold, "W5 held: its group popup at once");
+    black(B1);
+    CHECK(PAT()->step[0][4].mfx == QD_SMFX_OFF, "B1: the step OFF");
+    black(B3);
+    CHECK(PAT()->step[0][4].mfx == QD_SMFX_G1 + 1, "B3: group 2");
+    black(B11);
+    CHECK(PAT()->step[0][4].mfx == QD_SMFX_TRACK, "B11: the track's again");
+    kup(WK(4));
+    run(20);
+    CHECK(A.ui.tk != QD_TK_MFX_STEP, "let go: the popup gone");
+    btap(QD_B_HOME);
+    btap(LFO);                                          /* the latch's selection: the popup while it lasts */
+    wtap(6);
+    btap(QD_B_KEYS);
+    kdown(WK(6)), kup(WK(6));
+    run(QD_TK_MS + QD_TK_FADE_MS + 100);
+    CHECK(A.ui.slatch && A.ui.held[0] == 6 && A.ui.tk == QD_TK_MFX_STEP, "the latch, step 7 selected, the MIDI FX "
+          "screen: its popup stays up");
+    black(B2);
+    CHECK(PAT()->step[0][6].mfx == QD_SMFX_G1, "B2: group 1 on the selection");
+    btap(QD_B_HOME);
+}
+
 static void g_p16e_preview(void)
 {
     qd_mfx_group_t *G;
@@ -6043,9 +6096,11 @@ static void g_p16h_mixlock(void)
     CHECK(A.ui.slatch && A.ui.nheld == 1, "the latch on, W1: step 1 selected");
     btap(QD_B_PAGE);
     qd_view_mix(&A, &mv);
-    CHECK(A.ui.slatch && !A.ui.nheld && !mv.step && !mv.nsel, "into the mix: the selection let go (no frame)");
+    CHECK(A.ui.slatch && A.ui.nheld == 1 && mv.step && mv.nsel == 1, "into the mix: the selection stays (the frame; "
+          "2026-10-26, the owner)");
     turn(QD_K_1, 2);
-    CHECK(LK(0, 0, QD_LK_LEVEL) == -99999, "KNOB 1: the track's LEVEL, no lock");
+    CHECK(LK(0, 0, QD_LK_LEVEL) == A.model.t[0].mix.level + 2, "KNOB 1: step 1's LEVEL lock");
+    wtap(0);                                            /* (the sole selected step tapped: unselected) */
     kdown(WK(1)), kdown(WK(2)), kdown(WK(3)), run(30);
     kup(WK(1)), kup(WK(2)), kup(WK(3)), run(10);
     qd_view_mix(&A, &mv);
@@ -8900,6 +8955,7 @@ int main(void)
         {"P1.6d: track kinds and names", g_p16d_kinds},
         {"P1.6e: the stuck slot move (regression)", g_p16e_stuck},
         {"P1.6e: the MIDI FX screen's holds, F1 / F2, STEPS", g_p16e_mfx},
+        {"2026-10-26: the track's group changed while playing, the held step's group popup and keys", g_mfx_live},
         {"P1.6e: the preview through the step's group", g_p16e_preview},
         {"P1.6f: F1 / F2 in the MIDI FX screen", g_p16f_f1f2},
         {"P1.6f: ARP's breath, STEPS / KEYS shared", g_p16f_keys},

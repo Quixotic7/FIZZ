@@ -633,6 +633,7 @@ void qd_step_value_key_default(qd_app_t *a, int b, int down)
         if (b >= 3) {                                   /* (B5 OFF, B6..B10 groups 1..5: the track's group) */
             if (b > 3)
                 p->trk[t].mfx = (uint8_t)((b == 4 ? 0 : b - 4) | (p->trk[t].mfx & QD_TMFX_OFF));   /* (bypass kept) */
+            qd_mfx_track_changed(a, t);
             p->used = 1;
             break;
         }
@@ -1163,6 +1164,7 @@ void qd_step_job_default(qd_app_t *a, int job, int knob, int d)
     case QD_KJ_MFX: {                                   /* P1.6c: the default: the track's group (OFF, 1..5) */
         qd_tset_t *ts = &p->trk[t];
         ts->mfx = (uint8_t)clampi(ts->mfx + d, 0, QD_MFX_NGROUP);
+        qd_mfx_track_changed(a, t);
         p->used = 1;
         break;
     }

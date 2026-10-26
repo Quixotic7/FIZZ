@@ -2052,8 +2052,9 @@ void qd_ctl_ms(qd_app_t *a)
     if (u->tk == QD_TK_PRESET && u->tk_hold) {         /* P1.5v: the step's pool picker: up while the step is held */
         if (!u->nheld)
             u->tk = QD_TK_NONE, u->tk_hold = 0, u->tk_lock = 0;   /* (let go: closed, the choice kept) */
-    } else if (u->tk == QD_TK_MFX_STEP && u->tk_hold) {   /* P1.6e: STEPS' steps held: up while they are */
-        if (!u->mfx_wheld)
+    } else if (u->tk == QD_TK_MFX_STEP && u->tk_hold) {   /* P1.6e: STEPS' steps held: up while they are (2026-10-26:
+                                                         * or the latch's selection on the MIDI FX screen) */
+        if (!u->mfx_wheld && !(qd_mfx_open(a) && u->slatch && u->nheld))
             u->tk = QD_TK_NONE, u->tk_hold = 0;
     } else if (u->tk == UI_TK_TOOL && u->tk_knob != 1 && a->ms - u->tk_ms >= QD_TOOL_POP_MS) {
         u->tk = QD_TK_NONE;                             /* (T1: a tool's name, a message: ~0.8 s) */

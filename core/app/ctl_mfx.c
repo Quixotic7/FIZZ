@@ -30,6 +30,24 @@ int qd_mfx_tgroup(const qd_app_t *a)
     const int m = qd_ctl_cpat(a)->trk[a->sel].mfx & 0x7f;   /* (QD_TMFX_OFF: a playback bypass, the group edited) */
     return m <= QD_MFX_NGROUP ? m : 0;
 }
+void qd_mfx_track_changed(qd_app_t *a, int t)
+{
+    if (t < 0 || t >= QD_PAT_NTRACK)
+        return;
+    qd_mfx_flush_track(&a->player.mfx, t, -1);
+    memset(a->player.on_grp[t], 0, sizeof a->player.on_grp[t]);
+    memset(a->player.key_grp[t], 0, sizeof a->player.key_grp[t]);
+}
+void qd_mfx_step_popup(qd_app_t *a)
+{
+    qd_ui_t *u = &a->ui;
+    int s0 = 0;
+    if (!qd_mfx_steps_held(a, &s0))
+        return;
+    u->tk_step = s0;
+    qd_ctl_takeover(a, QD_TK_MFX_STEP, 1, 0, 0, s0);
+    u->tk_hold = 1;
+}
 static qd_mfx_slot_t *mf_slot(qd_app_t *a)
 {
     const int g = qd_mfx_tgroup(a);
@@ -138,6 +156,25 @@ void qd_mfx_black(qd_app_t *a, int b, int down)
     }
     if (u->mfx_bheld && b < QD_MFX_NSLOT)               /* (another slot key: the first one's move dropped) */
         mf_drop(a);
+    {   /* 2026-10-26 (the owner): a step held (or the latch's selection): the black keys are its group: B1 OFF, B2..B6
+         * groups 1..5, B11 back to the track's; the popup shows it */
+        int s0 = 0;
+        if (qd_mfx_steps_held(a, &s0) && (b < 1 + QD_MFX_NGROUP || b == 10)) {
+            qd_pattern_t *p = qd_ctl_pat(a);
+            const int m = b == 10 ? QD_SMFX_TRACK : b == 0 ? QD_SMFX_OFF : QD_SMFX_G1 + b - 1;
+            int w, i;
+            if (u->mfx_wheld) {
+                for (w = 0; w < 16; w++)
+                    if ((u->mfx_wheld >> w) & 1u)
+                        qd_step_set_mfx(p, a->sel, u->page[a->sel] * QD_PAGE + w, m);
+            } else {
+                for (i = 0; i < u->nheld; i++)
+                    qd_step_set_mfx(p, a->sel, u->held[i], m);
+            }
+            qd_mfx_step_popup(a);
+            return;
+        }
+    }
     if (!g)
         return;
     if (b != 10)
@@ -231,12 +268,23 @@ void qd_mfx_white(qd_app_t *a, int key, int w, int down, int vel)
                                                          * FX); no sound */
         if (w < 0 || w >= 16)
             return;
+        if (u->slatch) {                                /* 2026-10-26 (the owner): the latch on: the step view's
+                                                         * selection, as on EDIT (a tap selects, several together) */
+            if (down)
+                qd_step_white_down(a, w);
+            else
+                qd_step_white_up_hold(a, w);
+            qd_mfx_step_popup(a);
+            return;
+        }
         if (down)
             u->mfx_wheld |= (uint16_t)(1u << w);
         else
             u->mfx_wheld &= (uint16_t)~(1u << w);
         if (!u->mfx_wheld && u->tk == QD_TK_MFX_STEP)
             u->tk = QD_TK_NONE;                         /* (its picture: while held) */
+        if (down)
+            qd_mfx_step_popup(a);                       /* (2026-10-26: the popup at once, not only after ALGORITHM) */
         return;
     }
     if (down) {                                         /* the track through the group (its release: the app's) */
@@ -351,6 +399,7 @@ int qd_mfx_knob(qd_app_t *a, int knob, int d)
         const int up = u->mfx_gsel_ms && a->ms - u->mfx_gsel_ms < QD_TK_MS;
         u->mfx_gsel_from = up ? qd_mfx_glide(a, u->mfx_gsel_from, u->mfx_gsel_to, u->mfx_gsel_t0) : was * 100;
         ts->mfx = (uint8_t)(mf_clampi(was + d, 0, QD_MFX_NGROUP) | (ts->mfx & QD_TMFX_OFF));   /* (the bypass kept) */
+        qd_mfx_track_changed(a, a->sel);
         u->mfx_gsel_to = (ts->mfx & 0x7f) * 100;
         u->mfx_gsel_ms = u->mfx_gsel_t0 = a->ms ? a->ms : 1u;
         u->mfx_arm = -1;
