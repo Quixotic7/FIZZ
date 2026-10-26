@@ -2272,17 +2272,15 @@ int qd_lib_free_slot(const qd_app_t *a)
 static uint16_t lib_new_id(const qd_app_t *a)
 {
     unsigned m = QD_PRESET_MINE0 + QD_NLIB - 1;
-    int k, p, t;
+    int k, t;
     for (k = 0; k < QD_NLIB; k++)
         if (qd_lib_used(a, k) && qd_lib_preset(a, k) > m)
             m = qd_lib_preset(a, k);
     for (k = 1; k <= QD_NSOUND; k++)
         if (qd_sound_preset(&a->proj, k) > m)
             m = qd_sound_preset(&a->proj, k);
-    for (p = 0; p < QD_NPAT; p++)
-        for (t = 0; t < QD_PAT_NTRACK; t++)
-            if (qd_proj_cpat(&a->proj, p)->snd[t].preset > m)
-                m = qd_proj_cpat(&a->proj, p)->snd[t].preset;
+    /* (2026-10-25: the patterns' track sounds not looked at: paging them in read 64 records under the lock, ~1 s
+     * on the unit; id_next, below, covers every id given out) */
     for (t = 0; t < QD_NTRACK; t++)
         if (a->model.t[t].preset > m)
             m = a->model.t[t].preset;
