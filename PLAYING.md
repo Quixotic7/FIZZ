@@ -366,13 +366,15 @@ Undo and redo of everything (P1.5c):
 - **Tap SEL**: the selected track's settings in this pattern (its number, kind and name in its colour at the top).
   **SEL again** (or SELECT) for the next page (three, round). **OCT− or HOME** closes it. **B1..B6** switch to another track's.
 - Page 1: **KNOB 1 SCALE** (its twelve notes shown as dots, the root ringed), **KNOB 2 ROOT**, **KNOB 3 FOLLOW KEY**
-  (the project's global key instead of its own), **KNOB 4 MIDI CH** (the channel that plays the track, 1..6 by
+  (the project's global key instead of its own; **a new track follows it**, the global key starts CHROMATIC C;
+  following, SCALE and ROOT show the global key's values, tagged GLOBAL; turning KNOB 1 or 2 gives the track its
+  own key, starting from the global one), **KNOB 4 MIDI CH** (the channel that plays the track, 1..6 by
   default; channel 16 always plays the selected track).
 - Page 2: **KNOB 1 VOICES** (the voice limit, 1 = mono; the voices sounding white), **KNOB 2 SWING** on / off,
   **KNOB 3 PAGE FOLLOW**, **KNOB 4 MIDI FX**.
 - Page 3 (0.9.1): **KNOB 1 KIND**: BASS, KEYS, PLUCK, PAD, LEAD, DRUMS, FX (the presets' seven tags), each with its
   icon; choosing one **renames the track to the kind** unless you typed a name of your own. **KNOB 2 NAME**: a turn
-  opens the name keyboard (TRACK NAME; PRESETS rolls names from the kind and namesizer: DUSTY BASS, PAD 3 ..); SAVE
+  opens the name keyboard (TRACK NAME; PRESETS or KNOB 2 rolls names from the kind and namesizer: DUSTY BASS, PAD 3 ..); SAVE
   keeps it (a typed name stays when the kind changes; typing the kind's own name lets it follow again), HOME cancels;
   both come back to page 3.
 - **The kind's icon** shows wherever the track's name does: the track picker (SEL held), the mixer (over the faders),
@@ -381,7 +383,8 @@ Undo and redo of everything (P1.5c):
   (the default kit's: DRUMS, BASS, KEYS, LEAD, PLUCK, PAD, BELL, NOISE), with the kinds DRUMS, BASS, KEYS, LEAD,
   PLUCK, PAD, KEYS, FX. **A new project** (0.9.5) names its tracks from their sounds: each track's kind from its
   preset's tags, its name from the namesizer and the sound's own ideas (not typed: a kind chosen renames it).
-- SHIFT + ALGORITHM / PRESETS still set the scale / root from the step view.
+- **The white keys** are the page's steps (a tap makes or removes one); with the keyboard on (REC) they play notes.
+- SHIFT + ALGORITHM / PRESETS still set the scale / root from the step view (a following track: the global key).
 
 ## How do I mix? (ENV = MIX)
 
@@ -887,7 +890,9 @@ DECAY, HARM and FDBK.
 
 - **SHIFT + ALGORITHM** sets the track's scale (chromatic, major, minor, the modes, harmonic and melodic minor,
   pentatonics, blues, whole tone). **SHIFT + PRESETS** sets its root. Its picture (the scale's name, its keys) shows
-  over the PIANO ROLL, STEPS and EDIT alike (P1.5z).
+  over the PIANO ROLL, STEPS and EDIT alike (P1.5z), and **stays while SHIFT is held** (it fades once you let go).
+- A track that **follows the global key** (FOLLOW KEY, the default): SHIFT + ALGORITHM / PRESETS set the
+  **project's global key** (every following track plays it); the picture says **GLOBAL** under the name.
 - This is temporary until the track settings page exists.
 
 ## The global settings (SHIFT + SEL)
@@ -956,7 +961,7 @@ bright).
 - **SHIFT held**: the black keys are **0..9 and -**, the white keys **. , ' & ! ? # + / ( ) \* : _ ~** and SPACE (the
   screen's keybed changes with it). While a name is typed SHIFT is only this: SHIFT + a button does nothing else (no
   snapshots, undo, settings or views), but **SHIFT + F1 clears** the name.
-- **PRESETS (or KNOB 4) right rolls a new name, every detent, for ever** (P1.5z): mostly namesizer pairs, now and
+- **PRESETS (or KNOB 4, or KNOB 2) right rolls a new name, every detent, for ever** (P1.5z): mostly namesizer pairs, now and
   then a made-up word (phonic nonsense like NIRE, cosmic words like FM-GX) and, about one time in five, one of the
   sound's own names (BRIGHT PLUCK, WARM PING ...). A neon die tumbles in beside each new one and lands. The name
   shown is the name, selected again (the sparkle stays).

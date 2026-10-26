@@ -487,6 +487,8 @@ static void d_scale(const ui_turn_t *v, qd_rgb col)
     }
     if (v->next)
         ui_T(v->next, 120.f, 128.f, 12.f, 500, 1.f, UI_G2, QD_CENTER);
+    if (v->ext)                                         /* the project's key (the track follows it) */
+        ui_T("GLOBAL", 120.f, 143.f, 12.f, 700, 1.f, UI_K3, QD_CENTER);
     qd_save();
     qd_clip_rect(kx - 2.f, ky - 3.f, kw + 3.f, kh + 6.f);
     ui_keyboard(kx, ky, kw * 2.f, kh, 48, 0);

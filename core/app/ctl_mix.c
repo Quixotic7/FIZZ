@@ -7,7 +7,8 @@
  * source lists stay as they are).
  *
  *   SEL tapped (held: the track map, as before)  THE TRACK SETTINGS of the selected track in the pattern: KNOB 1 SCALE,
- *        KNOB 2 ROOT, KNOB 3 FOLLOW KEY (the project's global key), KNOB 4 MIDI CHANNEL; SEL again (or SELECT): the
+ *        KNOB 2 ROOT (either: the track's own key, from the global one), KNOB 3 FOLLOW KEY (the project's global key;
+ *        a new track's default), KNOB 4 MIDI CHANNEL; W the steps (a tap makes, removes; the keyboard on: notes); SEL again (or SELECT): the
  *        second page, KNOB 1 VOICES (the limit), KNOB 2 SWING on / off, KNOB 3 PAGE FOLLOW (the global setting's);
  *        B1..B8 the track
  *   ENV (printed) = MIX  six faders with their pan dials and sends; KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4
@@ -207,6 +208,8 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
         return 1;
     }
     if (!u->trk_page) {
+        if (knob <= QD_K_2 && ts->key_global)           /* (an override starts from the global key) */
+            ts->scale = a->proj.key_scale, ts->root = a->proj.key_root;
         switch (knob) {
         case QD_K_1: ts->scale = (uint8_t)cl(ts->scale + d, 0, QD_NSCALE - 1), ts->key_global = 0; break;
         case QD_K_2: ts->root = (uint8_t)(((ts->root + d) % 12 + 12) % 12), ts->key_global = 0; break;
@@ -285,7 +288,7 @@ int qd_panel_lock_id(const qd_app_t *a, int knob)
  * lock on (a tap does nothing here); 1 taken */
 int qd_panel_steps(const qd_app_t *a, int w)
 {
-    return a->ui.latch == QD_LATCH_MIX ||
+    return a->ui.latch == QD_LATCH_MIX || a->ui.latch == QD_LATCH_TRK ||
            (a->ui.latch == QD_LATCH_FX && !(QD_FX_PAGES[a->ui.fx_page].fx == QD_FXG_OVER && w < QD_NTRACK));
 }
 

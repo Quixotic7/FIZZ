@@ -370,6 +370,7 @@ static void k_snd_black(qd_app_t *a, int key, int b, int down, int vel)
 }
 /* P1.3y: a settings menu open: the keys do nothing (KNOB 1..4 its values; OCT- / HOME back) */
 static int w_menu(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && QD_LATCH_MENU(a->ui.latch); }
+static int w_menu_w(const qd_app_t *a) { return w_menu(a) && a->ui.latch != QD_LATCH_TRK; }
 static int w_tracks_held(const qd_app_t *a) { return held(a, QD_B_TRACKS); }
 static int w_keys_mode(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS; }
 /* P1.5a: the pages (P1.5t: the library browser, SAVE PRESET), the name editor, the project pages (ctl_lib.c) */
@@ -463,6 +464,8 @@ static void k_panel_white(qd_app_t *a, int key, int w, int down, int vel)
                                                          * lock on */
         if (down)
             qd_step_white_down(a, w);
+        else if (a->ui.latch == QD_LATCH_TRK)
+            qd_step_white_up(a, w);                     /* (the track settings: a tap makes, removes) */
         else
             qd_step_white_up_hold(a, w);
         return;
@@ -930,10 +933,10 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_tools, k_tools_white},          /* T1: TOOLS: W1..W6 the track */
     {w_tracks_held, k_track_select},   /* FX (TRACKS) held: tracks 1..8 (over the pages too) */
     {w_lib, k_lib_white},              /* P1.5a: the sounds page's slots, the projects */
-    {w_menu, k_none},                  /* P1.3y: a settings menu: nothing */
+    {w_menu_w, k_none},                /* P1.3y: a settings menu: nothing (the track settings: the steps, below) */
     {w_main_layer, k_flayer_white},    /* P1.6h: a main page's steps, F1 / F2 held: the step view's copy, pick-up / drop */
-    {w_panel, k_panel_white},          /* P1.4b: the mix, the effects: nothing (P1.5b: the overview's W1..W8 the
-                                        * track) */
+    {w_panel, k_panel_white},          /* P1.4b: the track settings, the mix, the effects: the steps (P1.5b: the
+                                        * overview's W1..W8 the track) */
     {w_mfx, k_mfx_white},              /* P1.6c: the MIDI FX screen: the track through the group (the lanes' steps) */
     {w_snd_mk, k_snd_mk},              /* E4: the editor, B1 held: W1..W8 the modulation source */
     {w_snd_keys, k_snd_note},          /* P1.5b: the sound editor's keyboard */
@@ -1519,23 +1522,20 @@ static void page_knob(qd_app_t *a, int d)
 }
 
 /* SHIFT + ALGORITHM: the track's scale, SHIFT + PRESETS: its root (the step view's; P1.5b: the keyboard's and the
- * editor's with the keyboard on too); 1 taken */
+ * editor's with the keyboard on too); a track that follows the global key: the project's key; 1 taken */
 static int scale_root(qd_app_t *a, int knob, int d)
 {
     qd_tset_t *ts = &qd_ctl_pat(a)->trk[a->sel];
-    if (knob == QD_K_ALGO) {
-        ts->scale = (uint8_t)clampi(ts->scale + d, 0, QD_NSCALE - 1);
-        ts->key_global = 0;
-        qd_ctl_takeover(a, UI_TK_SCALE, 0, d, 0, -1);
-        return 1;
-    }
-    if (knob == QD_K_PRESETS) {
-        ts->root = (uint8_t)(((ts->root + d) % 12 + 12) % 12);
-        ts->key_global = 0;
-        qd_ctl_takeover(a, UI_TK_ROOT, 0, d, 0, -1);
-        return 1;
-    }
-    return 0;
+    const int g = ts->key_global;
+    uint8_t *sc = g ? &a->proj.key_scale : &ts->scale, *rt = g ? &a->proj.key_root : &ts->root;
+    if (knob == QD_K_ALGO)
+        *sc = (uint8_t)clampi(*sc + d, 0, QD_NSCALE - 1);
+    else if (knob == QD_K_PRESETS)
+        *rt = (uint8_t)(((*rt + d) % 12 + 12) % 12);
+    else
+        return 0;
+    qd_ctl_takeover(a, knob == QD_K_ALGO ? UI_TK_SCALE : UI_TK_ROOT, 0, d, 0, -1);
+    return 1;
 }
 
 /* the step view, nothing held: SELECT the page, ALGORITHM the mode's default (SHIFT: the scale), PRESETS the track's
@@ -2024,6 +2024,8 @@ void qd_ctl_ms(qd_app_t *a)
             u->tk = QD_TK_NONE, u->tk_hold = 0;
     } else if (u->tk == UI_TK_TOOL && u->tk_knob != 1 && a->ms - u->tk_ms >= QD_TOOL_POP_MS) {
         u->tk = QD_TK_NONE;                             /* (T1: a tool's name, a message: ~0.8 s) */
+    } else if ((u->tk == UI_TK_SCALE || u->tk == UI_TK_ROOT) && qd_ctl_shift(a)) {
+        u->tk_ms = a->ms;                               /* (the key's popup: up while SHIFT is held) */
     } else if (u->tk != QD_TK_NONE &&
                a->ms - u->tk_ms >= (u->tk == UI_TK_TAP ? QD_TAP_TK_MS : QD_TK_MS) + QD_TK_FADE_MS) {
         u->tk = QD_TK_NONE;                             /* (P1.5z: TAP's stays 2 s after the last tap) */

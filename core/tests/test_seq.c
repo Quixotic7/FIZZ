@@ -3196,6 +3196,7 @@ static void u_scale(void)
         pr->key_root = 5;
         P->trk[2].scale = QD_SCALE_MAJOR;
         P->trk[2].root = 14;
+        P->trk[2].key_global = 0;                       /* (a new track follows: its own key here) */
         qd_track_key(pr, P, 2, &s2, &r2);
         CHECK(s2 == QD_SCALE_MAJOR && r2 == 2, "a track's own key (root 14 -> D): %d %d", s2, r2);
         P->trk[2].key_global = 1;
@@ -3203,7 +3204,7 @@ static void u_scale(void)
         CHECK(s2 == QD_SCALE_LYDIAN && r2 == 5, "a track following the global key: %d %d", s2, r2);
         qd_track_key(0, P, 2, &s2, &r2);
         CHECK(s2 == QD_SCALE_MAJOR && r2 == 2, "(no project: its own)");
-        P->trk[3].scale = 99;
+        P->trk[3].scale = 99, P->trk[3].key_global = 0;
         qd_track_key(pr, P, 3, &s2, &r2);
         CHECK(s2 == QD_SCALE_CHROMATIC && r2 == 0, "a scale out of range: chromatic");
         qd_project_init(pr);

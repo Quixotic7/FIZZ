@@ -573,6 +573,7 @@ static void g_notes(void)
     wrel(0);
     btap(F2);                                           /* (nothing held: F2 is a layer, the octave stays) */
     CHECK(A.ui.entry_oct == 3, "nothing held: OCT+ is F2, not the octave");
+    PAT()->trk[0].key_global = 0;                       /* (its own key) */
     bdown(SHIFT);
     turn(QD_K_ALGO, QD_SCALE_DORIAN);                   /* the track's scale: DORIAN, root D */
     turn(QD_K_PRESETS, 2);
@@ -1782,6 +1783,7 @@ static void g_keyboard_scale(void)
     start();
     PAT()->trk[0].scale = QD_SCALE_MIN_PENTA;
     PAT()->trk[0].root = 9;                             /* A minor pentatonic: A C D E G */
+    PAT()->trk[0].key_global = 0;
     btap(QD_B_REC);
     n = qd_rec_key_note(&A, 8);                         /* C#4 (61) -> C4 */
     CHECK(n == 60 && qd_rec_key_note(&A, 13) == 64 && qd_rec_key_note(&A, 7) == 60, "a minor-pentatonic track: "
@@ -1829,6 +1831,50 @@ static void g_follow(void)
     btap(QD_B_PLAY);
 }
 
+/* the track settings' W keys (the steps; the keyboard on: notes), the global key (SHIFT + ALGORITHM / PRESETS on a
+ * following track), new tracks follow, the key's popup up while SHIFT is held */
+static void g_track_keys(void)
+{
+    qd_tset_t *ts;
+    start();
+    ts = &PAT()->trk[0];
+    CHECK(ts->key_global == 1 && A.proj.key_scale == QD_SCALE_CHROMATIC && !A.proj.key_root,
+          "a new track follows the global key, CHROMATIC C");
+    btap(QD_B_PATTERN);
+    wtap(3);
+    CHECK(A.ui.latch == QD_LATCH_TRK && R(0, 3).on, "the track settings: W4 tapped, step 4 on");
+    wtap(3);
+    CHECK(!R(0, 3).on, "again: off");
+    btap(QD_B_REC);
+    A.keys_struck = 0;
+    kdown(WK(3));
+    run(5);
+    CHECK(A.ui.mode == QD_MODE_KEYS && (A.keys_struck >> WK(3)) & 1u && !R(0, 3).on, "the keyboard on: W4 plays a note");
+    kup(WK(3));
+    run(5);
+    btap(QD_B_REC);
+    btap(QD_B_HOME);
+    bdown(SHIFT);
+    run(10);
+    turn(QD_K_ALGO, 2);
+    turn(QD_K_PRESETS, 3);
+    CHECK(A.proj.key_scale == QD_SCALE_CHROMATIC + 2 && A.proj.key_root == 3 && ts->scale == QD_SCALE_CHROMATIC &&
+              !ts->root && ts->key_global, "following: SHIFT + ALGORITHM / PRESETS the global key");
+    run(1500);
+    CHECK(A.ui.tk == UI_TK_ROOT, "SHIFT held: the popup still up 1.5 s later");
+    bup(SHIFT);
+    run(1500);
+    CHECK(A.ui.tk != UI_TK_ROOT, "SHIFT let go: gone 1.5 s later");
+    ts->key_global = 0;
+    bdown(SHIFT);
+    run(10);
+    turn(QD_K_ALGO, 1);
+    bup(SHIFT);
+    run(10);
+    CHECK(ts->scale == QD_SCALE_CHROMATIC + 1 && A.proj.key_scale == QD_SCALE_CHROMATIC + 2,
+          "its own key: SHIFT + ALGORITHM the track's scale");
+}
+
 /* P1.4b: SEL tapped, the track settings (two pages, B1..B8 the track); ENV, the mix (the faders, again the sends; B1..B8
  * the track); FX tapped, the effects (B1..B4 the effects, again their second page; SELECT the pages; SEND the track's);
  * the W keys nothing there; OCT- closes; FX held + ALGORITHM still the track */
@@ -1855,7 +1901,8 @@ static void g_tracks_screen(void)
     CHECK(A.ui.trk_page == 1 && ts->limit == (v0 + 2 > 16 ? 16 : v0 + 2) && ts->swing == 1,
           "SEL again: VOICES +2 (%d), SWING on", ts->limit);
     wtap(4);
-    CHECK(!R(0, 4).on, "a W does nothing here");
+    CHECK(R(0, 4).on, "a W: the step");
+    wtap(4);
     black(B3);
     CHECK(A.sel == 2 && A.ui.latch == QD_LATCH_TRK, "B3: track 3's settings");
     btap(QD_B_OCTDN);
@@ -5128,6 +5175,9 @@ static void g_p16d_kinds(void)
         ok += A.ui.ty.name[0] != 0 && strlen(A.ui.ty.name) <= 12;
     }
     CHECK(ok == 6, "PRESETS: names rolled (%s)", A.ui.ty.name);
+    strcpy(was, A.ui.ty.name);
+    turn(QD_K_2, 1);
+    CHECK(strcmp(was, A.ui.ty.name) != 0, "KNOB 2: a name rolled too (%s)", A.ui.ty.name);
     strcpy(was, A.model.t[2].name);
     btap(QD_B_HOME);
     CHECK(!strcmp(A.model.t[2].name, was) && A.ui.latch == QD_LATCH_TRK && A.ui.trk_page == 2, "HOME: cancelled, page 3");
@@ -5168,6 +5218,7 @@ static void g_p16d_latch(void)
                 wtap(2);
                 run(QD_CLICK_MS + 10);
             }
+            ts->key_global = 0;
             s0 = ts->scale, r0 = ts->root;
             bdown(SHIFT), turn(QD_K_ALGO, 2), turn(QD_K_PRESETS, 3), bup(SHIFT), run(10);
             CHECK(ts->scale == s0 + 2 && ts->root == (r0 + 3) % 12 && qd_view_screen(&A) != QD_SCR_BROWSE &&
@@ -8083,6 +8134,7 @@ static void g_p15z_scale_popup(void)
         A.ui.view = VIEWS[i];
         run(50);
         sc0 = PAT()->trk[0].scale;
+        PAT()->trk[0].key_global = 0;
         bdown(SHIFT);
         run(10);
         turn(QD_K_ALGO, 1);
@@ -8497,6 +8549,7 @@ int main(void)
         {"ARP = FILL", g_fill_page},
         {"page follow", g_follow},
         {"P1.4b: the track settings, the mix, the effects", g_tracks_screen},
+        {"the track settings' W keys, the global key", g_track_keys},
         {"MIDI notes into a held step", g_midi_held},
         {"the layer maps, SHIFT's map", g_maps},
         {"P1.3d: the knob layout, a step held, every mode", g_knobs_held},

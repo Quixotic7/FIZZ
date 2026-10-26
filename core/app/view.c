@@ -739,6 +739,7 @@ static void fill_turn(qd_app_t *a, ui_turn_t *v, char *ctx)
         int sc, rt, k;
         qd_track_key(&a->proj, P, t, &sc, &rt);
         v->root = rt;
+        v->ext = P->trk[t < 0 || t >= QD_PAT_NTRACK ? 0 : t].key_global;   /* (SCALE / ROOT: GLOBAL under the name) */
         for (k = 0; k < 12; k++)
             if (qd_scale_has(sc, rt, rt + k))
                 v->scale_mask |= (uint16_t)(1u << k);
