@@ -4260,7 +4260,7 @@ static void g_p15b_chips(void)
     btap(QD_B_HOME);
 }
 
-/* 5, 6: FX opens on the OVERVIEW (W1..W8 the track, KNOB 1..3 its sends); B6 the ROUTING (ChoralRoot's: all 0) */
+/* 5, 6: FX opens on the OVERVIEW (W1..W8 the track, KNOB 1..3 its sends); B6 the ROUTING (PARALLEL / CHAIN, the blocks) */
 static void g_p15b_fx(void)
 {
     int c0, d0, r0;
@@ -4278,50 +4278,91 @@ static void g_p15b_fx(void)
     turn(QD_K_3, -2);
     CHECK(A.model.t[2].mix.chorus == c0 + 4 && A.model.t[2].mix.delay == d0 + 3 && A.model.t[2].mix.reverb == r0 - 2,
           "KNOB 1..3: track 3's CHORUS +4, DELAY +3, REVERB -2");
-    CHECK(qd_fx_get(QD_FXP_XDR) == 0 && qd_fx_get(QD_FXP_XCD) == 0 && qd_fx_get(QD_FXP_XCR) == 0 &&
-              qd_fx_get(QD_FXP_XPOS) == 0, "the routing at power-on: none (ChoralRoot's chain)");
+    CHECK(qd_fx_get(QD_FXP_RMODE) == 0 && qd_fx_get(QD_FXP_ORDER) == 0 && qd_fx_get(QD_FXP_CAMT_C) == 64,
+          "the routing at power-on: PARALLEL, CHORUS DELAY REVERB FILTER, the chain amounts half");
     black(B6);
-    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "ROUTING") && leds().key[BK(B6)] == QD_LED_LIT, "B6: ROUTING");
-    turn(QD_K_1, 10);
-    turn(QD_K_2, 20);
-    turn(QD_K_3, 30);
-    turn(QD_K_4, 1);
-    CHECK(qd_fx_get(QD_FXP_XDR) == 10 && qd_fx_get(QD_FXP_XCD) == 20 && qd_fx_get(QD_FXP_XCR) == 30 &&
-              qd_fx_get(QD_FXP_XPOS) == 1, "KNOB 1..4: DELAY > REVERB, CHORUS > DELAY, CHORUS > REVERB, the filter BEFORE");
-    black(B2);
-    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"), "B2: DELAY");
+    l = leds();
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "ROUTING") && l.key[BK(B6)] == QD_LED_LIT && l.key[BK(B2)] == QD_LED_MID &&
+              l.key[BK(B5)] == QD_LED_MID && l.key[BK(B1)] == QD_LED_DIM, "B6: ROUTING (the four blocks' keys glow)");
+    turn(QD_K_1, 1);
+    CHECK(qd_fx_get(QD_FXP_RMODE) == 1, "KNOB 1: CHAIN");
+    turn(QD_K_2, 3);
+    CHECK(qd_fx_get(QD_FXP_CAMT_C) > 64, "KNOB 2: the chorus's chain amount up");
+    kdown(BK(B2));
+    run(50);
+    CHECK(A.ui.fx_bheld == 2 && leds().key[BK(B2)] == QD_LED_LIT, "B2 (DELAY's page key) held: its block lifts, the key lit");
+    turn(QD_K_1, 1);
+    CHECK(qd_fx_route_block(1) == QD_RT_REVERB && qd_fx_route_block(2) == QD_RT_DELAY && qd_fx_get(QD_FXP_RMODE) == 1,
+          "KNOB 1 while held: DELAY one place on, after REVERB (the mode untouched)");
+    run(500);
+    kup(BK(B2));
+    run(10);
+    CHECK(!A.ui.fx_bheld && !strcmp(QD_FX_PAGES[A.ui.fx_page].name, "ROUTING"), "let go: it lands, still ROUTING");
+    kdown(BK(B4));
+    run(50);
+    turn(QD_K_1, -1);
+    kup(BK(B4));
+    run(10);
+    CHECK(qd_fx_route_block(0) == QD_RT_CHORUS, "CHORUS at the front: KNOB 1 left clamps");
+    kdown(BK(B2));
+    run(50);
+    kup(BK(B2));
+    run(10);
+    CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"), "B2 tapped: the DELAY page");
+    black(B6);
+    turn(QD_K_1, -1);
+    kdown(BK(B5));
+    run(50);
+    turn(QD_K_1, -1);
+    kup(BK(B5));
+    run(10);
+    CHECK(qd_fx_get(QD_FXP_RMODE) == 0 && qd_fx_route_block(0) == QD_RT_FILTER, "PARALLEL: FILTER held, KNOB 1 left: first");
+    kdown(BK(B5));
+    run(50);
+    turn(QD_K_1, 1);
+    kup(BK(B5));
+    run(10);
+    CHECK(qd_fx_route_block(3) == QD_RT_FILTER && qd_fx_route_block(0) == QD_RT_CHORUS && qd_fx_route_block(1) == QD_RT_REVERB,
+          "KNOB 1 right: after the buses again, the effects' order kept");
+    kdown(BK(B2));
+    run(50);
+    turn(QD_K_1, 1);
+    kup(BK(B2));
+    run(10);
+    CHECK(qd_fx_route_block(2) == QD_RT_DELAY, "PARALLEL: an effect held does not move");
     btap(QD_B_HOME);
     btap(QD_B_TRACKS);
     CHECK(A.ui.fx_page == 0, "FX again later: the OVERVIEW");
     btap(QD_B_HOME);
     qd_fx_init();
-    /* the routes heard: a burst into the chorus alone, its return fed into the delay / the reverb or not */
+    /* heard: a burst in the dry mix; PARALLEL with no sends leaves nothing after it, CHAIN with the delay's amount up echoes */
     {
         int r, pass;
-        double e[3];
-        for (r = 0; r < 3; r++) {
-            int32_t sc[QD_FX_CTL], z[QD_FX_CTL], l2[QD_FX_CTL], r2[QD_FX_CTL], out[2 * QD_FX_CTL];
+        double e[2];
+        for (r = 0; r < 2; r++) {
+            int32_t z[QD_FX_CTL], l2[QD_FX_CTL], r2[QD_FX_CTL], out[2 * QD_FX_CTL];
             qd_fx_init();
-            if (r == 1)
-                qd_fx_set(QD_FXP_XCD, 127);
-            if (r == 2)
-                qd_fx_set(QD_FXP_XCR, 127);
+            if (r == 1) {
+                qd_fx_set(QD_FXP_RMODE, 1);
+                qd_fx_set(QD_FXP_CAMT_C, 0);
+                qd_fx_set(QD_FXP_CAMT_D, 127);
+                qd_fx_set(QD_FXP_CAMT_R, 0);
+            }
             e[r] = 0.;
             for (pass = 0; pass < 1400; pass++) {       /* 1 s */
                 int k;
                 for (k = 0; k < QD_FX_CTL; k++) {
-                    sc[k] = pass < 40 ? (int32_t)(sin((double)(pass * QD_FX_CTL + k) * 0.05) * 8000.) : 0;
-                    z[k] = l2[k] = r2[k] = 0;
+                    l2[k] = r2[k] = pass < 40 ? (int32_t)(sin((double)(pass * QD_FX_CTL + k) * 0.05) * 8000.) : 0;
+                    z[k] = 0;
                 }
-                qd_fx_block(sc, z, z, l2, r2, out);
-                if (pass >= 200)                        /* (after the chorus's own return has gone) */
+                qd_fx_block(z, z, z, l2, r2, out);
+                if (pass >= 200)
                     for (k = 0; k < 2 * QD_FX_CTL; k++)
                         e[r] += (double)out[k] * out[k];
             }
         }
-        CHECK(e[0] * 1000. < e[1] && e[0] * 1000. < e[2],
-              "the chorus alone: next to nothing after it; CHORUS > DELAY: echoes; CHORUS > REVERB: a tail (%g %g %g)", e[0], e[1],
-              e[2]);
+        CHECK(e[0] * 1000. < e[1] && e[1] > 1e6, "PARALLEL, nothing sent: next to nothing after the burst; CHAIN, DELAY 100 %%: echoes (%g %g)",
+              e[0], e[1]);
         qd_fx_init();
     }
 }

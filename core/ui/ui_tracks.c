@@ -332,96 +332,119 @@ static void fx_over(const ui_fx_t *v)
     }
 }
 
-/* P1.5b, ROUTING: the chain. The tracks' bus (left) sends into CHORUS, DELAY and REVERB (stacked), each returning
- * into the mix; the dry path along the foot; the master filter after the mix (or BEFORE: on the dry path); OUT. The
- * feeds as arrows in KNOB 1..3's colours, as thick as their amount (none: a faint dashed line) */
-static void fx_node(float x, float y, int kind, qd_rgb col, float t)
+/* ROUTING (2026-10-26, after ChoralRoot 0.27's Routing page; mockups/fizz-routing.html): the signal flow as boxes on a
+ * wire. CHAIN: IN, the four blocks numbered in their order, OUT; PARALLEL: the fan into CHORUS, DELAY and REVERB stacked,
+ * their returns summed, the FILTER after (or first: before the fan). A block's page key held lifts its box (a shadow,
+ * white arrows where it can go); KNOB 1 moves it. Each block in its knob's colour: CHORUS blue, DELAY green, REVERB
+ * white, FILTER orange */
+static const qd_rgb RT_COL[4] = {UI_K1, UI_K2, UI_K3, UI_K4};
+static const char *const RT_NAME[4] = {"CHORUS", "DELAY", "REVERB", "FILTER"};
+static void rt_icon(int kind, float x, float y, qd_rgb col, float t)
 {
     int i;
-    ui_RR(x - 20.f, y - 12.f, 40.f, 24.f, 6.f, col, 1.4f, UI_BG);
     if (kind == 0) {                                    /* CHORUS: two waves */
         for (i = 0; i < 2; i++) {
             float p[2 * 13];
             int k;
             for (k = 0; k <= 12; k++) {
-                p[2 * k] = x - 13.f + (float)k * 26.f / 12.f;
+                p[2 * k] = x - 12.f + (float)k * 2.f;
                 p[2 * k + 1] = y - 3.f + (float)i * 6.f + sinf((float)k * 0.9f + t * 3.f + (float)i) * 2.2f;
             }
             ui_P(p, 13, col, 1.2f, 0, QD_NONE);
         }
     } else if (kind == 1) {                             /* DELAY: echoes fading */
         for (i = 0; i < 4; i++)
-            ui_O(x - 11.f + (float)i * 7.5f, y, 3.2f - (float)i * 0.6f, QD_NONE, 1.f, col);
-    } else {                                            /* REVERB: a room's arcs */
+            ui_O(x - 9.f + (float)i * 6.f, y, 2.4f - (float)i * 0.4f, QD_NONE, 1.f, col);
+    } else if (kind == 2) {                             /* REVERB: a room's arcs */
         for (i = 0; i < 3; i++)
-            qd_arc(x - 10.f, y + 6.f, 5.f + (float)i * 5.f, -UI_PI * 0.5f, 0.f, col, 1.2f);
+            qd_arc(x - 8.f, y + 4.f, 4.f + (float)i * 5.f, -1.2f, 0.35f, col, 1.2f);
+    } else {                                            /* FILTER: a low-pass's shape */
+        const float p[8] = {x - 12.f, y - 2.f, x - 2.f, y - 2.f, x + 3.f, y + 1.f, x + 7.f, y + 8.f};
+        ui_P(p, 4, col, 1.4f, 0, QD_NONE);
     }
 }
-static void fx_feed(float x0, float y0, float x1, float y1, float amt, qd_rgb col)
+static void rt_arrow(float x, float y, int dir, qd_rgb col)
 {
-    static const float DASH[2] = {2.f, 3.f};
-    const float an = atan2f(y1 - y0, x1 - x0);
-    if (amt <= 0.f) {
-        qd_dash(DASH, 2);
-        ln(x0, y0, x1, y1, UI_G3, 1.f);
-        qd_dash(0, 0);
-        return;
-    }
-    ln(x0, y0, x1, y1, col, 1.f + amt * 3.f);
-    {
-        const float h[6] = {x1 - cosf(an - 0.5f) * 6.f, y1 - sinf(an - 0.5f) * 6.f, x1, y1,
-                            x1 - cosf(an + 0.5f) * 6.f, y1 - sinf(an + 0.5f) * 6.f};
-        ui_P(h, 3, col, 1.5f, 0, QD_NONE);
+    const float d = (float)dir;
+    const float p[6] = {x - 4.f * d, y - 4.f, x, y, x - 4.f * d, y + 4.f};
+    ui_P(p, 3, col, 1.6f, 0, QD_NONE);
+}
+static void rt_box(const ui_fx_t *v, int b, float x, float y, float w, float h, int num, int lift, int named)
+{
+    const qd_rgb col = RT_COL[b];
+    char n[4];
+    if (lift)                                           /* its shadow where it was */
+        ui_RR(x + 3.f, y + h + 5.f, w - 6.f, 3.f, 1.5f, QD_NONE, 1.f, UI_G3);
+    ui_RR(x, y, w, h, 6.f, col, lift ? 2.f : 1.4f, UI_BG);
+    rt_icon(b, x + w / 2.f + 2.f, y + h / 2.f - 2.f, col, v->t);
+    if (named)
+        ui_T(RT_NAME[b], x + w / 2.f, y + h + 14.f, 12.f, 600, 0.6f, UI_G1, QD_CENTER);
+    if (num) {
+        ui_O(x, y, 8.f, QD_NONE, 1.f, col);
+        ui_T(ui_itoa(n, num), x, y + 4.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
     }
 }
 static void fx_route(const ui_fx_t *v)
 {
-    static const float EY[3] = {60.f, 106.f, 152.f};     /* CHORUS, DELAY, REVERB */
-    const float bx = 20.f, by = 106.f, ex = 102.f, mx = 162.f, dry = 184.f;
-    const int before = v->rt[3] > 0.5f;
-    int i;
-    ui_O(bx, by, 7.f, UI_K3, 1.4f, QD_NONE);            /* the tracks' bus */
-    for (i = 0; i < 3; i++) {
-        ln(bx + 7.f, by, ex - 20.f, EY[i], UI_G2, 1.f);  /* the sends in */
-        ln(ex + 20.f, EY[i], mx - 6.f, by, UI_G2, 1.f); /* the returns out */
-    }
-    ln(bx, by + 7.f, bx, dry, UI_G2, 1.f);              /* the dry path along the foot */
-    ln(bx, dry, mx, dry, UI_G2, 1.f);
-    ln(mx, dry, mx, by + 6.f, UI_G2, 1.f);
-    ui_O(mx, by, 6.f, UI_K3, 1.4f, UI_BG);              /* the mix */
-    fx_feed(ex + 8.f, EY[0] + 12.f, ex + 8.f, EY[1] - 12.f, v->rt[1], FK[1]);   /* CHORUS -> DELAY */
-    fx_feed(ex + 8.f, EY[1] + 12.f, ex + 8.f, EY[2] - 12.f, v->rt[0], FK[0]);   /* DELAY -> REVERB */
-    {   /* CHORUS -> REVERB: around the left of DELAY */
-        const float x = ex - 10.f;
-        if (v->rt[2] > 0.f) {
-            ln(x, EY[0] + 12.f, x - 14.f, EY[1], FK[2], 1.f + v->rt[2] * 3.f);
-            fx_feed(x - 14.f, EY[1], x, EY[2] - 12.f, v->rt[2], FK[2]);
-        } else {
-            fx_feed(x, EY[0] + 12.f, x - 14.f, EY[1], 0.f, FK[2]);
-            fx_feed(x - 14.f, EY[1], x, EY[2] - 12.f, 0.f, FK[2]);
+    const int held = v->rt_held;
+    const float lift = v->rt_lift;
+    int k;
+    if (v->rt_mode) {                                   /* CHAIN: IN, the four across, OUT */
+        const float y = 96.f, w = 42.f, h = 32.f, x0 = 22.f, gap = 10.f;
+        ln(4.f, y + h / 2.f, 236.f, y + h / 2.f, UI_G2, 1.4f);
+        ui_T("IN", 4.f, y + h / 2.f - 7.f, 12.f, 600, 0.f, UI_G1, QD_LEFT);
+        ui_T("OUT", 236.f, y + h / 2.f - 7.f, 12.f, 600, 0.f, UI_G1, QD_RIGHT);
+        for (k = 0; k < 4; k++) {
+            const float x = x0 + (float)k * (w + gap);
+            if (k > 0)
+                rt_arrow(x - 1.f, y + h / 2.f, 1, UI_G2);
+            if (v->rt_order[k] == held)
+                continue;
+            rt_box(v, v->rt_order[k], x, y, w, h, k + 1, 0, 1);
         }
-    }
-    for (i = 0; i < 3; i++)
-        fx_node(ex, EY[i], i, UI_K3, v->t);
-    {   /* the master filter: after the mix (on the way out) or before (on the dry path); OUT */
-        const float fx = before ? 76.f : 192.f, fy = before ? dry : by;
-        float p[2 * 9];
-        int k;
-        ln(mx + 6.f, by, 222.f, by, UI_G2, 1.f);
-        ui_RR(fx - 12.f, fy - 9.f, 24.f, 18.f, 4.f, FK[3], 1.4f, UI_BG);
-        for (k = 0; k <= 8; k++) {                      /* a low-pass's shape */
-            const float u = (float)k / 8.f;
-            p[2 * k] = fx - 8.f + u * 16.f;
-            p[2 * k + 1] = fy - 3.f + (u > 0.5f ? (u - 0.5f) * 14.f : 0.f);
+        rt_arrow(235.f, y + h / 2.f, 1, UI_G2);
+        if (held >= 0) {                                /* the lifted one last, over its neighbours' gaps */
+            int p = 0;
+            float x, ly;
+            for (k = 0; k < 4; k++)
+                if (v->rt_order[k] == held)
+                    p = k;
+            x = x0 + (float)p * (w + gap), ly = y - 22.f * lift;
+            rt_box(v, held, x, ly, w, h, p + 1, lift > 0.5f, 1);
+            if (lift > 0.5f) {
+                if (p > 0)
+                    rt_arrow(x - 7.f, ly + h / 2.f, -1, UI_K3);
+                if (p < 3)
+                    rt_arrow(x + w + 7.f, ly + h / 2.f, 1, UI_K3);
+            }
         }
-        ui_P(p, 9, FK[3], 1.2f, 0, QD_NONE);
-        {                                               /* OUT: a speaker */
-            const float sp[8] = {224.f, by - 3.f, 228.f, by - 3.f, 234.f, by - 8.f, 234.f, by + 8.f};
-            const float sq[4] = {228.f, by + 3.f, 224.f, by + 3.f};
-            float pp[12];
-            memcpy(pp, sp, sizeof sp);
-            memcpy(pp + 8, sq, sizeof sq);
-            ui_P(pp, 6, UI_K3, 1.3f, 1, QD_NONE);
+    } else {                                            /* PARALLEL: the fan, the three stacked, the sum, the FILTER */
+        const int first = v->rt_order[0] == 3;
+        const float ly = 106.f, pp = 30.f, bw = 42.f, bh = 24.f, sh = first ? 46.f : 0.f;
+        const float fan = 14.f + sh, px = 60.f + sh, rx = px + bw + 20.f, sx = rx + 12.f;
+        const float fx = first ? 18.f : sx + 24.f, fl = held == 3 ? 22.f * lift : 0.f;
+        ln(4.f, ly, 236.f, ly, UI_G2, 1.4f);
+        ui_T("IN", 3.f, first ? ly - 22.f : ly - 6.f, 12.f, 600, 0.f, UI_G1, QD_LEFT);
+        ui_T("OUT", 237.f, ly - 6.f, 12.f, 600, 0.f, UI_G1, QD_RIGHT);
+        ln(fan, ly - pp, fan, ly + pp, UI_G2, 1.4f);
+        ln(rx, ly - pp, rx, ly + pp, UI_G2, 1.4f);
+        for (k = 0; k < 3; k++) {
+            const float my = ly + (float)(k - 1) * pp;
+            ln(fan, my, px, my, UI_G2, 1.4f);
+            rt_arrow(px - 1.f, my, 1, UI_G2);
+            ln(px + bw, my, rx, my, UI_G2, 1.4f);
+            rt_box(v, k, px, my - bh / 2.f, bw, bh, 0, 0, 0);
+        }
+        ui_O(sx, ly, 8.f, UI_G2, 1.4f, UI_BG);          /* the sum */
+        ln(sx - 4.f, ly, sx + 4.f, ly, UI_G1, 1.4f);
+        ln(sx, ly - 4.f, sx, ly + 4.f, UI_G1, 1.4f);
+        rt_arrow(235.f, ly, 1, UI_G2);
+        rt_box(v, 3, fx, ly - bh / 2.f - fl, bw, bh, 0, held == 3 && lift > 0.5f, 1);
+        if (held == 3 && lift > 0.5f)                   /* the other place */
+            rt_arrow(first ? fx + bw + 8.f : fx - 8.f, ly - fl, first ? 1 : -1, UI_K3);
+        else if (held >= 0 && held < 3) {               /* an effect held: it lifts and stays (the order is not heard) */
+            const float my = ly + (float)(held - 1) * pp;
+            rt_box(v, held, px, my - bh / 2.f - 22.f * lift, bw, bh, 0, lift > 0.5f, 0);
         }
     }
 }
@@ -449,12 +472,12 @@ void ui_fx_draw(const ui_fx_t *v)
             continue;
         w = ui_TW(v->lab[k] ? v->lab[k] : "", 12.f, 600, 0.3f);
         (void)w;
-        ui_T(v->lab[k] ? v->lab[k] : "", cx, 204.f, 12.f, 600, 0.3f, UI_G1, QD_CENTER);
+        ui_T(v->lab[k] ? v->lab[k] : "", cx, 204.f, 12.f, 600, 0.3f, v->dim[k] ? UI_G3 : UI_G1, QD_CENTER);
         w = ui_TW(v->txt[k], 16.f, 500, 0.f);
         if (v->locked[k] || v->lockany[k])              /* P1.6d: a send's lock: a chip (filled: on this step) */
             ui_chip(v->txt[k], cx, 228.f, 15.f, 54.f, FK[k], v->locked[k]);
         else
-            ui_T(v->txt[k], cx, 228.f, w > 58.f ? fmaxf(12.f, 16.f * 58.f / w) : 16.f, 500, 0.f, FK[k], QD_CENTER);
+            ui_T(v->txt[k], cx, 228.f, w > 58.f ? fmaxf(12.f, 16.f * 58.f / w) : 16.f, 500, 0.f, v->dim[k] ? UI_G3 : FK[k], QD_CENTER);
         if (v->last == k)
             ln(cx - 18.f, 235.f, cx + 18.f, 235.f, FK[k], 2.f);
     }

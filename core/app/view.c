@@ -2033,7 +2033,7 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
     static const char *const LAB[QD_NFXP] = {"TIME", "TIME", "SPREAD", "SPREAD", "FDBK", "SYNC", "MODE", "TONE", "WOW",
                                              "SIZE", "DAMP", "DECAY", "PRE", "MOD", "LOW CUT", "WIDTH", "WIDTH",
                                              "LOW", "HIGH", "SLOPE", "FILTER", "RATE", "DEPTH",
-                                             "DLY>REV", "CHO>DLY", "CHO>REV", "FILTER"};   /* (P1.5b: the routing) */
+                                             "MODE", "ORDER", "CHORUS", "DELAY", "REVERB"};   /* (the routing) */
     const qd_ui_t *u = &a->ui;
     const qd_fxpage_t *pg = &QD_FX_PAGES[u->fx_page];
     int k, i;
@@ -2090,8 +2090,16 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
         }
         v->track = a->sel + 1;
     }
-    for (i = 0; i < 4; i++)                             /* P1.5b: the routing */
-        v->rt[i] = i == 3 ? (float)qd_fx_get(QD_FXP_XPOS) : (float)qd_fx_get(QD_FXP_XDR + i) / 127.f;
+    {   /* the routing: the mode, the order, a block's key held (its lift over 120 ms), the chain amounts dim in PARALLEL */
+        static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_DELAY, QD_RT_REVERB, QD_RT_CHORUS, QD_RT_FILTER, -1};
+        v->rt_mode = qd_fx_get(QD_FXP_RMODE);
+        for (i = 0; i < 4; i++)
+            v->rt_order[i] = qd_fx_route_block(i);
+        v->rt_held = u->fx_bheld ? BLK[(u->fx_bheld - 1) % QD_FX_NKEY] : -1;
+        v->rt_lift = u->fx_bheld ? (a->ms - u->fx_bms >= 120u ? 1.f : (float)(a->ms - u->fx_bms) / 120.f) : 0.f;
+        if (pg->fx == QD_FXG_ROUTE && !v->rt_mode)
+            v->dim[1] = v->dim[2] = v->dim[3] = 1;
+    }
     v->delay_s = (float)qd_fx_delay_ms() / 1000.f;
     v->chorus_hz = (float)qd_fx_chorus_hz100() / 100.f;
     v->sync = qd_fx_get(QD_FXP_DSYNC);

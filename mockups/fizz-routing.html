@@ -111,7 +111,7 @@ function parallel(c, filterFirst, held, amt) {
   const ly = 106, pp = 30, bw = 42, bh = 24, sh = filterFirst ? 46 : 0;
   const fan = 14 + sh, px = 60 + sh, rx = px + bw + 20, sx = rx + 12;
   L(c, [4, ly, 236, ly], C.g2, 1.4);
-  T(c, 'IN', 3, ly - 6, { s: 11, w: 600, col: C.g1 });
+  T(c, 'IN', 3, filterFirst ? ly - 18 : ly - 6, { s: 11, w: 600, col: C.g1 });
   T(c, 'OUT', 237, ly - 6, { s: 11, w: 600, col: C.g1, al: 'right' });
   L(c, [fan, ly - pp, fan, ly + pp], C.g2, 1.4);
   L(c, [rx, ly - pp, rx, ly + pp], C.g2, 1.4);
@@ -123,7 +123,7 @@ function parallel(c, filterFirst, held, amt) {
   }
   O(c, sx, ly, 8, C.g2, 1.4, C.bg); L(c, [sx - 4, ly, sx + 4, ly], C.g1, 1.4); L(c, [sx, ly - 4, sx, ly + 4], C.g1, 1.4);
   arrow(c, 235, ly, 1, C.g2);
-  const fx = filterFirst ? 10 : sx + 24, lift = held === 3 ? 22 : 0;
+  const fx = filterFirst ? 14 : sx + 24, lift = held === 3 ? 22 : 0;
   box(c, 3, fx, ly - bh / 2 - lift, bw, bh, 0, held === 3);
   if (held === 3) arrow(c, filterFirst ? fx + bw + 8 : fx - 8, ly - lift, filterFirst ? 1 : -1, C.k3);
   amounts(c, amt, true);

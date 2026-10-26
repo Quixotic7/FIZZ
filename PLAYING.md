@@ -422,12 +422,16 @@ Undo and redo of everything (P1.5c):
 - **OVERVIEW** (P1.5b): three columns, CHORUS, DELAY, REVERB, each with the six tracks' send bars in the tracks'
   colours (the selected track's bright, an unheard track grey). **W1..W8 choose the track** (lit: the selected one
   bright); **KNOB 1..3 its CHORUS, DELAY, REVERB sends**. FX held + ALGORITHM still chooses the track too.
-- **ROUTING** (P1.5b): the chain drawn: the tracks' bus sending into CHORUS, DELAY and REVERB, their returns into the
-  mix, the dry path along the foot, the master filter, out. ChoralRoot has no routing of its own, so these are new and
-  all start at ChoralRoot's (none): **KNOB 1 DELAY > REVERB**, **KNOB 2 CHORUS > DELAY**, **KNOB 3 CHORUS > REVERB**
-  (how much of one effect's return goes into the other's input, drawn as an arrow as thick as the amount), **KNOB 4
-  FILTER** AFTER (the master filter on everything, ChoralRoot's) or BEFORE (on the dry mix only, the effects' returns
-  past it). Kept with the global settings.
+- **ROUTING** (2026-10-26, as ChoralRoot 0.27's): the signal flow as boxes on a wire. **KNOB 1 MODE**: **PARALLEL**
+  (where every unit starts, the sound as it always was: the tracks' sends fan into CHORUS, DELAY and REVERB side by
+  side, their returns sum, the FILTER after) or **CHAIN** (one path, the OEM way: IN, then the four blocks in the order
+  on the screen, numbered, OUT; each effect adds its sound to everything before it and passes it on; **KNOB 2..4** are
+  the CHORUS, DELAY and REVERB amounts of that chain, and the tracks' sends rest). **Hold a block's own page key**
+  (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER): its box lifts, with white arrows where it can still go; **turn KNOB 1**
+  a click a place, the others slide over; let go and it lands (a tap of the key still opens that page). In PARALLEL
+  only the FILTER moves, before the buses (KNOB 1 anticlockwise: the dry and the sends are filtered before the
+  effects, so a high cut keeps the fizz out of the reverb) or after them; an effect held there lifts but stays. The
+  four keys glow, the held one lit. Kept with the global settings.
 
   | page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
   | --- | --- | --- | --- | --- |
@@ -438,7 +442,7 @@ Undo and redo of everything (P1.5c):
   | REVERB 2 | PRE-DELAY | MOD | LOW CUT | WIDTH |
   | CHORUS | RATE (Hz) | DEPTH | WIDTH | SEND |
   | MASTER | LOW CUT (OFF ..) | HIGH CUT (.. OFF) | SLOPE (6 / 12 dB) | FILTER ON / OFF |
-  | ROUTING | DELAY > REVERB | CHORUS > DELAY | CHORUS > REVERB | FILTER AFTER / BEFORE |
+  | ROUTING | MODE (PARALLEL / CHAIN); a block held: its place | CHORUS amount (CHAIN) | DELAY amount (CHAIN) | REVERB amount (CHAIN) |
 
   **SEND** is the selected track's send into that effect (its number at the top right; the same value as the
   mixer's).

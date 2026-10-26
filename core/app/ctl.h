@@ -498,6 +498,8 @@ typedef struct {
     int mfx_arm;                       /* B11 armed on this slot (-1 none): B11 again removes its effect */
     int mfx_f1;                        /* F1 down there (P1.6h: a tap no longer closes the screen); a B copied */
     int mfx_bheld, mfx_bused, mfx_bwas;   /* P1.6d: a slot key down (its B + 1), a knob moved it, it was the selected */
+    int fx_bheld, fx_bused;            /* ROUTING (2026-10-26): a block's page key down (its B + 1), KNOB 1 moved it */
+    uint32_t fx_bms;                   /* .. when it went down (the lift) */
     uint32_t mfx_bms;                  /* P1.6e: .. when it went down (held past QD_TAP_MS: the tile lifts, arrows) */
     int mfx_dfrom, mfx_dto, mfx_dprev; /* P1.6e: the move previewed: from, to, where it was before the last detent .. */
     uint32_t mfx_dms;                  /* .. that detent (the tiles glide); the drop only at the key's release */

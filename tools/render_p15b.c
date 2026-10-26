@@ -264,12 +264,10 @@ int render_p15b(const char *out)
     A.seq.mute = 0;
     black(5);
     run(200);
-    shot("fx-route", "B6 ROUTING: ChoralRoot's chain (no feeds, the filter after)", 0);
-    turn(QD_K_1, 90);
-    turn(QD_K_2, 40);
-    turn(QD_K_4, 1);
+    shot("fx-route", "B6 ROUTING: PARALLEL (the buses, the filter after)", 0);
+    turn(QD_K_1, 1);
     run(200);
-    shot("fx-route2", "ROUTING: DELAY > REVERB, CHORUS > DELAY, the filter BEFORE", 0);
+    shot("fx-route2", "ROUTING: CHAIN (one path through the four blocks)", 0);
     qd_fx_init();
     btap(QD_B_HOME);
 

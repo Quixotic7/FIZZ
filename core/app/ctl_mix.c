@@ -21,6 +21,8 @@
  *        FEEDBACK, SEND), DELAY 2 (SYNC, MODE, TONE, WOW), REVERB (SIZE, DAMP, DECAY, SEND), REVERB 2 (PRE-DELAY, MOD,
  *        LOW CUT, WIDTH), CHORUS (RATE, DEPTH, WIDTH, SEND), MASTER (the master filter: LOW CUT, HIGH CUT, SLOPE, ON);
  *        B1 OVERVIEW, B2 DELAY, B3 REVERB, B4 CHORUS, B5 MASTER, B6 ROUTING (again: an effect's second page), FX again or SELECT the next page.
+ *        ROUTING (2026-10-26, ChoralRoot 0.27's): KNOB 1 the mode (PARALLEL / CHAIN), KNOB 2..4 the chain amounts; a
+ *        block's page key held (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER) lifts it and KNOB 1 moves it (qd_fx_route_move).
  *        SEND is the selected track's send into that effect; TIME / SPREAD are the free or the synced value by SYNC
  *        (ChoralRoot's FC_TIME, FC_SPREAD). FX held + ALGORITHM still chooses the track. */
 
@@ -32,7 +34,7 @@ const qd_fxpage_t QD_FX_PAGES[QD_FX_NPAGE] = {
     {"REVERB 2", QD_FXG_REVERB, UI_FXD_REVERB2, {QD_FXP_RPRE, QD_FXP_RMOD, QD_FXP_RLOW, QD_FXP_RWIDTH}},
     {"CHORUS", QD_FXG_CHORUS, UI_FXD_CHORUS, {QD_FXP_CRATE, QD_FXP_CDEPTH, QD_FXP_CWIDTH, QD_FXC_SEND}},
     {"MASTER", QD_FXG_MASTER, UI_FXD_MASTER, {QD_FXP_FLOW, QD_FXP_FHIGH, QD_FXP_FSLOPE, QD_FXP_FON}},
-    {"ROUTING", QD_FXG_ROUTE, UI_FXD_ROUTE, {QD_FXP_XDR, QD_FXP_XCD, QD_FXP_XCR, QD_FXP_XPOS}},
+    {"ROUTING", QD_FXG_ROUTE, UI_FXD_ROUTE, {QD_FXP_RMODE, QD_FXP_CAMT_C, QD_FXP_CAMT_D, QD_FXP_CAMT_R}},
 };
 const char *const QD_FX_NAME[QD_NFXG] = {"DELAY", "REVERB", "CHORUS", "MASTER", "OVERVIEW", "ROUTING"};
 const uint8_t QD_FX_KEY[QD_FX_NKEY] = {QD_FXG_OVER, QD_FXG_DELAY, QD_FXG_REVERB, QD_FXG_CHORUS, QD_FXG_MASTER,
@@ -156,12 +158,25 @@ void qd_panel_black(qd_app_t *a, int b, int down)
         mix_black(a, b, down);
         return;
     }
-    if (!down)
-        return;
     if (u->latch == QD_LATCH_FX) {
+        static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_DELAY, QD_RT_REVERB, QD_RT_CHORUS, QD_RT_FILTER, -1};
         int p, first = -1, next = -1, g;
         if (b >= QD_FX_NKEY)
             return;
+        if (QD_FX_PAGES[u->fx_page].fx == QD_FXG_ROUTE && BLK[b] >= 0) {   /* ROUTING (2026-10-26): the block's page key
+                                                         * held lifts its block (KNOB 1 moves it); a tap: its page */
+            if (down) {
+                u->fx_bheld = b + 1, u->fx_bused = 0, u->fx_bms = a->ms;
+                return;
+            }
+            if (u->fx_bheld != b + 1)
+                return;
+            u->fx_bheld = 0;
+            if (u->fx_bused || a->ms - u->fx_bms >= QD_TAP_MS)
+                return;
+        } else if (!down) {
+            return;
+        }
         g = QD_FX_KEY[b];                               /* (P1.5b: B1 OVERVIEW .. B6 ROUTING) */
         for (p = 0; p < QD_FX_NPAGE; p++) {
             if (QD_FX_PAGES[p].fx != g)
@@ -175,6 +190,8 @@ void qd_panel_black(qd_app_t *a, int b, int down)
         u->menu_knob = -1;
         return;
     }
+    if (!down)
+        return;
     if (b < QD_NTRACK)
         qd_ctl_select_track(a, b);
 }
@@ -310,6 +327,13 @@ int qd_fx_knob(qd_app_t *a, int knob, int d)
     }
     if (knob < QD_K_1)
         return 1;
+    if (u->fx_bheld && pg->fx == QD_FXG_ROUTE) {        /* ROUTING, a block held: KNOB 1 moves it a place a detent */
+        static const int8_t BLK[QD_FX_NKEY] = {-1, QD_RT_DELAY, QD_RT_REVERB, QD_RT_CHORUS, QD_RT_FILTER, -1};
+        if (knob == QD_K_1)
+            qd_fx_route_move(BLK[(u->fx_bheld - 1) % QD_FX_NKEY], d);
+        u->fx_bused = 1;
+        return 1;
+    }
     c = pg->c[knob - QD_K_1];
     u->menu_knob = knob - QD_K_1;
     if (c == QD_FXC_NONE)
@@ -347,6 +371,9 @@ void qd_panel_leds(const qd_app_t *a, uint8_t *black)
     if (u->latch == QD_LATCH_FX) {
         for (i = 0; i < QD_FX_NKEY; i++)
             black[i] = QD_FX_KEY[i] == QD_FX_PAGES[u->fx_page].fx ? QD_LED_LIT : QD_LED_DIM;
+        if (QD_FX_PAGES[u->fx_page].fx == QD_FXG_ROUTE)   /* ROUTING: B2..B5 the blocks (glowing; the held one lit) */
+            for (i = 1; i <= 4; i++)
+                black[i] = u->fx_bheld == i + 1 ? QD_LED_LIT : QD_LED_MID;
         return;
     }
     if (u->latch == QD_LATCH_MIX) {                     /* playing, the selected brightest, muted dim, soloed blinking */

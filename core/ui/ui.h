@@ -177,8 +177,10 @@ typedef struct {
     int last;                           /* the knob turned last (0..3, -1) */
     int sends[UI_NTRACK][3];                    /* P1.5b, OVERVIEW: each track's CHORUS, DELAY, REVERB sends 0..127 */
     uint8_t mute;                       /* .. the tracks not heard */
-    float rt[4];                        /* P1.5b, ROUTING: DELAY > REVERB, CHORUS > DELAY, CHORUS > REVERB 0..1, the
-                                         * filter BEFORE (1) */
+    int rt_mode, rt_order[4], rt_held;  /* ROUTING (2026-10-26): CHAIN (1) / PARALLEL, the block at each place, the block
+                                         * held (-1 none) .. */
+    float rt_lift;                      /* .. how far it has lifted, 0..1 */
+    uint8_t dim[4];                     /* a foot cell drawn dim (PARALLEL: the chain amounts rest) */
     int step;                           /* P1.6d: a step held (or the latch's selection): the sends lock (the frame) */
     int nsel;                           /* P1.6h: .. how many (the head's magenta count; 0 none) */
     uint8_t locked[4], lockany[4];      /* .. a cell locked on the step (a filled chip), on some step (outlined) */
