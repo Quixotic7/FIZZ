@@ -17,9 +17,12 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
   atan2f (defined in ui_kit.c; test_gfx_fast defines its own copy), included after <math.h> in every drawing unit,
   view.c, ctl_leds.c, both app.c; the stats reply sends `<id>:<value>` with the names generated into
   firmware/app/fz_stats_names.h and firmware/tools/fizz_stats_names.py by tools/gen_stats_names.py
-  (`stats-names-check` in make test). Tier 2 candidates the owner has not chosen: the Geek Out pages (6.6 KB), the
-  light font weight out of the blob so HARM (13.9 KB) can move in. The owner keeps Geek Out ("I like them") and
-  wants a **SCOPE view with a scope per track, pre-FX** (not built; a Geek Out page or a view of its own).
+  (`stats-names-check` in make test). **Tier 2 (the same night):** the fast font has two weights, 300 and 700
+  (tools/gen_fast_font.c `FW`; 400 and 500 read light: `weight_index` ties to the lighter; the small-size atlases are
+  at 300 now), the owner's choice over dropping the light one (mockups/png/font-weights-sheet.png); the freed blob
+  holds `QUAD_HARM` (`QD_XDATA`), measured on the unit at no cost to the audio ISR (1,589 vs 1,585 us avg). After it:
+  fizz.bin 543,568 B (38 KB free), the blob 90.6 of 94 KB (3.6 KB left: the blob is full now). The owner keeps Geek Out
+  ("I like them") and wants a **SCOPE view with a scope per track, pre-FX** (not built; a Geek Out page).
   Stripping glyphs is not worth it: only `$;@[]^`{|}` (10 of 95 ASCII) are unused, ~4 KB of blob, nothing of the slot.
 
 - **Released: FIZZ 0.12.0-beta.7** (2026-10-26, tag `v0.12.0-beta.7`, pushed; the unit runs that package): **the FX ROUTING redone as ChoralRoot 0.27's**

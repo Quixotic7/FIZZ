@@ -1954,12 +1954,14 @@ void qd_layer_end(void) {}
 void qd_layer_draw(int slot, float x, float y, float w, float h) { (void)slot, (void)x, (void)y, (void)w, (void)h; }
 
 /* ---------------------------------------------------------------- text */
-static int weight_index(int w)                          /* the nearest of 300 500 700, a tie to the heavier */
+static int weight_index(int w)                          /* the nearest of the font's weights (300 and 700 since the
+                                                         * 2026-10-26 diet: 400 and 500 read light, the owner's choice), a
+                                                         * tie to the lighter */
 {
     int i, best = 0, bd = 1 << 30;
     for (i = 0; i < QF_NW; i++) {
         const int d = QF_WEIGHT[i] > w ? QF_WEIGHT[i] - w : w - QF_WEIGHT[i];
-        if (d < bd || (d == bd && QF_WEIGHT[i] > QF_WEIGHT[best]))
+        if (d < bd)
             bd = d, best = i;
     }
     return best;

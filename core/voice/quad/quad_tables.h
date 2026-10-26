@@ -121,7 +121,8 @@ static const int16_t QUAD_DT_DN[128] = {
  * 512 points a cycle, of which the first half and its end point, 0 .. 256, are stored: every wave is a sum of
  * sines, so f(512 - i) = -f(i) exactly (quad_ref.py checks every point), and eng_quad.c quad_hw reads the second
  * half as the first, reversed and negated. Flash (XIP): 13.6 KB (the whole cycle was 27.1) */
-static const int16_t QUAD_HARM[27][257] = {
+static const int16_t QUAD_HARM[27][257] QD_XDATA(quad_harm) = {   /* (the data blob, 2026-10-26: read through XIP
+                                                                      * as the code is; the audio ISR measured the same) */
     {
         0, 402, 804, 1206, 1608, 2009, 2410, 2811, 3212, 3612, 4011, 4410, 4808, 5205, 5602, 5998,
         6393, 6786, 7179, 7571, 7962, 8351, 8739, 9126, 9512, 9896, 10278, 10659, 11039, 11417, 11793, 12167,
