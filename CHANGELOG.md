@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.8 (2026-10-26)
+
 The sequencer clean-up (2026-10-26; docs/SEQ-CLEANUP-PLAN.md, the mock-ups in mockups/fizz-seq-cleanup.html), and the flash diet.
 
 - **One knob table, held or not.** **KNOB 1 is the mode's main value** everywhere: in NOTE the root with nothing held (the whole default chord) and the whole chord with a step held (SELECT did that; B1 held + SELECT still moves the root). **KNOB 2 … 4 are notes 2 … 4**, and **note 5 is on ALGORITHM only while you physically hold the step** (or B1 for the default); in the latch's selection ALGORITHM stays the step cursor. **SELECT is the page** in every mode, held or not. The held NOTE screen draws each note in its knob's colour (1 … 4 blue, green, white, orange; note 5 pink).

@@ -1,7 +1,33 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.7",
+  "latest": "0.12.0-beta.8",
   "releases": [
+    {
+      "version": "0.12.0-beta.8",
+      "date": "2026-10-26",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "6df4a4fb5dd7920961c40a0789ebd14ee9e6560c",
+      "fm1base": "42dc6304e8070006c1990d2879c3fe27e1192c91",
+      "notes": "The sequencer clean-up (2026-10-26; docs/SEQ-CLEANUP-PLAN.md, the mock-ups in mockups/fizz-seq-cleanup.html), and the flash diet.\n\n- **One knob table, held or not.** **KNOB 1 is the mode's main value** everywhere: in NOTE the root with nothing held (the whole default chord) and the whole chord with a step held (SELECT did that; B1 held + SELECT still moves the root). **KNOB 2 \u2026 4 are notes 2 \u2026 4**, and **note 5 is on ALGORITHM only while you physically hold the step** (or B1 for the default); in the latch's selection ALGORITHM stays the step cursor. **SELECT is the page** in every mode, held or not. The held NOTE screen draws each note in its knob's colour (1 \u2026 4 blue, green, white, orange; note 5 pink).\n- **OCT\u2212 / OCT+ tapped with nothing held** move the entry octave (held longer than a tap they are the F1 / F2 layers, whose map waits a tap's time now).\n- **The step latch (LFO) starts with nothing selected**: tap a step, or turn ALGORITHM (it lands on the step you last edited). **MODES** is drawn first, on the left, of the latch-mode screen; SELECT turns toward it.\n- **B10 is SLIDE, B11 is SOUND; P-LOCK is gone.** SLIDE is the 303's slide on one key: hold a step, **B2 ON** (B1 OFF, B3 LEGATO, or **B10 again** cycles), and the step's note slides into the track's next note; **KNOB 2 TIME, KNOB 3 SLOPE** (TIME / RATE), B11 clears it. ON strikes the next note gliding from this one; **LEGATO** holds this note until the next and moves it without a new attack. The lane shows the slides as ramps; the held screen the note gliding into the next. A slide is the step's PORT / TIME / SLOPE locks (the sound editor shows them; a PORT lock made there is a slide too). For a sound lock on a step hold the step in the sound editor (that is unchanged).\n- **TRIG held shows the step's MIDI FX group** under the trig picture (a hexagon with the group's number, GROUP n or TRACK / OFF, the group's eight slots lit where an effect plays). KNOB 2 turns it as before.\n- **The effects open on SENDS** (the OVERVIEW is gone): the current track's CHORUS, DELAY and REVERB as three bars (KNOB 1 \u2026 3), the page's steps along the foot and on the white keys as the EDIT home (hold a step: the send is its lock, the bar framed, the value a chip), **REC** the keyboard on / off as the sound editor's. SHIFT + SELECT (or FX held + ALGORITHM) picks the track; W1 \u2026 W8 no longer do. On every other effects page and in the mixer the white keys' LEDs show the steps, as the step view lights them.\n- **CHAIN routing as wet / dry in series** (the owner, the same day): in CHAIN the effects run in series and **each track's sends are its wet / dry at each effect** (0: the track passes it by, 100: all through, 50: half and half); no separate chain amounts. **DRY is each track's dry / wet in both modes** (SENDS' KNOB 4, ROUTING's ALGORITHM or KNOB 2): 100 % the dry alone, 0 % the effects alone, the middle both full in PARALLEL (as every unit sounded) and half and half in CHAIN; the green wire under the chain shows it.\n- **The effects' pages and keys in SENDS' order:** B2 CHORUS, B3 DELAY, B4 REVERB (the pages run SENDS, CHORUS, DELAY, DELAY 2, REVERB, REVERB 2, MASTER, ROUTING); the ROUTING page's block keys follow.\n- **The owner's first round on this build (the same day):** the latch in VALUES with nothing selected lights the default's values; REC toggles the keyboard on every effects page; **the latch works on every page as on EDIT** (a selection stays into the mixer, the effects, the track settings, the sound editor and the MIDI FX screen, where a tap selects and several together select many); **a track's group changed while playing** takes effect at once (a HOLD arp in the old group stops); on the MIDI FX screen a held or selected step shows its group popup at once and **B1 OFF, B2 \u2026 B6 groups 1 \u2026 5, B11 TRACK** set it; the octave popup shows its number at once over a still 88-key piano.\n- **The flash diet:** fonts in two weights (300 and 700: 400 and 500 read light), the drawing's own small sin / cos / exp / log / pow, the editor's and MIDI FX tables and the sound's harmonic table in the data blob, the stats reply by id. fizz.bin 543,568 B (38 KB free) before the clean-up.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI",
+          "fwsc": {
+            "path": "0.12.0-beta.8/fizz.fwsc",
+            "bytes": 611496,
+            "sha256": "d43e43648b3f598169d23200ee7642d186c3bed4b12c9d59b25cec1a4890d0ac"
+          },
+          "data": {
+            "path": "0.12.0-beta.8/fizz-xdata.bin",
+            "bytes": 90616,
+            "sha256": "f2e8018b9b0db40b1659f1f6ebba83077dff5f099e058b965e036394fb8d3094",
+            "crc32": 1681498710
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.7",
       "date": "2026-10-26",
