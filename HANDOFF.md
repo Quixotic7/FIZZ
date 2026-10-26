@@ -213,9 +213,10 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
      Never pipe it into the flash: a pipe once hid a failed backup.
   3. Run `fm1_install.py --info`, then `fm1_install.py PACKAGE --yes`.
   3b. **Then write the data blob** `python3 firmware/tools/fizz_xdata.py push --blob firmware/app/build/fizz-xdata.bin`
-     whenever the blob changed (it holds the fonts, the ape and, since the 2026-10-26 diet, the editor's and MIDI FX
-     tables): until it is written the unit shows FIZZ NEEDS ITS DATA and stats read `up=0 xdata=1`. A release's
-     install page writes it by itself.
+     **after every dev flash, even when the blob did not change** (seen 2026-10-26: after an install without the push
+     the app answered SysEx but ran no audio and no frames, stats `up=0 xdata=0 isr_n=0`; the push brought it up).
+     The blob holds the fonts, the ape and, since the diet, the editor's and MIDI FX tables; without it the unit
+     shows FIZZ NEEDS ITS DATA (`xdata=1`). A release's install page writes it by itself.
   4. Check `fizz_xdata.py stats`: up, xruns, store_wiped.
 - **Stats:** `fizz_xdata.py stats [--reset]`.
   - Line 16 holds the transfer counters and the blip counter.
