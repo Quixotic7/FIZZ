@@ -17,7 +17,7 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
   whole .text lives there, fizz.ld `.ram_text`; a 64-bit division or a few more lines there fail the link with
   "RAMTEXT overflowed"); CHAIN (qd_fx.c qd_fx_block) runs the effects in series on a wet accumulator with each effect's
   share of the earlier wet `qd_cg[]` (the tracks' sends level-weighted). `QD_FXP_RDRY` / `RSPARE1/2` are the old
-  chain amounts' slots, stored but unused. The MASTER page draws two head silhouettes (ui_tracks.c head_path).
+  chain amounts' slots, stored but unused. The MASTER page keeps its slope curves: the owner's two-heads idea is mocked up (mockups/fizz-master-heads.html, the sheet in png/), not built.
 - **2026-10-26, the sequencer clean-up, on master (unreleased):** docs/SEQ-CLEANUP-PLAN.md, the owner's approved
   mock-ups mockups/fizz-seq-cleanup.html (mockups/png/fizz-seq-cleanup-sheet.png), built by the main session by hand
   in three commits (stage A knobs / latch / OCT, stage B SLIDE / SOUND / TRIG, stage C SENDS); CHANGELOG `## Unreleased`

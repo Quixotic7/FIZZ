@@ -472,8 +472,6 @@ Undo and redo of everything (P1.5c):
   | REVERB | SIZE | DAMP | DECAY (s, INF) | SEND |
   | REVERB 2 | PRE-DELAY | MOD | LOW CUT | WIDTH |
   | MASTER | LOW CUT (OFF ..) | HIGH CUT (.. OFF) | SLOPE (6 / 12 dB) | FILTER ON / OFF |
-  (MASTER's picture, 2026-10-26: two heads face to face, the left the low cut, dark from the chin up to it; the right
-  the high cut, dark from the crown down; grey with the filter off.)
   | ROUTING | MODE (PARALLEL / CHAIN); a block held: its place | DRY (the track's; ALGORITHM too) | | |
 
   **SEND** is the selected track's send into that effect (its number at the top right; the same value as the
