@@ -1,4 +1,4 @@
-# FIZZ handoff (2026-10-26, after 0.12.0-beta.6)
+# FIZZ handoff (2026-10-26, after 0.12.0-beta.7)
 
 This is for a new Claude session picking up FIZZ. Read this first, then:
 - `CHANGELOG.md`;
@@ -10,7 +10,7 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
-- **2026-10-26, after beta.6, unreleased on master and on the unit: the FX ROUTING redone as ChoralRoot 0.27's**
+- **Released: FIZZ 0.12.0-beta.7** (2026-10-26, tag `v0.12.0-beta.7`, pushed; the unit runs that package): **the FX ROUTING redone as ChoralRoot 0.27's**
   (built by the main session by hand, mockups/fizz-routing.html approved): `QD_FXP_RMODE` (PARALLEL / CHAIN),
   `QD_FXP_ORDER` (0..23 into `QD_RT_ORD`), `QD_FXP_CAMT_C/D/R` (the chain amounts) replace the four cross-feeds
   (XDR..XPOS; an old SET record with fewer values gets the routing's defaults). PARALLEL is bit for bit the old block
