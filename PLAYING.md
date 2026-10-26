@@ -653,7 +653,8 @@ DECAY, HARM and FDBK.
   going to TRACK).
 - **Replacing one of MY presets** (SAVE, REPLACE) changes the preset itself: every pool that references it, in every
   project, and every step locking it, play the new version. **A track's own sound does not change**: it is a copy (a
-  track loaded from that preset and not edited keeps the old sound, without a \*, until you load it again).
+  track loaded from that preset and not edited keeps the old sound, without a \*, until you load it again); every
+  pattern's tracks, in every project, hold their own version, so a REPLACE made in A02 leaves A01's tracks as they were.
 - **Deleting one of MY presets** takes its references out of every pool and sends the steps that locked them back to
   their track's sound (DELETE? shows how many projects and steps). Tracks keep their own copies. **SHIFT + F1** brings
   the preset back with its references and its locks (this project's, every pattern; another project's were never
