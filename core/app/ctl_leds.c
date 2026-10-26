@@ -210,10 +210,11 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         return;
     }
 
-    if (u->nheld && !qd_ctl_latch_modes(a) && !(u->slatch && layer != QD_LAYER_NONE)) {   /* the mode's ten values, B11
-                                                         * (P1.5m: the latch's selection under an F layer: the layer's;
-                                                         * P1.5b: the latch in MODES:
-                                                         * the modes, below) */
+    if ((u->nheld || qd_step_latch_default(a)) && !qd_ctl_latch_modes(a) &&
+        !(u->slatch && layer != QD_LAYER_NONE)) {       /* the mode's ten values, B11 (2026-10-26, the owner: the latch
+                                                         * in VALUES with nothing selected too: the track's defaults;
+                                                         * P1.5m: the latch's selection under an F layer: the layer's;
+                                                         * P1.5b: the latch in MODES: the modes, below) */
         char lab[10][6];
         uint16_t lit, def, none;
         int clr;

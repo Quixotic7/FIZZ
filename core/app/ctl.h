@@ -787,7 +787,8 @@ void qd_mix_button(struct qd_app *a);   /* ENV (MIX): open / the sends / the fad
 void qd_fx_button(struct qd_app *a);    /* FX tapped: open / the next page */
 void qd_panel_black(struct qd_app *a, int b, int down);
 void qd_mix_ms(struct qd_app *a);       /* the mix's black keys held: the mute */
-int qd_fx_sends_open(const struct qd_app *a);     /* 2026-10-26: the effects open on SENDS (its keyboard: ekeys) */
+int qd_fx_open(const struct qd_app *a);           /* 2026-10-26: the effects open (REC: its keyboard, ekeys) .. */
+int qd_fx_sends_open(const struct qd_app *a);     /* .. on SENDS (the page with the steps' row) */
 int qd_panel_lock_id(const struct qd_app *a, int knob);   /* P1.6d: the send / mix lock a knob turns there (-1) */
 int qd_panel_steps(const struct qd_app *a, int w);        /* P1.6d: W w holds a step there (the sends' locks) */
 int qd_trk_knob(struct qd_app *a, int knob, int d);

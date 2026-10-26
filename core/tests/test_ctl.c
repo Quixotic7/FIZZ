@@ -2843,6 +2843,12 @@ static void g_mkey(void)
           "B2): KNOB 1 the default (108)");
     black(B10);
     CHECK(PAT()->trk[0].def.vel == 127 && A.ui.hmode == M_VEL, "P1.6d: .. B10: the default's velocity 127, the mode kept");
+    {
+        const qd_leds_t l = leds();
+        CHECK(l.key[BK(B10)] == QD_LED_LIT && l.key[BK(B1)] != QD_LED_LIT && l.key[BK(B11)] == QD_LED_LIT,
+              "the latch in VALUES, nothing selected: the black keys show the default's values (B10 127 lit, B11 to "
+              "reset), not the modes (2026-10-26, the owner)");
+    }
     btap(LFO);
     printf("  mode keys held: %d of 9 modes edit their default with the picture, %d reset by B11\n", ok, okr);
 }
@@ -4352,6 +4358,13 @@ static void g_p15b_fx(void)
     run(30);
     btap(QD_B_REC);
     CHECK(!qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "REC again: the steps");
+    black(B2);
+    btap(QD_B_REC);
+    CHECK(qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX && !strcmp(QD_FX_PAGES[A.ui.fx_page].name, "DELAY"),
+          "DELAY page, REC: the keyboard there too, the effects stay (the owner, 2026-10-26)");
+    btap(QD_B_REC);
+    CHECK(!qd_snd_keys(&A) && A.ui.latch == QD_LATCH_FX, "REC again: the steps, still DELAY");
+    black(B1);
     whold(4);
     turn(QD_K_2, 5);
     wrel(4);

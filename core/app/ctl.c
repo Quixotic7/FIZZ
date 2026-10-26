@@ -1295,8 +1295,8 @@ static void b_rec(qd_app_t *a, int down)
         qd_mfx_rec(a);
         return;
     }
-    if (qd_snd_open(a) || qd_fx_sends_open(a)) {        /* P1.5b: the sound editor stays: its keyboard on / off
-                                                         * (2026-10-26: the effects' SENDS page the same) */
+    if (qd_snd_open(a) || qd_fx_open(a)) {              /* P1.5b: the sound editor stays: its keyboard on / off
+                                                         * (2026-10-26: the effects, every page, the same) */
         u->ekeys = !u->ekeys;
         qd_step_release_all(a);
         u->slatch = 0;

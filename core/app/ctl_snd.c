@@ -184,7 +184,7 @@ const qd_lockscreen_t *qd_snd_lock_screen(const qd_app_t *a, int page)
 }
 
 int qd_snd_open(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_SND; }
-int qd_snd_keys(const qd_app_t *a) { return (qd_snd_open(a) || qd_fx_sends_open(a)) && a->ui.ekeys; }
+int qd_snd_keys(const qd_app_t *a) { return (qd_snd_open(a) || qd_fx_open(a)) && a->ui.ekeys; }
 int qd_keys_on(const qd_app_t *a) { return a->ui.mode == QD_MODE_KEYS || qd_snd_keys(a); }
 
 /* P1.5b: the editor's SCALE keys: W1 the root at the keyboard's octave (octave 3 + the shift: C3 = 48), then each

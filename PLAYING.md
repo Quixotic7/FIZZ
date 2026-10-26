@@ -217,8 +217,8 @@ and chance; a LOCK step's runs too).
   preview.
 - **With nothing selected** the latch stays on and the knobs edit the track's defaults. In **MODES** (the default) the black
   keys choose the mode. In **VALUES** (0.9.1) they set **the track's default** for the mode, as a held mode key + value
-  does (NOTE: its notes; VEL: B10 is 127 ..; B11 resets it); **LFO + a black key** changes the mode. Tap a step
-  to select again.
+  does (NOTE: its notes; VEL: B10 is 127 ..; B11 resets it), and their LEDs show the default's value, not the modes;
+  **LFO + a black key** changes the mode. Tap a step to select again.
 - **Double-tap a white key** (0.9.1, two taps within 200 ms, as everywhere in FIZZ): an empty step gets a trig, a step
   with one loses it. A single tap still only selects; the first tap of a double leaves no edit or undo level of its own.
 - **SHIFT + ALGORITHM** the track's scale, **SHIFT + PRESETS** its root (0.9.1: with the latch on too, in VALUES and
@@ -444,7 +444,7 @@ Undo and redo of everything (P1.5c):
   **KNOB 1..3** turn them. Along the foot the page's steps, as the EDIT home's row, and **the white keys are the
   steps** (the LEDs too): hold one and KNOB 1..3 lock that send on it (the bar framed, the value a chip); the latch's
   selection the same. **REC** turns the white keys into the keyboard (the row shows the keys) and back, as the sound
-  editor does. The old overview's every-track bars and W1..W8 track picking are gone.
+  editor does, on every effects page. The old overview's every-track bars and W1..W8 track picking are gone.
 - On **every other effects page** (and the mixer) the white keys are the steps too, lit as in the step view, so a send
   lock is never blind.
 - **ROUTING** (2026-10-26, as ChoralRoot 0.27's): the signal flow as boxes on a wire. **KNOB 1 MODE**: **PARALLEL**

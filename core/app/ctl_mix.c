@@ -108,6 +108,7 @@ void qd_fx_button(qd_app_t *a)
     a->ui.fx_page = 0;                                  /* (P1.5b: FX opens on the first page: SENDS) */
     a->ui.ekeys = 0;                                    /* (2026-10-26: on the steps; REC the keyboard) */
 }
+int qd_fx_open(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_FX; }
 int qd_fx_sends_open(const qd_app_t *a)
 {
     return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_FX && QD_FX_PAGES[a->ui.fx_page].fx == QD_FXG_OVER;
