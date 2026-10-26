@@ -29,7 +29,7 @@
  *   keyboard        (P1.5b) the scale: its roots 80 %, its other notes 50 %, the notes sounding lit; step recording:
  *                   the cursor's white key blinks. The sound editor's keyboard the same (SCALE: the W keys)
  *   tracks screen   white 1..8 flash with the tracks' trigs (the selected dim), 9..16 lit for the tracks heard
- *   buttons         held: lit; REC lit in the keyboard (blinking while armed); ARP lit while FILL is on; PAGE lit
+ *   buttons         held: lit; REC lit in the keyboard (blinking while armed); FX lit while FILL is on; PAGE lit
  *                   while follow is on; TRACKS lit on its screen; PLAY's green LED on each beat while playing */
 #include <math.h>
 #include <string.h>
@@ -348,14 +348,15 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
                                                                                                    : QD_LED_OFF)
                               : u->mode == QD_MODE_KEYS && !qd_mfx_open(a) ? QD_LED_LIT   /* (2026-10-25: its page) */
                               : u->mode == QD_MODE_KEYS || (qd_snd_open(a) && u->ekeys) ? QD_LED_DIM : QD_LED_OFF;
-    /* T1 (the owner, 2026-10-24): ARP lit while FILL is held and while the MIDI FX screen is open (T1b: TOOLS lights
-     * SEQ); 2026-10-25: else lit while the track's MIDI FX is on (a group, not turned off by a held ARP), no dim */
-    out->button[QD_B_KEYS] = a->seq.fill || qd_mfx_open(a) || qd_mfx_tgroup(a) ? QD_LED_LIT : QD_LED_OFF;
+    /* T1 (the owner, 2026-10-24): ARP lit while the MIDI FX screen is open (T1b: TOOLS lights SEQ); 2026-10-25: else
+     * lit while the track's MIDI FX is on (a group, not bypassed), no dim; FX lit while SHIFT + FX holds FILL */
+    out->button[QD_B_KEYS] = qd_mfx_open(a) || (qd_mfx_tgroup(a) && !(qd_ctl_cpat(a)->trk[a->sel].mfx & QD_TMFX_OFF))
+                                 ? QD_LED_LIT : QD_LED_OFF;
     if (u->seq_used & 2)                                /* SEQ lit while its patterns are latched */
         out->button[QD_B_MIX] = QD_LED_LIT;
     if (u->latch == QD_LATCH_MIX)                       /* P1.4b: ENV (MIX), FX, SEL lit while their pages are open */
         out->button[QD_B_PAGE] = QD_LED_LIT;
-    if (u->latch == QD_LATCH_FX)
+    if (u->latch == QD_LATCH_FX || u->arp_fill)
         out->button[QD_B_TRACKS] = QD_LED_LIT;
     if (u->latch == QD_LATCH_TRK)
         out->button[QD_B_PATTERN] = QD_LED_LIT;

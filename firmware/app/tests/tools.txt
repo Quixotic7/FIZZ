@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 # T1: TOOLS on the unit's build (T1b: SEQ tapped opens it; HUMANIZE's jitter is seeded from the clock, so its
 # micabs figures follow the script's timing) (docs/TRACK-TOOLS-PLAN.md): SEQ tapped opens it, KNOB 1 rotates the demo's
-# track live while it plays, OCT+ keeps it (one undo level), OCT- reverts and never leaves, HOME does; SHIFT + ARP is
+# track live while it plays, OCT+ keeps it (one undo level), OCT- reverts and never leaves, HOME does; SHIFT + FX is
 # FILL at once and never TOOLS.
 #   firmware/build.py --host, then firmware/app/build/host/fizz_host firmware/app/tests/tools.txt OUT
 # 2026-10-24, the owner's findings on the unit first: on the demo's A02, track 2 (the bass, 32 steps over two pages),
@@ -107,13 +107,13 @@ expect fz_tools 1
 tap HOME
 expect fz_tools 0
 press GLO
-press ARP
+press FX
 wait 5
 expect fz_fill 1
 wait 600
 expect fz_tools 0
 expect fz_fill 1
-release ARP
+release FX
 release GLO
 wait 20
 expect fz_fill 0

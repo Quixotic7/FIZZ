@@ -864,6 +864,7 @@ typedef struct ui_mfx {
     int st_copied, st_type, st_nnote;              /* .. the step in the clipboard: its trig (0 empty, 2 LOCK), its notes */
     uint8_t st_note[6];
     int steps_frame;                    /* .. STEPS: steps held (the step's frame) */
+    int route_off;                      /* 2026-10-25: the track's routing bypassed (QD_TMFX_OFF): OFF in the head */
     int roll;                           /* PRESETS turned: the rolodex up .. */
     float roll_pos, roll_from;          /* .. at type pos (0 NONE .. 10), coming from */
     int gsel;                           /* ALGORITHM turned: the five groups' choice up .. */

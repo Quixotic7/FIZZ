@@ -1722,11 +1722,12 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
     v->lift_from = -1;
     v->drag_from = v->drop = v->f1_src = v->f2_hand = -1;
     v->steps_frame = qd_mfx_steps_held(a, 0) > 0;
+    v->route_off = g && (P->trk[a->sel].mfx & QD_TMFX_OFF);
     v->last = -1;
     v->lane_cur = -1;
     v->sel_branch = -1;
     for (t = 0; t < QD_PAT_NTRACK; t++)
-        if (g && P->trk[t].mfx == g)
+        if (g && (P->trk[t].mfx & 0x7f) == g)
             v->tr[v->ntr++] = (uint8_t)(t + 1);
     if (!g)
         v->tr[v->ntr++] = (uint8_t)(a->sel + 1);
@@ -1738,7 +1739,7 @@ void qd_view_mfx(qd_app_t *a, ui_mfx_t *v)
             for (k = 0; k < QD_MFX_NSLOT; k++)
                 v->gtype[gi][k] = a->proj.mfx[gi].slot[k].type;
             for (t = 0; t < QD_PAT_NTRACK; t++)
-                if (t != a->sel && P->trk[t].mfx == gi + 1 && v->gtrn[gi] < UI_NTRACK)
+                if (t != a->sel && (P->trk[t].mfx & 0x7f) == gi + 1 && v->gtrn[gi] < UI_NTRACK)
                     v->gtr[gi][v->gtrn[gi]++] = (uint8_t)(t + 1);
         }
     }

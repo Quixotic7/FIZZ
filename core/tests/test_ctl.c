@@ -1799,13 +1799,56 @@ static void g_keyboard_scale(void)
 static void g_fill_page(void)
 {
     start();
-    bdown(SHIFT), bdown(QD_B_KEYS);                     /* (P1.6d: FILL is SHIFT + ARP held) */
+    bdown(SHIFT), bdown(QD_B_TRACKS);                   /* (2026-10-25: FILL is SHIFT + FX held) */
     run(10);
-    CHECK(A.seq.fill && leds().button[QD_B_KEYS] == QD_LED_LIT, "SHIFT + ARP held: FILL, ARP lit (blinking)");
-    bup(QD_B_KEYS), bup(SHIFT);
+    CHECK(A.seq.fill && leds().button[QD_B_TRACKS] == QD_LED_LIT, "SHIFT + FX held: FILL, FX lit");
+    bup(QD_B_TRACKS), bup(SHIFT);
     run(10);
-    CHECK(!A.seq.fill && qd_view_screen(&A) != QD_SCR_MFX, "ARP up: FILL off (no MIDI FX screen)");
+    CHECK(!A.seq.fill && !A.ui.latch, "FX up: FILL off (no effects page)");
     CHECK(A.ui.follow && leds().button[QD_B_PAGE] == QD_LED_OFF, "follow on at power-on (P1.4b: ENV is MIX, unlit)");
+    PAT()->trk[0].mfx = 2;
+    bdown(SHIFT), btap(QD_B_KEYS), bup(SHIFT);
+    run(10);
+    CHECK(PAT()->trk[0].mfx == (2 | QD_TMFX_OFF) && qd_mfx_tgroup(&A) == 2 && !A.seq.fill &&
+              leds().button[QD_B_KEYS] == QD_LED_OFF, "SHIFT + ARP: MIDI FX bypassed at once, the group kept, ARP off");
+    bdown(SHIFT), btap(QD_B_KEYS), bup(SHIFT);
+    run(10);
+    CHECK(PAT()->trk[0].mfx == 2 && leds().button[QD_B_KEYS] == QD_LED_LIT, "again: on, ARP lit");
+}
+
+/* 2026-10-25: a latched F3 (or the record settings, the settings) lets the page keys straight through */
+static void g_f3_pages(void)
+{
+    static const struct { int b, latch; } P[] = {
+        {QD_B_SOUND, QD_LATCH_SND}, {QD_B_PATTERN, QD_LATCH_TRK}, {QD_B_PAGE, QD_LATCH_MIX}, {QD_B_TRACKS, QD_LATCH_FX},
+        {QD_B_KEYS, QD_LATCH_MFX}, {QD_B_MIX, QD_LATCH_TOOLS}, {QD_B_SAVE, QD_LATCH_SAVE},
+    };
+    size_t i;
+    for (i = 0; i < sizeof P / sizeof P[0]; i++) {
+        start();
+        if (i & 1) {
+            bdown(QD_B_PLAY);
+            run(QD_PLAY_HOLD_MS + 20);
+            bup(QD_B_PLAY);
+        } else {
+            btap(QD_B_PLAY);                            /* (playing; F1 + F2) */
+            bdown(F1), bdown(F2);
+            run(20);
+            bup(F1), bup(F2);
+        }
+        run(10);
+        CHECK(A.ui.latch == QD_LATCH_F3, "PLAY held / F1 + F2: F3");
+        btap(P[i].b);
+        CHECK(A.ui.latch == P[i].latch && qd_view_screen(&A) != QD_SCR_LAYER && qd_ctl_layer(&A) != QD_LAYER_F3,
+              "from F3, button %d: its page (latch %d, want %d; screen %d)", P[i].b, A.ui.latch, P[i].latch,
+              qd_view_screen(&A));
+    }
+    start();
+    bdown(SHIFT), btap(QD_B_REC), bup(SHIFT);
+    run(10);
+    CHECK(A.ui.latch == QD_LATCH_REC, "SHIFT + REC: the record settings");
+    btap(QD_B_SOUND);
+    CHECK(A.ui.latch == QD_LATCH_SND, "EDIT from the record settings: the editor");
 }
 
 static void g_follow(void)
@@ -4922,13 +4965,13 @@ static void g_p16c_arp(void)
     btap(QD_B_KEYS);
     CHECK(qd_view_screen(&A) == QD_SCR_MFX, "ARP tapped: the MIDI FX screen (unchanged)");
     btap(QD_B_HOME);
-    bdown(SHIFT), bdown(QD_B_KEYS);
-    CHECK(A.seq.fill, "SHIFT + ARP: FILL at once (the press)");
+    bdown(SHIFT), bdown(QD_B_TRACKS);
+    CHECK(A.seq.fill, "SHIFT + FX: FILL at once (the press)");
     run(600);
     CHECK(A.seq.fill && !qd_tools_open(&A), "held 600 ms: still FILL, no TOOLS");
-    bup(QD_B_KEYS), bup(SHIFT);
+    bup(QD_B_TRACKS), bup(SHIFT);
     run(10);
-    CHECK(!A.seq.fill && !qd_tools_open(&A) && qd_view_screen(&A) != QD_SCR_MFX, "let go: no FILL, nothing opened");
+    CHECK(!A.seq.fill && !qd_tools_open(&A) && !A.ui.latch, "let go: no FILL, nothing opened");
     btap(QD_B_HOME);
 }
 
@@ -5327,10 +5370,10 @@ static void g_p16d_mfx(void)
     run(20);
     CHECK(leds().button[QD_B_KEYS] == QD_LED_OFF, "the MIDI FX turned off: ARP dark");
     PAT()->trk[0].mfx = 1;
-    bdown(SHIFT), bdown(QD_B_KEYS), run(10);
-    CHECK(A.seq.fill && leds().button[QD_B_KEYS] == QD_LED_LIT && !half_period(QD_B_KEYS),
-          "SHIFT + ARP held: FILL, ARP lit (T1: steady)");
-    bup(QD_B_KEYS), bup(SHIFT), run(10);
+    bdown(SHIFT), bdown(QD_B_TRACKS), run(10);
+    CHECK(A.seq.fill && leds().button[QD_B_TRACKS] == QD_LED_LIT && !half_period(QD_B_TRACKS),
+          "SHIFT + FX held: FILL, FX lit (steady)");
+    bup(QD_B_TRACKS), bup(SHIFT), run(10);
     G->slot[0].v[QD_MA_MODE] = QD_AM_HOLD;
     /* the screen */
     btap(QD_B_KEYS);
@@ -8646,7 +8689,8 @@ int main(void)
         {"the OCT LEDs' blink levels; the octave takeover", g_octave},
         {"REC, REC + PLAY, SHIFT + REC, step / live rec", g_rec},
         {"the keyboard in a scale, the global key", g_keyboard_scale},
-        {"ARP = FILL", g_fill_page},
+        {"SHIFT + FX = FILL, SHIFT + ARP = MIDI FX bypass", g_fill_page},
+        {"F3 latched: the page keys go straight to their pages", g_f3_pages},
         {"page follow", g_follow},
         {"P1.4b: the track settings, the mix, the effects", g_tracks_screen},
         {"the track settings' W keys, the global key", g_track_keys},

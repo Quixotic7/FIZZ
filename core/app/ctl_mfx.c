@@ -15,7 +15,7 @@
  *                      the lane's 16 steps (a tap selects; SHIFT + W a random value), KNOB 1 the step's value, KNOB 4
  *                      the length; B1..B8 stay the slots
  *   ARP tapped         (anywhere) the track's group's arp on / off: none, one in the first empty slot; no group, the
- *                      first unused one (no track on it, empty first) with an arp in it; ARP held stays FILL */
+ *                      first unused one (no track on it, empty first) with an arp in it; ARP held bypasses the MIDI FX (FILL: SHIFT + FX) */
 
 static int mf_held(const qd_app_t *a, int b) { return (int)((a->buttons_held >> b) & 1u); }
 static int mf_clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -27,7 +27,7 @@ int qd_mfx_open(const qd_app_t *a)
 }
 int qd_mfx_tgroup(const qd_app_t *a)
 {
-    const int m = qd_ctl_cpat(a)->trk[a->sel].mfx;
+    const int m = qd_ctl_cpat(a)->trk[a->sel].mfx & 0x7f;   /* (QD_TMFX_OFF: a playback bypass, the group edited) */
     return m <= QD_MFX_NGROUP ? m : 0;
 }
 static qd_mfx_slot_t *mf_slot(qd_app_t *a)
@@ -350,8 +350,8 @@ int qd_mfx_knob(qd_app_t *a, int knob, int d)
         const int was = qd_mfx_tgroup(a);
         const int up = u->mfx_gsel_ms && a->ms - u->mfx_gsel_ms < QD_TK_MS;
         u->mfx_gsel_from = up ? qd_mfx_glide(a, u->mfx_gsel_from, u->mfx_gsel_to, u->mfx_gsel_t0) : was * 100;
-        ts->mfx = (uint8_t)mf_clampi(was + d, 0, QD_MFX_NGROUP);
-        u->mfx_gsel_to = ts->mfx * 100;
+        ts->mfx = (uint8_t)(mf_clampi(was + d, 0, QD_MFX_NGROUP) | (ts->mfx & QD_TMFX_OFF));   /* (the bypass kept) */
+        u->mfx_gsel_to = (ts->mfx & 0x7f) * 100;
         u->mfx_gsel_ms = u->mfx_gsel_t0 = a->ms ? a->ms : 1u;
         u->mfx_arm = -1;
         u->mfx_page = 0;

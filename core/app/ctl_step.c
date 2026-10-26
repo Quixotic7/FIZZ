@@ -616,7 +616,7 @@ void qd_step_value_key_default(qd_app_t *a, int b, int down)
     case UI_F_TRIG:
         if (b >= 3) {                                   /* (B5 OFF, B6..B10 groups 1..5: the track's group) */
             if (b > 3)
-                p->trk[t].mfx = (uint8_t)(b == 4 ? 0 : b - 4);
+                p->trk[t].mfx = (uint8_t)((b == 4 ? 0 : b - 4) | (p->trk[t].mfx & QD_TMFX_OFF));   /* (bypass kept) */
             p->used = 1;
             break;
         }

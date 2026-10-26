@@ -135,7 +135,7 @@ static int mfx_route(const qd_player_t *pl, int pat, int t, int step)
     int g;
     if (pat < 0 || pat >= QD_NPAT)
         return 0;
-    g = qd_step_mfx(qd_proj_cpat(pr, pat), t, step);
+    g = qd_proj_cpat(pr, pat)->trk[t].mfx & QD_TMFX_OFF ? 0 : qd_step_mfx(qd_proj_cpat(pr, pat), t, step);   /* (bypassed) */
     return g && qd_mfx_group_active(&pr->mfx[g - 1]) ? g : 0;
 }
 static int64_t mfx_tick_of(const qd_player_t *pl, int64_t seq_tick) { return pl->mfx_base + seq_tick; }
@@ -390,7 +390,7 @@ void qd_player_key_on(qd_player_t *pl, int t, int note, int vel)
         return;
     {   /* P1.6c: through the track's group */
         const qd_pattern_t *P = qd_seq_track_pat(pl->seq, t);
-        const int g = qd_step_mfx(P, t, -1);
+        const int g = P->trk[t].mfx & QD_TMFX_OFF ? 0 : qd_step_mfx(P, t, -1);   /* (QD_TMFX_OFF: bypassed) */
         if (pl->key_grp[t][note])
             mfx_key_note(pl, t, note, vel, pl->key_grp[t][note], 0);
         pl->key_grp[t][note] = 0;

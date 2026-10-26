@@ -54,7 +54,7 @@
  * SEQ held: W1..W16 tap = A01..A16 queued by the launch mode (the project's: END, BAR, BEAT, NOW; ALGORITHM turned
  * while SEQ is held), held 400 ms = at once; the pattern map on screen.
  * BUTTONS: REC tap = the keyboard <-> the sequencer; REC + PLAY = play with recording armed (in the keyboard); SHIFT + REC
- * in the keyboard = armed / not (stopped: step recording, playing: live); SHIFT + ARP held = FILL; SEQ tapped = TOOLS; SHIFT + SAVE = the project; PAGE tap = page follow on /
+ * in the keyboard = armed / not (stopped: step recording, playing: live); SHIFT + FX held = FILL; ARP held or SHIFT + ARP = MIDI FX bypass on / off (the group kept); SEQ tapped = TOOLS; SHIFT + SAVE = the project; PAGE tap = page follow on /
  * off, PAGE held + W1..W8 = edit that page; TRACKS, HOME, PLAY as P1.3. The keyboard's OCT- / OCT+: its octave (the
  * octave takeover, the OCT LEDs).
  *
@@ -520,7 +520,7 @@ typedef struct {
     int mfx_walk_n, mfx_walk_pn;
     uint32_t arp_ms;                   /* ARP went down (P1.6d: a tap the MIDI FX screen, held the arp on / off) .. */
     int arp_used;                      /* .. SHIFT + ARP, or held: no tap */
-    int arp_fill;                      /* P1.6d: SHIFT + ARP: FILL on (while both are down) */
+    int arp_fill;                      /* P1.6d: FILL on (2026-10-25: SHIFT + FX, while both are down) */
     int snd_lk, snd_lk_used, snd_lk_k, snd_lk_id;   /* P1.5k: an LFO key held in the editor (1..3; E4: 4 B1, the MOD
                                          * slots), a knob used with it,
                                         * the knob slot and the value it mapped .. */

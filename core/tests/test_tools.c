@@ -518,11 +518,11 @@ static void t_arp(void)
     CHECK(qd_mfx_open(&A) && leds().button[QD_B_KEYS] == QD_LED_LIT, "ARP tapped: the MIDI FX screen, ARP lit");
     btap(QD_B_HOME);
     bdown(QD_B_FUNC);
-    bdown(QD_B_KEYS);
-    CHECK(A.seq.fill && leds().button[QD_B_KEYS] == QD_LED_LIT, "SHIFT + ARP: FILL at once, ARP lit");
+    bdown(QD_B_TRACKS);
+    CHECK(A.seq.fill && leds().button[QD_B_TRACKS] == QD_LED_LIT, "SHIFT + FX: FILL at once, FX lit");
     run(QD_ARP_HOLD_MS + 200);
     CHECK(A.seq.fill && !qd_tools_open(&A), "held long: FILL, never TOOLS");
-    bup(QD_B_KEYS);
+    bup(QD_B_TRACKS);
     bup(QD_B_FUNC);
     run(10);
     CHECK(!A.seq.fill && !qd_tools_open(&A) && !qd_mfx_open(&A), "let go: FILL off, nothing opened");
@@ -533,9 +533,30 @@ static void t_arp(void)
     CHECK(leds().button[QD_B_KEYS] == QD_LED_LIT, "the track's MIDI FX on: ARP lit (no dim)");
     bdown(QD_B_KEYS);
     run(QD_ARP_HOLD_MS + 10);
-    CHECK(qd_mfx_tgroup(&A) == 0 && PAT()->trk[0].mfx == (1 | QD_TMFX_OFF) && qd_step_mfx(PAT(), 0, 0) == 0 &&
+    CHECK(qd_mfx_tgroup(&A) == 1 && PAT()->trk[0].mfx == (1 | QD_TMFX_OFF) && qd_step_mfx(PAT(), 0, 0) == 1 &&
               leds().button[QD_B_KEYS] == QD_LED_OFF && !qd_mfx_open(&A) && !strcmp(A.ui.cf_big, "MIDI FX OFF"),
-          "2026-10-25: ARP held: the track's MIDI FX off at once (the group kept), ARP dark, MIDI FX OFF");
+          "2026-10-25: ARP held: the routing bypassed at once (the group kept and read), ARP dark, MIDI FX OFF");
+    bup(QD_B_KEYS);
+    run(10);
+    btap(QD_B_KEYS);
+    turn(QD_K_ALGO, 1);
+    CHECK(qd_mfx_open(&A) && PAT()->trk[0].mfx == (2 | QD_TMFX_OFF) && qd_mfx_tgroup(&A) == 2,
+          "bypassed: the page edits the group (ALGORITHM 2), still bypassed");
+    {
+        static ui_mfx_t v;
+        qd_view_mfx(&A, &v);
+        CHECK(v.route_off && v.g == 2, "the page: OFF by the group 2 hexagon");
+    }
+    turn(QD_K_ALGO, -1);
+    btap(QD_B_HOME);
+    bdown(QD_B_FUNC);
+    btap(QD_B_KEYS);
+    bup(QD_B_FUNC);
+    CHECK(PAT()->trk[0].mfx == 1 && !strcmp(A.ui.cf_big, "MIDI FX ON") && !A.seq.fill, "SHIFT + ARP: on at once");
+    bdown(QD_B_FUNC);
+    btap(QD_B_KEYS);
+    bup(QD_B_FUNC);
+    CHECK(PAT()->trk[0].mfx == (1 | QD_TMFX_OFF) && !strcmp(A.ui.cf_big, "MIDI FX OFF"), "again: off");
     bup(QD_B_KEYS);
     run(10);
     CHECK(!qd_mfx_open(&A) && !qd_tools_open(&A), "let go: nothing opened");
