@@ -781,7 +781,7 @@ typedef struct {
     /* P1.5z, TAP (SHIFT + B6): the taps' ages (s, the newest first; up to 8), the count, the clock external (dimmed) */
     int ntap;
     float tap_age[8];
-    int ext;
+    int ext;                            /* (SCALE / ROOT: the global key's) */
     float since;                        /* seconds since the last tap (the takeover closes 2.8 s after it) */
     int ntotal;                         /* TAP ape: the taps of this count (not capped), .. */
     int tap_cont;                       /* .. its first came while the screen was still up (no bounce in), .. */

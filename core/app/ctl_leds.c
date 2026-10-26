@@ -171,7 +171,8 @@ static void leds_step(const qd_app_t *a, qd_leds_t *out)
         qd_panel_leds(a, bk);
         for (i = 0; i < 11; i++)
             out->key[QD_BLACK_KEY[i]] = bk[i];
-        for (i = 0; i < 16; i++)                        /* (P1.5b: the effects' overview: W1..W8 the tracks) */
+        for (i = 0; i < 16 && u->latch != QD_LATCH_TRK; i++)   /* (P1.5b: the effects' overview: W1..W8 the tracks;
+                                                         * the track settings: the steps) */
             out->key[QD_WHITE_KEY[i]] = u->latch == QD_LATCH_FX && QD_FX_PAGES[u->fx_page].fx == QD_FXG_OVER &&
                                         i < QD_NTRACK ? (i == a->sel ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
         return;

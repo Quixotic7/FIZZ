@@ -239,10 +239,11 @@ int qd_type_knob(qd_app_t *a, int knob, int d)
         y->spark = 0;
         y->idea_ms = 0;
         ty_changed(a);
-    } else if (knob == QD_K_PRESETS || knob == QD_K_4) {   /* P1.5z: names rolled, endless; left: the last ten */
+    } else if (knob == QD_K_PRESETS || knob == QD_K_4 || knob == QD_K_2) {   /* P1.5z: names rolled, endless; left: the
+                                                         * last ten (KNOB 2: the settings page's knob that opened it) */
         ty_roll(a, d);
     }
-    return 1;                                           /* (KNOB 2, 3: nothing) */
+    return 1;                                           /* (KNOB 3: nothing) */
 }
 
 int qd_type_button(qd_app_t *a, int button, int down)

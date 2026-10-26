@@ -153,6 +153,7 @@ void qd_tset_init(qd_tset_t *s, int track)
     }
     s->scale = QD_SCALE_CHROMATIC;
     s->root = 0;
+    s->key_global = 1;                  /* (a new track follows the project's key) */
 }
 
 void qd_pat_init(qd_pattern_t *p)

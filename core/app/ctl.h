@@ -207,7 +207,7 @@ enum { QD_LATCH_NONE, QD_LATCH_F3,
        QD_LATCH_REC,                    /* P1.3y: SHIFT + REC: the record settings (MODE, QUANTIZE, OVERDUB) */
        QD_LATCH_SET,                    /* P1.3y: SHIFT + SEL: the global settings (PAGE FOLLOW) */
        QD_LATCH_SND,                    /* P1.4a: EDIT (printed): the sound editor (ctl_snd.c) */
-       QD_LATCH_TRK,                    /* P1.4b: SEL tapped: the track settings (ctl_mix.c) */
+       QD_LATCH_TRK,                    /* P1.4b: SEL tapped: the track settings (ctl_mix.c; W its steps) */
        QD_LATCH_MIX,                    /* P1.4b: ENV (printed) = MIX: the faders, again the sends */
        QD_LATCH_FX,                     /* P1.4b: FX (printed) tapped: the effects */
        QD_LATCH_BROWSE,                 /* P1.5t: PRESETS, nothing held: the library browser (ctl_presets.c) */

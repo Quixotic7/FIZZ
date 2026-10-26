@@ -710,6 +710,8 @@ static void menu_trk(const ui_menu_t *v)
     line2(8.f, 27.f, 232.f, 27.f, UI_G3, 1.f);
     if (!v->page) {
         menu_row(0, 44.f, "SCALE", v->scale);
+        if (v->follow_key)                              /* (the global key's values) */
+            ui_T("GLOBAL", 232.f, 48.5f, 12.f, 700, 1.f, UI_G1, QD_RIGHT);
         for (k = 0; k < 12; k++) {                      /* C .. B: the scale's notes */
             const float x = 38.f + (float)k * 9.f, y = 88.f;
             const int in = (v->scale_mask >> k) & 1;
