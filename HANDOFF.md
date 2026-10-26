@@ -21,7 +21,7 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
   keeps old port names: the FIZZ unit's port is named "ChoralRoot FM-1". Always pass `--port` (fm1_install.py and
   fizz_xdata.py) and check `--info` reports FM-1_46.. before a flash; the loader's port is "Felucca Update"; after
   the write the installer's final check may read the other unit (FM-1_920 "expected FM-1_4600"): confirm with
-  `--info --port "ChoralRoot FM-1"`. Never run the CoreMIDI rescan while a unit is in the loader.
+  `--info --port "ChoralRoot FM-1"`. If the loader ("Felucca Update") does not answer, run the CoreMIDI rescan, then the install with `--port "Felucca Update"`.
 
 - **Released: FIZZ 0.12.0-beta.5** (tag `v0.12.0-beta.5` on master 9878bff, pushed; GitHub pre-release and the install page, both workflows green). The unit runs exactly that package (0 xruns at boot). It holds the owner's feedback round after beta.4:
   Everything in CHANGELOG's `## Unreleased`: SEQ tapped = TOOLS, ARP held = arp on/off, SHIFT + SAVE = the project
