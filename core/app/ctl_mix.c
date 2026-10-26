@@ -24,7 +24,8 @@
  *        SENDS (2026-10-26, the sequencer clean-up; was the OVERVIEW): the current track's three sends as bars (KNOB
  *        1..3; SHIFT + SELECT or FX + ALGORITHM the track), the page's steps on the lane and the white keys as the
  *        EDIT home (held: a send is the step's lock), REC the keyboard on / off as the sound editor's.
- *        ROUTING (2026-10-26, ChoralRoot 0.27's): KNOB 1 the mode (PARALLEL / CHAIN), KNOB 2..4 the chain amounts; a
+ *        ROUTING (2026-10-26, ChoralRoot 0.27's): KNOB 1 the mode (PARALLEL / CHAIN), ALGORITHM (and KNOB 2) the DRY
+ *        level in CHAIN (the effects are fed by the tracks' sends, the SENDS page's); a
  *        block's page key held (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER) lifts it and KNOB 1 moves it (qd_fx_route_move).
  *        SEND is the selected track's send into that effect; TIME / SPREAD are the free or the synced value by SYNC
  *        (ChoralRoot's FC_TIME, FC_SPREAD). FX held + ALGORITHM still chooses the track. */
@@ -37,7 +38,7 @@ const qd_fxpage_t QD_FX_PAGES[QD_FX_NPAGE] = {
     {"REVERB 2", QD_FXG_REVERB, UI_FXD_REVERB2, {QD_FXP_RPRE, QD_FXP_RMOD, QD_FXP_RLOW, QD_FXP_RWIDTH}},
     {"CHORUS", QD_FXG_CHORUS, UI_FXD_CHORUS, {QD_FXP_CRATE, QD_FXP_CDEPTH, QD_FXP_CWIDTH, QD_FXC_SEND}},
     {"MASTER", QD_FXG_MASTER, UI_FXD_MASTER, {QD_FXP_FLOW, QD_FXP_FHIGH, QD_FXP_FSLOPE, QD_FXP_FON}},
-    {"ROUTING", QD_FXG_ROUTE, UI_FXD_ROUTE, {QD_FXP_RMODE, QD_FXP_CAMT_C, QD_FXP_CAMT_D, QD_FXP_CAMT_R}},
+    {"ROUTING", QD_FXG_ROUTE, UI_FXD_ROUTE, {QD_FXP_RMODE, QD_FXP_RDRY, QD_FXC_NONE, QD_FXC_NONE}},
 };
 const char *const QD_FX_NAME[QD_NFXG] = {"DELAY", "REVERB", "CHORUS", "MASTER", "SENDS", "ROUTING"};
 const uint8_t QD_FX_KEY[QD_FX_NKEY] = {QD_FXG_OVER, QD_FXG_DELAY, QD_FXG_REVERB, QD_FXG_CHORUS, QD_FXG_MASTER,
@@ -325,6 +326,12 @@ int qd_fx_knob(qd_app_t *a, int knob, int d)
     if (knob == QD_K_SELECT) {
         u->fx_page = (u->fx_page + d % QD_FX_NPAGE + QD_FX_NPAGE) % QD_FX_NPAGE;
         u->menu_knob = -1;
+        return 1;
+    }
+    if (knob == QD_K_ALGO && pg->fx == QD_FXG_ROUTE && !u->fx_bheld) {   /* ROUTING: ALGORITHM the DRY level (the
+                                                         * owner, 2026-10-26; KNOB 2 too) */
+        qd_fx_set(QD_FXP_RDRY, qd_fx_get(QD_FXP_RDRY) + qd_ctl_acc(a, d, 128));
+        u->menu_knob = 1;
         return 1;
     }
     if (knob < QD_K_1)

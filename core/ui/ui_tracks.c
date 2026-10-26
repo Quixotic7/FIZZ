@@ -412,6 +412,15 @@ static void fx_route(const ui_fx_t *v)
             rt_box(v, v->rt_order[k], x, y, w, h, k + 1, 0, 1);
         }
         rt_arrow(235.f, y + h / 2.f, 1, UI_G2);
+        {   /* the dry's own wire under the chain, IN to OUT, as bright as its level (DRY: ALGORITHM / KNOB 2) */
+            const float dy = y + h + 42.f;
+            qd_save();
+            qd_alpha(0.25f + 0.75f * clampf(v->rt_dry, 0.f, 1.f));
+            ln(4.f, dy, 236.f, dy, UI_K2, 1.4f);
+            rt_arrow(235.f, dy, 1, UI_K2);
+            ui_T("DRY", 120.f, dy - 5.f, 12.f, 600, 0.5f, UI_K2, QD_CENTER);
+            qd_restore();
+        }
         if (held >= 0) {                                /* the lifted one last, over its neighbours' gaps */
             int p = 0;
             float x, ly;

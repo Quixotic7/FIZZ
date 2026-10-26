@@ -4375,8 +4375,8 @@ static void g_p15b_fx(void)
     turn(QD_K_3, -2);
     CHECK(A.model.t[2].mix.chorus == c0 + 4 && A.model.t[2].mix.delay == d0 + 3 && A.model.t[2].mix.reverb == r0 - 2,
           "KNOB 1..3: track 3's CHORUS +4, DELAY +3, REVERB -2");
-    CHECK(qd_fx_get(QD_FXP_RMODE) == 0 && qd_fx_get(QD_FXP_ORDER) == 0 && qd_fx_get(QD_FXP_CAMT_C) == 64,
-          "the routing at power-on: PARALLEL, CHORUS DELAY REVERB FILTER, the chain amounts half");
+    CHECK(qd_fx_get(QD_FXP_RMODE) == 0 && qd_fx_get(QD_FXP_ORDER) == 0 && qd_fx_get(QD_FXP_RDRY) == 127,
+          "the routing at power-on: PARALLEL, CHORUS DELAY REVERB FILTER, DRY full");
     black(B6);
     l = leds();
     CHECK(!strcmp(QD_FX_PAGES[A.ui.fx_page].name, "ROUTING") && l.key[BK(B6)] == QD_LED_LIT && l.key[BK(B2)] == QD_LED_MID &&
@@ -4384,7 +4384,12 @@ static void g_p15b_fx(void)
     turn(QD_K_1, 1);
     CHECK(qd_fx_get(QD_FXP_RMODE) == 1, "KNOB 1: CHAIN");
     turn(QD_K_2, 3);
-    CHECK(qd_fx_get(QD_FXP_CAMT_C) > 64, "KNOB 2: the chorus's chain amount up");
+    CHECK(qd_fx_get(QD_FXP_RDRY) == 127, "KNOB 2 up: DRY stays at full");
+    turn(QD_K_ALGO, -10);
+    CHECK(qd_fx_get(QD_FXP_RDRY) == 117, "ALGORITHM -10: DRY 117 (the owner: the dry straight to the output)");
+    turn(QD_K_2, -7);
+    CHECK(qd_fx_get(QD_FXP_RDRY) == 110, "KNOB 2 -7: DRY 110 too");
+    turn(QD_K_ALGO, 20);
     kdown(BK(B2));
     run(50);
     CHECK(A.ui.fx_bheld == 2 && leds().key[BK(B2)] == QD_LED_LIT, "B2 (DELAY's page key) held: its block lifts, the key lit");
@@ -4437,28 +4442,27 @@ static void g_p15b_fx(void)
         int r, pass;
         double e[2];
         for (r = 0; r < 2; r++) {
-            int32_t z[QD_FX_CTL], l2[QD_FX_CTL], r2[QD_FX_CTL], out[2 * QD_FX_CTL];
+            int32_t z[QD_FX_CTL], sd[QD_FX_CTL], l2[QD_FX_CTL], r2[QD_FX_CTL], out[2 * QD_FX_CTL];
             qd_fx_init();
             if (r == 1) {
                 qd_fx_set(QD_FXP_RMODE, 1);
-                qd_fx_set(QD_FXP_CAMT_C, 0);
-                qd_fx_set(QD_FXP_CAMT_D, 127);
-                qd_fx_set(QD_FXP_CAMT_R, 0);
+                qd_fx_set(QD_FXP_RDRY, 127);
             }
             e[r] = 0.;
             for (pass = 0; pass < 1400; pass++) {       /* 1 s */
                 int k;
                 for (k = 0; k < QD_FX_CTL; k++) {
                     l2[k] = r2[k] = pass < 40 ? (int32_t)(sin((double)(pass * QD_FX_CTL + k) * 0.05) * 8000.) : 0;
+                    sd[k] = r ? l2[k] : 0;              /* (CHAIN: the delay fed by its send, the SENDS page's) */
                     z[k] = 0;
                 }
-                qd_fx_block(z, z, z, l2, r2, out);
+                qd_fx_block(z, sd, z, l2, r2, out);
                 if (pass >= 200)
                     for (k = 0; k < 2 * QD_FX_CTL; k++)
                         e[r] += (double)out[k] * out[k];
             }
         }
-        CHECK(e[0] * 1000. < e[1] && e[1] > 1e6, "PARALLEL, nothing sent: next to nothing after the burst; CHAIN, DELAY 100 %%: echoes (%g %g)",
+        CHECK(e[0] * 1000. < e[1] && e[1] > 1e6, "PARALLEL, nothing sent: next to nothing after the burst; CHAIN, the delay sent: echoes (%g %g)",
               e[0], e[1]);
         qd_fx_init();
     }

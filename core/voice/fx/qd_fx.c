@@ -55,10 +55,12 @@ typedef char qd_fx_ctl_ok[QD_FX_CTL == CTL ? 1 : -1];
 /* THE ROUTING (2026-10-26, after ChoralRoot 0.27's, GitHub issue 21 there): qd_rt[] = the mode, the order, the three
  * chain amounts (QD_FXP_RMODE ..). PARALLEL (0, the default) is the block as it always was, bit for bit: the chorus's,
  * the delay's and the reverb's buses fed by the tracks' sends, their returns into the mix, the master filter after
- * (or, the FILTER first in the order, before: on the dry mix, so the effects hear the cut signal). CHAIN (1) is one path:
- * C_0 the dry mix, each block in the order makes C_k+1 of C_k: the filter in place, an effect from amt x mono(C_k),
- * its wet added. Sequential within the block (no previous-block snapshot: one core). The delay's half-rate wet has its
- * own up-sampler (qd_ud) so the reverb's (xf.up) keeps its history */
+ * (or, the FILTER first in the order, before: on the dry mix, so the effects hear the cut signal). CHAIN (1, the owner's
+ * rule of 2026-10-26, later the same day): the dry mix goes straight to the output at the DRY level (qd_rt[2]); the
+ * chain carries the wet: each effect in the order is fed by its own send bus (the tracks' sends, the SENDS page) plus
+ * mono of the wet made before it, and adds its wet; the FILTER filters the wet at its place, or, last in the order,
+ * everything (the dry folded in first: the master filter). Sequential within the block (no previous-block snapshot:
+ * one core). The delay's half-rate wet has its own up-sampler (qd_ud) so the reverb's (xf.up) keeps its history */
 static int16_t qd_rt[5];
 static const uint8_t QD_RT_ORD[24][4] = {              /* QD_FXP_ORDER -> the block at position 0..3, lexicographic */
     {0, 1, 2, 3}, {0, 1, 3, 2}, {0, 2, 1, 3}, {0, 2, 3, 1}, {0, 3, 1, 2}, {0, 3, 2, 1},
@@ -90,7 +92,7 @@ void qd_fx_init(void)
     song.g[G_CRATE] = 40;
     song.g[G_CDEPTH] = 60;
     fx_master_now(fz_master_of_pot(QD_FX_POT_DEFAULT));
-    qd_rt[0] = 0, qd_rt[1] = 0, qd_rt[2] = qd_rt[3] = qd_rt[4] = 64;   /* PARALLEL, C D R F, the chain amounts half */
+    qd_rt[0] = 0, qd_rt[1] = 0, qd_rt[2] = 127, qd_rt[3] = qd_rt[4] = 64;   /* PARALLEL, C D R F, DRY full */
     xf_hb_clear(&qd_ud[0]);
     xf_hb_clear(&qd_ud[1]);
     qd_ud_live = 0;
@@ -178,21 +180,38 @@ void qd_fx_block(const int32_t *sc, const int32_t *sd, const int32_t *sr, int32_
         out_master(out, l, r, (const int32_t *)0, CTL);
         return;
     }
-    for (k = 0; k < 4; k++) {                           /* CHAIN */
-        const int b = o[k];
-        int32_t in[CTL];
-        if (b == QD_RT_FILTER) {
-            xq_block(l, r, CTL);
-            continue;
+    {                                                   /* CHAIN */
+        int32_t dl[CTL], dr[CTL], in[CTL];
+        int folded = 0;
+        for (i = 0; i < CTL; i++) {                     /* the dry at its level, kept apart; l / r carry the wet */
+            dl[i] = (int32_t)qd_div64((int64_t)l[i] * qd_rt[2], 127);
+            dr[i] = (int32_t)qd_div64((int64_t)r[i] * qd_rt[2], 127);
+            l[i] = r[i] = 0;
         }
-        for (i = 0; i < CTL; i++)                       /* amt x mono(C_k) (P2.4: 32-bit divisions) */
-            in[i] = (int32_t)qd_div64((int64_t)((l[i] + r[i]) / 2) * qd_rt[2 + b], 127);
-        if (b == QD_RT_CHORUS)
-            xc_block(in, l, r, CTL);
-        else if (b == QD_RT_DELAY)
-            qd_chain_delay(in, l, r);
-        else
-            qd_chain_reverb(in, l, r);
+        for (k = 0; k < 4; k++) {
+            const int b = o[k];
+            const int32_t *bus = b == QD_RT_CHORUS ? sc : b == QD_RT_DELAY ? sd : sr;
+            if (b == QD_RT_FILTER) {
+                if (k == 3) {                           /* last: the master filter on everything */
+                    for (i = 0; i < CTL; i++)
+                        l[i] += dl[i], r[i] += dr[i];
+                    folded = 1;
+                }
+                xq_block(l, r, CTL);
+                continue;
+            }
+            for (i = 0; i < CTL; i++)                   /* its send, and the wet so far (mono) */
+                in[i] = bus[i] + (l[i] + r[i]) / 2;
+            if (b == QD_RT_CHORUS)
+                xc_block(in, l, r, CTL);
+            else if (b == QD_RT_DELAY)
+                qd_chain_delay(in, l, r);
+            else
+                qd_chain_reverb(in, l, r);
+        }
+        if (!folded)
+            for (i = 0; i < CTL; i++)
+                l[i] += dl[i], r[i] += dr[i];
     }
     out_master(out, l, r, (const int32_t *)0, CTL);
 }
@@ -237,7 +256,7 @@ int qd_fx_get(int id)
 {
     if (id >= 0 && id < XP_N)
         return xfp[id];
-    if (id >= QD_FXP_RMODE && id <= QD_FXP_CAMT_R)
+    if (id >= QD_FXP_RMODE && id <= QD_FXP_RSPARE2)
         return qd_rt[id - QD_FXP_RMODE];
     return id == QD_FXP_CRATE ? song.g[G_CRATE] : id == QD_FXP_CDEPTH ? song.g[G_CDEPTH] : 0;
 }
@@ -247,8 +266,8 @@ void qd_fx_range(int id, int *min, int *max, int *def)
     int lo = 0, hi = 127, d = 0;
     if (id >= 0 && id < XP_N)
         lo = XFP[id].min, hi = XFP[id].max, d = XFP[id].def;
-    else if (id >= QD_FXP_RMODE && id <= QD_FXP_CAMT_R)   /* the routing: PARALLEL / CHAIN, the 24 orders, the amounts */
-        hi = id == QD_FXP_RMODE ? 1 : id == QD_FXP_ORDER ? 23 : 127, d = id >= QD_FXP_CAMT_C ? 64 : 0;
+    else if (id >= QD_FXP_RMODE && id <= QD_FXP_RSPARE2)   /* the routing: PARALLEL / CHAIN, the 24 orders, DRY */
+        hi = id == QD_FXP_RMODE ? 1 : id == QD_FXP_ORDER ? 23 : 127, d = id == QD_FXP_RDRY ? 127 : id > QD_FXP_RDRY ? 64 : 0;
     else
         d = id == QD_FXP_CRATE ? 40 : 60;               /* (params.c GP) */
     if (min)
@@ -339,9 +358,9 @@ const char *qd_fx_text(int id, int v, char *buf)
         break;
     }
     case QD_FXP_CDEPTH:
-    case QD_FXP_CAMT_C:
-    case QD_FXP_CAMT_D:
-    case QD_FXP_CAMT_R: snprintf(buf, 16, "%d%%", (v * 100 + 63) / 127); break;
+    case QD_FXP_RDRY:
+    case QD_FXP_RSPARE1:
+    case QD_FXP_RSPARE2: snprintf(buf, 16, "%d%%", (v * 100 + 63) / 127); break;
     case QD_FXP_RMODE: strcpy(buf, v ? "CHAIN" : "PARALLEL"); break;
     case QD_FXP_ORDER: {                                /* the chain's letters, C D R F */
         int k;

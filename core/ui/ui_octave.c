@@ -4,12 +4,11 @@
 /* The octave takeover (P1.3c; PLAN.md §8b version 2.1, "octave feedback"): a change of NOTE's entry octave (OCT- /
  * OCT+ with a step held in NOTE), of the keyboard's octave, or of SOUND's bank of ten takes the whole screen for about
  * a second (the takeover's QD_TK_MS, then its 120 ms fade). The LINE look:
- *   - the number big in the middle (the octave, the keyboard's shift signed, the bank), rolling in: the old one slides
- *     out the way the change went and fades, the new one comes in from the other side (eased over the slide)
- *   - under it a keyboard much wider than the screen sliding to the new octave (its window eased from the old place
- *     to the new): the entry octave's twelve keys outlined white and B1's note marked in KNOB 1's colour; for
- *     the keyboard the 27 keys F..G of the keybed outlined white; for a bank, the pool as ticks in tens (the sounds
- *     there bright, the step's sound lock tall in SOUND's colour) with the bank's ten bracketed
+ *   - the number big in the middle (the octave, the keyboard's shift signed, the bank), at once (2026-10-26, the
+ *     owner: the roll and the slide were too slow for playing)
+ *   - under it the whole 88-key piano, still, with the keys in use lit: the entry octave's twelve (B1's note dotted in
+ *     KNOB 1's colour), or the keybed's 27 keys F..G; for a bank, the pool as ticks in tens (the sounds there bright,
+ *     the step's sound lock tall in SOUND's colour) with the bank's ten bracketed, sliding to it
  *   - at the foot OCT- and OCT+ with the distance from the centre as dots on the side that blinks (the LEDs' story:
  *     one dot slow, two faster, three or more fastest), the line under the number in grey
  * Nothing here reads a clock: the view gives the slide's progress (k) and the seconds since the change (t). */
@@ -30,35 +29,33 @@ static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
 /* note n's white-key index from note 0 (a black key: the white key it sits after) */
 static int wx(int n) { return n / 12 * 7 + WI[n % 12]; }
 
-/* a keyboard of notes 0..127, white keys kw wide from x0 (so it runs far off the screen), keys lo..hi outlined white,
- * mark a note dotted in mcol */
-static void long_keyboard(float x0, float y, float kw, float h, int lo, int hi, int mark, qd_rgb mcol)
+/* 2026-10-26 (the owner: the slide was slow): a full 88-key keyboard (A0 .. C8) across the screen, keys lo..hi (the
+ * two octaves F .. G the keybed plays, or the entry octave) filled bright, the rest outlined grey; mark a note dotted in
+ * mcol. Nothing moves */
+static void piano88(float y, float h, int lo, int hi, int mark, qd_rgb mcol)
 {
-    const float bh = h * 0.6f, bw = kw * 0.62f;
+    const float x0 = 6.f, kw = 228.f / 52.f, bh = h * 0.6f, bw = kw * 0.62f, w0 = (float)wx(21);
     int n;
-    qd_save();
-    qd_clip_rect(6.f, y - 2.f, 228.f, h + 4.f);
-    for (n = 0; n < 128; n++) {                         /* the white keys */
-        const float x = x0 + (float)wx(n) * kw;
+    for (n = 21; n <= 108; n++) {                       /* the white keys */
+        const float x = x0 + ((float)wx(n) - w0) * kw;
         const int in = n >= lo && n <= hi;
-        if (ISB[n % 12] || x > 236.f || x + kw < 4.f)
+        if (ISB[n % 12])
             continue;
-        ui_RR(x, y, kw, h, 1.5f, in ? UI_K3 : UI_G3, in ? 1.2f : 1.f, QD_NONE);
-        if (n % 12 == 0 && !in)                         /* a C: a grey tick at its foot */
-            line2(x + kw / 2.f, y + h - 6.f, x + kw / 2.f, y + h - 3.f, UI_G2, 1.f);
+        ui_RR(x, y, kw - 0.6f, h, 1.f, in ? QD_NONE : UI_G3, 1.f, in ? UI_K3 : QD_NONE);
+        if (n % 12 == 0)                                /* a C: a grey tick at its foot */
+            line2(x + kw / 2.f, y + h + 3.f, x + kw / 2.f, y + h + 6.f, UI_G2, 1.f);
     }
-    for (n = 0; n < 128; n++) {                         /* the black keys over them */
-        const float x = x0 + (float)(wx(n) + 1) * kw - bw / 2.f;
+    for (n = 21; n <= 108; n++) {                       /* the black keys over them */
+        const float x = x0 + ((float)(wx(n) + 1) - w0) * kw - bw / 2.f;
         const int in = n >= lo && n <= hi;
-        if (!ISB[n % 12] || x > 236.f || x + bw < 4.f)
+        if (!ISB[n % 12])
             continue;
-        ui_RR(x, y - 1.f, bw, bh, 1.5f, in ? UI_K3 : UI_G3, 1.f, UI_BG);
+        ui_RR(x, y - 1.f, bw, bh, 1.f, QD_NONE, 1.f, in ? UI_K3 : UI_G2);
     }
-    if (mark >= 0 && mark < 128) {
-        const float x = ISB[mark % 12] ? x0 + (float)(wx(mark) + 1) * kw : x0 + ((float)wx(mark) + 0.5f) * kw;
-        ui_O(x, ISB[mark % 12] ? y + bh - 7.f : y + h - 8.f, 2.6f, QD_NONE, 1.f, mcol);
+    if (mark >= 21 && mark <= 108) {
+        const float x = ISB[mark % 12] ? x0 + ((float)(wx(mark) + 1) - w0) * kw : x0 + ((float)wx(mark) + 0.5f - w0) * kw;
+        ui_O(x, ISB[mark % 12] ? y + bh - 6.f : y + h - 6.f, 2.4f, QD_NONE, 1.f, mcol);
     }
-    qd_restore();
 }
 
 /* the pool as ticks in tens, bank b's ten bracketed, centred on bank position pos (eased) */
@@ -111,41 +108,28 @@ void ui_octave_draw(const ui_octave_t *v)
 {
     static const char *const TITLE[3] = {"ENTRY OCTAVE", "KEYBOARD OCTAVE", "SOUND BANK"};
     const int kind = v->kind < 0 ? 0 : v->kind > 2 ? 2 : v->kind;
-    const float k = v->k < 0.f ? 0.f : v->k > 1.f ? 1.f : v->k, dir = v->dir >= 0 ? 1.f : -1.f;
+    const float k = v->k < 0.f ? 0.f : v->k > 1.f ? 1.f : v->k;
     const int centre = 0;
     char s[16];
     int off, i;
 
     ui_T(TITLE[kind], 8.f, 18.f, 12.f, 600, 0.8f, UI_K3, QD_LEFT);   /* (P1.3r: a pop-up: no track in its head) */
 
-    /* the number, rolling as a drum: the old one out the way the change went, the new one in, inside a band */
-    qd_save();
-    qd_clip_rect(0.f, 26.f, 240.f, 96.f);
-    if (v->from != v->value && k < 1.f) {
-        num_text(v, v->from, s);
-        qd_save();
-        qd_alpha(1.f - k);
-        ui_T(s, 120.f, 112.f - dir * 90.f * k, 92.f, 200, 0.f, UI_G1, QD_CENTER);
-        qd_restore();
-    }
+    /* the number, at once (2026-10-26, the owner: no roll) */
     num_text(v, v->value, s);
-    ui_T(s, 120.f, 112.f + (v->from != v->value ? dir * 90.f * (1.f - k) : 0.f), 92.f, 200, 0.f, UI_K3, QD_CENTER);
-    qd_restore();
+    ui_T(s, 120.f, 112.f, 92.f, 200, 0.f, UI_K3, QD_CENTER);
     ui_lab(v->sub, 120.f, 132.f, UI_G1, QD_CENTER);
 
-    /* the keyboard (the pool) sliding to it */
-    {
+    /* the whole piano with the keys in use lit (NOTE: the entry octave, B1's note dotted; KEYS: the keybed's F .. G);
+     * the pool still slides to its bank */
+    if (kind == UI_OCT_NOTE) {                          /* octave o's C is MIDI 12 (o + 1) */
+        const int c = 12 * (v->value + 1);
+        piano88(150.f, 40.f, c, c + 11, v->lo_note, UI_K1);
+    } else if (kind == UI_OCT_KEYS) {
+        piano88(150.f, 40.f, v->lo_note, v->lo_note + 26, -1, UI_K3);
+    } else {
         const float pos = (float)v->from + (float)(v->value - v->from) * k;
-        if (kind == UI_OCT_NOTE) {                      /* octave o's C is MIDI 12 (o + 1) */
-            const float kw = 9.f, cw = 7.f * (pos + 1.f) + 3.5f;
-            const int c = 12 * (v->value + 1);
-            long_keyboard(120.f - cw * kw, 146.f, kw, 44.f, c, c + 11, v->lo_note, UI_K1);   /* (2026-10-26: KNOB 1's) */
-        } else if (kind == UI_OCT_KEYS) {               /* the keybed's F3..G5, shifted */
-            const float kw = 7.f, cw = 7.f * pos + (float)wx(53) + (float)(wx(79) - wx(53) + 1) / 2.f;
-            long_keyboard(120.f - cw * kw, 146.f, kw, 44.f, v->lo_note, v->lo_note + 26, -1, UI_K3);
-        } else {
-            pool_strip(pos, v->value, v->nsound, v->nbank, v->sound, 160.f);
-        }
+        pool_strip(pos, v->value, v->nsound, v->nbank, v->sound, 160.f);
     }
 
     /* OCT- / OCT+ and the distance from the centre: the dots on the side whose LED blinks */

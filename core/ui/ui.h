@@ -182,6 +182,7 @@ typedef struct {
     int rt_mode, rt_order[4], rt_held;  /* ROUTING (2026-10-26): CHAIN (1) / PARALLEL, the block at each place, the block
                                          * held (-1 none) .. */
     float rt_lift;                      /* .. how far it has lifted, 0..1 */
+    float rt_dry;                       /* .. CHAIN: the DRY level 0..1 (the dry's own wire under the chain) */
     uint8_t dim[4];                     /* a foot cell drawn dim (PARALLEL: the chain amounts rest) */
     int step;                           /* P1.6d: a step held (or the latch's selection): the sends lock (the frame) */
     int nsel;                           /* P1.6h: .. how many (the head's magenta count; 0 none) */

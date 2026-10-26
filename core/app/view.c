@@ -2102,7 +2102,7 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
     static const char *const LAB[QD_NFXP] = {"TIME", "TIME", "SPREAD", "SPREAD", "FDBK", "SYNC", "MODE", "TONE", "WOW",
                                              "SIZE", "DAMP", "DECAY", "PRE", "MOD", "LOW CUT", "WIDTH", "WIDTH",
                                              "LOW", "HIGH", "SLOPE", "FILTER", "RATE", "DEPTH",
-                                             "MODE", "ORDER", "CHORUS", "DELAY", "REVERB"};   /* (the routing) */
+                                             "MODE", "ORDER", "DRY", "", ""};   /* (the routing) */
     const qd_ui_t *u = &a->ui;
     const qd_fxpage_t *pg = &QD_FX_PAGES[u->fx_page];
     int k, i;
@@ -2158,7 +2158,8 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
         v->rt_held = u->fx_bheld ? BLK[(u->fx_bheld - 1) % QD_FX_NKEY] : -1;
         v->rt_lift = u->fx_bheld ? (a->ms - u->fx_bms >= 120u ? 1.f : (float)(a->ms - u->fx_bms) / 120.f) : 0.f;
         if (pg->fx == QD_FXG_ROUTE && !v->rt_mode)
-            v->dim[1] = v->dim[2] = v->dim[3] = 1;
+            v->dim[1] = 1;                              /* (PARALLEL: the dry is always full) */
+        v->rt_dry = (float)qd_fx_get(QD_FXP_RDRY) / 127.f;
     }
     v->delay_s = (float)qd_fx_delay_ms() / 1000.f;
     v->chorus_hz = (float)qd_fx_chorus_hz100() / 100.f;

@@ -1396,7 +1396,7 @@ int main(void)
     A.proj.rec_quant = 35;
     A.proj.rec_dub = QD_TAKE_REPLACE;                   /* (2026-10-25: the TAKE's third value) */
     qd_fx_set(QD_FXP_RSIZE, 33);
-    qd_fx_set(QD_FXP_CAMT_C, 41);                       /* the routing's chain amount, the latch mode, the editor's keys */
+    qd_fx_set(QD_FXP_RDRY, 41);                       /* the routing's DRY level, the latch mode, the editor's keys */
     A.ui.lmode = QD_LMODE_VALUES;                       /* (not the default: it must come back) */
     A.proj.rec_ekeys = 1;
     qd_seq_select(&A.seq, 12, 1);
@@ -1415,7 +1415,7 @@ int main(void)
                live * 240.0 / 1024.0);
     }
     qd_fx_set(QD_FXP_RSIZE, 88);                        /* (the effects are the app's: B's boot reads them back) */
-    qd_fx_set(QD_FXP_CAMT_C, 64);
+    qd_fx_set(QD_FXP_RDRY, 127);
     boot(&B);
     for (k = 0, ok = 0; k < QD_NPAT; k++)
         ok += !memcmp(&keep_pat[k], qd_proj_cpat(&B.proj, k), sizeof keep_pat[k]);
@@ -1427,7 +1427,7 @@ int main(void)
     CHECK(B.model.t[3].mix.level == 77 && B.model.t[3].mix.pan == -20 && B.proj.rec_quant == 35 &&
               B.proj.rec_dub == QD_TAKE_REPLACE && qd_fx_get(QD_FXP_RSIZE) == 33,
           "the mix, the record settings, the effects");
-    CHECK(qd_fx_get(QD_FXP_CAMT_C) == 41 && B.ui.lmode == QD_LMODE_VALUES && B.proj.rec_ekeys == 1,
+    CHECK(qd_fx_get(QD_FXP_RDRY) == 41 && B.ui.lmode == QD_LMODE_VALUES && B.proj.rec_ekeys == 1,
           "P1.5b: the routing, the latch mode, EDIT KEYS");
     CHECK(B.per.proj == 0 && B.seq.cur == 12 && B.sel == 5, "the restart check: the project, its pattern (A13) and "
           "the selected track (6)");
@@ -1445,10 +1445,10 @@ int main(void)
         qd_store_flush(&B.per.prj_st);
         qd_fx_set(QD_FXP_RSIZE, 88);
         boot(&A);
-        CHECK(qd_fx_get(QD_FXP_RSIZE) == 33 && qd_fx_get(QD_FXP_CAMT_C) == 64 && A.ui.lmode == QD_LMODE_MODES &&
+        CHECK(qd_fx_get(QD_FXP_RSIZE) == 33 && qd_fx_get(QD_FXP_RDRY) == 127 && A.ui.lmode == QD_LMODE_MODES &&
                   !A.proj.rec_ekeys && A.model.t[3].mix.level == 77 && A.seq.cur == 12,
               "a 0.4 flash boots: its effects and mix, the routing / latch mode / EDIT KEYS at their defaults (%d %d %d %d %d %d)",
-              qd_fx_get(QD_FXP_RSIZE), qd_fx_get(QD_FXP_CAMT_C), A.ui.lmode, A.proj.rec_ekeys, A.model.t[3].mix.level,
+              qd_fx_get(QD_FXP_RSIZE), qd_fx_get(QD_FXP_RDRY), A.ui.lmode, A.proj.rec_ekeys, A.model.t[3].mix.level,
               A.seq.cur);
         boot(&B);
     }

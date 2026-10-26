@@ -34,10 +34,12 @@ enum { QD_FXP_DTIME, QD_FXP_DDIV, QD_FXP_DSPREAD, QD_FXP_DRATIO, QD_FXP_DFDBK, Q
        /* P1.5b: the routing page (ChoralRoot has none: every one 0, its chain exactly): DELAY -> REVERB, CHORUS -> DELAY,
         * CHORUS -> REVERB (0..127, the return fed into the other's send), the master filter's place (0 after the
         * effects, ChoralRoot's; 1 before them, on the dry mix) */
-       QD_FXP_RMODE, QD_FXP_ORDER, QD_FXP_CAMT_C, QD_FXP_CAMT_D, QD_FXP_CAMT_R,   /* the routing (2026-10-26, after
+       QD_FXP_RMODE, QD_FXP_ORDER, QD_FXP_RDRY, QD_FXP_RSPARE1, QD_FXP_RSPARE2,   /* the routing (2026-10-26, after
                                          * ChoralRoot 0.27's): the mode (0 PARALLEL, the buses as before; 1 CHAIN, one path),
-                                         * the order of the four blocks (QD_RT_ORD's index 0..23), and in CHAIN each effect's
-                                         * amount (the tracks' sends rest there) */
+                                         * the order of the four blocks (QD_RT_ORD's index 0..23), and in CHAIN the DRY
+                                         * level (the dry mix straight to the output, 0..127; the owner, the same day:
+                                         * each effect is fed by its own send, the SENDS page's, not by an amount of its
+                                         * own); two values spare (the old chain amounts' slots) */
        QD_NFXP };
 enum { QD_RT_CHORUS, QD_RT_DELAY, QD_RT_REVERB, QD_RT_FILTER, QD_RT_N };   /* the chain's blocks */
 int qd_fx_route_block(int pos);         /* the block at position 0..3 of the order */

@@ -580,7 +580,7 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
     if (nf < QD_NFXP) {                                 /* (2026-10-26: a record from before the routing's amounts: its old
                                                          * feed values would land there; the routing at its defaults) */
         qd_fx_set(QD_FXP_RMODE, 0), qd_fx_set(QD_FXP_ORDER, 0);
-        qd_fx_set(QD_FXP_CAMT_C, 64), qd_fx_set(QD_FXP_CAMT_D, 64), qd_fx_set(QD_FXP_CAMT_R, 64);
+        qd_fx_set(QD_FXP_RDRY, 127), qd_fx_set(QD_FXP_RSPARE1, 64), qd_fx_set(QD_FXP_RSPARE2, 64);
     }
     a->ui.lmode = len >= 10u + 2u * nf ? b[9 + 2 * nf] % 2 : QD_LMODE_MODES;
     return 1;

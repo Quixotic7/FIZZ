@@ -450,8 +450,10 @@ Undo and redo of everything (P1.5c):
 - **ROUTING** (2026-10-26, as ChoralRoot 0.27's): the signal flow as boxes on a wire. **KNOB 1 MODE**: **PARALLEL**
   (where every unit starts, the sound as it always was: the tracks' sends fan into CHORUS, DELAY and REVERB side by
   side, their returns sum, the FILTER after) or **CHAIN** (one path, the OEM way: IN, then the four blocks in the order
-  on the screen, numbered, OUT; each effect adds its sound to everything before it and passes it on; **KNOB 2..4** are
-  the CHORUS, DELAY and REVERB amounts of that chain, and the tracks' sends rest). **Hold a block's own page key**
+  on the screen, numbered, OUT; each effect is fed by **its own send from the SENDS page** plus the wet of the effects
+  before it, and passes its wet on; the **dry goes straight to the output at the DRY level, ALGORITHM** (or KNOB 2),
+  the green wire under the chain; the FILTER filters the chain at its place, or everything when it is last). **Hold a
+  block's own page key**
   (B4 CHORUS, B2 DELAY, B3 REVERB, B5 FILTER): its box lifts, with white arrows where it can still go; **turn KNOB 1**
   a click a place, the others slide over; let go and it lands (a tap of the key still opens that page). In PARALLEL
   only the FILTER moves, before the buses (KNOB 1 anticlockwise: the dry and the sends are filtered before the
@@ -467,7 +469,7 @@ Undo and redo of everything (P1.5c):
   | REVERB 2 | PRE-DELAY | MOD | LOW CUT | WIDTH |
   | CHORUS | RATE (Hz) | DEPTH | WIDTH | SEND |
   | MASTER | LOW CUT (OFF ..) | HIGH CUT (.. OFF) | SLOPE (6 / 12 dB) | FILTER ON / OFF |
-  | ROUTING | MODE (PARALLEL / CHAIN); a block held: its place | CHORUS amount (CHAIN) | DELAY amount (CHAIN) | REVERB amount (CHAIN) |
+  | ROUTING | MODE (PARALLEL / CHAIN); a block held: its place | DRY level (CHAIN; ALGORITHM too) | | |
 
   **SEND** is the selected track's send into that effect (its number at the top right; the same value as the
   mixer's).
