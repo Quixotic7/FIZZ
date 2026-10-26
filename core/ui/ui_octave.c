@@ -7,7 +7,7 @@
  *   - the number big in the middle (the octave, the keyboard's shift signed, the bank), rolling in: the old one slides
  *     out the way the change went and fades, the new one comes in from the other side (eased over the slide)
  *   - under it a keyboard much wider than the screen sliding to the new octave (its window eased from the old place
- *     to the new): the entry octave's twelve keys outlined white and B1's note marked yellow (SELECT's colour); for
+ *     to the new): the entry octave's twelve keys outlined white and B1's note marked in KNOB 1's colour; for
  *     the keyboard the 27 keys F..G of the keybed outlined white; for a bank, the pool as ticks in tens (the sounds
  *     there bright, the step's sound lock tall in SOUND's colour) with the bank's ten bracketed
  *   - at the foot OCT- and OCT+ with the distance from the centre as dots on the side that blinks (the LEDs' story:
@@ -139,7 +139,7 @@ void ui_octave_draw(const ui_octave_t *v)
         if (kind == UI_OCT_NOTE) {                      /* octave o's C is MIDI 12 (o + 1) */
             const float kw = 9.f, cw = 7.f * (pos + 1.f) + 3.5f;
             const int c = 12 * (v->value + 1);
-            long_keyboard(120.f - cw * kw, 146.f, kw, 44.f, c, c + 11, v->lo_note, UI_KSEL);
+            long_keyboard(120.f - cw * kw, 146.f, kw, 44.f, c, c + 11, v->lo_note, UI_K1);   /* (2026-10-26: KNOB 1's) */
         } else if (kind == UI_OCT_KEYS) {               /* the keybed's F3..G5, shifted */
             const float kw = 7.f, cw = 7.f * pos + (float)wx(53) + (float)(wx(79) - wx(53) + 1) / 2.f;
             long_keyboard(120.f - cw * kw, 146.f, kw, 44.f, v->lo_note, v->lo_note + 26, -1, UI_K3);

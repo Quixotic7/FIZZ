@@ -194,8 +194,7 @@ void qd_step_cursor(qd_app_t *a, int d)
     if (!u->slatch || !u->nheld) {                      /* the latch on / its selection started */
         if (!u->slatch)
             qd_step_latch(a, 1);
-        else
-            qd_step_latch_seed(a);
+        qd_step_latch_seed(a);
         u->scursor = 1;
         if (u->nheld)
             qd_ctl_preview_once(a, u->held[0]);         /* P1.5s: the step it lands on, once */
@@ -230,13 +229,11 @@ void qd_step_cursor_page(qd_app_t *a)
     held_add(a, pg * QD_PAGE + (ts->pstart[pg] < QD_PAGE ? ts->pstart[pg] : 0), -1);
 }
 
-void qd_step_latch(qd_app_t *a, int on)
+void qd_step_latch(qd_app_t *a, int on)                 /* (2026-10-26, the owner: it starts EMPTY; the cursor seeds it) */
 {
     qd_step_release_all(a);
     a->ui.slatch = on != 0;
     a->ui.scursor = 0;
-    if (on)
-        qd_step_latch_seed(a);
 }
 
 void qd_step_promote(qd_app_t *a, int w)
@@ -1149,7 +1146,7 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
     qd_step_promote_all(a);
     if (!u->nheld)
         return 0;
-    if (m == UI_F_PLOCK || (m == UI_F_FUNC && knob == QD_K_SELECT)) {   /* (P1.3w: FUNC's SELECT the page too) */
+    if (m == UI_F_PLOCK || knob == QD_K_SELECT) {       /* (2026-10-26: SELECT is the page in every mode, held or not) */
         if (knob == QD_K_SELECT) {
             qd_ctl_set_page(a, u->page[a->sel] + d);
             if (!QD_VIEW_ROWS(u->view))                 /* (P1.3g: STEPS / EDIT show the pages: no picker) */
@@ -1167,9 +1164,15 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
         u->tk_hold = 1;
         return 1;
     case QD_K_ALGO:
-        if (m == UI_F_NOTE)                             /* P1.5o: NOTE: SELECT moves the chord, ALGORITHM no note (the
-                                                         * cursor, its layout's, over the latch's selection) */
-            return 1;
+        if (m == UI_F_NOTE) {                           /* 2026-10-26: note 5, only while a step is physically held (the
+                                                         * latch's selection: ALGORITHM stays the cursor) */
+            for (i = 0; i < u->nheld; i++)
+                if (u->held_key[i] >= 0) {
+                    qd_step_job_held(a, QD_KJ_NOTE5, knob, d);
+                    return 1;
+                }
+            return 0;
+        }
         if (m == UI_F_SOUND) {                          /* SOUND: as PRESETS */
             qd_step_sound_pick(a, d);
             band(a, QD_TK_HELDKNOB, QD_KJ_MAIN, knob, d);
@@ -1192,11 +1195,9 @@ int qd_step_knob(qd_app_t *a, int knob, int d)
     }
 }
 
-void qd_step_oct(qd_app_t *a, int d)
+void qd_step_oct(qd_app_t *a, int d)                    /* (2026-10-26: nothing held too: the track's black keys) */
 {
     qd_ui_t *u = &a->ui;
-    if (!u->nheld)
-        return;
     if (u->hmode == UI_F_NOTE) {
         const int from = u->entry_oct;
         u->entry_oct = clampi(u->entry_oct + d, -1, 8);

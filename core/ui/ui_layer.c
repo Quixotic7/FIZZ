@@ -645,7 +645,7 @@ void ui_lmode_draw(int mode, float t)
     qd_fill_rect(0.f, 0.f, (float)QD_W, (float)QD_H, UI_BG);
     for (side = 0; side < 2; side++) {
         const float x0 = 12.f + (float)side * 112.f;
-        const int on = side == mode;
+        const int modes = side == 0, on = (modes ? 1 : 0) == mode;   /* (2026-10-26: MODES (1) first, left; VALUES 0) */
         const qd_rgb c = on ? UI_K3 : UI_G2;
         ui_RR(x0, 30.f, 104.f, 156.f, 10.f, c, on ? 2.f : 1.f, QD_NONE);
         for (i = 0; i < 4; i++)                         /* the step selected: a row of four, one held */
@@ -653,20 +653,20 @@ void ui_lmode_draw(int mode, float t)
         for (i = 0; i < 10; i++) {                      /* the black keys */
             const float bx = x0 + 9.f + (float)i * 9.2f;
             qd_rgb kc = UI_G3;
-            if (side == 0)
+            if (!modes)
                 kc = i == 6 ? (on ? UI_K1 : UI_G1) : on ? UI_G2 : UI_G3;   /* VALUES: one value lit */
             else
                 kc = on ? UI_MODE_COL[i] : UI_G2;       /* MODES: the hold modes' colours */
             ui_RR(bx, 82.f, 7.f, 30.f, 2.f, QD_NONE, 1.f, kc);
         }
-        if (side == 0) {                                /* VALUES: the step's value, a bar */
+        if (!modes) {                                   /* VALUES: the step's value, a bar */
             ui_RR(x0 + 14.f, 126.f, 76.f, 10.f, 3.f, c, 1.2f, QD_NONE);
             ui_RR(x0 + 14.f, 126.f, 52.f, 10.f, 3.f, QD_NONE, 1.f, on ? UI_K1 : UI_G2);
         } else {                                        /* MODES: a knob turning the step's value */
             ui_O(x0 + 52.f, 136.f, 15.f, c, 1.6f, QD_NONE);
             line2(x0 + 52.f, 136.f, x0 + 52.f + 10.f, 136.f - 10.f, on ? UI_K1 : UI_G2, 2.f);
         }
-        ui_T(side ? "MODES" : "VALUES", x0 + 52.f, 172.f, 14.f, 600, 0.8f, c, QD_CENTER);
+        ui_T(modes ? "MODES" : "VALUES", x0 + 52.f, 172.f, 14.f, 600, 0.8f, c, QD_CENTER);
     }
     ui_T("LATCH", 120.f, 218.f, 20.f, 300, 1.f, UI_K3, QD_CENTER);
 }

@@ -15,13 +15,13 @@
  * is_default: the track's default for the mode (a default turned with nothing held, or its mode key held, P1.3e):
  * "TRACK DEFAULT · MODE", the drawing in the mode's colour, no strip; with the mode key held a "B11 RESET" mark at
  * the foot (lit while the default differs from the track's initial value). P1.3e: NOTE has six notes, the sixth in
- * ALGORITHM's pink (a held step: SELECT, KNOB 1..4, ALGORITHM; a default: KNOB 1..4 for notes 2..5). P1.3f: the
- * legend S 1 2 3 4 (each knob moves its own note) and "A = ALL" (ALGORITHM moves every note); a sixth note (from the
- * keys) stays pink.
+ * ALGORITHM's pink (2026-10-26: KNOB 1 the whole chord, KNOB 2..4 notes 2..4, ALGORITHM note 5 while the step or B1
+ * is physically held; SELECT the page; a default: the same). P1.3f: no legend (the colours are it); a sixth note (from
+ * the keys) stays pink.
  *   NOTE   the chord name big (squeezing in), the notes on a keybed, their names under them; the entry octave and
  *          the track's scale small top left ("OCT 4 · D DORIAN"). P1.3c: five notes, each dot and name in the colour
- *          of the knob that turns it (note 1 SELECT's yellow, notes 2..5 KNOB 1..4's blue, green, white, orange) and
- *          the five knobs over the keybed's right end, filled where they hold a note
+ *          of the knob that turns it (notes 1..4 KNOB 1..4's blue, green, white, orange, note 5 ALGORITHM's pink)
+ *          and the five knobs over the keybed's right end, filled where they hold a note
  *   VEL    (P1.5d) a caped stunt rider doing a wheelie, riding left: the wheelie as high as the velocity, the cape
  *          streaming, speed lines; an extra kick when the step plays; the ramp as four ticks top left. P1.5e: neon
  *   LEN    the note as a bar over a ruler of the next steps, the notes before and after it; TIE a slur from the
@@ -121,11 +121,12 @@ static void line2(float x0, float y0, float x1, float y1, qd_rgb col, float lw)
 
 /* ---------------------------------------------------------------- NOTE (s4) */
 /* P1.3t (the owner): the keybed low (just over EDIT's row), the step's notes as one readable line right over it, each in
- * its knob's colour in slot order (S, 1 .. 4, the sixth pink; the colours are the legend: no S 1 2 3 4 marks, no
+ * its knob's colour in slot order (1 .. 4, A, the sixth grey; the colours are the legend: no 1 2 3 4 A marks, no
  * "A = ALL"), the dots on the keys; no names under the keys; only the scale's name small top left (no entry octave:
  * the octave takeover and the OCT LEDs show it). The chord's name big (the full screen) when it is one; else none */
 #define KB_Y 140.f                                      /* the keybed's top (70 tall) */
-static qd_rgb slot_col(int k) { return k == 5 ? UI_KALG : k ? UI_K[k - 1] : UI_KSEL; }
+static qd_rgb slot_col(int k) { return k == 4 ? UI_KALG : k < 4 ? UI_K[k] : UI_G1; }   /* (2026-10-26: KNOB 1..4 notes
+                                                         * 1..4, ALGORITHM note 5) */
 
 static void note_line(const ui_held_t *v, const pal_t *p, float y)
 {

@@ -88,8 +88,10 @@ type, a mode, a scale) never speed up, and **SHIFT + a knob** is always the fine
     and knobs then edit that step; the view stays (in the PIANO ROLL the cursor's step is outlined). LFO or HOME ends it.
   - **SELECT = the page**. With the cursor on, a page change puts it on the new page's first step.
   - **PRESETS = the track's sound** (preset).
-  - With a finger on a step: SELECT = the main value (NOTE: the whole chord, P1.5o), ALGORITHM = the value finely, PRESETS = the
-    step's sound lock.
+  - **KNOB 1..4 = the mode's values** on the track's defaults (NOTE: KNOB 1 is the root, the whole default chord;
+    2026-10-26, it was B1 + SELECT only, which still works).
+  - With a finger on a step: KNOB 1 = the main value (NOTE: the whole chord), ALGORITHM = the value finely (NOTE:
+    note 5), SELECT = the page still, PRESETS = the step's sound lock. One table, held or not (2026-10-26).
   - What moved: the cursor was PRESETS (in STEPS / EDIT), now ALGORITHM everywhere; ALGORITHM no longer edits a
     track default unless you hold the mode's key; P-LOCK's track chooser is now FX + ALGORITHM.
 - **Track or step at a glance** (P1.5d: the frames the other way round): **a held step's screen has a magenta frame**
@@ -142,9 +144,9 @@ value and ramp ticks step aside and come back when the band goes.
 
 The knobs with a step held:
 
-| mode | SELECT and KNOB 1 | KNOB 2 | KNOB 4 |
+| mode | KNOB 1 | KNOB 2 | KNOB 4 |
 | --- | --- | --- | --- |
-| NOTE | SELECT = the whole chord (P1.5o), KNOB 1..4 = notes 2..5 (each alone), ALGORITHM = the cursor | | note 5 |
+| NOTE | the whole chord (2026-10-26), KNOB 2..4 = notes 2..4 (each alone), ALGORITHM = note 5 while the step is held (the latch's selection: the cursor) | | note 4 |
 | VEL | velocity | | velocity, quietly |
 | LEN | length | TIE on / off | length, quietly |
 | MICRO | micro-timing | strum | micro, quietly |
@@ -204,7 +206,8 @@ and chance; a LOCK step's runs too).
 
 ## How do I edit steps without holding them? (the step latch)
 
-- Press **LFO**: the latch is on (LFO lit). It is as if a step is always held. It starts on the step you last edited.
+- Press **LFO**: the latch is on (LFO lit). It is as if a step is always held. It starts with **nothing selected**
+  (2026-10-26): tap a step, or turn ALGORITHM (the cursor lands on the step you last edited).
 - **Tap a white key** to select just that step; **hold several together** to select exactly those. Whatever your
   fingers press, from the first key down until all are up, replaces the selection (it never adds or removes a note).
   Tapping the step that is the only one selected unselects it. Selected keys blink.
@@ -223,13 +226,13 @@ and chance; a LOCK step's runs too).
   **F1 / F2 tapped** (nothing with them) are the selection's octave in NOTE and its group of ten in SOUND, as for a
   held step (on the release, so that holding them is still the layer). Its octave (or ten) picture shows its full
   second, in EDIT too (P1.5n), and F1 / F2's map only comes up when they are held longer than a tap.
-- **NOTE: SELECT moves all the selected steps' notes** together (P1.5o), as with a finger on a step, in every view;
-  ALGORITHM stays the cursor.
+- **NOTE: KNOB 1 moves all the selected steps' notes** together (2026-10-26), as with a finger on a step, in every
+  view; ALGORITHM stays the cursor (note 5 only while a step is physically held).
 - **LFO** again or **HOME** turns it off.
 - **Hold LFO + a black key**: that mode, without touching the latch or the selection (a plain tap still toggles).
 - **Two latch modes** (P1.5b; P1.5h). **Hold LFO alone** (400 ms, no other key): while you hold it, a screen shows the
-  latch mode (two drawings: the keys as values / the keys as modes, the current one lit). **Turn SELECT** to switch it
-  (it changes at once); let go of LFO and the screen closes, the mode as shown. Letting go without a turn changes
+  latch mode (two drawings: MODES on the left, VALUES on the right, the current one lit). **Turn SELECT** toward one
+  to switch (it changes at once); let go of LFO and the screen closes, the mode as shown. Letting go without a turn changes
   nothing. A black key instead closes the screen and picks that hold mode. The mode is kept (a global setting) and
   used every time you turn the latch on.
   - **VALUES**: with the latch on, the black keys set values for the selected steps. LFO lit full.
@@ -241,24 +244,25 @@ and chance; a LOCK step's runs too).
 
 A step has up to **six notes**.
 
-- In **NOTE**, hold the step (or select it in the latch). Each note is drawn in its knob's colour (P1.5o):
-  - **SELECT moves the whole chord** (yellow: note 1 and every other note with it), a note of the track's scale a
+- In **NOTE**, hold the step (or select it in the latch). Each note is drawn in its knob's colour (2026-10-26):
+  - **KNOB 1 moves the whole chord** (blue: note 1 and every other note with it), a note of the track's scale a
     click (chromatic: a semitone), its shape kept; at the top or the bottom of the range it stops (it never squashes).
-  - **KNOB 1..4 = notes 2..5** (blue, green, white, orange), **each alone**; the other notes stay put, a pitch another
+  - **KNOB 2..4 = notes 2..4** (green, white, orange), **each alone**; the other notes stay put, a pitch another
     note has is skipped. Turned all the way down a note collapses into note 1 and is removed; turned up again it comes
     back from note 1.
-  - **ALGORITHM moves no note**: it is the step cursor.
-  - A sixth note (pink) comes only from the black keys.
+  - **ALGORITHM = note 5** (pink) **while the step is held** (or B1 for the default); in the latch's selection it is
+    the step cursor.
+  - A sixth note (grey) comes only from the black keys.
   - Each note plays as you turn it.
-  - In NOTE, SELECT doesn't change pages and KNOB 1..4 don't lock the sound: use P-LOCK for that. (In every mode
-    except P-LOCK, SELECT and the knobs edit the step while it is held.)
+  - **SELECT is the page**, here as everywhere; KNOB 1..4 don't lock the sound: use P-LOCK for that.
 - Or press black keys: they are ten notes of the track's scale from its root (a chromatic track: ten semitones from
   C). The first key replaces the step's notes; keys pressed **while another is still down** add to the chord (up to
   6). Each key plays its note.
-- **F1 / F2** (OCT− / OCT+) while holding the step move the ten keys an octave down / up. The screen shows the octave
+- **F1 / F2** (OCT− / OCT+) while holding the step move the ten keys an octave down / up; **tapped with nothing held**
+  they do the same (2026-10-26; held longer than a tap they are the F1 / F2 layers). The screen shows the octave
   big for a second, and the OCT keys' lights tell you where you are (see below).
-- The notes are kept in the order you entered them: the first key pressed is note 1 (SELECT's), the second note 2
-  (KNOB 1's), and so on.
+- The notes are kept in the order you entered them: the first key pressed is note 1 (KNOB 1's), the second note 2
+  (KNOB 2's), and so on.
 
 ## How do I lock a sound setting on a step? (P-LOCK)
 
@@ -276,8 +280,9 @@ A step has up to **six notes**.
 
 - **Hold the mode's black key** (B1..B10): the screen shows the mode's picture marked **TRACK DEFAULT** (NOTE: the
   chord name and the keybed). While you hold it:
-  - SELECT and the knobs edit the default, in the same layout as with a step held (NOTE: SELECT = the whole chord,
-    KNOB 1..4 = notes 2..5, each alone); ALGORITHM turns the main default (in NOTE it moves the whole default chord);
+  - the knobs edit the default, in the same layout as with a step held (NOTE: KNOB 1 = the whole chord, its root,
+    KNOB 2..4 = notes 2..4, each alone, ALGORITHM = note 5; B1 + SELECT moves the chord too); in the other modes
+    ALGORITHM turns the main default;
   - **B11 (F#5) resets** that default to the track's starting value: NOTE back to a single C4 (clears a chord), VEL 100,
     LEN one step, MICRO 0 (and no strum), RATCH x1 flat, CHNC 100 %, COND always, TRIG NOTE, SOUND the track's
     starting sound. B11 is lit while there is something to reset;
@@ -513,7 +518,7 @@ shortcuts act; SHIFT + a knob stays the editor's fine step).
 
 ## The OCT keys' lights
 
-Where OCT− / OCT+ change an octave (NOTE with a step held, the keyboard) or SOUND's group of ten:
+Where OCT− / OCT+ change an octave (NOTE with a step held or tapped with nothing held, the keyboard) or SOUND's group of ten:
 
 - At the centre (octave 4 in NOTE, octave 0 on the keyboard, the first ten sounds) neither blinks.
 - One octave down, OCT− blinks slowly; two down, faster; three or more, faster still. OCT+ the same going up.

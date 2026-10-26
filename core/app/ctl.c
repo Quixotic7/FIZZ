@@ -97,18 +97,22 @@ int qd_ctl_main_layer(const qd_app_t *a)
  * are the main value (NOTE: SELECT note 1, KNOB 1..4 notes 2..5), KNOB 2 the mode's extra; with nothing held KNOB 1..4
  * the same on the track's defaults (SELECT the page). A knob without a job does nothing. P-LOCK has no row: its knobs
  * are the screen's p-locks (held) and the track's sound (nothing held) */
-static const uint8_t KNOB_JOB[UI_NFIELD][5] = {         /* P1.3e: KNOB 4 the quiet main value where it is free */
-    [UI_F_NOTE] = {QD_KJ_CHORD, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4, QD_KJ_NOTE5},   /* (P1.5o: SELECT the chord) */
-    [UI_F_VEL] = {QD_KJ_MAIN, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
-    [UI_F_LEN] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_TIE, 0, QD_KJ_QUIET},
-    [UI_F_MICRO] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_STRUM, 0, QD_KJ_QUIET},
-    [UI_F_RATCH] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_RAMP, 0, QD_KJ_QUIET},
-    [UI_F_CHNC] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_COND, 0, QD_KJ_QUIET},
-    [UI_F_COND] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_CHANCE, 0, QD_KJ_QUIET},
-    [UI_F_TRIG] = {QD_KJ_MAIN, QD_KJ_MAIN, QD_KJ_MFX, 0, QD_KJ_QUIET},   /* (P1.6c: KNOB 2 the MIDI FX) */
-    [UI_F_FUNC] = {0, QD_KJ_FTYPE, QD_KJ_LEAP, QD_KJ_JTGT, QD_KJ_QUIET},   /* P1.3y: SELECT the page; KNOB 1 the kind,
-                                                         * 2 LEAP's n, 3 JUMP's target */
-    [UI_F_SOUND] = {QD_KJ_MAIN, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
+static const uint8_t KNOB_JOB[UI_NFIELD][5] = {         /* P1.3e: KNOB 4 the quiet main value where it is free.
+                                                         * 2026-10-26 (the owner): SELECT is the page everywhere, held or
+                                                         * not; KNOB 1 the main value (NOTE: the chord / the root), KNOB
+                                                         * 2..4 the chord's notes 2..4; note 5 on ALGORITHM only while a
+                                                         * step (or B1) is physically held */
+    [UI_F_NOTE] = {0, QD_KJ_CHORD, QD_KJ_NOTE2, QD_KJ_NOTE3, QD_KJ_NOTE4},
+    [UI_F_VEL] = {0, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
+    [UI_F_LEN] = {0, QD_KJ_MAIN, QD_KJ_TIE, 0, QD_KJ_QUIET},
+    [UI_F_MICRO] = {0, QD_KJ_MAIN, QD_KJ_STRUM, 0, QD_KJ_QUIET},
+    [UI_F_RATCH] = {0, QD_KJ_MAIN, QD_KJ_RAMP, 0, QD_KJ_QUIET},
+    [UI_F_CHNC] = {0, QD_KJ_MAIN, QD_KJ_COND, 0, QD_KJ_QUIET},
+    [UI_F_COND] = {0, QD_KJ_MAIN, QD_KJ_CHANCE, 0, QD_KJ_QUIET},
+    [UI_F_TRIG] = {0, QD_KJ_MAIN, QD_KJ_MFX, 0, QD_KJ_QUIET},   /* (P1.6c: KNOB 2 the MIDI FX) */
+    [UI_F_FUNC] = {0, QD_KJ_FTYPE, QD_KJ_LEAP, QD_KJ_JTGT, QD_KJ_QUIET},   /* P1.3y: KNOB 1 the kind, 2 LEAP's n,
+                                                         * 3 JUMP's target */
+    [UI_F_SOUND] = {0, QD_KJ_MAIN, 0, 0, QD_KJ_QUIET},
 };
 /* P1.3e: a mode key held with nothing else held edits the track's default of that mode */
 int qd_ctl_mkey(const qd_app_t *a)
@@ -135,7 +139,8 @@ int qd_ctl_layer_shown(const qd_app_t *a)
 {
     const int l = qd_ctl_layer(a);
     if ((l == QD_LAYER_F1 || l == QD_LAYER_F2) && a->ui.oct_tap && !a->ui.oct_tap_used)   /* P1.5n: the latch's
-                                                         * selection: maybe a tap (its octave), no map for a tap */
+                                                         * selection (2026-10-26: or nothing held): maybe a tap (its
+                                                         * octave), no map for a tap */
         return a->ms - a->ui.f_ms >= QD_TAP_MS ? l : QD_LAYER_NONE;
     if (l == QD_LAYER_F1 || l == QD_LAYER_F2)          /* (alone a moment: not the first of a chord) */
         return a->ms - a->ui.f_ms >= QD_CHORD_MS ? l : QD_LAYER_NONE;
@@ -1353,7 +1358,9 @@ static void b_oct(qd_app_t *a, int d, int down)
     if (!down) {
         if (u->oct_tap == d) {                          /* P1.5m: the latch's selection, an OCT tapped (nothing with it):
                                                          * NOTE's octave, SOUND's bank, as for a held step */
-            if (!u->oct_tap_used && u->slatch && u->nheld && u->mode == QD_MODE_STEP && !u->latch)
+            if (!u->oct_tap_used && u->mode == QD_MODE_STEP && !u->latch && (u->slatch || !u->nheld) &&
+                !qd_tools_open(a) && (u->nheld || a->ms - u->f_ms < QD_TAP_MS))   /* (2026-10-26: nothing held too,
+                                                         * a quick tap: the entry octave) */
                 qd_step_oct(a, d);
             u->oct_tap = 0;
         }
@@ -1414,8 +1421,9 @@ static void b_oct(qd_app_t *a, int d, int down)
         qd_step_oct(a, d);
         return;
     }
-    if (u->slatch && u->nheld && !u->latch) {           /* P1.5m: the latch's selection: a tap is its octave / bank (on
-                                                         * the release, qd_ctl_oct_tap), held it is the layer */
+    if ((u->slatch || !u->nheld) && !u->latch && !qd_tools_open(a)) {   /* P1.5m: the latch's selection (2026-10-26: or
+                                                         * nothing held): a tap is its octave / bank (on the release,
+                                                         * qd_ctl_oct_tap), held it is the layer */
         u->oct_tap = both ? 0 : d;
         u->oct_tap_used = both;
     }
@@ -1703,7 +1711,9 @@ static int k_mkey_knob(qd_app_t *a, int knob, int d)
     if (qd_ctl_shift(a) || knob == QD_K_PRESETS)
         return 0;
     a->ui.mkey_used = 1;
-    job = knob == QD_K_ALGO ? QD_KJ_MAIN : qd_ctl_knob_job(a->ui.mkey, knob);
+    job = knob == QD_K_ALGO ? (a->ui.mkey == UI_F_NOTE ? QD_KJ_NOTE5 : QD_KJ_MAIN)
+        : knob == QD_K_SELECT && a->ui.mkey == UI_F_NOTE ? QD_KJ_CHORD   /* (B1 + SELECT: the root, a second way) */
+        : qd_ctl_knob_job(a->ui.mkey, knob);
     if (job != QD_KJ_NONE)
         qd_step_job_default(a, job, knob, d);
     return 1;
@@ -1954,7 +1964,7 @@ static int when_metro(const qd_app_t *a) { return a->ui.metro_held && qd_ctl_shi
 static int k_lmode(qd_app_t *a, int knob, int d)
 {
     if (knob == QD_K_SELECT && d) {
-        a->ui.lmode = d > 0 ? QD_LMODE_MODES : QD_LMODE_VALUES;
+        a->ui.lmode = d > 0 ? QD_LMODE_VALUES : QD_LMODE_MODES;   /* (MODES left, first) */
         a->ui.lfo_used = 1;
     }
     return 1;
