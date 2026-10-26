@@ -1923,8 +1923,8 @@ static void g_track_keys(void)
     run(10);
     turn(QD_K_ALGO, 2);
     turn(QD_K_PRESETS, 3);
-    CHECK(A.proj.key_scale == QD_SCALE_CHROMATIC + 2 && A.proj.key_root == 3 && ts->scale == QD_SCALE_CHROMATIC &&
-              !ts->root && ts->key_global, "following: SHIFT + ALGORITHM / PRESETS the global key");
+    CHECK(A.proj.key_scale == QD_SCALE_CHROMATIC + 2 && A.proj.key_root == 3 && ts->scale == QD_SCALE_CHROMATIC + 2 &&
+              ts->root == 2 && ts->key_global, "following: SHIFT + ALGORITHM / PRESETS the global key (its own key kept)");
     run(1500);
     CHECK(A.ui.tk == UI_TK_ROOT, "SHIFT held: the popup still up 1.5 s later");
     bup(SHIFT);
@@ -1936,7 +1936,7 @@ static void g_track_keys(void)
     turn(QD_K_ALGO, 1);
     bup(SHIFT);
     run(10);
-    CHECK(ts->scale == QD_SCALE_CHROMATIC + 1 && A.proj.key_scale == QD_SCALE_CHROMATIC + 2,
+    CHECK(ts->scale == QD_SCALE_CHROMATIC + 3 && A.proj.key_scale == QD_SCALE_CHROMATIC + 2,
           "its own key: SHIFT + ALGORITHM the track's scale");
 }
 
