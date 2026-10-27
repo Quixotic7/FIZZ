@@ -8,8 +8,9 @@
 // another project on the unit. SORT BY TAG and CLEAR UNUSED are runs of the same commands. Each destructive or slow
 // one asks once (ui.js confirmBox), saying what it does to the unit's undo: each change is one undo level (SHIFT +
 // F1), the pool's swaps and a project load excepted (they forget the levels).
-import { FIZZ_TAGS } from "../js/fizz_sysex.js";
-import { esc, tagsOf, colOf, DARK_TEXT_TAGS, refusal, confirmBox } from "./ui.js";
+import { FIZZ_TAGS, parseDump } from "../js/fizz_sysex.js";
+import { esc, tagsOf, colOf, DARK_TEXT_TAGS, refusal, confirmBox, midiChip } from "./ui.js";
+import { isMidiBlob } from "./sound.js";
 import { newFilter, filterHtml, filterClick, listHtml, poolPlaces } from "./presets.js";
 
 export function mountPool(ctx) {
@@ -19,6 +20,11 @@ export function mountPool(ctx) {
   const rows = () => (S.unit ? S.unit.rows : []);
   const pool = () => new Map(rows().filter((r) => r.source === "pool").map((r) => [r.slot, r]));
   const can = () => !!(S.link && !S.busy && S.unit && S.unit.status && !P.run);
+  // (FIZZ MIDI (e)) a pool sound that is a MIDI track's: its preset's DUMP, when read
+  const midiOf = (e) => {
+    const r = e && e.id && rows().find((q) => (q.source === "mine" || q.source === "factory") && q.id === e.id), f = r && frameOf(r), d = f && parseDump(f);
+    return !!d && isMidiBlob(d.blob);
+  };
   const shown = () => !$("tab-pool").hidden;
 
   function tile(k, e) {
@@ -31,7 +37,7 @@ export function mountPool(ctx) {
     cls.push("full");
     const dots = u && u.steps ? `<span class="use">${"<i></i>".repeat(Math.min(4, u.steps))}</span>` : "";
     return `<button class="${cls.join(" ")}" style="--c:${colOf(e.tags)};--t:${t && DARK_TEXT_TAGS.has(t) ? "#fff" : "#000"}" data-k="${k}" draggable="${can()}" aria-label="Pool ${k}, ${esc(e.name)}${u ? `, ${u.steps} steps` : ""}">` +
-      `<span class="no">${k}</span><span class="pn">${esc(e.name)}</span>${dots}</button>`;
+      `<span class="no">${k}</span><span class="pn">${esc(e.name)}</span>${midiChip(midiOf(e))}${dots}</button>`;
   }
   function render() {
     const u = S.unit, pm = pool(), st = u && u.status;
@@ -50,7 +56,7 @@ export function mountPool(ctx) {
   }
   function renderBar() {
     const e = P.sel && pool().get(P.sel), u = e && P.users.get(P.sel);
-    $("p-selname").innerHTML = e ? `<b>${P.sel}</b> ${esc(e.name)}${u ? ` <span class="dots">${"●".repeat(Math.min(6, u.steps))}</span>` : ""}` : "";
+    $("p-selname").innerHTML = e ? `<b>${P.sel}</b> ${esc(e.name)}${midiOf(e) ? ` ${midiChip(true)}` : ""}${u ? ` <span class="dots">${"●".repeat(Math.min(6, u.steps))}</span>` : ""}` : "";
     $("p-clear").hidden = !e;
     $("p-clear").disabled = !can();
     $("p-clear").className = "btn small ghost redline";

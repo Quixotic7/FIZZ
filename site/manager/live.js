@@ -14,9 +14,11 @@
 //     the preset, as PRESETS turned to it (OCT- cancels, OCT+ loads); STATUS read until the browser closes, then the
 //     track's DUMP says which.
 // An older FIZZ (no track DUMP) leaves the switch off: the editor plays in this browser only.
+// FIZZ MIDI (e): a MIDI track's sound (PARAM takes a slot's value only, not its CC number or touched mark): each change
+// the whole sound as an AUDITION (target.sound), the latest one, in the same queue as the PARAMs.
 //   mountLive(ctx) -> { target, on(), probe(), lost(), pick(row), show(), hide(), strip(E), stripClick(b), nudge(),
 //                       loadOnUnit(row), browsing(), saveOpts(), afterSave(), detach() }
-import { soundFromFrame, storeFrameOf } from "./sound.js";
+import { soundFromFrame, storeFrameOf, copySound } from "./sound.js";
 import { parseDump, storeSound, trackFrame } from "../js/fizz_sysex.js";
 import { esc, refusal } from "./ui.js";
 
@@ -151,6 +153,12 @@ export function mountLive(ctx) {
       while (L.q.size && ok()) {
         const [id, v] = L.q.entries().next().value;
         L.q.delete(id);
+        if (id === "sound") {                           // (FIZZ MIDI (e): the whole sound, edited)
+          const x = await audition(v).catch(() => null);
+          L.lastParam = performance.now();
+          if (x && x.status) log(`AUDITION: ${x.statusName || x.status}`);
+          continue;
+        }
         const r = await link().param(L.t, id, v).catch(() => null);
         L.lastParam = performance.now();
         if (r && r.old) { L.cap = false; setOn(false); say('This FIZZ cannot edit a track live yet: <a href="../install/">update FIZZ</a>.', "--orange"); break; }
@@ -174,7 +182,10 @@ export function mountLive(ctx) {
     start: () => attach(),
     audition: (s) => audition(s),
     param: (id, v) => { if (!ok()) return; L.q.set(id, v); L.lastParam = performance.now(); pump(); },
-    note: (n, vel) => { if (!S.link || L.t < 0) return; const ch = L.track === "selected" || (L.ext && L.ext.selected) ? 15 : (L.ext ? L.ext.chan : 15); S.link.note(ch, n, vel); },
+    sound: (s) => { if (!ok()) return; L.q.set("sound", copySound({ ...s, extras: { ...(s.extras || {}), edited: true } })); L.lastParam = performance.now(); pump(); },
+    // (the track's own MIDI channel: it plays that track on any FIZZ; the selected track's channel moved from 16 to 15
+    // with FIZZ MIDI (a), 16 now the remote's)
+    note: (n, vel) => { if (!S.link || L.t < 0) return; S.link.note(L.ext ? L.ext.chan : 14, n, vel); },
     // REVERT: the sound the editor took from the track, put back exactly (its DUMP); a preset opened: that preset again
     revert: async (s, E) => {
       L.q.clear();

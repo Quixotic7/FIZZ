@@ -30,7 +30,11 @@
 //     the unit's lists come back (LIST held 1.5 s); EDIT one panel with all 110 values (no groups), following the unit's
 //     selected track (its panel's TRACKS + a key) with TRACK off: shown, a drag refused and the switch nudged; LOAD ON
 //     FM-1 (the unit's browser: OCT+ on its panel loads, the page says so); IMPORT of a .fizzlib (all already there,
-//     flagged, none ticked) and a new .fizzsnd.
+//     flagged, none ticked) and a new .fizzsnd;
+//   - FIZZ MIDI (e): a MIDI track's sound STOREd on the unit: its MIDI chip in LIBRARY; EDIT's MIDI view (seven pages
+//     of four bars, the CC numbers, untouched dashed): a bar dragged, the wheel, a CC number typed, a slot untouched;
+//     SAVE AS NEW DUMPs back the same; EXPORT's Digitone refuses it; with TRACK on an edit reaches the unit's track (an
+//     AUDITION); at 1280 x 800 and 390 x 844 (no horizontal scroll, screenshots manager-midi-edit-*.png).
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -663,6 +667,106 @@ try {
   await shot("manager-phone-track-edit.png");
   await click("#lb-cancel");
   await click("#live");
+  // FIZZ MIDI (e): a MIDI track's sound in LIBRARY and EDIT (last: the BROWSER part's AUDITIONs long done)
+  await size(1280, 800);
+  await sleep(1500);                                   // (the phone's CANCEL done)
+  await click("#t-library");
+  await evaluate("__mgr.live.on() && __mgr.live.setOn(false)");
+  await idle();
+  const mst = await evaluate(`(async () => { const X = await import('../js/fizz_sysex.js'), Sd = await import('./sound.js'); const m = Sd.newMidi();
+    m.slots[0] = { cc: 16, value: 64, touched: true }; m.slots[2] = { cc: 18, value: 20, touched: true }; m.slots[3] = { cc: 19, value: 127, touched: true }; m.slots[9] = { cc: 74, value: 90, touched: true };
+    const r = await __mgr.S.link.store(X.storeSound({ name: 'MIDI DRUMS', blob: Sd.midiBlob(m) })); return r && r.status === 0 ? r.slot : 0; })()`);
+  await evaluate("(async () => { __mgr.S.unit.dumps = null; await __mgr.refreshRows(); __mgr.tab('library'); })()");
+  await idle();
+  await waitFor(`__mgr.S.unit.dumps && __mgr.S.unit.dumps.has(${mst})`, 20000);
+  await click("#l-filter [data-src='mine']");
+  await sleep(200);
+  check(mst > 0 && (await evaluate(`!!document.querySelector("#l-list .cas[data-src='mine'][data-slot='${mst}'] .mchip") && document.querySelectorAll('#l-list .mchip').length === 1`)),
+    `MIDI: MY PRESETS ${mst} MIDI DRUMS (a MIDI sound) carries the MIDI chip in LIBRARY, the only one`);
+  await click(`#l-list .cas[data-src='mine'][data-slot='${mst}']`);
+  await waitFor("document.getElementById('l-edit') && !document.getElementById('l-edit').disabled");
+  check(await evaluate("!!document.querySelector('#l-sel .mchip') && !!document.querySelector('#l-sel .selhead .din')"), "MIDI: LIBRARY's selected preset: the MIDI mark and chip");
+  await click("#l-edit");
+  await waitFor("!document.getElementById('tab-edit').hidden && document.querySelectorAll('#ed-stage .mbar').length === 28");
+  const mv = await evaluate(`({ pages: document.querySelectorAll('#ed-stage .mpg').length, bars: document.querySelectorAll('#ed-stage .mbar').length, un: document.querySelectorAll('#ed-stage .msl.un').length,
+    cc: [...document.querySelectorAll('#ed-stage .mcc')].slice(0, 5).map((e) => e.textContent), fm: document.querySelectorAll('#ed-stage .algosvg, #ed-stage .pn-ops').length,
+    chip: !!document.querySelector('#ed-head .mchip'), vals: [...document.querySelectorAll('#ed-stage .mval b')].slice(0, 4).map((e) => e.textContent),
+    col: getComputedStyle(document.querySelector('#ed-stage .mbar[data-slot="0"] i')).backgroundColor })`);
+  check(mv.pages === 7 && mv.bars === 28 && mv.un === 24 && mv.cc.join() === "CC 16,CC 17,CC 18,CC 19,CC 20" && !mv.fm && mv.chip && mv.vals.join() === "64,—,20,127" && mv.col === "rgb(63, 125, 255)",
+    `MIDI: EDIT shows the MIDI view: 7 pages of 4 bars (${mv.un} untouched), ${mv.cc.join(" ")} .., values ${mv.vals.join(" ")}, KNOB 1 ${mv.col}; FM groups ${mv.fm}`);
+  // a bar dragged (slot 2, untouched: now touched), the wheel (slot 5 from 0), a CC number typed (slot 1), a slot untouched (10)
+  const bc = await centre("#ed-stage .mbar[data-slot='1']");
+  await mouse("mousePressed", bc.x, bc.y + 30);
+  for (let k = 1; k <= 5; k++) { await mouse("mouseMoved", bc.x, bc.y + 30 - 12 * k, { buttons: 1 }); await sleep(20); }
+  await mouse("mouseReleased", bc.x, bc.y - 30);
+  await sleep(150);
+  const s1 = await evaluate("__mgr.editor.slot(1)");
+  const wb = await centre("#ed-stage .mbar[data-slot='4']");
+  for (let k = 0; k < 3; k++) { await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: wb.x, y: wb.y, deltaX: 0, deltaY: -100 }); await sleep(200); }
+  const s4 = await evaluate("__mgr.editor.slot(4)");
+  await realClick("#ed-stage .mcc[data-cc='0']");
+  await waitFor("document.activeElement && document.activeElement.id === 'ed-cc'", 3000);
+  await evaluate("(() => { const i = document.getElementById('ed-cc'); i.value = '7'; i.dispatchEvent(new Event('input', { bubbles: true })); })()");
+  await send("Input.insertText", { text: "4" });
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await sleep(200);
+  const s0 = await evaluate("__mgr.editor.slot(0)");
+  const dc = await centre("#ed-stage .mbar[data-slot='9']");
+  await mouse("mousePressed", dc.x, dc.y, { clickCount: 1 }); await mouse("mouseReleased", dc.x, dc.y, { clickCount: 1 });
+  await mouse("mousePressed", dc.x, dc.y, { clickCount: 2 }); await mouse("mouseReleased", dc.x, dc.y, { clickCount: 2 });
+  await sleep(200);
+  const s9 = await evaluate("__mgr.editor.slot(9)");
+  const un9 = await evaluate(`document.querySelector('#ed-stage .mbar[data-slot="9"]').closest('.msl').classList.contains('un') && !!document.querySelector('#ed-head .edited')`);
+  check(s1.touched && s1.value > 0 && s4.touched && s4.value >= 3 && s0.cc === 74 && s0.value === 64 && !s9.touched && un9,
+    `MIDI: a bar dragged (CC 17 = ${s1.value}, touched), the wheel (CC 20 = ${s4.value}), a CC number typed (CC ${s0.cc}), a double click: CC 74's slot untouched (${!s9.touched}); EDITED`);
+  await evaluate("window.scrollTo(0, 0)");
+  check(await noScroll(), "MIDI: EDIT's MIDI view at 1280: no horizontal scroll");
+  await fullShot("manager-midi-edit-1280.png");
+  // SAVE AS NEW: DUMPed back the same, still MIDI
+  await evaluate("(() => { const i = document.getElementById('ed-name'); i.value = 'MIDI EDITED'; i.dispatchEvent(new Event('input', { bubbles: true })); })()");
+  await click("#ed-savenew");
+  await waitFor("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'MIDI EDITED')", 15000);
+  await idle();
+  const msv = await evaluate(`(async () => { const Sd = await import('./sound.js'); const r = __mgr.S.unit.rows.find((x) => x.source === 'mine' && x.name === 'MIDI EDITED');
+    const s = Sd.soundFromFrame(await __mgr.S.link.dump('mine', r.slot)); return { slot: r.slot, midi: !!s.midi, same: Sd.sameValues(s, __mgr.editor.sound()) }; })()`);
+  check(msv.midi && msv.same, `MIDI: SAVE AS NEW: MY PRESETS ${msv.slot} DUMPs back as the editor's MIDI sound`);
+  // EXPORT: the Digitone's refuse it, FIZZ keeps it
+  await click("#ed-export");
+  await waitFor("!document.getElementById('ex').hidden");
+  await click("#ex [data-k='dnsnd']");
+  const mex = await evaluate("({ off: document.getElementById('ex-go').disabled, rows: [...document.querySelectorAll('#ex .lost')].map((e) => e.textContent.trim()) })");
+  await shot("manager-midi-export.png");
+  await click("#ex [data-k='fizz']");
+  const mfz = await evaluate("({ off: document.getElementById('ex-go').disabled, name: document.querySelector('#ex .exname').textContent })");
+  await click("#ex-no");
+  check(mex.off && mex.rows.length === 1 && /MIDI SOUND/.test(mex.rows[0]) && !mfz.off && mfz.name === "MIDI EDITED.fizzsnd",
+    `MIDI: EXPORT: Digitone refused (${mex.rows.join("; ")}), DOWNLOAD off; FIZZ: ${mfz.name}`);
+  // TRACK on: the MIDI preset onto the track (KEEP), EDIT takes the track, an edit is an AUDITION on the unit
+  await click("#t-library");
+  await click("#live");
+  await waitFor("__mgr.live.on()");
+  await click(`#l-list .cas[data-src='mine'][data-slot='${msv.slot}']`);
+  await waitFor("!document.getElementById('loadbar').hidden");
+  await idle();
+  await click("#lb-keep");
+  await click("#t-edit");
+  await waitFor("__mgr.editor.place().fromTarget === true && !!__mgr.editor.sound().midi && document.querySelectorAll('#ed-stage .mbar').length === 28", 8000);
+  await evaluate("__mgr.editor.setSlot(6, { value: 55, touched: true, cc: 33 })");
+  await waitFor("!__mgr.live.state.pumping && !__mgr.live.state.q.size", 5000);
+  await sleep(300);
+  const mt = await evaluate(`(async () => { const Sd = await import('./sound.js'); const s = Sd.soundFromFrame(await __mgr.S.link.dumpTrack(0)); return { midi: !!s.midi, x: s.midi && s.midi.slots[6], edited: s.extras.edited }; })()`);
+  check(mt.midi && mt.x.value === 55 && mt.x.cc === 33 && mt.x.touched && mt.edited, `MIDI, TRACK on: a slot set in EDIT reaches the unit's track (CC ${mt.x && mt.x.cc} = ${mt.x && mt.x.value}), marked edited`);
+  await fullShot("manager-midi-edit-track-1280.png");
+  // .. on the phone
+  await size(390, 844, true);
+  await sleep(400);
+  await evaluate("window.scrollTo(0, 0)");
+  check(await noScroll(), "MIDI: EDIT's MIDI view at 390: no horizontal scroll");
+  await fullShot("manager-midi-edit-390.png");
+  await size(1280, 800);
+  await click("#live");
+  await waitFor("!__mgr.live.on()");
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

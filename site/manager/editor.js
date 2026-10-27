@@ -11,10 +11,16 @@
 // this page, the sound loaded onto its track 1). The live editor (P2-B, manager.js) gives a target that plays it on
 // a track of the FM-1. A target: { name, ready(), start(), audition(sound), param(id, v), note(n, vel), locked()? }:
 // locked (an FM-1 track shown with TRACK off) the values are not changed: ctx.onLocked() (the switch nudged).
+// FIZZ MIDI (e): a MIDI track's sound (sound.js midi) shows its 28 slots instead (the device's MIDI editor,
+// mockups/fizz-midi-track.html screens 4..6): seven pages of four bars in the knobs' colours, each its CC number and
+// value; an untouched slot a dashed empty bar ("—"). A drag or the wheel sets a value (the slot touched), a click on
+// the CC number types it, a double click (or DELETE, or ×) makes the slot untouched again. FIZZ's PARAM takes only a
+// slot's value (not its CC number or touched mark): each change goes to the target as the whole sound, target.sound(s)
+// (the FM-1's track: an AUDITION; the browser's FIZZ: its STORE6 with LOAD).
 //   mountEditor(ctx) -> { open(sound, place), show(), sound(), setTarget(t), render() }
 import { VALUES, ALGOS, DEST_ORDER, Q, lfo, mod, LF, info, text, clampV, stepOf, tickStep, isHundredths, isHi, frac, defaults, copySound, sameValues, tagNames } from "./sound.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
-import { esc } from "./ui.js";
+import { esc, MIDI_I } from "./ui.js";
 
 const K = { c1: "--k1", c2: "--k2", c3: "--k3", c4: "--k4", alg: "--kalg" };
 const OPS = [["C", Q.RC, Q.OFSC, K.c1], ["A", Q.RA, Q.OFSA, K.c2], ["B1", Q.RB1, Q.OFSB1, K.c3], ["B2", Q.RB2, Q.OFSB2, K.c4]];
@@ -56,6 +62,22 @@ export function mountEditor(ctx) {
     return true;
   }
   const later = () => { if (!E.raf) E.raf = requestAnimationFrame(() => { E.raf = 0; renderStage(); renderHead(); }); };
+  // FIZZ MIDI (e): slot k of a MIDI sound changed (cc, value, touched); the whole sound to the target
+  function setSlot(k, patch, { quiet = false } = {}) {
+    if (!E.s || !E.s.midi || !E.s.midi.slots[k]) return false;
+    const o = E.s.midi.slots[k], c7 = (x) => Math.max(0, Math.min(127, Math.round(+x || 0)));
+    const n = { cc: c7(patch.cc ?? o.cc), value: c7(patch.value ?? o.value), touched: !!(patch.touched ?? o.touched) };
+    if (n.cc === o.cc && n.value === o.value && n.touched === o.touched) return false;
+    if (!quiet && E.target && E.target.locked && E.target.locked()) { if (ctx.onLocked) ctx.onLocked(); return false; }
+    E.s.midi.slots[k] = n;
+    if (!quiet && E.target) (E.target.sound ? E.target.sound(E.s) : E.target.audition(E.s));
+    if (E.onChange) E.onChange(-1, k);
+    later();
+    return true;
+  }
+  // a slot's value by a step (the wheel, the arrows): an untouched slot starts from 0, as its first turn on the unit
+  const stepSlot = (k, d) => { const o = E.s.midi.slots[k]; return setSlot(k, { value: (o.touched ? o.value : 0) + d, touched: true }); };
+  const untouch = (k) => setSlot(k, { value: 0, touched: false });
 
   // ---------------------------------------------------------------- the small parts
   // a value chip: its name, its text; dragged up / down, the wheel, the arrows
@@ -353,16 +375,57 @@ export function mountEditor(ctx) {
     }
     const tk = E.place.track >= 0 && E.place.fromTarget ? E.place.track : -1;
     head.innerHTML = `${tk >= 0 ? `<div class="trkbig ${live && !locked ? "live" : "view"}" aria-label="Track ${tk + 1}${locked ? ", shown only" : ", live"}"><small>TRACK</small><b>${tk + 1}</b></div>` : ""}
-      <div class="edname"><div class="h" style="margin:0">${esc(E.place.label || "")}${dirty ? ' <span class="edited">EDITED</span>' : ""}</div>
+      <div class="edname"><div class="h" style="margin:0">${E.s.midi ? '<span class="mchip">MIDI</span> ' : ""}${esc(E.place.label || "")}${dirty ? ' <span class="edited">EDITED</span>' : ""}</div>
         <input class="bigname" id="ed-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(E.s.name)}" aria-label="Name">
         <div class="edtags">${FIZZ_TAGS.map((tg, k) => `<button class="tag t-${tg} ${(E.s.tags >> k) & 1 ? "" : "off"}" data-tag="${k}" aria-pressed="${!!((E.s.tags >> k) & 1)}">${tg}</button>`).join("")}</div></div>
       <div class="row edacts" id="ed-acts">${acts()}</div>`;
     stage.classList.toggle("locked", locked);
   }
+  // FIZZ MIDI (e): a MIDI sound's page n (0..6): its four slots, KNOB 1..4's colours
+  const MK = [K.c1, K.c2, K.c3, K.c4];
+  // (drawn once; then each slot changed in place: a bar dragged or clicked twice stays the same element)
+  const ccHtml = (k, x) => (E.ccEdit === k ? `<input class="mccin" id="ed-cc" data-ccin="${k}" inputmode="numeric" maxlength="3" value="${x.cc}" aria-label="CC number">`
+    : `<button class="mcc" data-cc="${k}" aria-label="CC number ${x.cc}">CC ${x.cc}</button>`);
+  const midiPage = (n) => `<div class="mslots">${[0, 1, 2, 3].map((j) => {
+    const k = n * 4 + j;
+    return `<div class="msl" data-msl="${k}" style="--c:var(${MK[j]})"><span class="mbar" data-slot="${k}" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="127"><i></i></span>` +
+      `<span class="mccw"></span><span class="mval"><b></b><button class="mx" data-untouch="${k}">×</button></span></div>`;
+  }).join("")}</div>`;
+  function slotDraw(k) {
+    const x = E.s.midi.slots[k], el = stage.querySelector(`[data-msl="${k}"]`);
+    if (!el) return;
+    const key = `${x.cc}|${x.value}|${x.touched}|${E.ccEdit === k}`;
+    if (el.dataset.k === key) return;
+    el.dataset.k = key;
+    const val = x.touched ? String(x.value) : "—", bar = el.querySelector(".mbar"), w = el.querySelector(".mccw"), ux = el.querySelector(".mx");
+    el.classList.toggle("un", !x.touched);
+    bar.setAttribute("aria-label", `CC ${x.cc}`);
+    bar.setAttribute("aria-valuenow", String(x.value));
+    bar.setAttribute("aria-valuetext", x.touched ? val : "untouched");
+    bar.firstElementChild.style.height = `${x.touched ? (x.value / 127 * 100).toFixed(1) : 0}%`;
+    el.querySelector(".mval b").textContent = val;
+    ux.hidden = !x.touched;
+    ux.setAttribute("aria-label", `CC ${x.cc}: untouched`);
+    const typing = E.ccEdit === k;
+    if (w.dataset.typing !== String(typing) || !typing) { w.dataset.typing = String(typing); w.innerHTML = ccHtml(k, x); }
+  }
+  function renderMidi() {
+    if (!stage.querySelector(".mpg")) {
+      stage.innerHTML = Array.from({ length: 7 }, (_, n) => `<section class="pn mpg" data-mpg="${n}" style="--c:var(--midi)" aria-label="MIDI page ${n + 1}">` +
+        `<div class="pnh">${MIDI_I}<span class="mdots" aria-hidden="true">${Array.from({ length: 7 }, (_, i) => `<i class="${i === n ? "on" : ""}"></i>`).join("")}</span>${n + 1}</div><div class="pnb">${midiPage(n)}</div></section>`).join("");
+      drawn.clear();
+    }
+    for (let k = 0; k < E.s.midi.slots.length; k++) slotDraw(k);
+    const ci = stage.querySelector("#ed-cc");
+    if (ci && document.activeElement !== ci) { ci.focus(); ci.select(); }
+  }
   // the panel: every section at once (a synth's front panel); a section drawn again only when its drawing changed
   const drawn = new Map();
   function renderStage() {
     if (!E.s) return;
+    const mode = E.s.midi ? "midi" : "fm";
+    if (stage.dataset.mode !== mode) { stage.dataset.mode = mode; stage.classList.toggle("midi", mode === "midi"); stage.innerHTML = ""; drawn.clear(); }
+    if (E.s.midi) { renderMidi(); return; }
     if (!stage.querySelector(".pn")) {
       stage.innerHTML = SECTIONS.map(([k, nm, c, d]) => `<section class="pn pn-${k}" data-sec="${k}" style="--c:var(${c})" aria-label="${nm}">` +
         `<div class="pnh"><svg viewBox="0 0 26 24" aria-hidden="true"><path d="${d}"/></svg>${nm}</div><div class="pnb"></div></section>`).join("");
@@ -402,7 +465,21 @@ export function mountEditor(ctx) {
     if (!svg || !svg.viewBox || !svg.viewBox.baseVal || !svg.viewBox.baseVal.width) return 1;
     return svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
   }
+  // FIZZ MIDI (e): a bar's value where the pointer is (the bar's height its range)
+  const barValue = (el, y) => { const r = el.getBoundingClientRect(); return Math.round(Math.max(0, Math.min(1, (r.bottom - y) / Math.max(1, r.height))) * 127); };
   stage.addEventListener("pointerdown", (ev) => {
+    const mb = ev.target.closest(".mbar[data-slot]");
+    if (mb && E.s && E.s.midi && ev.button === 0) {
+      ev.preventDefault();
+      const k = +mb.dataset.slot;
+      E.drag = { midi: true, slot: k, el: mb, pid: ev.pointerId, moved: true };
+      E.lastBar = { slot: k, t: performance.now() };   // (the stage holds the pointer: a double click lands on it)
+      try { stage.setPointerCapture(ev.pointerId); } catch (_) { /* (gone) */ }
+      mb.classList.add("dragging");
+      mb.focus({ preventScroll: true });
+      setSlot(k, { value: barValue(mb, ev.clientY), touched: true });
+      return;
+    }
     const el = ev.target.closest("[data-x],[data-y]");
     if (!el || !E.s || ev.button !== 0) return;
     ev.preventDefault();
@@ -417,6 +494,7 @@ export function mountEditor(ctx) {
   stage.addEventListener("pointermove", (ev) => {
     const d = E.drag;
     if (!d || ev.pointerId !== d.pid) return;
+    if (d.midi) { setSlot(d.slot, { value: barValue(stage.querySelector(`.mbar[data-slot="${d.slot}"]`) || d.el, ev.clientY), touched: true }); return; }
     const dx = ev.clientX - d.x0, dy = ev.clientY - d.y0;
     if (!d.moved && Math.hypot(dx, dy) < 3) return;
     d.moved = true;
@@ -435,6 +513,7 @@ export function mountEditor(ctx) {
     if (!d || (ev && ev.pointerId !== d.pid)) return;
     E.drag = null;
     stage.querySelectorAll(".dragging").forEach((e) => e.classList.remove("dragging"));
+    if (d.midi) { renderStage(); return; }
     if (!d.moved) click(d.el, ev);
     renderStage();
   };
@@ -447,6 +526,12 @@ export function mountEditor(ctx) {
     void ev;
   }
   stage.addEventListener("click", (ev) => {
+    if (E.s && E.s.midi) {                             // (FIZZ MIDI (e): the CC number typed, a slot untouched)
+      const cc = ev.target.closest("[data-cc]"), ux = ev.target.closest("[data-untouch]");
+      if (cc) { E.ccEdit = +cc.dataset.cc; renderStage(); }
+      else if (ux) untouch(+ux.dataset.untouch);
+      return;
+    }
     const b = ev.target.closest("[data-set]");
     const oc = ev.target.closest(".opc[data-op]");
     if (!b && oc) { E.op = +oc.dataset.op; renderStage(); return; }
@@ -456,6 +541,8 @@ export function mountEditor(ctx) {
     renderStage();
   });
   stage.addEventListener("dblclick", (ev) => {
+    const mb = ev.target.closest(".mbar[data-slot]"), lb = E.lastBar && performance.now() - E.lastBar.t < 800 ? E.lastBar.slot : -1;
+    if (E.s && E.s.midi) { if (mb || lb >= 0) untouch(mb ? +mb.dataset.slot : lb); return; }
     const el = ev.target.closest("[data-x],[data-y]");
     if (!el) return;
     for (const k of ["x", "y"]) if (el.dataset[k] !== undefined) set(+el.dataset[k], info(+el.dataset[k]).def);
@@ -464,6 +551,14 @@ export function mountEditor(ctx) {
   const acc = { id: -1, t: 0, n: 0 };
   const accel = (id) => { const t = performance.now(); acc.n = id === acc.id && t - acc.t < 120 ? acc.n + 1 : 0; acc.id = id; acc.t = t; return acc.n; };
   stage.addEventListener("wheel", (ev) => {
+    if (E.s && E.s.midi) {                             // (FIZZ MIDI (e): a bar's value, a CC number)
+      const mb = ev.target.closest(".mbar[data-slot]"), cc = ev.target.closest("[data-cc]");
+      if (!mb && !cc) return;
+      ev.preventDefault();
+      const k = +(mb || cc).dataset[mb ? "slot" : "cc"], d = (ev.deltaY < 0 ? 1 : -1) * (ev.shiftKey ? 10 : Math.min(8, 1 + accel(`m${k}${mb ? "" : "c"}`)));
+      if (mb) stepSlot(k, d); else setSlot(k, { cc: E.s.midi.slots[k].cc + Math.sign(d) });
+      return;
+    }
     const el = ev.target.closest("[data-id]");
     if (!el || !E.s) return;
     ev.preventDefault();
@@ -472,6 +567,18 @@ export function mountEditor(ctx) {
     else set(id, v(id) + (ev.deltaY < 0 ? st : -st));
   }, { passive: false });
   stage.addEventListener("keydown", (ev) => {
+    if (E.s && E.s.midi) {
+      const ci = ev.target.closest("[data-ccin]");
+      if (ci && (ev.key === "Enter" || ev.key === "Escape")) { ev.preventDefault(); if (ev.key === "Escape") ci.dataset.cancel = "1"; ci.blur(); return; }
+      const mb = ev.target.closest(".mbar[data-slot]");
+      if (!mb) return;
+      const k = +mb.dataset.slot, up = ev.key === "ArrowUp" || ev.key === "ArrowRight", dn = ev.key === "ArrowDown" || ev.key === "ArrowLeft";
+      if (ev.key === "Delete" || ev.key === "Backspace") { ev.preventDefault(); untouch(k); return; }
+      if (!up && !dn) return;
+      ev.preventDefault();
+      stepSlot(k, (up ? 1 : -1) * (ev.shiftKey ? 10 : 1));
+      return;
+    }
     const el = ev.target.closest("[data-id]");
     if (!el || !E.s) return;
     const up = ev.key === "ArrowUp" || ev.key === "ArrowRight", dn = ev.key === "ArrowDown" || ev.key === "ArrowLeft";
@@ -480,6 +587,16 @@ export function mountEditor(ctx) {
     const id = primary(el);
     if (isDest(id)) set(id, destStep(v(id), up ? 1 : -1));
     else set(id, v(id) + (up ? 1 : -1) * tickStep(id, ev.shiftKey, accel(id)));
+  });
+  // (FIZZ MIDI (e)) the CC number typed: digits only, taken when it loses the focus (ENTER), ESC leaves it
+  stage.addEventListener("input", (ev) => { const ci = ev.target.closest("[data-ccin]"); if (ci) ci.value = ci.value.replace(/\D/g, "").slice(0, 3); });
+  stage.addEventListener("focusout", (ev) => {
+    const ci = ev.target.closest("[data-ccin]");
+    if (!ci || E.ccEdit === undefined) return;
+    const k = +ci.dataset.ccin, n = parseInt(ci.value, 10);
+    E.ccEdit = undefined;
+    if (!ci.dataset.cancel && Number.isFinite(n)) setSlot(k, { cc: n });
+    setTimeout(() => { renderStage(); const b = stage.querySelector(`[data-cc="${k}"]`); if (b) b.focus({ preventScroll: true }); }, 0);
   });
   // a destination steps in the editor's order (the device's)
   const destStep = (x, d) => { const o = DEST_ORDER, i = o.indexOf(x); return o[Math.max(0, Math.min(o.length - 1, (i < 0 ? 0 : i) + d))]; };
@@ -632,6 +749,7 @@ export function mountEditor(ctx) {
   function open(sound, place = {}) {
     E.s = copySound(sound);
     E.base = copySound(sound);
+    E.ccEdit = undefined;
     E.place = { label: place.label || "", ...place };
     closePicker();
     if (E.target && !E.target.live && E.target.ready()) E.target.audition(E.s);   // (a track: live.js loads it, then the
@@ -644,6 +762,17 @@ export function mountEditor(ctx) {
   function follow(sound, { rebase = false } = {}) {
     if (!E.s || E.drag) return false;
     let n = 0;
+    if (!sound.midi !== !E.s.midi) {                   // (FIZZ MIDI (e): ENGINE changed on the unit: the other kind)
+      E.s = copySound({ ...sound, tags: E.s.tags });
+      if (rebase || !E.base || !E.base.midi !== !sound.midi) E.base = copySound(E.s);
+      E.ccEdit = undefined;
+      later();
+      return true;
+    }
+    if (sound.midi && E.ccEdit === undefined) sound.midi.slots.forEach((x, k) => {
+      const o = E.s.midi.slots[k];
+      if (o.cc !== x.cc || o.value !== x.value || o.touched !== x.touched) { E.s.midi.slots[k] = { ...x }; n++; }
+    });
     sound.values.forEach((x, i) => { if (E.s.values[i] !== x) { E.s.values[i] = x; n++; } });
     if (sound.name !== E.s.name && document.activeElement !== head.querySelector("#ed-name")) { E.s.name = sound.name; n++; }
     if (n && rebase) E.base = copySound({ ...E.s, tags: E.base ? E.base.tags : E.s.tags });
@@ -659,5 +788,6 @@ export function mountEditor(ctx) {
     sound: () => E.s, base: () => E.base, place: () => E.place, state: E,
     setRec(on) { if (E.rec !== !!on) { E.rec = !!on; renderKeys(); } },
     set, value: v, tagNames, octave: () => E.oct,
+    setSlot, slot: (k) => (E.s && E.s.midi ? { ...E.s.midi.slots[k] } : null),
   };
 }

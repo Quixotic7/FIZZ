@@ -23,6 +23,10 @@
 //   - the owner's fixes (2026-10-25): the unit's panel selects a track (a track's DUMP and STATUS follow), BROWSE (the
 //     unit's browser on a preset: OCT- cancels, OCT+ loads, NOT FOUND, BAD TRACK), POOL REF in the next LIST, IMPORT of
 //     FIZZ's .fizzlib / .fizzsnd / .fizzbak with the duplicates flagged and only the new ones sent;
+//   - FIZZ MIDI (e): a MIDI track's sound (STORE6 of a MIDI blob, the core's rules) DUMPed as MIDI, its blob byte for
+//     byte; edited (a value, a CC number, a slot untouched), STOREd and DUMPed back the same, still MIDI; on a track
+//     (LOAD, AUDITION; PARAM takes a slot's value, not its CC number); .fizzsnd / .fizzlib / .fizzbak round trips and
+//     IMPORT keep it MIDI; the Digitone exports leave it out; an FM TONE sound unchanged; the lists' MIDI chip;
 //   - the owner's saved images (../FIZZ-saves, outside the repo; skipped when absent) read offline.
 //   node site/tools/test_manager.mjs
 import fs from "node:fs";
@@ -40,10 +44,11 @@ import { readRegion, layoutOf, LAYOUTS, regionRecords, buildImage, convertImage,
 import { modelOf, imageOf, projects, project, walkPat, rkey, RK, patName, copyPatterns, pastePatterns, clearPatterns, keepProject, loadProject,
   renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName } from "../manager/projects.js";
 import { backupFlash, isBackupFile } from "../js/backup-play.js";
-import { poolPlaces, shownRows, newFilter } from "../manager/presets.js";
+import { poolPlaces, shownRows, newFilter, listHtml } from "../manager/presets.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
-import { soundFromFrame, storeFrameOf, blob6, libSound, text, info as vinfo, VALUES, Q, lfo, LF, copySound, tickStep, stepOf } from "../manager/sound.js";
-import { exportFiles, carryOf, noteRow } from "../manager/exporter.js";
+import { soundFromFrame, storeFrameOf, blob6, libSound, text, info as vinfo, VALUES, Q, lfo, LF, copySound, tickStep, stepOf,
+  soundFromLib, sameValues, isMidiBlob, midiBlob, newMidi } from "../manager/sound.js";
+import { exportFiles, carryOf, noteRow, MIDI_ONLY } from "../manager/exporter.js";
 import { readImport, markDuplicates } from "../manager/importer.js";
 import { fizzToDn2pst } from "../js/fizz2dn.js";
 import { parseFizzsnd } from "../js/library.js";
@@ -439,6 +444,80 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   rows = await lk.list();
   check(busy.status === 8 && over.status === 0 && over.slot === own.slot && rows.find((q) => q.source === "mine" && q.slot === own.slot).name === "OVER" &&
     rows.find((q) => q.source === "mine" && q.slot === own.slot).id === ownRow.id, `a STORE over a used place: BUSY while playing; stopped: the job, OK, the id kept (${ownRow.id})`);
+  lk.close(); u.dispose();
+}
+
+// ---- FIZZ MIDI (e): a MIDI track's sound through the Manager's model, the wasm FIZZ's SysEx and the files
+{
+  const u = await sim();
+  const lk = await findFizz(u.access);
+  // made by the core's rules (qd_msnd_init: every slot untouched, CC 16 + k), two slots turned, then STORE6 into MY PRESETS
+  const m0 = newMidi();
+  m0.slots[0] = { cc: 16, value: 64, touched: true };
+  m0.slots[9] = { cc: 74, value: 100, touched: true };
+  m0.slots[27] = { cc: 43, value: 12, touched: true };
+  const mb = midiBlob(m0);
+  const st = await lk.store(storeSound({ name: "MIDI SYNTH", blob: mb, tags: 0 }));
+  const f = st && st.status === 0 ? await lk.dump("mine", st.slot) : null, d = f && parseDump(f), s = f && soundFromFrame(f);
+  check(st.status === 0 && d.six && isMidiBlob(d.blob) && same(Array.from(d.blob), Array.from(mb)) && s.midi && s.midi.slots.length === 28 &&
+    s.midi.slots[9].cc === 74 && s.midi.slots[9].value === 100 && s.midi.slots[9].touched && !s.midi.slots[1].touched && s.midi.slots[1].cc === 17,
+    `MIDI: a MIDI sound STORE6d (MY PRESETS ${st.slot}) DUMPs as its own blob, byte for byte; the editor reads 28 slots (CC 74 = 100, CC 17 untouched)`);
+  check(same(Array.from(blob6(s)), Array.from(d.blob)) && same(Array.from(libSound(s).blob), Array.from(d.blob)) &&
+    same(Array.from(soundFromStoreFrame(storeFrameOf(s, { slot: st.slot })).blob), Array.from(d.blob)),
+    "MIDI: unedited, blob6 / libSound / storeFrameOf write the DUMP's blob back exactly");
+  // edited: a value, a CC number, a slot untouched; STORE over its place (OWN), DUMPed back the same, still MIDI
+  const e = copySound(s);
+  e.midi.slots[3] = { cc: 19, value: 77, touched: true };
+  e.midi.slots[9] = { ...e.midi.slots[9], cc: 1 };
+  e.midi.slots[27] = { cc: 43, value: 0, touched: false };
+  check(!sameValues(e, s) && sameValues(copySound(e), e) && s.midi.slots[3].value === 0 && s.midi.slots[9].cc === 74, "MIDI: copySound copies the slots (the original untouched), sameValues sees the edits");
+  const st2 = await lk.store(storeFrameOf(e, { slot: st.slot, own: true }));
+  const e2 = st2.status === 0 ? soundFromFrame(await lk.dump("mine", st.slot)) : null;
+  check(st2.status === 0 && e2 && e2.midi && sameValues(e2, e) && e2.midi.slots[3].value === 77 && e2.midi.slots[9].cc === 1 && !e2.midi.slots[27].touched &&
+    same(Array.from(parseDump(await lk.dump("mine", st.slot)).blob), Array.from(blob6(e))),
+    "MIDI: edited (a value, a CC number, a slot untouched), STOREd and DUMPed back the same, still MIDI");
+  // on a track: LOAD; PARAM takes a slot's value (its value id), not its CC number (NOT FOUND); AUDITION the whole sound
+  const ld = await lk.store(storeFrameOf(e2, { slot: st.slot, track: 1, own: true }));
+  const t2 = soundFromFrame(await lk.dumpTrack(2));
+  const pv = await lk.param(1, Q.FDBK, 99), pc = await lk.param(1, Q.AMOD, 75), t2b = soundFromFrame(await lk.dumpTrack(2));
+  check(ld.status === 0 && t2.midi && sameValues(t2, e2) && pv.status === 0 && t2b.midi.slots[0].value === 99 && pc.status === 9 && t2b.midi.slots[0].cc === 16,
+    `MIDI on track 2 (LOAD): its DUMP MIDI; PARAM slot 1's value: OK (99), its CC number: ${pc.statusName} (the editor sends the whole sound)`);
+  const a = copySound(t2b);
+  a.midi.slots[4] = { cc: 99, value: 5, touched: true };
+  const ax = await lk.store(storeFrameOf(a, { track: 1, audition: true, extras: { id: t2b.extras.id, sound: 0, edited: true } }));
+  const t2c = soundFromFrame(await lk.dumpTrack(2));
+  check(ax.status === 0 && t2c.midi && sameValues(t2c, a) && t2c.extras.edited, "MIDI on a track: an edit as an AUDITION (the whole sound): the track has it, marked edited");
+  // the files: .fizzsnd, .fizzlib (with an FM TONE sound), .fizzbak; IMPORT keeps them MIDI
+  const fm = soundFromFrame(await lk.dump("factory", 3));
+  const libM = libSound(e2, { fizz: "test" }), libF = libSound(fm, { fizz: "test" });
+  const fz = exportFiles([libM], "fizz"), back = soundFromLib(parseFizzsnd(fz.bytes, fz.name));
+  check(back.midi && sameValues(back, e2) && same(Array.from(blob6(back)), Array.from(blob6(e2))), `MIDI: .fizzsnd round trip (${fz.name}): still MIDI, the same slots`);
+  const fl = exportFiles([libF, libM], "fizz"), bak = makeFizzbak({ kind: "presets", presets: [{ ...libM, name: "MIDI BAK" }], fizz: "test" });
+  const items = await readImport([{ name: fl.name, bytes: fl.bytes }, { name: "m.fizzbak", bytes: bak }]);
+  const sent = [];
+  for (const it of items) sent.push(await lk.store(storeFrame(it.sound, { batch: sent.length > 0 })));
+  const got = await Promise.all(sent.map(async (r) => soundFromFrame(await lk.dump("mine", r.slot))));
+  check(items.length === 3 && items.every((x) => x.ok) && !isMidiBlob(items[0].sound.blob) && isMidiBlob(items[1].sound.blob) && isMidiBlob(items[2].sound.blob) &&
+    sent.every((r) => r.status === 0) && !got[0].midi && got[1].midi && sameValues(got[1], e2) && got[2].midi && got[2].name === "MIDI BAK",
+    "MIDI: IMPORT of a .fizzlib (FM TONE + MIDI) and a .fizzbak: the MIDI sounds stored as MIDI sounds");
+  // EXPORT to the Digitones: a MIDI sound left out (alone: refused)
+  let why = "";
+  try { exportFiles([libM], "dnsnd"); } catch (x) { why = x.message; }
+  let why2 = "";
+  try { exportFiles([libM], "dn2pst"); } catch (x) { why2 = x.message; }
+  const mix = exportFiles([libF, libM], "dnsnd");
+  check(why === MIDI_ONLY && why2 === MIDI_ONLY && mix.skipped.length === 1 && mix.skipped[0] === libM.name && mix.notes.length === 1 && /\.dnsnd$/.test(mix.name),
+    `MIDI: the Digitone exports refuse a MIDI sound ("${why}"); with an FM TONE sound: only that one written (${mix.name})`);
+  // an FM TONE sound: no midi, its values as before; never the same as a MIDI sound
+  const fm2 = soundFromFrame(await lk.dump("factory", 3));
+  check(!fm.midi && sameValues(fm, fm2) && !sameValues(fm, e2) && !sameValues(e2, fm) && !isMidiBlob(blob6(fm)) && !copySound(fm).midi,
+    "MIDI: an FM TONE sound is read and written as before (no midi; never the same as a MIDI sound)");
+  // the lists: LIBRARY / POOL's cassettes carry a MIDI chip for a MIDI preset only
+  const rowsM = await lk.list({ factory: true }), frames = new Map();
+  for (const r of rowsM.filter((q) => q.source === "mine")) frames.set(r.slot, await lk.dump("mine", r.slot));
+  const html = listHtml(rowsM, newFilter(), { frameOf: (r) => (r.source === "mine" ? frames.get(r.slot) : null), places: poolPlaces(rowsM), on: () => false });
+  const chips = (html.match(/class="mchip"/g) || []).length, nMidi = [...frames.values()].filter((x) => isMidiBlob(parseDump(x).blob)).length;
+  check(chips === nMidi && nMidi === 3, `the lists: a MIDI chip on each MIDI preset (${chips} of ${frames.size} MY PRESETS)`);
   lk.close(); u.dispose();
 }
 

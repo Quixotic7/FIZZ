@@ -12,7 +12,8 @@ import { readFiles, storeFrame } from "../js/digitone.js";
 import { sameSound, soundFromStoreFrame } from "../js/library.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
 import { soundKey, readBackup } from "./fizzbak.js";
-import { esc, refusal } from "./ui.js";
+import { esc, refusal, midiChip } from "./ui.js";
+import { isMidiBlob } from "./sound.js";
 
 export const IMPORT_FILES = /\.(fizzlib|fizzsnd|fizzbak|dnsnd|dn2pst|dn2snd)$/i;
 
@@ -85,7 +86,7 @@ export function mountImport(ctx) {
         `<span class="src ${s.fizz ? "fz" : s.dn2 ? "dn2" : "dn1"}">${s.fizz ? "FIZZ" : s.dn2 ? "DN II" : "DN1"}</span><span class="nm">${esc(s.name)}</span>` +
         `<span class="fid" title="${esc(s.notes.join("\n") || "exact")}">${Array.from({ length: 10 }, (_, j) => `<i style="background:${j < f ? fidC(f) : "#24242b"}"></i>`).join("")}</span>` +
         `<span class="note ${it.dup ? "dup" : s.notes.length ? "lost" : ""}">${it.dup === "mine" ? "already in MY PRESETS" : it.dup === "list" ? "twice in these files" : esc((s.notes[0] || "exact").slice(0, 44))}</span>` +
-        `<span class="tg">${res || [...s.fizzTags.map((t) => `<span class="tag t-${t}">${t}</span>`), ...web.slice(0, 2).map((t) => `<span class="tag web">${esc(t)}</span>`)].join("")}</span></div>`;
+        `<span class="tg">${res || [midiChip(isMidiBlob(s.blob)), ...s.fizzTags.map((t) => `<span class="tag t-${t}">${t}</span>`), ...web.slice(0, 2).map((t) => `<span class="tag web">${esc(t)}</span>`)].join("")}</span></div>`;
     }).join("");
     const mine = S.unit ? S.unit.rows.filter((r) => r.source === "mine").map((r) => r.slot) : [];
     const free = []; for (let s = 1; s <= 256 && free.length < n; s++) if (!mine.includes(s)) free.push(s);
