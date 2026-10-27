@@ -1,7 +1,33 @@
 {
   "name": "FIZZ",
-  "latest": "0.12.0-beta.8",
+  "latest": "0.12.0-beta.9",
   "releases": [
+    {
+      "version": "0.12.0-beta.9",
+      "date": "2026-10-27",
+      "channel": "beta",
+      "identity": "FM-1_46001200",
+      "source": "ded5f60e1568ffea2ff383214584ff5fb0c7dfc4",
+      "fm1base": "42dc6304e8070006c1990d2879c3fe27e1192c91",
+      "notes": "The cat and the heads, the VOICE page (mono, unison, priority), no pop at a pattern change, HOLD for the live keys, and the owner's rounds of 2026-10-26.\n\n- **SENDS has a cat.** The FX page's four bars are now a big neon cat in sunglasses: the **left ear is CHORUS** and the **right ear DELAY** (each fills from its base toward the tip), the **lens is REVERB** (it fills from the left), and **DRY** sets the whole cat's colour: fully dry it is muted and grey, fully wet bright. The head's outline takes CHORUS's blue on the left and DELAY's green on the right. The values sit at the corners in their colours, without names (CHORUS and DELAY by their ears, REVERB and DRY at the foot); a lock shows as before. While playing, the cat **nods to each step** of the track (its whiskers flick, a glint crosses the lens), and the sends shown **follow the step just heard**, its locks too; not while a step is held, the latch is on or a key is down. Turning REVERB up to **100 %** flashes the sunglasses.\n- **MASTER is two heads.** The filter page's curves are now two heads back to back: the **LOW head** (orange, facing left) sits at the left edge with the low cut off and slides right as you turn LOW up; the **HIGH head** (light blue, facing right) sits at the right edge and slides left as you turn HIGH down. A narrow band brings them together, overlapping. SLOPE 12 dB draws a second outline inside each head; FILTER OFF turns them grey. The names and values under them are as before.\n- **A sound's VOICE page: MONO / POLY, UNISON, PRIORITY.** A new page in B1's group, after PORT (TRIG, KEYS, PORT, **VOICE**, MOD). **KNOB 1 VOICE**: POLY, or MONO (one note at a time on the track; with PORT LEGATO a new note while one is held moves the voice without a new attack). **KNOB 2 UNISON**: OFF, or 2 \u2026 8 real voices for every note, as the Digitone 1 does; the track's voice LIMIT (track settings) still caps them, the middle voices kept. **KNOB 3 DETUNE** spreads the unison voices' pitch (up to \u00b150 cents at the outer ones), **KNOB 4 SPREAD** places them across the stereo. **ALGORITHM PRIORITY** (LOW, MID, HIGH): when the unit's eight voices run out, a lower priority sound gives its voices up first, and a sound never takes voices from a higher one. The page draws the voices' waves and their places, the ones over the LIMIT dim. All five are saved with the sound (old sounds: POLY, OFF, MID) and in the Manager's EDIT (PLAY), not lockable on a step.\n- **No more pop when changing patterns.** A pattern that was not in memory used to be read from flash while the sound waited (up to ~18 ms: a click or a burst of static); it is read in the background now, playing or stopped. A pattern change also ends the MIDI FX notes the old pattern left going (an empty pattern plays no arp on).\n- **The FX pages: PRESETS works** as in the sound editor (nothing held: the track's preset in the browser; a step held or selected: its sound lock from the pool), and the browser brings you back to the FX (or MIX) page you came from, the keyboard still on. **FX opens on the page you left it on.** Opening FX from the live keys keeps the white keys playing.\n- **The patterns page**: the knobs other than ALGORITHM do nothing while it is up (they no longer edit the step view behind it).\n- **The sound editor, keys playing**: B1 held still makes W1..W8 the modulation source.\n- **More headroom: the engine 6 dB lower, BOOST in SETTINGS.** The tracks now play 6 dB under the old level, so the engine and its effects no longer clip inside with many voices. GLO + SEL (SETTINGS), **KNOB 2 BOOST** brings the old level back (+6 dB), for the speaker.\n- **HOLD for the live keys (LFO).** Wherever the white keys play live (the keyboard, the sound editor's and the effects' keys), **LFO turns HOLD on**: the notes you play stay after you let go; keep keys down to add more; let go of all of them and the next key starts a new set. LFO again, or leaving the live keys, releases them (LFO lit while it holds).\n- **The sound editor remembers each black key group's page**: back to a group, you are on the page you left it on.",
+      "packages": [
+        {
+          "name": "fizz",
+          "label": "8 voices across both cores, USB MIDI",
+          "fwsc": {
+            "path": "0.12.0-beta.9/fizz.fwsc",
+            "bytes": 611496,
+            "sha256": "b5970f85612006ea5ca8044850fda5b55e327cd84a8060a16376fd0f2244c067"
+          },
+          "data": {
+            "path": "0.12.0-beta.9/fizz-xdata.bin",
+            "bytes": 90616,
+            "sha256": "2708effa1215f9f2456f63bab4dc7352ca48b60de00f1e0a753c1e8e649a3bf9",
+            "crc32": 1519975653
+          }
+        }
+      ]
+    },
     {
       "version": "0.12.0-beta.8",
       "date": "2026-10-26",

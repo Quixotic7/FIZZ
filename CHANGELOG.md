@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.9 (2026-10-27)
+
 The cat and the heads, the VOICE page (mono, unison, priority), no pop at a pattern change, HOLD for the live keys, and the owner's rounds of 2026-10-26.
 
 - **SENDS has a cat.** The FX page's four bars are now a big neon cat in sunglasses: the **left ear is CHORUS** and the **right ear DELAY** (each fills from its base toward the tip), the **lens is REVERB** (it fills from the left), and **DRY** sets the whole cat's colour: fully dry it is muted and grey, fully wet bright. The head's outline takes CHORUS's blue on the left and DELAY's green on the right. The values sit at the corners in their colours, without names (CHORUS and DELAY by their ears, REVERB and DRY at the foot); a lock shows as before. While playing, the cat **nods to each step** of the track (its whiskers flick, a glint crosses the lens), and the sends shown **follow the step just heard**, its locks too; not while a step is held, the latch is on or a key is down. Turning REVERB up to **100 %** flashes the sunglasses.
