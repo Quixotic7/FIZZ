@@ -2633,7 +2633,7 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
             int k, amp = 0;                             /* (the ring is the window: oldest to newest, ~14.5 ms) */
             for (k = 0; k < QD_TSC_N; k++)
                 amp = abs(b[k]) > amp ? abs(b[k]) : amp;
-            v->tsc_live[t2] = amp > 48;
+            v->tsc_live[t2] = amp > 12;
             for (k = 0; k < UI_GEEK_TPTS; k++) {
                 const int s = b[(w + (uint32_t)(k * (QD_TSC_N - 1) / (UI_GEEK_TPTS - 1))) % QD_TSC_N];
                 v->w.tsc[t2][k] = (int8_t)(v->tsc_live[t2] ? 127.f * tanhf(1.3f * (float)s / (float)amp) / tanhf(1.3f) : 0.f);
@@ -2714,6 +2714,10 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
     v->boot = st->have & QD_ST_BOOT ? st->boot : 0;
     /* the scope: ~3 cycles of the loudest track's lowest note, held on a rising zero crossing (none: free-running) */
     v->scope_track = -1;
+    if (v->page == 4) {                                 /* (TRACKS: its lines share v->w and g->u with the scope's) */
+        g->ms = now ? now : 1u;
+        return;
+    }
 #if QD_SCOPE_FPS < 30
     if (g->scope_step == (now * QD_SCOPE_FPS / 1000u) + 1u) {   /* (P2.6i: the line as it was, until its next step) */
         v->scope_track = g->scope_trk;

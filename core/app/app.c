@@ -733,7 +733,7 @@ static void block_out(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int64_t
         a->geek.scope_w = w;
     }
 }
-/* 2026-10-27, the Geek Out TRACKS page: the block's voices summed by track, every 4th sample, into the rings; then
+/* 2026-10-27, the Geek Out TRACKS page: the block's voices summed by track, every 8th sample, into the rings; then
  * the next block's tap on or off (the mixer copies each voice's block while vtap is set) */
 static void tsc_take(qd_app_t *a)
 {
@@ -746,7 +746,7 @@ static void tsc_take(qd_app_t *a)
                 int32_t s = 0;
                 for (i = 0; i < a->pool.nvoice; i++)
                     if (a->pool.v[i].track == t)
-                        s += g->u.tk.vblk[i][k];
+                        s += g->u.tk.vblk[i][k] >> 2;   /* (a voice peaks near 884000: >> 2, a chord fits) */
                 g->u.tk.tsc[t][w % QD_TSC_N] = (int16_t)(s > 32767 ? 32767 : s < -32768 ? -32768 : s);
             }
         g->tsc_w = w;

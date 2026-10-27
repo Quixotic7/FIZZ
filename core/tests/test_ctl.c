@@ -8717,6 +8717,25 @@ static void g_p211_geek(void)
     run(2000);
     qd_view_geek(&A, &gv);
     CHECK(gv.scope_track < 0, "silence: the flat line");
+    {   /* 2026-10-27, TRACKS: each sounding track its own line (the scope's code once overwrote them: zeros) */
+        int t, k, ok = 1, pk[6] = {0};
+        A.ui.view = QD_VIEW_TRACKS;
+        qd_app_midi(&A, 0x90, 45, 110);
+        qd_app_midi(&A, 0x91, 57, 110);
+        qd_app_midi(&A, 0x92, 69, 110);
+        run(200);
+        qd_view_geek(&A, &gv);
+        for (t = 0; t < 6; t++)
+            for (k = 0; k < UI_GEEK_TPTS; k++)
+                pk[t] = abs(gv.w.tsc[t][k]) > pk[t] ? abs(gv.w.tsc[t][k]) : pk[t];
+        for (t = 0; t < 6; t++)
+            ok &= t < 3 ? gv.tsc_live[t] && pk[t] > 100 : !gv.tsc_live[t] && pk[t] == 0;
+        CHECK(ok, "TRACKS: tracks 1..3 sounding draw their waves, 4..6 flat (peaks %d %d %d %d %d %d)", pk[0], pk[1],
+              pk[2], pk[3], pk[4], pk[5]);
+        for (t = 0; t < 3; t++)
+            qd_app_midi(&A, 0x80 + t, 45 + 12 * t, 0);
+        run(2000);
+    }
 }
 
 /* - SHIFT + SELECT: the track in every view; the browser's preview put back first; not in the typewriter */
