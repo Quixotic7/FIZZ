@@ -31,7 +31,7 @@ import { readFiles } from "../js/digitone.js";
 
 const Q = new URLSearchParams(location.search);
 const SIM = Q.has("sim");
-const DEPTH = Math.max(1, Math.min(4, +Q.get("depth") || 1)), GAP = Math.max(0, +Q.get("gap") || 0);
+const DEPTH = Math.max(1, Math.min(4, +Q.get("depth") || 2)), GAP = Math.max(0, +Q.get("gap") || 0);   // (2 in flight: fm1-base holds two SysEx frames since 2026-10-27)
 const kb = (n) => `${Math.round(n / 1024)} KB`;
 const mmss = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
