@@ -2,8 +2,7 @@
 /* FIZZ's link: fm1-base's device/app.ld (ced9443) with three changes, used in its place by firmware/build.py.
  *   1. FIZZ's zero-initialised data (its units are the objects in build/o2/) spread over four regions, by unit (the
  *      compiler has no -fdata-sections: a unit's .bss is one piece):
- *        the pool          fz_port.c's (the one qd_app_t) and the effects' (qd_fx.c: the delay, the reverb, the chorus);
- *                          ctl_latch.c's (2026-10-27: RAM's room for USB audio in's ring)
+ *        the pool          fz_port.c's (the one qd_app_t) and the effects' (qd_fx.c: the delay, the reverb, the chorus)
  *        RAM code region   after the RAM code: the voices' (quad_voice.c: the comb lines)
  *        NOINIT            after fm1-base's records: the view's and two screens' (view.c, ui_idle.c, ui_keys.c); P2.17: the send's segment hashes (fz_fb.c)
  *        RAM               the rest of FIZZ's, with the platform's
@@ -54,8 +53,7 @@ SECTIONS
                         */o2/build_units_c_ui_idle.o(.bss* .sbss* COMMON) */o2/build_units_c_ui_keys.o(.bss* .sbss* COMMON)
                         . = ALIGN(4); _fz_ni_end = .; } > NOINIT
     .pool (NOLOAD) : { _pool_start = .; *(.pool*) */o2/fz_port.o(.bss* .sbss* COMMON)
-                       */o2/build_units_c_qd_fx.o(.bss* .sbss* COMMON)
-                       */o2/build_units_c_ctl_latch.o(.bss* .sbss* COMMON) . = ALIGN(4); _pool_end = .; } > POOL
+                       */o2/build_units_c_qd_fx.o(.bss* .sbss* COMMON) . = ALIGN(4); _pool_end = .; } > POOL
     .bss (NOLOAD) : { _bss_start = .; *(.bss*) *(.sbss*) *(COMMON) *(.*_bss) *(.bd_base) . = ALIGN(4); _bss_end = .; } > RAM
     .qd_xdata : { _fz_xdata_start = .; *(.qd_xdata*) . = ALIGN(4); _fz_xdata_end = .; } > XDATA
     _guard0 = 0x01C74000; _ustack_lo = 0x01C74100; _ustack_top = 0x01C7A000;

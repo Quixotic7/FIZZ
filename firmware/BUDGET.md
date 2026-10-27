@@ -295,9 +295,18 @@ the section renamed `.fzrt.*` in the object, fizz.ld's window), not by unit.
 
 The owner: the computer records FIZZ over the cable (fm1-base's `usb_audio_in`: the master output after MASTER, 16-bit
 44.1 kHz stereo, `uac_tap` after each block in fm1-base's render). Not `usb_audio_out` (the computer playing through
-the FM-1: 8,928 B more RAM than there is). Measured on 2336821: USB audio in alone overflowed RAM by 512 B; fizz.ld
-now places `ctl_latch.c`'s 1,260 B in the pool. After: app slot 572,040 of 581,564 (9,524 free), RAM 97,540 of 98,304
-(764 free), pool 329,308 of 344,064 (6,564 above fm1-base's 8,192). The single-core package links too.
+the FM-1: 8,928 B more RAM than there is). fm1-base moved to upstream 934e40d (from 42dc630: Bluetooth's ble_trim,
+ble_no_pairing, ble_heap_kb, ble_stack_kb; the USB audio ring in the pool, FM1B_UAC_RING_POOL, which app.h sets).
+After: app slot 572,040 of 581,564 (9,524 free), RAM 96,768 of 98,304 (1,536 free), pool 330,096 of 344,064 (5,776
+above fm1-base's 8,192). The single-core package and the host simulator build.
 
-Bluetooth MIDI (`ble = true`, a store object at 0xFA000) measured on the same commit: over by 116,080 B of the app
-slot, 44,624 B of RAM, 8,560 B of the pool, 3,864 B of the RAM code region, 1,096 B of NOINIT.
+Bluetooth MIDI (`ble = true`, a store object at 0xFA000, USB audio off), the overflow:
+
+| fm1-base | app slot | RAM | pool | RAM code region | NOINIT |
+| --- | --- | --- | --- | --- | --- |
+| 42dc630, defaults | 116,080 | 44,624 | 8,560 | 3,864 | 1,096 |
+| 934e40d, ble_trim, ble_no_pairing, heap 12 KB, stacks 5 KB | 82,372 | 27,040 | 604 | 4,136 | 1,096 |
+
+Bluetooth's own memory at the defaults: a 24 KB heap (RAM), three 8 KB task stacks (pool), four 2 KB queues, ~11 KB
+of the radio library's. LOOM-8 measured heap 7.1 KB and stacks 1.3 KB deep (fm1-base 3c647b2); FIZZ's audio
+interrupt nests on the radio's stacks (stack_audio 3,032), so 5 KB stacks are a guess the unit's log must confirm.

@@ -17,6 +17,7 @@
 #define APP_BIG_FONT FONT_B                  /* (FONT_L's 20 KB of flash saved; the splash's name in B, 16 rows) */
 #define APP_SYSEX                            /* FIZZ's SysEx (7D 46 5A: LIST, DUMP, STORE, LABELS ..) */
 #define APP_USB_CMD                          /* the data blob written over USB (firmware/tools/fizz_xdata.py) */
+#define FM1B_UAC_RING_POOL 1                 /* USB audio in's 2 KB ring in the pool (FIZZ's RAM is full: BUDGET.md) */
 
 /* the store's objects: only the panel's calibration (the platform's), in Felucca's settings sector pair; FIZZ's own
  * data are raw sectors of the data region (fz_port.c, the blob at PLAT_XDATA1) */
