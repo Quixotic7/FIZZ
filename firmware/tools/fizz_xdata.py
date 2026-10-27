@@ -179,10 +179,14 @@ def backup(a):
             return 1
         lo, size, crc = struct.unpack("<III", r[1][:12])
         print(f"FIZZ {dev.id.text}: its store at {lo:#x}, {size} B, CRC-32 {crc:08x}")
-        out = bytearray()
+        out, lost = bytearray(), 0
         while len(out) < size:
             n = min(256, size - len(out))
-            r = _ask(link, b"FZBR" + struct.pack("<II", len(out), n), "FZBD")
+            for _ in range(8):           # (a frame lost either way: asked again, 2026-10-27)
+                r = _ask(link, b"FZBR" + struct.pack("<II", len(out), n), "FZBD", 1.0)
+                if r and r[0] == "FZBD" and struct.unpack("<I", r[1][:4])[0] == len(out) and len(r[1]) == 4 + n:
+                    break
+                lost += 1
             if not r or r[0] != "FZBD" or struct.unpack("<I", r[1][:4])[0] != len(out) or len(r[1]) != 4 + n:
                 print(f"\nthe read at {len(out):#x} failed")
                 return 1
@@ -193,7 +197,7 @@ def backup(a):
             print("the copy's CRC-32 is not the unit's: the store changed while it was read (stop and try again)")
             return 1
         Path(a.file).write_bytes(out)
-        print(f"{a.file}: {size} B, CRC-32 {crc:08x}")
+        print(f"{a.file}: {size} B, CRC-32 {crc:08x}" + (f" ({lost} reads asked again)" if lost else ""))
         return 0
     finally:
         link.close()
@@ -202,16 +206,22 @@ def backup(a):
 def restore(a):
     img = Path(a.file).read_bytes()
     crc = zlib.crc32(img) & 0xFFFFFFFF
+    if a.check:                          # (a wrong CRC: the unit pulls the image once, refuses it, erases nothing)
+        crc ^= 1
     dev = find(a.port)
-    print(f"FIZZ {dev.id.text} on {dev.name}: restoring {len(img)} B, CRC-32 {crc:08x} (stop the unit first)")
+    print(f"FIZZ {dev.id.text} on {dev.name}: {'checking the link with' if a.check else 'restoring'} {len(img)} B, "
+          f"CRC-32 {crc:08x} (stop the unit first)")
     link = dev.link
     link.drain()
     link.send(fi.frame(0x46, b"FZSR" + struct.pack("<II", len(img), crc)))
-    served, last = 0, time.monotonic()
+    served, last, t0, seen, again, sends = 0, time.monotonic(), time.monotonic(), set(), 0, 1
     try:
         while time.monotonic() - last < 30.0:
             p = link.read(1.0)
             if p is None:
+                if not served and sends < 4 and time.monotonic() - last > 3.0 * sends:
+                    sends += 1                   # (FZSR lost on the way: sent again; nothing is erased before a pull)
+                    link.send(fi.frame(0x46, b"FZSR" + struct.pack("<II", len(img), crc)))
                 continue
             r = fi.parse_request(p)
             if r:
@@ -221,11 +231,19 @@ def restore(a):
                     raise SystemExit(f"the unit asked for {addr:#x}+{n}, outside the image")
                 link.send(fi.response(addr, img[addr:addr + n], fl))
                 served += 1
+                if addr in seen and a.check:
+                    again += 1
+                seen.add(addr)
                 print(f"\r{served * 512 * 50 // len(img):3d}%", end="", flush=True)
                 continue
             r = _reply(p)
             if r and r[0] in ("FZOK", "FZER"):
                 print()
+                if a.check:
+                    code = int.from_bytes(r[1][:4], 'little')
+                    print(f"check: {r[0]} {code} after {served} reads ({again} asked again: lost on the way), "
+                          f"{time.monotonic() - t0:.1f} s; 12 = the image refused, nothing erased")
+                    return 0 if r[0] == "FZER" and code == 12 else 1
                 if r[0] == "FZOK":
                     print("done: FIZZ runs on the restored store")
                     return 0
@@ -268,6 +286,9 @@ def main():
         p = sub.add_parser(name)
         if name in ("backup", "restore"):
             p.add_argument("file")
+        if name == "restore":
+            p.add_argument("--check", action="store_true", help="only the link: a wrong CRC, so the unit pulls the "
+                           "image once, counts as lost what it asks again, and refuses it (FZER 12) before erasing")
         if name in ("push", "info"):
             p.add_argument("--blob", default=str(BLOB))
         if name != "info":

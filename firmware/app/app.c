@@ -2223,6 +2223,25 @@ static void fz_usb_reply(const char *tag, uint32_t code)
 }
 static void fz_wr32(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v, p[1] = (uint8_t)(v >> 8), p[2] = (uint8_t)(v >> 16), p[3] = (uint8_t)(v >> 24); }
 
+/* a pull from the host that outlasts a lossy link (the owner's FM-1, 2026-10-27: frames to the unit lost at random,
+ * one in a hundred to one in four): each try waits 1 s (FZ_PULL_MS, set by fz_pull_begin), the request sent again up
+ * to 90 times (~90 s) before the transfer gives up. A restore's write pass so never stops half way for a lost frame,
+ * only for a host that went away */
+#define FZ_PULL_MS 1000u
+#define FZ_PULL_TRIES 30                 /* (x plat_host_read's own 3 tries) */
+static void fz_pull_begin(void) { plat_host_patience(FZ_PULL_MS, 0); }
+static void fz_pull_end(void) { plat_host_patience(0, 0); }   /* (the update's own 5 s again) */
+static int fz_pull(uint32_t a, uint8_t *buf, uint32_t n)
+{
+    int i;
+    for (i = 0; i < FZ_PULL_TRIES; i++) {
+        if (!plat_host_read(a, buf, n))
+            return 0;
+        fz_watchdog();
+    }
+    return -1;
+}
+
 static uint32_t fz_xdata_write(uint32_t off, uint32_t len, uint32_t crc)   /* 0 done, else FZER's code */
 {
     static uint8_t buf[512];
@@ -2233,7 +2252,7 @@ static uint32_t fz_xdata_write(uint32_t off, uint32_t len, uint32_t crc)   /* 0 
             return 3;
     for (a = 0; a < len; a += sizeof buf) {
         const uint32_t k = len - a < sizeof buf ? len - a : (uint32_t)sizeof buf;
-        if (plat_host_read(a, buf, k) || plat_data_write(off + a, buf, k))
+        if (fz_pull(a, buf, k) || plat_data_write(off + a, buf, k))
             return 4;
     }
     tr[0] = 0x54585A46u, tr[1] = len, tr[2] = crc;   /* "FZXT" */
@@ -2249,9 +2268,11 @@ static uint32_t fz_xdata_write(uint32_t off, uint32_t len, uint32_t crc)   /* 0 
  *   46 "FZBR" off n        -> "FZBD" off <n bytes>       n <= 256 bytes of it (the host reads it all, checks the CRC)
  *   46 "FZSR" len crc      restore: refused while playing (FZER 10) or for another size (11); the image pulled once and
  *                          its CRC checked before anything is erased (12); then the sound off, each sector erased and
- *                          written from a second pull (13: a write failed), the region read back (14: other than the
- *                          image), FIZZ started again on it: FZOK. A power loss during the writes leaves the region
- *                          half written: FIZZ's store then meets it as another's and clears it at the next start */
+ *                          written from a second pull (13: a write failed, or the host silent ~90 s), the region read
+ *                          back (14: other than the image), FIZZ started again on it: FZOK. Each 512-byte pull is asked
+ *                          again every second for ~90 s (fz_pull: a lost frame only slows it). A power loss or a host
+ *                          gone during the writes leaves the region half written: FIZZ's store then meets it as
+ *                          another's and clears it at the next start (restore it again) */
 static uint32_t fz_crc32(uint32_t c, const uint8_t *p, uint32_t n)
 {
     uint32_t i, k;
@@ -2286,7 +2307,7 @@ static uint32_t fz_restore(uint32_t lo, uint32_t size, uint32_t len, uint32_t cr
     if (len != size)
         return 11;
     for (a = 0; a < len; a += sizeof buf) {   /* (first the image whole: nothing erased for a bad one) */
-        if (plat_host_read(a, buf, sizeof buf))
+        if (fz_pull(a, buf, sizeof buf))
             return 12;
         c = fz_crc32(c, buf, sizeof buf);
         fz_watchdog();
@@ -2298,7 +2319,7 @@ static uint32_t fz_restore(uint32_t lo, uint32_t size, uint32_t len, uint32_t cr
     for (a = 0; a < len; a += sizeof buf) {
         if (!(a & 0xFFFu) && plat_data_erase(lo + a))
             return 13;
-        if (plat_host_read(a, buf, sizeof buf) || plat_data_write(lo + a, buf, sizeof buf))
+        if (fz_pull(a, buf, sizeof buf) || plat_data_write(lo + a, buf, sizeof buf))
             return 13;
     }
     return fz_region_crc(lo, size) == crc ? 0u : 14u;
@@ -2334,7 +2355,9 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
             if (n < 7u + 12u)
                 return;
             len = fz_rd32(d + 10), crc = fz_rd32(d + 14);
+            fz_pull_begin();
             rc = fz_restore(lo, size, len, crc);
+            fz_pull_end();
             if (rc >= 13u || !rc) {          /* (the region was written: FIZZ again on what it holds) */
                 fz_restart();
                 if (fz_ok && !fz_safe) {
@@ -2365,7 +2388,9 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
     }
     app_panic();
     fz_message("FIZZ: WRITING ITS DATA", "DO NOT UNPLUG");
+    fz_pull_begin();
     rc = fz_xdata_write(off, len, crc);
+    fz_pull_end();
     fz_usb_reply(rc ? "FZER" : "FZOK", rc ? rc : 1u);
     if (!rc)
         fz_restart();

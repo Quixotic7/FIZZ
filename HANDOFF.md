@@ -204,25 +204,30 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
    the lock, `qd_preset_will_change`: likely the same cure as the pattern reads). The HOME screen flash: the owner has
    not seen it again (closed).
 2. **The web Manager / emulator session's work** (see Where things stand): merge, test and release with the firmware.
-3. **One xrun at boot** after some flashes (`xruns=1` right after the install), none after. Watch for it.
-4. **Web Manager, next phases** (`docs/MANAGER-P2-PLAN.md`):
+3. **SysEx frames to the unit get lost** (the owner's FM-1, 2026-10-27: ~0.5 % of 512-byte pulls, often the first
+   command after a quiet spell, e.g. FZSR or FZBI). Made safe, not found: app.c `fz_pull` (1 s tries, ~90 s) for the
+   restore's two passes and FZXD; fizz_xdata.py re-asks FZBR and re-sends FZSR, `restore --check` measures the link
+   with no erase (a wrong CRC: FZER 12). A Remote FM-1 link (FM1VST's standalone, remote on) polling the unit makes it
+   far worse: never leave one open on a FIZZ unit. Root cause (the USB MIDI receive path while idle?) still open.
+4. **One xrun at boot** after some flashes (`xruns=1` right after the install), none after. Watch for it.
+5. **Web Manager, next phases** (`docs/MANAGER-P2-PLAN.md`):
    - P2-C: the projects tab, a project's patterns, and copying or moving a pattern between projects.
    - P2-D: the project library in the browser, with unload and load and the sounds re-linked.
 
    The owner decided: on unload, ask each time whether to remove MY presets only that project uses; on a conflict,
    ask and show both versions. Flash estimates: C about 1.6–3.2 KB, D about 3–5.8 KB, so there is not room for both
    without trims.
-5. **Screen mirror** (`docs/WEB-MIRROR-PLAN.md`, on branch `web-mirror-plan`, not merged).
+6. **Screen mirror** (`docs/WEB-MIRROR-PLAN.md`, on branch `web-mirror-plan`, not merged).
    - The recommendation is FIZZ's own mirror: about 2–2.5 KB of flash, no main RAM.
    - The owner said no redesign: reuse the current web player, including its screen-only view, exactly as it looks.
    - Not approved to build yet.
-6. **Earlier list, still open:**
+7. **Earlier list, still open:**
    - Scope is the slowest screen (~93 ms).
    - The single-core package sends whole rows.
    - FM1VST core-quadrille is on an old core (0.10.4) and needs updating before the owner prototypes there again.
    - The L1 provenance questions were never asked (OMX-27 credit, Melodee's saturation numbers, the send-guard fix).
    - W7/W8 are dark. There are five options for them; the owner hasn't chosen.
-7. **Known gaps:**
+8. **Known gaps:**
    - A CAPTURE take started while synced to external MIDI clock restarts on FIZZ's own clock.
    - The simulator scripts `boot.txt` and `views.txt` fail `fz_stats_worst <1024` (1108): a long stats line 4.
      They were already failing.
