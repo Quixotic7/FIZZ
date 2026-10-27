@@ -501,32 +501,87 @@ static void fz_sysex_out(void)           /* FIZZ's replies, taken under the lock
     }
 }
 
+#ifndef PLAT_HOST
+/* (2026-10-27) FIZZ'S OWN SYSEX, QUEUED. fm1-base holds ONE inbound frame (usb.c sx_frame: a frame that comes while it
+ * is held is dropped) and FIZZ took most of its own only once a main-loop pass, up to a whole drawn frame (~170 ms):
+ * the frames behind were lost (the owner's FM-1: FZSR and FZBI after a quiet spell, the Manager's streamed reads ~8 %
+ * at 8 in flight, a 20 s stall after a restore). Every look at the input (fz_input: each ~2 ms while the send waits,
+ * between a frame's bands, the pass) moves FIZZ's own frames (7D 46 5A, 7D 46 50, the update framing's cmd 46) into
+ * this queue and frees the slot; they are served in arrival order: at the pass all of them, between a frame's bands
+ * only while the head is a light one (as before: not STORE / STORE6 / POOL REF, whose sound-cache work waits for the
+ * pass; of cmd 46 only FZBR). The update's handshake and read replies stay in the slot for fm1-base */
+#define FZ_HQ 4u
+#define FZ_HQ_LEN 640u                   /* (usb.c sx_frame's size) */
+static uint8_t fz_hq[FZ_HQ][FZ_HQ_LEN] __attribute__((section(".pool"), aligned(4)));
+static uint16_t fz_hq_n[FZ_HQ];
+static uint32_t fz_hq_r, fz_hq_w;
+static uint8_t fz_hq_busy;               /* (one being served: none served inside it; holding goes on) */
+static int fz_hq_ours(const uint8_t *p, uint32_t k)
+{
+    return k >= 3u && ((p[0] == 0x7Du && p[1] == 0x46u && (p[2] == 0x5Au || p[2] == 0x50u)) ||
+                       (p[0] == 0 && p[1] == 0x32u && p[2] == 0x19u));   /* (00 59 46 packed 7 bits a byte) */
+}
+static void fz_hq_hold(void)
+{
+    const uint8_t *p;
+    uint32_t k;
+    if (fz_hq_w - fz_hq_r < FZ_HQ && ota_frame_get(&p, &k) && k <= FZ_HQ_LEN && fz_hq_ours(p, k)) {
+        memcpy(fz_hq[fz_hq_w % FZ_HQ], p, k);
+        fz_hq_n[fz_hq_w % FZ_HQ] = (uint16_t)k;
+        fz_hq_w++;
+        ota_frame_done();
+    }
+}
+static uint32_t fz_hq_decode(const uint8_t *p, uint32_t n)   /* the update framing into ota_dec (as ota_take): its
+                                                              * length, 0 not a good one */
+{
+    uint32_t d = ota_unpack7(p, n, ota_dec, sizeof ota_dec), s = 0, i;
+    if (d < 7u || d > sizeof ota_dec || ota_dec[0] != 0 || ota_dec[1] != 0x59u || ota_rd24(ota_dec + 3) + 7u != d)
+        return 0;
+    for (i = 6; i + 1u < d; i++)
+        s += ota_dec[i];
+    return (uint8_t)~s == ota_dec[d - 1u] ? d : 0u;
+}
+static int fz_hq_light(const uint8_t *p, uint32_t k)   /* may be served between a frame's bands */
+{
+    uint8_t t[28];
+    if (p[0] == 0x7Du)
+        return p[2] == 0x5Au && k >= 5u && p[4] != 0x10u && p[4] != 0x11u && p[4] != 0x16u;
+    return k <= 32u && ota_unpack7(p, k, t, sizeof t) == 19u && t[6] == 'F' && t[7] == 'Z' && t[8] == 'B' && t[9] == 'R';
+}
+static void fz_hq_serve(int inframe, int hold)   /* hold 0: the slot's frame is the caller's (app_sysex) */
+{
+    if (fz_hq_busy)
+        return;
+    fz_hq_busy = 1;
+    while (fz_hq_r != fz_hq_w) {
+        const uint8_t *p = fz_hq[fz_hq_r % FZ_HQ];
+        const uint32_t k = fz_hq_n[fz_hq_r % FZ_HQ];
+        uint32_t d;
+        if (inframe && !fz_hq_light(p, k))
+            break;
+        if (p[0] == 0x7Du)
+            (void)app_sysex(p, k);
+        else if ((d = fz_hq_decode(p, k)) != 0u) {
+            app_usb_cmd(ota_dec, d);
+            plat_host_patience(0, 0);   /* (as fm1-base's usb_cmd after the app's) */
+        }
+        fz_hq_r++;                       /* (after: a hold meanwhile never takes the slot being served) */
+        if (hold)
+            fz_hq_hold();
+    }
+    fz_hq_busy = 0;
+}
+#endif
+
 static void fz_input(void)               /* everything that changes FIZZ on the main loop, in time order */
 {
     const uint32_t t0 = plat_ticks24();
     int r;
     fz_sample();
 #ifndef PLAT_HOST
-    if (fz_in_frame) {                   /* FIZZ's own SysEx taken between a frame's bands too (fm1-base holds one
-                                          * inbound frame and hands it over once a main-loop pass); not STORE / STORE6
-                                          * / POOL REF, whose sound-cache work waits for the pass */
-        const uint8_t *p;
-        uint32_t k;
-        if (ota_frame_get(&p, &k) && k >= 5u && p[0] == 0x7Du && p[1] == 0x46u && p[2] == 0x5Au && p[4] != 0x10u &&
-            p[4] != 0x11u && p[4] != 0x16u && app_sysex(p, k))
-            ota_frame_done();
-        else if (ota_frame_get(&p, &k) && k <= 32u && p[0] == 0 && p[1] == 0x32u && p[2] == 0x19u) {   /* (the
-                                          * update framing, cmd 46: the store's; only FZBR, a 256-byte copy, here:
-                                          * FZBI's CRC and FZSR's session wait for the pass) */
-            uint8_t t[28];
-            const uint32_t d = ota_unpack7(p, k, t, sizeof t);
-            if (d == 19u && t[6] == 'F' && t[7] == 'Z' && t[8] == 'B' && t[9] == 'R') {
-                const uint32_t dd = ota_take();
-                if (dd)
-                    app_usb_cmd(ota_dec, dd);
-            }
-        }
-    }
+    fz_hq_hold();                        /* FIZZ's own SysEx out of fm1-base's one slot at once (fz_hq) .. */
+    fz_hq_serve(fz_in_frame, 1);         /* .. served in order: between a frame's bands, only the light ones */
 #endif
     for (;;) {
         const int ev = fz_ev_r != fz_ev_w, mi = fz_mq_r != fz_mq_w;
@@ -1123,6 +1178,10 @@ static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region 
 
 int app_sysex(const uint8_t *p, uint32_t n)
 {
+#ifndef PLAT_HOST
+    if (!fz_hq_busy && fz_hq_r != fz_hq_w && !fz_in_frame)
+        fz_hq_serve(0, 0);               /* (fm1-base's pass handing one over: the queued, older ones first) */
+#endif
     fz_sx_frames_in++;
     fz_sx_bytes_in += n;
     if (n >= 3u && p[0] == 0x7Du && p[1] == 0x46u && p[2] == 0x50u) {   /* "FP": the port's counters */

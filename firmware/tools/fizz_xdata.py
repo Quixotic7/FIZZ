@@ -173,7 +173,10 @@ def backup(a):
     link = dev.link
     link.drain()
     try:
-        r = _ask(link, b"FZBI", "FZBI", 15.0)
+        for _ in range(6):               # (FZBI lost on the way: asked again)
+            r = _ask(link, b"FZBI", "FZBI", 2.5)
+            if r and r[0] == "FZBI":
+                break
         if not r or r[0] != "FZBI":
             print("no answer to FZBI (an older FIZZ?)")
             return 1

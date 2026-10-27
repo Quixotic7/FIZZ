@@ -204,11 +204,15 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
    the lock, `qd_preset_will_change`: likely the same cure as the pattern reads). The HOME screen flash: the owner has
    not seen it again (closed).
 2. **The web Manager / emulator session's work** (see Where things stand): merge, test and release with the firmware.
-3. **SysEx frames to the unit get lost** (the owner's FM-1, 2026-10-27: ~0.5 % of 512-byte pulls, often the first
-   command after a quiet spell, e.g. FZSR or FZBI). Made safe, not found: app.c `fz_pull` (1 s tries, ~90 s) for the
-   restore's two passes and FZXD; fizz_xdata.py re-asks FZBR and re-sends FZSR, `restore --check` measures the link
-   with no erase (a wrong CRC: FZER 12). A Remote FM-1 link (FM1VST's standalone, remote on) polling the unit makes it
-   far worse: never leave one open on a FIZZ unit. Root cause (the USB MIDI receive path while idle?) still open.
+3. **SysEx frames to the unit got lost** (the owner's FM-1, 2026-10-27). Cause: fm1-base holds ONE inbound frame (usb.c
+   `sx_collect = !sx_ready`: a frame arriving while one is held is dropped) and FIZZ took FZBI / FZSR / STORE / FP only
+   once a main-loop pass (up to a ~170 ms frame). Fixed in FIZZ: app.c `fz_hq`, a 4-deep queue in the pool that every
+   `fz_input` (~2 ms) fills from the slot, served in order (between bands only the light ones, as before). Single
+   requests after a quiet spell: 0 of 20 lost (were often lost). Still lost: frames sent back to back (one USB
+   transfer: the second meets the full slot inside the interrupt); ~6 % at 8 in flight. Hosts space their sends a few
+   ms apart, or fm1-base's usb.c gets a second slot (a shared repo: the owner's call). Also safe now: `fz_pull`
+   (restore / FZXD pulls asked again each 1 s for ~90 s), fizz_xdata.py re-asks FZBI / FZBR, re-sends FZSR,
+   `restore --check` measures the link with no erase. Never leave FM1VST's Remote FM-1 on with a FIZZ unit.
 4. **One xrun at boot** after some flashes (`xruns=1` right after the install), none after. Watch for it.
 5. **Web Manager, next phases** (`docs/MANAGER-P2-PLAN.md`):
    - P2-C: the projects tab, a project's patterns, and copying or moving a pattern between projects.

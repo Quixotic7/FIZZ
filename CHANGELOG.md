@@ -10,6 +10,7 @@ its text becomes the release's notes on the install page and on GitHub.
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
 - **Geek Out has a fifth page: TRACKS.** Six scopes filling the screen, one per track in its colour, each track's own sound before the effects. A silent track is a flat line.
+- **The Manager and the tools talk to FIZZ reliably.** A command sent while the unit was drawing a frame could be lost (FIZZ took its own commands only between frames and the USB side holds just one); FIZZ now picks them up within a couple of milliseconds and handles them in order.
 - **RESTORE survives a flaky USB link.** A block lost on the way is asked for again every second (for up to ~90 s) instead of failing the restore half way, which could leave the store half written; the data push after an install does the same.
 - **Pattern changes are smoother still.** The last ~7 ms the sound waited at a pattern change is gone; the sounds a new pattern needs are read in the background too.
 
