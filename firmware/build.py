@@ -211,6 +211,29 @@ OVERLAY = {
          "    FM1_LCD_SPI_BAUD = baud;\n"
          "    *raw = v;\n    return rc;\n}\n"),
     ],
+    # (2026-10-27) TWO received SysEx frames, in order: fm1-base kept one, and a frame arriving while it was pending
+    # was dropped (two in one USB transfer: a host's back-to-back requests, ~6 % lost at 8 in flight on the owner's
+    # FM-1). The interrupt fills slot sx_fw, the main loop takes slot sx_fr (one writer each); the frames in the pool
+    # (FIZZ's spare RAM; main RAM has ~1 KB). The update loader includes its own copy (../chip/usb.c): unchanged
+    "bsp/chip/usb.c": [
+        ("static uint8_t sx_frame[640];\nstatic uint32_t sx_pos;\nstatic volatile uint32_t sx_frame_len;\n"
+         "static volatile uint8_t sx_ready, sx_collect, sx_busy;\n",
+         "/* (FIZZ: two frames, in order; firmware/build.py's OVERLAY) */\n#define SX_SLOTS 2u\n"
+         "static uint8_t sx_frames[SX_SLOTS][640] __attribute__((section(\".pool\"), aligned(4)));\n"
+         "static uint32_t sx_pos;\nstatic volatile uint32_t sx_lens[SX_SLOTS], sx_fw, sx_fr;   /* the interrupt's, the main loop's */\n"
+         "static volatile uint8_t sx_collect, sx_busy;\n"),
+        ("        sx_collect = !sx_ready;\n", "        sx_collect = sx_fw - sx_fr < SX_SLOTS;\n"),
+        ("        if (sx_pos < sizeof sx_frame)\n            sx_frame[sx_pos++] = b;\n",
+         "        if (sx_pos < sizeof sx_frames[0])\n            sx_frames[sx_fw % SX_SLOTS][sx_pos++] = b;\n"),
+        ("            sx_frame_len = sx_pos;\n            RING_PUBLISH();\n            sx_ready = 1;",
+         "            sx_lens[sx_fw % SX_SLOTS] = sx_pos;\n            RING_PUBLISH();\n            sx_fw++;"),
+        ("    if (!sx_ready)\n        return 0;\n    RING_PUBLISH();                                     /* read the frame only after the flag */\n"
+         "    *p = sx_frame;\n    *n = sx_frame_len;\n",
+         "    if (sx_fw == sx_fr)\n        return 0;\n    RING_PUBLISH();                                     /* read the frame only after the flag */\n"
+         "    *p = sx_frames[sx_fr % SX_SLOTS];\n    *n = sx_lens[sx_fr % SX_SLOTS];\n"),
+        ("    RING_PUBLISH();                                     /* done with the frame before the ISR may refill it */\n    sx_ready = 0;\n",
+         "    RING_PUBLISH();                                     /* done with the frame before the ISR may refill it */\n    sx_fr++;\n"),
+    ],
 }
 
 

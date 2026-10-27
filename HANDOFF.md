@@ -208,9 +208,10 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
    `sx_collect = !sx_ready`: a frame arriving while one is held is dropped) and FIZZ took FZBI / FZSR / STORE / FP only
    once a main-loop pass (up to a ~170 ms frame). Fixed in FIZZ: app.c `fz_hq`, a 4-deep queue in the pool that every
    `fz_input` (~2 ms) fills from the slot, served in order (between bands only the light ones, as before). Single
-   requests after a quiet spell: 0 of 20 lost (were often lost). Still lost: frames sent back to back (one USB
-   transfer: the second meets the full slot inside the interrupt); ~6 % at 8 in flight. Hosts space their sends a few
-   ms apart, or fm1-base's usb.c gets a second slot (a shared repo: the owner's call). Also safe now: `fz_pull`
+   requests after a quiet spell: 0 of 20 lost (were often lost). And fm1-base's usb.c holds TWO frames in order
+   (firmware/build.py OVERLAY "bsp/chip/usb.c": fm1-base is charlesvestal's, the submodule unchanged; the update
+   loader keeps its own copy): the restore check 0 re-asks in 4.6 s, 2 in flight ~0, 8 in flight still 1-4 % (a
+   burst's third and later). Hosts keep ~3 ms between sends (the Manager does) or at most 2 in flight. Also safe now: `fz_pull`
    (restore / FZXD pulls asked again each 1 s for ~90 s), fizz_xdata.py re-asks FZBI / FZBR, re-sends FZSR,
    `restore --check` measures the link with no erase. Never leave FM1VST's Remote FM-1 on with a FIZZ unit.
 4. **One xrun at boot** after some flashes (`xruns=1` right after the install), none after. Watch for it.

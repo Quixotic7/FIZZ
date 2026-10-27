@@ -509,7 +509,8 @@ static void fz_sysex_out(void)           /* FIZZ's replies, taken under the lock
  * between a frame's bands, the pass) moves FIZZ's own frames (7D 46 5A, 7D 46 50, the update framing's cmd 46) into
  * this queue and frees the slot; they are served in arrival order: at the pass all of them, between a frame's bands
  * only while the head is a light one (as before: not STORE / STORE6 / POOL REF, whose sound-cache work waits for the
- * pass; of cmd 46 only FZBR). The update's handshake and read replies stay in the slot for fm1-base */
+ * pass; of cmd 46 only FZBR). The update's handshake and read replies stay in the slot for fm1-base. And fm1-base's
+ * usb.c now holds two frames in order (firmware/build.py's OVERLAY): back-to-back frames are kept too */
 #define FZ_HQ 4u
 #define FZ_HQ_LEN 640u                   /* (usb.c sx_frame's size) */
 static uint8_t fz_hq[FZ_HQ][FZ_HQ_LEN] __attribute__((section(".pool"), aligned(4)));
@@ -525,7 +526,7 @@ static void fz_hq_hold(void)
 {
     const uint8_t *p;
     uint32_t k;
-    if (fz_hq_w - fz_hq_r < FZ_HQ && ota_frame_get(&p, &k) && k <= FZ_HQ_LEN && fz_hq_ours(p, k)) {
+    while (fz_hq_w - fz_hq_r < FZ_HQ && ota_frame_get(&p, &k) && k <= FZ_HQ_LEN && fz_hq_ours(p, k)) {   /* (both slots) */
         memcpy(fz_hq[fz_hq_w % FZ_HQ], p, k);
         fz_hq_n[fz_hq_w % FZ_HQ] = (uint16_t)k;
         fz_hq_w++;
