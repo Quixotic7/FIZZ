@@ -28,7 +28,7 @@ body.sheet { padding: 20px; background: #101012; }
 </head>
 <body>
 <main id="page">
-<h1>FIZZ: MIDI OUT and the MIDI track (mock-up round 1, 2026-10-27)</h1>
+<h1>FIZZ: MIDI OUT and the MIDI track (mock-up round 2, 2026-10-27: approved, the rings gone)</h1>
 <p><strong>Track settings page 3</strong> gets <strong>KNOB 3 ENGINE</strong> (FM TONE or MIDI) and <strong>KNOB 4 MIDI OUT</strong>
 (OFF, or a channel 1 … 16, over USB). A <strong>MIDI track</strong> has no sound: <strong>EDIT</strong> opens seven pages of four CCs
 (SELECT or B1 … B7 picks the page). Each bar is a value in its knob's colour, sent as you turn it; the CC number sits under it.
@@ -106,8 +106,6 @@ function bar(c, k, v, o = {}) {
   RR(c, x0, BB - h, bw, h, 6, col, o.hot ? 0.95 : 0.8); c.restore();
   RR(c, x0 + 2, BB - h + 2, bw - 4, 3, 1.5, '#fff', a * 0.75);       // the value's cap
   if (o.base != null) { const y = BB - o.base / 127 * BH; L(c, [x0 - 5, y, x0 + bw + 5, y], C.k3, 2, 0.9); }   // the track's own
-  if (o.hot && !o.dim) for (let i = 1; i <= 2; i++)   // sent: rings from the cap
-    c.save(), c.globalAlpha = 0.5 / i, c.strokeStyle = col, c.lineWidth = 1.5, c.beginPath(), c.ellipse(x, BB - h, bw / 2 + 5 * i, 3 + 3 * i, 0, Math.PI, 2 * Math.PI), c.stroke(), c.restore();
 }
 function midiEd(c, o) {
   c.drawImage(o.held ? IMG.held : IMG.ed, 0, 0, 240, 240);
@@ -139,7 +137,7 @@ const SCREENS = [
   { title: 'ENGINE MIDI', kind: 'trk', o: { engine: 'MIDI', out: 1, last: 2 },
     text: 'A MIDI track: no sound of its own. MIDI OUT was OFF, so it took the track\'s number (1).' },
   { title: 'EDIT on a MIDI track: page 1', kind: 'ed', o: { page: 1, ch: 1, vals: [64, 100, 20, 127], ccs: [16, 17, 18, 19], last: 1 },
-    text: 'Four values, a bar each in its knob\'s colour, the CC number under it, the channel top right. KNOB 2 just turned: sent at once (the rings).' },
+    text: 'Four values, a bar each in its knob\'s colour, the CC number under it, the channel top right. KNOB 2 just turned (it glows): sent at once.' },
   { title: 'Page 2, two slots untouched', kind: 'ed', o: { page: 2, ch: 1, vals: [90, null, 45, null], ccs: [20, 21, 22, 23], last: 0 },
     text: 'KNOB 2 and KNOB 4 were never turned: dashed and empty, they send nothing (no surprise CCs into your synth).' },
   { title: 'SHIFT + KNOB 1: the CC number', kind: 'ed', o: { page: 1, ch: 1, vals: [64, 100, 20, 127], ccs: [74, 17, 18, 19], last: -1, shift: { k: 0 } },
