@@ -264,7 +264,7 @@ export class FizzLink {
     for (let attempt = 1; ; attempt++) {
       const info = await this.storeInfo();
       if (!info) throw err("nobulk", "this FIZZ has no backup over USB (update FIZZ)");
-      const r = await this.readRegion(info, { depth, gapMs, onProgress, signal, onRead });
+      const r = await this.readPatient(info, { depth, gapMs, onProgress, signal, onRead });
       const crc = crc32(r.image);
       r.stats.attempt = attempt;
       this.log(`backup: ${info.size} B in ${r.stats.ms.toFixed(0)} ms, ${r.stats.kbps.toFixed(1)} KB/s, depth ${depth}, ` +
@@ -275,7 +275,34 @@ export class FizzLink {
       this.log("backup: the store changed while it was read (an autosave?): reading it again");
     }
   }
-  readRegion(info, { depth = 1, gapMs = 0, onProgress = () => {}, signal = null, onRead = null, from = 0, to = info.size }) {
+  // the region in 16 KB pieces, a piece that stalls read again after a pause (the owner's FM-1 after a restore,
+  // 2026-10-27: a whole read stopped answering for 20 s at 37 %, while the same store read in pieces went through)
+  async readPatient(info, { depth = 1, gapMs = 0, onProgress = () => {}, signal = null, onRead = null, piece = 16384, tries = 5 } = {}) {
+    const image = new Uint8Array(info.size), t0 = now();
+    const all = { frames: 0, resent: 0, rtt: [] };
+    for (let from = 0; from < info.size; ) {
+      const to = Math.min(info.size, from + piece);
+      let r = null;
+      for (let k = 1; !r; k++) {
+        try {
+          r = await this.readRegion(info, { depth, gapMs, signal, onRead, from, to, idleMs: 4000,
+            onProgress: (f, off) => onProgress((from + f * (to - from)) / info.size, off) });
+        } catch (e) {
+          if (e.code !== "timeout" || k >= tries || (signal && signal.aborted)) throw e;
+          this.log(`backup: the FM-1 went quiet at ${from.toString(16)}: that piece read again (${k})`);
+          await sleep(1500);
+        }
+      }
+      image.set(r.image.subarray(from, to), from);
+      all.frames += r.stats.frames; all.resent += r.stats.resent; all.rtt.push(r.stats.rtt);
+      from = to;
+    }
+    const ms = now() - t0, n = Math.ceil(info.size / CHUNK), pick = (k) => Math.max(...all.rtt.map((x) => x[k]));
+    const avg = all.rtt.reduce((a, x) => a + x.avg, 0) / all.rtt.length;
+    return { image, stats: { bytes: info.size, frames: all.frames, resent: all.resent, depth, gapMs, ms, kbps: info.size / 1024 / (ms / 1000), perFrame: ms / n,
+      rtt: { avg, median: pick("median"), p95: pick("p95"), max: pick("max") } } };
+  }
+  readRegion(info, { depth = 1, gapMs = 0, onProgress = () => {}, signal = null, onRead = null, from = 0, to = info.size, idleMs = 20000 }) {
     const k0 = Math.floor(from / CHUNK), n = Math.ceil(to / CHUNK) - k0, image = new Uint8Array(info.size);
     const fly = new Map(), rtts = [];
     let next = k0, done = 0, resent = 0, frames = 0, tick = null, wait = null, rto = 800, sent = -Infinity;
@@ -331,7 +358,7 @@ export class FizzLink {
       }
       fill();
       return MORE;
-    }, { timeout: 20000 }).finally(() => { clearInterval(tick); clearTimeout(wait); });
+    }, { timeout: idleMs }).finally(() => { clearInterval(tick); clearTimeout(wait); });
   }
 
   // the store put back (stopped only: the unit refuses while playing, FZER 10). The unit reads the image twice, 512
