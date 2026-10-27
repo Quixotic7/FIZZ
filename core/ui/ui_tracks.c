@@ -304,28 +304,167 @@ static void fx_master(const ui_fx_t *v)
         ui_O(hi, 60.f, 3.4f, QD_NONE, 1.f, UI_K2);
 }
 
+/* THE CAT (2026-10-26, the owner's vector art/cat-sends.svg; mockups/fizz-sends-cat.html): the SENDS page's picture.
+ * Its curves are tools/gen_cat.py's tables (ui_cat.h, 1/8 px). The left ear is CHORUS (filled from its base toward the
+ * tip, the level's edge parallel to the base), the right ear DELAY, the lens REVERB (lit from the left), DRY the
+ * whole cat's colour (dry: muted toward grey; wet: bright, with its glow). The outline runs from CHORUS's colour on
+ * the left through white at the crown and chin to DELAY's on the right (a side at 0: grey). A locked send's part:
+ * a bolder outline. */
+#include "ui_cat.h"
+#define CAT_NB 8                                        /* the outline's colour bands across it */
+static qd_rgb cat_mix(qd_rgb a, qd_rgb b, float f)
+{
+    qd_rgb o = 0;
+    int s;
+    for (s = 16; s >= 0; s -= 8) {
+        const float x = (float)((a >> s) & 255u), y = (float)((b >> s) & 255u);
+        o |= (qd_rgb)(int)(x + (y - x) * f + 0.5f) << s;
+    }
+    return o;
+}
+static qd_rgb cat_tint(qd_rgb c, float wet)             /* DRY: toward a dim grey of the colour's own lightness */
+{
+    const float r = (float)((c >> 16) & 255u), g = (float)((c >> 8) & 255u), b = (float)(c & 255u);
+    const float y = 0.3f * r + 0.55f * g + 0.15f * b, s = 0.1f + 0.9f * wet, k = 0.55f + 0.45f * wet;
+    const float o[3] = {(y + (r - y) * s) * k, (y + (g - y) * s) * k, (y + (b - y) * s) * k};
+    return ((qd_rgb)clampf(o[0], 0.f, 255.f) << 16) | ((qd_rgb)clampf(o[1], 0.f, 255.f) << 8) | (qd_rgb)clampf(o[2], 0.f, 255.f);
+}
+#define CP(v) ((float)(v) * 0.125f)
+/* a part's path (every subpath; closed when asked) */
+static void cat_path(const int16_t *d, int close)
+{
+    int ns = *d++, i;
+    qd_path_begin();
+    while (ns-- > 0) {
+        const int n = *d++;
+        qd_move_to(CP(d[0]), CP(d[1]));
+        for (d += 2, i = 0; i < n; i++, d += 6)
+            qd_cubic_to(CP(d[0]), CP(d[1]), CP(d[2]), CP(d[3]), CP(d[4]), CP(d[5]));
+        if (close)
+            qd_path_close();
+    }
+}
+/* a stroke and its glow: two wider, fainter strokes under it */
+static void cat_stroke(const int16_t *d, qd_rgb col, float lw, float glow)
+{
+    const float a = qd_get_alpha();
+    cat_path(d, 0);
+    if (glow > 0.f) {
+        qd_save(), qd_alpha(a * 0.1f * glow), qd_path_stroke_keep(col, lw * 3.2f), qd_restore();
+        qd_save(), qd_alpha(a * 0.22f * glow), qd_path_stroke_keep(col, lw * 1.9f), qd_restore();
+    }
+    qd_path_stroke(col, lw);
+}
+/* the outline: its segments in runs of one colour band (by their middle's x), each run a stroke with its glow */
+static void cat_outline(const qd_rgb *band, float lw, float glow)
+{
+    static const float LAY[3][2] = {{3.2f, 0.1f}, {1.9f, 0.22f}, {1.f, 1.f}};
+    const float a = qd_get_alpha();
+    int l;
+    for (l = glow > 0.f ? 0 : 2; l < 3; l++) {
+        const int16_t *d = CAT_OUTLINE;
+        int ns = *d++, i;
+        qd_save(), qd_alpha(a * (l < 2 ? LAY[l][1] * glow : 1.f));
+        while (ns-- > 0) {
+            const int n = *d++;
+            int cur = -1;
+            float x0 = CP(d[0]), y0 = CP(d[1]);
+            for (d += 2, i = 0; i < n; i++, d += 6) {
+                const float mx = (x0 + CP(d[4])) * 0.5f;
+                const int b = (int)clampf((mx - CAT_OUT_X0) / (CAT_OUT_X1 - CAT_OUT_X0) * (float)CAT_NB, 0.f, (float)(CAT_NB - 1));
+                if (b != cur) {
+                    if (cur >= 0)
+                        qd_path_stroke(band[cur], lw * LAY[l][0]);
+                    qd_path_begin(), qd_move_to(x0, y0), cur = b;
+                }
+                qd_cubic_to(CP(d[0]), CP(d[1]), CP(d[2]), CP(d[3]), CP(d[4]), CP(d[5]));
+                x0 = CP(d[4]), y0 = CP(d[5]);
+            }
+            if (cur >= 0)
+                qd_path_stroke(band[cur], lw * LAY[l][0]);
+        }
+        qd_restore();
+    }
+}
+/* an ear: empty, a faint triangle and its thin outline; lit, the band from its base toward the tip */
+static void cat_ear(const int16_t *e, float lvl, qd_rgb col, float glow, int lock)
+{
+    const float ax = CP(e[0]), ay = CP(e[1]), bx = CP(e[2]), by = CP(e[3]), tx = CP(e[4]), ty = CP(e[5]);
+    const float tri[6] = {ax, ay, bx, by, tx, ty};
+    const float a = qd_get_alpha();
+    qd_save(), qd_alpha(a * 0.14f), ui_P(tri, 3, QD_NONE, 0.f, 1, col), qd_restore();
+    qd_save(), qd_alpha(a * 0.55f), ui_P(tri, 3, col, 0.6f, 1, QD_NONE), qd_restore();
+    if (lvl > 0.f) {
+        const float f = clampf(lvl, 0.f, 1.f);
+        const float q[8] = {ax, ay, bx, by, bx + (tx - bx) * f, by + (ty - by) * f, ax + (tx - ax) * f, ay + (ty - ay) * f};
+        if (glow > 0.f) {
+            qd_save(), qd_alpha(a * 0.12f * glow), ui_P(q, 4, col, 4.2f, 1, QD_NONE), qd_restore();
+            qd_save(), qd_alpha(a * 0.25f * glow), ui_P(q, 4, col, 1.8f, 1, QD_NONE), qd_restore();
+        }
+        ui_P(q, 4, QD_NONE, 0.f, 1, col);
+    }
+    if (lock)
+        ui_P(tri, 3, col, 1.35f, 1, QD_NONE);
+}
+/* the lens: lit from the left to the level (its glow too), the rest a dim orange */
+static void cat_lens(float lvl, qd_rgb col, float glow, int lock)
+{
+    const float xs = CAT_LENS_X0 + clampf(lvl, 0.f, 1.f) * (CAT_LENS_X1 - CAT_LENS_X0), a = qd_get_alpha();
+    qd_save(), qd_clip_rect(xs, 0.f, 240.f - xs, 240.f), qd_alpha(a * 0.28f), cat_path(CAT_LENS, 1), qd_path_fill(col), qd_restore();
+    if (lvl > 0.f) {
+        qd_save(), qd_clip_rect(0.f, 0.f, xs, 240.f);
+        cat_path(CAT_LENS, 1);
+        if (glow > 0.f) {
+            qd_save(), qd_alpha(a * 0.12f * glow), qd_path_stroke_keep(col, 4.2f), qd_restore();
+            qd_save(), qd_alpha(a * 0.25f * glow), qd_path_stroke_keep(col, 1.8f), qd_restore();
+        }
+        qd_path_fill(col);
+        qd_restore();
+    }
+    if (lock)
+        cat_path(CAT_LENS, 1), qd_path_stroke(col, 1.35f);
+}
+static void cat_draw(const ui_fx_t *v)
+{
+    static const int16_t *const WH[6] = {CAT_WH_L1, CAT_WH_L2, CAT_WH_L3, CAT_WH_R1, CAT_WH_R2, CAT_WH_R3};
+    const float wet = 1.f - clampf(v->x[3], 0.f, 1.f), g = 0.35f + 0.65f * wet;
+    const float lc = clampf(v->x[0], 0.f, 1.f), ld = clampf(v->x[1], 0.f, 1.f);
+    const qd_rgb sl = cat_mix(0x8a8a96u, 0x35c1e8u, lc > 0.f ? 0.35f + 0.65f * lc : 0.f);
+    const qd_rgb sr = cat_mix(0x8a8a96u, 0x38d57cu, ld > 0.f ? 0.35f + 0.65f * ld : 0.f);
+    qd_rgb band[CAT_NB];
+    int i;
+    for (i = 0; i < CAT_NB; i++) {                      /* left's colour .. 0.3, to white at 0.5, to right's at 0.7 .. */
+        const float t = ((float)i + 0.5f) / (float)CAT_NB;
+        const qd_rgb c = t < 0.3f ? sl : t < 0.5f ? cat_mix(sl, 0xd8d8e0u, (t - 0.3f) / 0.2f)
+                       : t < 0.7f ? cat_mix(0xd8d8e0u, sr, (t - 0.5f) / 0.2f) : sr;
+        band[i] = cat_tint(c, wet);
+    }
+    cat_outline(band, 1.95f, g);
+    for (i = 0; i < 6; i++)
+        cat_stroke(WH[i], cat_tint(i < 3 ? 0x418cb4u : 0x45b36fu, wet), 1.8f, g);
+    cat_ear(CAT_EAR_L, lc, cat_tint(0x35c1e8u, wet), g, v->locked[0]);
+    cat_ear(CAT_EAR_R, ld, cat_tint(0x38d57cu, wet), g, v->locked[1]);
+    cat_lens(v->x[2], cat_tint(0xfd5926u, wet), g, v->locked[2]);
+    cat_stroke(CAT_VISOR, cat_tint(0xfd5926u, wet), 1.5f, g);
+    cat_path(CAT_NOSE, 1), qd_path_stroke(cat_tint(0x4b3025u, wet), 1.5f);
+    cat_stroke(CAT_MOUTH1, cat_tint(0x5e524au, wet), 1.5f, 0.f);
+    cat_stroke(CAT_MOUTH2, cat_tint(0x5e524au, wet), 1.5f, 0.f);
+}
+
 /* SENDS (2026-10-26, the sequencer clean-up, mockups/fizz-seq-cleanup.html 1..3; P1.5b's OVERVIEW before it): the
- * current track's CHORUS, DELAY and REVERB sends as three bars in KNOB 1..3's colours, their names and values under
- * them (a held step's lock: the bar framed, the value a filled chip; a lock on some step: outlined); along the foot
- * the page's steps as the EDIT home's row, or, the keyboard on (REC), the keys as plain cells, the ones down lit */
+ * current track's CHORUS, DELAY and REVERB sends and its DRY as the cat (above; the owner's, 2026-10-26, in place of
+ * the four bars), their names and values under it (a held step's lock: the value a filled chip; a lock on some step:
+ * outlined); along the foot the page's steps as the EDIT home's row, or, the keyboard on (REC), the keys as plain
+ * cells, the ones down lit */
 static void fx_sends(const ui_fx_t *v)
 {
     int k, i;
+    cat_draw(v);
     for (k = 0; k < 4; k++) {
-        const float x = 36.f + (float)k * 56.f, h = 90.f * clampf(v->x[k], 0.f, 1.f);
+        const float x = 36.f + (float)k * 56.f;
         const int lk = v->locked[k];
         if (!v->has[k])
             continue;
-        ui_RR(x - 16.f, 34.f, 32.f, 90.f, 5.f, UI_G3, 1.2f, QD_NONE);
-        if (h > 0.f) {
-            if (!lk)
-                qd_save(), qd_alpha(0.85f);
-            ui_RR(x - 16.f, 124.f - h, 32.f, h, 5.f, QD_NONE, 1.f, FK[k]);
-            if (!lk)
-                qd_restore();
-        }
-        if (lk)
-            ui_RR(x - 20.f, 30.f, 40.f, 98.f, 7.f, FK[k], 1.4f, QD_NONE);
         ui_T(v->lab[k] ? v->lab[k] : "", x, 141.f, 12.f, 600, 0.3f, UI_G1, QD_CENTER);
         if (lk || v->lockany[k])
             ui_chip(v->txt[k], x, 162.f, 15.f, 54.f, FK[k], lk);

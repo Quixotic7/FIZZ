@@ -1,0 +1,84 @@
+# the SENDS mock-up's eight base screens (mockups/make_cat_svg.py --shots): one detent is 2 of 127 (64 = 100 %)
+wait 500
+tap PLAY
+wait 1500
+tap FX
+wait 600
+turn K1 -300
+turn K2 -300
+turn K3 -300
+turn K4 -300
+turn K4 64
+wait 300
+shot s1.png
+turn K1 -300
+turn K2 -300
+turn K3 -300
+turn K4 -300
+turn K1 48
+turn K3 6
+turn K4 19
+wait 300
+shot s2.png
+turn K1 -300
+turn K2 -300
+turn K3 -300
+turn K4 -300
+turn K2 51
+turn K3 32
+turn K4 32
+wait 300
+shot s3.png
+turn K1 -300
+turn K2 -300
+turn K3 -300
+turn K4 -300
+turn K1 13
+turn K2 6
+turn K3 64
+turn K4 25
+wait 300
+shot s4.png
+turn K1 -300
+turn K2 -300
+turn K3 -300
+turn K4 -300
+turn K1 38
+turn K2 32
+turn K3 25
+turn K4 19
+wait 300
+shot s5.png
+turn K1 -300
+turn K2 -300
+turn K3 -300
+turn K4 -300
+turn K1 64
+turn K2 64
+turn K3 64
+wait 300
+shot s6.png
+turn K1 -300
+turn K2 -300
+turn K3 -300
+turn K4 -300
+turn K1 64
+turn K2 64
+turn K3 64
+turn K4 51
+wait 300
+shot s7.png
+turn K1 -300
+turn K2 -300
+turn K3 -300
+turn K4 -300
+turn K1 19
+turn K2 45
+turn K3 13
+turn K4 19
+key w7 down
+wait 200
+turn K2 -12
+wait 300
+shot s8.png
+key w7 up

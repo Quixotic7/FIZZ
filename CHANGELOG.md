@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **SENDS has a cat.** The FX page's four bars are now a neon cat in sunglasses: the **left ear is CHORUS** and the **right ear DELAY** (each fills from its base toward the tip), the **lens is REVERB** (it fills from the left), and **DRY** sets the whole cat's colour: fully dry it is muted and grey, fully wet bright. The head's outline takes CHORUS's blue on the left and DELAY's green on the right. The names, values and steps under it are as before; a locked send's part gets a bolder outline.
+
 ## 0.12.0-beta.8 (2026-10-26)
 
 The sequencer clean-up (2026-10-26; docs/SEQ-CLEANUP-PLAN.md, the mock-ups in mockups/fizz-seq-cleanup.html), and the flash diet.

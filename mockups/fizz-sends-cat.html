@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ SENDS: the cat</title>
+<!-- FIZZ: the FX layer's first page (SENDS) with the owner's cat (art/CatSendUI_002.svg) in place of the four bars.
+     Round 4, 2026-10-26. Each screen is today's SENDS page from the host simulator (mockups/ref/sends-real-N.png, made
+     by make_cat_svg.py --shots): the header, the labels, the values, the chips and the steps are the firmware's own,
+     untouched; only the bars' area is replaced by the cat. LEFT EAR = CHORUS (fills from its base up), RIGHT EAR =
+     DELAY, the LENS = REVERB (fills from left to right), DRY = the whole cat's colour (dry muted, wet bright).
+     ?shot=N one canvas at 1x, ?sheet=1 every screen at 2x -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: SENDS with the cat (mock-up round 4, 2026-10-26)</h1>
+<p>Each screen is today's SENDS page from the simulator with only the bars replaced by the owner's cat: the header,
+the labels, the values and the steps are the firmware's own. <strong>Left ear = CHORUS</strong>: it fills from its base
+up. <strong>Right ear = DELAY</strong>, the same. <strong>The lens = REVERB</strong>: it fills from left to right, the
+rest a dim orange. <strong>DRY</strong>: fully dry the whole cat is muted, fully wet bright. A locked send's part gets a
+bolder outline.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="fizz-sends-cat-svg.js"></script>
+<script>
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+function hex(h) { return [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); }
+// DRY / WET: toward a dim grey of the colour's own lightness as the dry rises (wet 1: the colour as drawn)
+function tint(col, wet) {
+  const [r, g, b] = hex(col), y = 0.3 * r + 0.55 * g + 0.15 * b, s = 0.1 + 0.9 * wet, v = 0.55 + 0.45 * wet;
+  return `rgb(${[r, g, b].map(x => Math.round(clamp((y + (x - y) * s) * v, 0, 255))).join(',')})`;
+}
+// the cat: the SVG's units onto the screen, ear tips at y 12, the chin at 129, centred
+const SC = 0.15, CX = 542.5, TOP = 58;
+const PATH = {};
+for (const k in CAT_PARTS) PATH[k] = new Path2D(CAT_PARTS[k].d);
+function part(c, k, col, o = {}) {
+  const p = CAT_PARTS[k];
+  c.save(); c.translate(p.tx, p.ty); c.lineCap = 'round'; c.lineJoin = 'round';
+  if (o.clip) { c.beginPath(); c.rect(o.clip[0] - p.tx, o.clip[1] - p.ty, o.clip[2], o.clip[3]); c.clip(); }
+  const a = o.a ?? 1, glow = o.glow ?? 0;
+  if (p.fill) {
+    if (glow > 0) { c.strokeStyle = col; c.globalAlpha = 0.12 * glow; c.lineWidth = 28; c.stroke(PATH[k]); c.globalAlpha = 0.25 * glow; c.lineWidth = 12; c.stroke(PATH[k]); }
+    c.globalAlpha = a; c.fillStyle = col; c.fill(PATH[k]);
+  } else {
+    if (glow > 0) { c.strokeStyle = col; c.globalAlpha = 0.1 * glow; c.lineWidth = p.sw * 3.2; c.stroke(PATH[k]); c.globalAlpha = 0.22 * glow; c.lineWidth = p.sw * 1.9; c.stroke(PATH[k]); }
+    c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = p.sw; c.stroke(PATH[k]);
+  }
+  c.restore();
+}
+function outlineOf(c, k, col, lw, a) {
+  const p = CAT_PARTS[k]; c.save(); c.translate(p.tx, p.ty); c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw; c.lineJoin = 'round'; c.stroke(PATH[k]); c.restore();
+}
+// the ears' triangles (the SVG's corners): the base (the slanted edge on the head's side) and the tip
+const EAR_TRI = { ear_l: { a: [433.9, 283.7], b: [316.5, 350.3], t: [308.3, 129.6] },
+                  ear_r: { a: [648.9, 283.5], b: [770.9, 353.6], t: [778.1, 129.3] } };
+// an ear: empty a faint shape and its outline; lit from its base toward the tip, the level's edge parallel to the base
+function ear(c, k, lvl, col, glow, lock) {
+  part(c, k, col, { a: 0.14 });
+  outlineOf(c, k, col, 4, 0.55);
+  if (lvl > 0) {
+    const { a, b, t } = EAR_TRI[k], ux = b[0] - a[0], uy = b[1] - a[1], ul = Math.hypot(ux, uy), dx = ux / ul, dy = uy / ul;
+    let nx = -dy, ny = dx; const h = (t[0] - a[0]) * nx + (t[1] - a[1]) * ny; if (h < 0) { nx = -nx; ny = -ny; }
+    const H = Math.abs(h) * lvl, E = 120;                  // the band from just behind the base to the level
+    const A0 = [a[0] - dx * E - nx * 30, a[1] - dy * E - ny * 30], B0 = [b[0] + dx * E - nx * 30, b[1] + dy * E - ny * 30];
+    const band = new Path2D(); band.moveTo(...A0); band.lineTo(...B0); band.lineTo(B0[0] + nx * (H + 30), B0[1] + ny * (H + 30));
+    band.lineTo(A0[0] + nx * (H + 30), A0[1] + ny * (H + 30)); band.closePath();
+    c.save(); c.clip(band); part(c, k, col, { glow }); c.restore();
+  }
+  if (lock) outlineOf(c, k, col, 9, 1);
+}
+// the lens: lit from the left to the level, the rest a dim orange
+function lens(c, lvl, col, glow, lock) {
+  const [x0, y0, x1, y1] = CAT_PARTS.visor_lens.box, xs = x0 + lvl * (x1 - x0);
+  part(c, 'visor_lens', col, { a: 0.28, clip: [xs, y0 - 20, x1 - xs + 40, y1 - y0 + 40] });
+  if (lvl > 0) part(c, 'visor_lens', col, { clip: [x0 - 40, y0 - 20, xs - x0 + 40, y1 - y0 + 40], glow });
+  if (lock) outlineOf(c, 'visor_lens', col, 9, 1);
+}
+function cat(c, v, lock) {
+  const wet = 1 - v[3], g = 0.35 + 0.65 * wet;
+  c.save(); c.translate(120, 12); c.scale(SC, SC); c.translate(-CX, -TOP);
+  // the outline in the sends' colours: the left side CHORUS's, the right DELAY's, through white at the crown and chin;
+  // a side at 0 is grey, brighter toward its colour as its send rises
+  const sideCol = (lvl, col) => { const a = hex('#8a8a96'), b = hex(col), f = lvl > 0 ? 0.35 + 0.65 * lvl : 0;
+    return '#' + a.map((x, i) => Math.round(x + (b[i] - x) * f).toString(16).padStart(2, '0')).join(''); };
+  const [ox0, , ox1] = CAT_PARTS.outline.box, grad = c.createLinearGradient(ox0, 0, ox1, 0);
+  grad.addColorStop(0, tint(sideCol(v[0], '#35c1e8'), wet)); grad.addColorStop(0.3, tint(sideCol(v[0], '#35c1e8'), wet));
+  grad.addColorStop(0.5, tint('#d8d8e0', wet));
+  grad.addColorStop(0.7, tint(sideCol(v[1], '#38d57c'), wet)); grad.addColorStop(1, tint(sideCol(v[1], '#38d57c'), wet));
+  part(c, 'outline', grad, { glow: g });
+  ['wh_l1', 'wh_l2', 'wh_l3'].forEach(k => part(c, k, tint('#418cb4', wet), { glow: g }));
+  ['wh_r1', 'wh_r2', 'wh_r3'].forEach(k => part(c, k, tint('#45b36f', wet), { glow: g }));
+  ear(c, 'ear_l', v[0], tint('#35c1e8', wet), g, lock === 0);
+  ear(c, 'ear_r', v[1], tint('#38d57c', wet), g, lock === 1);
+  lens(c, v[2], tint('#fd5926', wet), g, lock === 2);
+  part(c, 'visor_frame', tint('#fd5926', wet), { glow: g });
+  part(c, 'nose', tint('#4b3025', wet)); part(c, 'mouth1', tint('#5e524a', wet)); part(c, 'mouth2', tint('#5e524a', wet));
+  c.restore();
+}
+// v: CHORUS, DELAY, REVERB, DRY as the base screen shows them (0..1); lock: the send a held step locks
+const SCREENS = [
+  { title: 'no sends, fully dry', v: [0, 0, 0, 1] },
+  { title: 'CHORUS 75%, REVERB 9%', v: [0.75, 0, 0.09, 0.29] },
+  { title: 'DELAY 80%, REVERB 50%', v: [0, 0.8, 0.5, 0.5] },
+  { title: 'REVERB 100%', v: [0.2, 0.09, 1, 0.39] },
+  { title: 'all in the middle', v: [0.59, 0.5, 0.39, 0.29] },
+  { title: 'all full, fully wet', v: [1, 1, 1, 0] },
+  { title: 'all full, DRY 80%', v: [1, 1, 1, 0.8] },
+  { title: 'a step held, DELAY locked', v: [0.29, 0.52, 0.2, 0.29], lock: 1 },
+];
+const BASE = SCREENS.map((s, i) => { const im = new Image(); im.src = `ref/sends-real-${i + 1}.png`; return im; });
+const ready = Promise.all(BASE.map(im => new Promise(r => { if (im.complete) r(); else im.onload = r; })));
+function draw(i, cv, scale) {
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
+  c.setTransform(scale, 0, 0, scale, 0, 0);
+  c.drawImage(BASE[i], 0, 0, 240, 240);
+  c.fillStyle = '#000'; c.fillRect(4, 26, 232, 104); c.fillRect(56, 4, 128, 22);   // the bars' area (and above the cat's ears)
+  cat(c, SCREENS[i].v, SCREENS[i].lock ?? -1);
+}
+const q = new URLSearchParams(location.search);
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  ready.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong>`; d.appendChild(p);
+    document.getElementById('cells').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>
