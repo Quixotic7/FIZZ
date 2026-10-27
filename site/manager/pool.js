@@ -120,6 +120,8 @@ export function mountPool(ctx) {
     grid.querySelectorAll(".ps.sel").forEach((x) => x.classList.remove("sel"));
     if (P.sel) b.classList.add("sel");
     renderBar();
+    const e = P.sel && pool().get(P.sel);              // (the owner, 2026-10-27: heard on the computer keys)
+    if (e && e.id && ctx.previewId) ctx.previewId(e.id);
   });
   grid.addEventListener("keydown", (ev) => {
     const b = ev.target.closest(".ps");
@@ -178,6 +180,7 @@ export function mountPool(ctx) {
     if (!b || !can()) return;
     const id = +b.dataset.id;
     P.pick = P.pick === id ? null : id;
+    if (P.pick && ctx.previewId) ctx.previewId(id);
     mine.querySelectorAll(".cas").forEach((x) => x.setAttribute("aria-pressed", String(+x.dataset.id === P.pick)));
     grid.classList.toggle("picking", !!P.pick);
     const pm = pool();

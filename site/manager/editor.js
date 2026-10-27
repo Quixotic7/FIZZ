@@ -550,18 +550,26 @@ export function mountEditor(ctx) {
   }
 
   // ---------------------------------------------------------------- the keybed (the FM-1's: 27 keys from F)
+  // (the owner, 2026-10-27) the computer keys play on LIBRARY, POOL and IMPORT too: there ctx.keys says what plays (the
+  // FM-1's track with TRACK on, else the browser's FIZZ with the sound picked); on EDIT the editor's own target
+  const elsewhere = () => $("tab-edit").hidden && !!(ctx.keys && ctx.keys.active());
+  const tgt = () => (elsewhere() ? ctx.keys.target() : E.target);
   function noteOn(n) {
     if (E.held.has(n)) return;
-    E.held.set(n, true);
-    if (E.target && E.target.ready()) E.target.note(n, 100);
-    else if (E.target) startTarget().then(() => { if (E.held.has(n) && E.target.ready()) E.target.note(n, 100); });
+    const T = tgt();
+    E.held.set(n, T);
+    if (T && T.ready()) T.note(n, 100);
+    else if (T) (elsewhere() ? ctx.keys.start() : startTarget()).then(() => { if (E.held.get(n) === T && T.ready()) T.note(n, 100); });
     renderKeys();
+    if (ctx.keys && ctx.keys.held) ctx.keys.held(E.held.size);
   }
   function noteOff(n) {
     if (!E.held.has(n)) return;
+    const T = E.held.get(n);
     E.held.delete(n);
-    if (E.target && E.target.ready()) E.target.note(n, 0);
+    if (T && T.ready()) T.note(n, 0);
     renderKeys();
+    if (ctx.keys && ctx.keys.held) ctx.keys.held(E.held.size);
   }
   const kbDown = new Map();
   kb.addEventListener("pointerdown", (ev) => {
@@ -583,12 +591,13 @@ export function mountEditor(ctx) {
     if (PC_BLACK[key] !== undefined) return 53 + 12 * E.oct + PC_BLACK[key];
     return -1;
   };
-  const typing = (ev) => ev.target && (ev.target.tagName === "INPUT" || ev.target.tagName === "TEXTAREA" || ev.target.isContentEditable);
+  const typing = (ev) => ev.target && (ev.target.tagName === "INPUT" || ev.target.tagName === "TEXTAREA" || ev.target.tagName === "SELECT" || ev.target.isContentEditable);
   const pcDown = new Map();
   document.addEventListener("keydown", (ev) => {
-    if ($("tab-edit").hidden || typing(ev) || ev.metaKey || ev.ctrlKey || ev.altKey || ev.repeat || !E.s) return;
+    if (typing(ev) || ev.metaKey || ev.ctrlKey || ev.altKey || ev.repeat) return;
+    if (!(elsewhere() || (!$("tab-edit").hidden && E.s))) return;
     const k = ev.key.toLowerCase();
-    if (k === "z" || k === "x") { E.oct = Math.max(-2, Math.min(2, E.oct + (k === "z" ? -1 : 1))); renderKeys(); return; }
+    if (k === "z" || k === "x") { E.oct = Math.max(-2, Math.min(2, E.oct + (k === "z" ? -1 : 1))); renderKeys(); if (ctx.keys && ctx.keys.oct) ctx.keys.oct(E.oct); return; }
     const n = pcNote(k);
     if (n < 0) return;
     ev.preventDefault();
@@ -649,6 +658,6 @@ export function mountEditor(ctx) {
     show() { if (!E.s) open(blank(), { label: "NEW SOUND" }); else render(); },
     sound: () => E.s, base: () => E.base, place: () => E.place, state: E,
     setRec(on) { if (E.rec !== !!on) { E.rec = !!on; renderKeys(); } },
-    set, value: v, tagNames,
+    set, value: v, tagNames, octave: () => E.oct,
   };
 }

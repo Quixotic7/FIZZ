@@ -223,6 +223,23 @@ export function mountLive(ctx) {
     render();
     return true;
   }
+  // (the owner, 2026-10-27) a sound that is not on the unit (an IMPORT row) heard on the track the same way: AUDITION,
+  // nothing stored; KEEP / CANCEL as for a preset picked in LIBRARY
+  async function pickSound(s, name) {
+    if (!ok() || !s) return false;
+    if (!L.pending) {
+      const r = await readTrack();
+      if (!r) return false;
+      L.pending = { frame: r.f, t: r.s.track, name: "" };
+    }
+    const x = await link().store(storeSound({ name: s.name, blob: s.blob, drive: s.drive || 0, track: L.pending.t, pan: s.pan,
+      chorus: s.sends && s.sends.chorus, delay: s.sends && s.sends.delay, reverb: s.sends && s.sends.reverb, audition: true,
+      extras: { id: 0, sound: 0, edited: true } })).catch(() => null);
+    if (!x || x.kind !== "store" || x.status !== 0) return false;
+    L.pending.name = name || s.name;
+    render();
+    return true;
+  }
   function keep() { if (L.pending) toast(`${tn(L.pending.t)}: ${L.pending.name}`, "--pink"); L.pending = null; render(); }
   async function cancel() {
     const p = L.pending;
@@ -273,7 +290,7 @@ export function mountLive(ctx) {
   }
 
   return {
-    target, render, attach, detach, pick, keep, cancel, strip, stripClick, nudge, loadOnUnit,
+    target, render, attach, detach, pick, pickSound, keep, cancel, strip, stripClick, nudge, loadOnUnit, setOn,
     on: () => L.on && L.cap,
     following: () => L.follow,
     browsing: () => L.browse,
