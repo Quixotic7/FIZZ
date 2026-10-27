@@ -39,11 +39,45 @@ void qd_player_voice_patch(const qd_pool_t *pool, int i, int16_t *out)
             out[v->dip_id[k]] = v->dip_v[k];
 }
 
-/* FIZZ MIDI (c): a note to the app's MIDI OUT (player.h) */
-static void pout(qd_player_t *pl, int t, int note, int vel, int live)
+/* FIZZ MIDI (c): a note to the app's MIDI OUT (player.h). Out of line, as mout_on: the event's and the block's code are
+ * the unit's RAM code (firmware/build.py HOT), full; these stay in the flash */
+static __attribute__((noinline)) void pout(qd_player_t *pl, int t, int note, int vel, int live)
 {
     if (pl->out)
         pl->out(pl->out_ctx, t, note, vel, live);
+}
+static __attribute__((noinline)) void pout_off(qd_player_t *pl, int t, int note)   /* (a note's OFF, or -1 the
+                                                         * track's sequencer notes': fewer arguments at each call) */
+{
+    pout(pl, t, note, 0, 0);
+}
+
+/* FIZZ MIDI (c): a legato to MIDI OUT: the new note, then the old one's OFF. Out of line (RAM code: pout's note) */
+static __attribute__((noinline)) void mout_legato(qd_player_t *pl, int t, int note, int vel, int was)
+{
+    pout(pl, t, note, vel, 0);
+    if (was != (note & 127))
+        pout_off(pl, t, was);
+}
+
+/* FIZZ MIDI (c, e): a trig's note to MIDI OUT; a MIDI sound (no voice) sends its locks first, and a TIE ends the
+ * track's notes before it, after its ON. Out of line (RAM code: pout's note) */
+static __attribute__((noinline)) void mout_on(qd_player_t *pl, int t, const qd_trec_t *r, const qd_seq_ev_t *e)
+{
+    if (qd_msnd_is(r->patch) && pl->mlk) {
+        const int first = pl->mlk(pl->out_ctx, t, r, 0);
+        pout(pl, t, e->note, e->vel, 0);
+        if (first && e->kind == QD_EV_TIE) {
+            int p;
+            for (p = 0; p < 128; p++)
+                if (pl->last_on[t][p] && p != (e->note & 127)) {
+                    pout_off(pl, t, p);
+                    pl->last_on[t][p] = 0;
+                }
+        }
+    } else {
+        pout(pl, t, e->note, e->vel, 0);
+    }
 }
 
 static void mfx_out_on(void *ctx, int g, const qd_mfx_note_t *n);
@@ -144,7 +178,7 @@ static void slide_unhold(qd_player_t *pl, int t)       /* the held notes let go 
         const int note = pl->slide_hold_note[t][k];
         if (sr && pl->last_on[t][note] == sr) {
             qd_pool_note_off(pl->pool, t, note);
-            pout(pl, t, note, 0, 0);
+            pout_off(pl, t, note);
             pl->last_on[t][note] = 0;
             pl->offs++;
         }
@@ -211,9 +245,7 @@ static void note_on(qd_player_t *pl, const qd_seq_ev_t *e)
             slide_write(pl, i, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
             pl->last_on[t][was] = 0;
             qd_pool_legato(pl->pool, i, e->note, e->vel);
-            pout(pl, t, e->note, e->vel, 0);            /* (MIDI: the new note, then the old one's OFF: legato) */
-            if (was != (e->note & 127))
-                pout(pl, t, was, 0, 0);
+            mout_legato(pl, t, e->note, e->vel, was);   /* (MIDI: the new note, then the old one's OFF) */
             qd_pool_glide_tie(pl->pool, o, e->note);
             apply_locks(pl, e, i);
             pl->last_on[t][e->note & 127] = e->serial;
@@ -226,20 +258,7 @@ static void note_on(qd_player_t *pl, const qd_seq_ev_t *e)
     }
     qd_pool_set_pan(pl->pool, t, pl->model->t[t].mix.pan);   /* (2026-10-26: SPREAD's middle) */
     i = qd_pool_note_on_at(pl->pool, t, o, e->note, e->vel, r->patch, &r->at);
-    if (qd_msnd_is(r->patch) && pl->mlk) {             /* FIZZ MIDI (e): a MIDI sound: no voice; its locks first */
-        const int first = pl->mlk(pl->out_ctx, t, r, 0);
-        pout(pl, t, e->note, e->vel, 0);
-        if (first && e->kind == QD_EV_TIE) {            /* (a TIE: the track's notes before it end, after its ON) */
-            int p;
-            for (p = 0; p < 128; p++)
-                if (pl->last_on[t][p] && p != (e->note & 127)) {
-                    pout(pl, t, p, 0, 0);
-                    pl->last_on[t][p] = 0;
-                }
-        }
-    } else {
-        pout(pl, t, e->note, e->vel, 0);
-    }
+    mout_on(pl, t, r, e);                               /* FIZZ MIDI (c, e): the note to MIDI OUT */
     if (sl)
         slide_write(pl, i, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
     qd_pool_glide_note(pl->pool, i, o, r, e->tick, held);   /* E1: portamento's start (the chord: the trig's notes) */
@@ -310,7 +329,7 @@ static void mfx_out_off(void *ctx, int g, int track, int pitch)
     if (track >= QD_PAT_NTRACK)
         return;
     qd_pool_note_off(pl->pool, track, pitch);
-    pout(pl, track, pitch, 0, 0);
+    pout_off(pl, track, pitch);
     pl->offs++, pl->mfx_offs++;
     memset(&e, 0, sizeof e);
     e.sample = pl->seq->now, e.tick = pl->mfx.now, e.track = track, e.note = pitch, e.step = -1, e.pat = -1;
@@ -378,7 +397,7 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
                 for (p = 0; p < 128; p++)               /* (the tied note held straight: it ends too) */
                     if (!pl->on_grp[t][p] && pl->last_on[t][p]) {
                         qd_pool_note_off(pl->pool, t, p);
-                        pout(pl, t, p, 0, 0);
+                        pout_off(pl, t, p);
                         pl->last_on[t][p] = 0;
                     }
                 mfx_end_track(pl, e);
@@ -410,7 +429,7 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
         }
         if (e->serial && pl->last_on[t][e->note & 127] == e->serial) {
             qd_pool_note_off(pl->pool, t, e->note);
-            pout(pl, t, e->note, 0, 0);
+            pout_off(pl, t, e->note);
             pl->last_on[t][e->note & 127] = 0;
             pl->offs++;
             plog(pl, e, QD_LOG_OFF, -1, -1, 0);
@@ -449,9 +468,7 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
             if (slide_take(pl, e))                      /* (2026-10-26: a slide armed: the tie glides with it) */
                 slide_write(pl, held, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
             qd_pool_legato(pl->pool, held, e->note, e->vel);
-            pout(pl, t, e->note, e->vel, 0);            /* (MIDI: legato, the new note before the old one's OFF) */
-            if (was != (e->note & 127))
-                pout(pl, t, was, 0, 0);
+            mout_legato(pl, t, e->note, e->vel, was);   /* (MIDI: the new note, then the old one's OFF) */
         }
         qd_pool_glide_tie(pl->pool, &pl->model->t[t].owner, e->note);   /* (E1: the track's last note) */
         apply_locks(pl, e, held);
@@ -505,7 +522,7 @@ void qd_player_block(qd_player_t *pl)
             for (t = 0; t < QD_PAT_NTRACK; t++)
                 if (((pl->mfx_audible >> t) & 1u) && !((aud >> t) & 1u)) {
                     qd_mfx_flush_track(&pl->mfx, t, 0);
-                    pout(pl, t, -1, 0, 0);              /* (MIDI OUT: its sequencer notes' OFFs) */
+                    pout_off(pl, t, -1);              /* (MIDI OUT: its sequencer notes' OFFs) */
                 }
             pl->mfx_audible = aud;
         }
@@ -526,7 +543,7 @@ void qd_player_stop(qd_player_t *pl)
                                                          * notes) */
         int t;
         for (t = 0; t < QD_PAT_NTRACK; t++)
-            pout(pl, t, -1, 0, 0);
+            pout_off(pl, t, -1);
     }
 }
 

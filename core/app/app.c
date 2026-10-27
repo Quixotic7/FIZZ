@@ -480,7 +480,8 @@ static void mo_edit(void *ctx, int t, int id, int old, int value)   /* (the play
  * OUT on), a pulse at every 24th of a beat the transport reached (the first on its 0, after START), STOP when it stops,
  * follows an outside clock or CLOCK OUT goes off; START again when it restarts from the top. FIZZ has no pause: no
  * CONTINUE. Its stop: the sequencer's notes still owed end (MIDI STOP's and the clock lost's too) */
-static void mo_clock(qd_app_t *a)
+static __attribute__((noinline)) void mo_clock(qd_app_t *a)   /* (out of line: qd_app_block_begin is RAM
+                                                         * code on the unit, firmware/build.py HOT; this stays in the flash) */
 {
     const qd_seq_t *s = &a->seq;
     const int own = s->playing && !s->ext;
