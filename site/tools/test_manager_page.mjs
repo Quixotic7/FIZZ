@@ -2,7 +2,8 @@
 // The manager page (site/manager/) in headless Chromium over the DevTools protocol (as test_site.mjs: no Playwright,
 // never a window), against its simulated FM-1 (?sim: the browser FIZZ behind a fake Web MIDI; headless Chromium's own
 // Web MIDI mangles SysEx, so the unit is never reached from here):
-//   - every tab at 1280 x 800 and 390 x 844: no console error, no horizontal scroll; the screenshots beside the
+//   - every tab at 1280 x 800 and 390 x 844: no console error, no horizontal scroll (at 1280 no page scroll at all: the
+//     cards' lists scroll; LIBRARY's IN POOL / NOT IN POOL; BACKUP's play button); the screenshots beside the
 //     mock-ups' (mockups/png/fizz-web-manager-0N-*.png) for the eye;
 //   - BACKUP: the STATUS numbers without a backup; BACK UP keeps the backup in this browser (no download), its save
 //     button writes it to a file (showSaveFilePicker, stubbed here), DELETE asks first; a stored backup and a dropped
@@ -557,6 +558,26 @@ try {
   await waitFor(`__mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${nb + 1}`, 15000);
   await idle();
   check(await evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine' && r.name === 'FRESH ONE').length === 1"), "IMPORT: only the new one sent (FRESH ONE in MY PRESETS)");
+
+  // every page fits the window (the owner, 2026-10-26): at 1280 x 800 the page never scrolls, each card's list does;
+  // LIBRARY's last preset picked keeps its panel in view; IN POOL / NOT IN POOL; BACKUP's play button
+  const fit = [];
+  for (const t of ["backup", "library", "edit", "pool", "import"]) {
+    await click(`#t-${t}`);
+    await sleep(400);
+    if (!(await evaluate("document.documentElement.scrollHeight <= window.innerHeight + 1 && window.scrollY === 0"))) fit.push(t);
+  }
+  check(!fit.length, `every tab fits 1280 x 800, no page scroll${fit.length ? `: not ${fit.join(", ")}` : ""}`);
+  await click("#t-library");
+  const lib = await evaluate(`(async () => { const l = document.getElementById('l-list'); l.scrollTop = l.scrollHeight; const c = [...l.querySelectorAll('.cas')].pop(); c.click();
+    await new Promise((r) => setTimeout(r, 300)); const r = document.getElementById('l-sel').getBoundingClientRect();
+    return { scrolls: l.scrollHeight > l.clientHeight, top: r.top, page: window.scrollY }; })()`);
+  check(lib.scrolls && lib.page === 0 && lib.top > 0 && lib.top < 200, `LIBRARY: the list scrolls by itself; the last preset picked, its panel stays at ${Math.round(lib.top)} px`);
+  const pf = await evaluate(`(async () => { const n = () => document.querySelectorAll('#l-list .cas').length, t = (k) => document.querySelector('#l-filter [data-pool="' + k + '"]'), w = () => new Promise((r) => setTimeout(r, 150));
+    const all = n(); t("in").click(); await w(); const a = n(); t("out").click(); await w(); const b = n(); t("out").click(); await w(); return { all, a, b, back: n() }; })()`);
+  check(pf.a > 0 && pf.b > 0 && pf.a + pf.b === pf.all && pf.back === pf.all, `LIBRARY: IN POOL ${pf.a} + NOT IN POOL ${pf.b} = ${pf.all}; off again ${pf.back}`);
+  await click("#t-backup");
+  check(await evaluate("[...document.querySelectorAll('#baks .bk')].some((b) => b.querySelector('.icon.play'))"), "BACKUP: a full backup has its play button (the browser's FIZZ)");
 
   // the phone
   await size(390, 844, true);

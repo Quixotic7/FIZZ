@@ -630,7 +630,9 @@ button.tag { cursor: pointer; }
   #tab-library .sel { overflow-y: auto; }
   #tab-pool .poolcard { overflow-y: auto; }
   .body.edit { align-items: stretch; }
-  .edcard { overflow-y: auto; }
+  .edcard { overflow: hidden; }                       /* (EDIT: the head and the keybed stay, the panels scroll) */
+  .edcard .stage { flex: 1 1 auto; min-height: 0; overflow-y: auto; align-content: start; padding: 2px; }
+  .edcard .edhead, .edcard .kbed { flex: none; }
   #tab-import .dz { flex: none; }
   #tab-import .ilist { min-height: 0; }
 }

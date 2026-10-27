@@ -273,7 +273,8 @@ export function renameKept(kept, name) {
   kept.name = s;
   return kept;
 }
-export const cleanName = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9 \-.#+&!?']/g, "").slice(0, NAME - 1).trim();
+// (FIZZ's names: core/app/fizz_sx.c name_ok's letters, twelve at most)
+export const cleanName = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9\-.,'&!?#+/()*:_~ ]/g, "").slice(0, NAME - 1).trim();
 // the tag colours of a project's sounds (the kept cards' dots)
 const TAGC = { BASS: "--blue", KEYS: "--cream", PLUCK: "--yellow", PAD: "--violet", LEAD: "--green", DRUMS: "--orange", FX: "--pink" };
 function colours(presets) {
