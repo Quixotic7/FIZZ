@@ -29,14 +29,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createEngine } from "../engine/engine.js";
-import { storeSound, parseDump, parseReply, trackFrame } from "../js/fizz_sysex.js";
+import { storeSound, parseDump, parseReply, trackFrame, listRequest, usersRequest, projectRequest, projectsRequest, dumpRequest } from "../js/fizz_sysex.js";
 import { readFiles, storeFrame } from "../js/digitone.js";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 import { soundFromStoreFrame, parseFizzlib } from "../js/library.js";
 import { SimFizz } from "../manager/simfizz.js";
 import { findFizz, parseBulk, bulkFrame } from "../manager/fizzlink.js";
 import { makeFizzbak, readBackup, crc32, soundKey } from "../manager/fizzbak.js";
-import { readRegion, layoutOf, LAYOUTS } from "../manager/fizzstore.js";
+import { readRegion, layoutOf, LAYOUTS, regionRecords, buildImage, convertImage, writeStore, RESERVE } from "../manager/fizzstore.js";
+import { modelOf, imageOf, projects, project, walkPat, rkey, RK, patName, copyPatterns, pastePatterns, clearPatterns, keepProject, loadProject,
+  renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName } from "../manager/projects.js";
+import { backupFlash, isBackupFile } from "../js/backup-play.js";
 import { poolPlaces, shownRows, newFilter } from "../manager/presets.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
 import { soundFromFrame, storeFrameOf, blob6, libSound, text, info as vinfo, VALUES, Q, lfo, LF, copySound, tickStep, stepOf } from "../manager/sound.js";
@@ -492,6 +495,112 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   check(sent.every((r) => r.status === 0) && ["NEW ONE", "FROM BAK"].every((n) => mine(rowsI).filter((q) => q.name === n).length === 1) && mine(rowsI).length === 5,
     "IMPORT: only the new ones sent: MY PRESETS 5, each once");
   lk.close(); u.dispose();
+}
+
+// ---- PROJECTS (the owner's requests, 2026-10-26): the store written in the browser (fizzstore.js), patterns
+// between projects and a project kept and brought back (projects.js), checked by the wasm FIZZ's own replies; a backup
+// as the browser FIZZ's flash (js/backup-play.js); LIBRARY's pool filter
+{
+  const L = new Float32Array(128), R = new Float32Array(128);
+  const fizz = async (flash = null) => {
+    const e = await createEngine({ sampleRate: 44100, files: { wasm: module }, flash, options: {} });
+    const run = (ms) => { const end = e.deviceMs() + ms; while (e.deviceMs() < end) e.render(L, R); };
+    const replies = () => { const out = [], b = e.midiOut(); let sx = null; for (const x of b) { if (x === 0xf0) sx = [x]; else if (sx) { sx.push(x); if (x === 0xf7) { out.push(parseReply(sx)); sx = null; } } } return out; };
+    const ask = (f, n = 800) => { e.midiIn(f); const got = []; for (let i = 0; i < n; i++) { run(5); got.push(...replies().filter(Boolean)); if (got.length && got[got.length - 1].last !== false) return got; } return got; };
+    const t = e.info().panelTable, BT = { HOME: 6 };
+    let keys = 0, buttons = 0;
+    const set = () => e.setPanel({ keys: keys >>> 0, buttons: buttons >>> 0, enc: new Int32Array(7), keyVel: new Uint8Array(27) });
+    const tapB = (n) => { buttons |= 1 << t.btnId[BT[n]]; set(); run(80); buttons = 0; set(); run(60); };
+    const tapK = (k) => { keys |= 1 << k; set(); run(80); keys = 0; set(); run(60); };
+    run(1500);
+    const open = (p) => { ask(projectRequest({ op: "load", p: p + 1 })); run(600); };
+    const byId = () => {
+      const pool = ask(listRequest({ pool: true })).flatMap((r) => r.entries || []).filter((x) => x.source === "pool");
+      const m = {};
+      for (const x of pool) { const u = ask(usersRequest({ source: "pool", slot: x.slot })).find((y) => y.kind === "users"); m[x.name] = (m[x.name] || 0) + (u ? u.projects.reduce((a, y) => a + y.steps, 0) : 0); }
+      for (const k of Object.keys(m)) if (!m[k]) delete m[k];
+      return m;
+    };
+    const dev = () => convertImage(e.flash().bytes, "device");
+    return { e, run, ask, tapB, tapK, open, byId, dev };
+  };
+  const eq = (a, b) => Object.keys({ ...a, ...b }).every((k) => (a[k] || 0) === (b[k] || 0));
+  // the writer: an image's records written again (both layouts) read back the same; too many for the region refused
+  const A = await fizz();
+  A.tapB("HOME"); A.tapK(2); A.tapK(4);                       // the demo's A01 edited: its record, with the demo's sound locks
+  A.ask(storeSound({ name: "KEPT ONE", blob: blob(5), track: 0 }));   // a MY preset loaded on track 1 (a 'P' 6 reference)
+  A.run(2500);
+  A.ask(projectRequest({ op: "new", p: 2 })); A.run(800);
+  A.ask(projectRequest({ op: "new", p: 3 })); A.run(800);
+  A.ask(projectRequest({ op: "load", p: 1 })); A.run(2500);
+  const img = A.dev(), rr = regionRecords(img);
+  const back = regionRecords(buildImage("device", rr)), host = regionRecords(convertImage(img, "host"));
+  const sameRecs = (x, y) => x.length === y.length && x.every((r, i) => r.key === y[i].key && same(r.bytes, y[i].bytes));
+  check(sameRecs(rr.lib, back.lib) && sameRecs(rr.prj, back.prj) && sameRecs(rr.prj, host.prj) && sameRecs(rr.lib, host.lib),
+    `the store written again: ${rr.lib.length} + ${rr.prj.length} records the same, packed and in the browser FIZZ's layout`);
+  let full = null;
+  try { writeStore(new Uint8Array(LAYOUTS.device.size), 0, 8, Array.from({ length: 40 }, (_, i) => ({ key: i + 1, bytes: new Uint8Array(240) }))); } catch (x) { full = x; }
+  check(full && full.code === "full", `a store with too little room refused (${full && full.message}): the GC's ${RESERVE} blank sectors kept`);
+  // the patterns: A01 pasted into the new projects 2 (at B01) and 3 (at C05); FIZZ counts the same steps a sound in both
+  const m = modelOf(img), ps = projects(m);
+  const k0 = [...m.prj.keys()].filter((k) => k >>> 24 === RK.PAT && ((k >>> 16) & 0xFF) === 0).map((k) => k & 0xFFFF)[0] ?? -1;   // (the pattern edited)
+  const w = walkPat(m.prj.get(rkey(RK.PAT, 0, k0)));
+  check(ps[0].there && ps[0].demo && ps[1].there && ps[2].there && w && w.trigs > 0 && ps.every((x) => x.pats.every((s) => !s || !s.bad)),
+    `the projects read: ${ps.filter((x) => x.there).map((x) => `${x.name}${x.demo ? " (demo)" : ""} ${x.used} patterns ${x.pool} sounds`).join(", ")}; the edited ${k0 >= 0 ? patName(k0) : "?"} ${w ? w.trigs : 0} trigs, 'P' ${w ? w.v : "?"}`);
+  const clip = copyPatterns(m, 0, [0, 1, 2]);                 // (the demo's others, compiled in: nothing to copy)
+  const r2 = pastePatterns(m, 1, 16, clip), r3 = pastePatterns(m, 2, 36, clip);
+  check(clip.pats.length === 1 && clip.pool.size > 0 && r2.poolAdded === clip.pool.size && same(r2.at, [16]) && same(r3.at, [36]),
+    `COPY ${clip.names.join(", ")} (pool places ${[...clip.pool.keys()].join(", ")}; presets ${[...clip.presets.keys()].join(", ") || "none"}) PASTE onto 2 B01 (+${r2.poolAdded} pool), 3 C05 (+${r3.poolAdded})`);
+  const fizzpat = await readFizzpat(makeFizzpat(clip, { fizz: "test" }), "t.fizzpat");
+  const m4 = modelOf(img); pastePatterns(m4, 1, 16, fizzpat);
+  check(same(m4.prj.get(rkey(RK.PAT, 1, 16)), m.prj.get(rkey(RK.PAT, 1, 16))), `a .fizzpat read back pastes the same record (${patFileName(clip)})`);
+  const B = await fizz(convertImage(imageOf(m), "host"));
+  B.open(1); const u2 = B.byId(); B.open(2); const u3 = B.byId();
+  check(Object.keys(u2).length > 0 && eq(u2, u3), `FIZZ plays the pasted pattern the same in both: steps a sound ${JSON.stringify(u2)}`);
+  let refused = null;
+  try { clearPatterns(m, 0, [k0 ? 0 : 1]); } catch (x) { refused = x; }
+  clearPatterns(m, 1, [16]);
+  check(refused && refused.code === "demo" && !m.prj.has(rkey(RK.PAT, 1, 16)) && !project(m, 1).pats[16], "CLEAR: 2 B01 gone; a demo pattern refused");
+  // a project kept, written to a .fizzprj, read back and loaded into slot 8 of a FIZZ that has none of its presets
+  const kept = keepProject(modelOf(img), 0);
+  const prj = await readFizzprj(makeFizzprj(kept, { fizz: "test" }), prjFileName(kept));
+  renameKept(prj, "brought back");
+  const C = await fizz();
+  const mc = modelOf(C.dev()), lr = loadProject(mc, 7, prj);
+  const D = await fizz(convertImage(imageOf(mc), "host"));
+  const pl = D.ask(projectsRequest()).find((x) => x.kind === "projects");
+  A.open(0); const a0 = A.byId();
+  D.open(7); const d7 = D.byId();
+  const lrec = mc.prj.get(rkey(RK.PAT, 7, k0)), lw = walkPat(lrec);   // (its track 1 names the preset by its new id)
+  const ref = lw && lw.refAt.length ? lrec[lw.refAt[0]] | (lrec[lw.refAt[0] + 1] << 8) : 0;
+  const refName = (readRegion(imageOf(mc)).presets.find((x) => x.id === ref) || {}).name;
+  check(kept.presets.size === 1 && lr.presetsAdded === 1 && pl && pl.list[7].there && pl.list[7].name === "BROUGHT BACK" && project(mc, 7).demo,
+    `KEEP ${kept.name} (${kept.recs.length} records, ${kept.presets.size} MY preset), .fizzprj read back, loaded into slot 8 of another FIZZ as ${pl ? JSON.stringify(pl.list[7]) : "?"}: its preset added (${lr.presetsAdded})`);
+  check(Object.keys(a0).length > 0 && eq(a0, d7) && refName === "KEPT ONE",
+    `FIZZ plays it there as here: steps a sound ${JSON.stringify(d7)}${eq(a0, d7) ? "" : ` (here ${JSON.stringify(a0)})`}; track 1 names ${refName} (id ${ref})`);
+  // a backup as the browser FIZZ's flash
+  const bak = makeFizzbak({ kind: "full", image: img, fizz: "test" });
+  const bf = await backupFlash(bak, "FIZZ backup 2026-10-26 2140.fizzbak");
+  const E = await fizz(bf.flash);
+  const pe = E.ask(projectsRequest()).find((x) => x.kind === "projects");
+  let pre = null;
+  try { await backupFlash(makeFizzbak({ kind: "presets", presets: [] }), "p.fizzbak"); } catch (x) { pre = x; }
+  check(bf.flash.length === 1 << 20 && bf.name === "FIZZ backup 2026-10-26 2140" && pe && same(pe.list.filter((x) => x.there).map((x) => x.name), readRegion(img).projects.map((x) => x.name)) &&
+    pre && isBackupFile(bak) && isBackupFile(img), `a .fizzbak as the browser FIZZ's flash: it boots with ${pe ? pe.list.filter((x) => x.there).map((x) => x.name).join(", ") : "?"}; a presets-only one refused`);
+  // LIBRARY's filter: IN POOL and NOT IN POOL split the list
+  const rows = [...A.ask(listRequest({ factory: true, pool: true })).flatMap((r) => r.entries || [])];
+  const f = newFilter(), all = shownRows(rows, f);
+  f.pool = "in"; const pin = shownRows(rows, f); f.pool = "out"; const pout = shownRows(rows, f);
+  const n = (x) => x.mine.length + x.fac.length;
+  check(n(pin) > 0 && n(pout) > 0 && n(pin) + n(pout) === n(all) && pin.fac.every((r) => poolPlaces(rows).has(r.id)), `IN POOL ${n(pin)} + NOT IN POOL ${n(pout)} = ${n(all)}`);
+  for (const u of [A, B, C, D, E]) u.e.dispose();
+  // the owner's dumps (FIZZ_SAVES or ../FIZZ-saves; skipped when absent): every pattern record read
+  const dir = process.env.FIZZ_SAVES || path.resolve(SITE, "../../FIZZ-saves");
+  const own = fs.existsSync(dir) ? fs.readdirSync(dir).filter((x) => x.endsWith("-store.bin")).sort().slice(-3) : [];
+  for (const x of own) {
+    const mo = modelOf(new Uint8Array(fs.readFileSync(path.join(dir, x)))), po = projects(mo).filter((y) => y.there);
+    check(po.every((y) => y.pats.every((s) => !s || !s.bad)), `${x}: ${po.map((y) => `${y.name} ${y.used}/${y.pool}`).join(", ")}, every pattern read`);
+  }
 }
 
 // ---- the owner's saved images (outside the repo), read offline

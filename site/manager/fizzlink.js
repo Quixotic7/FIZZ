@@ -39,6 +39,7 @@ import { crc32, hex8 } from "./fizzbak.js";
 export const FIZZ_PREFIX = "FM-1_46";            // firmware/app/fm1.toml id_prefix
 export const BULK = 0x46;                        // app_usb_cmd's command byte
 export const CHUNK = 256;                        // app.c FZ_BK_CHUNK
+export const GAP_MS = 3;                         // between two frames sent (FIZZ takes its inbound frame every ~2 ms)
 export const FZER = {                            // app.c, fizz_xdata.py --help
   10: "the FM-1 is playing: stop it first", 11: "the backup's size is not this FM-1's store",
   12: "the image did not arrive whole (nothing was changed)", 13: "a write failed: FIZZ cleared its store",
@@ -88,7 +89,7 @@ const MORE = Symbol("more");
 
 export class FizzLink {
   constructor(link, id, port) {
-    Object.assign(this, { link, id, port, closed: false, cur: null, q: Promise.resolve(), log: () => {}, onLost: () => {}, rtoMin: 150 });
+    Object.assign(this, { link, id, port, closed: false, cur: null, q: Promise.resolve(), log: () => {}, onLost: () => {}, rtoMin: 150, lastRx: 0 });
     this.reader();
   }
 
@@ -96,7 +97,7 @@ export class FizzLink {
     while (!this.closed) {
       const p = await this.link.read(400);
       if (this.closed) return;
-      if (p) this.dispatch(p);
+      if (p) { this.lastRx = now(); this.dispatch(p); }
       else if (this.link.lost) { this.lost(); return; }
     }
   }
@@ -114,19 +115,26 @@ export class FizzLink {
     let r;
     try { r = c.onFrame(p); } catch (e) { c.fail(e); return; }
     if (r === undefined) return;
-    if (r === MORE) { c.arm(); return; }
+    if (r === MORE) { c.heard = true; c.arm(); return; }
     c.done(r);
   }
 
   // one operation: start() sends, onFrame(p) answers undefined (not its), MORE (its, keep waiting: the wait starts
   // again) or the result; on a quiet `timeout` ms, partial() (or a timeout error)
-  op(start, onFrame, { timeout = 3000, partial = null } = {}) {
+  // retry (reads only: the owner's FM-1 on 2026-10-27 lost about one request in four on a busy USB-MIDI bus, and a
+  // lost IDENTITY read as "FIZZ does not answer", a lost DUMP as a backup that did not finish): sent again, up to
+  // `retry` times, after `timeout` with nothing of it heard (start(c) runs again; c.tries counts)
+  op(start, onFrame, { timeout = 3000, partial = null, retry = 0 } = {}) {
     const run = () => new Promise((resolve, reject) => {
       if (this.closed) { reject(err("lost", "the FM-1 is not connected")); return; }
       let t = null;
       const c = {
-        onFrame,
-        arm: () => { clearTimeout(t); t = setTimeout(() => { if (this.cur !== c) return; if (partial) c.done(partial()); else c.fail(err("timeout", "the FM-1 did not answer")); }, timeout); },
+        onFrame, tries: 0, heard: false,
+        arm: () => { clearTimeout(t); t = setTimeout(() => {
+          if (this.cur !== c) return;
+          if (c.tries < retry && !c.heard) { c.tries++; this.log(`no answer in ${timeout} ms: sent again (${c.tries})`); c.arm(); try { start(c); } catch (e) { c.fail(e); } return; }
+          if (partial) c.done(partial()); else c.fail(err("timeout", "the FM-1 did not answer"));
+        }, timeout); },
         done: (v) => { clearTimeout(t); if (this.cur === c) this.cur = null; resolve(v); },
         fail: (e) => { clearTimeout(t); if (this.cur === c) this.cur = null; reject(e); },
       };
@@ -139,7 +147,15 @@ export class FizzLink {
     return p;
   }
   send(bytes) {
-    if (!this.link.send(Array.from(bytes))) { this.lost(); throw err("lost", "the FM-1 was disconnected"); }
+    // (2026-10-27, the main session: fm1-base keeps one inbound SysEx frame, FIZZ empties it every ~2 ms; two frames
+    // closer than that drop the second) each send at least GAP_MS after the one before: Web MIDI's own timestamp
+    // schedules it, so nothing here waits
+    const t = now(), at = Math.max(t, this.nextAt || 0);
+    this.nextAt = at + GAP_MS;
+    let ok = true;
+    try { if (at > t + 0.2 && this.link.output && typeof performance !== "undefined") this.link.output.send(Array.from(bytes), at); else ok = this.link.send(Array.from(bytes)); }
+    catch (_) { ok = false; }
+    if (!ok) { this.lost(); throw err("lost", "the FM-1 was disconnected"); }
   }
 
   // ---- the semantic channel
@@ -147,11 +163,11 @@ export class FizzLink {
     return this.op(() => this.send(identity()), (p) => {
       const r = parseReply(p);
       return r && r.kind === "identity" ? r.version.replace(/^FIZZ\s*/, "") : undefined;
-    }, { timeout: 1500, partial: () => null });
+    }, { timeout: 700, retry: 3, partial: () => null });
   }
   list({ factory = false, pool = false } = {}) {
     const rows = [];
-    return this.op(() => this.send(listRequest({ factory, pool })), (p) => {
+    return this.op(() => { rows.length = 0; this.send(listRequest({ factory, pool })); }, (p) => {
       const l = parseList(p);
       if (!l) return undefined;
       rows.push(...l.entries);
@@ -164,7 +180,7 @@ export class FizzLink {
       if (d && (d.slot === slot || (source === "factory" && d.slot === 0))) return d.frame;   // (a factory one: slot 0)
       const r = parseReply(p);
       return r && r.kind === "error" && r.command === 0x22 ? null : undefined;
-    });
+    }, { timeout: 1000, retry: 3 });
   }
   // every preset of a source (DUMP slot 0), as many as LIST counted; paced by the unit's reply ring
   dumpAll(source, total, onProgress = () => {}) {
@@ -178,7 +194,11 @@ export class FizzLink {
       return out.length >= total ? out : MORE;
     }, { timeout: 4000, partial: () => out });
   }
-  store(f) {
+  // (the owner's FM-1, 2026-10-27: the first frame after a pause is the one most often lost) before a command that
+  // changes something, a quiet link is woken by a STATUS (sent again until it answers), so the command is never first
+  async wake() { if (now() - this.lastRx > 1000) await this.status(); }
+  async store(f) {
+    await this.wake();
     return this.op(() => this.send(f), (p) => {
       const r = parseReply(p);
       if (r && r.kind === "store") return r;
@@ -189,17 +209,18 @@ export class FizzLink {
   // ---- Phase 1: the library, the pool, the projects edited. One command, the reply `want` gives (its ACK, or
   // another kind), or FIZZ's error reply for that command (an older FIZZ: BAD COMMAND). A job (a pool swap, a delete,
   // a project) answers when it is done: the wait is long, and restarts on any of its frames
-  ask1(f, cmd, want = (r) => r.kind === "ack" && r.command === cmd, timeout = 15000) {
+  async ask1(f, cmd, want = (r) => r.kind === "ack" && r.command === cmd, timeout = 15000, retry = 0) {
+    if (!retry) await this.wake();
     return this.op(() => this.send(f), (p) => {
       const r = parseReply(p);
       if (!r) return undefined;
       if (want(r)) return r;
       if (r.kind === "ack" && r.command === cmd) return r;
       return r.kind === "error" && r.command === cmd ? { status: r.status, statusName: r.statusName, old: r.status === 7 } : undefined;
-    }, { timeout });
+    }, { timeout, retry });
   }
   async status() {
-    const r = await this.ask1(statusRequest(), CMD1.STATUS, (x) => x.kind === "status", 3000).catch(() => null);
+    const r = await this.ask1(statusRequest(), CMD1.STATUS, (x) => x.kind === "status", 800, 3).catch(() => null);
     return r && r.kind === "status" ? r : null;
   }
   flush() { return this.ask1(flushRequest(), CMD1.FLUSH, (x) => x.kind === "status"); }
@@ -208,9 +229,9 @@ export class FizzLink {
   remove(source, slot, { confirm = false } = {}) { return this.ask1(deleteRequest({ source, slot, confirm }), CMD1.DELETE); }
   swap(source, a, b) { return this.ask1(swapRequest({ source, a, b }), CMD1.SWAP); }
   poolRef(slot, id) { return this.ask1(poolRefRequest({ slot, id }), CMD1.POOLREF); }
-  users(source, slot) { return this.ask1(usersRequest({ source, slot }), CMD1.USERS, (x) => x.kind === "users"); }
+  users(source, slot) { return this.ask1(usersRequest({ source, slot }), CMD1.USERS, (x) => x.kind === "users", 5000, 1); }
   async projects() {
-    const r = await this.ask1(projectsRequest(), CMD1.PROJECTS, (x) => x.kind === "projects", 3000).catch(() => null);
+    const r = await this.ask1(projectsRequest(), CMD1.PROJECTS, (x) => x.kind === "projects", 800, 3).catch(() => null);
     return r && r.kind === "projects" ? r : null;
   }
   project(op, p, q = 0) { return this.ask1(projectRequest({ op, p, q }), CMD1.PROJECT, undefined, 30000); }
@@ -223,9 +244,9 @@ export class FizzLink {
       if (d && d.source === "track" && (!slot || d.track === slot - 1)) return d.frame;
       const r = parseReply(p);
       return r && r.kind === "error" && r.command === 0x22 ? null : undefined;
-    }, { timeout: 1500, partial: () => null });
+    }, { timeout: 800, retry: 2, partial: () => null });
   }
-  param(track, id, value) { return this.ask1(paramRequest({ track, id, value, ack: true }), CMD.PARAM, undefined, 2000); }
+  param(track, id, value) { return this.ask1(paramRequest({ track, id, value, ack: true }), CMD.PARAM, undefined, 1000, 1); }   // (a value set: sent again is harmless)
   // Manager fixes: the unit's sound browser on a track ("selected", 0..5) at preset id, as PRESETS turned to it (the
   // owner's OCT- cancels, OCT+ loads) -> ACK {status, a: track + 1, b: the browser's place} | {old} (an older FIZZ)
   browse(track, id) { return this.ask1(browseRequest({ track, id }), CMD.BROWSE, undefined, 3000); }
@@ -233,14 +254,14 @@ export class FizzLink {
   note(ch, n, vel) { this.send(vel ? [0x90 | (ch & 15), n & 127, vel & 127] : [0x80 | (ch & 15), n & 127, 0]); }
 
   // ---- the bulk channel
-  bulk(tag, words, want, timeout) {
+  bulk(tag, words, want, timeout, retry = 0) {
     return this.op(() => this.send(bulkFrame(tag, ...words)), (p) => {
       const r = parseBulk(p);
       return r && (r.tag === want || r.tag === "FZER") ? r : undefined;
-    }, { timeout, partial: () => null });
+    }, { timeout, retry, partial: () => null });
   }
   async storeInfo() {
-    const r = await this.bulk("FZBI", [], "FZBI", 15000);   // (the unit's CRC of ~300 KB, bitwise: tens of ms)
+    const r = await this.bulk("FZBI", [], "FZBI", 2500, 3);   // (the unit's CRC of ~300 KB, bitwise: tens of ms)
     if (!r || r.tag !== "FZBI" || r.data.length < 12) return null;
     return { lo: rd32(r.data, 0), size: rd32(r.data, 4), crc: rd32(r.data, 8) };
   }
@@ -252,7 +273,7 @@ export class FizzLink {
     for (let attempt = 1; ; attempt++) {
       const info = await this.storeInfo();
       if (!info) throw err("nobulk", "this FIZZ has no backup over USB (update FIZZ)");
-      const r = await this.readRegion(info, { depth, gapMs, onProgress, signal, onRead });
+      const r = await this.readPatient(info, { depth, gapMs, onProgress, signal, onRead });
       const crc = crc32(r.image);
       r.stats.attempt = attempt;
       this.log(`backup: ${info.size} B in ${r.stats.ms.toFixed(0)} ms, ${r.stats.kbps.toFixed(1)} KB/s, depth ${depth}, ` +
@@ -263,10 +284,37 @@ export class FizzLink {
       this.log("backup: the store changed while it was read (an autosave?): reading it again");
     }
   }
-  readRegion(info, { depth = 1, gapMs = 0, onProgress = () => {}, signal = null, onRead = null, from = 0, to = info.size }) {
+  // the region in 16 KB pieces, a piece that stalls read again after a pause (the owner's FM-1 after a restore,
+  // 2026-10-27: a whole read stopped answering for 20 s at 37 %, while the same store read in pieces went through)
+  async readPatient(info, { depth = 1, gapMs = 0, onProgress = () => {}, signal = null, onRead = null, piece = 16384, tries = 5 } = {}) {
+    const image = new Uint8Array(info.size), t0 = now();
+    const all = { frames: 0, resent: 0, rtt: [] };
+    for (let from = 0; from < info.size; ) {
+      const to = Math.min(info.size, from + piece);
+      let r = null;
+      for (let k = 1; !r; k++) {
+        try {
+          r = await this.readRegion(info, { depth, gapMs, signal, onRead, from, to, idleMs: 4000,
+            onProgress: (f, off) => onProgress((from + f * (to - from)) / info.size, off) });
+        } catch (e) {
+          if (e.code !== "timeout" || k >= tries || (signal && signal.aborted)) throw e;
+          this.log(`backup: the FM-1 went quiet at ${from.toString(16)}: that piece read again (${k})`);
+          await sleep(1500);
+        }
+      }
+      image.set(r.image.subarray(from, to), from);
+      all.frames += r.stats.frames; all.resent += r.stats.resent; all.rtt.push(r.stats.rtt);
+      from = to;
+    }
+    const ms = now() - t0, n = Math.ceil(info.size / CHUNK), pick = (k) => Math.max(...all.rtt.map((x) => x[k]));
+    const avg = all.rtt.reduce((a, x) => a + x.avg, 0) / all.rtt.length;
+    return { image, stats: { bytes: info.size, frames: all.frames, resent: all.resent, depth, gapMs, ms, kbps: info.size / 1024 / (ms / 1000), perFrame: ms / n,
+      rtt: { avg, median: pick("median"), p95: pick("p95"), max: pick("max") } } };
+  }
+  readRegion(info, { depth = 1, gapMs = 0, onProgress = () => {}, signal = null, onRead = null, from = 0, to = info.size, idleMs = 20000 }) {
     const k0 = Math.floor(from / CHUNK), n = Math.ceil(to / CHUNK) - k0, image = new Uint8Array(info.size);
     const fly = new Map(), rtts = [];
-    let next = k0, done = 0, resent = 0, frames = 0, tick = null, wait = null, rto = 1500, sent = -Infinity;
+    let next = k0, done = 0, resent = 0, frames = 0, tick = null, wait = null, rto = 800, sent = -Infinity;
     const t0 = now();
     const want = (k) => Math.min(CHUNK, info.size - k * CHUNK);
     const ask = (k, again) => {
@@ -294,7 +342,7 @@ export class FizzLink {
         let old = null;
         for (const [k, e] of fly) if (t - e.t >= rto && (!old || e.t < old[1].t)) old = [k, e];
         if (!old) return;
-        if (old[1].tries >= 10) { c.fail(err("timeout", `the FM-1 stopped answering at ${(old[0] * CHUNK).toString(16)}`)); return; }
+        if (old[1].tries >= 20) { c.fail(err("timeout", `the FM-1 stopped answering at ${(old[0] * CHUNK).toString(16)}`)); return; }
         ask(old[0], true);
       }, 10);
     }, (p) => {
@@ -306,7 +354,9 @@ export class FizzLink {
       if (!e || off % CHUNK || r.data.length !== 4 + want(k)) return MORE;   // (a late duplicate)
       image.set(r.data.subarray(4), off);
       if (!e.again) rtts.push(now() - e.t);
-      if (rtts.length >= 8) rto = Math.max(this.rtoMin, Math.min(3000, 4 * stats(rtts.slice(-64)).max));
+      // (capped at 0.8 s: one slow reply, FIZZ writing its store, once made it 3 s, and two lost blocks then outlasted
+      // the 8 s wait: the owner's "backup did not finish", 2026-10-27; a block sent again early only costs a duplicate)
+      if (rtts.length >= 8) rto = Math.max(this.rtoMin, Math.min(800, 4 * stats(rtts.slice(-64)).max));
       fly.delete(k);
       done++;
       onProgress(done / n, off);
@@ -317,20 +367,31 @@ export class FizzLink {
       }
       fill();
       return MORE;
-    }, { timeout: 8000 }).finally(() => { clearInterval(tick); clearTimeout(wait); });
+    }, { timeout: idleMs }).finally(() => { clearInterval(tick); clearTimeout(wait); });
   }
 
   // the store put back (stopped only: the unit refuses while playing, FZER 10). The unit reads the image twice, 512
   // bytes a request: first all of it, to check its CRC-32 before anything is erased (pass "check"), then again while
   // it erases and writes each sector (pass "write"). signal (cancel) is honoured in the check pass only: the reads
   // still to come are answered with zeros, so the unit's CRC check fails and nothing is erased (FZER 12)
-  restore(image, { onProgress = () => {}, onPhase = () => {}, signal = null, idleMs = 30000 } = {}) {
+  async restore(image, { onProgress = () => {}, onPhase = () => {}, signal = null, idleMs = 30000 } = {}) {
+    await this.wake();
     const len = image.length, crc = crc32(image);
     let pass = 1, last = -1, served = 0, bytes = [0, 0], cancelled = false;
     const t0 = now();
-    return this.op(() => { onPhase("check"); this.send(bulkFrame("FZSR", len, crc)); }, (p) => {
+    // FZSR lost on the way (the owner's FM-1, 2026-10-27): nothing pulled 3 s after it, sent again (3 times at most;
+    // the unit only starts on one it heard, and erases nothing before the image's first pass is checked)
+    let kick = null, sends = 0;
+    const go = () => {
+      sends++;
+      this.send(bulkFrame("FZSR", len, crc));
+      clearTimeout(kick);
+      kick = setTimeout(() => { if (!served && sends < 3 && !this.closed) { this.log(`restore: FZSR not taken up, sent again (${sends})`); go(); } }, 3000);
+    };
+    return this.op(() => { onPhase("check"); go(); }, (p) => {
       const q = parseRequest(p);
       if (q) {
+        clearTimeout(kick);
         if (q.len > 512 || q.addr + q.len > len) throw err("badreq", `the FM-1 asked for ${q.addr.toString(16)}+${q.len}, outside the image`);
         if (pass === 1 && q.addr < last) { pass = 2; onPhase("write"); }
         last = q.addr;
@@ -348,7 +409,7 @@ export class FizzLink {
       this.log(`restore: ${r.tag} ${code} after ${served} reads, ${ms.toFixed(0)} ms (${(2 * len / 1024 / (ms / 1000)).toFixed(1)} KB/s both passes)`);
       if (r.tag === "FZOK") return { ok: true, ms, served };
       throw err(cancelled && code === 12 ? "cancel" : "fzer", FZER[code] || `FZER ${code}`, { fzer: code, written: pass === 2 });
-    }, { timeout: idleMs });
+    }, { timeout: idleMs }).catch((e) => { if (e.written === undefined) e.written = pass === 2; throw e; }).finally(() => clearTimeout(kick));   // (nothing written before pass 2)
   }
 }
 

@@ -48,7 +48,7 @@ export function markDuplicates(items, have = []) {
 
 export function mountImport(ctx) {
   const { S, $, say, toast, refreshRows, loadDumps, log } = ctx;
-  const I = { items: [], dest: "mine", track: 0, sending: false };
+  const I = { items: [], dest: "mine", track: 0, sending: false, cur: undefined };   // (cur: the row heard)
   const can = () => !!(S.link && !S.busy && S.unit && S.unit.version && !I.sending);
   const fid = (s) => (s.notes.length ? Math.max(3, 10 - s.notes.length) : 10);
   const fidC = (n) => (n >= 10 ? "var(--green)" : n >= 8 ? "var(--yellow)" : "var(--orange)");
@@ -81,7 +81,7 @@ export function mountImport(ctx) {
       }
       const s = it.sound, f = fid(s), web = (s.tags || []).map((t) => String(t).toUpperCase()).filter((t) => !s.fizzTags.includes(t));
       const res = it.result ? (it.result.ok ? `<span class="okmark">✓ ${it.result.pool ? "POOL" : "MY"} ${it.result.slot}</span>` : `<span class="note bad">${esc(it.result.error)}</span>`) : "";
-      return `<div class="ir ${it.on ? "" : "off"}" data-k="${k}"><button class="chk ${it.on ? "on" : ""}" data-k="${k}" aria-pressed="${it.on}" aria-label="Send ${esc(s.name)}">${it.on ? '<svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6"/></svg>' : ""}</button>` +
+      return `<div class="ir ${it.on ? "" : "off"}${I.cur === k ? " cur" : ""}" data-k="${k}"><button class="chk ${it.on ? "on" : ""}" data-k="${k}" aria-pressed="${it.on}" aria-label="Send ${esc(s.name)}">${it.on ? '<svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6"/></svg>' : ""}</button>` +
         `<span class="src ${s.fizz ? "fz" : s.dn2 ? "dn2" : "dn1"}">${s.fizz ? "FIZZ" : s.dn2 ? "DN II" : "DN1"}</span><span class="nm">${esc(s.name)}</span>` +
         `<span class="fid" title="${esc(s.notes.join("\n") || "exact")}">${Array.from({ length: 10 }, (_, j) => `<i style="background:${j < f ? fidC(f) : "#24242b"}"></i>`).join("")}</span>` +
         `<span class="note ${it.dup ? "dup" : s.notes.length ? "lost" : ""}">${it.dup === "mine" ? "already in MY PRESETS" : it.dup === "list" ? "twice in these files" : esc((s.notes[0] || "exact").slice(0, 44))}</span>` +
@@ -142,13 +142,43 @@ export function mountImport(ctx) {
   drop.addEventListener("drop", async (ev) => { ev.preventDefault(); await add([...ev.dataTransfer.files]); });
   $("i-rows").addEventListener("click", (ev) => {
     const b = ev.target.closest(".chk[data-k]");
-    if (!b || I.sending) return;
-    const it = I.items[+b.dataset.k];
-    if (it && it.ok) { it.on = !it.on; render(); }
+    if (b) {
+      if (I.sending) return;
+      const it = I.items[+b.dataset.k];
+      if (it && it.ok) { it.on = !it.on; render(); }
+      return;
+    }
+    const r = ev.target.closest(".ir[data-k]");         // (the owner, 2026-10-27: a row picked is heard on the keys)
+    if (r) hear(+r.dataset.k);
+  });
+  function hear(k) {
+    const it = I.items[k];
+    if (!it || !it.ok) return;
+    I.cur = k;
+    $("i-rows").querySelectorAll(".ir.cur").forEach((x) => x.classList.remove("cur"));
+    const el = $("i-rows").querySelector(`.ir[data-k="${k}"]`);
+    if (el) { el.classList.add("cur"); el.scrollIntoView({ block: "nearest" }); }
+    if (ctx.previewLib) ctx.previewLib(it.sound, it.sound.name);
+  }
+  // up / down: the next sound heard; SPACE ticks it (a big dump looked through, some of it brought in)
+  document.addEventListener("keydown", (ev) => {
+    if ($("tab-import").hidden || ev.metaKey || ev.ctrlKey || ev.altKey || (ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName))) return;
+    const d = { ArrowDown: 1, ArrowUp: -1 }[ev.key];
+    if (d) {
+      ev.preventDefault();
+      let k = I.cur ?? -1;
+      do k += d; while (k >= 0 && k < I.items.length && !I.items[k].ok);
+      if (k >= 0 && k < I.items.length) hear(k);
+      return;
+    }
+    if (ev.key === " " && I.cur !== undefined && I.items[I.cur] && I.items[I.cur].ok && !I.sending) {
+      ev.preventDefault();
+      const it = I.items[I.cur]; it.on = !it.on; render();
+    }
   });
   $("i-dest").addEventListener("click", (ev) => { const b = ev.target.closest("button[data-d]"); if (b) { I.dest = b.dataset.d; render(); } });
   $("i-track").addEventListener("change", (ev) => { I.track = +ev.target.value; render(); });
   $("i-send").addEventListener("click", send);
-  $("i-clear").addEventListener("click", () => { I.items.length = 0; render(); });
+  $("i-clear").addEventListener("click", () => { I.items.length = 0; I.cur = undefined; render(); });
   return { render, add, state: I, send };
 }

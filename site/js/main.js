@@ -23,6 +23,7 @@ import { mountLibrary } from "./library-ui.js";
 import { createPresetLink } from "./library.js";
 import { BUILD, ver } from "./build.js";
 import { readRegion } from "../manager/fizzstore.js";
+import { backupFlash, managerBackup, isBackupFile } from "./backup-play.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -311,8 +312,31 @@ async function start() {
   state.running = true;
   document.body.classList.add("running");
   $("start").hidden = true;
-  await boot();
+  const first = startFrom;
+  startFrom = null;
+  await boot(first);
+  if (first) toast(`Started from "${first.name}".`, "ok");
   return true;
+}
+
+// a FIZZ backup (.fizzbak, an FM-1 store dump, or the Manager's ?backup=<id>) as a named save, started at once (or at
+// the first click: the autoplay rule). The running Autosave is kept first as "Before <name>": the backup's FIZZ
+// writes its own Autosave as soon as it changes anything
+let startFrom = null;
+async function openBackup(bytes, file) {
+  const b = await backupFlash(bytes, file);
+  const auto = await saves.get(FW, ENGINE, version(), saves.AUTOSAVE);
+  if (auto) await saves.put(FW, ENGINE, version(), `Before ${b.name}`.slice(0, 40), auto.bytes);
+  const rec = await saves.put(FW, ENGINE, version(), b.name, b.flash);
+  state.selectedSave = b.name;
+  await refreshSaves();
+  if (state.running) { await boot(rec); toast(`Started from "${b.name}": ${b.projects.length} project${b.projects.length === 1 ? "" : "s"}, ${b.presets} preset${b.presets === 1 ? "" : "s"}.`, "ok", 6000); }
+  else {
+    startFrom = rec;
+    const n = $("start-from");
+    if (n) { n.textContent = b.name; n.hidden = false; }
+  }
+  return b;
 }
 
 // ------------------------------------------------------------- my FM-1 ---
@@ -407,6 +431,7 @@ const app = {
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       if (buf[0] === 0x7B) { const n = await saves.importBackup(new TextDecoder().decode(buf)); toast(`Imported ${n} save${n === 1 ? "" : "s"}.`, "ok"); }
+      else if (isBackupFile(buf)) { await openBackup(buf, file.name); return; }   // a .fizzbak or an FM-1 store dump
       else {   // a raw flash image (FM1VST's 1 MiB core flash): one named save
         const name = file.name.replace(/\.[^.]+$/, "").slice(0, 40) || "Imported";
         await saves.put(FW, ENGINE, version(), name, buf);
@@ -449,6 +474,13 @@ async function main() {
   if (state.meta.site && BUILD !== "dev" && state.meta.site !== BUILD) checkUpdate();   // (this page is older than the deploy)
   updateFeedback();
   await refreshSaves();
+  if (params.get("backup")) {                            // the Manager's ▶ on one of its backups
+    const id = +params.get("backup");
+    history.replaceState(null, "", location.pathname + location.search.replace(/[?&]backup=[^&]*/, "").replace(/^&/, "?") + location.hash);
+    const r = await managerBackup(id);
+    if (!r) toast("That backup is not in this browser's Manager any more.", "bad", 8000);
+    else await openBackup(r.bytes, r.name).catch((e) => toast(e.message || String(e), "bad", 10000));
+  }
 
   sheet = new Sheet(app);
   const made = makeSite({ controls, getState: () => state, installerUrl: INSTALLER,

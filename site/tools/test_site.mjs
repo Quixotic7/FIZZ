@@ -6,7 +6,8 @@
 //
 //   1. the player loads with no console error; FIZZ boots in the AudioWorklet (info, first frames); screenshot
 //   2. audio through the panel interface: HOME, REC tapped, D4 held: the output (an AnalyserNode) is not silent
-//   3. the flash: two steps added, FIZZ's autosave reaches IndexedDB; after a reload the steps are back
+//   3. the flash: two steps added, FIZZ's autosave reaches IndexedDB; after a reload the steps are back; that flash as a
+//      .fizzbak in the Manager's IndexedDB, opened with ?backup=<id>: FIZZ starts from it (js/backup-play.js)
 //   4. the Feedback link: FIZZ's Discord
 //   5. the guide renders with no console error; a phone-sized screenshot of both pages
 //   6. Digitone sounds: .dnsnd files (--dnsnd, a few of them; never published) read and listed in the panel
@@ -167,6 +168,7 @@ try {
   const saved = await waitFor(`(() => { const s = FIZZ.state.saves.find(r => r.name === 'Autosave'); return !!s && Date.parse(s.saved) > ${t0}; })()`, 15000);
   const lag = await evaluate(`Date.parse(FIZZ.state.saves.find(r => r.name === 'Autosave').saved) - ${t0}`);
   check(saved, `FIZZ's autosave of the edit reached this browser's IndexedDB ${lag} ms after the first key`);
+  const editedFlash = await evaluate("(() => { const b = FIZZ.state.saves.find(r => r.name === 'Autosave').bytes; let s = ''; for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode(...b.subarray(i, i + 32768)); return btoa(s); })()");
   const edited = await evaluate(hash);              // (settled: a tapped step's own flash is over)
   await shot("page-edited.png");
   await load(URL0);
@@ -186,6 +188,24 @@ try {
   // (closer to the edited screen than to a blank unit's: a highlight of the steps last touched may differ)
   const dBackBlank = diff(back, blankHash);
   check(dBack < dBackBlank && dBlank > 0, `after a reload FIZZ comes back with the steps (the step rows: ${dBack} px differ from the edited screen, ${dBackBlank} from a blank unit's)`);
+
+  // 3b. a FIZZ backup played here (the owner, 2026-10-26): the edited flash as the FM-1's store in a .fizzbak, kept in
+  // the Manager's IndexedDB, opened by ?backup=<id> (the Manager's play button): a named save, FIZZ started from it
+  const bakId = await evaluate(`(async () => {
+    const S = await import("./manager/fizzstore.js"), B = await import("./manager/fizzbak.js");
+    const flash = Uint8Array.from(atob(${JSON.stringify(editedFlash)}), (c) => c.charCodeAt(0));
+    const bytes = B.makeFizzbak({ kind: "full", image: S.convertImage(flash, "device"), fizz: "test" });
+    return await new Promise((res) => { const r = indexedDB.open("fizz-manager", 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore("backups", { keyPath: "id", autoIncrement: true }); r.result.createObjectStore("kv"); };
+      r.onsuccess = () => { const t = r.result.transaction("backups", "readwrite"), q = t.objectStore("backups").add({ date: Date.now(), name: "FIZZ backup test.fizzbak", kind: "full", bytes });
+        q.onsuccess = () => res(q.result); }; });
+  })()`);
+  await load(`${URL0}${URL0.includes("?") ? "&" : "?"}backup=${bakId}`);
+  const opened = await waitFor("window.FIZZ && FIZZ.state.info && FIZZ.state.selectedSave === 'FIZZ backup test' && FIZZ.state.saves.some((r) => r.name === 'FIZZ backup test') && !/backup=/.test(location.search)", 15000);
+  await sleep(800); await tap(6); await sleep(400);
+  const fromBak = await evaluate(hash);
+  await shot("page-from-backup.png");
+  check(opened && diff(fromBak, edited) < diff(fromBak, blankHash), `?backup=${bakId}: FIZZ started from the Manager's backup, a save of its own; the steps there (${diff(fromBak, edited)} px from the edited screen, ${diff(fromBak, blankHash)} from a blank one)`);
 
   // 4. the Feedback link
   const href = await evaluate("document.querySelector('a[data-feedback]').href");

@@ -1,0 +1,252 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     FIZZ Manager: the PROJECTS tab and the backups played in the browser (the owner's requests of 2026-10-26).
+     Builds on fizz-manager-p2.html shots 5 and 6. Static: nothing connects; the names are invented.
+     ?shot=N  one screen (render: python3 mockups/render_png.py pj-N)   ?sheet=1  all at half size -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FIZZ Manager PROJECTS mock-up</title>
+<style>
+@font-face { font-family: "Inter Tight"; src: url("../site/fonts/InterTight-VF-latin.woff") format("woff"); font-weight: 100 900; }
+:root {
+  --bg: #000; --panel: #0b0b0e; --raised: #131318; --line: #22222a; --text: #ECECEF; --body: #C9C9D1; --muted: #8D8D96;
+  --cyan: #28E1FF; --blue: #3F7DFF; --green: #1FD47E; --cream: #F1F0EA; --orange: #FF6A2C; --pink: #FF3CA0;
+  --yellow: #FFD23F; --violet: #9664FF; --magenta: #F03CFF; --champagne: #F3D9A4; --red: #FF6464;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #050506; color: var(--body); font: 500 15px/1.4 "Inter Tight", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+body.all .screen { margin: 0 auto 40px; }
+.screen { width: 1280px; height: 800px; background: var(--bg); position: relative; overflow: hidden; display: flex; flex-direction: column; }
+b { color: var(--text); }
+.top { height: 64px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 24px; border-bottom: 1px solid var(--line); }
+.bub { width: 32px; height: 32px; fill: none; stroke-width: 2.4; }
+.bub circle:nth-child(1) { stroke: var(--cyan); } .bub circle:nth-child(2) { stroke: var(--pink); } .bub circle:nth-child(3) { stroke: var(--yellow); }
+.word { font-size: 26px; font-weight: 800; letter-spacing: .06em; background: linear-gradient(90deg, #28E1FF, #3F7DFF 30%, #F03CFF 62%, #FF6A2C 85%, #FFD23F); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.crumb { color: var(--text); font-weight: 600; font-size: 17px; }
+.tabs { display: flex; gap: 8px; margin-left: 20px; }
+.tab { height: 40px; padding: 0 16px; border-radius: 20px; display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 13px; letter-spacing: .08em; color: var(--muted); border: 1.5px solid var(--line); }
+.tab i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.tab.on { color: #000; background: var(--c); border-color: var(--c); box-shadow: 0 0 18px color-mix(in srgb, var(--c) 45%, transparent); }
+.tab.on i { background: #000; }
+.unit { margin-left: auto; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px 0 12px; border-radius: 20px; border: 2px solid var(--green); background: color-mix(in srgb, var(--green) 16%, var(--bg)); color: var(--text); font-weight: 800; font-size: 14px; white-space: nowrap; }
+.unit .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+.unit small { color: var(--muted); font-weight: 600; font-size: 13px; }
+.body { flex: 1; display: flex; gap: 20px; padding: 22px 24px; min-height: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px; position: relative; display: flex; flex-direction: column; min-height: 0; }
+.h { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
+.h .n { color: var(--text); letter-spacing: 0; font-size: 15px; }
+.big { font-size: 44px; font-weight: 800; color: var(--text); line-height: 1; letter-spacing: -.01em; }
+.btn { height: 52px; padding: 0 24px; border-radius: 26px; font: 800 16px "Inter Tight"; letter-spacing: .08em; border: 0; color: #000; background: var(--c, var(--cyan)); display: inline-flex; align-items: center; justify-content: center; gap: 9px; box-shadow: 0 0 22px color-mix(in srgb, var(--c, var(--cyan)) 40%, transparent); white-space: nowrap; }
+.btn.ghost { background: transparent; color: var(--text); border: 1.5px solid var(--line); box-shadow: none; }
+.btn.small { height: 40px; padding: 0 16px; font-size: 13px; border-radius: 20px; }
+.btn.red { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, var(--line)); }
+.btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.row { display: flex; gap: 10px; align-items: center; }
+.kv { font-size: 13px; font-weight: 600; color: var(--muted); }
+.seg { display: flex; border: 1.5px solid var(--line); border-radius: 22px; overflow: hidden; }
+.seg span { height: 38px; padding: 0 16px; display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13px; letter-spacing: .07em; color: var(--muted); white-space: nowrap; }
+.seg span.on { background: var(--c); color: #000; }
+
+/* the FM-1's slots */
+.slot { height: 58px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--raised); display: flex; align-items: center; gap: 12px; padding: 0 12px; position: relative; flex: none; }
+.slot .no { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #000; background: var(--green); flex: none; }
+.slot .pn { font-size: 18px; font-weight: 800; color: var(--text); letter-spacing: .03em; line-height: 1.1; }
+.slot .meta { font-size: 13px; font-weight: 700; color: var(--muted); }
+.slot.empty { border-style: dashed; background: transparent; }
+.slot.empty .no { background: #24242b; color: var(--muted); }
+.slot.cur .no { box-shadow: 0 0 0 3px #000, 0 0 0 5px var(--green); }
+.slot.sel { border: 2px solid var(--cyan); background: color-mix(in srgb, var(--cyan) 10%, var(--raised)); box-shadow: 0 0 18px color-mix(in srgb, var(--cyan) 30%, transparent); }
+.slot.target { border: 2px dashed var(--yellow); background: color-mix(in srgb, var(--yellow) 8%, transparent); }
+.slot.target .no { background: var(--yellow); color: #000; }
+.slot .chg { width: 12px; height: 12px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 10px var(--yellow); margin-left: 6px; flex: none; }
+.dots { display: grid; grid-template-columns: repeat(16, 5px); gap: 2px; margin-left: auto; }
+.dots i { width: 5px; height: 5px; border-radius: 1px; background: #2a2a31; }
+.dots i.u { background: var(--green); }
+.acts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: auto; padding-top: 14px; }
+.acts .btn { padding: 0 10px; }
+.play { width: 14px; height: 14px; fill: currentColor; stroke: none; }
+
+/* patterns */
+.pgrid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 6px; flex: 1; }
+.pt { border-radius: 9px; background: #0f0f13; border: 1.5px solid #1c1c22; padding: 5px 5px 6px; display: flex; flex-direction: column; gap: 3px; position: relative; }
+.pt .no { font-size: 12px; font-weight: 800; color: #5d5d66; line-height: 1; margin-bottom: 2px; }
+.pt .tr { display: grid; grid-template-columns: repeat(16, 1fr); gap: 1px; height: 4px; }
+.pt .tr i { border-radius: 1px; background: #1c1c22; }
+.pt.used { border-color: #2c2c34; background: #141419; }
+.pt.used .no { color: var(--text); }
+.pt.cur { border-color: var(--green); box-shadow: 0 0 12px color-mix(in srgb, var(--green) 40%, transparent); }
+.pt.sel { border: 2px solid var(--cyan); background: color-mix(in srgb, var(--cyan) 12%, #141419); box-shadow: 0 0 14px color-mix(in srgb, var(--cyan) 40%, transparent); }
+.pt.new { border: 2px solid var(--yellow); background: color-mix(in srgb, var(--yellow) 12%, #141419); box-shadow: 0 0 14px color-mix(in srgb, var(--yellow) 40%, transparent); }
+.pt.new .no { color: var(--yellow); }
+.bank { font-size: 16px; font-weight: 800; color: var(--text); width: 20px; display: grid; place-items: center; flex: none; }
+.clip { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px 0 14px; border-radius: 20px; border: 1.5px dashed var(--cyan); color: var(--text); font-weight: 800; font-size: 14px; white-space: nowrap; }
+.clip small { color: var(--muted); font-weight: 700; font-size: 13px; }
+.clip svg { width: 18px; height: 18px; fill: none; stroke: var(--cyan); stroke-width: 2.2; }
+.selname { font-size: 26px; font-weight: 800; color: var(--cyan); letter-spacing: .02em; }
+/* the changes waiting for the FM-1 */
+.pending { flex: none; margin-top: 14px; height: 72px; border-radius: 18px; border: 2px solid var(--yellow); background: color-mix(in srgb, var(--yellow) 9%, var(--panel)); display: flex; align-items: center; gap: 18px; padding: 0 12px 0 22px; box-shadow: 0 0 26px color-mix(in srgb, var(--yellow) 22%, transparent); }
+.pending .cnt { font-size: 40px; font-weight: 800; color: var(--yellow); line-height: 1; }
+.pending .what { color: var(--text); font-weight: 800; font-size: 17px; }
+.pending .what small { display: block; color: var(--muted); font-size: 13px; font-weight: 700; }
+/* kept projects */
+.bp { border-radius: 16px; background: var(--raised); border: 1.5px solid var(--line); padding: 14px; display: flex; flex-direction: column; gap: 8px; position: relative; }
+.bp .pn { font-size: 19px; font-weight: 800; color: var(--text); }
+.bp .meta { font-size: 13px; font-weight: 700; color: var(--muted); }
+.bp .snd { display: flex; gap: 4px; flex-wrap: wrap; }
+.bp .snd i { width: 12px; height: 12px; border-radius: 3px; }
+.bp.sel { border: 2px solid var(--champagne); box-shadow: 0 0 20px color-mix(in srgb, var(--champagne) 30%, transparent); background: color-mix(in srgb, var(--champagne) 8%, var(--raised)); }
+.stored { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 6px; color: #000; background: var(--champagne); }
+.drop { height: 64px; border: 2px dashed #2c2c34; border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--muted); font-weight: 800; font-size: 15px; }
+/* backups */
+.bk { display: flex; align-items: center; gap: 14px; height: 72px; border-radius: 14px; background: var(--raised); border: 1.5px solid var(--line); padding: 0 12px 0 16px; margin-bottom: 10px; }
+.bk .ic { width: 42px; height: 42px; border-radius: 10px; border: 1.5px solid var(--yellow); background: color-mix(in srgb, var(--yellow) 18%, transparent); display: grid; place-items: center; color: var(--yellow); font-weight: 800; }
+.bk .t { color: var(--text); font-weight: 800; font-size: 18px; }
+.bk .ver { font-size: 13px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1.5px solid var(--line); color: var(--text); margin-left: auto; }
+.pbtn { width: 44px; height: 44px; border-radius: 22px; background: var(--cyan); display: grid; place-items: center; box-shadow: 0 0 16px color-mix(in srgb, var(--cyan) 45%, transparent); flex: none; }
+.pbtn svg { width: 16px; height: 16px; fill: #000; margin-left: 3px; }
+.pbtn.big { width: auto; padding: 0 22px 0 18px; gap: 10px; display: inline-flex; align-items: center; color: #000; font-weight: 800; letter-spacing: .08em; font-size: 15px; height: 52px; border-radius: 26px; }
+.callout { position: absolute; border: 2px solid var(--cyan); border-radius: 16px; background: #000; box-shadow: 0 0 30px color-mix(in srgb, var(--cyan) 30%, transparent); overflow: hidden; }
+/* the sheet */
+body.sheet { padding: 24px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(2, 640px); gap: 26px 22px; }
+.sheetgrid .frame { width: 640px; height: 400px; overflow: hidden; border-radius: 8px; }
+.sheetgrid .frame .screen { transform: scale(.5); transform-origin: 0 0; }
+.sheetgrid .cap { color: #c8c8cf; font: 700 15px "Inter Tight", sans-serif; margin: 8px 0 0; width: 640px; }
+.sheettitle { font: 800 24px "Inter Tight", sans-serif; margin: 0 0 18px; color: #eee; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+const $ = (h) => { const d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstElementChild; };
+const TABS = [["BACKUP", "--yellow"], ["LIBRARY", "--cream"], ["EDIT", "--pink"], ["POOL", "--green"], ["PROJECTS", "--cyan"], ["IMPORT", "--violet"]];
+const topBar = (on) => `<div class="top"><svg class="bub" viewBox="0 0 32 32"><circle cx="11" cy="20" r="7"/><circle cx="22" cy="10" r="5"/><circle cx="23" cy="24" r="3"/></svg><span class="word">FIZZ</span><span class="crumb">Manager</span>
+  <div class="tabs">${TABS.map(([t, c]) => `<span class="tab ${t === on ? "on" : ""}" style="--c:var(${c})"><i></i>${t}</span>`).join("")}</div>
+  <span class="unit"><span class="dot"></span>FM-1 <small>FIZZ 0.12.0-beta.9 · 6 tracks</small></span></div>`;
+const ic = {
+  load: '<svg viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor" stroke="none"/></svg>',
+  down: '<svg viewBox="0 0 20 20"><path d="M10 3v10M5 9l5 5 5-5M3 17h14"/></svg>',
+  up: '<svg viewBox="0 0 20 20"><path d="M10 14V4M5 8l5-5 5 5M3 17h14"/></svg>',
+  copy: '<svg viewBox="0 0 20 20"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/></svg>',
+  paste: '<svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="14" rx="2"/><path d="M8 2h4v4H8z"/></svg>',
+  move: '<svg viewBox="0 0 20 20"><path d="M3 10h14M13 6l4 4-4 4"/></svg>',
+  ren: '<svg viewBox="0 0 20 20"><path d="M4 16l2-6 8-8 4 4-8 8z"/></svg>',
+  keep: '<svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="7.5" cy="10" r="2"/><circle cx="12.5" cy="10" r="2"/></svg>',
+  del: '<svg viewBox="0 0 20 20"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>',
+  clear: '<svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg>',
+};
+const PROJ = [["NOIR", 18, "cur"], ["SUNDAY", 9, ""], ["DEMO", 16, ""], ["SKETCH", 3, ""], [null], ["ACID 3", 12, ""], ["WINTER LP", 11, ""], [null]];
+const dots = (n) => `<span class="dots">${Array.from({ length: 32 }, (_, i) => `<i class="${i < Math.min(n, 32) ? "u" : ""}"></i>`).join("")}</span>`;
+const slots = (sel, opt = {}) => PROJ.map(([n, pats, cls], i) => {
+  if (!n) return `<div class="slot empty ${opt.target === i ? "target" : ""}"><span class="no">${i + 1}</span><span class="meta" style="${opt.target === i ? "color:var(--yellow);font-weight:800;font-size:15px" : ""}">${opt.target === i ? "WINTER LP ← here" : "empty"}</span></div>`;
+  return `<div class="slot ${cls} ${sel === i ? "sel" : ""}"><span class="no">${i + 1}</span><div><div class="pn">${n}</div><div class="meta">${pats} patterns${cls === "cur" ? " · open" : ""}</div></div>${opt.changed === i ? '<span class="chg"></span>' : ""}${dots(pats)}</div>`;
+}).join("");
+const slotCard = (sel, opt = {}) => `<div class="card" style="width:404px;flex:none;gap:6px">
+  <div class="h">ON THE FM-1 <span class="n">6 / 8</span><span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span style="width:110px;height:10px;border-radius:5px;background:#1d1d23;overflow:hidden;display:flex"><span style="width:49%;background:var(--green)"></span></span><span class="n">49 %</span></span></div>
+  ${slots(sel, opt)}
+  <div class="acts">
+    <button class="btn small" style="--c:var(--green)">${ic.load}LOAD</button>
+    <button class="btn small ghost">${ic.ren}RENAME</button>
+    <button class="btn small ghost">${ic.copy}COPY TO</button>
+    <button class="btn small ghost">${ic.move}MOVE TO</button>
+    <button class="btn small ghost" style="color:var(--champagne)">${ic.keep}KEEP</button>
+    <button class="btn small ghost red">${ic.del}DELETE</button>
+  </div></div>`;
+// a pattern tile: six track rows of 16 steps in the tracks' colours
+const TC = ["--blue", "--green", "--cream", "--orange", "--pink", "--violet"];
+const rnd = (s) => () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+const tile = (r, b, k, used, cls = "") => {
+  const rows = TC.map((c, t) => `<div class="tr">${Array.from({ length: 16 }, () => `<i style="${used && r() < (t < 2 ? .42 : t === 2 ? .25 : .16) ? `background:var(${c})` : ""}"></i>`).join("")}</div>`).join("");
+  return `<div class="pt ${used ? "used" : ""} ${cls}"><span class="no">${"ABCD"[b]}${String(k + 1).padStart(2, "0")}</span>${rows}</div>`;
+};
+const grid = (seed, used, cls) => { const r = rnd(seed); return [0, 1, 2, 3].map((b) => `<div class="row" style="gap:8px;flex:1;align-items:stretch"><span class="bank">${"ABCD"[b]}</span><div class="pgrid">${Array.from({ length: 16 }, (_, k) => tile(r, b, k, used(b, k), cls(b, k))).join("")}</div></div>`).join(""); };
+const viewSeg = (on) => `<div class="seg" style="--c:var(${on === "KEPT" ? "--champagne" : "--cyan"})"><span class="${on === "PATTERNS" ? "on" : ""}">PATTERNS</span><span class="${on === "KEPT" ? "on" : ""}">KEPT <b style="color:inherit">6</b></span></div>`;
+const tools = (opt = {}) => `<div class="row" style="gap:8px;margin-top:14px">
+    ${opt.sel ? `<span class="selname">${opt.sel}</span>` : ""}
+    <button class="btn small" style="--c:var(--cyan)">${ic.copy}COPY</button>
+    <button class="btn small ${opt.paste ? "" : "ghost"}" style="--c:var(--yellow)">${ic.paste}PASTE</button>
+    <button class="btn small ghost">${ic.clear}CLEAR</button>
+    <button class="btn small ghost" style="margin-left:auto">${ic.down}.fizzpat</button>
+    <button class="btn small ghost">${ic.up}IMPORT</button></div>`;
+
+const SCREENS = [], CAPS = [];
+
+// 1. PROJECTS: the FM-1's eight slots, SUNDAY's 64 patterns, three of them selected
+CAPS.push("1 PROJECTS: the eight slots (LOAD, RENAME, COPY TO, MOVE TO, KEEP in this browser, DELETE: the FM-1 does these at once); SUNDAY's patterns, A03–A05 selected (click, shift-click)");
+SCREENS.push(() => `<div class="screen">${topBar("PROJECTS")}<div class="body">
+  ${slotCard(1)}
+  <div class="card" style="flex:1">
+    <div class="row" style="margin-bottom:12px"><div class="big" style="font-size:32px">SUNDAY</div><span class="kv"><b style="font-size:17px">9</b> / 64</span><span style="margin-left:auto"></span>${viewSeg("PATTERNS")}</div>
+    <div style="display:flex;flex-direction:column;gap:7px;flex:1">${grid(11, (b, k) => b === 0 ? k < 7 : b === 1 && k < 2, (b, k) => b === 0 && k >= 2 && k <= 4 ? "sel" : "")}</div>
+    ${tools({ sel: "A03–A05" })}
+  </div></div></div>`);
+
+// 2. PASTE into NOIR: the copied patterns land on B01..B03, the change waits for one write to the FM-1
+CAPS.push("2 PASTE into another project: SUNDAY's A03–A05 on NOIR's B01–B03 (their sounds join NOIR's pool); pattern changes wait in the yellow bar and go to the FM-1 in one write");
+SCREENS.push(() => `<div class="screen">${topBar("PROJECTS")}<div class="body">
+  ${slotCard(0, { changed: 0 })}
+  <div class="card" style="flex:1">
+    <div class="row" style="margin-bottom:12px"><div class="big" style="font-size:32px">NOIR</div><span class="kv"><b style="font-size:17px">21</b> / 64</span><span class="clip" style="margin-left:auto">${ic.copy}3 <small>SUNDAY A03–A05</small></span>${viewSeg("PATTERNS")}</div>
+    <div style="display:flex;flex-direction:column;gap:7px;flex:1">${grid(5, (b, k) => b === 0 ? k < 12 : b === 1 ? k < 3 : b === 2 && k < 3, (b, k) => b === 1 && k < 3 ? "new" : b === 0 && k === 0 ? "cur" : "")}</div>
+    ${tools({ sel: "B01", paste: true })}
+  <div class="pending"><span class="cnt">3</span><div class="what">patterns into NOIR<small>+4 sounds into NOIR's pool · nothing on the FM-1 yet</small></div>
+    <button class="btn small ghost" style="margin-left:auto">UNDO</button><button class="btn small ghost">DISCARD</button>
+    <button class="btn" style="--c:var(--yellow)">${ic.down}WRITE TO FM-1 <span style="font-weight:700;opacity:.65">~20 s</span></button></div></div></div></div>`);
+
+// 3. KEPT: projects kept in this browser (KEEP, or a .fizzprj dropped); one loaded into the empty slot 5
+CAPS.push("3 KEPT: projects kept in this browser (from KEEP or a .fizzprj); WINTER LP picked, slot 5 the target: LOAD INTO 5 brings it and its sounds (one write)");
+SCREENS.push(() => {
+  const K = [["WINTER LP", "11 patterns · 24 sounds", "today", ["--blue", "--violet", "--yellow", "--orange", "--green"]], ["JUNGLE 2", "20 patterns · 31 sounds", "2 days", ["--orange", "--blue", "--pink", "--cream"]],
+    ["SKETCH OLD", "4 patterns · 6 sounds", "1 week", ["--cream", "--violet"]], ["LIVE SET A", "32 patterns · 40 sounds", "2 weeks", ["--blue", "--green", "--orange", "--violet", "--pink", "--yellow"]],
+    ["DRONES", "6 patterns · 9 sounds", "1 month", ["--violet", "--violet", "--pink"]], ["NOIR", "18 patterns · 22 sounds", "yesterday", ["--blue", "--yellow", "--violet"]]];
+  return `<div class="screen">${topBar("PROJECTS")}<div class="body">
+  ${slotCard(-1, { target: 4 })}
+  <div class="card" style="flex:1;gap:12px">
+    <div class="row"><div class="big" style="font-size:32px">IN THIS BROWSER</div><span class="stored">1.2 MB</span><span style="margin-left:auto"></span>${viewSeg("KEPT")}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${K.map(([n, m, w, cs], i) => `<div class="bp ${i === 0 ? "sel" : ""}"><div class="row"><span class="pn">${n}</span><span class="kv" style="margin-left:auto">${w}</span></div><div class="meta">${m}</div><div class="snd">${cs.map((c) => `<i style="background:var(${c})"></i>`).join("")}</div></div>`).join("")}</div>
+    <div class="drop">${ic.up.replace("<svg", '<svg width="22" height="22" style="fill:none;stroke:currentColor;stroke-width:2.2"')}.fizzprj</div>
+    <div class="row" style="margin-top:auto;gap:10px">
+      <button class="btn" style="--c:var(--champagne)">${ic.load}LOAD INTO 5</button>
+      <button class="btn small ghost">${ic.down}.fizzprj</button><button class="btn small ghost">${ic.ren}RENAME</button><button class="btn small ghost red" style="margin-left:auto">${ic.del}DELETE</button></div>
+  </div></div></div>`;
+});
+
+// 4. BACKUP: each backup plays in the browser's FIZZ (the player opens with it), for RemoteFM1 and videos
+CAPS.push("4 BACKUP: ▶ on any backup (and after BACK UP) opens FIZZ in the browser with it: every project and preset, ready for RemoteFM1. The player's Saves take a .fizzbak too");
+SCREENS.push(() => {
+  const B = [["Today 21:40", "6 projects · 151 presets · 292 KB", "0.12.0-beta.9"], ["Today 14:02", "6 projects · 149 presets", "0.12.0-beta.8"], ["Yesterday 22:40", "5 projects · 143 presets", "0.12.0-beta.6"], ["24 Oct 09:15", "4 projects · 128 presets · 8 tracks", "0.11.0"]];
+  return `<div class="screen">${topBar("BACKUP")}<div class="body">
+  <div class="card" style="width:560px;flex:none">
+    <div class="h">THIS FM-1</div><div class="big">FIZZ 0.12.0</div>
+    <div class="row" style="gap:40px;margin:26px 0 22px">${[["6", "projects"], ["151", "my presets"], ["61 %", "store used"]].map(([v, l]) => `<div><div class="big" style="font-size:30px">${v}</div><div class="kv">${l}</div></div>`).join("")}</div>
+    <div style="height:30px;border-radius:15px;background:#1d1d23;overflow:hidden;display:flex"><span style="width:20%;background:var(--cream)"></span><span style="width:9%;background:#555"></span><span style="width:37%;background:var(--green)"></span></div>
+    <div class="row" style="margin-top:auto;gap:12px"><button class="btn" style="--c:var(--yellow);height:64px;font-size:19px;padding:0 34px">● BACK UP</button><button class="btn ghost">PRESETS ONLY</button></div>
+  </div>
+  <div class="card" style="flex:1">
+    <div class="h">BACKUPS <span class="n">on this computer</span></div>
+    ${B.map(([t, m, v], i) => `<div class="bk" style="${i === 0 ? "border-color:var(--cyan);box-shadow:0 0 18px color-mix(in srgb,var(--cyan) 22%,transparent)" : ""}"><span class="ic">${ic.keep.replace("<svg", '<svg width="24" height="24" style="fill:none;stroke:currentColor;stroke-width:2"')}</span><div><div class="t">${t}</div><div class="kv">${m}</div></div><span class="ver">${v}</span>
+      <span class="pbtn" title="Play in the browser"><svg viewBox="0 0 16 16"><path d="M3 2l11 6-11 6z"/></svg></span><button class="btn small ghost">RESTORE</button></div>`).join("")}
+    <div class="callout" style="right:30px;bottom:24px;width:420px;height:200px;padding:16px">
+      <div class="row" style="gap:8px"><span class="word" style="font-size:20px">FIZZ</span><span class="kv" style="color:var(--text)">· preview</span><span class="kv" style="margin-left:auto">new tab</span></div>
+      <div class="row" style="margin-top:16px;gap:14px"><div style="width:120px;height:120px;border-radius:12px;background:#1c1c21;display:grid;place-items:center"><div style="width:64px;height:64px;background:#000;border-radius:4px;box-shadow:0 0 0 3px #2a2a31;display:grid;place-items:center;color:var(--green);font-weight:800;font-size:12px">NOIR</div></div>
+        <div><div class="kv">started from</div><div style="color:var(--text);font-weight:800;font-size:18px;line-height:1.25">FIZZ backup<br>2026-10-26 2140</div><div class="kv" style="margin-top:8px">6 projects · 151 presets</div></div></div>
+    </div>
+  </div></div></div>`;
+});
+
+const q = new URLSearchParams(location.search), shot = +q.get("shot"), sheet = q.get("sheet");
+const out = document.getElementById("out");
+if (sheet) {
+  document.body.className = "sheet";
+  out.appendChild($(`<div class="sheettitle">FIZZ Manager: PROJECTS and backups in the browser (mock-up, half size)</div>`));
+  const g = $(`<div class="sheetgrid"></div>`);
+  SCREENS.forEach((f, i) => { const c = $(`<div class="cell"><div class="frame"></div><div class="cap">${CAPS[i]}</div></div>`); c.firstElementChild.appendChild($(f())); g.appendChild(c); });
+  out.appendChild(g);
+} else {
+  (shot ? [SCREENS[shot - 1]] : SCREENS).forEach((f) => out.appendChild($(f())));
+  if (!shot) document.body.className = "all";
+}
+</script>
+</body>
+</html>

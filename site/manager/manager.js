@@ -20,6 +20,7 @@ import { $, esc, tagsOf, colOf, algo, emptyArt, refusal, confirmBox } from "./ui
 import { newFilter, filterHtml, filterClick, listHtml, poolPlaces, poolBadge } from "./presets.js";
 import { mountPool } from "./pool.js";
 import { mountImport } from "./importer.js";
+import { mountProjects } from "./projtab.js";
 import { mountEditor } from "./editor.js";
 import { mountExport } from "./exporter.js";
 import { BrowserFizz } from "./browserfizz.js";
@@ -30,11 +31,11 @@ import { readFiles } from "../js/digitone.js";
 
 const Q = new URLSearchParams(location.search);
 const SIM = Q.has("sim");
-const DEPTH = Math.max(1, Math.min(4, +Q.get("depth") || 1)), GAP = Math.max(0, +Q.get("gap") || 0);
+const DEPTH = Math.max(1, Math.min(4, +Q.get("depth") || 2)), GAP = Math.max(0, +Q.get("gap") || 0);   // (2 in flight: fm1-base holds two SysEx frames since 2026-10-27)
 const kb = (n) => `${Math.round(n / 1024)} KB`;
 const mmss = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
-const S = { access: null, link: null, unit: null, busy: false, baks: [], web: { tags: {} }, sel: null, filter: newFilter(), abort: null,
+const S = { mode: "fm1", access: null, link: null, unit: null, busy: false, baks: [], web: { tags: {} }, sel: null, filter: newFilter(), abort: null,
   editing: 0, users: new Map(), refreshing: false };
 
 // ---------------------------------------------------------------- the log, what the page says
@@ -210,7 +211,8 @@ async function attach() {
     S.unit = { id: link.id, port: link.port, version, info, rows, dumps: null, fdumps: null, summary: keep && keep.summary, status, projects };
     log(`connected: ${link.id} on "${link.port}", FIZZ ${version || "(no answer)"}, store ${info ? `${info.size} B at 0x${info.lo.toString(16)}, CRC-32 ${info.crc.toString(16)}` : "(no FZBI)"}, ` +
       `${rows.filter((r) => r.source === "mine").length} my presets`);
-    setUnit("on", "FM-1", version ? `FIZZ ${version.replace(/-\d+-g[0-9a-f]+$/, "")}${status ? ` · ${status.tracks} tracks` : ""}` : link.id);
+    const sub = version ? `FIZZ ${version.replace(/-\d+-g[0-9a-f]+$/, "")}${status ? ` · ${status.tracks} tracks` : ""}` : link.id;
+    if (S.mode === "browser") { setUnit("idle", "FM-1"); setB("on", sub); } else { setUnit("on", "FM-1", sub); setB("off"); }
     if (!version && info) say("FIZZ does not answer (safe mode, or its data missing): back up and restore still work.", "--orange");
     else if (!info) say(`This FIZZ has no backup over USB yet: <a href="../install/">update FIZZ</a>.`, "--orange");
     else if (version && !status) say(`This FIZZ shows its library but cannot edit it yet: <a href="../install/">update FIZZ</a>.`, "--orange");
@@ -229,7 +231,8 @@ async function attach() {
     log(`connect: ${e.code || ""} ${e.message}`);
   } finally {
     attaching = false;
-    renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render();
+    renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render(); projtab.render();
+    if (S.link && !$("tab-projects").hidden) projtab.show();
   }
 }
 function lost() {
@@ -238,7 +241,7 @@ function lost() {
   live.lost();
   setUnit("bad", "UNPLUGGED");
   log("the FM-1 was disconnected");
-  renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render();
+  renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render(); projtab.render();
 }
 let stateT = null;
 function onState(ev) {
@@ -247,7 +250,8 @@ function onState(ev) {
   clearTimeout(stateT);
   if (!S.link && !S.busy) stateT = setTimeout(attach, 800);
 }
-$("unit").addEventListener("click", () => { if (!S.link) connect(); });
+$("unit").addEventListener("click", () => { if (S.mode === "browser") { leaveBrowser(); connect(); } else if (!S.link) connect(); });
+$("bunit").addEventListener("click", () => (S.mode === "browser" ? leaveBrowser() : useBrowser()));
 
 // ---------------------------------------------------------------- the progress screen
 const P = { t0: 0, tick: null, nsec: 0, lib: 0 };
@@ -300,6 +304,11 @@ async function readUnit(label, { presetsOnly = false } = {}) {
     const t0 = performance.now();
     frames = await link.dumpAll("mine", mine.length, (n, t) => progSet((presetsOnly ? 0 : 0.85) + (presetsOnly ? 1 : 0.15) * n / t, -1));
     log(`DUMP: ${frames.length} of ${mine.length} presets in ${(performance.now() - t0).toFixed(0)} ms`);
+    if (frames.length < mine.length) {                  // (a reply lost on the way: the missing ones asked for one by one)
+      const got = new Set(frames.map((f) => parseDump(f).slot));
+      for (const r of mine) if (!got.has(r.slot)) { const f = await link.dump("mine", r.slot).catch(() => null); if (f) frames.push(f); }
+      log(`DUMP: ${frames.length} of ${mine.length} after asking for the missing ones`);
+    }
     if (frames.length < mine.length) throw Object.assign(new Error(`only ${frames.length} of ${mine.length} presets came back`), { code: "dump" });
     u.dumps = new Map(frames.map((f) => [parseDump(f).slot, f]));
   } else if (summary) {
@@ -361,6 +370,7 @@ $("go-presets").addEventListener("click", () => backup("presets"));
 const ICON = '<svg viewBox="0 0 22 22" aria-hidden="true"><rect x="2" y="5" width="18" height="12" rx="3"/><circle cx="8" cy="11" r="2"/><circle cx="14" cy="11" r="2"/></svg>';
 const SAVE_I = '<svg viewBox="0 0 20 20"><path d="M10 3v10M5 9l5 5 5-5M3 17h14"/></svg>';
 const DEL_I = '<svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg>';
+const PLAY_I = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5l9.5 5.5L4 13.5z"/></svg>';
 function whenText(t) {
   const d = new Date(t), now = new Date(), hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
@@ -379,6 +389,7 @@ function renderBaks() {
       ${b.fizz ? `<span class="ver ${old ? "old" : ""}">${esc(b.fizz.replace(/-\d+-g[0-9a-f]+$/, ""))}</span>` : ""}
       <button class="icon ${isSaved(b) ? "saved" : "unsaved"}" data-act="save" aria-label="Save ${esc(b.name)} to a file${isSaved(b) ? " (saved before)" : " (not saved to a file yet)"}" title="${isSaved(b) ? "Save to a file again" : "Save to a file"}">${SAVE_I}</button>
       <button class="icon" data-act="del" aria-label="Delete from this browser" title="Delete from this browser">${DEL_I}</button>
+      ${b.kind === "full" && typeof b.id === "number" ? `<button class="icon play" data-act="play" aria-label="Play ${esc(b.name)} in the browser's FIZZ" title="Play in the browser's FIZZ">${PLAY_I}</button>` : ""}
       <button class="btn small ghost" data-act="restore" ${S.link && !S.busy ? "" : "disabled"}>RESTORE</button></div>`;
   }).join("");
   renderUse();
@@ -406,6 +417,7 @@ $("baks").addEventListener("click", async (ev) => {
     S.baks.splice(S.baks.indexOf(b), 1);
     renderBaks();
   } else if (btn.dataset.act === "restore") openFile(b.bytes, b.name, b);
+  else if (btn.dataset.act === "play") window.open(`../?backup=${b.id}`, "_blank");   // (js/backup-play.js reads it there)
 });
 // a file dropped or chosen: kept in the list, then the restore offered
 async function openFile(bytes, name, rec = null) {
@@ -519,9 +531,13 @@ async function refresh() {
 async function restoreFull() {
   const image = R.parsed.image, rec = R.rec;
   closeRestore();
+  await restoreImage(image, rec.name);
+}
+// the store written (RESTORE, and PROJECTS' changes): true when the unit took it
+async function restoreImage(image, name, label = "CHECKING") {
   S.busy = true; renderUnit(); renderBaks();
   S.abort = new AbortController();
-  progOpen("CHECKING", image.length);
+  progOpen(label, image.length);
   try {
     await S.link.restore(image, {
       signal: S.abort.signal,
@@ -532,25 +548,56 @@ async function restoreFull() {
     });
     S.unit.summary = readRegion(image);
     progClose();
-    toast(`Restored ${rec.name}`);
-    log(`restored ${rec.name}`);
+    toast(`Written: ${name}`);
+    log(`restored ${name}`);
     await refresh();
+    return true;
   } catch (e) {
     progClose();
     log(`restore: ${e.code || ""} ${e.fzer || ""} ${e.message}`);
     if (e.code === "cancel") toast("Cancelled. Nothing changed.", "--muted");
-    else if (e.fzer === 10) say("The FM-1 is playing. Stop it, then RESTORE again.", "--orange");
+    else if (e.fzer === 10) say("The FM-1 is playing. Stop it, then try again.", "--orange");
     else if (e.fzer === 11) say("This backup is from a store of another size. Its presets can still be added.", "--orange");
-    else if (e.fzer === 12) say("The backup did not reach the FM-1 whole. Nothing was changed.", "--orange");
+    else if (e.fzer === 12) say("The store did not reach the FM-1 whole. Nothing was changed.", "--orange");
+    else if (e.code === "timeout" && e.written === false) say("The FM-1 did not take the write up. Nothing was changed: try again.", "--orange");
     else if (e.fzer === 13 || e.fzer === 14 || e.code === "lost" || (e.code === "timeout" && e.written !== false))
-      say(`The restore was cut off while writing. <b>FIZZ has cleared its store.</b> Plug the FM-1 in and restore this backup again (${esc(FZER[e.fzer] || e.message)}).`, "--red");
-    else say(`The restore did not finish: ${esc(e.message)}`, "--red");
+      say(`The write was cut off. <b>FIZZ has cleared its store.</b> Plug the FM-1 in and restore the newest backup in BACKUP (${esc(FZER[e.fzer] || e.message)}).`, "--red");
+    else say(`The write did not finish: ${esc(e.message)}`, "--red");
     if (S.link && e.code !== "lost") await refresh().catch(() => {});
+    return false;
   } finally {
     S.busy = false; S.abort = null;
-    renderUnit(); renderLibrary(); renderBaks();
+    renderUnit(); renderLibrary(); renderBaks(); projtab.render();
   }
 }
+// PROJECTS: the store read (no backup kept: the one before a write is), and written with the store as it was kept first
+async function readStore(label) {
+  if (S.busy || !S.link) return null;
+  S.busy = true; renderUnit();
+  S.abort = new AbortController();
+  progOpen(label, S.unit.info ? S.unit.info.size : 4096);
+  try {
+    const r = await S.link.backup({ depth: DEPTH, gapMs: GAP, signal: S.abort.signal, onProgress: (f, off) => progSet(f, off) });
+    S.unit.summary = readRegion(r.image);
+    return r.image;
+  } catch (e) {
+    log(`read: ${e.code || ""} ${e.message}`);
+    if (e.code === "cancel") toast("Cancelled", "--muted");
+    else say(`The FM-1's store could not be read: ${esc(e.message)}. Wake the FM-1 (a key), then try again.`, "--orange");
+    return null;
+  } finally { progClose(); S.busy = false; S.abort = null; renderUnit(); }
+}
+async function writeStore(image, before) {
+  const date = new Date(), sum = readRegion(before);
+  const presets = sum.presets.map((p) => ({ fizz: true, name: p.name, blob: p.blob, drive: p.drive, pan: p.pan, sends: p.sends, fizzTags: tagsOf(p.tags),
+    favourite: false, source: { from: `MY PRESETS ${p.slot}` }, notes: [], origin: [], mark: "", tags: [] }));
+  const file = makeFizzbak({ kind: "full", image: before, summary: sum, presets, fizz: S.unit.version || "", unit: { identity: S.unit.id, port: S.unit.port }, web: webFor(presets), date });
+  const name = backupFileName(date, "full").replace("FIZZ backup", "FIZZ before projects");
+  await keepBak({ date: +date, name, kind: "full", safety: true, saved: false, fizz: S.unit.version || "", identity: S.unit.id, bytes: file, size: file.length,
+    tracks: sum.tracks, layout: sum.layout, projects: sum.projects.map((p) => p.name), presets: presets.length });
+  return restoreImage(image, "the projects", "CHECKING");
+}
+
 async function addPresets() {
   const list = R.parsed.presets, rec = R.rec;
   closeRestore();
@@ -625,7 +672,7 @@ async function refreshRows({ projects = false, until = null } = {}) {
   } catch (e) { log(`refresh: ${e.code || ""} ${e.message}`); }
   S.users.clear();
   u.one = null;                                        // (a preset read by itself: again, as it is now)
-  renderUnit(); renderLibrary(); pool.render();
+  renderUnit(); renderLibrary(); pool.render(); projtab.render();
 }
 // a pool place changed by an edit the unit acknowledged: shown at once (row: the preset now there, null: empty)
 function poolSet(slot, row) {
@@ -699,6 +746,7 @@ function fetchOne(r) {
   (S.fetching || (S.fetching = new Set())).add(k);
   S.link.dump(r.source, r.slot).then((f) => {
     (u.one || (u.one = new Map())).set(k, f || null);    // (none: not asked again until the lists are read again)
+    if (f && PV.want === r) { PV.want = null; previewSound(soundFromFrame(f)); }
     if (S.sel && S.sel.source === r.source && S.sel.slot === r.slot) renderSel();
   }).catch(() => {}).finally(() => S.fetching.delete(k));
 }
@@ -865,10 +913,7 @@ list.addEventListener("click", (ev) => {
   if (!b) return;
   S.sel = { source: b.dataset.src, slot: +b.dataset.slot };
   renderLibrary();
-  if (live.on()) {                                      // (P2-B: TRACK on: it plays on the track, KEEP / CANCEL)
-    const r = S.unit.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot);
-    if (r) live.pick(r, frameOf(r));
-  }
+  previewRow(S.unit.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot));   // (TRACK on: on the track, KEEP / CANCEL)
   if (matchMedia("(max-width: 900px)").matches) $("l-sel").scrollIntoView({ behavior: "smooth", block: "start" });   // (a phone: the panel is below the list)
 });
 // reorder MY PRESETS: a cassette dropped on another swaps their places (the ids go with them: nothing else changes);
@@ -950,9 +995,12 @@ $("l-export-all").addEventListener("click", async () => {
 // ---------------------------------------------------------------- the pool, the import (their own files)
 let live = null;                                        // (live.js, mounted with the editor below)
 const ctx = { S, $, log, say, toast, edit, refreshRows, loadDumps, frameOf, projectName, saveWeb, poolSet, render: () => { renderUnit(); renderLibrary(); },
-  trackOn: () => !!(live && live.on()) };
+  trackOn: () => !!(live && live.on()), previewRow: (r) => previewRow(r), previewId: (id) => previewId(id),
+  previewLib: (snd, name) => previewLib(snd, name) };
 const pool = mountPool(ctx);
 const importer = mountImport(ctx);
+const projtab = mountProjects({ ...ctx, readStore: (l) => readStore(l), writeStore: (i, b) => writeStore(i, b), download,
+  kv: { get: (k) => DB.get(k), put: (k, v) => DB.put(k, v) }, fizz: () => (S.unit && S.unit.version) || "" });
 
 // ---------------------------------------------------------------- export, the sound editor (Phase 2-A)
 const exporter = mountExport({ download, log });
@@ -990,6 +1038,7 @@ const editor = mountEditor({
   strip: () => (live ? live.strip() : ""),
   stripClick: (b) => (live ? live.stripClick(b) : null),
   onLocked: () => { if (live) live.nudge(); },
+  keys: { active: () => KEY_TABS.includes(curTab()), target: () => keysTarget(), start: () => keysStart() },
 });
 editor.setTarget(browserTarget);
 live = mountLive({ S, $, log, say, toast, editor, browserTarget, changed: () => { importer.render(); if (!$("tab-library").hidden) renderSel(); } });
@@ -1041,7 +1090,7 @@ edTab.addEventListener("drop", async (ev) => {
 });
 
 // ---------------------------------------------------------------- tabs
-const TABS = ["backup", "library", "edit", "pool", "import"];
+const TABS = ["backup", "library", "edit", "pool", "projects", "import"];
 function tab(name) {
   for (const t of TABS) {
     $(`t-${t}`).setAttribute("aria-selected", String(t === name));
@@ -1050,11 +1099,93 @@ function tab(name) {
   if (name !== "backup") loadDumps();
   if (name === "pool") pool.show();
   if (name === "import") importer.render();
-  if (name === "edit") { editor.show(); live.show(); } else live.hide();
+  if (name === "edit") { editor.show(); live.show(); if (bfizz.ready && editor.sound() && !live.on()) browserTarget.audition(editor.sound()); } else live.hide();
+  if (name === "projects") projtab.show();
   if (location.hash !== `#${name}`) history.replaceState(null, "", `${location.search}#${name}`);
 }
 for (const t of TABS) $(`t-${t}`).addEventListener("click", () => tab(t));
 window.addEventListener("beforeunload", (ev) => { if (S.busy) { ev.preventDefault(); ev.returnValue = ""; } });
+
+// ---------------------------------------------------------------- the computer keys, the sound picked (the owner, 2026-10-27)
+// On LIBRARY, POOL and IMPORT the keys (A S D F .., W E R ..; Z / X the octave) play the sound picked: on the unit's
+// track with TRACK on (a LIBRARY or POOL preset loaded there, KEEP / CANCEL), else in this browser's FIZZ (its track 1)
+const KEY_TABS = ["library", "pool", "import"];
+const PV = { sound: null, want: null };
+const curTab = () => TABS.find((t) => !$(`tab-${t}`).hidden);
+const keysTarget = () => (live.on() ? live.target : browserTarget);
+async function keysStart() {
+  if (live.on()) return live.target.start();
+  const ok = await bfizz.start();
+  if (ok && PV.sound) browserTarget.audition(PV.sound);
+  return ok;
+}
+function previewSound(snd) {
+  PV.sound = snd;
+  if (snd && !live.on() && bfizz.ready) browserTarget.audition(snd);
+}
+function previewRow(r) {
+  if (!r || !S.unit) return;
+  if (live.on()) { const f = frameOf(r); if (f) live.pick(r, f); return; }
+  const f = frameOf(r);
+  if (f) previewSound(soundFromFrame(f));
+  else { PV.want = r; fetchOne(r); }
+}
+function previewId(id) {
+  const r = S.unit && S.unit.rows.find((x) => (x.source === "mine" || x.source === "factory") && x.id === id);
+  previewRow(r);
+}
+function previewLib(snd, name) {
+  if (!snd) return;
+  if (live.on()) { live.pickSound(snd, name); return; }
+  previewSound(soundFromLib(snd));
+}
+
+// ---------------------------------------------------------------- FIZZ in this browser as the FM-1 (the owner, 2026-10-27)
+// BROWSER in the header: the browser's own FIZZ (browserunit.js) takes the FM-1's place, heard on the computer: every tab
+// works on it. It starts from the store it had last time in this browser, else the newest full backup kept here, else
+// blank; TRACK is on (nothing to protect). FM-1 in the header goes back to the unit.
+let BU = null;
+function setB(state, sub = "") {
+  const b = $("bunit");
+  b.dataset.state = state;
+  $("bunit-sub").textContent = sub;
+}
+async function newestImage() {
+  const b = S.baks.find((x) => x.kind === "full" && x.layout !== "host");
+  if (!b) return null;
+  try { return (await readBackup(b.bytes, b.name)).image; } catch (_) { return null; }
+}
+function dropLink() {
+  if (S.access) S.access.onstatechange = null;
+  if (S.link) { try { S.link.close(); } catch (_) { /* gone */ } S.link = null; live.lost(); }
+  if (S.mode === "browser" && BU) { BU.unplug(); if (BU.player.ctx) BU.player.ctx.suspend().catch(() => {}); }
+  S.access = null;
+}
+async function useBrowser() {
+  if (S.busy || attaching) return;
+  dropLink();
+  S.mode = "browser";
+  setUnit("idle", "FM-1"); setB("look", "");
+  try {
+    if (!BU) { const { BrowserUnit } = await import("./browserunit.js"); BU = new BrowserUnit({ log, onFlash: (b) => DB.put("browserFlash", b) }); }
+    if (!(await BU.start())) throw new Error("the browser held the sound back: click BROWSER again");
+    if (BU.player.ctx) await BU.player.ctx.resume();
+    if (!BU.engine) await BU.boot((await DB.get("browserFlash")) || (await newestImage()));
+    else await BU.replug();
+  } catch (e) { S.mode = "fm1"; setB("off"); setUnit("off", "CONNECT"); say(esc(e.message || String(e)), "--orange"); return; }
+  S.access = BU.access;
+  await attach();
+  if (S.link && (await live.probe()) && !live.on()) await live.setOn(true);
+}
+function leaveBrowser() {
+  if (S.busy) return;
+  dropLink();
+  S.mode = "fm1";
+  setB("off");
+  setUnit("off", "CONNECT");
+  S.unit = null;
+  renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render(); projtab.render();
+}
 
 // ---------------------------------------------------------------- the simulated FM-1 (?sim)
 async function simAccess() {
@@ -1083,4 +1214,4 @@ if (SIM) connect();
 else if (navigator.permissions && navigator.requestMIDIAccess) {
   navigator.permissions.query({ name: "midi", sysex: true }).then((p) => { if (p.state === "granted") connect(); }).catch(() => {});
 }
-window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor, live };
+window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor, live, projtab, useBrowser, leaveBrowser, bu: () => BU };

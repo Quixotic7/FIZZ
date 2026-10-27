@@ -24,11 +24,13 @@
     <button class="tab" role="tab" id="t-library" aria-controls="tab-library" aria-selected="false" style="--c:var(--cream)"><i></i>LIBRARY</button>
     <button class="tab" role="tab" id="t-edit" aria-controls="tab-edit" aria-selected="false" style="--c:var(--pink)"><i></i>EDIT</button>
     <button class="tab" role="tab" id="t-pool" aria-controls="tab-pool" aria-selected="false" style="--c:var(--green)"><i></i>POOL</button>
+    <button class="tab" role="tab" id="t-projects" aria-controls="tab-projects" aria-selected="false" style="--c:var(--cyan)"><i></i>PROJECTS</button>
     <button class="tab" role="tab" id="t-import" aria-controls="tab-import" aria-selected="false" style="--c:var(--violet)"><i></i>IMPORT</button>
   </nav>
   <button id="live" class="livesw" aria-pressed="false" hidden><span class="sw" aria-hidden="true"><i></i></span><span class="lw">TRACK</span><b id="live-n">–</b></button>
   <button id="refresh" class="icon refresh" aria-label="Read the FM-1 again" title="Read the FM-1 again" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16.5 3.5v3.6h-3.6"/></svg></button>
   <button id="unit" class="unit" data-state="off"><span class="dot"></span><span id="unit-label">CONNECT</span><small id="unit-sub"></small></button>
+  <button id="bunit" class="unit bunit" data-state="off" title="FIZZ in this browser, heard on this computer"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8v4h3l4 3V5L6 8z"/><path d="M13 7.5a3.5 3.5 0 0 1 0 5M15.5 5a7 7 0 0 1 0 10"/></svg><span>BROWSER</span><small id="bunit-sub"></small></button>
 </header>
 <p id="say" class="say" role="status"></p>
 <div id="loadbar" class="loadbar" role="status" hidden></div>
@@ -86,6 +88,22 @@
         <button id="p-unused" class="btn small ghost" disabled>CLEAR UNUSED</button></div>
     </div>
     <div class="card pmine"><div class="h">SOUNDS</div><div class="filters" id="p-filter"></div><div class="cases" id="p-list"></div></div>
+  </section>
+
+  <section id="tab-projects" class="body" role="tabpanel" aria-labelledby="t-projects" hidden>
+    <div class="card pjslots">
+      <div class="h"><span id="pj-on">ON THE FM-1</span> <span class="n" id="pj-n"></span><span class="pjuse" id="pj-use"></span></div>
+      <div class="slots" id="pj-slots"></div>
+      <div class="acts" id="pj-acts"></div>
+    </div>
+    <div class="card pjmain">
+      <div class="row pjhead"><div class="big pjname" id="pj-name"></div><span class="kv" id="pj-count"></span><span class="clip" id="pj-clip" hidden></span>
+        <div class="seg pjview" id="pj-view" role="group" aria-label="Show"><button data-v="patterns" class="on">PATTERNS</button><button data-v="kept">KEPT <b id="pj-kn"></b></button></div></div>
+      <div class="pjgrid" id="pj-grid"></div>
+      <div class="kept" id="pj-kept" hidden></div>
+      <div class="row pjtools" id="pj-tools"></div>
+      <div class="pending" id="pj-pending" hidden></div>
+    </div>
   </section>
 
   <section id="tab-import" class="body col" role="tabpanel" aria-labelledby="t-import" hidden>
@@ -146,6 +164,7 @@
   </div>
 </div>
 
+<input type="file" id="pj-file" accept=".fizzpat,.fizzprj" multiple hidden>
 <details class="logbox" id="logbox"><summary>LOG</summary><pre id="log"></pre></details>
 <div class="toast" id="toast" role="alert" hidden></div>
 

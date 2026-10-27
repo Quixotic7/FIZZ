@@ -215,13 +215,43 @@ export function mountLive(ctx) {
       L.pending = { frame: r.f, t: r.s.track, name: "" };
     }
     const d = parseDump(frame);
-    const x = await link().store(storeSound({ name: d.name, blob: d.blob, drive: d.drive, track: L.pending.t, pan: d.pan, chorus: d.chorus,
-      delay: d.delay, reverb: d.reverb, tags: d.tags, audition: true, extras: { id: row.id, sound: 0, edited: false } })).catch(() => null);
-    if (!x || x.kind !== "store" || x.status !== 0) { say(refusal(x, "pick again"), "--orange"); return false; }
-    L.pending.name = row.name;
+    L.pending.name = row.name;                          // (the bar up at once: CANCEL puts the track's own sound back whatever came of it)
+    render();
+    const x = await sure(storeSound({ name: d.name, blob: d.blob, drive: d.drive, track: L.pending.t, pan: d.pan, chorus: d.chorus,
+      delay: d.delay, reverb: d.reverb, tags: d.tags, audition: true, extras: { id: row.id, sound: 0, edited: false } }), d.name);
+    if (!x || x.status !== 0) { say(refusal(x, "pick again"), "--orange"); return false; }
     log(`${tn(L.pending.t)} plays ${row.name} (AUDITION)`);
     render();
     return true;
+  }
+  // (the owner, 2026-10-27) a sound that is not on the unit (an IMPORT row) heard on the track the same way: AUDITION,
+  // nothing stored; KEEP / CANCEL as for a preset picked in LIBRARY
+  async function pickSound(s, name) {
+    if (!ok() || !s) return false;
+    if (!L.pending) {
+      const r = await readTrack();
+      if (!r) return false;
+      L.pending = { frame: r.f, t: r.s.track, name: "" };
+    }
+    L.pending.name = name || s.name;
+    render();
+    const x = await sure(storeSound({ name: s.name, blob: s.blob, drive: s.drive || 0, track: L.pending.t, pan: s.pan,
+      chorus: s.sends && s.sends.chorus, delay: s.sends && s.sends.delay, reverb: s.sends && s.sends.reverb, audition: true,
+      extras: { id: 0, sound: 0, edited: true } }), s.name);
+    return !!(x && x.status === 0);
+  }
+  // an AUDITION (it sets the track's sound: sending it again is harmless): its reply lost, the track read to see
+  // whether it took, else sent again (up to three times)
+  async function sure(frame, name, t = L.pending ? L.pending.t : -1) {
+    for (let i = 0; i < 3; i++) {
+      const x = await link().store(frame).catch(() => null);
+      if (x && x.kind === "store") return x;
+      const f = await link().dumpTrack(t + 1).catch(() => null);
+      const d = f && parseDump(f);
+      if (d && d.name.trim() === String(name).trim()) { log("AUDITION: its reply lost, the track has it"); return { kind: "store", status: 0 }; }
+      log(`AUDITION: no answer, sent again (${i + 1})`);
+    }
+    return null;
   }
   function keep() { if (L.pending) toast(`${tn(L.pending.t)}: ${L.pending.name}`, "--pink"); L.pending = null; render(); }
   async function cancel() {
@@ -229,8 +259,9 @@ export function mountLive(ctx) {
     L.pending = null;
     render();
     if (!p || !S.link) return;
-    const x = await link().store(trackFrame(p.frame)).catch(() => null);
+    const x = await sure(trackFrame(p.frame), parseDump(p.frame).name, p.t);
     if (x && x.status === 0) toast(`${tn(p.t)}: its own sound again`, "--muted");
+    else { L.pending = p; render(); say(`${tn(p.t)}'s own sound did not go back yet: CANCEL again.`, "--orange"); }
     if (editShown() && L.follow) await attach();
   }
 
@@ -273,7 +304,7 @@ export function mountLive(ctx) {
   }
 
   return {
-    target, render, attach, detach, pick, keep, cancel, strip, stripClick, nudge, loadOnUnit,
+    target, render, attach, detach, pick, pickSound, keep, cancel, strip, stripClick, nudge, loadOnUnit, setOn,
     on: () => L.on && L.cap,
     following: () => L.follow,
     browsing: () => L.browse,

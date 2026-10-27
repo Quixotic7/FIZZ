@@ -223,7 +223,7 @@ export class Sheet {
       out.push(h("div", { class: "inline" }, h("span", { class: "grow" }, "Erase FIZZ's flash and start blank? (named saves stay)"),
         pill("Erase", async () => { this.inline = null; await a.eraseFlash(); }, "danger-fill"), pill("Cancel", () => { this.inline = null; this.render(); }, "ghost")));
     }
-    const fileIn = h("input", { type: "file", accept: ".json,.bin,.fm1save,application/json,application/octet-stream", hidden: true,
+    const fileIn = h("input", { type: "file", accept: ".json,.bin,.fm1save,.fizzbak,application/json,application/octet-stream,application/zip", hidden: true,
       onchange: (ev) => { const f = ev.target.files[0]; ev.target.value = ""; if (f) a.importSaves(f); } });
     out.push(h("div", { class: "pills" },
       pill("Save", () => a.saveOver(sel), "", { disabled: !sel || !st.running, title: sel ? `Write the running flash over "${sel.name}"` : "Pick a save first" }),
