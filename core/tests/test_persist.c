@@ -622,6 +622,54 @@ static void mix_test(void)
               !LIB(&A, 3)->reverb, "an 'S' 3 record (0.7.3 and older): no sends, pan centre");
 }
 
+/* FIZZ MIDI (c): a track's MIDI OUT, SETTINGS' CLOCK OUT and CC OUT kept across a restart; the records as 0.12 wrote
+ * them (the track settings 43 bytes, the settings' b[5] without the two bits): MIDI OUT OFF, both ON, the rest kept */
+static void midi_out_test(void)
+{
+    static uint8_t b[QDS_MAXREC * 256], c[QDS_MAXREC * 256];
+    const uint32_t hd = 12u, ts = (uint32_t)sizeof(qd_tset_t);
+    qd_pattern_t *P;
+    uint32_t k;
+    int len, pat;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    pat = A.seq.cur;
+    P = qd_proj_pat(&A.proj, pat);
+    P->trk[1].mout = 5, P->trk[1].mfx = 2, P->trk[1].chan = 9, P->used = 1;
+    A.ui.clk_out = 0, A.ui.cc_out = 0;
+    run(&A, 20);
+    qd_persist_write_v4 = 1;                            /* (a 'P' 4: the track settings right after 12 bytes) */
+    CHECK(qd_persist_flush(&A), "flushed");
+    qd_persist_write_v4 = 0;
+    boot(&B);
+    P = qd_proj_pat(&B.proj, pat);
+    CHECK(P->trk[1].mout == 5 && P->trk[1].mfx == 2 && !B.ui.clk_out && !B.ui.cc_out,
+          "a restart: MIDI OUT 5, CLOCK OUT and CC OUT OFF kept");
+    len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_PAT, 0, pat), b, sizeof b);
+    CHECK(len > (int)(hd + QD_PAT_NTRACK * ts) && b[0] == 'P' && b[1] == 4 && b[3] == ts, "its record: 'P' 4, %u-byte "
+          "track settings", (unsigned)ts);
+    memcpy(c, b, hd);                                   /* (each track's settings one byte shorter: 0.12's 43) */
+    for (k = 0; k < (uint32_t)QD_PAT_NTRACK; k++)
+        memcpy(c + hd + k * QD_TSET_SIZE_MFX, b + hd + k * ts, QD_TSET_SIZE_MFX);
+    memcpy(c + hd + QD_PAT_NTRACK * QD_TSET_SIZE_MFX, b + hd + QD_PAT_NTRACK * ts,
+           (uint32_t)len - (hd + QD_PAT_NTRACK * ts));
+    c[3] = QD_TSET_SIZE_MFX;
+    qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_PAT, 0, pat), c, (uint32_t)len - (uint32_t)QD_PAT_NTRACK * (ts - QD_TSET_SIZE_MFX));
+    qd_store_flush(&B.per.prj_st);                      /* (one put at a time) */
+    len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, sizeof b);
+    b[5] &= 0x80u;                                      /* (BOOST's bit only, as 0.12 wrote it) */
+    qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
+    qd_store_flush(&B.per.prj_st);
+    boot(&A);
+    P = qd_proj_pat(&A.proj, pat);
+    CHECK(P->trk[1].mout == 0 && P->trk[1].mfx == 2 && P->trk[1].chan == 9 && A.ui.clk_out && A.ui.cc_out,
+          "0.12's records: MIDI OUT OFF, CLOCK OUT and CC OUT ON, the rest kept (MIDI FX %d, MIDI CH %d)", P->trk[1].mfx,
+          P->trk[1].chan + 1);
+    printf("  MIDI OUT: kept; an older record's OFF, CLOCK OUT and CC OUT ON\n");
+}
+
 /* P1.6d: the tracks' kinds and names, AUTOMATION, kept across a restart; a 0.9.0 header (none of them): the default
  * kit's names and kinds, AUTOMATION ON, the pool byte still read */
 /* 2026-10-24, six tracks: a store an eight-track FIZZ left (its settings record 'G' 1) with MY PRESETS and a project
@@ -1608,6 +1656,7 @@ int main(void)
     mix_test();
     names_test();
     old_format_test();
+    midi_out_test();
 #ifdef QD_DEVICE
     CHECK(qd_arena_fails() == 0, "P2.1b: the drawing's arena never short (it lends its room between frames: %u "
           "refused)", qd_arena_fails());

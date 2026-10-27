@@ -698,6 +698,16 @@ static void menu_set(const ui_menu_t *v)
         ui_RR(34.f + (float)k * 11.f, 172.f - (float)k * 4.f, 8.f, 8.f + (float)k * 4.f, 2.f, QD_NONE, 1.f,
               lit ? (k >= 6 ? UI_RED : KCOL[1]) : UI_G3);
     }
+    /* KNOB 3, 4 (FIZZ MIDI (c)): CLOCK OUT and CC OUT, ON / OFF, small at the foot (the page's two pictures above) */
+    menu_row_sz(2, 194.f, "CLOCK OUT", 0, 0.f);
+    ui_T(v->clk_out ? "ON" : "OFF", 112.f, 222.f, 14.f, 600, 0.f, v->clk_out ? KCOL[2] : UI_G2, QD_RIGHT);
+    {
+        char n[4] = {'4', 0};
+        ui_O(132.f, 194.f, 9.f, QD_NONE, 1.f, KCOL[3]);
+        ui_T(n, 132.f, 198.5f, 12.f, 700, 0.f, UI_BG, QD_CENTER);
+        ui_lab("CC OUT", 146.f, 198.5f, UI_G1, QD_LEFT);
+        ui_T(v->cc_out ? "ON" : "OFF", 232.f, 222.f, 14.f, 600, 0.f, v->cc_out ? KCOL[3] : UI_G2, QD_RIGHT);
+    }
 }
 
 /* P1.4b: the track settings: the track's number and name in its colour; page 1 MODE (GLOBAL / LOCAL), SCALE (its twelve
@@ -731,20 +741,41 @@ static void menu_trk(const ui_menu_t *v)
         }
         menu_row(2, 134.f, "ROOT", v->root);
         menu_row(3, 186.f, "MIDI CH", ui_itoa(n, v->chan));
-    } else if (v->page == 2) {                          /* P1.6d: KIND (the seven icons, its own lit), NAME */
-        menu_row(0, 44.f, "KIND", v->tkind >= 0 ? KIND_NAME[v->tkind] : "NONE");
-        for (k = 0; k < 7; k++) {
-            const float x = 40.f + (float)k * 27.f;
-            const int on = k == v->tkind;
-            if (on)
-                ui_RR(x - 12.f, 84.f, 24.f, 24.f, 5.f, UI_PK_COL[k], 1.4f, QD_NONE);
-            ui_kind_icon(k, x, 96.f, 1.f, on ? UI_PK_COL[k] : UI_G2);
-        }
-        menu_row(1, 124.f, "NAME", v->tname ? v->tname : "");
-        for (k = 0; k < 12; k++) {                      /* its twelve places, the ones used lit (typed: KNOB 2's) */
-            const int used = v->tname && k < (int)strlen(v->tname);
-            ui_RR(36.f + (float)k * 10.f, 178.f, 8.f, 10.f, 2.f, used ? (v->named ? KCOL[1] : UI_G1) : UI_G3, 1.f,
-                  used && v->named ? KCOL[1] : QD_NONE);
+    } else if (v->page == 2) {                          /* P1.6d: KIND, NAME; FIZZ MIDI (c, mockups/fizz-midi-track.html
+                                                         * screens 1, 2): four rows as page 1's, ENGINE (FM TONE, its four
+                                                         * operators; the MIDI track's switch next), MIDI OUT (a DIN socket
+                                                         * and an arrow, the channel; OFF grey) */
+        static const char *const TL[4] = {"KIND", "NAME", "ENGINE", "MIDI OUT"};
+        for (k = 0; k < 4; k++) {
+            const float y = 42.f + (float)k * 51.f, vy = y + 31.5f;
+            const char *val = k == 0 ? (v->tkind >= 0 ? KIND_NAME[v->tkind] : "NONE") : k == 1 ? (v->tname ? v->tname : "")
+                            : k == 2 ? "FM TONE" : v->mout ? ui_itoa(n, v->mout) : "OFF";
+            const qd_rgb col = k == 3 && !v->mout ? UI_G2 : KCOL[k];
+            const float w = ui_TW(val, 26.f, 300, 0.f), sz = w > 150.f ? 26.f * 150.f / w : 26.f;
+            const float lx = 232.f - (w > 150.f ? 150.f : w);
+            menu_row_sz(k, y, TL[k], 0, 0.f);
+            ui_T(val, 232.f, vy, sz, 300, 0.f, col, QD_RIGHT);
+            if (k == 0 && v->tkind >= 0) {              /* its kind's icon, boxed in its colour */
+                ui_RR(lx - 33.f, vy - 21.f, 24.f, 24.f, 5.f, UI_PK_COL[v->tkind], 1.4f, QD_NONE);
+                ui_kind_icon(v->tkind, lx - 21.f, vy - 9.f, 1.f, UI_PK_COL[v->tkind]);
+            } else if (k == 2) {                        /* four operators */
+                int i;
+                for (i = 0; i < 4; i++)
+                    ui_O(lx - 30.f + (float)(i % 2) * 12.f, vy - 15.f + (float)(i >> 1) * 12.f, 4.2f, col, 1.5f, QD_NONE);
+            } else if (k == 3 && v->mout) {             /* a MIDI socket (DIN 5: its ring, notch, five pins), out */
+                const float x = lx - 38.f, yy = vy - 9.f, r = 9.f;
+                int i;
+                ui_O(x, yy, r, col, 1.8f, QD_NONE);
+                ui_RR(x - 1.6f, yy + r - 3.2f, 3.2f, 3.2f, 1.f, QD_NONE, 1.f, col);
+                static const float PX[5] = {-1.f, -0.7071f, 0.f, 0.7071f, 1.f}, PY[5] = {0.f, -0.7071f, -1.f, -0.7071f, 0.f};
+                for (i = 0; i < 5; i++)                 /* (the pins on the upper half circle, at 0.55 r) */
+                    ui_O(x + PX[i] * r * 0.55f, yy + PY[i] * r * 0.55f + 1.f, 1.3f, QD_NONE, 1.f, col);
+                line2(x + r + 4.f, yy, x + r + 13.f, yy, col, 1.8f);
+                {
+                    const float ar[6] = {x + r + 9.f, yy - 4.f, x + r + 13.f, yy, x + r + 9.f, yy + 4.f};
+                    ui_P(ar, 3, col, 1.8f, 0, QD_NONE);
+                }
+            }
         }
     } else {
         menu_row(0, 44.f, "VOICES", ui_itoa(n, v->limit));
@@ -762,7 +793,7 @@ static void menu_trk(const ui_menu_t *v)
     }
     if (v->last >= 0 && v->last < 4) {                  /* the row turned last: its badge ringed */
         static const float Y0[3][4] = {{34.f, 78.f, 134.f, 186.f}, {44.f, 98.f, 152.f, 198.f},
-                                       {44.f, 124.f, -40.f, -40.f}};
+                                       {42.f, 93.f, 144.f, 195.f}};
         ui_O(18.f, Y0[v->page < 0 || v->page > 2 ? 0 : v->page][v->last], 12.f, KCOL[v->last], 1.2f, QD_NONE);
     }
 }

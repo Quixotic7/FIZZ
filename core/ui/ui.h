@@ -673,6 +673,8 @@ typedef struct {
     int scale_mask, root_pc, follow_key, chan, limit, swing, voices_now;
     int mfx;                            /* P1.6c: the track's MIDI FX group (0 OFF) */
     int tkind, named;                   /* P1.6d, page 3: its kind (-1 none), its name typed */
+    int mout;                           /* .. FIZZ MIDI (c): MIDI OUT (0 OFF, 1..16) */
+    int clk_out, cc_out;                /* SETTINGS: FIZZ MIDI (c): CLOCK OUT, CC OUT */
     int last;                           /* the knob turned last (0..3, -1) */
 } ui_menu_t;
 void ui_menu_draw(const ui_menu_t *v);

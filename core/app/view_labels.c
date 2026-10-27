@@ -275,10 +275,11 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
     }
     if (QD_MENU_UP(u)) {              /* the settings menus */
         static const char *const REC[4] = {"MODE", "QUANTIZE", "TAKE", "EDIT KEYS"};
-        static const char *const SET[4] = {"FOLLOW", "BOOST", "", ""};
+        static const char *const SET[4] = {"FOLLOW", "BOOST", "CLOCK OUT", "CC OUT"};
         static const char *const TRK[3][4] = {{"MODE", "SCALE", "ROOT", "MIDI CH"},
                                               {"VOICES", "SWING", "FOLLOW", "MIDI FX"},
-                                              {"KIND", "NAME", "", ""}};   /* (P1.6d: page 3) */
+                                              {"KIND", "NAME", "", "MIDI OUT"}};   /* (P1.6d: page 3; FIZZ MIDI
+                                                         * (c): MIDI OUT) */
         static const char *const REC2[4] = {"AUTOMATION", "", "", ""};   /* P1.6d: the record settings' page 2 */
         const char *const *r = u->latch == QD_LATCH_REC ? (u->rec_page ? REC2 : REC) : u->latch == QD_LATCH_SET ? SET
                              : TRK[u->trk_page < 0 || u->trk_page > 2 ? 0 : u->trk_page];

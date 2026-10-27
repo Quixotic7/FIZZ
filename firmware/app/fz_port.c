@@ -209,6 +209,12 @@ void fz_knob(int role, int detents) { FZ_IN(qd_app_knob(&fz_app, role, detents))
 void fz_master(int pot) { qd_app_master(&fz_app, pot); }
 void fz_midi_play(int status, int d1, int d2) { qd_app_midi_play(&fz_app, status, d1, d2); }
 void fz_midi_ui(int status, int d1, int d2) { qd_app_midi_ui(&fz_app, status, d1, d2); }
+void fz_midi_out(void)
+{
+    uint32_t pkt;
+    while (qd_app_midi_out_take(&fz_app, &pkt, plat_midi_out_room(TO_USB)))
+        plat_midi_send(pkt, TO_USB);
+}
 /* (2026-10-25, the owner: "the HOME screen flashes for a moment while in other menus"; not seen on the host) each frame
  * latched, its screen: a menu's (MENU .. TOOLS: above EDIT), then EDIT (HOME's), then that menu again within 400 ms is
  * a blip: counted, the last one's screens, latch, mode, takeover and length kept (stats line 16, fz_blips) */

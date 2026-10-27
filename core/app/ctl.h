@@ -384,6 +384,7 @@ typedef struct {
                                         * stays after it goes up; the first key after all are up ends the held ones */
     int boost;                         /* 2026-10-26 (the owner: the engine clipped): SETTINGS' BOOST: the tracks at their
                                         * old level (+6 dB); off (the default): 6 dB under it, the engine's headroom */
+    uint8_t clk_out, cc_out;           /* FIZZ MIDI (c): SETTINGS' CLOCK OUT and CC OUT (on at power-on) */
     int play_page[QD_PAT_NTRACK];                  /* the playing page each track was last seen on (follow moves on its edges) */
     uint32_t slide_ms;                 /* the last page change .. */
     int slide_dir;                     /* .. +1: to a later page */

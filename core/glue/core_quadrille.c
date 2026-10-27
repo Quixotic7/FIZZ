@@ -19,7 +19,7 @@
  * flash (core/app/persist.h: the library and the projects, written by themselves); flash_sync and shutdown write what
  * is still waiting. SysEx (P1.5r, docs/SYSEX.md): midi_in's CIN 4..7 packets are collected by FM1VST's common
  * sysex.h; a whole frame of FIZZ's (7D 46 5A) goes to the app at once (qd_app_sysex), its replies into sysex.h's ring
- * of CIN 4..7 packets, which midi_out_take serves. */
+ * of CIN 4..7 packets, which midi_out_take serves; FIZZ MIDI (c): with the app's MIDI OUT between two replies. */
 #include <stdio.h>
 #include <string.h>
 
@@ -42,6 +42,7 @@ static int fm1core_qd_up;
 static int32_t fm1core_qd_master_seen;
 static fm1sx_in_t fm1core_qd_sx_in;
 static fm1sx_out_t fm1core_qd_sx_out;
+static int fm1core_qd_sx_mid;                           /* (FIZZ MIDI (c): a reply's packets begun, its last not taken) */
 
 /* P1.5r: FIZZ's frames only (7D 46 5A ..): the rest (notes, other managers') never held */
 static int fm1core_qd_sx_accept(const uint8_t *f, uint32_t n)
@@ -143,6 +144,7 @@ void fm1core_qd_init(int demo)
     qd_app_sysex_version(&fm1core_qd_app, "FIZZ " FM1CORE_VERSION);   /* P1.5r: the identity's */
     fm1sx_in_init(&fm1core_qd_sx_in, fm1core_qd_sx_accept);
     fm1sx_out_reset(&fm1core_qd_sx_out);
+    fm1core_qd_sx_mid = 0;
     qd_app_tick(&fm1core_qd_app, 0);
     qd_persist_attach(&fm1core_qd_app, &fm1core_qd_fl);   /* P1.5a: the library, the project worked on */
     fm1core_qd_master_seen = fm1core_qd_panel.master;   /* (0: the host has not said; the app's default stands) */
@@ -246,7 +248,17 @@ int fm1core_qd_midi_in(uint32_t pkt)
         qd_app_midi(&fm1core_qd_app, (int)((pkt >> 8) & 0xFFu), 0, 0);
     return 1;
 }
-int fm1core_qd_midi_out_take(uint32_t *pkt) { return fm1sx_take(&fm1core_qd_sx_out, pkt); }   /* P1.5r: replies */
+/* P1.5r: the SysEx replies; FIZZ MIDI (c): and MIDI OUT (the tracks' notes, the clock, the knobs' CCs), between two
+ * replies only (a reply's packets never split): the notes first there (their timing), the replies after them */
+int fm1core_qd_midi_out_take(uint32_t *pkt)
+{
+    if (!fm1core_qd_sx_mid && fm1core_qd_up && qd_app_midi_out_take(&fm1core_qd_app, pkt, 0xFFFFu))
+        return 1;
+    if (!fm1sx_take(&fm1core_qd_sx_out, pkt))
+        return 0;
+    fm1core_qd_sx_mid = (*pkt & 15u) == 4u;             /* (CIN 4 continues a SysEx; 5..7 end it) */
+    return 1;
+}
 void fm1core_qd_dump(void) {}
 void fm1core_qd_stats(uint32_t *shed, uint32_t *cpu_pct)
 {

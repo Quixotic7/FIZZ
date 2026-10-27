@@ -1985,6 +1985,7 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
     v->rec_auto = a->proj.rec_auto;
     v->follow = u->follow;
     v->boost = u->boost;
+    v->clk_out = u->clk_out, v->cc_out = u->cc_out;     /* (FIZZ MIDI (c)) */
     v->t = secs(a->ms);
     if (v->kind == UI_MENU_TRK) {                      /* P1.4b: the track settings of the selected track */
         const qd_tset_t *ts = &qd_ctl_cpat(a)->trk[a->sel];
@@ -2005,6 +2006,7 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
         v->limit = ts->limit;
         v->swing = ts->swing;
         v->mfx = ts->mfx <= QD_MFX_NGROUP ? ts->mfx : 0;
+        v->mout = ts->mout <= 16 ? ts->mout : 0;        /* (FIZZ MIDI (c)) */
         for (i = 0; i < a->pool.nvoice; i++)
             v->voices_now += qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == a->sel;
         v->last = u->menu_knob;

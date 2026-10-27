@@ -46,13 +46,17 @@
  *        record referring to it, in every project, is written again with the copy (pat_unref). Factory presets are
  *        compiled in and never change. A demo-density pattern: ~2.7 KB as 'P' 4, ~1.6 KB as 'P' 5
  *   PAT  (2026-10-26) 'P' 6: as 'P' 5; the sound has the VOICE page's five values (110..114, in the blob's last four
- *        bytes: zeros their defaults), so the mix's lock ids are 115..; a 'P' 3..5's (110..) move up when read */
+ *        bytes: zeros their defaults), so the mix's lock ids are 115..; a 'P' 3..5's (110..) move up when read
+ *   PAT  (FIZZ MIDI (c)) the track settings 44 bytes: MIDI OUT appended (qd_tset_t.mout); a 'P' 4..6 of 43 bytes reads it
+ *        0, OFF (the size byte tells). SET: b[5] bit 6 CLOCK OUT off, bit 5 CC OUT off (an older record: both on) */
 #include <stddef.h>
 
 #include "../voice/fx/qd_fx.h"
 #include "../seq/names.h"
 
 typedef char qd_tset_old_ok[offsetof(qd_tset_t, mfx) == QD_TSET_SIZE_OLD ? 1 : -1];   /* (P1.6c: 'P' 1..3's) */
+typedef char qd_tset_mfx_ok[offsetof(qd_tset_t, mout) == QD_TSET_SIZE_MFX ? 1 : -1];   /* (FIZZ MIDI (c): 'P' 4..6's
+                                                         * of 43 bytes) */
 
 /* P2.1: no record is ever held whole in RAM unless it is short (the device has no room for a 28 KB one): a record is
  * made by an emitter (em_t) that hashes its bytes and copies the ones of a window (a page the store is writing, or
@@ -252,13 +256,14 @@ static void ser_pat(const qd_app_t *a, const qd_pattern_t *p, em_t *e)
     }
 }
 
-/* P1.6c: a record's track settings' size by its version ('P' 4, 5: today's; 1..3: before the MIDI FX field); 0 bad */
+/* P1.6c: a record's track settings' size by its version ('P' 4..6: today's, or 43 bytes before MIDI OUT; 1..3: before
+ * the MIDI FX field); 0 bad */
 static uint32_t pat_tset_size(const uint8_t *b, uint32_t len)
 {
     if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 6 || b[2] != QD_STEP_WIRE)
         return 0;
-    if (b[1] >= 4)
-        return b[3] == sizeof(qd_tset_t) ? (uint32_t)sizeof(qd_tset_t) : 0u;
+    if (b[1] >= 4)                                      /* (FIZZ MIDI (c): 43 bytes before MIDI OUT; it reads 0) */
+        return b[3] == sizeof(qd_tset_t) || b[3] == QD_TSET_SIZE_MFX ? (uint32_t)b[3] : 0u;
     return b[3] == QD_TSET_SIZE_OLD ? (uint32_t)QD_TSET_SIZE_OLD : 0u;
 }
 
@@ -567,8 +572,10 @@ static uint32_t ser_set(const qd_app_t *a, uint8_t *b)
     int i;
     b[o++] = 'G', b[o++] = QD_PRJ_FORMAT;               /* (2026-10-24: 'G' 2, six tracks; 'G' 1 eight) */
     b[o++] = (uint8_t)a->per.proj, b[o++] = (uint8_t)a->seq.cur, b[o++] = (uint8_t)a->sel;
-    b[o++] = a->ui.boost ? 0x80 : 0, b[o++] = (uint8_t)a->ui.view, b[o++] = (uint8_t)a->ui.follow;   /* (2026-10-26:
-                                                         * b[5]'s top bit BOOST; its low bits were the knob layout) */
+    b[o++] = (uint8_t)((a->ui.boost ? 0x80 : 0) | (a->ui.clk_out ? 0 : 0x40) | (a->ui.cc_out ? 0 : 0x20));
+    b[o++] = (uint8_t)a->ui.view, b[o++] = (uint8_t)a->ui.follow;   /* (2026-10-26: b[5]'s top bit BOOST; its low bits
+                                                         * were the knob layout (0..3); FIZZ MIDI (c): bit 6 CLOCK OUT
+                                                         * off, bit 5 CC OUT off: an older record's 0, on) */
     b[o++] = QD_NFXP;
     for (i = 0; i < QD_NFXP; i++) {
         const int16_t v = (int16_t)qd_fx_get(i);
@@ -588,11 +595,13 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
         (len != 9u + 2u * nf && len != 10u + 2u * nf && len != 11u + 2u * nf))
         return 0;
     *proj = b[2] % QD_NPROJ, *pat = b[3] % QD_NPAT, *sel = b[4] % QD_NTRACK;
-    /* b[5]: reserved (was the knob layout A..D; written 0, ignored since 2026-10-25) */
+    /* b[5]: BOOST (bit 7), CLOCK OUT off (6), CC OUT off (5); its low bits were the knob layout A..D (ignored since
+     * 2026-10-25) */
     a->ui.view = len == 11u + 2u * nf ? b[6] % QD_NVIEW : QD_VIEW_EDIT;   /* (P1.5s: a record from before EDIT was
                                                          * the default view: EDIT) */
     a->ui.follow = b[7] != 0;
     a->ui.boost = (b[5] & 0x80u) != 0;
+    a->ui.clk_out = !(b[5] & 0x40u), a->ui.cc_out = !(b[5] & 0x20u);
     for (i = 0; i < (int)nf; i++) {
         int16_t v;
         memcpy(&v, b + 9 + 2 * i, 2);

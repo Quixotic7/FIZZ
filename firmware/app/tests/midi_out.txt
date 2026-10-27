@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: MPL-2.0
+# FIZZ MIDI (c), MIDI OUT on the unit's build (research/FIZZ-MIDI-PLAN.md §4): the port sends the core's out queue to
+# USB from the audio interrupt, right after its block (app.c app_render, fz_port.c fz_midi_out). On the demo's A02:
+# track 1's MIDI OUT 3 (track settings page 3, KNOB 4), its notes out on channel 3 as it plays; the clock and the
+# transport; a live key; the knobs' CCs on the track's MIDI CH (1); a CC in not echoed.
+#   firmware/build.py --host, then firmware/app/build/host/fizz_host firmware/app/tests/midi_out.txt OUT
+expect fz_up 1
+tap HOME
+wait 300
+# track settings page 3: MIDI OUT 3
+tap SEL
+wait 100
+turn SELECT 2
+wait 100
+turn K4 3
+wait 300
+shot midi-out-3.png
+expect midi_out 0
+tap HOME
+wait 100
+out
+# PLAY: START, the clock, track 1's notes on channel 3; STOP: STOP and their OFFs
+tap PLAY
+wait 2000
+expect_out USB FA 00 00
+expect clocks_out >70
+out
+tap PLAY
+wait 100
+expect_out USB FC 00 00
+expect_no_out USB 90 24 64
+out
+# a live key on the plain keyboard (REC tapped): C4 out on 3, and its OFF
+tap REC
+wait 300
+key 7 down 100
+wait 100
+expect_out USB 92 3C 64
+key 7 up
+wait 100
+expect_out USB 82 3C 00
+tap REC
+wait 300
+out
+# EDIT's KNOB 1 (the first page's RATIO C): its CC 25 on track 1's MIDI CH (1), as its value moves
+tap EDIT
+wait 300
+turn K1 -12
+wait 200
+expect_out USB B0 19 00
+out
+tap HOME
+wait 100
+# a CC in (FREQ, channel 1) is not sent back
+midi B0 4A 20
+wait 50
+expect_no_out USB B0 4A 20
+out

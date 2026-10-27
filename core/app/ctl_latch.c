@@ -20,7 +20,8 @@
  *          everything F3 did while held works while it is open; OCT- exits, OCT+ does nothing yet
  *   REC    (P1.3y: SHIFT + REC) the record settings: KNOB 1 MODE (LIVE / STEP), KNOB 2 QUANTIZE (0..100 %), KNOB 3
  *          OVERDUB / REPLACE; the project's
- *   SETTINGS (P1.3y: SHIFT + SEL) the global settings: KNOB 1 PAGE FOLLOW */
+ *   SETTINGS (P1.3y: SHIFT + SEL) the global settings: KNOB 1 PAGE FOLLOW, KNOB 2 BOOST, KNOB 3 CLOCK OUT, KNOB 4
+ *          CC OUT (FIZZ MIDI (c): ON / OFF, the clock and transport, the knobs' CCs to USB) */
 #include "app.h"
 #include "ui.h"
 

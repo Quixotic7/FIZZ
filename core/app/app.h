@@ -81,6 +81,9 @@ extern "C" {
 /* FIZZ MIDI (research/FIZZ-MIDI-PLAN.md): the channels (0-based) */
 #define QD_MIDI_SEL 14                 /* channel 15: the selected track (and the tracks set to 15) */
 #define QD_MIDI_REMOTE 15              /* channel 16: the remote, the panel as if by hand (midi_map.h); no track */
+/* FIZZ MIDI (c), MIDI OUT (USB only; research/FIZZ-MIDI-PLAN.md §4): the out queue's packets and the notes owed */
+#define QD_MO_Q 32                     /* USB-MIDI packets waiting for the port (a power of two, at most 256) */
+#define QD_MO_NOTES 16                 /* notes sent (or queued) whose OFF is owed, every track's together */
 
 /* the buttons, by QUADRILLE's roles (PLAN.md §8), in the panel's order (printed FX, SEL, ENV, LFO, EDIT, GLO, HOME,
  * SAVE, ARP, SEQ, PLAY, REC, OCT-, OCT+). P1.3b (§8b): QD_B_FUNC is SHIFT, QD_B_KEYS (ARP) the MIDI FX (2026-10-25: FILL is SHIFT + FX),
@@ -179,6 +182,21 @@ typedef struct qd_app {
     uint32_t rm_keys;                  /* FIZZ MIDI (b): the remote (channel 16): its keys down (bit k) .. */
     uint16_t rm_btns;                  /* .. its buttons down (bit QD_B_*) .. */
     uint8_t rm_fader[4];               /* .. CC 47..50's last values + 1 (0: none seen yet) */
+    /* FIZZ MIDI (c), MIDI OUT. ONE QUEUE, NO LOCK OF ITS OWN: every producer is a core call (the player's notes and the
+     * clock in the audio block, MIDI in's notes in qd_app_midi_play, the panel's keys and knob CCs on the main loop),
+     * and the port runs every core call either in its audio interrupt or with that interrupt masked (its fz_lock),
+     * the glue on its one thread: the writes are one at a time. Its one reader, qd_app_midi_out_take, is called the
+     * same way (the unit: app_render, right after the block). Room is kept for every OFF owed (mo_on), so an OFF is
+     * never dropped; an ON, a CC or a clock is, when the queue is that full */
+    uint32_t mo_q[QD_MO_Q];            /* the packets (cable 0: CIN | status << 8 | d1 << 16 | d2 << 24) .. */
+    uint8_t mo_r, mo_w;                /* .. read and write counts (mod 256) */
+    uint8_t mo_n;                      /* the notes owed: mo_on[0 .. mo_n), each note | channel << 7 | track << 11 |
+                                        * 0x8000 a live note (a key's, the preview's: STOP and a mute leave it) */
+    uint8_t mo_run;                    /* the own clock's transport: START sent (1), the sequencer playing (2) */
+    uint16_t mo_on[QD_MO_NOTES];
+    uint32_t mo_pulse;                 /* clocks sent since START */
+    uint8_t mo_knob;                   /* a knob's turn (qd_app_knob) on the selected track: its index + 1 .. */
+    uint8_t mo_rb;                     /* .. RATIO B's pair moved in it */
     int master_pot;                    /* MASTER, 0..1023 */
     uint32_t seed_fix;                 /* P2.4: qd_app_seed's (0: the clock's) */
     uint32_t free_ms;                  /* P2.6c: qd_app_tick_free's ms so far */
@@ -238,6 +256,11 @@ void qd_app_master(qd_app_t *a, int pot);
 void qd_app_midi(qd_app_t *a, int status, int d1, int d2);   /* status 0xF8 / FA / FB / FC: MIDI clock */
 void qd_app_midi_play(qd_app_t *a, int status, int d1, int d2);   /* P2.4: its audio-safe part (the interrupt's) .. */
 void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2);     /* .. and its UI part, after it (the main loop's) */
+/* FIZZ MIDI (c): MIDI OUT's next packet for USB (1; 0 none, or it waits for room), room the port's free slots (plat.h
+ * plat_midi_out_room: a NOTE ON waits until the room holds it and the OFFs owed). In the same context as the other
+ * calls (the unit: the audio interrupt, right after the block; the glue: midi_out_take) */
+int qd_app_midi_out_take(qd_app_t *a, uint32_t *pkt, uint32_t room);
+void qd_app_midi_out_panic(qd_app_t *a);   /* every note owed: its OFF (the panic, OCT- + OCT+) */
 /* the clock: ms counts up from 0, one call per device millisecond (a gap is run through ms by ms) */
 void qd_app_tick(qd_app_t *a, uint32_t ms);
 /* P2.6c: qd_app_tick in two, for the port's audio lock: qd_app_tick_locked(a, ms) under it (each ms: the patterns

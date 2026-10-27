@@ -156,6 +156,7 @@ void qd_ctl_init(qd_app_t *a)
     u->fol_g = -1;
     u->view = QD_VIEW_EDIT;            /* P1.5s (the owner: "this home screen should be the default one") */
     u->follow = 1;
+    u->clk_out = u->cc_out = 1;        /* (FIZZ MIDI (c)) */
     u->lmode = QD_LMODE_MODES;         /* (the owner, 2026-10-25: MODES the default; a saved setting overrides) */
     u->hmode = UI_F_NOTE;
     u->tk = QD_TK_NONE;
@@ -1418,6 +1419,7 @@ static void b_oct(qd_app_t *a, int d, int down)
     if (u->mode == QD_MODE_KEYS || u->mode == QD_MODE_TRACKS) {
         if (both) {
             qd_pool_kill_all(&a->pool);
+            qd_app_midi_out_panic(a);                   /* (FIZZ MIDI (c): MIDI OUT's notes too) */
             return;
         }
         if (u->mode != QD_MODE_KEYS)
@@ -1439,6 +1441,7 @@ static void b_oct(qd_app_t *a, int d, int down)
     if (qd_snd_keys(a)) {                               /* P1.5b: the editor's keyboard: the octave (both: PANIC) */
         if (both) {
             qd_pool_kill_all(&a->pool);
+            qd_app_midi_out_panic(a);                   /* (FIZZ MIDI (c): MIDI OUT's notes too) */
         } else {
             const int from = a->oct;
             a->oct = clampi(a->oct + d, QD_OCT_MIN, QD_OCT_MAX);
@@ -1887,6 +1890,8 @@ static int k_menu(qd_app_t *a, int knob, int d)
         switch (knob) {
         case QD_K_1: u->follow = d > 0; break;      /* (2026-10-25: KNOBS gone, PAGE FOLLOW moved to KNOB 1) */
         case QD_K_2: u->boost = d > 0; break;       /* (2026-10-26: BOOST) */
+        case QD_K_3: u->clk_out = d > 0; break;     /* (FIZZ MIDI (c): CLOCK OUT, CC OUT) */
+        case QD_K_4: u->cc_out = d > 0; break;
         default: break;
         }
     }

@@ -26,6 +26,13 @@
  * playing, the tempo's while stopped (the arp plays the keys at any time). STOP ends every group's notes; a track
  * that falls silent (a mute, a solo) has its sequencer notes taken out of the groups.
  *
+ * FIZZ MIDI (c), MIDI OUT: every note the player gives the pool, or takes back, is also told to out (the app's: a track
+ * with MIDI OUT sends it), as the pool sees it: the sequencer's (after its groups: an arp's notes), the keys' and the
+ * preview's (live 1), a LEGATO / TIE the new note's ON then the old one's OFF, note -1 every note of track t (live -1:
+ * all; 0: the sequencer's only): the track's flush (MIDI's ALL NOTES OFF), a track that falls silent, STOP. (A MIDI
+ * track, next: its notes go out and skip the pool here.) edit is told every change of a track's sound value by
+ * qd_player_live_edit (its old value): the app sends the panel's knob moves as CCs from it.
+ *
  * Everything that happens can be logged (qd_player_t.log): the timelines of the tests. */
 #pragma once
 #include <stdint.h>
@@ -50,6 +57,8 @@ typedef struct {
     int64_t gate;
 } qd_plog_t;
 typedef void (*qd_plog_fn)(void *ctx, const qd_plog_t *l);
+typedef void (*qd_pout_fn)(void *ctx, int t, int note, int vel, int live);   /* (c): a note on (vel 1..127) / off (0) */
+typedef void (*qd_pedit_fn)(void *ctx, int t, int id, int old, int value);    /* (c): a sound value changed */
 
 typedef struct {
     qd_seq_t *seq;
@@ -58,6 +67,9 @@ typedef struct {
     uint32_t last_on[QD_PAT_NTRACK][128];   /* the strike that owns (track, note): a sequencer serial, 0 a key */
     qd_plog_fn log;
     void *log_ctx;
+    qd_pout_fn out;                     /* FIZZ MIDI (c): the notes as the pool gets them (0: none) .. */
+    qd_pedit_fn edit;                   /* .. the sound's live edits */
+    void *out_ctx;
     uint32_t ons, offs, offs_kept, locks, legatos, dips;
     uint32_t previews;                  /* P1.3d: steps struck by qd_player_preview */
     /* P1.6c: the MIDI FX groups' run-time, the group each note went into (0 none), the clock */
