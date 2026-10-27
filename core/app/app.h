@@ -78,6 +78,9 @@ extern "C" {
 #define QD_VOICES QD_POOL_DEFAULT      /* the pool's voices (a setting: up to QD_POOL_MAX for experiments) */
 #endif
 #define QD_MASTER_POT_DEFAULT 724      /* MASTER before the panel says (master_of_pot: 2047 of 4096, Felucca's) */
+/* FIZZ MIDI (research/FIZZ-MIDI-PLAN.md): the channels (0-based) */
+#define QD_MIDI_SEL 14                 /* channel 15: the selected track (and the tracks set to 15) */
+#define QD_MIDI_REMOTE 15              /* channel 16: the remote, the panel as if by hand (midi_map.h); no track */
 
 /* the buttons, by QUADRILLE's roles (PLAN.md §8), in the panel's order (printed FX, SEL, ENV, LFO, EDIT, GLO, HOME,
  * SAVE, ARP, SEQ, PLAY, REC, OCT-, OCT+). P1.3b (§8b): QD_B_FUNC is SHIFT, QD_B_KEYS (ARP) the MIDI FX (2026-10-25: FILL is SHIFT + FX),
@@ -170,8 +173,12 @@ typedef struct qd_app {
     uint8_t key_vel[QD_NKEY];
     uint32_t keys_struck;              /* bit k: key k struck a note (it is released at the key's release) */
     uint8_t key_note[QD_NKEY], key_track[QD_NKEY];
-    uint8_t midi_on[16][128];          /* P1.6g: MIDI in: the tracks (bit t) each channel's note struck (its OFF: those) */
-    uint8_t midi_sel[16][16];          /* P2.4: .. a bit a note: it went to the selected track (its OFF: recorded too) */
+    uint8_t midi_on[QD_MIDI_REMOTE][128];   /* P1.6g: MIDI in: the tracks (bit t) each channel's note struck (its OFF:
+                                        * those; FIZZ MIDI (b): channels 1..15, 16 plays no track) */
+    uint8_t midi_sel[QD_MIDI_REMOTE][16];   /* P2.4: .. a bit a note: it went to the selected track (its OFF: recorded too) */
+    uint32_t rm_keys;                  /* FIZZ MIDI (b): the remote (channel 16): its keys down (bit k) .. */
+    uint16_t rm_btns;                  /* .. its buttons down (bit QD_B_*) .. */
+    uint8_t rm_fader[4];               /* .. CC 47..50's last values + 1 (0: none seen yet) */
     int master_pot;                    /* MASTER, 0..1023 */
     uint32_t seed_fix;                 /* P2.4: qd_app_seed's (0: the clock's) */
     uint32_t free_ms;                  /* P2.6c: qd_app_tick_free's ms so far */

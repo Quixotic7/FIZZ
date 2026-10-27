@@ -184,8 +184,6 @@ void qd_app_master(qd_app_t *a, int pot)
  * a held step or the recording (ctl_rec.c); all notes off / all sound off release the channel's tracks; the clock
  * (0xF8), START (0xFA), CONTINUE (0xFB), STOP (0xFC) drive the transport. Channel 16 never plays a track: it is the
  * remote's (research/FIZZ-MIDI-PLAN.md §3; a track's MIDI CH stored as 16 stays, and plays nothing) */
-#define QD_MIDI_SEL 14                                  /* (0-based) channel 15: the selected track */
-#define QD_MIDI_REMOTE 15                               /* .. channel 16: the remote */
 static int midi_tracks(const qd_app_t *a, int ch)       /* the tracks channel ch plays (bit t) */
 {
     int t, m = 0;
@@ -284,8 +282,13 @@ void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2)
     const int ch = status & 15, kind = status & 0xF0;
     int mine;
     a->edit_gen++;                                      /* (P2.6c) */
-    if (status >= 0xF0 || ch == QD_MIDI_REMOTE)
+    if (status >= 0xF0)
         return;
+    if (ch == QD_MIDI_REMOTE) {                         /* FIZZ MIDI (b): the remote, the panel's input (each call its
+                                                         * own gesture, as the panel's) */
+        qd_midi_remote(a, kind, d1 & 127, d2 & 127);
+        return;
+    }
     d1 &= 127;
     d2 &= 127;
     qd_undo_input(a, kind == 0xB0 && qd_midi_cc_id(d1) >= 0);   /* (P1.5c: notes into a held step or a take: a gesture;

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
-/* FIZZ's MIDI map (research/FIZZ-MIDI-PLAN.md §2): the fixed CC map, CC number <-> the value it sets (a sound value id,
+/* FIZZ's MIDI map (research/FIZZ-MIDI-PLAN.md §2, §3): the fixed CC map, CC number <-> the value it sets (a sound value id,
  * a mix lock id QD_LK_*, or QD_MM_DRY), read both ways (CC in; stage (c): knob moves out), and the CC's 0..127 <-> the
  * value: spread over the value's range; a value from a list (the filter MACHINE, an LFO's DEST) by its place in the list
  * its knob turns through; RATIO B the pair (B1 x 19 + B2, 0..360, the id QD_QP_RB1 standing for it).
@@ -27,3 +27,17 @@ int qd_midi_value_cc(int id, int v);   /* id's value -> 0..127 (RB1: v the pair)
  * (qd_auto_put). THE CC-IN PATH: these edits came from MIDI; stage (c) sends the panel's and the remote's knob moves out
  * (ctl_snd.c, ctl_mix.c) and must not send these back, so this path never goes through the knobs. 1: cc is mapped */
 int qd_midi_cc_in(struct qd_app *a, int tracks, int cc, int v);
+
+/* THE REMOTE (§3): channel 16's channel messages (from app.c qd_app_midi_ui, kind the status' high nibble), the panel as
+ * if by hand, into qd_app_key / qd_app_button / qd_app_knob / qd_app_master:
+ *   notes 53..79      the 27 keys, with velocity (note off or velocity 0 lets go)
+ *   CC 20..33         the 14 buttons in QD_B_* order: 64 or more presses, below 64 lets go (on a change only)
+ *   CC 40..46         the 7 encoders in QD_K_* order, relative: 64 + n turns n detents, 64 - n turns -n (64 nothing)
+ *   CC 47..50         KNOB 1..4 for plain pots and faders: the move since the CC's last value (the first only notes it)
+ *   CC 7              MASTER (0..127 over 0..1023)
+ *   CC 123            every key and button the remote holds let go
+ * Its few bytes of state are qd_app_t's rm_* */
+#define QD_RM_BTN0 20
+#define QD_RM_ENC0 40
+#define QD_RM_FADER0 47
+void qd_midi_remote(struct qd_app *a, int kind, int d1, int d2);

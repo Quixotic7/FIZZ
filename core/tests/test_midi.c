@@ -11,6 +11,10 @@
  *   rec        REC armed with AUTOMATION ON: a CC on the selected track records a lock (the sound kept); on another
  *              track's channel: a live edit, nothing recorded
  *   midi ch    the track settings' MIDI CH runs 1..15; a stored 16 stays (shown 16) and plays nothing
+ *   remote     (§3) channel 16: a note presses its key (a step made, as the panel's key; its velocity), a button's CC
+ *              opens what the button opens (a press on a change only), a relative encoder turns SELECT's page, a
+ *              fader turns KNOB 1 by its moves (the first only noted; no acceleration however fast), CC 7 MASTER,
+ *              CC 123 lets go of what the remote holds
  *
  *     test_midi    exit 1 on a failed check */
 #include <stdio.h>
@@ -307,6 +311,87 @@ static void t_midi_ch(void)
     btap(QD_B_HOME);
 }
 
+/* ================================================================ the remote */
+static void note16(int note, int vel)
+{
+    qd_app_midi(&A, vel ? 0x9F : 0x8F, note, vel);
+}
+static void t_remote(void)
+{
+    const int w2 = QD_WHITE_KEY[2];
+    int f0, p0;
+    start();
+    note16(QD_NOTE0 + w2, 77);
+    run(30);
+    CHECK(((A.keys_held >> w2) & 1u) && A.key_vel[w2] == 77 && A.rm_keys == 1u << w2,
+          "note %d on 16: key %d down, velocity 77", QD_NOTE0 + w2, w2);
+    note16(QD_NOTE0 + w2, 0);
+    run(10);
+    CHECK(!A.keys_held && !A.rm_keys && qd_step_is_on(qd_step(PAT(), 0, 2)), "velocity 0: up; the tap made step 3, as W3's");
+    qd_app_key(&A, w2, 1, 100);                         /* (the panel's own key: the same step off again) */
+    run(30);
+    qd_app_key(&A, w2, 0, 0);
+    run(10);
+    CHECK(!qd_step_is_on(qd_step(PAT(), 0, 2)), "the panel's W3: off again (the same key)");
+    note16(QD_NOTE0 - 1, 100);
+    note16(QD_NOTE0 + QD_NKEY, 100);
+    run(10);
+    CHECK(!A.keys_held && !sounding_any(), "notes outside 53..79: nothing");
+    note16(QD_NOTE0 - 1, 0);
+    note16(QD_NOTE0 + QD_NKEY, 0);
+    /* the buttons */
+    cc(16, QD_RM_BTN0 + QD_B_SOUND, 127);
+    CHECK((A.buttons_held >> QD_B_SOUND) & 1u, "CC %d 127: EDIT down", QD_RM_BTN0 + QD_B_SOUND);
+    cc(16, QD_RM_BTN0 + QD_B_SOUND, 100);
+    cc(16, QD_RM_BTN0 + QD_B_SOUND, 0);
+    cc(16, QD_RM_BTN0 + QD_B_SOUND, 10);
+    run(20);
+    CHECK(qd_snd_open(&A) && !A.buttons_held && !A.rm_btns, "EDIT tapped by CC (100 and 10 no change): the sound editor");
+    /* the encoders */
+    p0 = A.ui.snd_page;
+    cc(16, QD_RM_ENC0 + QD_K_SELECT, 65);
+    CHECK(A.ui.snd_page == (p0 + 1) % QD_SND_NPAGE, "CC %d 65: SELECT a detent right, the next page",
+          QD_RM_ENC0 + QD_K_SELECT);
+    cc(16, QD_RM_ENC0 + QD_K_SELECT, 62);
+    CHECK(A.ui.snd_page == (p0 - 1 + QD_SND_NPAGE) % QD_SND_NPAGE, "62: two left (%d)", A.ui.snd_page);
+    cc(16, QD_RM_ENC0 + QD_K_SELECT, 64);
+    CHECK(A.ui.snd_page == (p0 - 1 + QD_SND_NPAGE) % QD_SND_NPAGE, "64: nothing");
+    /* the faders: FILTER's KNOB 1 is FREQ */
+    A.ui.snd_page = qd_snd_page_of("FILTER");
+    f0 = A.model.t[0].patch[QD_QP_FREQ];
+    cc(16, QD_RM_FADER0, 100);
+    CHECK(A.model.t[0].patch[QD_QP_FREQ] == f0, "CC %d's first message: only noted", QD_RM_FADER0);
+    cc(16, QD_RM_FADER0, 90);
+    CHECK(A.model.t[0].patch[QD_QP_FREQ] == f0 - 10, "100 -> 90: KNOB 1 -10 detents, FREQ %d -> %d", f0,
+          A.model.t[0].patch[QD_QP_FREQ]);
+    {
+        int v;
+        for (v = 89; v >= 80; v--)                      /* (fast: no tick between: still one a step) */
+            qd_app_midi(&A, 0xBF, QD_RM_FADER0, v);
+    }
+    CHECK(A.model.t[0].patch[QD_QP_FREQ] == f0 - 20, "90 -> 80 a step at a time, fast: -10 more, no acceleration (%d)",
+          A.model.t[0].patch[QD_QP_FREQ]);
+    cc(16, QD_RM_FADER0 + 1, 50);
+    cc(16, QD_RM_FADER0 + 1, 53);
+    CHECK(A.rm_fader[0] == 81 && A.rm_fader[1] == 54, "each fader its own last value");
+    /* MASTER */
+    cc(16, 7, 127);
+    CHECK(A.master_pot == 1023, "CC 7 127: MASTER 1023");
+    cc(16, 7, 0);
+    CHECK(A.master_pot == 0, "CC 7 0: MASTER 0");
+    cc(16, 7, 64);
+    CHECK(A.master_pot == 516, "CC 7 64: MASTER 516 (%d)", A.master_pot);
+    /* CC 123 */
+    btap(QD_B_HOME);
+    cc(16, QD_RM_BTN0 + QD_B_FUNC, 127);
+    note16(QD_NOTE0 + 5, 90);
+    run(10);
+    CHECK(((A.buttons_held >> QD_B_FUNC) & 1u) && ((A.keys_held >> 5) & 1u), "SHIFT and a key held by the remote");
+    cc(16, 123, 0);
+    CHECK(!A.buttons_held && !A.keys_held && !A.rm_btns && !A.rm_keys, "CC 123: both let go");
+    run(QD_UNDO_QUIET_MS);
+}
+
 int main(void)
 {
     static const struct {
@@ -318,6 +403,7 @@ int main(void)
         {"lists: LFO DEST, MACHINE (LEGACY's TYPE), RATIO B", t_lists},
         {"REC + AUTOMATION: the selected track records", t_rec},
         {"MIDI CH 1..15, a stored 16", t_midi_ch},
+        {"the remote: keys, buttons, encoders, faders, MASTER, CC 123", t_remote},
     };
     size_t i;
     for (i = 0; i < sizeof G / sizeof G[0]; i++) {
