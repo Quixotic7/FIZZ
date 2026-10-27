@@ -110,6 +110,30 @@ int qd_fx_sends_open(const qd_app_t *a)
 {
     return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_FX && QD_FX_PAGES[a->ui.fx_page].fx == QD_FXG_OVER;
 }
+/* 2026-10-26 (the owner: the sends "should update during playback", as the sound editor's pictures do; "not when
+ * locked or while holding a keyboard key"): playing, the selected track's step just heard, nothing held or selected,
+ * the step latch off, no key down */
+int qd_fx_sends_follows(const qd_app_t *a)
+{
+    const qd_ui_t *u = &a->ui;
+    if (!a->seq.playing || u->fol_step < 0 || u->fol_t != a->sel || u->nheld || u->wk_pending || u->slatch ||
+        a->keys_held)
+        return -1;
+    return u->fol_step;
+}
+int qd_fx_send_shown(const qd_app_t *a, int fx, int *locked)
+{
+    const qd_ui_t *u = &a->ui;
+    const int fs = qd_fx_sends_follows(a);
+    int16_t x;
+    *locked = 1;
+    if (u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], qd_fx_send_id(fx), &x))
+        return x;                                       /* (P1.6d: the held step's lock) */
+    if (fs >= 0 && qd_lock_get(qd_ctl_cpat(a), a->sel, fs, qd_fx_send_id(fx), &x))
+        return x;                                       /* (the step just heard: its lock) */
+    *locked = 0;
+    return qd_fx_send(a, a->sel, fx);
+}
 
 /* the mix's black keys: sel_down / sel_done's bits 8..13 (SEL + W keeps 0..7), sel_t0 the press, dt_w -1 - b the
  * last tap (dt_ms its release) */

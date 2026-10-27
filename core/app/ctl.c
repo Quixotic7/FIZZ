@@ -2088,6 +2088,18 @@ void qd_ctl_ms(qd_app_t *a)
         u->fol_step = a->seq.heard_step[a->sel];
         u->fol_ms = a->ms;
     }
+    if (qd_fx_sends_open(a)) {                          /* SENDS (2026-10-26): REVERB set to 100 %: the flash (the
+                                                         * track's, or the held step's lock: not the steps heard, so
+                                                         * playing locks do not flash it again and again) */
+        int16_t x;
+        const int full = (u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], qd_fx_send_id(QD_FXG_REVERB), &x)
+                          ? x : qd_fx_send(a, a->sel, QD_FXG_REVERB)) >= 127;
+        if (full && !u->rv_full)
+            u->rv_full_ms = a->ms;
+        u->rv_full = full;
+    } else {
+        u->rv_full = 0;
+    }
     if (u->rec_live && !a->seq.playing)                 /* the transport stopped under live notes: they end */
         qd_rec_key(a, -1, 0, 0);
     if (held(a, QD_B_PLAY) && !u->play_used && a->ms - u->play_down_ms >= QD_PLAY_HOLD_MS) {

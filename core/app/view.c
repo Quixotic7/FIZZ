@@ -2130,10 +2130,10 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
         }
         if (c == QD_FXC_SEND || c <= QD_FXC_SENDX(0)) {   /* (P1.5b: the overview's cells: their effect's) */
             const int fx = c == QD_FXC_SEND ? pg->fx : QD_FXC_SENDX(0) - c;
-            int s = qd_fx_send(a, a->sel, fx);
-            int16_t x;
-            if (u->nheld && qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[0], qd_fx_send_id(fx), &x))
-                s = x, v->locked[k] = 1;                /* P1.6d: the held step's lock */
+            int lk;
+            const int s = qd_fx_send_shown(a, fx, &lk);  /* (the held step's lock, or playing the heard step's) */
+            if (lk)
+                v->locked[k] = 1;
             else if (!u->nheld && track_locks(qd_ctl_cpat(a), a->sel, qd_fx_send_id(fx)))
                 v->lockany[k] = 1;
             v->lab[k] = c == QD_FXC_SEND ? "SEND" : QD_FX_NAME[fx];
@@ -2154,6 +2154,8 @@ static void fill_fx(const qd_app_t *a, ui_fx_t *v)
     if (pg->fx == QD_FXG_OVER) {                        /* SENDS (2026-10-26): the current track, its keyboard (REC) */
         v->track = a->sel + 1;
         v->keys = qd_snd_keys(a);
+        v->beat = qd_fx_sends_follows(a) >= 0 ? secs(a->ms - u->fol_ms) : -1.f;   /* (the cat's nod at each step) */
+        v->flash = u->rv_full ? secs(a->ms - u->rv_full_ms) : -1.f;              /* (REVERB at 100 %: the glasses) */
         for (k = 0; k < 16; k++)
             if ((a->keys_held >> QD_WHITE_KEY[k]) & 1u)
                 v->keys_down |= (uint16_t)(1u << k);

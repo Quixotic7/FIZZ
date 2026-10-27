@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ SENDS: the big cat</title>
+<!-- FIZZ: SENDS round 2 (the owner, 2026-10-26, after the cat went in: "get rid of the labels on the page and show the
+     cat larger", "animate a bit as steps are triggered", "the sliders should update during playback" as the sound
+     editor's pictures do). The names are gone; the cat fills y 22 .. 176; the four values stay, without names, in
+     their colours at the corners by their parts (CHORUS by the left ear, DELAY by the right, REVERB and DRY at the
+     foot). Each step the selected track plays: the cat nods, its whiskers flick and a glint crosses the lens. Playing
+     with nothing held, the latch off and no key down, the cat and the values are the step just heard (its locks).
+     The header and the steps are the firmware's own (mockups/ref/sends-real-N.png).
+     ?shot=N[&t=MS] one canvas at 1x (t: ms since the step was heard), ?sheet=1 every screen at 2x -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: SENDS, the big cat (mock-up, 2026-10-26)</h1>
+<p>No names: the cat fills the page and the four values sit at the corners in their colours, by their parts:
+<strong>CHORUS</strong> (blue) by the left ear, <strong>DELAY</strong> (green) by the right, <strong>REVERB</strong> (white)
+bottom left, <strong>DRY</strong> (orange) bottom right. A lock shows as today's chip. <strong>Each step the track plays</strong>
+the cat nods, its whiskers flick out and a glint crosses the lens (the cells below play at 120 BPM in 16ths).
+<strong>While playing</strong>, nothing held, the latch off and no key down, the ears, lens, colour and values are the
+step just heard: a step's lock shows as it plays, the track's values between.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script src="fizz-sends-cat-svg.js"></script>
+<script>
+const C = { k1:'#3f7dff', k2:'#1fd47e', k3:'#f1f0ea', k4:'#ff6a2c', bg:'#000' };
+const F = 'IT';
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+function hex(h) { return [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); }
+function tint(col, wet) {
+  const [r, g, b] = hex(col), y = 0.3 * r + 0.55 * g + 0.15 * b, s = 0.1 + 0.9 * wet, v = 0.55 + 0.45 * wet;
+  return `rgb(${[r, g, b].map(x => Math.round(clamp((y + (x - y) * s) * v, 0, 255))).join(',')})`;
+}
+function mixh(a, b, f) { const A = hex(a), B = hex(b); return '#' + A.map((x, i) => Math.round(x + (B[i] - x) * f).toString(16).padStart(2, '0')).join(''); }
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 500} ${o.s || 17}px ${F}`; c.fillStyle = o.col || C.k3; c.textAlign = o.al || 'center';
+  c.textBaseline = 'alphabetic'; c.fillText(s, x, y); c.restore();
+}
+function chip(c, s, x, y, col, filled) {          // ui_kit.c ui_chip at 15 px
+  c.save(); c.font = `600 15px ${F}`; const w = c.measureText(s).width, h = 15 * 0.74 + 9, bw = w + 10;
+  c.beginPath(); c.roundRect(x - bw / 2 + 0.7, y - 15 * 0.74 - 4.5 + 0.7, bw - 1.4, h - 1.4, h * 0.35);
+  if (filled) { c.fillStyle = col; c.fill(); } else { c.strokeStyle = col; c.lineWidth = 1.4; c.stroke(); }
+  c.fillStyle = filled ? '#000' : col; c.textAlign = 'center'; c.fillText(s, x, y); c.restore();
+}
+
+// ---- the cat, larger: ear tips at y 22, the chin at 176 ----
+const SC = 0.197, CX = 542.5, TOP = 58, Y0 = 22;
+const PATH = {};
+for (const k in CAT_PARTS) PATH[k] = new Path2D(CAT_PARTS[k].d);
+function ends(k) {                                   // a whisker's two ends (its root: the one nearer the middle)
+  const p = CAT_PARTS[k], n = p.d.match(/-?\d+(\.\d+)?/g).map(Number);
+  const a = [n[0] + p.tx, n[1] + p.ty], b = [n[n.length - 2] + p.tx, n[n.length - 1] + p.ty];
+  return Math.abs(a[0] - CX) < Math.abs(b[0] - CX) ? a : b;
+}
+function part(c, k, col, o = {}) {
+  const p = CAT_PARTS[k];
+  c.save(); c.translate(p.tx, p.ty); c.lineCap = 'round'; c.lineJoin = 'round';
+  const a = o.a ?? 1, glow = o.glow ?? 0;
+  if (p.fill) {
+    if (glow > 0) { c.strokeStyle = col; c.globalAlpha = 0.12 * glow; c.lineWidth = 28; c.stroke(PATH[k]); c.globalAlpha = 0.25 * glow; c.lineWidth = 12; c.stroke(PATH[k]); }
+    c.globalAlpha = a; c.fillStyle = col; c.fill(PATH[k]);
+  } else {
+    if (glow > 0) { c.strokeStyle = col; c.globalAlpha = 0.1 * glow; c.lineWidth = p.sw * 3.2; c.stroke(PATH[k]); c.globalAlpha = 0.22 * glow; c.lineWidth = p.sw * 1.9; c.stroke(PATH[k]); }
+    c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = p.sw; c.stroke(PATH[k]);
+  }
+  c.restore();
+}
+function outlineOf(c, k, col, lw, a) { const p = CAT_PARTS[k]; c.save(); c.translate(p.tx, p.ty); c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw; c.lineJoin = 'round'; c.stroke(PATH[k]); c.restore(); }
+const EAR_TRI = { ear_l: { a: [433.9, 283.7], b: [316.5, 350.3], t: [308.3, 129.6] }, ear_r: { a: [648.9, 283.5], b: [770.9, 353.6], t: [778.1, 129.3] } };
+function ear(c, k, lvl, col, glow, lock) {
+  part(c, k, col, { a: 0.14 }); outlineOf(c, k, col, 4, 0.55);
+  if (lvl > 0) {
+    const { a, b, t } = EAR_TRI[k], f = clamp(lvl), q = new Path2D();
+    q.moveTo(...a); q.lineTo(...b); q.lineTo(b[0] + (t[0] - b[0]) * f, b[1] + (t[1] - b[1]) * f); q.lineTo(a[0] + (t[0] - a[0]) * f, a[1] + (t[1] - a[1]) * f); q.closePath();
+    c.save(); if (glow > 0) { c.strokeStyle = col; c.globalAlpha = 0.12 * glow; c.lineWidth = 28; c.stroke(q); c.globalAlpha = 0.25 * glow; c.lineWidth = 12; c.stroke(q); }
+    c.globalAlpha = 1; c.fillStyle = col; c.fill(q); c.restore();
+  }
+  if (lock) outlineOf(c, k, col, 9, 1);
+}
+function lens(c, lvl, col, glow, lock, glint) {
+  const [x0, y0, x1, y1] = CAT_PARTS.visor_lens.box, xs = x0 + lvl * (x1 - x0);
+  c.save(); c.beginPath(); c.rect(xs, y0 - 20, x1 - xs + 40, y1 - y0 + 40); c.clip(); part(c, 'visor_lens', col, { a: 0.28 }); c.restore();
+  if (lvl > 0) { c.save(); c.beginPath(); c.rect(x0 - 40, y0 - 20, xs - x0 + 40, y1 - y0 + 40); c.clip(); part(c, 'visor_lens', col, { glow }); c.restore(); }
+  if (glint >= 0 && glint <= 1) {                    // the glint: a slanted white bar across the lens, left to right
+    const gx = x0 - 60 + glint * (x1 - x0 + 120);
+    c.save(); c.clip(PATH.visor_lens); c.globalAlpha = 0.75 * Math.sin(Math.PI * glint); c.fillStyle = '#fff';
+    c.beginPath(); c.moveTo(gx, y1 + 10); c.lineTo(gx + 26, y1 + 10); c.lineTo(gx + 86, y0 - 10); c.lineTo(gx + 60, y0 - 10); c.closePath(); c.fill(); c.restore();
+  }
+  if (lock) outlineOf(c, 'visor_lens', col, 9, 1);
+}
+// the beat: t ms since the step was heard (-1: none). The nod: down 3 px and back in 180 ms; the whiskers flick out
+// (their tips up) and settle; the glint crosses the lens in 240 ms; the glow a little brighter on the hit
+function beat(t) {
+  if (t < 0) return { dy: 0, flick: 0, glint: -1, glow: 0 };
+  const u = t / 180;
+  return { dy: u < 1 ? 3 * Math.sin(Math.PI * u) : 0, flick: Math.exp(-t / 90) * Math.cos(t / 40), glint: t / 240, glow: Math.exp(-t / 120) };
+}
+function cat(c, v, lock, t) {
+  const wet = 1 - v[3], b = beat(t), g = (0.35 + 0.65 * wet) * (1 + 0.6 * b.glow);
+  const side = (lvl, col) => mixh('#8a8a96', col, lvl > 0 ? 0.35 + 0.65 * lvl : 0);
+  c.save(); c.translate(120, Y0 + b.dy); c.scale(SC, SC); c.translate(-CX, -TOP);
+  const [ox0, , ox1] = CAT_PARTS.outline.box, grad = c.createLinearGradient(ox0, 0, ox1, 0);
+  grad.addColorStop(0, tint(side(v[0], '#35c1e8'), wet)); grad.addColorStop(0.3, tint(side(v[0], '#35c1e8'), wet));
+  grad.addColorStop(0.5, tint('#d8d8e0', wet));
+  grad.addColorStop(0.7, tint(side(v[1], '#38d57c'), wet)); grad.addColorStop(1, tint(side(v[1], '#38d57c'), wet));
+  part(c, 'outline', grad, { glow: g });
+  ['wh_l1', 'wh_l2', 'wh_l3', 'wh_r1', 'wh_r2', 'wh_r3'].forEach((k, i) => {
+    const r = ends(k), left = i < 3, ang = (left ? 1 : -1) * 0.13 * b.flick * (1 - (i % 3) * 0.25);
+    c.save(); c.translate(...r); c.rotate(ang); c.translate(-r[0], -r[1]);
+    part(c, k, tint(left ? '#418cb4' : '#45b36f', wet), { glow: g }); c.restore();
+  });
+  ear(c, 'ear_l', v[0], tint('#35c1e8', wet), g, lock === 0);
+  ear(c, 'ear_r', v[1], tint('#38d57c', wet), g, lock === 1);
+  lens(c, v[2], tint('#fd5926', wet), g, lock === 2, b.glint);
+  part(c, 'visor_frame', tint('#fd5926', wet), { glow: g });
+  part(c, 'nose', tint('#4b3025', wet)); part(c, 'mouth1', tint('#5e524a', wet)); part(c, 'mouth2', tint('#5e524a', wet));
+  c.restore();
+}
+// the values at the corners, no names (a lock: today's chip, filled on the step, outlined for "some step")
+function values(c, v, lock, lockany) {
+  const at = [[28, 60, C.k1], [212, 60, C.k2], [28, 172, C.k3], [212, 172, C.k4]];
+  at.forEach(([x, y, col], k) => {
+    const s = Math.round(v[k] * 100) + '%';
+    if (lock === k) chip(c, s, x, y - 1, col, 1); else if (lockany.includes(k)) chip(c, s, x, y - 1, col, 0); else T(c, s, x, y, { col });
+  });
+}
+// v: CHORUS, DELAY, REVERB, DRY (0..1); t: ms since the step was heard; base: the simulator's screen (header, steps)
+const SCREENS = [
+  { title: 'stopped', v: [0.59, 0.5, 0.39, 0.29], t: -1, base: 5, any: [2],
+    text: 'The page stopped: the big cat, the four values at the corners in their colours (REVERB outlined: a step locks it, as today).' },
+  { title: 'a step plays: the hit (0 ms)', v: [0.59, 0.5, 0.39, 0.29], t: 10, base: 5, any: [2],
+    text: 'The moment a step of the track is heard: the glow brightens, the whiskers start to flick out.' },
+  { title: '+60 ms', v: [0.59, 0.5, 0.39, 0.29], t: 60, base: 5, any: [2],
+    text: 'The head down (3 px at most), the whiskers out, the glint on its way across the lens.' },
+  { title: '+150 ms', v: [0.59, 0.5, 0.39, 0.29], t: 150, base: 5, any: [2],
+    text: 'Coming back up; the whiskers settle; the glint leaving the lens. By 250 ms the cat is still again.' },
+  { title: 'playing: a step locks DELAY 90%', v: [0.59, 0.9, 0.39, 0.29], t: 40, base: 5, lock: 1, any: [2],
+    text: 'While playing (nothing held, the latch off, no key down) the cat shows the step just heard: this step locks DELAY at 90%: the right ear fills to it and its value is the filled chip.' },
+  { title: 'playing: the next step, no lock', v: [0.59, 0.5, 0.39, 0.29], t: 40, base: 5, any: [2],
+    text: 'The next step has no DELAY lock: back to the track\'s 50%. (A held step, the step latch or a key down: no following.)' },
+  { title: 'a step held, DELAY locked', v: [0.29, 0.52, 0.2, 0.29], t: -1, base: 8, lock: 1, any: [],
+    text: 'A held step (the magenta frame): its values, its lock the filled chip; no following and no beat while it is held.' },
+  { title: 'all full, fully wet', v: [1, 1, 1, 0], t: 60, base: 6, any: [2],
+    text: 'Everything up, DRY 0%: the full neon, mid-nod.' },
+];
+const BASE = {};
+const ready = Promise.all([...new Set(SCREENS.map(s => s.base))].map(n => new Promise(r => { const im = new Image(); im.onload = r; im.src = `ref/sends-real-${n}.png`; BASE[n] = im; })).concat([
+  (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })()]));
+function draw(i, cv, scale, t) {
+  const s = SCREENS[i], c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
+  c.setTransform(scale, 0, 0, scale, 0, 0);
+  c.drawImage(BASE[s.base], 0, 0, 240, 240);
+  c.fillStyle = '#000'; c.fillRect(4, 26, 232, 154); c.fillRect(52, 4, 128, 22);   // the bars, the names and values: gone
+  cat(c, s.v, s.lock ?? -1, t ?? s.t);
+  values(c, s.v, s.lock ?? -1, s.any);
+}
+const q = new URLSearchParams(location.search);
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  ready.then(() => draw(+q.get('shot') - 1, cv, 1, q.has('t') ? +q.get('t') : undefined));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  const cvs = [];
+  ready.then(() => {
+    SCREENS.forEach((s, i) => {
+      const d = document.createElement('div'); d.className = 'cell';
+      const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+      const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong> ${s.text}`; d.appendChild(p);
+      document.getElementById('cells').appendChild(d); cvs.push(cv);
+    });
+    const tick = ms => { cvs.forEach((cv, i) => draw(i, cv, 2, SCREENS[i].t < 0 ? -1 : ms % 125)); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  });
+}
+</script>
+</body>
+</html>

@@ -178,7 +178,9 @@ typedef struct {
     int last;                           /* the knob turned last (0..3, -1) */
     const void *lane;                   /* SENDS (2026-10-26): the page's row at the foot (a ui_lane_t; 0: none) .. */
     int keys;                           /* .. the keyboard on (REC): the keys as plain cells instead .. */
-    uint16_t keys_down;                 /* .. the W keys down (bit w) */
+    uint16_t keys_down;                 /* .. the W keys down (bit w) .. */
+    float beat;                         /* .. seconds since the selected track's step was heard (-1: not following) .. */
+    float flash;                        /* .. seconds since REVERB reached 100 % (-1: below it) */
     int rt_mode, rt_order[4], rt_held;  /* ROUTING (2026-10-26): CHAIN (1) / PARALLEL, the block at each place, the block
                                          * held (-1 none) .. */
     float rt_lift;                      /* .. how far it has lifted, 0..1 */

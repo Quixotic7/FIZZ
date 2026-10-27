@@ -3,8 +3,8 @@
 
     python3 tools/gen_cat.py        # writes core/ui/ui_cat.h
 
-Each drawn path of the SVG is placed on the screen (its ear tips at y 12, its chin at 129, centred at x 120: the
-mock-up's placing) and written in 1/8 px as int16: a part is [subpaths, then for each: segments, x0, y0, then each
+Each drawn path of the SVG is placed on the screen (its ear tips at y 22, its chin at 176, centred at x 120: the
+big cat's, fizz-sends-cat2.html) and written in 1/8 px as int16: a part is [subpaths, then for each: segments, x0, y0, then each
 segment's cubic c1, c2, end]. Lines become cubics (the controls at their thirds); a closed subpath gets its closing
 line. The ears are written as their triangles (the base's two corners, the tip), the lens's left and right as its x
 range. Only the parts the page draws (the SVG's black backdrop and its masks are not).
@@ -18,7 +18,7 @@ SVG = os.path.join(REPO, 'art', 'cat-sends.svg')
 OUT = os.path.join(REPO, 'core', 'ui', 'ui_cat.h')
 NAMES = ['OUTLINE', 'VISOR', 'LENS', 'EAR_L', None, 'EAR_R',
          'WH_L1', 'WH_L2', 'WH_L3', 'WH_R1', 'WH_R2', 'WH_R3', 'NOSE', 'MOUTH1', 'MOUTH2']
-SC, CX, TOP, X0, Y0 = 0.15, 542.5, 58.0, 120.0, 12.0     # the SVG's units to the screen's px (the mock-up's)
+SC, CX, TOP, X0, Y0 = 0.197, 542.5, 58.0, 120.0, 22.0   # the SVG's units to the screen's px (fizz-sends-cat2.html)
 
 
 def scr(x, y):
@@ -106,6 +106,9 @@ for name, a in zip(NAMES, paths):
         xs = [scr(p[0], 0)[0] for sp in subs for c in sp for p in c]
         out.append('#define CAT_LENS_X0 %.2ff   /* the lens\'s left and right, px (REVERB fills it from the left) */' % min(xs))
         out.append('#define CAT_LENS_X1 %.2ff' % max(xs))
+        ys = [scr(0, p[1])[1] for sp in subs for c in sp for p in c]
+        out.append('#define CAT_LENS_Y0 %.2ff   /* .. its top and bottom, px (the glint, the flash) */' % min(ys))
+        out.append('#define CAT_LENS_Y1 %.2ff' % max(ys))
     if name == 'OUTLINE':
         xs = [scr(p[0], 0)[0] for sp in subs for c in sp for p in (c[0], c[3])]
         out.append('#define CAT_OUT_X0 %.2ff    /* the outline\'s left and right, px (its colours run across it) */' % min(xs))

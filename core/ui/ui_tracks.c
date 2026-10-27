@@ -344,24 +344,23 @@ static void cat_path(const int16_t *d, int close)
             qd_path_close();
     }
 }
-/* a stroke and its glow: two wider, fainter strokes under it */
+/* a stroke and its glow: one wider, fainter stroke under it (one layer: a whole frame of the big cat paints in ~42 ms
+ * on the unit, two layers ~70) */
 static void cat_stroke(const int16_t *d, qd_rgb col, float lw, float glow)
 {
     const float a = qd_get_alpha();
     cat_path(d, 0);
-    if (glow > 0.f) {
-        qd_save(), qd_alpha(a * 0.1f * glow), qd_path_stroke_keep(col, lw * 3.2f), qd_restore();
-        qd_save(), qd_alpha(a * 0.22f * glow), qd_path_stroke_keep(col, lw * 1.9f), qd_restore();
-    }
+    if (glow > 0.f)
+        qd_save(), qd_alpha(a * 0.28f * glow), qd_path_stroke_keep(col, lw * 2.2f), qd_restore();
     qd_path_stroke(col, lw);
 }
 /* the outline: its segments in runs of one colour band (by their middle's x), each run a stroke with its glow */
 static void cat_outline(const qd_rgb *band, float lw, float glow)
 {
-    static const float LAY[3][2] = {{3.2f, 0.1f}, {1.9f, 0.22f}, {1.f, 1.f}};
+    static const float LAY[3][2] = {{3.2f, 0.1f}, {2.2f, 0.28f}, {1.f, 1.f}};   /* (the first unused: one glow layer) */
     const float a = qd_get_alpha();
     int l;
-    for (l = glow > 0.f ? 0 : 2; l < 3; l++) {
+    for (l = glow > 0.f ? 1 : 2; l < 3; l++) {
         const int16_t *d = CAT_OUTLINE;
         int ns = *d++, i;
         qd_save(), qd_alpha(a * (l < 2 ? LAY[l][1] * glow : 1.f));
@@ -397,10 +396,8 @@ static void cat_ear(const int16_t *e, float lvl, qd_rgb col, float glow, int loc
     if (lvl > 0.f) {
         const float f = clampf(lvl, 0.f, 1.f);
         const float q[8] = {ax, ay, bx, by, bx + (tx - bx) * f, by + (ty - by) * f, ax + (tx - ax) * f, ay + (ty - ay) * f};
-        if (glow > 0.f) {
-            qd_save(), qd_alpha(a * 0.12f * glow), ui_P(q, 4, col, 4.2f, 1, QD_NONE), qd_restore();
-            qd_save(), qd_alpha(a * 0.25f * glow), ui_P(q, 4, col, 1.8f, 1, QD_NONE), qd_restore();
-        }
+        if (glow > 0.f)
+            qd_save(), qd_alpha(a * 0.3f * glow), ui_P(q, 4, col, 2.6f, 1, QD_NONE), qd_restore();
         ui_P(q, 4, QD_NONE, 0.f, 1, col);
     }
     if (lock)
@@ -414,10 +411,8 @@ static void cat_lens(float lvl, qd_rgb col, float glow, int lock)
     if (lvl > 0.f) {
         qd_save(), qd_clip_rect(0.f, 0.f, xs, 240.f);
         cat_path(CAT_LENS, 1);
-        if (glow > 0.f) {
-            qd_save(), qd_alpha(a * 0.12f * glow), qd_path_stroke_keep(col, 4.2f), qd_restore();
-            qd_save(), qd_alpha(a * 0.25f * glow), qd_path_stroke_keep(col, 1.8f), qd_restore();
-        }
+        if (glow > 0.f)
+            qd_save(), qd_alpha(a * 0.3f * glow), qd_path_stroke_keep(col, 2.6f), qd_restore();
         qd_path_fill(col);
         qd_restore();
     }
@@ -429,6 +424,11 @@ static void cat_draw(const ui_fx_t *v)
     static const int16_t *const WH[6] = {CAT_WH_L1, CAT_WH_L2, CAT_WH_L3, CAT_WH_R1, CAT_WH_R2, CAT_WH_R3};
     const float wet = 1.f - clampf(v->x[3], 0.f, 1.f), g = 0.35f + 0.65f * wet;
     const float lc = clampf(v->x[0], 0.f, 1.f), ld = clampf(v->x[1], 0.f, 1.f);
+    /* the beat (the step just heard, v->beat seconds ago): the glow a little brighter, the whiskers' flick */
+    const float bt = v->beat, pulse = bt >= 0.f && bt < 0.5f ? expf(-bt / 0.12f) : 0.f;
+    const float flick = bt >= 0.f && bt < 0.5f ? expf(-bt / 0.09f) * cosf(bt / 0.04f) : 0.f;
+    const float gb = g * (1.f + 0.6f * pulse);
+    const qd_rgb orange = cat_tint(0xfd5926u, wet);
     const qd_rgb sl = cat_mix(0x8a8a96u, 0x35c1e8u, lc > 0.f ? 0.35f + 0.65f * lc : 0.f);
     const qd_rgb sr = cat_mix(0x8a8a96u, 0x38d57cu, ld > 0.f ? 0.35f + 0.65f * ld : 0.f);
     qd_rgb band[CAT_NB];
@@ -439,37 +439,82 @@ static void cat_draw(const ui_fx_t *v)
                        : t < 0.7f ? cat_mix(0xd8d8e0u, sr, (t - 0.5f) / 0.2f) : sr;
         band[i] = cat_tint(c, wet);
     }
-    cat_outline(band, 1.95f, g);
-    for (i = 0; i < 6; i++)
-        cat_stroke(WH[i], cat_tint(i < 3 ? 0x418cb4u : 0x45b36fu, wet), 1.8f, g);
-    cat_ear(CAT_EAR_L, lc, cat_tint(0x35c1e8u, wet), g, v->locked[0]);
-    cat_ear(CAT_EAR_R, ld, cat_tint(0x38d57cu, wet), g, v->locked[1]);
-    cat_lens(v->x[2], cat_tint(0xfd5926u, wet), g, v->locked[2]);
-    cat_stroke(CAT_VISOR, cat_tint(0xfd5926u, wet), 1.5f, g);
+    qd_save();
+    if (bt >= 0.f && bt < 0.18f)                        /* the nod: down 3 px and back in 180 ms */
+        qd_translate(0.f, 3.f * sinf(3.14159265f * bt / 0.18f));
+    cat_outline(band, 1.95f, gb);
+    for (i = 0; i < 6; i++) {                           /* the whiskers, flicking out about their roots on the beat */
+        const int16_t *d = WH[i];
+        const float sx = CP(d[2]), sy = CP(d[3]), ex = CP(d[8]), ey = CP(d[9]);
+        const int s_in = (sx - 120.f) * (sx - 120.f) < (ex - 120.f) * (ex - 120.f);
+        const float rx = s_in ? sx : ex, ry = s_in ? sy : ey;
+        const float ang = (i < 3 ? 0.13f : -0.13f) * flick * (1.f - (float)(i % 3) * 0.25f);
+        qd_save();
+        if (ang != 0.f)
+            qd_translate(rx, ry), qd_rotate(ang), qd_translate(-rx, -ry);
+        cat_stroke(d, cat_tint(i < 3 ? 0x418cb4u : 0x45b36fu, wet), 1.8f, gb);
+        qd_restore();
+    }
+    cat_ear(CAT_EAR_L, lc, cat_tint(0x35c1e8u, wet), gb, v->locked[0]);
+    cat_ear(CAT_EAR_R, ld, cat_tint(0x38d57cu, wet), gb, v->locked[1]);
+    cat_lens(v->x[2], orange, gb, v->locked[2]);
+    if (bt >= 0.f && bt < 0.24f) {                      /* the glint: a slanted white bar across the lens, left to
+                                                         * right in 240 ms (the lens filled in five slices, each a
+                                                         * narrow clip a little further right: the slant) */
+        const float u = bt / 0.24f, gx = CAT_LENS_X0 - 12.f + u * (CAT_LENS_X1 - CAT_LENS_X0 + 24.f);
+        const float hh = (CAT_LENS_Y1 - CAT_LENS_Y0) / 5.f, a = qd_get_alpha();
+        int s;
+        for (s = 0; s < 5; s++) {
+            qd_save(), qd_alpha(a * 0.75f * sinf(3.14159265f * u));
+            qd_clip_rect(gx + (float)(4 - s) * 3.f, CAT_LENS_Y0 + (float)s * hh, 5.f, hh + 0.5f);
+            cat_path(CAT_LENS, 1), qd_path_fill(0xffffffu);
+            qd_restore();
+        }
+    }
+    if (v->flash >= 0.f && v->flash < 0.6f) {           /* REVERB reaching 100 %: the lens flashes white, two sparkles */
+        const float k = 1.f - v->flash / 0.6f, a = qd_get_alpha();
+        const float r = 3.f + 8.f * sinf(3.14159265f * v->flash / 0.6f), rot = v->flash * 3.f;
+        int s;
+        qd_save(), qd_alpha(a * 0.85f * k * k), cat_path(CAT_LENS, 1), qd_path_fill(0xffffffu), qd_restore();
+        for (s = 0; s < 2; s++) {
+            const float cx = s ? CAT_LENS_X1 - 5.f : CAT_LENS_X0 + 5.f, cy = CAT_LENS_Y0 + 1.f;
+            const float c = cosf(rot) * r, n = sinf(rot) * r;
+            qd_save(), qd_alpha(a * k);
+            ln(cx - c, cy - n, cx + c, cy + n, 0xffffffu, 1.4f);
+            ln(cx + n, cy - c, cx - n, cy + c, 0xffffffu, 1.4f);
+            ln(cx - (c - n) * 0.4f, cy - (n + c) * 0.4f, cx + (c - n) * 0.4f, cy + (n + c) * 0.4f, 0xffffffu, 1.f);
+            ln(cx - (c + n) * 0.4f, cy - (n - c) * 0.4f, cx + (c + n) * 0.4f, cy + (n - c) * 0.4f, 0xffffffu, 1.f);
+            qd_restore();
+        }
+    }
+    cat_stroke(CAT_VISOR, v->flash >= 0.f && v->flash < 0.6f ? cat_mix(orange, 0xffffffu, 1.f - v->flash / 0.6f) : orange,
+               1.5f, gb);
     cat_path(CAT_NOSE, 1), qd_path_stroke(cat_tint(0x4b3025u, wet), 1.5f);
     cat_stroke(CAT_MOUTH1, cat_tint(0x5e524au, wet), 1.5f, 0.f);
     cat_stroke(CAT_MOUTH2, cat_tint(0x5e524au, wet), 1.5f, 0.f);
+    qd_restore();
 }
 
-/* SENDS (2026-10-26, the sequencer clean-up, mockups/fizz-seq-cleanup.html 1..3; P1.5b's OVERVIEW before it): the
- * current track's CHORUS, DELAY and REVERB sends and its DRY as the cat (above; the owner's, 2026-10-26, in place of
- * the four bars), their names and values under it (a held step's lock: the value a filled chip; a lock on some step:
- * outlined); along the foot the page's steps as the EDIT home's row, or, the keyboard on (REC), the keys as plain
- * cells, the ones down lit */
+/* SENDS (2026-10-26, the sequencer clean-up, mockups/fizz-seq-cleanup.html 1..3; P1.5b's OVERVIEW before it; the cat
+ * the owner's, mockups/fizz-sends-cat2.html): the current track's CHORUS, DELAY and REVERB sends and its DRY as the
+ * big cat (above), their values without names at the corners in their colours (CHORUS by the left ear, DELAY by the
+ * right, REVERB and DRY at the foot; a held or heard step's lock: a filled chip; a lock on some step: outlined); along
+ * the foot the page's steps as the EDIT home's row, or, the keyboard on (REC), the keys as plain cells, the ones down
+ * lit */
 static void fx_sends(const ui_fx_t *v)
 {
+    static const float AT[4][2] = {{28.f, 60.f}, {212.f, 60.f}, {28.f, 172.f}, {212.f, 172.f}};
     int k, i;
     cat_draw(v);
     for (k = 0; k < 4; k++) {
-        const float x = 36.f + (float)k * 56.f;
+        const float x = AT[k][0], y = AT[k][1];
         const int lk = v->locked[k];
         if (!v->has[k])
             continue;
-        ui_T(v->lab[k] ? v->lab[k] : "", x, 141.f, 12.f, 600, 0.3f, UI_G1, QD_CENTER);
         if (lk || v->lockany[k])
-            ui_chip(v->txt[k], x, 162.f, 15.f, 54.f, FK[k], lk);
+            ui_chip(v->txt[k], x, y - 1.f, 15.f, 54.f, FK[k], lk);
         else
-            ui_T(v->txt[k], x, 163.f, 17.f, 500, 0.f, FK[k], QD_CENTER);
+            ui_T(v->txt[k], x, y, 17.f, 500, 0.f, FK[k], QD_CENTER);
     }
     if (v->keys) {
         for (i = 0; i < 16; i++) {

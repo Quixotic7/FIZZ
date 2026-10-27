@@ -414,6 +414,8 @@ typedef struct {
     int fol_step, fol_t;               /* P1.5q: the selected track's step last played (-1: none since PLAY), its track .. */
     int64_t fol_g;                     /* .. its grid tick (one step: its notes, its hits) .. */
     uint32_t fol_ms;                   /* .. when it played (heard: its micro-timing, the track's rate in it) */
+    uint32_t rv_full_ms;               /* SENDS (2026-10-26): when the REVERB shown reached 100 % (the glasses' flash) .. */
+    int rv_full;                       /* .. it is there now (0 off the page: coming back at 100 % flashes) */
     /* NOTE entry (Form's "pressed") and SOUND's banks */
     int entry_oct;                     /* the octave B1's degree starts at */
     uint16_t note_keys;                /* bit b: B(b+1) is down as a note key */
@@ -795,6 +797,9 @@ void qd_panel_black(struct qd_app *a, int b, int down);
 void qd_mix_ms(struct qd_app *a);       /* the mix's black keys held: the mute */
 int qd_fx_open(const struct qd_app *a);           /* 2026-10-26: the effects open (REC: its keyboard, ekeys) .. */
 int qd_fx_sends_open(const struct qd_app *a);     /* .. on SENDS (the page with the steps' row) */
+int qd_fx_sends_follows(const struct qd_app *a);  /* 2026-10-26: the sends shown follow the step just heard (-1: not) */
+int qd_fx_send_shown(const struct qd_app *a, int fx, int *locked);   /* .. the send shown: the held or heard step's
+                                                   * lock (locked 1), else the track's */
 int qd_panel_lock_id(const struct qd_app *a, int knob);   /* P1.6d: the send / mix lock a knob turns there (-1) */
 int qd_panel_steps(const struct qd_app *a, int w);        /* P1.6d: W w holds a step there (the sends' locks) */
 int qd_trk_knob(struct qd_app *a, int knob, int d);
