@@ -2,6 +2,8 @@
 // The manager page (site/manager/) in headless Chromium over the DevTools protocol (as test_site.mjs: no Playwright,
 // never a window), against its simulated FM-1 (?sim: the browser FIZZ behind a fake Web MIDI; headless Chromium's own
 // Web MIDI mangles SysEx, so the unit is never reached from here):
+//   - BROWSER (2026-10-27): the browser's FIZZ as the unit; PROJECTS on it (KEEP, LOAD INTO, WRITE, read back); the
+//     computer keys on LIBRARY, IMPORT's rows heard (down, SPACE); back to the FM-1;
 //   - every tab at 1280 x 800 and 390 x 844: no console error, no horizontal scroll (at 1280 no page scroll at all: the
 //     cards' lists scroll; LIBRARY's IN POOL / NOT IN POOL; BACKUP's play button); the screenshots beside the
 //     mock-ups' (mockups/png/fizz-web-manager-0N-*.png) for the eye;
@@ -562,7 +564,7 @@ try {
   // every page fits the window (the owner, 2026-10-26): at 1280 x 800 the page never scrolls, each card's list does;
   // LIBRARY's last preset picked keeps its panel in view; IN POOL / NOT IN POOL; BACKUP's play button
   const fit = [];
-  for (const t of ["backup", "library", "edit", "pool", "import"]) {
+  for (const t of ["backup", "library", "edit", "pool", "import"]) {   // (PROJECTS: in BROWSER, below: the sim's 1 MiB read is slow)
     await click(`#t-${t}`);
     await sleep(400);
     if (!(await evaluate("document.documentElement.scrollHeight <= window.innerHeight + 1 && window.scrollY === 0"))) fit.push(t);
@@ -578,6 +580,63 @@ try {
   check(pf.a > 0 && pf.b > 0 && pf.a + pf.b === pf.all && pf.back === pf.all, `LIBRARY: IN POOL ${pf.a} + NOT IN POOL ${pf.b} = ${pf.all}; off again ${pf.back}`);
   await click("#t-backup");
   check(await evaluate("[...document.querySelectorAll('#baks .bk')].some((b) => b.querySelector('.icon.play'))"), "BACKUP: a full backup has its play button (the browser's FIZZ)");
+
+  // BROWSER (the owner, 2026-10-27): FIZZ in this browser as the unit, heard here; PROJECTS on it: KEEP, LOAD INTO a
+  // slot, WRITE (the store before kept in BACKUP), read back; the computer keys on LIBRARY and IMPORT
+  await realClick("#bunit");
+  const bOn = await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && __mgr.live.on()", 40000);
+  check(bOn && (await evaluate("document.getElementById('bunit').dataset.state === 'on' && document.getElementById('unit').dataset.state === 'idle'")),
+    `BROWSER: the browser's FIZZ as the FM-1 (${await evaluate("__mgr.S.unit && __mgr.S.unit.version")}), TRACK on`);
+  await click("#t-projects");
+  const read1 = await waitFor("!!__mgr.projtab.state.base && !__mgr.S.busy", 60000);
+  const nbp0 = await evaluate("__mgr.S.baks.length");
+  await evaluate("__mgr.projtab.state.sel = 0; __mgr.projtab.render()");
+  await click('#pj-acts [data-act="keep"]');
+  const kept = await waitFor("(__mgr.projtab.state.kept || []).length === 1", 5000);
+  await click('#pj-view [data-v="kept"]');
+  await click('#pj-kept .bp[data-i="0"]');
+  await click('#pj-tools [data-act="kload"]');
+  await click('#pj-slots .slot[data-p="2"]');
+  const staged = await evaluate("__mgr.projtab.state.ops.length === 1 && !document.getElementById('pj-pending').hidden");
+  await shot("manager-projects-staged.png");
+  check(read1 && kept && staged, "PROJECTS: the store read, PROJECT 1 KEPT in this browser, LOAD INTO slot 3 waits in the yellow bar");
+  await click('#pj-pending [data-act="write"]');
+  const wrote = await waitFor("__mgr.projtab.state.ops.length === 0 && !__mgr.S.busy", 60000);
+  await evaluate("__mgr.projtab.state.base = null; __mgr.projtab.show()");
+  await waitFor("!!__mgr.projtab.state.base && !__mgr.S.busy", 60000);
+  const p3 = await evaluate("__mgr.S.unit.projects.list[2]");
+  check(wrote && p3 && p3.there && (await evaluate(`__mgr.S.baks.length === ${nbp0 + 1} && /before projects/.test(__mgr.S.baks[0].name)`)),
+    `PROJECTS: WRITE: slot 3 is ${p3 && p3.name} on the browser's FIZZ, read back; the store before kept in BACKUP`);
+  check(await evaluate("document.documentElement.scrollHeight <= window.innerHeight + 1"), "PROJECTS fits 1280 x 800");
+  await shot("manager-projects.png");
+  const peakJs = `(async (key) => { const p = __mgr.bu().player; if (!window.__an) { window.__an = p.ctx.createAnalyser(); window.__an.fftSize = 2048; p.out.connect(window.__an); }
+    const b = new Float32Array(2048), pk = () => { window.__an.getFloatTimeDomainData(b); let m = 0; for (const x of b) m = Math.max(m, Math.abs(x)); return m; };
+    document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })); let m = 0;
+    for (let i = 0; i < 15; i++) { await new Promise((r) => setTimeout(r, 40)); m = Math.max(m, pk()); }
+    document.dispatchEvent(new KeyboardEvent("keyup", { key, bubbles: true })); return m; })`;
+  await click("#t-library");
+  await click("#l-list .cas[data-src='factory'][data-slot='1']");
+  await waitFor("!document.getElementById('loadbar').hidden", 5000);
+  const lp = await evaluate(`${peakJs}("a")`);
+  check(lp > 0.002, `LIBRARY: a preset picked, the A key plays it on the browser's FIZZ (peak ${lp.toFixed(3)})`);
+  await click("#lb-cancel");
+  await click("#t-import");
+  await click("#i-clear");
+  await evaluate(`(async () => { const L = await import("../js/library.js"); const blob = new Uint8Array(128); blob[0] = 0x51; blob[1] = 6; blob[2] = 3; blob[3] = 8; blob[50] = 60;
+    const mk = (name) => new File([L.soundToFizzsnd({ fizz: true, name, blob, drive: 0, pan: 0, sends: { chorus: 0, delay: 0, reverb: 0 }, fizzTags: ["LEAD"], favourite: false, notes: [], origin: [], mark: "", tags: [] }, {})], name + ".fizzsnd");
+    await __mgr.importer.add([mk("HEAR ONE"), mk("HEAR TWO")]); })()`);
+  await click('#i-rows .ir[data-k="0"] .nm');
+  const heard = await waitFor("/HEAR ONE/.test(document.getElementById('loadbar').innerText)", 5000);
+  await evaluate(`document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))`);
+  const heard2 = await waitFor("/HEAR TWO/.test(document.getElementById('loadbar').innerText) && __mgr.importer.state.cur === 1", 5000);
+  await evaluate(`document.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }))`);
+  const iq = await evaluate("({ bar: document.getElementById('loadbar').innerText, cur: __mgr.importer.state.cur, on: __mgr.importer.state.items.map((x) => x.on), n: __mgr.importer.state.items.length, ok: __mgr.importer.state.items.map((x) => x.ok) })");
+  check(heard && heard2 && (await evaluate("__mgr.importer.state.items[1].on === false")), `IMPORT: a row clicked plays on the track, down the next one, SPACE unticks it${heard && heard2 ? "" : ` (${JSON.stringify(iq)})`}`);
+  await click("#lb-cancel");
+  await click("#i-clear");
+  // back to the (simulated) FM-1
+  await click("#unit");
+  check(await waitFor("__mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.rows.length > 0", 30000), "FM-1 again: the unit back from BROWSER");
 
   // the phone
   await size(390, 844, true);
