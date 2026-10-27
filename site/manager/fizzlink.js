@@ -39,6 +39,7 @@ import { crc32, hex8 } from "./fizzbak.js";
 export const FIZZ_PREFIX = "FM-1_46";            // firmware/app/fm1.toml id_prefix
 export const BULK = 0x46;                        // app_usb_cmd's command byte
 export const CHUNK = 256;                        // app.c FZ_BK_CHUNK
+export const GAP_MS = 3;                         // between two frames sent (FIZZ takes its inbound frame every ~2 ms)
 export const FZER = {                            // app.c, fizz_xdata.py --help
   10: "the FM-1 is playing: stop it first", 11: "the backup's size is not this FM-1's store",
   12: "the image did not arrive whole (nothing was changed)", 13: "a write failed: FIZZ cleared its store",
@@ -146,7 +147,15 @@ export class FizzLink {
     return p;
   }
   send(bytes) {
-    if (!this.link.send(Array.from(bytes))) { this.lost(); throw err("lost", "the FM-1 was disconnected"); }
+    // (2026-10-27, the main session: fm1-base keeps one inbound SysEx frame, FIZZ empties it every ~2 ms; two frames
+    // closer than that drop the second) each send at least GAP_MS after the one before: Web MIDI's own timestamp
+    // schedules it, so nothing here waits
+    const t = now(), at = Math.max(t, this.nextAt || 0);
+    this.nextAt = at + GAP_MS;
+    let ok = true;
+    try { if (at > t + 0.2 && this.link.output && typeof performance !== "undefined") this.link.output.send(Array.from(bytes), at); else ok = this.link.send(Array.from(bytes)); }
+    catch (_) { ok = false; }
+    if (!ok) { this.lost(); throw err("lost", "the FM-1 was disconnected"); }
   }
 
   // ---- the semantic channel
