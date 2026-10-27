@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.10 (2026-10-27)
+
 The Manager's PROJECTS tab, a backup played in the browser, a per-track scope, and a much steadier USB link.
 
 - **The Manager has a PROJECTS tab.** The FM-1's eight project slots on the left: LOAD, RENAME, COPY TO, MOVE TO, KEEP (a copy in this browser) and DELETE. A project's 64 patterns on the right: pick one, a range (SHIFT) or a few (CMD), then COPY, PASTE, CLEAR, or save them as a `.fizzpat` file and bring them back. Patterns can be pasted into another project. Projects kept in the browser save as `.fizzprj` files and load into any slot. Pattern edits wait in a yellow bar (UNDO, DISCARD) and go to the FM-1 in one write, after the store as it was is saved in BACKUP's list.
