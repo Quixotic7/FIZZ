@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ MASTER: the heads</title>
+<!-- FIZZ: the MASTER filter page as two heads (the owner, 2026-10-26, round 2 after mockups/fizz-master-heads.html: their
+     reference sheet and their head art/filter-head.svg). The LOW head (orange, facing left) starts at the left edge,
+     the HIGH head (light blue, the same head mirrored, facing right) at the right; LOW turned up slides the orange
+     head right, HIGH turned down slides the blue head left, a narrow band overlaps them in the middle. SLOPE 12 dB:
+     a second, inner outline; FILTER OFF: both grey. Each screen is today's MASTER page from the simulator
+     (mockups/ref/master-real-N.png): the head and the foot (the names, the values) are the firmware's own; only the
+     curve is replaced. ?shot=N one canvas at 1x, ?sheet=1 every screen at 2x -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(3, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: MASTER as two heads (mock-up round 2, 2026-10-26)</h1>
+<p>The owner's head: <strong>LOW</strong> is the orange head, facing left, at the left edge when the low cut is off;
+<strong>HIGH</strong> the light blue one, mirrored, at the right edge when the high cut is off. Turning LOW up slides
+the orange head right; turning HIGH down slides the blue head left; a narrow band brings them together, overlapping.
+<strong>SLOPE 12 dB</strong> draws a second outline inside each head; <strong>FILTER OFF</strong> leaves them grey where they
+stand. The page's head and its foot (the names and values) are as today.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="fizz-master-head-svg.js"></script>
+<script>
+const P = new Path2D(HEAD.d);
+const [BX0, BY0, BX1, BY1] = HEAD.box;
+const H = 118, SC = H / (BY1 - BY0), W = (BX1 - BX0) * SC, Y0 = 40;      // the heads: 118 px tall, ~96 wide
+const XL = 12, XR = 240 - 12 - W;                                        // a head's left edge: at rest (LOW, HIGH)
+// a head: its left edge at x; mirrored: facing right. Neon: one faint wide stroke under the line
+function head(c, x, col, mirror, on, slope) {
+  const stroke = (k, lw, a) => {
+    c.save(); c.translate(x + (mirror ? W : 0), Y0); c.scale(mirror ? -SC : SC, SC); c.translate(-BX0, -BY0);
+    if (k !== 1) { const cx = (BX0 + BX1) / 2, cy = (BY0 + BY1) / 2; c.translate(cx, cy); c.scale(k, k); c.translate(-cx, -cy); }
+    c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw / SC / k; c.lineJoin = 'round'; c.lineCap = 'round'; c.stroke(P); c.restore();
+  };
+  if (!on) { stroke(1, 1.4, 0.9); return; }
+  stroke(1, 2.2 * 2.4, 0.28);
+  stroke(1, 2.0, 1);
+  if (slope) { stroke(0.86, 1.4 * 2.2, 0.2); stroke(0.86, 1.3, 0.85); }
+}
+// o: low, high (the filter's 0..1: 0 / 1 off), slope (12 dB), on
+function heads(c, o) {
+  const xl = XL + o.low * (XR - XL), xr = XR - (1 - o.high) * (XR - XL);
+  const orange = o.on ? '#ff9a3c' : '#5a5a64', blue = o.on ? '#7fdcff' : '#5a5a64';
+  head(c, xr, blue, true, o.on, o.slope);
+  head(c, xl, orange, false, o.on, o.slope);
+}
+const SCREENS = [
+  { title: 'full spectrum (LOW and HIGH off)', o: { low: 0, high: 1, slope: 0, on: 1 },
+    text: 'Both cuts off: the orange head at the left edge facing left, the blue head at the right edge facing right.' },
+  { title: 'LOW 122 Hz: the low cut', o: { low: 0.385, high: 1, slope: 0, on: 1 },
+    text: 'LOW turned up: the orange head slides right toward the blue one.' },
+  { title: 'HIGH 3.0 kHz: the high cut', o: { low: 0, high: 0.61, slope: 0, on: 1 },
+    text: 'HIGH turned down: the blue head slides left.' },
+  { title: 'a narrow band, SLOPE 12 dB', o: { low: 0.34, high: 0.615, slope: 1, on: 1 },
+    text: 'Both cuts in: the heads overlap in the middle. SLOPE 12 dB: a second outline inside each.' },
+  { title: 'FILTER OFF', o: { low: 0.34, high: 0.615, slope: 1, on: 0 },
+    text: 'The filter off: both heads grey where they stand.' },
+];
+const BASE = SCREENS.map((s, i) => { const im = new Image(); im.src = `ref/master-real-${i + 1}.png`; return im; });
+const ready = Promise.all(BASE.map(im => new Promise(r => { if (im.complete) r(); else im.onload = r; })));
+function draw(i, cv, scale) {
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
+  c.setTransform(scale, 0, 0, scale, 0, 0);
+  c.drawImage(BASE[i], 0, 0, 240, 240);
+  c.fillStyle = '#000'; c.fillRect(0, 26, 240, 160);                      // today's curve: gone
+  heads(c, SCREENS[i].o);
+}
+const q = new URLSearchParams(location.search);
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  ready.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong> ${s.text}`; d.appendChild(p);
+    document.getElementById('cells').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The SENDS page's cat (2026-10-26, the owner's vector art/cat-sends.svg; mockups/fizz-sends-cat.html) as point tables.
 
-    python3 tools/gen_cat.py        # writes core/ui/ui_cat.h
+    python3 tools/gen_cat.py        # writes core/ui/ui_cat.h (and the MASTER head)
 
 Each drawn path of the SVG is placed on the screen (its ear tips at y 22, its chin at 176, centred at x 120: the
 big cat's, fizz-sends-cat2.html) and written in 1/8 px as int16: a part is [subpaths, then for each: segments, x0, y0, then each
@@ -116,6 +116,24 @@ for name, a in zip(NAMES, paths):
     body = ', '.join(map(str, vals))
     out.append('static const int16_t CAT_%s[%d] = {%s};' % (name, len(vals), body))
     total += 2 * len(vals)
+# the MASTER page's head (2026-10-26, the owner's art/filter-head.svg, facing left; mockups/fizz-master-heads2.html):
+# 118 px tall, in its own frame (its box's top left at 0, 0), 1/8 px; the page places it and mirrors the HIGH one
+hs = open(os.path.join(REPO, 'art', 'filter-head.svg')).read()
+hd = re.search(r'<path d="([^"]*)"', hs).group(1)
+hn = [float(v) for v in re.findall(r'-?\d+(?:\.\d+)?', hd)]
+hx0, hy0, hx1, hy1 = min(hn[0::2]), min(hn[1::2]), max(hn[0::2]), max(hn[1::2])
+hsc = 118.0 / (hy1 - hy0)
+hsubs = parse(hd, 0.0, 0.0)
+hv = [len(hsubs)]
+hq = lambda p: [round((p[0] - hx0) * hsc * 8), round((p[1] - hy0) * hsc * 8)]
+for sp in hsubs:
+    hv += [len(sp)] + hq(sp[0][0])
+    for c in sp:
+        hv += hq(c[1]) + hq(c[2]) + hq(c[3])
+out.append('#define HEAD_W %.2ff     /* the MASTER head, px (art/filter-head.svg, facing left) */' % ((hx1 - hx0) * hsc))
+out.append('#define HEAD_H 118.f')
+out.append('static const int16_t CAT_HEAD[%d] = {%s};' % (len(hv), ', '.join(map(str, hv))))
+total += 2 * len(hv)
 out.append('')
 open(OUT, 'w').write('\n'.join(out))
 print('wrote', os.path.relpath(OUT, REPO), total, 'B of tables')

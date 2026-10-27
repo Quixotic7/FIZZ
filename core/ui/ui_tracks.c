@@ -281,27 +281,41 @@ static void fx_chorus(const ui_fx_t *v)
     }
 }
 
+/* MASTER (2026-10-26, the owner's two heads: art/filter-head.svg, mockups/fizz-master-heads2.html, in place of the
+ * slope curves): the LOW head (orange, facing left) at the left edge with the low cut off, the HIGH head (light blue,
+ * the same head mirrored, facing right) at the right edge with the high cut off; LOW turned up slides the orange head
+ * right, HIGH turned down the blue one left, a narrow band overlaps them in the middle. SLOPE 12 dB: a second outline
+ * inside each head; FILTER OFF: both grey where they stand. Neon: one faint wide stroke under the line. */
+#include "ui_cat.h"
+static void cat_path(const int16_t *d, int close);
+static void head_draw(float x, int mirror, qd_rgb col, int on, int slope)
+{
+    const float a = qd_get_alpha(), cx = HEAD_W * 0.5f, cy = HEAD_H * 0.5f;
+    int k;
+    for (k = 0; k < (on && slope ? 2 : 1); k++) {
+        const float s = k ? 0.86f : 1.f;
+        qd_save();
+        qd_translate(x + (mirror ? HEAD_W : 0.f), 40.f);
+        if (mirror)
+            qd_scale(-1.f, 1.f);
+        if (k)
+            qd_translate(cx, cy), qd_scale(s, s), qd_translate(-cx, -cy);
+        cat_path(CAT_HEAD, 1);
+        if (!on) {
+            qd_alpha(a * 0.9f), qd_path_stroke(col, 1.4f);
+        } else {
+            qd_save(), qd_alpha(a * (k ? 0.2f : 0.28f)), qd_path_stroke_keep(col, (k ? 3.1f : 5.3f) / s), qd_restore();
+            qd_alpha(a * (k ? 0.85f : 1.f)), qd_path_stroke(col, (k ? 1.3f : 2.f) / s);
+        }
+        qd_restore();
+    }
+}
 static void fx_master(const ui_fx_t *v)
 {
-    float p[2 * 61];
-    const float lo = 20.f + v->flow * 200.f, hi = 20.f + v->fhigh * 200.f, sl = v->fslope ? 2.f : 1.f;
-    int i;
-    for (i = 0; i <= 60; i++) {
-        const float x = 20.f + (float)i / 60.f * 200.f;
-        float g = 1.f;
-        if (v->flow > 0.f && x < lo)
-            g *= powf(clampf(1.f - (lo - x) / 70.f, 0.f, 1.f), sl);
-        if (v->fhigh < 1.f && x > hi)
-            g *= powf(clampf(1.f - (x - hi) / 70.f, 0.f, 1.f), sl);
-        p[2 * i] = x;
-        p[2 * i + 1] = 170.f - (v->fon ? g : 1.f) * 110.f;
-    }
-    ln(20.f, 170.f, 220.f, 170.f, UI_G3, 1.f);
-    ui_P(p, 61, v->fon ? UI_K3 : UI_G2, 1.6f, 0, QD_NONE);
-    if (v->flow > 0.f)
-        ui_O(lo, 60.f, 3.4f, QD_NONE, 1.f, UI_K1);
-    if (v->fhigh < 1.f)
-        ui_O(hi, 60.f, 3.4f, QD_NONE, 1.f, UI_K2);
+    const float xl0 = 12.f, xr0 = 240.f - 12.f - HEAD_W;   /* a head's left edge at rest: LOW's, HIGH's */
+    const float xl = xl0 + clampf(v->flow, 0.f, 1.f) * (xr0 - xl0), xr = xr0 - (1.f - clampf(v->fhigh, 0.f, 1.f)) * (xr0 - xl0);
+    head_draw(xr, 1, v->fon ? 0x7fdcffu : 0x5a5a64u, v->fon, v->fslope);
+    head_draw(xl, 0, v->fon ? 0xff9a3cu : 0x5a5a64u, v->fon, v->fslope);
 }
 
 /* THE CAT (2026-10-26, the owner's vector art/cat-sends.svg; mockups/fizz-sends-cat.html): the SENDS page's picture.

@@ -1,0 +1,36 @@
+wait 500
+tap FX
+wait 150
+tap FX
+wait 150
+tap FX
+wait 150
+tap FX
+wait 150
+tap FX
+wait 150
+tap FX
+wait 150
+tap FX
+wait 150
+wait 300
+turn K4 5
+turn K1 -300
+turn K2 300
+turn K3 -5
+wait 400
+shot m1.png
+turn K1 25
+wait 400
+shot m2.png
+turn K1 -300
+turn K2 -25
+wait 400
+shot m3.png
+turn K1 22
+turn K3 5
+wait 400
+shot m4.png
+turn K4 -5
+wait 400
+shot m5.png
