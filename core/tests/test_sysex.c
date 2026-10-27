@@ -752,6 +752,70 @@ static void p2b_tests(void)
  * copy untouched), STATUS and the track's DUMP say so; OCT- on the unit cancels (the track exactly as it was), OCT+
  * loads it (the pattern's track sound); another track given: selected; refused: no such preset, track 7, a name being
  * typed, a short body */
+/* FIZZ MIDI (e): a MIDI sound (quad_voice.h QD_MSND_*) through SysEx: STORE6 into MY PRESETS (the same sound back),
+ * AUDITION onto a track (a MIDI track), the track's DUMP (its blob the same sound); PARAM onto it: its slots' values only */
+static void msnd_tests(void)
+{
+    static uint8_t f[320];
+    static int16_t mp[QD_QUAD_NP], p0[QD_QUAD_NP];
+    qd_sound_t ls;
+    int m, k;
+    memset(FL, 0xFF, sizeof FL);
+    boot_flash();
+    run(3000);
+    qd_msnd_init(mp);
+    for (k = 0; k < QD_MSND_N; k += 3)                  /* (some slots touched, CC numbers moved) */
+        mp[QD_MSND_ID[k]] = (int16_t)(k * 4 + 1), mp[QD_MSND_CC(k)] = (int16_t)((70 + k) | QD_MSND_TOUCHED);
+    send(f, store6_msg(f, QD_SXF_OWN, 0, "SYNTH CCS", mp, 0, 64, 0, 0, 0, 0x0F, 0, 0));
+    m = rslot();
+    qd_lib_read(&A, m - 1, &ls);
+    CHECK(status() == QD_SX_OK && qd_msnd_is(ls.patch) && !memcmp(ls.patch, mp, sizeof mp),
+          "STORE6 of a MIDI sound: MY PRESETS %d holds it exactly", m);
+    {   /* (the out queue emptied; track 4's MIDI OUT on channel 4) */
+        uint32_t pk;
+        while (qd_app_midi_out_take(&A, &pk, 64u))
+            ;
+        ((qd_pattern_t *)qd_seq_track_pat(&A.seq, 3))->trk[3].mout = 4;
+    }
+    send(f, store6_msg(f, QD_SXF_LOAD | QD_SXF_AUDITION, 0, "SYNTH CCS", mp, 3, 64, 0, 0, 0, 0x0F, 0, 0));
+    CHECK(status() == QD_SX_OK && !memcmp(A.model.t[3].patch, mp, sizeof mp), "AUDITION onto track 4: a MIDI track");
+    {   /* its touched slots out on channel 4 (the Manager's edit reaching the synth); then one slot changed: that one */
+        uint32_t pk;
+        int n = 0, good = 0;
+        while (qd_app_midi_out_take(&A, &pk, 64u)) {
+            const int st = (int)(pk >> 8 & 0xFFu), c = (int)(pk >> 16 & 0x7Fu), v = (int)(pk >> 24 & 0x7Fu);
+            n++;
+            good += st == 0xB3 && c >= 70 && (c - 70) % 3 == 0 && v == (c - 70) * 4 + 1;
+        }
+        CHECK(n == 10 && good == 10, "AUDITION of a MIDI sound: its 10 touched slots out as CCs on the track's MIDI OUT (%d, %d)", n, good);
+        mp[QD_MSND_ID[3]] = 77;
+        mp[QD_MSND_ID[1]] = 5;                          /* (untouched: nothing) */
+        send(f, store6_msg(f, QD_SXF_LOAD | QD_SXF_AUDITION, 0, "SYNTH CCS", mp, 3, 64, 0, 0, 0, 0x0F, 0, 0));
+        n = good = 0;
+        while (qd_app_midi_out_take(&A, &pk, 64u)) {
+            n++;
+            good += (pk >> 8 & 0xFFu) == 0xB3u && (pk >> 16 & 0x7Fu) == 73u && (pk >> 24 & 0x7Fu) == 77u;
+        }
+        CHECK(n == 1 && good == 1, "AUDITION again with one touched slot changed: that slot's CC only (%d)", n);
+    }
+    dump_track(4);
+    {
+        const uint8_t *body = R + 6;
+        uint8_t blob[QD_QUAD_BLOB];
+        qd_sx_unpack7(body + 22, QD_SX_BLOB6_7, blob);
+        blob[87] = body[15];
+        CHECK(reply_ok() && R[5] == QD_SX_STORE6 && qd_quad_unpack(blob, QD_QUAD_BLOB, p0) && !memcmp(p0, mp, sizeof mp) &&
+                  !memcmp(blob + QD_QUAD_BLOB - 4, "MIDI", 4),
+              "its DUMP: a STORE6 whose blob is the MIDI sound (\"MIDI\" in its last four bytes)");
+    }
+    param(3, QD_QP_FREQ, 100, QD_SXP_ACK);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_NOT_FOUND && !memcmp(A.model.t[3].patch, mp, sizeof mp),
+          "PARAM of FREQ onto the MIDI track: NOT FOUND, the sound kept");
+    param(3, QD_MSND_ID[1], 99, QD_SXP_ACK);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_OK && A.model.t[3].patch[QD_MSND_ID[1]] == 99, "PARAM of slot 2's value: 99");
+    run(800);
+}
+
 static int browse(int t, int id)
 {
     const uint8_t b[4] = {(uint8_t)t, (uint8_t)((id >> 14) & 0x7F), (uint8_t)((id >> 7) & 0x7F), (uint8_t)(id & 0x7F)};
@@ -1250,6 +1314,7 @@ int main(int argc, char **argv)
     }
     phase1_tests();
     p2b_tests();
+    msnd_tests();
     browse_tests();
     qd_shutdown();
     printf("test_sysex: %d checks, %d failed\n", checks, fails);

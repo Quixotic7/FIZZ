@@ -23,6 +23,7 @@
     <a href="./" class="nav-link play">Play</a>
     <a href="install/" class="nav-link">Install</a>
     <a href="manager/" class="nav-link">Manager</a>
+    <a href="midi.html" class="nav-link">MIDI</a>
     <a data-feedback class="nav-link feedback" href="https://discord.gg/emf6DmZ9V" target="_blank" rel="noopener">Feedback</a>
   </nav>
 </header>
@@ -35,7 +36,7 @@
     <nav class="toc" aria-label="On this page">
       <a href="#start" style="--c:#28E1FF">Start</a><a href="#steps" style="--c:#3F7DFF">Steps</a><a href="#hold" style="--c:#1FD47E">Hold a step</a>
       <a href="#knobs" style="--c:#FFD23F">The knobs</a><a href="#editor" style="--c:#FF6A2C">Sound editor</a><a href="#more" style="--c:#9664FF">Tracks and patterns</a><a href="#tools" style="--c:#FF4D6D">Tools</a>
-      <a href="#saving" style="--c:#F3D9A4">Saving</a><a href="#manager" style="--c:#7FD8FF">Manager</a><a href="#keys" style="--c:#FF3CA0">Key map</a>
+      <a href="#saving" style="--c:#F3D9A4">Saving</a><a href="#midi" style="--c:#FF8FC8">MIDI</a><a href="#manager" style="--c:#7FD8FF">Manager</a><a href="#keys" style="--c:#FF3CA0">Key map</a>
     </nav>
   </div>
 
@@ -139,7 +140,7 @@
       <li><b>Takes</b> (SHIFT + REC, KNOB 3 TAKE): <b>CAPTURE</b>, the default, for quick takes: armed, nothing changes until your first note; then the track is cleared to one page of 16 and the take runs from the top. PLAY or REC ends it, and the track becomes as long as you played. <b>REPLACE</b> (a note replaces the step's) and <b>OVERDUB</b> (it joins them) record into the sequence as it is.</li>
       <li><b>Clear the track:</b> F1 + hold B9 (or SHIFT + B11 twice) clears it to a new track: page 1 only, every page 16 steps. Its sound and speed stay.</li>
       <li><b>Automation:</b> playing, <b>hold REC and turn knobs</b> in any view: the moves become locks on the steps the playhead passes (empty steps become ghost steps), only while REC is held. The screen is framed red while it records. The record settings' page 2 (SHIFT + REC twice): AUTOMATION on or off for a latched recording.</li>
-      <li><b>MIDI:</b> channels 1 … 6 play tracks 1 … 6 (each track's MIDI CH); channel 16 always plays the selected track, its controllers too.</li>
+      <li><b>MIDI:</b> channels 1 … 6 play tracks 1 … 6 (each track's MIDI CH), channel 15 the selected track, channel 16 is the remote: see <a href="#midi">MIDI</a>.</li>
       <li><b>F1 + W</b> copies a step (whole: its locks, its sound, its MIDI FX), then other steps pressed with F1 get it pasted; <b>F2 + W</b> picks up and drops. They work wherever the white keys are steps: the step view, the mixer, the effects, the sound editor and MIDI FX on STEPS, with the same pictures.</li>
       <li><b>F1 never closes a main page</b> (the step view, the mixer, the effects, the sound editor, MIDI FX): HOME or the page's own key does. Pop-ups (F3, the settings, the projects, the browser) still go back on F1.</li>
     </ul>
@@ -169,6 +170,18 @@
     </ul>
   </section>
 
+  <section id="midi" style="--c:#FF8FC8">
+    <h2>MIDI</h2>
+    <p class="m-p">Everything in one place, with the full CC map and the implementation chart: <a href="midi.html"><b>FIZZ and MIDI</b></a>.</p>
+    <ul>
+      <li><b>In, over USB or the TRS jack.</b> Channels <b>1 … 6</b> play tracks 1 … 6 (a track's MIDI CH, track settings page 1, runs 1 … 15). Channel <b>15</b> plays the selected track. Notes play the track; MOD WHEEL, BREATH, aftertouch and pitch bend reach its modulation; the clock and START / STOP drive the transport.</li>
+      <li><b>CCs set the sound</b>, the same map for every sound (<a href="midi.html#cc">the CC map</a>): FREQ is 74, RESO 71, the amp envelope 73, 75, 62, 72, and so on. With REC and AUTOMATION on, CCs to the selected track record as locks.</li>
+      <li><b>The remote, channel 16:</b> a controller plays the FM-1's panel. Notes 53 … 79 are the keys, CC 20 … 33 the buttons, CC 40 … 46 the encoders (relative), CC 47 … 50 KNOB 1 … 4 for faders (<a href="midi.html#remote">the remote's map</a>).</li>
+      <li><b>Out, over USB:</b> track settings page 3, <b>KNOB 4 MIDI OUT</b> sends a track's notes on a channel. <b>SETTINGS</b> (GLO + SEL): <b>KNOB 3 CLOCK OUT</b> the clock and START / STOP, <b>KNOB 4 CC OUT</b> the knobs' moves as CCs.</li>
+      <li><b>MIDI tracks:</b> track settings page 3, <b>KNOB 3 ENGINE MIDI</b>. The track makes no sound and sequences other gear: EDIT gives seven pages of four CCs, SHIFT + a knob picks a slot's CC number, and holding a step locks a value (<a href="midi.html#tracks">more</a>).</li>
+    </ul>
+  </section>
+
   <section id="saving" style="--c:#F3D9A4">
     <h2>Saving</h2>
     <ul>
@@ -189,7 +202,7 @@
     <ul>
       <li>The <a href="manager/">FIZZ Manager</a> talks to an FM-1 running FIZZ, in Chrome, Edge or Brave (Web MIDI).</li>
       <li><b>BACKUP</b>: the whole unit, kept in the page and saved to a file. <b>LIBRARY</b>: tags, rename, delete, reorder, add to the pool, EDIT, LOAD ON FM-1, EXPORT. <b>POOL</b>: the project's 128 places. <b>IMPORT</b>: Digitone sounds (<code>.dnsnd</code>, <code>.dn2pst</code>, <code>.dn2snd</code>) and FIZZ's own (<code>.fizzsnd</code>, <code>.fizzlib</code>, <code>.fizzbak</code>).</li>
-      <li><b>EDIT</b>: all 110 values of a sound on one page. It follows the track selected on the FM-1; the <b>TRACK</b> switch turns live editing of it on.</li>
+      <li><b>EDIT</b>: all 110 values of a sound on one page (a <a href="midi.html#tracks">MIDI sound</a>: its 28 CCs). It follows the track selected on the FM-1; the <b>TRACK</b> switch turns live editing of it on.</li>
     </ul>
   </section>
 

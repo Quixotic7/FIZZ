@@ -86,6 +86,129 @@ static int snd_now(const qd_app_t *a, int id)
     return a->model.t[a->sel].patch[id];
 }
 
+/* ---------------------------------------------------------------- FIZZ MIDI (e): the MIDI track's editor */
+/* research/FIZZ-MIDI-PLAN.md §5 (mockups/fizz-midi-track.html screens 4..8). A track whose sound is a MIDI sound
+ * (quad_voice.h qd_msnd_is: ENGINE MIDI) has, in place of the sound editor, 7 pages of 4 slots (u->msnd_page): SELECT or
+ * B1..B7 the page; KNOB 1..4 the slots' values 0..127, each change sent at once on the track's MIDI OUT as its CC (an
+ * untouched slot sends nothing until turned: its first turn starts it from 0); SHIFT + a knob the slot's CC number
+ * (sent nothing). A step held (or the latch's selection): a p-lock (the slot's value id, quad_voice.h QD_MSND_ID: its
+ * range 0..127), the step sends it as it plays (app.c mo_mlk); B11 clears the page's, F2 + a knob one, REC +
+ * AUTOMATION records them (sent at once too). The values' ids, so everything the sound editor does with ids works */
+int qd_msnd_open(const qd_app_t *a) { return qd_snd_open(a) && qd_msnd_is(a->model.t[a->sel].patch); }
+static int8_t MSND_IDS[5];
+static const int8_t *msnd_ids(const qd_app_t *a)
+{
+    const int p = a->ui.msnd_page % QD_MSND_NPAGE;
+    int k;
+    for (k = 0; k < 4; k++)
+        MSND_IDS[k] = (int8_t)QD_MSND_ID[p * QD_MSND_PAGE + k];
+    MSND_IDS[4] = -1;
+    return MSND_IDS;
+}
+/* a CC number or a touched flag: the track's sound, the edited pattern's, the trigs waiting (no voice to follow) */
+static void msnd_raw(qd_app_t *a, int id, int v)
+{
+    const int t = a->sel;
+    qd_tsound_t *ps = &qd_ctl_pat(a)->snd[t];
+    if (a->model.t[t].patch[id] != v)
+        a->model.t[t].patch[id] = (int16_t)v, a->model.t[t].edited = 1;
+    if (ps->patch[id] != v)
+        ps->patch[id] = (int16_t)v, ps->edited = 1;
+    qd_seq_live_patch(&a->seq, t, id, v);
+}
+static int msnd_knob(qd_app_t *a, int knob, int d)
+{
+    qd_ui_t *u = &a->ui;
+    const int t = a->sel;
+    const int16_t *p = a->model.t[t].patch;
+    int k, slot, id, v;
+    if (knob == QD_K_SELECT) {
+        u->msnd_page = (uint8_t)((u->msnd_page + QD_MSND_NPAGE + d % QD_MSND_NPAGE) % QD_MSND_NPAGE);
+        u->snd_knob = -1, u->msnd_cck = -1;
+        return 1;
+    }
+    if (knob == QD_K_PRESETS)
+        return u->nheld ? qd_step_lock_knob(a, knob, d) : 0;
+    if (knob < QD_K_1)
+        return 1;                                       /* (ALGORITHM: nothing) */
+    k = knob - QD_K_1;
+    slot = u->msnd_page % QD_MSND_NPAGE * QD_MSND_PAGE + k;
+    id = QD_MSND_ID[slot];
+    u->snd_knob = k, u->snd_ms = a->ms;
+    if (qd_ctl_shift(a)) {                              /* SHIFT: the slot's CC number (nothing sent) */
+        const int c = p[QD_MSND_CC(slot)], n = (c & 127) + d;
+        msnd_raw(a, QD_MSND_CC(slot), (c & QD_MSND_TOUCHED) | (n < 0 ? 0 : n > 127 ? 127 : n));
+        u->msnd_cck = (int8_t)k;
+        return 1;
+    }
+    u->msnd_cck = -1;
+    if (u->nheld)                                       /* a finger on a step: a p-lock */
+        return qd_step_lock_knob(a, knob, d);
+    if (qd_auto_on(a)) {                                /* REC + AUTOMATION: a lock on the step playing, heard now */
+        v = qd_auto_cur(a, id) + qd_ctl_acc(a, d, 128);
+        v = v < 0 ? 0 : v > 127 ? 127 : v;
+        if (qd_auto_put(a, id, v))
+            qd_app_msnd_send(a, t, slot, v, 1);
+        return 1;
+    }
+    v = p[id] + qd_ctl_acc(a, d, 128);
+    v = v < 0 ? 0 : v > 127 ? 127 : v;
+    if (v == p[id] && (p[QD_MSND_CC(slot)] & QD_MSND_TOUCHED))
+        return 1;
+    qd_player_live_edit(&a->player, t, id, v);
+    if (!(p[QD_MSND_CC(slot)] & QD_MSND_TOUCHED))
+        msnd_raw(a, QD_MSND_CC(slot), p[QD_MSND_CC(slot)] | QD_MSND_TOUCHED);
+    qd_app_msnd_send(a, t, slot, v, 0);
+    return 1;
+}
+/* the black keys: B1..B7 the page, B11 the held steps' locks on it (the sound editor's) */
+static void msnd_black(qd_app_t *a, int b)
+{
+    if (b >= 0 && b < QD_MSND_NPAGE) {
+        a->ui.msnd_page = (uint8_t)b;
+        a->ui.snd_knob = -1, a->ui.msnd_cck = -1;
+    } else if (b == 10) {
+        qd_snd_black(a, 10);
+    }
+}
+static void msnd_leds(const qd_app_t *a, uint8_t *black)
+{
+    const qd_ui_t *u = &a->ui;
+    const int8_t *ids = msnd_ids(a);
+    int i, k, n = 0;
+    for (i = 0; i < 11; i++)
+        black[i] = i < QD_MSND_NPAGE ? (i == u->msnd_page % QD_MSND_NPAGE ? QD_LED_LIT : QD_LED_DIM) : QD_LED_OFF;
+    for (i = 0; i < u->nheld; i++)
+        for (k = 0; k < 4; k++) {
+            int16_t v;
+            n += qd_lock_get(qd_ctl_cpat(a), a->sel, u->held[i], ids[k], &v);
+        }
+    black[10] = n ? QD_LED_LIT : QD_LED_OFF;
+}
+/* ENGINE (track settings page 3, KNOB 3): the track's sound becomes a new MIDI sound (every slot untouched, CC 16 + 4
+ * (page - 1) + k), or FM TONE's INIT (the MIDI values go: the patch held them); the edited pattern's track sound (the
+ * engine is the sound's: a preset, a pattern carry it). MIDI with MIDI OUT OFF: MIDI OUT the track's number */
+void qd_msnd_engine(qd_app_t *a, int t, int midi)
+{
+    qd_tsound_t s;
+    qd_tset_t *ts = &qd_ctl_pat(a)->trk[t];
+    if (t < 0 || t >= QD_NTRACK || !midi == !qd_msnd_is(a->model.t[t].patch))
+        return;
+    qd_undo_hint(a, QD_UK_SOUNDS);
+    memset(&s, 0, sizeof s);
+    if (midi)
+        qd_msnd_init(s.patch);
+    else
+        qd_quad_preset_patch(0, s.patch), s.preset = 1;
+    strcpy(s.name, midi ? "MIDI" : "INIT");
+    qd_player_flush_track(&a->player, t);
+    qd_ctl_pat(a)->snd[t] = s;
+    qd_track_from_tsound(&a->model.t[t], &s);
+    qd_seq_preview(&a->seq, t, 0);
+    if (midi && !ts->mout)
+        ts->mout = (uint8_t)(t + 1);
+}
+
 /* E2: the filter machines: FTYPE 0..2 LEGACY (its TYPE on KNOB 3), 3 LOWPASS 4, 4 MULTI, 5 COMB+, 6 COMB-, 7 EQ; the
  * FILTER page's ids by machine, KNOB 2 / 3's names */
 int qd_snd_machine(int ftype) { return ftype <= QD_QF_HP12 ? 0 : ftype - 2; }   /* 0 LEGACY .. 5 EQ */
@@ -102,6 +225,23 @@ static const char *const SND_FILTER_LAB[6][2] = {{"RESO", "TYPE"}, {"RESO", ""},
 const char *qd_snd_label(const qd_app_t *a, int page, int k)
 {
     const int8_t *ids = qd_snd_ids(a, page);
+    if (qd_msnd_is(a->model.t[a->sel].patch)) {        /* (FIZZ MIDI (e): "CC 74") */
+        static char lab[4][8];
+        const int c = k >= 0 && k < 4 ? a->model.t[a->sel].patch[QD_MSND_CC(a->ui.msnd_page % QD_MSND_NPAGE *
+                                                                          QD_MSND_PAGE + k)] & 127 : -1;
+        if (c < 0)
+            return "";
+        {
+            char *o = lab[k];
+            *o++ = 'C', *o++ = 'C', *o++ = ' ';
+            if (c >= 100)
+                *o++ = (char)('0' + c / 100);
+            if (c >= 10)
+                *o++ = (char)('0' + c / 10 % 10);
+            *o++ = (char)('0' + c % 10), *o = 0;
+        }
+        return lab[k];
+    }
     if (k == 4 && QD_SND_PAGES[page].draw == UI_SD_MOD)
         return "SLOT";                                  /* (E4: ALGORITHM the slot, no value of its own) */
     if (k < 0 || k > 4 || ids[k] < 0)
@@ -149,6 +289,8 @@ int qd_snd_page_all_ids(int page, int8_t *out)   /* every id the page can show (
 const int8_t *qd_snd_ids(const qd_app_t *a, int page)
 {
     const qd_sndpage_t *pg = &QD_SND_PAGES[page < 0 ? 0 : page >= QD_SND_NPAGE ? QD_SND_NPAGE - 1 : page];
+    if (qd_msnd_is(a->model.t[a->sel].patch))          /* (FIZZ MIDI (e): a MIDI track: its page's four slots) */
+        return msnd_ids(a);
     if (pg->draw == UI_SD_FILTER)                       /* (E2: by its machine) */
         return SND_FILTER_IDS[qd_snd_machine(snd_now(a, QD_QP_FTYPE))];
     if (pg->draw == UI_SD_MOD)                          /* (E4: the chosen slot's) */
@@ -179,7 +321,7 @@ const qd_lockscreen_t *qd_snd_lock_screen(const qd_app_t *a, int page)
     SND_LOCKS[n].knob = QD_K_PRESETS;                   /* PRESETS: the sound lock, as everywhere */
     SND_LOCKS[n].id = QD_LOCK_SOUND;
     SND_LOCKS[n++].tk = QD_TK_PRESET;
-    SND_SCREEN.name = QD_SND_PAGES[page].name;
+    SND_SCREEN.name = qd_msnd_is(a->model.t[a->sel].patch) ? "MIDI" : QD_SND_PAGES[page].name;
     SND_SCREEN.n = n;
     SND_SCREEN.k = SND_LOCKS;
     return &SND_SCREEN;
@@ -283,6 +425,10 @@ void qd_snd_black(qd_app_t *a, int b)
 {
     qd_ui_t *u = &a->ui;
     int p, first = -1, next = -1;
+    if (b != 10 && qd_msnd_is(a->model.t[a->sel].patch)) {   /* (FIZZ MIDI (e): B1..B7 the pages) */
+        msnd_black(a, b);
+        return;
+    }
     if (b == 10) {
         const int8_t *ids = qd_snd_ids(a, u->snd_page);
         int i, k, n = 0;
@@ -572,6 +718,8 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     const int8_t *ids = qd_snd_ids(a, u->snd_page);
     const int fine = qd_ctl_shift(a);
     int k, id = -1;
+    if (qd_msnd_is(a->model.t[a->sel].patch))          /* FIZZ MIDI (e): a MIDI track's editor */
+        return msnd_knob(a, knob, d);
     if (u->snd_fkey && !u->snd_fpop) {                  /* (the FILTER key down, a knob: the popup at once) */
         u->snd_fpop = 1;
         u->snd_page = qd_snd_page_of("FILTER");
@@ -671,6 +819,10 @@ void qd_snd_leds(const qd_app_t *a, uint8_t *black)
     const qd_sndpage_t *pg = &QD_SND_PAGES[u->snd_page];
     const int8_t *ids = qd_snd_ids(a, u->snd_page);
     int i, k, n = 0;
+    if (qd_msnd_is(a->model.t[a->sel].patch)) {        /* (FIZZ MIDI (e): B1..B7 the pages) */
+        msnd_leds(a, black);
+        return;
+    }
     for (i = 0; i < 11; i++)                            /* (P1.5l: B1..B8 the groups, B6..B8 the LFOs: also lit held) */
         black[i] = i < QD_NSG ? (i == pg->group || (i >= QD_SG_LFO1 && u->snd_lk == i - QD_SG_LFO1 + 1) ? QD_LED_LIT
                                                                                                         : QD_LED_DIM)

@@ -17,6 +17,9 @@ export function algo(k, c, cls = "algo") {
   return `<svg class="${cls}" viewBox="0 0 30 30" aria-hidden="true">${L.map(([a, b]) => `<line x1="${P2[a][0]}" y1="${P2[a][1]}" x2="${P2[b][0]}" y2="${P2[b][1]}" stroke="${c}" stroke-width="2" opacity=".55"/>`).join("")}` +
     `${P2.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="${i >= 2 ? 4.2 : 3.2}" fill="${i >= 2 ? c : "none"}" stroke="${c}" stroke-width="2"/>`).join("")}</svg>`;
 }
+// FIZZ MIDI (e): the MIDI mark (a DIN socket, the device's MIDI header) and a MIDI sound's chip in the lists
+export const MIDI_I = '<svg class="din" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M10 3.4h4"/><circle cx="6.5" cy="12" r="1.3"/><circle cx="17.5" cy="12" r="1.3"/><circle cx="8.2" cy="7.9" r="1.3"/><circle cx="15.8" cy="7.9" r="1.3"/><circle cx="12" cy="6.4" r="1.3"/></svg>';
+export const midiChip = (on) => (on ? '<span class="mchip" title="a MIDI track\'s sound">MIDI</span>' : "");
 export function emptyArt() {
   return '<svg viewBox="0 0 160 120"><rect x="20" y="24" width="120" height="76" rx="12" stroke="#2a2a33"/><circle cx="58" cy="60" r="13" stroke="#2a2a33"/><circle cx="102" cy="60" r="13" stroke="#2a2a33"/><path d="M42 100l10-16h56l10 16" stroke="#2a2a33"/></svg>';
 }

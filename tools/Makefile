@@ -58,7 +58,7 @@ INC := -I$(ROOT)/core/app -I$(ROOT)/core/ui -I$(ROOT)/core/gfx -I$(ROOT)/core/se
        -I$(ROOT)/core/voice/quad -I$(ROOT)/core/voice/fx -I$(ROOT)/core/tests -I$(PVG)/include
 DEFS := -DPLUTOVG_BUILD -DPLUTOVG_BUILD_STATIC -DPLUTOVG_DISABLE_FONT_FACE_CACHE_LOAD
 HDRS := $(ROOT)/core/gfx/qd_fb_pal.h $(ROOT)/core/qd_config.h $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/qd_gfx_rec.c $(wildcard $(ROOT)/core/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.h) $(wildcard $(ROOT)/core/voice/*/*.c) \
-        $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/seq/names.c $(ROOT)/core/seq/mfx.c $(ROOT)/core/app/view_labels.c $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/ctl_presets.c $(ROOT)/core/app/ctl_type.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_presets.c $(ROOT)/core/ui/ui_type.c $(ROOT)/core/ui/ui_snd.c $(ROOT)/core/ui/ui_mfx.c $(ROOT)/core/app/ctl_mfx.c $(ROOT)/core/ui/ui_ape.c $(ROOT)/core/ui/ui_geek.c $(ROOT)/core/ui/ui_tools.c $(ROOT)/core/app/ctl_tools.c $(ROOT)/core/seq/tools.c \
+        $(wildcard $(ROOT)/core/store/*) $(ROOT)/core/seq/names.c $(ROOT)/core/seq/mfx.c $(ROOT)/core/app/view_labels.c $(ROOT)/core/app/ctl_snd.c $(ROOT)/core/app/ctl_mix.c $(ROOT)/core/app/ctl_lib.c $(ROOT)/core/app/ctl_shift.c $(ROOT)/core/app/ctl_presets.c $(ROOT)/core/app/ctl_type.c $(ROOT)/core/app/undo.c $(ROOT)/core/app/fizz_sx.c $(ROOT)/core/app/midi_map.c $(ROOT)/core/app/persist.c $(ROOT)/core/ui/ui_lib.c $(ROOT)/core/ui/ui_presets.c $(ROOT)/core/ui/ui_type.c $(ROOT)/core/ui/ui_snd.c $(ROOT)/core/ui/ui_mfx.c $(ROOT)/core/app/ctl_mfx.c $(ROOT)/core/ui/ui_ape.c $(ROOT)/core/ui/ui_geek.c $(ROOT)/core/ui/ui_tools.c $(ROOT)/core/app/ctl_tools.c $(ROOT)/core/seq/tools.c \
         $(PVG)/include/plutovg.h
 CORE_OBJ := $(addprefix $(B)/,$(notdir $(CORE_SRC:.c=.o)))
 PVG_OBJ := $(addprefix $(B)/pvg-,$(notdir $(PVG_SRC:.c=.o)))
@@ -166,6 +166,9 @@ $(B)/test_app: $(T)/test_app.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_app.c $(SAN_OBJ) -lm
 $(B)/test_ctl: $(T)/test_ctl.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_ctl.c $(SAN_OBJ) -lm
+# FIZZ MIDI (research/FIZZ-MIDI-PLAN.md): the channels, the CC map, the remote
+$(B)/test_midi: $(T)/test_midi.c $(SAN_OBJ) $(HDRS)
+	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_midi.c $(SAN_OBJ) -lm
 # T1: the track tools (docs/TRACK-TOOLS-PLAN.md §6)
 $(B)/test_tools: $(T)/test_tools.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_tools.c $(SAN_OBJ) -lm
@@ -203,7 +206,7 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
-         $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx $(B)/test_tools
+         $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx $(B)/test_tools $(B)/test_midi
 test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-gfx-fast budget-ratchet values-check stats-names-check
 	@echo "make test: all passed (host and device sizes, the device's drawing too)"
 
@@ -211,7 +214,7 @@ test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-gfx-fast bud
 # core/tests/out/dev (the goldens are the same: the sizes change nothing a pattern sounds like). The bit-exact tests
 # compare the voice and the effects with ChoralRoot's code: no size of theirs differs, they run once (test-host)
 DEV_TESTS := $(B)/test_quad $(B)/test_pool $(B)/test_seq $(B)/test_mfx $(B)/test_app $(B)/test_ctl $(B)/test_store \
-             $(B)/test_persist $(B)/test_sysex $(B)/test_arena $(B)/test_tools
+             $(B)/test_persist $(B)/test_sysex $(B)/test_arena $(B)/test_tools $(B)/test_midi
 test-dev:
 	$(MAKE) PROFILE=-DQD_DEVICE B=build/dev OUT=$(abspath $(OUT))/dev test-dev-run
 # P2.4: the same at the device's sizes with the unit's drawing (GFX=fast), into build/dev-fast
@@ -261,6 +264,7 @@ test-dev-run: $(DEV_TESTS)
 	$(B)/test_sysex
 	$(B)/test_arena
 	$(B)/test_tools
+	$(B)/test_midi
 	@echo "make test-dev: all passed (device sizes)"
 
 test-host: $(TESTS)
@@ -273,6 +277,7 @@ test-host: $(TESTS)
 	$(B)/test_app
 	$(B)/test_ctl
 	$(B)/test_tools
+	$(B)/test_midi
 	$(PY) grids_map.py --check
 	$(B)/test_store
 	$(B)/test_persist

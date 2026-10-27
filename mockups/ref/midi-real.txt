@@ -1,0 +1,37 @@
+wait 500
+tap SEL
+wait 400
+fzdraw
+shot trk-1.png
+turn SELECT 1
+wait 400
+fzdraw
+shot trk-2.png
+turn SELECT 1
+wait 400
+fzdraw
+shot trk-3.png
+tap HOME
+wait 400
+fzdraw
+shot step.png
+tap EDIT
+wait 400
+fzdraw
+shot ed-0.png
+key w2 down
+wait 300
+turn K1 6
+wait 300
+fzdraw
+shot ed-held.png
+key w2 up
+wait 400
+fzdraw
+shot ed-after.png
+tap HOME
+wait 400
+tap FX
+wait 400
+fzdraw
+shot fx.png

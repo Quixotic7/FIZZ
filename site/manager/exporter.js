@@ -7,9 +7,16 @@
 //   carryOf(notes) -> { lost, changed, bar, rows }   (no DOM: the tests)
 //   exportFiles(sounds, kind, date) -> { name, bytes, type, notes: [per sound] }   kind: fizz, dnsnd, dn2pst, dn2snd
 //   mountExport({ download, log }) -> { open(sounds, { title, tags }) }
+// FIZZ MIDI (e): a MIDI track's sound (sound.js isMidiBlob) is no FM TONE sound: the Digitone files leave it out (its
+// row "MIDI SOUND · not written"; only MIDI sounds: nothing to write, DOWNLOAD off); .fizzsnd / .fizzlib keep it.
+//   exportFiles(..) -> { .., skipped: [the MIDI sounds' names] } (Digitone kinds; none left: throws MIDI_ONLY)
 import { fizzToDnsnd, fizzToDn2pst, dnName } from "../js/fizz2dn.js";
 import { soundToFizzsnd, soundFileName, makeFizzlib, libraryFileName, zipStored } from "../js/library.js";
 import { esc } from "./ui.js";
+import { isMidiBlob } from "./sound.js";
+
+export const MIDI_ONLY = "a MIDI sound cannot become a Digitone sound";
+const MIDI_ROW = { what: "MIDI SOUND", how: "not written", c: "--midi", w: 1, note: MIDI_ONLY };
 
 export const KINDS = [
   { k: "fizz", ext: ".fizzsnd", title: "FIZZ", c: "--cream" },
@@ -55,6 +62,9 @@ export function exportFiles(sounds, kind, date = new Date()) {
     if (sounds.length === 1) return { name: soundFileName(sounds[0].name), bytes: new TextEncoder().encode(soundToFizzsnd(sounds[0])), type: "application/json", notes: [[]] };
     return { name: libraryFileName(date), bytes: makeFizzlib(sounds, { date }), type: "application/zip", notes: sounds.map(() => []) };
   }
+  const skipped = sounds.filter((s) => isMidiBlob(s.blob)).map((s) => s.name);
+  sounds = sounds.filter((s) => !isMidiBlob(s.blob));
+  if (!sounds.length) throw new Error(MIDI_ONLY);
   const used = new Map(), files = [], notes = [];
   for (const s of sounds) {
     const out = write(s);
@@ -64,9 +74,9 @@ export function exportFiles(sounds, kind, date = new Date()) {
     files.push({ name: `${base}.${kind}`, bytes: out.bytes });
     notes.push(out.notes);
   }
-  if (files.length === 1) return { name: files[0].name, bytes: files[0].bytes, type: "application/octet-stream", notes };
+  if (files.length === 1) return { name: files[0].name, bytes: files[0].bytes, type: "application/octet-stream", notes, skipped };
   const label = kind === "dnsnd" ? "Digitone" : "Digitone II";
-  return { name: `FIZZ presets ${date.toISOString().slice(0, 10)} (${label} ${kind}).zip`, bytes: zipStored(files, date), type: "application/zip", notes };
+  return { name: `FIZZ presets ${date.toISOString().slice(0, 10)} (${label} ${kind}).zip`, bytes: zipStored(files, date), type: "application/zip", notes, skipped };
 }
 
 export function mountExport({ download, log = () => {} }) {
@@ -82,10 +92,18 @@ export function mountExport({ download, log = () => {} }) {
   // the notes of every sound for a format, merged (several: "in n" after each)
   function rowsFor(k) {
     if (k === "fizz") return carryOf([]);
-    const all = X.sounds.map((s) => {
+    const midi = X.sounds.filter((s) => isMidiBlob(s.blob)).length;   // (FIZZ MIDI (e): left out, its row)
+    if (midi === X.sounds.length) return { lost: midi, changed: 0, bar: 0, rows: [{ ...MIDI_ROW, n: midi }], touched: midi, none: true };
+    const all = X.sounds.filter((s) => !isMidiBlob(s.blob)).map((s) => {
       const x = { blob: s.blob, name: s.name, tags: s.fizzTags || [], pan: s.pan | 0, sends: s.sends || {}, drive: s.drive | 0 };
       return (k === "dnsnd" ? fizzToDnsnd(x) : fizzToDn2pst(x)).notes;
     });
+    if (midi) {
+      const one = carryOf(all.flat()), by = new Map([["MIDI", { ...MIDI_ROW, n: midi }]]);
+      for (const r of one.rows) { const key = `${r.what}|${r.how}`; const e = by.get(key) || { ...r, n: 0 }; e.n++; by.set(key, e); }
+      const touched = midi + all.filter((n) => n.length).length;
+      return { ...one, lost: one.lost + midi, rows: [...by.values()], touched, bar: Math.max(1, Math.min(9, Math.round(10 - 9 * touched / X.sounds.length))) };
+    }
     if (all.length === 1) return carryOf(all[0]);
     const one = carryOf(all.flat()), by = new Map();
     for (const r of one.rows) { const key = `${r.what}|${r.how}`; const e = by.get(key) || { ...r, n: 0 }; e.n++; by.set(key, e); }
@@ -99,7 +117,7 @@ export function mountExport({ download, log = () => {} }) {
         ${X.tags.map((t) => `<span class="tag t-${t}">${t}</span>`).join("")}</div>
       <div class="fmts" role="radiogroup" aria-label="Format">${KINDS.map((f) => {
         const c = rowsFor(f.k === "dn2" ? "dn2pst" : f.k);
-        const txt = many && f.k !== "fizz" ? (c.touched ? `${c.touched} of ${X.sounds.length} lose something` : "everything") : carryText(c);
+        const txt = c.none ? (many ? "MIDI sounds: none written" : "a MIDI sound: not written") : many && f.k !== "fizz" ? (c.touched ? `${c.touched} of ${X.sounds.length} lose something` : "everything") : carryText(c);
         return `<button class="fmt ${X.pick === f.k ? "on" : ""}" role="radio" aria-checked="${X.pick === f.k}" data-k="${f.k}" style="--c:var(${f.c})">
           <span class="ext">${f.ext}${f.exp ? '<span class="expmark">EXPERIMENTAL</span>' : ""}</span><span class="t">${f.title}</span>
           <span class="fid">${Array.from({ length: 10 }, (_, k) => `<i style="background:${k < c.bar ? barC(c.bar) : "#24242b"}"></i>`).join("")}</span>
@@ -107,7 +125,7 @@ export function mountExport({ download, log = () => {} }) {
       }).join("")}</div>
       ${X.pick === "dn2" ? `<div class="seg dn2seg" role="group" aria-label="Digitone II file" style="--c:var(--magenta)">${["dn2pst", "dn2snd"].map((k) => `<button data-dn2="${k}" class="${X.dn2 === k ? "on" : ""}" aria-pressed="${X.dn2 === k}">.${k}</button>`).join("")}</div>` : ""}
       <div class="lostlist">${cur.rows.map((r) => `<div class="lost" style="--c:var(${r.c})" title="${esc(r.note)}"><span class="what">${esc(r.what)}</span><span class="how">${esc(r.how)}</span>${r.n > 1 ? `<span class="val">×${r.n}</span>` : ""}</div>`).join("")}</div>
-      <div class="row exfoot"><span class="kv exname">${esc(name)}</span><button class="btn" id="ex-go" style="--c:var(${KINDS.find((f) => f.k === X.pick).c})">↓ DOWNLOAD</button><button class="btn ghost" id="ex-no">CANCEL</button></div>`;
+      <div class="row exfoot"><span class="kv exname">${esc(name)}</span><button class="btn" id="ex-go" style="--c:var(${KINDS.find((f) => f.k === X.pick).c})" ${cur.none ? "disabled" : ""}>↓ DOWNLOAD</button><button class="btn ghost" id="ex-no">CANCEL</button></div>`;
     modal.querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { X.pick = b.dataset.k; render(); }));
     modal.querySelectorAll("[data-dn2]").forEach((b) => b.addEventListener("click", () => { X.dn2 = b.dataset.dn2; render(); }));
     modal.querySelector("#ex-go").addEventListener("click", go);
@@ -115,9 +133,10 @@ export function mountExport({ download, log = () => {} }) {
   }
   const exportName = () => exportFiles(X.sounds, kindOf(X.pick)).name;
   function go() {
-    const f = exportFiles(X.sounds, kindOf(X.pick));
+    let f;
+    try { f = exportFiles(X.sounds, kindOf(X.pick)); } catch (e) { log(`export: ${e.message}`); return; }
     download(f.bytes, f.name, f.type);
-    log(`export: ${X.sounds.length} as ${kindOf(X.pick)} (${f.name})`);
+    log(`export: ${X.sounds.length - (f.skipped || []).length} as ${kindOf(X.pick)} (${f.name})${f.skipped && f.skipped.length ? `, ${f.skipped.length} MIDI left out` : ""}`);
     close();
   }
   const key = (ev) => { if (ev.key === "Escape") { ev.preventDefault(); close(); } };

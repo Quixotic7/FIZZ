@@ -16,7 +16,7 @@ import { readRegion, layoutOf } from "./fizzstore.js";
 import { parseDump, FIZZ_TAGS } from "../js/fizz_sysex.js";
 import { soundFromStoreFrame, soundToFizzsnd, soundFileName, makeFizzlib, libraryFileName, sameSound } from "../js/library.js";
 import { storeFrame } from "../js/digitone.js";
-import { $, esc, tagsOf, colOf, algo, emptyArt, refusal, confirmBox } from "./ui.js";
+import { $, esc, tagsOf, colOf, algo, emptyArt, refusal, confirmBox, MIDI_I, midiChip } from "./ui.js";
 import { newFilter, filterHtml, filterClick, listHtml, poolPlaces, poolBadge } from "./presets.js";
 import { mountPool } from "./pool.js";
 import { mountImport } from "./importer.js";
@@ -25,7 +25,7 @@ import { mountEditor } from "./editor.js";
 import { mountExport } from "./exporter.js";
 import { BrowserFizz } from "./browserfizz.js";
 import { mountLive } from "./live.js";
-import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames } from "./sound.js";
+import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames, copySound, isMidiBlob } from "./sound.js";
 import { parseFizzsnd } from "../js/library.js";
 import { readFiles } from "../js/digitone.js";
 
@@ -785,7 +785,8 @@ function renderSel() {
   const can = !!(S.link && !S.busy && u.status), mineSel = r.source === "mine";
   const users = mineSel ? S.users.get(`mine:${r.id}`) : null;
   const pl = places().get(r.id) || [];
-  el.innerHTML = `<div class="selhead">${algo(d ? d.blob[2] : r.slot, c)}<div style="min-width:0;flex:1"><div class="h" style="margin:0">${mineSel ? "MY PRESETS" : "FACTORY"} ${r.slot}</div>
+  const mi = !!d && isMidiBlob(d.blob);
+  el.innerHTML = `<div class="selhead">${mi ? MIDI_I.replace('class="din"', 'class="din algo"') : algo(d ? d.blob[2] : r.slot, c)}<div style="min-width:0;flex:1"><div class="h" style="margin:0">${midiChip(mi)}${mi ? " " : ""}${mineSel ? "MY PRESETS" : "FACTORY"} ${r.slot}</div>
       ${mineSel && can ? `<input class="bigname" id="l-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(r.name)}" aria-label="Name">` : `<div class="big">${esc(r.name)}</div>`}</div>
       ${poolBadge(pl, "pbadge big")}</div>
     <div class="row selgo">
@@ -1019,7 +1020,7 @@ const browserTarget = (() => {
     }
     going = false;
   }
-  const push = (s) => { if (!bfizz.ready) return; want = { ...s, values: s.values.slice() }; flush(); };
+  const push = (s) => { if (!bfizz.ready) return; want = copySound(s); flush(); };
   return {
     live: false,
     label: () => (bfizz.ready ? "THIS BROWSER · TRACK 1" : "▶ PLAY IN THIS BROWSER"),
@@ -1027,6 +1028,7 @@ const browserTarget = (() => {
     start: () => bfizz.start(),
     audition: (s) => push(s),
     param: (id, v, s) => push(s),
+    sound: (s) => push(s),                              // (FIZZ MIDI (e): a MIDI sound's slot changed)
     note: (n, vel) => bfizz.note(n, vel),
   };
 })();

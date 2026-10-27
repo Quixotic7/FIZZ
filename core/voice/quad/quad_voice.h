@@ -72,6 +72,24 @@ enum {
     QD_QP_VPRIO                         /* PRIORITY: 0 LOW, 1 MID, 2 HIGH (the pool robs the lowest first) */
 };
 int qd_quad_lockable(int id);           /* a step may lock value id (the VOICE page's may not) */
+/* FIZZ MIDI (e, research/FIZZ-MIDI-PLAN.md §5): A MIDI TRACK'S SOUND lives in the same patch (a track is a MIDI track
+ * when its sound is one: ENGINE on track settings page 3; a preset, a pool sound, a pattern's track sound carry it).
+ * Its 28 slots (7 pages of 4): slot k's value 0..127 in FM TONE's value QD_MSND_ID[k] (28 values whose own range is
+ * 0..127: a slot's p-lock is that value's lock, clamped to 0..127 as it is); its CC number and touched flag in value
+ * QD_MSND_CC(k) (cc | QD_MSND_TOUCHED: FM TONE's values 74..101); the mark QD_MSND_MARK in VOICE's PRIORITY (0..2 in an
+ * FM TONE sound). The rest is INIT's (the FREE LFOs stand). No voice ever takes it (pool.c refuses it). Packed
+ * (qd_quad_pack, the same 128 bytes): 'Q' 6, bytes 2..29 the values (| 128 touched), 30..57 the CC numbers, zeros,
+ * 124..127 "MIDI" (VOICE's four bytes, which no FM TONE blob can hold: a FIZZ before this one reads it as no blob, INIT) */
+#define QD_MSND_N 28
+#define QD_MSND_PAGE 4
+#define QD_MSND_NPAGE 7
+#define QD_MSND_MARK 0x4D
+#define QD_MSND_TOUCHED 128
+#define QD_MSND_CC(k) (QD_QP_AMOD + (k))
+extern const uint8_t QD_MSND_ID[QD_MSND_N];
+static inline int qd_msnd_is(const int16_t *p) { return p && p[QD_QP_VPRIO] == QD_MSND_MARK; }
+int qd_msnd_slot(int id);               /* the slot whose value id is (-1: none) */
+void qd_msnd_init(int16_t *p);          /* a new MIDI sound: every slot untouched (0), slot k CC 16 + k */
 enum { QD_QM_SRC, QD_QM_DST, QD_QM_DEPTH };
 /* E4: the modulation slots' sources (SOURCE 0 OFF) */
 enum { QD_MS_OFF, QD_MS_VEL, QD_MS_KEY, QD_MS_MW, QD_MS_AT, QD_MS_PB, QD_MS_BR, QD_MS_RAND, QD_MS_FENV, QD_MS_N };
@@ -222,6 +240,7 @@ int qd_quad_owner_lfos(const qd_quad_owner_t *o, int16_t *w, uint8_t *dest);
 int qd_quad_lfo_value(int id, int v, const int16_t *w, const uint8_t *dest);
 const char *qd_quad_dest_name(int dest);
 int qd_quad_dest_step(int dest, int d);
+int qd_quad_dest_pos(int dest);         /* FIZZ MIDI (a): dest's place in that order (0 .. qd_quad_ndest() - 1) */
 
 #ifdef __cplusplus
 }

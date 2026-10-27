@@ -361,6 +361,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     fz_in_render = 1;
     fz_audio(fz_abuf, n);
     fz_in_render = 0;
+    fz_midi_out();                       /* FIZZ MIDI (c): what the block played (and the main loop's knobs and keys, made
+                                          * under fz_lock: the one queue, written and read with this interrupt held off) */
     t_out = plat_ticks24();
     {   /* 16 bits to 24 with ChoralRoot's -6 dBFS ceiling (its OUT_SHIFT 7: Q15 x 128; the codec and the amp ran clean
          * there), times MASTER's gain (Q12: 4096 full) and the start's ramp, the gain glided across the half from the

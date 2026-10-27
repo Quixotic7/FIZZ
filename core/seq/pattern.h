@@ -197,9 +197,12 @@ typedef struct {
     uint8_t rtype;                      /* .. and its type (QD_RTYPE_*), kept apart (P1.3c; was padding) */
     uint8_t mfx;                        /* P1.6c: its MIDI FX group, 0 OFF, 1..5 (appended: a record of an older layout
                                          * reads 0); | QD_TMFX_OFF: ARP held / SHIFT + ARP bypassed the routing, the group kept */
+    uint8_t mout;                       /* FIZZ MIDI (c): MIDI OUT, 0 OFF, 1..16 the channel the track's notes go out on
+                                         * (appended: a record of an older layout reads 0, OFF) */
 } qd_tset_t;
 #define QD_TMFX_OFF 0x80u               /* (the group still read and edited; only the player's routing skips it) */
 #define QD_TSET_SIZE_OLD 42             /* (the record's track settings before P1.6c) */
+#define QD_TSET_SIZE_MFX 43             /* (.. and from P1.6c to FIZZ MIDI (c): no MIDI OUT) */
 int qd_tset_rate(const qd_tset_t *ts);  /* the track's rate code */
 void qd_tset_set_rate(qd_tset_t *ts, int rate);   /* base and type from a code */
 

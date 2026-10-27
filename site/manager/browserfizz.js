@@ -2,8 +2,8 @@
 // The browser's own FIZZ for the sound editor (docs/MANAGER-P2-PLAN.md §1.4 "without a unit"): site/fizz.wasm, the
 // same core, in an AudioWorklet (js/audio.js's Player) with its sound out of the computer. The editor plays its sound
 // there when no FM-1 edits live: the sound loaded onto track 1 (STORE6 with LOAD into a scratch MY PRESETS place of
-// this browser FIZZ; a FIZZ with the P2-B commands: AUDITION, and each drag a PARAM), notes on channel 16 (the
-// selected track: track 1). Nothing here is kept: a fresh store each time the page opens it.
+// this browser FIZZ; a FIZZ with the P2-B commands: AUDITION, and each drag a PARAM), notes on channel 15 (the
+// selected track: track 1; FIZZ MIDI (a) moved it from 16, now the remote's). Nothing here is kept: a fresh store each time the page opens it.
 //   const bf = new BrowserFizz({ log });  await bf.start()  (in a click: the autoplay rule)
 //   bf.ask(frame, want) -> the first reply want(parsed) accepts (3 s), bf.send(bytes), bf.note(n, vel), bf.ready
 import { Player } from "../js/audio.js";
@@ -44,7 +44,7 @@ export class BrowserFizz {
   }
   get running() { return this.ready && this.player.running; }
   send(bytes) { this.player.midi(bytes); }
-  note(n, vel = 100, ch = 15) { this.send(vel ? [0x90 | ch, n & 127, vel & 127] : [0x80 | ch, n & 127, 0]); }
+  note(n, vel = 100, ch = 14) { this.send(vel ? [0x90 | ch, n & 127, vel & 127] : [0x80 | ch, n & 127, 0]); }
   setVolume(v) { this.player.setVolume(v); }
   rx(bytes) {
     for (const b of bytes) {

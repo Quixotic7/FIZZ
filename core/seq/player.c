@@ -39,6 +39,47 @@ void qd_player_voice_patch(const qd_pool_t *pool, int i, int16_t *out)
             out[v->dip_id[k]] = v->dip_v[k];
 }
 
+/* FIZZ MIDI (c): a note to the app's MIDI OUT (player.h). Out of line, as mout_on: the event's and the block's code are
+ * the unit's RAM code (firmware/build.py HOT), full; these stay in the flash */
+static __attribute__((noinline)) void pout(qd_player_t *pl, int t, int note, int vel, int live)
+{
+    if (pl->out)
+        pl->out(pl->out_ctx, t, note, vel, live);
+}
+static __attribute__((noinline)) void pout_off(qd_player_t *pl, int t, int note)   /* (a note's OFF, or -1 the
+                                                         * track's sequencer notes': fewer arguments at each call) */
+{
+    pout(pl, t, note, 0, 0);
+}
+
+/* FIZZ MIDI (c): a legato to MIDI OUT: the new note, then the old one's OFF. Out of line (RAM code: pout's note) */
+static __attribute__((noinline)) void mout_legato(qd_player_t *pl, int t, int note, int vel, int was)
+{
+    pout(pl, t, note, vel, 0);
+    if (was != (note & 127))
+        pout_off(pl, t, was);
+}
+
+/* FIZZ MIDI (c, e): a trig's note to MIDI OUT; a MIDI sound (no voice) sends its locks first, and a TIE ends the
+ * track's notes before it, after its ON. Out of line (RAM code: pout's note) */
+static __attribute__((noinline)) void mout_on(qd_player_t *pl, int t, const qd_trec_t *r, const qd_seq_ev_t *e)
+{
+    if (qd_msnd_is(r->patch) && pl->mlk) {
+        const int first = pl->mlk(pl->out_ctx, t, r, 0);
+        pout(pl, t, e->note, e->vel, 0);
+        if (first && e->kind == QD_EV_TIE) {
+            int p;
+            for (p = 0; p < 128; p++)
+                if (pl->last_on[t][p] && p != (e->note & 127)) {
+                    pout_off(pl, t, p);
+                    pl->last_on[t][p] = 0;
+                }
+        }
+    } else {
+        pout(pl, t, e->note, e->vel, 0);
+    }
+}
+
 static void mfx_out_on(void *ctx, int g, const qd_mfx_note_t *n);
 static void mfx_out_off(void *ctx, int g, int track, int pitch);
 static void mfx_key(void *ctx, int track, int *scale, int *root);
@@ -137,6 +178,7 @@ static void slide_unhold(qd_player_t *pl, int t)       /* the held notes let go 
         const int note = pl->slide_hold_note[t][k];
         if (sr && pl->last_on[t][note] == sr) {
             qd_pool_note_off(pl->pool, t, note);
+            pout_off(pl, t, note);
             pl->last_on[t][note] = 0;
             pl->offs++;
         }
@@ -199,9 +241,11 @@ static void note_on(qd_player_t *pl, const qd_seq_ev_t *e)
                 slide_held(pl, t, pl->last_on[t][pl->pool->v[k].q.note & 127]))
                 i = k;
         if (i >= 0) {
+            const int was = pl->pool->v[i].q.note & 127;
             slide_write(pl, i, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
-            pl->last_on[t][pl->pool->v[i].q.note & 127] = 0;
+            pl->last_on[t][was] = 0;
             qd_pool_legato(pl->pool, i, e->note, e->vel);
+            mout_legato(pl, t, e->note, e->vel, was);   /* (MIDI: the new note, then the old one's OFF) */
             qd_pool_glide_tie(pl->pool, o, e->note);
             apply_locks(pl, e, i);
             pl->last_on[t][e->note & 127] = e->serial;
@@ -214,6 +258,7 @@ static void note_on(qd_player_t *pl, const qd_seq_ev_t *e)
     }
     qd_pool_set_pan(pl->pool, t, pl->model->t[t].mix.pan);   /* (2026-10-26: SPREAD's middle) */
     i = qd_pool_note_on_at(pl->pool, t, o, e->note, e->vel, r->patch, &r->at);
+    mout_on(pl, t, r, e);                               /* FIZZ MIDI (c, e): the note to MIDI OUT */
     if (sl)
         slide_write(pl, i, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
     qd_pool_glide_note(pl->pool, i, o, r, e->tick, held);   /* E1: portamento's start (the chord: the trig's notes) */
@@ -267,6 +312,9 @@ static void mfx_out_on(void *ctx, int g, const qd_mfx_note_t *n)
         i = qd_pool_note_on(pl->pool, t, o, n->pitch, n->vel, pl->model->t[t].patch);
     }
     qd_pool_glide_note(pl->pool, i, o, 0, 0, held);
+    if (r && pl->mlk && qd_msnd_is(r->patch))          /* (FIZZ MIDI (e): a MIDI sound's trig through a group) */
+        pl->mlk(pl->out_ctx, t, r, 0);
+    pout(pl, t, n->pitch, n->vel, n->live);
     pl->ons++, pl->mfx_ons++;
     memset(&e, 0, sizeof e);
     e.sample = pl->seq->now, e.tick = pl->mfx.now, e.track = t, e.note = n->pitch, e.vel = n->vel;
@@ -281,6 +329,7 @@ static void mfx_out_off(void *ctx, int g, int track, int pitch)
     if (track >= QD_PAT_NTRACK)
         return;
     qd_pool_note_off(pl->pool, track, pitch);
+    pout_off(pl, track, pitch);
     pl->offs++, pl->mfx_offs++;
     memset(&e, 0, sizeof e);
     e.sample = pl->seq->now, e.tick = pl->mfx.now, e.track = track, e.note = pitch, e.step = -1, e.pat = -1;
@@ -319,6 +368,15 @@ static void mfx_end_track(qd_player_t *pl, const qd_seq_ev_t *e)
         }
 }
 
+/* a LOCK trig with no voice of its track sounding (FIZZ MIDI (e): a MIDI sound's: its locks out). Out of line: the
+ * event's code is in the unit's RAM (firmware/build.py HOT), this in the flash */
+static __attribute__((noinline)) void lock_none(qd_player_t *pl, const qd_seq_ev_t *e)
+{
+    if (pl->mlk && e->rec && qd_msnd_is(e->rec->patch))
+        pl->mlk(pl->out_ctx, e->track, e->rec, 0);
+    plog(pl, e, QD_LOG_LOCK, -1, -1, 0);
+}
+
 void qd_player_event(void *ctx, const qd_seq_ev_t *e)
 {
     qd_player_t *pl = (qd_player_t *)ctx;
@@ -339,6 +397,7 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
                 for (p = 0; p < 128; p++)               /* (the tied note held straight: it ends too) */
                     if (!pl->on_grp[t][p] && pl->last_on[t][p]) {
                         qd_pool_note_off(pl->pool, t, p);
+                        pout_off(pl, t, p);
                         pl->last_on[t][p] = 0;
                     }
                 mfx_end_track(pl, e);
@@ -370,6 +429,7 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
         }
         if (e->serial && pl->last_on[t][e->note & 127] == e->serial) {
             qd_pool_note_off(pl->pool, t, e->note);
+            pout_off(pl, t, e->note);
             pl->last_on[t][e->note & 127] = 0;
             pl->offs++;
             plog(pl, e, QD_LOG_OFF, -1, -1, 0);
@@ -387,7 +447,7 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
                 any = 1;
             }
         if (!any)
-            plog(pl, e, QD_LOG_LOCK, -1, -1, 0);
+            lock_none(pl, e);
         pl->locks++;
         break;
     }
@@ -402,10 +462,14 @@ void qd_player_event(void *ctx, const qd_seq_ev_t *e)
             note_on(pl, e);
             break;
         }
-        pl->last_on[t][pl->pool->v[held].q.note & 127] = 0;
-        if (slide_take(pl, e))                          /* (2026-10-26: a slide armed: the tie glides with it) */
-            slide_write(pl, held, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
-        qd_pool_legato(pl->pool, held, e->note, e->vel);
+        {
+            const int was = pl->pool->v[held].q.note & 127;
+            pl->last_on[t][was] = 0;
+            if (slide_take(pl, e))                      /* (2026-10-26: a slide armed: the tie glides with it) */
+                slide_write(pl, held, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
+            qd_pool_legato(pl->pool, held, e->note, e->vel);
+            mout_legato(pl, t, e->note, e->vel, was);   /* (MIDI: the new note, then the old one's OFF) */
+        }
         qd_pool_glide_tie(pl->pool, &pl->model->t[t].owner, e->note);   /* (E1: the track's last note) */
         apply_locks(pl, e, held);
         pl->last_on[t][e->note & 127] = e->serial;
@@ -456,8 +520,10 @@ void qd_player_block(qd_player_t *pl)
                 aud |= (uint8_t)(1u << t);
         if (aud != pl->mfx_audible) {
             for (t = 0; t < QD_PAT_NTRACK; t++)
-                if (((pl->mfx_audible >> t) & 1u) && !((aud >> t) & 1u))
+                if (((pl->mfx_audible >> t) & 1u) && !((aud >> t) & 1u)) {
                     qd_mfx_flush_track(&pl->mfx, t, 0);
+                    pout_off(pl, t, -1);              /* (MIDI OUT: its sequencer notes' OFFs) */
+                }
             pl->mfx_audible = aud;
         }
     }
@@ -473,6 +539,12 @@ void qd_player_stop(qd_player_t *pl)
     memset(pl->slide_arm, 0, sizeof pl->slide_arm);     /* (2026-10-26: no slide waits) */
     memset(pl->slide_cur, 0, sizeof pl->slide_cur);
     memset(pl->slide_hold, 0, sizeof pl->slide_hold);
+    if (pl->out) {                                      /* (MIDI OUT: what the sequencer still owes, a slide's held
+                                                         * notes) */
+        int t;
+        for (t = 0; t < QD_PAT_NTRACK; t++)
+            pout_off(pl, t, -1);
+    }
 }
 
 /* 2026-10-26 (the owner): a pattern change: the groups' notes of the sequencer end (an empty pattern plays no arp on).
@@ -499,6 +571,7 @@ void qd_player_flush_track(qd_player_t *pl, int t)
     pl->slide_arm[t].on = pl->slide_cur[t].on = 0;
     memset(pl->slide_hold[t], 0, sizeof pl->slide_hold[t]);
     qd_pool_release_all(pl->pool, t);
+    pout(pl, t, -1, 0, -1);
 }
 
 static void mfx_key_note(qd_player_t *pl, int t, int note, int vel, int g, int on)
@@ -531,6 +604,7 @@ void qd_player_key_on(qd_player_t *pl, int t, int note, int vel)
     qd_pool_set_pan(pl->pool, t, pl->model->t[t].mix.pan);
     i = qd_pool_note_on(pl->pool, t, &pl->model->t[t].owner, note, vel, pl->model->t[t].patch);
     qd_pool_glide_note(pl->pool, i, &pl->model->t[t].owner, 0, 0, held);   /* E1: a played note glides alone */
+    pout(pl, t, note, vel, 1);
     pl->last_on[t][note] = 0;
 }
 
@@ -544,6 +618,7 @@ void qd_player_key_off(qd_player_t *pl, int t, int note)
         return;
     }
     qd_pool_note_off(pl->pool, t, note);
+    pout(pl, t, note, 0, 1);
 }
 
 int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes)
@@ -560,6 +635,8 @@ int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes)
     if (!st.on || st.type == QD_TRIG_LOCK)
         return 0;
     qd_seq_step_rec(pl->seq, pat, t, s, &r);
+    if (pl->mlk && qd_msnd_is(r.patch))                /* (FIZZ MIDI (e): a MIDI sound: the step's locks out) */
+        pl->mlk(pl->out_ctx, t, &r, 1);
     ts = &P->trk[t];
     qd_pool_set_track(pl->pool, t, ts->limit, ts->reserve);
     {   /* P1.6e (the owner): through the step's MIDI FX group (its lock, else the track's): the arp, the chord .. heard;
@@ -586,6 +663,7 @@ int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes)
         const int note = st.notes[i] & 127;
         qd_pool_set_pan(pl->pool, t, pl->model->t[t].mix.pan);
         qd_pool_note_on_at(pl->pool, t, &pl->model->t[t].owner, note, st.vel, r.patch, &r.at);
+        pout(pl, t, note, st.vel, 1);
         pl->last_on[t][note] = 0;
         notes[n++] = (uint8_t)note;
     }
@@ -611,6 +689,12 @@ void qd_player_live_edit(qd_player_t *pl, int t, int id, int value)
     tk = &pl->model->t[t];
     value = value < lo ? lo : value > hi ? hi : value;
     if (id >= QD_QUAD_NP) {                             /* the track's mix (the voices' own mix locks stay) */
+        if (pl->edit) {                                 /* (FIZZ MIDI (c): its old value to the app) */
+            const int old = id == QD_LK_PAN ? tk->mix.pan : id == QD_LK_DELAY ? tk->mix.delay
+                          : id == QD_LK_REVERB ? tk->mix.reverb : id == QD_LK_CHORUS ? tk->mix.chorus : tk->mix.level;
+            if (old != value)
+                pl->edit(pl->out_ctx, t, id, old, value);
+        }
         switch (id) {
         case QD_LK_PAN: tk->mix.pan = (int8_t)value; break;
         case QD_LK_DELAY: tk->mix.delay = (uint8_t)value; break;
@@ -622,8 +706,11 @@ void qd_player_live_edit(qd_player_t *pl, int t, int id, int value)
         return;
     }
     if (tk->patch[id] != value) {
+        const int old = tk->patch[id];
         tk->patch[id] = (int16_t)value;
         tk->edited = 1;
+        if (pl->edit)
+            pl->edit(pl->out_ctx, t, id, old, value);   /* (FIZZ MIDI (c)) */
     }
     {   /* P1.5a: the pattern edited keeps its tracks' sounds (its trigs play them) */
         qd_tsound_t *ps = &qd_proj_pat(pl->seq->proj, pl->seq->cur)->snd[t];

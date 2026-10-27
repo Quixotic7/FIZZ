@@ -1,0 +1,286 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="fizz-build" content="dev">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FIZZ MIDI</title>
+<meta name="description" content="FIZZ's MIDI implementation: the channels, the CC map for every sound value, the remote on channel 16, MIDI out, MIDI tracks and the implementation chart.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Ccircle cx='13' cy='18' r='8' fill='none' stroke='%2328E1FF' stroke-width='2.5'/%3E%3Ccircle cx='23.5' cy='8.5' r='4' fill='none' stroke='%23FF3CA0' stroke-width='2.2'/%3E%3Ccircle cx='24' cy='22' r='2.4' fill='none' stroke='%23FFD23F' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preload" href="fonts/InterTight-VF-latin.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="css/guide.css">
+</head>
+<body>
+<header class="g-top">
+  <a class="logo" href="./" aria-label="FIZZ, the player">
+    <svg class="bubbles" viewBox="0 0 32 32" aria-hidden="true"><circle cx="13" cy="18" r="8"/><circle cx="23.5" cy="8.5" r="4"/><circle cx="24" cy="22" r="2.4"/></svg>
+    <b class="wordmark">FIZZ</b>
+  </a>
+  <span class="g-crumb">MIDI <span class="ver" data-version></span></span>
+  <nav>
+    <a href="./" class="nav-link play">Play</a>
+    <a href="guide.html" class="nav-link">Guide</a>
+    <a href="manager/" class="nav-link">Manager</a>
+    <a data-feedback class="nav-link feedback" href="https://discord.gg/emf6DmZ9V" target="_blank" rel="noopener">Feedback</a>
+  </nav>
+</header>
+
+<main class="g-main">
+  <div class="g-hero">
+    <h1>FIZZ and MIDI</h1>
+    <p class="lead">Play FIZZ's six tracks from a keyboard or a DAW, set any sound value with a CC, run the whole FM-1 from a controller on channel 16, send the tracks' notes and the clock out, and turn a track into a MIDI track that sequences other gear.</p>
+    <nav class="toc" aria-label="On this page">
+      <a href="#channels" style="--c:#28E1FF">Channels</a><a href="#in" style="--c:#3F7DFF">In</a><a href="#cc" style="--c:#FFD23F">CC map</a>
+      <a href="#remote" style="--c:#FF6A2C">Remote</a><a href="#out" style="--c:#1FD47E">Out</a><a href="#tracks" style="--c:#FF8FC8">MIDI tracks</a>
+      <a href="#chart" style="--c:#9664FF">Implementation chart</a>
+    </nav>
+  </div>
+
+  <section id="channels" style="--c:#28E1FF">
+    <h2>Channels</h2>
+    <p class="m-p">MIDI comes in over USB or the TRS jack. Out is USB only: the FM-1 has no MIDI out jack.</p>
+    <div class="mt-wrap"><table class="mt">
+      <thead><tr><th>Channel</th><th>In</th></tr></thead>
+      <tbody>
+        <tr><td class="n">1 … 6</td><td>Tracks 1 … 6: notes play the track, CCs set its sound. Each track's <b>MIDI CH</b> (track settings page 1) runs 1 … 15, so a track can listen anywhere and two tracks can share a channel.</td></tr>
+        <tr><td class="n">7 … 14</td><td>The tracks set to them, if any.</td></tr>
+        <tr><td class="n">15</td><td><b>The selected track</b>, whichever it is.</td></tr>
+        <tr><td class="n">16</td><td><b>The remote</b>: the FM-1's keys, buttons and knobs (<a href="#remote">below</a>). It never plays a track.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="in" style="--c:#3F7DFF">
+    <h2>In</h2>
+    <ul>
+      <li><b>Notes</b> play the track with their velocity, as the FM-1's keys do. Notes to the selected track also go into a held step, or into a recording with REC.</li>
+      <li><b>Modulation:</b> MOD WHEEL (CC 1), BREATH (CC 2), channel pressure and pitch bend reach the track's modulation slots as sources.</li>
+      <li><b>CCs set the sound</b> (<a href="#cc">the map</a>), as the editor's knobs do with nothing held, and the notes sounding follow. With <b>REC and AUTOMATION</b> on, CCs to the selected track record as locks.</li>
+      <li><b>CC 120 and 123</b> end the channel's notes.</li>
+      <li><b>The clock and START / CONTINUE / STOP</b> drive the transport: FIZZ follows an outside clock while one runs.</li>
+    </ul>
+  </section>
+
+  <section id="cc" style="--c:#FFD23F">
+    <h2>The CC map</h2>
+    <p class="m-p">The same for every sound and every track: send on the track's channel, or 15 for the selected track. 0 … 127 covers each value's whole range, shown here end to end; the mixer's 91, 93 and 94 are the sends. A MIDI track ignores these.</p>
+    <div class="ccg">
+      <div><h3>Mixer</h3><table class="mt cc"><tbody>
+        <tr><td class="n">7</td><td>LEVEL</td><td>0 … 127</td></tr>
+        <tr><td class="n">10</td><td>PAN</td><td>−64 … +63</td></tr>
+        <tr><td class="n">91</td><td>REVERB</td><td>0 … 127</td></tr>
+        <tr><td class="n">93</td><td>CHORUS</td><td>0 … 127</td></tr>
+        <tr><td class="n">94</td><td>DELAY</td><td>0 … 127</td></tr>
+        <tr><td class="n">95</td><td>DRY</td><td>0 … 127</td></tr>
+      </tbody></table></div>
+      <div><h3>Algorithm and ratios</h3><table class="mt cc"><tbody>
+        <tr><td class="n">29</td><td>ALGORITHM</td><td>1 … 8</td></tr>
+        <tr><td class="n">25</td><td>RATIO C</td><td>0.25 … 16.00</td></tr>
+        <tr><td class="n">26</td><td>RATIO A</td><td>0.25 … 16.00</td></tr>
+        <tr><td class="n">27</td><td>RATIO B</td><td>B1 / B2 pairs</td></tr>
+        <tr><td class="n">28</td><td>MIX</td><td>−64 … +63</td></tr>
+      </tbody></table></div>
+      <div><h3>Tone and offsets</h3><table class="mt cc"><tbody>
+        <tr><td class="n">30</td><td>HARM</td><td>−26.00 … +26.00</td></tr>
+        <tr><td class="n">31</td><td>DETUNE</td><td>0.00 … 127.00</td></tr>
+        <tr><td class="n">33</td><td>FEEDBACK</td><td>0 … 127</td></tr>
+        <tr><td class="n">34</td><td>OFS C</td><td>−1.00 … +1.00</td></tr>
+        <tr><td class="n">35</td><td>OFS A</td><td>−1.00 … +1.00</td></tr>
+        <tr><td class="n">36</td><td>OFS B1</td><td>−1.00 … +1.00</td></tr>
+        <tr><td class="n">37</td><td>OFS B2</td><td>−1.00 … +1.00</td></tr>
+      </tbody></table></div>
+      <div><h3>Envelope A</h3><table class="mt cc"><tbody>
+        <tr><td class="n">39</td><td>ATTACK</td><td>0 … 127</td></tr>
+        <tr><td class="n">40</td><td>DECAY</td><td>0 … 127</td></tr>
+        <tr><td class="n">41</td><td>END</td><td>0 … 127</td></tr>
+        <tr><td class="n">42</td><td>LEVEL</td><td>0 … 127</td></tr>
+        <tr><td class="n">43</td><td>DELAY</td><td>0 … 127</td></tr>
+      </tbody></table></div>
+      <div><h3>Envelope B</h3><table class="mt cc"><tbody>
+        <tr><td class="n">44</td><td>ATTACK</td><td>0 … 127</td></tr>
+        <tr><td class="n">45</td><td>DECAY</td><td>0 … 127</td></tr>
+        <tr><td class="n">46</td><td>END</td><td>0 … 127</td></tr>
+        <tr><td class="n">47</td><td>LEVEL</td><td>0 … 127</td></tr>
+        <tr><td class="n">48</td><td>DELAY</td><td>0 … 127</td></tr>
+      </tbody></table></div>
+      <div><h3>Trig and keys</h3><table class="mt cc"><tbody>
+        <tr><td class="n">3</td><td>A TRIG</td><td>OFF / ON</td></tr>
+        <tr><td class="n">9</td><td>A RESET</td><td>OFF / ON</td></tr>
+        <tr><td class="n">12</td><td>B TRIG</td><td>OFF / ON</td></tr>
+        <tr><td class="n">13</td><td>B RESET</td><td>OFF / ON</td></tr>
+        <tr><td class="n">14</td><td>PHASE RESET</td><td>OFF … A+B2</td></tr>
+        <tr><td class="n">15</td><td>A KEY</td><td>0 … 127</td></tr>
+        <tr><td class="n">16</td><td>B1 KEY</td><td>0 … 127</td></tr>
+        <tr><td class="n">17</td><td>B2 KEY</td><td>0 … 127</td></tr>
+        <tr><td class="n">18</td><td>VELOCITY</td><td>0 … 127</td></tr>
+      </tbody></table></div>
+      <div><h3>Filter</h3><table class="mt cc"><tbody>
+        <tr><td class="n">49</td><td>MACHINE</td><td>as the menu</td></tr>
+        <tr><td class="n">74</td><td>FREQ</td><td>0.00 … 127.00</td></tr>
+        <tr><td class="n">71</td><td>RESO</td><td>0.00 … 127.00</td></tr>
+        <tr><td class="n">50</td><td>ENV DEPTH</td><td>−64 … +64</td></tr>
+        <tr><td class="n">51</td><td>SHAPE</td><td>0 … 127</td></tr>
+        <tr><td class="n">52</td><td>GAIN</td><td>−64 … +63</td></tr>
+      </tbody></table></div>
+      <div><h3>Filter envelope</h3><table class="mt cc"><tbody>
+        <tr><td class="n">53</td><td>ATTACK</td><td>0 … 127</td></tr>
+        <tr><td class="n">54</td><td>DECAY</td><td>0 … 127</td></tr>
+        <tr><td class="n">55</td><td>SUSTAIN</td><td>0 … 127</td></tr>
+        <tr><td class="n">56</td><td>RELEASE</td><td>0 … INF</td></tr>
+        <tr><td class="n">57</td><td>DELAY</td><td>0 … 127</td></tr>
+      </tbody></table></div>
+      <div><h3>Base and width</h3><table class="mt cc"><tbody>
+        <tr><td class="n">58</td><td>BASE</td><td>0.00 … 127.00</td></tr>
+        <tr><td class="n">59</td><td>WIDTH</td><td>0 … 127</td></tr>
+        <tr><td class="n">60</td><td>KEY TRACK</td><td>0 … 127</td></tr>
+        <tr><td class="n">61</td><td>ROUTE</td><td>BEFORE / AFTER</td></tr>
+      </tbody></table></div>
+      <div><h3>Amp</h3><table class="mt cc"><tbody>
+        <tr><td class="n">73</td><td>ATTACK</td><td>0 … 127</td></tr>
+        <tr><td class="n">75</td><td>DECAY</td><td>0 … INF</td></tr>
+        <tr><td class="n">62</td><td>SUSTAIN</td><td>0 … 127</td></tr>
+        <tr><td class="n">72</td><td>RELEASE</td><td>0 … INF</td></tr>
+        <tr><td class="n">63</td><td>MODE</td><td>ADSR … AHD</td></tr>
+        <tr><td class="n">70</td><td>HOLD</td><td>0 … NOTE</td></tr>
+      </tbody></table></div>
+      <div><h3>Portamento</h3><table class="mt cc"><tbody>
+        <tr><td class="n">65</td><td>PORT</td><td>OFF / ON / LEGATO</td></tr>
+        <tr><td class="n">5</td><td>TIME</td><td>0 … 127</td></tr>
+        <tr><td class="n">19</td><td>SLOPE</td><td>TIME / RATE</td></tr>
+      </tbody></table></div>
+      <div><h3>Voice</h3><table class="mt cc"><tbody>
+        <tr><td class="n">20</td><td>VOICE</td><td>POLY … MONO</td></tr>
+        <tr><td class="n">21</td><td>UNISON</td><td>OFF … 8</td></tr>
+        <tr><td class="n">22</td><td>DETUNE</td><td>0 … 127</td></tr>
+        <tr><td class="n">23</td><td>SPREAD</td><td>0 … 127</td></tr>
+        <tr><td class="n">24</td><td>PRIORITY</td><td>LOW … HIGH</td></tr>
+      </tbody></table></div>
+      <div><h3>Level and crush</h3><table class="mt cc"><tbody>
+        <tr><td class="n">76</td><td>LEVEL</td><td>0 … 127</td></tr>
+        <tr><td class="n">77</td><td>DRIVE</td><td>0 … 127</td></tr>
+        <tr><td class="n">78</td><td>DRIVE ROUTE</td><td>POST / PRE</td></tr>
+        <tr><td class="n">79</td><td>BITS</td><td>OFF … 1</td></tr>
+        <tr><td class="n">80</td><td>SRR</td><td>OFF … /64</td></tr>
+        <tr><td class="n">81</td><td>CRUSH ROUTE</td><td>BEFORE / AFTER</td></tr>
+      </tbody></table></div>
+      <div class="lfo"><h3>LFOs</h3><table class="mt cc"><thead><tr><th></th><th>LFO 1</th><th>LFO 2</th><th>LFO 3</th></tr></thead><tbody>
+        <tr><td>SPEED</td><td class="n">82</td><td class="n">90</td><td class="n">108</td></tr>
+        <tr><td>MULT</td><td class="n">83</td><td class="n">92</td><td class="n">109</td></tr>
+        <tr><td>DEPTH</td><td class="n">84</td><td class="n">102</td><td class="n">110</td></tr>
+        <tr><td>DEST</td><td class="n">85</td><td class="n">103</td><td class="n">111</td></tr>
+        <tr><td>WAVE</td><td class="n">86</td><td class="n">104</td><td class="n">112</td></tr>
+        <tr><td>PHASE</td><td class="n">87</td><td class="n">105</td><td class="n">113</td></tr>
+        <tr><td>TRIG</td><td class="n">88</td><td class="n">106</td><td class="n">114</td></tr>
+        <tr><td>FADE</td><td class="n">89</td><td class="n">107</td><td class="n">115</td></tr>
+      </tbody></table></div>
+    </div>
+  </section>
+
+  <section id="remote" style="--c:#FF6A2C">
+    <h2>The remote: channel 16</h2>
+    <p class="m-p">A controller on channel 16 plays the FM-1's panel exactly as your hands do: every screen, every menu, holds and combinations included.</p>
+    <div class="ccg wide">
+      <div><h3>Keys</h3><table class="mt cc rm"><tbody>
+        <tr><td class="n">53 … 79</td><td>The 27 keys, F3 … G5 (note on presses, note off lets go)</td></tr>
+      </tbody></table>
+      <h3>Knobs</h3><table class="mt cc rm"><tbody>
+        <tr><td class="n">40</td><td>SELECT</td></tr>
+        <tr><td class="n">41</td><td>ALGORITHM</td></tr>
+        <tr><td class="n">42</td><td>PRESETS</td></tr>
+        <tr><td class="n">43 … 46</td><td>KNOB 1 … 4</td></tr>
+        <tr><td class="n">47 … 50</td><td>KNOB 1 … 4 for faders and pots</td></tr>
+        <tr><td class="n">7</td><td>MASTER</td></tr>
+        <tr><td class="n">123</td><td>Let go of everything the remote holds</td></tr>
+      </tbody></table>
+      <p class="m-note">CC 40 … 46 are relative: 65 turns one detent right, 63 one left (64 + n, as many as you like). CC 47 … 50 take absolute values: moving a fader turns the knob as far as the fader moved.</p></div>
+      <div><h3>Buttons</h3><table class="mt cc rm"><tbody>
+        <tr><td class="n">20</td><td>FX</td></tr>
+        <tr><td class="n">21</td><td>SEL</td></tr>
+        <tr><td class="n">22</td><td>ENV</td></tr>
+        <tr><td class="n">23</td><td>LFO</td></tr>
+        <tr><td class="n">24</td><td>EDIT</td></tr>
+        <tr><td class="n">25</td><td>GLO</td></tr>
+        <tr><td class="n">26</td><td>HOME</td></tr>
+        <tr><td class="n">27</td><td>SAVE</td></tr>
+        <tr><td class="n">28</td><td>ARP</td></tr>
+        <tr><td class="n">29</td><td>SEQ</td></tr>
+        <tr><td class="n">30</td><td>PLAY</td></tr>
+        <tr><td class="n">31</td><td>REC</td></tr>
+        <tr><td class="n">32</td><td>OCT −</td></tr>
+        <tr><td class="n">33</td><td>OCT +</td></tr>
+      </tbody></table>
+      <p class="m-note">64 or more presses, below 64 lets go: a button held on the controller is held on FIZZ.</p></div>
+    </div>
+  </section>
+
+  <section id="out" style="--c:#1FD47E">
+    <h2>Out</h2>
+    <ul>
+      <li><b>A track's notes:</b> track settings page 3, <b>KNOB 4 MIDI OUT</b>, OFF or a channel 1 … 16. The track's notes go out as it plays them, after its MIDI FX and arp, and so do the notes you play on it. It still sounds too; a <a href="#tracks">MIDI track</a> sends without sounding.</li>
+      <li><b>The clock:</b> SETTINGS (GLO + SEL), <b>KNOB 3 CLOCK OUT</b>. While FIZZ plays on its own clock it sends the clock (24 a beat), START and STOP. ON at first.</li>
+      <li><b>Knob moves:</b> SETTINGS, <b>KNOB 4 CC OUT</b>. Turning a sound value sends its CC from <a href="#cc">the map</a> on the track's MIDI CH, so a controller's lights and a DAW's automation follow. The CCs that come in are never sent back. ON at first.</li>
+      <li>Stopping, muting a track or changing its channel ends every note it still owes.</li>
+    </ul>
+  </section>
+
+  <section id="tracks" style="--c:#FF8FC8">
+    <h2>MIDI tracks</h2>
+    <ul>
+      <li><b>Track settings page 3, KNOB 3 ENGINE:</b> FM TONE or <b>MIDI</b>. A MIDI track has no sound of its own: it sequences other gear on its MIDI OUT channel, which is set to the track's number if it was OFF. It takes no voice, so the FM tracks keep all eight.</li>
+      <li><b>EDIT</b> shows seven pages of four CCs, 28 in all. SELECT or B1 … B7 picks the page and <b>KNOB 1 … 4</b> set the values, sent as you turn.</li>
+      <li><b>SHIFT + a knob</b> picks that slot's CC number, 0 … 127. Page 1 starts at CC 16 … 19, page 2 at 20 … 23, and so on up to page 7's 40 … 43.</li>
+      <li><b>A slot never turned</b> is a dashed empty bar and sends nothing, so a MIDI track only sends what you set.</li>
+      <li><b>Hold a step and turn</b> for a lock: the step sends it as it plays, and the track's own value goes out again at its next note. The latch, B11, F2 + a knob and REC with AUTOMATION work as in the sound editor.</li>
+      <li>A MIDI track's slots save with its sound, so a preset can be a MIDI preset, ready to load on any track. Setting ENGINE back to FM TONE gives the track the INIT sound.</li>
+    </ul>
+  </section>
+
+  <section id="chart" style="--c:#9664FF">
+    <h2>Implementation chart</h2>
+    <div class="mt-wrap"><table class="mt chart">
+      <thead><tr><th>Function</th><th>Sent</th><th>Received</th><th>Remarks</th></tr></thead>
+      <tbody>
+        <tr><td>Basic channel</td><td>1 … 16</td><td>1 … 16</td><td>Out: each track's MIDI OUT; knob CCs on its MIDI CH. In: 1 … 15 tracks, 15 the selected track, 16 the remote</td></tr>
+        <tr><td>Mode</td><td>3</td><td>3</td><td>Omni off, poly</td></tr>
+        <tr><td>Note number</td><td>0 … 127</td><td>0 … 127</td><td>Channel 16: 53 … 79, the keys</td></tr>
+        <tr><td>Velocity</td><td>Note on 1 … 127; note off 80h, 0</td><td>Note on; note off as 80h or 90h, 0</td><td>Release velocity ignored</td></tr>
+        <tr><td>Aftertouch</td><td>No</td><td>Channel: yes; key: no</td><td>A modulation source</td></tr>
+        <tr><td>Pitch bend</td><td>No</td><td>Yes</td><td>A modulation source</td></tr>
+        <tr><td>Control change</td><td>The CC map (CC OUT); a MIDI track's slots, 0 … 127</td><td>1, 2, the CC map, 120, 123; channel 16: 7, 20 … 33, 40 … 50, 123</td><td>1 MOD WHEEL and 2 BREATH are modulation sources</td></tr>
+        <tr><td>Program change</td><td>No</td><td>No</td><td></td></tr>
+        <tr><td>System exclusive</td><td>Yes</td><td>Yes</td><td>The FIZZ Manager's protocol and the firmware update</td></tr>
+        <tr><td>Song position, song select, tune</td><td>No</td><td>No</td><td></td></tr>
+        <tr><td>Clock</td><td>Yes (CLOCK OUT)</td><td>Yes</td><td>24 a beat</td></tr>
+        <tr><td>Start, continue, stop</td><td>START, STOP</td><td>START, CONTINUE, STOP</td><td></td></tr>
+        <tr><td>All sound off, all notes off</td><td>No</td><td>Yes (120, 123)</td><td>The channel's tracks' notes end</td></tr>
+        <tr><td>Reset all controllers, local on / off</td><td>No</td><td>No</td><td></td></tr>
+        <tr><td>Active sensing, system reset</td><td>No</td><td>No</td><td></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="cta" style="--c:#28E1FF">
+    <h2>Tell us how it played</h2>
+    <p>Which gear did you hook up, and what did you wish it did?</p>
+    <p><a data-feedback class="big-btn" href="https://discord.gg/emf6DmZ9V" target="_blank" rel="noopener">Give feedback</a> <a class="big-btn ghost" href="guide.html">The guide</a></p>
+  </section>
+</main>
+<footer class="g-foot">
+  FIZZ is free software (GPL-3.0-only): <a href="https://github.com/Quixotic7/FIZZ" target="_blank" rel="noopener">source</a>. "M-VAVE" and "FM-1" belong to their owners; not made or endorsed by M-VAVE.
+</footer>
+<script type="module">
+  import { feedbackUrl } from "./js/feedback.js";
+  const setLinks = (meta) => {
+    const url = feedbackUrl({ meta, ua: navigator.userAgent, platform: (navigator.userAgentData && navigator.userAgentData.platform) || "" });
+    for (const a of document.querySelectorAll("a[data-feedback]")) a.href = url;
+  };
+  setLinks(null);
+  fetch("fizz.json", { cache: "no-cache" }).then((r) => r.json()).then((meta) => {
+    for (const el of document.querySelectorAll("[data-version]")) el.textContent = meta.version;
+    setLinks(meta);
+  }).catch(() => {});
+</script>
+</body>
+</html>

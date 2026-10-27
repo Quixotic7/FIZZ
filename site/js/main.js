@@ -43,7 +43,7 @@ const state = {
   transpose: prefs.transpose | 0,
   notesPlayKeys: prefs.notesPlayKeys === true,            // FIZZ: a MIDI keyboard plays its tracks through its MIDI in
   reachFirmware: prefs.reachFirmware !== false,
-  midiSelTrack: prefs.midiSelTrack !== false,              // a MIDI keyboard plays the selected track (FIZZ's channel 16)
+  midiSelTrack: prefs.midiSelTrack !== false,              // a MIDI keyboard plays the selected track (FIZZ's channel 15)
   keyHints: keyHintsOn(prefs),
   labels: prefs.labels !== false,                          // FIZZ's live labels on the panel (on by default)
   saves: [], selectedSave: null, carryOffer: null,

@@ -249,16 +249,17 @@ static void t_midi(void)
     qd_app_midi(&A, 0x88, 51, 0);
     run(5, 0);
     CHECK(!sounding(4, 60) && !sounding(5, 72), "note off and velocity 0 release");
-    /* P1.6g: channel 16 the selected track (notes and controllers); a track's MIDI CH set by hand: that channel */
+    /* P1.6g: channel 15 the selected track (notes and controllers; FIZZ MIDI (a): was 16); a track's MIDI CH set by
+     * hand: that channel */
     qd_ctl_select_track(&A, 2);
-    qd_app_midi(&A, 0x9F, 64, 90);
-    qd_app_midi(&A, 0xBF, 1, 99);
+    qd_app_midi(&A, 0x9E, 64, 90);
+    qd_app_midi(&A, 0xBE, 1, 99);
     run(10, 0);
     CHECK(sounding(2, 64) && A.model.t[2].owner.mw == 99 && A.model.t[0].owner.mw != 99,
-          "channel 16: the selected track (3): its note, its MOD WHEEL");
+          "channel 15: the selected track (3): its note, its MOD WHEEL");
     qd_ctl_select_track(&A, 5);                         /* (selected another while the note sounds: its OFF still goes
                                                          * to track 3) */
-    qd_app_midi(&A, 0x8F, 64, 0);
+    qd_app_midi(&A, 0x8E, 64, 0);
     run(5, 0);
     CHECK(!sounding(2, 64), "its note off: to the track it struck");
     qd_proj_pat(&A.proj, A.seq.cur)->trk[4].chan = 9;              /* track 5 on channel 10 by hand */
@@ -268,7 +269,7 @@ static void t_midi(void)
     CHECK(sounding(4, 55) && !sounding(4, 57), "track 5 set to channel 10: channel 10 plays it, channel 5 no more");
     qd_app_midi(&A, 0x89, 55, 0);
     qd_app_midi(&A, 0x84, 57, 0);
-    printf("  midi: channels 1..6 play tracks 1..6 (their MIDI CH), channel 16 the selected track\n");
+    printf("  midi: channels 1..6 play tracks 1..6 (their MIDI CH), channel 15 the selected track\n");
 }
 
 /* P1.6c: MIDI in through the track's group, CC 123 its notes off, recording pre-FX by design (ctl_rec takes the

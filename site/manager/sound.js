@@ -6,6 +6,11 @@
 //   soundFromLib(s)        -> sound              js/library.js's shape (a .fizzsnd, a backup's preset)
 //   blob6(sound), storeFrameOf(sound, opts), libSound(sound) (js/library.js's shape: for EXPORT)
 //   text(id, v), clampV(id, v), stepOf(id, fine), info(id)
+// FIZZ MIDI (e): a MIDI track's sound (core/voice/quad/quad_voice.h QD_MSND_*) is the same 128-byte blob, 'Q' 6 with
+// "MIDI" in bytes 124..127: bytes 2..29 the 28 slots' values (| 128 touched), 30..57 their CC numbers, zeros. Such a
+// sound carries midi: { slots: [{ cc, value, touched }] x 28 } (7 pages of 4) and FM TONE's defaults as its values
+// (not its own: the editor shows the slots); blob6 packs the slots back exactly as the core does (msnd_pack).
+//   isMidiBlob(blob), midiOfBlob(blob), midiBlob(midi), newMidi(), isMidi(sound)
 import { VALUES, ALGOS, DEST_ORDER } from "./fizzvalues.js";
 import { fizzValues, Q } from "../js/fizz2dn.js";
 import { quadPack6 } from "../js/dn2pst.js";
@@ -47,6 +52,33 @@ export const defaults = () => VALUES.map((r) => r[3]);
 const tagMask = (tags) => (Array.isArray(tags) ? tags.reduce((m, t) => m | (FIZZ_TAGS.includes(t) ? 1 << FIZZ_TAGS.indexOf(t) : 0), 0) : tags & 0x7f);
 export const tagNames = (mask) => FIZZ_TAGS.filter((_, k) => (mask >> k) & 1);
 
+// ---- FIZZ MIDI (e): the MIDI sound
+export const MIDI_N = 28, MIDI_PAGE = 4, MIDI_NPAGE = 7;
+const MIDI_TAG = [0x4d, 0x49, 0x44, 0x49];               // "MIDI" (VOICE's four bytes: no FM TONE blob holds them)
+// the core reads it as a MIDI sound when it is 'Q' 6, ends in "MIDI" and every CC number is 0..127 (msnd_unpack)
+export const isMidiBlob = (b) => !!b && b.length === 128 && b[0] === 0x51 && b[1] === 6 && MIDI_TAG.every((c, i) => b[124 + i] === c) &&
+  Array.from({ length: MIDI_N }, (_, k) => b[2 + MIDI_N + k]).every((c) => c <= 127);
+export const midiOfBlob = (b) => ({ slots: Array.from({ length: MIDI_N }, (_, k) => ({ cc: b[2 + MIDI_N + k] & 127, value: b[2 + k] & 127, touched: !!(b[2 + k] & 128) })) });
+export function midiBlob(m) {
+  const b = new Uint8Array(128);
+  b[0] = 0x51; b[1] = 6;
+  m.slots.forEach((x, k) => { b[2 + k] = (Math.max(0, Math.min(127, x.value | 0))) | (x.touched ? 128 : 0); b[2 + MIDI_N + k] = Math.max(0, Math.min(127, x.cc | 0)); });
+  b.set(MIDI_TAG, 124);
+  return b;
+}
+// a new MIDI sound (qd_msnd_init): every slot untouched at 0, page n's slot k CC 16 + 4 (n - 1) + k
+export const newMidi = () => ({ slots: Array.from({ length: MIDI_N }, (_, k) => ({ cc: 16 + k, value: 0, touched: false })) });
+export const isMidi = (s) => !!(s && s.midi);
+const copyMidi = (m) => m && { slots: m.slots.map((x) => ({ ...x })) };
+const sameMidi = (a, b) => a.slots.every((x, k) => x.cc === b.slots[k].cc && x.value === b.slots[k].value && x.touched === b.slots[k].touched);
+// a blob and DRIVE -> { values, midi }: a MIDI sound FM TONE's defaults (its DRIVE kept: the frame carries it)
+function valuesOf(blob, drive) {
+  if (!isMidiBlob(blob)) return { values: fizzValues({ blob, drive }), midi: null };
+  const values = fizzValues({ values: [] });
+  values[Q.DRIVE] = Math.max(0, Math.min(127, drive | 0));
+  return { values, midi: midiOfBlob(blob) };
+}
+
 // the extras a track's DUMP carries after its tags byte (Manager P2-B): the preset id (3 x 7 bits), the pool sound it
 // came from (2 x 7), flags (01 edited, 02 the selected track, 04 recording, 08 playing, 10 the unit's browser previews
 // on it), its MIDI channel, the selected track
@@ -61,20 +93,22 @@ function extrasOf(b, at) {
 export function soundFromFrame(frame) {
   const d = parseDump(frame);
   if (!d) return null;
-  const values = fizzValues({ blob: d.blob, drive: d.drive });
+  const { values, midi } = valuesOf(d.blob, d.drive);
   const b = Array.from(frame), body = b.slice(6, -2), n7 = d.six ? 147 : 110;
   const track = body[0] & 0x04 ? body[16] : -1;
   return { name: d.name, values, pan: d.pan, sends: { chorus: d.chorus, delay: d.delay, reverb: d.reverb }, tags: d.tags,
-    source: d.source, slot: d.slot, track, extras: extrasOf(body, 22 + n7 + 1) };
+    source: d.source, slot: d.slot, track, extras: extrasOf(body, 22 + n7 + 1), ...(midi ? { midi } : {}) };
 }
 // js/library.js's shape (a .fizzsnd, a backup's preset) -> the editor's sound
 export function soundFromLib(s) {
-  return { name: s.name, values: fizzValues({ blob: s.blob, drive: s.drive }), pan: s.pan | 0, sends: { ...(s.sends || {}) },
-    tags: tagMask(s.fizzTags || []), source: "file", slot: 0, track: -1, extras: null };
+  const { values, midi } = valuesOf(s.blob, s.drive);
+  return { name: s.name, values, pan: s.pan | 0, sends: { ...(s.sends || {}) },
+    tags: tagMask(s.fizzTags || []), source: "file", slot: 0, track: -1, extras: null, ...(midi ? { midi } : {}) };
 }
-export const copySound = (s) => ({ ...s, values: s.values.slice(), sends: { ...s.sends }, extras: s.extras && { ...s.extras } });
+export const copySound = (s) => ({ ...s, values: s.values.slice(), sends: { ...s.sends }, extras: s.extras && { ...s.extras },
+  ...(s.midi ? { midi: copyMidi(s.midi) } : {}) });
 
-export const blob6 = (s) => quadPack6(s.values.slice(0, 73), s.values[Q.DRIVE], s.values.slice(74));
+export const blob6 = (s) => (s.midi ? midiBlob(s.midi) : quadPack6(s.values.slice(0, 73), s.values[Q.DRIVE], s.values.slice(74)));
 // back to js/library.js's shape (EXPORT writes it)
 export const libSound = (s, source = {}) => ({ fizz: true, name: s.name, blob: blob6(s), drive: s.values[Q.DRIVE], pan: s.pan,
   sends: { ...s.sends }, fizzTags: tagNames(s.tags), favourite: false, source, notes: [], origin: [], mark: "", tags: [] });
@@ -86,7 +120,9 @@ export function storeFrameOf(s, { slot = 0, track = -1, batch = false, own = fal
     chorus: s.sends.chorus, delay: s.sends.delay, reverb: s.sends.reverb, tags: s.tags, own, audition, extras });
 }
 // the same sound? (the values, the name)
-export const sameValues = (a, b) => a && b && a.values.length === b.values.length && a.values.every((v, i) => v === b.values[i]);
+// (a MIDI sound: its slots; a MIDI sound and an FM TONE one are never the same)
+export const sameValues = (a, b) => !!(a && b) && !a.midi === !b.midi && (a.midi ? sameMidi(a.midi, b.midi)
+  : a.values.length === b.values.length && a.values.every((v, i) => v === b.values[i]));
 
 // FIZZ's version-6 blob back to the values (the tests' round trip)
 export const valuesOfBlob = (blob, drive) => fizzValues({ blob, drive });

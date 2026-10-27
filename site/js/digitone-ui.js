@@ -33,7 +33,8 @@ export function mountDigitone({ button, sendMidi, onMidiOut, ensureRunning, toas
   const dnx = (kind) => {
     const sounds = items.filter((it) => it.ok && it.sound.fizz).map((it) => it.sound);
     if (!sounds.length) return;
-    const result = digitoneExport(sounds, kind);
+    let result;
+    try { result = digitoneExport(sounds, kind); } catch (e) { foot.textContent = e.message || String(e); return; }
     lastExport = { name: result.name, bytes: result.bytes, items: result.items, pending: true };
     review = digitoneReview(result, kind, {
       onDownload: () => { if (save) save(result.name, result.bytes, result.type); lastExport.pending = false; review = null; render(); },

@@ -364,6 +364,11 @@ const char *qd_quad_preset_name(int k)
 
 void qd_quad_pack5(const int16_t *p, uint8_t *blob)
 {
+    int16_t init[QD_QUAD_NP];
+    if (qd_msnd_is(p)) {                                /* (FIZZ MIDI (e): a MIDI sound has no version 5: INIT's) */
+        qd_quad_preset_patch(0, init);
+        p = init;
+    }
     quad_pack(p, blob);
     blob[QUAD_V5_LEN] = (uint8_t)clamp(p[QD_QP_DRIVE], 0, 127);   /* P1.4a: DRIVE after version 5's values */
 }
@@ -389,11 +394,64 @@ static int qv_unpack(const uint8_t *b, int16_t *p)
 }
 int qd_quad_lockable(int id) { return id >= 0 && id < QD_QUAD_NP && (id < QD_QP_VMODE || id > QD_QP_VPRIO); }
 
+/* FIZZ MIDI (e): the MIDI sound (quad_voice.h): its slots' values in FM TONE values of range 0..127 (none of them a
+ * SLIDE value, an LFO's rate, DRIVE or one of QD_MSND_CC's 74..101) */
+const uint8_t QD_MSND_ID[QD_MSND_N] = {
+    QD_QP_FDBK, QD_QP_AATK, QD_QP_ADEC, QD_QP_AEND, QD_QP_ALEV, QD_QP_BATK, QD_QP_BDEC, QD_QP_BEND, QD_QP_BLEV,
+    QD_QP_ADLY, QD_QP_BDLY, QD_QP_VEL, QD_QP_AKEY, QD_QP_B1KEY, QD_QP_FATK, QD_QP_FDEC, QD_QP_FSUS, QD_QP_FREL,
+    QD_QP_FDLY, QD_QP_FKTRK, QD_QP_WIDTH, QD_QP_EATK, QD_QP_EDEC, QD_QP_ESUS, QD_QP_EREL, QD_QP_LEVEL,
+    QD_QP_LFO(0, QD_QL_PHASE), QD_QP_B2KEY};
+int qd_msnd_slot(int id)
+{
+    int k;
+    for (k = 0; k < QD_MSND_N; k++)
+        if (QD_MSND_ID[k] == id)
+            return k;
+    return -1;
+}
+void qd_msnd_init(int16_t *p)
+{
+    int k;
+    qd_quad_preset_patch(0, p);
+    for (k = 0; k < QD_MSND_N; k++)
+        p[QD_MSND_ID[k]] = 0, p[QD_MSND_CC(k)] = (int16_t)(16 + k);
+    p[QD_QP_VPRIO] = QD_MSND_MARK;
+}
+static const uint8_t MS_TAG[4] = {'M', 'I', 'D', 'I'};
+static void msnd_pack(const int16_t *p, uint8_t *b)
+{
+    int k;
+    memset(b, 0, QD_QUAD_BLOB);
+    b[0] = QUAD_MAGIC, b[1] = 6;
+    for (k = 0; k < QD_MSND_N; k++) {
+        b[2 + k] = (uint8_t)(clamp(p[QD_MSND_ID[k]], 0, 127) | (p[QD_MSND_CC(k)] & QD_MSND_TOUCHED));
+        b[2 + QD_MSND_N + k] = (uint8_t)(p[QD_MSND_CC(k)] & 127);
+    }
+    memcpy(b + QV_O, MS_TAG, 4);
+}
+static int msnd_unpack(const uint8_t *b, int16_t *p)
+{
+    int k;
+    for (k = 0; k < QD_MSND_N; k++)
+        if (b[2 + QD_MSND_N + k] > 127)
+            return 0;
+    qd_msnd_init(p);
+    for (k = 0; k < QD_MSND_N; k++) {
+        p[QD_MSND_ID[k]] = (int16_t)(b[2 + k] & 127);
+        p[QD_MSND_CC(k)] = (int16_t)(b[2 + QD_MSND_N + k] | (b[2 + k] & QD_MSND_TOUCHED));
+    }
+    return 1;
+}
+
 /* E1: version 6: version 5's values, DRIVE at 87, then the values 74..109 a byte each (value - min), then the VOICE
  * page's four bytes (qv_pack) */
 void qd_quad_pack(const int16_t *p, uint8_t *blob)
 {
     int i, o = (int)QUAD_V5_LEN + 1;
+    if (qd_msnd_is(p)) {                                /* (FIZZ MIDI (e): a MIDI sound) */
+        msnd_pack(p, blob);
+        return;
+    }
     qd_quad_pack5(p, blob);
     blob[1] = 6;
     for (i = QD_QP_AMOD; i < QD_QP_VMODE; i++) {
@@ -407,6 +465,14 @@ int qd_quad_unpack(const uint8_t *blob, int n, int16_t *p)
     uint8_t b[QUAD_BLOB];
     int ok, i, o;
     if (n < (int)QUAD_BLOB || !blob) {
+        quad_init_patch(p);
+        qe_defaults(p);
+        p[QD_QP_DRIVE] = 0;
+        return 0;
+    }
+    if (n >= QD_QUAD_BLOB && blob[0] == QUAD_MAGIC && blob[1] == 6u && !memcmp(blob + QV_O, MS_TAG, 4)) {
+        if (msnd_unpack(blob, p))                       /* (FIZZ MIDI (e): a MIDI sound) */
+            return 1;
         quad_init_patch(p);
         qe_defaults(p);
         p[QD_QP_DRIVE] = 0;
@@ -708,4 +774,12 @@ int qd_quad_dest_step(int dest, int d)                   /* (ChoralRoot's editor
     at += d;
     at = at < 0 ? 0 : at >= (int)QD_N ? (int)QD_N - 1 : at;
     return QUAD_DEST_ORDER[at];
+}
+int qd_quad_dest_pos(int dest)                          /* (its place in that order; 0: none) */
+{
+    int k;
+    for (k = 0; k < (int)QD_N; k++)
+        if (QUAD_DEST_ORDER[k] == dest)
+            return k;
+    return 0;
 }

@@ -536,3 +536,4 @@ body { background: #000; }
 
 @media (max-width: 640px) { #top nav a.nav-link[href="install/"] { display: none; } }   /* (narrow: a phone cannot install; the Manager link takes its room) */
 @media (max-width: 420px) { #top nav a.nav-link[href="guide.html"] { display: none; } }   /* (the guide stays linked under the panel) */
+@media (max-width: 900px) { #top nav a.nav-link[href="midi.html"] { display: none; } }   /* (MIDI too: under the panel) */

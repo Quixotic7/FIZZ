@@ -8,6 +8,7 @@
   --yellow: #FFD23F; --violet: #9664FF; --magenta: #F03CFF; --champagne: #F3D9A4; --red: #FF6464;
   /* the knobs' colours (core/ui/ui.h UI_K1..UI_K4, UI_KALG): the operators C A B1 B2 take them in order */
   --k1: #3F7DFF; --k2: #1FD47E; --k3: #F1F0EA; --k4: #FF6A2C; --kalg: #FF8FC8;
+  --midi: #FF8FC8;   /* FIZZ MIDI (e): the guide's MIDI colour (the device's MIDI header is magenta too) */
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -741,3 +742,38 @@ button.tag { cursor: pointer; }
   .top { gap: 10px; padding: 0 18px; }
   .unit { padding: 0 12px 0 10px; }
 }
+
+/* ---- FIZZ MIDI (e): a MIDI track's sound: its chip in the lists, the editor's seven pages of four bars
+   (mockups/fizz-midi-track.html screens 4..6: the knobs' colours, CC n under each bar, then its value; untouched dashed) */
+.mchip { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 6px; font-size: 12px; font-weight: 800; letter-spacing: .06em; color: #000; background: var(--midi); white-space: nowrap; flex: none; vertical-align: middle; }
+.din { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.din circle ~ circle { fill: currentColor; stroke: none; }
+.cas .din, .selhead .din.algo { width: 30px; height: 30px; flex: none; color: var(--midi); }
+.ps .mchip { position: absolute; left: 4px; bottom: 4px; height: 16px; padding: 0 4px; font-size: 12px; box-shadow: 0 0 0 1.5px #000; }
+.stage.midi { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); grid-template-areas: none; }
+.stage .mpg { grid-area: auto; }
+.stage .mpg .pnh { color: var(--midi); }
+.stage .mpg .pnh .din { width: 22px; height: 22px; stroke: var(--midi); fill: none; stroke-width: 2; }
+.stage .mpg .pnh .din circle ~ circle { fill: var(--midi); stroke: none; }
+.mdots { display: inline-flex; gap: 4px; margin-right: 2px; }
+.mdots i { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--midi) 55%, transparent); }
+.mdots i.on { background: var(--midi); border-color: var(--midi); }
+.mslots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.msl { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 24px; min-width: 0; }
+.mbar { position: relative; width: 32px; height: 150px; border-radius: 11px; background: #1d1d23; overflow: hidden; cursor: ns-resize; touch-action: none; border: 1.5px solid transparent; }
+.mbar i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--c); border-radius: 9px; box-shadow: 0 0 16px color-mix(in srgb, var(--c) 45%, transparent); transition: height .06s linear; }
+.mbar i::before { content: ""; position: absolute; left: 4px; right: 4px; top: 4px; height: 3px; border-radius: 2px; background: color-mix(in srgb, #fff 70%, var(--c)); }
+.msl.un .mbar { background: transparent; border: 2px dashed #3a3a44; }
+.msl.un .mbar i { display: none; }
+.mbar:hover { border-color: color-mix(in srgb, var(--c) 55%, var(--line)); }
+.mbar.dragging { border-color: var(--yellow); box-shadow: 0 0 14px color-mix(in srgb, var(--yellow) 40%, transparent); }
+.mcc { background: none; border: 0; padding: 2px 4px; border-radius: 6px; color: var(--text); font-size: 15px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; cursor: text; }
+.mcc:hover { color: var(--c); text-decoration: underline; text-decoration-color: var(--c); text-underline-offset: 4px; text-decoration-thickness: 2px; }
+.mccin { width: 52px; height: 28px; border-radius: 7px; border: 1.5px solid var(--c); background: var(--bg); color: var(--text); font: 800 15px "Inter Tight", sans-serif; text-align: center; padding: 0; }
+.mval b { display: block; font-size: 22px; font-weight: 600; line-height: 1.1; color: var(--c); font-variant-numeric: tabular-nums; }
+.msl.un .mval b { color: var(--muted); }
+.mx { position: absolute; top: 0; right: 0; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--bg); color: var(--muted); font-size: 14px; font-weight: 800; line-height: 1; padding: 0; opacity: .7; }
+.mx:hover, .mx:focus-visible { opacity: 1; color: var(--text); border-color: var(--c); }
+.stage.locked .mbar { cursor: not-allowed; }
+@media (max-width: 900px) { .mbar { height: 120px; } }
+

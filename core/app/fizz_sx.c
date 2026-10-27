@@ -171,7 +171,20 @@ static void sx_store_apply(qd_app_t *a, const qd_sx_pend_t *q)
     int slot = q->slot, lib_slot = 0;
     if ((flags & QD_SXF_AUDITION) && (flags & QD_SXF_LOAD) && track < QD_NTRACK) {   /* (P2-B: the track only) */
         qd_track_t *t = &a->model.t[track];
+        uint32_t out = 0;                               /* FIZZ MIDI: a MIDI sound's touched slots that differ from the
+                                                         * track's (all of them onto an FM TONE track) go out on its MIDI
+                                                         * OUT, as the knob sends them: the Manager's edits reach the synth */
+        int k;
+        if (qd_msnd_is(q->patch))
+            for (k = 0; k < QD_MSND_N; k++) {
+                const int c = q->patch[QD_MSND_CC(k)], id = QD_MSND_ID[k];
+                if ((c & QD_MSND_TOUCHED) && (!qd_msnd_is(t->patch) || t->patch[QD_MSND_CC(k)] != c || t->patch[id] != q->patch[id]))
+                    out |= 1u << k;
+            }
         qd_track_load_sound(t, q->has_x ? q->x_sound : 0, q->name, q->patch);
+        for (k = 0; k < QD_MSND_N; k++)
+            if ((out >> k) & 1u)
+                qd_app_msnd_send(a, track, k, q->patch[QD_MSND_ID[k]], 0);
         t->preset = q->has_x ? q->x_id : 0;
         t->edited = (uint8_t)(q->has_x && (q->x_flags & QD_SXX_EDITED));
         if (mask & QD_SXM_PAN)
@@ -959,8 +972,8 @@ static void sx_param(qd_app_t *a, const uint8_t *b, uint32_t n)
     id = b[1];
     if (t >= QD_NTRACK)
         st = QD_SX_BAD_TRACK;
-    else if (id >= QD_QUAD_NP)
-        st = QD_SX_NOT_FOUND;
+    else if (id >= QD_QUAD_NP || (qd_msnd_is(a->model.t[t].patch) && qd_msnd_slot(id) < 0))
+        st = QD_SX_NOT_FOUND;                           /* (FIZZ MIDI (e): a MIDI track's sound: its slots' values) */
     else
         qd_player_live_edit(&a->player, t, id, (int)((uint32_t)b[2] << 14 | (uint32_t)b[3] << 7 | b[4]) - QD_SXP_OFS);
     if (st || (b[5] & QD_SXP_ACK))

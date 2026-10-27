@@ -13,7 +13,12 @@
 #include "ui.h"
 #include "../seq/demo.h"
 #include "../voice/fx/qd_fx.h"
+#include "midi_map.h"
 
+static void mo_note(void *ctx, int t, int note, int vel, int live);
+static void mo_edit(void *ctx, int t, int id, int old, int value);
+static void mo_cc(qd_app_t *a, int t, int id, int old, int value);
+static int mo_mlk(void *ctx, int t, const qd_trec_t *r, int force);
 
 /* the tempo the sound runs at (FM TONE's synced LFOs and DELAYs, the synced delay) */
 void qd_app_tempo(qd_app_t *a, int bpm)
@@ -40,6 +45,8 @@ void qd_app_init(qd_app_t *a)
     qd_demo_load(&a->proj);
     qd_seq_init(&a->seq, &a->proj, &a->model);
     qd_player_init(&a->player, &a->seq, &a->pool, &a->model);
+    a->player.out = mo_note, a->player.edit = mo_edit, a->player.out_ctx = a;   /* FIZZ MIDI (c): MIDI OUT */
+    a->player.mlk = mo_mlk;                             /* (e): the MIDI tracks' locks */
     qd_seq_select(&a->seq, QD_PAT_START, 0);
     a->snd_pat = -1;                                    /* (the first ms: the pattern's sounds into the tracks) */
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
@@ -145,12 +152,25 @@ void qd_app_button(qd_app_t *a, int button, int down)
 
 void qd_app_input_prepare(qd_app_t *a) { qd_undo_input(a, 0); }
 
+/* FIZZ MIDI (c): a knob's turn (the panel's, the remote's) that moves the selected track's sound sends its CC (mo_edit,
+ * from qd_player_live_edit: the editor with nothing held, the mixer); RATIO B's pair and DRY / WET, which a turn moves
+ * in two writes or past the player, are looked at after it. Not the CCs that came in (qd_midi_cc_in), not a held step's
+ * locks, not a take's (AUTOMATION: the turn writes the steps' locks, the sound stays), not the p-locks playing */
 void qd_app_knob(qd_app_t *a, int knob, int detents)
 {
     a->edit_gen++;                                      /* (P2.6c: the patterns may change: persist.c looks) */
     if (detents && knob >= 0 && knob < QD_NKNOB) {
+        const int t = a->sel;
+        const qd_track_t *k = &a->model.t[t];
+        const int rb = k->patch[QD_QP_RB1] * 19 + k->patch[QD_QP_RB2], dry = k->mix.dry;
         qd_undo_input(a, 1);
+        a->mo_knob = (uint8_t)(t + 1), a->mo_rb = 0;
         qd_ctl_knob(a, knob, detents);
+        a->mo_knob = 0;
+        if (a->mo_rb)
+            mo_cc(a, t, QD_QP_RB1, rb, k->patch[QD_QP_RB1] * 19 + k->patch[QD_QP_RB2]);
+        if (k->mix.dry != dry && a->ui.cc_out)
+            mo_cc(a, t, QD_MM_DRY, dry, k->mix.dry);
         qd_ctl_preview_sync(a);
     }
 }
@@ -178,17 +198,20 @@ void qd_app_master(qd_app_t *a, int pot)
 }
 
 /* MIDI in (P1.6g): a channel plays the tracks set to it (the track settings' MIDI CH, the track's pattern's; 1..8 by
- * default) and channel 16 the selected track too, notes and controllers (MW, BREATH, AT, PB: the tracks' modulation
- * sources); on the selected track the notes also go into a held step or the recording (ctl_rec.c); all notes off / all
- * sound off release the channel's tracks; the clock (0xF8), START (0xFA), CONTINUE (0xFB), STOP (0xFC) drive the
- * transport */
+ * default) and channel 15 the selected track too (FIZZ MIDI (a): was 16), notes and controllers (MW, BREATH, AT, PB: the
+ * tracks' modulation sources; the CCs of the map (midi_map.h) their sounds); on the selected track the notes also go into
+ * a held step or the recording (ctl_rec.c); all notes off / all sound off release the channel's tracks; the clock
+ * (0xF8), START (0xFA), CONTINUE (0xFB), STOP (0xFC) drive the transport. Channel 16 never plays a track: it is the
+ * remote's (research/FIZZ-MIDI-PLAN.md §3; a track's MIDI CH stored as 16 stays, and plays nothing) */
 static int midi_tracks(const qd_app_t *a, int ch)       /* the tracks channel ch plays (bit t) */
 {
     int t, m = 0;
+    if (ch == QD_MIDI_REMOTE)
+        return 0;
     for (t = 0; t < QD_NTRACK; t++)
         if (qd_seq_track_pat(&a->seq, t)->trk[t].chan == ch)
             m |= 1 << t;
-    if (ch == 15)
+    if (ch == QD_MIDI_SEL)
         m |= 1 << a->sel;
     return m;
 }
@@ -225,7 +248,7 @@ static void midi_play(qd_app_t *a, int status, int d1, int d2)
     default:
         break;
     }
-    if (status >= 0xF0)
+    if (status >= 0xF0 || ch == QD_MIDI_REMOTE)        /* (the remote's: the UI side's alone) */
         return;
     d1 &= 127;
     d2 &= 127;
@@ -280,9 +303,15 @@ void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2)
     a->edit_gen++;                                      /* (P2.6c) */
     if (status >= 0xF0)
         return;
-    qd_undo_input(a, 0);                                /* (P1.5c: notes into a held step or a take: a gesture) */
+    if (ch == QD_MIDI_REMOTE) {                         /* FIZZ MIDI (b): the remote, the panel's input (each call its
+                                                         * own gesture, as the panel's) */
+        qd_midi_remote(a, kind, d1 & 127, d2 & 127);
+        return;
+    }
     d1 &= 127;
     d2 &= 127;
+    qd_undo_input(a, kind == 0xB0 && qd_midi_cc_id(d1) >= 0);   /* (P1.5c: notes into a held step or a take: a gesture;
+                                                         * FIZZ MIDI (a): a mapped CC as a knob's detent) */
     if (kind == 0x90 && d2) {                           /* (the selected track's: kept with the note, for its OFF) */
         mine = (midi_tracks(a, ch) >> a->sel) & 1;
         if (mine)
@@ -297,9 +326,13 @@ void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2)
         if (mine)
             qd_rec_midi_note(a, d1, 0, 0);
     } else {
-        mine = (midi_tracks(a, ch) >> a->sel) & 1;
+        const int m = midi_tracks(a, ch);
+        mine = (m >> a->sel) & 1;
         if (kind == 0xB0 && (d1 == 120 || d1 == 123))
             memset(a->midi_sel[ch], 0, sizeof a->midi_sel[ch]);
+        else if (kind == 0xB0)                          /* FIZZ MIDI (a): the CC map, the tracks' sounds (here, never in
+                                                         * the audio side) */
+            qd_midi_cc_in(a, m, d1, d2);
     }
     if (mine)
         qd_ctl_preview_sync(a);
@@ -310,6 +343,206 @@ void qd_app_midi(qd_app_t *a, int status, int d1, int d2)
     qd_app_midi_play(a, status, d1, d2);                /* (the player changes no pattern: the gesture's undo after it
                                                          * keeps what it kept before it) */
     qd_app_midi_ui(a, status, d1, d2);
+}
+
+/* ---------------------------------------------------------------- FIZZ MIDI (c): MIDI out --- */
+/* research/FIZZ-MIDI-PLAN.md §4 (app.h mo_*): a track's notes on its MIDI OUT channel (the player's out: as the pool
+ * gets them), each ON kept until its OFF went (mo_on: the channel it went on), so a stop, a mute, a flush, a channel
+ * changed or OFF end them; the clock and the transport while FIZZ runs on its own clock (SETTINGS' CLOCK OUT); the knobs'
+ * moves as CCs on the track's MIDI CH (SETTINGS' CC OUT) */
+static int mo_put(qd_app_t *a, int status, int d1, int d2, int keep)   /* queued, room for keep more after it; 0 none */
+{
+    if (QD_MO_Q - (uint8_t)(a->mo_w - a->mo_r) < 1 + keep)
+        return 0;
+    a->mo_q[a->mo_w++ % QD_MO_Q] = (uint32_t)(status >= 0xF0 ? 0x0F : status >> 4) | (uint32_t)status << 8 |
+                                   (uint32_t)d1 << 16 | (uint32_t)d2 << 24;
+    return 1;
+}
+static int mo_chan(const qd_app_t *a, int t) { return qd_seq_track_pat(&a->seq, t)->trk[t].mout; }   /* 0 OFF, 1..16 */
+static void mo_drop(qd_app_t *a, int i)                 /* note i owed: its OFF (there is always room), forgotten */
+{
+    const unsigned e = a->mo_on[i];
+    mo_put(a, 0x80 | (int)(e >> 7 & 15u), (int)(e & 127u), 0, 0);
+    a->mo_on[i] = a->mo_on[--a->mo_n];
+}
+/* FIZZ MIDI (e): the MIDI track's slots (quad_voice.h QD_MSND_*): slot k of sound p at value v, its CC on the track's
+ * MIDI OUT */
+static void mo_slot(qd_app_t *a, int t, const int16_t *p, int k, int v)
+{
+    const int ch = mo_chan(a, t);
+    if (ch)
+        mo_put(a, 0xB0 | (ch - 1), p[QD_MSND_CC(k)] & 127, v < 0 ? 0 : v > 127 ? 127 : v, a->mo_n);
+}
+void qd_app_msnd_send(qd_app_t *a, int t, int k, int v, int lock)
+{
+    const int16_t *p = a->model.t[t].patch;
+    if (t < 0 || t >= QD_NTRACK || k < 0 || k >= QD_MSND_N || !qd_msnd_is(p))
+        return;
+    if (lock)
+        a->mo_lk[t] |= 1u << k;
+    else if (!(p[QD_MSND_CC(k)] & QD_MSND_TOUCHED))
+        return;
+    mo_slot(a, t, p, k, v);
+}
+/* a MIDI sound's trig (the player's mlk): the slots it locks out as CCs, then the slots the trig before locked and this
+ * one does not back at the sound's own values (the untouched: nothing). A chord's next note (the same trig): nothing,
+ * unless force (the preview). The trig is ON's time: the values go out before its notes; the track's own value comes
+ * back at the next trig (or a stop, a mute: mo_lk_back) */
+static int mo_mlk(void *ctx, int t, const qd_trec_t *r, int force)
+{
+    qd_app_t *a = (qd_app_t *)ctx;
+    const uint32_t key = (uint32_t)(uintptr_t)r ^ (uint32_t)r->step << 20 ^ (uint32_t)r->pat << 26 ^ 1u;
+    uint32_t lk = 0, back;
+    int k;
+    if (t < 0 || t >= QD_NTRACK || (!force && key == a->mo_lkey[t]))
+        return 0;
+    a->mo_lkey[t] = key;
+    for (k = 0; k < QD_MSND_N; k++) {
+        const int id = QD_MSND_ID[k];
+        if ((r->lkm[id >> 5] >> (id & 31)) & 1u) {
+            lk |= 1u << k;
+            mo_slot(a, t, r->patch, k, r->patch[id]);
+        }
+    }
+    back = a->mo_lk[t] & ~lk;
+    for (k = 0; back && k < QD_MSND_N; k++)
+        if (((back >> k) & 1u) && (r->patch[QD_MSND_CC(k)] & QD_MSND_TOUCHED))
+            mo_slot(a, t, r->patch, k, r->patch[QD_MSND_ID[k]]);
+    a->mo_lk[t] = lk;
+    return 1;
+}
+static void mo_lk_back(qd_app_t *a, int t)              /* (a stop, a mute, a flush) the locked slots back */
+{
+    const int16_t *p = a->model.t[t].patch;
+    int k;
+    if (qd_msnd_is(p))
+        for (k = 0; a->mo_lk[t] && k < QD_MSND_N; k++)
+            if (((a->mo_lk[t] >> k) & 1u) && (p[QD_MSND_CC(k)] & QD_MSND_TOUCHED))
+                mo_slot(a, t, p, k, p[QD_MSND_ID[k]]);
+    a->mo_lk[t] = a->mo_lkey[t] = 0;
+}
+static void mo_note(void *ctx, int t, int note, int vel, int live)   /* (the player's out: player.h) */
+{
+    qd_app_t *a = (qd_app_t *)ctx;
+    int i;
+    if (note < 0) {                                     /* track t's notes: every one (live -1), the sequencer's (0) */
+        if (t >= 0 && t < QD_NTRACK && (a->mo_lk[t] || a->mo_lkey[t]))
+            mo_lk_back(a, t);                           /* (FIZZ MIDI (e)) */
+        for (i = a->mo_n - 1; i >= 0; i--)
+            if ((a->mo_on[i] >> 11 & 7u) == (unsigned)t && (live < 0 || !(a->mo_on[i] & 0x8000u)))
+                mo_drop(a, i);
+        return;
+    }
+    note &= 127;
+    for (i = 0; i < a->mo_n; i++)                       /* its OFF, or struck again: the one before ends */
+        if ((a->mo_on[i] & 127u) == (unsigned)note && (a->mo_on[i] >> 11 & 7u) == (unsigned)t) {
+            mo_drop(a, i);
+            break;
+        }
+    if (vel > 0) {
+        const int ch = mo_chan(a, t);
+        if (ch && a->mo_n < QD_MO_NOTES && mo_put(a, 0x90 | (ch - 1), note, vel > 127 ? 127 : vel, a->mo_n + 1))
+            a->mo_on[a->mo_n++] = (uint16_t)(note | (ch - 1) << 7 | t << 11 | (live > 0 ? 0x8000 : 0));
+    }
+}
+static void mo_check(qd_app_t *a)                       /* (a locked ms) a note on a channel no longer its track's: OFF */
+{
+    int i;
+    for (i = a->mo_n - 1; i >= 0; i--)
+        if (mo_chan(a, a->mo_on[i] >> 11 & 7u) != (int)(a->mo_on[i] >> 7 & 15u) + 1)
+            mo_drop(a, i);
+}
+void qd_app_midi_out_panic(qd_app_t *a)
+{
+    while (a->mo_n)
+        mo_drop(a, a->mo_n - 1);
+}
+static void mo_cc(qd_app_t *a, int t, int id, int old, int value)   /* value id's CC on track t's MIDI CH, if it moved */
+{
+    const int ch = qd_seq_track_pat(&a->seq, t)->trk[t].chan, cc = qd_midi_id_cc(id), v = qd_midi_value_cc(id, value);
+    if (qd_msnd_is(a->model.t[t].patch))                /* (FIZZ MIDI (e): a MIDI track sends its slots' CCs, never the
+                                                         * map's) */
+        return;
+    if (a->ui.cc_out && ch < QD_MIDI_REMOTE && cc >= 0 && v != qd_midi_value_cc(id, old))
+        mo_put(a, 0xB0 | ch, cc, v, a->mo_n);
+}
+static void mo_edit(void *ctx, int t, int id, int old, int value)   /* (the player's edit: player.h) */
+{
+    qd_app_t *a = (qd_app_t *)ctx;
+    if (a->mo_knob != t + 1)                            /* (a knob's turn only: qd_app_knob) */
+        return;
+    if (id == QD_QP_RB1 || id == QD_QP_RB2)
+        a->mo_rb = 1;                                   /* (the pair: after the turn) */
+    else
+        mo_cc(a, t, id, old, value);
+}
+/* the transport and the clock, before each block's sequencer: START when FIZZ starts playing on its own clock (CLOCK
+ * OUT on), a pulse at every 24th of a beat the transport reached (the first on its 0, after START), STOP when it stops,
+ * follows an outside clock or CLOCK OUT goes off; START again when it restarts from the top. FIZZ has no pause: no
+ * CONTINUE. Its stop: the sequencer's notes still owed end (MIDI STOP's and the clock lost's too) */
+static __attribute__((noinline)) void mo_clock(qd_app_t *a)   /* (out of line: qd_app_block_begin is RAM
+                                                         * code on the unit, firmware/build.py HOT; this stays in the flash) */
+{
+    const qd_seq_t *s = &a->seq;
+    const int own = s->playing && !s->ext;
+    if (s->playing)
+        a->mo_run |= 2u;
+    else if (a->mo_run & 2u) {
+        int t;
+        a->mo_run &= (uint8_t)~2u;
+        for (t = 0; t < QD_PAT_NTRACK; t++)
+            mo_note(a, t, -1, 0, 0);
+    }
+    if (!own)
+        a->mo_run &= (uint8_t)~4u;
+    else if (!(a->mo_run & 4u)) {                       /* (it starts playing: its START) */
+        a->mo_run |= 4u;
+        if (a->ui.clk_out && mo_put(a, 0xFA, 0, 0, a->mo_n))
+            a->mo_run |= 1u, a->mo_pulse = 0;
+    }
+    if (!(a->mo_run & 1u))
+        return;
+    if (!own || !a->ui.clk_out) {
+        mo_put(a, 0xFC, 0, 0, a->mo_n);                 /* (none: the receiver's clock stops all the same) */
+        a->mo_run &= (uint8_t)~1u;
+        return;
+    }
+    if (s->tick + QD_CLOCK_TICKS < (int64_t)a->mo_pulse * QD_CLOCK_TICKS && mo_put(a, 0xFA, 0, 0, a->mo_n))
+        a->mo_pulse = 0;                                /* (from the top again) */
+    while ((int64_t)a->mo_pulse * QD_CLOCK_TICKS <= s->tick) {
+        mo_put(a, 0xF8, 0, 0, a->mo_n);                 /* (no room: that pulse is lost, none sent late) */
+        a->mo_pulse++;
+    }
+}
+/* (c2) a new USB connection: what waits in the queue was made for no one (nobody took it: plat_midi_out_room 0) and
+ * goes. A NOTE ON dropped never went out: its OFF is no longer owed (the newest entry of its channel and note
+ * forgotten); a note whose ON went out stays owed (its OFF goes on the new connection, at its time) */
+void qd_app_midi_out_drop(qd_app_t *a)
+{
+    while (a->mo_r != a->mo_w) {
+        const uint32_t p = a->mo_q[a->mo_r++ % QD_MO_Q];
+        if ((p & 15u) == 9u && (p >> 24)) {
+            const unsigned key = (unsigned)(p >> 16 & 127u) | (unsigned)(p >> 8 & 15u) << 7;
+            int i;
+            for (i = a->mo_n - 1; i >= 0; i--)
+                if ((a->mo_on[i] & 0x7FFu) == key) {
+                    a->mo_on[i] = a->mo_on[--a->mo_n];
+                    break;
+                }
+        }
+    }
+}
+int qd_app_midi_out_take(qd_app_t *a, uint32_t *pkt, uint32_t room)
+{
+    uint32_t p;
+    if (a->mo_r == a->mo_w || !room)
+        return 0;
+    p = a->mo_q[a->mo_r % QD_MO_Q];
+    if ((p & 15u) == 9u && (p >> 24) && room <= a->mo_n)   /* (a NOTE ON: room for it and every OFF owed) */
+        return 0;
+    a->mo_r++;
+    *pkt = p;
+    return 1;
 }
 
 /* ---------------------------------------------------------------- time --- */
@@ -396,6 +629,7 @@ static void ms_lock2(qd_app_t *a)
         a->beat_rem = r;
     }
     qd_player_pattern_ms(&a->player);                   /* (2026-10-26: a pattern change: the MIDI FX's notes end) */
+    mo_check(a);                                        /* (FIZZ MIDI (c): a MIDI OUT changed: its notes end) */
     qd_ctl_ms(a);
     LKP(3);
     qd_ctl_preview_sync(a);                             /* (a step held at 250 ms, the transport moved) */
@@ -670,6 +904,7 @@ void qd_app_block_begin(qd_app_t *a)
     qd_quad_owner_t *ow[QD_NTRACK];
     int i;
     a->proj.nopage++;                                   /* (the audio side: pattern.h) */
+    mo_clock(a);                                        /* FIZZ MIDI (c): the transport and the clock out */
     qd_player_block(&a->player);
     {
         const int b = qd_seq_bpm(&a->seq);              /* (a pattern change or the MIDI clock moved it) */
@@ -821,3 +1056,4 @@ void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames)
 #include "persist.c"
 #include "undo.c"
 #include "fizz_sx.c"                                  /* P1.5r: SysEx (fizz_sx.h) */
+#include "midi_map.c"                                 /* FIZZ MIDI: the CC map, the remote (midi_map.h) */

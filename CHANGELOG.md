@@ -9,6 +9,16 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+Full MIDI: CCs for the sound, a remote control for the whole panel, MIDI out, and MIDI tracks.
+
+- **Channels.** Channels 1 … 6 play tracks 1 … 6 as before (a track's MIDI CH now runs 1 … 15). **Channel 15 plays the selected track** (it was 16). **Channel 16 is the remote** and plays no track.
+- **CCs set the sound.** A CC on a track's channel (or 15 for the selected track) turns that track's sound as the editor's knobs do, and the notes sounding follow. One fixed map for every sound: the common numbers where they exist (7 LEVEL, 10 PAN, 91 / 93 / 94 the sends, 74 FREQ, 71 RESO, 73 / 75 / 72 the amp's attack, decay and release, 5 / 65 portamento) and the rest in the editor's page order; the website's new MIDI page lists it. With REC and AUTOMATION on, CCs to the selected track record as locks.
+- **The remote (channel 16).** Any controller plays the FM-1's panel: notes 53 … 79 are the 27 keys, CC 20 … 33 the 14 buttons, CC 40 … 46 the 7 encoders (relative: 65 one right, 63 one left), CC 47 … 50 KNOB 1 … 4 for faders and pots, CC 7 MASTER.
+- **MIDI out over USB.** Track settings page 3 has **MIDI OUT** (KNOB 4): the track's notes go out on that channel as it plays them, after its MIDI FX and arp, and what you play on it; it still sounds. SETTINGS (GLO + SEL) has **CLOCK OUT** (the clock and START / STOP while FIZZ plays on its own clock) and **CC OUT** (a sound knob's CC goes out as you turn it, so a controller's rings follow), both on at first.
+- **MIDI tracks.** Track settings page 3, **ENGINE** (KNOB 3): FM TONE or **MIDI**. A MIDI track makes no sound and sends its notes on its MIDI OUT channel. Its EDIT is **seven pages of four CCs** (SELECT or B1 … B7): four bars, sent as you turn them; a slot never turned is a dashed bar and sends nothing; **SHIFT + a knob** picks the slot's CC number. **Hold a step and turn** for a lock, sent as the step plays (the track's value comes back at its next note); the latch, B11 and REC with AUTOMATION work as in the sound editor. A MIDI track's values save with its sound, so a preset can be a MIDI preset; ENGINE back to FM TONE starts from INIT.
+- **The Manager knows MIDI sounds.** A MIDI preset or track opens in EDIT as its seven pages of four bars (drag or scroll a bar, click its CC number to change it, double-click to make it untouched), carries a magenta MIDI chip in LIBRARY, POOL and IMPORT, and keeps being a MIDI sound when it is saved, exported as `.fizzsnd` / `.fizzlib` or imported. Digitone exports leave MIDI sounds out. With TRACK on, an edit reaches the FM-1's track and its changed slots go out as CCs on the track's MIDI OUT, as a knob turn sends them. The browser's FIZZ is rebuilt with MIDI.
+- **The website's MIDI page** (`midi.html`, linked from the player, the guide and the install page): the channels, the whole CC map, the remote's map, MIDI out, MIDI tracks and an implementation chart. The browser player's "MIDI keyboard plays the selected track" now sends on channel 15.
+
 ## 0.12.0-beta.10 (2026-10-27)
 
 The Manager's PROJECTS tab, a backup played in the browser, a per-track scope, and a much steadier USB link.

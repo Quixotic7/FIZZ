@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ MIDI track</title>
+<!-- FIZZ: MIDI out and the MIDI track (research/FIZZ-MIDI-PLAN.md §4, §5; the owner, 2026-10-27). Track settings page 3
+     gains ENGINE (FM TONE / MIDI, KNOB 3) and MIDI OUT (OFF / 1 .. 16, KNOB 4). A MIDI track's EDIT is 7 pages of 4 CCs:
+     a bar a value in its knob's colour, the CC number under it, the track's MIDI OUT channel top right (a DIN socket).
+     An untouched slot is a dashed, empty bar: it sends nothing. SHIFT + a knob picks the slot's CC number; a held step
+     makes a p-lock (the value a filled chip, the track's own value a tick on the bar), as the sound editor's.
+     The frames and headers are the firmware's own (mockups/ref/midi-real-*.png, their script midi-real.txt).
+     ?shot=N one canvas at 1x, ?sheet=1 every screen at 2x -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(4, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: MIDI OUT and the MIDI track (mock-up round 2, 2026-10-27: approved, the rings gone)</h1>
+<p><strong>Track settings page 3</strong> gets <strong>KNOB 3 ENGINE</strong> (FM TONE or MIDI) and <strong>KNOB 4 MIDI OUT</strong>
+(OFF, or a channel 1 … 16, over USB). A <strong>MIDI track</strong> has no sound: <strong>EDIT</strong> opens seven pages of four CCs
+(SELECT or B1 … B7 picks the page). Each bar is a value in its knob's colour, sent as you turn it; the CC number sits under it.
+A slot you never touched is an empty dashed bar and sends nothing. <strong>SHIFT + a knob</strong> picks that slot's CC number.
+<strong>Hold a step</strong> and turn: a p-lock, sent as that step plays.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const C = { k1:'#3f7dff', k2:'#1fd47e', k3:'#f1f0ea', k4:'#ff6a2c', kalg:'#ff8fc8', g1:'#8d8d96', g2:'#4b4b54', g3:'#26262d', head:'#ee3cff', bg:'#000' };
+const F = 'IT', SNDK = [C.k1, C.k2, C.k3, C.k4];
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 500} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; c.fillStyle = o.col || C.k3;
+  c.textAlign = o.al || 'center'; c.textBaseline = 'alphabetic'; if (o.a != null) c.globalAlpha = o.a; c.fillText(s, x, y);
+  const w = c.measureText(s).width; c.restore(); return w;
+}
+function W(c, s, size, wt = 300) { c.save(); c.font = `${wt} ${size}px ${F}`; const w = c.measureText(s).width; c.restore(); return w; }
+function L(c, pts, col, lw, a = 1, dash) {
+  c.save(); c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round'; if (dash) c.setLineDash(dash);
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.stroke(); c.restore();
+}
+function O(c, x, y, r, fill, stroke, lw = 1, a = 1) { c.save(); c.globalAlpha = a; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore(); }
+function RR(c, x, y, w, h, r, fill, a = 1, stroke, lw = 1, dash) {
+  c.save(); c.globalAlpha = a; c.beginPath(); c.roundRect(x, y, w, h, r);
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; if (dash) c.setLineDash(dash); c.stroke(); } c.restore();
+}
+// a MIDI socket (DIN 5): the ring, the key notch, five pins; arrow: out
+function din(c, x, y, r, col, arrow) {
+  O(c, x, y, r, null, col, 1.8);
+  RR(c, x - 1.6, y + r - 3.2, 3.2, 3.2, 1, col);
+  for (let i = 0; i < 5; i++) { const a = Math.PI * (1 + i / 4); O(c, x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55 + 1, 1.3, col); }
+  if (arrow) { L(c, [x + r + 4, y, x + r + 13, y], col, 1.8); L(c, [x + r + 9, y - 4, x + r + 13, y, x + r + 9, y + 4], col, 1.8); }
+}
+// ---- track settings, page 3 (ui: the header is the firmware's; four rows as page 1's)
+function trk3(c, o) {
+  c.drawImage(IMG.trk3, 0, 0, 240, 240);
+  c.fillStyle = '#000'; c.fillRect(0, 29, 240, 211);
+  const rows = [['KIND', 'DRUMS'], ['NAME', 'DRUMS'], ['ENGINE', o.engine], ['MIDI OUT', o.out ? String(o.out) : 'OFF']];
+  rows.forEach(([lab, val], k) => {
+    const ly = 46 + k * 51, vy = ly + 27;
+    O(c, 17, ly - 4.5, 8, SNDK[k]); T(c, String(k + 1), 17, ly, { s: 12, w: 700, col: '#000' });
+    T(c, lab, 32, ly, { s: 12, w: 600, ls: 0.8, col: C.g1, al: 'left' });
+    if (o.last === k) L(c, [32, ly + 3.5, 32 + W(c, lab, 12, 600) + 3, ly + 3.5], SNDK[k], 2);
+    const off = k === 3 && !o.out, col = off ? C.g2 : SNDK[k];
+    const w = T(c, val, 232, vy, { s: 26, w: 300, col, al: 'right' });
+    const lx = 232 - w;
+    if (k === 0) c.drawImage(IMG.trk3, 162, 83, 26, 26, lx - 34, vy - 22, 26, 26);   // (the kind's icon, the firmware's)
+    if (k === 2) {
+      if (o.engine === 'MIDI') din(c, lx - 18, vy - 9, 9, col);
+      else for (let i = 0; i < 4; i++) O(c, lx - 30 + (i % 2) * 12, vy - 15 + (i >> 1) * 12, 4.2, null, col, 1.5);   // four operators
+    }
+    if (k === 3 && o.out) din(c, lx - 38, vy - 9, 9, col, 1);
+  });
+}
+// ---- the MIDI track's editor: 7 pages of 4 CCs
+const colX = k => 7 + k * 56.5 + 28.25;
+const BT = 40, BB = 166, BH = BB - BT;                   // the bars' top and bottom
+function header(c, page, title, ch, held) {
+  let x = 10;
+  for (let k = 0; k < 7; k++) { c.beginPath(); c.arc(x + 2.6 + k * 9, 14, 2.6, 0, Math.PI * 2); if (k === page - 1) { c.fillStyle = held ? C.k3 : C.head; c.fill(); } else { c.strokeStyle = C.g2; c.lineWidth = 1; c.stroke(); } }
+  x += 7 * 9 + 6;
+  T(c, title, x, 18.5, { s: 12, w: 600, ls: 0.8, col: held ? C.k3 : C.head, al: 'left' });
+  const w = T(c, String(ch), 230, 20, { s: 14, w: 300, col: C.kalg, al: 'right' });
+  din(c, 230 - w - 11, 14.5, 7, C.kalg);
+}
+function bar(c, k, v, o = {}) {
+  const x = colX(k), bw = 24, x0 = x - bw / 2, col = SNDK[k];
+  if (v == null) {                                    // untouched: silent
+    RR(c, x0, BT, bw, BH, 6, null, 1, C.g2, 1.4, [4, 4]);
+    return;
+  }
+  const h = Math.max(4, v / 127 * BH), a = o.dim ? 0.25 : 1;
+  RR(c, x0, BT, bw, BH, 6, C.g3, a);
+  c.save(); c.globalAlpha = a; c.shadowColor = col; c.shadowBlur = o.hot ? 14 : 6;
+  RR(c, x0, BB - h, bw, h, 6, col, o.hot ? 0.95 : 0.8); c.restore();
+  RR(c, x0 + 2, BB - h + 2, bw - 4, 3, 1.5, '#fff', a * 0.75);       // the value's cap
+  if (o.base != null) { const y = BB - o.base / 127 * BH; L(c, [x0 - 5, y, x0 + bw + 5, y], C.k3, 2, 0.9); }   // the track's own
+}
+function midiEd(c, o) {
+  c.drawImage(o.held ? IMG.held : IMG.ed, 0, 0, 240, 240);
+  c.fillStyle = '#000'; c.fillRect(5, 4, 230, 231);
+  header(c, o.page, o.held ? `STEP ${o.held.step}` : 'MIDI', o.ch, !!o.held);
+  for (let k = 0; k < 4; k++) {
+    const lk = o.held && o.held.k === k, v = lk ? o.held.v : o.vals[k];
+    bar(c, k, v, { hot: o.last === k, dim: !!o.shift, base: lk ? o.vals[k] : null });
+  }
+  for (let k = 0; k < 4; k++) {
+    const x = colX(k), cc = o.ccs[k], v = o.held && o.held.k === k ? o.held.v : o.vals[k];
+    if (o.shift) {                                    // SHIFT: the CC numbers, big, over the dimmed bars
+      const on = o.shift.k === k, s = String(cc), w = W(c, s, 22, 400) + 14;
+      RR(c, x - w / 2, 88, w, 30, 8, on ? SNDK[k] : '#000', 1, SNDK[k], 2);
+      T(c, s, x, 110, { s: 22, w: 400, col: on ? '#000' : SNDK[k] });
+    }
+    T(c, 'CC ' + cc, x, 189, { s: 12, w: 600, ls: 0.3, col: o.shift && o.shift.k === k ? SNDK[k] : C.g1 });
+    if (o.last === k || (o.shift && o.shift.k === k)) L(c, [x - 16, 192.5, x + 16, 192.5], SNDK[k], 2);
+    const lk = o.held && o.held.k === k, vs = v == null ? '—' : String(v);
+    if (lk) { const w = W(c, vs, 18) + 14; RR(c, x - w / 2, 203, w, 26, 6, SNDK[k]); T(c, vs, x, 222.3, { s: 18, w: 300, col: '#000' }); }
+    else T(c, vs, x, 222.3, { s: 18, w: 300, col: v == null ? C.g2 : SNDK[k], a: o.shift ? 0.4 : 1 });
+  }
+}
+const SCREENS = [
+  { title: 'Track settings page 3 (FM TONE)', kind: 'trk', o: { engine: 'FM TONE', out: 0, last: -1 },
+    text: 'Today\'s page 3 (KIND, NAME) with two more rows: <b>KNOB 3 ENGINE</b> (four operators: FM TONE) and <b>KNOB 4 MIDI OUT</b>, OFF (grey).' },
+  { title: 'MIDI OUT 3 on an FM TONE track', kind: 'trk', o: { engine: 'FM TONE', out: 3, last: 3 },
+    text: 'The track plays as before <i>and</i> sends its notes on channel 3 (after its MIDI FX and arp, and what you play live).' },
+  { title: 'ENGINE MIDI', kind: 'trk', o: { engine: 'MIDI', out: 1, last: 2 },
+    text: 'A MIDI track: no sound of its own. MIDI OUT was OFF, so it took the track\'s number (1).' },
+  { title: 'EDIT on a MIDI track: page 1', kind: 'ed', o: { page: 1, ch: 1, vals: [64, 100, 20, 127], ccs: [16, 17, 18, 19], last: 1 },
+    text: 'Four values, a bar each in its knob\'s colour, the CC number under it, the channel top right. KNOB 2 just turned (it glows): sent at once.' },
+  { title: 'Page 2, two slots untouched', kind: 'ed', o: { page: 2, ch: 1, vals: [90, null, 45, null], ccs: [20, 21, 22, 23], last: 0 },
+    text: 'KNOB 2 and KNOB 4 were never turned: dashed and empty, they send nothing (no surprise CCs into your synth).' },
+  { title: 'SHIFT + KNOB 1: the CC number', kind: 'ed', o: { page: 1, ch: 1, vals: [64, 100, 20, 127], ccs: [74, 17, 18, 19], last: -1, shift: { k: 0 } },
+    text: 'Hold SHIFT: the bars dim, the four CC numbers come up big. Turning KNOB 1 moves its number (16 → 74, the synth\'s cutoff).' },
+  { title: 'Step 3 held: a p-lock', kind: 'ed', o: { page: 1, ch: 1, vals: [64, 100, 20, 127], ccs: [74, 17, 18, 19], last: 1, held: { step: 3, k: 1, v: 40 } },
+    text: 'Hold a step and turn: the lock\'s value is a filled chip, the track\'s own value the white tick. Step 3 sends 40, the next step goes back to 100.' },
+  { title: 'Page 7', kind: 'ed', o: { page: 7, ch: 1, vals: [null, 12, null, null], ccs: [40, 41, 42, 43], last: 1 },
+    text: 'The seventh page (B7): CC 40 … 43 by default, page n starting at 16 + 4 (n − 1). 28 values a track.' },
+];
+const IMG = {};
+const load = (k, src) => new Promise(r => { IMG[k] = new Image(); IMG[k].onload = r; IMG[k].src = src; });
+const ready = Promise.all([load('trk3', 'ref/midi-real-trk3.png'), load('ed', 'ref/midi-real-ed.png'), load('held', 'ref/midi-real-held.png'),
+  (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })()]);
+function draw(i, cv, scale) {
+  const s = SCREENS[i], c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
+  c.setTransform(scale, 0, 0, scale, 0, 0);
+  if (s.kind === 'trk') trk3(c, s.o); else midiEd(c, s.o);
+}
+const q = new URLSearchParams(location.search);
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  ready.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong> ${s.text}`; d.appendChild(p);
+    document.getElementById('cells').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>

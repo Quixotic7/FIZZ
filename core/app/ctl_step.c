@@ -104,11 +104,13 @@ static const qd_lockknob_t STEPVIEW_LOCKS[] = {
 };
 static const qd_lockscreen_t STEPVIEW = {"STEP VIEW", (int)(sizeof STEPVIEW_LOCKS / sizeof STEPVIEW_LOCKS[0]),
                                          STEPVIEW_LOCKS};
+static const qd_lockscreen_t STEPVIEW_MIDI = {"STEP VIEW", 1, STEPVIEW_LOCKS + 4};   /* (FIZZ MIDI (e): a MIDI
+                                                         * track: no FM TONE value to lock, the sound lock only) */
 const qd_lockscreen_t *qd_ctl_lock_screen(const qd_app_t *a)
 {
     if (qd_snd_open(a))                                 /* P1.4a: the sound editor's page */
         return qd_snd_lock_screen(a, a->ui.snd_page);
-    return &STEPVIEW;
+    return qd_msnd_is(a->model.t[a->sel].patch) ? &STEPVIEW_MIDI : &STEPVIEW;
 }
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }

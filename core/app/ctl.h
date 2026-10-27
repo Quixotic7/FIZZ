@@ -384,6 +384,7 @@ typedef struct {
                                         * stays after it goes up; the first key after all are up ends the held ones */
     int boost;                         /* 2026-10-26 (the owner: the engine clipped): SETTINGS' BOOST: the tracks at their
                                         * old level (+6 dB); off (the default): 6 dB under it, the engine's headroom */
+    uint8_t clk_out, cc_out;           /* FIZZ MIDI (c): SETTINGS' CLOCK OUT and CC OUT (on at power-on) */
     int play_page[QD_PAT_NTRACK];                  /* the playing page each track was last seen on (follow moves on its edges) */
     uint32_t slide_ms;                 /* the last page change .. */
     int slide_dir;                     /* .. +1: to a later page */
@@ -549,6 +550,8 @@ typedef struct {
     uint8_t snd_grp_pg[16];            /* 2026-10-26 (the owner): each black key group's page last shown (+1; 0 none):
                                         * a group's key goes back to it */
     int snd_knob;                      /* .. the knob last turned there (0..3 KNOB 1..4, 4 ALGORITHM; -1 none) .. */
+    uint8_t msnd_page;                 /* FIZZ MIDI (e): the MIDI track editor's page (0..6) .. */
+    int8_t msnd_cck;                   /* .. the slot (0..3) whose CC number SHIFT + its knob turned last (-1 none) */
     uint32_t snd_ms;                   /* .. and when */
     int trk_page, mix_page, fx_page;   /* P1.4b: the track settings' page (0, 1), the mix's (0 faders, 1 sends), the
                                         * effects' (QD_FX_PAGES) */
@@ -708,6 +711,8 @@ typedef struct {
 extern const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE];
 extern const char *const QD_SND_GROUP_NAME[QD_NSG];
 int qd_snd_open(const struct qd_app *a);
+int qd_msnd_open(const struct qd_app *a);       /* FIZZ MIDI (e): EDIT open on a MIDI track (its 7 pages of 4 CCs) */
+void qd_msnd_engine(struct qd_app *a, int t, int midi);   /* .. track t's ENGINE: MIDI (1) or FM TONE (0) */
 int qd_snd_keys(const struct qd_app *a);        /* P1.5b: the editor open with the keyboard on (2026-10-26: or the
                                                  * effects' SENDS page: REC turns it on there too) */
 int qd_snd_scale_note(const struct qd_app *a, int w);   /* .. SCALE: W w's note (the scale's degree w from the root) */

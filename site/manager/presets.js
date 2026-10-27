@@ -3,7 +3,8 @@
 // where they live (ALL, FACTORY, MY PRESETS), by the pool (IN POOL, NOT IN POOL: the owner, 2026-10-26) and by FIZZ's tags; a sound the project's pool references carries the
 // pool's mark (a green ring and a badge with its place number, "+n" when it is in more places), as in the POOL grid.
 import { FIZZ_TAGS, parseDump } from "../js/fizz_sysex.js";
-import { esc, tagsOf, colOf, algo } from "./ui.js";
+import { esc, tagsOf, colOf, algo, MIDI_I, midiChip } from "./ui.js";
+import { isMidiBlob } from "./sound.js";
 
 export const SRC_FILTERS = [["all", "ALL"], ["factory", "FACTORY"], ["mine", "MY PRESETS"]];
 export const newFilter = () => ({ src: "all", tags: new Set(), pool: "" });   // pool: "", "in" or "out"
@@ -48,11 +49,11 @@ export function shownRows(rows, f, places = poolPlaces(rows)) {
 
 // one cassette. o: { frameOf(r), places (poolPlaces), on(r) selected, drag(r) draggable }
 export function casHtml(r, o) {
-  const f = o.frameOf(r), d = f && parseDump(f), tg = tagsOf(r.tags), c = colOf(r.tags), pl = o.places.get(r.id);
+  const f = o.frameOf(r), d = f && parseDump(f), tg = tagsOf(r.tags), c = colOf(r.tags), pl = o.places.get(r.id), mi = !!d && isMidiBlob(d.blob);
   const drag = o.drag && o.drag(r) ? ' draggable="true"' : "";
   return `<button class="cas${pl ? " inpool" : ""}" style="--c:${c}" data-src="${r.source}" data-slot="${r.slot}" data-id="${r.id}" aria-pressed="${!!o.on(r)}"${drag}>` +
-    `<span class="stripe"></span><span class="sl">${r.slot}</span>${algo(d ? d.blob[2] : r.slot, c)}<span class="nm">${esc(r.name)}</span>` +
-    `<span class="mark">${r.imported ? '<span class="imp" title="imported">↓</span>' : ""}${tg[0] ? `<span class="tag t-${tg[0]}">${tg[0]}</span>` : ""}${poolBadge(pl)}</span></button>`;
+    `<span class="stripe"></span><span class="sl">${r.slot}</span>${mi ? MIDI_I : algo(d ? d.blob[2] : r.slot, c)}<span class="nm">${esc(r.name)}</span>` +
+    `<span class="mark">${midiChip(mi)}${r.imported ? '<span class="imp" title="imported">↓</span>' : ""}${tg[0] ? `<span class="tag t-${tg[0]}">${tg[0]}</span>` : ""}${poolBadge(pl)}</span></button>`;
 }
 // the whole list: the two groups, each under its name when both show
 export function listHtml(rows, f, o) {

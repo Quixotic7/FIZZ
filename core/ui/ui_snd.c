@@ -1015,12 +1015,118 @@ static void sd_bottle(float u, int burst, float t)
 }
 
 /* ---------------------------------------------------------------- the screen */
+/* ---------------------------------------------------------------- FIZZ MIDI (e): the MIDI track's editor */
+/* mockups/fizz-midi-track.html screens 4..8 (approved, the rings gone): the editor's frame; the head: the seven pages'
+ * dots, MIDI (magenta; a step held: STEP n, white), the MIDI OUT channel top right by a DIN socket (ALGORITHM's pink);
+ * four bars in the knobs' colours (the last turned glows), an untouched slot a dashed empty bar; under each its CC
+ * number and its value (an untouched one a dash). SHIFT held: the bars dim, the CC numbers big in chips (the one turned
+ * filled). A step held: its lock a filled chip, the track's own value a white tick across the bar */
+#define MS_BT 40.f
+#define MS_BB 166.f
+static float ms_x(int k) { return 7.f + (float)k * 56.5f + 28.25f; }
+static void ms_bar(const ui_snd_t *v, int k)
+{
+    const float x0 = ms_x(k) - 12.f, bw = 24.f, bh = MS_BB - MS_BT;
+    const qd_rgb col = SNDK[k];
+    const float a = v->shift ? 0.25f : 1.f;
+    float h;
+    if (!v->has[k]) {                                   /* untouched: silent */
+        static const float D[2] = {4.f, 4.f};
+        qd_save();
+        qd_dash(D, 2);
+        ui_RR(x0, MS_BT, bw, bh, 6.f, UI_G2, 1.4f, QD_NONE);
+        qd_restore();
+        return;
+    }
+    h = (float)v->v[k] / 127.f * bh;
+    h = h < 4.f ? 4.f : h;
+    qd_save();
+    qd_alpha(a);
+    ui_RR(x0, MS_BT, bw, bh, 6.f, QD_NONE, 1.f, UI_G3);
+    if (v->last == k && !v->shift) {                    /* the knob turned last: its bar glows */
+        qd_alpha(a * 0.16f);
+        ui_RR(x0 - 4.f, MS_BB - h - 4.f, bw + 8.f, h + 8.f, 9.f, QD_NONE, 1.f, col);
+        qd_alpha(a * 0.3f);
+        ui_RR(x0 - 2.f, MS_BB - h - 2.f, bw + 4.f, h + 4.f, 7.5f, QD_NONE, 1.f, col);
+    }
+    qd_alpha(a * (v->last == k ? 0.95f : 0.8f));
+    ui_RR(x0, MS_BB - h, bw, h, 6.f, QD_NONE, 1.f, col);
+    qd_alpha(a * 0.75f);
+    ui_RR(x0 + 2.f, MS_BB - h + 2.f, bw - 4.f, 3.f, 1.5f, QD_NONE, 1.f, UI_K3);   /* the value's cap */
+    qd_restore();
+    if (v->step && v->locked[k] && v->tv[k] >= 0) {     /* a lock: the track's own value, a tick across */
+        const float y = MS_BB - (float)v->tv[k] / 127.f * bh;
+        qd_save();
+        qd_alpha(0.9f);
+        line2(x0 - 5.f, y, x0 + bw + 5.f, y, UI_K3, 2.f);
+        qd_restore();
+    }
+}
+static void sd_midi(const ui_snd_t *v)
+{
+    const qd_rgb hc = v->step ? UI_K3 : UI_MIDI_HEAD;
+    char n[12], head[16];
+    float w;
+    int k;
+    ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, v->step ? UI_SND_FRAME_STEP : UI_SND_FRAME_TRACK, 3.f, QD_NONE);
+    for (k = 0; k < 7; k++)                             /* the seven pages */
+        ui_O(12.6f + (float)k * 9.f, 14.f, 2.6f, k == v->ipg ? hc : UI_G2, 1.f, k == v->ipg ? hc : QD_NONE);
+    head[0] = 0;
+    if (v->step)
+        cat(cat(head, "STEP "), ui_itoa(n, v->step));
+    else
+        cat(head, "MIDI");
+    ui_T(head, 79.f, 18.5f, 12.f, 600, 0.8f, hc, QD_LEFT);
+    {   /* the MIDI OUT channel (OFF grey) */
+        const char *ch = v->mch ? ui_itoa(n, v->mch) : "OFF";
+        const qd_rgb cc = v->mch ? UI_KALG : UI_G2;
+        w = ui_T(ch, 230.f, 20.f, 14.f, 300, 0.f, cc, QD_RIGHT);
+        din5(230.f - w - 11.f, 14.5f, 7.f, cc);
+    }
+    for (k = 0; k < 4; k++)
+        ms_bar(v, k);
+    for (k = 0; k < 4; k++) {
+        const float x = ms_x(k);
+        const int on = v->shift && v->shift_k == k;
+        char lab[8] = "CC ";
+        if (v->shift) {                                 /* SHIFT: the CC numbers, big, over the dimmed bars */
+            ui_itoa(n, v->cc[k]);
+            w = ui_TW(n, 22.f, 400, 0.f) + 14.f;
+            ui_RR(x - w * 0.5f, 88.f, w, 30.f, 8.f, SNDK[k], 2.f, on ? SNDK[k] : UI_BG);
+            ui_T(n, x, 110.f, 22.f, 400, 0.f, on ? UI_BG : SNDK[k], QD_CENTER);
+        }
+        cat(lab, ui_itoa(n, v->cc[k]));
+        ui_T(lab, x, 189.f, 12.f, 600, 0.3f, on ? SNDK[k] : UI_G1, QD_CENTER);
+        if ((!v->shift && v->last == k) || on)
+            line2(x - 16.f, 192.5f, x + 16.f, 192.5f, SNDK[k], 2.f);
+        if (!v->has[k]) {                               /* untouched: a dash */
+            line2(x - 9.f, 216.f, x + 9.f, 216.f, UI_G2, 2.f);
+            continue;
+        }
+        ui_itoa(n, v->v[k]);
+        if (v->step && v->locked[k]) {                  /* this step's lock: a filled chip */
+            w = ui_TW(n, 18.f, 300, 0.f) + 14.f;
+            ui_RR(x - w * 0.5f, 203.f, w, 26.f, 6.f, QD_NONE, 1.f, SNDK[k]);
+            ui_T(n, x, 222.3f, 18.f, 300, 0.f, UI_BG, QD_CENTER);
+        } else {
+            qd_save();
+            qd_alpha(v->shift ? 0.4f : 1.f);
+            ui_T(n, x, 222.3f, 18.f, 300, 0.f, SNDK[k], QD_CENTER);
+            qd_restore();
+        }
+    }
+}
+
 void ui_snd_draw(const ui_snd_t *v)
 {
     char head[40], n[12];
     float x;
     int k, ncell = 0;
     const qd_rgb hc = v->step ? UI_K3 : UI_TRACK_COL;
+    if (v->midi) {                                      /* FIZZ MIDI (e): a MIDI track's page */
+        sd_midi(v);
+        return;
+    }
     /* P1.5d: the frame: dark orange for the track's sound, bright orange for a step's locks */
     ui_RR(0.f, 0.f, (float)QD_W, (float)QD_H, 8.f, v->step ? UI_SND_FRAME_STEP : UI_SND_FRAME_TRACK, 3.f, QD_NONE);
     head[0] = 0;

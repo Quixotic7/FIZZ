@@ -470,7 +470,7 @@ void qd_auto_ms(qd_app_t *a)
 int qd_rec_knob(qd_app_t *a, int knob, int d)
 {
     int id;
-    if (knob < QD_K_1)
+    if (knob < QD_K_1 || qd_msnd_is(a->model.t[a->sel].patch))   /* (FIZZ MIDI (e): a MIDI track has no FREQ ..) */
         return 0;
     id = qd_step_quick_id(knob - QD_K_1);
     if (!qd_auto_put(a, id, qd_auto_cur(a, id) + qd_step_id_turn(a, id, d)))
