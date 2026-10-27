@@ -165,6 +165,7 @@ export function mountProjects(ctx) {
     if ($("tab-projects").hidden) return;
     const L = list(), m = model(), K = J.kept || [];
     $("pj-n").textContent = L.length ? `${L.filter((x) => x.there).length} / ${NPROJ}` : "";
+    $("pj-on").textContent = S.mode === "browser" ? "IN THE BROWSER'S FIZZ" : "ON THE FM-1";
     const st = S.unit && S.unit.status;
     $("pj-use").innerHTML = st && st.prj[1] ? `<span class="bar"><span style="width:${Math.round(st.prj[0] / st.prj[1] * 100)}%"></span></span>${Math.round(st.prj[0] / st.prj[1] * 100)} %` : "";
     $("pj-slots").innerHTML = slotsHtml();
