@@ -322,6 +322,10 @@ static void set_mode(qd_app_t *a, int mode)
         u->slatch = 0;
         qd_step_release_all(a);
     }
+    if (mode != QD_MODE_KEYS && u->khold) {             /* 2026-10-26: out of the live keys: their HOLD ends */
+        u->khold = 0;
+        qd_app_hold_release(a);
+    }
     u->mode = mode;
 }
 
@@ -412,6 +416,8 @@ static void k_snd_note(qd_app_t *a, int key, int idx, int down, int vel)
 {
     (void)idx;
     if (down) {
+        if (a->ui.khold && !(a->keys_held & ~(1u << key)))   /* (2026-10-26: HOLD, as the keyboard's) */
+            qd_app_hold_release(a);
         qd_app_note_on(a, key, a->proj.rec_ekeys || qd_ctl_white(key) < 0 ? qd_rec_key_note(a, key)
                                                                             : qd_snd_scale_note(a, qd_ctl_white(key)),
                        vel);
@@ -588,6 +594,9 @@ static void k_note(qd_app_t *a, int key, int idx, int down, int vel)
     (void)idx;
     if (down) {
         const int note = qd_rec_key_note(a, key);
+        if (a->ui.khold && !(a->keys_held & ~(1u << key)))   /* (2026-10-26: HOLD, the first key after all were up:
+                                                         * the held notes end, a new set starts) */
+            qd_app_hold_release(a);
         qd_app_note_on(a, key, note, vel);
         qd_rec_key(a, note, 1, vel);
     } else if ((a->keys_struck >> key) & 1u) {
@@ -1161,6 +1170,13 @@ static void b_lfo(qd_app_t *a, int down)
         a->ui.lmode_open = 0;
         if (a->ui.tk == QD_TK_LMODE)
             a->ui.tk = QD_TK_NONE;
+        return;
+    }
+    if (!a->ui.lfo_used && qd_keys_on(a)) {             /* 2026-10-26 (the owner): the live keys' HOLD on / off (the
+                                                         * keyboard, the editor's and the effects' keys too) */
+        a->ui.khold = !a->ui.khold;
+        if (!a->ui.khold)
+            qd_app_hold_release(a);
         return;
     }
     if (a->ui.lfo_used || a->ui.mode != QD_MODE_STEP)
@@ -2058,6 +2074,10 @@ void qd_ctl_knob(qd_app_t *a, int knob, int d)
 void qd_ctl_ms(qd_app_t *a)
 {
     qd_ui_t *u = &a->ui;
+    if (u->khold && !qd_keys_on(a)) {                   /* 2026-10-26: no live keys any more: their HOLD ends */
+        u->khold = 0;
+        qd_app_hold_release(a);
+    }
     qd_lib_ms(a);                                       /* P1.5a: the sounds page's sound heard */
     qd_snd_rnd_ms(a);                                   /* P1.5c: the editor's dice, its bottle */
     qd_snd_fkey_ms(a);                                  /* P1.6d: the FILTER key held: the machines' popup */

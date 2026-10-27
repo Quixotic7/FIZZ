@@ -100,6 +100,15 @@ void qd_app_note_off(qd_app_t *a, int key)
     qd_player_key_off(&a->player, a->key_track[key], a->key_note[key]);
 }
 
+/* 2026-10-26: the live keys' HOLD ends: every note a key struck and no key holds now released */
+void qd_app_hold_release(qd_app_t *a)
+{
+    int k;
+    for (k = 0; k < QD_NKEY; k++)
+        if (((a->keys_struck >> k) & 1u) && !((a->keys_held >> k) & 1u))
+            qd_app_note_off(a, k);
+}
+
 /* ---------------------------------------------------------------- input: the controller's --- */
 void qd_app_key(qd_app_t *a, int key, int down, int vel)
 {
@@ -114,8 +123,9 @@ void qd_app_key(qd_app_t *a, int key, int down, int vel)
     }
     qd_undo_input(a, 0);                                /* P1.5c: a gesture (its edits one undo level) */
     qd_ctl_key(a, key, down, a->key_vel[key]);
-    if (!down)
-        qd_app_note_off(a, key);                        /* whatever the controller did, a key's note ends with it */
+    if (!down && !(a->ui.khold && qd_keys_on(a)))
+        qd_app_note_off(a, key);                        /* whatever the controller did, a key's note ends with it
+                                                         * (2026-10-26: not under the live keys' HOLD) */
     qd_ctl_preview_sync(a);                             /* P1.3d: the held steps sound, stopped */
 }
 

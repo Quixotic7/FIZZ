@@ -17,6 +17,8 @@ its text becomes the release's notes on the install page and on GitHub.
 - **The patterns page**: the knobs other than ALGORITHM do nothing while it is up (they no longer edit the step view behind it).
 - **The sound editor, keys playing**: B1 held still makes W1..W8 the modulation source.
 - **More headroom: the engine 6 dB lower, BOOST in SETTINGS.** The tracks now play 6 dB under the old level, so the engine and its effects no longer clip inside with many voices. GLO + SEL (SETTINGS), **KNOB 2 BOOST** brings the old level back (+6 dB), for the speaker.
+- **HOLD for the live keys (LFO).** Wherever the white keys play live (the keyboard, the sound editor's and the effects' keys), **LFO turns HOLD on**: the notes you play stay after you let go; keep keys down to add more; let go of all of them and the next key starts a new set. LFO again, or leaving the live keys, releases them (LFO lit while it holds).
+- **The sound editor remembers each black key group's page**: back to a group, you are on the page you left it on.
 
 ## 0.12.0-beta.8 (2026-10-26)
 

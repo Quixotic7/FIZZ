@@ -323,7 +323,14 @@ void qd_snd_black(qd_app_t *a, int b)
         if (next < 0 && p > u->snd_page && QD_SND_PAGES[u->snd_page].group == b)
             next = p;
     }
-    u->snd_page = QD_SND_PAGES[u->snd_page].group == b && next >= 0 ? next : first;
+    {
+        const int cg = QD_SND_PAGES[u->snd_page].group, rp = u->snd_grp_pg[b & 15] - 1;
+        if (cg >= 0 && cg < 16)
+            u->snd_grp_pg[cg] = (uint8_t)(u->snd_page + 1);   /* (2026-10-26: the page this group was left on) */
+        u->snd_page = cg == b ? (next >= 0 ? next : first)
+                    : rp >= 0 && rp < QD_SND_NPAGE && QD_SND_PAGES[rp].group == b ? rp : first;
+        u->snd_grp_pg[b & 15] = (uint8_t)(u->snd_page + 1);
+    }
     u->snd_knob = -1;
 }
 

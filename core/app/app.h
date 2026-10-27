@@ -327,6 +327,7 @@ void qd_app_stop(qd_app_t *a);
 void qd_app_tempo(qd_app_t *a, int bpm);   /* the tempo the sound runs at (FM TONE's synced LFOs, the delay) */
 void qd_app_note_on(qd_app_t *a, int key, int note, int vel);   /* key k strikes note on the selected track */
 void qd_app_note_off(qd_app_t *a, int key);   /* .. the note key k struck, released */
+void qd_app_hold_release(qd_app_t *a);   /* 2026-10-26: the live keys' HOLD: the held notes released */
 
 #ifdef __cplusplus
 }

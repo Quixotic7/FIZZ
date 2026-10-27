@@ -372,6 +372,8 @@ void qd_ctl_leds(const qd_app_t *a, qd_leds_t *out)
                                                          * VALUES; MODES breathing 60 .. 100 %, a 1.5 s period: the
                                                          * owner found P1.5b's half too dim) */
         out->button[QD_B_MUTE] = u->lmode == QD_LMODE_MODES ? qd_led_breath(a->ms) : QD_LED_LIT;
+    if (u->khold && qd_keys_on(a))                      /* 2026-10-26: the live keys' HOLD: LFO lit */
+        out->button[QD_B_MUTE] = QD_LED_LIT;
     if (qd_snd_open(a))                                 /* P1.4a: EDIT lit while the sound editor is open */
         out->button[QD_B_SOUND] = QD_LED_LIT;
     if (qd_latch_cur(a) && !QD_LATCH_MAIN(u->latch)) {  /* P1.3d: a latched menu: OCT- (back) lit, OCT+ lit when it

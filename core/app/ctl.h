@@ -379,6 +379,8 @@ typedef struct {
     int hmode;                         /* the hold mode, UI_F_* (NOTE at power-on) */
     int page[QD_PAT_NTRACK];           /* the page edited, per track */
     int follow;                        /* page follow (on at power-on) */
+    int khold;                         /* 2026-10-26 (the owner): the live keys' HOLD (LFO in KEYS mode): a key's note
+                                        * stays after it goes up; the first key after all are up ends the held ones */
     int boost;                         /* 2026-10-26 (the owner: the engine clipped): SETTINGS' BOOST: the tracks at their
                                         * old level (+6 dB); off (the default): 6 dB under it, the engine's headroom */
     int play_page[QD_PAT_NTRACK];                  /* the playing page each track was last seen on (follow moves on its edges) */
@@ -543,6 +545,8 @@ typedef struct {
     uint32_t snd_fkey_ms;
     uint32_t snd_fpop_ms;              /* P1.6g: ALGORITHM turned the machine: the popup shown (QD_FPOP_SHOW_MS after) */
     int snd_page;                      /* P1.4a: the sound editor's page (QD_SND_PAGES) .. */
+    uint8_t snd_grp_pg[16];            /* 2026-10-26 (the owner): each black key group's page last shown (+1; 0 none):
+                                        * a group's key goes back to it */
     int snd_knob;                      /* .. the knob last turned there (0..3 KNOB 1..4, 4 ALGORITHM; -1 none) .. */
     uint32_t snd_ms;                   /* .. and when */
     int trk_page, mix_page, fx_page;   /* P1.4b: the track settings' page (0, 1), the mix's (0 faders, 1 sends), the
