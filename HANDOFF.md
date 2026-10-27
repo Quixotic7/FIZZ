@@ -10,6 +10,14 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
+- **2026-10-26 night, on master and the unit, unreleased (not pushed):** SENDS is the owner's cat (b9cedb4, 1e9e02f:
+  art/cat-sends.svg -> tools/gen_cat.py -> core/ui/ui_cat.h; ui_tracks.c cat_draw: ears CHORUS / DELAY, lens REVERB,
+  DRY the colour; the values at the corners; a beat on each step heard; the sends follow the heard step,
+  qd_fx_sends_follows / qd_fx_send_shown in ctl_mix.c; REVERB set to 100 % flashes the glasses, ui.rv_full_ms) and
+  MASTER is the two heads (6412a5f: art/filter-head.svg, ui_tracks.c head_draw). One glow layer only: two made a
+  whole SENDS frame 70 ms on the unit (51 now; MASTER 19). Mock-ups: mockups/fizz-sends-cat2.html,
+  fizz-master-heads2.html, drawn over the simulator's real screens (mockups/ref/*-real-N.png, their scripts beside).
+
 - **Released: FIZZ 0.12.0-beta.8** (2026-10-26 evening, tag `v0.12.0-beta.8` on master 39d4703, pushed; the GitHub
   pre-release and the install page both deployed green). It holds the sequencer clean-up, the flash diet and the
   owner's rounds of the day (CHANGELOG `## 0.12.0-beta.8`). The owner's unit runs the build just before the release
