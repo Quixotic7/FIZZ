@@ -559,6 +559,7 @@ async function restoreImage(image, name, label = "CHECKING") {
     else if (e.fzer === 10) say("The FM-1 is playing. Stop it, then try again.", "--orange");
     else if (e.fzer === 11) say("This backup is from a store of another size. Its presets can still be added.", "--orange");
     else if (e.fzer === 12) say("The store did not reach the FM-1 whole. Nothing was changed.", "--orange");
+    else if (e.code === "timeout" && e.written === false) say("The FM-1 did not take the write up. Nothing was changed: try again.", "--orange");
     else if (e.fzer === 13 || e.fzer === 14 || e.code === "lost" || (e.code === "timeout" && e.written !== false))
       say(`The write was cut off. <b>FIZZ has cleared its store.</b> Plug the FM-1 in and restore the newest backup in BACKUP (${esc(FZER[e.fzer] || e.message)}).`, "--red");
     else say(`The write did not finish: ${esc(e.message)}`, "--red");

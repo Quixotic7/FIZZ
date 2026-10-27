@@ -88,7 +88,7 @@ const MORE = Symbol("more");
 
 export class FizzLink {
   constructor(link, id, port) {
-    Object.assign(this, { link, id, port, closed: false, cur: null, q: Promise.resolve(), log: () => {}, onLost: () => {}, rtoMin: 150 });
+    Object.assign(this, { link, id, port, closed: false, cur: null, q: Promise.resolve(), log: () => {}, onLost: () => {}, rtoMin: 150, lastRx: 0 });
     this.reader();
   }
 
@@ -96,7 +96,7 @@ export class FizzLink {
     while (!this.closed) {
       const p = await this.link.read(400);
       if (this.closed) return;
-      if (p) this.dispatch(p);
+      if (p) { this.lastRx = now(); this.dispatch(p); }
       else if (this.link.lost) { this.lost(); return; }
     }
   }
@@ -185,7 +185,11 @@ export class FizzLink {
       return out.length >= total ? out : MORE;
     }, { timeout: 4000, partial: () => out });
   }
-  store(f) {
+  // (the owner's FM-1, 2026-10-27: the first frame after a pause is the one most often lost) before a command that
+  // changes something, a quiet link is woken by a STATUS (sent again until it answers), so the command is never first
+  async wake() { if (now() - this.lastRx > 1000) await this.status(); }
+  async store(f) {
+    await this.wake();
     return this.op(() => this.send(f), (p) => {
       const r = parseReply(p);
       if (r && r.kind === "store") return r;
@@ -196,7 +200,8 @@ export class FizzLink {
   // ---- Phase 1: the library, the pool, the projects edited. One command, the reply `want` gives (its ACK, or
   // another kind), or FIZZ's error reply for that command (an older FIZZ: BAD COMMAND). A job (a pool swap, a delete,
   // a project) answers when it is done: the wait is long, and restarts on any of its frames
-  ask1(f, cmd, want = (r) => r.kind === "ack" && r.command === cmd, timeout = 15000, retry = 0) {
+  async ask1(f, cmd, want = (r) => r.kind === "ack" && r.command === cmd, timeout = 15000, retry = 0) {
+    if (!retry) await this.wake();
     return this.op(() => this.send(f), (p) => {
       const r = parseReply(p);
       if (!r) return undefined;
@@ -273,7 +278,7 @@ export class FizzLink {
   readRegion(info, { depth = 1, gapMs = 0, onProgress = () => {}, signal = null, onRead = null, from = 0, to = info.size }) {
     const k0 = Math.floor(from / CHUNK), n = Math.ceil(to / CHUNK) - k0, image = new Uint8Array(info.size);
     const fly = new Map(), rtts = [];
-    let next = k0, done = 0, resent = 0, frames = 0, tick = null, wait = null, rto = 1500, sent = -Infinity;
+    let next = k0, done = 0, resent = 0, frames = 0, tick = null, wait = null, rto = 800, sent = -Infinity;
     const t0 = now();
     const want = (k) => Math.min(CHUNK, info.size - k * CHUNK);
     const ask = (k, again) => {
@@ -301,7 +306,7 @@ export class FizzLink {
         let old = null;
         for (const [k, e] of fly) if (t - e.t >= rto && (!old || e.t < old[1].t)) old = [k, e];
         if (!old) return;
-        if (old[1].tries >= 10) { c.fail(err("timeout", `the FM-1 stopped answering at ${(old[0] * CHUNK).toString(16)}`)); return; }
+        if (old[1].tries >= 20) { c.fail(err("timeout", `the FM-1 stopped answering at ${(old[0] * CHUNK).toString(16)}`)); return; }
         ask(old[0], true);
       }, 10);
     }, (p) => {
@@ -313,7 +318,9 @@ export class FizzLink {
       if (!e || off % CHUNK || r.data.length !== 4 + want(k)) return MORE;   // (a late duplicate)
       image.set(r.data.subarray(4), off);
       if (!e.again) rtts.push(now() - e.t);
-      if (rtts.length >= 8) rto = Math.max(this.rtoMin, Math.min(3000, 4 * stats(rtts.slice(-64)).max));
+      // (capped at 0.8 s: one slow reply, FIZZ writing its store, once made it 3 s, and two lost blocks then outlasted
+      // the 8 s wait: the owner's "backup did not finish", 2026-10-27; a block sent again early only costs a duplicate)
+      if (rtts.length >= 8) rto = Math.max(this.rtoMin, Math.min(800, 4 * stats(rtts.slice(-64)).max));
       fly.delete(k);
       done++;
       onProgress(done / n, off);
@@ -324,20 +331,31 @@ export class FizzLink {
       }
       fill();
       return MORE;
-    }, { timeout: 8000 }).finally(() => { clearInterval(tick); clearTimeout(wait); });
+    }, { timeout: 20000 }).finally(() => { clearInterval(tick); clearTimeout(wait); });
   }
 
   // the store put back (stopped only: the unit refuses while playing, FZER 10). The unit reads the image twice, 512
   // bytes a request: first all of it, to check its CRC-32 before anything is erased (pass "check"), then again while
   // it erases and writes each sector (pass "write"). signal (cancel) is honoured in the check pass only: the reads
   // still to come are answered with zeros, so the unit's CRC check fails and nothing is erased (FZER 12)
-  restore(image, { onProgress = () => {}, onPhase = () => {}, signal = null, idleMs = 30000 } = {}) {
+  async restore(image, { onProgress = () => {}, onPhase = () => {}, signal = null, idleMs = 30000 } = {}) {
+    await this.wake();
     const len = image.length, crc = crc32(image);
     let pass = 1, last = -1, served = 0, bytes = [0, 0], cancelled = false;
     const t0 = now();
-    return this.op(() => { onPhase("check"); this.send(bulkFrame("FZSR", len, crc)); }, (p) => {
+    // FZSR lost on the way (the owner's FM-1, 2026-10-27): nothing pulled 3 s after it, sent again (3 times at most;
+    // the unit only starts on one it heard, and erases nothing before the image's first pass is checked)
+    let kick = null, sends = 0;
+    const go = () => {
+      sends++;
+      this.send(bulkFrame("FZSR", len, crc));
+      clearTimeout(kick);
+      kick = setTimeout(() => { if (!served && sends < 3 && !this.closed) { this.log(`restore: FZSR not taken up, sent again (${sends})`); go(); } }, 3000);
+    };
+    return this.op(() => { onPhase("check"); go(); }, (p) => {
       const q = parseRequest(p);
       if (q) {
+        clearTimeout(kick);
         if (q.len > 512 || q.addr + q.len > len) throw err("badreq", `the FM-1 asked for ${q.addr.toString(16)}+${q.len}, outside the image`);
         if (pass === 1 && q.addr < last) { pass = 2; onPhase("write"); }
         last = q.addr;
@@ -355,7 +373,7 @@ export class FizzLink {
       this.log(`restore: ${r.tag} ${code} after ${served} reads, ${ms.toFixed(0)} ms (${(2 * len / 1024 / (ms / 1000)).toFixed(1)} KB/s both passes)`);
       if (r.tag === "FZOK") return { ok: true, ms, served };
       throw err(cancelled && code === 12 ? "cancel" : "fzer", FZER[code] || `FZER ${code}`, { fzer: code, written: pass === 2 });
-    }, { timeout: idleMs });
+    }, { timeout: idleMs }).catch((e) => { if (e.written === undefined) e.written = pass === 2; throw e; }).finally(() => clearTimeout(kick));   // (nothing written before pass 2)
   }
 }
 
