@@ -415,6 +415,12 @@ static void chain_shares(qd_app_t *a)
             }
             mt->g_lvl = (td * 4096 + feed * r) / 127;
         }
+        if (!a->ui.boost) {                             /* 2026-10-26 (the owner: the engine clipped inside): 6 dB
+                                                         * under the old level, dry and sends alike; SETTINGS' BOOST
+                                                         * brings it back */
+            mt->g_lvl >>= 1;
+            mt->g_send[0] >>= 1, mt->g_send[1] >>= 1, mt->g_send[2] >>= 1;
+        }
         if (chain) {
             const int32_t w = (int32_t)mt->level * (127 - td);
             g[0] += w * mt->chorus, g[1] += w * mt->delay, g[2] += w * mt->reverb;

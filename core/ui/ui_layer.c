@@ -691,6 +691,13 @@ static void menu_set(const ui_menu_t *v)
         if (!v->follow)
             line2(70.f, 92.f, 84.f, 104.f, UI_RED, 1.4f);
     }
+    /* KNOB 2: BOOST (2026-10-26): the level +6 dB, a meter's bars to its red top */
+    menu_row(1, 120.f, "BOOST", v->boost ? "+6 dB" : "OFF");
+    for (k = 0; k < 8; k++) {
+        const int lit = k < (v->boost ? 8 : 5);
+        ui_RR(34.f + (float)k * 11.f, 172.f - (float)k * 4.f, 8.f, 8.f + (float)k * 4.f, 2.f, QD_NONE, 1.f,
+              lit ? (k >= 6 ? UI_RED : KCOL[1]) : UI_G3);
+    }
 }
 
 /* P1.4b: the track settings: the track's number and name in its colour; page 1 MODE (GLOBAL / LOCAL), SCALE (its twelve

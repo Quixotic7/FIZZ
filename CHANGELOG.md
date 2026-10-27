@@ -16,6 +16,7 @@ its text becomes the release's notes on the install page and on GitHub.
 - **The FX pages: PRESETS works** as in the sound editor (nothing held: the track's preset in the browser; a step held or selected: its sound lock from the pool), and the browser brings you back to the FX (or MIX) page you came from, the keyboard still on. **FX opens on the page you left it on.** Opening FX from the live keys keeps the white keys playing.
 - **The patterns page**: the knobs other than ALGORITHM do nothing while it is up (they no longer edit the step view behind it).
 - **The sound editor, keys playing**: B1 held still makes W1..W8 the modulation source.
+- **More headroom: the engine 6 dB lower, BOOST in SETTINGS.** The tracks now play 6 dB under the old level, so the engine and its effects no longer clip inside with many voices. GLO + SEL (SETTINGS), **KNOB 2 BOOST** brings the old level back (+6 dB), for the speaker.
 
 ## 0.12.0-beta.8 (2026-10-26)
 

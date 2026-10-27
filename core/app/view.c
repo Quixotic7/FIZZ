@@ -1984,6 +1984,7 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
     v->rec_page = u->rec_page;
     v->rec_auto = a->proj.rec_auto;
     v->follow = u->follow;
+    v->boost = u->boost;
     v->t = secs(a->ms);
     if (v->kind == UI_MENU_TRK) {                      /* P1.4b: the track settings of the selected track */
         const qd_tset_t *ts = &qd_ctl_cpat(a)->trk[a->sel];

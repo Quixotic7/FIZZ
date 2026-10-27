@@ -379,6 +379,8 @@ typedef struct {
     int hmode;                         /* the hold mode, UI_F_* (NOTE at power-on) */
     int page[QD_PAT_NTRACK];           /* the page edited, per track */
     int follow;                        /* page follow (on at power-on) */
+    int boost;                         /* 2026-10-26 (the owner: the engine clipped): SETTINGS' BOOST: the tracks at their
+                                        * old level (+6 dB); off (the default): 6 dB under it, the engine's headroom */
     int play_page[QD_PAT_NTRACK];                  /* the playing page each track was last seen on (follow moves on its edges) */
     uint32_t slide_ms;                 /* the last page change .. */
     int slide_dir;                     /* .. +1: to a later page */

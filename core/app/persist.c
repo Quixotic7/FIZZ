@@ -567,7 +567,8 @@ static uint32_t ser_set(const qd_app_t *a, uint8_t *b)
     int i;
     b[o++] = 'G', b[o++] = QD_PRJ_FORMAT;               /* (2026-10-24: 'G' 2, six tracks; 'G' 1 eight) */
     b[o++] = (uint8_t)a->per.proj, b[o++] = (uint8_t)a->seq.cur, b[o++] = (uint8_t)a->sel;
-    b[o++] = 0, b[o++] = (uint8_t)a->ui.view, b[o++] = (uint8_t)a->ui.follow;
+    b[o++] = a->ui.boost ? 0x80 : 0, b[o++] = (uint8_t)a->ui.view, b[o++] = (uint8_t)a->ui.follow;   /* (2026-10-26:
+                                                         * b[5]'s top bit BOOST; its low bits were the knob layout) */
     b[o++] = QD_NFXP;
     for (i = 0; i < QD_NFXP; i++) {
         const int16_t v = (int16_t)qd_fx_get(i);
@@ -591,6 +592,7 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
     a->ui.view = len == 11u + 2u * nf ? b[6] % QD_NVIEW : QD_VIEW_EDIT;   /* (P1.5s: a record from before EDIT was
                                                          * the default view: EDIT) */
     a->ui.follow = b[7] != 0;
+    a->ui.boost = (b[5] & 0x80u) != 0;
     for (i = 0; i < (int)nf; i++) {
         int16_t v;
         memcpy(&v, b + 9 + 2 * i, 2);

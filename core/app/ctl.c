@@ -1870,6 +1870,7 @@ static int k_menu(qd_app_t *a, int knob, int d)
     } else {
         switch (knob) {
         case QD_K_1: u->follow = d > 0; break;      /* (2026-10-25: KNOBS gone, PAGE FOLLOW moved to KNOB 1) */
+        case QD_K_2: u->boost = d > 0; break;       /* (2026-10-26: BOOST) */
         default: break;
         }
     }

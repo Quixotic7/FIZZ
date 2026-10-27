@@ -663,7 +663,8 @@ typedef struct {
     int rec_step, quant, dub;           /* REC: MODE STEP (else LIVE), QUANTIZE 0..100, TAKE (pattern.h QD_TAKE_*) */
     int ekeys;                          /* .. P1.5b: EDIT KEYS FULL (else SCALE) */
     int rec_page, rec_auto;             /* .. P1.6d: the page (2: AUTOMATION), AUTOMATION ON */
-    int follow;                         /* SETTINGS: PAGE FOLLOW */
+    int follow;                         /* SETTINGS: PAGE FOLLOW .. */
+    int boost;                          /* .. 2026-10-26: BOOST (+6 dB) */
     float t;                            /* seconds (the playhead moves) */
     /* P1.4b, the track settings: the track (its number, name, colour), the page; page 1: the scale's name, its root,
      * its notes (bit k: pitch class k), FOLLOW KEY, the MIDI channel (1..16); page 2: VOICES, SWING, PAGE FOLLOW */
