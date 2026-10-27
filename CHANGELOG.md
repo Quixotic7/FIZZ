@@ -9,6 +9,9 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **Geek Out has a fifth page: TRACKS.** Six scopes filling the screen, one per track in its colour, each track's own sound before the effects. A silent track is a flat line.
+- **Pattern changes are smoother still.** The last ~7 ms the sound waited at a pattern change is gone; the sounds a new pattern needs are read in the background too.
+
 ## 0.12.0-beta.9 (2026-10-27)
 
 The cat and the heads, the VOICE page (mono, unison, priority), no pop at a pattern change, HOLD for the live keys, and the owner's rounds of 2026-10-26.

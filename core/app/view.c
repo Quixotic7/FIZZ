@@ -2380,6 +2380,7 @@ static void view_draw(qd_app_t *a, ui_lane_t *lvp, ui_held_t *hvp, ui_turn_t *tv
     const qd_ui_t *u = &a->ui;
     char pat[4], ctx[24];
     a->geek.scope_on = 0;                               /* (P2.11: the scope's samples only while it shows) */
+    a->geek.tsc_on = 0;                                 /* (2026-10-27: TRACKS' too) */
     switch (qd_view_screen(a)) {
     case QD_SCR_MENU:                                   /* P1.3y: a settings menu */
         fill_menu(a, &mv);
@@ -2618,10 +2619,27 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
     int32_t tl[QD_NTRACK] = {0};
     memset(v, 0, sizeof *v);
     v->page = a->ui.view - QD_VIEW_METERS;
-    v->page = v->page < 0 ? 0 : v->page > 3 ? 3 : v->page;
+    v->page = v->page < 0 ? 0 : v->page > 4 ? 4 : v->page;
     v->playing = a->seq.playing;
     v->beat = a->playing ? (float)a->beat_rem / (float)QD_BEAT_TICKS : 0.f;
     g->scope_on = v->page == 3;
+    g->tsc_on = v->page == 4;
+    if (v->page == 4) {                                 /* 2026-10-27, TRACKS: each track's last ~18 ms from a rising
+                                                         * crossing, its own height; no sound: flat */
+        const uint32_t w = g->tsc_w;
+        int t2;
+        for (t2 = 0; t2 < QD_NTRACK && t2 < UI_GEEK_TRK; t2++) {
+            const int16_t *b = g->u.tk.tsc[t2];
+            int k, amp = 0;                             /* (the ring is the window: oldest to newest, ~14.5 ms) */
+            for (k = 0; k < QD_TSC_N; k++)
+                amp = abs(b[k]) > amp ? abs(b[k]) : amp;
+            v->tsc_live[t2] = amp > 48;
+            for (k = 0; k < UI_GEEK_TPTS; k++) {
+                const int s = b[(w + (uint32_t)(k * (QD_TSC_N - 1) / (UI_GEEK_TPTS - 1))) % QD_TSC_N];
+                v->w.tsc[t2][k] = (int8_t)(v->tsc_live[t2] ? 127.f * tanhf(1.3f * (float)s / (float)amp) / tanhf(1.3f) : 0.f);
+            }
+        }
+    }
     /* the platform's figures */
     v->load_on = !!(st->have & QD_ST_LOAD0), v->core1_on = !!(st->have & QD_ST_LOAD1);
     v->fps_on = !!(st->have & QD_ST_FPS), v->ram_on = !!(st->have & QD_ST_RAM), v->store_on = !!(st->have & QD_ST_STORE);
@@ -2699,7 +2717,7 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
 #if QD_SCOPE_FPS < 30
     if (g->scope_step == (now * QD_SCOPE_FPS / 1000u) + 1u) {   /* (P2.6i: the line as it was, until its next step) */
         v->scope_track = g->scope_trk;
-        memcpy(v->scope, g->scope_pts, sizeof v->scope);
+        memcpy(v->w.scope, g->scope_pts, sizeof v->w.scope);
         g->ms = now ? now : 1u;
         return;
     }
@@ -2726,26 +2744,26 @@ void qd_view_geek(qd_app_t *a, ui_geek_t *v)
         start = (int)(w - (uint32_t)n) - 1;             /* (the newest n samples' start; a rising crossing before it) */
         if (low < 128)
             for (k = 0; k < QD_SCOPE_N / 2 - 2; k++) {
-                const int16_t s0 = g->scope[(uint32_t)(start - k - 1) & (QD_SCOPE_N - 1u)],
-                              s1 = g->scope[(uint32_t)(start - k) & (QD_SCOPE_N - 1u)];
+                const int16_t s0 = g->u.scope[(uint32_t)(start - k - 1) & (QD_SCOPE_N - 1u)],
+                              s1 = g->u.scope[(uint32_t)(start - k) & (QD_SCOPE_N - 1u)];
                 if (s0 < 0 && s1 >= 0) {
                     start -= k;
                     break;
                 }
             }
         for (k = 0; k < n; k++) {
-            const int s = g->scope[(uint32_t)(start + k) & (QD_SCOPE_N - 1u)];
+            const int s = g->u.scope[(uint32_t)(start + k) & (QD_SCOPE_N - 1u)];
             amp = abs(s) > amp ? abs(s) : amp;
         }
         amp = amp < 256 ? 256 : amp;                    /* (the line's height: the window's own peak) */
         for (i = 0; i < UI_GEEK_SCOPE; i++) {
-            const int s = g->scope[(uint32_t)(start + i * (n - 1) / (UI_GEEK_SCOPE - 1)) & (QD_SCOPE_N - 1u)];
-            v->scope[i] = v->scope_track >= 0 ? tanhf(1.3f * (float)s / (float)amp) / tanhf(1.3f) : 0.f;
+            const int s = g->u.scope[(uint32_t)(start + i * (n - 1) / (UI_GEEK_SCOPE - 1)) & (QD_SCOPE_N - 1u)];
+            v->w.scope[i] = v->scope_track >= 0 ? tanhf(1.3f * (float)s / (float)amp) / tanhf(1.3f) : 0.f;
         }
     }
 #if QD_SCOPE_FPS < 30
     g->scope_step = now * QD_SCOPE_FPS / 1000u + 1u, g->scope_trk = v->scope_track;
-    memcpy(g->scope_pts, v->scope, sizeof v->scope);
+    memcpy(g->scope_pts, v->w.scope, sizeof v->w.scope);
 #endif
     g->ms = now ? now : 1u;
 }

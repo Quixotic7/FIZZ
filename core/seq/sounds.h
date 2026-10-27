@@ -45,6 +45,9 @@ const qd_sound_t *qd_sndc_peek(const qd_sndc_t *c, int key);   /* in RAM already
 /* P2.4: key into RAM without writing anything (the main loop's prefetch), keep[0..nkeep) not given up for it: 1 in,
  * 0 not yet (a place waiting to be written: asked for) */
 int qd_sndc_fetch(qd_sndc_t *c, int key, const int *keep, int nkeep);
+/* 2026-10-26: .. the sound read already (outside the audio lock: persist.c's prefetch), placed (a few copies): 1 in, 0 not
+ * yet (as qd_sndc_fetch) */
+int qd_sndc_fetch_read(qd_sndc_t *c, int key, const qd_sound_t *t, const int *keep, int nkeep);
 void qd_sndc_put(qd_sndc_t *c, int key, const qd_sound_t *s);
 void qd_sndc_drop(qd_sndc_t *c, int lo, int hi);       /* keys lo..hi out of RAM, not written */
 void qd_sndc_save_all(qd_sndc_t *c);                   /* every place written if it changed */

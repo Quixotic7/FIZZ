@@ -122,6 +122,8 @@ typedef struct {
     uint32_t reset;                    /* the core's: bumped at each reset of the counters */
 } qd_app_stats_t;
 #define QD_SCOPE_N 1024                /* P2.11: the scope's samples (the output at 22.05 kHz: 46 ms) */
+#define QD_TSC_N 80                    /* 2026-10-27: the TRACKS scopes' samples a track (5.5 kHz: 14.5 ms; with the
+                                        * voices' blocks in SCOPE's room) */
 typedef struct {                       /* P2.11: the Geek Out pages' own state (view.c's) */
     uint32_t ms;                       /* the last fill's */
     float bar[4];                      /* the meters as shown (they chase the values): load 0, FPS, RAM, STORE */
@@ -132,7 +134,15 @@ typedef struct {                       /* P2.11: the Geek Out pages' own state (
     int num[6];                        /* .. voices, ISR us, late, lock us, frame (0.1 ms), BPM */
     uint32_t steal0[QD_NTRACK], steal_seen[QD_NTRACK], steal_ms[QD_NTRACK];   /* the tracks' steals at the reset, last seen, when */
     uint32_t late_seen, late_ms;
-    int16_t scope[QD_SCOPE_N];         /* the output (L + R) / 2, every other sample: the audio side writes it .. */
+    union {                            /* (2026-10-27: SCOPE's samples and TRACKS' share the room: one page shows) */
+        int16_t scope[QD_SCOPE_N];     /* the output (L + R) / 2, every other sample: the audio side writes it .. */
+        struct {
+            int32_t vblk[QD_POOL_MAX][QD_MIX_CTL];   /* 2026-10-27, TRACKS: each voice's block (the mixer's vtap) .. */
+            int16_t tsc[QD_NTRACK][QD_TSC_N];   /* .. each track's voices summed, every 8th sample (5.5 kHz) .. */
+        } tk;
+    } u;
+    volatile uint32_t tsc_w;           /* .. writes them at this index .. */
+    volatile uint8_t tsc_on;           /* .. while the page shows */
     volatile uint32_t scope_w;         /* .. at this index */
     volatile uint8_t scope_on;         /* (only while the scope is shown) */
     uint8_t scope_half;
@@ -142,6 +152,9 @@ typedef struct {                       /* P2.11: the Geek Out pages' own state (
     float scope_pts[113];
 #endif
 } qd_geek_t;
+#if defined(QD_DEVICE) && QD_POOL_MAX == 8   /* (the 8-voice unit's NOINIT: TRACKS fits in SCOPE's room; 16 or a desktop's 64 voices grow it) */
+typedef char qd_geek_tk_ok[sizeof(((qd_geek_t *)0)->u.tk) <= QD_SCOPE_N * sizeof(int16_t) ? 1 : -1];
+#endif
 
 typedef struct qd_app {
     /* the clock */
@@ -327,6 +340,9 @@ void qd_app_stop(qd_app_t *a);
 void qd_app_tempo(qd_app_t *a, int bpm);   /* the tempo the sound runs at (FM TONE's synced LFOs, the delay) */
 void qd_app_note_on(qd_app_t *a, int key, int note, int vel);   /* key k strikes note on the selected track */
 void qd_app_note_off(qd_app_t *a, int key);   /* .. the note key k struck, released */
+extern uint32_t qd_lkp_max[6];         /* 2026-10-27: the locked ms's parts' longest (prefetch, the pattern chosen, the
+                                        * sounds, the controller, the preview, the mix gains), in the port's ticks */
+extern uint32_t (*qd_lkp_clock)(void);  /* .. the port's clock (24-bit ticks; 0: not timed) */
 void qd_app_hold_release(qd_app_t *a);   /* 2026-10-26: the live keys' HOLD: the held notes released */
 
 #ifdef __cplusplus

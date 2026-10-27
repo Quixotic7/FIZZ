@@ -125,6 +125,7 @@ int fz_init(const char *version)
     if (fz_xdata_state() != 1 || !qd_init())
         return 0;
     qd_app_init(&fz_app);
+    qd_lkp_clock = plat_ticks24;                        /* (2026-10-27: the locked ms's parts timed: the stats' lkp_*) */
     qd_app_sysex_version(&fz_app, version);
     qd_app_tick(&fz_app, 0);
     fz_up = 1;

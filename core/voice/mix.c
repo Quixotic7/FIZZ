@@ -105,6 +105,8 @@ int qd_mix_voices(qd_mix_t *m, qd_pool_t *pool, const qd_mix_track_t *tracks, in
             if (!pv->q.patch[QD_QP_DRPRE])              /* (E1: DRIVE PRE ran in the voice, before its filter) */
                 qd_quad_dist(&m->dist[i], dr, vbuf, QD_MIX_CTL);
         }
+        if (m->vtap)                                    /* (2026-10-27: the TRACKS scopes' tap) */
+            memcpy(m->vtap[i], vbuf, sizeof vbuf);
         {   /* (L1: fz_voice.h: the sends ramp from the gains the last block left to this block's) */
             const int32_t now[3] = {c, d, rv};
             xmax = fz_send_xmax(now, sg);

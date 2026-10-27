@@ -341,9 +341,24 @@ static void qd_app_sounds(qd_app_t *a)
  * the sound cache, the patterns' track sounds, the transport, the voices through the controller and the preview): the
  * audio lock. ms_free touches what only the main loop uses (the persist looks: hashes of what is in RAM, never reading
  * anything in; the store's job queue; SysEx's labels): no lock */
+/* 2026-10-27: the locked millisecond's parts timed (the stats' lkp_*: the port sets the clock, 24-bit ticks) */
+uint32_t qd_lkp_max[6];
+uint32_t (*qd_lkp_clock)(void);
+#define LKP_T0 uint32_t lk_t = qd_lkp_clock ? qd_lkp_clock() : 0u
+#define LKP(i)                                                                                                   \
+    do {                                                                                                         \
+        if (qd_lkp_clock) {                                                                                      \
+            const uint32_t lk_n = qd_lkp_clock(), lk_d = (lk_n - lk_t) & 0xFFFFFFu;                              \
+            if (lk_d > qd_lkp_max[i])                                                                            \
+                qd_lkp_max[i] = lk_d;                                                                            \
+            lk_t = lk_n;                                                                                         \
+        }                                                                                                        \
+    } while (0)
 static void ms_lock1(qd_app_t *a)
 {
+    LKP_T0;
     qd_persist_prefetch(a);                             /* P2.1: the sequencer's patterns in RAM before it asks */
+    LKP(0);
     if (a->ui.pat_wait >= 0 && (a->seq.playing || qd_proj_resident(&a->proj, a->ui.pat_wait))) {
         const int p = a->ui.pat_wait;                   /* (2026-10-26: the pattern chosen while stopped: in RAM now) */
         a->ui.pat_wait = -1;
@@ -351,16 +366,20 @@ static void ms_lock1(qd_app_t *a)
         if (!a->seq.playing)
             qd_app_tempo(a, qd_seq_bpm(&a->seq));
     }
+    LKP(1);
     qd_app_sounds(a);
+    LKP(2);
 }
 static void ms_free(qd_app_t *a)
 {
     qd_proj_fetch_work(&a->proj);                       /* 2026-10-26: a pattern read in outside the lock (the pop) */
+    qd_persist_snd_work(a);                             /* .. and a pool sound the next steps lock */
     qd_persist_ms(a);                                   /* P1.5a: written by itself */
     qd_sx_ms(a);                                        /* P1.6l: a subscribed page's LABELS, when they change */
 }
 static void ms_lock2(qd_app_t *a)
 {
+    LKP_T0;
     if (a->ui.rec)
         a->edit_gen++;                                  /* (P2.6c: a take writes as time goes) */
     if (a->seq.playing != a->playing) {                 /* (MIDI START / STOP moved the transport) */
@@ -376,8 +395,11 @@ static void ms_lock2(qd_app_t *a)
             a->beat--, r += QD_BEAT_TICKS;
         a->beat_rem = r;
     }
+    qd_player_pattern_ms(&a->player);                   /* (2026-10-26: a pattern change: the MIDI FX's notes end) */
     qd_ctl_ms(a);
+    LKP(3);
     qd_ctl_preview_sync(a);                             /* (a step held at 250 ms, the transport moved) */
+    LKP(4);
 }
 /* P2.10: a gesture closes when quiet (a take: as one). Its level is the pattern's (and the MIDI FX's, the slots')
  * difference from the gesture's before: it reads the model and writes only the undo log, which the audio side never
@@ -447,7 +469,9 @@ static void chain_shares(qd_app_t *a)
 void qd_app_tick_locked(qd_app_t *a, uint32_t ms)
 {
     uint32_t n;
+    LKP_T0;
     chain_shares(a);
+    LKP(5);
     if (!a->started || ms < a->ms) {
         a->started = 1;
         a->ms = a->free_ms = ms;
@@ -705,12 +729,34 @@ static void block_out(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int64_t
     if (a->geek.scope_on) {                             /* P2.11: the scope's samples, every other one (L + R) / 2 */
         uint32_t w = a->geek.scope_w;
         for (i = 0; i < QD_MIX_CTL; i += 2)
-            a->geek.scope[w++ & (QD_SCOPE_N - 1u)] = (int16_t)((out[2 * i] + out[2 * i + 1]) / 2);
+            a->geek.u.scope[w++ & (QD_SCOPE_N - 1u)] = (int16_t)((out[2 * i] + out[2 * i + 1]) / 2);
         a->geek.scope_w = w;
     }
 }
+/* 2026-10-27, the Geek Out TRACKS page: the block's voices summed by track, every 4th sample, into the rings; then
+ * the next block's tap on or off (the mixer copies each voice's block while vtap is set) */
+static void tsc_take(qd_app_t *a)
+{
+    qd_geek_t *g = &a->geek;
+    if (g->tsc_on && a->mix.vtap) {
+        uint32_t w = g->tsc_w;
+        int t, i, k;
+        for (k = 0; k < QD_MIX_CTL; k += 8, w++)
+            for (t = 0; t < QD_NTRACK; t++) {
+                int32_t s = 0;
+                for (i = 0; i < a->pool.nvoice; i++)
+                    if (a->pool.v[i].track == t)
+                        s += g->u.tk.vblk[i][k];
+                g->u.tk.tsc[t][w % QD_TSC_N] = (int16_t)(s > 32767 ? 32767 : s < -32768 ? -32768 : s);
+            }
+        g->tsc_w = w;
+        memset(g->u.tk.vblk, 0, sizeof g->u.tk.vblk);
+    }
+    a->mix.vtap = g->tsc_on ? g->u.tk.vblk : 0;
+}
 void qd_app_block_end(qd_app_t *a, const qd_bus_t *A, const qd_bus_t *B, int16_t *out)
 {
+    tsc_take(a);
     qd_quad_owner_t *ow[QD_NTRACK];
     owners_of(a, ow);
     qd_mix_end(&a->mix, ow, QD_NTRACK, A->n + B->n);
@@ -730,6 +776,7 @@ void qd_app_block_publish(qd_app_t *a, const qd_blk_t *k)
     qd_quad_owner_t *ow[QD_NTRACK];
     owners_of(a, ow);
     qd_mix_end(&a->mix, ow, QD_NTRACK, k->x.n + k->y.n);
+    tsc_take(a);
 }
 void qd_app_block_out(qd_app_t *a, const qd_blk_t *k, int16_t *out)
 {

@@ -8656,7 +8656,7 @@ static void g_home_keeps_seq_latch(void)
 
 static void g_p211_geek(void)
 {
-    static const int V[5] = {QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE, QD_VIEW_METERS};
+    static const int V[6] = {QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE, QD_VIEW_TRACKS, QD_VIEW_METERS};
     ui_geek_t gv;
     int i, ok = 1, bpm0, sel0, on0, flat = 1;
     uint32_t r0;
@@ -8664,12 +8664,12 @@ static void g_p211_geek(void)
     start();
     A.ui.view = QD_VIEW_EDIT;
     shome();
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < 6; i++) {
         ok &= A.ui.view == V[i] && qd_view_screen(&A) == QD_SCR_GEEK;
         turn(QD_K_SELECT, 1);
     }
     shome();
-    CHECK(ok && A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME: EDIT -> GEEK OUT (SELECT: METERS, NUMBERS, VOICES, SCOPE, round) -> PIANO ROLL");
+    CHECK(ok && A.ui.view == QD_VIEW_ROLL, "SHIFT + HOME: EDIT -> GEEK OUT (SELECT: METERS, NUMBERS, VOICES, SCOPE, TRACKS, round) -> PIANO ROLL");
     A.ui.view = QD_VIEW_METERS;
     bpm0 = A.bpm, sel0 = A.sel;
     turn(QD_K_ALGO, 3);
@@ -8707,12 +8707,12 @@ static void g_p211_geek(void)
     run(400);
     qd_view_geek(&A, &gv);
     for (i = 0; i < UI_GEEK_SCOPE; i++) {
-        mx = fabsf(gv.scope[i]) > mx ? fabsf(gv.scope[i]) : mx;
-        flat &= fabsf(gv.scope[i]) < 0.02f;
+        mx = fabsf(gv.w.scope[i]) > mx ? fabsf(gv.w.scope[i]) : mx;
+        flat &= fabsf(gv.w.scope[i]) < 0.02f;
     }
-    CHECK(gv.scope_track == 0 && !flat && mx > 0.5f && fabsf(gv.scope[0]) < 0.25f && gv.scope[2] >= gv.scope[0],
+    CHECK(gv.scope_track == 0 && !flat && mx > 0.5f && fabsf(gv.w.scope[0]) < 0.25f && gv.w.scope[2] >= gv.w.scope[0],
           "the scope: track 1 (the loudest), its wave from a rising zero crossing (%.2f, %.2f; peak %.2f)",
-          gv.scope[0], gv.scope[2], mx);
+          gv.w.scope[0], gv.w.scope[2], mx);
     qd_app_midi(&A, 0x80, 57, 0);
     run(2000);
     qd_view_geek(&A, &gv);

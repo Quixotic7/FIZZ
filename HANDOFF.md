@@ -1,4 +1,4 @@
-# FIZZ handoff (2026-10-26, after 0.12.0-beta.7)
+# FIZZ handoff (2026-10-27, after 0.12.0-beta.9)
 
 This is for a new Claude session picking up FIZZ. Read this first, then:
 - `CHANGELOG.md`;
@@ -10,13 +10,44 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Where things stand
 
-- **2026-10-26 night, on master and the unit, unreleased (not pushed):** SENDS is the owner's cat (b9cedb4, 1e9e02f:
-  art/cat-sends.svg -> tools/gen_cat.py -> core/ui/ui_cat.h; ui_tracks.c cat_draw: ears CHORUS / DELAY, lens REVERB,
-  DRY the colour; the values at the corners; a beat on each step heard; the sends follow the heard step,
-  qd_fx_sends_follows / qd_fx_send_shown in ctl_mix.c; REVERB set to 100 % flashes the glasses, ui.rv_full_ms) and
-  MASTER is the two heads (6412a5f: art/filter-head.svg, ui_tracks.c head_draw). One glow layer only: two made a
-  whole SENDS frame 70 ms on the unit (51 now; MASTER 19). Mock-ups: mockups/fizz-sends-cat2.html,
-  fizz-master-heads2.html, drawn over the simulator's real screens (mockups/ref/*-real-N.png, their scripts beside).
+- **2026-10-27, after beta.9, on master and the unit (unreleased):** Geek Out's fifth page **TRACKS** (QD_VIEW_TRACKS,
+  the owner's spec: six equal rows filling the screen, no header, each track's voices before the FX in its colour, a
+  silent track one flat line). The mixer's `vtap` copies each voice's block after DRIVE (mix.c, RAM code: 72 B left);
+  app.c `tsc_take` sums them per track every 8th sample into `qd_geek_t.u.tk`, which shares SCOPE's room (a union: the
+  device's NOINIT had no 1.7 KB; the size check is device only, a desktop pool of 64 grows it); the view's points are
+  int8 (`ui_geek_t.w.tsc`). Also the last ~7 ms at a pattern change: the clean slot is chosen outside the lock
+  (pattern.c stg_choose / stg_chosen), the sounds a pattern needs are staged (persist.c sst_*), and the `lkp_*` stats
+  time the locked ms's parts (lock_clock ~0.3 ms on the unit). FM1VST's quadrille worktree builds the standalone with
+  this tree (`cmake --build build-quadrille --target FM1VST_Standalone`; its core.cmake VERSION follows FIZZ's tag).
+
+- **Released: FIZZ 0.12.0-beta.9** (2026-10-27, tag `v0.12.0-beta.9` on master 04f84ba, pushed; the GitHub pre-release and
+  the install page both green). CHANGELOG `## 0.12.0-beta.9` has the testers' notes. Of note for the code:
+  - **SENDS is the owner's cat**, **MASTER the two heads**: art/cat-sends.svg and art/filter-head.svg ->
+    tools/gen_cat.py -> core/ui/ui_cat.h (1/8 px curves); ui_tracks.c cat_draw / head_draw. One glow layer only (two
+    made a SENDS frame 70 ms on the unit; 51 now, MASTER 19). The sends shown follow the heard step
+    (ctl_mix.c qd_fx_sends_follows / qd_fx_send_shown). Mock-ups drawn over the simulator's real screens
+    (mockups/ref/*-real-N.png, their scripts beside: the layout is the firmware's own).
+  - **The VOICE page** (B1: TRIG KEYS PORT VOICE MOD): five sound values 110..114 (quad_voice.h QD_QP_VMODE ..; the
+    blob's last four bytes, zeros = POLY, OFF, DETUNE 20, SPREAD 64, MID; not lockable: qd_quad_lockable). The pool
+    (pool.c qd_pool_note_on_at) starts UNISON n real voices (the track's LIMIT keeps the middle ones), a detune factor
+    each (q.udet, a block's increment) and a pan around the track's (p->pan); a unison note's voices follow its first
+    (sib_next: writes, mix, legato, glides). MONO caps the track; PRIORITY: the cross-track steal robs the lowest, never
+    a higher one (all equal: as before). **The mix lock ids moved to 115..**: pattern records 'P' 6; a 'P' 3..5's ids
+    >= 110 move up 5 when read (persist.c; test_persist voice_ids_test).
+  - **Patterns are read outside the audio lock** (the owner's pop at a pattern change: an 18.6 ms read under the lock).
+    pattern.c: with `stg_on` (the app), qd_proj_fetch only stages; the free part (app.c ms_free -> qd_proj_fetch_work)
+    chooses the slot (its clean check hashes the pattern: ~7 ms), the next fetch gives it up, the free part reads it in,
+    the next fetch maps it. Stopped, a pattern chosen not in RAM waits in ui.pat_wait. Pool sounds the next steps lock
+    are read the same way (persist.c per.sst, qd_persist_snd_work). On the unit: a press 0.07 ms, the locked ms 0.3 ms
+    at most (stats lkp_*: the locked ms's parts, app.c qd_lkp_max). A pattern start ends the MIDI FX groups' sequencer
+    notes (player.c qd_player_pattern_ms, from the locked ms: **the RAM code region has 104 B**; qd_player_block lives
+    there, keep code out of it).
+  - The live keys' HOLD on LFO (ui.khold, wherever qd_keys_on), the editor's groups keep their page (ui.snd_grp_pg), FX
+    keeps its page and PRESETS works there, the browser goes back to SND / FX / MIX with the keys as they were, the
+    engine 6 dB lower with SETTINGS' BOOST (app.c chain_shares; the 'G' record's b[5] top bit).
+  - The owner wants to move fast: flash first so they can try, run the full suite after (memory fizz-flash-first).
+  - A second session works on the web Manager (projects tab, full-screen pages, the Library's own scroll and pool
+    filter) and on loading a backup into the web emulator, in the same folder (`site/manager`, `site/`).
 
 - **Released: FIZZ 0.12.0-beta.8** (2026-10-26 evening, tag `v0.12.0-beta.8` on master 39d4703, pushed; the GitHub
   pre-release and the install page both deployed green). It holds the sequencer clean-up, the flash diet and the
@@ -167,14 +198,13 @@ This is for a new Claude session picking up FIZZ. Read this first, then:
 
 ## Open items, in order
 
-1. **The HOME screen flashing for a frame** while in other menus. The owner reported it; it isn't fixed and wasn't
-   reproduced on the host.
-   - Stats line 16's `blips=` counter, which catches FIZZ switching screens, read 0. So the flash is probably in the
-     screen-send path: a stale partial frame or rectangle reaching the panel.
-   - Ask the owner when it happens (which menu, playing or not, knob or idle), and for a video. Then add a check on
-     what is actually sent to the panel.
-2. **The owner's feedback after beta.4** was about to be given when this was written. Ask for it.
-3. **Two xruns at boot** were seen once after a flash (`xruns_boot=2`), not seen at beta.4's boot. Watch for it.
+1. **The owner's list (2026-10-27):** synced delay
+   times in between the divisions (Digitone-like) via SHIFT on the delay TIME knob (it touches the stored FX
+   settings: `XP_DDIV` is an index into XF_DIV); the REPLACE stall (REPLACE of a used preset rewrites patterns under
+   the lock, `qd_preset_will_change`: likely the same cure as the pattern reads). The HOME screen flash: the owner has
+   not seen it again (closed).
+2. **The web Manager / emulator session's work** (see Where things stand): merge, test and release with the firmware.
+3. **One xrun at boot** after some flashes (`xruns=1` right after the install), none after. Watch for it.
 4. **Web Manager, next phases** (`docs/MANAGER-P2-PLAN.md`):
    - P2-C: the projects tab, a project's patterns, and copying or moving a pattern between projects.
    - P2-D: the project library in the browser, with unload and load and the sounds re-linked.

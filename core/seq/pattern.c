@@ -188,7 +188,7 @@ void qd_project_init(qd_project_t *pr)
     for (k = 0; k < QD_PAT_RAM; k++)
         pr->pat_in[k] = -1, pr->lru[k] = 0;
     pr->lru_clock = 0;
-    pr->stg_sl = pr->stg_k = -1, pr->stg_ready = 0;
+    pr->stg_sl = pr->stg_k = -1, pr->stg_ready = pr->stg_choose = pr->stg_chosen = 0;
 #ifndef QD_TARGET_FM1
     if (!pr->io.load)
         memset(pat_bare_has, 0, sizeof pat_bare_has);
@@ -320,15 +320,15 @@ qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k)
             if (pr->stg_sl >= 0 && pr->stg_ready) {     /* (2026-10-26: a read done outside the lock: mapped in first,
                                                          * its load's work kept; one not read yet: dropped) */
                 const int sk = pr->stg_k, ss = pr->stg_sl;
-                pr->stg_sl = pr->stg_k = -1, pr->stg_ready = 0;
+                pr->stg_sl = pr->stg_k = -1, pr->stg_ready = pr->stg_choose = pr->stg_chosen = 0;
                 pr->pat_loads++;
                 pr->pat_in[ss] = (int8_t)sk, pr->slot_of[sk] = (int8_t)ss;
                 pr->lru[ss] = ++pr->lru_clock;
                 if (sk == k)
                     return &pr->pat[ss];
             }
-            if (pr->stg_sl >= 0)
-                pr->stg_sl = pr->stg_k = -1, pr->stg_ready = 0;
+            if (pr->stg_k >= 0)
+                pr->stg_sl = pr->stg_k = -1, pr->stg_ready = pr->stg_choose = pr->stg_chosen = 0;
             sl = slot_free(pr);
             for (i = 0; i < QD_PAT_RAM && sl < 0; i++) {
                 if (!slot_pinned(pr, i)) {
@@ -361,20 +361,71 @@ qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k)
 /* P2.4: the main loop's way in (the prefetch): a free slot, else the least recently used one not pinned whose pattern
  * the backing holds; none of those but one to be written: that one's record asked for (io.save_soon) and 0 (asked
  * again later, it is taken once written); every slot pinned: 0. Nothing is ever written here */
+/* the slot to give up for pattern k (the oldest clean one not pinned), else -1 and *dirty the oldest waiting to be
+ * written. A clean check hashes the pattern (~1.7 .. 7 ms on the unit): with stg_on, the main loop's, not the lock's */
+static int fetch_choose(qd_project_t *pr, int k, int *dirty)
+{
+    uint32_t tried = 0;
+    int sl = -1, i;
+    *dirty = -1;
+    for (;;) {                                          /* (2026-10-27: oldest first, the first clean one taken) */
+        int o = -1;
+        for (i = 0; i < QD_PAT_RAM; i++)
+            if (!((tried >> i) & 1u) && !slot_pinned(pr, i) && (o < 0 || pr->lru[i] < pr->lru[o]))
+                o = i;
+        if (o < 0)
+            break;
+        tried |= 1u << o;
+        if (slot_clean(pr, o)) {
+            sl = o;
+            break;
+        }
+        if (*dirty < 0)
+            *dirty = o;
+    }
+    if (sl < 0 && k == pr->pat_fb)                      /* the playing pattern itself: before any other the audio side
+                                                         * wants (a queued one, the cursors' last: they wait) */
+        for (i = 0; i < QD_PAT_RAM; i++)
+            if (pr->pat_in[i] != pr->pat_fb && slot_clean(pr, i) && (sl < 0 || pr->lru[i] < pr->lru[sl]))
+                sl = i;
+    if (sl < 0 && k == pr->pat_fb && *dirty < 0)        /* (every other slot pinned and waiting to be written) */
+        for (i = 0; i < QD_PAT_RAM; i++)
+            if (pr->pat_in[i] != pr->pat_fb && (*dirty < 0 || pr->lru[i] < pr->lru[*dirty]))
+                *dirty = i;
+    return sl;
+}
+static void stg_reset(qd_project_t *pr)
+{
+    pr->stg_sl = pr->stg_k = -1, pr->stg_ready = pr->stg_choose = pr->stg_chosen = 0;
+}
+
 int qd_proj_fetch(qd_project_t *pr, int k)
 {
-    int sl = pr->slot_of[k = pk(k)], i, dirty = -1;
+    int sl = pr->slot_of[k = pk(k)], dirty = -1;
     if (sl >= 0)
         return 1;
     if (pr->nopage)
         return 0;
-    if (pr->stg_sl >= 0) {                              /* (2026-10-26: one read outside the lock at a time) */
+    if (pr->stg_k >= 0) {                               /* (2026-10-26: one read outside the lock at a time) */
         const int sk = pr->stg_k;
+        if (pr->stg_chosen) {                           /* (2026-10-27: the main loop chose a clean slot: given up now,
+                                                         * then read into) */
+            const int ss = pr->stg_sl;
+            pr->stg_chosen = 0;
+            if (ss < 0 || slot_pinned(pr, ss)) {        /* (pinned meanwhile: chosen again) */
+                stg_reset(pr);
+                return 0;
+            }
+            slot_out(pr, ss, 0);
+            if (pr->fb_blank == ss + 1)
+                pr->fb_blank = 0;
+            return 0;
+        }
         if (!pr->stg_ready)
             return 0;
         sl = pr->stg_sl;                                /* read: mapped in now (under the lock: a few stores), whoever
                                                          * asks (a read nobody wants any more must not block the next) */
-        pr->stg_sl = pr->stg_k = -1, pr->stg_ready = 0;
+        stg_reset(pr);
         pr->pat_loads++;
         pr->pat_in[sl] = (int8_t)sk;
         pr->slot_of[sk] = (int8_t)sl;
@@ -384,26 +435,18 @@ int qd_proj_fetch(qd_project_t *pr, int k)
         return qd_proj_fetch(pr, k);
     }
     sl = slot_free(pr);
-    if (sl < 0) {
-        for (i = 0; i < QD_PAT_RAM; i++) {
-            if (slot_pinned(pr, i))
-                continue;
-            if (slot_clean(pr, i)) {
-                if (sl < 0 || pr->lru[i] < pr->lru[sl])
-                    sl = i;
-            } else if (dirty < 0 || pr->lru[i] < pr->lru[dirty]) {
-                dirty = i;
-            }
+    if (pr->stg_on) {
+        if (sl < 0) {                                   /* (2026-10-27: the main loop chooses which to give up) */
+            pr->stg_k = (int8_t)k, pr->stg_sl = -1, pr->stg_choose = 1;
+            return 0;
         }
-        if (sl < 0 && k == pr->pat_fb)                  /* the playing pattern itself: before any other the audio
-                                                         * side wants (a queued one, the cursors' last: they wait) */
-            for (i = 0; i < QD_PAT_RAM; i++)
-                if (pr->pat_in[i] != pr->pat_fb && slot_clean(pr, i) && (sl < 0 || pr->lru[i] < pr->lru[sl]))
-                    sl = i;
-        if (sl < 0 && k == pr->pat_fb && dirty < 0)     /* (every other slot pinned and waiting to be written) */
-            for (i = 0; i < QD_PAT_RAM; i++)
-                if (pr->pat_in[i] != pr->pat_fb && (dirty < 0 || pr->lru[i] < pr->lru[dirty]))
-                    dirty = i;
+        if (pr->fb_blank == sl + 1)
+            pr->fb_blank = 0;                           /* (the blank a miss kept: not while it is read into) */
+        pr->stg_sl = (int8_t)sl, pr->stg_k = (int8_t)k, pr->stg_ready = 0;
+        return 0;                                       /* (read by the main loop outside the lock, mapped next time) */
+    }
+    if (sl < 0) {                                       /* (no free part: chosen and read at once, as before) */
+        sl = fetch_choose(pr, k, &dirty);
         if (sl < 0) {
             if (dirty >= 0 && pr->io.save_soon)
                 pr->io.save_soon(pr->io.ctx, pr->pat_in[dirty]);
@@ -411,22 +454,32 @@ int qd_proj_fetch(qd_project_t *pr, int k)
         }
         slot_out(pr, sl, !pr->io.clean);                /* (no backing to ask: as qd_proj_pat gives one up) */
     }
-    if (!pr->stg_on) {                                  /* (no free part to read it in: at once, as before) */
-        slot_in(pr, sl, k);
-        pr->lru[sl] = ++pr->lru_clock;
-        return 1;
-    }
-    if (pr->fb_blank == sl + 1)
-        pr->fb_blank = 0;                               /* (the blank a miss kept: not while it is read into) */
-    pr->stg_sl = (int8_t)sl, pr->stg_k = (int8_t)k, pr->stg_ready = 0;
-    return 0;                                           /* (read by the main loop outside the lock, mapped next time) */
+    slot_in(pr, sl, k);
+    pr->lru[sl] = ++pr->lru_clock;
+    return 1;
 }
-/* 2026-10-26: the main loop's, no audio lock: the slot qd_proj_fetch chose read in. The audio side never reads it (no
- * pattern maps to it, no miss takes it); qd_proj_pat taking the patterns over meanwhile drops the read */
+/* 2026-10-26: the main loop's, no audio lock: the slot to give up chosen (its clean check), then (given up by the
+ * next fetch) the pattern read into it. The audio side never reads a slot no pattern maps to; qd_proj_pat taking the
+ * patterns over meanwhile drops the read */
 void qd_proj_fetch_work(qd_project_t *pr)
 {
-    const int sl = pr->stg_sl, k = pr->stg_k;
-    if (sl < 0 || pr->stg_ready)
+    const int k = pr->stg_k;
+    int sl = pr->stg_sl;
+    if (k < 0 || pr->stg_ready || pr->stg_chosen)
+        return;
+    if (pr->stg_choose) {
+        int dirty;
+        sl = fetch_choose(pr, k, &dirty);
+        if (sl < 0) {                                   /* (none clean: the oldest one written soon, asked again) */
+            if (dirty >= 0 && pr->io.save_soon)
+                pr->io.save_soon(pr->io.ctx, pr->pat_in[dirty]);
+            stg_reset(pr);
+            return;
+        }
+        pr->stg_sl = (int8_t)sl, pr->stg_choose = 0, pr->stg_chosen = 1;
+        return;
+    }
+    if (sl < 0)
         return;
     if (!pr->io.load || !pr->io.load(pr->io.ctx, k, &pr->pat[sl])) {
 #ifndef QD_TARGET_FM1
@@ -448,7 +501,7 @@ int qd_proj_resident(const qd_project_t *pr, int k) { return pr->slot_of[pk(k)] 
 void qd_proj_drop(qd_project_t *pr)
 {
     int i;
-    pr->stg_sl = pr->stg_k = -1, pr->stg_ready = 0;
+    stg_reset(pr);
     for (i = 0; i < QD_PAT_RAM; i++)
         slot_out(pr, i, 0);
 }

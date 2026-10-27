@@ -325,7 +325,7 @@ static void gk_scope(const ui_geek_t *v)
         return;
     }
     for (i = 0; i < UI_GEEK_SCOPE; i++)
-        p[2 * i] = 8.f + 2.f * (float)i, p[2 * i + 1] = cy - A * v->scope[i];
+        p[2 * i] = 8.f + 2.f * (float)i, p[2 * i + 1] = cy - A * v->w.scope[i];
     {
         const qd_rgb col = UI_TRACK_PAL[v->scope_track];
         gk_alpha_begin(0.22f);                          /* (one glow under it, then the line) */
@@ -335,8 +335,29 @@ static void gk_scope(const ui_geek_t *v)
     }
 }
 
+/* 2026-10-27 (the owner): TRACKS, the whole screen, no header: six rows of 40 px, each track's own signal before the
+ * effects in its colour (no middle line); a track with no sound: one flat line */
+static void gk_tracks(const ui_geek_t *v)
+{
+    int t, k;
+    for (t = 0; t < UI_GEEK_TRK; t++) {
+        const float mid = 20.f + (float)t * 40.f;
+        const qd_rgb col = UI_TRACK_PAL[t];
+        float p[2 * UI_GEEK_TPTS];
+        for (k = 0; k < UI_GEEK_TPTS; k++)
+            p[2 * k] = (float)k * 4.f, p[2 * k + 1] = mid - (v->tsc_live[t] ? (float)v->w.tsc[t][k] * (17.f / 127.f) : 0.f);
+        if (v->tsc_live[t])
+            qd_save(), qd_alpha(0.16f), ui_P(p, UI_GEEK_TPTS, col, 4.f, 0, QD_NONE), qd_restore();
+        ui_P(p, UI_GEEK_TPTS, col, 1.5f, 0, QD_NONE);
+    }
+}
+
 void ui_geek_draw(const ui_geek_t *v)
 {
+    if (v->page == 4) {
+        gk_tracks(v);
+        return;
+    }
     gk_header(v);
     switch (v->page) {
     case 0: gk_meters(v); break;

@@ -102,6 +102,11 @@ typedef struct {
     uint8_t pat_skip[QD_NPAT];         /* .. and the looks skipped since (a real one at least every 11th) */
     uint32_t snd_pf_ms, snd_pf_key;    /* P2.6c: the sound prefetch's last scan, what it read .. */
     int snd_pf_left;                   /* .. a sound it could not fetch yet */
+#if QD_SND_RAM
+    int sst_key;                       /* 2026-10-26: the sound the prefetch wants read outside the audio lock (-1 none) .. */
+    int sst_ready;                     /* .. read (qd_persist_snd_work), placed by the next prefetch .. */
+    qd_sound_t sst;                    /* .. here */
+#endif
     uint16_t it_gen[4], it_wr[4];      /* P2.6c: SET, HDR, FTAG, MFX's last looks (as pat_gen) */
     uint8_t it_skip[4];
     int maybe_dirty;                   /* P2.6c: an item's seen or saved hash set since a scan found all clean */
@@ -134,6 +139,7 @@ void qd_persist_soon(struct qd_app *a, int it);   /* item it (QD_PI_..) written 
 void qd_persist_io(struct qd_app *a);  /* P2.1: the patterns' and sounds' backing (pattern.h qd_pat_io_t, qd_snd_io_t):
                                         * the store */
 void qd_persist_prefetch(struct qd_app *a);   /* P2.1: the patterns the sequencer will want read in (each ms) */
+void qd_persist_snd_work(struct qd_app *a);   /* 2026-10-26: the main loop, no lock: the sound the prefetch wants, read */
 void qd_persist_use(const struct qd_app *a, uint32_t *live_pages, uint32_t *total_pages);   /* the flash meter */
 uint32_t qd_persist_proj_pages(const struct qd_app *a, int p);   /* .. project p's part */
 void qd_persist_proj_used(const struct qd_app *a, int p, uint8_t *used);   /* its patterns written (64) */

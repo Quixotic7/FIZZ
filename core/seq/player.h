@@ -94,6 +94,7 @@ void qd_player_key_on(qd_player_t *pl, int t, int note, int vel);
 void qd_player_key_off(qd_player_t *pl, int t, int note);
 /* P1.6c: the groups' tick now; track t's notes released (MIDI's ALL NOTES OFF: the pool's and the groups') */
 int64_t qd_player_mfx_tick(const qd_player_t *pl);
+void qd_player_pattern_ms(qd_player_t *pl);   /* 2026-10-26: a pattern change: the groups' sequencer notes end */
 void qd_player_flush_track(qd_player_t *pl, int t);
 /* P1.3d, the stopped preview (PLAN §8b 2.2): step s of pattern pat on track t struck as the sequencer strikes it (its
  * notes at its velocity, its sound lock or the track's sound, its p-locks and mix locks, the track's limit and

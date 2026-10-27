@@ -38,6 +38,8 @@ typedef struct {
     uint32_t serial[QD_POOL_MAX];       /* the start they belong to (a fresh start: no ramp from another note's) */
     qd_dist_t dist[QD_POOL_MAX];        /* P1.4a: each voice's DRIVE state */
     int rendered;                       /* the last block's voices */
+    int32_t (*vtap)[QD_MIX_CTL];        /* 2026-10-27: while the Geek Out TRACKS page shows: each voice's block (DRIVE in,
+                                         * before its level, pan and sends) copied to vtap[i] (0: none) */
 } qd_mix_t;
 
 void qd_mix_init(qd_mix_t *m);

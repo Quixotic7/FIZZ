@@ -167,6 +167,7 @@ enum { QD_REC_OFF, QD_REC_STEP, QD_REC_LIVE };
 enum { QD_VIEW_ROLL, QD_VIEW_STEPS, QD_VIEW_EDIT,     /* P1.3e: the sequencer's views, SHIFT + HOME cycles them (P1.3r:
                                                     * EDIT, the page's row under the mode's picture) .. */
        QD_VIEW_METERS, QD_VIEW_NUMBERS, QD_VIEW_VOICES, QD_VIEW_SCOPE,   /* .. P2.11: then the Geek Out pages */
+       QD_VIEW_TRACKS,                                 /* .. 2026-10-27: a scope a track, the whole screen */
        QD_NVIEW };
 #define QD_VIEW_GEEK(v) ((v) >= QD_VIEW_METERS)
 #define QD_VIEW_ROWS(v) ((v) == QD_VIEW_STEPS || (v) == QD_VIEW_EDIT)   /* P1.3r: the views drawing the pages' rows */

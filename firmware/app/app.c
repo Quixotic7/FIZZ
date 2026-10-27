@@ -337,6 +337,8 @@ static void fz_xr_look(uint32_t t0)      /* (P2.16d: at each half's start: did t
     fz_xr_d = 0;
 }
 
+extern uint32_t qd_lkp_max[6];          /* (2026-10-27: core/app/app.c: the locked ms's parts' longest) */
+
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     const uint32_t t0 = plat_ticks24();
@@ -693,6 +695,12 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     c = fz_put_u(c, FZN_lock_midi_us, fz_us(fz_lock_kmax[4]));
     c = fz_put_u(c, FZN_lock_sysex_us, fz_us(fz_lock_kmax[5]));
     c = fz_put_u(c, FZN_lock_take_us, fz_us(fz_lock_kmax[6]));
+    c = fz_put_u(c, FZN_lkp_fetch_us, fz_us(qd_lkp_max[0]));   /* (2026-10-27: the locked ms's parts) */
+    c = fz_put_u(c, FZN_lkp_choose_us, fz_us(qd_lkp_max[1]));
+    c = fz_put_u(c, FZN_lkp_sounds_us, fz_us(qd_lkp_max[2]));
+    c = fz_put_u(c, FZN_lkp_ctl_us, fz_us(qd_lkp_max[3]));
+    c = fz_put_u(c, FZN_lkp_preview_us, fz_us(qd_lkp_max[4]));
+    c = fz_put_u(c, FZN_lkp_gains_us, fz_us(qd_lkp_max[5]));
     c = fz_put_u(c, FZN_midi_drops, fz_mq_drops);
     c = fz_put_u(c, FZN_isr_loads, fz_audio_loads());   /* (patterns loaded inside the interrupt: should stay 0) */
     c = fz_put_u(c, FZN_frames, fz_prof.n_frame);
@@ -1156,6 +1164,7 @@ int app_sysex(const uint8_t *p, uint32_t n)
             fz_prof_reset();
             fz_mq_drops = 0;
             memset(fz_lock_kmax, 0, sizeof fz_lock_kmax);
+            memset(qd_lkp_max, 0, sizeof qd_lkp_max);
             memset(&fz_c1s, 0, sizeof fz_c1s);
             fz_tick_lag_max = 0;
             fz_bursts = fz_burst_rows = fz_burst_max = fz_frame_bursts_max = fz_st_full = fz_st_drops = fz_st_none = 0;

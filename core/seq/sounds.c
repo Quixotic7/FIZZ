@@ -242,6 +242,27 @@ const qd_sound_t *qd_sndc_get(qd_sndc_t *c, int key)
     c->lru[sl] = ++c->clock;
     return &c->s[sl];
 }
+int qd_sndc_fetch_read(qd_sndc_t *c, int key, const qd_sound_t *t, const int *keep, int nkeep)
+{
+    int sl;
+    if (sc_find(c, key) >= 0)
+        return 1;
+    for (sl = 0; sl < QD_SND_RAM; sl++)
+        if (c->key[sl] < 0 || (!sc_kept(c->key[sl], keep, nkeep) && sc_clean(c, sl)))
+            break;
+    if (sl == QD_SND_RAM) {
+        sc_place_ex(c, 0, keep, nkeep);
+        return 0;
+    }
+    c->loads++;
+    sl = sc_place_ex(c, 0, keep, nkeep);
+    if (sl < 0)
+        return 0;
+    memcpy(&c->s[sl], t, sizeof *t);
+    c->key[sl] = (int16_t)key;
+    c->lru[sl] = ++c->clock;
+    return 1;
+}
 int qd_sndc_fetch(qd_sndc_t *c, int key, const int *keep, int nkeep)
 {
     qd_sound_t t;

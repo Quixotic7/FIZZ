@@ -461,14 +461,6 @@ void qd_player_block(qd_player_t *pl)
             pl->mfx_audible = aud;
         }
     }
-    if (pl->mfx_nstart != s->nstart) {                  /* 2026-10-26 (the owner): a pattern change: the groups' notes
-                                                         * of the sequencer end (an empty pattern plays no arp on) */
-        int t;
-        if (pl->mfx_nstart && s->nstart > 1)
-            for (t = 0; t < QD_PAT_NTRACK; t++)
-                qd_mfx_flush_track(&pl->mfx, t, 0);
-        pl->mfx_nstart = s->nstart;
-    }
     qd_mfx_advance(&pl->mfx, qd_player_mfx_tick(pl));
 }
 
@@ -481,6 +473,20 @@ void qd_player_stop(qd_player_t *pl)
     memset(pl->slide_arm, 0, sizeof pl->slide_arm);     /* (2026-10-26: no slide waits) */
     memset(pl->slide_cur, 0, sizeof pl->slide_cur);
     memset(pl->slide_hold, 0, sizeof pl->slide_hold);
+}
+
+/* 2026-10-26 (the owner): a pattern change: the groups' notes of the sequencer end (an empty pattern plays no arp on).
+ * The app's locked millisecond (2026-10-27: not the audio block's: its RAM code had no room) */
+void qd_player_pattern_ms(qd_player_t *pl)
+{
+    const qd_seq_t *s = pl->seq;
+    if (pl->mfx_nstart != s->nstart) {
+        int t;
+        if (pl->mfx_nstart && s->nstart > 1)
+            for (t = 0; t < QD_PAT_NTRACK; t++)
+                qd_mfx_flush_track(&pl->mfx, t, 0);
+        pl->mfx_nstart = s->nstart;
+    }
 }
 
 void qd_player_flush_track(qd_player_t *pl, int t)

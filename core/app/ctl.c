@@ -1780,7 +1780,7 @@ static int k_geek(qd_app_t *a, int knob, int d)   /* SELECT turns the Geek Out p
 {
     qd_ui_t *u = &a->ui;
     if (knob == QD_K_SELECT && d) {
-        u->geek = (uint8_t)((u->view - QD_VIEW_METERS + (d > 0 ? 1 : 3)) % 4);
+        u->geek = (uint8_t)((u->view - QD_VIEW_METERS + (d > 0 ? 1 : 4)) % 5);   /* (2026-10-27: TRACKS the fifth) */
         u->view = QD_VIEW_METERS + u->geek;
     }
     return 1;

@@ -946,6 +946,8 @@ void ui_tools_scope_icon(int scope, float x, float y, qd_rgb col, float s);
  * transport, the four pages as little pictures). Yellow (UI_KSEL) and a spark of rays mark trouble. A figure the
  * platform does not give is drawn dim (its *_on 0) */
 #define UI_GEEK_SCOPE 113                               /* the scope's points (x 8 .. 232, 2 px apart) */
+#define UI_GEEK_TRK 6                                   /* 2026-10-27, TRACKS: the tracks' scopes .. */
+#define UI_GEEK_TPTS 61                                 /* .. their points (x 0 .. 240, 4 px apart) */
 typedef struct {
     int page;                           /* 0 METERS, 1 NUMBERS, 2 VOICES, 3 SCOPE */
     int playing;                        /* the transport .. */
@@ -971,7 +973,11 @@ typedef struct {
     int on[UI_NTRACK];
     /* SCOPE: the loudest track (-1: silence), the line's heights (-1 .. 1) */
     int scope_track;
-    float scope[UI_GEEK_SCOPE];
+    union {                             /* (2026-10-27: SCOPE's points and TRACKS' share the room: one page shows) */
+        float scope[UI_GEEK_SCOPE];
+        int8_t tsc[UI_GEEK_TRK][UI_GEEK_TPTS];   /* TRACKS (page 4): each track's line, -127..127 .. */
+    } w;
+    uint8_t tsc_live[UI_GEEK_TRK];      /* .. it sounds (else a flat line) */
 } ui_geek_t;
 void ui_geek_draw(const ui_geek_t *v);
 

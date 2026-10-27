@@ -307,6 +307,8 @@ typedef struct {
                                          * lock): a slot being read in outside the lock (qd_proj_fetch_work), for
                                          * pattern stg_k (-1 none) .. */
     uint8_t stg_ready;                  /* .. read: the next qd_proj_fetch maps it in */
+    uint8_t stg_choose, stg_chosen;     /* 2026-10-27: no free slot: the main loop chooses one (its clean check hashes the
+                                         * pattern, ~7 ms: not under the lock) .. chosen: the next fetch gives it up */
     uint8_t stg_on;                     /* .. the owner reads outside the lock (the app: qd_proj_fetch_work in its free
                                          * part); 0: qd_proj_fetch reads at once, as before */
 #endif

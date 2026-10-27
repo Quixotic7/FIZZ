@@ -2859,6 +2859,9 @@ void qd_persist_io(qd_app_t *a)
 #if QD_PAT_RAM < QD_NPAT
     a->proj.stg_on = 1;                                 /* (2026-10-26: patterns read in outside the audio lock) */
 #endif
+#if QD_SND_RAM
+    a->per.sst_key = -1, a->per.sst_ready = 0;          /* (2026-10-26: no sound being read) */
+#endif
 #ifndef QD_TARGET_FM1
     a->per.swap_on = 0;
 #endif
@@ -2924,6 +2927,21 @@ static int pf_sounds(qd_app_t *a, int *keys)
     return n;
 }
 #endif
+/* 2026-10-26: the main loop's, no audio lock: the sound the prefetch wants read into a->per.sst (placed by it next) */
+void qd_persist_snd_work(qd_app_t *a)
+{
+#if QD_SND_RAM
+    if (a->proj.sc && a->per.sst_key >= 0 && !a->per.sst_ready) {
+        memset(&a->per.sst, 0, sizeof a->per.sst);
+        if (a->proj.sc->io.load)
+            a->proj.sc->io.load(a->proj.sc->io.ctx, a->per.sst_key, &a->per.sst);
+        a->per.sst_ready = 1;
+    }
+#else
+    (void)a;
+#endif
+}
+
 void qd_persist_prefetch(qd_app_t *a)
 {
     const qd_seq_t *s = &a->seq;
@@ -2940,7 +2958,7 @@ void qd_persist_prefetch(qd_app_t *a)
         if (!qd_proj_resident(&a->proj, need[i]))
             break;
 #if QD_PAT_RAM < QD_NPAT
-#define PF_STG_READY(a) ((a)->proj.stg_ready)
+#define PF_STG_READY(a) ((a)->proj.stg_ready || (a)->proj.stg_chosen)
 #else
 #define PF_STG_READY(a) 0
 #endif
@@ -2952,7 +2970,8 @@ void qd_persist_prefetch(qd_app_t *a)
         a->per.fetch_ms = wait ? (a->ms ? a->ms : 1u) : 0u;
     }
 #if QD_SND_RAM
-    if (a->proj.sc && a->ms - a->per.snd_pf_ms >= 8u) {   /* (P2.6c: every 8 ms by the clock: a coalesced tick too) */
+    if (a->proj.sc && (a->ms - a->per.snd_pf_ms >= 8u || a->per.sst_ready)) {   /* (P2.6c: every 8 ms by the clock: a
+                                                         * coalesced tick too; 2026-10-26: at once, a sound read) */
         uint32_t key = 2166136261u;                     /* (P2.6c: what the scan reads: the same, no scan) */
         int keys[PF_SND], t;
         a->per.snd_pf_ms = a->ms;
@@ -2964,12 +2983,27 @@ void qd_persist_prefetch(qd_app_t *a)
             key = (key ^ ((uint32_t)s->cur_t[t].idx << 8 ^ (uint32_t)s->cur_t[t].pat)) * 16777619u;
         if (key != a->per.snd_pf_key || a->per.snd_pf_left) {
             int nk;
+            if (key != a->per.snd_pf_key)
+                a->per.sst_key = -1, a->per.sst_ready = 0;   /* (a read for another scan: dropped) */
             a->per.snd_pf_key = key;
             nk = pf_sounds(a, keys);
             a->per.snd_pf_left = 0;
-            for (i = 0; i < nk; i++)
-                if (!qd_sndc_fetch(a->proj.sc, keys[i], keys, nk))
-                    a->per.snd_pf_left = 1;     /* (one waits for a place: scanned again) */
+            for (i = 0; i < nk; i++) {          /* (2026-10-26: each sound read outside the audio lock, one at a time
+                                                 * (qd_persist_snd_work), placed here: the owner's stall at a pattern
+                                                 * change, stopped, was these reads, ~7 ms) */
+                if (qd_sndc_peek(a->proj.sc, keys[i]))
+                    continue;
+                if (a->per.sst_key == keys[i] && a->per.sst_ready) {
+                    if (qd_sndc_fetch_read(a->proj.sc, keys[i], &a->per.sst, keys, nk))
+                        a->per.sst_key = -1, a->per.sst_ready = 0;
+                    else
+                        a->per.snd_pf_left = 1;     /* (one waits for a place: scanned again) */
+                    continue;
+                }
+                if (a->per.sst_key < 0)
+                    a->per.sst_key = keys[i], a->per.sst_ready = 0;
+                a->per.snd_pf_left = 1;
+            }
         }
     }
 #endif
