@@ -118,7 +118,7 @@ int qd_midi_cc_in(qd_app_t *a, int tracks, int cc, int v)
     for (t = 0; t < QD_NTRACK; t++) {
         const int16_t *p = a->model.t[t].patch;
         int rec;
-        if (!((tracks >> t) & 1))
+        if (!((tracks >> t) & 1) || qd_msnd_is(p))     /* (FIZZ MIDI (e): a MIDI track has no sound to set) */
             continue;
         if (id == QD_MM_DRY) {                          /* (the mixer's own: no lock, no take) */
             a->model.t[t].mix.dry = (uint8_t)x;

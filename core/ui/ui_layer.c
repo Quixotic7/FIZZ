@@ -714,6 +714,16 @@ static void menu_set(const ui_menu_t *v)
  * pitch classes as dots, the scale's filled, the root ringed), ROOT, MIDI CH; page 2 VOICES (sixteen dots: the limit lit,
  * the ones sounding white), SWING, PAGE FOLLOW */
 static const char *const KIND_NAME[7] = {"BASS", "KEYS", "PLUCK", "PAD", "LEAD", "DRUMS", "FX"};
+/* FIZZ MIDI: a MIDI socket (DIN 5): its ring, the key notch, five pins on the upper half circle at 0.55 r */
+static void din5(float x, float y, float r, qd_rgb col)
+{
+    static const float PX[5] = {-1.f, -0.7071f, 0.f, 0.7071f, 1.f}, PY[5] = {0.f, -0.7071f, -1.f, -0.7071f, 0.f};
+    int i;
+    ui_O(x, y, r, col, 1.8f, QD_NONE);
+    ui_RR(x - 1.6f, y + r - 3.2f, 3.2f, 3.2f, 1.f, QD_NONE, 1.f, col);
+    for (i = 0; i < 5; i++)
+        ui_O(x + PX[i] * r * 0.55f, y + PY[i] * r * 0.55f + 1.f, 1.3f, QD_NONE, 1.f, col);
+}
 static void menu_trk(const ui_menu_t *v)
 {
     const qd_rgb tc = UI_TRACK_PAL[(v->track - 1) & 7];
@@ -742,14 +752,14 @@ static void menu_trk(const ui_menu_t *v)
         menu_row(2, 134.f, "ROOT", v->root);
         menu_row(3, 186.f, "MIDI CH", ui_itoa(n, v->chan));
     } else if (v->page == 2) {                          /* P1.6d: KIND, NAME; FIZZ MIDI (c, mockups/fizz-midi-track.html
-                                                         * screens 1, 2): four rows as page 1's, ENGINE (FM TONE, its four
-                                                         * operators; the MIDI track's switch next), MIDI OUT (a DIN socket
-                                                         * and an arrow, the channel; OFF grey) */
+                                                         * screens 1..3): four rows as page 1's, ENGINE (FM TONE, its four
+                                                         * operators; (e) MIDI, a DIN socket), MIDI OUT (a DIN socket and
+                                                         * an arrow, the channel; OFF grey) */
         static const char *const TL[4] = {"KIND", "NAME", "ENGINE", "MIDI OUT"};
         for (k = 0; k < 4; k++) {
             const float y = 42.f + (float)k * 51.f, vy = y + 31.5f;
             const char *val = k == 0 ? (v->tkind >= 0 ? KIND_NAME[v->tkind] : "NONE") : k == 1 ? (v->tname ? v->tname : "")
-                            : k == 2 ? "FM TONE" : v->mout ? ui_itoa(n, v->mout) : "OFF";
+                            : k == 2 ? (v->engine ? "MIDI" : "FM TONE") : v->mout ? ui_itoa(n, v->mout) : "OFF";
             const qd_rgb col = k == 3 && !v->mout ? UI_G2 : KCOL[k];
             const float w = ui_TW(val, 26.f, 300, 0.f), sz = w > 150.f ? 26.f * 150.f / w : 26.f;
             const float lx = 232.f - (w > 150.f ? 150.f : w);
@@ -758,18 +768,15 @@ static void menu_trk(const ui_menu_t *v)
             if (k == 0 && v->tkind >= 0) {              /* its kind's icon, boxed in its colour */
                 ui_RR(lx - 33.f, vy - 21.f, 24.f, 24.f, 5.f, UI_PK_COL[v->tkind], 1.4f, QD_NONE);
                 ui_kind_icon(v->tkind, lx - 21.f, vy - 9.f, 1.f, UI_PK_COL[v->tkind]);
+            } else if (k == 2 && v->engine) {           /* FIZZ MIDI (e): MIDI, a DIN socket */
+                din5(lx - 18.f, vy - 9.f, 9.f, col);
             } else if (k == 2) {                        /* four operators */
                 int i;
                 for (i = 0; i < 4; i++)
                     ui_O(lx - 30.f + (float)(i % 2) * 12.f, vy - 15.f + (float)(i >> 1) * 12.f, 4.2f, col, 1.5f, QD_NONE);
-            } else if (k == 3 && v->mout) {             /* a MIDI socket (DIN 5: its ring, notch, five pins), out */
+            } else if (k == 3 && v->mout) {             /* a MIDI socket (DIN 5), out */
                 const float x = lx - 38.f, yy = vy - 9.f, r = 9.f;
-                int i;
-                ui_O(x, yy, r, col, 1.8f, QD_NONE);
-                ui_RR(x - 1.6f, yy + r - 3.2f, 3.2f, 3.2f, 1.f, QD_NONE, 1.f, col);
-                static const float PX[5] = {-1.f, -0.7071f, 0.f, 0.7071f, 1.f}, PY[5] = {0.f, -0.7071f, -1.f, -0.7071f, 0.f};
-                for (i = 0; i < 5; i++)                 /* (the pins on the upper half circle, at 0.55 r) */
-                    ui_O(x + PX[i] * r * 0.55f, yy + PY[i] * r * 0.55f + 1.f, 1.3f, QD_NONE, 1.f, col);
+                din5(x, yy, r, col);
                 line2(x + r + 4.f, yy, x + r + 13.f, yy, col, 1.8f);
                 {
                     const float ar[6] = {x + r + 9.f, yy - 4.f, x + r + 13.f, yy, x + r + 9.f, yy + 4.f};

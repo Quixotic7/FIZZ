@@ -18,6 +18,7 @@
 static void mo_note(void *ctx, int t, int note, int vel, int live);
 static void mo_edit(void *ctx, int t, int id, int old, int value);
 static void mo_cc(qd_app_t *a, int t, int id, int old, int value);
+static int mo_mlk(void *ctx, int t, const qd_trec_t *r, int force);
 
 /* the tempo the sound runs at (FM TONE's synced LFOs and DELAYs, the synced delay) */
 void qd_app_tempo(qd_app_t *a, int bpm)
@@ -45,6 +46,7 @@ void qd_app_init(qd_app_t *a)
     qd_seq_init(&a->seq, &a->proj, &a->model);
     qd_player_init(&a->player, &a->seq, &a->pool, &a->model);
     a->player.out = mo_note, a->player.edit = mo_edit, a->player.out_ctx = a;   /* FIZZ MIDI (c): MIDI OUT */
+    a->player.mlk = mo_mlk;                             /* (e): the MIDI tracks' locks */
     qd_seq_select(&a->seq, QD_PAT_START, 0);
     a->snd_pat = -1;                                    /* (the first ms: the pattern's sounds into the tracks) */
     qd_app_tempo(a, qd_seq_bpm(&a->seq));
@@ -363,11 +365,69 @@ static void mo_drop(qd_app_t *a, int i)                 /* note i owed: its OFF 
     mo_put(a, 0x80 | (int)(e >> 7 & 15u), (int)(e & 127u), 0, 0);
     a->mo_on[i] = a->mo_on[--a->mo_n];
 }
+/* FIZZ MIDI (e): the MIDI track's slots (quad_voice.h QD_MSND_*): slot k of sound p at value v, its CC on the track's
+ * MIDI OUT */
+static void mo_slot(qd_app_t *a, int t, const int16_t *p, int k, int v)
+{
+    const int ch = mo_chan(a, t);
+    if (ch)
+        mo_put(a, 0xB0 | (ch - 1), p[QD_MSND_CC(k)] & 127, v < 0 ? 0 : v > 127 ? 127 : v, a->mo_n);
+}
+void qd_app_msnd_send(qd_app_t *a, int t, int k, int v, int lock)
+{
+    const int16_t *p = a->model.t[t].patch;
+    if (t < 0 || t >= QD_NTRACK || k < 0 || k >= QD_MSND_N || !qd_msnd_is(p))
+        return;
+    if (lock)
+        a->mo_lk[t] |= 1u << k;
+    else if (!(p[QD_MSND_CC(k)] & QD_MSND_TOUCHED))
+        return;
+    mo_slot(a, t, p, k, v);
+}
+/* a MIDI sound's trig (the player's mlk): the slots it locks out as CCs, then the slots the trig before locked and this
+ * one does not back at the sound's own values (the untouched: nothing). A chord's next note (the same trig): nothing,
+ * unless force (the preview). The trig is ON's time: the values go out before its notes; the track's own value comes
+ * back at the next trig (or a stop, a mute: mo_lk_back) */
+static int mo_mlk(void *ctx, int t, const qd_trec_t *r, int force)
+{
+    qd_app_t *a = (qd_app_t *)ctx;
+    const uint32_t key = (uint32_t)(uintptr_t)r ^ (uint32_t)r->step << 20 ^ (uint32_t)r->pat << 26 ^ 1u;
+    uint32_t lk = 0, back;
+    int k;
+    if (t < 0 || t >= QD_NTRACK || (!force && key == a->mo_lkey[t]))
+        return 0;
+    a->mo_lkey[t] = key;
+    for (k = 0; k < QD_MSND_N; k++) {
+        const int id = QD_MSND_ID[k];
+        if ((r->lkm[id >> 5] >> (id & 31)) & 1u) {
+            lk |= 1u << k;
+            mo_slot(a, t, r->patch, k, r->patch[id]);
+        }
+    }
+    back = a->mo_lk[t] & ~lk;
+    for (k = 0; back && k < QD_MSND_N; k++)
+        if (((back >> k) & 1u) && (r->patch[QD_MSND_CC(k)] & QD_MSND_TOUCHED))
+            mo_slot(a, t, r->patch, k, r->patch[QD_MSND_ID[k]]);
+    a->mo_lk[t] = lk;
+    return 1;
+}
+static void mo_lk_back(qd_app_t *a, int t)              /* (a stop, a mute, a flush) the locked slots back */
+{
+    const int16_t *p = a->model.t[t].patch;
+    int k;
+    if (qd_msnd_is(p))
+        for (k = 0; a->mo_lk[t] && k < QD_MSND_N; k++)
+            if (((a->mo_lk[t] >> k) & 1u) && (p[QD_MSND_CC(k)] & QD_MSND_TOUCHED))
+                mo_slot(a, t, p, k, p[QD_MSND_ID[k]]);
+    a->mo_lk[t] = a->mo_lkey[t] = 0;
+}
 static void mo_note(void *ctx, int t, int note, int vel, int live)   /* (the player's out: player.h) */
 {
     qd_app_t *a = (qd_app_t *)ctx;
     int i;
     if (note < 0) {                                     /* track t's notes: every one (live -1), the sequencer's (0) */
+        if (t >= 0 && t < QD_NTRACK && (a->mo_lk[t] || a->mo_lkey[t]))
+            mo_lk_back(a, t);                           /* (FIZZ MIDI (e)) */
         for (i = a->mo_n - 1; i >= 0; i--)
             if ((a->mo_on[i] >> 11 & 7u) == (unsigned)t && (live < 0 || !(a->mo_on[i] & 0x8000u)))
                 mo_drop(a, i);
@@ -400,6 +460,9 @@ void qd_app_midi_out_panic(qd_app_t *a)
 static void mo_cc(qd_app_t *a, int t, int id, int old, int value)   /* value id's CC on track t's MIDI CH, if it moved */
 {
     const int ch = qd_seq_track_pat(&a->seq, t)->trk[t].chan, cc = qd_midi_id_cc(id), v = qd_midi_value_cc(id, value);
+    if (qd_msnd_is(a->model.t[t].patch))                /* (FIZZ MIDI (e): a MIDI track sends its slots' CCs, never the
+                                                         * map's) */
+        return;
     if (a->ui.cc_out && ch < QD_MIDI_REMOTE && cc >= 0 && v != qd_midi_value_cc(id, old))
         mo_put(a, 0xB0 | ch, cc, v, a->mo_n);
 }

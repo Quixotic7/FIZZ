@@ -48,7 +48,14 @@
  *   PAT  (2026-10-26) 'P' 6: as 'P' 5; the sound has the VOICE page's five values (110..114, in the blob's last four
  *        bytes: zeros their defaults), so the mix's lock ids are 115..; a 'P' 3..5's (110..) move up when read
  *   PAT  (FIZZ MIDI (c)) the track settings 44 bytes: MIDI OUT appended (qd_tset_t.mout); a 'P' 4..6 of 43 bytes reads it
- *        0, OFF (the size byte tells). SET: b[5] bit 6 CLOCK OUT off, bit 5 CC OUT off (an older record: both on) */
+ *        0, OFF (the size byte tells). SET: b[5] bit 6 CLOCK OUT off, bit 5 CC OUT off (an older record: both on)
+ *   PAT / SND / LIB  (FIZZ MIDI (e)) A MIDI TRACK'S SOUND, in the records as they are (no new record, field or version):
+ *        a track sound's or a preset's packed patch is a MIDI sound when it is 'Q' 6 with "MIDI" in its last four bytes
+ *        (124..127: the VOICE page's, which no FM TONE blob can hold; a FIZZ before this one reads it as no blob,
+ *        INIT): bytes 2..29 the 28 slots' values (| 128: touched), 30..57 their CC numbers, the rest zeros. In RAM the
+ *        same patch (quad_voice.h QD_MSND_*): slot k's value in FM TONE value QD_MSND_ID[k] (a value of range 0..127, so
+ *        a slot's p-lock is that value's lock id: 0..127 as it is), its CC number and touched flag in value 74 + k, the
+ *        mark 0x4D in VOICE's PRIORITY. Every older record reads FM TONE; ENGINE back to FM TONE is INIT */
 #include <stddef.h>
 
 #include "../voice/fx/qd_fx.h"

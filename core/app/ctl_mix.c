@@ -11,8 +11,8 @@
  *        kept while GLOBAL; never set, a copy of the global one at the switch), KNOB 2 SCALE, KNOB 3 ROOT, KNOB 4 MIDI CHANNEL; W the steps (a tap
  *        makes, removes); REC tapped: the keyboard on / off, the page stays (W then notes); SEL again (or SELECT): the
  *        second page, KNOB 1 VOICES (the limit), KNOB 2 SWING on / off, KNOB 3 PAGE FOLLOW (the global setting's),
- *        KNOB 4 MIDI FX; the third, KNOB 1 KIND, KNOB 2 NAME, (KNOB 3 ENGINE: next), KNOB 4 MIDI OUT (FIZZ MIDI (c): OFF,
- *        1..16, the track's notes to USB on that channel); B1..B8 the track
+ *        KNOB 4 MIDI FX; the third, KNOB 1 KIND, KNOB 2 NAME, KNOB 3 ENGINE (FIZZ MIDI (e): FM TONE / MIDI), KNOB 4
+ *        MIDI OUT (FIZZ MIDI (c): OFF, 1..16, the track's notes to USB on that channel); B1..B8 the track
  *   ENV (printed) = MIX  six faders with their pan dials and sends; KNOB 1 LEVEL, KNOB 2 PAN, KNOB 3 DELAY, KNOB 4
  *        REVERB of the selected track; MIX again (or SELECT): the SENDS, every track's three (KNOB 1 CHORUS, KNOB 2
  *        DELAY, KNOB 3 REVERB); again: the faders. On both pages: B1..B6 tapped the track, held QD_SEL_HOLD_MS its
@@ -242,12 +242,14 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
         return 1;
     u->menu_knob = knob - QD_K_1;
     if (u->trk_page == 2) {                             /* P1.6d, page 3: KIND, NAME; FIZZ MIDI (c): KNOB 4 MIDI OUT
-                                                         * (KNOB 3 ENGINE: the MIDI track's, next) */
+                                                         * KNOB 3 ENGINE (FIZZ MIDI (e): FM TONE / MIDI) */
         qd_track_t *tk = &a->model.t[a->sel];
         if (knob == QD_K_1)
             qd_track_set_kind(tk, tk->kind < 7 ? cl(tk->kind + d, 0, 6) : d > 0 ? 0 : 6);
         else if (knob == QD_K_2)                        /* a turn: the name keyboard */
             qd_name_open(a, 3, a->sel);
+        else if (knob == QD_K_3)                        /* FIZZ MIDI (e): ENGINE, FM TONE (left) or MIDI (right) */
+            qd_msnd_engine(a, a->sel, d > 0);
         else if (knob == QD_K_4)                        /* OFF, 1..16 (its notes owed end: app.c mo_check) */
             ts->mout = (uint8_t)cl(ts->mout + d, 0, 16);
         return 1;

@@ -295,8 +295,8 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
 {
     int i, j, k, n, lead = -1, nn, ord[8];
     const int mono = patch ? patch[QD_QP_VMODE] == 1 : 0;
-    if (track < 0 || track >= QD_POOL_NTRACK || !o || !patch)
-        return -1;
+    if (track < 0 || track >= QD_POOL_NTRACK || !o || !patch || qd_msnd_is(patch))
+        return -1;                                      /* (FIZZ MIDI (e): a MIDI sound takes no voice) */
     nn = patch[QD_QP_UNI] < 1 ? 1 : patch[QD_QP_UNI] > 8 ? 8 : patch[QD_QP_UNI];
     if (mono && patch[QD_QP_PORT] == QD_PORT_LEGATO && qd_pool_gated(p, track)) {   /* MONO's LEGATO: moved */
         for (i = 0; i < p->nvoice; i++)

@@ -198,6 +198,9 @@ typedef struct qd_app {
     uint32_t mo_pulse;                 /* clocks sent since START */
     uint8_t mo_knob;                   /* a knob's turn (qd_app_knob) on the selected track: its index + 1 .. */
     uint8_t mo_rb;                     /* .. RATIO B's pair moved in it */
+    uint32_t mo_lk[QD_TRACKS];         /* FIZZ MIDI (e): each MIDI track's slots its last trig sent locked (bit k: slot k;
+                                        * the next trig, a stop, a mute send them back to the track's values) .. */
+    uint32_t mo_lkey[QD_TRACKS];       /* .. that trig (its record, step, pattern: a chord's next note sends nothing) */
     int master_pot;                    /* MASTER, 0..1023 */
     uint32_t seed_fix;                 /* P2.4: qd_app_seed's (0: the clock's) */
     uint32_t free_ms;                  /* P2.6c: qd_app_tick_free's ms so far */
@@ -262,6 +265,10 @@ void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2);     /* .. and its 
  * calls (the unit: the audio interrupt, right after the block; the glue: midi_out_take) */
 int qd_app_midi_out_take(qd_app_t *a, uint32_t *pkt, uint32_t room);
 void qd_app_midi_out_panic(qd_app_t *a);   /* every note owed: its OFF (the panic, OCT- + OCT+) */
+/* FIZZ MIDI (e): a MIDI track's slot k (quad_voice.h QD_MSND_*) at value v: its CC on the track's MIDI OUT now (an
+ * untouched slot of the track's sound: nothing, unless lock); lock: a step's value (the track's goes back at the next
+ * trig) */
+void qd_app_msnd_send(qd_app_t *a, int t, int k, int v, int lock);
 void qd_app_midi_out_drop(qd_app_t *a);    /* (c2) a new USB connection: the queue emptied (the ONs dropped: owed no
                                             * more) */
 /* the clock: ms counts up from 0, one call per device millisecond (a gap is run through ms by ms) */

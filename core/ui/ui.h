@@ -354,6 +354,7 @@ int ui_fn_icon(int func);               /* P1.3w: a step function's icon (UI_IC_
 #define UI_STEP_FRAME 0xf03cffu         /* P1.5d (the frames the other way round): the frame round a held step's screen
                                          * (or the latch's selection's) in the sequencer */
 #define UI_SND_FRAME_TRACK 0x8a3412u    /* P1.5d: the sound editor's frame, the track's sound (nothing held): dark orange */
+#define UI_MIDI_HEAD 0xee3cffu          /* FIZZ MIDI (e): the MIDI track editor's MIDI (magenta) */
 #define UI_SND_FRAME_STEP 0xff6a2cu     /* .. a step held or selected (its locks): bright orange (UI_K4) */
 extern const qd_rgb UI_LFO_COL[3];      /* P1.5k: LFO 1, 2, 3's colours (their marks, the mapping's takeover) */
 extern const qd_rgb UI_TRACK_PAL[8];    /* P1.3y: each track's colour (its big picture) */
@@ -674,6 +675,7 @@ typedef struct {
     int mfx;                            /* P1.6c: the track's MIDI FX group (0 OFF) */
     int tkind, named;                   /* P1.6d, page 3: its kind (-1 none), its name typed */
     int mout;                           /* .. FIZZ MIDI (c): MIDI OUT (0 OFF, 1..16) */
+    int engine;                         /* .. (e): ENGINE, 0 FM TONE, 1 MIDI */
     int clk_out, cc_out;                /* SETTINGS: FIZZ MIDI (c): CLOCK OUT, CC OUT */
     int last;                           /* the knob turned last (0..3, -1) */
 } ui_menu_t;
@@ -743,6 +745,11 @@ typedef struct ui_snd {
                                          * filling, 3 its burst .. */
     float rnd_u;                        /* .. 0..1 through it */
     int limit;                          /* 2026-10-26, VOICE: the track's voice LIMIT (unison voices over it: dim) */
+    /* FIZZ MIDI (e): a MIDI track's page (sd_midi): has[k] the slot touched (or locked here), v[k] its value (the held
+     * step's), tv[k] the track's (-1 untouched), locked[k], ipg the page (0..6), step, last; its CC numbers, the MIDI
+     * OUT channel (0 OFF), SHIFT held and the slot whose CC number it turned (-1) */
+    int midi, mch, shift, shift_k;
+    int cc[4];
 } ui_snd_t;
 void ui_snd_draw(const ui_snd_t *v);
 

@@ -21,6 +21,11 @@
  *   clock out  START, 24 clocks a beat, STOP; CLOCK OUT OFF: silent; following an outside clock: silent
  *   out drop   (c2) a new USB connection: the queue emptied; an ON that never went out is owed no more, one that went
  *              keeps its OFF; 31 notes owed at once (six tracks of 4-note chords and more)
+ *   midi track (e, §5) ENGINE MIDI (MIDI OUT 1); no voice, the notes out, no CC while untouched; EDIT's KNOB 1..4:
+ *              CC 16..19 at once (no FM TONE CC); SELECT, B7 the pages; SHIFT + KNOB 1 the CC number (none sent); a held
+ *              step's lock: sent at its step before its note, the track's value back at the next step; untouched slots
+ *              never sent; B11, F2 + a knob clear; REC + AUTOMATION records (and sends); the step view locks nothing; a
+ *              CC in sets nothing; ENGINE FM TONE: INIT, voices again
  *   cc out     a knob turn on FREQ: CC 74 on the track's MIDI CH (once, its value); a CC 74 coming in: no echo; the
  *              mixer's LEVEL: CC 7; CC OUT OFF: silent
  *
@@ -601,6 +606,215 @@ static void t_out_drop(void)
     run(QD_UNDO_QUIET_MS);
 }
 
+/* ================================================================ (e) the MIDI track */
+static int first_at(int st, int d1, int d2, int from)   /* the first such packet at or after from (-1 none) */
+{
+    int i;
+    for (i = from; i < nlog; i++)
+        if (LG[i][0] == st && (d1 < 0 || LG[i][1] == d1) && (d2 < 0 || LG[i][2] == d2))
+            return i;
+    return -1;
+}
+static int track_voices(int t)
+{
+    int i, n = 0;
+    for (i = 0; i < A.pool.nvoice; i++)
+        n += qd_pool_used(&A.pool, i) && A.pool.v[i].track == t;
+    return n;
+}
+static int ccs_in(int lo, int hi)                       /* CCs lo..hi (any channel) in the log */
+{
+    int i, n = 0;
+    for (i = 0; i < nlog; i++)
+        n += (LG[i][0] & 0xF0) == 0xB0 && LG[i][1] >= lo && LG[i][1] <= hi;
+    return n;
+}
+static void engine_set(int midi)                        /* track settings page 3, KNOB 3 */
+{
+    btap(QD_B_PATTERN);
+    turn(QD_K_SELECT, 2);
+    turn(QD_K_3, midi ? 1 : -1);
+    btap(QD_B_HOME);
+}
+static void t_mtrack(void)
+{
+    ui_menu_t mv;
+    ui_snd_t sv;
+    const int i1 = QD_MSND_ID[1], i2 = QD_MSND_ID[2];
+    int i, v0, v1, a, b, n, voices = 0, ons;
+    start();
+    btap(QD_B_PATTERN);
+    turn(QD_K_SELECT, 2);
+    turn(QD_K_3, 1);
+    qd_view_menu(&A, &mv);
+    CHECK(qd_msnd_is(A.model.t[0].patch) && qd_msnd_is(PAT()->snd[0].patch) && mv.engine == 1 && PAT()->trk[0].mout == 1,
+          "page 3 KNOB 3: ENGINE MIDI, MIDI OUT was OFF: 1 (the track's number)");
+    btap(QD_B_HOME);
+    for (i = 0; i < 4; i++) {                           /* steps 1, 5, 9, 13 */
+        qd_app_key(&A, QD_WHITE_KEY[4 * i], 1, 100);
+        run(30);
+        qd_app_key(&A, QD_WHITE_KEY[4 * i], 0, 0);
+        run(10);
+    }
+    run(200);
+    /* no voice, the notes out */
+    nlog = 0;
+    btap(QD_B_PLAY);
+    for (i = 0; i < 30; i++) {
+        run(50);
+        voices += track_voices(0);
+    }
+    btap(QD_B_PLAY);
+    ons = nsent(0x90, -1, -1);
+    CHECK(!voices && ons >= 4 && pairs_ok(1) && !ccs_in(0, 127), "playing a MIDI track: no voice ever, its notes out on 1 "
+          "(%d), every slot untouched: no CC (%d)", ons, ccs_in(0, 127));
+    /* EDIT: page 1's KNOB 1..4, CC 16..19 on 1 */
+    btap(QD_B_SOUND);
+    CHECK(qd_msnd_open(&A), "EDIT on a MIDI track: its CCs' editor");
+    nlog = 0;
+    turn(QD_K_1, 10);
+    turn(QD_K_2, 3);
+    turn(QD_K_3, 1);
+    turn(QD_K_4, 127);
+    v0 = A.model.t[0].patch[QD_MSND_ID[0]], v1 = A.model.t[0].patch[i1];
+    CHECK(nsent(0xB0, 16, v0) == 1 && nsent(0xB0, 17, v1) == 1 && nsent(0xB0, 18, A.model.t[0].patch[i2]) == 1 &&
+              nsent(0xB0, 19, 127) == 1 && nlog == 4 && v0 > 0 && v1 > 0,
+          "KNOB 1..4: CC 16..19 on channel 1 at once, their values (%d, %d), nothing else (no FM TONE CC: %d out)", v0, v1,
+          nlog);
+    turn(QD_K_4, 5);
+    CHECK(nlog == 4, "KNOB 4 at 127 turned up: nothing more");
+    qd_view_snd(&A, &sv);
+    CHECK(sv.midi && sv.ipg == 0 && sv.has[0] && sv.cc[0] == 16 && sv.v[0] == v0 && sv.mch == 1, "the page: slot 1 "
+          "touched, CC 16, %d", v0);
+    /* SELECT, B2: page 2, untouched */
+    turn(QD_K_SELECT, 1);
+    qd_view_snd(&A, &sv);
+    CHECK(A.ui.msnd_page == 1 && !sv.has[0] && !sv.has[3] && sv.cc[0] == 20 && sv.cc[3] == 23,
+          "SELECT: page 2, CC 20..23, untouched");
+    qd_app_key(&A, QD_BLACK_KEY[6], 1, 100);
+    run(10);
+    qd_app_key(&A, QD_BLACK_KEY[6], 0, 0);
+    run(10);
+    qd_view_snd(&A, &sv);
+    CHECK(A.ui.msnd_page == 6 && sv.cc[0] == 40 && sv.cc[3] == 43, "B7: page 7, CC 40..43");
+    qd_app_key(&A, QD_BLACK_KEY[0], 1, 100);
+    run(10);
+    qd_app_key(&A, QD_BLACK_KEY[0], 0, 0);
+    run(10);
+    /* SHIFT + KNOB 1: the CC number, nothing sent */
+    nlog = 0;
+    bdown(QD_B_FUNC);
+    run(10);
+    turn(QD_K_1, 58);
+    qd_view_snd(&A, &sv);
+    bup(QD_B_FUNC);
+    run(10);
+    CHECK((A.model.t[0].patch[QD_MSND_CC(0)] & 127) == 74 && !nlog && sv.shift && sv.shift_k == 0 && sv.cc[0] == 74 &&
+              A.model.t[0].patch[QD_MSND_ID[0]] == v0, "SHIFT + KNOB 1: CC 16 -> 74, nothing sent, the value kept");
+    turn(QD_K_1, 1);
+    CHECK(nsent(0xB0, 74, v0 + 1) == 1 && nlog == 1, "KNOB 1 then: CC 74");
+    v0 = A.model.t[0].patch[QD_MSND_ID[0]];
+    /* a p-lock: step 1 held, KNOB 2 */
+    qd_app_key(&A, QD_WHITE_KEY[0], 1, 100);
+    run(300);
+    nlog = 0;
+    turn(QD_K_2, -2);
+    qd_view_snd(&A, &sv);
+    qd_app_key(&A, QD_WHITE_KEY[0], 0, 0);
+    run(20);
+    a = LK(0, 0, i1);
+    CHECK(a == v1 - 2 && A.model.t[0].patch[i1] == v1 && sv.step == 1 && sv.locked[1] && sv.v[1] == a && sv.tv[1] == v1,
+          "step 1 held, KNOB 2: a lock (%d), the track's value kept (%d); the page shows the lock, the track's tick", a, v1);
+    /* playing: the lock at step 1 (before its note), the track's value back at step 5 */
+    nlog = 0;
+    btap(QD_B_PLAY);
+    run(700);
+    btap(QD_B_PLAY);
+    a = first_at(0xB0, 17, LK(0, 0, i1), 0);
+    b = a >= 0 ? first_at(0xB0, 17, v1, a) : -1;
+    n = a >= 0 ? first_at(0x90, -1, -1, a) : -1;
+    CHECK(a >= 0 && b > a && n > a && n < b && first_at(0x90, -1, -1, n + 1) > b,
+          "the lock goes out at step 1 before its note (%d, %d), the track's value back at step 5, before its note (%d)",
+          a, n, b);
+    CHECK(!ccs_in(20, 43) && !nsent(0xB0, 16, -1), "untouched slots (pages 2..7) never sent, nor CC 16 (now 74)");
+    /* B11: the held step's locks on this page cleared */
+    qd_app_key(&A, QD_WHITE_KEY[0], 1, 100);
+    run(300);
+    qd_app_key(&A, QD_BLACK_KEY[10], 1, 100);
+    run(10);
+    qd_app_key(&A, QD_BLACK_KEY[10], 0, 0);
+    run(10);
+    qd_app_key(&A, QD_WHITE_KEY[0], 0, 0);
+    run(20);
+    CHECK(LK(0, 0, i1) == -99999, "B11 with step 1 held: its lock cleared");
+    /* REC + AUTOMATION: KNOB 3 recorded as locks, sent as turned */
+    btap(QD_B_PLAY);
+    run(100);
+    bdown(QD_B_REC);
+    nlog = 0;
+    for (i = 0; i < 6; i++) {
+        turn(QD_K_3, 4);
+        run(60);
+    }
+    bup(QD_B_REC);
+    run(10);
+    n = nlocks(0, i2);
+    CHECK(n > 0 && nsent(0xB0, 18, -1) >= 6 && A.model.t[0].patch[i2] < 20, "REC held + KNOB 3: %d locks recorded, each "
+          "move sent (%d), the track's value kept", n, nsent(0xB0, 18, -1));
+    nlog = 0;
+    run(2 * 60000 / A.bpm * 4 + 200);                   /* (the 16 steps twice over) */
+    btap(QD_B_PLAY);
+    for (i = 0, a = 0, b = 0; i < QD_NSTEP; i++)        /* (a recorded step without a note: a LOCK trig) */
+        if (LK(0, i, i2) != -99999) {
+            a += nsent(0xB0, 18, LK(0, i, i2)) >= 2;
+            b += qd_step_type(PAT(), 0, i) == QD_TRIG_LOCK;
+        }
+    CHECK(a == n && b > 0, "played back twice: every recorded lock's value sent each time (%d of %d; %d on LOCK trigs)",
+          a, n, b);
+    /* F2 + KNOB 3: that slot's locks cleared */
+    bdown(QD_B_OCTUP);
+    turn(QD_K_3, 1);
+    bup(QD_B_OCTUP);
+    run(10);
+    CHECK(nlocks(0, i2) == 0, "F2 + KNOB 3: the slot's locks cleared");
+    /* the step view on a MIDI track: a held step's KNOB 2 locks nothing (no FM TONE value) */
+    btap(QD_B_SOUND);
+    qd_app_key(&A, QD_WHITE_KEY[4], 1, 100);
+    run(300);
+    turn(QD_K_2, 5);
+    qd_app_key(&A, QD_WHITE_KEY[4], 0, 0);
+    run(20);
+    CHECK(qd_lock_count(PAT(), 0, 4) == 0, "the step view: KNOB 2 on a held step of a MIDI track locks nothing");
+    /* a CC in on its channel sets nothing */
+    {
+        int16_t keep[QD_QUAD_NP];
+        memcpy(keep, A.model.t[0].patch, sizeof keep);
+        cc(1, 74, 9);
+        cc(1, 73, 100);
+        CHECK(!memcmp(keep, A.model.t[0].patch, sizeof keep), "CCs in on its channel: the MIDI sound untouched");
+    }
+    /* ENGINE back to FM TONE: INIT, voices again */
+    engine_set(0);
+    {
+        int16_t init[QD_QUAD_NP];
+        qd_quad_preset_patch(0, init);
+        CHECK(!qd_msnd_is(A.model.t[0].patch) && !memcmp(A.model.t[0].patch, init, sizeof init) &&
+                  !strcmp(A.model.t[0].sound_name, "INIT"), "ENGINE FM TONE: the track's sound INIT");
+    }
+    voices = 0;
+    btap(QD_B_PLAY);
+    for (i = 0; i < 10; i++) {
+        run(50);
+        voices += track_voices(0);
+    }
+    btap(QD_B_PLAY);
+    CHECK(voices > 0, "and its notes take voices again");
+    engine_set(1);
+    CHECK(qd_msnd_is(A.model.t[0].patch) && (A.model.t[0].patch[QD_MSND_CC(0)] & 0xFF) == 16 && PAT()->trk[0].mout == 1,
+          "MIDI again: a new MIDI sound (untouched, CC 16), MIDI OUT kept (1)");
+    run(QD_UNDO_QUIET_MS);
+}
+
 static void t_out_clock(void)
 {
     int i, f8, want;
@@ -712,6 +926,7 @@ int main(void)
         {"MIDI OUT (c2): a new USB connection; 31 notes owed", t_out_drop},
         {"MIDI OUT: START, 24 clocks a beat, STOP; CLOCK OUT; outside", t_out_clock},
         {"MIDI OUT: the knobs' CCs, none echoed; CC OUT", t_out_cc},
+        {"the MIDI track: ENGINE, no voice, CCs, SHIFT, locks, B11, REC", t_mtrack},
     };
     size_t i;
     for (i = 0; i < sizeof G / sizeof G[0]; i++) {

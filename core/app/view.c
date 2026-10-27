@@ -1583,6 +1583,28 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
         pp = r.patch;
         v->follow = 1;
     }
+    if (qd_msnd_is(tp)) {                               /* FIZZ MIDI (e): a MIDI track's page of four slots */
+        const qd_pattern_t *cp = qd_ctl_cpat(a);
+        const int pg0 = u->msnd_page % QD_MSND_NPAGE;
+        v->midi = 1;
+        v->name = "MIDI";
+        v->npg = QD_MSND_NPAGE, v->ipg = pg0;
+        v->mch = cp->trk[a->sel].mout <= 16 ? cp->trk[a->sel].mout : 0;
+        v->shift = qd_ctl_shift(a), v->shift_k = u->msnd_cck;
+        for (k = 0; k < 4; k++) {
+            const int s = pg0 * QD_MSND_PAGE + k, id = QD_MSND_ID[s], on = (tp[QD_MSND_CC(s)] & QD_MSND_TOUCHED) != 0;
+            int16_t x;
+            v->cc[k] = tp[QD_MSND_CC(s)] & 127;
+            v->locked[k] = (uint8_t)(u->nheld ? qd_lock_get(cp, a->sel, u->held[0], id, &x)
+                                     : v->follow && qd_lock_get(cp, a->sel, u->fol_step, id, &x));
+            v->has[k] = on || v->locked[k];
+            v->v[k] = pp[id];
+            v->tv[k] = on ? tp[id] : -1;
+        }
+        v->last = u->snd_knob;
+        v->t = secs(a->ms);
+        return;
+    }
     {   /* the owner: following, the values as heard: the LFOs' too, read at EDIT's clock (one reading a step of it:
          * every pass of a frame the same, no faster than its pictures) */
         static uint32_t lq = ~0u;
@@ -2007,6 +2029,7 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
         v->swing = ts->swing;
         v->mfx = ts->mfx <= QD_MFX_NGROUP ? ts->mfx : 0;
         v->mout = ts->mout <= 16 ? ts->mout : 0;        /* (FIZZ MIDI (c)) */
+        v->engine = qd_msnd_is(a->model.t[a->sel].patch);   /* (e): MIDI */
         for (i = 0; i < a->pool.nvoice; i++)
             v->voices_now += qd_pool_sounding(&a->pool, i) && a->pool.v[i].track == a->sel;
         v->last = u->menu_knob;

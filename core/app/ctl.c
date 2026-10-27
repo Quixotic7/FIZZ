@@ -361,6 +361,11 @@ static int w_snd(const qd_app_t *a) { return qd_snd_open(a) && !held(a, QD_B_MIX
 static void k_snd_black(qd_app_t *a, int key, int b, int down, int vel)
 {
     (void)key, (void)vel;
+    if (qd_msnd_open(a)) {                              /* FIZZ MIDI (e): a MIDI track's: B1..B7 its pages, B11 */
+        if (down)
+            qd_snd_black(a, b);
+        return;
+    }
     if (down && a->ui.snd_fpop && b != QD_SG_FILTER) {   /* P1.6d: the machines' popup: B1..B6 one of them */
         qd_snd_fpop_key(a, b);
         a->ui.snd_fkey_used = 1;
