@@ -19,6 +19,8 @@
  *              (each ON its OFF), a live key's, MIDI in's; STOP the OFFs owed; MIDI OUT changed: the OFF on the old
  *              channel; OFF: nothing; through an arp (its notes); the panic
  *   clock out  START, 24 clocks a beat, STOP; CLOCK OUT OFF: silent; following an outside clock: silent
+ *   out drop   (c2) a new USB connection: the queue emptied; an ON that never went out is owed no more, one that went
+ *              keeps its OFF; 31 notes owed at once (six tracks of 4-note chords and more)
  *   cc out     a knob turn on FREQ: CC 74 on the track's MIDI CH (once, its value); a CC 74 coming in: no echo; the
  *              mixer's LEVEL: CC 7; CC OUT OFF: silent
  *
@@ -50,10 +52,12 @@ static uint64_t frames_done;
 /* (c) MIDI OUT as the port takes it, after every audio call: the packets' status, d1, d2 */
 #define NLOG 8192
 static uint8_t LG[NLOG][3];
-static int nlog;
+static int nlog, nodrain;
 static void drain(void)
 {
     uint32_t p;
+    if (nodrain)                                        /* ((c2) nobody listening: the queue fills) */
+        return;
     while (qd_app_midi_out_take(&A, &p, 64u))
         if (nlog < NLOG)
             LG[nlog][0] = (uint8_t)(p >> 8), LG[nlog][1] = (uint8_t)(p >> 16), LG[nlog][2] = (uint8_t)(p >> 24), nlog++;
@@ -551,6 +555,52 @@ static void t_out_notes(void)
     run(QD_UNDO_QUIET_MS);
 }
 
+/* (c2) the port drops the queue at a new USB connection (fz_port.c fz_midi_out: plat_midi_out_link changed) */
+static void t_out_drop(void)
+{
+    int i;
+    start();
+    mout_set(3);
+    nlog = 0;
+    qd_app_note_on(&A, 0, 60, 90);
+    run(10);
+    CHECK(nsent(0x92, 60, 90) == 1 && A.mo_n == 1, "C4 out, its OFF owed");
+    nodrain = 1;                                        /* (nobody listening) */
+    qd_app_note_on(&A, 1, 62, 90);
+    run(10);
+    CHECK(A.mo_n == 2 && A.mo_w != A.mo_r, "D4 queued, not taken: owed too (%d)", A.mo_n);
+    qd_app_midi_out_drop(&A);
+    nodrain = 0;
+    CHECK(A.mo_w == A.mo_r && A.mo_n == 1 && (A.mo_on[0] & 127u) == 60u,
+          "a new connection: the queue empty, D4 (never out) owed no more, C4 (out) still owed");
+    qd_app_note_off(&A, 0);
+    qd_app_note_off(&A, 1);
+    run(10);
+    CHECK(nsent(0x82, 60, -1) == 1 && !nsent(0x82, 62, -1) && !nsent(0x92, 62, -1) && !A.mo_n,
+          "then: C4's OFF on the new connection, nothing of D4");
+    /* 31 notes owed at once (the 32-packet queue keeps room for every OFF) */
+    nlog = 0;
+    for (i = 0; i < QD_NTRACK; i++)
+        PAT()->trk[i].mout = 3;
+    for (i = 0; i < 31; i++) {                          /* (six tracks, five or six notes each; a block's worth at a
+                                                         * time: one block holds 16 ONs at most, each keeping room for
+                                                         * its OFF and those owed) */
+        qd_player_key_on(&A.player, i % 6, 30 + i, 90);
+        if (i % 4 == 3 || i >= 28)
+            run(5);
+    }
+    run(10);
+    CHECK(A.mo_n == 31 && nsent(0x92, -1, -1) == 31, "31 notes out, all owed (%d)", A.mo_n);
+    qd_app_midi_out_panic(&A);
+    run(10);
+    CHECK(!A.mo_n && pairs_ok(3), "the panic: their 31 OFFs");
+    for (i = 0; i < 31; i++)
+        qd_player_key_off(&A.player, i % 6, 30 + i);
+    for (i = 1; i < QD_NTRACK; i++)
+        PAT()->trk[i].mout = 0;
+    run(QD_UNDO_QUIET_MS);
+}
+
 static void t_out_clock(void)
 {
     int i, f8, want;
@@ -659,6 +709,7 @@ int main(void)
         {"MIDI CH 1..15, a stored 16", t_midi_ch},
         {"the remote: keys, buttons, encoders, faders, MASTER, CC 123", t_remote},
         {"MIDI OUT: the notes, STOP, a channel changed, OFF, an arp", t_out_notes},
+        {"MIDI OUT (c2): a new USB connection; 31 notes owed", t_out_drop},
         {"MIDI OUT: START, 24 clocks a beat, STOP; CLOCK OUT; outside", t_out_clock},
         {"MIDI OUT: the knobs' CCs, none echoed; CC OUT", t_out_cc},
     };

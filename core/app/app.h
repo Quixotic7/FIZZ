@@ -83,7 +83,8 @@ extern "C" {
 #define QD_MIDI_REMOTE 15              /* channel 16: the remote, the panel as if by hand (midi_map.h); no track */
 /* FIZZ MIDI (c), MIDI OUT (USB only; research/FIZZ-MIDI-PLAN.md §4): the out queue's packets and the notes owed */
 #define QD_MO_Q 32                     /* USB-MIDI packets waiting for the port (a power of two, at most 256) */
-#define QD_MO_NOTES 16                 /* notes sent (or queued) whose OFF is owed, every track's together */
+#define QD_MO_NOTES 32                 /* notes sent (or queued) whose OFF is owed, every track's together ((c2): 32,
+                                        * six tracks of 4-note chords; the 32-packet queue keeps room for 31) */
 
 /* the buttons, by QUADRILLE's roles (PLAN.md §8), in the panel's order (printed FX, SEL, ENV, LFO, EDIT, GLO, HOME,
  * SAVE, ARP, SEQ, PLAY, REC, OCT-, OCT+). P1.3b (§8b): QD_B_FUNC is SHIFT, QD_B_KEYS (ARP) the MIDI FX (2026-10-25: FILL is SHIFT + FX),
@@ -261,6 +262,8 @@ void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2);     /* .. and its 
  * calls (the unit: the audio interrupt, right after the block; the glue: midi_out_take) */
 int qd_app_midi_out_take(qd_app_t *a, uint32_t *pkt, uint32_t room);
 void qd_app_midi_out_panic(qd_app_t *a);   /* every note owed: its OFF (the panic, OCT- + OCT+) */
+void qd_app_midi_out_drop(qd_app_t *a);    /* (c2) a new USB connection: the queue emptied (the ONs dropped: owed no
+                                            * more) */
 /* the clock: ms counts up from 0, one call per device millisecond (a gap is run through ms by ms) */
 void qd_app_tick(qd_app_t *a, uint32_t ms);
 /* P2.6c: qd_app_tick in two, for the port's audio lock: qd_app_tick_locked(a, ms) under it (each ms: the patterns

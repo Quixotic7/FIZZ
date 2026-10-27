@@ -211,7 +211,13 @@ void fz_midi_play(int status, int d1, int d2) { qd_app_midi_play(&fz_app, status
 void fz_midi_ui(int status, int d1, int d2) { qd_app_midi_ui(&fz_app, status, d1, d2); }
 void fz_midi_out(void)
 {
+    static uint32_t link;                /* (c2) the USB connection the queue was made for (plat_midi_out_link) */
+    const uint32_t l = plat_midi_out_link();
     uint32_t pkt;
+    if (l != link) {                     /* a new connection: what queued up for no one goes (the ONs: owed no more) */
+        link = l;
+        qd_app_midi_out_drop(&fz_app);
+    }
     while (qd_app_midi_out_take(&fz_app, &pkt, plat_midi_out_room(TO_USB)))
         plat_midi_send(pkt, TO_USB);
 }

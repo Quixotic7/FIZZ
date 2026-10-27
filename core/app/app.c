@@ -450,6 +450,24 @@ static void mo_clock(qd_app_t *a)
         a->mo_pulse++;
     }
 }
+/* (c2) a new USB connection: what waits in the queue was made for no one (nobody took it: plat_midi_out_room 0) and
+ * goes. A NOTE ON dropped never went out: its OFF is no longer owed (the newest entry of its channel and note
+ * forgotten); a note whose ON went out stays owed (its OFF goes on the new connection, at its time) */
+void qd_app_midi_out_drop(qd_app_t *a)
+{
+    while (a->mo_r != a->mo_w) {
+        const uint32_t p = a->mo_q[a->mo_r++ % QD_MO_Q];
+        if ((p & 15u) == 9u && (p >> 24)) {
+            const unsigned key = (unsigned)(p >> 16 & 127u) | (unsigned)(p >> 8 & 15u) << 7;
+            int i;
+            for (i = a->mo_n - 1; i >= 0; i--)
+                if ((a->mo_on[i] & 0x7FFu) == key) {
+                    a->mo_on[i] = a->mo_on[--a->mo_n];
+                    break;
+                }
+        }
+    }
+}
 int qd_app_midi_out_take(qd_app_t *a, uint32_t *pkt, uint32_t room)
 {
     uint32_t p;
