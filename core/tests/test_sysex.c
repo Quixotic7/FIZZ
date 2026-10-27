@@ -771,8 +771,33 @@ static void msnd_tests(void)
     qd_lib_read(&A, m - 1, &ls);
     CHECK(status() == QD_SX_OK && qd_msnd_is(ls.patch) && !memcmp(ls.patch, mp, sizeof mp),
           "STORE6 of a MIDI sound: MY PRESETS %d holds it exactly", m);
+    {   /* (the out queue emptied; track 4's MIDI OUT on channel 4) */
+        uint32_t pk;
+        while (qd_app_midi_out_take(&A, &pk, 64u))
+            ;
+        ((qd_pattern_t *)qd_seq_track_pat(&A.seq, 3))->trk[3].mout = 4;
+    }
     send(f, store6_msg(f, QD_SXF_LOAD | QD_SXF_AUDITION, 0, "SYNTH CCS", mp, 3, 64, 0, 0, 0, 0x0F, 0, 0));
     CHECK(status() == QD_SX_OK && !memcmp(A.model.t[3].patch, mp, sizeof mp), "AUDITION onto track 4: a MIDI track");
+    {   /* its touched slots out on channel 4 (the Manager's edit reaching the synth); then one slot changed: that one */
+        uint32_t pk;
+        int n = 0, good = 0;
+        while (qd_app_midi_out_take(&A, &pk, 64u)) {
+            const int st = (int)(pk >> 8 & 0xFFu), c = (int)(pk >> 16 & 0x7Fu), v = (int)(pk >> 24 & 0x7Fu);
+            n++;
+            good += st == 0xB3 && c >= 70 && (c - 70) % 3 == 0 && v == (c - 70) * 4 + 1;
+        }
+        CHECK(n == 10 && good == 10, "AUDITION of a MIDI sound: its 10 touched slots out as CCs on the track's MIDI OUT (%d, %d)", n, good);
+        mp[QD_MSND_ID[3]] = 77;
+        mp[QD_MSND_ID[1]] = 5;                          /* (untouched: nothing) */
+        send(f, store6_msg(f, QD_SXF_LOAD | QD_SXF_AUDITION, 0, "SYNTH CCS", mp, 3, 64, 0, 0, 0, 0x0F, 0, 0));
+        n = good = 0;
+        while (qd_app_midi_out_take(&A, &pk, 64u)) {
+            n++;
+            good += (pk >> 8 & 0xFFu) == 0xB3u && (pk >> 16 & 0x7Fu) == 73u && (pk >> 24 & 0x7Fu) == 77u;
+        }
+        CHECK(n == 1 && good == 1, "AUDITION again with one touched slot changed: that slot's CC only (%d)", n);
+    }
     dump_track(4);
     {
         const uint8_t *body = R + 6;
