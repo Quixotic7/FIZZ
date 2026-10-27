@@ -147,3 +147,76 @@ export function readRegion(img, layout = layoutOf(img.length)) {
   return { layout: layout.name, size: img.length, magic: lib.magic || prj.magic || "", blank, format, tracks, projects, presets,
     used: { lib: [lib.live, lib.total], prj: [prj.live, prj.total], all: (lib.live + prj.live) / (lib.total + prj.total) } };
 }
+
+// ---- the writer (Manager PROJECTS, backups in the browser's FIZZ): a store written fresh, as store.c's own writes
+// would leave it, but packed: the records one after another from the region's first sector, the sectors' sequence
+// numbers 1, 2, .. in place order (a record runs on into the next sector, the log's next), the records' 1, 2, ..; every
+// other sector erased. A tombstone is left out (no record is the same as a deleted one). store.c keeps QDS_RESERVE
+// blank sectors for its garbage collection: an image that would leave fewer is refused.
+//
+//   records(st)                      -> [{key, bytes}] every live record of a mounted store, by key
+//   writeStore(img, base, nsec, recs, magic) -> sectors used | throws {code: "full"}
+//   buildImage(layout, {lib, prj, magic}) -> a whole region (layout.size bytes)
+//   regionRecords(img)               -> {layout, magic, lib: [{key, bytes}], prj: [..]}
+//   convertImage(img, to)            -> the same records in another layout ("device" <-> "host": a backup in the
+//                                       browser's FIZZ, the 1 MiB flash the player keeps)
+export const RESERVE = 6;                                   // store.h QDS_RESERVE
+const p16 = (b, o, v) => { b[o] = v & 0xFF; b[o + 1] = (v >>> 8) & 0xFF; };
+const p32 = (b, o, v) => { b[o] = v & 0xFF; b[o + 1] = (v >>> 8) & 0xFF; b[o + 2] = (v >>> 16) & 0xFF; b[o + 3] = (v >>> 24) & 0xFF; };
+
+export function records(st) {
+  const out = [];
+  for (const key of [...st.keys.keys()].sort((a, b) => a - b)) {
+    const bytes = get(st, key);
+    if (bytes) out.push({ key, bytes });
+  }
+  return out;
+}
+
+export function writeStore(img, base, nsec, recs, magic = "Z2FS") {
+  img.fill(0xFF, base, base + nsec * SECTOR);
+  let sec = -1, p = PPS, rseq = 0;
+  const page = () => {
+    if (p === PPS) {                                        // the next sector, its header (store.c open_sector)
+      if (++sec >= nsec - RESERVE) throw Object.assign(new Error(`the records do not fit (${nsec - RESERVE} sectors)`), { code: "full" });
+      const o = base + sec * SECTOR;
+      for (let i = 0; i < 4; i++) img[o + i] = magic.charCodeAt(i);
+      p32(img, o + 4, sec + 1);
+      p16(img, o + 8, 0x5A5A); p16(img, o + 10, ~0x5A5A & 0xFFFF);
+      p = 1;
+    }
+    return base + (sec * PPS + p++) * PAGE;
+  };
+  for (const { key, bytes } of recs) {
+    const len = bytes.length, np = pagesOf(len);
+    if (len >= DELETED) throw new Error(`record ${(key >>> 0).toString(16)}: ${len} bytes`);
+    rseq++;
+    for (let idx = 0; idx < np; idx++) {                    // (store.c write_page)
+      const o = page(), take = Math.min(PAYLOAD, len - idx * PAYLOAD);
+      img.fill(0, o + HDR, o + PAGE);
+      if (take > 0) img.set(bytes.subarray(idx * PAYLOAD, idx * PAYLOAD + take), o + HDR);
+      p32(img, o, key >>> 0); p32(img, o + 4, rseq); p16(img, o + 8, idx); p16(img, o + 10, np); p16(img, o + 12, len);
+      p16(img, o + 14, crc16(crc16(0xFFFF, img, o, o + 14), img, o + HDR, o + PAGE));
+    }
+  }
+  return sec + 1;
+}
+
+export function buildImage(layout, { lib = [], prj = [], magic = "Z2FS" } = {}) {
+  if (typeof layout === "string") layout = LAYOUTS[layout];
+  const img = new Uint8Array(layout.size).fill(0xFF);
+  writeStore(img, layout.lib.base, layout.lib.nsec, lib, magic);
+  writeStore(img, layout.prj.base, layout.prj.nsec, prj, magic);
+  return img;
+}
+
+export function regionRecords(img, layout = layoutOf(img.length)) {
+  if (!layout) throw new Error(`not a FIZZ store image (${img.length} bytes)`);
+  const lib = mount(img, layout.lib.base, layout.lib.nsec), prj = mount(img, layout.prj.base, layout.prj.nsec);
+  return { layout, magic: lib.magic || prj.magic || "Z2FS", lib: records(lib), prj: records(prj) };
+}
+
+export function convertImage(img, to) {
+  const r = regionRecords(img);
+  return buildImage(typeof to === "string" ? LAYOUTS[to] : to, r);
+}

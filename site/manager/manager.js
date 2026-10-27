@@ -361,6 +361,7 @@ $("go-presets").addEventListener("click", () => backup("presets"));
 const ICON = '<svg viewBox="0 0 22 22" aria-hidden="true"><rect x="2" y="5" width="18" height="12" rx="3"/><circle cx="8" cy="11" r="2"/><circle cx="14" cy="11" r="2"/></svg>';
 const SAVE_I = '<svg viewBox="0 0 20 20"><path d="M10 3v10M5 9l5 5 5-5M3 17h14"/></svg>';
 const DEL_I = '<svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg>';
+const PLAY_I = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5l9.5 5.5L4 13.5z"/></svg>';
 function whenText(t) {
   const d = new Date(t), now = new Date(), hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
@@ -379,6 +380,7 @@ function renderBaks() {
       ${b.fizz ? `<span class="ver ${old ? "old" : ""}">${esc(b.fizz.replace(/-\d+-g[0-9a-f]+$/, ""))}</span>` : ""}
       <button class="icon ${isSaved(b) ? "saved" : "unsaved"}" data-act="save" aria-label="Save ${esc(b.name)} to a file${isSaved(b) ? " (saved before)" : " (not saved to a file yet)"}" title="${isSaved(b) ? "Save to a file again" : "Save to a file"}">${SAVE_I}</button>
       <button class="icon" data-act="del" aria-label="Delete from this browser" title="Delete from this browser">${DEL_I}</button>
+      ${b.kind === "full" && typeof b.id === "number" ? `<button class="icon play" data-act="play" aria-label="Play ${esc(b.name)} in the browser's FIZZ" title="Play in the browser's FIZZ">${PLAY_I}</button>` : ""}
       <button class="btn small ghost" data-act="restore" ${S.link && !S.busy ? "" : "disabled"}>RESTORE</button></div>`;
   }).join("");
   renderUse();
@@ -406,6 +408,7 @@ $("baks").addEventListener("click", async (ev) => {
     S.baks.splice(S.baks.indexOf(b), 1);
     renderBaks();
   } else if (btn.dataset.act === "restore") openFile(b.bytes, b.name, b);
+  else if (btn.dataset.act === "play") window.open(`../?backup=${b.id}`, "_blank");   // (js/backup-play.js reads it there)
 });
 // a file dropped or chosen: kept in the list, then the restore offered
 async function openFile(bytes, name, rec = null) {

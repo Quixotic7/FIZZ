@@ -121,6 +121,9 @@ b { color: var(--text); }
 .bk .icon.saved svg { stroke: var(--green); }
 .bk .icon.unsaved { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
 .bk .icon.unsaved svg { stroke: var(--yellow); }
+/* ▶: the backup in the browser's FIZZ (the player opens with it) */
+.bk .icon.play { width: 44px; height: 44px; border-radius: 22px; border: 0; background: var(--cyan); box-shadow: 0 0 16px color-mix(in srgb, var(--cyan) 45%, transparent); }
+.bk .icon.play svg { width: 16px; height: 16px; fill: #000; stroke: none; margin-left: 3px; }
 .baks { overflow-y: auto; min-height: 0; flex: 1; margin-bottom: 14px; }
 .drop { border: 2px dashed #34343d; border-radius: 16px; min-height: 92px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--muted); font-weight: 700; font-size: 15px; cursor: pointer; transition: border-color .2s, background .2s; }
 .drop svg { width: 26px; height: 26px; fill: none; stroke: var(--muted); stroke-width: 2.2; }
@@ -152,6 +155,12 @@ button.tag { cursor: pointer; }
 .filters .chips { margin: 0; }
 .srcseg { --c: var(--cream); align-self: flex-start; }
 .srcseg button { height: 34px; }
+.fbar { display: flex; gap: 8px; flex-wrap: wrap; }
+.fbar .seg { margin: 0; }
+.poolseg { --c: var(--green); }
+.poolseg button { height: 34px; display: inline-flex; align-items: center; gap: 6px; }
+.poolseg svg { width: 12px; height: 12px; fill: var(--green); }
+.poolseg button.on svg { fill: #000; }
 .grp { flex: none; display: flex; align-items: center; gap: 8px; margin: 8px 2px 0; font-size: 12px; font-weight: 800; letter-spacing: .12em; color: var(--muted); }
 .grp:first-child { margin-top: 0; }
 .grp span { color: var(--text); letter-spacing: 0; font-size: 13px; }
@@ -605,4 +614,23 @@ button.tag { cursor: pointer; }
   .pn-ops .pnb { grid-template-columns: minmax(0, 1fr); grid-template-areas: "algo" "cards" "dials"; }
   .pn .dial { width: 70px; }
   .pn .dial svg { width: 54px !important; }
+}
+
+/* ---- every page fits the window (the owner, 2026-10-26): the page itself never scrolls; each card's list scrolls by
+   itself (LIBRARY's sound list, the backups, the pool's sounds, the import rows; EDIT's panels as one). A phone keeps
+   the page scrolling (the 900 px layout above) */
+@media (min-width: 901px) {
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  .top, .say, .loadbar { flex: none; }
+  .loadbar { position: static; }
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  main > .body { flex: 1; min-height: 0; }
+  main > .body > .card { min-height: 0; }
+  #tab-library .sel { overflow-y: auto; }
+  #tab-pool .poolcard { overflow-y: auto; }
+  .body.edit { align-items: stretch; }
+  .edcard { overflow-y: auto; }
+  #tab-import .dz { flex: none; }
+  #tab-import .ilist { min-height: 0; }
 }

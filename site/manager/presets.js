@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The preset lists of LIBRARY and POOL (one column each, the same look): MY PRESETS then the factory's, filtered by
-// where they live (ALL, FACTORY, MY PRESETS) and by FIZZ's tags; a sound the project's pool references carries the
+// where they live (ALL, FACTORY, MY PRESETS), by the pool (IN POOL, NOT IN POOL: the owner, 2026-10-26) and by FIZZ's tags; a sound the project's pool references carries the
 // pool's mark (a green ring and a badge with its place number, "+n" when it is in more places), as in the POOL grid.
 import { FIZZ_TAGS, parseDump } from "../js/fizz_sysex.js";
 import { esc, tagsOf, colOf, algo } from "./ui.js";
 
 export const SRC_FILTERS = [["all", "ALL"], ["factory", "FACTORY"], ["mine", "MY PRESETS"]];
-export const newFilter = () => ({ src: "all", tags: new Set() });
+export const newFilter = () => ({ src: "all", tags: new Set(), pool: "" });   // pool: "", "in" or "out"
 
 // preset id -> the pool places referencing it (ascending)
 export function poolPlaces(rows) {
@@ -21,23 +21,28 @@ export function poolBadge(places, cls = "pbadge") {
   return `<span class="${cls}" aria-label="in the pool, place ${places.join(", ")}"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="0" y="0" width="5" height="5" rx="1"/><rect x="7" y="0" width="5" height="5" rx="1"/><rect x="0" y="7" width="5" height="5" rx="1"/><rect x="7" y="7" width="5" height="5" rx="1"/></svg>${places[0]}${places.length > 1 ? `<small>+${places.length - 1}</small>` : ""}</span>`;
 }
 
-// the filter bar: the source segment, then the tag chips
+// the filter bar: the source segment and the pool's (a click on the lit one turns it off), then the tag chips
+const POOL_I = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="0" y="0" width="5" height="5" rx="1"/><rect x="7" y="0" width="5" height="5" rx="1"/><rect x="0" y="7" width="5" height="5" rx="1"/><rect x="7" y="7" width="5" height="5" rx="1"/></svg>';
 export function filterHtml(f) {
-  return `<div class="seg srcseg" role="group" aria-label="Show">${SRC_FILTERS.map(([k, t]) => `<button data-src="${k}" class="${f.src === k ? "on" : ""}" aria-pressed="${f.src === k}">${t}</button>`).join("")}</div>` +
+  return `<div class="fbar"><div class="seg srcseg" role="group" aria-label="Show">${SRC_FILTERS.map(([k, t]) => `<button data-src="${k}" class="${f.src === k ? "on" : ""}" aria-pressed="${f.src === k}">${t}</button>`).join("")}</div>` +
+    `<div class="seg poolseg" role="group" aria-label="The pool">${[["in", "IN POOL"], ["out", "NOT IN POOL"]].map(([k, t]) => `<button data-pool="${k}" class="${k} ${f.pool === k ? "on" : ""}" aria-pressed="${f.pool === k}">${k === "in" ? POOL_I : ""}${t}</button>`).join("")}</div></div>` +
     `<div class="chips">${FIZZ_TAGS.map((t) => `<button class="tag t-${t} ${f.tags.size && !f.tags.has(t) ? "off" : ""}" data-tag="${t}" aria-pressed="${f.tags.has(t)}">${t}</button>`).join("")}</div>`;
 }
 // a click in the filter bar: true when the filter changed
 export function filterClick(f, ev) {
-  const s = ev.target.closest("[data-src]"), t = ev.target.closest("[data-tag]");
+  const s = ev.target.closest("[data-src]"), t = ev.target.closest("[data-tag]"), p = ev.target.closest("[data-pool]");
   if (s) { f.src = s.dataset.src; return true; }
+  if (p) { f.pool = f.pool === p.dataset.pool ? "" : p.dataset.pool; return true; }
   if (t) { if (f.tags.has(t.dataset.tag)) f.tags.delete(t.dataset.tag); else f.tags.add(t.dataset.tag); return true; }
   return false;
 }
 const tagOk = (f, r) => !f.tags.size || tagsOf(r.tags).some((t) => f.tags.has(t));
-// the rows shown: MY PRESETS first, then the factory's
-export function shownRows(rows, f) {
-  const mine = f.src === "factory" ? [] : rows.filter((r) => r.source === "mine" && tagOk(f, r));
-  const fac = f.src === "mine" ? [] : rows.filter((r) => r.source === "factory" && tagOk(f, r));
+const poolOk = (f, r, places) => !f.pool || (f.pool === "in") === !!(places.get(r.id) || []).length;
+// the rows shown: MY PRESETS first, then the factory's (places: poolPlaces of the rows, made here when not given)
+export function shownRows(rows, f, places = poolPlaces(rows)) {
+  const ok = (r) => tagOk(f, r) && poolOk(f, r, places);
+  const mine = f.src === "factory" ? [] : rows.filter((r) => r.source === "mine" && ok(r));
+  const fac = f.src === "mine" ? [] : rows.filter((r) => r.source === "factory" && ok(r));
   return { mine, fac };
 }
 
@@ -51,7 +56,7 @@ export function casHtml(r, o) {
 }
 // the whole list: the two groups, each under its name when both show
 export function listHtml(rows, f, o) {
-  const { mine, fac } = shownRows(rows, f);
+  const { mine, fac } = shownRows(rows, f, o.places);
   const grp = (name, n) => `<div class="grp" role="presentation">${name}<span>${n}</span></div>`;
   const both = f.src === "all";
   return (both && mine.length ? grp("MY PRESETS", mine.length) : "") + mine.map((r) => casHtml(r, o)).join("") +

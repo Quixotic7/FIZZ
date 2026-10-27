@@ -137,6 +137,7 @@ body.embed #corner, body.sheet-open #corner { display: none; }
 #start p.start-note { color: var(--row-text); font-size: 13px; }
 #start p.start-note.on { color: var(--green); }
 #start p.start-note.bad { color: var(--amber); max-width: 420px; margin-left: auto; margin-right: auto; }
+#start p.start-from { margin: 2px 0 14px; color: var(--text, #ECECEF); font-size: 20px; font-weight: 800; letter-spacing: .02em; }
 #start p[hidden] { display: none; }
 kbd { font: 600 11px/1 "Inter Tight", sans-serif; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; color: var(--row-text); background: var(--raised); }
 
