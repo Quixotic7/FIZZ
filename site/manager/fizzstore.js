@@ -118,7 +118,7 @@ export function get(st, key) {
 const cstr = (b, o, n) => { let s = ""; for (let i = 0; i < n && b[o + i]; i++) s += String.fromCharCode(b[o + i]); return s; };
 
 // a MY PRESETS record ('S' 5: name[13], the version-6 blob, id u16, tags, flags, pan, chorus, delay, reverb)
-function preset(b, slot) {
+export function preset(b, slot) {
   if (!b || b.length < 2 || b[0] !== 0x53 || b[1] !== 5 || b.length !== 2 + NAME + BLOB + 8) return null;
   const o = 2 + NAME + BLOB, blob = b.slice(2 + NAME, o);
   const pan = (b[o + 4] << 24) >> 24;
