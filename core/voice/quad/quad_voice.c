@@ -709,3 +709,11 @@ int qd_quad_dest_step(int dest, int d)                   /* (ChoralRoot's editor
     at = at < 0 ? 0 : at >= (int)QD_N ? (int)QD_N - 1 : at;
     return QUAD_DEST_ORDER[at];
 }
+int qd_quad_dest_pos(int dest)                          /* (its place in that order; 0: none) */
+{
+    int k;
+    for (k = 0; k < (int)QD_N; k++)
+        if (QUAD_DEST_ORDER[k] == dest)
+            return k;
+    return 0;
+}

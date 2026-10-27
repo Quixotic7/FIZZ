@@ -667,7 +667,7 @@ typedef struct {
     int boost;                          /* .. 2026-10-26: BOOST (+6 dB) */
     float t;                            /* seconds (the playhead moves) */
     /* P1.4b, the track settings: the track (its number, name, colour), the page; page 1: the scale's name, its root,
-     * its notes (bit k: pitch class k), FOLLOW KEY, the MIDI channel (1..16); page 2: VOICES, SWING, PAGE FOLLOW */
+     * its notes (bit k: pitch class k), FOLLOW KEY, the MIDI channel (1..15; a stored 16 shown); page 2: VOICES, SWING, PAGE FOLLOW */
     int track, page;
     const char *tname, *scale, *root;
     int scale_mask, root_pc, follow_key, chan, limit, swing, voices_now;

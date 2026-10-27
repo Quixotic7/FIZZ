@@ -222,6 +222,7 @@ int qd_quad_owner_lfos(const qd_quad_owner_t *o, int16_t *w, uint8_t *dest);
 int qd_quad_lfo_value(int id, int v, const int16_t *w, const uint8_t *dest);
 const char *qd_quad_dest_name(int dest);
 int qd_quad_dest_step(int dest, int d);
+int qd_quad_dest_pos(int dest);         /* FIZZ MIDI (a): dest's place in that order (0 .. qd_quad_ndest() - 1) */
 
 #ifdef __cplusplus
 }

@@ -260,7 +260,10 @@ int qd_trk_knob(qd_app_t *a, int knob, int d)
             break;
         case QD_K_2: *sc = (uint8_t)cl(*sc + d, 0, QD_NSCALE - 1); break;
         case QD_K_3: *rt = (uint8_t)(((*rt + d) % 12 + 12) % 12); break;
-        default: ts->chan = (uint8_t)cl(ts->chan + d, 0, 15); break;
+        default:                                        /* MIDI CH 1..15 (FIZZ MIDI (a): 16 the remote's; a stored 16
+                                                         * stays until turned down) */
+            ts->chan = (uint8_t)cl(ts->chan + d, 0, ts->chan > 14 ? ts->chan : 14);
+            break;
         }
     } else {
         switch (knob) {

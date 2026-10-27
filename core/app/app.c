@@ -13,6 +13,7 @@
 #include "ui.h"
 #include "../seq/demo.h"
 #include "../voice/fx/qd_fx.h"
+#include "midi_map.h"
 
 
 /* the tempo the sound runs at (FM TONE's synced LFOs and DELAYs, the synced delay) */
@@ -178,17 +179,22 @@ void qd_app_master(qd_app_t *a, int pot)
 }
 
 /* MIDI in (P1.6g): a channel plays the tracks set to it (the track settings' MIDI CH, the track's pattern's; 1..8 by
- * default) and channel 16 the selected track too, notes and controllers (MW, BREATH, AT, PB: the tracks' modulation
- * sources); on the selected track the notes also go into a held step or the recording (ctl_rec.c); all notes off / all
- * sound off release the channel's tracks; the clock (0xF8), START (0xFA), CONTINUE (0xFB), STOP (0xFC) drive the
- * transport */
+ * default) and channel 15 the selected track too (FIZZ MIDI (a): was 16), notes and controllers (MW, BREATH, AT, PB: the
+ * tracks' modulation sources; the CCs of the map (midi_map.h) their sounds); on the selected track the notes also go into
+ * a held step or the recording (ctl_rec.c); all notes off / all sound off release the channel's tracks; the clock
+ * (0xF8), START (0xFA), CONTINUE (0xFB), STOP (0xFC) drive the transport. Channel 16 never plays a track: it is the
+ * remote's (research/FIZZ-MIDI-PLAN.md §3; a track's MIDI CH stored as 16 stays, and plays nothing) */
+#define QD_MIDI_SEL 14                                  /* (0-based) channel 15: the selected track */
+#define QD_MIDI_REMOTE 15                               /* .. channel 16: the remote */
 static int midi_tracks(const qd_app_t *a, int ch)       /* the tracks channel ch plays (bit t) */
 {
     int t, m = 0;
+    if (ch == QD_MIDI_REMOTE)
+        return 0;
     for (t = 0; t < QD_NTRACK; t++)
         if (qd_seq_track_pat(&a->seq, t)->trk[t].chan == ch)
             m |= 1 << t;
-    if (ch == 15)
+    if (ch == QD_MIDI_SEL)
         m |= 1 << a->sel;
     return m;
 }
@@ -225,7 +231,7 @@ static void midi_play(qd_app_t *a, int status, int d1, int d2)
     default:
         break;
     }
-    if (status >= 0xF0)
+    if (status >= 0xF0 || ch == QD_MIDI_REMOTE)        /* (the remote's: the UI side's alone) */
         return;
     d1 &= 127;
     d2 &= 127;
@@ -278,11 +284,12 @@ void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2)
     const int ch = status & 15, kind = status & 0xF0;
     int mine;
     a->edit_gen++;                                      /* (P2.6c) */
-    if (status >= 0xF0)
+    if (status >= 0xF0 || ch == QD_MIDI_REMOTE)
         return;
-    qd_undo_input(a, 0);                                /* (P1.5c: notes into a held step or a take: a gesture) */
     d1 &= 127;
     d2 &= 127;
+    qd_undo_input(a, kind == 0xB0 && qd_midi_cc_id(d1) >= 0);   /* (P1.5c: notes into a held step or a take: a gesture;
+                                                         * FIZZ MIDI (a): a mapped CC as a knob's detent) */
     if (kind == 0x90 && d2) {                           /* (the selected track's: kept with the note, for its OFF) */
         mine = (midi_tracks(a, ch) >> a->sel) & 1;
         if (mine)
@@ -297,9 +304,13 @@ void qd_app_midi_ui(qd_app_t *a, int status, int d1, int d2)
         if (mine)
             qd_rec_midi_note(a, d1, 0, 0);
     } else {
-        mine = (midi_tracks(a, ch) >> a->sel) & 1;
+        const int m = midi_tracks(a, ch);
+        mine = (m >> a->sel) & 1;
         if (kind == 0xB0 && (d1 == 120 || d1 == 123))
             memset(a->midi_sel[ch], 0, sizeof a->midi_sel[ch]);
+        else if (kind == 0xB0)                          /* FIZZ MIDI (a): the CC map, the tracks' sounds (here, never in
+                                                         * the audio side) */
+            qd_midi_cc_in(a, m, d1, d2);
     }
     if (mine)
         qd_ctl_preview_sync(a);
@@ -821,3 +832,4 @@ void qd_app_audio(qd_app_t *a, int16_t *stereo, uint32_t frames)
 #include "persist.c"
 #include "undo.c"
 #include "fizz_sx.c"                                  /* P1.5r: SysEx (fizz_sx.h) */
+#include "midi_map.c"                                 /* FIZZ MIDI: the CC map, the remote (midi_map.h) */
