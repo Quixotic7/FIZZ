@@ -603,8 +603,10 @@ static void p2b_tests(void)
           "PARAM: a negative value (HARM -26.01 -> -26.00), a value 74.. (BITS 40)");
     param(6, QD_QP_FREQ, 100, 0);
     CHECK(ack(QD_SX_PARAM) == QD_SX_BAD_TRACK, "PARAM onto track 7: BAD TRACK (answered without ACK)");
-    param(1, 110, 0, 0);
-    CHECK(ack(QD_SX_PARAM) == QD_SX_NOT_FOUND, "PARAM of value 110: NOT FOUND");
+    param(1, QD_QUAD_NP, 0, 0);
+    CHECK(ack(QD_SX_PARAM) == QD_SX_NOT_FOUND, "PARAM of value %d (past the sound's): NOT FOUND", QD_QUAD_NP);
+    param(1, QD_QP_UNI, 4, 0);
+    CHECK(A.model.t[1].patch[QD_QP_UNI] == 4, "PARAM: the VOICE page's UNISON (4)");
     A.sel = 4;
     param(QD_SXP_SELECTED, QD_QP_RESO, 3000, QD_SXP_ACK);
     CHECK(ack(QD_SX_PARAM) == QD_SX_OK && ack_v1() == 5 && A.model.t[4].patch[QD_QP_RESO] == 3000, "PARAM onto track 127: the selected one (5)");

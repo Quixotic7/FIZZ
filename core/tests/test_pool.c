@@ -517,6 +517,102 @@ static void t_steal8(void)
     printf("  steal at 8 voices: a released voice first, then the oldest held note of the busiest track\n");
 }
 
+/* 2026-10-26, the VOICE page: UNISON n voices a note (detuned, spread; a LIMIT keeps the middle ones), MONO takes the
+ * track's voices, LEGATO moves them, PRIORITY: the lowest robbed first, a note never robs a higher one */
+static int track_voices(int t, int note, uint32_t *dmin, uint32_t *dmax, int *pmin, int *pmax)
+{
+    int i, n = 0;
+    *dmin = 0xFFFFFFFFu, *dmax = 0, *pmin = 99, *pmax = -99;
+    for (i = 0; i < P.nvoice; i++)
+        if (qd_pool_sounding(&P, i) && P.v[i].track == t && P.v[i].q.note == note && P.v[i].q.gate) {
+            const uint32_t d = P.v[i].q.udet ? P.v[i].q.udet : 65536u;
+            const int pn = P.v[i].at.mixm & (1u << QD_VMIX_PAN) ? P.v[i].at.mixv[QD_VMIX_PAN] : P.pan[t];
+            n++;
+            *dmin = d < *dmin ? d : *dmin, *dmax = d > *dmax ? d : *dmax;
+            *pmin = pn < *pmin ? pn : *pmin, *pmax = pn > *pmax ? pn : *pmax;
+        }
+    return n;
+}
+static void t_voice(void)
+{
+    static int16_t U[QD_QUAD_NP], H[QD_QUAD_NP];
+    uint32_t dmin, dmax;
+    int pmin, pmax, n, a, k;
+    uint8_t blob[QD_QUAD_BLOB];
+    int16_t q[QD_QUAD_NP];
+    memcpy(U, PA, sizeof U);
+    CHECK(U[QD_QP_VMODE] == 0 && U[QD_QP_UNI] == 1 && U[QD_QP_UDET] == 20 && U[QD_QP_USPR] == 64 && U[QD_QP_VPRIO] == 1,
+          "a factory sound's VOICE page: POLY, UNISON OFF, DETUNE 20, SPREAD 64, PRIORITY MID");
+    qd_quad_pack(U, blob);
+    CHECK(!blob[124] && !blob[125] && !blob[126] && !blob[127], "its blob's last four bytes zeros (as every older one)");
+    U[QD_QP_VMODE] = 1, U[QD_QP_UNI] = 5, U[QD_QP_UDET] = 127, U[QD_QP_USPR] = 0, U[QD_QP_VPRIO] = 2;
+    qd_quad_pack(U, blob);
+    CHECK(qd_quad_unpack(blob, QD_QUAD_BLOB, q) == 1 && !memcmp(q, U, sizeof q), "the VOICE page's values round-trip");
+    CHECK(!qd_quad_lockable(QD_QP_UNI) && !qd_quad_lockable(QD_QP_VPRIO) && qd_quad_lockable(QD_QP_PORT) &&
+          qd_quad_lockable(QD_QP_MOD(7, QD_QM_DEPTH)), "the VOICE page's values are not lockable, the others are");
+    /* UNISON 4, SPREAD 127 on track 1 (pan 0): four voices, detuned both ways, across the stereo */
+    reset(8);
+    memcpy(U, PA, sizeof U);
+    U[QD_QP_UNI] = 4, U[QD_QP_UDET] = 127, U[QD_QP_USPR] = 127;
+    qd_pool_set_pan(&P, 0, 0);
+    a = qd_pool_note_on(&P, 0, &O[0], 60, 100, U);
+    blocks(2);
+    n = track_voices(0, 60, &dmin, &dmax, &pmin, &pmax);
+    CHECK(a >= 0 && n == 4 && dmin < 65536u - 1000u && dmax > 65536u + 1000u && pmin <= -60 && pmax >= 60,
+          "UNISON 4: %d voices on the note, detune %u..%u, pan %d..%d", n, (unsigned)dmin, (unsigned)dmax, pmin, pmax);
+    qd_pool_note_off(&P, 0, 60);
+    blocks(1);
+    CHECK(track_voices(0, 60, &dmin, &dmax, &pmin, &pmax) == 0, "the note's key up: all four released");
+    /* a LIMIT of 2 under UNISON 5: the two middle ones (the least detuned) */
+    reset(8);
+    U[QD_QP_UNI] = 5, U[QD_QP_USPR] = 0;
+    qd_pool_set_track(&P, 0, 2, 0);
+    qd_pool_note_on(&P, 0, &O[0], 60, 100, U);
+    blocks(2);
+    n = track_voices(0, 60, &dmin, &dmax, &pmin, &pmax);
+    CHECK(n == 2 && dmin >= 65536u - 1200u && dmax <= 65536u + 1200u, "UNISON 5 on a LIMIT 2: the middle two (%d, %u..%u)",
+          n, (unsigned)dmin, (unsigned)dmax);
+    /* MONO: one note at a time on the track (UNISON 3: three voices, the next note takes them) */
+    reset(8);
+    U[QD_QP_VMODE] = 1, U[QD_QP_UNI] = 3;
+    qd_pool_note_on(&P, 0, &O[0], 60, 100, U);
+    blocks(1);
+    qd_pool_note_on(&P, 0, &O[0], 64, 100, U);
+    blocks(3);
+    CHECK(track_voices(0, 60, &dmin, &dmax, &pmin, &pmax) == 0 && track_voices(0, 64, &dmin, &dmax, &pmin, &pmax) == 3,
+          "MONO, UNISON 3: the second note took the first's three voices");
+    /* MONO LEGATO, a key down: moved, no new attack (the same slots) */
+    reset(8);
+    U[QD_QP_UNI] = 1, U[QD_QP_PORT] = QD_PORT_LEGATO;
+    a = qd_pool_note_on(&P, 0, &O[0], 60, 100, U);
+    blocks(2);
+    k = qd_pool_note_on(&P, 0, &O[0], 67, 100, U);
+    blocks(1);
+    CHECK(k == a && P.v[a].q.note == 67 && P.v[a].q.gate && P.legatos == 1, "MONO LEGATO: the held voice moved to the "
+          "new note (slot %d -> %d)", a, k);
+    /* PRIORITY: 8 voices full, HIGH on track 1 and LOW on track 2: a MID note robs the LOW track; a LOW note into 8
+     * HIGH ones is dropped */
+    reset(8);
+    memcpy(H, PA, sizeof H);
+    H[QD_QP_VPRIO] = 2;
+    memcpy(U, PA, sizeof U);
+    U[QD_QP_VPRIO] = 0;
+    for (k = 0; k < 6; k++)
+        qd_pool_note_on(&P, 0, &O[0], 60 + k, 100, H), blocks(1);
+    for (k = 0; k < 2; k++)
+        qd_pool_note_on(&P, 1, &O[1], 70 + k, 100, U), blocks(1);
+    a = qd_pool_note_on(&P, 2, &O[2], 80, 100, PA);
+    blocks(3);
+    CHECK(a >= 0 && sounding_note(2, 80) >= 0 && sounding_note(0, 60) >= 0 && sounding_note(1, 70) < 0,
+          "PRIORITY: track 1 (HIGH) is the furthest over, yet the MID note robbed track 2's LOW voice");
+    reset(8);
+    for (k = 0; k < 8; k++)
+        qd_pool_note_on(&P, 0, &O[0], 50 + k, 100, H), blocks(1);
+    a = qd_pool_note_on(&P, 1, &O[1], 80, 100, U);
+    CHECK(a < 0 && P.prio_drops == 1, "PRIORITY: a LOW note into eight HIGH voices: dropped");
+    printf("  VOICE: unison (detune, spread, a LIMIT's middle), MONO, LEGATO, PRIORITY\n");
+}
+
 int main(void)
 {
     qd_quad_preset_patch(0, PA);
@@ -536,6 +632,7 @@ int main(void)
     t_free();
     t_glide();
     t_steal8();
+    t_voice();
     CHECK(qd_pool_is_dip_id(QD_QP_FTYPE) && qd_pool_is_dip_id(QD_QP_BWPOST) && !qd_pool_is_dip_id(QD_QP_FSHAPE) &&
           !qd_pool_is_dip_id(QD_QP_FGAIN), "E2: a machine switched, BWPOST: the dip (the morph, the gain: not)");
     printf("test_pool: %d checks, %d failed\n", checks, fails);

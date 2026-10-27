@@ -115,6 +115,11 @@ export const VALUES = [
   ["SOURCE", 0, 8, 0, "list", ["OFF","VEL","KEY","MW","AT","PB","BR","RAND","F ENV"]],  // 107
   ["DEST", 0, 63, 0, "list", ["NONE","PITCH","P AB2","ALGO","RAT C","RAT A","RAT B","OFS C","OFS A","OFSB1","OFSB2","HARM","DTUN","FDBK","MIX","A LEV","B LEV","A ATK","A DEC","A END","B ATK","B DEC","B END","A DLY","B DLY","FREQ","RESO","FENV","BASE","WIDTH","F ATK","F DEC","F SUS","F REL","AMP A","AMP D","AMP S","AMP R","LEVEL","PAN","L1SPD","L1MUL","L1FAD","L1WAV","L1SPH","L1MOD","L1DEP","R ALL","ABLEV","ABATK","ABDEC","ABEND","ABDLY","DRIVE","REV","DEL","CHO","F DLY","HOLD","PTIM","SHAPE","GAIN","BITS","SRR"]],  // 108
   ["DEPTH", -127, 127, 0, "ofs", {}],  // 109
+  ["VOICE", 0, 1, 0, "int", {"0":"POLY","1":"MONO"}],  // 110
+  ["UNISON", 1, 8, 1, "int", {"1":"OFF"}],  // 111
+  ["DETUNE", 0, 127, 20, "int", {}],  // 112
+  ["SPREAD", 0, 127, 64, "int", {}],  // 113
+  ["PRIORITY", 0, 2, 1, "int", {"0":"LOW","1":"MID","2":"HIGH"}],  // 114
 ];
 export const ALGOS = [
   [[6, 0, 8, 0], 1, 1, 4],

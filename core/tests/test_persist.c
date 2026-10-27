@@ -333,6 +333,36 @@ static void mfx_test(void)
           "the same after a restart");
 }
 
+/* 2026-10-26, 'P' 6: the sound's VOICE page (110..114) moved the mix's lock ids up by 5. A pattern with a PAN and a
+ * REVERB lock written as an older record ('P' 4: the ids as they were) comes back after a restart with them as PAN and
+ * REVERB again (not as UNISON, SPREAD); written as 'P' 6, the same */
+static void voice_ids_test(void)
+{
+    int16_t v1 = 0, v2 = 0;
+    int k;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    qd_lock_set(qd_proj_pat(&A.proj, QD_PAT_START), 2, 5, QD_LK_PAN, -40);
+    qd_lock_set(qd_proj_pat(&A.proj, QD_PAT_START), 2, 5, QD_LK_REVERB, 99);
+    qd_proj_pat(&A.proj, QD_PAT_START)->used = 1;
+    for (k = 0; k < 2; k++) {
+        qd_persist_write_v4 = k == 0;
+        qd_proj_pat(&A.proj, QD_PAT_START)->swing = (uint8_t)(k + 1);   /* (a change: written again) */
+        run(&A, 2000);
+        qd_persist_flush(&A);
+        qd_persist_write_v4 = 0;
+        boot(&B);
+        CHECK(qd_lock_get(qd_proj_cpat(&B.proj, QD_PAT_START), 2, 5, QD_LK_PAN, &v1) && v1 == -40 &&
+                  qd_lock_get(qd_proj_cpat(&B.proj, QD_PAT_START), 2, 5, QD_LK_REVERB, &v2) && v2 == 99 &&
+                  !qd_lock_get(qd_proj_cpat(&B.proj, QD_PAT_START), 2, 5, QD_QP_UNI, 0) &&
+                  !qd_lock_get(qd_proj_cpat(&B.proj, QD_PAT_START), 2, 5, QD_QP_USPR, 0),
+              "2026-10-26: a PAN and a REVERB lock written as %s come back as PAN (%d) and REVERB (%d), not the VOICE page's",
+              k ? "'P' 6" : "an older 'P' 4", v1, v2);
+    }
+}
+
 /* P1.5v: the tags: several on one of MY presets and on a pool sound, the factory's as the owner set them, kept across
  * a restart; an 'S' 2 record's kind becomes its one tag */
 /* E1: an 'S' 5 record as an older one had it: its blob 96 bytes (version 5), the rest as it was; the new length */
@@ -1030,7 +1060,7 @@ static uint16_t rec_ref(qd_app_t *a, int p, int k, int t)   /* (a pattern record
     uint8_t h[12 + 2 * QD_PAT_NTRACK];
     uint16_t r;
     const int len = qd_store_get(&a->per.prj_st, QD_RKEY(QD_RK_PAT, p, k), h, sizeof h);
-    if (len < (int)sizeof h || h[0] != 'P' || h[1] != 5)
+    if (len < (int)sizeof h || h[0] != 'P' || h[1] < 5)                 /* (2026-10-26: 'P' 6 as 'P' 5) */
         return 0xFFFFu;
     memcpy(&r, h + 12 + 2 * t, 2);
     return r;
@@ -1571,6 +1601,7 @@ int main(void)
     p5_migration_test();
     migration_test();
     mfx_test();
+    voice_ids_test();
     tags_test();
     refs_test();
     migrate72_test();

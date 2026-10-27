@@ -117,7 +117,7 @@ enum { QD_SX_OK, QD_SX_FULL, QD_SX_BAD_LENGTH, QD_SX_BAD_CHECKSUM, QD_SX_BAD_PAT
 /* Manager P2-B: a STORE over a used MY PRESETS place waiting for its job (the other projects' records that load the
  * preset keep their own copies first, a project a step, outside the handler): the frame as read */
 typedef struct {
-    int16_t patch[110];                /* (QD_QUAD_NP) */
+    int16_t patch[115];                /* (QD_QUAD_NP) */
     char name[QD_SX_NAME + 1];
     uint8_t flags, track, mix[5];      /* STORE's flags, track, pan + 64, chorus, delay, reverb, mixmask */
     uint8_t tags, has_x, x_sound, x_flags;   /* the tags byte (0 none); the extras: given, pool sound, flags */

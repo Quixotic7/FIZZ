@@ -46,8 +46,9 @@ typedef qd_quad_owner_t track_t;
 /* (C99: an array of negative size fails the build) quad_voice.h's sizes are eng_quad.c's; quad_voice_t fits */
 typedef char qd_quad_sizes_ok[QD_QUAD_FMNP == QP_NP && QD_QUAD_NP5 == QP_NP + 1 && QD_QP_DRIVE == QP_NP &&
                               QUAD_V5_LEN < QUAD_BLOB && QD_QUAD_BLOB5 == QUAD_BLOB && QD_QUAD_CTL == CTL &&
-                              QD_QUAD_NPRESET == 1 + QUAD_NPRESETS && QD_QP_MOD(QD_NMOD - 1, QD_QM_DEPTH) + 1 == QD_QUAD_NP &&
-                              QUAD_V5_LEN + 1 + (QD_QUAD_NP - QD_QUAD_NP5) <= QD_QUAD_BLOB ? 1 : -1];
+                              QD_QUAD_NPRESET == 1 + QUAD_NPRESETS && QD_QP_MOD(QD_NMOD - 1, QD_QM_DEPTH) + 1 == QD_QP_VMODE &&
+                              QD_QP_VMODE == QD_QUAD_NP_E4 && QD_QP_VPRIO + 1 == QD_QUAD_NP &&
+                              QUAD_V5_LEN + 1 + (QD_QUAD_NP_E4 - QD_QUAD_NP5) + 4 == QD_QUAD_BLOB ? 1 : -1];
 typedef char qd_quad_dpre_ok[sizeof(((qd_quad_voice_t *)0)->dpre) == sizeof(qd_dist_t) ? 1 : -1];
 typedef char qd_quad_qp_ok[QD_QP_ALGO == QP_ALGO && QD_QP_PHRT == QP_PHRT && QD_QP_FREQ == QP_FREQ &&
                            QD_QP_FTYPE == QP_FTYPE && QD_QP_LEVEL == QP_LEVEL && QD_QP_LFO0 == QP_LFO0 &&
@@ -65,6 +66,8 @@ static const char *const QE_PSLOPE[2] = {"TIME", "RATE"};
 static const char *const QE_PREPOST[2] = {"POST", "PRE"};
 static const char *const QE_BEFAFT[2] = {"BEFORE", "AFTER"};
 static const char *const QE_MSRC[QD_MS_N] = {"OFF", "VEL", "KEY", "MW", "AT", "PB", "BR", "RAND", "F ENV"};
+static const char *const QE_VMODE[2] = {"POLY", "MONO"};
+static const char *const QE_PRIO[3] = {"LOW", "MID", "HIGH"};
 static qe_val_t qe_val(int i)
 {
     static const qe_val_t T[QD_QP_MOD0 - QD_QP_AMOD] = {
@@ -74,11 +77,15 @@ static qe_val_t qe_val(int i)
         {0, 1, 1, "ROUTE", QE_BEFAFT}};
     static const qe_val_t M[3] = {{0, 8, 0, "SOURCE", QE_MSRC}, {0, (int16_t)(QD_N - 1), 0, "DEST", 0},
                                   {-127, 127, 0, "DEPTH", 0}};
+    static const qe_val_t V[5] = {{0, 1, 0, "VOICE", QE_VMODE}, {1, 8, 1, "UNISON", 0}, {0, 127, 20, "DETUNE", 0},
+                                  {0, 127, 64, "SPREAD", 0}, {0, 2, 1, "PRIORITY", QE_PRIO}};   /* (the VOICE page) */
     static const qe_val_t Z = {0, 0, 0, "?", 0};
     if (i >= QD_QP_AMOD && i < QD_QP_MOD0)
         return T[i - QD_QP_AMOD];
-    if (i >= QD_QP_MOD0 && i < QD_QUAD_NP)
+    if (i >= QD_QP_MOD0 && i < QD_QP_VMODE)
         return M[(i - QD_QP_MOD0) % 3];
+    if (i >= QD_QP_VMODE && i < QD_QUAD_NP)
+        return V[i - QD_QP_VMODE];
     return Z;
 }
 static void qe_defaults(int16_t *p)
@@ -302,6 +309,8 @@ int qd_quad_voice_render(qd_quad_voice_t *v, int32_t *out)
     memset(&m, 0, sizeof m);
     m.pitch16 = v->pitch_cur;
     m.inc = pitch_inc((uint32_t)v->pitch_cur);
+    if (v->udet)                                        /* (a unison voice: its detune, a block at a time) */
+        m.inc = (uint32_t)(((uint64_t)m.inc * v->udet) >> 16);
     m.shape = 64 << 8;                                  /* (the engine's middle: FM TONE does not read it) */
     m.amp0 = v->env_out;
     v->env_out = v->kill || v->dip ? 0 : full;
@@ -358,18 +367,40 @@ void qd_quad_pack5(const int16_t *p, uint8_t *blob)
     quad_pack(p, blob);
     blob[QUAD_V5_LEN] = (uint8_t)clamp(p[QD_QP_DRIVE], 0, 127);   /* P1.4a: DRIVE after version 5's values */
 }
-/* E1: version 6: version 5's values, DRIVE at 87, then the values 74.. a byte each (value - min), zeros to 128 */
+/* 2026-10-26: the VOICE page's values in the blob's last four bytes (124..127, zeros in every older blob), each a
+ * byte that is 0 at its default: 124 VOICE (bit 0) and PRIORITY ((value - 1) & 3, bits 1..2), 125 UNISON - 1, 126
+ * DETUNE - 20, 127 SPREAD - 64 (mod 256) */
+#define QV_O (QD_QUAD_BLOB - 4)
+static void qv_pack(const int16_t *p, uint8_t *b)
+{
+    b[0] = (uint8_t)((clamp(p[QD_QP_VMODE], 0, 1) & 1) | (((clamp(p[QD_QP_VPRIO], 0, 2) - 1) & 3) << 1));
+    b[1] = (uint8_t)(clamp(p[QD_QP_UNI], 1, 8) - 1);
+    b[2] = (uint8_t)((clamp(p[QD_QP_UDET], 0, 127) - 20) & 255);
+    b[3] = (uint8_t)((clamp(p[QD_QP_USPR], 0, 127) - 64) & 255);
+}
+static int qv_unpack(const uint8_t *b, int16_t *p)
+{
+    const int pr = ((b[0] >> 1) + 1) & 3, det = (b[2] + 20) & 255, spr = (b[3] + 64) & 255;
+    if ((b[0] & 0xF8u) || pr > 2 || b[1] > 7 || det > 127 || spr > 127)
+        return 0;
+    p[QD_QP_VMODE] = (int16_t)(b[0] & 1), p[QD_QP_VPRIO] = (int16_t)pr, p[QD_QP_UNI] = (int16_t)(b[1] + 1);
+    p[QD_QP_UDET] = (int16_t)det, p[QD_QP_USPR] = (int16_t)spr;
+    return 1;
+}
+int qd_quad_lockable(int id) { return id >= 0 && id < QD_QUAD_NP && (id < QD_QP_VMODE || id > QD_QP_VPRIO); }
+
+/* E1: version 6: version 5's values, DRIVE at 87, then the values 74..109 a byte each (value - min), then the VOICE
+ * page's four bytes (qv_pack) */
 void qd_quad_pack(const int16_t *p, uint8_t *blob)
 {
     int i, o = (int)QUAD_V5_LEN + 1;
     qd_quad_pack5(p, blob);
     blob[1] = 6;
-    for (i = QD_QP_AMOD; i < QD_QUAD_NP; i++) {
+    for (i = QD_QP_AMOD; i < QD_QP_VMODE; i++) {
         const qe_val_t r = qe_val(i);
         blob[o++] = (uint8_t)(clamp(p[i], r.min, r.max) - r.min);
     }
-    while (o < QD_QUAD_BLOB)
-        blob[o++] = 0;
+    qv_pack(p, blob + QV_O);
 }
 int qd_quad_unpack(const uint8_t *blob, int n, int16_t *p)
 {
@@ -397,16 +428,15 @@ int qd_quad_unpack(const uint8_t *blob, int n, int16_t *p)
                                    ? blob[QUAD_V5_LEN] : 0);
     if (ok && blob[1] == 6u) {
         o = (int)QUAD_V5_LEN + 1;
-        for (i = QD_QP_AMOD; i < QD_QUAD_NP; i++, o++) {
+        for (i = QD_QP_AMOD; i < QD_QP_VMODE; i++, o++) {
             const qe_val_t r = qe_val(i);
             if (blob[o] > (uint32_t)(r.max - r.min))
                 ok = 0;
             else
                 p[i] = (int16_t)(blob[o] + r.min);
         }
-        for (; o < QD_QUAD_BLOB; o++)
-            if (blob[o])
-                ok = 0;
+        if (!qv_unpack(blob + QV_O, p))                 /* (the VOICE page: 124..127) */
+            ok = 0;
         if (!ok) {
             quad_init_patch(p);
             qe_defaults(p);
@@ -435,6 +465,8 @@ const char *qd_quad_value_text(int i, int v, char *buf)
         const qe_val_t r = qe_val(i);
         if (r.names && v >= r.min && v <= r.max)
             return strcpy(buf, r.names[v - r.min]);
+        if (i == QD_QP_UNI && v <= 1)                   /* (the VOICE page: UNISON 1 is OFF) */
+            return strcpy(buf, "OFF");
         if (i == QD_QP_HOLD && v >= 127)
             return strcpy(buf, "NOTE");
         if ((i == QD_QP_BITS || i == QD_QP_SRR) && v <= 0)   /* (E3: CRUSH: OFF; BITS its bits, SRR its divider) */
@@ -457,7 +489,7 @@ const char *qd_quad_value_text(int i, int v, char *buf)
             }
             return buf;
         }
-        if (i >= QD_QP_MOD0 && (i - QD_QP_MOD0) % 3 == QD_QM_DST)
+        if (i >= QD_QP_MOD0 && i < QD_QP_VMODE && (i - QD_QP_MOD0) % 3 == QD_QM_DST)
             return strcpy(buf, v >= 0 && v < (int)QD_N ? N_QUAD_DEST[v] : "?");
         snprintf(buf, 12, r.min < 0 && v > 0 ? "+%d" : "%d", v);
         return buf;

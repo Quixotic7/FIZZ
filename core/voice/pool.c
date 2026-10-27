@@ -31,6 +31,12 @@ void qd_pool_set_track(qd_pool_t *p, int track, int limit, int reserve)
     p->reserve[track] = (uint8_t)(reserve < 0 ? 0 : reserve > QD_POOL_LIMIT_MAX ? QD_POOL_LIMIT_MAX : reserve);
 }
 
+void qd_pool_set_pan(qd_pool_t *p, int track, int pan)
+{
+    if (track >= 0 && track < QD_POOL_NTRACK)
+        p->pan[track] = (int8_t)(pan < -64 ? -64 : pan > 63 ? 63 : pan);
+}
+
 int qd_pool_count(const qd_pool_t *p, int track)
 {
     int i, n = 0;
@@ -62,7 +68,7 @@ static void set_at(qd_vattr_t *d, const qd_vattr_t *at)
 
 /* a note into slot i now (a free voice, or one that has not sounded: from silence) */
 static void start(qd_pool_t *p, int i, int track, qd_quad_owner_t *o, int note, int vel, const int16_t *patch,
-                  const qd_vattr_t *at)
+                  const qd_vattr_t *at, const qd_uni_t *u)
 {
     qd_pool_voice_t *v = &p->v[i];
     v->q.active = 0;                                    /* (a fresh start: nothing of the old note) */
@@ -72,6 +78,12 @@ static void start(qd_pool_t *p, int i, int track, qd_quad_owner_t *o, int note, 
         set_at(&v->at, at);
     v->track = (uint8_t)track;
     qd_quad_voice_start(&v->q, patch, o, note, vel);
+    v->u = *u;                                          /* (2026-10-26: its unison place) */
+    v->q.udet = u->det;
+    if (u->panon) {
+        v->at.mixm |= (uint8_t)(1u << QD_VMIX_PAN);
+        v->at.mixv[QD_VMIX_PAN] = u->pan;
+    }
     if (v->pend_gfrom >= 0) {                           /* (E1: the glide settled while it waited) */
         qd_quad_voice_glide(&v->q, v->pend_gfrom);
         v->pend_gfrom = -1;
@@ -88,7 +100,7 @@ static int take(qd_pool_t *p, int i, int track, qd_quad_owner_t *o, int note, in
 {
     qd_pool_voice_t *v = &p->v[i];
     if (!v->q.env_out) {
-        start(p, i, track, o, note, vel, patch, at);
+        start(p, i, track, o, note, vel, patch, at, &p->nu);
         return i;
     }
     qd_quad_voice_kill(&v->q);
@@ -101,6 +113,7 @@ static int take(qd_pool_t *p, int i, int track, qd_quad_owner_t *o, int note, in
     v->pend_gfrom = -1;
     memcpy(v->pend_patch, patch, sizeof v->pend_patch);
     set_at(&v->pend_at, at);
+    v->pend_u = p->nu;
     return i;
 }
 
@@ -131,14 +144,16 @@ int qd_pool_note_on(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, int v
     return qd_pool_note_on_at(p, track, o, note, vel, patch, 0);
 }
 
-int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, int vel, const int16_t *patch,
-                       const qd_vattr_t *at)
+/* a voice's PRIORITY (the VOICE page's: 0 LOW .. 2 HIGH) */
+static int vprio(const qd_pool_voice_t *v) { return v->q.patch[QD_QP_VPRIO]; }
+
+/* one voice for the note (its unison place p->nu), the track's own at lim */
+static int alloc1(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, int vel, const int16_t *patch,
+                  const qd_vattr_t *at, int lim)
 {
     int i, best = -1, t;
-    if (track < 0 || track >= QD_POOL_NTRACK || !o || !patch)
-        return -1;
-    /* 0. the same note again on this track */
-    for (i = 0; i < p->nvoice; i++) {
+    /* 0. the same note again on this track (a unison note: its voices were released, fresh ones below) */
+    for (i = 0; i < p->nvoice && !p->nu.grp; i++) {
         qd_pool_voice_t *v = &p->v[i];
         if (v->pend && v->pend_track == track && v->pend_note == note) {   /* still waiting: the newer strike */
             v->pend_vel = (uint8_t)vel;
@@ -157,6 +172,7 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
                                                          * place (a voice mid-dip has another sound coming) */
             qd_quad_voice_start(&v->q, patch, o, note, vel);
             set_at(&v->at, at);
+            v->u = p->nu, v->q.udet = 0;
             v->age = ++p->clock;
             p->restrikes++;
             return best;
@@ -164,7 +180,7 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
         qd_quad_voice_release(&v->q);                    /* another sound: this one releases, a fresh voice below */
     }
     /* 1. the track at its limit: its own voice */
-    if (qd_pool_count(p, track) >= p->limit[track]) {
+    if (qd_pool_count(p, track) >= lim) {
         best = victim(p, track);
         if (best >= 0) {
             p->steals_own++;
@@ -180,6 +196,7 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
                 v->pend_off = 0;
                 memcpy(v->pend_patch, patch, sizeof v->pend_patch);
                 set_at(&v->pend_at, at);
+                v->pend_u = p->nu;
                 p->steals_own++;
                 return i;
             }
@@ -198,16 +215,17 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
         for (k = 0; k < p->nvoice; k++) {
             i = (h0 + k) % h1;
             if (is_free(&p->v[i])) {
-                start(p, i, track, o, note, vel, patch, at);
+                start(p, i, track, o, note, vel, patch, at, &p->nu);
                 p->frees++;
                 return i;
             }
         }
     }
     /* 3. across the tracks: a released voice (the quietest), else the oldest held note of the track furthest over
-     * its reserve; a track at or under its reserve is not robbed */
+     * its reserve; a track at or under its reserve is not robbed. 2026-10-26: only the lowest PRIORITY among those
+     * is robbed; when every one is higher than the note's own, the note is dropped */
     {
-        int over[QD_POOL_NTRACK], top = 0, bt = -1;
+        int over[QD_POOL_NTRACK], top = 0, bt = -1, minp = 3, maxp = -1, np = patch[QD_QP_VPRIO];
         for (t = 0; t < QD_POOL_NTRACK; t++) {
             over[t] = qd_pool_count(p, t) - p->reserve[t];
             if (over[t] > top) {
@@ -215,10 +233,19 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
                 bt = t;
             }
         }
+        for (i = 0; i < p->nvoice; i++)
+            if (sounding(&p->v[i]) && over[p->v[i].track] > 0) {
+                minp = vprio(&p->v[i]) < minp ? vprio(&p->v[i]) : minp;
+                maxp = vprio(&p->v[i]) > maxp ? vprio(&p->v[i]) : maxp;
+            }
+        if (minp < 3 && minp > np) {
+            p->drops++, p->prio_drops++;
+            return -1;
+        }
         best = -1;
         for (i = 0; i < p->nvoice; i++) {               /* a released voice of any track over its reserve */
             const qd_pool_voice_t *v = &p->v[i];
-            if (sounding(v) && !v->q.gate && over[v->track] > 0 &&
+            if (sounding(v) && !v->q.gate && over[v->track] > 0 && vprio(v) == minp &&
                 (best < 0 || qd_quad_voice_level(&v->q) < qd_quad_voice_level(&p->v[best].q)))
                 best = i;
         }
@@ -229,10 +256,22 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
                     continue;
                 for (i = 0; i < p->nvoice; i++) {
                     const qd_pool_voice_t *v = &p->v[i];
-                    if (sounding(v) && v->q.gate && v->track == t && v->age < oldest) {
+                    if (sounding(v) && v->q.gate && v->track == t && vprio(v) == minp && v->age < oldest) {
                         oldest = v->age;
                         best = i;
                     }
+                }
+            }
+        }
+        if (best < 0 && minp < maxp) {                  /* (PRIORITIES mixed, the furthest over has none of the lowest:
+                                                         * the oldest held one of any track over its reserve; all the
+                                                         * same: as before, dropped) */
+            uint32_t oldest = 0xFFFFFFFFu;
+            for (i = 0; i < p->nvoice; i++) {
+                const qd_pool_voice_t *v = &p->v[i];
+                if (sounding(v) && v->q.gate && over[v->track] > 0 && vprio(v) == minp && v->age < oldest) {
+                    oldest = v->age;
+                    best = i;
                 }
             }
         }
@@ -245,6 +284,86 @@ int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, in
             p->stolen[p->v[best].track]++;              /* P2.11: a held note taken (a released one recycled: not) */
         return take(p, best, track, o, note, vel, patch, at);
     }
+}
+
+/* 2026-10-26, the VOICE page. A note: MONO's LEGATO with a key of the track down moves its voices (no new attack);
+ * else n = UNISON voices (MONO: the track's voices are n, else its LIMIT caps n), each at its place s = -1 .. 1 across
+ * the unison (the middle ones first: a LIMIT under UNISON drops the outer ones), detuned by s x DETUNE (+-50 cents at
+ * 127) and panned by s x SPREAD around the track's pan (or the trig's pan lock) */
+int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, int vel, const int16_t *patch,
+                       const qd_vattr_t *at)
+{
+    int i, j, k, n, lead = -1, nn, ord[8];
+    const int mono = patch ? patch[QD_QP_VMODE] == 1 : 0;
+    if (track < 0 || track >= QD_POOL_NTRACK || !o || !patch)
+        return -1;
+    nn = patch[QD_QP_UNI] < 1 ? 1 : patch[QD_QP_UNI] > 8 ? 8 : patch[QD_QP_UNI];
+    if (mono && patch[QD_QP_PORT] == QD_PORT_LEGATO && qd_pool_gated(p, track)) {   /* MONO's LEGATO: moved */
+        for (i = 0; i < p->nvoice; i++)
+            if (sounding(&p->v[i]) && p->v[i].track == track && p->v[i].q.gate) {
+                qd_quad_voice_legato(&p->v[i].q, note, vel);
+                p->v[i].age = ++p->clock;
+                p->legatos++;
+                if (lead < 0)
+                    lead = i;
+            }
+        if (lead >= 0)
+            return lead;
+    }
+    memset(&p->nu, 0, sizeof p->nu);
+    if (nn == 1)
+        return alloc1(p, track, o, note, vel, patch, at, mono ? 1 : p->limit[track]);
+    n = mono ? nn : (nn < p->limit[track] ? nn : p->limit[track]);
+    for (i = 0; i < p->nvoice; i++)                     /* (the same note again: its voices released, fresh ones) */
+        if (sounding(&p->v[i]) && p->v[i].track == track && p->v[i].q.note == note && p->v[i].q.gate)
+            qd_quad_voice_release(&p->v[i].q);
+    for (j = 0; j < nn; j++)                            /* the places, the middle first */
+        ord[j] = j;
+    for (j = 1; j < nn; j++)
+        for (k = j; k > 0; k--) {
+            const int a = 2 * ord[k] - (nn - 1), b = 2 * ord[k - 1] - (nn - 1);
+            if ((a < 0 ? -a : a) >= (b < 0 ? -b : b))
+                break;
+            i = ord[k], ord[k] = ord[k - 1], ord[k - 1] = i;
+        }
+    if (!++p->grpc)
+        p->grpc = 1;
+    p->unis++;
+    {
+        const int det = patch[QD_QP_UDET] < 0 ? 0 : patch[QD_QP_UDET] > 127 ? 127 : patch[QD_QP_UDET];
+        const int spr = patch[QD_QP_USPR] < 0 ? 0 : patch[QD_QP_USPR] > 127 ? 127 : patch[QD_QP_USPR];
+        const int base = at && (at->mixm & (1u << QD_VMIX_PAN)) ? at->mixv[QD_VMIX_PAN] : p->pan[track];
+        for (j = 0; j < n; j++) {
+            const int32_t sn = 2 * ord[j] - (nn - 1), sd = nn - 1;   /* s = sn / sd */
+            int32_t pan = base + (sn * spr * 64) / (sd * 127);
+            p->nu.grp = p->grpc;
+            /* 2^(cents / 1200) as 1 + cents x ln 2 / 1200 (within 0.7 cent at 50): Q16 37.856 a cent */
+            p->nu.det = (uint32_t)(65536 + (sn * det * 50 * 37856) / (sd * 127 * 1000));
+            p->nu.pan = (int8_t)(pan < -64 ? -64 : pan > 63 ? 63 : pan);
+            p->nu.panon = spr != 0 || (at && (at->mixm & (1u << QD_VMIX_PAN)));
+            i = alloc1(p, track, o, note, vel, patch, at, n);
+            if (lead < 0)
+                lead = i;
+        }
+    }
+    memset(&p->nu, 0, sizeof p->nu);
+    return lead;
+}
+
+/* the other voices of voice i's unison note (its group: the same track and grp; none: -1 at once): k from -1 */
+static int sib_next(const qd_pool_t *p, int i, int k)
+{
+    const qd_pool_voice_t *v = &p->v[i];
+    const uint16_t g = v->pend ? v->pend_u.grp : v->u.grp;
+    if (!g)
+        return -1;
+    for (k++; k < p->nvoice; k++) {
+        const qd_pool_voice_t *w = &p->v[k];
+        if (k != i && ((w->q.active && w->track == v->track && w->u.grp == g) ||
+                       (w->pend && w->pend_track == v->track && w->pend_u.grp == g)))
+            return k;
+    }
+    return -1;
 }
 
 void qd_pool_note_off(qd_pool_t *p, int track, int note)
@@ -296,7 +415,7 @@ void qd_pool_block_begin(qd_pool_t *p)
         qd_pool_voice_t *v = &p->v[i];
         if (v->pend && !v->q.active) {                  /* its fade has been rendered: the note starts */
             v->pend = 0;
-            start(p, i, v->pend_track, v->pend_owner, v->pend_note, v->pend_vel, v->pend_patch, &v->pend_at);
+            start(p, i, v->pend_track, v->pend_owner, v->pend_note, v->pend_vel, v->pend_patch, &v->pend_at, &v->pend_u);
             if (v->pend_off)
                 qd_quad_voice_release(&v->q);
         }
@@ -344,7 +463,18 @@ int qd_pool_owns(const qd_pool_t *p, int i, int id)
     return (int)((v->at.own[id >> 5] >> (id & 31)) & 1u);
 }
 
+static int write1(qd_pool_t *p, int i, int id, int value, int own);
 int qd_pool_write(qd_pool_t *p, int i, int id, int value, int own)
+{
+    int r, k;
+    if (i < 0 || i >= p->nvoice)
+        return 0;
+    r = write1(p, i, id, value, own);
+    for (k = sib_next(p, i, -1); k >= 0; k = sib_next(p, i, k))   /* (a unison note's other voices: the same) */
+        write1(p, k, id, value, own);
+    return r;
+}
+static int write1(qd_pool_t *p, int i, int id, int value, int own)
 {
     qd_pool_voice_t *v;
     int16_t lo, hi, x;
@@ -383,12 +513,20 @@ int qd_pool_write(qd_pool_t *p, int i, int id, int value, int own)
     return 1;
 }
 
+static void set_mix1(qd_pool_t *p, int i, int k, int value);
 void qd_pool_set_mix(qd_pool_t *p, int i, int k, int value)
 {
-    qd_pool_voice_t *v;
+    int s;
     if (i < 0 || i >= p->nvoice || k < 0 || k >= QD_VMIX_N)
         return;
-    v = &p->v[i];
+    for (s = sib_next(p, i, -1); s >= 0; s = sib_next(p, i, s))   /* (a unison note's others: a pan lock keeps their
+                                                         * places around it) */
+        set_mix1(p, s, k, k == QD_VMIX_PAN && p->v[s].u.panon ? value + p->v[s].u.pan - p->v[i].u.pan : value);
+    set_mix1(p, i, k, value);
+}
+static void set_mix1(qd_pool_t *p, int i, int k, int value)
+{
+    qd_pool_voice_t *v = &p->v[i];
     value = k == QD_VMIX_PAN ? (value < -64 ? -64 : value > 63 ? 63 : value) : (value < 0 ? 0 : value > 127 ? 127 : value);
     v->at.mixm |= (uint8_t)(1u << k);
     v->at.mixv[k] = (int16_t)value;
@@ -407,6 +545,12 @@ int qd_pool_legato(qd_pool_t *p, int i, int note, int vel)
     qd_quad_voice_legato(&v->q, note, vel);
     v->age = ++p->clock;
     p->legatos++;
+    {
+        int k;
+        for (k = sib_next(p, i, -1); k >= 0; k = sib_next(p, i, k))   /* (a unison note's others move with it) */
+            if (sounding(&p->v[k]))
+                qd_quad_voice_legato(&p->v[k].q, note, vel);
+    }
     return 1;
 }
 
@@ -460,6 +604,16 @@ static void glide_settle(qd_pool_t *p, qd_quad_owner_t *o)
             v->pend_gfrom = (int16_t)from;
         else if (v->q.active && v->q.owner == o && v->q.note == note)
             qd_quad_voice_glide(&v->q, from);
+        {   /* (a unison note's other voices glide with it) */
+            int s;
+            for (s = sib_next(p, i, -1); s >= 0; s = sib_next(p, i, s)) {
+                qd_pool_voice_t *w = &p->v[s];
+                if (w->pend && w->pend_owner == o && w->pend_note == note)
+                    w->pend_gfrom = (int16_t)from;
+                else if (w->q.active && w->q.owner == o && w->q.note == note)
+                    qd_quad_voice_glide(&w->q, from);
+            }
+        }
     }
     for (k = 0; k < n; k++)
         o->lc[k] = (int16_t)(o->cc[ord[k]] * 16);

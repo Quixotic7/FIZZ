@@ -26,6 +26,8 @@ const qd_sndpage_t QD_SND_PAGES[QD_SND_NPAGE] = {
     {"KEYS", QD_SG_TRIG, UI_SD_KEYS, {QD_QP_AKEY, QD_QP_B1KEY, QD_QP_B2KEY, QD_QP_VEL, -1}, 0, 0, {0}},
     /* E1 (research/FMTONE-DN2-PLAN.md §7): portamento, in the sound; B1 is PLAY / MOD */
     {"PORT", QD_SG_TRIG, UI_SD_PORT, {QD_QP_PORT, QD_QP_PTIM, QD_QP_PSLOPE, -1, -1}, 0, 0, {0}},
+    /* 2026-10-26 (mockups/fizz-unison-voice.html): how the sound takes voices, ALGORITHM its PRIORITY */
+    {"VOICE", QD_SG_TRIG, UI_SD_VOICE, {QD_QP_VMODE, QD_QP_UNI, QD_QP_UDET, QD_QP_USPR, QD_QP_VPRIO}, 0, 0, {0}},
     /* E4: the eight modulation slots: ALGORITHM the slot, KNOB 1 SOURCE, 2 DEST, 3 DEPTH (snd_mod_ids) */
     {"MOD", QD_SG_TRIG, UI_SD_MOD, {QD_QP_MOD(0, QD_QM_SRC), QD_QP_MOD(0, QD_QM_DST), QD_QP_MOD(0, QD_QM_DEPTH), -1, -1}, 0, 0,
      {0}},
@@ -606,8 +608,18 @@ int qd_snd_knob(qd_app_t *a, int knob, int d)
     }
     if (id < 0)
         return 1;
+    if (!qd_quad_lockable(id)) {                        /* 2026-10-26, the VOICE page: the track's sound only (a step
+                                                         * held: nothing; no automation take) */
+        int16_t lo, hi;
+        int v;
+        if (u->nheld || !qd_quad_value_range(id, &lo, &hi, 0))
+            return 1;
+        v = a->model.t[a->sel].patch[id] + qd_step_id_turn(a, id, d);
+        qd_player_live_edit(&a->player, a->sel, id, v < lo ? lo : v > hi ? hi : v);
+        return 1;
+    }
     if ((id >= QD_QP_LFO0 && id < QD_QP_LFO0 + 3 * 8 && (id - QD_QP_LFO0) % 8 == QD_QL_DEST) ||
-        (id >= QD_QP_MOD0 && id < QD_QUAD_NP && (id - QD_QP_MOD0) % 3 == QD_QM_DST)) {   /* (E4: a slot's DEST too) */
+        (id >= QD_QP_MOD0 && id < QD_QP_VMODE && (id - QD_QP_MOD0) % 3 == QD_QM_DST)) {   /* (E4: a slot's DEST too) */
         snd_dest(a, id, d);                             /* P1.5k: DEST, through ChoralRoot's list in its order */
         return 1;
     }

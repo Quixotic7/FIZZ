@@ -4929,7 +4929,7 @@ static void g_e4_mods(void)
     run(20);
     black(B1);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "TRIG"), "B1 tapped: its pages (TRIG)");
-    black(B1), black(B1), black(B1);
+    black(B1), black(B1), black(B1), black(B1);         /* (KEYS, PORT, VOICE, MOD) */
     qd_view_snd(&A, &sv);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "MOD") && sv.mod_src[0] == QD_MS_VEL && sv.mod_dep[0] == 2 &&
               sv.mod_src[1] == QD_MS_MW && sv.mod_dep[1] == -2 && sv.mod_sel == 2 && sv.mod_dst[0] &&
@@ -6320,7 +6320,7 @@ static void g_p16g_misc(void)
 static void g_p15l_groups(void)
 {
     static const char *const FIRST[8] = {"TRIG", "RATIO", "ENV A", "FILTER", "AMP", "LFO 1", "LFO 2", "LFO 3"};
-    static const char *const ORDER[QD_SND_NPAGE] = {"TRIG", "KEYS", "PORT", "MOD", "RATIO", "TONE", "OFFSET", "ENV A", "ENV B",
+    static const char *const ORDER[QD_SND_NPAGE] = {"TRIG", "KEYS", "PORT", "VOICE", "MOD", "RATIO", "TONE", "OFFSET", "ENV A", "ENV B",
         "FILTER", "F ENV", "BASE", "AMP", "LEVEL", "CRUSH", "LFO 1", "LFO 1 WAVE", "LFO 2", "LFO 2 WAVE", "LFO 3", "LFO 3 WAVE"};
     static ui_snd_t sv;
     int b, ok = 1, p;
@@ -6336,10 +6336,12 @@ static void g_p15l_groups(void)
     black(B1);
     black(B1);
     qd_view_snd(&A, &sv);
-    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "KEYS") && sv.npg == 4 && sv.ipg == 1,
-          "B1 again: KEYS (four dots: E1's PORT, E4's MOD)");
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "KEYS") && sv.npg == 5 && sv.ipg == 1,
+          "B1 again: KEYS (five dots: E1's PORT, the VOICE page, E4's MOD)");
     black(B1);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "PORT"), "B1 again: PORT (E1)");
+    black(B1);
+    CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "VOICE"), "B1 again: VOICE (2026-10-26)");
     black(B1);
     CHECK(!strcmp(QD_SND_PAGES[A.ui.snd_page].name, "MOD"), "B1 again: MOD (E4)");
     black(B1);

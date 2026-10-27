@@ -12,7 +12,7 @@ import { quadPack6 } from "../js/dn2pst.js";
 import { parseDump, storeSound, unpack7, FIZZ_TAGS } from "../js/fizz_sysex.js";
 
 export { VALUES, ALGOS, DEST_ORDER, Q };
-export const NP = VALUES.length;                           // 110
+export const NP = VALUES.length;                           // 115
 export const lfo = (k, f) => 47 + 8 * k + f;             // f: 0 SPEED 1 MULT 2 FADE 3 DEST 4 WAVE 5 PHASE 6 TRIG 7 DEPTH
 export const mod = (k, f) => 86 + 3 * k + f;             // f: 0 SOURCE 1 DEST 2 DEPTH
 export const LF = { SPEED: 0, MULT: 1, FADE: 2, DEST: 3, WAVE: 4, PHASE: 5, TRIG: 6, DEPTH: 7 };

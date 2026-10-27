@@ -368,7 +368,7 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
     if (back && back.values.every((x, i) => x === s.values[i])) rok++;
   }
   check(rok === 24, `EDIT: 24 random sounds (every value anywhere in its range) through STORE6 and DUMP unchanged (${rok})`);
-  check(VALUES.length === 110 && text(Q.FREQ, 12700) === "127.00" && text(Q.HARM, -150) === "-1.50" && text(Q.MIX, 5) === "+5" && text(33, 127) === "INF" &&
+  check(VALUES.length === 115 && text(Q.FREQ, 12700) === "127.00" && text(Q.HARM, -150) === "-1.50" && text(Q.MIX, 5) === "+5" && text(33, 127) === "INF" &&
     text(lfo(0, LF.WAVE), 1) === "SINE" && text(Q.FTYPE, 7) === "EQ" && text(Q.HOLD, 127) === "NOTE" && vinfo(Q.ALGO).max === 8,
     "EDIT: the values' names, ranges and texts are the core's (fizzvalues.js: make -C tools values-check)");
   // EXPORT

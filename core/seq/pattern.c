@@ -702,7 +702,7 @@ int qd_lock_set(qd_pattern_t *p, int t, int s, int id, int value)
 {
     int i;
     qd_lock_t l;
-    if (!ts_ok(t, s) || id < 0 || id >= QD_LK_N)
+    if (!ts_ok(t, s) || id < 0 || id >= QD_LK_N || (id < QD_QUAD_NP && !qd_quad_lockable(id)))   /* (the VOICE page: never) */
         return QD_EARG;
     i = lock_pos(p, t, s, id);
     if (i < p->lock_start[t] + p->lock_n[t] && p->lock[i].step == s && p->lock[i].id == id) {

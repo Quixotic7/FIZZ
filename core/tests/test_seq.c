@@ -2215,14 +2215,21 @@ static void u_lockpool(void)
     qd_pat_init(&P);
     CHECK(qd_pat_check(&P), "empty pattern consistent");
     /* locks in random order on several tracks: sorted by track, step, id */
-    for (k = 0; k < 600; k++) {
+    for (k = 0; k < 600; k++) {                         /* (2026-10-26: the VOICE page's ids, never locked: LEVEL) */
+        const int id = (k * 31) % QD_LK_N < QD_QUAD_NP && !qd_quad_lockable((k * 31) % QD_LK_N) ? QD_LK_LEVEL
+                     : (k * 31) % QD_LK_N;
         t = (k * 7) % QD_PAT_NTRACK, s = (k * 13) % 128;
-        r = qd_lock_set(&P, t, s, (k * 31) % QD_LK_N, k);
+        r = qd_lock_set(&P, t, s, id, k);
         CHECK(r == QD_OK, "lock_set %d: %d", k, r);
     }
     CHECK(qd_pat_check(&P), "600 locks: sorted, counted, flags right");
-    CHECK(qd_lock_get(&P, (599 * 7) % QD_PAT_NTRACK, (599 * 13) % 128, (599 * 31) % QD_LK_N, &v) && v == 599,
-          "lock_get finds the last");
+    {
+        int16_t lo = 0, hi = 0;
+        qd_lock_range((599 * 31) % QD_LK_N, &lo, &hi);
+        CHECK(qd_lock_get(&P, (599 * 7) % QD_PAT_NTRACK, (599 * 13) % 128, (599 * 31) % QD_LK_N, &v) &&
+              v == (599 > hi ? hi : 599), "lock_get finds the last (%d, its value clamped to its range)", v);
+    }
+    CHECK(qd_lock_set(&P, 0, 0, QD_QP_UNI, 3) == QD_EARG, "the VOICE page's values: never a lock");
     /* the same lock again: replaced, not added */
     {
         const int had = qd_lock_get(&P, 0, 0, 34, 0);

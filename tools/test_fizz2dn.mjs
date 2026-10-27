@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { fizzToDnsnd, fizzToDn2pst, lz4Elektron, fizzValues, Q, NP, defaults } from "./fizz2dn.mjs";
-import { parseDn2pst, dn2pstToQuad, readContainer, DN2_RATIO_A, DN2_TAGS, QUAD_RANGES, QUAD_EXT_RANGES } from "./dn2pst.mjs";
+import { parseDn2pst, dn2pstToQuad, readContainer, DN2_RATIO_A, DN2_TAGS, QUAD_RANGES, QUAD_EXT_RANGES, QUAD_VOICE_RANGES } from "./dn2pst.mjs";
 import { parseDnsnd, dnsndToQuad, dnReadZip, dnLz4Block } from "../site/js/fm1dnsnd.js";
 
 const [dn1Dir = "../DigitonePresets", dn2Dir = "../Digitone2Presets"] = process.argv.slice(2);
@@ -95,7 +95,7 @@ check(!other.length, `no other byte differs${other.length ? ": " + other.map((o)
 // ---- 3. random FIZZ patches
 let seed = 7;
 const rnd = (a, b) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return a + (seed % (b - a + 1)); };
-const RANGES = [...QUAD_RANGES, [0, 127, 0], ...QUAD_EXT_RANGES];
+const RANGES = [...QUAD_RANGES, [0, 127, 0], ...QUAD_EXT_RANGES, ...QUAD_VOICE_RANGES];   // (+ the VOICE page)
 function randomPatch({ dn1 }) {
   const v = defaults();
   for (let i = 0; i < 73; i++) v[i] = rnd(RANGES[i][0], RANGES[i][1]);
@@ -132,7 +132,7 @@ for (let t = 0; t < N; t++) {
   const v = randomPatch({ dn1: false }), pan = rnd(-64, 63), sends = { reverb: rnd(0, 127), delay: rnd(0, 127), chorus: rnd(0, 127) };
   const o = fizzToDn2pst({ values: v, name: `RND ${t}`, tags: ["PAD", "FX"], pan, sends }, { date: DATE });
   const b = await parseDn2pst(o.bytes), q = dn2pstToQuad(b), back = [...q.values, q.drive, ...q.ext];
-  const skip = (i) => (i === Q.PTIM && !v[Q.PORT]) || (i === Q.CRPOST && !v[Q.BITS] && !v[Q.SRR]);
+  const skip = (i) => (i === Q.PTIM && !v[Q.PORT]) || (i === Q.CRPOST && !v[Q.BITS] && !v[Q.SRR]) || i >= 110;   // (the VOICE page: not a Digitone file's)
   const d = v.map((x, i) => (x === back[i] || skip(i) ? -1 : i)).filter((i) => i >= 0);
   const ok = !d.length && q.pan === pan && q.sends.reverb === sends.reverb && q.sends.chorus === sends.chorus && b.tags.join() === "PAD,SOUND FX" && !b.warnings.length;
   if (ok) r2++; else if (t - r2 < 3) console.log(`  random DN2 ${t}: ${d.map((i) => `${i}: ${v[i]} -> ${back[i]}`).join(", ")} ${b.warnings.join("; ")}`);
@@ -185,7 +185,7 @@ check(r2 === N, `random patches, Digitone II (AHD, portamento, DRIVE's place, CR
     v[Q.FTYPE] = ft; v[Q.FSHAPE] = shape; v[Q.FGAIN] = gain; v[Q.BWPOST] = bw;
     const d2 = fizzToDn2pst({ values: v, name: "MACHINE" }, { date: DATE });
     const q = dn2pstToQuad(await parseDn2pst(d2.bytes)), back = [...q.values, q.drive, ...q.ext];
-    const diff = v.map((x, i) => (x !== back[i] && !(ft === 7 && i === Q.RESO) ? i : -1)).filter((i) => i >= 0);
+    const diff = v.map((x, i) => (i < 110 && x !== back[i] && !(ft === 7 && i === Q.RESO) ? i : -1)).filter((i) => i >= 0);   // (110..: the VOICE page, not in the file)
     const what = ft === 4 ? "MULTI" : ft === 5 ? "COMB+" : ft === 6 ? "COMB-" : ft === 7 ? "EQ" : "LOWPASS 4";
     check(!diff.length && q.six === (shape !== 0 || gain !== 0 || bw !== 0), `${what} (TYPE ${shape}, GAIN ${gain}, BW ${bw ? "after" : "before"}) round-trips through dn2pst.mjs${diff.length ? ": differs at " + diff.join(" ") : ""}`);
     if (ft > 3) {

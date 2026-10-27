@@ -498,6 +498,61 @@ static void sd_port(const ui_snd_t *v)
     }
 }
 
+/* 2026-10-26, VOICE (mockups/fizz-unison-voice.html): top left a stack of three notes (POLY) or one (MONO) in KNOB 1's
+ * blue; the unison voices' waves fanned by DETUNE (the middle one white, the others KNOB 2's green); under them the
+ * stereo, L .. R, a dot a voice placed by SPREAD (KNOB 4's orange). The voices over the track's LIMIT (not MONO's: it
+ * takes the voices it needs) are hollow and their waves dim: they will not play */
+static void sd_voice(const ui_snd_t *v)
+{
+    const int mono = v->v[0] == 1, n = v->v[1] < 1 ? 1 : v->v[1] > 8 ? 8 : v->v[1];
+    const int lim = v->limit < 1 ? 8 : v->limit, play = mono || n < lim ? n : lim;
+    const float d = (float)v->v[2] / 127.f * 0.16f, spr = (float)v->v[3] / 127.f;
+    int ord[8], j, k, live[8];
+    for (j = 0; j < (mono ? 1 : 3); j++)
+        ui_RR(18.f, (mono ? 44.f : 36.f) + (float)j * 8.f, 22.f, 5.f, 2.5f, QD_NONE, 1.f, SNDK[0]);
+    for (j = 0; j < n; j++)                             /* the middle first (the pool's order) */
+        ord[j] = j, live[j] = 0;
+    for (j = 1; j < n; j++)
+        for (k = j; k > 0; k--) {
+            const int a = 2 * ord[k] - (n - 1), b = 2 * ord[k - 1] - (n - 1);
+            int t;
+            if ((a < 0 ? -a : a) >= (b < 0 ? -b : b))
+                break;
+            t = ord[k], ord[k] = ord[k - 1], ord[k - 1] = t;
+        }
+    for (j = 0; j < play; j++)
+        live[ord[j]] = 1;
+    for (j = n - 1; j >= 0; j--) {
+        const float s = n > 1 ? (float)(2 * j - (n - 1)) / (float)(n - 1) : 0.f, f = 1.f + d * s;
+        const int mid = n == 1 || (s < 0.2f && s > -0.2f);
+        float p[2 * 61];
+        int i;
+        for (i = 0; i <= 60; i++) {
+            const float u = (float)i / 60.f;
+            p[2 * i] = 52.f + u * 166.f;
+            p[2 * i + 1] = 86.f - sinf(u * 2.5f * UI_TAU * f) * 30.f;
+        }
+        if (live[j]) {
+            qd_save(), qd_alpha(0.14f), ui_P(p, 61, mid ? SNDK[2] : SNDK[1], 5.f, 0, QD_NONE), qd_restore();
+            ui_P(p, 61, mid ? SNDK[2] : SNDK[1], mid ? 1.8f : 1.3f, 0, QD_NONE);
+        } else {
+            qd_save(), qd_alpha(0.8f), ui_P(p, 61, UI_G2, 1.f, 0, QD_NONE), qd_restore();
+        }
+    }
+    line2(40.f, 152.f, 200.f, 152.f, UI_G3, 3.f);
+    ui_T("L", 28.f, 156.5f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
+    ui_T("R", 212.f, 156.5f, 12.f, 600, 0.f, UI_G1, QD_CENTER);
+    for (j = 0; j < n; j++) {
+        const float s = n > 1 ? (float)(2 * j - (n - 1)) / (float)(n - 1) : 0.f, x = 120.f + s * spr * 80.f;
+        if (live[j]) {
+            qd_save(), qd_alpha(0.2f), ui_O(x, 152.f, 7.f, QD_NONE, 1.f, SNDK[3]), qd_restore();
+            ui_O(x, 152.f, 4.f, QD_NONE, 1.f, SNDK[3]);
+        } else {
+            ui_O(x, 152.f, 4.f, UI_G2, 1.2f, QD_NONE);
+        }
+    }
+}
+
 /* E3: CRUSH: one sine cycle as stairs (each step as wide as SRR's divider, as tall as BITS' step; both OFF: smooth),
  * the input faint under it; FILTER -> CRUSH or CRUSH -> FILTER below (ROUTE) */
 static void sd_crush(const ui_snd_t *v)
@@ -1015,6 +1070,7 @@ void ui_snd_draw(const ui_snd_t *v)
     case UI_SD_LFO: sd_lfo(v); break;
     case UI_SD_PORT: sd_port(v); break;
     case UI_SD_CRUSH: sd_crush(v); break;
+    case UI_SD_VOICE: sd_voice(v); break;
     case UI_SD_MOD: sd_mod(v); break;
     default: sd_lfoshape(v); break;
     }

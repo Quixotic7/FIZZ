@@ -455,13 +455,22 @@ export function dn2pstToQuad(parsed) {
 }
 
 // E1: version 6 (FIZZ's quad_voice.c qd_quad_pack): version 5's bytes, 'Q' 6, DRIVE at 87, the values 74..109 a byte
-// each (value - min) at 88.., zeros to 128
+// each (value - min) at 88..123; 2026-10-26: ext's 36..40 (the VOICE page's 110..114), when given, in 124..127 (zeros:
+// their defaults): VOICE | (PRIORITY - 1) & 3 << 1, UNISON - 1, DETUNE - 20, SPREAD - 64 (mod 256)
+export const QUAD_VOICE_RANGES = [[0, 1, 0], [1, 8, 1], [0, 127, 20], [0, 127, 64], [0, 2, 1]];   // (110..114)
 export function quadPack6(p, drive, ext) {
   const blob = new Uint8Array(QUAD_BLOB6);
   blob.set(quadPack(p).subarray(0, 87));
   blob[1] = 6;
   blob[87] = Math.max(0, Math.min(127, drive | 0));
-  ext.forEach((v, k) => { blob[88 + k] = (v - QUAD_EXT_RANGES[k][0]) & 255; });
+  ext.forEach((v, k) => { if (k < QUAD_EXT_RANGES.length) blob[88 + k] = (v - QUAD_EXT_RANGES[k][0]) & 255; });
+  if (ext.length > QUAD_EXT_RANGES.length) {
+    const c = (k) => { const [mn, mx] = QUAD_VOICE_RANGES[k]; return Math.max(mn, Math.min(mx, Math.round(ext[QUAD_EXT_RANGES.length + k] ?? QUAD_VOICE_RANGES[k][2]))); };
+    blob[124] = (c(0) & 1) | (((c(4) - 1) & 3) << 1);
+    blob[125] = c(1) - 1;
+    blob[126] = (c(2) - 20) & 255;
+    blob[127] = (c(3) - 64) & 255;
+  }
   return blob;
 }
 

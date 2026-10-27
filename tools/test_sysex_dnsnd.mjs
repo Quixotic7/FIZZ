@@ -46,7 +46,7 @@ for (const f of files) {
   const vals = ((out.match(/^values (.*)$/m) || [])[1] || "").split(" ").map(Number);
   const got = ((out.match(/^mix (.*)$/m) || [])[1] || "").split(" ").map(Number);
   const want = [...q.values, Math.max(0, Math.min(127, q.drive))];
-  const same = vals.length === 110 && want.every((v, i) => v === vals[i]);
+  const same = vals.length === 115 && want.every((v, i) => v === vals[i]);   // (2026-10-26: + the VOICE page)
   check(reply && reply.kind === "store" && reply.status === 0 && !reply.pool && reply.slot === 1,
         `${f}: the reply ${JSON.stringify(reply)}`);
   check(name === s.name.slice(0, 12).replace(/\s+$/, ""), `${f}: the name "${name}" (the reader's "${s.name}")`);

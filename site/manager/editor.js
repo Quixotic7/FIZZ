@@ -313,6 +313,7 @@ export function mountEditor(ctx) {
     }).join("");
   }
 
+  const VO = 110;                                  // (the VOICE page's first value)
   // PLAY: the operators' phase reset, the key tracks and the velocity, the portamento (its glide drawn)
   function playPanel() {
     const pt = v(Q.PTIM), on = v(Q.PORT), w = 380, h = 90, gx = 60 + 260 * (pt / 127);
@@ -321,8 +322,11 @@ export function mountEditor(ctx) {
     return `<div class="row wrap">${cap("PHASE RESET", seg(Q.PHRT, K.c1))}</div>
       <div class="bars">${bar(Q.AKEY, "A KEY", K.c2)}${bar(Q.B1KEY, "B1 KEY", K.c3)}${bar(Q.B2KEY, "B2 KEY", K.c4)}${bar(Q.VEL, "VEL", K.c1)}</div>
       <div class="sub" style="--c:var(--yellow)"><span class="cn">PORTAMENTO</span>${glide}
-        <div class="row wrap">${seg(Q.PORT, "--yellow")}${chip(Q.PTIM, "TIME", "--yellow")}${cap("SLOPE", seg(Q.PSLOPE, "--yellow"))}</div></div>`;
+        <div class="row wrap">${seg(Q.PORT, "--yellow")}${chip(Q.PTIM, "TIME", "--yellow")}${cap("SLOPE", seg(Q.PSLOPE, "--yellow"))}</div></div>
+      <div class="sub" style="--c:var(--violet)"><span class="cn">VOICE</span>
+        <div class="row wrap">${seg(VO, K.c1)}${chip(VO + 1, "UNISON", K.c2)}${chip(VO + 2, "DETUNE", K.c3)}${chip(VO + 3, "SPREAD", K.c4)}${cap("PRIORITY", seg(VO + 4, K.alg))}</div></div>`;
   }
+  // 2026-10-26: the VOICE page's values (110..114: VOICE, UNISON, DETUNE, SPREAD, PRIORITY), with PLAY's portamento
   const PANELS = { ops: opsPanel, openv: openvPanel, filter: filterPanel, amp: ampPanel, drive: drivePanel, lfo: lfoPanel, mod: modPanel, play: playPanel };
 
   // ---------------------------------------------------------------- the frame: header, the panel, keys

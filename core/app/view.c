@@ -1565,6 +1565,7 @@ void qd_view_snd(qd_app_t *a, ui_snd_t *v)
     v->name = pg->name;
     v->draw = pg->draw;
     v->arg = pg->arg;
+    v->limit = qd_ctl_cpat(a)->trk[a->sel].limit;      /* (2026-10-26: VOICE's dim unison voices) */
     for (i = 0; i < QD_SND_NPAGE; i++)
         if (QD_SND_PAGES[i].group == pg->group) {
             if (i == u->snd_page)

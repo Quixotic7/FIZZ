@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FIZZ VOICE page</title>
+<!-- FIZZ: the sound's VOICE page (the owner, 2026-10-26: unison with real voices "like the Digitone 1", capped by the
+     track's voice LIMIT; a sound "can be mono or poly"; a voice PRIORITY so one sound is robbed after another). A fifth
+     page in B1's group (TRIG, KEYS, PORT, VOICE, MOD; PORT as today): KNOB 1 VOICE (POLY / MONO), KNOB 2 UNISON (OFF,
+     2 .. 8 voices a note), KNOB 3 DETUNE, KNOB 4 SPREAD (the unison voices across the stereo), ALGORITHM PRIORITY (LOW,
+     MID, HIGH; its badge top right as the editor's other ALGORITHM values). The picture: the voices' waves fanned by
+     DETUNE over a stereo bar L .. R with a dot a voice placed by SPREAD; voices over the track's LIMIT drawn dim (they
+     will not play). The frame and the foot's geometry are the editor's (mockups/ref/snd-real-port.png).
+     ?shot=N one canvas at 1x, ?sheet=1 every screen at 2x -->
+<style>
+:root { --bg:#16161a; --fg:#ece8df; --dim:#8d8a83; }
+html, body { margin:0; background:var(--bg); color:var(--fg); }
+body { font: 15px/1.45 -apple-system, "Helvetica Neue", Arial, sans-serif; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; } p { color: var(--dim); max-width: 900px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 32px 24px; margin-top: 24px; }
+.cell p { font-size: 13.5px; margin: 8px 0 0; }
+canvas.scr { width: 440px; max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; display: block; border-radius: 6px; }
+body.shot { padding: 0; background: #000; } body.shot canvas { display: block; }
+body.sheet { padding: 20px; background: #101012; }
+.sheetgrid { display: grid; grid-template-columns: repeat(3, 480px); gap: 22px; }
+.sheetgrid canvas { width: 480px; height: 480px; image-rendering: pixelated; display: block; }
+.sheetgrid .cap { color: #bbb; font: 600 13px -apple-system, "Helvetica Neue", Arial; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main id="page">
+<h1>FIZZ: the VOICE page (mock-up round 2, 2026-10-26)</h1>
+<p>One page for how the sound uses voices, the fifth in B1's group (TRIG, KEYS, PORT, <strong>VOICE</strong>, MOD).
+<strong>KNOB 1 VOICE</strong>: POLY or MONO. <strong>KNOB 2 UNISON</strong>: OFF, or 2 … 8 real voices for every note, as the
+Digitone 1; the track's voice LIMIT still caps them (voices over it are drawn dim: they will not play).
+<strong>KNOB 3 DETUNE</strong> fans the unison voices' pitches; <strong>KNOB 4 SPREAD</strong> places them across the stereo.
+<strong>ALGORITHM PRIORITY</strong> (LOW, MID, HIGH): when the unit runs out of voices, a lower priority sound gives its up first.
+All five are saved with the sound.</p>
+<div class="grid" id="cells"></div>
+</main>
+<script src="font_it.js"></script>
+<script>
+const C = { k1:'#3f7dff', k2:'#1fd47e', k3:'#f1f0ea', k4:'#ff6a2c', kalg:'#ff8fc8', g1:'#8d8d96', g2:'#4b4b54', g3:'#26262d', head:'#ee3cff', bg:'#000' };
+const F = 'IT', SNDK = [C.k1, C.k2, C.k3, C.k4];
+function T(c, s, x, y, o = {}) {
+  c.save(); c.font = `${o.w || 500} ${o.s || 12}px ${F}`; c.letterSpacing = (o.ls || 0) + 'px'; c.fillStyle = o.col || C.k3;
+  c.textAlign = o.al || 'center'; c.textBaseline = 'alphabetic'; if (o.a != null) c.globalAlpha = o.a; c.fillText(s, x, y); c.restore();
+  c.save(); c.font = `${o.w || 500} ${o.s || 12}px ${F}`; const w = c.measureText(s).width; c.restore(); return w;
+}
+function L(c, pts, col, lw, a = 1) {
+  c.save(); c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.stroke(); c.restore();
+}
+function O(c, x, y, r, fill, stroke, lw = 1, a = 1) { c.save(); c.globalAlpha = a; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } c.restore(); }
+function RR(c, x, y, w, h, r, fill, a = 1) { c.save(); c.globalAlpha = a; c.beginPath(); c.roundRect(x, y, w, h, r); c.fillStyle = fill; c.fill(); c.restore(); }
+// the editor's foot (ui_snd.c: four columns from x 7, 56.5 wide; the label's baseline 193, the value 18 px at 222)
+const colX = k => 7 + k * 56.5 + 28.25;
+function foot(c, labs, vals, last) {
+  for (let k = 0; k < 4; k++) {
+    T(c, labs[k], colX(k), 193, { s: 12, w: 600, ls: 0.3, col: C.g1 });
+    T(c, vals[k], colX(k), 222.3, { s: 18, w: 300, col: SNDK[k] });     // (the unit's 500 is its light weight)
+    if (last === k) L(c, [colX(k) - 16, 196.5, colX(k) + 16, 196.5], SNDK[k], 2);
+  }
+}
+// the header: B1's five page dots (VOICE the fourth), the name; ALGORITHM's badge top right (ui_snd_draw)
+function header(c, prio) {
+  let x = 10;
+  for (let k = 0; k < 5; k++) { c.beginPath(); c.arc(x + 2.6 + k * 9, 14, 2.6, 0, Math.PI * 2); if (k === 3) { c.fillStyle = C.head; c.fill(); } else { c.strokeStyle = C.g2; c.lineWidth = 1; c.stroke(); } }
+  x += 5 * 9 + 6;
+  T(c, 'VOICE', x, 18, { s: 12, w: 600, ls: 0.8, col: C.head, al: 'left' });
+  c.save(); c.font = `300 14px ${F}`; const w = c.measureText(prio).width; c.restore();
+  const left = 230 - w;
+  T(c, prio, 230, 20, { s: 14, w: 300, col: C.kalg, al: 'right' });
+  O(c, left - 11, 15, 7, C.kalg); T(c, 'A', left - 11, 19, { s: 12, w: 700, col: '#000' });
+}
+// the picture: o = {mono, uni (1: off), detune 0..127, spread 0..127, limit (the track's)}
+function picture(c, o) {
+  const n = Math.max(1, o.uni), d = o.detune / 127 * 0.16, x0 = 22, x1 = 218, cy = 86, amp = 30, cyc = 2.5;
+  const play = Math.min(n, o.limit);                     // the voices that will play (the track's LIMIT)
+  // VOICE: POLY a stack of three notes, MONO one (KNOB 1's blue), the picture's top left
+  for (let i = 0; i < (o.mono ? 1 : 3); i++) RR(c, 18, (o.mono ? 44 : 36) + i * 8, 22, 5, 2.5, C.k1);
+  // the voices' waves, fanned by DETUNE (the middle one white, the others KNOB 3's white-blue; the dim ones over LIMIT)
+  const order = [...Array(n).keys()].sort((a, b) => Math.abs(a - (n - 1) / 2) - Math.abs(b - (n - 1) / 2));
+  const live = new Set(order.slice(0, play));
+  for (let j = n - 1; j >= 0; j--) {
+    const s = n > 1 ? (j / (n - 1)) * 2 - 1 : 0, f = 1 + d * s, pts = [];
+    for (let i = 0; i <= 100; i++) { const u = i / 100; pts.push(x0 + 30 + u * (x1 - x0 - 30), cy - Math.sin(u * cyc * 2 * Math.PI * f) * amp); }
+    const on = live.has(j), mid = Math.abs(s) < 0.2 || n === 1;
+    if (on) L(c, pts, mid ? C.k3 : C.k2, 5, 0.14);
+    L(c, pts, on ? (mid ? C.k3 : C.k2) : C.g2, on ? (mid ? 1.8 : 1.3) : 1, on ? 1 : 0.8);
+  }
+  // the stereo: a bar L .. R, a dot a voice placed by SPREAD (KNOB 4's orange), the dim ones hollow
+  const by = 152, bx0 = 40, bx1 = 200, cx = (bx0 + bx1) / 2;
+  L(c, [bx0, by, bx1, by], C.g3, 3);
+  T(c, 'L', bx0 - 12, by + 4.5, { s: 12, w: 600, col: C.g1 }); T(c, 'R', bx1 + 12, by + 4.5, { s: 12, w: 600, col: C.g1 });
+  for (let j = 0; j < n; j++) {
+    const s = n > 1 ? (j / (n - 1)) * 2 - 1 : 0, x = cx + s * (o.spread / 127) * (bx1 - bx0) / 2, on = live.has(j);
+    if (on) { O(c, x, by, 7, C.k4, null, 1, 0.2); O(c, x, by, 4, C.k4); } else O(c, x, by, 4, null, C.g2, 1.2);
+  }
+}
+const SCREENS = [
+  { title: 'POLY, UNISON OFF', o: { mono: 0, uni: 1, detune: 20, spread: 60, limit: 8, prio: 'MID' }, last: 0,
+    text: 'The page as a sound starts: POLY, no unison: one wave, one voice in the middle of the stereo. PRIORITY MID.' },
+  { title: 'UNISON 3, DETUNE 20, SPREAD 60', o: { mono: 0, uni: 3, detune: 20, spread: 60, limit: 8, prio: 'MID' }, last: 1,
+    text: 'Every note plays three voices, a little detuned (their waves drift apart), placed left, centre and right.' },
+  { title: 'MONO, UNISON 4, wide', o: { mono: 1, uni: 4, detune: 60, spread: 127, limit: 8, prio: 'MID' }, last: 0,
+    text: 'MONO: one note at a time, here as a four-voice unison, wide (SPREAD 127): the classic mono lead.' },
+  { title: 'UNISON 6 on a track LIMIT 4', o: { mono: 0, uni: 6, detune: 40, spread: 100, limit: 4, prio: 'MID' }, last: 1,
+    text: 'The track\'s voice LIMIT is 4 (track settings): only four of the six play, the outer two drawn dim.' },
+  { title: 'PRIORITY HIGH', o: { mono: 0, uni: 2, detune: 30, spread: 80, limit: 8, prio: 'HIGH' }, last: -1,
+    text: 'ALGORITHM: PRIORITY HIGH. When the unit\'s eight voices run out, LOW sounds give theirs up first, then MID; a HIGH sound is robbed last.' },
+  { title: 'UNISON 8, DETUNE 127, SPREAD 127', o: { mono: 1, uni: 8, detune: 127, spread: 127, limit: 8, prio: 'HIGH' }, last: 2,
+    text: 'All eight voices on one note, fully detuned and wide: everything the unit has, for a supersaw-like mono lead.' },
+];
+let BASE;
+const ready = Promise.all([new Promise(r => { BASE = new Image(); BASE.onload = r; BASE.src = 'ref/snd-real-port.png'; }),
+  (async () => { const ff = new FontFace(F, `url(data:font/woff;base64,${FONT_B64})`, { weight: '100 900' }); await ff.load(); document.fonts.add(ff); })()]);
+function draw(i, cv, scale) {
+  const s = SCREENS[i], o = s.o, c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
+  c.setTransform(scale, 0, 0, scale, 0, 0);
+  c.drawImage(BASE, 0, 0, 240, 240);
+  c.fillStyle = '#000'; c.fillRect(5, 4, 230, 231);                    // inside the editor's frame: drawn anew
+  header(c, o.prio);
+  picture(c, o);
+  foot(c, ['VOICE', 'UNISON', 'DETUNE', 'SPREAD'], [o.mono ? 'MONO' : 'POLY', o.uni > 1 ? String(o.uni) : 'OFF', String(o.detune), String(o.spread)], s.last);
+}
+const q = new URLSearchParams(location.search);
+if (q.has('shot')) {
+  document.body.className = 'shot'; document.getElementById('page').innerHTML = '';
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 240; document.body.appendChild(cv);
+  ready.then(() => draw(+q.get('shot') - 1, cv, 1));
+} else if (q.has('sheet')) {
+  document.body.className = 'sheet'; document.getElementById('page').innerHTML = '<div class="sheetgrid" id="sg"></div>';
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'), cv = document.createElement('canvas'); cv.width = 480; cv.height = 480;
+    d.appendChild(cv); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = `${i + 1} · ${s.title}`; d.appendChild(cap);
+    document.getElementById('sg').appendChild(d); draw(i, cv, 2);
+  }));
+} else {
+  ready.then(() => SCREENS.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cell';
+    const cv = document.createElement('canvas'); cv.className = 'scr'; cv.width = 480; cv.height = 480; d.appendChild(cv);
+    const p = document.createElement('p'); p.innerHTML = `<strong>${i + 1} · ${s.title}.</strong> ${s.text}`; d.appendChild(p);
+    document.getElementById('cells').appendChild(d); draw(i, cv, 2);
+  }));
+}
+</script>
+</body>
+</html>

@@ -212,6 +212,7 @@ static void note_on(qd_player_t *pl, const qd_seq_ev_t *e)
             return;
         }
     }
+    qd_pool_set_pan(pl->pool, t, pl->model->t[t].mix.pan);   /* (2026-10-26: SPREAD's middle) */
     i = qd_pool_note_on_at(pl->pool, t, o, e->note, e->vel, r->patch, &r->at);
     if (sl)
         slide_write(pl, i, QD_PORT_ON, pl->slide_cur[t].time, pl->slide_cur[t].slope);
@@ -257,6 +258,7 @@ static void mfx_out_on(void *ctx, int g, const qd_mfx_note_t *n)
         r = &pl->mrec;
     }
     held = qd_pool_gated(pl->pool, t);
+    qd_pool_set_pan(pl->pool, t, pl->model->t[t].mix.pan);
     if (r && n->pat >= 0 && n->pat < QD_NPAT) {
         const qd_tset_t *ts = &qd_proj_pat(pl->seq->proj, n->pat)->trk[t];
         qd_pool_set_track(pl->pool, t, ts->limit, ts->reserve);
@@ -512,6 +514,7 @@ void qd_player_key_on(qd_player_t *pl, int t, int note, int vel)
         }
     }
     held = qd_pool_gated(pl->pool, t);
+    qd_pool_set_pan(pl->pool, t, pl->model->t[t].mix.pan);
     i = qd_pool_note_on(pl->pool, t, &pl->model->t[t].owner, note, vel, pl->model->t[t].patch);
     qd_pool_glide_note(pl->pool, i, &pl->model->t[t].owner, 0, 0, held);   /* E1: a played note glides alone */
     pl->last_on[t][note] = 0;
@@ -567,6 +570,7 @@ int qd_player_preview(qd_player_t *pl, int pat, int t, int s, uint8_t *notes)
     }
     for (i = 0; i < st.nn && i < QD_NNOTE; i++) {
         const int note = st.notes[i] & 127;
+        qd_pool_set_pan(pl->pool, t, pl->model->t[t].mix.pan);
         qd_pool_note_on_at(pl->pool, t, &pl->model->t[t].owner, note, st.vel, r.patch, &r.at);
         pl->last_on[t][note] = 0;
         notes[n++] = (uint8_t)note;

@@ -51,11 +51,21 @@ typedef struct {
     int16_t mixv[QD_VMIX_N];            /* pan -64..63, the sends, level 0..127 */
 } qd_vattr_t;
 #define QD_DIP_MAX 16                   /* routing changes that can wait for one dip */
+/* 2026-10-26, the VOICE page: a unison voice's own: its detune (the voice's pitch x det / 65536; 0 none), its place
+ * in the stereo (pan, when panon), and its note's group (grp: the voices one note started; 0 none). The other voices
+ * of a group follow what its first is given (a lock, a slide, a glide, a legato move) */
+typedef struct {
+    uint32_t det;
+    int8_t pan;
+    uint8_t panon;
+    uint16_t grp;
+} qd_uni_t;
 
 typedef struct {
     qd_quad_voice_t q;                  /* the FM TONE voice: its patch, its note, its state */
     qd_vattr_t at;                      /* its own values and mix locks (PLAN §5) */
     qd_vattr_t pend_at;                 /* .. those of the note waiting for this voice's fade */
+    qd_uni_t u, pend_u;                 /* 2026-10-26: its unison place (pend_u: the waiting note's) */
     uint8_t dip_n;                      /* routing changes waiting for this voice's dip (rendered next block) */
     uint8_t dip_id[QD_DIP_MAX];
     int16_t dip_v[QD_DIP_MAX];
@@ -82,13 +92,21 @@ typedef struct {
     int dip_on;                         /* 1 (the default): routing changes dip; 0: they land at once (tests) */
     int halves;                         /* P2.6: a free voice from the half (0 .. n/2 - 1, n/2 .. n - 1) with fewer
                                          * voices in use (the two cores' share); 0 (the default): the first free */
+    int8_t pan[QD_POOL_NTRACK];         /* 2026-10-26: each track's pan (-64..63): SPREAD's middle (qd_pool_set_pan) */
+    qd_uni_t nu;                        /* .. the unison place of the voice being allocated */
+    uint16_t grpc;                      /* .. the last note group given */
+    uint32_t unis, prio_drops;          /* .. counters: unison notes; notes dropped for a higher PRIORITY's voices */
     qd_pool_voice_t v[QD_POOL_MAX];
 } qd_pool_t;
 
 void qd_pool_init(qd_pool_t *p, int nvoice);   /* every voice free; limits 16, reserves 0 */
 void qd_pool_set_track(qd_pool_t *p, int track, int limit, int reserve);
+void qd_pool_set_pan(qd_pool_t *p, int track, int pan);   /* 2026-10-26: the track's pan (SPREAD's middle) */
 /* a note on track (0..QD_POOL_NTRACK-1) with the sound patch (copied); returns the slot it took or will take, -1:
- * dropped */
+ * dropped. 2026-10-26, the patch's VOICE page: UNISON n starts n voices (the track's LIMIT caps them, the middle ones
+ * kept; their DETUNE and SPREAD), MONO takes the track's voices (LEGATO with a key down: moved, no new attack), and
+ * across the tracks the lowest PRIORITY is robbed first (a note never robs a higher one: dropped). The slot returned is
+ * the note's first voice (its group's: what it is given, its other voices follow) */
 int qd_pool_note_on(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, int vel, const int16_t *patch);
 /* .. with the voice's own attributes (at 0: none) */
 int qd_pool_note_on_at(qd_pool_t *p, int track, qd_quad_owner_t *o, int note, int vel, const int16_t *patch,

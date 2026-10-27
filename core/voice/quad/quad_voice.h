@@ -19,8 +19,10 @@
 extern "C" {
 #endif
 
-#define QD_QUAD_NP 110                  /* the sound's values: FM TONE's patch (eng_quad.c QP_NP, 73), DRIVE (P1.4a), and
-                                         * E1 (research/FMTONE-DN2-PLAN.md): the values 74..109 (QD_QP_AMOD ..) */
+#define QD_QUAD_NP 115                  /* the sound's values: FM TONE's patch (eng_quad.c QP_NP, 73), DRIVE (P1.4a),
+                                         * E1 (research/FMTONE-DN2-PLAN.md): the values 74..109 (QD_QP_AMOD ..), and the
+                                         * VOICE page's 110..114 (2026-10-26: QD_QP_VMODE ..) */
+#define QD_QUAD_NP_E4 110               /* .. the count before the VOICE page ('P' 1..5 records' mix lock ids from here) */
 #define QD_QUAD_FMNP 73                 /* .. FM TONE's own (the engine reads these) */
 #define QD_QUAD_NP5 74                  /* .. those of a version-5 blob (FM TONE's and DRIVE) */
 #define QD_QUAD_BLOB 128                /* E1: FIZZ's packed patch, blob version 6 ('Q', 6, version 5's values, DRIVE at 87,
@@ -60,6 +62,16 @@ enum {
     QD_QP_CRPOST,                       /* E3: .. 0 before the filter, 1 after */
     QD_QP_MOD0                          /* E4: eight modulation slots: QD_QP_MOD(k, QD_QM_SRC / DST / DEPTH) */
 };
+/* 2026-10-26, the VOICE page (mockups/fizz-unison-voice.html, the owner's: unison with real voices as the Digitone 1):
+ * how the sound takes voices. Not lockable on a step (qd_quad_lockable); the voice pool reads them at a note's start */
+enum {
+    QD_QP_VMODE = QD_QP_MOD0 + 3 * 8,   /* VOICE: 0 POLY, 1 MONO (one note at a time on the track) */
+    QD_QP_UNI,                          /* UNISON: 1 OFF, 2..8 voices a note (the track's LIMIT caps them) */
+    QD_QP_UDET,                         /* DETUNE 0..127: the unison voices' spread in pitch (the outer ones +-50 cents) */
+    QD_QP_USPR,                         /* SPREAD 0..127: .. across the stereo */
+    QD_QP_VPRIO                         /* PRIORITY: 0 LOW, 1 MID, 2 HIGH (the pool robs the lowest first) */
+};
+int qd_quad_lockable(int id);           /* a step may lock value id (the VOICE page's may not) */
 enum { QD_QM_SRC, QD_QM_DST, QD_QM_DEPTH };
 /* E4: the modulation slots' sources (SOURCE 0 OFF) */
 enum { QD_MS_OFF, QD_MS_VEL, QD_MS_KEY, QD_MS_MW, QD_MS_AT, QD_MS_PB, QD_MS_BR, QD_MS_RAND, QD_MS_FENV, QD_MS_N };
@@ -116,6 +128,7 @@ struct qd_quad_voice {
     uint8_t kill;                       /* the fade steal: the next block ramps the voice to 0, then it ends */
     int32_t env, env_out;               /* the driver's: Q24, the last block's amplitude Q15 (0, 0: silent) */
     int32_t pitch16, pitch_cur;         /* 1/16 semitone */
+    uint32_t udet;                      /* 2026-10-26: a unison voice's detune, its pitch x udet / 65536 (0: none) */
     int16_t patch[QD_QUAD_NP];          /* the voice's own patch (PLAN.md §5) */
     qd_quad_owner_t *owner;
     uint64_t qstate[QD_QUAD_STATE_WORDS];   /* eng_quad.c quad_voice_t */

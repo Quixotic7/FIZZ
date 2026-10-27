@@ -16,7 +16,7 @@
 // spaces, CRLF) and the payload; the payload Elektron's container (31-byte header, an LZ4 block chain, the 12-byte
 // trailer with its CRC-32); the LZ4 block made by Elektron's own compressor's rules (lz4Elektron: it reproduces every
 // block of the 462 Digitone files and the Digitone II file on hand, byte for byte).
-import { DN2_RATIO_A, DN2_RATIO_CB, DN2_LFO_DEST, DN2_TAGS, multToQuad, crc32, QUAD_RANGES, QUAD_EXT_RANGES } from "../dn2pst.js";
+import { DN2_RATIO_A, DN2_RATIO_CB, DN2_LFO_DEST, DN2_TAGS, multToQuad, crc32, QUAD_RANGES, QUAD_EXT_RANGES, QUAD_VOICE_RANGES } from "../dn2pst.js";
 
 // ---- FIZZ's patch (core/voice/quad/quad_voice.h): 0..72 FM TONE (eng_quad.c QP_*), 73 DRIVE, 74..109 the E values
 export const Q = { ALGO: 0, RC: 1, RA: 2, RB1: 3, HARM: 4, DTUN: 5, FDBK: 6, MIX: 7, OFSC: 8, OFSA: 9, OFSB1: 10, OFSB2: 11,
@@ -27,8 +27,8 @@ export const Q = { ALGO: 0, RC: 1, RA: 2, RB1: 3, HARM: 4, DTUN: 5, FDBK: 6, MIX
   BWPOST: 82, BITS: 83, SRR: 84, CRPOST: 85, MOD0: 86 };
 const lfo = (k, f) => 47 + 8 * k + f;                    // f: 0 SPEED 1 MULT 2 FADE 3 DEST 4 WAVE 5 PHASE 6 TRIG 7 DEPTH
 const HIRES = [4, 5, 34, 35, 37, 40, 47, 54, 55, 62, 63, 70];
-export const NP = 110;
-const RANGES = [...QUAD_RANGES, [0, 127, 0], ...QUAD_EXT_RANGES];   // [min, max, default] of the 110
+export const NP = 115;                                   // (2026-10-26: + the VOICE page's 110..114)
+const RANGES = [...QUAD_RANGES, [0, 127, 0], ...QUAD_EXT_RANGES, ...QUAD_VOICE_RANGES];   // [min, max, default] of the 110
 export const defaults = () => RANGES.map((r) => r[2]);
 
 // a FIZZ sound's 110 values (a version-5 blob or 74 values: the E values their defaults)
@@ -45,7 +45,11 @@ export function fizzValues(sound) {
       v[i] = u + RANGES[i][0];
     }
     v[Q.DRIVE] = b[87] <= 127 ? b[87] : 0;
-    if (b[1] === 6) for (let i = 74; i < NP; i++) v[i] = b[88 + i - 74] + RANGES[i][0];
+    if (b[1] === 6) {
+      for (let i = 74; i < 110; i++) v[i] = b[88 + i - 74] + RANGES[i][0];
+      v[110] = b[124] & 1; v[114] = ((b[124] >> 1) + 1) & 3;   // (2026-10-26: the VOICE page, zeros its defaults)
+      v[111] = b[125] + 1; v[112] = (b[126] + 20) & 255; v[113] = (b[127] + 64) & 255;
+    }
   }
   if (sound.drive !== undefined) v[Q.DRIVE] = sound.drive;
   return v.map((x, i) => Math.max(RANGES[i][0], Math.min(RANGES[i][1], Math.round(x))));

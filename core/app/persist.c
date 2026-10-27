@@ -44,7 +44,9 @@
  *        that preset's name and packed patch again: a copy's round trip, exactly. A track keeps the sound it loaded:
  *        before one of MY presets changes or goes (REPLACE, a store over it, a delete, an undo or redo of one), every
  *        record referring to it, in every project, is written again with the copy (pat_unref). Factory presets are
- *        compiled in and never change. A demo-density pattern: ~2.7 KB as 'P' 4, ~1.6 KB as 'P' 5 */
+ *        compiled in and never change. A demo-density pattern: ~2.7 KB as 'P' 4, ~1.6 KB as 'P' 5
+ *   PAT  (2026-10-26) 'P' 6: as 'P' 5; the sound has the VOICE page's five values (110..114, in the blob's last four
+ *        bytes: zeros their defaults), so the mix's lock ids are 115..; a 'P' 3..5's (110..) move up when read */
 #include <stddef.h>
 
 #include "../voice/fx/qd_fx.h"
@@ -191,7 +193,7 @@ static void ser_pat(const qd_app_t *a, const qd_pattern_t *p, em_t *e)
     int t, pg, s;
     for (t = 0; t < QD_PAT_NTRACK; t++)
         ref[t] = tsound_ref(a, &p->snd[t]);
-    em8(e, 'P'), em8(e, qd_persist_write_v4 ? 4 : 5);
+    em8(e, 'P'), em8(e, qd_persist_write_v4 ? 4 : 6);   /* (2026-10-26: 'P' 6, the VOICE page's lock ids) */
     em8(e, QD_STEP_WIRE), em8(e, sizeof(qd_tset_t));   /* (P2.1c: the steps' 20-byte layout, as before) */
     em(e, &p->master, 2);
     em8(e, p->swing), em8(e, p->used);
@@ -225,7 +227,17 @@ static void ser_pat(const qd_app_t *a, const qd_pattern_t *p, em_t *e)
                 }
         }
     }
-    em(e, p->lock, (uint32_t)p->nlock * sizeof(qd_lock_t));
+    if (qd_persist_write_v4) {                          /* (a 'P' 4: its mix lock ids as they were then) */
+        int k;
+        for (k = 0; k < p->nlock; k++) {
+            qd_lock_t l = p->lock[k];
+            if (l.id >= QD_QUAD_NP)
+                l.id = (uint8_t)(l.id - (QD_QUAD_NP - QD_QUAD_NP_E4));
+            em(e, &l, sizeof l);
+        }
+    } else {
+        em(e, p->lock, (uint32_t)p->nlock * sizeof(qd_lock_t));
+    }
     for (t = 0; t < QD_PAT_NTRACK; t++) {
         uint8_t blob[QD_QUAD_BLOB];
         if (ref[t]) {                                   /* (P2.1: by reference) */
@@ -243,7 +255,7 @@ static void ser_pat(const qd_app_t *a, const qd_pattern_t *p, em_t *e)
 /* P1.6c: a record's track settings' size by its version ('P' 4, 5: today's; 1..3: before the MIDI FX field); 0 bad */
 static uint32_t pat_tset_size(const uint8_t *b, uint32_t len)
 {
-    if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 5 || b[2] != QD_STEP_WIRE)
+    if (len < 4 || b[0] != 'P' || b[1] < 1 || b[1] > 6 || b[2] != QD_STEP_WIRE)
         return 0;
     if (b[1] >= 4)
         return b[3] == sizeof(qd_tset_t) ? (uint32_t)sizeof(qd_tset_t) : 0u;
@@ -293,11 +305,13 @@ static int de_pat(const qd_app_t *a, qd_pattern_t *p, rd_t *r)
         }
     }
     rd_get(r, p->lock, (uint32_t)p->nlock * sizeof(qd_lock_t));
-    if (v < 3) {                                        /* (E1: the mix's lock ids past the new values) */
+    if (v < 6) {                                        /* (E1, 2026-10-26: the mix's lock ids past the new values:
+                                                         * 'P' 1..2's from 74, 'P' 3..5's from 110) */
+        const int from = v < 3 ? QD_QUAD_NP5 : QD_QUAD_NP_E4;
         int k;
         for (k = 0; k < p->nlock; k++)
-            if (p->lock[k].id >= QD_QUAD_NP5)
-                p->lock[k].id = (uint8_t)(p->lock[k].id + (QD_QUAD_NP - QD_QUAD_NP5));
+            if (p->lock[k].id >= from)
+                p->lock[k].id = (uint8_t)(p->lock[k].id + (QD_QUAD_NP - from));
     }
     for (t = 0; t < QD_PAT_NTRACK; t++) {
         const uint32_t bl = v >= 3 ? QD_QUAD_BLOB : QD_QUAD_BLOB5;
