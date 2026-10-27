@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+- **Record FIZZ over USB.** The FM-1 is now also a USB audio input: pick **FIZZ FM-1** as the input in your DAW (or Audio MIDI Setup) and record FIZZ's master output straight over the cable, 44.1 kHz stereo, at the MASTER knob's level. MIDI and the Manager work as before. (macOS may need the FM-1 unplugged and plugged in once to see the new input.)
+
 ## 0.12.0-beta.11 (2026-10-27)
 
 Full MIDI: CCs for the sound, a remote control for the whole panel, MIDI out, and MIDI tracks.

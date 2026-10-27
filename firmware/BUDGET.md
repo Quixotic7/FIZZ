@@ -290,3 +290,14 @@ the section renamed `.fzrt.*` in the object, fizz.ld's window), not by unit.
 | RAM code region free | 4,708 B | 1,176 B |
 | pool | 332,240 B (11,824 spare) | 338,144 B (5,920 spare: 8 voices free ~10.5 KB, the comb lines take 16.4 KB; FM1B_POOL_SPARE=4096 for this build) |
 | RAM .data + .bss | 95,708 B (2,596 free) | same |
+
+## USB audio in (2026-10-27)
+
+The owner: the computer records FIZZ over the cable (fm1-base's `usb_audio_in`: the master output after MASTER, 16-bit
+44.1 kHz stereo, `uac_tap` after each block in fm1-base's render). Not `usb_audio_out` (the computer playing through
+the FM-1: 8,928 B more RAM than there is). Measured on 2336821: USB audio in alone overflowed RAM by 512 B; fizz.ld
+now places `ctl_latch.c`'s 1,260 B in the pool. After: app slot 572,040 of 581,564 (9,524 free), RAM 97,540 of 98,304
+(764 free), pool 329,308 of 344,064 (6,564 above fm1-base's 8,192). The single-core package links too.
+
+Bluetooth MIDI (`ble = true`, a store object at 0xFA000) measured on the same commit: over by 116,080 B of the app
+slot, 44,624 B of RAM, 8,560 B of the pool, 3,864 B of the RAM code region, 1,096 B of NOINIT.

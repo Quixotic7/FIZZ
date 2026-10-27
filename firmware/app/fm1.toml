@@ -14,9 +14,10 @@ include = ["../../core/app", "../../core/ui", "../../core/gfx", "../../core/seq"
            "../../core/voice/quad", "../../core/voice/fx", "../../core/tests", "../../third_party/plutovg/include"]
 vendored = ["build/"]
 gen = ["tools/gen_units.py {gen} --gfx fb"]     # the drawing: plutovg, fast (core/gfx/qd_gfx_fast.c) or fb (P2.12: fast, into the 8-bit frame)
-# USB only (the owner, 2026-10-23): no Bluetooth, no WiFi; no USB audio (the RAM: firmware/BUDGET.md)
+# USB only (the owner, 2026-10-23): no Bluetooth, no WiFi. USB audio in (2026-10-27): the computer records FIZZ over
+# the cable (its master output, at MASTER); not out (the computer playing through the FM-1: ~9 KB of RAM)
 ble = false
-usb_audio_in = false
+usb_audio_in = true
 usb_audio_out = false
 mirror = false
 backup = false                 # (fm1-base's backup carries Felucca's storage objects; FIZZ's store is its own: fizz_xdata.py backup)
