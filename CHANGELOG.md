@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.11 (2026-10-27)
+
 Full MIDI: CCs for the sound, a remote control for the whole panel, MIDI out, and MIDI tracks.
 
 - **Channels.** Channels 1 … 6 play tracks 1 … 6 as before (a track's MIDI CH now runs 1 … 15). **Channel 15 plays the selected track** (it was 16). **Channel 16 is the remote** and plays no track.
