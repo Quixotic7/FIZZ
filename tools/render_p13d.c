@@ -239,8 +239,8 @@ int render_p13d(const char *out)
     shot("held-vel-k1", "VEL, step 5 held, KNOB 1: the step's velocity");
     wrelease(4);
 
-    /* P-LOCK, nothing held: ALGORITHM chooses the track */
-    at(A03, T1, UI_F_PLOCK);
+    /* SOUND (was P-LOCK, gone in the clean-up), nothing held */
+    at(A03, T1, UI_F_SOUND);
     btap(QD_B_PLAY);
     run(600);
     turn(K_ALG, 3);
@@ -282,7 +282,7 @@ int render_p13d(const char *out)
     run(300);
     shot("latch-vel", "LFO: the step latch, steps 5 and 13 selected (VEL)");
     btap(QD_B_MUTE);
-    at(A01, T1, UI_F_PLOCK);
+    at(A01, T1, UI_F_SOUND);
     btap(QD_B_MUTE);
     qd_app_key(&A, WK(0), 1, 100);
     run(20);
