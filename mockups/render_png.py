@@ -61,6 +61,10 @@ P2 = ['edit-operators', 'edit-filter-amp', 'edit-lfo-mod', 'export', 'projects',
 for i, n in enumerate(P2, 1):                  # fizz-manager-p2.html: the manager's Phase 2 (docs/MANAGER-P2-PLAN.md)
     SHOTS[f'p2-{i}'] = (f'shot={i}', 1280, 800, f'fizz-manager-p2-{i:02d}-{n}.png', 'fizz-manager-p2.html')
 SHOTS['sheet-p2'] = ('sheet=1', 2016, 1500, 'fizz-manager-p2-sheet.png', 'fizz-manager-p2.html')
+PJ = ['patterns', 'paste', 'kept', 'backup-play']
+for i, n in enumerate(PJ, 1):                  # fizz-projects.html: the PROJECTS tab, backups played in the browser
+    SHOTS[f'pj-{i}'] = (f'shot={i}', 1280, 800, f'fizz-projects-{i:02d}-{n}.png', 'fizz-projects.html')
+SHOTS['sheet-pj'] = ('sheet=1', 1360, 1020, 'fizz-projects-sheet.png', 'fizz-projects.html')
 
 def render(key, scratch):
     query, w, h, name = SHOTS[key][:4]
