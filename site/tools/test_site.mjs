@@ -53,11 +53,11 @@ const note = (what) => console.log(`      ${what}`);
   check(browserName("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0") === "Firefox 131 on Windows", "browserName: Firefox on Windows");
 }
 
-// ---- the MIDI keyboard's channel (Node): to FIZZ's channel 16 (the selected track), system messages as they are
+// ---- the MIDI keyboard's channel (Node): to FIZZ's channel 15 (the selected track), system messages as they are
 {
   const t = (b) => Array.from(toSelectedTrack(b)).join(" ");
-  check(t([0x90, 60, 100]) === "159 60 100" && t([0x83, 60, 0]) === "143 60 0" && t([0xb0, 1, 64]) === "191 1 64" && t([0xe2, 0, 64]) === "239 0 64" &&
-        t([0xf8]) === "248" && t([0xf0, 0x7d, 1, 0xf7]) === "240 125 1 247", "a MIDI keyboard's channel messages go to channel 16 (the selected track), system messages pass");
+  check(t([0x90, 60, 100]) === "158 60 100" && t([0x83, 60, 0]) === "142 60 0" && t([0xb0, 1, 64]) === "190 1 64" && t([0xe2, 0, 64]) === "238 0 64" &&
+        t([0xf8]) === "248" && t([0xf0, 0x7d, 1, 0xf7]) === "240 125 1 247", "a MIDI keyboard's channel messages go to channel 15 (the selected track), system messages pass");
 }
 
 // ---- Chromium (its fake audio output: the AudioContext runs on its own clock, not this machine's sound device, which
@@ -391,7 +391,7 @@ try {
 
   // 7f. P1.6g: recording in every view, from the computer keys and from Shift-click. Stopped, REC held about a second
   // arms it (REC reads REC OFF), then PLAY starts it; a REC tap stops it. A MIDI keyboard on channel 1 plays the selected
-  // track through channel 16 (FIZZ's output has sound)
+  // track through channel 15 (FIZZ's output has sound)
   {
     const recLabel = "FIZZ.labels.btns[11].firstChild.textContent";
     const key = async (type, k, code, vk) => send("Input.dispatchKeyEvent", { type, key: k, code, windowsVirtualKeyCode: vk });
@@ -426,7 +426,7 @@ try {
     await evaluate("FIZZ.midiIn(Uint8Array.from([0x90, 62, 110]))");
     let pk = 0; for (let i = 0; i < 12; i++) { await sleep(40); pk = Math.max(pk, await evaluate("FIZZ.peak()")); }
     await evaluate("FIZZ.midiIn(Uint8Array.from([0x80, 62, 0]))");
-    check(pk > 0.002, `a MIDI keyboard on channel 1 plays the selected track (sent on channel 16): output peak ${pk.toFixed(4)}`);
+    check(pk > 0.002, `a MIDI keyboard on channel 1 plays the selected track (sent on channel 15): output peak ${pk.toFixed(4)}`);
   }
 
   // 7c. the recorder (RemoteFM1's ad408fa): Shift+R records, FIZZ playing, Shift+R stops; a take with sound in it

@@ -23,6 +23,7 @@
     <a href="./" class="nav-link play">Play</a>
     <a href="install/" class="nav-link">Install</a>
     <a href="manager/" class="nav-link">Manager</a>
+    <a href="midi.html" class="nav-link">MIDI</a>
     <a data-feedback class="nav-link feedback" href="https://discord.gg/emf6DmZ9V" target="_blank" rel="noopener">Feedback</a>
   </nav>
 </header>
@@ -35,7 +36,7 @@
     <nav class="toc" aria-label="On this page">
       <a href="#start" style="--c:#28E1FF">Start</a><a href="#steps" style="--c:#3F7DFF">Steps</a><a href="#hold" style="--c:#1FD47E">Hold a step</a>
       <a href="#knobs" style="--c:#FFD23F">The knobs</a><a href="#editor" style="--c:#FF6A2C">Sound editor</a><a href="#more" style="--c:#9664FF">Tracks and patterns</a><a href="#tools" style="--c:#FF4D6D">Tools</a>
-      <a href="#saving" style="--c:#F3D9A4">Saving</a><a href="#manager" style="--c:#7FD8FF">Manager</a><a href="#keys" style="--c:#FF3CA0">Key map</a>
+      <a href="#saving" style="--c:#F3D9A4">Saving</a><a href="#midi" style="--c:#FF8FC8">MIDI</a><a href="#manager" style="--c:#7FD8FF">Manager</a><a href="#keys" style="--c:#FF3CA0">Key map</a>
     </nav>
   </div>
 
@@ -171,21 +172,13 @@
 
   <section id="midi" style="--c:#FF8FC8">
     <h2>MIDI</h2>
+    <p class="m-p">Everything in one place, with the full CC map and the implementation chart: <a href="midi.html"><b>FIZZ and MIDI</b></a>.</p>
     <ul>
-      <li><b>In, over USB or the TRS jack.</b> Channels <b>1 … 6</b> play tracks 1 … 6 (a track's MIDI CH, track settings page 1, runs 1 … 15). Channel <b>15</b> plays the selected track. Notes, MOD WHEEL (CC 1), BREATH (CC 2), aftertouch and pitch bend reach the track's modulation; the clock and START / STOP drive the transport. Notes on the selected track also go into a held step or a recording.</li>
-      <li><b>CCs set the sound</b> on a track's channel (or 15 for the selected track), as the editor's knobs do with nothing held; the notes sounding follow. With REC and AUTOMATION on, CCs to the selected track record as locks. The map, the same for every sound:
-        mixer: 7 LEVEL, 10 PAN, 91 REVERB, 93 CHORUS, 94 DELAY, 95 DRY;
-        FILTER 74 FREQ, 71 RESO, 49 MACHINE, 50 ENV DEPTH, 51 SHAPE, 52 GAIN;
-        AMP 73 ATTACK, 75 DECAY, 62 SUSTAIN, 72 RELEASE, 63 MODE, 70 HOLD;
-        PORT 65 ON / OFF / LEGATO, 5 TIME, 19 SLOPE;
-        TRIG 3, 9, 12, 13, 14; KEYS 15 … 18; VOICE 20 … 24;
-        RATIO 25 C, 26 A, 27 B, 28 MIX, 29 ALGORITHM; TONE 30 HARM, 31 DETUNE, 33 FEEDBACK; OFFSET 34 … 37;
-        ENV A 39 … 43 and ENV B 44 … 48 (ATK, DEC, END, LEV, DELAY); F ENV 53 … 57 (ATK, DEC, SUS, REL, DELAY);
-        BASE 58 BASE, 59 WIDTH, 60 KEY TRACK, 61 BW POST; LEVEL 76 LEVEL, 77 DRIVE, 78 DRIVE PRE; CRUSH 79 BITS, 80 SRR, 81 ROUTE;
-        LFO 1 82 … 89, LFO 2 90, 92, 102 … 107, LFO 3 108 … 115 (SPEED, MULT, DEPTH, DEST, WAVE, PHASE, TRIG, FADE).</li>
-      <li><b>The remote, channel 16:</b> your controller plays the FM-1's panel. Notes <b>53 … 79</b> (F3 … G5) are the 27 keys. <b>CC 20 … 33</b> are the buttons in panel order (FX, SEL, ENV, LFO, EDIT, GLO, HOME, SAVE, ARP, SEQ, PLAY, REC, OCT−, OCT+; 64 or more presses). <b>CC 40 … 46</b> are the encoders (SELECT, ALGORITHM, PRESETS, KNOB 1 … 4), relative: 65 turns one right, 63 one left. <b>CC 47 … 50</b> are KNOB 1 … 4 for faders and pots (a fader's move turns the knob as far). <b>CC 7</b> is MASTER, <b>CC 123</b> lets go of what the remote holds.</li>
-      <li><b>Out, over USB</b> (the FM-1 has no MIDI out jack). Track settings page 3, <b>KNOB 4 MIDI OUT</b>: OFF or a channel. The track's notes go out as it plays them (after its MIDI FX and arp, and what you play on it), and it still sounds. <b>SETTINGS</b> (GLO + SEL): <b>KNOB 3 CLOCK OUT</b> sends the clock and START / STOP while FIZZ plays on its own clock; <b>KNOB 4 CC OUT</b> sends a sound knob's CC (the map above) on the track's MIDI CH as you turn it, so a controller's rings follow. Both ON at first.</li>
-      <li><b>MIDI tracks.</b> Track settings page 3, <b>KNOB 3 ENGINE</b>: FM TONE or <b>MIDI</b>. A MIDI track makes no sound: its notes go out on its MIDI OUT channel (set to the track's number if it was OFF). Its <b>EDIT</b> is seven pages of four CCs (SELECT or B1 … B7 the page): KNOB 1 … 4 set the values, sent as you turn. A slot never turned is a dashed empty bar and sends nothing. <b>SHIFT + a knob</b> picks its CC number (page 1 starts at CC 16 … 19, page 2 at 20 … 23, and so on). <b>Hold a step and turn</b>: a lock, sent as the step plays, the track's value back at its next note; the latch, B11 and REC with AUTOMATION work as in the sound editor. A MIDI track's values save with its sound, so a preset can be a MIDI preset.</li>
+      <li><b>In, over USB or the TRS jack.</b> Channels <b>1 … 6</b> play tracks 1 … 6 (a track's MIDI CH, track settings page 1, runs 1 … 15). Channel <b>15</b> plays the selected track. Notes play the track; MOD WHEEL, BREATH, aftertouch and pitch bend reach its modulation; the clock and START / STOP drive the transport.</li>
+      <li><b>CCs set the sound</b>, the same map for every sound (<a href="midi.html#cc">the CC map</a>): FREQ is 74, RESO 71, the amp envelope 73, 75, 62, 72, and so on. With REC and AUTOMATION on, CCs to the selected track record as locks.</li>
+      <li><b>The remote, channel 16:</b> a controller plays the FM-1's panel. Notes 53 … 79 are the keys, CC 20 … 33 the buttons, CC 40 … 46 the encoders (relative), CC 47 … 50 KNOB 1 … 4 for faders (<a href="midi.html#remote">the remote's map</a>).</li>
+      <li><b>Out, over USB:</b> track settings page 3, <b>KNOB 4 MIDI OUT</b> sends a track's notes on a channel. <b>SETTINGS</b> (GLO + SEL): <b>KNOB 3 CLOCK OUT</b> the clock and START / STOP, <b>KNOB 4 CC OUT</b> the knobs' moves as CCs.</li>
+      <li><b>MIDI tracks:</b> track settings page 3, <b>KNOB 3 ENGINE MIDI</b>. The track makes no sound and sequences other gear: EDIT gives seven pages of four CCs, SHIFT + a knob picks a slot's CC number, and holding a step locks a value (<a href="midi.html#tracks">more</a>).</li>
     </ul>
   </section>
 
