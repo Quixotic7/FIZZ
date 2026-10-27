@@ -700,7 +700,8 @@ button.tag { cursor: pointer; }
 .pgrid { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 6px; flex: 1; }
 .pt { border-radius: 9px; background: #0f0f13; border: 1.5px solid #1c1c22; padding: 5px 5px 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0; text-align: left; overflow: hidden; }
 .pt .no { font-size: 12px; font-weight: 800; color: #5d5d66; line-height: 1; margin-bottom: 2px; }
-.pt .tr { display: grid; grid-template-columns: repeat(16, 1fr); gap: 1px; height: 4px; }
+.pt .tr { display: grid; grid-template-columns: repeat(16, 1fr); gap: 1px; height: auto; flex: 1 1 4px; min-height: 4px; max-height: 14px; }
+.pt { justify-content: flex-start; }
 .pt .tr i { border-radius: 1px; background: #1c1c22; }
 .pt .tr.demo i:nth-child(odd) { background: color-mix(in srgb, var(--green) 40%, #1c1c22); }
 .pt.used { border-color: #2c2c34; background: #141419; }

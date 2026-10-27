@@ -114,19 +114,26 @@ export class FizzLink {
     let r;
     try { r = c.onFrame(p); } catch (e) { c.fail(e); return; }
     if (r === undefined) return;
-    if (r === MORE) { c.arm(); return; }
+    if (r === MORE) { c.heard = true; c.arm(); return; }
     c.done(r);
   }
 
   // one operation: start() sends, onFrame(p) answers undefined (not its), MORE (its, keep waiting: the wait starts
   // again) or the result; on a quiet `timeout` ms, partial() (or a timeout error)
-  op(start, onFrame, { timeout = 3000, partial = null } = {}) {
+  // retry (reads only: the owner's FM-1 on 2026-10-27 lost about one request in four on a busy USB-MIDI bus, and a
+  // lost IDENTITY read as "FIZZ does not answer", a lost DUMP as a backup that did not finish): sent again, up to
+  // `retry` times, after `timeout` with nothing of it heard (start(c) runs again; c.tries counts)
+  op(start, onFrame, { timeout = 3000, partial = null, retry = 0 } = {}) {
     const run = () => new Promise((resolve, reject) => {
       if (this.closed) { reject(err("lost", "the FM-1 is not connected")); return; }
       let t = null;
       const c = {
-        onFrame,
-        arm: () => { clearTimeout(t); t = setTimeout(() => { if (this.cur !== c) return; if (partial) c.done(partial()); else c.fail(err("timeout", "the FM-1 did not answer")); }, timeout); },
+        onFrame, tries: 0, heard: false,
+        arm: () => { clearTimeout(t); t = setTimeout(() => {
+          if (this.cur !== c) return;
+          if (c.tries < retry && !c.heard) { c.tries++; this.log(`no answer in ${timeout} ms: sent again (${c.tries})`); c.arm(); try { start(c); } catch (e) { c.fail(e); } return; }
+          if (partial) c.done(partial()); else c.fail(err("timeout", "the FM-1 did not answer"));
+        }, timeout); },
         done: (v) => { clearTimeout(t); if (this.cur === c) this.cur = null; resolve(v); },
         fail: (e) => { clearTimeout(t); if (this.cur === c) this.cur = null; reject(e); },
       };
@@ -147,11 +154,11 @@ export class FizzLink {
     return this.op(() => this.send(identity()), (p) => {
       const r = parseReply(p);
       return r && r.kind === "identity" ? r.version.replace(/^FIZZ\s*/, "") : undefined;
-    }, { timeout: 1500, partial: () => null });
+    }, { timeout: 700, retry: 3, partial: () => null });
   }
   list({ factory = false, pool = false } = {}) {
     const rows = [];
-    return this.op(() => this.send(listRequest({ factory, pool })), (p) => {
+    return this.op(() => { rows.length = 0; this.send(listRequest({ factory, pool })); }, (p) => {
       const l = parseList(p);
       if (!l) return undefined;
       rows.push(...l.entries);
@@ -164,7 +171,7 @@ export class FizzLink {
       if (d && (d.slot === slot || (source === "factory" && d.slot === 0))) return d.frame;   // (a factory one: slot 0)
       const r = parseReply(p);
       return r && r.kind === "error" && r.command === 0x22 ? null : undefined;
-    });
+    }, { timeout: 1000, retry: 3 });
   }
   // every preset of a source (DUMP slot 0), as many as LIST counted; paced by the unit's reply ring
   dumpAll(source, total, onProgress = () => {}) {
@@ -189,17 +196,17 @@ export class FizzLink {
   // ---- Phase 1: the library, the pool, the projects edited. One command, the reply `want` gives (its ACK, or
   // another kind), or FIZZ's error reply for that command (an older FIZZ: BAD COMMAND). A job (a pool swap, a delete,
   // a project) answers when it is done: the wait is long, and restarts on any of its frames
-  ask1(f, cmd, want = (r) => r.kind === "ack" && r.command === cmd, timeout = 15000) {
+  ask1(f, cmd, want = (r) => r.kind === "ack" && r.command === cmd, timeout = 15000, retry = 0) {
     return this.op(() => this.send(f), (p) => {
       const r = parseReply(p);
       if (!r) return undefined;
       if (want(r)) return r;
       if (r.kind === "ack" && r.command === cmd) return r;
       return r.kind === "error" && r.command === cmd ? { status: r.status, statusName: r.statusName, old: r.status === 7 } : undefined;
-    }, { timeout });
+    }, { timeout, retry });
   }
   async status() {
-    const r = await this.ask1(statusRequest(), CMD1.STATUS, (x) => x.kind === "status", 3000).catch(() => null);
+    const r = await this.ask1(statusRequest(), CMD1.STATUS, (x) => x.kind === "status", 800, 3).catch(() => null);
     return r && r.kind === "status" ? r : null;
   }
   flush() { return this.ask1(flushRequest(), CMD1.FLUSH, (x) => x.kind === "status"); }
@@ -208,9 +215,9 @@ export class FizzLink {
   remove(source, slot, { confirm = false } = {}) { return this.ask1(deleteRequest({ source, slot, confirm }), CMD1.DELETE); }
   swap(source, a, b) { return this.ask1(swapRequest({ source, a, b }), CMD1.SWAP); }
   poolRef(slot, id) { return this.ask1(poolRefRequest({ slot, id }), CMD1.POOLREF); }
-  users(source, slot) { return this.ask1(usersRequest({ source, slot }), CMD1.USERS, (x) => x.kind === "users"); }
+  users(source, slot) { return this.ask1(usersRequest({ source, slot }), CMD1.USERS, (x) => x.kind === "users", 5000, 1); }
   async projects() {
-    const r = await this.ask1(projectsRequest(), CMD1.PROJECTS, (x) => x.kind === "projects", 3000).catch(() => null);
+    const r = await this.ask1(projectsRequest(), CMD1.PROJECTS, (x) => x.kind === "projects", 800, 3).catch(() => null);
     return r && r.kind === "projects" ? r : null;
   }
   project(op, p, q = 0) { return this.ask1(projectRequest({ op, p, q }), CMD1.PROJECT, undefined, 30000); }
@@ -223,9 +230,9 @@ export class FizzLink {
       if (d && d.source === "track" && (!slot || d.track === slot - 1)) return d.frame;
       const r = parseReply(p);
       return r && r.kind === "error" && r.command === 0x22 ? null : undefined;
-    }, { timeout: 1500, partial: () => null });
+    }, { timeout: 800, retry: 2, partial: () => null });
   }
-  param(track, id, value) { return this.ask1(paramRequest({ track, id, value, ack: true }), CMD.PARAM, undefined, 2000); }
+  param(track, id, value) { return this.ask1(paramRequest({ track, id, value, ack: true }), CMD.PARAM, undefined, 1000, 1); }   // (a value set: sent again is harmless)
   // Manager fixes: the unit's sound browser on a track ("selected", 0..5) at preset id, as PRESETS turned to it (the
   // owner's OCT- cancels, OCT+ loads) -> ACK {status, a: track + 1, b: the browser's place} | {old} (an older FIZZ)
   browse(track, id) { return this.ask1(browseRequest({ track, id }), CMD.BROWSE, undefined, 3000); }
@@ -233,14 +240,14 @@ export class FizzLink {
   note(ch, n, vel) { this.send(vel ? [0x90 | (ch & 15), n & 127, vel & 127] : [0x80 | (ch & 15), n & 127, 0]); }
 
   // ---- the bulk channel
-  bulk(tag, words, want, timeout) {
+  bulk(tag, words, want, timeout, retry = 0) {
     return this.op(() => this.send(bulkFrame(tag, ...words)), (p) => {
       const r = parseBulk(p);
       return r && (r.tag === want || r.tag === "FZER") ? r : undefined;
-    }, { timeout, partial: () => null });
+    }, { timeout, retry, partial: () => null });
   }
   async storeInfo() {
-    const r = await this.bulk("FZBI", [], "FZBI", 15000);   // (the unit's CRC of ~300 KB, bitwise: tens of ms)
+    const r = await this.bulk("FZBI", [], "FZBI", 2500, 3);   // (the unit's CRC of ~300 KB, bitwise: tens of ms)
     if (!r || r.tag !== "FZBI" || r.data.length < 12) return null;
     return { lo: rd32(r.data, 0), size: rd32(r.data, 4), crc: rd32(r.data, 8) };
   }

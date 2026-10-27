@@ -304,6 +304,11 @@ async function readUnit(label, { presetsOnly = false } = {}) {
     const t0 = performance.now();
     frames = await link.dumpAll("mine", mine.length, (n, t) => progSet((presetsOnly ? 0 : 0.85) + (presetsOnly ? 1 : 0.15) * n / t, -1));
     log(`DUMP: ${frames.length} of ${mine.length} presets in ${(performance.now() - t0).toFixed(0)} ms`);
+    if (frames.length < mine.length) {                  // (a reply lost on the way: the missing ones asked for one by one)
+      const got = new Set(frames.map((f) => parseDump(f).slot));
+      for (const r of mine) if (!got.has(r.slot)) { const f = await link.dump("mine", r.slot).catch(() => null); if (f) frames.push(f); }
+      log(`DUMP: ${frames.length} of ${mine.length} after asking for the missing ones`);
+    }
     if (frames.length < mine.length) throw Object.assign(new Error(`only ${frames.length} of ${mine.length} presets came back`), { code: "dump" });
     u.dumps = new Map(frames.map((f) => [parseDump(f).slot, f]));
   } else if (summary) {
