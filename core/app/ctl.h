@@ -282,7 +282,8 @@ typedef struct {
     int t;                             /* the track it browses for */
     qd_tsound_t own;                   /* the track's own sound when it opened: back to it on a cancel */
     qd_mix_track_t own_mix;            /* P1.5x: .. and its mix (a preset's pan and sends previewed with it) */
-    int ret_mode, ret_latch;           /* where it came from (F1 / F2 go back there; HOME to the view) */
+    int ret_mode, ret_latch;           /* where it came from (F1 / F2 go back there; HOME to the view) .. */
+    uint8_t ret_ekeys;                 /* .. 2026-10-26: its keyboard on (the editor's, the effects'): on again */
     int del_armed, out_armed;          /* B11 on one of MY presets / B10 on a pool sound steps use: armed once */
     int fx, fx_k;                      /* an animation (QD_BRFX_*), the pool's count then */
     uint32_t fx_ms;
@@ -452,6 +453,8 @@ typedef struct {
     uint32_t sel_t0[8], seq_t0[16];
     int seq_bank;                      /* P1.3d: the bank SEQ's W keys and map show (SEQ + B1..B4) */
     uint8_t seq_pat[16];               /* .. the pattern each W went down on */
+    int8_t pat_wait;                   /* 2026-10-26: stopped, a pattern chosen not in RAM yet (-1 none): it becomes the
+                                        * current one once read in (outside the audio lock: the owner's click) */
     /* the takeover (PLAN §9a rule 5) */
     int tk;                            /* QD_TK_NONE, UI_TK_*, QD_TK_PRESET, QD_TK_DEFAULT */
     uint32_t tk_ms;                    /* the last detent */

@@ -4433,9 +4433,12 @@ static void g_p15b_fx(void)
     kup(BK(B3));
     run(10);
     CHECK(qd_fx_route_block(2) == QD_RT_DELAY, "PARALLEL: an effect held does not move");
-    btap(QD_B_HOME);
-    btap(QD_B_TRACKS);
-    CHECK(A.ui.fx_page == 0, "FX again later: the OVERVIEW");
+    {
+        const int pg = A.ui.fx_page;
+        btap(QD_B_HOME);
+        btap(QD_B_TRACKS);
+        CHECK(A.ui.fx_page == pg && pg != 0, "FX again later: the page it was left on (2026-10-26, the owner; %d)", pg);
+    }
     btap(QD_B_HOME);
     qd_fx_init();
     /* heard: a burst in the dry mix; PARALLEL with no sends leaves nothing after it, CHAIN with the delay's amount up echoes */

@@ -172,6 +172,7 @@ void qd_ctl_init(qd_app_t *a)
     u->pv_note = -1;
     u->mkey = -1;
     u->seq_bank = QD_PAT_START / 16;
+    u->pat_wait = -1;
     u->tl.scope = QD_TS_TRACK;                          /* T1: TOOLS starts on ROTATE, the track */
     u->tl.opage = 0xFF;
     for (i = 0; i < QD_PAT_NTRACK; i++)
@@ -399,9 +400,12 @@ static int w_snd_keys(const qd_app_t *a) { return qd_snd_keys(a) && !held(a, QD_
 static int w_snd_mk(const qd_app_t *a) { return qd_snd_open(a) && a->ui.snd_lk == 4; }   /* E4: B1 held: W the source */
 static void k_snd_mk(qd_app_t *a, int key, int w, int down, int vel)
 {
-    (void)key, (void)vel;
+    (void)vel;
     if (down)
         qd_snd_mod_src(a, w);
+    else if ((a->keys_struck >> key) & 1u)              /* (2026-10-26: a note struck before B1 went down: its end, as
+                                                         * the keyboard's) */
+        qd_rec_key(a, a->key_note[key], 0, 0);
 }
 static int w_snd_full(const qd_app_t *a) { return w_snd_keys(a) && a->proj.rec_ekeys; }
 static void k_snd_note(qd_app_t *a, int key, int idx, int down, int vel)
@@ -506,6 +510,12 @@ static void k_pattern(qd_app_t *a, int key, int w, int down, int vel)
     u->seq_done &= (uint16_t)~bit;
     u->seq_t0[w] = a->ms;
     u->seq_pat[w] = (uint8_t)(u->seq_bank * 16 + w);
+    if (!a->seq.playing && !qd_proj_resident(&a->proj, u->seq_pat[w])) {
+        u->pat_wait = (int8_t)u->seq_pat[w];            /* (2026-10-26: stopped, not in RAM: chosen once it is read in,
+                                                         * outside the audio lock: qd_app_pat_wait) */
+        return;
+    }
+    u->pat_wait = -1;
     qd_seq_select_at(&a->seq, u->seq_pat[w], a->proj.launch);
     if (!a->seq.playing)
         qd_app_tempo(a, qd_seq_bpm(&a->seq));
@@ -938,10 +948,11 @@ static const qd_key_row_t WHITE_ROWS[] = {
     {w_lib, k_lib_white},              /* P1.5a: the sounds page's slots, the projects */
     {w_menu_w, k_none},                /* P1.3y: a settings menu: nothing (the track settings: the steps, below) */
     {w_main_layer, k_flayer_white},    /* P1.6h: a main page's steps, F1 / F2 held: the step view's copy, pick-up / drop */
+    {w_snd_mk, k_snd_mk},              /* E4: the editor, B1 held: W1..W8 the modulation source (2026-10-26, the owner:
+                                        * before the keyboard, so it works with the keys playing too) */
     {w_snd_keys, k_snd_note},          /* P1.5b: the sound editor's keyboard (2026-10-26: SENDS' too, before its steps) */
     {w_panel, k_panel_white},          /* P1.4b: the track settings, the mix, the effects: the steps */
     {w_mfx, k_mfx_white},              /* P1.6c: the MIDI FX screen: the track through the group (the lanes' steps) */
-    {w_snd_mk, k_snd_mk},              /* E4: the editor, B1 held: W1..W8 the modulation source */
     {w_keys_mode, k_note},             /* the keyboard */
     {w_flayer_latch, k_flayer_white},  /* P1.5m: the latch's selection, F1 / F2 / F3 down: the layer's W */
     {w_steps_held, k_step},            /* steps held: more held steps */
@@ -1066,12 +1077,18 @@ static void b_tracks(qd_app_t *a, int down)
         a->ui.arp_fill = 0;
         qd_seq_fill(&a->seq, 0);
     } else if (a->ui.tracks_tap) {
+        const int keys = a->ui.mode == QD_MODE_KEYS && !a->ui.rec;   /* (2026-10-26, the owner: from the live keys,
+                                                         * the effects' keyboard stays on, as EDIT's) */
         a->ui.tracks_tap = 0;
         if (a->ui.mode == QD_MODE_IDLE)
             return;
         if (a->ui.mode != QD_MODE_STEP)
             set_mode(a, QD_MODE_STEP);
         qd_fx_button(a);
+        if (keys && qd_fx_open(a)) {
+            a->ui.ekeys = 1;
+            a->ui.slatch = 0;
+        }
     }
 }
 
@@ -1686,7 +1703,8 @@ static int k_seq(qd_app_t *a, int knob, int d)
     if (held(a, QD_B_MIX))
         a->ui.seq_used |= 1;
     if (knob != QD_K_ALGO)
-        return 0;
+        return knob != QD_K_ALGO;                       /* (2026-10-26, the owner: the patterns page up, the other knobs
+                                                         * change nothing behind it) */
     a->proj.launch = (uint8_t)clampi(a->proj.launch + d, 0, QD_NLAUNCH - 1);
     return 1;
 }
@@ -1810,7 +1828,18 @@ static int k_libk(qd_app_t *a, int knob, int d) { return qd_lib_knob(a, knob, d)
 static int when_mix(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_MIX; }
 static int k_mix(qd_app_t *a, int knob, int d) { return qd_mix_knob(a, knob, d); }
 static int when_fx(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_FX; }
-static int k_fx(qd_app_t *a, int knob, int d) { return qd_fx_knob(a, knob, d); }
+static int k_fx(qd_app_t *a, int knob, int d)
+{
+    if (knob == QD_K_PRESETS && !qd_ctl_shift(a)) {    /* 2026-10-26 (the owner): as in the sound editor: a step held
+                                                         * or selected, its sound lock from the pool; else the track's
+                                                         * preset (the browser) */
+        if (a->ui.nheld)
+            return qd_step_lock_knob(a, knob, d);
+        track_sound(a, d);
+        return 1;
+    }
+    return qd_fx_knob(a, knob, d);
+}
 static int k_menu(qd_app_t *a, int knob, int d)
 {
     qd_project_t *pr = &a->proj;

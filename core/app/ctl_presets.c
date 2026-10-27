@@ -161,7 +161,9 @@ static void br_open(qd_app_t *a)
     const qd_track_t *t = &a->model.t[a->sel];
     int n, i;
     b->ret_mode = u->mode;
-    b->ret_latch = u->latch == QD_LATCH_SND ? QD_LATCH_SND : QD_LATCH_NONE;
+    b->ret_latch = u->latch == QD_LATCH_SND || u->latch == QD_LATCH_FX || u->latch == QD_LATCH_MIX ? u->latch
+                                                                                                   : QD_LATCH_NONE;
+    b->ret_ekeys = (uint8_t)(u->ekeys != 0);            /* (2026-10-26, the owner: back where it was, keys and all) */
     if (u->mode != QD_MODE_STEP)
         qd_ctl_set_mode(a, QD_MODE_STEP);
     if (!u->slatch)
@@ -215,11 +217,13 @@ static void br_closed(qd_app_t *a)
 
 static void br_back_to(qd_app_t *a, int reopen)        /* F1 / F2: back where it came from (HOME: to the view) */
 {
-    const int ret = a->ui.br.ret_latch;
+    const int ret = a->ui.br.ret_latch, ek = a->ui.br.ret_ekeys;
     a->ui.oct_eaten |= 3u;
     qd_latch_close(a);
-    if (reopen && ret == QD_LATCH_SND)
-        qd_latch_open(a, QD_LATCH_SND);
+    if (reopen && (ret == QD_LATCH_SND || ret == QD_LATCH_FX || ret == QD_LATCH_MIX)) {
+        qd_latch_open(a, ret);                          /* (2026-10-26: the effects, the mix too: their page kept) */
+        a->ui.ekeys = (uint8_t)ek;
+    }
 }
 
 static void br_cancel(qd_app_t *a, int reopen)

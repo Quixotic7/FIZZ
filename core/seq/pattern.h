@@ -303,6 +303,12 @@ typedef struct {
     int8_t pat_in[QD_PAT_RAM];          /* the pattern in each slot (-1 none) */
     uint32_t lru[QD_PAT_RAM], lru_clock;
     uint8_t pat_used[QD_NPAT];          /* each pattern's used flag while it is out of RAM (the overviews) */
+    int8_t stg_sl, stg_k;               /* 2026-10-26 (the owner's pop at a pattern change: an 18 ms read under the audio
+                                         * lock): a slot being read in outside the lock (qd_proj_fetch_work), for
+                                         * pattern stg_k (-1 none) .. */
+    uint8_t stg_ready;                  /* .. read: the next qd_proj_fetch maps it in */
+    uint8_t stg_on;                     /* .. the owner reads outside the lock (the app: qd_proj_fetch_work in its free
+                                         * part); 0: qd_proj_fetch reads at once, as before */
 #endif
     uint8_t demo;                       /* P2.1: the patterns' defaults: the demos (A01..A03), else blank */
     qd_pat_io_t io;
@@ -354,7 +360,10 @@ qd_pattern_t *qd_proj_pat(qd_project_t *pr, int k);
 const qd_pattern_t *qd_proj_cpat(const qd_project_t *pr, int k);
 int qd_proj_used(const qd_project_t *pr, int k);
 int qd_proj_resident(const qd_project_t *pr, int k);
-int qd_proj_fetch(qd_project_t *pr, int k);   /* P2.4: pattern k into RAM without writing anything: 1 in, 0 not yet */
+int qd_proj_fetch(qd_project_t *pr, int k);   /* P2.4: pattern k into RAM without writing anything: 1 in, 0 not yet
+                                                * (2026-10-26: its slot chosen; the reading itself is the main loop's,
+                                                * outside the audio lock: qd_proj_fetch_work, then a fetch maps it) */
+void qd_proj_fetch_work(qd_project_t *pr);   /* (the main loop, no lock: a chosen slot's pattern read in) */
 void qd_proj_drop(qd_project_t *pr);
 void qd_proj_save_all(qd_project_t *pr);
 void qd_pat_default(const qd_project_t *pr, int k, qd_pattern_t *dst);

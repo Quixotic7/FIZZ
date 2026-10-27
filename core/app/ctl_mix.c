@@ -101,8 +101,8 @@ void qd_fx_button(qd_app_t *a)
         a->ui.menu_knob = -1;
         return;
     }
-    panel_open(a, QD_LATCH_FX);
-    a->ui.fx_page = 0;                                  /* (P1.5b: FX opens on the first page: SENDS) */
+    panel_open(a, QD_LATCH_FX);                         /* (2026-10-26, the owner: on the page it was left on; P1.5b
+                                                         * opened it on SENDS) */
     a->ui.ekeys = 0;                                    /* (2026-10-26: on the steps; REC the keyboard) */
 }
 int qd_fx_open(const qd_app_t *a) { return a->ui.mode == QD_MODE_STEP && a->ui.latch == QD_LATCH_FX; }

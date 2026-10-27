@@ -334,10 +334,18 @@ static void qd_app_sounds(qd_app_t *a)
 static void ms_lock1(qd_app_t *a)
 {
     qd_persist_prefetch(a);                             /* P2.1: the sequencer's patterns in RAM before it asks */
+    if (a->ui.pat_wait >= 0 && (a->seq.playing || qd_proj_resident(&a->proj, a->ui.pat_wait))) {
+        const int p = a->ui.pat_wait;                   /* (2026-10-26: the pattern chosen while stopped: in RAM now) */
+        a->ui.pat_wait = -1;
+        qd_seq_select_at(&a->seq, p, a->proj.launch);
+        if (!a->seq.playing)
+            qd_app_tempo(a, qd_seq_bpm(&a->seq));
+    }
     qd_app_sounds(a);
 }
 static void ms_free(qd_app_t *a)
 {
+    qd_proj_fetch_work(&a->proj);                       /* 2026-10-26: a pattern read in outside the lock (the pop) */
     qd_persist_ms(a);                                   /* P1.5a: written by itself */
     qd_sx_ms(a);                                        /* P1.6l: a subscribed page's LABELS, when they change */
 }

@@ -72,6 +72,7 @@ typedef struct {
     int64_t mfx_pos;                    /* .. the transport's position at the last block */
     int mfx_play;                       /* .. it was playing */
     uint8_t mfx_audible;                /* the tracks heard at the last block (bit t) */
+    uint32_t mfx_nstart;                /* 2026-10-26: the pattern starts seen (a change: the groups' sequencer notes flushed) */
     qd_trec_t mrec;                     /* (a trig resolved again for a group's note) */
     uint32_t mfx_ons, mfx_offs;
     /* 2026-10-26, SLIDE (the 303's: the slide is on the note that slides INTO the next): a step's PORT lock arms its

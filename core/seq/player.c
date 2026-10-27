@@ -461,6 +461,14 @@ void qd_player_block(qd_player_t *pl)
             pl->mfx_audible = aud;
         }
     }
+    if (pl->mfx_nstart != s->nstart) {                  /* 2026-10-26 (the owner): a pattern change: the groups' notes
+                                                         * of the sequencer end (an empty pattern plays no arp on) */
+        int t;
+        if (pl->mfx_nstart && s->nstart > 1)
+            for (t = 0; t < QD_PAT_NTRACK; t++)
+                qd_mfx_flush_track(&pl->mfx, t, 0);
+        pl->mfx_nstart = s->nstart;
+    }
     qd_mfx_advance(&pl->mfx, qd_player_mfx_tick(pl));
 }
 
