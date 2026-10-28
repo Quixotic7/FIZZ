@@ -4,3 +4,10 @@ tools/render_frames
 *.dSYM/
 tools/render_audio
 .DS_Store
+
+# iOS: local signing and Xcode's per-user state never go to the repository
+ios/Local.xcconfig
+*.mobileprovision
+*.p12
+*.cer
+ios/FIZZ.xcodeproj/project.xcworkspace/xcuserdata/

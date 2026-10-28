@@ -13,6 +13,7 @@
 
 /* Begin PBXFileReference section */
 		F12200000000000000000004 /* FIZZ.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FIZZ.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F12200000000000000000C01 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -52,6 +53,7 @@
 		F12200000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				F12200000000000000000C01 /* Signing.xcconfig */,
 				F12200000000000000000003 /* FIZZ */,
 				F12200000000000000000002 /* Products */,
 			);
@@ -201,12 +203,12 @@
 		};
 		F122000000000000000000B5 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F12200000000000000000C01 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FIZZ/Info.plist;
@@ -227,12 +229,12 @@
 		};
 		F122000000000000000000B6 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F12200000000000000000C01 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FIZZ/Info.plist;

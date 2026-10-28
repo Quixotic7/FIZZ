@@ -1,0 +1,5 @@
+// FIZZ's signing: the team is never in the repository. Put yours in ios/Local.xcconfig (git ignores it):
+//   cp ios/Local.xcconfig.example ios/Local.xcconfig, then set DEVELOPMENT_TEAM to your Apple team ID.
+// Without it the app builds for the simulator; a device build asks for a team in Xcode.
+DEVELOPMENT_TEAM =
+#include? "Local.xcconfig"
