@@ -3,8 +3,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 # distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
-# FizzKit's and FizzUI's tests on an iOS simulator, headless (Simulator.app stays closed), and the app installed and
-# launched on the demo unit.
+# FizzKit's, FizzUI's and FizzData's tests on an iOS simulator, headless (Simulator.app stays closed), and the app
+# installed and launched on the demo unit.
 #
 #   ios/sim_test.sh [SIMULATOR_UDID] [DERIVED_DATA_DIR]
 #
@@ -23,7 +23,7 @@ xcodebuild -scheme FizzKit-Package -destination "platform=iOS Simulator,id=$DEV"
   build-for-testing -quiet
 P="$DD/Build/Products/Debug-iphonesimulator"
 X=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/xctest
-for B in FizzKitTests FizzUITests; do
+for B in FizzKitTests FizzUITests FizzDataTests; do
   echo "== $B"
   SIMCTL_CHILD_DYLD_FRAMEWORK_PATH="$P" SIMCTL_CHILD_DYLD_LIBRARY_PATH="$P" \
     xcrun simctl spawn "$DEV" "$X" "$P/$B.xctest" 2>&1 | grep -E "Test run with|✘"

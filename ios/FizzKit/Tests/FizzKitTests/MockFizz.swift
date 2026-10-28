@@ -3,7 +3,8 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // A simulated FM-1 behind a MIDITransport (no CoreMIDI): the update handshake, IDENTITY, STATUS, LIST in parts, DUMP,
-// PROJECTS, USERS, FZBI. It can drop requests or go silent. ScaledClock: real time, run faster.
+// PROJECTS, USERS, FZBI, FZBR / FZBD over a store region. It can drop requests or go silent. ScaledClock: real time,
+// run faster.
 
 import Foundation
 @testable import FizzKit
@@ -40,10 +41,28 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
     var dumpTotal = 5                   // presets in MY PRESETS
     var dumpStopAfter: Int?             // DUMP slot 0 goes quiet after this many
     var replyMs = 1.0                   // between a request and each reply (the mock's clock)
+    var dumpSkip: Set<Int> = []         // slots left out of DUMP slot 0's stream (lost on the way)
+
+    // the store region (FZBI, FZBR)
+    var bulk = true                     // FZBI and FZBR answered (false: a FIZZ before the bulk channel)
+    var store = MockFizz.defaultStore
+    var storeLo: UInt32 = 0x97000
+    var bulkMs = 8.0                    // FZBR to its FZBD
+    var hold = 2                        // FZBR waiting at most (fm1-base holds two inbound frames): more dropped
+    var dropEvery = 0                   // every Nth FZBR not answered
+    var stallAt: Int?                   // the first FZBR at or past this offset: silent for stallMs
+    var stallMs = 0.0
+    var changeAt: Int?                  // an FZBR for this offset: the store's last byte changes (an autosave)
+    var changeAlways = false            // every time (else once)
+    var fzerAt: Int?                    // an FZBR for this offset answered FZER fzerCode
+    var fzerCode: UInt32 = 10
 
     private var log: [Sent] = []
     private var inFlight = false
     private(set) var overlapped = false
+    private var waiting = 0, fzbrSeen = 0, silentUntil = -Double.infinity, stalled = false, changed = false
+    private(set) var overflow = 0       // FZBR dropped: more than `hold` waiting
+    private(set) var fzbrOffsets: [Int] = []
     private var lostFlag = false, closedFlag = false
 
     init(name: String = "FM-1", clock: ScaledClock) {
@@ -53,6 +72,9 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
     }
 
     var sent: [Sent] { lock.withLock { log } }
+    var reads: [Int] { lock.withLock { fzbrOffsets } }
+    var dropped: Int { lock.withLock { overflow } }
+    var storeCRC: UInt32 { lock.withLock { FM1Bulk.crc32(store) } }
     var sentCommands: [UInt8] { sent.map { Self.isFizz($0.bytes) ? $0.bytes[5] : 0 } }
     var isLost: Bool { lock.withLock { lostFlag } }
     var isClosed: Bool { lock.withLock { closedFlag } }
@@ -65,6 +87,7 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
             if closedFlag { throw MIDITransportError.closed }
             log.append(Sent(t: clock.now, bytes: bytes))
             if drop > 0 { drop -= 1; return [] }
+            if let r = fzbr(bytes) { return r }
             let r = respond(bytes)
             if !r.isEmpty {
                 if inFlight { overlapped = true }
@@ -82,6 +105,59 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
             self.lock.withLock { self.inFlight = false }
         }
     }
+
+    // FZBR off n: FZBD after bulkMs, unless dropped (a knob, or more than `hold` waiting)
+    private func fzbr(_ b: [UInt8]) -> [[UInt8]]? {
+        guard let (tag, words) = Self.bulkRequest(b), tag == "FZBR", words.count >= 2 else { return nil }
+        let off = Int(words[0]), n = Int(words[1])
+        fzbrOffsets.append(off)
+        fzbrSeen += 1
+        guard bulk else { return [] }
+        let now = clock.now
+        if dropEvery > 0 && fzbrSeen % dropEvery == 0 { return [] }
+        if let s = stallAt, off >= s, !stalled { stalled = true; silentUntil = now + stallMs }
+        if now < silentUntil { return [] }
+        if waiting >= hold { overflow += 1; return [] }
+        let reply: [UInt8]
+        if off == fzerAt {
+            reply = FM1Bulk.updateFrame(cmd: 0x46, payload: Array("FZER".utf8) + FM1Bulk.le32(fzerCode))
+        } else {
+            if off == changeAt && (changeAlways || !changed) { changed = true; store[store.count - 1] &+= 1 }
+            guard off >= 0, n > 0, n <= FM1Bulk.chunk, off + n <= store.count else { return [] }
+            reply = FM1Bulk.updateFrame(cmd: 0x46, payload: Array("FZBD".utf8) + FM1Bulk.le32(UInt32(off)) +
+                                        Array(store[off..<(off + n)]))
+        }
+        waiting += 1
+        let clock = clock, ms = bulkMs
+        Task {
+            if ms > 0 { try? await clock.sleep(ms: ms) }
+            self.lock.withLock { self.waiting -= 1 }
+            self.deliver(reply)
+        }
+        return []
+    }
+
+    /// A bulk request's tag and words.
+    static func bulkRequest(_ b: [UInt8]) -> (String, [UInt32])? {
+        guard b.count >= 3, b[0] == 0xf0, b[b.count - 1] == 0xf7 else { return nil }
+        let u = FM1Bulk.unpack7(b.dropFirst().dropLast())
+        guard u.count >= 11, u[0] == 0, u[1] == 0x59, u[2] == 0x46 else { return nil }
+        let n = Int(u[3]) | (Int(u[4]) << 8)
+        guard n >= 4, u.count >= 6 + n else { return nil }
+        let words = stride(from: 10, to: 6 + n - 3, by: 4).map { FM1Bulk.rd32(u, $0) }
+        return (String(decoding: u[6..<10], as: UTF8.self), words)
+    }
+
+    /// Seeded bytes (xorshift), the same every run.
+    static func randomStore(size: Int, seed: UInt64 = 0x46_495a_5a) -> [UInt8] {
+        var x = seed | 1
+        return (0..<size).map { _ in
+            x ^= x << 13; x ^= x >> 7; x ^= x << 17
+            return UInt8(truncatingIfNeeded: x >> 24)
+        }
+    }
+
+    static let defaultStore = randomStore(size: 299_008)
 
     private func deliver(_ r: [UInt8]) {
         let ok = lock.withLock { !lostFlag && !closedFlag }
@@ -140,7 +216,8 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
                 let slot = (Int(b[7]) << 7) | Int(b[8])
                 if slot == 0 {
                     let n = min(dumpTotal, dumpStopAfter ?? dumpTotal)
-                    return (0..<n).map { Self.dumpFrame(slot: $0 + 1, name: "D\($0 + 1)") }
+                    return (0..<n).map { $0 + 1 }.filter { !dumpSkip.contains($0) }
+                        .map { Self.dumpFrame(slot: $0, name: "D\($0)") }
                 }
                 if slot <= dumpTotal { return [Self.dumpFrame(slot: slot, name: "D\(slot)")] }
                 return [FizzSysEx.frame(0x7f, [5, 0x22])]
@@ -153,9 +230,10 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
                 return [FizzSysEx.frame(0x7f, [7, Int(b[5])])]
             }
         }
-        if let u = Optional(FM1Bulk.unpack7(b.dropFirst().dropLast())), u.count >= 10, u[2] == 0x46,
-           String(decoding: u[6..<10], as: UTF8.self) == "FZBI" {
-            let data: [UInt8] = Array("FZBI".utf8) + FM1Bulk.le32(0x97000) + FM1Bulk.le32(299_008) + FM1Bulk.le32(0x1a2b_3c4d)
+        if let (tag, _) = Self.bulkRequest(b), tag == "FZBI" {
+            guard bulk else { return [] }
+            let data: [UInt8] = Array("FZBI".utf8) + FM1Bulk.le32(storeLo) + FM1Bulk.le32(UInt32(store.count)) +
+                FM1Bulk.le32(FM1Bulk.crc32(store))
             return [FM1Bulk.updateFrame(cmd: 0x46, payload: data)]
         }
         return []

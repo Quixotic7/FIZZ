@@ -10,6 +10,7 @@ let package = Package(
     products: [
         .library(name: "FizzKit", targets: ["FizzKit"]),
         .library(name: "FizzUI", targets: ["FizzUI"]),
+        .library(name: "FizzData", targets: ["FizzData"]),
         .executable(name: "fizzshots", targets: ["fizzshots"]),
     ],
     targets: [
@@ -17,17 +18,36 @@ let package = Package(
         // the app's screens and models (they also build on macOS, for the snapshots and the tests)
         .target(
             name: "FizzUI",
-            dependencies: ["FizzKit"],
+            dependencies: ["FizzKit", "FizzData"],
             resources: [.copy("Resources/InterTight.ttf"), .copy("Resources/OFL.txt")]
         ),
+        // the web Manager's data modules (site/, bundled by ios/jsbundle/build.mjs) run in JavaScriptCore
+        .target(
+            name: "FizzData",
+            dependencies: ["FizzKit"],
+            resources: [.copy("Resources/FizzData.js")]
+        ),
         // PNGs of the screens with the demo unit's data (macOS, no window)
-        .executableTarget(name: "fizzshots", dependencies: ["FizzUI", "FizzKit"]),
+        .executableTarget(name: "fizzshots", dependencies: ["FizzUI", "FizzKit", "FizzData"]),
         .testTarget(
             name: "FizzKitTests",
             dependencies: ["FizzKit"],
             resources: [.copy("Resources/vectors.json")]
         ),
-        .testTarget(name: "FizzUITests", dependencies: ["FizzUI", "FizzKit"]),
+        .testTarget(
+            name: "FizzUITests",
+            dependencies: ["FizzUI", "FizzKit", "FizzData"],
+            resources: [.copy("Resources/lib.fizzlib")]
+        ),
+        // (fixtures: node ios/jsbundle/gen_fixtures.mjs; each file copied to the bundle's root, no Resources folder)
+        .testTarget(
+            name: "FizzDataTests",
+            dependencies: ["FizzData"],
+            resources: [
+                .copy("Resources/fixtures.json"), .copy("Resources/presets.fizzbak"),
+                .copy("Resources/lib.fizzlib"), .copy("Resources/deflated.fizzlib"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

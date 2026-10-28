@@ -352,15 +352,18 @@ struct ScreenScroll<Content: View>: View {
 /// A row of chips that scrolls sideways in the app and is cut at the edge in a snapshot.
 struct ChipScroll<Content: View>: View {
     @Environment(\.fizzSnapshot) private var snapshot
+    /// room before the first chip and after the last
+    var inset: CGFloat = 16
+    var spacing: CGFloat = 7
     @ViewBuilder let content: Content
     var body: some View {
         if snapshot {
             Color.clear.frame(height: 40).overlay(alignment: .leading) {
-                HStack(spacing: 7) { content }.padding(.horizontal, 16).fixedSize()
+                HStack(spacing: spacing) { content }.padding(.horizontal, inset).fixedSize()
             }
             .clipped()
         } else {
-            ScrollView(.horizontal) { HStack(spacing: 7) { content }.padding(.horizontal, 16) }
+            ScrollView(.horizontal) { HStack(spacing: spacing) { content }.padding(.horizontal, inset) }
                 .scrollIndicators(.hidden)
         }
     }

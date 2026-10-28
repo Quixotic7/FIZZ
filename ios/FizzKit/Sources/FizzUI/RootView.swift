@@ -6,6 +6,7 @@
 // floating bottom bar; iPad (wide): the left rail with the unit card and six tab pills.
 
 import SwiftUI
+import FizzData
 import FizzKit
 
 /// The whole app: looking for the unit, then its tabs.
@@ -13,6 +14,8 @@ public struct FizzAppView: View {
     @State private var model: UnitModel
     @State private var tab: FizzTab = .backup
     @State private var entered = false
+    /// `-backup full|presets` (the demo unit only): that backup once connected (simulator screenshots)
+    @State private var autoBackup: FizzBackupKind?
     @Environment(\.scenePhase) private var phase
 
     public init(source: any LinkSource = LinkSources.fromArguments(),
@@ -23,6 +26,9 @@ public struct FizzAppView: View {
         if let k = arguments.firstIndex(of: "-tab"), k + 1 < arguments.count, let t = FizzTab(rawValue: arguments[k + 1]) {
             _tab = State(initialValue: t)
         }
+        if source is DemoLinkSource, let k = arguments.firstIndex(of: "-backup"), k + 1 < arguments.count {
+            _autoBackup = State(initialValue: FizzBackupKind(rawValue: arguments[k + 1]))
+        }
     }
 
     public var body: some View {
@@ -32,7 +38,11 @@ public struct FizzAppView: View {
             } else {
                 ConnectView(model: model).transition(.opacity)
             }
+            if let run = model.backups.run {
+                BackingUpView(model: model, run: run).transition(.opacity).zIndex(2)
+            }
         }
+        .animation(.easeInOut(duration: 0.3), value: model.backups.run == nil)
         .background(Color.black)
         .preferredColorScheme(.dark)
         .task { model.start() }
@@ -40,8 +50,19 @@ public struct FizzAppView: View {
             guard model.state.kind == "found" else { entered = false; return }
             try? await Task.sleep(for: .milliseconds(1600))
             if !Task.isCancelled { withAnimation(.easeInOut(duration: 0.5)) { entered = true } }
+            if let k = autoBackup, model.dumpsLoaded || k == .full {
+                autoBackup = nil
+                tab = .backup
+                model.backups.start(k)
+            }
         }
         .onChange(of: phase) { _, p in if p == .active { model.becameActive() } }
+        // a .fizzbak / .fizzlib / .bin opened from Files, AirDrop, Mail: kept with the backups
+        .onOpenURL { url in
+            Task {
+                if await model.backups.open(url) { tab = .backup }
+            }
+        }
     }
 }
 

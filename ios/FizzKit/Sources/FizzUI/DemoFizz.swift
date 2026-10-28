@@ -3,10 +3,12 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // A FIZZ unit in the app's own process (no MIDI): it answers the update handshake, IDENTITY, STATUS, LIST in parts,
-// DUMP (one, or slot 0 streaming), PROJECTS and FZBI with frames made by FizzKit's builders, so FizzLink reads it as
-// it reads an FM-1. Variants: a unit in update mode, one that is not FIZZ, and two units at once.
+// DUMP (one, or slot 0 streaming), PROJECTS, FZBI and FZBR with frames made by FizzKit's builders, so FizzLink reads it
+// as it reads an FM-1. Its store is a real device-layout image (FizzData demoStore: its presets and projects), read
+// back 3-6 ms an FZBD. Variants: a unit in update mode, one that is not FIZZ, and two units at once.
 
 import Foundation
+import FizzData
 import FizzKit
 
 // MARK: - The demo unit's data
@@ -27,17 +29,23 @@ public final class DemoUnit: Sendable {
     public let projects: [(name: String, pages: Int, demo: Bool)?]
     public let current: Int                  // 1..8
     public let storeSize: UInt32 = 299_008
+    public let storeLo: UInt32 = 0x97000
     public let lib = [14, 18], prj = [30, 55]
+    /// An FZBR's FZBD after this long (ms, at random in the range)
+    public let bulkMs: ClosedRange<Double>
+    /// The store image, made once
+    public let store = DemoStoreImage()
 
     init(portName: String, idText: String, version: String?, mine: [DemoPreset] = [], factory: [DemoPreset] = [],
          pool: [(place: Int, preset: DemoPreset)] = [], projects: [(name: String, pages: Int, demo: Bool)?] = [],
-         current: Int = 1) {
+         current: Int = 1, bulkMs: ClosedRange<Double> = 3...6) {
         self.portName = portName; self.idText = idText; self.version = version
         self.mine = mine; self.factory = factory; self.pool = pool; self.projects = projects; self.current = current
+        self.bulkMs = bulkMs
     }
 
     /// A FIZZ 0.12.0-beta.11 unit: 143 MY PRESETS, 23 factory, a pool of 19, 6 of 8 projects (one the demo).
-    public static func fizz(port: String = "FIZZ FM-1") -> DemoUnit {
+    public static func fizz(port: String = "FIZZ FM-1", bulkMs: ClosedRange<Double> = 3...6) -> DemoUnit {
         let mine = DemoNames.mine.enumerated().map { k, p in
             DemoPreset(slot: k + 1, id: 0x1000 + (k + 1) * 7, name: p.0, tags: p.1, algorithm: p.2)
         }
@@ -54,7 +62,7 @@ public final class DemoUnit: Sendable {
                         factory: factory, pool: pool,
                         projects: [("NOIR", 18, false), ("SUNDAY", 9, false), ("FIZZ TOUR", 16, true), ("SKETCH", 3, false),
                                    nil, ("ACID 3", 12, false), ("WINTER LP", 11, false), nil],
-                        current: 1)
+                        current: 1, bulkMs: bulkMs)
     }
 
     public static func updateMode() -> DemoUnit { DemoUnit(portName: "FM-1", idText: "ota-FM-1_0100", version: nil) }
@@ -64,6 +72,22 @@ public final class DemoUnit: Sendable {
     }
 
     var inPool: Set<Int> { Set(pool.map(\.preset.id)) }
+
+    /// MY PRESETS as FizzData's sounds (what the DUMPs give: the blob, the sends, the tags).
+    public func sounds(tagNames: [String]) -> [FizzSound] {
+        mine.map { p in
+            FizzSound(name: p.name, blob: Self.blob(p), sends: FizzSends(chorus: 20, delay: 12, reverb: 30),
+                      tags: tagNames.enumerated().filter { (p.tags >> $0.offset) & 1 == 1 }.map(\.element))
+        }
+    }
+
+    /// The projects as demoStore takes them (slot 1..8, name).
+    public var projectNames: [FizzProjectName] {
+        projects.enumerated().compactMap { k, p in p.map { FizzProjectName(slot: k + 1, name: $0.name) } }
+    }
+
+    /// A DUMP reply of each of MY PRESETS (as the unit streams them).
+    public var dumpFrames: [[UInt8]] { mine.map { DemoReplies.dump($0) } }
 
     /// A preset's 128-byte blob ('Q' 6): the algorithm in byte 2 (value 0 minus its min, 1), the rest believable.
     static func blob(_ p: DemoPreset) -> [UInt8] {
@@ -105,19 +129,35 @@ public final class DemoFizz: MIDITransport, @unchecked Sendable {
         let (c, l) = lock.withLock { (closed, lostFlag) }
         if l { throw MIDITransportError.lost }
         if c { throw MIDITransportError.closed }
+        if let (tag, words) = DemoReplies.bulkRequest(bytes) {
+            // FZBI / FZBR: answered from the store image, one at a time (a unit reads its flash in turn)
+            guard unit.version != nil, tag == "FZBI" || tag == "FZBR" else { return }
+            let unit = unit, ms = tag == "FZBR" ? Double.random(in: unit.bulkMs) : replyMs
+            enqueue(ms) {
+                let image = await unit.store.image(for: unit)
+                return DemoReplies.bulk(tag, words, image: image, lo: unit.storeLo).map { [$0] } ?? []
+            }
+            return
+        }
         let replies = DemoReplies(unit: unit).answer(bytes)
         guard !replies.isEmpty else { return }
-        let prev = lock.withLock { queue }
-        let ms = replyMs
-        let t = Task { [weak self] in
-            await prev?.value
-            for r in replies {
-                try? await Task.sleep(for: .microseconds(Int(ms * 1000)))
-                guard let self, !self.lock.withLock({ self.closed || self.lostFlag }) else { return }
-                self.cont.yield(r)
+        enqueue(replyMs) { replies }
+    }
+
+    /// Replies after the ones before, `ms` apart.
+    private func enqueue(_ ms: Double, _ make: @escaping @Sendable () async -> [[UInt8]]) {
+        lock.withLock {
+            let prev = queue
+            queue = Task { [weak self] in
+                await prev?.value
+                let replies = await make()
+                for r in replies {
+                    if ms > 0 { try? await Task.sleep(for: .microseconds(Int(ms * 1000))) }
+                    guard let self, !self.lock.withLock({ self.closed || self.lostFlag }) else { return }
+                    self.cont.yield(r)
+                }
             }
         }
-        lock.withLock { queue = t }
     }
 
     /// The cable pulled.
@@ -164,11 +204,7 @@ struct DemoReplies {
             let t = Array(unit.idText.utf8.prefix(27))
             return [FM1Bulk.updateFrame(cmd: 0x11, payload: t + [UInt8](repeating: 0, count: 27 - t.count))]
         }
-        if let tag = bulkTag(b) {
-            guard unit.version != nil, tag == "FZBI" else { return [] }
-            let data = Array("FZBI".utf8) + FM1Bulk.le32(0x97000) + FM1Bulk.le32(unit.storeSize) + FM1Bulk.le32(0x5eed_f122)
-            return [FM1Bulk.updateFrame(cmd: FM1Bulk.bulkCmd, payload: data)]
-        }
+        if bulkTag(b) != nil { return [] }      // (DemoFizz.send answers FZBI / FZBR from the image)
         guard b.count >= 8, b[1] == 0x7d, b[2] == 0x46, b[3] == 0x5a, let version = unit.version else { return [] }
         switch b[5] {
         case FizzSysEx.CMD.identity:
@@ -224,12 +260,54 @@ struct DemoReplies {
         }
     }
 
+    /// A bulk request's tag and words (FZBR: offset, length).
+    static func bulkRequest(_ b: [UInt8]) -> (String, [UInt32])? {
+        guard b.count > 4, b.first == 0xf0, b.last == 0xf7, b[1] != 0x7d else { return nil }
+        let u = FM1Bulk.unpack7(b.dropFirst().dropLast())
+        guard u.count >= 11, u[0] == 0, u[1] == 0x59, u[2] == FM1Bulk.bulkCmd else { return nil }
+        let n = Int(u[3]) | (Int(u[4]) << 8)
+        guard n >= 4, u.count >= 6 + n else { return nil }
+        let words = stride(from: 10, to: 6 + n - 3, by: 4).map { FM1Bulk.rd32(u, $0) }
+        return (String(decoding: u[6..<10], as: UTF8.self), words)
+    }
+
+    /// FZBI (the region, its CRC-32) or FZBD (offset, the bytes) from the store image.
+    static func bulk(_ tag: String, _ words: [UInt32], image: [UInt8], lo: UInt32) -> [UInt8]? {
+        if tag == "FZBI" {
+            let data = Array("FZBI".utf8) + FM1Bulk.le32(lo) + FM1Bulk.le32(UInt32(image.count)) + FM1Bulk.le32(FM1Bulk.crc32(image))
+            return FM1Bulk.updateFrame(cmd: FM1Bulk.bulkCmd, payload: data)
+        }
+        guard tag == "FZBR", words.count >= 2 else { return nil }
+        let off = Int(words[0]), n = Int(words[1])
+        guard n > 0, n <= FM1Bulk.chunk, off >= 0, off + n <= image.count else { return nil }
+        return FM1Bulk.updateFrame(cmd: FM1Bulk.bulkCmd, payload: Array("FZBD".utf8) + FM1Bulk.le32(UInt32(off)) +
+                                   Array(image[off..<(off + n)]))
+    }
+
     /// The bulk channel's tag of a request, nil for anything else.
     func bulkTag(_ b: [UInt8]) -> String? {
         guard b.count > 4, b.first == 0xf0, b.last == 0xf7, b[1] != 0x7d else { return nil }
         let u = FM1Bulk.unpack7(b.dropFirst().dropLast())
         guard u.count >= 10, u[0] == 0, u[1] == 0x59, u[2] == FM1Bulk.bulkCmd else { return nil }
         return String(decoding: u[6..<10], as: UTF8.self)
+    }
+}
+
+// MARK: - The store image
+
+/// The demo unit's store: a device-layout image made once by FizzData from its presets and projects.
+public actor DemoStoreImage {
+    private var made: [UInt8]?
+
+    public func image(for unit: DemoUnit) async -> [UInt8] {
+        if let made { return made }
+        var img = [UInt8](repeating: 0xff, count: Int(unit.storeSize))
+        do {
+            let e = try FizzDataShared.engine()
+            img = try await e.demoStore(presets: unit.sounds(tagNames: e.tagNames), projects: unit.projectNames)
+        } catch {}
+        made = img
+        return img
     }
 }
 
@@ -310,4 +388,41 @@ enum DemoNames {
         }
         return out
     }()
+}
+
+// MARK: - Backups kept (the snapshots)
+
+/// The mock-up's list: today 14:02 and yesterday 22:40 (full), an older one from FIZZ 0.11.0 of another store layout
+/// (the browser preview's: shown old), and a presets-only one; each a real .fizzbak made by FizzData.
+public enum DemoBackups {
+    @MainActor
+    public static func seed(_ store: BackupStore, unit: DemoUnit = .fizz(), now: Date = Date()) async throws {
+        let e = try FizzDataShared.engine()
+        let image = await unit.store.image(for: unit)
+        let frames = unit.dumpFrames
+        let cal = Calendar.current
+        func at(_ daysAgo: Int, _ h: Int, _ m: Int) -> Date {
+            let d = cal.date(byAdding: .day, value: -daysAgo, to: now) ?? now
+            return cal.date(bySettingHour: h, minute: m, second: 0, of: d) ?? d
+        }
+        let region = FizzStoreRegion(lo: Int(unit.storeLo), size: image.count)
+        func input(_ kind: FizzBackupKind, _ img: [UInt8]?, _ n: Int, _ fizz: String, _ date: Date) -> FizzbakInput {
+            FizzbakInput(kind: kind, image: img, region: img == nil ? nil : FizzStoreRegion(lo: region.lo, size: img!.count),
+                         presets: Array(frames.prefix(n)), fizz: fizz, unitIdentity: unit.idText, unitPort: unit.portName,
+                         date: date)
+        }
+        let host = try await e.demoStore(presets: Array(unit.sounds(tagNames: e.tagNames).prefix(128)),
+                                         projects: Array(unit.projectNames.prefix(4)), layout: "host")
+        let v = unit.version?.replacingOccurrences(of: "FIZZ ", with: "") ?? ""
+        let made: [(FizzbakInput, Bool)] = [
+            (input(.full, image, 143, v, at(0, 14, 2)), false),
+            (input(.full, image, 139, v, at(1, 22, 40)), true),
+            (input(.full, host, 128, "0.11.0", at(3, 9, 15)), true),
+            (input(.presets, nil, 96, "0.11.0", at(7, 10, 30)), true),
+        ]
+        for (i, shared) in made {
+            let bytes = try await e.makeFizzbak(i)
+            try await store.add(bytes, name: try await e.backupFileName(date: i.date, kind: i.kind), saved: shared)
+        }
+    }
 }

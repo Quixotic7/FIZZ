@@ -40,14 +40,15 @@ public final class DemoLinkSource: LinkSource, @unchecked Sendable {
     private let changed: AsyncStream<Void>.Continuation
     public let clock: any FizzClock
 
-    public init(_ variant: DemoVariant = .fizz, clock: any FizzClock = SystemClock()) {
+    /// bulkMs: the FIZZ unit's FZBR to FZBD time (ms; 3..6 as a unit).
+    public init(_ variant: DemoVariant = .fizz, clock: any FizzClock = SystemClock(), bulkMs: ClosedRange<Double> = 3...6) {
         self.variant = variant
         self.clock = clock
         let units: [DemoUnit] = switch variant {
-        case .fizz: [.fizz()]
+        case .fizz: [.fizz(bulkMs: bulkMs)]
         case .update: [.updateMode()]
         case .notfizz: [.notFizz()]
-        case .two: [.fizz(), .choralRoot()]
+        case .two: [.fizz(bulkMs: bulkMs), .choralRoot()]
         }
         demo = DemoScanner(units: units)
         (changes, changed) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))

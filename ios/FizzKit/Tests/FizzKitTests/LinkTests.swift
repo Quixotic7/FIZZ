@@ -87,7 +87,7 @@ struct LinkTests {
     }
 
     @Test func statusProjectsUsersStoreInfo() async throws {
-        let (l, _) = link()
+        let (l, m) = link()
         let s = try #require(await l.status())
         #expect(s.tracks == 6 && s.playing && s.dirty && !s.noStore && s.project == 3 && s.sel == 3)
         #expect(s.lib == [300, 512] && s.prj == [20, 64] && s.written == 5000)
@@ -98,7 +98,7 @@ struct LinkTests {
         #expect(users.slot == 130 && users.projects == [FizzUserProject(project: 1, steps: 16),
                                                          FizzUserProject(project: 4, steps: 4)] && users.tracks == 1)
         let info = try #require(try await l.storeInfo())
-        #expect(info == FizzStoreInfo(lo: 0x97000, size: 299_008, crc: 0x1a2b_3c4d))
+        #expect(info == FizzStoreInfo(lo: 0x97000, size: 299_008, crc: m.storeCRC))
     }
 
     @Test func olderFizzAnswersBadCommand() async throws {

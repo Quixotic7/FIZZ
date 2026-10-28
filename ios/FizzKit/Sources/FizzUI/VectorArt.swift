@@ -149,6 +149,9 @@ public enum Icons {
     public static let bluetooth = VectorArt(24, 24, [.path("M6.5 7l11 10-5.5 4.5v-19L17.5 7l-11 10")])
     public static let tap = VectorArt(24, 24, [.path("M5 12.5l5 5L19.5 7")])
     public static let down = VectorArt(24, 24, [.path("M12 4v14M6 12l6 6 6-6")])
+    public static let trash = VectorArt(24, 24, [.path("M4 6.5h16M9.5 6.5V4h5v2.5M6.5 6.5l1 14h9l1-14")])
+    /// a folder, an arrow into it (open a file)
+    public static let open = VectorArt(24, 24, [.path("M3 5.5h6l2 2.5h10v11.5H3z"), .path("M12 10.5v6.5M9.3 14.3l2.7 2.7 2.7-2.7")])
     /// the pool chip's four squares (12 x 12, filled)
     public static let poolChip = VectorArt(12, 12, [.rect(0, 0, 5, 5, 1.5), .rect(7, 0, 5, 5, 1.5),
                                                     .rect(0, 7, 5, 5, 1.5), .rect(7, 7, 5, 5, 1.5)])

@@ -69,12 +69,13 @@ public actor FizzLink {
     public private(set) var isClosed = false
     private var lastRx = -Double.infinity
     private var nextAt = -Double.infinity
-    private var cur: (any PendingOp)?
-    private var opSeq = 0
+    private var lastSent = -Double.infinity
+    var cur: (any PendingOp)?
+    var opSeq = 0
     private var busy = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
     private var onLost: (@Sendable () -> Void)?
-    private var logger: (@Sendable (String) -> Void)?
+    var logger: (@Sendable (String) -> Void)?
 
     public init(transport: any MIDITransport, clock: any FizzClock = SystemClock(), idText: String = "",
                 portName: String = "") {
@@ -104,7 +105,7 @@ public actor FizzLink {
         lost()
     }
 
-    private func lost() {
+    func lost() {
         guard !isClosed else { return }
         isClosed = true
         if let c = cur { cur = nil; c.fail(FizzLinkError.lost) }
@@ -113,6 +114,7 @@ public actor FizzLink {
 
     private func dispatch(_ p: [UInt8]) {
         guard let c = cur else { return }
+        if let r = c as? RegionRead { regionFrame(r, p); return }
         switch c.frame(p) {
         case .ignore: break
         case .more: c.heard = true; arm(c)
@@ -120,17 +122,25 @@ public actor FizzLink {
         }
     }
 
-    /// Each frame at least GAP_MS after the one before.
-    func send(_ bytes: [UInt8]) async throws {
+    /// Each frame at least GAP_MS after the one before. `region` (a backup's read): once the wait is over, not sent
+    /// (false) when that read has ended (cancelled, failed or done).
+    @discardableResult
+    func send(_ bytes: [UInt8], region: Int? = nil) async throws -> Bool {
         if isClosed { throw FizzLinkError.lost }
         let t = clock.now, at = max(t, nextAt)
         nextAt = at + Self.gapMs
         if at > t { try? await clock.sleep(ms: at - t) }
+        // (a sleep that ran late, or another frame sent while this one waited: the gap from the last real send)
+        while clock.now < lastSent + Self.gapMs { try? await clock.sleep(ms: lastSent + Self.gapMs - clock.now) }
+        if isClosed { throw FizzLinkError.lost }
+        if let region, !regionAlive(region) { return false }
         do { try transport.send(bytes) } catch {
             lost()
             throw FizzLinkError.lost
         }
-        nextAt = max(nextAt, clock.now + Self.gapMs)    // (a sleep that ran late: the gap from the real send)
+        lastSent = clock.now
+        nextAt = max(nextAt, lastSent + Self.gapMs)
+        return true
     }
 
     // MARK: operations
@@ -148,6 +158,13 @@ public actor FizzLink {
                          onFrame: @escaping ([UInt8]) throws -> Step<R>) async throws -> R {
         await acquire()
         defer { release() }
+        return try await opHeld(timeout: timeout, retry: retry, partial: partial, start: start, onFrame: onFrame)
+    }
+
+    /// op() for a caller that already holds the queue (the backup: one operation of several reads).
+    func opHeld<R: Sendable>(timeout: Double, retry: Int = 0, partial: (() -> R)? = nil,
+                             start: @escaping () throws -> [UInt8],
+                             onFrame: @escaping ([UInt8]) throws -> Step<R>) async throws -> R {
         if isClosed { throw FizzLinkError.lost }
         opSeq += 1
         let id = opSeq
@@ -166,7 +183,7 @@ public actor FizzLink {
         }
     }
 
-    private func arm(_ c: any PendingOp) {
+    func arm(_ c: any PendingOp) {
         c.timer?.cancel()
         c.gen += 1
         let id = c.id, gen = c.gen, ms = c.timeout, clock = clock
@@ -189,12 +206,12 @@ public actor FizzLink {
         c.expire()
     }
 
-    private func acquire() async {
+    func acquire() async {
         if !busy { busy = true; return }
         await withCheckedContinuation { waiters.append($0) }
     }
 
-    private func release() {
+    func release() {
         if waiters.isEmpty { busy = false } else { waiters.removeFirst().resume() }
     }
 
@@ -300,25 +317,28 @@ public actor FizzLink {
 
     // MARK: the bulk channel
 
-    func bulk(_ tag: String, _ words: [UInt32], want: String, timeout: Double, retry: Int = 0) async throws
-        -> FizzBulkReply? {
-        try await op(timeout: timeout, retry: retry, partial: { nil }, start: {
-            FM1Bulk.bulkFrame(tag: tag, words: words)
-        }) { p in
+    func bulk(_ tag: String, _ words: [UInt32], want: String, timeout: Double, retry: Int = 0, held: Bool = false)
+        async throws -> FizzBulkReply? {
+        let start = { FM1Bulk.bulkFrame(tag: tag, words: words) }
+        let onFrame: ([UInt8]) throws -> Step<FizzBulkReply?> = { p in
             guard let r = FM1Bulk.parseBulk(p), r.tag == want || r.tag == "FZER" else { return .notMine }
             return .done(r)
         }
+        if held { return try await opHeld(timeout: timeout, retry: retry, partial: { nil }, start: start, onFrame: onFrame) }
+        return try await op(timeout: timeout, retry: retry, partial: { nil }, start: start, onFrame: onFrame)
     }
 
     /// FZBI: the store's region and CRC-32; nil for a FIZZ without the bulk channel.
-    public func storeInfo() async throws -> FizzStoreInfo? {
-        guard let r = try await bulk("FZBI", [], want: "FZBI", timeout: 2500, retry: 3), r.tag == "FZBI",
+    public func storeInfo() async throws -> FizzStoreInfo? { try await storeInfo(held: false) }
+
+    func storeInfo(held: Bool) async throws -> FizzStoreInfo? {
+        guard let r = try await bulk("FZBI", [], want: "FZBI", timeout: 2500, retry: 3, held: held), r.tag == "FZBI",
               r.data.count >= 12 else { return nil }
         return FizzStoreInfo(lo: FM1Bulk.rd32(r.data, 0), size: FM1Bulk.rd32(r.data, 4), crc: FM1Bulk.rd32(r.data, 8))
     }
 
     // TODO(next slice): store, tags, rename, remove, swap, poolRef, project, flush, dumpTrack, param, browse, note,
-    // backup (readPatient / readRegion), restore.
+    // restore. The backup's read: Backup.swift.
 
     // MARK: finding the unit
 

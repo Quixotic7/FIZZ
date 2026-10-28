@@ -7,6 +7,7 @@
 // refresh. Read only: nothing here changes the unit.
 
 import Foundation
+import FizzData
 import FizzKit
 import Observation
 
@@ -88,6 +89,12 @@ public final class UnitModel {
     public private(set) var dumpsLoaded = false
     public private(set) var refreshing = false
     public private(set) var log: [String] = []
+    /// The store's layout (its sectors), from FZBI's size
+    public private(set) var layout: FizzLayout?
+    /// The store's tracks as the last full backup read them (manager.js unitTracks)
+    public private(set) var storeTracks: Int?
+    /// BACK UP, PRESETS ONLY and the backups kept
+    public let backups: BackupModel
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }
@@ -99,7 +106,7 @@ public final class UnitModel {
     public func algorithm(_ r: FizzListEntry) -> Int { algos["\(r.source):\(r.slot)"] ?? (r.slot % 8 + 1) }
 
     @ObservationIgnored let source: any LinkSource
-    @ObservationIgnored private var link: FizzLink?
+    @ObservationIgnored private(set) var link: FizzLink?
     @ObservationIgnored private var started = false
     @ObservationIgnored private var scanning = false
     @ObservationIgnored private var scanAgain = false
@@ -108,7 +115,12 @@ public final class UnitModel {
     @ObservationIgnored private var retry: Task<Void, Never>?
     @ObservationIgnored private var lastActive = -Double.infinity
 
-    public init(source: any LinkSource) { self.source = source }
+    /// backups: the folder the backups are kept in (Documents/Backups in the app).
+    public init(source: any LinkSource, backups: URL = BackupStore.defaultDirectory) {
+        self.source = source
+        self.backups = BackupModel(store: BackupStore(directory: backups))
+        self.backups.unit = self
+    }
 
     // MARK: finding the unit
 
@@ -116,6 +128,8 @@ public final class UnitModel {
     public func start() {
         guard !started else { return }
         started = true
+        let store = backups.store
+        Task { await store.reload() }
         let changes = source.changes
         listener = Task { [weak self] in
             for await _ in changes { self?.portsChanged() }
@@ -191,6 +205,7 @@ public final class UnitModel {
         do {
             let version = try await link.identity()
             storeInfo = try await link.storeInfo()
+            layout = await Self.layout(storeInfo)
             rows = version != nil ? await readList(link) : []
             status = version != nil ? await link.status() : nil
             projects = status != nil ? await link.projects() : nil
@@ -240,6 +255,7 @@ public final class UnitModel {
         link = nil
         unit = nil
         rows = []; status = nil; projects = nil; storeInfo = nil; algos = [:]; dumpsLoaded = false
+        layout = nil; storeTracks = nil
         state = .lost
         say("the FM-1 was disconnected")
         retry?.cancel()
@@ -302,6 +318,7 @@ public final class UnitModel {
                 unit = UnitInfo(idText: u.idText, portName: u.portName, candidate: u.candidate, version: v)
             }
             storeInfo = try await link.storeInfo()
+            layout = await Self.layout(storeInfo)
             rows = await readList(link)
             status = await link.status()
             projects = await link.projects()
@@ -318,10 +335,23 @@ public final class UnitModel {
         let t = Date().timeIntervalSinceReferenceDate
         guard t - lastActive >= 2 else { return }
         lastActive = t
+        let store = backups.store
+        Task { await store.reload() }
         Task { await refresh(quick: true) }
     }
 
-    private func say(_ s: String) {
+    private static func layout(_ info: FizzStoreInfo?) async -> FizzLayout? {
+        guard let info else { return nil }
+        return try? await FizzDataShared.engine().layout(size: Int(info.size))
+    }
+
+    /// After a backup: the LIST it read, and the store's tracks (full backups).
+    func backedUp(rows: [FizzListEntry]?, tracks: Int?) {
+        if let rows, !rows.isEmpty { self.rows = rows }
+        if let tracks { storeTracks = tracks }
+    }
+
+    func say(_ s: String) {
         log.append(s)
         if log.count > 400 { log.removeFirst(log.count - 400) }
     }

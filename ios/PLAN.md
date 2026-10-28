@@ -245,7 +245,7 @@ the core's C sources linked natively behind an `AVAudioSourceNode`. Decide after
 | Phase | What | Unit |
 | --- | --- | --- |
 | **I1** (this session) | FizzKit (SysEx, framing, UMP, CoreMIDI transport and finder, `FizzLink` read ops), golden-vector tests; the app shell: connect screen (search / found / update mode / not FIZZ / two units), unit pill, LIBRARY rows (LIST: MY PRESETS + FACTORY), PROJECTS list (PROJECTS), pull to refresh | read-only |
-| I2 | BACKUP: whole-store read (FZBR pipelined) + PRESETS ONLY; the JSC bridge with `fizzbak.js` / `library.js` / `fizzstore.js`; backups in Files, share, open | read-only |
+| I2 (built 2026-10-27) | BACKUP: whole-store read (FZBR pipelined) + PRESETS ONLY; the JSC bridge with `fizzbak.js` / `library.js` / `fizzstore.js`; backups in Files, share, open. A demo backup made in the simulator reads in the web Manager's `readBackup` (Node) with the same CRC, 143 presets, 6 projects | read-only |
 | I3 | LIBRARY writes (rename, tags, delete, reorder, pool ref, USED BY) and the POOL tab; project load | writes: owner's go |
 | I4 | RESTORE and ADD presets; IMPORT (Digitone + FIZZ files via JSC) and SEND; EXPORT | writes: owner's go |
 | I5 | EDIT and the TRACK switch: PARAM pump, AUDITION / KEEP / CANCEL, LOAD ON FM-1 (BROWSE), keybed notes | writes: owner's go |

@@ -9,6 +9,7 @@
 
 #if os(macOS)
 import AppKit
+import FizzData
 import FizzKit
 import FizzUI
 import ImageIO
@@ -39,15 +40,24 @@ struct Shots {
             m.stop()
         }
 
-        let m = UnitModel(source: DemoLinkSource(.fizz))
+        // (the backups kept: a fresh folder, nothing in it yet)
+        let baks = FileManager.default.temporaryDirectory.appendingPathComponent("fizzshots-\(UUID().uuidString)")
+        let m = UnitModel(source: DemoLinkSource(.fizz), backups: baks)
         m.start()
-        await until { m.dumpsLoaded }
+        await until { m.dumpsLoaded && m.layout != nil }
         save(ConnectView(model: m), phone, out, "connect-found")
         for tab in [FizzTab.backup, .library, .projects, .edit] {
             save(RootView(model: m, tab: .constant(tab), wide: false), phone, out, tab.rawValue)
         }
         save(RootView(model: m, tab: .constant(.library), wide: true), pad, out, "ipad-library")
         save(RootView(model: m, tab: .constant(.backup), wide: true), pad, out, "ipad-backup")
+
+        // BACKUP with backups kept (one old), and a backup at 60 %
+        do { try await DemoBackups.seed(m.backups.store) } catch { print("demo backups: \(error)") }
+        await m.backups.store.reload()
+        save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "backup-rows")
+        save(RootView(model: m, tab: .constant(.backup), wide: true), pad, out, "ipad-backup-rows")
+        save(BackingUpView(model: m, run: .still(fraction: 0.6, layout: m.layout ?? .device, elapsed: 7)), phone, out, "backing-up")
         m.stop()
     }
 

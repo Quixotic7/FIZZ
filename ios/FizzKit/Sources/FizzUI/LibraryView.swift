@@ -73,7 +73,8 @@ struct LibraryView: View {
 
     private var padBody: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 6) { chips }
+            // (scrolls sideways: the iPad held upright has no room for them all)
+            ChipScroll(inset: 0, spacing: 6) { chips }
                 .frame(height: 44, alignment: .leading)
             HStack(alignment: .top, spacing: 14) {
                 Card(padding: 18) {
