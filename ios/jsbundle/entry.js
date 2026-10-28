@@ -115,3 +115,73 @@ export function toPlain(x) {
   }
   return x;
 }
+
+// ---- I4: RESTORE and ADD presets, IMPORT and SEND, EXPORT (importer.js, exporter.js, manager.js openRestore / rsFit /
+// restoreFull, projects.js fitModel): the pure halves of those UI modules' mount functions.
+//   importRead(files [{name, bytes}]) -> importer.js readImport's items, each with its kind ("fizz", "dn1", "dn2": the
+//       row's chip) and midi (sound.js isMidiBlob)
+//   importDuplicates(sounds, mineFrames) -> importer.js markDuplicates' marks: "mine", "list" or ""
+//   exportCarry(sounds, k) -> exporter.js mountExport rowsFor: { lost, changed, bar, rows: [{what, how, c, w, note, n}],
+//       touched, none } (k: fizz, dnsnd, dn2pst, dn2snd)
+//   exportFile(sounds, kind, date) -> exporter.js exportFiles (several Digitone sounds: a ZIP; MIDI ones left out)
+//   restorePlan(image, unitSize) -> manager.js openRestore's mode ("full" or "presets") and, for another package's
+//       backup, the fit: its choice (fitChoice), the projects there and MY PRESETS to choose from; both layouts' limits
+//   restoreFit(image, unitSize, choice, withImage) -> projects.js fitModel: { copies, left, image (withImage) };
+//       throws its error (code "range") when the choice does not fit
+import { readImport, markDuplicates } from "../../site/manager/importer.js";
+import { exportFiles, carryOf, MIDI_ONLY as EXPORT_MIDI_ONLY } from "../../site/manager/exporter.js";
+import { modelOf as i4ModelOf, imageOf as i4ImageOf, fitModel as i4FitModel, fitChoice as i4FitChoice, projects as i4Projects } from "../../site/manager/projects.js";
+import { PACKAGE_NAME as I4_PACKAGE_NAME } from "../../site/manager/fizzstore.js";
+import { isMidiBlob as i4IsMidiBlob } from "../../site/manager/sound.js";
+import { fizzToDnsnd as i4ToDnsnd, fizzToDn2pst as i4ToDn2pst } from "../../site/js/fizz2dn.js";
+
+export { EXPORT_MIDI_ONLY };
+const i4Kind = (it) => (it.sound ? (it.sound.dn2 ? "dn2" : it.sound.fizz ? "fizz" : "dn1")
+  : /\.fizz/i.test(it.file) ? "fizz" : /dn2/i.test(it.file) ? "dn2" : "dn1");
+export async function importRead(files) {
+  const got = await readImport(Array.from(files, (f) => ({ name: f.name, bytes: f.bytes })));
+  return got.map((it) => ({ ...it, kind: i4Kind(it), midi: !!(it.sound && i4IsMidiBlob(it.sound.blob)) }));
+}
+export function importDuplicates(sounds, mineFrames = []) {
+  const items = sounds.map((s) => ({ ok: true, sound: s }));
+  markDuplicates(items, Array.from(mineFrames, (f) => soundFromStoreFrame(f)));
+  return items.map((it) => it.dup);
+}
+const i4Plain = (s) => ({ blob: s.blob, name: s.name, tags: s.fizzTags || [], pan: s.pan | 0, sends: s.sends || {}, drive: s.drive | 0 });
+const I4_MIDI_ROW = { what: "MIDI SOUND", how: "not written", c: "--midi", w: 1, note: EXPORT_MIDI_ONLY };
+export function exportCarry(sounds, k) {
+  if (k === "fizz") return carryOf([]);
+  const midi = sounds.filter((s) => i4IsMidiBlob(s.blob)).length;
+  if (midi === sounds.length) return { lost: midi, changed: 0, bar: 0, rows: [{ ...I4_MIDI_ROW, n: midi }], touched: midi, none: true };
+  const all = sounds.filter((s) => !i4IsMidiBlob(s.blob)).map((s) => (k === "dnsnd" ? i4ToDnsnd(i4Plain(s)) : i4ToDn2pst(i4Plain(s))).notes);
+  const merged = (one, by) => {
+    for (const r of one.rows) { const key = `${r.what}|${r.how}`; const e = by.get(key) || { ...r, n: 0 }; e.n++; by.set(key, e); }
+    return [...by.values()];
+  };
+  if (midi) {
+    const one = carryOf(all.flat()), touched = midi + all.filter((n) => n.length).length;
+    return { ...one, lost: one.lost + midi, rows: merged(one, new Map([["MIDI", { ...I4_MIDI_ROW, n: midi }]])), touched,
+      bar: Math.max(1, Math.min(9, Math.round(10 - 9 * touched / sounds.length))) };
+  }
+  if (all.length === 1) return carryOf(all[0]);
+  const one = carryOf(all.flat()), touched = all.filter((n) => n.length).length;
+  return { ...one, rows: merged(one, new Map()), touched, bar: touched ? Math.max(1, Math.min(9, Math.round(10 - 9 * touched / all.length))) : 10 };
+}
+export const exportFile = (sounds, kind, date = new Date()) => exportFiles(sounds, kind, date);
+const i4Limits = (l) => l && { name: l.name, package: l.package, packageName: I4_PACKAGE_NAME[l.package] || l.package, nproj: l.nproj, nlib: l.nlib, size: l.size };
+export function restorePlan(image, unitSize) {
+  const to = layoutOf(unitSize), sum = image ? readRegion(image) : null, src = sum && sum.layout;
+  const plan = { mode: image && to && src ? "full" : "presets", to: i4Limits(to), from: i4Limits(src ? LAYOUTS[src] : null), fit: null, error: "" };
+  if (plan.mode === "full" && src !== to.name) {
+    try {
+      const m = i4ModelOf(image);
+      plan.fit = { choice: i4FitChoice(m, to), projects: i4Projects(m).filter((x) => x.there).map((x) => ({ p: x.p, name: x.name })),
+        presets: sum.presets.map((x) => ({ i: x.slot - 1, slot: x.slot, name: x.name, tags: x.tags })) };
+    } catch (e) { plan.mode = "presets"; plan.error = e.message || String(e); }
+  }
+  return plan;
+}
+export function restoreFit(image, unitSize, choice, withImage = false) {
+  const r = i4FitModel(i4ModelOf(image), layoutOf(unitSize), choice);
+  return { copies: r.copies, left: r.left, ...(withImage ? { image: i4ImageOf(r.model) } : {}) };
+}

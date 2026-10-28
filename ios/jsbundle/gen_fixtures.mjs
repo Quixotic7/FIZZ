@@ -63,6 +63,32 @@ const fixtures = {
   },
 };
 
+// ---- I4: IMPORT's reads (files EXPORT wrote from the synthetic sounds, and two that do not read), the duplicates,
+// EXPORT's carry and files, the restore's plan and fit for a host-layout backup onto the Bluetooth package
+{
+  const kinds = ["fizz", "dnsnd", "dn2pst", "dn2snd"];
+  const one = S.SOUNDS.slice(0, 1), files = [];
+  const exportFile = {};
+  for (const k of kinds) for (const [label, ss] of [["one", one], ["all", S.SOUNDS]]) {
+    const f = E.exportFile(ss, k, S.DATE);
+    exportFile[`${k}.${label}`] = { name: f.name, type: f.type, length: f.bytes.length, sha256: sha(f.bytes), notes: plain(f.notes), skipped: plain(f.skipped || null) };
+    files.push({ name: f.name, bytes: f.bytes });
+  }
+  const bad = [{ name: "x.dnsnd", bytes: new Uint8Array(10) }, { name: "y.fizzbak", bytes: new Uint8Array(10) }];
+  const read = await E.importRead([...files, ...bad]);
+  const host = E.demoStore({ presets: S.SOUNDS, projects: S.PROJECTS, layout: "host" }), ble = 49 * 4096;
+  const plan = E.restorePlan(host, ble);
+  fixtures.expect.i4 = {
+    exportFile,
+    exportCarry: Object.fromEntries(kinds.flatMap((k) => [[`${k}.one`, plain(E.exportCarry(one, k))], [`${k}.all`, plain(E.exportCarry(S.SOUNDS, k))]])),
+    importRead: plain(read),
+    importDuplicates: plain(E.importDuplicates(read.filter((x) => x.ok).map((x) => x.sound), S.FRAMES.slice(0, 2))),
+    restorePlan: { host: plain(plan), same: plain(E.restorePlan(image, image.length)), presets: plain(E.restorePlan(null, image.length)) },
+    restoreFit: await result(() => E.restoreFit(host, ble, plan.fit.choice, true)),
+    restoreFitTooMany: await result(() => E.restoreFit(host, ble, { projects: [0, 1, 2, 3, 4], presets: [] })),
+  };
+}
+
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "fixtures.json"), JSON.stringify(fixtures, null, 1) + "\n");
 writeFileSync(join(OUT, "presets.fizzbak"), presets);
