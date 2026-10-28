@@ -204,6 +204,14 @@ Build and check (I1):
   toolchain overridden to a 2024 Swift snapshot, whose runtime xcodebuild injects into the test process, which then
   aborts at launch.
 
+FIZZ's Bluetooth package (firmware branch `ble`, on the owner's unit 2026-10-27; ports "ChoralRoot FM-1" on USB,
+"FM-1 C1F0 Bluetooth"): 4 projects and 128 MY presets; store region 0xAF000..0xDFFFF (49 sectors, magic "Z2FB",
+FZBI reports it); STATUS ends with `01 04 01 00` (package, projects, presets); over Bluetooth FZSR and FZXD answer
+FZER 15 (need USB). The app: connect, LIST, STATUS, PROJECTS work as they are; a full BACK UP fails at
+"NOT SAVED" until the web Manager's `ble-site` changes (fizzstore.js LAYOUTS) are merged into `site/` and
+`node ios/jsbundle/build.mjs` rebuilds FizzData.js; then show "n / 128" and 4 project slots from STATUS's tail, and
+offer RESTORE (I4) only over USB.
+
 I1 follow-ups: while nothing answers, `UnitModel` re-probes every 2 s (a handshake to each candidate port, a
 never-answering BLE port included); slow it to port changes + ~5 s before shipping. `FizzSysEx.frame` and a public
 `FizzStatus` init would let `DemoFizz` drop its own frame helper.
