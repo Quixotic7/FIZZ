@@ -12,7 +12,8 @@
 //   ?depth=N    the backup's requests outstanding (1, the default: one at a time); &gap=MS their spacing
 import { findFizz, FZER } from "./fizzlink.js";
 import { makeFizzbak, readBackup, backupFileName, soundKey } from "./fizzbak.js";
-import { readRegion, layoutOf } from "./fizzstore.js";
+import { readRegion, layoutOf, LAYOUTS, PACKAGE_NAME } from "./fizzstore.js";
+import { modelOf, imageOf, fitModel, fitChoice, projects as projectsOf } from "./projects.js";
 import { parseDump, FIZZ_TAGS } from "../js/fizz_sysex.js";
 import { soundFromStoreFrame, soundToFizzsnd, soundFileName, makeFizzlib, libraryFileName, sameSound } from "../js/library.js";
 import { storeFrame } from "../js/digitone.js";
@@ -146,6 +147,17 @@ async function saveBak(b) {
 const saveWeb = () => DB.put("web", S.web);
 
 // ---------------------------------------------------------------- the unit
+// the unit's package (docs/SYSEX.md "The package"): STATUS's package bytes, else its store's size (FZBI), else the USB
+// one; its store's layout (fizzstore.js LAYOUTS: the backup's, the restore's) by FZBI's size. Over the Bluetooth
+// package's own MIDI port a restore (FZSR) cannot run: the cable is needed
+function unitPkg(u = S.unit) {
+  const st = u && u.status, l = (u && u.info && layoutOf(u.info.size)) || null;
+  const pk = st && st.package ? st.package : l ? l.package : "usb";
+  return { package: pk, nproj: st && st.nproj ? st.nproj : l ? l.nproj : 8, nlib: st && st.nlib ? st.nlib : l ? l.nlib : 256, layout: l,
+    name: PACKAGE_NAME[pk] || pk };
+}
+const viaBle = () => !!(S.link && S.link.viaBle);
+const NEEDS_USB = "Connect the USB cable for this: a restore can't go over Bluetooth (backing up, the library and the projects' moves can).";
 function setUnit(state, label, sub = "") {
   const u = $("unit");
   u.dataset.state = state;
@@ -211,12 +223,16 @@ async function attach() {
     S.unit = { id: link.id, port: link.port, version, info, rows, dumps: null, fdumps: null, summary: keep && keep.summary, status, projects };
     log(`connected: ${link.id} on "${link.port}", FIZZ ${version || "(no answer)"}, store ${info ? `${info.size} B at 0x${info.lo.toString(16)}, CRC-32 ${info.crc.toString(16)}` : "(no FZBI)"}, ` +
       `${rows.filter((r) => r.source === "mine").length} my presets`);
-    const sub = version ? `FIZZ ${version.replace(/-\d+-g[0-9a-f]+$/, "")}${status ? ` · ${status.tracks} tracks` : ""}` : link.id;
+    const pk = unitPkg();
+    const sub = (version ? `FIZZ ${version.replace(/-\d+-g[0-9a-f]+$/, "")}${status ? ` · ${status.tracks} tracks` : ""}` : link.id) +
+      (pk.package === "ble" ? " · Bluetooth package" : "") + (link.viaBle ? " · over Bluetooth" : "");
+    log(`package: ${pk.name} (${pk.nproj} projects, ${pk.nlib} MY PRESETS)${link.viaBle ? `, over Bluetooth (${link.port})` : ""}`);
     if (S.mode === "browser") { setUnit("idle", "FM-1"); setB("on", sub); } else { setUnit("on", "FM-1", sub); setB("off"); }
     if (!version && info) say("FIZZ does not answer (safe mode, or its data missing): back up and restore still work.", "--orange");
     else if (!info) say(`This FIZZ has no backup over USB yet: <a href="../install/">update FIZZ</a>.`, "--orange");
     else if (version && !status) say(`This FIZZ shows its library but cannot edit it yet: <a href="../install/">update FIZZ</a>.`, "--orange");
     else if (status && status.noStore) say("FIZZ runs without its store (safe mode): back up and restore still work.", "--orange");
+    else if (link.viaBle) say("Connected over Bluetooth: everything works but a restore, which needs the USB cable.", "--cyan");
     if ($("tab-backup").hidden) loadDumps();
     if (status) live.probe().then(() => { if (!$("tab-edit").hidden) live.show(); });
   } catch (e) {
@@ -381,9 +397,10 @@ function unitTracks() { return S.unit && S.unit.summary ? S.unit.summary.tracks 
 function renderBaks() {
   const el = $("baks"), u = S.unit;
   el.innerHTML = S.baks.map((b, i) => {
-    const old = b.kind === "full" && ((u && u.info && b.layout && layoutOf(u.info.size) && layoutOf(u.info.size).name !== b.layout) ||
+    const ul = u && u.info && layoutOf(u.info.size), pkgs = ["device", "ble"];   // (one package's backup restores onto the other: fitModel)
+    const old = b.kind === "full" && ((ul && b.layout && ul.name !== b.layout && !(pkgs.includes(ul.name) && pkgs.includes(b.layout))) ||
       (b.tracks && unitTracks() && b.tracks !== unitTracks()) || (b.tracks === 8));
-    const what = b.kind === "presets" ? `presets only · ${b.presets}` : `${b.projects ? b.projects.length : "?"} project${b.projects && b.projects.length === 1 ? "" : "s"} · ${b.presets} preset${b.presets === 1 ? "" : "s"} · ${kb(b.size)}${b.tracks === 8 ? " · 8 tracks" : ""}`;
+    const what = b.kind === "presets" ? `presets only · ${b.presets}` : `${b.projects ? b.projects.length : "?"} project${b.projects && b.projects.length === 1 ? "" : "s"} · ${b.presets} preset${b.presets === 1 ? "" : "s"} · ${kb(b.size)}${b.tracks === 8 ? " · 8 tracks" : ""}${b.layout === "ble" ? " · Bluetooth" : ""}`;
     return `<div class="bk ${b.kind === "presets" ? "presets" : old ? "old" : b.safety ? "safety" : ""}" data-i="${i}">
       <span class="ic">${ICON}</span><div class="txt"><div class="when">${esc(whenText(b.date))}</div><div class="what">${esc(what)}</div></div>
       ${b.fizz ? `<span class="ver ${old ? "old" : ""}">${esc(b.fizz.replace(/-\d+-g[0-9a-f]+$/, ""))}</span>` : ""}
@@ -444,7 +461,7 @@ document.addEventListener("dragover", (ev) => ev.preventDefault());
 document.addEventListener("drop", (ev) => ev.preventDefault());
 
 // ---------------------------------------------------------------- restore
-const R = { parsed: null, rec: null, mode: "full", safe: false };
+const R = { parsed: null, rec: null, mode: "full", safe: false, fit: null, pick: null };
 function lcd(state) {
   const cv = $("rs-lcd"), g = cv.getContext("2d");
   g.fillStyle = "#000"; g.fillRect(0, 0, 240, 240);
@@ -459,10 +476,21 @@ function lcd(state) {
   g.font = "800 28px 'Inter Tight', sans-serif";
   g.fillText(state === "write" ? "DO NOT UNPLUG" : "STOPPED?", 120, 210);
 }
+// the restore's target: the unit's own layout. A full backup of the other package is written again in this one's
+// layout (projects.js fitModel: record by record; the Bluetooth package keeps 4 projects and 128 MY PRESETS, chosen
+// here, the others left out and listed); a presets-only one adds what is not there yet (only as many as MY PRESETS has
+// places for: chosen here too)
 function openRestore(parsed, rec) {
-  const u = S.unit;
-  R.parsed = parsed; R.rec = rec;
-  R.mode = parsed.image && u.info && parsed.image.length === u.info.size ? "full" : "presets";
+  const u = S.unit, tgt = u.info && layoutOf(u.info.size), pk = unitPkg();
+  R.parsed = parsed; R.rec = rec; R.fit = null; R.pick = null;
+  const src = parsed.summary && parsed.summary.layout;
+  R.mode = parsed.image && tgt && src ? "full" : "presets";
+  if (R.mode === "full" && src !== tgt.name) {
+    try {
+      const m = modelOf(parsed.image);
+      R.fit = { model: m, to: tgt, choice: fitChoice(m, tgt), from: LAYOUTS[src] };
+    } catch (e) { log(`restore: ${e.message}`); R.mode = "presets"; }
+  }
   R.safe = R.mode !== "full";
   const full = R.mode === "full", sum = parsed.summary;
   $("rs-modal").style.setProperty("--c", full ? "var(--yellow)" : "var(--cream)");
@@ -470,29 +498,100 @@ function openRestore(parsed, rec) {
   $("rs-when").textContent = whenText(rec.date);
   const nowMine = u.rows.filter((r) => r.source === "mine").length;
   $("rs-now").textContent = `${u.summary ? u.summary.projects.length : "?"} · ${nowMine}`;
-  $("rs-then").textContent = full ? `${sum.projects.length} · ${parsed.presets.length}` : `${u.summary ? u.summary.projects.length : "?"} · ${parsed.presets.length}`;
   const chips = full ? sum.projects.map((p) => `<span class="pchip">${esc(p.name || `PROJECT ${p.slot}`)}</span>`) : [];
   const d = parsed.presets.length - nowMine;
-  if (full && d) chips.push(`<span class="tag delta" style="background:var(${d < 0 ? "--orange" : "--green"})">${d > 0 ? "+" : "−"}${Math.abs(d)} PRESETS</span>`);
+  if (full && d && !R.fit) chips.push(`<span class="tag delta" style="background:var(${d < 0 ? "--orange" : "--green"})">${d > 0 ? "+" : "−"}${Math.abs(d)} PRESETS</span>`);
   if (full && sum.tracks === 8) chips.push(`<span class="tag delta" style="background:var(--orange)">8 TRACKS · PROJECTS START FRESH</span>`);
-  if (!full && parsed.image) chips.push(`<span class="tag delta" style="background:var(--orange)">ANOTHER STORE SIZE · PRESETS ONLY</span>`);
+  if (R.fit && R.fit.from.package !== R.fit.to.package) chips.push(`<span class="tag delta" style="background:var(--cyan)">${esc(PACKAGE_NAME[R.fit.from.package].toUpperCase())} BACKUP → ${esc(pk.name.toUpperCase())} PACKAGE</span>`);
+  if (!full && parsed.image) chips.push(`<span class="tag delta" style="background:var(--orange)">ANOTHER STORE · PRESETS ONLY</span>`);
   $("rs-chips").innerHTML = chips.join("");
   $("rs-warn").hidden = !full;
   $("rs-type").value = "";
   $("rs-type").classList.remove("ok");
   $("rs-safe").innerHTML = "";
-  $("rs-go").textContent = full ? "RESTORE" : `ADD ${parsed.presets.length}`;
   lcd("ask");
   $("rs-key").textContent = "PLAY";
   $("rs").hidden = false;
+  $("rs-fit").hidden = true; $("rs-fit").innerHTML = "";
+  if (full) { $("rs-then").textContent = `${sum.projects.length} · ${parsed.presets.length}`; $("rs-go").textContent = "RESTORE"; rsFit(); }
+  if (full && viaBle()) { $("rs-safe").innerHTML = `<b style="color:var(--orange)">${esc(NEEDS_USB)}</b>`; rsReady(); return; }
+  if (full) { safetyCopy(); return; }
+  rsPresets();
   rsReady();
-  if (full) safetyCopy();
-  else $("rs-go").focus();
+  $("rs-go").focus();
+  if (!u.dumps && S.link && u.version) loadDumps().then(() => { if (R.parsed === parsed && R.mode === "presets") { R.pick = null; rsPresets(); rsReady(); } });
+}
+// what fits: the choice of projects and MY presets when the backup holds more than this package has places for
+const MAXLIST = 400;
+function fitHtml(title, items, on, max, kind) {
+  const n = items.filter((x) => on.has(x.key)).length;
+  return `<div class="fitlist" data-kind="${kind}"><div class="kv">${title} <b class="${n > max ? "over" : ""}">${n} / ${max}</b></div><div class="fitrows">` +
+    items.slice(0, MAXLIST).map((x) => `<label><input type="checkbox" data-k="${x.key}" ${on.has(x.key) ? "checked" : ""} ${!on.has(x.key) && n >= max ? "disabled" : ""}><span>${esc(x.label)}</span></label>`).join("") + "</div></div>";
+}
+function rsFit() {
+  const box = $("rs-fit"), f = R.fit;
+  if (!f) return;
+  const all = projectsOf(f.model).filter((x) => x.there), sum = R.parsed.summary;
+  const tooMany = all.length > f.to.nproj || sum.presets.length > f.to.nlib;
+  let left = null;
+  try { left = fitModel(f.model, f.to, f.choice).left; } catch (_) { left = null; }
+  $("rs-then").textContent = `${f.choice.projects.length} · ${f.choice.presets.length}`;
+  box.hidden = false;
+  const head = `<div class="fithead">This FM-1 runs the <b>${esc(PACKAGE_NAME[f.to.package])} package</b>: ${f.to.nproj} projects, ${f.to.nlib} MY PRESETS. ` +
+    (tooMany ? `This backup has ${all.length} projects and ${sum.presets.length} presets: <b>choose what to keep</b>.` : "Everything in this backup fits.") + "</div>";
+  if (!tooMany) { box.innerHTML = head; return; }
+  const on = new Set(f.choice.projects.map((p) => `p${p}`)), onl = new Set(f.choice.presets.map((i) => `l${i}`));
+  const libs = sum.presets.map((x) => ({ key: `l${x.slot - 1}`, label: `${x.slot} ${x.name}` }));
+  box.innerHTML = head + `<div class="fitcols">${fitHtml("PROJECTS", all.map((x) => ({ key: `p${x.p}`, label: `${x.p + 1} ${x.name || `PROJECT ${x.p + 1}`}` })), on, f.to.nproj, "p")}` +
+    `${fitHtml("MY PRESETS", libs, onl, f.to.nlib, "l")}</div>` +
+    `<div class="fitleft">${left ? leftText(left) : ""}</div>`;
+}
+function leftText(left) {
+  const names = (xs, n = 8) => xs.slice(0, n).map((x) => esc(x.name || "?")).join(", ") + (xs.length > n ? ` and ${xs.length - n} more` : "");
+  const parts = [];
+  if (left.projects.length) parts.push(`${left.projects.length} project${left.projects.length === 1 ? "" : "s"} (${names(left.projects)})`);
+  if (left.presets.length) parts.push(`${left.presets.length} MY preset${left.presets.length === 1 ? "" : "s"} (${names(left.presets)})`);
+  return parts.length ? `<b>Left out:</b> ${parts.join("; ")}.` + (left.presets.length ? " A kept project that plays one of them keeps that sound as its own copy." : "") : "";
+}
+$("rs-fit").addEventListener("change", (ev) => {
+  const i = ev.target.closest("input[data-k]");
+  if (!i) return;
+  const k = i.dataset.k, n = +k.slice(1);
+  if (R.fit) {
+    const list = k[0] === "p" ? R.fit.choice.projects : R.fit.choice.presets;
+    const at = list.indexOf(n);
+    if (i.checked && at < 0) list.push(n); else if (!i.checked && at >= 0) list.splice(at, 1);
+    list.sort((a, b) => a - b);
+    rsFit();
+  } else if (R.pick) {
+    if (i.checked) R.pick.on.add(n); else R.pick.on.delete(n);
+    rsPresets();
+  }
+  rsReady();
+});
+// presets only: what MY PRESETS has places for (the Bluetooth package's 128 fill sooner); the ones already there skipped
+function rsPresets() {
+  const box = $("rs-fit"), u = S.unit, list = R.parsed.presets, room = unitPkg().nlib - u.rows.filter((r) => r.source === "mine").length;
+  const have = u.dumps ? [...u.dumps.values()].map(soundFromStoreFrame) : [];
+  const fresh = list.map((s, i) => ({ s, i })).filter((x) => !have.some((h) => sameSound(h, x.s)));
+  if (!R.pick) R.pick = { room, fresh, on: new Set(fresh.slice(0, Math.max(0, room)).map((x) => x.i)) };
+  const n = R.pick.on.size;
+  $("rs-then").textContent = `${u.summary ? u.summary.projects.length : "?"} · ${Math.min(unitPkg().nlib, u.rows.filter((r) => r.source === "mine").length + n)}`;
+  $("rs-go").textContent = `ADD ${n}`;
+  if (fresh.length <= room) { box.hidden = true; box.innerHTML = ""; return; }
+  const out = fresh.filter((x) => !R.pick.on.has(x.i)).map((x) => ({ name: x.s.name }));
+  box.hidden = false;
+  box.innerHTML = `<div class="fithead">MY PRESETS has <b>${Math.max(0, room)}</b> free place${room === 1 ? "" : "s"} (the ${esc(unitPkg().name)} package holds ${unitPkg().nlib}): ` +
+    `this backup has ${fresh.length} presets not on the FM-1. <b>Choose which to add.</b></div>` +
+    fitHtml("ADD", fresh.map((x) => ({ key: `l${x.i}`, label: x.s.name })), new Set([...R.pick.on].map((i) => `l${i}`)), Math.max(0, room), "l") +
+    `<div class="fitleft">${out.length ? `<b>Left out:</b> ${out.length} (${out.slice(0, 8).map((x) => esc(x.name)).join(", ")}${out.length > 8 ? ` and ${out.length - 8} more` : ""})` : ""}</div>`;
 }
 function rsReady() {
   const typed = $("rs-type").value.trim().toUpperCase() === "RESTORE";
   $("rs-type").classList.toggle("ok", typed);
-  $("rs-go").disabled = S.busy || !S.link || !R.safe || (R.mode === "full" && !typed);
+  const fitOk = !R.fit || (R.fit.choice.projects.length <= R.fit.to.nproj && R.fit.choice.presets.length <= R.fit.to.nlib);
+  const pickOk = !R.pick || R.pick.on.size > 0;
+  $("rs-go").disabled = S.busy || !S.link || !R.safe || (R.mode === "full" && (!typed || viaBle() || !fitOk)) || (R.mode !== "full" && !pickOk);
 }
 $("rs-type").addEventListener("input", rsReady);
 $("rs-type").addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !$("rs-go").disabled) $("rs-go").click(); });
@@ -509,7 +608,7 @@ async function safetyCopy() {
   rsReady();
   $("rs-type").focus();
 }
-function closeRestore() { $("rs").hidden = true; R.parsed = null; }
+function closeRestore() { $("rs").hidden = true; R.parsed = null; R.fit = null; R.pick = null; }
 $("rs-cancel").addEventListener("click", closeRestore);
 $("rs-go").addEventListener("click", () => (R.mode === "full" ? restoreFull() : addPresets()));
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$("rs").hidden && !S.busy) closeRestore(); });
@@ -529,7 +628,19 @@ async function refresh() {
   pool.forget();
 }
 async function restoreFull() {
-  const image = R.parsed.image, rec = R.rec;
+  let image = R.parsed.image;
+  const rec = R.rec, f = R.fit;
+  if (f) {                                             // (another package's backup: its records in this one's layout)
+    try {
+      const r = fitModel(f.model, f.to, f.choice);
+      image = imageOf(r.model);
+      log(`restore ${rec.name}: ${PACKAGE_NAME[f.from.package]} -> ${PACKAGE_NAME[f.to.package]} layout, ${f.choice.projects.length} projects, ${f.choice.presets.length} MY presets, ${r.copies} sounds as the projects' own copies; left out ${r.left.projects.length} projects, ${r.left.presets.length} presets`);
+    } catch (e) {
+      say(e.code === "full" ? `What you chose does not fit the ${esc(PACKAGE_NAME[f.to.package])} package's store: keep fewer projects (or add the presets alone).`
+        : `This backup could not be written for this FM-1: ${esc(e.message)}`, "--orange");
+      return;
+    }
+  }
   closeRestore();
   await restoreImage(image, rec.name);
 }
@@ -558,6 +669,7 @@ async function restoreImage(image, name, label = "CHECKING") {
     if (e.code === "cancel") toast("Cancelled. Nothing changed.", "--muted");
     else if (e.fzer === 10) say("The FM-1 is playing. Stop it, then try again.", "--orange");
     else if (e.fzer === 11) say("This backup is from a store of another size. Its presets can still be added.", "--orange");
+    else if (e.fzer === 15) say(esc(NEEDS_USB), "--orange");
     else if (e.fzer === 12) say("The store did not reach the FM-1 whole. Nothing was changed.", "--orange");
     else if (e.code === "timeout" && e.written === false) say("The FM-1 did not take the write up. Nothing was changed: try again.", "--orange");
     else if (e.fzer === 13 || e.fzer === 14 || e.code === "lost" || (e.code === "timeout" && e.written !== false))
@@ -599,7 +711,7 @@ async function writeStore(image, before) {
 }
 
 async function addPresets() {
-  const list = R.parsed.presets, rec = R.rec;
+  const list = R.pick ? R.parsed.presets.filter((_, i) => R.pick.on.has(i)) : R.parsed.presets, rec = R.rec;
   closeRestore();
   S.busy = true; renderUnit(); renderBaks();
   progOpen("PRESETS", 4096);
@@ -755,7 +867,7 @@ function renderLibrary() {
   const u = S.unit;
   const rows = u ? u.rows : [];
   const mine = rows.filter((r) => r.source === "mine");
-  $("l-count").textContent = u ? `${mine.length} / 256` : "";
+  $("l-count").textContent = u ? `${mine.length} / ${unitPkg().nlib}` : "";
   $("l-filter").innerHTML = filterHtml(S.filter);
   const html = u ? listHtml(rows, S.filter, { frameOf, places: places(), on: (r) => S.sel && S.sel.source === r.source && S.sel.slot === r.slot,
     drag: (r) => r.source === "mine" && !!u.status }) : "";
@@ -920,7 +1032,7 @@ list.addEventListener("click", (ev) => {
 // reorder MY PRESETS: a cassette dropped on another swaps their places (the ids go with them: nothing else changes);
 // ALT + up / down moves the selected one a place (into an empty place too)
 async function swapMine(a, b) {
-  if (a === b || b < 1 || b > 256) return;
+  if (a === b || b < 1 || b > unitPkg().nlib) return;
   const x = await edit("MOVE", (l) => l.swap("mine", a, b));
   if (!x || x.status !== 0) return;
   await redump(a);
@@ -996,6 +1108,7 @@ $("l-export-all").addEventListener("click", async () => {
 // ---------------------------------------------------------------- the pool, the import (their own files)
 let live = null;                                        // (live.js, mounted with the editor below)
 const ctx = { S, $, log, say, toast, edit, refreshRows, loadDumps, frameOf, projectName, saveWeb, poolSet, render: () => { renderUnit(); renderLibrary(); },
+  pkg: () => unitPkg(), viaBle, NEEDS_USB,
   trackOn: () => !!(live && live.on()), previewRow: (r) => previewRow(r), previewId: (id) => previewId(id),
   previewLib: (snd, name) => previewLib(snd, name) };
 const pool = mountPool(ctx);

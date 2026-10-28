@@ -316,6 +316,20 @@ button.tag { cursor: pointer; }
 .modal.cf .big { font-size: 34px; }
 .cfsub { color: var(--text); font-weight: 700; font-size: 15px; }
 .modal.cf .row { margin-top: 6px; }
+/* a backup of the other package, or more presets than MY PRESETS has places for: what to keep */
+.fit { margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; font-weight: 700; color: var(--text); }
+.fit .fithead b { color: var(--c, var(--yellow)); }
+.fitcols { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.fitlist { background: var(--raised); border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.fitlist .kv b { color: var(--text); }
+.fitlist .kv b.over { color: var(--red); }
+.fitrows { max-height: 170px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.fitrows label { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.fitrows input { accent-color: var(--c, var(--yellow)); flex: none; }
+.fitrows input:disabled + span { color: var(--muted); }
+.fitleft { color: var(--muted); }
+.fitleft b { color: var(--orange); }
+@media (max-width: 560px) { .fitcols { grid-template-columns: 1fr; } }
 .safe { font-size: 13px; font-weight: 700; color: var(--muted); min-height: 18px; margin-bottom: 14px; }
 .safe b { color: var(--cyan); }
 .fm1 { width: 340px; max-width: 100%; border-radius: 26px; background: #1c1c21; padding: 26px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
