@@ -328,14 +328,25 @@ the core's C sources linked natively behind an `AVAudioSourceNode`. Decide after
 | --- | --- | --- |
 | **I1** (this session) | FizzKit (SysEx, framing, UMP, CoreMIDI transport and finder, `FizzLink` read ops), golden-vector tests; the app shell: connect screen (search / found / update mode / not FIZZ / two units), unit pill, LIBRARY rows (LIST: MY PRESETS + FACTORY), PROJECTS list (PROJECTS), pull to refresh | read-only |
 | I2 (built 2026-10-27) | BACKUP: whole-store read (FZBR pipelined) + PRESETS ONLY; the JSC bridge with `fizzbak.js` / `library.js` / `fizzstore.js`; backups in Files, share, open. A demo backup made in the simulator reads in the web Manager's `readBackup` (Node) with the same CRC, 143 presets, 6 projects | read-only |
-| I3 (built 2026-10-28; demo unit only, not yet tried on an FM-1) | LIBRARY writes (rename, tags, delete, reorder, pool ref, USED BY) and the POOL tab; project load | writes: owner's go |
-| I4 (built 2026-10-28; demo unit only, not yet tried on an FM-1) | RESTORE and ADD presets; IMPORT (Digitone + FIZZ files via JSC) and SEND; EXPORT | writes: owner's go |
-| I5 (built 2026-10-28; demo unit only, not yet tried on an FM-1) | EDIT and the TRACK switch: PARAM pump, AUDITION / KEEP / CANCEL, LOAD ON FM-1 (BROWSE), keybed notes | writes: owner's go |
-| I6 (built 2026-10-28; demo unit only, not yet tried on an FM-1) | PROJECTS patterns (model via `projects.js`), copy / paste / clear, kept projects, .fizzprj / .fizzpat, WRITE TO FM-1 | writes: owner's go |
+| I3 (built 2026-10-28; tried on the owner's FIZZ FM-1) | LIBRARY writes (rename, tags, delete, reorder, pool ref, USED BY) and the POOL tab; project load | writes: owner's go |
+| I4 (built 2026-10-28; tried on the owner's FIZZ FM-1) | RESTORE and ADD presets; IMPORT (Digitone + FIZZ files via JSC) and SEND; EXPORT | writes: owner's go |
+| I5 (built 2026-10-28; tried on the owner's FIZZ FM-1) | EDIT and the TRACK switch: PARAM pump, AUDITION / KEEP / CANCEL, LOAD ON FM-1 (BROWSE), keybed notes | writes: owner's go |
+| I6 (built 2026-10-28; tried on the owner's FIZZ FM-1) | PROJECTS patterns (model via `projects.js`), copy / paste / clear, kept projects, .fizzprj / .fizzpat, WRITE TO FM-1 | writes: owner's go |
 | I7 | Bluetooth: the pairing sheet, per-transport pacing, measured on FIZZ's BT build | when it exists |
 | I8 | (optional) BROWSER unit; TestFlight | owner's call |
 
 ## 6. Tests
+
+**On the owner's FIZZ FM-1 (2026-10-28, Bluetooth package, FIZZ DEV, over USB from the Mac):** the app's own
+`UnitModel` / `UnitActions` driven by a scratch harness (same code as the phone, CoreMIDI on macOS): full backup
+(55 KB/s); SEND 3 to MY PRESETS, RENAME, TAG, MOVE, + POOL / USED BY / - POOL, PLACE, SWAP places, CLEAR place,
+DELETE; TRACK on, AUDITION + CANCEL (the track's DUMP back byte for byte), PARAM through the pump (LEVEL 102 -> 31 read
+back), REVERT (byte for byte), SAVE AS NEW; NEW / RENAME / COPY TO / DELETE project, LOAD; a pattern copied into the new
+project and WRITE TO FM-1 (FZOK, read back); RESTORE of the first backup (safety backup, checking, writing, FZOK). All
+passed. After the restore the store differs from the backup in one 256-byte page that was blank: a record FIZZ appends
+itself after the restart (its store is log-structured), not the restore. Not tried on the unit: LOAD ON FM-1 (needs the
+owner's OCT key), IMPORT of Digitone files (SEND is the same write), the phone's touch gestures.
+
 
 - **FizzKit** (`cd ios/FizzKit && swift test`, on the Mac): `Tests/gen_vectors.mjs` runs the JS (`tools/fizz_sysex.mjs`,
   `site/install/fm1lib.js`, `fizzlink.js`'s bulk helpers, `fizzbak.js` crc32) over fixed cases and writes
