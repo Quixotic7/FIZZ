@@ -682,7 +682,7 @@ static void ble_rune(float x, float y, float h, qd_rgb col)
                          x - w, y + h * 0.5f};
     ui_P(a, 6, col, 1.8f, 0, QD_NONE);
 }
-static void menu_set2(const ui_menu_t *v)
+static __attribute__((noinline)) void menu_set2(const ui_menu_t *v)   /* (noinline: in the Bluetooth package's second blob, not with ui_menu_draw in the app slot) */
 {
     static const char *const ST[3] = {"OFF", "WAITING", "CONNECTED"};
     const int st = v->ble_st < 0 || v->ble_st > 2 ? 0 : v->ble_st;

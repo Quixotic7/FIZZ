@@ -36,6 +36,12 @@ void fz_midi_out(void);
 /* SysEx in: one frame's bytes between F0 and F7 (FIZZ's 7D 46 5A ..); its replies, whole frames F0 .. F7 */
 void fz_sysex(const uint8_t *f, uint32_t n);
 int fz_sysex_peek(void);
+/* (the Bluetooth package) the frames' port (0 USB, 1 Bluetooth) before fz_sysex, and the next reply's (its request's);
+ * SETTINGS' BLUETOOTH (1 on; 1 before FIZZ is up) and the radio's state the page shows (0 off, 1 waiting, 2 connected) */
+void fz_sysex_port(int port);
+int fz_sysex_peek_port(void);
+int fz_ble_on(void);
+void fz_ble_state(int st);
 void fz_sx_mark(uint32_t ms);          /* a FIZZ frame (semantic or the store's bulk) came now (qd_sx_t.rx_ms) */
 uint32_t fz_sx_last(void);             /* .. when the last one did (0 none) */
 int fz_sx_bulk(void);                  /* a LIST / DUMP-all or a STORE job running (the transfer pacing) */

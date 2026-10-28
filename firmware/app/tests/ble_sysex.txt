@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: MPL-2.0
+# The Bluetooth package (firmware/build.py --ble --host: fizz-ble_host): FIZZ's SysEx (the Manager's 7D 46 5A) over
+# Bluetooth. A request that comes over Bluetooth (USB-MIDI packets through plat_midi_in: app.c fz_bsx) is answered over
+# Bluetooth only, as packets (fz_ble_sx_send); one over USB on USB only. A DUMP's job keeps its requester's port for
+# every frame it sends.
+#   firmware/app/build/host/fizz-ble_host firmware/app/tests/ble_sysex.txt OUT
+expect fz_up 1
+wait 1200
+ble connect
+wait 300
+out
+# STATUS over Bluetooth: its reply over Bluetooth, nothing on USB
+sysex BLE F0 7D 46 5A 01 02 7E F7
+wait 200
+expect fz_bsx_in 1
+expect fz_bsx_out 1
+expect_out BLE F0 7D 46
+expect fz_sx_usb_out 0
+out
+# IDENTITY over Bluetooth
+sysex BLE F0 7D 46 5A 01 01 7F F7
+wait 200
+expect fz_bsx_in 2
+expect fz_bsx_out 2
+expect_out BLE F0 7D 46
+expect fz_sx_usb_out 0
+out
+# LIST (MY PRESETS) over Bluetooth, then DUMP of every factory preset (a job: 23 frames, paced): all of it over
+# Bluetooth
+sysex BLE F0 7D 46 5A 01 21 5F F7
+wait 500
+expect fz_bsx_out 3
+sysex BLE F0 7D 46 5A 01 22 01 00 00 5D F7
+wait 3000
+expect fz_bsx_out 26
+expect fz_sx_usb_out 0
+out
+# STORE over Bluetooth (the Manager's encoder: tools/fizz_sysex.mjs storeSound, "BLE TEST", a patch at its minima, into MY
+# PRESETS 1): kept,
+# its reply over Bluetooth
+expect fz_mine 0
+sysex BLE F0 7D 46 5A 01 10 00 00 01 42 4C 45 20 54 45 53 54 20 20 20 20 00 00 40 00 00 00 00 00 51 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 26 F7
+wait 500
+expect fz_mine 1
+expect fz_bsx_out 27
+expect fz_sx_usb_out 0
+out
+# STATUS over USB: on USB, nothing more over Bluetooth
+sysex F0 7D 46 5A 01 02 7E F7
+wait 200
+expect fz_sx_usb_out 1
+expect_no_out BLE F0 7D 46
+expect fz_bsx_lost 0

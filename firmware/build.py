@@ -80,7 +80,7 @@ def jieli(rel):
 _tc = fb.tc
 SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
 BLE_PKG = "--ble" in sys.argv[1:]               # the Bluetooth package (2026-10-27; firmware/BUDGET.md)
-BLE_FB_LO = int(os.environ.get("FZ_BLE_FB_LO", "2"))   # (the Bluetooth package: the 8-bit frame's rows in RAM)
+BLE_FB_LO = int(os.environ.get("FZ_BLE_FB_LO", "6"))   # (the Bluetooth package: the 8-bit frame's rows in RAM)
 if BLE_PKG and SINGLE:
     raise SystemExit("--ble: the Bluetooth package is the dual-core one (no single-core Bluetooth package)")
 # P2.15i: --define NAME=VALUE (repeatable): a core option for every unit (e.g. the pacing flags, core/qd_config.h), named
@@ -341,18 +341,53 @@ BLE_OVERLAY = {
     # (gfx.c is unity.c's neighbour, found there before any -I: the build compiles a copy of unity.c from the overlay's
     # directory, where its #include "gfx.c" finds the copy above; every other include as before)
     "device/unity.c": [],
+    # SysEx over Bluetooth (FIZZ's own, the Manager's): firmware/patches/fm1-base-ble-sysex.patch (RemoteFM1's, the
+    # owner's) applied first to these three (BLE_PATCHED); radio.c's queues (app.h BLE_IN_Q, BLE_OUT_Q) in the pool,
+    # not RAM (software rings: the radio's buffers, which its DMA reads, are its heap's, in RAM); le_midi.c (a radio
+    # unit) and the simulator's plat_host.c compiled from these copies
+    "device/radio.c": [
+        ("static uint32_t ble_in_q[BLE_IN_Q];\n",
+         "static uint32_t ble_in_q[BLE_IN_Q] __attribute__((section(\".pool\")));   /* (FIZZ: the pool) */\n"),
+        ("} ble_out[BLINKS];\n", "} ble_out[BLINKS] __attribute__((section(\".pool\")));   /* (FIZZ: the pool) */\n"),
+    ],
+    "ble/midi/le_midi.c": [],
+    "host/plat_host.c": [],
 }
+BLE_PATCH = HERE / "patches" / "fm1-base-ble-sysex.patch"
+BLE_PATCHED = ("device/radio.c", "ble/midi/le_midi.c", "host/plat_host.c")
+_overlay_lock = __import__("threading").Lock()
+
+
+def ble_patched():
+    """BLE_PATCHED's files with BLE_PATCH applied (patch -p1, in OUT/ble-sysex/): {rel: text}"""
+    import shutil
+    tree = fb.OUT / "ble-sysex"
+    for rel in BLE_PATCHED:
+        (tree / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(BASE / rel, tree / rel)
+    r = subprocess.run(["patch", "-p1", "-s", "-N", "-r", "-", "-d", str(tree), "-i", str(BLE_PATCH)],
+                       capture_output=True, text=True)
+    if r.returncode:
+        sys.stderr.write(r.stdout + r.stderr)
+        raise SystemExit(f"fizz: {BLE_PATCH.name} no longer applies to fm1-base")
+    return {rel: (tree / rel).read_text() for rel in BLE_PATCHED}
 
 
 def overlay():
+    with _overlay_lock:                          # (the units compile in parallel: one writer)
+        return _overlay()
+
+
+def _overlay():
     out = fb.OUT / "overlay"
     out.mkdir(parents=True, exist_ok=True)
     files = {**OVERLAY, **(BLE_OVERLAY if BLE_PKG else {})}
+    patched = ble_patched() if BLE_PKG else {}
     for f in out.glob("*"):                      # (another package's overlay left from its build: not this one's)
         if f.is_file() and f.name not in {Path(r).name for r in files}:
             f.unlink()
     for rel, reps in files.items():
-        src = (BASE / rel).read_text()
+        src = patched.get(rel) or (BASE / rel).read_text()
         for a, b in reps:
             if src.count(a) != 1:
                 raise SystemExit(f"fizz: fm1-base's {rel} changed: build.py's OVERLAY no longer matches {a[:60]!r}")
@@ -371,6 +406,9 @@ def tc(tool, *args):
             args = [f"-I{ov.resolve().relative_to(REPO)}", *args]
             if BLE_PKG:                          # (BLE_OVERLAY: the copy of unity.c)
                 args = [ov / "unity.c" if isinstance(a, Path) and a.name == "unity.c" else a for a in args]
+        if BLE_PKG and any(isinstance(a, Path) and a.name == "le_midi.c" for a in args):
+            ov = overlay()                       # (BLE_OVERLAY: the patched copy of the radio's MIDI unit)
+            args = [ov / "le_midi.c" if isinstance(a, Path) and a.name == "le_midi.c" else a for a in args]
         if any(isinstance(a, Path) and "o2" in a.parts and a.suffix == ".o" for a in args):
             # (P2.6: FIZZ's units call between the flash and the RAM code region, 4 MiB apart: long calls, as
             # fm1-base's Bluetooth build makes them)
@@ -593,6 +631,10 @@ class _Subprocess:
             cmd = [cmd[0], "-sSUPPORT_LONGJMP=wasm", *cmd[1:]]
         if cmd and cmd[0] in ("emcc", os.environ.get("CC", "cc")):   # (the host's and the web's compilers)
             cmd = [cmd[0], *DEFS, *cmd[1:]]
+            if BLE_PKG and any(str(c).endswith("host/plat_host.c") for c in cmd):   # (BLE_OVERLAY: the simulator's
+                ov = overlay()                   # patched copy, its own directory on the include path)
+                cmd = [str(ov / "plat_host.c") if str(c).endswith("host/plat_host.c") else c for c in cmd]
+                cmd.insert(1, f"-I{BASE / 'host'}")
         return subprocess.run(cmd, *a, **k)
 
 

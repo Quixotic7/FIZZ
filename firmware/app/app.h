@@ -25,6 +25,16 @@ extern uint8_t fz_fb_hi[][240];
 #define APP_SYSEX                            /* FIZZ's SysEx (7D 46 5A: LIST, DUMP, STORE, LABELS ..) */
 #define APP_USB_CMD                          /* the data blob written over USB (firmware/tools/fizz_xdata.py) */
 #define FM1B_UAC_RING_POOL 1                 /* USB audio in's 2 KB ring in the pool (FIZZ's RAM is full: BUDGET.md) */
+#if QD_PKG_BLE
+/* (the Bluetooth package) the radio's MIDI queues, in packets (firmware/patches/fm1-base-ble-sysex.patch: radio.c, its
+ * rings in the pool: firmware/build.py BLE_OVERLAY): out, a whole FIZZ reply at once (LABELS ~560 B: 187 packets of 3
+ * bytes); in, read every audio half */
+#define BLE_OUT_Q 256u
+#define BLE_IN_Q 64u
+/* Bluetooth at power-on: SETTINGS page 2's BLUETOOTH (app.c fz_ble_at_boot: FIZZ's store started first) */
+int fz_ble_at_boot(void);
+#define APP_BLE_AT_BOOT fz_ble_at_boot()
+#endif
 
 /* the store's objects: the panel's calibration (the platform's), in Felucca's settings sector pair; FIZZ's own data are
  * raw sectors of the data region (fz_port.c, the blob at PLAT_XDATA1). The Bluetooth package (firmware/build.py --ble:

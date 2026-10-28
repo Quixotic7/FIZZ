@@ -910,8 +910,8 @@ static void t_noroom(void)
 {
     qd_pattern_t *p;
     int t, s, n0;
-    const int ns = QD_UNDO_POOL >= 16384u ? QD_NSTEP : 44;   /* (the steps filled: sized to the log; the Bluetooth
-                                                         * package's is 8 KB, qd_config.h QD_UNDO_POOL_BLE: 40..52
+    const int ns = QD_UNDO_POOL >= 16384u ? QD_NSTEP : 32;   /* (the steps filled: sized to the log; the Bluetooth
+                                                         * package's is 7 KB, qd_config.h QD_UNDO_POOL_BLE: 28..36
                                                          * steps land on "live, no room for a level" there) */
     start();
     p = PAT();

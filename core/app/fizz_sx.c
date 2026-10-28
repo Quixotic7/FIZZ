@@ -47,7 +47,11 @@ static int sx_reply(qd_app_t *a, const uint8_t *b, uint32_t n)
     const uint32_t len = n + 7u;
     if (len > QD_SX_FRAME_MAX || len + 2u > sx_room(s))
         return 0;                                       /* (no room: the older stay; a host asks again) */
+#if QD_PKG_BLE
+    sx_put(s, (uint8_t)(len & 0xFFu)), sx_put(s, (uint8_t)(len >> 8 | (s->out ? 0x80u : 0u)));   /* (its port) */
+#else
     sx_put(s, (uint8_t)(len & 0xFFu)), sx_put(s, (uint8_t)(len >> 8));
+#endif
     sx_put(s, 0xF0), sx_put(s, QD_SX_ID0), sx_put(s, QD_SX_ID1), sx_put(s, QD_SX_ID2), sx_put(s, QD_SX_PROTO);
     for (i = 0; i < n; i++) {
         sx_put(s, b[i] & 0x7Fu);
@@ -61,8 +65,16 @@ static int sx_reply(qd_app_t *a, const uint8_t *b, uint32_t n)
 int qd_app_sysex_peek(const qd_app_t *a)
 {
     const qd_sx_t *s = &a->sx;
+#if QD_PKG_BLE
+    return s->r == s->w ? 0 : (int)(sx_at(s, 0) | (uint32_t)(sx_at(s, 1) & 0x7Fu) << 8);
+#else
     return s->r == s->w ? 0 : (int)(sx_at(s, 0) | (uint32_t)sx_at(s, 1) << 8);
+#endif
 }
+#if QD_PKG_BLE
+int qd_app_sysex_peek_port(const qd_app_t *a) { return a->sx.r != a->sx.w && (sx_at(&a->sx, 1) & 0x80u) ? 1 : 0; }
+void qd_app_sysex_port(qd_app_t *a, int port) { a->sx.port = (uint8_t)(port != 0); }
+#endif
 
 int qd_app_sysex_busy(const qd_app_t *a) { return a->sx.job != 0; }
 
@@ -122,10 +134,16 @@ void qd_sx_ms(qd_app_t *a)
 {
     static qd_labels_t l;
     uint32_t h;
+#if QD_PKG_BLE
+    a->sx.out = a->sx.job_port;
+#endif
     if (a->sx.job)
         sx_job(a);                                      /* (P1.6m: a LIST / DUMP going out as there is room) */
     if (!a->sx.lbl_sub || a->ms - a->sx.lbl_ms < QD_SX_LABELS_MS)
         return;
+#if QD_PKG_BLE
+    a->sx.out = a->sx.lbl_port;
+#endif
     a->sx.lbl_ms = a->ms;
     qd_ctl_labels(a, &l);
     h = sx_labels_hash(&l);
@@ -865,6 +883,9 @@ void qd_sx_work(qd_app_t *a)
     int st = QD_SX_OK, v1 = w->x + 1, v2 = w->y + 1;
     if (!cmd || (a->seq.playing && cmd != QD_SX_USERS))
         return;
+#if QD_PKG_BLE
+    a->sx.out = a->sx.wk_port;
+#endif
     switch (cmd) {
     case QD_SX_STORE:                                   /* (P2-B: a STORE over a used MY PRESETS place) */
     case QD_SX_STORE6: {
@@ -1012,7 +1033,27 @@ static void sx_browse(qd_app_t *a, const uint8_t *b, uint32_t n)
     sx_ack(a, QD_SX_BROWSE, st, t + 1, st ? 0 : a->ui.br.pos + 1);
 }
 
+#if QD_PKG_BLE
+static void sx_frame(qd_app_t *a, const uint8_t *f, uint32_t n);
+/* (the Bluetooth package) a frame's replies go to its port; a LIST / DUMP, a job, a LABELS subscription it starts keep
+ * that port for theirs */
 void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
+{
+    qd_sx_t *s = &a->sx;
+    const int job0 = s->job, wk0 = s->wk.cmd, lbl0 = s->lbl_sub;
+    s->out = s->port;
+    sx_frame(a, f, n);
+    if (s->job && (!job0 || (n > 4u && (f[4] == QD_SX_LIST || f[4] == QD_SX_DUMP))))
+        s->job_port = s->port;
+    if (s->wk.cmd && s->wk.cmd != wk0)
+        s->wk_port = s->port;
+    if (s->lbl_sub && (!lbl0 || (n > 4u && f[4] == QD_SX_LABELS)))
+        s->lbl_port = s->port;
+}
+static void sx_frame(qd_app_t *a, const uint8_t *f, uint32_t n)
+#else
+void qd_app_sysex(qd_app_t *a, const uint8_t *f, uint32_t n)
+#endif
 {
     uint32_t i, sum = 0;
     a->edit_gen++;                                      /* (P2.6c: the patterns may change: persist.c looks) */

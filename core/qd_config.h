@@ -123,10 +123,11 @@
  * can hold. 12 bytes a key */
 #if QD_PKG_BLE
 #ifndef QD_UNDO_POOL_BLE
-#define QD_UNDO_POOL_BLE 8192u         /* the undo log (the knob: fewer bytes, fewer levels; the snapshot and the
-                                        * clipboard of a dense pattern refused sooner). 8 KB, half the USB package's
-                                        * (2026-10-27: the radio's RAM; firmware/BUDGET.md "The Bluetooth package":
-                                        * a full pattern's snapshot, a dense pattern's copy refused) */
+#define QD_UNDO_POOL_BLE 7168u         /* the undo log (the knob: fewer bytes, fewer levels; the snapshot and the
+                                        * clipboard of a dense pattern refused sooner). 7 KB, 7/16 of the USB
+                                        * package's (2026-10-27: the radio's RAM, then SysEx over Bluetooth's queues;
+                                        * firmware/BUDGET.md "The Bluetooth package": a full pattern's snapshot, a
+                                        * dense pattern's copy refused) */
 #endif
 #undef QD_UNDO_POOL
 #define QD_UNDO_POOL QD_UNDO_POOL_BLE

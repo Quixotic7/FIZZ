@@ -287,6 +287,57 @@ static uint32_t fz_host_stale_max;        /* (app_expect fz_lcd_stale) */
 static uint32_t fz_host_lend;             /* (fzlend N: a borrow of N bytes between two strips, once the stash holds rows) */
 #endif
 
+#if QD_PKG_BLE
+/* (the Bluetooth package) FIZZ'S SYSEX OVER BLUETOOTH IN: fm1-base's radio hands a SysEx in as USB-MIDI packets (CIN 4:
+ * three bytes that go on; 5 / 6 / 7: the last one, two or three, F7 the last; firmware/patches/fm1-base-ble-sysex.patch)
+ * through plat_midi_in, read here in the audio interrupt: each frame's bytes between F0 and F7 gathered into one of two
+ * slots (the interrupt writes fz_bsx_w, the main loop reads fz_bsx_r), then taken on the main loop into fz_hq with
+ * its port (fz_bsx_hold) and served as USB's are; its replies go back over Bluetooth (fz_sx_send). A frame longer
+ * than a slot, cut short by another status, or with both slots full is lost (counted: fz_bsx_lost) */
+#define FZ_BSX 2u
+#define FZ_BSX_LEN 320u                  /* (the Manager's longest frame to the unit: a STORE6, ~190 B) */
+#ifdef PLAT_HOST
+static uint8_t fz_bsx[FZ_BSX][FZ_BSX_LEN];
+#else
+static uint8_t fz_bsx[FZ_BSX][FZ_BSX_LEN] __attribute__((section(".pool"), aligned(4)));
+#endif
+static uint16_t fz_bsx_n[FZ_BSX];
+static volatile uint32_t fz_bsx_w, fz_bsx_r, fz_bsx_lost, fz_bsx_in, fz_bsx_out;
+static uint32_t fz_bsx_pos;
+static uint8_t fz_bsx_on, fz_bsx_skip;
+static void fz_bsx_byte(uint32_t c)      /* (the audio interrupt's) */
+{
+    if (c == 0xF0u) {
+        fz_bsx_on = 1, fz_bsx_pos = 0;
+        fz_bsx_skip = fz_bsx_w - fz_bsx_r >= FZ_BSX;
+        fz_bsx_lost += fz_bsx_skip;
+        return;
+    }
+    if (!fz_bsx_on)
+        return;
+    if (c == 0xF7u) {
+        if (!fz_bsx_skip && fz_bsx_pos) {
+            fz_bsx_n[fz_bsx_w % FZ_BSX] = (uint16_t)fz_bsx_pos;
+            FZ_BARRIER();
+            fz_bsx_w++;
+            fz_bsx_in++;
+        }
+        fz_bsx_on = 0;
+        return;
+    }
+    if (c & 0x80u) {                     /* (another status: the frame cut short) */
+        fz_bsx_lost += !fz_bsx_skip;
+        fz_bsx_on = 0;
+        return;
+    }
+    if (fz_bsx_skip)
+        return;
+    if (fz_bsx_pos < FZ_BSX_LEN)
+        fz_bsx[fz_bsx_w % FZ_BSX][fz_bsx_pos++] = (uint8_t)c;
+    else
+        fz_bsx_skip = 1, fz_bsx_lost++;
+}
+#endif
 static void fz_midi_isr(void)            /* USB and the TRS jack (fm1-base's queue) */
 {
     uint32_t pkt;
@@ -294,6 +345,19 @@ static void fz_midi_isr(void)            /* USB and the TRS jack (fm1-base's que
     while (plat_midi_in(&pkt, &port)) {
         const uint32_t cin = pkt & 15u, s = pkt >> 8 & 0xFFu, w = fz_mq_w;
         fz_midi_pkts++;
+#if QD_PKG_BLE
+        if (port == PORT_BLE && cin >= 4u && cin <= 7u) {   /* (a SysEx's bytes; a CIN 5 not F7: system common) */
+            const uint32_t nb = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u;
+            if (cin != 5u || s == 0xF7u || fz_bsx_on) {
+                fz_bsx_byte(s);
+                if (nb > 1u)
+                    fz_bsx_byte(pkt >> 16 & 0xFFu);
+                if (nb > 2u)
+                    fz_bsx_byte(pkt >> 24 & 0xFFu);
+            }
+            continue;
+        }
+#endif
         if (cin == 15u && s >= 0xF8u) {  /* the clock, START, CONTINUE, STOP: the sequencer's, here */
             if (s == 0xF8u || s == 0xFAu || s == 0xFBu || s == 0xFCu)
                 fz_midi_play((int)s, 0, 0);
@@ -479,6 +543,49 @@ static uint32_t fz_host_sx_out;          /* replies made (the simulator has no U
 static int fz_host_sx_kind = -1, fz_host_sx_st = -1;   /* (the last FIZZ reply's kind byte, and an ACK's / STORE's
                                           * status: the web manager's commands in tests/web.txt) */
 #endif
+#if QD_PKG_BLE
+static uint8_t fz_route;                 /* the port of the frame being served: 0 USB, 1 Bluetooth (fz_hq_serve) */
+/* a whole SysEx frame (F0 .. F7) to the computer on Bluetooth as USB-MIDI packets, all at once (a note between its
+ * packets would break it: the audio interrupt held off meanwhile), when its queue has room for it (plat_midi_out_room:
+ * app.h BLE_OUT_Q); wait: up to 300 ms for room (fm1-base's Bluetooth runs meanwhile: plat_yield). 1 sent or dropped
+ * (nobody there, too long, no room in time), 0 not now */
+static int fz_ble_sx_send(const uint8_t *f, uint32_t n, int wait)
+{
+    const uint32_t need = (n + 2u) / 3u, t0 = plat_ms();
+    uint32_t i, fl;
+    if (need > BLE_OUT_Q)
+        return fz_bsx_lost++, 1;
+    while (plat_midi_out_room(TO_BLE_HOST) < need) {
+        if (!plat_ble_connected())
+            return 1;                    /* (nobody to send it to) */
+        if (!wait)
+            return 0;
+        if (plat_ms() - t0 > 300u)
+            return fz_bsx_lost++, 1;
+        plat_yield();
+        fz_watchdog();
+    }
+    fl = fz_lock();
+    for (i = 0; i < n; i += 3u) {
+        const uint32_t k = n - i < 3u ? n - i : 3u, cin = i + k == n ? 4u + k : 4u;
+        plat_midi_send(cin | (uint32_t)f[i] << 8 | (k > 1u ? (uint32_t)f[i + 1u] << 16 : 0u) |
+                           (k > 2u ? (uint32_t)f[i + 2u] << 24 : 0u), TO_BLE_HOST);
+    }
+    fz_unlock(fl, FZ_LOCK_SYSEX);
+    fz_bsx_out++;
+    return 1;
+}
+static void fz_sx_send(const uint8_t *f, uint32_t n)   /* the port's own replies (stats, the backup's), to the port
+                                                         * the request came from */
+{
+    if (fz_route)
+        (void)fz_ble_sx_send(f, n, 1);
+    else
+        plat_sysex_send(f, n);
+}
+#else
+#define fz_sx_send plat_sysex_send
+#endif
 static void fz_sysex_out(void)           /* FIZZ's replies, taken under the lock, sent outside it (a send may wait) */
 {
     for (;;) {
@@ -488,10 +595,22 @@ static void fz_sysex_out(void)           /* FIZZ's replies, taken under the lock
         if (fz_in_frame && k > 0 && SXQ - (so_w - so_r) < ((uint32_t)k + 2u) / 3u)
             k = 0;                       /* (inside a frame: only what the USB queue takes now; never a wait there) */
 #endif
+#if QD_PKG_BLE
+        const int bt = k > 0 && fz_sysex_peek_port();   /* (its request's port) */
+        if (bt && plat_ble_connected() && plat_midi_out_room(TO_BLE_HOST) < ((uint32_t)k + 2u) / 3u &&
+            ((uint32_t)k + 2u) / 3u <= BLE_OUT_Q)
+            k = 0;                       /* (Bluetooth's queue full: the next look sends it) */
+#endif
         k = k > 0 && k <= (int)sizeof fz_sx_buf ? fz_sysex_take(fz_sx_buf, sizeof fz_sx_buf) : 0;
         fz_unlock(f, FZ_LOCK_TAKE);
         if (k <= 0)
             break;
+#if QD_PKG_BLE
+        if (bt) {
+            (void)fz_ble_sx_send(fz_sx_buf, (uint32_t)k, 1);
+            continue;
+        }
+#endif
 #ifdef PLAT_HOST
         fz_host_sx_out++;
         if (k >= 8 && fz_sx_buf[1] == 0x7Du && fz_sx_buf[2] == 0x46u && fz_sx_buf[3] == 0x5Au) {
@@ -517,6 +636,9 @@ static void fz_sysex_out(void)           /* FIZZ's replies, taken under the lock
 #define FZ_HQ_LEN 640u                   /* (usb.c sx_frame's size) */
 static uint8_t fz_hq[FZ_HQ][FZ_HQ_LEN] __attribute__((section(".pool"), aligned(4)));
 static uint16_t fz_hq_n[FZ_HQ];
+#if QD_PKG_BLE
+static uint8_t fz_hq_port[FZ_HQ];        /* (each one's port: 0 USB, 1 Bluetooth) */
+#endif
 static uint32_t fz_hq_r, fz_hq_w;
 static uint8_t fz_hq_busy;               /* (one being served: none served inside it; holding goes on) */
 static int fz_hq_ours(const uint8_t *p, uint32_t k)
@@ -531,6 +653,9 @@ static void fz_hq_hold(void)
     while (fz_hq_w - fz_hq_r < FZ_HQ && ota_frame_get(&p, &k) && k <= FZ_HQ_LEN && fz_hq_ours(p, k)) {   /* (both slots) */
         memcpy(fz_hq[fz_hq_w % FZ_HQ], p, k);
         fz_hq_n[fz_hq_w % FZ_HQ] = (uint16_t)k;
+#if QD_PKG_BLE
+        fz_hq_port[fz_hq_w % FZ_HQ] = 0;
+#endif
         fz_hq_w++;
         ota_frame_done();
     }
@@ -563,12 +688,18 @@ static void fz_hq_serve(int inframe, int hold)   /* hold 0: the slot's frame is 
         uint32_t d;
         if (inframe && !fz_hq_light(p, k))
             break;
+#if QD_PKG_BLE
+        fz_route = fz_hq_port[fz_hq_r % FZ_HQ];
+#endif
         if (p[0] == 0x7Du)
             (void)app_sysex(p, k);
         else if ((d = fz_hq_decode(p, k)) != 0u) {
             app_usb_cmd(ota_dec, d);
             plat_host_patience(0, 0);   /* (as fm1-base's usb_cmd after the app's) */
         }
+#if QD_PKG_BLE
+        fz_route = 0;
+#endif
         fz_hq_r++;                       /* (after: a hold meanwhile never takes the slot being served) */
         if (hold)
             fz_hq_hold();
@@ -577,11 +708,42 @@ static void fz_hq_serve(int inframe, int hold)   /* hold 0: the slot's frame is 
 }
 #endif
 
+#if QD_PKG_BLE
+static void fz_bsx_hold(void)            /* Bluetooth's SysEx frames (fz_bsx) to be served: into fz_hq with their port;
+                                          * the simulator (no fz_hq) serves FIZZ's at once */
+{
+    while (fz_bsx_r != fz_bsx_w) {
+        const uint8_t *p = fz_bsx[fz_bsx_r % FZ_BSX];
+        const uint32_t k = fz_bsx_n[fz_bsx_r % FZ_BSX];
+#ifndef PLAT_HOST
+        if (fz_hq_w - fz_hq_r >= FZ_HQ)
+            return;                      /* (fz_hq full: the next look) */
+        if (fz_hq_ours(p, k)) {
+            memcpy(fz_hq[fz_hq_w % FZ_HQ], p, k);
+            fz_hq_n[fz_hq_w % FZ_HQ] = (uint16_t)k;
+            fz_hq_port[fz_hq_w % FZ_HQ] = 1;
+            fz_hq_w++;
+        }
+#else
+        if (k >= 3u && p[0] == 0x7Du) {
+            fz_route = 1;
+            (void)app_sysex(p, k);
+            fz_route = 0;
+        }
+#endif
+        FZ_BARRIER();
+        fz_bsx_r++;
+    }
+}
+#endif
 static void fz_input(void)               /* everything that changes FIZZ on the main loop, in time order */
 {
     const uint32_t t0 = plat_ticks24();
     int r;
     fz_sample();
+#if QD_PKG_BLE
+    fz_bsx_hold();                       /* (Bluetooth's: fz_bsx) */
+#endif
 #ifndef PLAT_HOST
     fz_hq_hold();                        /* FIZZ's own SysEx out of fm1-base's one slot at once (fz_hq) .. */
     fz_hq_serve(fz_in_frame, 1);         /* .. served in order: between a frame's bands, only the light ones */
@@ -727,7 +889,7 @@ static void fz_stats_send(int part, const char *line)   /* F0 7D 46 50 part ASCI
 #ifdef PLAT_HOST
     printf("  stats %d: %.*s\n", part, (int)(q - f - 6), (const char *)f + 5);   /* (no USB: shown) */
 #endif
-    plat_sysex_send(f, (uint32_t)(q - f));
+    fz_sx_send(f, (uint32_t)(q - f));
 }
 
 static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, three lines (fizz_xdata.py stats) */
@@ -1257,6 +1419,9 @@ int app_sysex(const uint8_t *p, uint32_t n)
                                        p[4] == 0x22u));   /* (fizz_sx.h: STORE, STORE6, LIST, DUMP) */
     if (fz_ok) {
         const uint32_t f = fz_lock();
+#if QD_PKG_BLE
+        fz_sysex_port(fz_route);         /* (its replies back where it came from) */
+#endif
         fz_sysex(p, n);
         fz_unlock(f, FZ_LOCK_SYSEX);
         fz_sysex_out();
@@ -1274,10 +1439,16 @@ int app_sysex(const uint8_t *p, uint32_t n)
 #define FZ_LED_LIT 128u
 #define FZ_LED_MIDL 64u
 static uint32_t fz_led_t;                /* (plat_ms of the last look) */
+#if QD_PKG_BLE
+static void fz_ble_look(void);
+#endif
 static void fz_lights(void)              /* (FIZZ's state read, the interrupts on: a light a moment early or late) */
 {
     uint8_t k[NKEYS], b[NB], g;
     uint32_t i, lit_b = 0, lit_k = 0, mid_b = 0, mid_k = 0, dim_b = 0, dim_k = 0;
+#if QD_PKG_BLE
+    fz_ble_look();                       /* (every 10 ms, with the lights) */
+#endif
     fz_led_t = plat_ms();
     fz_led_looks++;
     fz_leds(k, b, &g);
@@ -2016,6 +2187,29 @@ static void fz_store_start(void)         /* the store, once, at the first screen
                                           * mount reads the region, ~0.1 s, the panel's scan going on) */
 }
 
+#if QD_PKG_BLE
+/* (the Bluetooth package) SETTINGS' BLUETOOTH: at power-on (app.h APP_BLE_AT_BOOT, main_fm1.c: after app_init, before
+ * the first screen; not called when the last Bluetooth run crashed) the store is started here, a moment earlier than
+ * app_ui_init would, to read it; then fz_ble_look applies a change (plat_ble_enable) and tells the page the radio's
+ * state */
+int fz_ble_at_boot(void)
+{
+    fz_store_start();
+    return !fz_ok || fz_safe || fz_ble_on();
+}
+static void fz_ble_look(void)
+{
+    static int applied = -1;
+    const int on = fz_ble_on(), st = plat_ble_state();
+    if (fz_ok && !fz_safe && fz_store_started && on != applied) {
+        if (applied >= 0 || !on)
+            plat_ble_enable(on);
+        applied = on;
+    }
+    fz_ble_state(!on || st == BLE_OFF || st == BLE_FAILED ? 0 : plat_ble_connected() ? 2 : 1);
+}
+#endif
+
 void app_ui_init(void)
 {
     uint32_t i;
@@ -2279,7 +2473,7 @@ static void fz_usb_frame(const uint8_t *body, uint32_t nbody)   /* F0 pack7(00 5
     if (nb)
         w[k++] = (uint8_t)(acc & 0x7Fu);
     w[k++] = 0xF7;
-    plat_sysex_send(w, k);
+    fz_sx_send(w, k);
 }
 static void fz_usb_reply(const char *tag, uint32_t code)
 {
@@ -2405,6 +2599,10 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
     uint32_t len, crc, off, rc;
 #if QD_PKG_BLE
     int i;
+    if (fz_route && n >= 7u + 4u && d[2] == 0x46u && (fz_rd32(d + 6) == 0x52535A46u || fz_rd32(d + 6) == 0x44585A46u)) {
+        fz_usb_reply("FZER", 15);        /* (FZSR, FZXD over Bluetooth: they pull from the host over USB only) */
+        return;
+    }
 #endif
     if (n >= 7u + 4u && d[2] == 0x46u && (fz_rd32(d + 6) == 0x49425A46u || fz_rd32(d + 6) == 0x52425A46u ||
                                           fz_rd32(d + 6) == 0x52535A46u)) {   /* "FZBI" "FZBR" "FZSR" */
@@ -2562,6 +2760,16 @@ int app_expect(const char *what, int *got)
         *got = fz_host_sx_st;
     else if (!strcmp(what, "fz_isr_loads"))  /* patterns loaded inside the audio interrupt (the prefetch's misses) */
         *got = (int)fz_audio_loads();
+#if QD_PKG_BLE
+    else if (!strcmp(what, "fz_bsx_in"))  /* (the Bluetooth package) SysEx frames in over Bluetooth, replies out, lost */
+        *got = (int)fz_bsx_in;
+    else if (!strcmp(what, "fz_bsx_out"))
+        *got = (int)fz_bsx_out;
+    else if (!strcmp(what, "fz_bsx_lost"))
+        *got = (int)fz_bsx_lost;
+    else if (!strcmp(what, "fz_sx_usb_out"))   /* (FIZZ's replies sent over USB: fz_sysex_out's) */
+        *got = (int)fz_host_sx_out;
+#endif
     else if (!strcmp(what, "fz_store_wiped"))   /* sectors erased at the boot or by the wipe (-1: none) */
         *got = fz_wiped;
     else if (!strcmp(what, "fz_store_wiped_all")) {   /* (1: every sector of the store's region: 73 in the USB package,
@@ -2663,6 +2871,11 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     }
     if (strcmp(cmd, "sysex"))
         return 0;
+#if QD_PKG_BLE
+    if (a[0] != 'F' && a[0] != 'f')      /* (sysex BLE ..: the simulator's own, as Bluetooth brings it: packets through
+                                          * plat_midi_in; firmware/patches/fm1-base-ble-sysex.patch) */
+        return 0;
+#endif
     for (p = plat_host_line + 5; *p && n < sizeof f;) {
         unsigned v;
         int used;

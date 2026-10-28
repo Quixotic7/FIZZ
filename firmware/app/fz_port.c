@@ -396,6 +396,16 @@ uint32_t fz_sx_last(void) { return fz_app.sx.rx_ms; }
 int fz_sx_bulk(void) { return fz_app.sx.job || fz_app.sx.wk.cmd; }
 uint32_t *fz_sx_xs(void) { return fz_app.sx.xs; }
 int fz_sysex_take(uint8_t *out, uint32_t max) { return qd_app_sysex_take(&fz_app, out, max); }
+#if QD_PKG_BLE
+void fz_sysex_port(int port) { qd_app_sysex_port(&fz_app, port); }
+int fz_sysex_peek_port(void) { return qd_app_sysex_peek_port(&fz_app); }
+int fz_ble_on(void) { return !fz_up || qd_app_ble_on(&fz_app); }
+void fz_ble_state(int st)
+{
+    if (fz_up)
+        qd_app_ble_state(&fz_app, st);
+}
+#endif
 void fz_tick(uint32_t ms) { qd_app_tick(&fz_app, ms); }
 /* (P2.10, core 7fe3ea0) the clock in its two halves: what the audio side shares, under the lock, coalesced over the ms
  * since; then without the lock, the persist looks, the store's next job, SysEx's labels, a ms at a time */

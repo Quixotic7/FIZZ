@@ -152,12 +152,24 @@ typedef struct {
                                         * pacing during a transfer (firmware/app/app.c fz_step) */
     uint32_t xs[13];                   /* the port's transfer counters (app.c FZ_XS_*: stats line 16), here not in the
                                         * port's RAM */
+#if QD_PKG_BLE
+    uint8_t port;                      /* (the Bluetooth package) the port the frame being read came from (0 USB, 1
+                                        * Bluetooth: qd_app_sysex_port) .. */
+    uint8_t out, job_port, wk_port, lbl_port;   /* .. the port the replies being made go to; a LIST / DUMP's, a
+                                        * job's, LABELS' subscriber's: each reply goes back where its request came from */
+#endif
 } qd_sx_t;
 
 struct qd_app;
 void qd_app_sysex(struct qd_app *a, const uint8_t *f, uint32_t n);   /* one frame: its bytes between F0 and F7 */
 int qd_app_sysex_take(struct qd_app *a, uint8_t *out, uint32_t max);  /* a reply, F0 .. F7: its length (0: none) */
 int qd_app_sysex_peek(const struct qd_app *a);   /* P1.6l: the next reply's length (0: none) */
+#if QD_PKG_BLE
+/* (the Bluetooth package) the next frames' port (0 USB, 1 Bluetooth), before qd_app_sysex; and the next reply's (its
+ * request's: the ring keeps it in its length's top bit) */
+void qd_app_sysex_port(struct qd_app *a, int port);
+int qd_app_sysex_peek_port(const struct qd_app *a);
+#endif
 int qd_app_sysex_busy(const struct qd_app *a);   /* P1.6m: replies still to be made (an export going out) */
 void qd_sx_ms(struct qd_app *a);       /* P1.6l: each ms: a subscribed page's LABELS when they change */
 void qd_app_sysex_version(struct qd_app *a, const char *version);
