@@ -752,6 +752,166 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 @keyframes dragL { 0%, 10% { transform: translate(330px, 0); opacity: 0; } 18% { opacity: 1; } 55%, 72% { transform: none; opacity: 1; } 88%, 100% { transform: none; opacity: 0; } }
 .dropline { height: 4px; border-radius: 2px; background: var(--champagne); box-shadow: 0 0 12px var(--champagne); margin: -4px 4px 4px; animation: blink .6s infinite alternate; }
 
+/* ================================================================ the emulator: FIZZ on the phone (29–33; 23–28 updated) */
+/* the panel follows the owner's RemoteFM1 iOS design (RemoteFM1IOS/design/canvas: Main, PhoneSheet, PhoneKeys,
+   PhoneWide, PadWide; the parts Knob, Buttons, Keys, Screen); the theme is a set of custom properties on .emu */
+@font-face { font-family: "Chakra Petch"; src: url("fonts/ChakraPetch-Bold.ttf") format("truetype"); font-weight: 700; }
+:root { --emu: #FF8A4C; }
+.emul { position: absolute; inset: 0; background: var(--t-body); overflow: hidden; }
+.scr.emus .sb { color: var(--t-label); } .scr.emus .sb svg { fill: var(--t-label); }
+.scr.emus .home { background: var(--t-label); opacity: .7; }
+.scr.emus.sbl .sb { color: #F3EBDC; } .scr.emus.sbl .sb svg { fill: #F3EBDC; }
+.esheet .mm small.ecnt i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; } .esheet .mm small.ecnt b { margin-right: 14px; font-size: 16px; }
+.ekgrid.tight .ekn > span { letter-spacing: .02em; }
+.emul .hdr { position: absolute; left: 16px; right: 16px; top: 50px; height: 36px; display: flex; align-items: center; justify-content: space-between; }
+.emul .me { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px 0 10px; border-radius: 999px; background: rgba(0, 0, 0, .14); color: var(--t-label); font: 800 13px "Inter Tight"; letter-spacing: .06em; white-space: nowrap; }
+.emul .me .phg { width: 13px; height: 15px; }
+.emul .me i { width: 8px; height: 8px; border-radius: 50%; background: var(--t-label); }
+.emul .me.lnk i { background: #3BD47A; box-shadow: 0 0 8px #3BD47A; }
+.emul .egrab { position: absolute; left: 50%; top: -4px; width: 88px; height: 44px; margin-left: -44px; display: flex; align-items: center; justify-content: center; }
+.emul .egrab span { width: 40px; height: 5px; border-radius: 3px; background: var(--t-label); opacity: .55; }
+.emul .efz { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px 0 6px; border-radius: 999px; background: #0b0b0e; box-shadow: 0 3px 0 rgba(0, 0, 0, .22); }
+.emul .efz .bub { width: 26px; height: 26px; }
+.emul .efz .word { font-size: 17px; }
+.abs { position: absolute; }
+/* a knob (Knob.dc): label above, the dark cap with its knurled ring, a mark in FIZZ's knob colour */
+.ekn { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
+.ekn > span { font: 700 12px/1 "Chakra Petch"; letter-spacing: .07em; color: var(--t-label); white-space: nowrap; text-transform: uppercase; }
+.ekn .cap { border-radius: 50%; box-shadow: 0 var(--sh) 0 rgba(0, 0, 0, .28); display: block; }
+.ekn .cap svg { display: block; }
+.ekn .mk { transform-origin: 50px 50px; }
+.ekn.eturn .mk { animation: knturn 4.2s ease-in-out infinite; }
+@keyframes knturn { 0%, 100% { transform: rotate(var(--a0)); } 45%, 60% { transform: rotate(var(--a1)); } }
+.ekgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-items: center; }
+/* the F1 / F2 pair (OCT- / OCT+) */
+.fpair { display: flex; gap: 6px; box-sizing: border-box; padding: 5px; background: var(--t-bed); border-radius: 14px; }
+.fpair span { flex: 1; border-radius: 10px; background: var(--t-key); box-shadow: inset 0 2px 0 var(--t-hi), 0 3px 0 var(--t-lo); color: var(--t-keyText); font: 700 14px/1 "Chakra Petch"; letter-spacing: .06em; display: grid; place-items: center; }
+/* the 240 x 240 screen in its bezel (Screen.dc), here FIZZ's own frames (tools/render_frames) */
+.fscr { box-sizing: border-box; background: var(--t-bezel); box-shadow: 0 4px 0 rgba(0, 0, 0, .25); position: relative; }
+.fscr img { display: block; width: 100%; height: 100%; }
+.fscr::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(135deg, rgba(255, 255, 255, .06), transparent 40%); }
+.pled { width: 10px; height: 10px; border-radius: 2px; background: #FF3B2F; box-shadow: 0 0 8px #FF3B2F; flex: none; }
+/* the button well (Buttons.dc): FIZZ's names */
+.ebgrid { display: grid; padding: 10px; background: var(--t-bed); box-shadow: inset 0 2px 0 rgba(0, 0, 0, .18); box-sizing: border-box; }
+.ebgrid .ebt { border-radius: calc(var(--bh) * .24); background: var(--t-key); box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo); color: var(--t-keyText); font: 700 var(--bf, 12px)/1.05 "Chakra Petch"; letter-spacing: .02em; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; white-space: nowrap; }
+.ebgrid .ebt svg { width: var(--ic, 9px); height: var(--ic, 9px); }
+.ebgrid .ebt.on { background: var(--t-hi); color: var(--t-led); text-shadow: 0 0 8px var(--t-led); }
+.ebgrid .ebt.go { color: #4FE08A; text-shadow: 0 0 9px #4FE08A; animation: beat .49s ease-out infinite; }
+@keyframes beat { 0% { box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo), 0 0 18px #4FE08A; } 60%, 100% { box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo), 0 0 0 transparent; } }
+/* the LED keybed (Keys.dc) */
+.kbed { position: absolute; background: var(--t-bed); box-shadow: inset 0 3px 0 rgba(0, 0, 0, .2); }
+.kbed .stage { position: absolute; overflow: hidden; }
+.kbed .ky { position: absolute; border-radius: var(--r); background: var(--t-key); box-shadow: inset 0 2px 0 var(--t-hi), 0 4px 0 var(--t-lo); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.kbed .ky.hd { background: var(--t-hi); }
+.kbed .ky i { display: block; border-radius: 3px; background: var(--t-ledOff); }
+.kbed .ky.on i { background: var(--t-led); opacity: .62; }
+.kbed .ky.hd i, .kbed .ky.held i { background: var(--t-led); opacity: 1; box-shadow: 0 0 10px var(--t-led), 0 0 3px var(--t-led); }
+.kbed .ky b { font: 700 12px/1 "Chakra Petch"; color: var(--t-keyText); }
+.kbed .ky.ewave i { animation: ewave var(--cyc) steps(1, end) infinite; animation-delay: var(--dl); }
+@keyframes ewave { 0% { background: var(--t-led); opacity: 1; box-shadow: 0 0 12px var(--t-led), 0 0 3px var(--t-led); } 6.25%, 100% { box-shadow: none; } }
+.kbed .mini { position: absolute; display: flex; gap: 2px; }
+.kbed .mini span { flex: 1; border-radius: 4px; background: var(--t-key); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; box-sizing: border-box; }
+.kbed .mini span.in { background: var(--t-hi); }
+.kbed .mini span i { width: 55%; height: 3px; border-radius: 2px; background: var(--t-ledOff); }
+.kbed .mini span.on i { background: var(--t-led); box-shadow: 0 0 6px var(--t-led); }
+.kbed .mini .win { background: transparent; padding: 0; position: absolute; top: -3px; border: 2px solid var(--t-keyText); border-radius: 7px; box-sizing: border-box; }
+/* the linked views' switches (PhoneKeys) */
+.kset { display: flex; gap: 6px; justify-content: center; }
+.kset span { height: 36px; padding: 0 12px; border-radius: 999px; color: var(--t-label); font: 700 12px/36px "Chakra Petch"; letter-spacing: .1em; }
+.kset span.on { background: rgba(0, 0, 0, .18); }
+.deck { display: flex; height: 40px; padding: 3px; border-radius: 999px; background: rgba(0, 0, 0, .16); box-sizing: border-box; }
+.deck span { flex: 1; border-radius: 999px; color: var(--t-label); font: 700 13px/34px "Chakra Petch"; letter-spacing: .1em; text-align: center; }
+.deck span.on { background: var(--t-key); color: var(--t-keyText); }
+.vdots { position: absolute; left: 0; right: 0; bottom: 18px; display: flex; justify-content: center; }
+.vdots span { width: 36px; height: 24px; display: grid; place-items: center; }
+.vdots span i { width: 8px; height: 8px; border-radius: 4px; background: var(--t-label); opacity: .35; }
+.vdots span.on i { width: 22px; opacity: 1; }
+/* the pull-down sheet (PhoneSheet): the app's own tab bar rides at its foot */
+.esheet { position: absolute; left: 0; right: 0; top: 0; z-index: 70; padding: 58px 18px 0; background: #17140F; border-radius: 0 0 34px 34px; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); color: #F3EBDC; animation: sheetdrop .6s cubic-bezier(.2, .9, .3, 1) both; }
+@keyframes sheetdrop { from { transform: translateY(-100%); } }
+.esheet .ttl { display: flex; align-items: center; justify-content: space-between; height: 44px; }
+.esheet .ttl .bub { width: 30px; height: 30px; }
+.esheet .ttl b { font: 800 22px "Inter Tight"; letter-spacing: .04em; color: #F3EBDC; display: flex; align-items: center; gap: 9px; }
+.esheet .edone { height: 44px; padding: 0 18px; border-radius: 999px; background: #2A251F; font: 800 14px/44px "Inter Tight"; letter-spacing: .06em; }
+.esheet h4 { margin: 18px 0 9px; font: 800 12px/1 "Inter Tight"; letter-spacing: .16em; color: #A69C8A; }
+.esheet .esrcs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.esheet .esrc { height: 76px; border-radius: 20px; border: 1px solid #3A352D; padding: 0 14px; display: flex; flex-direction: column; justify-content: center; gap: 7px; }
+.esheet .esrc b { display: flex; align-items: center; gap: 8px; font: 800 15px "Inter Tight"; letter-spacing: .05em; color: #F3EBDC; }
+.esheet .esrc b i { width: 9px; height: 9px; border-radius: 50%; background: #6E6557; }
+.esheet .esrc small { font: 700 13px "Inter Tight"; color: #B5AB99; letter-spacing: .02em; }
+.esheet .esrc.on { border: 2px solid var(--emu); background: #2A251F; box-shadow: 0 0 18px color-mix(in srgb, var(--emu) 30%, transparent); }
+.esheet .esrc.on b i { background: var(--emu); box-shadow: 0 0 8px var(--emu); }
+.esheet .esrc.fm b i { background: #3BD47A; }
+.esheet .views { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.esheet .vw { height: 90px; border-radius: 18px; border: 1px solid #3A352D; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; font: 800 12px "Inter Tight"; letter-spacing: .08em; }
+.esheet .vw.on { border: 2px solid var(--emu); background: #2A251F; }
+.esheet .vw .g { width: 48px; height: 40px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.esheet .vw .g s { display: block; border-radius: 3px; background: #6E6557; text-decoration: none; }
+.esheet .thm { display: flex; gap: 8px; align-items: center; }
+.esheet .esw { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; }
+.esheet .esw.on { box-shadow: 0 0 0 2.5px var(--emu); }
+.esheet .esw > span { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; }
+.esheet .esw > span > span { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; }
+.esheet .esw > span > span > span { width: 8px; height: 8px; border-radius: 50%; }
+.esheet .elist { margin-top: 18px; background: #211E19; border-radius: 20px; overflow: hidden; }
+.esheet .eli { min-height: 54px; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid #2E2A23; font: 800 14px "Inter Tight"; letter-spacing: .08em; color: #F3EBDC; }
+.esheet .eli:last-child { border-bottom: 0; }
+.esheet .eli .v { margin-left: auto; color: #B5AB99; letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
+.esheet .eli .v svg { width: 14px; height: 14px; fill: none; stroke: #B5AB99; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.esheet .eli.mem { min-height: 76px; }
+.esheet .eli .mm { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+.esheet .eli .mm .meter { height: 12px; border-radius: 6px; background: #15120F; border-color: #2E2A23; }
+.esheet .eli .mm small { font: 700 13px "Inter Tight"; color: #B5AB99; letter-spacing: .02em; }
+.esheet .eli .mm small b { color: #F3EBDC; font-size: 15px; }
+.esheet .rst { height: 44px; padding: 0 16px; border-radius: 22px; border: 1.5px solid color-mix(in srgb, var(--red) 60%, transparent); color: var(--red); font: 800 13px/41px "Inter Tight"; letter-spacing: .08em; }
+.esheet .nav { position: relative; left: auto; right: auto; bottom: auto; margin: 18px -6px 0; }
+.esheet .close { height: 30px; display: flex; align-items: center; justify-content: center; }
+.esheet .close span { width: 40px; height: 5px; border-radius: 3px; background: #6E6557; }
+/* the tab bar with PLAY (the emulator) as its first tab */
+.nav.six { gap: 3px; padding: 0 5px; }
+.nav.six .nv { width: 39px; }
+.nav.six .nv.on { width: auto; padding: 0 8px; gap: 5px; }
+.nav.six .nv.on b { font-size: 12.5px; letter-spacing: .03em; }
+.nav.six .nplus { width: 50px; height: 50px; }
+.nv.emu svg { stroke-width: 2; }
+/* the app's pill when the unit is the emulator */
+.unit.emu { --c: var(--emu); }
+.unit.emu .phg { width: 13px; height: 15px; }
+.unit.emu .dot { animation: none; }
+/* landscape iPhone */
+.phone.land { width: 868px; height: 414px; }
+.phone.land::before, .phone.land::after { left: auto; width: 62px; height: 3px; top: -3px; border-radius: 2px 2px 0 0; }
+.phone.land::before { right: 170px; } .phone.land::after { right: 246px; }
+.phone.land .scr { width: 844px; height: 390px; }
+.phone.land .island { top: 50%; left: 11px; width: 36px; height: 124px; margin: -62px 0 0 0; }
+.phone.land .island::after { right: 12px; top: 22px; }
+.phone.land .home { width: 200px; margin-left: -100px; bottom: 6px; }
+/* iPad: a slim rail while playing */
+.srail { width: 84px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 0 24px; background: #000; border-right: 1px solid var(--line); }
+.srail .bub { width: 34px; height: 34px; margin-bottom: 8px; }
+.srail .nv { width: 56px; height: 56px; border-radius: 28px; }
+.srail .nv svg { width: 24px; height: 24px; }
+.srail .nv.on svg { stroke: #000; }
+.srail .nplus { margin: 6px 0 0; }
+.emarea { position: relative; flex: 1; background: var(--t-body); overflow: hidden; }
+/* the BACKUP card and rows when the unit is the emulator */
+.card.this.emuc { border-color: color-mix(in srgb, var(--emu) 50%, var(--line)); background: color-mix(in srgb, var(--emu) 5%, var(--panel)); }
+.card.this.emuc > .h { color: var(--emu); gap: 7px; }
+.bk.ebk { --c: var(--emu); }
+.bk .ic .phg { width: 20px; height: 23px; stroke: var(--c); }
+.ucard.emuc { border-color: color-mix(in srgb, var(--emu) 50%, var(--line)); background: color-mix(in srgb, var(--emu) 6%, var(--panel)); }
+.ucard.emuc .uv i { background: var(--emu); box-shadow: 0 0 8px var(--emu); }
+.vt.emu { color: var(--emu); }
+.srail .nv.on { flex: none; }
+.keysb.on { border: 2px solid var(--emu); background: color-mix(in srgb, var(--emu) 16%, #000); box-shadow: 0 0 16px color-mix(in srgb, var(--emu) 45%, transparent); animation: kpulse 1.6s ease-in-out infinite; }
+.keysb.on svg { stroke: var(--emu); }
+@keyframes kpulse { 50% { box-shadow: 0 0 26px color-mix(in srgb, var(--emu) 75%, transparent); } }
+.sendh { color: var(--violet); }
+.sendh em { font-style: normal; color: var(--emu); display: inline-flex; align-items: center; gap: 5px; }
+.sendh em .phg { width: 12px; height: 14px; }
+.cell.land { width: 584px; }
+.cell.land .zf { zoom: .66; }
+
 /* ================================================================ the page around the devices */
 body.shot { padding: 16px; width: fit-content; }
 body.sheet { width: 1640px; padding: 30px 34px 40px; }
@@ -1231,44 +1391,46 @@ const SCREENS = [
         </div>
       </div></div>`) },
   // ---------------------------------------------------------------- the phone's own library, no FM-1 needed (23–28)
-  { id: "offline-library", title: "LIBRARY on the phone, no FM-1", cap: "The app opens without an FM-1: the pill's dot blinks while it looks, BACKUP / POOL / PROJECTS go dim in the tab bar. PHONE (champagne, like KEPT: what lives on the phone) lists Documents/Presets/*.fizzsnd; the FM-1's sources wait dimmed. NEW breathes.",
-    html: () => phone2(phoneLib(), "LIBRARY", true) },
-  { id: "phone-preset-sheet", title: "A phone preset (sheet)", cap: "FM-1 connected. The caret blinks in the name (tap to rename); the tags as on the FM-1. SEND TO FM-1: one tap on a target sends it (the tapped one rings violet). Pinned: DUPLICATE, EDIT, SHARE (.fizzsnd), DELETE. Without an FM-1 the SEND row is not there.",
-    html: () => phone(`<div class="under">${phoneLib({ on: true })}</div><div class="scrim" style="background:rgba(0,0,0,.45)"></div>
+  { id: "offline-library", title: "LIBRARY with no FM-1: THIS iPHONE", cap: "No FM-1 plugged in: the app talks to THIS iPHONE, the emulated FIZZ (the pill in the emulator's tangerine; tapped, it opens PLAY). Every tab works, TRACK too (heard on the emulator's track 3). MY PRESETS / FACTORY / ALL are the emulator's; PHONE (champagne) lists Documents/Presets/*.fizzsnd. NEW breathes. When an FM-1 arrives the pill turns green and the tabs follow it.",
+    html: () => phone3(phoneLib({ emu: true }), "LIBRARY") },
+  { id: "phone-preset-sheet", title: "A phone preset (sheet), sent to THIS iPHONE", cap: "No FM-1: SEND goes to THIS iPHONE (the emulator's MY PRESETS, its pool, its track 3); with an FM-1 the same row reads SEND TO FM-1. One tap on a target sends it (the tapped one rings violet). The caret blinks in the name (tap to rename). Pinned: DUPLICATE, EDIT, SHARE (.fizzsnd), DELETE.",
+    html: () => phone(`<div class="under">${phoneLib({ emu: true })}</div><div class="scrim" style="background:rgba(0,0,0,.45)"></div>
       <div class="psheet" style="top:276px;--c:var(--champagne)"><div class="grab"></div>
         <div class="ph">${algo(2, "var(--yellow)")}<div style="min-width:0"><div class="h" style="color:var(--champagne);gap:6px">${PHG(15)}PHONE</div><div class="pname">GLASS BELL<i class="caret"></i></div></div></div>
         <div class="tgl">${TAGS.map((t) => tag(t, ["PLUCK"].includes(t) ? "" : "off")).join("")}</div>
-        <div class="sec"><div class="h" style="color:var(--violet)">SEND TO FM-1</div>${SENDT(true)}</div>
+        <div class="sec"><div class="h sendh">SEND TO <em>${PHG(12)}THIS iPHONE</em></div>${SENDT(true)}</div>
         <div style="position:absolute;left:18px;right:18px;bottom:34px">
           <div class="row"><span class="btn ghost">${IC.copy}DUPLICATE</span><span class="btn" style="--c:var(--pink)">${IC.pencil}EDIT</span></div>
           <div class="row" style="margin-top:10px"><span class="btn ghost">${IC.share}SHARE</span><span class="btn redline">${IC.trash}DELETE</span></div></div></div>`) },
-  { id: "offline-edit", title: "EDIT a phone preset, no FM-1", cap: "The OPERATORS page as the app has it now; sparks run and the loop turns as ever. The place reads PHONE; no TRACK switch; the keys button is struck through (no sound without an FM-1). SAVE writes the .fizzsnd, SAVE AS NEW makes another phone preset.",
-    html: () => phone2(editPhone(), "EDIT", true, false) },
-  { id: "phone-select-send", title: "PHONE: four to the FM-1", cap: "FM-1 connected. SELECT, then single taps tick rows (the tick pops); the violet bar takes the tab bar's place: the count, ALL, SHARE (.fizzlib), DELETE, the target as IMPORT's, SEND breathes. Out of SELECT, a tap with TRACK on is heard on the track (KEEP / CANCEL).",
+  { id: "offline-edit", title: "EDIT a phone preset on THIS iPHONE", cap: "No FM-1, and it still sounds: TRACK is on, so every turn is heard on the emulator's track 3; the keys button glows and opens the keybed (the emulator plays). The place reads PHONE. SAVE writes the .fizzsnd, SAVE AS NEW makes another phone preset. Sparks run and the loop turns as ever.",
+    html: () => phone3(editPhone({ emu: true }), "EDIT", false) },
+  { id: "phone-select-send", title: "PHONE: four to the FM-1", cap: "FM-1 connected (the pill is green: the tabs talk to it). SELECT, then single taps tick rows (the tick pops); the violet bar takes the tab bar's place: the count, ALL, SHARE (.fizzlib), DELETE, the target, SEND breathes. Without an FM-1 the button reads SEND 4 TO THIS iPHONE.",
     html: () => phone(phoneLib({ on: true, select: true }) + `<div class="selbar" style="bottom:28px"><div class="top"><span class="n">4</span><span class="btn small ghost">ALL</span><span class="icon">${IC.share}</span><span class="icon red">${IC.trash}</span></div>
       <div class="dest"><div class="seg"><button class="on">MY PRESETS</button><button>POOL</button><button>TRACK <span class="tn">3</span></button></div></div>
       <span class="btn send">${IC.down}SEND 4 TO FM-1</span></div>`) },
-  { id: "offline-tab", title: "BACKUP without an FM-1", cap: "The FM-1 drawn in grey, its cable's plug bobbing towards a socket that is not there, a yellow spark in the gap; LOOKING pulses. The backups kept on the phone stay listed (SHARE works; RESTORE waits for an FM-1). POOL and PROJECTS: the same drawing; PROJECTS keeps its KEPT list.",
-    html: () => phone2(topBar2() + `<div class="pg"><div class="nofm"><svg viewBox="0 0 390 330">
-        <g transform="translate(18 8)">${fm1("#5c5c66", `<g opacity=".3">${LCD_BUB}</g>`, 252)}</g>
-        <g class="plugA"><path class="cab" d="M262 50 C 336 56, 356 132, 338 196 S 304 246, 304 262"/>
-          <rect x="290" y="258" width="28" height="36" rx="7" fill="#121217" stroke="#8d8d96" stroke-width="2.4"/><path d="M298 294v12M310 294v12" stroke="#8d8d96" stroke-width="3" stroke-linecap="round"/></g>
-        <g class="gap"><path d="M304 316v10M290 312l-6 8M318 312l6 8"/></g></svg>
-        <div class="bigno" style="text-align:left;left:16px;bottom:24px">NO <span>FM-1</span></div></div>
-      <div class="offrow"><span class="look"><i></i>LOOKING</span><span class="bt">${IC.bt}</span></div>
-      <div class="h" style="margin:0 2px 12px">BACKUPS <span class="n">4</span><span class="r n">1.1 MB</span></div>
-      ${BKROW("", "Today 14:02", 6, 143, "292 KB")}${BKROW("", "Yesterday 22:40", 6, 139, "288 KB")}${BKROW("old", "24 Oct 09:15", 4, 128, "251 KB", "0.11.0")}</div>`, "BACKUP", true) },
-  { id: "ipad-phone-library", title: "iPad: the FM-1 and the phone", ipad: true, cap: "The FM-1's presets (MY PRESETS / FACTORY / ALL) beside the PHONE column; a phone preset's detail on the right. A row dragged from PHONE onto the FM-1's list lands where the line glows (a send); dragged the other way, a copy to the phone. Without an FM-1 the left column greys out.",
-    html: () => ipad(rail("LIBRARY") + `<div class="main"><div class="mtop">${tagChips()}${topBar({ word: false, unit: "", track: 3 }).replace('class="tb"', 'class="tb" style="padding:0;margin-left:auto"').replace('<span class="logo">' + BUB + "</span>", "")}</div>
+  { id: "offline-tab", title: "BACKUP of THIS iPHONE", cap: "The \"no FM-1\" state is gone: BACKUP, POOL and PROJECTS work on the emulated FIZZ. The card is THIS iPHONE's store (tangerine); BACK UP keeps it as a .fizzbak like an FM-1's. The list holds both: the emulator's backups tangerine, the FM-1's yellow. An FM-1 backup swiped left RESTOREs into THIS iPHONE: your unit's projects and presets on the phone.",
+    html: () => phone3(topBar3() + `<div class="pg"><div class="card this emuc">
+      <div class="h">${PHG(14)}THIS iPHONE</div>
+      <div class="vrow"><span class="vbig">0.12.0</span><span class="vb">BETA 12</span></div>
+      <div class="stats"><div class="kv"><b>6</b>projects</div><div class="kv"><b>143</b>my presets</div><div class="kv"><b>61<small> %</small></b>store used</div></div>
+      <div><div class="meter"><span style="width:24%;background:var(--cream)"></span><span style="width:6%;background:#45454d"></span><span style="width:31%;background:var(--green);animation-delay:.25s"></span></div>
+        <div class="legend"><span><i style="background:var(--cream)"></i>MY PRESETS</span><span><i style="background:var(--green)"></i>PROJECTS</span><span class="r">292 KB</span></div></div>
+      <div class="actions"><span class="btn huge" style="--c:var(--yellow);flex:1">● BACK UP</span><span class="btn ghost" style="font-size:13px;padding:0 16px;height:64px;border-radius:32px">PRESETS ONLY</span></div></div>
+      <div class="h" style="margin:20px 2px 12px">BACKUPS <span class="n">5</span><span class="r n">1.4 MB</span></div>
+      ${BKROW("ebk", "Today 16:20", 6, 143, "292 KB")}
+      <div class="bkw"><div class="acts"><span style="background:var(--yellow)">${IC.restore}RESTORE</span><span style="background:var(--red)">${IC.trash}DELETE</span></div>${BKROW("", "Today 14:02", 6, 139, "288 KB").replace('<div class="bkw"><div class="bk ', '<div class="bk swL ').replace(/<\/div>$/, "")}</div>
+      ${BKROW("old", "24 Oct 09:15", 4, 128, "251 KB", "0.11.0")}</div>`, "BACKUP") },
+  { id: "ipad-phone-library", title: "iPad: THIS iPAD and the phone's presets", ipad: true, cap: "No FM-1: the rail's unit card is the emulated FIZZ (THIS iPAD, tangerine) and PLAY heads the tabs. Its presets (MY PRESETS / FACTORY / ALL) beside the PHONE column; a phone preset's detail on the right, SEND TO THIS iPAD. A row dragged from PHONE onto the left list lands where the line glows (a send); dragged the other way, a copy to the phone. With an FM-1 the card turns green and the left column is the FM-1's.",
+    html: () => ipad(rail2("LIBRARY") + `<div class="main"><div class="mtop">${tagChips()}${topBar({ word: false, unit: "", track: 3 }).replace('class="tb"', 'class="tb" style="padding:0;margin-left:auto"').replace('<span class="logo">' + BUB + "</span>", "")}</div>
       <div class="cols" style="position:relative">
         <div class="card fmc"><div class="seg"><button class="on">MY PRESETS</button><button>FACTORY</button><button>ALL</button></div>
-          <div class="h">MY PRESETS <span class="n">143 / 256</span></div>${MINE.slice(0, 3).map((p) => libRow(p)).join("")}<div class="dropline"></div>${MINE.slice(3, 10).map((p) => libRow(p)).join("")}</div>
+          <div class="h" style="color:var(--emu);gap:7px">${PHG(14)}THIS iPAD <span class="n">143 / 256</span></div>${MINE.slice(0, 3).map((p) => libRow(p)).join("")}<div class="dropline"></div>${MINE.slice(3, 10).map((p) => libRow(p)).join("")}</div>
         <div class="card phc"><div class="h" style="gap:7px">${PHG(16)}PHONE <span class="n">${PHN.length}</span><span class="r" style="display:flex;gap:7px"><span class="icon">${IC.tap}</span><span class="icon new">${IC.plus}</span></span></div>
           ${PHN.slice(0, 10).map((p, i) => phoneRow(p, i === 7 ? "sel" : "")).join("")}</div>
         <div class="card det" style="gap:0">
           <div class="ph">${algo(7, "var(--pink)")}<div style="min-width:0"><div class="h" style="color:var(--champagne);gap:6px">${PHG(15)}PHONE</div><div class="pname">RAIN FX<i class="caret"></i></div></div></div>
           <div class="tgl">${TAGS.map((t) => tag(t, t === "FX" ? "" : "off")).join("")}</div>
-          <div class="sec"><div class="h" style="color:var(--violet)">SEND TO FM-1</div>${SENDT(false)}</div>
+          <div class="sec"><div class="h sendh">SEND TO <em>${PHG(12)}THIS iPAD</em></div>${SENDT(false)}</div>
           <div class="sec row" style="margin-top:auto"><span class="btn" style="--c:var(--pink)">${IC.pencil}EDIT</span></div>
           <div class="sec row" style="margin-top:10px"><span class="btn ghost">${IC.copy}</span><span class="btn ghost">${IC.share}</span><span class="btn redline">${IC.trash}</span></div></div>
         <div class="ghost-row" style="left:40px;top:262px">${phoneRow(PHN[3])}</div>
@@ -1294,12 +1456,12 @@ function phone2(inner, tab, off, fade = true) {
   return `<div class="phone"><div class="scr"><div class="sb"><span>9:41</span>${SB_ICONS}</div><div class="island"></div><div class="app">${inner}</div>` +
     `${fade ? '<div class="fadeb"></div>' : ""}${nv}<div class="home"></div></div></div>`;
 }
-function phoneLib({ on = false, select = false } = {}) {
+function phoneLib({ on = false, select = false, emu = false } = {}) {
   const pk = [0, 2, 3, 5];
   const rows = PHN.slice(0, 9).map((p, i) => phoneRow(p, select && pk.includes(i) ? `pk ${i === 5 ? "last" : ""}` : "", select)).join("");
-  const seg = `<div class="seg"><button class="phs on">${PHG(17)}</button>${["MY PRESETS", "FACTORY", "ALL"].map((n) => `<button class="${on ? "" : "dim"}">${n}</button>`).join("")}</div>`;
+  const seg = `<div class="seg"><button class="phs on">${PHG(17)}</button>${["MY PRESETS", "FACTORY", "ALL"].map((n) => `<button class="${on || emu ? "" : "dim"}">${n}</button>`).join("")}</div>`;
   const btns = select ? `<span class="btn small" style="--c:var(--champagne)">${IC.tap}DONE</span>` : `<span class="btn small ghost">SELECT</span><span class="btn small new">${IC.plus}NEW</span>`;
-  return topBar2({ on, track: on ? 3 : 0 }) + `<div class="pg"><div class="lhead src">${seg}</div>
+  return (emu ? topBar3({ track: 3 }) : topBar2({ on, track: on ? 3 : 0 })) + `<div class="pg"><div class="lhead src">${seg}</div>
     <div class="phead"><span class="big">PHONE</span><span class="sm">${PHN.length}</span>${btns}</div>
     <div class="tscroll">${TAGS.map((t) => `<span class="fchip" style="--c:${cv(t)}"><i></i>${t}</span>`).join("")}</div>${rows}</div>`;
 }
@@ -1307,15 +1469,15 @@ function phoneLib({ on = false, select = false } = {}) {
 const SENDT = (ring) => `<div class="tgts"><span class="stg ${ring ? "fly" : ""}" style="--c:var(--cream)"><i></i>MY PRESETS</span><span class="stg" style="--c:var(--green)"><i></i>POOL</span><span class="stg">TRACK <b class="tn">3</b></span></div>`;
 const OPV2 = [["C", "1", "00", "--k1", 1 / 16, "+0.00"], ["A", "2", "00", "--k2", 0.11, "+0.00"], ["B1", "3", "00", "--k3", 0.27, "+0.12"], ["B2", "2", "00", "--k4", 0.2, "−0.03"]];
 const opCards2 = () => `<div class="opcards">${OPV2.map(([n, w, f, c, b, ofs]) => `<div class="opc" style="--c:var(${c})"><span class="opn">${n}<small>OFS ${ofs}</small></span><span class="opv">${w}<small>.${f}</small></span><span class="ob"><span style="width:${b * 100}%"></span></span></div>`).join("")}</div>`;
-function editPhone() {
+function editPhone({ emu = false } = {}) {
   const pg = [PAGES[0], PAGES[1], PAGES[6], PAGES[2]];
-  return topBar2() + `<div class="pg ed">
+  return (emu ? topBar3({ track: 3, live: true }) : topBar2()) + `<div class="pg ed">
     <div class="edn"><div><div class="h" style="margin-bottom:5px;color:var(--champagne);gap:6px">${PHG(15)}PHONE</div><div class="nm2">NIGHT GLASS</div></div>${tag("PAD")}<span class="edited"></span></div>
     <div class="pages">${pg.map(([n, c, ic], i) => `<span class="pgc ${i === 0 ? "on" : ""}" style="--c:var(${c})">${ic}${n}</span>`).join("")}</div>
     <div class="algowrap">${algoSvg(5, -1, "0 44 600 356")}</div>
     ${opCards2()}
     <div class="dials">${DIALS()}</div>
-    <div class="edacts"><span class="keysb off">${IC.keys}</span><span class="btn ghost" style="flex:1;padding:0 8px">↺ REVERT</span><span class="btn" style="--c:var(--pink);flex:1;padding:0 8px;gap:6px">${PHG(15)}SAVE</span><span class="btn ghost" style="flex:1.45;padding:0 8px">SAVE AS NEW</span></div></div>`;
+    <div class="edacts"><span class="keysb ${emu ? "on" : "off"}">${IC.keys}</span><span class="btn ghost" style="flex:1;padding:0 8px">↺ REVERT</span><span class="btn" style="--c:var(--pink);flex:1;padding:0 8px;gap:6px">${PHG(15)}SAVE</span><span class="btn ghost" style="flex:1.45;padding:0 8px">SAVE AS NEW</span></div></div>`;
 }
 const BKROW = (cls, when, prj, pre, kb, ver = "") => `<div class="bkw"><div class="bk ${cls}"><span class="ic">${IC.backup}</span><div class="txt"><div class="when">${when}</div><div class="what">` +
   (prj ? `<span><i style="background:var(--green)"></i>${prj}</span>` : "") + `<span><i style="background:var(--cream)"></i>${pre}</span><small>${kb}</small>${ver ? `<span class="ver">${ver}</span>` : ""}</div></div><span class="icon">${IC.share}</span></div></div>`;
@@ -1327,6 +1489,173 @@ function burst(c) {
   }
   return `<div class="burst">${s}</div>`;
 }
+
+// ---------------------------------------------------------------- the emulator (29–33): FIZZ's own core on the phone, the owner's RemoteFM1 panel
+// the RemoteFM1 themes (RemoteFM1IOS/design/canvas, P), plus FIZZ (black and neon) as a sixth
+const EP = {
+  Tangerine: { body: "#EE7A3C", label: "#3A1606", bed: "#874332", key: "#924E3A", hi: "#A9614B", lo: "#64301F", keyText: "#FBEDE3", knob: "#1B1715", mark: "#F4EDE6", bezel: "#141210", led: "#FFE6A8", ledOff: "#6F6668" },
+  Midnight: { body: "#1E2230", label: "#C9D2E6", bed: "#12151D", key: "#2B3244", hi: "#3B4359", lo: "#0A0C12", keyText: "#E6ECF8", knob: "#0A0B0F", mark: "#6CF0C2", bezel: "#05060A", led: "#6CF0C2", ledOff: "#454B5C" },
+  Mint: { body: "#A8DCC8", label: "#143329", bed: "#2F5B52", key: "#376A60", hi: "#4A7F74", lo: "#1E3F38", keyText: "#EAF7F1", knob: "#1A2421", mark: "#F2FFF9", bezel: "#121816", led: "#FFF3B0", ledOff: "#6E8580" },
+  Lilac: { body: "#C9AEE6", label: "#2A1642", bed: "#573B77", key: "#634486", hi: "#77589B", lo: "#3B2655", keyText: "#F6EFFC", knob: "#1C1624", mark: "#F7F0FF", bezel: "#120E18", led: "#FFD6F0", ledOff: "#8A7A9A" },
+  Cream: { body: "#EFE6D2", label: "#2A231C", bed: "#2A2520", key: "#3A332C", hi: "#4B433A", lo: "#141110", keyText: "#F3EBDC", knob: "#E8622A", mark: "#FFF4E8", bezel: "#15120F", led: "#FF7A3D", ledOff: "#6A6158" },
+  FIZZ: { body: "#0E0E13", label: "#C9C9D1", bed: "#050507", key: "#1C1C24", hi: "#2C2C37", lo: "#000000", keyText: "#ECECEF", knob: "#000000", mark: "#28E1FF", bezel: "#000000", led: "#28E1FF", ledOff: "#34343E" },
+};
+const tv = (n) => Object.entries(EP[n]).map(([k, v]) => `--t-${k}:${v}`).join(";") + `;--emu:${n === "FIZZ" ? "#28E1FF" : "#FF8A4C"}`;
+// FIZZ's knob colours (PLAYING.md: SELECT yellow, KNOB 1..4 blue, green, white, orange, the sixth pink)
+const KC = { SELECT: "#FFD23F", KN1: "#3F7DFF", KN2: "#1FD47E", KN3: "#F1F0EA", KN4: "#FF6A2C", ALGORITHM: "#FF3CA0" };
+function knob(label, size, angle, turn = null) {
+  const mk = KC[label] || "var(--t-mark)", sh = Math.max(3, Math.round(size * 0.06));
+  return `<div class="ekn ${turn !== null ? "eturn" : ""}" style="width:${size + 28}px;--sh:${sh}px${turn !== null ? `;--a0:${angle}deg;--a1:${turn}deg` : ""}"><span>${label}</span>` +
+    `<span class="cap" style="width:${size}px;height:${size}px"><svg width="${size}" height="${size}" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" style="fill:var(--t-knob)"/>` +
+    `<circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="8" stroke-dasharray="3.2 3.9"/><circle cx="50" cy="50" r="36" style="fill:var(--t-knob)"/><circle cx="50" cy="50" r="36" fill="rgba(255,255,255,.07)"/>` +
+    `<g class="mk" style="transform:rotate(${angle}deg)"><line x1="50" y1="10" x2="50" y2="30" style="stroke:${mk}" stroke-width="7" stroke-linecap="round"/></g></svg></span></div>`;
+}
+const KMAIN = (sz, turn) => [["MASTER", 70], ["SELECT", -20], ["PRESETS", -120], ["ALGORITHM", 30]].map(([l, a]) => knob(l, sz, a, turn === l ? a + 70 : null)).join("");
+const KN14 = (sz, turn) => [["KN1", -60], ["KN2", 135], ["KN3", 0], ["KN4", 40]].map(([l, a]) => knob(l, sz, a, turn === l ? a - 80 : null)).join("");
+// the 240 x 240 screen: FIZZ's own frames (tools/render_frames), in the bezel of Screen.dc
+const fscreen = (s, img) => `<div class="fscr" style="width:${s}px;height:${s}px;padding:${Math.round(s * 0.045)}px;border-radius:${Math.round(s * 0.09)}px"><img src="screens/${img}.png" style="border-radius:${Math.round(s * 0.035)}px" alt=""></div>`;
+// the 12 buttons as FIZZ names them (core/glue/core_quadrille_desc.c button_names), in the panel's order
+const FBTN = ["FX", "TRACKS", "MIX", "LATCH", "EDIT", "SHIFT", "HOME", "SOUNDS", "MIDI<br>FX", "PATTERNS", "PLAY", "REC"];
+function buttons(bw, bh, gap, { on = [], bf = 12, ic = 9 } = {}) {
+  const w = 6 * bw + 5 * gap + 20;
+  return `<div class="ebgrid" style="width:${w}px;grid-template-columns:repeat(6,${bw}px);gap:${gap}px;border-radius:${Math.round(bh * 0.34) + 6}px;--bh:${bh}px;--bf:${bf}px;--ic:${ic}px">` +
+    FBTN.map((n) => `<span class="ebt ${n === "PLAY" ? "go" : on.includes(n) ? "on" : ""}" style="height:${bh}px">` +
+      (n === "PLAY" ? '<svg viewBox="0 0 10 10"><path d="M2 1l7 4-7 4z" fill="#4FE08A"/></svg>' : n === "REC" ? '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#FF4436"/></svg>' : "") + `${n}</span>`).join("") + "</div>";
+}
+// the LED keybed (Keys.dc): FIZZ's white keys are the 16 steps (their LEDs the trigs), the black keys B1..B11
+const STEP = 60 / 122 / 4;   // a sixteenth at 122 BPM
+function keybed({ x, y, W, H, layout = "scroll", keyW = 40, mode = "seq", steps, head = -1, offset = null, nums = false }) {
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), rd = (v) => Math.round(v * 10) / 10;
+  const scroll = layout === "scroll", seq = mode === "seq";
+  const pad = clamp(Math.round(Math.min(W, H) * 0.05), 8, 18), g = clamp(Math.round(W * 0.008), 3, 10);
+  const mh = scroll ? clamp(Math.round(H * 0.11), 22, 34) : 0, mg = scroll ? Math.max(8, g + 4) : 0;
+  let p, sx, sy, sw, sh, ox, off = 0, vis = 16;
+  if (scroll) {
+    p = keyW + g; sx = pad; sy = pad + mh + mg; sw = W - 2 * pad; sh = H - sy - pad; vis = (sw + g) / p;
+    const maxOff = Math.max(0, 16 - vis); off = clamp(offset ?? (seq ? 0 : Math.min(maxOff, 4)), 0, maxOff); ox = -off * p;
+  } else { p = (W - 2 * pad + g) / 16; sx = 0; sy = 0; sw = W; sh = H; ox = pad; }
+  const oy = scroll ? 0 : pad, kw = p - g, rowH = scroll ? sh : H - 2 * pad, vg = g + 2;
+  const bh = Math.round(rowH * 0.4), wh = Math.round(rowH - bh - vg - 4), bw = kw * 0.86, r = Math.round(Math.min(kw * 0.42, 18)), lw = Math.max(3, Math.round(kw * 0.08));
+  const live = !STILL, cyc = 16 * STEP;
+  let k = "";
+  for (let i = 0; i < 16; i++) {
+    const on = !!steps[i], hd = !live && i === head;
+    k += `<span class="ky ${on ? "on" : ""} ${hd ? "hd" : ""} ${live ? "ewave" : ""}" style="left:${rd(ox + i * p)}px;top:${rd(oy + bh + vg)}px;width:${rd(kw)}px;height:${wh}px;--r:${r}px;gap:${Math.round(wh * 0.08)}px;--cyc:${cyc.toFixed(3)}s;--dl:${(-(cyc - i * STEP)).toFixed(3)}s">` +
+      `<i style="width:${lw}px;height:${Math.round(wh * (seq ? 0.34 : 0.42))}px"></i>${nums ? `<b>${i + 1}</b>` : ""}</span>`;
+  }
+  for (const a of [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14]) {
+    const cx = ox + (a + 1) * p - g / 2;
+    k += `<span class="ky" style="left:${rd(cx - bw / 2)}px;top:${oy}px;width:${rd(bw)}px;height:${bh}px;--r:${Math.round(Math.min(bw * 0.42, 18))}px"><i style="width:${lw}px;height:${Math.round(bh * 0.42)}px"></i></span>`;
+  }
+  let mini = "";
+  if (scroll) {
+    mini = `<div class="mini" style="left:${pad}px;top:${pad}px;width:${W - 2 * pad}px;height:${mh}px">` +
+      Array.from({ length: 16 }, (_, i) => `<span class="${i >= Math.floor(off) && i < off + vis ? "in" : ""} ${steps[i] || i === head ? "on" : ""}" style="height:${mh}px"><i></i></span>`).join("") +
+      `<span class="win" style="left:${rd(off / 16 * 100)}%;width:${rd(Math.min(vis, 16) / 16 * 100)}%;height:${mh + 6}px"></span></div>`;
+  }
+  return `<div class="kbed" style="left:${x}px;top:${y}px;width:${W}px;height:${H}px;border-radius:${Math.round(Math.min(W, H) * 0.08)}px">${mini}` +
+    `<div class="stage" style="left:${sx}px;top:${sy}px;width:${sw}px;height:${sh}px">${k}</div></div>`;
+}
+IC.fm1 = '<svg viewBox="0 0 24 24"><rect x="2" y="4.5" width="20" height="15" rx="3.2"/><rect x="8.5" y="7.2" width="7" height="5.8" rx="1.2"/><circle cx="5.4" cy="8.6" r=".9"/><circle cx="18.6" cy="8.6" r=".9"/><path d="M5 16.3h14"/></svg>';
+const ehdr = (pill = "THIS iPHONE", lnk = false, fz = true) => `<div class="hdr"><span class="me ${lnk ? "lnk" : ""}">${lnk ? "<i></i>" : PHG(13)}${pill}</span><span class="egrab"><span></span></span>${fz ? `<span class="efz">${BUB}<span class="word">FIZZ</span></span>` : "<span></span>"}</div>`;
+function ephone(inner, theme = "Tangerine") {
+  return `<div class="phone"><div class="scr emus" style="${tv(theme)};background:var(--t-body)"><div class="sb"><span>9:41</span>${SB_ICONS}</div><div class="island"></div><div class="emul">${inner}</div><div class="home"></div></div></div>`;
+}
+const DRUMS = [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0];
+function emuFull() {
+  return ehdr() +
+    `<div class="abs ekgrid" style="left:16px;top:96px;width:148px;row-gap:8px">${KMAIN(46)}</div>
+    <div class="abs fpair" style="left:16px;top:246px;width:148px;height:52px"><span>F1</span><span>F2</span></div>
+    <div class="abs" style="left:172px;top:96px">${fscreen(202, "fizz-steps-drums")}</div>
+    <div class="abs" style="left:16px;right:16px;top:316px;display:flex;align-items:center;justify-content:space-between"><span class="pled"></span>${KN14(46, "KN2")}</div>
+    <div class="abs" style="left:14px;top:400px">${buttons(52, 42, 6)}</div>` +
+    keybed({ x: 16, y: 530, W: 358, H: 272, layout: "scroll", keyW: 40, steps: DRUMS, head: 9, offset: 4 });
+}
+// the app's tab bar with PLAY (the emulator) first
+const TABS6 = [["PLAY", "--emu"], ...TABS];
+const nav6 = (sel) => `<nav class="nav six">${TABS6.map(([n, c]) => `<span class="nv ${n === sel ? "on" : ""} ${n === "PLAY" ? "emu" : ""}" style="--c:var(${c})">${n === "PLAY" ? IC.fm1 : IC[n.toLowerCase()]}${n === sel ? `<b>${n}</b>` : ""}</span>`).join("")}<span class="nplus">${IC.plus}</span></nav>`;
+function phone3(inner, tab, fade = true) {
+  return `<div class="phone"><div class="scr"><div class="sb"><span>9:41</span>${SB_ICONS}</div><div class="island"></div><div class="app">${inner}</div>` +
+    `${fade ? '<div class="fadeb"></div>' : ""}${nav6(tab)}<div class="home"></div></div></div>`;
+}
+// the app's top bar: the unit is THIS iPHONE (the emulator) or the FM-1
+function topBar3({ src = "emu", track = 0, live = false, dev = "iPHONE" } = {}) {
+  return `<div class="tb"><span class="logo">${BUB}${track ? "" : '<span class="word">FIZZ</span>'}</span>` +
+    (track ? `<span class="livesw ${live ? "on" : ""}"><span class="sw"><i></i></span><span>TRACK</span><b>${track}</b></span>` : "") +
+    (src === "emu" ? `<span class="unit emu">${PHG(13)}THIS ${dev}</span>` : '<span class="unit"><span class="dot"></span>0.12.0-beta.11 <span class="via">USB</span></span>') + "</div>";
+}
+function esheet() {
+  const vw = (n, on, g) => `<div class="vw ${on ? "on" : ""}"><span class="g">${g}</span>${n}</div>`;
+  const ac = "var(--emu)", lt = "#F3EBDC", dk = "#6E6557";
+  const views = vw("FULL", true, `<span style="display:flex;gap:3px;height:20px;width:48px"><s style="width:12px;background:${dk}"></s><s style="width:20px;background:${lt}"></s><s style="flex:1;background:${dk}"></s></span><s style="flex:1;width:48px;background:${ac}"></s>`) +
+    vw("PANEL", false, `<s style="width:22px;height:22px;background:${lt}"></s><s style="width:48px;flex:1;background:${dk}"></s>`) +
+    vw("KEYS", false, `<s style="width:20px;height:20px;background:${lt}"></s><s style="width:48px;flex:1;background:${ac}"></s>`) +
+    vw("SCREEN", false, `<s style="width:38px;height:38px;background:${lt};margin-top:1px"></s>`);
+  const sw = Object.keys(EP).map((n) => `<span class="esw ${n === "Tangerine" ? "on" : ""}"><span style="background:${EP[n].body}${n === "FIZZ" ? ";box-shadow:inset 0 0 0 1.5px #3a3a44" : ""}"><span style="background:${EP[n].bed}"><span style="background:${EP[n].led}"></span></span></span></span>`).join("");
+  return `<div class="abs" style="inset:0;background:rgba(10,8,6,.5);z-index:60"></div><div class="esheet">
+    <div class="ttl"><b>${IC.fm1.replace("<svg", `<svg style="width:28px;height:28px;fill:none;stroke:var(--emu);stroke-width:2;stroke-linecap:round;stroke-linejoin:round"`)}PLAY</b><span class="edone">DONE</span></div>
+    <h4>SOUND</h4><div class="esrcs"><div class="esrc on"><b><i></i>THIS iPHONE</b><small>FIZZ 0.12.0-beta.12</small></div><div class="esrc fm"><b><i></i>FM-1</b><small>USB · TRACK 3</small></div></div>
+    <h4>VIEW</h4><div class="views">${views}</div>
+    <h4>THEME</h4><div class="thm">${sw}</div>
+    <div class="elist"><div class="eli">FIZZ<span class="v">0.12.0-beta.12</span></div>
+      <div class="eli mem">MEMORY<span class="mm"><span class="meter"><span style="width:24%;background:var(--cream)"></span><span style="width:31%;background:var(--green)"></span></span><small class="ecnt"><i style="background:var(--green)"></i><b>6</b><i style="background:var(--cream)"></i><b>143</b></small></span><span class="rst">RESET</span></div>
+      <div class="eli">MIDI &amp; AUDIO<span class="v"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div></div>
+    ${nav6("PLAY")}<div class="close"><span></span></div></div>`;
+}
+function emuKeys() {
+  return ehdr() + `<div class="abs" style="left:25px;top:92px">${fscreen(340, "fizz-steps-bars")}</div>
+    <div class="abs" style="left:12px;right:12px;top:444px;display:flex;justify-content:space-between">${KN14(50, "KN1")}</div>
+    <div class="abs kset" style="left:0;right:0;top:522px"><span>MAIN</span><span class="on">KN 1–4</span></div>
+    <div class="abs deck" style="left:95px;top:566px;width:200px"><span>BUTTONS</span><span class="on">KEYS</span></div>` +
+    keybed({ x: 16, y: 614, W: 358, H: 184, layout: "scroll", keyW: 40, steps: Array(16).fill(1), head: 8, offset: 3.5, nums: true }) +
+    `<div class="vdots"><span><i></i></span><span class="on"><i></i></span><span><i></i></span></div>`;
+}
+function emuLand() {
+  return `<div class="egrab" style="left:422px;top:-8px"><span></span></div>
+    <div class="abs ekgrid tight" style="left:40px;top:18px;width:156px;row-gap:4px">${KMAIN(38)}</div>
+    <div class="abs fpair" style="left:56px;top:144px;width:136px;height:48px;padding:4px"><span>F1</span><span>F2</span></div>
+    <div class="abs" style="left:202px;top:20px">${fscreen(172, "fizz-logo")}</div>
+    <div class="abs" style="left:386px;width:408px;top:16px;display:flex;align-items:center;justify-content:space-between"><span class="pled"></span>${KN14(38, "KN4")}</div>
+    <div class="abs" style="left:386px;top:88px">${buttons(58, 38, 8, { ic: 8 })}</div>` +
+    keybed({ x: 50, y: 206, W: 744, H: 170, layout: "row", steps: [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0], head: 6 });
+}
+function ephoneLand(inner, theme) {
+  return `<div class="phone land"><div class="scr emus" style="${tv(theme)};background:var(--t-body)"><div class="island"></div><div class="emul">${inner}</div><div class="home"></div></div></div>`;
+}
+// iPad's rail when the unit is the emulator: its card tangerine, PLAY first
+function rail2(sel) {
+  return `<aside class="rail"><span class="logo">${BUB}<span class="word">FIZZ</span></span>
+    <div class="ucard emuc">${fm1("var(--emu)", LCD_BUB, 146)}<div class="uv"><i></i>THIS iPAD</div>
+      <div class="meter"><span style="width:24%;background:var(--cream)"></span><span style="width:37%;background:var(--green)"></span></div>
+      <div class="us"><span><b>6</b> projects</span><span><b>143</b> presets</span></div></div>
+    <nav class="vtabs">${[["PLAY", "--emu"], ...VT].map(([n, c]) => `<span class="vt ${n === sel ? "on" : ""}" style="--c:var(${c})">${n === "PLAY" ? IC.fm1 : IC[n.toLowerCase()]}${n}</span>`).join("")}</nav></aside>`;
+}
+// iPad: the rail slims to icons while playing; the panel takes the rest (PadWide)
+function srail(sel) {
+  return `<aside class="srail">${BUB}${TABS6.map(([n, c]) => `<span class="nv ${n === sel ? "on" : ""} ${n === "PLAY" ? "emu" : ""}" style="--c:var(${c})">${n === "PLAY" ? IC.fm1 : IC[n.toLowerCase()]}</span>`).join("")}<span class="nplus" style="margin-top:auto">${IC.plus}</span></aside>`;
+}
+function emuPad() {
+  return srail("PLAY") + `<div class="emarea emul" style="position:relative;inset:auto">
+    <div class="hdr" style="left:36px;right:36px;top:14px">${ehdr("THIS iPAD", false, false).replace(/^<div class="hdr">|<\/div>$/g, "")}</div>
+    <div class="abs ekgrid" style="left:36px;top:70px;width:192px;row-gap:24px">${KMAIN(64)}</div>
+    <div class="abs fpair" style="left:36px;top:300px;width:192px;height:56px"><span style="font-size:16px">F1</span><span style="font-size:16px">F2</span></div>
+    <div class="abs" style="left:256px;top:66px">${fscreen(300, "fizz-latch")}</div>
+    <div class="abs" style="left:588px;width:472px;top:66px;display:flex;align-items:center;justify-content:space-between"><span class="pled" style="width:12px;height:12px"></span>${KN14(64, "KN2")}</div>
+    <div class="abs" style="left:588px;top:214px">${buttons(67, 60, 10, { on: ["LATCH"], bf: 14, ic: 11 })}</div>` +
+    keybed({ x: 36, y: 404, W: 1024, H: 356, layout: "row", steps: [1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1], head: 5 }) + "</div>";
+}
+SCREENS.push(
+  { id: "emulator-full", title: "PLAY: FIZZ on the phone", cap: "FIZZ's own core runs on the phone, played on the owner's RemoteFM1 panel with FIZZ's names (F1 / F2 for OCT). The screen is FIZZ's real step view; the keys' LEDs are the trigs and the head walks them at 122 BPM; PLAY pulses green on the beat; KN2's mark turns. Full-screen: no tab bar (the sheet carries it).",
+    html: () => ephone(emuFull()) },
+  { id: "emulator-sheet", title: "PLAY: the pull-down", cap: "The handle (or a swipe down) drops the sheet over the panel. SOUND: THIS iPHONE or the FM-1 (when one is on USB / Bluetooth). VIEW: FULL / PANEL / KEYS / SCREEN (or swipe sideways). THEME: the five plus FIZZ. FIZZ's version, its MEMORY (RESET wipes the emulator's store), MIDI & AUDIO. The app's tab bar rides at the sheet's foot: one tap to any tab.",
+    html: () => ephone(emuFull() + esheet()).replace('class="scr emus"', 'class="scr emus sbl"') },
+  { id: "emulator-keys", title: "PLAY: screen + keys", cap: "The linked view: FIZZ's screen at 340, one knob set (MAIN / KN 1–4, or swipe the row), BUTTONS / KEYS for the lower deck. The keys are the 16 steps with their numbers; the strip above shows all 16 and the window scrolls with the head. The dots: FULL / this / SCREEN.",
+    html: () => ephone(emuKeys()) },
+  { id: "emulator-landscape", title: "PLAY: landscape", land: true, cap: "Turned sideways (PhoneWide): knobs, F1 / F2, the screen, the buttons in one band, all 16 steps across the bottom. Shown in the FIZZ theme (black and neon). FIZZ's logo screen surges on each beat. The handle at the top drops the same sheet.",
+    html: () => ephoneLand(emuLand(), "FIZZ") },
+  { id: "ipad-emulator", title: "iPad: PLAY", ipad: true, cap: "The rail slims to its icons while playing (PLAY lit); the panel takes the rest (PadWide): knobs and F1 / F2, the screen at 300, KN1–4 and the buttons, a full 16-step keybed. LATCH is lit: the screen shows the step latch on track 3. The pill reads THIS iPAD.",
+    html: () => ipad(emuPad()).replace('<div class="scr">', `<div class="scr emus" style="${tv("Tangerine")};background:var(--t-body)">`) },
+);
 
 // ---------------------------------------------------------------- the page
 const out = document.getElementById("out");
@@ -1341,13 +1670,13 @@ if (SHOT) {
   out.appendChild($h(`<div class="sheetsub">The web Manager's tabs over USB (Camera / USB adapter) or Bluetooth MIDI. Captions describe the motion; they are not on screen.</div>`));
   const g = $h(`<div class="sgridp"></div>`); out.appendChild(g);
   SCREENS.forEach((s, i) => {
-    const el = $h(`<div class="cell ${s.ipad ? "wide" : ""}"><div class="zf">${s.html()}</div><div class="ct"><span>${String(i + 1).padStart(2, "0")}</span>${s.id} · ${s.title}</div><p class="cap">${s.cap}</p></div>`);
+    const el = $h(`<div class="cell ${s.ipad ? "wide" : s.land ? "land" : ""}"><div class="zf">${s.html()}</div><div class="ct"><span>${String(i + 1).padStart(2, "0")}</span>${s.id} · ${s.title}</div><p class="cap">${s.cap}</p></div>`);
     g.appendChild(el); if (s.init) inits.push([s, el]);
   });
 }
 inits.forEach(([s, el]) => s.init(el));
 // still: every animation stopped at a chosen moment (a fraction of its loop), one-shots finished; SMIL at 0.6 s
-const POSTER = { swR: 0.5, swL: 0.5, slideK: 0.3, slideF: 0.3, burst: 0.5, rip: 0.35, fing: 0.5, trail: 0.5, tpop: 0.12, tbub: 0.16, lookp: 0.8, hintring: 0.62, drop: 0.55, flick: 0.1, run: 0.42, lv: 0.6, breathe: 0.5, curglow: 0.5, ppulse: 0.5, plugblink: 0, ckpop: 0.2, tgtfly: 0.4, plugA: 0.3, plugB: 0.3, dragL: 0.62 };
+const POSTER = { knturn: 0.5, beat: 0.05, kpulse: 0.5,swR: 0.5, swL: 0.5, slideK: 0.3, slideF: 0.3, burst: 0.5, rip: 0.35, fing: 0.5, trail: 0.5, tpop: 0.12, tbub: 0.16, lookp: 0.8, hintring: 0.62, drop: 0.55, flick: 0.1, run: 0.42, lv: 0.6, breathe: 0.5, curglow: 0.5, ppulse: 0.5, plugblink: 0, ckpop: 0.2, tgtfly: 0.4, plugA: 0.3, plugB: 0.3, dragL: 0.62 };
 function freeze() {
   document.getAnimations().forEach((a) => {
     const t = a.effect.getTiming();

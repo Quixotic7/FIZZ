@@ -22,14 +22,16 @@ PAGE = os.path.join(HERE, 'fizz-ios.html')
 CHROMIUM = '/Applications/Chromium.app/Contents/MacOS/Chromium'
 PHONE = (446, 900)        # 414 x 868 frame + 16 px around
 IPAD = (1248, 888)        # 1216 x 856 frame + 16 px around
-SHEET = (1640, 6600)    # trimmed to its content afterwards
+LAND = (900, 446)         # the phone on its side: 868 x 414 frame + 16 px around
+SHEET = (1640, 9000)    # trimmed to its content afterwards
 
 
 def screens():
-    """The screen ids, in order, read from the page's SCREENS list (ipad ones flagged)."""
+    """The screen ids, in order, read from the page's SCREENS list, with their device size."""
     src = open(PAGE, encoding='utf-8').read()
     body = src[src.index('const SCREENS = ['):]
-    return [(m.group(1), 'ipad: true' in m.group(0)) for m in re.finditer(r'\{ id: "([a-z0-9-]+)"[^\n]*', body)]
+    return [(m.group(1), IPAD if 'ipad: true' in m.group(0) else LAND if 'land: true' in m.group(0) else PHONE)
+            for m in re.finditer(r'\{ id: "([a-z0-9-]+)"[^\n]*', body)]
 
 
 def trim(path):
@@ -83,9 +85,9 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     scratch = os.environ.get('RENDER_SCRATCH') or tempfile.mkdtemp(prefix='fizz-ios-render-')
     jobs = []
-    for i, (sid, pad) in enumerate(screens(), 1):
+    for i, (sid, size) in enumerate(screens(), 1):
         if not want or sid in want:
-            jobs.append((f'shot={sid}&still=1', IPAD if pad else PHONE, f'fizz-ios-{i:02d}-{sid}.png'))
+            jobs.append((f'shot={sid}&still=1', size, f'fizz-ios-{i:02d}-{sid}.png'))
     if not want or 'sheet' in want:
         jobs.append(('sheet=1&still=1', SHEET, 'fizz-ios-sheet.png'))
     with ThreadPoolExecutor(4) as ex:
