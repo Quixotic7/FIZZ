@@ -10,8 +10,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as sx from "../../../tools/fizz_sysex.mjs";
 import * as fm1 from "../../../site/install/fm1lib.js";
-import { bulkFrame, parseBulk } from "../../../site/manager/fizzlink.js";
+import { bulkFrame, parseBulk, FZER } from "../../../site/manager/fizzlink.js";
 import { crc32 } from "../../../site/manager/fizzbak.js";
+import { storeFrame } from "../../../site/js/digitone.js";
+import { sameSound } from "../../../site/js/library.js";
+import { cleanName } from "../../../site/manager/projects.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // parseIdentity and HS_QUERY are not exported by fm1lib.js: the same source, imported again with them exported
@@ -272,12 +275,49 @@ const bulkIn = [
 bulkIn.push([0xf0, 0xf7], sx.identity());
 const bulk = { out: bulkOut, in: bulkIn.map((f) => ({ in: arr(f), out: js(parseBulk(f)) })) };
 
+// ---- the writes' helpers (the iOS write layer): the unit's read requests (a restore's other side), digitone.js
+// storeFrame (IMPORT's SEND, BACKUP's ADD), library.js sameSound (ADD's duplicates), the names as the pages clean them
+const readRequests = [];
+for (const [fl, addr, len] of [[0, 0, 512], [1, 0x200, 512], [0, 0x48e00, 100], [2, 0x48f00, 0x12345], [0, 0xffffffff, 0]]) {
+  const f = fm1.frame(0x30, [fl, ...le32(addr), len & 0xff, (len >> 8) & 0xff, (len >> 16) & 0xff]);
+  readRequests.push({ fl, addr, len, out: f, parsed: js(fm1.parseRequest(f)) });
+}
+const sound = (o = {}) => ({ name: "PLUCK", blob: blobs.b128, drive: 7, pan: -5, sends: { chorus: 10, delay: 20, reverb: 30 },
+  fizzTags: ["PLUCK"], ...o });
+const soundCases = [
+  [{}, {}], [{}, { batch: true }], [{}, { pool: true }], [{}, { pool: true, batch: true, track: 2 }], [{}, { track: 0 }],
+  [{}, { track: 5 }], [{}, { track: 6 }], [{}, { track: -1 }], [{ fizzTags: [] }, {}], [{ fizzTags: ["BASS", "fx", "nope"] }, {}],
+  [{ blob: blobs.b96, drive: 0, pan: 0 }, {}], [{ name: "Grand Piano Extra", pan: 63, sends: { chorus: 127, delay: 0, reverb: 200 } }, { track: 3 }],
+  [{ blob: blobs.bad }, {}],
+];
+const soundFrames = soundCases.map(([o, opts]) => {
+  const s = sound(o);
+  const args = { name: s.name, blob: arr(s.blob), drive: s.drive, pan: s.pan, chorus: s.sends.chorus, delay: s.sends.delay,
+    reverb: s.sends.reverb, fizzTags: s.fizzTags, pool: !!opts.pool, batch: !!opts.batch, track: opts.track ?? -1 };
+  try { return { args, out: arr(storeFrame(s, opts)) }; } catch (_) { return { args, throws: true }; }
+});
+const b96x = Uint8Array.from(blobs.b96); b96x[87] ^= 0x55;
+const b96y = Uint8Array.from(blobs.b96); b96y[3] ^= 1;
+const b128x = Uint8Array.from(blobs.b128); b128x[87] ^= 0x55;
+const same = [["A", blobs.b96, "A", blobs.b96], ["A", blobs.b96, "B", blobs.b96], ["A", blobs.b96, "A", b96x],
+  ["A", blobs.b96, "A", b96y], ["A", blobs.b128, "A", b128x], ["A", blobs.b96, "A", blobs.b128], ["", blobs.b128, "", blobs.b128]]
+  .map(([an, ab, bn, bb]) => ({ a: { name: an, blob: arr(ab) }, b: { name: bn, blob: arr(bb) }, out: sameSound({ name: an, blob: ab }, { name: bn, blob: bb }) }));
+const nameIns = ["", "noir", "  Sunday  ", "Grand Piano Extra Long", "Café ☕ bar", "tab\there", "a-b.c,d'e&f!g?h#i+j/k(l)m*n:o_p~q",
+  "abcdefghijk lmn", "ÄÖÜ ß", "~~~~~~~~~~~~~~", " lead "];
+// manager.js renderSel's name field (the line as it is there)
+const presetClean = (s) => s.toUpperCase().replace(/[^\x20-\x7E]/g, "").trim().slice(0, 12);
+const names2 = nameIns.map((s) => ({ in: s, preset: presetClean(s), project: cleanName(s) }));
+const fzer = Object.fromEntries(Object.entries(FZER));
+const writes = { readRequests, soundFrames, same, names: names2, fzer };
+
 const vectors = {
   generator: "ios/FizzKit/Tests/gen_vectors.mjs",
   handshakeQuery: fm1x.__HS_QUERY, upgrade: fm1x.__UPGRADE, blobs,
   builders, parsers, reframes, usb, pack, unpackOdd, tagMasks, crc32: crcs, identity, updateFrames, responses, requests, bulk,
+  writes,
 };
 const out = join(here, "FizzKitTests/Resources/vectors.json");
 writeFileSync(out, JSON.stringify(vectors, replacer) + "\n");
 console.log(`${out}: ${builders.length} builder cases, ${parsers.length} frames x 8 parsers, ${pack.length} packs, ` +
-  `${identity.length} identities, ${responses.length + requests.length} requests, ${bulk.out.length + bulk.in.length} bulk`);
+  `${identity.length} identities, ${responses.length + requests.length} requests, ${bulk.out.length + bulk.in.length} bulk, ` +
+  `${readRequests.length + soundFrames.length + same.length + names2.length} write helpers`);

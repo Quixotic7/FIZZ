@@ -195,4 +195,52 @@ struct VectorTests {
             }
         }
     }
+
+    // MARK: the write layer's helpers
+
+    @Test func readRequestsAndResponses() {
+        let w = V["writes"]!
+        for c in w["readRequests"]!.array {
+            let out = FM1Bulk.readRequest(addr: UInt32(c["addr"]!.int!), len: c["len"]!.int!, fl: UInt8(c["fl"]!.int!))
+            #expect(out == c["out"]!.bytes)
+            #expect(request(FM1Bulk.parseRequest(out)) == c["parsed"]!)
+        }
+        // response() read back as the unit would
+        for c in V["responses"]!.array {
+            let r = FM1Bulk.parseResponse(c["out"]!.bytes)
+            #expect(r?.addr == UInt32(c["addr"]!.int!) && r?.data == c["data"]!.bytes && r?.fl == UInt8(c["fl"]!.int!))
+        }
+        #expect(FM1Bulk.parseResponse(FM1Bulk.readRequest(addr: 0, len: 512)) == nil)
+    }
+
+    @Test func soundFramesAsDigitoneJS() throws {
+        let cases = V["writes"]!["soundFrames"]!.array
+        #expect(cases.count > 10)
+        for c in cases {
+            let a = c["args"]!
+            let run = {
+                try FizzSysEx.storeFrame(name: a["name"]!.string!, blob: a["blob"]!.bytes, drive: a["drive"]!.int!,
+                                         pan: a["pan"]!.int!, chorus: a["chorus"]!.int!, delay: a["delay"]!.int!,
+                                         reverb: a["reverb"]!.int!, fizzTags: a["fizzTags"]!.array.map { $0.string! },
+                                         pool: a["pool"]!.bool!, batch: a["batch"]!.bool!, track: a["track"]!.int!)
+            }
+            if c["throws"]?.bool == true { #expect(throws: (any Error).self) { try run() } }
+            else { #expect(try run() == c["out"]!.bytes, "\(a)") }
+        }
+    }
+
+    @Test func sameSoundAndNames() {
+        let w = V["writes"]!
+        for c in w["same"]!.array {
+            #expect(FizzSysEx.sameSound(name: c["a"]!["name"]!.string!, blob: c["a"]!["blob"]!.bytes,
+                                        name: c["b"]!["name"]!.string!, blob: c["b"]!["blob"]!.bytes) == c["out"]!.bool!)
+        }
+        for c in w["names"]!.array {
+            let s = c["in"]!.string!
+            #expect(FizzSysEx.presetName(s) == c["preset"]!.string!, "\(s)")
+            #expect(FizzSysEx.cleanName(s) == c["project"]!.string!, "\(s)")
+        }
+        for (k, v) in w["fzer"]!.members { #expect(FM1Bulk.fzer[UInt32(k)!] == v.string!) }
+        #expect(FM1Bulk.fzer.count == w["fzer"]!.members.count)
+    }
 }

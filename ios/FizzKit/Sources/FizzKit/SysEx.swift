@@ -156,6 +156,9 @@ public struct FizzStatus: Codable, Sendable, Equatable {
     public let lib: [Int], prj: [Int]
     public let jobCommand: Int
     public let sel: Int?
+    /// The package: "usb", or "ble" (the Bluetooth one appends its byte, its projects and its MY PRESETS' places)
+    public let package: String
+    public let nproj: Int, nlib: Int
 }
 
 public struct FizzUserProject: Codable, Sendable, Equatable {
@@ -456,6 +459,38 @@ public enum FizzSysEx {
         return b
     }
 
+    /// js/digitone.js storeFrame: a sound imported or added (IMPORT's SEND, BACKUP's ADD): STORE / STORE6 into the
+    /// first free place (pool: the pool too), its pan and sends always with it, LOAD onto `track` when it is 0..5.
+    public static func storeFrame(name: String, blob: [UInt8], drive: Int = 0, pan: Int = 0, chorus: Int = 0,
+                                  delay: Int = 0, reverb: Int = 0, fizzTags: [String] = [], pool: Bool = false,
+                                  batch: Bool = false, track: Int = -1) throws -> [UInt8] {
+        let load = track >= 0 && track <= 5
+        return try storeSound(name: name, blob: blob, drive: drive, pool: pool, slot: 0, batch: batch,
+                              track: load ? track : nil, pan: pan, chorus: chorus, delay: delay, reverb: reverb,
+                              tags: .names(fizzTags))
+    }
+
+    /// js/library.js sameSound: the same name and the same patch (a version-5 blob's byte 87 not looked at).
+    public static func sameSound(name a: String, blob ab: [UInt8], name b: String, blob bb: [UInt8]) -> Bool {
+        guard a == b, ab.count == bb.count else { return false }
+        for i in ab.indices where ab[i] != bb[i] && !(i == 87 && ab.count == blobLen) { return false }
+        return true
+    }
+
+    /// A MY preset's new name as manager.js takes it from the name field: upper case, printable ASCII, trimmed,
+    /// twelve at most.
+    public static func presetName(_ s: String) -> String {
+        let v = String(String.UnicodeScalarView(s.uppercased().unicodeScalars.filter { $0.value >= 0x20 && $0.value <= 0x7e }))
+        return String(jsTrim(v).prefix(nameLen))
+    }
+
+    /// A project's name as projects.js cleanName makes it (FIZZ's own letters, twelve at most, trimmed).
+    public static func cleanName(_ s: String) -> String {
+        let ok = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.,'&!?#+/()*:_~ ".unicodeScalars)
+        let v = String(String.UnicodeScalarView(s.uppercased().unicodeScalars.filter { ok.contains($0) }))
+        return jsTrim(String(v.prefix(nameLen)))
+    }
+
     /// The frame as USB-MIDI event packets (cable 0, CIN 4 / 5 / 6 / 7).
     public static func usbPackets(_ f: [UInt8]) -> [UInt32] {
         var out: [UInt32] = []
@@ -581,13 +616,14 @@ public enum FizzSysEx {
 
     public static func parseStatus(_ b: [UInt8]) -> FizzStatus? {
         guard body1(b, REPLY.status), b.count >= 30 else { return nil }
-        let f = b[8]
+        let f = b[8], ble = b.count >= 35 && b[29] & 1 != 0
         return FizzStatus(
             protocol: Int(b[6]), tracks: Int(b[7]), playing: f & 1 != 0, noStore: f & 2 != 0, dirty: f & 4 != 0,
             job: f & 8 != 0, demo: f & 16 != 0, rec: f & 32 != 0, browse: f & 64 != 0, project: Int(b[9]) + 1,
             pattern: Int(b[10]), projects: Int(b[11]), mine: r14(b, 12), pool: r14(b, 14),
             written: (Int(b[16]) << 14) | r14(b, 17), lib: [r14(b, 19), r14(b, 21)], prj: [r14(b, 23), r14(b, 25)],
-            jobCommand: Int(b[27]), sel: b.count >= 31 ? Int(b[28]) : nil)
+            jobCommand: Int(b[27]), sel: b.count >= 31 ? Int(b[28]) : nil,
+            package: ble ? "ble" : "usb", nproj: ble ? Int(b[30]) : 8, nlib: ble ? r14(b, 31) : 256)
     }
 
     public static func parseUsers(_ b: [UInt8]) -> FizzUsers? {
@@ -630,6 +666,16 @@ func latin1(_ bytes: some Sequence<UInt8>) -> String {
 func jsTrimEnd(_ s: String) -> String {
     var u = Array(s.unicodeScalars)
     while let last = u.last, isJSSpace(last.value) { u.removeLast() }
+    var v = String.UnicodeScalarView()
+    v.append(contentsOf: u)
+    return String(v)
+}
+
+/// JS String.prototype.trim.
+func jsTrim(_ s: String) -> String {
+    var u = Array(s.unicodeScalars)
+    while let last = u.last, isJSSpace(last.value) { u.removeLast() }
+    while let first = u.first, isJSSpace(first.value) { u.removeFirst() }
     var v = String.UnicodeScalarView()
     v.append(contentsOf: u)
     return String(v)

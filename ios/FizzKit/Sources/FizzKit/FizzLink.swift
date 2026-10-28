@@ -115,6 +115,7 @@ public actor FizzLink {
     private func dispatch(_ p: [UInt8]) {
         guard let c = cur else { return }
         if let r = c as? RegionRead { regionFrame(r, p); return }
+        if let r = c as? RestoreOp { restoreFrame(r, p); return }
         switch c.frame(p) {
         case .ignore: break
         case .more: c.heard = true; arm(c)
@@ -337,8 +338,7 @@ public actor FizzLink {
         return FizzStoreInfo(lo: FM1Bulk.rd32(r.data, 0), size: FM1Bulk.rd32(r.data, 4), crc: FM1Bulk.rd32(r.data, 8))
     }
 
-    // TODO(next slice): store, tags, rename, remove, swap, poolRef, project, flush, dumpTrack, param, browse, note,
-    // restore. The backup's read: Backup.swift.
+    // The writes: Writes.swift; the backup's read: Backup.swift; the restore: Restore.swift.
 
     // MARK: finding the unit
 

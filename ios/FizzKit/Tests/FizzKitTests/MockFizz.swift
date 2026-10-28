@@ -3,8 +3,10 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // A simulated FM-1 behind a MIDITransport (no CoreMIDI): the update handshake, IDENTITY, STATUS, LIST in parts, DUMP,
-// PROJECTS, USERS, FZBI, FZBR / FZBD over a store region. It can drop requests or go silent. ScaledClock: real time,
-// run faster.
+// PROJECTS, USERS, FZBI, FZBR / FZBD over a store region. It can drop requests or go silent. With `writes` on, the
+// Phase 1 commands too (an ACK, or a status set per command), STORE, FLUSH, a track's DUMP, and the restore (FZSR:
+// the image pulled twice with 0x30 read requests, each asked again when its answer does not come). ScaledClock: real
+// time, run faster.
 
 import Foundation
 @testable import FizzKit
@@ -57,6 +59,30 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
     var fzerAt: Int?                    // an FZBR for this offset answered FZER fzerCode
     var fzerCode: UInt32 = 10
 
+    // the writes (off: BAD COMMAND for them, as an older FIZZ)
+    var writes = false
+    var playing = false                 // BUSY for the jobs, FZER 10 for FZSR
+    var status: [UInt8: Int] = [:]      // a command's ACK status (else 0); STORE's too (0x10 / 0x11)
+    var errorFor: [UInt8: Int] = [:]    // a command answered with FIZZ's ERROR and this status
+    var inUseSteps = 0                  // DELETE without CONFIRM: IN USE (1 project, these steps) when > 0
+    var storeSlot = 9                   // a STORE into the first free place lands here
+    var dropStores = 0                  // STOREs lost on the way (nothing done)
+    var silentStores = 0                // STOREs done but their reply lost
+    var trackName = "OWN SOUND"         // what the tracks' DUMPs say
+    var trackKeepsAudition = true       // an AUDITION's name becomes the track's
+    // the restore
+    var fzsrIgnore = 0                  // FZSR not taken up this many times
+    var fzerAtEnd: UInt32?              // the restore ends FZER this instead of FZOK
+    var pullMs = 1.0                    // between an answer and the next request
+    var pullAgainMs = 1000.0            // a request asked again after this long without its answer
+    var loseRequestAt: Int?             // this address's request lost once (pass 1)
+    var loseAnswerAt: Int?              // the host's answer for this address lost once (pass 1)
+    private(set) var pulled: [[UInt8]] = [[], []]   // each pass's image as it arrived
+    private(set) var asked: [Int] = []  // the addresses requested (both passes, again included)
+    private var inbox: [(UInt32, [UInt8])] = []
+    private var restoring = false
+    private var trackSound: [UInt8]?
+
     private var log: [Sent] = []
     private var inFlight = false
     private(set) var overlapped = false
@@ -88,6 +114,7 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
             log.append(Sent(t: clock.now, bytes: bytes))
             if drop > 0 { drop -= 1; return [] }
             if let r = fzbr(bytes) { return r }
+            if writes, let r = restoreFrame(bytes) { return r }
             let r = respond(bytes)
             if !r.isEmpty {
                 if inFlight { overlapped = true }
@@ -212,6 +239,8 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
                 return parts.enumerated().map { k, p in
                     FizzSysEx.frame(0x61, [k, k == 2 ? 1 : 0] + Self.r14(35) + [p.count] + p.flatMap(Self.entry))
                 }
+            case FizzSysEx.CMD.dump where writes && b[6] == 4:
+                return [trackDump(slot: (Int(b[7]) << 7) | Int(b[8]))]
             case FizzSysEx.CMD.dump:
                 let slot = (Int(b[7]) << 7) | Int(b[8])
                 if slot == 0 {
@@ -224,6 +253,8 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
             case FizzSysEx.CMD.projects:
                 let list = (0..<8).flatMap { p in [p == 1 ? 3 : 1] + Self.name12("PRJ \(p + 1)") + Self.r14(p * 3) }
                 return [FizzSysEx.frame(0x63, [1, 8] + list)]
+            case let c where writes && Self.writeCommands.contains(c):
+                return write(b)
             case FizzSysEx.CMD.users:
                 return [FizzSysEx.frame(0x57, [Int(b[6]), Int(b[7]), Int(b[8]), 2, 0] + Self.r14(16) + [3] + Self.r14(4) + [1])]
             default:
@@ -237,6 +268,141 @@ final class MockFizz: MIDITransport, @unchecked Sendable {
             return [FM1Bulk.updateFrame(cmd: 0x46, payload: data)]
         }
         return []
+    }
+}
+
+// MARK: - the writes
+
+extension MockFizz {
+    static let writeCommands: Set<UInt8> = [0x10, 0x11, 0x03, 0x12, 0x13, 0x14, 0x15, 0x16, 0x24, 0x30, 0x31]
+    static let jobs: Set<UInt8> = [0x03, 0x14, 0x15, 0x24]
+
+    static func ack(_ cmd: UInt8, _ st: Int, _ a: Int, _ b: Int) -> [UInt8] {
+        FizzSysEx.frame(0x52, [Int(cmd), st] + r14(a) + r14(b))
+    }
+
+    var sentStores: [[UInt8]] { sent.map(\.bytes).filter { Self.isFizz($0) && ($0[5] == 0x10 || $0[5] == 0x11) } }
+
+    // (under the lock)
+    fileprivate func write(_ b: [UInt8]) -> [[UInt8]] {
+        let cmd = b[5]
+        if let e = errorFor[cmd] { return [FizzSysEx.frame(0x7f, [e, Int(cmd)])] }
+        let r14 = { (o: Int) in (Int(b[o]) << 7) | Int(b[o + 1]) }
+        if playing && Self.jobs.contains(cmd) && !(cmd == 0x15 && b[6] == 0) {
+            return [cmd == 0x03 ? FizzSysEx.frame(0x7f, [8, 3]) : Self.ack(cmd, 8, 0, 0)]
+        }
+        let st = status[cmd] ?? 0
+        switch cmd {
+        case 0x10, 0x11:
+            if dropStores > 0 { dropStores -= 1; return [] }
+            let flags = Int(b[6]), slot = r14(7)
+            if flags & FizzSysEx.FLAGS.audition != 0, trackKeepsAudition {
+                var d = b
+                d[6] |= UInt8(FizzSysEx.FLAGS.dump)
+                d[d.count - 2] = UInt8(FizzSysEx.checksum(d[5..<(d.count - 2)].map(Int.init)))
+                trackSound = d
+            }
+            if silentStores > 0 { silentStores -= 1; return [] }
+            return [FizzSysEx.frame(0x50, [st, flags & 1] + Self.r14(slot == 0 ? storeSlot : slot))]
+        case 0x03:
+            return [respond(FizzSysEx.statusRequest())[0]]
+        case 0x14:
+            if b[9] & 1 == 0 && inUseSteps > 0 { return [Self.ack(cmd, 10, 1, inUseSteps)] }
+            return [Self.ack(cmd, st, r14(7), 0)]
+        case 0x16:
+            let slot = r14(6), id = (Int(b[8]) << 14) | (Int(b[9]) << 7) | Int(b[10])
+            return [Self.ack(cmd, st, slot == 0 ? 7 : slot, id)]
+        case 0x24:
+            return [Self.ack(cmd, st, Int(b[7]), Int(b[8]))]
+        case 0x30:
+            guard b[11] & 1 != 0 else { return [] }       // (no ACK asked: no reply)
+            return [Self.ack(cmd, st, (b[6] == 127 ? 2 : Int(b[6])) + 1, Int(b[7]))]
+        case 0x31:
+            return [Self.ack(cmd, st, (b[6] == 127 ? 2 : Int(b[6])) + 1, 42)]
+        default:
+            return [Self.ack(cmd, st, b.count > 8 ? r14(7) : 0, 0)]
+        }
+    }
+
+    /// A track's DUMP (slot 0: the selected one, track 3): the last AUDITION, else trackName's sound.
+    fileprivate func trackDump(slot: Int) -> [UInt8] {
+        let t = slot == 0 ? 2 : slot - 1
+        if var d = trackSound {
+            d[22] = UInt8(t)                               // (body[16]: the track)
+            d[d.count - 2] = UInt8(FizzSysEx.checksum(d[5..<(d.count - 2)].map(Int.init)))
+            return d
+        }
+        let blob = (0..<128).map { UInt8(($0 * 3 + t) & 0x7f) }
+        let body = [0x0c, 0, 0] + Self.name12(trackName) + [0, t, 64, 0, 0, 0, 0] + FizzSysEx.pack7(blob).map(Int.init) +
+            [0] + [0, 2, 5, 0, 0, 2, 14, 2]
+        return FizzSysEx.frame(0x11, body)
+    }
+
+    /// FZSR starts the pulls; the host's answers to them go to the inbox. nil: not the restore's.
+    fileprivate func restoreFrame(_ b: [UInt8]) -> [[UInt8]]? {
+        if let r = FM1Bulk.parseResponse(b) {
+            guard restoring else { return [] }
+            if loseAnswerAt == Int(r.addr) { loseAnswerAt = nil; return [] }
+            inbox.append((r.addr, r.data))
+            return []
+        }
+        guard let (tag, words) = Self.bulkRequest(b), tag == "FZSR", words.count >= 2 else { return nil }
+        if fzsrIgnore > 0 { fzsrIgnore -= 1; return [] }
+        if restoring { return [] }
+        let fz = { (c: UInt32) in FM1Bulk.updateFrame(cmd: 0x46, payload: Array("FZER".utf8) + FM1Bulk.le32(c)) }
+        if playing { return [fz(10)] }
+        if Int(words[0]) != store.count { return [fz(11)] }
+        restoring = true
+        pulled = [[], []]
+        let len = Int(words[0]), crc = words[1]
+        Task { await self.pullAll(len: len, crc: crc) }
+        return []
+    }
+
+    private func pullAll(len: Int, crc: UInt32) async {
+        var code: UInt32 = 1
+        for pass in 0..<2 {
+            var a = 0
+            while a < len {
+                guard let data = await pull(a, min(512, len - a), pass) else { code = pass == 0 ? 12 : 13; break }
+                lock.withLock { pulled[pass] += data }
+                a += data.count
+            }
+            if code != 1 { break }
+            if pass == 0, FM1Bulk.crc32(lock.withLock { pulled[0] }) != crc { code = 12; break }
+        }
+        let (end, img) = lock.withLock { (fzerAtEnd, pulled[1]) }
+        if code == 1, let e = end { code = e }
+        if code == 1 { lock.withLock { store = img } }
+        try? await clock.sleep(ms: pullMs)
+        deliver(FM1Bulk.updateFrame(cmd: 0x46, payload: Array(code == 1 ? "FZOK".utf8 : "FZER".utf8) + FM1Bulk.le32(code)))
+        lock.withLock { restoring = false }
+    }
+
+    /// One 512-byte pull: asked, asked again every pullAgainMs (10 times), as fz_pull.
+    private func pull(_ a: Int, _ n: Int, _ pass: Int) async -> [UInt8]? {
+        for _ in 0..<10 {
+            try? await clock.sleep(ms: pullMs)
+            let lose = lock.withLock {
+                asked.append(a)
+                if pass == 0 && loseRequestAt == a { loseRequestAt = nil; return true }
+                return false
+            }
+            if !lose { deliver(FM1Bulk.readRequest(addr: UInt32(a), len: n)) }
+            let end = clock.now + pullAgainMs
+            while clock.now < end {
+                let got: [UInt8]? = lock.withLock {
+                    guard let k = inbox.firstIndex(where: { Int($0.0) == a }) else { return nil }
+                    let d = inbox[k].1
+                    inbox.removeAll()
+                    return d
+                }
+                if let got { return got.count == n ? got : nil }
+                if lock.withLock({ lostFlag || closedFlag }) { return nil }
+                try? await clock.sleep(ms: 2)
+            }
+        }
+        return nil
     }
 }
 
