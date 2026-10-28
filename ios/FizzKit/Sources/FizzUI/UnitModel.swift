@@ -108,6 +108,8 @@ public final class UnitModel {
     /// I4: RESTORE / ADD PRESETS from a backup (RestoreModel.swift), IMPORT's files and SEND (ImportModel.swift)
     public let restoring = RestoreModel()
     public let importer = ImportModel()
+    /// PROJECTS' store read, its changes waiting, the kept projects (I6, ProjectsModel.swift)
+    public let projectsTab: ProjectsModel
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }
@@ -129,15 +131,18 @@ public final class UnitModel {
     @ObservationIgnored private var lastActive = -Double.infinity
 
     /// backups: the folder the backups are kept in (Documents/Backups in the app).
-    public init(source: any LinkSource, backups: URL = BackupStore.defaultDirectory) {
+    public init(source: any LinkSource, backups: URL = BackupStore.defaultDirectory,
+                projects: URL = KeptStore.defaultDirectory) {
         self.source = source
         self.backups = BackupModel(store: BackupStore(directory: backups))
         self.actions = UnitActions()
         self.webTags = WebTagStore(url: WebTagStore.url(besides: backups))
+        self.projectsTab = ProjectsModel(kept: KeptStore(directory: projects))
         self.backups.unit = self
         self.actions.unit = self
         self.restoring.unit = self
         self.importer.unit = self
+        self.projectsTab.unit = self
     }
 
     // MARK: finding the unit

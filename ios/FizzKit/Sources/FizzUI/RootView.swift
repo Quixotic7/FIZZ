@@ -41,7 +41,11 @@ public struct FizzAppView: View {
             if let run = model.backups.run {
                 BackingUpView(model: model, run: run).transition(.opacity).zIndex(2)
             }
-            RestoreOverlay(model: model).zIndex(3)      // I4: RESTORE's (and WRITE TO FM-1's) progress, DONE, failure
+            // I4: RESTORE's progress, DONE, failure (a WRITE TO FM-1 shows PROJECTS' own screen while it writes)
+            if model.projectsTab.writing == nil { RestoreOverlay(model: model).zIndex(3) }
+            if let w = model.projectsTab.writing {
+                ProjectsWritingView(model: model, write: w).transition(.opacity).zIndex(3)
+            }
         }
         .sheet(isPresented: Bindable(model.restoring).presented) {
             ScrollView { RestoreSheet(model: model) }
@@ -52,6 +56,7 @@ public struct FizzAppView: View {
                 .preferredColorScheme(.dark)
         }
         .animation(.easeInOut(duration: 0.3), value: model.backups.run == nil)
+        .animation(.easeInOut(duration: 0.3), value: model.projectsTab.writing == nil)
         .background(Color.black)
         .preferredColorScheme(.dark)
         .task { model.start() }
@@ -72,6 +77,8 @@ public struct FizzAppView: View {
         // (.fizzlib .fizzsnd .dnsnd .dn2pst .dn2snd): IMPORT
         .onOpenURL { url in
             Task {
+                // (a .fizzprj / .fizzpat: PROJECTS')
+                if await model.projectsTab.open(url) { tab = .projects; return }
                 let ext = url.pathExtension.lowercased()
                 if importExtensions.contains(ext) && ext != "fizzbak" {
                     await model.importer.add(urls: [url])
@@ -118,7 +125,7 @@ struct TabScreen: View {
         switch tab {
         case .backup: BackupView(model: model)
         case .library: LibraryView(model: model, wide: wide)
-        case .projects: ProjectsView(model: model)
+        case .projects: ProjectsView(model: model, wide: wide)
         case .pool: PoolView(model: model, wide: wide)
         case .edit: EditView(model: model, wide: wide)
         case .importer: ImportSheet(model: model, inline: true)
@@ -146,6 +153,7 @@ struct PhoneRoot: View {
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: 150)
                 .allowsHitTesting(false)
+            if tab == .projects { ProjectsPhoneBar(model: model) }
             TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, 24)
             // KEEP / CANCEL while a track plays another sound (TrackSwitch.swift)
             AuditionBar(model: model).padding(.horizontal, 12).padding(.bottom, 24 + 64 + 10)

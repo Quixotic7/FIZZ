@@ -80,6 +80,66 @@ struct Shots {
         // ---- I4: RESTORE, IMPORT, EXPORT
         await i4(m, out)
         m.stop()
+        await projectShots(out)
+    }
+
+    // ---- I6: PROJECTS (mock-ups 14, 18-20, 22): the demo unit's store read, changes waiting, kept projects
+    @MainActor
+    static func projectShots(_ out: URL) async {
+        let tmp = FileManager.default.temporaryDirectory
+        let m = UnitModel(source: DemoLinkSource(.fizz, bulkMs: 0...0.2), backups: tmp.appendingPathComponent("fizzshots-b-\(UUID().uuidString)"),
+                          projects: tmp.appendingPathComponent("fizzshots-p-\(UUID().uuidString)"))
+        m.start()
+        await until { m.dumpsLoaded && m.layout != nil }
+        let pm = m.projectsTab
+        await pm.show()
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-slots")
+        // kept: four projects at different dates
+        let day = 86400.0
+        for (p, ago) in [(6, 0.2), (0, 1.3), (5, 2.5), (3, 8.0)] {
+            pm.select(p)
+            await pm.keep(date: Date().addingTimeInterval(-ago * day))
+        }
+        // SUNDAY A03-A05 copied, pasted at NOIR C01, NOIR A11 cleared, C02-C03 selected
+        pm.select(1)
+        pm.selectRange(from: 2, to: 4)
+        await pm.copy()
+        pm.select(0)
+        pm.tap(32)
+        pm.paste()
+        if let a = pm.ask { pm.ask = nil; await a.run() }
+        try? await Task.sleep(for: .milliseconds(300))
+        pm.tap(10)
+        pm.clear()
+        if let a = pm.ask { pm.ask = nil; await a.run() }
+        pm.selectRange(from: 33, to: 34)
+        pm.dismissNote()
+        pm.mode = .patterns
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-patterns")
+        save(RootView(model: m, tab: .constant(.projects), wide: true), pad, out, "ipad-projects")
+        pm.mode = .kept
+        if let k = pm.kept.items.first {
+            pm.keptSel = k.id
+            await pm.copy(from: k, ks: [2])
+            pm.dismissNote()
+            pm.startLoad(k)
+        }
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-kept")
+        pm.disarm()
+        pm.mode = .slots
+        save(RootView(model: m, tab: .constant(.projects), wide: false), phone, out, "projects-slots-changes")
+        // writing: the store as read kept first (its card), the write at 48 %
+        if let e = try? FizzDataShared.engine(), let unit = m.unit, let before = pm.storeImage,
+           let bytes = try? await e.makeFizzbak(FizzbakInput(kind: .full, image: before, region: FizzStoreRegion(lo: 0x97000, size: before.count),
+                                                             presets: nil, fizz: "0.12.0-beta.11", unitIdentity: unit.idText,
+                                                             unitPort: unit.portName, date: Date())) {
+            _ = try? await m.backups.store.add(bytes, name: "FIZZ before projects 2026-10-27 1431.fizzbak")
+        }
+        let w = ProjectsWrite(names: ["NOIR"], changed: Set(33..<41), sectors: m.layout?.sectors ?? 73,
+                              libSectors: m.layout?.libSectors ?? 22, started: Date())
+        save(ProjectsWritingView(model: m, write: w, still: RestoreRun(phase: .writing, fraction: 0.74, name: "the projects", started: Date())),
+             phone, out, "projects-writing")
+        m.stop()
     }
 
     /// EDIT (phase I5): TRACK on, ROUND BASS heard on track 3 and kept; its pages; B1's RATIO turned; the keybed; the

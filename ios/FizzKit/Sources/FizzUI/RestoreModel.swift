@@ -48,7 +48,6 @@ public final class RestoreModel {
 
     /// The progress screen's subject in cyan ("NOIR" for WRITE TO FM-1: set it before writeProjects) and its
     /// sectors drawn in that colour. nil: none.
-    // WIRE AT MERGE: I6 sets subject / highlight before actions.writeProjects (mock-up 20's "WRITING NOIR").
     public var subject: String?
     public var highlight: Range<Int>?
     /// The last restore started here: AGAIN after FZER 10, ADD PRESETS after FZER 11.

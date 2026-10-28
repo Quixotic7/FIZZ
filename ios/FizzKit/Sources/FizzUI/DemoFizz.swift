@@ -382,6 +382,8 @@ public actor DemoStoreImage {
             if let b = try await e.call("demoStore", [["presets": .array(ps), "projects": .array(prj), "layout": "device"]]).bytes {
                 img = b
             }
+            // (I6: the projects' patterns, synthetic, the ones of the image before kept)
+            img = await DemoStoreImage.withPatterns(img, prev: s.lock.withLock { s.image }, projects: projects)
         } catch {}
         s.lock.withLock { if s.version == version { s.image = img; s.imageVersion = version } }
         return img
