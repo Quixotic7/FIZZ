@@ -58,7 +58,57 @@ struct Shots {
         save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "backup-rows")
         save(RootView(model: m, tab: .constant(.backup), wide: true), pad, out, "ipad-backup-rows")
         save(BackingUpView(model: m, run: .still(fraction: 0.6, layout: m.layout ?? .device, elapsed: 7)), phone, out, "backing-up")
+        await i4(m, out)
         m.stop()
+    }
+
+    /// I4: RESTORE's sheet (yesterday's backup), writing, a failure; IMPORT with the demo files (one heard on the
+    /// track); EXPORT of three presets as .dn2pst; the iPad's IMPORT tab.
+    @MainActor
+    static func i4(_ m: UnitModel, _ out: URL) async {
+        let backupTab = RootView(model: m, tab: .constant(.backup), wide: false)
+        if let e = m.backups.store.entries.first(where: { Calendar.current.isDateInYesterday($0.date) }) {
+            await m.restoring.present(e)
+            save(SnapshotSheet(top: 255, color: FZ.yellow) { backupTab } content: { RestoreSheet(model: m) }, phone, out, "restore")
+            m.restoring.close()
+        }
+        let started = Date().addingTimeInterval(-9)
+        save(RestoreProgressView(model: m, run: RestoreRun(phase: .writing, fraction: 0.74, name: "x", started: started)), phone, out, "restore-writing")
+        m.restoring.subject = "NOIR"
+        m.restoring.highlight = 33..<41
+        save(RestoreProgressView(model: m, run: RestoreRun(phase: .writing, fraction: 0.74, name: "x", started: started)), phone, out, "projects-writing")
+        m.restoring.subject = nil
+        m.restoring.highlight = nil
+        save(RestoreFailureView(model: m, failure: .cleared("the FM-1 was disconnected")), phone, out, "restore-cleared")
+
+        if let files = try? await DemoImports.files() { await m.importer.add(files: files) }
+        await m.actions.setTrackOn(true)
+        m.importer.pick(.track)
+        m.importer.pick(.track)
+        m.importer.pick(.track)
+        m.importer.pick(.mine)
+        if let r = m.importer.rows.first(where: { $0.item.sound?.name == "WARM SUB" }) { await m.importer.play(r.id) }
+        save(SnapshotSheet(top: 62) { backupTab } content: { ImportSheet(model: m) }, phone, out, "import")
+        save(RootView(model: m, tab: .constant(.importer), wide: true), pad, out, "ipad-import")
+        _ = await m.actions.cancelAudition()
+        await m.actions.setTrackOn(false)
+
+        let three = await exportSounds(m)
+        let sheet = await ExportSheet.prepared(sounds: three, pick: .dn2pst)
+        save(SnapshotSheet(top: 62) { RootView(model: m, tab: .constant(.library), wide: false) } content: { sheet }, phone, out, "export")
+    }
+
+    /// GLASS BELL, SUB DROP, NIGHT PAD as their DUMPs give them.
+    @MainActor
+    static func exportSounds(_ m: UnitModel) async -> [FizzSound] {
+        guard let e = try? FizzDataShared.engine() else { return [] }
+        var out: [FizzSound] = []
+        for slot in [2, 1, 3] {
+            guard let r = m.mine.first(where: { $0.slot == slot }), let f = m.actions.frame(of: r),
+                  let s = try? await e.soundFromStoreFrame(f) else { continue }
+            out.append(s)
+        }
+        return out
     }
 
     @MainActor

@@ -99,6 +99,9 @@ public final class UnitModel {
     public let backups: BackupModel
     /// Every write, then the page's re-reads (UnitActions.swift)
     public let actions: UnitActions
+    /// I4: RESTORE / ADD PRESETS from a backup (RestoreModel.swift), IMPORT's files and SEND (ImportModel.swift)
+    public let restoring = RestoreModel()
+    public let importer = ImportModel()
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }
@@ -126,6 +129,8 @@ public final class UnitModel {
         self.actions = UnitActions()
         self.backups.unit = self
         self.actions.unit = self
+        self.restoring.unit = self
+        self.importer.unit = self
     }
 
     // MARK: finding the unit
