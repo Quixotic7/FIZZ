@@ -157,9 +157,10 @@ struct PhoneRoot: View {
                     .environment(\.fizzBarClearance, clearance)
             }
             .padding(.top, insets.top)
-            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.62)],
+            // (only round the tab bar: EDIT's and PROJECTS' action rows sit just above it, undimmed)
+            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.45)],
                            startPoint: .top, endPoint: .bottom)
-                .frame(height: 150)
+                .frame(height: Self.barBottom + TabBar.height + 12)
                 .allowsHitTesting(false)
             if tab == .projects { ProjectsPhoneBar(model: model) }
             TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, Self.barBottom)
