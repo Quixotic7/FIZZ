@@ -1,0 +1,193 @@
+{
+ "utcDates": "for (const k of [\"FullYear\", \"Month\", \"Date\", \"Day\", \"Hours\", \"Minutes\", \"Seconds\", \"Milliseconds\"]) Date.prototype[\"get\" + k] = Date.prototype[\"getUTC\" + k]; Date.prototype.getTimezoneOffset = function () { return 0; };",
+ "date": "2026-10-27T14:32:10.250Z",
+ "fizz": "0.12.0-beta.11",
+ "unit": {
+  "identity": "FM-1_46001100",
+  "port": "FIZZ FM-1"
+ },
+ "region": [
+  618496,
+  299008
+ ],
+ "stats": {
+  "bytes": 299008,
+  "ms": 4321.678,
+  "kbps": 67.5671,
+  "frames": 1169,
+  "resent": 2,
+  "depth": 2,
+  "gapMs": 0,
+  "perFrame": 3.69691,
+  "rtt": {
+   "avg": 3.3,
+   "median": 3.21234,
+   "p95": 5.67891,
+   "max": 9.87654
+  }
+ },
+ "webTags": {
+  "5458f1fa": [
+   "SHIMMER",
+   "DARK"
+  ],
+  "bdfacedd": [],
+  "deadbeef": [
+   "UNUSED"
+  ]
+ },
+ "projects": [
+  {
+   "slot": 1,
+   "name": "NOIR"
+  },
+  {
+   "slot": 3,
+   "name": "SUNDAY 2"
+  }
+ ],
+ "sounds": [
+  {
+   "name": "SYN BASS 1",
+   "blob": "UQaCh5uX2YkUh5tzetdrq64pLUZlYJUgmJNr2M7EUZ9ADr36SyW+WI2T2CTZ0WIGE9d/hkWAuxakC3Gi+213Wgy7a8JMjlnXKR6hnyBeYO/aoWnrlm9ODALhTWgfFL6LgxqPn+L2mZqSfBimpv61IiOl+FfsYMKnEkmpfqA5t1A=",
+   "drive": 12,
+   "pan": -20,
+   "sends": {
+    "chorus": 0,
+    "delay": 30,
+    "reverb": 40
+   },
+   "fizzTags": [
+    "BASS"
+   ],
+   "source": {
+    "fizz": "0.12.0-beta.11",
+    "from": "MY PRESETS 1"
+   }
+  },
+  {
+   "name": "A/B KEYS",
+   "blob": "UQafPDk0XeVyrL4EGyIufyeNOY/IqsYaqWwBDKF2K0PQHEsLS0sgUmAfAG4Ny54JHodC0zNqq3TlazFGbbiGmuEfWcEcDFjJeuBmHwKdj1xkSyTULXwkAF6Q5E+0Z4496W3+iF6qFooKmT98kMd+djgCdESabeWdvKT/bMsUVH8=",
+   "drive": 0,
+   "pan": 0,
+   "sends": {
+    "chorus": 5,
+    "delay": 0,
+    "reverb": 0
+   },
+   "fizzTags": [
+    "KEYS",
+    "PLUCK"
+   ],
+   "source": {
+    "fizz": "0.12.0-beta.11",
+    "from": "MY PRESETS 2"
+   }
+  },
+  {
+   "name": "PAD*WIDE",
+   "blob": "UQaMvZ4EctFEl8r2Us460dugkSAURtY7upCOn9Wsa67gslvl2IySIWg7hNYn6ePpm+NjSBVfEqJ/RmzJv9/AxtT/D4+7/OEUDAXK17G+XPXU/TZ6D4Z4f2GC3gRqfQyXxPT0QkDa1jX0rKDUEC2aBTDy/yYlVtBbI3O83173UK8=",
+   "drive": 127,
+   "pan": 63,
+   "sends": {
+    "chorus": 127,
+    "delay": 127,
+    "reverb": 127
+   },
+   "fizzTags": [],
+   "source": {
+    "fizz": "0.12.0-beta.11",
+    "from": "MY PRESETS 3"
+   }
+  },
+  {
+   "name": "LEAD",
+   "blob": "UQbWKBXNon6GYJrCRgP51tUCap+Eg39T7xVZ/2n9b5lEMXBTWwHUYpFgCp5KtOHwfnnAdb1Bp8lXDtk3NDDaUwg99/sz1J8+orzgI+CdgiYmso8TMOExA6jcyDPITxil8Qenz4YSsyuVzCUkdEBWHUl1zNnXS2GunMsaktLNy3k=",
+   "drive": 3,
+   "pan": -64,
+   "sends": {
+    "chorus": 1,
+    "delay": 2,
+    "reverb": 3
+   },
+   "fizzTags": [
+    "LEAD",
+    "FX"
+   ],
+   "source": {
+    "fizz": "0.12.0-beta.11",
+    "from": "MY PRESETS 4"
+   }
+  }
+ ],
+ "frames": [
+  "f07d465a011108000153594e2042415353203120200c002c001e280f7c510602071b17594d0914071b737a57066b2b2e292d46655a60152018136b584b4e44511f400e3d697a4b253e580d130d5824595162061335577f0645003b1619240b71227b6d77545a0c3b6b424c0e325957291e211f205c5e606f5a21696b21166f4e0c02614d38681f143e0b031a7f0f1f6276191a123c7c1826267e352256232578576c604229271249297e20390137500106f7",
+  "f07d465a0111080002412f42204b455953202020200000400500000f0451061f3c39345d0d65722c3e041b22682e7f270d390f480b2a461a296c010c1121762b43501c4b000b4b4b2052601f18006e0d4b1e091e25074253336a2b7461656b31466d3806131a611f59411c0c0a58497a60661f02431d0f5c644b2454602d7c24005e10642a4f34670e3d696d2b7e085e2a160a0a19193f7c10477e7650380274441a6d652f1d3c247f6c4b1400547f0659f7",
+  "f07d465a01110800035041442a57494445202020207f007f7f7f7f0f1c51060c3d1e04725d5144174a76524e1e3a515b201120147a46563b3a100e1f3b552c6b2e60325b0f65580c1221683b7b0456276963691b41636348155f1222787f466c493f5f407746547f0f0f3b7c7161140c054a57311d3e5c75547d367a620f06787f61025e70046a7d0c174474597442405a563574272c2054102d1a054630727f26255650585b23733c5f5e7702502f28f7",
+  "f07d465a01110800044c45414420202020202020200300000102030f6451065628154d221a7e06601a42460367795655026a1f0449037f536f15597f0a697d6f1944317028535b01546211603a0a1e4a3461707e6a7940753d41274944570e593734305a5853083d777b33545d1f3e223c602360331d022626320f137230613103285c483233484f1825710757274f0612332b15014c25247440561d1c49754c59574b61772e1c4b1a12524d014b79502df7"
+ ],
+ "expect": {
+  "crc32": [
+   {
+    "hex": "",
+    "crc": 0
+   },
+   {
+    "hex": "42",
+    "crc": 1255198513
+   },
+   {
+    "hex": "ce8ab000d1021a",
+    "crc": 3988635901
+   },
+   {
+    "hex": "65ab5d1056b9403075c47d458ec361c6f88442f63574b0644c3eb064e731d17c9bb3c24697c4742805a5fd8b4bb8d27fb341be9dc426bd1646a15f55d911c709",
+    "crc": 909780293
+   },
+   {
+    "hex": "908eb702ffd52e92cbf0231368b17ede6571140ada5cb9eabecce55409d69ad332fd5b0689517755287bb5279280d7ac9c3814fe708aabddad44c853efc0f4f281375be4ad27a5e14b0bb31bfa7663d0ffd4fb5921432e12ab8129be666c7f18cc95395106130f8fdb90dd7056df8cde3474a01b8f0da7b9833d5a8365ba85e6d4a38284e2433a60f86d8fc1dcb7fd0312a7c4d5735784222b814f8d0ec91b9a84ad4e2871a7be9253870c8b66273e269d0ddb178c640bdc03c2cf50cfa0fd5c28dd253eb84041e2ebaa3b00aa54d9796d48ea4024be9ef4c1e8b15c62c672e0b8cc34158e6b1a0cf06814e17d774261e8a24389ad75e1c5b0fc83c8608686cf6a",
+    "crc": 1799285173
+   },
+   {
+    "hex": "e3ce3e8cbc370f3a677082680adef3301cc31e87c3c92112bab3ee7bce5989ddaf9c1070b456e850e6e9cb862ddc42effa6f01b11a2a69725c19c82cf2b5f5cecad46a1d5fa4fce018ce1f89c2b80e3d230258723557707a05712f25cbac6a7513f25eb51fb98a4e7d225429d37a6bf346ad5a05f1484308ba1f3b80bc5f092afdac6f44ac2922ad0b7962a0c4dd478090aef8ba34cb2de87c89f8cb95838391f154de64cbeea716d6fe0304166197ef7f3fafae14f4d522a5f8730b4ea444c31c5d45da57adde08334620775e9a793d27d353551c75076562d881514b9ec48c8ad6b0d6948ad1bacb036d92a5a48a740d17a404bda966e3b1b86decf5a8264a495051eb1806469ae5b239932c1f049405b1033a93cf29180e430a4e04d89dc76e69d2e616ff12853a2c1bb99f411f3a5ef9fe96167986dc513ef2fffef08f519777601cbc5c021cb78a8cdaa8e4f2745ecd9751b5d03588c502cb19cdff9a2664cabd9a6024ce7582bb76cfc745f783ea08197b2faee0c5be67fcb4cbbbb0faada7871e1a87786fe5c2860cec05505cf76857e9b1e646032362cc0da473370deee11def7f7d237977766c0f841781ce76d8faae04f025c81f3baaa7bc4b87580b6364678843b86c6b4e69953c2fdbb0dc5f9428717ab2a91e500f7471cb4b77f69796a79e42086f67a057527c19b905d6484197fe5bd9ae8f9ab31ff239dc2df66499692c80dbaac247705368a26beb0e63d30a2b591ba7bc98ad4c02b09454630838acde48e48a203ec1d0dcf6abee06607b30cc6dcab16ed06cb7dd757bf419af3e9b81669f71eb3a355540fbcab1ace7b522e47bb061c02323b8223b5a756da097856efbef74b0a2042caaba549f73845c7964b63c10e54b1954e3f11ba40cd9bc9f60cb2806d22c79674e6a1d91cc3b677570c513220a3888b9f1fdbee05ef8d1f5ef1f4ff1983b496598355b4cf8e5eab3a934e19e3a23534f7cd336fa730944fa41217eb174e4ae50db4cbb01fefe9ee17852cd1a1b5cc88f3c884f2a4d62c08551b070bd78d18b50b1b45576147722860db3df98e9744774a3080232dd3cd0a9acb59311b5ca8e2d5e47c6ecfdd9319eb2c5ec034d516d2b3ce463eeee26295f9a10a24f3462472267a6b8385b7e1b131d32c566e1142cabda53ee905af3f05b656ac64c345c15a4c94d1cb1ea2f7f9212258c5831320e6780f7d55d5cfd3fcb6409d3be5b8c4e4fa09c92e6936ebbf54b31232a908d6b5565dca694acd206aca7ab8157deec2199e93b628a2699b616f46d7242fd7d699bebc41f2f395f809e780ad0b122e8ba81e81d7acb25d76665ee3b065f4a408692f4f8066efa48bf21fa35ce74cc3b3474db4c232637b3ca5ea2c50d06cec330c5b8f4a07b56a6ddcefb08cbb93e454ba8815885e132470a8e433912f1b94e4b0f0717a79d72f236adfe326f812ae13ecdd14e5ebd18b7d81383132e41a9e320a240cb7ff8178a53b0b549e4b5d841c4e81c1151b62944a363328314e6404bc3dc42dd2e6685cb37f108cfd86687cb010d2cc7e096ac9d9881569eef7a8500d2c822c09f904f031e88aedb455079f1dbceef853362d93f3bac3de5327e76edbed36a4760c7a0311fc8be4ff206ce085c1b682b90dba38104e8681e91d6bcb21548155c41b21862e2a9d16c4d01cbda3b8fc0041d4f4862c0ac28558f794ad76510edadf96ee5787fc16459b6e24a4069a8f3fb042d9cdf5b83d2028abac18e95934b72abdcf44e45bc2be712c85ba088b2639bf786d6bf692106a7745e790889abe6e04824ffd33415e52c4ce87751f9640f8dc79063e5bd091802cbd431e6f5e05031fbcaba93972718ec06a9de4ae56386fac59d4cc39d22791d8779a91164a8ab16cbd811b6453ec40f6750e2aad727d01975c8242faa5ebcf208b53f572795c08eb7c0e9917453f8b7ba86c0d85cfd8190cd9a2ed389fcc4cc11ec7037271528fde187ff48e2bd3b9ecdc852f795d007427ece6c3915adcb728d15c058485453534d6182d8665336e882f7e5068cf15479d3f52738f8451cb133bd2c25c42c0fd2b4555832480620b65783b8149a2d8ab83c3aac93216ecd8632778d5585813222711106a5d31b58d9c8b63dd31a643de1915c30f2cca6882ed5118cf004cd3ad85c83aca00058d8c11ebb6ea85683586de85e32534ff14145d494fd6ab6a886c45771924d1cb16d8e99d7b9c2ae05d934568f1cdc22f1215d72be7fccac72d27e51ad1ae360e4b5f490e4ba54e3be3500794598b4760b1ca60bc2075f9ddc99121b911b2281f9d1e60466833b677c3908c657ed810eb487fb167ca08f6d59034e5aedaf3077c4d8b70e7e320995743a24435a98835d000df07e5f53d80a4ef9bd7ef28f7cc7c89d07b85656232857a5e4a3cc108a266e23501d9b0652109c581af7367018211a13497277220fd032bec720d1618592e4bd3acd42324636481bfbb93de2552a06f7a423a2baf8f3b5e8a80118bee13518c15a4b9dc7c3c3a39157c019164db664802525f3759b85ab37a61897c9e8e448c4feeed023016f6d8a138812f171aa64f47bf0bbc362cf4f033adee49f346ea21d9bb40db5e007d3dff5c597013e4da776bab5e3341d5e6ccc488c354da23cf5cfd74b12c96c01b532fdb27eff37b41be7ad18636f2812d2527ff1a59c4a0804b799301a7af43dd5846f612e6208df3bcf94d817e6e7f2b7f06cf553231ca7df8d0885c91ad23a46f16e1b3f12a98e2678f5ef00a78cdd305553d0bdb11bab41d731c9832c4cf77ed9b7e778f8c3a8da28419b8e60262e2a78292a6ef7f1dd364942d5fb1689888681135df7aab7afc068b2bbada2ce5da4092cb951f074426eeb77a893ff30146dc57cb5e9d2792df0f2fadd1329cb5dad8c2f598a976b9b05fb3bbffc31b6b8e686adb801f03d5a9de37975b3da99a26b107459dd1b0db9cfdf9a282f52f412d0419b4c384fb4be1a3532cb238a7eb875ee30d245b7221a13ad5c82676f03acac89949dfcf2e5c0d2a4ac36ef08492f953e6da2bf14d76321ab7892e6fb25f6e9c1c15fc6635113a6dbdc1cd18eec1ef271b3061069ca310bd3a1dad08a33ef884ede8a048642ce402b3a0572d2977148e3a736b809e29f213e6407af1ce11b278545e5b10a4afc07d11c47b8b238bd29b1667b4e83fa4faedb2e33f2201e8e07ea016df61e8b914dc17802a88a23b13536826eacd6a484edd330c72f9f386585e60a5e8ffab61123af22bcfb24ea7873c1c5741550420097b66b2e1ab0a7566c4f552efe6f530cff20a8ee5950d708354897ba62cfa4bc228924be2ee29bfc95ebe8091e9bc5bdd590769757b44feb19575536e63870709d4fce8735d5e62522297c9972ce2e81662d12faf6840adebc4ec042980b81d07c74146ac4e8ef2da49e09ac4e756d6a7546fd50def705d5940efeb3e44982784e9749c421417ba3b8a64b95fd888dce0f1f95d86ffb20dea842ddce92452d7d30d11e318c5087febeaa85f517be261e1ed2c654c2028a12dc9a828902033e5f1f40e5ad6b6afe87c2bade8c586e6e7191cfd6fe89f42eb2a7058bf5bf4ed02ef24f61d8a5faa49de52d54c6be68a364fbb73f4595a6ed6332e3c8c82af94458361584112411f3c88548c12a5cd3975dff1eadffc06c6d366eeee59b95c50ab05dc40290495b8c674774cf7ec634910fc58cfa0af6005209645104ae16936ed4340659c75c578067a62e0b20d205afe0bd1cf8f3ab68bb108b4b8274a8159c52a4e184dfb06813a26dd917bebe351b52f213d568b7ed6caf77b1156b39127405265dd8133645eedd953fea8799e898bff53e6c16bc9f0bfa6ca5049953f8a67835faa7354e72bedcde86bba6109dd5b6d3c5523a4e0801a875299d03997597fc414a621ef4874982f6e52ded67e223eead4813844218fecff2bbca8fc7ef14aba2e416fdbadba4fb392510edd0f6fea35244187420cae7475891400d6d33e4a0324f044889805cb547ff0a3760b1f95559a2507e4c1c4ee74324e0dba97268bce9f4a7a384aea719261b31aaf614753cfee6c7820b2240266dea206d41ceb39c61e430b866498d164812da4af1cc0927da4119138e37069a03e7455914ba00cd315b0b14e08af087a261ca0091d358ac3fd6efdd81e3cae5e5852bae03410e303e9fe7439b57b958de24d6040825cca7e45c307f5e9a427624991c444bb67010a88e8df19379db51143f388183c3de15b88274e447d74ec6d57f0ee52f9fe82b2b17c72aa35d3d4eaa6c40a29c9861f07fbed0b6037a207fa55c18d0bc13054e8a466d83b90d8875931e55d40a9f008fa1d40710b36fea62ba551a40889b2ac7c33a274988abf7eb6c11438f013384dc3acd361242344fc73bc80d813a13a761eff5bd245490f5d51dda3761b36a6968a67b93dd60f1ddd837e178e3a1f8b07914809cb623a5b513a01cd639f300784a5bf733199ca78dbc012c118339cf74c20a402db67452706e38e45ed8c300df1b0f268132dba0cbed1d283d743b1f30eedb8ff2dfef82b94eb2d88cbff0459df904a4f48a890410bd6274cec6334fc202f9961bfdb077d9a68371a3a0f18cc4a4baac928f264002a134975eeb0ef0a296b4df6166cf3430047a46b564f141593eed8f03bf68781fde6f729e44901e3f8fc988a29cab8b9bd075e1f270d18709fcadde38f48f14f619c70b157ee8d893d97a5abec8c766044a62a480c0776ca3f4e624c2fb3a9dc63b4e9848ec112a6bae193efd1244263cd7390378d029431c75dc1420fc576103d5ce8c19206212e0106753adb37846b848f75a684221c942d2a07308334567ebfc92f8580b091eb5a485de9c45b63ecc995825d369eead78113302e71984f592a87853164a7d1e67ed278591a9a5a08d3da2c692bb9b9b790767e0b8eb02e441e31d0e0dd628f941deabc2fecf9254f41e9c1a05d7cd6da442865e3e256e91d7eb55523cd7ae3f98d059d567c43bd97083ec52695c15d8431f9fc73298d0952aa16cabf438a5cea94a70a69a2ec024c574596159a1a898237eb079973779b9fc57f06a0d1cdec0068873622fc7a59dc2d0841573ade29aa23513ca916a7a2a61e44a2ead2033b9be2698a99b20715570444870575308cdedac7c78d9a194f2c9bde6b8d26ff3b1fa7b9ef9acd89d055ff407f289eeb92a5d597bb183783aa76d9a8b83547af1219def5fae170dfffcfbb9495b9ee0c02fae5e3fe32097ea233e9d815ab3275176ec9ae3b064b4c2b00889e6766a656524d0ece87d980c5eeab0d73182e19c5ef5d5a3e98235241b70550d88235b3adfa7a3b1a7c9e8b3ced9db06961643cabd1614678869a5098a91fe778decdb9351617e82d33999a56a41bf898a8d250fcebe38328066fb2650069065185f791b1e57c1d6a4d280221ad93167aadc672a6d5e18366b1bea1e198dd7820178eda3b394269c889c95ab3ced8ee29747bbc4c90d0ade1fbd2dfca0e44d0228f9e663dbb0f89e89d2fc36af66384feb9552dff1be79edb567692ac9ab51848bde8cc5910e8cd37e3a135b8bb1930b756c3cc20e66a97d757c198785ebdfb7f3f6317ff3012cae910ec0fd20725503a4a86a2a515a58c0e22ec6556c0039bba38ddf837b63e7fd81beea8261945780f81aa5efde6f367d0451771c7a0267026f19564ec2b329a67a9e1705c13b24e533ba64717337b2fd7610abce3186f23cca44507ceb5d1445b2c6f2252276f0d8b5ed3524c41ff8d3ad89ddd1c37c4516fc0a4e11f7",
+    "crc": 2427848939
+   }
+  ],
+  "backupFileName": {
+   "full": "FIZZ backup 2026-10-27 1432.fizzbak",
+   "presets": "FIZZ presets 2026-10-27 1432.fizzbak"
+  },
+  "demoStore": {
+   "length": 299008,
+   "sha256": "08a84dd75645885c76c2db40887031f296bbd210082ba48b0fc6b3494f912623"
+  },
+  "readRegion": "{\"layout\":\"device\",\"size\":299008,\"magic\":\"Z2FS\",\"blank\":false,\"format\":2,\"tracks\":6,\"projects\":[{\"slot\":1,\"name\":\"NOIR\",\"demo\":false},{\"slot\":3,\"name\":\"SUNDAY 2\",\"demo\":false}],\"presets\":[{\"slot\":1,\"id\":256,\"name\":\"SYN BASS 1\",\"tags\":1,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"510682879b97d98914879b737ad76babae292d466560952098936bd8cec4519f400ebdfa4b25be588d93d824d9d1620613d77f864580bb16a40b71a2fb6d775a0cbb6bc24c8e59d7291ea19f205e60efdaa169eb966f4e0c02e14d681f14be8b831a8f9fe2f6999a927c18a6a6feb52223a5f857ec60c2a71249a97ea039b750\"},\"drive\":12,\"pan\":-20,\"sends\":{\"chorus\":0,\"delay\":30,\"reverb\":40}},{\"slot\":2,\"id\":257,\"name\":\"A/B KEYS\",\"tags\":6,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"51069f3c39345de572acbe041b222e7f278d398fc8aac61aa96c010ca1762b43d01c4b0b4b4b2052601f006e0dcb9e091e8742d3336aab74e56b31466db8869ae11f59c11c0c58c97ae0661f029d8f5c644b24d42d7c24005e90e44fb4678e3de96dfe885eaa168a0a993f7c90c77e76380274449a6de59dbca4ff6ccb14547f\"},\"drive\":0,\"pan\":0,\"sends\":{\"chorus\":5,\"delay\":0,\"reverb\":0}},{\"slot\":3,\"id\":258,\"name\":\"PAD*WIDE\",\"tags\":0,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"51068cbd9e0472d14497caf652ce3ad1dba091201446d63bba908e9fd5ac6baee0b25be5d88c9221683b84d627e9e3e99be36348155f12a27f466cc9bfdfc0c6d4ff0f8fbbfce1140c05cad7b1be5cf5d4fd367a0f86787f6182de046a7d0c97c4f4f44240dad635f4aca0d4102d9a0530f2ff262556d05b2373bcdf5ef750af\"},\"drive\":127,\"pan\":63,\"sends\":{\"chorus\":127,\"delay\":127,\"reverb\":127}},{\"slot\":4,\"id\":259,\"name\":\"LEAD\",\"tags\":80,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"5106d62815cda27e86609ac24603f9d6d5026a9f84837f53ef1559ff69fd6f99443170535b01d46291600a9e4ab4e1f07e79c075bd41a7c9570ed9373430da53083df7fb33d49f3ea2bce023e09d822626b28f1330e13103a8dcc833c84f18a5f107a7cf8612b32b95cc25247440561d4975ccd9d74b61ae9ccb1a92d2cdcb79\"},\"drive\":3,\"pan\":-64,\"sends\":{\"chorus\":1,\"delay\":2,\"reverb\":3}}],\"used\":{\"lib\":[4,330],\"prj\":[3,765],\"all\":0.006392694063926941}}",
+  "fullFizzbak": {
+   "length": 303384,
+   "sha256": "45cf6207686b4df2c7eb727a0179a56c087ee5a3f2ef2cc62f57304134d7ccd8"
+  },
+  "presetsFizzbak": {
+   "length": 3715,
+   "sha256": "110132993c02fb2a2f739a65e175691f5c45c9302affa944d30fda1aa5690416"
+  },
+  "noDumpFizzbak": {
+   "length": 302919,
+   "sha256": "4a7f5ffacee561daaafa5d4deb6a53bc09efe7392cce35f0cec84877312e847b"
+  },
+  "readBackup": {
+   "full": "{\"kind\":\"full\",\"source\":\"fizzbak\",\"manifest\":{\"format\":\"fizz-backup\",\"version\":1,\"kind\":\"full\",\"date\":\"2026-10-27T14:32:10.250Z\",\"fizz\":\"0.12.0-beta.11\",\"unit\":{\"identity\":\"FM-1_46001100\",\"port\":\"FIZZ FM-1\"},\"store\":{\"layout\":\"device\",\"magic\":\"Z2FS\",\"format\":2,\"tracks\":6,\"region\":[618496,299008],\"crc32\":\"4b045c6d\",\"file\":\"store.bin\",\"used\":0.006},\"projects\":[{\"slot\":1,\"name\":\"NOIR\"},{\"slot\":3,\"name\":\"SUNDAY 2\"}],\"presets\":4,\"files\":[\"presets/001 SYN BASS 1.fizzsnd\",\"presets/002 A_B KEYS.fizzsnd\",\"presets/003 PAD_WIDE.fizzsnd\",\"presets/004 LEAD.fizzsnd\"],\"web\":{\"tags\":{\"5458f1fa\":[\"SHIMMER\",\"DARK\"]}},\"transfer\":{\"bytes\":299008,\"ms\":4322,\"kbps\":67.6,\"frames\":1169,\"resent\":2,\"depth\":2,\"gapMs\":0,\"perFrameMs\":3.7,\"rttMs\":{\"median\":3.21,\"p95\":5.68,\"max\":9.88}}},\"image\":{\"u8len\":299008,\"crc32\":\"4b045c6d\"},\"summary\":{\"layout\":\"device\",\"size\":299008,\"magic\":\"Z2FS\",\"blank\":false,\"format\":2,\"tracks\":6,\"projects\":[{\"slot\":1,\"name\":\"NOIR\",\"demo\":false},{\"slot\":3,\"name\":\"SUNDAY 2\",\"demo\":false}],\"presets\":[{\"slot\":1,\"id\":256,\"name\":\"SYN BASS 1\",\"tags\":1,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"510682879b97d98914879b737ad76babae292d466560952098936bd8cec4519f400ebdfa4b25be588d93d824d9d1620613d77f864580bb16a40b71a2fb6d775a0cbb6bc24c8e59d7291ea19f205e60efdaa169eb966f4e0c02e14d681f14be8b831a8f9fe2f6999a927c18a6a6feb52223a5f857ec60c2a71249a97ea039b750\"},\"drive\":12,\"pan\":-20,\"sends\":{\"chorus\":0,\"delay\":30,\"reverb\":40}},{\"slot\":2,\"id\":257,\"name\":\"A/B KEYS\",\"tags\":6,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"51069f3c39345de572acbe041b222e7f278d398fc8aac61aa96c010ca1762b43d01c4b0b4b4b2052601f006e0dcb9e091e8742d3336aab74e56b31466db8869ae11f59c11c0c58c97ae0661f029d8f5c644b24d42d7c24005e90e44fb4678e3de96dfe885eaa168a0a993f7c90c77e76380274449a6de59dbca4ff6ccb14547f\"},\"drive\":0,\"pan\":0,\"sends\":{\"chorus\":5,\"delay\":0,\"reverb\":0}},{\"slot\":3,\"id\":258,\"name\":\"PAD*WIDE\",\"tags\":0,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"51068cbd9e0472d14497caf652ce3ad1dba091201446d63bba908e9fd5ac6baee0b25be5d88c9221683b84d627e9e3e99be36348155f12a27f466cc9bfdfc0c6d4ff0f8fbbfce1140c05cad7b1be5cf5d4fd367a0f86787f6182de046a7d0c97c4f4f44240dad635f4aca0d4102d9a0530f2ff262556d05b2373bcdf5ef750af\"},\"drive\":127,\"pan\":63,\"sends\":{\"chorus\":127,\"delay\":127,\"reverb\":127}},{\"slot\":4,\"id\":259,\"name\":\"LEAD\",\"tags\":80,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"5106d62815cda27e86609ac24603f9d6d5026a9f84837f53ef1559ff69fd6f99443170535b01d46291600a9e4ab4e1f07e79c075bd41a7c9570ed9373430da53083df7fb33d49f3ea2bce023e09d822626b28f1330e13103a8dcc833c84f18a5f107a7cf8612b32b95cc25247440561d4975ccd9d74b61ae9ccb1a92d2cdcb79\"},\"drive\":3,\"pan\":-64,\"sends\":{\"chorus\":1,\"delay\":2,\"reverb\":3}}],\"used\":{\"lib\":[4,330],\"prj\":[3,765],\"all\":0.006392694063926941}},\"presets\":[{\"file\":\"presets/001 SYN BASS 1.fizzsnd\",\"fizz\":true,\"name\":\"SYN BASS 1\",\"blob\":{\"u8\":\"510682879b97d98914879b737ad76babae292d466560952098936bd8cec4519f400ebdfa4b25be588d93d824d9d1620613d77f864580bb16a40b71a2fb6d775a0cbb6bc24c8e59d7291ea19f205e60efdaa169eb966f4e0c02e14d681f14be8b831a8f9fe2f6999a927c18a6a6feb52223a5f857ec60c2a71249a97ea039b750\"},\"drive\":12,\"pan\":-20,\"sends\":{\"chorus\":0,\"delay\":30,\"reverb\":40},\"fizzTags\":[\"BASS\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 1\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"presets/002 A_B KEYS.fizzsnd\",\"fizz\":true,\"name\":\"A/B KEYS\",\"blob\":{\"u8\":\"51069f3c39345de572acbe041b222e7f278d398fc8aac61aa96c010ca1762b43d01c4b0b4b4b2052601f006e0dcb9e091e8742d3336aab74e56b31466db8869ae11f59c11c0c58c97ae0661f029d8f5c644b24d42d7c24005e90e44fb4678e3de96dfe885eaa168a0a993f7c90c77e76380274449a6de59dbca4ff6ccb14547f\"},\"drive\":0,\"pan\":0,\"sends\":{\"chorus\":5,\"delay\":0,\"reverb\":0},\"fizzTags\":[\"KEYS\",\"PLUCK\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 2\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"presets/003 PAD_WIDE.fizzsnd\",\"fizz\":true,\"name\":\"PAD*WIDE\",\"blob\":{\"u8\":\"51068cbd9e0472d14497caf652ce3ad1dba091201446d63bba908e9fd5ac6baee0b25be5d88c9221683b84d627e9e3e99be36348155f12a27f466cc9bfdfc0c6d4ff0f8fbbfce1140c05cad7b1be5cf5d4fd367a0f86787f6182de046a7d0c97c4f4f44240dad635f4aca0d4102d9a0530f2ff262556d05b2373bcdf5ef750af\"},\"drive\":127,\"pan\":63,\"sends\":{\"chorus\":127,\"delay\":127,\"reverb\":127},\"fizzTags\":[],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 3\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"presets/004 LEAD.fizzsnd\",\"fizz\":true,\"name\":\"LEAD\",\"blob\":{\"u8\":\"5106d62815cda27e86609ac24603f9d6d5026a9f84837f53ef1559ff69fd6f99443170535b01d46291600a9e4ab4e1f07e79c075bd41a7c9570ed9373430da53083df7fb33d49f3ea2bce023e09d822626b28f1330e13103a8dcc833c84f18a5f107a7cf8612b32b95cc25247440561d4975ccd9d74b61ae9ccb1a92d2cdcb79\"},\"drive\":3,\"pan\":-64,\"sends\":{\"chorus\":1,\"delay\":2,\"reverb\":3},\"fizzTags\":[\"LEAD\",\"FX\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 4\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]}],\"web\":{\"tags\":{\"5458f1fa\":[\"SHIMMER\",\"DARK\"]}}}",
+   "presets": "{\"kind\":\"presets\",\"source\":\"fizzbak\",\"manifest\":{\"format\":\"fizz-backup\",\"version\":1,\"kind\":\"presets\",\"date\":\"2026-10-27T14:32:10.250Z\",\"fizz\":\"0.12.0-beta.11\",\"unit\":{\"identity\":\"FM-1_46001100\",\"port\":\"FIZZ FM-1\"},\"projects\":[],\"presets\":4,\"files\":[\"presets/001 SYN BASS 1.fizzsnd\",\"presets/002 A_B KEYS.fizzsnd\",\"presets/003 PAD_WIDE.fizzsnd\",\"presets/004 LEAD.fizzsnd\"],\"web\":{\"tags\":{\"5458f1fa\":[\"SHIMMER\",\"DARK\"]}}},\"image\":null,\"summary\":null,\"presets\":[{\"file\":\"presets/001 SYN BASS 1.fizzsnd\",\"fizz\":true,\"name\":\"SYN BASS 1\",\"blob\":{\"u8\":\"510682879b97d98914879b737ad76babae292d466560952098936bd8cec4519f400ebdfa4b25be588d93d824d9d1620613d77f864580bb16a40b71a2fb6d775a0cbb6bc24c8e59d7291ea19f205e60efdaa169eb966f4e0c02e14d681f14be8b831a8f9fe2f6999a927c18a6a6feb52223a5f857ec60c2a71249a97ea039b750\"},\"drive\":12,\"pan\":-20,\"sends\":{\"chorus\":0,\"delay\":30,\"reverb\":40},\"fizzTags\":[\"BASS\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 1\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"presets/002 A_B KEYS.fizzsnd\",\"fizz\":true,\"name\":\"A/B KEYS\",\"blob\":{\"u8\":\"51069f3c39345de572acbe041b222e7f278d398fc8aac61aa96c010ca1762b43d01c4b0b4b4b2052601f006e0dcb9e091e8742d3336aab74e56b31466db8869ae11f59c11c0c58c97ae0661f029d8f5c644b24d42d7c24005e90e44fb4678e3de96dfe885eaa168a0a993f7c90c77e76380274449a6de59dbca4ff6ccb14547f\"},\"drive\":0,\"pan\":0,\"sends\":{\"chorus\":5,\"delay\":0,\"reverb\":0},\"fizzTags\":[\"KEYS\",\"PLUCK\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 2\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"presets/003 PAD_WIDE.fizzsnd\",\"fizz\":true,\"name\":\"PAD*WIDE\",\"blob\":{\"u8\":\"51068cbd9e0472d14497caf652ce3ad1dba091201446d63bba908e9fd5ac6baee0b25be5d88c9221683b84d627e9e3e99be36348155f12a27f466cc9bfdfc0c6d4ff0f8fbbfce1140c05cad7b1be5cf5d4fd367a0f86787f6182de046a7d0c97c4f4f44240dad635f4aca0d4102d9a0530f2ff262556d05b2373bcdf5ef750af\"},\"drive\":127,\"pan\":63,\"sends\":{\"chorus\":127,\"delay\":127,\"reverb\":127},\"fizzTags\":[],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 3\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"presets/004 LEAD.fizzsnd\",\"fizz\":true,\"name\":\"LEAD\",\"blob\":{\"u8\":\"5106d62815cda27e86609ac24603f9d6d5026a9f84837f53ef1559ff69fd6f99443170535b01d46291600a9e4ab4e1f07e79c075bd41a7c9570ed9373430da53083df7fb33d49f3ea2bce023e09d822626b28f1330e13103a8dcc833c84f18a5f107a7cf8612b32b95cc25247440561d4975ccd9d74b61ae9ccb1a92d2cdcb79\"},\"drive\":3,\"pan\":-64,\"sends\":{\"chorus\":1,\"delay\":2,\"reverb\":3},\"fizzTags\":[\"LEAD\",\"FX\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 4\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]}],\"web\":{\"tags\":{\"5458f1fa\":[\"SHIMMER\",\"DARK\"]}}}",
+   "fizzlib": "{\"kind\":\"presets\",\"source\":\"fizzlib\",\"manifest\":{\"format\":\"fizz-library\",\"fizz\":\"0.12.0-beta.11\",\"date\":\"2026-10-27T14:32:10.250Z\"},\"image\":null,\"summary\":null,\"presets\":[{\"file\":\"lib.fizzlib: 001 SYN BASS 1.fizzsnd\",\"fizz\":true,\"name\":\"SYN BASS 1\",\"blob\":{\"u8\":\"510682879b97d98914879b737ad76babae292d466560952098936bd8cec4519f400ebdfa4b25be588d93d824d9d1620613d77f864580bb16a40b71a2fb6d775a0cbb6bc24c8e59d7291ea19f205e60efdaa169eb966f4e0c02e14d681f14be8b831a8f9fe2f6999a927c18a6a6feb52223a5f857ec60c2a71249a97ea039b750\"},\"drive\":12,\"pan\":-20,\"sends\":{\"chorus\":0,\"delay\":30,\"reverb\":40},\"fizzTags\":[\"BASS\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 1\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"lib.fizzlib: 002 A_B KEYS.fizzsnd\",\"fizz\":true,\"name\":\"A/B KEYS\",\"blob\":{\"u8\":\"51069f3c39345de572acbe041b222e7f278d398fc8aac61aa96c010ca1762b43d01c4b0b4b4b2052601f006e0dcb9e091e8742d3336aab74e56b31466db8869ae11f59c11c0c58c97ae0661f029d8f5c644b24d42d7c24005e90e44fb4678e3de96dfe885eaa168a0a993f7c90c77e76380274449a6de59dbca4ff6ccb14547f\"},\"drive\":0,\"pan\":0,\"sends\":{\"chorus\":5,\"delay\":0,\"reverb\":0},\"fizzTags\":[\"KEYS\",\"PLUCK\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 2\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"lib.fizzlib: 003 PAD_WIDE.fizzsnd\",\"fizz\":true,\"name\":\"PAD*WIDE\",\"blob\":{\"u8\":\"51068cbd9e0472d14497caf652ce3ad1dba091201446d63bba908e9fd5ac6baee0b25be5d88c9221683b84d627e9e3e99be36348155f12a27f466cc9bfdfc0c6d4ff0f8fbbfce1140c05cad7b1be5cf5d4fd367a0f86787f6182de046a7d0c97c4f4f44240dad635f4aca0d4102d9a0530f2ff262556d05b2373bcdf5ef750af\"},\"drive\":127,\"pan\":63,\"sends\":{\"chorus\":127,\"delay\":127,\"reverb\":127},\"fizzTags\":[],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 3\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"lib.fizzlib: 004 LEAD.fizzsnd\",\"fizz\":true,\"name\":\"LEAD\",\"blob\":{\"u8\":\"5106d62815cda27e86609ac24603f9d6d5026a9f84837f53ef1559ff69fd6f99443170535b01d46291600a9e4ab4e1f07e79c075bd41a7c9570ed9373430da53083df7fb33d49f3ea2bce023e09d822626b28f1330e13103a8dcc833c84f18a5f107a7cf8612b32b95cc25247440561d4975ccd9d74b61ae9ccb1a92d2cdcb79\"},\"drive\":3,\"pan\":-64,\"sends\":{\"chorus\":1,\"delay\":2,\"reverb\":3},\"fizzTags\":[\"LEAD\",\"FX\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 4\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"lib.fizzlib: 005 OLD FIVE.fizzsnd\",\"fizz\":true,\"name\":\"OLD FIVE\",\"blob\":{\"u8\":\"510572dfb5bf0f38805582159762570ba4714c142a2355d915d66baf3c1c3006baa4690756f0aa33b89662ff74a0e37a49c130f6bd3f516865fc73601410a5ae745f235d0e80d02ed1af9b0f6dacc1d32e3f456f5ad1eb2de4e83aba0957bfbf\"},\"drive\":9,\"pan\":4,\"sends\":{\"chorus\":1,\"delay\":0,\"reverb\":2},\"fizzTags\":[\"DRUMS\"],\"favourite\":true,\"source\":{\"fizz\":\"0.12.0-beta.11\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]}],\"web\":{\"tags\":{}},\"skipped\":[]}",
+   "deflated": "{\"kind\":\"presets\",\"source\":\"fizzlib\",\"manifest\":{\"format\":\"fizz-library\",\"fizz\":\"0.12.0-beta.11\",\"date\":\"2026-10-27T14:32:10.250Z\"},\"image\":null,\"summary\":null,\"presets\":[{\"file\":\"deflated.fizzlib: 001 SYN BASS 1.fizzsnd\",\"fizz\":true,\"name\":\"SYN BASS 1\",\"blob\":{\"u8\":\"510682879b97d98914879b737ad76babae292d466560952098936bd8cec4519f400ebdfa4b25be588d93d824d9d1620613d77f864580bb16a40b71a2fb6d775a0cbb6bc24c8e59d7291ea19f205e60efdaa169eb966f4e0c02e14d681f14be8b831a8f9fe2f6999a927c18a6a6feb52223a5f857ec60c2a71249a97ea039b750\"},\"drive\":12,\"pan\":-20,\"sends\":{\"chorus\":0,\"delay\":30,\"reverb\":40},\"fizzTags\":[\"BASS\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 1\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"deflated.fizzlib: 002 A_B KEYS.fizzsnd\",\"fizz\":true,\"name\":\"A/B KEYS\",\"blob\":{\"u8\":\"51069f3c39345de572acbe041b222e7f278d398fc8aac61aa96c010ca1762b43d01c4b0b4b4b2052601f006e0dcb9e091e8742d3336aab74e56b31466db8869ae11f59c11c0c58c97ae0661f029d8f5c644b24d42d7c24005e90e44fb4678e3de96dfe885eaa168a0a993f7c90c77e76380274449a6de59dbca4ff6ccb14547f\"},\"drive\":0,\"pan\":0,\"sends\":{\"chorus\":5,\"delay\":0,\"reverb\":0},\"fizzTags\":[\"KEYS\",\"PLUCK\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 2\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"deflated.fizzlib: 003 PAD_WIDE.fizzsnd\",\"fizz\":true,\"name\":\"PAD*WIDE\",\"blob\":{\"u8\":\"51068cbd9e0472d14497caf652ce3ad1dba091201446d63bba908e9fd5ac6baee0b25be5d88c9221683b84d627e9e3e99be36348155f12a27f466cc9bfdfc0c6d4ff0f8fbbfce1140c05cad7b1be5cf5d4fd367a0f86787f6182de046a7d0c97c4f4f44240dad635f4aca0d4102d9a0530f2ff262556d05b2373bcdf5ef750af\"},\"drive\":127,\"pan\":63,\"sends\":{\"chorus\":127,\"delay\":127,\"reverb\":127},\"fizzTags\":[],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 3\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"deflated.fizzlib: 004 LEAD.fizzsnd\",\"fizz\":true,\"name\":\"LEAD\",\"blob\":{\"u8\":\"5106d62815cda27e86609ac24603f9d6d5026a9f84837f53ef1559ff69fd6f99443170535b01d46291600a9e4ab4e1f07e79c075bd41a7c9570ed9373430da53083df7fb33d49f3ea2bce023e09d822626b28f1330e13103a8dcc833c84f18a5f107a7cf8612b32b95cc25247440561d4975ccd9d74b61ae9ccb1a92d2cdcb79\"},\"drive\":3,\"pan\":-64,\"sends\":{\"chorus\":1,\"delay\":2,\"reverb\":3},\"fizzTags\":[\"LEAD\",\"FX\"],\"favourite\":false,\"source\":{\"fizz\":\"0.12.0-beta.11\",\"from\":\"MY PRESETS 4\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]},{\"file\":\"deflated.fizzlib: 005 OLD FIVE.fizzsnd\",\"fizz\":true,\"name\":\"OLD FIVE\",\"blob\":{\"u8\":\"510572dfb5bf0f38805582159762570ba4714c142a2355d915d66baf3c1c3006baa4690756f0aa33b89662ff74a0e37a49c130f6bd3f516865fc73601410a5ae745f235d0e80d02ed1af9b0f6dacc1d32e3f456f5ad1eb2de4e83aba0957bfbf\"},\"drive\":9,\"pan\":4,\"sends\":{\"chorus\":1,\"delay\":0,\"reverb\":2},\"fizzTags\":[\"DRUMS\"],\"favourite\":true,\"source\":{\"fizz\":\"0.12.0-beta.11\"},\"notes\":[],\"origin\":[],\"mark\":\"FIZZ 0.12.0-beta.11\",\"tags\":[]}],\"web\":{\"tags\":{}},\"skipped\":[]}",
+   "bin": "{\"kind\":\"full\",\"source\":\"bin\",\"manifest\":{\"format\":\"fizz-backup\",\"version\":1,\"kind\":\"full\",\"fizz\":\"\",\"date\":null,\"store\":{\"layout\":\"device\",\"magic\":\"Z2FS\",\"format\":2,\"tracks\":6,\"crc32\":\"4b045c6d\"}},\"image\":{\"u8len\":299008,\"crc32\":\"4b045c6d\"},\"summary\":{\"layout\":\"device\",\"size\":299008,\"magic\":\"Z2FS\",\"blank\":false,\"format\":2,\"tracks\":6,\"projects\":[{\"slot\":1,\"name\":\"NOIR\",\"demo\":false},{\"slot\":3,\"name\":\"SUNDAY 2\",\"demo\":false}],\"presets\":[{\"slot\":1,\"id\":256,\"name\":\"SYN BASS 1\",\"tags\":1,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"510682879b97d98914879b737ad76babae292d466560952098936bd8cec4519f400ebdfa4b25be588d93d824d9d1620613d77f864580bb16a40b71a2fb6d775a0cbb6bc24c8e59d7291ea19f205e60efdaa169eb966f4e0c02e14d681f14be8b831a8f9fe2f6999a927c18a6a6feb52223a5f857ec60c2a71249a97ea039b750\"},\"drive\":12,\"pan\":-20,\"sends\":{\"chorus\":0,\"delay\":30,\"reverb\":40}},{\"slot\":2,\"id\":257,\"name\":\"A/B KEYS\",\"tags\":6,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"51069f3c39345de572acbe041b222e7f278d398fc8aac61aa96c010ca1762b43d01c4b0b4b4b2052601f006e0dcb9e091e8742d3336aab74e56b31466db8869ae11f59c11c0c58c97ae0661f029d8f5c644b24d42d7c24005e90e44fb4678e3de96dfe885eaa168a0a993f7c90c77e76380274449a6de59dbca4ff6ccb14547f\"},\"drive\":0,\"pan\":0,\"sends\":{\"chorus\":5,\"delay\":0,\"reverb\":0}},{\"slot\":3,\"id\":258,\"name\":\"PAD*WIDE\",\"tags\":0,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"51068cbd9e0472d14497caf652ce3ad1dba091201446d63bba908e9fd5ac6baee0b25be5d88c9221683b84d627e9e3e99be36348155f12a27f466cc9bfdfc0c6d4ff0f8fbbfce1140c05cad7b1be5cf5d4fd367a0f86787f6182de046a7d0c97c4f4f44240dad635f4aca0d4102d9a0530f2ff262556d05b2373bcdf5ef750af\"},\"drive\":127,\"pan\":63,\"sends\":{\"chorus\":127,\"delay\":127,\"reverb\":127}},{\"slot\":4,\"id\":259,\"name\":\"LEAD\",\"tags\":80,\"flags\":0,\"imported\":false,\"blob\":{\"u8\":\"5106d62815cda27e86609ac24603f9d6d5026a9f84837f53ef1559ff69fd6f99443170535b01d46291600a9e4ab4e1f07e79c075bd41a7c9570ed9373430da53083df7fb33d49f3ea2bce023e09d822626b28f1330e13103a8dcc833c84f18a5f107a7cf8612b32b95cc25247440561d4975ccd9d74b61ae9ccb1a92d2cdcb79\"},\"drive\":3,\"pan\":-64,\"sends\":{\"chorus\":1,\"delay\":2,\"reverb\":3}}],\"used\":{\"lib\":[4,330],\"prj\":[3,765],\"all\":0.006392694063926941}},\"presets\":[{\"fizz\":true,\"name\":\"SYN BASS 1\",\"blob\":{\"u8\":\"510682879b97d98914879b737ad76babae292d466560952098936bd8cec4519f400ebdfa4b25be588d93d824d9d1620613d77f864580bb16a40b71a2fb6d775a0cbb6bc24c8e59d7291ea19f205e60efdaa169eb966f4e0c02e14d681f14be8b831a8f9fe2f6999a927c18a6a6feb52223a5f857ec60c2a71249a97ea039b750\"},\"drive\":12,\"pan\":-20,\"sends\":{\"chorus\":0,\"delay\":30,\"reverb\":40},\"fizzTags\":[\"BASS\"],\"favourite\":false,\"source\":{\"fizz\":\"\",\"from\":\"MY PRESETS 1\"},\"notes\":[],\"origin\":[],\"mark\":\"\",\"tags\":[]},{\"fizz\":true,\"name\":\"A/B KEYS\",\"blob\":{\"u8\":\"51069f3c39345de572acbe041b222e7f278d398fc8aac61aa96c010ca1762b43d01c4b0b4b4b2052601f006e0dcb9e091e8742d3336aab74e56b31466db8869ae11f59c11c0c58c97ae0661f029d8f5c644b24d42d7c24005e90e44fb4678e3de96dfe885eaa168a0a993f7c90c77e76380274449a6de59dbca4ff6ccb14547f\"},\"drive\":0,\"pan\":0,\"sends\":{\"chorus\":5,\"delay\":0,\"reverb\":0},\"fizzTags\":[\"KEYS\",\"PLUCK\"],\"favourite\":false,\"source\":{\"fizz\":\"\",\"from\":\"MY PRESETS 2\"},\"notes\":[],\"origin\":[],\"mark\":\"\",\"tags\":[]},{\"fizz\":true,\"name\":\"PAD*WIDE\",\"blob\":{\"u8\":\"51068cbd9e0472d14497caf652ce3ad1dba091201446d63bba908e9fd5ac6baee0b25be5d88c9221683b84d627e9e3e99be36348155f12a27f466cc9bfdfc0c6d4ff0f8fbbfce1140c05cad7b1be5cf5d4fd367a0f86787f6182de046a7d0c97c4f4f44240dad635f4aca0d4102d9a0530f2ff262556d05b2373bcdf5ef750af\"},\"drive\":127,\"pan\":63,\"sends\":{\"chorus\":127,\"delay\":127,\"reverb\":127},\"fizzTags\":[],\"favourite\":false,\"source\":{\"fizz\":\"\",\"from\":\"MY PRESETS 3\"},\"notes\":[],\"origin\":[],\"mark\":\"\",\"tags\":[]},{\"fizz\":true,\"name\":\"LEAD\",\"blob\":{\"u8\":\"5106d62815cda27e86609ac24603f9d6d5026a9f84837f53ef1559ff69fd6f99443170535b01d46291600a9e4ab4e1f07e79c075bd41a7c9570ed9373430da53083df7fb33d49f3ea2bce023e09d822626b28f1330e13103a8dcc833c84f18a5f107a7cf8612b32b95cc25247440561d4975ccd9d74b61ae9ccb1a92d2cdcb79\"},\"drive\":3,\"pan\":-64,\"sends\":{\"chorus\":1,\"delay\":2,\"reverb\":3},\"fizzTags\":[\"LEAD\",\"FX\"],\"favourite\":false,\"source\":{\"fizz\":\"\",\"from\":\"MY PRESETS 4\"},\"notes\":[],\"origin\":[],\"mark\":\"\",\"tags\":[]}],\"web\":{\"tags\":{}}}",
+   "notBackup": "throws: x.bin: not a FIZZ backup"
+  },
+  "soundFromStoreFrame": "[{\"fizz\":true,\"name\":\"SYN BASS 1\",\"blob\":{\"u8\":\"510682879b97d98914879b737ad76babae292d466560952098936bd8cec4519f400ebdfa4b25be588d93d824d9d1620613d77f864580bb16a40b71a2fb6d775a0cbb6bc24c8e59d7291ea19f205e60efdaa169eb966f4e0c02e14d681f14be8b831a8f9fe2f6999a927c18a6a6feb52223a5f857ec60c2a71249a97ea039b750\"},\"drive\":12,\"pan\":-20,\"sends\":{\"chorus\":0,\"delay\":30,\"reverb\":40},\"fizzTags\":[\"BASS\"],\"favourite\":false,\"notes\":[],\"origin\":[],\"mark\":\"\",\"tags\":[]},{\"fizz\":true,\"name\":\"A/B KEYS\",\"blob\":{\"u8\":\"51069f3c39345de572acbe041b222e7f278d398fc8aac61aa96c010ca1762b43d01c4b0b4b4b2052601f006e0dcb9e091e8742d3336aab74e56b31466db8869ae11f59c11c0c58c97ae0661f029d8f5c644b24d42d7c24005e90e44fb4678e3de96dfe885eaa168a0a993f7c90c77e76380274449a6de59dbca4ff6ccb14547f\"},\"drive\":0,\"pan\":0,\"sends\":{\"chorus\":5,\"delay\":0,\"reverb\":0},\"fizzTags\":[\"KEYS\",\"PLUCK\"],\"favourite\":false,\"notes\":[],\"origin\":[],\"mark\":\"\",\"tags\":[]},{\"fizz\":true,\"name\":\"PAD*WIDE\",\"blob\":{\"u8\":\"51068cbd9e0472d14497caf652ce3ad1dba091201446d63bba908e9fd5ac6baee0b25be5d88c9221683b84d627e9e3e99be36348155f12a27f466cc9bfdfc0c6d4ff0f8fbbfce1140c05cad7b1be5cf5d4fd367a0f86787f6182de046a7d0c97c4f4f44240dad635f4aca0d4102d9a0530f2ff262556d05b2373bcdf5ef750af\"},\"drive\":127,\"pan\":63,\"sends\":{\"chorus\":127,\"delay\":127,\"reverb\":127},\"fizzTags\":[],\"favourite\":false,\"notes\":[],\"origin\":[],\"mark\":\"\",\"tags\":[]},{\"fizz\":true,\"name\":\"LEAD\",\"blob\":{\"u8\":\"5106d62815cda27e86609ac24603f9d6d5026a9f84837f53ef1559ff69fd6f99443170535b01d46291600a9e4ab4e1f07e79c075bd41a7c9570ed9373430da53083df7fb33d49f3ea2bce023e09d822626b28f1330e13103a8dcc833c84f18a5f107a7cf8612b32b95cc25247440561d4975ccd9d74b61ae9ccb1a92d2cdcb79\"},\"drive\":3,\"pan\":-64,\"sends\":{\"chorus\":1,\"delay\":2,\"reverb\":3},\"fizzTags\":[\"LEAD\",\"FX\"],\"favourite\":false,\"notes\":[],\"origin\":[],\"mark\":\"\",\"tags\":[]}]",
+  "soundKeys": [
+   "5458f1fa",
+   "008d702d",
+   "bdfacedd",
+   "4ebbd37e"
+  ]
+ }
+}
