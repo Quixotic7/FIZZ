@@ -112,7 +112,7 @@ public struct ImportSheet: View {
         .background(
             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: RGB(0x0d0d11).color, location: 0.3)],
                            startPoint: .top, endPoint: .bottom)
-                .allowsHitTesting(false)
+                .allowsHitTesting(false).ignoresSafeArea(edges: .bottom)
         )
     }
 }

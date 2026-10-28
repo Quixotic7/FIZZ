@@ -185,7 +185,7 @@ public struct ExportSheet: View {
         .padding(.top, 40)
         .padding(.bottom, max(24, insets.bottom))
         .background(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: RGB(0x0d0d11).color, location: 0.3)],
-                                   startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
+                                   startPoint: .top, endPoint: .bottom).allowsHitTesting(false).ignoresSafeArea(edges: .bottom))
     }
 
     /// "3 × .dn2pst", one sound's file name.
