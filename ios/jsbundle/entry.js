@@ -401,3 +401,34 @@ export function demoPatterns(image, { prev = null, projects = [] } = {}) {
   }
   return imageOf(m);
 }
+
+// ---- KEPT: the phone's own presets (Documents/Presets, one .fizzsnd each, seen in the Files app): js/library.js's
+// .fizzsnd as it is, the web tags beside FIZZ's tags as "webTags" (parseFizzsnd passes over it; written only when a
+// preset has some, so a preset without is the web Manager's file byte for byte)
+//   keptFile(sound, webTags, source) -> Uint8Array        keptRead(bytes, file) -> { sound, webTags }
+//   keptLib(entries [{sound, webTags}], {name, fizz, date}) -> makeFizzlib's ZIP, each member a keptFile
+//   keptFileName(name) -> soundFileName ("PLUCK 2.fizzsnd")
+import { zipStored, soundFileName, libraryFileName, LIB_FORMAT as KEPT_LIB, VERSION as KEPT_VERSION } from "../../site/js/library.js";
+
+const keptText = (sound, webTags = [], source = {}) => {
+  const t = soundToFizzsnd(sound, source), tags = Array.from(webTags || [], (x) => String(x)).filter((x) => x);
+  if (!tags.length) return t;
+  const j = JSON.parse(t);
+  j.webTags = tags;
+  return JSON.stringify(j, null, 2) + "\n";
+};
+export const keptFile = (sound, webTags = [], source = {}) => new TextEncoder().encode(keptText(sound, webTags, source));
+export function keptRead(bytes, file = "") {
+  const sound = parseFizzsnd(bytes, file);
+  const j = JSON.parse(new TextDecoder().decode(bytes));
+  return { sound, webTags: Array.isArray(j.webTags) ? j.webTags.map((x) => String(x)) : [] };
+}
+export function keptLib(entries, { name, fizz = "", date = new Date() } = {}) {
+  const enc = new TextEncoder(), list = Array.from(entries);
+  const files = list.map((e, i) => `${String(i + 1).padStart(3, "0")} ${soundFileName(e.sound.name)}`);
+  const meta = { format: KEPT_LIB, version: KEPT_VERSION, name: name || libraryFileName(date).replace(/\.fizzlib$/, ""),
+    date: date.toISOString(), fizz: fizz || "", count: list.length, files };
+  return zipStored([{ name: "library.json", bytes: enc.encode(JSON.stringify(meta, null, 2) + "\n") },
+    ...list.map((e, i) => ({ name: files[i], bytes: enc.encode(keptText(e.sound, e.webTags, { fizz: fizz || (e.sound.source && e.sound.source.fizz) || "" })) }))], date);
+}
+export const keptFileName = (name) => soundFileName(name);

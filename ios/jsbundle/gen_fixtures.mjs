@@ -141,6 +141,28 @@ const fixtures = {
   };
 }
 
+// ---- KEPT: the phone's presets as files (a preset without web tags is the web Manager's .fizzsnd byte for byte; a
+// library of them makeFizzlib's), read back with their web tags
+{
+  const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const s = S.SOUNDS[0], plainFile = E.keptFile(s), tagged = E.keptFile(S.SOUNDS[1], ["SHIMMER", "DARK"], { from: "KEPT" });
+  if (!same(plainFile, new TextEncoder().encode(E.soundToFizzsnd(s)))) throw new Error("keptFile without web tags is not soundToFizzsnd");
+  const entries = [...S.SOUNDS, S.V5].map((x) => ({ sound: x, webTags: [] }));
+  const opts = { name: "SYN", fizz: S.FIZZ, date: S.DATE };
+  if (!same(E.keptLib(entries, opts), E.makeFizzlib([...S.SOUNDS, S.V5], opts))) throw new Error("keptLib without web tags is not makeFizzlib");
+  const lib = E.keptLib([{ sound: S.SOUNDS[0], webTags: ["SHIMMER"] }, { sound: S.SOUNDS[2], webTags: [] }], opts);
+  fixtures.kept = {
+    plain: { length: plainFile.length, sha256: sha(plainFile) },
+    tagged: { b64: b64(tagged), sha256: sha(tagged) },
+    readTagged: plain(E.keptRead(tagged, "B.fizzsnd")),
+    readPlain: plain(E.keptRead(plainFile, "A.fizzsnd")),
+    lib: { length: lib.length, sha256: sha(lib) },
+    libRead: plain(await E.parseFizzlib(lib, "kept.fizzlib")),
+    fileNames: ["PLUCK 2", "A/B:C", "  ", "BASS*"].map((n) => E.keptFileName(n)),
+    notSound: await result(() => E.keptRead(new TextEncoder().encode("{\"format\":\"fizz-library\"}"), "x.fizzsnd")),
+  };
+}
+
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "fixtures.json"), JSON.stringify(fixtures, null, 1) + "\n");
 writeFileSync(join(OUT, "presets.fizzbak"), presets);

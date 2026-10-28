@@ -16,12 +16,13 @@ import Observation
 @MainActor @Observable
 public final class ImportModel {
     /// SEND's target (importer.js I.dest).
-    public enum Target: String, Sendable, CaseIterable { case mine, pool, track }
+    public enum Target: String, Sendable, CaseIterable { case mine, pool, track, kept }
 
     /// What came of a row sent.
     public enum Result: Sendable, Equatable {
         case sent(Int)                  // MY PRESETS' slot (or the pool's place)
         case failed(String)             // FULL, BUSY, ..
+        case kept                       // a KEPT preset now (on the phone)
     }
 
     public struct Row: Identifiable, Sendable, Equatable {
@@ -78,6 +79,7 @@ public final class ImportModel {
     public var trackOn: Bool { unit?.actions.trackOn ?? false }
 
     public var canSend: Bool {
+        if target == .kept { return unit != nil && !sending && !ticked.isEmpty }
         guard let u = unit, u.unit?.version != nil, !sending, !ticked.isEmpty else { return false }
         return u.actions.canTransfer
     }
@@ -176,6 +178,7 @@ public final class ImportModel {
     /// ↓ SEND n TO FM-1: the ticked rows stored in order (the first onto the track for TRACK), each row's result;
     /// FULL stops the rest.
     public func send() async {
+        if target == .kept { return await sendKept() }
         guard canSend, let a = unit?.actions else { return }
         let go = ticked
         let dest: SendDestination = target == .pool ? .pool : target == .track && trackOn ? .track(track) : .mine
@@ -193,6 +196,22 @@ public final class ImportModel {
             case .refused(let x): rows[k].result = .failed(x.name)
             case .noAnswer: rows[k].result = .failed("NO ANSWER")
             default: rows[k].result = .failed("NOT NOW")
+            }
+        }
+    }
+
+    /// SEND n TO KEPT: each ticked sound a kept preset (its web tags with it); one kept already: HAVE.
+    private func sendKept() async {
+        guard canSend, let u = unit else { return }
+        let go = ticked
+        sending = true
+        defer { sending = false }
+        for r in go {
+            guard let s = r.item.sound, let k = rows.firstIndex(where: { $0.id == r.id }) else { continue }
+            switch await u.keep(sound: s, webTags: r.item.webTags) {
+            case .kept: rows[k].result = .kept; rows[k].on = false
+            case .already: rows[k].result = .failed("HAVE"); rows[k].on = false
+            case .failed: rows[k].result = .failed("NOT KEPT")
             }
         }
     }

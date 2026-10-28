@@ -4305,7 +4305,38 @@ function demoPatterns(image, { prev = null, projects = [] } = {}) {
   }
   return imageOf(m);
 }
-return { BACKUP_FORMAT, EXPORT_MIDI_ONLY, FIZZ_TAGS, LAYOUTS, backupFileName, buildImage, crc32, demoPatterns, demoStore, editPack, editTable, editTexts, exportCarry, exportFile, hex8, importDuplicates, importRead, layoutOf, makeFizzbak, makeFizzlib, makeUnitFizzbak, parseFizzlib, parseFizzsnd, pjClear, pjClose, pjCopy, pjCopyKept, pjDiscard, pjFizzpat, pjFree, pjImage, pjKeep, pjKeptInfo, pjLoadKept, pjOpen, pjPaste, pjReadFizzpat, pjRebase, pjRenameKept, pjUndo, pjView, presetsFromDumps, presetsFromSummary, readBackup, readRegion, restoreFit, restorePlan, sameSound, soundFromFrame, soundFromLib, soundFromStoreFrame, soundKey, soundToFizzsnd, toPlain, transferOf, webFor, writeStore };
+
+// ---- KEPT: the phone's own presets (Documents/Presets, one .fizzsnd each, seen in the Files app): js/library.js's
+// .fizzsnd as it is, the web tags beside FIZZ's tags as "webTags" (parseFizzsnd passes over it; written only when a
+// preset has some, so a preset without is the web Manager's file byte for byte)
+//   keptFile(sound, webTags, source) -> Uint8Array        keptRead(bytes, file) -> { sound, webTags }
+//   keptLib(entries [{sound, webTags}], {name, fizz, date}) -> makeFizzlib's ZIP, each member a keptFile
+//   keptFileName(name) -> soundFileName ("PLUCK 2.fizzsnd")
+const { zipStored, soundFileName, libraryFileName, LIB_FORMAT: KEPT_LIB, VERSION: KEPT_VERSION } = __fizz_m2;
+
+const keptText = (sound, webTags = [], source = {}) => {
+  const t = soundToFizzsnd(sound, source), tags = Array.from(webTags || [], (x) => String(x)).filter((x) => x);
+  if (!tags.length) return t;
+  const j = JSON.parse(t);
+  j.webTags = tags;
+  return JSON.stringify(j, null, 2) + "\n";
+};
+const keptFile = (sound, webTags = [], source = {}) => new TextEncoder().encode(keptText(sound, webTags, source));
+function keptRead(bytes, file = "") {
+  const sound = parseFizzsnd(bytes, file);
+  const j = JSON.parse(new TextDecoder().decode(bytes));
+  return { sound, webTags: Array.isArray(j.webTags) ? j.webTags.map((x) => String(x)) : [] };
+}
+function keptLib(entries, { name, fizz = "", date = new Date() } = {}) {
+  const enc = new TextEncoder(), list = Array.from(entries);
+  const files = list.map((e, i) => `${String(i + 1).padStart(3, "0")} ${soundFileName(e.sound.name)}`);
+  const meta = { format: KEPT_LIB, version: KEPT_VERSION, name: name || libraryFileName(date).replace(/\.fizzlib$/, ""),
+    date: date.toISOString(), fizz: fizz || "", count: list.length, files };
+  return zipStored([{ name: "library.json", bytes: enc.encode(JSON.stringify(meta, null, 2) + "\n") },
+    ...list.map((e, i) => ({ name: files[i], bytes: enc.encode(keptText(e.sound, e.webTags, { fizz: fizz || (e.sound.source && e.sound.source.fizz) || "" })) }))], date);
+}
+const keptFileName = (name) => soundFileName(name);
+return { BACKUP_FORMAT, EXPORT_MIDI_ONLY, FIZZ_TAGS, LAYOUTS, backupFileName, buildImage, crc32, demoPatterns, demoStore, editPack, editTable, editTexts, exportCarry, exportFile, hex8, importDuplicates, importRead, keptFile, keptFileName, keptLib, keptRead, layoutOf, makeFizzbak, makeFizzlib, makeUnitFizzbak, parseFizzlib, parseFizzsnd, pjClear, pjClose, pjCopy, pjCopyKept, pjDiscard, pjFizzpat, pjFree, pjImage, pjKeep, pjKeptInfo, pjLoadKept, pjOpen, pjPaste, pjReadFizzpat, pjRebase, pjRenameKept, pjUndo, pjView, presetsFromDumps, presetsFromSummary, readBackup, readRegion, restoreFit, restorePlan, sameSound, soundFromFrame, soundFromLib, soundFromStoreFrame, soundKey, soundToFizzsnd, toPlain, transferOf, webFor, writeStore };
 })();
 globalThis.FizzData = Object.freeze(__fizz_m14);
 

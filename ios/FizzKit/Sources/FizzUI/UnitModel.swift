@@ -110,6 +110,8 @@ public final class UnitModel {
     public let importer = ImportModel()
     /// PROJECTS' store read, its changes waiting, the kept projects (I6, ProjectsModel.swift)
     public let projectsTab: ProjectsModel
+    /// KEPT: the phone's own presets, Documents/Presets (KeptPresets.swift)
+    public let kept: KeptPresets
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }
@@ -132,8 +134,9 @@ public final class UnitModel {
 
     /// backups: the folder the backups are kept in (Documents/Backups in the app).
     public init(source: any LinkSource, backups: URL = BackupStore.defaultDirectory,
-                projects: URL = KeptStore.defaultDirectory) {
+                projects: URL = KeptStore.defaultDirectory, presets: URL = KeptPresets.defaultDirectory) {
         self.source = source
+        self.kept = KeptPresets(directory: presets, index: presets == KeptPresets.defaultDirectory ? KeptPresets.defaultIndex : nil)
         self.backups = BackupModel(store: BackupStore(directory: backups))
         self.actions = UnitActions()
         self.webTags = WebTagStore(url: WebTagStore.url(besides: backups))
@@ -153,6 +156,9 @@ public final class UnitModel {
         started = true
         let store = backups.store
         Task { await store.reload() }
+        let kept = kept
+        Task { await kept.reload() }
+        kept.watch()
         let changes = source.changes
         listener = Task { [weak self] in
             for await _ in changes { self?.portsChanged() }
@@ -162,6 +168,7 @@ public final class UnitModel {
 
     public func stop() {
         listener?.cancel(); debounce?.cancel(); retry?.cancel()
+        kept.unwatch()
         let l = link
         link = nil
         Task { await l?.close() }
@@ -391,6 +398,9 @@ public final class UnitModel {
         lastActive = t
         let store = backups.store
         Task { await store.reload() }
+        let kept = kept
+        Task { await kept.reload() }
+        kept.watch()
         Task { await refresh(quick: true) }
     }
 

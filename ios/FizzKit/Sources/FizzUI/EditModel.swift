@@ -19,12 +19,15 @@ public enum EditTarget: Sendable, Equatable {
     case preset(FizzListEntry)
     case sound(FizzSound, label: String)
     case track
+    /// a KEPT preset (SAVE writes its file back) and + NEW on KEPT (INIT, saved to KEPT)
+    case kept(KeptPreset)
+    case newKept
 }
 
 /// Where the edited sound came from (editor.js E.place).
 public struct EditPlace: Sendable, Equatable {
     public var label: String
-    /// "mine", "factory", "track", "file", "new"
+    /// "mine", "factory", "track", "file", "new", "kept"
     public var source: String
     /// MY PRESETS' slot SAVE writes over (0: none)
     public var slot: Int
@@ -34,10 +37,16 @@ public struct EditPlace: Sendable, Equatable {
     public var track: Int
     /// read from the unit's track (followed)
     public var fromTarget: Bool
+    /// KEPT: the preset's file (nil: + NEW, not saved yet)
+    public var kept: String?
 
-    public init(label: String, source: String, slot: Int = 0, id: Int = 0, track: Int = -1, fromTarget: Bool = false) {
+    public init(label: String, source: String, slot: Int = 0, id: Int = 0, track: Int = -1, fromTarget: Bool = false, kept: String? = nil) {
         self.label = label; self.source = source; self.slot = slot; self.id = id; self.track = track; self.fromTarget = fromTarget
+        self.kept = kept
     }
+    /// A KEPT preset's place (nil: + NEW).
+    public static func kept(_ id: String?) -> EditPlace { EditPlace(label: "KEPT", source: "kept", kept: id) }
+    public var isKept: Bool { source == "kept" }
     public static let new = EditPlace(label: "NEW SOUND", source: "new")
 }
 
@@ -141,8 +150,12 @@ public final class EditorModel {
         return !s.sameValues(b) || s.name != b.name || s.tags != b.tags
     }
     /// SAVE over the MY preset it came from; SAVE AS NEW (manager.js canSave).
-    public var canSave: Bool { (actions?.canWrite ?? false) && place.source == "mine" && place.slot > 0 && sound != nil }
-    public var canSaveNew: Bool { (actions?.canWrite ?? false) && sound != nil }
+    public var canSave: Bool {
+        if place.isKept { return sound != nil }
+        return (actions?.canWrite ?? false) && place.source == "mine" && place.slot > 0 && sound != nil
+    }
+    /// (KEPT: another kept preset, no unit needed)
+    public var canSaveNew: Bool { sound != nil && (place.isKept || (actions?.canWrite ?? false)) }
     /// The track number the switch shows: the followed one, else the unit's selected one.
     public var trackShown: Int { track >= 0 ? track : unitSelected }
 
@@ -196,7 +209,25 @@ public final class EditorModel {
             guard let s = try? await e.editSound(lib: fs) else { return }
             detach()
             open(s, place: EditPlace(label: String(label.uppercased().prefix(24)), source: "file"))
+        case .kept(let k):
+            guard let f = await unit?.kept.full(k), let s = try? await e.editSound(lib: f.sound) else { return }
+            await openKept(s, lib: f.sound, place: .kept(k.id))
+        case .newKept:
+            guard let t = table else { return }
+            let s = blank(t)
+            await openKept(s, lib: try? await e.libSound(s), place: .kept(nil))
         }
+    }
+
+    /// A KEPT sound opened: TRACK on, heard on the track at once (KEEP / CANCEL) and edited there live, its place KEPT.
+    private func openKept(_ s: EditSound, lib: FizzSound?, place p: EditPlace) async {
+        if let a = actions, a.trackOn, let lib, await a.pickSound(lib).isOK, await attach() {
+            place = p
+            say("edit: \(s.name) (KEPT, on TRACK \(track + 1))")
+            return
+        }
+        detach()
+        open(s, place: p)
     }
 
     /// editor.js open: the sound and the one to go back to.
@@ -221,8 +252,10 @@ public final class EditorModel {
         guard let r = await a.readTrack(), let s = try? await e.editSound(frame: r.frame) else { return false }
         took(s)
         baseFrame = r.frame
+        // (a KEPT sound heard on the track stays KEPT's)
+        let keep = following && place.isKept ? place : nil
         following = true
-        open(s, place: placeOf(s))
+        open(s, place: keep ?? placeOf(s))
         if shown { startPoll() }
         return true
     }
@@ -416,6 +449,7 @@ public final class EditorModel {
     /// SAVE (over the MY preset it came from: the screen asked first) or SAVE AS NEW (the first free place); TRACK on:
     /// the track then plays it (LOAD) and the editor reads it again.
     @discardableResult public func save(asNew: Bool) async -> UnitOutcome {
+        if place.isKept { return await saveKept(asNew: asNew) }
         guard let s = sound, let a = actions, let e = engine(), !saving else { return .notNow }
         saving = true
         defer { saving = false }
@@ -429,6 +463,37 @@ public final class EditorModel {
             place = EditPlace(label: "MY PRESETS \(n)", source: "mine", slot: n, id: row?.id ?? 0)
         }
         return x
+    }
+
+    /// KEPT's SAVE (the preset's file written again, its source and web tags kept; + NEW: a new one) and SAVE AS NEW
+    /// (another kept preset, its name made unique). Nothing goes to the unit.
+    private func saveKept(asNew: Bool) async -> UnitOutcome {
+        guard var s = sound, let store = unit?.kept, let e = engine(), !saving else { return .notNow }
+        saving = true
+        defer { saving = false }
+        let old = place.kept.flatMap { store.item($0) }
+        if asNew || old == nil {
+            s.name = store.uniqueName(s.name)
+        }
+        guard let fs = try? await e.libSound(s) else { return .refused(.badPatch) }
+        let k: KeptPreset?
+        if !asNew, let old {
+            k = try? await store.update(old) { f in
+                var n = fs
+                n.source = f.sound.source
+                n.favourite = f.sound.favourite
+                f.sound = n
+            }
+        } else {
+            k = try? await store.add(fs)
+        }
+        guard let k else { return .notNow }
+        sound = s
+        base = s
+        place = .kept(k.id)
+        store.reveal = k.id
+        say("\(s.name) -> KEPT (\(k.id))")
+        return .ok
     }
 
     // MARK: the keybed

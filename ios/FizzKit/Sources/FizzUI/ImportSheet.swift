@@ -102,11 +102,12 @@ public struct ImportSheet: View {
         let im = model.importer
         let n = im.ticked.count
         return VStack(spacing: 12) {
-            if n > im.free && model.unit != nil {
+            if n > im.free && model.unit != nil && im.target != .kept {
                 NameChip(text: "ONLY \(im.free) FREE", fill: FZ.orange)
             }
             TargetSwitch(target: im.target, track: im.track, trackOn: im.trackOn) { im.pick($0) }
-            SendButton(n: n, progress: im.sendProgress, enabled: im.canSend) { Task { await im.send() } }
+            SendButton(n: n, progress: im.sendProgress, enabled: im.canSend, to: im.target == .kept ? "KEPT" : model.unitName,
+                       color: im.target == .kept ? FZ.champagne : FZ.violet) { Task { await im.send() } }
         }
         .padding(.horizontal, 16)
         .padding(.top, 40)
@@ -246,7 +247,16 @@ struct ImportRowView: View {
                 .background(RoundedRectangle(cornerRadius: 6).fill(FZ.green.color))
                 .fixedSize()
             case .failed(let why):
-                StateChip(text: why, color: FZ.red, solid: true)
+                StateChip(text: why, color: why == "HAVE" ? FZ.orange : FZ.red, solid: true)
+            case .kept:
+                HStack(spacing: 4) {
+                    IconView(KeptArt.phone, color: .black, lineWidth: 2.4, backdrop: FZ.champagne.color).frame(width: 13, height: 13)
+                    Text("KEPT").fz(12, 800, em: 0.04)
+                }
+                .foregroundStyle(.black)
+                .padding(.horizontal, 8).frame(height: 24)
+                .background(RoundedRectangle(cornerRadius: 6).fill(FZ.champagne.color))
+                .fixedSize()
             }
         } else if !row.item.ok {
             StateChip(text: Self.reason(row.item.error), color: FZ.red, solid: false)
@@ -342,16 +352,21 @@ struct TargetSwitch: View {
                 let on = t == target
                 Button { pick(t) } label: {
                     HStack(spacing: 7) {
+                        if t == .kept {
+                            IconView(KeptArt.phone, color: on ? .black : FZ.champagne.color, lineWidth: 2.2,
+                                     backdrop: on ? FZ.champagne.color : .black).frame(width: 14, height: 16)
+                        }
                         Text(t == .mine ? "MY PRESETS" : t.rawValue.uppercased()).fz(13, 800, em: 0.07)
+                            .lineLimit(1).minimumScaleFactor(0.8)
                         if t == .track {
                             Text("\(track + 1)").fz(13, 800).foregroundStyle(.white)
                                 .frame(width: 22, height: 22).background(Circle().fill(FZ.pink.color))
                                 .contentTransition(.numericText())
                         }
                     }
-                    .foregroundStyle(on ? Color.black : FZ.muted.color)
+                    .foregroundStyle(on ? Color.black : t == .kept ? FZ.champagne.color : FZ.muted.color)
                     .frame(maxWidth: .infinity).frame(height: 44)
-                    .background(on ? FZ.violet.color : .clear)
+                    .background(on ? (t == .kept ? FZ.champagne : FZ.violet).color : .clear)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -372,20 +387,23 @@ struct SendButton: View {
     let n: Int
     let progress: (done: Int, of: Int)?
     let enabled: Bool
+    /// the unit's name (FM-1, THIS iPHONE), or KEPT
+    var to = "FM-1"
+    var color: RGB = FZ.violet
     let action: () -> Void
 
     var body: some View {
         Animated(still: 0.6) { t in
             Button(action: action) {
                 HStack(spacing: 10) {
-                    IconView(TransferIcons.down, color: .black, lineWidth: 3, backdrop: FZ.violet.color).frame(width: 20, height: 20)
-                    Text(progress.map { "\($0.done) / \($0.of)" } ?? "SEND \(n) TO FM-1").fz(19, 800, em: 0.08)
+                    IconView(TransferIcons.down, color: .black, lineWidth: 3, backdrop: color.color).frame(width: 20, height: 20)
+                    Text(progress.map { "\($0.done) / \($0.of)" } ?? "SEND \(n) TO \(to)").fz(19, 800, em: 0.08)
                         .contentTransition(.numericText())
                 }
                 .foregroundStyle(.black)
                 .frame(maxWidth: .infinity).frame(height: 64)
-                .background(Capsule().fill(FZ.violet.color))
-                .shadow(color: FZ.violet.opacity(enabled ? 0.35 + 0.35 * breathe(t, 2) : 0), radius: 10 + 10 * breathe(t, 2))
+                .background(Capsule().fill(color.color))
+                .shadow(color: color.opacity(enabled ? 0.35 + 0.35 * breathe(t, 2) : 0), radius: 10 + 10 * breathe(t, 2))
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)
