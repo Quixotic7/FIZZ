@@ -31,8 +31,13 @@ extern "C" {
 
 struct qd_app;
 
+#if QD_PKG_BLE
+#define QD_NPROJ 4                     /* (2026-10-27: the Bluetooth package's, qd_config.h QD_PKG_BLE) */
+#define QD_NLIB 128
+#else
 #define QD_NPROJ 8
 #define QD_NLIB 256                    /* P1.5t: MY presets (was the LIBRARY's 128) */
+#endif
 #define QD_PROJ_NAME 13
 #define QD_SAVE_DEBOUNCE_MS 1500u      /* §7: written a moment after the last edit */
 #define QD_SAVE_LOOK_MS 50u            /* how often the app looks for changes */
@@ -44,11 +49,32 @@ struct qd_app;
  * (765 pages, 10 kept blank for a full pattern's record: 615 for the eight projects, which keep their sounds by
  * reference; the owner's projects today take 51 pages, a full one of 64 dense patterns ~835: the store refuses what
  * does not fit, counted, and says so) */
+#if QD_PKG_BLE
+/* 2026-10-27, THE BLUETOOTH PACKAGE (qd_config.h QD_PKG_BLE): 4 projects and 128 MY PRESETS. The region's first 24
+ * sectors (0x97000..0xAEFFF) are not the store: the package's second firmware data blob is there (the port's). Then
+ * the LIBRARY's 11 sectors from 24 x 4096 (flash 0xAF000..0xB9FFF: 128 MY PRESETS and the factory tags, 129 pages of
+ * 135, two sectors kept blank) and the projects' 38 from 35 x 4096 (flash 0xBA000..0xDFFFF: 570 pages, 10 sectors
+ * kept blank: 420 for the four projects, 105 a project against the USB package's 77). Its stores' sectors begin
+ * "Z2FB" (store.h QDS_MAGIC 0x4246325A; the USB package's "Z2FS" 0x5346325A), so neither package ever reads the
+ * other's: a sector of the other's is one to erase (store.h MOUNT), and the port erases a region holding no sector of
+ * its own first. A reader of a store image tells the two layouts apart by the magic of the sectors (a sector's first
+ * four bytes, little-endian; a blank sector is all FF):
+ *   USB package        "Z2FS"  LIBRARY 0x97000, 22 sectors; projects 0xAD000, 51; its backup 0x97000..0xDFFFF (73)
+ *   Bluetooth package  "Z2FB"  LIBRARY 0xAF000, 11 sectors; projects 0xBA000, 38; its backup 0xAF000..0xDFFFF (49)
+ * (offsets from 0x97000 here: the USB package's LIBRARY 0, projects 22 x 4096). The Bluetooth package's backup (the
+ * port's FZBI, firmware/tools/fizz_xdata.py backup) covers its store region only, not the blob before it */
+#define QD_FLASH_LIB (24u * 4096u)
+#define QD_FLASH_LIB_SEC 11
+#define QD_FLASH_LIB_RESERVE 2
+#define QD_FLASH_PRJ (35u * 4096u)
+#define QD_FLASH_PRJ_SEC 38
+#else
 #define QD_FLASH_LIB 0x000000u
 #define QD_FLASH_LIB_SEC 22
 #define QD_FLASH_LIB_RESERVE 2
 #define QD_FLASH_PRJ (22u * 4096u)
 #define QD_FLASH_PRJ_SEC 51
+#endif
 #else
 #define QD_FLASH_LIB 0x000000u
 #define QD_FLASH_LIB_SEC 32            /* (256 presets of about 120 bytes: a quarter of it) */
@@ -88,7 +114,7 @@ typedef struct {
                                         * references in other projects stay dangling until they load) */
     char pname[QD_NPROJ][QD_PROJ_NAME];   /* the projects' names */
     uint8_t pexists[QD_NPROJ];
-    int proj;                          /* the project worked on, 0..7 */
+    int proj;                          /* the project worked on, 0..QD_NPROJ - 1 */
     uint8_t pdemo;                     /* .. it started with the demo patterns (its patterns' defaults) */
     uint32_t saved[QD_PI_N], seen[QD_PI_N], changed[QD_PI_N];
     int scan;                          /* the round robin's place */
@@ -173,7 +199,7 @@ int qd_pool_copy(struct qd_app *a, int from, int to);
 int qd_pool_delete(struct qd_app *a, int k);
 int qd_pool_users(const struct qd_app *a, int k, uint8_t *tracks, int *steps);   /* tracks: bit t; 1 used */
 
-/* MY PRESETS (the library's, places 0..255; P1.5t): store a new preset (its name, a new id, its kind read; flags
+/* MY PRESETS (the library's, places 0..QD_NLIB - 1; P1.5t): store a new preset (its name, a new id, its kind read; flags
  * QD_SNDF_*), replace one (its id kept), delete; the first free place (-1 none); a place by its preset id (-1 none); a
  * preset by its id (factory or mine: 1 found) */
 int qd_lib_free_slot(const struct qd_app *a);

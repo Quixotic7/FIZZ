@@ -593,11 +593,13 @@ static uint32_t sx_put14(uint8_t *b, uint32_t o, uint32_t v)
 
 /* STATUS (42): proto, tracks, flags (QD_SXT_*), the project worked on (0..7), its pattern, projects there; MY PRESETS
  * used, the pool's sounds, records committed (3 bytes), the library's store pages used / all, the projects' (2 bytes
- * each); the job's command (0 none) */
+ * each); the job's command (0 none); the selected track. 2026-10-27: the Bluetooth package's reply goes on: its
+ * package byte (QD_SXK_*), its projects (4), its MY PRESETS' places (2 bytes: 128); the USB package's ends at the
+ * track, as before (a reply without them: the USB package, 8 projects, 256 places) */
 static void sx_status(qd_app_t *a)
 {
     const qd_persist_t *ps = &a->per;
-    uint8_t b[25];
+    uint8_t b[25 + 4 * QD_PKG_BLE];
     uint32_t u[6] = {0, 0, 0, 0, 0, 0}, o = 0;
     int k, np = 0;
     for (k = 0; k < QD_NLIB; k++)
@@ -628,6 +630,11 @@ static void sx_status(qd_app_t *a)
         o = sx_put14(b, o, u[k]);
     b[o++] = a->sx.wk.cmd;
     b[o++] = (uint8_t)a->sel;                           /* (P2-B: the selected track) */
+#if QD_PKG_BLE
+    b[o++] = QD_SXK_BLE;                                /* (2026-10-27: the package, its counts) */
+    b[o++] = QD_NPROJ;
+    o = sx_put14(b, o, QD_NLIB);
+#endif
     sx_reply(a, b, o);
 }
 

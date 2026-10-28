@@ -40,9 +40,14 @@
 /* the Bluetooth package (2026-10-27; firmware/build.py --ble: -DQD_PKG_BLE=1, the host's and the tests' too): the
  * FM-1's second package, with fm1-base's Bluetooth MIDI, pays for it in the core: 4 projects and 128 MY presets
  * (persist.h QD_NPROJ, QD_NLIB, and its stores' own layout and magic), the reverb's lines packed 12-bit (cr_fx.c
- * QD_FX_REVERB_PACKED), fewer undo levels (undo.h). 0: the USB package (and every host build) as before */
+ * QD_FX_REVERB_PACKED), fewer undo levels (undo.h), BLUETOOTH ON / OFF on SETTINGS (app.h qd_app_ble_on), the package
+ * in STATUS's reply (fizz_sx.c). Its sizes: "the Bluetooth package" in the device's profile below. 0: the USB package
+ * (and every host build) as before */
 #ifndef QD_PKG_BLE
 #define QD_PKG_BLE 0
+#endif
+#if QD_PKG_BLE && !defined(QD_DEVICE)
+#error "qd_config.h: the Bluetooth package (QD_PKG_BLE) is a device build (QD_DEVICE)"
 #endif
 
 /* the tracks a project has (2026-10-24: 8 -> 6, the owner's choice, for RAM; model.h QD_NTRACK, pattern.h QD_PAT_NTRACK,
@@ -112,6 +117,23 @@
 #define QDS_JOBBUF 512                 /* a record the store copies (longer: streamed from its owner, store.h) */
 #define QD_LIB_KEYS 320                /* the library store's index: MY presets (256), the factory tags */
 #define QD_PRJ_KEYS 1024               /* the projects' store's index */
+/* ---- the Bluetooth package (QD_PKG_BLE, 2026-10-27): what it changes of the sizes above, nothing else (persist.h:
+ * 4 projects, 128 MY presets, its stores' layout and magic). A store's index never overflows: an index full drops
+ * the keys it has no place for (store.c index_put: a record written then is lost), so each is sized to what its store
+ * can hold. 12 bytes a key */
+#if QD_PKG_BLE
+#ifndef QD_UNDO_POOL_BLE
+#define QD_UNDO_POOL_BLE 16384u        /* the undo log (the knob: fewer bytes, fewer levels; the snapshot and the
+                                        * clipboard of a dense pattern refused sooner) */
+#endif
+#undef QD_UNDO_POOL
+#define QD_UNDO_POOL QD_UNDO_POOL_BLE
+#undef QD_LIB_KEYS
+#define QD_LIB_KEYS 136                /* the library's keys: 128 MY presets and the factory tags' record (129; a
+                                        * deleted preset's tombstone keeps its key), rounded up */
+#undef QD_PRJ_KEYS
+#define QD_PRJ_KEYS 576                /* the projects' store's 38 sectors hold 570 record pages: a key at least one */
+#endif
 #else
 #define QD_PROFILE_NAME "host"
 #define QD_POOL_MAX 64                 /* (a setting: 16 by default, more for experiments) */

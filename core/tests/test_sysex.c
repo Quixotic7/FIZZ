@@ -269,8 +269,13 @@ static void phase1_tests(void)
     /* STATUS, PROJECTS */
     cmd(QD_SX_STATUS, 0, 0);
     CHECK(reply_ok() && R[5] == QD_SX_R_STATUS && R[6] == 1 && R[7] == QD_NTRACK && !(R[8] & QD_SXT_NOSTORE) &&
-              !(R[8] & QD_SXT_PLAYING) && R[9] == 0 && R[11] == 1 && rn == 7 + 24,
+              !(R[8] & QD_SXT_PLAYING) && R[9] == 0 && R[11] == 1 && rn == 7 + 24 + 4 * QD_PKG_BLE,
           "STATUS: 42, protocol 1, 6 tracks, the store attached, stopped, project 1 worked on, one project (%d bytes)", rn);
+#if QD_PKG_BLE
+    CHECK(R[29] == QD_SXK_BLE && R[30] == QD_NPROJ && (R[31] << 7 | R[32]) == QD_NLIB,
+          "STATUS: the Bluetooth package's byte, its 4 projects, its 128 MY PRESETS' places (%02X %02X %02X %02X)", R[29],
+          R[30], R[31], R[32]);
+#endif
     {
         const int lt = R[21] << 7 | R[22], pt = R[25] << 7 | R[26];
         CHECK(lt > 0 && pt > lt && (R[16] << 14 | R[17] << 7 | R[18]) == (int)A.per.written,
@@ -278,7 +283,7 @@ static void phase1_tests(void)
     }
     cmd(QD_SX_PROJECTS, 0, 0);
     CHECK(reply_ok() && R[5] == QD_SX_R_PROJECTS && R[6] == 0 && R[7] == QD_NPROJ && R[8] == (1 | 2 | 4) &&
-              !memcmp(R + 9, A.per.pname[0], strlen(A.per.pname[0])) && R[8 + 15] == 0 && rn == 7 + 3 + 8 * 15,
+              !memcmp(R + 9, A.per.pname[0], strlen(A.per.pname[0])) && R[8 + 15] == 0 && rn == 7 + 3 + QD_NPROJ * 15,
           "PROJECTS: 63, the one worked on (there, worked on, the demos), its name; project 2 not there");
     /* TAGS */
     m1 = mine_store("ALPHA", QD_PKB(QD_PK_BASS));
@@ -331,9 +336,12 @@ static void phase1_tests(void)
     memcpy(b + 3, "NOIR        ", 12);
     cmd(QD_SX_RENAME, b, 15);
     CHECK(ack(QD_SX_RENAME) == QD_SX_OK && !strcmp(A.per.pname[0], "NOIR"), "RENAME: the project worked on");
-    b[2] = 5;
+    b[2] = QD_NPROJ > 4 ? 5 : QD_NPROJ;                 /* (the Bluetooth package's 4 projects: its last) */
     cmd(QD_SX_RENAME, b, 15);
     CHECK(ack(QD_SX_RENAME) == QD_SX_NOT_FOUND, "RENAME: a project that is not there: NOT FOUND");
+    b[2] = QD_NPROJ + 1;
+    cmd(QD_SX_RENAME, b, 15);
+    CHECK(ack(QD_SX_RENAME) == QD_SX_BAD_SLOT, "RENAME: project %d, past the last: BAD SLOT", QD_NPROJ + 1);
     cmd(QD_SX_RENAME, b, 6);
     CHECK(ack(QD_SX_RENAME) == QD_SX_BAD_LENGTH, "RENAME: no name: BAD LENGTH");
     /* SWAP, MY PRESETS */
@@ -970,10 +978,15 @@ int main(int argc, char **argv)
     n = store_msg(f, QD_SXF_POOL, 1, "ONE", blob2, 0, 0, 64, 0, 0, 0, 0);
     send(f, n);
     CHECK(status() == QD_SX_OK && !strcmp(POOL(&A.proj, 1)->name, "ONE"), "the POOL's slot 1: as any other (P1.5t)");
-    n = store_msg(f, 0, 200, "TWO HUNDRED", blob2, 0, 0, 64, 0, 0, 0, 0);
+    n = store_msg(f, 0, QD_NLIB > 128 ? 200 : QD_NLIB, "TWO HUNDRED", blob2, 0, 0, 64, 0, 0, 0, 0);   /* (the Bluetooth
+                                                         * package's 128 places: its last) */
     send(f, n);
-    CHECK(status() == QD_SX_OK && rslot() == 200 && !strcmp(LIB(&A, 199)->name, "TWO HUNDRED"),
-          "LIBRARY 200: MY presets have 256 places (P1.5t)");
+    CHECK(status() == QD_SX_OK && rslot() == (QD_NLIB > 128 ? 200 : QD_NLIB) &&
+              !strcmp(LIB(&A, (QD_NLIB > 128 ? 200 : QD_NLIB) - 1)->name, "TWO HUNDRED"),
+          "LIBRARY %d: MY presets have %d places (P1.5t)", QD_NLIB > 128 ? 200 : QD_NLIB, QD_NLIB);
+    n = store_msg(f, 0, QD_NLIB + 1, "PAST", blob2, 0, 0, 64, 0, 0, 0, 0);
+    send(f, n);
+    CHECK(status() == QD_SX_BAD_SLOT, "LIBRARY %d, past the last: BAD SLOT", QD_NLIB + 1);
     {   /* P1.5x: the preset keeps the frame's pan and sends (LOAD or not); the tags byte; LOAD applies them */
         int m;
         n = store_msg(f, 0, 0, "WITH MIX", blob2, 0, 0, 64 - 20, 11, 22, 33, QD_SXM_PAN | QD_SXM_CHORUS | QD_SXM_DELAY |
@@ -1293,8 +1306,8 @@ int main(int argc, char **argv)
                 }
                 run(1);
             }
-            CHECK(nd == QD_NLIB && five > 50 && six > 100, "DUMP all of MY PRESETS: 256 frames, paced (%d STORE, %d "
-                  "STORE6) in %d ms", five, six, g);
+            CHECK(nd == QD_NLIB && five > 50 * QD_NLIB / 256 && six > 100 * QD_NLIB / 256, "DUMP all of MY PRESETS: %d "
+                  "frames, paced (%d STORE, %d STORE6) in %d ms", nd, five, six, g);
         }
         fresh();
         for (ok3 = 1, k = 0; k < nd; k++) {

@@ -140,7 +140,7 @@ static void leds_lib(const qd_app_t *a, qd_leds_t *out)
     if (u->latch == QD_LATCH_PRJ) {
         out->key[QD_BLACK_KEY[9]] = QD_LED_LIT;
         if (u->pj.page == 1) {
-            for (i = 0; i < 8; i++)
+            for (i = 0; i < QD_NPROJ; i++)              /* (the Bluetooth package's four: W5..W8 dark) */
                 out->key[QD_WHITE_KEY[i]] = i == a->per.proj ? QD_LED_LIT : i == u->pj.chosen ?
                                             (blink(a, QD_BLINK_MS) ? QD_LED_LIT : QD_LED_OFF)
                                           : a->per.pexists[i] ? QD_LED_DIM : QD_LED_FAINT;

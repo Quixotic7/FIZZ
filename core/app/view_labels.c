@@ -337,7 +337,7 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         return;
     }
     if (step && u->latch == QD_LATCH_PRJ) {             /* the project pages */
-        for (i = 0; i < 8; i++)
+        for (i = 0; i < QD_NPROJ; i++)
             lb_setn(o, LB_W(i), "PROJECT ", i + 1);
         lb_set(o, LB_B(9), "NAME");
         lb_set(o, LB_B(10), "DELETE");

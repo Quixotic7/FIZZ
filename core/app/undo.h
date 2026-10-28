@@ -47,7 +47,11 @@ extern "C" {
 
 #define QD_UNDO_LEVELS 8
 #define QD_UNDO_QUIET_MS 500u
+#if QD_PKG_BLE
+#define QD_NLIB_UNDO 128               /* (persist.h's QD_NLIB: the Bluetooth package's) */
+#else
 #define QD_NLIB_UNDO 256               /* (persist.h's QD_NLIB) */
+#endif
 /* (QD_UNDO_POOL, QD_UNDO_XLOCKS: core/qd_config.h, P2.0) */
 #if defined(QD_UNDO_NSLOT)
 #define QD_UNDO_SLOTS 1                /* P2.1: the device's log (above) */

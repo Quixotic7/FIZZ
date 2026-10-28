@@ -194,6 +194,11 @@ $(B)/test_quad_bitexact: $(T)/test_quad_bitexact.c $(ROOT)/core/voice/quad/quad_
 	$(CC) -O2 $(WARN) $(INC) -o $@ $(T)/test_quad_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_quad_ref.o
 $(B)/test_fx_bitexact: $(T)/test_fx_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_fx_ref.o $(HDRS)
 	$(CC) -O2 $(WARN) $(INC) -o $@ $(T)/test_fx_bitexact.c $(ROOT)/core/voice/quad/quad_voice.c $(B)/cr_fx_ref.o -lm
+# the reverb's lines packed 12-bit (cr_fx.c QD_FX_REVERB_PACKED, the Bluetooth package's) against the 16-bit ones: the
+# test's source twice, its packed half with -DFXP_PACKED_TU (no ChoralRoot checkout needed)
+$(B)/test_fx_packed: $(T)/test_fx_packed.c $(ROOT)/core/voice/quad/quad_voice.c $(HDRS) | $(B)
+	$(CC) $(SAN) $(WARN) $(INC) -DFXP_PACKED_TU -c -o $(B)/test_fx_packed_pk.o $(T)/test_fx_packed.c
+	$(CC) $(SAN) $(WARN) $(INC) -o $@ $(T)/test_fx_packed.c $(B)/test_fx_packed_pk.o $(ROOT)/core/voice/quad/quad_voice.c -lm
 
 $(B)/test_sysex: $(T)/test_sysex.c $(SAN_OBJ) $(HDRS)
 	$(CC) $(SAN) $(WARN) $(DEFS) $(INC) -o $@ $(T)/test_sysex.c $(SAN_OBJ) -lm
@@ -207,7 +212,8 @@ $(B)/test_arena: $(T)/test_arena.c $(ROOT)/core/gfx/qd_arena.c $(ROOT)/core/gfx/
 DNSND_DIR ?= $(abspath $(ROOT)/../DigitonePresets)
 TESTS := $(B)/test_quad $(B)/test_fz_dsp $(B)/test_pool $(B)/test_seq $(B)/test_app $(B)/test_ctl $(B)/test_quad_bitexact $(B)/test_fx_bitexact \
          $(B)/test_store $(B)/test_persist $(B)/test_sysex $(B)/test_mfx $(B)/test_tools $(B)/test_midi
-test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-gfx-fast budget-ratchet values-check stats-names-check
+TESTS += $(B)/test_fx_packed
+test: test-host test-dev test-dev16 test-dev-fast test-dev-fb8 test-dev-ble test-gfx-fast budget-ratchet values-check stats-names-check
 	@echo "make test: all passed (host and device sizes, the device's drawing too)"
 
 # P2.0: the same tests at the device's sizes (core/qd_config.h QD_DEVICE), built into build/dev; the timelines into
@@ -236,6 +242,11 @@ test-dev-fast8:
 # P2.6e: the unit's 8-bit frame (GFX=fb: QD_GFX_FB, 16-row bands), 8 voices
 test-dev-fb8:
 	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8" GFX=fb B=build/dev-fb8 OUT=$(abspath $(OUT))/dev-fb8 \
+	    SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
+# 2026-10-27: the Bluetooth package's sizes (qd_config.h QD_PKG_BLE: 4 projects, 128 MY presets, its stores' layout
+# and magic), as test-dev-fb8
+test-dev-ble:
+	$(MAKE) PROFILE="-DQD_DEVICE -DQD_VOICES_DEV=8 -DQD_PKG_BLE=1" GFX=fb B=build/dev-ble OUT=$(abspath $(OUT))/dev-ble \
 	    SEQ_GOLD=$(T)/seq_goldens8 test-dev-run
 # P2.6i: each pacing option (core/qd_config.h) built at the unit's profile and its screens rendered (the parts that show
 # it), into build/pace-*/ and OUT/pace-*/: it builds, it draws, and test_app passes with it (t_fb_bands: the changed
@@ -286,6 +297,7 @@ test-host: $(TESTS)
 	node test_fizz_sysex.mjs $(B)/test_sysex
 	$(B)/test_quad_bitexact
 	$(B)/test_fx_bitexact
+	$(B)/test_fx_packed
 	@echo "make test-host: all passed"
 
 # P1.3i: FIZZ (P1.3k: was QUADRILLE) through the core ABI, as FM1VST's host drives it (dlopen of the built module):
@@ -331,4 +343,4 @@ print-%:
 
 include gfx_fast.mk
 
-.PHONY: all frames strips audio values values-check test test-host test-dev test-pace test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev16 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet
+.PHONY: all frames strips audio values values-check test test-host test-dev test-pace test-dev-fast test-dev8 test-dev-fast8 test-dev-fb8 test-dev-ble test-dev16 test-dev-run budget-pvg budget-16 abi midimon remote budget budget-gate budget-ratchet

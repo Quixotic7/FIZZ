@@ -290,6 +290,15 @@ STATUS (`42`) has two more things: flag `20` recording (or armed: notes a page s
 job's command: the selected track (0..5) (a page's editor follows the unit's selected track with it, or with a DUMP of
 track slot 0). Manager fixes: flag `40` the unit's sound browser open (BROWSE below, or PRESETS on the panel).
 
+**The package** (2026-10-27): the FM-1 has two firmware packages, the USB one and the Bluetooth one (Bluetooth MIDI;
+4 projects and 128 MY PRESETS). The Bluetooth package's STATUS goes on after the selected track: a package byte (`01`
+the Bluetooth package; the other bits 0), its projects (`04`), its MY PRESETS' places (2 bytes, 14-bit: `01 00`, 128).
+The USB package's reply is as before, ending at the selected track: a reply without the package byte is the USB
+package, 8 projects and 256 places. So everything above that says 1..8 projects or 1..256 MY PRESETS is 1..4 and
+1..128 on the Bluetooth package (a slot past them: BAD SLOT, as any other; PROJECTS (`63`) says 4 and lists 4).
+Whole STATUS frames, after `F0 7D 46 5A 01 42`: the USB package's 23 bytes, the checksum, `F7` (31 bytes); the
+Bluetooth package's 23 bytes, `01 04 01 00`, the checksum, `F7` (35 bytes).
+
 `tools/fizz_sysex.mjs` (and `site/js/fizz_sysex.js`): `paramRequest({track, id, value, ack})`, `dumpRequest({source:
 "track", slot})` (parseDump gives `track` and `extras`), `storeSound({.., audition, own, extras})`, `trackFrame(dump)`;
 parseStatus gives `rec` and `sel`. `site/manager/fizzlink.js`: `link.dumpTrack(slot)`, `link.param(track, id, value)`,

@@ -2,10 +2,10 @@
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 /* P2.1: what a flash image holds, as the core reads it: every project (its header's state, its 64 patterns, its pool
- * of 128 sounds, its MIDI FX groups), MY presets (256), the factory tags, the settings; one line each, a hash of its
- * fields (field by field: no struct padding). The owner's projects must survive a store format's change: dump the
- * same image with the core before and after it (this file builds in either: the older one has the arrays, P2.1 the
- * read API) and compare the two texts.
+ * of 128 sounds, its MIDI FX groups), MY presets (QD_NLIB: 256, the Bluetooth package's 128), the factory tags, the
+ * settings; one line each, a hash of its fields (field by field: no struct padding). The owner's projects must survive
+ * a store format's change: dump the same image with the core before and after it (this file builds in either: the
+ * older one has the arrays, P2.1 the read API) and compare the two texts.
  *
  *     flash_dump IMAGE [--migrate OUT]
  *

@@ -96,6 +96,10 @@ static void btap(int b) { bt(b, 1); p_run(20); bt(b, 0); p_run(20); }
 static void prj_tap(void) { bt(QD_B_FUNC, 1); btap(QD_B_SAVE); bt(QD_B_FUNC, 0); p_run(20); }   /* T1b: SHIFT + SAVE */
 static void wkey(int w, int down) { qd_app_key(G, QD_WHITE_KEY[w], down, 100); }
 static void wtap(int w) { wkey(w, 1); p_run(30); wkey(w, 0); p_run(20); }
+/* (2026-10-27: the projects these tests copy onto: 6 and 5; the Bluetooth package's last, 4: QD_NPROJ) */
+#define PJ_6 (QD_NPROJ > 4 ? 5 : QD_NPROJ - 1)
+#define PJ_5 (QD_NPROJ > 4 ? 4 : QD_NPROJ - 1)
+#define LIB_POOL0 (QD_NLIB > 128 ? 100 : -1)            /* (the full project's pool sound k: MY preset place LIB_POOL0 + k) */
 static void bkey(int b, int down) { qd_app_key(G, QD_BLACK_KEY[b], down, 100); }
 static void black(int b) { bkey(b, 1); p_run(20); bkey(b, 0); p_run(20); }
 static void knob(int k, int d) { qd_app_knob(G, k, d); p_run(5); }
@@ -196,16 +200,17 @@ static void pages_test(void)
     bt(QD_B_OCTDN, 1);
     p_run(20);
     wtap(2);
-    wtap(5);
+    wtap(PJ_6);
     bt(QD_B_OCTDN, 0);
     p_run(20);
-    CHECK(G->per.pexists[5] && qd_view_screen(G) == QD_SCR_PRJ, "F1 + W3, W6: project 3 copied to 6");
+    CHECK(G->per.pexists[PJ_6] && qd_view_screen(G) == QD_SCR_PRJ, "F1 + W3, W%d: project 3 copied to %d", PJ_6 + 1,
+          PJ_6 + 1);
     bkey(10, 1);
     p_run(20);
-    wtap(5);
+    wtap(PJ_6);
     bkey(10, 0);
     p_run(20);
-    CHECK(!G->per.pexists[5], "B11 + W6: deleted");
+    CHECK(!G->per.pexists[PJ_6], "B11 + W%d: deleted", PJ_6 + 1);
     black(9);                                           /* B10: named on the keybed (P1.5u) */
     CHECK(qd_view_screen(G) == QD_SCR_NAME && G->ui.ty.sel && !strcmp(G->ui.ty.name, G->per.pname[2]),
           "B10: the project's name, selected");
@@ -917,13 +922,14 @@ static void paging_test(void)
 /* P2.1: the pool's and MY presets' sounds paged (at the device's sizes QD_SND_RAM of them in RAM, the rest in the
  * store): 200 presets stored, 100 pool slots referencing them, tags set, one replaced (its references follow), one
  * deleted with its references; read back in another order: each as it was; a restart from the flash: the same */
+#define PG_N (QD_NLIB > 128 ? 200 : 120)                /* (the presets stored: the Bluetooth package's 128 places) */
 static void sound_paging_test(void)
 {
     static qd_sound_t want_lib[QD_NLIB], want_pool[QD_NSOUND];
     int k, ok, n0;
     memset(FL, 0xFF, sizeof FL);
     boot(&A);
-    for (k = 0; k < 200; k++) {
+    for (k = 0; k < PG_N; k++) {
         int16_t p[QD_QUAD_NP];
         char nm[QD_SOUND_NAME];
         qd_quad_preset_patch(k % 17, p);
@@ -933,18 +939,18 @@ static void sound_paging_test(void)
     }
     n0 = A.proj.nsound;
     for (k = 0; k < 100; k++) {
-        const qd_sound_t s = *LIB(&A, 199 - k);
+        const qd_sound_t s = *LIB(&A, PG_N - 1 - k);
         qd_pool_add_sound(&A, &s);
     }
-    for (k = 0; k < 200; k += 7)
+    for (k = 0; k < PG_N; k += 7)
         qd_tags_set(&A, QD_BR_MINE_CODE + k, QD_PKB(k % QD_NPK) | QD_PKB(QD_PK_FX));
     {
         int16_t p[QD_QUAD_NP];
         qd_quad_preset_patch(9, p);
         p[QD_QP_HARM] = 1234;
-        qd_lib_replace(&A, 190, "PG REPL", p);          /* (pool slot n0 + 10 references it) */
+        qd_lib_replace(&A, PG_N - 10, "PG REPL", p);    /* (pool slot n0 + 10 references it) */
     }
-    qd_preset_delete(&A, 180);                          /* (.. and n0 + 20 this one: gone with it) */
+    qd_preset_delete(&A, PG_N - 20);                    /* (.. and n0 + 20 this one: gone with it) */
     qd_undo_close(&A);
     for (k = 0; k < QD_NLIB; k++)
         want_lib[k] = *LIB(&A, k);
@@ -956,9 +962,9 @@ static void sound_paging_test(void)
         ok += !memcmp(LIB(&A, k), &want_lib[k], sizeof want_lib[0]);
     CHECK(ok == QD_NSOUND + QD_NLIB && n0 > 0 && POOL(&A.proj, n0 + 10)->patch[QD_QP_HARM] == 1234 &&
               !strcmp(POOL(&A.proj, n0 + 10)->name, "PG REPL") && !qd_sound_used(&A.proj, n0 + 20) &&
-              !qd_lib_used(&A, 180) && LIB(&A, 7)->tags == (QD_PKB(7 % QD_NPK) | QD_PKB(QD_PK_FX)),
-          "P2.1: 200 presets, 100 pool references, tags, a REPLACE, a delete: read back in another order, each as it "
-          "was (%d of %d)", ok, QD_NSOUND + QD_NLIB);
+              !qd_lib_used(&A, PG_N - 20) && LIB(&A, 7)->tags == (QD_PKB(7 % QD_NPK) | QD_PKB(QD_PK_FX)),
+          "P2.1: %d presets, 100 pool references, tags, a REPLACE, a delete: read back in another order, each as it "
+          "was (%d of %d)", PG_N, ok, QD_NSOUND + QD_NLIB);
 #if QD_SND_RAM
     CHECK(A.per.sc.loads > 0 && A.per.sc.saves > 0, "P2.1: %d of them in RAM: read in %u times, given up %u times",
           QD_SND_RAM, (unsigned)A.per.sc.loads, (unsigned)A.per.sc.saves);
@@ -1135,8 +1141,10 @@ static void foreign_test(void)
             switch (kind) {
             case 0: FL[i] = (uint8_t)r; break;
             case 1: FL[i] = 0; break;
-            case 2: FL[i] = i % 4096u < 12u ? "Z2FS\x05\0\0\0\x5A\x5A\x5A\x5A"[i % 4096u] : (uint8_t)r; break;
-            case 3: FL[i] = i % 4096u < 12u ? "Z2FS\x05\0\0\0\x5A\x5A\xA5\xA5"[i % 4096u] : (uint8_t)r; break;
+            case 2: FL[i] = i % 4096u < 4u ? (uint8_t)(QDS_MAGIC >> 8u * (i % 4096u))   /* (the package's own magic) */
+                          : i % 4096u < 12u ? "Z2FS\x05\0\0\0\x5A\x5A\x5A\x5A"[i % 4096u] : (uint8_t)r; break;
+            case 3: FL[i] = i % 4096u < 4u ? (uint8_t)(QDS_MAGIC >> 8u * (i % 4096u))
+                          : i % 4096u < 12u ? "Z2FS\x05\0\0\0\x5A\x5A\xA5\xA5"[i % 4096u] : (uint8_t)r; break;
             case 4: FL[i] = (r & 0xFFu) < 3u ? (uint8_t)(r >> 8) : 0xFF; break;
             default: FL[i] = (uint8_t)"{\"choralroot\":{\"presets\":[1,2,3],\"name\":\"PAD\"}}\n"[i % 49u]; break;
             }
@@ -1174,6 +1182,70 @@ static void foreign_test(void)
           "%u), all of it within 14 s (quiet from 10 s), the project written (%d)", (unsigned)max_step, ok_done);
     CHECK(ok_again == kind, "P2.4: .. a restart reads the same (%d)", ok_again);
 }
+
+#ifdef QD_DEVICE
+/* 2026-10-27: the two packages' stores, each its own layout and sector magic (persist.h, store.h QDS_MAGIC): this
+ * package's stores written, then their sectors' magic made the other package's (a unit that ran the other package):
+ * nothing of them read (a blank flash's project), every one of them erased in the background, the other magic gone.
+ * The store never writes below its region (the Bluetooth package's first 24 sectors are its second blob's) */
+static uint32_t pk_get32(const uint8_t *b) { return b[0] | (uint32_t)b[1] << 8 | (uint32_t)b[2] << 16 | (uint32_t)b[3] << 24; }
+static void package_test(void)
+{
+    const uint32_t other = QDS_MAGIC == 0x5346325au ? 0x4246325au : 0x5346325au;   /* ("Z2FS" the USB package's, "Z2FB" the
+                                                         * Bluetooth package's) */
+    const uint32_t lo = QD_FLASH_LIB, hi = QD_FLASH_PRJ + QD_FLASH_PRJ_SEC * 4096u;
+    uint32_t o, own = 0, mine = 0, theirs = 0, low = 0, ms;
+    uint64_t want;
+    int16_t p[QD_QUAD_NP];
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 100);
+    want = model_sig(&A);
+    qd_quad_preset_patch(3, p);
+    qd_lib_store(&A, 3, "PKG", p);
+    qd_proj_name(&A, 0, "PKG SONG");
+    qd_step_on(qd_proj_pat(&A.proj, 5), 1, 7);
+    qd_proj_pat(&A.proj, 5)->used = 1;
+    run(&A, 3000);
+    qd_persist_flush(&A);
+    for (o = 0; o < lo; o++)
+        low += FL[o] != 0xFFu;
+    for (o = lo; o < hi; o += 4096u)
+        own += pk_get32(FL + o) == QDS_MAGIC, theirs += pk_get32(FL + o) == other;
+    CHECK(!low && own >= 2u && !theirs && QD_FLASH_LIB_SEC + QD_FLASH_PRJ_SEC <= 73 - (int)(lo / 4096u),
+          "the stores at %u.. (sectors %u..%u of the region's 73): %u sectors begin with the package's magic %08X, none "
+          "below them written", (unsigned)lo, (unsigned)(lo / 4096u), (unsigned)(hi / 4096u - 1u), (unsigned)own,
+          (unsigned)QDS_MAGIC);
+    boot(&B);
+    CHECK(qd_lib_used(&B, 3) && !strcmp(B.per.pname[0], "PKG SONG"), "a restart reads them");
+    for (o = lo; o < hi; o += 4096u)
+        if (pk_get32(FL + o) == QDS_MAGIC)
+            FL[o] = (uint8_t)other, FL[o + 1] = (uint8_t)(other >> 8), FL[o + 2] = (uint8_t)(other >> 16),
+            FL[o + 3] = (uint8_t)(other >> 24);
+    qd_app_init(&B);
+    qd_app_tick(&B, 0);
+    qd_persist_attach(&B, &FLASH);
+    now = 0;
+    CHECK(B.per.on && !qd_lib_used(&B, 3) && strcmp(B.per.pname[0], "PKG SONG") && model_sig(&B) == want &&
+              qd_store_pending(&B.per.lib_st) + qd_store_pending(&B.per.prj_st) >= (int)own - 1,
+          "the other package's sectors (%08X): nothing of them read (a blank flash's project), %d to erase",
+          (unsigned)other, qd_store_pending(&B.per.lib_st) + qd_store_pending(&B.per.prj_st));
+    qd_persist_own_step(&B, 1);
+    for (ms = 0; ms < 14000u; ms++) {
+        qd_app_tick(&B, ++now);
+        if (now % 15u == 0)
+            qd_persist_step(&B);
+    }
+    qd_persist_flush(&B);
+    for (mine = 0, theirs = 0, low = 0, o = 0; o < lo; o++)
+        low += FL[o] != 0xFFu;
+    for (o = lo; o < hi; o += 4096u)
+        mine += pk_get32(FL + o) == QDS_MAGIC, theirs += pk_get32(FL + o) == other;
+    CHECK(!theirs && mine >= 1u && !low && !qd_store_pending(&B.per.lib_st) && !qd_store_pending(&B.per.prj_st),
+          ".. erased in the background (none left; %u of the package's own now), nothing below the stores written",
+          (unsigned)mine);
+}
+#endif
 
 /* P2.1: 'P' 5, TRACK SOUNDS BY REFERENCE: a track sound that is its preset (not edited) is written as the preset's id;
  * read back the same, exactly; one edited stays a copy. A track keeps the sound it loaded: REPLACE, an undo and a
@@ -1534,12 +1606,12 @@ int main(void)
         qd_quad_preset_patch((int)(rnd() % 17u), p);
         p[QD_QP_DRIVE] = (int16_t)(k % 30);
         snprintf(nm, sizeof nm, "S%03d", k);
-        qd_lib_store(&A, 100 + k, nm, p);               /* (P1.5w: the pool references presets: MY ones here) */
+        qd_lib_store(&A, LIB_POOL0 + k, nm, p);         /* (P1.5w: the pool references presets: MY ones here) */
         {
             qd_sound_t s;
             memset(&s, 0, sizeof s);
             strcpy(s.name, nm);
-            s.preset = LIB(&A, 100 + k)->preset;
+            s.preset = LIB(&A, LIB_POOL0 + k)->preset;
             qd_sound_write(&A.proj, k, &s);
         }
     }
@@ -1632,7 +1704,7 @@ int main(void)
               "pool delete: the locks back to the track's sound, the track keeps its copy");
         CHECK(qd_pool_copy(&B, 5, 31) && !strcmp(POOL(&B.proj, 31)->name, POOL(&B.proj, 5)->name), "pool copy 5 -> 31");
     }
-    /* MY presets: store, replace, delete, kept (256 places) */
+    /* MY presets: store, replace, delete, kept (256 places; the Bluetooth package's 128) */
     {
         int16_t p[QD_QUAD_NP];
         int id9;
@@ -1649,15 +1721,16 @@ int main(void)
         qd_lib_replace(&B, 9, "WOB REPL", p);
         qd_lib_store(&B, 2, "GONE", p);
         qd_lib_delete(&B, 2);
-        qd_lib_store(&B, 255, "THE LAST", p);
+        qd_lib_store(&B, QD_NLIB - 1, "THE LAST", p);
         CHECK(qd_persist_flush(&B), "flushed");
         boot(&A);
         CHECK(!strcmp(LIB(&A, 0)->name, "WOB BASS") && !strcmp(LIB(&A, 9)->name, "WOB REPL") &&
                   LIB(&A, 9)->preset == id9 && LIB(&A, 9)->patch[QD_QP_HARM] == 500 && !LIB(&A, 2)->name[0] &&
-                  !strcmp(LIB(&A, 255)->name, "THE LAST") && LIB(&A, 0)->patch[QD_QP_DRIVE] == 10 &&
+                  !strcmp(LIB(&A, QD_NLIB - 1)->name, "THE LAST") && LIB(&A, 0)->patch[QD_QP_DRIVE] == 10 &&
                   LIB(&A, 0)->tags == QD_PKB(QD_PK_BASS) && LIB(&A, 0)->preset >= QD_PRESET_MINE0 &&
                   LIB(&A, 0)->preset != LIB(&A, 9)->preset && !strcmp(POOL(&A.proj, 31)->name, POOL(&A.proj, 5)->name),
-              "a restart: MY presets (their ids, kinds; replace kept the id; place 256) and the pool's changes kept");
+              "a restart: MY presets (their ids, kinds; replace kept the id; place %d) and the pool's changes kept",
+              QD_NLIB);
     }
     /* the projects */
     qd_seq_select(&A.seq, 1, 1);
@@ -1675,13 +1748,14 @@ int main(void)
     qd_step_on(qd_proj_pat(&A.proj, 0), 0, 0);
     qd_proj_pat(&A.proj, 0)->used = 1;
     qd_proj_name(&A, 2, "MY SONG");
-    CHECK(qd_proj_copy(&A, 2, 4) && A.per.pexists[4] && !strcmp(A.per.pname[4], "MY SONG"), "copy 3 -> 5");
+    CHECK(qd_proj_copy(&A, 2, PJ_5) && A.per.pexists[PJ_5] && !strcmp(A.per.pname[PJ_5], "MY SONG"), "copy 3 -> %d",
+          PJ_5 + 1);
     qd_undo_input(&A, 0);                               /* (P1.5c: an undo level, then a load forgets it) */
     qd_step_on(qd_proj_pat(&A.proj, A.seq.cur), 0, 5);
     qd_undo_close(&A);
     CHECK(qd_undo_count(&A, -1) == 1, "an edit: one undo level");
-    CHECK(qd_proj_load(&A, 4) && A.per.proj == 4 && qd_step_is_on(qd_step(qd_proj_pat(&A.proj, 0), 0, 0)) && A.proj.nsound == 0,
-          "load 5: the copy has the edit (its pool empty still: a copy of a new project)");
+    CHECK(qd_proj_load(&A, PJ_5) && A.per.proj == PJ_5 && qd_step_is_on(qd_step(qd_proj_pat(&A.proj, 0), 0, 0)) && A.proj.nsound == 0,
+          "load %d: the copy has the edit (its pool empty still: a copy of a new project)", PJ_5 + 1);
     CHECK(qd_undo_count(&A, -1) == 0 && qd_undo_count(&A, 1) == 0, "a project load: undo forgets (P1.5c)");
     CHECK(qd_proj_delete(&A, 2) && !A.per.pexists[2], "delete 3");
     CHECK(qd_proj_load(&A, 0) && A.per.proj == 0 && !memcmp(&keep_pat[9], qd_proj_cpat(&A.proj, 9), sizeof keep_pat[9]),
@@ -1708,8 +1782,8 @@ int main(void)
     qd_persist_flush(&A);
     boot(&B);
     CHECK(B.ui.view == QD_VIEW_STEPS, "a restart: the view kept (STEPS; P1.5s)");
-    CHECK(B.per.proj == 0 && B.per.pexists[4] && !B.per.pexists[2] && !strcmp(B.per.pname[4], "MY SONG"),
-          "a restart: project 1 worked on, 5 kept, 3 gone");
+    CHECK(B.per.proj == 0 && B.per.pexists[PJ_5] && !B.per.pexists[2] && !strcmp(B.per.pname[PJ_5], "MY SONG"),
+          "a restart: project 1 worked on, %d kept, 3 gone", PJ_5 + 1);
     CHECK(!strcmp(LIB(&B, 99)->name, "SX KEEP"), "a restart: the SysEx import kept (P1.5r)");
     CHECK(A.per.prj_st.c.erases_noisy == 0 && B.per.prj_st.c.erases_noisy == 0, "no erase while sounding, ever");
     demo_drums_test();
@@ -1719,6 +1793,9 @@ int main(void)
     sound_paging_test();
     isr_paging_test();
     foreign_test();
+#ifdef QD_DEVICE
+    package_test();
+#endif
     pref_test();
     replace_rule_test();
     p5_migration_test();

@@ -165,8 +165,10 @@ void ui_prj_draw(const ui_prj_t *v)
     prj_dots(92.f, 1);
     lb_back();
     line2(8.f, 25.f, 232.f, 25.f, UI_G3, 1.f);
-    for (i = 0; i < 8; i++) {
-        const float x = 6.f + (float)(i % 4) * 58.f, y = 32.f + (float)(i / 4) * 104.f, w = 54.f, h = 98.f;
+    for (i = 0; i < UI_NPROJ; i++) {                    /* (four a row; the Bluetooth package's four: one row, in
+                                                         * the middle) */
+        const float x = 6.f + (float)(i % 4) * 58.f, y = (UI_NPROJ > 4 ? 32.f : 84.f) + (float)(i / 4) * 104.f;
+        const float w = 54.f, h = 98.f;
         const int cur = i == v->num - 1, pick = i == v->chosen && !cur, blink = (int)floorf(v->t * 3.f) % 2;
         qd_rgb col;
         int q;

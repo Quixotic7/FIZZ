@@ -61,6 +61,12 @@
 #include "../voice/fx/qd_fx.h"
 #include "../seq/names.h"
 
+#ifdef QD_DEVICE
+/* 2026-10-27: the stores' indexes never full (an index full drops a key's record: store.c index_put). The library's
+ * keys: MY presets and the factory tags' record; the projects' store: a key a record page at least */
+typedef char qd_lib_keys_ok[QD_LIB_KEYS >= QD_NLIB + 1 ? 1 : -1];
+typedef char qd_prj_keys_ok[QD_PRJ_KEYS >= QD_FLASH_PRJ_SEC * (int)(QDS_PPS - 1u) ? 1 : -1];
+#endif
 typedef char qd_tset_old_ok[offsetof(qd_tset_t, mfx) == QD_TSET_SIZE_OLD ? 1 : -1];   /* (P1.6c: 'P' 1..3's) */
 typedef char qd_tset_mfx_ok[offsetof(qd_tset_t, mout) == QD_TSET_SIZE_MFX ? 1 : -1];   /* (FIZZ MIDI (c): 'P' 4..6's
                                                          * of 43 bytes) */

@@ -12,6 +12,7 @@
 #include "../qd_config.h"
 
 #define UI_NTRACK QD_TRACKS              /* the tracks the screens show (qd_config.h) */
+#define UI_NPROJ (QD_PKG_BLE ? 4 : 8)    /* the projects the screens show (persist.h QD_NPROJ: the Bluetooth package 4) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -285,7 +286,7 @@ enum { UI_PFX_LOADED, UI_PFX_BACK, UI_PFX_SAVED };
 void ui_pfx_draw(int kind, const ui_preset_t *s, const ui_preset_t *own, int track, float u, float t);
 typedef struct {
     int page;                           /* 0 the project, 1 the projects */
-    int num;                            /* the one worked on, 1..8 */
+    int num;                            /* the one worked on, 1..UI_NPROJ */
     const char *name;
     uint8_t used[64];
     int cur;                            /* its pattern playing / edited */
@@ -296,7 +297,7 @@ typedef struct {
         int exists;
         const char *name;
         uint8_t used[64];
-    } p[8];
+    } p[UI_NPROJ];
     int chosen, src, armed;             /* the projects: chosen (blinks), copied from, armed onto (-1) */
     float t;
 } ui_prj_t;

@@ -2091,6 +2091,7 @@ static void fill_mix(const qd_app_t *a, ui_mix_t *v)
 }
 
 /* P1.5a: the project pages' model */
+typedef char qd_ui_nproj_ok[UI_NPROJ == QD_NPROJ ? 1 : -1];   /* (2026-10-27: the projects the page shows) */
 static void fill_prj(const qd_app_t *a, ui_prj_t *v)
 {
     const qd_prjui_t *p = &a->ui.pj;
@@ -2112,7 +2113,7 @@ static void fill_prj(const qd_app_t *a, ui_prj_t *v)
     for (i = 1; i <= QD_NSOUND; i++)
         n += qd_sound_used(&a->proj, i);
     v->pool_n = n;
-    for (i = 0; i < QD_NPROJ; i++) {
+    for (i = 0; i < QD_NPROJ; i++) {                    /* (ui.h UI_NPROJ: the same) */
         v->p[i].exists = ps->pexists[i] || (i == ps->proj);
         v->p[i].name = i == ps->proj ? v->name : ps->pname[i];
         qd_persist_proj_used(a, i, v->p[i].used);

@@ -51,6 +51,9 @@ enum { QD_SXP_LOAD = 1, QD_SXP_NEW, QD_SXP_COPY, QD_SXP_DELETE };   /* PROJECT's
 #define QD_SXT_REC 0x20u               /* .. (Manager P2-B) recording, or armed (a page's notes are recorded); then the
                                         * selected track (a byte after the job's command) */
 #define QD_SXT_BROWSE 0x40u            /* .. (Manager fixes) the unit's sound browser open (its preview on a track) */
+#define QD_SXK_BLE 0x01u               /* 2026-10-27: STATUS's package byte (after the selected track; the Bluetooth
+                                        * package's reply only, then its projects and MY PRESETS' places): the
+                                        * Bluetooth package. A reply without the byte: the USB package */
 #define QD_SXF_DUMP 0x08u              /* P1.6m: a STORE that is a DUMP's reply: FIZZ ignores it (clear it to restore) */
 #define QD_SXS_MINE 0                  /* P1.6m: LIST / DUMP's sources: MY PRESETS (slot 1..256) .. */
 #define QD_SXS_FACTORY 1               /* .. the factory presets (1..23) .. */
