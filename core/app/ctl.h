@@ -385,6 +385,12 @@ typedef struct {
     int boost;                         /* 2026-10-26 (the owner: the engine clipped): SETTINGS' BOOST: the tracks at their
                                         * old level (+6 dB); off (the default): 6 dB under it, the engine's headroom */
     uint8_t clk_out, cc_out;           /* FIZZ MIDI (c): SETTINGS' CLOCK OUT and CC OUT (on at power-on) */
+#if QD_PKG_BLE
+    uint8_t set_page;                  /* 2026-10-27, the Bluetooth package: SETTINGS' page (0, 1: BLUETOOTH), SELECT */
+    uint8_t ble_off;                   /* .. its BLUETOOTH OFF (0, ON: power-on, an older record; app.h qd_app_ble_on) .. */
+    uint8_t ble_st;                    /* .. the radio's state as the port says (qd_app_ble_state: 0 off, 1 waiting,
+                                        * 2 connected), shown only */
+#endif
     int play_page[QD_PAT_NTRACK];                  /* the playing page each track was last seen on (follow moves on its edges) */
     uint32_t slide_ms;                 /* the last page change .. */
     int slide_dir;                     /* .. +1: to a later page */

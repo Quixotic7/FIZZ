@@ -289,6 +289,25 @@ int render_p13y(const char *out)
     shot("set-d", "KNOBS D, PAGE FOLLOW off");
     turn(QD_K_1, -3);
     turn(QD_K_2, 1);
+#if QD_PKG_BLE
+    turn(QD_K_1, 1);                                    /* (2026-10-27, the Bluetooth package: SETTINGS' page 2) */
+    turn(QD_K_2, -1);
+    run(60);
+    shot("set-p1", "the Bluetooth package: SETTINGS page 1 (its page dots)");
+    turn(QD_K_SELECT, 1);
+    qd_app_ble_state(&A, 1);
+    run(60);
+    shot("set-ble-wait", "SELECT: page 2, BLUETOOTH ON, WAITING");
+    qd_app_ble_state(&A, 2);
+    run(60);
+    shot("set-ble-conn", "CONNECTED");
+    turn(QD_K_1, -1);
+    qd_app_ble_state(&A, 0);
+    run(60);
+    shot("set-ble-off", "KNOB 1: BLUETOOTH OFF, the radio OFF");
+    turn(QD_K_1, 1);
+    turn(QD_K_SELECT, -1);
+#endif
     btap(QD_B_HOME);
     /* SHIFT's map */
     bdown(QD_B_FUNC);

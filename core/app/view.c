@@ -2008,6 +2008,9 @@ static void fill_menu(const qd_app_t *a, ui_menu_t *v)
     v->follow = u->follow;
     v->boost = u->boost;
     v->clk_out = u->clk_out, v->cc_out = u->cc_out;     /* (FIZZ MIDI (c)) */
+#if QD_PKG_BLE
+    v->set_page = u->set_page, v->ble_on = !u->ble_off, v->ble_st = u->ble_st;   /* (the Bluetooth package's page 2) */
+#endif
     v->t = secs(a->ms);
     if (v->kind == UI_MENU_TRK) {                      /* P1.4b: the track settings of the selected track */
         const qd_tset_t *ts = &qd_ctl_cpat(a)->trk[a->sel];

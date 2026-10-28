@@ -116,6 +116,12 @@ void qd_app_hold_release(qd_app_t *a)
             qd_app_note_off(a, k);
 }
 
+#if QD_PKG_BLE
+/* 2026-10-27, the Bluetooth package: SETTINGS' BLUETOOTH (app.h) */
+int qd_app_ble_on(const qd_app_t *a) { return !a->ui.ble_off; }
+void qd_app_ble_state(qd_app_t *a, int st) { a->ui.ble_st = (uint8_t)(st < 0 ? 0 : st > 2 ? 2 : st); }
+#endif
+
 /* ---------------------------------------------------------------- input: the controller's --- */
 void qd_app_key(qd_app_t *a, int key, int down, int vel)
 {

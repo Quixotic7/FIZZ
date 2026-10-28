@@ -49,6 +49,8 @@
  *        bytes: zeros their defaults), so the mix's lock ids are 115..; a 'P' 3..5's (110..) move up when read
  *   PAT  (FIZZ MIDI (c)) the track settings 44 bytes: MIDI OUT appended (qd_tset_t.mout); a 'P' 4..6 of 43 bytes reads it
  *        0, OFF (the size byte tells). SET: b[5] bit 6 CLOCK OUT off, bit 5 CC OUT off (an older record: both on)
+ *   SET  (2026-10-27, the Bluetooth package only) b[5] bit 4 BLUETOOTH off (0 in every record written before, and in
+ *        every one the USB package writes: ON); b[5]'s bits 0..1 were the old knob layout (0..3), bits 2..3 unused
  *   PAT / SND / LIB  (FIZZ MIDI (e)) A MIDI TRACK'S SOUND, in the records as they are (no new record, field or version):
  *        a track sound's or a preset's packed patch is a MIDI sound when it is 'Q' 6 with "MIDI" in its last four bytes
  *        (124..127: the VOICE page's, which no FM TONE blob can hold; a FIZZ before this one reads it as no blob,
@@ -585,7 +587,12 @@ static uint32_t ser_set(const qd_app_t *a, uint8_t *b)
     int i;
     b[o++] = 'G', b[o++] = QD_PRJ_FORMAT;               /* (2026-10-24: 'G' 2, six tracks; 'G' 1 eight) */
     b[o++] = (uint8_t)a->per.proj, b[o++] = (uint8_t)a->seq.cur, b[o++] = (uint8_t)a->sel;
+#if QD_PKG_BLE
+    b[o++] = (uint8_t)((a->ui.boost ? 0x80 : 0) | (a->ui.clk_out ? 0 : 0x40) | (a->ui.cc_out ? 0 : 0x20) |
+                       (a->ui.ble_off ? 0x10 : 0));     /* (2026-10-27, the Bluetooth package: bit 4 BLUETOOTH off) */
+#else
     b[o++] = (uint8_t)((a->ui.boost ? 0x80 : 0) | (a->ui.clk_out ? 0 : 0x40) | (a->ui.cc_out ? 0 : 0x20));
+#endif
     b[o++] = (uint8_t)a->ui.view, b[o++] = (uint8_t)a->ui.follow;   /* (2026-10-26: b[5]'s top bit BOOST; its low bits
                                                          * were the knob layout (0..3); FIZZ MIDI (c): bit 6 CLOCK OUT
                                                          * off, bit 5 CC OUT off: an older record's 0, on) */
@@ -615,6 +622,10 @@ static int de_set(const uint8_t *b, uint32_t len, int *proj, int *pat, int *sel,
     a->ui.follow = b[7] != 0;
     a->ui.boost = (b[5] & 0x80u) != 0;
     a->ui.clk_out = !(b[5] & 0x40u), a->ui.cc_out = !(b[5] & 0x20u);
+#if QD_PKG_BLE
+    a->ui.ble_off = (b[5] & 0x10u) != 0;                /* (bit 4: 0 in every record before it, and the USB package's:
+                                                         * ON) */
+#endif
     for (i = 0; i < (int)nf; i++) {
         int16_t v;
         memcpy(&v, b + 9 + 2 * i, 2);

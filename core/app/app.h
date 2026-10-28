@@ -384,6 +384,15 @@ extern uint32_t qd_lkp_max[6];         /* 2026-10-27: the locked ms's parts' lon
                                         * sounds, the controller, the preview, the mix gains), in the port's ticks */
 extern uint32_t (*qd_lkp_clock)(void);  /* .. the port's clock (24-bit ticks; 0: not timed) */
 void qd_app_hold_release(qd_app_t *a);   /* 2026-10-26: the live keys' HOLD: the held notes released */
+#if QD_PKG_BLE
+/* 2026-10-27, the Bluetooth package: SETTINGS' page 2 (SELECT), BLUETOOTH ON / OFF, kept in the settings record (persist.c
+ * 'G' b[5] bit 4; no record, an older one: ON). The core only keeps and shows it; the port applies it (main loop):
+ *   qd_app_ble_on     1: BLUETOOTH ON (the setting; after qd_persist_attach, the stored one)
+ *   qd_app_ble_state  the radio's state, each frame: 0 off, 1 on and waiting (nobody connected), 2 connected; shown on
+ *                     the page (a change draws it again) */
+int qd_app_ble_on(const qd_app_t *a);
+void qd_app_ble_state(qd_app_t *a, int st);
+#endif
 
 #ifdef __cplusplus
 }

@@ -3553,6 +3553,60 @@ static void g_knob_layouts(void)
     btap(QD_B_HOME);
 }
 
+#if QD_PKG_BLE
+/* 2026-10-27, the Bluetooth package: SETTINGS' page 2 by SELECT (as the track settings' pages): KNOB 1 BLUETOOTH ON /
+ * OFF (ON at power-on; app.h qd_app_ble_on), KNOB 2 the radio's state as the port says (shown only, a change drawn);
+ * SELECT back page 1, as it was; the labels; opened again: page 1 */
+static void g_ble_settings(void)
+{
+    static ui_menu_t mv;
+    qd_labels_t lb;
+    uint32_t h0, h1, h2;
+    start();
+    CHECK(qd_app_ble_on(&A), "power-on: BLUETOOTH ON");
+    bdown(SHIFT), btap(QD_B_PATTERN), bup(SHIFT), run(10);
+    qd_view_menu(&A, &mv);
+    CHECK(A.ui.latch == QD_LATCH_SET && !A.ui.set_page && !mv.set_page, "SHIFT + SEL: the settings, page 1");
+    turn(QD_K_SELECT, 1);
+    qd_view_menu(&A, &mv);
+    qd_ctl_labels(&A, &lb);
+    CHECK(A.ui.set_page == 1 && mv.set_page == 1 && mv.ble_on && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "BLUETOOTH") &&
+              !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_2], "STATUS") && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_SELECT], "PAGE"),
+          "SELECT: page 2, BLUETOOTH ON (its labels)");
+    turn(QD_K_SELECT, 1);
+    CHECK(A.ui.set_page == 1, "SELECT on: page 2 still (two pages)");
+    turn(QD_K_2, 1), turn(QD_K_3, 1), turn(QD_K_4, -1);
+    CHECK(qd_app_ble_on(&A) && A.ui.follow && !A.ui.boost && A.ui.clk_out && A.ui.cc_out,
+          "KNOB 2..4 on page 2: nothing (page 1's values as they were)");
+    turn(QD_K_1, -1);
+    qd_view_menu(&A, &mv);
+    CHECK(!qd_app_ble_on(&A) && !mv.ble_on && A.ui.follow, "KNOB 1 left: BLUETOOTH OFF (PAGE FOLLOW untouched)");
+    turn(QD_K_1, 1);
+    CHECK(qd_app_ble_on(&A), "KNOB 1 right: ON");
+    qd_app_ble_state(&A, 0);
+    h0 = qd_view_frame_hash(&A);
+    qd_app_ble_state(&A, 2);
+    h1 = qd_view_frame_hash(&A);
+    h2 = qd_view_frame_hash(&A);
+    qd_view_menu(&A, &mv);
+    CHECK(mv.ble_st == 2 && h0 != h1 && h1 == h2 && qd_app_ble_on(&A), "the port's state CONNECTED: shown (the frame "
+          "changed), the setting untouched");
+    qd_app_ble_state(&A, 9);
+    CHECK(A.ui.ble_st == 2, "a state past 2: CONNECTED");
+    turn(QD_K_SELECT, -1);
+    turn(QD_K_1, -1);
+    qd_ctl_labels(&A, &lb);
+    CHECK(!A.ui.set_page && !A.ui.follow && qd_app_ble_on(&A) && !strcmp(lb.s[QD_LBL_KNOB0 + QD_K_1], "FOLLOW"),
+          "SELECT back: page 1, KNOB 1 PAGE FOLLOW again");
+    turn(QD_K_1, 1);
+    turn(QD_K_SELECT, 1);
+    btap(QD_B_HOME);
+    bdown(SHIFT), btap(QD_B_PATTERN), bup(SHIFT), run(10);
+    CHECK(A.ui.latch == QD_LATCH_SET && !A.ui.set_page, "opened again: page 1");
+    btap(QD_B_HOME);
+}
+#endif
+
 /* P1.3y: HOME from SHIFT's map; SEL tapped shows and does nothing; the track colour frame on a default */
 static void g_sel_tap(void)
 {
@@ -8955,6 +9009,9 @@ int main(void)
         {"P1.3y: the value keys light the nearest value", g_nearest},
         {"P1.3y: SHIFT + REC: the record settings; quantize, overdub", g_rec_settings},
         {"P1.3y: SHIFT + SEL: page follow; layout A; lmode MODES", g_knob_layouts},
+#if QD_PKG_BLE
+        {"the Bluetooth package: SETTINGS' page 2, BLUETOOTH", g_ble_settings},
+#endif
         {"P1.3y: SEL tapped: nothing", g_sel_tap},
         {"P1.4a: the sound editor on EDIT", g_snd},
         {"P1.3e: six notes; the default chord moves together", g_six},

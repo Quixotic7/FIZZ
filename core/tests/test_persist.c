@@ -675,6 +675,46 @@ static void midi_out_test(void)
     printf("  MIDI OUT: kept; an older record's OFF, CLOCK OUT and CC OUT ON\n");
 }
 
+#if QD_PKG_BLE
+/* 2026-10-27, the Bluetooth package: SETTINGS' BLUETOOTH in the settings record's b[5] bit 4 (set: OFF): a blank flash
+ * ON; OFF kept across a restart (the other settings as they were); a record without the bit (every older one, the USB
+ * package's): ON */
+static void ble_test(void)
+{
+    static uint8_t b[QDS_MAXREC];
+    int len;
+    G = &A;
+    memset(FL, 0xFF, sizeof FL);
+    boot(&A);
+    run(&A, 20);
+    CHECK(qd_app_ble_on(&A), "a blank flash: BLUETOOTH ON");
+    A.ui.ble_off = 1, A.ui.clk_out = 0, A.ui.boost = 1;
+    run(&A, 20);
+    CHECK(qd_persist_flush(&A), "flushed");
+    boot(&B);
+    len = qd_store_get(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, sizeof b);
+    CHECK(!qd_app_ble_on(&B) && !B.ui.clk_out && B.ui.cc_out && B.ui.boost && len > 5 && (b[5] & 0xF0u) == 0xD0u,
+          "a restart: BLUETOOTH OFF kept (b[5] %02X: bit 4), CLOCK OUT off, CC OUT on, BOOST as they were", b[5]);
+    b[5] &= (uint8_t)~0x10u;                            /* (as every record before it, the USB package's) */
+    qd_store_put(&B.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, (uint32_t)len);
+    qd_store_flush(&B.per.prj_st);
+    boot(&A);
+    CHECK(qd_app_ble_on(&A) && !A.ui.clk_out && A.ui.boost, "a record without bit 4: BLUETOOTH ON, the rest kept");
+    A.ui.ble_off = 1;
+    run(&A, 20);
+    qd_persist_flush(&A);
+    boot(&B);
+    CHECK(!qd_app_ble_on(&B), "OFF again: kept");
+    B.ui.ble_off = 0;
+    run(&B, 20);
+    qd_persist_flush(&B);
+    boot(&A);
+    len = qd_store_get(&A.per.prj_st, QD_RKEY(QD_RK_SET, 0, 0), b, sizeof b);
+    CHECK(qd_app_ble_on(&A) && len > 5 && !(b[5] & 0x10u), "ON again: kept (bit 4 clear)");
+    printf("  BLUETOOTH: ON by default, OFF kept, an older record ON\n");
+}
+#endif
+
 /* FIZZ MIDI (e): a MIDI sound (quad_voice.h QD_MSND_*) through the records: a pattern's track sound as a copy and by
  * reference ('P' 6), MY PRESETS ('S' 5), its slots' locks (0..127); the FM TONE sounds around it stay FM TONE; a blob
  * of an older FIZZ (version 5, version 6 without the mark) reads FM TONE; a bad MIDI blob reads as no blob (INIT);
@@ -1809,6 +1849,9 @@ int main(void)
     names_test();
     old_format_test();
     midi_out_test();
+#if QD_PKG_BLE
+    ble_test();
+#endif
     msnd_test();
 #ifdef QD_DEVICE
     CHECK(qd_arena_fails() == 0, "P2.1b: the drawing's arena never short (it lends its room between frames: %u "

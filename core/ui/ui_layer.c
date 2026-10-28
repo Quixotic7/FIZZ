@@ -671,10 +671,58 @@ void ui_lmode_draw(int mode, float t)
     ui_T("LATCH", 120.f, 218.f, 20.f, 300, 1.f, UI_K3, QD_CENTER);
 }
 
+#if QD_PKG_BLE
+/* 2026-10-27, the Bluetooth package: SETTINGS' page 2 (SELECT), on the track settings' page-3 grid (four rows 51 px
+ * apart, the value 26 px at the right, its picture left of it): KNOB 1 BLUETOOTH ON / OFF (the rune), KNOB 2 its
+ * state, shown only: OFF, WAITING (three dots in turn), CONNECTED (three dots lit). KNOB 3, 4 nothing */
+static void ble_rune(float x, float y, float h, qd_rgb col)
+{
+    const float w = h * 0.5f;
+    const float a[12] = {x - w, y - h * 0.5f, x + w, y + h * 0.5f, x, y + h, x, y - h, x + w, y - h * 0.5f,
+                         x - w, y + h * 0.5f};
+    ui_P(a, 6, col, 1.8f, 0, QD_NONE);
+}
+static void menu_set2(const ui_menu_t *v)
+{
+    static const char *const ST[3] = {"OFF", "WAITING", "CONNECTED"};
+    const int st = v->ble_st < 0 || v->ble_st > 2 ? 0 : v->ble_st;
+    int k;
+    for (k = 0; k < 2; k++) {
+        const float y = 42.f + (float)k * 51.f, vy = y + 31.5f;
+        const char *val = k == 0 ? (v->ble_on ? "ON" : "OFF") : ST[st];
+        const qd_rgb col = (k == 0 ? v->ble_on : st) ? KCOL[k] : UI_G2;
+        const float w = ui_TW(val, 26.f, 300, 0.f), sz = w > 150.f ? 26.f * 150.f / w : 26.f;
+        const float lx = 232.f - (w > 150.f ? 150.f : w);
+        menu_row_sz(k, y, k == 0 ? "BLUETOOTH" : "STATUS", 0, 0.f);
+        ui_T(val, 232.f, vy, sz, 300, 0.f, col, QD_RIGHT);
+        if (k == 0) {
+            ble_rune(lx - 18.f, vy - 9.f, 10.f, col);
+            if (!v->ble_on)
+                line2(lx - 30.f, vy - 21.f, lx - 6.f, vy + 3.f, UI_RED, 1.6f);
+        } else {
+            int i;
+            const int lit = st == 2 ? 3 : st == 1 ? (int)fmodf(v->t * 3.f, 3.f) + 1 : 0;
+            for (i = 0; i < 3; i++) {
+                const int on = st == 2 ? 1 : st == 1 ? i == lit - 1 : 0;
+                ui_O(lx - 42.f + (float)i * 14.f, vy - 9.f, 4.5f, on ? col : UI_G3, 1.2f, on ? col : QD_NONE);
+            }
+        }
+    }
+}
+#endif
+
 static void menu_set(const ui_menu_t *v)
 {
     int k;
     menu_head("SETTINGS");
+#if QD_PKG_BLE
+    for (k = 0; k < 2; k++)                             /* the pages' dots, where the track settings' are */
+        ui_O(170.f + (float)k * 9.f, 14.f, 2.6f, k == v->set_page ? UI_K3 : UI_G2, 1.f, k == v->set_page ? UI_K3 : QD_NONE);
+    if (v->set_page) {
+        menu_set2(v);
+        return;
+    }
+#endif
     /* KNOB 1: PAGE FOLLOW (2026-10-25: KNOBS gone) */
     menu_row(0, 44.f, "PAGE FOLLOW", v->follow ? "ON" : "OFF");
     {

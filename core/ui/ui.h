@@ -678,6 +678,10 @@ typedef struct {
     int mout;                           /* .. FIZZ MIDI (c): MIDI OUT (0 OFF, 1..16) */
     int engine;                         /* .. (e): ENGINE, 0 FM TONE, 1 MIDI */
     int clk_out, cc_out;                /* SETTINGS: FIZZ MIDI (c): CLOCK OUT, CC OUT */
+#if QD_PKG_BLE
+    int set_page, ble_on, ble_st;       /* SETTINGS (the Bluetooth package): the page (1: BLUETOOTH ON / OFF, its state:
+                                         * 0 OFF, 1 WAITING, 2 CONNECTED) */
+#endif
     int last;                           /* the knob turned last (0..3, -1) */
 } ui_menu_t;
 void ui_menu_draw(const ui_menu_t *v);

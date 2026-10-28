@@ -1367,6 +1367,9 @@ static void b_sel(qd_app_t *a, int down)
         u->slatch = 0;
         qd_step_release_all(a);
         qd_latch_open(a, QD_LATCH_SET);
+#if QD_PKG_BLE
+        u->set_page = 0;                                /* (as the track settings: page 1 first) */
+#endif
     }
 }
 int qd_ctl_sel_map(const qd_app_t *a)
@@ -1892,6 +1895,19 @@ static int k_menu(qd_app_t *a, int knob, int d)
         default: break;
         }
     } else {
+#if QD_PKG_BLE
+        if (knob == QD_K_SELECT) {                      /* 2026-10-27, the Bluetooth package: the pages (as the track
+                                                         * settings'); page 2 KNOB 1 BLUETOOTH ON / OFF (the port
+                                                         * applies it: app.h qd_app_ble_on), KNOB 2 its state (shown) */
+            u->set_page = (uint8_t)clampi(u->set_page + d, 0, 1);
+            return 1;
+        }
+        if (u->set_page) {
+            if (knob == QD_K_1)
+                u->ble_off = d < 0;
+            return 1;
+        }
+#endif
         switch (knob) {
         case QD_K_1: u->follow = d > 0; break;      /* (2026-10-25: KNOBS gone, PAGE FOLLOW moved to KNOB 1) */
         case QD_K_2: u->boost = d > 0; break;       /* (2026-10-26: BOOST) */

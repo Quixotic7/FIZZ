@@ -281,8 +281,15 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
                                               {"KIND", "NAME", "ENGINE", "MIDI OUT"}};   /* (P1.6d: page 3; FIZZ MIDI
                                                          * (c): MIDI OUT) */
         static const char *const REC2[4] = {"AUTOMATION", "", "", ""};   /* P1.6d: the record settings' page 2 */
+#if QD_PKG_BLE
+        static const char *const SET2[4] = {"BLUETOOTH", "STATUS", "", ""};   /* (the Bluetooth package's page 2) */
+        const char *const *r = u->latch == QD_LATCH_REC ? (u->rec_page ? REC2 : REC)
+                             : u->latch == QD_LATCH_SET ? (u->set_page ? SET2 : SET)
+                             : TRK[u->trk_page < 0 || u->trk_page > 2 ? 0 : u->trk_page];
+#else
         const char *const *r = u->latch == QD_LATCH_REC ? (u->rec_page ? REC2 : REC) : u->latch == QD_LATCH_SET ? SET
                              : TRK[u->trk_page < 0 || u->trk_page > 2 ? 0 : u->trk_page];
+#endif
         for (k = 0; k < 4; k++)
             lb_set(o, LB_KNOB(QD_K_1 + k), r[k]);
         if (u->latch == QD_LATCH_TRK) {
@@ -293,6 +300,10 @@ void qd_ctl_labels(const qd_app_t *a, qd_labels_t *o)
         }
         if (u->latch == QD_LATCH_REC)
             lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
+#if QD_PKG_BLE
+        if (u->latch == QD_LATCH_SET)                   /* (the Bluetooth package: SETTINGS' two pages) */
+            lb_set(o, LB_KNOB(QD_K_SELECT), "PAGE");
+#endif
         lb_set(o, LB_BTN(QD_B_OCTDN), "BACK");
         lb_set(o, LB_BTN(QD_B_HOME), "BACK");
         return;
