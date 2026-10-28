@@ -169,18 +169,20 @@ struct OperatorsPage: View {
                 OperatorDials(e: e, size: 66).padding(.horizontal, 60)
             }
         } else {
-            VStack(spacing: 8) {
-                // (the drawing gives up height first: the cards and dials always show)
-                ZStack(alignment: .topLeading) {
-                    AlgoDrawing(e: e).frame(minHeight: 116, maxHeight: 200)
-                    AlgoNumber(e: e)
+            FitColumn(spacing: 10, minSpacing: 6) {
+                // (the drawing gives up height first, ALGO's number with it: the cards and dials always show)
+                GeometryReader { g in
+                    ZStack(alignment: .topLeading) {
+                        AlgoDrawing(e: e)
+                        AlgoNumber(e: e, size: min(104, max(60, (g.size.height - 4) / 1.25)))
+                    }
                 }
-                .layoutPriority(-1)
+                .fitFlex(min: 100, max: 230)
                 Grid(horizontalSpacing: 8, verticalSpacing: 8) {
                     GridRow { OpCard(e: e, o: 0); OpCard(e: e, o: 1) }
                     GridRow { OpCard(e: e, o: 2); OpCard(e: e, o: 3) }
                 }
-                OperatorDials(e: e).padding(.top, 6)
+                OperatorDials(e: e).padding(.top, 4)
             }
         }
     }
@@ -188,30 +190,69 @@ struct OperatorsPage: View {
 
 // MARK: - OP ENV
 
+/// The phone's switch between a page's parts (LFO 1 / 2 / 3, ENV A / B, FILTER / ENV): pills in their colours.
+struct PartSwitch: View {
+    let titles: [String]
+    let tints: [RGB]
+    let on: Int
+    let pick: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(titles.indices, id: \.self) { i in
+                let lit = i == on
+                Button { pick(i) } label: {
+                    Text(titles[i]).fz(14, 800, em: 0.08).lineLimit(1).minimumScaleFactor(0.8)
+                        .foregroundStyle(lit ? Color.black : FZ.text.color)
+                        .frame(maxWidth: .infinity).frame(height: 38)
+                        .background(Capsule().fill(lit ? tints[i].color : tints[i].opacity(0.08)))
+                        .overlay(Capsule().strokeBorder(tints[i].mix(lit ? 100 : 50, FZ.line).color, lineWidth: 1.5))
+                        .shadow(color: lit ? tints[i].opacity(0.4) : .clear, radius: 8)
+                        .frame(height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .sensoryFeedback(.selection, trigger: on)
+    }
+}
+
 struct OpEnvPage: View {
     let e: EditorModel
     var wide = false
+
     var body: some View {
-        let cards = ForEach(0..<2, id: \.self) { k in
-            let ids = k == 1 ? (atk: 16, dec: 17, end: 18, lev: QV.blev, dly: 24, trg: QV.btrig, rst: QV.brst)
-                : (atk: 12, dec: 13, end: 14, lev: QV.alev, dly: 20, trg: QV.atrig, rst: QV.arst)
-            let c = k == 1 ? FZ.k3 : FZ.k2
-            EditCard(title: k == 1 ? "ENV B" : "ENV A", tint: c, trailing: AnyView(HStack(spacing: 6) {
-                Text(k == 1 ? "B1 · B2" : "A").fz(12, 800, em: 0.08).foregroundStyle(FZ.muted.color)
-                EditToggle(e: e, id: ids.trg, label: "TRIG", tint: c)
-                EditToggle(e: e, id: ids.rst, label: "RESET", tint: c)
-            })) {
-                OpEnvDrawing(e: e, k: k)
-                HStack(spacing: 6) {
-                    EditChip(e: e, id: ids.atk, label: "ATK", tint: c)
-                    EditChip(e: e, id: ids.dec, label: "DEC", tint: c)
-                    EditChip(e: e, id: ids.end, label: "END", tint: c)
-                    EditChip(e: e, id: ids.dly, label: "DLY", tint: c)
-                }
-                EditBar(e: e, id: ids.lev, label: "LEVEL", tint: c)
+        if wide {
+            HStack(alignment: .top, spacing: 14) { card(0, both: true); card(1, both: true) }
+        } else {
+            // (the phone: one envelope at a time, the other faint behind it)
+            FitColumn(spacing: 10, minSpacing: 6) {
+                PartSwitch(titles: ["ENV A", "ENV B"], tints: [FZ.k2, FZ.k3], on: e.env) { e.env = $0 }
+                    .turnDim(e, [])
+                card(e.env, both: false).fitFlex(min: 70, max: 300)
             }
         }
-        if wide { HStack(alignment: .top, spacing: 14) { cards } } else { VStack(spacing: 12) { cards } }
+    }
+
+    func card(_ k: Int, both: Bool) -> some View {
+        let ids = k == 1 ? (atk: 16, dec: 17, end: 18, lev: QV.blev, dly: 24, trg: QV.btrig, rst: QV.brst)
+            : (atk: 12, dec: 13, end: 14, lev: QV.alev, dly: 20, trg: QV.atrig, rst: QV.arst)
+        let c = k == 1 ? FZ.k3 : FZ.k2, ops = k == 1 ? "B1 · B2" : "A"
+        return EditCard(title: both ? (k == 1 ? "ENV B" : "ENV A") : ops, tint: c, trailing: AnyView(HStack(spacing: 6) {
+            if both { Text(ops).fz(12, 800, em: 0.08).foregroundStyle(FZ.muted.color) }
+            EditToggle(e: e, id: ids.trg, label: "TRIG", tint: c)
+            EditToggle(e: e, id: ids.rst, label: "RESET", tint: c)
+        })) {
+            OpEnvDrawing(e: e, k: k, ghost: !both)
+            HStack(spacing: 6) {
+                EditChip(e: e, id: ids.atk, label: "ATK", tint: c, fill: true)
+                EditChip(e: e, id: ids.dec, label: "DEC", tint: c, fill: true)
+                EditChip(e: e, id: ids.end, label: "END", tint: c, fill: true)
+                EditChip(e: e, id: ids.dly, label: "DLY", tint: c, fill: true)
+            }
+            EditBar(e: e, id: ids.lev, label: "LEVEL", tint: c)
+        }
     }
 }
 
@@ -221,22 +262,27 @@ struct PlayPage: View {
     let e: EditorModel
     var wide = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FitColumn(spacing: 14, minSpacing: 6) {
             Caption(label: "PHASE RESET") { EditSeg(e: e, id: QV.phrt, tint: FZ.k1) }
-            VStack(spacing: 6) {
-                EditBar(e: e, id: QV.akey, label: "A KEY", tint: FZ.k2)
-                EditBar(e: e, id: QV.b1key, label: "B1 KEY", tint: FZ.k3)
-                EditBar(e: e, id: QV.b2key, label: "B2 KEY", tint: FZ.k4)
-                EditBar(e: e, id: QV.vel, label: "VEL", tint: FZ.k1)
+            // (the four bars two by two)
+            Grid(horizontalSpacing: 16, verticalSpacing: 6) {
+                GridRow {
+                    EditBar(e: e, id: QV.akey, label: "A KEY", tint: FZ.k2)
+                    EditBar(e: e, id: QV.b1key, label: "B1 KEY", tint: FZ.k3)
+                }
+                GridRow {
+                    EditBar(e: e, id: QV.b2key, label: "B2 KEY", tint: FZ.k4)
+                    EditBar(e: e, id: QV.vel, label: "VEL", tint: FZ.k1)
+                }
             }
-            EditCard(title: "PORTAMENTO", tint: FZ.yellow) {
+            EditCard(title: "PORTAMENTO", tint: FZ.yellow, trailing: AnyView(EditSeg(e: e, id: QV.port, tint: FZ.yellow, height: 32).frame(width: 196))) {
                 GlideDrawing(e: e)
-                EditSeg(e: e, id: QV.port, tint: FZ.yellow)
                 HStack(spacing: 10) {
                     EditChip(e: e, id: QV.ptim, label: "TIME", tint: FZ.yellow)
                     Caption(label: "SLOPE") { EditSeg(e: e, id: QV.pslope, tint: FZ.yellow, height: 32) }
                 }
             }
+            .fitFlex(min: 50, max: 130)
         }
     }
 }
@@ -250,38 +296,75 @@ struct FilterPage: View {
 
     var body: some View {
         let ft = e.value(QV.ftype), m = Self.machines.firstIndex { $0.1.contains(ft) } ?? 0
-        VStack(alignment: .leading, spacing: 12) {
-            machineSeg(ft: ft, m: m)
-            if m == 0 { EditSeg(e: e, id: QV.ftype, tint: FZ.k4, pairs: [(0, "OFF"), (1, "LP12"), (2, "HP12")], height: 32) }
-            let curve = VStack(alignment: .leading, spacing: 8) {
-                FilterCurve(e: e)
-                HStack(spacing: 6) {
-                    if m == 5 { EditChip(e: e, id: QV.fgain, label: "GAIN", tint: FZ.k2) } else {
-                        EditChip(e: e, id: QV.reso, label: (3...4).contains(m) ? "FDBK" : "RESO", tint: FZ.k2)
-                    }
-                    if m >= 2 { EditChip(e: e, id: QV.fshape, label: m == 2 ? "TYPE" : m == 5 ? "Q" : "LPF", tint: FZ.k3) }
-                    EditChip(e: e, id: QV.fktrk, label: "KEY TRK", tint: FZ.k3)
+        if wide {
+            VStack(alignment: .leading, spacing: 12) {
+                machineSeg(ft: ft, m: m)
+                if m == 0 { legacySeg }
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 8) { FilterCurve(e: e); curveChips(m) }
+                    EditCard(title: "ENV", tint: FZ.k4) { envParts }
                 }
+                bandRow
             }
-            let env = EditCard(title: "ENV", tint: FZ.k4) {
-                ADSRDrawing(e: e, ids: [30, 31, 32, 33], tint: FZ.k4, w: 420, h: 130, name: "FILTER")
-                HStack(spacing: 6) {
-                    EditChip(e: e, id: QV.fdepth, label: "DEPTH", tint: FZ.k4, big: true)
-                    EditChip(e: e, id: QV.fdly, label: "DLY", tint: FZ.k4)
-                }
-                HStack(spacing: 6) {
-                    EditChip(e: e, id: 30, label: "ATK", tint: FZ.k4)
-                    EditChip(e: e, id: 31, label: "DEC", tint: FZ.k4)
-                    EditChip(e: e, id: 32, label: "SUS", tint: FZ.k4)
-                    EditChip(e: e, id: 33, label: "REL", tint: FZ.k4)
-                }
+        } else if e.filterEnv {
+            // (the phone: the curve or its envelope, a pill apart)
+            FitColumn(spacing: 12, minSpacing: 6) {
+                partSwitch
+                EditCard(tint: FZ.k4) { envParts }.fitFlex(min: 80, max: 300)
             }
-            if wide { HStack(alignment: .top, spacing: 14) { curve; env } } else { curve; env }
+        } else {
+            FitColumn(spacing: 12, minSpacing: 6) {
+                partSwitch
+                machineSeg(ft: ft, m: m)
+                if m == 0 { legacySeg }
+                FilterCurve(e: e).fitFlex(min: 80, max: 240)
+                curveChips(m)
+                bandRow
+            }
+        }
+    }
+
+    private var partSwitch: some View {
+        PartSwitch(titles: ["FILTER", "ENV"], tints: [FZ.k4, FZ.k4], on: e.filterEnv ? 1 : 0) { e.filterEnv = $0 == 1 }
+            .turnDim(e, [])
+    }
+
+    private var legacySeg: some View {
+        EditSeg(e: e, id: QV.ftype, tint: FZ.k4, pairs: [(0, "OFF"), (1, "LP12"), (2, "HP12")], height: 32)
+    }
+
+    private func curveChips(_ m: Int) -> some View {
+        HStack(spacing: 6) {
+            if m == 5 { EditChip(e: e, id: QV.fgain, label: "GAIN", tint: FZ.k2, fill: !wide) } else {
+                EditChip(e: e, id: QV.reso, label: (3...4).contains(m) ? "FDBK" : "RESO", tint: FZ.k2, fill: !wide)
+            }
+            if m >= 2 { EditChip(e: e, id: QV.fshape, label: m == 2 ? "TYPE" : m == 5 ? "Q" : "LPF", tint: FZ.k3, fill: !wide) }
+            EditChip(e: e, id: QV.fktrk, label: "KEY TRK", tint: FZ.k3, fill: !wide)
+        }
+    }
+
+    /// The envelope: its drawing, DEPTH big and DLY, ATK DEC SUS REL.
+    private var envParts: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ADSRDrawing(e: e, ids: [30, 31, 32, 33], tint: FZ.k4, w: 420, h: 130, name: "FILTER")
             HStack(spacing: 6) {
-                EditChip(e: e, id: QV.base, label: "BASE", tint: FZ.k1)
-                EditChip(e: e, id: QV.width, label: "WIDTH", tint: FZ.k2)
-                EditSeg(e: e, id: QV.bwpost, tint: FZ.k3, pairs: [(0, "BEFORE"), (1, "AFTER")], height: 32)
+                EditChip(e: e, id: QV.fdepth, label: "DEPTH", tint: FZ.k4, big: true, fill: !wide)
+                EditChip(e: e, id: QV.fdly, label: "DLY", tint: FZ.k4, fill: !wide)
             }
+            HStack(spacing: 6) {
+                EditChip(e: e, id: 30, label: "ATK", tint: FZ.k4, fill: !wide)
+                EditChip(e: e, id: 31, label: "DEC", tint: FZ.k4, fill: !wide)
+                EditChip(e: e, id: 32, label: "SUS", tint: FZ.k4, fill: !wide)
+                EditChip(e: e, id: 33, label: "REL", tint: FZ.k4, fill: !wide)
+            }
+        }
+    }
+
+    private var bandRow: some View {
+        HStack(spacing: 6) {
+            EditChip(e: e, id: QV.base, label: "BASE", tint: FZ.k1)
+            EditChip(e: e, id: QV.width, label: "WIDTH", tint: FZ.k2)
+            EditSeg(e: e, id: QV.bwpost, tint: FZ.k3, pairs: [(0, "BEFORE"), (1, "AFTER")], height: 32)
         }
     }
 
@@ -314,18 +397,19 @@ struct AmpPage: View {
     var wide = false
     var body: some View {
         let ahd = e.value(QV.amod) == 1
-        VStack(alignment: .leading, spacing: 12) {
+        FitColumn(spacing: 14, minSpacing: 6) {
             EditSeg(e: e, id: QV.amod, tint: FZ.k3).frame(width: 200)
             ADSRDrawing(e: e, ids: [QV.eatk, QV.edec, QV.esus, QV.erel], tint: FZ.k3, w: 520, h: 170, ahd: ahd, name: "AMP")
+                .fitFlex(min: 100, max: 280)
             HStack(spacing: 6) {
-                EditChip(e: e, id: QV.eatk, label: "ATK", tint: FZ.k3)
+                EditChip(e: e, id: QV.eatk, label: "ATK", tint: FZ.k3, fill: !wide)
                 if ahd {
-                    EditChip(e: e, id: 75, label: "HOLD", tint: FZ.yellow)
-                    EditChip(e: e, id: QV.edec, label: "DEC", tint: FZ.k3)
+                    EditChip(e: e, id: 75, label: "HOLD", tint: FZ.yellow, fill: !wide)
+                    EditChip(e: e, id: QV.edec, label: "DEC", tint: FZ.k3, fill: !wide)
                 } else {
-                    EditChip(e: e, id: QV.edec, label: "DEC", tint: FZ.k3)
-                    EditChip(e: e, id: QV.esus, label: "SUS", tint: FZ.k3)
-                    EditChip(e: e, id: QV.erel, label: "REL", tint: FZ.k3)
+                    EditChip(e: e, id: QV.edec, label: "DEC", tint: FZ.k3, fill: !wide)
+                    EditChip(e: e, id: QV.esus, label: "SUS", tint: FZ.k3, fill: !wide)
+                    EditChip(e: e, id: QV.erel, label: "REL", tint: FZ.k3, fill: !wide)
                 }
             }
             EditBar(e: e, id: QV.level, label: "LEVEL", tint: FZ.k3)
@@ -337,7 +421,7 @@ struct DrivePage: View {
     let e: EditorModel
     var wide = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FitColumn(spacing: 14, minSpacing: 6) {
             HStack(spacing: 18) {
                 EditDial(e: e, id: QV.drive, label: "DRIVE", tint: FZ.orange, size: 96, valueSize: 30)
                 EditSeg(e: e, id: QV.drpre, tint: FZ.orange, pairs: [(0, "AFTER FILTER"), (1, "BEFORE")])
@@ -350,6 +434,7 @@ struct DrivePage: View {
                 }
                 EditSeg(e: e, id: QV.crpost, tint: FZ.pink, pairs: [(0, "BEFORE FILTER"), (1, "AFTER")])
             }
+            .fitFlex(min: 50, max: 220)
         }
     }
 }
@@ -363,32 +448,28 @@ struct LFOPage: View {
 
     var body: some View {
         let k = e.lfo, c = Self.tints[k]
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                ForEach(0..<3, id: \.self) { i in
-                    let on = i == k
-                    Button { e.lfo = i } label: {
-                        Text("LFO \(i + 1)").fz(14, 800, em: 0.08)
-                            .foregroundStyle(on ? Color.black : FZ.text.color)
-                            .frame(maxWidth: .infinity).frame(height: 38)
-                            .background(Capsule().fill(on ? Self.tints[i].color : Self.tints[i].opacity(0.08)))
-                            .overlay(Capsule().strokeBorder(Self.tints[i].mix(on ? 100 : 50, FZ.line).color, lineWidth: 1.5))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            EditCard(title: "LFO \(k + 1)", tint: c, trailing: AnyView(EditChip(e: e, id: QV.lfo(k, 3), label: "DEST", tint: c, pick: true))) {
+        FitColumn(spacing: 12, minSpacing: 6) {
+            PartSwitch(titles: ["LFO 1", "LFO 2", "LFO 3"], tints: Self.tints, on: k) { e.lfo = $0 }
+                .turnDim(e, [])
+            // (the pills name it: the card is the wave, its values three by two, DEST among them)
+            EditCard(tint: c) {
                 LFOWave(e: e, k: k, tint: c)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 98), spacing: 6)], alignment: .leading, spacing: 6) {
-                    EditChip(e: e, id: QV.lfo(k, 0), label: "SPEED", tint: c)
-                    EditChip(e: e, id: QV.lfo(k, 7), label: "DEPTH", tint: c)
-                    EditChip(e: e, id: QV.lfo(k, 1), label: "MULT", tint: c)
-                    EditChip(e: e, id: QV.lfo(k, 2), label: "FADE", tint: c)
-                    EditChip(e: e, id: QV.lfo(k, 5), label: "PHASE", tint: c)
+                Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+                    GridRow {
+                        EditChip(e: e, id: QV.lfo(k, 0), label: "SPEED", tint: c, fill: true)
+                        EditChip(e: e, id: QV.lfo(k, 7), label: "DEPTH", tint: c, fill: true)
+                        EditChip(e: e, id: QV.lfo(k, 1), label: "MULT", tint: c, fill: true)
+                    }
+                    GridRow {
+                        EditChip(e: e, id: QV.lfo(k, 2), label: "FADE", tint: c, fill: true)
+                        EditChip(e: e, id: QV.lfo(k, 5), label: "PHASE", tint: c, fill: true)
+                        EditChip(e: e, id: QV.lfo(k, 3), label: "DEST", tint: c, pick: true, fill: true)
+                    }
                 }
                 waveSeg(QV.lfo(k, 4), c)
                 EditSeg(e: e, id: QV.lfo(k, 6), tint: c, height: 32)
             }
+            .fitFlex(min: 50, max: 200)
         }
     }
 
@@ -419,7 +500,8 @@ struct ModPage: View {
     let e: EditorModel
     var wide = false
     var body: some View {
-        VStack(spacing: 7) {
+        // (eight 44 pt rows: the gaps give way)
+        FitColumn(spacing: wide ? 8 : 12, minSpacing: 3) {
             ForEach(0..<8, id: \.self) { k in row(k) }
         }
     }
@@ -437,10 +519,10 @@ struct ModPage: View {
                 .buttonStyle(.plain)
                 .turnDim(e, [])
             } else {
-                EditChip(e: e, id: QV.mod(k, 0), label: "SRC", tint: FZ.kalg, pick: true)
+                EditChip(e: e, id: QV.mod(k, 0), label: "SRC", tint: FZ.kalg, pick: true, compact: true)
                 ModCable(e: e, id: QV.mod(k, 2), tint: c).frame(maxWidth: wide ? 200 : 60)
-                EditChip(e: e, id: QV.mod(k, 1), label: "DEST", tint: FZ.text, pick: true)
-                EditChip(e: e, id: QV.mod(k, 2), label: "DEPTH", tint: c)
+                EditChip(e: e, id: QV.mod(k, 1), label: "DEST", tint: FZ.text, pick: true, compact: true, fill: !wide)
+                EditChip(e: e, id: QV.mod(k, 2), label: "DEPTH", tint: c, compact: true)
                 Button { e.set(QV.mod(k, 0), 0) } label: {
                     Image(systemName: "xmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(FZ.muted.color)
                         .frame(width: 30, height: 44).contentShape(Rectangle())
@@ -458,16 +540,18 @@ struct VoicePage: View {
     let e: EditorModel
     var wide = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        // (the phone has room: the dials big)
+        let d: CGFloat = wide ? 70 : 100
+        FitColumn(spacing: wide ? 16 : 22, minSpacing: 8) {
             EditSeg(e: e, id: QV.voice, tint: FZ.k1).frame(width: 220)
             HStack(spacing: 0) {
-                EditDial(e: e, id: QV.voice + 1, label: "UNISON", tint: FZ.k2, size: 70, valueSize: 22)
+                EditDial(e: e, id: QV.voice + 1, label: "UNISON", tint: FZ.k2, size: d, valueSize: wide ? 22 : 28)
                 Spacer(minLength: 0)
-                EditDial(e: e, id: QV.voice + 2, label: "DETUNE", tint: FZ.k3, size: 70, valueSize: 22)
+                EditDial(e: e, id: QV.voice + 2, label: "DETUNE", tint: FZ.k3, size: d, valueSize: wide ? 22 : 28)
                 Spacer(minLength: 0)
-                EditDial(e: e, id: QV.voice + 3, label: "SPREAD", tint: FZ.k4, size: 70, valueSize: 22)
+                EditDial(e: e, id: QV.voice + 3, label: "SPREAD", tint: FZ.k4, size: d, valueSize: wide ? 22 : 28)
             }
-            .padding(.horizontal, wide ? 80 : 10)
+            .padding(.horizontal, wide ? 80 : 4)
             Caption(label: "PRIORITY") { EditSeg(e: e, id: QV.voice + 4, tint: FZ.kalg) }
         }
     }

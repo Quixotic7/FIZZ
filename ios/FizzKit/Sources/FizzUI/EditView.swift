@@ -18,6 +18,8 @@ struct EditView: View {
     @State private var tagsOpen = false
     @State private var flash: String?
     @State private var nameText = ""
+    /// the phone's keybed panel, measured
+    @State private var keysHeight: CGFloat = 200
     @FocusState private var nameFocus: Bool
     @Environment(\.fizzSnapshot) private var snapshot
 
@@ -56,11 +58,16 @@ struct EditView: View {
                 .turnDim(e, [])
             pageBody
                 .padding(.horizontal, 16)
+                // (the keybed open: the page's drawings give way so it sits above it where it can; what still
+                // doesn't fit goes under it)
+                .padding(.bottom, e.keysOpen ? keysHeight : 0)
                 .frame(maxHeight: .infinity, alignment: .top)
                 // (the keybed slides up over the page)
                 .overlay(alignment: .bottom) {
                     if e.keysOpen {
-                        KeybedPanel(e: e).transition(.move(edge: .bottom).combined(with: .opacity))
+                        KeybedPanel(e: e)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { keysHeight = $0 }
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
                 .clipped()
@@ -258,12 +265,20 @@ struct EditView: View {
             if e.table == nil || e.sound == nil {
                 Color.clear
             } else if e.sound?.isMidi == true {
-                MidiPage(e: e, height: wide ? 380 : 250)
+                if wide {
+                    MidiPage(e: e, height: 380)
+                } else {
+                    // (the bars as tall as the page leaves them: CC and the value below)
+                    GeometryReader { g in MidiPage(e: e, height: max(90, g.size.height - 98)) }
+                }
             } else {
                 EditPageView(e: e, page: e.page, wide: wide)
             }
         }
-        if e.page == .ops && e.sound?.isMidi != true {
+        if !wide {
+            // (the phone: each page fits the height between the chips and the actions, nothing scrolls)
+            content.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if e.page == .ops && e.sound?.isMidi != true {
             content
         } else if snapshot {
             // (as a scroll view lays it out: each drawing as tall as its width makes it, then cut)

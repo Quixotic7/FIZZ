@@ -171,6 +171,20 @@ struct Shots {
         _ = await m.actions.pick(m.mine[1])
         edit("edit-audition")
         save(RootView(model: m, tab: .constant(.edit), wide: true), pad, out, "ipad-edit-audition")
+        // (every page fits above KEEP / CANCEL: the phone's shortest case)
+        for p in EditPage.allCases where p != .ops {
+            e.page = p
+            edit("edit-audition-\(p.rawValue)")
+        }
+        e.page = .openv
+        e.env = 1
+        edit("edit-audition-openv-b")
+        e.env = 0
+        e.page = .filter
+        e.filterEnv = true
+        edit("edit-audition-filter-env")
+        e.filterEnv = false
+        e.page = .ops
         _ = await m.actions.cancelAudition()
         await m.actions.setTrackOn(false)
         var b = [UInt8](repeating: 0, count: 128)

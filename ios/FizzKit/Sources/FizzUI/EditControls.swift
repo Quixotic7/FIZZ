@@ -377,20 +377,23 @@ struct EditChip: View {
     var tint: RGB = FZ.text
     var big = false
     var pick = false
+    /// 44 pt tall (MOD's rows); fill: as wide as its place
+    var compact = false
+    var fill = false
 
     var body: some View {
         let name = label ?? e.table?.info(id)?.name ?? ""
         let hot = e.turning?.id == id
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: compact ? 0 : 1) {
             Text(name).fz(12, 800, em: 0.08).foregroundStyle(tint.color).lineLimit(1)
             HStack(spacing: 4) {
-                Text(e.text(id)).fz(big ? 26 : 17, 800).monospacedDigit().foregroundStyle(FZ.text.color).lineLimit(1)
+                Text(e.text(id)).fz(big ? 26 : compact ? 16 : 17, 800).monospacedDigit().foregroundStyle(FZ.text.color).lineLimit(1)
                     .minimumScaleFactor(0.6)
                 if pick { Image(systemName: "chevron.down").font(.system(size: 11, weight: .heavy)).foregroundStyle(tint.color) }
             }
         }
-        .padding(.horizontal, 11).padding(.vertical, 7)
-        .frame(minWidth: 66, alignment: .leading)
+        .padding(.horizontal, compact ? 9 : 11).padding(.vertical, compact ? 4 : 7)
+        .frame(minWidth: compact ? 58 : 66, maxWidth: fill ? .infinity : nil, minHeight: compact ? 44 : nil, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 12).fill(tint.mix(hot ? 20 : 7, FZ.panel).color))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(tint.mix(hot ? 100 : 45, FZ.line).color, lineWidth: 1.5))
         .sensoryFeedback(.selection, trigger: e.value(id))
@@ -520,6 +523,139 @@ struct EditCard<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 16).fill(FZ.panel.color))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(tint.mix(35, FZ.line).color, lineWidth: 1.5))
+    }
+}
+
+// MARK: - Fitting a page to the phone
+
+/// A drawing's share of a FitColumn: its own height (a card's drawing: beyond the card's other parts) between `min`
+/// and `max`, the rest shared by `weight`.
+struct FitFlex: Equatable {
+    var min: CGFloat
+    var max: CGFloat
+    var weight: CGFloat
+}
+
+private struct FitFlexKey: LayoutValueKey {
+    static let defaultValue: FitFlex? = nil
+}
+
+extension View {
+    /// This part gives up height first in a FitColumn (it holds a drawing that takes any height).
+    func fitFlex(min: CGFloat, max: CGFloat = .infinity, weight: CGFloat = 1) -> some View {
+        layoutValue(key: FitFlexKey.self, value: FitFlex(min: min, max: max, weight: weight))
+    }
+}
+
+/// A page's column on the phone, filling the height it is given: its parts at their own heights, the drawings
+/// (`fitFlex`) sharing what is left between their least and most, the gaps closing from `spacing` to `minSpacing`
+/// only when the drawings are at their least. Given no height (the iPad's scroll view): a plain column.
+struct FitColumn: Layout {
+    var spacing: CGFloat = 12
+    var minSpacing: CGFloat = 4
+
+    struct Plan {
+        var heights: [CGFloat]
+        var gap: CGFloat
+        var total: CGFloat
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let w = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+            ?? subviews.map { $0.sizeThatFits(.unspecified).width }.max() ?? 0
+        if let h = proposal.height, h.isFinite { return CGSize(width: w, height: h) }
+        return CGSize(width: w, height: plan(w, nil, subviews).total)
+    }
+
+    func placeSubviews(in b: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let fill = proposal.height.map(\.isFinite) ?? false
+        let p = plan(b.width, fill ? b.height : nil, subviews)
+        var y = b.minY
+        for (i, s) in subviews.enumerated() {
+            s.place(at: CGPoint(x: b.minX, y: y), anchor: .topLeading, proposal: ProposedViewSize(width: b.width, height: p.heights[i]))
+            y += p.heights[i] + p.gap
+        }
+    }
+
+    /// Each part's height and the gap, in width w and height h (nil: each part as tall as it likes).
+    func plan(_ w: CGFloat, _ h: CGFloat?, _ subviews: Subviews) -> Plan {
+        var hs = [CGFloat](repeating: 0, count: subviews.count)
+        var flex: [(i: Int, f: FitFlex, base: CGFloat)] = []
+        for (i, s) in subviews.enumerated() {
+            if let f = s[FitFlexKey.self], h != nil {
+                // (its other parts: as tall as it is when its drawing gets nothing)
+                flex.append((i, f, s.sizeThatFits(ProposedViewSize(width: w, height: 0)).height))
+            } else {
+                hs[i] = s.sizeThatFits(ProposedViewSize(width: w, height: nil)).height
+            }
+        }
+        return share(hs, flex, h)
+    }
+
+    /// The parts' heights (the drawings' ignored), the drawings (their place, share, other parts' height), the height:
+    /// each part's height and the gap.
+    func share(_ heights: [CGFloat], _ flex: [(i: Int, f: FitFlex, base: CGFloat)], _ h: CGFloat?) -> Plan {
+        var hs = heights
+        let gaps = CGFloat(Swift.max(0, hs.count - 1))
+        guard let h else { return Plan(heights: hs, gap: spacing, total: hs.reduce(0, +) + gaps * spacing) }
+        for x in flex { hs[x.i] = x.base + x.f.min }
+        let least = hs.reduce(0, +)
+        var left = h - least - gaps * spacing
+        if left < 0 {
+            // (the drawings at their least: the gaps close up)
+            let gap = gaps > 0 ? Swift.max(minSpacing, (h - least) / gaps) : 0
+            return Plan(heights: hs, gap: gap, total: least + gaps * gap)
+        }
+        // what is left shared by weight, each drawing up to its most
+        var open = flex.indices.filter { flex[$0].f.max > flex[$0].f.min }
+        while left > 0.5, !open.isEmpty {
+            let wsum = open.reduce(0) { $0 + flex[$1].f.weight }
+            var used: CGFloat = 0, full: [Int] = []
+            for k in open {
+                let x = flex[k], room = x.f.max - (hs[x.i] - x.base)
+                let give = Swift.min(room, left * x.f.weight / wsum)
+                hs[x.i] += give
+                used += give
+                if give >= room - 0.01 { full.append(k) }
+            }
+            left -= used
+            open.removeAll { full.contains($0) }
+            if full.isEmpty { break }
+        }
+        // (the drawings at their most: the gaps open a little, the rest stays below)
+        let gap = gaps > 0 ? spacing + Swift.min(spacing * 0.6, Swift.max(0, left) / gaps) : 0
+        return Plan(heights: hs, gap: gap, total: hs.reduce(0, +) + gaps * gap)
+    }
+}
+
+/// A drawing's frame: as tall as it is given, or (given no height: the iPad's scroll view) its width over `ratio`.
+struct DrawFrame: Layout {
+    let ratio: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let w = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? 320
+        if let h = proposal.height, h.isFinite { return CGSize(width: w, height: h) }
+        return CGSize(width: w, height: w / ratio)
+    }
+
+    func placeSubviews(in b: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for s in subviews { s.place(at: b.origin, anchor: .topLeading, proposal: ProposedViewSize(b.size)) }
+    }
+}
+
+/// A drawing `w` units wide and as tall as its frame: its height in units follows the frame (nothing stretched), `h`
+/// units when it may choose.
+struct DrawBox<Content: View>: View {
+    let w: CGFloat
+    let h: CGFloat
+    @ViewBuilder let content: (CGFloat) -> Content
+
+    var body: some View {
+        DrawFrame(ratio: w / h) {
+            GeometryReader { g in
+                content(g.size.width > 1 && g.size.height > 1 ? w * g.size.height / g.size.width : h)
+            }
+        }
     }
 }
 

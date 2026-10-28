@@ -119,6 +119,9 @@ struct AlgoDrawing: View {
         let al = max(1, min(8, e.value(0)))
         let a = t?.algos.indices.contains(al - 1) == true ? t!.algos[al - 1] : EditAlgo(mods: [0, 0, 0, 0], feedback: 4, x: 1, y: 0)
         let L = Self.layout(a)
+        // (a deep chain reaches higher: the top operator and its loop stay in)
+        let top = min(crop.minY, (L.y.min() ?? 0) - Self.R - 24)
+        let crop = CGRect(x: crop.minX, y: top, width: crop.width, height: crop.maxY - top)
         GeometryReader { g in
             let s = min(g.size.width / crop.width, g.size.height / crop.height)
             let ox = (g.size.width - crop.width * s) / 2 - crop.minX * s, oy = (g.size.height - crop.height * s) / 2 - crop.minY * s
@@ -197,27 +200,45 @@ struct AlgoDrawing: View {
 
 // MARK: - Envelopes
 
-/// OP ENV's envelope (editor.js openvPanel env): DELAY a handle at the start, ATK to the top, DEC to END.
+/// OP ENV's envelope (editor.js openvPanel env): DELAY a handle at the start, ATK to the top, DEC to END. ghost: the
+/// other envelope faint behind it (the phone shows one at a time).
 struct OpEnvDrawing: View {
     let e: EditorModel
     /// 0: operator A's; 1: B1 and B2's
     let k: Int
+    var ghost = false
+    static let w: CGFloat = 420
+
+    static func ids(_ k: Int) -> [Int] { k == 1 ? [16, 17, 18, 24] : [12, 13, 14, 20] }     // ATK DEC END DLY
+    static func tint(_ k: Int) -> RGB { k == 1 ? FZ.k3 : FZ.k2 }
+
+    /// The line's corners in a drawing h units tall: the start, DLY, ATK, DEC (at END), the end.
+    static func points(_ e: EditorModel, _ k: Int, _ h: CGFloat) -> [CGPoint] {
+        let ids = Self.ids(k), X = (w - 30) * 0.3 / 127, top: CGFloat = 18, bot = h - 12
+        let v = { (i: Int) in CGFloat(e.value(i)) }, y = bot - (bot - top) * v(ids[2]) / 127
+        let p0 = CGPoint(x: 12 + v(ids[3]) * X, y: bot), p1 = CGPoint(x: p0.x + v(ids[0]) * X, y: top)
+        let p2 = CGPoint(x: p1.x + v(ids[1]) * X, y: y)
+        return [CGPoint(x: 12, y: bot), p0, p1, p2, CGPoint(x: w - 12, y: y)]
+    }
 
     var body: some View {
-        let ids = k == 1 ? [16, 17, 18, 24] : [12, 13, 14, 20]      // ATK DEC END DLY
-        let c = k == 1 ? FZ.k3 : FZ.k2
-        let w: CGFloat = 420, h: CGFloat = 150, X = (w - 30) * 0.3 / 127, top: CGFloat = 18, bot = h - 12
-        let Y = { (lv: Int) in bot - (bot - top) * CGFloat(lv) / 127 }
-        let v = { (i: Int) in CGFloat(e.value(i)) }
-        let p0 = CGPoint(x: 12 + v(ids[3]) * X, y: bot), p1 = CGPoint(x: p0.x + v(ids[0]) * X, y: top)
-        let p2 = CGPoint(x: p1.x + v(ids[1]) * X, y: Y(e.value(ids[2]))), p3 = CGPoint(x: w - 12, y: Y(e.value(ids[2])))
+        DrawBox(w: Self.w, h: 150) { h in canvas(h) }
+    }
+
+    private func canvas(_ h: CGFloat) -> some View {
+        let ids = Self.ids(k), c = Self.tint(k), X = (Self.w - 30) * 0.3 / 127, top: CGFloat = 18, bot = h - 12
+        let p = Self.points(e, k, h), other = ghost ? Self.points(e, 1 - k, h) : []
         let name = k == 1 ? "ENV B" : "ENV A"
-        HandleCanvas(e: e, box: CGSize(width: w, height: h), handles: [
-            DrawHandle(at: p0, xid: ids[3], xs: 127 * X, tint: FZ.muted, r: 8, label: "\(name) DLY"),
-            DrawHandle(at: p1, xid: ids[0], xs: 127 * X, tint: c, r: 10, label: "\(name) ATK"),
-            DrawHandle(at: p2, xid: ids[1], yid: ids[2], xs: 127 * X, ys: bot - top, tint: FZ.yellow, r: 10, label: "\(name) DEC · END"),
+        return HandleCanvas(e: e, box: CGSize(width: Self.w, height: h), handles: [
+            DrawHandle(at: p[1], xid: ids[3], xs: 127 * X, tint: FZ.muted, r: 8, label: "\(name) DLY"),
+            DrawHandle(at: p[2], xid: ids[0], xs: 127 * X, tint: c, r: 10, label: "\(name) ATK"),
+            DrawHandle(at: p[3], xid: ids[1], yid: ids[2], xs: 127 * X, ys: bot - top, tint: FZ.yellow, r: 10, label: "\(name) DEC · END"),
         ]) { ctx, _ in
-            strokeArea(&ctx, poly([CGPoint(x: 12, y: bot), p0, p1, p2, p3]), closeTo: bot, c)
+            if !other.isEmpty {
+                ctx.stroke(poly(other), with: .color(Self.tint(1 - k).opacity(0.4)),
+                           style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round, dash: [7, 6]))
+            }
+            strokeArea(&ctx, poly(p), closeTo: bot, c)
         }
     }
 }
@@ -233,6 +254,10 @@ struct ADSRDrawing: View {
     var name = ""
 
     var body: some View {
+        DrawBox(w: w, h: h) { h in canvas(h) }
+    }
+
+    private func canvas(_ h: CGFloat) -> some View {
         let X = (w - 30) * 0.27 / 127, top: CGFloat = 14, bot = h - 10
         let Y = { (lv: Int) in bot - (bot - top) * CGFloat(lv) / 127 }
         let v = { (i: Int) in CGFloat(e.value(i)) }
@@ -269,6 +294,10 @@ struct FilterCurve: View {
     var w: CGFloat = 600, h: CGFloat = 300
 
     var body: some View {
+        DrawBox(w: w, h: h) { h in canvas(h) }
+    }
+
+    private func canvas(_ h: CGFloat) -> some View {
         let ft = e.value(36), f = Double(e.value(34)) / 12700, r = Double(e.value(35)) / 12700, sh = Double(e.value(80)) / 127
         let N = 90
         var db: [Double] = []
@@ -295,7 +324,9 @@ struct FilterCurve: View {
         let hx = xs(Int((f * Double(N)).rounded())), hy = Y(db[Int((f * Double(N)).rounded())]) - 2
         let yid: Int? = ft == 7 ? 81 : ft == 0 ? nil : 35
         let sub = ft == 7 ? "GAIN" : ft >= 5 ? "FDBK" : "RESO"
-        let tx = min(w - 170, hx + 22), ty = hy > 80 ? hy - 40 : hy + 46
+        // (the values beside the handle, on its left when the right is short)
+        let left = hx + 22 > w - 170, tx = left ? hx - 22 : hx + 22, ty = min(h - 54, hy > 96 ? hy - 58 : hy + 46)
+        let anchor: UnitPoint = left ? .trailing : .leading
         let freq = e.text(34), yt = yid.map { "\(sub) \(e.text($0))" }
         return HandleCanvas(e: e, box: CGSize(width: w, height: h), handles: [
             DrawHandle(at: CGPoint(x: hx, y: max(16, hy)), xid: 34, yid: yid, xs: w - 20, ys: (h - 50) * 0.8, tint: FZ.k4, r: 14,
@@ -310,8 +341,8 @@ struct FilterCurve: View {
             ctx.fill(area, with: .color(FZ.k4.opacity(0.16)))
             ctx.stroke(line, with: .color(FZ.k4.color), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
             line = Path()
-            label(&ctx, freq, CGPoint(x: tx, y: ty), size: 30, color: FZ.text)
-            if let yt { label(&ctx, yt, CGPoint(x: tx, y: ty + 30), size: 20, color: FZ.muted) }
+            label(&ctx, freq, CGPoint(x: tx, y: ty), size: 30, color: FZ.text, anchor: anchor)
+            if let yt { label(&ctx, yt, CGPoint(x: tx, y: ty + 28), size: 20, color: FZ.muted, anchor: anchor) }
         }
     }
 }
@@ -322,7 +353,12 @@ struct FilterCurve: View {
 struct CrushDrawing: View {
     let e: EditorModel
     var body: some View {
-        let w: CGFloat = 380, h: CGFloat = 90
+        DrawBox(w: 380, h: 90) { h in canvas(h) }
+            .turnDim(e, [83, 84])
+    }
+
+    private func canvas(_ h: CGFloat) -> some View {
+        let w: CGFloat = 380
         let bits = e.value(83), srr = e.value(84)
         let q = bits > 0 ? max(2, Int((2 + 14 * (1 - Double(bits) / 127)).rounded())) : 0, hold = srr > 0 ? 1 + srr / 9 : 1
         var pts: [CGPoint] = [], last = 0.0
@@ -334,8 +370,6 @@ struct CrushDrawing: View {
             ctx.scaleBy(x: sz.width / w, y: sz.width / w)
             ctx.stroke(poly(pts), with: .color(FZ.pink.color), style: StrokeStyle(lineWidth: 3, lineJoin: .round))
         }
-        .aspectRatio(w / h, contentMode: .fit)
-        .turnDim(e, [83, 84])
     }
 }
 
@@ -375,7 +409,12 @@ struct LFOWave: View {
     }
 
     var body: some View {
-        let w: CGFloat = 420, h: CGFloat = 80
+        DrawBox(w: 420, h: 80) { h in canvas(h) }
+            .turnDim(e, (0..<8).map { 47 + 8 * k + $0 })
+    }
+
+    private func canvas(_ h: CGFloat) -> some View {
+        let w: CGFloat = 420
         let pts = Self.points(e, k, w, h), dur = 3.2 - 2.4 * Double(abs(e.value(47 + 8 * k))) / 6400
         return Animated(still: 0.8) { now in
             Canvas { ctx, sz in
@@ -388,8 +427,6 @@ struct LFOWave: View {
                 g.fill(Path(ellipseIn: CGRect(x: q.x - 6, y: q.y - 6, width: 12, height: 12)), with: .color(.white))
             }
         }
-        .aspectRatio(w / h, contentMode: .fit)
-        .turnDim(e, (0..<8).map { 47 + 8 * k + $0 })
     }
 }
 
@@ -397,14 +434,19 @@ struct LFOWave: View {
 struct GlideDrawing: View {
     let e: EditorModel
     var body: some View {
-        let w: CGFloat = 380, h: CGFloat = 90, on = e.value(76) != 0, gx = 60 + 260 * CGFloat(e.value(77)) / 127
+        DrawBox(w: 380, h: 90) { h in canvas(h) }
+    }
+
+    private func canvas(_ h: CGFloat) -> some View {
+        let w: CGFloat = 380, on = e.value(76) != 0, gx = 60 + 260 * CGFloat(e.value(77)) / 127
+        let hi: CGFloat = 20, lo = h - 20
         return HandleCanvas(e: e, box: CGSize(width: w, height: h),
-                            handles: on ? [DrawHandle(at: CGPoint(x: gx, y: 20), xid: 77, xs: 260, tint: FZ.yellow, r: 10, label: "PORTAMENTO TIME")] : []) { ctx, _ in
+                            handles: on ? [DrawHandle(at: CGPoint(x: gx, y: hi), xid: 77, xs: 260, tint: FZ.yellow, r: 10, label: "PORTAMENTO TIME")] : []) { ctx, _ in
             var p = Path()
-            p.move(to: CGPoint(x: 10, y: 70))
-            p.addLine(to: CGPoint(x: 60, y: 70))
-            if on { p.addCurve(to: CGPoint(x: gx, y: 20), control1: CGPoint(x: (60 + gx) / 2, y: 70), control2: CGPoint(x: (60 + gx) / 2, y: 20)) } else { p.addLine(to: CGPoint(x: 60, y: 20)) }
-            p.addLine(to: CGPoint(x: w - 10, y: 20))
+            p.move(to: CGPoint(x: 10, y: lo))
+            p.addLine(to: CGPoint(x: 60, y: lo))
+            if on { p.addCurve(to: CGPoint(x: gx, y: hi), control1: CGPoint(x: (60 + gx) / 2, y: lo), control2: CGPoint(x: (60 + gx) / 2, y: hi)) } else { p.addLine(to: CGPoint(x: 60, y: hi)) }
+            p.addLine(to: CGPoint(x: w - 10, y: hi))
             ctx.stroke(p, with: .color(FZ.yellow.opacity(on ? 1 : 0.3)), style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
         }
     }

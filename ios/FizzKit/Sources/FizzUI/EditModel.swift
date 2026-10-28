@@ -93,6 +93,9 @@ public final class EditorModel {
     /// the LFO shown (0..2) and the MIDI page (0..6)
     public var lfo = 0
     public var midiPage = 0
+    /// the phone's OP ENV: the envelope shown (0 A, 1 B); its FILTER: the curve (false) or the envelope (true)
+    public var env = 0
+    public var filterEnv = false
     public var turning: EditTurn?
     /// a long list being picked (a destination, a source)
     public var picking: Int?
