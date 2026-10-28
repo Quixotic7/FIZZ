@@ -192,7 +192,8 @@ a bundle id and the app name.
 - Later: `ios/jsbundle/` (the bundle script and its test), `ios/FIZZ/Data/` (JSC bridge).
 
 Build and check (I1):
-- `cd ios/FizzKit && swift test`: FizzKit (36 tests: vectors, UMP, link) + FizzUI (7: `UnitModel` against `DemoFizz`).
+- `cd ios/FizzKit && swift test`: FizzKit (80 tests: vectors, UMP, link, writes, restore, live) + FizzUI (23: `UnitModel`,
+  backups, `UnitActions` against `DemoFizz`) + FizzData (10).
 - `cd ios && xcodebuild -project FIZZ.xcodeproj -scheme FIZZ -destination 'generic/platform=iOS Simulator' build`.
 - `cd ios/FizzKit && swift run fizzshots <dir>`: the screens rendered to PNG with demo data on the Mac (no window, no
   simulator). The app runs on the demo unit with the launch argument `-demo` (`-demo update|notfizz|two`).
@@ -237,6 +238,70 @@ filling, the turned value taking the screen).
 One `@Observable` `UnitModel` per connected unit (identity, status, list rows, dumps, projects, store info), fed by
 `FizzLink`; views read it. Writes go through one `UnitActions` layer that re-reads what the page re-reads after each
 command (LIST / STATUS / DUMP), so the screens stay as truthful as the page's.
+
+### 4.3.1 Write layer (built 2026-10-27, for I3..I6)
+
+The writes the screens call, each the web Manager's own (the JS file:line it ports). Nothing here has run against a
+unit: tests use MockFizz (FizzKitTests) and the demo unit (FizzUITests).
+
+**FizzKit, `FizzLink` (`Writes.swift`)**: each op is fizzlink.js's (:221-263), with its timeout and tries; a write is
+sent once (only PARAM again, once), a quiet link woken by STATUS first. FIZZ's no comes back as a value:
+`FizzResult<V>` = `.ok(V)` | `.refused(FizzRefusal)`; `FizzRefusal` is fizz_sysex.mjs's STATUS (`.full`, `.busy`,
+`.notFound`, `.inUse(projects:steps:)`, `.badTrack`, `.updateFizz` = BAD COMMAND, `.badSlot` .., `.other(n)`; `.name`
+"BUSY"). Lost / silent: throws `FizzLinkError`.
+- `tags(source:slot:tags:)`, `rename(source:slot:name:)`, `renameProject(_:name:)`, `remove(source:slot:confirm:)`,
+  `swap(source:a:b:)`, `poolRef(slot:id:)`, `project(_:_:_:)` (30 s), `browse(track:id:)` (3 s) -> `FizzResult<FizzAck>`
+- `flush()` -> `FizzResult<FizzStatus>`; `usedBy(source:slot:)` -> `FizzResult<FizzUsers>`
+- `store(_ frame:)` -> `FizzResult<FizzStoreReply>` (STORE / STORE6 / AUDITION / a track put back; 3 s)
+- `param(track:id:value:)` (with ACK; 1 s, sent again once), `dumpTrack(slot:)` -> frame | nil, `note(channel:note:velocity:)`
+- `viaBle`, `isBlePort(_:)` (fizzlink.js isBlePort)
+- frames: `FizzSysEx.storeFrame(..)` (js/digitone.js storeFrame: IMPORT's SEND, ADD), `sameSound` (library.js),
+  `presetName` (manager.js's name field), `cleanName` (projects.js); `FM1Bulk.readRequest` / `parseResponse` (the
+  unit's side of a restore, for the demo and the mock). All checked against the JS (gen_vectors.mjs `writes`).
+
+**Restore (`Restore.swift`)**: `restore(_ image:idleMs:progress:)` -> `FizzRestoreDone` | throws `FizzRestoreError`
+(fizzlink.js restore :386): FZSR len crc (again after 3 s while nothing is pulled, 3 sends), each 0x30 read request
+answered from the image in order, the check pass then the write pass (`progress(.checking | .writing, fraction)`),
+FZOK / FZER (`.refused(fzer:written:)`, texts `FM1Bulk.fzer` 1, 10-15), `.cancelled` (task cancelled in the check
+pass: zeros served, FZER 12, nothing erased; ignored while writing), `.timeout` / `.lost(written:)`. Over Bluetooth:
+FZER 15 at once. The same call serves PROJECTS' WRITE TO FM-1.
+
+**Live (`Live.swift`, live.js)**: `ParamPump(link:clock:)`: `setTrack`, `setOn` (off drops the queue), `param(id:value:)`,
+`sound(_ frame:)` (a MIDI sound's AUDITION in the same queue), `clear`, `touch`, `followBlocked()` (the EDIT screen's
+500 ms track read-back skips while busy and ≤ 700 ms after a PARAM: `followQuietMs`), `lastParamAt`, `pending`,
+`idle()`, `setOnOld` (BAD COMMAND: the pump turns off), `setOnRefused`. One PARAM in flight, the latest value per id
+(live.js pump :149). `TrackAudition(link:)`: `readTrack(slot:)`, `pick(preset:id:name:trackSlot:)` (:221),
+`play(name:trackSlot:frame:)` (pickSound :240), `keep()`, `cancel()` (the track's DUMP read before, sent back with
+`trackFrame`: :268), `revert(to:)`, `pending` (track, name, own); an AUDITION whose reply is lost is checked on the
+track before it is sent again (sure :256).
+
+**FizzUI, `UnitActions` (`model.actions`)**: each write, then the page's re-reads (`refreshRows`: LIST until it shows
+the edit, 4 tries 0.3 s apart, STATUS, PROJECTS; a preset's DUMP again: manager.js :769, :840), UnitModel updated,
+a LOG line, and a `UnitOutcome` (`.ok`, `.placed(n)`, `.refused(FizzRefusal)`, `.needsConfirm(place:projects:steps:)`,
+`.noAnswer`, `.notNow`; `.text(what)` = ui.js refusal). State: `editing`, `busy`, `job`, `frames` (each row's DUMP),
+`users`, `restoreRun` / `restoreFailure`, `browsing` / `browseLoaded`, `trackCapable`, `trackOn`, `trackSlot`, `pending`.
+- LIBRARY (manager.js renderSel :929-1020, swapMine :1034): `rename`, `setTags` / `toggleTag`, `delete` (CONFIRM, after
+  the screen's), `moveMine`, `addToPool`, `removeFromPool(_:confirmed:)` (IN USE: `.needsConfirm(place:)`, then again
+  with that place), `usedBy`, `loadOnUnit` (BROWSE, STATUS every 0.6 s: live.js :280), `frame(of:)` / `fetchFrame(of:)`,
+  `places(of:)`
+- POOL (pool.js :100-270): `place(_:id:)`, `swapPool`, `clearPlace(_:confirm:)`, `sortedPool` + `sortPoolByTag`,
+  `clearUnused`, `poolUsers`
+- PROJECTS (pool.js :195, projtab.js :209-260): `loadProject`, `renameProject`, `copyProject`, `moveProject`,
+  `deleteProject`, `flush`; `writeProjects(image:before:)` (projtab.js write :299 + manager.js writeStore :702:
+  refused while playing, `before` kept as "FIZZ before projects ..", then the restore)
+- BACKUP (manager.js restoreImage :648, addPresets :713): `restore(image:name:)` (safety backup first through
+  `BackupModel.safetyBackup()`, kept as "FIZZ before restore .."; none: nothing restored), `cancelRestore()` (saving and
+  checking only), `addPresets(_:)` -> `AddResult`
+- IMPORT (importer.js send :109): `send(_:to: .mine | .pool | .track(t))` -> one outcome per sound, stops at FULL
+- EDIT (manager.js saveSound :1172, live.js): `save(_:slot:track:)` (STORE6 OWN; 0 = SAVE AS NEW), `probeTrack`,
+  `setTrackOn`, `pump`, `audition`, `readTrack`, `pick`, `pickSound`, `keepAudition`, `cancelAudition`, `revert(to:)`,
+  `note`
+
+Not ported (the page's, local): web tags (the IndexedDB `web` store), toasts, the confirm boxes (the screens ask, then
+call). **DemoFizz** takes every write (`DemoWrites.swift`): its MY PRESETS, pool (one a project), projects, tracks
+(PARAM sets the track's blob), the browser (closes itself after 2.5 s, loading), and the restore (FZSR, the pulls asked
+again every second, the image read back into its presets and projects); `DemoUnit.setPlaying(true)` gives BUSY / FZER
+10; a pool place's steps are made up (`DemoState.steps`: every third place).
 
 ### 4.4 Files
 Exported UTTypes for `.fizzbak .fizzlib .fizzsnd .fizzprj .fizzpat` (conforming to `public.zip-archive` / `public.json`),

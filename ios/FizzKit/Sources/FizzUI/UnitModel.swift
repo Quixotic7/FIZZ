@@ -97,6 +97,8 @@ public final class UnitModel {
     public private(set) var storeTracks: Int?
     /// BACK UP, PRESETS ONLY and the backups kept
     public let backups: BackupModel
+    /// Every write, then the page's re-reads (UnitActions.swift)
+    public let actions: UnitActions
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }
@@ -121,7 +123,9 @@ public final class UnitModel {
     public init(source: any LinkSource, backups: URL = BackupStore.defaultDirectory) {
         self.source = source
         self.backups = BackupModel(store: BackupStore(directory: backups))
+        self.actions = UnitActions()
         self.backups.unit = self
+        self.actions.unit = self
     }
 
     // MARK: finding the unit
@@ -261,6 +265,7 @@ public final class UnitModel {
             guard self.link === link else { return }
             algos = a
             dumpsLoaded = true
+            actions.dumpsRead(mine: m, factory: fac)
             say("DUMP: \(m.count) of \(mine.count) my presets, \(fac.count) factory")
         } catch {
             say("library: \(error)")
@@ -273,6 +278,7 @@ public final class UnitModel {
         unit = nil
         rows = []; status = nil; projects = nil; storeInfo = nil; algos = [:]; dumpsLoaded = false
         layout = nil; storeTracks = nil
+        actions.lost()
         state = .lost
         say("the FM-1 was disconnected")
         retry?.cancel()
@@ -318,8 +324,8 @@ public final class UnitModel {
     /// Everything read again; quick (the app coming back): a STATUS, and the rest only when it says the unit changed.
     /// true when the lists were read again.
     @discardableResult public func refresh(quick: Bool = false) async -> Bool {
-        guard let link, let u = unit, !refreshing else { return false }
-        if quick && u.version == nil { return false }
+        guard let link, let u = unit, !refreshing, !actions.busy, !backups.busy else { return false }
+        if quick && (u.version == nil || actions.editing > 0) { return false }
         refreshing = true
         defer { refreshing = false }
         if quick {
@@ -380,5 +386,28 @@ public final class UnitModel {
         print("FIZZ: \(s)")   // (the console: `devicectl device process launch --console`, Xcode)
         log.append(s)
         if log.count > 400 { log.removeFirst(log.count - 400) }
+    }
+
+    // MARK: what the writes read again (UnitActions)
+
+    func took(rows: [FizzListEntry]) { self.rows = rows }
+    func took(status: FizzStatus?) { self.status = status }
+    func took(projects: FizzProjects?) { self.projects = projects }
+    func took(storeInfo: FizzStoreInfo?) async {
+        self.storeInfo = storeInfo
+        layout = await Self.layout(storeInfo)
+    }
+    /// FIZZ's version again (it starts again after a restore).
+    func took(version: String?) {
+        guard let u = unit else { return }
+        let n = UnitInfo(idText: u.idText, portName: u.portName, candidate: u.candidate, version: version)
+        unit = n
+        if case .found = state { state = .found(n) }
+    }
+    func took(algorithm a: Int?, for key: String) { algos[key] = a }
+    /// MY PRESETS' and the factory's DUMPs read again (the glyphs).
+    func reloadDumps() async {
+        guard let link else { return }
+        await loadDumps(link)
     }
 }

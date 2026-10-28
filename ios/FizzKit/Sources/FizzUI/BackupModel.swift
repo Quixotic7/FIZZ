@@ -196,7 +196,7 @@ public final class BackupModel {
     public private(set) var lastKind: FizzBackupKind = .full
 
     @ObservationIgnored weak var unit: UnitModel?
-    @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private var task: Task<BackupEntry?, Never>?
     @ObservationIgnored private var poll: Task<Void, Never>?
     @ObservationIgnored private var cancelled = false
     @ObservationIgnored private let awake = KeepAwake()
@@ -210,8 +210,17 @@ public final class BackupModel {
     }
 
     /// BACK UP (.full) or PRESETS ONLY (.presets).
-    public func start(_ kind: FizzBackupKind) {
-        guard canBackUp(kind), let u = unit, let link = u.link, let info = u.unit else { return }
+    public func start(_ kind: FizzBackupKind) { _ = begin(kind) }
+
+    /// manager.js safetyCopy: a full backup before a RESTORE (the progress screen as BACK UP's), kept as "FIZZ
+    /// before restore ..". nil: it could not be made (or was cancelled): then nothing is to be restored.
+    public func safetyBackup() async -> BackupEntry? {
+        guard let t = begin(.full, safety: true) else { return nil }
+        return await t.value
+    }
+
+    private func begin(_ kind: FizzBackupKind, safety: Bool = false) -> Task<BackupEntry?, Never>? {
+        guard canBackUp(kind), let u = unit, let link = u.link, let info = u.unit else { return nil }
         let size = Int(u.storeInfo?.size ?? 0)
         let layout = u.layout ?? FizzLayout(name: "", size: size, libSectors: 0,
                                             prjSectors: max(1, (size + FizzLayout.sector - 1) / FizzLayout.sector))
@@ -231,11 +240,15 @@ public final class BackupModel {
                 self.run = progress.run(started: started)
             }
         }
-        task = Task { [weak self] in
+        let t = Task { [weak self] () -> BackupEntry? in
             let r: Result<Done, Error>
-            do { r = .success(try await Self.perform(kind, link, info, progress, self?.store)) } catch { r = .failure(error) }
+            do { r = .success(try await Self.perform(kind, link, info, progress, self?.store, safety: safety)) }
+            catch { r = .failure(error) }
             self?.finish(r)
+            return try? r.get().entry
         }
+        task = t
+        return t
     }
 
     /// CANCEL: the screen goes at once; the read stops and nothing is kept.
@@ -253,7 +266,7 @@ public final class BackupModel {
     struct Done { let entry: BackupEntry; let stats: FizzBackupStats?; let rows: [FizzListEntry]? }
 
     private static func perform(_ kind: FizzBackupKind, _ link: FizzLink, _ info: UnitInfo, _ progress: BackupProgress,
-                                _ store: BackupStore?) async throws -> Done {
+                                _ store: BackupStore?, safety: Bool = false) async throws -> Done {
         func check() throws { if Task.isCancelled { throw FizzBackupError.cancelled } }
         let date = Date()
         var read: FizzStoreRead?
@@ -277,7 +290,8 @@ public final class BackupModel {
                                  unitPort: info.portName, webTags: [:], stats: read.map { FizzTransferStats($0.stats) },
                                  date: date)
         let bytes = try await engine.makeFizzbak(input)
-        let name = try await engine.backupFileName(date: date, kind: kind)
+        var name = try await engine.backupFileName(date: date, kind: kind)
+        if safety { name = name.replacingOccurrences(of: "FIZZ backup", with: "FIZZ before restore") }
         try check()
         guard let store else { throw FizzBackupError.cancelled }
         let entry = try await store.add(bytes, name: name)

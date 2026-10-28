@@ -51,7 +51,8 @@ public enum FM1Bulk {
     public static let fzer: [UInt32: String] = [
         10: "the FM-1 is playing: stop it first", 11: "the backup's size is not this FM-1's store",
         12: "the image did not arrive whole (nothing was changed)", 13: "a write failed: FIZZ cleared its store",
-        14: "the store did not read back as the image", 1: "refused",
+        14: "the store did not read back as the image", 15: "this needs the USB cable (not over Bluetooth)",
+        1: "refused",
     ]
 
     // MARK: bit-stream 7-bit packing (LSB first)
@@ -99,6 +100,24 @@ public enum FM1Bulk {
         let s = body[6...].reduce(0) { $0 + Int($1) }
         body.append(UInt8(~s & 0xff))
         return [0xf0] + pack7(body) + [0xf7]
+    }
+
+    /// A read request as the unit sends it (the demo unit's and the tests' side of a restore).
+    public static func readRequest(addr: UInt32, len: Int, fl: UInt8 = 0) -> [UInt8] {
+        updateFrame(cmd: 0x30, payload: [fl] + le32(addr) + [UInt8(len & 0xff), UInt8((len >> 8) & 0xff),
+                                                             UInt8((len >> 16) & 0xff)])
+    }
+
+    /// A response() as the unit reads it: its flags, address and data; nil when it is not one or its sum is wrong.
+    public static func parseResponse(_ pkt: [UInt8]) -> (fl: UInt8, addr: UInt32, data: [UInt8])? {
+        guard pkt.count >= 2, pkt[0] == 0xf0, pkt[pkt.count - 1] == 0xf7 else { return nil }
+        let u = unpack7(pkt[1..<(pkt.count - 1)])
+        guard u.count >= 15, u[0] == 0, u[1] == 0x59, u[2] == 0x30 else { return nil }
+        let n = Int(u[3]) | (Int(u[4]) << 8), len = Int(u[11]) | (Int(u[12]) << 8)
+        guard n == len + 8, u.count >= 6 + n + 1 else { return nil }
+        let s = u[6..<(6 + n)].reduce(0) { $0 + Int($1) }
+        guard UInt8(~s & 0xff) == u[6 + n] else { return nil }
+        return (u[6], rd32(u, 7), Array(u[14..<(14 + len)]))
     }
 
     public static func parseRequest(_ pkt: [UInt8]) -> FM1ReadRequest? {

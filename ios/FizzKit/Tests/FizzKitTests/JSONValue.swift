@@ -36,6 +36,7 @@ enum JV: Equatable, CustomStringConvertible {
     var bool: Bool? { if case .bool(let b) = self { b } else { nil } }
     var string: String? { if case .str(let s) = self { s } else { nil } }
     var array: [JV] { if case .arr(let a) = self { a } else { [] } }
+    var members: [String: JV] { if case .obj(let d) = self { d } else { [:] } }
     var isNull: Bool { self == .null }
     var bytes: [UInt8] { array.map { UInt8($0.int!) } }
     var u32s: [UInt32] { array.map { UInt32($0.int!) } }
