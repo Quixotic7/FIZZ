@@ -58,7 +58,49 @@ struct Shots {
         save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "backup-rows")
         save(RootView(model: m, tab: .constant(.backup), wide: true), pad, out, "ipad-backup-rows")
         save(BackingUpView(model: m, run: .still(fraction: 0.6, layout: m.layout ?? .device, elapsed: 7)), phone, out, "backing-up")
+        await editShots(m, out)
         m.stop()
+    }
+
+    /// EDIT (phase I5): TRACK on, ROUND BASS heard on track 3 and kept; its pages; B1's RATIO turned; the keybed; the
+    /// KEEP / CANCEL bar; a MIDI sound; the iPad.
+    @MainActor
+    static func editShots(_ m: UnitModel, _ out: URL) async {
+        let e = m.editor
+        await m.actions.setTrackOn(true)
+        m.editTarget = .preset(m.mine[7])
+        await e.show()
+        await m.actions.keepAudition()
+        let edit = { (name: String) in save(RootView(model: m, tab: .constant(.edit), wide: false), phone, out, name) }
+        edit("edit")
+        for p in EditPage.allCases where p != .ops {
+            e.page = p
+            edit("edit-\(p.rawValue)")
+        }
+        e.page = .ops
+        e.turning = EditTurn(id: 3, label: "B1 RATIO", tint: FZ.k3)
+        edit("edit-drag")
+        e.turning = nil
+        e.keysOpen = true
+        edit("edit-keys")
+        e.keysOpen = false
+        save(RootView(model: m, tab: .constant(.edit), wide: true), pad, out, "ipad-edit")
+        e.page = .filter
+        save(RootView(model: m, tab: .constant(.edit), wide: true), pad, out, "ipad-edit-filter")
+        e.page = .ops
+        _ = await m.actions.pick(m.mine[1])
+        edit("edit-audition")
+        save(RootView(model: m, tab: .constant(.edit), wide: true), pad, out, "ipad-edit-audition")
+        _ = await m.actions.cancelAudition()
+        await m.actions.setTrackOn(false)
+        var b = [UInt8](repeating: 0, count: 128)
+        b[0] = 0x51; b[1] = 6
+        for k in 0..<28 { b[2 + 28 + k] = UInt8(16 + k); b[2 + k] = k % 3 == 2 ? 0 : UInt8(20 + k * 4) | 128 }
+        b[124] = 0x4d; b[125] = 0x49; b[126] = 0x44; b[127] = 0x49
+        m.editTarget = .sound(FizzSound(name: "CC MOTION", blob: b), label: "cc motion.fizzsnd")
+        await e.show()
+        edit("edit-midi")
+        e.hide()
     }
 
     @MainActor

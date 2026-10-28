@@ -109,6 +109,7 @@ public final class DemoUnit: Sendable {
         }
         b[87] = UInt8(max(0, min(127, p.drive)))            // (DRIVE)
         b[124] = 0; b[125] = 0; b[126] = 20; b[127] = 64
+        DemoVoicing.tune(&b, p)                             // (believable values for EDIT: DemoEdit.swift)
         return b
     }
 }

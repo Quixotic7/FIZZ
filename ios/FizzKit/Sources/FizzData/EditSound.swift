@@ -31,6 +31,7 @@ public struct EditAlgo: Sendable, Equatable {
     public let feedback: Int
     public let x: Int, y: Int
     public var out: Int { x | y }
+    public init(mods: [Int], feedback: Int, x: Int, y: Int) { self.mods = mods; self.feedback = feedback; self.x = x; self.y = y }
 }
 
 /// fizzvalues.js: the 115 values, the 8 algorithms, the LFO destinations' order.

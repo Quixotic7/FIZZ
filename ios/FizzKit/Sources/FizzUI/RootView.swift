@@ -100,7 +100,8 @@ struct TabScreen: View {
         case .backup: BackupView(model: model)
         case .library: LibraryView(model: model, wide: wide)
         case .projects: ProjectsView(model: model)
-        case .edit, .pool, .importer: TabPlaceholder(tab: tab)
+        case .edit: EditView(model: model, wide: wide)
+        case .pool, .importer: TabPlaceholder(tab: tab)
         }
     }
 }
@@ -116,7 +117,7 @@ struct PhoneRoot: View {
         ZStack(alignment: .bottom) {
             Color.black
             VStack(spacing: 0) {
-                TopBar(model: model)
+                if TrackPill.shows(on: tab) { TrackTopBar(model: model) } else { TopBar(model: model) }
                 TabScreen(model: model, tab: tab).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .padding(.top, insets.top)
@@ -125,7 +126,10 @@ struct PhoneRoot: View {
                 .frame(height: 150)
                 .allowsHitTesting(false)
             TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, 24)
+            // KEEP / CANCEL while a track plays another sound (TrackSwitch.swift)
+            AuditionBar(model: model).padding(.horizontal, 12).padding(.bottom, 24 + 64 + 10)
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
         .ignoresSafeArea(edges: .bottom)
     }
 }
@@ -186,6 +190,9 @@ struct PadRoot: View {
             TabScreen(model: model, tab: tab, wide: true)
                 .padding(.top, 14).padding(.leading, 18).padding(.trailing, 20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // KEEP / CANCEL while a track plays another sound (TrackSwitch.swift)
+                .overlay(alignment: .bottom) { AuditionBar(model: model).frame(maxWidth: 560).padding(.bottom, 24) }
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
         }
         .padding(.top, insets.top)
         .background(Color.black)

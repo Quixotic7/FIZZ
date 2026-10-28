@@ -92,9 +92,13 @@ public final class EditorModel {
     public var lfo = 0
     public var midiPage = 0
     public var turning: EditTurn?
+    /// a long list being picked (a destination, a source)
+    public var picking: Int?
     /// the keybed's octave (-2..2) and the notes down
     public private(set) var octave = 0
     public private(set) var held: Set<Int> = []
+    /// the phone's keybed strip pulled up
+    public var keysOpen = false
     /// a turn refused while TRACK is off: the switch pulses (counted)
     public private(set) var nudges = 0
     public private(set) var saving = false
