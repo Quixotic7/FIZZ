@@ -7,6 +7,7 @@
 //
 //   swift run fizzshots OUTDIR
 
+#if os(macOS)
 import AppKit
 import FizzKit
 import FizzUI
@@ -76,3 +77,8 @@ struct Shots {
         print(url.path)
     }
 }
+#else
+// (a Mac tool: on other platforms it only has to compile, for the package's test scheme)
+@main
+struct Shots { static func main() {} }
+#endif

@@ -25,7 +25,7 @@ let package = Package(
         .testTarget(
             name: "FizzKitTests",
             dependencies: ["FizzKit"],
-            resources: [.copy("Resources")]
+            resources: [.copy("Resources/vectors.json")]
         ),
         .testTarget(name: "FizzUITests", dependencies: ["FizzUI", "FizzKit"]),
     ],

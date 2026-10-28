@@ -54,7 +54,7 @@ enum JV: Equatable, CustomStringConvertible {
 
 enum Vectors {
     static let all: JV = {
-        let url = Bundle.module.url(forResource: "vectors", withExtension: "json", subdirectory: "Resources")!
+        let url = Bundle.module.url(forResource: "vectors", withExtension: "json")!
         let data = try! Data(contentsOf: url)
         return JV(any: try! JSONSerialization.jsonObject(with: data))
     }()

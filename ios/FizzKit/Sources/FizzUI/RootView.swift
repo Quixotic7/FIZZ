@@ -15,9 +15,14 @@ public struct FizzAppView: View {
     @State private var entered = false
     @Environment(\.scenePhase) private var phase
 
-    public init(source: any LinkSource = LinkSources.fromArguments()) {
+    public init(source: any LinkSource = LinkSources.fromArguments(),
+                arguments: [String] = ProcessInfo.processInfo.arguments) {
         FizzFont.register()
         _model = State(initialValue: UnitModel(source: source))
+        // `-tab library` opens on that tab (simulator screenshots, UI tests)
+        if let k = arguments.firstIndex(of: "-tab"), k + 1 < arguments.count, let t = FizzTab(rawValue: arguments[k + 1]) {
+            _tab = State(initialValue: t)
+        }
     }
 
     public var body: some View {

@@ -197,6 +197,12 @@ Build and check (I1):
 - `cd ios/FizzKit && swift run fizzshots <dir>`: the screens rendered to PNG with demo data on the Mac (no window, no
   simulator). The app runs on the demo unit with the launch argument `-demo` (`-demo update|notfizz|two`).
 - `node ios/FizzKit/Tests/gen_vectors.mjs` after any change to `tools/fizz_sysex.mjs` or `fm1lib.js`.
+- On the iOS simulator (iOS 27 runtime installed 2026-10-27): `ios/sim_test.sh [UDID]` builds the test bundles, runs
+  them in the simulator with `simctl spawn … xctest` (43 pass on an iPhone 17), then installs and launches the app on
+  the demo unit; `-tab library|projects|…` opens a tab, `xcrun simctl io <udid> screenshot` captures it. Boot with
+  `xcrun simctl boot <udid>` only (Simulator.app stays closed). Not `xcodebuild test`: this Mac's Xcode has its default
+  toolchain overridden to a 2024 Swift snapshot, whose runtime xcodebuild injects into the test process, which then
+  aborts at launch.
 
 I1 follow-ups: while nothing answers, `UnitModel` re-probes every 2 s (a handshake to each candidate port, a
 never-answering BLE port included); slow it to port changes + ~5 s before shipping. `FizzSysEx.frame` and a public
@@ -257,8 +263,8 @@ the core's C sources linked natively behind an `AVAudioSourceNode`. Decide after
 - **Conversations** (I2+): record request/reply transcripts from `site/tools/test_manager.mjs`'s `SimFizz` (the real
   wasm FIZZ plus the bulk model: backup with drops and autosaves, restore with FZER) and replay them against `FizzLink`.
 - **JSC bridge** (I2+): the same calls in Node and in JSC, outputs compared (store images, .fizzbak bytes, imports).
-- **App**: builds with `xcodebuild -destination 'generic/platform=iOS Simulator'`. Running it, UI tests and screenshots
-  need an iOS simulator runtime, which this Mac does not have (`xcodebuild -downloadPlatform iOS`, several GB).
+- **App**: builds for the simulator and runs on iPhone 17 / iPad Pro 11 simulators with the demo unit (`ios/sim_test.sh`).
+  iPad portrait shows two columns and the tag chips overflow; the iPad layout is designed for landscape (fix in I2).
 - **On the unit**: read-only checks (IDENTITY, LIST, PROJECTS) from the Mac through FizzKit's CoreMIDI transport (the
   same code as on iOS); the phone itself once the app runs on a device (needs signing).
 
