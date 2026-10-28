@@ -9,6 +9,8 @@ its text becomes the release's notes on the install page and on GitHub.
 
 <!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->
 
+## 0.12.0-beta.12 (2026-10-27)
+
 - **Record FIZZ over USB.** The FM-1 is now also a USB audio input: pick **FIZZ FM-1** as the input in your DAW (or Audio MIDI Setup) and record FIZZ's master output straight over the cable, 44.1 kHz stereo, at the MASTER knob's level. MIDI and the Manager work as before. (macOS may need the FM-1 unplugged and plugged in once to see the new input.)
 - **A Bluetooth package.** The install page now offers two packages: **USB** (the default, as before) and **Bluetooth**, which adds Bluetooth MIDI and keeps everything else, USB audio included. It has room for less: **4 projects, 128 MY presets** and a shorter undo (a whole dense pattern can't be copied or undone in one go). Connect it on a Mac in Audio MIDI Setup (Window → Show MIDI Studio → Bluetooth → Connect, no pairing code), on iPhone or iPad from a MIDI app's Bluetooth settings. SETTINGS (GLO + SEL) has a page 2 (SELECT): **BLUETOOTH** ON / OFF and whether a computer is connected.
 - **Over Bluetooth** all of FIZZ's MIDI works (notes, CCs, the remote, clock, MIDI out to the connected computer) and so does the Manager, except RESTORE and the PROJECTS tab's WRITE: those, installing and FIZZ's data need the USB cable, and the Manager says so.
