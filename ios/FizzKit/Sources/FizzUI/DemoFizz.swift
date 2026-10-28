@@ -5,7 +5,8 @@
 // A FIZZ unit in the app's own process (no MIDI): it answers the update handshake, IDENTITY, STATUS, LIST in parts,
 // DUMP (one, or slot 0 streaming), PROJECTS, FZBI and FZBR with frames made by FizzKit's builders, so FizzLink reads it
 // as it reads an FM-1. Its store is a real device-layout image (FizzData demoStore: its presets and projects), read
-// back 3-6 ms an FZBD. Variants: a unit in update mode, one that is not FIZZ, and two units at once.
+// back 3-6 ms an FZBD. It takes every write too (DemoWrites.swift: its MY PRESETS, pool, projects, tracks and store
+// change, refusals as FIZZ's). Variants: a unit in update mode, one that is not FIZZ, and two units at once.
 
 import Foundation
 import FizzData
@@ -13,9 +14,16 @@ import FizzKit
 
 // MARK: - The demo unit's data
 
-/// One preset of the demo unit.
-public struct DemoPreset: Sendable {
-    public let slot: Int, id: Int, name: String, tags: Int, algorithm: Int
+/// One preset of the demo unit (a stored one carries its own blob and mix).
+public struct DemoPreset: Sendable, Equatable {
+    public var slot: Int, id: Int, name: String, tags: Int, algorithm: Int
+    public var imported = false
+    public var blob: [UInt8]? = nil
+    public var drive = 0, pan = 0, chorus = 20, delay = 12, reverb = 30
+
+    public init(slot: Int, id: Int, name: String, tags: Int, algorithm: Int) {
+        self.slot = slot; self.id = id; self.name = name; self.tags = tags; self.algorithm = algorithm
+    }
 }
 
 /// What a demo unit holds: its identity, presets, pool, projects, store.
@@ -33,8 +41,10 @@ public final class DemoUnit: Sendable {
     public let lib = [14, 18], prj = [30, 55]
     /// An FZBR's FZBD after this long (ms, at random in the range)
     public let bulkMs: ClosedRange<Double>
-    /// The store image, made once
+    /// The store image, made again after a write changed the presets or projects
     public let store = DemoStoreImage()
+    /// What it holds now (the writes change it)
+    public let state: DemoState
 
     init(portName: String, idText: String, version: String?, mine: [DemoPreset] = [], factory: [DemoPreset] = [],
          pool: [(place: Int, preset: DemoPreset)] = [], projects: [(name: String, pages: Int, demo: Bool)?] = [],
@@ -42,6 +52,7 @@ public final class DemoUnit: Sendable {
         self.portName = portName; self.idText = idText; self.version = version
         self.mine = mine; self.factory = factory; self.pool = pool; self.projects = projects; self.current = current
         self.bulkMs = bulkMs
+        state = DemoState(mine: mine, factory: factory, pool: pool, projects: projects, current: current)
     }
 
     /// A FIZZ 0.12.0-beta.11 unit: 143 MY PRESETS, 23 factory, a pool of 19, 6 of 8 projects (one the demo).
@@ -71,8 +82,6 @@ public final class DemoUnit: Sendable {
         DemoUnit(portName: "ChoralRoot FM-1", idText: "FM-1_42002601", version: nil)
     }
 
-    var inPool: Set<Int> { Set(pool.map(\.preset.id)) }
-
     /// MY PRESETS as FizzData's sounds (what the DUMPs give: the blob, the sends, the tags).
     public func sounds(tagNames: [String]) -> [FizzSound] {
         mine.map { p in
@@ -98,6 +107,7 @@ public final class DemoUnit: Sendable {
             s = s &* 1_103_515_245 &+ 12345
             b[i] = UInt8((s >> 16) & 0x7f)
         }
+        b[87] = UInt8(max(0, min(127, p.drive)))            // (DRIVE)
         b[124] = 0; b[125] = 0; b[126] = 20; b[127] = 64
         return b
     }
@@ -110,7 +120,7 @@ public final class DemoFizz: MIDITransport, @unchecked Sendable {
     public let name: String
     public let messages: AsyncStream<[UInt8]>
     private let cont: AsyncStream<[UInt8]>.Continuation
-    private let unit: DemoUnit
+    let unit: DemoUnit
     private let lock = NSLock()
     private var closed = false, lostFlag = false
     private var queue: Task<Void, Never>?
@@ -129,7 +139,9 @@ public final class DemoFizz: MIDITransport, @unchecked Sendable {
         let (c, l) = lock.withLock { (closed, lostFlag) }
         if l { throw MIDITransportError.lost }
         if c { throw MIDITransportError.closed }
+        if let r = FM1Bulk.parseResponse(bytes) { took(r.addr, r.data); return }    // (a restore's answer)
         if let (tag, words) = DemoReplies.bulkRequest(bytes) {
+            if tag == "FZSR", unit.version != nil { restore(words); return }
             // FZBI / FZBR: answered from the store image, one at a time (a unit reads its flash in turn)
             guard unit.version != nil, tag == "FZBI" || tag == "FZBR" else { return }
             let unit = unit, ms = tag == "FZBR" ? Double.random(in: unit.bulkMs) : replyMs
@@ -145,7 +157,7 @@ public final class DemoFizz: MIDITransport, @unchecked Sendable {
     }
 
     /// Replies after the ones before, `ms` apart.
-    private func enqueue(_ ms: Double, _ make: @escaping @Sendable () async -> [[UInt8]]) {
+    func enqueue(_ ms: Double, _ make: @escaping @Sendable () async -> [[UInt8]]) {
         lock.withLock {
             let prev = queue
             queue = Task { [weak self] in
@@ -159,6 +171,44 @@ public final class DemoFizz: MIDITransport, @unchecked Sendable {
             }
         }
     }
+
+    /// A frame to the host now (a restore's read requests).
+    func yield(_ r: [UInt8]) {
+        guard !lock.withLock({ closed || lostFlag }) else { return }
+        cont.yield(r)
+    }
+
+    var gone: Bool { lock.withLock { closed || lostFlag } }
+
+    // the restore's answers (DemoWrites.swift reads them)
+    private var inbox: [(UInt32, [UInt8])] = []
+    private var restoring = false
+
+    func took(_ addr: UInt32, _ data: [UInt8]) {
+        lock.withLock { if restoring { inbox.append((addr, data)) } }
+    }
+
+    /// The answer for `addr` if it came (the others dropped).
+    func answer(for addr: UInt32) -> [UInt8]? {
+        lock.withLock {
+            guard let k = inbox.firstIndex(where: { $0.0 == addr }) else { return nil }
+            let d = inbox[k].1
+            inbox.removeAll()
+            return d
+        }
+    }
+
+    /// true when no restore was running (this one starts).
+    func beginRestore() -> Bool {
+        lock.withLock {
+            if restoring { return false }
+            restoring = true
+            inbox.removeAll()
+            return true
+        }
+    }
+
+    func endRestore() { lock.withLock { restoring = false } }
 
     /// The cable pulled.
     public func unplug() {
@@ -190,8 +240,9 @@ struct DemoReplies {
 
     /// A DUMP reply: FizzKit's STORE6 frame with the DUMP flag set (and its checksum made again).
     static func dump(_ p: DemoPreset, pool: Bool = false) -> [UInt8] {
-        var f = (try? FizzSysEx.storeSound(name: p.name, blob: DemoUnit.blob(p), pool: pool, slot: p.slot, pan: 0,
-                                           chorus: 20, delay: 12, reverb: 30, tags: .mask(p.tags))) ?? []
+        var f = (try? FizzSysEx.storeSound(name: p.name, blob: p.blob ?? DemoUnit.blob(p), drive: p.drive, pool: pool,
+                                           slot: p.slot, pan: p.pan, chorus: p.chorus, delay: p.delay, reverb: p.reverb,
+                                           tags: .mask(p.tags))) ?? []
         guard f.count > 8 else { return f }
         f[6] |= UInt8(FizzSysEx.FLAGS.dump)
         let sum = f[5..<(f.count - 2)].reduce(0) { $0 + Int($1) }
@@ -206,52 +257,60 @@ struct DemoReplies {
         }
         if bulkTag(b) != nil { return [] }      // (DemoFizz.send answers FZBI / FZBR from the image)
         guard b.count >= 8, b[1] == 0x7d, b[2] == 0x46, b[3] == 0x5a, let version = unit.version else { return [] }
-        switch b[5] {
-        case FizzSysEx.CMD.identity:
-            return [Self.frame(FizzSysEx.REPLY.identity, [1] + Self.ascii(version))]
-        case FizzSysEx.CMD.status:
-            return [status()]
-        case FizzSysEx.CMD.list:
-            return list(flags: Int(b[6]))
-        case FizzSysEx.CMD.dump:
-            let src = Int(b[6]), slot = (Int(b[7]) << 7) | Int(b[8])
-            let set = src == 0 ? unit.mine : src == 1 ? unit.factory : []
-            if src == 2 {
-                let ps = unit.pool.filter { slot == 0 || $0.place == slot }
-                return ps.map { Self.dump(DemoPreset(slot: $0.place, id: $0.preset.id, name: $0.preset.name,
-                                                    tags: $0.preset.tags, algorithm: $0.preset.algorithm), pool: true) }
+        let s = unit.state
+        return s.lock.withLock {
+            s.tick()
+            switch b[5] {
+            case FizzSysEx.CMD.identity:
+                return [Self.frame(FizzSysEx.REPLY.identity, [1] + Self.ascii(version))]
+            case FizzSysEx.CMD.status:
+                return [status(s)]
+            case FizzSysEx.CMD.list:
+                return list(flags: Int(b[6]), s)
+            case FizzSysEx.CMD.dump:
+                let src = Int(b[6]), slot = (Int(b[7]) << 7) | Int(b[8])
+                if src == 4 { return [trackDump(slot, s)] }
+                if src == 2 {
+                    return s.pool.keys.sorted().filter { slot == 0 || $0 == slot }.compactMap { k in
+                        s.preset(id: s.pool[k]!).map { p in var q = p; q.slot = k; return Self.dump(q, pool: true) }
+                    }
+                }
+                let set = src == 0 ? s.mineList : src == 1 ? s.factory : []
+                if slot == 0, !set.isEmpty { return set.map { Self.dump($0) } }
+                if let p = set.first(where: { $0.slot == slot }) { return [Self.dump(p)] }
+                return [Self.frame(FizzSysEx.REPLY.error, [FizzSysEx.ST.notFound, Int(FizzSysEx.CMD.dump)])]
+            case FizzSysEx.CMD.projects:
+                var body = [s.current - 1, s.projects.count]
+                for (k, p) in s.projects.enumerated() {
+                    let flags = (p != nil ? 1 : 0) | (k + 1 == s.current ? 2 : 0) | (p?.demo == true ? 4 : 0)
+                    body += [flags] + Self.name12(p?.name ?? "") + Self.r14(p?.pages ?? 0)
+                }
+                return [Self.frame(FizzSysEx.REPLY.projects, body)]
+            default:
+                if let r = write(b, s) { return r }
+                return [Self.frame(FizzSysEx.REPLY.error, [FizzSysEx.ST.badCommand, Int(b[5])])]
             }
-            if slot == 0, !set.isEmpty { return set.map { Self.dump($0) } }
-            if let p = set.first(where: { $0.slot == slot }) { return [Self.dump(p)] }
-            return [Self.frame(FizzSysEx.REPLY.error, [FizzSysEx.ST.notFound, Int(FizzSysEx.CMD.dump)])]
-        case FizzSysEx.CMD.projects:
-            var body = [unit.current - 1, unit.projects.count]
-            for (k, p) in unit.projects.enumerated() {
-                let flags = (p != nil ? 1 : 0) | (k + 1 == unit.current ? 2 : 0) | (p?.demo == true ? 4 : 0)
-                body += [flags] + Self.name12(p?.name ?? "") + Self.r14(p?.pages ?? 0)
-            }
-            return [Self.frame(FizzSysEx.REPLY.projects, body)]
-        default:
-            return [Self.frame(FizzSysEx.REPLY.error, [FizzSysEx.ST.badCommand, Int(b[5])])]
         }
     }
 
-    func status() -> [UInt8] {
-        let written = 4711
-        let body = [1, 6, 0, unit.current - 1, 4, unit.projects.compactMap { $0 }.count] + Self.r14(unit.mine.count) +
-            Self.r14(unit.pool.count) + Self.r21(written) + Self.r14(unit.lib[0]) + Self.r14(unit.lib[1]) +
-            Self.r14(unit.prj[0]) + Self.r14(unit.prj[1]) + [0, 2]
+    func status(_ s: DemoState) -> [UInt8] {
+        let flags = (s.playing ? 1 : 0) | (s.dirty ? 4 : 0) | (s.browse != nil ? 64 : 0)
+        let body = [1, 6, flags, s.current - 1, 4, s.projects.compactMap { $0 }.count] + Self.r14(s.mine.count) +
+            Self.r14(s.pool.count) + Self.r21(s.written) + Self.r14(unit.lib[0]) + Self.r14(unit.lib[1]) +
+            Self.r14(unit.prj[0]) + Self.r14(unit.prj[1]) + [0, s.selected]
         return Self.frame(FizzSysEx.REPLY.status, body)
     }
 
-    func list(flags: Int) -> [[UInt8]] {
-        let pooled = unit.inPool
+    func list(flags: Int, _ s: DemoState) -> [[UInt8]] {
+        let pooled = Set(s.pool.values)
         func entry(_ src: Int, _ p: DemoPreset, slot: Int? = nil, inPool: Bool) -> [Int] {
-            [src] + Self.r14(slot ?? p.slot) + Self.r21(p.id) + Self.name12(p.name) + [p.tags, inPool ? 2 : 0]
+            [src] + Self.r14(slot ?? p.slot) + Self.r21(p.id) + Self.name12(p.name) + [p.tags, (inPool ? 2 : 0) | (p.imported ? 1 : 0)]
         }
-        var all = unit.mine.map { entry(0, $0, inPool: pooled.contains($0.id)) }
-        if flags & 1 != 0 { all += unit.factory.map { entry(1, $0, inPool: pooled.contains($0.id)) } }
-        if flags & 2 != 0 { all += unit.pool.map { entry(2, $0.preset, slot: $0.place, inPool: true) } }
+        var all = s.mineList.map { entry(0, $0, inPool: pooled.contains($0.id)) }
+        if flags & 1 != 0 { all += s.factory.map { entry(1, $0, inPool: pooled.contains($0.id)) } }
+        if flags & 2 != 0 {
+            all += s.pool.keys.sorted().compactMap { k in s.preset(id: s.pool[k]!).map { entry(2, $0, slot: k, inPool: true) } }
+        }
         let per = 12
         let parts = stride(from: 0, to: max(all.count, 1), by: per).map { Array(all[$0..<min($0 + per, all.count)]) }
         return parts.enumerated().map { k, p in
@@ -295,18 +354,32 @@ struct DemoReplies {
 
 // MARK: - The store image
 
-/// The demo unit's store: a device-layout image made once by FizzData from its presets and projects.
+/// The demo unit's store: a device-layout image made by FizzData from its presets (their slots and ids) and projects,
+/// made again after a write changed them; a restored image kept as it came.
 public actor DemoStoreImage {
-    private var made: [UInt8]?
-
     public func image(for unit: DemoUnit) async -> [UInt8] {
-        if let made { return made }
+        let s = unit.state
+        let (have, version, presets, projects) = s.lock.withLock {
+            (s.imageVersion == s.version ? s.image : nil, s.version, s.mineList, s.projects)
+        }
+        if let have { return have }
         var img = [UInt8](repeating: 0xff, count: Int(unit.storeSize))
         do {
             let e = try FizzDataShared.engine()
-            img = try await e.demoStore(presets: unit.sounds(tagNames: e.tagNames), projects: unit.projectNames)
+            let ps: [FizzJSValue] = presets.map { p in
+                ["name": .string(p.name), "blob": .bytes(p.blob ?? DemoUnit.blob(p)), "drive": .int(p.drive), "pan": .int(p.pan),
+                 "sends": ["chorus": .int(p.chorus), "delay": .int(p.delay), "reverb": .int(p.reverb)],
+                 "fizzTags": .array(e.tagNames.enumerated().filter { (p.tags >> $0.offset) & 1 == 1 }.map { .string($0.element) }),
+                 "imported": .bool(p.imported), "slot": .int(p.slot), "id": .int(p.id)]
+            }
+            let prj: [FizzJSValue] = projects.enumerated().compactMap { k, p in
+                p.map { ["slot": .int(k + 1), "name": .string($0.name)] }
+            }
+            if let b = try await e.call("demoStore", [["presets": .array(ps), "projects": .array(prj), "layout": "device"]]).bytes {
+                img = b
+            }
         } catch {}
-        made = img
+        s.lock.withLock { if s.version == version { s.image = img; s.imageVersion = version } }
         return img
     }
 }

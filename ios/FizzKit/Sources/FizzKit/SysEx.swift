@@ -112,6 +112,12 @@ public struct FizzListEntry: Codable, Sendable, Equatable {
     public let tags: Int
     public let imported: Bool
     public let inPool: Bool
+
+    /// A row as an edit the unit acknowledged makes it (shown before LIST is read again).
+    public init(source: String, slot: Int, id: Int, name: String, tags: Int, imported: Bool, inPool: Bool) {
+        self.source = source; self.slot = slot; self.id = id; self.name = name; self.tags = tags
+        self.imported = imported; self.inPool = inPool
+    }
 }
 
 public struct FizzListPart: Codable, Sendable, Equatable {
