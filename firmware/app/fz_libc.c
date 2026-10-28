@@ -5,12 +5,15 @@
  *   memmove               newlib's shares its object with memcpy, which the unity build already defines.
  * The formats are the ones FIZZ uses (core/: %d %u %x %c %s %%, flags - and 0, a width, a precision for s, *, the l
  * length). No %f and no atof (P2.5: the core has no double left; fm1-base's build refuses one). The unit only: the
- * host simulator uses its own C library. */
+ * host simulator uses its own C library. The Bluetooth package (FM1B_BLE) links fm1-base's shim, whose memmove and
+ * free (its heap's) stand in for these. */
 #ifndef PLAT_HOST
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 
+#if !FM1B_BLE                            /* (the Bluetooth package: fm1-base's shim, ble/shim/misc.c, has its own
+                                          * memmove and free; FIZZ's free is never called there either) */
 void *memmove(void *d, const void *s, size_t n)
 {
     unsigned char *dp = d;
@@ -25,6 +28,7 @@ void *memmove(void *d, const void *s, size_t n)
             *--dp = *--sp;
     return d;
 }
+#endif
 
 typedef struct {
     char *b;
@@ -176,7 +180,9 @@ int snprintf(char *buf, size_t size, const char *f, ...)
 
 /* there is no heap: core/gfx/qd_arena.c hands to free() and realloc() only what is not the arena's, which on the unit
  * is nothing (its malloc fallback is the host's alone); a pointer that came here would be a bug: kept quiet, refused */
+#if !FM1B_BLE
 void free(void *p) { (void)p; }
+#endif
 void *realloc(void *p, size_t n) { (void)p, (void)n; return 0; }
 
 /* plutovg's assert(): a failed one stops the unit where it failed (fm1-base's crash screen and record: its PC) */

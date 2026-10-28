@@ -37,6 +37,14 @@
 #define QD_HOST 1
 #endif
 
+/* the Bluetooth package (2026-10-27; firmware/build.py --ble: -DQD_PKG_BLE=1, the host's and the tests' too): the
+ * FM-1's second package, with fm1-base's Bluetooth MIDI, pays for it in the core: 4 projects and 128 MY presets
+ * (persist.h QD_NPROJ, QD_NLIB, and its stores' own layout and magic), the reverb's lines packed 12-bit (cr_fx.c
+ * QD_FX_REVERB_PACKED), fewer undo levels (undo.h). 0: the USB package (and every host build) as before */
+#ifndef QD_PKG_BLE
+#define QD_PKG_BLE 0
+#endif
+
 /* the tracks a project has (2026-10-24: 8 -> 6, the owner's choice, for RAM; model.h QD_NTRACK, pattern.h QD_PAT_NTRACK,
  * pool.h QD_POOL_NTRACK and the screens' UI_NTRACK are this). The white keys W1..W6 are the tracks; W7 / W8 are dark
  * where they chose a track. The store's format changed with it (persist.h QD_STORE_VER): an older store starts fresh. */

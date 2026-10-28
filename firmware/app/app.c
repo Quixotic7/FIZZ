@@ -2320,7 +2320,14 @@ static uint32_t fz_xdata_write(uint32_t off, uint32_t len, uint32_t crc)   /* 0 
     tr[0] = 0x54585A46u, tr[1] = len, tr[2] = crc;   /* "FZXT" */
     if (plat_data_write(off + ((len + 3u) & ~3u), tr, sizeof tr))
         return 5;
+#if QD_PKG_BLE
+    for (a = 0; a < (uint32_t)fz_xdata_n(); a++)   /* (the blob just written: its own state) */
+        if (fz_xdata_off_of((int)a) == off)
+            return fz_xdata_state_of((int)a) == 1 ? 0u : 6u;
+    return 6u;
+#else
     return fz_xdata_state() == 1 ? 0u : 6u;
+#endif
 }
 
 /* (P2.13) THE STORE'S BACKUP AND RESTORE over USB (firmware/tools/fizz_xdata.py backup / restore; the install page),
@@ -2390,6 +2397,9 @@ static uint32_t fz_restore(uint32_t lo, uint32_t size, uint32_t len, uint32_t cr
 void app_usb_cmd(const uint8_t *d, uint32_t n)
 {
     uint32_t len, crc, off, rc;
+#if QD_PKG_BLE
+    int i;
+#endif
     if (n >= 7u + 4u && d[2] == 0x46u && (fz_rd32(d + 6) == 0x49425A46u || fz_rd32(d + 6) == 0x52425A46u ||
                                           fz_rd32(d + 6) == 0x52535A46u)) {   /* "FZBI" "FZBR" "FZSR" */
         uint8_t b[12 + FZ_BK_CHUNK];
@@ -2436,6 +2446,19 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
     if (n < 7u + 16u || d[2] != 0x46u || fz_rd32(d + 6) != 0x44585A46u)   /* 46 "FZXD" */
         return;
     len = fz_rd32(d + 10), crc = fz_rd32(d + 14), off = fz_rd32(d + 18);
+#if QD_PKG_BLE
+    for (i = 0; i < fz_xdata_n(); i++)   /* (the Bluetooth package has two blobs: the one these name) */
+        if (len == fz_xdata_len_of(i) && crc == fz_xdata_crc_of(i) && off == fz_xdata_off_of(i))
+            break;
+    if (i == fz_xdata_n() || !len) {
+        fz_usb_reply("FZER", 1);         /* (another build's blob: this unit's is what the stamp says) */
+        return;
+    }
+    if (fz_xdata_state_of(i) == 1) {
+        fz_usb_reply("FZOK", 0);
+        return;
+    }
+#else
     if (len != fz_xdata_len() || crc != fz_xdata_crc() || off != fz_xdata_flash_off() || !len) {
         fz_usb_reply("FZER", 1);         /* (another build's blob: this unit's is what the stamp says) */
         return;
@@ -2444,6 +2467,7 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
         fz_usb_reply("FZOK", 0);
         return;
     }
+#endif
     if (fz_ok) {                         /* (cannot be: FIZZ runs only on a good blob) */
         fz_usb_reply("FZER", 2);
         return;
@@ -2454,7 +2478,11 @@ void app_usb_cmd(const uint8_t *d, uint32_t n)
     rc = fz_xdata_write(off, len, crc);
     fz_pull_end();
     fz_usb_reply(rc ? "FZER" : "FZOK", rc ? rc : 1u);
+#if QD_PKG_BLE
+    if (!rc && fz_xdata_state() == 1)    /* (every blob there: FIZZ starts) */
+#else
     if (!rc)
+#endif
         fz_restart();
     app_ui_init();                       /* (FIZZ's screen, or the message again) */
 }

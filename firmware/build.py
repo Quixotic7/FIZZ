@@ -12,6 +12,14 @@
                                             Without it: the dual build (8 voices, the second core)
   ... --define NAME[=VALUE]                 a core option for every unit (repeatable), named in stats line 8
   ... --tag NAME                            the package's name with -NAME (fizz-NAME.fwsc)
+  ... --ble                                 the Bluetooth package (2026-10-27): fm1-base's Bluetooth MIDI peripheral
+                                            (ble_trim, ble_no_pairing; heap and stacks from fm1.toml's fizz_ble_heap_kb
+                                            and fizz_ble_stack_kb, or FZ_BLE_HEAP_KB / FZ_BLE_STACK_KB), USB audio in
+                                            kept; the core's QD_PKG_BLE=1 (4 projects, 128 MY presets, the reverb's
+                                            lines packed; core/qd_config.h); a second data blob at 0x97000 (code and
+                                            constants out of the app slot) and its stores' own layout (persist.h). Its
+                                            files: fizz-ble.fwsc, fizz-ble-xdata.bin, fizz-ble-xdata2.bin,
+                                            fizz-ble-size.txt, fizz-ble.map (firmware/BUDGET.md "The Bluetooth package")
 
 What it adds to fm1-base's build (each a small patch of its module, applied here):
   - the toolchain's container sees the whole repository (FIZZ's core/ and third_party/ are above firmware/): its root
@@ -40,6 +48,11 @@ REPO = HERE.parent
 BASE = HERE / "fm1-base"
 APP = HERE / "app"
 XDATA_LO, XDATA_HI = 0xE5000, 0xFC000          # plat.h PLAT_XDATA1
+# the Bluetooth package (--ble): fm1-base's Bluetooth store object (OBJ_BLE, app.h) takes XDATA1's first two sectors
+# (0xE5000..0xE6FFF: inside fm1-base's FL_STORE_OK, which 0xFA000 is not), the first blob the rest; the second blob is
+# the data region's first 24 sectors (0x97000..0xAEFFF), the stores after it (persist.h)
+BLE_XDATA_LO = 0xE7000
+BLE_X2_LO, BLE_X2_HI = 0x97000, 0xAF000
 XIP = lambda off: 0x02000000 + off - 0x4000     # felucca-bsp FM1_XIP
 
 for k, v in (("JIELI_TOOLCHAIN", Path.home() / ".jieli" / "toolchain"), ("AC79_SDK", Path.home() / "fw-AC79_AIoT_SDK"),
@@ -64,6 +77,9 @@ def jieli(rel):
 
 _tc = fb.tc
 SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
+BLE_PKG = "--ble" in sys.argv[1:]               # the Bluetooth package (2026-10-27; firmware/BUDGET.md)
+if BLE_PKG and SINGLE:
+    raise SystemExit("--ble: the Bluetooth package is the dual-core one (no single-core Bluetooth package)")
 # P2.15i: --define NAME=VALUE (repeatable): a core option for every unit (e.g. the pacing flags, core/qd_config.h), named
 # in stats line 8 (defines=); --tag NAME: the package's name gets -NAME (fizz-NAME.fwsc)
 EXTRA, TAG, _rest = [], "", []
@@ -75,6 +91,8 @@ while _i < len(_a):
             raise SystemExit(f"--define {_a[_i + 1]}: NAME or NAME=VALUE")
         EXTRA.append(_a[_i + 1])
         _i += 2
+    elif _a[_i] == "--ble":
+        _i += 1
     elif _a[_i] == "--tag" and _i + 1 < len(_a):
         TAG = _a[_i + 1]
         _i += 2
@@ -125,6 +143,8 @@ if VARIANT and VARIANT not in VARIANTS:
     raise SystemExit(f"FZ_VARIANT={VARIANT}: one of " + ", ".join(VARIANTS))
 DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS.get(VARIANT, 0)}u")
 DEFS += [f"-D{d}" for d in EXTRA]
+if BLE_PKG:
+    DEFS.append("-DQD_PKG_BLE=1")                # (the core's Bluetooth profile: core/qd_config.h)
 if EXTRA:
     DEFS.append('-DFZ_DEFINES="' + ",".join(EXTRA) + '"')
 if VARIANT == "o2ram":                           # (the render's 22.6 KB at -O2 fits only with the effects out, and
@@ -144,6 +164,34 @@ if BEGIN_RAM:
 if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does not fit the RAM code region: flash)                  # (8 voices: the RAM they free takes the voices' render)
     HOT["build_units_c_quad_voice.o"] = ["quad_render", "qd_quad_voice_render", "?quad_lfo_incb", "?quad_lfo_incb_p",
                                          "?quad_lfo_incv", "?quad_lfo_inc"]   # (?: its helpers, where the core has them)
+
+
+# ---- the Bluetooth package's second blob (--ble): what leaves the app slot for the data region's first 24 sectors
+# (0x97000..0xAEFFF), linked at its XIP address (fizz-ble.ld's .fz_x2) and cut out into fizz-ble-xdata2.bin. Input
+# sections by unit (FIZZ's units have no -fdata-sections: a unit's code and constants go whole, by name pattern). Only
+# what FIZZ runs or reads on the main loop once its blobs are checked (fz_init): the screens' code and constants, never
+# the sound's (the audio interrupt, core 1), the port's (fz_port.c: the blobs' own check) or the platform's (its boot,
+# crash and update screens draw without FIZZ's data). Code runs from there as from the app slot: the data region is
+# read through the same XIP window (main_fm1.c's plain window from 0x93000 up: fl_plain_window_init), the flash is off
+# only with the interrupts off, and FIZZ's units make long calls. And the first blob's part that its two sectors fewer
+# no longer hold
+BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.APE_BYTES)"]
+
+
+def ble_ld(ld):
+    """fizz.ld (as the dual build has it) -> the Bluetooth package's link script: XDATA1 two sectors shorter (OBJ_BLE
+    at 0xE5000), the second blob's region and its section (.fz_x2: first in the script, so its inputs are matched
+    before .text's and .qd_xdata's wildcards)"""
+    old = "    XDATA  (r)   : ORIGIN = 0x020E1000, LENGTH = 0x17000 - 12\n"
+    if ld.count(old) != 1 or ld.count("SECTIONS\n{\n") != 1:
+        raise SystemExit("fizz: fizz.ld's XDATA line or SECTIONS changed: see build.py ble_ld")
+    ld = ld.replace(old, f"    XDATA  (r)   : ORIGIN = {XIP(BLE_XDATA_LO):#010x}, LENGTH = {XDATA_HI - BLE_XDATA_LO:#x} - 12\n"
+                         f"    XDATA2 (rx)  : ORIGIN = {XIP(BLE_X2_LO):#010x}, LENGTH = {BLE_X2_HI - BLE_X2_LO:#x} - 12\n")
+    ld = ld.replace("SECTIONS\n{\n", "SECTIONS\n{\n    .fz_x2 : { _fz_x2_start = .; " + " ".join(BLE_X2) +
+                    " . = ALIGN(4); _fz_x2_end = .; } > XDATA2\n")
+    if os.environ.get("FZ_MEASURE") == "1":       # (a measure only: every region 1 MiB, the overlaps let pass; the
+        ld = re.sub(r"LENGTH = [^\n]*\n", "LENGTH = 0x100000\n", ld)   # report shows each one's use; not a package)
+    return ld
 
 
 def place_hot(obj, names):
@@ -280,8 +328,8 @@ def tc(tool, *args):
                         raise SystemExit("fizz: fizz.ld's .fz_rt / .pool lines changed: see build.py")
                     ld = ld.replace(" *(.fz_rtdata*)", "").replace("*/o2/fz_port.o(.bss* .sbss* COMMON)",
                                                                    "*/o2/fz_port.o(.bss* .sbss* COMMON) *(.fz_rtdata*)")
-                    args[i] = fb.OUT / "fizz-std.ld"
-                    args[i].write_text(ld)
+                    args[i] = fb.OUT / ("fizz-ble.ld" if BLE_PKG else "fizz-std.ld")
+                    args[i].write_text(ble_ld(ld) if BLE_PKG else ld)
                 if SINGLE:                       # the voices' comb lines leave the RAM code region for the pool;
                     ld = (APP / "fizz.ld").read_text()   # 2026-10-24: the frame's rows and buffers marked for it too
                     comb = " */o2/build_units_c_quad_voice.o(.bss* .sbss* COMMON)"   # (as Standard: six tracks gave
@@ -293,12 +341,16 @@ def tc(tool, *args):
                     args[i] = fb.OUT / "fizz-1core.ld"
                     args[i].write_text(ld)
         o = args.index("-o")
+        if os.environ.get("FZ_MEASURE") == "1":
+            args[o:o] = ["--no-check-sections"]
+            o += 1
         args[o:o] = ["--start-group", jieli("pi32v2/lib/r3/libm.a"), jieli("pi32v2/lib/r3/libc.a"),
-                     jieli("pi32v2/lib/r3/libcompiler_rt.a"), "--end-group", "-Map", fb.OUT / "fizz.map"]
+                     jieli("pi32v2/lib/r3/libcompiler_rt.a"), "--end-group", "-Map", fb.OUT / f"{OUTP}.map"]
     return _tc(tool, *args)
 
 
 fb.tc = tc
+OUTP = "fizz-ble" if BLE_PKG else "fizz"       # the map's, the blobs' and the size report's names
 
 # ---- after the link: the blob, the stamp, the report
 _build_app = fb.build_app
@@ -313,36 +365,57 @@ def section_table(elf):
     return out
 
 
+def cut_blob(elf, secs, sec, lo, hi, path, what):
+    """a blob's section cut out of the ELF into path, checked: at its flash address lo, it and its 12-byte trailer
+    inside [lo, hi), no "AT" at 0xF06 of a sector (plat.h); (bytes, CRC-32)"""
+    path.unlink(missing_ok=True)
+    size, vma = secs.get(sec, (0, XIP(lo)))
+    if not size:
+        return b"", 0
+    if vma != XIP(lo):
+        raise SystemExit(f"fizz: {sec} at {vma:#x}, not {XIP(lo):#x} (the link script)")
+    fb.tc("common/bin/objcopy", "-O", "binary", "-j", sec, elf, path)
+    blob = path.read_bytes()
+    if len(blob) != size:
+        raise SystemExit(f"fizz: {what} is {len(blob)} B, its section {size}")
+    if lo + ((size + 3) & ~3) + 12 > hi and os.environ.get("FZ_MEASURE") != "1":
+        raise SystemExit(f"fizz: {what} and its trailer do not fit {lo:#x}..{hi:#x}")
+    crc = zlib.crc32(blob) & 0xFFFFFFFF
+    whole = blob + b"\xff" * (-len(blob) % 4) + struct.pack("<III", 0x54585A46, len(blob), crc)   # + its trailer
+    for at in range(0, len(whole), 0x1000):              # bsp/loader/ldr_core.c: a record has "AT" at 0xF06
+        if whole[at + 0xF06:at + 0xF08] == b"AT":
+            raise SystemExit(f"fizz: {what} has \"AT\" at {lo + at + 0xF06:#x} (plat.h): move it")
+    return blob, crc
+
+
+def stamp(img, tag, blob, crc, need=True):
+    """a blob's length and CRC-32 into its stamp in the image (fz_port.c fz_stamp, fz_stamp2)"""
+    at = img.find(tag)
+    if at < 0 and not need:
+        return img
+    if at < 0 or img.find(tag, at + 1) >= 0:
+        raise SystemExit(f"fizz: the stamp {tag[:4]!r} (fz_port.c) is not in the image once")
+    return img[:at + 8] + struct.pack("<II", len(blob), crc) + img[at + 16:]
+
+
 def build_app():
     img, syms, dis, rt = _build_app()
     elf = fb.OUT / (fb.NAME + ".elf")
     secs = section_table(elf)
-    blob_path = fb.OUT / "fizz-xdata.bin"
-    blob_path.unlink(missing_ok=True)
-    size, vma = secs.get(".qd_xdata", (0, XIP(XDATA_LO)))
-    if size:
-        if vma != XIP(XDATA_LO):
-            raise SystemExit(f"fizz: .qd_xdata at {vma:#x}, not {XIP(XDATA_LO):#x} (fizz.ld)")
-        fb.tc("common/bin/objcopy", "-O", "binary", "-j", ".qd_xdata", elf, blob_path)
-        blob = blob_path.read_bytes()
-        if len(blob) != size:
-            raise SystemExit(f"fizz: the blob is {len(blob)} B, its section {size}")
-        if XDATA_LO + ((size + 3) & ~3) + 12 > XDATA_HI:
-            raise SystemExit("fizz: the blob and its trailer do not fit PLAT_XDATA1")
-        crc = zlib.crc32(blob) & 0xFFFFFFFF
-        whole = blob + b"\xff" * (-len(blob) % 4) + struct.pack("<III", 0x54585A46, len(blob), crc)   # + its trailer
-        for sec in range(0, len(whole), 0x1000):           # bsp/loader/ldr_core.c: a record has "AT" at 0xF06
-            if whole[sec + 0xF06:sec + 0xF08] == b"AT":
-                raise SystemExit(f"fizz: the blob has \"AT\" at {XDATA_LO + sec + 0xF06:#x} (plat.h): move it")
-    else:
-        blob, crc = b"", 0
-    tag = struct.pack("<II", 0x44585A46, 0x504D5453)        # fz_port.c fz_stamp: "FZXDSTMP", len, crc
-    at = img.find(tag)
-    if at < 0 or img.find(tag, at + 1) >= 0:
-        raise SystemExit("fizz: the stamp (fz_port.c fz_stamp) is not in the image once")
-    img = img[:at + 8] + struct.pack("<II", len(blob), crc) + img[at + 16:]
+    lo = BLE_XDATA_LO if BLE_PKG else XDATA_LO
+    blob, crc = cut_blob(elf, secs, ".qd_xdata", lo, XDATA_HI, fb.OUT / f"{OUTP}-xdata.bin", "the blob")
+    img = stamp(img, struct.pack("<II", 0x44585A46, 0x504D5453), blob, crc)   # "FZXDSTMP", len, crc
+    blob2, crc2 = b"", 0
+    if BLE_PKG:
+        blob2, crc2 = cut_blob(elf, secs, ".fz_x2", BLE_X2_LO, BLE_X2_HI, fb.OUT / f"{OUTP}-xdata2.bin",
+                               "the second blob")
+        if not blob2:
+            raise SystemExit("fizz: the Bluetooth package has no second blob (.fz_x2)")
+        img = stamp(img, struct.pack("<II", 0x32585A46, 0x504D5453), blob2, crc2)   # "FZX2STMP", len, crc
+    elif struct.pack("<II", 0x32585A46, 0x504D5453) in img:
+        raise SystemExit("fizz: a second blob's stamp in a package without one")
     (fb.OUT / (fb.NAME + ".bin")).write_bytes(img)
-    report(img, syms, secs, blob, crc)
+    report(img, syms, secs, blob, crc, blob2, crc2)
     return img, syms, dis, rt
 
 
@@ -370,13 +443,13 @@ def map_pieces(path):
     return out
 
 
-def report(img, syms, secs, blob, crc):
+def report(img, syms, secs, blob, crc, blob2=b"", crc2=0):
     sym = {}
     for ln in syms.splitlines():
         p = ln.split()
         if len(p) >= 2 and re.fullmatch(r"[0-9a-f]{8}", p[0]):
             sym[p[-1]] = int(p[0], 16)
-    pieces = map_pieces(fb.OUT / "fizz.map")
+    pieces = map_pieces(fb.OUT / f"{OUTP}.map")
     by = {}
     for osec, isec, size, who, f in pieces:
         by.setdefault(osec, {}).setdefault(who, 0)
@@ -390,6 +463,7 @@ def report(img, syms, secs, blob, crc):
                     if k in (".data", ".bss", ".pool", ".noinit", ".fz_rt", ".fz_ni"))
     budget = 98304 + 344064 - 8192 + (32768 - (sym["_rt_end"] - 0x01C00000)) + (0x3D50 - (sym["_fz_ni_start"] - 0x01C7C000))
     t = by.get(".text", {})
+    xlo = BLE_XDATA_LO if BLE_PKG else XDATA_LO
 
     def row(name, sec):
         v = by.get(sec, {})
@@ -399,12 +473,17 @@ def report(img, syms, secs, blob, crc):
              f"pool {pool} B of 344064 ({344064 - pool} free; fm1-base insists on 8192)",
              f"RAM code region: code {sym['_rt_end'] - sym['_rt_start']} B, FIZZ's data {sym['_fz_rt_end'] - sym['_fz_rt_start']} B, "
              f"{free_rt} of 32768 free; NOINIT: FIZZ's data {sym['_fz_ni_end'] - sym['_fz_ni_start']} B, {free_ni} of 15696 free",
-             f"data blob (.qd_xdata) {len(blob)} B at flash {XDATA_LO:#x} (PLAT_XDATA1, {XDATA_HI - XDATA_LO} B), CRC-32 {crc:08x}",
+             f"data blob (.qd_xdata) {len(blob)} B at flash {xlo:#x} (PLAT_XDATA1, {XDATA_HI - xlo} B), CRC-32 {crc:08x}",
+             *([f"second data blob (.fz_x2) {len(blob2)} B at flash {BLE_X2_LO:#x} (the data region's first "
+                f"{(BLE_X2_HI - BLE_X2_LO) // 4096} sectors, {BLE_X2_HI - BLE_X2_LO - 12} B with its trailer: "
+                f"{BLE_X2_HI - BLE_X2_LO - 12 - len(blob2)} free), CRC-32 {crc2:08x}"] if BLE_PKG else []),
              f"BUDGET-LINE-FM1BASE flash={len(img)}/{fb.APP_SLOT} fizz_ram={fizz_data} platform_ram={plat_data} "
-             f"ram={fizz_data + plat_data}/{budget} xdata={len(blob)}/{XDATA_HI - XDATA_LO - 12}",
+             f"ram={fizz_data + plat_data}/{budget} xdata={len(blob)}/{XDATA_HI - xlo - 12}" +
+             (f" xdata2={len(blob2)}/{BLE_X2_HI - BLE_X2_LO - 12}" if BLE_PKG else ""),
              "",
              f"  {'by output section (bytes)':34s} {'platform':>8s} {'FIZZ':>8s} {'libc':>8s}",
-             row("code and constants (.text)", ".text"), row("RAM code (.ram_text)", ".ram_text"),
+             row("code and constants (.text)", ".text"), *([row("second blob (.fz_x2)", ".fz_x2")] if BLE_PKG else []),
+             row("RAM code (.ram_text)", ".ram_text"),
              row("initialised data (.data)", ".data"), row("RAM (.bss)", ".bss"), row("pool (.pool)", ".pool"),
              row("RAM code region, data (.fz_rt)", ".fz_rt"), row("NOINIT, fm1-base's (.noinit)", ".noinit"),
              row("NOINIT, FIZZ's (.fz_ni)", ".fz_ni"), ""]
@@ -426,8 +505,8 @@ def report(img, syms, secs, blob, crc):
             lines.append(f"  {size:8d}  {f}")
     lines += ["", "64-bit multiplies inlined beside loads (felucca-bsp docs/CPU.md): " +
               ", ".join(fb.mul64_near_loads(Path(fb.OUT / (fb.NAME + ".dis")).read_text()))]
-    (fb.OUT / "fizz-size.txt").write_text("\n".join(lines) + "\n")
-    print("\n".join("  size  " + ln for ln in lines[:6]))
+    (fb.OUT / f"{OUTP}-size.txt").write_text("\n".join(lines) + "\n")
+    print("\n".join("  size  " + ln for ln in lines[:7 if BLE_PKG else 6]))
 
 
 fb.build_app = build_app
@@ -451,11 +530,26 @@ class _Subprocess:
 fb.subprocess = _Subprocess()
 
 # ---- the single-core package: its own file names (the name in fm1.toml, -1core), FZ_SINGLE_CORE=1 everywhere
-if SINGLE or TAG:
+if (SINGLE or TAG) and not BLE_PKG:
     _read_conf = fb.read_conf
     fb.read_conf = lambda path: {**_read_conf(path), "name": _read_conf(path).get("name", "fizz") +
                                  ("-1core" if SINGLE else "") + (f"-{NAMED}" if SINGLE and NAMED else "") +
                                  (f"-{TAG}" if TAG else "")}
+
+# ---- the Bluetooth package: fm1-base's Bluetooth MIDI peripheral (trimmed, no pairing), its heap and stacks from
+# fm1.toml's fizz_ble_heap_kb / fizz_ble_stack_kb (the environment's FZ_BLE_HEAP_KB / FZ_BLE_STACK_KB over them: the
+# unit's log says what they reach, radio.c's "heap" and "stacks"), named fizz-ble
+if BLE_PKG:
+    _read_conf_ble = fb.read_conf
+
+    def _ble_conf(path):
+        c = _read_conf_ble(path)
+        heap = int(os.environ.get("FZ_BLE_HEAP_KB", c.get("fizz_ble_heap_kb", 12)))
+        stack = int(os.environ.get("FZ_BLE_STACK_KB", c.get("fizz_ble_stack_kb", 6)))
+        return {**c, "name": c.get("name", "fizz") + "-ble" + (f"-{TAG}" if TAG else ""), "ble": True,
+                "ble_trim": True, "ble_no_pairing": True, "ble_heap_kb": heap, "ble_stack_kb": stack,
+                "usb_audio_in": True}
+    fb.read_conf = _ble_conf
 
 if __name__ == "__main__":
     sys.argv = [str(BASE / "tools" / "build.py"), str(APP), *[a for a in sys.argv[1:] if a != "--single-core"]]

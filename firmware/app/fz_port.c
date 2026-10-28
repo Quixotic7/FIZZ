@@ -71,7 +71,12 @@ static const qd_flash_t fz_fl = {fz_fread, fz_ferase, fz_fprog, 0};
 /* The link puts the .qd_xdata.* sections at the XIP address of the data flash's second window (fizz.ld; plat.h
  * PLAT_XDATA1); firmware/build.py writes the blob's length and CRC-32 into this stamp, and firmware/tools/
  * fizz_xdata.py writes the blob there, then a trailer: FZXT, its length, its CRC-32. The unit draws only when the
- * flash holds this build's. */
+ * flash holds this build's.
+ * The Bluetooth package (QD_PKG_BLE, firmware/build.py --ble) has two: the first at 0xE7000 (OBJ_BLE, app.h, takes
+ * XDATA1's first two sectors), the second (fizz-ble.ld's .fz_x2: the screens' code and constants that left the app
+ * slot) at the data region's first byte, 0x97000..0xAEFFF, its own stamp "FZX2STMP"; FIZZ starts only when both are
+ * this build's (the second blob's code is never run before: fz_init checks them first) */
+#if !QD_PKG_BLE
 static const volatile uint32_t fz_stamp[4] = {0x44585A46u, 0x504D5453u, 0u, 0u};   /* "FZXDSTMP", len, crc */
 #define FZ_TRAILER 0x54585A46u                       /* "FZXT" */
 #ifdef QD_TARGET_FM1
@@ -118,6 +123,114 @@ int fz_xdata_state(void)
 #endif
     return 1;
 }
+int fz_xdata_n(void) { return 1; }
+uint32_t fz_xdata_len_of(int i) { return i ? 0u : fz_xdata_len(); }
+uint32_t fz_xdata_crc_of(int i) { return i ? 0u : fz_xdata_crc(); }
+uint32_t fz_xdata_off_of(int i) { return i ? 0u : fz_xdata_flash_off(); }
+int fz_xdata_state_of(int i) { return i ? 1 : fz_xdata_state(); }
+#else
+static const volatile uint32_t fz_stamp[4] = {0x44585A46u, 0x504D5453u, 0u, 0u};   /* "FZXDSTMP", len, crc */
+#if QD_PKG_BLE
+static const volatile uint32_t fz_stamp2[4] = {0x32585A46u, 0x504D5453u, 0u, 0u};  /* "FZX2STMP", len, crc */
+#define FZ_NBLOB 2
+#else
+#define FZ_NBLOB 1
+#endif
+#define FZ_TRAILER 0x54585A46u                       /* "FZXT" */
+#ifdef QD_TARGET_FM1
+extern const uint8_t _fz_xdata_start[], _fz_xdata_end[];
+#if QD_PKG_BLE
+extern const uint8_t _fz_x2_start[], _fz_x2_end[];
+#endif
+#endif
+
+int fz_xdata_n(void) { return FZ_NBLOB; }
+uint32_t fz_xdata_len_of(int i)
+{
+#if QD_PKG_BLE
+    if (i == 1)
+        return fz_stamp2[2];
+#endif
+    return i ? 0u : fz_stamp[2];
+}
+uint32_t fz_xdata_crc_of(int i)
+{
+#if QD_PKG_BLE
+    if (i == 1)
+        return fz_stamp2[3];
+#endif
+    return i ? 0u : fz_stamp[3];
+}
+uint32_t fz_xdata_off_of(int i)
+{
+#ifdef QD_TARGET_FM1
+#if QD_PKG_BLE
+    return i ? PLAT_DATA_LO : 0xE7000u;                /* (fizz-ble.ld: .fz_x2 at the data region's first byte; the
+                                                        * first blob after OBJ_BLE's two sectors) */
+#else
+    (void)i;
+    return PLAT_XDATA1_LO;                             /* (fizz.ld: the blob from the window's first byte) */
+#endif
+#else
+    (void)i;
+    return 0;
+#endif
+}
+uint32_t fz_xdata_len(void) { return fz_xdata_len_of(0); }
+uint32_t fz_xdata_crc(void) { return fz_xdata_crc_of(0); }
+uint32_t fz_xdata_flash_off(void) { return fz_xdata_off_of(0); }
+
+static uint32_t fz_crc32(const uint8_t *p, uint32_t n)
+{
+    uint32_t c = 0xFFFFFFFFu, k;
+    while (n--) {
+        c ^= *p++;
+        for (k = 0; k < 8u; k++)
+            c = (c >> 1) ^ (0xEDB88320u & (0u - (c & 1u)));
+    }
+    return ~c;
+}
+
+int fz_xdata_state_of(int i)
+{
+#ifdef QD_TARGET_FM1
+    const uint8_t *s = i ? 0 : _fz_xdata_start, *e = i ? 0 : _fz_xdata_end;
+    uint32_t len, tr[3];
+    const uint8_t *t;
+#if QD_PKG_BLE
+    if (i == 1)
+        s = _fz_x2_start, e = _fz_x2_end;
+#endif
+    if (!s)
+        return 1;                                      /* (no such blob) */
+    len = (uint32_t)(e - s);
+    t = plat_data(fz_xdata_off_of(i) + ((len + 3u) & ~3u));
+    if (!len)
+        return 1;                                      /* (nothing in it: nothing to check) */
+    if (!t || !plat_data(fz_xdata_off_of(i)) || fz_xdata_len_of(i) != len)
+        return -1;
+    memcpy(tr, t, sizeof tr);
+    if (tr[0] != FZ_TRAILER)
+        return 0;
+    if (tr[1] != len || tr[2] != fz_xdata_crc_of(i) || fz_crc32(s, len) != fz_xdata_crc_of(i))
+        return -1;
+#else
+    (void)i;
+#endif
+    return 1;
+}
+int fz_xdata_state(void)                             /* every blob: -1 if one is another build's, else 0 if one is
+                                                      * missing, else 1 */
+{
+    int i, r = 1;
+    for (i = 0; i < FZ_NBLOB; i++) {
+        const int k = fz_xdata_state_of(i);
+        if (k < r)
+            r = k;
+    }
+    return r;
+}
+#endif
 
 /* ---------------------------------------------------------------- the calls --- */
 int fz_init(const char *version)

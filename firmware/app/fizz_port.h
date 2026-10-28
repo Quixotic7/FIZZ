@@ -81,7 +81,14 @@ void fz_blips(uint32_t *n, uint32_t *what);         /* (2026-10-25) a menu, HOME
 uint32_t fz_xdata_len(void);
 uint32_t fz_xdata_crc(void);                       /* the CRC-32 the build stamped (the blob's) */
 uint32_t fz_xdata_flash_off(void);                 /* its first byte's flash offset */
-int fz_xdata_state(void);
+int fz_xdata_state(void);                          /* (every blob: the worst of them) */
+/* the Bluetooth package has two (QD_PKG_BLE: the second at 0x97000, fz_port.c); blob i's length, CRC-32, flash
+ * offset and state as above (i 0: the first, as fz_xdata_len ..) */
+int fz_xdata_n(void);
+uint32_t fz_xdata_len_of(int i);
+uint32_t fz_xdata_crc_of(int i);
+uint32_t fz_xdata_off_of(int i);
+int fz_xdata_state_of(int i);
 
 /* a harness's seams (qd_app_show, qd_app_seed): a screen as the panel would leave it, a fixed seed for the rolls; and
  * the host simulator's checks (app_expect): 1 = known */

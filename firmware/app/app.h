@@ -19,10 +19,18 @@
 #define APP_USB_CMD                          /* the data blob written over USB (firmware/tools/fizz_xdata.py) */
 #define FM1B_UAC_RING_POOL 1                 /* USB audio in's 2 KB ring in the pool (FIZZ's RAM is full: BUDGET.md) */
 
-/* the store's objects: only the panel's calibration (the platform's), in Felucca's settings sector pair; FIZZ's own
- * data are raw sectors of the data region (fz_port.c, the blob at PLAT_XDATA1) */
+/* the store's objects: the panel's calibration (the platform's), in Felucca's settings sector pair; FIZZ's own data are
+ * raw sectors of the data region (fz_port.c, the blob at PLAT_XDATA1). The Bluetooth package (firmware/build.py --ble:
+ * FM1B_BLE) adds the radio's (its address: OBJ_BLE, fm1-base radio.c) in XDATA1's first two sectors, 0xE5000..0xE6FFF
+ * (Felucca's autosave pair: fm1-base's storage writes only inside FL_STORE_OK, which 0xFA000 is not); its first blob
+ * starts at 0xE7000. An object's number is its record's: OBJ_PANEL stays 0 */
+#if FM1B_BLE
+enum { OBJ_PANEL, OBJ_BLE, OBJ_NOBJ };
+#define APP_STORE_MAP {0xFC000u, 0xE5000u}
+#else
 enum { OBJ_PANEL, OBJ_NOBJ };
 #define APP_STORE_MAP {0xFC000u}
+#endif
 
 /* the contract: the platform calls these */
 void app_init(void);                         /* boot: FIZZ's core (or, its data missing, the screen that says so) */
