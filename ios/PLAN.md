@@ -320,7 +320,62 @@ with a colour and a drawing, not paragraphs.
 The wasm FIZZ cannot run in a `JSContext` on iOS (no JIT, no WebAssembly) but runs in a hidden `WKWebView` (WebKit has
 WebAssembly and AudioWorklet since iOS 14.5). FizzKit's `MIDITransport` gets a second implementation bridged to that
 web view's `SimFizz`, so every tab works offline and is heard on the iPhone, as the page's BROWSER pill. Alternative:
-the core's C sources linked natively behind an `AVAudioSourceNode`. Decide after I6.
+the core's C sources linked natively behind an `AVAudioSourceNode`. Decide after I6. **Decided 2026-10-28: the
+native core (§4.8).**
+
+### 4.8 The emulated FIZZ (engine built 2026-10-28; no screen yet)
+FIZZ's own firmware core runs in the app, so the app works without an FM-1 (its own playable tab later; the library,
+EDIT and the rest through the same port).
+
+**Build.** `ios/engine/build_core.sh` mirrors FM1VST's tracked `cmake/`, `core-api/`, `core-glue/` (read only, as
+`site/build_wasm.sh` does) and runs its own `cmake/FM1Cores.cmake` + `core-glue/fizz/core.cmake` with
+`ios/engine/CMakeLists.txt` (`-DFIZZ_DIR` = this checkout, `-Os`, no coroutine, no `fifo.c`) once per slice: iphoneos
+arm64, iphonesimulator arm64 + x86_64 (lipo), macOS arm64 (`swift test`, fizzshots). `ios/engine/fizzhost.c` is
+linked with the core's library into one object (`ld -r`, only `fzh_*` and `fizzcore_get` global), stripped, packed as
+`FizzKit/Frameworks/FizzCore.xcframework` (headers `fizzhost.h`, its module map `CFizzCore`, the ABI's `fm1core.h`)
+with `FizzCore.json` (version as `git describe`, FIZZ and FM1VST commits) beside it. Both are committed: the app
+builds without FM1VST. About 1.3 MB per slice (~720 KB of machine code; 5.5 MB of RAM, mostly the 1 MiB flash and its staged copy).
+
+**ABI.** `core-api/fm1core.h` ABI 6, the descriptor from `fm1core_get`: `flash_stage` + `options(FM1CORE_FLASH_STAGED)`
++ `init` to power on; `tick` / `frame` (every 15 ms) / `idle` and `audio` (128 frames at 44.1 kHz) as the clock;
+`midi_in` / `midi_out_take` (USB-MIDI packets); the panel (keys, buttons by `btn_id`, encoders by `enc_id` / `enc_dir`,
+MASTER; LEDs by the keymap, PLAY's green, the RGB565 LCD); `flash` / `flash_dirty` / `flash_sync`; `shutdown`;
+`ui_info`. The core's `stats` reports nothing on a host (zeros): `fizzhost.c` times `audio()` and each device ms itself.
+
+**Threads.** The core is single-threaded and exists once per process. Every entry point runs holding fizzhost's clock
+token: the audio callback (`fzh_render`, from an `AVAudioSourceNode` at 44.1 kHz; the engine's mixer converts to the
+hardware rate, the session asks for 44.1 kHz and ~6 ms buffers) or, without sound, a 4 ms timer (`fzh_run`, the device
+ms due by the wall clock) try it and skip a turn when it is held; boot, shutdown and a flash copy with no clock take it
+blocking. Input (buttons, keys, knobs, MASTER, MIDI) goes through a queue the clock drains at each device ms (never
+waiting for its lock); output (MIDI packets, the LCD at most every 16 ms, the LEDs, a requested flash copy) is
+published lock-free. A service timer moves it on: SysEx to the open `EmulatorTransport`s, `FizzPanelFrame`s
+(`CGImage` + LEDs) to `frames()` subscribers. The app going to the background stops the clock and the sound and saves
+the flash; it starts again in the foreground.
+
+**Persistence.** `Documents/Emulator/fizz-flash.bin`, the whole 1 MiB image: saved 1.5 s after `flash_dirty` last
+moved (10 s at most), on stop / background, after a restore; loaded by `boot()`; `reset()` removes it.
+
+**The port.** `EmulatorLinkSource` ("FIZZ (this iPhone)") and `EmulatorTransport` make the emulated unit a
+`LinkSource` / `MIDITransport` (`LinkSource` moved into FizzKit for this): FizzLink finds and talks to it as to an
+FM-1. FIZZ's own SysEx (IDENTITY, LIST, DUMP, STATUS, STORE, PARAM, the projects ..) is the core's. What fm1-base
+answers on the unit is Swift, as the web browser unit's `simfizz.js`: the update handshake (`FM-1_46999999`) and the
+bulk channel FZBI / FZBR / FZSR, over the USB package's region (73 sectors at 0x97000) made from the host's 1 MiB flash
+record by record (`StoreImage`, fizzstore.js's convertImage), so backups move between the emulator and an FM-1; FZSR
+pulls the image twice (FZER 10 / 11 / 12 / 13 / 14 as app.c), then FIZZ starts again on it.
+
+**Licences of what is compiled in (to settle before any App Store build).**
+- FIZZ (`core/`, its glue `core/glue/core_quadrille*.c`): MPL-2.0. FM TONE, the effects and the output chain from
+  ChoralRoot FM-1: relicensed MPL-2.0 by the owner (its Felucca-derived parts rewritten).
+- plutovg (`third_party/plutovg`): MIT; its rasteriser and stroker are FreeType's (FreeType License: the credit line
+  "Portions of this software are copyright (c) 2006 The FreeType Project" in the app's notices); stb_truetype
+  inside it: MIT or public domain. Inter Tight (compiled in as data): SIL OFL 1.1.
+- **FM1VST's glue: GPL-3.0-only** (SPDX headers): `core-glue/common/nor.c` (the flash image) is compiled in, and the
+  header-only `panel.h`, `sysex.h`, `nor.h`, `version.h` and `core-api/fm1core.h` are inlined into FIZZ's glue unit.
+  The app binary therefore carries GPL-3.0-only code. Their git history names only the owner as author, so the owner
+  can relicense them (e.g. MPL-2.0, as FIZZ) or give an App Store exception; until then a TestFlight / App Store build
+  of the app with FizzEngine linked is a GPL-3.0 distribution.
+- Ours: `ios/engine/fizzhost.c`, `fizzhost.h`, `CMakeLists.txt`, `build_core.sh`, `Sources/FizzEngine`: MPL-2.0.
+  FM1VST's `cmake/FM1Cores.cmake` and `core-glue/fizz/core.cmake` (GPL-3.0-only) only run at build time.
 
 ## 5. Phases
 

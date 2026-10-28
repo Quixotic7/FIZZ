@@ -11,6 +11,7 @@ let package = Package(
         .library(name: "FizzKit", targets: ["FizzKit"]),
         .library(name: "FizzUI", targets: ["FizzUI"]),
         .library(name: "FizzData", targets: ["FizzData"]),
+        .library(name: "FizzEngine", targets: ["FizzEngine"]),
         .executable(name: "fizzshots", targets: ["fizzshots"]),
     ],
     targets: [
@@ -27,6 +28,10 @@ let package = Package(
             dependencies: ["FizzKit"],
             resources: [.copy("Resources/FizzData.js")]
         ),
+        // FIZZ's own firmware core, compiled for iOS / the simulator / macOS (ios/engine/build_core.sh)
+        .binaryTarget(name: "CFizzCore", path: "Frameworks/FizzCore.xcframework"),
+        // the emulated FIZZ: the core's clock, sound, panel and flash; a MIDITransport and LinkSource onto it
+        .target(name: "FizzEngine", dependencies: ["FizzKit", "CFizzCore"]),
         // PNGs of the screens with the demo unit's data (macOS, no window)
         .executableTarget(name: "fizzshots", dependencies: ["FizzUI", "FizzKit", "FizzData"]),
         .testTarget(
@@ -39,6 +44,7 @@ let package = Package(
             dependencies: ["FizzUI", "FizzKit", "FizzData"],
             resources: [.copy("Resources/lib.fizzlib")]
         ),
+        .testTarget(name: "FizzEngineTests", dependencies: ["FizzEngine", "FizzKit"]),
         // (fixtures: node ios/jsbundle/gen_fixtures.mjs; each file copied to the bundle's root, no Resources folder)
         .testTarget(
             name: "FizzDataTests",

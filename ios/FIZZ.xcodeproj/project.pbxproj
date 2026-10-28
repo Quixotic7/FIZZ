@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		F1220000000000000000000D /* FizzKit in Frameworks */ = {isa = PBXBuildFile; productRef = F1220000000000000000000B /* FizzKit */; };
 		F1220000000000000000000E /* FizzUI in Frameworks */ = {isa = PBXBuildFile; productRef = F1220000000000000000000C /* FizzUI */; };
+		F1220000000000000000E001 /* FizzEngine in Frameworks */ = {isa = PBXBuildFile; productRef = F1220000000000000000E000 /* FizzEngine */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +45,7 @@
 			files = (
 				F1220000000000000000000D /* FizzKit in Frameworks */,
 				F1220000000000000000000E /* FizzUI in Frameworks */,
+				F1220000000000000000E001 /* FizzEngine in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -89,6 +91,7 @@
 			packageProductDependencies = (
 				F1220000000000000000000B /* FizzKit */,
 				F1220000000000000000000C /* FizzUI */,
+				F1220000000000000000E000 /* FizzEngine */,
 			);
 			productName = FIZZ;
 			productReference = F12200000000000000000004 /* FIZZ.app */;
@@ -293,6 +296,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F1220000000000000000000A /* XCLocalSwiftPackageReference "FizzKit" */;
 			productName = FizzUI;
+		};
+		F1220000000000000000E000 /* FizzEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F1220000000000000000000A /* XCLocalSwiftPackageReference "FizzKit" */;
+			productName = FizzEngine;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

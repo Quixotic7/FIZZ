@@ -3,17 +3,10 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // Where the app's units come from: CoreMIDI's ports, or the demo unit (launched with -demo, -demo update|notfizz|two).
+// (The LinkSource protocol itself is FizzKit's, so FizzEngine's emulated unit can be one too.)
 
 import Foundation
 import FizzKit
-
-/// Port pairs to probe, and a signal whenever ports come or go.
-public protocol LinkSource: Sendable {
-    var scanner: any MIDIPortScanning { get }
-    /// one value per change of the ports (one listener)
-    var changes: AsyncStream<Void> { get }
-    var clock: any FizzClock { get }
-}
 
 #if canImport(CoreMIDI)
 /// CoreMIDI's ports. Make it on the main thread (CoreMIDI notifies on the thread that made the client).

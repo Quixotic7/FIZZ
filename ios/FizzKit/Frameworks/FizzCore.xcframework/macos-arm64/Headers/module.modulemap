@@ -1,0 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+// FIZZ's core for Swift (FizzEngine): fizzhost.h only (fm1core.h ships beside it, for reference).
+module CFizzCore {
+    header "fizzhost.h"
+    export *
+}
