@@ -69,7 +69,8 @@ static int fz_fb_line(uint32_t *line)    /* the scan's line now; -1 none */
  * rectangles left to right. The dual build (the room: 3,840 B, half in the pool, half in NOINIT); the single-core
  * build one segment (whole rows, the row hash as before) */
 #ifndef FZ_FB_SEGS
-#if FM1B_CPU2 && !FZ_SINGLE_CORE
+#if FM1B_CPU2 && !FZ_SINGLE_CORE && !QD_PKG_BLE   /* (the Bluetooth package: one segment, as the single-core build:
+                                                 * its 3,840 B of hashes went to the radio) */
 #define FZ_FB_SEGS 4u
 #else
 #define FZ_FB_SEGS 1u

@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: MPL-2.0
+# The Bluetooth package (firmware/build.py --ble --host: fizz-ble_host): MIDI over Bluetooth. A computer connected over
+# Bluetooth gets what USB gets (fz_port.c fz_midi_out: the transport, the clock, the tracks' notes), and
+# what it sends is played as USB's and the TRS jack's is (app.c fz_midi_isr: channel 15 the selected track, START /
+# STOP). Before it connects nothing goes to it.
+#   firmware/app/build/host/fizz-ble_host firmware/app/tests/ble_midi.txt OUT
+expect fz_up 1
+wait 1200
+tap HOME
+wait 300
+out
+# nobody on Bluetooth yet: USB only
+tap PLAY
+wait 500
+expect_out USB FA 00 00
+expect_no_out BLE FA 00 00
+tap PLAY
+wait 200
+out
+# a computer connects: START, the clock and STOP to both
+ble connect
+wait 300
+tap PLAY
+wait 1000
+expect_out USB FA 00 00
+expect_out BLE FA 00 00
+tap PLAY
+wait 200
+expect_out BLE FC 00 00
+out
+# in from Bluetooth: START and STOP play the sequencer as USB's do
+wait 800
+midi BLE FA 00 00
+wait 500
+expect fz_playing 1
+midi BLE FC 00 00
+wait 300
+expect fz_playing 0
+# a note in on channel 15 (the selected track) from Bluetooth: heard
+midi BLE 9E 3C 64
+wait 200
+expect fz_voices >0
+midi BLE 8E 3C 00
+wait 500
+# the computer goes: nothing more to Bluetooth
+ble disconnect
+wait 300
+out
+tap PLAY
+wait 500
+expect_out USB FA 00 00
+expect_no_out BLE FA 00 00
+tap PLAY
+wait 200

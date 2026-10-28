@@ -14,6 +14,13 @@
 /* fm1-base's canvas is for its own screens only (boot, crash, update, the splash): FIZZ draws in its own strips and
  * sends them from where they are. 16 rows: the tallest face (APP_BIG_FONT; P2.5: the pool is full) */
 #define APP_CANVAS_PX (240u * 16u)
+#if QD_PKG_BLE && !defined(PLAT_HOST)
+/* (the Bluetooth package) that canvas in FIZZ's frame, not 7,680 B of the pool of its own: the frame's rows in the pool
+ * (app.c fz_fb_hi), redrawn whole after any of fm1-base's screens (firmware/build.py BLE_OVERLAY) */
+#include <stdint.h>
+extern uint8_t fz_fb_hi[][240];
+#define APP_CANVAS_AT ((uint16_t *)(void *)fz_fb_hi)
+#endif
 #define APP_BIG_FONT FONT_B                  /* (FONT_L's 20 KB of flash saved; the splash's name in B, 16 rows) */
 #define APP_SYSEX                            /* FIZZ's SysEx (7D 46 5A: LIST, DUMP, STORE, LABELS ..) */
 #define APP_USB_CMD                          /* the data blob written over USB (firmware/tools/fizz_xdata.py) */

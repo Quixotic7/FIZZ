@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: MPL-2.0
 # The store against a region another firmware left (P2.5): noise in 0x97000..0xDFFFF, then a restart: FIZZ finds none
 # of its sectors, erases the region and starts on it; the sound costs what it did; the wipe (7D 46 50 "WIPE") and safe
-# mode (SAVE held at power-on: no store; P2.14, REC is fm1-base's update mode now)
+# mode (SAVE held at power-on: no store; P2.14, REC is fm1-base's update mode now). The region: 73 sectors, the Bluetooth
+# package's store 49 (persist.h)
 fzdata random
 reboot
 wait 600
-expect fz_store_wiped 73
+expect fz_store_wiped_all 1
 expect fz_store_on 1
 tap PLAY
 wait 3000
@@ -17,7 +18,7 @@ fzstats
 fzdata zero
 reboot
 wait 600
-expect fz_store_wiped 73
+expect fz_store_wiped_all 1
 expect fz_store_on 1
 # the wipe, FIZZ on: everything FIZZ wrote erased, FIZZ again on a blank store
 press SEL

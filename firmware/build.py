@@ -78,6 +78,7 @@ def jieli(rel):
 _tc = fb.tc
 SINGLE = "--single-core" in sys.argv[1:]        # the single-core package (firmware/DUALCORE.md)
 BLE_PKG = "--ble" in sys.argv[1:]               # the Bluetooth package (2026-10-27; firmware/BUDGET.md)
+BLE_FB_LO = int(os.environ.get("FZ_BLE_FB_LO", "2"))   # (the Bluetooth package: the 8-bit frame's rows in RAM)
 if BLE_PKG and SINGLE:
     raise SystemExit("--ble: the Bluetooth package is the dual-core one (no single-core Bluetooth package)")
 # P2.15i: --define NAME=VALUE (repeatable): a core option for every unit (e.g. the pacing flags, core/qd_config.h), named
@@ -145,6 +146,7 @@ DEFS.append(f"-DFZ_VARIANT_ID={VARIANTS.get(VARIANT, 0)}u")
 DEFS += [f"-D{d}" for d in EXTRA]
 if BLE_PKG:
     DEFS.append("-DQD_PKG_BLE=1")                # (the core's Bluetooth profile: core/qd_config.h)
+    DEFS = [d if not d.startswith("-DFZ_FB_LO=") else f"-DFZ_FB_LO={BLE_FB_LO}u" for d in DEFS]
 if EXTRA:
     DEFS.append('-DFZ_DEFINES="' + ",".join(EXTRA) + '"')
 if VARIANT == "o2ram":                           # (the render's 22.6 KB at -O2 fits only with the effects out, and
@@ -161,6 +163,18 @@ if BEGIN_RAM:
                 "build_units_c_pool.o": ["qd_pool_block_begin"],
                 "build_units_c_seq.o": ["?qd_seq_bpm"],
                 "build_units_c_quad_voice.o": ["qd_quad_owner_block"]})
+# the Bluetooth package: its radio needs ~4.7 KB of the RAM code region (the radio's trim, 3.6 KB, must run from RAM;
+# the packed reverb is ~0.6 KB longer), so the least hot of FIZZ's RAM code stays in the flash there: the master
+# filter (xq_block: runs only while the filter is on), the chorus's taps (xc_block: only while the chorus holds
+# something), the delay (xf_delay: only while it holds something), a player event (qd_player_event: once a trig, not
+# every block) and the effects' block (fz_real_qd_fx_block: every block). ~4.9 KB: the flash cache's misses on them
+# (P2.15g: the effects' seven out of RAM cost the interrupt 10..16 points) when they run (firmware/BUDGET.md)
+BLE_COLD = {"build_units_c_qd_fx.o": ["xq_block", "xc_block", "xf_delay", "fz_real_qd_fx_block"],
+            "build_units_c_player.o": ["?qd_player_event"]}
+if BLE_PKG:
+    for _o, _ns in BLE_COLD.items():
+        if _o in HOT:
+            HOT[_o] = [n for n in HOT[_o] if n not in _ns]
 if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does not fit the RAM code region: flash)                  # (8 voices: the RAM they free takes the voices' render)
     HOT["build_units_c_quad_voice.o"] = ["quad_render", "qd_quad_voice_render", "?quad_lfo_incb", "?quad_lfo_incb_p",
                                          "?quad_lfo_incv", "?quad_lfo_inc"]   # (?: its helpers, where the core has them)
@@ -175,7 +189,16 @@ if SINGLE and VARIANT not in ("xip", "o2"):      # (o2: the render at -O2 does n
 # read through the same XIP window (main_fm1.c's plain window from 0x93000 up: fl_plain_window_init), the flash is off
 # only with the interrupts off, and FIZZ's units make long calls. And the first blob's part that its two sectors fewer
 # no longer hold
-BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.APE_BYTES)"]
+# ui_layer.o (the screens' drawing, 99 KB) but two of its functions, which stay in the app slot (BLE_SLOT: their
+# sections renamed .fzsl.*, as HOT's .fzrt.*), and one face of the first blob's (the 18-px light one, 6 KB: the first
+# blob two sectors shorter). Balance (2026-10-27): the slot ~4.4 KB free, the first blob ~1.5 KB, the second ~2.3 KB
+BLE_X2 = ["*/o2/build_units_c_ui_layer.o(.text* .rodata*)", "*(.qd_xdata.qf_bits_18_300 .qd_xdata.qf_g_18_300)"]
+BLE_SLOT = {"build_units_c_ui_layer.o": ["ui_geek_draw", "ui_menu_draw"]}
+# .. and its RAM: the radio's heap and statics land in RAM (its heap must stay low: fm1-base misc.c, the radio's DMA
+# does not reach the pool's top), so FIZZ units' zero-initialised data move from RAM to the pool, whole (no
+# -fdata-sections): app.o's 8 KB; and the 8-bit frame's rows but two (BLE_FB_LO: 86 rows, 20,640 B)
+BLE_TO_POOL = ["build_units_c_app.o"]
+BLE_TO_NI = ["build_units_c_ctl_latch.o"]       # (NOINIT's room the 8-bit frame's hashes left: FZ_FB_SEGS 1)
 
 
 def ble_ld(ld):
@@ -187,6 +210,21 @@ def ble_ld(ld):
         raise SystemExit("fizz: fizz.ld's XDATA line or SECTIONS changed: see build.py ble_ld")
     ld = ld.replace(old, f"    XDATA  (r)   : ORIGIN = {XIP(BLE_XDATA_LO):#010x}, LENGTH = {XDATA_HI - BLE_XDATA_LO:#x} - 12\n"
                          f"    XDATA2 (rx)  : ORIGIN = {XIP(BLE_X2_LO):#010x}, LENGTH = {BLE_X2_HI - BLE_X2_LO:#x} - 12\n")
+    for u in BLE_TO_POOL:
+        piece = f" */o2/{u}(.bss* .sbss* COMMON)"
+        ld = ld.replace(piece, "")
+        if ld.count("*/o2/fz_port.o(.bss* .sbss* COMMON)") != 1:
+            raise SystemExit("fizz: fizz.ld's .pool line changed: see build.py ble_ld")
+        ld = ld.replace("*/o2/fz_port.o(.bss* .sbss* COMMON)", "*/o2/fz_port.o(.bss* .sbss* COMMON)" + piece)
+    for u in BLE_TO_NI:
+        ni = "*/o2/build_units_c_ui_keys.o(.bss* .sbss* COMMON)"
+        if ld.count(ni) != 1:
+            raise SystemExit("fizz: fizz.ld's .fz_ni line changed: see build.py ble_ld")
+        ld = ld.replace(ni, ni + f" */o2/{u}(.bss* .sbss* COMMON)")
+    t = "*(.*_const)\n"                         # (.text's last inputs: the kept functions after them)
+    if ld.count(t) != 1:
+        raise SystemExit("fizz: fizz.ld's .text changed: see build.py ble_ld")
+    ld = ld.replace(t, "*(.*_const) *(.fzsl.*)\n")
     ld = ld.replace("SECTIONS\n{\n", "SECTIONS\n{\n    .fz_x2 : { _fz_x2_start = .; " + " ".join(BLE_X2) +
                     " . = ALIGN(4); _fz_x2_end = .; } > XDATA2\n")
     if os.environ.get("FZ_MEASURE") == "1":       # (a measure only: every region 1 MiB, the overlaps let pass; the
@@ -194,7 +232,7 @@ def ble_ld(ld):
     return ld
 
 
-def place_hot(obj, names):
+def place_hot(obj, names, to=b".fzrt"):
     b = bytearray(obj.read_bytes())
     if b[:4] != b"\x7fELF" or b[4] != 1 or b[5] != 1:
         raise SystemExit(f"fizz: {obj.name} is not a 32-bit little-endian ELF")
@@ -211,8 +249,9 @@ def place_hot(obj, names):
         if not at and n.startswith("?"):
             continue
         if len(at) != 1:
-            raise SystemExit(f"fizz: {obj.name} has no section .text.{n} of its own (inlined?): not placed in RAM")
-        b[at[0]:at[0] + 5] = b".fzrt"
+            raise SystemExit(f"fizz: {obj.name} has no section .text.{n} of its own (inlined?): not placed "
+                             f"({to.decode()})")
+        b[at[0]:at[0] + 5] = to
     obj.write_bytes(bytes(b))
 
 
@@ -285,10 +324,32 @@ OVERLAY = {
 }
 
 
+# (the Bluetooth package only) fm1-base's canvas for its own screens (boot, crash, update, calibration, the splash;
+# FIZZ's fz_message) shares FIZZ's 8-bit frame's memory instead of 7,680 B of its own in the pool: app.h gives
+# APP_CANVAS_AT (the frame's rows in the pool, app.c fz_fb_hi). Safe because every such screen clears the panel and
+# FIZZ draws its whole frame again after it (app_ui_init: fz_fb_forget, fz_redraw; a crash's screen: FIZZ is gone),
+# and none is drawn while FIZZ draws (one main loop)
+BLE_OVERLAY = {
+    "device/gfx.c": [
+        ("static uint16_t cv_px[CV_MAX] __attribute__((section(\".pool\")));\n",
+         "#ifdef APP_CANVAS_AT                /* (FIZZ, the Bluetooth package: the canvas in the app's memory; firmware/\n"
+         "                                     * build.py's BLE_OVERLAY) */\n#define cv_px APP_CANVAS_AT\n#else\n"
+         "static uint16_t cv_px[CV_MAX] __attribute__((section(\".pool\")));\n#endif\n"),
+    ],
+    # (gfx.c is unity.c's neighbour, found there before any -I: the build compiles a copy of unity.c from the overlay's
+    # directory, where its #include "gfx.c" finds the copy above; every other include as before)
+    "device/unity.c": [],
+}
+
+
 def overlay():
     out = fb.OUT / "overlay"
     out.mkdir(parents=True, exist_ok=True)
-    for rel, reps in OVERLAY.items():
+    files = {**OVERLAY, **(BLE_OVERLAY if BLE_PKG else {})}
+    for f in out.glob("*"):                      # (another package's overlay left from its build: not this one's)
+        if f.is_file() and f.name not in {Path(r).name for r in files}:
+            f.unlink()
+    for rel, reps in files.items():
         src = (BASE / rel).read_text()
         for a, b in reps:
             if src.count(a) != 1:
@@ -304,7 +365,10 @@ def tc(tool, *args):
         args = ["-idirafter", jieli("pi32v2/include"), *args]
         args = [*DEFS, *args]
         if any(isinstance(a, Path) and a.name == "unity.c" for a in args):
-            args = [f"-I{overlay().resolve().relative_to(REPO)}", *args]
+            ov = overlay()
+            args = [f"-I{ov.resolve().relative_to(REPO)}", *args]
+            if BLE_PKG:                          # (BLE_OVERLAY: the copy of unity.c)
+                args = [ov / "unity.c" if isinstance(a, Path) and a.name == "unity.c" else a for a in args]
         if any(isinstance(a, Path) and "o2" in a.parts and a.suffix == ".o" for a in args):
             # (P2.6: FIZZ's units call between the flash and the RAM code region, 4 MiB apart: long calls, as
             # fm1-base's Bluetooth build makes them)
@@ -314,9 +378,12 @@ def tc(tool, *args):
                 args = [a if a != "-Os" else "-O2" for a in args]
             if out.name == "build_units_c_quad_voice.o" and VARIANT == "crflags":
                 args = [a for a in args if a not in ("-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-std=gnu11")]
-            if out.name in HOT:
+            if out.name in HOT or (BLE_PKG and out.name in BLE_SLOT):
                 r = _tc(tool, *args)
-                place_hot(out, HOT[out.name])
+                if out.name in HOT:
+                    place_hot(out, HOT[out.name])
+                if BLE_PKG and out.name in BLE_SLOT:
+                    place_hot(out, BLE_SLOT[out.name], b".fzsl")
                 return r
     if tool == "pi32v2/bin/ld":
         for i, a in enumerate(args):

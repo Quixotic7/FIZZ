@@ -30,7 +30,8 @@ void fz_master(int pot);
 void fz_midi_play(int status, int d1, int d2);
 void fz_midi_ui(int status, int d1, int d2);
 /* FIZZ MIDI (c): MIDI OUT (the tracks' notes, the clock and transport, the knobs' CCs) to USB, as much as its queue has
- * room for (a NOTE ON waits for room for the OFFs owed). The audio interrupt's, right after its block (app_render) */
+ * room for (a NOTE ON waits for room for the OFFs owed). The audio interrupt's, right after its block (app_render).
+ * The Bluetooth package: to a computer connected over Bluetooth too (both queues' room) */
 void fz_midi_out(void);
 /* SysEx in: one frame's bytes between F0 and F7 (FIZZ's 7D 46 5A ..); its replies, whole frames F0 .. F7 */
 void fz_sysex(const uint8_t *f, uint32_t n);

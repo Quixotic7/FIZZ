@@ -17,6 +17,11 @@ gen = ["tools/gen_units.py {gen} --gfx fb"]     # the drawing: plutovg, fast (co
 # USB only (the owner, 2026-10-23): no Bluetooth, no WiFi. USB audio in (2026-10-27): the computer records FIZZ over
 # the cable (its master output, at MASTER); not out (the computer playing through the FM-1: ~9 KB of RAM)
 ble = false
+# the Bluetooth package (firmware/build.py --ble: ble, ble_trim and ble_no_pairing on, usb_audio_in kept): its radio's
+# heap (in RAM) and its three tasks' stacks (in the pool), KB; the unit's log (radio.c "heap", "stacks") tells what
+# they reach. FZ_BLE_HEAP_KB / FZ_BLE_STACK_KB in the environment override these
+fizz_ble_heap_kb = 12
+fizz_ble_stack_kb = 5
 usb_audio_in = true
 usb_audio_out = false
 mirror = false

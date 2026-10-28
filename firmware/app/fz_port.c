@@ -24,7 +24,7 @@ static int fz_up;
 
 /* ---------------------------------------------------------------- the flash (persist.h, store.h) --- */
 #if FZ_FLASH
-#if QD_FLASH_PRJ + QD_FLASH_PRJ_SEC * 4096u > PLAT_DATA_HI - PLAT_DATA_LO || QD_FLASH_LIB_SEC * 4096u > QD_FLASH_PRJ
+#if QD_FLASH_PRJ + QD_FLASH_PRJ_SEC * 4096u > PLAT_DATA_HI - PLAT_DATA_LO || QD_FLASH_LIB + QD_FLASH_LIB_SEC * 4096u > QD_FLASH_PRJ
 #error "fz_port.c: FIZZ's stores must fit the data region (persist.h QD_FLASH_* at the device's sizes)"
 #endif
 static int fz_fread(void *c, uint32_t off, void *dst, uint32_t n)
@@ -248,12 +248,15 @@ int fz_init(const char *version)
 /* P2.5: the store, attached after fz_init (app.c: unless safe mode). A region with no sector of FIZZ's stores in it
  * and something else written (ChoralRoot's, RemoteFM1's, garbage) is erased first, whole: FIZZ owns it (the owner,
  * 2026-10-23). Returns the sectors erased (-1: no store in this build) */
-#define FZ_STORE_SECTORS ((PLAT_DATA_HI - PLAT_DATA_LO) / 4096u)
+/* (the Bluetooth package: the region's first 24 sectors are the second blob, not the store: the store's part starts at
+ * QD_FLASH_LIB, persist.h; its sectors carry their own magic, Z2FB, so the USB package's Z2FS ones are another's) */
+#define FZ_STORE_LO (PLAT_DATA_LO + QD_FLASH_LIB)
+#define FZ_STORE_SECTORS ((PLAT_DATA_HI - FZ_STORE_LO) / 4096u)
 int fz_store_foreign(void)               /* sectors neither blank nor FIZZ's, when none is FIZZ's (else 0) */
 {
     uint32_t k, i, fizz = 0, other = 0;
     for (k = 0; k < FZ_STORE_SECTORS; k++) {
-        const uint8_t *p = plat_data(PLAT_DATA_LO + k * 4096u);
+        const uint8_t *p = plat_data(FZ_STORE_LO + k * 4096u);
         if (!p)
             return 0;
         if ((p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24) == QDS_MAGIC) {
@@ -271,13 +274,13 @@ int fz_store_wipe(void)                  /* every non-blank sector of the region
     uint32_t k, i;
     int n = 0;
     for (k = 0; k < FZ_STORE_SECTORS; k++) {
-        const uint8_t *p = plat_data(PLAT_DATA_LO + k * 4096u);
+        const uint8_t *p = plat_data(FZ_STORE_LO + k * 4096u);
         for (i = 0; p && i < 4096u && p[i] == 0xFFu; i++)
             ;
         if (p && i < 4096u) {
             int r;
             fz_flash_quiet();
-            r = plat_data_erase(PLAT_DATA_LO + k * 4096u);
+            r = plat_data_erase(FZ_STORE_LO + k * 4096u);
             fz_flash_done();
             n += !r;
         }
@@ -331,8 +334,17 @@ void fz_midi_out(void)
         link = l;
         qd_app_midi_out_drop(&fz_app);
     }
+#if QD_PKG_BLE
+    {   /* (the Bluetooth package) to USB and, a computer connected over Bluetooth, to it too: as much as the fuller of
+         * the two queues listened on has room for (plat_midi_out_room: never a wait here, the audio interrupt's) */
+        const uint32_t to = TO_USB | (plat_ble_connected() ? TO_BLE_HOST : 0u);
+        while (qd_app_midi_out_take(&fz_app, &pkt, plat_midi_out_room(to)))
+            plat_midi_send(pkt, to);
+    }
+#else
     while (qd_app_midi_out_take(&fz_app, &pkt, plat_midi_out_room(TO_USB)))
         plat_midi_send(pkt, TO_USB);
+#endif
 }
 /* (2026-10-25, the owner: "the HOME screen flashes for a moment while in other menus"; not seen on the host) each frame
  * latched, its screen: a menu's (MENU .. TOOLS: above EDIT), then EDIT (HOME's), then that menu again within 400 ms is
@@ -940,4 +952,4 @@ int fz_screen_index(void)               /* (fz_screens' slot: mode x FZ_NVIEW + 
 }
 typedef char fz_nview_ok[QD_NVIEW <= FZ_NVIEW ? 1 : -1];
 /* (P2.13) the store's region, for its backup and restore over USB (app.c): its flash offset and size */
-void fz_store_region(uint32_t *off, uint32_t *size) { *off = PLAT_DATA_LO, *size = FZ_STORE_SECTORS * 4096u; }
+void fz_store_region(uint32_t *off, uint32_t *size) { *off = FZ_STORE_LO, *size = FZ_STORE_SECTORS * 4096u; }

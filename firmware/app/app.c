@@ -1648,7 +1648,13 @@ static uint8_t fz_fb_lo[FZ_FB_LO][240], fz_fb_mid[FZ_FB_MID][240], fz_fb_hi[240u
 #else
 static uint8_t fz_fb_lo[FZ_FB_LO][240] __attribute__((aligned(4)));
 static uint8_t fz_fb_mid[FZ_FB_MID][240] __attribute__((section(".fz_rtdata"), aligned(4)));   /* (the RAM code region) */
+#if QD_PKG_BLE
+uint8_t fz_fb_hi[240u - FZ_FB_LO - FZ_FB_MID][240] __attribute__((section(".pool"), aligned(4)));   /* (also fm1-base's
+                                          * canvas: app.h APP_CANVAS_AT) */
+typedef char fz_canvas_fits[sizeof fz_fb_hi >= APP_CANVAS_PX * 2u ? 1 : -1];
+#else
 static uint8_t fz_fb_hi[240u - FZ_FB_LO - FZ_FB_MID][240] __attribute__((section(".pool"), aligned(4)));
+#endif
 #endif
 static uint8_t *fz_rowp[240];
 static const uint16_t *fz_pal;
@@ -2558,6 +2564,12 @@ int app_expect(const char *what, int *got)
         *got = (int)fz_audio_loads();
     else if (!strcmp(what, "fz_store_wiped"))   /* sectors erased at the boot or by the wipe (-1: none) */
         *got = fz_wiped;
+    else if (!strcmp(what, "fz_store_wiped_all")) {   /* (1: every sector of the store's region: 73 in the USB package,
+                                                       * the Bluetooth package's 49) */
+        uint32_t lo, size;
+        fz_store_region(&lo, &size);
+        *got = fz_wiped == (int)(size / 4096u);
+    }
     else if (!strcmp(what, "fz_safe"))
         *got = fz_safe;
     else if (!strcmp(what, "fz_midi_drops"))
