@@ -63,6 +63,35 @@ const fixtures = {
   },
 };
 
+// ---- I5: the EDIT tab (sound.js): the table, texts across every value's range, the DUMPs as the editor's sounds,
+// their blobs packed back, STORE6 frames (SAVE, a track's AUDITION) and a MIDI sound
+{
+  const SND = await import("../../site/manager/sound.js");
+  const texts = [];
+  SND.VALUES.forEach(([, lo, hi, def], id) => {
+    const xs = new Set([lo, hi, def, lo + 1, hi - 1, Math.round((lo + hi) / 2), 0, 1, -1, 99, 100, 101, -100, -101, 1234, -1234, 127]);
+    for (const x of xs) if (x >= lo && x <= hi) texts.push([id, x, SND.text(id, x)]);
+  });
+  const sounds = S.FRAMES.map((f) => SND.soundFromFrame(f));
+  const midi = SND.newMidi();
+  midi.slots[0] = { cc: 74, value: 100, touched: true };
+  midi.slots[5] = { cc: 7, value: 0, touched: true };
+  midi.slots[27] = { cc: 127, value: 127, touched: false };
+  const midiSound = { name: "MIDI TEST", values: SND.defaults(), midi, pan: 3, sends: { chorus: 1, delay: 2, reverb: 3 }, tags: 5 };
+  const midiFrame = SND.storeFrameOf(midiSound, { slot: 0, own: true });
+  const asDump = (f) => { const b = Array.from(f); b[6] |= 0x08; b[b.length - 2] = (0x80 - (b.slice(5, -2).reduce((a, x) => a + x, 0) & 0x7f)) & 0x7f; return Uint8Array.from(b); };
+  fixtures.edit = {
+    table: plain(E.editTable()),
+    texts,
+    lib: plain(S.SOUNDS.map((s) => E.soundFromLib(s))),
+    sounds: plain(sounds),
+    blobs: sounds.map((s) => hex(SND.blob6(s))),
+    save: sounds.map((s, k) => hex(SND.storeFrameOf(s, { slot: k, own: true }))),
+    audition: sounds.map((s) => hex(SND.storeFrameOf(s, { track: 2, audition: true, extras: { id: 0x1234, sound: 0, edited: true } }))),
+    midi: { sound: plain(midiSound), blob: hex(SND.blob6(midiSound)), frame: hex(midiFrame), dump: hex(asDump(midiFrame)), read: plain(SND.soundFromFrame(asDump(midiFrame))) },
+  };
+}
+
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "fixtures.json"), JSON.stringify(fixtures, null, 1) + "\n");
 writeFileSync(join(OUT, "presets.fizzbak"), presets);

@@ -115,3 +115,14 @@ export function toPlain(x) {
   }
   return x;
 }
+
+// ---- I5: the EDIT tab (sound.js: the editor's sound and FIZZ's version-6 blob; fizzvalues.js: names, ranges, texts)
+//   editTable() -> {values, algos, destOrder, q, np}: the 115 values as FIZZ's pages name and show them
+//   soundFromLib(s): a .fizzsnd / library sound as the editor's; soundFromFrame (above): a DUMP reply as the editor's
+//   editPack(s) -> {blob, drive}: the editor's sound ({values, midi?}) packed back (sound.js blob6)
+//   editTexts([[id, v], ..]) -> [text(id, v), ..] (the tests' comparisons)
+import { VALUES, ALGOS, DEST_ORDER, Q, NP, soundFromLib, blob6, text as valueText } from "../../site/manager/sound.js";
+export { soundFromLib };
+export const editTable = () => ({ values: VALUES, algos: ALGOS, destOrder: DEST_ORDER, q: Q, np: NP });
+export const editPack = (s) => ({ blob: blob6(s), drive: s.values[Q.DRIVE] });
+export const editTexts = (pairs) => pairs.map(([id, v]) => valueText(id, v));
