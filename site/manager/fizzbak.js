@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // FIZZ's backup file, .fizzbak (docs/WEB-MANAGER-PLAN.md §4.1): a ZIP (stored, as .fizzlib) that can be opened and
 // inspected with any ZIP tool. No DOM: the tests run it in Node.
 //

@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // Copied unchanged from FIZZ's tools/fizz_sysex.mjs (the web manager's Phase 1) so the published site is self-contained.
 // FIZZ's SysEx (docs/SYSEX.md), the host side: the frames a page (or a tool) sends FIZZ, and its replies read.
 // Pure: no DOM, no Node APIs. The FIZZ web preview hands the bytes to the engine's midiIn (as USB-MIDI packets:

@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // From ChoralRoot FM-1 web/fm1dnsnd.js at 9b69580 (GPL-3.0-only, github.com/Quixotic7/ChoralRootFM1), copied for FIZZ's preview site.
 // FIZZ's one change (2026-10-24): a version-4 record (a sound saved on Digitone OS 1.42, payload header "0095") is read
 // with version 5's layout (DN_LAYOUT): its tail sits where version 5's does (the end marker at 298, not 280) and the
 // fields version 5 added hold their defaults; it was refused as "a newer Digitone format (version 4)".
 // Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
+// Written by the owner alone (ChoralRoot's history), clean-room from Digitone files; relicensed MPL-2.0 by him on 2026-10-28.
 // Elektron Digitone sound files (.dnsnd) read for FM TONE (engine 15, eng_quad.c), docs/SOUNDS.md ".dnsnd import".
 // Clean-room: the container was decoded from files, no Elektron code or data is used. Pure: no DOM; the files are read
 // on this computer, nothing is uploaded.

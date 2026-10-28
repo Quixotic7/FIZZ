@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // The manager's link to an FM-1 running FIZZ (docs/WEB-MANAGER-PLAN.md §2, §3): one queue for both of FIZZ's SysEx
 // channels, over Web MIDI (or anything shaped like it: the tests' simulated FIZZ, site/manager/simfizz.js).
 //   - the semantic one, FIZZ's own frames (F0 7D 46 5A 01 ..: docs/SYSEX.md): IDENTITY, LIST, DUMP, STORE;

@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // The manager's IMPORT tab (docs/WEB-MANAGER-PLAN.md §7, shot 5): FIZZ's own files (a .fizzlib, as EXPORT ALL writes
 // it, .fizzsnd, a .fizzbak's presets: the owner's fix of 2026-10-25) and Digitone .dnsnd and Digitone II .dn2pst /
 // .dn2snd files read and converted in this browser (js/digitone.js: ChoralRoot's reader, FIZZ's dn2pst.js; nothing is

@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // The PROJECTS tab's model (the owner's requests, 2026-10-26; docs/MANAGER-P2-PLAN.md §3, §4): a FIZZ store as its
 // records, read and changed in the browser, with FIZZ's own record layouts (core/app/persist.c: ser_pat / de_pat,
 // snd_rec, ser_hdr, ser_ftag; core/seq/pattern.c qd_step_wire). No firmware command is new: the FM-1's own PROJECT /

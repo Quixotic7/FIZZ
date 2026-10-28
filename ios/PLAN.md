@@ -174,14 +174,14 @@ the store image's writer, `.fizzbak` / `.fizzlib` / `.fizzprj` / `.fizzpat` ZIPs
 - Not A: cheapest parity, but a desktop page on a phone, and the link's timing through a bridge. A WKWebView is still
   the right home for the optional BROWSER unit (§4.7).
 
-**Licence (the owner decides before any App Store build).** New iOS code is MPL-2.0 like the firmware. FizzKit ports
-`tools/fizz_sysex.mjs` (MPL-2.0) and fm1-base's framing (MPL-2.0). But the modules B would bundle are copies in
-`site/`, which is GPL-3.0-only (only `fm1lib.js` there is MPL), and GPLv3 code on the App Store is a known conflict
-with Apple's terms. The owner wrote those files; relicensing the bundled `site/js` and `site/manager` data modules to
-MPL-2.0 (as `tools/` already is) makes it clean. The same applies already to FizzKit's `FizzLink.swift`: it ports
-the logic of `site/manager/fizzlink.js` (GPL-3.0-only) into an MPL-2.0 file, which is fine only because the owner
-wrote both and says so. TestFlight and App Store also need an Apple Developer account,
-a bundle id and the app name.
+**Licence: the app is MPL-2.0 throughout, no GPL** (the owner, 2026-10-28: "I'm the author and don't want GPL in the
+FIZZ iOS app"). New iOS code is MPL-2.0 like the firmware; FizzKit ports `tools/fizz_sysex.mjs` and fm1-base's framing
+(both MPL-2.0). The `site/` modules bundled into `FizzData.js` (`site/js/fm1dnsnd.js`, `fizz_sysex.js`, `library.js`,
+`dn2pst.js`, `fizz2dn.js`, `digitone.js`; `site/manager/fizzstore.js`, `fizzbak.js`, `projects.js`, `fizzvalues.js`,
+`sound.js`, `ui.js`, `importer.js`, `exporter.js`) and `site/manager/fizzlink.js` (which `FizzLink.swift` ports) were
+relicensed MPL-2.0 by their author, the owner, on 2026-10-28 (the rest of `site/` stays GPL-3.0-only and is not in the
+app). A new `site/` module bundled later must be relicensed the same way first: `node ios/jsbundle/build.mjs` refuses
+a GPL one. TestFlight and App Store also need an Apple Developer account, a bundle id and the app name.
 
 ## 4. The app
 
@@ -363,17 +363,16 @@ bulk channel FZBI / FZBR / FZSR, over the USB package's region (73 sectors at 0x
 record by record (`StoreImage`, fizzstore.js's convertImage), so backups move between the emulator and an FM-1; FZSR
 pulls the image twice (FZER 10 / 11 / 12 / 13 / 14 as app.c), then FIZZ starts again on it.
 
-**Licences of what is compiled in (to settle before any App Store build).**
+**Licences of what is compiled in: no GPL** (checked from the compiler's dependency files, 2026-10-28).
 - FIZZ (`core/`, its glue `core/glue/core_quadrille*.c`): MPL-2.0. FM TONE, the effects and the output chain from
   ChoralRoot FM-1: relicensed MPL-2.0 by the owner (its Felucca-derived parts rewritten).
 - plutovg (`third_party/plutovg`): MIT; its rasteriser and stroker are FreeType's (FreeType License: the credit line
   "Portions of this software are copyright (c) 2006 The FreeType Project" in the app's notices); stb_truetype
   inside it: MIT or public domain. Inter Tight (compiled in as data): SIL OFL 1.1.
-- **FM1VST's glue: GPL-3.0-only** (SPDX headers): `core-glue/common/nor.c` (the flash image) is compiled in, and the
-  header-only `panel.h`, `sysex.h`, `nor.h`, `version.h` and `core-api/fm1core.h` are inlined into FIZZ's glue unit.
-  The app binary therefore carries GPL-3.0-only code. Their git history names only the owner as author, so the owner
-  can relicense them (e.g. MPL-2.0, as FIZZ) or give an App Store exception; until then a TestFlight / App Store build
-  of the app with FizzEngine linked is a GPL-3.0 distribution.
+- FM1VST's glue: `core-glue/common/nor.c` (the flash image, compiled in), the header-only `panel.h`, `sysex.h`, `nor.h`,
+  `version.h`, `core-api/fm1core.h` (inlined into FIZZ's glue unit) and `fifo.c` / `fifo.h` (compiled by FM1Cores.cmake,
+  not linked): relicensed MPL-2.0 by their author, the owner, on 2026-10-28 (FM1VST `core-quadrille` 04f782f, 950ad2e;
+  `main` 25d2aee, b1d96d3).
 - Ours: `ios/engine/fizzhost.c`, `fizzhost.h`, `CMakeLists.txt`, `build_core.sh`, `Sources/FizzEngine`: MPL-2.0.
   FM1VST's `cmake/FM1Cores.cmake` and `core-glue/fizz/core.cmake` (GPL-3.0-only) only run at build time.
 

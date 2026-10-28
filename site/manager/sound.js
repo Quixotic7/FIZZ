@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // The sound editor's model (docs/MANAGER-P2-PLAN.md §1): a sound as FIZZ's 110 values (fizzvalues.js, generated from
 // the core: names, ranges, texts), its name, tags, pan and sends; read from a DUMP / STORE frame or a .fizzsnd sound,
 // packed back into FIZZ's version-6 blob and a STORE6 frame. No DOM: the tests run it in Node.

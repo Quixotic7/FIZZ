@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // FIZZ's store image read in the browser, without a unit: the reader half of core/store/store.c (the page store) and
 // the few record layouts of core/app/persist.c the manager shows. Written from FIZZ's own sources (store.h's layout,
 // store.c's mount and get, persist.c's ser_hdr / ser_snd); no DOM, the tests run it in Node.

@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // Digitone sounds into FIZZ: Elektron Digitone .dnsnd files read and converted to FM TONE in this browser (nothing is
 // uploaded), then handed to FIZZ through its SysEx (FIZZ docs/SYSEX.md: STORE SOUND) into the engine's MIDI in.
 //

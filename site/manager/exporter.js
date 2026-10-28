@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // The manager's EXPORT (docs/MANAGER-P2-PLAN.md §2, shot 4): one preset, or MY PRESETS all, as FIZZ's own .fizzsnd
 // (several: a .fizzlib), a Digitone .dnsnd, or a Digitone II .dn2pst / .dn2snd (several: a ZIP of them). Each home a
 // card with the carry bar (10 segments: 10 less what that format drops or changes for these sounds) and, under it, the

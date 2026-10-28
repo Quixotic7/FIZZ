@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // The manager's small drawing helpers, shared by its tabs (manager.js, pool.js, importer.js): the tag colours, the
 // algorithm glyph (a stand-in for FIZZ's own), a cassette's colour, the empty-place art.
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";

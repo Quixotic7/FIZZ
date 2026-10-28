@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // FIZZ preset files: MY PRESETS exported from FIZZ (its LIST and DUMP SysEx, being defined: docs/SYSEX.md) as files to
 // keep, share and send back (js/digitone.js's STORE flow). No DOM: the tests run it in Node.
 //
