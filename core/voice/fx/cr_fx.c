@@ -73,6 +73,16 @@
 #endif
 #define XR_NAP (CR_FX_LITE ? 2u : 4u)
 #define XR_NMOD (CR_FX_LITE ? 2u : 4u)
+#ifndef QD_FX_REVERB_PACKED              /* FIZZ (2026-10-27): 1, the reverb's two rings stored 12-bit ("THE REVERB'S
+                                          * LINES PACKED" below: 10,240 bytes back); the Bluetooth package's (QD_PKG_BLE,
+                                          * given with -D: this file reads no qd_config.h). 0: ChoralRoot's 16-bit lines,
+                                          * bit for bit (the USB package and every host build) */
+#if defined(QD_PKG_BLE) && QD_PKG_BLE
+#define QD_FX_REVERB_PACKED 1
+#else
+#define QD_FX_REVERB_PACKED 0
+#endif
+#endif
 #ifndef CR_FX_RAM
 #define CR_FX_RAM 0                      /* 1 (device builds only): the four per-sample loops in .ram_text, called
                                           * through a pointer as the flash driver is: no XIP cache miss in them */
@@ -217,7 +227,11 @@ static const uint16_t XR_LEN[8] = {1259, 1433, 1607, 1801, 2003, 2221, 2477, 276
 static const uint16_t XR_BASE[8] = {1296, 2768, 4400, 6240, 8272, 10528, 13040, 15840};   /* (multiples of a block,
                                            * 16: a block's writes never wrap; tests/cr_fx_test.c checks the gaps) */
 _Static_assert(15840 + 16 <= 16384 + 1296 - 1259 - 24, "the eight lines and their guards fit the ring");
+#if !QD_FX_REVERB_PACKED
 static int16_t xr_buf[XR_N] __attribute__((section(".pool")));
+#else
+static uint8_t xr_buf[XR_N * 3u / 2u] __attribute__((section(".pool")));   /* (two samples in three bytes) */
+#endif
 /* the pre-delay (behind the write index) and the four diffusers (ahead of it), one ring */
 #define XR_PN (4096u * XR_X)
 #define XR_PM (XR_PN - 1u)
@@ -231,7 +245,11 @@ _Static_assert(144 - 113 >= 16 && 336 - 173 >= 144 + 16 && 624 - 263 >= 336 + 16
 _Static_assert(1040 + XR_PRE_MAX + 2 <= 4096, "the pre-delay and the diffusers fit their ring (the pre-delay's read"
                " of a block comes before the last diffuser's write of it)");
 _Static_assert(XR_NB == 16u * XR_X && XD_NB == (1u << XD_SH) && XR_NB == (1u << XR_SH), "a block of the reverb, of the delay");
+#if !QD_FX_REVERB_PACKED
 static int16_t xr_pbuf[XR_PN] __attribute__((section(".pool")));
+#else
+static uint8_t xr_pbuf[XR_PN * 3u / 2u] __attribute__((section(".pool")));
+#endif
 
 typedef struct { int32_t x[4], y[4], e[4]; } xf_hb_t;           /* a half-band filter: each section's last in, out
                                                                  * and its product's remainder */
@@ -635,6 +653,92 @@ XF_AI int32_t xr_sat(int32_t v)           /* itself up to 3/4 of the line's rang
             OUT; \
         } \
     }
+#if QD_FX_REVERB_PACKED
+/* FIZZ (2026-10-27, the Bluetooth package: QD_FX_REVERB_PACKED): THE REVERB'S LINES PACKED. Both rings keep every
+ * sample, as 12 bits (two in three bytes: 24,576 + 6,144 bytes for 32,768 + 8,192): the same lengths, sizes, swings
+ * and decay, only the stored unit is 16 of the line's (-72 dB of its range; a sample v is stored as about v / 16
+ * and read back x 16). The layout: a pair's first byte holds the two low nibbles (the first sample's on top), the
+ * second and third the two samples' high bytes, so a read is a signed byte x 256 and a nibble: no sign to rebuild.
+ * WHERE THE UNIT IS LOST, and why each the way it is (a coarser unit in a loop near 1 is where limit cycles live):
+ *   - the lines' write (the loop: gain up to 1 - 2^-13) keeps its remainder as before, now of 1 / 65536 of the read
+ *     (xf.r_e2, Q16: the product, the input and the rounding in one): a tail still dies away instead of standing on
+ *     a value that rounds back to itself (round to nearest at g near 1 holds anything under 1 / (2 (1 - g)) units
+ *     for ever). The tail's last units, q, are as ChoralRoot's but judged in the stored unit: a block that wrote
+ *     nothing above one 12-bit unit sends the next round towards zero, and the lines reach exactly 0;
+ *   - the diffusers (g = 5 / 8) round to nearest (the least noise), but a value under one unit (|u| < 16) is stored
+ *     as 0: to nearest alone, 16 comes back as -10, stored -16, then +10, stored +16 .. a one-unit cycle for ever.
+ *     With the dead band a diffuser left to itself stores at most (10 a + 8) / 16 < a units where it stored a (a >= 2)
+ *     and 0 for a = 1: it dies within a few passes once its input does, and the next one after it;
+ *   - the pre-delay's write (no loop) rounds to nearest.
+ * Saturation: the lines' knee at the stored unit (xr_sat12, +-2047), the others held to +-2047 before rounding.
+ * ALIGNMENT: every write of a block is 16 samples at a multiple of 16 (XR_BASE, XR_APB, the write indices), so it
+ * covers whole pairs: written whole, three bytes at a time (no read, modify, write), and since a block's reads are
+ * clear of its writes by whole samples, a pair is never half written while its other half is read. The reads unpack
+ * a block's run (its straight pieces of the ring, xf_seg) into a scratch of n + 1 (the spare half of xf.tr at the half
+ * rate: no stack), and the loops below run on that as on the line; a gliding read takes its samples one by one */
+_Static_assert(CR_FX_REVERB_DS == 2 && 9u * XR_NB + 1u <= 8u * CTL && XR_NB % 2u == 0u,
+               "the packed reverb: the half rate, its scratch in xf.tr's spare half, a block of whole pairs");
+#define XR_PB(b, i) ((b) + ((i) >> 1) * 3u)       /* the pair that holds sample i */
+XF_AI int32_t xr_get(const uint8_t *b, uint32_t i)   /* sample i, at the line's scale */
+{
+    const uint8_t *q = XR_PB(b, i);
+    return (int8_t)q[1u + (i & 1u)] * 256 + (int32_t)(((uint32_t)q[0] << ((i & 1u) << 2)) & 0xF0u);
+}
+/* n samples from p (of a ring of m + 1) into d, every st-th, at the line's scale: a pair a step where the ring allows */
+XF_AI void xr_unpack(int32_t *d, uint32_t st, const uint8_t *b, uint32_t p, uint32_t m, uint32_t n)
+{
+    uint32_t j = 0, i, e;
+    const uint8_t *q;
+    while (j < n) {
+        i = (p + j) & m;
+        e = j + xf_seg(i, m, n - j);
+        q = XR_PB(b, i);
+        if (i & 1u) {
+            *d = (int8_t)q[2] * 256 + ((q[0] & 15) << 4);
+            d += st, j++, q += 3;
+        }
+        for (; j + 1u < e; j += 2u, q += 3, d += 2u * st) {
+            const int32_t c0 = q[0], a = (int8_t)q[1] * 256, c = (int8_t)q[2] * 256;   /* (read before d is written:
+                                                         * a byte may be anything's, the compiler would read it again) */
+            d[0] = a + (c0 & 0xF0);
+            d[st] = c + ((c0 & 15) << 4);
+        }
+        if (j < e) {
+            *d = (int8_t)q[1] * 256 + (q[0] & 0xF0);
+            d += st, j++;
+        }
+    }
+}
+XF_AI void xr_pack(uint8_t *q, const int32_t *s, uint32_t n)   /* n stored values (whole pairs) from s into q */
+{
+    uint32_t j;
+    for (j = 0; j < n; j += 2u, q += 3) {
+        const int32_t a = s[j], c = s[j + 1u];
+        q[0] = (uint8_t)((a & 15) << 4 | (c & 15));
+        q[1] = (uint8_t)(a >> 4);
+        q[2] = (uint8_t)(c >> 4);
+    }
+}
+XF_AI int32_t xr_sat12(int32_t v)         /* xr_sat in the stored unit */
+{
+    if ((uint32_t)(v + 1536) <= 3072u)
+        return v;
+    if (v > 1536)
+        v = 1536 + ((v - 1536) >> 2);
+    else
+        v = -1536 - ((-v - 1536) >> 2);
+    return v > 2047 ? 2047 : v < -2047 ? -2047 : v;
+}
+/* (packed) one diffuser over a block: its read unpacked into zb, each sample's store taking its place there */
+#define XR_DIFFUSE_P(OUT) \
+    for (j = 0; j < n; j++) { \
+        z = zb[j]; \
+        u = xf_clamp(x[j] - xf_tz3(z * 5), -32760, 32759); \
+        zb[j] = (uint32_t)(u + 15) < 31u ? 0 : (u + 8) >> 4; \
+        u = z + xf_tz3(u * 5); \
+        OUT; \
+    }
+#endif
 /* n samples of the send -> the stereo wet, added to ol, orr. n is a block of the reverb (XR_NB = 1 << XR_SH), the
  * write indices multiples of it. Block-wise as the delay (xd_run's note; the unit ran the per-sample form, eight
  * lines wide in every sample, at ~1050 instructions a sample: 340 us a half): stage by stage and line by line over
@@ -647,7 +751,12 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
     uint32_t w = xf.r_w0, pw = xf.r_pw, j, i, e;
     int32_t act = 0, pk = 0, kc, lk = xf.r_lk, ig, q = xf.r_q, t;
     int32_t *x = xf_reg(xf.tx), *tr = xf_reg(xf.tr);
+#if !QD_FX_REVERB_PACKED
     int16_t *pb = xf_reg(xr_pbuf), *lb = xf_reg(xr_buf);   /* the two rings */
+#else
+    uint8_t *pb = xf_reg(xr_pbuf), *lb = xf_reg(xr_buf);
+    int32_t *zb = tr + 8u * XR_NB;                      /* (a block's run unpacked, or its stored values) */
+#endif
     for (i = 0; i < 8u; i++)
         xf.r_gc[i] += xf_clamp(xf.r_g[i] - xf.r_gc[i], -96, 96);
     xf.r_igc += xf_clamp(xf.r_ig - xf.r_igc, -512, 512);
@@ -656,7 +765,9 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
     kc = xf.r_kc;
     {   /* the low cut (two poles), into the pre-delay's ring */
         int32_t h0 = xf.r_hp[0], h1 = xf.r_hp[1], e0 = xf.r_eh[0], e1 = xf.r_eh[1], v;
+#if !QD_FX_REVERB_PACKED
         int16_t *bw = pb + (pw & XR_PM);
+#endif
         for (j = 0; j < n; j++) {
             v = xf_clamp(in[j] >> sh, -32767, 32767);
             t = (v - h0) * lk + e0;
@@ -666,10 +777,18 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
             t = (v - h1) * lk + e1;
             e1 = t & 32767;
             h1 += t >> 15;
+#if !QD_FX_REVERB_PACKED
             v = xf_clamp(v - h1, -32767, 32767);
             bw[j] = (int16_t)v;
+#else
+            v = xf_clamp(v - h1, -32760, 32759);
+            zb[j] = (v + 8) >> 4;                       /* (to nearest: no loop here) */
+#endif
             act |= v;
         }
+#if QD_FX_REVERB_PACKED
+        xr_pack(XR_PB(pb, pw & XR_PM), zb, n);
+#endif
         xf.r_hp[0] = h0;
         xf.r_hp[1] = h1;
         xf.r_eh[0] = e0;
@@ -678,12 +797,16 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
     }
     if (xf.r_pcur == xf.r_pre && !(xf.r_pcur & 255)) {  /* the pre-delay at rest .. */
         uint32_t p = pw - ((uint32_t)xf.r_pcur >> 8);
+#if !QD_FX_REVERB_PACKED
         for (j = 0; j < n;) {
             const int16_t *bp = pb + ((p + j) & XR_PM) - j;
             e = j + xf_seg(p + j, XR_PM, n - j);
             for (; j < e; j++)
                 x[j] = bp[j];
         }
+#else
+        xr_unpack(x, 1u, pb, p, XR_PM, n);
+#endif
     } else {                                            /* .. or gliding (a quarter of a sample a sample) */
         int32_t pc = xf.r_pcur, d;
         for (j = 0; j < n; j++) {
@@ -692,8 +815,13 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
             d = xf.r_pre - pc;
             pc += d > 64 ? 64 : d < -64 ? -64 : d;
             p = pw + j - ((uint32_t)pc >> 8);
+#if !QD_FX_REVERB_PACKED
             a = pb[p & XR_PM];
             x[j] = a + xf_tz8((pb[(p - 1u) & XR_PM] - a) * (pc & 255));
+#else
+            a = xr_get(pb, p & XR_PM);
+            x[j] = a + xf_tz8((xr_get(pb, (p - 1u) & XR_PM) - a) * (pc & 255));
+#endif
         }
         xf.r_pcur = pc;
     }
@@ -702,6 +830,7 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
                                                          * diffuser that holds anything puts something out (|z| over
                                                          * what 25 / 64 of it takes back), so `act` is the last one's */
         uint32_t prd = pw + xf.r_apb[i] - xf.r_ap[i];
+#if !QD_FX_REVERB_PACKED
         int16_t *bw = pb + ((pw + xf.r_apb[i]) & XR_PM);
         int32_t z, u;
         if (i < 3u) {
@@ -709,6 +838,16 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
         } else {
             XR_DIFFUSE(act |= u; x[j] = xf_tz15(u * ig))   /* (|u| <= 53246, x 32768: fits) */
         }
+#else
+        int32_t z, u;
+        xr_unpack(zb, 1u, pb, prd, XR_PM, n);
+        if (i < 3u) {
+            XR_DIFFUSE_P(x[j] = u)
+        } else {
+            XR_DIFFUSE_P(act |= u; x[j] = xf_tz15(u * ig))
+        }
+        xr_pack(XR_PB(pb, (pw + xf.r_apb[i]) & XR_PM), zb, n);
+#endif
     }
     /* the eight lines' reads (r, for the output). A line's length moves as a ramp over the block: SIZE's glide (at
      * most r_step a sample) and, on the four that swing, MOD's way to this block's target */
@@ -726,6 +865,7 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
             d += xf.r_mt[m] - xf.r_mv[m];
             xf.r_mv[m] = xf.r_mt[m];
         }
+#if !QD_FX_REVERB_PACKED
         if (!d && !(cur & 255)) {                       /* at rest: the line's own samples */
             p = wb - ((uint32_t)cur >> 8);
             for (j = 0; j < n;) {
@@ -748,14 +888,36 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
                     r[8u * j] = a + xf_tz8((bq[j] - a) * ((acc >> XR_SH) & 255));
                 }
             }
-        } else {                                        /* gliding (SIZE): anywhere */
+        }
+#else
+        if (!d && !(cur & 255)) {                       /* at rest: the line's own samples, unpacked into place */
+            xr_unpack(r, 8u, lb, wb - ((uint32_t)cur >> 8), XR_M, n);
+        } else if (((uint32_t)(cur + (d >> XR_SH)) >> 8) == ((uint32_t)(cur + d) >> 8)) {
+            /* (packed) swinging: the block's run and the sample before it unpacked (zb[j + 1] is the line's bp[j]
+             * above, zb[j] its bq[j]) */
+            int32_t acc = cur << XR_SH;
+            p = wb - ((uint32_t)(cur + d) >> 8);
+            xr_unpack(zb, 1u, lb, p - 1u, XR_M, n + 1u);
+            for (j = 0; j < n; j++) {
+                acc += d;
+                a = zb[j + 1u];
+                r[8u * j] = a + xf_tz8((zb[j] - a) * ((acc >> XR_SH) & 255));
+            }
+        }
+#endif
+        else {                                          /* gliding (SIZE): anywhere */
             int32_t acc = cur << XR_SH;
             for (j = 0; j < n; j++) {
                 acc += d;
                 t = acc >> XR_SH;
                 p = wb + j - ((uint32_t)t >> 8);
+#if !QD_FX_REVERB_PACKED
                 a = lb[p & XR_M];
                 r[8u * j] = a + xf_tz8((lb[(p - 1u) & XR_M] - a) * (t & 255));
+#else
+                a = xr_get(lb, p & XR_M);
+                r[8u * j] = a + xf_tz8((xr_get(lb, (p - 1u) & XR_M) - a) * (t & 255));
+#endif
             }
         }
     }
@@ -811,6 +973,7 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
     for (i = 0; i < 8u; i++) {                          /* the lines' writes: the one rounding a pass, its remainder
                                                          * kept (q, the tail's last units: towards zero) */
         const int32_t *r = tr + i, *xp = x;
+#if !QD_FX_REVERB_PACKED
         int16_t *bw = lb + ((w + xf.r_base[i]) & XR_M);
         int32_t e2 = xf.r_e2[i], s;
         if (!q) {
@@ -830,10 +993,32 @@ CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint3
                 pk |= s ^ (s >> 31);
             }
         }
+#else
+        int32_t e2 = xf.r_e2[i], s;                     /* (packed: the stored unit, Q16 of the mix's Q12 with the
+                                                         * input; |r| < 2^29, |x| x 4096 < 2^28: fits) */
+        if (!q) {
+            for (j = 0; j < n; j++, r += 8) {
+                t = *r + *xp++ * 4096 + e2;
+                e2 = t & 65535;
+                s = xr_sat12(t >> 16);
+                zb[j] = s;
+                pk |= s ^ (s >> 31);
+            }
+            xf.r_e2[i] = e2;
+        } else {
+            for (j = 0; j < n; j++, r += 8) {
+                t = *r + *xp++ * 4096;
+                s = xr_sat12((t + ((t >> 31) & 65535)) >> 16);
+                zb[j] = s;
+                pk |= s ^ (s >> 31);
+            }
+        }
+        xr_pack(XR_PB(lb, (w + xf.r_base[i]) & XR_M), zb, n);
+#endif
     }
     xf.r_w0 = w + n;
     xf.r_pw = pw + n;
-    xf.r_q = pk < 2;
+    xf.r_q = pk < 2;                                    /* (packed: one unit of the stored 12 bits) */
     if (act | pk)
         xf.r_live = XR_N + 2u * XR_NB;
     else
