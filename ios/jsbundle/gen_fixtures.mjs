@@ -63,6 +63,29 @@ const fixtures = {
   },
 };
 
+// ---- I6: PROJECTS (a session's calls in order, as FizzDataTests replays them: the numbers of sessions and clips too)
+{
+  const projects = [{ slot: 1, name: "NOIR", pats: 18 }, { slot: 3, name: "FIZZ TOUR", pats: 16, demo: true }, { slot: 4, name: "SKETCH", pats: 3 }];
+  const img = E.demoPatterns(E.demoStore({ presets: S.SOUNDS, projects: projects.map(({ slot, name }) => ({ slot, name })) }), { projects });
+  const opts = { fizz: S.FIZZ, date: S.DATE };
+  const o = E.pjOpen(img), clip = E.pjCopy(o.h, 0, [4, 2, 3]);
+  const paste = E.pjPaste(o.h, 3, 16, clip.c), clearDemo = E.pjClear(o.h, 2, [0]), clear = E.pjClear(o.h, 0, [5]);
+  const keep = E.pjKeep(o.h, 0, opts), pat = E.pjFizzpat(clip.c, opts);
+  fixtures.i6 = {
+    projects,
+    demoPatterns: { length: img.length, sha256: sha(img) },
+    open: plain(o), copy: plain(clip), paste: plain(paste), clearDemo: plain(clearDemo), clear: plain(clear),
+    keep: plain(keep), keptInfo: plain(await E.pjKeptInfo(keep.bytes, keep.fileName)),
+    copyKept: plain(await E.pjCopyKept(o.h, keep.bytes, keep.fileName, [1, 0])),
+    loadKept: plain(await E.pjLoadKept(o.h, 4, keep.bytes, keep.fileName)),
+    fizzpat: { fileName: pat.fileName, length: pat.bytes.length, sha256: sha(pat.bytes) },
+    readFizzpat: plain(await E.pjReadFizzpat(pat.bytes, pat.fileName)),
+    renameKept: plain(await E.pjRenameKept(keep.bytes, keep.fileName, "noir two", opts)),
+    image: (() => { const r = E.pjImage(o.h); return { ok: r.ok, length: r.image.length, sha256: sha(r.image) }; })(),
+    undo: plain(E.pjUndo(o.h)), rebase: plain(E.pjRebase(o.h, img)), discard: plain(E.pjDiscard(o.h)),
+  };
+}
+
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "fixtures.json"), JSON.stringify(fixtures, null, 1) + "\n");
 writeFileSync(join(OUT, "presets.fizzbak"), presets);

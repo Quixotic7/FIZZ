@@ -41,8 +41,12 @@ public struct FizzAppView: View {
             if let run = model.backups.run {
                 BackingUpView(model: model, run: run).transition(.opacity).zIndex(2)
             }
+            if let w = model.projectsTab.writing {
+                ProjectsWritingView(model: model, write: w).transition(.opacity).zIndex(3)
+            }
         }
         .animation(.easeInOut(duration: 0.3), value: model.backups.run == nil)
+        .animation(.easeInOut(duration: 0.3), value: model.projectsTab.writing == nil)
         .background(Color.black)
         .preferredColorScheme(.dark)
         .task { model.start() }
@@ -60,6 +64,8 @@ public struct FizzAppView: View {
         // a .fizzbak / .fizzlib / .bin opened from Files, AirDrop, Mail: kept with the backups
         .onOpenURL { url in
             Task {
+                // (a .fizzprj / .fizzpat: PROJECTS')
+                if await model.projectsTab.open(url) { tab = .projects; return }
                 if await model.backups.open(url) { tab = .backup }
             }
         }
@@ -99,7 +105,7 @@ struct TabScreen: View {
         switch tab {
         case .backup: BackupView(model: model)
         case .library: LibraryView(model: model, wide: wide)
-        case .projects: ProjectsView(model: model)
+        case .projects: ProjectsView(model: model, wide: wide)
         case .edit, .pool, .importer: TabPlaceholder(tab: tab)
         }
     }
@@ -124,6 +130,7 @@ struct PhoneRoot: View {
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: 150)
                 .allowsHitTesting(false)
+            if tab == .projects { ProjectsPhoneBar(model: model) }
             TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, 24)
         }
         .ignoresSafeArea(edges: .bottom)

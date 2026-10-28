@@ -115,3 +115,208 @@ export function toPlain(x) {
   }
   return x;
 }
+
+// ---- I6: PROJECTS (projtab.js's model in this JSContext; the store's records stay here, held by a number, and the
+// app gets what it draws). A session is projtab.js's J: the store as read (base), the changes waiting (ops, each
+// applied again to a copy of base, as its model()), their results. The patterns' clips (copyPatterns, a .fizzpat, a
+// kept project's patterns) are held by a number too.
+//   pjOpen(image) -> {h, view}     pjClose(h)     pjView(h) -> view     pjImage(h) -> {ok, image} | {ok: false, code, message}
+//   view: {layout, nproj, nlib, package, projects: [{p, there, name, demo, used, pool, changed, pats: [tile | null] x 64}],
+//          ops: [{kind, q, at, ks, name, poolAdded, presetsAdded, copies}]}
+//   tile: {r: [6 x 16-bit trig masks]} | {demo: true} | {bad: true}
+//   pjPaste(h, q, j, c) / pjClear(h, q, ks) / pjLoadKept(h, q, bytes, file) -> {ok, view, result} | {ok: false, code, message}
+//   pjUndo(h) / pjDiscard(h) -> view      pjRebase(h, image) -> {ok, view} (the ops again on the store read again)
+//   pjCopy(h, p, ks) / pjReadFizzpat(bytes, file) / pjCopyKept(h | 0, bytes, file, ks) -> clip {c, n, from, names, ks}
+//   pjFree(c)      pjFizzpat(c, {fizz, date}) -> {bytes, fileName}
+//   pjKeep(h, p, {fizz, date}) -> {bytes, fileName, name, pats, sounds, colours}
+//   pjKeptInfo(bytes, file) -> {ok, name, demo, pats, sounds, colours, fizz, date, used: [bool x 64]}
+//   pjRenameKept(bytes, file, name, {fizz, date}) -> {bytes, fileName, name}
+//   demoPatterns(image, {prev, projects: [{slot, name, pats, demo}]}) -> image with the demo unit's patterns (synthetic)
+import { modelOf, imageOf, cloneModel, project as pjProject, copyPatterns, pastePatterns, clearPatterns, keepProject,
+  loadProject, renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, DEMO_N,
+  limits as pjLimits } from "../../site/manager/projects.js";
+
+const PJ = new Map(), CLIPS = new Map();
+let pjNext = 1, clipNext = 1;
+const pjGet = (h) => { const s = PJ.get(h); if (!s) throw new Error(`no projects session ${h}`); return s; };
+const pjFail = (e) => ({ ok: false, code: e.code || "error", message: e.message });
+function pjApply(m, op) {
+  if (op.kind === "paste") return pastePatterns(m, op.q, op.j, op.clip);
+  if (op.kind === "clear") return clearPatterns(m, op.q, op.ks);
+  if (op.kind === "load") return loadProject(m, op.q, op.kept);
+  return null;
+}
+function pjModel(s) {
+  if (!s.cache) {
+    const m = cloneModel(s.base);
+    for (const op of s.ops) op.result = pjApply(m, op);
+    s.cache = m;
+  }
+  return s.cache;
+}
+const pjMasks = (rows) => rows.map((r) => r.reduce((a, on, x) => (on ? a | (1 << x) : a), 0));
+const pjTile = (t) => (!t ? null : t.demo ? { demo: true } : t.bad ? { bad: true } : { r: pjMasks(t.rows) });
+function pjViewOf(s) {
+  const m = pjModel(s), L = pjLimits(m);
+  const projects = Array.from({ length: L.nproj }, (_, p) => {
+    const x = pjProject(m, p);
+    return { p, there: x.there, name: x.name, demo: x.demo, used: x.used, pool: x.pool, changed: s.ops.some((o) => o.q === p),
+      pats: x.pats.map(pjTile) };
+  });
+  const ops = s.ops.map((o) => {
+    const r = o.result || {};
+    return { kind: o.kind, q: o.q, at: r.at || [], ks: o.ks || [], name: o.kind === "load" ? o.kept.name : o.kind === "paste" ? o.clip.from : "",
+      poolAdded: r.poolAdded || 0, presetsAdded: r.presetsAdded || 0, copies: r.copies || 0 };
+  });
+  return { layout: m.layout.name, nproj: L.nproj, nlib: L.nlib, package: L.package, projects, ops };
+}
+// an op tried on a copy and the store image built from it (it fits: the page finds that out only at WRITE), then kept
+function pjPush(s, op) {
+  const m = cloneModel(pjModel(s));
+  try { op.result = pjApply(m, op); imageOf(m); } catch (e) { return pjFail(e); }
+  s.ops.push(op);
+  s.cache = m;
+  return { ok: true, result: op.result || null, view: pjViewOf(s) };
+}
+export function pjOpen(image) {
+  const h = pjNext++;
+  PJ.set(h, { base: modelOf(image), ops: [], cache: null });
+  return { h, view: pjViewOf(PJ.get(h)) };
+}
+export const pjClose = (h) => PJ.delete(h);
+export const pjView = (h) => pjViewOf(pjGet(h));
+export function pjImage(h) { try { return { ok: true, image: imageOf(pjModel(pjGet(h))) }; } catch (e) { return pjFail(e); } }
+export function pjRebase(h, image) {
+  const s = pjGet(h);
+  s.base = modelOf(image); s.cache = null;
+  try { imageOf(pjModel(s)); return { ok: true, view: pjViewOf(s) }; }
+  catch (e) { s.ops = []; s.cache = null; return { ...pjFail(e), view: pjViewOf(s) }; }
+}
+export function pjPaste(h, q, j, c) {
+  const clip = CLIPS.get(c);
+  return clip ? pjPush(pjGet(h), { kind: "paste", q, j, clip }) : pjFail(new Error("nothing copied"));
+}
+export const pjClear = (h, q, ks) => pjPush(pjGet(h), { kind: "clear", q, ks: [...ks] });
+export async function pjLoadKept(h, q, bytes, file = "") {
+  let kept;
+  try { kept = await readFizzprj(bytes, file); } catch (e) { return pjFail(e); }
+  return pjPush(pjGet(h), { kind: "load", q, kept });
+}
+export function pjUndo(h) { const s = pjGet(h); s.ops.pop(); s.cache = null; return pjViewOf(s); }
+export function pjDiscard(h) { const s = pjGet(h); s.ops = []; s.cache = null; return pjViewOf(s); }
+function pjClipOut(clip) {
+  if (!clip.pats.length) return { c: 0, n: 0, from: clip.from, names: [], ks: [] };
+  const c = clipNext++;
+  CLIPS.set(c, clip);
+  return { c, n: clip.pats.length, from: clip.from, names: clip.names, ks: clip.pats.map((x) => x.k) };
+}
+export const pjCopy = (h, p, ks) => pjClipOut(copyPatterns(pjModel(pjGet(h)), p, [...ks].sort((a, b) => a - b)));
+export const pjFree = (c) => CLIPS.delete(c);
+export async function pjReadFizzpat(bytes, file = "") {
+  try { return { ok: true, ...pjClipOut(await readFizzpat(bytes, file)) }; } catch (e) { return pjFail(e); }
+}
+// a kept project as a store of its own (slot 1 of an empty store of the session's layout, with the session's MY
+// PRESETS, so its presets keep their ids where the FM-1 has them): what its card draws, its patterns copied out
+function pjKeptModel(h, kept) {
+  const s = h ? PJ.get(h) : null, b = s ? s.base : null;
+  const m = b ? { layout: b.layout, magic: b.magic, lib: new Map(b.lib), prj: new Map() }
+    : { layout: LAYOUTS.device, magic: LAYOUTS.device.magic, lib: new Map(), prj: new Map() };
+  loadProject(m, 0, kept);
+  return m;
+}
+export async function pjCopyKept(h, bytes, file, ks) {
+  try {
+    const kept = await readFizzprj(bytes, file);
+    return { ok: true, ...pjClipOut(copyPatterns(pjKeptModel(h, kept), 0, [...ks].sort((a, b) => a - b))) };
+  } catch (e) { return pjFail(e); }
+}
+export function pjFizzpat(c, { fizz = "", date = new Date() } = {}) {
+  const clip = CLIPS.get(c);
+  if (!clip) throw new Error("nothing copied");
+  return { bytes: makeFizzpat(clip, { fizz, date }), fileName: patFileName(clip) };
+}
+export function pjKeep(h, p, { fizz = "", date = new Date() } = {}) {
+  const kept = keepProject(pjModel(pjGet(h)), p);
+  return { bytes: makeFizzprj(kept, { fizz, date }), fileName: prjFileName(kept), name: kept.name, pats: kept.pats,
+    sounds: kept.sounds, colours: kept.colours };
+}
+export async function pjKeptInfo(bytes, file = "") {
+  try {
+    const k = await readFizzprj(bytes, file), x = pjProject(pjKeptModel(0, k), 0);
+    return { ok: true, name: k.name, demo: k.demo, pats: k.pats, sounds: k.sounds, colours: k.colours, fizz: k.fizz,
+      date: k.date || "", used: x.pats.map((t) => !!t) };
+  } catch (e) { return pjFail(e); }
+}
+export async function pjRenameKept(bytes, file, name, { fizz = "", date = new Date() } = {}) {
+  const k = renameKept(await readFizzprj(bytes, file), name);
+  return { bytes: makeFizzprj(k, { fizz, date }), fileName: prjFileName(k), name: k.name };
+}
+
+// the demo unit's patterns: each project's taken from the image before (the same name, else the same slot) or made up
+// from its name ('P' 6 records: six tracks on page 1, their sounds MY presets by reference; a few steps lock pool
+// places that reference MY presets); a demo project's A01..A03 left to the demos. Synthetic: never a unit's data.
+const DEMO_TSET = 43;                                     // (QD_TSET_SIZE_MFX: a 'P' 4..6's track settings)
+function demoPat(rnd, ids, places) {
+  const b = [0x50, 6, 20, DEMO_TSET];
+  const p16 = (v) => { b.push(v & 0xFF, (v >> 8) & 0xFF); };
+  p16(100); b.push(0, 1); p16(120); p16(0);              // master, swing, used, bpm, nlock
+  const refs = Array.from({ length: 6 }, () => ids[Math.floor(rnd() * ids.length)] || 0);
+  refs.forEach(p16);
+  for (let i = 0; i < DEMO_TSET * 6 + 4 * 6; i++) b.push(0);   // the track settings, lock_start, lock_n
+  const dens = [0, 0.38, 0.2, 0.3, 0.16, 0.24];
+  for (let t = 0; t < 6; t++) {
+    let sm = 0;
+    if (t === 0) { for (let x = 0; x < 16; x += 4) sm |= 1 << x; if (rnd() < 0.5) sm |= 1 << 14; }
+    else if (rnd() >= 0.25) for (let x = 0; x < 16; x++) if (rnd() < dens[t]) sm |= 1 << x;
+    if (!sm) { b.push(0); continue; }
+    b.push(1);
+    p16(sm);
+    for (let x = 0; x < 16; x++) {
+      if (!((sm >> x) & 1)) continue;
+      const w = new Array(20).fill(0);
+      w[2] = 1; w[4] = 36 + t * 7 + (x % 5); w[10] = 90 + Math.floor(rnd() * 37); w[11] = 4; w[14] = 100;
+      if (places.length && rnd() < 0.12) w[16] = places[Math.floor(rnd() * places.length)];
+      b.push(...w);
+    }
+  }
+  refs.forEach(() => { b.push(0, 0); });                 // (each track sound by reference: its pool sound, edited)
+  return Uint8Array.from(b);
+}
+export function demoPatterns(image, { prev = null, projects = [] } = {}) {
+  const m = modelOf(image);
+  let pm = null;
+  try { pm = prev ? modelOf(prev) : null; } catch (_) { pm = null; }
+  const at = 2 + NAME + BLOB;
+  const ids = [...m.lib.values()].filter((r) => r[0] === 0x53 && r[1] === 5 && r.length >= at + 2).map((r) => r[at] | (r[at + 1] << 8));
+  const own = (mm, p) => [...mm.prj.keys()].filter((k) => k >>> 24 !== RK.SET && k >>> 24 !== RK.HDR && ((k >>> 16) & 0xFF) === p);
+  for (const sp of projects) {
+    const p = sp.slot - 1, h = m.prj.get(rkey(RK.HDR, p, 0));
+    if (!h) continue;
+    if (sp.demo) { const g = h.slice(); g[2 + NAME] = 1; m.prj.set(rkey(RK.HDR, p, 0), g); }
+    let from = -1;
+    if (pm) {
+      const there = Array.from({ length: pjLimits(pm).nproj }, (_, q) => pjProject(pm, q));
+      from = there.findIndex((x) => x.there && x.name === sp.name);
+      if (from < 0 && there[p] && there[p].there && sp.pats) from = p;
+    }
+    if (from >= 0) { for (const k of own(pm, from)) m.prj.set(rkey(k >>> 24, p, k & 0xFFFF), pm.prj.get(k)); continue; }
+    let seed = 7;
+    for (const ch of sp.name) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => {
+      seed = (seed + 0x6d2b79f5) >>> 0;
+      let t = seed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const places = [];
+    for (let n = 1; ids.length && n <= 12; n++) {
+      const id = ids[Math.floor(rnd() * ids.length)];
+      m.prj.set(rkey(RK.SND, p, n), Uint8Array.from([0x52, 1, id & 0xFF, (id >> 8) & 0xFF]));
+      places.push(n);
+    }
+    const k0 = sp.demo ? DEMO_N : 0;
+    for (let i = 0; i < (sp.pats || 0) - k0 && k0 + i < NPAT; i++) m.prj.set(rkey(RK.PAT, p, k0 + i), demoPat(rnd, ids, places));
+  }
+  return imageOf(m);
+}

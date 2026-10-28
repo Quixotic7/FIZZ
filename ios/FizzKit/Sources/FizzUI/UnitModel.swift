@@ -99,6 +99,8 @@ public final class UnitModel {
     public let backups: BackupModel
     /// Every write, then the page's re-reads (UnitActions.swift)
     public let actions: UnitActions
+    /// PROJECTS' store read, its changes waiting, the kept projects (I6, ProjectsModel.swift)
+    public let projectsTab: ProjectsModel
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }
@@ -120,12 +122,15 @@ public final class UnitModel {
     @ObservationIgnored private var lastActive = -Double.infinity
 
     /// backups: the folder the backups are kept in (Documents/Backups in the app).
-    public init(source: any LinkSource, backups: URL = BackupStore.defaultDirectory) {
+    public init(source: any LinkSource, backups: URL = BackupStore.defaultDirectory,
+                projects: URL = KeptStore.defaultDirectory) {
         self.source = source
         self.backups = BackupModel(store: BackupStore(directory: backups))
         self.actions = UnitActions()
+        self.projectsTab = ProjectsModel(kept: KeptStore(directory: projects))
         self.backups.unit = self
         self.actions.unit = self
+        self.projectsTab.unit = self
     }
 
     // MARK: finding the unit
