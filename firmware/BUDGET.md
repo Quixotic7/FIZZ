@@ -310,3 +310,95 @@ Bluetooth MIDI (`ble = true`, a store object at 0xFA000, USB audio off), the ove
 Bluetooth's own memory at the defaults: a 24 KB heap (RAM), three 8 KB task stacks (pool), four 2 KB queues, ~11 KB
 of the radio library's. LOOM-8 measured heap 7.1 KB and stacks 1.3 KB deep (fm1-base 3c647b2); FIZZ's audio
 interrupt nests on the radio's stacks (stack_audio 3,032), so 5 KB stacks are a guess the unit's log must confirm.
+
+## The Bluetooth package (2026-10-27)
+
+`python3 firmware/build.py --ble` (`--release X` too; `--ble --host`: `build/host/fizz-ble_host`; `--ble --web` builds, into the USB one's `build/emu/`)
+builds a second package beside the USB one: fm1-base's Bluetooth MIDI peripheral (`ble_trim`, `ble_no_pairing`; heap
+and stacks from fm1.toml's `fizz_ble_heap_kb` 12 and `fizz_ble_stack_kb` 5, or `FZ_BLE_HEAP_KB` / `FZ_BLE_STACK_KB`:
+the unit's log, radio.c "heap" and "stacks", says what they reach) with USB audio in kept. Its files:
+`fizz-ble.fwsc`, `fizz-ble-xdata.bin` (the first blob), `fizz-ble-xdata2.bin` (the second), `fizz-ble-size.txt`,
+`fizz-ble.map`; its link script `build/fizz-ble.ld` (build.py `ble_ld`). The USB package (`python3 firmware/build.py`)
+and the single-core one are as they were: the same image (the USB one's 8 bytes of fm1-base's `FM1B_BUILD`, a hash of
+the sources, aside), the same blob, the same sizes; nothing below changes them (QD_PKG_BLE 0, the code under `#if`).
+The package's identity stays FM-1_46 (release.py stamps versions); the unit says which package it runs in STATUS (42):
+the Bluetooth package appends `01 04 01 00` (a package byte, bit 0 Bluetooth; 4 projects; 128 MY presets as 14 bits)
+after the selected track; the USB package's reply is byte for byte as before (docs/SYSEX.md "The package").
+
+Where it started, measured (Bluetooth on, USB audio in, the screens' unit `ui_layer.o` already in a second blob that
+did not fit; FZ_MEASURE=1 links with every region at 1 MiB and reports the overflow): the app slot 84,710 B over,
+RAM 28,588 over, the pool 4,464 over (12,656 short of fm1-base's 8,192 spare), the RAM code region 4,136 over, NOINIT
+1,096 over (the radio's log), the first blob 4,612 too long for XDATA1 less OBJ_BLE's two sectors.
+
+| | USB package | Bluetooth package |
+| --- | --- | --- |
+| app slot (of 581,564) | 572,040 (9,524 free) | 577,196 (4,368 free) |
+| RAM .data + .bss (of 98,304) | 96,768 (1,536 free) | 97,772 (532 free) |
+| pool (of 344,064; 8,192 kept spare) | 330,096 (5,776 above the spare) | 334,720 (1,152 above the spare) |
+| RAM code region (of 32,768) | 24 free | 168 free |
+| NOINIT, FIZZ's (of 15,696 with fm1-base's) | 200 free | 356 free |
+| first blob | 90,616 at 0xE5000 (of 94,196) | 84,544 at 0xE7000 (of 86,004: 1,460 free) |
+| second blob | none | 95,996 at 0x97000 (of 98,292: 2,296 free) |
+| store | 73 sectors 0x97000..0xDFFFF, magic Z2FS | 49 sectors 0xAF000..0xDFFFF, magic Z2FB |
+
+Every cut, the Bluetooth package only, and what it saved:
+
+| cut | saved | where | the cost |
+| --- | --- | --- | --- |
+| 4 projects, 128 MY presets (persist.h), the stores' indexes sized to what each store can hold (QD_PRJ_KEYS 576, QD_LIB_KEYS 136: an index can never overflow) | 11,480 (+512 of the browser's list in RAM) | pool | the owner's choice; a full 64-pattern project (413 pages) leaves room for little else |
+| the reverb's lines 12-bit, two samples in three bytes (cr_fx.c QD_FX_REVERB_PACKED; the delay as before) | 10,240 | pool | its error a floor at −65..−71 dBFS out (34..41 dB under a loud tail); quiet tails end sooner (a 12-bit unit, then exactly 0); ~185 more instructions a reverb sample, ~2..2.5 % of a core (~120 µs a half) E; test_fx_packed |
+| fm1-base's canvas in FIZZ's 8-bit frame (BLE_OVERLAY: gfx.c's cv_px is app.h's APP_CANVAS_AT, the frame's rows in the pool) | 7,680 | pool | none: every platform screen clears the panel and FIZZ draws its whole frame after it (app_ui_init); the crash screen's FIZZ is gone |
+| the radio's three task stacks 5 KB, not 6 | 3,072 | pool | the unit's log must confirm 5 KB (LOOM-8: 1.3 KB deep; FIZZ's audio interrupt nests on them, stack_audio 3,032) |
+| the undo log 8 KB, not 16 (qd_config.h QD_UNDO_POOL_BLE) | 8,192 | pool | a full pattern's snapshot is refused ("too big"), a dense pattern's copy (the clipboard) is refused, fewer levels fit beside a big snapshot; ordinary patterns undo as before (test_ctl, test_tools check both sizes) |
+| the 8-bit frame's dirty rectangles: one segment a row, not four (fz_fb.c FZ_FB_SEGS, as the single-core package) | 1,920 + 1,920 | pool, NOINIT | a tall narrow change (ROLL's playhead, a meter) goes as whole rows, not a narrow window: longer sends, a split pass more often |
+| five RAM functions back in the flash (build.py BLE_COLD): xq_block 664 (the master filter, only while on), xc_block 608 (the chorus, while it holds something), xf_delay 1,940 (while the delay holds something), qd_player_event 886 (a trig), fz_real_qd_fx_block 808 (every block) | 4,906 | RAM code region | the flash cache's misses when they run: P2.15g measured the effects' seven (7.3 KB) out of RAM at +10..16 points of the interrupt; these ~5 KB: +5..11 points E with the delay, the chorus and the filter all on, ~1..2 with none of them. The radio's trim (3.6 KB) must run from RAM |
+| moved, not cut: app.o's .bss (8,147) and 86 of the frame's 88 rows in RAM (20,640; FZ_FB_LO 2) to the pool, ctl_latch.o's .bss (748) to NOINIT | — | RAM → pool, NOINIT | none (all SRAM) |
+| the screens' code out of the app slot: ui_layer.o but ui_geek_draw and ui_menu_draw (their sections renamed .fzsl.*, build.py BLE_SLOT), 89,926 B, and the 18-px light face of the first blob (6,070) into the second blob | 95,996 | app slot, first blob → second blob | none in speed (the same flash through the same cache). **Not yet run on a unit: code executing from the data region's plain window** (fl_plain_window_init's unencrypted range from 0x93000 up); main loop only, called only once both blobs are checked (fz_init) |
+
+OBJ_BLE (fm1-base's Bluetooth store object, two sectors) is at **0xE5000** (XDATA1's first two sectors, Felucca's
+autosave pair), not 0xFA000: fm1-base's storage writes and erases only inside FL_STORE_OK (felucca-bsp fm1_flash.h:
+0x97000..0xDFFFF, 0xE5000..0xE6FFF, 0xFC000..0xFEFFF), and 0xFA000 is outside it (st_erase would refuse it, -8: the
+radio's address never kept). The first blob starts at 0xE7000 instead; the room is the same.
+
+Not done: **SysEx over Bluetooth** (the Manager's 7D 46 5A from a computer on Bluetooth). fm1-base 934e40d drops
+SysEx in le_midi.c (midi_parse skips it); RemoteFM1's patch (fm1-base 0001: le_midi.c SysEx both ways as USB-MIDI
+packets CIN 4..7, radio.c configurable queues and whole-or-cut-short SysEx in) would apply as a build-time copy (as
+BLE_OVERLAY does for gfx.c / unity.c; le_midi.c is a radio unit compiled from fm1-base's path, so build.py would point
+its compile at the copy). What stops it here: FIZZ's frames are up to 1,024 bytes (fizz_sx.h QD_SX_FRAME_MAX) and a
+SysEx must go out whole (a note from the audio interrupt in the middle of it would break it), so the out ring needs
+~342 packets and the in ring ~256 (a STORE frame), ~2.4 KB more RAM than the package has (532 B free; radio.c's rings
+are unity.o's .bss), plus the port's reassembly of packets in fz_midi_isr (the audio interrupt) for the main loop and
+the replies' routing to Bluetooth. Small replies alone (IDENTITY, STATUS) would fit the stock 64-packet ring.
+
+Not built: the BLUETOOTH ON / OFF setting. The SETTINGS page has no free value (K1 PAGE FOLLOW, K2 BOOST, K3 CLOCK
+OUT, K4 CC OUT). Where it could go, for the owner: the SELECT knob (unused on this page) with a 12-px BLUETOOTH ON /
+OFF value in the header row (x 110..200); stored in the settings record (QD_RK_SET) byte 5 bit 4, set = OFF (0 in every
+record written so far: an older record reads ON; only the Bluetooth build would set it); the port would read it at
+boot through `APP_BLE_AT_BOOT` (app.h: a call that starts the store early, at main_fm1.c's ble_start, after app_init)
+and switch with `plat_ble_enable`. Today Bluetooth is on at every power-on (fm1-base's default).
+
+MIDI over Bluetooth: in, as USB's and the TRS jack's (app.c fz_midi_isr reads every port: the channels, 15 the selected
+track, 16 the remote, the clock and transport); out, the core's queue to USB and, a computer connected, to Bluetooth
+(fz_port.c fz_midi_out: `plat_midi_out_room(TO_USB | TO_BLE_HOST)`, the fuller queue's room, never a wait; the
+simulator's `firmware/app/tests/ble_midi.txt` with `fizz-ble_host`).
+
+### What the other tools need for the second package
+
+- **fizz_xdata.py**: `push --ble` writes `fizz-ble-xdata.bin` to 0xE7000 and `fizz-ble-xdata2.bin` to 0x97000 (one
+  FZXD each, the unit found again for each; the unit takes a blob whose length, CRC-32 and offset match one of its two
+  stamps, "FZXDSTMP" and "FZX2STMP", and starts FIZZ once both are there); `info --ble`. `backup` / `restore` / `wipe`
+  unchanged: the unit reports its store's region in FZBI (the Bluetooth package: 0xAF000, 200,704 B = 49 sectors).
+- **The install page / release.py** (not changed yet): build with `--ble --release X`; publish `fizz-ble-X.fwsc` and
+  both blobs; check each blob against its stamp in the image (`FZXDSTMP` for the first, `FZX2STMP` = bytes
+  46 5A 58 32 53 54 4D 50 for the second: len, CRC-32 after it); after the install, write the first blob at 0xE7000 and
+  the second at 0x97000 with the same FZXD command (46 "FZXD" len crc off), in either order; the first can be FZOK 0
+  (already there). Writing the second blob erases the USB package's MY PRESETS (0x97000..0xAEFFF): a backup first
+  (`fizz_xdata.py backup` on the USB package) if they matter. Back to the USB package: its blob at 0xE5000 again; its
+  store starts fresh (the Z2FB sectors are another's).
+- **The web Manager** (site/manager/fizzstore.js, fizzbak.js, parseStatus in tools/fizz_sysex.mjs and site/js): a
+  store image's layout by its sectors' magic (each sector's first four bytes, little-endian; blank = all FF):
+  "Z2FS" 5A 32 46 53 = USB (73 sectors from 0x97000: LIBRARY at 0, 22 sectors; projects at 22 x 4096, 51 sectors);
+  "Z2FB" 5A 32 46 42 = Bluetooth (49 sectors from 0xAF000: LIBRARY at 0, 11 sectors; projects at 11 x 4096, 38
+  sectors). Records and pages are the same format. fizzstore.js today checks byte 3 == 'S' (it refuses Z2FB) and
+  writes "Z2FS" in writeStore / buildImage: a Bluetooth image must be written back with Z2FB. 4 projects, 128 MY
+  PRESETS there: from STATUS's package bytes (absent: 8 and 256).

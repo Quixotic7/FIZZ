@@ -20,6 +20,8 @@
                                             constants out of the app slot) and its stores' own layout (persist.h). Its
                                             files: fizz-ble.fwsc, fizz-ble-xdata.bin, fizz-ble-xdata2.bin,
                                             fizz-ble-size.txt, fizz-ble.map (firmware/BUDGET.md "The Bluetooth package")
+  FZ_MEASURE=1 ... (with --ble)            a measure, not a package: every region 1 MiB and the overlaps let pass,
+                                            so the size report shows each region's overflow
 
 What it adds to fm1-base's build (each a small patch of its module, applied here):
   - the toolchain's container sees the whole repository (FIZZ's core/ and third_party/ are above firmware/): its root
