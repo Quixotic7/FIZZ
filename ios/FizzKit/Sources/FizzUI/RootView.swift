@@ -57,6 +57,8 @@ public struct FizzAppView: View {
             }
         }
         .onChange(of: phase) { _, p in if p == .active { model.becameActive() } }
+        // a screen asking for another tab (LIBRARY's EDIT: model.editTarget)
+        .onChange(of: model.goTo) { _, t in if let t { tab = t; model.goTo = nil } }
         // a .fizzbak / .fizzlib / .bin opened from Files, AirDrop, Mail: kept with the backups
         .onOpenURL { url in
             Task {
@@ -100,7 +102,8 @@ struct TabScreen: View {
         case .backup: BackupView(model: model)
         case .library: LibraryView(model: model, wide: wide)
         case .projects: ProjectsView(model: model)
-        case .edit, .pool, .importer: TabPlaceholder(tab: tab)
+        case .pool: PoolView(model: model, wide: wide)
+        case .edit, .importer: TabPlaceholder(tab: tab)
         }
     }
 }

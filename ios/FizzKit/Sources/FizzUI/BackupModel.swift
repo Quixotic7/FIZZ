@@ -240,9 +240,10 @@ public final class BackupModel {
                 self.run = progress.run(started: started)
             }
         }
+        let web = unit?.webTags.all ?? [:]
         let t = Task { [weak self] () -> BackupEntry? in
             let r: Result<Done, Error>
-            do { r = .success(try await Self.perform(kind, link, info, progress, self?.store, safety: safety)) }
+            do { r = .success(try await Self.perform(kind, link, info, progress, self?.store, safety: safety, webTags: web)) }
             catch { r = .failure(error) }
             self?.finish(r)
             return try? r.get().entry
@@ -266,7 +267,7 @@ public final class BackupModel {
     struct Done { let entry: BackupEntry; let stats: FizzBackupStats?; let rows: [FizzListEntry]? }
 
     private static func perform(_ kind: FizzBackupKind, _ link: FizzLink, _ info: UnitInfo, _ progress: BackupProgress,
-                                _ store: BackupStore?, safety: Bool = false) async throws -> Done {
+                                _ store: BackupStore?, safety: Bool = false, webTags: [String: [String]] = [:]) async throws -> Done {
         func check() throws { if Task.isCancelled { throw FizzBackupError.cancelled } }
         let date = Date()
         var read: FizzStoreRead?
@@ -287,7 +288,7 @@ public final class BackupModel {
         let engine = try FizzDataShared.engine()
         let input = FizzbakInput(kind: kind, image: read?.image, region: read.map { FizzStoreRegion(lo: $0.lo, size: $0.size) },
                                  crc: read?.crc, presets: frames, fizz: info.version ?? "", unitIdentity: info.idText,
-                                 unitPort: info.portName, webTags: [:], stats: read.map { FizzTransferStats($0.stats) },
+                                 unitPort: info.portName, webTags: webTags, stats: read.map { FizzTransferStats($0.stats) },
                                  date: date)
         let bytes = try await engine.makeFizzbak(input)
         var name = try await engine.backupFileName(date: date, kind: kind)

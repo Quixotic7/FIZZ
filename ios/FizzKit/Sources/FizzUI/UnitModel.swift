@@ -99,6 +99,11 @@ public final class UnitModel {
     public let backups: BackupModel
     /// Every write, then the page's re-reads (UnitActions.swift)
     public let actions: UnitActions
+    /// The web tags (Documents/webtags.json; LibraryModel.swift)
+    public let webTags: WebTagStore
+    /// LIBRARY's EDIT: the preset the EDIT tab opens on; a tab a screen asks for (RootView switches to it)
+    public var editTarget: FizzListEntry?
+    public var goTo: FizzTab?
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }
@@ -124,6 +129,7 @@ public final class UnitModel {
         self.source = source
         self.backups = BackupModel(store: BackupStore(directory: backups))
         self.actions = UnitActions()
+        self.webTags = WebTagStore(url: WebTagStore.url(besides: backups))
         self.backups.unit = self
         self.actions.unit = self
     }

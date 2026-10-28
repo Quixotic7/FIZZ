@@ -38,6 +38,7 @@ public enum FirmwareName {
 struct PortsSheet: View {
     let model: UnitModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showLog = false
 
     var body: some View {
         let r = model.ports
@@ -50,6 +51,11 @@ struct PortsSheet: View {
                         Text("LOOK AGAIN").fz(13, 800, em: 0.08).foregroundStyle(.black)
                             .padding(.horizontal, 16).frame(height: 36)
                             .background(Capsule().fill(FZ.yellow.color))
+                    }.buttonStyle(.plain)
+                    Button { showLog = true } label: {
+                        Text("LOG").fz(13, 800, em: 0.08).foregroundStyle(FZ.text.color)
+                            .padding(.horizontal, 14).frame(height: 36)
+                            .overlay(Capsule().strokeBorder(FZ.line.color, lineWidth: 1.5))
                     }.buttonStyle(.plain)
                     ShareLink(item: text) {
                         IconView(Icons.share, color: FZ.text.color, lineWidth: 2.2).frame(width: 20, height: 20)
@@ -86,6 +92,7 @@ struct PortsSheet: View {
         }
         .background(Color.black)
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showLog) { LogSheet(model: model) }
     }
 
     private func group(_ title: String, _ names: [String], color: RGB) -> some View {

@@ -58,6 +58,21 @@ struct Shots {
         save(RootView(model: m, tab: .constant(.backup), wide: false), phone, out, "backup-rows")
         save(RootView(model: m, tab: .constant(.backup), wide: true), pad, out, "ipad-backup-rows")
         save(BackingUpView(model: m, run: .still(fraction: 0.6, layout: m.layout ?? .device, elapsed: 7)), phone, out, "backing-up")
+
+        // ---- I3: LIBRARY (a row swiped, the preset sheet with its USED BY and the unit's browser open on TRACK 3), POOL
+        for k in m.pool.map(\.slot) { _ = await m.actions.poolUsers(k) }
+        if let r = m.mine.first(where: { $0.slot == 2 }) {
+            _ = await m.actions.usedBy(r)
+            save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "swipe:mine:4"),
+                 phone, out, "library-swipe")
+            _ = await m.actions.loadOnUnit(r, track: 3)
+            save(PresetSheetShot(model: m, key: "mine:2"), phone, out, "preset-sheet")
+            save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "mine:2"),
+                 pad, out, "ipad-library-preset")
+        }
+        save(RootView(model: m, tab: .constant(.pool), wide: false).environment(\.fizzShotSelection, "pool:3"), phone, out, "pool")
+        save(RootView(model: m, tab: .constant(.pool), wide: true).environment(\.fizzShotSelection, "pool:3"), pad, out, "ipad-pool")
+        save(LogSheetShot(model: m), phone, out, "log")
         m.stop()
     }
 

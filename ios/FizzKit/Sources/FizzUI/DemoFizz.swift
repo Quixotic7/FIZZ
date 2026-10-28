@@ -69,11 +69,14 @@ public final class DemoUnit: Sendable {
             (11, m(8)), (13, m(7)), (14, m(10)), (16, m(11)), (17, m(20)), (18, m(21)), (21, f(4)), (22, m(14)),
             (25, m(30)), (26, m(9)),
         ]
-        return DemoUnit(portName: port, idText: "FM-1_46001100", version: "FIZZ 0.12.0-beta.11", mine: mine,
+        let u = DemoUnit(portName: port, idText: "FM-1_46001100", version: "FIZZ 0.12.0-beta.11", mine: mine,
                         factory: factory, pool: pool,
                         projects: [("NOIR", 18, false), ("SUNDAY", 9, false), ("FIZZ TOUR", 16, true), ("SKETCH", 3, false),
                                    nil, ("ACID 3", 12, false), ("WINTER LP", 11, false), nil],
                         current: 1, bulkMs: bulkMs)
+        // (SUNDAY's pool: LIBRARY's USED BY names two projects)
+        u.state.lock.withLock { u.state.pools[2] = [21: m(2).id, 6: m(1).id, 2: f(1).id] }
+        return u
     }
 
     public static func updateMode() -> DemoUnit { DemoUnit(portName: "FM-1", idText: "ota-FM-1_0100", version: nil) }
