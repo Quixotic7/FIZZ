@@ -105,6 +105,9 @@ public final class UnitModel {
     public var goTo: FizzTab?
     /// EDIT: the sound edited and the track it follows (EditModel.swift)
     @ObservationIgnored public private(set) lazy var editor = EditorModel(unit: self)
+    /// I4: RESTORE / ADD PRESETS from a backup (RestoreModel.swift), IMPORT's files and SEND (ImportModel.swift)
+    public let restoring = RestoreModel()
+    public let importer = ImportModel()
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }
@@ -133,6 +136,8 @@ public final class UnitModel {
         self.webTags = WebTagStore(url: WebTagStore.url(besides: backups))
         self.backups.unit = self
         self.actions.unit = self
+        self.restoring.unit = self
+        self.importer.unit = self
     }
 
     // MARK: finding the unit

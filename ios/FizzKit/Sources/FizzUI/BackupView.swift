@@ -41,7 +41,8 @@ struct BackupView: View {
                         BackupRow(entry: e, url: store.url(of: e),
                                   old: e.isOld(unitLayout: model.layout?.name, unitTracks: model.storeTracks),
                                   unitVersion: model.unit?.shortVersion, flash: b.added == e.name,
-                                  onDelete: { b.delete(e) }, onShare: { b.shared(e) })
+                                  onDelete: { b.delete(e) }, onShare: { b.shared(e) },
+                                  onRestore: b.busy || model.actions.busy ? nil : { Task { await model.restoring.present(e) } })
                             .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
                                                     removal: .opacity))
                     }
@@ -53,7 +54,8 @@ struct BackupView: View {
         .fileImporter(isPresented: $picking, allowedContentTypes: [.fizzBackup, .fizzLibrary, .data],
                       allowsMultipleSelection: true) { r in
             guard case .success(let urls) = r else { return }
-            Task { for u in urls { await b.open(u) } }
+            // (one file: RESTORE / ADD PRESETS offered, as the page does)
+            Task { if urls.count == 1 { await model.restoring.open(urls[0]) } else { for u in urls { await b.open(u) } } }
         }
     }
 }
@@ -190,12 +192,15 @@ struct BackupRow: View {
     var open = false
     var onDelete: () -> Void = {}
     var onShare: () -> Void = {}
+    /// RESTORE beside DELETE (I4; nil: not now)
+    var onRestore: (() -> Void)?
 
     @Environment(\.fizzSnapshot) private var snapshot
     @State private var dx: CGFloat = 0
     @State private var drag: CGFloat = 0
     @State private var asking = false
     static let reveal: CGFloat = 92
+    private var reveal: CGFloat { onRestore == nil ? Self.reveal : 2 * Self.reveal }
 
     private var tint: RGB { entry.isFull ? (old ? FZ.orange : FZ.yellow) : FZ.cream }
     private var version: String {
@@ -203,17 +208,30 @@ struct BackupRow: View {
     }
 
     var body: some View {
-        let x = open ? -Self.reveal : min(0, dx + drag)
+        let x = open ? -reveal : min(0, dx + drag)
         ZStack(alignment: .trailing) {
-            Button { if entry.saved { onDelete() } else { asking = true } } label: {
-                VStack(spacing: 4) {
-                    IconView(Icons.trash, color: .black, lineWidth: 2.3, backdrop: FZ.red.color).frame(width: 22, height: 22)
-                    Text("DELETE").fz(12, 800, em: 0.08).foregroundStyle(.black)
+            HStack(spacing: 6) {
+                if let onRestore {
+                    Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { dx = 0 }; onRestore() } label: {
+                        VStack(spacing: 4) {
+                            IconView(TransferIcons.restore, color: .black, lineWidth: 2.3, backdrop: FZ.yellow.color).frame(width: 22, height: 22)
+                            Text("RESTORE").fz(12, 800, em: 0.08).foregroundStyle(.black)
+                        }
+                        .frame(width: 84).frame(maxHeight: .infinity)
+                        .background(RoundedRectangle(cornerRadius: 16).fill(FZ.yellow.color))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .frame(width: 84).frame(maxHeight: .infinity)
-                .background(RoundedRectangle(cornerRadius: 16).fill(FZ.red.color))
+                Button { if entry.saved { onDelete() } else { asking = true } } label: {
+                    VStack(spacing: 4) {
+                        IconView(Icons.trash, color: .black, lineWidth: 2.3, backdrop: FZ.red.color).frame(width: 22, height: 22)
+                        Text("DELETE").fz(12, 800, em: 0.08).foregroundStyle(.black)
+                    }
+                    .frame(width: 84).frame(maxHeight: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(FZ.red.color))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             .opacity(x < -4 ? 1 : 0)
             card
                 .offset(x: x)
@@ -231,13 +249,13 @@ struct BackupRow: View {
         DragGesture(minimumDistance: 14)
             .onChanged { v in
                 guard abs(v.translation.width) > abs(v.translation.height) else { return }
-                let t = v.translation.width, past = dx + t + Self.reveal
+                let t = v.translation.width, past = dx + t + reveal
                 drag = past < 0 ? t - past + past / 3 : t      // (a pull past the button gives way slowly)
             }
             .onEnded { v in
                 let end = dx + v.translation.width
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    dx = end < -Self.reveal / 2 ? -Self.reveal : 0
+                    dx = end < -reveal / 2 ? -reveal : 0
                     drag = 0
                 }
             }

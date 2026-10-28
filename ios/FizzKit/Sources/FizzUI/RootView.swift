@@ -41,6 +41,15 @@ public struct FizzAppView: View {
             if let run = model.backups.run {
                 BackingUpView(model: model, run: run).transition(.opacity).zIndex(2)
             }
+            RestoreOverlay(model: model).zIndex(3)      // I4: RESTORE's (and WRITE TO FM-1's) progress, DONE, failure
+        }
+        .sheet(isPresented: Bindable(model.restoring).presented) {
+            ScrollView { RestoreSheet(model: model) }
+                .scrollIndicators(.hidden)
+                .presentationDetents([.fraction(0.74), .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(RGB(0x0d0d11).color)
+                .preferredColorScheme(.dark)
         }
         .animation(.easeInOut(duration: 0.3), value: model.backups.run == nil)
         .background(Color.black)
@@ -59,10 +68,18 @@ public struct FizzAppView: View {
         .onChange(of: phase) { _, p in if p == .active { model.becameActive() } }
         // a screen asking for another tab (LIBRARY's EDIT: model.editTarget)
         .onChange(of: model.goTo) { _, t in if let t { tab = t; model.goTo = nil } }
-        // a .fizzbak / .fizzlib / .bin opened from Files, AirDrop, Mail: kept with the backups
+        // a .fizzbak / .bin opened from Files, AirDrop, Mail: kept with the backups, RESTORE offered; a sound file
+        // (.fizzlib .fizzsnd .dnsnd .dn2pst .dn2snd): IMPORT
         .onOpenURL { url in
             Task {
-                if await model.backups.open(url) { tab = .backup }
+                let ext = url.pathExtension.lowercased()
+                if importExtensions.contains(ext) && ext != "fizzbak" {
+                    await model.importer.add(urls: [url])
+                    tab = .importer
+                } else {
+                    tab = .backup
+                    await model.restoring.open(url)
+                }
             }
         }
     }
@@ -104,7 +121,7 @@ struct TabScreen: View {
         case .projects: ProjectsView(model: model)
         case .pool: PoolView(model: model, wide: wide)
         case .edit: EditView(model: model, wide: wide)
-        case .importer: TabPlaceholder(tab: tab)
+        case .importer: ImportSheet(model: model, inline: true)
         }
     }
 }
@@ -120,8 +137,9 @@ struct PhoneRoot: View {
         ZStack(alignment: .bottom) {
             Color.black
             VStack(spacing: 0) {
-                if TrackPill.shows(on: tab) { TrackTopBar(model: model) } else { TopBar(model: model) }
-                TabScreen(model: model, tab: tab).frame(maxWidth: .infinity, maxHeight: .infinity)
+                // (IMPORT is a sheet on the phone: the tab under it stays)
+                if TrackPill.shows(on: tab == .importer ? model.importer.under : tab) { TrackTopBar(model: model) } else { TopBar(model: model) }
+                TabScreen(model: model, tab: tab == .importer ? model.importer.under : tab).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .padding(.top, insets.top)
             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.62)],
@@ -134,6 +152,14 @@ struct PhoneRoot: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
         .ignoresSafeArea(edges: .bottom)
+        .onChange(of: tab) { old, new in if new == .importer && old != .importer { model.importer.under = old } }
+        .sheet(isPresented: Binding(get: { tab == .importer }, set: { if !$0 && tab == .importer { tab = model.importer.under } })) {
+            ImportSheet(model: model)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(RGB(0x0d0d11).color)
+                .preferredColorScheme(.dark)
+        }
     }
 }
 

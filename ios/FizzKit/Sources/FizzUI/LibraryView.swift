@@ -33,8 +33,7 @@ struct LibraryView: View {
         .confirmCard($ask)
         .hardwareKeys(model.editor)
         .sheet(item: $exporting) { box in
-            // WIRE AT MERGE: ExportSheet(sounds: box.sounds)
-            ExportPending(sounds: box.sounds)
+            ExportSheet(sounds: box.sounds) { exporting = nil }
         }
         .onAppear { if snapshot, let s = shotSelection, s.hasPrefix("mine:") || s.hasPrefix("factory:") { selected = s } }
     }
@@ -455,32 +454,10 @@ struct Count: View {
     }
 }
 
-/// EXPORT's sounds, until the EXPORT sheet takes them.
+/// EXPORT's sounds (the EXPORT sheet's).
 struct ExportBox: Identifiable {
     let id = UUID()
     let sounds: [FizzSound]
-}
-
-/// (until I4's EXPORT sheet is merged: the sounds it would get)
-struct ExportPending: View {
-    let sounds: [FizzSound]
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Heading(text: "EXPORT", count: "\(sounds.count)", color: FZ.violet)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(sounds.enumerated()), id: \.offset) { _, s in
-                        Text(s.name).fz(16, 800).foregroundStyle(FZ.text.color)
-                    }
-                }
-            }
-        }
-        .padding(22)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.black)
-        .presentationDetents([.medium])
-        .preferredColorScheme(.dark)
-    }
 }
 
 /// The preset sheet over LIBRARY as the phone shows it (fizzshots: ImageRenderer draws no sheets).
