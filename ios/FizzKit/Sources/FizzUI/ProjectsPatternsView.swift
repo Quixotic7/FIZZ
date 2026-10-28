@@ -17,6 +17,7 @@ struct ProjectsPatternsView: View {
     @Binding var importing: Bool
     @Binding var sharing: SharedFile?
     @State private var anchor: CGRect?
+    @State private var gridW: CGFloat = 358
 
     var body: some View {
         let s = pm.selected
@@ -44,7 +45,7 @@ struct ProjectsPatternsView: View {
             .animation(.spring(response: 0.45, dampingFraction: 0.75), value: pm.clip)
             SlotChips(model: pm)
             if let pr = s.model, pr.there {
-                PatternGrid(model: pm, project: pr) { anchor = $0 }
+                PatternGrid(model: pm, project: pr) { anchor = $0; gridW = $1 }
                     .overlay(alignment: .topLeading) { menu }
                     .opacity(pm.reading ? 0.3 : 1)
                     .overlay { if pm.reading { ReadingMeter(fraction: pm.readFraction) } }
@@ -81,26 +82,28 @@ struct ProjectsPatternsView: View {
         )
     }
 
-    /// The edit menu above the selection's first tile (below it near the top), its point at the tile.
+    /// The edit menu above the selection's first tile (below it near the top), its point at the tile. (No
+    /// GeometryReader here: one over the grid took its taps.)
     @ViewBuilder private var menu: some View {
         if !pm.pats.isEmpty, let a = anchor, pm.canEdit {
-            GeometryReader { g in
-                let h: CGFloat = 54, above = a.minY - h - 12 >= -60
-                let y = above ? a.minY - h - 10 : a.maxY + 10
-                let px = min(max(a.midX, 28), g.size.width - 28)
-                ZStack(alignment: .topLeading) {
-                    Rectangle().fill(RGB(0x1b1b21).color).frame(width: 16, height: 16)
-                        .overlay(Rectangle().strokeBorder(RGB(0x3a3a44).color, lineWidth: 1.5))
-                        .rotationEffect(.degrees(45))
-                        .offset(x: px - 8, y: above ? y + h - 9 : y - 7)
-                    EditMenu(model: pm) {
-                        Task { if let u = await pm.fizzpatFile() { sharing = SharedFile(url: u) } }
-                    }
-                    .frame(width: g.size.width, alignment: .center)
-                    .offset(y: y)
-                    .transition(.scale(scale: 0.5, anchor: UnitPoint(x: px / max(1, g.size.width), y: above ? 1 : 0)).combined(with: .opacity))
+            let h: CGFloat = 54, above = a.minY - h - 12 >= -60
+            let y = above ? a.minY - h - 10 : a.maxY + 10
+            let px = min(max(a.midX, 28), gridW - 28)
+            ZStack(alignment: .topLeading) {
+                Rectangle().fill(RGB(0x1b1b21).color).frame(width: 16, height: 16)
+                    .overlay(Rectangle().strokeBorder(RGB(0x3a3a44).color, lineWidth: 1.5))
+                    .rotationEffect(.degrees(45))
+                    .offset(x: px - 8, y: above ? y + h - 9 : y - 7)
+                    .allowsHitTesting(false)
+                EditMenu(model: pm) {
+                    Task { if let u = await pm.fizzpatFile() { sharing = SharedFile(url: u) } }
                 }
+                .fixedSize()
+                .frame(width: gridW)
+                .offset(y: y)
+                .transition(.scale(scale: 0.5, anchor: UnitPoint(x: px / max(1, gridW), y: above ? 1 : 0)).combined(with: .opacity))
             }
+            .frame(width: gridW, alignment: .topLeading)
             .animation(.spring(response: 0.5, dampingFraction: 0.62), value: a)
         }
     }

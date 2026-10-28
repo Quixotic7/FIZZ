@@ -149,12 +149,12 @@ struct PatternTileView: View {
             v.scaleEffect(d.scale).offset(y: d.dy)
         } keyframes: { _ in
             KeyframeTrack(\Drop.scale) {
-                LinearKeyframe(pasted ? 0.7 : 1, duration: delay)
+                LinearKeyframe(pasted ? 0.7 : 1, duration: max(0.02, delay))
                 SpringKeyframe(1.1, duration: 0.25)
                 SpringKeyframe(1, duration: 0.3)
             }
             KeyframeTrack(\Drop.dy) {
-                LinearKeyframe(pasted ? -14 : 0, duration: delay)
+                LinearKeyframe(pasted ? -14 : 0, duration: max(0.02, delay))
                 SpringKeyframe(0, duration: 0.3)
             }
         }
@@ -177,7 +177,7 @@ struct PatternGrid: View {
     var bankGap: CGFloat = 12
     var label: CGFloat = 16
     /// the selection's first tile's frame (in the grid's space)
-    var onAnchor: (CGRect?) -> Void = { _ in }
+    var onAnchor: (CGRect?, CGFloat) -> Void = { _, _ in }
     @State private var dragFrom: Int?
 
     var rowsPerBank: Int { 64 / 4 / cols }
@@ -204,26 +204,21 @@ struct PatternGrid: View {
                         .offset(x: f.minX, y: f.minY)
                 }
             }
+            // (offsets do not grow a ZStack: the whole grid's frame, so a touch anywhere on it is the grid's)
+            .frame(width: g.size.width, height: height, alignment: .topLeading)
             .contentShape(Rectangle())
+            // a tap: one tile; a drag across: a range
+            .onTapGesture { p in if let k = hit(p, w) { model.tap(k) } }
             .gesture(
-                DragGesture(minimumDistance: 0)
+                DragGesture(minimumDistance: 6)
                     .onChanged { v in
-                        guard let k = hit(v.location, w) else { return }
-                        if dragFrom == nil {
-                            guard let k0 = hit(v.startLocation, w) else { return }
-                            dragFrom = k0
-                        }
-                        if let k0 = dragFrom, k != k0 || hypot(v.translation.width, v.translation.height) > 8 {
-                            model.selectRange(from: k0, to: k)
-                        }
+                        if dragFrom == nil { dragFrom = hit(v.startLocation, w) }
+                        if let k0 = dragFrom, let k = hit(v.location, w) { model.selectRange(from: k0, to: k) }
                     }
-                    .onEnded { v in
-                        defer { dragFrom = nil }
-                        if hypot(v.translation.width, v.translation.height) <= 8, let k = hit(v.startLocation, w) { model.tap(k) }
-                    }
+                    .onEnded { _ in dragFrom = nil }
             )
-            .onChange(of: model.pats, initial: true) { _, p in onAnchor(p.min().map { frame($0, w) }) }
-            .onChange(of: g.size.width) { _, _ in onAnchor(model.pats.min().map { frame($0, w) }) }
+            .onChange(of: model.pats, initial: true) { _, p in onAnchor(p.min().map { frame($0, w) }, g.size.width) }
+            .onChange(of: g.size.width) { _, _ in onAnchor(model.pats.min().map { frame($0, w) }, g.size.width) }
         }
         .frame(height: height)
     }
@@ -641,7 +636,7 @@ struct PatternDots: View {
     let project: FizzProjectModel?
     var playing: Int?
     var body: some View {
-        Animated(still: 0.5) { t in
+        do {
             VStack(spacing: 0) {
                 ForEach(0..<4, id: \.self) { b in
                     HStack(spacing: 0) {
@@ -650,10 +645,12 @@ struct PatternDots: View {
                             let k = b * 16 + x, used = project?.pats.indices.contains(k) == true && project?.pats[k] != nil
                             Group {
                                 if playing == k {
-                                    Circle().fill(.white).frame(width: 17, height: 17)
-                                        .overlay(Circle().strokeBorder(.black, lineWidth: 3).padding(-3))
-                                        .overlay(Circle().strokeBorder(FZ.cyan.color, lineWidth: 2).padding(-5))
-                                        .shadow(color: FZ.cyan.opacity(0.4 + 0.6 * breathe(t, 1)), radius: 4 + 10 * breathe(t, 1))
+                                    Animated(still: 0.5) { t in
+                                        Circle().fill(.white).frame(width: 17, height: 17)
+                                            .overlay(Circle().strokeBorder(.black, lineWidth: 3).padding(-3))
+                                            .overlay(Circle().strokeBorder(FZ.cyan.color, lineWidth: 2).padding(-5))
+                                            .shadow(color: FZ.cyan.opacity(0.4 + 0.6 * breathe(t, 1)), radius: 4 + 10 * breathe(t, 1))
+                                    }
                                 } else {
                                     Circle().fill(used ? FZ.cyan.color : .clear).frame(width: 13, height: 13)
                                         .overlay(Circle().strokeBorder(used ? FZ.cyan.color : RGB(0x26262e).color, lineWidth: 2))
@@ -665,6 +662,16 @@ struct PatternDots: View {
                 }
             }
         }
+    }
+}
+
+/// Animated while `on` (a glow that breathes), still otherwise: the screen redraws only what moves.
+struct AnimatedIf<Content: View>: View {
+    let on: Bool
+    var still = 1.3
+    @ViewBuilder let content: (Double) -> Content
+    var body: some View {
+        if on { Animated(still: still, content: content) } else { content(still) }
     }
 }
 

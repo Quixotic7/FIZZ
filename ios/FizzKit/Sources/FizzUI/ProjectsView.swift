@@ -170,7 +170,7 @@ struct ProjectTile: View {
     var body: some View {
         let there = slot.there, cur = slot.current, demo = slot.demo
         let badge = cur ? FZ.cyan : demo ? FZ.champagne : there ? FZ.green : FZ.track
-        Animated(still: 0.9) { t in
+        AnimatedIf(on: cur || target, still: 0.9) { t in
             VStack(alignment: .leading, spacing: 0) {
                 Text("\(slot.p + 1)").fz(15, 800).foregroundStyle(there ? Color.black : RGB(0x5d5d66).color)
                     .frame(width: 26, height: 26)
