@@ -48,8 +48,8 @@ public struct FizzAppView: View {
             }
         }
         .sheet(isPresented: Bindable(model.restoring).presented) {
-            ScrollView { RestoreSheet(model: model) }
-                .scrollIndicators(.hidden)
+            // (RestoreSheet scrolls its body itself, its slide and CANCEL pinned)
+            RestoreSheet(model: model)
                 .presentationDetents([.fraction(0.74), .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(RGB(0x0d0d11).color)

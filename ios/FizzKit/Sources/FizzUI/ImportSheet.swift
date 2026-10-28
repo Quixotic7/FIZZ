@@ -49,7 +49,8 @@ public struct ImportSheet: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, inline ? 4 : 8)
+            // (clear of the sheet's grab handle)
+            .padding(.top, inline ? 4 : snapshot ? 8 : 20)
             if !im.rows.isEmpty { footer }
         }
         .frame(maxWidth: inline ? 760 : .infinity)
@@ -64,7 +65,7 @@ public struct ImportSheet: View {
     }
 
     private var head: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 4) {
             Text("IMPORT").fz(15, 800, em: 0.14).foregroundStyle(FZ.violet.color)
             Spacer(minLength: 0)
             if model.actions.trackCapable { TrackPill(model: model) }
@@ -73,13 +74,14 @@ public struct ImportSheet: View {
                     IconView(Icons.trash, color: FZ.muted.color, lineWidth: 2, backdrop: .clear)
                         .frame(width: 17, height: 17).frame(width: 36, height: 36)
                         .overlay(Circle().strokeBorder(FZ.line.color, lineWidth: 1.5))
-                        .contentShape(Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
             if !inline { SheetCloseButton { dismiss() } }
         }
-        .frame(height: 40)
+        .frame(height: 44)
     }
 
     private var rows: some View {
@@ -266,7 +268,7 @@ struct ImportRowView: View {
             IconView(heard ? TransferIcons.stop : TransferIcons.play, color: heard ? .black : FZ.violet.color, fill: true)
                 .frame(width: 14, height: 14)
                 .offset(x: heard ? 0 : 1.5)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .background(Circle().fill(heard ? FZ.violet.color : .clear))
                 .overlay(Circle().strokeBorder(heard ? FZ.violet.color : FZ.violet.mix(65, FZ.line).color, lineWidth: 2))
                 .contentShape(Circle())

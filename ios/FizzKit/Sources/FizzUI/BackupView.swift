@@ -28,11 +28,12 @@ struct BackupView: View {
                         .frame(width: 19, height: 19)
                         .frame(width: 36, height: 36)
                         .overlay(Circle().strokeBorder(FZ.yellow.mix(55, FZ.line).color, lineWidth: 1.5))
-                        .contentShape(Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.top, 20).padding(.bottom, 12).padding(.horizontal, 2)
+            .padding(.top, 16).padding(.bottom, 8).padding(.horizontal, 2)
             if store.entries.isEmpty {
                 EmptyBackups()
             } else {
@@ -152,6 +153,8 @@ struct FailureStrip: View {
                     Text("AGAIN").fz(13, 800, em: 0.08).foregroundStyle(.black)
                         .padding(.horizontal, 14).frame(height: 32)
                         .background(Capsule().fill(failure.color.color))
+                        .frame(height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -235,7 +238,7 @@ struct BackupRow: View {
             .opacity(x < -4 ? 1 : 0)
             card
                 .offset(x: x)
-                .gesture(swipe)
+                .modifier(SideSwipe(changed: pull, ended: letGo))
                 .onTapGesture { if dx != 0 { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { dx = 0 } } }
         }
         .frame(height: 70)
@@ -245,20 +248,22 @@ struct BackupRow: View {
         }
     }
 
-    private var swipe: some Gesture {
-        DragGesture(minimumDistance: 14)
-            .onChanged { v in
-                guard abs(v.translation.width) > abs(v.translation.height) else { return }
-                let t = v.translation.width, past = dx + t + reveal
-                drag = past < 0 ? t - past + past / 3 : t      // (a pull past the button gives way slowly)
-            }
-            .onEnded { v in
-                let end = dx + v.translation.width
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    dx = end < -reveal / 2 ? -reveal : 0
-                    drag = 0
-                }
-            }
+    /// The card follows the finger (a pull past the buttons gives way slowly).
+    private func pull(_ t: CGFloat) {
+        let past = dx + t + reveal
+        drag = past < 0 ? t - past + past / 3 : t
+    }
+
+    private func letGo(_ t: CGFloat, _ speed: CGFloat) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            dx = Self.opens(at: dx + t, speed: speed, reveal: reveal) ? -reveal : 0
+            drag = 0
+        }
+    }
+
+    /// Let go at `end` (the card's x) at `speed` (pt/s): a flick opens or shuts it, else past half way opens it.
+    static func opens(at end: CGFloat, speed: CGFloat, reveal: CGFloat) -> Bool {
+        speed < -600 ? true : speed > 600 ? false : end < -reveal / 2
     }
 
     private var card: some View {
@@ -286,7 +291,7 @@ struct BackupRow: View {
             Spacer(minLength: 4)
             ShareIcon(url: url, onShare: onShare)
         }
-        .padding(.horizontal, 12)
+        .padding(.leading, 12).padding(.trailing, 8)
         .frame(height: 70)
         .background(RoundedRectangle(cornerRadius: 16).fill(FZ.raised.color))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(FZ.line.color, lineWidth: 1.5))
@@ -334,7 +339,8 @@ struct ShareIcon: View {
             .frame(width: 19, height: 19)
             .frame(width: 40, height: 40)
             .overlay(Circle().strokeBorder(FZ.line.color, lineWidth: 1.5))
-            .contentShape(Circle())
+            .frame(width: 48, height: 48)
+            .contentShape(Rectangle())
     }
 }
 

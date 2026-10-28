@@ -248,4 +248,13 @@ struct BackupStoreTests {
         #expect(whenText(Date(), now: Date()).hasPrefix("Today "))
         #expect(sizeText(299_008) == "292 KB" && sizeText(1_153_434) == "1.1 MB")
     }
+
+    /// A backup row let go: a flick decides, else past half the buttons' width opens it.
+    @Test func rowSwipeLetGo() {
+        let r: CGFloat = 184
+        #expect(BackupRow.opens(at: -100, speed: 0, reveal: r))         // past half way
+        #expect(!BackupRow.opens(at: -80, speed: 0, reveal: r))         // short of it: shuts
+        #expect(BackupRow.opens(at: -30, speed: -900, reveal: r))       // a flick left opens
+        #expect(!BackupRow.opens(at: -150, speed: 900, reveal: r))      // a flick right shuts an open one
+    }
 }

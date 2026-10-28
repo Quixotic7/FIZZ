@@ -169,7 +169,8 @@ struct SheetCloseButton: View {
                 .frame(width: 16, height: 16)
                 .frame(width: 36, height: 36)
                 .overlay(Circle().strokeBorder(FZ.line.color, lineWidth: 1.5))
-                .contentShape(Circle())
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -242,3 +243,70 @@ public struct SnapshotSheet<Under: View, Content: View>: View {
         }
     }
 }
+
+// MARK: - Sideways swipe
+
+/// A row's sideways drag that never takes a vertical one from the list's scroll. iOS 18 and later: a UIKit pan that
+/// begins only when the finger moves mostly sideways (a SwiftUI DragGesture on a ScrollView's row blocks the scroll
+/// there, even a simultaneous one); before: the DragGesture. changed: the x moved; ended: the x moved and its speed
+/// (pt/s); a pan taken by the scroll after all ends at 0.
+struct SideSwipe: ViewModifier {
+    let changed: (CGFloat) -> Void
+    let ended: (CGFloat, CGFloat) -> Void
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 18, *) {
+            content.gesture(SidePan(changed: changed, ended: ended))
+        } else {
+            content.gesture(drag)
+        }
+        #else
+        content.gesture(drag)
+        #endif
+    }
+
+    private var drag: some Gesture {
+        DragGesture(minimumDistance: 14)
+            .onChanged { v in
+                guard abs(v.translation.width) > abs(v.translation.height) else { return }
+                changed(v.translation.width)
+            }
+            .onEnded { v in ended(v.translation.width, v.velocity.width) }
+    }
+}
+
+#if os(iOS)
+@available(iOS 18, *)
+private struct SidePan: UIGestureRecognizerRepresentable {
+    let changed: (CGFloat) -> Void
+    let ended: (CGFloat, CGFloat) -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let g = UIPanGestureRecognizer()
+        g.delegate = context.coordinator
+        return g
+    }
+
+    func handleUIGestureRecognizerAction(_ g: UIPanGestureRecognizer, context: Context) {
+        let x = g.translation(in: g.view).x
+        switch g.state {
+        case .began, .changed: changed(x)
+        case .ended: ended(x, g.velocity(in: g.view).x)
+        case .cancelled, .failed: ended(0, 0)
+        default: break
+        }
+    }
+
+    @MainActor final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        /// Only a mostly sideways start; a vertical one is the scroll's.
+        func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+            guard let p = g as? UIPanGestureRecognizer else { return true }
+            let v = p.velocity(in: p.view)
+            return abs(v.x) > abs(v.y) * 1.3
+        }
+    }
+}
+#endif
