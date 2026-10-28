@@ -3,8 +3,9 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // PROJECTS (cyan; site/manager/projtab.js). iPhone: the slots (mock-up 14: the open project glowing, its patterns as
-// dots, LOAD / NEW / COPY TO / DELETE; the name tapped: RENAME; COPY TO turns MOVE TO with one tap), a project's
-// patterns (18, ProjectsPatternsView) and the kept ones (19, ProjectsKeptView). iPad: all of it on one screen (22,
+// dots on a card that opens them, LOAD / NEW / COPY TO / DELETE; the name or its pencil: RENAME; COPY TO turns MOVE
+// TO with one tap; KEPT n opens the kept ones), a project's patterns (18, ProjectsPatternsView) and the kept ones (19,
+// ProjectsKeptView), each with a chevron back to the slots. iPad: all of it on one screen (22,
 // ProjectsPadView). The store is read when the tab shows and the unit changed it (projtab.js show).
 
 import SwiftUI
@@ -41,7 +42,43 @@ struct ProjectsView: View {
             if case .success(let urls) = r, let u = urls.first { Task { await pm.open(u) } }
         }
         .shareSheet($sharing)
-        .task { await pm.show() }
+        .task {
+            await pm.show()
+            await ProjectsScene.apply(pm)
+        }
+    }
+}
+
+/// `-projects <scene>` with the demo unit: PROJECTS opened in that state (simulator screenshots): patterns, select
+/// (C02-C03), top (A10), changes (SUNDAY A03-A05 pasted at NOIR C01), write (those changes written), kept, load (LOAD
+/// INTO armed), copyto.
+@MainActor enum ProjectsScene {
+    private static var done = false
+
+    static func apply(_ pm: ProjectsModel, arguments: [String] = ProcessInfo.processInfo.arguments) async {
+        guard !done, pm.unit?.source is DemoLinkSource, let i = arguments.firstIndex(of: "-projects"), i + 1 < arguments.count
+        else { return }
+        done = true
+        switch arguments[i + 1] {
+        case "patterns": await pm.enter(.patterns)
+        case "select": pm.selectRange(from: 33, to: 34); await pm.enter(.patterns)
+        case "top": pm.tap(9); await pm.enter(.patterns)
+        case "changes", "write":
+            pm.select(1); pm.selectRange(from: 2, to: 4); await pm.copy()
+            pm.select(0); pm.tap(32); pm.paste()
+            if let a = pm.ask { pm.ask = nil; await a.run() }
+            pm.selectRange(from: 33, to: 34)
+            await pm.enter(.patterns)
+            if arguments[i + 1] == "write" { await pm.write() }
+        case "kept", "load":
+            if pm.kept.items.count < 4 { for p in [6, 0, 5, 3] { pm.select(p); await pm.keep() } }
+            pm.select(0)
+            await pm.enter(.kept)
+            if arguments[i + 1] == "load", let k = pm.kept.items.first { pm.keptSel = k.id; pm.startLoad(k) }
+        case "copyto": pm.startCopy()
+        default: break
+        }
+        pm.dismissNote()
     }
 }
 
@@ -56,37 +93,54 @@ struct ProjectsSlotsView: View {
     var body: some View {
         let s = pm.selected
         ScreenScroll(bottom: pm.ops.isEmpty ? 120 : 270, refresh: { await model.refresh(); if pm.ops.isEmpty { await pm.read(force: true) } }) {
-            HStack(alignment: .lastTextBaseline, spacing: 12) {
-                Text(s.there ? s.name : "\(s.p + 1)").fz(52, 800, em: -0.01)
-                    .foregroundStyle((s.there ? FZ.cyan : FZ.dim).color)
-                    .shadow(color: FZ.cyan.opacity(s.there ? 0.45 : 0), radius: 13)
-                    .lineLimit(1).minimumScaleFactor(0.5)
-                    .onTapGesture { if s.there, pm.online { newName = s.name; renaming = true } }
-                if s.model != nil, s.there {
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Text("\(s.used)").fz(22, 800).foregroundStyle(FZ.text.color)
-                        Text("patterns").fz(15, 800).foregroundStyle(FZ.muted.color)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .center, spacing: 10) {
+                    // the name tapped (or its pencil): RENAME
+                    Button { newName = s.name; renaming = true } label: {
+                        HStack(alignment: .center, spacing: 10) {
+                            Text(s.there ? s.name : "\(s.p + 1)").fz(52, 800, em: -0.01)
+                                .foregroundStyle((s.there ? FZ.cyan : FZ.dim).color)
+                                .shadow(color: FZ.cyan.opacity(s.there ? 0.45 : 0), radius: 13)
+                                .lineLimit(1).minimumScaleFactor(0.5)
+                            if s.there && pm.online && pm.arm == nil {
+                                IconView(ProjIcons.pencil, color: FZ.cyan.color, lineWidth: 2.3, backdrop: .black).frame(width: 16, height: 16)
+                                    .frame(width: 34, height: 34)
+                                    .overlay(Circle().strokeBorder(FZ.cyan.mix(50, FZ.line).color, lineWidth: 1.5))
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                        .frame(minHeight: 60)
+                        .contentShape(Rectangle())
                     }
-                    .fixedSize()
+                    .buttonStyle(ProjPress())
+                    .disabled(!(s.there && pm.online && pm.arm == nil))
+                    Spacer(minLength: 0)
+                    KeptChip(count: pm.kept.items.count, height: 40, label: true, hitPad: 2) { Task { await pm.enter(.kept) } }
                 }
-                Spacer(minLength: 0)
-                KeptChip(count: pm.kept.items.count, height: 36) { Task { await pm.enter(.kept) } }
-                    .alignmentGuide(.lastTextBaseline) { d in d[.bottom] - 8 }
+                .padding(.bottom, 10)
+                SlotTiles(pm: pm).frame(maxWidth: 560)
+                // the dots: a card that opens the patterns
+                Button { Task { await pm.enter(.patterns) } } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        PatternsHeading(pm: pm, chevron: true)
+                        PatternDots(project: s.model, playing: pm.playing && s.current ? model.status?.pattern : nil)
+                            .opacity(pm.reading ? 0.25 : 1)
+                            .overlay { if pm.reading { ReadingMeter(fraction: pm.readFraction) } }
+                    }
+                    .padding(.top, 10).padding(.bottom, 8).padding(.leading, 12).padding(.trailing, 8)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(RGB(0x0c0c10).color))
+                    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(FZ.cyan.mix(28, FZ.line).color, lineWidth: 1.5))
+                    .contentShape(RoundedRectangle(cornerRadius: 18))
+                }
+                .buttonStyle(ProjPress(scale: 0.97))
+                .frame(maxWidth: 560)
+                .padding(.top, 14)
+                SlotActions(pm: pm).padding(.top, 14).frame(maxWidth: 560)
             }
-            .padding(.top, 2).padding(.bottom, 14)
-            SlotTiles(pm: pm).frame(maxWidth: 560)
-            PatternsHeading(pm: pm).padding(.top, 18).padding(.bottom, 10)
-            Button { Task { await pm.enter(.patterns) } } label: {
-                PatternDots(project: s.model, playing: pm.playing && s.current ? model.status?.pattern : nil)
-                    .opacity(pm.reading ? 0.25 : 1)
-                    .overlay { if pm.reading { ReadingMeter(fraction: pm.readFraction) } }
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .frame(maxWidth: 560)
-            SlotActions(pm: pm).padding(.top, 18).frame(maxWidth: 560)
+            // (inside the scroll: the open slot's glow not cut at the edges)
+            .padding(.horizontal, 16).padding(.top, 4)
         }
-        .padding(.horizontal, 16).padding(.top, 4)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: s.there && pm.online && pm.arm == nil)
         .alert("RENAME", isPresented: $renaming) {
             TextField("", text: $newName).capsInput()
             Button("RENAME") { Task { await pm.rename(to: newName) } }
@@ -98,6 +152,8 @@ struct ProjectsSlotsView: View {
 /// PATTERNS n / 64 and the open pattern (▶ while playing).
 struct PatternsHeading: View {
     let pm: ProjectsModel
+    /// iPhone's slots: a chevron at the end (the card opens the patterns)
+    var chevron = false
     var body: some View {
         let s = pm.selected
         let pat = s.current ? pm.unit?.status?.pattern : nil
@@ -108,6 +164,12 @@ struct PatternsHeading: View {
             if let pat, (0..<64).contains(pat) {
                 Text("\(pm.playing ? "▶ " : "")\(FizzClip.patName(pat))").fz(15, 800, em: 0.04)
                     .foregroundStyle((pm.playing ? FZ.cyan : FZ.muted).color)
+            }
+            if chevron {
+                IconView(ProjIcons.next, color: .black, lineWidth: 2.8, backdrop: FZ.cyan.color).frame(width: 15, height: 15)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(FZ.cyan.color))
+                    .shadow(color: FZ.cyan.opacity(0.4), radius: 6)
             }
         }
         .lineLimit(1)
@@ -150,9 +212,9 @@ struct SlotTiles: View {
                                 ProjectTile(slot: pm.slot(k), selected: k == pm.sel && pm.arm == nil,
                                             target: pm.arm != nil && k != pm.arm?.from, from: pm.arm?.from == k)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(ProjPress())
                         } else {
-                            Color.clear.frame(height: 100)
+                            Color.clear.frame(height: 94)
                         }
                     }
                 }
@@ -202,7 +264,7 @@ struct ProjectTile: View {
             }
             .padding(.top, 9).padding(.bottom, 9).padding(.leading, 10).padding(.trailing, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 100)
+            .frame(height: 94)
             .background(RoundedRectangle(cornerRadius: 18).fill(cur ? FZ.cyan.mix(14, FZ.raised).color : there ? FZ.raised.color : .clear))
             .overlay {
                 if target {

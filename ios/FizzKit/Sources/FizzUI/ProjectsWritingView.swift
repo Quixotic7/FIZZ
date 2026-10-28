@@ -37,46 +37,54 @@ public struct ProjectsWritingView: View {
             BubbleField(count: 10, seed: 17, colors: [FZ.yellow, FZ.cyan, FZ.champagne]).ignoresSafeArea()
             VStack(spacing: 0) {
                 TopBar(model: model)
-                VStack(spacing: 0) {
-                    WriteSteps(phase: phase).padding(.top, 2)
-                    HStack(alignment: .firstTextBaseline, spacing: 0) {
-                        Text("\(Int((f * 100).rounded(.down)))").fz(120, 800, em: -0.03).monospacedDigit()
-                        Text("%").fz(56, 800)
-                    }
-                    .foregroundStyle(FZ.yellow.color)
-                    .shadow(color: FZ.yellow.opacity(0.35), radius: 18)
-                    .lineLimit(1)
-                    HStack(spacing: 6) {
-                        Text(phase == .writing ? "WRITING" : phase == .checking ? "CHECKING" : "SAVING").foregroundStyle(FZ.yellow.color)
-                        Text(write.names.joined(separator: " · ")).foregroundStyle(FZ.cyan.color).lineLimit(1)
-                    }
-                    .font(FizzFont.font(15, 800)).tracking(15 * 0.14)
-                    WriteSectors(write: write, fraction: f, writing: phase == .writing).padding(.top, 18)
-                    HStack(spacing: 14) {
-                        Legend(color: FZ.cream, text: "MY PRESETS")
-                        Legend(color: FZ.green, text: "PROJECTS")
-                        if !write.names.isEmpty { Legend(color: FZ.cyan, text: write.names.count == 1 ? write.names[0] : "CHANGED") }
-                        Spacer(minLength: 0)
-                        Animated(still: 0) { t in
-                            let now = snapshot ? write.started.addingTimeInterval(9) : Date(timeIntervalSinceReferenceDate: t)
-                            Text(mmss(now.timeIntervalSince(write.started))).fz(18, 800).foregroundStyle(FZ.text.color).monospacedDigit()
-                        }
-                    }
-                    .padding(.top, 12)
-                    if phase == .writing {
-                        Unplug().padding(.top, 16).padding(.bottom, 12)
-                    } else {
-                        PillButton(title: "CANCEL", ghost: true, height: 52, size: 16) { model.actions.cancelRestore() }
-                            .frame(width: 180).padding(.top, 16).padding(.bottom, 12)
-                    }
-                    if let e = safety { SafetyCard(entry: e) }
+                // (a screen too short for it all: it scrolls rather than lose CANCEL or the plug)
+                ViewThatFits(in: .vertical) {
+                    progress(phase: phase, f: f)
+                    ScrollView { progress(phase: phase, f: f).padding(.bottom, 24) }.scrollIndicators(.hidden)
                 }
-                .padding(.horizontal, 16)
-                .frame(maxWidth: 560)
                 Spacer(minLength: 0)
             }
             .padding(.top, insets.top)
         }
+    }
+
+    @ViewBuilder private func progress(phase: RestoreRun.Phase, f: Double) -> some View {
+        VStack(spacing: 0) {
+            WriteSteps(phase: phase).padding(.top, 2)
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text("\(Int((f * 100).rounded(.down)))").fz(120, 800, em: -0.03).monospacedDigit()
+                Text("%").fz(56, 800)
+            }
+            .foregroundStyle(FZ.yellow.color)
+            .shadow(color: FZ.yellow.opacity(0.35), radius: 18)
+            .lineLimit(1)
+            HStack(spacing: 6) {
+                Text(phase == .writing ? "WRITING" : phase == .checking ? "CHECKING" : "SAVING").foregroundStyle(FZ.yellow.color)
+                Text(write.names.joined(separator: " · ")).foregroundStyle(FZ.cyan.color).lineLimit(1)
+            }
+            .font(FizzFont.font(15, 800)).tracking(15 * 0.14)
+            WriteSectors(write: write, fraction: f, writing: phase == .writing).padding(.top, 18)
+            HStack(spacing: 14) {
+                Legend(color: FZ.cream, text: "MY PRESETS")
+                Legend(color: FZ.green, text: "PROJECTS")
+                if !write.names.isEmpty { Legend(color: FZ.cyan, text: write.names.count == 1 ? write.names[0] : "CHANGED") }
+                Spacer(minLength: 0)
+                Animated(still: 0) { t in
+                    let now = snapshot ? write.started.addingTimeInterval(9) : Date(timeIntervalSinceReferenceDate: t)
+                    Text(mmss(now.timeIntervalSince(write.started))).fz(18, 800).foregroundStyle(FZ.text.color).monospacedDigit()
+                }
+            }
+            .padding(.top, 12)
+            if phase == .writing {
+                Unplug().padding(.top, 16).padding(.bottom, 12)
+            } else {
+                PillButton(title: "CANCEL", ghost: true, height: 52, size: 16) { model.actions.cancelRestore() }
+                    .frame(width: 180).padding(.top, 16).padding(.bottom, 12)
+            }
+            if let e = safety { SafetyCard(entry: e) }
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: 560)
     }
 
     /// The store as read, kept before this write.

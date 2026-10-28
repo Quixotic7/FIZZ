@@ -4,8 +4,8 @@
 //
 // iPhone: a project's patterns (mock-up 18): A01..D16 as tiles with each track's trigs; a tap selects one, a drag
 // across selects more, the edit menu comes over the selection (COPY, PASTE, CLEAR, .fizzpat); pasted tiles drop in
-// yellow, cleared ones dashed; the yellow bar counts the changes and WRITE TO FM-1 is a slide. The slot chips switch
-// projects (the one looked at again: back to the slots), the box chip the kept ones; a swipe right goes back.
+// yellow, cleared ones dashed; the yellow bar counts the changes and WRITE TO FM-1 is a slide. The chevron (or a swipe
+// right from the screen's edge) goes back to the slots, the slot chips switch projects, the box chip the kept ones.
 
 import SwiftUI
 import FizzData
@@ -18,15 +18,19 @@ struct ProjectsPatternsView: View {
     @Binding var sharing: SharedFile?
     @State private var anchor: CGRect?
     @State private var gridW: CGFloat = 358
+    /// the screen's height under the top bar (the tiles made shorter when the grid would reach the yellow bar)
+    @State private var screenH: CGFloat = 760
 
     var body: some View {
         let s = pm.selected
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 10) {
+                ProjBackButton { pm.back() }
                 Text(s.there ? s.name : "\(s.p + 1)").fz(46, 800, em: -0.01)
                     .foregroundStyle((s.there ? FZ.cyan : FZ.dim).color)
                     .shadow(color: FZ.cyan.opacity(s.there ? 0.45 : 0), radius: 12)
-                    .lineLimit(1).minimumScaleFactor(0.5)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                    .layoutPriority(1)
                 if let m = s.model, m.there {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text("\(m.used)").fz(22, 800).foregroundStyle(FZ.text.color).contentTransition(.numericText())
@@ -41,11 +45,11 @@ struct ProjectsPatternsView: View {
                 }
             }
             .frame(height: 56)
-            .padding(.bottom, 10)
+            .padding(.bottom, 5)
             .animation(.spring(response: 0.45, dampingFraction: 0.75), value: pm.clip)
             SlotChips(model: pm)
             if let pr = s.model, pr.there {
-                PatternGrid(model: pm, project: pr) { anchor = $0; gridW = $1 }
+                PatternGrid(model: pm, project: pr, tileH: tileH) { anchor = $0; gridW = $1 }
                     .overlay(alignment: .topLeading) { menu }
                     .opacity(pm.reading ? 0.3 : 1)
                     .overlay { if pm.reading { ReadingMeter(fraction: pm.readFraction) } }
@@ -65,42 +69,54 @@ struct ProjectsPatternsView: View {
                         Text("+").fz(64, 500).foregroundStyle(FZ.dim.color)
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ProjPress())
                 .disabled(!pm.online)
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16).padding(.top, 4)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { screenH = $0 }
+        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: pm.ops.isEmpty)
         .contentShape(Rectangle())
+        // a swipe right from the screen's edge (left of the bank letters, never a tile's drag): back to the slots
         .simultaneousGesture(
             DragGesture(minimumDistance: 30)
                 .onEnded { v in
-                    if v.startLocation.x < 40, v.translation.width > 80, abs(v.translation.height) < 60 {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { pm.mode = .slots }
-                    }
+                    if v.startLocation.x < 22, v.translation.width > 80, abs(v.translation.height) < v.translation.width / 2 { pm.back() }
                 }
         )
+    }
+
+    private var tileH: CGFloat { Self.tileH(screenH, pending: !pm.ops.isEmpty) }
+
+    /// The tiles' height: 40, less when the grid would reach under the yellow bar (or the tab bar), never under 28.
+    static func tileH(_ screenH: CGFloat, pending: Bool) -> CGFloat {
+        // (above the grid: the title 61, the chips 53; below it: the tab bar 88, the yellow bar ~140, a gap)
+        let below: CGFloat = pending ? 100 + 140 + 10 : 100
+        return min(40, max(28, ((screenH - 4 - 61 - 53 - below) - 4 * 5 - 3 * 12) / 8))
     }
 
     /// The edit menu above the selection's first tile (below it near the top), its point at the tile. (No
     /// GeometryReader here: one over the grid took its taps.)
     @ViewBuilder private var menu: some View {
         if !pm.pats.isEmpty, let a = anchor, pm.canEdit {
-            let h: CGFloat = 54, above = a.minY - h - 12 >= -60
+            // (above only when it stays on the grid: never over the slot chips)
+            let h: CGFloat = 54, above = a.minY - h - 10 >= -2
             let y = above ? a.minY - h - 10 : a.maxY + 10
             let px = min(max(a.midX, 28), gridW - 28)
             ZStack(alignment: .topLeading) {
                 Rectangle().fill(RGB(0x1b1b21).color).frame(width: 16, height: 16)
                     .overlay(Rectangle().strokeBorder(RGB(0x3a3a44).color, lineWidth: 1.5))
                     .rotationEffect(.degrees(45))
-                    .offset(x: px - 8, y: above ? y + h - 9 : y - 7)
+                    .padding(.leading, px - 8).padding(.top, above ? y + h - 9 : y - 7)
                     .allowsHitTesting(false)
                 EditMenu(model: pm) {
                     Task { if let u = await pm.fizzpatFile() { sharing = SharedFile(url: u) } }
                 }
                 .fixedSize()
                 .frame(width: gridW)
-                .offset(y: y)
+                // (laid out where it shows, not offset: an offset menu's taps fell through to the tiles under it)
+                .padding(.top, y)
                 .transition(.scale(scale: 0.5, anchor: UnitPoint(x: px / max(1, gridW), y: above ? 1 : 0)).combined(with: .opacity))
             }
             .frame(width: gridW, alignment: .topLeading)

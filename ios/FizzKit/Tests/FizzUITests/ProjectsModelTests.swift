@@ -201,4 +201,20 @@ struct ProjectsModelTests {
         #expect(m.actions.restoreFailure == nil)
         m.stop()
     }
+
+    /// UX pass: the write slide from anywhere (the knob at the end as the finger reaches the slide's end), and the
+    /// pattern grid's tiles made shorter, never under the yellow bar.
+    @Test func slideAndGridFit() {
+        // from the knob: one to one; from the middle: the rest of the slide is the whole travel
+        #expect(WriteSlide.knob(100, from: 27, width: 342, travel: 288) == 100)
+        #expect(WriteSlide.knob(167, from: 167, width: 342, travel: 288) == 288)
+        #expect(WriteSlide.knob(-20, from: 100, width: 342, travel: 288) == 0)
+        #expect(WriteSlide.knob(400, from: 27, width: 342, travel: 288) == 288)
+        // a phone's height: full tiles without changes; the grid ends above the yellow bar with them
+        #expect(ProjectsPatternsView.tileH(744, pending: false) == 40)
+        let h = ProjectsPatternsView.tileH(700, pending: true)
+        #expect(h < 40 && h >= 28)
+        #expect(4 + 61 + 53 + 8 * h + 4 * 5 + 3 * 12 <= 700 - 250)
+        #expect(ProjectsPatternsView.tileH(400, pending: true) == 28)
+    }
 }
