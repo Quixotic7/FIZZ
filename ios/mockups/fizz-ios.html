@@ -502,6 +502,175 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .ipdials .dial b { font-size: 24px; }
 .ipdials .dial small { font-size: 13px; }
 
+/* ================================================================ PROJECTS: patterns, kept, writing; EXPORT (18–22) */
+.pphead { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.pphead .big { font-size: 46px; font-weight: 800; color: var(--cyan); line-height: 1; letter-spacing: -.01em; text-shadow: 0 0 24px color-mix(in srgb, var(--cyan) 45%, transparent); }
+.pphead .big.kept { color: var(--champagne); text-shadow: 0 0 24px color-mix(in srgb, var(--champagne) 40%, transparent); }
+.pphead .sm { font-size: 15px; font-weight: 800; color: var(--muted); align-self: flex-end; margin-bottom: 3px; white-space: nowrap; }
+.pphead .sm b { font-size: 22px; }
+.clip { margin-left: auto; height: 36px; padding: 0 12px 0 10px; border-radius: 18px; border: 1.5px dashed var(--cyan); color: var(--cyan); display: inline-flex; align-items: center; gap: 7px; font-weight: 800; font-size: 13px; white-space: nowrap; background: color-mix(in srgb, var(--cyan) 9%, transparent); flex: none; }
+.clip svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.clip b { color: var(--text); font-size: 16px; }
+.clip.fly { animation: clipin 2.8s cubic-bezier(.2, .9, .3, 1) infinite; }
+@keyframes clipin { 0% { transform: translate(-150px, 200px) scale(.4); opacity: 0; } 8% { opacity: 1; } 32%, 100% { transform: none; opacity: 1; } }
+.sch { display: flex; gap: 5px; margin-bottom: 14px; }
+.sc { flex: 1; height: 34px; border-radius: 17px; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: var(--cyan); border: 1.5px solid color-mix(in srgb, var(--cyan) 50%, var(--line)); position: relative; }
+.sc.on { background: var(--cyan); color: #000; border-color: var(--cyan); box-shadow: 0 0 14px color-mix(in srgb, var(--cyan) 50%, transparent); }
+.sc.empty { border-style: dashed; color: #4a4a54; border-color: #34343c; }
+.sc .chg { position: absolute; top: -3px; right: -1px; width: 11px; height: 11px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 2px #000, 0 0 8px var(--yellow); }
+.sc.kept { flex: none; padding: 0 12px; display: flex; gap: 6px; color: var(--champagne); border-color: color-mix(in srgb, var(--champagne) 55%, var(--line)); }
+.sc.kept svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.sc.kept.on { background: var(--champagne); color: #000; border-color: var(--champagne); box-shadow: 0 0 14px color-mix(in srgb, var(--champagne) 45%, transparent); }
+.sc.tgt { border: 1.5px dashed color-mix(in srgb, var(--champagne) 60%, transparent); color: var(--champagne); }
+.sc.tgt.hit { background: var(--champagne); color: #000; border-style: solid; border-color: var(--champagne); animation: hitring 1.4s ease-out infinite; }
+@keyframes hitring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--champagne) 75%, transparent); } 100% { box-shadow: 0 0 0 13px transparent; } }
+
+/* the pattern grid: A01..D16 (projects.js NPAT 64) */
+.pgr { display: flex; flex-direction: column; gap: 12px; position: relative; }
+.bnk { display: grid; grid-template-columns: 16px repeat(8, minmax(0, 1fr)); gap: 5px; }
+.bnk .bl { grid-row: span 2; font-size: 15px; font-weight: 800; color: var(--muted); align-self: center; }
+.pp { height: 40px; border-radius: 9px; background: #0f0f13; border: 1.5px solid #1c1c22; position: relative; padding: 15px 4px 4px; }
+.pp .no { position: absolute; left: 5px; top: 0; font-size: 12px; font-weight: 800; color: #3d3d46; line-height: 15px; }
+.pp svg { display: block; width: 100%; height: 100%; }
+.pp:not(.u)::after { content: ""; position: absolute; inset: 15px 4px 4px; background: repeating-linear-gradient(#18181e 0 1.6px, transparent 1.6px 3.2px); opacity: .9; }
+.pp.u { background: var(--raised); border-color: #2a2a33; }
+.pp.u .no { color: var(--text); }
+.pp.new { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 11%, var(--raised)); animation: pland 3s ease-out infinite; animation-delay: var(--dl, 0s); }
+.pp.new .no { color: var(--yellow); }
+@keyframes pland { 0% { transform: translateY(-14px) scale(.7); opacity: 0; } 10% { transform: scale(1.1); opacity: 1; } 18%, 100% { transform: none; } }
+.pp.gone { border: 1.5px dashed var(--yellow); background: transparent; }
+.pp.gone .no { color: var(--yellow); }
+.pp.gone::after { opacity: .35; }
+.pp.sel { border-color: var(--cyan); background: color-mix(in srgb, var(--cyan) 13%, var(--raised)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--cyan) 45%, transparent), 0 0 18px color-mix(in srgb, var(--cyan) 50%, transparent); z-index: 2; }
+.pp.sel .no { color: var(--cyan); }
+.pp.big { height: 110px; padding: 18px 3px 5px; border-radius: 8px; }
+.pp.big .no { left: 4px; top: 1px; line-height: 16px; }
+.pp.big:not(.u)::after { inset: 18px 3px 5px; background: repeating-linear-gradient(#18181e 0 3px, transparent 3px 12.5px); }
+/* the edit menu over a selection (no hold: it comes with the selection) */
+.emenu { position: absolute; z-index: 30; display: flex; gap: 6px; padding: 6px; border-radius: 28px; background: #1b1b21; border: 1.5px solid #3a3a44; box-shadow: 0 18px 30px -6px #000, 0 0 0 3px #000; animation: mpop .5s cubic-bezier(.2, 1.4, .4, 1) both; transform-origin: var(--ax) 100%; }
+.emenu::after { content: ""; position: absolute; left: var(--ax); bottom: -9px; width: 16px; height: 16px; margin-left: -8px; background: #1b1b21; border-right: 1.5px solid #3a3a44; border-bottom: 1.5px solid #3a3a44; transform: rotate(45deg); }
+@keyframes mpop { from { transform: scale(.5); opacity: 0; } }
+.emenu .btn { height: 42px; font-size: 13px; padding: 0 14px; border-radius: 21px; gap: 6px; }
+.emenu .btn svg { width: 16px; height: 16px; }
+.emenu .icon { width: 42px; height: 42px; border-radius: 21px; }
+/* the pending changes */
+.pend { position: absolute; left: 12px; right: 12px; bottom: 100px; z-index: 55; border-radius: 24px; padding: 12px 12px 12px 16px; background: color-mix(in srgb, var(--yellow) 10%, #0e0e12); border: 2px solid var(--yellow); box-shadow: 0 -10px 30px #000, 0 0 26px color-mix(in srgb, var(--yellow) 25%, transparent); }
+.pend .top { display: flex; align-items: center; gap: 10px; }
+.pend .n { font-size: 46px; font-weight: 800; color: var(--yellow); line-height: .9; font-variant-numeric: tabular-nums; }
+.pend .w { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--yellow); line-height: 1.25; }
+.pend .w small { display: block; letter-spacing: .03em; color: var(--body); font-size: 13px; }
+.pend .top .btn { height: 40px; font-size: 12px; padding: 0 12px; gap: 6px; }
+.pend .top .btn svg { width: 16px; height: 16px; }
+.pend .wr { width: 100%; margin-top: 10px; height: 54px; border-radius: 27px; --c: var(--yellow); animation: breathe 2s ease-in-out infinite; }
+.pend.inl { position: relative; left: auto; right: auto; bottom: auto; display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 18px; margin-top: 12px; box-shadow: 0 0 22px color-mix(in srgb, var(--yellow) 22%, transparent); }
+.pend.inl .wr { width: auto; margin: 0 4px 0 4px; height: 50px; padding: 0 24px; }
+.pend.inl .btn.small { height: 42px; }
+
+/* kept projects (on this phone) */
+.kc { border-radius: 18px; background: var(--raised); border: 1.5px solid var(--line); padding: 11px 14px 12px; margin-bottom: 8px; position: relative; }
+.kc .r1 { display: flex; align-items: baseline; gap: 8px; }
+.kc .kn { font-size: 18px; font-weight: 800; color: var(--text); letter-spacing: .02em; white-space: nowrap; }
+.kc .ago { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.kc .r2 { display: flex; align-items: center; gap: 12px; margin-top: 3px; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.kc .r2 b { font-size: 15px; }
+.cdots { display: inline-flex; gap: 4px; margin-left: auto; } .cdots i { width: 11px; height: 11px; border-radius: 3px; }
+.kc.sel { border: 2px solid var(--champagne); background: color-mix(in srgb, var(--champagne) 8%, var(--raised)); box-shadow: 0 0 26px color-mix(in srgb, var(--champagne) 25%, transparent); }
+.kc.sel .kn { font-size: 24px; }
+.kgrid { margin-top: 10px; }
+.kprow { display: grid; grid-template-columns: 18px repeat(16, 1fr); align-items: center; height: 19px; }
+.kprow b { font-size: 13px; font-weight: 800; color: var(--muted); }
+.kprow i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #2e2e36; justify-self: center; }
+.kprow i.f { background: var(--champagne); border-color: var(--champagne); }
+.kprow i.cp { width: 16px; height: 16px; background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 0 3px #000, 0 0 0 5px var(--cyan), 0 0 16px var(--cyan); animation: ppulse 1s ease-in-out infinite; }
+.kacts { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+.kacts .btn { height: 50px; flex: 1; font-size: 15px; }
+.kacts .icon { width: 50px; height: 50px; border-radius: 25px; }
+.kacts .icon.red { border-color: color-mix(in srgb, var(--red) 55%, transparent); } .kacts .icon.red svg { stroke: var(--red); }
+
+/* writing to the FM-1 */
+.wprog { position: absolute; inset: 112px 16px 30px; display: flex; flex-direction: column; align-items: center; z-index: 2; }
+.wsteps { display: flex; align-items: flex-start; width: 100%; }
+.ws { display: flex; flex-direction: column; align-items: center; gap: 7px; width: 92px; flex: none; }
+.ws .wi { width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line); background: #0d0d11; position: relative; }
+.ws .wi svg { width: 24px; height: 24px; fill: none; stroke: var(--muted); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.ws b { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--muted); }
+.ws.done .wi { border-color: var(--green); background: color-mix(in srgb, var(--green) 14%, #0d0d11); }
+.ws.done .wi svg { stroke: var(--green); }
+.ws.done b { color: var(--green); }
+.ws.done .wi::after { content: ""; position: absolute; right: -5px; bottom: -5px; width: 20px; height: 20px; border-radius: 50%; background: var(--green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%23000' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% no-repeat; box-shadow: 0 0 0 3px #000; }
+.ws.now .wi { background: var(--yellow); border-color: var(--yellow); animation: wring 1.3s ease-out infinite; }
+.ws.now .wi svg { stroke: #000; }
+.ws.now b { color: var(--yellow); }
+@keyframes wring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--yellow) 75%, transparent), 0 0 20px var(--yellow); } 100% { box-shadow: 0 0 0 16px transparent, 0 0 20px var(--yellow); } }
+.wl { flex: 1; height: 3px; border-radius: 2px; background: var(--line); margin-top: 24px; }
+.wl.done { background: var(--green); }
+.wl.run { background: linear-gradient(90deg, var(--green), var(--yellow)); }
+.wprog .pct { font-size: 120px; margin-top: 10px; }
+.wprog .pct small { font-size: 56px; }
+.wprog .sgrid { margin-top: 18px; }
+.wprog .sgrid i { height: 22px; }
+.sgrid i.chg { background: var(--cyan); box-shadow: 0 0 10px color-mix(in srgb, var(--cyan) 50%, transparent); }
+.wprog .legend { width: 100%; margin-top: 12px; }
+.wprog .legend .r { font-size: 18px; font-weight: 800; }
+.wprog .warn { width: 100%; margin: 16px 0 12px; justify-content: center; }
+.warn.unplug svg { animation: plugblink .7s ease-in-out infinite alternate; }
+@keyframes plugblink { to { opacity: .2; } }
+.wprog .bk { width: 100%; }
+.bk .safe { font-size: 12px; font-weight: 800; letter-spacing: .06em; color: #000; background: var(--yellow); border-radius: 6px; padding: 2px 7px; margin-left: 8px; vertical-align: 3px; }
+.okc { width: 40px; height: 40px; border-radius: 50%; background: var(--green); display: grid; place-items: center; flex: none; box-shadow: 0 0 14px color-mix(in srgb, var(--green) 45%, transparent); }
+.okc svg { width: 22px; height: 22px; fill: none; stroke: #000; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+/* EXPORT */
+.xp { top: 62px; padding: 8px 16px 40px; --c: var(--cream); }
+.xsn { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; }
+.xs { height: 36px; padding: 0 11px 0 5px; border-radius: 12px; border: 1.5px solid color-mix(in srgb, var(--sc) 60%, var(--line)); background: color-mix(in srgb, var(--sc) 10%, var(--raised)); display: inline-flex; align-items: center; gap: 5px; font-weight: 800; font-size: 13px; color: var(--text); letter-spacing: .02em; white-space: nowrap; }
+.xs .algo { width: 22px; height: 22px; }
+.fc { border-radius: 18px; border: 1.5px solid var(--line); background: var(--raised); padding: 12px 14px 13px; margin-bottom: 8px; }
+.fc .r1 { display: flex; align-items: center; gap: 10px; }
+.fc .ft { height: 36px; font-size: 14px; flex: none; }
+.fc .ft small { font-size: 14px; }
+.fc .exp { font-size: 12px; font-weight: 800; letter-spacing: .06em; color: var(--orange); border: 1.5px dashed var(--orange); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+.fc .rad { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; border: 2px solid #3a3a44; flex: none; }
+.fc.on { border: 2px solid var(--fc); background: color-mix(in srgb, var(--fc) 8%, var(--raised)); box-shadow: 0 0 26px color-mix(in srgb, var(--fc) 28%, transparent); }
+.fc.on .rad { border-color: var(--fc); background: var(--fc); box-shadow: inset 0 0 0 5px #131318; }
+.carry { display: flex; gap: 4px; margin-top: 11px; }
+.carry i { flex: 1; height: 9px; border-radius: 3px; background: #24242b; }
+.carry i.f { background: var(--bc); animation: segin .35s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i) * 55ms); transform-origin: left; }
+@keyframes segin { from { transform: scaleX(0); } }
+.fc .seg { --c: var(--magenta); display: flex; margin-top: 12px; }
+.fc .seg button { flex: 1; justify-content: center; height: 38px; }
+.lr { display: flex; align-items: center; gap: 10px; height: 34px; border-top: 1px solid var(--line); font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: .03em; }
+.fc .lr:first-of-type { margin-top: 10px; }
+.lr .val { color: var(--muted); font-size: 13px; font-weight: 700; }
+.lr .how { margin-left: auto; font-size: 12px; font-weight: 800; color: #000; background: var(--hc); padding: 2px 8px; border-radius: 6px; letter-spacing: .04em; }
+.xgo { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 16px 34px; background: linear-gradient(transparent, #0d0d11 30%); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.xfile { height: 32px; padding: 0 14px; border-radius: 16px; border: 1.5px solid color-mix(in srgb, var(--magenta) 50%, var(--line)); display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: var(--text); }
+.xfile i { font-style: normal; color: var(--magenta); }
+.xbtn { width: 100%; height: 64px; border-radius: 32px; font-size: 19px; --c: var(--magenta); animation: breathe 2s ease-in-out infinite; }
+
+/* iPad PROJECTS */
+.spills { display: flex; gap: 7px; height: 44px; align-items: center; }
+.spill { height: 42px; padding: 0 15px 0 6px; border-radius: 21px; display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 14px; color: var(--text); border: 1.5px solid var(--line); background: var(--raised); position: relative; white-space: nowrap; letter-spacing: .02em; }
+.spill i { width: 30px; height: 30px; border-radius: 15px; background: var(--green); color: #000; display: grid; place-items: center; font-style: normal; font-size: 14px; }
+.spill.on { border: 2px solid var(--cyan); background: color-mix(in srgb, var(--cyan) 16%, var(--raised)); box-shadow: 0 0 20px color-mix(in srgb, var(--cyan) 45%, transparent); }
+.spill.on i { background: var(--cyan); }
+.spill.demo i { background: var(--champagne); }
+.spill.empty { background: transparent; border-style: dashed; border-color: #34343c; padding: 0 6px; }
+.spill.empty i { background: #24242b; color: #5d5d66; }
+.spill .chg { position: absolute; top: -3px; right: -2px; width: 12px; height: 12px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 2px #000, 0 0 8px var(--yellow); }
+.spills .use { margin-left: auto; display: flex; align-items: center; gap: 8px; font-weight: 800; color: var(--text); font-size: 15px; }
+.spills .use .meter { width: 110px; height: 12px; border-radius: 6px; }
+.bgrid { display: flex; flex-direction: column; gap: 8px; }
+.bnk2 { display: grid; grid-template-columns: 20px repeat(16, minmax(0, 1fr)); gap: 4px; align-items: center; }
+.bnk2 .bl { font-size: 16px; font-weight: 800; color: var(--muted); }
+.ptools { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.ptools .selname { font-size: 26px; font-weight: 800; color: var(--cyan); margin-right: 4px; letter-spacing: -.01em; }
+.ptools .btn.small { height: 42px; }
+.ptools .btn.small svg { width: 17px; height: 17px; }
+.kcol .kc { padding: 10px 13px 11px; margin-bottom: 7px; }
+.kcol .kc .kn { font-size: 16px; }
+.kcol .kc.sel .kn { font-size: 18px; }
+
 /* ================================================================ the page around the devices */
 body.shot { padding: 16px; width: fit-content; }
 body.sheet { width: 1640px; padding: 30px 34px 40px; }
@@ -726,6 +895,57 @@ function editBody(drag = false) {
     <div class="edacts dimme"><span class="btn ghost" style="flex:1">↺ REVERT</span><span class="btn" style="--c:var(--pink);flex:1">SAVE</span><span class="btn ghost" style="flex:1.45">SAVE AS NEW</span></div></div>`;
 }
 
+// ---------------------------------------------------------------- PROJECTS: the patterns, kept, writing; EXPORT (18–22)
+Object.assign(IC, {
+  keep: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10.5h14V9M10 13.5h4"/></svg>',
+  undo: '<svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+  clear: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  paste: '<svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="16" rx="2.5"/><path d="M9 3h6v4H9z"/></svg>',
+  look: '<svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5l5 5"/></svg>',
+  plug: '<svg viewBox="0 0 24 24"><path d="M9 2.5v4M15 2.5v4"/><rect x="5.5" y="6.5" width="13" height="7" rx="2"/><path d="M12 13.5v3.5a3.5 3.5 0 0 1-3.5 3.5H6"/></svg>',
+  more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
+});
+const TRC = ["--blue", "--green", "--cream", "--orange", "--pink", "--violet"];   // the six tracks (projtab.js TC)
+const PN = (k) => "ABCD"[k >> 4] + String((k & 15) + 1).padStart(2, "0");
+// a pattern's trigs, six tracks × 16 steps, seeded
+function trigs(seed) {
+  const r = rnd(seed); let s = "";
+  for (let t = 0; t < 6; t++) {
+    if (t && r() < 0.25) continue;
+    const d = [0, 0.38, 0.2, 0.3, 0.16, 0.24][t];
+    for (let x = 0; x < 16; x++) {
+      if (t === 0 ? x % 4 === 0 || (x === 14 && r() < 0.5) : r() < d) s += `<rect x="${(x + 0.18).toFixed(2)}" y="${t + 0.18}" width=".64" height=".64" style="fill:var(${TRC[t]})"/>`;
+    }
+  }
+  return `<svg viewBox="0 0 16 6" preserveAspectRatio="none">${s}</svg>`;
+}
+// NOIR in editing: 18 patterns, three changes waiting (B01–B03 pasted from SUNDAY A03–A05, C01 pasted, A11 cleared); C02–C03 selected
+const NOIR_P = { used: new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 16, 17, 18, 19, 20, 32, 33, 34, 48]), added: [16, 17, 18, 32], gone: [10], sel: [33, 34] };
+function ppTile(k, P, big = false) {
+  const u = P.used.has(k), add = P.added.indexOf(k);
+  const cls = ["pp", big ? "big" : "", u ? "u" : "", add >= 0 ? "new" : "", P.gone.includes(k) ? "gone" : "", P.sel.includes(k) ? "sel" : ""].join(" ");
+  return `<div class="${cls}" ${add >= 0 ? `style="--dl:${(add * 0.12).toFixed(2)}s"` : ""}><span class="no">${big ? PN(k) : String((k & 15) + 1).padStart(2, "0")}</span>${u ? trigs(k * 7 + 3) : ""}</div>`;
+}
+const emenu = (ax, style) => `<div class="emenu" style="--ax:${ax}px;${style}"><span class="btn" style="--c:var(--cyan)">${IC.copy}COPY</span><span class="btn" style="--c:var(--yellow)">${IC.paste}PASTE</span><span class="btn redline">${IC.clear}CLEAR</span><span class="icon">${IC.share}</span></div>`;
+function slotChips({ on = 0, kept = false, arm = -1, chg = -1 } = {}) {
+  return `<div class="sch">${PROJ.map((p, i) => `<span class="sc ${arm >= 0 ? `tgt ${i === arm ? "hit" : ""}` : `${i === on && !kept ? "on" : ""} ${p ? "" : "empty"}`}">${i + 1}${i === chg ? '<span class="chg"></span>' : ""}</span>`).join("")}` +
+    `<span class="sc kept ${kept ? "on" : ""}">${IC.keep}6</span></div>`;
+}
+const pendTop = () => `<span class="n">3</span><span class="w">CHANGES<small>+4 POOL</small></span><span class="btn small ghost" style="margin-left:auto">${IC.undo}UNDO</span><span class="btn small ghost">DISCARD</span>`;
+const WRITE = `<span class="btn wr">${IC.down}WRITE TO FM-1</span>`;
+// [name, when, patterns, sounds, their tags]
+const KEPT = [["WINTER LP", "today", 11, 24, ["BASS", "PAD", "PLUCK", "DRUMS", "DRUMS", "LEAD"]], ["JUNGLE 2", "2 days", 20, 31, ["DRUMS", "DRUMS", "BASS", "FX", "KEYS"]], ["NOIR", "yesterday", 18, 22, ["BASS", "PLUCK", "PAD"]],
+  ["SKETCH OLD", "1 week", 4, 6, ["KEYS", "PAD"]], ["LIVE SET A", "2 weeks", 32, 40, ["BASS", "LEAD", "DRUMS", "PAD", "FX", "PLUCK"]], ["DRONES", "1 month", 6, 9, ["PAD", "PAD", "FX"]]];
+const keptCard = ([n, when, pats, snds, tags], cls = "", inner = "") => `<div class="kc ${cls}"><div class="r1"><span class="kn">${n}</span><span class="ago">${when}</span></div>` +
+  `<div class="r2"><span><b>${pats}</b> patterns</span><span><b>${snds}</b> sounds</span><span class="cdots">${tags.map((t) => `<i style="background:${cv(t)}"></i>`).join("")}</span></div>${inner}</div>`;
+const ws = (cls, ic, lab) => `<div class="ws ${cls}"><span class="wi">${ic}</span><b>${lab}</b></div>`;
+// an EXPORT format card: [file tab, ext, colour, carry (of 10), experimental]
+function fcard(ft, ext, c, carry, exp, on = "") {
+  const bc = carry >= 10 ? "var(--green)" : carry >= 8 ? "var(--yellow)" : "var(--orange)";
+  return `<div class="fc ${on ? "on" : ""}" style="--fc:var(${c})"><div class="r1"><span class="ft on">${ft}<small>${ext}</small></span>${exp ? '<span class="exp">EXPERIMENTAL</span>' : ""}<span class="rad"></span></div>` +
+    `<div class="carry" style="--bc:${bc}">${Array.from({ length: 10 }, (_, i) => `<i class="${i < carry ? "f" : ""}" style="--i:${i}"></i>`).join("")}</div>${on}</div>`;
+}
+
 const SCREENS = [
   { id: "connect-search", title: "Looking for the FM-1", cap: "Champagne bubbles rise behind the FM-1; a light runs down the cable into the adapter and the phone; the pill breathes and its dot blinks until an FM-1 answers.",
     html: () => phone(bubbles(30, 3) + topBar({ unit: "" }) +
@@ -865,6 +1085,69 @@ const SCREENS = [
         <div class="edgrid"><div>${algoSvg(5, 2, "110 40 490 340", 106)}</div>${opCards(2).replace('class="opc hot"', 'class="opc" style="--c:var(--k3);box-shadow:0 0 22px color-mix(in srgb,var(--k3) 40%,transparent)"')}</div>
         <div class="ipdials">${DIALS()}</div>
       </div></div>`) },
+  { id: "projects-patterns", title: "PROJECTS: the patterns", cap: "A01–D16 as tiles with each track's trigs. Tap a tile, drag across more; the edit menu pops over the selection. Pasted tiles drop in yellow; the yellow bar counts the changes and WRITE TO FM-1 breathes.",
+    html: () => phone(topBar() + `<div class="pg"><div class="pphead"><span class="big">NOIR</span><span class="sm"><b>21</b> / 64</span><span class="clip">${IC.copy}<b>3</b>SUNDAY A03–A05</span></div>
+      ${slotChips({ on: 0, chg: 0 })}
+      <div class="pgr">${[0, 1, 2, 3].map((b) => `<div class="bnk"><span class="bl">${"ABCD"[b]}</span>${Array.from({ length: 16 }, (_, i) => ppTile(b * 16 + i, NOIR_P)).join("")}</div>`).join("")}
+        ${emenu(104, "left:2px;top:131px")}</div></div>
+      <div class="pend"><div class="top">${pendTop()}</div>${WRITE}</div>`, { tab: "PROJECTS" }) },
+  { id: "projects-kept", title: "PROJECTS: kept on the phone", cap: "Projects kept as .fizzprj in the app's Documents. A tapped dot copies that pattern: it flies up into the clip, ready to PASTE in any slot. LOAD INTO lights the slots; the chosen one rings.",
+    html: () => {
+      const W = new Set([0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18]);
+      const grid = `<div class="kgrid">${"ABCD".split("").map((L, b) => `<div class="kprow"><b>${L}</b>${Array.from({ length: 16 }, (_, x) => `<i class="${b * 16 + x === 2 ? "cp" : W.has(b * 16 + x) ? "f" : ""}"></i>`).join("")}</div>`).join("")}</div>`;
+      const acts = `<div class="kacts"><span class="btn" style="--c:var(--champagne)">${IC.play.replace("<svg", '<svg style="fill:#000;stroke:none;width:13px"')}LOAD INTO 5</span><span class="icon">${IC.share}</span><span class="icon">${IC.pencil}</span><span class="icon red">${IC.trash}</span></div>`;
+      return phone(topBar() + `<div class="pg"><div class="pphead"><span class="big kept">KEPT</span><span class="sm"><b>6</b></span><span class="clip fly">${IC.copy}<b>1</b>WINTER LP A03</span></div>
+        ${slotChips({ kept: true, arm: 4 })}
+        ${keptCard(KEPT[0], "sel", grid + acts)}${[1, 2, 3, 4].map((i) => keptCard(KEPT[i])).join("")}</div>`, { tab: "PROJECTS" });
+    } },
+  { id: "projects-writing", title: "Writing to the FM-1", cap: "As a restore: the safety backup is made and checked first, then the store is written; the sectors fill in, NOIR's changed ones in cyan, the % counts up, the plug blinks. No CANCEL once writing.",
+    html: () => phone(bubbles(10, 17, ["--yellow", "--cyan", "--champagne"]) + topBar() + `<div class="wprog">
+      <div class="wsteps">${ws("done", IC.backup, "BACKUP")}<span class="wl done"></span>${ws("done", IC.look, "CHECKING")}<span class="wl run"></span>${ws("now", IC.down, "WRITING")}</div>
+      <div class="pct" data-pct>48<small>%</small></div><div class="plabel">WRITING <span style="color:var(--cyan)">NOIR</span></div>
+      <div class="sgrid" data-sg>${"<i></i>".repeat(84)}</div>
+      <div class="legend"><span><i style="background:var(--cream)"></i>MY PRESETS</span><span><i style="background:var(--green)"></i>PROJECTS</span><span><i style="background:var(--cyan)"></i>NOIR</span><span class="r" data-el>0:09</span></div>
+      <div class="warn unplug">${IC.plug}<b>DO NOT UNPLUG</b></div>
+      <div class="bk"><span class="ic">${IC.backup}</span><div class="txt"><div class="when">Today 14:31<span class="safe">SAFETY</span></div><div class="what"><span><i style="background:var(--green)"></i>6</span><span><i style="background:var(--cream)"></i>143</span><small>292 KB</small></div></div><span class="okc">${IC.tap}</span></div>
+    </div>`),
+    init: (el) => {
+      const cells = [...el.querySelectorAll("[data-sg] i")], pct = el.querySelector("[data-pct]"), tim = el.querySelector("[data-el]");
+      const cat = (i) => (i < 26 ? "lib" : i >= 33 && i < 41 ? "chg" : "prj");
+      const show = (p) => { const k = Math.floor(p * 84); cells.forEach((c, i) => { c.className = i < k ? cat(i) : i === k ? "now" : ""; }); pct.innerHTML = `${Math.round(p * 100)}<small>%</small>`; tim.textContent = `0:${String(Math.floor(p * 19)).padStart(2, "0")}`; };
+      if (STILL) return show(0.48);
+      let p = 0.05; setInterval(() => { p = p >= 1 ? 0 : p + 0.004; show(p); }, 60);
+    } },
+  { id: "export", title: "EXPORT (sheet)", cap: "From a preset, a selection or MY PRESETS: the format cards' carry bars fill in; the picked card opens on what does not carry. SHARE hands the file (several Digitone sounds: a ZIP) to the share sheet.",
+    html: () => {
+      const LOST = [["LFO 3", "PAN −30", "dropped", "--red"], ["AMP AHD", "HOLD 60", "as ADSR", "--orange"], ["RATIO B1", "3.50", "nearest step", "--yellow"]];
+      const open = `<div class="seg"><button class="on">.dn2pst</button><button>.dn2snd</button></div>` +
+        LOST.map(([w, v, h, c]) => `<div class="lr">${w}<span class="val">${v}</span><span class="how" style="--hc:var(${c})">${h}</span></div>`).join("");
+      return phone(`<div class="under">${libraryBody()}</div><div class="scrim" style="background:rgba(0,0,0,.6)"></div>
+        <div class="psheet xp"><div class="grab"></div>
+          <div class="imph"><span class="t" style="color:var(--cream)">EXPORT</span><span class="icon" style="margin-left:auto;width:36px;height:36px">${IC.plus.replace("<svg", '<svg style="transform:rotate(45deg)"')}</span></div>
+          <div class="ibig" style="margin:10px 0 12px"><b>3</b><span>sounds</span></div>
+          <div class="xsn">${[MINE[1], MINE[0], MINE[2]].map(([, name, t, al]) => `<span class="xs" style="--sc:${cv(t)}">${algo(al, cv(t))}${name}</span>`).join("")}</div>
+          ${fcard("FIZZ", ".fizzlib", "--cream", 10, false)}${fcard("DN1", ".dnsnd", "--cyan", 7, true)}${fcard("DN II", ".dn2pst", "--magenta", 9, true, open)}
+          <div class="xgo"><span class="xfile">3 × .dn2pst <i>→</i> .zip</span><span class="btn xbtn">${IC.share}SHARE</span></div></div>`);
+    } },
+  { id: "ipad-projects", title: "iPad: PROJECTS", ipad: true, cap: "The slots across the top, NOIR's 64 patterns, the kept projects beside. Click, ⇧-click a range, ⌘C ⌘V ⌘Z; drag a kept card onto a slot to LOAD INTO, a selection onto a kept card to copy across.",
+    html: () => ipad(rail("PROJECTS") + `<div class="main">
+      <div class="spills">${PROJ.map((p, i) => !p ? `<span class="spill empty"><i>${i + 1}</i></span>` : `<span class="spill ${i === 0 ? "on" : ""} ${p[2] === "demo" ? "demo" : ""}"><i>${i + 1}</i>${p[0]}${i === 0 ? '<span class="chg"></span>' : ""}</span>`).join("")}
+</div>
+      <div class="cols">
+        <div class="card" style="flex:1;padding:16px 18px 18px">
+          <div class="pphead" style="margin:0 0 12px"><span class="big" style="font-size:40px">NOIR</span><span class="sm"><b>21</b> / 64</span><span class="clip">${IC.copy}<b>3</b>SUNDAY A03–A05</span>
+            <span class="btn small ghost" style="color:var(--champagne);border-color:color-mix(in srgb,var(--champagne) 50%,var(--line))">${IC.keep}KEEP</span><span class="icon">${IC.more}</span></div>
+          <div class="bgrid">${[0, 1, 2, 3].map((b) => `<div class="bnk2"><span class="bl">${"ABCD"[b]}</span>${Array.from({ length: 16 }, (_, i) => ppTile(b * 16 + i, NOIR_P, true)).join("")}</div>`).join("")}</div>
+          <div class="ptools"><span class="selname">C02–C03</span><span class="btn small" style="--c:var(--cyan)">${IC.copy}COPY</span><span class="btn small" style="--c:var(--yellow)">${IC.paste}PASTE</span><span class="btn small ghost">${IC.clear}CLEAR</span>
+            <span class="btn small ghost" style="margin-left:auto">${IC.share}.fizzpat</span></div>
+          <div class="pend inl">${pendTop()}${WRITE}</div>
+        </div>
+        <div class="card kcol" style="width:296px;flex:none;padding:16px 14px">
+          <div class="h" style="color:var(--champagne);margin-bottom:12px">KEPT <span class="n">6</span><span class="r n" style="font-size:13px;color:var(--muted)">1.2 MB</span></div>
+          ${KEPT.map((k, i) => keptCard(k, i === 0 ? "sel" : "")).join("")}
+          <div class="row" style="margin-top:auto;gap:8px"><span class="btn" style="--c:var(--champagne);height:48px;font-size:14px">${IC.play.replace("<svg", '<svg style="fill:#000;stroke:none;width:13px"')}LOAD INTO</span><span class="icon" style="width:48px;height:48px;border-radius:24px">${IC.share}</span></div>
+        </div>
+      </div></div>`) },
 ];
 function burst(c) {
   const r = rnd(21); let s = "";
@@ -894,7 +1177,7 @@ if (SHOT) {
 }
 inits.forEach(([s, el]) => s.init(el));
 // still: every animation stopped at a chosen moment (a fraction of its loop), one-shots finished; SMIL at 0.6 s
-const POSTER = { swR: 0.5, swL: 0.5, slideK: 0.3, slideF: 0.3, burst: 0.5, rip: 0.35, fing: 0.5, trail: 0.5, tpop: 0.12, tbub: 0.16, lookp: 0.8, hintring: 0.62, drop: 0.55, flick: 0.1, run: 0.42, lv: 0.6, breathe: 0.5, curglow: 0.5, ppulse: 0.5 };
+const POSTER = { swR: 0.5, swL: 0.5, slideK: 0.3, slideF: 0.3, burst: 0.5, rip: 0.35, fing: 0.5, trail: 0.5, tpop: 0.12, tbub: 0.16, lookp: 0.8, hintring: 0.62, drop: 0.55, flick: 0.1, run: 0.42, lv: 0.6, breathe: 0.5, curglow: 0.5, ppulse: 0.5, plugblink: 0 };
 function freeze() {
   document.getAnimations().forEach((a) => {
     const t = a.effect.getTiming();
