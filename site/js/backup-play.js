@@ -11,7 +11,7 @@ import { readBackup } from "../manager/fizzbak.js";
 import { convertImage, layoutOf, LAYOUTS } from "../manager/fizzstore.js";
 
 export const isBackupFile = (b) => (b.length > 4 && b[0] === 0x50 && b[1] === 0x4B && b[2] === 3 && b[3] === 4) ||
-  b.length === LAYOUTS.device.size;
+  b.length === LAYOUTS.device.size || b.length === LAYOUTS.ble.size;   // (the USB package's store dump, the Bluetooth one's)
 
 // the save's name: the file's, without its extension (the Saves list keeps names up to 40 characters)
 export const saveName = (file) => (String(file || "FIZZ backup").replace(/\.(fizzbak|bin)$/i, "").trim() || "FIZZ backup").slice(0, 40);

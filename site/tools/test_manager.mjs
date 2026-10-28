@@ -27,22 +27,27 @@
 //     byte; edited (a value, a CC number, a slot untouched), STOREd and DUMPed back the same, still MIDI; on a track
 //     (LOAD, AUDITION; PARAM takes a slot's value, not its CC number); .fizzsnd / .fizzlib / .fizzbak round trips and
 //     IMPORT keep it MIDI; the Digitone exports leave it out; an FM TONE sound unchanged; the lists' MIDI chip;
+//   - the Bluetooth package (2026-10-27): its store image ("Z2FB", 49 sectors: MY PRESETS 11, the projects 38) read
+//     and written; its 4 projects and 128 MY PRESETS; a USB store fitted into it and back (nothing lost that way); a
+//     project kept on one package loaded into the other (MY PRESETS full there: its sounds as its own copies, and the
+//     wasm FIZZ plays it the same); the library cut to 128 (what is left out listed); STATUS's package bytes; a
+//     Bluetooth .fizzbak, its raw image, in the browser's FIZZ;
 //   - the owner's saved images (../FIZZ-saves, outside the repo; skipped when absent) read offline.
 //   node site/tools/test_manager.mjs
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createEngine } from "../engine/engine.js";
-import { storeSound, parseDump, parseReply, trackFrame, listRequest, usersRequest, projectRequest, projectsRequest, dumpRequest } from "../js/fizz_sysex.js";
+import { storeSound, parseDump, parseReply, trackFrame, listRequest, usersRequest, projectRequest, projectsRequest, dumpRequest, parseStatus } from "../js/fizz_sysex.js";
 import { readFiles, storeFrame } from "../js/digitone.js";
 import { dn2RecordFromParams, wrapDn2Record, dn2pstZip } from "../js/dn2pst.js";
 import { soundFromStoreFrame, parseFizzlib } from "../js/library.js";
 import { SimFizz } from "../manager/simfizz.js";
 import { findFizz, parseBulk, bulkFrame } from "../manager/fizzlink.js";
 import { makeFizzbak, readBackup, crc32, soundKey } from "../manager/fizzbak.js";
-import { readRegion, layoutOf, LAYOUTS, regionRecords, buildImage, convertImage, writeStore, RESERVE } from "../manager/fizzstore.js";
+import { readRegion, layoutOf, LAYOUTS, regionRecords, buildImage, convertImage, writeStore, RESERVE, magicsOf } from "../manager/fizzstore.js";
 import { modelOf, imageOf, projects, project, walkPat, rkey, RK, patName, copyPatterns, pastePatterns, clearPatterns, keepProject, loadProject,
-  renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName } from "../manager/projects.js";
+  renameKept, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, fitModel, fitChoice, limits } from "../manager/projects.js";
 import { backupFlash, isBackupFile } from "../js/backup-play.js";
 import { poolPlaces, shownRows, newFilter, listHtml } from "../manager/presets.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
@@ -672,7 +677,93 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   f.pool = "in"; const pin = shownRows(rows, f); f.pool = "out"; const pout = shownRows(rows, f);
   const n = (x) => x.mine.length + x.fac.length;
   check(n(pin) > 0 && n(pout) > 0 && n(pin) + n(pout) === n(all) && pin.fac.every((r) => poolPlaces(rows).has(r.id)), `IN POOL ${n(pin)} + NOT IN POOL ${n(pout)} = ${n(all)}`);
-  for (const u of [A, B, C, D, E]) u.e.dispose();
+  // ---- the Bluetooth package (2026-10-27; core/app/persist.h, firmware/BUDGET.md): its store's layout, its limits,
+  // the two packages' stores and projects into each other
+  const BU = [];
+  {
+    const usbM = modelOf(img), usbR = regionRecords(img);
+    const fb = fitModel(usbM, "ble"), ble = imageOf(fb.model), rb = readRegion(ble), rr2 = regionRecords(ble);
+    check(ble.length === 49 * 4096 && LAYOUTS.ble.size === 200704 && rb.layout === "ble" && rb.package === "ble" && rb.magic === "Z2FB" &&
+      rb.nproj === 4 && rb.nlib === 128 && [...magicsOf(ble)].join() === "Z2FB" && layoutOf(ble.length, ble).name === "ble" && ble[11 * 4096 + 3] === 0x42,
+      `a Bluetooth store image (Z2FB, ${ble.length} B; its projects from sector 11): ${rb.projects.map((x) => x.name).join(", ")}, ${rb.presets.length} MY preset(s)`);
+    check(sameRecs(usbR.lib, rr2.lib) && sameRecs(usbR.prj, rr2.prj) && fb.copies === 0 && !fb.left.projects.length && !fb.left.presets.length,
+      `the USB store fitted into the Bluetooth layout: the same ${rr2.lib.length} + ${rr2.prj.length} records (nothing left out)`);
+    const again = regionRecords(buildImage("ble", rr2)), back = regionRecords(imageOf(fitModel(modelOf(ble), "device").model));
+    check(sameRecs(rr2.lib, again.lib) && sameRecs(rr2.prj, again.prj) && sameRecs(back.lib, usbR.lib) && sameRecs(back.prj, usbR.prj) &&
+      readRegion(convertImage(ble, "device")).magic === "Z2FS", "the Bluetooth image written again the same; back in the USB layout (Z2FS) with nothing lost");
+    const fake = new Uint8Array(LAYOUTS.ble.size).fill(0xFF);
+    fake.set(img.subarray(0, 3 * 4096));                       // (the USB package's sectors in a Bluetooth-sized image)
+    let notBle = null;
+    try { readRegion(fake); } catch (x) { notBle = x; }
+    check(notBle && /Bluetooth/.test(notBle.message) && layoutOf(fake.length, fake) === null, `a Bluetooth-sized image of Z2FS sectors refused: ${notBle && notBle.message}`);
+    // the limits: 4 projects, 128 MY PRESETS
+    const hdr = usbM.prj.get(rkey(RK.HDR, 0, 0)), lib0 = [...usbM.lib.entries()].find(([k]) => k >>> 24 === RK.LIB);
+    const refusal = (f) => { try { f(); } catch (x) { return x; } return null; };
+    const r4 = refusal(() => buildImage("ble", { prj: [{ key: rkey(RK.HDR, 4, 0), bytes: hdr }] }));
+    const r128 = refusal(() => buildImage("ble", { lib: [{ key: rkey(RK.LIB, 0, 128), bytes: lib0[1] }] }));
+    const rl = refusal(() => loadProject(modelOf(ble), 4, prj));
+    check(r4 && r4.code === "range" && r128 && r128.code === "range" && rl && rl.code === "range" && projects(modelOf(ble)).length === 4 &&
+      limits(modelOf(ble)).nlib === 128 && buildImage("ble", { prj: [{ key: rkey(RK.HDR, 3, 0), bytes: hdr }] }).length === LAYOUTS.ble.size,
+      `the Bluetooth store's limits: project 5 and MY PRESETS 129 have no place ("${r4 && r4.message}"); 4 slots`);
+    // a project kept on the USB package (its track 1 and pool name KEPT ONE by reference) into a Bluetooth store whose
+    // MY PRESETS is full of others: the sound comes as the project's own copy, and FIZZ plays it the same
+    const full = modelOf(ble), keptId = [...full.lib.values()].filter((r) => r[0] === 0x53).map((r) => r[2 + 13 + 128] | (r[2 + 13 + 129] << 8))[0];
+    for (const k of [...full.lib.keys()]) if (k >>> 24 === RK.LIB) full.lib.delete(k);
+    for (let i = 0; i < 128; i++) {
+      const r = lib0[1].slice(); r.fill(0, 2, 15); r.set(Buffer.from(`FILL ${i}`), 2); r[2 + 13 + 7] ^= (i + 1); r[2 + 13 + 128] = i; r[2 + 13 + 129] = 0x04;
+      full.lib.set(rkey(RK.LIB, 0, i), r);
+    }
+    const lr2 = loadProject(full, 3, prj);
+    const w3 = walkPat(full.prj.get(rkey(RK.PAT, 3, k0)));
+    const refs3 = w3 ? w3.refAt.map((o) => full.prj.get(rkey(RK.PAT, 3, k0))[o] | (full.prj.get(rkey(RK.PAT, 3, k0))[o + 1] << 8)) : [];
+    const F = await fizz(convertImage(imageOf(full), "host"));
+    BU.push(F);
+    F.open(3); const f3 = F.byId();
+    const trackName = (u) => { const d = u.ask(dumpRequest({ source: "track", slot: 1 })).find((x) => x.kind === "dump"); return d ? d.name : "?"; };
+    A.open(0); const ta = trackName(A);
+    const r3 = full.prj.get(rkey(RK.PAT, 3, k0)), c3 = w3 && !refs3[0] ? String.fromCharCode(...r3.subarray(w3.sndAt + 130, w3.sndAt + 142)).replace(/\0.*$/, "") : "";
+    check(lr2.presetsAdded === 0 && lr2.copies >= 1 && w3 && !refs3.includes(keptId) && readRegion(imageOf(full)).presets.length === 128,
+      `a USB project into a Bluetooth store with MY PRESETS full: nothing added, ${lr2.copies} sound(s) as the project's own copies (no reference to id ${keptId} left)`);
+    const tf = trackName(F);
+    check(Object.keys(f3).length > 0 && eq(a0, f3) && tf === ta && c3 === "KEPT ONE",
+      `FIZZ plays it there as on the USB package: steps a sound ${JSON.stringify(f3)}; track 1 ${tf} as there (${ta}); ${patName(k0)}'s track 1 a copy of ${c3}`);
+    // and the other way: a project kept on the Bluetooth package into a USB store with room: its preset added
+    const kb = await readFizzprj(makeFizzprj(keepProject(modelOf(ble), 0), { fizz: "test" }), "b.fizzprj");
+    const mu = modelOf(C.dev()), lu = loadProject(mu, 5, kb);
+    check(lu.presetsAdded === 1 && lu.copies === 0 && project(mu, 5).there, `a Bluetooth project (.fizzprj) into a USB store's slot 6: its preset added (${lu.presetsAdded}), no copies`);
+    // the library cut to 128: a USB store with 6 projects and 201 MY presets fitted into the Bluetooth package
+    const big = modelOf(img);
+    for (const q of [3, 4, 5]) loadProject(big, q, keepProject(big, 0));
+    for (let i = 1; i <= 200; i++) {
+      const r = lib0[1].slice(); r.fill(0, 2, 15); r.set(Buffer.from(`MORE ${i}`), 2); r[2 + 13 + 9] ^= i & 0xFF; r[2 + 13 + 128] = i & 0xFF; r[2 + 13 + 129] = 0x08 + (i >> 8);
+      big.lib.set(rkey(RK.LIB, 0, i), r);
+    }
+    const keptAt = [...big.lib.entries()].find(([k, r]) => k >>> 24 === RK.LIB && (r[2 + 13 + 128] | (r[2 + 13 + 129] << 8)) === keptId)[0] & 0xFFFF;
+    const ch = fitChoice(big, "ble"), fr = fitModel(big, "ble", ch), rbig = readRegion(imageOf(fr.model));
+    check(projects(big).filter((x) => x.there).length === 6 && ch.projects.length === 4 && ch.presets.length === 128 && ch.presets[0] === keptAt &&
+      fr.left.projects.length === 2 && fr.left.presets.length === 73 && rbig.projects.length === 4 && rbig.presets.length === 128 && fr.copies === 0,
+      `6 projects, 201 MY presets into the Bluetooth package: 4 projects and 128 kept (the projects' own first), left out ${fr.left.projects.map((x) => x.slot).join(", ")} and ${fr.left.presets.length} presets (${fr.left.presets.slice(0, 3).map((x) => x.name).join(", ")} ..)`);
+    const ch2 = { projects: [0, 5], presets: ch.presets.filter((i) => i !== keptAt) };
+    const fr2 = fitModel(big, "ble", ch2), G = await fizz(convertImage(imageOf(fr2.model), "host"));
+    BU.push(G);
+    G.open(0); const g0 = G.byId();
+    check(fr2.copies >= 1 && eq(a0, g0) && readRegion(imageOf(fr2.model)).projects.length === 2,
+      `a choice without the preset its projects play: ${fr2.copies} sound(s) as their own copies; FIZZ plays slot 1 the same (${JSON.stringify(g0)})`);
+    // STATUS: the USB package's 31 bytes (no package bytes), the Bluetooth package's 35
+    const st = (extra) => { const b = [0x42, 1, 6, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...extra]; return [0xF0, 0x7D, 0x46, 0x5A, 0x01, ...b, (0x80 - (b.reduce((a, x) => a + x, 0) & 0x7F)) & 0x7F, 0xF7]; };
+    const su = parseStatus(st([])), sb = parseStatus(st([1, 4, 1, 0])), pr = parseReply(st([1, 4, 1, 0]));
+    check(st([]).length === 31 && su.package === "usb" && su.nproj === 8 && su.nlib === 256 && sb.package === "ble" && sb.nproj === 4 && sb.nlib === 128 &&
+      pr.kind === "status" && pr.package === "ble", `STATUS: 31 bytes the USB package (8, 256); 35 with 01 04 01 00 the Bluetooth one (${sb.nproj}, ${sb.nlib})`);
+    // a Bluetooth .fizzbak and its raw image; played in the browser's FIZZ
+    const bb = makeFizzbak({ kind: "full", image: ble, fizz: "test" }), rbk = await readBackup(bb, "b.fizzbak"), raw = await readBackup(ble, "b.bin");
+    const bf = await backupFlash(bb, "FIZZ backup ble.fizzbak"), H = await fizz(bf.flash);
+    BU.push(H);
+    const ph = H.ask(projectsRequest()).find((x) => x.kind === "projects");
+    check(rbk.manifest.store.layout === "ble" && rbk.manifest.store.magic === "Z2FB" && rbk.summary.layout === "ble" && raw.source === "bin" &&
+      raw.summary.layout === "ble" && isBackupFile(ble) && ph && same(ph.list.filter((x) => x.there).map((x) => x.name), rb.projects.map((x) => x.name)),
+      `a Bluetooth .fizzbak (store.layout "ble", Z2FB) and its raw image read; the browser's FIZZ boots it with ${ph ? ph.list.filter((x) => x.there).map((x) => x.name).join(", ") : "?"}`);
+  }
+  for (const u of [A, B, C, D, E, ...BU]) u.e.dispose();
   // the owner's dumps (FIZZ_SAVES or ../FIZZ-saves; skipped when absent): every pattern record read
   const dir = process.env.FIZZ_SAVES || path.resolve(SITE, "../../FIZZ-saves");
   const own = fs.existsSync(dir) ? fs.readdirSync(dir).filter((x) => x.endsWith("-store.bin")).sort().slice(-3) : [];

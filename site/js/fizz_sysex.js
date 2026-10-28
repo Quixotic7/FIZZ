@@ -35,7 +35,8 @@
 // The web manager's Phase 1 (docs/WEB-MANAGER-PLAN.md §5; FIZZ 0.12.1-: an older FIZZ answers BAD COMMAND):
 //   statusRequest(), parseStatus(bytes)          STATUS (02 -> 42): {tracks, playing, noStore, dirty, job, demo,
 //                                                   project, pattern, projects, mine, pool, written, lib: [used, all],
-//                                                   prj: [used, all]} (store pages)
+//                                                   prj: [used, all], sel, package: "usb" | "ble", nproj, nlib} (store
+//                                                   pages; the package from its bytes, absent: the USB one, 8 and 256)
 //   flushRequest()                               FLUSH (03): everything written (stopped only), then a STATUS
 //   tagsRequest({source, slot, tags})            TAGS (12): a preset's tags (FIZZ's seven: a mask or names)
 //   renameRequest({source, slot, name})          RENAME (13): source "mine" or "project"
@@ -274,7 +275,10 @@ export function parseStatus(bytes) {
   return { protocol: b[6], tracks: b[7], playing: !!(f & 1), noStore: !!(f & 2), dirty: !!(f & 4), job: !!(f & 8), demo: !!(f & 16),
     rec: !!(f & 32), browse: !!(f & 64), project: b[9] + 1, pattern: b[10], projects: b[11], mine: r14(b, 12), pool: r14(b, 14),
     written: (b[16] << 14) | r14(b, 17), lib: [r14(b, 19), r14(b, 21)], prj: [r14(b, 23), r14(b, 25)], jobCommand: b[27],
-    ...(b.length >= 31 ? { sel: b[28] } : {}) };
+    ...(b.length >= 31 ? { sel: b[28] } : {}),
+    // the package (docs/SYSEX.md "The package"): the Bluetooth one appends its byte, its projects, its MY PRESETS'
+    // places; a reply without them is the USB package's (8 and 256)
+    ...(b.length >= 35 && b[29] & 1 ? { package: "ble", nproj: b[30], nlib: r14(b, 31) } : { package: "usb", nproj: 8, nlib: 256 }) };
 }
 export function parseUsers(bytes) {
   const b = body1(bytes, REPLY1.USERS);
