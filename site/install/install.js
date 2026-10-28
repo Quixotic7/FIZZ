@@ -9,10 +9,15 @@
 //   - the firmware is chosen from site/firmware/releases.json (the latest by default, ?v=VERSION to pick one), each
 //     package checked against its SHA-256 and its identity before it is offered;
 //   - after the install, FIZZ's data blob is written (fizz_data.js pushData: the package does not carry it);
-//   - "Check my FM-1" says what the unit runs, FIZZ's own version included (fizz_data.js readUnit);
+//   - two packages a release (2026-10-27): USB (the default: USB MIDI, USB audio) and Bluetooth (Bluetooth MIDI too;
+//     4 projects, 128 MY presets, a shorter undo; its two data blobs both written after the install). The unit's
+//     package (FIZZ's STATUS) says whether an install switches packages: switching erases the store, so the page
+//     offers the Manager's backup before and its restore after. Everything goes over USB (usbOnly: never the
+//     Bluetooth package's own MIDI port);
+//   - "Check my FM-1" says what the unit runs, FIZZ's own version and package included (fizz_data.js readUnit);
 //   - no m-bootloader option, English only, FIZZ's styling.
 import { productOf, logicalImage, ufwEntries, Updater, IS_OTA, IS_STOCK } from "./fm1lib.js";
-import { pushData, readUnit, crc32 } from "./fizz_data.js";
+import { pushData, readUnit, crc32, usbOnly, XDATA_OFF, BLE_XDATA_OFF, BLE_XDATA2_OFF } from "./fizz_data.js";
 import { md, esc } from "./notes.js";
 
 const $ = (id) => document.getElementById(id);
@@ -23,7 +28,7 @@ const TEXT = {
   loadfail: "Could not load the firmware: ",
   noindex: "No FIZZ release is published yet.",
   start: "Starting", verify: "Checking the package", loader: "Switching to update mode", write: "Writing FIZZ",
-  reboot: "Restarting", data: "Writing FIZZ's data (its type and drawings)",
+  reboot: "Restarting", data: "Writing FIZZ's data (its type and drawings)", data2: "Writing FIZZ's data (the screens' code)",
   done: "Done. FIZZ is installed and running.",
   stopped: "Stopped. Replug the USB cable and press Install again.",
   error: "Error: ",
@@ -48,6 +53,7 @@ const TEXT = {
   reportok: "Read. Copy it and paste it in Discord, with what you were doing.", reportcopied: "Copied.",
   checking: "Looking for the FM-1…",
 };
+const PKG = { usb: "USB", ble: "Bluetooth" };
 const t = (k) => TEXT[k];
 
 /* what happens goes to two regions: #status (polite) the steps and the progress, #alert a failure (fm1-base's) */
@@ -80,9 +86,14 @@ const log = (s) => {
 };
 const hex = async (raw) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", raw))].map((b) => b.toString(16).padStart(2, "0")).join("");
 
-/* ---- the releases: site/firmware/releases.json, newest first */
-let releases = [], chosen = null;          /* chosen: {rel, pkg, image, product, data} once checked */
+/* ---- the releases: site/firmware/releases.json, newest first; a release's packages: the USB one (no kind; first, as
+   older pages read it) and the Bluetooth one (kind "ble": data2, its second blob) */
+let releases = [], chosen = null;          /* chosen: {rel, pkg, kind, image, product, data: [{bytes, off, what}]} once checked */
 const relOf = (v) => releases.find((r) => r.version === v);
+const kindOf = (p) => (p && p.kind === "ble" ? "ble" : "usb");
+const pkgOf = (rel, kind) => (rel && rel.packages || []).find((p) => kindOf(p) === kind) || null;
+let kind = new URLSearchParams(location.search).get("pkg") === "ble" ? "ble" : "usb";
+const fileLink = (f) => `<a href="../firmware/${esc(f.path)}" download>${esc(f.path.split("/").pop())}</a>`;
 
 function renderNotes() {
   const box = $("notes-list");
@@ -91,7 +102,7 @@ function renderNotes() {
     <article class="rel" id="v${esc(r.version)}">
       <h3><span class="v">${esc(r.version)}</span>${r.channel === "beta" ? '<span class="tag beta">beta</span>' : ""}${i === 0 ? '<span class="tag latest">latest</span>' : ""}<span class="date">${esc(r.date || "")}</span></h3>
       ${md(r.notes)}
-      <p class="files">${(r.packages || []).map((p) => `<a href="../firmware/${esc(p.fwsc.path)}" download>${esc(p.fwsc.path.split("/").pop())}</a> <span class="dim">(${Math.round(p.fwsc.bytes / 1024)} KB)</span> · <a href="../firmware/${esc(p.data.path)}" download>${esc(p.data.path.split("/").pop())}</a>`).join("<br>")}</p>
+      <p class="files">${(r.packages || []).map((p) => `${(r.packages || []).length > 1 ? `${PKG[kindOf(p)]}: ` : ""}${fileLink(p.fwsc)} <span class="dim">(${Math.round(p.fwsc.bytes / 1024)} KB)</span> · ${fileLink(p.data)}${p.data2 ? ` · ${fileLink(p.data2)}` : ""}`).join("<br>")}</p>
     </article>`).join("");
 }
 
@@ -102,14 +113,24 @@ function fillChoice() {
   sel.value = want && relOf(want) ? want : releases[0].version;
   sel.disabled = releases.length < 2 || writing;
 }
+/* the package choice: shown when the release has the Bluetooth package */
+function fillPkgs(rel) {
+  const has = !!pkgOf(rel, "ble");
+  $("pkgs").hidden = !has;
+  $("pkgnote").hidden = !has;
+  if (!has) kind = "usb";
+  document.querySelectorAll('input[name="pkg"]').forEach((i) => { i.checked = i.value === kind; i.disabled = writing; });
+}
 
 async function choose(version) {
   chosen = null;
   $("go").disabled = true;
   const rel = relOf(version);
-  const pkg = rel && rel.packages && rel.packages[0];
+  if (rel) fillPkgs(rel);
+  const pkg = pkgOf(rel, kind) || (rel && rel.packages && rel.packages[0]);
   if (!pkg) { sayK("loadfail", version); return; }
-  $("chosen").textContent = `FIZZ ${rel.version}`;
+  const k = kindOf(pkg);
+  $("chosen").textContent = `FIZZ ${rel.version}${pkgOf(rel, "ble") ? ` · ${PKG[k]}` : ""}`;
   $("chosenwhat").textContent = pkg.label || "";
   try {
     const get = async (f) => {
@@ -119,11 +140,14 @@ async function choose(version) {
       if (raw.length !== f.bytes || await hex(raw) !== f.sha256) throw Object.assign(new Error(f.path), { code: "badpkg" });
       return raw;
     };
-    const [raw, data] = await Promise.all([get(pkg.fwsc), get(pkg.data)]);
-    if (productOf(raw) !== rel.identity || crc32(data) !== pkg.data.crc32) { sayK("badpkg"); return; }
-    if ($("version").value !== version) return;                 /* (another was chosen meanwhile) */
-    chosen = { rel, pkg, image: logicalImage(raw), product: rel.identity, data, sha256: pkg.fwsc.sha256 };
-    if (navigator.requestMIDIAccess) { say(`FIZZ ${rel.version} is ready to install.`); $("go").disabled = writing; }
+    const [raw, data, data2] = await Promise.all([get(pkg.fwsc), get(pkg.data), pkg.data2 ? get(pkg.data2) : null]);
+    if (productOf(raw) !== rel.identity || crc32(data) !== pkg.data.crc32 || (data2 && crc32(data2) !== pkg.data2.crc32)) { sayK("badpkg"); return; }
+    if ($("version").value !== version || kindOf(pkg) !== kind && pkgOf(rel, kind)) return;   /* (another was chosen meanwhile) */
+    const blobs = k === "ble" ? [{ bytes: data, off: pkg.data.at ?? BLE_XDATA_OFF, what: "data" }, { bytes: data2, off: pkg.data2.at ?? BLE_XDATA2_OFF, what: "data2" }]
+      : [{ bytes: data, off: XDATA_OFF, what: "data" }];
+    if (k === "ble" && !data2) { sayK("badpkg"); return; }
+    chosen = { rel, pkg, kind: k, image: logicalImage(raw), product: rel.identity, data: blobs, sha256: pkg.fwsc.sha256 };
+    if (navigator.requestMIDIAccess) { say(`FIZZ ${rel.version} (${PKG[k]} package) is ready to install.`); $("go").disabled = writing; }
     else sayK("nomidi");
   } catch (e) {
     if (e && e.code === "badpkg") sayK("badpkg"); else sayK("loadfail", e.message);
@@ -135,6 +159,15 @@ $("version").addEventListener("change", (e) => {
   u.searchParams.set("v", e.target.value);
   history.replaceState(null, "", u);
   choose(e.target.value);
+});
+$("pkgs").addEventListener("change", (e) => {
+  if (!e.target.matches('input[name="pkg"]') || writing) return;
+  kind = e.target.value === "ble" ? "ble" : "usb";
+  const u = new URL(location.href);
+  if (kind === "ble") u.searchParams.set("pkg", "ble"); else u.searchParams.delete("pkg");
+  history.replaceState(null, "", u);
+  $("after").hidden = true;
+  choose($("version").value);
 });
 
 let writing = false;
@@ -172,12 +205,12 @@ $("checkgo").addEventListener("click", async () => {
   $("checkgo").disabled = true;
   out.textContent = t("checking");
   try {
-    const u = await readUnit(midi);
+    const u = await readUnit(usbOnly(midi));
     const latest = releases[0] && releases[0].version;
     if (!u) out.textContent = "No FM-1 answered. Check the USB cable and close other apps that use its MIDI.";
     else if (u.kind === "fizz") {
-      const v = u.version || u.fromId;
-      out.innerHTML = u.version ? `This FM-1 runs <b>FIZZ ${esc(v)}</b>` + (v === latest ? ", the latest." : latest ? `. The latest is ${esc(latest)}.` : ".")
+      const v = u.version || u.fromId, pk = u.package ? ` (the ${PKG[u.package]} package)` : "";
+      out.innerHTML = u.version ? `This FM-1 runs <b>FIZZ ${esc(v)}</b>${pk}` + (v === latest ? ", the latest." : latest ? `. The latest is ${esc(latest)}.` : ".")
         : `This FM-1 runs FIZZ ${v ? esc(v) + " " : "(a development build) "}but FIZZ did not answer: its data may be missing (install again), or it is in safe mode (SAVE was held while switching on: switch off and on again without it).`;
     } else if (u.kind === "stock") out.innerHTML = u.open ? `This FM-1 runs M-VAVE's Open firmware (${esc(u.id)}). Put the stock firmware back first (Going back, below).`
       : `This FM-1 runs M-VAVE's firmware (${esc(u.id)}).`;
@@ -205,11 +238,16 @@ $("stockfile").addEventListener("change", async (e) => {
   } catch (err) { sayK("error", err && err.message); }
 });
 
-/* before anything is written: the screen, the cable, the time, a backup (fm1-base's dialog) */
-function confirmed(isStock) {
+/* before anything is written: the screen, the cable, the time, a backup (fm1-base's dialog); a switch between FIZZ's
+   packages said first (sw: {from, to}) */
+const MANAGER = '<a href="../manager/#backup" target="_blank" rel="noopener">the Manager<span class="sr"> (opens in a new tab)</span></a>';
+function confirmed(isStock, sw = null) {
   const d = $("confirm");
   $("confirmfizz").hidden = isStock;
   $("confirmstock").hidden = !isStock;
+  $("confirmswitch").hidden = !sw;
+  if (sw) $("confirmswitch").innerHTML = `<b>This switches packages.</b> The FM-1 runs FIZZ's ${PKG[sw.from]} package; the ${PKG[sw.to]} package starts with an empty store, so its projects and presets are erased. ` +
+    `Back up in ${MANAGER} first (BACKUP), then restore there after.` + (sw.to === "ble" ? " The Bluetooth package keeps 4 projects and 128 presets: you choose which." : "");
   $("bakok").checked = false;                    /* asked every time */
   $("confirmgo").disabled = true;
   d.returnValue = "";
@@ -220,6 +258,7 @@ $("bakok").addEventListener("change", () => { $("confirmgo").disabled = !$("bako
 
 function busy(on) {
   writing = on;
+  document.querySelectorAll('input[name="pkg"]').forEach((i) => { i.disabled = on; });
   $("go").disabled = on || !chosen;
   $("stockgo").disabled = on || !stock;
   $("datago").disabled = on;
@@ -227,28 +266,51 @@ function busy(on) {
   $("version").disabled = on || releases.length < 2;
 }
 
-/* FIZZ's data after the install: its own share of the bar, from `from` percent to 100 */
-async function writeData(midi, data, from) {
-  sayK("data");
-  const r = await pushData(midi, data, { log, onProgress: (f) => { $("bar").value = Math.min(99, from + f * (100 - from)); sayPct("data", $("bar").value); } });
+/* FIZZ's data after the install (the Bluetooth package: both blobs, the first then the second): their own share of the
+   bar, from `from` percent to 100 */
+async function writeData(midi, blobs, from) {
+  const total = blobs.reduce((a, b) => a + b.bytes.length, 0) || 1;
+  let done = 0, wrote = false;
+  for (const b of blobs) {
+    sayK(b.what);
+    const r = await pushData(midi, b.bytes, { off: b.off, log, onProgress: (f) => { $("bar").value = Math.min(99, from + (done + f * b.bytes.length) / total * (100 - from)); sayPct(b.what, $("bar").value); } });
+    done += b.bytes.length;
+    wrote = wrote || r.written;
+    log(`${b.what} at 0x${b.off.toString(16)} ${r.written ? "written" : "already there"}`);
+  }
   let v = null;
-  try { const u = await readUnit(midi); v = u && u.kind === "fizz" ? u.version : null; } catch (_) { /* said below */ }
+  try { const u = await readUnit(usbOnly(midi)); v = u && u.kind === "fizz" ? u.version : null; } catch (_) { /* said below */ }
   $("bar").value = 100;
   $("datago").hidden = true;
   say(v ? `Done. The FM-1 runs FIZZ ${v}.` : t("done"));
-  log(`data ${r.written ? "written" : "already there"}; FIZZ ${v || "did not say its version"}`);
+  log(`data ${wrote ? "written" : "already there"}; FIZZ ${v || "did not say its version"}`);
+}
+
+/* what the FM-1 runs now, before an install: a switch between FIZZ's packages -> {from, to} | null (a FIZZ before
+   the package bytes, or one that does not answer STATUS: the USB package, the only one there was) */
+async function switchOf(midi) {
+  if (!chosen) return null;
+  say(t("checking"));
+  let u = null;
+  try { u = await readUnit(usbOnly(midi)); } catch (_) { u = null; }
+  say("");
+  if (!u || u.kind !== "fizz" || !u.version) return null;
+  const from = u.package || "usb";
+  return from !== chosen.kind ? { from, to: chosen.kind } : null;
 }
 
 async function run(img, product, isStock, sha256) {
-  if (!(await confirmed(isStock))) return;
   let midi;
   try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
   catch (e) { sayK("denied"); return; }
+  const sw = isStock ? null : await switchOf(midi);
+  if (!(await confirmed(isStock, sw))) return;
   const data = isStock ? null : chosen.data;
   busy(true);
   $("datago").hidden = true;
+  $("after").hidden = true;
   try {
-    const up = new Updater(midi, log);
+    const up = new Updater(usbOnly(midi), log);
     /* progress: the bytes the device reads, against what it reads for this package (the size of the package,
        not a fixed request count). Step 1 (the running firmware): the UFW header, the loader's head twice, its
        body. Step 2 (fm1-base's loader): the header, the chip-key check, the whole flash.bin (checked before
@@ -257,7 +319,7 @@ async function run(img, product, isStock, sha256) {
     const ent = ufwEntries(img), fl = ent[0], ldr = ent[100];
     const CHECK = 0x400 + 0x400 + (ldr ? ldr.len - 0x20 : 0);
     const WRITE = fl && fl.len > 0x4000 && fl.len <= 0x100000 ? 0x400 + 0x20 + fl.len + (fl.len - 0x4000) : img.length;
-    const DATA = data ? data.length : 0;
+    const DATA = data ? data.reduce((a, b) => a + b.bytes.length, 0) : 0;
     const total = CHECK + WRITE + DATA;
     const step = (k, a, b) => {
       log(`${k} ${a ?? ""}`);
@@ -272,7 +334,7 @@ async function run(img, product, isStock, sha256) {
     let done;
     if (ota) {
       ota.link.close();
-      done = await up.resume(img, step);
+      done = await up.resume(img, step, product);
       if (!done) sayK("stopped");
       else if (isStock) { $("bar").value = 100; sayK("stockdone"); }
     } else {
@@ -282,6 +344,11 @@ async function run(img, product, isStock, sha256) {
     if (done && data) {
       try { await writeData(midi, data, ((CHECK + WRITE) / total) * 100); }
       catch (e) { $("datago").hidden = false; throw e; }
+      if (sw) {                                        /* (the other package's store: empty now) */
+        $("after").innerHTML = `<b>Now restore your backup.</b> FIZZ's ${PKG[sw.to]} package started with an empty store. Open ${MANAGER}, connect, and press RESTORE on the backup you made.` +
+          (sw.to === "ble" ? " It keeps 4 projects and 128 presets: choose which there." : " Everything from the Bluetooth package fits.");
+        $("after").hidden = false;
+      }
     }
   } catch (e) {
     if (isStock && e && e.code === "mismatch") { $("bar").value = 100; sayK("stockdone"); }   /* stock names itself its own way */
@@ -326,7 +393,7 @@ $("reportgo").addEventListener("click", async () => {
   st("reportwait");
   const lines = [];
   try {
-    const dev = await new Updater(midi).find((id) => !IS_OTA(id));
+    const dev = await new Updater(usbOnly(midi)).find((id) => !IS_OTA(id));
     if (dev) {
       lines.push(`${dev.id.text} (${dev.name}), ${new Date().toISOString()}`);
       dev.link.drain();

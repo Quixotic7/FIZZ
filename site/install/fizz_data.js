@@ -4,27 +4,41 @@
 //
 // What FIZZ's install page adds to fm1-base's installer (fm1lib.js), over the same Web MIDI link:
 //
-//   pushData(access, blob, {log, onProgress})  FIZZ's data blob (fizz-xdata.bin: its type and the TAP ape) into the
-//                                              FM-1's data flash. The update package does not carry it (fm1-base's
-//                                              loader writes the program area only), so the page writes it after the
+//   pushData(access, blob, {off, log, onProgress})  FIZZ's data blob (fizz-xdata.bin: its type and the TAP ape) into
+//                                              the FM-1's data flash at off (XDATA_OFF; the Bluetooth package's two:
+//                                              BLE_BLOBS). The update package does not carry it (fm1-base's loader
+//                                              writes the program area only), so the page writes it after the
 //                                              install, as firmware/tools/fizz_xdata.py push does: 46 "FZXD" len crc
 //                                              off, then the unit's 512-byte read requests, then 46 "FZOK" or "FZER"
 //                                              and a code (firmware/app/app.c app_usb_cmd). -> {written: bool}
 //   readUnit(access)                           what the connected FM-1 runs: {kind: "fizz" | "stock" | "update" |
 //                                              "other", id (its identity), version (FIZZ's own, from its SysEx
-//                                              IDENTITY: "0.11.0-beta.1"), fromId (the version in the identity)}
+//                                              IDENTITY: "0.11.0-beta.1"), fromId (the version in the identity),
+//                                              package ("usb" | "ble": FIZZ's STATUS; null when FIZZ did not answer)}
 //                                              | null (no FM-1 answered)
 //   versionOfId(id)                            "FM-1_46001100" -> "0.11.0"; "FM-1_4600" (a development build) -> ""
+//   usbOnly(access)                            the access without the Bluetooth package's MIDI port ("FM-1 XXXX
+//                                              Bluetooth"): an install and the data blobs go over USB only (FZER 15)
 import { Updater, IS_OTA, IS_STOCK, frame, response, parseRequest, unpack7, fail } from "./fm1lib.js";
-import { identity as fizzIdentity, parseReply } from "../js/fizz_sysex.js";
+import { identity as fizzIdentity, parseReply, statusRequest } from "../js/fizz_sysex.js";
 
 export const FIZZ_PREFIX = "FM-1_46";          // firmware/app/fm1.toml id_prefix
 export const XDATA_OFF = 0xE5000;              // fm1-base plat.h PLAT_XDATA1_LO (fizz_xdata.py XDATA_OFF)
 export const XDATA_CMD = 0x46;
+// the Bluetooth package (firmware/BUDGET.md "What the other tools need"): its first blob after fm1-base's Bluetooth
+// store object (0xE5000, two sectors), its second at the data region's first byte (where the USB package keeps MY
+// PRESETS: writing it erases them). Written after the install, in this order (either works; the first can be FZOK 0)
+export const BLE_XDATA_OFF = 0xE7000, BLE_XDATA2_OFF = 0x97000;
+export const isBlePort = (name) => /\sbluetooth$/i.test(String(name || "").trim());
+export function usbOnly(access) {
+  const usb = (m) => new Map([...m].filter(([, x]) => !isBlePort(x.name)));
+  return { get inputs() { return usb(access.inputs); }, get outputs() { return usb(access.outputs); } };
+}
 const IDLE_MS = 30000;                         // (fizz_xdata.py: 30 s without a request or an answer)
 export const DATA_ERRORS = {                   // fizz_xdata.py's FZER codes
   1: "the data is another build's", 2: "FIZZ was already running", 3: "erasing the flash failed",
   4: "a read or a write failed", 5: "writing the data's trailer failed", 6: "the data did not check out after writing",
+  15: "it needs the USB cable (not over Bluetooth)",
 };
 
 const le32 = (v) => [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF];
@@ -55,16 +69,16 @@ export function parseDataReply(pkt) {
   return { tag, code: (u[10] | (u[11] << 8) | (u[12] << 16) | (u[13] << 24)) >>> 0 };
 }
 
-export async function pushData(access, blob, { log = () => {}, onProgress = () => {}, waitMs = 40000 } = {}) {
-  const up = new Updater(access, log);
+export async function pushData(access, blob, { off = XDATA_OFF, log = () => {}, onProgress = () => {}, waitMs = 40000 } = {}) {
+  const up = new Updater(usbOnly(access), log);
   const dev = await up.waitFor(isFizz, waitMs);
   if (!dev) throw fail("nofizz", "no FM-1 running FIZZ answered");
   const link = dev.link;
   try {
     const crc = crc32(blob);
-    log(`data: ${dev.id.text}, ${blob.length} B, CRC-32 ${crc.toString(16).padStart(8, "0")}, to flash 0x${XDATA_OFF.toString(16)}`);
+    log(`data: ${dev.id.text}, ${blob.length} B, CRC-32 ${crc.toString(16).padStart(8, "0")}, to flash 0x${off.toString(16)}`);
     link.drain();
-    if (!link.send(frame(XDATA_CMD, [..."FZXD"].map((c) => c.charCodeAt(0)).concat(le32(blob.length), le32(crc), le32(XDATA_OFF))))) {
+    if (!link.send(frame(XDATA_CMD, [..."FZXD"].map((c) => c.charCodeAt(0)).concat(le32(blob.length), le32(crc), le32(off))))) {
       throw fail("lost", "the FM-1 was disconnected");
     }
     let last = Date.now(), served = 0;
@@ -115,14 +129,31 @@ async function fizzVersion(link) {
   return null;
 }
 
+// FIZZ's STATUS (7D 46 5A 01 02 -> 42): its package ("usb" without the package bytes, a FIZZ before them too) | null
+async function fizzPackage(link) {
+  link.drain();
+  if (!link.send(Array.from(statusRequest()))) return null;
+  const end = Date.now() + 1500;
+  while (Date.now() < end) {
+    const p = await link.read(end - Date.now());
+    if (!p) break;
+    const r = parseReply(p);
+    if (r && r.kind === "status") return r.package || "usb";
+  }
+  return null;
+}
+
 export async function readUnit(access) {
-  const up = new Updater(access);
+  const up = new Updater(usbOnly(access));
   const dev = await up.find(() => true);
   if (!dev) return null;
   try {
     const id = dev.id.text;
     if (IS_OTA(dev.id)) return { kind: "update", id };
-    if (isFizz(dev.id)) return { kind: "fizz", id, fromId: versionOfId(id), version: await fizzVersion(dev.link) };
+    if (isFizz(dev.id)) {
+      const version = await fizzVersion(dev.link);
+      return { kind: "fizz", id, fromId: versionOfId(id), version, package: version ? await fizzPackage(dev.link) : null };
+    }
     if (dev.id.open || IS_STOCK(id)) return { kind: "stock", id, open: !!dev.id.open };
     return { kind: "other", id };
   } finally {
