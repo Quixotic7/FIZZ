@@ -671,6 +671,87 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .kcol .kc .kn { font-size: 16px; }
 .kcol .kc.sel .kn { font-size: 18px; }
 
+/* ================================================================ the phone's own library, no FM-1 (23–28) */
+/* (the app as built now: the unit pill carries USB / BT; LIBRARY's switch is MY PRESETS / FACTORY / ALL) */
+.unit .via { color: var(--c); font-size: 12px; letter-spacing: .06em; }
+.unit.off { --c: #8D8D96; border-style: dashed; background: transparent; color: var(--muted); }
+.unit.off .dot { box-shadow: none; animation: blink .8s infinite alternate; }
+.nv.off { opacity: .32; }
+.phg { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.lhead.src .seg { flex: 1; }
+.lhead.src .seg button { flex: 1 1 auto; justify-content: center; padding: 0 9px; white-space: nowrap; }
+.lhead.src .seg button.phs { flex: none; padding: 0 16px; }
+.seg button.phs { flex: none; padding: 0 14px; color: var(--champagne); }
+.seg button.phs svg { width: 18px; height: 20px; }
+.seg button.phs.on { background: var(--champagne); color: #000; box-shadow: 0 0 16px color-mix(in srgb, var(--champagne) 45%, transparent); }
+.seg button.dim { opacity: .28; }
+.phead { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.phead .big { font-size: 40px; font-weight: 800; color: var(--champagne); line-height: 1; letter-spacing: -.01em; text-shadow: 0 0 24px color-mix(in srgb, var(--champagne) 40%, transparent); }
+.phead .sm { font-size: 22px; font-weight: 800; color: var(--muted); align-self: flex-end; margin: 0 auto 1px 2px; }
+.phead .btn.small { height: 40px; padding: 0 14px; gap: 6px; }
+.phead .btn.small svg { width: 16px; height: 16px; }
+.phead .btn.new { --c: var(--champagne); animation: breathe 2.4s ease-in-out infinite; }
+.cas .ck { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #3a3a44; flex: none; display: grid; place-items: center; }
+.cas .ck svg { width: 15px; height: 15px; fill: none; stroke: #000; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.cas.pk { border-color: var(--champagne); background: color-mix(in srgb, var(--champagne) 9%, var(--raised)); box-shadow: 0 0 16px color-mix(in srgb, var(--champagne) 22%, transparent); }
+.cas.pk .ck { background: var(--champagne); border-color: var(--champagne); box-shadow: 0 0 10px color-mix(in srgb, var(--champagne) 60%, transparent); }
+.cas.pk .ck svg { opacity: 1; }
+.cas.pk.last .ck { animation: ckpop 2.4s ease-out infinite; }
+@keyframes ckpop { 0% { transform: scale(.5); } 14% { transform: scale(1.25); } 28%, 100% { transform: none; } }
+/* the targets: one tap sends */
+.tgts { display: grid; grid-template-columns: 1.45fr 1fr 1.1fr; gap: 7px; margin-top: 10px; }
+.stg { height: 54px; border-radius: 16px; border: 2px solid color-mix(in srgb, var(--violet) 55%, var(--line)); background: color-mix(in srgb, var(--violet) 8%, transparent); display: flex; align-items: center; justify-content: center; gap: 7px; font-weight: 800; font-size: 14px; letter-spacing: .05em; color: var(--text); white-space: nowrap; }
+.stg i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+.stg .tn { width: 24px; height: 24px; border-radius: 12px; background: var(--pink); color: #fff; display: grid; place-items: center; font-size: 14px; font-style: normal; }
+.stg.fly { animation: tgtfly 2.6s ease-out infinite; }
+@keyframes tgtfly { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--violet) 0%, transparent); } 20% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--violet) 70%, transparent); } 60% { box-shadow: 0 0 0 14px transparent; } }
+/* the selection's bar (above the tab bar) */
+.selbar { position: absolute; left: 12px; right: 12px; bottom: 100px; z-index: 55; border-radius: 26px; padding: 12px 12px 12px; background: color-mix(in srgb, var(--violet) 9%, #0e0e12); border: 2px solid var(--violet); box-shadow: 0 -10px 30px #000, 0 0 26px color-mix(in srgb, var(--violet) 25%, transparent); }
+.selbar .top { display: flex; align-items: center; gap: 8px; margin: 0 0 10px 6px; }
+.selbar .n { font-size: 46px; font-weight: 800; color: var(--champagne); line-height: .9; font-variant-numeric: tabular-nums; margin-right: auto; text-shadow: 0 0 18px color-mix(in srgb, var(--champagne) 40%, transparent); }
+.selbar .top .btn { height: 40px; font-size: 13px; padding: 0 14px; }
+.selbar .icon.red { border-color: color-mix(in srgb, var(--red) 55%, transparent); } .selbar .icon.red svg { stroke: var(--red); }
+.selbar .dest { margin-bottom: 10px; }
+.selbar .send { height: 58px; border-radius: 29px; }
+/* EDIT on the phone: no keybed (no sound without an FM-1) */
+.keysb { width: 46px; height: 46px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--raised); display: grid; place-items: center; flex: none; position: relative; }
+.keysb svg { width: 22px; height: 22px; fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; }
+.keysb.off { opacity: .3; background: transparent; }
+.keysb.off::after { content: ""; position: absolute; left: 9px; right: 9px; top: 50%; height: 2.5px; margin-top: -1px; background: var(--muted); transform: rotate(-40deg); border-radius: 2px; }
+.edacts .btn svg.phg { width: 17px; height: 17px; }
+/* no FM-1: the drawing */
+.nofm { position: relative; height: 330px; margin: 0 -16px; }
+.nofm svg { position: absolute; inset: 0; width: 390px; height: 330px; overflow: visible; }
+.nofm .cab { fill: none; stroke: #2e2e36; stroke-width: 7; stroke-linecap: round; }
+.nofm .plugA { animation: plugA 2.8s ease-in-out infinite; }
+.nofm .plugB { animation: plugB 2.8s ease-in-out infinite; }
+@keyframes plugA { 0%, 100% { transform: translateY(-10px); } 50% { transform: translateY(4px); } }
+@keyframes plugB { 0%, 100% { transform: translateY(10px); } 50% { transform: translateY(-4px); } }
+.nofm .gap { stroke: var(--yellow); stroke-width: 3; stroke-linecap: round; animation: blink .7s infinite alternate; filter: drop-shadow(0 0 6px var(--yellow)); }
+.nofm .bigno { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 44px; font-weight: 800; color: var(--text); letter-spacing: .02em; }
+.nofm .bigno span { color: var(--muted); }
+.offrow { display: flex; justify-content: center; gap: 12px; margin: 4px 0 22px; }
+.offrow .look { height: 52px; font-size: 14px; padding: 0 22px; }
+.offrow .bt { width: 52px; height: 52px; }
+.bk.dead .ic { opacity: .5; }
+/* iPad: the FM-1 and the phone side by side */
+.cols .fmc { width: 322px; flex: none; }
+.cols .fmc .ptag { display: none; }
+.cols .phc { width: 290px; flex: none; border-color: color-mix(in srgb, var(--champagne) 45%, var(--line)); background: color-mix(in srgb, var(--champagne) 3%, var(--panel)); }
+.cols .fmc .seg { --c: var(--cream); display: flex; margin-bottom: 12px; }
+.cols .fmc .seg button { flex: 1 1 auto; justify-content: center; height: 34px; padding: 0 8px; white-space: nowrap; }
+.phc .h { color: var(--champagne); }
+.phc .h .icon { width: 36px; height: 36px; border-radius: 18px; }
+.phc .h .icon.new { background: var(--champagne); border-color: var(--champagne); box-shadow: 0 0 14px color-mix(in srgb, var(--champagne) 45%, transparent); }
+.phc .h .icon.new svg { stroke: #000; stroke-width: 3; }
+.det .tgts { grid-template-columns: 1fr 1fr; }
+.det .tgts .stg:first-child { grid-column: span 2; }
+.ghost-row { position: absolute; z-index: 30; width: 250px; pointer-events: none; animation: dragL 3.2s cubic-bezier(.45, .05, .35, 1) infinite; }
+.ghost-row .cas { margin: 0; transform: rotate(-3deg); border-color: var(--champagne); box-shadow: 0 16px 30px #000, 0 0 24px color-mix(in srgb, var(--champagne) 45%, transparent); background: color-mix(in srgb, var(--champagne) 10%, var(--raised)); }
+.still .ghost-row { animation: none; }
+@keyframes dragL { 0%, 10% { transform: translate(330px, 0); opacity: 0; } 18% { opacity: 1; } 55%, 72% { transform: none; opacity: 1; } 88%, 100% { transform: none; opacity: 0; } }
+.dropline { height: 4px; border-radius: 2px; background: var(--champagne); box-shadow: 0 0 12px var(--champagne); margin: -4px 4px 4px; animation: blink .6s infinite alternate; }
+
 /* ================================================================ the page around the devices */
 body.shot { padding: 16px; width: fit-content; }
 body.sheet { width: 1640px; padding: 30px 34px 40px; }
@@ -691,6 +772,7 @@ body.sheet { width: 1640px; padding: 30px 34px 40px; }
 <script>
 "use strict";
 const q = new URLSearchParams(location.search), SHOT = q.get("shot"), STILL = q.has("still");
+if (STILL) document.documentElement.classList.add("still");
 const $h = (s) => { const t = document.createElement("template"); t.innerHTML = s.trim(); return t.content.firstElementChild; };
 
 // ---------------------------------------------------------------- data
@@ -1148,7 +1230,95 @@ const SCREENS = [
           <div class="row" style="margin-top:auto;gap:8px"><span class="btn" style="--c:var(--champagne);height:48px;font-size:14px">${IC.play.replace("<svg", '<svg style="fill:#000;stroke:none;width:13px"')}LOAD INTO</span><span class="icon" style="width:48px;height:48px;border-radius:24px">${IC.share}</span></div>
         </div>
       </div></div>`) },
+  // ---------------------------------------------------------------- the phone's own library, no FM-1 needed (23–28)
+  { id: "offline-library", title: "LIBRARY on the phone, no FM-1", cap: "The app opens without an FM-1: the pill's dot blinks while it looks, BACKUP / POOL / PROJECTS go dim in the tab bar. PHONE (champagne, like KEPT: what lives on the phone) lists Documents/Presets/*.fizzsnd; the FM-1's sources wait dimmed. NEW breathes.",
+    html: () => phone2(phoneLib(), "LIBRARY", true) },
+  { id: "phone-preset-sheet", title: "A phone preset (sheet)", cap: "FM-1 connected. The caret blinks in the name (tap to rename); the tags as on the FM-1. SEND TO FM-1: one tap on a target sends it (the tapped one rings violet). Pinned: DUPLICATE, EDIT, SHARE (.fizzsnd), DELETE. Without an FM-1 the SEND row is not there.",
+    html: () => phone(`<div class="under">${phoneLib({ on: true })}</div><div class="scrim" style="background:rgba(0,0,0,.45)"></div>
+      <div class="psheet" style="top:276px;--c:var(--champagne)"><div class="grab"></div>
+        <div class="ph">${algo(2, "var(--yellow)")}<div style="min-width:0"><div class="h" style="color:var(--champagne);gap:6px">${PHG(15)}PHONE</div><div class="pname">GLASS BELL<i class="caret"></i></div></div></div>
+        <div class="tgl">${TAGS.map((t) => tag(t, ["PLUCK"].includes(t) ? "" : "off")).join("")}</div>
+        <div class="sec"><div class="h" style="color:var(--violet)">SEND TO FM-1</div>${SENDT(true)}</div>
+        <div style="position:absolute;left:18px;right:18px;bottom:34px">
+          <div class="row"><span class="btn ghost">${IC.copy}DUPLICATE</span><span class="btn" style="--c:var(--pink)">${IC.pencil}EDIT</span></div>
+          <div class="row" style="margin-top:10px"><span class="btn ghost">${IC.share}SHARE</span><span class="btn redline">${IC.trash}DELETE</span></div></div></div>`) },
+  { id: "offline-edit", title: "EDIT a phone preset, no FM-1", cap: "The OPERATORS page as the app has it now; sparks run and the loop turns as ever. The place reads PHONE; no TRACK switch; the keys button is struck through (no sound without an FM-1). SAVE writes the .fizzsnd, SAVE AS NEW makes another phone preset.",
+    html: () => phone2(editPhone(), "EDIT", true, false) },
+  { id: "phone-select-send", title: "PHONE: four to the FM-1", cap: "FM-1 connected. SELECT, then single taps tick rows (the tick pops); the violet bar takes the tab bar's place: the count, ALL, SHARE (.fizzlib), DELETE, the target as IMPORT's, SEND breathes. Out of SELECT, a tap with TRACK on is heard on the track (KEEP / CANCEL).",
+    html: () => phone(phoneLib({ on: true, select: true }) + `<div class="selbar" style="bottom:28px"><div class="top"><span class="n">4</span><span class="btn small ghost">ALL</span><span class="icon">${IC.share}</span><span class="icon red">${IC.trash}</span></div>
+      <div class="dest"><div class="seg"><button class="on">MY PRESETS</button><button>POOL</button><button>TRACK <span class="tn">3</span></button></div></div>
+      <span class="btn send">${IC.down}SEND 4 TO FM-1</span></div>`) },
+  { id: "offline-tab", title: "BACKUP without an FM-1", cap: "The FM-1 drawn in grey, its cable's plug bobbing towards a socket that is not there, a yellow spark in the gap; LOOKING pulses. The backups kept on the phone stay listed (SHARE works; RESTORE waits for an FM-1). POOL and PROJECTS: the same drawing; PROJECTS keeps its KEPT list.",
+    html: () => phone2(topBar2() + `<div class="pg"><div class="nofm"><svg viewBox="0 0 390 330">
+        <g transform="translate(18 8)">${fm1("#5c5c66", `<g opacity=".3">${LCD_BUB}</g>`, 252)}</g>
+        <g class="plugA"><path class="cab" d="M262 50 C 336 56, 356 132, 338 196 S 304 246, 304 262"/>
+          <rect x="290" y="258" width="28" height="36" rx="7" fill="#121217" stroke="#8d8d96" stroke-width="2.4"/><path d="M298 294v12M310 294v12" stroke="#8d8d96" stroke-width="3" stroke-linecap="round"/></g>
+        <g class="gap"><path d="M304 316v10M290 312l-6 8M318 312l6 8"/></g></svg>
+        <div class="bigno" style="text-align:left;left:16px;bottom:24px">NO <span>FM-1</span></div></div>
+      <div class="offrow"><span class="look"><i></i>LOOKING</span><span class="bt">${IC.bt}</span></div>
+      <div class="h" style="margin:0 2px 12px">BACKUPS <span class="n">4</span><span class="r n">1.1 MB</span></div>
+      ${BKROW("", "Today 14:02", 6, 143, "292 KB")}${BKROW("", "Yesterday 22:40", 6, 139, "288 KB")}${BKROW("old", "24 Oct 09:15", 4, 128, "251 KB", "0.11.0")}</div>`, "BACKUP", true) },
+  { id: "ipad-phone-library", title: "iPad: the FM-1 and the phone", ipad: true, cap: "The FM-1's presets (MY PRESETS / FACTORY / ALL) beside the PHONE column; a phone preset's detail on the right. A row dragged from PHONE onto the FM-1's list lands where the line glows (a send); dragged the other way, a copy to the phone. Without an FM-1 the left column greys out.",
+    html: () => ipad(rail("LIBRARY") + `<div class="main"><div class="mtop">${tagChips()}${topBar({ word: false, unit: "", track: 3 }).replace('class="tb"', 'class="tb" style="padding:0;margin-left:auto"').replace('<span class="logo">' + BUB + "</span>", "")}</div>
+      <div class="cols" style="position:relative">
+        <div class="card fmc"><div class="seg"><button class="on">MY PRESETS</button><button>FACTORY</button><button>ALL</button></div>
+          <div class="h">MY PRESETS <span class="n">143 / 256</span></div>${MINE.slice(0, 3).map((p) => libRow(p)).join("")}<div class="dropline"></div>${MINE.slice(3, 10).map((p) => libRow(p)).join("")}</div>
+        <div class="card phc"><div class="h" style="gap:7px">${PHG(16)}PHONE <span class="n">${PHN.length}</span><span class="r" style="display:flex;gap:7px"><span class="icon">${IC.tap}</span><span class="icon new">${IC.plus}</span></span></div>
+          ${PHN.slice(0, 10).map((p, i) => phoneRow(p, i === 7 ? "sel" : "")).join("")}</div>
+        <div class="card det" style="gap:0">
+          <div class="ph">${algo(7, "var(--pink)")}<div style="min-width:0"><div class="h" style="color:var(--champagne);gap:6px">${PHG(15)}PHONE</div><div class="pname">RAIN FX<i class="caret"></i></div></div></div>
+          <div class="tgl">${TAGS.map((t) => tag(t, t === "FX" ? "" : "off")).join("")}</div>
+          <div class="sec"><div class="h" style="color:var(--violet)">SEND TO FM-1</div>${SENDT(false)}</div>
+          <div class="sec row" style="margin-top:auto"><span class="btn" style="--c:var(--pink)">${IC.pencil}EDIT</span></div>
+          <div class="sec row" style="margin-top:10px"><span class="btn ghost">${IC.copy}</span><span class="btn ghost">${IC.share}</span><span class="btn redline">${IC.trash}</span></div></div>
+        <div class="ghost-row" style="left:40px;top:262px">${phoneRow(PHN[3])}</div>
+      </div></div>`) },
 ];
+// ---------------------------------------------------------------- the phone's own library (23–28)
+IC.keys = '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 13v7M15 13v7"/><rect x="7" y="4" width="4" height="9" rx="1" fill="#ECECEF"/><rect x="13" y="4" width="4" height="9" rx="1" fill="#ECECEF"/></svg>';
+const PHG = (w = 18) => `<svg class="phg" viewBox="0 0 24 24" style="width:${w}px;height:${Math.round(w * 1.15)}px"><rect x="6.5" y="2.5" width="11" height="19" rx="2.8"/><path d="M10.5 18.3h3"/></svg>`;
+// the phone's presets (Documents/Presets/*.fizzsnd): [name, tag, algo]
+const PHN = [["GLASS BELL", "PLUCK", 2], ["NIGHT GLASS", "PAD", 3], ["SUB DROP 2", "BASS", 1], ["TAPE KEYS", "KEYS", 6], ["ACID WORM", "BASS", 3], ["FIZZ HAT", "DRUMS", 6],
+  ["SODA LEAD", "LEAD", 4], ["RAIN FX", "FX", 7], ["WOOD PLUCK", "PLUCK", 4], ["DRONE 7", "PAD", 2], ["CLAP 808", "DRUMS", 5]];
+function phoneRow([name, t, al], cls = "", tick = false) {
+  return `<div class="cas ${cls}" style="--c:${cv(t)}"><span class="stripe"></span>${tick ? `<span class="ck">${IC.tap}</span>` : ""}${algo(al, cv(t))}<span class="nm">${name}</span><span class="mark">${tag(t)}</span></div>`;
+}
+function topBar2({ on = false, track = 0 } = {}) {
+  return `<div class="tb"><span class="logo">${BUB}${track ? "" : '<span class="word">FIZZ</span>'}</span>` +
+    (track ? `<span class="livesw"><span class="sw"><i></i></span><span>TRACK</span><b>${track}</b></span>` : "") +
+    (on ? '<span class="unit"><span class="dot"></span>0.12.0-beta.11 <span class="via">USB</span></span>' : '<span class="unit off"><span class="dot"></span>NO FM-1</span>') + "</div>";
+}
+// the tab bar without an FM-1: BACKUP / POOL / PROJECTS dim (they show the "no FM-1" drawing)
+function phone2(inner, tab, off, fade = true) {
+  const nv = `<nav class="nav">${TABS.map(([n, c]) => `<span class="nv ${n === tab ? "on" : off && ["BACKUP", "POOL", "PROJECTS"].includes(n) ? "off" : ""}" style="--c:var(${c})">${IC[n.toLowerCase()]}${n === tab ? `<b>${n}</b>` : ""}</span>`).join("")}<span class="nplus">${IC.plus}</span></nav>`;
+  return `<div class="phone"><div class="scr"><div class="sb"><span>9:41</span>${SB_ICONS}</div><div class="island"></div><div class="app">${inner}</div>` +
+    `${fade ? '<div class="fadeb"></div>' : ""}${nv}<div class="home"></div></div></div>`;
+}
+function phoneLib({ on = false, select = false } = {}) {
+  const pk = [0, 2, 3, 5];
+  const rows = PHN.slice(0, 9).map((p, i) => phoneRow(p, select && pk.includes(i) ? `pk ${i === 5 ? "last" : ""}` : "", select)).join("");
+  const seg = `<div class="seg"><button class="phs on">${PHG(17)}</button>${["MY PRESETS", "FACTORY", "ALL"].map((n) => `<button class="${on ? "" : "dim"}">${n}</button>`).join("")}</div>`;
+  const btns = select ? `<span class="btn small" style="--c:var(--champagne)">${IC.tap}DONE</span>` : `<span class="btn small ghost">SELECT</span><span class="btn small new">${IC.plus}NEW</span>`;
+  return topBar2({ on, track: on ? 3 : 0 }) + `<div class="pg"><div class="lhead src">${seg}</div>
+    <div class="phead"><span class="big">PHONE</span><span class="sm">${PHN.length}</span>${btns}</div>
+    <div class="tscroll">${TAGS.map((t) => `<span class="fchip" style="--c:${cv(t)}"><i></i>${t}</span>`).join("")}</div>${rows}</div>`;
+}
+// SEND TO FM-1: three targets, a tap sends
+const SENDT = (ring) => `<div class="tgts"><span class="stg ${ring ? "fly" : ""}" style="--c:var(--cream)"><i></i>MY PRESETS</span><span class="stg" style="--c:var(--green)"><i></i>POOL</span><span class="stg">TRACK <b class="tn">3</b></span></div>`;
+const OPV2 = [["C", "1", "00", "--k1", 1 / 16, "+0.00"], ["A", "2", "00", "--k2", 0.11, "+0.00"], ["B1", "3", "00", "--k3", 0.27, "+0.12"], ["B2", "2", "00", "--k4", 0.2, "−0.03"]];
+const opCards2 = () => `<div class="opcards">${OPV2.map(([n, w, f, c, b, ofs]) => `<div class="opc" style="--c:var(${c})"><span class="opn">${n}<small>OFS ${ofs}</small></span><span class="opv">${w}<small>.${f}</small></span><span class="ob"><span style="width:${b * 100}%"></span></span></div>`).join("")}</div>`;
+function editPhone() {
+  const pg = [PAGES[0], PAGES[1], PAGES[6], PAGES[2]];
+  return topBar2() + `<div class="pg ed">
+    <div class="edn"><div><div class="h" style="margin-bottom:5px;color:var(--champagne);gap:6px">${PHG(15)}PHONE</div><div class="nm2">NIGHT GLASS</div></div>${tag("PAD")}<span class="edited"></span></div>
+    <div class="pages">${pg.map(([n, c, ic], i) => `<span class="pgc ${i === 0 ? "on" : ""}" style="--c:var(${c})">${ic}${n}</span>`).join("")}</div>
+    <div class="algowrap">${algoSvg(5, -1, "0 44 600 356")}</div>
+    ${opCards2()}
+    <div class="dials">${DIALS()}</div>
+    <div class="edacts"><span class="keysb off">${IC.keys}</span><span class="btn ghost" style="flex:1;padding:0 8px">↺ REVERT</span><span class="btn" style="--c:var(--pink);flex:1;padding:0 8px;gap:6px">${PHG(15)}SAVE</span><span class="btn ghost" style="flex:1.45;padding:0 8px">SAVE AS NEW</span></div></div>`;
+}
+const BKROW = (cls, when, prj, pre, kb, ver = "") => `<div class="bkw"><div class="bk ${cls}"><span class="ic">${IC.backup}</span><div class="txt"><div class="when">${when}</div><div class="what">` +
+  (prj ? `<span><i style="background:var(--green)"></i>${prj}</span>` : "") + `<span><i style="background:var(--cream)"></i>${pre}</span><small>${kb}</small>${ver ? `<span class="ver">${ver}</span>` : ""}</div></div><span class="icon">${IC.share}</span></div></div>`;
 function burst(c) {
   const r = rnd(21); let s = "";
   for (let i = 0; i < 22; i++) {
@@ -1177,7 +1347,7 @@ if (SHOT) {
 }
 inits.forEach(([s, el]) => s.init(el));
 // still: every animation stopped at a chosen moment (a fraction of its loop), one-shots finished; SMIL at 0.6 s
-const POSTER = { swR: 0.5, swL: 0.5, slideK: 0.3, slideF: 0.3, burst: 0.5, rip: 0.35, fing: 0.5, trail: 0.5, tpop: 0.12, tbub: 0.16, lookp: 0.8, hintring: 0.62, drop: 0.55, flick: 0.1, run: 0.42, lv: 0.6, breathe: 0.5, curglow: 0.5, ppulse: 0.5, plugblink: 0 };
+const POSTER = { swR: 0.5, swL: 0.5, slideK: 0.3, slideF: 0.3, burst: 0.5, rip: 0.35, fing: 0.5, trail: 0.5, tpop: 0.12, tbub: 0.16, lookp: 0.8, hintring: 0.62, drop: 0.55, flick: 0.1, run: 0.42, lv: 0.6, breathe: 0.5, curglow: 0.5, ppulse: 0.5, plugblink: 0, ckpop: 0.2, tgtfly: 0.4, plugA: 0.3, plugB: 0.3, dragL: 0.62 };
 function freeze() {
   document.getAnimations().forEach((a) => {
     const t = a.effect.getTiming();
