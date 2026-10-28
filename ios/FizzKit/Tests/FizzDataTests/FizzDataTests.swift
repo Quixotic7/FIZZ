@@ -179,6 +179,25 @@ private func expected(_ k: String) -> (length: Int, sha: String) {
         #expect(try await e.plainJSON("soundFromStoreFrame", [.bytes(Fx.frames[0])]) != "")
     }
 
+    /// The Bluetooth package's store (49 sectors from 0xAF000, "Z2FB"): its layout known, a full backup made and read
+    /// back (a bundle older than ble-site refused it: the app's NOT SAVED).
+    @Test func bluetoothPackageBackup() async throws {
+        let e = try await Fx.engine()
+        let l = try #require(try await e.layout(size: 49 * 4096))
+        #expect(l == FizzLayout(name: "ble", size: 200_704, libSectors: 11, prjSectors: 38))
+        let img = try await e.demoStore(presets: Fx.sounds, projects: Array(Fx.projects.prefix(2)), layout: "ble")
+        #expect(img.count == 200_704)
+        var input = Fx.input(.full, image: img)
+        input.region = FizzStoreRegion(lo: 0xAF000, size: 200_704)
+        input.crc = try await e.crc32(img)
+        let file = try await e.makeFizzbak(input)
+        let b = try await e.readBackup(file, fileName: "ble.fizzbak")
+        #expect(b.kind == .full && b.layout == "ble" && b.magic == "Z2FB" && b.storeSize == 200_704)
+        #expect(b.region == FizzStoreRegion(lo: 0xAF000, size: 200_704) && b.image == img)
+        #expect(b.presetCount == 4)
+        #expect(!b.isOld(unitLayout: "ble", unitTracks: 6) && b.isOld(unitLayout: "device", unitTracks: 6))
+    }
+
     @Test func jsExceptionsAreSwiftErrors() async throws {
         let e = try await Fx.engine()
         await #expect(throws: FizzDataError.js(message: "x.bin: not a FIZZ backup", code: nil)) {

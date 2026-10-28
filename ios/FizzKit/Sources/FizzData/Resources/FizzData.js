@@ -607,7 +607,8 @@ const __fizz_m1 = (function () {
 // The web manager's Phase 1 (docs/WEB-MANAGER-PLAN.md §5; FIZZ 0.12.1-: an older FIZZ answers BAD COMMAND):
 //   statusRequest(), parseStatus(bytes)          STATUS (02 -> 42): {tracks, playing, noStore, dirty, job, demo,
 //                                                   project, pattern, projects, mine, pool, written, lib: [used, all],
-//                                                   prj: [used, all]} (store pages)
+//                                                   prj: [used, all], sel, package: "usb" | "ble", nproj, nlib} (store
+//                                                   pages; the package from its bytes, absent: the USB one, 8 and 256)
 //   flushRequest()                               FLUSH (03): everything written (stopped only), then a STATUS
 //   tagsRequest({source, slot, tags})            TAGS (12): a preset's tags (FIZZ's seven: a mask or names)
 //   renameRequest({source, slot, name})          RENAME (13): source "mine" or "project"
@@ -846,7 +847,10 @@ function parseStatus(bytes) {
   return { protocol: b[6], tracks: b[7], playing: !!(f & 1), noStore: !!(f & 2), dirty: !!(f & 4), job: !!(f & 8), demo: !!(f & 16),
     rec: !!(f & 32), browse: !!(f & 64), project: b[9] + 1, pattern: b[10], projects: b[11], mine: r14(b, 12), pool: r14(b, 14),
     written: (b[16] << 14) | r14(b, 17), lib: [r14(b, 19), r14(b, 21)], prj: [r14(b, 23), r14(b, 25)], jobCommand: b[27],
-    ...(b.length >= 31 ? { sel: b[28] } : {}) };
+    ...(b.length >= 31 ? { sel: b[28] } : {}),
+    // the package (docs/SYSEX.md "The package"): the Bluetooth one appends its byte, its projects, its MY PRESETS'
+    // places; a reply without them is the USB package's (8 and 256)
+    ...(b.length >= 35 && b[29] & 1 ? { package: "ble", nproj: b[30], nlib: r14(b, 31) } : { package: "usb", nproj: 8, nlib: 256 }) };
 }
 function parseUsers(bytes) {
   const b = body1(bytes, REPLY1.USERS);
@@ -1141,30 +1145,56 @@ const __fizz_m3 = (function () {
 // the few record layouts of core/app/persist.c the manager shows. Written from FIZZ's own sources (store.h's layout,
 // store.c's mount and get, persist.c's ser_hdr / ser_snd); no DOM, the tests run it in Node.
 //
-//   LAYOUTS                       the region's two stores (MY PRESETS' and the projects'), by the region's size
-//   layoutOf(size)                -> a layout, or null (a size FIZZ never had)
-//   mount(img, base, nsec)        -> one store's index {magic, sectors, keys: Map(key -> {rseq, page, len}), live, total}
+//   LAYOUTS                       the region's two stores (MY PRESETS' and the projects'), per package
+//   layoutOf(size, img)           -> a layout, or null (a size FIZZ never had; an image whose sectors are another
+//                                    layout's: its magic)
+//   magicsOf(img)                 -> the sector magics the image holds ("Z2FS", "Z2FB"), a Set
+//   mount(img, base, nsec, magic) -> one store's index {magic, sectors, keys: Map(key -> {rseq, page, len}), live, total}
 //   get(store, key)               -> the record's bytes, or null (none, a tombstone)
-//   readRegion(img)               -> {layout, magic, format, tracks, projects: [{slot, name}], presets: [{slot, id,
-//                                     name, tags, flags, imported, blob, drive, pan, sends}], used: {lib, prj, all}}
+//   readRegion(img)               -> {layout, package, nproj, nlib, magic, format, tracks, projects: [{slot, name}],
+//                                     presets: [{slot, id, name, tags, flags, imported, blob, drive, pan, sends}],
+//                                     used: {lib, prj, all}}
 //                                    | throws (not a FIZZ store image)
 //
-// THE LAYOUT (store.h): 4 KiB sectors; page 0 of a sector its header (magic "Z?FS", the sector's sequence number,
-// 5A5A and its complement); pages 1..15 records. A page: key u32, the record's sequence u32, the page's index u16, the
-// record's page count u16, its length u16 (FFFE a tombstone), CRC-16/CCITT-FALSE u16 over the header's 14 bytes and the
-// 240-byte payload. A record's pages run on into the sector the log opened next; the highest sequence wins a key.
+// THE LAYOUT (store.h): 4 KiB sectors; page 0 of a sector its header (magic "Z2FS", the Bluetooth package's "Z2FB";
+// the sector's sequence number, 5A5A and its complement); pages 1..15 records. A page: key u32, the record's sequence
+// u32, the page's index u16, the record's page count u16, its length u16 (FFFE a tombstone), CRC-16/CCITT-FALSE u16 over
+// the header's 14 bytes and the 240-byte payload. A record's pages run on into the sector the log opened next; the
+// highest sequence wins a key. A store reads only its own package's sectors: another magic is a sector to erase.
+//
+// THE TWO PACKAGES (core/app/persist.h, firmware/BUDGET.md "What the other tools need"): the USB package's region is
+// 73 sectors from 0x97000 ("Z2FS": MY PRESETS 22 sectors, the projects 51; 8 projects, 256 MY PRESETS); the Bluetooth
+// package's 49 sectors from 0xAF000 ("Z2FB": MY PRESETS 11, the projects 38 from 11 x 4096; 4 projects, 128). The
+// records are the same in both: an image goes from one to the other record by record (projects.js fitModel), never
+// sector by sector.
 const SECTOR = 4096, PAGE = 256, PPS = 16, HDR = 16, PAYLOAD = 240, DELETED = 0xFFFE;
+const RESERVE = 6;                                   // store.h QDS_RESERVE
+// the blank sectors the unit keeps in each store (persist.c: the library's QD_FLASH_LIB_RESERVE, the projects' 10 for a
+// full pattern's record); an image written here leaves as many (the host's: QDS_RESERVE)
 const LAYOUTS = {
-  // persist.h (QD_DEVICE): the unit's data region 0x97000..0xDFFFF, MY PRESETS 22 sectors then the projects' 51
-  device: { name: "device", size: 73 * SECTOR, lib: { base: 0, nsec: 22 }, prj: { base: 22 * SECTOR, nsec: 51 } },
+  // persist.h (QD_DEVICE): the USB package's data region 0x97000..0xDFFFF, MY PRESETS 22 sectors then the projects' 51
+  device: { name: "device", package: "usb", magic: "Z2FS", region: 0x97000, size: 73 * SECTOR, nproj: 8, nlib: 256,
+    lib: { base: 0, nsec: 22, reserve: 2 }, prj: { base: 22 * SECTOR, nsec: 51, reserve: 10 } },
+  // persist.h (QD_DEVICE, QD_PKG_BLE): the Bluetooth package's store 0xAF000..0xDFFFF (its second data blob before it)
+  ble: { name: "ble", package: "ble", magic: "Z2FB", region: 0xAF000, size: 49 * SECTOR, nproj: 4, nlib: 128,
+    lib: { base: 0, nsec: 11, reserve: 2 }, prj: { base: 11 * SECTOR, nsec: 38, reserve: 10 } },
   // persist.h (the host, the browser preview's wasm): 1 MiB, MY PRESETS 32 sectors, the projects' 224 from 0x20000
-  host: { name: "host", size: 0x100000, lib: { base: 0, nsec: 32 }, prj: { base: 0x20000, nsec: 224 } },
+  host: { name: "host", package: "usb", magic: "Z2FS", size: 0x100000, nproj: 8, nlib: 256,
+    lib: { base: 0, nsec: 32, reserve: RESERVE }, prj: { base: 0x20000, nsec: 224, reserve: RESERVE } },
 };
-const layoutOf = (size) => Object.values(LAYOUTS).find((l) => l.size === size) || null;
+const layoutByName = (n) => (typeof n === "string" ? LAYOUTS[n] : n) || null;
+// a layout by the image's size, checked against its sectors' magic when the image is given (a blank one passes)
+function layoutOf(size, img = null) {
+  const l = Object.values(LAYOUTS).find((x) => x.size === size) || null;
+  if (!l || !img) return l;
+  const m = magicsOf(img);
+  return !m.size || m.has(l.magic) ? l : null;
+}
+const PACKAGE_NAME = { usb: "USB", ble: "Bluetooth" };
 
 const RK = { SET: 1, HDR: 2, PAT: 3, SND: 4, LIB: 5, FTAG: 6, MFX: 7 };   // persist.h QD_RK_*
 const rkey = (kind, p, i) => ((kind << 24) | (p << 16) | i) >>> 0;
-const NPROJ = 8, NLIB = 256, PRESET_MINE0 = 0x100;
+const NPROJ = 8, NLIB = 256, PRESET_MINE0 = 0x100;   // (the USB package's; a layout's own: nproj, nlib)
 const NAME = 13, BLOB = 128;
 
 const g16 = (b, o) => b[o] | (b[o + 1] << 8);
@@ -1177,18 +1207,30 @@ function crc16(c, b, from, to) {
   return c;
 }
 const pagesOf = (len) => (len === DELETED || !len ? 1 : Math.ceil(len / PAYLOAD));
-const isMagic = (b, o) => b[o] === 0x5A && b[o + 2] === 0x46 && b[o + 3] === 0x53;   // "Z?FS" (Z2FS today)
+// a sector's magic: "Z2FS" (the USB package's, and the host's) or "Z2FB" (the Bluetooth package's); "" none
+const MAGICS = ["Z2FS", "Z2FB"];
+function sectorMagic(b, o) {
+  if (o + 12 > b.length || b[o] !== 0x5A || b[o + 2] !== 0x46 || (b[o + 3] !== 0x53 && b[o + 3] !== 0x42)) return "";
+  if (g16(b, o + 8) !== (~g16(b, o + 10) & 0xFFFF)) return "";
+  return String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3]);
+}
+function magicsOf(img) {
+  const out = new Set();
+  for (let o = 0; o + SECTOR <= img.length; o += SECTOR) { const m = sectorMagic(img, o); if (MAGICS.includes(m)) out.add(m); }
+  return out;
+}
 
-function mount(img, base, nsec) {
+function mount(img, base, nsec, want = "") {
   const sseq = new Array(nsec).fill(0);
   const order = [];
   let magic = "";
   for (let k = 0; k < nsec; k++) {
     const o = base + k * SECTOR;
-    if (isMagic(img, o) && g32(img, o + 4) && g32(img, o + 4) !== 0xFFFFFFFF && g16(img, o + 8) === (~g16(img, o + 10) & 0xFFFF)) {
+    const mg = sectorMagic(img, o);
+    if (mg && (!want || mg === want) && g32(img, o + 4) && g32(img, o + 4) !== 0xFFFFFFFF) {
       sseq[k] = g32(img, o + 4);
       order.push(k);
-      magic = magic || String.fromCharCode(img[o], img[o + 1], img[o + 2], img[o + 3]);
+      magic = magic || mg;
       continue;
     }
     let blank = true;
@@ -1265,16 +1307,21 @@ function preset(b, slot) {
     sends: { chorus: b[o + 5] & 0x7F, delay: b[o + 6] & 0x7F, reverb: b[o + 7] & 0x7F } };
 }
 
-function readRegion(img, layout = layoutOf(img.length)) {
+function readRegion(img, layout = null) {
   if (!(img instanceof Uint8Array)) img = new Uint8Array(img);
-  if (!layout) throw new Error(`not a FIZZ store image (${img.length} bytes: the unit's is ${LAYOUTS.device.size})`);
-  const lib = mount(img, layout.lib.base, layout.lib.nsec), prj = mount(img, layout.prj.base, layout.prj.nsec);
+  layout = layoutByName(layout) || layoutOf(img.length, img);
+  if (!layout) {
+    const other = layoutOf(img.length), m = [...magicsOf(img)];
+    throw new Error(other ? `not a ${PACKAGE_NAME[other.package]} package's store: its sectors are ${m.join(", ")}`
+      : `not a FIZZ store image (${img.length} bytes: the USB package's is ${LAYOUTS.device.size}, the Bluetooth package's ${LAYOUTS.ble.size})`);
+  }
+  const lib = mount(img, layout.lib.base, layout.lib.nsec, layout.magic), prj = mount(img, layout.prj.base, layout.prj.nsec, layout.magic);
   const blank = !lib.sectors && !prj.sectors && img.every((x) => x === 0xFF);
   if (!lib.sectors && !prj.sectors && !blank) throw new Error("not a FIZZ store image (no FIZZ sector in it)");
   const presets = [];
-  for (let k = 0; k < NLIB; k++) { const p = preset(get(lib, rkey(RK.LIB, 0, k)), k + 1); if (p) presets.push(p); }
+  for (let k = 0; k < layout.nlib; k++) { const p = preset(get(lib, rkey(RK.LIB, 0, k)), k + 1); if (p) presets.push(p); }
   const projects = [];
-  for (let p = 0; p < NPROJ; p++) {
+  for (let p = 0; p < layout.nproj; p++) {
     const h = get(prj, rkey(RK.HDR, p, 0));
     if (h && h[0] === 0x48 && h[1] === 1) projects.push({ slot: p + 1, name: cstr(h, 2, NAME - 1), demo: !!h[2 + NAME] });
   }
@@ -1282,23 +1329,25 @@ function readRegion(img, layout = layoutOf(img.length)) {
   // persist.h QD_PRJ_FORMAT: 'G' 2 six tracks (2026-10-24), 'G' 1 eight; a store without it: an empty or older one
   const format = set && set.length >= 2 && set[0] === 0x47 ? set[1] : null;
   const tracks = format === 2 ? 6 : format === 1 ? 8 : null;
-  return { layout: layout.name, size: img.length, magic: lib.magic || prj.magic || "", blank, format, tracks, projects, presets,
+  return { layout: layout.name, package: layout.package, nproj: layout.nproj, nlib: layout.nlib, size: img.length,
+    magic: lib.magic || prj.magic || "", blank, format, tracks, projects, presets,
     used: { lib: [lib.live, lib.total], prj: [prj.live, prj.total], all: (lib.live + prj.live) / (lib.total + prj.total) } };
 }
 
 // ---- the writer (Manager PROJECTS, backups in the browser's FIZZ): a store written fresh, as store.c's own writes
 // would leave it, but packed: the records one after another from the region's first sector, the sectors' sequence
 // numbers 1, 2, .. in place order (a record runs on into the next sector, the log's next), the records' 1, 2, ..; every
-// other sector erased. A tombstone is left out (no record is the same as a deleted one). store.c keeps QDS_RESERVE
-// blank sectors for its garbage collection: an image that would leave fewer is refused.
+// other sector erased. A tombstone is left out (no record is the same as a deleted one). The unit keeps blank sectors
+// for its garbage collection (the layout's reserve): an image that would leave fewer is refused.
 //
 //   records(st)                      -> [{key, bytes}] every live record of a mounted store, by key
-//   writeStore(img, base, nsec, recs, magic) -> sectors used | throws {code: "full"}
-//   buildImage(layout, {lib, prj, magic}) -> a whole region (layout.size bytes)
+//   writeStore(img, base, nsec, recs, magic, reserve) -> sectors used | throws {code: "full"}
+//   buildImage(layout, {lib, prj})   -> a whole region (layout.size bytes) in the layout's magic | throws {code:
+//                                       "full" | "range"} (a project or a MY PRESETS place the layout does not have)
 //   regionRecords(img)               -> {layout, magic, lib: [{key, bytes}], prj: [..]}
 //   convertImage(img, to)            -> the same records in another layout ("device" <-> "host": a backup in the
-//                                       browser's FIZZ, the 1 MiB flash the player keeps)
-const RESERVE = 6;                                   // store.h QDS_RESERVE
+//                                       browser's FIZZ, the 1 MiB flash the player keeps; "ble" -> "device" | "host";
+//                                       into "ble" only what fits it: projects.js fitModel chooses)
 const p16 = (b, o, v) => { b[o] = v & 0xFF; b[o + 1] = (v >>> 8) & 0xFF; };
 const p32 = (b, o, v) => { b[o] = v & 0xFF; b[o + 1] = (v >>> 8) & 0xFF; b[o + 2] = (v >>> 16) & 0xFF; b[o + 3] = (v >>> 24) & 0xFF; };
 
@@ -1311,12 +1360,12 @@ function records(st) {
   return out;
 }
 
-function writeStore(img, base, nsec, recs, magic = "Z2FS") {
+function writeStore(img, base, nsec, recs, magic = "Z2FS", reserve = RESERVE) {
   img.fill(0xFF, base, base + nsec * SECTOR);
   let sec = -1, p = PPS, rseq = 0;
   const page = () => {
     if (p === PPS) {                                        // the next sector, its header (store.c open_sector)
-      if (++sec >= nsec - RESERVE) throw Object.assign(new Error(`the records do not fit (${nsec - RESERVE} sectors)`), { code: "full" });
+      if (++sec >= nsec - reserve) throw Object.assign(new Error(`the records do not fit (${nsec - reserve} sectors)`), { code: "full" });
       const o = base + sec * SECTOR;
       for (let i = 0; i < 4; i++) img[o + i] = magic.charCodeAt(i);
       p32(img, o + 4, sec + 1);
@@ -1340,25 +1389,33 @@ function writeStore(img, base, nsec, recs, magic = "Z2FS") {
   return sec + 1;
 }
 
-function buildImage(layout, { lib = [], prj = [], magic = "Z2FS" } = {}) {
-  if (typeof layout === "string") layout = LAYOUTS[layout];
+// a record the layout has no place for: a project past its nproj, a MY PRESETS place past its nlib
+function outside(layout, key, inLib) {
+  const kind = key >>> 24, p = (key >>> 16) & 0xFF, i = key & 0xFFFF;
+  return inLib ? kind === RK.LIB && i >= layout.nlib : kind !== RK.SET && p >= layout.nproj;
+}
+function buildImage(layout, { lib = [], prj = [] } = {}) {
+  layout = layoutByName(layout);
+  const bad = [...lib.filter((r) => outside(layout, r.key, true)), ...prj.filter((r) => outside(layout, r.key, false))];
+  if (bad.length) throw Object.assign(new Error(`${bad.length} records have no place in the ${PACKAGE_NAME[layout.package]} package's store (${layout.nproj} projects, ${layout.nlib} MY PRESETS)`), { code: "range" });
   const img = new Uint8Array(layout.size).fill(0xFF);
-  writeStore(img, layout.lib.base, layout.lib.nsec, lib, magic);
-  writeStore(img, layout.prj.base, layout.prj.nsec, prj, magic);
+  writeStore(img, layout.lib.base, layout.lib.nsec, lib, layout.magic, layout.lib.reserve);
+  writeStore(img, layout.prj.base, layout.prj.nsec, prj, layout.magic, layout.prj.reserve);
   return img;
 }
 
-function regionRecords(img, layout = layoutOf(img.length)) {
+function regionRecords(img, layout = null) {
+  layout = layoutByName(layout) || layoutOf(img.length, img);
   if (!layout) throw new Error(`not a FIZZ store image (${img.length} bytes)`);
-  const lib = mount(img, layout.lib.base, layout.lib.nsec), prj = mount(img, layout.prj.base, layout.prj.nsec);
-  return { layout, magic: lib.magic || prj.magic || "Z2FS", lib: records(lib), prj: records(prj) };
+  const lib = mount(img, layout.lib.base, layout.lib.nsec, layout.magic), prj = mount(img, layout.prj.base, layout.prj.nsec, layout.magic);
+  return { layout, magic: layout.magic, lib: records(lib), prj: records(prj) };
 }
 
 function convertImage(img, to) {
   const r = regionRecords(img);
-  return buildImage(typeof to === "string" ? LAYOUTS[to] : to, r);
+  return buildImage(to, { lib: r.lib, prj: r.prj });
 }
-return { DELETED, HDR, LAYOUTS, NLIB, NPROJ, PAGE, PAYLOAD, PPS, PRESET_MINE0, RESERVE, SECTOR, buildImage, convertImage, get, layoutOf, mount, preset, readRegion, records, regionRecords, writeStore };
+return { DELETED, HDR, LAYOUTS, NLIB, NPROJ, PACKAGE_NAME, PAGE, PAYLOAD, PPS, PRESET_MINE0, RESERVE, SECTOR, buildImage, convertImage, get, layoutByName, layoutOf, magicsOf, mount, preset, readRegion, records, regionRecords, writeStore };
 })();
 
 // ======== site/manager/fizzbak.js (imports site/js/library.js, site/js/fm1dnsnd.js, site/manager/fizzstore.js, site/js/fizz_sysex.js)
@@ -1370,7 +1427,8 @@ const __fizz_m4 = (function () {
 //
 //   manifest.json            { "format": "fizz-backup", "version": 1, "kind": "full" | "presets", "date": ISO,
 //                              "fizz": "0.11.0-beta.2", "unit": { "identity": "FM-1_46001100", "port": "FIZZ FM-1" },
-//                              "store": { "layout": "device", "magic": "Z2FS", "format": 2, "tracks": 6,
+//                              "store": { "layout": "device" (the USB package's; "ble" the Bluetooth package's, magic
+//                                         "Z2FB", region [0xAF000, 200704]), "magic": "Z2FS", "format": 2, "tracks": 6,
 //                                         "region": [0x97000, 299008], "crc32": "1a2b3c4d", "file": "store.bin" },
 //                              "projects": [{ "slot": 1, "name": "NOIR" }], "presets": 143,
 //                              "web": { "tags": { "<sound key>": ["SHIMMER"] } }, "transfer": { .. the timing .. } }
@@ -1531,21 +1589,27 @@ const __fizz_m5 = (function () {
 //   pastePatterns(model, q, j, clip) -> {at: [k], poolAdded, presetsAdded}   (throws {code: "poolfull" | "libfull" | "range"})
 //   clearPatterns(model, q, ks)
 //   keepProject(model, p) -> a kept project {name, demo, recs: [{kind, i, bytes}], presets: Map, pats, sounds}
-//   loadProject(model, q, kept) -> {presetsAdded}  (slot q's records replaced; throws {code: "libfull"})
+//   loadProject(model, q, kept) -> {presetsAdded, copies}  (slot q's records replaced; throws {code: "range"})
+//   limits(model) -> {nproj, nlib, package}           (the store's package: USB 8 and 256, Bluetooth 4 and 128)
+//   fitModel(model, to, {projects, presets}) -> {model, copies, left: {projects, presets}}   (another package's layout)
+//   fitChoice(model, to, {projects}) -> {projects, presets}   (fitModel's default: the first projects, their presets)
 //   makeFizzprj(kept, {fizz, date}) / readFizzprj(bytes)    makeFizzpat(clip, ..) / readFizzpat(bytes)
 // The changes are FIZZ's own rules, done here: a pattern's steps and track sounds name its project's pool numbers (1..128),
 // re-mapped into the target's pool ('R' 1: a pool place's preset id; the same id where the target has it, else the first
 // free place); its track sounds 'P' 5/6 name MY preset ids (the whole unit's): kept as they are when the target store has
 // that preset with the same name and sound, else linked to one that has, else the preset added (a new id, as the unit's
-// id_next) from the copy the clip carries. A project's MIDI FX groups stay its own (the owner: a project is "everything for
+// id_next) from the copy the clip carries; MY PRESETS full (the Bluetooth package's 128 fill sooner), the sound becomes the
+// project's own copy instead (a track sound by reference written as a copy, a pool place 'S' with no id: persist.h
+// P1.5w, the unit keeps it as it is until the library has room), so the project sounds the same everywhere. A project's
+// MIDI FX groups stay its own (the owner: a project is "everything for
 // one or two songs"): a pasted pattern plays the target's groups.
-const { regionRecords, buildImage, preset: presetRec } = __fizz_m3;
+const { regionRecords, buildImage, preset: presetRec, layoutByName, PACKAGE_NAME } = __fizz_m3;
 const { zipStored, soundToFizzsnd } = __fizz_m2;
 const { dnReadZip } = __fizz_m0;
 const { FIZZ_TAGS } = __fizz_m1;
 
 const RK = { SET: 1, HDR: 2, PAT: 3, SND: 4, LIB: 5, FTAG: 6, MFX: 7 };       // persist.h QD_RK_*
-const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 23, MINE0 = 0x100, DEMO_N = 3;
+const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 23, MINE0 = 0x100, DEMO_N = 3;   // (NPROJ, NLIB: the USB package's)
 const NAME = 13, BLOB = 128, WIRE = 20, LIBLEN = 2 + NAME + BLOB + 8;
 const rkey = (kind, p, i) => ((kind << 24) | (p << 16) | i) >>> 0;
 const kindOf = (k) => k >>> 24, projOf = (k) => (k >>> 16) & 0xFF, idxOf = (k) => k & 0xFFFF;
@@ -1561,7 +1625,8 @@ function modelOf(image) {
   return { layout: r.layout, magic: r.magic, lib: new Map(r.lib.map((x) => [x.key, x.bytes])), prj: new Map(r.prj.map((x) => [x.key, x.bytes])) };
 }
 const sorted = (m) => [...m.entries()].sort((a, b) => a[0] - b[0]).map(([key, bytes]) => ({ key, bytes }));
-const imageOf = (m) => buildImage(m.layout, { lib: sorted(m.lib), prj: sorted(m.prj), magic: m.magic });
+const imageOf = (m) => buildImage(m.layout, { lib: sorted(m.lib), prj: sorted(m.prj) });
+const limits = (m) => { const l = layoutByName(m.layout); return { nproj: l.nproj, nlib: l.nlib, package: l.package }; };
 const cloneModel = (m) => ({ layout: m.layout, magic: m.magic, lib: new Map(m.lib), prj: new Map(m.prj) });
 const keysOf = (m, p) => [...m.prj.keys()].filter((k) => kindOf(k) !== RK.SET && projOf(k) === p);
 
@@ -1593,6 +1658,7 @@ function walkPat(b) {
     pages.push(pg);
   }
   o += 4 * nlock;
+  const sndAt = o;
   for (let t = 0; t < NTRACK; t++) {
     if (refAt.length && g16(b, refAt[t])) { soundAt.push(o); o += 2; continue; }   // by reference: its pool source, edited
     o += v >= 3 ? BLOB : 96;
@@ -1610,7 +1676,7 @@ function walkPat(b) {
     if (n > best) { best = n; show = p; }
   }
   const rows = pages.map((pg) => Array.from({ length: 16 }, (_, s) => !!((pg[show] >> s) & 1)));
-  return { v, used: !!used, trigs, rows, page: show, soundAt: soundAt.filter((x) => b[x]), refAt, idAt };
+  return { v, used: !!used, trigs, rows, page: show, soundAt: soundAt.filter((x) => b[x]), refAt, idAt, sndAt };
 }
 
 // ---- a project
@@ -1634,7 +1700,7 @@ function project(m, p) {
   for (let n = 1; n <= NPOOL; n++) if (there && poolEntry(m, p, n, empty)) pool++;
   return { p, there, name: there ? cstr(h, 2, NAME - 1) : "", demo, pats, used, pool };
 }
-const projects = (m) => Array.from({ length: NPROJ }, (_, p) => project(m, p));
+const projects = (m) => Array.from({ length: limits(m).nproj }, (_, p) => project(m, p));
 
 // a pool place: {id} (a reference, 'R' 1), {rec} (a copy, 0.7's 'S'), or null (empty, 'E' 1, none). A project whose
 // pool did not start empty (the demos', 0.6's: HDR's pool_empty byte, persist.c proj_read) holds factory preset n in
@@ -1652,7 +1718,7 @@ function poolEntry(m, p, n, empty = poolStartsEmpty(m, p)) {
 // ---- MY PRESETS: their records by id; a preset's match is its name and packed sound (persist.c tsound_ref)
 function libIndex(m) {
   const byId = new Map(), free = [];
-  for (let i = 0; i < NLIB; i++) {
+  for (let i = 0; i < limits(m).nlib; i++) {
     const r = m.lib.get(rkey(RK.LIB, 0, i));
     if (r && r.length === LIBLEN && r[0] === 0x53 && r[1] === 5) byId.set(g16(r, 2 + NAME + BLOB), { i, r });
     else free.push(i);
@@ -1667,17 +1733,20 @@ function nextId(m, ix) {
   if (f && f[0] === 0x46 && f[1] === 2 && f.length >= 2 + NFACTORY + 2) n = Math.max(n, g16(f, 2 + NFACTORY));
   return n;
 }
-// the ids a clip or a kept project names, made the target store's: kept, linked to the same sound, or added
-function relink(m, presets) {
-  const map = new Map(), ix = libIndex(m);
+// the ids a clip or a kept project names, made the target store's: kept, linked to the same sound, or added; with
+// MY PRESETS full, lost (-> lost: id -> its record: the callers write the sound as the project's own copy). The ids
+// the patterns and the pool play (need) get the free places first, those only named as a copy's origin after
+function relink(m, presets, need = null) {
+  const map = new Map(), lost = new Map(), ix = libIndex(m);
   let added = 0;
-  for (const [id, rec] of presets) {
+  const order = [...presets].sort((a, b) => (need ? (need.has(b[0]) ? 1 : 0) - (need.has(a[0]) ? 1 : 0) : 0));
+  for (const [id, rec] of order) {
     if (id <= NFACTORY) { map.set(id, id); continue; }
     const here = ix.byId.get(id);
     if (here && sameSound(here.r, rec)) { map.set(id, id); continue; }
     const same = [...ix.byId.entries()].find(([, x]) => sameSound(x.r, rec));
     if (same) { map.set(id, same[0]); continue; }
-    if (!ix.free.length) throw err("libfull", "MY PRESETS is full (256)", { need: presets.size });
+    if (!ix.free.length) { lost.set(id, rec); continue; }
     const i = ix.free.shift(), nid = nextId(m, ix), r = rec.slice();
     p16(r, 2 + NAME + BLOB, nid);
     m.lib.set(rkey(RK.LIB, 0, i), r);
@@ -1689,7 +1758,53 @@ function relink(m, presets) {
       const g = f.slice(); p16(g, 2 + NFACTORY, nid + 1); m.lib.set(rkey(RK.FTAG, 0, 0), g);
     }
   }
-  return { map, added };
+  return { map, added, lost };
+}
+// the ids a project's patterns play by reference and its pool references (relink's need)
+function neededIds(pats, poolIds) {
+  const need = new Set(poolIds);
+  for (const b of pats) { const w = walkPat(b); if (w) w.refAt.forEach((o) => { const id = g16(b, o); if (id) need.add(id); }); }
+  return need;
+}
+// a MY PRESETS record as a pool place's own copy ('S' 5 with no id: "a copy the library had no room for", persist.c
+// snd_rec; the unit makes it a reference again when its project loads with room in the library)
+const copyRecord = (rec) => { const r = rec.slice(); p16(r, 2 + NAME + BLOB, 0); return r; };
+// a pattern record's track sounds that name a lost preset (lost: id -> its MY PRESETS record) written as the track's own
+// copy (the preset's packed sound and name, as de_pat reads a reference: the same sound, no id); a copy's origin id that
+// is lost cleared -> {bytes, n: the track sounds made copies}
+function derefPat(b, lost) {
+  const w = walkPat(b);
+  if (!w || !lost.size) return { bytes: b, n: 0 };
+  const ids = w.refAt.map((o) => g16(b, o));
+  if (!ids.some((id) => lost.has(id)) && !w.idAt.some((o) => lost.has(g16(b, o)))) return { bytes: b, n: 0 };
+  const head = b.slice(0, w.sndAt), parts = [head];
+  let o = w.sndAt, n = 0;
+  const cbl = w.v >= 3 ? BLOB : 96;
+  for (let t = 0; t < NTRACK; t++) {
+    const id = ids.length ? ids[t] : 0;
+    if (id) {                                          // (by reference: its pool source and edited bytes)
+      const two = b.slice(o, o + 2);
+      o += 2;
+      const rec = lost.get(id);
+      if (!rec) { parts.push(two); continue; }
+      const c = new Uint8Array(BLOB + 2 + NAME + 2);
+      c.set(rec.subarray(2 + NAME, 2 + NAME + BLOB), 0);
+      c.set(two, BLOB);
+      c.set(rec.subarray(2, 2 + NAME), BLOB + 2);
+      p16(head, w.refAt[t], 0);
+      parts.push(c);
+      n++;
+      continue;
+    }
+    const len = cbl + 2 + NAME + (w.v >= 2 ? 2 : 0), c = b.slice(o, o + len);
+    if (w.v >= 2 && lost.has(g16(c, len - 2))) p16(c, len - 2, 0);
+    parts.push(c);
+    o += len;
+  }
+  const out = new Uint8Array(parts.reduce((a, x) => a + x.length, 0));
+  let k = 0;
+  for (const x of parts) { out.set(x, k); k += x.length; }
+  return { bytes: out, n };
 }
 // the MY presets a pattern record names (track references and copies' ids) and a pool's references
 function presetsOf(m, bytesList, poolIds) {
@@ -1728,13 +1843,18 @@ function pastePatterns(m, q, j, clip) {
   if (!clip.pats.length) return { at: [], poolAdded: 0, presetsAdded: 0 };
   const k0 = clip.pats[0].k, at = clip.pats.map((x) => j + x.k - k0);
   if (at.some((k) => k < 0 || k >= NPAT)) throw err("range", `the patterns run past D16 from ${patName(j)}`);
-  const { map: imap, added } = relink(m, clip.presets);
+  if (q < 0 || q >= limits(m).nproj) throw err("range", `slot ${q + 1}: this store has ${limits(m).nproj} projects`);
+  const need = neededIds(clip.pats.map((x) => x.bytes), [...clip.pool.values()].filter((e) => e && e.id).map((e) => e.id));
+  const { map: imap, added, lost } = relink(m, clip.presets, need);
+  let copies = 0;
   const pmap = new Map();
   let poolAdded = 0;
   const free = [];
   for (let n = 1; n <= NPOOL; n++) if (!poolEntry(m, q, n)) free.push(n);
-  for (const [n, e] of clip.pool) {
-    if (!e) { pmap.set(n, 0); continue; }              // (a lock on an empty place: the track's sound, as FIZZ plays it)
+  for (const [n, e0] of clip.pool) {
+    if (!e0) { pmap.set(n, 0); continue; }             // (a lock on an empty place: the track's sound, as FIZZ plays it)
+    const e = e0.id && lost.has(e0.id) ? { rec: copyRecord(lost.get(e0.id)) } : e0;   // (MY PRESETS full: its own copy)
+    if (e !== e0) copies++;
     let hit = 0;
     for (let x = 1; x <= NPOOL && !hit; x++) {
       const t = poolEntry(m, q, x);
@@ -1750,8 +1870,12 @@ function pastePatterns(m, q, j, clip) {
     }
     pmap.set(n, hit);
   }
-  clip.pats.forEach((x, i) => m.prj.set(rkey(RK.PAT, q, at[i]), remapPat(x.bytes, pmap, imap)));
-  return { at, poolAdded, presetsAdded: added };
+  clip.pats.forEach((x, i) => {
+    const d = derefPat(remapPat(x.bytes, pmap, imap), lost);
+    copies += d.n;
+    m.prj.set(rkey(RK.PAT, q, at[i]), d.bytes);
+  });
+  return { at, poolAdded, presetsAdded: added, copies };
 }
 // cleared: no record, as a pattern never written. A demo project's A01..A03 without a record play the demos (compiled
 // in): those are refused ({code: "demo"}), nothing changed
@@ -1771,16 +1895,74 @@ function keepProject(m, p) {
   return { name: info.name, demo: info.demo, recs, presets, pats: info.used, sounds: info.pool, colours: colours(presets) };
 }
 function loadProject(m, q, kept) {
+  const { nproj } = limits(m);
+  if (q < 0 || q >= nproj) throw err("range", `slot ${q + 1}: this store has ${nproj} projects`);
   for (const k of keysOf(m, q)) m.prj.delete(k);
-  const { map: imap, added } = relink(m, kept.presets);
+  const isRef = (b) => b.length === 4 && b[0] === 0x52 && b[1] === 1;
+  const need = neededIds(kept.recs.filter((r) => r.kind === RK.PAT).map((r) => r.bytes),
+    kept.recs.filter((r) => r.kind === RK.SND && isRef(r.bytes)).map((r) => g16(r.bytes, 2)));
+  const { map: imap, added, lost } = relink(m, kept.presets, need);
   const same = new Map();                               // (the pool numbers stay: the whole pool comes along)
+  let copies = 0;
   for (const r of kept.recs) {
     let b = r.bytes;
-    if (r.kind === RK.PAT) b = remapPat(b, same, imap);
-    else if (r.kind === RK.SND && b.length === 4 && b[0] === 0x52 && b[1] === 1 && imap.has(g16(b, 2))) { b = b.slice(); p16(b, 2, imap.get(g16(b, 2))); }
+    if (r.kind === RK.PAT) { const d = derefPat(remapPat(b, same, imap), lost); b = d.bytes; copies += d.n; }
+    else if (r.kind === RK.SND && isRef(b) && lost.has(g16(b, 2))) { b = copyRecord(lost.get(g16(b, 2))); copies++; }
+    else if (r.kind === RK.SND && isRef(b) && imap.has(g16(b, 2))) { b = b.slice(); p16(b, 2, imap.get(g16(b, 2))); }
     m.prj.set(rkey(r.kind, q, r.i), b);
   }
-  return { presetsAdded: added };
+  return { presetsAdded: added, copies };
+}
+
+// ---- a store in another package's layout (a full backup restored across packages: USB 8 projects and 256 MY PRESETS,
+// Bluetooth 4 and 128), record by record. The projects chosen go to slots 1.. in their order, the MY presets chosen to
+// places 1.. in theirs (their ids kept: what names them by id still finds them); a track sound or a pool place that
+// names a preset left out becomes the project's own copy (derefPat, copyRecord: it sounds the same). The settings
+// record's project follows its project (the first slot when it was left out).
+function fitChoice(m, to, { projects: ps = null } = {}) {
+  to = layoutByName(to);
+  const there = projects(m).filter((x) => x.there).map((x) => x.p);
+  const chosen = (ps || there).slice(0, to.nproj);
+  const ix = libIndex(m), placeOf = new Map([...ix.byId].map(([id, x]) => [id, x.i]));
+  const used = [];
+  for (const p of chosen) {
+    const recs = keysOf(m, p).map((k) => ({ k, b: m.prj.get(k) }));
+    const ids = neededIds(recs.filter((r) => kindOf(r.k) === RK.PAT).map((r) => r.b),
+      recs.filter((r) => kindOf(r.k) === RK.SND && r.b.length === 4 && r.b[0] === 0x52).map((r) => g16(r.b, 2)));
+    for (const id of ids) if (placeOf.has(id) && !used.includes(placeOf.get(id))) used.push(placeOf.get(id));
+  }
+  const all = [...ix.byId.values()].map((x) => x.i).sort((a, b) => a - b);
+  const presets = [...used.sort((a, b) => a - b), ...all.filter((i) => !used.includes(i))].slice(0, to.nlib);
+  return { projects: chosen, presets };
+}
+function fitModel(m, to, choice = null) {
+  to = layoutByName(to);
+  const c = choice || fitChoice(m, to);
+  if (c.projects.length > to.nproj || c.presets.length > to.nlib)
+    throw err("range", `the ${PACKAGE_NAME[to.package]} package holds ${to.nproj} projects and ${to.nlib} MY PRESETS`);
+  const out = { layout: to, magic: to.magic, lib: new Map(), prj: new Map() };
+  const ix = libIndex(m), lost = new Map();
+  for (const [k, b] of m.lib) if (kindOf(k) !== RK.LIB) out.lib.set(k, b);   // (the factory tags, the next id)
+  c.presets.forEach((i, n) => out.lib.set(rkey(RK.LIB, 0, n), m.lib.get(rkey(RK.LIB, 0, i))));
+  for (const [id, x] of ix.byId) if (!c.presets.includes(x.i)) lost.set(id, x.r);
+  let copies = 0;
+  c.projects.forEach((p, q) => {
+    for (const k of keysOf(m, p)) {
+      let b = m.prj.get(k);
+      if (kindOf(k) === RK.PAT) { const d = derefPat(b, lost); b = d.bytes; copies += d.n; }
+      else if (kindOf(k) === RK.SND && b.length === 4 && b[0] === 0x52 && b[1] === 1 && lost.has(g16(b, 2))) { b = copyRecord(lost.get(g16(b, 2))); copies++; }
+      out.prj.set(rkey(kindOf(k), q, idxOf(k)), b);
+    }
+  });
+  const set = m.prj.get(rkey(RK.SET, 0, 0));
+  if (set) {
+    const g = set.slice(), q = set.length > 3 ? c.projects.indexOf(set[2]) : 0;
+    if (set.length > 3) { g[2] = Math.max(0, q); if (q < 0) g[3] = 0; }
+    out.prj.set(rkey(RK.SET, 0, 0), g);
+  }
+  const all = projects(m);
+  return { model: out, copies, left: { projects: all.filter((x) => x.there && !c.projects.includes(x.p)).map((x) => ({ slot: x.p + 1, name: x.name })),
+    presets: [...ix.byId.entries()].filter(([, x]) => !c.presets.includes(x.i)).map(([id, x]) => ({ slot: x.i + 1, id, name: (presetRec(x.r, x.i + 1) || {}).name || "?" })) } };
 }
 // a kept project's name (HDR 'H' 1: name[13] after the two bytes)
 function renameKept(kept, name) {
@@ -1866,7 +2048,7 @@ async function readFizzpat(bytes, file = "") {
 }
 const patFileName = (clip) => `${safe(clip.from)} ${clip.names.length > 1 ? `${clip.names[0]}-${clip.names[clip.names.length - 1]}` : clip.names[0] || ""}.fizzpat`;
 const prjFileName = (kept) => `${safe(kept.name)}.fizzprj`;
-return { DEMO_N, FILE_VERSION, MINE0, NFACTORY, NLIB, NPAT, NPOOL, NPROJ, NTRACK, PAT_FORMAT, PRJ_FORMAT, RK, cleanName, clearPatterns, cloneModel, copyPatterns, idxOf, imageOf, keepProject, kindOf, loadProject, makeFizzpat, makeFizzprj, modelOf, pastePatterns, patFileName, patName, prjFileName, projOf, project, projects, readFizzpat, readFizzprj, renameKept, rkey, walkPat };
+return { DEMO_N, FILE_VERSION, MINE0, NFACTORY, NLIB, NPAT, NPOOL, NPROJ, NTRACK, PAT_FORMAT, PRJ_FORMAT, RK, cleanName, clearPatterns, cloneModel, copyPatterns, copyRecord, derefPat, fitChoice, fitModel, idxOf, imageOf, keepProject, kindOf, limits, loadProject, makeFizzpat, makeFizzprj, modelOf, pastePatterns, patFileName, patName, prjFileName, projOf, project, projects, readFizzpat, readFizzprj, renameKept, rkey, walkPat };
 })();
 
 // ======== site/manager/fizzvalues.js
