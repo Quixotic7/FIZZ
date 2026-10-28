@@ -773,6 +773,23 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
   }
 }
 
+// ---- the Bluetooth package's own MIDI port ("FM-1 XXXX Bluetooth", once a computer connects): the USB port first when
+// both are there; over it alone everything but a restore (FZER 15, said before the unit is asked)
+{
+  const usb = await sim(), bt = await sim({ name: "FM-1 1A2B Bluetooth" });
+  const both = { inputs: new Map([["b", bt.input], ["u", usb.input]]), outputs: new Map([["b", bt.output], ["u", usb.output]]) };
+  const l1 = await findFizz(both);
+  check(l1.port === "FIZZ FM-1" && !l1.viaBle, `the USB port and the Bluetooth one both there: the link is "${l1.port}"`);
+  l1.close();
+  const l2 = await findFizz(bt.access), v2 = await l2.identity(), i2 = await l2.storeInfo(), st2 = await l2.status();
+  let e15 = null;
+  try { await l2.restore(new Uint8Array(i2.size)); } catch (x) { e15 = x; }
+  check(l2.viaBle && v2 && i2 && st2 && e15 && e15.fzer === 15 && e15.written === false && /USB cable/.test(e15.message),
+    `over the Bluetooth port alone: IDENTITY, FZBI, STATUS answered; a restore refused before it starts ("${e15 && e15.message}")`);
+  l2.close();
+  usb.dispose(); bt.dispose();
+}
+
 // ---- the owner's saved images (outside the repo), read offline
 {
   const dir = path.resolve(SITE, "../../FIZZ-saves");

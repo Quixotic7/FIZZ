@@ -210,6 +210,34 @@ try {
   await click("#rs-cancel");
   await evaluate("(() => { __mgr.S.unit.status = window.__keepStatus; })()");
   await idle();
+  // a USB backup with 6 projects and 150 MY presets opened on a Bluetooth unit (this one made to look like one: its
+  // store's size and STATUS's package): the projects and presets to keep chosen, the rest listed; not restored here
+  await evaluate(`(async () => { const P = await import('./projects.js'), B = await import('./fizzbak.js'), F = await import('./fizzstore.js');
+    const b = __mgr.S.baks.find((x) => x.kind === 'full'), parsed = await B.readBackup(b.bytes, b.name);
+    const m = P.fitModel(P.modelOf(parsed.image), 'device').model, p0 = P.projects(m).find((x) => x.there).p;
+    for (const q of [1, 2, 3, 4, 5]) if (q !== p0) P.loadProject(m, q, P.keepProject(m, p0));
+    const rec = [...m.lib.entries()].find(([k]) => k >>> 24 === 5)[1];
+    for (let i = 0; i < 150; i++) { const k = (5 << 24) | i; if (m.lib.has(k)) continue; const r = rec.slice(); r.fill(0, 2, 15); [...('MANY ' + i)].forEach((c, j) => { r[2 + j] = c.charCodeAt(0); }); r[20] ^= (i + 1) & 0x7f; r[143] = i & 0xff; r[144] = 0x10 + (i >> 8); m.lib.set(k, r); }
+    const u = __mgr.S.unit;
+    window.__keepUnit = { info: u.info, status: u.status };
+    u.info = { ...u.info, size: F.LAYOUTS.ble.size }; u.status = { ...u.status, package: 'ble', nproj: 4, nlib: 128 };
+    await __mgr.openFile(B.makeFizzbak({ kind: 'full', image: P.imageOf(m), presets: [], fizz: 'test' }), 'USB BIG.fizzbak'); })()`);
+  await waitFor("!document.getElementById('rs').hidden && document.getElementById('rs-safe').textContent.includes('saved first')", 60000);
+  const fx = await evaluate("({ chips: document.getElementById('rs-chips').textContent, fit: document.getElementById('rs-fit').textContent, then: document.getElementById('rs-then').textContent, lists: [...document.querySelectorAll('#rs-fit .fitlist .kv')].map((e) => e.textContent) })");
+  check(/USB BACKUP → BLUETOOTH PACKAGE/.test(fx.chips) && /choose what to keep/.test(fx.fit) && fx.lists.join("|") === "PROJECTS 4 / 4|MY PRESETS 128 / 128" && /Left out: 2 projects/.test(fx.fit) && fx.then === "4 · 128",
+    `RESTORE onto a Bluetooth unit: ${fx.lists.join(", ")}, "${(fx.fit.match(/Left out:[^.]*/) || [""])[0].slice(0, 90)}..."`);
+  await shot("manager-02d-restore-fit.png");
+  await click("#rs-fit .fitlist[data-kind=p] input:checked");
+  const fx2 = await evaluate("({ lists: [...document.querySelectorAll('#rs-fit .fitlist .kv')].map((e) => e.textContent), then: document.getElementById('rs-then').textContent })");
+  check(fx2.lists[0] === "PROJECTS 3 / 4" && fx2.then === "3 · 128", `RESTORE onto a Bluetooth unit: a project unticked: ${fx2.lists[0]}, then ${fx2.then}`);
+  await click("#rs-cancel");
+  await evaluate("(() => { Object.assign(__mgr.S.unit, window.__keepUnit); })()");
+  await idle();
+  // (that backup out of the list again: BROWSER boots the newest full one)
+  await evaluate("(() => { const i = __mgr.S.baks.findIndex((b) => b.name === 'USB BIG.fizzbak'); document.querySelectorAll('#baks .bk')[i].querySelector('[data-act=del]').click(); })()");
+  await waitFor("!document.getElementById('cf').hidden");
+  await click("#cf-go");
+  await waitFor("!__mgr.S.baks.some((b) => b.name === 'USB BIG.fizzbak')");
 
   // REFRESH: a preset saved on the unit (straight into the simulated FIZZ) shows after the button, then after a focus
   const saveOnUnit = (name) => evaluate(`(async () => { const { storeSound } = await import('../js/fizz_sysex.js'); const b = new Uint8Array(96); b[0] = 0x51; b[1] = 5; b[2] = 6;
