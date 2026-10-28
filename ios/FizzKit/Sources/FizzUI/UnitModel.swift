@@ -377,6 +377,7 @@ public final class UnitModel {
     }
 
     func say(_ s: String) {
+        print("FIZZ: \(s)")   // (the console: `devicectl device process launch --console`, Xcode)
         log.append(s)
         if log.count > 400 { log.removeFirst(log.count - 400) }
     }
