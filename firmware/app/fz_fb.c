@@ -115,6 +115,7 @@ static void fz_fb_out(uint8_t *const *rows, const uint16_t *pal, uint32_t x0, ui
 {
     static uint32_t k;
     const uint32_t per = FZ_FB_CHUNK * 240u / w;
+    FZ_PH(FZ_PH_SEND);
     while (y0 < y1) {
         const uint32_t n = y1 - y0 < per ? y1 - y0 : per;
         uint16_t *b = fz_fb_buf[k];

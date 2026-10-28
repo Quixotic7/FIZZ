@@ -332,8 +332,8 @@ RAM 28,588 over, the pool 4,464 over (12,656 short of fm1-base's 8,192 spare), t
 
 | | USB package | Bluetooth package |
 | --- | --- | --- |
-| app slot (of 581,564) | 572,040 (9,524 free) | 580,528 (1,036 free) |
-| RAM .data + .bss (of 98,304) | 96,768 (1,536 free) | 98,160 (144 free) |
+| app slot (of 581,564) | 572,040 (9,524 free) | 580,992 (572 free) |
+| RAM .data + .bss (of 98,304) | 96,768 (1,536 free) | 98,176 (128 free) |
 | pool (of 344,064; 8,192 kept spare) | 330,096 (5,776 above the spare) | 335,232 (640 above the spare) |
 | RAM code region (of 32,768) | 24 free | 168 free |
 | NOINIT, FIZZ's (of 15,696 with fm1-base's) | 200 free | 356 free |
@@ -409,6 +409,13 @@ radio's too), a project load or a SysEx job. Now (the Bluetooth package only):
   ~1 ms E with the interrupts off) is not held.
 - le_midi.c (BLE_OVERLAY): the FM-1 asks for a new interval only when the link is outside BLE MIDI's 7.5..15 ms (a Mac at
   7.5 ms keeps it: one update procedure less), its first range now 7.5..22.5 ms, the old ones after it.
+- The unit (da2e512, the owner's Mac on Audio MIDI Setup): the link held at 7.5 ms; idle on HOME, the longest gap 14.8 ms
+  (185 over 10 ms a minute); one reading 93 ms. The 93 ms was the stats' own reply: 16 lines over USB through
+  fm1-base's ota_wire_send, which waits ~1 ms a 48 bytes for its ring with nothing else run (and the next reading shows
+  the gap). Now every USB SysEx FIZZ sends (its replies, the stats, the backup's) goes through app.c fz_usb_sx_send:
+  the same ring, Bluetooth's turn while it waits. The idle gaps: the frame's instant then its first band ran together;
+  a turn between them now, and before the store's step. Line 17 also says where the longest gap was: its phases
+  (ble_gap_phases, a bit each: app.c FZ_PH_*), the one it began in and the one it ended in.
 - What still holds Bluetooth back for longer than a band: a call under the audio lock (a SysEx command's work, a key's,
   a project load's reads: the stats' in_ms_max), one instant of the drawing (the screen's logic and its recording,
   fz_fbs latch), a held erase a store needed. The unit's line 17 says how long.

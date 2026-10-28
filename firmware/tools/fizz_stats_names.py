@@ -264,4 +264,7 @@ NAMES = ["", ","] + [
     "flash_page_max_us",
     "flash_erase_linked",
     "flash_erases_held",
+    "ble_gap_phases",
+    "ble_gap_from",
+    "ble_gap_to",
 ]

@@ -266,5 +266,8 @@ enum { FZN_NONE, FZN_MORE,
        FZN_flash_page_max_us,
        FZN_flash_erase_linked,
        FZN_flash_erases_held,
+       FZN_ble_gap_phases,
+       FZN_ble_gap_from,
+       FZN_ble_gap_to,
        FZN_N };
 #endif

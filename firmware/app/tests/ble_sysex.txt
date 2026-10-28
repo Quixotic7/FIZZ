@@ -45,6 +45,18 @@ expect fz_mine 1
 expect fz_bsx_out 27
 expect fz_sx_usb_out 0
 out
+# two malformed frames over Bluetooth (no protocol byte, no checksum; the owner's unit, 2026-10-27): taken, no reply,
+# nothing lost, and the next frame answered as before
+sysex BLE F0 7D 46 5A 01 F7
+sysex BLE F0 7D 46 5A 02 F7
+wait 500
+expect fz_bsx_in 7
+expect fz_bsx_out 27
+expect fz_bsx_lost 0
+sysex BLE F0 7D 46 5A 01 02 7E F7
+wait 300
+expect fz_bsx_out 28
+out
 # STATUS over USB: on USB, nothing more over Bluetooth
 sysex F0 7D 46 5A 01 02 7E F7
 wait 200
