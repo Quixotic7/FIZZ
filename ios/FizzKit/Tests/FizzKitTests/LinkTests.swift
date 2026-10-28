@@ -195,10 +195,19 @@ struct LinkTests {
         #expect(units.count == 1 && units[0].candidate.name == "FM-1")
         #expect(b.1.sent.isEmpty, "the same device not probed twice")
         // the first pair silent: the second one answers for the device
-        let c = unit(5, "FM-1", device: 30) { $0.handshakes = false }, d = unit(7, "FM-1 Port 2", device: 30)
+        let c = unit(5, "FM-1", device: 30) { $0.handshakes = false; $0.semantic = false }, d = unit(7, "FM-1 Port 2", device: 30)
         let units2 = await FizzLink.probe(scanner: MockScanner([c, d]), clock: clock)
         #expect(units2.map(\.candidate.name) == ["FM-1 Port 2"])
-        #expect(c.1.sent.count == 2 && c.1.isClosed)  // two handshakes, then closed
+        #expect(c.1.sent.count == 6 && c.1.isClosed)  // two handshakes, four IDENTITYs, then closed
+    }
+
+    @Test func fizzOverBluetoothAnswersIdentityOnly() async throws {
+        // FIZZ's Bluetooth port: the update handshake unanswered, IDENTITY answered
+        let ble = unit(1, "FM-1 C1F0 Bluetooth", device: 40) { $0.handshakes = false }
+        let r = try await FizzLink.find(scanner: MockScanner([ble]), clock: clock)
+        #expect(r.portName == "FM-1 C1F0 Bluetooth")
+        #expect(r.idText.hasPrefix(FM1Bulk.fizzPrefix))
+        #expect(try await r.link.identity() == "0.12.0-beta.9")
     }
 
     @Test func findErrors() async throws {
@@ -206,7 +215,8 @@ struct LinkTests {
             try await FizzLink.find(scanner: MockScanner([]), clock: clock)
         }
         await #expect(throws: FizzFindError.notFound) {
-            try await FizzLink.find(scanner: MockScanner([unit(1, "FM-1", device: 1) { $0.handshakes = false }]), clock: clock)
+            try await FizzLink.find(scanner: MockScanner([unit(1, "FM-1", device: 1) { $0.handshakes = false; $0.semantic = false }]),
+                                    clock: clock)
         }
         await #expect(throws: FizzFindError.updateMode("ota-FM1_015")) {
             try await FizzLink.find(scanner: MockScanner([unit(1, "FM-1", device: 1) { $0.idText = "ota-FM1_015" }]),

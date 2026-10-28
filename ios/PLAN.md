@@ -212,6 +212,15 @@ FZER 15 (need USB). The app: connect, LIST, STATUS, PROJECTS work as they are; a
 `node ios/jsbundle/build.mjs` rebuilds FizzData.js; then show "n / 128" and 4 project slots from STATUS's tail, and
 offer RESTORE (I4) only over USB.
 
+First run on the owner's iPhone 13 Pro Max (Lightning, iOS via the Camera adapter), 2026-10-27, FIZZ's Bluetooth
+package on the unit: CoreMIDI listed only "Network Session 1": the FM-1 did not appear as a USB MIDI device at all
+(below the app). Open: power through the adapter, or iOS refusing the unit's USB descriptors (iOS is stricter than
+macOS about class-compliant MIDI / audio descriptors); try the RemoteFM1 unit on the same adapter.
+**Bluetooth works** (same evening): paired from the app's Bluetooth button (CABTMIDICentralViewController), port
+"FM-1 C1F0 Bluetooth". FIZZ does not answer the update handshake over Bluetooth, so the probe falls back to FIZZ's
+IDENTITY; then connected: FIZZ DEV, 0 MY presets (empty store), 21 factory, read over BLE MIDI. Relaunching the app
+drops the BLE MIDI link (reconnect from the Bluetooth button).
+
 I1 follow-ups: while nothing answers, `UnitModel` re-probes every 2 s (a handshake to each candidate port, a
 never-answering BLE port included); slow it to port changes + ~5 s before shipping. `FizzSysEx.frame` and a public
 `FizzStatus` init would let `DemoFizz` drop its own frame helper.

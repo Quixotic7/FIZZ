@@ -360,7 +360,13 @@ public actor FizzLink {
             if c.device != 0 && devices.contains(c.device) { continue }
             guard let t = try? scanner.open(c) else { continue }
             let link = FizzLink(transport: t, clock: clock, portName: c.name)
-            if let id = (try? await link.handshake()) ?? nil {
+            var found = (try? await link.handshake()) ?? nil
+            if found == nil, let v = (try? await link.identity()) ?? nil {
+                // over Bluetooth the update handshake can go unanswered (fm1-base's updater listens on USB), while
+                // FIZZ's own IDENTITY is answered: a FIZZ all the same
+                found = FM1Identity(text: "\(FM1Bulk.fizzPrefix) FIZZ \(v)", model: "FM-1", version: 0, open: false)
+            }
+            if let id = found {
                 await link.setIdentity(id.text)
                 out.append(FizzProbe(candidate: c, identity: id, link: link))
                 if c.device != 0 { devices.insert(c.device) }
