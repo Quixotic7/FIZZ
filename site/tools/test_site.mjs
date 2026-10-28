@@ -9,7 +9,9 @@
 //   3. the flash: two steps added, FIZZ's autosave reaches IndexedDB; after a reload the steps are back; that flash as a
 //      .fizzbak in the Manager's IndexedDB, opened with ?backup=<id>: FIZZ starts from it (js/backup-play.js)
 //   4. the Feedback link: FIZZ's Discord
-//   5. the guide renders with no console error; a phone-sized screenshot of both pages
+//   5. the guide renders with no console error (its Bluetooth section); a phone-sized screenshot of both pages
+//   5b. the install page with a two-package release (served here, synthetic: never a real package): USB chosen, the
+//       Bluetooth package picked, both its blobs listed; a release without it: no choice shown
 //   6. Digitone sounds: .dnsnd files (--dnsnd, a few of them; never published) read and listed in the panel
 // Screenshots: site/.build/test/*.png
 // Chromium's cache is off (Network.setCacheDisabled), every page load's URL carries a fresh v= stamp and the profile is
@@ -28,6 +30,7 @@ import { dnReadZip } from "../js/fm1dnsnd.js";
 import { readDn2 } from "../js/digitone.js";
 import { soundFromStoreFrame } from "../js/library.js";
 import { restoreFrame } from "../js/fizz_sysex.js";
+import crypto from "node:crypto";
 import { fizzValues } from "../js/fizz2dn.js";
 import { toSelectedTrack } from "../js/midimap.js";
 import { serveSite } from "./serve.mjs";
@@ -592,6 +595,61 @@ try {
   const gw = await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth");
   check(gw, "the guide at 390 px: no horizontal scroll");
   await shot("guide-phone.png");
+  await send("Emulation.clearDeviceMetricsOverride");
+  const gb = await evaluate("(() => { const b = document.getElementById('bluetooth'); return { there: !!b, toc: !!document.querySelector('.toc a[href=\"#bluetooth\"]'), text: b ? b.textContent : '' }; })()");
+  check(gb.there && gb.toc && /4 projects/.test(gb.text) && /SELECT/.test(gb.text) && /Audio MIDI Setup/.test(gb.text) && /USB cable/.test(gb.text),
+    "the guide: a Bluetooth section (which package, connecting, SETTINGS page 2, what needs the cable), in the contents");
+
+  // 5b. the install page: a two-package release, its files made here (an identity, the loader's mark, blobs)
+  {
+    const v = "9.9.9-beta.1", ident = "FM-1_46090909";
+    const fwsc = (salt) => { const b = Buffer.alloc(4096, salt); for (let i = 0; i < 20; i++) b[i * 0x30 + 0x2F] = i < ident.length ? (ident.charCodeAt(i) + i + 1) & 0xFF : 0x7D; b.write("FELUCCA-LOADER-1", 2000); return b; };
+    const crc = (b) => { let c = 0xFFFFFFFF; for (const x of b) { c ^= x; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; } return (c ^ 0xFFFFFFFF) >>> 0; };
+    const files = { "fizz.fwsc": fwsc(1), "fizz-xdata.bin": Buffer.alloc(900, 3), "fizz-ble.fwsc": fwsc(2), "fizz-ble-xdata.bin": Buffer.alloc(800, 5), "fizz-ble-xdata2.bin": Buffer.alloc(700, 7) };
+    const f = (n, extra = {}) => ({ path: `${v}/${n}`, bytes: files[n].length, sha256: crypto.createHash("sha256").update(files[n]).digest("hex"), ...(/\.bin$/.test(n) ? { crc32: crc(files[n]) } : {}), ...extra });
+    const index = { name: "FIZZ", latest: v, releases: [{ version: v, date: "2099-01-01", channel: "beta", identity: ident, notes: "Two packages.", packages: [
+      { name: "fizz", label: "8 voices across both cores, USB MIDI and USB audio", fwsc: f("fizz.fwsc"), data: f("fizz-xdata.bin") },
+      { name: "fizz-ble", kind: "ble", label: "USB and Bluetooth MIDI; 4 projects, 128 MY presets", projects: 4, presets: 128, fwsc: f("fizz-ble.fwsc"),
+        data: f("fizz-ble-xdata.bin", { at: 0xE7000 }), data2: f("fizz-ble-xdata2.bin", { at: 0x97000 }) }] }] };
+    const serveFw = (m) => {
+      if (m.method !== "Fetch.requestPaused") return;
+      const u = m.params.request.url, name = decodeURIComponent(u.split("?")[0].split("/").pop());
+      const body = /releases\.json/.test(u) ? Buffer.from(JSON.stringify(index)) : u.includes(`/firmware/${v}/`) && files[name] ? files[name] : null;
+      if (body) send("Fetch.fulfillRequest", { requestId: m.params.requestId, responseCode: 200, responseHeaders: [{ name: "Content-Type", value: "application/octet-stream" }], body: body.toString("base64") });
+      else send("Fetch.continueRequest", { requestId: m.params.requestId });
+    };
+    listeners.push(serveFw);
+    await send("Fetch.enable", { patterns: [{ urlPattern: "*firmware/*" }] });
+    await load(new URL("install/", URL0).href);
+    await waitFor("document.getElementById('chosen').textContent.includes('9.9.9')", 10000);
+    await sleep(500);
+    const i1 = await evaluate("({ chosen: document.getElementById('chosen').textContent, pkgs: !document.getElementById('pkgs').hidden, note: !document.getElementById('pkgnote').hidden, alert: document.getElementById('alert').textContent, files: document.querySelector('#notes-list .files').textContent })");
+    check(i1.chosen === `FIZZ ${v} · USB` && i1.pkgs && i1.note && !i1.alert && /Bluetooth: fizz-ble\.fwsc.*fizz-ble-xdata2\.bin/.test(i1.files),
+      `the install page, a two-package release: "${i1.chosen}", the choice and the switch note shown, the files "${i1.files.replace(/\s+/g, " ").slice(0, 90)}..."`);
+    await evaluate("(() => { const b = document.querySelector('input[name=pkg][value=ble]'); b.checked = true; b.dispatchEvent(new Event('change', { bubbles: true })); })()");
+    await waitFor("document.getElementById('chosen').textContent.endsWith('Bluetooth')", 5000);
+    await sleep(300);
+    const i2 = await evaluate("({ chosen: document.getElementById('chosen').textContent, what: document.getElementById('chosenwhat').textContent, url: location.search, alert: document.getElementById('alert').textContent })");
+    check(i2.chosen === `FIZZ ${v} · Bluetooth` && /4 projects/.test(i2.what) && /pkg=ble/.test(i2.url) && !i2.alert, `Bluetooth picked: "${i2.chosen}" (${i2.what}), ?pkg=ble, both blobs checked against their CRC-32s`);
+    await evaluate("document.getElementById('install').scrollIntoView()");
+    await sleep(200);
+    await shot("install-packages.png");
+    await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    await sleep(300);
+    check(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), "the install page at 390 px: no horizontal scroll");
+    await shot("install-packages-phone.png");
+    await send("Emulation.clearDeviceMetricsOverride");
+    check(errors.length === 0, `the install page: no console errors${errors.length ? ": " + errors.join(" | ") : ""}`);
+    await send("Fetch.disable");
+    listeners.splice(listeners.indexOf(serveFw), 1);
+    await load(new URL("install/", URL0).href);
+    await waitFor("document.getElementById('chosen').textContent.startsWith('FIZZ ')", 10000);
+    const i3 = await evaluate("({ chosen: document.getElementById('chosen').textContent, hidden: document.getElementById('pkgs').hidden })");
+    const pub = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "firmware", "releases.json"), "utf8"));
+    const hasBle = !!(pub.releases[0] && (pub.releases[0].packages || []).some((x) => x.kind === "ble"));
+    check(hasBle ? !i3.hidden : i3.hidden && !/·/.test(i3.chosen), `the published releases' latest: "${i3.chosen}", the package choice ${hasBle ? "shown" : "not shown (no Bluetooth package in it)"}`);
+  }
+  await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await load(new URL("?labels=stub", URL0).href);
   await waitFor("window.FIZZ && FIZZ.state.frameSeq > 0 && FIZZ.labels.visible", 15000);
   await sleep(800);
