@@ -223,6 +223,15 @@ def ble_ld(ld):
         if ld.count(ni) != 1:
             raise SystemExit("fizz: fizz.ld's .fz_ni line changed: see build.py ble_ld")
         ld = ld.replace(ni, ni + f" */o2/{u}(.bss* .sbss* COMMON)")
+    # the CPU's PC limit (felucca-bsp fm1_guard.h: an instruction fetched outside [0x02000120, _etext] or the RAM code
+    # faults, DBG_MSG bit 12): the second blob's code is above the app slot, so the window ends at its end (_etext; the
+    # slot's own end is _etext_slot). Without it the first call into it faulted (the unit, 2026-10-27: EDIT's sound
+    # editor, ui_snd_draw, "crash vec 1 ... d 00001000")
+    et = ". = ALIGN(4); _etext = .; } > XIP"
+    if ld.count(et) != 1:
+        raise SystemExit("fizz: fizz.ld's _etext line changed: see build.py ble_ld")
+    ld = ld.replace(et, ". = ALIGN(4); _etext_slot = .; } > XIP")
+    ld = ld.replace("    _rt_load = LOADADDR(.ram_text);\n", "    _rt_load = LOADADDR(.ram_text);\n    _etext = _fz_x2_end;\n")
     t = "*(.*_const)\n"                         # (.text's last inputs: the kept functions after them)
     if ld.count(t) != 1:
         raise SystemExit("fizz: fizz.ld's .text changed: see build.py ble_ld")
@@ -512,6 +521,27 @@ def cut_blob(elf, secs, sec, lo, hi, path, what):
     return blob, crc
 
 
+def pc_window_check(syms):
+    """every function inside the CPU's PC limit (felucca-bsp fm1_guard.h: [0x02000120, _etext] and the RAM code
+    _rt_start.._rt_end): one outside faults at its first instruction (the Bluetooth package's second blob, before
+    ble_ld moved _etext: 2026-10-27)"""
+    sym, bad = {}, []
+    for ln in syms.splitlines():
+        p = ln.split()
+        if len(p) >= 2 and re.fullmatch(r"[0-9a-f]{8}", p[0]):
+            sym[p[-1]] = int(p[0], 16)
+    lo, hi, rs, re_ = 0x02000120, sym["_etext"], sym["_rt_start"], sym["_rt_end"]
+    for ln in syms.splitlines():
+        p = ln.split()
+        if len(p) >= 6 and re.fullmatch(r"[0-9a-f]{8}", p[0]) and " F " in ln:
+            a = int(p[0], 16)
+            if int(p[-2], 16) and not (lo <= a <= hi or rs <= a < re_):
+                bad.append(f"{p[-1]} {a:#x}")
+    if bad:
+        raise SystemExit(f"fizz: functions outside the CPU's PC limit [{lo:#x}, _etext {hi:#x}] and the RAM code: "
+                         + ", ".join(bad[:6]))
+
+
 def stamp(img, tag, blob, crc, need=True):
     """a blob's length and CRC-32 into its stamp in the image (fz_port.c fz_stamp, fz_stamp2)"""
     at = img.find(tag)
@@ -538,6 +568,7 @@ def build_app():
         img = stamp(img, struct.pack("<II", 0x32585A46, 0x504D5453), blob2, crc2)   # "FZX2STMP", len, crc
     elif struct.pack("<II", 0x32585A46, 0x504D5453) in img:
         raise SystemExit("fizz: a second blob's stamp in a package without one")
+    pc_window_check(syms)
     (fb.OUT / (fb.NAME + ".bin")).write_bytes(img)
     report(img, syms, secs, blob, crc, blob2, crc2)
     return img, syms, dis, rt
