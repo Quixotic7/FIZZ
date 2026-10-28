@@ -59,7 +59,7 @@ public struct ExportSheet: View {
                     Spacer(minLength: 0)
                     SheetCloseButton { if let onClose { onClose() } else { dismiss() } }
                 }
-                .frame(height: 40)
+                .frame(height: 44)
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text("\(sounds.count)").fz(46, 800).foregroundStyle(FZ.text.color)
                     Text(sounds.count == 1 ? "sound" : "sounds").fz(22, 800).foregroundStyle(FZ.muted.color)
@@ -79,9 +79,11 @@ public struct ExportSheet: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 8)
+            // (clear of the sheet's grab handle)
+            .padding(.top, snapshot ? 8 : 20)
             footer
         }
+        .modifier(ExportSheetLook(on: !snapshot))
         .task(id: sounds.map(\.name)) { await readCarry() }
         .task(id: kind) { await make() }
     }
@@ -264,6 +266,22 @@ struct ShareButton: View {
             .shadow(color: color.opacity(on ? 0.35 + 0.35 * breathe(t, 2) : 0), radius: 10 + 10 * breathe(t, 2))
             .opacity(on ? 1 : 0.4)
             .animation(.easeInOut(duration: 0.3), value: color)
+        }
+    }
+}
+
+/// EXPORT presented as RootView presents IMPORT and RESTORE: full height, the grab handle, FIZZ's black.
+private struct ExportSheetLook: ViewModifier {
+    var on = true
+    func body(content: Content) -> some View {
+        if on {
+            content
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(RGB(0x0d0d11).color)
+                .preferredColorScheme(.dark)
+        } else {
+            content
         }
     }
 }

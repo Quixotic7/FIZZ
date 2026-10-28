@@ -11,7 +11,6 @@ import FizzKit
 public struct ConnectView: View {
     let model: UnitModel
     @Environment(\.fizzInsets) private var insets
-    @State private var bluetooth = false
 
     public init(model: UnitModel) { self.model = model }
 
@@ -25,7 +24,6 @@ public struct ConnectView: View {
             }
             .padding(insets)
         }
-        .sheet(isPresented: $bluetooth) { BluetoothSheet() }
     }
 
     @ViewBuilder private var background: some View {
@@ -40,8 +38,8 @@ public struct ConnectView: View {
 
     @ViewBuilder private var content: some View {
         switch model.state {
-        case .searching: Searching(lost: false) { bluetooth = true }
-        case .lost: Searching(lost: true) { bluetooth = true }
+        case .searching: Searching(lost: false) { BluetoothPairing.present() }
+        case .lost: Searching(lost: true) { BluetoothPairing.present() }
         case .found(let u): FoundCard(info: u)
         case .updateMode: UpdateCard()
         case .notFizz(let id): NotFizzCard(id: id).contentShape(Rectangle()).onTapGesture { model.rescan() }

@@ -20,44 +20,87 @@ public struct RestoreSheet: View {
 
     public var body: some View {
         let r = model.restoring
+        Group {
+            if snapshot {
+                VStack(alignment: .leading, spacing: 0) {
+                    content
+                    footer.padding(.top, 16)
+                }
+                .padding(.horizontal, 18).padding(.top, 2).padding(.bottom, 30)
+            } else {
+                // what the backup holds scrolls; the warning, the slide (or ADD) and CANCEL stay pinned at the bottom
+                ScrollView {
+                    content.padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 8)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    footer
+                        .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 12)
+                        .background(
+                            LinearGradient(stops: [.init(color: Self.sheet.opacity(0), location: 0), .init(color: Self.sheet, location: 0.14)],
+                                           startPoint: .top, endPoint: .bottom)
+                                .ignoresSafeArea(edges: .bottom)
+                        )
+                }
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: r.offer?.name)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: r.added)
+    }
+
+    /// The sheet's own background (RootView's presentationBackground).
+    static let sheet = RGB(0x0d0d11).color
+
+    /// The backup: when, FM-1 NOW → BACKUP, its projects, the choosers.
+    @ViewBuilder private var content: some View {
+        let r = model.restoring
         let full = r.offer?.full ?? true
         let tint = full ? FZ.yellow : FZ.cream
         VStack(alignment: .leading, spacing: 0) {
             if let o = r.offer {
                 head(o, tint: tint)
                 diff(o, tint: tint)
-                chips(o).padding(.bottom, 16)
-                if r.mustChoose { FitChooser(model: r).padding(.bottom, 16) }
-                if !o.full && r.fresh.count > r.room { AddChooser(model: r, presets: o.backup.presets).padding(.bottom, 16) }
-                if let p = r.problem { StateBox(icon: TransferIcons.warn, text: p, color: FZ.orange).padding(.bottom, 14) }
-                if o.full {
-                    if r.viaBle {
-                        StateBox(icon: TransferIcons.plug, text: "USB CABLE NEEDED", color: FZ.orange).padding(.bottom, 18)
-                    } else {
-                        StateBox(icon: TransferIcons.warn, text: "EVERYTHING ON THE FM-1 IS REPLACED").padding(.bottom, 18)
-                        SlideToConfirm("RESTORE", color: FZ.yellow, enabled: r.canRestore) { Task { await r.restore() } }
-                            .id(o.name + (r.problem ?? ""))
-                    }
-                } else {
-                    addAction(r)
-                }
+                chips(o)
+                if r.mustChoose { FitChooser(model: r).padding(.top, 16) }
+                if !o.full && r.fresh.count > r.room { AddChooser(model: r, presets: o.backup.presets).padding(.top, 16) }
             } else if r.loading {
                 Animated(still: 0) { t in
                     Cassette(color: FZ.yellow, drop: t).frame(width: 64, height: 64)
                 }
                 .frame(maxWidth: .infinity).frame(height: 200)
             } else {
-                StateBox(icon: TransferIcons.warn, text: r.problem ?? "NOT A BACKUP").padding(.top, 20).padding(.bottom, 18)
+                StateBox(icon: TransferIcons.warn, text: r.problem ?? "NOT A BACKUP").padding(.top, 20)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// What it costs and the one thing to do: the problem, EVERYTHING ... REPLACED (or USB CABLE NEEDED), the slide or
+    /// ADD, CANCEL / DONE.
+    @ViewBuilder private var footer: some View {
+        let r = model.restoring
+        VStack(spacing: 12) {
+            if let o = r.offer {
+                if let p = r.problem { StateBox(icon: TransferIcons.warn, text: p, color: FZ.orange) }
+                if o.full {
+                    if r.viaBle {
+                        StateBox(icon: TransferIcons.plug, text: "USB CABLE NEEDED", color: FZ.orange)
+                    } else {
+                        StateBox(icon: TransferIcons.warn, text: "EVERYTHING ON THE FM-1 IS REPLACED")
+                        SlideToConfirm("RESTORE", color: FZ.yellow, enabled: r.canRestore) { Task { await r.restore() } }
+                            .id(o.name + (r.problem ?? ""))
+                            .padding(.top, 4)
+                    }
+                } else {
+                    addAction(r)
+                }
             }
             PillButton(title: r.added != nil ? "DONE" : "CANCEL", ghost: true, height: 52, size: 16) { r.close() }
                 .frame(width: 180)
                 .frame(maxWidth: .infinity)
-                .padding(.top, 16)
                 .disabled(r.adding)
         }
-        .padding(.horizontal, 18).padding(.top, snapshot ? 2 : 22).padding(.bottom, 30)
-        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: r.offer?.name)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: r.added)
     }
 
     private func head(_ o: RestoreModel.Offer, tint: RGB) -> some View {
