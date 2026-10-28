@@ -9,6 +9,9 @@
 
 import SwiftUI
 import FizzData
+#if os(iOS)
+import UIKit
+#endif
 
 // MARK: - Turning
 
@@ -26,7 +29,9 @@ extension View {
     }
 }
 
-/// The drag that turns one or two values.
+/// The drag that turns one or two values: it starts after 3 pt along its axis (a value turned up / down takes a
+/// vertical drag, one turned sideways lets a vertical drag scroll the page); counted from there (no jump); a one-axis
+/// value turns finer as the finger moves away sideways (a quarter of the speed 180 pt off).
 struct TurnModifier: ViewModifier {
     let e: EditorModel
     var y: Int?, x: Int?
@@ -34,38 +39,64 @@ struct TurnModifier: ViewModifier {
     let tint: RGB
     var ySpan: CGFloat?, xSpan: CGFloat?
     var tap: (() -> Void)?
-    @State private var v0: (x: Int, y: Int)?
+    @State private var run: TurnRun?
+
+    struct TurnRun {
+        var x0 = 0, y0 = 0
+        /// the travel counted (fine: slowed), up positive
+        var ax: CGFloat = 0, ay: CGFloat = 0
+        var last = CGSize.zero
+    }
+
+    var axis: TurnAxis { y != nil && x != nil ? .both : y != nil ? .vertical : .horizontal }
 
     func body(content: Content) -> some View {
-        content
-            .contentShape(Rectangle())
-            .onTapGesture(count: 2) {
-                if let y { e.reset(y) }
-                if let x { e.reset(x) }
+        let reset = {
+            if let y { e.reset(y) }
+            if let x { e.reset(x) }
+        }
+        Group {
+            if let tap {
+                content.contentShape(Rectangle()).onTapGesture(count: 2, perform: reset).onTapGesture(perform: tap)
+            } else {
+                content.contentShape(Rectangle()).onTapGesture(count: 2, perform: reset)
             }
-            .onTapGesture { tap?() }
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 4)
-                    .onChanged { g in
-                        if v0 == nil {
-                            v0 = (x.map(e.value) ?? 0, y.map(e.value) ?? 0)
-                            if !e.locked { e.turning = EditTurn(id: y ?? x ?? 0, label: label, tint: tint) }
-                        }
-                        guard let v0 else { return }
-                        let dx = g.translation.width, dy = -g.translation.height
-                        if let y, let n = Self.turned(e, y, v0.y, dy, ySpan) {
-                            if e.set(y, n), abs(dy) >= abs(dx) { e.turning?.id = y }
-                        }
-                        if let x, let n = Self.turned(e, x, v0.x, dx, xSpan) {
-                            if e.set(x, n), abs(dx) > abs(dy) { e.turning?.id = x }
-                        }
-                    }
-                    .onEnded { _ in
-                        v0 = nil
-                        e.turning = nil
-                    }
-            )
+        }
+        .turnDrag(axis, began: begin, changed: move, ended: end)
     }
+
+    private func begin(_ overlayTop: Bool) {
+        run = TurnRun(x0: x.map(e.value) ?? 0, y0: y.map(e.value) ?? 0)
+        if !e.locked { e.turning = EditTurn(id: y ?? x ?? 0, label: label, tint: tint, top: overlayTop) }
+    }
+
+    /// t: the finger's travel since the turn began (screen points, down positive).
+    private func move(_ t: CGSize) {
+        guard var r = run else { return }
+        let ddx = t.width - r.last.width, ddy = -(t.height - r.last.height)
+        r.last = t
+        switch axis {
+        case .vertical: r.ay += ddy * Self.fine(abs(t.width))
+        case .horizontal: r.ax += ddx * Self.fine(abs(t.height))
+        case .both: r.ax += ddx; r.ay += ddy
+        }
+        run = r
+        if let y, let n = Self.turned(e, y, r.y0, r.ay, ySpan) {
+            if e.set(y, n), abs(t.height) >= abs(t.width) { e.turning?.id = y }
+        }
+        if let x, let n = Self.turned(e, x, r.x0, r.ax, xSpan) {
+            if e.set(x, n), abs(t.width) > abs(t.height) { e.turning?.id = x }
+        }
+    }
+
+    private func end() {
+        run = nil
+        e.turning = nil
+    }
+
+    /// The speed of a one-axis turn with the finger `off` points away sideways: 1 up to 30 pt, then slower (0.25 at
+    /// 180 pt and beyond).
+    static func fine(_ off: CGFloat) -> CGFloat { max(0.25, 1 / (1 + max(0, off - 30) / 50)) }
 
     /// The value a drag of `delta` points makes of v0 (editor.js pointermove): a chip's range a 240..600 pt drag,
     /// a drawing's `span` points; a destination steps in the editor's order.
@@ -80,6 +111,136 @@ struct TurnModifier: ViewModifier {
         return v0 + Int((delta / px * CGFloat(r.span)).rounded())
     }
 }
+
+/// The way a value is dragged.
+enum TurnAxis: Equatable { case vertical, horizontal, both }
+
+extension View {
+    /// A turning drag: `began` (true: the finger is low on the screen, the turned value shows at the top), `changed`
+    /// with the travel since it began (down positive), `ended`.
+    func turnDrag(_ axis: TurnAxis, began: @escaping (Bool) -> Void, changed: @escaping (CGSize) -> Void,
+                  ended: @escaping () -> Void) -> some View {
+        modifier(TurnDrag(axis: axis, began: began, changed: changed, ended: ended))
+    }
+}
+
+struct TurnDrag: ViewModifier {
+    let axis: TurnAxis
+    let began: (Bool) -> Void
+    let changed: (CGSize) -> Void
+    let ended: () -> Void
+    @State private var from: CGSize?
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 18, *) {
+            content.gesture(TurnPan(axis: axis, began: began, changed: changed, ended: ended))
+        } else {
+            fallback(content)
+        }
+        #else
+        fallback(content)
+        #endif
+    }
+
+    /// iOS 17 (and the Mac's shots): SwiftUI's drag, which holds the page's scroll while on a value.
+    private func fallback(_ content: Content) -> some View {
+        content.highPriorityGesture(
+            DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                .onChanged { g in
+                    if from == nil { from = g.translation; began(true) }
+                    guard let f = from else { return }
+                    changed(CGSize(width: g.translation.width - f.width, height: g.translation.height - f.height))
+                }
+                .onEnded { _ in
+                    from = nil
+                    ended()
+                }
+        )
+    }
+}
+
+#if os(iOS)
+/// A UIKit pan for a value (iOS 18): begins after `slop` points if the finger moves along its axis, else fails at
+/// once and the page's scroll view takes the drag. Measured in the window (the view may move under the finger).
+final class TurnPanRecognizer: UIGestureRecognizer {
+    var axis = TurnAxis.both
+    var slop: CGFloat = 3
+    private(set) var travel = CGSize.zero
+    /// the finger began low on the screen
+    private(set) var low = false
+    private var touch: UITouch?
+    private var origin = CGPoint.zero, start = CGPoint.zero
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        for t in touches where touch != nil && t !== touch { ignore(t, for: event) }
+        guard touch == nil, let t = touches.first else { return }
+        touch = t
+        origin = t.location(in: nil)
+        low = origin.y > (t.window?.bounds.midY ?? 0)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let t = touch, touches.contains(t) else { return }
+        let p = t.location(in: nil)
+        if state == .possible {
+            let dx = p.x - origin.x, dy = p.y - origin.y
+            guard hypot(dx, dy) >= slop else { return }
+            if axis == .vertical && abs(dx) > abs(dy) || axis == .horizontal && abs(dy) >= abs(dx) {
+                state = .failed
+                return
+            }
+            start = p
+            travel = .zero
+            state = .began
+        } else if state == .began || state == .changed {
+            travel = CGSize(width: p.x - start.x, height: p.y - start.y)
+            state = .changed
+        }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let t = touch, touches.contains(t) else { return }
+        state = state == .began || state == .changed ? .ended : .failed
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let t = touch, touches.contains(t) else { return }
+        state = state == .began || state == .changed ? .cancelled : .failed
+    }
+
+    override func reset() {
+        super.reset()
+        touch = nil
+        travel = .zero
+    }
+}
+
+@available(iOS 18, *)
+struct TurnPan: UIGestureRecognizerRepresentable {
+    let axis: TurnAxis
+    let began: (Bool) -> Void
+    let changed: (CGSize) -> Void
+    let ended: () -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> TurnPanRecognizer {
+        let g = TurnPanRecognizer()
+        g.axis = axis
+        return g
+    }
+
+    func updateUIGestureRecognizer(_ g: TurnPanRecognizer, context: Context) { g.axis = axis }
+
+    func handleUIGestureRecognizerAction(_ g: TurnPanRecognizer, context: Context) {
+        switch g.state {
+        case .began: began(g.low)
+        case .changed: changed(g.travel)
+        case .ended, .cancelled, .failed: ended()
+        default: break
+        }
+    }
+}
+#endif
 
 /// "3.50" -> ("3", ".50"); "+0.40" -> ("+0", ".40"); "LP12" -> ("LP12", "").
 func splitValue(_ s: String) -> (String, String) {
@@ -314,11 +475,14 @@ struct EditToggle: View {
         Button { e.set(id, on ? 0 : 1) } label: {
             Text(label).fz(12, 800, em: 0.08)
                 .foregroundStyle(on ? Color.black : FZ.muted.color)
-                .padding(.horizontal, 12).frame(height: 30)
+                .padding(.horizontal, 12).frame(height: 32)
                 .background(Capsule().fill(on ? tint.color : .clear))
                 .overlay(Capsule().strokeBorder(on ? tint.color : FZ.line.color, lineWidth: 1.5))
+                // (touched 6 pt beyond its edge)
+                .contentShape(Rectangle().inset(by: -6))
         }
         .buttonStyle(.plain)
+        .sensoryFeedback(.selection, trigger: on)
         .turnDim(e, [id])
     }
 }
@@ -371,28 +535,37 @@ struct EditPickerSheet: View {
         let t = e.table
         VStack(alignment: .leading, spacing: 14) {
             Text(t?.info(id)?.name ?? "").fz(16, 800, em: 0.12).foregroundStyle(FZ.muted.color)
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 74), spacing: 8)], spacing: 8) {
-                    ForEach(t?.order(id) ?? [], id: \.self) { x in
-                        let on = e.value(id) == x
-                        Button {
-                            e.set(id, x)
-                            dismiss()
-                        } label: {
-                            Text(t?.text(id, x) ?? "").fz(14, 800).lineLimit(1).minimumScaleFactor(0.7)
-                                .foregroundStyle(on ? Color.black : FZ.text.color)
-                                .frame(maxWidth: .infinity).frame(height: 40)
-                                .background(RoundedRectangle(cornerRadius: 10).fill(on ? FZ.pink.color : FZ.raised.color))
-                                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(on ? FZ.pink.color : FZ.line.color, lineWidth: 1.5))
+                .padding(.horizontal, 18)
+            ScrollViewReader { px in
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 74), spacing: 8)], spacing: 8) {
+                        ForEach(t?.order(id) ?? [], id: \.self) { x in
+                            let on = e.value(id) == x
+                            Button {
+                                e.set(id, x)
+                                dismiss()
+                            } label: {
+                                Text(t?.text(id, x) ?? "").fz(14, 800).lineLimit(1).minimumScaleFactor(0.7)
+                                    .foregroundStyle(on ? Color.black : FZ.text.color)
+                                    .frame(maxWidth: .infinity).frame(height: 44)
+                                    .background(RoundedRectangle(cornerRadius: 10).fill(on ? FZ.pink.color : FZ.raised.color))
+                                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(on ? FZ.pink.color : FZ.line.color, lineWidth: 1.5))
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .id(x)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, 18).padding(.bottom, 18)
                 }
+                // (the chosen one in view)
+                .onAppear { px.scrollTo(e.value(id), anchor: .center) }
             }
         }
-        .padding(18)
+        .padding(.top, 26)
         .background(FZ.panel.color)
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .presentationBackground(FZ.panel.color)
         .preferredColorScheme(.dark)
     }

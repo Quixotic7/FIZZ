@@ -69,7 +69,9 @@ public struct EditTurn: Sendable, Equatable {
     public var id: Int
     public var label: String
     public var tint: RGB
-    public init(id: Int, label: String, tint: RGB) { self.id = id; self.label = label; self.tint = tint }
+    /// shown at the top of the screen (the finger low), else at the bottom
+    public var top: Bool
+    public init(id: Int, label: String, tint: RGB, top: Bool = true) { self.id = id; self.label = label; self.tint = tint; self.top = top }
 }
 
 @MainActor @Observable

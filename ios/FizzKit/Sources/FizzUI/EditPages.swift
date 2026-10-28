@@ -170,10 +170,12 @@ struct OperatorsPage: View {
             }
         } else {
             VStack(spacing: 8) {
+                // (the drawing gives up height first: the cards and dials always show)
                 ZStack(alignment: .topLeading) {
-                    AlgoDrawing(e: e).frame(height: 200)
+                    AlgoDrawing(e: e).frame(minHeight: 116, maxHeight: 200)
                     AlgoNumber(e: e)
                 }
+                .layoutPriority(-1)
                 Grid(horizontalSpacing: 8, verticalSpacing: 8) {
                     GridRow { OpCard(e: e, o: 0); OpCard(e: e, o: 1) }
                     GridRow { OpCard(e: e, o: 2); OpCard(e: e, o: 3) }
@@ -488,6 +490,9 @@ struct MidiPage: View {
         }
         .alert("CC NUMBER", isPresented: Binding(get: { typing != nil }, set: { if !$0 { typing = nil } })) {
             TextField("0 .. 127", text: $cc)
+                #if os(iOS)
+                .keyboardType(.numberPad)
+                #endif
             Button("OK") { if let k = typing, let v = Int(cc.filter(\.isNumber).prefix(3)) { e.setSlot(k, cc: v) }; typing = nil }
             Button("CANCEL", role: .cancel) { typing = nil }
         }
@@ -519,20 +524,23 @@ struct MidiPage: View {
             }
             .frame(height: height)
             Button { cc = "\(x.cc)"; typing = k } label: {
-                Text("CC \(x.cc)").fz(13, 800, em: 0.06).foregroundStyle(c.color)
-                    .padding(.horizontal, 10).frame(height: 30)
+                Text("CC \(x.cc)").fz(13, 800, em: 0.06).foregroundStyle(c.color).lineLimit(1).minimumScaleFactor(0.8)
+                    .padding(.horizontal, 10).frame(height: 34)
                     .overlay(Capsule().strokeBorder(c.mix(50, FZ.line).color, lineWidth: 1.5))
+                    .contentShape(Rectangle().inset(by: -5))
             }
             .buttonStyle(.plain)
-            HStack(spacing: 6) {
+            HStack(spacing: 2) {
                 Text(x.touched ? "\(x.value)" : "—").fz(22, 800).monospacedDigit().foregroundStyle(FZ.text.color)
                 if x.touched {
                     Button { e.untouch(k) } label: {
-                        Image(systemName: "xmark").font(.system(size: 11, weight: .heavy)).foregroundStyle(FZ.muted.color)
+                        Image(systemName: "xmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(FZ.muted.color)
+                            .frame(width: 30, height: 36).contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .frame(height: 36)
         }
         .frame(maxWidth: .infinity)
         .sensoryFeedback(.selection, trigger: x.value)

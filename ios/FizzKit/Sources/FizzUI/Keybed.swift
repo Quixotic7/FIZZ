@@ -26,45 +26,64 @@ enum KeyMap {
 struct Keybed: View {
     let e: EditorModel
     var height: CGFloat = 120
+    /// OCT − / + beside the keys (the phone's panel puts them above: the keys get the whole width)
+    var octaveBeside = true
 
     var body: some View {
         HStack(spacing: 8) {
-            octButton(-1, "−")
-            GeometryReader { g in
-                let w = g.size.width / 16, lo = e.lowNote
-                ZStack(alignment: .topLeading) {
-                    ForEach(Array(KeyMap.white.enumerated()), id: \.offset) { i, o in
-                        KeyCap(e: e, note: lo + o, black: false)
-                            .frame(width: w - 2, height: g.size.height)
-                            .offset(x: CGFloat(i) * w + 1)
-                    }
-                    ForEach(KeyMap.black, id: \.note) { k in
-                        KeyCap(e: e, note: lo + k.note, black: true)
-                            .frame(width: w * 0.62, height: g.size.height * 0.6)
-                            .offset(x: CGFloat(k.after + 1) * w - w * 0.31)
-                    }
+            if octaveBeside { OctaveButton(e: e, d: -1) }
+            keys
+            if octaveBeside {
+                VStack(spacing: 6) {
+                    OctaveButton(e: e, d: 1)
+                    Text(e.octave > 0 ? "+\(e.octave)" : "\(e.octave)").fz(13, 800).foregroundStyle(FZ.muted.color)
                 }
-            }
-            .padding(3)
-            .background(RoundedRectangle(cornerRadius: 12).fill(RGB(0x0d0d10).color))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(e.rec ? FZ.red.color : FZ.line.color, lineWidth: e.rec ? 2 : 1.5))
-            .shadow(color: e.rec ? FZ.red.opacity(0.35) : .clear, radius: 8)
-            VStack(spacing: 6) {
-                octButton(1, "+")
-                Text(e.octave > 0 ? "+\(e.octave)" : "\(e.octave)").fz(13, 800).foregroundStyle(FZ.muted.color)
             }
         }
         .frame(height: height)
     }
 
-    func octButton(_ d: Int, _ s: String) -> some View {
+    private var keys: some View {
+        GeometryReader { g in
+            let w = g.size.width / 16, lo = e.lowNote
+            ZStack(alignment: .topLeading) {
+                ForEach(Array(KeyMap.white.enumerated()), id: \.offset) { i, o in
+                    KeyCap(e: e, note: lo + o, black: false)
+                        .frame(width: w - 2, height: g.size.height)
+                        .offset(x: CGFloat(i) * w + 1)
+                }
+                ForEach(KeyMap.black, id: \.note) { k in
+                    KeyCap(e: e, note: lo + k.note, black: true)
+                        .frame(width: w * 0.62, height: g.size.height * 0.6)
+                        .offset(x: CGFloat(k.after + 1) * w - w * 0.31)
+                }
+            }
+        }
+        .padding(3)
+        .background(RoundedRectangle(cornerRadius: 12).fill(RGB(0x0d0d10).color))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(e.rec ? FZ.red.color : FZ.line.color, lineWidth: e.rec ? 2 : 1.5))
+        .shadow(color: e.rec ? FZ.red.opacity(0.35) : .clear, radius: 8)
+    }
+}
+
+/// OCT − or +, dimmed at its end (-2 / +2).
+struct OctaveButton: View {
+    let e: EditorModel
+    let d: Int
+    var body: some View {
+        let can = d < 0 ? e.octave > -2 : e.octave < 2
         Button { e.setOctave(e.octave + d) } label: {
-            Text(s).fz(22, 800).foregroundStyle(FZ.text.color)
-                .frame(width: 40, height: 40)
+            Text(d < 0 ? "−" : "+").fz(22, 800).foregroundStyle(FZ.text.color)
+                .frame(width: 42, height: 42)
                 .background(Circle().fill(FZ.raised.color))
                 .overlay(Circle().strokeBorder(FZ.line.color, lineWidth: 1.5))
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .disabled(!can)
+        .opacity(can ? 1 : 0.4)
+        .sensoryFeedback(.selection, trigger: e.octave)
     }
 }
 
@@ -90,14 +109,15 @@ struct KeyCap: View {
     }
 }
 
-/// The phone's keybed grip: a swipe up (or a tap) slides the keybed up over the page, a swipe down puts it away.
+/// The phone's keybed grip (LIBRARY): a swipe up (or a tap) slides the keybed up over the page, a swipe down puts it
+/// away. Drawn 18 pt tall, touched 12 pt beyond.
 struct KeybedGrip: View {
     @Binding var open: Bool
 
     var body: some View {
-        Capsule().fill(open ? FZ.pink.color : FZ.dim.color).frame(width: 44, height: 5)
+        Capsule().fill(open ? FZ.pink.color : FZ.dim.color).frame(width: 56, height: 5)
             .frame(maxWidth: .infinity).frame(height: 18)
-            .contentShape(Rectangle())
+            .contentShape(Rectangle().inset(by: -12))
             .onTapGesture { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { open.toggle() } }
             .gesture(DragGesture(minimumDistance: 8).onEnded { g in
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { open = g.translation.height < 0 }
@@ -105,14 +125,31 @@ struct KeybedGrip: View {
     }
 }
 
-/// The phone's keybed, over the bottom of the page.
+/// The phone's keybed, over the bottom of the page: OCT − / + above, the 27 keys the whole width; a swipe down on
+/// its top row puts it away.
 struct KeybedPanel: View {
     let e: EditorModel
     var body: some View {
-        Keybed(e: e, height: 132)
-            .padding(.horizontal, 12).padding(.vertical, 12)
-            .background(RGB(0x09090c).color)
-            .overlay(alignment: .top) { Rectangle().fill(FZ.line.color).frame(height: 1) }
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                OctaveButton(e: e, d: -1)
+                Text(e.octave > 0 ? "OCT +\(e.octave)" : "OCT \(e.octave)").fz(14, 800, em: 0.08).foregroundStyle(FZ.text.color)
+                    .monospacedDigit().frame(minWidth: 70)
+                OctaveButton(e: e, d: 1)
+                Spacer(minLength: 0)
+                Capsule().fill(FZ.dim.color).frame(width: 44, height: 5).padding(.trailing, 8)
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 10).onEnded { g in
+                if g.translation.height > 20 {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { e.keysOpen = false }
+                }
+            })
+            Keybed(e: e, height: 128, octaveBeside: false)
+        }
+        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
+        .background(RGB(0x09090c).color)
+        .overlay(alignment: .top) { Rectangle().fill(FZ.line.color).frame(height: 1) }
     }
 }
 
