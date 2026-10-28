@@ -6721,6 +6721,13 @@ static void g_p21c_one_log(void)
         const int before = qd_undo_count(&A, -1);
         int left, ok2 = 1;
         *PAT() = dense;
+#if defined(QD_UNDO_SLOTS) && QD_UNDO_POOL < 16384u
+        CHECK(!qd_hist_store(&A, 1), "the Bluetooth package's 8 KB log: a dense pattern's copy refused (too big)");
+        *PAT() = keep;
+        CHECK(qd_hist_recall(&A, 0) && !memcmp(PAT()->step, snap.step, sizeof snap.step) && qd_undo_count(&A, -1) == before,
+              "the snapshot still recalled exactly, the levels kept (%d)", before);
+        return;
+#endif
         CHECK(qd_hist_store(&A, 1), "a dense pattern copied");
         *PAT() = keep;
         left = qd_undo_count(&A, -1);
@@ -6774,7 +6781,11 @@ static void g_p21_undo_log(void)
     n = qd_undo_count(&A, -1);
     wtap(2);
     run(QD_UNDO_QUIET_MS + 50);
-#ifdef QD_UNDO_SLOTS
+#if defined(QD_UNDO_SLOTS) && QD_UNDO_POOL < 16384u
+    CHECK(!A.undo.snap_ok && qd_undo_count(&A, -1) <= n + 1,
+          "the Bluetooth package's 8 KB log: a full pattern (768 steps, 1024 locks): its snapshot refused (too big), "
+          "the levels kept (%d of %d)", qd_undo_count(&A, -1), n);
+#elif defined(QD_UNDO_SLOTS)
     CHECK(A.undo.snap_ok && qd_undo_count(&A, -1) == n,
           "the device's log: a full pattern (768 steps, 1024 locks): its snapshot stored (P2.1c: 16-byte steps), its "
           "edit no level (the log holds the snapshot), the levels before it kept (%d of %d)", qd_undo_count(&A, -1), n);

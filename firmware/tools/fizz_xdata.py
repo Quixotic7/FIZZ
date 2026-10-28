@@ -8,11 +8,17 @@ the FM-1's data flash at 0xE5000 (fm1-base's PLAT_XDATA1), outside the update pa
 its blob's length and CRC-32 into the firmware, and the unit takes only its own build's blob.
 
   fizz_xdata.py push [--blob FILE] [--port NAME]   write the blob (the unit answers FZOK, or FZER and a code)
+  fizz_xdata.py push --ble [--port NAME]           the Bluetooth package's two blobs (firmware/build.py --ble:
+                                                   fizz-ble-xdata.bin at 0xE7000, fizz-ble-xdata2.bin at 0x97000), each
+                                                   written and checked; FIZZ starts when both are there
   fizz_xdata.py stats [--reset] [--port NAME]      the port's counters: the audio interrupt, the locks, the frames,
                                                    a frame's time by phase and by screen (firmware/BUDGET.md)
   fizz_xdata.py wipe [--port NAME]                 FIZZ's store (0x97000..0xDFFFF) erased, FIZZ started again on it
-  fizz_xdata.py info [--blob FILE]                 the blob's length and CRC-32 (no unit)
+                                                   (the Bluetooth package's: 0xAF000..0xDFFFF, its blob kept)
+  fizz_xdata.py info [--blob FILE | --ble]         the blob's (blobs') length and CRC-32 (no unit)
   fizz_xdata.py backup FILE [--port NAME]          FIZZ's store (0x97000..0xDFFFF: projects, MY PRESETS) into FILE
+                                                   (the unit says where its store is: the Bluetooth package's is
+                                                   0xAF000..0xDFFFF, 49 sectors; core/app/persist.h)
   fizz_xdata.py restore FILE [--port NAME]         .. back from FILE: stopped only; the image checked before anything
                                                    is erased; a cable pulled while it writes leaves the store cleared
                                                    at the next start. FZER 10 playing, 11 another size, 12 the image's
@@ -42,6 +48,15 @@ from fizz_stats_names import NAMES  # noqa: E402  (the stats fields' names: tool
 
 XDATA_OFF = 0xE5000                             # plat.h PLAT_XDATA1_LO (fizz.ld)
 BLOB = HERE.parent / "app" / "build" / "fizz-xdata.bin"
+# the Bluetooth package (firmware/build.py --ble): its first blob after OBJ_BLE's two sectors, its second at the data
+# region's first byte (firmware/app/fz_port.c fz_xdata_off_of)
+BLE_BLOBS = [(HERE.parent / "app" / "build" / "fizz-ble-xdata.bin", 0xE7000),
+             (HERE.parent / "app" / "build" / "fizz-ble-xdata2.bin", 0x97000)]
+
+
+def blobs(a):
+    """the (file, flash offset) pairs to write: --ble's two, or --blob's one"""
+    return [(Path(f), o) for f, o in BLE_BLOBS] if getattr(a, "ble", False) else [(Path(a.blob), XDATA_OFF)]
 
 
 MODES = ["idle", "step", "keys", "tracks"]
@@ -62,13 +77,19 @@ def find(port):
 
 
 def push(a):
-    blob = Path(a.blob).read_bytes()
+    for path, off in blobs(a):
+        rc = push_one(find(a.port), path.read_bytes(), off)   # (the unit found again for each: push_one closes its link)
+        if rc:
+            return rc
+    return 0
+
+
+def push_one(dev, blob, off):
     crc = zlib.crc32(blob) & 0xFFFFFFFF
-    dev = find(a.port)
-    print(f"FIZZ {dev.id.text} on {dev.name}: blob {len(blob)} B, CRC-32 {crc:08x}, to flash {XDATA_OFF:#x}")
+    print(f"FIZZ {dev.id.text} on {dev.name}: blob {len(blob)} B, CRC-32 {crc:08x}, to flash {off:#x}")
     link = dev.link
     link.drain()
-    link.send(fi.frame(0x46, b"FZXD" + struct.pack("<III", len(blob), crc, XDATA_OFF)))
+    link.send(fi.frame(0x46, b"FZXD" + struct.pack("<III", len(blob), crc, off)))
     served, last = 0, time.monotonic()
     try:
         while time.monotonic() - last < 30.0:
@@ -277,8 +298,9 @@ def wipe(a):
 
 
 def info(a):
-    blob = Path(a.blob).read_bytes()
-    print(f"{a.blob}: {len(blob)} B, CRC-32 {zlib.crc32(blob) & 0xFFFFFFFF:08x}, at flash {XDATA_OFF:#x}..{XDATA_OFF + len(blob):#x}")
+    for path, off in blobs(a):
+        blob = path.read_bytes()
+        print(f"{path}: {len(blob)} B, CRC-32 {zlib.crc32(blob) & 0xFFFFFFFF:08x}, at flash {off:#x}..{off + len(blob):#x}")
     return 0
 
 
@@ -294,6 +316,8 @@ def main():
                            "image once, counts as lost what it asks again, and refuses it (FZER 12) before erasing")
         if name in ("push", "info"):
             p.add_argument("--blob", default=str(BLOB))
+            p.add_argument("--ble", action="store_true", help="the Bluetooth package's two blobs (fizz-ble-xdata.bin, "
+                           "fizz-ble-xdata2.bin), --blob ignored")
         if name != "info":
             p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
         if name == "stats":

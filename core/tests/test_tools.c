@@ -910,10 +910,13 @@ static void t_noroom(void)
 {
     qd_pattern_t *p;
     int t, s, n0;
+    const int ns = QD_UNDO_POOL >= 16384u ? QD_NSTEP : 44;   /* (the steps filled: sized to the log; the Bluetooth
+                                                         * package's is 8 KB, qd_config.h QD_UNDO_POOL_BLE: 40..52
+                                                         * steps land on "live, no room for a level" there) */
     start();
     p = PAT();
     for (t = 0; t < 2; t++)
-        for (s = 0; s < QD_NSTEP; s++) {
+        for (s = 0; s < ns; s++) {
             qd_step_set_vel(p, t, s, 1 + (int)(rnd() % 127));
             qd_step_set_note(p, t, s, 0, 30 + (int)(rnd() % 60));
             qd_step_set_micro(p, t, s, 1 + (int)(rnd() % 20));
@@ -1012,7 +1015,8 @@ static void t_drawn_only(void)
     uint8_t on[16], was[16], note[16];
     start();
     p = PAT();
-    for (t = 0; t < QD_PAT_NTRACK; t++)
+    for (t = 0; t < (int)(QD_PAT_NTRACK * QD_UNDO_POOL / 16384u); t++)   /* (sized to the log: every track at 16 KB,
+                                                         * half of them in the Bluetooth package's 8 KB) */
         for (s = 0; s < QD_NSTEP; s++) {
             if (t == 0 && s >= 16)
                 continue;                               /* (track 1: its page 1 alone, x.x. ..) */
