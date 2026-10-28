@@ -18,16 +18,27 @@ struct ProjectsPadView: View {
     @Binding var sharing: SharedFile?
     @State private var renaming = false
     @State private var newName = ""
+    /// the screen's width: narrow (portrait) puts the kept projects under the patterns
+    @State private var width: CGFloat = 1134
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SlotPills(pm: pm)
-            HStack(alignment: .top, spacing: 14) {
-                main
-                kept.frame(width: 296)
+            if width >= 900 {
+                HStack(alignment: .top, spacing: 14) {
+                    main
+                    kept.frame(width: 296)
+                }
+                .frame(maxHeight: .infinity, alignment: .top)
+            } else {
+                VStack(alignment: .leading, spacing: 14) {
+                    main.fixedSize(horizontal: false, vertical: true)
+                    kept.frame(maxHeight: .infinity)
+                }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxHeight: .infinity, alignment: .top)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .padding(.bottom, 20)
         .alert("RENAME", isPresented: $renaming) {
             TextField("", text: $newName).capsInput()
@@ -66,7 +77,7 @@ struct ProjectsPadView: View {
                         .overlay(Capsule().strokeBorder(FZ.champagne.mix(50, FZ.line).color, lineWidth: 1.5))
                         .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ProjPress())
                     .disabled(!s.there || pm.view == nil && !pm.online)
                     .opacity(s.there ? 1 : 0.35)
                     moreMenu
@@ -220,7 +231,17 @@ struct ProjectsPadView: View {
 /// The slots across the top (.spills): number, name, the open one cyan, a yellow dot for changes; armed: targets.
 struct SlotPills: View {
     let pm: ProjectsModel
+    @Environment(\.fizzSnapshot) private var snapshot
     var body: some View {
+        // (a narrow screen: they scroll sideways rather than run off its edge)
+        if snapshot { pills.frame(maxWidth: .infinity, alignment: .leading).clipped() } else {
+            ScrollView(.horizontal) { pills.padding(.vertical, 8).padding(.horizontal, 4) }
+                .scrollIndicators(.hidden)
+                .padding(.vertical, -8).padding(.horizontal, -4)
+        }
+    }
+
+    private var pills: some View {
         HStack(spacing: 7) {
             ForEach(pm.slots) { s in
                 let on = s.p == pm.sel && pm.arm == nil, target = pm.arm != nil && s.p != pm.arm?.from
@@ -247,7 +268,7 @@ struct SlotPills: View {
                     .contentShape(Capsule())
                     .fixedSize()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ProjPress())
             }
         }
         .frame(height: 44)

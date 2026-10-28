@@ -26,6 +26,38 @@ enum ProjIcons {
     static let pencil = VectorArt(24, 24, [.path("M4 20l1-5L15.5 4.5l4 4L9 19z")])
     static let play = VectorArt(14, 14, [.path("M2 1l11 6-11 6z")])
     static let move = VectorArt(24, 24, [.path("M4 12h16M14 6l6 6-6 6")])
+    static let back = VectorArt(24, 24, [.path("M15 4.5L7.5 12l7.5 7.5")])
+    static let next = VectorArt(24, 24, [.path("M9 4.5l7.5 7.5L9 19.5")])
+    static let slots = VectorArt(24, 24, [.rect(3, 3, 7.5, 7.5, 2), .rect(13.5, 3, 7.5, 7.5, 2), .rect(3, 13.5, 7.5, 7.5, 2),
+                                          .rect(13.5, 13.5, 7.5, 7.5, 2)])
+}
+
+/// iPhone: back to the slots (patterns, kept): a round chevron at the title's left.
+struct ProjBackButton: View {
+    var color: RGB = FZ.cyan
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            IconView(ProjIcons.back, color: color.color, lineWidth: 2.8, backdrop: .black).frame(width: 20, height: 20)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(color.opacity(0.1)))
+                .overlay(Circle().strokeBorder(color.mix(55, FZ.line).color, lineWidth: 1.5))
+                .contentShape(Circle())
+        }
+        .buttonStyle(ProjPress())
+        .accessibilityLabel("SLOTS")
+    }
+}
+
+/// A pressed button shrinks a little (instant feedback on touch-down).
+struct ProjPress: ButtonStyle {
+    var scale: CGFloat = 0.92
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)
+    }
 }
 
 /// The six tracks' colours (projtab.js TC).
@@ -219,6 +251,7 @@ struct PatternGrid: View {
             )
             .onChange(of: model.pats, initial: true) { _, p in onAnchor(p.min().map { frame($0, w) }, g.size.width) }
             .onChange(of: g.size.width) { _, _ in onAnchor(model.pats.min().map { frame($0, w) }, g.size.width) }
+            .onChange(of: tileH) { _, _ in onAnchor(model.pats.min().map { frame($0, w) }, g.size.width) }
         }
         .frame(height: height)
     }
@@ -257,7 +290,6 @@ struct SlotChips: View {
                 Button {
                     Task {
                         if model.arm != nil { await model.tapSlot(s.p); return }
-                        if s.p == model.sel && model.mode == .patterns { withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { model.mode = .slots }; return }
                         model.select(s.p)
                         await model.enter(.patterns)
                     }
@@ -277,15 +309,17 @@ struct SlotChips: View {
                         }
                         .overlay(alignment: .topTrailing) { if s.changed { ChangeDot().offset(x: 1, y: -3) } }
                         .shadow(color: on ? FZ.cyan.opacity(0.5) : .clear, radius: 7)
-                        .contentShape(Capsule())
+                        // (44 pt to the finger; the chip drawn 34)
+                        .padding(.vertical, 5)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ProjPress())
             }
-            KeptChip(count: model.kept.items.count, on: keptOn) {
+            KeptChip(count: model.kept.items.count, on: keptOn, hitPad: 5) {
                 Task { await model.enter(keptOn ? .patterns : .kept) }
             }
         }
-        .padding(.bottom, 14)
+        .padding(.bottom, 9)
     }
 }
 
@@ -303,23 +337,29 @@ struct KeptChip: View {
     let count: Int
     var on = false
     var height: CGFloat = 34
+    /// iPhone's slots: KEPT written beside the count
+    var label = false
+    /// room around it that still takes the finger
+    var hitPad: CGFloat = 0
     var action: () -> Void = {}
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 IconView(ProjIcons.keep, color: on ? .black : FZ.champagne.color, lineWidth: 2.3, backdrop: on ? FZ.champagne.color : .black)
                     .frame(width: 17, height: 17)
-                Text("\(count)").fz(14, 800)
+                if label { Text("KEPT").fz(13, 800, em: 0.1) }
+                Text("\(count)").fz(label ? 16 : 14, 800)
             }
             .foregroundStyle(on ? Color.black : FZ.champagne.color)
             .padding(.horizontal, 12).frame(height: height)
             .background(Capsule().fill(on ? FZ.champagne.color : .clear))
             .overlay(Capsule().strokeBorder(on ? FZ.champagne.color : FZ.champagne.mix(55, FZ.line).color, lineWidth: 1.5))
             .shadow(color: on ? FZ.champagne.opacity(0.45) : .clear, radius: 7)
-            .contentShape(Capsule())
+            .padding(.vertical, hitPad)
+            .contentShape(Rectangle())
             .fixedSize()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ProjPress())
     }
 }
 
@@ -327,16 +367,25 @@ struct KeptChip: View {
 struct ClipChip: View {
     let clip: FizzClip
     var body: some View {
+        // (as much as fits beside the title: the source and range, the range, the count)
+        ViewThatFits(in: .horizontal) {
+            chip("\(clip.from) \(clip.range)")
+            chip(clip.range)
+            chip(nil)
+        }
+        .transition(.asymmetric(insertion: .scale(scale: 0.4, anchor: .bottomLeading).combined(with: .opacity), removal: .opacity))
+    }
+
+    private func chip(_ what: String?) -> some View {
         HStack(spacing: 7) {
             IconView(ProjIcons.copy, color: FZ.cyan.color, lineWidth: 2.3, backdrop: FZ.cyan.mix(9, FZ.bg).color).frame(width: 16, height: 16)
             Text("\(clip.n)").fz(16, 800).foregroundStyle(FZ.text.color)
-            Text("\(clip.from) \(clip.range)").fz(13, 800).foregroundStyle(FZ.cyan.color).lineLimit(1)
+            if let what { Text(what).fz(13, 800).foregroundStyle(FZ.cyan.color).lineLimit(1) }
         }
         .padding(.leading, 10).padding(.trailing, 12).frame(height: 36)
         .background(Capsule().fill(FZ.cyan.opacity(0.09)))
         .overlay(Capsule().strokeBorder(FZ.cyan.color, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
         .fixedSize()
-        .transition(.asymmetric(insertion: .scale(scale: 0.4, anchor: .bottomLeading).combined(with: .opacity), removal: .opacity))
     }
 }
 
@@ -374,7 +423,7 @@ struct ProjButton: View {
             .shadow(color: style == .fill ? color.opacity(0.4) : .clear, radius: 10)
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ProjPress())
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.4)
     }
@@ -392,9 +441,11 @@ struct ProjRoundIcon: View {
             IconView(icon, color: color.color, lineWidth: 2.2, backdrop: .black).frame(width: size * 0.47, height: size * 0.47)
                 .frame(width: size, height: size)
                 .overlay(Circle().strokeBorder(ring.color, lineWidth: 1.5))
+                // (44 pt to the finger however small it is drawn)
+                .padding(max(0, (44 - size) / 2))
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ProjPress())
     }
 }
 
@@ -435,18 +486,19 @@ struct PendingBar: View {
         let top = HStack(spacing: 10) {
             Text("\(n)").fz(46, 800).monospacedDigit().foregroundStyle(FZ.yellow.color)
                 .contentTransition(.numericText())
+                .fixedSize()
             VStack(alignment: .leading, spacing: 1) {
                 Text(n == 1 ? "CHANGE" : "CHANGES").fz(13, 800, em: 0.12).foregroundStyle(FZ.yellow.color)
                 if pool > 0 { Text("+\(pool) POOL").fz(13, 800, em: 0.03).foregroundStyle(FZ.body.color) }
             }
             .fixedSize()
             Spacer(minLength: 4)
-            ProjButton(title: "UNDO", icon: ProjIcons.undo, style: .ghost, height: 40, size: 12, padding: 12) {
+            ProjButton(title: "UNDO", icon: ProjIcons.undo, style: .ghost, height: 44, size: 12, padding: 12) {
                 Task { await model.undo() }
             }
             .fixedSize()
             .keyboardShortcut("z", modifiers: .command)
-            ProjButton(title: "DISCARD", style: .ghost, height: 40, size: 12, padding: 12) { model.discard() }
+            ProjButton(title: "DISCARD", style: .ghost, height: 44, size: 12, padding: 12) { model.discard() }
                 .fixedSize()
         }
         Group {
@@ -473,15 +525,17 @@ struct PendingBar: View {
 }
 
 /// WRITE TO FM-1 as a slide (the owner's default: written only after a slide, as RESTORE): the knob dragged to the
-/// end starts it; it breathes while waiting. Over Bluetooth: WRITE NEEDS USB.
+/// end starts it (the finger may start anywhere on the slide); a tap nudges the knob; it breathes while waiting. Over
+/// Bluetooth: WRITE NEEDS USB.
 struct WriteSlide: View {
     let model: ProjectsModel
     var height: CGFloat = 54
     @State private var dx: CGFloat = 0
+    @State private var fired = 0
     @Environment(\.fizzSnapshot) private var snapshot
 
     var body: some View {
-        let ble = model.viaBle, tint = ble ? FZ.orange : FZ.yellow
+        let ble = model.viaBle, tint = ble ? FZ.orange : FZ.yellow, live = !ble && model.online
         GeometryReader { g in
             let knob = height - 8, travel = max(1, g.size.width - knob - 8), f = min(1, dx / travel)
             Animated(still: 0.6) { t in
@@ -489,33 +543,55 @@ struct WriteSlide: View {
                     Capsule().fill(tint.color)
                         .shadow(color: tint.opacity(0.35 + (ble ? 0 : 0.35 * breathe(t, 2))), radius: 12 + (ble ? 0 : 8 * breathe(t, 2)))
                     Capsule().fill(.white.opacity(0.25)).frame(width: knob + 8 + dx)
-                    HStack(spacing: 8) {
-                        Text(ble ? "WRITE NEEDS USB" : "WRITE TO FM-1").fz(height > 52 ? 17 : 15, 800, em: 0.08).foregroundStyle(.black)
-                            .lineLimit(1).minimumScaleFactor(0.7)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.leading, knob * 0.6)
-                    .opacity(1 - Double(f) * 0.8)
+                    Text(ble ? "WRITE NEEDS USB" : "WRITE TO FM-1").fz(height > 52 ? 17 : 15, 800, em: 0.08).foregroundStyle(.black)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity)
+                        .padding(.leading, knob * 0.6)
+                        .opacity(1 - Double(f) * 0.8)
                     Circle().fill(.black)
-                        .overlay(IconView(Icons.down, color: tint.color, lineWidth: 2.8, backdrop: .black).frame(width: knob * 0.45, height: knob * 0.45))
+                        .overlay(IconView(ble ? Icons.down : TransferIcons.chev, color: tint.color, lineWidth: 2.8, backdrop: .black)
+                            .frame(width: knob * 0.45, height: knob * 0.45)
+                            .offset(x: live && dx == 0 && !snapshot ? 2.5 * breathe(t, 1.6) : 0))
                         .frame(width: knob, height: knob)
                         .offset(x: 4 + dx)
-                        .gesture(ble || !model.online ? nil : slide(travel))
                 }
+                .contentShape(Capsule())
+                .gesture(live ? slide(travel, g.size.width) : nil)
             }
         }
         .frame(height: height)
         .opacity(model.online || snapshot ? 1 : 0.4)
         .onTapGesture { if ble { model.say("USB CABLE NEEDED", FZ.orange) } }
+        .sensoryFeedback(.success, trigger: fired)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ble ? "WRITE NEEDS USB" : "WRITE TO FM-1")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { if live { fired += 1; Task { await model.write() } } }
     }
 
-    private func slide(_ travel: CGFloat) -> some Gesture {
+    /// The knob's travel for a finger moved `dx` from `x` (it may start anywhere on the slide): the knob reaches the end
+    /// as the finger reaches the slide's end.
+    static func knob(_ dx: CGFloat, from x: CGFloat, width: CGFloat, travel: CGFloat) -> CGFloat {
+        let room = max(60, width - 8 - x)
+        return min(travel, max(0, dx * travel / min(travel, room)))
+    }
+
+    private func slide(_ travel: CGFloat, _ width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
-            .onChanged { v in dx = min(travel, max(0, v.translation.width)) }
-            .onEnded { _ in
+            .onChanged { v in dx = Self.knob(v.translation.width, from: v.startLocation.x, width: width, travel: travel) }
+            .onEnded { v in
                 let go = dx >= travel * 0.88
+                if !go, abs(v.translation.width) < 8, abs(v.translation.height) < 8 {
+                    // a tap: the knob shows the way
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) { dx = min(travel, 44) }
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(220))
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { dx = 0 }
+                    }
+                    return
+                }
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { dx = 0 }
-                if go { Task { await model.write() } }
+                if go { fired += 1; Task { await model.write() } }
             }
     }
 }
@@ -615,12 +691,13 @@ struct KeptDots: View {
                                     .overlay(Circle().strokeBorder(used ? FZ.champagne.color : RGB(0x2e2e36).color, lineWidth: 2))
                             }
                         }
-                        .frame(maxWidth: .infinity).frame(height: 19)
+                        .frame(maxWidth: .infinity).frame(height: 26)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             guard used else { return }
                             flash = k
-                            Task { await model.copy(from: item, ks: [k]) }
+                            // (lit at once; then lit while it is the clip)
+                            Task { await model.copy(from: item, ks: [k]); flash = nil }
                         }
                     }
                 }
@@ -656,7 +733,7 @@ struct PatternDots: View {
                                         .overlay(Circle().strokeBorder(used ? FZ.cyan.color : RGB(0x26262e).color, lineWidth: 2))
                                 }
                             }
-                            .frame(maxWidth: .infinity).frame(height: 24)
+                            .frame(maxWidth: .infinity).frame(height: 21)
                         }
                     }
                 }

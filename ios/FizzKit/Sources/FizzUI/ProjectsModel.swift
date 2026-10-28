@@ -149,6 +149,9 @@ public final class ProjectsModel {
         if online && stale && ops.isEmpty { await read() }
     }
 
+    /// iPhone: back to the slots (the back chevron, a swipe from the edge).
+    public func back() { mode = .slots }
+
     /// The patterns or the kept projects looked at: the store read first when it changed.
     public func enter(_ m: Mode) async {
         mode = m

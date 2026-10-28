@@ -17,32 +17,40 @@ struct ProjectsKeptView: View {
 
     var body: some View {
         let s = pm.selected
-        ScreenScroll(bottom: pm.ops.isEmpty ? 120 : 270, refresh: { await pm.kept.reload() }) {
-            HStack(alignment: .center, spacing: 10) {
-                Text("KEPT").fz(46, 800, em: -0.01).foregroundStyle(FZ.champagne.color)
-                    .shadow(color: FZ.champagne.opacity(0.4), radius: 12)
-                Text("\(pm.kept.items.count)").fz(22, 800).foregroundStyle(FZ.text.color)
-                    .frame(maxHeight: .infinity, alignment: .bottom).padding(.bottom, 6)
-                Spacer(minLength: 0)
-                if let c = pm.clip { ClipChip(clip: c) } else {
-                    ProjRoundIcon(icon: Icons.open, color: FZ.champagne, ring: FZ.champagne.mix(45, FZ.line), size: 36) { importing = true }
+        VStack(alignment: .leading, spacing: 0) {
+            // (the title and the slots stay put: LOAD INTO's targets in reach however far the list scrolls)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .center, spacing: 10) {
+                    ProjBackButton(color: FZ.champagne) { pm.back() }
+                    Text("KEPT").fz(46, 800, em: -0.01).foregroundStyle(FZ.champagne.color)
+                        .shadow(color: FZ.champagne.opacity(0.4), radius: 12)
+                        .fixedSize()
+                    Text("\(pm.kept.items.count)").fz(22, 800).foregroundStyle(FZ.text.color).fixedSize()
+                        .frame(maxHeight: .infinity, alignment: .bottom).padding(.bottom, 6)
+                    Spacer(minLength: 0)
+                    if let c = pm.clip { ClipChip(clip: c) } else {
+                        ProjRoundIcon(icon: Icons.open, color: FZ.champagne, ring: FZ.champagne.mix(45, FZ.line), size: 40) { importing = true }
+                    }
                 }
+                .frame(height: 56)
+                .padding(.bottom, 5)
+                .animation(.spring(response: 0.45, dampingFraction: 0.72), value: pm.clip)
+                SlotChips(model: pm, keptOn: true)
             }
-            .frame(height: 56)
-            .padding(.bottom, 10)
-            .animation(.spring(response: 0.45, dampingFraction: 0.72), value: pm.clip)
-            SlotChips(model: pm, keptOn: true)
-            if s.there {
-                KeepCard(name: s.name, enabled: pm.online || pm.view != nil) { Task { await pm.keep() } }
-                    .padding(.bottom, 8)
-            }
-            VStack(spacing: 8) {
-                ForEach(pm.kept.items) { k in
-                    KeptCard(model: pm, item: k, open: pm.keptSel == k.id)
+            .padding(.horizontal, 16).padding(.top, 4)
+            ScreenScroll(bottom: pm.ops.isEmpty ? 120 : 270, refresh: { await pm.kept.reload() }) {
+                VStack(spacing: 8) {
+                    if s.there {
+                        KeepCard(name: s.name, enabled: pm.online || pm.view != nil) { Task { await pm.keep() } }
+                    }
+                    ForEach(pm.kept.items) { k in
+                        KeptCard(model: pm, item: k, open: pm.keptSel == k.id)
+                    }
                 }
+                // (inside the scroll: the open card's glow not cut at its edges)
+                .padding(.horizontal, 16).padding(.top, 6)
             }
         }
-        .padding(.horizontal, 16).padding(.top, 4)
     }
 }
 
@@ -67,7 +75,7 @@ struct KeepCard: View {
                                                                      style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
             .contentShape(RoundedRectangle(cornerRadius: 18))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ProjPress())
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.4)
     }
