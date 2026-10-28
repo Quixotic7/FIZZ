@@ -4,7 +4,8 @@
 //
 //   manifest.json            { "format": "fizz-backup", "version": 1, "kind": "full" | "presets", "date": ISO,
 //                              "fizz": "0.11.0-beta.2", "unit": { "identity": "FM-1_46001100", "port": "FIZZ FM-1" },
-//                              "store": { "layout": "device", "magic": "Z2FS", "format": 2, "tracks": 6,
+//                              "store": { "layout": "device" (the USB package's; "ble" the Bluetooth package's, magic
+//                                         "Z2FB", region [0xAF000, 200704]), "magic": "Z2FS", "format": 2, "tracks": 6,
 //                                         "region": [0x97000, 299008], "crc32": "1a2b3c4d", "file": "store.bin" },
 //                              "projects": [{ "slot": 1, "name": "NOIR" }], "presets": 143,
 //                              "web": { "tags": { "<sound key>": ["SHIMMER"] } }, "transfer": { .. the timing .. } }

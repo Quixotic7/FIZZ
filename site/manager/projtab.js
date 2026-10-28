@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The Manager's PROJECTS tab (the owner's request of 2026-10-26; mockups/fizz-projects.html, approved 2026-10-27):
-// the FM-1's eight slots on the left (LOAD, RENAME, COPY TO, MOVE TO, KEEP, DELETE), a project's 64 patterns on the
+// the FM-1's slots on the left (eight; four in the Bluetooth package) (LOAD, RENAME, COPY TO, MOVE TO, KEEP, DELETE), a project's 64 patterns on the
 // right (click, SHIFT-click a range, CMD-click one more; COPY, PASTE, CLEAR, .fizzpat out and in), or the projects KEPT
 // in this browser (.fizzprj in and out, LOAD INTO a slot).
 //   - The slots' moves are the FM-1's own commands (PROJECT, RENAME): done at once.
@@ -9,9 +9,12 @@
 //     after the store as it was is kept in BACKUP's list. The store is read again first if the FM-1 changed it since.
 //   mountProjects(ctx) -> { show(), render() }
 //   ctx: S, $, log, say, toast, edit(what, fn), refreshRows(o), readStore(label) -> image | null, writeStore(image,
-//        before) -> true | false, kv: {get, put}, download(bytes, name), fizz()
+//        before) -> true | false, kv: {get, put}, download(bytes, name), fizz(), pkg() -> {nproj, nlib, name},
+//        viaBle() (the Bluetooth MIDI port: WRITE, the store's restore, needs the USB cable), NEEDS_USB
+// A project from the other package comes in as a .fizzprj (KEEP there, LOAD INTO here): its MY presets come along;
+// those MY PRESETS has no room for stay in it as its own copies (projects.js derefPat), so it sounds the same.
 import { modelOf, imageOf, cloneModel, projects, project, patName, copyPatterns, pastePatterns, clearPatterns, keepProject,
-  loadProject, renameKept, cleanName, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, NPROJ } from "./projects.js";
+  loadProject, renameKept, cleanName, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, limits } from "./projects.js";
 import { esc, confirmBox } from "./ui.js";
 
 const TC = ["--blue", "--green", "--cream", "--orange", "--pink", "--violet"];
@@ -35,6 +38,8 @@ export function mountProjects(ctx) {
   const J = { sel: 0, pats: new Set(), anchor: -1, view: "patterns", clip: null, base: null, ops: [], cache: null, kept: null,
     ksel: -1, arm: null, renaming: false, reading: false };
   const link = () => S.link;
+  const nproj = () => (J.base ? limits(model()).nproj : ctx.pkg ? ctx.pkg().nproj : 8);
+  const viaBle = () => !!(ctx.viaBle && ctx.viaBle());
   const on = () => !!(S.link && S.unit && S.unit.status && !S.busy);
   const list = () => (S.unit && S.unit.projects ? S.unit.projects.list : []);
   const model = () => {
@@ -61,8 +66,8 @@ export function mountProjects(ctx) {
     return true;
   }
   const refuse = (e) => (e.code === "poolfull" ? "The pool there is full (128): clear some of its sounds first."
-    : e.code === "libfull" ? "MY PRESETS is full (256): delete some first."
-      : e.code === "range" ? "The patterns run past D16 from there: pick an earlier pattern."
+    : e.code === "full" ? "That does not fit the FM-1's store: clear some patterns or projects first."
+      : e.code === "range" ? (/slot/.test(e.message) ? `This FM-1 has ${nproj()} project slots.` : "The patterns run past D16 from there: pick an earlier pattern.")
         : e.code === "demo" ? "A demo project's first three patterns stay the demo's here." : e.message);
 
   // ---------------------------------------------------------------- the store read (and read again when it changed)
@@ -89,7 +94,7 @@ export function mountProjects(ctx) {
   function slotsHtml() {
     const m = model(), L = list();
     if (!L.length && !m) return "";                   // (no FM-1: nothing to show)
-    return Array.from({ length: NPROJ }, (_, p) => {
+    return Array.from({ length: nproj() }, (_, p) => {
       const e = L[p], there = e ? e.there : m ? project(m, p).there : false;
       const info = m ? project(m, p) : null, changed = J.ops.some((o) => o.q === p);
       const target = J.arm && J.arm.from !== p;
@@ -137,11 +142,14 @@ export function mountProjects(ctx) {
     const pname = (q) => (L[q] && L[q].name) || (model() ? project(model(), q).name : "") || `PROJECT ${q + 1}`;
     const what = last.kind === "paste" ? `${last.result.at.length} pattern${last.result.at.length === 1 ? "" : "s"} into ${esc(pname(last.q))}`
       : last.kind === "clear" ? `${last.ks.length} cleared in ${esc(pname(last.q))}` : `${esc(last.kept.name)} into slot ${last.q + 1}`;
-    const extra = last.result && (last.result.poolAdded || last.result.presetsAdded)
-      ? [last.result.poolAdded ? `+${last.result.poolAdded} pool` : "", last.result.presetsAdded ? `+${last.result.presetsAdded} MY PRESETS` : ""].filter(Boolean).join(" · ") : "";
+    const r = last.result;
+    const extra = r && (r.poolAdded || r.presetsAdded || r.copies)
+      ? [r.poolAdded ? `+${r.poolAdded} pool` : "", r.presetsAdded ? `+${r.presetsAdded} MY PRESETS` : "",
+        r.copies ? `${r.copies} sound${r.copies === 1 ? "" : "s"} kept as the project's own (MY PRESETS full)` : ""].filter(Boolean).join(" · ") : "";
     return `<span class="cnt">${J.ops.length}</span><div class="what">${what}${extra ? `<small>${extra}</small>` : ""}</div>` +
       `<button class="btn small ghost" data-act="undo" style="margin-left:auto">UNDO</button><button class="btn small ghost" data-act="discard">DISCARD</button>` +
-      `<button class="btn" data-act="write" style="--c:var(--yellow)" ${on() ? "" : "disabled"}>${IC.down}WRITE TO ${S.mode === "browser" ? "BROWSER" : "FM-1"}</button>`;
+      (viaBle() ? `<button class="btn" data-act="usb" style="--c:var(--orange)">${IC.down}WRITE NEEDS USB</button>`
+        : `<button class="btn" data-act="write" style="--c:var(--yellow)" ${on() ? "" : "disabled"}>${IC.down}WRITE TO ${S.mode === "browser" ? "BROWSER" : "FM-1"}</button>`);
   }
 
   // ---------------------------------------------------------------- kept in this browser
@@ -164,7 +172,7 @@ export function mountProjects(ctx) {
   function render() {
     if ($("tab-projects").hidden) return;
     const L = list(), m = model(), K = J.kept || [];
-    $("pj-n").textContent = L.length ? `${L.filter((x) => x.there).length} / ${NPROJ}` : "";
+    $("pj-n").textContent = L.length ? `${L.filter((x) => x.there).length} / ${nproj()}` : "";
     $("pj-on").textContent = S.mode === "browser" ? "IN THE BROWSER'S FIZZ" : "ON THE FM-1";
     const st = S.unit && S.unit.status;
     $("pj-use").innerHTML = st && st.prj[1] ? `<span class="bar"><span style="width:${Math.round(st.prj[0] / st.prj[1] * 100)}%"></span></span>${Math.round(st.prj[0] / st.prj[1] * 100)} %` : "";
@@ -286,9 +294,11 @@ export function mountProjects(ctx) {
       const ok = await confirmBox({ title: "DISCARD", what: `${J.ops.length} change${J.ops.length === 1 ? "" : "s"}`, go: "DISCARD", sub: "Nothing was written yet." });
       if (ok) { J.ops = []; J.cache = null; render(); }
     } else if (act === "write") await write();
+    else if (act === "usb") say(ctx.NEEDS_USB || "Connect the USB cable for this.", "--orange");
   }
   async function write() {
     if (!on() || !J.ops.length) return;
+    if (viaBle()) { say(ctx.NEEDS_USB || "Connect the USB cable for this.", "--orange"); return; }
     const st = await link().status().catch(() => null);
     if (st && st.playing) { say("Stop the FM-1, then WRITE again.", "--orange"); return; }
     if (st) S.unit.status = st;

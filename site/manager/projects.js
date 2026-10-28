@@ -12,21 +12,27 @@
 //   pastePatterns(model, q, j, clip) -> {at: [k], poolAdded, presetsAdded}   (throws {code: "poolfull" | "libfull" | "range"})
 //   clearPatterns(model, q, ks)
 //   keepProject(model, p) -> a kept project {name, demo, recs: [{kind, i, bytes}], presets: Map, pats, sounds}
-//   loadProject(model, q, kept) -> {presetsAdded}  (slot q's records replaced; throws {code: "libfull"})
+//   loadProject(model, q, kept) -> {presetsAdded, copies}  (slot q's records replaced; throws {code: "range"})
+//   limits(model) -> {nproj, nlib, package}           (the store's package: USB 8 and 256, Bluetooth 4 and 128)
+//   fitModel(model, to, {projects, presets}) -> {model, copies, left: {projects, presets}}   (another package's layout)
+//   fitChoice(model, to, {projects}) -> {projects, presets}   (fitModel's default: the first projects, their presets)
 //   makeFizzprj(kept, {fizz, date}) / readFizzprj(bytes)    makeFizzpat(clip, ..) / readFizzpat(bytes)
 // The changes are FIZZ's own rules, done here: a pattern's steps and track sounds name its project's pool numbers (1..128),
 // re-mapped into the target's pool ('R' 1: a pool place's preset id; the same id where the target has it, else the first
 // free place); its track sounds 'P' 5/6 name MY preset ids (the whole unit's): kept as they are when the target store has
 // that preset with the same name and sound, else linked to one that has, else the preset added (a new id, as the unit's
-// id_next) from the copy the clip carries. A project's MIDI FX groups stay its own (the owner: a project is "everything for
+// id_next) from the copy the clip carries; MY PRESETS full (the Bluetooth package's 128 fill sooner), the sound becomes the
+// project's own copy instead (a track sound by reference written as a copy, a pool place 'S' with no id: persist.h
+// P1.5w, the unit keeps it as it is until the library has room), so the project sounds the same everywhere. A project's
+// MIDI FX groups stay its own (the owner: a project is "everything for
 // one or two songs"): a pasted pattern plays the target's groups.
-import { regionRecords, buildImage, preset as presetRec } from "./fizzstore.js";
+import { regionRecords, buildImage, preset as presetRec, layoutByName, PACKAGE_NAME } from "./fizzstore.js";
 import { zipStored, soundToFizzsnd } from "../js/library.js";
 import { dnReadZip } from "../js/fm1dnsnd.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
 
 export const RK = { SET: 1, HDR: 2, PAT: 3, SND: 4, LIB: 5, FTAG: 6, MFX: 7 };       // persist.h QD_RK_*
-export const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 23, MINE0 = 0x100, DEMO_N = 3;
+export const NPROJ = 8, NPAT = 64, NPOOL = 128, NLIB = 256, NTRACK = 6, NFACTORY = 23, MINE0 = 0x100, DEMO_N = 3;   // (NPROJ, NLIB: the USB package's)
 const NAME = 13, BLOB = 128, WIRE = 20, LIBLEN = 2 + NAME + BLOB + 8;
 export const rkey = (kind, p, i) => ((kind << 24) | (p << 16) | i) >>> 0;
 export const kindOf = (k) => k >>> 24, projOf = (k) => (k >>> 16) & 0xFF, idxOf = (k) => k & 0xFFFF;
@@ -42,7 +48,8 @@ export function modelOf(image) {
   return { layout: r.layout, magic: r.magic, lib: new Map(r.lib.map((x) => [x.key, x.bytes])), prj: new Map(r.prj.map((x) => [x.key, x.bytes])) };
 }
 const sorted = (m) => [...m.entries()].sort((a, b) => a[0] - b[0]).map(([key, bytes]) => ({ key, bytes }));
-export const imageOf = (m) => buildImage(m.layout, { lib: sorted(m.lib), prj: sorted(m.prj), magic: m.magic });
+export const imageOf = (m) => buildImage(m.layout, { lib: sorted(m.lib), prj: sorted(m.prj) });
+export const limits = (m) => { const l = layoutByName(m.layout); return { nproj: l.nproj, nlib: l.nlib, package: l.package }; };
 export const cloneModel = (m) => ({ layout: m.layout, magic: m.magic, lib: new Map(m.lib), prj: new Map(m.prj) });
 const keysOf = (m, p) => [...m.prj.keys()].filter((k) => kindOf(k) !== RK.SET && projOf(k) === p);
 
@@ -74,6 +81,7 @@ export function walkPat(b) {
     pages.push(pg);
   }
   o += 4 * nlock;
+  const sndAt = o;
   for (let t = 0; t < NTRACK; t++) {
     if (refAt.length && g16(b, refAt[t])) { soundAt.push(o); o += 2; continue; }   // by reference: its pool source, edited
     o += v >= 3 ? BLOB : 96;
@@ -91,7 +99,7 @@ export function walkPat(b) {
     if (n > best) { best = n; show = p; }
   }
   const rows = pages.map((pg) => Array.from({ length: 16 }, (_, s) => !!((pg[show] >> s) & 1)));
-  return { v, used: !!used, trigs, rows, page: show, soundAt: soundAt.filter((x) => b[x]), refAt, idAt };
+  return { v, used: !!used, trigs, rows, page: show, soundAt: soundAt.filter((x) => b[x]), refAt, idAt, sndAt };
 }
 
 // ---- a project
@@ -115,7 +123,7 @@ export function project(m, p) {
   for (let n = 1; n <= NPOOL; n++) if (there && poolEntry(m, p, n, empty)) pool++;
   return { p, there, name: there ? cstr(h, 2, NAME - 1) : "", demo, pats, used, pool };
 }
-export const projects = (m) => Array.from({ length: NPROJ }, (_, p) => project(m, p));
+export const projects = (m) => Array.from({ length: limits(m).nproj }, (_, p) => project(m, p));
 
 // a pool place: {id} (a reference, 'R' 1), {rec} (a copy, 0.7's 'S'), or null (empty, 'E' 1, none). A project whose
 // pool did not start empty (the demos', 0.6's: HDR's pool_empty byte, persist.c proj_read) holds factory preset n in
@@ -133,7 +141,7 @@ function poolEntry(m, p, n, empty = poolStartsEmpty(m, p)) {
 // ---- MY PRESETS: their records by id; a preset's match is its name and packed sound (persist.c tsound_ref)
 function libIndex(m) {
   const byId = new Map(), free = [];
-  for (let i = 0; i < NLIB; i++) {
+  for (let i = 0; i < limits(m).nlib; i++) {
     const r = m.lib.get(rkey(RK.LIB, 0, i));
     if (r && r.length === LIBLEN && r[0] === 0x53 && r[1] === 5) byId.set(g16(r, 2 + NAME + BLOB), { i, r });
     else free.push(i);
@@ -148,17 +156,20 @@ function nextId(m, ix) {
   if (f && f[0] === 0x46 && f[1] === 2 && f.length >= 2 + NFACTORY + 2) n = Math.max(n, g16(f, 2 + NFACTORY));
   return n;
 }
-// the ids a clip or a kept project names, made the target store's: kept, linked to the same sound, or added
-function relink(m, presets) {
-  const map = new Map(), ix = libIndex(m);
+// the ids a clip or a kept project names, made the target store's: kept, linked to the same sound, or added; with
+// MY PRESETS full, lost (-> lost: id -> its record: the callers write the sound as the project's own copy). The ids
+// the patterns and the pool play (need) get the free places first, those only named as a copy's origin after
+function relink(m, presets, need = null) {
+  const map = new Map(), lost = new Map(), ix = libIndex(m);
   let added = 0;
-  for (const [id, rec] of presets) {
+  const order = [...presets].sort((a, b) => (need ? (need.has(b[0]) ? 1 : 0) - (need.has(a[0]) ? 1 : 0) : 0));
+  for (const [id, rec] of order) {
     if (id <= NFACTORY) { map.set(id, id); continue; }
     const here = ix.byId.get(id);
     if (here && sameSound(here.r, rec)) { map.set(id, id); continue; }
     const same = [...ix.byId.entries()].find(([, x]) => sameSound(x.r, rec));
     if (same) { map.set(id, same[0]); continue; }
-    if (!ix.free.length) throw err("libfull", "MY PRESETS is full (256)", { need: presets.size });
+    if (!ix.free.length) { lost.set(id, rec); continue; }
     const i = ix.free.shift(), nid = nextId(m, ix), r = rec.slice();
     p16(r, 2 + NAME + BLOB, nid);
     m.lib.set(rkey(RK.LIB, 0, i), r);
@@ -170,7 +181,53 @@ function relink(m, presets) {
       const g = f.slice(); p16(g, 2 + NFACTORY, nid + 1); m.lib.set(rkey(RK.FTAG, 0, 0), g);
     }
   }
-  return { map, added };
+  return { map, added, lost };
+}
+// the ids a project's patterns play by reference and its pool references (relink's need)
+function neededIds(pats, poolIds) {
+  const need = new Set(poolIds);
+  for (const b of pats) { const w = walkPat(b); if (w) w.refAt.forEach((o) => { const id = g16(b, o); if (id) need.add(id); }); }
+  return need;
+}
+// a MY PRESETS record as a pool place's own copy ('S' 5 with no id: "a copy the library had no room for", persist.c
+// snd_rec; the unit makes it a reference again when its project loads with room in the library)
+export const copyRecord = (rec) => { const r = rec.slice(); p16(r, 2 + NAME + BLOB, 0); return r; };
+// a pattern record's track sounds that name a lost preset (lost: id -> its MY PRESETS record) written as the track's own
+// copy (the preset's packed sound and name, as de_pat reads a reference: the same sound, no id); a copy's origin id that
+// is lost cleared -> {bytes, n: the track sounds made copies}
+export function derefPat(b, lost) {
+  const w = walkPat(b);
+  if (!w || !lost.size) return { bytes: b, n: 0 };
+  const ids = w.refAt.map((o) => g16(b, o));
+  if (!ids.some((id) => lost.has(id)) && !w.idAt.some((o) => lost.has(g16(b, o)))) return { bytes: b, n: 0 };
+  const head = b.slice(0, w.sndAt), parts = [head];
+  let o = w.sndAt, n = 0;
+  const cbl = w.v >= 3 ? BLOB : 96;
+  for (let t = 0; t < NTRACK; t++) {
+    const id = ids.length ? ids[t] : 0;
+    if (id) {                                          // (by reference: its pool source and edited bytes)
+      const two = b.slice(o, o + 2);
+      o += 2;
+      const rec = lost.get(id);
+      if (!rec) { parts.push(two); continue; }
+      const c = new Uint8Array(BLOB + 2 + NAME + 2);
+      c.set(rec.subarray(2 + NAME, 2 + NAME + BLOB), 0);
+      c.set(two, BLOB);
+      c.set(rec.subarray(2, 2 + NAME), BLOB + 2);
+      p16(head, w.refAt[t], 0);
+      parts.push(c);
+      n++;
+      continue;
+    }
+    const len = cbl + 2 + NAME + (w.v >= 2 ? 2 : 0), c = b.slice(o, o + len);
+    if (w.v >= 2 && lost.has(g16(c, len - 2))) p16(c, len - 2, 0);
+    parts.push(c);
+    o += len;
+  }
+  const out = new Uint8Array(parts.reduce((a, x) => a + x.length, 0));
+  let k = 0;
+  for (const x of parts) { out.set(x, k); k += x.length; }
+  return { bytes: out, n };
 }
 // the MY presets a pattern record names (track references and copies' ids) and a pool's references
 function presetsOf(m, bytesList, poolIds) {
@@ -209,13 +266,18 @@ export function pastePatterns(m, q, j, clip) {
   if (!clip.pats.length) return { at: [], poolAdded: 0, presetsAdded: 0 };
   const k0 = clip.pats[0].k, at = clip.pats.map((x) => j + x.k - k0);
   if (at.some((k) => k < 0 || k >= NPAT)) throw err("range", `the patterns run past D16 from ${patName(j)}`);
-  const { map: imap, added } = relink(m, clip.presets);
+  if (q < 0 || q >= limits(m).nproj) throw err("range", `slot ${q + 1}: this store has ${limits(m).nproj} projects`);
+  const need = neededIds(clip.pats.map((x) => x.bytes), [...clip.pool.values()].filter((e) => e && e.id).map((e) => e.id));
+  const { map: imap, added, lost } = relink(m, clip.presets, need);
+  let copies = 0;
   const pmap = new Map();
   let poolAdded = 0;
   const free = [];
   for (let n = 1; n <= NPOOL; n++) if (!poolEntry(m, q, n)) free.push(n);
-  for (const [n, e] of clip.pool) {
-    if (!e) { pmap.set(n, 0); continue; }              // (a lock on an empty place: the track's sound, as FIZZ plays it)
+  for (const [n, e0] of clip.pool) {
+    if (!e0) { pmap.set(n, 0); continue; }             // (a lock on an empty place: the track's sound, as FIZZ plays it)
+    const e = e0.id && lost.has(e0.id) ? { rec: copyRecord(lost.get(e0.id)) } : e0;   // (MY PRESETS full: its own copy)
+    if (e !== e0) copies++;
     let hit = 0;
     for (let x = 1; x <= NPOOL && !hit; x++) {
       const t = poolEntry(m, q, x);
@@ -231,8 +293,12 @@ export function pastePatterns(m, q, j, clip) {
     }
     pmap.set(n, hit);
   }
-  clip.pats.forEach((x, i) => m.prj.set(rkey(RK.PAT, q, at[i]), remapPat(x.bytes, pmap, imap)));
-  return { at, poolAdded, presetsAdded: added };
+  clip.pats.forEach((x, i) => {
+    const d = derefPat(remapPat(x.bytes, pmap, imap), lost);
+    copies += d.n;
+    m.prj.set(rkey(RK.PAT, q, at[i]), d.bytes);
+  });
+  return { at, poolAdded, presetsAdded: added, copies };
 }
 // cleared: no record, as a pattern never written. A demo project's A01..A03 without a record play the demos (compiled
 // in): those are refused ({code: "demo"}), nothing changed
@@ -252,16 +318,74 @@ export function keepProject(m, p) {
   return { name: info.name, demo: info.demo, recs, presets, pats: info.used, sounds: info.pool, colours: colours(presets) };
 }
 export function loadProject(m, q, kept) {
+  const { nproj } = limits(m);
+  if (q < 0 || q >= nproj) throw err("range", `slot ${q + 1}: this store has ${nproj} projects`);
   for (const k of keysOf(m, q)) m.prj.delete(k);
-  const { map: imap, added } = relink(m, kept.presets);
+  const isRef = (b) => b.length === 4 && b[0] === 0x52 && b[1] === 1;
+  const need = neededIds(kept.recs.filter((r) => r.kind === RK.PAT).map((r) => r.bytes),
+    kept.recs.filter((r) => r.kind === RK.SND && isRef(r.bytes)).map((r) => g16(r.bytes, 2)));
+  const { map: imap, added, lost } = relink(m, kept.presets, need);
   const same = new Map();                               // (the pool numbers stay: the whole pool comes along)
+  let copies = 0;
   for (const r of kept.recs) {
     let b = r.bytes;
-    if (r.kind === RK.PAT) b = remapPat(b, same, imap);
-    else if (r.kind === RK.SND && b.length === 4 && b[0] === 0x52 && b[1] === 1 && imap.has(g16(b, 2))) { b = b.slice(); p16(b, 2, imap.get(g16(b, 2))); }
+    if (r.kind === RK.PAT) { const d = derefPat(remapPat(b, same, imap), lost); b = d.bytes; copies += d.n; }
+    else if (r.kind === RK.SND && isRef(b) && lost.has(g16(b, 2))) { b = copyRecord(lost.get(g16(b, 2))); copies++; }
+    else if (r.kind === RK.SND && isRef(b) && imap.has(g16(b, 2))) { b = b.slice(); p16(b, 2, imap.get(g16(b, 2))); }
     m.prj.set(rkey(r.kind, q, r.i), b);
   }
-  return { presetsAdded: added };
+  return { presetsAdded: added, copies };
+}
+
+// ---- a store in another package's layout (a full backup restored across packages: USB 8 projects and 256 MY PRESETS,
+// Bluetooth 4 and 128), record by record. The projects chosen go to slots 1.. in their order, the MY presets chosen to
+// places 1.. in theirs (their ids kept: what names them by id still finds them); a track sound or a pool place that
+// names a preset left out becomes the project's own copy (derefPat, copyRecord: it sounds the same). The settings
+// record's project follows its project (the first slot when it was left out).
+export function fitChoice(m, to, { projects: ps = null } = {}) {
+  to = layoutByName(to);
+  const there = projects(m).filter((x) => x.there).map((x) => x.p);
+  const chosen = (ps || there).slice(0, to.nproj);
+  const ix = libIndex(m), placeOf = new Map([...ix.byId].map(([id, x]) => [id, x.i]));
+  const used = [];
+  for (const p of chosen) {
+    const recs = keysOf(m, p).map((k) => ({ k, b: m.prj.get(k) }));
+    const ids = neededIds(recs.filter((r) => kindOf(r.k) === RK.PAT).map((r) => r.b),
+      recs.filter((r) => kindOf(r.k) === RK.SND && r.b.length === 4 && r.b[0] === 0x52).map((r) => g16(r.b, 2)));
+    for (const id of ids) if (placeOf.has(id) && !used.includes(placeOf.get(id))) used.push(placeOf.get(id));
+  }
+  const all = [...ix.byId.values()].map((x) => x.i).sort((a, b) => a - b);
+  const presets = [...used.sort((a, b) => a - b), ...all.filter((i) => !used.includes(i))].slice(0, to.nlib);
+  return { projects: chosen, presets };
+}
+export function fitModel(m, to, choice = null) {
+  to = layoutByName(to);
+  const c = choice || fitChoice(m, to);
+  if (c.projects.length > to.nproj || c.presets.length > to.nlib)
+    throw err("range", `the ${PACKAGE_NAME[to.package]} package holds ${to.nproj} projects and ${to.nlib} MY PRESETS`);
+  const out = { layout: to, magic: to.magic, lib: new Map(), prj: new Map() };
+  const ix = libIndex(m), lost = new Map();
+  for (const [k, b] of m.lib) if (kindOf(k) !== RK.LIB) out.lib.set(k, b);   // (the factory tags, the next id)
+  c.presets.forEach((i, n) => out.lib.set(rkey(RK.LIB, 0, n), m.lib.get(rkey(RK.LIB, 0, i))));
+  for (const [id, x] of ix.byId) if (!c.presets.includes(x.i)) lost.set(id, x.r);
+  let copies = 0;
+  c.projects.forEach((p, q) => {
+    for (const k of keysOf(m, p)) {
+      let b = m.prj.get(k);
+      if (kindOf(k) === RK.PAT) { const d = derefPat(b, lost); b = d.bytes; copies += d.n; }
+      else if (kindOf(k) === RK.SND && b.length === 4 && b[0] === 0x52 && b[1] === 1 && lost.has(g16(b, 2))) { b = copyRecord(lost.get(g16(b, 2))); copies++; }
+      out.prj.set(rkey(kindOf(k), q, idxOf(k)), b);
+    }
+  });
+  const set = m.prj.get(rkey(RK.SET, 0, 0));
+  if (set) {
+    const g = set.slice(), q = set.length > 3 ? c.projects.indexOf(set[2]) : 0;
+    if (set.length > 3) { g[2] = Math.max(0, q); if (q < 0) g[3] = 0; }
+    out.prj.set(rkey(RK.SET, 0, 0), g);
+  }
+  const all = projects(m);
+  return { model: out, copies, left: { projects: all.filter((x) => x.there && !c.projects.includes(x.p)).map((x) => ({ slot: x.p + 1, name: x.name })),
+    presets: [...ix.byId.entries()].filter(([, x]) => !c.presets.includes(x.i)).map(([id, x]) => ({ slot: x.i + 1, id, name: (presetRec(x.r, x.i + 1) || {}).name || "?" })) } };
 }
 // a kept project's name (HDR 'H' 1: name[13] after the two bytes)
 export function renameKept(kept, name) {

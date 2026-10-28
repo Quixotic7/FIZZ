@@ -89,10 +89,11 @@ export function mountImport(ctx) {
         `<span class="tg">${res || [midiChip(isMidiBlob(s.blob)), ...s.fizzTags.map((t) => `<span class="tag t-${t}">${t}</span>`), ...web.slice(0, 2).map((t) => `<span class="tag web">${esc(t)}</span>`)].join("")}</span></div>`;
     }).join("");
     const mine = S.unit ? S.unit.rows.filter((r) => r.source === "mine").map((r) => r.slot) : [];
-    const free = []; for (let s = 1; s <= 256 && free.length < n; s++) if (!mine.includes(s)) free.push(s);
+    const free = [], nlib = ctx.pkg ? ctx.pkg().nlib : 256; for (let s = 1; s <= nlib && free.length < n; s++) if (!mine.includes(s)) free.push(s);
     const run = free.length > 1 && free[free.length - 1] - free[0] === free.length - 1;
     const where = !free.length ? "" : free.length === 1 ? free[0] : run ? `${free[0]}–${free[free.length - 1]}` : `${free.slice(0, 3).join(", ")}${free.length > 3 ? " …" : ""}`;
-    $("i-foot").innerHTML = n ? `<b>${n}</b> to ${I.dest === "pool" ? "MY PRESETS and the POOL" : `MY PRESETS ${where}`}${I.dest === "track" ? ` · the first onto TRACK ${I.track + 1}` : ""}` : "";
+    const short = S.unit && n > free.length ? ` · <b style="color:var(--orange)">only ${free.length} place${free.length === 1 ? "" : "s"} free of ${nlib}</b>: the first ${free.length} go` : "";
+    $("i-foot").innerHTML = n ? `<b>${n}</b> to ${I.dest === "pool" ? "MY PRESETS and the POOL" : `MY PRESETS ${where}`}${I.dest === "track" ? ` · the first onto TRACK ${I.track + 1}` : ""}${short}` : "";
     $("i-send").textContent = `↓ SEND ${n} TO FM-1`;
     $("i-send").disabled = !n || !can();
     $("i-clear").hidden = !I.items.length;

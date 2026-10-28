@@ -59,8 +59,9 @@
     <ul>
       <li><b>Another firmware built on fm1-base</b> (ChoralRoot and others): use its own backup page or tool first. The first time FIZZ starts, it erases the FM-1's shared save area if it finds another firmware's data there and none of FIZZ's.</li>
       <li><b>M-VAVE's stock firmware:</b> this page can't back up its saved sounds. If there are any you want to keep, assume they will be lost.</li>
-      <li><b>FIZZ already:</b> an update writes only the program and FIZZ's data, not the save area, so your projects and presets stay in place. But betas can change how FIZZ saves,
+      <li><b>FIZZ already, the same package:</b> an update writes only the program and FIZZ's data, not the save area, so your projects and presets stay in place. But betas can change how FIZZ saves,
         <span class="nobak">and FIZZ has no backup of its own yet.</span><span class="baklink" hidden>so save a backup first: <a href="../manager/#backup" target="_blank" rel="noopener">back up FIZZ<span class="sr"> (opens in a new tab)</span></a> to a file on this computer (Chrome or Edge, the same cable). The same page puts it back later.</span></li>
+      <li><b>FIZZ, switching between the USB and Bluetooth packages:</b> the other package starts with an empty store, so its projects and presets are erased. Back up in the <a href="../manager/#backup" target="_blank" rel="noopener">Manager<span class="sr"> (opens in a new tab)</span></a> first and restore there after. The Bluetooth package keeps 4 projects and 128 presets: the Manager lets you choose which.</li>
     </ul>
   </section>
 
@@ -75,6 +76,12 @@
         <select id="version" disabled aria-describedby="vernote"></select></label>
     </div>
     <p class="small" id="vernote">The latest beta is chosen. Pick an older one to go back to it; its notes are under <a href="#notes">What's new</a>.</p>
+    <fieldset class="pkgs" id="pkgs" hidden>
+      <legend class="sr">Package</legend>
+      <label class="pkg"><input type="radio" name="pkg" value="usb" checked><span><b>USB</b><br>8 projects, 256 MY presets. USB MIDI and USB audio (record FIZZ on the computer).</span></label>
+      <label class="pkg"><input type="radio" name="pkg" value="ble"><span><b>Bluetooth</b><br>USB plus Bluetooth MIDI. 4 projects, 128 MY presets, a shorter undo.</span></label>
+    </fieldset>
+    <p class="small" id="pkgnote" hidden>Switching packages erases the FM-1's projects and presets. <a href="../manager/#backup" target="_blank" rel="noopener">Back up in the Manager<span class="sr"> (opens in a new tab)</span></a> first, and restore there after.</p>
     <ol class="steps">
       <li>Connect the FM-1 by USB and switch it on.</li>
       <li>Press <b>Install</b>, tick that you've backed up, and confirm.</li>
@@ -86,6 +93,7 @@
       <button type="button" id="datago" class="quiet" hidden>Write FIZZ's data</button>
     </div>
     <p id="unit" class="unit" role="status"></p>
+    <p id="after" class="after" hidden></p>
     <label class="sr" for="bar">Progress</label>
     <progress id="bar" max="100" value="0"></progress>
     <p id="status" role="status"></p>
@@ -138,6 +146,7 @@
   <form method="dialog">
     <h2 id="confirmh">Before you install</h2>
     <p class="bak"><b>Back up first.</b> Installing can lose what the FM-1 has saved (<a href="#backup">what to back up</a>).<span class="baklink" hidden> Running FIZZ? <a href="../manager/#backup" target="_blank" rel="noopener">Back up FIZZ<span class="sr"> (opens in a new tab)</span></a>.</span></p>
+    <p class="switch" id="confirmswitch" hidden></p>
     <p class="opt"><input type="checkbox" id="bakok"><label for="bakok">I've backed up, or have nothing to keep.</label></p>
     <p id="confirmfizz">While it is written, the FM-1's screen shows UPDATING and a bar, or stays dark; then FIZZ starts and says it is writing its data. Don't unplug the cable or switch the FM-1 off until this page says Done. It can take several minutes.</p>
     <p id="confirmstock" hidden>While it is written, the FM-1's screen shows UPDATING and a bar, or stays dark. Don't unplug the cable or switch the FM-1 off until this page says Done.</p>

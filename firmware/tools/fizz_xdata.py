@@ -10,7 +10,8 @@ its blob's length and CRC-32 into the firmware, and the unit takes only its own 
   fizz_xdata.py push [--blob FILE] [--port NAME]   write the blob (the unit answers FZOK, or FZER and a code)
   fizz_xdata.py push --ble [--port NAME]           the Bluetooth package's two blobs (firmware/build.py --ble:
                                                    fizz-ble-xdata.bin at 0xE7000, fizz-ble-xdata2.bin at 0x97000), each
-                                                   written and checked; FIZZ starts when both are there
+                                                   written and checked; FIZZ starts when both are there. A release's
+                                                   files: --blob fizz-ble-xdata-X.bin --blob2 fizz-ble-xdata2-X.bin
   fizz_xdata.py stats [--reset] [--port NAME]      the port's counters: the audio interrupt, the locks, the frames,
                                                    a frame's time by phase and by screen (firmware/BUDGET.md)
   fizz_xdata.py wipe [--port NAME]                 FIZZ's store (0x97000..0xDFFFF) erased, FIZZ started again on it
@@ -28,7 +29,7 @@ Safe mode (the store not mounted): hold SAVE while switching the FM-1 on (P2.14:
 The transfer is the update's own (fm1-base app_usb_cmd, plat_host_read): one command, 46 "FZXD" len crc off, then the
 unit asks for the blob in 512-byte reads and this answers them. Needs mido with python-rtmidi, as fm1_install.py.
 FZER codes: 1 another build's blob, 2 FIZZ already running, 3 erase, 4 a read or write failed, 5 the trailer, 6 the
-check after writing.
+check after writing, 15 asked over Bluetooth MIDI (a blob and a restore need the USB port: --port).
 
 To drive the unit from here while measuring, fm1-base's own remote works with FIZZ (presses, keys, knobs, MASTER):
   python3 firmware/fm1-base/tools/fm1_remote.py tap HOME wait 2000 tap PLAY wait 5000 tap PLAY
@@ -55,8 +56,10 @@ BLE_BLOBS = [(HERE.parent / "app" / "build" / "fizz-ble-xdata.bin", 0xE7000),
 
 
 def blobs(a):
-    """the (file, flash offset) pairs to write: --ble's two, or --blob's one"""
-    return [(Path(f), o) for f, o in BLE_BLOBS] if getattr(a, "ble", False) else [(Path(a.blob), XDATA_OFF)]
+    """the (file, flash offset) pairs to write: --ble's two (--blob, --blob2 instead of the build's), or --blob's one"""
+    if getattr(a, "ble", False):
+        return [(Path(a.blob or BLE_BLOBS[0][0]), BLE_BLOBS[0][1]), (Path(a.blob2 or BLE_BLOBS[1][0]), BLE_BLOBS[1][1])]
+    return [(Path(a.blob or BLOB), XDATA_OFF)]
 
 
 MODES = ["idle", "step", "keys", "tracks"]
@@ -323,9 +326,10 @@ def main():
             p.add_argument("--check", action="store_true", help="only the link: a wrong CRC, so the unit pulls the "
                            "image once, counts as lost what it asks again, and refuses it (FZER 12) before erasing")
         if name in ("push", "info"):
-            p.add_argument("--blob", default=str(BLOB))
+            p.add_argument("--blob", help=f"the blob (default {BLOB}; with --ble the first, default the build's)")
+            p.add_argument("--blob2", help="with --ble: the second blob (default the build's fizz-ble-xdata2.bin)")
             p.add_argument("--ble", action="store_true", help="the Bluetooth package's two blobs (fizz-ble-xdata.bin, "
-                           "fizz-ble-xdata2.bin), --blob ignored")
+                           "fizz-ble-xdata2.bin)")
         if name != "info":
             p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
         if name == "stats":

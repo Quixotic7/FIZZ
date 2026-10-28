@@ -12,6 +12,8 @@
 // The link reads all the time (a unit whose replies are not read stalls its main loop: plan §3.3).
 //
 //   await findFizz(access, {log}) -> FizzLink | throws Error {code: "notfound" | "update" | "notfizz", detail}
+//     (the USB port first; the Bluetooth package's own port, "FM-1 XXXX Bluetooth", when it is the only one: there
+//     everything works but the restore and a data blob's write, FZER 15: link.viaBle)
 //   link.identity() -> "0.11.0-beta.2" | null (FIZZ does not answer: no data blob, or safe mode)
 //   link.list({factory, pool}) -> [{source, slot, id, name, tags, imported, inPool}]
 //   link.dumpAll(source, total, onProgress) -> [frame]          link.dump(source, slot) -> frame | null
@@ -43,8 +45,15 @@ export const GAP_MS = 3;                         // between two frames sent (FIZ
 export const FZER = {                            // app.c, fizz_xdata.py --help
   10: "the FM-1 is playing: stop it first", 11: "the backup's size is not this FM-1's store",
   12: "the image did not arrive whole (nothing was changed)", 13: "a write failed: FIZZ cleared its store",
-  14: "the store did not read back as the image", 1: "refused",
+  14: "the store did not read back as the image", 15: "this needs the USB cable (not over Bluetooth)", 1: "refused",
 };
+// the Bluetooth package's MIDI port, as a computer names it once connected ("FM-1 XXXX Bluetooth")
+export const isBlePort = (name) => /\sbluetooth$/i.test(String(name || "").trim());
+// a Web MIDI access with the USB ports first (fm1lib.js's Updater asks them in the access's order)
+function usbFirst(access) {
+  const sorted = (m) => new Map([...m].sort((a, b) => (isBlePort(a[1].name) ? 1 : 0) - (isBlePort(b[1].name) ? 1 : 0)));
+  return { get inputs() { return sorted(access.inputs); }, get outputs() { return sorted(access.outputs); } };
+}
 const isFizzId = (id) => !IS_OTA(id) && id.text.startsWith(FIZZ_PREFIX);
 const le32 = (v) => [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF];
 const rd32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
@@ -73,7 +82,7 @@ const stats = (rtts) => {
 };
 
 export async function findFizz(access, { log = () => {} } = {}) {
-  const up = new Updater(access, log);
+  const up = new Updater(usbFirst(access), log);
   let dev = await up.find(isFizzId);
   if (!dev) {
     dev = await up.find(() => true);
@@ -89,7 +98,7 @@ const MORE = Symbol("more");
 
 export class FizzLink {
   constructor(link, id, port) {
-    Object.assign(this, { link, id, port, closed: false, cur: null, q: Promise.resolve(), log: () => {}, onLost: () => {}, rtoMin: 150, lastRx: 0 });
+    Object.assign(this, { link, id, port, viaBle: isBlePort(port), closed: false, cur: null, q: Promise.resolve(), log: () => {}, onLost: () => {}, rtoMin: 150, lastRx: 0 });
     this.reader();
   }
 
@@ -375,6 +384,7 @@ export class FizzLink {
   // it erases and writes each sector (pass "write"). signal (cancel) is honoured in the check pass only: the reads
   // still to come are answered with zeros, so the unit's CRC check fails and nothing is erased (FZER 12)
   async restore(image, { onProgress = () => {}, onPhase = () => {}, signal = null, idleMs = 30000 } = {}) {
+    if (this.viaBle) throw err("fzer", FZER[15], { fzer: 15, written: false });   // (the unit pulls the image over USB only)
     await this.wake();
     const len = image.length, crc = crc32(image);
     let pass = 1, last = -1, served = 0, bytes = [0, 0], cancelled = false;

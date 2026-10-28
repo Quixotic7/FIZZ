@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: MPL-2.0
 # A tester release on GitHub from a pushed tag vX.Y.Z-beta.N (firmware/release.py prints the commands): a pre-release
 # named after the tag, its text CHANGELOG.md's section for the version (firmware/release.py --notes), the committed
-# packages from site/firmware/X.Y.Z-beta.N/ attached with the version in their names. Nothing is built here: the files
+# packages from site/firmware/X.Y.Z-beta.N/ attached with the version in their names (the USB package's fizz.fwsc and
+# fizz-xdata.bin; since 2026-10-27 the Bluetooth package's fizz-ble.fwsc, fizz-ble-xdata.bin and fizz-ble-xdata2.bin:
+# every .fwsc and .bin there). Nothing is built here: the files
 # are the ones the install page serves (the page cannot fetch from GitHub's release assets: no CORS).
 #
 # Needs only the workflow's own token (contents: write). Settings > Actions > General > Workflow permissions may stay

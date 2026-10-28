@@ -10,6 +10,9 @@
 //   - BACKUP: the STATUS numbers without a backup; BACK UP keeps the backup in this browser (no download), its save
 //     button writes it to a file (showSaveFilePicker, stubbed here), DELETE asks first; a stored backup and a dropped
 //     file open the restore;
+//   - the Bluetooth package (2026-10-27): a Bluetooth backup restored onto this (USB) FIZZ, written in its layout;
+//     MY PRESETS with fewer places than a presets-only backup brings (as the Bluetooth package's 128): the ones to add
+//     chosen (ADD n), the rest listed;
 //   - REFRESH: a preset saved on the unit shows after the header's button, and after the tab comes back (focus);
 //   - LIBRARY: one list, the filters ALL / FACTORY / MY PRESETS and the tags; a tag toggled, a preset renamed, moved,
 //     + POOL then − POOL (the pool's badge with its place), DELETE (a confirm, then gone);
@@ -173,6 +176,68 @@ try {
   await click("#cf-go");
   await waitFor(`__mgr.S.baks.length === ${nb1 - 1}`);
   check((await evaluate("__mgr.S.baks.length")) === nb1 - 1, "BACKUP: DELETE confirmed: gone from the list");
+
+  // the Bluetooth package: the unit's own backup fitted into the Bluetooth layout, restored onto this USB FIZZ
+  await idle();
+  const bleNames = await evaluate(`(async () => { const P = await import('./projects.js'), B = await import('./fizzbak.js');
+    const b = __mgr.S.baks.find((x) => x.kind === 'full'), parsed = await B.readBackup(b.bytes, b.name);
+    const img = P.imageOf(P.fitModel(P.modelOf(parsed.image), 'ble').model);
+    await __mgr.openFile(B.makeFizzbak({ kind: 'full', image: img, presets: parsed.presets, fizz: 'test' }), 'BLUETOOTH.fizzbak');
+    return parsed.summary.projects.map((x) => x.name); })()`);
+  await waitFor("!document.getElementById('rs').hidden && document.getElementById('rs-safe').textContent.includes('saved first')", 60000);
+  const bx = await evaluate("({ chips: document.getElementById('rs-chips').textContent, fit: document.getElementById('rs-fit').textContent, shown: !document.getElementById('rs-fit').hidden })");
+  check(/BLUETOOTH BACKUP → USB PACKAGE/.test(bx.chips) && bx.shown && /Everything in this backup fits/.test(bx.fit), `RESTORE: a Bluetooth backup on this USB FIZZ: "${bx.fit}"`);
+  await shot("manager-02b-restore-bluetooth.png");
+  await evaluate("(() => { const i = document.getElementById('rs-type'); i.value = 'RESTORE'; i.dispatchEvent(new Event('input')); })()");
+  await click("#rs-go");
+  await waitFor("document.getElementById('rs').hidden && !__mgr.S.busy && __mgr.S.unit.projects", 90000);
+  await idle();
+  const blAfter = await evaluate("__mgr.S.unit.projects ? __mgr.S.unit.projects.list.filter((x) => x.there).map((x) => x.name) : []");
+  check(blAfter.length > 0 && JSON.stringify(blAfter) === JSON.stringify(bleNames), `RESTORE: the Bluetooth backup written in this FIZZ's layout: ${blAfter.join(", ")}`);
+  // fewer MY PRESETS places than a presets-only backup brings (the unit made a 2-places-left package here)
+  await evaluate(`(async () => { const B = await import('./fizzbak.js');
+    const b = __mgr.S.baks.find((x) => x.kind === 'full'), parsed = await B.readBackup(b.bytes, b.name), s0 = parsed.presets[0];
+    const u = __mgr.S.unit, mine = u.rows.filter((r) => r.source === 'mine').length;
+    window.__keepStatus = u.status; u.status = { ...u.status, package: 'ble', nproj: 4, nlib: mine + 2 };
+    await __mgr.openFile(B.makeFizzbak({ kind: 'presets', presets: [1, 2, 3, 4, 5].map((k) => ({ ...s0, name: 'NEW ' + k })), fizz: 'test' }), 'MORE.fizzbak'); })()`);
+  await waitFor("!document.getElementById('rs').hidden && document.getElementById('rs-go').textContent === 'ADD 2' && !document.getElementById('rs-fit').hidden", 30000);
+  const pfit = await evaluate("({ fit: document.getElementById('rs-fit').textContent, go: document.getElementById('rs-go').textContent, on: document.querySelectorAll('#rs-fit input:checked').length, off: document.querySelectorAll('#rs-fit input:disabled').length })");
+  check(pfit.go === "ADD 2" && pfit.on === 2 && pfit.off === 3 && /2 free places/.test(pfit.fit) && /Left out: 3/.test(pfit.fit), `ADD PRESETS: 2 places free of 5 new: ${pfit.go}, ${pfit.on} ticked, the rest listed ("${pfit.fit.slice(-60)}")`);
+  await shot("manager-02c-presets-fit.png");
+  await click("#rs-fit input:checked");
+  const pk2 = await evaluate("({ go: document.getElementById('rs-go').textContent, off: document.querySelectorAll('#rs-fit input:disabled').length })");
+  check(pk2.go === "ADD 1" && pk2.off === 0, `ADD PRESETS: one unticked: ${pk2.go}, the others free to pick`);
+  await click("#rs-cancel");
+  await evaluate("(() => { __mgr.S.unit.status = window.__keepStatus; })()");
+  await idle();
+  // a USB backup with 6 projects and 150 MY presets opened on a Bluetooth unit (this one made to look like one: its
+  // store's size and STATUS's package): the projects and presets to keep chosen, the rest listed; not restored here
+  await evaluate(`(async () => { const P = await import('./projects.js'), B = await import('./fizzbak.js'), F = await import('./fizzstore.js');
+    const b = __mgr.S.baks.find((x) => x.kind === 'full'), parsed = await B.readBackup(b.bytes, b.name);
+    const m = P.fitModel(P.modelOf(parsed.image), 'device').model, p0 = P.projects(m).find((x) => x.there).p;
+    for (const q of [1, 2, 3, 4, 5]) if (q !== p0) P.loadProject(m, q, P.keepProject(m, p0));
+    const rec = [...m.lib.entries()].find(([k]) => k >>> 24 === 5)[1];
+    for (let i = 0; i < 150; i++) { const k = (5 << 24) | i; if (m.lib.has(k)) continue; const r = rec.slice(); r.fill(0, 2, 15); [...('MANY ' + i)].forEach((c, j) => { r[2 + j] = c.charCodeAt(0); }); r[20] ^= (i + 1) & 0x7f; r[143] = i & 0xff; r[144] = 0x10 + (i >> 8); m.lib.set(k, r); }
+    const u = __mgr.S.unit;
+    window.__keepUnit = { info: u.info, status: u.status };
+    u.info = { ...u.info, size: F.LAYOUTS.ble.size }; u.status = { ...u.status, package: 'ble', nproj: 4, nlib: 128 };
+    await __mgr.openFile(B.makeFizzbak({ kind: 'full', image: P.imageOf(m), presets: [], fizz: 'test' }), 'USB BIG.fizzbak'); })()`);
+  await waitFor("!document.getElementById('rs').hidden && document.getElementById('rs-safe').textContent.includes('saved first')", 60000);
+  const fx = await evaluate("({ chips: document.getElementById('rs-chips').textContent, fit: document.getElementById('rs-fit').textContent, then: document.getElementById('rs-then').textContent, lists: [...document.querySelectorAll('#rs-fit .fitlist .kv')].map((e) => e.textContent) })");
+  check(/USB BACKUP → BLUETOOTH PACKAGE/.test(fx.chips) && /choose what to keep/.test(fx.fit) && fx.lists.join("|") === "PROJECTS 4 / 4|MY PRESETS 128 / 128" && /Left out: 2 projects/.test(fx.fit) && fx.then === "4 · 128",
+    `RESTORE onto a Bluetooth unit: ${fx.lists.join(", ")}, "${(fx.fit.match(/Left out:[^.]*/) || [""])[0].slice(0, 90)}..."`);
+  await shot("manager-02d-restore-fit.png");
+  await click("#rs-fit .fitlist[data-kind=p] input:checked");
+  const fx2 = await evaluate("({ lists: [...document.querySelectorAll('#rs-fit .fitlist .kv')].map((e) => e.textContent), then: document.getElementById('rs-then').textContent })");
+  check(fx2.lists[0] === "PROJECTS 3 / 4" && fx2.then === "3 · 128", `RESTORE onto a Bluetooth unit: a project unticked: ${fx2.lists[0]}, then ${fx2.then}`);
+  await click("#rs-cancel");
+  await evaluate("(() => { Object.assign(__mgr.S.unit, window.__keepUnit); })()");
+  await idle();
+  // (that backup out of the list again: BROWSER boots the newest full one)
+  await evaluate("(() => { const i = __mgr.S.baks.findIndex((b) => b.name === 'USB BIG.fizzbak'); document.querySelectorAll('#baks .bk')[i].querySelector('[data-act=del]').click(); })()");
+  await waitFor("!document.getElementById('cf').hidden");
+  await click("#cf-go");
+  await waitFor("!__mgr.S.baks.some((b) => b.name === 'USB BIG.fizzbak')");
 
   // REFRESH: a preset saved on the unit (straight into the simulated FIZZ) shows after the button, then after a focus
   const saveOnUnit = (name) => evaluate(`(async () => { const { storeSound } = await import('../js/fizz_sysex.js'); const b = new Uint8Array(96); b[0] = 0x51; b[1] = 5; b[2] = 6;
