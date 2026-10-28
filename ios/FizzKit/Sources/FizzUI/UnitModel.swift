@@ -101,9 +101,10 @@ public final class UnitModel {
     public let actions: UnitActions
     /// The web tags (Documents/webtags.json; LibraryModel.swift)
     public let webTags: WebTagStore
-    /// LIBRARY's EDIT: the preset the EDIT tab opens on; a tab a screen asks for (RootView switches to it)
-    public var editTarget: FizzListEntry?
+    /// A tab a screen asks for (RootView switches to it)
     public var goTo: FizzTab?
+    /// EDIT: the sound edited and the track it follows (EditModel.swift)
+    @ObservationIgnored public private(set) lazy var editor = EditorModel(unit: self)
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }

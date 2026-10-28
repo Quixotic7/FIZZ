@@ -236,7 +236,7 @@ struct PresetPanel: View {
                 IconPill(title: "− POOL", color: FZ.green, ghost: true, enabled: can) { removeFromPool([]) }
             }
             IconPill(title: "EDIT", icon: Icons.pencil, color: FZ.pink, ink: .white, enabled: actions.frame(of: entry) != nil || snapshot) {
-                model.editTarget = entry
+                model.editTarget = .preset(entry)
                 model.goTo = .edit       // (the EDIT tab, I5's screen, opens on model.editTarget)
                 onClose()
             }
@@ -305,8 +305,8 @@ struct PresetPanel: View {
                 Heading(text: "LOAD ON FM-1", color: FZ.pink)
                 Spacer(minLength: 0)
                 if here != nil {
-                    KeyCap(text: "OCT−", color: FZ.muted)
-                    KeyCap(text: "OCT+", color: FZ.green)
+                    OctCap(text: "OCT−", color: FZ.muted)
+                    OctCap(text: "OCT+", color: FZ.green)
                 }
             }
             HStack(spacing: 7) {
@@ -422,7 +422,7 @@ struct TrackButton: View {
 }
 
 /// A key of the FM-1 named (OCT−, OCT+): what it does now.
-struct KeyCap: View {
+struct OctCap: View {
     let text: String
     let color: RGB
     var body: some View {

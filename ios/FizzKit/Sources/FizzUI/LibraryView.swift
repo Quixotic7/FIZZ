@@ -31,6 +31,7 @@ struct LibraryView: View {
             if wide { padBody } else { phoneBody }
         }
         .confirmCard($ask)
+        .hardwareKeys(model.editor)
         .sheet(item: $exporting) { box in
             // WIRE AT MERGE: ExportSheet(sounds: box.sounds)
             ExportPending(sounds: box.sounds)
@@ -70,7 +71,6 @@ struct LibraryView: View {
             selected = k
             sheet = SheetKey(id: k)
         }
-        // WIRE AT MERGE: TRACK on (I5's pill): the KEEP / CANCEL bar shows model.actions.pending
         if model.actions.trackOn {
             Task {
                 let o = await model.actions.pick(r)
@@ -160,7 +160,6 @@ struct LibraryView: View {
     private var phoneBody: some View {
         let shown = filter.shown(model.rows)
         return VStack(alignment: .leading, spacing: 0) {
-            // WIRE AT MERGE: the TRACK pill (I5) in the top bar while LIBRARY shows
             HStack(spacing: 10) {
                 SourceSeg(selected: $filter.source)
                 Spacer(minLength: 0)
@@ -184,8 +183,17 @@ struct LibraryView: View {
             }
             .padding(.horizontal, 16)
             .overlay(alignment: .top) { if sheet == nil { NoteStrip(note: $note).padding(.top, 4) } }
-            // WIRE AT MERGE: the KEEP / CANCEL bar (I5) above the tab bar while model.actions.pending is set
-            // WIRE AT MERGE: the keybed strip (I5), pulled up from the bottom
+            // (the keybed slides up over the rows; the KEEP / CANCEL bar is the root's)
+            .overlay(alignment: .bottom) {
+                if model.editor.keysOpen {
+                    KeybedPanel(e: model.editor).transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .clipped()
+            if model.actions.trackOn {
+                KeybedGrip(open: Binding(get: { model.editor.keysOpen }, set: { model.editor.keysOpen = $0 }))
+                    .padding(.bottom, 96)
+            }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
         .sheet(item: $sheet) { s in
@@ -202,7 +210,7 @@ struct LibraryView: View {
                 // (scrolls sideways: the iPad held upright has no room for them all)
                 ChipScroll(inset: 0, spacing: 6) { chips }
                     .frame(height: 44, alignment: .leading)
-                // WIRE AT MERGE: the TRACK pill (I5), right of the chips
+                TrackPill(model: model, wide: true)
             }
             HStack(alignment: .top, spacing: 14) {
                 Card(padding: 18) {
@@ -239,7 +247,7 @@ struct LibraryView: View {
                 .overlay(alignment: .top) { NoteStrip(note: $note).padding(.top, 10) }
             }
             .frame(maxHeight: .infinity)
-            // WIRE AT MERGE: the iPad's keybed (I5) under the columns
+            if model.actions.trackOn { Keybed(e: model.editor, height: 104) }
         }
         .padding(.bottom, 26)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)

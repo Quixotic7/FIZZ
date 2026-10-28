@@ -3379,7 +3379,18 @@ function toPlain(x) {
   }
   return x;
 }
-return { BACKUP_FORMAT, FIZZ_TAGS, LAYOUTS, backupFileName, buildImage, crc32, demoStore, hex8, layoutOf, makeFizzbak, makeFizzlib, makeUnitFizzbak, parseFizzlib, parseFizzsnd, presetsFromDumps, presetsFromSummary, readBackup, readRegion, sameSound, soundFromFrame, soundFromStoreFrame, soundKey, soundToFizzsnd, toPlain, transferOf, webFor, writeStore };
+
+// ---- I5: the EDIT tab (sound.js: the editor's sound and FIZZ's version-6 blob; fizzvalues.js: names, ranges, texts)
+//   editTable() -> {values, algos, destOrder, q, np}: the 115 values as FIZZ's pages name and show them
+//   soundFromLib(s): a .fizzsnd / library sound as the editor's; soundFromFrame (above): a DUMP reply as the editor's
+//   editPack(s) -> {blob, drive}: the editor's sound ({values, midi?}) packed back (sound.js blob6)
+//   editTexts([[id, v], ..]) -> [text(id, v), ..] (the tests' comparisons)
+const { VALUES, ALGOS, DEST_ORDER, Q, NP, soundFromLib, blob6, text: valueText } = __fizz_m9;
+
+const editTable = () => ({ values: VALUES, algos: ALGOS, destOrder: DEST_ORDER, q: Q, np: NP });
+const editPack = (s) => ({ blob: blob6(s), drive: s.values[Q.DRIVE] });
+const editTexts = (pairs) => pairs.map(([id, v]) => valueText(id, v));
+return { BACKUP_FORMAT, FIZZ_TAGS, LAYOUTS, backupFileName, buildImage, crc32, demoStore, editPack, editTable, editTexts, hex8, layoutOf, makeFizzbak, makeFizzlib, makeUnitFizzbak, parseFizzlib, parseFizzsnd, presetsFromDumps, presetsFromSummary, readBackup, readRegion, sameSound, soundFromFrame, soundFromLib, soundFromStoreFrame, soundKey, soundToFizzsnd, toPlain, transferOf, webFor, writeStore };
 })();
 globalThis.FizzData = Object.freeze(__fizz_m10);
 

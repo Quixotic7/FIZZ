@@ -44,6 +44,7 @@ struct PoolView: View {
             if wide { padBody } else { phoneBody }
         }
         .confirmCard($ask)
+        .hardwareKeys(model.editor)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
         .onAppear {
             if snapshot, let s = shotSelection, s.hasPrefix("pool:") { selected = Int(s.dropFirst(5)) }
@@ -125,7 +126,8 @@ struct PoolView: View {
             return
         }
         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { selected = selected == k ? nil : k }
-        // WIRE AT MERGE: TRACK on (I5): the place's sound heard (pool.js previewId), as LIBRARY's tap
+        // TRACK on: the place's sound heard on the track (pool.js previewId), as LIBRARY's tap
+        if actions.trackOn, selected == k, let r = pool[k] { Task { _ = await actions.pick(r) } }
     }
 
     private func place(_ k: Int, id: Int) {
