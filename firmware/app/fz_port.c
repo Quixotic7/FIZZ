@@ -31,18 +31,57 @@ static int fz_fread(void *c, uint32_t off, void *dst, uint32_t n)
 {
     const uint8_t *p = plat_data(PLAT_DATA_LO + off);
     (void)c;
+#if QD_PKG_BLE
+    fz_watchdog();                       /* (a load's long run of reads: Bluetooth's turn now and then, app.c) */
+#endif
     if (!p || !PLAT_DATA_OK(PLAT_DATA_LO + off, n))
         return -1;
     memcpy(dst, p, n);
     return 0;
 }
+#if QD_PKG_BLE
+/* (the Bluetooth package) the store's flash operations timed (each keeps the interrupts off: the radio's too): erases,
+ * their longest; pages, their longest; erases done with a computer linked; stats line 17 (app.c) */
+static uint32_t fz_fls[6];
+void fz_flash_stats(uint32_t *v)
+{
+    uint32_t i;
+    for (i = 0; i < 5u; i++)
+        v[i] = fz_fls[i];
+    v[5] = fz_up ? fz_app.per.erases_held : 0u;
+}
+void fz_flash_stats_reset(void)
+{
+    memset(fz_fls, 0, sizeof fz_fls);
+    if (fz_up)
+        fz_app.per.erases_held = 0;
+}
+static void fz_fl_time(uint32_t t0, int erase)
+{
+    const uint32_t d = (plat_ticks24() - t0) / PLAT_TICKS_PER_US, k = erase ? 0u : 2u;
+    fz_fls[k]++;
+    if (d > fz_fls[k + 1u])
+        fz_fls[k + 1u] = d;
+    if (erase)
+        fz_fls[4] += plat_ble_linked() != 0;
+}
+#endif
 static int fz_ferase(void *c, uint32_t off)
 {
     int r;
+#if QD_PKG_BLE
+    uint32_t t0;
+#endif
     (void)c;
     fz_watchdog();                       /* (a store's long flow is a loop of these: the watchdog fed at each) */
     fz_flash_quiet();                    /* (P2.7: the LED lines dark while the flash keeps the interrupts off) */
+#if QD_PKG_BLE
+    t0 = plat_ticks24();
+#endif
     r = plat_data_erase(PLAT_DATA_LO + (off & ~0xFFFu));
+#if QD_PKG_BLE
+    fz_fl_time(t0, 1);
+#endif
     fz_flash_done();
     return r;
 }
@@ -56,7 +95,15 @@ static int fz_fprog(void *c, uint32_t off, const void *src, uint32_t n)
         const uint32_t k = n < 256u - (off & 255u) ? n : 256u - (off & 255u);
         int r;
         fz_flash_quiet();
+#if QD_PKG_BLE
+        {
+            const uint32_t t0 = plat_ticks24();
+            r = plat_data_write(PLAT_DATA_LO + off, src, k);
+            fz_fl_time(t0, 0);
+        }
+#else
         r = plat_data_write(PLAT_DATA_LO + off, src, k);
+#endif
         fz_flash_done();
         if (r)
             return r;
@@ -384,8 +431,13 @@ int fz_frame_changed(void)
 }
 void fz_persist_step(void)
 {
-    if (fz_up)
+    if (fz_up) {
+#if QD_PKG_BLE
+        fz_app.per.erase_hold = plat_ble_linked() != 0;   /* (persist.c: no erase while a computer is linked, but the
+                                                            * one a store needs to go on) */
+#endif
         qd_persist_step(&fz_app);
+    }
 }
 void fz_show(int mode, int view) { qd_app_show(&fz_app, mode, view); }
 void fz_seed(uint32_t seed) { qd_app_seed(&fz_app, seed); }

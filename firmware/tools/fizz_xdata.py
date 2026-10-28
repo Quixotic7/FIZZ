@@ -136,6 +136,11 @@ def stats(a):
             p = link.read(end - time.monotonic())
             if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
                 got[p[4]] = p[5:-1].decode("ascii", "replace")
+        end = time.monotonic() + 0.5           # (the Bluetooth package's line 17 after them)
+        while got and 17 not in got and time.monotonic() < end:
+            p = link.read(end - time.monotonic())
+            if p and p[:4] == bytes([0xF0, 0x7D, 0x46, 0x50]) and len(p) > 5:
+                got[p[4]] = p[5:-1].decode("ascii", "replace")
         if not got:
             print("no answer")
             return 1
@@ -152,7 +157,10 @@ def stats(a):
                             (12, "the screen's sends, the display list, the pace, the LEDs"),
                             (13, "the drawing bench (stats --drawbench: the screen whole x 4, interrupts off)"),
                             (15, "a frame by phase (us a frame since the reset: --reset, then one screen)"),
-                            (16, "transfers (SysEx pacing): passes, frames drawn, frames taken, the gap between them")):
+                            (16, "transfers (SysEx pacing): passes, frames drawn, frames taken, the gap between them"),
+                            (17, "Bluetooth (the Bluetooth package): its turns' longest gap, SysEx, the store's flash")):
+            if part == 17 and part not in got:
+                continue                    # (the USB package has no line 17)
             line = got.get(part, "(no answer)")
             line = re.sub(r"(?<![\w.])(\d+):", lambda m: NAMES[int(m.group(1))] + "=" if int(m.group(1)) < len(NAMES) else m.group(0), line)   # the ids -> the names (fizz_stats_names.py)
             if part in (3, 14):             # s<mode>.<view>: name them

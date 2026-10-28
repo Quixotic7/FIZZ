@@ -126,6 +126,9 @@ static void fz_fb_out(uint8_t *const *rows, const uint16_t *pal, uint32_t x0, ui
                 d[x] = pal[s[x]];
         }
         lcd_blit(x0, y0, w, n, b);       /* (waits for the transfer before it: lcd.c) */
+#if QD_PKG_BLE
+        fz_ble_give();                   /* (the Bluetooth package: its turn every 2 ms of a send, app.c) */
+#endif
         k ^= 1u;
         y0 += n;
         if (plat_ms() - fz_led_t >= FZ_LED_MS)

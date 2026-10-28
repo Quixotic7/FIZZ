@@ -350,7 +350,24 @@ BLE_OVERLAY = {
          "static uint32_t ble_in_q[BLE_IN_Q] __attribute__((section(\".pool\")));   /* (FIZZ: the pool) */\n"),
         ("} ble_out[BLINKS];\n", "} ble_out[BLINKS] __attribute__((section(\".pool\")));   /* (FIZZ: the pool) */\n"),
     ],
-    "ble/midi/le_midi.c": [],
+    # (2026-10-27, a Mac's link lost at its connection updates) the FM-1's own request no longer moves a link already in
+    # BLE MIDI's 7.5..15 ms (CoreMIDI sets 7.5 ms itself) to 15 ms: one control procedure less; its first range now
+    # holds 7.5 ms (Apple: max >= min + 15 ms), the old ones after it
+    "ble/midi/le_midi.c": [
+        ("    {9, 21, 0, 400},                /* 11.25..26.25 ms (1.25 ms units; Apple: max >= min + 15 ms), 4 s timeout */\n",
+         "    {6, 18, 0, 400},                /* (FIZZ) 7.5..22.5 ms: BLE MIDI's 7.5..15 ms in it */\n"
+         "    {9, 21, 0, 400},                /* 11.25..26.25 ms (1.25 ms units; Apple: max >= min + 15 ms), 4 s timeout */\n"),
+        ("static void check_connetion_updata_deal(void)\n{\n",
+         "static uint16_t conn_iv;                         /* (FIZZ) the link's interval now (1.25 ms units; 0 unknown) */\n"
+         "static void check_connetion_updata_deal(void)\n{\n"
+         "    if (conn_iv >= 6u && conn_iv <= 12u) {      /* (FIZZ: already BLE MIDI's 7.5..15 ms: no request) */\n"
+         "        connection_update_cnt = CONN_PARAM_TABLE_CNT;\n        return;\n    }\n"),
+        ("    printf(\"conn: interval %d latency %d\\n\", conn_interval, conn_latency);",
+         "    conn_iv = (uint16_t)conn_interval;           /* (FIZZ) */\n"
+         "    printf(\"conn: interval %d latency %d\\n\", conn_interval, conn_latency);"),
+        ("        printf(\"computer: disconnected %x\\n\", packet[5]);\n",
+         "        printf(\"computer: disconnected %x\\n\", packet[5]);\n        conn_iv = 0;                             /* (FIZZ) */\n"),
+    ],
     "host/plat_host.c": [],
 }
 BLE_PATCH = HERE / "patches" / "fm1-base-ble-sysex.patch"

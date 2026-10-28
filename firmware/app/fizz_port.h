@@ -39,6 +39,9 @@ int fz_sysex_peek(void);
 /* (the Bluetooth package) the frames' port (0 USB, 1 Bluetooth) before fz_sysex, and the next reply's (its request's);
  * SETTINGS' BLUETOOTH (1 on; 1 before FIZZ is up) and the radio's state the page shows (0 off, 1 waiting, 2 connected) */
 void fz_sysex_port(int port);
+void fz_flash_stats(uint32_t *v);      /* (the Bluetooth package) erases, the longest (us), pages, the longest (us),
+                                        * erases with a computer linked, erases held: stats line 17 */
+void fz_flash_stats_reset(void);
 int fz_sysex_peek_port(void);
 int fz_ble_on(void);
 void fz_ble_state(int st);

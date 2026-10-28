@@ -40,10 +40,55 @@ static void fz_message(const char *a, const char *b);
 #ifndef PLAT_HOST
 static int remote_frame(const uint8_t *p, uint32_t n);   /* (main_fm1.c's, later in the unity build) */
 #endif
+#if QD_PKG_BLE
+/* (the Bluetooth package, 2026-10-27) BLUETOOTH'S TURN. fm1-base runs the radio's tasks (its link layer's control
+ * procedures among them: a connection update, a channel map, each due at an "instant" a few connection events on,
+ * ~45 ms at 7.5 ms) only in ble_poll: once a main-loop pass (main_fm1.c) and in plat_yield. A FIZZ pass can last a
+ * whole frame (its paint, the send, the store's steps, a SysEx job): a Mac's link died at its updates (reason 8). So
+ * FIZZ's long paths give Bluetooth its turn (fz_ble_give: plat_yield when 2 ms or more went by without a ble_poll),
+ * never with the audio interrupt masked, inside it, or inside a turn; app_loop and app_yield (fm1-base's hooks right
+ * after ble_poll) time the gaps between turns: stats line 17 */
+#define FZ_BLE_GIVE_US 2000u
+static uint32_t fz_ble_t, fz_ble_gap_max, fz_ble_gaps10, fz_ble_gaps5, fz_ble_gives;
+static uint8_t fz_ble_in;
+static void fz_ble_mark(void)            /* (a ble_poll just ran) */
+{
+    const uint32_t now = plat_ticks24();
+    if (fz_ble_t) {
+        const uint32_t d = (now - fz_ble_t) / PLAT_TICKS_PER_US;
+        if (d > fz_ble_gap_max)
+            fz_ble_gap_max = d;
+        fz_ble_gaps10 += d > 10000u;
+        fz_ble_gaps5 += d > 5000u;
+    }
+    fz_ble_t = now;
+}
+void app_loop(void) { fz_ble_mark(); }
+void app_yield(void) { fz_ble_mark(); }
+static volatile uint8_t fz_in_render;
+static void fz_ble_give(void)
+{
+#ifndef PLAT_HOST
+    extern uint32_t fz_mask_depth_now(void);
+    if (fz_mask_depth_now())
+        return;                          /* (the audio interrupt masked: never wait for the radio there) */
+#endif
+    if (fz_in_render || fz_ble_in || !fz_ble_t || plat_ble_state() == BLE_OFF ||
+        (plat_ticks24() - fz_ble_t) / PLAT_TICKS_PER_US < FZ_BLE_GIVE_US)
+        return;
+    fz_ble_in = 1;
+    fz_ble_gives++;
+    plat_yield();
+    fz_ble_in = 0;
+}
+#endif
 void fz_watchdog(void)                   /* (fizz_port.h: the store's flash flows feed it at each operation) */
 {
 #ifndef PLAT_HOST
     fm1_wdt_feed();
+#endif
+#if QD_PKG_BLE
+    fz_ble_give();                       /* (the store's long flows, a flash operation at a time: Bluetooth's turn) */
 #endif
 }
 #ifndef PLAT_HOST
@@ -103,6 +148,9 @@ void fz_prof_reset(void)
 #define fz_audio_on_again(f) plat_unlock(f)
 #else
 static uint32_t fz_mask_depth;
+#if QD_PKG_BLE
+uint32_t fz_mask_depth_now(void) { return fz_mask_depth; }
+#endif
 static uint32_t fz_audio_off(void)
 {
     if (!fz_mask_depth++) {              /* (the register's write inside cli .. csync sti: in effect before FIZZ's state
@@ -159,7 +207,9 @@ static void fz_unlock(uint32_t f, uint32_t kind)
 static int16_t fz_abuf[2u * APP_BLOCK];
 static volatile uint8_t fz_audio_on;     /* 0: silence (no FIZZ, a panic, an update) */
 static volatile uint8_t fz_in_frame;     /* (the profile: the interrupt's time inside frames) */
+#if !QD_PKG_BLE
 static volatile uint8_t fz_in_render;    /* (P2.7, the screen's stash: a borrow from the audio interrupt never takes it) */
+#endif
 /* (P2.7) the speed at boot (stats line 8: fz_speed) */
 #define FZ_BENCH_BLOCKS 40
 #ifndef FZ_VARIANT_ID
@@ -740,6 +790,9 @@ static void fz_input(void)               /* everything that changes FIZZ on the 
 {
     const uint32_t t0 = plat_ticks24();
     int r;
+#if QD_PKG_BLE
+    fz_ble_give();                       /* (between a frame's bands, the scan's wait, the passes: Bluetooth's turn) */
+#endif
     fz_sample();
 #if QD_PKG_BLE
     fz_bsx_hold();                       /* (Bluetooth's: fz_bsx) */
@@ -892,6 +945,9 @@ static void fz_stats_send(int part, const char *line)   /* F0 7D 46 50 part ASCI
     fz_sx_send(f, (uint32_t)(q - f));
 }
 
+#if QD_PKG_BLE
+static void fz_ble_stats(void);
+#endif
 static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, three lines (fizz_xdata.py stats) */
 {
     char line[FZ_LINE], *c;
@@ -1297,6 +1353,9 @@ static void fz_stats_reply(void)         /* 7D 46 50: this port's counters, thre
     }
     *c = 0;
     fz_stats_send(16, line);
+#if QD_PKG_BLE
+    fz_ble_stats();
+#endif
 }
 
 static void fz_fb_start(void);
@@ -1340,6 +1399,36 @@ static void fz_wipe(void)                /* 7D 46 50 "WIPE": the store's region 
     fz_stats_send(9, line);
     app_ui_init();
 }
+#if QD_PKG_BLE
+static void fz_ble_stats(void)           /* (the Bluetooth package) stats line 17: Bluetooth's turns (fz_ble_give), its
+                                          * SysEx, the store's flash operations (their interrupts-off spans, the
+                                          * erases held while a computer is linked) */
+{
+    char line[FZ_LINE], *c;
+    uint32_t fv[6];
+    fz_flash_stats(fv);
+    FZ_LINE_START(c, line);
+    c = fz_put_u(c, FZN_ble_state, (uint32_t)plat_ble_state());
+    c = fz_put_u(c, FZN_ble_linked, (uint32_t)plat_ble_linked());
+    c = fz_put_u(c, FZN_ble_gap_max_us, fz_ble_gap_max);
+    c = fz_put_u(c, FZN_ble_gaps_over_5ms, fz_ble_gaps5);
+    c = fz_put_u(c, FZN_ble_gaps_over_10ms, fz_ble_gaps10);
+    c = fz_put_u(c, FZN_ble_gives, fz_ble_gives);
+    c = fz_put_u(c, FZN_ble_sx_in, fz_bsx_in);
+    c = fz_put_u(c, FZN_ble_sx_out, fz_bsx_out);
+    c = fz_put_u(c, FZN_ble_sx_lost, fz_bsx_lost);
+    c = fz_put_u(c, FZN_ble_midi_in, plat_midi_count(PORT_BLE, 0));
+    c = fz_put_u(c, FZN_ble_midi_out, plat_midi_count(PORT_BLE, 1));
+    c = fz_put_u(c, FZN_flash_erases, fv[0]);
+    c = fz_put_u(c, FZN_flash_erase_max_us, fv[1]);
+    c = fz_put_u(c, FZN_flash_pages, fv[2]);
+    c = fz_put_u(c, FZN_flash_page_max_us, fv[3]);
+    c = fz_put_u(c, FZN_flash_erase_linked, fv[4]);
+    c = fz_put_u(c, FZN_flash_erases_held, fv[5]);
+    *c = 0;
+    fz_stats_send(17, line);
+}
+#endif
 
 int app_sysex(const uint8_t *p, uint32_t n)
 {
@@ -1391,6 +1480,11 @@ int app_sysex(const uint8_t *p, uint32_t n)
             memset(qd_lkp_max, 0, sizeof qd_lkp_max);
             memset(&fz_c1s, 0, sizeof fz_c1s);
             fz_tick_lag_max = 0;
+#if QD_PKG_BLE
+            fz_ble_gap_max = fz_ble_gaps5 = fz_ble_gaps10 = fz_ble_gives = 0;
+            fz_bsx_lost = 0;
+            fz_flash_stats_reset();
+#endif
             fz_bursts = fz_burst_rows = fz_burst_max = fz_frame_bursts_max = fz_st_full = fz_st_drops = fz_st_none = 0;
             fz_frames_sent = fz_rows_sent = fz_led_looks = fz_led_writes = 0;
             fz_st_cap_min = 240u;
@@ -1795,6 +1889,9 @@ static void fz_fb_idle(void)             /* (P2.13: while the send waits for the
     static uint32_t last;
     const uint32_t now = plat_ms();
     fz_idle_polls++;
+#if QD_PKG_BLE
+    fz_ble_give();
+#endif
     fz_sample();                         /* (P2.16a: the input only with a press or MIDI waiting, or every 2 ms: the
                                           * clock's catch-up not run on every poll of the scan) */
     if (fz_ev_r != fz_ev_w || fz_mq_r != fz_mq_w || now - last >= 2u) {
@@ -1833,7 +1930,11 @@ static uint32_t fz_pal_gen;
 static uint8_t fz_fb_on;
 static uint32_t fz_fb_n;
 #ifndef FZ_FB_FULL_EVERY
+#if QD_PKG_BLE
+#define FZ_FB_STEP 1                     /* (the Bluetooth package: a band at a time, Bluetooth's turn between: fz_input) */
+#else
 #define FZ_FB_STEP 2                     /* (P2.15: bands drawn between two looks at the input: 2 x 16 rows) */
+#endif
 #define FZ_FB_FULL_EVERY 0u              /* (a frame in this many: every band drawn, not only the changed ones; 0
                                           * the core's band check alone, P2.15: its stale pixels fixed, 10b8215) */
 #endif

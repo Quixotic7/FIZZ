@@ -34,6 +34,12 @@ extern uint8_t fz_fb_hi[][240];
 /* Bluetooth at power-on: SETTINGS page 2's BLUETOOTH (app.c fz_ble_at_boot: FIZZ's store started first) */
 int fz_ble_at_boot(void);
 #define APP_BLE_AT_BOOT fz_ble_at_boot()
+/* fm1-base's hooks right after each ble_poll (the main loop's pass, plat_yield): the gaps between Bluetooth's turns
+ * timed (app.c fz_ble_give) */
+#define APP_LOOP
+#define APP_YIELD
+void app_loop(void);
+void app_yield(void);
 #endif
 
 /* the store's objects: the panel's calibration (the platform's), in Felucca's settings sector pair; FIZZ's own data are

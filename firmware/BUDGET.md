@@ -332,9 +332,9 @@ RAM 28,588 over, the pool 4,464 over (12,656 short of fm1-base's 8,192 spare), t
 
 | | USB package | Bluetooth package |
 | --- | --- | --- |
-| app slot (of 581,564) | 572,040 (9,524 free) | 579,568 (1,996 free) |
-| RAM .data + .bss (of 98,304) | 96,768 (1,536 free) | 98,140 (164 free) |
-| pool (of 344,064; 8,192 kept spare) | 330,096 (5,776 above the spare) | 335,200 (672 above the spare) |
+| app slot (of 581,564) | 572,040 (9,524 free) | 580,528 (1,036 free) |
+| RAM .data + .bss (of 98,304) | 96,768 (1,536 free) | 98,160 (144 free) |
+| pool (of 344,064; 8,192 kept spare) | 330,096 (5,776 above the spare) | 335,232 (640 above the spare) |
 | RAM code region (of 32,768) | 24 free | 168 free |
 | NOINIT, FIZZ's (of 15,696 with fm1-base's) | 200 free | 356 free |
 | first blob | 90,616 at 0xE5000 (of 94,196) | 84,544 at 0xE7000 (of 86,004: 1,460 free) |
@@ -390,6 +390,28 @@ older record reads ON); KNOB 2 the radio's state, read-only: OFF, WAITING, CONNE
 app.c fz_ble_at_boot (the store started a moment early, at main_fm1.c's ble_start, to read it); a change is applied
 every 10 ms (fz_ble_look: plat_ble_enable) and the state told to the page (qd_app_ble_state). The simulator:
 tests/ble_settings.txt (the shots, OFF switching the radio off and ON on again).
+
+**Bluetooth's turns** (2026-10-27, the unit: a Mac's link through Audio MIDI Setup lost, reason 8, right after its
+connection updates; a plain CoreBluetooth link at 30 ms held). fm1-base runs the radio's tasks, its link layer's
+control procedures among them (each due at an "instant" ~6 connection events on: ~45 ms at CoreMIDI's 7.5 ms), only
+in ble_poll: once a main-loop pass and in plat_yield. FIZZ's pass held it for a whole frame (the instant, every band,
+the scan's wait, the send: ~25..90 ms), a store step (up to 8 pages; an erase ~40 ms with the interrupts off, the
+radio's too), a project load or a SysEx job. Now (the Bluetooth package only):
+- app.c fz_ble_give: plat_yield when 2 ms went by without a ble_poll, from fz_input (between bands: FZ_FB_STEP 1, a band
+  at a time; the scan's wait), the send's every transfer (fz_fb.c), fz_watchdog (the store's every flash operation, its
+  every read: fz_fread). Never with the audio interrupt masked (fz_audio_off's depth), inside it, or inside a turn.
+- The gaps timed: fm1-base's app_loop and app_yield (right after ble_poll): stats line 17 (`fizz_xdata.py stats`,
+  `--reset` starts them again): ble_gap_max_us, gaps over 5 and 10 ms, the turns given; Bluetooth's SysEx in / out /
+  lost, MIDI in / out; the store's erases and their longest (us), its pages and their longest, erases with a computer
+  linked, erases held.
+- The store's erases held while a computer is linked (persist.c erase_hold): only when a store is down to its last
+  blank sector (else a record would wait); GC and the blank sectors ahead wait for the link to go. A page (256 B,
+  ~1 ms E with the interrupts off) is not held.
+- le_midi.c (BLE_OVERLAY): the FM-1 asks for a new interval only when the link is outside BLE MIDI's 7.5..15 ms (a Mac at
+  7.5 ms keeps it: one update procedure less), its first range now 7.5..22.5 ms, the old ones after it.
+- What still holds Bluetooth back for longer than a band: a call under the audio lock (a SysEx command's work, a key's,
+  a project load's reads: the stats' in_ms_max), one instant of the drawing (the screen's logic and its recording,
+  fz_fbs latch), a held erase a store needed. The unit's line 17 says how long.
 
 MIDI over Bluetooth: in, as USB's and the TRS jack's (app.c fz_midi_isr reads every port: the channels, 15 the selected
 track, 16 the remote, the clock and transport); out, the core's queue to USB and, a computer connected, to Bluetooth

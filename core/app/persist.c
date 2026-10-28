@@ -1172,9 +1172,24 @@ static void persist_writes(qd_app_t *a, int playing, int quiet)
 {
     qd_persist_t *ps = &a->per;
     const uint32_t e0 = ps->prj_st.c.erases;
+#if QD_PKG_BLE
+    /* (the Bluetooth package) while the port holds erases (a computer linked over Bluetooth: an erase keeps the
+     * interrupts off ~40 ms, and a link's control procedure due meanwhile is missed), a store erases only when it is
+     * down to its last blank sector (a record would otherwise wait): GC and the blank sectors ahead wait for the link
+     * to go */
+    int qp = quiet, ql = quiet;
+    if (quiet && ps->erase_hold) {
+        const int bp = qd_store_blank(&ps->prj_st), bl = qd_store_blank(&ps->lib_st);
+        qp = bp <= 1, ql = bl <= 1;
+        ps->erases_held += (!qp && bp < ps->prj_st.reserve) || (!ql && bl < ps->lib_st.reserve);
+    }
+    qd_store_step(&ps->prj_st, playing, qp, playing ? 1 : 8);
+    qd_store_step(&ps->lib_st, playing, ql && ps->prj_st.c.erases == e0, playing ? 1 : 8);
+#else
     qd_store_step(&ps->prj_st, playing, quiet, playing ? 1 : 8);
     qd_store_step(&ps->lib_st, playing, quiet && ps->prj_st.c.erases == e0, playing ? 1 : 8);   /* (P2.4: one erase a
                                                          * call at most, the two stores together) */
+#endif
     if (ps->job >= 0 && !qd_store_busy(item_store(a, ps->job)))
         job_end(a);
 }
