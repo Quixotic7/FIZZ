@@ -14,16 +14,22 @@ VERSION is X.Y.Z-beta.N for a tester beta (0.11.0-beta.1), or X.Y.Z; a dry run m
   1. checks: the tree clean (nothing changed or untracked, fm1-base and felucca-bsp as committed), the version new
      (not in releases.json, no tag vVERSION), CHANGELOG.md's "## Unreleased" section written (the notes for testers),
      site/install/fm1lib.js what fm1-base makes (firmware/tools/sync_installer.py --check);
-  2. builds each package in PACKAGES with firmware/build.py --release X.Y.Z (fm1-base: the identity FM-1_46XXYYZZ)
+  2. builds each package in PACKAGES (the USB one, then the Bluetooth one: firmware/build.py --ble) with
+     firmware/build.py --release X.Y.Z (fm1-base: the identity FM-1_46XXYYZZ, the same for both)
      and APP_VERSION set to the whole VERSION, so the unit reports "FIZZ 0.11.0-beta.1" (FIZZ's SysEx IDENTITY,
      app.c fz_init(APP_NAME " " APP_VERSION); fm1-base defines APP_VERSION from its build's VERSION, which this sets
      on fm1-base's build module before the app is compiled: firmware/build.py and firmware/app are not changed);
-     each checked: the identity, the update loader, the version string in the image, the data blob's stamp;
-  3. site/firmware/VERSION/: NAME.fwsc, NAME-xdata.bin (FIZZ's data: the page writes it after the install), SHA256SUMS;
+     each checked: the identity, the update loader, the version string in the image, the data blobs' stamps
+     ("FZXDSTMP"; the Bluetooth package's second blob "FZX2STMP": length and CRC-32 after them);
+  3. site/firmware/VERSION/: fizz.fwsc, fizz-xdata.bin (FIZZ's data: the page writes it after the install),
+     fizz-ble.fwsc, fizz-ble-xdata.bin, fizz-ble-xdata2.bin (the Bluetooth package's two blobs), SHA256SUMS;
   4. site/firmware/releases.json: the release first (the page offers it by default), its notes from CHANGELOG.md;
+     its packages: the USB one first, as older install pages read it ({name, label, fwsc, data}: packages[0]), then
+     the Bluetooth one ({name, kind: "ble", label, projects, presets, fwsc, data, data2}; data and data2 with "at",
+     the flash address the page writes each to);
   5. CHANGELOG.md: "## Unreleased" becomes "## VERSION (DATE)", a new empty Unreleased above it;
   6. prints the git commands: commit, tag vVERSION, push master (Pages deploys the page), push the tag (the
-     release workflow makes the GitHub pre-release with the .fwsc attached).
+     release workflow makes the GitHub pre-release with every .fwsc and .bin attached, the version in their names).
 The build needs what firmware/build.py needs (the JieLi toolchain, the AC79 SDK)."""
 import argparse
 import datetime
@@ -50,9 +56,17 @@ PREFIX = "FM-1_46"                            # firmware/app/fm1.toml id_prefix
 INSTALL_URL = "https://quixotic7.github.io/FIZZ/install/"
 DISCORD = "https://discord.gg/emf6DmZ9V"
 REPO_URL = "https://github.com/Quixotic7/FIZZ"
-# the packages a release carries: (file name, firmware/build.py's arguments, what it is, for the page)
+# the packages a release carries: (file name, firmware/build.py's arguments, what it is, for the page, its kind)
 # (P2.14: the dual build, fm1.toml cpu2 = true with cpu2_fallback; "--single-core" makes fizz-1core, core 1 off)
-PACKAGES = [("fizz", [], "8 voices across both cores, USB MIDI")]
+# (2026-10-27: the Bluetooth package, firmware/BUDGET.md "The Bluetooth package": the same identity, its own name, two
+# data blobs; 4 projects and 128 MY presets)
+PACKAGES = [("fizz", [], "8 voices across both cores, USB MIDI and USB audio", "usb"),
+            ("fizz-ble", ["--ble"], "8 voices across both cores, USB and Bluetooth MIDI, USB audio; 4 projects, 128 MY presets",
+             "ble")]
+# the Bluetooth package's blobs' flash addresses (firmware/build.py BLE_XDATA_LO, BLE_X2_LO; fizz_xdata.py BLE_BLOBS)
+BLE_XDATA_AT, BLE_XDATA2_AT = 0xE7000, 0x97000
+STAMP1 = struct.pack("<II", 0x44585A46, 0x504D5453)   # "FZXDSTMP" (fz_port.c fz_stamp)
+STAMP2 = struct.pack("<II", 0x32585A46, 0x504D5453)   # "FZX2STMP" (fz_stamp2: the Bluetooth package's second blob)
 UNRELEASED = "## Unreleased"
 UNRELEASED_HINT = "<!-- The next release's notes, for testers, in plain language. firmware/release.py moves them. -->"
 VERSION_RE = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{1,2})(?:-beta\.(\d{1,3}))?(-[a-z0-9]+)?")
@@ -110,10 +124,16 @@ def changelog_released(text, version, date):
 
 
 def release_body(version, notes):
+    ble = (REPO / SITE_FW / version / "fizz-ble.fwsc").exists()     # (a release from before the Bluetooth package: USB only)
+    two = (f"Two packages: **USB** (`fizz`, the default) and **Bluetooth** (`fizz-ble`: Bluetooth MIDI too; 4 projects, "
+           f"128 presets). Switching packages erases the FM-1's projects and presets: back up in the Manager first, "
+           f"restore after. ") if ble else ""
+    files = (f"`firmware/tools/fizz_xdata.py push --blob fizz-xdata-{version}.bin` (USB), or `firmware/tools/fizz_xdata.py "
+             f"push --ble --blob fizz-ble-xdata-{version}.bin --blob2 fizz-ble-xdata2-{version}.bin` (Bluetooth)") if ble else \
+        f"`firmware/tools/fizz_xdata.py push --blob {PACKAGES[0][0]}-xdata-{version}.bin`"
     return (f"{notes}\n\n---\n\n**Install it from the browser** (Chrome or Edge, USB): {INSTALL_URL}?v={version}\n\n"
-            f"The page installs FIZZ and then writes FIZZ's data. With the files below instead (a terminal), install "
-            f"the `.fwsc`, then write the `-xdata` file: `firmware/tools/fizz_xdata.py push --blob "
-            f"{PACKAGES[0][0]}-xdata-{version}.bin`.\n\n"
+            f"The page installs FIZZ and then writes FIZZ's data. {two}With the files below instead (a terminal), install "
+            f"the `.fwsc`, then write its data: {files}.\n\n"
             f"**Feedback:** FIZZ's Discord, {DISCORD}\n")
 
 
@@ -129,24 +149,37 @@ def child_build(version, args):
         fb.VERSION = version
         return build_app()
     fb.build_app = stamped
-    # firmware/build.py's __main__ block, as it is
-    sys.argv = [str(g["BASE"] / "tools" / "build.py"), str(g["APP"]), *[a for a in args if a != "--single-core"]]
+    # firmware/build.py's __main__ block, as it is (with the arguments it left: its own, --ble, --define, --tag, taken)
+    sys.argv = [str(g["BASE"] / "tools" / "build.py"), str(g["APP"]), *[a for a in sys.argv[1:] if a != "--single-core"]]
     return fb.main()
 
 
+def check_stamp(img, tag, blob, what):
+    """the blob's length and CRC-32 in its stamp in the image (firmware/build.py stamp)"""
+    crc = zlib.crc32(blob) & 0xFFFFFFFF
+    at = img.find(tag)
+    if at < 0 or img.find(tag, at + 1) >= 0 or struct.unpack_from("<II", img, at + 8) != (len(blob), crc):
+        die(f"{what}: the stamp {tag.decode()!r} in the image is not {len(blob)} B, CRC-32 {crc:08x}")
+    return crc
+
+
 def build(version, xyz, name, args):
+    """the package built and checked -> (fwsc, [(blob, crc)], identity): the USB package one blob, the Bluetooth two"""
     env = dict(os.environ)
     r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--_build", version, *args, "--release", xyz],
                        cwd=REPO, env=env)
     if r.returncode:
         die(f"{name}: the build failed")
+    ble = "--ble" in args
     fwsc = BUILD / f"{name}-{xyz}.fwsc"
     image = BUILD / f"{name}.bin"
-    xdata = BUILD / "fizz-xdata.bin"                  # (firmware/build.py: one name for every package)
-    for p in (fwsc, image, xdata):
+    # (firmware/build.py: fizz-xdata.bin for the USB package and the single-core one; fizz-ble-xdata.bin and
+    # fizz-ble-xdata2.bin for the Bluetooth one)
+    xdata = [BUILD / "fizz-ble-xdata.bin", BUILD / "fizz-ble-xdata2.bin"] if ble else [BUILD / "fizz-xdata.bin"]
+    for p in (fwsc, image, *xdata):
         if not p.exists():
             die(f"{name}: no {p}")
-    raw, img, blob = fwsc.read_bytes(), image.read_bytes(), xdata.read_bytes()
+    raw, img = fwsc.read_bytes(), image.read_bytes()
     want = PREFIX + "%02d%02d%02d" % tuple(int(x) for x in xyz.split("."))
     if product_of(raw) != want:
         die(f"{fwsc.name}: identity {product_of(raw)!r}, not {want}")
@@ -154,11 +187,24 @@ def build(version, xyz, name, args):
         die(f"{fwsc.name}: no update loader in it")
     if f"FIZZ {version}".encode() not in img:
         die(f"{image.name}: the version string 'FIZZ {version}' is not in the image")
-    crc = zlib.crc32(blob) & 0xFFFFFFFF
-    at = img.find(struct.pack("<II", 0x44585A46, 0x504D5453))   # fz_port.c fz_stamp
-    if at < 0 or struct.unpack_from("<II", img, at + 8) != (len(blob), crc):
-        die(f"{image.name}: its data stamp is not {len(blob)} B, CRC-32 {crc:08x} (fizz-xdata.bin)")
-    return raw, blob, crc, want
+    blobs = []
+    for path, tag in zip(xdata, (STAMP1, STAMP2)):
+        blob = path.read_bytes()
+        blobs.append((blob, check_stamp(img, tag, blob, f"{image.name} ({path.name})")))
+    if not ble and STAMP2 in img:
+        die(f"{image.name}: a second blob's stamp in the USB package")
+    return raw, blobs, want
+
+
+def package_entry(v, name, label, kind, raw, blobs):
+    """releases.json's entry of a package: the USB one exactly as before (older install pages read packages[0])"""
+    files = lambda suffix, b, crc: {"path": f"{v}/{name}{suffix}", "bytes": len(b), "sha256": sha256(b), "crc32": crc}
+    e = {"name": name, "label": label, "fwsc": {"path": f"{v}/{name}.fwsc", "bytes": len(raw), "sha256": sha256(raw)},
+         "data": files("-xdata.bin", *blobs[0])}
+    if kind == "ble":
+        e = {"name": name, "kind": "ble", "label": label, "projects": 4, "presets": 128, "fwsc": e["fwsc"],
+             "data": {**e["data"], "at": BLE_XDATA_AT}, "data2": {**files("-xdata2.bin", *blobs[1]), "at": BLE_XDATA2_AT}}
+    return e
 
 
 def main():
@@ -215,10 +261,11 @@ def main():
 
     # 2. the builds
     built = []
-    for name, args, label in PACKAGES:
-        raw, blob, crc, identity = build(v, xyz, name, args)
-        built.append((name, label, raw, blob, crc, identity))
-        print(f"  {name}: {len(raw)} B, identity {identity}, data {len(blob)} B (CRC-32 {crc:08x}), 'FIZZ {v}' in the image")
+    for name, args, label, kind in PACKAGES:
+        raw, blobs, identity = build(v, xyz, name, args)
+        built.append((name, label, kind, raw, blobs, identity))
+        print(f"  {name}: {len(raw)} B, identity {identity}, data " +
+              ", ".join(f"{len(b)} B (CRC-32 {c:08x})" for b, c in blobs) + f", 'FIZZ {v}' in the image")
     if len({b[5] for b in built}) != 1:
         die("the packages' identities differ")
 
@@ -228,14 +275,13 @@ def main():
     dest = out / SITE_FW / v
     dest.mkdir(parents=True)
     packages, sums = [], []
-    for name, label, raw, blob, crc, identity in built:
+    for name, label, kind, raw, blobs, identity in built:
         (dest / f"{name}.fwsc").write_bytes(raw)
-        (dest / f"{name}-xdata.bin").write_bytes(blob)
-        sums += [f"{sha256(raw)}  {name}.fwsc", f"{sha256(blob)}  {name}-xdata.bin"]
-        packages.append({"name": name, "label": label,
-                         "fwsc": {"path": f"{v}/{name}.fwsc", "bytes": len(raw), "sha256": sha256(raw)},
-                         "data": {"path": f"{v}/{name}-xdata.bin", "bytes": len(blob), "sha256": sha256(blob),
-                                  "crc32": crc}})
+        sums.append(f"{sha256(raw)}  {name}.fwsc")
+        for (blob, crc), suffix in zip(blobs, ("-xdata.bin", "-xdata2.bin")):
+            (dest / f"{name}{suffix}").write_bytes(blob)
+            sums.append(f"{sha256(blob)}  {name}{suffix}")
+        packages.append(package_entry(v, name, label, kind, raw, blobs))
     (dest / "SHA256SUMS").write_text("\n".join(sums) + "\n")
 
     # 4. releases.json, the newest first
@@ -262,7 +308,7 @@ then publish:
   git commit -m "Release FIZZ {v}"
   git tag -a v{v} -m "FIZZ {v}"
   git push origin master          # Pages deploys the install page with {v}
-  git push origin v{v}       # the release workflow makes the GitHub pre-release, the .fwsc attached
+  git push origin v{v}       # the release workflow makes the GitHub pre-release, both packages attached
 """)
     return 0
 
