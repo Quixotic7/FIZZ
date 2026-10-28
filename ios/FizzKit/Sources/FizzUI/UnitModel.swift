@@ -206,6 +206,13 @@ public final class UnitModel {
             }
             return
         }
+        // the same FM-1 on USB and over Bluetooth (or a second one only over Bluetooth): USB taken, no picker
+        if probes.count > 1, let k = Self.usbOverBluetooth(probes.map { ($0.candidate.name, $0.identity.isFizz) }) {
+            for (j, p) in probes.enumerated() where j != k { await p.link.close() }
+            say("USB taken: \(probes[k].candidate.name) (Bluetooth left)")
+            await take(probes[k])
+            return
+        }
         if probes.count > 1 {
             var cs: [UnitChoice] = []
             for (k, p) in probes.enumerated() {
@@ -218,6 +225,13 @@ public final class UnitModel {
             return
         }
         await take(probes[0])
+    }
+
+    /// Of several ports answering: the one FIZZ on USB when every other is a Bluetooth port; nil: the picker.
+    static func usbOverBluetooth(_ ports: [(name: String, isFizz: Bool)]) -> Int? {
+        let usb = ports.indices.filter { !FizzLink.isBlePort(ports[$0].name) }
+        guard usb.count == 1, ports[usb[0]].isFizz else { return nil }
+        return usb[0]
     }
 
     /// One of the units offered (`.choose`): the others' links closed.

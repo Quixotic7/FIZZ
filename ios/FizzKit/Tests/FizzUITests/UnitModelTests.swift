@@ -21,6 +21,15 @@ private func waitFor(_ m: UnitModel, seconds: Double = 10, _ ok: () -> Bool) asy
 
 @Suite("UnitModel", .serialized) @MainActor
 struct UnitModelTests {
+    @Test func usbTakenOverBluetooth() {
+        let pick = UnitModel.usbOverBluetooth
+        #expect(pick([("FM-1", true), ("FM-1 C1F0 Bluetooth", true)]) == 0)
+        #expect(pick([("FM-1 C1F0 Bluetooth", true), ("FIZZ FM-1", true)]) == 1)
+        #expect(pick([("FM-1", true), ("FM-1 Port 2", true)]) == nil, "two on USB: the picker")
+        #expect(pick([("FM-1 C1F0 Bluetooth", true), ("FM-1 A2B3 Bluetooth", true)]) == nil, "two over Bluetooth: the picker")
+        #expect(pick([("FM-1", false), ("FM-1 C1F0 Bluetooth", true)]) == nil, "the USB one not FIZZ: the picker")
+    }
+
     @Test func connectsAndReadsTheDemoUnit() async {
         let m = UnitModel(source: DemoLinkSource(.fizz))
         m.start()
