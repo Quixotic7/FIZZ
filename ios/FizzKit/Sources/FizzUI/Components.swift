@@ -146,7 +146,7 @@ struct PillButton: View {
             .shadow(color: ghost ? .clear : color.opacity(0.4), radius: 11)
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressStyle(scale: 0.96))
     }
 }
 
@@ -174,9 +174,10 @@ struct FilterChip: View {
             .background(Capsule().fill(on ? color.color : color.opacity(0.10)))
             .overlay(Capsule().strokeBorder(on ? color.color : color.mix(55, FZ.line).color, lineWidth: 1.5))
             .shadow(color: on ? color.opacity(0.45) : .clear, radius: 7)
+            .contentShape(Capsule())
             .fixedSize()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressStyle(scale: 0.94))
     }
 }
 
@@ -327,12 +328,18 @@ struct Burst: View {
 /// A breathing glow: 0..1..0 over `period` seconds.
 func breathe(_ t: Double, _ period: Double) -> Double { (1 - cos(2 * .pi * t / period)) / 2 }
 
-/// A content stack that scrolls in the app and lays out flat in a snapshot.
+/// A content stack that scrolls in the app and lays out flat in a snapshot. Its end clears the phone's floating bars
+/// (fizzBarClearance) by `bottom`'s default; `lazy`: rows made as they scroll in (long lists).
 struct ScreenScroll<Content: View>: View {
     @Environment(\.fizzSnapshot) private var snapshot
-    var bottom: CGFloat = 120
+    @Environment(\.fizzBarClearance) private var clearance
+    /// room after the content; nil: the floating bars' and a little more
+    var bottom: CGFloat?
+    var lazy = false
     var refresh: (() async -> Void)?
     @ViewBuilder let content: Content
+
+    private var end: CGFloat { bottom ?? (clearance > 0 ? clearance + 20 : 24) }
 
     var body: some View {
         if snapshot {
@@ -342,17 +349,24 @@ struct ScreenScroll<Content: View>: View {
             }
             .clipShape(OpenTop())
         } else if let refresh {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) { content }.padding(.bottom, bottom)
-            }
-            .scrollIndicators(.hidden)
-            .refreshable { await refresh() }
+            scroll.refreshable { await refresh() }
         } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) { content }.padding(.bottom, bottom)
-            }
-            .scrollIndicators(.hidden)
+            scroll
         }
+    }
+
+    private var scroll: some View {
+        ScrollView {
+            Group {
+                if lazy {
+                    LazyVStack(alignment: .leading, spacing: 0) { content }
+                } else {
+                    VStack(alignment: .leading, spacing: 0) { content }
+                }
+            }
+            .padding(.bottom, end)
+        }
+        .scrollIndicators(.hidden)
     }
 }
 

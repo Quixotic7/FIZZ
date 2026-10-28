@@ -140,6 +140,13 @@ struct PhoneRoot: View {
     @Binding var tab: FizzTab
     @Environment(\.fizzInsets) private var insets
 
+    /// the tab bar's distance from the screen's bottom edge
+    static let barBottom: CGFloat = 24
+    /// what the floating bars cover (fizzBarClearance): the tab bar and a gap, KEEP / CANCEL over it when it shows
+    private var clearance: CGFloat {
+        Self.barBottom + TabBar.height + 12 + (model.actions.pending != nil ? 52 + 10 : 0)
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             Color.black
@@ -147,6 +154,7 @@ struct PhoneRoot: View {
                 // (IMPORT is a sheet on the phone: the tab under it stays)
                 if TrackPill.shows(on: tab == .importer ? model.importer.under : tab) { TrackTopBar(model: model) } else { TopBar(model: model) }
                 TabScreen(model: model, tab: tab == .importer ? model.importer.under : tab).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .environment(\.fizzBarClearance, clearance)
             }
             .padding(.top, insets.top)
             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.62)],
@@ -154,9 +162,9 @@ struct PhoneRoot: View {
                 .frame(height: 150)
                 .allowsHitTesting(false)
             if tab == .projects { ProjectsPhoneBar(model: model) }
-            TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, 24)
+            TabBar(tab: $tab).padding(.horizontal, 12).padding(.bottom, Self.barBottom)
             // KEEP / CANCEL while a track plays another sound (TrackSwitch.swift)
-            AuditionBar(model: model).padding(.horizontal, 12).padding(.bottom, 24 + 64 + 10)
+            AuditionBar(model: model).padding(.horizontal, 12).padding(.bottom, Self.barBottom + TabBar.height + 10)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.actions.pending)
         .ignoresSafeArea(edges: .bottom)
@@ -174,6 +182,7 @@ struct PhoneRoot: View {
 /// The floating bar: the selected tab a wide pill with its name, the others round icons, IMPORT's violet "+".
 struct TabBar: View {
     @Binding var tab: FizzTab
+    static let height: CGFloat = 64
 
     var body: some View {
         HStack(spacing: 4) {
@@ -205,7 +214,7 @@ struct TabBar: View {
             .padding(.leading, 2)
         }
         .padding(.horizontal, 6)
-        .frame(height: 64)
+        .frame(height: Self.height)
         .background(Capsule().fill(RGB(0x111115).opacity(0.92)))
         .overlay(Capsule().strokeBorder(FZ.nav.color, lineWidth: 1))
         .shadow(color: .black.opacity(0.8), radius: 17, y: 12)

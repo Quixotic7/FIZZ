@@ -27,16 +27,16 @@ struct LogSheet: View {
                 Spacer()
                 Button(action: copy) {
                     Text(copied ? "COPIED" : "COPY").fz(13, 800, em: 0.08).foregroundStyle(.black)
-                        .padding(.horizontal, 16).frame(height: 36)
+                        .padding(.horizontal, 16).frame(height: 44)
                         .background(Capsule().fill((copied ? FZ.green : FZ.cyan).color))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressStyle())
                 ShareLink(item: text) {
                     IconView(Icons.share, color: FZ.text.color, lineWidth: 2.2).frame(width: 20, height: 20)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .overlay(Circle().strokeBorder(FZ.line.color, lineWidth: 2))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressStyle())
             }
             if snapshot {
                 VStack(alignment: .leading, spacing: 5) {
@@ -59,8 +59,11 @@ struct LogSheet: View {
                 }
             }
         }
-        .padding(20)
-        .background(Color.black)
+        .padding(.horizontal, 20).padding(.top, 26)
+        .background(sheetBackground.color.ignoresSafeArea())
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(30)
+        .presentationBackground(sheetBackground.color)
         .preferredColorScheme(.dark)
     }
 

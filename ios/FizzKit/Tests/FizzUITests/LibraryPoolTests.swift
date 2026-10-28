@@ -149,3 +149,17 @@ struct LibraryPoolTests {
         m.stop()
     }
 }
+
+/// A LIBRARY row let go after a sideways swipe (UX pass): pulled all the way right does + / − POOL at once; a short
+/// pull or a flick shows the action; DELETE only for a MY preset; a swipe back shuts it.
+@Test func librarySwipeSettles() {
+    typealias R = LibraryRow
+    #expect(R.settle(dx: 0, moved: 240, flick: 0, mine: true) == .pool)
+    #expect(R.settle(dx: 0, moved: 80, flick: 0, mine: false) == .poolShown)
+    #expect(R.settle(dx: 0, moved: 30, flick: 60, mine: true) == .poolShown)       // (a flick)
+    #expect(R.settle(dx: 0, moved: 30, flick: 0, mine: true) == .shut)
+    #expect(R.settle(dx: 0, moved: -60, flick: 0, mine: true) == .deleteShown)
+    #expect(R.settle(dx: 0, moved: -60, flick: 0, mine: false) == .shut)           // (the factory's: no DELETE)
+    #expect(R.settle(dx: R.reveal, moved: -100, flick: 0, mine: true) == .shut)    // (swiped back)
+    #expect(R.settle(dx: -R.deleteWidth, moved: 80, flick: 0, mine: true) == .shut)
+}

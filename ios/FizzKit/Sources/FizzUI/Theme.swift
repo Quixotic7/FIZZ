@@ -164,15 +164,18 @@ public extension EnvironmentValues {
 public struct Animated<Content: View>: View {
     @Environment(\.fizzSnapshot) private var snapshot
     let still: Double
+    /// false: drawn once at `still` (no frame-by-frame redraw while nothing moves)
+    let active: Bool
     let content: (Double) -> Content
 
-    public init(still: Double = 1.3, @ViewBuilder content: @escaping (Double) -> Content) {
+    public init(still: Double = 1.3, active: Bool = true, @ViewBuilder content: @escaping (Double) -> Content) {
         self.still = still
+        self.active = active
         self.content = content
     }
 
     public var body: some View {
-        if snapshot {
+        if snapshot || !active {
             content(still)
         } else {
             TimelineView(.animation) { ctx in content(ctx.date.timeIntervalSinceReferenceDate) }

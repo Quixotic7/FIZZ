@@ -2,8 +2,8 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// LIBRARY's and POOL's small parts (phase I3): a write's outcome as a coloured strip that goes by itself, the confirm
-// card (ui.js confirmBox: what, the button, the unit's undo), the icons the mock-ups add, and the snapshots' selection.
+// LIBRARY's and POOL's small parts (phase I3): a write's outcome as a coloured strip that goes by itself, the icons
+// the mock-ups add, and the snapshots' selection.
 
 import SwiftUI
 import FizzKit
@@ -37,62 +37,7 @@ struct NoteStrip: View {
     }
 }
 
-// MARK: - The confirm card
-
-/// ui.js confirmBox as a card over a scrim: the title in its colour, what, a short line, UNDO KEPT / CLEARED, the
-/// button and CANCEL.
-struct ConfirmCard: View {
-    let ask: ConfirmAsk
-    let close: () -> Void
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.62).ignoresSafeArea().onTapGesture(perform: close)
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 10) {
-                    Text(ask.title).fz(14, 800, em: 0.12).foregroundStyle(ask.color.color).lineLimit(1).minimumScaleFactor(0.7)
-                    Spacer(minLength: 6)
-                    let c = ask.undo == .kept ? FZ.muted : FZ.orange
-                    Text(ask.undo == .kept ? "UNDO KEPT" : "UNDO CLEARED").fz(12, 800, em: 0.08).foregroundStyle(c.color)
-                        .padding(.horizontal, 8).frame(height: 24)
-                        .overlay(Capsule().strokeBorder(c.color, lineWidth: 1.5))
-                        .fixedSize()
-                }
-                Text(ask.what).fz(32, 800, em: -0.01).foregroundStyle(FZ.text.color).lineLimit(2).minimumScaleFactor(0.5)
-                if let d = ask.detail {
-                    Text(d).fz(15, 800, em: 0.04).foregroundStyle(FZ.body.color).lineLimit(2)
-                }
-                HStack(spacing: 10) {
-                    PillButton(title: "CANCEL", ghost: true, height: 54, action: close)
-                    PillButton(title: ask.go, color: ask.color, height: 54) {
-                        close()
-                        ask.action()
-                    }
-                }
-                .padding(.top, 4)
-            }
-            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 26)
-            .frame(maxWidth: 520)
-            .background(RoundedRectangle(cornerRadius: 28).fill(RGB(0x0d0d11).color))
-            .overlay(RoundedRectangle(cornerRadius: 28).strokeBorder(ask.color.mix(60, FZ.line).color, lineWidth: 1.5))
-            .shadow(color: ask.color.opacity(0.25), radius: 30)
-            .padding(.horizontal, 12).padding(.bottom, 24)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-    }
-}
-
-extension View {
-    /// The confirm card over this view while `ask` is set.
-    func confirmCard(_ ask: Binding<ConfirmAsk?>) -> some View {
-        overlay {
-            if let a = ask.wrappedValue {
-                ConfirmCard(ask: a) { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { ask.wrappedValue = nil } }
-            }
-        }
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: ask.wrappedValue?.id)
-    }
-}
+// (the confirm card: Sheets.swift)
 
 // MARK: - Icons
 

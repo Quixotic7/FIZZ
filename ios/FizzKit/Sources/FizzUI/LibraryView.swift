@@ -4,9 +4,10 @@
 //
 // LIBRARY (mock-ups 09, 10, 16; manager.js renderLibrary / renderSel / swapMine, presets.js): MY PRESETS n / 256 (128
 // on the Bluetooth package) and FACTORY; ALL / MY PRESETS / FACTORY, the pool and the tags as filters. A row swiped
-// right goes into the pool (out of it when it is in), swiped left offers DELETE; a MY preset dragged onto another
-// swaps their places (SWAP). A tap opens the preset (the phone's sheet, the iPad's third column) and, with TRACK on,
-// plays it on the track (KEEP / CANCEL).
+// right goes into the pool (out of it when it is in), swiped left offers DELETE (sideways only: a vertical swipe
+// always scrolls). MOVE in the preset swaps its place with the next MY preset tapped (as POOL's MOVE); on the iPad a
+// MY preset can also be dragged onto another. A tap opens the preset (the phone's sheet, the iPad's third column)
+// and, with TRACK on, plays it on the track (KEEP / CANCEL).
 
 import SwiftUI
 import FizzData
@@ -17,12 +18,17 @@ struct LibraryView: View {
     var wide = false
     @Environment(\.fizzSnapshot) private var snapshot
     @Environment(\.fizzShotSelection) private var shotSelection
+    @Environment(\.fizzBarClearance) private var clearance
     @State private var filter = LibraryFilter()
     @State private var selected: String?
     @State private var sheet: SheetKey?
     @State private var note: ScreenNote?
     @State private var ask: ConfirmAsk?
     @State private var exporting: ExportBox?
+    /// MOVE: a MY preset's slot; the next MY preset tapped swaps places with it
+    @State private var moving: Int?
+    /// the row swiped open (one at a time; a tap anywhere in the list shuts it)
+    @State private var openRow: String?
 
     struct SheetKey: Identifiable, Equatable { let id: String }
 
@@ -30,6 +36,15 @@ struct LibraryView: View {
         Group {
             if wide { padBody } else { phoneBody }
         }
+        .overlay(alignment: .bottom) {
+            if let m = moving {
+                MoveBar(slot: m, name: model.mine.first { $0.slot == m }?.name ?? "—") { moving = nil }
+                    .frame(maxWidth: 560)
+                    .padding(.horizontal, wide ? 0 : 12).padding(.bottom, wide ? 26 : clearance)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: moving)
         .confirmCard($ask)
         .hardwareKeys(model.editor)
         .sheet(item: $exporting) { box in
@@ -63,6 +78,13 @@ struct LibraryView: View {
     // MARK: rows
 
     private func tap(_ r: FizzListEntry) {
+        openRow = nil
+        if let m = moving {
+            guard r.source == "mine" else { return }
+            moving = nil
+            move(m, to: r.slot)
+            return
+        }
         let k = key(r)
         if wide {
             selected = selected == k ? nil : k
@@ -81,6 +103,8 @@ struct LibraryView: View {
     private func row(_ r: FizzListEntry, compact: Bool = false) -> some View {
         LibraryRow(entry: r, algorithm: model.algorithm(r), selected: selected == key(r), compact: compact,
                    places: places[r.id] ?? [], canWrite: model.actions.canWrite, nameSize: wide || compact ? 15 : 16,
+                   moving: moving != nil && r.source == "mine" && r.slot == moving, dragReorder: wide,
+                   isOpen: openRow == key(r), setOpen: { o in openRow = o ? key(r) : openRow == key(r) ? nil : openRow },
                    open: snapshot && shotSelection == "swipe:\(key(r))",
                    onTap: { tap(r) },
                    onPool: { togglePool(r) },
@@ -139,6 +163,12 @@ struct LibraryView: View {
         }
     }
 
+    /// MOVE in the preset: the sheet goes, the next MY preset tapped swaps places with it.
+    private func startMove(_ r: FizzListEntry) {
+        sheet = nil
+        moving = r.slot
+    }
+
     private func export(_ rows: [FizzListEntry]) {
         Task {
             let s = await model.actions.exportSounds(rows)
@@ -168,7 +198,7 @@ struct LibraryView: View {
             .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 12)
             ChipScroll { chips }
                 .padding(.bottom, 14)
-            ScreenScroll(refresh: { await model.refresh() }) {
+            ScreenScroll(bottom: clearance + 20 + (moving != nil ? 62 : 0), lazy: true, refresh: { await model.refresh() }) {
                 if filter.source == .all && !shown.mine.isEmpty { group("MY PRESETS", shown.mine.count) }
                 ForEach(shown.mine, id: \.slot) { row($0) }
                 if filter.source == .all && !shown.factory.isEmpty { group("FACTORY", shown.factory.count) }
@@ -191,12 +221,12 @@ struct LibraryView: View {
             .clipped()
             if model.actions.trackOn {
                 KeybedGrip(open: Binding(get: { model.editor.keysOpen }, set: { model.editor.keysOpen = $0 }))
-                    .padding(.bottom, 96)
+                    .padding(.bottom, clearance - 4)
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
         .sheet(item: $sheet) { s in
-            PresetSheet(model: model, entry: entry(s.id), note: $note, ask: $ask, onExport: export) { sheet = nil }
+            PresetSheet(model: model, entry: entry(s.id), note: $note, onExport: export, onMove: startMove) { sheet = nil }
         }
     }
 
@@ -236,8 +266,10 @@ struct LibraryView: View {
                 .frame(width: 236)
                 Card(padding: 18) {
                     if let r = entry(selected) {
-                        PresetPanel(model: model, entry: r, wide: true, note: $note, ask: $ask, onExport: export) { selected = nil }
-                            .id(key(r))
+                        PresetPanel(model: model, entry: r, wide: true, note: $note, ask: $ask, onExport: export, onMove: startMove) {
+                            selected = nil
+                        }
+                        .id(key(r))
                     } else {
                         TabPlaceholder(tab: .library)
                     }
@@ -255,35 +287,29 @@ struct LibraryView: View {
 
 // MARK: - The phone's sheet
 
-/// The preset sheet (mock-up 10): medium, pulled up to large; its own confirm card and outcome strip.
+/// The preset sheet (mock-up 10): a FizzSheet opened at its content's height with the buttons pinned at the bottom;
+/// its confirms (DELETE, CLEAR POOL) standalone over it; the outcome strip on top.
 struct PresetSheet: View {
     let model: UnitModel
     let entry: FizzListEntry?
     @Binding var note: ScreenNote?
-    @Binding var ask: ConfirmAsk?
     var onExport: ([FizzListEntry]) -> Void
+    var onMove: (FizzListEntry) -> Void
     let close: () -> Void
-    @State private var sheetAsk: ConfirmAsk?
+    @State private var ask: ConfirmAsk?
 
     var body: some View {
-        ZStack(alignment: .top) {
-            RGB(0x0d0d11).color.ignoresSafeArea()
+        Group {
             if let e = entry {
-                ScrollView {
-                    PresetPanel(model: model, entry: e, note: $note, ask: $sheetAsk, onExport: { r in close(); onExport(r) }, onClose: close)
-                        .padding(.horizontal, 18).padding(.top, 24).padding(.bottom, 30)
-                }
-                .scrollIndicators(.hidden)
+                PresetPanel(model: model, entry: e, note: $note, ask: $ask, onExport: { r in close(); onExport(r) },
+                            onMove: onMove, onClose: close)
+            } else {
+                sheetBackground.color.ignoresSafeArea()
             }
-            NoteStrip(note: $note).padding(.top, 8)
         }
-        .confirmCard($sheetAsk)
+        .overlay(alignment: .top) { NoteStrip(note: $note).padding(.top, 8) }
+        .confirmCard($ask)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
-        .presentationDetents([.fraction(0.68), .large])
-        .presentationDragIndicator(.visible)
-        .presentationCornerRadius(30)
-        .presentationBackground(RGB(0x0d0d11).color)
-        .preferredColorScheme(.dark)
         .onChange(of: entry == nil) { _, gone in if gone { close() } }
     }
 }
@@ -297,8 +323,9 @@ struct SheetShape: Shape {
 
 // MARK: - A row
 
-/// One preset row (PresetRow) that swipes: right, + POOL (− POOL when in it; pulled all the way, done at once); left,
-/// DELETE (MY PRESETS); a MY preset is dragged onto another to swap their places.
+/// One preset row (PresetRow): a tap opens it (on touch-up, at once); swiped right, + POOL (− POOL when in it; pulled
+/// all the way, done at once); swiped left, DELETE (MY PRESETS). The swipes start only on a sideways move, so a
+/// vertical swipe always scrolls the list.
 struct LibraryRow: View {
     let entry: FizzListEntry
     let algorithm: Int
@@ -307,6 +334,13 @@ struct LibraryRow: View {
     var places: [Int] = []
     var canWrite = true
     var nameSize: CGFloat = 16
+    /// MOVE: this one is moving (yellow)
+    var moving = false
+    /// the iPad: a MY preset dragged onto another swaps them
+    var dragReorder = false
+    /// open (only one row at a time: another one opening shuts this)
+    var isOpen = false
+    var setOpen: (Bool) -> Void = { _ in }
     /// (the snapshots: shown swiped right)
     var open = false
     let onTap: () -> Void
@@ -314,35 +348,47 @@ struct LibraryRow: View {
     let onDelete: () -> Void
     let onDrop: (Int) -> Void
 
+    @Environment(\.fizzSnapshot) private var snapshot
     @State private var dx: CGFloat = 0
     @State private var drag: CGFloat = 0
-    @State private var horizontal: Bool?
     @State private var target = false
     static let reveal: CGFloat = 132
     static let full: CGFloat = 220
+    static let deleteWidth: CGFloat = 92
 
     private var mine: Bool { entry.source == "mine" }
     private var inPool: Bool { !places.isEmpty }
+    private var snap: Animation { .spring(response: 0.35, dampingFraction: 0.8) }
 
     var body: some View {
         let x = open ? Self.reveal : dx + drag
         ZStack {
             if x > 4 { poolAction(x) }
             if x < -4 { deleteAction }
-            PresetRow(entry: entry, algorithm: algorithm, selected: selected || target, marks: !compact, nameSize: nameSize)
-                .offset(x: x)
-                .onTapGesture {
-                    if dx != 0 { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { dx = 0 } } else { onTap() }
-                }
-                .simultaneousGesture(canWrite && !compact ? swipe : nil)
+            Button {
+                if dx != 0 { withAnimation(snap) { dx = 0 } } else { onTap() }
+            } label: {
+                PresetRow(entry: entry, algorithm: algorithm, selected: selected || target, marks: !compact, nameSize: nameSize)
+                    .overlay {
+                        if moving {
+                            RoundedRectangle(cornerRadius: 12).strokeBorder(FZ.yellow.color, lineWidth: 2.5)
+                                .shadow(color: FZ.yellow.color, radius: 8)
+                        }
+                    }
+            }
+            .buttonStyle(PressStyle(scale: 0.98))
+            .offset(x: x)
         }
         .frame(height: 56)
-        .modifier(Reorder(entry: entry, enabled: mine && canWrite, target: $target, onDrop: onDrop))
+        .sidewaysPan(enabled: canWrite && !compact && !snapshot, changed: swiped, ended: letGo)
+        .modifier(Reorder(entry: entry, enabled: dragReorder && mine && canWrite, target: $target, onDrop: onDrop))
+        .onChange(of: dx != 0) { _, o in if o != isOpen { setOpen(o) } }
+        .onChange(of: isOpen) { _, o in if !o && dx != 0 { withAnimation(snap) { dx = 0 } } }
     }
 
     /// Green, under the row: + POOL / − POOL; a tap does it.
     private func poolAction(_ x: CGFloat) -> some View {
-        Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { dx = 0 }; onPool() } label: {
+        Button { withAnimation(snap) { dx = 0 }; onPool() } label: {
             HStack(spacing: 8) {
                 IconView(inPool ? Icons.minus : Icons.plus, color: .black, lineWidth: 3, backdrop: FZ.green.color)
                     .frame(width: 22, height: 22)
@@ -353,49 +399,59 @@ struct LibraryRow: View {
             .background(RoundedRectangle(cornerRadius: 12).fill(FZ.green.color))
             .shadow(color: FZ.green.opacity(0.5), radius: 12)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressStyle())
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var deleteAction: some View {
-        Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { dx = 0 }; onDelete() } label: {
+        Button { withAnimation(snap) { dx = 0 }; onDelete() } label: {
             VStack(spacing: 4) {
                 IconView(Icons.trash, color: .black, lineWidth: 2.3, backdrop: FZ.red.color).frame(width: 22, height: 22)
                 Text("DELETE").fz(12, 800, em: 0.08).foregroundStyle(.black)
             }
-            .frame(width: 92).frame(maxHeight: .infinity)
+            .frame(width: Self.deleteWidth).frame(maxHeight: .infinity)
             .background(RoundedRectangle(cornerRadius: 12).fill(FZ.red.color))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressStyle())
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
-    private var swipe: some Gesture {
-        DragGesture(minimumDistance: 14)
-            .onChanged { v in
-                if horizontal == nil { horizontal = abs(v.translation.width) > abs(v.translation.height) }
-                guard horizontal == true else { return }
-                var t = v.translation.width
-                if !mine && dx + t < 0 { t = -dx }                       // (the factory's: nothing on the left)
-                let left = -92 - (dx + t)
-                drag = left > 0 ? t + left - left / 3 : t                 // (past DELETE it gives way slowly)
+    private func swiped(_ t: CGFloat) {
+        var t = t
+        if !mine && dx + t < 0 { t = -dx }                                   // (the factory's: nothing on the left)
+        let left = -Self.deleteWidth - (dx + t)
+        drag = left > 0 ? t + left - left / 3 : t                             // (past DELETE it gives way slowly)
+    }
+
+    /// Where a let-go row ends up.
+    enum Settle: Equatable { case shut, poolShown, deleteShown, pool }
+
+    /// Let go at `dx` (where it was) + `moved`: pulled all the way right, + / − POOL at once; else open or shut, a
+    /// flick (the speed's extra travel) counting; DELETE only for a MY preset.
+    static func settle(dx: CGFloat, moved: CGFloat, flick: CGFloat, mine: Bool) -> Settle {
+        let now = dx + moved, end = now + flick
+        if now > full { return .pool }
+        if end > reveal / 2 { return .poolShown }
+        if end < -46 && mine { return .deleteShown }
+        return .shut
+    }
+
+    private func letGo(_ t: CGFloat?, _ flick: CGFloat) {
+        guard let t else { withAnimation(snap) { drag = 0 }; return }
+        let s = Self.settle(dx: dx, moved: t, flick: flick, mine: mine)
+        withAnimation(snap) {
+            drag = 0
+            switch s {
+            case .pool: dx = 0; onPool()
+            case .poolShown: dx = Self.reveal
+            case .deleteShown: dx = -Self.deleteWidth
+            case .shut: dx = 0
             }
-            .onEnded { v in
-                defer { horizontal = nil }
-                guard horizontal == true else { return }
-                let end = dx + v.translation.width
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    drag = 0
-                    if end > Self.full { dx = 0; onPool() }               // (a full swipe: done)
-                    else if end > Self.reveal / 2 { dx = Self.reveal }
-                    else if end < -46 && mine { dx = -92 }
-                    else { dx = 0 }
-                }
-            }
+        }
     }
 }
 
-/// A MY preset dragged onto another (long press, then drag): SWAP.
+/// The iPad: a MY preset dragged onto another (long press, then drag): SWAP.
 private struct Reorder: ViewModifier {
     let entry: FizzListEntry
     let enabled: Bool
@@ -417,6 +473,28 @@ private struct Reorder: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// MOVE's bar (as POOL's): the moving preset, → ?, × to stop.
+struct MoveBar: View {
+    let slot: Int
+    let name: String
+    let cancel: () -> Void
+    var body: some View {
+        HStack(spacing: 10) {
+            IconView(Icons.swap, color: FZ.yellow.color, lineWidth: 2.4).frame(width: 24, height: 24)
+            Text("\(slot)").fz(15, 800).foregroundStyle(FZ.yellow.color)
+            Text(name).fz(20, 800).foregroundStyle(FZ.text.color).lineLimit(1).minimumScaleFactor(0.6)
+            Text("→ ?").fz(20, 800).foregroundStyle(FZ.yellow.color)
+            Spacer(minLength: 0)
+            RoundIcon(art: Icons.close, color: FZ.muted, size: 44, action: cancel)
+        }
+        .padding(.leading, 18).padding(.trailing, 4)
+        .frame(height: 52)
+        .background(Capsule().fill(FZ.yellow.mix(10, RGB(0x111115)).color))
+        .overlay(Capsule().strokeBorder(FZ.yellow.color, lineWidth: 1.5))
+        .shadow(color: .black.opacity(0.7), radius: 14, y: 8)
     }
 }
 
@@ -472,7 +550,7 @@ public struct PresetSheetShot: View {
                 .blur(radius: 2).brightness(-0.3)
             Color.black.opacity(0.45)
             if let r = model.rows.first(where: { "\($0.source):\($0.slot)" == key }) {
-                PresetPanel(model: model, entry: r, note: .constant(nil), ask: .constant(nil))
+                PresetPanel(model: model, entry: r, note: .constant(nil), ask: .constant(nil), onMove: { _ in })
                     .padding(.horizontal, 18).padding(.top, 30).padding(.bottom, 44)
                     .background(SheetShape().fill(RGB(0x0d0d11).color).shadow(color: .black, radius: 30, y: -10))
                     .overlay(alignment: .top) { Capsule().fill(RGB(0x3a3a44).color).frame(width: 40, height: 5).padding(.top, 10) }

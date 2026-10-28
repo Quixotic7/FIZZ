@@ -3,8 +3,9 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // A preset (mock-ups 10, 16; manager.js renderSel): its glyph and name (a tap renames a MY preset), FIZZ's seven tags
-// and the web tags, USED BY with each project's steps, + POOL / − POOL, EDIT, LOAD ON FM-1 on one of the six tracks
-// (the unit's own browser: OCT- cancels, OCT+ loads), EXPORT, DELETE. The phone's sheet and the iPad's third column.
+// and the web tags, USED BY with each project's steps, LOAD ON FM-1 on one of the six tracks (the unit's own browser:
+// OCT- cancels, OCT+ loads), + POOL / − POOL, EDIT, EXPORT, MOVE, DELETE. The phone's sheet (a FizzSheet: the
+// buttons pinned at its bottom) and the iPad's third column.
 
 import SwiftUI
 import FizzData
@@ -18,6 +19,8 @@ struct PresetPanel: View {
     @Binding var note: ScreenNote?
     @Binding var ask: ConfirmAsk?
     var onExport: ([FizzListEntry]) -> Void = { _ in }
+    /// MOVE (a MY preset): its place swapped with the next MY preset tapped
+    var onMove: ((FizzListEntry) -> Void)?
     /// the preset went (deleted) or the screen moved on (EDIT)
     var onClose: () -> Void = {}
 
@@ -39,19 +42,33 @@ struct PresetPanel: View {
     private var places: [Int] { actions.places(of: entry.id) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            tags.padding(.top, 16)
-            if mine { usedBy.padding(.top, 18) }
+        Group {
             if wide {
-                load.padding(.top, 18)
-                Spacer(minLength: 18)
-                mainButtons
-                lastButtons.padding(.top, 10)
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    tags.padding(.top, 16)
+                    if mine { usedBy.padding(.top, 18) }
+                    load.padding(.top, 18)
+                    Spacer(minLength: 18)
+                    mainButtons
+                    lastButtons.padding(.top, 10)
+                }
             } else {
-                mainButtons.padding(.top, 18)
-                load.padding(.top, 18)
-                lastButtons.padding(.top, 18)
+                // (the phone's sheet: everything above the fold at its first height, the buttons pinned)
+                FizzSheet {
+                    header
+                } content: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        tags
+                        if mine { usedBy.padding(.top, 18) }
+                        load.padding(.top, 18)
+                    }
+                } actions: {
+                    VStack(spacing: 10) {
+                        mainButtons
+                        lastButtons
+                    }
+                }
             }
         }
         .task(id: "\(entry.source):\(entry.slot):\(entry.id):\(entry.name):\(actions.frame(of: entry) != nil)") {
@@ -244,11 +261,18 @@ struct PresetPanel: View {
     }
 
     private var lastButtons: some View {
-        HStack(spacing: 10) {
-            IconPill(title: "EXPORT", icon: Icons.share, ghost: true, enabled: actions.frame(of: entry) != nil || snapshot) {
+        // (the iPad's narrow column has no room for three words: the icons alone)
+        let short = wide && mine && onMove != nil
+        return HStack(spacing: 10) {
+            IconPill(title: short ? "" : "EXPORT", icon: Icons.share, ghost: true, enabled: actions.frame(of: entry) != nil || snapshot) {
                 onExport([entry])
             }
-            if mine { IconPill(title: "DELETE", icon: Icons.trash, color: FZ.red, redline: true, enabled: can) { askDelete() } }
+            if mine, let onMove {
+                IconPill(title: short ? "" : "MOVE", icon: Icons.swap, color: FZ.yellow, redline: true, enabled: can) { onMove(entry) }
+            }
+            if mine {
+                IconPill(title: short ? "" : "DELETE", icon: Icons.trash, color: FZ.red, redline: true, enabled: can) { askDelete() }
+            }
         }
     }
 
@@ -347,12 +371,17 @@ func stepsText(_ n: Int) -> String { "\(n) STEP\(n == 1 ? "" : "S") → TRACK SO
 /// The name's caret (a tap renames): cyan, blinking.
 struct Caret: View {
     let height: CGFloat
+    @Environment(\.fizzSnapshot) private var snapshot
     var body: some View {
-        Animated(still: 0) { t in
-            RoundedRectangle(cornerRadius: 1.5).fill(FZ.cyan.color).frame(width: 3, height: height)
-                .opacity(t.truncatingRemainder(dividingBy: 1.1) < 0.55 ? 1 : 0)
+        let bar = RoundedRectangle(cornerRadius: 1.5).fill(FZ.cyan.color).frame(width: 3, height: height)
+        if snapshot {
+            bar
+        } else {
+            // (twice a second, not every frame)
+            TimelineView(.periodic(from: .distantPast, by: 0.55)) { ctx in
+                bar.opacity(Int(ctx.date.timeIntervalSinceReferenceDate / 0.55) % 2 == 0 ? 1 : 0)
+            }
         }
-        .frame(width: 3, height: height)
     }
 }
 
@@ -406,7 +435,7 @@ struct TrackButton: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Animated(still: 0.9) { t in
+            Animated(still: 0.9, active: live) { t in
                 let b = live ? breathe(t, 1.8) : 0
                 Text("\(n)").fz(24, 800).foregroundStyle(live ? .white : FZ.text.color)
                     .frame(maxWidth: .infinity).frame(height: 54)
@@ -417,7 +446,7 @@ struct TrackButton: View {
                     .contentShape(RoundedRectangle(cornerRadius: 16))
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressStyle(scale: 0.93))
     }
 }
 
@@ -453,7 +482,7 @@ struct IconPill: View {
         Button(action: action) {
             HStack(spacing: 9) {
                 if let icon { IconView(icon, color: fg, lineWidth: 2.3, backdrop: filled ? color.color : .black).frame(width: 18, height: 18) }
-                Text(title).fz(size, 800, em: 0.08).lineLimit(1).minimumScaleFactor(0.7)
+                if !title.isEmpty { Text(title).fz(size, 800, em: 0.08).lineLimit(1).minimumScaleFactor(0.7) }
             }
             .foregroundStyle(fg)
             .padding(.horizontal, 14)
@@ -463,7 +492,7 @@ struct IconPill: View {
             .shadow(color: filled ? color.opacity(0.4) : .clear, radius: 11)
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressStyle(scale: 0.96))
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.4)
     }

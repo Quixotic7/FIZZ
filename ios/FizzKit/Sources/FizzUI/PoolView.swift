@@ -5,8 +5,10 @@
 // POOL (mock-up 13; site/manager/pool.js): the open project's 128 pool places (8 columns on the phone, 16 x 8 on the
 // iPad), each the preset it references in its tag's colour with a dot a step that locks it (USERS, read in the
 // background). The project chips load another project. A sound picked in SOUNDS (the phone's drawer, the iPad's
-// column; or dragged there on the iPad) goes into the next place tapped. MOVE (or a tile dragged onto another) swaps
-// two places, every pattern's steps following. CLEAR, CLEAR UNUSED and SORT BY TAG ask first, as the page does.
+// column; or dragged there on the iPad) goes into the next place tapped. MOVE (or, on the iPad, a tile dragged onto
+// another) swaps two places, every pattern's steps following. CLEAR, CLEAR UNUSED and SORT BY TAG ask first, as the
+// page does (the standalone confirm, over the tab bar). The phone's bar floats above the tab bar; the grid scrolls
+// clear of both.
 
 import SwiftUI
 import FizzData
@@ -17,6 +19,7 @@ struct PoolView: View {
     var wide = false
     @Environment(\.fizzSnapshot) private var snapshot
     @Environment(\.fizzShotSelection) private var shotSelection
+    @Environment(\.fizzBarClearance) private var clearance
     @State private var selected: Int?
     /// a sound picked (its id): the next place tapped takes it
     @State private var pick: Int?
@@ -26,6 +29,8 @@ struct PoolView: View {
     @State private var note: ScreenNote?
     @State private var ask: ConfirmAsk?
     @State private var filter = LibraryFilter(source: .all)
+    /// the phone's bar's height (the grid scrolls clear of it)
+    @State private var barHeight: CGFloat = 116
     @Namespace private var tiles
 
     private var actions: UnitActions { model.actions }
@@ -105,12 +110,14 @@ struct PoolView: View {
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 10), spacing: 5), count: columns), spacing: 5) {
             ForEach(1...128, id: \.self) { k in
                 let e = pm[k]
-                PoolTile(place: k, entry: e, algorithm: e.flatMap { ps[$0.id] }.map(model.algorithm) ?? 1,
-                         steps: actions.poolSteps(k), selected: selected == k, here: pick != nil && e?.id == pick,
-                         moving: moving == k, height: height, namespace: tiles,
-                         nth: e.map { x in pm.filter { $0.key < k && $0.value.id == x.id }.count } ?? 0)
-                    .onTapGesture { tapTile(k) }
-                    .modifier(TileDrop(place: k, enabled: can, onPreset: { place(k, id: $0) }, onPlace: { askSwap($0, k) }))
+                Button { tapTile(k) } label: {
+                    PoolTile(place: k, entry: e, algorithm: e.flatMap { ps[$0.id] }.map(model.algorithm) ?? 1,
+                             steps: actions.poolSteps(k), selected: selected == k, here: pick != nil && e?.id == pick,
+                             moving: moving == k, height: height, namespace: tiles,
+                             nth: e.map { x in pm.filter { $0.key < k && $0.value.id == x.id }.count } ?? 0)
+                }
+                .buttonStyle(PressStyle(scale: 0.9))
+                .modifier(TileDrop(place: k, enabled: can, drags: wide, onPreset: { place(k, id: $0) }, onPlace: { askSwap($0, k) }))
             }
         }
         .opacity(model.status == nil ? 0.4 : 1)
@@ -257,14 +264,18 @@ struct PoolView: View {
     private var phoneBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             header.padding(.top, 2).padding(.bottom, 10)
-            projectChips.padding(.bottom, 14)
-            ScreenScroll(bottom: 250, refresh: { await model.refresh() }) {
-                grid(columns: 8, height: 46)
+            projectChips.padding(.bottom, 8)
+            ScreenScroll(bottom: clearance + barHeight + 16, refresh: { await model.refresh() }) {
+                // (room above the first row for the selected tile's ring)
+                grid(columns: 8, height: 46).padding(.top, 6)
             }
         }
         .padding(.horizontal, 16)
         .overlay(alignment: .top) { NoteStrip(note: $note).padding(.top, 60) }
-        .overlay(alignment: .bottom) { bar.padding(.horizontal, 12).padding(.bottom, 100) }
+        .overlay(alignment: .bottom) {
+            bar.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+                .padding(.horizontal, 12).padding(.bottom, clearance)
+        }
         .sheet(isPresented: $drawer) {
             SoundsDrawer(model: model, filter: $filter, picked: pick) { id in
                 pick = id
@@ -318,7 +329,7 @@ struct PoolTile: View {
     var nth = 0
 
     var body: some View {
-        Animated(still: 0.25) { t in
+        Animated(still: 0.25, active: selected) { t in
             let p = selected ? (t.truncatingRemainder(dividingBy: 2.4)) / 2.4 : 1
             let s: Double = p < 0.14 ? 0.86 + (1.1 - 0.86) * p / 0.14 : p < 0.3 ? 1.1 - 0.1 * (p - 0.14) / 0.16 : 1
             ZStack(alignment: .topLeading) {
@@ -343,6 +354,7 @@ struct PoolTile: View {
             .overlay { if selected { TileBubbles(t: t) } }
             .scaleEffect(selected ? s : 1)
             .zIndex(selected ? 2 : 0)
+            .contentShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 
@@ -384,15 +396,20 @@ private struct TileBubbles: View {
 private struct TileDrop: ViewModifier {
     let place: Int
     let enabled: Bool
+    /// its sound drags (the iPad; the phone's MOVE is a tap: a hold-to-drag would fight the grid's scroll)
+    var drags = true
     let onPreset: (Int) -> Void
     let onPlace: (Int) -> Void
     @State private var target = false
     @Environment(\.fizzSnapshot) private var snapshot
 
+    @ViewBuilder private func dragged(_ content: Content) -> some View {
+        if drags { content.draggable("pool:\(place)") } else { content }
+    }
+
     func body(content: Content) -> some View {
         if enabled && !snapshot {
-            content
-                .draggable("pool:\(place)")
+            dragged(content)
                 .dropDestination(for: String.self) { items, _ in
                     guard let s = items.first else { return false }
                     if s.hasPrefix("preset:"), let id = Int(s.dropFirst(7)) { onPreset(id); return true }
@@ -441,15 +458,18 @@ struct RoundIcon: View {
     let art: VectorArt
     var color: RGB = FZ.text
     var enabled = true
+    /// the ring's size (the touch is 44 at least)
+    var size: CGFloat = 38
     let action: () -> Void
     var body: some View {
         Button(action: action) {
             IconView(art, color: color.color, lineWidth: 2.3).frame(width: 18, height: 18)
-                .frame(width: 38, height: 38)
+                .frame(width: size, height: size)
                 .overlay(Circle().strokeBorder(color.mix(55, FZ.line).color, lineWidth: 1.5))
+                .frame(width: max(44, size), height: max(44, size))
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressStyle(scale: 0.9))
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.4)
     }
@@ -480,7 +500,6 @@ struct JobLine: View {
 /// picked, dragged (the iPad) goes onto a place.
 struct SoundsList: View {
     let model: UnitModel
-    @Environment(\.fizzSnapshot) private var snapshot
     @Binding var filter: LibraryFilter
     var picked: Int?
     var draggable = false
@@ -489,34 +508,59 @@ struct SoundsList: View {
     let onPick: (Int) -> Void
 
     var body: some View {
-        let shown = filter.shown(model.rows)
         VStack(alignment: .leading, spacing: 10) {
-            ChipScroll(inset: 0, spacing: 6) {
-                FilterChip(title: "POOL", color: FZ.green, on: filter.pool != .any, poolIcon: true) { filter.turnPool() }
-                ForEach(FizzTag.allCases) { t in
-                    FilterChip(title: t.name, color: t.tint, on: filter.tags.contains(t)) { filter.toggle(t) }
-                }
-            }
-            .frame(height: 40)
-            ScreenScroll(bottom: 10) {
-                ForEach(shown.mine + shown.factory, id: \.id) { r in
-                    let row = PresetRow(entry: r, algorithm: model.algorithm(r), selected: picked == r.id, marks: marks, nameSize: 15)
-                        .padding(.bottom, 8)
-                        .onTapGesture { if r.id != 0 { onPick(r.id) } }
-                    if draggable && r.id != 0 && !snapshot {
-                        row.draggable("preset:\(r.id)") {
-                            PresetRow(entry: r, algorithm: model.algorithm(r), selected: true).frame(width: 260)
-                        }
-                    } else {
-                        row
-                    }
-                }
+            SoundsChips(filter: $filter, inset: 0).frame(height: 40)
+            ScreenScroll(bottom: 10, lazy: true) {
+                SoundsRows(model: model, filter: filter, picked: picked, draggable: draggable, marks: marks, onPick: onPick)
             }
         }
     }
 }
 
-/// The phone's SOUNDS drawer: pick one, then tap a place.
+/// The SOUNDS filters: the pool and the tags.
+struct SoundsChips: View {
+    @Binding var filter: LibraryFilter
+    var inset: CGFloat = 0
+    var body: some View {
+        ChipScroll(inset: inset, spacing: 6) {
+            FilterChip(title: "POOL", color: FZ.green, on: filter.pool != .any, poolIcon: true) { filter.turnPool() }
+            ForEach(FizzTag.allCases) { t in
+                FilterChip(title: t.name, color: t.tint, on: filter.tags.contains(t)) { filter.toggle(t) }
+            }
+        }
+    }
+}
+
+/// The SOUNDS rows: a tap picks one (at once; a scroll wins), the iPad's drag onto a place.
+struct SoundsRows: View {
+    let model: UnitModel
+    let filter: LibraryFilter
+    var picked: Int?
+    var draggable = false
+    var marks = true
+    let onPick: (Int) -> Void
+    @Environment(\.fizzSnapshot) private var snapshot
+
+    var body: some View {
+        let shown = filter.shown(model.rows)
+        ForEach(shown.mine + shown.factory, id: \.id) { r in
+            let row = Button { if r.id != 0 { onPick(r.id) } } label: {
+                PresetRow(entry: r, algorithm: model.algorithm(r), selected: picked == r.id, marks: marks, nameSize: 15)
+            }
+            .buttonStyle(PressStyle(scale: 0.98))
+            .padding(.bottom, 8)
+            if draggable && r.id != 0 && !snapshot {
+                row.draggable("preset:\(r.id)") {
+                    PresetRow(entry: r, algorithm: model.algorithm(r), selected: true).frame(width: 260)
+                }
+            } else {
+                row
+            }
+        }
+    }
+}
+
+/// The phone's SOUNDS drawer (a FizzSheet, half height, pulled up to large): pick one, then tap a place.
 struct SoundsDrawer: View {
     let model: UnitModel
     @Binding var filter: LibraryFilter
@@ -524,16 +568,17 @@ struct SoundsDrawer: View {
     let onPick: (Int) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Heading(text: "SOUNDS", count: "\(model.mine.count + model.factory.count)", color: FZ.green)
-            SoundsList(model: model, filter: $filter, picked: picked, onPick: onPick)
+        FizzSheet(size: .medium, inset: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Heading(text: "SOUNDS", count: "\(model.mine.count + model.factory.count)", color: FZ.green)
+                // (the chips run to the sheet's edges)
+                SoundsChips(filter: $filter, inset: 16).frame(height: 40).padding(.horizontal, -16)
+            }
+        } content: {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                SoundsRows(model: model, filter: filter, picked: picked, onPick: onPick)
+            }
+            .padding(.bottom, 24)
         }
-        .padding(.horizontal, 16).padding(.top, 22)
-        .background(RGB(0x0d0d11).color.ignoresSafeArea())
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-        .presentationCornerRadius(30)
-        .presentationBackground(RGB(0x0d0d11).color)
-        .preferredColorScheme(.dark)
     }
 }

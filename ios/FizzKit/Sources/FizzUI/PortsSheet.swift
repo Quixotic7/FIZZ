@@ -42,27 +42,28 @@ struct PortsSheet: View {
 
     var body: some View {
         let r = model.ports
-        ScrollView {
+        FizzSheet(size: .large) {
+            HStack(spacing: 8) {
+                Text("PORTS").fz(24, 800, em: 0.08).foregroundStyle(FZ.text.color).lineLimit(1).minimumScaleFactor(0.7)
+                Spacer(minLength: 4)
+                Button { model.rescan() } label: {
+                    Text("LOOK AGAIN").fz(13, 800, em: 0.08).foregroundStyle(.black).lineLimit(1).fixedSize()
+                        .padding(.horizontal, 16).frame(height: 44)
+                        .background(Capsule().fill(FZ.yellow.color))
+                }.buttonStyle(PressStyle())
+                Button { showLog = true } label: {
+                    Text("LOG").fz(13, 800, em: 0.08).foregroundStyle(FZ.text.color).fixedSize()
+                        .padding(.horizontal, 14).frame(height: 44)
+                        .overlay(Capsule().strokeBorder(FZ.line.color, lineWidth: 1.5))
+                }.buttonStyle(PressStyle())
+                ShareLink(item: text) {
+                    IconView(Icons.share, color: FZ.text.color, lineWidth: 2.2).frame(width: 20, height: 20)
+                        .frame(width: 44, height: 44)
+                        .overlay(Circle().strokeBorder(FZ.line.color, lineWidth: 2))
+                }.buttonStyle(PressStyle())
+            }
+        } content: {
             VStack(alignment: .leading, spacing: 22) {
-                HStack {
-                    Text("PORTS").fz(24, 800, em: 0.08).foregroundStyle(FZ.text.color)
-                    Spacer()
-                    Button { model.rescan() } label: {
-                        Text("LOOK AGAIN").fz(13, 800, em: 0.08).foregroundStyle(.black)
-                            .padding(.horizontal, 16).frame(height: 36)
-                            .background(Capsule().fill(FZ.yellow.color))
-                    }.buttonStyle(.plain)
-                    Button { showLog = true } label: {
-                        Text("LOG").fz(13, 800, em: 0.08).foregroundStyle(FZ.text.color)
-                            .padding(.horizontal, 14).frame(height: 36)
-                            .overlay(Capsule().strokeBorder(FZ.line.color, lineWidth: 1.5))
-                    }.buttonStyle(.plain)
-                    ShareLink(item: text) {
-                        IconView(Icons.share, color: FZ.text.color, lineWidth: 2.2).frame(width: 20, height: 20)
-                            .frame(width: 40, height: 40)
-                            .overlay(Circle().strokeBorder(FZ.line.color, lineWidth: 2))
-                    }.buttonStyle(.plain)
-                }
                 group("IN", r.sources, color: FZ.cyan)
                 group("OUT", r.destinations, color: FZ.cyan)
                 group("PROBED", r.probed, color: FZ.yellow)
@@ -88,10 +89,8 @@ struct PortsSheet: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(.bottom, 30)
         }
-        .background(Color.black)
-        .preferredColorScheme(.dark)
         .sheet(isPresented: $showLog) { LogSheet(model: model) }
     }
 
