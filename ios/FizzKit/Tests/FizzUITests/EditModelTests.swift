@@ -152,4 +152,19 @@ struct EditModelTests {
         #expect(p.blob[3] == 64 | 128 && p.blob[2] == 0)
         e.hide()
     }
+
+    /// A turn's speed: whole near its axis, slower as the finger moves away sideways (a quarter at 180 pt and past);
+    /// a drag of nothing turns nothing (counted from where the turn began: no jump).
+    @Test func turnSpeedAndTravel() async throws {
+        let (m, _) = await connected()
+        let e = m.editor
+        await e.show()
+        #expect(TurnModifier.fine(0) == 1 && TurnModifier.fine(30) == 1)
+        #expect(abs(TurnModifier.fine(80) - 0.5) < 0.001 && TurnModifier.fine(180) == 0.25 && TurnModifier.fine(400) == 0.25)
+        #expect(TurnModifier.turned(e, QV.ptim, 40, 0, nil) == 40)
+        // (TIME 0..127: its whole range a 600 pt drag at most, 240 at least)
+        let up = try #require(TurnModifier.turned(e, QV.ptim, 40, 60, nil))
+        #expect(up > 40 && up < 60)
+        e.hide()
+    }
 }

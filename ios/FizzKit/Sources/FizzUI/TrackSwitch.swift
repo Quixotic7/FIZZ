@@ -63,7 +63,7 @@ public struct TrackPill: View {
             numberMenu(n: n, on: on)
         }
         .padding(.leading, 8).padding(.trailing, 5)
-        .frame(height: wide ? 48 : 40)
+        .frame(height: wide ? 48 : 44)
         .frame(maxWidth: wide ? .infinity : nil)
         .background(Capsule().fill(FZ.pink.opacity(on ? 0.14 : 0.05)))
         .overlay(Capsule().strokeBorder(on ? FZ.pink.color : FZ.pink.mix(45, FZ.line).color, lineWidth: 2))
@@ -88,7 +88,7 @@ public struct TrackPill: View {
     /// The followed track's number; a tap: SELECTED or 1..6 (live.js strip).
     @ViewBuilder func numberMenu(n: Int, on: Bool) -> some View {
         let badge = Text(n >= 0 ? "\(n + 1)" : "–").fz(17, 800).foregroundStyle(on ? FZ.pink.color : FZ.text.color)
-            .frame(minWidth: 30, minHeight: 30).padding(.horizontal, 2)
+            .frame(minWidth: 32, minHeight: 32).padding(.horizontal, 2)
             .background(Capsule().fill(on ? Color.white : FZ.track.color))
         if snapshot {
             badge
@@ -103,7 +103,7 @@ public struct TrackPill: View {
                         if k == t { Label("TRACK \(t)", systemImage: "checkmark") } else { Text("TRACK \(t)") }
                     }
                 }
-            } label: { badge }
+            } label: { badge.frame(minWidth: 40, minHeight: 44).contentShape(Rectangle()) }
             .menuStyle(.button)
             .buttonStyle(.plain)
             .disabled(!model.actions.trackCapable)
@@ -131,7 +131,7 @@ public struct AuditionBar: View {
                     Task { await model.actions.keepAudition() }
                 } label: {
                     Text("KEEP").fz(13, 800, em: 0.08).foregroundStyle(.white)
-                        .padding(.horizontal, 16).frame(height: 38)
+                        .padding(.horizontal, 16).frame(height: 42)
                         .background(Capsule().fill(FZ.pink.color))
                         .shadow(color: FZ.pink.opacity(0.45), radius: 8)
                         .fixedSize()
@@ -146,7 +146,7 @@ public struct AuditionBar: View {
                     }
                 } label: {
                     Text("CANCEL").fz(13, 800, em: 0.08).foregroundStyle(FZ.text.color)
-                        .padding(.horizontal, 14).frame(height: 38)
+                        .padding(.horizontal, 14).frame(height: 42)
                         .overlay(Capsule().strokeBorder(FZ.line.color, lineWidth: 1.5))
                         .opacity(working ? 0.5 : 1)
                         .fixedSize()
@@ -154,7 +154,7 @@ public struct AuditionBar: View {
                 .buttonStyle(.plain)
             }
             .padding(.leading, 16).padding(.trailing, 7)
-            .frame(height: 52)
+            .frame(height: 54)
             .background(Capsule().fill(FZ.pink.mix(10, RGB(0x111115)).color))
             .overlay(Capsule().strokeBorder(FZ.pink.color, lineWidth: 1.5))
             .shadow(color: .black.opacity(0.7), radius: 14, y: 8)

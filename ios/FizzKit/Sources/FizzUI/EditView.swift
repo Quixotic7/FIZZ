@@ -25,8 +25,10 @@ struct EditView: View {
 
     var body: some View {
         Group { if wide { padBody } else { phoneBody } }
-            .overlay(alignment: .top) { turnOverlay }
+            .overlay { turnOverlay }
             .overlay(alignment: .top) { flashView }
+            // (the name typed: the keyboard covers the bottom, the page keeps its size)
+            .ignoresSafeArea(.keyboard)
             .task { await e.show() }
             .onDisappear { e.hide() }
             .onChange(of: e.request) { _, t in if t != nil { Task { await e.show() } } }
@@ -49,8 +51,8 @@ struct EditView: View {
         VStack(alignment: .leading, spacing: 0) {
             header(nameSize: 32).padding(.horizontal, 16).padding(.top, 2).padding(.bottom, 10)
                 .turnDim(e, [])
-            ChipScroll { pageChips }
-                .padding(.bottom, 8)
+            pageChipRow
+                .padding(.bottom, 6)
                 .turnDim(e, [])
             pageBody
                 .padding(.horizontal, 16)
@@ -62,13 +64,31 @@ struct EditView: View {
                     }
                 }
                 .clipped()
-            KeybedGrip(open: Binding(get: { e.keysOpen }, set: { e.keysOpen = $0 }))
-                .turnDim(e, [])
-            actions(height: 46)
-                .padding(.horizontal, 16)
-                .turnDim(e, [])
+            HStack(spacing: 8) {
+                keysButton
+                actions(height: 46)
+            }
+            .padding(.horizontal, 16).padding(.top, 8)
+            .turnDim(e, [])
         }
-        .padding(.bottom, 94)
+        // (above the tab bar, and above the KEEP / CANCEL bar while it shows)
+        .padding(.bottom, model.actions.pending == nil ? 96 : 96 + 66)
+    }
+
+    /// The keybed up over the page, or put away.
+    private var keysButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { e.keysOpen.toggle() }
+        } label: {
+            Image(systemName: "pianokeys").font(.system(size: 19, weight: .bold))
+                .foregroundStyle(e.keysOpen ? Color.black : FZ.text.color)
+                .frame(width: 46, height: 46)
+                .background(Circle().fill(e.keysOpen ? FZ.pink.color : FZ.raised.color))
+                .overlay(Circle().strokeBorder(e.keysOpen ? FZ.pink.color : FZ.line.color, lineWidth: 1.5))
+                .shadow(color: e.keysOpen ? FZ.pink.opacity(0.45) : .clear, radius: 8)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: iPad
@@ -76,7 +96,7 @@ struct EditView: View {
     private var padBody: some View {
         VStack(spacing: 14) {
             HStack(alignment: .top, spacing: 14) {
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
                     TrackPill(model: model, wide: true).padding(.bottom, 6)
                     if e.sound?.isMidi == true {
                         ForEach(0..<7, id: \.self) { n in pageItem("MIDI \(n + 1)", FZ.magenta, nil, on: e.midiPage == n) { e.midiPage = n } }
@@ -103,7 +123,8 @@ struct EditView: View {
             }
             Keybed(e: e, height: 104).turnDim(e, [])
         }
-        .padding(.bottom, 20)
+        // (the KEEP / CANCEL bar floats over the bottom: the keybed above it)
+        .padding(.bottom, model.actions.pending == nil ? 20 : 20 + 66)
     }
 
     private func pageItem(_ title: String, _ c: RGB, _ art: VectorArt?, on: Bool, _ go: @escaping () -> Void) -> some View {
@@ -114,7 +135,7 @@ struct EditView: View {
                     .minimumScaleFactor(0.75)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14).frame(height: 54)
+            .padding(.horizontal, 14).frame(height: 48)
             .background(RoundedRectangle(cornerRadius: 14).fill(on ? c.mix(14, FZ.raised).color : FZ.raised.color))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(on ? c.color : FZ.line.color, lineWidth: 1.5))
             .shadow(color: on ? c.opacity(0.35) : .clear, radius: 9)
@@ -177,12 +198,39 @@ struct EditView: View {
         e.naming = false
     }
 
-    private var pageChips: some View {
-        Group {
-            if e.sound?.isMidi == true {
-                ForEach(0..<7, id: \.self) { n in pageChip("MIDI \(n + 1)", FZ.magenta, nil, on: e.midiPage == n) { e.midiPage = n } }
-            } else {
-                ForEach(EditPage.allCases) { p in pageChip(p.title, p.tint, PageIcons.art(p), on: e.page == p) { e.page = p } }
+    /// The page chips, the chosen one scrolled into view.
+    @ViewBuilder private var pageChipRow: some View {
+        let midi = e.sound?.isMidi == true
+        let sel = midi ? "m\(e.midiPage)" : e.page.rawValue
+        if snapshot {
+            // (as the scroll view shows it: from the chip before the chosen one)
+            let k = midi ? e.midiPage : EditPage.allCases.firstIndex(of: e.page) ?? 0
+            ChipScroll { pageChips(from: max(0, min(k - 1, (midi ? 7 : EditPage.allCases.count) - 4))) }
+                .frame(height: 44)
+        } else {
+            ScrollViewReader { px in
+                ScrollView(.horizontal) {
+                    HStack(spacing: 7) { pageChips(from: 0) }.padding(.horizontal, 16)
+                }
+                .scrollIndicators(.hidden)
+                .scrollClipDisabled()
+                .onAppear { px.scrollTo(sel, anchor: .center) }
+                .onChange(of: sel) { _, k in
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { px.scrollTo(k, anchor: .center) }
+                }
+            }
+            .frame(height: 44)
+        }
+    }
+
+    @ViewBuilder private func pageChips(from first: Int) -> some View {
+        if e.sound?.isMidi == true {
+            ForEach(first..<7, id: \.self) { n in
+                pageChip("MIDI \(n + 1)", FZ.magenta, nil, on: e.midiPage == n) { e.midiPage = n }.id("m\(n)")
+            }
+        } else {
+            ForEach(Array(EditPage.allCases.dropFirst(first))) { p in
+                pageChip(p.title, p.tint, PageIcons.art(p), on: e.page == p) { e.page = p }.id(p.rawValue)
             }
         }
     }
@@ -198,6 +246,8 @@ struct EditView: View {
             .background(Capsule().fill(on ? c.color : .clear))
             .overlay(Capsule().strokeBorder(on ? c.color : FZ.line.color, lineWidth: 1.5))
             .shadow(color: on ? c.opacity(0.45) : .clear, radius: 8)
+            .frame(height: 44)
+            .contentShape(Rectangle())
             .fixedSize()
         }
         .buttonStyle(.plain)
@@ -213,13 +263,15 @@ struct EditView: View {
                 EditPageView(e: e, page: e.page, wide: wide)
             }
         }
-        if snapshot {
+        if e.page == .ops && e.sound?.isMidi != true {
+            content
+        } else if snapshot {
             // (as a scroll view lays it out: each drawing as tall as its width makes it, then cut)
             Color.clear.overlay(alignment: .top) { content.fixedSize(horizontal: false, vertical: true) }.clipShape(OpenTop())
-        } else if e.page == .ops && e.sound?.isMidi != true {
-            content
         } else {
+            // (each page from its top: its own scroll view)
             ScrollView { content.padding(.bottom, 16) }.scrollIndicators(.hidden)
+                .id(e.sound?.isMidi == true ? "midi" : e.page.rawValue)
         }
     }
 
@@ -253,7 +305,7 @@ struct EditView: View {
     private func action(_ t: String, ghost: Bool, on: Bool, fixed: Bool, height: CGFloat,
                         _ go: @escaping () -> Void) -> some View {
         Button(action: go) {
-            Text(t).fz(13, 800, em: 0.08).lineLimit(1)
+            Text(t).fz(13, 800, em: 0.08).lineLimit(1).minimumScaleFactor(0.8)
                 .foregroundStyle(ghost ? FZ.text.color : .black)
                 .padding(.horizontal, fixed ? 16 : 10)
                 .frame(maxWidth: fixed ? nil : .infinity)
@@ -301,20 +353,25 @@ struct EditView: View {
         }
     }
 
-    /// The turned value at the top, over the dimmed screen (the phone: over the top bar too).
+    /// The turned value over the dimmed screen, away from the finger: at the top (the phone: over the top bar too)
+    /// or, the finger high on the screen, at the bottom (above the actions).
     @ViewBuilder private var turnOverlay: some View {
         if let t = e.turning {
             TurnOverlay(e: e, turn: t, size: wide ? 300 : 330)
-                .padding(.top, wide ? 120 : 0)
-                .offset(y: wide ? 0 : -40)
+                .padding(.top, t.top && wide ? 120 : 0)
+                .padding(.bottom, t.top ? 0 : 150)
+                .offset(y: t.top && !wide ? -40 : 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: t.top ? .top : .bottom)
                 .transition(.opacity)
         }
     }
 }
 
-/// FIZZ's seven tags, toggled.
+/// FIZZ's seven tags, toggled; the sheet as tall as they are.
 struct EditTagsSheet: View {
     let e: EditorModel
+    @State private var height: CGFloat = 230
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("TAGS").fz(16, 800, em: 0.12).foregroundStyle(FZ.muted.color)
@@ -323,17 +380,20 @@ struct EditTagsSheet: View {
                     let on = (e.sound?.tags ?? 0) >> t.rawValue & 1 == 1
                     Button { e.toggleTag(t.rawValue) } label: {
                         Text(t.name).fz(14, 800, em: 0.05).foregroundStyle(on ? t.ink : FZ.muted.color)
-                            .frame(maxWidth: .infinity).frame(height: 40)
+                            .frame(maxWidth: .infinity).frame(height: 44)
                             .background(RoundedRectangle(cornerRadius: 10).fill(on ? t.tint.color : .clear))
                             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(on ? t.tint.color : FZ.line.color, lineWidth: 1.5))
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
             }
-            Spacer(minLength: 0)
         }
-        .padding(20)
-        .presentationDetents([.height(220)])
+        .padding(.horizontal, 20).padding(.top, 26).padding(.bottom, 16)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.height(height)])
+        .presentationDragIndicator(.visible)
         .presentationBackground(FZ.panel.color)
         .preferredColorScheme(.dark)
     }

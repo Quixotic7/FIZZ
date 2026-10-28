@@ -22,70 +22,44 @@ struct DrawHandle {
     var label = ""
 }
 
-/// A drawing scaled to its width; a drag near a handle moves it.
+/// A drawing scaled to its width; each handle a 48 pt target that turns its values (the rest of the drawing leaves
+/// the page's scroll alone).
 struct HandleCanvas: View {
     let e: EditorModel
     let box: CGSize
     let handles: [DrawHandle]
     var still = 1.3
     let draw: (inout GraphicsContext, Double) -> Void
-    @State private var grab: (k: Int, x0: Int, y0: Int)?
 
     var body: some View {
         GeometryReader { g in
             let s = g.size.width / box.width
-            Animated(still: still) { t in
-                Canvas { ctx, _ in
-                    ctx.scaleBy(x: s, y: s)
-                    draw(&ctx, t)
-                    for (k, h) in handles.enumerated() {
-                        let hot = grab?.k == k
-                        let r = h.r * (hot ? 1.35 : 1)
-                        let c = Path(ellipseIn: CGRect(x: h.at.x - r, y: h.at.y - r, width: 2 * r, height: 2 * r))
-                        var gl = ctx
-                        if hot { gl.addFilter(.shadow(color: h.tint.opacity(0.8), radius: 10 / s)) }
-                        gl.fill(c, with: .color(h.tint.color))
-                        ctx.stroke(c, with: .color(.black), lineWidth: 3)
+            ZStack(alignment: .topLeading) {
+                Animated(still: still) { t in
+                    Canvas { ctx, _ in
+                        ctx.scaleBy(x: s, y: s)
+                        draw(&ctx, t)
+                        for h in handles {
+                            let hot = e.turning.map { [h.xid, h.yid].contains($0.id) } ?? false
+                            let r = h.r * (hot ? 1.35 : 1)
+                            let c = Path(ellipseIn: CGRect(x: h.at.x - r, y: h.at.y - r, width: 2 * r, height: 2 * r))
+                            var gl = ctx
+                            if hot { gl.addFilter(.shadow(color: h.tint.opacity(0.8), radius: 10 / s)) }
+                            gl.fill(c, with: .color(h.tint.color))
+                            ctx.stroke(c, with: .color(.black), lineWidth: 3)
+                        }
                     }
                 }
+                ForEach(handles.indices, id: \.self) { k in
+                    let h = handles[k]
+                    Color.clear.frame(width: 48, height: 48)
+                        .turns(e, y: h.yid, x: h.xid, label: h.label, tint: h.tint, ySpan: h.ys * s, xSpan: h.xs * s)
+                        .position(x: h.at.x * s, y: h.at.y * s)
+                }
             }
-            .contentShape(Rectangle())
-            .onTapGesture(count: 2) { location in
-                guard let k = nearest(location, s) else { return }
-                if let x = handles[k].xid { e.reset(x) }
-                if let y = handles[k].yid { e.reset(y) }
-            }
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 2)
-                    .onChanged { d in
-                        if grab == nil {
-                            guard let k = nearest(d.startLocation, s) else { return }
-                            let h = handles[k]
-                            grab = (k, h.xid.map(e.value) ?? 0, h.yid.map(e.value) ?? 0)
-                            if !e.locked { e.turning = EditTurn(id: h.yid ?? h.xid ?? 0, label: h.label, tint: h.tint) }
-                        }
-                        guard let gr = grab, handles.indices.contains(gr.k) else { return }
-                        let h = handles[gr.k], dx = d.translation.width, dy = -d.translation.height
-                        if let x = h.xid, let n = TurnModifier.turned(e, x, gr.x0, dx, h.xs * s), e.set(x, n), abs(dx) >= abs(dy) {
-                            e.turning?.id = x
-                        }
-                        if let y = h.yid, let n = TurnModifier.turned(e, y, gr.y0, dy, h.ys * s), e.set(y, n), abs(dy) > abs(dx) {
-                            e.turning?.id = y
-                        }
-                    }
-                    .onEnded { _ in grab = nil; e.turning = nil }
-            )
         }
         .aspectRatio(box.width / box.height, contentMode: .fit)
         .turnDim(e, handles.flatMap { [$0.xid, $0.yid].compactMap { $0 } })
-    }
-
-    /// The handle nearest a point (within 44 pt).
-    func nearest(_ p: CGPoint, _ s: CGFloat) -> Int? {
-        let q = CGPoint(x: p.x / s, y: p.y / s)
-        let d = handles.enumerated().map { ($0.offset, hypot($0.element.at.x - q.x, $0.element.at.y - q.y)) }
-        guard let b = d.min(by: { $0.1 < $1.1 }), b.1 * s < 44 else { return nil }
-        return b.0
     }
 }
 
