@@ -99,6 +99,8 @@ public final class UnitModel {
     public let backups: BackupModel
     /// Every write, then the page's re-reads (UnitActions.swift)
     public let actions: UnitActions
+    /// EDIT: the sound edited and the track it follows (EditModel.swift)
+    @ObservationIgnored public private(set) lazy var editor = EditorModel(unit: self)
 
     public var mine: [FizzListEntry] { rows.filter { $0.source == "mine" } }
     public var factory: [FizzListEntry] { rows.filter { $0.source == "factory" } }
