@@ -65,10 +65,23 @@ public enum MIDIPorts {
         name.range(of: namePattern, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
+    /// Ports never probed even as a last resort: the host's own virtual buses.
+    public static let neverPattern = "network|session|iac|bus \\d|ableton|logic|garageband"
+
+    /// What to probe: the FM-1-like names; when there are none (a host may name a USB device's port generically, e.g.
+    /// "Port 1" on iOS), every other port pair, apart from the host's own buses.
+    public static func candidates(sources: [MIDIEndpointInfo], destinations: [MIDIEndpointInfo]) -> [MIDIPortCandidate] {
+        let named = pair(sources: sources, destinations: destinations)
+        if !named.isEmpty { return named }
+        return pair(sources: sources, destinations: destinations, anyName: true)
+            .filter { $0.name.range(of: neverPattern, options: [.regularExpression, .caseInsensitive]) == nil }
+    }
+
     /// Each candidate source with its destination: the same entity first, then the same name, then the only one.
-    public static func pair(sources: [MIDIEndpointInfo], destinations: [MIDIEndpointInfo]) -> [MIDIPortCandidate] {
+    public static func pair(sources: [MIDIEndpointInfo], destinations: [MIDIEndpointInfo],
+                            anyName: Bool = false) -> [MIDIPortCandidate] {
         var out: [MIDIPortCandidate] = []
-        for s in sources where !s.offline && isCandidateName(s.name) {
+        for s in sources where !s.offline && (anyName || isCandidateName(s.name)) {
             let live = destinations.filter { !$0.offline }
             let d = (s.entity != 0 ? live.first { $0.entity == s.entity } : nil)
                 ?? live.first { $0.name == s.name }
@@ -147,7 +160,7 @@ public final class MIDIPortScanner: MIDIPortScanning, @unchecked Sendable {
     }
 
     public func candidates() -> [MIDIPortCandidate] {
-        MIDIPorts.pair(sources: sources(), destinations: destinations())
+        MIDIPorts.candidates(sources: sources(), destinations: destinations())
     }
 
     public func open(_ candidate: MIDIPortCandidate) throws -> any MIDITransport {

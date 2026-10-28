@@ -28,16 +28,23 @@ struct TopBar: View {
     let model: UnitModel
     var word = true
     var unit = true
+    @State private var ports = false
 
     var body: some View {
         HStack(spacing: 10) {
-            BubbleLogo().frame(width: 32, height: 32)
-            if word { FizzWord(size: 26) }
+            // a long press on the logo: the PORTS sheet (what the app sees, for when the FM-1 isn't found)
+            HStack(spacing: 10) {
+                BubbleLogo().frame(width: 32, height: 32)
+                if word { FizzWord(size: 26) }
+            }
+            .contentShape(Rectangle())
+            .onLongPressGesture(minimumDuration: 0.6) { ports = true }
             Spacer(minLength: 0)
-            if unit, let u = model.unit { UnitPill(info: u) }
+            if unit, let u = model.unit { UnitPill(info: u).onLongPressGesture(minimumDuration: 0.6) { ports = true } }
         }
         .frame(height: 56)
         .padding(.horizontal, 16)
+        .sheet(isPresented: $ports) { PortsSheet(model: model) }
     }
 }
 

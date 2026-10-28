@@ -44,7 +44,7 @@ public struct ConnectView: View {
         case .lost: Searching(lost: true) { bluetooth = true }
         case .found(let u): FoundCard(info: u)
         case .updateMode: UpdateCard()
-        case .notFizz(let id): NotFizzCard(id: id)
+        case .notFizz(let id): NotFizzCard(id: id).contentShape(Rectangle()).onTapGesture { model.rescan() }
         case .choose: ChooseUnits(model: model)
         }
     }
@@ -256,7 +256,11 @@ struct NotFizzCard: View {
                 Text(id).fz(52, 800).foregroundStyle(FZ.red.color).lineLimit(1).minimumScaleFactor(0.5)
                     .padding(.top, 20)
                     .modifier(Shake(amount: shook))
-                Chip(text: "NOT FIZZ", color: FZ.red).padding(.top, 18)
+                HStack(spacing: 10) {
+                    Chip(text: "NOT FIZZ", color: FZ.red)
+                    if let f = FirmwareName.of(id), f != "FIZZ" { Chip(text: f, color: FZ.champagne) }
+                }
+                .padding(.top, 18)
             }
             .padding(.horizontal, 20).padding(.top, 38)
             Spacer(minLength: 0)

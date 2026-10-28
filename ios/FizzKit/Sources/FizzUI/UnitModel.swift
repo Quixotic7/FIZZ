@@ -89,6 +89,8 @@ public final class UnitModel {
     public private(set) var dumpsLoaded = false
     public private(set) var refreshing = false
     public private(set) var log: [String] = []
+    /// What the last scan saw: every port, what was probed, what answered (the PORTS sheet)
+    public private(set) var ports = PortReport()
     /// The store's layout (its sectors), from FZBI's size
     public private(set) var layout: FizzLayout?
     /// The store's tracks as the last full backup read them (manager.js unitTracks)
@@ -158,7 +160,22 @@ public final class UnitModel {
 
     private func scanOnce() async {
         if case .found = state { return }
+        var report = PortReport(at: Date())
+        #if canImport(CoreMIDI)
+        if let s = source.scanner as? MIDIPortScanner {
+            report.sources = s.sources().map { $0.offline ? "\($0.name) (offline)" : $0.name }
+            report.destinations = s.destinations().map { $0.offline ? "\($0.name) (offline)" : $0.name }
+        }
+        #endif
+        report.probed = source.scanner.candidates().map(\.name)
         let probes = await FizzLink.probe(scanner: source.scanner, clock: source.clock)
+        report.answers = probes.map { PortReport.Answer(port: $0.candidate.name, id: $0.identity.text) }
+        if report.probed != ports.probed || report.answers.map(\.id) != ports.answers.map(\.id)
+            || report.sources != ports.sources {
+            say("ports: \(report.sources.joined(separator: ", ")); probed \(report.probed.joined(separator: ", ")); "
+                + "answered \(report.answers.map { "\($0.port) = \($0.id)" }.joined(separator: ", "))")
+        }
+        ports = report
         if case .found = state { for p in probes { await p.link.close() }; return }
         if probes.isEmpty {
             state = .searching
@@ -349,6 +366,14 @@ public final class UnitModel {
     func backedUp(rows: [FizzListEntry]?, tracks: Int?) {
         if let rows, !rows.isEmpty { self.rows = rows }
         if let tracks { storeTracks = tracks }
+    }
+
+    /// Looks again now (a tap on the not-FIZZ card, the PORTS sheet)
+    public func rescan() {
+        switch state {
+        case .found, .choose: return
+        default: scan()
+        }
     }
 
     func say(_ s: String) {
