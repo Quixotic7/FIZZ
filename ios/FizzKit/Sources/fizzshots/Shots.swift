@@ -73,6 +73,17 @@ struct Shots {
             save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "mine:2"),
                  pad, out, "ipad-library-preset")
         }
+        // LIBRARY's search: across MY PRESETS and FACTORY (ALL), nothing found, the iPad's header
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "search:bass"),
+             phone, out, "library-search")
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "search:zebra"),
+             phone, out, "library-search-none")
+        save(RootView(model: m, tab: .constant(.library), wide: true).environment(\.fizzShotSelection, "search:glass"),
+             pad, out, "ipad-library-search")
+        // the seven tag icons (ui.js TAG_ICON) big, in their colours, to set beside the web's
+        save(HStack(spacing: 20) {
+            ForEach(FizzTag.allCases) { t in TagIcon(t).frame(width: 80, height: 80) }
+        }.padding(20).background(Color.black), CGSize(width: 760, height: 120), out, "tag-icons")
         save(RootView(model: m, tab: .constant(.pool), wide: false).environment(\.fizzShotSelection, "pool:3"), phone, out, "pool")
         save(RootView(model: m, tab: .constant(.pool), wide: true).environment(\.fizzShotSelection, "pool:3"), pad, out, "ipad-pool")
         save(LogSheetShot(model: m), phone, out, "log")
@@ -146,6 +157,8 @@ struct Shots {
         do { try await DemoKept.seed(m.kept) } catch { print("demo kept: \(error)") }
         let ids = m.kept.items.map(\.id)
         save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "kept"), phone, out, "kept")
+        save(RootView(model: m, tab: .constant(.library), wide: false).environment(\.fizzShotSelection, "kept-search:glass"),
+             phone, out, "kept-search")
         if let k = m.kept.items.first(where: { $0.name == "GLASS BELL" }) {
             save(KeptSheetShot(model: m, id: k.id), phone, out, "kept-sheet")
         }
@@ -351,6 +364,15 @@ struct Shots {
         m.editTarget = .sound(FizzSound(name: "CC MOTION", blob: b), label: "cc motion.fizzsnd")
         await e.show()
         edit("edit-midi")
+        // IMPORT's EDIT: a file's sound, REVERT · KEEP · SAVE AS NEW
+        if let r = m.mine.first(where: { $0.slot == 2 }), var fs = await m.actions.sound(of: r) {
+            fs.name = "WARM SUB"
+            m.editTarget = .sound(fs, label: "warm sub.dnsnd")
+            await e.show()
+            e.set(6, e.value(6) + 9)
+            edit("edit-file")
+            save(RootView(model: m, tab: .constant(.edit), wide: true), pad, out, "ipad-edit-file")
+        }
         // mock-up 37: NIGHT PAD (MY PRESETS 3) borrowed on TRACK 2, no TRACK switch, no KEEP / CANCEL bar
         m.actions.trackSlot = 2
         if let r = m.mine.first(where: { $0.slot == 3 }) {

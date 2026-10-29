@@ -14,20 +14,23 @@ import Observation
 
 // MARK: - Filters
 
-/// presets.js newFilter: which presets (ALL / MY PRESETS / FACTORY), in the pool or not, the tags (any of them).
+/// presets.js newFilter: which presets (ALL / MY PRESETS / FACTORY), in the pool or not, the tags (any of them), the
+/// search (q: a part of the name).
 struct LibraryFilter: Equatable {
     enum Source: Int, CaseIterable { case mine, factory, all }
     enum Pool: Int { case any, inPool, notInPool }
     var source: Source = .mine
     var tags: Set<FizzTag> = []
     var pool: Pool = .any
+    /// the search as typed (NameSearch reads it)
+    var query = ""
 
-    /// presets.js tagOk and poolOk (places: poolPlaces of the rows).
+    /// presets.js tagOk, poolOk and nameOk (places: poolPlaces of the rows).
     func ok(_ r: FizzListEntry, places: [Int: [Int]]) -> Bool {
         let tagOK = tags.isEmpty || FizzTag.of(mask: r.tags).contains { tags.contains($0) }
         let inPool = !(places[r.id] ?? []).isEmpty
         let poolOK = pool == .any || (pool == .inPool) == inPool
-        return tagOK && poolOK
+        return tagOK && poolOK && NameSearch.matches(r.name, query)
     }
 
     /// presets.js shownRows: MY PRESETS' and the factory's rows that pass.
@@ -42,6 +45,18 @@ struct LibraryFilter: Equatable {
     mutating func turnPool() { pool = Pool(rawValue: (pool.rawValue + 1) % 3) ?? .any }
 
     mutating func toggle(_ t: FizzTag) { if tags.contains(t) { tags.remove(t) } else { tags.insert(t) } }
+}
+
+/// LIBRARY's search (manager.js l-q, presets.js nameOk: the query trimmed, a part of the name, any case), also blind
+/// to accents here (a KEPT name typed on the phone may carry them; the unit's are ASCII).
+enum NameSearch {
+    /// The query as matched: trimmed; empty matches everything.
+    static func clean(_ q: String) -> String { q.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    static func matches(_ name: String, _ query: String) -> Bool {
+        let q = clean(query)
+        return q.isEmpty || name.range(of: q, options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) != nil
+    }
 }
 
 /// presets.js poolPlaces: preset id -> the pool places referencing it (ascending).

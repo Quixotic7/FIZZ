@@ -328,11 +328,18 @@ struct EditView: View {
         HStack(spacing: 8) {
             action("↺ REVERT", ghost: true, on: e.dirty, fixed: fixed, height: height) { Task { await e.revert() } }
                 .frame(width: w[0])
-            // (KEPT's SAVE writes the phone's file at once)
-            action("SAVE", ghost: false, on: e.canSave && !e.saving, fixed: fixed, height: height) {
-                if e.place.isKept { Task { await save(asNew: false) } } else { confirmSave = true }
-            }
+            // (KEPT's SAVE writes the phone's file at once; a file's KEEP puts it on the phone)
+            if e.place.isFile {
+                action("KEEP", ghost: false, on: e.canKeep && !e.saving, fixed: fixed, height: height, fill: FZ.champagne) {
+                    Task { await keep() }
+                }
                 .frame(width: w[1])
+            } else {
+                action("SAVE", ghost: false, on: e.canSave && !e.saving, fixed: fixed, height: height) {
+                    if e.place.isKept { Task { await save(asNew: false) } } else { confirmSave = true }
+                }
+                .frame(width: w[1])
+            }
             action("SAVE AS NEW", ghost: true, on: e.canSaveNew && !e.saving, fixed: fixed, height: height) {
                 Task { await save(asNew: true) }
             }
@@ -340,23 +347,31 @@ struct EditView: View {
         }
     }
 
-    private func action(_ t: String, ghost: Bool, on: Bool, fixed: Bool, height: CGFloat,
+    private func action(_ t: String, ghost: Bool, on: Bool, fixed: Bool, height: CGFloat, fill: RGB = FZ.pink,
                         _ go: @escaping () -> Void) -> some View {
         Button(action: go) {
-            Text(t).fz(13, 800, em: 0.08).lineLimit(1).minimumScaleFactor(0.8)
+            HStack(spacing: 6) {
+                if fill == FZ.champagne { PhoneGlyph(size: 13, color: RGB(0x000000)) }
+                Text(t).fz(13, 800, em: 0.08).lineLimit(1).minimumScaleFactor(0.8)
+            }
                 .foregroundStyle(ghost ? FZ.text.color : .black)
                 .padding(.horizontal, fixed ? 16 : 10)
                 .frame(maxWidth: fixed ? nil : .infinity)
                 .frame(height: height)
-                .background(Capsule().fill(ghost ? Color.clear : FZ.pink.color))
+                .background(Capsule().fill(ghost ? Color.clear : fill.color))
                 .overlay(Capsule().strokeBorder(ghost ? FZ.line.color : .clear, lineWidth: 1.5))
-                .shadow(color: ghost ? .clear : FZ.pink.opacity(0.45), radius: 10)
+                .shadow(color: ghost ? .clear : fill.opacity(0.45), radius: 10)
                 .contentShape(Capsule())
                 .fixedSize(horizontal: fixed, vertical: false)
         }
         .buttonStyle(.plain)
         .disabled(!on)
         .opacity(on ? 1 : 0.4)
+    }
+
+    /// A file's KEEP: on the phone (KEPT).
+    private func keep() async {
+        if case .ok = await e.keep() { show("KEPT · \(e.sound?.name ?? "")") } else { show("NOT KEPT") }
     }
 
     private func save(asNew: Bool) async {

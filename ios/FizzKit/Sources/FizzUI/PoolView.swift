@@ -239,7 +239,13 @@ struct PoolView: View {
         } else if let k = selected, let e = pool[k] {
             let r = presets[e.id]
             HStack(spacing: 10) {
-                AlgoGlyph(algorithm: r.map(model.algorithm) ?? 1, color: FizzTag.tint(mask: e.tags).color).frame(width: 30, height: 30)
+                // (its tag's icon in the tag's colour, as the tile; untagged: the algorithm)
+                Group {
+                    if let t = FizzTag.icon(mask: e.tags) { TagIcon(t, lineWidth: 2.2, glow: true).padding(2) } else {
+                        AlgoGlyph(algorithm: r.map(model.algorithm) ?? 1, color: FizzTag.tint(mask: e.tags).color)
+                    }
+                }
+                .frame(width: 30, height: 30)
                 Text("\(k)").fz(15, 800).foregroundStyle(FZ.cyan.color)
                 Text(e.name).fz(22, 800).foregroundStyle(FZ.text.color).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer(minLength: 0)
@@ -376,8 +382,12 @@ struct PoolTile: View {
         return ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 10).fill(c.color)
             Text("\(place)").fz(12, 800).foregroundStyle(ink.opacity(0.62)).padding(.leading, 5).padding(.top, 2)
-            AlgoGlyph(algorithm: algorithm, color: ink).frame(width: 20, height: 20)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(.leading, 4).padding(.bottom, 3)
+            // (a tagged sound: its first tag's icon, as the web's tile; untagged: the algorithm, as before)
+            Group {
+                if let tag { TagIcon(tag, color: ink, lineWidth: 2.2) } else { AlgoGlyph(algorithm: algorithm, color: ink) }
+            }
+            .frame(width: 20, height: 20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(.leading, 4).padding(.bottom, 3)
             if let n = steps, n > 0 {
                 VStack(spacing: 2) {
                     ForEach(0..<min(4, n), id: \.self) { _ in Circle().fill(ink.opacity(0.7)).frame(width: 5, height: 5) }
@@ -537,7 +547,7 @@ struct SoundsChips: View {
         ChipScroll(inset: inset, spacing: 6) {
             FilterChip(title: "POOL", color: FZ.green, on: filter.pool != .any, poolIcon: true) { filter.turnPool() }
             ForEach(FizzTag.allCases) { t in
-                FilterChip(title: t.name, color: t.tint, on: filter.tags.contains(t)) { filter.toggle(t) }
+                FilterChip(title: t.name, color: t.tint, on: filter.tags.contains(t), tag: t) { filter.toggle(t) }
             }
         }
     }

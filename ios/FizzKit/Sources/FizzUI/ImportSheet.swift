@@ -60,7 +60,16 @@ public struct ImportSheet: View {
             guard case .success(let urls) = r else { return }
             Task { await im.add(urls: urls) }
         }
-        .task { await im.loadDemo() }
+        .task {
+            await im.loadDemo()
+            // (`-import-edit "WARM SUB"` with the demo unit: that row's EDIT, for the simulator's screenshots)
+            let a = ProcessInfo.processInfo.arguments
+            if !snapshot, model.source is DemoLinkSource, let k = a.firstIndex(of: "-import-edit"), k + 1 < a.count,
+               let r = im.rows.first(where: { $0.item.sound?.name == a[k + 1] }) {
+                try? await Task.sleep(for: .milliseconds(800))
+                im.edit(r.id)
+            }
+        }
         .modifier(DropFiles(on: !snapshot, over: $over) { files in await im.add(files: files) })
     }
 
@@ -90,7 +99,8 @@ public struct ImportSheet: View {
             VStack(spacing: 7) {
                 ForEach(im.rows) { r in
                     ImportRowView(row: r, heard: im.isHeard(r.id), canPlay: im.trackOn && !im.sending,
-                                  target: im.target, toggle: { im.toggle(r.id) }, play: { Task { await im.play(r.id) } })
+                                  target: im.target, toggle: { im.toggle(r.id) }, play: { Task { await im.play(r.id) } },
+                                  edit: im.sending ? nil : { im.edit(r.id) })
                         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
                 }
             }
@@ -176,6 +186,8 @@ struct ImportRowView: View {
     let target: ImportModel.Target
     let toggle: () -> Void
     let play: () -> Void
+    /// EDIT: the sound opened in EDIT (nil: not now)
+    var edit: (() -> Void)?
 
     private var kindColor: RGB {
         switch row.item.kind {
@@ -214,6 +226,7 @@ struct ImportRowView: View {
             .opacity(lit ? 1 : 0.5)
             Spacer(minLength: 4)
             trailing
+            if ok && row.item.sound != nil { editButton }
             if ok && row.result == nil { playButton }
         }
         .padding(.leading, 10).padding(.trailing, 8)
@@ -269,8 +282,24 @@ struct ImportRowView: View {
         } else if row.item.midi {
             StateChip(text: "MIDI", color: FZ.violet, solid: true)
         } else if let tag {
-            TagPill(tag: tag)
+            // (the tag's icon, not its name: the row keeps room for the name beside EDIT and ▶)
+            TagIcon(tag, lineWidth: 2.2, glow: true).frame(width: 24, height: 24).padding(.horizontal, 4)
         }
+    }
+
+    /// EDIT (pink, as LIBRARY's): the sound in EDIT.
+    private var editButton: some View {
+        Button { edit?() } label: {
+            IconView(Icons.pencil, color: FZ.pink.color, lineWidth: 2, backdrop: .clear)
+                .frame(width: 15, height: 15)
+                .frame(width: 38, height: 38)
+                .overlay(Circle().strokeBorder(FZ.pink.mix(65, FZ.line).color, lineWidth: 2))
+                .frame(width: 40, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(edit == nil)
+        .opacity(edit == nil ? 0.35 : 1)
     }
 
     private var playButton: some View {

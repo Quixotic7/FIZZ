@@ -17,6 +17,9 @@ import FizzKit
 struct KeptList: View {
     let model: UnitModel
     @Binding var tags: Set<FizzTag>
+    /// LIBRARY's search, and its magnifier before the chips
+    var query = ""
+    var search: SearchToggle?
     @Environment(\.fizzSnapshot) private var snapshot
     @Environment(\.fizzShotSelection) private var shotSelection
     @Environment(\.fizzBarClearance) private var clearance
@@ -31,7 +34,7 @@ struct KeptList: View {
     struct KeptKey: Identifiable, Equatable { let id: String }
 
     private var store: KeptPresets { model.kept }
-    private var shown: [KeptPreset] { keptShown(store.items, tags: tags) }
+    private var shown: [KeptPreset] { keptShown(store.items, tags: tags, query: query) }
     private var selecting: Bool { store.selecting }
 
     var body: some View {
@@ -39,10 +42,14 @@ struct KeptList: View {
             KeptHead(count: store.items.count, selecting: selecting, size: 46,
                      select: { setSelecting(!selecting) }, new: newSound)
                 .padding(.horizontal, 16).padding(.bottom, 12)
-            ChipScroll { tagChips($tags) }
+            ChipScroll {
+                if let search { search }
+                tagChips($tags)
+            }
                 .padding(.bottom, 14)
             ScreenScroll(bottom: (selecting ? barHeight + 10 : clearance) + 20, lazy: true, refresh: { await store.reload() }) {
                 if store.loaded && store.items.isEmpty { KeptEmpty(new: newSound) }
+                if !NameSearch.clean(query).isEmpty && shown.isEmpty && !store.items.isEmpty { NothingCalled(query: query) }
                 ForEach(shown) { k in
                     KeptRow(item: k, selecting: selecting, picked: picked.contains(k.id),
                             heard: false) { tap(k) }
@@ -137,15 +144,17 @@ struct KeptList: View {
     }
 }
 
-/// The kept presets the tags let through (any of them), by name.
-func keptShown(_ items: [KeptPreset], tags: Set<FizzTag>) -> [KeptPreset] {
-    tags.isEmpty ? items : items.filter { k in FizzTag.of(mask: k.tagMask).contains { tags.contains($0) } }
+/// The kept presets the tags let through (any of them) and the search (LIBRARY's), by name.
+func keptShown(_ items: [KeptPreset], tags: Set<FizzTag>, query: String = "") -> [KeptPreset] {
+    items.filter { k in
+        (tags.isEmpty || FizzTag.of(mask: k.tagMask).contains { tags.contains($0) }) && NameSearch.matches(k.name, query)
+    }
 }
 
 /// FIZZ's seven tags as filters.
 @MainActor @ViewBuilder func tagChips(_ tags: Binding<Set<FizzTag>>) -> some View {
     ForEach(FizzTag.allCases) { t in
-        FilterChip(title: t.name, color: t.tint, on: tags.wrappedValue.contains(t)) {
+        FilterChip(title: t.name, color: t.tint, on: tags.wrappedValue.contains(t), tag: t) {
             if tags.wrappedValue.contains(t) { tags.wrappedValue.remove(t) } else { tags.wrappedValue.insert(t) }
         }
     }
