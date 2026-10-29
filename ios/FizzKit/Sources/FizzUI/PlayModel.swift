@@ -55,6 +55,10 @@ public final class PlayModel {
     public var sheet = false
     /// The scrolling keybed's first key shown (white keys, 0..)
     public var keysOffset: Double = 4
+    /// The LCD fills the display (a double tap on it; PlayNav.swift)
+    public var lcdFull = false
+    /// The manager's tab last shown (the FIZZ badge goes back to it; PlayNav.swift)
+    public private(set) var lastTab: FizzTab?
 
     init(host: EmulatorHost?, defaults: UserDefaults = .standard) {
         self.host = host
@@ -144,6 +148,21 @@ public final class PlayModel {
         for b in pressed { release(b) }
         for k in held { keyUp(k) }
     }
+
+    /// PLAY left: everything let go, the sheet up, the LCD back in its place.
+    func left() {
+        letGoAll()
+        sheet = false
+        lcdFull = false
+    }
+
+    /// A tab shown (FizzAppView): the manager's ones remembered (not PLAY, not IMPORT's sheet).
+    public func remember(_ t: FizzTab) {
+        if t != .play && t != .importer { lastTab = t }
+    }
+
+    /// Where the FIZZ badge goes: the manager's tab shown before PLAY, else LIBRARY.
+    public var managerTab: FizzTab { lastTab ?? .library }
 
     /// SOUND = FM-1 offered: an FM-1 is the unit.
     var fm1Offered: Bool { unit?.unit.map { !$0.isEmulated } ?? false }

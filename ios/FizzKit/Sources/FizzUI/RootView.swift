@@ -92,6 +92,8 @@ public struct FizzAppView: View {
         // the emulated FIZZ heard while TRACK is on it; read again after PLAY (its panel may have changed it)
         .onChange(of: model.actions.trackOn) { _, on in model.emulator?.trackOn = on }
         .onChange(of: tab) { old, _ in if old == .play && model.onEmulator { Task { await model.refresh(quick: true) } } }
+        // (PLAY's FIZZ badge goes back to the manager's tab last shown)
+        .onChange(of: tab) { old, new in model.emulator?.play.remember(old); model.emulator?.play.remember(new) }
         // a screen asking for another tab (LIBRARY's EDIT: model.editTarget)
         .onChange(of: model.goTo) { _, t in if let t { tab = t; model.goTo = nil } }
         // a .fizzbak / .bin opened from Files, AirDrop, Mail: kept with the backups, RESTORE offered; a sound file
@@ -279,12 +281,15 @@ struct PadRoot: View {
     var body: some View {
         if tab == .play, let host = model.emulator {
             // PLAY: the rail slims to its icons, the panel takes the rest (mock-up 33)
+            // (the LCD full screen: the rail slides away)
+            let full = host.play.lcdFull
             HStack(spacing: 0) {
-                SlimRail(tab: $tab).frame(width: 84).padding(.top, insets.top)
-                Rectangle().fill(FZ.line.color).frame(width: 1)
+                SlimRail(tab: $tab).frame(width: 84).padding(.top, insets.top).frame(width: full ? 0 : 84).clipped()
+                Rectangle().fill(FZ.line.color).frame(width: full ? 0 : 1)
                 PlayView(model: model, host: host, tab: $tab, wide: true)
             }
             .background(Color.black)
+            .animation(PlayNav.spring, value: full)
         } else {
             tabs
         }

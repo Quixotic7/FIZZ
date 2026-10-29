@@ -160,6 +160,12 @@ struct Shots {
         save(RootView(model: m, tab: .constant(.play), wide: false), CGSize(width: 844, height: 390), out, "play-landscape")
         p.theme = .tangerine
         save(RootView(model: m, tab: .constant(.play), wide: true), pad, out, "ipad-play")
+        // the LCD full screen (a double tap on it)
+        p.lcdFull = true
+        save(RootView(model: m, tab: .constant(.play), wide: false), phone, out, "play-lcd-full")
+        p.lcdFull = true        // (a render's PLAY is left after it: put back)
+        save(RootView(model: m, tab: .constant(.play), wide: true), pad, out, "ipad-play-lcd-full")
+        p.lcdFull = false
         m.stop()
         e.stop()
     }
