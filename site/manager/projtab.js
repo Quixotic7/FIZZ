@@ -148,10 +148,9 @@ export function mountProjects(ctx) {
         : last.kind === "drop" ? `${patName(last.from.k)} ${last.move ? "moved" : "copied"} to ${last.from.p === last.q ? "" : `${esc(pname(last.q))} `}${patName(last.j)}`
           : `${esc(last.kept.name)} into slot ${last.q + 1}`;
     const r = last.result;
-    const extra = r && (r.poolAdded || r.presetsAdded || r.copies || r.unfit)
+    const extra = r && (r.poolAdded || r.presetsAdded || r.copies)
       ? [r.poolAdded ? `+${r.poolAdded} pool` : "", r.presetsAdded ? `+${r.presetsAdded} MY PRESETS` : "",
-        r.copies ? `${r.copies} sound${r.copies === 1 ? "" : "s"} kept as the project's own (MY PRESETS full)` : "",
-        r.unfit ? `${r.unfit} sound${r.unfit === 1 ? "" : "s"} left out (pool full)` : ""].filter(Boolean).join(" · ") : "";
+        r.copies ? `${r.copies} sound${r.copies === 1 ? "" : "s"} kept as the project's own (MY PRESETS full)` : ""].filter(Boolean).join(" · ") : "";
     return `<span class="cnt num">${J.ops.length}</span><div class="what">${what}${extra ? `<small>${extra}</small>` : ""}</div>` +
       `<span class="pacts"><button class="ol yellow" data-act="undo">UNDO</button><button class="ol" data-act="discard">DISCARD</button>` +
       (viaBle() ? `<button class="arc breathe" data-act="usb" style="--c:var(--orange)">${IC.down}WRITE NEEDS USB</button>`
@@ -403,7 +402,7 @@ export function mountProjects(ctx) {
   const nameOf = (q) => { const e = list()[q], m = model(); return (e && e.there && e.name) || (m ? project(m, q).name : "") || `PROJECT ${q + 1}`; };
   const thereAt = (q) => { const m = model(); return !!m && q >= 0 && q < nproj() && project(m, q).there; };
   function dropApply(m, op) {
-    const r = pastePatterns(m, op.q, op.j, op.clip, { fit: true });
+    const r = pastePatterns(m, op.q, op.j, op.clip);   // (a full pool: refused, as PASTE)
     if (op.move && !(op.from.p === op.q && op.from.k === op.j)) clearPatterns(m, op.from.p, [op.from.k]);
     return r;
   }
@@ -430,8 +429,6 @@ export function mountProjects(ctx) {
     const op = { kind: "drop", q, j, clip, from, move };
     if (!push(op)) return;
     toast(`${patName(from.k)} ${move ? "moved" : "copied"} to ${dst}`, move ? "--orange" : "--cyan");
-    const u = op.result.unfit;
-    if (u) say(`${esc(nameOf(q))}'s pool is full: ${u} sound${u === 1 ? "" : "s"} its steps lock did not fit. Those steps play the track's sound there.`, "--orange");
   }
   // the drag's look: the ghost's badge, the lifted tile, the target lit
   function badge() {

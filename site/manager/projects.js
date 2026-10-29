@@ -12,7 +12,7 @@
 //   walkPat(bytes) -> {v, used, rows: [6 x 16 trigs], trigs, soundAt, refAt, idAt, pages, locks, trk} | null (a record it cannot read)
 //   poolEntry(model, p, n) -> {id} | {rec} | null
 //   copyPatterns(model, p, ks) -> a clip {from, names, pats: [{k, bytes}], pool: Map(n -> {id} | {rec}), presets: Map(id -> LIB record)}
-//   pastePatterns(model, q, j, clip, {fit}) -> {at: [k], poolAdded, presetsAdded, copies, unfit}   (throws {code: "poolfull" | "range"})
+//   pastePatterns(model, q, j, clip) -> {at: [k], poolAdded, presetsAdded, copies}   (throws {code: "poolfull" | "range"})
 //   clearPatterns(model, q, ks)
 //   keepProject(model, p) -> a kept project {name, demo, recs: [{kind, i, bytes}], presets: Map, pats, sounds}
 //   loadProject(model, q, kept) -> {presetsAdded, copies}  (slot q's records replaced; throws {code: "range"})
@@ -291,18 +291,15 @@ export function copyPatterns(m, p, ks) {
 }
 // the clip's patterns from pattern j on, in their order (a range keeps its gaps: A03, A05 -> j, j + 2). A pool sound the
 // target has (same preset id, or the same copy) is reused, its own number first; else it goes to a free place, its own
-// number if free there. fit: a full pool is no refusal: the sounds the steps lock get the places first, the rest play
-// the track's sound there (unfit: how many locked sounds were left out; a track's own sound never needs a place)
-export function pastePatterns(m, q, j, clip, { fit = false } = {}) {
-  if (!clip.pats.length) return { at: [], poolAdded: 0, presetsAdded: 0, copies: 0, unfit: 0 };
+// number if free there. Too few free places: refused ({code: "poolfull"}), the pool left as it was
+export function pastePatterns(m, q, j, clip) {
+  if (!clip.pats.length) return { at: [], poolAdded: 0, presetsAdded: 0, copies: 0 };
   const k0 = clip.pats[0].k, at = clip.pats.map((x) => j + x.k - k0);
   if (at.some((k) => k < 0 || k >= NPAT)) throw err("range", `the patterns run past D16 from ${patName(j)}`);
   if (q < 0 || q >= limits(m).nproj) throw err("range", `slot ${q + 1}: this store has ${limits(m).nproj} projects`);
   const need = neededIds(clip.pats.map((x) => x.bytes), [...clip.pool.values()].filter((e) => e && e.id).map((e) => e.id));
   const { map: imap, added, lost } = relink(m, clip.presets, need);
-  const locks = new Set();                              // (the pool numbers the steps lock, not only a track's source)
-  for (const x of clip.pats) { const w = walkPat(x.bytes); if (w) for (const o of w.soundAt) if (o < w.sndAt) locks.add(x.bytes[o]); }
-  let copies = 0, poolAdded = 0, unfit = 0;
+  let copies = 0, poolAdded = 0;
   const pmap = new Map(), want = [];
   const free = [];
   for (let n = 1; n <= NPOOL; n++) if (!poolEntry(m, q, n)) free.push(n);
@@ -316,18 +313,10 @@ export function pastePatterns(m, q, j, clip, { fit = false } = {}) {
     for (let x = 1; x <= NPOOL && !hit; x++) if (sameAs(poolEntry(m, q, x), e)) hit = x;
     if (hit) pmap.set(n, hit); else want.push([n, e]);
   }
-  if (fit) want.sort((a, b) => (locks.has(b[0]) ? 1 : 0) - (locks.has(a[0]) ? 1 : 0));
-  const placed = [];
-  for (const [n, e] of want) { const i = free.indexOf(n); if (i >= 0) { free.splice(i, 1); placed.push([n, e, n]); } else placed.push([n, e, 0]); }
-  for (const x of placed) {
-    if (!x[2] && free.length) x[2] = free.shift();
-    const [n, e, hit] = x;
-    if (!hit) {
-      if (!fit) throw err("poolfull", "the pool is full (128)", { need: [...clip.pool.values()].filter(Boolean).length });
-      pmap.set(n, 0);
-      if (locks.has(n)) unfit++;
-      continue;
-    }
+  if (want.length > free.length) throw err("poolfull", "the pool is full (128)", { need: [...clip.pool.values()].filter(Boolean).length });
+  const placed = want.map(([n, e]) => { const i = free.indexOf(n); if (i < 0) return [n, e, 0]; free.splice(i, 1); return [n, e, n]; });
+  for (const [n, e, own] of placed) {
+    const hit = own || free.shift();
     if (e.id) { const r = new Uint8Array(4); r[0] = 0x52; r[1] = 1; p16(r, 2, imap.get(e.id) ?? e.id); m.prj.set(rkey(RK.SND, q, hit), r); }
     else m.prj.set(rkey(RK.SND, q, hit), e.rec);
     poolAdded++;
@@ -338,7 +327,7 @@ export function pastePatterns(m, q, j, clip, { fit = false } = {}) {
     copies += d.n;
     m.prj.set(rkey(RK.PAT, q, at[i]), d.bytes);
   });
-  return { at, poolAdded, presetsAdded: added, copies, unfit };
+  return { at, poolAdded, presetsAdded: added, copies };
 }
 // cleared: no record, as a pattern never written. A demo project's A01..A03 without a record play the demos (compiled
 // in): those are refused ({code: "demo"}), nothing changed
