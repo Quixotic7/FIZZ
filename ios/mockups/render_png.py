@@ -23,7 +23,7 @@ CHROMIUM = '/Applications/Chromium.app/Contents/MacOS/Chromium'
 PHONE = (446, 900)        # 414 x 868 frame + 16 px around
 IPAD = (1248, 888)        # 1216 x 856 frame + 16 px around
 LAND = (900, 446)         # the phone on its side: 868 x 414 frame + 16 px around
-SHEET = (1640, 9000)    # trimmed to its content afterwards
+SHEET = (1640, 11000)   # trimmed to its content afterwards
 
 
 def screens():
