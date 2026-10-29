@@ -34,6 +34,9 @@
 //     selected track (its panel's TRACKS + a key) with TRACK off: shown, a drag refused and the switch nudged; LOAD ON
 //     FM-1 (the unit's browser: OCT+ on its panel loads, the page says so); IMPORT of a .fizzlib (all already there,
 //     flagged, none ticked) and a new .fizzsnd;
+//   - FIZZ NEON's LIBRARY features: the search ("/", no notes while typing, Escape), the keys' strip, USED BY's step
+//     strips, SELECT (shift range, cmd toggle; EXPORT, TAG, + POOL, − POOL, DELETE with its one confirm), IN THIS
+//     BROWSER (KEEP IN BROWSER, kept over a reload, SEND TO FM-1), MINE ▾ at 390;
 //   - FIZZ MIDI (e): a MIDI track's sound STOREd on the unit: its MIDI chip in LIBRARY; EDIT's MIDI view (seven pages
 //     of four bars, the CC numbers, untouched dashed): a bar dragged, the wheel, a CC number typed, a slot untouched;
 //     SAVE AS NEW DUMPs back the same; EXPORT's Digitone refuses it; with TRACK on an edit reaches the unit's track (an
@@ -282,7 +285,7 @@ try {
   await click("#l-filter [data-tag='BASS']");
   check(cb, "LIBRARY: the BASS tag filter shows only BASS sounds");
   await click(MINE(2));
-  await waitFor("document.querySelector('#l-users .uchip, #l-users .pchip')");
+  await waitFor("document.querySelector('#l-users .uchip, #l-users .pchip, #l-users .ub')");
   await idle();
   const tag0 = await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.slot === 2).tags");
   await click("#l-sel [data-dtag='6']");
@@ -1038,6 +1041,14 @@ try {
     for (let i = 0; i < 15; i++) { await new Promise((r) => setTimeout(r, 40)); m = Math.max(m, pk()); }
     document.dispatchEvent(new KeyboardEvent("keyup", { key, bubbles: true })); return m; })`;
   await click("#t-library");
+  // ---- NEON features: LIBRARY (the browser's FIZZ as the unit, nothing picked: the THIS BROWSER card; MY PRESETS orange)
+  await evaluate("__mgr.S.sel = null; __mgr.S.pick.keys.clear(); __mgr.S.pick.mode = false; document.querySelector('#l-filter [data-src=all]').click()");
+  const tbc = await evaluate("({ card: !!document.querySelector('#l-sel .thisb'), n: (document.querySelector('#l-sel .tbstats .num') || {}).textContent, mine: __mgr.S.unit.rows.filter((r) => r.source === 'mine').length, bmode: document.getElementById('tab-library').classList.contains('bmode'), bsrc: !document.querySelector('#l-filter [data-src=browser]') })");
+  await shot("manager-neon-this-browser.png");
+  await click("#tb-import");
+  const tbi = await evaluate("!document.getElementById('tab-import').hidden");
+  await click("#t-library");
+  check(tbc.card && +tbc.n === tbc.mine && tbc.bmode && tbc.bsrc && tbi, `LIBRARY in BROWSER: the THIS BROWSER card (${tbc.n} presets), no IN THIS BROWSER source, its IMPORT goes to IMPORT`);
   await click("#l-list .cas[data-src='factory'][data-slot='1']");
   await waitFor("!document.getElementById('loadbar').hidden", 5000);
   const lp = await evaluate(`${peakJs}("a")`);
@@ -1416,6 +1427,155 @@ try {
   check(kh.hid && kh.p === "false" && kr.hid && kr.p === "false" && kr.lfo === 2, `EDIT: the keys hidden by their toggle, still hidden after a reload; LFO 3's pill remembered (${kr.lfo})`);
   await click("#ed-kbtg");
   check(await evaluate("!document.getElementById('ed-keys').hidden"), "EDIT: the toggle shows the keys again");
+  }
+
+  // ---- NEON features: LIBRARY (search, SELECT and its bulk actions, IN THIS BROWSER, USED BY strips, MINE ▾, the keys' strip)
+  {
+  await size(1280, 800);
+  await click("#t-library");
+  await idle();
+  await click("#l-filter [data-src='all']");
+  const nShown = () => evaluate("document.querySelectorAll('#l-list .cas').length");
+  const keyEv = async (key, type = "keyDown") => send("Input.dispatchKeyEvent", { type, key, text: type === "keyDown" && key.length === 1 ? key : undefined,
+    code: key === "/" ? "Slash" : key.length === 1 ? `Key${key.toUpperCase()}` : key, windowsVirtualKeyCode: key === "Escape" ? 27 : key === "/" ? 191 : key.toUpperCase().charCodeAt(0) });
+  const n0 = await nShown();
+  await evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur()");
+  await keyEv("/"); await keyEv("/", "keyUp");
+  const qFocus = await evaluate("document.activeElement && document.activeElement.id === 'l-q'");
+  await keyEv("s");
+  const heldTyping = await evaluate("__mgr.editor.state.held.size");
+  await keyEv("s", "keyUp");
+  await keyEv("u"); await keyEv("u", "keyUp"); await keyEv("b"); await keyEv("b", "keyUp");
+  await sleep(200);
+  const qs = await evaluate(`({ v: document.getElementById('l-q').value, names: [...document.querySelectorAll('#l-list .cas .nm')].map((e) => e.textContent),
+    all: +(document.querySelector('#l-filter [data-src=all] .fn') || {}).textContent })`);
+  check(qFocus && heldTyping === 0 && qs.v === "sub" && qs.names.length > 0 && qs.names.length < n0 && qs.names.every((x) => /sub/i.test(x)) && qs.all === qs.names.length,
+    `LIBRARY: "/" focuses the search; typing "${qs.v}" plays no note (held ${heldTyping}); ${qs.names.length} of ${n0} shown (${qs.names.join(", ")}), the count beside ALL ${qs.all}`);
+  await shot("manager-neon-search.png");
+  await keyEv("Escape"); await keyEv("Escape", "keyUp");
+  await sleep(150);
+  check((await evaluate("document.getElementById('l-q').value")) === "" && (await nShown()) === n0, "LIBRARY: Escape clears the search: all shown again");
+  // the keys' strip: on LIBRARY, a held key's cap lit; hidden on BACKUP
+  await evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur()");
+  await click("#l-list .cas[data-src='factory'][data-slot='2']");
+  await keyEv("g");
+  const kOn = await evaluate("({ shown: !document.getElementById('keys').hidden, lit: !!document.querySelector('#keys .key[data-k=g].on'), text: document.getElementById('k-what').textContent, oct: document.getElementById('k-oct').textContent })");
+  await keyEv("g", "keyUp");
+  const kOff = await evaluate("!document.querySelector('#keys .key.on')");
+  await click("#t-backup");
+  const kHid = await evaluate("document.getElementById('keys').hidden");
+  await click("#t-library");
+  check(kOn.shown && kOn.lit && kOff && kHid && /play/i.test(kOn.text) && /OCTAVE · [A-G]#?-?\d/.test(kOn.oct), `the keys' strip: G lit while held ("${kOn.text}", ${kOn.oct}); hidden on BACKUP`);
+  // USED BY: a MY preset on track 2 of the open pattern, read from the store PROJECTS would show (here: the sim's flash)
+  await evaluate(`(async () => { const { storeSound } = await import('../js/fizz_sysex.js'); const b = new Uint8Array(96); b[0] = 0x51; b[1] = 5; b[2] = 3;
+    window.__sim.engine.midiIn(storeSound({ name: 'USED ONE', blob: b, tags: 4, track: 1 })); })()`);
+  await sleep(2600);
+  await click("#refresh");
+  await waitFor("__mgr.S.unit.rows.some((r) => r.source === 'mine' && r.name === 'USED ONE') && !__mgr.S.refreshing");
+  await idle();
+  await evaluate(`(async () => { const P = await import('./projects.js'); const img = window.__sim.engine.flash().bytes.slice();
+    __mgr.projtab.state.base = { model: P.modelOf(img), image: img, written: null }; })()`);
+  const usedSlot = await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.name === 'USED ONE').slot");
+  await click(MINE(usedSlot));
+  await waitFor("document.querySelector('#l-users .ub')", 5000);
+  const ub = await evaluate("({ rows: [...document.querySelectorAll('#l-users .ub')].map((e) => e.querySelector('.ubt').textContent), cells: document.querySelectorAll('#l-users .ub:first-child .steps i').length, lit: document.querySelectorAll('#l-users .ub:first-child .steps i.p').length })");
+  check(ub.rows.length >= 1 && /track 2/.test(ub.rows[0]) && ub.cells === 16 && ub.lit > 0, `USED BY: ${ub.rows.join("; ")}: 16 steps, ${ub.lit} lit`);
+  await shot("manager-neon-usedby.png");
+  // SELECT: shift a range, cmd / ctrl one off; EXPORT the two, TAG, + POOL, − POOL
+  const mclick = (sel, o) => evaluate(`document.querySelector(${JSON.stringify(sel)}).dispatchEvent(new MouseEvent('click', { bubbles: true, ...${JSON.stringify(o)} }))`);
+  await click(MINE(1));
+  await mclick(MINE(3), { shiftKey: true });
+  const r3 = await evaluate("[...__mgr.S.pick.keys].sort().join()");
+  await mclick(MINE(2), { metaKey: true });
+  const r2 = await evaluate("({ k: [...__mgr.S.pick.keys].sort().join(), n: document.querySelector('#l-bulk .bkn').textContent, bulk: !document.getElementById('l-bulk').hidden, panel: getComputedStyle(document.getElementById('l-sel')).display, chk: document.querySelectorAll('#l-list .cas .chk.on').length })");
+  check(r3 === "mine:1,mine:2,mine:3" && r2.k === "mine:1,mine:3" && r2.n === "2" && r2.bulk && r2.panel === "none" && r2.chk === 2,
+    `SELECT: shift-click a range (${r3}), cmd-click one off (${r2.k}): the card shows ${r2.n} in the panel's place`);
+  await shot("manager-neon-select.png");
+  await evaluate("(() => { const ex = __mgr.exporter; window.__exOpen = ex.open; ex.open = (s, o) => { window.__ex = { n: s.length, names: s.map((x) => x.name), title: o.title }; }; })()");
+  await click("#lb-export");
+  await waitFor("!!window.__ex", 5000);
+  const ex2 = await evaluate("window.__ex");
+  await evaluate("__mgr.exporter.open = window.__exOpen");
+  check(ex2 && ex2.n === 2, `SELECT: EXPORT the two: ${ex2 && ex2.names.join(", ")} ("${ex2 && ex2.title}")`);
+  const ids2 = await evaluate("[1, 3].map((s) => __mgr.S.unit.rows.find((r) => r.source === 'mine' && r.slot === s).id)");
+  await click("#lb-tag");
+  await click("#l-bulk [data-btag='4']");
+  await waitFor(`[1, 3].every((s) => __mgr.S.unit.rows.find((r) => r.source === 'mine' && r.slot === s).tags === 16) && !__mgr.S.editing`, 15000);
+  await idle();
+  check(await evaluate("[1, 3].every((s) => __mgr.S.unit.rows.find((r) => r.source === 'mine' && r.slot === s).tags === 16)"), "SELECT: TAG LEAD on both (the unit's lists read back)");
+  const inPoolIds = (ids) => evaluate(`${JSON.stringify(ids)}.filter((id) => __mgr.S.unit.rows.some((r) => r.source === 'pool' && r.id === id)).length`);
+  const before = await inPoolIds(ids2);
+  if (before) { await click("#lb-prem"); await idle(); if (!(await evaluate("document.getElementById('cf').hidden"))) { await click("#cf-go"); } await waitFor(`${JSON.stringify(ids2)}.every((id) => !__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.id === id))`, 15000); await idle(); }
+  await click("#lb-padd");
+  await waitFor(`${JSON.stringify(ids2)}.every((id) => __mgr.S.unit.rows.some((r) => r.source === 'pool' && r.id === id))`, 15000);
+  await idle();
+  const padd = await inPoolIds(ids2);
+  const badges = await evaluate(`document.querySelectorAll("${MINE(1)} .pbadge, ${MINE(3)} .pbadge").length`);
+  await click("#lb-prem");
+  await waitFor(`${JSON.stringify(ids2)}.every((id) => !__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.id === id))`, 15000);
+  await idle();
+  check(padd === 2 && (await inPoolIds(ids2)) === 0, `SELECT: + POOL put both on the pool (${padd}), − POOL took them out again`);
+  void badges;
+  // DELETE: asked once, the count named, the one a project uses named
+  await click("#l-select");
+  await idle();
+  const delSlots = await evaluate("[__mgr.S.unit.rows.find((r) => r.source === 'mine' && r.name === 'USED ONE').slot, __mgr.S.unit.rows.filter((r) => r.source === 'mine' && r.name !== 'USED ONE').pop().slot]");
+  for (const sl of delSlots) await mclick(MINE(sl), { ctrlKey: true });
+  const nMine0 = await evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine').length");
+  if (await evaluate("!document.getElementById('cf').hidden")) await click("#cf-no");
+  const delState = await evaluate("({ keys: [...__mgr.S.pick.keys].join(), dis: (document.getElementById('lb-del') || {}).disabled, busy: __mgr.S.busy, say: document.getElementById('say').textContent })");
+  await click("#lb-del");
+  await waitFor("!document.getElementById('cf').hidden && /^DELETE/.test(document.getElementById('cf-title').textContent)", 30000);
+  const cfb = await evaluate("({ t: document.getElementById('cf-title').textContent, s: document.getElementById('cf-sub').textContent })");
+  await shot("manager-neon-delete.png");
+  await click("#cf-go");
+  await waitFor(`__mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${nMine0 - 2}`, 20000);
+  await idle();
+  check(cfb.t === "DELETE 2 PRESETS" && /1 used by projects: USED ONE/.test(cfb.s) && (await evaluate(`__mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${nMine0 - 2}`)),
+    `SELECT: DELETE asks once ("${cfb.t}": "${cfb.s}"), then both gone${cfb.t === "DELETE 2 PRESETS" ? "" : ` (${JSON.stringify(delState)}, ${delSlots})`}`);
+  // IN THIS BROWSER: KEEP IN BROWSER (the panel's), shown there, kept over a reload; SEND TO FM-1 from it
+  await evaluate("if (!document.getElementById('l-bulk').hidden) document.getElementById('l-select').click()");
+  await click("#l-list .cas[data-src='factory'][data-slot='3']");   // (a factory sound: not in the browser's MY PRESETS yet)
+  const keepName = await evaluate("__mgr.S.unit.rows.find((r) => r.source === 'factory' && r.slot === 3).name");
+  const nb0 = await evaluate("__mgr.S.brow.rows.length");
+  await waitFor("!!document.getElementById('l-keep') && !document.getElementById('l-keep').disabled", 5000);
+  await click("#l-keep");
+  await waitFor(`__mgr.S.brow.rows.length === ${nb0 + 1}`, 10000);
+  await click("#l-filter [data-src='browser']");
+  const shownB = await evaluate(`[...document.querySelectorAll('#l-list .cas[data-src=browser] .nm')].map((e) => e.textContent)`);
+  await shot("manager-neon-browser.png");
+  check(shownB.includes(keepName) && shownB.length === nb0 + 1 && (await evaluate("!__mgr.bu()")), `IN THIS BROWSER: ${keepName} kept there (${shownB.length}); the idle browser FIZZ let go, so BROWSER boots the new flash`);
+  await send("Page.navigate", { url: URL0.replace(/v=\d+/, `v=${Date.now()}`) + "#library" });
+  await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 30000);
+  await waitFor(`__mgr.S.brow.rows.length === ${nb0 + 1}`, 10000);
+  check(await evaluate(`__mgr.S.brow.rows.some((r) => r.name === ${JSON.stringify(keepName)})`), `IN THIS BROWSER: ${keepName} still there after a reload (${nb0 + 1})`);
+  await click("#t-library");
+  await idle();
+  await click("#l-filter [data-src='browser']");
+  const bslot = await evaluate(`__mgr.S.brow.rows.find((r) => r.name === ${JSON.stringify(keepName)}).slot`);
+  await click(`#l-list .cas[data-src='browser'][data-slot='${bslot}']`);
+  const nMine1 = await evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine').length");
+  await waitFor("!!document.getElementById('l-send') && !document.getElementById('l-send').disabled", 10000);
+  await click("#l-send");
+  await waitFor(`__mgr.S.unit.rows.filter((r) => r.source === 'mine').length === ${nMine1 + 1}`, 15000);
+  await idle();
+  const sent = await evaluate(`({ src: __mgr.S.filter.src, fresh: document.querySelectorAll('#l-list .cas.new').length, toast: document.getElementById('toast').textContent })`);
+  check(sent.src === "mine" && sent.fresh === 1 && /1 SENT TO FM-1 · MY PRESETS \d+/.test(sent.toast), `IN THIS BROWSER: SEND TO FM-1: in MY PRESETS (${sent.toast}), the view there, the new one lit`);
+  await shot("manager-neon-sent.png");
+  // a phone: the source as MINE ▾ beside the search
+  await size(390, 844, true);
+  await sleep(400);
+  await evaluate("window.scrollTo(0, 0)");
+  const ph = await evaluate("({ btn: getComputedStyle(document.getElementById('l-src')).display !== 'none', seg: getComputedStyle(document.querySelector('#l-filter .srcseg')).display, label: document.getElementById('l-src').textContent })");
+  await click("#l-src");
+  const menu = await evaluate("({ open: !document.getElementById('l-srcpop').hidden, items: [...document.querySelectorAll('#l-srcpop [data-s]')].map((b) => b.textContent) })");
+  await shot("manager-neon-phone-menu.png");
+  await click("#l-srcpop [data-s='factory']");
+  const after = await evaluate("({ src: __mgr.S.filter.src, label: document.getElementById('l-src').textContent, closed: document.getElementById('l-srcpop').hidden, mine: document.querySelectorAll('#l-list .cas[data-src=mine]').length })");
+  check(ph.btn && ph.seg === "none" && ph.label === "MINE ▾" && menu.open && menu.items.join("|") === "MY PRESETS|FACTORY|IN THIS BROWSER|ALL" && after.src === "factory" && after.label === "FACTORY ▾" && after.closed && !after.mine && (await noScroll()),
+    `MINE ▾ at 390: ${menu.items.join(", ")}; FACTORY picked: "${after.label}", no horizontal scroll`);
+  await size(1280, 800);
+  await click("#l-filter [data-src='all']");
   }
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {

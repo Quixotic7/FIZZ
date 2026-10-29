@@ -366,3 +366,18 @@ button.tag:not(:disabled):active { transform: scale(.94); }
   .loadbar .lbb button { height: 40px; flex: none; }
   body:has(#loadbar:not([hidden])) main { padding-bottom: 90px; }
 }
+
+/* ---- the computer keys' strip (FIZZ NEON, WebDesktop's footer): LIBRARY, POOL, IMPORT; a held key's cap lit pink */
+.keys { flex: none; display: flex; align-items: center; gap: 12px 18px; padding: 10px 28px; border-top: 1.5px solid var(--line); background: rgba(0, 0, 0, .85); position: relative; }
+.scan::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(255, 255, 255, .035) 2px 3px); }
+.kwhat { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.kwhat b { color: var(--yellow); }
+.kcaps { display: flex; gap: 5px; flex: none; }
+.key { min-width: 30px; height: 34px; border-radius: 8px; border: 1.5px solid var(--dim); display: grid; place-items: center; font: 400 12px var(--hud); color: var(--muted); box-shadow: 0 3px 0 #1C1C24; padding: 0 5px; transition: transform .08s; }
+.key.blk { color: var(--body); background: rgba(255, 255, 255, .03); }
+.key.on { border-color: var(--pink); color: var(--text); background: rgba(255, 60, 160, .18); animation: keyp 1s ease-in-out infinite; transform: translateY(2px); box-shadow: 0 1px 0 #5A1238, 0 0 16px -2px var(--pink); }
+@keyframes keyp { 0%, 100% { transform: translateY(2px); box-shadow: 0 1px 0 #5A1238, 0 0 16px -2px #FF3CA0; } 50% { transform: translateY(0); box-shadow: 0 3px 0 #5A1238, 0 0 8px -4px #FF3CA0; } }
+.koct { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
+@media (max-width: 1380px) and (min-width: 901px) { .keys { padding: 8px 18px; gap: 10px 14px; } .key { min-width: 26px; height: 30px; font-size: 11px; } .kcaps { gap: 4px; } }
+@media (max-width: 900px) { .keys { display: none !important; } }
+@media (min-width: 901px) { body:has(#keys:not([hidden])):has(#tab-library:not([hidden])) .loadbar { bottom: 96px; } }

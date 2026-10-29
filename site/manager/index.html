@@ -77,10 +77,14 @@
     <aside class="lfilt" id="l-filter" aria-label="Filters"></aside>
     <div class="lmain">
       <div class="lhead"><h1 class="ltitle">LIBRARY</h1><span class="lcount hud" id="l-count"></span>
+        <div class="lfind"><label class="find tube"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><input type="search" id="l-q" placeholder="Find a sound" aria-label="Find a sound" autocomplete="off" spellcheck="false"><span class="hud slash" aria-hidden="true">/</span></label>
+          <div class="srcmenu"><button id="l-src" class="tube on srcbtn" aria-haspopup="menu" aria-expanded="false">MINE ▾</button><div class="srcpop" id="l-srcpop" role="menu" hidden></div></div></div>
+        <button id="l-select" class="ol selbtn" aria-pressed="false">SELECT</button>
         <button id="l-export-all" class="ol exall" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT ALL</button></div>
       <div class="cases" id="l-list"></div>
     </div>
     <aside class="card sel" id="l-sel" aria-label="The sound picked"></aside>
+    <aside class="card bulk tube on" id="l-bulk" aria-label="The sounds selected" hidden></aside>
   </section>
 
   <section id="tab-edit" class="body edit" role="tabpanel" aria-labelledby="t-edit" hidden>
@@ -140,6 +144,7 @@
     </div>
   </section>
 </main>
+<footer class="keys scan" id="keys" hidden></footer>
 
 <div class="scrim solid" id="prog" hidden>
   <svg class="risers" viewBox="0 0 220 120" aria-hidden="true"><circle cx="60" cy="80" r="26" stroke="var(--cyan)"/><circle cx="120" cy="44" r="18" stroke="var(--pink)"/><circle cx="168" cy="78" r="12" stroke="var(--yellow)"/><circle cx="98" cy="102" r="6" stroke="var(--green)"/><circle cx="190" cy="30" r="5" stroke="var(--cream)"/></svg>

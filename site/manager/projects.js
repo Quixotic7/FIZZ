@@ -9,13 +9,15 @@
 //
 //   modelOf(image) -> {layout, magic, lib: Map(key -> bytes), prj: Map}      imageOf(model) -> the store image
 //   project(model, p) -> {p, there, name, demo, pats: [patSummary | null] x 64, used, pool: n}
-//   walkPat(bytes) -> {v, used, rows: [6 x 16 trigs], trigs, soundAt, refAt, idAt} | null (a record it cannot read)
+//   walkPat(bytes) -> {v, used, rows: [6 x 16 trigs], trigs, soundAt, refAt, idAt, pages, locks, trk} | null (a record it cannot read)
+//   poolEntry(model, p, n) -> {id} | {rec} | null
 //   copyPatterns(model, p, ks) -> a clip {from, names, pats: [{k, bytes}], pool: Map(n -> {id} | {rec}), presets: Map(id -> LIB record)}
 //   pastePatterns(model, q, j, clip, {fit}) -> {at: [k], poolAdded, presetsAdded, copies, unfit}   (throws {code: "poolfull" | "range"})
 //   clearPatterns(model, q, ks)
 //   keepProject(model, p) -> a kept project {name, demo, recs: [{kind, i, bytes}], presets: Map, pats, sounds}
 //   loadProject(model, q, kept) -> {presetsAdded, copies}  (slot q's records replaced; throws {code: "range"})
 //   renameProject(model, p, name)                    (the name the unit took, in the store read here)
+//   addPreset(model, rec) -> {i, id, same} (throws {code: "libfull"})    removePreset(model, i)
 //   limits(model) -> {nproj, nlib, package}           (the store's package: USB 8 and 256, Bluetooth 4 and 128)
 //   fitModel(model, to, {projects, presets}) -> {model, copies, left: {projects, presets}}   (another package's layout)
 //   fitChoice(model, to, {projects}) -> {projects, presets}   (fitModel's default: the first projects, their presets)
@@ -61,13 +63,13 @@ export function walkPat(b) {
   if (!b || b.length < 12 || b[0] !== 0x50 || b[1] < 2 || b[1] > 6 || b[2] !== WIRE) return null;
   const v = b[1], tsz = b[3], nlock = g16(b, 10), used = b[7];
   let o = 12;
-  const refAt = [], idAt = [], soundAt = [], pages = [];
+  const refAt = [], idAt = [], soundAt = [], pages = [], locks = [], trk = [];
   if (v >= 5) { for (let t = 0; t < NTRACK; t++) refAt.push(o + 2 * t); o += 2 * NTRACK; }
   o += tsz * NTRACK + 4 * NTRACK;                      // the track settings, lock_start[], lock_n[]
   let trigs = 0;
   for (let t = 0; t < NTRACK; t++) {
     if (o >= b.length) return null;
-    const mask = b[o++], pg = new Array(8).fill(0);
+    const mask = b[o++], pg = new Array(8).fill(0), lk = Array.from({ length: 8 }, () => new Uint8Array(16));
     for (let p = 0; p < 8; p++) {
       if (!((mask >> p) & 1)) continue;
       if (o + 2 > b.length) return null;
@@ -77,19 +79,22 @@ export function walkPat(b) {
         if (!((sm >> s) & 1)) continue;
         if (o + WIRE > b.length) return null;
         if (b[o + 16]) soundAt.push(o + 16);           // the step's sound lock (a pool number)
+        lk[p][s] = b[o + 16];
         if (b[o + 2] & 1) { pg[p] |= 1 << s; trigs++; }
         o += WIRE;
       }
     }
     pages.push(pg);
+    locks.push(lk);
   }
   o += 4 * nlock;
   const sndAt = o;
   for (let t = 0; t < NTRACK; t++) {
-    if (refAt.length && g16(b, refAt[t])) { soundAt.push(o); o += 2; continue; }   // by reference: its pool source, edited
+    if (refAt.length && g16(b, refAt[t])) { trk.push({ ref: g16(b, refAt[t]), id: 0 }); soundAt.push(o); o += 2; continue; }   // by reference: its pool source, edited
     o += v >= 3 ? BLOB : 96;
     soundAt.push(o);
     o += 2 + NAME;
+    trk.push({ ref: 0, id: v >= 2 && o + 2 <= b.length ? g16(b, o) : 0 });
     if (v >= 2) { idAt.push(o); o += 2; }              // a copy's preset id (where it came from)
   }
   if (o !== b.length) return null;
@@ -102,7 +107,9 @@ export function walkPat(b) {
     if (n > best) { best = n; show = p; }
   }
   const rows = pages.map((pg) => Array.from({ length: 16 }, (_, s) => !!((pg[show] >> s) & 1)));
-  return { v, used: !!used, trigs, rows, page: show, soundAt: soundAt.filter((x) => b[x]), refAt, idAt, sndAt };
+  // (pages: each track's trig masks, page by page; locks: each step's sound lock; trk: each track's sound, by
+  // reference (ref: a MY preset id) or a copy (id: the preset it came from))
+  return { v, used: !!used, trigs, rows, page: show, soundAt: soundAt.filter((x) => b[x]), refAt, idAt, sndAt, pages, locks, trk };
 }
 
 // ---- a project
@@ -133,7 +140,7 @@ export const projects = (m) => Array.from({ length: limits(m).nproj }, (_, p) =>
 // places 1..23 that have no record (qd_sounds_init)
 const HDR_POOL_EMPTY = 2 + NAME + 7 + 7 * NTRACK + 1;
 function poolStartsEmpty(m, p) { const h = m.prj.get(rkey(RK.HDR, p, 0)); return !!(h && h.length > HDR_POOL_EMPTY && h[HDR_POOL_EMPTY]); }
-function poolEntry(m, p, n, empty = poolStartsEmpty(m, p)) {
+export function poolEntry(m, p, n, empty = poolStartsEmpty(m, p)) {
   const r = m.prj.get(rkey(RK.SND, p, n));
   if (!r) return !empty && n <= NFACTORY ? { id: n } : null;
   if (r[0] === 0x45) return null;
@@ -186,6 +193,24 @@ function relink(m, presets, need = null) {
   }
   return { map, added, lost };
 }
+// (LIBRARY's IN THIS BROWSER) a MY PRESETS record put in the first free place, a new id (as the unit's id_next) ->
+// {i, id, same} (same: the place of one with the same name and sound already there, nothing added); MY PRESETS full:
+// throws {code: "libfull"}
+export function addPreset(m, rec) {
+  const ix = libIndex(m);
+  const same = [...ix.byId.values()].find((x) => sameSound(x.r, rec));
+  if (same) return { i: same.i, id: g16(same.r, 2 + NAME + BLOB), same: true };
+  if (!ix.free.length) throw err("libfull", "MY PRESETS is full");
+  const i = ix.free[0], id = nextId(m, ix), r = rec.slice();
+  p16(r, 2 + NAME + BLOB, id);
+  m.lib.set(rkey(RK.LIB, 0, i), r);
+  const f = m.lib.get(rkey(RK.FTAG, 0, 0));
+  if (f && f[0] === 0x46 && f[1] === 2 && f.length >= 2 + NFACTORY + 2 && g16(f, 2 + NFACTORY) <= id) {
+    const g = f.slice(); p16(g, 2 + NFACTORY, id + 1); m.lib.set(rkey(RK.FTAG, 0, 0), g);
+  }
+  return { i, id, same: false };
+}
+export const removePreset = (m, i) => m.lib.delete(rkey(RK.LIB, 0, i));
 // the ids a project's patterns play by reference and its pool references (relink's need)
 function neededIds(pats, poolIds) {
   const need = new Set(poolIds);

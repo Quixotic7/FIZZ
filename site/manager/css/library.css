@@ -64,7 +64,25 @@
 .ltitle { margin: 0; font-size: 30px; font-weight: 900; line-height: 1.1; color: var(--cream); letter-spacing: .02em; }
 .lcount { font-size: 14px; color: var(--cream); }
 .lcount small { font-size: 11px; color: var(--muted); }
-.exall { --c: var(--violet); margin-left: auto; height: 40px; padding: 0 14px; font-size: 11px; }
+.exall { --c: var(--violet); height: 40px; padding: 0 14px; font-size: 11px; }
+/* find a sound (WebDesktop: beside the title; "/" focuses it), SELECT; a phone: the source as MINE ▾ beside it */
+.lfind { margin-left: auto; flex: 0 1 280px; min-width: 0; display: flex; gap: 8px; align-items: center; }
+.find { --c: var(--muted); flex: 1; min-width: 0; height: 40px; border-radius: 12px; display: flex; align-items: center; gap: 10px; padding: 0 12px; color: var(--muted); cursor: text; }
+.find:focus-within { --c: var(--cream); border-color: color-mix(in srgb, var(--cream) 75%, transparent); }
+.find svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; flex: none; }
+.find input { flex: 1; min-width: 0; background: none; border: 0; outline: none; font: 600 14px "Inter Tight", system-ui, sans-serif; color: var(--text); }
+.find input::placeholder { color: var(--muted); }
+.find input::-webkit-search-cancel-button { display: none; }
+.find .slash { font-size: 11px; }
+.find:focus-within .slash { display: none; }
+.srcmenu { position: relative; display: none; flex: none; }
+.srcbtn { --c: var(--cream); height: 42px; border-radius: 12px; padding: 0 12px; font-weight: 800; font-size: 11px; letter-spacing: .12em; color: var(--text); }
+.srcpop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 8; min-width: 190px; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 14px;
+  background: rgba(10, 10, 15, .98); border: 1.5px solid color-mix(in srgb, var(--cream) 42%, transparent); box-shadow: 0 18px 40px rgba(0, 0, 0, .7), 0 0 18px -6px var(--cream); animation: slidein .2s var(--snap) both; }
+.srcpop button { height: 40px; border: 0; border-radius: 10px; background: transparent; text-align: left; padding: 0 12px; font-weight: 800; font-size: 12px; letter-spacing: .12em; color: var(--body); }
+.srcpop button.on { color: var(--text); background: color-mix(in srgb, var(--cream) 12%, transparent); box-shadow: inset 0 0 0 1.5px var(--cream); }
+.selbtn { height: 40px; padding: 0 14px; font-size: 11px; }
+.selbtn[aria-pressed="true"] { --c: var(--cream); border-color: var(--cream); box-shadow: 0 0 14px -4px var(--cream); }
 .exall svg { width: 15px; height: 15px; fill: none; stroke: var(--violet); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .exall.spin svg { animation: blink .5s infinite alternate; }
 
@@ -242,3 +260,141 @@
   #l-list .cas .tag { font-size: 0; letter-spacing: 0; gap: 0; padding: 0; height: auto; border: 0; }
   #l-list .cas .tag::before { width: 7px; height: 7px; border-radius: 2px; }
 }
+
+/* ---- SELECT (FIZZ NEON, fizz-web-offline 04 to 08): a check circle top right on each card (cream when picked), the
+   picked ones lit in their tag's colour; the card of what is picked takes the panel's place (a phone: a card at the
+   foot): the count big, ALL, EXPORT, DELETE, each one's place where it goes, the store it goes to, the one primary:
+   SEND n TO FM-1 (violet: the browser's presets) or KEEP n IN BROWSER (orange: the FM-1's). The colours are tokens:
+   the owner may change them */
+:root { --browser: var(--orange); --send: var(--violet); }
+.cas { -webkit-user-select: none; user-select: none; }
+.cas .chk { position: absolute; right: 12px; top: 12px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--dim); background: #000; display: grid; place-items: center; z-index: 1; }
+.cas .chk svg { width: 14px; height: 14px; fill: none; stroke: #000; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.cas .chk.on { background: var(--cream); border-color: var(--cream); box-shadow: 0 0 14px -2px var(--cream); }
+.cas .chk.on svg { opacity: 1; }
+#l-list.picking .cas .eq, #l-list.picking .cas .pmk { display: none; }
+@media (min-width: 901px), (max-width: 900px) and (orientation: portrait) { #l-list.picking .cas .sl { transform: translateY(32px); } }
+@media (max-width: 900px) and (orientation: landscape) { #l-list .cas .chk { position: static; grid-area: pb; width: 22px; height: 22px; } }
+#l-list.picking .cas[aria-pressed="true"] .sl { color: var(--cream); }
+/* just sent: violet, NEW, for a moment */
+#l-list .cas.new { --c: var(--send); border-color: var(--send); background: color-mix(in srgb, var(--send) 10%, rgba(10, 10, 15, .6)); box-shadow: 0 0 22px -4px var(--send); animation: newglow 1.2s ease-in-out 3; }
+.newb { font: 400 11px var(--hud); color: #000; background: var(--send); border-radius: 5px; padding: 3px 5px 2px; box-shadow: 0 0 10px var(--send); }
+@keyframes newglow { 50% { box-shadow: 0 0 34px 0 var(--send); } }
+/* IN THIS BROWSER: the source in the browser's colour, its glyph */
+#l-filter [data-src="browser"] { --c: var(--browser) !important; }
+#l-filter [data-src="browser"] .fn { color: var(--browser); }
+.bglyph { width: 17px; height: 17px; fill: none; stroke: var(--browser); stroke-width: 2; stroke-linejoin: round; flex: none; }
+.srcbtn.br { --c: var(--browser); }
+.selbtn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.bulk { --c: var(--send); gap: 16px; padding: 22px; border-radius: 24px; display: flex; flex-direction: column; }
+#l-bulk.bulk { background: color-mix(in srgb, var(--c) 7%, #0A0A0F); }
+.bulk.keep { --c: var(--browser); }
+.bkhead { display: flex; align-items: flex-end; gap: 10px; }
+.bkn { font-size: 76px; font-weight: 900; line-height: .8; color: var(--cream); letter-spacing: -.03em; }
+.bkrings { display: none; }
+.bkic { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.bkic .ol { height: 44px; padding: 0 16px; font-size: 11px; }
+.bkic .ibtn { width: 44px; padding: 0; }
+.bkic .ibtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.bkic .ibtn.red { color: var(--red); }
+.bklist { display: flex; flex-direction: column; gap: 6px; }
+.mrow { --c: var(--muted); display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 10px; border: 1.5px solid color-mix(in srgb, var(--c) 30%, transparent); min-width: 0; }
+.mrow .ring { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--c); display: grid; place-items: center; flex: none; box-shadow: inset 0 0 0 3px #000, inset 0 0 0 4px color-mix(in srgb, var(--c) 55%, transparent); }
+.mrow .ring .hud { font-size: 11px; color: var(--text); transform: scale(.85); }
+.mrow b { color: var(--text); font-weight: 800; font-size: 13px; letter-spacing: .04em; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrow .to { font-size: 11px; color: var(--bc, var(--send)); }
+.bulk.keep .mrow .to { color: var(--browser); }
+.bkmore { font-size: 11px; color: var(--muted); padding-left: 4px; }
+.bktools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.bktools .ol { height: 42px; padding: 0 8px; font-size: 11px; }
+.bktools .ol b, .bkto b { font-size: 11px; }
+.bktools .ol b { color: var(--green); }
+.bktags { display: flex; flex-wrap: wrap; gap: 6px; }
+.bktags .tag { height: 30px; padding: 0 10px; }
+.bkto { display: flex; padding: 4px; border-radius: 999px; border: 1.5px solid var(--line); background: rgba(255, 255, 255, .02); gap: 2px; overflow: visible; flex-wrap: nowrap; }
+.bkto button { flex: 1; height: 38px; border-radius: 999px; padding: 0 6px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: var(--muted); border: 1.5px solid transparent; }
+.bkto button.on { --c: var(--send); background: color-mix(in srgb, var(--c) 20%, transparent); color: var(--text); border-color: var(--c); box-shadow: 0 0 14px -4px var(--c); }
+.bkto b { width: 22px; height: 22px; border-radius: 50%; background: var(--pink); color: #000; display: grid; place-items: center; }
+.bkdest { display: flex; align-items: center; gap: 12px; }
+.dglyph { width: 60px; height: 40px; flex: none; fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c) 50%, transparent)); }
+.bulk:not(.keep) .dglyph { stroke: var(--green); filter: drop-shadow(0 0 8px color-mix(in srgb, var(--green) 50%, transparent)); }
+.bkdl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.bkdl .hud { font-size: 11px; color: var(--c); }
+.cells { display: grid; grid-template-columns: repeat(32, 1fr); gap: 2px; }
+.cells i { height: 12px; border-radius: 2px; background: #1C1C24; }
+.cells i.p { background: var(--cream); opacity: .75; }
+.cells i.n { background: var(--c); box-shadow: 0 0 8px var(--c); }
+.bkgo { --c: var(--send); height: 56px; font-size: 15px; padding: 0 18px; }
+.bulk.keep .bkgo { --c: var(--browser); }
+.bkgo svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.bkgo .bglyph { stroke: currentColor; width: 22px; height: 22px; }
+#tab-library:has(#l-bulk:not([hidden])) .sel { display: none; }
+
+/* ---- USED BY: each pattern's track with its 16 steps (outlined: a trig; lit: it plays this sound), a light runs along */
+.ubh { display: flex; align-items: center; gap: 8px; }
+.uage { margin-left: auto; font-size: 11px; color: var(--muted); letter-spacing: .04em; text-transform: none; }
+.ubs { display: flex; flex-direction: column; gap: 10px; }
+.ub { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ubt { font-size: 12px; font-weight: 700; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ubt b { color: var(--cyan); }
+.steps { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 3px; }
+.steps i { height: 14px; border-radius: 3px; border: 1.5px solid var(--line); }
+.steps i.t { border-color: color-mix(in srgb, var(--c) 70%, transparent); }
+.steps i.p { border-color: var(--c); background: var(--c); box-shadow: 0 0 6px -1px var(--c); animation: stepon 2s linear infinite; animation-delay: calc(var(--i) * 125ms - 2000ms); }
+@keyframes stepon { 0%, 100% { box-shadow: 0 0 6px -1px var(--c); } 6% { box-shadow: 0 0 12px 1px var(--c); filter: brightness(1.35); } 30% { box-shadow: 0 0 6px -1px var(--c); } }
+.ubmore { font-size: 11px; color: var(--muted); }
+.selgo .wide { grid-column: 1 / -1; }
+.selgo .redline { color: var(--red); }
+
+/* ---- a computer: SELECT's card in the panel's column */
+@media (min-width: 901px) {
+  #tab-library .bulk { flex: 0 0 var(--selw); overflow-y: auto; }
+}
+/* ---- a phone: the source a menu beside the search, the strip ALL · IN POOL · the tags; SELECT's card at the foot */
+@media (max-width: 900px) {
+  .lfind { order: 5; flex: 1 1 100%; margin-left: 0; }
+  .find { height: 42px; }
+  .find input { font-size: 15px; }
+  .find .slash { display: none; }
+  .srcmenu { display: block; }
+  .selbtn { margin-left: auto; height: 36px; padding: 0 12px; }
+  #l-filter .srcseg, #l-filter .poolseg button.out { display: none; }
+  #l-filter .allchip { --c: var(--cream); }
+  #tab-library .bulk { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 7; padding: 14px; gap: 10px; border-radius: 22px; max-height: 70vh; overflow-y: auto; }
+  .bkn { font-size: 46px; }
+  .bkhead { align-items: center; }
+  .bkrings { display: flex; }
+  .bkrings i { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--c); margin-left: -5px; background: #000; box-shadow: inset 0 0 0 3px #000, inset 0 0 0 4.5px color-mix(in srgb, var(--c) 55%, transparent); }
+  .bkrings i:first-child { margin-left: 0; }
+  .bkic .ol { height: 40px; padding: 0 14px; }
+  .bkic .ibtn { width: 40px; }
+  .bklist, .bkdest { display: none; }
+  .exall { width: 36px; padding: 0; font-size: 0; letter-spacing: 0; gap: 0; }
+  .exall svg { width: 17px; height: 17px; }
+  body:has(#l-bulk:not([hidden])) main { padding-bottom: 240px; }
+  #tab-library:has(#l-bulk:not([hidden])) .sel { display: none; }
+}
+@media (min-width: 901px) { #l-filter .allchip { display: none; } }
+/* a narrower computer: the head on one row (EXPORT ALL its icon) */
+@media (max-width: 1380px) and (min-width: 901px) {
+  .lfind { flex: 0 1 240px; }
+  .exall { width: 40px; padding: 0; font-size: 0; letter-spacing: 0; gap: 0; }
+}
+
+/* ---- the browser's FIZZ as the unit (fizz-web-offline 01): MY PRESETS in its colour; nothing picked: THIS BROWSER */
+#tab-library.bmode .lcount { color: var(--browser); }
+#tab-library.bmode #l-filter [data-src="mine"] { --c: var(--browser) !important; }
+#tab-library.bmode #l-filter [data-src="mine"] .fn { color: var(--browser); }
+.thisb { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 6px; }
+.dglyph.tbg { width: 150px; height: 104px; stroke: var(--browser); stroke-width: 2.4; filter: drop-shadow(0 0 14px color-mix(in srgb, var(--browser) 55%, transparent)); margin-bottom: 14px; }
+.tbn { font-size: 26px; font-weight: 900; letter-spacing: .02em; }
+.tbv { font-size: 12px; color: var(--browser); }
+.tbstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tbstats > div { display: flex; flex-direction: column; gap: 4px; }
+.tbstats .num { font-size: 30px; font-weight: 900; }
+.tbstats small { font-size: 16px; }
+.cells i.j { background: var(--green); opacity: .75; }
+#l-sel .legend { display: flex; gap: 16px; font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--muted); }
+#l-sel .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+#l-sel .legend .lp { background: var(--cream); } #l-sel .legend .lj { background: var(--green); }

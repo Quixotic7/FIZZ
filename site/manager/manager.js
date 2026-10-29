@@ -14,7 +14,7 @@ import { findFizz, FZER } from "./fizzlink.js";
 import { makeFizzbak, readBackup, backupFileName, soundKey } from "./fizzbak.js";
 import { readRegion, layoutOf, LAYOUTS, PACKAGE_NAME } from "./fizzstore.js";
 import { modelOf, imageOf, fitModel, fitChoice, projects as projectsOf } from "./projects.js";
-import { parseDump, FIZZ_TAGS } from "../js/fizz_sysex.js";
+import { parseDump, FIZZ_TAGS, storeSound } from "../js/fizz_sysex.js";
 import { soundFromStoreFrame, soundToFizzsnd, soundFileName, makeFizzlib, libraryFileName, sameSound } from "../js/library.js";
 import { storeFrame } from "../js/digitone.js";
 import { $, esc, tagsOf, colOf, emptyArt, refusal, confirmBox, MIDI_I, midiChip } from "./ui.js";
@@ -26,7 +26,10 @@ import { mountEditor } from "./editor.js";
 import { mountExport } from "./exporter.js";
 import { BrowserFizz } from "./browserfizz.js";
 import { mountLive } from "./live.js";
-import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames, copySound, isMidiBlob } from "./sound.js";
+import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames, copySound, isMidiBlob, blob6 } from "./sound.js";
+import { browserRows, recordOf, keepIn, dropFrom, blankImage, asHost } from "./browserlib.js";
+import { usedBy } from "./usedby.js";
+import { mountKeys } from "./keystrip.js";
 import { parseFizzsnd } from "../js/library.js";
 import { readFiles } from "../js/digitone.js";
 
@@ -38,7 +41,10 @@ const mmss = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s /
 
 const PAGE_T0 = Date.now(), seenBaks = new Set();   // (BACKUP: a backup made since the page opened is NEW; a row pops in once)
 const S = { mode: "fm1", access: null, link: null, unit: null, busy: false, baks: [], web: { tags: {} }, sel: null, filter: newFilter(), abort: null,
-  editing: 0, writing: 0, users: new Map(), refreshing: false };
+  editing: 0, writing: 0, users: new Map(), refreshing: false,
+  brow: { img: null, rows: [] },                       // (LIBRARY's IN THIS BROWSER: the browser FIZZ's flash, its MY PRESETS)
+  pick: { mode: false, keys: new Set(), anchor: "", to: "mine", tags: false },
+  fresh: new Set() };                                  // (just sent to the FM-1: lit with NEW for a moment)   // (LIBRARY's SELECT: "source:slot" keys)
 
 // ---------------------------------------------------------------- the log, what the page says
 const logLines = [];
@@ -374,7 +380,7 @@ async function backup(kind, { safety = false } = {}) {
       projects: r.summary ? r.summary.projects.map((p) => p.name) : null, presets: r.presets.length });
     if (r.stats) showSpeed(r.stats);
     log(`kept ${name} in this browser (${file.length} B)`);
-    if (!safety) { toast("Backed up · kept in this browser"); fizzUp(); }
+    if (!safety) { toast("Backed up · kept in this browser", "--orange"); fizzUp(); }
     return { file, ...r };
   } catch (e) {
     log(`backup: ${e.code || ""} ${e.message}`);
@@ -982,24 +988,41 @@ function fetchOne(r) {
   }).catch(() => {}).finally(() => S.fetching.delete(k));
 }
 const places = () => poolPlaces(S.unit ? S.unit.rows : []);
-let libSig = "";
+let libSig = "", keys = null;                          // (keys: the computer keys' strip, keystrip.js)
+const pkey = (r) => `${r.source}:${r.slot}`;
+const browserShown = () => S.mode !== "browser";      // (BROWSER mode: MY PRESETS are the browser's already)
+const SRC_SHORT = { all: "ALL", factory: "FACTORY", mine: "MINE", browser: "BROWSER" };
 function renderLibrary() {
   const u = S.unit;
   const rows = u ? u.rows : [];
+  if (!browserShown() && S.filter.src === "browser") S.filter.src = "all";
+  const brows = u && browserShown() ? S.brow.rows : [];
   const mine = rows.filter((r) => r.source === "mine");
-  $("l-count").innerHTML = u ? `${mine.length}<small>/${unitPkg().nlib}</small>` : "";
-  // (the counts beside the filters: the sources', and the tags' among the source shown)
-  const lr = rows.filter((r) => r.source === "mine" || r.source === "factory"), sr = lr.filter((r) => S.filter.src === "all" || r.source === S.filter.src);
-  const counts = u ? { src: { all: lr.length, factory: lr.length - mine.length, mine: mine.length }, tags: Object.fromEntries(FIZZ_TAGS.map((t, k) => [t, sr.filter((r) => (r.tags >> k) & 1).length])) } : null;
-  $("l-filter").innerHTML = filterHtml(S.filter, { counts });
+  const br = S.filter.src === "browser";
+  $("l-count").innerHTML = u ? (br ? `${brows.length}<small>/256</small>` : `${mine.length}<small>/${unitPkg().nlib}</small>`) : "";
+  // (the counts beside the filters: the sources', and the tags' among the source shown; the search narrows them)
+  const qok = (r) => !S.filter.q || r.name.toLowerCase().includes(S.filter.q);
+  const lr = rows.filter((r) => (r.source === "mine" || r.source === "factory") && qok(r)), bq = brows.filter(qok);
+  const sr = br ? bq : lr.filter((r) => S.filter.src === "all" || r.source === S.filter.src);
+  const nm = lr.filter((r) => r.source === "mine").length;
+  const counts = u ? { src: { all: lr.length, factory: lr.length - nm, mine: nm, browser: bq.length }, tags: Object.fromEntries(FIZZ_TAGS.map((t, k) => [t, sr.filter((r) => (r.tags >> k) & 1).length])) } : null;
+  $("l-filter").innerHTML = filterHtml(S.filter, { counts, browser: !!u && browserShown(), all: true });
+  $("l-src").textContent = `${SRC_SHORT[S.filter.src] || "ALL"} ▾`;
+  $("l-src").classList.toggle("br", S.filter.src === "browser");
   // (the list pops in when what it shows changes, not on every pick)
-  const sig = u ? JSON.stringify([S.filter.src, [...S.filter.tags], S.filter.pool, lr.map((r) => r.id)]) : "";
+  const sig = u ? JSON.stringify([S.filter.src, [...S.filter.tags], S.filter.pool, S.filter.q, lr.map((r) => r.id), bq.map((r) => r.id)]) : "";
   const pop = sig !== libSig;
   libSig = sig;
-  const html = u ? listHtml(rows, S.filter, { frameOf, places: places(), on: (r) => S.sel && S.sel.source === r.source && S.sel.slot === r.slot,
-    drag: (r) => r.source === "mine" && !!u.status, pop }) : "";
+  const P = S.pick, picking = P.mode || P.keys.size > 0;
+  const html = u ? listHtml([...rows, ...brows], S.filter, { frameOf, places: places(), pop,
+    on: (r) => (picking ? P.keys.has(pkey(r)) : !!S.sel && S.sel.source === r.source && S.sel.slot === r.slot),
+    check: picking ? (r) => P.keys.has(pkey(r)) : null, isNew: (r) => S.fresh.has(pkey(r)),
+    drag: (r) => r.source === "mine" && !!u.status && !picking }) : "";
   $("l-list").innerHTML = html || (u ? "" : `<div class="empty">${emptyArt()}</div>`);
+  $("l-list").classList.toggle("picking", picking);
+  $("tab-library").classList.toggle("bmode", S.mode === "browser");   // (the browser's FIZZ is the unit: MY PRESETS orange)
   renderSel();
+  renderBulk();
 }
 const DOTS = (n) => `<span class="dots">${"●".repeat(Math.min(6, n))}${n > 6 ? "+" : ""}</span>`;
 function usedText(x) {
@@ -1007,9 +1030,50 @@ function usedText(x) {
   const steps = x.projects.reduce((a, p) => a + (p.steps || 0), 0);
   return `Used in ${x.projects.length} project${x.projects.length === 1 ? "" : "s"}${steps ? ` · ${steps} step${steps === 1 ? "" : "s"}` : ""}: those steps go back to their track's sound.`;
 }
+// USED BY with each pattern's steps (FIZZ NEON): from a store read here (BROWSER: the browser's flash; the PROJECTS tab's
+// last read; else this unit's newest backup kept here, its time shown) -> {model, at} | null (none) | undefined (reading)
+const ubModels = new WeakMap();
+function storeModel(src) {
+  const m = ubModels.get(src);
+  if (m !== undefined) return m === "…" ? undefined : m;
+  ubModels.set(src, "…");
+  (async () => {
+    try { const img = src instanceof Uint8Array ? src : (await readBackup(src.bytes, src.name)).image; ubModels.set(src, img ? modelOf(img) : null); }
+    catch (_) { ubModels.set(src, null); }
+    if (!$("tab-library").hidden) renderSel();
+  })();
+  return undefined;
+}
+function usedModel(browserRow = false) {
+  let src = null, at = null;
+  if (browserRow) src = S.brow.img;
+  else if (S.mode === "browser") src = (BU && BU.host) || S.brow.img;
+  else if (projtab.state.base) return { model: projtab.state.base.model, at: null };
+  else { src = S.unit && S.baks.find((x) => x.kind === "full" && x.identity === S.unit.id); at = src ? src.date : null; }
+  if (!src) return null;
+  const m = storeModel(src);
+  return m ? { model: m, at } : m;
+}
+const hasId = (m, id) => [...m.lib.values()].some((b) => b.length === 151 && b[0] === 0x53 && (b[143] | (b[144] << 8)) === id);
+const ageText = (t) => { const d = new Date(t), now = new Date(); return d.toDateString() === now.toDateString()
+  ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` : `${d.getDate()} ${d.toLocaleString("en", { month: "short" }).toUpperCase()}`; };
+// -> the section's html, or "" (no store has it: the unit's USERS chips instead)
+function usedStrips(id, browserRow = false) {
+  const um = usedModel(browserRow);
+  if (!um || !id || !hasId(um.model, id)) return "";
+  const x = usedBy(um.model, id, { max: 8 });
+  const age = um.at ? `<span class="hud uage" title="From the backup of ${esc(whenText(um.at))}">${esc(ageText(um.at))}</span>` : "";
+  const strip = (row) => `<div class="ub"><span class="ubt"><b>${esc(row.project)}</b> · ${row.pat} · track ${row.track}</span>` +
+    `<span class="steps" role="img" aria-label="${row.plays} step${row.plays === 1 ? "" : "s"}">${row.steps.map((st, i) => `<i class="${st.plays ? "p" : st.trig ? "t" : ""}" style="--i:${i}"></i>`).join("")}</span></div>`;
+  return `<div class="selsec"><div class="lbl ubh">Used by${age}</div><div class="ubs" id="l-users">${x.rows.length ? x.rows.map(strip).join("") +
+    (x.more ? `<span class="hud ubmore">+${x.more}</span>` : "") : '<span class="pchip ghost">—</span>'}</div></div>`;
+}
 function renderSel() {
+  if (keys) keys.render();
+  if (S.sel && S.sel.source === "browser") { renderBrowserSel(); return; }
   const el = $("l-sel"), u = S.unit;
   const r = S.sel && u && u.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot);
+  if (!r && u && S.mode === "browser") { thisBrowserCard(el); return; }
   if (!r) {
     el.style.removeProperty("--c");
     el.innerHTML = u ? `<div class="empty">${emptyArt()}</div>`
@@ -1038,13 +1102,14 @@ function renderSel() {
         : '<svg viewBox="0 0 22 20" aria-hidden="true"><rect x="1.5" y="3" width="19" height="13" rx="3"/><path d="M6 19h10M9 7.5l4 2.5-4 2.5z"/></svg>LOAD ON FM-1'}</button>
       <button class="ol" id="l-edit" style="--c:var(--pink)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15l9-9 3 3-9 9H3zM13 5l2-2 3 3-2 2"/></svg>EDIT</button>
       <button class="ol pooltog ${pl.length ? "out" : ""}" id="l-pool" style="--c:var(--green)" ${can && r.id ? "" : "disabled"} aria-pressed="${!!pl.length}">${pl.length ? "− POOL" : "+ POOL"}</button>
-      <button class="ol" id="l-export" style="--c:var(--violet)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT</button></div>
+      <button class="ol" id="l-export" style="--c:var(--violet)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT</button>
+      ${browserShown() ? `<button class="ol wide" id="l-keep" style="--c:var(--cream)" ${f ? "" : "disabled"}>${BROWSER_I}KEEP IN BROWSER</button>` : ""}</div>
     <div class="selsec"><div class="lbl">Tags</div><div class="row tags">
       ${FIZZ_TAGS.map((t, k) => `<button class="tag t-${t} ${(r.tags >> k) & 1 ? "on" : "off"}" data-dtag="${k}" aria-pressed="${!!((r.tags >> k) & 1)}" ${can ? "" : "disabled"}>${t}</button>`).join("")}
       ${web.map((t) => `<button class="tag web" data-web="${esc(t)}" aria-label="${esc(t)}, remove">${esc(t)}</button>`).join("")}
       ${key ? '<button class="tag web" id="l-addtag" aria-label="Add a tag (kept on this computer and in backups)">+</button>' : ""}</div></div>
-    ${mineSel ? `<div class="selsec"><div class="lbl">Used by</div><div class="row users" id="l-users">${users === undefined ? '<span class="pchip ghost">…</span>'
-      : users && users.projects ? (users.projects.length ? users.projects.map((p) => `<span class="uchip">${esc(projectName(p.project))}${p.steps ? DOTS(p.steps) : ""}</span>`).join("") : '<span class="pchip ghost">—</span>') : ""}</div></div>` : ""}
+    ${(mineSel && usedStrips(r.id)) || (mineSel ? `<div class="selsec"><div class="lbl">Used by</div><div class="row users" id="l-users">${users === undefined ? '<span class="pchip ghost">…</span>'
+      : users && users.projects ? (users.projects.length ? users.projects.map((p) => `<span class="uchip">${esc(projectName(p.project))}${p.steps ? DOTS(p.steps) : ""}</span>`).join("") : '<span class="pchip ghost">—</span>') : ""}</div></div>` : "")}
     ${d ? `<div class="selvals"><div class="kv"><b>${d.pan > 0 ? "R" + d.pan : d.pan < 0 ? "L" + -d.pan : "C"}</b>pan</div><div class="kv"><b>${d.chorus}</b>chorus</div><div class="kv"><b>${d.delay}</b>delay</div><div class="kv"><b>${d.reverb}</b>reverb</div><div class="kv"><b>${d.drive}</b>drive</div></div>` : ""}
     <div class="selacts">${r.imported ? '<span class="tag web">↓ IMPORTED</span>' : ""}
       ${mineSel ? `<button class="ol redline" id="l-del" style="--c:var(--red)" ${can ? "" : "disabled"}>DELETE</button>` : ""}</div>`;
@@ -1106,6 +1171,8 @@ function renderSel() {
   });
   const ed = $("l-edit");
   if (ed && f) ed.addEventListener("click", () => openInEditor(r));
+  const kb = $("l-keep");
+  if (kb && f) kb.addEventListener("click", () => keepInBrowser([r]));
   const lu = $("l-unit");                                // (the unit's own browser on it: OCT- cancels, OCT+ loads)
   if (lu) lu.addEventListener("click", async () => { if (live) { await live.loadOnUnit(r); renderSel(); } });
   // + POOL: the first free place references it; − POOL: every place that does is cleared (a used one asks first)
@@ -1148,14 +1215,379 @@ function renderSel() {
     if (x && x.status === 0) toast(`Deleted ${r.name}`, "--red");
   });
 }
+// ---------------------------------------------------------------- IN THIS BROWSER (FIZZ NEON): the browser FIZZ's MY PRESETS
+// read from its flash (IndexedDB "browserFlash") without booting it; written only while it is not the unit (a FIZZ
+// booted before, now idle, is let go: BROWSER boots the new flash)
+const BROWSER_I = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3.5" width="16" height="11" rx="2"/><path d="M7 17.5h6M10 6.5v5M7.5 9l2.5 2.5L12.5 9"/></svg>';
+const SEND_I = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v11M5.5 9.5L10 14l4.5-4.5M4 17h12"/></svg>';
+async function loadBrowserLib() {
+  const img = await DB.get("browserFlash");
+  S.brow.img = img instanceof Uint8Array ? img : img ? new Uint8Array(img) : null;
+  S.brow.rows = S.brow.img ? browserRows(S.brow.img) : [];
+  if (S.sel && S.sel.source === "browser" && !S.brow.rows.some((r) => r.slot === S.sel.slot)) S.sel = null;
+  renderLibrary();
+}
+async function writeBrowser(fn) {
+  if (S.mode === "browser") { say("The browser's FIZZ is the unit now: back to the FM-1 first.", "--orange"); return null; }
+  const base = S.brow.img || ((await newestImage().then((i) => i && asHost(i)).catch(() => null))) || blankImage();
+  const r = fn(base);
+  if (!r || r.nochange) return r;
+  if (BU) { clearTimeout(BU.saveT); BU.dispose(); BU = null; log("the browser's FIZZ let go: BROWSER boots its new flash"); }
+  await DB.put("browserFlash", r.image);
+  S.brow.img = r.image; S.brow.rows = browserRows(r.image);
+  ubModels.delete(r.image);
+  return r;
+}
+// the frames of unit rows (MY PRESETS' and the factory's DUMPs; one asked for by itself when missing)
+async function framesFor(rows) {
+  const u = S.unit;
+  if (rows.some((r) => !frameOf(r))) await loadDumps();
+  for (const r of rows) {
+    if (frameOf(r) || !S.link) continue;
+    const f = await S.link.dump(r.source, r.slot).catch(() => null);
+    if (f) (u.one || (u.one = new Map())).set(`${r.source}:${r.slot}:${r.id}`, f);
+  }
+  return rows.filter((r) => frameOf(r));
+}
+function recOfRow(r) {
+  const f = frameOf(r), d = f && parseDump(f);
+  if (!d) return null;
+  return recordOf({ name: d.name, blob: d.blob.length === 128 ? d.blob : blob6(soundFromFrame(f)), pan: d.pan, chorus: d.chorus, delay: d.delay, reverb: d.reverb, tags: r.tags });
+}
+async function keepInBrowser(rows) {
+  const recs = (await framesFor(rows)).map(recOfRow).filter(Boolean);
+  if (!recs.length) return null;
+  const r = await writeBrowser((img) => { const k = keepIn(img, recs); return k.added ? k : { ...k, nochange: true }; });   // (nothing new: nothing written)
+  if (r) {
+    const at = r.at.length > 1 ? ` · ${Math.min(...r.at)}–${Math.max(...r.at)}` : r.at.length ? ` · ${r.at[0]}` : "";
+    toast(`${r.added ? `${r.added} KEPT IN THIS BROWSER${at}` : "IN THIS BROWSER ALREADY"}${r.added && r.same ? ` · ${r.same} already there` : ""}${r.full ? ` · ${r.full} DID NOT FIT` : ""}`, "--orange");
+    if (S.pick.keys.size) clearPick();
+  }
+  renderLibrary();
+  return r;
+}
+// the browser's presets onto the unit: MY PRESETS (the first free places), the pool (its first empty places: a MY
+// preset referenced there) as one batch (one undo level); TRACK: one heard on the track (KEEP / CANCEL)
+async function sendToUnit(rows, to = "mine") {
+  if (!S.link || S.busy || !S.unit || !S.unit.status || !rows.length) return 0;
+  if (to === "track") { previewLib(rows[0].lib, rows[0].name); return 1; }
+  let n = 0, full = false;
+  const got = [];
+  for (const [i, r] of rows.entries()) {
+    say(`SEND ${i + 1} / ${rows.length}`, "--violet");
+    const s = r.lib;
+    const x = await edit("SEND", (l) => l.store(storeSound({ name: s.name, blob: s.blob, drive: s.drive, pan: s.pan, chorus: s.sends.chorus, delay: s.sends.delay,
+      reverb: s.sends.reverb, tags: r.tags, pool: to === "pool", slot: 0, batch: i > 0 })));
+    if (x && x.kind === "store" && x.status === 0) { n++; got.push(x.slot); }
+    else { full = !!(x && x.status === 1); break; }
+  }
+  say("");
+  const span = got.length ? ` · ${to === "pool" ? "POOL" : "MY PRESETS"} ${got.length > 1 ? `${Math.min(...got)}–${Math.max(...got)}` : got[0]}` : "";
+  toast(`${n} SENT TO FM-1${span}${full ? " · FULL" : ""}`, full ? "--orange" : "--violet");
+  S.unit.dumps = null;
+  pool.forget();
+  clearPick();
+  if (to === "mine" && got.length) {                    // (the view jumps to them: lit with NEW for a moment)
+    S.filter.src = "mine"; S.filter.q = ""; $("l-q").value = "";
+    S.fresh = new Set(got.map((k) => `mine:${k}`));
+    clearTimeout(sendToUnit.t);
+    sendToUnit.t = setTimeout(() => { S.fresh.clear(); renderLibrary(); }, 6000);
+  }
+  await refreshRows();
+  await loadDumps();
+  const first = list.querySelector(".cas.new");
+  if (first) first.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  return n;
+}
+// (fizz-web-offline 01) the browser's FIZZ as the unit, nothing picked: THIS BROWSER, its numbers, its store, BACK UP, IMPORT
+function thisBrowserCard(el) {
+  const u = S.unit, st = u.status, mine = u.rows.filter((r) => r.source === "mine").length;
+  const tot = st && st.lib[1] + st.prj[1], use = tot ? (st.lib[0] + st.prj[0]) / tot : 0;
+  const p = tot ? Math.ceil(st.lib[0] / tot * 32) : 0, j = tot ? Math.ceil(st.prj[0] / tot * 32) : 0;
+  const ver = u.version ? u.version.replace(/-\d+-g[0-9a-f]+$/, "").replace(/-(beta|rc|alpha)\.?(\d+)$/i, "") : "";
+  el.style.setProperty("--c", "var(--browser)");
+  el.innerHTML = `<div class="thisb">${BROWSER_BIG.replace('class="dglyph"', 'class="dglyph tbg"')}<div class="tbn num">THIS BROWSER</div><div class="hud tbv">FIZZ ${esc(ver)}</div></div>
+    <div class="tbstats"><div><span class="num">${mine}</span><span class="lbl">presets</span></div><div><span class="num">${st ? st.projects : "–"}</span><span class="lbl">projects</span></div>
+      <div><span class="num">${tot ? Math.max(use > 0 ? 1 : 0, Math.round(use * 100)) : "–"}<small>%</small></span><span class="lbl">store</span></div></div>
+    <span class="cells tbcells">${Array.from({ length: 32 }, (_, i) => `<i class="${i < p ? "p" : i >= 32 - j ? "j" : ""}"></i>`).join("")}</span>
+    <div class="legend"><span><i class="lp"></i>MY PRESETS</span><span><i class="lj"></i>PROJECTS</span></div>
+    <div class="selgo"><button class="ol" id="tb-backup" style="--c:var(--yellow)">BACK UP</button><button class="ol" id="tb-import" style="--c:var(--violet)">IMPORT</button></div>`;
+  $("tb-backup").onclick = () => tab("backup");
+  $("tb-import").onclick = () => tab("import");
+}
+// the panel of a browser preset: SEND TO FM-1, EXPORT, DELETE (from the browser's store), USED BY there
+function renderBrowserSel() {
+  const el = $("l-sel"), r = S.brow.rows.find((x) => x.slot === S.sel.slot);
+  if (!r || !browserShown()) { S.sel = null; renderSel(); return; }
+  const c = colOf(r.tags), tg = tagsOf(r.tags), mi = isMidiBlob(r.blob), s = r.lib;
+  const can = !!(S.link && !S.busy && S.unit && S.unit.status);
+  const ring = mi ? MIDI_I.replace('class="din"', 'class="din algo"') : `<span class="hud">${Math.min(8, r.blob[2] + 1)}</span>`;
+  el.style.setProperty("--c", c);
+  el.innerHTML = `<div class="selhead"><div class="selring" aria-hidden="true"><span class="halo"></span><span class="core">${ring}</span></div>
+      <div class="selid"><div class="selsrc hud">${midiChip(mi)}IN THIS BROWSER · ${String(r.slot).padStart(2, "0")}</div><div class="big">${esc(r.name)}</div>
+      <div class="selchips">${tg[0] ? `<span class="tag t-${tg[0]}">${tg[0]}</span>` : ""}</div></div></div>
+    <div class="selgo">
+      <button class="ol wide" id="l-send" style="--c:var(--cream)" ${can ? "" : "disabled"}>${SEND_I}SEND TO FM-1</button>
+      <button class="ol" id="l-bexport" style="--c:var(--violet)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT</button>
+      <button class="ol redline" id="l-bdel" style="--c:var(--red)">DELETE</button></div>
+    ${usedStrips(r.id, true)}
+    <div class="selvals"><div class="kv"><b>${s.pan > 0 ? "R" + s.pan : s.pan < 0 ? "L" + -s.pan : "C"}</b>pan</div><div class="kv"><b>${s.sends.chorus}</b>chorus</div><div class="kv"><b>${s.sends.delay}</b>delay</div><div class="kv"><b>${s.sends.reverb}</b>reverb</div><div class="kv"><b>${s.drive}</b>drive</div></div>`;
+  $("l-send").onclick = () => sendToUnit([r], "mine");
+  $("l-bexport").onclick = () => exporter.open([{ ...s, source: { fizz: "", from: `IN THIS BROWSER ${r.slot}` } }], { title: r.name, tags: tg });
+  $("l-bdel").onclick = () => dropBrowser([r]);
+}
+async function dropBrowser(rows) {
+  const ok = await confirmBox({ title: rows.length === 1 ? `DELETE · IN THIS BROWSER ${rows[0].slot}` : `DELETE ${rows.length} PRESETS`,
+    what: rows.length === 1 ? rows[0].name : `${rows.length} IN THIS BROWSER`, go: "DELETE", sub: "From the browser's FIZZ." });
+  if (!ok) return false;
+  const r = await writeBrowser((img) => ({ image: dropFrom(img, rows.map((x) => x.slot)) }));
+  if (!r) return false;
+  toast(`Deleted ${rows.length === 1 ? rows[0].name : rows.length} · IN THIS BROWSER`, "--red");
+  if (S.sel && S.sel.source === "browser") S.sel = null;
+  for (const x of rows) S.pick.keys.delete(pkey(x));
+  renderLibrary();
+  return true;
+}
+
+// ---------------------------------------------------------------- SELECT (FIZZ NEON): many presets at once
+// SELECT (or shift / cmd / ctrl + a click) picks several: shift a range in the order shown, cmd / ctrl one more. The
+// card (the panel's place on a computer, a card at the foot on a phone) acts on them all: TAG, + POOL, − POOL, DELETE,
+// EXPORT; KEEP n IN BROWSER (the FM-1's) or SEND n TO FM-1 (the browser's, to MY PRESETS, the pool or the track). A
+// selection holds one side's rows: the unit's, or the browser's. The edits one by one (the protocol has a batch for
+// STORE only), one progress line, the lists read once at the end.
+const sideOf = (k) => (k.startsWith("browser:") ? "b" : "u");
+function rowOfKey(k) {
+  const [src, slot] = k.split(":");
+  return src === "browser" ? S.brow.rows.find((r) => r.slot === +slot) : S.unit && S.unit.rows.find((r) => r.source === src && r.slot === +slot);
+}
+const pickedRows = () => [...S.pick.keys].map(rowOfKey).filter(Boolean);
+function clearPick() { const P = S.pick; P.mode = false; P.keys.clear(); P.anchor = ""; P.tags = false; }
+function pickClick(b, ev) {
+  const P = S.pick, k = `${b.dataset.src}:${b.dataset.slot}`;
+  if (P.keys.size && sideOf([...P.keys][0]) !== sideOf(k)) P.keys.clear();
+  if (ev.shiftKey) {
+    const cards = [...list.querySelectorAll(".cas")].map((c) => `${c.dataset.src}:${c.dataset.slot}`);
+    const from = P.anchor && cards.includes(P.anchor) ? P.anchor : S.sel ? `${S.sel.source}:${S.sel.slot}` : k;
+    let a = cards.indexOf(from);
+    const z = cards.indexOf(k);
+    if (a < 0) a = z;
+    for (let i = Math.min(a, z); i <= Math.max(a, z); i++) if (sideOf(cards[i]) === sideOf(k)) P.keys.add(cards[i]);
+  } else {
+    if (P.keys.has(k)) P.keys.delete(k); else P.keys.add(k);
+    P.anchor = k;
+  }
+  renderLibrary();
+}
+const TRASH_I = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>';
+const EXPORT_I = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>';
+// (the boards' browser glyph: a window with FIZZ's bubbles)
+const BROWSER_G = '<svg class="bglyph" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="M2.5 8.5h19"/><circle cx="9.5" cy="15" r="2.6"/><circle cx="14.6" cy="12.6" r="1.6"/><circle cx="15.2" cy="17" r="1.1"/></svg>';
+const FM1_G = '<svg class="dglyph" viewBox="0 0 76 50" aria-hidden="true"><rect x="1.5" y="1.5" width="73" height="47" rx="4"/><rect x="7" y="6" width="17" height="13" rx="1.5"/><circle cx="34" cy="10" r="3.4"/><circle cx="44" cy="10" r="3.4"/><circle cx="54" cy="10" r="3.4"/><circle cx="64" cy="10" r="3.4"/>' +
+  Array.from({ length: 16 }, (_, i) => `<rect x="${6 + i * 4.1}" y="33" width="3.2" height="10" rx=".8"/>`).join("") + "</svg>";
+const BROWSER_BIG = '<svg class="dglyph" viewBox="0 0 76 50" aria-hidden="true"><rect x="2" y="2" width="72" height="46" rx="7"/><path d="M2 12h72"/><circle cx="31" cy="32" r="8" style="stroke:var(--cyan)"/><circle cx="43" cy="23" r="5.5" style="stroke:var(--pink)"/><circle cx="45" cy="38" r="3.6" style="stroke:var(--yellow)"/><path d="M56 22h11M56 28h8M56 34h11M56 40h6"/></svg>';
+// the first free places of a list of used ones (1..max)
+const freeOf = (used, max, n) => { const u = new Set(used), out = []; for (let k = 1; k <= max && out.length < n; k++) if (!u.has(k)) out.push(k); return out; };
+// a store as 32 cells: what is used, what comes now (lit), the rest
+const cells = (used, add, max) => { const a = Math.round(used / max * 32), b = Math.max(add ? 1 : 0, Math.round((used + add) / max * 32) - a);
+  return `<span class="cells">${Array.from({ length: 32 }, (_, i) => `<i class="${i < a ? "p" : i < a + b ? "n" : ""}"></i>`).join("")}</span>`; };
+function renderBulk() {
+  const el = $("l-bulk"), P = S.pick, u = S.unit, on = !!u && (P.mode || P.keys.size > 0);
+  el.hidden = !on;
+  $("l-select").innerHTML = on ? '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>DONE' : "SELECT";
+  $("l-select").setAttribute("aria-pressed", String(on));
+  $("l-select").disabled = !u;
+  if (!on) return;
+  const rows = pickedRows(), n = rows.length, brow = n > 0 && rows[0].source === "browser";
+  const can = !!(S.link && !S.busy && u.status), pl = places();
+  const mine = rows.filter((r) => r.source === "mine"), unit = rows.filter((r) => r.source !== "browser" && r.id);
+  const inP = unit.filter((r) => (pl.get(r.id) || []).length), outP = unit.filter((r) => !(pl.get(r.id) || []).length);
+  const ndel = brow ? n : mine.length;
+  // where each goes: SEND to MY PRESETS' or the pool's first free places, the track; KEEP to the browser's
+  const pk = unitPkg(), mineUsed = u.rows.filter((r) => r.source === "mine").map((r) => r.slot), poolUsed = [...new Set(u.rows.filter((r) => r.source === "pool").map((r) => r.slot))];
+  const tn = live.state.t >= 0 ? live.state.t + 1 : "";
+  const okTo = { mine: true, pool: true, track: n === 1 && live.on() };
+  if (brow && !okTo[P.to]) P.to = "mine";
+  const to = !brow ? freeOf(S.brow.rows.map((r) => r.slot), 256, n) : P.to === "pool" ? freeOf(poolUsed, 128, n) : P.to === "track" ? [`T${tn}`] : freeOf(mineUsed, pk.nlib, n);
+  const c = brow ? "var(--send)" : "var(--browser)";
+  el.style.setProperty("--c", c);
+  el.classList.toggle("keep", !brow);
+  const MAXL = 5;
+  const mini = `<div class="bklist">${rows.slice(0, MAXL).map((r, i) => {
+    const d = r.source === "browser" ? r.blob : (parseDump(frameOf(r) || []) || {}).blob;
+    return `<div class="mrow" style="--c:${colOf(r.tags)}"><span class="ring"><span class="hud">${d ? Math.min(8, d[2] + 1) : ""}</span></span><b>${esc(r.name)}</b><span class="hud to">${to[i] !== undefined ? (typeof to[i] === "number" ? String(to[i]).padStart(2, "0") : to[i]) : "–"}</span></div>`;
+  }).join("")}${n > MAXL ? `<span class="hud bkmore">+${n - MAXL}</span>` : ""}</div>`;
+  const rings = `<span class="bkrings">${rows.slice(0, 4).map((r) => `<i style="--c:${colOf(r.tags)}"></i>`).join("")}</span>`;
+  const head = `<div class="bkhead"><span class="num bkn">${n}</span>${rings}<span class="bkic">
+    <button class="ol" id="lb-all" aria-label="Select all shown">ALL</button>
+    <button class="ol ibtn" id="lb-export" style="--c:var(--violet)" aria-label="Export ${n}" title="Export" ${n ? "" : "disabled"}>${EXPORT_I}</button>
+    <button class="ol ibtn red" id="lb-del" style="--c:var(--red)" aria-label="Delete ${ndel}" title="Delete" ${ndel && (brow || can) ? "" : "disabled"}>${TRASH_I}</button></span></div>`;
+  let mid = "", dest, go;
+  if (brow) {
+    mid = `<div class="seg bkto" role="group" aria-label="Send to">${[["mine", "MY PRESETS"], ["pool", "POOL"], ["track", `TRACK${tn ? ` <b class="hud">${tn}</b>` : ""}`]].map(([k, t]) =>
+      `<button data-to="${k}" class="${P.to === k ? "on" : ""}" aria-pressed="${P.to === k}" ${okTo[k] ? "" : "disabled"}>${t}</button>`).join("")}</div>`;
+    const add = P.to === "track" ? 0 : n;
+    dest = P.to === "pool" ? `POOL · ${poolUsed.length + add}/128` : `FM-1 · ${mineUsed.length + (P.to === "mine" ? n : 0)}/${pk.nlib}`;
+    dest = `<div class="bkdest">${FM1_G}<span class="bkdl"><span class="hud">${dest}</span>${P.to === "pool" ? cells(poolUsed.length, add, 128) : cells(mineUsed.length, P.to === "mine" ? n : 0, pk.nlib)}</span></div>`;
+    go = `<button class="arc breathe bkgo" id="lb-go" ${n && can ? "" : "disabled"}>${SEND_I}SEND ${n} TO FM-1</button>`;
+  } else {
+    mid = `<div class="bktools">
+      <button class="ol" id="lb-tag" aria-expanded="${P.tags}" ${unit.length && can ? "" : "disabled"}>TAG ▾</button>
+      <button class="ol" id="lb-padd" style="--c:var(--green)" ${outP.length && can ? "" : "disabled"}>+ POOL${outP.length ? ` <b class="hud">${outP.length}</b>` : ""}</button>
+      <button class="ol" id="lb-prem" style="--c:var(--green)" ${inP.length && can ? "" : "disabled"}>− POOL${inP.length ? ` <b class="hud">${inP.length}</b>` : ""}</button></div>
+      ${P.tags ? `<div class="bktags">${FIZZ_TAGS.map((t, k) => `<button class="tag t-${t}" data-btag="${k}">${t}</button>`).join("")}<button class="tag" data-btag="-1">NONE</button></div>` : ""}`;
+    const nb = S.brow.rows.length;
+    dest = browserShown() ? `<div class="bkdest">${BROWSER_BIG}<span class="bkdl"><span class="hud">THIS BROWSER · ${nb + n}/256</span>${cells(nb, n, 256)}</span></div>` : "";
+    go = browserShown() ? `<button class="arc breathe bkgo" id="lb-go" ${n ? "" : "disabled"}>${BROWSER_G}KEEP ${n} IN BROWSER</button>` : "";
+  }
+  el.innerHTML = head + (n ? mini : "") + mid + dest + go;
+}
+$("l-select").addEventListener("click", () => {
+  const P = S.pick;
+  if (P.mode || P.keys.size) clearPick(); else P.mode = true;
+  renderLibrary();
+});
+$("l-bulk").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button");
+  if (!b || b.disabled) return;
+  const P = S.pick, rows = pickedRows(), brow = rows.length > 0 && rows[0].source === "browser";
+  if (b.id === "lb-all") {
+    const side = P.keys.size ? sideOf([...P.keys][0]) : S.filter.src === "browser" ? "b" : "u";
+    list.querySelectorAll(".cas").forEach((c) => { const k = `${c.dataset.src}:${c.dataset.slot}`; if (sideOf(k) === side) P.keys.add(k); });
+    renderLibrary();
+    return;
+  }
+  if (b.dataset.to) { P.to = b.dataset.to; renderBulk(); return; }
+  if (b.id === "lb-tag") { P.tags = !P.tags; renderBulk(); return; }
+  if (b.id === "lb-export") { bulkExport(rows); return; }
+  if (b.id === "lb-del") { if (brow) dropBrowser(rows); else bulkDelete(rows); return; }
+  if (b.id === "lb-go") { if (brow) sendToUnit(rows, P.to); else keepInBrowser(rows.filter((r) => r.source !== "browser")); return; }
+  if (b.dataset.btag !== undefined) { P.tags = false; bulkTag(rows, +b.dataset.btag < 0 ? 0 : 1 << +b.dataset.btag); return; }
+  if (b.id === "lb-padd") bulkPool(rows, true);
+  else if (b.id === "lb-prem") bulkPool(rows, false);
+});
+// one by one with a progress line; null from fn stops
+async function bulkRun(label, rows, fn) {
+  let n = 0;
+  for (const [i, r] of rows.entries()) {
+    say(`${label} ${i + 1} / ${rows.length}`, "--cream");
+    const ok = await fn(r, i);
+    if (ok === null) break;
+    if (ok) n++;
+  }
+  say("");
+  return n;
+}
+async function bulkExport(rows) {
+  const unit = await framesFor(rows.filter((r) => r.source !== "browser"));
+  const sounds = [...unit.map((r) => ({ ...soundFromStoreFrame(frameOf(r)), source: { fizz: S.unit.version || "", from: `${r.source === "mine" ? "MY PRESETS" : "FACTORY"} ${r.slot}` } })),
+    ...rows.filter((r) => r.source === "browser").map((r) => ({ ...r.lib, source: { fizz: "", from: `IN THIS BROWSER ${r.slot}` } }))];
+  if (sounds.length) exporter.open(sounds, { title: `${sounds.length} SOUND${sounds.length === 1 ? "" : "S"}`, pick: "fizz" });
+}
+async function bulkTag(rows, mask) {
+  const unit = rows.filter((r) => r.source !== "browser" && r.tags !== mask);
+  const n = await bulkRun("TAG", unit, async (r) => { const x = await edit("TAGS", (l) => l.tags(r.source, r.slot, mask)); if (!x || x.status !== 0) return null; r.tags = mask; return true; });
+  toast(`${n} tagged ${mask ? FIZZ_TAGS[Math.log2(mask)] : "NONE"}`, "--cream");
+  S.unit.dumps = null; S.unit.fdumps = null; S.unit.one = null;
+  await refreshRows();
+  loadDumps();
+}
+// + POOL: the first empty places of the project; − POOL: every place holding them (the used ones asked once)
+async function bulkPool(rows, add) {
+  const pl = places(), unit = rows.filter((r) => r.source !== "browser" && r.id);
+  if (add) {
+    const n = await bulkRun("+ POOL", unit.filter((r) => !(pl.get(r.id) || []).length), async (r) => {
+      const x = await edit("+ POOL", (l) => l.poolRef(0, r.id));
+      return x && x.status === 0 ? true : null;
+    });
+    toast(`${n} → POOL`, "--green");
+  } else {
+    const used = [];
+    const ks = unit.flatMap((r) => (pl.get(r.id) || []).map((k) => ({ r, k })));
+    let n = await bulkRun("− POOL", ks, async ({ r, k }) => {
+      const x = await edit("− POOL", (l) => l.remove("pool", k));
+      if (x && x.status === 10) { used.push({ r, k, steps: x.b || 0 }); return false; }
+      return x && x.status === 0 ? true : null;
+    });
+    if (used.length) {
+      const steps = used.reduce((a, x) => a + x.steps, 0);
+      const ok = await confirmBox({ title: `CLEAR ${used.length} POOL PLACE${used.length === 1 ? "" : "S"}`, what: used.length <= 3 ? used.map((x) => x.r.name).join(", ") : `${used.length} PLACES`,
+        go: "CLEAR", color: "--red", undo: "kept", sub: `${steps} step${steps === 1 ? "" : "s"} use them: they go back to their track's sound.` });
+      if (ok) n += await bulkRun("− POOL", used, async ({ k }) => { const x = await edit("− POOL", (l) => l.remove("pool", k, { confirm: true })); return x && x.status === 0 ? true : null; });
+    }
+    if (n) toast(`${n} out of the pool`, "--muted");
+  }
+  pool.forget();
+  await refreshRows();
+}
+// DELETE: MY PRESETS only (the factory's stay); asked once, naming the count and the ones a project uses
+async function bulkDelete(rows) {
+  const mine = rows.filter((r) => r.source === "mine");
+  if (!mine.length || !S.link) return;
+  const used = [], um = usedModel();
+  for (const r of mine) {
+    if (um && hasId(um.model, r.id) && usedBy(um.model, r.id, { max: 0 }).total) { used.push(r); continue; }   // (USED BY's store: a track's own sound too)
+    let x = S.users.get(`mine:${r.id}`);
+    if (x === undefined || x === null) { x = await S.link.users("mine", r.slot).catch(() => null); S.users.set(`mine:${r.id}`, x && x.projects ? x : null); }
+    if (x && x.projects && x.projects.length) used.push(r);
+  }
+  const ok = await confirmBox({ title: `DELETE ${mine.length} PRESET${mine.length === 1 ? "" : "S"}`, what: `${mine.length} MY PRESETS`, go: "DELETE",
+    sub: (used.length ? `<b style="color:var(--yellow)">${used.length} used by projects${used.length <= 3 ? `: ${used.map((r) => esc(r.name)).join(", ")}` : ""}</b>: those steps go back to their track's sound.` : "") +
+      (rows.length > mine.length ? `${used.length ? " " : ""}The factory's stay.` : "") });
+  if (!ok) return;
+  const u = S.unit;
+  const n = await bulkRun("DELETE", [...mine].sort((a, b) => b.slot - a.slot), async (r) => {
+    const x = await edit("DELETE", (l) => l.remove("mine", r.slot, { confirm: true }));
+    if (!x || x.status !== 0) return null;
+    if (u.dumps) u.dumps.delete(r.slot);
+    S.pick.keys.delete(pkey(r));
+    if (S.sel && S.sel.source === "mine" && S.sel.slot === r.slot) S.sel = null;
+    return true;
+  });
+  toast(`Deleted ${n}`, "--red");
+  pool.forget();
+  await refreshRows();
+}
+
+// ---------------------------------------------------------------- find a sound; the source as a menu (a phone)
+const qIn = $("l-q");
+qIn.addEventListener("input", () => { S.filter.q = qIn.value.trim().toLowerCase(); renderLibrary(); });
+qIn.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); qIn.value = ""; S.filter.q = ""; renderLibrary(); qIn.blur(); } });
+const typingIn = (t) => t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+document.addEventListener("keydown", (ev) => {
+  if ($("tab-library").hidden || !$("cf").hidden || !$("rs").hidden || typingIn(ev.target) || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key === "/") { ev.preventDefault(); qIn.focus(); qIn.select(); }
+  else if (ev.key === "Escape" && !$("l-srcpop").hidden) srcMenu(false);
+  else if (ev.key === "Escape" && (S.pick.mode || S.pick.keys.size)) { clearPick(); renderLibrary(); }
+});
+function srcMenu(open) {
+  const pop = $("l-srcpop");
+  pop.hidden = !open;
+  $("l-src").setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  const srcs = [["mine", "MY PRESETS"], ["factory", "FACTORY"], ...(browserShown() ? [["browser", "IN THIS BROWSER"]] : []), ["all", "ALL"]];
+  pop.innerHTML = srcs.map(([k, t]) => `<button role="menuitemradio" data-s="${k}" aria-checked="${S.filter.src === k}" class="${S.filter.src === k ? "on" : ""}">${t}</button>`).join("");
+}
+$("l-src").addEventListener("click", (ev) => { ev.stopPropagation(); srcMenu($("l-srcpop").hidden); });
+$("l-srcpop").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-s]");
+  if (!b) return;
+  S.filter.src = b.dataset.s;
+  srcMenu(false);
+  renderLibrary();
+});
+document.addEventListener("click", (ev) => { if (!$("l-srcpop").hidden && !ev.target.closest(".srcmenu")) srcMenu(false); });
+
 $("l-filter").addEventListener("click", (ev) => { if (filterClick(S.filter, ev)) renderLibrary(); });
 const list = $("l-list");
 list.addEventListener("click", (ev) => {
   const b = ev.target.closest(".cas");
   if (!b) return;
+  if (ev.shiftKey || ev.metaKey || ev.ctrlKey || S.pick.mode) { pickClick(b, ev); return; }
+  if (S.pick.keys.size) clearPick();
   S.sel = { source: b.dataset.src, slot: +b.dataset.slot };
   renderLibrary();
-  previewRow(S.unit.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot));   // (TRACK on: on the track, KEEP / CANCEL)
+  if (S.sel.source === "browser") { const r = S.brow.rows.find((x) => x.slot === S.sel.slot); if (r) previewLib(r.lib, r.name); }
+  else previewRow(S.unit.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot));   // (TRACK on: on the track, KEEP / CANCEL)
   if (matchMedia("(max-width: 900px) and (orientation: portrait)").matches) $("l-sel").scrollIntoView({ behavior: "smooth", block: "start" });   // (a phone: the panel is below the list)
 });
 // reorder MY PRESETS: a cassette dropped on another swaps their places (the ids go with them: nothing else changes);
@@ -1288,8 +1720,13 @@ const editor = mountEditor({
   keys: { active: () => KEY_TABS.includes(curTab()), target: () => keysTarget(), start: () => keysStart() },
 });
 editor.setTarget(browserTarget);
-live = mountLive({ S, $, log, say, toast, editor, browserTarget, changed: () => { importer.render(); if (!$("tab-library").hidden) renderSel(); },
+live = mountLive({ S, $, log, say, toast, editor, browserTarget, changed: () => { importer.render(); if (!$("tab-library").hidden) renderSel(); keys.render(); },
   kept: () => { S.users.clear(); pool.forget(); renderLibrary(); pool.render(); } });   // (KEEP, CANCEL: who uses a preset changed)
+// (FIZZ NEON) the keys' strip: what they play and where (keysTarget's rules: the track with TRACK on, else this browser)
+keys = mountKeys({ $, editor, info: () => {
+  if (live.on()) { const L = live.state, t = L.pending ? L.pending.t : L.t; return { name: L.pending ? L.pending.name : "", where: t >= 0 ? `on track ${t + 1}` : "on the track" }; }
+  return { name: PV.sound ? PV.sound.name : "", where: "in this browser" };
+} });
 async function openInEditor(r) {
   const f = frameOf(r), snd = f && soundFromFrame(f);
   if (!snd) return;
@@ -1357,6 +1794,8 @@ function tab(name) {
   if (name === "import") importer.render();
   if (name === "edit") { editor.show(); live.show(); if (bfizz.ready && editor.sound() && !live.on()) browserTarget.audition(editor.sound()); } else live.hide();
   if (name === "projects") projtab.show();
+  keys.show(KEY_TABS.includes(name));
+  if (name !== "library") srcMenu(false);
   if (location.hash !== `#${name}`) history.replaceState(null, "", `${location.search}#${name}`);
 }
 for (const t of TABS) $(`t-${t}`).addEventListener("click", () => tab(t));
@@ -1377,6 +1816,7 @@ async function keysStart() {
 }
 function previewSound(snd) {
   PV.sound = snd;
+  keys.render();
   if (snd && !live.on() && bfizz.ready) browserTarget.audition(snd);
 }
 function previewRow(r) {
@@ -1423,7 +1863,7 @@ async function useBrowser() {
   S.mode = "browser";
   setUnit("idle", "FM-1"); setB("look", "");
   try {
-    if (!BU) { const { BrowserUnit } = await import("./browserunit.js"); BU = new BrowserUnit({ log, onFlash: (b) => DB.put("browserFlash", b) }); }
+    if (!BU) { const { BrowserUnit } = await import("./browserunit.js"); BU = new BrowserUnit({ log, onFlash: (b) => { DB.put("browserFlash", b); S.brow.img = b; S.brow.rows = browserRows(b); } }); }
     if (!(await BU.start())) throw new Error("the browser held the sound back: click BROWSER again");
     if (BU.player.ctx) await BU.player.ctx.resume();
     if (!BU.engine) await BU.boot((await DB.get("browserFlash")) || (await newestImage()));
@@ -1441,6 +1881,7 @@ function leaveBrowser() {
   setUnit("off", "CONNECT");
   S.unit = null;
   renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render(); projtab.render();
+  loadBrowserLib();
 }
 
 // ---------------------------------------------------------------- the simulated FM-1 (?sim)
@@ -1465,9 +1906,10 @@ async function simAccess() {
 // ---------------------------------------------------------------- start
 tab(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "backup");
 loadBaks();
+loadBrowserLib();
 renderUnit(); renderLibrary(); pool.render(); importer.render();
 if (SIM) connect();
 else if (navigator.permissions && navigator.requestMIDIAccess) {
   navigator.permissions.query({ name: "midi", sysex: true }).then((p) => { if (p.state === "granted") connect(); }).catch(() => {});
 }
-window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor, live, projtab, useBrowser, leaveBrowser, bu: () => BU };
+window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor, live, projtab, useBrowser, leaveBrowser, bu: () => BU, loadBrowserLib, keys: () => keys };
