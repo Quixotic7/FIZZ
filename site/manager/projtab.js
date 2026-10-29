@@ -14,7 +14,7 @@
 // A project from the other package comes in as a .fizzprj (KEEP there, LOAD INTO here): its MY presets come along;
 // those MY PRESETS has no room for stay in it as its own copies (projects.js derefPat), so it sounds the same.
 import { modelOf, imageOf, cloneModel, projects, project, patName, copyPatterns, pastePatterns, clearPatterns, keepProject,
-  loadProject, renameKept, cleanName, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, limits } from "./projects.js";
+  loadProject, renameKept, renameProject, cleanName, makeFizzprj, readFizzprj, makeFizzpat, readFizzpat, patFileName, prjFileName, NPAT, limits } from "./projects.js";
 import { esc, confirmBox } from "./ui.js";
 
 const TC = ["--blue", "--green", "--cream", "--orange", "--pink", "--violet"];
@@ -202,17 +202,19 @@ export function mountProjects(ctx) {
   }
 
   // ---------------------------------------------------------------- the slots' actions (the FM-1's own commands)
-  async function after(what) {
-    await ctx.refreshRows({ projects: true });
+  // (ctx.editSure: the projects read again after each, until they show it; a reply lost, they say whether it took)
+  const sure = (what, fn, took) => ctx.editSure(what, fn, { projects: true, took: (rs, pj) => !!pj && took(pj.list) });
+  async function after(what, { reread = false } = {}) {
     J.cache = null;
     render();
     if (what) toast(what, "--cyan");
+    if (reread && J.base && !J.ops.length) await read({ force: true });   // (the patterns shown are the store's: read again)
   }
   async function slotAct(act) {
     const p = J.sel, L = list(), e = L[p];
     if (act === "load") {
-      const x = await ctx.edit("LOAD", (l) => l.project("load", p + 1));
-      if (x && x.status === 0) await after(`${e.name} open on the ${S.mode === "browser" ? "browser's FIZZ" : "FM-1"}`);
+      const x = await sure("LOAD", (l) => l.project("load", p + 1), (pl) => !!pl[p] && pl[p].current);
+      if (x && x.status === 0) await after(`${e.name} open on the ${S.mode === "browser" ? "browser's FIZZ" : "FM-1"}`); else render();
     } else if (act === "rename") { J.renaming = true; render(); }
     else if (act === "copyto" || act === "moveto") { J.arm = { kind: act === "copyto" ? "copy" : "move", from: p, name: e.name }; render(); }
     else if (act === "disarm") { J.arm = null; render(); }
@@ -226,8 +228,8 @@ export function mountProjects(ctx) {
     } else if (act === "delete") {
       const ok = await confirmBox({ title: "DELETE PROJECT", what: e.name, go: "DELETE", sub: `Slot ${p + 1} on the ${S.mode === "browser" ? "browser's FIZZ" : "FM-1"}. KEEP it first to have a copy here.` });
       if (!ok) return;
-      const x = await ctx.edit("DELETE", (l) => l.project("delete", p + 1));
-      if (x && x.status === 0) await after(`${e.name} deleted`);
+      const x = await sure("DELETE", (l) => l.project("delete", p + 1), (pl) => !!pl[p] && !pl[p].there);
+      if (x && x.status === 0) await after(`${e.name} deleted`, { reread: true }); else render();
     }
   }
   async function armedTo(q) {
@@ -243,22 +245,34 @@ export function mountProjects(ctx) {
       if (kept && push({ kind: "load", q, kept })) { J.sel = q; render(); }
       return;
     }
-    const x = await ctx.edit(a.kind === "move" ? "MOVE" : "COPY", (l) => l.project("copy", a.from + 1, q + 1));
+    const was = !!(L[q] && L[q].there);
+    const x = await sure(a.kind === "move" ? "MOVE" : "COPY", (l) => l.project("copy", a.from + 1, q + 1), (pl) => !!pl[q] && pl[q].there && (!was || pl[q].name === a.name));
     if (!x || x.status !== 0) { render(); return; }
     if (a.kind === "move") {
-      const y = await ctx.edit("MOVE", (l) => l.project("delete", a.from + 1));
+      const y = await sure("MOVE", (l) => l.project("delete", a.from + 1), (pl) => !!pl[a.from] && !pl[a.from].there);
       if (!y || y.status !== 0) say(`${esc(a.name)} was copied to slot ${q + 1}; slot ${a.from + 1} kept it too.`, "--orange");
     }
     J.sel = q;
-    await after(`${a.name} ${a.kind === "move" ? "moved" : "copied"} to slot ${q + 1}`);
+    await after(`${a.name} ${a.kind === "move" ? "moved" : "copied"} to slot ${q + 1}`, { reread: true });
   }
   async function renameDone(commit) {
     const i = $("pj-rename"), p = J.sel, e = list()[p];
     J.renaming = false;
     const name = i ? cleanName(i.value) : "";
     if (!commit || !name || !e || name === e.name) { render(); return; }
-    const x = await ctx.edit("RENAME", (l) => l.rename("project", p + 1, name));
-    if (x && x.status === 0) await after(`Slot ${p + 1}: ${name}`); else render();
+    const old = e.name;
+    e.name = name;                                     // (shown at once; the projects read again say what the unit has)
+    render();
+    // (a name is safe sent twice: its reply lost and the unit without it, sent once more)
+    const x = await ctx.editSure("RENAME", (l) => l.rename("project", p + 1, name), { again: true, projects: true,
+      took: (rs, pj) => !!pj && !!pj.list[p] && pj.list[p].name === name });
+    if (x && x.status === 0) {
+      if (J.base) renameProject(J.base.model, p, name);
+      await after(`Slot ${p + 1}: ${name}`);
+    } else {
+      if (list()[p] === e) e.name = old;               // (the projects not read again: the old name back)
+      render();
+    }
   }
 
   // ---------------------------------------------------------------- the patterns' actions (wait for WRITE)

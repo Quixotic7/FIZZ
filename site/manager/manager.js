@@ -38,7 +38,7 @@ const mmss = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s /
 
 const PAGE_T0 = Date.now(), seenBaks = new Set();   // (BACKUP: a backup made since the page opened is NEW; a row pops in once)
 const S = { mode: "fm1", access: null, link: null, unit: null, busy: false, baks: [], web: { tags: {} }, sel: null, filter: newFilter(), abort: null,
-  editing: 0, users: new Map(), refreshing: false };
+  editing: 0, writing: 0, users: new Map(), refreshing: false };
 
 // ---------------------------------------------------------------- the log, what the page says
 const logLines = [];
@@ -650,11 +650,10 @@ async function refresh() {
     if (v || t === 9) { S.unit.version = v; break; }
   }
   S.unit.info = await link.storeInfo();
-  S.unit.rows = S.unit.version ? await link.list({ factory: true, pool: true }) : [];
-  S.unit.status = S.unit.version ? await link.status() : null;
-  S.unit.projects = S.unit.status ? await link.projects() : null;
   S.unit.dumps = null; S.unit.fdumps = null; S.unit.one = null; S.sel = null;
+  if (!S.unit.version) { S.unit.rows = []; S.unit.status = null; S.unit.projects = null; }
   pool.forget();
+  await refreshRows({ projects: true });               // (every tab drawn again)
 }
 async function restoreFull() {
   let image = R.parsed.image;
@@ -690,7 +689,7 @@ async function restoreImage(image, name, label = "CHECKING") {
     progClose();
     toast(`Written: ${name}`);
     log(`restored ${name}`);
-    await refresh();
+    await refresh().catch((e) => log(`after the restore: ${e.code || ""} ${e.message}`));   // (written: a lost read is not a failed write)
     return true;
   } catch (e) {
     progClose();
@@ -708,7 +707,7 @@ async function restoreImage(image, name, label = "CHECKING") {
     return false;
   } finally {
     S.busy = false; S.abort = null;
-    renderUnit(); renderLibrary(); renderBaks(); projtab.render();
+    renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render(); projtab.render();
   }
 }
 // PROJECTS: the store read (no backup kept: the one before a write is), and written with the store as it was kept first
@@ -761,21 +760,20 @@ async function addPresets() {
     progClose();
     log(`added ${added} presets from ${rec.name} (${same} already there${full ? ", MY PRESETS full" : ""})`);
     toast(`+${added} presets${same ? ` · ${same} already there` : ""}${full ? " · MY PRESETS FULL" : ""}`, full ? "--orange" : "--green");
-    u.rows = await link.list({ factory: true, pool: true });
-    u.status = await link.status();
-    u.dumps = null; u.summary = null;
   } catch (e) {
     progClose();
     say(`Adding the presets stopped: ${esc(e.message)} (${added} added)`, "--red");
   } finally {
     S.busy = false;
-    renderUnit(); renderLibrary(); renderBaks();
+    if (S.unit) { S.unit.dumps = null; S.unit.summary = null; }
+    renderBaks();
   }
+  await refreshRows();                                 // (every tab: what was added, also when it stopped)
 }
 
 // ---------------------------------------------------------------- edits on the unit (Phase 1)
 // one edit at a time (the link's queue serialises them anyway): the page's state refreshed after it; a refusal said
-async function edit(what, fn) {
+async function edit(what, fn, { quiet = false } = {}) {
   if (!S.link || S.busy) return null;
   S.editing++;
   renderLibrary();
@@ -785,15 +783,41 @@ async function edit(what, fn) {
     return r;
   } catch (e) {
     log(`${what}: ${e.code || ""} ${e.message}`);
-    say(`${esc(what)}: ${esc(e.message)}`, "--red");
+    if (!(quiet && e.code === "timeout")) say(`${esc(what)}: ${esc(e.message)}`, "--red");   // (quiet: editSure says it)
     return null;
   } finally {
     S.editing--;
   }
 }
-// the unit's lists again: LIST (MY PRESETS, the factory's, the pool), STATUS, PROJECTS. until(rows): what an edit just
-// made shows in them (the page showed it already): read again (up to 4 times, 0.3 s apart) until it does; a LIST that
-// failed keeps the rows the page has
+// a write, then the unit's lists read again until they show it. took(rows, projects): true when they do (the unit's
+// lists can lag a write a moment). Its reply lost or late (the owner's FM-1 loses a frame at times): the lists say
+// whether it took; a write that is safe twice (again: a name, tags) is then sent once more. shown(x): the page shows
+// it at once, before the lists come back. -> the reply ({status: 0, unsure: true}: only the lists showed it) | null
+async function editSure(what, fn, { took = null, again = false, projects = false, shown = null } = {}) {
+  if (!S.link || S.busy) return null;
+  S.writing++;                                         // (the write and its lists: the focus's quick REFRESH waits)
+  try {
+    let x = null;
+    for (let k = 0; k < (again ? 2 : 1) && !x && S.link; k++) {
+      x = await edit(what, fn, { quiet: true });
+      if (x) break;
+      if (!S.link) return null;
+      await refreshRows({ projects, until: took });
+      if (took && took(S.unit.rows, S.unit.projects)) { log(`${what}: its reply lost, the FM-1 has it`); return { status: 0, unsure: true }; }
+      if (again && !k) log(`${what}: no reply and not on the FM-1: sent again`);
+    }
+    if (!x) {
+      if (S.link) say(`${esc(what)}: the FM-1 did not answer and does not show it. Try again.`, "--red");
+      return null;
+    }
+    if (x.status === 0 && shown) shown(x);
+    await refreshRows({ projects, until: x.status === 0 ? took : null });
+    return x;
+  } finally { S.writing--; }
+}
+// the unit's lists again: LIST (MY PRESETS, the factory's, the pool), STATUS, PROJECTS. until(rows, projects): what an
+// edit just made shows in them (the page showed it already): read again (up to 4 times, 0.3 s apart) until it does,
+// else the last read is kept; a read that failed keeps what the page has. Every tab drawn again
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function refreshRows({ projects = false, until = null } = {}) {
   const u = S.unit, link = S.link;
@@ -801,19 +825,32 @@ async function refreshRows({ projects = false, until = null } = {}) {
   try {
     for (let k = 0; k < 4; k++) {
       const rows = await link.list({ factory: true, pool: true }).catch((e) => { log(`refresh: LIST ${e.code || ""} ${e.message}`); return null; });
-      if (rows && (!until || until(rows) || k === 3)) {
-        if (until && !until(rows)) log("refresh: the FM-1's lists still differ from the edit: the FM-1's kept");
-        u.rows = rows;
-        break;
-      }
+      const pj = projects ? await link.projects() : null;
+      if (rows) u.rows = rows;
+      if (pj) u.projects = pj;
+      if (rows && (!until || until(u.rows, u.projects))) break;
+      if (k === 3) { if (until) log("refresh: the FM-1's lists still differ from the edit: the FM-1's kept"); break; }
       await sleep(300);
     }
-    u.status = await link.status();
-    if (projects || !u.projects) u.projects = await link.projects();
+    const st = await link.status();
+    if (st) u.status = st;
+    if (!u.projects) u.projects = await link.projects();
   } catch (e) { log(`refresh: ${e.code || ""} ${e.message}`); }
   S.users.clear();
   u.one = null;                                        // (a preset read by itself: again, as it is now)
-  renderUnit(); renderLibrary(); pool.render(); projtab.render();
+  followPlace();
+  renderUnit(); renderLibrary(); pool.render(); projtab.render(); importer.render();
+}
+// EDIT's header: the MY preset it came from followed by its id (moved, renamed, deleted on the unit), so SAVE goes to
+// the right place
+function followPlace() {
+  const p = editor.place(), E = editor.state;
+  if (!S.unit || !E.s || p.source !== "mine" || !p.id || p.fromTarget) return;
+  const row = S.unit.rows.find((q) => q.source === "mine" && q.id === p.id);
+  if (!row) { editor.setPlace({ label: "NEW SOUND", source: "deleted" }); return; }
+  if (E.base && E.s.name === E.base.name) E.s.name = E.base.name = row.name;   // (not renamed here: the unit's name)
+  if (E.base && E.s.tags === E.base.tags) E.s.tags = E.base.tags = row.tags;
+  editor.setPlace({ ...p, label: `MY PRESETS ${row.slot}`, slot: row.slot });
 }
 // a pool place changed by an edit the unit acknowledged: shown at once (row: the preset now there, null: empty)
 function poolSet(slot, row) {
@@ -831,7 +868,7 @@ const unitSig = (st) => (st ? [st.written, st.mine, st.pool, st.project, st.proj
 async function reread({ quick = false } = {}) {
   const u = S.unit, link = S.link;
   if (!u || !link || S.busy || S.refreshing || attaching) return false;
-  if (quick && (S.editing || !u.version)) return false;
+  if (quick && (S.editing || S.writing || !u.version)) return false;
   S.refreshing = true; renderUnit();
   $("refresh").classList.add("spin");
   try {
@@ -969,9 +1006,9 @@ function renderSel() {
   }));
   el.querySelectorAll("[data-dtag]").forEach((b) => b.addEventListener("click", async () => {
     const mask = r.tags ^ (1 << +b.dataset.dtag);
-    const x = await edit("TAGS", (l) => l.tags(r.source, r.slot, mask));
+    const x = await editSure("TAGS", (l) => l.tags(r.source, r.slot, mask), { again: true, shown: () => { r.tags = mask; renderLibrary(); },
+      took: (rs) => rs.some((q) => q.source === r.source && q.slot === r.slot && q.tags === mask) });
     if (x && x.status === 0) {
-      r.tags = mask;
       if (r.source === "mine") await redump(r.slot);
       else if (u.fdumps) u.fdumps[r.slot - 1] = await S.link.dump("factory", r.slot).catch(() => null) || u.fdumps[r.slot - 1];
     }
@@ -982,15 +1019,15 @@ function renderSel() {
     const done = async (keep) => {
       const v = nm.value.toUpperCase().replace(/[^\x20-\x7E]/g, "").trim().slice(0, 12);
       if (!keep || !v || v === r.name) { nm.value = r.name; return; }
-      const x = await edit("RENAME", (l) => l.rename("mine", r.slot, v));
+      const x = await editSure("RENAME", (l) => l.rename("mine", r.slot, v), { again: true, shown: () => { r.name = v; renderLibrary(); },
+        took: (rs) => rs.some((q) => q.source === "mine" && q.slot === r.slot && q.name === v) });
       if (x && x.status === 0) {
         const wk = key && S.web.tags[key];
-        r.name = v;
         await redump(r.slot);
         if (wk) { const f2 = frameOf(r); if (f2) { S.web.tags[soundKey(soundFromStoreFrame(f2))] = wk; delete S.web.tags[key]; saveWeb(); } }
         toast(`Renamed ${v}`);
-        await refreshRows();
-      } else renderSel();
+        renderLibrary();
+      }
     };
     nm.addEventListener("input", () => { const p = nm.selectionStart; nm.value = nm.value.toUpperCase(); nm.setSelectionRange(p, p); });
     nm.addEventListener("keydown", (ev) => { if (ev.key === "Enter") nm.blur(); else if (ev.key === "Escape") { nm.value = r.name; nm.blur(); } });
@@ -1022,42 +1059,40 @@ function renderSel() {
   const tog = $("l-pool");
   if (tog) tog.addEventListener("click", async () => {
     if (!pl.length) {
-      const x = await edit("+ POOL", (l) => l.poolRef(0, r.id));
-      if (x && x.status === 0) {
-        poolSet(x.a, r);
-        toast(`${r.name} → POOL ${x.a}`); pool.fizz(x.a);
-        await refreshRows({ until: (rows) => rows.some((q) => q.source === "pool" && q.slot === x.a && q.id === r.id) });
-      }
+      const x = await editSure("+ POOL", (l) => l.poolRef(0, r.id), { took: (rs) => rs.some((q) => q.source === "pool" && q.id === r.id),
+        shown: (y) => { poolSet(y.a, r); toast(`${r.name} → POOL ${y.a}`); pool.fizz(y.a); } });
+      if (x && x.unsure) { const at = (places().get(r.id) || [])[0]; if (at) toast(`${r.name} → POOL ${at}`); }
       return;
     }
-    let n = 0;
+    let n = 0, quiet = false;
     for (const k of pl) {
-      let x = await edit("− POOL", (l) => l.remove("pool", k));
+      let x = await edit("− POOL", (l) => l.remove("pool", k), { quiet: true });
       if (x && x.status === 10) {
         const ok = await confirmBox({ title: `CLEAR POOL ${k}`, what: r.name, go: "CLEAR", color: "--red", undo: "kept",
           sub: `${x.b || 0} step${x.b === 1 ? "" : "s"} use it: they go back to their track's sound.` });
         if (!ok) break;
-        x = await edit("− POOL", (l) => l.remove("pool", k, { confirm: true }));
+        x = await edit("− POOL", (l) => l.remove("pool", k, { confirm: true }), { quiet: true });
       }
-      if (x && x.status === 0) { n++; poolSet(k, null); } else break;
+      if (x && x.status === 0) { n++; poolSet(k, null); } else { quiet = !x; break; }
     }
     pool.forget();
     if (n) toast(`${r.name} out of the pool`, "--muted");
     await refreshRows({ until: (rows) => !rows.some((q) => q.source === "pool" && q.id === r.id && pl.includes(q.slot)) });
+    if (quiet && S.link) {                             // (a reply lost: the lists say whether it took)
+      if (places().get(r.id)) say("− POOL: the FM-1 did not answer and still has it in the pool. Try again.", "--red");
+      else if (!n) toast(`${r.name} out of the pool`, "--muted");
+    }
   });
   const del = $("l-del");
   if (del) del.addEventListener("click", async () => {
     const ok = await confirmBox({ title: `DELETE · MY PRESETS ${r.slot}`, what: r.name, go: "DELETE", undo: "kept",
       sub: usedText(users) || (pl.length ? `In the pool at ${pl.join(", ")}: it comes out of it.` : "") });
     if (!ok) return;
-    const x = await edit("DELETE", (l) => l.remove("mine", r.slot, { confirm: true }));
-    if (x && x.status === 0) {
-      toast(`Deleted ${r.name}`, "--red");
-      if (u.dumps) u.dumps.delete(r.slot);
-      S.sel = null;
-      pool.forget();
-      await refreshRows();
-    } else renderSel();
+    const gone = () => { if (u.dumps) u.dumps.delete(r.slot); S.sel = null; pool.forget(); };
+    const x = await editSure("DELETE", (l) => l.remove("mine", r.slot, { confirm: true }), { shown: gone,
+      took: (rs) => !rs.some((q) => q.source === "mine" && q.id === r.id) });
+    if (x && x.unsure) { gone(); renderLibrary(); }
+    if (x && x.status === 0) toast(`Deleted ${r.name}`, "--red");
   });
 }
 $("l-filter").addEventListener("click", (ev) => { if (filterClick(S.filter, ev)) renderLibrary(); });
@@ -1074,12 +1109,15 @@ list.addEventListener("click", (ev) => {
 // ALT + up / down moves the selected one a place (into an empty place too)
 async function swapMine(a, b) {
   if (a === b || b < 1 || b > unitPkg().nlib) return;
-  const x = await edit("MOVE", (l) => l.swap("mine", a, b));
+  const id = (s) => { const q = S.unit.rows.find((x) => x.source === "mine" && x.slot === s); return q ? q.id : 0; };
+  const ia = id(a), ib = id(b);
+  const follow = () => { if (S.sel && S.sel.source === "mine") S.sel.slot = S.sel.slot === a ? b : S.sel.slot === b ? a : S.sel.slot; };
+  const x = await editSure("MOVE", (l) => l.swap("mine", a, b), { shown: follow, took: () => id(a) === ib && id(b) === ia });
   if (!x || x.status !== 0) return;
+  if (x.unsure) follow();
   await redump(a);
   await redump(b);
-  if (S.sel && S.sel.source === "mine") S.sel.slot = S.sel.slot === a ? b : S.sel.slot === b ? a : S.sel.slot;
-  await refreshRows();
+  renderLibrary();
   for (const s of [a, b]) { const el = list.querySelector(`.cas[data-src="mine"][data-slot="${s}"]`); if (el) el.classList.add("moved"); }   // (slid in)
 }
 const mineCas = (ev) => { const b = ev.target.closest(".cas"); return b && b.dataset.src === "mine" ? b : null; };
@@ -1148,7 +1186,7 @@ $("l-export-all").addEventListener("click", async () => {
 
 // ---------------------------------------------------------------- the pool, the import (their own files)
 let live = null;                                        // (live.js, mounted with the editor below)
-const ctx = { S, $, log, say, toast, edit, refreshRows, loadDumps, frameOf, projectName, saveWeb, poolSet, render: () => { renderUnit(); renderLibrary(); },
+const ctx = { S, $, log, say, toast, edit, editSure, refreshRows, loadDumps, frameOf, projectName, saveWeb, poolSet, render: () => { renderUnit(); renderLibrary(); },
   pkg: () => unitPkg(), viaBle, NEEDS_USB,
   trackOn: () => !!(live && live.on()), previewRow: (r) => previewRow(r), previewId: (id) => previewId(id),
   previewLib: (snd, name) => previewLib(snd, name) };
@@ -1197,7 +1235,8 @@ const editor = mountEditor({
   keys: { active: () => KEY_TABS.includes(curTab()), target: () => keysTarget(), start: () => keysStart() },
 });
 editor.setTarget(browserTarget);
-live = mountLive({ S, $, log, say, toast, editor, browserTarget, changed: () => { importer.render(); if (!$("tab-library").hidden) renderSel(); } });
+live = mountLive({ S, $, log, say, toast, editor, browserTarget, changed: () => { importer.render(); if (!$("tab-library").hidden) renderSel(); },
+  kept: () => { S.users.clear(); pool.forget(); renderLibrary(); pool.render(); } });   // (KEEP, CANCEL: who uses a preset changed)
 async function openInEditor(r) {
   const f = frameOf(r), snd = f && soundFromFrame(f);
   if (!snd) return;
@@ -1219,7 +1258,15 @@ async function saveSound(E, asNew) {
   }
   // (P2-B: the owner's preset, OWN; TRACK on: the track then plays it, LOAD. Over a used place FIZZ runs a job: the
   // other projects' tracks that loaded it keep the sound they had; refused while the FM-1 plays)
-  const x = await edit("SAVE", (l) => l.store(storeFrameOf(E.s, { slot, own: true, ...live.saveOpts() })));
+  const had = new Set(S.unit.rows.filter((q) => q.source === "mine").map((q) => q.id));
+  let x = await edit("SAVE", (l) => l.store(storeFrameOf(E.s, { slot, own: true, ...live.saveOpts() })), { quiet: true });
+  if (!x && S.link) {                                  // (its reply lost: the lists say whether it was stored)
+    await refreshRows();
+    const got = asNew && S.unit.rows.find((q) => q.source === "mine" && !had.has(q.id) && q.name === E.s.name.trim());
+    if (!got) { say(asNew ? "SAVE AS NEW: the FM-1 did not answer and does not show it. Try again." : "SAVE: the FM-1 did not answer: SAVE again to be sure.", "--red"); return null; }
+    log("SAVE AS NEW: its reply lost, the FM-1 has it");
+    x = { kind: "store", status: 0, slot: got.slot };
+  }
   if (!x || x.kind !== "store" || x.status !== 0) return null;
   toast(`${E.s.name} → MY PRESETS ${x.slot}`, "--pink");
   if (S.unit.dumps) await redump(x.slot);
