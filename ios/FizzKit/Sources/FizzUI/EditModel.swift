@@ -38,7 +38,7 @@ public struct EditPlace: Sendable, Equatable {
     public var track: Int
     /// read from the unit's track (followed)
     public var fromTarget: Bool
-    /// KEPT: the preset's file (nil: + NEW, not saved yet)
+    /// KEPT: the preset's file (nil: + NEW, not saved yet); a file's: the KEPT copy KEEP made (nil: none yet)
     public var kept: String?
 
     public init(label: String, source: String, slot: Int = 0, id: Int = 0, track: Int = -1, fromTarget: Bool = false, kept: String? = nil) {
@@ -48,6 +48,8 @@ public struct EditPlace: Sendable, Equatable {
     /// A KEPT preset's place (nil: + NEW).
     public static func kept(_ id: String?) -> EditPlace { EditPlace(label: "KEPT", source: "kept", kept: id) }
     public var isKept: Bool { source == "kept" }
+    /// a sound from a file (IMPORT's EDIT): KEEP puts it on the phone, SAVE AS NEW on the unit
+    public var isFile: Bool { source == "file" }
     public static let new = EditPlace(label: "NEW SOUND", source: "new")
 }
 
@@ -167,6 +169,8 @@ public final class EditorModel {
     }
     /// (KEPT: another kept preset, no unit needed)
     public var canSaveNew: Bool { sound != nil && (place.isKept || (actions?.canWrite ?? false)) }
+    /// A file's KEEP (no unit needed).
+    public var canKeep: Bool { place.isFile && sound != nil && unit != nil }
     /// The track number shown: the borrowed one, the one picked, the followed one, else the unit's selected one.
     public var trackShown: Int {
         if let a = actions {
@@ -643,6 +647,35 @@ public final class EditorModel {
         sound = s
         base = s
         place = .kept(k.id)
+        if opened != nil { opened = place }
+        say("\(s.name) -> KEPT (\(k.id))")
+        return .ok
+    }
+
+    /// A file's KEEP: the sound onto the phone (KEPT; its name made unique), the copy written again on the next KEEP.
+    /// It stays the file's in EDIT: SAVE AS NEW still stores it on the unit.
+    @discardableResult public func keep() async -> UnitOutcome {
+        guard place.isFile, var s = sound, let store = unit?.kept, let e = engine(), !saving else { return .notNow }
+        saving = true
+        defer { saving = false }
+        let old = place.kept.flatMap { store.item($0) }
+        if old == nil { s.name = store.uniqueName(s.name) }
+        guard let fs = try? await e.libSound(s) else { return .refused(.badPatch) }
+        let k: KeptPreset?
+        if let old {
+            k = try? await store.update(old) { f in
+                var n = fs
+                n.source = f.sound.source
+                n.favourite = f.sound.favourite
+                f.sound = n
+            }
+        } else {
+            k = try? await store.add(fs)
+        }
+        guard let k else { return .notNow }
+        sound = s
+        base = s
+        place.kept = k.id
         if opened != nil { opened = place }
         say("\(s.name) -> KEPT (\(k.id))")
         return .ok

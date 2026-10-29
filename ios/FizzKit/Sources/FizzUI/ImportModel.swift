@@ -173,6 +173,17 @@ public final class ImportModel {
     /// The row still heard (the KEEP / CANCEL bar not answered yet).
     public func isHeard(_ id: Int) -> Bool { heard == id && unit?.actions.pending != nil }
 
+    /// A row's EDIT: its sound opened in EDIT as a file's (KEEP puts it on the phone, SAVE AS NEW on the unit), heard
+    /// on the track as EDIT borrows.
+    public func edit(_ id: Int) {
+        guard let u = unit, let r = rows.first(where: { $0.id == id }), r.item.ok, let s = r.item.sound else { return }
+        // (the row's file: a library's member by its own name)
+        let f = r.item.file.components(separatedBy: ": ").last ?? r.item.file
+        heard = nil
+        u.editTarget = .sound(s, label: f)
+        u.goTo = .edit
+    }
+
     // MARK: SEND
 
     /// ↓ SEND n TO FM-1: the ticked rows stored in order (the first onto the track for TRACK), each row's result;

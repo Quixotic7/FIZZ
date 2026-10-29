@@ -7,7 +7,9 @@
 // right goes into the pool (out of it when it is in), swiped left offers DELETE (sideways only: a vertical swipe
 // always scrolls). MOVE in the preset swaps its place with the next MY preset tapped (as POOL's MOVE); on the iPad a
 // MY preset can also be dragged onto another. A tap opens the preset (the phone's sheet, the iPad's third column)
-// and, with TRACK on, plays it on the track (KEEP / CANCEL).
+// and, with TRACK on, plays it on the track (KEEP / CANCEL). The search (manager.js l-q) narrows MY PRESETS, FACTORY
+// and KEPT by name as it is typed: on the phone a magnifier before the filter chips opens it under the sections, the
+// iPad's sits in the header; it stays while the sections change and goes with the tab.
 
 import SwiftUI
 import FizzData
@@ -36,6 +38,9 @@ struct LibraryView: View {
     @State private var unitDrop = false
     @State private var padPicked: Set<String> = []
     @State private var padTarget: KeptTarget = .mine
+    /// the phone's search field shown (the iPad's always is)
+    @State private var searching = false
+    @FocusState private var searchFocus: Bool
 
     struct SheetKey: Identifiable, Equatable { let id: String }
 
@@ -60,7 +65,19 @@ struct LibraryView: View {
         .onAppear {
             if snapshot, let s = shotSelection, s.hasPrefix("mine:") || s.hasPrefix("factory:") || s.hasPrefix("kept:") { selected = s }
             if snapshot { keptOn = shotSelection?.hasPrefix("kept") == true } else if model.noFM1 { keptOn = true }
+            // (fizzshots: "search:<name>" on ALL, "kept-search:<name>" on KEPT)
+            if snapshot, let s = shotSelection, let r = s.range(of: "search:") {
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) {
+                    searching = true
+                    filter.query = String(s[r.upperBound...])
+                    if !keptOn { filter.source = .all }
+                }
+            }
         }
+        // (the search goes with the tab)
+        .onDisappear { closeSearch() }
         .onChange(of: model.noFM1) { _, no in if no { keptOn = true } }
         // (`-preset mine:2` with a demo unit: that preset's sheet open, for the simulator's screenshots)
         .task(id: model.dumpsLoaded) {
@@ -72,6 +89,16 @@ struct LibraryView: View {
             selected = a[k + 1]
             if !wide { sheet = SheetKey(id: a[k + 1]) }
         }
+        // (`-search bass` with a demo unit: the search open on ALL with that typed, for the simulator's screenshots)
+        .task(id: model.dumpsLoaded) {
+            let a = ProcessInfo.processInfo.arguments
+            guard !snapshot, model.dumpsLoaded, model.source is DemoUnitsSource || model.source is DemoLinkSource,
+                  let k = a.firstIndex(of: "-search"), k + 1 < a.count else { return }
+            try? await Task.sleep(for: .milliseconds(1200))
+            if !a.contains("-kept") { keptOn = false; filter.source = .all }
+            searching = true
+            filter.query = a[k + 1]
+        }
         // (a .fizzsnd opened in FIZZ: KEPT, its sheet)
         .onChange(of: model.kept.reveal) { _, id in
             guard let id else { return }
@@ -81,6 +108,20 @@ struct LibraryView: View {
     }
 
     private func key(_ r: FizzListEntry) -> String { "\(r.source):\(r.slot)" }
+    private var hasQuery: Bool { !NameSearch.clean(filter.query).isEmpty }
+
+    private func toggleSearch() {
+        if searching { closeSearch() } else {
+            searching = true
+            searchFocus = true
+        }
+    }
+
+    private func closeSearch() {
+        searchFocus = false
+        searching = false
+        filter.query = ""
+    }
     private var nlib: Int { model.status?.nlib ?? 256 }
     private var places: [Int: [Int]] { poolPlaces(model.rows) }
 
@@ -97,7 +138,7 @@ struct LibraryView: View {
             FilterChip(title: p == .notInPool ? "NOT IN POOL" : "POOL", color: p == .notInPool ? FZ.muted : FZ.green,
                        on: p != .any, poolIcon: true) { filter.turnPool() }
             ForEach(FizzTag.allCases) { t in
-                FilterChip(title: t.name, color: t.tint, on: filter.tags.contains(t)) { filter.toggle(t) }
+                FilterChip(title: t.name, color: t.tint, on: filter.tags.contains(t), tag: t) { filter.toggle(t) }
             }
         }
     }
@@ -232,8 +273,14 @@ struct LibraryView: View {
                 }
             }
             .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 12)
+            if searching {
+                SearchField(text: $filter.query, focus: $searchFocus)
+                    .padding(.horizontal, 16).padding(.bottom, 12)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
             if keptOn {
-                KeptList(model: model, tags: $filter.tags)
+                KeptList(model: model, tags: $filter.tags, query: filter.query,
+                         search: SearchToggle(open: searching, active: hasQuery, action: toggleSearch))
                     .overlay(alignment: .bottom) {
                         if model.editor.keysOpen && !model.kept.selecting {
                             KeybedPanel(e: model.editor).transition(.move(edge: .bottom).combined(with: .opacity))
@@ -250,6 +297,7 @@ struct LibraryView: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: note)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: keptOn)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: searching)
         .sheet(item: $sheet) { s in
             PresetSheet(model: model, entry: entry(s.id), note: $note, onExport: export, onMove: startMove) { sheet = nil }
         }
@@ -259,13 +307,17 @@ struct LibraryView: View {
     @ViewBuilder private var unitList: some View {
         let shown = filter.shown(model.rows)
         VStack(alignment: .leading, spacing: 0) {
-            ChipScroll { chips }
+            ChipScroll {
+                SearchToggle(open: searching, active: hasQuery, action: toggleSearch)
+                chips
+            }
                 .padding(.bottom, 14)
             ScreenScroll(bottom: clearance + 20 + (moving != nil ? 62 : 0), lazy: true, refresh: { await model.refresh() }) {
                 if filter.source == .all && !shown.mine.isEmpty { group("MY PRESETS", shown.mine.count) }
                 ForEach(shown.mine, id: \.slot) { row($0) }
                 if filter.source == .all && !shown.factory.isEmpty { group("FACTORY", shown.factory.count) }
                 ForEach(shown.factory, id: \.slot) { row($0) }
+                if hasQuery && shown.mine.isEmpty && shown.factory.isEmpty { NothingCalled(query: filter.query) }
                 if !shown.mine.isEmpty || !shown.factory.isEmpty {
                     IconPill(title: "EXPORT ALL", icon: Icons.share, ghost: true, height: 48, size: 14) {
                         export(shown.mine + shown.factory)
@@ -291,9 +343,11 @@ struct LibraryView: View {
     /// copies it (onto the unit: SEND to MY PRESETS; onto KEPT: → KEPT).
     private var padBody: some View {
         let shown = filter.shown(model.rows)
-        let kshown = keptShown(model.kept.items, tags: filter.tags)
+        let kshown = keptShown(model.kept.items, tags: filter.tags, query: filter.query)
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
+                SearchField(text: $filter.query, height: 44, focus: $searchFocus)
+                    .frame(width: 230)
                 // (scrolls sideways: the iPad held upright has no room for them all)
                 ChipScroll(inset: 0, spacing: 6) { chips }
                     .frame(height: 44, alignment: .leading)
@@ -321,6 +375,7 @@ struct LibraryView: View {
                         ForEach(shown.mine, id: \.slot) { row($0) }
                         if filter.source == .all && !shown.factory.isEmpty { group("FACTORY", shown.factory.count) }
                         ForEach(shown.factory, id: \.slot) { row($0) }
+                        if hasQuery && shown.mine.isEmpty && shown.factory.isEmpty { NothingCalled(query: filter.query) }
                     }
                 }
                 .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(FZ.violet.color, lineWidth: 2).opacity(unitDrop ? 1 : 0))
@@ -342,6 +397,7 @@ struct LibraryView: View {
                                 .padding(.bottom, 8)
                         }
                         if model.kept.loaded && model.kept.items.isEmpty { KeptEmpty(new: newKept) }
+                        if hasQuery && kshown.isEmpty && !model.kept.items.isEmpty { NothingCalled(query: filter.query) }
                     }
                 }
                 .background(RoundedRectangle(cornerRadius: 22).fill(FZ.champagne.opacity(0.04)))
@@ -725,5 +781,96 @@ public struct PresetSheetShot: View {
             }
         }
         .environment(\.fizzShotSelection, key)
+    }
+}
+
+// MARK: - The search
+
+extension Icons {
+    /// a magnifier (manager index.html .find)
+    static let find = VectorArt(24, 24, [.circle(11, 11, 6), .path("M20 20l-4.5-4.5")])
+}
+
+/// The magnifier before LIBRARY's filter chips (the header's seg has no room beside it on a phone): opens the search,
+/// shuts it (the search cleared); lit while a search is typed.
+struct SearchToggle: View {
+    let open: Bool
+    let active: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            IconView(Icons.find, color: active ? .black : FZ.text.color, lineWidth: 2.4, backdrop: .clear)
+                .frame(width: 17, height: 17)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(active ? FZ.cream.color : open ? FZ.cream.opacity(0.12) : .clear))
+                .overlay(Circle().strokeBorder(active ? FZ.cream.color : open ? FZ.cream.mix(60, FZ.line).color : FZ.line.color,
+                                               lineWidth: 1.5))
+                .shadow(color: active ? FZ.cream.opacity(0.4) : .clear, radius: 7)
+                .frame(width: 44, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle(scale: 0.9))
+    }
+}
+
+/// The search field (manager index.html #l-q): the magnifier, the name typed, × clears it.
+struct SearchField: View {
+    @Binding var text: String
+    var height: CGFloat = 44
+    var focus: FocusState<Bool>.Binding
+    @Environment(\.fizzSnapshot) private var snapshot
+
+    var body: some View {
+        HStack(spacing: 10) {
+            IconView(Icons.find, color: FZ.muted.color, lineWidth: 2.4, backdrop: .clear).frame(width: 17, height: 17)
+            if snapshot {
+                // (ImageRenderer draws no text field)
+                Text(text.isEmpty ? "FIND A SOUND" : text.uppercased()).fz(16, 800)
+                    .foregroundStyle(text.isEmpty ? FZ.muted.opacity(0.7) : FZ.text.color)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                field
+            }
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    IconView(Icons.close, color: .black, lineWidth: 2.8, backdrop: FZ.muted.color).frame(width: 10, height: 10)
+                        .frame(width: 22, height: 22).background(Circle().fill(FZ.muted.color))
+                        .frame(width: 40, height: height).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.leading, 16).padding(.trailing, text.isEmpty ? 16 : 4)
+        .frame(height: height)
+        .background(Capsule().fill(FZ.raised.color))
+        .overlay(Capsule().strokeBorder(text.isEmpty ? FZ.line.color : FZ.cream.mix(60, FZ.line).color, lineWidth: 1.5))
+    }
+}
+
+extension SearchField {
+    private var field: some View {
+        TextField("", text: $text, prompt: Text("FIND A SOUND").foregroundStyle(FZ.muted.opacity(0.7)))
+            .font(FizzFont.font(16, 800))
+            .foregroundStyle(FZ.text.color)
+            .textFieldStyle(.plain)
+            .autocorrectionDisabled()
+            #if os(iOS)
+            .textInputAutocapitalization(.characters)
+            #endif
+            .submitLabel(.search)
+            .focused(focus)
+    }
+}
+
+/// Nothing in the list goes by that name: one quiet line.
+struct NothingCalled: View {
+    let query: String
+    var body: some View {
+        HStack(spacing: 10) {
+            IconView(Icons.find, color: FZ.muted.color, lineWidth: 2.2, backdrop: .clear).frame(width: 18, height: 18)
+            Text("NOTHING CALLED “\(NameSearch.clean(query).uppercased())”").fz(14, 800, em: 0.06)
+                .foregroundStyle(FZ.muted.color).lineLimit(2)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 28)
     }
 }

@@ -2,7 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-// The mock-ups' small line drawings (their SVG icons) as SwiftUI paths: a tiny SVG path reader (M L H V C S Q Z,
+// The mock-ups' small line drawings (their SVG icons) as SwiftUI paths: a tiny SVG path reader (M L H V C S Q A Z,
 // absolute and relative) and the icons themselves.
 
 import SwiftUI
@@ -48,6 +48,11 @@ public enum SVGPath {
                 let c = CGPoint(x: o.x + num(), y: o.y + num())
                 cur = CGPoint(x: o.x + num(), y: o.y + num())
                 p.addQuadCurve(to: cur, control: c); lastCtl = nil
+            case "A":
+                let rx = num(), ry = num(), rot = num(), large = num() != 0, sweep = num() != 0
+                let to = CGPoint(x: o.x + num(), y: o.y + num())
+                arc(&p, from: cur, to: to, rx: rx, ry: ry, rotation: rot, large: large, sweep: sweep)
+                cur = to; lastCtl = nil
             case "Z":
                 p.closeSubpath(); cur = start; lastCtl = nil
                 if hasNum() { cmd = "L" }
@@ -56,6 +61,49 @@ public enum SVGPath {
             }
         }
         return p
+    }
+
+    /// An SVG elliptical arc (the spec's F.6.5 endpoint-to-centre conversion) as cubic curves, a quarter turn at most
+    /// each.
+    static func arc(_ p: inout Path, from a: CGPoint, to b: CGPoint, rx rx0: CGFloat, ry ry0: CGFloat, rotation: CGFloat,
+                    large: Bool, sweep: Bool) {
+        var rx = abs(rx0), ry = abs(ry0)
+        guard a != b else { return }
+        guard rx > 0, ry > 0 else { p.addLine(to: b); return }
+        let phi = rotation * .pi / 180, cp = cos(phi), sp = sin(phi)
+        let dx = (a.x - b.x) / 2, dy = (a.y - b.y) / 2
+        let x1 = cp * dx + sp * dy, y1 = -sp * dx + cp * dy
+        let lam = (x1 * x1) / (rx * rx) + (y1 * y1) / (ry * ry)
+        if lam > 1 { rx *= lam.squareRoot(); ry *= lam.squareRoot() }
+        let num = rx * rx * ry * ry - rx * rx * y1 * y1 - ry * ry * x1 * x1
+        let den = rx * rx * y1 * y1 + ry * ry * x1 * x1
+        var co = den == 0 ? 0 : (max(0, num) / den).squareRoot()
+        if large == sweep { co = -co }
+        let cx1 = co * rx * y1 / ry, cy1 = -co * ry * x1 / rx
+        let cx = cp * cx1 - sp * cy1 + (a.x + b.x) / 2, cy = sp * cx1 + cp * cy1 + (a.y + b.y) / 2
+        func angle(_ ux: CGFloat, _ uy: CGFloat, _ vx: CGFloat, _ vy: CGFloat) -> CGFloat {
+            let s: CGFloat = ux * vy - uy * vx < 0 ? -1 : 1
+            let d = (ux * vx + uy * vy) / ((ux * ux + uy * uy).squareRoot() * (vx * vx + vy * vy).squareRoot())
+            return s * acos(max(-1, min(1, d)))
+        }
+        let t1 = angle(1, 0, (x1 - cx1) / rx, (y1 - cy1) / ry)
+        var dt = angle((x1 - cx1) / rx, (y1 - cy1) / ry, (-x1 - cx1) / rx, (-y1 - cy1) / ry)
+        if !sweep && dt > 0 { dt -= 2 * .pi } else if sweep && dt < 0 { dt += 2 * .pi }
+        let n = max(1, Int(ceil(abs(dt) / (.pi / 2) - 1e-9)))
+        let step = dt / CGFloat(n), k = 4 / 3 * tan(step / 4)
+        func pt(_ t: CGFloat) -> CGPoint {
+            CGPoint(x: cx + rx * cos(t) * cp - ry * sin(t) * sp, y: cy + rx * cos(t) * sp + ry * sin(t) * cp)
+        }
+        func der(_ t: CGFloat) -> CGPoint {
+            CGPoint(x: -rx * sin(t) * cp - ry * cos(t) * sp, y: -rx * sin(t) * sp + ry * cos(t) * cp)
+        }
+        var t = t1
+        for i in 0..<n {
+            let t2 = t + step, p1 = pt(t), p2 = i == n - 1 ? b : pt(t2), d1 = der(t), d2 = der(t2)
+            p.addCurve(to: p2, control1: CGPoint(x: p1.x + k * d1.x, y: p1.y + k * d1.y),
+                       control2: CGPoint(x: p2.x - k * d2.x, y: p2.y - k * d2.y))
+            t = t2
+        }
     }
 
     enum Tok { case cmd(Character), num(CGFloat) }
@@ -83,6 +131,7 @@ public struct VectorArt: Sendable {
         case rect(CGFloat, CGFloat, CGFloat, CGFloat, CGFloat)     // x y w h rx
         case circle(CGFloat, CGFloat, CGFloat)                     // cx cy r
         case filledCircle(CGFloat, CGFloat, CGFloat)               // filled with the backdrop (covers lines)
+        case ellipse(CGFloat, CGFloat, CGFloat, CGFloat)           // cx cy rx ry
     }
     public let box: CGSize
     public let els: [El]
@@ -96,6 +145,8 @@ public struct VectorArt: Sendable {
             Path(roundedRect: CGRect(x: x, y: y, width: w, height: h), cornerRadius: r)
         case .circle(let x, let y, let r), .filledCircle(let x, let y, let r):
             Path(ellipseIn: CGRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r))
+        case .ellipse(let x, let y, let rx, let ry):
+            Path(ellipseIn: CGRect(x: x - rx, y: y - ry, width: 2 * rx, height: 2 * ry))
         }
     }
 
