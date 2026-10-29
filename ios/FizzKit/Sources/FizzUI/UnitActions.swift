@@ -701,6 +701,7 @@ public final class UnitActions {
 
     /// A note on the track's channel (extras.chan; 14 when unknown).
     public func note(channel: Int = 14, note n: Int, velocity: Int) async {
+        if velocity > 0, unit?.onEmulator == true { unit?.emulator?.heard() }    // (the emulated FIZZ's sound on)
         try? await link?.note(channel: channel, note: n, velocity: velocity)
     }
 

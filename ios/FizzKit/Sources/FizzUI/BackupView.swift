@@ -43,7 +43,8 @@ struct BackupView: View {
                                   old: e.isOld(unitLayout: model.layout?.name, unitTracks: model.storeTracks),
                                   unitVersion: model.unit?.shortVersion, flash: b.added == e.name,
                                   onDelete: { b.delete(e) }, onShare: { b.shared(e) },
-                                  onRestore: b.busy || model.actions.busy ? nil : { Task { await model.restoring.present(e) } })
+                                  onRestore: b.busy || model.actions.busy ? nil : { Task { await model.restoring.present(e) } },
+                                  emulated: e.identity == EmulatorHost.identity)
                             .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
                                                     removal: .opacity))
                     }
@@ -91,9 +92,18 @@ struct ThisUnitCard: View {
     var body: some View {
         let v = versionParts(model.unit?.shortVersion ?? "–")
         let b = model.backups
+        // (the emulated FIZZ: THIS iPHONE in the emulator's colour, mock-up 27)
+        let emu = model.onEmulator, accent = PlayTheme.saved.accent
         Card {
             VStack(alignment: .leading, spacing: 16) {
-                Heading(text: "THIS FM-1")
+                if emu {
+                    HStack(spacing: 7) {
+                        IconView(PlayIcons.phone, color: accent.color, lineWidth: 2.4).frame(width: 16, height: 16)
+                        Heading(text: EmulatorHost.hereName, color: accent)
+                    }
+                } else {
+                    Heading(text: "THIS FM-1")
+                }
                 HStack(alignment: .center, spacing: 10) {
                     Text(v.base).fz(50, 800, em: -0.01).foregroundStyle(FZ.text.color).lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -134,6 +144,8 @@ struct ThisUnitCard: View {
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.75), value: b.failure)
         }
+        .background(RoundedRectangle(cornerRadius: 22).fill(accent.opacity(emu ? 0.05 : 0)))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(accent.mix(50, FZ.line).color, lineWidth: 1).opacity(emu ? 1 : 0))
     }
 }
 
@@ -197,6 +209,8 @@ struct BackupRow: View {
     var onShare: () -> Void = {}
     /// RESTORE beside DELETE (I4; nil: not now)
     var onRestore: (() -> Void)?
+    /// the emulated FIZZ's backup (its colour, a phone)
+    var emulated = false
 
     @Environment(\.fizzSnapshot) private var snapshot
     @State private var dx: CGFloat = 0
@@ -205,7 +219,9 @@ struct BackupRow: View {
     static let reveal: CGFloat = 92
     private var reveal: CGFloat { onRestore == nil ? Self.reveal : 2 * Self.reveal }
 
-    private var tint: RGB { entry.isFull ? (old ? FZ.orange : FZ.yellow) : FZ.cream }
+    private var tint: RGB {
+        emulated ? PlayTheme.saved.accent : entry.isFull ? (old ? FZ.orange : FZ.yellow) : FZ.cream
+    }
     private var version: String {
         entry.fizz.replacingOccurrences(of: "-\\d+-g[0-9a-f]+$", with: "", options: .regularExpression)
     }
@@ -268,7 +284,8 @@ struct BackupRow: View {
 
     private var card: some View {
         HStack(spacing: 12) {
-            IconView(Icons.backup, color: tint.color, lineWidth: 2.2, backdrop: tint.mix(18, FZ.raised).color)
+            IconView(emulated ? PlayIcons.phone : Icons.backup, color: tint.color, lineWidth: 2.2,
+                     backdrop: tint.mix(18, FZ.raised).color)
                 .frame(width: 24, height: 24)
                 .frame(width: 44, height: 44)
                 .background(RoundedRectangle(cornerRadius: 13).fill(tint.mix(18, FZ.raised).color))

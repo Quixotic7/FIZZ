@@ -10,6 +10,9 @@ import SwiftUI
 
 @main
 struct FIZZApp: App {
+    // (the iPhone turns sideways only on PLAY)
+    @UIApplicationDelegateAdaptor(FizzAppDelegate.self) private var delegate
+
     var body: some Scene {
         WindowGroup {
             FizzAppView(source: LinkSources.fromArguments())

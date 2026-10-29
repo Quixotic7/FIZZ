@@ -52,8 +52,10 @@ public final class DemoLinkSource: LinkSource, @unchecked Sendable {
 }
 
 public enum LinkSources {
-    /// From the launch arguments: `-demo [update|notfizz|two]` gives the demo unit, else CoreMIDI.
+    /// From the launch arguments: `-demo [update|notfizz|two]` gives the demo unit, `-emulator` no FM-1 at all (the
+    /// emulated FIZZ is the unit), else CoreMIDI.
     public static func fromArguments(_ args: [String] = ProcessInfo.processInfo.arguments) -> any LinkSource {
+        if args.contains("-emulator") { return NoPorts() }
         if let k = args.firstIndex(of: "-demo") {
             let v = k + 1 < args.count ? DemoVariant(rawValue: args[k + 1]) : nil
             return DemoLinkSource(v ?? .fizz)
