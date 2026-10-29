@@ -150,12 +150,13 @@ struct PillButton: View {
     }
 }
 
-/// A filter chip (.fchip): a square of its colour, its name; lit when on.
+/// A filter chip (.fchip): a square of its colour (a tag's chip: the tag's icon), its name; lit when on.
 struct FilterChip: View {
     let title: String
     let color: RGB
     var on = false
     var poolIcon = false
+    var tag: FizzTag?
     var height: CGFloat = 36
     var action: () -> Void = {}
 
@@ -164,6 +165,8 @@ struct FilterChip: View {
             HStack(spacing: 8) {
                 if poolIcon {
                     IconView(Icons.poolChip, color: on ? .black : color.color, fill: true).frame(width: 14, height: 14)
+                } else if let tag {
+                    TagIcon(tag, color: on ? .black : color.color, lineWidth: 2.4).frame(width: 16, height: 16)
                 } else {
                     RoundedRectangle(cornerRadius: 3).fill(on ? Color.black : color.color).frame(width: 10, height: 10)
                 }
@@ -218,8 +221,9 @@ struct PresetRow: View {
     var body: some View {
         let tint = FizzTag.tint(mask: entry.tags)
         HStack(spacing: marks ? 10 : 8) {
-            Text("\(entry.slot)").fz(13, 700).monospacedDigit().foregroundStyle(FZ.muted.color)
-                .frame(width: marks ? 24 : 20, alignment: .trailing)
+            // (room for three digits: MY PRESETS 100..256 broke onto two lines)
+            Text("\(entry.slot)").fz(13, 700).monospacedDigit().foregroundStyle(FZ.muted.color).lineLimit(1)
+                .frame(width: marks ? 30 : 27, alignment: .trailing)
             AlgoGlyph(algorithm: algorithm, color: tint.color).frame(width: 30, height: 30)
             Text(entry.name).fz(nameSize, 800, em: 0.03).foregroundStyle(FZ.text.color).lineLimit(1)
             Spacer(minLength: 4)
