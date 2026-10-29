@@ -9,13 +9,15 @@
 // one asks once (ui.js confirmBox), saying what it does to the unit's undo: each change is one undo level (SHIFT +
 // F1), the pool's swaps and a project load excepted (they forget the levels).
 import { FIZZ_TAGS, parseDump } from "../js/fizz_sysex.js";
-import { esc, tagsOf, colOf, refusal, confirmBox, midiChip } from "./ui.js";
+import { esc, tagsOf, colOf, refusal, confirmBox, midiChip, tagIcon } from "./ui.js";
 import { isMidiBlob } from "./sound.js";
 import { newFilter, filterHtml, filterClick, listHtml, poolPlaces } from "./presets.js";
 
+const DN = '<svg class="dn" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7"/></svg>';   // (where a move goes)
+
 export function mountPool(ctx) {
   const { S, $, say, toast, edit, refreshRows, frameOf, projectName, poolSet } = ctx;
-  const P = { sel: 0, pick: null, users: new Map(), gen: 0, filling: false, run: false, fizz: new Map(), dragFrom: null, filter: newFilter() };
+  const P = { sel: 0, pick: null, users: new Map(), gen: 0, filling: false, run: false, fizz: new Map(), dragFrom: null, filter: newFilter(), move: null };
   const grid = $("p-grid"), mine = $("p-list"), proj = $("p-proj");
   const rows = () => (S.unit ? S.unit.rows : []);
   const pool = () => new Map(rows().filter((r) => r.source === "pool").map((r) => [r.slot, r]));
@@ -34,11 +36,14 @@ export function mountPool(ctx) {
     if (P.sel === k) cls.push("sel");
     if (P.fizz.has(k)) cls.push("fizz");
     if (e && P.pick && e.id === P.pick) cls.push("here");
-    if (!e) return `<button class="${cls.join(" ")}" data-k="${k}" aria-label="Pool ${k}, empty"><span class="no hud">${k}</span></button>`;
+    if (P.move && P.move.a === k) cls.push("moving");
+    const dn = P.move && P.move.b === k ? DN : "";
+    if (dn) cls.push("mvto");
+    if (!e) return `<button class="${cls.join(" ")}" data-k="${k}" aria-label="Pool ${k}, empty"><span class="no hud">${k}</span>${dn}</button>`;
     cls.push("full");
     const dot = u && u.steps ? '<i class="use" aria-hidden="true"></i>' : "";
     return `<button class="${cls.join(" ")}" style="--c:${colOf(e.tags)};--i:${k % 16}" data-k="${k}" draggable="${can()}" aria-label="Pool ${k}, ${esc(e.name)}${u ? `, ${u.steps} steps` : ""}">` +
-      `<span class="no hud">${k}</span><span class="ring" aria-hidden="true"></span><span class="nm">${esc(e.name)}</span>${midiChip(midiOf(e))}${dot}</button>`;
+      `<span class="no hud">${k}</span>${tagsOf(e.tags)[0] ? tagIcon(tagsOf(e.tags)[0]) : '<span class="ring" aria-hidden="true"></span>'}<span class="nm">${esc(e.name)}</span>${midiChip(midiOf(e))}${dot}${dn}</button>`;
   }
   function render() {
     const u = S.unit, pm = pool(), st = u && u.status;
@@ -113,11 +118,46 @@ export function mountPool(ctx) {
     if (x && x.status === 0) { const p = presetOf(id); poolSet(x.a, p || { id, name: "?", tags: 0 }); bubble(x.a); }
     await after(x, "", (rs) => { const e = at(rs, x.a); return !!e && e.id === id; });
   }
+  // the moving card: the sound's ring and name, where it goes, the steps that lock it (when known), what it does to the
+  // unit's undo (cleared, as every pool swap); CANCEL / MOVE TO (SWAP onto a sound); ESC, ENTER. -> Promise<boolean>
+  let mvDone = null;
+  const marks = () => grid.querySelectorAll(".ps").forEach((x) => {
+    const k = +x.dataset.k, d = !!P.move && P.move.b === k, dn = x.querySelector(".dn");
+    x.classList.toggle("moving", !!P.move && P.move.a === k);
+    x.classList.toggle("mvto", d);
+    if (d && !dn) x.insertAdjacentHTML("beforeend", DN);
+    else if (!d && dn) dn.remove();
+  });
+  function askMove(a, b) {
+    if (mvDone) mvDone(false);
+    const pm = pool(), ea = pm.get(a), eb = pm.get(b), ua = P.users.get(a), ub = P.users.get(b), card = $("p-move");
+    const steps = eb ? (ua && ub ? ua.steps + ub.steps : null) : ua ? ua.steps : null;
+    card.innerHTML = `<div class="mvtop"><span class="pring"><span class="hud">${a}</span></span>
+      <div class="mvtxt"><b class="mvnm">${esc(ea ? ea.name : "—")}${eb ? ` ↔ ${esc(eb.name)}` : ""}</b>
+        <span class="mvline">${eb ? `Swapping ${a} ↔ <b>${b}</b>. Their locks follow.` : `Moving ${a} → <b>${b}</b>. Its locks follow.`}</span>
+        <span class="mvundo hud">UNDO ON THE FM-1 CLEARS</span></div>
+      ${steps !== null ? `<span class="mvsteps"><span class="num">${steps}</span><span class="lbl">steps</span></span>` : ""}</div>
+      <div class="mvacts"><button class="ol" id="p-mv-no">CANCEL</button><button class="arc breathe" id="p-mv-go" style="--c:var(--green)">${eb ? "SWAP" : `MOVE TO ${b}`}</button></div>`;
+    P.move = { a, b };
+    marks();
+    card.hidden = false;
+    $("p-mv-go").focus({ preventScroll: true });
+    return new Promise((res) => {
+      const end = (v) => { mvDone = null; P.move = null; card.hidden = true; marks(); document.removeEventListener("keydown", key, true); res(v); };
+      const key = (ev) => {
+        if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); end(false); }
+        else if (ev.key === "Enter" && document.activeElement !== $("p-mv-no")) { ev.preventDefault(); ev.stopPropagation(); end(true); }
+      };
+      mvDone = end;
+      document.addEventListener("keydown", key, true);
+      $("p-mv-go").onclick = () => end(true);
+      $("p-mv-no").onclick = () => end(false);
+    });
+  }
   async function swap(a, b) {
     if (a === b) return null;
     const pm = pool(), ea = pm.get(a), eb = pm.get(b);
-    const ok = await confirmBox({ title: eb ? `SWAP POOL ${a} ↔ ${b}` : `MOVE POOL ${a} → ${b}`, what: eb ? `${ea ? ea.name : "—"} ↔ ${eb.name}` : ea ? ea.name : "",
-      sub: "Every pattern's steps follow (the FM-1 stopped).", go: eb ? "SWAP" : "MOVE", color: "--yellow", undo: "cleared" });
+    const ok = await askMove(a, b);
     if (!ok) return null;
     say("");
     const x = await edit("SWAP", (l) => l.swap("pool", a, b));
@@ -282,6 +322,7 @@ export function mountPool(ctx) {
   return {
     render,
     show() { forget(); render(); },
+    hide() { if (mvDone) mvDone(false); },
     fizz: (k) => bubble(k),
     forget,
   };

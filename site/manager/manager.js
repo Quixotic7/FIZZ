@@ -409,8 +409,10 @@ $("go-presets").addEventListener("click", () => backup("presets"));
 
 // ---------------------------------------------------------------- the list of backups
 const ICON = '<svg viewBox="0 0 22 22" aria-hidden="true"><rect x="2" y="5" width="18" height="12" rx="3"/><circle cx="8" cy="11" r="2"/><circle cx="14" cy="11" r="2"/></svg>';
-const SAVE_I = '<svg viewBox="0 0 20 20"><path d="M10 3v10M5 9l5 5 5-5M3 17h14"/></svg>';
-const DEL_I = '<svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg>';
+const SAVE_I = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10M5 9l5 5 5-5M3 17h14"/></svg>';
+const DEL_I = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>';
+const SHARE_I = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4M5 13v6h14v-6"/></svg>';
+const MORE_I = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
 const PLAY_I = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5l9.5 5.5L4 13.5z"/></svg>';
 function whenText(t) {
   const d = new Date(t), now = new Date(), hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -419,7 +421,9 @@ function whenText(t) {
   return dd === 0 ? `Today ${hm}` : dd === 1 ? `Yesterday ${hm}` : `${d.getDate()} ${d.toLocaleString("en", { month: "short" })} ${hm}`;
 }
 function unitTracks() { return S.unit && S.unit.summary ? S.unit.summary.tracks : null; }
+let bakMenu = null;                                     // (the row's ••• menu open: { el, btn })
 function renderBaks() {
+  closeBakMenu();
   const el = $("baks"), u = S.unit;
   el.innerHTML = S.baks.map((b, i) => {
     const ul = u && u.info && layoutOf(u.info.size), pkgs = ["device", "ble"];   // (one package's backup restores onto the other: fitModel)
@@ -432,10 +436,10 @@ function renderBaks() {
     return `<div class="bk tube ${fresh ? "pop" : ""} ${i === 0 ? "on" : ""} ${b.kind === "presets" ? "presets" : old ? "old" : b.safety ? "safety" : ""}" data-i="${i}" style="--i:${Math.min(i, 12)}">
       <span class="ic">${ICON}</span><div class="txt"><div class="when">${esc(whenText(b.date))}${b.date >= PAGE_T0 ? '<span class="new hud">NEW</span>' : ""}</div><div class="what">${esc(what)}</div></div>
       ${ver ? `<span class="ver hud ${old ? "old" : ""}">${esc(ver)}</span>` : ""}
-      <div class="bka"><button class="icon ${isSaved(b) ? "saved" : "unsaved"}" data-act="save" aria-label="Save ${esc(b.name)} to a file${isSaved(b) ? " (saved before)" : " (not saved to a file yet)"}" title="${isSaved(b) ? "Save to a file again" : "Save to a file"}">${SAVE_I}</button>
-      <button class="icon" data-act="del" aria-label="Delete from this browser" title="Delete from this browser">${DEL_I}</button>
-      ${b.kind === "full" && typeof b.id === "number" ? `<button class="icon play" data-act="play" aria-label="Play ${esc(b.name)} in the browser's FIZZ" title="Play in the browser's FIZZ">${PLAY_I}</button>` : ""}
-      <button class="ol rsb" data-act="restore" ${S.link && !S.busy ? "" : "disabled"}>RESTORE</button></div></div>`;
+      <div class="bka">${b.kind === "full" && typeof b.id === "number" ? `<button class="icon play" data-act="play" aria-label="Play ${esc(b.name)} in the browser's FIZZ" title="Play in the browser's FIZZ">${PLAY_I}</button>` : ""}
+      <button class="ol rsb" data-act="restore" ${S.link && !S.busy ? "" : "disabled"}>RESTORE</button>
+      <button class="icon share ${isSaved(b) ? "saved" : "unsaved"}" data-act="share" aria-label="Share ${esc(b.name)}${isSaved(b) ? "" : " (not saved to a file yet)"}" title="${isSaved(b) ? "Share" : "Share (not saved to a file yet)"}">${SHARE_I}</button>
+      <button class="icon more" data-act="more" aria-haspopup="menu" aria-expanded="false" aria-label="More for ${esc(b.name)}">${MORE_I}</button></div></div>`;
   }).join("");
   for (const b of S.baks) seenBaks.add(b.id ?? b.name);   // (a row pops in once, when it first shows)
   renderUse();
@@ -449,22 +453,71 @@ function renderUse() {
 if (navigator.storage && navigator.storage.estimate) {
   navigator.storage.estimate().then((e) => { if (e && e.quota) { quota = `of ${mb(e.quota)}`; renderUse(); } }).catch(() => {});
 }
+// share (NEON): the file to the system's share sheet where the browser can share files (a phone), else saved to a
+// file as before; shared counts as saved (a copy is outside this browser now); cancelled: nothing
+async function shareBak(b) {
+  let file = null, can = false;
+  try { file = new File([b.bytes], b.name, { type: "application/octet-stream" }); can = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [file] })); } catch (_) { can = false; }
+  if (!can) return saveBak(b);
+  try { await navigator.share({ files: [file] }); } catch (e) {
+    if (e && e.name === "AbortError") return null;
+    log(`share: ${e && e.message}: saved to a file instead`);
+    return saveBak(b);
+  }
+  log(`shared ${b.name}`);
+  if (!isSaved(b)) { b.saved = true; if (typeof b.id === "number") await DB.set(b); renderBaks(); }
+  return null;
+}
+// the row's ••• menu: SAVE TO FILE, DELETE (a small popover by the button)
+function closeBakMenu(refocus = false) {
+  if (!bakMenu) return;
+  const { el, btn } = bakMenu;
+  bakMenu = null;
+  el.remove();
+  btn.setAttribute("aria-expanded", "false");
+  if (refocus && btn.isConnected) btn.focus();
+}
+function openBakMenu(btn, b) {
+  closeBakMenu();
+  const m = document.createElement("div");
+  m.className = "bkmenu";
+  m.id = "bk-menu";
+  m.setAttribute("role", "menu");
+  m.innerHTML = `<button role="menuitem" data-act="save" class="${isSaved(b) ? "" : "unsaved"}">${SAVE_I}SAVE TO FILE</button><button role="menuitem" data-act="del" class="del">${DEL_I}DELETE</button>`;
+  document.body.appendChild(m);
+  const r = btn.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = `${Math.max(12, Math.min(window.innerWidth - w - 12, r.right - w))}px`;
+  m.style.top = `${r.bottom + 8 + h > window.innerHeight - 8 ? Math.max(8, r.top - h - 8) : r.bottom + 8}px`;
+  btn.setAttribute("aria-expanded", "true");
+  bakMenu = { el: m, btn };
+  m.addEventListener("click", (ev) => { const x = ev.target.closest("[data-act]"); if (!x) return; closeBakMenu(); bakAct(x.dataset.act, b); });
+  m.querySelector("button").focus();
+}
+document.addEventListener("pointerdown", (ev) => { if (bakMenu && !bakMenu.el.contains(ev.target) && ev.target !== bakMenu.btn && !bakMenu.btn.contains(ev.target)) closeBakMenu(); }, true);
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && bakMenu) { ev.preventDefault(); closeBakMenu(true); } });
+$("baks").addEventListener("scroll", () => closeBakMenu(), { passive: true });
+window.addEventListener("resize", () => closeBakMenu());
 $("baks").addEventListener("click", async (ev) => {
   const btn = ev.target.closest("button[data-act]");
   if (!btn) return;
   const b = S.baks[+btn.closest(".bk").dataset.i];
   if (!b) return;
-  if (btn.dataset.act === "save") saveBak(b);
-  else if (btn.dataset.act === "del") {
+  if (btn.dataset.act === "more") { if (bakMenu && bakMenu.btn === btn) closeBakMenu(); else openBakMenu(btn, b); return; }
+  bakAct(btn.dataset.act, b);
+});
+async function bakAct(act, b) {
+  if (act === "save") saveBak(b);
+  else if (act === "share") shareBak(b);
+  else if (act === "del") {
     const ok = await confirmBox({ title: "DELETE BACKUP", what: whenText(b.date), go: "DELETE",
       sub: isSaved(b) ? "From this browser. Its saved file stays." : "<b style='color:var(--yellow)'>Not saved to a file: this is its only copy.</b>" });
     if (!ok) return;
     if (typeof b.id === "number") await DB.del(b.id);
     S.baks.splice(S.baks.indexOf(b), 1);
     renderBaks();
-  } else if (btn.dataset.act === "restore") openFile(b.bytes, b.name, b);
-  else if (btn.dataset.act === "play") window.open(`../?backup=${b.id}`, "_blank");   // (js/backup-play.js reads it there)
-});
+  } else if (act === "restore") openFile(b.bytes, b.name, b);
+  else if (act === "play") window.open(`../?backup=${b.id}`, "_blank");   // (js/backup-play.js reads it there)
+}
 // a file dropped or chosen: kept in the list, then the restore offered
 async function openFile(bytes, name, rec = null) {
   let parsed;
@@ -1253,7 +1306,7 @@ function tab(name) {
     $(`tab-${t}`).hidden = t !== name;
   }
   if (name !== "backup") loadDumps();
-  if (name === "pool") pool.show();
+  if (name === "pool") pool.show(); else pool.hide();   // (a move asked: cancelled when POOL is left)
   if (name === "import") importer.render();
   if (name === "edit") { editor.show(); live.show(); if (bfizz.ready && editor.sound() && !live.on()) browserTarget.audition(editor.sound()); } else live.hide();
   if (name === "projects") projtab.show();

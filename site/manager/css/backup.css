@@ -2,8 +2,8 @@
 /* FIZZ Manager: BACKUP in FIZZ NEON (PhoneBackup): THIS FM-1 a yellow tube (the version big, its beta a chip, three
    numbers, the store as 32 LED cells: MY PRESETS cream, PROJECTS green, their room dark), BACK UP the yellow fill that
    breathes (bubbles rise from it after a backup), PRESETS ONLY outlined; the backups as tubes (the newest lit, NEW on
-   one made since the page opened, the version a HUD box, orange for another FIZZ's), each with save, delete, play and
-   RESTORE; the file drop under them. */
+   one made since the page opened, the version a HUD box, orange for another FIZZ's), each with play, RESTORE, share
+   and a ••• menu (SAVE TO FILE, DELETE); the file drop under them. */
 #tab-backup { --c: var(--yellow); gap: 24px; }
 #tab-backup .this { flex: 0 0 520px; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
 #tab-backup .list { flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
@@ -77,10 +77,26 @@
 .bk .ver.old { color: var(--orange); border-color: var(--orange); }
 .bk .icon { width: 40px; height: 40px; border-radius: 50%; }
 .bk .icon:not(:disabled):hover { border-color: var(--text); }
-.bk .icon.saved { border-color: color-mix(in srgb, var(--green) 55%, transparent); }
-.bk .icon.saved svg { stroke: var(--green); }
-.bk .icon.unsaved { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 12%, transparent); }
-.bk .icon.unsaved svg { stroke: var(--yellow); }
+/* share (NEON): plain at rest; yellow with a dot while the backup is not in a file yet (this browser holds the only copy) */
+.bk .icon.share { border-color: transparent; position: relative; }
+.bk .icon.share svg { width: 20px; height: 20px; stroke: var(--muted); }
+.bk .icon.share:not(:disabled):hover svg { stroke: var(--text); }
+.bk .icon.share.unsaved { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 12%, transparent); }
+.bk .icon.share.unsaved svg { stroke: var(--yellow); }
+.bk .icon.share.unsaved::after { content: ""; position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 8px var(--yellow); animation: led 1.4s ease-in-out infinite; }
+.bk .icon.more { border-color: transparent; width: 36px; }
+.bk .icon.more svg { fill: var(--muted); stroke: none; }
+.bk .icon.more:hover svg, .bk .icon.more[aria-expanded="true"] svg { fill: var(--text); }
+.bk .icon.more[aria-expanded="true"] { border-color: color-mix(in srgb, var(--c) 55%, transparent); }
+/* the ••• menu: SAVE TO FILE, DELETE */
+.bkmenu { --c: var(--yellow); position: fixed; z-index: 9; display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 16px; min-width: 180px;
+  background: rgba(10, 10, 15, .97); border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); box-shadow: 0 0 18px -6px var(--c), 0 12px 30px rgba(0, 0, 0, .6); animation: pop .2s var(--snap) both; }
+.bkmenu button { height: 42px; padding: 0 14px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 11px; background: transparent; color: var(--text);
+  font-weight: 800; font-size: 11px; letter-spacing: .12em; white-space: nowrap; text-align: left; }
+.bkmenu button:hover, .bkmenu button:focus-visible { background: color-mix(in srgb, var(--c) 12%, transparent); outline: none; }
+.bkmenu svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.bkmenu .unsaved { color: var(--yellow); }
+.bkmenu .del { color: var(--red); --c: var(--red); }
 /* ▶: the backup in the browser's FIZZ (the player opens with it) */
 .bk .icon.play { width: 42px; height: 42px; border: 0; background: var(--cyan); box-shadow: 0 0 16px -2px color-mix(in srgb, var(--cyan) 60%, transparent); }
 .bk .icon.play svg { width: 16px; height: 16px; fill: #000; stroke: none; margin-left: 3px; }
