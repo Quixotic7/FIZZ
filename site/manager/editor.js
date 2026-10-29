@@ -19,9 +19,10 @@
 // (the FM-1's track: an AUDITION; the browser's FIZZ: its STORE6 with LOAD).
 // FIZZ NEON (2026-10-29): ALGO's ‹ ›; the knob row under OPERATORS (HARM DTUN FDBK MIX DRIVE LEVEL); the tag one chip
 // beside the name (a popover of the seven); REVERT / SAVE AS NEW / SAVE fixed at the bottom on a phone; the keys shown or
-// hidden (remembered). The computer's fit: from 1200 x 700 the panel fits the window (the sections in three columns,
-// values small tiles, the drawings drawn in the room left); a group still too tall shows one part at a time with its
-// pills (measured), as a phone always does (the last pill picked remembered).
+// hidden (remembered). One panel or pages (the owner: "keep one panel but then tabs once they are too small to fit"):
+// from 1200 x 700 the panel is tried in three columns (values small tiles, the drawings drawn in the room left); if a
+// column runs over (measured), or on a smaller window, each section is a page of its own under tabs (the last one
+// remembered). DRIVE and LEVEL show in the knob row and, as pages, on DRIVE · CRUSH and AMP too.
 //   mountEditor(ctx) -> { open(sound, place), show(), sound(), setTarget(t), render() }
 import { VALUES, ALGOS, DEST_ORDER, Q, lfo, mod, LF, info, text, clampV, stepOf, tickStep, isHundredths, isHi, frac, defaults, copySound, sameValues, tagNames } from "./sound.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
@@ -46,8 +47,9 @@ export function mountEditor(ctx) {
   const { $, log = () => {} } = ctx;
   const E = { s: null, base: null, place: { label: "NEW SOUND" }, op: 1, oct: 0, held: new Map(), target: null,
     drag: null, raf: 0, picker: null, rec: false, onChange: null, live: false, dims: new Map(), view: {} };
-  const VIEW_KEY = "fizz-manager-edit-view";        // (the pill last picked in each group, remembered)
-  try { Object.assign(E.view, JSON.parse(localStorage.getItem(VIEW_KEY) || "{}")); } catch (_) { /* (none) */ }
+  const PAGE_KEY = "fizz-manager-edit-page";        // (the page last shown, remembered)
+  E.mode = "";                                       // "panel" (every section) or "tabs" (a page each)
+  E.page = (() => { try { return localStorage.getItem(PAGE_KEY) || "ops"; } catch (_) { return "ops"; } })();
   const stage = $("ed-stage"), head = $("ed-head"), kb = $("ed-keys");
   // the KEEP / CANCEL card (live.js) when it sits fixed at the bottom (a phone): its room as --lbh, for the save bar
   // and POOL's moving card to sit above it
@@ -67,6 +69,7 @@ export function mountEditor(ctx) {
     try { localStorage.setItem(KB_KEY, on ? "1" : "0"); } catch (_) { /* (no storage: this page only) */ }
     kb.hidden = !on;
     renderHead();
+    decide();                                       // (the keys' room: the panel may fit now, or no longer)
   }
 
   // ---------------------------------------------------------------- values
@@ -175,10 +178,7 @@ export function mountEditor(ctx) {
     });
     return again;
   }
-  // the phone's pills: a group's part shown (ENV A / B, FILTER / ENV, LFO 1..3); on a computer every part shows
-  const pills = (key, list) => `<div class="pills" role="group">${list.map(([l, c], i) =>
-    `<button data-view="${key}:${i}" class="${(E.view[key] || 0) === i ? "on" : ""}" aria-pressed="${(E.view[key] || 0) === i}" style="--c:var(${c})">${l}</button>`).join("")}</div>`;
-  const shownCls = (key, i) => ((E.view[key] || 0) === i ? " on" : "");
+  const tabs = () => E.mode === "tabs";
 
   // ---------------------------------------------------------------- envelopes
   // ADSR: attack to the top, decay to the sustain level, held, released; handles on the corners
@@ -262,27 +262,26 @@ export function mountEditor(ctx) {
   // OP ENV: the two operator envelopes (A: operator A; B: B1 and B2) as shapes, DELAY a handle at the start, LEVEL a
   // bar, the operators' TRIG and RESET
   const OPENV = [[Q.AATK, Q.ADEC, Q.AEND, Q.ALEV, Q.ADLY, Q.ATRIG, Q.ARST], [Q.BATK, Q.BDEC, Q.BEND, Q.BLEV, Q.BDLY, Q.BTRIG, Q.BRST]];
-  // an operator envelope's line in w x h; the other one faint behind it (shown on a phone, one envelope at a time)
+  // an operator envelope's line in w x h
   function envSvg(k, w, h) {
     const X = (w - 30) * 0.3 / 127, top = 18, bot = h - 12, Y = (lv) => bot - (bot - top) * lv / 127;
     const line = (j) => {
       const [atk, dec, end, , dly] = OPENV[j], p0 = [12 + v(dly) * X, bot], p1 = [p0[0] + v(atk) * X, top], p2 = [p1[0] + v(dec) * X, Y(v(end))], p3 = [w - 12, Y(v(end))];
       return { p0, p1, p2, p3, d: `M12 ${bot} L${p0[0].toFixed(1)} ${bot} L${p1[0].toFixed(1)} ${top} L${p2[0].toFixed(1)} ${p2[1].toFixed(1)} L${p3[0]} ${p3[1].toFixed(1)}` };
     };
-    const [atk, dec, end, , dly] = OPENV[k], c = k ? K.c3 : K.c2, L = line(k), G = line(1 - k);
-    return `<svg class="env" viewBox="0 0 ${w} ${h}"><path d="${G.d}" class="ghost" style="--g:var(${k ? K.c2 : K.c3})"/><path d="${L.d} L${L.p3[0]} ${bot} Z" class="area"/><path d="${L.d}" class="line"/>
+    const [atk, dec, end, , dly] = OPENV[k], c = k ? K.c3 : K.c2, L = line(k);
+    return `<svg class="env" viewBox="0 0 ${w} ${h}"><path d="${L.d} L${L.p3[0]} ${bot} Z" class="area"/><path d="${L.d}" class="line"/>
       ${handle(L.p0[0], bot, { xid: dly, xs: 127 * X, c: "--muted", r: 8 })}${handle(L.p1[0], top, { xid: atk, xs: 127 * X, c, r: 10 })}${handle(L.p2[0], L.p2[1], { xid: dec, xs: 127 * X, yid: end, ys: bot - top, c: "--yellow", r: 10 })}</svg>`;
   }
   function openvPanel() {
     const env = (k) => {
       const [atk, dec, end, lev, dly, trg, rst] = OPENV[k], c = k ? K.c3 : K.c2;
-      return `<div class="sub envc${shownCls("openv", k)}" style="--c:var(${c})"><div class="row"><span class="cn">ENV ${k ? "B" : "A"}</span><span class="kv">${k ? "B1 · B2" : "A"}</span>
+      return `<div class="sub envc" style="--c:var(${c})"><div class="row"><span class="cn">ENV ${k ? "B" : "A"}</span><span class="kv">${k ? "B1 · B2" : "A"}</span>
           <span class="tgs">${tog(trg, "TRIG", c)}${tog(rst, "RESET", c)}</span></div>
         ${box(`env${k}`, 420, 150, (w, h) => envSvg(k, w, h))}
-        <div class="row wrap">${chip(atk, "ATK", c)}${chip(dec, "DEC", c)}${chip(end, "END", c)}${chip(dly, "DLY", c)}${FIT_MQ.matches ? chip(lev, "LEVEL", c) : ""}</div>
-        ${FIT_MQ.matches ? "" : bar(lev, "LEVEL", c)}</div>`;   // (the fit: LEVEL a tile in the row)
+        <div class="row wrap">${chip(atk, "ATK", c)}${chip(dec, "DEC", c)}${chip(end, "END", c)}${chip(dly, "DLY", c)}${chip(lev, "LEVEL", c)}</div></div>`;
     };
-    return `${pills("openv", [["ENV A", K.c2], ["ENV B", K.c3]])}<div class="duo">${env(0)}${env(1)}</div>`;
+    return `<div class="duo">${env(0)}${env(1)}</div>`;
   }
 
   // FILTER: the machine as chips, its curve with FREQ and RESO (GAIN on the EQ) the handle; the filter envelope; the
@@ -320,10 +319,9 @@ export function mountEditor(ctx) {
     const legacy = m === 0 ? segOf(Q.FTYPE, K.c4, [[0, "OFF"], [1, "LP12"], [2, "HP12"]]) : "";
     const shape = m >= 2 ? chip(Q.FSHAPE, m === 2 ? "TYPE" : m === 5 ? "Q" : "LPF", K.c3) : "";
     return `<div class="row wrap">${machines}${legacy}</div>
-      ${pills("filter", [["FILTER", K.c4], ["ENV", K.c4]])}
-      <div class="duo filt"><div class="sub fcurve${shownCls("filter", 0)}">${box("curve", 600, 300, curve)}
+      <div class="duo filt"><div class="sub fcurve">${box("curve", 600, 300, curve)}
           <div class="row wrap">${m === 5 ? chip(Q.FGAIN, "GAIN", K.c2) : chip(Q.RESO, m >= 3 && m <= 4 ? "FDBK" : "RESO", K.c2)}${shape}${chip(Q.FKTRK, "KEY TRK", K.c3)}</div></div>
-        <div class="sub fenv${shownCls("filter", 1)}">${box("fenv", 420, 150, (w, h) => adsr([Q.FATK, Q.FDEC, Q.FSUS, Q.FREL], K.c4, { w, h, label: "ENV" }))}
+        <div class="sub fenv">${box("fenv", 420, 150, (w, h) => adsr([Q.FATK, Q.FDEC, Q.FSUS, Q.FREL], K.c4, { w, h, label: "ENV" }))}
           <div class="row wrap">${chip(Q.FDEPTH, "DEPTH", K.c4, "big")}${chip(Q.FDLY, "DLY", K.c4)}</div>
           <div class="row wrap">${chip(Q.FATK, "ATK", K.c4)}${chip(Q.FDEC, "DEC", K.c4)}${chip(Q.FSUS, "SUS", K.c4)}${chip(Q.FREL, "REL", K.c4)}</div></div></div>
       <div class="row wrap">${chip(Q.BASE, "BASE", K.c1)}${chip(Q.WIDTH, "WIDTH", K.c2)}${seg(Q.BWPOST, K.c3, ["BASE · WIDTH BEFORE", "AFTER"])}</div>`;
@@ -336,7 +334,7 @@ export function mountEditor(ctx) {
       ${box(`amp${ahd ? 1 : 0}`, 520, 170, (w, h) => adsr([Q.EATK, Q.EDEC, Q.ESUS, Q.EREL], K.c3, { w, h, ahd }))}
       <div class="row wrap">${ahd ? chip(Q.EATK, "ATK", K.c3) + chip(Q.HOLD, "HOLD", "--yellow") + chip(Q.EDEC, "DEC", K.c3)
         : chip(Q.EATK, "ATK", K.c3) + chip(Q.EDEC, "DEC", K.c3) + chip(Q.ESUS, "SUS", K.c3) + chip(Q.EREL, "REL", K.c3)}</div>
-      ${FIT_MQ.matches ? "" : bar(Q.LEVEL, "LEVEL", K.c3)}`;   // (the computer's fit: LEVEL in the knob row only)
+      ${tabs() ? bar(Q.LEVEL, "LEVEL", K.c3) : ""}`;   // (one panel: LEVEL in the knob row; a page: here too)
   }
 
   // DRIVE and its route; CRUSH (the bits, the rate, before / after)
@@ -351,12 +349,10 @@ export function mountEditor(ctx) {
   }
   function drivePanel() {
     // (the computer's fit: the drawing, then the two routes as pickers beside BITS and SRR; DRIVE in the knob row)
-    if (FIT_MQ.matches) return `${box("crush", 380, 90, crushSvg)}<div class="row wrap">${pick(Q.DRPRE, "DRIVE", "--orange")}${pick(Q.CRPOST, "CRUSH", "--pink")}` +
-      `${chip(Q.BITS, "BITS", "--pink")}${chip(Q.SRR, "SRR", "--pink")}</div>`;
+    // (one panel: DRIVE in the knob row; a page: its dial here too)
+    return `${tabs() ? `<div class="row drv">${dial(Q.DRIVE, "DRIVE", "--orange")}</div>` : ""}${box("crush", 380, 90, crushSvg)}` +
+      `<div class="row wrap">${pick(Q.DRPRE, "DRIVE", "--orange")}${pick(Q.CRPOST, "CRUSH", "--pink")}${chip(Q.BITS, "BITS", "--pink")}${chip(Q.SRR, "SRR", "--pink")}</div>`;
     // (the computer's fit: DRIVE in the knob row only)
-    return `<div class="row wrap drv">${FIT_MQ.matches ? "" : dial(Q.DRIVE, "DRIVE", "--orange")}${seg(Q.DRPRE, "--orange", ["AFTER FILTER", "BEFORE"])}</div>
-      <div class="sub crushc" style="--c:var(--pink)"><div class="row crh"><span class="cn">CRUSH</span>${FIT_MQ.matches ? seg(Q.CRPOST, "--pink", ["BEFORE FILTER", "AFTER"]) : ""}</div>${box("crush", 380, 90, crushSvg)}
-        <div class="row wrap">${chip(Q.BITS, "BITS", "--pink")}${chip(Q.SRR, "SRR", "--pink")}${FIT_MQ.matches ? "" : seg(Q.CRPOST, "--pink", ["BEFORE FILTER", "AFTER"])}</div></div>`;
   }
 
   // a wave's glyph (TRI SINE SQR SAW RAMP EXP RAND), for the wave's choice
@@ -390,12 +386,11 @@ export function mountEditor(ctx) {
     };
     const card = (k) => {
       const c = LFOC[k];
-      return `<div class="sub lfoc${shownCls("lfo", k)}" style="--c:var(${c})"><div class="row"><span class="cn">LFO ${k + 1}</span>${pick(lfo(k, LF.DEST), "DEST", c, "dest")}</div>
+      return `<div class="sub lfoc" style="--c:var(${c})"><div class="row lfh"><span class="cn">LFO ${k + 1}</span></div>
         ${box(`lfo${k}`, 420, 80, (w, h) => wave(k, w, h))}
-        <div class="row wrap">${FIT_MQ.matches ? pick(lfo(k, LF.WAVE), "WAVE", c) + pick(lfo(k, LF.TRIG), "TRIG", c) : ""}${chip(lfo(k, LF.SPEED), "SPEED", c)}${chip(lfo(k, LF.DEPTH), "DEPTH", c)}${chip(lfo(k, LF.MULT), "MULT", c)}${chip(lfo(k, LF.FADE), "FADE", c)}${chip(lfo(k, LF.PHASE), "PHASE", c)}</div>
-        ${FIT_MQ.matches ? "" : `<div class="row wrap">${waveSeg(lfo(k, LF.WAVE), c)}${seg(lfo(k, LF.TRIG), c)}</div>`}</div>`;   // (the fit: WAVE, TRIG chips)
+        <div class="row wrap">${pick(lfo(k, LF.DEST), "DEST", c, "dest")}${pick(lfo(k, LF.WAVE), "WAVE", c)}${pick(lfo(k, LF.TRIG), "TRIG", c)}${chip(lfo(k, LF.SPEED), "SPEED", c)}${chip(lfo(k, LF.DEPTH), "DEPTH", c)}${chip(lfo(k, LF.MULT), "MULT", c)}${chip(lfo(k, LF.FADE), "FADE", c)}${chip(lfo(k, LF.PHASE), "PHASE", c)}</div></div>`;
     };
-    return `${pills("lfo", LFOC.map((c, k) => [`LFO ${k + 1}`, c]))}<div class="lfos">${[0, 1, 2].map(card).join("")}</div>`;
+    return `<div class="lfos">${[0, 1, 2].map(card).join("")}</div>`;
   }
 
   // MOD: the eight modulation slots as cables, each from its source to its destination, as thick as its depth
@@ -421,11 +416,11 @@ export function mountEditor(ctx) {
       ${on ? handle(gx, hi, { xid: Q.PTIM, xs: gw, c: "--yellow", r: 10 }) : ""}</svg>`;
     });
     return `<div class="row wrap">${cap("PHASE RESET", seg(Q.PHRT, K.c1))}</div>
-      <div class="bars">${(FIT_MQ.matches ? chip : bar)(Q.AKEY, "A KEY", K.c2)}${(FIT_MQ.matches ? chip : bar)(Q.B1KEY, "B1 KEY", K.c3)}${(FIT_MQ.matches ? chip : bar)(Q.B2KEY, "B2 KEY", K.c4)}${(FIT_MQ.matches ? chip : bar)(Q.VEL, "VEL", K.c1)}</div>
+      <div class="bars">${chip(Q.AKEY, "A KEY", K.c2)}${chip(Q.B1KEY, "B1 KEY", K.c3)}${chip(Q.B2KEY, "B2 KEY", K.c4)}${chip(Q.VEL, "VEL", K.c1)}</div>
       <div class="sub" style="--c:var(--yellow)"><span class="cn">PORTAMENTO</span>${glide}
         <div class="row wrap">${seg(Q.PORT, "--yellow")}${chip(Q.PTIM, "TIME", "--yellow")}${cap("SLOPE", seg(Q.PSLOPE, "--yellow"))}</div></div>
       <div class="sub" style="--c:var(--violet)"><span class="cn">VOICE</span>
-        <div class="row wrap">${seg(VO, K.c1)}${chip(VO + 1, "UNISON", K.c2)}${chip(VO + 2, "DETUNE", K.c3)}${chip(VO + 3, "SPREAD", K.c4)}${FIT_MQ.matches ? pick(VO + 4, "PRIORITY", K.alg) : cap("PRIORITY", seg(VO + 4, K.alg))}</div></div>`;
+        <div class="row wrap">${seg(VO, K.c1)}${chip(VO + 1, "UNISON", K.c2)}${chip(VO + 2, "DETUNE", K.c3)}${chip(VO + 3, "SPREAD", K.c4)}${pick(VO + 4, "PRIORITY", K.alg)}</div></div>`;
   }
   // 2026-10-26: the VOICE page's values (110..114: VOICE, UNISON, DETUNE, SPREAD, PRIORITY), with PLAY's portamento
   const PANELS = { ops: opsPanel, openv: openvPanel, filter: filterPanel, amp: ampPanel, drive: drivePanel, lfo: lfoPanel, mod: modPanel, play: playPanel };
@@ -556,25 +551,65 @@ export function mountEditor(ctx) {
   }
   // the panel: every section at once (a synth's front panel); a section drawn again only when its drawing changed
   const drawn = new Map();
-  // the computer's fit: a group that leaves the panel too tall shows its parts one at a time (its pills), LFO first,
-  // then FILTER, then OP ENV, only as many as it takes (measured: a window with room shows everything)
+  // one panel or pages: the panel (three columns) where the window is big enough and every column holds its sections
+  // (measured), else a page a section, its tabs under the head
   const COLS = [["ops", "mod"], ["openv", "filter", ["amp", "drive"]], ["lfo", "play"]];
-  const TIGHT = ["lfo", "filter", "openv"];
+  const pagesEl = $("ed-pages");
   const over = () => [...stage.querySelectorAll(".fcol")].some((c) => c.scrollHeight > c.clientHeight + 1);
-  function fitPills() {
-    const secs = TIGHT.map((k) => stage.querySelector(`[data-sec="${k}"]`)).filter(Boolean);
-    secs.forEach((e) => e.classList.remove("tight"));
-    if (!FIT_MQ.matches || !E.s || E.s.midi) return;
-    for (const e of secs) { if (!over()) break; e.classList.add("tight"); }
+  const shown = () => !$("tab-edit").hidden;
+  let decided = false;                               // (a decide() asked for the next frame)
+  function setMode(m) {
+    if (E.mode !== m) { E.mode = m; drawn.clear(); }
+    stage.classList.toggle("panel", m === "panel");
+    stage.classList.toggle("paged", m === "tabs");
+    pagesEl.hidden = m !== "tabs";
+    renderPages();
   }
-  const refit = () => { if (!E.s || E.s.midi) return; fitPills(); if (measure()) renderStage(); };
+  // the mode tried afresh: the panel first where the window may hold it
+  function decide() {
+    if (!E.s || E.s.midi || !shown()) return;
+    if (FIT_MQ.matches) {
+      setMode("panel");
+      renderStage();
+      if (!over()) return;
+    }
+    setMode("tabs");
+    renderStage();
+  }
+  function renderPages() {
+    if (pagesEl.hidden) { pagesEl.innerHTML = ""; return; }
+    if (!SECTIONS.some(([k]) => k === E.page)) E.page = "ops";
+    pagesEl.innerHTML = SECTIONS.map(([k, nm, c]) => `<button class="tube${k === E.page ? " on" : ""}" role="tab" data-page="${k}" aria-selected="${k === E.page}" ` +
+      `tabindex="${k === E.page ? 0 : -1}" style="--c:var(${c})"><i class="pdot" aria-hidden="true"></i>${nm}</button>`).join("");
+    stage.querySelectorAll(".pn[data-sec]").forEach((e) => e.classList.toggle("cur", e.dataset.sec === E.page));
+    const on = pagesEl.querySelector(".on");
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  function page(k, focus = false) {
+    E.page = k;
+    try { localStorage.setItem(PAGE_KEY, k); } catch (_) { /* (this page only) */ }
+    renderPages();
+    if (measure()) renderStage();                    // (its drawings, drawn in their boxes now they show)
+    if (focus) { const b = pagesEl.querySelector(".on"); if (b) b.focus(); }
+  }
+  pagesEl.addEventListener("click", (ev) => { const b = ev.target.closest("[data-page]"); if (b) page(b.dataset.page); });
+  pagesEl.addEventListener("keydown", (ev) => {
+    const d = { ArrowLeft: -1, ArrowRight: 1 }[ev.key];
+    if (!d) return;
+    ev.preventDefault();
+    const i = SECTIONS.findIndex(([k]) => k === E.page), n = SECTIONS.length;
+    page(SECTIONS[(i + d + n) % n][0], true);
+  });
+  const refit = () => { if (!E.s || E.s.midi) return; if (measure()) renderStage(); };
   if (typeof ResizeObserver === "function") new ResizeObserver(refit).observe(stage);
-  FIT_MQ.addEventListener("change", () => { drawn.clear(); if (E.s && !E.s.midi) { measure(); renderStage(); } });
+  let rz = 0;
+  window.addEventListener("resize", () => { if (!rz) rz = requestAnimationFrame(() => { rz = 0; decide(); }); });
+  FIT_MQ.addEventListener("change", decide);
   function renderStage() {
     if (!E.s) return;
     const mode = E.s.midi ? "midi" : "fm";
     if (stage.dataset.mode !== mode) { stage.dataset.mode = mode; stage.classList.toggle("midi", mode === "midi"); stage.innerHTML = ""; drawn.clear(); }
-    if (E.s.midi) { renderMidi(); return; }
+    if (E.s.midi) { stage.classList.remove("panel", "paged"); pagesEl.hidden = true; renderMidi(); return; }
     if (!stage.querySelector(".pn")) {
       // (in columns for the computer's fit: each column's sections share its height; elsewhere the columns are
       // display: contents and the sections the grid's own items)
@@ -582,6 +617,8 @@ export function mountEditor(ctx) {
         `<div class="pnh"><i class="pdot" aria-hidden="true"></i>${nm}</div><div class="pnb"></div></section>`; };
       stage.innerHTML = COLS.map((col, i) => `<div class="fcol fc${i + 1}">${col.map((x) => (Array.isArray(x) ? `<div class="fpair">${x.map(sec).join("")}</div>` : sec(x))).join("")}</div>`).join("");
       drawn.clear();
+      setMode(E.mode || (FIT_MQ.matches ? "panel" : "tabs"));
+      if (!decided) { decided = true; requestAnimationFrame(() => { decided = false; decide(); }); }
     }
     const keep = document.activeElement && stage.contains(document.activeElement) ? focusKey(document.activeElement) : null;
     let any = false;
@@ -593,7 +630,7 @@ export function mountEditor(ctx) {
       any = true;
     }
     if (!any) return;
-    fitPills();
+    if (E.mode === "panel" && over()) { setMode("tabs"); renderStage(); return; }   // (the panel ran over: pages)
     if (measure()) { renderStage(); return; }       // (a drawing's box changed: drawn again in it)
     if (E.drag) { const el = findKey(E.drag.key); if (el) dragMark(el); }
     if (keep) { const el = findKey(keep); if (el && el.focus && el !== document.activeElement) el.focus({ preventScroll: true }); }
@@ -614,7 +651,7 @@ export function mountEditor(ctx) {
   }
   const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const noteName = (n) => `${NOTE[n % 12]}${Math.floor(n / 12) - 1}`;
-  function render() { renderHead(); renderStage(); renderKeys(); }
+  function render() { renderHead(); renderStage(); renderKeys(); decide(); }
 
   // ---------------------------------------------------------------- dragging, the wheel, the keys
   const primary = (el) => +(el.dataset.id ?? el.dataset.y ?? el.dataset.x);
@@ -688,14 +725,6 @@ export function mountEditor(ctx) {
       const cc = ev.target.closest("[data-cc]"), ux = ev.target.closest("[data-untouch]");
       if (cc) { E.ccEdit = +cc.dataset.cc; renderStage(); }
       else if (ux) untouch(+ux.dataset.untouch);
-      return;
-    }
-    const pv = ev.target.closest("[data-view]");
-    if (pv) {
-      const [k, i] = pv.dataset.view.split(":");
-      E.view[k] = +i;
-      try { localStorage.setItem(VIEW_KEY, JSON.stringify(E.view)); } catch (_) { /* (this page only) */ }
-      renderStage();
       return;
     }
     const b = ev.target.closest("[data-set]");

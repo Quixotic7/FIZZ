@@ -50,8 +50,9 @@
 //     replies late, or the first LIST after it stale: shown on every tab without a reload, nothing said failed.
 //   - NEON features (2026-10-29): EDIT's ALGO ‹ › (wrapping), the knob row (a drag, the same value elsewhere, the wiggle
 //     only while dragged), the tag chip's popover (SAVE writes the tag), the phone's save bar (fixed, the panel's end
-//     clear of it), the computer's fit (1440 x 900 every value, 1280 x 800 no scroll with the groups' pills where
-//     measured too tall; the keys hidden give their room back), the keys' toggle and a pill remembered over a reload;
+//     clear of it), one panel or pages (1440 x 900 one panel with every value; 1280 x 800 one panel or pages as
+//     measured, keys shown or hidden, no scroll; 390 pages, each reachable, DRIVE and LEVEL on theirs), the keys'
+//     toggle and the page remembered over a reload;
 //     POOL's moving card (CANCEL, ESC, MOVE TO; at 390 fixed at the bottom), the tiles' tag icons; BACKUP's share
 //     (navigator.share with a File, or a save where the browser cannot share files, cancelled: nothing), the ••• menu
 //     (SAVE TO FILE, DELETE asks);
@@ -131,7 +132,10 @@ const noScroll = () => evaluate("document.documentElement.scrollWidth <= window.
 const click = (sel) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.click(); return true; })()`);
 const idle = () => waitFor("window.__mgr && !__mgr.S.editing && !__mgr.S.busy && !__mgr.S.refreshing", 20000);   // (a REFRESH reading the lists: done)
 // the mouse as a person's (a user gesture: the AudioContext may start), at an element's centre
-const centre = (sel) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+const centre = (sel) => evaluate(`(() => { let e = document.querySelector(${JSON.stringify(sel)}); if (!e) return null;
+  const pn = e.closest('#ed-stage.paged .pn');
+  if (pn && !pn.classList.contains('cur')) { document.querySelector('#ed-pages [data-page="' + pn.dataset.sec + '"]').click(); e = document.querySelector(${JSON.stringify(sel)}); }
+  e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
 const mouse = (type, x, y, extra = {}) => send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1, ...extra });
 async function realClick(sel) { const c = await centre(sel); if (!c) return false; await mouse("mousePressed", c.x, c.y); await mouse("mouseReleased", c.x, c.y); return true; }
 async function drag(sel, dx, dy) {
@@ -425,8 +429,9 @@ try {
   const seen = new Set();
   const collect = () => evaluate(`[...document.querySelectorAll('#ed-stage [data-id], #ed-stage [data-x], #ed-stage [data-y], #ed-stage [data-pick], #ed-stage [data-set]')]
     .flatMap((e) => [e.dataset.id, e.dataset.x, e.dataset.y, e.dataset.pick, e.dataset.set && e.dataset.set.split(':')[0]]).filter((x) => x !== undefined).map(Number)`);
-  const secs = await evaluate("[...document.querySelectorAll('#ed-stage .pn')].map((e) => e.dataset.sec).join()");
-  check(secs === "ops,mod,openv,filter,amp,drive,lfo,play", `EDIT: one panel, every section at once (${secs}, in the fit's columns), no groups to switch`);
+  const secs = await evaluate("({ s: [...document.querySelectorAll('#ed-stage .pn')].map((e) => e.dataset.sec).join(), mode: __mgr.editor.state.mode, tabs: [...document.querySelectorAll('#ed-pages [data-page]')].map((b) => b.dataset.page).join() })");
+  check(secs.s === "ops,mod,openv,filter,amp,drive,lfo,play" && (secs.mode === "panel" ? secs.tabs === "" : secs.tabs === "ops,openv,play,filter,amp,drive,lfo,mod"),
+    `EDIT at 1280: every section (${secs.s}) as ${secs.mode === "panel" ? "one panel" : `pages (${secs.tabs})`}`);
   (await collect()).forEach((i) => seen.add(i));
   await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 1 + k % 8))");   // (every slot on: its cables)
   await sleep(150);
@@ -1251,26 +1256,38 @@ try {
   check(kl.v < 90 && kl.knob === kl.bar, `EDIT: the LEVEL knob dragged down: 90 -> ${kl.v}; AMP's LEVEL bar the same (${kl.bar})`);
   await size(1280, 800);
   await sleep(400);
-  // the computer's fit: every value without scrolling (every MOD slot on: the tallest case), a group too tall shown
-  // one part at a time (its pills, measured); 1440 x 900 all of it; the keys hidden give their room back
+  // one panel or pages (the owner: "keep one panel but then tabs once they are too small to fit"), every MOD slot on
+  // (the tallest case): 1440 x 900 one panel, every value, no scroll; 1280 x 800 (the keys shown, then hidden) one
+  // panel or pages as measured, no scroll on any page
   await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 1 + k % 8))");
   const fitAt = async (w, h) => {
     await size(w, h);
     await sleep(700);
-    return evaluate(`(() => { const st = document.getElementById('ed-stage'), cols = [...st.querySelectorAll('.fcol')];
-      return { page: document.documentElement.scrollHeight <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1,
-        cols: cols.length === 3 && cols.every((c) => c.scrollHeight <= c.clientHeight + 1), stage: st.scrollHeight <= st.clientHeight + 1,
-        tight: [...st.querySelectorAll('.pn.tight')].map((e) => e.dataset.sec).join(',') || '-', fit: cols.map((c) => c.scrollHeight + '/' + c.clientHeight + ' [' + [...c.querySelectorAll('.pn')].map((e) => e.dataset.sec + ' ' + e.offsetHeight).join(', ') + ']').join(' ') + ' · ' + __mgr.editor.sound().name + ' · ' + __mgr.editor.place().label }; })()`);
+    return evaluate(`(async () => { const st = document.getElementById('ed-stage'), cols = [...st.querySelectorAll('.fcol')], mode = __mgr.editor.state.mode, wait = () => new Promise((r) => setTimeout(r, 120));
+      const pageOk = () => document.documentElement.scrollHeight <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1, stageOk = () => st.scrollHeight <= st.clientHeight + 1;
+      if (mode === "panel") return { mode, ok: pageOk() && stageOk() && cols.every((c) => c.scrollHeight <= c.clientHeight + 1), fit: cols.map((c) => c.scrollHeight + '/' + c.clientHeight).join(' ') };
+      const out = []; let ok = true;
+      for (const b of [...document.querySelectorAll('#ed-pages [data-page]')]) { document.querySelector('#ed-pages [data-page="' + b.dataset.page + '"]').click(); await wait(); const good = pageOk() && stageOk(); ok = ok && good; out.push(b.dataset.page + (good ? '' : ' ' + st.scrollHeight + '/' + st.clientHeight)); }
+      document.querySelector('#ed-pages [data-page="ops"]').click();
+      return { mode, ok, fit: out.join(', ') }; })()`);
   };
-  for (const [w, h] of [[1440, 900], [1280, 800]]) {
-    const f = await fitAt(w, h);
-    check(f.page && f.cols && f.stage && (w < 1440 || f.tight === "-"), `EDIT fit at ${w} x ${h}, the keys shown: no scroll (columns ${f.fit}); one part at a time: ${f.tight}`);
-    await shot(`manager-neon-edit-fit-${w}.png`);
-  }
+  const f14 = await fitAt(1440, 900);
+  check(f14.mode === "panel" && f14.ok, `EDIT at 1440 x 900, the keys shown: one panel, every value, no scroll (columns ${f14.fit})`);
+  await shot("manager-neon-edit-fit-1440.png");
+  const f12 = await fitAt(1280, 800);
+  check(f12.ok, `EDIT at 1280 x 800, the keys shown: ${f12.mode === "panel" ? "one panel" : "pages"}, no scroll (${f12.fit})`);
+  await shot("manager-neon-edit-fit-1280.png");
   await click("#ed-kbtg");
   const fk = await fitAt(1280, 800);
-  check(fk.page && fk.cols && fk.stage, `EDIT fit at 1280 x 800, the keys hidden: no scroll (columns ${fk.fit}); one part at a time: ${fk.tight}`);
+  check(fk.ok, `EDIT at 1280 x 800, the keys hidden: ${fk.mode === "panel" ? "one panel" : "pages"}, no scroll (${fk.fit})`);
   await click("#ed-kbtg");
+  // DRIVE and LEVEL at 1280: where they show (the knob row, or their own pages too)
+  await evaluate("__mgr.editor.set(73, 20); __mgr.editor.set(46, 90)");
+  await sleep(150);
+  const wheelOn = async (sel) => { const c = await centre(sel); if (!c) return false; await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: c.x, y: c.y, deltaX: 0, deltaY: -100 }); await sleep(150); return true; };
+  const dsel = (await evaluate("__mgr.editor.state.mode")) === "panel" ? ["#ed-stage .knobs .knob[data-id='73']", "#ed-stage .knobs .knob[data-id='46']"] : ["#ed-stage .pn-drive .dial[data-id='73']", "#ed-stage .pn-amp .vbar[data-id='46']"];
+  const dw = await wheelOn(dsel[0]), lw = await wheelOn(dsel[1]);
+  check(dw && lw && (await evaluate("__mgr.editor.value(73) === 21 && __mgr.editor.value(46) === 91")), `EDIT at 1280: DRIVE and LEVEL set where they show (${dsel.join(", ")})`);
   await evaluate("[0, 1, 2, 3, 4, 5, 6, 7].forEach((k) => __mgr.editor.set(86 + 3 * k, 0))");
   await size(1280, 800);
   await sleep(400);
@@ -1419,21 +1436,38 @@ try {
     await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   }
   await size(1280, 800);
-  // the keys hidden and a pill picked: both remembered after a reload
+  // the phone: pages, each one reachable by its tab; DRIVE and LEVEL on theirs
+  await size(390, 844, true);
   await click("#t-edit");
   await waitFor("!document.getElementById('tab-edit').hidden");
+  await sleep(500);
+  const ph = await evaluate(`(async () => { const out = []; for (const b of [...document.querySelectorAll('#ed-pages [data-page]')]) { document.querySelector('#ed-pages [data-page="' + b.dataset.page + '"]').click(); await new Promise((r) => setTimeout(r, 120));
+    const k = b.dataset.page, t = document.querySelector('#ed-pages [data-page="' + k + '"]'), cur = [...document.querySelectorAll('#ed-stage .pn.cur')];
+    out.push(cur.length === 1 && cur[0].dataset.sec === k && cur[0].offsetHeight > 60 && t.getAttribute('aria-selected') === 'true' ? k : '!' + k + ':' + cur.length + ':' + (cur[0] && cur[0].offsetHeight) + ':' + t.getAttribute('aria-selected')); }
+    return { mode: __mgr.editor.state.mode, pages: out.join(','), wide: document.documentElement.scrollWidth <= innerWidth + 1 }; })()`);
+  check(ph.mode === "tabs" && ph.pages === "ops,openv,play,filter,amp,drive,lfo,mod" && ph.wide, `EDIT at 390: pages, each reachable by its tab (${ph.pages})`);
+  await evaluate("__mgr.editor.set(73, 40); __mgr.editor.set(46, 60)");
+  await sleep(150);
+  const pd = await wheelOn("#ed-stage .pn-drive .dial[data-id='73']"), pl = await wheelOn("#ed-stage .pn-amp .vbar[data-id='46']");
+  check(pd && pl && (await evaluate("__mgr.editor.value(73) === 41 && __mgr.editor.value(46) === 61")), "EDIT at 390: DRIVE set on DRIVE · CRUSH's page, LEVEL on AMP's");
+  await shot("manager-neon-edit-390-amp.png");
+  // the keys hidden and a page shown: both remembered after a reload
   await click("#ed-kbtg");
+  await click("#ed-pages [data-page='lfo']");
   const kh = await evaluate("({ hid: document.getElementById('ed-keys').hidden, p: document.getElementById('ed-kbtg').getAttribute('aria-pressed') })");
-  await evaluate("(() => { const b = document.querySelector('#ed-stage [data-view=\"lfo:2\"]'); if (b) b.click(); })()");
   await send("Page.navigate", { url: URL0 });
   await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.rows.length > 0", 30000);
   await idle();
   await click("#t-edit");
   await waitFor("!document.getElementById('tab-edit').hidden && !!document.getElementById('ed-kbtg')", 8000);
-  const kr = await evaluate("({ hid: document.getElementById('ed-keys').hidden, p: document.getElementById('ed-kbtg').getAttribute('aria-pressed'), lfo: __mgr.editor.state.view.lfo })");
-  check(kh.hid && kh.p === "false" && kr.hid && kr.p === "false" && kr.lfo === 2, `EDIT: the keys hidden by their toggle, still hidden after a reload; LFO 3's pill remembered (${kr.lfo})`);
+  await sleep(400);
+  const kr = await evaluate("({ hid: document.getElementById('ed-keys').hidden, p: document.getElementById('ed-kbtg').getAttribute('aria-pressed'), page: __mgr.editor.state.page, cur: (document.querySelector('#ed-stage .pn.cur') || { dataset: {} }).dataset.sec, tab: (document.querySelector('#ed-pages .on') || { dataset: {} }).dataset.page })");
+  check(kh.hid && kh.p === "false" && kr.hid && kr.p === "false" && kr.page === "lfo" && kr.cur === "lfo" && kr.tab === "lfo",
+    `EDIT at 390: the keys hidden by their toggle and the LFO page, both still so after a reload (${JSON.stringify(kr)})`);
   await click("#ed-kbtg");
   check(await evaluate("!document.getElementById('ed-keys').hidden"), "EDIT: the toggle shows the keys again");
+  await click("#ed-pages [data-page='ops']");
+  await size(1280, 800);
   }
 
   // ---- NEON features: LIBRARY (search, SELECT and its bulk actions, IN THIS BROWSER, USED BY strips, MINE ▾, the keys' strip)
