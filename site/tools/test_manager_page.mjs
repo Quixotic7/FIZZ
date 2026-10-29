@@ -2,8 +2,13 @@
 // The manager page (site/manager/) in headless Chromium over the DevTools protocol (as test_site.mjs: no Playwright,
 // never a window), against its simulated FM-1 (?sim: the browser FIZZ behind a fake Web MIDI; headless Chromium's own
 // Web MIDI mangles SysEx, so the unit is never reached from here):
-//   - BROWSER (2026-10-27): the browser's FIZZ as the unit; PROJECTS on it (KEEP, LOAD INTO, WRITE, read back); the
-//     computer keys on LIBRARY, IMPORT's rows heard (down, SPACE); back to the FM-1;
+//   - BROWSER (2026-10-27): the browser's FIZZ as the unit (the unit picker); PROJECTS on it (KEEP, LOAD INTO, WRITE,
+//     read back); the computer keys on LIBRARY, IMPORT's rows heard (down, SPACE); back to the FM-1 (⇄ FM-1);
+//   - the offline mode (2026-10-29, last): no Web MIDI allowed (?sim=nomidi): THIS BROWSER the unit at start, quiet
+//     until the first click (then the sound pill mutes); the picker (Escape, a click outside, a phone's bottom sheet),
+//     CONNECT FM-1, back; RESET (asked, MY PRESETS kept in BACKUP first, a fresh store); Web MIDI allowed with no FM-1
+//     (?sim=away): the FM-1 plugged in is offered (⇄ FM-1, refused while a write runs), one click switches, unplugged
+//     back on THIS BROWSER;
 //   - every tab at 1280 x 800 and 390 x 844: no console error, no horizontal scroll (at 1280 no page scroll at all: the
 //     cards' lists scroll; LIBRARY's IN POOL / NOT IN POOL; BACKUP's play button); the screenshots beside the
 //     mock-ups' (mockups/png/fizz-web-manager-0N-*.png) for the eye;
@@ -885,9 +890,11 @@ try {
 
   // BROWSER (the owner, 2026-10-27): FIZZ in this browser as the unit, heard here; PROJECTS on it: KEEP, LOAD INTO a
   // slot, WRITE (the store before kept in BACKUP), read back; the computer keys on LIBRARY and IMPORT
-  await realClick("#bunit");
+  await realClick("#unit");
+  await waitFor("!document.getElementById('upick').hidden", 3000);
+  await realClick("#upick-pop .urow[data-u='browser']");
   const bOn = await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && __mgr.live.on()", 40000);
-  check(bOn && (await evaluate("document.getElementById('bunit').dataset.state === 'on' && document.getElementById('unit').dataset.state === 'idle'")),
+  check(bOn && (await evaluate("document.getElementById('unit').dataset.u === 'browser' && document.getElementById('fm1').dataset.state === 'found'")),
     `BROWSER: the browser's FIZZ as the FM-1 (${await evaluate("__mgr.S.unit && __mgr.S.unit.version")}), TRACK on`);
   await click("#t-projects");
   const read1 = await waitFor("!!__mgr.projtab.state.base && !__mgr.S.busy", 60000);
@@ -1069,8 +1076,8 @@ try {
   await click("#lb-cancel");
   await click("#i-clear");
   // back to the (simulated) FM-1
-  await click("#unit");
-  check(await waitFor("__mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.rows.length > 0", 30000), "FM-1 again: the unit back from BROWSER");
+  await click("#fm1");
+  check(await waitFor("__mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.rows.length > 0", 30000), "FM-1 again (⇄ FM-1): the unit back from BROWSER");
 
   // the phone
   await size(390, 844, true);
@@ -1577,6 +1584,105 @@ try {
   await size(1280, 800);
   await click("#l-filter [data-src='all']");
   }
+
+  // ---- offline mode: picker, start, FM-1 found
+  {
+  // no Web MIDI allowed yet (?sim=nomidi): THIS BROWSER is the unit at start, quiet (no sound before a click), the
+  // FM-1 a dashed circle; Web MIDI is not asked for at start
+  await size(1280, 800);
+  await send("Page.navigate", { url: URL0.replace("?sim&", "?sim=nomidi&") + "#library" });
+  const off = await waitFor("window.__mgr && __mgr.S.mode === 'browser' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.rows.length > 0", 40000);
+  await sleep(600);
+  const o1 = await evaluate(`({ quiet: __mgr.bu().quiet, u: document.getElementById('unit').dataset.u, txt: document.getElementById('unit').innerText.replace(/\\s+/g, ' '),
+    spk: document.getElementById('spk').dataset.state, fm1: document.getElementById('fm1').dataset.state, midi: !!__mgr.FM.access || !!window.__sim,
+    listed: __mgr.S.unit.rows.filter((r) => r.source === 'factory' || r.source === 'mine').slice(0, 3).every((r) => document.getElementById('tab-library').innerText.includes(r.name)) })`);
+  check(off && o1.quiet && o1.u === "browser" && /THIS BROWSER/.test(o1.txt) && o1.spk === "off" && o1.fm1 === "absent" && o1.listed && !o1.midi,
+    `offline: no Web MIDI: THIS BROWSER the unit at start (${o1.txt}), quiet, LIBRARY lists its presets, the FM-1 a dashed circle, MIDI not asked`);
+  await shot("manager-offline-start.png");
+  // the sound: the first click anywhere starts it (FIZZ moved into the audio worklet); the pill then mutes
+  await realClick("#t-library");
+  const woke = await waitFor("!__mgr.bu().quiet && __mgr.bu().running && document.getElementById('spk').dataset.state === 'on'", 20000);
+  const answers = await evaluate("__mgr.S.link.status().then((s) => !!s && s.tracks === 6).catch(() => false)");
+  check(woke && answers, "offline: the first click starts the sound (the pill orange), the browser's FIZZ still answers");
+  await sleep(800);
+  await realClick("#spk");
+  const muted = await waitFor("document.getElementById('spk').dataset.state === 'mute' && __mgr.bu().player.volume === 0", 3000);
+  await realClick("#spk");
+  const unmuted = await waitFor("document.getElementById('spk').dataset.state === 'on' && __mgr.bu().player.volume === 1", 3000);
+  check(muted && unmuted, "offline: the speaker pill mutes, then sounds again");
+  // the picker: THIS BROWSER (checked), the FM-1 not found (– – –), CONNECT FM-1; Escape and a click outside close it
+  await realClick("#unit");
+  const pk = await waitFor("!document.getElementById('upick').hidden && document.querySelectorAll('#upick-pop .urow').length === 2", 3000);
+  const p1 = await evaluate(`({ rows: [...document.querySelectorAll('#upick-pop .urow')].map((r) => r.innerText.replace(/\\s+/g, ' ').trim()),
+    conn: !!document.getElementById('up-connect'), on: !!document.querySelector("#upick-pop .urow[data-u='browser'] .radio.y") })`);
+  await shot("manager-offline-picker.png");
+  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  const esc1 = await waitFor("document.getElementById('upick').hidden", 2000);
+  await click("#unit");
+  await click("#upick-scrim");
+  const out1 = await waitFor("document.getElementById('upick').hidden", 2000);
+  check(pk && p1.conn && p1.on && /THIS BROWSER/.test(p1.rows[0]) && /FM-1.*– – –/.test(p1.rows[1]) && esc1 && out1,
+    `offline: the picker: ${p1.rows.join(" | ")}, CONNECT FM-1; Escape and a click outside close it`);
+  // the phone: a bottom sheet
+  await size(390, 844, true);
+  await sleep(300);
+  await click("#unit");
+  await sleep(400);
+  const sh = await evaluate("({ sheet: document.getElementById('upick').classList.contains('sheet'), b: Math.round(document.getElementById('upick-pop').getBoundingClientRect().bottom), h: innerHeight })");
+  check(sh.sheet && Math.abs(sh.b - sh.h) <= 1 && (await noScroll()), "offline: on a phone the picker is a bottom sheet, no horizontal scroll");
+  await shot("manager-offline-picker-phone.png");
+  await click("#upick-scrim");
+  await size(1280, 800);
+  await sleep(300);
+  // CONNECT FM-1 asks for Web MIDI (here the simulated FM-1) and connects; the picker's THIS BROWSER goes back
+  await click("#unit");
+  await click("#up-connect");
+  const fmOn = await waitFor("__mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.id !== 'FM-1_46999999' && __mgr.S.unit.rows.length > 0", 40000);
+  const f1 = await evaluate("({ u: document.getElementById('unit').dataset.u, spk: document.getElementById('spk').hidden, fm1: document.getElementById('fm1').hidden })");
+  check(fmOn && f1.u === "fm1" && f1.spk && f1.fm1, "offline: CONNECT FM-1 connects the (simulated) FM-1: the pill green, no sound pill, no circle");
+  await click("#unit");
+  await click("#upick-pop .urow[data-u='browser']");
+  const back = await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && __mgr.live.on() && document.getElementById('fm1').dataset.state === 'found'", 40000);
+  check(back, "offline: the picker's THIS BROWSER: back on the browser's FIZZ, the FM-1 left on offer (⇄ FM-1)");
+  // RESET (THIS BROWSER's •••, MEMORY): asked once; its MY PRESETS kept in BACKUP first; then a fresh store
+  await evaluate(`(async () => { const { storeSound } = await import("../js/fizz_sysex.js"); const b = new Uint8Array(96); b[0] = 0x51; b[1] = 5; b[2] = 6;
+    __mgr.bu().engine.midiIn(storeSound({ name: "KEEP ME", blob: b, tags: 1 })); await new Promise((r) => setTimeout(r, 800)); await __mgr.refreshRows(); })()`);
+  const nb0 = await evaluate("__mgr.S.baks.length"), mine0 = await evaluate("__mgr.S.unit.rows.filter((r) => r.source === 'mine').length");
+  await click("#unit");
+  await click("#up-more");
+  const drawer = await waitFor("!!document.getElementById('up-mem') && /\\d+%/.test(document.getElementById('up-mem').innerText) && document.querySelectorAll('#up-mem .cells i').length === 16", 2000);
+  await shot("manager-offline-memory.png");
+  await click("#up-reset");
+  const asked = await waitFor("!document.getElementById('cf').hidden && /RESET/.test(document.getElementById('cf-title').textContent)", 3000);
+  const sub = await evaluate("document.getElementById('cf-sub').textContent");
+  await click("#cf-go");
+  const fresh = await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.rows.length > 0 && __mgr.S.unit.rows.filter((r) => r.source === 'mine').length === 0", 40000);
+  const kept = await evaluate(`__mgr.S.baks.length === ${nb0 + (mine0 ? 1 : 0)} && /before reset/.test(__mgr.S.baks[0].name) && __mgr.S.baks[0].presets === ${mine0}`);
+  check(mine0 > 0 && drawer && asked && fresh && kept, `offline: RESET asks once ("${sub}"), ${mine0} MY PRESETS kept in BACKUP first, then a fresh store`);
+  // Web MIDI allowed, no FM-1 yet (?sim=away): THIS BROWSER, watching; the FM-1 plugged in: the circle becomes ⇄ FM-1
+  // (never taken by itself, refused while a write runs), one click switches; unplugged: back on THIS BROWSER
+  await send("Page.navigate", { url: URL0.replace("?sim&", "?sim=away&") + "#library" });
+  const aw = await waitFor("window.__mgr && __mgr.S.mode === 'browser' && !!__mgr.S.link && !!__mgr.FM.access && typeof window.__simPlug === 'function'", 40000);
+  await sleep(500);
+  const a1 = await evaluate("document.getElementById('fm1').dataset.state");
+  await evaluate("__simPlug(true)");
+  const offer = await waitFor("document.getElementById('fm1').dataset.state === 'found'", 15000);
+  await sleep(1500);
+  const a2 = await evaluate("({ mode: __mgr.S.mode, txt: document.getElementById('unit').innerText.replace(/\\s+/g, ' '), fm1: document.getElementById('fm1').innerText.replace(/\\s+/g, ' ') })");
+  await shot("manager-offline-found.png");
+  check(aw && a1 === "absent" && offer && a2.mode === "browser" && !/FIZZ/.test(a2.txt), `offline: the FM-1 plugged in: the circle becomes "${a2.fm1}", not taken by itself; the pill "${a2.txt}"`);
+  await evaluate("__mgr.S.busy = true");
+  await click("#fm1");
+  const refused = await evaluate("__mgr.S.mode === 'browser' && /Wait/.test(document.getElementById('toast').textContent)");
+  await evaluate("__mgr.S.busy = false");
+  await realClick("#fm1");
+  const sw = await waitFor("__mgr.S.mode === 'fm1' && !!__mgr.S.link && __mgr.S.unit && __mgr.S.unit.id !== 'FM-1_46999999' && __mgr.S.unit.rows.length > 0", 40000);
+  check(refused && sw, "offline: ⇄ FM-1 refused while a write runs; one click then: the FM-1 is the unit");
+  await evaluate("__simPlug(false)");
+  const fb = await waitFor("__mgr.S.mode === 'browser' && !!__mgr.S.link && /unplugged/i.test(document.getElementById('toast').textContent)", 40000);
+  check(fb && (await evaluate("document.getElementById('fm1').dataset.state === 'absent'")), "offline: the FM-1 unplugged: back on THIS BROWSER, a toast");
+  }
+  // ---- (end of the offline mode)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

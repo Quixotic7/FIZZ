@@ -13,6 +13,7 @@
 <link rel="preload" href="../fonts/Silkscreen-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/neon.css">
 <link rel="stylesheet" href="css/shell.css">
+<link rel="stylesheet" href="css/unit.css">
 <link rel="stylesheet" href="css/library.css">
 <link rel="stylesheet" href="css/backup.css">
 <link rel="stylesheet" href="css/edit.css">
@@ -37,10 +38,12 @@
   </nav>
   <button id="live" class="livesw" aria-pressed="false" hidden><span class="sw" aria-hidden="true"><i></i></span><span class="lw">TRACK</span><b id="live-n">–</b></button>
   <button id="refresh" class="icon refresh" aria-label="Read the FM-1 again" title="Read the FM-1 again" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16.5 3.5v3.6h-3.6"/></svg></button>
-  <button id="unit" class="unit" data-state="off"><span class="dot"></span><span id="unit-label">CONNECT</span><small id="unit-sub"></small></button>
-  <button id="bunit" class="unit bunit" data-state="off" title="FIZZ in this browser, heard on this computer"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8v4h3l4 3V5L6 8z"/><path d="M13 7.5a3.5 3.5 0 0 1 0 5M15.5 5a7 7 0 0 1 0 10"/></svg><span>BROWSER</span><small id="bunit-sub"></small></button>
+  <button id="spk" class="spk" data-state="off" hidden></button>
+  <button id="unit" class="unit" data-u="browser" data-state="look" aria-haspopup="dialog" aria-expanded="false" aria-controls="upick"></button>
+  <button id="fm1" class="fm1c" data-state="absent" hidden></button>
   <details class="logbox" id="logbox"><summary aria-label="Log"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg>LOG</summary><pre id="log"></pre></details>
 </header>
+<div class="upick" id="upick" hidden><div class="upscrim" id="upick-scrim"></div><div class="uppop" id="upick-pop" role="dialog" aria-label="Unit"></div></div>
 <p id="say" class="say" role="status"></p>
 <div id="loadbar" class="loadbar" role="status" hidden></div>
 

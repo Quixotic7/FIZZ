@@ -12,7 +12,7 @@
 //   ?depth=N    the backup's requests outstanding (1, the default: one at a time); &gap=MS their spacing
 import { findFizz, FZER } from "./fizzlink.js";
 import { makeFizzbak, readBackup, backupFileName, soundKey } from "./fizzbak.js";
-import { readRegion, layoutOf, LAYOUTS, PACKAGE_NAME } from "./fizzstore.js";
+import { readRegion, layoutOf, LAYOUTS, PACKAGE_NAME, convertImage } from "./fizzstore.js";
 import { modelOf, imageOf, fitModel, fitChoice, projects as projectsOf } from "./projects.js";
 import { parseDump, FIZZ_TAGS, storeSound } from "../js/fizz_sysex.js";
 import { soundFromStoreFrame, soundToFizzsnd, soundFileName, makeFizzlib, libraryFileName, sameSound } from "../js/library.js";
@@ -25,6 +25,8 @@ import { mountProjects } from "./projtab.js";
 import { mountEditor } from "./editor.js";
 import { mountExport } from "./exporter.js";
 import { BrowserFizz } from "./browserfizz.js";
+import { BrowserUnit, BROWSER_ID } from "./browserunit.js";
+import { mountUnit } from "./unitpicker.js";
 import { mountLive } from "./live.js";
 import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames, copySound, isMidiBlob, blob6 } from "./sound.js";
 import { browserRows, recordOf, keepIn, dropFrom, blankImage, asHost } from "./browserlib.js";
@@ -165,13 +167,6 @@ function unitPkg(u = S.unit) {
 }
 const viaBle = () => !!(S.link && S.link.viaBle);
 const NEEDS_USB = "Connect the USB cable for this: a restore can't go over Bluetooth (backing up, the library and the projects' moves can).";
-function setUnit(state, label, sub = "") {
-  const u = $("unit");
-  u.dataset.state = state;
-  $("unit-label").textContent = label;
-  $("unit-sub").textContent = sub;
-  u.disabled = state === "look";
-}
 function renderUnit() {
   const u = S.unit, on = !!(u && S.link);
   const short = u && u.version ? u.version.replace(/-\d+-g[0-9a-f]+$/, "") : "";   // (a development build: git describe)
@@ -212,25 +207,56 @@ function renderUnit() {
   $("refresh").disabled = S.busy || S.refreshing;
 }
 
+// FM: the FM-1's side: Web MIDI (granted, or ?sim's fake), an FM-1 running FIZZ found on it while the browser's FIZZ is
+// the unit (found), the browser FIZZ's version and STATUS when it was last the unit
+const FM = { access: null, found: null, probing: false, bver: "", bstat: null, bmem: null, sig: "" };
+// the FM-1 as the unit (CONNECT FM-1, the picker's FM-1, ⇄ FM-1): Web MIDI asked for here (a click: its prompt), else
+// the browser's FIZZ stays the unit and the page says why
 async function connect() {
-  if (S.busy) return;
-  if (!S.access) {
-    if (SIM) S.access = await simAccess();
-    else {
-      if (!navigator.requestMIDIAccess) { say("This browser has no Web MIDI with SysEx. Open this page in <b>Chrome</b> or <b>Edge</b> on a computer.", "--red"); return; }
-      try { S.access = await navigator.requestMIDIAccess({ sysex: true }); }
-      catch (_) { say("MIDI (SysEx) was not allowed. Allow it for this site in the address bar, then press CONNECT.", "--red"); setUnit("bad", "NO MIDI"); return; }
-    }
-    S.access.onstatechange = onState;
+  if (S.busy || attaching) { toast("Wait: a write is still going", "--orange"); return; }
+  if (!FM.access && !(await openMidi())) return;
+  if (S.mode === "browser") leaveBrowser();
+  S.mode = "fm1";
+  S.access = FM.access;
+  const why = await attach();
+  if (!S.link) {
+    await useBrowser();
+    if (why) say(why, "--orange");
   }
-  await attach();
+}
+// Web MIDI (with SysEx): the FM-1's side, watched for ports coming and going. -> the access, or null (the page says why)
+async function openMidi() {
+  if (FM.access) return FM.access;
+  if (SIM) FM.access = await simAccess();
+  else {
+    if (!navigator.requestMIDIAccess) { say("This browser has no Web MIDI with SysEx: the FM-1 needs <b>Chrome</b> or <b>Edge</b> on a computer. FIZZ in this browser works.", "--orange"); return null; }
+    try { FM.access = await navigator.requestMIDIAccess({ sysex: true }); }
+    catch (_) { say("MIDI (SysEx) was not allowed. Allow it for this site in the address bar, then CONNECT FM-1.", "--orange"); return null; }
+  }
+  FM.access.onstatechange = onState;
+  return FM.access;
+}
+async function midiGranted() {
+  if (SIM) return Q.get("sim") !== "nomidi";
+  if (!navigator.requestMIDIAccess || !navigator.permissions) return false;
+  try { return (await navigator.permissions.query({ name: "midi", sysex: true })).state === "granted"; } catch (_) { return false; }
+}
+// an FM-1 running FIZZ on Web MIDI, asked quietly: -> { id, port, version } or null
+async function findUnit() {
+  if (!FM.access) return null;
+  try {
+    const link = await findFizz(FM.access, { log: () => {} });
+    try { const version = await link.identity(); return version ? { id: link.id, port: link.port, version } : null; } finally { link.close(); }
+  } catch (_) { return null; }
 }
 let attaching = false;
+// the link to S.access's unit (the FM-1's Web MIDI or the browser's FIZZ): -> "" or what went wrong (for the page's line)
 async function attach() {
-  if (attaching || S.link) return;
+  if (attaching || S.link) return "";
   attaching = true;
-  setUnit("look", "LOOKING…");
-  say("");
+  unitUi.render();
+  if (S.mode === "fm1") say("");
+  let why = "";
   try {
     const link = await findFizz(S.access, { log });
     link.log = log;
@@ -246,51 +272,74 @@ async function attach() {
     log(`connected: ${link.id} on "${link.port}", FIZZ ${version || "(no answer)"}, store ${info ? `${info.size} B at 0x${info.lo.toString(16)}, CRC-32 ${info.crc.toString(16)}` : "(no FZBI)"}, ` +
       `${rows.filter((r) => r.source === "mine").length} my presets`);
     const pk = unitPkg();
-    const sub = (version ? `FIZZ ${version.replace(/-\d+-g[0-9a-f]+$/, "")}${status ? ` · ${status.tracks} tracks` : ""}` : link.id) +
-      (pk.package === "ble" ? " · Bluetooth package" : "") + (link.viaBle ? " · over Bluetooth" : "");
     log(`package: ${pk.name} (${pk.nproj} projects, ${pk.nlib} MY PRESETS)${link.viaBle ? `, over Bluetooth (${link.port})` : ""}`);
-    if (S.mode === "browser") { setUnit("idle", "FM-1"); setB("on", sub); } else { setUnit("on", "FM-1", sub); setB("off"); }
-    if (!version && info) say("FIZZ does not answer (safe mode, or its data missing): back up and restore still work.", "--orange");
-    else if (!info) say(`This FIZZ has no backup over USB yet: <a href="../install/">update FIZZ</a>.`, "--orange");
-    else if (version && !status) say(`This FIZZ shows its library but cannot edit it yet: <a href="../install/">update FIZZ</a>.`, "--orange");
-    else if (status && status.noStore) say("FIZZ runs without its store (safe mode): back up and restore still work.", "--orange");
-    else if (link.viaBle) say("Connected over Bluetooth: everything works but a restore, which needs the USB cable.", "--cyan");
+    if (S.mode === "browser") { FM.bver = version || ""; FM.bstat = status; }
+    else {
+      FM.found = null;
+      if (!version && info) say("FIZZ does not answer (safe mode, or its data missing): back up and restore still work.", "--orange");
+      else if (!info) say(`This FIZZ has no backup over USB yet: <a href="../install/">update FIZZ</a>.`, "--orange");
+      else if (version && !status) say(`This FIZZ shows its library but cannot edit it yet: <a href="../install/">update FIZZ</a>.`, "--orange");
+      else if (status && status.noStore) say("FIZZ runs without its store (safe mode): back up and restore still work.", "--orange");
+      else if (link.viaBle) say("Connected over Bluetooth: everything works but a restore, which needs the USB cable.", "--cyan");
+    }
     if ($("tab-backup").hidden) loadDumps();
     if (status) live.probe().then(() => { if (!$("tab-edit").hidden) live.show(); });
   } catch (e) {
+    if (S.link) { try { S.link.close(); } catch (_) { /* gone */ } }
     S.link = null;
-    const m = {
-      notfound: ["NO FM-1", "No FM-1 answered. Check the USB cable, and close other apps and tabs that use MIDI (on Windows only one may)."],
-      notfizz: ["NOT FIZZ", `This FM-1 runs ${esc(e.detail || "another firmware")}, not FIZZ. <a href="../install/">Install FIZZ</a>.`],
-      update: ["UPDATE MODE", `The FM-1 is in update mode. Finish the install on the <a href="../install/">install page</a>.`],
-    }[e.code] || ["NO FM-1", esc(e.message)];
-    setUnit("bad", m[0]);
-    say(m[1], "--red");
+    why = {
+      notfound: "No FM-1 answered. Check the USB cable, and close other apps and tabs that use MIDI (on Windows only one may).",
+      notfizz: `This FM-1 runs ${esc(e.detail || "another firmware")}, not FIZZ. <a href="../install/">Install FIZZ</a>.`,
+      update: `The FM-1 is in update mode. Finish the install on the <a href="../install/">install page</a>.`,
+    }[e.code] || esc(e.message);
     log(`connect: ${e.code || ""} ${e.message}`);
   } finally {
     attaching = false;
     renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render(); projtab.render();
     if (S.link && !$("tab-projects").hidden) projtab.show();
+    unitUi.render();
   }
+  return why;
 }
+// the FM-1 gone while it was the unit: back to the browser's FIZZ (once nothing writes)
 function lost() {
-  if (!S.link) return;
+  if (!S.link || S.mode !== "fm1") return;
   S.link = null;
   live.lost();
-  setUnit("bad", "UNPLUGGED");
   log("the FM-1 was disconnected");
+  FM.found = null;
+  toast("FM-1 unplugged · back on THIS BROWSER", "--orange");
   renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render(); projtab.render();
+  (async () => { while (S.busy || attaching) await sleep(200); if (S.mode === "fm1" && !S.link) await useBrowser(); })();
 }
 let stateT = null;
 function onState(ev) {
   const p = ev && ev.port;
-  if (p && p.state === "disconnected" && S.link) { try { S.link.close(); } catch (_) { /* gone */ } lost(); return; }
+  if (S.mode === "fm1") {
+    if (p && p.state === "disconnected" && S.link) { try { S.link.close(); } catch (_) { /* gone */ } lost(); }
+    return;
+  }
+  // the browser's FIZZ the unit: an FM-1 running FIZZ that comes is offered (⇄ FM-1), never taken by itself (a port
+  // opened only, as a probe does: no change)
+  const sig = portsSig();
+  if (sig === FM.sig) return;
+  FM.sig = sig;
+  if (FM.found && !sig.split("|").includes(FM.found.port)) { FM.found = null; unitUi.render(); }
   clearTimeout(stateT);
-  if (!S.link && !S.busy) stateT = setTimeout(attach, 800);
+  stateT = setTimeout(watchFm1, 800);
 }
-$("unit").addEventListener("click", () => { if (S.mode === "browser") { leaveBrowser(); connect(); } else if (!S.link) connect(); });
-$("bunit").addEventListener("click", () => (S.mode === "browser" ? leaveBrowser() : useBrowser()));
-
+const portsSig = () => (FM.access ? [...FM.access.inputs.values()].filter((p) => p.state !== "disconnected").map((p) => p.name || "").sort().join("|") : "");
+async function watchFm1() {
+  if (S.mode !== "browser" || !FM.access || FM.probing) return;
+  FM.probing = true;
+  FM.sig = portsSig();
+  const f = await findUnit();
+  FM.probing = false;
+  if (S.mode !== "browser") return;
+  if (f && (!FM.found || FM.found.id !== f.id)) log(`an FM-1 running FIZZ ${f.version} on "${f.port}": ⇄ FM-1 to use it`);
+  FM.found = f;
+  unitUi.render();
+}
 // ---------------------------------------------------------------- the progress screen
 const P = { t0: 0, tick: null, nsec: 0, lib: 0 };
 function progOpen(label, size, write = false) {
@@ -1229,7 +1278,8 @@ async function loadBrowserLib() {
 }
 async function writeBrowser(fn) {
   if (S.mode === "browser") { say("The browser's FIZZ is the unit now: back to the FM-1 first.", "--orange"); return null; }
-  const base = S.brow.img || ((await newestImage().then((i) => i && asHost(i)).catch(() => null))) || blankImage();
+  const img = S.brow.img;                                // (an empty one: RESET's mark, a fresh store)
+  const base = img ? (img.length ? img : blankImage()) : ((await newestImage().then((i) => i && asHost(i)).catch(() => null))) || blankImage();
   const r = fn(base);
   if (!r || r.nochange) return r;
   if (BU) { clearTimeout(BU.saveT); BU.dispose(); BU = null; log("the browser's FIZZ let go: BROWSER boots its new flash"); }
@@ -1836,53 +1886,140 @@ function previewLib(snd, name) {
   previewSound(soundFromLib(snd));
 }
 
-// ---------------------------------------------------------------- FIZZ in this browser as the FM-1 (the owner, 2026-10-27)
-// BROWSER in the header: the browser's own FIZZ (browserunit.js) takes the FM-1's place, heard on the computer: every tab
-// works on it. It starts from the store it had last time in this browser, else the newest full backup kept here, else
-// blank; TRACK is on (nothing to protect). FM-1 in the header goes back to the unit.
-let BU = null;
-function setB(state, sub = "") {
-  const b = $("bunit");
-  b.dataset.state = state;
-  $("bunit-sub").textContent = sub;
-}
+// ---------------------------------------------------------------- FIZZ in this browser as the unit (the owner, 2026-10-27, 2026-10-29)
+// THIS BROWSER: the browser's own FIZZ (browserunit.js) takes the FM-1's place, heard on the computer: every tab works on
+// it. It starts from the store it had last time in this browser, else the newest full backup kept here, else blank;
+// TRACK is on (nothing to protect). With no FM-1 the page opens on it; before the page's first click it runs quietly
+// (the autoplay rule), and that click starts its sound (the speaker pill then mutes it).
+let BU = null, booting = false, muted = false, wokeAt = 0;
+const gestured = () => !!(navigator.userActivation && navigator.userActivation.hasBeenActive);
+const short = (v) => String(v || "").replace(/^FIZZ\s*/i, "").replace(/-\d+-g[0-9a-f]+$/, "");
 async function newestImage() {
   const b = S.baks.find((x) => x.kind === "full" && x.layout !== "host");
   if (!b) return null;
   try { return (await readBackup(b.bytes, b.name)).image; } catch (_) { return null; }
 }
 function dropLink() {
-  if (S.access) S.access.onstatechange = null;
   if (S.link) { try { S.link.close(); } catch (_) { /* gone */ } S.link = null; live.lost(); }
   if (S.mode === "browser" && BU) { BU.unplug(); if (BU.player.ctx) BU.player.ctx.suspend().catch(() => {}); }
   S.access = null;
 }
 async function useBrowser() {
-  if (S.busy || attaching) return;
+  if (S.busy || attaching || booting) return;
+  const was = S.mode === "fm1" && S.link && S.unit && S.unit.version ? { id: S.unit.id, port: S.unit.port, version: S.unit.version } : null;
   dropLink();
   S.mode = "browser";
-  setUnit("idle", "FM-1"); setB("look", "");
+  FM.found = was;                                         // (the FM-1 just left stays on offer)
+  booting = true;
+  unitUi.render();
   try {
-    if (!BU) { const { BrowserUnit } = await import("./browserunit.js"); BU = new BrowserUnit({ log, onFlash: (b) => { DB.put("browserFlash", b); S.brow.img = b; S.brow.rows = browserRows(b); } }); }
-    if (!(await BU.start())) throw new Error("the browser held the sound back: click BROWSER again");
-    if (BU.player.ctx) await BU.player.ctx.resume();
-    if (!BU.engine) await BU.boot((await DB.get("browserFlash")) || (await newestImage()));
-    else await BU.replug();
-  } catch (e) { S.mode = "fm1"; setB("off"); setUnit("off", "CONNECT"); say(esc(e.message || String(e)), "--orange"); return; }
-  S.access = BU.access;
-  await attach();
-  if (S.link && (await live.probe()) && !live.on()) await live.setOn(true);
+    if (!BU) { BU = new BrowserUnit({ log, onFlash: (b) => { DB.put("browserFlash", b); S.brow.img = b; S.brow.rows = browserRows(b); } }); BU.setVolume(muted ? 0 : 1); }
+    if (gestured()) await BU.start().catch(() => false);
+    if (!BU.engine) {
+      const kept = await DB.get("browserFlash");      // (an empty one: RESET, a fresh store)
+      await BU.boot(kept ? (kept.length ? kept : null) : await newestImage());
+    } else await BU.replug();
+    if (gestured() && BU.quiet) await BU.wake();       // (a click while it booted)
+  } catch (e) { say(esc(e.message || String(e)), "--orange"); log(`browser FIZZ: ${e.message || e}`); }
+  booting = false;
+  if (BU && BU.engine) {
+    S.access = BU.access;
+    await attach();
+    if (S.link && (await live.probe()) && !live.on()) await live.setOn(true);
+  }
+  unitUi.render();
+  if (FM.access && !FM.found) watchFm1();
 }
 function leaveBrowser() {
   if (S.busy) return;
   dropLink();
   S.mode = "fm1";
-  setB("off");
-  setUnit("off", "CONNECT");
   S.unit = null;
   renderUnit(); renderLibrary(); renderBaks(); pool.render(); importer.render(); projtab.render();
   loadBrowserLib();
+  unitUi.render();
 }
+// the picker's rows, ⇄ FM-1: never while a write runs
+function pick(u) {
+  if (u === S.mode && (S.link || attaching || booting)) return;
+  if (S.busy || attaching || booting) { toast("Wait: a write is still going", "--orange"); return; }
+  if (u === "fm1") connect(); else useBrowser();
+}
+// the sound: the page's first click starts it (FIZZ moved into the audio worklet); the pill then mutes it
+function wake(ev) {
+  if (S.mode !== "browser" || !BU || !BU.engine || BU.running || BU.waking || booting) return;
+  if (ev && ev.target && ev.target.closest && ev.target.closest("#fm1, #up-connect, .urow[data-u='fm1']")) return;   // (on the way to the FM-1)
+  wokeAt = performance.now();
+  BU.wake().then(() => unitUi.render(), () => unitUi.render());
+  unitUi.render();
+}
+document.addEventListener("pointerdown", wake, true);
+document.addEventListener("keydown", (ev) => { if (ev.key !== "Escape") wake(ev); }, true);
+function soundClick() {
+  if (S.mode !== "browser" || !BU) return;
+  if (!BU.running || performance.now() - wokeAt < 700) { wake(); return; }   // (the click that started it)
+  muted = !muted;
+  BU.setVolume(muted ? 0 : 1);
+  unitUi.render();
+}
+// the browser FIZZ's store: its STATUS when it is the unit, else its flash as kept here
+function memView() {
+  const st = S.mode === "browser" && S.unit && S.link ? S.unit.status : FM.bstat;
+  if (st && st.lib && st.lib[1]) return { lib: st.lib, prj: st.prj, all: (st.lib[0] + st.prj[0]) / (st.lib[1] + st.prj[1]) };
+  return FM.bmem || null;
+}
+async function readMem() {
+  try { const f = await DB.get("browserFlash"); FM.bmem = f && f.length ? readRegion(f).used : null; } catch (_) { FM.bmem = null; }
+  unitUi.render();
+}
+// RESET (the picker's MEMORY): asked once; MY PRESETS there are kept in BACKUP first (the page's way: "before"); then the
+// browser's FIZZ starts again on a fresh store
+async function resetBrowser() {
+  if (S.busy || attaching || booting) { toast("Wait: a write is still going", "--orange"); return; }
+  const host = (S.mode === "browser" && S.link && BU ? await BU.hostFlash() : null) || (await DB.get("browserFlash")) || (BU && BU.host);
+  let sum = null;
+  try { sum = host && host.length ? readRegion(host) : null; } catch (_) { sum = null; }
+  const n = sum ? sum.presets.length : 0, np = sum ? sum.projects.length : 0;
+  const ok = await confirmBox({ title: "RESET THIS BROWSER", what: "A fresh FIZZ store", go: "RESET", color: "--red",
+    sub: n ? `Its MY PRESETS (${n}) and its projects (${np}) are kept in BACKUP first.` : "The browser's FIZZ starts again on an empty store." });
+  if (!ok) return;
+  if (n) await keepBrowserBak(host);
+  const unit = S.mode === "browser";
+  if (unit) dropLink();
+  if (BU) { BU.dispose(); BU = null; }
+  FM.bstat = null; FM.bmem = null;
+  await DB.put("browserFlash", new Uint8Array(0));
+  if (unit) { S.unit = null; await useBrowser(); }
+  unitUi.render();
+  toast("THIS BROWSER: a fresh store", "--orange");
+}
+async function keepBrowserBak(host) {
+  const date = new Date(), image = convertImage(host, "device"), sum = readRegion(image), fizz = FM.bver || "";
+  const presets = sum.presets.map((p) => ({ fizz: true, name: p.name, blob: p.blob, drive: p.drive, pan: p.pan, sends: p.sends,
+    fizzTags: FIZZ_TAGS.filter((_, k) => (p.tags >> k) & 1), favourite: false, source: { fizz, from: `MY PRESETS ${p.slot}` }, notes: [], origin: [], mark: "", tags: [] }));
+  const file = makeFizzbak({ kind: "full", image, summary: sum, presets, fizz, unit: { identity: BROWSER_ID, port: "this browser" }, web: webFor(presets), date });
+  const name = backupFileName(date, "full").replace("FIZZ backup", "FIZZ browser before reset");
+  await keepBak({ date: +date, name, kind: "full", safety: true, saved: false, fizz, identity: BROWSER_ID, bytes: file, size: file.length,
+    tracks: sum.tracks, layout: sum.layout, projects: sum.projects.map((p) => p.name), presets: presets.length });
+  log(`kept ${name} in this browser (${file.length} B)`);
+}
+const unitUi = mountUnit({
+  $, pick, connect, sound: soundClick, reset: resetBrowser,
+  view: () => {
+    const br = S.mode === "browser", u = S.unit && S.link ? S.unit : null;
+    const fv = short(u && u.version).replace(/-.*$/, "");
+    return {
+      mode: S.mode,
+      look: br ? booting || attaching : attaching || !S.link,
+      bver: short(br && u ? u.version : FM.bver),
+      fver: short(br ? FM.found && FM.found.version : u && u.version),
+      fsub: !br && u ? `${fv ? `FIZZ ${fv} · ` : ""}${S.link.viaBle ? "BLUETOOTH" : "USB"}` : "",
+      found: br && !!FM.found,
+      sound: br ? (!BU || !BU.engine ? "off" : BU.waking ? "look" : BU.running ? (muted ? "mute" : "on") : "off") : null,
+      mem: memView(),
+    };
+  },
+});
 
 // ---------------------------------------------------------------- the simulated FM-1 (?sim)
 async function simAccess() {
@@ -1898,18 +2035,34 @@ async function simAccess() {
     sim.run(40);
   });
   sim.run(2500);
+  if (Q.get("sim") === "away") {                       // (Web MIDI allowed, the FM-1 not plugged in: __simPlug(true) plugs it)
+    const acc = { inputs: new Map(), outputs: new Map(), onstatechange: null, sysexEnabled: true };
+    sim.access = acc;
+    sim.gone = true; sim.input.state = sim.output.state = "disconnected";
+    window.__simPlug = async (on) => {
+      if (on) { acc.inputs.set("in", sim.input); acc.outputs.set("out", sim.output); await sim.replug(); }
+      else { sim.unplug(); acc.inputs.clear(); acc.outputs.clear(); }
+    };
+  }
   window.__sim = sim;
   log("a simulated FM-1 (?sim): the browser FIZZ behind a fake Web MIDI");
   return sim.access;
 }
 
 // ---------------------------------------------------------------- start
+// ?sim: the simulated FM-1 at start, as before; ?sim=away: Web MIDI allowed, the FM-1 not plugged in (__simPlug(on));
+// ?sim=nomidi: Web MIDI not allowed yet (CONNECT FM-1 "asks"). Otherwise: Web MIDI asked only if the page already may
+// (no prompt at start): an FM-1 running FIZZ there is the unit; else this browser's FIZZ
 tab(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "backup");
-loadBaks();
+const baksUp = loadBaks();
 loadBrowserLib();
-renderUnit(); renderLibrary(); pool.render(); importer.render();
-if (SIM) connect();
-else if (navigator.permissions && navigator.requestMIDIAccess) {
-  navigator.permissions.query({ name: "midi", sysex: true }).then((p) => { if (p.state === "granted") connect(); }).catch(() => {});
-}
-window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor, live, projtab, useBrowser, leaveBrowser, bu: () => BU, loadBrowserLib, keys: () => keys };
+S.mode = SIM && !Q.get("sim") ? "fm1" : "browser";
+renderUnit(); renderLibrary(); pool.render(); importer.render(); unitUi.render();
+(async function startUp() {
+  if (SIM && !Q.get("sim")) { await connect(); readMem(); return; }
+  if ((await midiGranted()) && (await openMidi()) && (await findUnit())) { await connect(); if (S.link && S.mode === "fm1") { readMem(); return; } }
+  await baksUp;
+  await useBrowser();
+})();
+window.__mgr = { S, connect, backup, openFile, tab, pool, importer, refreshRows, editor, exporter, bfizz, openInEditor, live, projtab, useBrowser, leaveBrowser, bu: () => BU,
+  FM, pick, unit: unitUi, loadBrowserLib, keys: () => keys };
