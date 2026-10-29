@@ -1,0 +1,39 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* FIZZ Manager: POOL (moved from manager.css unchanged; phase 2 restyles it) */
+/* ---- POOL */
+#tab-pool .poolcard { flex: 1; gap: 14px; }
+#tab-pool .pmine { width: 370px; flex: none; }
+.pool { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 6px; }
+.pool.off { opacity: .45; pointer-events: none; }
+.ps { height: 62px; border-radius: 9px; background: #101014; border: 1.5px solid #1c1c22; position: relative; padding: 6px 4px 0 5px; overflow: hidden; text-align: left; display: block; min-width: 0; color: inherit; transition: border-color .15s, transform .15s; }
+.ps .no { display: block; font-size: 12px; font-weight: 800; color: #5d5d66; }
+.ps .pn { display: block; font-size: 12px; font-weight: 800; color: var(--t, #000); line-height: 1.12; margin-top: 2px; overflow: hidden; max-height: 27px; letter-spacing: -.02em; overflow-wrap: normal; word-break: keep-all; }
+.ps.full { background: var(--c); border-color: var(--c); cursor: grab; }
+.ps.full .no { color: color-mix(in srgb, var(--t, #000) 55%, transparent); }
+.ps .use { position: absolute; right: 5px; bottom: 5px; display: flex; gap: 2px; }
+.ps .use i { width: 5px; height: 5px; border-radius: 50%; background: color-mix(in srgb, var(--t, #000) 60%, transparent); }
+.ps.sel { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--cyan); }
+.ps.target, .pool.picking .ps:hover { border: 2px solid var(--yellow); box-shadow: 0 0 16px color-mix(in srgb, var(--yellow) 40%, transparent); }
+.ps.target:not(.full), .pool.picking .ps:not(.full):hover { background: color-mix(in srgb, var(--yellow) 14%, #101014); }
+.ps.fizz { animation: fizz 1s ease-out; }
+.ps.fizz::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 30% 80%, #fff8 0 3px, transparent 4px), radial-gradient(circle at 70% 60%, #fff8 0 2px, transparent 3px), radial-gradient(circle at 50% 90%, #fff8 0 4px, transparent 5px); animation: bubbles 1s ease-out forwards; }
+@keyframes fizz { 0% { transform: scale(.8); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@keyframes bubbles { from { transform: translateY(10px); opacity: 1; } to { transform: translateY(-30px); opacity: 0; } }
+.pbar { margin-top: auto; gap: 10px; flex-wrap: wrap; }
+.legdot { color: var(--muted); font-size: 13px; }
+.selname { margin: 0 auto 0 14px; color: var(--text); font-weight: 800; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selname b { color: var(--cyan); margin-right: 6px; }
+.ps.lift { opacity: .3; }
+/* a picked sound's places in the pool: ringed green, as its badge */
+.ps.here { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--green); }
+.ps.here.sel { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--cyan), 0 0 0 6px var(--green); }
+@media (max-width: 900px) {
+  #tab-pool .pmine { width: auto; }
+  .pool { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+  .ps { height: 54px; padding: 4px 4px 0; }
+  .selname { margin: 0; flex-basis: 100%; order: -1; }
+}
+@media (min-width: 901px) {
+  #tab-pool .poolcard { overflow-y: auto; }
+}
+.ps .mchip { position: absolute; left: 4px; bottom: 4px; height: 16px; padding: 0 4px; font-size: 12px; box-shadow: 0 0 0 1.5px #000; }

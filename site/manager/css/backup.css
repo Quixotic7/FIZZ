@@ -1,0 +1,46 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* FIZZ Manager: BACKUP (moved from manager.css unchanged; phase 2 restyles it) */
+/* ---- BACKUP */
+#tab-backup .this { width: 560px; flex: none; gap: 22px; }
+#tab-backup .list { flex: 1; }
+.stats { display: flex; gap: 28px; }
+.meter { height: 26px; border-radius: 13px; background: #15151a; display: flex; overflow: hidden; border: 1px solid var(--line); }
+.meter span { display: block; height: 100%; transition: width .6s cubic-bezier(.2, .8, .2, 1); }
+.legend { display: flex; gap: 18px; margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legend .r { margin-left: auto; }
+.actions { margin-top: auto; display: flex; gap: 12px; flex-wrap: wrap; }
+.speed { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; font-weight: 700; color: var(--muted); }
+.speed b { font-size: 15px; }
+.bk { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 14px; background: var(--raised); border: 1.5px solid var(--line); margin-bottom: 10px; --c: var(--yellow); animation: slidein .35s cubic-bezier(.2, .8, .2, 1) both; }
+.bk .ic { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, transparent); border: 1.5px solid var(--c); flex: none; }
+.bk .ic svg { width: 22px; height: 22px; fill: none; stroke: var(--c); stroke-width: 2.2; }
+.bk .txt { min-width: 0; flex: 1; }
+.bk .when { color: var(--text); font-weight: 800; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk .what { color: var(--muted); font-size: 13px; font-weight: 600; }
+.bk .ver { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1.5px solid var(--line); color: var(--body); white-space: nowrap; }
+.bk .ver.old { border-color: var(--orange); color: var(--orange); }
+.bk.old { --c: var(--orange); } .bk.presets { --c: var(--cream); } .bk.safety { --c: var(--cyan); }
+@keyframes slidein { from { opacity: 0; transform: translateY(-10px); } }
+.h .use { margin-left: auto; color: var(--text); letter-spacing: 0; font-size: 15px; font-weight: 800; }
+.h .use small { color: var(--muted); font-size: 13px; font-weight: 600; margin-left: 6px; }
+.bk .icon.saved { border-color: var(--green); }
+.bk .icon.saved svg { stroke: var(--green); }
+.bk .icon.unsaved { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.bk .icon.unsaved svg { stroke: var(--yellow); }
+/* ▶: the backup in the browser's FIZZ (the player opens with it) */
+.bk .icon.play { width: 44px; height: 44px; border-radius: 22px; border: 0; background: var(--cyan); box-shadow: 0 0 16px color-mix(in srgb, var(--cyan) 45%, transparent); }
+.bk .icon.play svg { width: 16px; height: 16px; fill: #000; stroke: none; margin-left: 3px; }
+.baks { overflow-y: auto; min-height: 0; flex: 1; margin-bottom: 14px; }
+.drop { border: 2px dashed #34343d; border-radius: 16px; min-height: 92px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--muted); font-weight: 700; font-size: 15px; cursor: pointer; transition: border-color .2s, background .2s; }
+.drop svg { width: 26px; height: 26px; fill: none; stroke: var(--muted); stroke-width: 2.2; }
+.drop.over { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 8%, transparent); color: var(--yellow); }
+@media (max-width: 900px) {
+  #tab-backup .this { width: auto; }
+  .h .use { font-size: 13px; }
+  .stats { gap: 20px; }
+  .bk { flex-wrap: wrap; }
+  .bk .txt { flex: 1 1 calc(100% - 60px); }
+  .bk .ver { margin-right: auto; }
+  .baks { overflow: visible; }
+}

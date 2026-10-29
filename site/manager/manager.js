@@ -17,7 +17,7 @@ import { modelOf, imageOf, fitModel, fitChoice, projects as projectsOf } from ".
 import { parseDump, FIZZ_TAGS } from "../js/fizz_sysex.js";
 import { soundFromStoreFrame, soundToFizzsnd, soundFileName, makeFizzlib, libraryFileName, sameSound } from "../js/library.js";
 import { storeFrame } from "../js/digitone.js";
-import { $, esc, tagsOf, colOf, algo, emptyArt, refusal, confirmBox, MIDI_I, midiChip } from "./ui.js";
+import { $, esc, tagsOf, colOf, emptyArt, refusal, confirmBox, MIDI_I, midiChip } from "./ui.js";
 import { newFilter, filterHtml, filterClick, listHtml, poolPlaces, poolBadge } from "./presets.js";
 import { mountPool } from "./pool.js";
 import { mountImport } from "./importer.js";
@@ -863,14 +863,22 @@ function fetchOne(r) {
   }).catch(() => {}).finally(() => S.fetching.delete(k));
 }
 const places = () => poolPlaces(S.unit ? S.unit.rows : []);
+let libSig = "";
 function renderLibrary() {
   const u = S.unit;
   const rows = u ? u.rows : [];
   const mine = rows.filter((r) => r.source === "mine");
-  $("l-count").textContent = u ? `${mine.length} / ${unitPkg().nlib}` : "";
-  $("l-filter").innerHTML = filterHtml(S.filter);
+  $("l-count").innerHTML = u ? `${mine.length}<small>/${unitPkg().nlib}</small>` : "";
+  // (the counts beside the filters: the sources', and the tags' among the source shown)
+  const lr = rows.filter((r) => r.source === "mine" || r.source === "factory"), sr = lr.filter((r) => S.filter.src === "all" || r.source === S.filter.src);
+  const counts = u ? { src: { all: lr.length, factory: lr.length - mine.length, mine: mine.length }, tags: Object.fromEntries(FIZZ_TAGS.map((t, k) => [t, sr.filter((r) => (r.tags >> k) & 1).length])) } : null;
+  $("l-filter").innerHTML = filterHtml(S.filter, { counts });
+  // (the list pops in when what it shows changes, not on every pick)
+  const sig = u ? JSON.stringify([S.filter.src, [...S.filter.tags], S.filter.pool, lr.map((r) => r.id)]) : "";
+  const pop = sig !== libSig;
+  libSig = sig;
   const html = u ? listHtml(rows, S.filter, { frameOf, places: places(), on: (r) => S.sel && S.sel.source === r.source && S.sel.slot === r.slot,
-    drag: (r) => r.source === "mine" && !!u.status }) : "";
+    drag: (r) => r.source === "mine" && !!u.status, pop }) : "";
   $("l-list").innerHTML = html || (u ? "" : `<div class="empty">${emptyArt()}</div>`);
   renderSel();
 }
@@ -884,6 +892,7 @@ function renderSel() {
   const el = $("l-sel"), u = S.unit;
   const r = S.sel && u && u.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot);
   if (!r) {
+    el.style.removeProperty("--c");
     el.innerHTML = u ? `<div class="empty">${emptyArt()}</div>`
       : `<div class="empty"><div style="display:grid;gap:22px;justify-items:center">${emptyArt()}<button class="btn huge" id="l-connect">CONNECT</button></div></div>`;
     const b = $("l-connect");
@@ -898,25 +907,28 @@ function renderSel() {
   const users = mineSel ? S.users.get(`mine:${r.id}`) : null;
   const pl = places().get(r.id) || [];
   const mi = !!d && isMidiBlob(d.blob);
-  el.innerHTML = `<div class="selhead">${mi ? MIDI_I.replace('class="din"', 'class="din algo"') : algo(d ? d.blob[2] : r.slot, c)}<div style="min-width:0;flex:1"><div class="h" style="margin:0">${midiChip(mi)}${mi ? " " : ""}${mineSel ? "MY PRESETS" : "FACTORY"} ${r.slot}</div>
-      ${mineSel && can ? `<input class="bigname" id="l-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(r.name)}" aria-label="Name">` : `<div class="big">${esc(r.name)}</div>`}</div>
-      ${poolBadge(pl, "pbadge big")}</div>
-    <div class="row selgo">
-      <button class="btn" id="l-edit" style="--c:var(--pink);color:#fff" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15l9-9 3 3-9 9H3zM13 5l2-2 3 3-2 2"/></svg>EDIT</button>
-      <button class="btn onunit ${onUnit ? "on" : ""}" id="l-unit" ${S.link && !S.busy && u.status && r.id ? "" : "disabled"} aria-pressed="${!!onUnit}" aria-label="${onUnit ? `On the FM-1, track ${br.t + 1}: OCT minus cancels, OCT plus loads` : "Load on the FM-1"}">${onUnit
+  const tg = tagsOf(r.tags), ring = mi ? MIDI_I.replace('class="din"', 'class="din algo"') : `<span class="hud">${d ? Math.min(8, d.blob[2] + 1) : ""}</span>`;
+  el.style.setProperty("--c", c);
+  el.innerHTML = `<div class="selhead"><div class="selring" aria-hidden="true"><span class="halo"></span><span class="core">${ring}</span></div>
+      <div class="selid"><div class="selsrc hud">${midiChip(mi)}${mineSel ? "MY PRESETS" : "FACTORY"} · ${String(r.slot).padStart(2, "0")}</div>
+      ${mineSel && can ? `<input class="bigname" id="l-name" maxlength="12" spellcheck="false" autocomplete="off" value="${esc(r.name)}" aria-label="Name">` : `<div class="big">${esc(r.name)}</div>`}
+      <div class="selchips">${tg[0] ? `<span class="tag t-${tg[0]}">${tg[0]}</span>` : ""}${poolBadge(pl, "pbadge big")}</div></div></div>
+    <div class="selgo">
+      <button class="ol onunit ${onUnit ? "on" : ""}" id="l-unit" style="--c:var(--cream)" ${S.link && !S.busy && u.status && r.id ? "" : "disabled"} aria-pressed="${!!onUnit}" aria-label="${onUnit ? `On the FM-1, track ${br.t + 1}: OCT minus cancels, OCT plus loads` : "Load on the FM-1"}">${onUnit
         ? `<span class="okeys" aria-hidden="true"><i class="no">OCT−</i><i class="yes">OCT+</i></span>TRACK ${br.t + 1}`
         : '<svg viewBox="0 0 22 20" aria-hidden="true"><rect x="1.5" y="3" width="19" height="13" rx="3"/><path d="M6 19h10M9 7.5l4 2.5-4 2.5z"/></svg>LOAD ON FM-1'}</button>
-      <button class="btn" id="l-export" style="--c:var(--cream)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10M5 9l5 5 5-5M3 17h14"/></svg>EXPORT</button></div>
-    <div class="row selpool"><button class="btn pooltog ${pl.length ? "out" : ""}" id="l-pool" ${can && r.id ? "" : "disabled"} aria-pressed="${!!pl.length}">${pl.length ? "− POOL" : "+ POOL"}</button></div>
-    <div><div class="h">TAGS</div><div class="row tags" style="flex-wrap:wrap;gap:8px">
-      ${FIZZ_TAGS.map((t, k) => `<button class="tag t-${t} ${(r.tags >> k) & 1 ? "" : "off"}" data-dtag="${k}" aria-pressed="${!!((r.tags >> k) & 1)}" ${can ? "" : "disabled"}>${t}</button>`).join("")}
+      <button class="ol" id="l-edit" style="--c:var(--pink)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15l9-9 3 3-9 9H3zM13 5l2-2 3 3-2 2"/></svg>EDIT</button>
+      <button class="ol pooltog ${pl.length ? "out" : ""}" id="l-pool" style="--c:var(--green)" ${can && r.id ? "" : "disabled"} aria-pressed="${!!pl.length}">${pl.length ? "− POOL" : "+ POOL"}</button>
+      <button class="ol" id="l-export" style="--c:var(--violet)" ${f ? "" : "disabled"}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT</button></div>
+    <div class="selsec"><div class="lbl">Tags</div><div class="row tags">
+      ${FIZZ_TAGS.map((t, k) => `<button class="tag t-${t} ${(r.tags >> k) & 1 ? "on" : "off"}" data-dtag="${k}" aria-pressed="${!!((r.tags >> k) & 1)}" ${can ? "" : "disabled"}>${t}</button>`).join("")}
       ${web.map((t) => `<button class="tag web" data-web="${esc(t)}" aria-label="${esc(t)}, remove">${esc(t)}</button>`).join("")}
       ${key ? '<button class="tag web" id="l-addtag" aria-label="Add a tag (kept on this computer and in backups)">+</button>' : ""}</div></div>
-    ${mineSel ? `<div><div class="h">USED BY</div><div class="row" style="gap:10px;flex-wrap:wrap" id="l-users">${users === undefined ? '<span class="pchip ghost">…</span>'
+    ${mineSel ? `<div class="selsec"><div class="lbl">Used by</div><div class="row users" id="l-users">${users === undefined ? '<span class="pchip ghost">…</span>'
       : users && users.projects ? (users.projects.length ? users.projects.map((p) => `<span class="uchip">${esc(projectName(p.project))}${p.steps ? DOTS(p.steps) : ""}</span>`).join("") : '<span class="pchip ghost">—</span>') : ""}</div></div>` : ""}
-    ${d ? `<div class="row" style="gap:22px;flex-wrap:wrap"><div class="kv"><b>${d.pan > 0 ? "R" + d.pan : d.pan < 0 ? "L" + -d.pan : "C"}</b>pan</div><div class="kv"><b>${d.chorus}</b>chorus</div><div class="kv"><b>${d.delay}</b>delay</div><div class="kv"><b>${d.reverb}</b>reverb</div><div class="kv"><b>${d.drive}</b>drive</div></div>` : ""}
-    <div class="row selacts">${r.imported ? '<span class="tag web" style="height:34px;padding:0 12px">↓ IMPORTED</span>' : ""}
-      ${mineSel ? `<button class="btn ghost redline" id="l-del" style="margin-left:auto" ${can ? "" : "disabled"}>DELETE</button>` : ""}</div>`;
+    ${d ? `<div class="selvals"><div class="kv"><b>${d.pan > 0 ? "R" + d.pan : d.pan < 0 ? "L" + -d.pan : "C"}</b>pan</div><div class="kv"><b>${d.chorus}</b>chorus</div><div class="kv"><b>${d.delay}</b>delay</div><div class="kv"><b>${d.reverb}</b>reverb</div><div class="kv"><b>${d.drive}</b>drive</div></div>` : ""}
+    <div class="selacts">${r.imported ? '<span class="tag web">↓ IMPORTED</span>' : ""}
+      ${mineSel ? `<button class="ol redline" id="l-del" style="--c:var(--red)" ${can ? "" : "disabled"}>DELETE</button>` : ""}</div>`;
   if (mineSel && users === undefined && can) {          // (who uses it: a job on the unit, a moment)
     S.users.set(`mine:${r.id}`, null);
     S.link.users("mine", r.slot).then((x) => { S.users.set(`mine:${r.id}`, x && x.projects ? x : null); if (S.sel && S.sel.slot === r.slot) renderSel(); }).catch(() => {});
@@ -1027,7 +1039,7 @@ list.addEventListener("click", (ev) => {
   S.sel = { source: b.dataset.src, slot: +b.dataset.slot };
   renderLibrary();
   previewRow(S.unit.rows.find((x) => x.source === S.sel.source && x.slot === S.sel.slot));   // (TRACK on: on the track, KEEP / CANCEL)
-  if (matchMedia("(max-width: 900px)").matches) $("l-sel").scrollIntoView({ behavior: "smooth", block: "start" });   // (a phone: the panel is below the list)
+  if (matchMedia("(max-width: 900px) and (orientation: portrait)").matches) $("l-sel").scrollIntoView({ behavior: "smooth", block: "start" });   // (a phone: the panel is below the list)
 });
 // reorder MY PRESETS: a cassette dropped on another swaps their places (the ids go with them: nothing else changes);
 // ALT + up / down moves the selected one a place (into an empty place too)

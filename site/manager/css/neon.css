@@ -1,0 +1,76 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* FIZZ NEON: the design system (the owner's design canvas, Main): a black ground with a dot grid, neon tubes.
+   Rule 1, outline at rest: .tube, 1.5 px at 42 % of its colour, a 5 % tint inside. Rule 2, glow when live: .tube.on,
+   the full colour, a glow out and in, a second tube 3 px out. Rule 3, fill is the button: the one primary action of a
+   screen is .arc, solid in the tab's colour on a darker 4 px base that drops 3 px on a press. .ol is the outlined
+   secondary button; .chip a tag (outlined, never filled); .led a glowing dot; .lbl a label; .hud Silkscreen for
+   counters, slot numbers and badges (never sentences); .num big tabular numbers; .petch (Chakra Petch) only for the
+   FM-1's own panel words. Fonts self-hosted (OFL 1.1). Nothing under 11 px. */
+@font-face { font-family: "Inter Tight"; src: url("../../fonts/InterTight-VF-latin.woff") format("woff"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Silkscreen"; src: url("../../fonts/Silkscreen-400-latin.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("../../fonts/ChakraPetch-600-latin.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("../../fonts/ChakraPetch-700-latin.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+
+:root {
+  --bg: #000; --panel: #0A0A0F; --raised: #121219; --well: #17171F; --line: #272730; --dim: #3A3A44;
+  --text: #F2F2F5; --body: #C9C9D1; --muted: #8D8D96;
+  --cyan: #28E1FF; --blue: #3F7DFF; --green: #1FD47E; --cream: #F1F0EA; --orange: #FF6A2C; --pink: #FF3CA0;
+  --yellow: #FFD23F; --violet: #9664FF; --magenta: #F03CFF; --tangerine: #FF8A4C; --red: #FF5A5F;
+  --champagne: #F3D9A4;
+  /* the knobs' colours (core/ui/ui.h UI_K1..UI_K4, UI_KALG): the operators C A B1 B2 take them in order */
+  --k1: #3F7DFF; --k2: #1FD47E; --k3: #F1F0EA; --k4: #FF6A2C; --kalg: #FF8FC8;
+  --midi: #FF8FC8;   /* FIZZ MIDI (e): the guide's MIDI colour (the device's MIDI header is magenta too) */
+  --snap: cubic-bezier(.3, 1.7, .5, 1);
+  --hud: "Silkscreen", ui-monospace, monospace;
+  color-scheme: dark;
+}
+.grid-bg, body { background-color: #000; background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .07) 1px, transparent 1.2px); background-size: 22px 22px; }
+
+/* ---- the parts */
+.lbl { font-weight: 800; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.hud { font-family: var(--hud); font-weight: 400; letter-spacing: .04em; }
+.petch { font-family: "Chakra Petch", sans-serif; font-weight: 700; letter-spacing: .06em; }
+.num { font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; color: var(--text); }
+.tube { --c: var(--muted); border: 1.5px solid color-mix(in srgb, var(--c) 42%, transparent); background: color-mix(in srgb, var(--c) 5%, transparent); transition: border-color .16s var(--snap), background .16s, box-shadow .16s, transform .16s var(--snap); }
+.tube:not(:disabled):hover { border-color: color-mix(in srgb, var(--c) 75%, transparent); }
+.tube.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 11%, transparent);
+  box-shadow: 0 0 18px -3px color-mix(in srgb, var(--c) 65%, transparent), inset 0 0 14px -6px color-mix(in srgb, var(--c) 70%, transparent);
+  outline: 1.5px solid color-mix(in srgb, var(--c) 38%, transparent); outline-offset: 3px; }
+.arc { --c: var(--yellow); background: var(--c); color: #0A0A0A; border: 0; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; border-radius: 999px;
+  box-shadow: 0 4px 0 0 color-mix(in srgb, var(--c) 42%, #000), 0 0 28px -6px var(--c); transition: transform .12s var(--snap), box-shadow .12s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; white-space: nowrap; }
+.arc:not(:disabled):active { transform: translateY(3px); box-shadow: 0 1px 0 0 color-mix(in srgb, var(--c) 42%, #000), 0 0 18px -6px var(--c); }
+.ol { --c: var(--muted); border: 1.5px solid color-mix(in srgb, var(--c) 55%, transparent); background: transparent; color: var(--text); font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; transition: border-color .16s var(--snap), box-shadow .16s; }
+.ol:not(:disabled):hover { border-color: var(--c); box-shadow: 0 0 14px -4px var(--c); }
+.chip { --c: var(--muted); display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border-radius: 6px; border: 1.5px solid color-mix(in srgb, var(--c) 70%, transparent);
+  color: var(--c); font-weight: 800; font-size: 11px; letter-spacing: .1em; white-space: nowrap; }
+.chip::before { content: ""; width: 5px; height: 5px; border-radius: 1px; background: var(--c); box-shadow: 0 0 6px var(--c); flex: none; }
+.led { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--green)); box-shadow: 0 0 10px var(--c, var(--green)); animation: led 1.8s ease-in-out infinite; flex: none; }
+.word { font-weight: 900; letter-spacing: .06em; background: linear-gradient(90deg, #28E1FF, #3F7DFF 22%, #F03CFF 45%, #FF6A2C 62%, #FFD23F 78%, #28E1FF);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 6s linear infinite; }
+.bob circle { transform-box: fill-box; transform-origin: center; animation: bob 2.6s ease-in-out infinite; }
+.bob circle:nth-child(2) { animation-delay: -.9s; } .bob circle:nth-child(3) { animation-delay: -1.7s; }
+/* the audition: EQ bars on what sounds */
+.eq { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; flex: none; }
+.eq i { width: 3px; height: 14px; border-radius: 2px; background: var(--c, var(--pink)); transform-origin: bottom; animation: eq .7s ease-in-out infinite; }
+.eq i:nth-child(2) { animation-duration: .9s; animation-delay: -.3s; } .eq i:nth-child(3) { animation-duration: .6s; animation-delay: -.5s; } .eq i:nth-child(4) { animation-duration: .8s; animation-delay: -.2s; }
+
+/* ---- motion: pop (a list arrives, 55 ms apart), flicker (the unit pill striking up), breathe (the primary glows) */
+.pop { animation: pop .5s var(--snap) both; animation-delay: calc(var(--i, 0) * 55ms); }
+.flick { animation: flicker 4s linear infinite; }
+.breathe { animation: breathe 2.4s ease-in-out infinite; }
+@keyframes shine { to { background-position: -200% 0; } }
+@keyframes led { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes pop { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes flicker { 0%, 18%, 22%, 62%, 64%, 100% { opacity: 1; } 19%, 21%, 63% { opacity: .3; } }
+@keyframes strike { 0% { opacity: .2; } 10% { opacity: 1; } 14% { opacity: .3; } 22% { opacity: 1; } 26% { opacity: .5; } 34%, 100% { opacity: 1; } }
+@keyframes breathe { 0%, 100% { box-shadow: 0 4px 0 0 color-mix(in srgb, var(--c) 42%, #000), 0 0 18px -6px var(--c); } 50% { box-shadow: 0 4px 0 0 color-mix(in srgb, var(--c) 42%, #000), 0 0 40px -2px var(--c); } }
+@keyframes eq { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+@keyframes ring { from { transform: scale(.7); opacity: .9; } to { transform: scale(1.6); opacity: 0; } }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes slideup { from { opacity: 0; transform: translateY(24px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

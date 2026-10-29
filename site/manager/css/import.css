@@ -1,0 +1,43 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* FIZZ Manager: IMPORT (moved from manager.css unchanged; phase 2 restyles it) */
+/* ---- IMPORT */
+.body.col { flex-direction: column; gap: 16px; }
+.dz { min-height: 130px; border-radius: 18px; border: 2px dashed var(--violet); background: color-mix(in srgb, var(--violet) 8%, transparent); display: flex; align-items: center; gap: 22px; padding: 16px 28px; flex-wrap: wrap; transition: background .2s; }
+.dz.over { background: color-mix(in srgb, var(--violet) 22%, transparent); }
+.dz .files { display: flex; gap: 10px; cursor: pointer; }
+.ft { width: 64px; height: 78px; border-radius: 10px; border: 2px solid var(--c); display: flex; flex-direction: column; justify-content: flex-end; padding: 6px; font-size: 12px; font-weight: 800; color: var(--c); transition: transform .15s; }
+.dz .files:hover .ft { transform: translateY(-3px); }
+.ft small { font-size: 12px; opacity: .8; font-weight: 700; }
+.dz .big { font-size: 34px; }
+.dest { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+.dest .seg button { height: 42px; padding: 0 18px; }
+.select { height: 42px; border-radius: 21px; border: 1.5px solid var(--line); background: #000; color: var(--text); font: 800 14px "Inter Tight"; padding: 0 14px; }
+.ilist { flex: 1; padding: 16px; }
+.irows { flex: 1; overflow-y: auto; min-height: 0; }
+.ir { display: grid; grid-template-columns: 34px 58px minmax(0, 1fr) 230px 220px 140px; align-items: center; gap: 14px; min-height: 60px; padding: 0 14px; border-radius: 12px; background: var(--raised); border: 1.5px solid var(--line); margin-bottom: 8px; }
+.ir[data-k] { cursor: pointer; }
+.ir.cur { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 14%, var(--raised)); box-shadow: 0 0 16px color-mix(in srgb, var(--violet) 30%, transparent); }
+.ir .src { font-size: 12px; font-weight: 800; padding: 3px 0; border-radius: 6px; text-align: center; color: #000; }
+.ir .src.dn1 { background: var(--cyan); } .ir .src.dn2 { background: var(--magenta); } .ir .src.fz { background: var(--cream); }
+.ir .nm { color: var(--text); font-weight: 800; font-size: 17px; letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ir .note { font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ir .note.lost { color: var(--champagne); } .ir .note.bad { color: var(--red); } .ir .note.dup { color: var(--yellow); }
+.ir .tg { display: flex; gap: 5px; flex-wrap: wrap; }
+.ir.no { opacity: .45; } .ir.off { opacity: .6; }
+.ir .okmark { color: var(--green); font-weight: 800; font-size: 14px; }
+.fid { display: flex; gap: 3px; }
+.fid i { flex: 1; height: 14px; border-radius: 3px; background: #24242b; transition: background .3s; }
+.chk { width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--violet); display: grid; place-items: center; background: transparent; padding: 0; }
+.chk.on { background: var(--violet); }
+.chk svg { width: 12px; height: 12px; fill: none; stroke: #000; stroke-width: 2.4; }
+.ifoot { margin-top: 14px; gap: 12px; }
+@media (max-width: 900px) {
+  .dz { padding: 14px 16px; gap: 14px; }
+  .dest { margin-left: 0; flex-wrap: wrap; }
+  .ir { grid-template-columns: 30px 52px minmax(0, 1fr); row-gap: 6px; padding: 10px 12px; }
+  .ir .fid { grid-column: 2 / 4; } .ir .note { grid-column: 2 / 4; } .ir .tg { grid-column: 2 / 4; }
+}
+@media (min-width: 901px) {
+  #tab-import .dz { flex: none; }
+  #tab-import .ilist { min-height: 0; }
+}

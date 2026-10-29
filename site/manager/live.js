@@ -52,8 +52,8 @@ export function mountLive(ctx) {
     $("live-n").textContent = n >= 0 ? String(n + 1) : "–";
     bar.hidden = !(L.on && L.pending);
     if (L.on && L.pending) {
-      bar.innerHTML = `<span class="lbt">${tn(L.pending.t)}</span><span class="arr">←</span><b>${esc(L.pending.name)}</b>` +
-        `<button class="btn small" id="lb-keep" style="--c:var(--pink);color:#fff">KEEP</button><button class="btn small ghost" id="lb-cancel">CANCEL</button>`;
+      bar.innerHTML = `<div class="lbh"><span class="lbt"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>HEARD ON ${tn(L.pending.t)}</span><b>${esc(L.pending.name)}</b></div>` +
+        `<div class="lbb"><button class="ol" id="lb-cancel" style="--c:var(--pink)">CANCEL</button><button class="arc breathe" id="lb-keep" style="--c:var(--pink)">KEEP</button></div>`;
       $("lb-keep").onclick = keep;
       $("lb-cancel").onclick = cancel;
     }

@@ -10,12 +10,20 @@
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Ccircle cx='13' cy='18' r='8' fill='none' stroke='%2328E1FF' stroke-width='2.5'/%3E%3Ccircle cx='23.5' cy='8.5' r='4' fill='none' stroke='%23FF3CA0' stroke-width='2.2'/%3E%3Ccircle cx='24' cy='22' r='2.4' fill='none' stroke='%23FFD23F' stroke-width='2'/%3E%3C/svg%3E">
 <link rel="preload" href="../fonts/InterTight-VF-latin.woff" as="font" type="font/woff" crossorigin>
-<link rel="stylesheet" href="manager.css">
+<link rel="preload" href="../fonts/Silkscreen-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/neon.css">
+<link rel="stylesheet" href="css/shell.css">
+<link rel="stylesheet" href="css/library.css">
+<link rel="stylesheet" href="css/backup.css">
+<link rel="stylesheet" href="css/edit.css">
+<link rel="stylesheet" href="css/pool.css">
+<link rel="stylesheet" href="css/projects.css">
+<link rel="stylesheet" href="css/import.css">
 </head>
 <body>
 <header class="top">
   <a class="logo" href="../" aria-label="FIZZ, the preview">
-    <svg class="bub" viewBox="0 0 32 32" aria-hidden="true"><circle cx="11" cy="20" r="7"/><circle cx="22" cy="10" r="5"/><circle cx="23" cy="24" r="3"/></svg>
+    <svg class="bub bob" viewBox="0 0 32 32" aria-hidden="true"><circle cx="11" cy="20" r="7"/><circle cx="22" cy="11.5" r="5.5"/><circle cx="23.5" cy="25" r="3.5"/></svg>
     <span class="word">FIZZ</span>
   </a>
   <span class="crumb">Manager</span>
@@ -31,6 +39,7 @@
   <button id="refresh" class="icon refresh" aria-label="Read the FM-1 again" title="Read the FM-1 again" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16.5 3.5v3.6h-3.6"/></svg></button>
   <button id="unit" class="unit" data-state="off"><span class="dot"></span><span id="unit-label">CONNECT</span><small id="unit-sub"></small></button>
   <button id="bunit" class="unit bunit" data-state="off" title="FIZZ in this browser, heard on this computer"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8v4h3l4 3V5L6 8z"/><path d="M13 7.5a3.5 3.5 0 0 1 0 5M15.5 5a7 7 0 0 1 0 10"/></svg><span>BROWSER</span><small id="bunit-sub"></small></button>
+  <details class="logbox" id="logbox"><summary aria-label="Log"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg>LOG</summary><pre id="log"></pre></details>
 </header>
 <p id="say" class="say" role="status"></p>
 <div id="loadbar" class="loadbar" role="status" hidden></div>
@@ -61,12 +70,13 @@
   </section>
 
   <section id="tab-library" class="body" role="tabpanel" aria-labelledby="t-library" hidden>
-    <div class="card lib">
-      <div class="h">LIBRARY <span class="n" id="l-count"></span><button id="l-export-all" class="btn small exall" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10M5 9l5 5 5-5M3 17h14"/></svg>EXPORT ALL</button></div>
-      <div class="filters" id="l-filter"></div>
+    <aside class="lfilt" id="l-filter" aria-label="Filters"></aside>
+    <div class="lmain">
+      <div class="lhead"><h1 class="ltitle">LIBRARY</h1><span class="lcount hud" id="l-count"></span>
+        <button id="l-export-all" class="ol exall" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6 7l4-4 4 4M4 12v5h12v-5"/></svg>EXPORT ALL</button></div>
       <div class="cases" id="l-list"></div>
     </div>
-    <div class="card sel" id="l-sel"></div>
+    <aside class="card sel" id="l-sel" aria-label="The sound picked"></aside>
   </section>
 
   <section id="tab-edit" class="body edit" role="tabpanel" aria-labelledby="t-edit" hidden>
@@ -166,7 +176,6 @@
 </div>
 
 <input type="file" id="pj-file" accept=".fizzpat,.fizzprj" multiple hidden>
-<details class="logbox" id="logbox"><summary>LOG</summary><pre id="log"></pre></details>
 <div class="toast" id="toast" role="alert" hidden></div>
 
 <script type="module" src="manager.js"></script>
