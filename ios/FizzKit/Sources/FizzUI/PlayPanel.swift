@@ -3,7 +3,7 @@
 // distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 // PLAY's pull-down sheet (mock-up 30, after RemoteFM1's PhoneSheet): SOUND (THIS iPHONE, or the FM-1's track when one
-// is the unit), VIEW, THEME (the five and FIZZ), FIZZ's version, the emulated FIZZ's MEMORY with RESET, MIDI & AUDIO,
+// is the unit), VIEW (STEPS among them, mock-up 38), THEME (the five and FIZZ), FIZZ's version, the emulated FIZZ's MEMORY with RESET, MIDI & AUDIO,
 // and the app's tab bar at its foot. Swiped up, DONE or a tap on the scrim puts it away.
 
 import SwiftUI
@@ -130,6 +130,7 @@ struct PlaySheet: View {
                     VStack(spacing: 9) {
                         ViewGlyph(kind: v, accent: accent).frame(width: 48, height: 40)
                         Text(v.title).fz(12, 800, em: 0.08).foregroundStyle(SheetInk.text.color)
+                            .lineLimit(1).minimumScaleFactor(0.8)
                     }
                     .frame(maxWidth: .infinity).frame(height: 90)
                     .background(RoundedRectangle(cornerRadius: 18).fill(on ? SheetInk.tile.color : .clear))
@@ -234,7 +235,7 @@ struct PlaySheet: View {
     }
 }
 
-/// The VIEW tiles' small pictures (FULL, PANEL, KEYS, SCREEN).
+/// The VIEW tiles' small pictures (FULL, PANEL, KEYS, STEPS, SCREEN).
 struct ViewGlyph: View {
     let kind: PlayViewKind
     let accent: RGB
@@ -257,6 +258,24 @@ struct ViewGlyph: View {
             case .keys:
                 RoundedRectangle(cornerRadius: 3).fill(lt).frame(width: 20, height: 20)
                 RoundedRectangle(cornerRadius: 3).fill(accent.color).frame(width: 48)
+            case .steps:
+                HStack(spacing: 3) {
+                    RoundedRectangle(cornerRadius: 3).fill(lt).frame(width: 14, height: 14)
+                    VStack(spacing: 2) {
+                        ForEach(0..<2, id: \.self) { r in
+                            HStack(spacing: 2) {
+                                ForEach(0..<4, id: \.self) { c in
+                                    RoundedRectangle(cornerRadius: 1.5).fill(r == 0 && c == 0 ? accent.color : dk)
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(width: 48, height: 14)
+                HStack(spacing: 2) {
+                    ForEach(0..<7, id: \.self) { _ in RoundedRectangle(cornerRadius: 1.5).fill(lt) }
+                }
+                .frame(width: 48)
             case .screen:
                 RoundedRectangle(cornerRadius: 3).fill(lt).frame(width: 38, height: 38).padding(.top, 1)
             }

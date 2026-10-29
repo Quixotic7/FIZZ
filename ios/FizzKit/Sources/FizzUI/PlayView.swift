@@ -4,7 +4,8 @@
 //
 // PLAY (mock-ups 29-33): the emulated FIZZ, full-screen, on the owner's RemoteFM1 panel with FIZZ's names. Its views:
 // FULL (knobs, F1 / F2, the screen, KN1-4, the buttons, the keybed), the linked PANEL / KEYS (the screen big, one
-// knob set, BUTTONS or KEYS below), SCREEN; a swipe sideways on the screen moves between them. Landscape and the iPad
+// knob set, BUTTONS or KEYS below), STEPS (mock-ups 38-40: the 16 steps as pads, a chromatic keyboard; PlaySteps*.swift),
+// SCREEN; a swipe sideways on the screen moves between them. Landscape and the iPad
 // lay it all out in one band (PhoneWide, PadWide). The handle (or a swipe down) drops the sheet (PlayPanel.swift),
 // which carries the app's tab bar.
 
@@ -68,7 +69,11 @@ public struct PlayView: View {
         .persistentSystemOverlays(.hidden)
         .deferringSystemGestures()
         .task { if !snapshot { await play.follow() } }
-        .onAppear { host.playShown = true; turnable(true) }
+        .onAppear {
+            host.playShown = true
+            turnable(true)
+            if play.view == .steps { play.stepsEntered() }      // (FIZZ in its step view, as on entering STEPS)
+        }
         .onDisappear { play.left(); host.playShown = false; turnable(false) }
     }
 
@@ -85,7 +90,9 @@ public struct PlayView: View {
     @ViewBuilder
     private func board(full: CGSize, top: CGFloat) -> some View {
         if full.width > full.height {
-            if wide { padWide(full, top) } else { phoneWide(full) }
+            if play.view == .steps {
+                if wide { stepsPad(full, top) } else { stepsWide(full) }
+            } else if wide { padWide(full, top) } else { phoneWide(full) }
         } else {
             phonePortrait(full, top)
         }
@@ -103,6 +110,7 @@ public struct PlayView: View {
             switch play.view {
             case .full: full390(b)
             case .panel, .keys: linked390(b)
+            case .steps: steps390(b)
             case .screen: screen390(b)
             }
         }
@@ -156,6 +164,85 @@ public struct PlayView: View {
             FPair(model: play, w: b.s(200), h: b.s(48), font: b.s(14)).place(b, 95, 702, 200, 48)
         }
         dots(b, p).place(b, 0, 756, 390, 28)
+    }
+
+    /// STEPS (mock-up 38): the screen and KN 1-4, the 16 pads in two rows, OCT - / + with the range, the keyboard.
+    @ViewBuilder
+    private func steps390(_ b: Board) -> some View {
+        let p = play.theme.palette
+        screen(b, 196).place(b, 16, 46, 196, 196)
+        VStack(spacing: b.s(18)) {
+            HStack(spacing: 0) {
+                knob(b, "KN1", .k1, size: 46).frame(maxWidth: .infinity)
+                knob(b, "KN2", .k2, size: 46).frame(maxWidth: .infinity)
+            }
+            HStack(spacing: 0) {
+                knob(b, "KN3", .k3, size: 46).frame(maxWidth: .infinity)
+                knob(b, "KN4", .k4, size: 46).frame(maxWidth: .infinity)
+            }
+        }
+        .place(b, 222, 54, 152, 180)
+        StepPads(model: play, w: b.s(358), h: b.s(138)).place(b, 16, 256, 358, 138)
+        HStack(spacing: 0) {
+            OctButton(model: play, up: false, w: b.s(132), h: b.s(40), font: b.s(14))
+            Spacer(minLength: 0)
+            Text(StepsInput.range(octave: play.stepsOctave, whites: 11)).petch(b.s(16), em: 0.06)
+                .foregroundStyle(p.label.color).contentTransition(.numericText())
+            Spacer(minLength: 0)
+            OctButton(model: play, up: true, w: b.s(132), h: b.s(40), font: b.s(14))
+        }
+        .place(b, 16, 404, 358, 44)
+        StepsKeyboard(model: play, w: b.s(358), h: b.s(290), whites: 11).place(b, 16, 460, 358, 290)
+        dots(b, p).place(b, 0, 756, 390, 28)
+    }
+
+    /// STEPS on its side (mock-up 39): the screen at the left, KN 1-4, OCT - / + and the FIZZ badge across the top,
+    /// the pads in two rows beside the screen, two octaves of keys across the bottom.
+    @ViewBuilder
+    private func stepsWide(_ full: CGSize) -> some View {
+        let u = min(full.width / 844, full.height / 390)
+        let b = Board(u: u)
+        ZStack(alignment: .topLeading) {
+            handle(b).place(b, 378, -8, 88, 32)
+            screen(b, 172).place(b, 50, 16, 172, 172)
+            knRow(b, size: 36, spaced: true).place(b, 236, 10, 336, 66)
+            OctPair(model: play, w: b.s(128), h: b.s(48), font: b.s(13)).place(b, 580, 18, 128, 48)
+            FizzBadge(height: b.s(30), logo: b.s(20), word: b.s(13)) { toManager() }.place(b, 712, 20, 82, 44)
+            StepPads(model: play, w: b.s(558), h: b.s(110)).place(b, 236, 80, 558, 110)
+            StepsKeyboard(model: play, w: b.s(744), h: b.s(176), whites: 15).place(b, 50, 204, 744, 176)
+        }
+        .frame(width: 844 * u, height: 390 * u, alignment: .topLeading)
+        .offset(x: (full.width - 844 * u) / 2, y: (full.height - 390 * u) / 2)
+    }
+
+    /// STEPS on the iPad (mock-up 40): the screen at 300 with all eight knobs beside it, the pads in one row, OCT + / -
+    /// stacked at the keys' left with the lowest C between.
+    @ViewBuilder
+    private func stepsPad(_ full: CGSize, _ top: CGFloat) -> some View {
+        let p = play.theme.palette
+        let u = min(full.width / 1096, (full.height - top) / 780)
+        let b = Board(u: u)
+        ZStack(alignment: .topLeading) {
+            header(b, CGRect(x: 36, y: 14, width: 1024, height: 36), badge: false)
+            screen(b, 300).place(b, 36, 66, 300, 300)
+            mainRow(b, size: 62).place(b, 380, 70, 680, 120)
+            knRow(b, size: 62, spaced: true).place(b, 380, 220, 680, 120)
+            StepPads(model: play, w: b.s(1024), h: b.s(104), rows: 1).place(b, 36, 386, 1024, 104)
+            VStack(spacing: 0) {
+                OctButton(model: play, up: true, w: b.s(68), h: b.s(104), font: b.s(15), stacked: true)
+                Spacer(minLength: 0)
+                Text(StepsInput.name(12 * (play.stepsOctave + 1))).petch(b.s(14), em: 0.06).foregroundStyle(p.keyText.color)
+                    .contentTransition(.numericText())
+                Spacer(minLength: 0)
+                OctButton(model: play, up: false, w: b.s(68), h: b.s(104), font: b.s(15), stacked: true)
+            }
+            .padding(b.s(6))
+            .background(RoundedRectangle(cornerRadius: b.s(16)).fill(p.bed.color))
+            .place(b, 36, 506, 80, 262)
+            StepsKeyboard(model: play, w: b.s(932), h: b.s(262), whites: 15).place(b, 128, 506, 932, 262)
+        }
+        .frame(width: 1096 * u, height: 780 * u, alignment: .topLeading)
+        .offset(x: (full.width - 1096 * u) / 2, y: top)
     }
 
     /// SCREEN: the screen alone.
@@ -365,13 +452,23 @@ public struct PlayView: View {
         .buttonStyle(.plain)
     }
 
-    /// FULL / the linked view / SCREEN.
+    /// FULL / the linked view / STEPS / SCREEN.
     private func dots(_ b: Board, _ p: PlayTheme.Palette) -> some View {
-        let at = play.view == .full ? 0 : play.view == .screen ? 2 : 1
+        let at = switch play.view {
+        case .full: 0
+        case .panel, .keys: 1
+        case .steps: 2
+        case .screen: 3
+        }
         return HStack(spacing: 0) {
-            ForEach(0..<3, id: \.self) { i in
+            ForEach(0..<4, id: \.self) { i in
                 Button {
-                    play.view = i == 0 ? .full : i == 2 ? .screen : (play.view == .panel ? .panel : .keys)
+                    play.view = switch i {
+                    case 0: .full
+                    case 2: .steps
+                    case 3: .screen
+                    default: play.view == .panel ? .panel : .keys
+                    }
                 } label: {
                     Capsule().fill(p.label.color).opacity(i == at ? 1 : 0.35)
                         .frame(width: b.s(i == at ? 22 : 8), height: b.s(8))
