@@ -113,7 +113,8 @@ public struct PlayView: View {
         }
         .place(b, 16, 270, 358, 70)
         well(b, bw: 52, bh: 42, gap: 6, font: 12).place(b, 14, 354, 362, 110)
-        LEDKeybed(model: play, w: b.s(358), h: b.s(272), keyW: b.s(40)).place(b, 16, 484, 358, 272)
+        // (the iPad standing: all 16 keys at once)
+        LEDKeybed(model: play, w: b.s(358), h: b.s(272), keyW: wide ? nil : b.s(40)).place(b, 16, 484, 358, 272)
     }
 
     /// PANEL / KEYS (mock-up 31): the screen big, one knob set, BUTTONS or KEYS.
@@ -138,7 +139,8 @@ public struct PlayView: View {
         .background(Capsule().fill(.black.opacity(0.16)))
         .place(b, 95, 520, 200, 40)
         if play.view == .keys {
-            LEDKeybed(model: play, w: b.s(358), h: b.s(184), keyW: b.s(40), numbers: true).place(b, 16, 568, 358, 184)
+            LEDKeybed(model: play, w: b.s(358), h: b.s(184), keyW: wide ? nil : b.s(40), numbers: true)
+                .place(b, 16, 568, 358, 184)
         } else {
             well(b, bw: 50, bh: 48, gap: 8, font: 12).place(b, 15, 566, 360, 124)
             FPair(model: play, w: b.s(200), h: b.s(48), font: b.s(14)).place(b, 95, 702, 200, 48)
@@ -262,7 +264,7 @@ public struct PlayView: View {
 
     /// The LCD; a swipe sideways on it moves to the next view.
     private func screen(_ b: Board, _ s: CGFloat) -> some View {
-        LCDScreen(image: play.lcd ?? (snapshot ? host.emulator?.lcdImage : nil), size: b.s(s), p: play.theme.palette)
+        LiveLCD(play: play, size: b.s(s))
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 24).onEnded { v in
                 guard abs(v.translation.width) > 50, abs(v.translation.width) > abs(v.translation.height) else { return }
@@ -368,6 +370,13 @@ public struct PlayView: View {
             }
         }
     }
+}
+
+/// The LCD as frames come (only it redraws ~60 times a second, not the whole panel).
+struct LiveLCD: View {
+    let play: PlayModel
+    let size: CGFloat
+    var body: some View { LCDScreen(image: play.lcd, size: size, p: play.theme.palette) }
 }
 
 /// A layout's unit: its sizes are the mock-up's points times `u`.
