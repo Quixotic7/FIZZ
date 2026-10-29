@@ -849,8 +849,8 @@ try {
     check((await lost()) === 1 && (await evaluate(`document.querySelector("#p-grid .ps[data-k='${k1}']").classList.contains('full')`)) && !(await said()), `POOL: a place (${k1}), its reply lost: shown`);
     await dropReply(0x15);
     await evaluate(`document.querySelector("#p-grid .ps[data-k='${k1}']").dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true }))`);
-    await waitFor("!document.getElementById('cf').hidden");
-    await click("#cf-go");
+    await waitFor("!document.getElementById('p-move').hidden");   // (NEON: the moving card asks)
+    await click("#p-mv-go");
     await waitFor(`__mgr.S.unit.rows.some((r) => r.source === 'pool' && r.slot === ${k1 + 1} && r.id === ${pid}) && !__mgr.S.editing && !__mgr.S.writing`, 20000);
     await settled();
     check((await lost()) === 1 && (await evaluate(`document.querySelector("#p-grid .ps[data-k='${k1 + 1}']").classList.contains('full') && !document.querySelector("#p-grid .ps[data-k='${k1}']").classList.contains('full')`)) && !(await said()),
@@ -1253,7 +1253,7 @@ try {
     return evaluate(`(() => { const st = document.getElementById('ed-stage'), cols = [...st.querySelectorAll('.fcol')];
       return { page: document.documentElement.scrollHeight <= innerHeight + 1 && document.documentElement.scrollWidth <= innerWidth + 1,
         cols: cols.length === 3 && cols.every((c) => c.scrollHeight <= c.clientHeight + 1), stage: st.scrollHeight <= st.clientHeight + 1,
-        tight: [...st.querySelectorAll('.pn.tight')].map((e) => e.dataset.sec).join(',') || '-', fit: cols.map((c) => c.scrollHeight + '/' + c.clientHeight).join(' ') }; })()`);
+        tight: [...st.querySelectorAll('.pn.tight')].map((e) => e.dataset.sec).join(',') || '-', fit: cols.map((c) => c.scrollHeight + '/' + c.clientHeight + ' [' + [...c.querySelectorAll('.pn')].map((e) => e.dataset.sec + ' ' + e.offsetHeight).join(', ') + ']').join(' ') + ' · ' + __mgr.editor.sound().name + ' · ' + __mgr.editor.place().label }; })()`);
   };
   for (const [w, h] of [[1440, 900], [1280, 800]]) {
     const f = await fitAt(w, h);

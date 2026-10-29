@@ -299,12 +299,12 @@
 .bkic .ibtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .bkic .ibtn.red { color: var(--red); }
 .bklist { display: flex; flex-direction: column; gap: 6px; }
-.mrow { --c: var(--muted); display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 10px; border: 1.5px solid color-mix(in srgb, var(--c) 30%, transparent); min-width: 0; }
-.mrow .ring { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--c); display: grid; place-items: center; flex: none; box-shadow: inset 0 0 0 3px #000, inset 0 0 0 4px color-mix(in srgb, var(--c) 55%, transparent); }
-.mrow .ring .hud { font-size: 11px; color: var(--text); transform: scale(.85); }
-.mrow b { color: var(--text); font-weight: 800; font-size: 13px; letter-spacing: .04em; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mrow .to { font-size: 11px; color: var(--bc, var(--send)); }
-.bulk.keep .mrow .to { color: var(--browser); }
+.bkrow { --c: var(--muted); display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 10px; border: 1.5px solid color-mix(in srgb, var(--c) 30%, transparent); min-width: 0; }
+.bkrow .ring { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--c); display: grid; place-items: center; flex: none; box-shadow: inset 0 0 0 3px #000, inset 0 0 0 4px color-mix(in srgb, var(--c) 55%, transparent); }
+.bkrow .ring .hud { font-size: 11px; color: var(--text); transform: scale(.85); }
+.bkrow b { color: var(--text); font-weight: 800; font-size: 13px; letter-spacing: .04em; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bkrow .to { font-size: 11px; color: var(--bc, var(--send)); }
+.bulk.keep .bkrow .to { color: var(--browser); }
 .bkmore { font-size: 11px; color: var(--muted); padding-left: 4px; }
 .bktools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .bktools .ol { height: 42px; padding: 0 8px; font-size: 11px; }

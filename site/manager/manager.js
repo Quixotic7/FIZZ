@@ -1414,7 +1414,7 @@ function renderBulk() {
   const MAXL = 5;
   const mini = `<div class="bklist">${rows.slice(0, MAXL).map((r, i) => {
     const d = r.source === "browser" ? r.blob : (parseDump(frameOf(r) || []) || {}).blob;
-    return `<div class="mrow" style="--c:${colOf(r.tags)}"><span class="ring"><span class="hud">${d ? Math.min(8, d[2] + 1) : ""}</span></span><b>${esc(r.name)}</b><span class="hud to">${to[i] !== undefined ? (typeof to[i] === "number" ? String(to[i]).padStart(2, "0") : to[i]) : "–"}</span></div>`;
+    return `<div class="bkrow" style="--c:${colOf(r.tags)}"><span class="ring"><span class="hud">${d ? Math.min(8, d[2] + 1) : ""}</span></span><b>${esc(r.name)}</b><span class="hud to">${to[i] !== undefined ? (typeof to[i] === "number" ? String(to[i]).padStart(2, "0") : to[i]) : "–"}</span></div>`;
   }).join("")}${n > MAXL ? `<span class="hud bkmore">+${n - MAXL}</span>` : ""}</div>`;
   const rings = `<span class="bkrings">${rows.slice(0, 4).map((r) => `<i style="--c:${colOf(r.tags)}"></i>`).join("")}</span>`;
   const head = `<div class="bkhead"><span class="num bkn">${n}</span>${rings}<span class="bkic">
