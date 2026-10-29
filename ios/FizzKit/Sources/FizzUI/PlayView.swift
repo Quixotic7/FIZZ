@@ -23,6 +23,8 @@ public struct PlayView: View {
     var wide = false
     @Environment(\.fizzInsets) private var insets
     @Environment(\.fizzSnapshot) private var snapshot
+    /// The LCD's place on the panel (PlayNav.space): the full-screen LCD grows from it.
+    @State private var lcdFrom: CGRect = .zero
 
     public init(model: UnitModel, host: EmulatorHost, tab: Binding<FizzTab>, wide: Bool = false) {
         self.model = model
@@ -42,6 +44,11 @@ public struct PlayView: View {
             ZStack(alignment: .topLeading) {
                 p.body.color
                 board(full: full, top: top)
+                if play.lcdFull {
+                    let f = FullLCD(play: play, size: full, from: lcdFrom)
+                    f.backdrop
+                    f.screen
+                }
                 if play.sheet {
                     Color(.sRGB, red: 10 / 255, green: 8 / 255, blue: 6 / 255, opacity: 0.5)
                         .onTapGesture { closeSheet() }
@@ -51,15 +58,18 @@ public struct PlayView: View {
                 }
             }
             .frame(width: full.width, height: full.height)
+            .coordinateSpace(.named(PlayNav.space))
             .ignoresSafeArea()
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.86), value: play.sheet)
+        .animation(PlayNav.spring, value: play.lcdFull)
+        .hidingStatusBar(play.lcdFull)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: play.view)
         .persistentSystemOverlays(.hidden)
         .deferringSystemGestures()
         .task { if !snapshot { await play.follow() } }
         .onAppear { host.playShown = true; turnable(true) }
-        .onDisappear { play.letGoAll(); play.sheet = false; host.playShown = false; turnable(false) }
+        .onDisappear { play.left(); host.playShown = false; turnable(false) }
     }
 
     private func closeSheet() { play.sheet = false }
@@ -170,7 +180,9 @@ public struct PlayView: View {
                 Spacer(minLength: 0)
                 knRow(b, size: 38, spaced: true)
             }
-            .place(b, 386, 16, 408, 60)
+            .place(b, 386, 16, 318, 60)
+            // (the manager: the badge, small, at the end of the knobs' row)
+            FizzBadge(height: b.s(30), logo: b.s(20), word: b.s(13)) { toManager() }.place(b, 712, 24, 82, 44)
             well(b, bw: 58, bh: 38, gap: 8, font: 12).place(b, 386, 88, 408, 104)
             LEDKeybed(model: play, w: b.s(744), h: b.s(170)).place(b, 50, 206, 744, 170)
         }
@@ -229,15 +241,7 @@ public struct PlayView: View {
                 }
                 .buttonStyle(PressStyle())
                 Spacer(minLength: 0)
-                if badge {
-                    HStack(spacing: b.s(6)) {
-                        BubbleLogo().frame(width: b.s(26), height: b.s(26))
-                        FizzWord(size: b.s(17))
-                    }
-                    .padding(.leading, b.s(6)).padding(.trailing, b.s(13))
-                    .frame(height: b.s(36))
-                    .background(Capsule().fill(RGB(0x0b0b0e).color).shadow(color: .black.opacity(0.22), radius: 0, y: 3))
-                }
+                if badge { FizzBadge(height: b.s(36), logo: b.s(26), word: b.s(17)) { toManager() } }
             }
             handle(b).frame(width: b.s(88), height: b.s(44))
         }
@@ -245,6 +249,11 @@ public struct PlayView: View {
             if v.translation.height > 24 { play.sheet = true }
         }))
         .place(b, r.minX, r.minY, r.width, r.height)
+    }
+
+    /// The FIZZ badge: the manager's tab last shown.
+    private func toManager() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = play.managerTab }
     }
 
     /// The handle: a tap or a swipe down drops the sheet.
@@ -266,6 +275,9 @@ public struct PlayView: View {
     private func screen(_ b: Board, _ s: CGFloat) -> some View {
         LiveLCD(play: play, size: b.s(s))
             .contentShape(Rectangle())
+            .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named(PlayNav.space)) }) { lcdFrom = $0 }
+            // a double tap: the LCD full screen
+            .onTapGesture(count: 2) { play.lcdFull = true }
             .gesture(DragGesture(minimumDistance: 24).onEnded { v in
                 guard abs(v.translation.width) > 50, abs(v.translation.width) > abs(v.translation.height) else { return }
                 play.view = PlayModel.swiped(play.view, by: v.translation.width < 0 ? 1 : -1)
@@ -428,6 +440,15 @@ struct SlimRail: View {
 }
 
 private extension View {
+    /// (the LCD full screen: the status bar hidden too)
+    @ViewBuilder func hidingStatusBar(_ on: Bool) -> some View {
+        #if os(iOS)
+        statusBarHidden(on)
+        #else
+        self
+        #endif
+    }
+
     /// The edges' system gestures wait for a second swipe (the keys and knobs sit at the edges).
     @ViewBuilder func deferringSystemGestures() -> some View {
         #if os(iOS)
@@ -444,40 +465,94 @@ private extension View {
 /// The app's delegate (FIZZApp): the iPhone's orientations, landscape only while PLAY shows.
 public final class FizzAppDelegate: NSObject, UIApplicationDelegate {
     @MainActor static var landscape = false
+    /// (each change counted: an older change's retries stop)
+    @MainActor private static var change = 0
+    /// (a moment while a stuck window is put right: its own way allowed too)
+    @MainActor private static var nudging = false
 
     public func application(_ application: UIApplication,
                             supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         if UIDevice.current.userInterfaceIdiom == .pad { return .all }
-        return Self.landscape ? .allButUpsideDown : .portrait
+        return Self.landscape || Self.nudging ? .allButUpsideDown : .portrait
     }
 
-    /// PLAY shown or left: the iPhone may turn, or turns back upright.
+    /// PLAY shown or left: the iPhone may turn, or turns back upright, at once (the phone held on its side too).
     @MainActor static func allowLandscape(_ on: Bool) {
         guard UIDevice.current.userInterfaceIdiom != .pad, landscape != on else { return }
         landscape = on
-        apply(on, tries: 10)
+        change += 1
+        apply(change, tries: 12)
     }
 
-    /// (PLAY shown with the phone already on its side, at launch too: turned at once, not on the next turn; the
-    /// window may not be there yet at launch, so tried again shortly)
-    @MainActor private static func apply(_ on: Bool, tries: Int) {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.filter { $0.keyWindow != nil }
-        if scenes.isEmpty {
-            if tries > 0 {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { MainActor.assumeIsolated { if landscape == on { apply(on, tries: tries - 1) } } }
-            }
+    /// The scene is asked once it is up and active (at launch the window may not be there yet); then the window is
+    /// checked, and put right while it is still the wrong way round.
+    @MainActor private static func apply(_ n: Int, tries: Int) {
+        guard n == change else { return }
+        let scenes = windowScenes
+        guard !scenes.isEmpty, scenes.allSatisfy({ $0.activationState == .foregroundActive }) else {
+            if tries > 0 { later(0.15) { apply(n, tries: tries - 1) } }
             return
         }
-        let held = UIDevice.current.orientation
-        for s in scenes {
-            s.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-            if !on {
-                s.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
-            } else if held == .landscapeLeft || held == .landscapeRight {
-                // (the device's landscapeLeft is the interface's landscapeRight, and the other way round)
-                s.requestGeometryUpdate(.iOS(interfaceOrientations: held == .landscapeLeft ? .landscapeRight : .landscapeLeft)) { _ in }
+        for s in scenes { request(s) }
+        later(0.6) { check(n, tries: min(tries, 3)) }
+    }
+
+    @MainActor private static var windowScenes: [UIWindowScene] {
+        UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.filter { $0.keyWindow != nil }
+    }
+
+    /// What to ask for: upright; or, PLAY with the iPhone held on its side, that side (else it turns when turned).
+    @MainActor private static var wanted: UIInterfaceOrientationMask? {
+        if !landscape { return .portrait }
+        // (the device's landscapeLeft is the interface's landscapeRight, and the other way round)
+        switch UIDevice.current.orientation {
+        case .landscapeLeft: return .landscapeRight
+        case .landscapeRight: return .landscapeLeft
+        default: return nil
+        }
+    }
+
+    /// The mask changed: every controller that answers for the window asks again (the root, and any sheet over it,
+    /// whose answer wins while it shows); then the scene is asked to turn.
+    @MainActor private static func request(_ s: UIWindowScene, _ want: UIInterfaceOrientationMask? = wanted) {
+        var vc = s.keyWindow?.rootViewController
+        while let v = vc {
+            v.setNeedsUpdateOfSupportedInterfaceOrientations()
+            vc = v.presentedViewController
+        }
+        guard let want else { return }
+        s.requestGeometryUpdate(.iOS(interfaceOrientations: want)) { _ in }
+    }
+
+    /// The window laid out as asked? If not, asked again. The scene can say it already is that way round while the
+    /// window is not (a request made as it settled): asking again is then taken as done and the window stays stuck
+    /// (the manager in landscape, PLAY upright); so the scene is first turned the way the window is, then back.
+    @MainActor private static func check(_ n: Int, tries: Int) {
+        guard n == change, let want = wanted else { return }
+        var again = false
+        for s in windowScenes {
+            guard let w = s.keyWindow else { continue }
+            let wide = w.bounds.width > w.bounds.height
+            let wantWide = want != .portrait
+            guard wide != wantWide, tries > 0 else { continue }
+            again = true
+            let sceneWide = s.effectiveGeometry.interfaceOrientation.isLandscape
+            if sceneWide == wantWide {
+                nudging = true
+                request(s, wide ? .landscape : .portrait)
+                later(0.4) {
+                    nudging = false
+                    if n == change { request(s) }
+                }
+            } else {
+                request(s)
             }
         }
+        if again { later(0.9) { check(n, tries: tries - 1) } }
+    }
+
+    @MainActor private static func later(_ seconds: Double, _ go: @escaping @MainActor () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { MainActor.assumeIsolated { go() } }
     }
 }
 #endif
