@@ -16,10 +16,12 @@
 // An older FIZZ (no track DUMP) leaves the switch off: the editor plays in this browser only.
 // FIZZ MIDI (e): a MIDI track's sound (PARAM takes a slot's value only, not its CC number or touched mark): each change
 // the whole sound as an AUDITION (target.sound), the latest one, in the same queue as the PARAMs.
+// The mix (PAN, DELAY, REVERB, CHORUS: PARAM 115..118, pan signed): a FIZZ that answers NOT FOUND (older) is
+// remembered for this link; its mix edits then go as the whole sound's AUDITION, 120 ms after the last one.
 //   mountLive(ctx) -> { target, on(), probe(), lost(), pick(row), show(), hide(), strip(E), stripClick(b), nudge(),
 //                       loadOnUnit(row, track), browsing(), saveOpts(), afterSave(), detach() }
-import { soundFromFrame, storeFrameOf, copySound } from "./sound.js";
-import { parseDump, storeSound, trackFrame } from "../js/fizz_sysex.js";
+import { soundFromFrame, storeFrameOf, copySound, isMix } from "./sound.js";
+import { parseDump, storeSound, trackFrame, ST } from "../js/fizz_sysex.js";
 import { esc, refusal } from "./ui.js";
 
 const HINT_KEY = "fizz-manager-track-seen";
@@ -29,7 +31,8 @@ const markHint = () => { try { localStorage.setItem(HINT_KEY, "1"); } catch (_) 
 export function mountLive(ctx) {
   const { S, $, log, say, toast, editor, browserTarget } = ctx;
   const L = { on: false, cap: false, follow: false, track: "selected", t: -1, usel: -1, base: null, ext: null, pending: null,
-    q: new Map(), pumping: false, lastParam: 0, timer: null, attaching: false, nudgeT: 0, browse: null, browseT: null, hint: !seenHint() };
+    q: new Map(), pumping: false, lastParam: 0, timer: null, attaching: false, nudgeT: 0, browse: null, browseT: null, hint: !seenHint(),
+    noMix: null, mixT: 0 };
   const sw = $("live"), bar = $("loadbar");
   const slot = () => (L.track === "selected" ? 0 : L.track + 1);
   const link = () => S.link;
@@ -162,6 +165,12 @@ export function mountLive(ctx) {
         const r = await link().param(L.t, id, v).catch(() => null);
         L.lastParam = performance.now();
         if (r && r.old) { L.cap = false; setOn(false); say('This FIZZ cannot edit a track live yet: <a href="../install/">update FIZZ</a>.', "--orange"); break; }
+        if (r && r.status === ST.NOT_FOUND && isMix(id)) {   // (an older FIZZ: the mix as the whole sound from now)
+          L.noMix = link();
+          log("PARAM: this FIZZ takes no mix live: the sound is sent instead");
+          mixLater();
+          continue;
+        }
         if (r && r.status) log(`PARAM ${id}: ${r.statusName || r.status}`);
       }
     } finally { L.pumping = false; }
@@ -173,6 +182,11 @@ export function mountLive(ctx) {
     return link().store(storeFrameOf(s, { track: t, audition: true, extras: { id: x.id || 0, sound: x.sound || 0, edited: !!x.edited } }));
   }
 
+  // a mix edit on a FIZZ without mix PARAMs: the whole sound, once the edits pause
+  function mixLater() {
+    clearTimeout(L.mixT);
+    L.mixT = setTimeout(() => { const s = editor.sound(); if (s) target.sound(s); }, 120);
+  }
   // the editor's target: the FM-1's track (locked while TRACK is off: shown, not changed)
   const target = {
     live: true,
@@ -181,7 +195,13 @@ export function mountLive(ctx) {
     ready: () => canRead() && L.t >= 0,
     start: () => attach(),
     audition: (s) => audition(s),
-    param: (id, v) => { if (!ok()) return; L.q.set(id, v); L.lastParam = performance.now(); pump(); },
+    param: (id, v) => {
+      if (!ok()) return;
+      L.lastParam = performance.now();
+      if (isMix(id) && L.noMix && L.noMix === link()) { mixLater(); return; }
+      L.q.set(id, v);
+      pump();
+    },
     sound: (s) => { if (!ok()) return; L.q.set("sound", copySound({ ...s, extras: { ...(s.extras || {}), edited: true } })); L.lastParam = performance.now(); pump(); },
     // (the track's own MIDI channel: it plays that track on any FIZZ; the selected track's channel moved from 16 to 15
     // with FIZZ MIDI (a), 16 now the remote's)
@@ -189,6 +209,7 @@ export function mountLive(ctx) {
     // REVERT: the sound the editor took from the track, put back exactly (its DUMP); a preset opened: that preset again
     revert: async (s, E) => {
       L.q.clear();
+      clearTimeout(L.mixT);
       if (!L.on) return;
       if (E.place && E.place.fromTarget && L.base) await link().store(trackFrame(L.base)).catch(() => null);
       else await audition(s);

@@ -54,7 +54,8 @@ import { browserRows, recordOf, keepIn, dropFrom } from "../manager/browserlib.j
 import { poolPlaces, shownRows, newFilter, listHtml } from "../manager/presets.js";
 import { dnsndV4 } from "./dnsnd_fixture.mjs";
 import { soundFromFrame, storeFrameOf, blob6, libSound, text, info as vinfo, VALUES, Q, lfo, LF, copySound, tickStep, stepOf,
-  soundFromLib, sameValues, isMidiBlob, midiBlob, newMidi } from "../manager/sound.js";
+  soundFromLib, sameValues, isMidiBlob, midiBlob, newMidi, MIX_DEFAULTS, MIX_IDS, newSound, isMix, mixValue, setMix, sameMix, panText,
+  defaults } from "../manager/sound.js";
 import { exportFiles, carryOf, noteRow, MIDI_ONLY } from "../manager/exporter.js";
 import { readImport, markDuplicates } from "../manager/importer.js";
 import { fizzToDn2pst } from "../js/fizz2dn.js";
@@ -847,6 +848,54 @@ check(asLib.items.length === 4 && asLib.items.every((x) => x.ok), "a .fizzbak op
     `over the Bluetooth port alone: IDENTITY, FZBI, STATUS answered; a restore refused before it starts ("${e15 && e15.message}")`);
   l2.close();
   usb.dispose(); bt.dispose();
+}
+
+// ---- EDIT pan and sends
+// the mix's defaults (a track's: core/seq/model.c), newSound, a file without the mix, PAN's text, PARAM 115..118 live
+{
+  check(MIX_DEFAULTS.pan === 0 && MIX_DEFAULTS.chorus === 0 && MIX_DEFAULTS.delay === 0 && MIX_DEFAULTS.reverb === 20 && Object.isFrozen(MIX_DEFAULTS),
+    `MIX_DEFAULTS ${JSON.stringify(MIX_DEFAULTS)}`);
+  check(MIX_IDS.pan === 115 && MIX_IDS.delay === 116 && MIX_IDS.reverb === 117 && MIX_IDS.chorus === 118 && isMix(115) && isMix(118) && !isMix(114) && !isMix(119),
+    "MIX_IDS: PAN 115, DELAY 116, REVERB 117, CHORUS 118 (PARAM's)");
+  const fm = newSound("fm"), md = newSound("midi");
+  check(fm.name === "INIT" && same(fm.values, defaults()) && fm.pan === 0 && fm.sends.reverb === 20 && fm.sends.chorus === 0 && fm.sends.delay === 0 &&
+    fm.tags === 0 && fm.source === "new" && fm.slot === 0 && fm.track === -1 && fm.extras === null && !fm.midi, "newSound(\"fm\"): INIT, the defaults, the track's mix");
+  check(md.name === "MIDI" && md.midi.slots.length === 28 && md.midi.slots.every((x, k) => x.cc === 16 + k && x.value === 0 && !x.touched) &&
+    md.sends.reverb === 20 && md.pan === 0 && same(md.values, soundFromLib({ name: "M", blob: midiBlob(newMidi()), drive: 0 }).values) &&
+    isMidiBlob(blob6(md)), "newSound(\"midi\"): MIDI, 28 untouched slots (CC 16 + k), the values a MIDI blob's, the same mix");
+  const a1 = newSound("fm"), a2 = newSound("fm");
+  a1.sends.reverb = 99;
+  check(a2.sends.reverb === 20 && MIX_DEFAULTS.reverb === 20, "newSound: each its own sends (the defaults not shared)");
+  const bare = soundFromLib({ name: "BARE", blob: blob6(fm), drive: 0 });
+  check(bare.pan === 0 && bare.sends.chorus === 0 && bare.sends.delay === 0 && bare.sends.reverb === 20, `soundFromLib without the mix: the track's defaults ${JSON.stringify(bare.sends)}`);
+  const part = soundFromLib({ name: "PART", blob: blob6(fm), drive: 0, pan: -5, sends: { delay: 40 } });
+  check(part.pan === -5 && part.sends.delay === 40 && part.sends.reverb === 20 && part.sends.chorus === 0, "soundFromLib with some sends: the rest the defaults");
+  check(panText(-64) === "L64" && panText(0) === "C" && panText(63) === "R63" && text(115, -12) === "L12" && text(117, 20) === "20" &&
+    vinfo(115).min === -64 && vinfo(115).max === 63 && vinfo(117).def === 20 && tickStep(115) === 1, "PAN shown L64 .. C .. R63; the sends 0..127, REVERB's default 20");
+  const m = copySound(fm);
+  setMix(m, 115, -12); setMix(m, 116, 33);
+  check(mixValue(m, 115) === -12 && m.sends.delay === 33 && fm.sends.delay === 0 && !sameMix(m, fm) && sameMix(fm, newSound()), "setMix / mixValue / sameMix");
+
+  const u = await sim();
+  const lk = await findFizz(u.access);
+  // a sound without the mix STOREd: the mask marks the defaults present, DUMP back has them (not 0)
+  const st = await lk.store(storeFrameOf({ ...bare, name: "NO SENDS" }));
+  const back = soundFromFrame(await lk.dump("mine", st.slot));
+  check(st.status === 0 && back.pan === 0 && back.sends.reverb === 20 && back.sends.chorus === 0 && back.sends.delay === 0,
+    `a file without the mix stored (MY PRESETS ${st.slot}): DUMP back reverb ${back.sends.reverb}`);
+  const st2 = await lk.store(storeFrameOf({ ...m, name: "MIXED" }));
+  const back2 = soundFromFrame(await lk.dump("mine", st2.slot));
+  check(back2.pan === -12 && back2.sends.delay === 33 && back2.sends.reverb === 20, "a sound with its mix stored: pan L12, DELAY 33 back");
+  // PARAM 115..118 on a track: pan signed (value + 2^20, as every value)
+  const res = [];
+  for (const [id, v] of [[115, -20], [116, 50], [117, 70], [118, 90]]) res.push(await lk.param(1, id, v));
+  const t2 = soundFromFrame(await lk.dumpTrack(2));
+  check(res.every((r) => r && r.status === 0) && t2.pan === -20 && t2.sends.delay === 50 && t2.sends.reverb === 70 && t2.sends.chorus === 90,
+    `PARAM 115..118 onto track 2: pan ${t2.pan}, delay ${t2.sends.delay}, reverb ${t2.sends.reverb}, chorus ${t2.sends.chorus}`);
+  const lo = await lk.param(1, 115, -200), t2b = soundFromFrame(await lk.dumpTrack(2));
+  const nf = await lk.param(1, 120, 1);
+  check(lo.status === 0 && t2b.pan === -64 && nf.status === 9, `PARAM PAN past its range: clamped (${t2b.pan}); id 120: ${nf.statusName}`);
+  lk.close(); u.dispose();
 }
 
 // ---- the owner's saved images (outside the repo), read offline

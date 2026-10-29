@@ -23,8 +23,12 @@
 // from 1200 x 700 the panel is tried in three columns (values small tiles, the drawings drawn in the room left); if a
 // column runs over (measured), or on a smaller window, each section is a page of its own under tabs (the last one
 // remembered). DRIVE and LEVEL show in the knob row and, as pages, on DRIVE · CRUSH and AMP too.
+// The mix (2026-10-29): PAN, CHO, DEL, REV beside LEVEL on AMP (a 2 x 2 by the envelope on the one panel, a row on its
+// page), the sound's pan and sends under PARAM's ids 115..118 (sound.js MIX_IDS). A MIDI sound shows none: a MIDI
+// track takes no voice, so the mix does nothing there.
 //   mountEditor(ctx) -> { open(sound, place), show(), sound(), setTarget(t), render() }
-import { VALUES, ALGOS, DEST_ORDER, Q, lfo, mod, LF, info, text, clampV, stepOf, tickStep, isHundredths, isHi, frac, defaults, copySound, sameValues, tagNames } from "./sound.js";
+import { VALUES, ALGOS, DEST_ORDER, Q, lfo, mod, LF, info, text, clampV, stepOf, tickStep, isHundredths, isHi, frac, copySound, sameValues, tagNames,
+  isMix, mixValue, setMix, sameMix, newSound, MIX_IDS } from "./sound.js";
 import { FIZZ_TAGS } from "../js/fizz_sysex.js";
 import { esc, MIDI_I, TAGC } from "./ui.js";
 
@@ -37,7 +41,7 @@ export const SECTIONS = [
 ];
 const LFOC = ["--cyan", "--yellow", "--violet"];      // (core/ui ui_kit.c UI_LFO_COL)
 const MACH = [["LEGACY", [0, 1, 2]], ["LP4", [3]], ["MULTI", [4]], ["COMB+", [5]], ["COMB−", [6]], ["EQ", [7]]];
-const isDest = (id) => (id >= 47 && id <= 70 && (id - 47) % 8 === LF.DEST) || (id >= 86 && (id - 86) % 3 === 1);
+const isDest = (id) => (id >= 47 && id <= 70 && (id - 47) % 8 === LF.DEST) || (id >= 86 && id < 110 && (id - 86) % 3 === 1);
 // a white key's and a black key's note from F (the FM-1's keybed: F3 .. G5 at OCT 0)
 const WHITE = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
 const BLACK = [[0, 1], [1, 3], [2, 5], [4, 8], [5, 10], [7, 13], [8, 15], [9, 17], [11, 20], [12, 22], [14, 25]];   // [after white, note]
@@ -73,13 +77,13 @@ export function mountEditor(ctx) {
   }
 
   // ---------------------------------------------------------------- values
-  const v = (id) => E.s.values[id];
+  const v = (id) => (isMix(id) ? mixValue(E.s, id) : E.s.values[id]);
   function set(id, x, { quiet = false } = {}) {
-    if (!E.s || id < 0 || id >= VALUES.length) return false;
+    if (!E.s || !((id >= 0 && id < VALUES.length) || isMix(id))) return false;
     x = clampV(id, x);
-    if (E.s.values[id] === x) return false;
+    if (v(id) === x) return false;
     if (!quiet && E.target && E.target.locked && E.target.locked()) { if (ctx.onLocked) ctx.onLocked(); return false; }
-    E.s.values[id] = x;
+    if (isMix(id)) setMix(E.s, id, x); else E.s.values[id] = x;
     if (!quiet && E.target) E.target.param(id, x, E.s);
     if (E.onChange) E.onChange(id, x);
     later();
@@ -327,14 +331,16 @@ export function mountEditor(ctx) {
       <div class="row wrap">${chip(Q.BASE, "BASE", K.c1)}${chip(Q.WIDTH, "WIDTH", K.c2)}${seg(Q.BWPOST, K.c3, ["BASE · WIDTH BEFORE", "AFTER"])}</div>`;
   }
 
-  // AMP: the amp envelope (ADSR or AHD), LEVEL
+  // AMP: the amp envelope (ADSR or AHD), LEVEL, the mix (PAN, the chorus, delay and reverb sends)
+  const mixTiles = () => `<div class="mix" role="group" aria-label="Pan and sends">${chip(MIX_IDS.pan, "PAN", "--text", "pan")}` +
+    `${chip(MIX_IDS.chorus, "CHO", "--cyan")}${chip(MIX_IDS.delay, "DEL", "--yellow")}${chip(MIX_IDS.reverb, "REV", "--violet")}</div>`;
   function ampPanel() {
     const ahd = v(Q.AMOD) === 1;
     return `<div class="row">${seg(Q.AMOD, K.c3)}</div>
       ${box(`amp${ahd ? 1 : 0}`, 520, 170, (w, h) => adsr([Q.EATK, Q.EDEC, Q.ESUS, Q.EREL], K.c3, { w, h, ahd }))}
       <div class="row wrap">${ahd ? chip(Q.EATK, "ATK", K.c3) + chip(Q.HOLD, "HOLD", "--yellow") + chip(Q.EDEC, "DEC", K.c3)
         : chip(Q.EATK, "ATK", K.c3) + chip(Q.EDEC, "DEC", K.c3) + chip(Q.ESUS, "SUS", K.c3) + chip(Q.EREL, "REL", K.c3)}</div>
-      ${tabs() ? bar(Q.LEVEL, "LEVEL", K.c3) : ""}`;   // (one panel: LEVEL in the knob row; a page: here too)
+      ${tabs() ? bar(Q.LEVEL, "LEVEL", K.c3) : ""}${mixTiles()}`;   // (one panel: LEVEL in the knob row; a page: here too)
   }
 
   // DRIVE and its route; CRUSH (the bits, the rate, before / after)
@@ -430,7 +436,7 @@ export function mountEditor(ctx) {
   // tags; the track strip (live.js: SELECTED, 1..6, LIVE) when an FM-1 that edits tracks is there; the actions
   function renderHead() {
     if (!E.s) return;
-    const t = E.target, dirty = !sameValues(E.s, E.base) || E.s.name !== E.base.name || E.s.tags !== E.base.tags;
+    const t = E.target, dirty = !sameValues(E.s, E.base) || !sameMix(E.s, E.base) || E.s.name !== E.base.name || E.s.tags !== E.base.tags;
     const live = !!(t && t.live), locked = !!(t && t.locked && t.locked()), tc = live ? "--pink" : "--violet";
     const tl = t ? t.label() : "";
     const can = ctx.canSave ? ctx.canSave(E) : { save: false, saveNew: false };
@@ -971,12 +977,13 @@ export function mountEditor(ctx) {
       if (o.cc !== x.cc || o.value !== x.value || o.touched !== x.touched) { E.s.midi.slots[k] = { ...x }; n++; }
     });
     sound.values.forEach((x, i) => { if (E.s.values[i] !== x) { E.s.values[i] = x; n++; } });
+    if (sound.sends) Object.values(MIX_IDS).forEach((id) => { const x = mixValue(sound, id); if (x !== undefined && x !== v(id)) { setMix(E.s, id, x); n++; } });
     if (sound.name !== E.s.name && document.activeElement !== head.querySelector("#ed-name")) { E.s.name = sound.name; n++; }
     if (n && rebase) E.base = copySound({ ...E.s, tags: E.base ? E.base.tags : E.s.tags });
     if (n) later();
     return n > 0;
   }
-  const blank = () => ({ name: "INIT", values: defaults(), pan: 0, sends: { chorus: 0, delay: 0, reverb: 0 }, tags: 0, source: "new", slot: 0, track: -1, extras: null });
+  const blank = () => newSound("fm");
   return {
     open, render, renderHead, setTarget, follow, blank, startTarget,
     setPlace(p) { E.place = { label: p.label || "", ...p }; renderHead(); },

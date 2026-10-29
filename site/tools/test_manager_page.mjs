@@ -58,6 +58,8 @@
 //     (SAVE TO FILE, DELETE asks);
 //   - parity with the iOS app (2026-10-29, last): the FM-1's port, USB or BLUETOOTH (?sim&bt), in the picker, on ⇄ FM-1
 //     and the pill; NEW on an empty PROJECTS slot (the FM-1 and THIS BROWSER); LOAD ON FM-1 onto a track 1..6 (kept);
+//   - EDIT pan and sends (2026-10-29): PAN, CHO, DEL, REV on AMP (panel, page, phone), dragged, SAVE AS NEW; live
+//     PARAM 115..118, NOT FOUND's AUDITION (stubbed); the browser's FIZZ the same;
 // Chromium's cache is off (Network.setCacheDisabled) and the profile a fresh one each run: a static server sends no
 // cache headers, and a module cached from another checkout once gave "X is not defined".
 //   node site/tools/test_manager_page.mjs [--url http://127.0.0.1:8765/] [--chromium path]
@@ -1802,6 +1804,135 @@ try {
     `parity: NEW PROJECT in THIS BROWSER's empty slot ${q + 1}: made, its 64 patterns shown (the store read again)`);
   }
   // ---- (end of parity)
+  // ---- EDIT pan and sends
+  // (PAN, CHO, DEL, REV beside LEVEL on AMP: the one panel's 2 x 2, AMP's page; a drag, the wheel, a double click;
+  // SAVE AS NEW stores them; with TRACK on an edit is a PARAM 115..118, NOT FOUND (an older FIZZ, stubbed): the
+  // AUDITION, debounced; the browser's FIZZ the same, its fallback STORE + LOAD; a MIDI sound shows none)
+  {
+  await size(1440, 900);
+  await send("Page.navigate", { url: URL0 + "#edit" });
+  await waitFor("window.__mgr && __mgr.S.unit && __mgr.S.unit.status && __mgr.S.unit.rows.length > 0", 40000);
+  await click("#t-edit");
+  await waitFor("!!__mgr.editor.sound() && !!document.querySelector('#ed-stage .pn-amp .mix')", 15000);
+  await sleep(700);
+  const mixAt = () => evaluate(`(() => { const sec = document.querySelector('#ed-stage .pn-amp'), els = [115, 118, 116, 117].map((i) => sec && sec.querySelector('.mix .vc[data-id="' + i + '"]'));
+    return { mode: __mgr.editor.state.mode, cur: !!(sec && (sec.classList.contains('cur') || __mgr.editor.state.mode === 'panel')), labels: els.map((e) => (e ? e.querySelector('small').textContent : '-')).join(' '),
+      shown: els.every((e) => e && e.offsetWidth > 30 && e.offsetHeight > 20) }; })()`);
+  const mx = (id) => evaluate(`document.querySelector('#ed-stage .pn-amp .mix .vc[data-id="${id}"] b').textContent`);
+  const m14 = await mixAt();
+  check(m14.mode === "panel" && m14.shown && m14.labels === "PAN CHO DEL REV", `pan and sends: at 1440 x 900 on the one panel's AMP (${m14.labels})`);
+  // a sound of this browser's (not the track's): dragged, the wheel, a double click
+  await evaluate(`(async () => { const { newSound } = await import('./sound.js'); __mgr.live.detach(); const s = newSound('fm'); s.name = 'MIX TEST';
+    __mgr.editor.open(s, { label: 'MIX TEST', source: 'file' }); })()`);
+  await sleep(300);
+  const d0 = await evaluate("({ pan: __mgr.editor.sound().pan, rev: __mgr.editor.sound().sends.reverb })");
+  await drag("#ed-stage .pn-amp .mix .vc[data-id='115']", 0, -60);
+  await sleep(150);
+  const r1 = await evaluate("__mgr.editor.sound().pan"), t1 = await mx(115);
+  await drag("#ed-stage .pn-amp .mix .vc[data-id='115']", 0, 160);
+  await sleep(150);
+  const r2 = await evaluate("__mgr.editor.sound().pan"), t2 = await mx(115);
+  check(d0.pan === 0 && d0.rev === 20 && r1 > 0 && t1 === `R${r1}` && r2 < 0 && t2 === `L${-r2}`, `pan and sends: PAN dragged up ${t1}, down ${t2} (from C; REVERB from 20)`);
+  await evaluate(`document.querySelector('#ed-stage .pn-amp .mix .vc[data-id="115"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
+  await sleep(150);
+  const wc = await centre("#ed-stage .pn-amp .mix .vc[data-id='116']");
+  await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: wc.x, y: wc.y, deltaX: 0, deltaY: -100 });
+  await sleep(150);
+  await drag("#ed-stage .pn-amp .mix .vc[data-id='118']", 0, -60);
+  await sleep(150);
+  const w1 = await evaluate("({ pan: __mgr.editor.sound().pan, s: __mgr.editor.sound().sends })"), tp = await mx(115), tc = await mx(118);
+  check(w1.pan === 0 && tp === "C" && w1.s.delay === 1 && w1.s.chorus > 0 && tc === String(w1.s.chorus) &&
+    (await evaluate("!!document.querySelector('#ed-head .edited') && !document.getElementById('ed-revert').disabled")),
+    `pan and sends: a double click PAN back to C; the wheel over DEL ${w1.s.delay}; CHO dragged ${tc}; EDITED`);
+  // SAVE AS NEW: the mix stored with it (its DUMP back)
+  await evaluate("__mgr.editor.set(115, -12); __mgr.editor.set(116, 24); __mgr.editor.set(117, 40); __mgr.editor.set(118, 7)");
+  await sleep(150);
+  await shot("manager-mix-edit-1440.png");
+  await click("#ed-savenew");
+  await idle();
+  await sleep(400);
+  const sv = await evaluate(`(async () => { const { soundFromFrame } = await import('./sound.js'); const r = __mgr.S.unit.rows.find((q) => q.source === 'mine' && q.name.trim() === 'MIX TEST');
+    if (!r) return null; const s = soundFromFrame(await __mgr.S.link.dump('mine', r.slot)); return { slot: r.slot, pan: s.pan, s: s.sends }; })()`);
+  check(sv && sv.pan === -12 && sv.s.delay === 24 && sv.s.reverb === 40 && sv.s.chorus === 7, `pan and sends: SAVE AS NEW, DUMP back (MY PRESETS ${sv && sv.slot}): ${sv && JSON.stringify(sv)}`);
+  // AMP's page: at 1280 x 800 (pages there) and on a phone
+  await size(1280, 800);
+  await sleep(700);
+  if ((await evaluate("__mgr.editor.state.mode")) === "tabs") await click("#ed-pages [data-page='amp']");
+  await sleep(200);
+  const m12 = await mixAt();
+  check(m12.shown && m12.cur && m12.labels === "PAN CHO DEL REV" && (await noScroll()), `pan and sends: at 1280 x 800 on ${m12.mode === "tabs" ? "AMP's page" : "the one panel's AMP"}`);
+  await shot("manager-mix-edit-1280.png");
+  await size(390, 844, true);
+  await sleep(700);
+  await click("#ed-pages [data-page='amp']");
+  await sleep(200);
+  const m39 = await mixAt();
+  check(m39.mode === "tabs" && m39.shown && m39.cur && (await noScroll()), "pan and sends: at 390 on AMP's page, no horizontal scroll");
+  await evaluate("document.querySelector('#ed-stage .pn-amp .mix').scrollIntoView({ block: 'center' })");
+  await shot("manager-mix-edit-390.png");
+  await size(1280, 800);
+  await sleep(400);
+  // a MIDI sound: no mix (a MIDI track takes no voice)
+  await evaluate(`(async () => { const { newSound } = await import('./sound.js'); __mgr.editor.open(newSound('midi'), { label: 'MIDI', source: 'file' }); })()`);
+  await sleep(300);
+  check(await evaluate("!!document.querySelector('#ed-stage .mpg') && !document.querySelector('#ed-stage .mix')"), "pan and sends: a MIDI sound shows none");
+
+  // TRACK on: an edit is a PARAM 115..118 (this wasm takes them); NOT FOUND (stubbed): the AUDITION, 120 ms after the last
+  await click("#live");
+  await waitFor("__mgr.live.on()");
+  await evaluate("__mgr.live.attach()");
+  await waitFor("__mgr.editor.place().fromTarget && !__mgr.editor.sound().midi", 8000);
+  await evaluate(`(() => { const lk = __mgr.S.link; window.__pids = []; window.__stores = 0; window.__lp = lk.param; window.__ls = lk.store;
+    lk.param = (t, id, v) => { window.__pids.push(id); return window.__stubNF && id >= 115 ? Promise.resolve({ kind: 'ack', command: 0x30, status: 9, statusName: 'NOT FOUND' }) : window.__lp.call(lk, t, id, v); };
+    lk.store = (f) => { window.__stores++; return window.__ls.call(lk, f); }; })()`);
+  const trkMix = () => evaluate(`(async () => { const { soundFromFrame } = await import('./sound.js'); const s = soundFromFrame(await __mgr.S.link.dumpTrack(__mgr.live.state.t + 1)); return { pan: s.pan, ...s.sends }; })()`);
+  const drained = () => waitFor("!__mgr.live.state.pumping && !__mgr.live.state.q.size", 5000);
+  await drag("#ed-stage .pn-amp .mix .vc[data-id='115']", 0, 50);
+  await evaluate("__mgr.editor.set(116, 50); __mgr.editor.set(117, 60); __mgr.editor.set(118, 70)");
+  await drained();
+  await sleep(200);
+  const lv = await evaluate("({ ids: [...new Set(window.__pids)].sort().join(), stores: window.__stores, pan: __mgr.editor.sound().pan })"), tm = await trkMix();
+  check(lv.ids === "115,116,117,118" && lv.stores === 0 && lv.pan < 0 && tm.pan === lv.pan && tm.delay === 50 && tm.reverb === 60 && tm.chorus === 70,
+    `pan and sends live: PARAMs ${lv.ids}, no AUDITION; the track has pan ${tm.pan}, delay ${tm.delay}, reverb ${tm.reverb}, chorus ${tm.chorus}`);
+  await evaluate("window.__stubNF = true; window.__pids = []; window.__stores = 0; __mgr.editor.set(116, 77); __mgr.editor.set(117, 33); __mgr.editor.set(117, 34); __mgr.editor.set(117, 35)");
+  await sleep(500);
+  await drained();
+  const nf1 = await evaluate("({ ids: window.__pids.join(), stores: window.__stores, no: !!__mgr.live.state.noMix })");
+  await evaluate("window.__pids = []; window.__stores = 0; [11, 12, 13, 14].forEach((x) => __mgr.editor.set(118, x))");
+  await sleep(400);
+  await drained();
+  await sleep(200);
+  const nf2 = await evaluate("({ ids: window.__pids.join(), stores: window.__stores })"), tm2 = await trkMix();
+  check(nf1.no && nf1.ids === "116,117" && nf1.stores === 1 && nf2.ids === "" && nf2.stores === 1 && tm2.delay === 77 && tm2.reverb === 35 && tm2.chorus === 14,
+    `pan and sends live, NOT FOUND: PARAMs ${nf1.ids}, then remembered (none); one AUDITION each time (${nf1.stores}, ${nf2.stores}); the track has delay ${tm2.delay}, reverb ${tm2.reverb}, chorus ${tm2.chorus}`);
+  await evaluate("(() => { const lk = __mgr.S.link; lk.param = window.__lp; lk.store = window.__ls; window.__stubNF = false; __mgr.live.state.noMix = null; })()");
+  await click("#live");
+  await waitFor("!__mgr.live.on()");
+
+  // the browser's FIZZ (EDIT without TRACK): a PARAM onto its track 1; NOT FOUND (stubbed): STORE + LOAD as before
+  await evaluate(`(async () => { const { newSound } = await import('./sound.js'); __mgr.live.detach(); const s = newSound('fm'); s.name = 'MIX BROWSER';
+    __mgr.editor.open(s, { label: 'MIX BROWSER', source: 'file' }); })()`);
+  await sleep(200);
+  if (!(await evaluate("__mgr.bfizz.ready"))) await realClick("#ed-target");
+  const bfr = await waitFor("__mgr.bfizz.ready", 20000);
+  await sleep(500);
+  await evaluate(`(() => { const bf = __mgr.bfizz; window.__bf = []; window.__ba = bf.ask;
+    bf.ask = (f, want, ms) => { window.__bf.push(f[5]); return window.__bstub && f[5] === 0x30 ? Promise.resolve({ kind: 'ack', command: 0x30, status: 9, statusName: 'NOT FOUND' }) : window.__ba.call(bf, f, want, ms); }; })()`);
+  const bMix = () => evaluate(`(async () => { const { dumpRequest } = await import('../js/fizz_sysex.js'); const r = await window.__ba.call(__mgr.bfizz, dumpRequest({ source: 'track', slot: 1 }), (x) => x.kind === 'dump', 2000);
+    return r && { pan: r.pan, chorus: r.chorus, delay: r.delay, reverb: r.reverb }; })()`);
+  await evaluate("__mgr.editor.set(115, -7); __mgr.editor.set(117, 66)");
+  await sleep(600);
+  const b1 = await evaluate("window.__bf.join()"), bm1 = await bMix();
+  await evaluate("window.__bf = []; window.__bstub = true; __mgr.editor.set(116, 44)");
+  await sleep(600);
+  await evaluate("__mgr.editor.set(118, 9)");
+  await sleep(600);
+  const b2 = await evaluate("window.__bf.join()"), bm2 = await bMix();
+  check(bfr && b1 === "48,48" && bm1 && bm1.pan === -7 && bm1.reverb === 66 && b2.startsWith("48,17") && !b2.slice(3).includes("48") && bm2 && bm2.delay === 44 && bm2.chorus === 9,
+    `pan and sends, the browser's FIZZ: PARAMs (${b1}), its track 1 pan ${bm1 && bm1.pan}; NOT FOUND: STORE + LOAD from then (${b2}), delay ${bm2 && bm2.delay}, chorus ${bm2 && bm2.chorus}`);
+  await evaluate("__mgr.bfizz.ask = window.__ba; window.__bstub = false");
+  }
+  // ---- (end of EDIT pan and sends)
   check(!errors.length, `no console errors${errors.length ? `: ${errors.slice(0, 5).join(" | ")}` : ""}`);
 } catch (e) {
   check(false, `the run: ${e.message}`);

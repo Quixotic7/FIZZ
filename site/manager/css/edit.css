@@ -566,3 +566,15 @@
   #tab-edit .stage.paged .pn-filter .pnb > .row:last-child { grid-column: 3; grid-row: 2; display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 4px; }
   #tab-edit .stage.paged .pn-filter .pnb > .row:last-child .vseg { grid-column: 1 / 3; }
 }
+/* ---- AMP's mix (PAN, CHO, DEL, REV): a row on its page; on the one panel a 2 x 2 beside the envelope. PAN's bar from
+   the middle, a tick at C */
+#tab-edit .pn-amp .mix { display: flex; flex-wrap: wrap; gap: 5px; flex: none; }
+#tab-edit .pn-amp .mix .vc { flex: 1 1 60px; }
+#tab-edit .vc.pan::before { content: ""; position: absolute; bottom: 3px; left: calc(50% - 1px); width: 2px; height: 2px; background: var(--muted); }
+@media (min-width: 1200px) and (min-height: 700px) {
+  #tab-edit .stage.panel .pn-amp .pnb { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr) auto; gap: 6px; }
+  #tab-edit .stage.panel .pn-amp .pnb > .dbox { grid-column: 1; grid-row: 1; }
+  #tab-edit .stage.panel .pn-amp .pnb > .row.wrap { grid-column: 1 / 3; grid-row: 2; }
+  #tab-edit .stage.panel .pn-amp .mix { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(2, 52px); align-content: end; }
+  #tab-edit .stage.panel .pn-amp .mix .vc { min-width: 0; }
+}

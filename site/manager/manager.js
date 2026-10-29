@@ -15,7 +15,7 @@ import { findFizz, FZER, isBlePort } from "./fizzlink.js";
 import { makeFizzbak, readBackup, backupFileName, soundKey } from "./fizzbak.js";
 import { readRegion, layoutOf, LAYOUTS, PACKAGE_NAME, convertImage } from "./fizzstore.js";
 import { modelOf, imageOf, fitModel, fitChoice, projects as projectsOf } from "./projects.js";
-import { parseDump, FIZZ_TAGS, storeSound } from "../js/fizz_sysex.js";
+import { parseDump, FIZZ_TAGS, storeSound, paramRequest, CMD } from "../js/fizz_sysex.js";
 import { soundFromStoreFrame, soundToFizzsnd, soundFileName, makeFizzlib, libraryFileName, sameSound } from "../js/library.js";
 import { storeFrame } from "../js/digitone.js";
 import { $, esc, tagsOf, colOf, emptyArt, refusal, confirmBox, MIDI_I, midiChip } from "./ui.js";
@@ -29,7 +29,7 @@ import { BrowserFizz } from "./browserfizz.js";
 import { BrowserUnit, BROWSER_ID } from "./browserunit.js";
 import { mountUnit } from "./unitpicker.js";
 import { mountLive } from "./live.js";
-import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames, copySound, isMidiBlob, blob6 } from "./sound.js";
+import { soundFromFrame, soundFromLib, storeFrameOf, libSound, tagNames, copySound, isMidiBlob, blob6, isMix } from "./sound.js";
 import { browserRows, recordOf, keepIn, dropFrom, blankImage, asHost } from "./browserlib.js";
 import { usedBy } from "./usedby.js";
 import { mountKeys } from "./keystrip.js";
@@ -1752,12 +1752,21 @@ const exporter = mountExport({ download, log });
 const bfizz = new BrowserFizz({ log });
 // the browser's FIZZ as the editor's target: the sound loaded onto its track 1 (STORE6 with LOAD into its MY PRESETS
 // 256, a scratch place of this page's own FIZZ), again after each change (the latest one, as fast as it answers)
+// (the mix: PARAM 115..118 onto its track 1; a FIZZ that refuses them: the whole sound, as every other value)
 const browserTarget = (() => {
-  let want = null, going = false;
+  let want = null, going = false, mixOk = true, last = null;
+  const mixQ = new Map();
   async function flush() {
     if (going) return;
     going = true;
-    while (want) {
+    while (want || mixQ.size) {
+      if (mixQ.size) {
+        const [id, v] = mixQ.entries().next().value;
+        mixQ.delete(id);
+        const r = await bfizz.ask(paramRequest({ track: 0, id, value: v, ack: true }), (x) => (x.kind === "ack" || x.kind === "error") && x.command === CMD.PARAM, 1000);
+        if (!r || r.status) { mixOk = false; mixQ.clear(); if (last) want = copySound(last); log("browser FIZZ: no mix PARAM, the sound is sent instead"); }
+        continue;
+      }
       const s = want;
       want = null;
       await bfizz.ask(storeFrameOf(s, { slot: 256, track: 0 }), (x) => x.kind === "store", 2000);
@@ -1765,13 +1774,19 @@ const browserTarget = (() => {
     going = false;
   }
   const push = (s) => { if (!bfizz.ready) return; want = copySound(s); flush(); };
+  const param = (id, v, s) => {
+    if (!isMix(id) || !mixOk || !bfizz.ready) { push(s); return; }
+    last = s;
+    mixQ.set(id, v);
+    flush();
+  };
   return {
     live: false,
     label: () => (bfizz.ready ? "THIS BROWSER · TRACK 1" : "▶ PLAY IN THIS BROWSER"),
     ready: () => bfizz.ready,
     start: () => bfizz.start(),
     audition: (s) => push(s),
-    param: (id, v, s) => push(s),
+    param,
     sound: (s) => push(s),                              // (FIZZ MIDI (e): a MIDI sound's slot changed)
     note: (n, vel) => bfizz.note(n, vel),
   };

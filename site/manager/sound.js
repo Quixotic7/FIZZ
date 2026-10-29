@@ -13,6 +13,10 @@
 // sound carries midi: { slots: [{ cc, value, touched }] x 28 } (7 pages of 4) and FM TONE's defaults as its values
 // (not its own: the editor shows the slots); blob6 packs the slots back exactly as the core does (msnd_pack).
 //   isMidiBlob(blob), midiOfBlob(blob), midiBlob(midi), newMidi(), isMidi(sound)
+// The mix (pan -64..63, the chorus, delay and reverb sends 0..127) is kept with the preset, after the blob. The editor
+// gives it the ids PARAM uses (core/seq/pattern.h QD_LK_*): PAN 115, DELAY 116, REVERB 117, CHORUS 118; info, text,
+// clampV, frac, tickStep take them as they take the 115 values. PAN's text: L64 .. C .. R63.
+//   MIX_DEFAULTS, MIX_IDS, isMix(id), mixValue(s, id), setMix(s, id, v), sameMix(a, b), panText(v), newSound(kind)
 import { VALUES, ALGOS, DEST_ORDER } from "./fizzvalues.js";
 import { fizzValues, Q } from "../js/fizz2dn.js";
 import { quadPack6 } from "../js/dn2pst.js";
@@ -24,14 +28,28 @@ export const lfo = (k, f) => 47 + 8 * k + f;             // f: 0 SPEED 1 MULT 2 
 export const mod = (k, f) => 86 + 3 * k + f;             // f: 0 SOURCE 1 DEST 2 DEPTH
 export const LF = { SPEED: 0, MULT: 1, FADE: 2, DEST: 3, WAVE: 4, PHASE: 5, TRIG: 6, DEPTH: 7 };
 
+// ---- the mix: a track's defaults (core/seq/model.c qd_model_init), PARAM's ids
+export const MIX_DEFAULTS = Object.freeze({ pan: 0, chorus: 0, delay: 0, reverb: 20 });
+export const MIX_IDS = Object.freeze({ pan: 115, delay: 116, reverb: 117, chorus: 118 });
+const MIX_ROWS = { 115: ["PAN", -64, 63, 0, "pan", {}], 116: ["DELAY", 0, 127, 0, "int", {}], 117: ["REVERB", 0, 127, 20, "int", {}],
+  118: ["CHORUS", 0, 127, 0, "int", {}] };
+const MIX_KEY = { 116: "delay", 117: "reverb", 118: "chorus" };
+export const isMix = (id) => id >= 115 && id <= 118;
+export const panText = (v) => (v === 0 ? "C" : v < 0 ? `L${-v}` : `R${v}`);
+export const mixValue = (s, id) => (id === 115 ? s.pan : s.sends[MIX_KEY[id]]);
+export function setMix(s, id, v) { if (id === 115) s.pan = v; else s.sends = { ...s.sends, [MIX_KEY[id]]: v }; }
+export const sameMix = (a, b) => !!(a && b) && a.pan === b.pan && ["chorus", "delay", "reverb"].every((k) => a.sends[k] === b.sends[k]);
+const row = (id) => VALUES[id] || MIX_ROWS[id];
+
 export const info = (id) => {
-  const r = VALUES[id];
+  const r = row(id);
   return r && { id, name: r[0], min: r[1], max: r[2], def: r[3], rule: r[4], ex: r[4] === "list" ? null : r[5], list: r[4] === "list" ? r[5] : null };
 };
-export const clampV = (id, v) => { const r = VALUES[id]; return Math.max(r[1], Math.min(r[2], Math.round(+v || 0))); };
+export const clampV = (id, v) => { const r = row(id); return Math.max(r[1], Math.min(r[2], Math.round(+v || 0))); };
 export function text(id, v) {
-  const r = VALUES[id];
+  const r = row(id);
   if (!r) return String(v);
+  if (r[4] === "pan") return panText(v);
   if (r[4] === "list") return r[5][v - r[1]] ?? String(v);
   const ex = r[5][String(v)];
   if (ex !== undefined) return ex;
@@ -39,16 +57,16 @@ export function text(id, v) {
   return r[4] === "fix2" ? f2 : r[4] === "fix2s" ? `${v < 0 ? "-" : "+"}${f2}` : r[4] === "ofs" && v > 0 ? `+${v}` : String(v);
 }
 // a hi-res value (hundredths) steps by 1.00, SHIFT by 0.01; the rest by 1
-export const isHi = (id) => VALUES[id][2] - VALUES[id][1] >= 1000;
+export const isHi = (id) => row(id)[2] - row(id)[1] >= 1000;
 export const stepOf = (id, fine = false) => (isHi(id) && !fine ? 100 : 1);
 // a wheel tick / an arrow press: the two-decimal values (fix2, fix2s) step 0.01, accelerated by n quick ticks in a row
 // (x1.6 a tick, at most 1.00 a tick); SHIFT exactly 1.00. Everything else: stepOf (SHIFT fine).
-export const isHundredths = (id) => VALUES[id][4] === "fix2" || VALUES[id][4] === "fix2s";
+export const isHundredths = (id) => row(id)[4] === "fix2" || row(id)[4] === "fix2s";
 export const tickStep = (id, shift = false, n = 0) =>
   isHundredths(id) ? (shift ? 100 : Math.min(100, Math.round(1.6 ** Math.max(0, n)))) : stepOf(id, shift);
 // how far through its range (0..1), and back
-export const frac = (id, v) => { const r = VALUES[id]; return (v - r[1]) / Math.max(1, r[2] - r[1]); };
-export const fromFrac = (id, f) => { const r = VALUES[id]; return clampV(id, r[1] + f * (r[2] - r[1])); };
+export const frac = (id, v) => { const r = row(id); return (v - r[1]) / Math.max(1, r[2] - r[1]); };
+export const fromFrac = (id, f) => { const r = row(id); return clampV(id, r[1] + f * (r[2] - r[1])); };
 export const defaults = () => VALUES.map((r) => r[3]);
 
 const tagMask = (tags) => (Array.isArray(tags) ? tags.reduce((m, t) => m | (FIZZ_TAGS.includes(t) ? 1 << FIZZ_TAGS.indexOf(t) : 0), 0) : tags & 0x7f);
@@ -104,8 +122,18 @@ export function soundFromFrame(frame) {
 // js/library.js's shape (a .fizzsnd, a backup's preset) -> the editor's sound
 export function soundFromLib(s) {
   const { values, midi } = valuesOf(s.blob, s.drive);
-  return { name: s.name, values, pan: s.pan | 0, sends: { ...(s.sends || {}) },
+  // (a file without the mix: a track's defaults, so a STORE writes them)
+  const m = s.sends || {};
+  return { name: s.name, values, pan: (s.pan ?? MIX_DEFAULTS.pan) | 0, sends: { chorus: m.chorus ?? MIX_DEFAULTS.chorus, delay: m.delay ?? MIX_DEFAULTS.delay,
+    reverb: m.reverb ?? MIX_DEFAULTS.reverb },
     tags: tagMask(s.fizzTags || []), source: "file", slot: 0, track: -1, extras: null, ...(midi ? { midi } : {}) };
+}
+// a new sound: "fm" FM TONE's defaults (INIT), "midi" a new MIDI sound; the mix a track's defaults
+export function newSound(kind = "fm") {
+  const midi = kind === "midi";
+  return { name: midi ? "MIDI" : "INIT", values: midi ? valuesOf(midiBlob(newMidi()), 0).values : defaults(), pan: MIX_DEFAULTS.pan,
+    sends: { chorus: MIX_DEFAULTS.chorus, delay: MIX_DEFAULTS.delay, reverb: MIX_DEFAULTS.reverb }, tags: 0, source: "new", slot: 0,
+    track: -1, extras: null, ...(midi ? { midi: newMidi() } : {}) };
 }
 export const copySound = (s) => ({ ...s, values: s.values.slice(), sends: { ...s.sends }, extras: s.extras && { ...s.extras },
   ...(s.midi ? { midi: copyMidi(s.midi) } : {}) });
